@@ -1,0 +1,30 @@
+### 第 0 分钟 + HEAD=c4e6b165 两路证  ts=20260908T064317
+--- pwd/branch/HEAD/status ---
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy
+card/u3-deploy
+da690bf8
+porcelain-lines=1
+--- 路1: git diff --stat c4e6b165 HEAD -- <四文件> (期望空) ---
+path1-rc=0  path1-bytes=0
+--- 路2: git show "c4e6b165:<path>" | shasum vs 工作树 shasum ---
+SAME scripts/verify_vault_install.py 7ede237cf144bd9c50e0b3ba4071d4d8a6b36fc9ef79bd061b5ed3af6ebce62a
+SAME scripts/vault-install-manifest.json a6e4d7f48875c2f3d938a03dbe59fb10abebb4f54fbc24edec5fb8747e9f53d3
+SAME scripts/install-vault.sh 0464856d08c44759fdd584800e7c6fa2a17ae12a5b828ae12fbc380d8bdbcd31
+SAME backend/tests/unit/test_vault_install_manifest.py 810eaeef8d6689b663115b40b6236b1b320efa8c066c0bca1b5f63bf5d440fb7
+--- 零外审面 ff105706..c4e6b165 ---
+ backend/tests/unit/test_vault_install_manifest.py | 240 +++++++++++++++++++-
+ scripts/verify_vault_install.py                   | 263 ++++++++++++++++++----
+ 2 files changed, 453 insertions(+), 50 deletions(-)
+--- ⚠️ 卡文验伪锚失效记录 ---
+卡文说「去掉 ':(exclude)_bmad-output' 应多出 _bmad-output 文件」——实测两者输出逐字相同：
+  with-exclude-bytes=211
+  no-exclude-bytes  =211
+  ⇒ 该区间本就零 _bmad-output 改动，此锚不承重。改用下面的独立锚证 pathspec magic 被 git 认：
+--- 替代验伪锚: da690bf8^..da690bf8 (已知是纯 docs commit, 全在 _bmad-output) ---
+  no-exclude:
+ ...270\200\351\224\256\351\203\250\347\275\262.md" | 51 +++++++++++++++++-----
+ 2 files changed, 45 insertions(+), 12 deletions(-)
+  with-exclude (期望空):
+  with-exclude-bytes=0  exclude-rc=0
+--- 再证 pathspec 未被 zsh 吃掉/未报 Unimplemented (rc 必须 0 且无 fatal) ---
+rc=0

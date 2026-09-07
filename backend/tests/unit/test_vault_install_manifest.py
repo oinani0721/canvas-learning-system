@@ -1,26 +1,68 @@
-# CARD-G2-6 (BATCH-2026-09-05-第十二批) — vault 部署清单 + 只读校验器的裁判
+# CARD-G2-6 (BATCH-2026-09-05-第十二批) + CARD-RV-G2-6 (BATCH-2026-09-07-第十三批)
+#   — vault 部署清单 + 只读校验器的裁判
 #
 # 被测物: scripts/vault-install-manifest.json + scripts/verify_vault_install.py
-# 真相源: scripts/install-vault.sh MANIFEST 区 (:61-69) 与其隐含部署语义 (:74-109)
+#         + scripts/install-vault.sh 的自检块 (:112-125)
+# 真相源: install-vault.sh MANIFEST 区 (:61-69) 与其隐含部署语义 (:74-109);
+#         插件命令 id 的真相源是 frontend/obsidian-plugin/src/main.ts (只读, 不构建)。
 #
-# 钉死点:
+# ⚠️ 头注维护约定 (UAT-CARD-G2-6 「未证明」#19 的债, 由 CARD-RV-G2-6 还上):
+#   这份清单写于 round-1, 三轮整改期间钉死点从 5 条扩到下面这些却一直没同步 ——
+#   头注与实现不一致会误导后来者。**增删钉死点必须同批改这里。**
+#
+# 钉死点 (G2-6 三轮累积):
 #   1. **集合等价**: manifest 里 action ∈ {copy, skeleton} 的 path 集合, 与 install-vault.sh
-#      :63-67 五个 shell 数组按各自前缀展开后的并集**逐项相等**。这是本门的主判据 ——
-#      manifest 一旦与脚本漂移, 部署边界就有两份真相。
-#      验伪锚: 先断言正则确实解析出 5 个数组 / 27 个元素, 否则「空集 == 空集」会假绿。
-#   2. **schema**: version int / items 列表 / 必填键 / action 四枚举 / path 相对·无 `..`·无重复。
-#   3. **四类 diff 各自独立承重**: missing / extra / content-drift / intentionally-excluded
-#      每类一个反例, 一次只打一类, 断言「该类精确命中该 path」且「其余三类为空」——
-#      只断言 rc != 0 是粗判据, 会被任意一类差异喂饱。
-#   4. **绝对路径负控**: manifest 里出现绝对 path → 退出码 2 (用法/配置错), 不是 1。
-#   5. **零写**: 对 target 跑一次校验器, 前后全树 (文件 sha + 目录条目) 清单逐字相同。
-#      校验器有任何写目标 vault 的路径 = 阻断级缺陷。
+#      :63-67 五个 shell 数组按各自前缀展开后的并集**逐项相等** (27 项)。这是本门的主判据。
+#      验伪锚: 先断言正则确实解析出 5 个数组 / 27 个元素, 否则「空集 == 空集」会假绿;
+#      另有全文扫描门, 防 :63-67 之外新增第 6 个数组对主判据不可见。
+#   2. **schema**: version int / source 非空 / items 非空列表 / 必填键 / action 四枚举 /
+#      kind 四枚举 / path 相对·无 `..`·无 NUL·可编码 UTF-8·规范化后无重复;
+#      extra_scan 的 dir 与 path **共用同一个校验函数** (同一条约束不得只在一半字段生效);
+#      match 单层名字不得含 `/`。任何 schema 问题 → 用法错档, 不与内容差异混淆。
+#   3. **六类 diff 各自独立承重**: missing / extra / content-drift / intentionally-excluded /
+#      unreadable / hotkey-orphan, 每类一个反例, 一次只打一类, 断言「该类精确命中该 path」
+#      且「其余各类为空」—— 只断言 rc != 0 是粗判据, 会被任意一类差异喂饱。
+#   4. **报告落点的三种别名**: 大小写目录别名 (macOS 默认大小写不敏感, 按 (st_dev,st_ino)
+#      身份判) / 两层软链目标 (禁写根递归展开) / 硬链接; 外加「安全性扫描没跑完就拒绝落盘」。
+#   5. **写入资源管理**: O_EXCL 失败时只清理本次真正创建的临时文件 (删别人的文件 = 数据丢失);
+#      os.write 短写必须循环写满才换目录项 (否则发布截断报告)。
+#   6. **unreadable 计入阻断**: 顶层普通文件与目录内叶子两条路径都要登记 ——
+#      「我看不见」不等于「一致」, 两侧都读不动而报 0 是假绿。
+#   7. **零写**: 对 target 跑一次校验器, 前后全树 (文件 sha + 目录条目) 清单逐字相同。
+#      校验器有任何写目标 vault 的路径 = 阻断级缺陷。AST 门另钉「源码里没有写调用」。
+#   8. **glob 口径一致**: `[` 在 _has_glob 与 _pattern_to_regex 两处都是字面量;
+#      清单里真放一条含方括号的 exclude 声明, 端到端验分类与负例。
 #
-# 本门证明什么: manifest 与脚本数组等价; 校验器的五种分类各自可被单独触发; 校验器不写目标树。
+# 钉死点 (CARD-RV-G2-6 新增):
+#   9. **退出码四档**: 0 ok / 1 只缺 (missing) / 2 mismatch (extra 未放行·content-drift·
+#      unreadable·hotkey-orphan, 与 missing 并存时也取 2) / 3 用法错。数字写死 ——
+#      调用方 (deploy-vault.sh, CARD-G2-7b) 靠它区分「缺东西」与「多东西」。
+#      `test_missing_is_detected_alone` 仍期望 **1**, 它是「missing 语义没被 mismatch
+#      吞掉」的唯一守门人; 禁止把任何一条 rc 断言弱化成 `!= 0`。
+#  10. **extra_allow**: manifest 顶层白名单, 与 item.path 同口径 (相对 / 无 `..` / 可编码 /
+#      无重复 / 支持 *? glob); 与 declared 或 exclude 模式**重叠即拒绝加载**;
+#      命中的项进 allowed-extra 段, 只报告不计退出码。仓内清单初值必须是 []。
+#  11. **hotkeys ↔ 命令 id 交叉核 (两层)**:
+#      校验器层 — vault 的 .obsidian/hotkeys.json 里 `canvas-learning-system:` 前缀的键,
+#        必须在同一 vault 的 .obsidian/plugins/canvas-learning-system/main.js 里找到
+#        对应命令 id 字面量; 找不到 = hotkey-orphan (计 mismatch); main.js 缺 →
+#        报告明写 not evaluated, **不计退出码也不静默**; hotkeys.json 非法 JSON → unreadable。
+#      测试层 — main.ts 恰 10 个命令 id (数字写死, 防正则退化成空集), 且树内
+#        canvas-vault/.obsidian/hotkeys.json 的 CLS 前缀 id ⊂ 该集合 (另断言非空,
+#        否则 `∅ ⊆ 任何集合` 恒真)。
+#  12. **install-vault.sh:117 的 skills 判据**: 数「含 SKILL.md 的一级子目录」, 不数目录条目
+#      (树内 11 个目录只有 9 个含 SKILL.md, 旧 `ls | wc -l` 对半成品 skill 失明)。
+#      判据只看 check 的 eval 体, 不看标签 —— 标签里的 "skills " 自带子串 "ls "。
+#
+# 本门证明什么: manifest 与脚本数组等价; 校验器的六种分类各自可被单独触发且退出码分档正确;
+#   校验器不写目标树; 报告落点对三类别名与扫描失败都拒绝; extra_allow 的放行与重叠拒绝;
+#   hotkeys 绑定与命令 id 的一致性 (在 main.js 存在时)。
 # 本门不证明什么: 不证明 install-vault.sh 真跑起来会产出符合 manifest 的 vault (禁真跑脚本,
-#   属 CARD-G2-7 五动作 CLI 的范围); 不证明 live vault 的 extra 项应否进 manifest (未裁);
-#   合成 fixture 的「有扩展名 = 文件」启发式只服务于本文件的目录/文件搭建, 不是生产语义。
-
+#   属 CARD-G2-7 五动作 CLI 的范围); 不证明 live vault 的 extra 项应否进 extra_allow (归 U3-B);
+#   不证明构建产物 main.js 与源码 main.ts 的命令集一致 (只读源, 不 build);
+#   不证明字面量法对「非命令 id 的同形字符串」没有假放行;
+#   合成 fixture 的「有扩展名 = 文件」启发式只服务于本文件的目录/文件搭建, 不是生产语义
+#   (该启发式的直接后果: 合成 vault 里没有 main.js, hotkeys 一路走 not evaluated 分支)。
 from __future__ import annotations
 
 import hashlib
@@ -292,14 +334,14 @@ def test_extra_is_detected_alone(vault_pair):
     source, target = vault_pair
     (target / ".claude" / "cache").mkdir()
     _assert_only(_classify(target, source=source), "extra", [".claude/cache"])
-    assert _run(target, source=source) == 1
+    assert _run(target, source=source) == 2
 
 
 def test_content_drift_is_detected_alone(vault_pair):
     source, target = vault_pair
     (target / "Dashboard.md").write_text("drifted\n", encoding="utf-8")
     _assert_only(_classify(target, source=source), "content_drift", ["Dashboard.md"])
-    assert _run(target, source=source) == 1
+    assert _run(target, source=source) == 2
 
 
 def test_intentionally_excluded_is_detected_alone(vault_pair):
@@ -376,25 +418,25 @@ def test_absolute_path_in_manifest_exits_2(tmp_path, vault_pair, manifest_data):
     bad = tmp_path / "abs-manifest.json"
     bad.write_text(json.dumps(manifest_data), encoding="utf-8")
     rc = vv.main(["--vault", str(target), "--manifest", str(bad), "--source", str(source)])
-    assert rc == 2
+    assert rc == 3
 
 
 def test_missing_vault_dir_exits_2(tmp_path):
     rc = vv.main(["--vault", str(tmp_path / "nope"), "--manifest", str(MANIFEST)])
-    assert rc == 2
+    assert rc == 3
 
 
 def test_report_inside_vault_exits_2(vault_pair):
     source, target = vault_pair
     rc = _run(target, source=source, report=target / "report.txt")
-    assert rc == 2
+    assert rc == 3
     assert not (target / "report.txt").exists()
 
 
 def test_report_inside_source_exits_2(vault_pair):
     source, target = vault_pair
     rc = _run(target, source=source, report=source / "report.txt")
-    assert rc == 2
+    assert rc == 3
     assert not (source / "report.txt").exists()
 
 
@@ -418,7 +460,7 @@ def test_report_hardlinked_into_vault_is_refused(vault_pair, tmp_path):
 
     assert not outside.is_relative_to(target), "前提: 该路径确实在被查树之外"
     rc = _run(target, source=source, report=outside)
-    assert rc == 2
+    assert rc == 3
     assert victim.read_bytes() == before, "树内文件被写穿了"
 
 
@@ -462,7 +504,7 @@ def test_non_string_action_still_exits_2(tmp_path, vault_pair, manifest_data, ba
     bad.write_text(json.dumps(manifest_data), encoding="utf-8")
     with pytest.raises(vv.ManifestError):
         vv.load_manifest(bad)
-    assert vv.main(["--vault", str(target), "--manifest", str(bad), "--source", str(source)]) == 2
+    assert vv.main(["--vault", str(target), "--manifest", str(bad), "--source", str(source)]) == 3
 
 
 @pytest.mark.parametrize("bad_kind", ["directory", "DIR", 1, []])
@@ -640,7 +682,7 @@ def test_verifier_writes_nothing_into_vault_or_source(vault_pair, tmp_path):
 
     before_target, before_source = _tree_digest(target), _tree_digest(source)
     report = tmp_path / "zero-write-report.txt"
-    assert _run(target, source=source, report=report) == 1
+    assert _run(target, source=source, report=report) == 2
     assert _tree_digest(target) == before_target, "校验器写了目标 vault"
     assert _tree_digest(source) == before_source, "校验器写了模板源"
     assert report.exists()
@@ -667,7 +709,7 @@ def test_report_via_dev_fd_alias_is_refused(vault_pair, tmp_path):
         rc = _run(target, source=source, report=Path(f"/dev/fd/{fd}"))
     finally:
         os.close(fd)
-    assert rc == 2
+    assert rc == 3
     assert victim.read_bytes() == before, "被审文件被写穿了"
 
 
@@ -689,7 +731,7 @@ def test_report_behind_vault_symlink_is_refused(tmp_path, manifest_data):
 
     assert not real.resolve().is_relative_to(vault.resolve()), "前提: 落点在路径意义上确实在树外"
     rc = _run(vault, report=real)
-    assert rc == 2
+    assert rc == 3
     assert real.read_text(encoding="utf-8") == "REAL SETTINGS\n"
 
 
@@ -765,7 +807,7 @@ def test_invalid_extra_scan_exits_2(tmp_path, vault_pair, manifest_data, bad_sca
     bad.write_text(json.dumps(manifest_data), encoding="utf-8")
     with pytest.raises(vv.ManifestError):
         vv.load_manifest(bad)
-    assert vv.main(["--vault", str(target), "--manifest", str(bad), "--source", str(source)]) == 2
+    assert vv.main(["--vault", str(target), "--manifest", str(bad), "--source", str(source)]) == 3
 
 
 @pytest.mark.parametrize("variant", [".claude/skills/", ".claude//skills", ".claude/./skills"])
@@ -796,13 +838,13 @@ def test_unreadable_or_malformed_manifest_exits_2(tmp_path, vault_pair, bad_mani
     source, target = vault_pair
     bad = tmp_path / "bad.json"
     bad.write_bytes(bad_manifest_bytes)
-    assert vv.main(["--vault", str(target), "--manifest", str(bad), "--source", str(source)]) == 2
+    assert vv.main(["--vault", str(target), "--manifest", str(bad), "--source", str(source)]) == 3
 
 
 def test_manifest_pointing_at_a_directory_exits_2(tmp_path, vault_pair):
     """`--manifest` 指向一个目录时也必须是 rc=2（曾是 IsADirectoryError 逃出）。"""
     source, target = vault_pair
-    assert vv.main(["--vault", str(target), "--manifest", str(tmp_path), "--source", str(source)]) == 2
+    assert vv.main(["--vault", str(target), "--manifest", str(tmp_path), "--source", str(source)]) == 3
 
 
 def test_exclude_kind_nondir_matches_what_the_script_deletes(vault_pair):
@@ -913,7 +955,7 @@ def test_unreadable_alone_still_blocks(vault_pair):
         assert result.missing == [] and result.extra == []
         assert result.unreadable != [], "读不进去必须被登记"
         assert result.exit_code != 0, "unreadable 单独出现时也不能报 0"
-        assert _run(target, source=source) == 1
+        assert _run(target, source=source) == 2
     finally:
         os.chmod(locked_src, 0o755)
         os.chmod(locked_tgt, 0o755)
@@ -936,7 +978,7 @@ def test_case_insensitive_alias_is_refused(vault_pair, tmp_path):
         pytest.skip("本机文件系统大小写敏感，这条形态不适用")
     alias = target.parent / target.name.upper() / "report.txt"
     rc = _run(target, report=alias)
-    assert rc == 2
+    assert rc == 3
     assert not (target / "report.txt").exists(), "报告被写进了被审树"
 
 
@@ -980,7 +1022,7 @@ def test_two_hop_symlink_target_is_refused(vault_pair, tmp_path):
     os.symlink(str(b), str(a / "link"))
     os.symlink(str(a), str(target / "link"))
     rc = _run(target, report=b / "report.txt")
-    assert rc == 2
+    assert rc == 3
     assert not (target / "link" / "link" / "report.txt").exists()
 
 
@@ -999,7 +1041,7 @@ def test_incomplete_safety_scan_refuses_to_write(vault_pair, tmp_path):
     os.chmod(locked, 0o111)
     try:
         rc = _run(target, report=outside / "r.txt")
-        assert rc == 2
+        assert rc == 3
         assert not (outside / "r.txt").exists()
     finally:
         os.chmod(locked, 0o755)
@@ -1064,7 +1106,7 @@ def test_unencodable_string_in_manifest_exits_2(tmp_path, vault_pair, manifest_d
     bad.write_text(json.dumps(manifest_data), encoding="utf-8")
     out = tmp_path / "out"
     out.mkdir()
-    assert vv.main(["--vault", str(target), "--manifest", str(bad), "--report", str(out / "r.txt")]) == 2
+    assert vv.main(["--vault", str(target), "--manifest", str(bad), "--report", str(out / "r.txt")]) == 3
     assert list(out.iterdir()) == [], "落点目录留下了临时文件"
 
 
@@ -1151,3 +1193,235 @@ def test_unreadable_leaf_inside_directory_is_registered(vault_pair):
     finally:
         os.chmod(source / ".claude" / "hooks" / "leaf.txt", 0o644)
         os.chmod(target / ".claude" / "hooks" / "leaf.txt", 0o644)
+
+
+# ── CARD-RV-G2-6: rc 四档 / extra_allow / hotkeys↔命令 id ────────────
+
+PLUGIN_ID_PREFIX = "canvas-learning-system:"
+PLUGIN_MAIN_TS = REPO_ROOT / "frontend" / "obsidian-plugin" / "src" / "main.ts"
+TREE_HOTKEYS = REPO_ROOT / "canvas-vault" / ".obsidian" / "hotkeys.json"
+
+
+def _command_ids_from_main_ts() -> set[str]:
+    """真相源: main.ts 里 addCommand 的 id 字面量。只读 frontend/, 不构建。"""
+    return set(re.findall(r'id:\s*"(canvas:[a-z0-9-]+)"', PLUGIN_MAIN_TS.read_text(encoding="utf-8")))
+
+
+def _write_plugin_main_js(vault: Path, ids) -> Path:
+    """在合成 vault 里造一份只含指定 id 字面量的 main.js (构建产物的最小替身)。"""
+    plugin_dir = vault / ".obsidian" / "plugins" / "canvas-learning-system"
+    plugin_dir.mkdir(parents=True, exist_ok=True)
+    main_js = plugin_dir / "main.js"
+    main_js.write_text("".join('this.addCommand({id:"%s"});' % i for i in sorted(ids)) + "\n", encoding="utf-8")
+    return main_js
+
+
+def _write_hotkeys(vault: Path, keys) -> None:
+    (vault / ".obsidian" / "hotkeys.json").write_text(
+        json.dumps({k: [{"modifiers": ["Mod"], "key": "X"}] for k in keys}), encoding="utf-8"
+    )
+
+
+def test_exit_codes_are_four_tiered():
+    """rc 四档常量门 —— 0 ok / 1 missing / 2 mismatch / 3 usage。
+
+    数字写死: 调用方 (deploy-vault.sh, U3-C) 靠它区分「缺东西」与「多东西」。
+    """
+    assert (vv.EXIT_OK, vv.EXIT_MISSING, vv.EXIT_MISMATCH, vv.EXIT_USAGE) == (0, 1, 2, 3)
+
+
+def test_missing_and_mismatch_together_take_mismatch(vault_pair):
+    """同时有 missing 与 mismatch 时取 2 —— 且 missing 单独出现仍是 1 (没被吞)。"""
+    _source, target = vault_pair
+    (target / ".obsidian" / "hotkeys.json").unlink()
+    only_missing = _classify(target)
+    assert [f.path for f in only_missing.missing] == [".obsidian/hotkeys.json"]
+    assert only_missing.exit_code == vv.EXIT_MISSING == 1
+    (target / ".claude" / "cache").mkdir(parents=True)
+    both = _classify(target)
+    assert both.missing and both.extra
+    assert both.exit_code == vv.EXIT_MISMATCH == 2
+
+
+def test_extra_allow_moves_entry_out_of_extra(tmp_path, vault_pair, manifest_data):
+    """(g)① extra_allow 放行的项进 allowed-extra 且不计 rc; 未放行仍是 extra(2)。"""
+    _source, target = vault_pair
+    (target / ".obsidian" / "graph.json").write_text("{}", encoding="utf-8")
+
+    base = tmp_path / "base.json"
+    base.write_text(json.dumps(manifest_data), encoding="utf-8")
+    before = vv.verify(target, vv.load_manifest(base))
+    assert [f.path for f in before.extra] == [".obsidian/graph.json"], "未放行时必须是 extra"
+    assert before.exit_code == vv.EXIT_MISMATCH == 2
+    assert not before.allowed_extra
+
+    manifest_data["extra_allow"] = [".obsidian/graph.json"]
+    allow = tmp_path / "allow.json"
+    allow.write_text(json.dumps(manifest_data), encoding="utf-8")
+    manifest = vv.load_manifest(allow)
+    after = vv.verify(target, manifest)
+    assert after.extra == [], "放行后不得再计入 extra"
+    assert [f.path for f in after.allowed_extra] == [".obsidian/graph.json"]
+    assert after.exit_code == vv.EXIT_OK == 0, "allowed-extra 不计退出码"
+    assert "## allowed-extra" in vv.render(after, manifest)
+
+
+def test_extra_allow_glob_is_supported(tmp_path, vault_pair, manifest_data):
+    """extra_allow 支持 *? glob —— 与 item.path 同一套 _pattern_to_regex 口径。"""
+    _source, target = vault_pair
+    (target / ".claude" / "cache").mkdir(parents=True)
+    manifest_data["extra_allow"] = [".claude/cach?"]
+    m = tmp_path / "glob.json"
+    m.write_text(json.dumps(manifest_data), encoding="utf-8")
+    result = vv.verify(target, vv.load_manifest(m))
+    assert [f.path for f in result.allowed_extra] == [".claude/cache"]
+    assert result.exit_code == vv.EXIT_OK
+
+
+def test_manifest_ships_empty_extra_allow():
+    """本卡只造机制不替 U3-B 裁定 —— 仓内清单的初值必须是空列表。"""
+    data = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    assert data["extra_allow"] == [], "extra_allow 初值必须为 [] (live 5 项归 U3-B 裁定)"
+    assert "extra_allow" in data["description"], "description 须说明 extra_allow 语义"
+
+
+@pytest.mark.parametrize("bad", ["not-a-list", {"a": 1}, 5, None])
+def test_extra_allow_must_be_a_list(tmp_path, manifest_data, bad):
+    manifest_data["extra_allow"] = bad
+    m = tmp_path / "bad.json"
+    m.write_text(json.dumps(manifest_data), encoding="utf-8")
+    with pytest.raises(vv.ManifestError) as exc:
+        vv.load_manifest(m)
+    assert "extra_allow" in str(exc.value)
+
+
+@pytest.mark.parametrize(
+    "bad, fragment",
+    [
+        ("/etc/passwd", "绝对路径"),
+        ("../outside", ".."),
+        ("", "不得为空"),
+    ],
+)
+def test_extra_allow_path_field_uses_same_checks_as_item_path(tmp_path, manifest_data, bad, fragment):
+    """同口径: 相对 / 无 .. / 非空 —— 与 item 的 path 共用 _check_relative_segment。"""
+    manifest_data["extra_allow"] = [bad]
+    m = tmp_path / "bad.json"
+    m.write_text(json.dumps(manifest_data), encoding="utf-8")
+    with pytest.raises(vv.ManifestError) as exc:
+        vv.load_manifest(m)
+    assert fragment in str(exc.value)
+
+
+def test_extra_allow_rejects_duplicates(tmp_path, manifest_data):
+    manifest_data["extra_allow"] = [".claude/cache", ".claude/cache"]
+    m = tmp_path / "dup.json"
+    m.write_text(json.dumps(manifest_data), encoding="utf-8")
+    with pytest.raises(vv.ManifestError) as exc:
+        vv.load_manifest(m)
+    assert "重复" in str(exc.value)
+
+
+@pytest.mark.parametrize(
+    "bad, why",
+    [
+        (".obsidian/hotkeys.json", "与 declared 精确重叠"),
+        ("outputs/**", "与 exclude 模式精确重叠"),
+        (".obsidian/*.json", "allow 的 glob 覆盖了已声明的 .obsidian/app.json"),
+        (".claude/**/__pycache__", "与 exclude 的 glob 精确重叠"),
+    ],
+)
+def test_extra_allow_overlapping_declared_or_exclude_is_refused(tmp_path, manifest_data, bad, why):
+    """(g)⑥ 同一路径不得有两种语义 —— 重叠即 ManifestError, CLI 侧走用法错档 3。"""
+    manifest_data["extra_allow"] = [bad]
+    m = tmp_path / "overlap.json"
+    m.write_text(json.dumps(manifest_data), encoding="utf-8")
+    with pytest.raises(vv.ManifestError) as exc:
+        vv.load_manifest(m)
+    assert "重叠" in str(exc.value), why
+    assert vv.main(["--vault", str(tmp_path), "--manifest", str(m)]) == 3
+
+
+def test_plugin_command_ids_are_exactly_ten_and_tree_hotkeys_are_a_subset():
+    """测试层真相源门: main.ts 恰 10 个命令 id, 树内 hotkeys 全是其中之一。
+
+    10 写死是**防解析退化成空集**的验伪锚 —— 正则一旦失配, `∅ ⊆ 任何集合` 会假绿,
+    所以下面还断言了 CLS 前缀的 hotkey 集合非空。
+    """
+    ids = _command_ids_from_main_ts()
+    assert len(ids) == 10, f"main.ts 的命令 id 数与勘探不符: {sorted(ids)}"
+    keys = json.loads(TREE_HOTKEYS.read_text(encoding="utf-8"))
+    bound = {k[len(PLUGIN_ID_PREFIX) :] for k in keys if k.startswith(PLUGIN_ID_PREFIX)}
+    assert bound, "树内 hotkeys 的 CLS 前缀项不得为空 (否则子集断言恒真)"
+    assert bound <= ids, f"树内 hotkeys 绑了不存在的命令: {sorted(bound - ids)}"
+
+
+def test_hotkey_orphan_is_counted_as_mismatch(vault_pair):
+    """(g)⑦ 假 id → hotkey-orphan 1 且 rc=2。"""
+    _source, target = vault_pair
+    _write_plugin_main_js(target, _command_ids_from_main_ts())
+    _write_hotkeys(target, [PLUGIN_ID_PREFIX + "canvas:does-not-exist"])
+    result = _classify(target)
+    assert [f.path for f in result.hotkey_orphan] == [PLUGIN_ID_PREFIX + "canvas:does-not-exist"]
+    assert result.exit_code == vv.EXIT_MISMATCH == 2
+    assert "## hotkey-orphan" in vv.render(result, vv.load_manifest(MANIFEST))
+
+
+def test_hotkey_real_id_is_clean(vault_pair):
+    """(g)⑧ 同一夹具换成真 id → orphan 0, rc 0 (对照组, 证 ⑦ 不是恒红)。"""
+    _source, target = vault_pair
+    ids = _command_ids_from_main_ts()
+    _write_plugin_main_js(target, ids)
+    _write_hotkeys(target, [PLUGIN_ID_PREFIX + sorted(ids)[0]])
+    result = _classify(target)
+    assert result.hotkey_orphan == []
+    assert result.exit_code == vv.EXIT_OK == 0
+
+
+def test_hotkeys_not_evaluated_when_main_js_missing(vault_pair):
+    """(g)⑨ main.js 缺 → 报告明写 not evaluated, 不计 rc, 不静默。"""
+    _source, target = vault_pair
+    _write_hotkeys(target, [PLUGIN_ID_PREFIX + "canvas:does-not-exist"])
+    assert not (target / ".obsidian" / "plugins" / "canvas-learning-system" / "main.js").exists()
+    result = _classify(target)
+    assert result.hotkey_orphan == []
+    assert result.exit_code == vv.EXIT_OK == 0
+    text = vv.render(result, vv.load_manifest(MANIFEST))
+    assert "not evaluated" in text and "main.js" in text
+
+
+def test_foreign_plugin_hotkeys_are_ignored(vault_pair):
+    """别的插件的快捷键不归本校验器管 —— 无 CLS 前缀的键一律忽略。"""
+    _source, target = vault_pair
+    _write_plugin_main_js(target, _command_ids_from_main_ts())
+    _write_hotkeys(target, ["dataview:dataview-force-refresh-views"])
+    result = _classify(target)
+    assert result.hotkey_orphan == []
+    assert result.exit_code == vv.EXIT_OK
+
+
+def test_invalid_hotkeys_json_is_unreadable(vault_pair):
+    """hotkeys.json 非法 JSON → unreadable (计入阻断), 不是静默跳过。"""
+    _source, target = vault_pair
+    _write_plugin_main_js(target, _command_ids_from_main_ts())
+    (target / ".obsidian" / "hotkeys.json").write_text("{not json", encoding="utf-8")
+    result = _classify(target)
+    assert any(f.path == ".obsidian/hotkeys.json" for f in result.unreadable)
+    assert result.exit_code == vv.EXIT_MISMATCH == 2
+
+
+def test_install_sh_skills_check_counts_skill_md_dirs():
+    """(f) :117 的判据必须数「含 SKILL.md 的目录」, 不是数目录条目。
+
+    树内 .claude/skills 有 11 个目录但只有 9 个含 SKILL.md —— 旧 `ls | wc -l`
+    对「有目录没 SKILL.md」的半成品 skill 失明。
+    """
+    line = INSTALL_SH.read_text(encoding="utf-8").splitlines()[116]
+    # 判据只看 check 的第二个参数(单引号包住的 eval 体), 不看标签 ——
+    # 标签里的 "skills " 本身就含子串 "ls ", 拿整行做黑名单会因无关文本假红。
+    assert line.count("'") == 2, f":117 不是「check \"标签\" '判据'」的形态: {line}"
+    body = line.split("'", 1)[1].rsplit("'", 1)[0]
+    assert "find " in body and "-name SKILL.md" in body, f":117 仍是旧判据: {body}"
+    assert "-mindepth 2 -maxdepth 2" in body, "必须只数一级子目录下的 SKILL.md"
+    assert "$(ls " not in body, "计数命令不得再是 ls | wc -l (那会把无 SKILL.md 的半成品目录算进去)"
+    assert "-ge 8" in body, "阈值 8 不改 (决策页 §五「≥9」是 preflight 口径, 归 U3-C)"

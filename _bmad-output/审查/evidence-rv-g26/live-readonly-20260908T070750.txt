@@ -1,0 +1,44 @@
+### live 只读 run + 三重禁写证明 (ts=20260908T070750)
+哨兵时刻: 2026-09-08T07:07:50+0800
+--- 密钥件 sha（只文件名与 sha）---
+65b54e56b97ea1098e84419bc73871ca7c6774dbdab1aed4ce2cc744b5e202e0  .obsidian/cls-internal-key.txt
+188b9a48cd4ffc0a74e0ec7be5bd392fbab0b7749eeb0d854e527abb1938f22c  .claude/settings.local.json
+--- live main.js 在不在（决定 hotkeys 是否 evaluated）---
+  main.js 存在 ⇒ 预期 evaluated
+--- 跑校验器 ---
+报告已写入 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy/_bmad-output/审查/evidence-rv-g26/live-diff-20260908T070750.txt
+live-rc=2
+--- 报告摘要区 ---
+# vault-install verification report (CARD-G2-6, read-only)
+# manifest : scripts/vault-install-manifest.json (version 1, source live-vault)
+# vault    : /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault
+# source   : (未提供 — content-drift 未评估)
+# 语义     : exclude 项按各自模式的静态前缀子树扫描; extra 只看 manifest
+#            extra_scan 声明的覆盖面 (根级文档不在覆盖面内, 故不报 extra);
+#            读不进去的条目记 unreadable 并计入退出码 —— 看不见不等于一致;
+#            extra_allow 放行的项进 allowed-extra, 只报告不计退出码;
+#            退出码 0 ok / 1 只缺 / 2 多出·漂移·读不动·快捷键孤儿 / 3 用法错。
+------------------------------------------------------------------
+match                  : 28
+missing                : 0
+extra                  : 5
+content-drift          : not evaluated (无 --source)
+intentionally-excluded : 10
+allowed-extra          : 0
+unreadable             : 0
+hotkeys                : 3 绑定 / 10 命令 / 0 orphan
+hotkey-orphan          : 0
+
+## extra
+  .claude/cache  — 位于覆盖面 .claude/* 内但不在 manifest
+  .obsidian/graph.json  — 位于覆盖面 .obsidian/*.json 内但不在 manifest
+  .obsidian/types.json  — 位于覆盖面 .obsidian/*.json 内但不在 manifest
+  .obsidian/plugins/excalibrain  — 位于覆盖面 .obsidian/plugins/* 内但不在 manifest
+--- 报告末行 ---
+exit=2
+--- 禁写证明 1: find -newer 哨兵 ---
+  count=0
+--- 禁写证明 2: 密钥件 sha 未变 ---
+  sha diff 空 ✅
+--- 禁写证明 3: 车道副本 git status ---
+  count=0

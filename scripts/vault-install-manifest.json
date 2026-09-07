@@ -1,8 +1,9 @@
 {
   "version": 1,
   "source": "live-vault",
-  "description": "Canvas Learning System vault 部署清单 — install-vault.sh MANIFEST 区 (:61-109) 的机器可读投影。「活 vault 即模板」: 本文件只声明 path/role/action/kind, 不含任何文件内容或哈希基线, 内容参照永远是 --source 指向的活 vault。",
+  "description": "Canvas Learning System vault 部署清单 — install-vault.sh MANIFEST 区 (:61-109) 的机器可读投影。「活 vault 即模板」: 本文件只声明 path/role/action/kind, 不含任何文件内容或哈希基线, 内容参照永远是 --source 指向的活 vault。extra_allow 是「覆盖面内允许多出来」的路径白名单（与 items 的 path 同口径，支持 *? 通配，与已声明项或 exclude 模式重叠即拒绝加载）——命中的项进报告的 allowed-extra 段，只报告不计退出码；初值为空，live 上那几项应否放行由 CARD-G2-7 裁定。",
   "generated_from": "scripts/install-vault.sh",
+  "extra_allow": [],
   "extra_scan": [
     {"dir": ".claude", "match": "*"},
     {"dir": ".obsidian", "match": "*.json"},

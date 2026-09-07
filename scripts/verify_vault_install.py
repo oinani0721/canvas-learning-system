@@ -31,10 +31,26 @@ unreadable, 并且**计入阻断** —— 「我看不见」不等于「一致�
 维护第二份模板。所以不给 --source 时, content-drift 一律报 "not evaluated",
 而不是拿某个内置基线冒充。
 
-退出码:
-  0  没有 missing / extra / content-drift / unreadable
-  1  有上述任一 (intentionally-excluded 只报告, 不进退出码)
-  2  用法或配置错 (清单非法、目录不存在、报告落点非法或写不下去)
+**extra_allow** (manifest 顶层, CARD-RV-G2-6): 覆盖面内确实多出来、但**允许它多**的
+路径白名单。命中的项进 allowed-extra 段, 只报告、不计退出码; 没命中的仍是 extra。
+每项走与 item.path 同一套校验 (相对 / 无 `..` / 可编码 / 无重复, 支持 `*?` glob),
+且**与 declared_paths 或任一 exclude 模式重叠即拒绝加载** —— 同一路径有两种语义时,
+「按哪一条算」就成了实现细节, 那正是清单该挡住的东西。
+
+**hotkey-orphan** (CARD-RV-G2-6): vault 的 `.obsidian/hotkeys.json` 里带
+`canvas-learning-system:` 前缀的键, 必须能在同一 vault 的插件构建产物
+`.obsidian/plugins/canvas-learning-system/main.js` 里找到对应的命令 id 字面量。
+找不到 = 快捷键绑了个不存在的命令, 按 mismatch 阻断。**main.js 是 gitignored 的构建
+产物, 可能根本不在** —— 那时报告明写 `not evaluated`, **不计退出码也不静默**:
+把「没法查」说成「查过了没问题」是假绿。
+
+退出码 (CARD-RV-G2-6 分四档 —— 调用方要能区分「缺东西」与「多东西」):
+  0  没有 missing / extra / content-drift / unreadable / hotkey-orphan
+  1  **只有 missing**: 该有的没到位, 补齐即可
+  2  **mismatch**: extra(未放行) / content-drift / unreadable / hotkey-orphan 任一非空
+     —— 同时还有 missing 时也取 2 (多出来的东西比缺东西更需要人看一眼)
+  3  用法或配置错 (清单非法、目录不存在、报告落点非法或写不下去)
+  intentionally-excluded 与 allowed-extra 只报告, 不进退出码。
 
 用法:
   python3 scripts/verify_vault_install.py --vault <dir> [--source <dir>]
@@ -54,8 +70,18 @@ from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 
 EXIT_OK = 0
-EXIT_DIFF = 1
-EXIT_USAGE = 2
+EXIT_MISSING = 1  # 只缺东西
+EXIT_MISMATCH = 2  # 多东西 / 内容漂 / 读不动 / 快捷键绑了不存在的命令
+EXIT_USAGE = 3  # 用法或配置错
+
+# hotkeys ↔ 插件命令 id 交叉核用到的三个常量 (CARD-RV-G2-6)。
+PLUGIN_ID = "canvas-learning-system"
+HOTKEYS_REL = ".obsidian/hotkeys.json"
+PLUGIN_MAIN_JS_REL = f".obsidian/plugins/{PLUGIN_ID}/main.js"
+HOTKEY_PREFIX = f"{PLUGIN_ID}:"
+# main.js 是打包压缩过的构建产物, 只能按字面量取命令 id。真相源是
+# frontend/obsidian-plugin/src/main.ts 的 addCommand({id: "canvas:…"}), 由测试层单独钉住。
+COMMAND_ID_RE = re.compile(r'"(canvas:[a-z0-9-]+)"')
 
 VALID_ACTIONS = frozenset({"copy", "generate", "skeleton", "exclude"})
 # "nondir" 对应 install-vault.sh:86 那条强制删除: 它清掉一切**非目录**条目
@@ -108,6 +134,7 @@ class Manifest:
     source: str
     items: tuple[Item, ...]
     extra_scan: tuple[ScanRoot, ...]
+    extra_allow: tuple[str, ...] = ()
 
     @property
     def declared_paths(self) -> frozenset[str]:
@@ -139,13 +166,25 @@ class Report:
     extra: list[Finding] = field(default_factory=list)
     content_drift: list[Finding] = field(default_factory=list)
     intentionally_excluded: list[Finding] = field(default_factory=list)
+    allowed_extra: list[Finding] = field(default_factory=list)
     unreadable: list[Finding] = field(default_factory=list)
+    hotkey_orphan: list[Finding] = field(default_factory=list)
+    hotkeys_note: str = "not evaluated (未检查)"
 
     @property
     def exit_code(self) -> int:
-        # unreadable 计入阻断: 读不进去就无法证明一致, 不能报 0。
-        blocking = len(self.missing) + len(self.extra) + len(self.content_drift) + len(self.unreadable)
-        return EXIT_DIFF if blocking else EXIT_OK
+        """0 / 1 / 2 三档 (用法错的 3 由 main() 直接返回, 不经过这里)。
+
+        unreadable 计入阻断: 读不进去就无法证明一致, 不能报 0。
+        missing 与 mismatch 并存时取 **2** —— 「多出来 / 对不上」的那些项需要人判断,
+        而 missing 是照单补齐就行的。合并成一个 1 会让调用方分不出这两件事。
+        allowed_extra 与 intentionally_excluded 只报告, 不进退出码。
+        """
+        if self.content_drift or self.extra or self.unreadable or self.hotkey_orphan:
+            return EXIT_MISMATCH
+        if self.missing:
+            return EXIT_MISSING
+        return EXIT_OK
 
 
 # ── manifest 加载与校验 ───────────────────────────────────────────────
@@ -289,7 +328,34 @@ def load_manifest(path: Path | str) -> Manifest:
             raise ManifestError(f"extra_scan[{index}] 的 match 只匹配单层名字, 不得含 /: {scan_match!r}")
         scan.append(ScanRoot(dir=scan_dir, match=scan_match))
 
-    return Manifest(version=version, source=source, items=tuple(items), extra_scan=tuple(scan))
+    raw_allow = raw.get("extra_allow", [])
+    if not isinstance(raw_allow, list):
+        raise ManifestError(f"manifest 的 extra_allow 必须是列表, 实为 {type(raw_allow).__name__}")
+    allow_seen: set[str] = set()
+    allow: list[str] = []
+    declared = frozenset(i.path for i in items if i.action in ("copy", "skeleton", "generate"))
+    exclude_paths = tuple(i.path for i in items if i.action == "exclude")
+    for index, entry in enumerate(raw_allow):
+        # 与 item 的 path 同一套口径: 相对 / 无 .. / 可编码 / 无重复 (支持 *? glob)。
+        normalized = _check_relative_segment(entry, f"extra_allow[{index}]")
+        if normalized in allow_seen:
+            raise ManifestError(f"extra_allow 重复声明(规范化后): {normalized!r}")
+        allow_seen.add(normalized)
+        clash = _overlapping_declaration(normalized, declared, exclude_paths)
+        if clash is not None:
+            raise ManifestError(
+                f"extra_allow[{index}] {normalized!r} 与 {clash} 重叠 —— "
+                f"同一路径不得既「该在这里」/「故意不复制」又「允许多出来」"
+            )
+        allow.append(normalized)
+
+    return Manifest(
+        version=version,
+        source=source,
+        items=tuple(items),
+        extra_scan=tuple(scan),
+        extra_allow=tuple(allow),
+    )
 
 
 # ── glob 语义 ────────────────────────────────────────────────────────
@@ -336,6 +402,32 @@ def _static_prefix(pattern: str) -> str:
 
 def _has_glob(pattern: str) -> bool:
     return any(ch in pattern for ch in GLOB_CHARS)
+
+
+def _pattern_covers(pattern: str, literal: str) -> bool:
+    """pattern 是否覆盖 literal 这一条相对路径 (无通配符时退化为字符串相等)。"""
+    if _has_glob(pattern):
+        return bool(_pattern_to_regex(pattern).fullmatch(literal))
+    return pattern == literal
+
+
+def _overlapping_declaration(allow: str, declared: frozenset[str], exclude_paths: tuple[str, ...]) -> str | None:
+    """extra_allow 的一项是否与 declared / exclude 重叠。返回冲突描述, None = 不重叠。
+
+    **口径如实声明**: 这是**字面层面**的重叠判定 —— 逐条问「allow 这个模式盖不盖得住
+    对方那条声明的字面文本」以及「对方那个模式盖不盖得住 allow 的字面文本」。它挡得住
+    实际会出问题的三类 (完全相同 / allow 的 glob 罩住了一条已声明的字面路径 /
+    exclude 的 glob 罩住了 allow 的字面路径), 但**不做两个 glob 之间的语言包含判定**
+    (那需要正则交集, 不在本卡范围)。所以 `a/*x` 与 `a/y*` 这种「都能匹配 a/yx」的
+    交叉不会被拒 —— 登记为已知边界, 不假称穷尽。
+    """
+    for path in sorted(declared):
+        if _pattern_covers(allow, path) or _pattern_covers(path, allow):
+            return f"已声明项 {path!r}"
+    for path in exclude_paths:
+        if _pattern_covers(allow, path) or _pattern_covers(path, allow):
+            return f"exclude 项 {path!r}"
+    return None
 
 
 # ── 目录遍历 (只读) ──────────────────────────────────────────────────
@@ -717,6 +809,7 @@ def verify(
         report.match.append(Finding(path=item.path, category="match", action=item.action, role=item.role))
 
     _collect_extra(vault, manifest, report, excluder)
+    _check_hotkeys(vault, report)
     return report
 
 
@@ -758,6 +851,18 @@ def _collect_extra(vault: Path, manifest: Manifest, report: Report, excluder: Ex
             if rel in declared or rel in seen or is_excluded(rel):
                 continue
             seen.add(rel)
+            allowed_by = next((a for a in manifest.extra_allow if _pattern_covers(a, rel)), None)
+            if allowed_by is not None:
+                report.allowed_extra.append(
+                    Finding(
+                        path=rel,
+                        category="allowed-extra",
+                        action="-",
+                        role="-",
+                        detail=f"由 extra_allow 的 {allowed_by!r} 放行 (只报告, 不计退出码)",
+                    )
+                )
+                continue
             report.extra.append(
                 Finding(
                     path=rel,
@@ -767,6 +872,68 @@ def _collect_extra(vault: Path, manifest: Manifest, report: Report, excluder: Ex
                     detail=f"位于覆盖面 {scan.dir}/{scan.match} 内但不在 manifest",
                 )
             )
+
+
+def _check_hotkeys(vault: Path, report: Report) -> None:
+    """hotkeys.json 绑的命令 id 必须在同一 vault 的 main.js 里真实存在 (CARD-RV-G2-6)。
+
+    只看**同一个 vault 内**的两份文件, 不去读仓库源码 —— 校验的是「这个 vault 自洽」,
+    而不是「这个 vault 和某棵开发树一致」。真相源 (`frontend/obsidian-plugin/src/main.ts`
+    恰 10 个命令 id) 由测试层单独钉住, 那是**开发树**的约束, 不是**部署产物**的约束。
+
+    三条早退各自说清楚为什么, 不静默:
+      - 没有 hotkeys.json: 无可核对 (它本身是 copy 项, 缺了会另行报 missing);
+      - 没有 main.js: 它是 gitignored 的构建产物, 未构建的树里本就没有 ⇒ `not evaluated`,
+        **不计退出码**。把「没法查」记成「查过没问题」是假绿, 所以报告里必须留这行字。
+      - 读不动 / 不是合法 JSON / 顶层不是对象: 记 unreadable (计入阻断) —— 看不见不等于一致。
+    无 `canvas-learning-system:` 前缀的键是别的插件的快捷键, 一律忽略。
+    """
+    hotkeys_path = vault / HOTKEYS_REL
+    main_js_path = vault / PLUGIN_MAIN_JS_REL
+
+    def _unreadable(path_rel: str, detail: str, note: str) -> None:
+        report.unreadable.append(Finding(path=path_rel, category="unreadable", action="-", role="-", detail=detail))
+        report.hotkeys_note = note
+
+    if not hotkeys_path.exists():
+        report.hotkeys_note = f"not evaluated (无 {HOTKEYS_REL})"
+        return
+    if not main_js_path.is_file():
+        report.hotkeys_note = f"not evaluated ({PLUGIN_MAIN_JS_REL} 缺 — gitignored 构建产物)"
+        return
+    try:
+        raw = hotkeys_path.read_text(encoding="utf-8")
+        source = main_js_path.read_text(encoding="utf-8", errors="replace")
+    except (OSError, UnicodeDecodeError) as exc:
+        _unreadable(HOTKEYS_REL, f"快捷键或插件产物读不进去: {exc}", "not evaluated (读不进去)")
+        return
+    try:
+        bindings = json.loads(raw)
+    except ValueError as exc:
+        _unreadable(HOTKEYS_REL, f"不是合法 JSON, 无法核对快捷键: {exc}", "not evaluated (JSON 非法)")
+        return
+    if not isinstance(bindings, dict):
+        _unreadable(
+            HOTKEYS_REL,
+            f"顶层不是对象 (实为 {type(bindings).__name__}), 无法核对快捷键",
+            "not evaluated (结构非法)",
+        )
+        return
+
+    known = set(COMMAND_ID_RE.findall(source))
+    bound = sorted(k for k in bindings if k.startswith(HOTKEY_PREFIX))
+    for key in bound:
+        if key[len(HOTKEY_PREFIX) :] not in known:
+            report.hotkey_orphan.append(
+                Finding(
+                    path=key,
+                    category="hotkey-orphan",
+                    action="-",
+                    role="-",
+                    detail=f"{PLUGIN_MAIN_JS_REL} 里没有这个命令 id (产物内共 {len(known)} 个)",
+                )
+            )
+    report.hotkeys_note = f"{len(bound)} 绑定 / {len(known)} 命令 / {len(report.hotkey_orphan)} orphan"
 
 
 # ── 报告渲染 ─────────────────────────────────────────────────────────
@@ -780,7 +947,9 @@ def render(report: Report, manifest: Manifest) -> str:
         f"# source   : {report.source if report.source else '(未提供 — content-drift 未评估)'}",
         "# 语义     : exclude 项按各自模式的静态前缀子树扫描; extra 只看 manifest",
         "#            extra_scan 声明的覆盖面 (根级文档不在覆盖面内, 故不报 extra);",
-        "#            读不进去的条目记 unreadable 并计入退出码 —— 看不见不等于一致。",
+        "#            读不进去的条目记 unreadable 并计入退出码 —— 看不见不等于一致;",
+        "#            extra_allow 放行的项进 allowed-extra, 只报告不计退出码;",
+        "#            退出码 0 ok / 1 只缺 / 2 多出·漂移·读不动·快捷键孤儿 / 3 用法错。",
         "-" * 66,
         f"match                  : {len(report.match)}",
         f"missing                : {len(report.missing)}",
@@ -788,14 +957,19 @@ def render(report: Report, manifest: Manifest) -> str:
         "content-drift          : "
         + (str(len(report.content_drift)) if report.drift_evaluated else "not evaluated (无 --source)"),
         f"intentionally-excluded : {len(report.intentionally_excluded)}",
+        f"allowed-extra          : {len(report.allowed_extra)}",
         f"unreadable             : {len(report.unreadable)}",
+        f"hotkeys                : {report.hotkeys_note}",
+        f"hotkey-orphan          : {len(report.hotkey_orphan)}",
     ]
     for title, findings in (
         ("missing", report.missing),
         ("extra", report.extra),
         ("content-drift", report.content_drift),
         ("unreadable", report.unreadable),
+        ("hotkey-orphan", report.hotkey_orphan),
         ("intentionally-excluded", report.intentionally_excluded),
+        ("allowed-extra", report.allowed_extra),
     ):
         if not findings:
             continue
