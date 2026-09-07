@@ -9,12 +9,12 @@
 
 **最小读取面（请只读下列，逐项）**：
 
-1. 本卡代码改动：`git diff da690bf8 <审SHA> -- . ':(exclude)_bmad-output'`
+1. 本卡代码改动：`git diff da690bf8 343fce8e -- . ':(exclude)_bmad-output'`
 2. `_bmad-output/审查/evidence-red-c1/c1-verdicts.md`（作者的 10 条依据表 + (e) 移交论证 + 事实更正）
 3. `/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/审查/evidence-b13/red-align-da690bf8.md` 的 `:114-129`（本卡 10 条 nodeid 与失败身份分型）
 4. `backend/app/config.py:470-482`（现行 DEPRECATED 字段定义）
 5. `backend/tests/unit/test_story_38_6_scoring_reliability.py:20-95`（本地桩常量与 TestAC1TimeoutRetryAlignment 全类）
-6. `_bmad-output/审查/evidence-red-c1/red-diff-<收工ts>.txt`（收工 nodeid 差集）+ 同目录 `tmp-window-attribution.txt`（一条被跨车道环境噪音污染的轮次的归属说明）
+6. `_bmad-output/审查/evidence-red-c1/red-diff-20260908T071724.txt`（收工 nodeid 差集）+ 同目录 `tmp-window-attribution.txt`（一条被跨车道环境噪音污染的轮次的归属说明）
 
 ## 二 作者自述，请独立核对（不要采信下列任何一句，请自己去证）
 

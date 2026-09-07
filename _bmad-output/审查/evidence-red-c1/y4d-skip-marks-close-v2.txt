@@ -1,0 +1,54 @@
+=== 五处 Y4-D skip 标记 收工态（内容锚定重采，2026-09-08 Codex r1 LOW-2 整改）===
+采法更正：原版按开工行号 sed 抓，本卡在 test_story_38_6 插入 27 行后该段抓空（Codex r1 LOW-2）。
+现改为内容锚定 grep -n -A7，行号为实测值；-A4 会截断两个模块级块的末行，故取 7。
+
+--- test_memory_service_write_retry.py ---
+37:pytestmark = pytest.mark.skip(
+38-    reason=(
+39-        "MemoryService._write_to_graphiti_json_with_retry deleted by "
+40-        "fix-rag-transform-and-episode-isolation; retry semantics moved to "
+41-        "GraphitiEpisodeWorker._handle_failure. Equivalent coverage in "
+42-        "backend/tests/unit/test_episode_worker_retry.py."
+43-    )
+44-)
+
+--- test_graphiti_json_dual_write.py ---
+33:pytestmark = pytest.mark.skip(
+34-    reason=(
+35-        "MemoryService._write_to_graphiti_json[_with_retry] deleted by "
+36-        "fix-rag-transform-and-episode-isolation; dual-write fire-and-forget "
+37-        "now via _enqueue_episode → GraphitiEpisodeWorker. Coverage in "
+38-        "backend/tests/unit/test_episode_worker_retry.py."
+39-    )
+40-)
+
+--- test_failure_observability.py ---
+263:@pytest.mark.skip(
+264-    reason="Tests deleted MemoryService._write_to_graphiti_json[_with_retry] directly; "
+265-    "EpisodeWorker dead-letter coverage in test_episode_worker_retry.py"
+266-)
+267-class TestMemoryServiceDualWriteFailure:
+268-    """Test that dual-write failures increment counter + write dead-letter."""
+269-
+270-    @pytest.mark.asyncio
+
+--- test_story_38_6_scoring_reliability.py ---
+162:@pytest.mark.skip(
+163-    reason="Monkeypatches deleted MemoryService._write_to_graphiti_json_with_retry; "
+164-    "startup recovery contract under EpisodeWorker pipeline needs separate test"
+165-)
+166-class TestAC3StartupRecovery:
+167-    """AC-3: Application startup replays failed writes."""
+168-
+169-    @pytest.fixture
+
+--- test_qa_38_6_scoring_reliability_extra.py ---
+326:@pytest.mark.skip(
+327-    reason="Monkeypatches deleted MemoryService._write_to_graphiti_json_with_retry; "
+328-    "recovery contract under EpisodeWorker pipeline needs separate test design"
+329-)
+330-class TestFullCycleIntegration:
+331-    """End-to-end cycle within unit test scope."""
+332-
+333-    @pytest.mark.asyncio
+

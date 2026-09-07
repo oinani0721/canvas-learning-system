@@ -1,0 +1,21 @@
+[前提] 生产 config 当前 default = False  (须为 False)
+
+=== 阶段一：未变异，3 条须全 PASS（否则判据本身坏了）===
+  PASS  TestAC1SafeDefault::test_settings_field_default_is_false
+  PASS  TestAC1SafeDefault::test_lowercase_alias_returns_false_by_default
+  PASS  TestAC3MissingEnvVar::test_missing_env_var_defaults_to_false
+
+=== 阶段二：把生产 default 在内存里改回 True（= daa9fd37 之前的契约）===
+  变异后 model_fields default = True
+  变异后 Settings(_env_file=None).ENABLE_GRAPHITI_JSON_DUAL_WRITE = True
+
+=== 阶段三：3 条须全部翻红（KILLED）===
+  KILLED  TestAC1SafeDefault::test_settings_field_default_is_false
+          拒因: Expected default=False ([DEPRECATED] since daa9fd37), got default=True. 若此处变红，说明生产默认被改回 True——请先确认是产品裁定而非回归
+  KILLED  TestAC1SafeDefault::test_lowercase_alias_returns_false_by_default
+          拒因: Lowercase property alias should return False by default ([DEPRECATED])
+  KILLED  TestAC3MissingEnvVar::test_missing_env_var_defaults_to_false
+          拒因: Expected False when env var missing, got True. daa9fd37 起该字段为 [DEPRECATED] default=False；legacy JSON dual-writ
+
+结论: KILLED 3/3  (全部承重)
+rc=0

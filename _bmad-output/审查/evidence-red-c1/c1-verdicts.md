@@ -35,7 +35,7 @@
 | **现行契约（实测）** | `grep -n 'retry_base\|retry_max\|MEMORY_RETRY\|_retry_' backend/app/services/memory_service.py` → **无输出（rc=1）**。`config.py:644 MEMORY_RETRY_BASE_DELAY default=1.0` / `:650 MEMORY_RETRY_MAX_DELAY default=10.0` 字段仍在 |
 | **契约演进依据（1 行）** | `59586af1` 2026-03-26 `refactor(phase2): delete fake bridge/JSON dual-write code, replaced by GraphitiEpisodeWorker` —— `git show 59586af1 -- backend/app/services/memory_service.py` 实见删除行 `-            self._retry_base_delay = _settings.MEMORY_RETRY_BASE_DELAY` / `-            self._retry_max_delay = _settings.MEMORY_RETRY_MAX_DELAY` / `-                    delay = min(self._retry_base_delay * (2 ** attempt), self._retry_max_delay)`（×2）；`git log -S'_retry_base_delay' -- …memory_service.py` 首行即 `59586af1`（次行 `23512e86` 2026-02-11 为引入） |
 | **消费方 census（(f) 分叉依据）** | `grep -rn 'MEMORY_RETRY_BASE_DELAY\|MEMORY_RETRY_MAX_DELAY' backend/app` → **只有 `config.py:644` / `:650` 两处定义，零消费方**；全仓其余命中全是 `.env.example:261/:264` 注释、测试、docs、`.gdr` 打包件 ⇒ 走「无消费方」分支 |
-| **处置** | **xfail(strict=True)**，reason 写明「config.py:644/:650 字段零消费方，属死配置项，归配置清理卡（登记）」+ `[CARD-RED-C1]` |
+| **处置** | **xfail(strict=True)**，reason 写明「config.py:644/:650 字段零消费方，属死配置项，**接收卡 = `CARD-CONFIG-CLEANUP`**（死配置项清理，第十四批候选，已登记台账）」+ `[CARD-RED-C1]`。⚠️ r1 初版只写泛称「配置清理卡（登记）」，无可定位标识（Codex r1 LOW-1），已具名 |
 
 ### ② 桩值自相矛盾族（3 条）→ 全部 xfail(strict=True) 交接（走卡文默认 B）
 
@@ -62,9 +62,12 @@
 | **测试断言 file:line** | 改动前 `:38-42`（`Settings.model_fields[...].default is True`）/ `:55-59`（`settings.enable_graphiti_json_dual_write is True`）/ `:252-257`（`settings.ENABLE_GRAPHITI_JSON_DUAL_WRITE is True`） |
 | **现行契约 file:line（sed -n 实测）** | `config.py:473` + `:476` 各一行 `# DEPRECATED: Phase 2 replaced JSON dual-write with GraphitiEpisodeWorker.`；`:477-480 ENABLE_GRAPHITI_JSON_DUAL_WRITE: bool = Field(default=False, description="[DEPRECATED] Legacy JSON dual-write. Replaced by GraphitiEpisodeWorker.")`；`:928 def enable_graphiti_json_dual_write(self) -> bool:` 小写别名 property 仍在并直返该字段 |
 | **契约演进依据（1 行）** | **`daa9fd37`** 2026-03-26 `refactor(phase2): rename misleading 'graphiti' functions to match actual behavior` —— `git show daa9fd37 -- backend/app/config.py` 实见 `-        default=True,` → `+        default=False,` 与 `+    # DEPRECATED: Phase 2 replaced JSON dual-write with GraphitiEpisodeWorker.` |
-| **⚠️ 为何不是 59586af1** | `git show 59586af1 --stat -- …memory_service.py …main.py …config.py` 输出**只有 main.py 与 memory_service.py 两个文件**，`config.py` **不在列** ⇒ 若把这 3 条的依据也写成 59586af1 即为伪证。此为卡文 (b)「不得一个 sha 抄十遍」条款的实际命中 |
+| **⚠️ 为何不是 59586af1** | `git show 59586af1 --stat -- …memory_service.py …main.py …config.py`（**限定这三条路径**）只列出 main.py 与 memory_service.py，`config.py` **不在列** ⇒ 若把这 3 条的依据也写成 59586af1 即为伪证。此为卡文 (b)「不得一个 sha 抄十遍」条款的实际命中。<br>⚠️ **表述更正（Codex r1 LOW-4）**：早先此处写成「输出只有两个文件」，读起来像是该 commit 全量只动了两个文件——**不对**。`git show 59586af1 --stat`（**不限路径**）实测是 **3 个文件**：`backend/app/main.py` / `backend/app/services/graphiti_bridge_service.py`（−409，整文件删除）/ `backend/app/services/memory_service.py`。`config.py` 在两种口径下都不在列，结论不变，但措辞必须绑定「限定路径的那条命令」 |
 | **处置** | **改断言对齐现行契约**：`is True` → `is False`（3 处）；按 DD-13 改函数名 `…_is_true` → `…_is_false` / `…_returns_true_by_default` → `…_returns_false_by_default` / `…_defaults_to_true` → `…_defaults_to_false`；更正过期注释 `Verifies: config.py Field(default=True) at L409-412` → `Field(default=False) at L477-480 ([DEPRECATED], daa9fd37)`；`TestAC1SafeDefault` 类 docstring 说明 safe 语义已反转（**不改类名**，U11-B 的 C2 用例 `test_startup_log_dual_write_enabled_default` 挂在该类下） |
-| **为何不是自证** | 被断言物是 `Settings.model_fields[...]` / `Settings(_env_file=None)` 实例 / 生产 property，全部来自 `app.config` 生产模块，**不在测试文件内**；翻转后仍能捕捉「生产默认被改回 True」这一真实变化（断言消息已写明该提示） |
+| **为何不是自证** | 被断言物是 `Settings.model_fields[...]` / `Settings(_env_file=None)` 实例 / 生产 property，全部来自 `app.config` 生产模块，**不在测试文件内** |
+| **承重验证（实测，不止于论证）** | `loadbearing-3assertions.txt`：把生产 `config.py` 的 `FieldInfo.default` 在**内存里**改回 `True`（= `daa9fd37` 之前的契约）+ `model_rebuild(force=True)` 后，3 条**全部翻红 KILLED 3/3**，且每条都由**它自己那条断言的拒因**打红（逐条贴了拒因首行），不是被别的失败喂饱。三阶段设计防假杀：① 未变异时 3 条须全 PASS（前提门，防「基线就红」被误记成 KILLED）② 打印变异后的 `model_fields default` 与 `Settings(_env_file=None)` 实测值，自证变异真的生效（防「变异没打进去」的假 SURVIVED）③ 只把 `AssertionError` 记 KILLED，其它异常单独标注（防「导不进来 / 语法坏了」被记成击杀）。末行 `rc=0` |
+| **承重验证零磁盘改动** | 脚本在 session scratchpad、非项目内；跑后 `backend/app/config.py` 的 sha256 与 `git show HEAD:` 版**逐字节相同**（`e5a8ce3e9b19ce922941e3fa9f0f9b3a6a5a30beeed79820878097e707155605`），`git diff --stat -- backend/app` 无输出 ⇒ 未违反「禁改 `backend/app/**`」 |
+| **该验证的边界（如实）** | 只覆盖「字段默认被改回 True」这一路径；不覆盖「改的是 `.env` 或环境变量而非字段默认」——那条路径下 `test_settings_field_default_is_false` 按设计本就不该红（它锁的是字段默认，不是运行值） |
 
 #### ③-b xfail 交接 1 条
 
@@ -99,7 +102,7 @@
 | # | 事实 | 实测命令 / 位置 |
 |---|---|---|
 | 1 | **写侧活着（热路径）**：`_record_failed_write` 在 `agent_service.py:5085`（`except asyncio.TimeoutError`）与 `:5101`（`except Exception`）被调，二者位于 `_trigger_memory_write`（`:5013`）内 | `cat -n backend/app/services/agent_service.py \| sed -n '5070,5105p'` |
-| 2 | **写侧可达性**：`_trigger_memory_write` 有 **11 处生产调用方** —— `agent_service.py:3872 / :3992 / :4226 / :4932 / :5156 / :5169 / :5479 / :5653`（8）+ `batch_orchestrator.py:1013`（经 `:307` / `:735` / `:974`）+ `verification_service.py:3045`。未被 `59586af1` 触及 | `grep -rn '_trigger_memory_write' backend/app --include='*.py'` |
+| 2 | **写侧可达性**（⚠️ 计数口径已按 Codex r1 LOW-3 更正，原写「11 处」与本行自身的枚举 8+1+1 自相矛盾）：**直接调用 `AgentService._trigger_memory_write` 的生产调用点 = 10 处** —— `agent_service.py:3872 / :3992 / :4226 / :4932 / :5156 / :5169 / :5479 / :5653`（同类内 8）+ `batch_orchestrator.py:1013`（`self.agent_service._trigger_memory_write(`）+ `verification_service.py:3045`（`self._agent_service._trigger_memory_write(`）。**另有** `batch_orchestrator.py:974` 定义的**同名包装方法**，由 `:307` / `:735` 调用后转发到 `:1013` ⇒ 若按「名为 `_trigger_memory_write` 的调用点」计则为 **12 处**。三个数字对应三种单位，本表统一采「直接调用 AgentService 该方法」= **10**。任一口径下写侧均未被 `59586af1` 触及，结论不变 | `grep -rn 'self\._trigger_memory_write(\|_agent_service\._trigger_memory_write(\|agent_service\._trigger_memory_write(' backend/app --include='*.py'`（12 行，其中 `batch_orchestrator.py:307/:735` 打的是本类同名方法）；`grep -n '_trigger_memory_write' backend/app/services/batch_orchestrator.py`（见 `:974` 定义与 `:1013` 转发） |
 | 3 | **第二条写侧**：`memory_service.py:499 _record_structured_outbox` 由 `:1662` 生产调用，append 写 `FAILED_WRITES_FILE`；其 docstring `:503` 明写「条目带 kind='knowledge_entity' 判别符, **recover_failed_writes 据此重放**」= 写侧**显式依赖**回收侧 | `cat -n …memory_service.py \| sed -n '495,516p'`；`grep -rn '_record_structured_outbox' backend/app --include='*.py'` |
 | 4 | **回收路径 1 断**：`FallbackSyncService.sync_all_fallbacks`（`fallback_sync_service.py:54`）在 `backend/app` 下**零生产调用方**（命中只有自身定义 `:54` / `:657` 与 `memory_service.py:2682` 的 docstring 文字引用） | `grep -rn 'sync_all_fallbacks\|get_fallback_sync_service' backend/app` |
 | 5 | **回收路径 2 断**：`MemoryService.recover_failed_writes`（`memory_service.py:2679`）全仓调用方**只有测试**（`test_a7_honest_failure.py` / `test_story_38_6…` / `test_qa_38_6…` / `tests/integration/…`），生产 0 | 全仓 `grep -rn 'recover_failed_writes'`（排除 .venv/.git/_bmad-*/.gdr） |
@@ -210,4 +213,57 @@ pytest 的 `-r` 是**替换**而非追加短摘要类别：默认 `-q` 给 `fE`�
 
 1. **(d) 3 条的依据 sha 不是 `59586af1` 而是 `daa9fd37`** —— `git show 59586af1 --stat` 的文件列表**只有 main.py 与 memory_service.py**，`config.py` 不在列。卡文 §二.4 已预留「config.py 若不在列，另用 `-S'[DEPRECATED] Legacy JSON dual-write'` 找」的分支，本卡走该分支取到 `daa9fd37`。
 2. **(d) ③-b 的 reason 措辞须收窄** —— 卡文原稿「本用例的被测防御模式已无实现」过宽；实测同形 `getattr(settings, "ENABLE_GRAPHITI_JSON_DUAL_WRITE", True)` 在 `canvas_service.py` 仍有 **6 处**（`:267/:360/:440/:457/:986/:995`）且 fallback 默认值是 **True**（与用例名所称 False 相反）。已改为「memory_service 侧的该防御点已删」并把 6 处如实写进 reason。
+4. **写侧调用点计数 11 → 10**（Codex r1 LOW-3 抓到，见 §2 行 2）—— 原文的枚举本身是 8+1+1=10，写出来的数字却是 11，是**内部自相矛盾**；三种单位（直接调用 AgentService 该方法 10 / 含同名包装的全部调用点 12 / 按上游入口 11）必须择一并写明。
+5. **`git show 59586af1 --stat` 的措辞**（Codex r1 LOW-4）—— 不限路径实测是 **3** 个文件（多一个整文件删除的 `graphiti_bridge_service.py`），原文写「只有两个文件」把限定路径的输出说成了全量。结论（`config.py` 不在列）两种口径下都成立。
+6. **收工 skip 快照采法**（Codex r1 LOW-2）—— 原版按开工行号 `sed` 抓，本卡插入 27 行后 `test_story_38_6` 那段抓空，导致「五处标记原文均已留存」这句**比证据宽**。已改内容锚定重采 → `y4d-skip-marks-close-v2.txt`，五块正文归一化后与开工**逐条相同**（`diff` rc=0），实测行号 `37 / 33 / 263 / 162 / 326`。
+7. **配置清理卡缺可定位标识**（Codex r1 LOW-1）—— 原 reason 只写「配置清理卡（登记）」，解除 xfail 时无法从记录定位接收卡。已改为具名 `CARD-CONFIG-CLEANUP`。
+
 3. **同文件模块 docstring 未改，如实登记** —— `test_story_38_4_dual_write_default.py:8/:10` 仍称 "AC-1: Fresh installation defaults … to True" / "AC-3: Missing env var defaults to True"。卡文 §三 只授权改「§〇 点名的 10 个用例的函数名/函数体/装饰器/docstring」与（(d) 明文授权的）`TestAC1SafeDefault` 类 docstring，**未授权**改模块级文件头；该文件头同时描述 AC-2（U11-B 的 C2 地盘）。为免与 U11-B 冲突且不越界，本卡**不改**，登记为残留名实不一致项。
+
+---
+
+## §7 独立复核（Codex）轮次与裁定
+
+### r1 — `343fce8e`，**BLOCKER 0 / HIGH 0 / MEDIUM 0 / LOW 4**
+
+存档 `_bmad-output/审查/codex-review-CARD-RED-C1.md`。四条 LOW **全部经本车道独立复验成立，全部整改**（未驳回任何一条）：
+
+| # | 发现 | 我的复验 | 整改 |
+|---|---|---|---|
+| LOW-1 | `test_cache_configuration.py` 的 xfail reason 只写「配置清理卡（登记）」，无可定位接收卡标识 | 成立。卡文硬约束要求 reason「写明归哪张卡」，泛称不满足 | reason 改为具名 **`CARD-CONFIG-CLEANUP`**（死配置项清理，第十四批候选） |
+| LOW-2 | 收工 skip 快照按旧行号抓，`test_story_38_6` 那段抓空 ⇒「五处原文均已留存」比证据宽 | 成立。实测 `y4d-skip-marks-close.txt` 该段确为空标题，下一行已进入第五个文件 | 内容锚定重采 `y4d-skip-marks-close-v2.txt`（`-A7`；`-A4` 会截断两个模块级块末行）；与开工归一化 `diff` **rc=0** |
+| LOW-3 | 「11 处生产调用方」未说明统计口径（直接调用 10 / 含同名包装 12 / 按上游入口 11） | 成立，且比 Codex 说的更糟：**我自己那一行的枚举是 8+1+1=10，数字却写 11**，内部自相矛盾 | §2 行 2 改为三口径写明，本表统一采「直接调用 `AgentService._trigger_memory_write`」= **10** |
+| LOW-4 | 「`59586af1 --stat` 只有两个文件」有误，不限路径实测有第三个 `graphiti_bridge_service.py` | 成立。实测 3 文件（多一个 −409 整文件删除） | ③-a 行措辞改为绑定「限定这三条路径的那条命令」，并贴出不限路径的真实 3 文件列表 |
+
+### Codex 独立确认的判据（第二来源印证，非我自述）
+
+- 从**原始日志重算**：`202 → 194，移除恰好 8 条、新增 0 条`，两条移交测试仍红 —— 与本卡 §3 的算术独立吻合。
+- 三条翻绿断言「均能捕捉生产默认值变回 True」—— 与本卡 A18 的内存变异实测（KILLED 3/3）结论一致。
+- `canvas_service.py` 的 6 处 getattr「真实存在，第三参数全部为 True」—— 印证本卡 §6.2 的措辞收窄是必要的。
+- 五条 xfail「全部为 `strict=True`」；两个 `MEMORY_RETRY_*` 在 `backend/app` 下「只有配置定义，无消费引用」。
+- 历史删除行「逐项吻合」，**7＋3 分组成立**。
+- 最终提交「仅在 AC1 三个方法前各新增 9 行，类级 skip 与被遮蔽用例均未改」；「其他用例、所有类名和类级装饰器保持不变，移交文件也完全未改」。
+
+### Codex 提出的两条实质性观察（本卡采纳并记录，不改结论）
+
+1. **选 B 的依据可以更准**：「两个旧名字零命中」只证明**旧符号消失**。现存 `episode_worker` 仍有 `can_retry` / `backoff_seconds`，但采用**随机退避**，并不实现原来固定的 2 秒 / 1·2·4 秒契约 ⇒ 「无可重锚生产符号」的结论**成立且更强**（不是没有重试概念，而是没有实现同一契约的符号），A 方案仍不可用。
+2. **`test_episode_worker_retry.py` 5 个用例的实际覆盖面**（对 `CARD-EPW-COVERAGE` 有直接价值，原样收录）：入队处理成功 / 失败三次后第四次成功与退避范围 / 耗尽重试写死信 / 指标 / 显式 `request_id` 进入死信。**未覆盖**：旧单次超时、固定退避、`MemoryService` 配置读取、getattr 防御、旧失败文件恢复；且「退避范围断言甚至允许恒零延迟通过」。⇒ 支持「已有替代机制和部分覆盖」，**不足以证明完整等价覆盖或完成退役** —— 与本卡「只登记缺口、不宣称等价」的处置一致。
+
+### Codex 明确未能独立确认的面（如实转录，不代为背书）
+
+- (e) 的静态调用关系它只确认了 `backend/app` 范围，**未扩面**背书「全仓只有测试」，**未验证现网 pending 数据** —— 与本卡「本卡未证明什么」第 4 条一致。
+- `/tmp` 归属的 `stat` / `ps` / 跨 session 通告**只有作者转述**，它无法独立确认写者身份。
+- 它指出「不能单凭『终审绑定轮』这个名称证明其输入精确绑定 `343fce8e`」。**本卡据此补证**（见下）。
+
+### 补证：终审轮的输入确实是后来提交为 `343fce8e` 的那份内容
+
+| 环节 | 实测 | 命令 |
+|---|---|---|
+| 4 个被改测试文件最后修改时刻 | `06:57:40` / `06:57:26` / `06:57:07` / `06:56:21` | `stat -f '%Sm %N'` |
+| 终审轮起跑 → 结束 | `07:17:24` → 落盘 `07:21:34` | 存档文件名 TS + `stat` |
+| commit 时刻 | `07:24:48` | `git log -1 --format='%h %ad'` |
+| 工作树内容 == commit 内容 | **4/4 SAME**（`f1073d45…` / `86c6f161…` / `f6395cde…` / `27c5ea1b…`） | 逐文件 `shasum -a 256` vs `git show 343fce8e:<file> \| shasum -a 256` |
+
+链条：**所有代码编辑（≤06:57:40）< 终审轮起跑（07:17:24）< 终审轮结束（07:21:34）< commit（07:24:48）**，且期间无任何编辑（mtime 为证），工作树内容与 commit 内容逐字节相同 ⇒ 终审轮跑的正是 `343fce8e` 的代码内容。
+
+> ⚠️ 该补证覆盖的是 **r1 送审时的状态**。r1 之后为整改 LOW-1 改动了 `test_cache_configuration.py`（reason 文案），**属代码改动 ⇒ 按 D-15 必再送一轮**，见 r2。

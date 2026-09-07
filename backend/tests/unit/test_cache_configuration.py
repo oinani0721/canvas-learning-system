@@ -50,8 +50,9 @@ class TestMemoryRetryDelayFromSettings:
             "（连同 _write_to_graphiti_json_with_retry 的退避计算）；memory_service.py 实测 "
             "0 命中，本用例断言的是 MemoryService 上已不存在的属性。config.py:644/:650 的 "
             "MEMORY_RETRY_BASE_DELAY / MEMORY_RETRY_MAX_DELAY 字段仍在，但 backend/app 下"
-            "**零消费方**（census 只命中 config.py 自身的定义），属死配置项，归配置清理卡"
-            "（登记）。同类 test_retry_delay_defaults_match_original 只读 Settings 默认值，"
+            "**零消费方**（census 只命中 config.py 自身的定义），属死配置项，"
+            "接收卡 = CARD-CONFIG-CLEANUP（死配置项清理，第十四批候选，已登记台账）。"
+            "同类 test_retry_delay_defaults_match_original 只读 Settings 默认值，"
             "不依赖该属性，仍绿。[CARD-RED-C1]"
         ),
     )
