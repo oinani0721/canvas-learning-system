@@ -70,6 +70,7 @@ import importlib.util
 import json
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -1203,8 +1204,15 @@ TREE_HOTKEYS = REPO_ROOT / "canvas-vault" / ".obsidian" / "hotkeys.json"
 
 
 def _command_ids_from_main_ts() -> set[str]:
-    """真相源: main.ts 里 addCommand 的 id 字面量。只读 frontend/, 不构建。"""
-    return set(re.findall(r'id:\s*"(canvas:[a-z0-9-]+)"', PLUGIN_MAIN_TS.read_text(encoding="utf-8")))
+    """真相源: main.ts 里 **addCommand 注册点**的 id 字面量。只读 frontend/, 不构建。
+
+    正则绑到 `addCommand({ id: "…"` 而不是任意 `id: "canvas:…"` —— 后者把注释、
+    别处的常量、乃至 `console.log` 里的同形字符串一并算进来, 数量锚就只证明了
+    「文本里有 10 个这样的串」, 证明不了「真的注册了 10 个命令」(Codex r1 MEDIUM)。
+    如实声明其上限: 这仍是文本提取, 不是 TS 语义分析。
+    """
+    text = PLUGIN_MAIN_TS.read_text(encoding="utf-8")
+    return set(re.findall(r'addCommand\(\{\s*id:\s*"(canvas:[a-z0-9-]+)"', text))
 
 
 def _write_plugin_main_js(vault: Path, ids) -> Path:
@@ -1329,6 +1337,10 @@ def test_extra_allow_rejects_duplicates(tmp_path, manifest_data):
         ("outputs/**", "与 exclude 模式精确重叠"),
         (".obsidian/*.json", "allow 的 glob 覆盖了已声明的 .obsidian/app.json"),
         (".claude/**/__pycache__", "与 exclude 的 glob 精确重叠"),
+        # ↓ 反向覆盖: allow 是字面量, 被 exclude 的 glob 罩住。缺了这一条,
+        #   删掉实现里两处 `_pattern_covers(path, allow)` 上面四条仍全绿(Codex r1 LOW 实证)。
+        ("outputs/cache.md", "字面 allow 被 exclude 的 glob outputs/** 罩住（反向覆盖）"),
+        (".claude/hooks/pending_archives9.jsonl", "字面 allow 被 exclude 的 glob 罩住（反向覆盖）"),
     ],
 )
 def test_extra_allow_overlapping_declared_or_exclude_is_refused(tmp_path, manifest_data, bad, why):
@@ -1363,6 +1375,8 @@ def test_hotkey_orphan_is_counted_as_mismatch(vault_pair):
     _write_hotkeys(target, [PLUGIN_ID_PREFIX + "canvas:does-not-exist"])
     result = _classify(target)
     assert [f.path for f in result.hotkey_orphan] == [PLUGIN_ID_PREFIX + "canvas:does-not-exist"]
+    # 一次只打一类: 其余阻断桶必须为空, 否则 rc=2 会被别的差异喂饱
+    assert (result.missing, result.extra, result.content_drift, result.unreadable) == ([], [], [], [])
     assert result.exit_code == vv.EXIT_MISMATCH == 2
     assert "## hotkey-orphan" in vv.render(result, vv.load_manifest(MANIFEST))
 
@@ -1386,8 +1400,11 @@ def test_hotkeys_not_evaluated_when_main_js_missing(vault_pair):
     result = _classify(target)
     assert result.hotkey_orphan == []
     assert result.exit_code == vv.EXIT_OK == 0
+    # ⚠️ 判据必须锁到 hotkeys 那一行: 整份报告的 content-drift 段在无 --source 时
+    # 也写着 "not evaluated", 拿全文做包含判断会借用它 —— 把 hotkeys 提示删光也照样绿。
     text = vv.render(result, vv.load_manifest(MANIFEST))
-    assert "not evaluated" in text and "main.js" in text
+    line = next(l for l in text.splitlines() if l.startswith("hotkeys "))
+    assert "not evaluated" in line and "main.js" in line, f"hotkeys 行未明写未评估: {line}"
 
 
 def test_foreign_plugin_hotkeys_are_ignored(vault_pair):
@@ -1406,11 +1423,13 @@ def test_invalid_hotkeys_json_is_unreadable(vault_pair):
     _write_plugin_main_js(target, _command_ids_from_main_ts())
     (target / ".obsidian" / "hotkeys.json").write_text("{not json", encoding="utf-8")
     result = _classify(target)
-    assert any(f.path == ".obsidian/hotkeys.json" for f in result.unreadable)
+    assert [f.path for f in result.unreadable] == [".obsidian/hotkeys.json"]
+    # 一次只打一类
+    assert (result.missing, result.extra, result.content_drift, result.hotkey_orphan) == ([], [], [], [])
     assert result.exit_code == vv.EXIT_MISMATCH == 2
 
 
-def test_install_sh_skills_check_counts_skill_md_dirs():
+def test_install_sh_skills_check_counts_skill_md_dirs(tmp_path):
     """(f) :117 的判据必须数「含 SKILL.md 的目录」, 不是数目录条目。
 
     树内 .claude/skills 有 11 个目录但只有 9 个含 SKILL.md —— 旧 `ls | wc -l`
@@ -1425,3 +1444,171 @@ def test_install_sh_skills_check_counts_skill_md_dirs():
     assert "-mindepth 2 -maxdepth 2" in body, "必须只数一级子目录下的 SKILL.md"
     assert "$(ls " not in body, "计数命令不得再是 ls | wc -l (那会把无 SKILL.md 的半成品目录算进去)"
     assert "-ge 8" in body, "阈值 8 不改 (决策页 §五「≥9」是 preflight 口径, 归 U3-C)"
+    assert "-type f" in body, "SKILL.md 必须是普通文件 —— 同名目录不算一个 skill (Codex r1 MEDIUM)"
+
+    # 行为断言: 只查命令字符串挡不住「给判据加 `|| true`」这类退化, 必须真跑一次。
+    # 抽 :113(check 函数定义) + :117 两行喂给 bash, 不跑整个脚本(它会建目录)。
+    two_lines = "\n".join(INSTALL_SH.read_text(encoding="utf-8").splitlines()[112:113] + [line])
+
+    def _probe(root: Path) -> str:
+        return subprocess.run(
+            ["bash", "-c", two_lines],
+            env={**os.environ, "TARGET": str(root)},
+            capture_output=True,
+            text=True,
+        ).stdout
+
+    good = tmp_path / "good"
+    for i in range(9):
+        (good / ".claude" / "skills" / f"s{i}").mkdir(parents=True)
+        (good / ".claude" / "skills" / f"s{i}" / "SKILL.md").write_text("# s", encoding="utf-8")
+    assert "✅" in _probe(good), "9 个含 SKILL.md 的 skill 应当通过"
+
+    shy = tmp_path / "shy"  # 8 个目录, 但其中一个只有 scripts/, 另一个的 SKILL.md 是**目录**
+    for i in range(8):
+        (shy / ".claude" / "skills" / f"s{i}").mkdir(parents=True)
+        if i < 6:
+            (shy / ".claude" / "skills" / f"s{i}" / "SKILL.md").write_text("# s", encoding="utf-8")
+    (shy / ".claude" / "skills" / "s6" / "scripts").mkdir()
+    (shy / ".claude" / "skills" / "s7" / "SKILL.md").mkdir()
+    assert "❌" in _probe(shy), "半成品 skill(无入口文件 / SKILL.md 是目录)不得计为完成"
+
+
+# ── CARD-RV-G2-6 round-2 整改的门（Codex round-1 结论）────────────────
+
+
+def test_copy_item_missing_on_source_is_not_reported_as_match(vault_pair):
+    """HIGH 回归: 给了 --source 而模板源没有这一项时, 目标那一项**不得**记 match。
+
+    match 读起来就是「核对过, 一致」—— 而这一项根本没比过。改记 unreadable
+    (「看不见不等于一致」的同一条纪律), 计入阻断。
+    """
+    source, target = vault_pair
+    (source / "Dashboard.md").unlink()  # 模板源没有, 目标有
+    result = _classify(target, source=source)
+    assert "Dashboard.md" not in [f.path for f in result.match], "未比较的项不得记 match"
+    assert [f.path for f in result.unreadable] == ["Dashboard.md"]
+    assert "模板源没有这一项" in result.unreadable[0].detail
+    assert (result.missing, result.extra, result.content_drift) == ([], [], [])
+    assert result.exit_code == vv.EXIT_MISMATCH == 2
+
+
+def test_unreadable_dir_in_exclude_scan_surface_is_registered(vault_pair):
+    """HIGH 回归 (= UAT-CARD-G2-6「未证明」#25): exclude 覆盖面读不动时不得静默跳过。
+
+    `outputs/**` 的静态前缀是 `outputs`; 把它设成不可列目录, 旧实现只是跳过,
+    报告照样 0 —— 「一个读不进去的目录里藏着 exclude 项」完全看不见。
+    """
+    _source, target = vault_pair
+    locked = target / "outputs"
+    (locked / "leftover.bin").write_text("x", encoding="utf-8")
+    os.chmod(locked, 0o111)  # 可按名访问, 不可列目录
+    try:
+        result = _classify(target)
+        assert any(f.path == "outputs" for f in result.unreadable), (
+            f"exclude 覆盖面读不动必须登记, 实得 {[f.path for f in result.unreadable]}"
+        )
+        assert "exclude 覆盖面读不进去" in next(f for f in result.unreadable if f.path == "outputs").detail
+        assert result.exit_code == vv.EXIT_MISMATCH == 2
+    finally:
+        os.chmod(locked, 0o755)
+
+
+@pytest.mark.parametrize(
+    "body, quote",
+    [
+        ('this.addCommand({id:"canvas:open-dashboard"});', "双引号"),
+        ("this.addCommand({id:'canvas:open-dashboard'});", "单引号"),
+        ("this.addCommand({id:`canvas:open-dashboard`});", "反引号"),
+    ],
+)
+def test_command_id_literals_accept_every_quote_style(vault_pair, body, quote):
+    """MEDIUM 回归: 只认双引号时, 单引号产物会让命令集变空 ⇒ **真实绑定全被误报 orphan**。
+
+    打包器的引号风格不是稳定契约; 误拦一个正确部署的 vault 比漏放更难排查。
+    """
+    _source, target = vault_pair
+    plugin_dir = target / ".obsidian" / "plugins" / "canvas-learning-system"
+    plugin_dir.mkdir(parents=True, exist_ok=True)
+    (plugin_dir / "main.js").write_text(body, encoding="utf-8")
+    _write_hotkeys(target, [PLUGIN_ID_PREFIX + "canvas:open-dashboard"])
+    result = _classify(target)
+    assert result.hotkey_orphan == [], f"{quote}注册的命令被误判成 orphan"
+    assert result.exit_code == vv.EXIT_OK == 0
+
+
+def test_zero_command_ids_is_reported_as_unreadable_not_a_wall_of_orphans(vault_pair):
+    """MEDIUM 回归: 产物里一个命令 id 都没解析出来时, 不得把每条绑定报成 orphan。
+
+    阻断是对的, 但理由必须是「没法核对」而不是「这些命令不存在」——
+    N 条**说错原因**的结论会把人引到错误的排查方向。
+    """
+    _source, target = vault_pair
+    plugin_dir = target / ".obsidian" / "plugins" / "canvas-learning-system"
+    plugin_dir.mkdir(parents=True, exist_ok=True)
+    (plugin_dir / "main.js").write_text("/* 产物格式变了, 没有任何命令 id 字面量 */", encoding="utf-8")
+    _write_hotkeys(target, [PLUGIN_ID_PREFIX + "canvas:open-dashboard", PLUGIN_ID_PREFIX + "canvas:open-node-chat"])
+    result = _classify(target)
+    assert result.hotkey_orphan == [], "不得报成 orphan"
+    assert [f.path for f in result.unreadable] == [".obsidian/plugins/canvas-learning-system/main.js"]
+    assert "无法核对 2 条快捷键绑定" in result.unreadable[0].detail
+    assert result.exit_code == vv.EXIT_MISMATCH == 2
+    line = next(ln for ln in vv.render(result, vv.load_manifest(MANIFEST)).splitlines() if ln.startswith("hotkeys "))
+    assert "0 个命令 id" in line
+
+
+def test_unencodable_hotkey_key_does_not_escape_the_exit_code(tmp_path, vault_pair):
+    """MEDIUM 回归: vault 来源的不可编码字符不得让 UnicodeEncodeError 逃出退出码契约。
+
+    JSON 里的 `"\\ud800"` 被 json.loads 解成孤立代理字符, 进了报告文本后
+    `text.encode("utf-8")` 会抛 —— 而那个异常**不在** ReportWriteError 的捕获面里
+    (那里只捕 OSError), 于是解释器以 1 退出, 被误读成「只有 missing」。
+    round-3 已为 manifest 来源修过同一形态, 本卡新开的 vault 输入面把它重开了。
+    """
+    _source, target = vault_pair
+    plugin_dir = target / ".obsidian" / "plugins" / "canvas-learning-system"
+    plugin_dir.mkdir(parents=True, exist_ok=True)
+    (plugin_dir / "main.js").write_text('addCommand({id:"canvas:open-dashboard"});', encoding="utf-8")
+    (target / ".obsidian" / "hotkeys.json").write_text(
+        '{"canvas-learning-system:canvas:\\ud800": [{"modifiers":["Mod"],"key":"X"}]}',
+        encoding="utf-8",
+        errors="surrogatepass",
+    )
+    out = tmp_path / "out"
+    out.mkdir()
+    report_path = out / "r.txt"
+    rc = vv.main(["--vault", str(target), "--manifest", str(MANIFEST), "--report", str(report_path)])
+    assert rc == vv.EXIT_MISMATCH == 2, "必须给出承诺的退出码, 而不是让异常逃逸"
+    assert report_path.exists(), "报告必须落得下去"
+    text = report_path.read_text(encoding="utf-8")
+    assert "\\ud800" in text, "不可编码字符应转义成可见形式而不是丢失"
+    assert sorted(p.name for p in out.iterdir()) == ["r.txt"], "不得留下临时文件"
+
+
+def test_argparse_error_also_uses_the_usage_exit_code(vault_pair, capsys):
+    """MEDIUM 回归: argparse 默认用 rc=2 退出 —— 而 2 在四档语义里是 mismatch。
+
+    「命令行没写对」被调用方读成「vault 有多余文件」是最坏的一种混淆。
+    """
+    with pytest.raises(SystemExit) as exc:
+        vv.main(["--vault"])  # 缺参数值
+    assert exc.value.code == vv.EXIT_USAGE == 3
+    assert "参数错误" in capsys.readouterr().err
+
+
+def test_declared_paths_has_a_single_source_of_truth():
+    """`Manifest.declared_paths` 与 load_manifest 的重叠检查必须共用同一个口径。
+
+    各写一份就会漂: 将来给 declared 加一类 action 而只改一处, extra_allow 就能
+    放行一条本该被管住的路径, 而且没有任何门会红。
+    """
+    manifest = vv.load_manifest(MANIFEST)
+    assert vv._declared_paths(manifest.items) == manifest.declared_paths
+    # 28 而不是 27: declared 是 copy+skeleton+**generate**, 比集合等价门那 27 项多
+    # 一条 .canvas-config.yaml。两个数字各有出处, 不得互抄 —— 抄错正是本条的来历。
+    assert len(manifest.declared_paths) == 28
+    assert manifest.declared_paths - {
+        i["path"]
+        for i in json.loads(MANIFEST.read_text(encoding="utf-8"))["items"]
+        if i["action"] in ("copy", "skeleton")
+    } == {".canvas-config.yaml"}

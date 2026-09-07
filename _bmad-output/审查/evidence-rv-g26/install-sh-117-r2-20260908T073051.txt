@@ -1,0 +1,13 @@
+### (f) :117 三态 — round-2 (加 -type f) ts=20260908T073051
+check "skills ≥8 个 (含 SKILL.md)" '[ "$(find "$TARGET/.claude/skills" -mindepth 2 -maxdepth 2 -type f -name SKILL.md 2>/dev/null | wc -l)" -ge 8 ]'
+--- tmp8: 目录数=8  含SKILL.md普通文件=7  含SKILL.md任意类型=7 ---
+   ❌ skills ≥8 个 (含 SKILL.md)
+--- tmp9: 目录数=9  含SKILL.md普通文件=9  含SKILL.md任意类型=9 ---
+   ✅ skills ≥8 个 (含 SKILL.md)
+--- tmpDir: 目录数=8  含SKILL.md普通文件=0  含SKILL.md任意类型=8 ---
+   ❌ skills ≥8 个 (含 SKILL.md)
+--- bash -n / wc -l ---
+bash -n OK
+     157 scripts/install-vault.sh
+--- 树内真实 vault ---
+  ls|wc -l=11  -type f SKILL.md=9

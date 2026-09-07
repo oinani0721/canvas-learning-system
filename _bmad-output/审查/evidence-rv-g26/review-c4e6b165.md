@@ -1,7 +1,7 @@
 # CARD-RV-G2-6 (b) — `c4e6b165` 零外审整改逐条定性表
 
 > 复审对象：`git diff ff105706 c4e6b165 -- . ':(exclude)_bmad-output'` = 2 files **+453/−50**（Codex r3 审的是 `ff105706`，此后的整改**未再送外审**）。
-> HEAD 与 `c4e6b165` 的四个代码文件**逐字节相同**（两路交叉证：`git diff --stat` 空 + `git show "c4e6b165:<path>" | shasum` 四条 SAME），故下表的 HEAD file:line 就是 `c4e6b165` 的位置。证据 `evidence-rv-g26/minute0-head-proof-20260908T064317.txt`。
+> ⚠️ **绑定限定（Codex round-1 LOW 更正）**：下表的 file:line 与「旧 rc」是 **`da690bf8` 开工快照**上的实测值 —— 那一刻 HEAD 的四个代码文件与 `c4e6b165` **逐字节相同**（两路交叉证：`git diff --stat` 空 + `git show "c4e6b165:<path>" | shasum` 四条 SAME，见 `minute0-head-proof-20260908T064317.txt`）。本卡随后改动了其中三个文件，**最终 HEAD 已不再与 `c4e6b165` 逐字节相同**；下表行号一律按开工快照读，不按末态读。
 > 定性口径：**P1** = 整改不成立 / 缺陷仍在（本卡修）；**P2** = 整改成立但引入或残留新边界（本卡修或登记，逐条写明选哪个）；**登记** = 成立且无新边界。
 
 ## 〇 先解 UAT 自身的三套口径矛盾（本卡取 8 + 17）
@@ -22,7 +22,7 @@
 | # | 级别 | 原指控（一句） | 整改落点 HEAD file:line | 定性 | 依据（复现输出行） |
 |---|---|---|---|---|---|
 | R3-1 | BLOCKER | 大小写目录别名（`--vault …/vault --report …/VAULT/x`）绕过禁写检查，rc=0 且报告落进 vault | `scripts/verify_vault_install.py:835` `_fs_identity`（`(st_dev,st_ino)`）+ `:876-880` 身份优先判 | **登记** | `R3-1 不成立 — 已拒绝`：`rc=2  vault 内被新建 report.txt = False  Dashboard 未变 = True` |
-| R3-2 | BLOCKER | `O_EXCL` 失败后 `unlink(tmp)` 删掉**别人的**文件，rc=2 但原文件已毁 | `:590`（临时名带 pid+`os.urandom(4)`）、`:596/:599` `created` 标志、`:615` 只清本次创建 | **登记** | `R3-2 不成立 — 没删别人的文件`：`rc=0  别人的临时文件还在 = True` |
+| R3-2 | BLOCKER | `O_EXCL` 失败后 `unlink(tmp)` 删掉**别人的**文件，rc=2 但原文件已毁 | `:590`（临时名带 pid+`os.urandom(4)`）、`:596/:599` `created` 标志、`:615` 只清本次创建 | **登记** | `R3-2 不成立 — 没删别人的文件`：`rc=0  别人的临时文件还在 = True`。⚠️ **依据收窄（Codex r1 LOW 更正）**：这条 `rc=0` 只证明「那个预置文件没被删」，**没有证明发生过 `O_EXCL` 碰撞** —— 整改给临时名加了随机串，脚本预置的 `.report.txt.tmp-<pid>` 撞不上，`except` 分支压根没走到（正是 UAT §十二 记的 M18 教训）。真正走到碰撞分支的是 `c4e6b165` 补的门 `test_exclusive_create_failure_does_not_delete_someone_elses_file`（它把随机串固定住再预置同名文件）；Codex round-1 独立复跑碰撞样例亦通过。⇒「整改成立」的结论仍站得住，站不住的是我原来引的那一条证据。 |
 | R3-3 | BLOCKER | 禁写根不覆盖两层软链；扫描失败被忽略。两例均 rc=0 且改变被审树可见内容 | `:522` `SYMLINK_FOLLOW_DEPTH=4`、`:525-...` `_forbidden_roots` 递归+身份去重、`:857/:862/:868-870` 扫描没跑完即拒绝落盘 | **登记** | ① `rc=2  vault 经两层链看到新文件 = False`；② `rc=2 >>> 不成立 — 扫不完就拒绝` |
 | R3-4 | HIGH | 两侧同名普通文件均 `000` 权限、内容不同 ⇒ `drift=[]`、`unreadable=[]`、**rc=0**（假绿） | `:452` `_leaf_digest` 改返 `(摘要, 是否读不动)`；`:494-496` 顶层分支登记、`:512-514` 循环内登记 | **登记** | `drift=0  unreadable=2  exit=1` → `R3-4 不成立 — 已登记并阻断` |
 | R3-5 | MEDIUM | 单次 `os.write()` 忽略短写，`RLIMIT_FSIZE=1` 下发布 1 字节的截断报告 | `:601-602` `while written < len(data)` 循环写满后才 `os.replace` | **登记** | `RESULT raised 报告落盘失败: …` → `R3-5 不成立 — 短写被发现并报错` |
@@ -71,3 +71,38 @@
 - **P1 = 0**（无「整改不成立/缺陷仍在」）；**P2 = 1**（R3-10，选登记）；**登记 = 9**。
 - `c4e6b165` 的 8 条代码整改在 HEAD 上**逐条复现为「指控不成立」**，17 条新门数目与实跑对齐，其中被本卡机械变异实证承重的 1 条（M-LOW9 KILLED）、实证不可区分的 1 条（M-LOW10 SURVIVED + 正控）。
 - **本卡未做的复审面（如实）**：其余 15 条新门只核了「存在 + collected 数 + 锁哪条整改」，**没有逐条做变异**证明它们各自承重；r3「其余核对结果」里的 AST 门评述、`resolve()` 版本相关观察未独立复验。
+
+---
+
+## 六 Codex round-1 之后（round-2 整改，2026-09-08）
+
+round-1 绑 `523c10f0`，结论 **0 BLOCKER / 2 HIGH / 5 MEDIUM / 5 LOW**。
+它独立复核了 §一 那 8 条历史整改（15 个隔离样例，**全部通过**）与 rc 的 **128 种桶组合**
+（与本卡 `no-downgrade-proof-*.txt` 的枚举同结论）。按 D-15，HIGH 必须清零。逐条处置：
+
+| 级别 | 问题 | 处置 |
+|---|---|---|
+| HIGH | 给了 `--source` 而源端缺该 copy 项时，未比较的目标仍记 **match** | **修**。改记 `unreadable`（「看不见不等于一致」同一纪律），计入阻断。门 `test_copy_item_missing_on_source_is_not_reported_as_match` |
+| HIGH | exclude 扫描失败仍可能静默返回 0（= UAT-CARD-G2-6 #25） | **修**。`_iter_relative` 增 `unreadable` 出参并透传到 `hits_for` → `verify()` 登记（跨 exclude 项去重）。门 `test_unreadable_dir_in_exclude_scan_surface_is_registered`。**本卡原登记「不修」的 #25 就此收口** |
+| MEDIUM | `main.js` 未评估仍 rc=0，部署核验留盲区 | **登记不修**：这是卡文 (e) 钉死的语义（不计 rc、不静默）。盲区写进「未证明」与台账 |
+| MEDIUM | 命令字面量法假放行/假拦下；`main.ts` 数量门不证明注册语义 | **修一半**：正则改认三种引号（消除**假拦下**）；`main.ts` 门绑到 `addCommand({ id:` 注册点。**假放行**（注释里的同形字面量）仍在，登记 |
+| MEDIUM | 新 hotkeys 输入重开了未捕获的 `UnicodeEncodeError`（实测 rc=**1**，被误归「只有 missing」档） | **修**。`_printable()` 在 **render 输出边界**统一收口，一处覆盖全部来源 |
+| MEDIUM | `argparse` 参数错误仍 rc=**2**，与新语义的 mismatch 撞车 | **修**。`_Parser.error()` 抛 `SystemExit(EXIT_USAGE)` |
+| MEDIUM | `:117` 仍把 `SKILL.md` **是目录**的半成品计为完成；测试只查命令字符串 | **修**。判据加 `-type f`（仍一行、157 行不变）；门补**行为断言**（真跑抽出的两行）+ `SKILL.md` 为目录的负控 |
+| LOW | 重叠门未锁反向覆盖（删两处 `_pattern_covers(path, allow)` 仍全绿） | **修**。补两个反向参数 |
+| LOW | `not evaluated` 断言借用 content-drift 段的同一词 | **修**。断言锁到 `hotkeys ` 那一行 |
+| LOW | orphan / 非法 JSON 两门没排除其他阻断桶 | **修**。各补「其余桶为空」 |
+| LOW | 方括号门对 `GLOB_CHARS` 不可区分 | **同意，维持登记**（Codex 明确认可本表 §二 的登记准确） |
+| LOW | 本表 HEAD 绑定与 R3-2 证据表述过宽 | **修**，见 §一 上方两处 ⚠️ |
+
+Codex 另指出两条口径需要限定，已采纳：
+
+1. **「绝不读取树外」不成立** —— 既有扫描路径与新增 hotkeys 读取都会跟随软链，树外软链目标确实会被读。
+   本卡的承诺应表述为「**不写**被审树」，不是「不读树外」。
+2. **「任何原先 1 都不会变 0」必须加限定** —— 只在**空白名单**下成立；`extra_allow` 非空时把 extra
+   从阻断变成 0 **正是设计行为**，翻转表 ① 就是验证它的。
+
+### round-2 后的复核状态
+
+`_iter_relative` 的收口把 UAT #25 从「登记不修」变成「已修」——
+本表 §四 的 #25 行与 §五「未证明」相应条目按此更新（见 UAT §十二）。

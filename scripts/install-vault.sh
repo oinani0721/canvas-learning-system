@@ -114,7 +114,7 @@ check() { if eval "$2"; then echo "   ✅ $1"; PASS=$((PASS+1)); else echo "   �
 echo ""
 echo "🔍 自检:"
 check "骨架目录 5 个"            '[ -d "$TARGET/原白板" ] && [ -d "$TARGET/检验白板" ] && [ -d "$TARGET/节点" ] && [ -d "$TARGET/outputs" ] && [ -d "$TARGET/raw" ]'
-check "skills ≥8 个 (含 SKILL.md)" '[ "$(find "$TARGET/.claude/skills" -mindepth 2 -maxdepth 2 -name SKILL.md 2>/dev/null | wc -l)" -ge 8 ]'
+check "skills ≥8 个 (含 SKILL.md)" '[ "$(find "$TARGET/.claude/skills" -mindepth 2 -maxdepth 2 -type f -name SKILL.md 2>/dev/null | wc -l)" -ge 8 ]'
 check "decay_beta + fsrs_bridge" '[ -f "$TARGET/.claude/scripts/decay_beta.py" ] && [ -f "$TARGET/.claude/scripts/fsrs_bridge.py" ]'
 check "hooks 配置 settings.json" '[ -f "$TARGET/.claude/settings.json" ]'
 check "mcp.json"                 '[ -f "$TARGET/.claude/mcp.json" ]'

@@ -81,7 +81,10 @@ PLUGIN_MAIN_JS_REL = f".obsidian/plugins/{PLUGIN_ID}/main.js"
 HOTKEY_PREFIX = f"{PLUGIN_ID}:"
 # main.js 是打包压缩过的构建产物, 只能按字面量取命令 id。真相源是
 # frontend/obsidian-plugin/src/main.ts 的 addCommand({id: "canvas:…"}), 由测试层单独钉住。
-COMMAND_ID_RE = re.compile(r'"(canvas:[a-z0-9-]+)"')
+# 三种引号形态都认: 打包器的引号风格不是稳定契约(esbuild/terser/rollup 各有默认,
+# 配置一改就变)。只认双引号时, 单引号产物会让命令集变成空集 —— 于是**每一条真实
+# 绑定都被误报成 orphan**, 正确部署的 vault 反而阻断。误拦比漏放更难排查, 故放宽。
+COMMAND_ID_RE = re.compile(r"""(["'`])(canvas:[a-z0-9-]+)\1""")
 
 VALID_ACTIONS = frozenset({"copy", "generate", "skeleton", "exclude"})
 # "nondir" 对应 install-vault.sh:86 那条强制删除: 它清掉一切**非目录**条目
@@ -139,11 +142,21 @@ class Manifest:
     @property
     def declared_paths(self) -> frozenset[str]:
         """copy / skeleton / generate 三类的 path —— 即「该在目标里的东西」。"""
-        return frozenset(i.path for i in self.items if i.action in ("copy", "skeleton", "generate"))
+        return _declared_paths(self.items)
 
     @property
     def exclude_items(self) -> tuple[Item, ...]:
         return tuple(i for i in self.items if i.action == "exclude")
+
+
+def _declared_paths(items: tuple[Item, ...]) -> frozenset[str]:
+    """「该在目标里的东西」的唯一口径。
+
+    `Manifest.declared_paths` 与 `load_manifest` 的 `extra_allow` 重叠检查**必须**共用它 ——
+    各写一份就会漂: 将来给 declared 加一类 action 而只改了一处, `extra_allow` 就能放行
+    一条本该被管住的路径, 而且没有任何门会红。
+    """
+    return frozenset(i.path for i in items if i.action in ("copy", "skeleton", "generate"))
 
 
 @dataclass(frozen=True)
@@ -333,7 +346,7 @@ def load_manifest(path: Path | str) -> Manifest:
         raise ManifestError(f"manifest 的 extra_allow 必须是列表, 实为 {type(raw_allow).__name__}")
     allow_seen: set[str] = set()
     allow: list[str] = []
-    declared = frozenset(i.path for i in items if i.action in ("copy", "skeleton", "generate"))
+    declared = _declared_paths(tuple(items))
     exclude_paths = tuple(i.path for i in items if i.action == "exclude")
     for index, entry in enumerate(raw_allow):
         # 与 item 的 path 同一套口径: 相对 / 无 .. / 可编码 / 无重复 (支持 *? glob)。
@@ -467,16 +480,27 @@ def _walk(root: Path):
                 yield (child, "file")
 
 
-def _iter_relative(root: Path, base: Path) -> list[str]:
-    """列出 root 子树里全部条目相对 base 的 POSIX 路径 (含 root 自身)。"""
+def _iter_relative(root: Path, base: Path, unreadable: list[str] | None = None) -> list[str]:
+    """列出 root 子树里全部条目相对 base 的 POSIX 路径 (含 root 自身)。
+
+    `unreadable` 给了就把**读不动的位置**一并上报 —— 早先这里遇到读不动只是把它当成
+    一个普通条目塞进列表, 调用方(exclude 分类)无从知道发生过遍历失败: 于是
+    「一个读不进去的目录里藏着 exclude 项」会被静默跳过, 报告照样 0。
+    那是漏报, 与 `_digest` 早先的「摘要相等就算一致」同一形态。
+    (UAT-CARD-G2-6 「未证明」#25, 由 CARD-RV-G2-6 收口。)
+    """
     if not root.exists():
         return []
     out = [root.relative_to(base).as_posix()] if root != base else []
     if root.is_dir() and not root.is_symlink():
         prefix = root.relative_to(base).as_posix() if root != base else ""
         for rel, kind in _walk(root):
-            if kind == "unreadable" and not rel:
-                continue
+            if kind == "unreadable":
+                if unreadable is not None:
+                    here = f"{prefix}/{rel}" if prefix and rel else (prefix or rel)
+                    unreadable.append(here)
+                if not rel:
+                    continue
             out.append(f"{prefix}/{rel}" if prefix else rel)
     return out
 
@@ -522,8 +546,11 @@ class ExcludeMatcher:
         parts = rel.split("/")
         return any(self.matches_exact(base, "/".join(parts[:n])) for n in range(1, len(parts) + 1))
 
-    def hits_for(self, vault: Path, item: Item) -> list[str]:
-        """单条 exclude 在 vault 里实际命中的相对路径 (按静态前缀限定遍历面)。"""
+    def hits_for(self, vault: Path, item: Item, unreadable: list[str] | None = None) -> list[str]:
+        """单条 exclude 在 vault 里实际命中的相对路径 (按静态前缀限定遍历面)。
+
+        `unreadable` 给了就透传遍历失败的位置 —— 扫不完就不能说「这条排除项不在目标里」。
+        """
         if not _has_glob(item.path):
             target = vault / item.path
             # exists() 对悬空软链是 False, 但那个条目**确实在目标里**(部署脚本也会删它),
@@ -534,7 +561,9 @@ class ExcludeMatcher:
         scan_root = vault / prefix if prefix else vault
         regex = _pattern_to_regex(item.path)
         return sorted(
-            rel for rel in _iter_relative(scan_root, vault) if regex.fullmatch(rel) and _kind_ok(item, vault / rel)
+            rel
+            for rel in _iter_relative(scan_root, vault, unreadable)
+            if regex.fullmatch(rel) and _kind_ok(item, vault / rel)
         )
 
 
@@ -731,10 +760,26 @@ def verify(
         drift_evaluated=source is not None,
     )
     excluder = ExcludeMatcher(manifest.exclude_items)
+    scan_failures_seen: set[str] = set()
 
     for item in manifest.items:
         if item.action == "exclude":
-            hits = excluder.hits_for(vault, item)
+            scan_failures: list[str] = []
+            hits = excluder.hits_for(vault, item, scan_failures)
+            for rel in scan_failures:
+                # 同一个读不动的目录会被多条 exclude 的前缀扫到, 只登记一次。
+                if rel in scan_failures_seen:
+                    continue
+                scan_failures_seen.add(rel)
+                report.unreadable.append(
+                    Finding(
+                        path=rel,
+                        category="unreadable",
+                        action=item.action,
+                        role=item.role,
+                        detail="exclude 覆盖面读不进去, 无法确认这条排除项在不在目标里",
+                    )
+                )
             if hits:
                 sample = ", ".join(hits[:3])
                 more = f" (共 {len(hits)} 项)" if len(hits) > 3 else ""
@@ -780,31 +825,44 @@ def verify(
         # generate 项按 vault 重新生成, 内容本就该与模板源不同 —— 不评 drift。
         if item.action == "copy" and source is not None:
             src = source / item.path
-            if src.exists():
-                unreadable_here: list[str] = []
-                src_digest = _digest(src, excluder, source, unreadable_here)
-                tgt_digest = _digest(target, excluder, vault, unreadable_here)
-                for rel in unreadable_here:
-                    report.unreadable.append(
-                        Finding(
-                            path=rel,
-                            category="unreadable",
-                            action=item.action,
-                            role=item.role,
-                            detail="读不进去, 无法证明两侧一致",
-                        )
+            if not src.exists():
+                # 目标有、模板源没有 ⇒ 两侧无从比较。**不能记 match** —— match 读起来就是
+                # 「核对过, 一致」, 而这一项根本没比过。归 unreadable(「看不见不等于一致」
+                # 的同一条纪律), 计入阻断并在报告里说清原因。
+                report.unreadable.append(
+                    Finding(
+                        path=item.path,
+                        category="unreadable",
+                        action=item.action,
+                        role=item.role,
+                        detail="模板源没有这一项, 无法证明内容一致 (install-vault.sh 会 ⚠️ 跳过它)",
                     )
-                if src_digest != tgt_digest:
-                    report.content_drift.append(
-                        Finding(
-                            path=item.path,
-                            category="content-drift",
-                            action=item.action,
-                            role=item.role,
-                            detail="与模板源字节不一致",
-                        )
+                )
+                continue
+            unreadable_here: list[str] = []
+            src_digest = _digest(src, excluder, source, unreadable_here)
+            tgt_digest = _digest(target, excluder, vault, unreadable_here)
+            for rel in unreadable_here:
+                report.unreadable.append(
+                    Finding(
+                        path=rel,
+                        category="unreadable",
+                        action=item.action,
+                        role=item.role,
+                        detail="读不进去, 无法证明两侧一致",
                     )
-                    continue
+                )
+            if src_digest != tgt_digest:
+                report.content_drift.append(
+                    Finding(
+                        path=item.path,
+                        category="content-drift",
+                        action=item.action,
+                        role=item.role,
+                        detail="与模板源字节不一致",
+                    )
+                )
+                continue
 
         report.match.append(Finding(path=item.path, category="match", action=item.action, role=item.role))
 
@@ -920,8 +978,19 @@ def _check_hotkeys(vault: Path, report: Report) -> None:
         )
         return
 
-    known = set(COMMAND_ID_RE.findall(source))
+    known = {m.group(2) for m in COMMAND_ID_RE.finditer(source)}
     bound = sorted(k for k in bindings if k.startswith(HOTKEY_PREFIX))
+    if bound and not known:
+        # 一条命令 id 都没解析出来, 而快捷键确实绑了东西 —— 更可能是产物格式变了,
+        # 不是「插件真的一个命令都没有」。此时把每条绑定都报成 orphan, 会给出 N 条
+        # **说错原因**的结论: 阻断是对的, 理由却是假的。改报「没法核对」。
+        # 代价如实声明: 插件真的零命令而快捷键有陈旧绑定时, 也会归到这一档。
+        _unreadable(
+            PLUGIN_MAIN_JS_REL,
+            f"没解析出任何命令 id 字面量, 无法核对 {len(bound)} 条快捷键绑定",
+            f"not evaluated (产物里 0 个命令 id, {len(bound)} 条绑定未核对)",
+        )
+        return
     for key in bound:
         if key[len(HOTKEY_PREFIX) :] not in known:
             report.hotkey_orphan.append(
@@ -937,6 +1006,23 @@ def _check_hotkeys(vault: Path, report: Report) -> None:
 
 
 # ── 报告渲染 ─────────────────────────────────────────────────────────
+
+
+def _printable(text: str) -> str:
+    """把无法编码成 UTF-8 的字符转义成可见形式, 保证报告一定落得下去。
+
+    报告里的字符串有两个来源: **manifest**(加载阶段已被 `_require_encodable` 挡过) 与
+    **被查 vault 本身**(hotkeys.json 的键、`os.scandir` 给出的文件名)。后者没有任何
+    可编码性保证 —— JSON 里那个 6 字符的代理转义 (反斜杠 u d 8 0 0) 会被 `json.loads`
+    解成孤立代理字符, 文件系统的
+    非法字节会被 surrogateescape 解成同一类字符。它们一旦进了报告文本, 落盘时抛的
+    `UnicodeEncodeError` 会**逃出** `ReportWriteError` 的捕获面(那里只捕 `OSError`),
+    调用方拿到的是 traceback 而不是承诺的退出码。
+
+    这正是 round-3 MEDIUM 已经修过的形态, 只是换了个输入面重开 —— 所以这次收在
+    **输出边界**上, 一处覆盖全部来源, 而不是给每个新桶各补一道。
+    """
+    return text.encode("utf-8", "backslashreplace").decode("utf-8")
 
 
 def render(report: Report, manifest: Manifest) -> str:
@@ -981,14 +1067,27 @@ def render(report: Report, manifest: Manifest) -> str:
             lines.append(f"  {finding.path}{role}{suffix}")
     lines.append("")
     lines.append(f"exit={report.exit_code}")
-    return "\n".join(lines) + "\n"
+    return _printable("\n".join(lines) + "\n")
 
 
 # ── CLI ──────────────────────────────────────────────────────────────
 
 
+class _Parser(argparse.ArgumentParser):
+    """把 argparse 的参数错误出口从 2 改成 EXIT_USAGE。
+
+    argparse 默认 `sys.exit(2)` —— 而 rc=2 在四档语义里是 **mismatch**(「多出来 / 对不上」)。
+    不改就会出现「命令行都没写对, 调用方却读成『vault 有多余文件』」。
+    """
+
+    def error(self, message: str):  # noqa: ANN201 — 与基类同签名, 不返回
+        self.print_usage(sys.stderr)
+        print(f"❌ 参数错误: {message}", file=sys.stderr)
+        raise SystemExit(EXIT_USAGE)
+
+
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
+    parser = _Parser(
         prog="verify_vault_install.py",
         description="只读校验一个 vault 是否符合 vault-install-manifest.json 声明的部署边界。",
     )

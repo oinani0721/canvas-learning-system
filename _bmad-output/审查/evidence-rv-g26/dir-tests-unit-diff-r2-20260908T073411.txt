@@ -1,0 +1,9 @@
+### tests/unit 目录级 收工(round-2) diff  ts=20260908T073411
+raw: dir-tests-unit-close-r2-20260908T072937.raw
+汇总: = 173 failed, 4784 passed, 48 skipped, 122 warnings, 29 errors in 239.46s (0:03:59) =
+开工红集=     202  收工红集=     202
+diff-rc=0
+  只在开工(<)=0
+  只在收工(>)=0
+skipped: 开工 48 skipped / 收工 48 skipped
+passed:  开工 4749 / 收工 4784  （+35 = 本文件 85→120）
