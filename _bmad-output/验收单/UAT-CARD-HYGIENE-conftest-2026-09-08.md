@@ -1,0 +1,441 @@
+# UAT — CARD-HYGIENE-conftest
+
+> 批次: `BATCH-2026-09-07-第十三批` · 车道 `card-u10-red-a`（分支 `card/u10-red-a`）· CODE_BASE `da690bf8`
+> 卡文: `…/feature-obsidian-hybrid-dev/_bmad-output/implementation-artifacts/goal-cards/第十三批-goals/U10-A.md`
+> 地盘: **只** `backend/tests/unit/conftest.py`（本卡零生产代码改动）
+> evidence: `_bmad-output/审查/evidence-hyg-conftest/`（全部 `.txt`，末行 `rc=`）
+> 日期: 2026-09-08
+
+---
+
+## 〇 一句话
+
+`tests/unit` 的卫生门原先把**全机共享** `/tmp` 里新出现的 `test-vault*` 目录无条件判成本车道回归；
+本卡按「能不能归属到本 worktree」把信号分成两类 —— 可归属的继续硬 fail（并**新增**一道树内源码
+字面量硬门），不可归属的降为「环境受干扰」告警。既有骨架 / tracked sha 两个硬 fail 面一字未动。
+
+---
+
+## 一 完成条件逐条对照
+
+### (a) 第 0 分钟 + §〇 逐条实测 + 开工 `/tmp` 清单
+
+| 项 | 实测 |
+|---|---|
+| `pwd` | `…/.claude/worktrees/card-u10-red-a` ✅ |
+| `git branch --show-current` | `card/u10-red-a` ✅ |
+| `git rev-parse HEAD` | `da690bf8817adc4a84b20d59a1b8d8db4a578969` ✅ |
+| `git status --porcelain` | 空 ✅ |
+| `backend/.venv/bin/pytest` / `backend/.env` | 都在 ✅（venv 是目录级 symlink → `card-v5-lance/backend/.venv`） |
+
+**§〇 每条 file:line 实测与规划稿一致，无一处需要写「规划稿 :X → 实测 :Y」**：
+`:46` `_HYGIENE_SKELETON_PATHS` / `:49` `_HYGIENE_TRACKED_FILES` / `:51` `_HYGIENE_TMP_GLOB` /
+`:54-61` `_hygiene_backend_root()` / `:64-86` `_hygiene_snapshot()`（`:77` sha、`:82` tmp glob、`:83-84` except）/
+`:89-134` fixture（`:114-116` 差集判据、`:117-124` 归属提示、`:126-134` `pytest.fail`）/
+`:137` `_stub_vault_identity_registry`；文件 **218** 行。
+
+**§〇 第 4 行的 grep 事实复验**（本树已无 `/tmp` 根写者）：
+- `grep -rn '/tmp/test-vault' backend/tests --include='*.py'` = **4** 行，**无一是写者**
+  （`conftest.py:118` 门自己的提示文案 + `test_startup_health_check.py:56/:58/:66` 三条 `#` 注释）;
+- `grep -rn 'test-vault' …` = **14** 行，其余 10 行不含 `/tmp/` 前缀（`tmp_path / "test-vault…"` 六处、
+  非路径串三处、`conftest.py:51` glob 常量一处）。
+
+**开工 `/tmp/test-vault*` 清单**：`evidence-hyg-conftest/tmp-listing-open-20260908T064505.txt` —— **12 个既有目录**
+（`test-vault` / `test-vault-wizard` 及 `.h1/.h2after/.h2d/.n1/.n2/.pre` 后缀族，mtime 09-05~09-08）。
+**只看不动、不改名、不删**。U11-A 于 06:58 独立实测同样是 12 个，第二源交叉一致。
+
+> ⚠️ 存档里同时记了一条 `find /tmp -maxdepth 1 -name 'test-vault*'` **返回空**。这不是与 `ls` 矛盾：
+> macOS `/tmp → /private/tmp` 是 symlink，而 `find` 默认 `-P` 不跟随任何 symlink（含命令行参数），
+> 于是 `maxdepth 1` 只看到链接本身。shell glob 与 `Path("/tmp").glob()` 都走 `opendir("/tmp")`，
+> 由内核解析 symlink ⇒ 门看到的确实是这 12 个。**这条同时是「本卡未证明什么」⑤ 的实测素材。**
+
+### (b) 开工基线（改任何文件之前，四个门下目录级）
+
+| 目录级 | 汇总行 | rc | nodeid 判据 |
+|---|---|---|---|
+| `tests/unit` | `173 failed, 4749 passed, 48 skipped, 122 warnings, 29 errors in 253.34s` | 1 | **与 202 基线 diff 为空** ✅（`red-diff-open.txt` 零行） |
+| `tests/api` | `268 passed, 40 warnings in 1.61s` | 0 | 零红 nodeid |
+| `tests/regression` | `1464 passed, 6 skipped, 10 xfailed, 556 warnings in 339.92s` | 0 | 零红 nodeid |
+| `tests/skills` | `369 passed, 22 warnings in 39.57s` | 0 | 零红 nodeid |
+
+- 基线文件（绝对路径，不在本车道树）：
+  `/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/审查/evidence-b13/unit-red-baseline-da690bf8.txt`，`grep -cE '^(FAILED|ERROR) tests/'` = **202**。
+- 开工 unit 的汇总行与基线抬头记录的 `173 failed / 4749 passed / 48 skipped / 29 errors` **逐字一致**。
+- 三个「零影响」目录级的**预期依据**（写进存档抬头，**不替代实跑**）= `conftest.py:34-41` 覆盖面注释
+  + 本卡 (d)(e) 两处改动都在该 fixture 内。收工实跑结果见 (i)。
+- ⛔ 全程未用 `wc -l` 当分母。
+
+### (c) 修前负控 N1 —— 实证「此刻 `/tmp` 信号是硬 fail」
+
+存档 `negctl-n1-before-20260908T065914.txt` / 窗口 `window-n1-before-20260908T065914.txt`
+
+```
+8 passed, 10 warnings, 1 error in 12.43s      rc=1
+ERROR at teardown of TestCheckRequiredPlugins.test_no_obsidian_dir
+  新出现 /tmp/test-vault* 目录: /tmp/test-vault-negctl-43048
+mkdir_done=2026-09-08T06:59:27  dir=/tmp/test-vault-negctl-43048
+```
+
+- **前提断言满足**：存档里**看得见**那条 ERROR（不是「理论上会红」）。
+- 判据：`ERROR tests/` = 1、`新出现 /tmp/test-vault* 目录` = 1、负控目录名在正文出现 3 次、`rc=1`。
+- 跑完 `rmdir /tmp/test-vault-negctl-43048`（`rmdir` 非递归，只删自己建的空目录）。
+
+> **⚠️ 与卡文 §二.3 的执行偏离（等价性已论证，登记）**：卡文写 `( sleep 2; mkdir … ) &`。
+> 实测该写法**必然失效**：单文件跑总耗时 ~11.5s，其中 pytest 内部只有 **0.45s** —— 约 11s 全在
+> Python 启动 + conftest import + collection，于是 session fixture 首尾两次 `/tmp` 快照之间只有
+> **~0.5s** 的洞。`sleep 2` 的 mkdir 落在 before 快照**之前**，目录进 before 集合，差集为空 ⇒
+> **静默不红**（负控假 SURVIVED，且成败随机取决于机器负载 = 不可复现）。
+> 处置：外部 mkdir 仍由**独立后台进程**建（保持「非本 pytest 进程所建」的形态不变），另加一个
+> 只做 `time.sleep` 的外部插件 `-p widen_window` 把窗口从 0.45s 拉到 12s，外部 mkdir 排在 t0+13s。
+> 该插件**不 import 被测模块、不碰 conftest / fixture / 门逻辑、不建不删任何文件**，唯一可观测
+> 副作用是「慢了 12 秒」；源码见 `evidence-hyg-conftest/widen_window.py.txt`。
+> **等价性**：负控要证的输入形态（`/tmp` 根在 session 窗口内出现新的 `test-vault*` 目录、非本进程所建）
+> 逐字未变，只是把「靠运气命中 0.5s」换成「时序可断言」⇒ 对该症状等价且**更强**。
+> ⚠️ (n) 的 N2/N2' 用**真目录级**（窗口 235~253s），**不需要也没有用**这个插件 —— 承重判据那一侧是纯净的。
+
+### (d) `/tmp` 信号降「环境受干扰」告警
+
+- `:114-124` 的差集逻辑**保留**，出口从 `violations.append(...)` 改为
+  `warnings.warn(pytest.PytestWarning(...), stacklevel=1)`。
+- `_HYGIENE_TMP_GLOB` 与 `_hygiene_snapshot()` 的 `tmp` 字段**保留不删**（观测照做，只换出口）。
+- 渲染文案**逐字保留**原归属提示三行（`stat -f '%Sm'` / `ps -ww -p` / `lsof -a -p -d cwd`），
+  并追加三行：`/tmp` 全机共享归属不可判 ⇒ 本 session 不判红（Codex Y6-A HIGH #1）；本树自身写者由
+  源码字面量门守（硬 fail）；这条告警 = 环境受干扰需要重跑、**不是**本次运行新增的回归。
+- 固定判据串 **`环境受干扰`** 在文案第一行。
+- **整段字面量已拆**：`_TMP_LITERAL = "/tmp/" + "test-vault"`（`+` 号形态，实测保持 `BinOp` 两个 `Constant`）。
+  ⛔ 未用相邻字面量 —— 实测 `ast.parse('"/tmp/" "test-vault"')` 在词法期折叠成**单个** `Constant`，
+  拆了等于没拆（前提自证存档 `selfprobe-const-premise-20260908T071236.txt`）。
+
+**告警不会被升级成错误（独立核对）**：`backend/pytest.ini` 无 `filterwarnings`、无 `-W error`、
+无 `--disable-warnings`，`addopts` 只有 `-v --tb=short`。另跑最小实验实证 session fixture teardown
+里的 `warnings.warn` **确实**被 pytest 捕获、进 warnings summary、归到最后一个 item、`rc=0`、
+多行消息完整渲染（不是推理 `_pytest/warnings.py` 的 hookwrapper 覆盖范围）。
+
+### (e) 新增源码字面量硬门（可归属，硬 fail）
+
+`_hygiene_scan_tmp_literals()`（fixture **setup 段**调用，`yield` 之前）：
+
+- 扫描根 `Path(__file__).resolve().parent`（= `backend/tests/unit/`），`sorted(rglob("*.py"))`；
+- **排除自身**：`py.resolve() == Path(__file__).resolve()` 则 `continue`；
+- 只看 `ast.Constant` 且 `isinstance(node.value, str)` 且 `_TMP_LITERAL in node.value` → 记 `file:lineno`；
+- 读不了 / 解析不了的文件记入 `unchecked`（**不算通过**），与 hits 一样并入 teardown 的 `violations`
+  ⇒ 同一出口（末尾一条 ERROR、`rc!=0`）；
+- fixture 仍**不创建 / 不删除 / 不写入任何文件**、不 `os.chdir`、不 `import app.*`（既有那处
+  `import app.services.vault_identity_registry` 属 `_stub_vault_identity_registry`，本卡未动）、不依赖 cwd。
+
+**为什么必须 AST 而不是 grep 全文**：`test_startup_health_check.py:56-66` 那三条 `#` 注释记录 Y6-A
+改前的旧硬编码值，grep 形态会把它们判成回归；且 conftest 自己的告警文案含同一段路径 ⇒ grep 形态必然自指。
+
+扫描成本实测：**252 个文件 / 0.535 秒 / 零解析失败**。
+
+### (f) 修后负控 N1'
+
+存档 `negctl-n1-after-20260908T070910.txt` / 窗口 `window-n1-after-20260908T070910.txt`
+
+```
+8 passed, 11 warnings in 13.00s               rc=0
+conftest.py:212: PytestWarning: [hygiene] 环境受干扰: 新出现 /tmp/test-vault* 目录: /tmp/test-vault-negctl-72013
+mkdir_done=2026-09-08T07:09:23  dir=/tmp/test-vault-negctl-72013
+```
+
+判据：`ERROR tests/` = **0** ✅ · `grep -c '环境受干扰'` = **2**（≥1）✅ · 负控目录名在正文 3 次 ✅ · `rc=0` ✅
+（对照 (c)：同一输入形态，`1 error / rc=1` → `0 error / rc=0` 且告警可见 —— 不是静默吞掉。）
+
+### (g) 正控 P1 —— 源码门承重
+
+存档 `negctl-p1-red-20260908T070947.txt` / `negctl-p1-green-20260908T071028.txt`
+
+- 探针：在 `test_vault_init_service.py` 末尾临时追加 `_HYGIENE_PROBE = "/tmp/test-vault-probe"`（不入 commit）。
+- 红：`8 passed, 1 error`、`rc=1`，门文案**指名**
+  `…/backend/tests/unit/test_vault_init_service.py:140`（原 137 行 + 2 空行 + 探针行，行号对得上）。
+- 还原：`git show HEAD:backend/tests/unit/test_vault_init_service.py > …`（⛔ 未用 `git checkout` / `git restore` / `git stash`）。
+- 对账：`sha_before` = `sha_after` = `c6214bde945d1e9ecb7cd4be14964e2a2e81ae75f8a9557804cba14ed2478031` ✅ ·
+  `git diff --quiet` rc=**0** ✅。
+- 绿：还原后复跑 `8 passed`、`ERROR tests/` = 0、`rc=0` ✅。
+
+### (h) 正控 P2 —— 既有骨架硬 fail 面不回退
+
+存档 `negctl-p2-red-20260908T071051.txt`
+
+- 探针：临时追加一个用例执行 `Path(__file__).resolve().parents[2].joinpath("raw/_probe").mkdir(parents=True)`。
+- 红：`9 passed, 1 error`、`rc=1`，门文案**指名** `backend/raw`（出现 2 次）✅ —— 骨架面**没有**被本卡放宽。
+- 清理：`rmdir backend/raw/_probe` + `rmdir backend/raw`（只删自己建的，非递归）✅
+- 还原对账：sha 前后同（`c6214bde…`）、`git diff --quiet` rc=0、`git status --porcelain backend` 只剩本卡的 conftest ✅
+
+### (i) 收工目录级（四个门下目录，与开工逐个 diff）
+
+| 目录级 | 汇总行 | rc | diff |
+|---|---|---|---|
+| `tests/unit` | `173 failed, 4749 passed, 48 skipped, 122 warnings, 29 errors in 242.69s` | 1 | **对 202 基线 diff 为空** ✅（`red-diff-after.txt` 零行，无 `>` 也无 `<`） |
+| `tests/api` | `268 passed, 40 warnings in 1.68s` | 0 | 与开工 nodeid 集 diff **为空** ✅ |
+| `tests/regression` | `1464 passed, 6 skipped, 10 xfailed, 556 warnings in 350.53s` | 0 | 与开工 nodeid 集 diff **为空** ✅ |
+| `tests/skills` | `369 passed, 22 warnings in 43.03s` | 0 | 与开工 nodeid 集 diff **为空** ✅ |
+
+- 每份存档末都有 `rc=` 行与 pytest 汇总行 ✅
+- ⛔ 全程未用 `wc -l` 当分母；`tests/integration` / `tests/e2e` 按手册 §一.1.5 **未跑**。
+- `tests/unit` 那一跑即 N2'（(n)④ 允许兼用，此处写明是同一次）—— 它是**带 treeB 干扰**的一轮，
+  仍与 202 基线 diff 为空，比一次无干扰的收工跑更强。
+- 三个非 unit 目录级的 `grep -c '环境受干扰'` 均为 **0** —— 实证该 fixture 确实只在 `tests/unit`
+  被收集时加载（`conftest.py:34-41` 覆盖面注释的预期成立），但这只是本次两轮的观测，
+  不构成结构性证明（见「本卡未证明什么」⑧）。
+
+### (j) 地盘门 + ruff
+
+| 判据 | 结果 |
+|---|---|
+| `git diff --name-only --no-color da690bf8 HEAD -- . ':(exclude)_bmad-output'` | 只有 `backend/tests/unit/conftest.py` ✅ |
+| `git diff --stat --no-color da690bf8 HEAD -- backend/tests/conftest.py backend/tests/support backend/app` | 空 + rc=0 ✅ |
+| `:(exclude)` 写法验伪锚 | 排除 `backend` 后输出为空且 rc=0 ⇒ 排除真的生效，不是 zsh 下 `':!…'` 的 rc=128 假绿 ✅ |
+| `ruff check backend/tests/unit/conftest.py` | `All checks passed!` rc=0 ✅ |
+| `ruff format --check backend/tests/unit/conftest.py` | rc=0 ✅ |
+
+> **ruff format 的存量基线先查过**（U1-A §二.5 口径）：`git show HEAD:…conftest.py` 喂给
+> `ruff format --check --stdin-filename` 得 **rc=0**，即 HEAD 版**无存量漂移** ⇒ 本卡引入的漂移
+> 必须自己修干净，不适用「只 `--range` 改动行」的例外。实际 `ruff format` 只改了本卡新增的两处
+> （一个 `if` 条件的换行、warning 文案的 `+` 折行），`--diff` 已确认不触及存量。
+> ⚠️ 期间发现并纠正过一次**判据自身的假绿**：`ruff format --check … | tail -3` 之后取 `$?` 拿到的是
+> `tail` 的 rc（恒 0）。改为直接取 rc，并加验伪锚（故意喂坏格式 → rc=1）确认该判据真的会红。
+
+---
+
+## 二 §二.7 自指验伪锚（四小条）
+
+| 小条 | 判据 | 修前 | 修后 |
+|---|---|---|---|
+| **7a** | `grep -c '/tmp/test-vault' backend/tests/unit/conftest.py` | **1**（唯一命中 `:118` 整段文案） | **0** ✅ |
+| **7b** | 门承重（不靠 grep） | — | 由 (g) P1 证明：探针在 → 红且指名行号；还原 → 绿 ✅ |
+| **7c①** | conftest 末尾加**注释** `# selfprobe: /tmp/test-vault` → 单文件跑 | — | **仍绿** rc=0 / 0 ERROR ✅（门只看 `ast.Constant`，不看注释 ⇒ `test_startup_health_check.py:56-66` 三条注释不会被误报） |
+| **7c②** | conftest 末尾加**相邻字面量常量** `_SELFPROBE = "/tmp/" "test-vault"` → 单文件跑 | — | **仍绿** rc=0 / 0 ERROR ✅（⇒ `Path(__file__).resolve()` 排除自身生效） |
+| **7d** | `python3 -c "import ast;ast.parse(open('…conftest.py').read())"` | — | rc=0 ✅ |
+
+- **7a 是会翻转的判据，不是恒 0 的死判据**：修前实测 = 1，靠 (d) 拆字面量才变 0。
+  ⛔ 卡文点名禁用的旧写法 `grep -c '"/tmp/test-vault'`（带前引号）在 `da690bf8` 上就已经是 **0**
+  （双引号并不紧邻 `/tmp`，对 `:118` 那条真实存在的整段字面量失明）—— 实测确认它是恒 0 死判据。
+- **7c② 的前提已自证**（否则它是死探针 —— 「仍绿」可能只是因为门根本看不见那个形态）：
+  存档 `selfprobe-const-premise-20260908T071236.txt` 实测
+  ① `ast.parse('"/tmp/" "test-vault"')` → **单个 `Constant '/tmp/test-vault'`**（确被折叠）；
+  ② 用门的判据扫它 → **hits=[1]**（若不排除自身，门确实会命中）；
+  ③ 对照 `+` 号形态 → `BinOp`、hits=[]（不折叠，符合 conftest 的写法）。
+  ⇒ 三条同时成立，7c② 的「仍绿」唯一解释就是排除自身生效。
+- 两条自指探针的还原：⚠️ 靶子是 conftest **本身**，而本卡对它的改动**尚未 commit** ⇒ 照抄卡文的
+  `git show HEAD:… > …` 会把本卡工作成果整个静默覆盖（与「`git checkout HEAD` 清掉暂存区」同族）。
+  改用**探针前的工作区快照**还原，并同样做逐字节对账：两条的 `sha_before` = `sha_after` =
+  `5e9765c7d3c582f048951c4507f0659a041f33ef09f799b845ec0f99259645ab`，`cmp -s` rc=0 ✅。
+  两条探针**全部还原之后**才复跑 7a（= 0），符合卡文对顺序的要求。
+
+---
+
+## 三 (n) 双树并发正负控（手册 §四.5 D-27 裁 (乙) 保留的承重判据）
+
+**批级通告（协议 §2.3）已做，且不止写在手册里**：
+- 手册 `§零.14` 追加了完整通告行（时刻 / 目录名前缀 / 影响面 / 清理方式 / 临时 worktree 名）；
+- 另用 SendMessage **逐条直达当时在线的全部 10 条并行车道 session**（U1~U9、U11），说明窗口内跑
+  `tests/unit` 目录级可能多出的那条 ERROR 是环境噪音、不是各自卡的回归。
+  已收到 U5 / U7 / U8 / U9 / U11 五条回执，各自登记了处置口径。
+
+**树 B**：`git worktree add --detach ../u10a-treeB-negctl da690bf8` + 目录级 venv symlink + `.env` 拷贝
++ **只在树 B** 放临时探针 `backend/tests/unit/test_zzz_treeb_probe.py`（建**空目录** `/tmp/test-vault-treeB-<pid>`，
+`rmdir` 可清）。⛔ 未用 `15653787^` 的真骨架写者：它更忠实，但会在 `/tmp` 留下一份真 vault 骨架，
+而本卡禁递归删除 ⇒ 清不干净。此取舍如实登记。
+
+### N2（修前，树 A 一个文件都还没改）
+
+| 前提断言（缺一即负控没生效） | 实测 |
+|---|---|
+| ① 树 B 那一跑**真的建出了**该目录 | `treeB-probe-n2-20260908T070034.txt`：`1 passed, 1 error`（树 B 被它自己的旧门判红，预期）+ 跑完立刻 `ls -ld` 显示 `drwxr-xr-x … Sep 8 07:01 /tmp/test-vault-treeB-49484` ✅ |
+| ② 树 A 的 ERROR 正文出现**同一个**目录名 | `grep -c "$DIRNAME"` = **1**，正文：`新出现 /tmp/test-vault* 目录: /tmp/test-vault-treeB-49484` ✅ |
+| ③ 两侧 `date` 显示窗口交叠 | 树 A `[07:00:34, 07:04:41]`，树 B launch `07:01:34` / mkdir 完成 `07:01:45` ⇒ **落在窗口内** ✅ |
+
+结果：`173 failed, 4749 passed, 48 skipped, 121 warnings, 30 errors in 235.29s`、`rc=1`、
+`ERROR tests/` = **30**（= 基线 29 + 1 条 session teardown）。
+
+**与 202 基线 diff 恰好多一条 `>` 行**：
+`> ERROR tests/unit/test_wikilink_parser.py::TestExtractAllWikilinks::test_empty_text`
+—— 按协议 §5，`>` 行就是**阻断级**信号，而它其实是**别的树**建的目录造成的。症状真实复现。
+
+> ⚠️ 按卡文，N2 这一轮的 nodeid 集**不进**「diff 为空」判据（开工基线用 (b) 那次干净的跑）。
+
+### N2'（(e) 落地之后）
+
+| 前提断言 | 实测 |
+|---|---|
+| ① 树 B 真的建出了该目录 | `treeB-probe-n2p-20260908T071312.txt`：`1 passed, 1 error` + `ls -ld` 显示 `/tmp/test-vault-treeB-88464` ✅ |
+| ② 树 A 正文出现同一个目录名 | `grep -c "$DIRNAME"` = **1** ✅ |
+| ③ 两侧 `date` 窗口交叠 | 树 A `[07:13:12, 07:17:29]`，树 B launch `07:14:12` / mkdir 完成 `07:14:25` ⇒ 落在窗口内 ✅ |
+
+结果：`173 failed, 4749 passed, 48 skipped, 122 warnings, 29 errors in 242.69s`、
+`ERROR tests/` = **29**、`环境受干扰` = **2**、**与 202 基线 diff 为空** ✅
+（本轮同时充当 (i) 的收工 `tests/unit` 那一跑 —— 与卡文 (n)④ 允许的一致，此处写明是同一次。）
+
+告警正文（`conftest.py:212` PytestWarning）：
+`[hygiene] 环境受干扰: 新出现 /tmp/test-vault* 目录: /tmp/test-vault-treeB-88464` + 原归属提示三行 + 新增三行。
+
+#### ⚠️ 判据修正：卡文 §二.9 期望的 N2' `rc=0` **不可达**，已换成能翻转的量（登记）
+
+`tests/unit` 目录级带着 **202 条既有红**，`rc` 恒为 1 —— **干净的开工基线（无任何 treeB 干扰）
+本身就是 `rc=1`**。卡文把**单文件**负控的期望值（N1' 8 用例全绿 ⇒ rc=0）套到了**目录级**上；
+盲从它会把成功的一轮误判成失败。替代判据取三端点对照：
+
+| 轮次 | 门 `pytest.fail` 触发 | `ERROR tests/` | `环境受干扰` | rc | vs 202 基线 diff |
+|---|---|---|---|---|---|
+| **开工基线**（无 treeB，纯净） | 0 | 29 | 0 | 1 | 空 |
+| **N2 修前**（+treeB） | **1** | **30** | 0 | 1 | **多一条 `>`** |
+| **N2' 修后**（+treeB） | 0 | 29 | **2** | 1 | 空 |
+
+三个端点缺一不可：
+- 没有第一行，「rc=1」既能读成「没修好」也能读成「既有红」，两种解释分不开；
+- 没有第三行的「环境受干扰 = 2 + 目录名出现 1 次」，N2' 的绿可能只是「树 B 那一轮没生效」；
+- 能翻转的量是 `ERROR tests/` 30→29、nodeid diff「多一条 `>`」→ 空、门 fail 1→0、告警 0→2。
+
+原始 rc 值一律如实落盘（三份存档末行都有 `rc=1`），不改判据以外的任何数字。
+
+### 一条来自并发车道的独立观察（对门语义的重要澄清）
+
+U5-A 报告它在 07:02–07:06 跑了一次 `tests/unit` 目录级，**未中招**（202 基线 diff 为空、无 teardown ERROR）。
+这与本卡结论**不矛盾**，恰恰印证门的语义：树 B 的目录建于 **07:01:45**，落在 U5 那次 session 的
+before 快照**之前** ⇒ 进了它的基线集合 ⇒ 差集为空。
+**假红只在目录于 session 窗口"内"新建时发生**，这也正是 (c) 那条执行偏离要解决的问题（`sleep 2` 太早 = 同一个道理）。
+
+### 清理与归位
+
+存档 `treeB-cleanup-20260908T071858.txt`
+
+**窗口实际时段 06:59:14 – 07:18:58**（比通告的 60 分钟短）。期间建过且**仅**建过 4 个**空目录**：
+
+| 目录 | 建于 | 用途 | 清理 |
+|---|---|---|---|
+| `/tmp/test-vault-negctl-43048` | 06:59:27 | N1 修前 | 该轮跑完即 `rmdir` |
+| `/tmp/test-vault-treeB-49484` | 07:01:45 | N2 修前 | 07:18:58 `rmdir` |
+| `/tmp/test-vault-negctl-72013` | 07:09:23 | N1' 修后 | 该轮跑完即 `rmdir` |
+| `/tmp/test-vault-treeB-88464` | 07:14:25 | N2' 修后 | 07:18:58 `rmdir` |
+
+- ⛔ 全程 `rmdir`（非递归），**未用**递归删除；既有 12 个目录**一个没动、没改名**。
+- `git worktree remove --force ../u10a-treeB-negctl` + `git worktree prune` → rc 均 0，
+  `git worktree list | grep -c 'u10a-treeB-negctl'` = **0** ✅
+- 与 (a) 开工清单逐条对照：**12 = 12，diff 为空** ✅
+
+> ⚠️ 第一次对照时 diff 报了一行 `< /tmp/test-vault*`，**是判据坏了不是没归位**：我的
+> `grep -oE '/tmp/test-vault[^ ]*'` 把开工存档的**标题行**与 `ls -ld /tmp/test-vault*` 的
+> **命令回显**里的通配符文本也当成了目录条目。更正为 `awk '/^d/ {print $NF}'`（只取 `ls -ld`
+> 的目录行）后 12 = 12、rc=0；并加验伪锚（往清单里塞一个假条目 → diff rc=1）确认该判据活着。
+> 更正过程已追加进同一份清理存档的 §6b。
+
+**批级闭环**：窗口关闭后再次 SendMessage 通知全部 9 条在线车道，附上上表 4 个目录名的完整清单
+（U8 明确要求「把噪音面写死而不是写成疑似」）。已收到 U7 回执确认转交 U7-B。
+
+---
+
+## 四 DoD-3
+
+### 4-A Claude 已代验（技术面）
+
+- 四个门下目录级开工/收工各一轮，nodeid 口径逐个 `diff`；`tests/unit` 对 202 基线 diff 为空。
+- 负控 N1 / N1'（单文件，时序可断言）+ N2 / N2'（**真双树并发**，三条前提断言逐条落盘自证）。
+- 正控 P1（新增源码门承重，指名 file:line）+ P2（既有骨架硬 fail 面不回退）。
+- 自指验伪锚 7a/7b/7c①/7c②/7d 五条，其中 7c② 另附前提自证（防死探针）。
+- 地盘门（只一个文件）+ 禁改面为空 + ruff check/format 全绿 + `:(exclude)` 写法验伪锚。
+- 全部裁判存档在 `evidence-hyg-conftest/`，`.txt` 后缀、末行 `rc=`。
+
+### 4-B 你来验（一句话 + 感觉）
+
+**无变化。**
+
+别人同时在跑测试的时候，我这边的测试不会再被误判成失败了；如果真有人往公共临时目录里撒了东西，
+你会看到**一条提醒**，而不是一片红。
+
+**你要做的**：什么都不用做。下次看测试结果时，如果末尾多了一句带「环境受干扰」的黄色提醒 ——
+那句话的意思是「这是别人弄的，重跑一次就行」，不是「你的东西坏了」。
+
+**felt-sense**：以前的感觉是「跑完一看红了，得先花十分钟弄清楚这红到底是不是我造成的」；
+现在的感觉应该是「哦，这条是环境噪音，它自己说了」。如果你仍然会为某条红发愣、分不清是谁的锅，
+那就是这张卡没做到位，请直接说。
+
+---
+
+## 五 本卡未证明什么
+
+1. **未证明能观测别的 worktree 的写入归属** —— 放弃了这条路（Codex Y6-A HIGH #1 已实证 `mtime` /
+   进程 cwd / `lsof` 都不能单独证明**历史**写入归属），改判「环境受干扰」。
+2. **未证明源码门能抓「运行期拼接出 `/tmp/test-vault…`」的写者** —— 门只看单个 `ast.Constant`
+   字符串常量。`"/tmp/" + name`、f-string 的变量段、`os.path.join("/tmp", "test-vault…")` 分段形态
+   **一律漏网**。这是已知盲区，写在函数 docstring 里。
+3. **未修 Codex Y6-A MEDIUM #5**（`:77` 读失败记 `None` ⇒ `None ↔ hash` 会被报成「文件改写」、
+   `/tmp` 任一侧 `None` 直接跳过 ——「内容改变」与「检查无法完成」未区分）。同一函数，**故意不扩面**，
+   只登记移交。⚠️ 注意本卡新增的源码门**自己**做了这个区分（`unchecked` 独立成条且不算通过），
+   但**没有**回头把既有的 sha / tmp 两路也改成同一口径。
+4. **未证明 `tests/contract` 的属性输入污染链**（`test_openapi_contract.py` → setup-wizard）—— 那是
+   U5-D `CARD-HYGIENE-openapi` 的面，且不在本 fixture 的覆盖范围内（`conftest.py:34-41` 已写明）。
+5. **未证明 `/tmp` → `/private/tmp` symlink 差异下的完整 glob 行为** —— 只实测到
+   `Path("/tmp").glob()` 与 shell glob 都能看见那 12 个目录（走 `opendir` 由内核解析 symlink），
+   而 `find -P` 看不见。未测其他工具 / 其他挂载形态 / `TMPDIR` 被改写时的行为。
+6. **未证明 xdist 多 worker 下 session fixture 的快照边界** —— 本批不用 `-n`。多 worker 下每个
+   worker 各有一个 session fixture 实例，`/tmp` 差集与源码扫描会各跑一遍，行为未测。
+7. **(n) 已覆盖「两 worktree 真并发」的时序面**（N2 / N2' 两轮各自落盘，三条前提断言自证），
+   但**未证明**：三棵及以上树同时跑；树 B 用**别的写法**（运行期拼接 / 非 pytest 进程 / 别的目录级套件）；
+   以及**真实批次调度下两 session 窗口交叠的概率与频次**。树 B 的写者是本卡临时放的探针文件，
+   **不是**别的车道的真实测试代码。
+   ⚠️ 补充一条本轮实测到的边界：U5-A 在 07:02–07:06 跑 `tests/unit` **未中招**，因为树 B 的目录建于
+   它的 before 快照之前 ⇒ **窗口交叠的"方向"也是条件**，本卡只证了「目录在窗口内新建 → 修前红/修后不红」，
+   未系统性刻画各种交叠姿态。
+8. **未证明 `tests/api` / `tests/regression` / `tests/skills` 三个目录级的「零影响」是结构性的** ——
+   只证明了本次开工 / 收工两轮 nodeid 集相同。`conftest.py:34-41` 的覆盖面注释是**预期依据，不是证明**。
+9. **未证明 `widen_window` 插件对 N1/N1' 结论无影响的"充分性"** —— 只论证了它不 import 被测模块、
+   不碰门逻辑与 fixture、不建不删文件，且 (n) 的承重判据那一侧**完全没用它**。未做「同一负控在
+   不用插件、靠多次重试命中 0.5s 窗口时也给出同样结论」的对照跑（那正是它不可复现所以要避免的）。
+
+---
+
+## 六 台账待登记条目
+
+> ⚠️ 本卡**不改台账**（台账只有主 session 写）。以下为待登记条目。
+
+1. **Y6-A 行 Codex #1 残留 → 已按第三选项处置**：`/tmp` 硬 fail 降为「环境受干扰」告警 +
+   新增树内 AST 源码字面量硬门。可归属信号（骨架 / tracked sha / 源码字面量）一律硬 fail 不变。
+2. **Codex Y6-A MEDIUM #5 移交**（`None ↔ hash`「内容改变」vs「检查无法完成」未区分）——
+   第十四批候选微卡。本卡故意不扩面。
+3. **`/tmp/test-vault*` 既有目录清单与 mtime**：开工 12 个，存档
+   `evidence-hyg-conftest/tmp-listing-open-20260908T064505.txt`。**不删、不改名、归属未判**。
+   U11-A 于 06:58 独立实测同为 12 个。
+4. **源码字面量门的已知盲区**：运行期拼接形态（见「本卡未证明什么」②）。若将来要覆盖，需要的是
+   数据流分析而不是常量扫描 —— 属另开卡范围。
+5. **Codex 轮次与每轮绑定 SHA**：【待回填 Codex】
+6. **【方案级偏离 · 已按手册 §四.5 D-27 裁定 (乙) 处置 · 登记不阻断】**
+   - **原方案**（设计稿 §9.E.5 / 任务书 W7）：「按 worktree 唯一前缀 或 `tmp_path_factory`」，
+     正负控 =「两 worktree 同时跑，修前假红 / 修后不见，落盘两份」。
+   - **本卡方案**：不加前缀；改为「可归属信号硬 fail（树内骨架 + 树内 tracked sha + **新增**树内
+     源码字面量门，三者天然 worktree 唯一）+ 全机共享 `/tmp` 信号降 `warnings.warn`（判据串「环境受干扰」）」。
+   - **依据（本树实测，可复核）**：① 前缀只能改「本树自己写哪儿」，改不了「别的树写进 `/tmp` 根」，
+     而假红恰恰只来自后者 ⇒ 原方案对本卡症状**无效**；② 本树已无 `/tmp` 根写者（§〇 第 4 行 grep，
+     `test_startup_health_check.py:56-66` 已由 `15653787` 改 `tmp_path`）⇒ `tmp_path_factory` **无物可加前缀**；
+     ③ 门读的是 `Path("/tmp").glob("test-vault*")` 的**全机**结果，不是本进程产物。
+   - **等价的部分**：(c)/(f) 的 N1/N1' 与原正负控要证的是同一件事（别的树的 `/tmp` 写入不再让本树变红），
+     输入形态同一、判据同一条差集逻辑，修前红 rc=1 / 修后 rc=0 且告警可见。
+   - **不等价的部分**（原样登记，不说成等价）：原方案还覆盖「两 worktree **真并发**下 session 首尾
+     快照窗口交叠」的时序面 —— 该面**已由 (n) 的 N2 / N2' 补跑覆盖**（真起第二棵 worktree、两侧
+     `date` 自证交叠、修前红修后不红）。(n) 之外仍未覆盖的面见「本卡未证明什么」⑦。
+   - **唯一放宽面**：不可归属的 `/tmp` 信号 硬 fail → 告警。**补偿** = 新增源码字面量硬门 +
+     骨架 / tracked sha 面一字未动。**revert 点 = 本卡单 commit**。
+   - **另请主 session 一并处理两件文档面事项（不阻断本卡合并，D-27 未涉及）**：
+     ① 设计稿 §9.E.5 措辞仍是「按 worktree 唯一前缀 / `tmp_path_factory`」，未随 D-27 同步，
+     建议改成「可归属 / 不可归属分流 + 双树并发验证」，免得下一张卡照旧稿再写一遍无效方案；
+     ② 记录本卡唯一放宽面及其补偿与 revert 点。
+7. **【流程瑕疵 · 登记不阻断】车道上一版卡文曾在无出处的情况下自称「核验裁定 = (乙)」**。
+   协议 §1 明写车道不能自判通过，而 D-27 是主 session 2026-09-07 复核 32 卡时**才**作出的。
+   本版卡文已把四处「核验裁定」一律改引「手册 §四.5 D-27」。结论未变（机制仍为 (乙)，
+   (n) 双树并发仍是承重判据）。
+8. **【本卡新增登记】卡文 §二.3 的 `sleep 2` 负控写法在本树上必然失效**（单文件 session 窗口只有
+   ~0.45s，`sleep 2` 落在 before 快照之前 ⇒ 静默不红）。本卡的处置与等价性论证见 (c) 的偏离说明。
+   建议后续卡文凡写「后台 mkdir + 单文件跑」的负控，一律先测 session 窗口宽度再定时序，
+   或直接改用目录级（窗口 200s+）。
+9. **【本卡新增登记】卡文 §二.7c 的还原指令 `git show HEAD:… > …` 对 conftest 自身不适用**
+   （本卡改动尚未 commit 时会静默覆盖工作成果）。本卡改用工作区快照还原 + `cmp` 对账，见 §二。
+10. **【本卡新增登记 · 环境事实】11 条车道共享同一个 `backend/.venv` symlink 目标（`card-v5-lance`）**
+    ⇒ 用 `ps` 里的**可执行文件路径**归因「谁在跑 pytest」会张冠李戴（相对 `.venv/bin/python` 启动的
+    进程显示为共享路径）。正确维度是进程 **cwd**（`lsof -a -p <pid> -d cwd`）—— 这恰是门自己那段
+    归属提示文案教的方法。本卡排批期一度据此误判过并发车道身份，已纠正。
+
+---
+
+## 七 Codex 复核
+
+【待回填 Codex】

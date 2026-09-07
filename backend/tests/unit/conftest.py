@@ -11,7 +11,9 @@ ReviewService factory/instance fixtures used by:
 - test_card_state_concurrent_write.py (indirectly)
 """
 
+import ast
 import hashlib
+import warnings
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -50,6 +52,15 @@ _HYGIENE_TRACKED_FILES = (".gitignore", "config/subject_mapping.yaml")
 
 _HYGIENE_TMP_GLOB = "test-vault*"
 
+# CARD-HYGIENE-conftest [BATCH-2026-09-07-第十三批]
+# ⛔ 拼接而不是整段字面量。本文件会被下面 `_hygiene_scan_tmp_literals()` 自身排除,
+# 但只要整段路径还以任何形式留在本文件里 (字符串、docstring、**注释**都算),
+# 验收单 §二.7a 那条 `grep -c` 验伪锚就恒 >= 1 ——「门写对了」与「门漏了
+# 自身排除」两种情况再也分不开。所以本文件全篇不写整段路径, 只写拼接。
+# ⚠️ 必须用 `+`: 相邻字面量 ("/tmp/" "test-vault") 在词法期就被折叠成一个
+# ast.Constant, 拆了等于没拆 (实测)。
+_TMP_LITERAL = "/tmp/" + "test-vault"
+
 
 def _hygiene_backend_root() -> Path:
     """backend/ 的绝对路径。
@@ -86,12 +97,80 @@ def _hygiene_snapshot() -> dict:
     return {"exists": exists, "sha": sha, "tmp": tmp}
 
 
+def _hygiene_scan_tmp_literals() -> tuple[list[str], list[str]]:
+    """扫 tests/unit/**/*.py 里硬编码的 `/tmp/` + `test-vault` 字符串常量。
+
+    **只读**: 只 read_bytes + ast.parse。不创建 / 不删除 / 不写入任何文件,
+    不 import 被扫文件, 不依赖 cwd (扫描根走 __file__, 与门盯 backend/ 同理)。
+
+    为什么必须走 AST 而不是 grep 全文:
+    - `test_startup_health_check.py:56-66` 有三条 `#` 注释记录 Y6-A 改前的旧
+      硬编码值 —— grep 会把这些注释判成回归 (假红);
+    - 本文件自己的告警文案也含同一段路径 —— grep 形态的门必然自指。
+    AST 只看 `ast.Constant` 字符串, 两个假红面同时消失。
+
+    已知盲区 (如实登记, 见验收单「本卡未证明什么」②): 运行期拼接出来的路径
+    (`"/tmp/" + name`、f-string 变量段、`os.path.join` 分段) 不是单个 Constant,
+    本门看不见。
+
+    返回 (hits, unchecked):
+      hits      —— "<file>:<lineno>", 可归属到**本 worktree** 的写者嫌疑;
+      unchecked —— 读不了 / 解析不了的文件。**不算通过**:「没命中」与「没检查」
+                   必须分开, 否则一个语法坏掉的文件就能让门静默放行。
+    """
+    self_path = Path(__file__).resolve()
+    scan_root = self_path.parent
+
+    hits: list[str] = []
+    unchecked: list[str] = []
+
+    for py in sorted(scan_root.rglob("*.py")):
+        try:
+            if py.resolve() == self_path:
+                continue
+            source = py.read_bytes()
+        except OSError as exc:
+            unchecked.append(f"{py} (读取失败: {type(exc).__name__}: {exc})")
+            continue
+
+        try:
+            tree = ast.parse(source, filename=str(py))
+        except (SyntaxError, ValueError) as exc:
+            unchecked.append(f"{py} (解析失败: {type(exc).__name__}: {exc})")
+            continue
+
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Constant) and isinstance(node.value, str) and _TMP_LITERAL in node.value:
+                hits.append(f"{py}:{node.lineno}")
+
+    return hits, unchecked
+
+
 @pytest.fixture(scope="session", autouse=True)
 def _no_vault_skeleton_left_behind():
     """CARD-TEST-hygiene-vaultinit (c): 跑完 tests/unit 不得往仓库里撒 vault 骨架。
 
     失败发生在 session teardown, 表现为末尾一条 ERROR 且 pytest rc != 0。
+
+    CARD-HYGIENE-conftest [BATCH-2026-09-07-第十三批] 按**能不能归属**分流
+    (手册 §四.5 D-27 裁定 (乙)):
+    - **可归属**信号 → 硬 fail 不变: 树内 vault 骨架路径、树内 tracked 文件
+      sha、以及新增的树内源码字面量门 —— 三者都在本 worktree 内, 天然唯一;
+    - **不可归属**信号 → 降为「环境受干扰」告警: `/tmp` 是**全机共享**的,
+      任何别的 worktree 在本 session 首尾两次快照之间建出匹配目录, 都会让
+      本车道 teardown 变红。Codex Y6-A HIGH #1 实证 mtime / ps / lsof 都不能
+      单独证明历史写入归属 ⇒ 把它判成「本卡新增回归」是错误归因。
+
+    ⚠️ 降级只发生在**不可归属**这一侧, 不是「放松要求」: 本树自己往
+    /tmp 根写 test-vault* 目录仍然硬红 —— 那正是新增源码字面量门的职责。
+    (这段说明刻意不写成整段路径: docstring 也是 ast.Constant, 写全了
+     就成了门自己要抓的形态 —— 本卡打补丁时被自校验当场拦下过一次。)
+    ⚠️ 也不是静默吞掉: 告警文案里的固定串「环境受干扰」是可 grep 的判据,
+    pytest.ini 无 filterwarnings ⇒ 它会进 warnings summary 与汇总行。
     """
+    # setup 段扫源码: 扫的是 session 开跑那一刻的树内状态, 不受运行期改动影响。
+    literal_hits, literal_unchecked = _hygiene_scan_tmp_literals()
+
     before = _hygiene_snapshot()
     yield
     after = _hygiene_snapshot()
@@ -111,16 +190,40 @@ def _no_vault_skeleton_left_behind():
                 f"    after  sha256={after['sha'][rel]}"
             )
 
+    if literal_hits:
+        violations.append(
+            "  tests/unit 源码含硬编码 " + _TMP_LITERAL + " 路径 (本树写者会污染"
+            "全机共享 /tmp;\n"
+            "    Y6-A 已把它们改成 tmp_path, 重现 = 回归): " + ", ".join(literal_hits) + "\n"
+            "    修法: 用 tmp_path fixture。"
+        )
+
+    if literal_unchecked:
+        violations.append(
+            "  源码字面量门**无法检查**以下文件 (「没命中」≠「没检查」, 不算通过):\n    "
+            + "\n    ".join(literal_unchecked)
+        )
+
+    # /tmp 是全机共享的 ⇒ 不可归属 ⇒ 告警而不是 fail (手册 §四.5 D-27 (乙))。
+    # ⛔ 禁再降成静默: 固定串「环境受干扰」是本卡的判据锚点。
     if before["tmp"] is not None and after["tmp"] is not None:
         new_tmp = sorted(after["tmp"] - before["tmp"])
         if new_tmp:
-            violations.append(
-                "  新出现 /tmp/test-vault* 目录: "
-                + ", ".join(f"/tmp/{n}" for n in new_tmp)
-                + "\n    ⚠️ /tmp 是全机共享的: 本仓多 worktree 并行跑测试时, 别的车道"
-                "\n       跑 tests/unit 同样会产出这些目录 (本卡 2026-09-06 01:55 实测"
-                "\n       card-y9-maingoal 车道即如此)。判定归属请核对 `stat -f '%Sm' <路径>`"
-                "\n       与 `ps -ww -p <pid>` / `lsof -a -p <pid> -d cwd`, 而不是只看存在性。"
+            warnings.warn(
+                pytest.PytestWarning(
+                    "[hygiene] 环境受干扰: 新出现 "
+                    + _TMP_LITERAL
+                    + "* 目录: "
+                    + ", ".join(f"/tmp/{n}" for n in new_tmp)
+                    + "\n    ⚠️ /tmp 是全机共享的: 本仓多 worktree 并行跑测试时, 别的车道"
+                    "\n       跑 tests/unit 同样会产出这些目录 (本卡 2026-09-06 01:55 实测"
+                    "\n       card-y9-maingoal 车道即如此)。判定归属请核对 `stat -f '%Sm' <路径>`"
+                    "\n       与 `ps -ww -p <pid>` / `lsof -a -p <pid> -d cwd`, 而不是只看存在性。"
+                    "\n    /tmp 全机共享、归属不可判 ⇒ 本 session **不判红** (Codex Y6-A HIGH #1);"
+                    "\n    本树自身的写者由源码字面量门守, 那道门是硬 fail。"
+                    "\n    这条告警 = 环境受干扰、需要重跑, **不是**本次运行新增的回归。"
+                ),
+                stacklevel=1,
             )
 
     if violations:
