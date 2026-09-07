@@ -2,7 +2,7 @@
 
 本文件**不修任何东西**。它把三类此前只存在于注释与口头预期里的边界，写成可执行的门：
 
-1. **两套时钟**（`daily_review_run.py:215-216` 的机器本地日 vs 显示口径 Asia/Shanghai）
+1. **两套时钟**（`daily_review_run.py:295-296` 的归日 vs 显示侧口径）
    —— 在什么条件下它们会给出不同的"今天"。
 2. **午夜跨界** —— 23:59 生成的投影在 00:01 复算时，桶归属是否仍自洽。
 3. **唤醒补跑** —— 窗口外只落盘、同日第二次只补推送不重生成、隔日重新生成。
@@ -23,6 +23,7 @@ import sys
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -35,11 +36,18 @@ import daily_review_run as runner  # noqa: E402  # pyright: ignore[reportMissing
 # 显示口径的**唯一来源**：从生产模块读，不在测试里另写一份字面量
 # （两处各写一遍就是下一个漂移点）。
 from app.api.v1.endpoints.review_overview import (  # noqa: E402
-    _DISPLAY_TZ_NAME,
-    _TZ_SHANGHAI,
+    _display_day,
+    _display_tz,
+    _display_tz_name,
     _gate_buckets,
-    _sh_day,
 )
+
+#: 三条**非时区**用例要的只是一个**稳定**的宿主时区 —— 它们的期望值本来就按
+#: +08 写死 (label 里的「上海 2026-07-31 23:59」、BEFORE_WINDOW/IN_WINDOW/
+#: NEXT_DAY 的 +08:00 常量)。时区分叉由 (a) 段的 8 条用例单独管。
+#: ⛔ 禁把显示时区的名字函数喂给 machine_tz: 那让"宿主时区"与"显示时区"
+#: 互相定义、门**自指** —— 本卡的收敛做没做, 这三条都恒绿。
+_FIXED_HOST_TZ = "Asia/Shanghai"
 
 # ══════════════════════════════════════════════════════════════════════════
 # (a) 两套时钟：runner 的"今天"用机器本地时区，显示侧用 Asia/Shanghai
@@ -59,32 +67,31 @@ INSTANT_MATRIX = {
     "winter-utc1630": datetime(2026, 1, 15, 16, 30, tzinfo=timezone.utc),
 }
 
-#: ⛔ **已登记的分叉组合**（实测值写在括号里，2026-09-06 于本机 tzdata）。
+#: ⛔ **已登记的分叉组合 —— 自 CARD-G6-9c 起应恒空**。
 #:
-#: 这份表是**硬编码字面量**，不是由被测公式现算的——期望值与被测量同源时，
-#: 缺陷会让两边一起退化、断言假通过（CARD-G2-9 的 M1 就栽在这上面）。
-#: 表错了就会有组合意外红/绿，那正是我们要的信号。
+#: G6-9a 立表时这里有 8 组（4 个瞬间 × 4 个机器时区里会分叉的那些）。
+#: CARD-G6-9c 按 D-18 把两套时钟收敛到同一个 `local_tz.display_tz()` 之后，
+#: 8 条 `xfail(strict=True)` 全部 XPASS 报红，遂按先例设计**转正去标**。
 #:
-#: 根因（`daily_review_run.py:215-216`）：
-#:     local = now.astimezone()          # ← 机器本地时区
+#: ⚠️ **再出现条目 = 回归**，不是"补登记"。它意味着 runner 的归日与显示侧
+#: 又各走各的了 —— 先查是不是有人把某一侧改回了裸 `astimezone()` 或硬编码
+#: 时区，而不是往这张表里加行。
+#:
+#: 这份表若非空，必须是**硬编码字面量**，不能由被测公式现算——期望值与被测量
+#: 同源时，缺陷会让两边一起退化、断言假通过（CARD-G2-9 的 M1 就栽在这上面）。
+#:
+#: 根因（`daily_review_run.py:295-296`）：
+#:     local = now.astimezone()          # ← 机器本地时区（裸调用，无参）
 #:     today = local.date().isoformat()  # ← 它驱动 last_generate_date /
 #:                                       #   last_push_accepted_date /
 #:                                       #   board_last_recommended 的值
-#: 而显示侧（`review_overview.py:80` `_DISPLAY_TZ_NAME`）恒按 Asia/Shanghai 归日。
-#: 两者只有在机器时区 == Asia/Shanghai 时才必然一致。
-KNOWN_DIVERGENT = {
-    # (瞬间, 机器时区): (runner 的今天, 显示侧的今天)
-    ("summer-utc0330", "America/New_York"): ("2026-07-30", "2026-07-31"),
-    ("summer-utc1630", "UTC"): ("2026-07-31", "2026-08-01"),
-    ("summer-utc1630", "America/New_York"): ("2026-07-31", "2026-08-01"),
-    ("summer-utc1630", "Europe/London"): ("2026-07-31", "2026-08-01"),
-    ("winter-utc0330", "America/New_York"): ("2026-01-14", "2026-01-15"),
-    ("winter-utc1630", "UTC"): ("2026-01-15", "2026-01-16"),
-    ("winter-utc1630", "America/New_York"): ("2026-01-15", "2026-01-16"),
-    ("winter-utc1630", "Europe/London"): ("2026-01-15", "2026-01-16"),
-}
+#: 而显示侧恒按一个**硬编码**的固定时区归日。
+#: 两者只有在机器时区恰好等于那个固定时区时才必然一致。
+#: ⇒ CARD-G6-9c 把两侧收敛到同一个 `local_tz.display_tz()` 后，本表应恒空。
+#: (瞬间, 机器时区): (runner 的今天, 显示侧的今天)
+KNOWN_DIVERGENT: dict[tuple[str, str], tuple[str, str]] = {}
 
-_DIVERGENCE_CARD = "移交 CARD-G6-9c（两套时钟统一）—— 本卡零产品代码，只登记不修"
+_DIVERGENCE_CARD = "已由 CARD-G6-9c 收口（两套时钟统一到 local_tz.display_tz()）—— 本表恒空，再出现条目即回归"
 
 
 @pytest.fixture
@@ -136,7 +143,7 @@ def _real_runner_today(tmp_path: Path, monkeypatch, tz_name: str, instant: datet
     """在 tmp vault 上**真跑一次 runner**，返回它落账的 `last_generate_date`。
 
     ⛔ round-1 Codex HIGH-2：初版在这里自己写 `instant.astimezone().date()`——
-    那是把 `daily_review_run.py:215-216` **复刻**了一遍，不是调用它。
+    那是把 `daily_review_run.py:295-296` **复刻**了一遍，不是调用它。
     改 runner 的那两行，初版矩阵不会有任何反应，等于测了我自己抄的公式。
     现在走真实入口：`runner.main()` → `load_state/save_state` → 磁盘上的 state 文件。
     """
@@ -159,17 +166,25 @@ def _real_runner_today(tmp_path: Path, monkeypatch, tz_name: str, instant: datet
     return st["last_generate_date"]
 
 
-def _display_day(instant: datetime) -> str:
-    """显示侧的"今天"。两条独立换算路径互验，避免只是复述被测代码。"""
-    # 路径 1：_gate_buckets 的参照时钟口径（review_overview.py:69-71）
+def _expected_display_day(instant: datetime) -> str:
+    """显示侧的"今天"。两条独立换算路径互验，避免只是复述被测代码。
+
+    ⛔ 名字带 `_expected_` 前缀：生产 helper 自 CARD-G6-9c 起就叫 `_display_day`
+    （由 `_sh_day` 改名而来），本地对照函数不能与它撞名。也不用 import 别名——
+    那会让下面「路径 2 = 真实生产 helper」这句失去可读性。
+    """
+    # 路径 1：_gate_buckets 的参照时钟口径（review_overview.py 的 ref_day）
+    # ⛔ `_display_tz()` **现调**，禁在本文件里绑模块级常量：`machine_tz` 夹具
+    #    只改 TZ + time.tzset()、**不 reload 任何模块**，绑常量会把这条对照
+    #    helper 冻结在 collection 期的时区，8 条翻转门随之变成恒真。
     via_offset = (
-        datetime.fromisoformat(instant.astimezone(_TZ_SHANGHAI).isoformat(timespec="seconds"))
-        .astimezone(_TZ_SHANGHAI)
+        datetime.fromisoformat(instant.astimezone(_display_tz()).isoformat(timespec="seconds"))
+        .astimezone(_display_tz())
         .date()
         .isoformat()
     )
-    # 路径 2：_sh_day 吃 UTC-Z 串（review_overview.py:340，真实生产 helper）
-    via_utc_z = str(_sh_day(instant.strftime("%Y-%m-%dT%H:%M:%SZ")))
+    # 路径 2：_display_day 吃 UTC-Z 串（真实生产 helper）
+    via_utc_z = str(_display_day(instant.strftime("%Y-%m-%dT%H:%M:%SZ")))
     assert via_offset == via_utc_z, f"显示侧两条换算路径自相矛盾：{via_offset} vs {via_utc_z}"
     return via_utc_z
 
@@ -184,9 +199,20 @@ def test_known_divergent_table_is_current(tmp_path, machine_tz, monkeypatch):
     """
     measured = {}
     for instant_key, instant in INSTANT_MATRIX.items():
-        display = _display_day(instant)
         for tz_name in TZ_MATRIX:
             runner_today = _real_runner_today(tmp_path, monkeypatch, tz_name, instant)
+            # ⛔ **求值时机**（CARD-G6-9c 修正）：display 必须在 `_real_runner_today`
+            #    **之后**取 —— 那个 helper 会 `os.environ["TZ"] = tz_name; tzset()`，
+            #    而收敛后显示侧**跟随进程时区**。
+            #    G6-9a 原版把它取在内层循环外：那时显示侧恒为一个硬编码时区、与 TZ
+            #    无关，循环外取一次是对的。收敛之后同一行代码就变成了拿「上一轮遗留
+            #    时区下的显示日」去比「本轮时区下的 runner 日」，凭空造出 4 组假分叉
+            #    （实测含 `('summer-utc1630','Asia/Shanghai')` 这种**显示侧算在
+            #    Europe/London 下**的组合）。
+            #    佐证：`test_runner_today_agrees_with_display_day` 的 16 个参数化用例
+            #    本来就在同一 TZ 下取两侧，收敛后全绿——同一件事两个门一绿一红，红的
+            #    那个是求值时机错了，不是被测物坏了。
+            display = _expected_display_day(instant)
             if runner_today != display:
                 measured[(instant_key, tz_name)] = (runner_today, display)
 
@@ -216,15 +242,15 @@ def test_runner_today_agrees_with_display_day(request, tmp_path, machine_tz, mon
                 reason=(
                     f"已登记分叉：机器时区 {tz_name} 在 {instant_key} 时，"
                     f"runner 落账={expected[0]} 而显示侧={expected[1]}。"
-                    f"根因 daily_review_run.py:215-216 用机器本地时区归日，"
-                    f"显示侧恒用 {_DISPLAY_TZ_NAME}。{_DIVERGENCE_CARD}"
+                    f"根因 daily_review_run.py:295-296 用机器本地时区归日，"
+                    f"显示侧按单一时区来源（此刻 {_display_tz_name()}）。{_DIVERGENCE_CARD}"
                 ),
             )
         )
 
     instant = INSTANT_MATRIX[instant_key]
     runner_today = _real_runner_today(tmp_path, monkeypatch, tz_name, instant)
-    display_day = _display_day(instant)
+    display_day = _expected_display_day(instant)
 
     assert runner_today == display_day, (
         f"机器时区 {tz_name} 下，runner 落账的今天={runner_today} 与显示侧的今天="
@@ -233,11 +259,14 @@ def test_runner_today_agrees_with_display_day(request, tmp_path, machine_tz, mon
 
 
 def test_launchd_path_does_not_force_display_tz():
-    """⛔ **本卡的核心发现**：两条写路径对时区的处置是**非对称**的。
+    """⛔ **对称门**（CARD-G6-9c 起）：两条写路径对时区的处置必须**一致地不强制**。
 
-    - **web refresh 路径**：`review_overview.py:1317` `env["TZ"] = _DISPLAY_TZ_NAME`
-      —— 强制，注释（:1273、:1291-1305）写明"不接受透传"，并附实测
-      "TZ=Asia/Shanghai → date=2026-08-31，TZ=UTC → date=2026-08-30，同一时刻同一个库"。
+    G6-9a 立本门时，这两条路径是**非对称**的：web refresh 路径强制钉死一个固定
+    显示时区名、注释写明"不接受透传"；launchd runner 路径则什么都不钉。
+    CARD-G6-9c 按 D-18 把强制那半边删掉，改成透传 TZ / CANVAS_TZ ——
+    于是本门从"记录非对称"变成"锁住对称"：
+
+    - **web refresh 路径**：`_child_env()` 只透传，**不再强制赋值 TZ**。
     - **launchd runner 路径**：wrapper 只 export PATH / HOME / LANG，plist 的
       `EnvironmentVariables` 只有 PATH —— **没有任何一处钉住 TZ**，runner 因此
       继承宿主 `/etc/localtime`。
@@ -249,8 +278,9 @@ def test_launchd_path_does_not_force_display_tz():
     对象**不在本门的读取面内**。"宿主时区一旦变 runner 会静默产出错日期"这句，
     是由"这两份资产没设 TZ"推出的**结构论证**，不是在真实部署链上跑出来的。
 
-    本用例把这个非对称性钉成门：**它现在是绿的**（如实反映"launchd 路径确实没设 TZ"），
-    哪天有人给 wrapper/plist 补上 TZ，它会翻红提醒把这条登记项转正。
+    本用例把这条**对称性**钉成门：两侧都不强制 ⇒ 两侧都跟随同一个
+    `local_tz.display_tz()`。哪天有人给 wrapper/plist 补上 TZ、或把 web 侧的强制
+    赋值搬回来，它都会翻红。
     """
     wrapper = WT / "scripts" / "launchd" / "daily-review-wrapper.sh"
     plist = WT / "scripts" / "launchd" / "com.canvas.daily-review.plist"
@@ -269,10 +299,15 @@ def test_launchd_path_does_not_force_display_tz():
         f"请把 KNOWN_DIVERGENT 与 {_DIVERGENCE_CARD} 一并转正"
     )
 
-    # 对照面：web 路径确实强制了（证明"强制"这件事在本仓有先例，不是我臆想的形态）
+    # 对称面：web refresh 路径同样不再强制（CARD-G6-9c 把那半边删了）
     overview = (WT / "backend" / "app" / "api" / "v1" / "endpoints" / "review_overview.py").read_text(encoding="utf-8")
-    assert 'env["TZ"] = _DISPLAY_TZ_NAME' in overview, (
-        "web refresh 路径的 TZ 强制不见了 —— 非对称性的另一半没了，本门的论证前提失效"
+    assert 'env["TZ"] = ' not in overview, (
+        "web refresh 路径又开始强制 TZ 了 —— 对称性被打破，两条写路径会给出不同的「今天」"
+    )
+    # 正向锚：先证明"能读到该读的东西"。没有它，上面那条"没找到"分不清是
+    # 真的没强制，还是读错了文件 / 白名单机制整个被改掉了。
+    assert '"TZ", "CANVAS_TZ"' in overview, (
+        "_ENV_PASSTHROUGH 里的 TZ/CANVAS_TZ 透传不见了 —— 上面那条 not-in 断言失去佐证"
     )
 
 
@@ -363,7 +398,7 @@ def _gate_payload(payload: dict) -> dict[str, int]:
         (SH_0001, "上海 2026-08-01 00:01", "due_today"),
     ],
 )
-def test_midnight_crossing_bucket_attribution(tmp_path, machine_tz, moment, label, expect_after_bucket):
+def test_midnight_crossing_bucket_attribution(tmp_path, machine_tz, monkeypatch, moment, label, expect_after_bucket):
     """跨午夜时「乙」这颗节点的归属必须随上海日翻面，且门禁两次都放行。
 
     甲：上海 7/31 23:50 到期 —— 两个时刻都已过期（due_now）。
@@ -372,7 +407,12 @@ def test_midnight_crossing_bucket_attribution(tmp_path, machine_tz, moment, labe
     机器时区固定 Asia/Shanghai：本用例锁的是**午夜语义**，时区分叉由 (a) 段单独管，
     两件事混在一个用例里会让红了之后分不清是哪一个坏了。
     """
-    machine_tz(_DISPLAY_TZ_NAME)
+    machine_tz(_FIXED_HOST_TZ)
+    # pick 侧用**模块级常量** _DISPLAY_TZ（U6-B / U6-C 卡文已引用的既定形态），
+    # 而 machine_tz 只改 TZ 不 reload 模块 ⇒ 它固化在进程启动时的时区上。
+    # 不 patch 的话，在 TZ=America/Los_Angeles 态下宿主被钉成上海、pick 却仍按
+    # LA 分桶，本用例的 label 期望必红。
+    monkeypatch.setattr(picker, "_DISPLAY_TZ", ZoneInfo(_FIXED_HOST_TZ))
     vault = _vault(
         tmp_path,
         {
@@ -396,7 +436,9 @@ def test_midnight_crossing_bucket_attribution(tmp_path, machine_tz, moment, labe
         f"{label}：甲午夜前已过期，不该出现在未来桶，实际分布 {where}"
     )
     # 参照时钟本身也要落在预期的上海日上（防"我以为它是 23:59 其实不是"）
-    ref_day = datetime.fromisoformat(payload["generated_at"]).astimezone(_TZ_SHANGHAI).date()
+    # 与 :375 钉的宿主时区同一字面量；同样禁写 _display_tz()——
+    # label.split()[1] 是按 +08 写死的期望，用被测物算期望就是同源。
+    ref_day = datetime.fromisoformat(payload["generated_at"]).astimezone(ZoneInfo(_FIXED_HOST_TZ)).date()
     assert str(ref_day) == label.split()[1], f"{label}：参照时钟落在 {ref_day}"
 
 
@@ -416,7 +458,10 @@ NEXT_DAY = "2026-07-31T10:00:00+08:00"  # 次日首档
 
 def test_wakeup_catchup_sequence(tmp_path, machine_tz, runner_env, capsys):
     """窗口外只落盘 → 同日窗口内补推送且不重生成 → 次日重新生成。"""
-    machine_tz(_DISPLAY_TZ_NAME)
+    machine_tz(_FIXED_HOST_TZ)
+    # 同 :375：pick 的模块级 _DISPLAY_TZ 不随 machine_tz 走，须一并钉住
+    # （runner 的 ensure_payload 最终仍调 picker）
+    runner_env["monkeypatch"].setattr(picker, "_DISPLAY_TZ", ZoneInfo(_FIXED_HOST_TZ))
     # 无 fsrs_due = New 卡即刻到期；同时让 next_due_utc 为空，
     # 避免「越过最早未来到期点」这道门（:141-145）掺进来干扰缓存判定
     vault = _vault(tmp_path, {"甲": _node_md("补跑板")}, name="vaultCatchup")
@@ -486,7 +531,9 @@ def test_bark_failure_lands_state_and_projection_written_before_push(tmp_path, m
     那一刻就是"推送发生时"，比事后看时间戳更贴近要证的因果（推送失败不该让
     用户连今天的复习清单都拿不到）。
     """
-    machine_tz(_DISPLAY_TZ_NAME)
+    machine_tz(_FIXED_HOST_TZ)
+    # 同 :375 / :419：pick 的模块级 _DISPLAY_TZ 一并钉住
+    runner_env["monkeypatch"].setattr(picker, "_DISPLAY_TZ", ZoneInfo(_FIXED_HOST_TZ))
     vault = _vault(tmp_path, {"甲": _node_md("失败板")}, name="vaultBarkFail")
     payload_path = vault / "outputs" / "今日复习.json"
     md_path = vault / "outputs" / "今日复习.md"

@@ -27,6 +27,7 @@ from datetime import datetime, time as dtime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import local_tz  # noqa: E402  — 单一时区来源 (CARD-G6-9c)
 import send_bark  # noqa: E402
 
 REPO = Path(os.environ.get("CANVAS_REPO", "/Users/Heishing/Desktop/canvas/canvas-learning-system"))
@@ -292,7 +293,10 @@ def main() -> int:
         VAULT = Path(args.vault)
 
     now = _now(args.now)
-    local = now.astimezone()
+    # CARD-G6-9c / D-18: 归日走单一来源。只要机器本地时 astimezone(机器本地
+    # tzinfo) ≡ astimezone(), 行为逐字节不变; 但本卡引入的 CANVAS_TZ 覆盖若
+    # 不在这里读, 它自己就成了第三套时钟 (显示侧/pick 读它而 runner 不读)。
+    local = now.astimezone(local_tz.display_tz())
     today = local.date().isoformat()
     st = load_state()
 

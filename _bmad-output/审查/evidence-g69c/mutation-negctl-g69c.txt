@@ -1,0 +1,34 @@
+# CARD-G6-9c (j) 三变异负控
+
+## 跑前基线 shasum -a 256
+  dadacd0cf6b52b2f3d1ec4711d2af85fbce9f28bbe9442d959f13dffa034ea8f  scripts/local_tz.py
+  62b7c04ce6e48a13c8f2682b8a7d00cc1de2f8e69b168ab9a0e0b4358d227e7a  backend/app/core/display_tz.py
+  d79f07f99542e563df779a6aa939def7f5839a69d5df0382fcf26637a50ade8a  backend/app/api/v1/endpoints/review_overview.py
+
+## M1 — scripts/local_tz.py 函数体改回硬编码 Asia/Shanghai（副本漂移）
+  目标门: `tests/regression/test_g6_9c_single_tz_source.py::test_two_copies_share_identical_function_body`
+  rc=1  期望断言串='同源副本漂移了'  正文命中=True
+  汇总行: ['======================== 1 failed, 10 warnings in 0.40s ========================']
+  附加门: `tests/regression/test_g6_9_boundary_matrix.py::test_known_divergent_table_is_current` env={'TZ': 'UTC'}
+    rc=1  期望断言串='分叉登记表与实测不符'  正文命中=True
+    汇总行: ['======================== 1 failed, 10 warnings in 0.53s ========================']
+  ⇒ **KILLED**
+
+## M2 — review_overview._display_tz() 改回模块级常量（求值时机固化在 import）
+  目标门: `tests/regression/test_g6_9c_single_tz_source.py::test_display_side_reevaluates_every_call`
+  rc=1  期望断言串='把时区固化在 import 时刻了'  正文命中=True
+  汇总行: ['======================== 1 failed, 10 warnings in 0.43s ========================']
+  ⇒ **KILLED**
+
+## M3 — display_tz() 缺省分支改回裸 astimezone().tzinfo（两份同改，保持副本同源）
+  目标门: `tests/regression/test_g6_9c_single_tz_source.py::test_default_resolution_yields_a_named_zone`
+  rc=1  期望断言串='落到了固定偏移末档'  正文命中=True
+  汇总行: ['======================== 1 failed, 10 warnings in 0.47s ========================']
+  ⇒ **KILLED**
+
+## 跑后复核 shasum -a 256（须与跑前逐字节相同）
+  dadacd0cf6b52b2f3d1ec4711d2af85fbce9f28bbe9442d959f13dffa034ea8f  scripts/local_tz.py  ✅ 同
+  62b7c04ce6e48a13c8f2682b8a7d00cc1de2f8e69b168ab9a0e0b4358d227e7a  backend/app/core/display_tz.py  ✅ 同
+  d79f07f99542e563df779a6aa939def7f5839a69d5df0382fcf26637a50ade8a  backend/app/api/v1/endpoints/review_overview.py  ✅ 同
+
+## 裁定: {'M1': 'KILLED', 'M2': 'KILLED', 'M3': 'KILLED'}  | 还原逐字节相同: True

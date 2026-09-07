@@ -49,6 +49,12 @@ shasum 逐字节比对门。
 构造 vault fixture → 调**真实的** `_vault_entry` 当 oracle → 断言两侧 status 逐字相等。
 「抽 `is_projection_stale()` 公共函数」已登记为 W6 合并后的 micro-patch。
 
+⛔ **判定逻辑与时区来源是两个面, 不得混为一谈** (CARD-G6-9c / D-18 2026-09-07):
+   freshness **判定**仍是逐字复制 (口径不变, 上面的窄口径声明照旧); 但**时区
+   来源**自本卡起改为仓根 `scripts/local_tz` 模块 —— 与 `review_overview` 读的是同一个
+   函数, 不再是第三份硬编码副本。此前本模块把显示时区写死成一个固定名, 于是
+   在非该时区的宿主上, lint 说的"今天"与总览页说的"今天"可以不是同一天。
+
 ⛔ 复制面**比 oracle 窄**, 这条差异不许含糊 (详见 `_projection_status` docstring):
    oracle 的 `corrupt` 还包含 `_summarize()` 那几百行 v3 形状门禁 (schema_version / 容器形状 /
    buckets 对账…); 本模块只复现 **stale 判定**那一段, corrupt 只覆盖
@@ -79,7 +85,23 @@ _SCRIPTS_DIR = Path(__file__).resolve().parent
 if str(_SCRIPTS_DIR) not in sys.path:  # 允许被 pytest / 其它 cwd 直接 import
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
+# CARD-G6-9c: 单一时区来源取**仓根** scripts/local_tz (纯 stdlib, 无包副作用)。
+# ⛔ 追加到 sys.path **末尾**而不是 insert(0): 仓根 scripts/ 与本目录现无同名
+#    .py (2026-09-07 comm -12 实测 0 交集), 但插到 _SCRIPTS_DIR 之前一旦将来
+#    重名就会盖住兄弟模块。
+# ⛔ 位置必须在上面的 sys.dont_write_bytecode = True **之后**: 否则 import
+#    local_tz 会先落 .pyc, 打破本模块的零写铁律 (test_vault_lint.py 的
+#    test_cli_help_writes_no_pyc_without_env 会红)。
+# ⛔ 禁走 app.core.display_tz: backend/app/__init__.py 在 import 期 load_dotenv,
+#    会把 .env 灌进 os.environ —— lint 的「今天」不得被 .env 左右; 且
+#    app/core/__init__.py 连带拉起 agent_memory_mapping + request_cache,
+#    与本模块「import 零重依赖」相冲。
+_REPO_SCRIPTS = _SCRIPTS_DIR.parents[1] / "scripts"
+if str(_REPO_SCRIPTS) not in sys.path:
+    sys.path.append(str(_REPO_SCRIPTS))
+
 import check_vault_doc_roles as cvr  # noqa: E402  — 同目录 G8-1 台账裁判 (只 import, 禁改)
+import local_tz  # noqa: E402  — 单一时区来源 (CARD-G6-9c, 与 app/core/display_tz.py 同源)
 
 # CommonMark 解析器 (round-7 终局): Markdown 语义全交库, 不再手写剥除/区间解析。
 # lazy 初始化 (首次调用 _wikilink_targets 时 import), 保持模块 import 零重依赖。
@@ -118,19 +140,24 @@ OK, WARN, FAIL = "ok", "warn", "fail"
 EXIT_OK, EXIT_FAIL, EXIT_WARN, EXIT_CONFIG = 0, 1, 2, 3
 
 # ---------------------------------------------------------------------------
-# freshness 口径 —— 逐字复制 review_overview.py:67/:72-93/:845-860
+# freshness 口径 —— 逐字复制 review_overview.py 的 _PROJECTION_REL / 形态正则 /
+# stale 判定; 时区来源自 CARD-G6-9c 起改取仓根 scripts/local_tz (D-18 单一来源)
 # ---------------------------------------------------------------------------
 #: 投影相对路径 (review_overview.py:67 `_PROJECTION_REL`)
 _PROJECTION_REL = ("outputs", "今日复习.json")
 
-#: 显示时区 (review_overview.py:72-81) — 读侧与写侧子进程共用这一个字面量
-_DISPLAY_TZ_NAME = "Asia/Shanghai"
-try:
-    from zoneinfo import ZoneInfo
 
-    _TZ_SHANGHAI: Any = ZoneInfo(_DISPLAY_TZ_NAME)
-except Exception:  # noqa: BLE001 — 无 tzdata 的最小环境 (与 oracle 同形回落)
-    _TZ_SHANGHAI = timezone(timedelta(hours=8))
+#: 显示时区 (CARD-G6-9c / D-18 2026-09-07) — 与 review_overview 同一来源。
+#: ⛔ **每次现调, 不是模块级常量**: FRESHNESS_MATRIX 的主断言是本模块与**活
+#: oracle**(test_vault_lint.py 的 _oracle() 直载真实 review_overview.py, 其
+#: _display_tz() 亦为每次现调) 两侧同场比对; 夹具用 monkeypatch.setenv
+#: ("CANVAS_TZ", ...) 钉住时, 模块级常量在 import vault_lint (collection 期)
+#: 那一刻就固化了, setenv 对本侧完全失效 ⇒ 两侧口径分叉、17 组在非上海宿主
+#: 上必红, 而那条红看起来像"被测物坏了"。
+def _display_tz() -> Any:
+    """归日/freshness 判定用时区 —— 每次调用现取 (见上方 ⛔ 段)。"""
+    return local_tz.display_tz()
+
 
 #: A2 生产器的确切 generated_at 形态 (review_overview.py:93) —— 数字串/纯日期/
 #: 无时区值不许冒充今日
@@ -243,7 +270,7 @@ def render_text(report: LintReport, *, color: bool = True) -> str:
     hue = {OK: GREEN, WARN: YELLOW, FAIL: RED}
     out: list[str] = [
         f"{c(DIM, 'vault')} {report.vault}",
-        f"{c(DIM, 'today')} {report.today} ({_DISPLAY_TZ_NAME})",
+        f"{c(DIM, 'today')} {report.today} ({_display_tz()})",
     ]
     for chk in report.checks:
         out.append(f"{TAG} {chk.name} status={c(hue[chk.status], chk.status)} {chk.summary}")
@@ -782,7 +809,7 @@ def _is_stale(generated_at: Any, today: date) -> bool:
     try:
         if isinstance(generated_at, str) and _GENERATED_AT_RE.fullmatch(generated_at):
             gen = datetime.fromisoformat(generated_at.replace("Z", "+00:00"))
-            stale = gen.astimezone(_TZ_SHANGHAI).date() != today
+            stale = gen.astimezone(_display_tz()).date() != today
     except Exception:  # noqa: BLE001 — 畸形时间按 stale, 不装新鲜也不炸
         stale = True
     return stale
@@ -843,7 +870,7 @@ def check_projection_freshness(vault: Path, today: date) -> CheckResult:
     mapped = {"ok": OK, "stale": WARN, "no_projection": WARN, "corrupt": FAIL}[status]
     detail = {
         "ok": f"generated_at={gen!r} 是 {today} 的投影",
-        "stale": f"generated_at={gen!r} 不是 {today} ({_DISPLAY_TZ_NAME}) 的投影",
+        "stale": f"generated_at={gen!r} 不是 {today} ({_display_tz()}) 的投影",
         "no_projection": f"{'/'.join(_PROJECTION_REL)} 不存在 —— 该 vault 尚未跑过推送",
         "corrupt": f"投影不可用: {error}",
     }[status]
@@ -897,27 +924,27 @@ def run_checks(vault: Path, today: date, *, only: list[str] | None = None) -> Li
 
 def _utcnow() -> datetime:
     """时钟缝 (Codex round-1 MEDIUM-2): 唯一的取当前时刻处, 测试 patch 它来锁
-    「无 --now 的默认分支走上海日, 不是宿主本地日 / date.today()」。"""
+    「无 --now 的默认分支走显示时区日, 不是 UTC 直取 / date.today()」。"""
     return datetime.now(timezone.utc)
 
 
 def resolve_today(now: str | None) -> date:
-    """`--now` → 上海本地日。
+    """`--now` → 显示时区本地日 (CARD-G6-9c / D-18: 缺省机器本地, CANVAS_TZ 覆盖)。
 
-    ⛔ 不用 `date.today()`: 那是**进程本地日**。MEMORY 记过一条真实缺陷 —— 容器 TZ 为空时
-       写侧产出了"昨天"的日期。今日口径必须显式绑定 Asia/Shanghai, 与
-       review_overview.py:855 的 `astimezone(_TZ_SHANGHAI).date()` 同一条规则。
+    ⛔ 不用 `date.today()`: 那是**进程本地日**, 绕过了单一来源。MEMORY 记过一条
+       真实缺陷 —— 容器 TZ 为空时写侧产出了"昨天"的日期。今日口径必须显式绑定
+       `_display_tz()`, 与 review_overview 的 stale 判定同一条规则、同一个来源。
     """
     if now is None:
-        return _utcnow().astimezone(_TZ_SHANGHAI).date()
+        return _utcnow().astimezone(_display_tz()).date()
     try:
         dt = datetime.fromisoformat(now.replace("Z", "+00:00"))
     except ValueError as exc:
         raise LintConfigError(f"--now 不是合法 ISO-8601 时间: {now!r} ({exc})") from exc
-    if dt.tzinfo is None:  # 无时区 → 按上海本地时间解释 (与显示时区一致, 不引入第二种默认)
-        dt = dt.replace(tzinfo=_TZ_SHANGHAI)
+    if dt.tzinfo is None:  # 无时区 → 按显示时区解释 (同一来源, 不引入第二种默认)
+        dt = dt.replace(tzinfo=_display_tz())
     try:
-        return dt.astimezone(_TZ_SHANGHAI).date()
+        return dt.astimezone(_display_tz()).date()
     except (OverflowError, OSError) as exc:
         raise LintConfigError(f"--now 时间超出可表示范围: {now!r} ({exc})") from exc
 
@@ -972,7 +999,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     ap.add_argument("--vault", type=Path, required=True, help="vault 根目录 (含 节点/ 原白板/ outputs/)")
     ap.add_argument("--json", action="store_true", help="以 JSON 输出 (stdout 纯 JSON, 与文本同源)")
-    ap.add_argument("--now", default=None, help="注入'现在' (ISO-8601); 缺省取当前 Asia/Shanghai 日")
+    ap.add_argument("--now", default=None, help="注入'现在' (ISO-8601); 缺省取当前显示时区日")
     ap.add_argument(
         "--only",
         action="append",

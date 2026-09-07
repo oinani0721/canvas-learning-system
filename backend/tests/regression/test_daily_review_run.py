@@ -18,11 +18,41 @@ import shutil
 import sys
 from datetime import datetime, time as dtime, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
+
+import pytest
 
 WT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(WT / "scripts"))
 
+import daily_review_pick as picker  # noqa: E402  # pyright: ignore[reportMissingImports]
 import daily_review_run as runner  # noqa: E402  # pyright: ignore[reportMissingImports]
+
+#: 本文件全部 --now 与期望值都按 +08:00 写死 (窗口判定、通知 id、落账日期),
+#: 故把两侧时钟都钉在同一个字面量上 —— 见 _pin_display_tz。
+_FIXED_TZ_NAME = "Asia/Shanghai"
+
+
+@pytest.fixture(autouse=True)
+def _pin_display_tz(monkeypatch):
+    """把 runner 与 picker 两侧的时钟都钉在 Asia/Shanghai (CARD-G6-9c)。
+
+    本文件的 `--now` 一律写成 `2026-07-30T10:00:00+08:00` 这类 +08:00 字面量,
+    而期望值 (PUSH_WINDOW 09:05-21:00 的窗口判定、通知 id `canvas-review-<date>`、
+    state 的 last_generate_date) 全按上海日算。宿主时区一变, 同一个 `--now`
+    在本地就是别的钟点 —— 洛杉矶下它是前一天 19:00, 直接落到窗口外。
+
+    ⚠️ **这不是本卡引入的**: da690bf8 上 runner 用裸 `now.astimezone()`(机器本地),
+    在 LA 态下同样红这 4 条 (基线对照见 evidence-g69c/la-red-attribution-full.txt)。
+    本卡把两侧收敛到同一来源后, 一个夹具就能同时钉住 —— **期望值一字未动**。
+
+    两侧形态不同, 钉法也不同:
+      · runner 每次现调 `local_tz.display_tz()` ⇒ setenv CANVAS_TZ 即可;
+      · picker 用**模块级常量** `_DISPLAY_TZ`(import 时固化) ⇒ 必须 setattr。
+    """
+    monkeypatch.setenv("CANVAS_TZ", _FIXED_TZ_NAME)
+    monkeypatch.setattr(picker, "_DISPLAY_TZ", ZoneInfo(_FIXED_TZ_NAME))
+
 
 NOW = datetime(2026, 7, 30, 2, 0, tzinfo=timezone.utc)
 TODAY = "2026-07-30"
@@ -111,8 +141,10 @@ def test_rescan_keeps_same_day_push_skip_done(tmp_path, monkeypatch, capsys):
     vault = _vault(tmp_path, {"甲": _node()})
     _patch_runner(monkeypatch, vault, tmp_path)
     now_arg = "2026-07-30T10:00:00+08:00"
-    # today 按 runner 同一变换推导 (机器时区无关): skip-done 门在窗口门之前
-    today = datetime.fromisoformat(now_arg).astimezone().date().isoformat()
+    # today 按 runner 同一变换推导: skip-done 门在窗口门之前。
+    # ⛔ 不能用裸 astimezone()(机器本地) —— CARD-G6-9c 起 runner 归日走
+    #    display_tz(), 由 _pin_display_tz 夹具钉在 _FIXED_TZ_NAME 上。
+    today = datetime.fromisoformat(now_arg).astimezone(ZoneInfo(_FIXED_TZ_NAME)).date().isoformat()
 
     st = runner.load_state()
     _, gen1 = runner.ensure_payload(st, datetime.fromisoformat(now_arg), today)
@@ -794,7 +826,7 @@ def test_second_push_failure_retries_next_hour(tmp_path, monkeypatch, capsys):
     calls = _push_harness(monkeypatch, tmp_path, vault, rcs=[0, 1, 1, 0])
     fallbacks = []
     monkeypatch.setattr(runner, "osascript_fallback", lambda noti: fallbacks.append(noti["title"]) or True)
-    today = datetime.fromisoformat("2026-07-30T10:00:00+08:00").astimezone().date().isoformat()
+    today = datetime.fromisoformat("2026-07-30T10:00:00+08:00").astimezone(ZoneInfo(_FIXED_TZ_NAME)).date().isoformat()
 
     out1 = _run_main(monkeypatch, capsys, vault, "2026-07-30T10:00:00+08:00")
     assert "push:accepted" in out1
@@ -895,7 +927,7 @@ def test_legacy_cached_payload_without_top_boards_records_due(tmp_path, monkeypa
     vault = _vault(tmp_path, {"甲": _node(board="A板")})
     calls = _push_harness(monkeypatch, tmp_path, vault, rcs=[0])
     now_arg = "2026-07-30T10:00:00+08:00"
-    today = datetime.fromisoformat(now_arg).astimezone().date().isoformat()
+    today = datetime.fromisoformat(now_arg).astimezone(ZoneInfo(_FIXED_TZ_NAME)).date().isoformat()
 
     legacy = {
         "schema_version": 3,

@@ -12,7 +12,7 @@ mtime (mtime 被 runner 刻意回拨到扫描起点, 见 daily_review_run.ensure
 CARD-D1 三级视图: vault 卡片 (名+四态徽标+汇总行) → 板表格 (白板名|到期|
 新卡|待剖析|最早到期)。板级到期数由 due_nodes group-by 派生 (行级门禁,
 脏行按既有 corrupt 语义降级); 行序 = 有到期板按 top_boards 优先级 → 零到期
-板按 next_due。时间统一转 Asia/Shanghai 人话化 (修现网容器 UTC 缺陷);
+板按 next_due。时间统一转显示时区人话化 (CARD-G6-9c: 单一来源, 缺省机器本地);
 obsidian:// 深链按 原白板/<板名>.md 约定, 无投影 vault 降级文案不做假链接。
 
 CARD-G3-6a (BATCH-2026-08-29-第六批) 消费端最小接线: 投影加性新增顶层
@@ -82,6 +82,7 @@ from fastapi import APIRouter, Form, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 from app.config import get_settings
+from app.core.display_tz import display_tz as _resolve_display_tz
 
 logger = structlog.get_logger(__name__)
 
@@ -90,19 +91,32 @@ review_overview_router = APIRouter()
 #: 每库投影相对路径 (A2: 全系统到期口径唯一裁判)
 _PROJECTION_REL = ("outputs", "今日复习.json")
 
-#: 展示时区: 统一 Asia/Shanghai (CARD-D1 — live 容器跑 UTC, astimezone()
-#: 会显示 UTC 裸串差 8 小时)。容器缺 tzdata 时退化为固定 +8 (Asia/Shanghai
-#: 自 1991 年起无夏令时, 固定偏移语义等价)。
-#: 显示时区的名字 —— 读侧的 _TZ_SHANGHAI 与写侧子进程的 TZ 共用这一个字面量,
-#: 二者永不漂移 (CARD-G6-1 收官审计)
-_DISPLAY_TZ_NAME = "Asia/Shanghai"
+#: 显示时区 (CARD-G6-9c / D-18 2026-09-07): 单一来源 app.core.display_tz ——
+#: 缺省 = 机器本地的 IANA 名 (TZ 环境变量 → /etc/localtime 软链), CANVAS_TZ
+#: 显式覆盖。D-18 推翻了此前"恒 Asia/Shanghai"的口径:「今天」= 用户**当前
+#: 所在地**, 出门换个时区, 页面、早间 runner、清单三处的「今天」仍是同一天。
+#: 读侧的 _display_tz() 与写侧子进程 (_child_env 透传 TZ/CANVAS_TZ) 同一来源,
+#: 二者永不漂移 —— CARD-G6-1 收官审计的那条承诺不变, 只是换了个更宽的锚。
+#:
+#: ⛔ **每次调用现取**, 禁止绑成模块级常量 / functools.lru_cache / 默认参数:
+#: 进程运行期 TZ 可被改 (测试夹具 TZ + time.tzset() 正是这么做的, 且它**不
+#: reload 模块**)。求值时机一旦固化在 import 那一刻, 后续改时区对显示侧完全
+#: 无效 —— 门恒绿而缺陷照旧 (test_g6_9c_single_tz_source.py 门 ⑤ 锁这条)。
 
-try:
-    from zoneinfo import ZoneInfo
 
-    _TZ_SHANGHAI = ZoneInfo(_DISPLAY_TZ_NAME)
-except Exception:  # noqa: BLE001 — ZoneInfoNotFoundError / ImportError 同一退化
-    _TZ_SHANGHAI = timezone(timedelta(hours=8))
+def _display_tz():
+    """显示/归日用时区 —— 每次调用现取 (见上方 ⛔ 段)。"""
+    return _resolve_display_tz()
+
+
+def _display_tz_name() -> str | None:
+    """显示时区的 IANA 名; 三档都取不到名而落到固定偏移时无 .key ⇒ None。"""
+    return getattr(_display_tz(), "key", None)
+
+
+# 启动校验: 无效 CANVAS_TZ ⇒ 应用启动即 ValueError (配置断裂当场可见, 不拖到
+# 第一次请求)。刻意丢弃返回值 —— 不缓存、不赋给任何被后续读取的名字。
+_resolve_display_tz()
 
 #: A2 生产器 fsrs_due/next_due 形态: UTC 秒级 Z 后缀 (daily_review_pick 的
 #: 落盘正则)。空串 = 新卡/fail-open 即刻到期。其余形态不是生产器产物 —
@@ -361,23 +375,23 @@ _BUCKET_CN = {
 }
 
 
-def _sh_day(ts: str):
-    """UTC-Z 定长串 → Asia/Shanghai 日期; 不可表示时 None (年份极值)。"""
+def _display_day(ts: str):
+    """UTC-Z 定长串 → 显示时区的日期; 不可表示时 None (年份极值)。"""
     try:
-        return datetime.strptime(ts, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).astimezone(_TZ_SHANGHAI).date()
+        return datetime.strptime(ts, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).astimezone(_display_tz()).date()
     except (ValueError, OverflowError, OSError):
         return None
 
 
-def _sh_today(now_utc: datetime | None = None) -> str:
-    """现在的上海本地日 "YYYY-MM-DD" (CARD-G6-7 完成账的日历键)。
+def _display_today(now_utc: datetime | None = None) -> str:
+    """现在的显示时区本地日 "YYYY-MM-DD" (CARD-G6-7 完成账的日历键)。
 
-    刻意绕道 _sh_day: 完成状态的「今天」必须与页面上到期人话的「今天」
-    严格同一条换算 —— 直接写 datetime.now(_TZ_SHANGHAI).date() 数值上等价,
-    但那是第二个时区入口, 将来 _sh_day 的换算一改就分叉 (本文件已经为
+    刻意绕道 _display_day: 完成状态的「今天」必须与页面上到期人话的「今天」
+    严格同一条换算 —— 直接写 datetime.now(_display_tz()).date() 数值上等价,
+    但那是第二个时区入口, 将来 _display_day 的换算一改就分叉 (本文件已经为
     「容器 UTC 当本地日」这条缺陷付过一次代价)。
     """
-    d = _sh_day((now_utc or datetime.now(timezone.utc)).astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
+    d = _display_day((now_utc or datetime.now(timezone.utc)).astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
     return d.isoformat() if d is not None else ""
 
 
@@ -466,7 +480,7 @@ def _gate_buckets(
     try:
         ref = datetime.fromisoformat(generated_at.replace("Z", "+00:00"))
         ref_z = ref.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        ref_day = ref.astimezone(_TZ_SHANGHAI).date()
+        ref_day = ref.astimezone(_display_tz()).date()
     except (ValueError, OverflowError, OSError) as e:
         raise ValueError(f"generated_at 无法换算为参照时钟: {generated_at!r} ({e})")
     nondue_by_board: dict[str, list[str]] = {}
@@ -502,7 +516,7 @@ def _gate_buckets(
                 raise ValueError(f"buckets.{name}[{i}] 未到期桶的 fsrs_due 不得为空: {key[0]!r}/{key[1]!r}")
             if ts <= ref_z:
                 raise ValueError(f"buckets.{name}[{i}] fsrs_due={ts} 不晚于 generated_at, 应属到期侧")
-            day = _sh_day(ts)
+            day = _display_day(ts)
             if day is None:
                 # 时刻不可表示: 生产器兜底恒归 future, 不可能是"今天"
                 if name != "future":
@@ -600,8 +614,8 @@ def _gate_buckets(
     return counts, passed_rows
 
 
-def _humanize_due(ts: str | None, now_sh: datetime) -> tuple[str, str]:
-    """到期时刻 → (人话, 颜色)。跨午夜用上海本地日判定 (CARD-D1)。
+def _humanize_due(ts: str | None, now_local: datetime) -> tuple[str, str]:
+    """到期时刻 → (人话, 颜色)。跨午夜用显示时区本地日判定 (CARD-G6-9c)。
 
     None = 无数据 (P0 下板级待剖析等无归属信息) → "—"; "" = 即刻到期。
     渲染层防御: 门禁已保证形态, 这里仍容错返回 "—" 而非异常 (绝不 500)。
@@ -614,8 +628,8 @@ def _humanize_due(ts: str | None, now_sh: datetime) -> tuple[str, str]:
         due = datetime.strptime(ts, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
         # astimezone 也在 try 内: 日历合法极值 (9999-12-31T23:59:59Z) +8h
         # 会年份溢出 OverflowError — 门禁挡不住的极值不许 500
-        due_sh = due.astimezone(_TZ_SHANGHAI)
-        delta = (due_sh.date() - now_sh.astimezone(_TZ_SHANGHAI).date()).days
+        due_local = due.astimezone(_display_tz())
+        delta = (due_local.date() - now_local.astimezone(_display_tz()).date()).days
     except (ValueError, OverflowError, OSError):
         return "—", "#6b7280"
     if delta < 0:
@@ -626,14 +640,14 @@ def _humanize_due(ts: str | None, now_sh: datetime) -> tuple[str, str]:
         return "明天", "#374151"
     if delta <= 7:
         return f"{delta}天后", "#374151"
-    if due_sh.year == now_sh.astimezone(_TZ_SHANGHAI).year:
-        return f"{due_sh.month}月{due_sh.day}日", "#6b7280"
-    return f"{due_sh.year}年{due_sh.month}月{due_sh.day}日", "#6b7280"
+    if due_local.year == now_local.astimezone(_display_tz()).year:
+        return f"{due_local.month}月{due_local.day}日", "#6b7280"
+    return f"{due_local.year}年{due_local.month}月{due_local.day}日", "#6b7280"
 
 
 def _fmt_local_dt(dt: datetime) -> str:
-    """tz-aware 时刻 → 上海本地 "YYYY-MM-DD HH:MM (UTC+N)"。"""
-    local = dt.astimezone(_TZ_SHANGHAI)
+    """tz-aware 时刻 → 显示时区本地 "YYYY-MM-DD HH:MM (UTC+N)"。"""
+    local = dt.astimezone(_display_tz())
     off = local.utcoffset() or timedelta(0)
     hours = int(off.total_seconds() // 3600)
     return local.strftime("%Y-%m-%d %H:%M") + f" (UTC{'+' if hours >= 0 else ''}{hours})"
@@ -957,9 +971,9 @@ def _vault_entry(vault_dir: Path, today: date, done_boards: "list[str] | tuple[s
     try:
         if _GENERATED_AT_RE.fullmatch(summary["generated_at"]):
             gen = datetime.fromisoformat(summary["generated_at"].replace("Z", "+00:00"))
-            # CARD-D1: 本地日统一 Asia/Shanghai (容器 UTC 下 astimezone()
-            # 会用错误的"本地日"跨午夜误判)
-            stale = gen.astimezone(_TZ_SHANGHAI).date() != today
+            # CARD-G6-9c / D-18: 本地日走单一显示时区来源 (裸 astimezone()
+            # 会让容器 UTC 与页面口径分叉, 跨午夜误判)
+            stale = gen.astimezone(_display_tz()).date() != today
     except Exception:  # noqa: BLE001 — 畸形时间按 stale, 不装新鲜也不炸
         stale = True
 
@@ -987,7 +1001,7 @@ def _collect() -> dict:
                 "message": f"VAULTS_ROOT not a directory: {vaults_root}",
             },
         )
-    now = datetime.now(_TZ_SHANGHAI)  # CARD-D1: 全链路上海本地时区
+    now = datetime.now(_display_tz())  # CARD-G6-9c: 全链路单一显示时区
     try:
         vault_dirs = _list_vault_dirs(vaults_root)
     except OSError as e:
@@ -996,11 +1010,11 @@ def _collect() -> dict:
             detail={"error": "vaults_root_scan_failed", "message": str(e)},
         )
     # CARD-G6-7: 完成账的「今天」与页面其余时间人话共用同一次时钟读数
-    today_sh = _sh_today(now)
+    today_local = _display_today(now)
     vaults = []
     for v in vault_dirs:
         try:
-            vaults.append(_vault_entry(v, now.date(), _board_done_today(v, vaults_root, today_sh)))
+            vaults.append(_vault_entry(v, now.date(), _board_done_today(v, vaults_root, today_local)))
         except Exception as e:  # noqa: BLE001 — 终极防线 (Codex-C2 B1):
             # 单库任何未预期异常都不许把全局打成 500, 以 corrupt 条目呈现;
             # traceback 落服务端日志 (兜底不等于不可观测)
@@ -1017,6 +1031,10 @@ def _collect() -> dict:
             )
     return {
         "generated_at": now.isoformat(timespec="seconds"),
+        # CARD-G6-9c 加性: 服务端显示时区的 IANA 名, 供前端 Intl.DateTimeFormat
+        # 用同一口径归日 (此前 JS 里写死了一个固定时区名, 那是第五套时钟)。
+        # 每次请求现算; 三档都取不到名 (末档固定偏移) 时为 null, 前端退浏览器本地。
+        "display_tz": _display_tz_name(),
         "vaults_root": str(vaults_root),
         "active_vault": s.ACTIVE_VAULT,
         "vaults": vaults,
@@ -1049,7 +1067,7 @@ _NODE_TAG = (
 )
 
 
-def _node_detail_html(vault_id: str, nodes: list[dict], now_sh: datetime) -> str:
+def _node_detail_html(vault_id: str, nodes: list[dict], now_local: datetime) -> str:
     """板行下的节点级明细 (CARD-G6-4): 名称 + 桶位 + 到期人话 + why_due + 深链。
 
     纯 `<details>/<summary>` 折叠, 零 JS。每个节点名是一条 obsidian:// 深链,
@@ -1063,7 +1081,7 @@ def _node_detail_html(vault_id: str, nodes: list[dict], now_sh: datetime) -> str
     for n in nodes:
         name = html.escape(n["node"])
         link = html.escape(_node_link(vault_id, n["node"]))
-        eta, eta_color = _humanize_due(n["fsrs_due"], now_sh)
+        eta, eta_color = _humanize_due(n["fsrs_due"], now_local)
         tag = (
             ""
             if n.get("bucket") is None
@@ -1088,7 +1106,7 @@ def _node_detail_html(vault_id: str, nodes: list[dict], now_sh: datetime) -> str
     )
 
 
-def _queue_layers_html(vault_id: str, bucket_rows: dict | None, now_sh: datetime) -> str:
+def _queue_layers_html(vault_id: str, bucket_rows: dict | None, now_local: datetime) -> str:
     """CARD-G6-5-R 队列分层区块 (零 JS): 五桶各自成区, 区内逐节点点名。
 
     与板表格 (_board_table_html) 是同一批节点的**另一种切法**, 不是它的替代:
@@ -1122,7 +1140,7 @@ def _queue_layers_html(vault_id: str, bucket_rows: dict | None, now_sh: datetime
             items = []
             for r in rows:
                 link = html.escape(_node_link(vault_id, r["node"]))
-                eta, eta_color = _humanize_due(r["fsrs_due"], now_sh)
+                eta, eta_color = _humanize_due(r["fsrs_due"], now_local)
                 items.append(
                     f'<li style="{_NODE_LI}">'
                     f'<a href="{link}" style="color:#2563eb;text-decoration:none">{html.escape(r["node"])}</a>'
@@ -1142,7 +1160,7 @@ def _queue_layers_html(vault_id: str, bucket_rows: dict | None, now_sh: datetime
     )
 
 
-def _board_table_html(vault_id: str, boards: list[dict], now_sh: datetime, done_action: str | None = None) -> str:
+def _board_table_html(vault_id: str, boards: list[dict], now_local: datetime, done_action: str | None = None) -> str:
     """三级视图第二/三级: 板表格 白板名|到期|新卡|待剖析|最早到期。
 
     CARD-G6-4: 有到期节点的板在数据行之下多一行 `colspan=5` 的折叠区
@@ -1164,7 +1182,7 @@ def _board_table_html(vault_id: str, boards: list[dict], now_sh: datetime, done_
         link = html.escape(_board_link(vault_id, r["board"]))
         due_disp = f"<b>{int(r['due'])}</b>" if r["due"] else '<span style="color:#9ca3af">0</span>'
         ph = "—" if r.get("placeholder") is None else str(int(r["placeholder"]))
-        eta, eta_color = _humanize_due(r["earliest"], now_sh)
+        eta, eta_color = _humanize_due(r["earliest"], now_local)
         rows_html.append(
             f"<tr>"
             f'<td style="{_TD}"><a href="{link}" style="color:#2563eb;text-decoration:none">{name}</a></td>'
@@ -1185,7 +1203,7 @@ def _board_table_html(vault_id: str, boards: list[dict], now_sh: datetime, done_
                 f'<tr><td colspan="5" style="{_TD};padding-top:0;color:#6b7280;font-size:12px">'
                 f"为什么是这块板 · {text}</td></tr>"
             )
-        detail = _node_detail_html(vault_id, r.get("nodes") or [], now_sh)
+        detail = _node_detail_html(vault_id, r.get("nodes") or [], now_local)
         if detail:
             rows_html.append(f'<tr><td colspan="5" style="{_TD};padding-top:0">{detail}</td></tr>')
         if done_action:
@@ -1251,7 +1269,7 @@ def _board_done_form_html(vault_id: str, board: str, action: str) -> str:
     )
 
 
-def _boards_split_html(vault_id: str, boards: list[dict], now_sh: datetime, done: set, done_action: str) -> str:
+def _boards_split_html(vault_id: str, boards: list[dict], now_local: datetime, done: set, done_action: str) -> str:
     """CARD-G6-7: 板表格分成「待做」与「已完成」两区。
 
     ⛔ 折叠不是隐藏, 也不是从投影里剔除 —— 已完成的板行原样还在页面上,
@@ -1261,24 +1279,24 @@ def _boards_split_html(vault_id: str, boards: list[dict], now_sh: datetime, done
     todo = [r for r in boards if r["board"] not in done]
     finished = [r for r in boards if r["board"] in done]
     if todo:
-        head = _board_table_html(vault_id, todo, now_sh, done_action)
+        head = _board_table_html(vault_id, todo, now_local, done_action)
     elif finished:
         # 全做完了: 不复用 _board_table_html 的空态文案 (那句说的是"没有板",
         # 与"板都做完了"是两回事 —— 一字之差就把成就说成了空库)
         head = '<div style="color:#16a34a;margin:10px 0 4px;font-size:14px">🎉 今天列出的白板都标完成了</div>'
     else:
-        head = _board_table_html(vault_id, todo, now_sh, done_action)
+        head = _board_table_html(vault_id, todo, now_local, done_action)
     if not finished:
         return head
     return (
         head + f'<details style="margin:6px 0 2px"><summary style="cursor:pointer;color:#6b7280;font-size:12px">'
         f"已完成（{len(finished)}）· 明天自动回来</summary>"
-        + _board_table_html(vault_id, finished, now_sh)
+        + _board_table_html(vault_id, finished, now_local)
         + "</details>"
     )
 
 
-def _card_html(entry: dict, now_sh: datetime, refresh_action: str, done_action: str) -> str:
+def _card_html(entry: dict, now_local: datetime, refresh_action: str, done_action: str) -> str:
     """三级视图第一级: vault 卡片 (名+四态徽标+汇总行) → 板表格 → 操作行。"""
     vid = html.escape(entry["vault_id"])
     label, color = _STATUS_META[entry["status"]]
@@ -1326,10 +1344,10 @@ def _card_html(entry: dict, now_sh: datetime, refresh_action: str, done_action: 
             summary
             + layers
             # CARD-G6-5-R: 分层计数行紧跟着它的节点级明细 (缺省整块不出现)
-            + _queue_layers_html(entry["vault_id"], proj.get("bucket_rows"), now_sh)
+            + _queue_layers_html(entry["vault_id"], proj.get("bucket_rows"), now_local)
             # CARD-G6-7: 待做 / 已完成两区 + 写侧动作的诚实说明
             + _boards_split_html(
-                entry["vault_id"], proj["boards"], now_sh, set(entry.get("board_done") or ()), done_action
+                entry["vault_id"], proj["boards"], now_local, set(entry.get("board_done") or ()), done_action
             )
             + f'<div style="color:#6b7280;font-size:12px;margin:2px 0 6px">{html.escape(_DONE_NOTE)}</div>'
             + f'<div style="color:#6b7280;font-size:12px;margin:4px 0 6px">生成于 {gen_disp}</div>'
@@ -1370,15 +1388,15 @@ def _card_html(entry: dict, now_sh: datetime, refresh_action: str, done_action: 
 async def review_overview_page(request: Request) -> HTMLResponse:
     data = _collect()
     # 同一次时钟读数贯穿页面 (generated_at 是 _collect 的上海本地 iso)
-    now_sh = datetime.fromisoformat(data["generated_at"])
+    now_local = datetime.fromisoformat(data["generated_at"])
     # 表单 action 用 url_for 的 **path**: 前缀改了不会漂 (硬编码 /api/v1/…
     # 会), 取 .path 而非绝对 URL 则不受反代改 host/scheme 影响
     refresh_action = request.url_for("review_overview_refresh").path
     done_action = request.url_for("review_overview_board_done").path
-    cards = "".join(_card_html(e, now_sh, refresh_action, done_action) for e in data["vaults"]) or (
+    cards = "".join(_card_html(e, now_local, refresh_action, done_action) for e in data["vaults"]) or (
         '<div style="color:#6b7280">VAULTS_ROOT 下未发现任何 vault (需含 .obsidian/ 目录)</div>'
     )
-    generated = html.escape(_fmt_local_dt(now_sh))
+    generated = html.escape(_fmt_local_dt(now_local))
     page = (
         '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width, initial-scale=1">'
@@ -1484,9 +1502,10 @@ def _resolve_pick_script(vaults_root: Path) -> Path:
 
 
 #: 子进程环境白名单 —— 只透传这些, 其余一律不带 (见 _child_env)。
-#: ⛔ TZ **不在**白名单里: 它由 _child_env 强制设成 _DISPLAY_TZ_NAME, 不接受
-#: 父进程的值 (容器里父进程的 TZ 是空的, 空 = UTC = 错日期)
-_ENV_PASSTHROUGH = ("PATH", "HOME", "TMPDIR", "LANG", "LC_ALL", "LC_CTYPE", "SYSTEMROOT")
+#: CARD-G6-9c / D-18: TZ 与 CANVAS_TZ **在**白名单里 —— 生产器与后端进程必须
+#: 看到同一个时区视图。此前它们由 _child_env 强制设成固定的 Asia/Shanghai,
+#: 那让「用户所在地」这条口径在 refresh 路径上被硬编码顶掉 (见 _child_env)。
+_ENV_PASSTHROUGH = ("PATH", "HOME", "TMPDIR", "LANG", "LC_ALL", "LC_CTYPE", "SYSTEMROOT", "TZ", "CANVAS_TZ")
 
 
 def _child_env() -> dict[str, str]:
@@ -1502,20 +1521,25 @@ def _child_env() -> dict[str, str]:
     白名单只保留跑一个 stdlib 脚本真正需要的: 解释器路径查找 (PATH)、
     临时目录、locale。
 
-    ⛔ TZ 是**强制**设成显示时区, 不是"有就透传": 生产器的
-    `payload["date"] = now.astimezone().date().isoformat()` 与由它派生的
-    md 标题 `# 今日复习 · <date>`、Bark 通知 id `canvas-review-<date>` 全都
-    走**进程本地时区**。而后端容器 `TZ` 为空、`/etc/localtime -> Etc/UTC`
-    (现网实测), 于是上海 00:00-08:00 这 8 小时里 refresh 产出的是**昨天**的
-    日期 —— 端点照样返回 rebuilt=true / status=ok, 页面上没有任何异常信号,
-    正是"静默产出错日期"。宿主 launchd runner 跑在 Asia/Shanghai 下产出的
-    是正确日期, 于是同一个库的两条生成路径会给出不同的 date, 取决于谁最后写。
+    TZ / CANVAS_TZ **透传**(CARD-G6-9c / D-18 2026-09-07)。要解决的问题没变:
+    生产器的 `payload["date"] = now.astimezone(...).date().isoformat()` 与由它
+    派生的 md 标题 `# 今日复习 · <date>`、Bark 通知 id `canvas-review-<date>`
+    全都走**子进程自己看到的时区**; 后端容器 `TZ` 为空、`/etc/localtime ->
+    Etc/UTC`(现网实测), 一旦父子两侧看到的时区不同, 同一个库的两条生成路径
+    就会给出不同的 date, 取决于谁最后写 —— 而端点照样返回 rebuilt=true /
+    status=ok, 页面上没有任何异常信号, 正是"静默产出错日期"。
+    (CARD-G6-1 收官审计实测: TZ=Asia/Shanghai → date=2026-08-31,
+     TZ=UTC → date=2026-08-30, 同一时刻同一个库。)
 
-    这条坑本文件读侧早已点名并修掉 (stale 判定用 `astimezone(_TZ_SHANGHAI)`,
-    见 _vault_entry 的注释), 本卡新开的**写侧**必须同口径, 否则等于把它原样
-    搬了回来。用同一个 _DISPLAY_TZ_NAME 字面量, 读写两侧永不漂移。
-    (收官审计实测: TZ=Asia/Shanghai → date=2026-08-31, TZ=UTC → date=2026-08-30,
-     同一时刻同一个库。)
+    ⛔ **历史记录 + D-18 反转**: 此前这里把子进程的 TZ 强制赋成一个固定的
+    显示时区名, 不接受父进程的值。那在"显示口径恒为该固定时区"的
+    前提下是对的, 但 D-18 (2026-09-07 用户裁定) 推翻了该前提:「今天」= 用户
+    **当前所在地**。硬编码的强制值会让 refresh 路径成为第五套时钟 —— 用户
+    出门换时区后, 页面按机器本地归日, refresh 重生成的 payload 却仍是上海日。
+    改为透传后, 父子进程读的是同一个 `app.core.display_tz` / `scripts.local_tz`
+    来源 (CANVAS_TZ 优先, 否则 TZ, 否则 /etc/localtime), 分叉面消失。
+    父进程 TZ 为空时子进程也读不到, 双方一起落到 `/etc/localtime` 那一档 ——
+    仍是同一个答案, 这正是"同一视图"要的。
 
     PYTHONDONTWRITEBYTECODE=1 不是可选项: 生产器的 load_decay() 会
     `import decay_beta`, 该模块在 **vault 内** (<vault>/.claude/scripts/),
@@ -1526,9 +1550,8 @@ def _child_env() -> dict[str, str]:
     env = {k: v for k in _ENV_PASSTHROUGH if (v := os.environ.get(k)) is not None}
     env["PYTHONDONTWRITEBYTECODE"] = "1"
     env["PYTHONNOUSERSITE"] = "1"
-    # 强制, 不是透传 —— 见上面 docstring。父进程的 TZ 不参与决定 (容器里它是空的,
-    # 空就等于 UTC; 而"读侧显示用 Shanghai、写侧落盘用 UTC"是不能存在的组合)
-    env["TZ"] = _DISPLAY_TZ_NAME
+    # CARD-G6-9c: TZ / CANVAS_TZ 走 _ENV_PASSTHROUGH 透传, 这里**不再强制赋值**
+    # —— 见上面 docstring 的「历史记录 + D-18 反转」段。
     return env
 
 
@@ -1649,7 +1672,7 @@ def _publish_fingerprint(path: Path) -> tuple[int, int, str] | None:
 def _read_entry(vault_dir: Path) -> dict:
     """读回该库的聚合条目 —— 与 _collect 同一条终极防线, 绝不逃逸成 500。"""
     try:
-        return _vault_entry(vault_dir, datetime.now(_TZ_SHANGHAI).date())
+        return _vault_entry(vault_dir, datetime.now(_display_tz()).date())
     except Exception as e:  # noqa: BLE001
         logger.exception("review_overview refresh 读回异常", vault=vault_dir.name)
         return {
@@ -2384,7 +2407,7 @@ def review_overview_board_done(
         标记完成**不影响 FSRS**, 页面上也这么写着 (_DONE_NOTE)。
       · 允许一道题都没答就标完成 (用户裁决) —— 因为"做完了"记的是人的
         判断, 不是系统对掌握度的判断; 后者归 FSRS, 本动作碰不到它。
-      · 「今天」是 Asia/Shanghai 日 (_sh_today, 与页面到期人话同源)。隔日
+      · 「今天」是显示时区本地日 (_display_today, 与页面到期人话同源)。隔日
         自然失效: 不删旧键、不起定时清理 —— 值不等于今天就是没完成。
 
     两道写侧门与 refresh 完全同源 (复制一份 = 两份会漂移):
@@ -2405,13 +2428,13 @@ def review_overview_board_done(
                     "message": f"board 必须是 1..{_BOARD_NAME_MAX} 字符的白板名 (实为 {len(board)} 字符)",
                 },
             )
-        day = _sh_today()
+        day = _display_today()
         if not day:
-            # _sh_day 在年份极值下返回 None —— 拿不到"今天"就没有可写的账,
+            # _display_day 在年份极值下返回 None —— 拿不到"今天"就没有可写的账,
             # 宁可 503 也不写一个空日期 (那会让"今天完成"永久为假)
             raise HTTPException(
                 status_code=503,
-                detail={"error": "today_unresolvable", "message": "无法解析当前的 Asia/Shanghai 日期"},
+                detail={"error": "today_unresolvable", "message": "无法解析当前显示时区的日期"},
             )
         vault_dir, _script = _refresh_target(vault_id)
         s = get_settings()

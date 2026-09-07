@@ -194,10 +194,27 @@ function doneKey(vaultId, board) {
   // ("a","b|c") 撞成同一个键, 在飞禁用就会串到别的板上。
   return String(vaultId) + "\u0000" + String(board);
 }
-function shDay(ms) {
-  // Asia/Shanghai 本地日 YYYY-MM-DD (en-CA locale 恰好输出 ISO 形态);
-  // 与服务端 _humanize_due 的"上海本地日差"同一口径
-  return new Intl.DateTimeFormat("en-CA", {timeZone: "Asia/Shanghai"}).format(new Date(ms));
+function tzOpts() {
+  // CARD-G6-9c / D-18: 显示时区取**服务端下发**的 display_tz (GET /overview 顶层键,
+  // 与后端 _display_tz() 同一来源)。此前这里写死一个固定时区名 —— 那是独立于
+  // 服务端的第五套时钟, 用户换时区后页面与后端会各说各的"今天"。
+  // 缺失/null ⇒ 空 opts = 浏览器本地 (服务端三档都取不到 IANA 名时的兜底;
+  // 远程访问且两端不同区时可能不同日, 已在卡文 (x)① 如实登记)。
+  return state.displayTz ? {timeZone: state.displayTz} : {};
+}
+function fmtWithDisplayTz(locale, opts, ms) {
+  // 无效 tz ⇒ Intl.DateTimeFormat 抛 RangeError ⇒ 退回浏览器本地。
+  // 显示层绝不因一个坏的时区配置整页崩掉 (与 humanizeDue 的容错同纪律)。
+  try {
+    return new Intl.DateTimeFormat(locale, Object.assign({}, opts, tzOpts())).format(new Date(ms));
+  } catch (e) {
+    return new Intl.DateTimeFormat(locale, opts).format(new Date(ms));
+  }
+}
+function displayDay(ms) {
+  // 显示时区本地日 YYYY-MM-DD (en-CA locale 恰好输出 ISO 形态);
+  // 与服务端 _display_day 的"本地日差"同一口径
+  return fmtWithDisplayTz("en-CA", {}, ms);
 }
 function parseDueMs(ts) {
   // 生产器 UTC-Z 秒级形态; 非该形态返回 null (显示层容错, 绝不抛)
@@ -213,7 +230,7 @@ function humanizeDue(ts, nowMs) {
   if (ts === "") return {text: "现在", color: "#d97706"};
   const ms = parseDueMs(ts);
   if (ms === null) return {text: "—", color: "#6b7280"};
-  const d1 = shDay(ms), d0 = shDay(nowMs);
+  const d1 = displayDay(ms), d0 = displayDay(nowMs);
   const days = Math.round((Date.parse(d1) - Date.parse(d0)) / 86400000);
   if (days < 0) return {text: "逾期" + (-days) + "天", color: "#dc2626"};
   if (days === 0) return {text: "现在", color: "#d97706"};
@@ -345,7 +362,7 @@ function restDayHtml(proj, nowMs) {
   let day = "";
   if (nu) {
     const ms = parseDueMs(nu.next_due);
-    day = ms === null ? String(nu.next_due).slice(0, 10) : shDay(ms);
+    day = ms === null ? String(nu.next_due).slice(0, 10) : displayDay(ms);
   }
   const tail = nu ? '<div style="color:#6b7280;font-size:13px;margin-top:4px">按计划推进 · 最近到期 ' +
     esc(nu.board) + " · " + esc(day) + "</div>" : "";
@@ -443,6 +460,9 @@ function renderBoardDoneResult(status, board, payload) {
 
 // ═══ 副作用壳: 只消费上面纯函数的返回值 ═══
 const state = {timer: null, lastOkAt: null, lastData: null, pollGen: 0,
+  // CARD-G6-9c: 服务端显示时区的 IANA 名 (GET 的 display_tz)。null = 还没拿到
+  // 或服务端也没有名字 ⇒ tzOpts() 退回浏览器本地。
+  displayTz: null,
   // vault_id 是外部字符串 — Object.create(null) 防 "__proto__"/"constructor" 键注入原型 (round-2 M1)
   notes: Object.create(null), inflight: Object.create(null), pendingSync: Object.create(null),
   // CARD-G6-7 完成动作在飞 (键 = doneKey(vault, board)) —— 与 inflight 同纪律:
@@ -450,8 +470,8 @@ const state = {timer: null, lastOkAt: null, lastData: null, pollGen: 0,
   doneInflight: Object.create(null)};
 const el = id => document.getElementById(id);
 function fmtClock(ms) {
-  return new Intl.DateTimeFormat("zh-CN", {timeZone: "Asia/Shanghai", hour12: false,
-    hour: "2-digit", minute: "2-digit", second: "2-digit"}).format(new Date(ms));
+  return fmtWithDisplayTz("zh-CN", {hour12: false,
+    hour: "2-digit", minute: "2-digit", second: "2-digit"}, ms);
 }
 function setConn(cls, text) {
   const c = el("conn");
@@ -562,6 +582,9 @@ async function poll() {
       if (v && v.vault_id && v.projection) renderedVids[v.vault_id] = true;
     }
     state.lastData = data;
+    // CARD-G6-9c: 显示时区随每次 GET 更新 —— 只认非空字符串, 其余一律 null
+    // (服务端 null / 字段缺失 / 类型不对都退回浏览器本地, 不让坏值进渲染层)
+    state.displayTz = (typeof data.display_tz === "string" && data.display_tz) || null;
     settlePendingSync(nowMs, true, renderedVids, gen);
     // 最终帧与其余重绘共用同一条路径 (state.lastData 上一行刚设为 data) —
     // 帧形态单一来源, 将来新增重绘点不会再漏拼失联通知 (G6-2b R1)

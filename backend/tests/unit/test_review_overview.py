@@ -33,6 +33,24 @@ except Exception:  # noqa: BLE001
     _SH = timezone(timedelta(hours=8))
 
 
+@pytest.fixture(autouse=True)
+def _pin_display_tz(monkeypatch):
+    """把显示时区钉在 Asia/Shanghai —— 本文件大量期望值用 `_SH` 算 (CARD-G6-9c)。
+
+    本卡把显示侧从硬编码 Asia/Shanghai 收敛到 `display_tz()`(缺省 = 机器本地)。
+    而本文件的期望值仍按 `_SH`(= 上海) 算 —— 那是**刻意保留**的: 期望值若改成
+    按显示时区现算, 就与被测量同源、缺陷会让两边一起退化 (memory「期望值与被
+    测量同源」)。故用 CANVAS_TZ 把被测侧钉到与 `_SH` 同一个时区。
+
+    透传链: `_child_env()` 的白名单含 CANVAS_TZ ⇒ refresh 起的**生产器子进程**
+    也拿到同一个值, 父子两侧不分叉。
+
+    ⚠ 测时区行为本身的两条用例 (`test_child_env_*` / `test_child_tz_*`) 会显式
+    `delenv("CANVAS_TZ")` 把本夹具让开 —— 它们要看的正是缺省档。
+    """
+    monkeypatch.setenv("CANVAS_TZ", "Asia/Shanghai")
+
+
 def _now_local() -> datetime:
     return datetime.now().astimezone()
 
@@ -1039,7 +1057,7 @@ def test_buckets_layer_counts_and_cross_source_gate(overview_env):
     assert page.text.count("分层 · ") == 1, "无 buckets 的旧投影卡片不出现分层行"
 
 
-def test_buckets_gate_accepts_real_producer_payload(tmp_path, overview_env):
+def test_buckets_gate_accepts_real_producer_payload(tmp_path, overview_env, monkeypatch):
     """假阳性防线 (Codex round-2 C/D): 不用手搓 fixture —— 直接跑真生产器
     daily_review_pick.build_payload 产出投影, 落成真文件后过总览端点, 必须
     ok 且分层计数与生产器 buckets 逐字相等。门禁若把生产器真实产出判成
@@ -1051,6 +1069,18 @@ def test_buckets_gate_accepts_real_producer_payload(tmp_path, overview_env):
     wt = Path(__file__).resolve().parents[3]
     sys.path.insert(0, str(wt / "scripts"))
     import daily_review_pick as picker  # pyright: ignore[reportMissingImports]
+
+    # ⛔ 把**生产器侧**的时区也钉在 _SH (CARD-G6-9c)。本用例是两侧同场比对:
+    #    picker 产出 buckets、总览端点的 _gate_buckets 复算它。两侧的时区来源
+    #    形态不同 —— 端点每次现调 display_tz() (读 CANVAS_TZ, 由 _pin_display_tz
+    #    夹具钉住), 而 picker 用**模块级常量** `_DISPLAY_TZ`, 在 `import
+    #    daily_review_pick` 那一刻就固化了。
+    #    单跑本文件时这里恰好是首次 import (夹具已生效, 两侧同为上海, 绿);
+    #    与别的文件合跑时 picker 早在 collection 期就被 import 过 —— 那时还没有
+    #    CANVAS_TZ, 常量固化成机器本地 ⇒ 非上海宿主上两侧分叉, 生产器把
+    #    「上海今天 23:00」判成 future 而门说它该是 due_today, 端点返回 corrupt。
+    #    钉住它, 门比的才是"桶位逻辑", 不是"两侧时区碰巧一样吗"。
+    monkeypatch.setattr(picker, "_DISPLAY_TZ", _SH)
 
     root, client = overview_env
     vault = root / "vault-real"
@@ -1755,7 +1785,11 @@ def test_child_env_is_allowlisted_not_inherited(refresh_env, monkeypatch):
     assert "PYTHONPATH" not in env and "PYTHONSTARTUP" not in env
     assert "SOME_SECRET_TOKEN" not in env, "后端进程的密钥不该顺手进子进程"
     assert env["PYTHONDONTWRITEBYTECODE"] == "1" and env["PYTHONNOUSERSITE"] == "1"
-    assert env.get("TZ") == "Asia/Shanghai", "时区要透传 — 本地日语义得与宿主一致"
+    assert env.get("TZ") == "Asia/Shanghai", (
+        "TZ 必须**透传**(CARD-G6-9c / D-18): 父子两侧看同一个时区视图。"
+        "本卡之前这里是被强制赋成一个固定名的, 恰好等于 setenv 的值 —— 那时这条"
+        "断言过得去但证不到透传。现在白名单里有 TZ, 它才真的在测透传。"
+    )
 
     # 端到端: 带着注入 env 跑真 refresh 仍要正常出投影 (白名单没砍掉必需项)
     root, client = refresh_env
@@ -2656,46 +2690,64 @@ def test_publish_fingerprint_uses_three_independent_signals(refresh_env, tmp_pat
     assert mod._publish_fingerprint(tmp_path / "根本不存在.json") is None
 
 
-def test_child_tz_is_forced_so_container_utc_cannot_produce_yesterday(refresh_env, monkeypatch):
-    """⛔ 收官审计抓到的真缺陷: 容器 TZ 为空 + /etc/localtime→Etc/UTC（现网实测），
-    而生产器的 `payload["date"]` / md 标题 / 通知 id 全走**进程本地时区**。
-    不强制 TZ 的话，上海 00:00-08:00 这 8 小时里 refresh 产出的是**昨天**的日期，
-    而端点照样 rebuilt=true / status=ok —— 页面上没有任何异常信号。
+def test_child_tz_is_passed_through_so_parent_and_child_share_one_view(refresh_env, monkeypatch):
+    """⛔ 收官审计抓到的真缺陷（CARD-G6-9c / D-18 反转后的形态）: 生产器的
+    `payload["date"]` / md 标题 / 通知 id 全走**子进程看到的时区**。父子两侧只要
+    看到的时区不同，同一个库的两条生成路径就会给出不同的 date，取决于谁最后写 ——
+    而端点照样 rebuilt=true / status=ok，页面上没有任何异常信号。
 
-    这条坑读侧早修掉了（stale 判定 astimezone(_TZ_SHANGHAI)），写侧不能搬回来。
+    G6-9a 时这里是**强制**钉死一个固定显示时区名。D-18 裁定「今天 = 用户当前
+    所在地」后，硬编码的强制值本身成了分叉源（用户换时区 ⇒ 页面按机器本地归日、
+    refresh 重生成的 payload 仍是旧时区日），故改为**透传**。
 
-    ⚠ 本用例**端到端**验：把父进程 TZ 设成 UTC 再跑真 subprocess，产出的 date
-    必须仍是上海日。只断言 `_child_env()["TZ"] == "Asia/Shanghai"` 是不够的 ——
-    那只证明字典里有这个键，证不了子进程真的按它算日期。
+    ⚠ 本用例**端到端**验：父进程 TZ 设成什么，真 subprocess 产出的 date 就必须
+    按什么算。只断言 `_child_env()` 字典里有那个键是不够的 —— 那证不了子进程
+    真按它算日期。
     """
     import app.api.v1.endpoints.review_overview as mod
 
-    # 父进程冒充容器：TZ=UTC
+    root, client = refresh_env
+
+    # ── ① 父进程冒充容器（TZ=UTC，无 CANVAS_TZ）：子进程必须也按 UTC 归日 ──
+    monkeypatch.delenv("CANVAS_TZ", raising=False)  # 让开 _pin_display_tz 夹具
     monkeypatch.setenv("TZ", "UTC")
     env = mod._child_env()
-    assert env["TZ"] == mod._DISPLAY_TZ_NAME == "Asia/Shanghai", "父进程的 TZ 不许影响子进程"
+    assert env["TZ"] == "UTC", "父进程的 TZ 必须透传给子进程（不再强制覆盖）"
+    assert "CANVAS_TZ" not in env, "父进程没设 CANVAS_TZ 时不该凭空出现"
 
-    root, client = refresh_env
     vault = _mk_node_vault(root, "vault-tz", {"甲": _node_md()})
     assert client.post(_REFRESH_URL, data={"vault_id": "vault-tz"}).status_code == 200
-
     payload = json.loads((vault / "outputs" / "今日复习.json").read_text(encoding="utf-8"))
-    sh_today = datetime.now(_SH).date().isoformat()
-    assert payload["date"] == sh_today, (
-        f"父进程 TZ=UTC 时产出的 date={payload['date']!r} 应仍是上海日 {sh_today!r} —— "
-        f"否则上海 00:00-08:00 会静默产出昨天的复习清单"
+    utc_today = datetime.now(timezone.utc).date().isoformat()
+    assert payload["date"] == utc_today, (
+        f"父进程 TZ=UTC 时 date={payload['date']!r} 应为 UTC 日 {utc_today!r} —— 父子两侧必须是同一个时区视图"
     )
-    assert payload["generated_at"].endswith("+08:00"), (
-        f"generated_at 应带 +08:00 偏移, 实为 {payload['generated_at']!r}"
+    assert payload["generated_at"].endswith("+00:00"), (
+        f"generated_at 应带 +00:00 偏移, 实为 {payload['generated_at']!r}"
     )
     md_head = (vault / "outputs" / "今日复习.md").read_text(encoding="utf-8").splitlines()[0]
-    assert sh_today in md_head, f"md 标题也必须是上海日, 实为 {md_head!r}"
+    assert utc_today in md_head, f"md 标题也必须同源, 实为 {md_head!r}"
     noti = payload.get("notification")
-    if noti:  # 空 vault 时无通知; 有则 id 必须是上海日 (否则会覆盖昨天那条推送)
-        assert noti["id"] == f"canvas-review-{sh_today}"
+    if noti:  # 有通知则 id 必须同日（否则会覆盖别一天那条推送）
+        assert noti["id"] == f"canvas-review-{utc_today}"
 
-    # 读写两侧共用同一个字面量, 永不漂移
-    assert getattr(mod._TZ_SHANGHAI, "key", "Asia/Shanghai") == mod._DISPLAY_TZ_NAME
+    # ── ② CANVAS_TZ 显式覆盖：压过父进程 TZ，子进程按东京归日 ──
+    #    这一段是 ① 的对照：没有它，① 的"UTC 日"分不清是"透传起作用"还是
+    #    "这条路径恒用 UTC"。
+    monkeypatch.setenv("CANVAS_TZ", "Asia/Tokyo")
+    env2 = mod._child_env()
+    assert env2["CANVAS_TZ"] == "Asia/Tokyo" and env2["TZ"] == "UTC", (
+        f"CANVAS_TZ 与 TZ 都该透传, 实得 {env2.get('CANVAS_TZ')!r} / {env2.get('TZ')!r}"
+    )
+    vault2 = _mk_node_vault(root, "vault-tz2", {"甲": _node_md()})
+    assert client.post(_REFRESH_URL, data={"vault_id": "vault-tz2"}).status_code == 200
+    payload2 = json.loads((vault2 / "outputs" / "今日复习.json").read_text(encoding="utf-8"))
+    assert payload2["generated_at"].endswith("+09:00"), (
+        f"CANVAS_TZ=Asia/Tokyo 应压过 TZ=UTC, 实得 {payload2['generated_at']!r}"
+    )
+
+    # 读侧与写侧同一个来源: 端点自己算出来的名字, 就是它透传给子进程的那个
+    assert mod._display_tz_name() == "Asia/Tokyo", f"读侧显示时区名与透传给子进程的值漂移了: {mod._display_tz_name()!r}"
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -2860,13 +2912,13 @@ def test_g67_board_done_writes_only_state_and_never_touches_fsrs(board_done_env,
 
     body = resp.json()
     assert body["board"] == "CS 61B" and body["fsrs_touched"] is False
-    assert body["done_date"] == mod._sh_today()
+    assert body["done_date"] == mod._display_today()
     state_file = runner.state_path(vault)
     assert Path(body["state_path"]) == state_file
     assert not state_file.is_relative_to(vault), "完成账不许落在库内 (BACKUPS 在仓库下)"
 
     st = _state_of(runner, Path(root), "vault-fsrs")
-    assert st["board_done"] == {"CS 61B": mod._sh_today()}
+    assert st["board_done"] == {"CS 61B": mod._display_today()}
     assert st["schema_version"] == runner.STATE_SCHEMA_VERSION
 
     after_tree = _tree(root)
@@ -2889,7 +2941,7 @@ def test_g67_fsrs_gate_reddens_under_contaminating_write_point(board_done_env, m
     before = _fsrs_fingerprint(vault)
     resp = client.post(_BOARD_DONE_URL, data={"vault_id": "vault-neg", "board": "CS 61B"})
     assert resp.status_code == 200, "对照写点只污染 FSRS, 不许把请求本身弄坏 (否则红的是别的东西)"
-    assert _state_of(runner, Path(root), "vault-neg")["board_done"] == {"CS 61B": mod._sh_today()}, (
+    assert _state_of(runner, Path(root), "vault-neg")["board_done"] == {"CS 61B": mod._display_today()}, (
         "对照写点必须仍然把完成账写对 —— 拆的只是那一条守卫"
     )
     with pytest.raises(AssertionError) as ei:
@@ -3059,7 +3111,7 @@ def test_g67_done_expires_next_day_and_is_per_vault(board_done_env):
     # 把日期改成昨天 = 时间往前走了一天
     sf = runner.state_path(root / "vault-x")
     st = json.loads(sf.read_text(encoding="utf-8"))
-    yesterday = (datetime.fromisoformat(mod._sh_today()) - timedelta(days=1)).date().isoformat()
+    yesterday = (datetime.fromisoformat(mod._display_today()) - timedelta(days=1)).date().isoformat()
     st["board_done"]["CS 61B"] = yesterday
     sf.write_text(json.dumps(st, ensure_ascii=False), encoding="utf-8")
 
@@ -3105,7 +3157,7 @@ def test_g67_write_path_quarantines_corrupt_state_and_rebuilds(board_done_env):
     assert resp.status_code == 200, resp.text
     assert list(sf.parent.glob("*.corrupt-*")), "错型 state 必须被隔离 (复用 runner 的既有行为)"
     st = json.loads(sf.read_text(encoding="utf-8"))
-    assert st["board_done"] == {"CS 61B": mod._sh_today()}
+    assert st["board_done"] == {"CS 61B": mod._display_today()}
     assert st["schema_version"] == runner.STATE_SCHEMA_VERSION
 
 
@@ -3147,7 +3199,7 @@ def test_g67_old_state_without_board_done_reads_as_empty(board_done_env):
     assert client.post(_BOARD_DONE_URL, data={"vault_id": "vault-old", "board": "CS 61B"}).status_code == 200
     st = json.loads(sf.read_text(encoding="utf-8"))
     assert st["board_last_recommended"] == {"CS 61B": "2026-08-01"}, "既有键的值一个都不许动"
-    assert st["board_done"] == {"CS 61B": mod._sh_today()}
+    assert st["board_done"] == {"CS 61B": mod._display_today()}
     assert st["schema_version"] == runner.STATE_SCHEMA_VERSION
 
 
@@ -3232,7 +3284,7 @@ def test_g67_stale_tmp_residue_neither_blocks_nor_gets_clobbered(board_done_env)
 
     resp = client.post(_BOARD_DONE_URL, data={"vault_id": "vault-stale", "board": "CS 61B"})
     assert resp.status_code == 200, f"残骸不该挡住保存: {resp.text[:200]}"
-    assert json.loads(state.read_text(encoding="utf-8"))["board_done"]["CS 61B"] == mod._sh_today()
+    assert json.loads(state.read_text(encoding="utf-8"))["board_done"]["CS 61B"] == mod._display_today()
     assert hashlib.sha256(stale.read_bytes()).hexdigest() == stale_sha, "别人的残骸不许被顺手删改"
     # 本次自己的临时件必须已经被 os.replace 消费掉, 不留新残渣
     ours = [p.name for p in state.parent.glob(f"{state.name}.*.tmp") if p.name != stale.name]
@@ -3270,7 +3322,7 @@ def test_g67_state_write_abandons_both_legacy_fixed_tmp_names(board_done_env):
 
     resp = client.post(_BOARD_DONE_URL, data={"vault_id": "vault-legacy-tmp", "board": "CS 61B"})
     assert resp.status_code == 200, f"实现还在用历史固定名 tmp: {resp.text[:300]}"
-    assert json.loads(state.read_text(encoding="utf-8"))["board_done"]["CS 61B"] == mod._sh_today()
+    assert json.loads(state.read_text(encoding="utf-8"))["board_done"]["CS 61B"] == mod._display_today()
     for p in legacy:
         assert p.is_dir(), f"历史固定名 {p.name} 不该被碰"
     leftovers = [q.name for q in state.parent.glob("*.tmp") if q.name not in {p.name for p in legacy}]

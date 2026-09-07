@@ -804,10 +804,13 @@ export function boot({getJson, postJson, hidden = false} = {}) {
   const sandbox = new Function(
     "document", "fetch", "setTimeout", "clearTimeout",
     SRC +
-    "\n;return {esc, shDay, parseDueMs, humanizeDue, computePollDelayMs, visibilityAction," +
+    "\n;return {esc, displayDay, parseDueMs, humanizeDue, computePollDelayMs, visibilityAction," +
     " boardLink, nodeLink, nodeDetailHtml, boardTableHtml, queueLayersHtml, restDayHtml, renderVaultCard," +
     " doneKey, boardDoneBtnHtml, boardsSplitHtml, renderBoardDoneResult," +
-    " renderPage, renderUnavailableBanner, renderRefreshResult, freshNotes};"
+    " renderPage, renderUnavailableBanner, renderRefreshResult, freshNotes," +
+    // CARD-G6-9c: 暴露 state 供用例注入 display_tz —— 显示时区来自服务端下发,
+    // 直接调 renderVaultCard 的用例走不到 poll(), 只能在这里预置。
+    " state};"
   );
   const api = sandbox(
     documentStub, fetchStub,
@@ -999,7 +1002,11 @@ def test_js_rest_day_empty_state_matches_pick_copy(node_harness):
         + _FIX_JS
         + r"""
 test("ok + due_count=0 → 休息日文案, 不显示到期 0 的大数字", () => {
-  const h = boot().api.renderVaultCard(REST_DAY, NOW);
+  const b = boot();
+  // 期望里的 2026-09-03 是**上海日** (UTC 9/2 16:30 = 上海 9/3 0:30)。CARD-G6-9c
+  // 之后显示时区来自服务端下发, 不注入就退浏览器本地 —— 在非上海宿主上得 9/2。
+  b.api.state.displayTz = "Asia/Shanghai";
+  const h = b.api.renderVaultCard(REST_DAY, NOW);
   assert.match(h, /今日无到期节点，休息一天。/);
   assert.match(h, /按计划推进 · 最近到期 线性代数 · 2026-09-03/);
   assert.ok(!/到期 <b>0<\/b>/.test(h), "休息日不该摆一个到期 0 的大数字");
@@ -1829,9 +1836,14 @@ test("在飞库重绘 → 按钮渲染 disabled (重绘不解锁成可双击)", 
 
 
 @pytest.mark.usefixtures("page_html")
-def test_js_restday_next_due_uses_shanghai_date(node_harness):
-    """round-2 M4 门: 最近到期日期转上海本地日 —
-    2026-09-02T16:30:00Z 在上海已是 9 月 3 日, 不许显示 UTC 字面的 9 月 2 日。"""
+def test_js_restday_next_due_uses_display_tz_date(node_harness):
+    """round-2 M4 门 (CARD-G6-9c 更正): 最近到期日期转**服务端下发的显示时区**本地日 —
+    2026-09-02T16:30:00Z 在 Asia/Shanghai 已是 9 月 3 日, 不许显示 UTC 字面的 9 月 2 日。
+
+    本卡之前 JS 里写死 Asia/Shanghai, 期望值直接成立; 现在时区来自 GET 的
+    display_tz, 故显式注入。第二段是 display_tz 缺失时的对照 —— 那时退浏览器
+    本地, 用 node 进程自己的时区算, 证明"退回"这条分支真的走得到。
+    """
     proc = _run_node(
         node_harness,
         r"""
@@ -1842,12 +1854,27 @@ const NOW = 1788000000000;
 const proj = {due_count: 0, boards: [], bucket_counts: null,
   generated_at: "g", next_upcoming: {board: "线性代数", next_due: "2026-09-02T16:30:00Z", node: "特征值"}};
 const v = {vault_id: "数学", status: "ok", error: null, projection: proj};
-const h = boot().api.renderVaultCard(v, NOW);
-assert.match(h, /最近到期 线性代数 · 2026-09-03/, "上海本地日 (UTC 9/2 16:30 = 上海 9/3 0:30)");
+const b = boot();
+b.api.state.displayTz = "Asia/Shanghai";
+const h = b.api.renderVaultCard(v, NOW);
+assert.match(h, /最近到期 线性代数 · 2026-09-03/, "显示时区(上海)本地日 (UTC 9/2 16:30 = 上海 9/3 0:30)");
 assert.ok(!h.includes("2026-09-02"), "UTC 字面日期不许漏出来");
 const bad = {vault_id: "x", status: "ok", error: null, projection: {...proj,
   next_upcoming: {board: "b", next_due: "20260902", node: "n"}}};
-assert.match(boot().api.renderVaultCard(bad, NOW), /20260902/, "畸形时间原样显示, 不炸");
+assert.match(b.api.renderVaultCard(bad, NOW), /20260902/, "畸形时间原样显示, 不炸");
+
+// display_tz 缺失 ⇒ 退浏览器本地: 用 node 自己的时区算出期望, 两者必须一致
+const b2 = boot();
+assert.equal(b2.api.state.displayTz, null, "初始 displayTz 应为 null");
+const localExpect = new Intl.DateTimeFormat("en-CA").format(new Date(Date.parse("2026-09-02T16:30:00Z")));
+assert.match(b2.api.renderVaultCard(v, NOW), new RegExp("最近到期 线性代数 · " + localExpect),
+  "display_tz 缺失时应退回浏览器本地日, 实得与 " + localExpect + " 不符");
+
+// 无效 display_tz ⇒ 不抛, 同样退浏览器本地 (Intl 对坏 tz 抛 RangeError)
+const b3 = boot();
+b3.api.state.displayTz = "Not/AZone";
+assert.match(b3.api.renderVaultCard(v, NOW), new RegExp("最近到期 线性代数 · " + localExpect),
+  "无效 display_tz 应退回浏览器本地, 不许抛");
 """,
     )
     _assert_node_green(proc)

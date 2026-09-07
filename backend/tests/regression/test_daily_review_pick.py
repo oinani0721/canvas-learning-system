@@ -15,6 +15,7 @@ import sys
 import types
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -24,6 +25,31 @@ sys.path.insert(0, str(WT / "scripts"))
 import daily_review_pick as picker  # noqa: E402  # pyright: ignore[reportMissingImports]
 
 NOW = datetime(2026, 7, 30, 1, 0, tzinfo=timezone.utc)
+
+
+#: 本文件全部期望值所依据的时区 —— 与 _pin_pick_display_tz 夹具**同一个字面量**。
+#: ⛔ 禁写成 picker._DISPLAY_TZ 之类"从被测物取": 那让期望与被测量同源, 缺陷会
+#: 让两边一起退化 (memory「期望值与被测量同源」)。
+_FIXED_TZ = ZoneInfo("Asia/Shanghai")
+
+
+@pytest.fixture(autouse=True)
+def _pin_pick_display_tz(monkeypatch):
+    """把 pick 的显示时区钉在 Asia/Shanghai —— 本文件期望值全按上海日写死。
+
+    CARD-G6-9c 把 pick 的桶位时区从硬编码 Asia/Shanghai 收敛到
+    `local_tz.display_tz()`(缺省 = 机器本地)。本文件的期望值 (why_due 里的
+    「今天 21:00」「明天 7月31日」、due_today/future 的分桶) 全是按上海日算的 ——
+    **刻意保留原值**, 不改成按显示时区现算 (那会让期望与被测量同源)。
+
+    ⛔ 为什么 monkeypatch 常量而不是 setenv: pick 用**模块级常量** `_DISPLAY_TZ`
+    (U6-B / U6-C 卡文已引用的既定形态), 在 `import daily_review_pick` 那一刻就
+    固化了 —— setenv 对已 import 的模块完全无效。
+
+    ⚠ 对起**子进程**的用例 (`test_cli_rejects_unconvertible_now_*`) 无效: 子进程
+    重新 import、读自己的环境。那条用例的断言与时区无关 (新卡恒即刻到期), 故不受影响。
+    """
+    monkeypatch.setattr(picker, "_DISPLAY_TZ", _FIXED_TZ)
 
 
 _seq = iter(range(1000))
@@ -393,7 +419,8 @@ def test_boards_rollup_golden_old_fields_frozen(tmp_path):
     """P1 加性纯度金样 (Codex-D1 M2): 冻结 rollup 引入前的完整 payload
     字面量, 删掉新增 boards 键后深度全等 + 顶层键序恒等 — 旧字段任何
     值/键序/嵌套漂移都在此翻车 (逐字段断言无法发现的同步漂移)。
-    generated_at/date 按 NOW.astimezone() 计算 (跟随机器时区, 非被测逻辑);
+    generated_at/date 按 _FIXED_TZ 计算 (与 _pin_pick_display_tz 夹具同源,
+    非被测逻辑 —— 跟随机器时区会让金样在非上海宿主上恒红);
     vault 名固定 goldenvault 保 vault_id 确定性。"""
     vault = tmp_path / "goldenvault"
     scripts = vault / ".claude" / "scripts"
@@ -429,8 +456,8 @@ def test_boards_rollup_golden_old_fields_frozen(tmp_path):
         "unassigned_nodes": [],
         "schema_version": 3,
         "vault_id": "goldenvault",
-        "date": NOW.astimezone().date().isoformat(),
-        "generated_at": NOW.astimezone().isoformat(timespec="seconds"),
+        "date": NOW.astimezone(_FIXED_TZ).date().isoformat(),
+        "generated_at": NOW.astimezone(_FIXED_TZ).isoformat(timespec="seconds"),
         "top_boards": [
             {
                 "board": "普通板",
@@ -535,8 +562,9 @@ def test_buckets_five_way_partition_each_bucket_covered(tmp_path):
     assert len(b["due_today"]) + len(b["future"]) == s["future_nodes"] == 2
 
 
-def test_buckets_due_today_uses_shanghai_day_not_utc_day(tmp_path):
-    """跨上海日边界 (S1 第 4 桶): NOW=2026-07-30T01:00Z = 上海 07-30 09:00。
+def test_buckets_due_today_uses_display_tz_day_not_utc_day(tmp_path):
+    """跨显示时区日边界 (S1 第 4 桶; 夹具把显示时区钉在上海)。
+    NOW=2026-07-30T01:00Z = 上海 07-30 09:00。
     13:00Z / 15:59:59Z / 16:00Z 同属 UTC 07-30, 但上海侧前两个仍是 07-30、
     第三个已是 07-31 —— 用 UTC 日判会把 16:00Z 错判进 due_today。
     并锁 now 表示无关性: 同一时刻以 +08:00 表示时判桶结果逐字相同。"""
@@ -694,7 +722,8 @@ def test_buckets_golden_pre_g36a_fields_frozen(tmp_path):
     冻结 G3-6a 引入前的完整 payload 字面量 (含 D1 的 boards rollup), 摘掉本卡
     新增的顶层 buckets 与 due_nodes 行内 bucket/why_due 后深度全等 + 顶层键序
     恒等 —— 旧字段任何值/键序/嵌套漂移都在此翻车。
-    generated_at/date 按 NOW.astimezone() 计算 (跟随机器时区, 非被测逻辑);
+    generated_at/date 按 _FIXED_TZ 计算 (与 _pin_pick_display_tz 夹具同源,
+    非被测逻辑 —— 跟随机器时区会让金样在非上海宿主上恒红);
     vault 名固定 g36avault 保 vault_id 确定性。"""
     vault = tmp_path / "g36avault"
     scripts = vault / ".claude" / "scripts"
@@ -725,8 +754,8 @@ def test_buckets_golden_pre_g36a_fields_frozen(tmp_path):
         "unassigned_nodes": [],
         "schema_version": 3,
         "vault_id": "g36avault",
-        "date": NOW.astimezone().date().isoformat(),
-        "generated_at": NOW.astimezone().isoformat(timespec="seconds"),
+        "date": NOW.astimezone(_FIXED_TZ).date().isoformat(),
+        "generated_at": NOW.astimezone(_FIXED_TZ).isoformat(timespec="seconds"),
         "top_boards": [
             {
                 "board": "普通板",
@@ -888,7 +917,7 @@ def test_extreme_now_falls_back_instead_of_crashing():
         "到期时刻超出可显示范围，按未来排期处理",
     )
     # 今天基准退化为 UTC 日 (不崩)
-    assert picker._today_sh(now) == now.date()
+    assert picker._today_local(now) == now.date()
 
 
 def test_cli_rejects_unconvertible_now_with_clear_error(tmp_path):
@@ -905,27 +934,32 @@ def test_cli_rejects_unconvertible_now_with_clear_error(tmp_path):
     shutil.copy(WT / "canvas-vault" / ".claude" / "scripts" / "decay_beta.py", scripts)
     (vault / "节点" / "存量.md").write_text(_node(), encoding="utf-8")
     cmd = [sys.executable, str(WT / "scripts" / "daily_review_pick.py"), "--vault", str(vault), "--now"]
+    # ⛔ 子进程重新 import, `_pin_pick_display_tz` 夹具对它无效 —— 用 CANVAS_TZ
+    #    把它钉在上海。**必须钉**: 极值 9999-12-31T23:59:59Z 是否溢出取决于时区
+    #    的**符号** —— 东八区要 +8h ⇒ 年份溢出 ⇒ 被拒; 而洛杉矶要 -7h ⇒ 不溢出
+    #    ⇒ rc=0。本用例测的是"极值被明确拒绝"这个机制, 需要一个会溢出的时区。
+    env = {**os.environ, "CANVAS_TZ": "Asia/Shanghai", "PYTHONDONTWRITEBYTECODE": "1"}
 
-    bad = subprocess.run([*cmd, "9999-12-31T23:59:59Z"], capture_output=True, text=True)
+    bad = subprocess.run([*cmd, "9999-12-31T23:59:59Z"], capture_output=True, text=True, env=env)
     assert bad.returncode != 0
     assert "--now 超出可换算范围" in bad.stderr
     assert "Traceback" not in bad.stderr, "极值输入不得吐 traceback"
 
-    ok = subprocess.run([*cmd, "2026-07-30T01:00:00Z"], capture_output=True, text=True)
+    ok = subprocess.run([*cmd, "2026-07-30T01:00:00Z"], capture_output=True, text=True, env=env)
     assert ok.returncode == 0, ok.stderr
     assert json.loads(ok.stdout)["stats"]["due_nodes"] == 1
 
 
-def test_today_sh_three_tier_fallback_never_raises():
+def test_today_local_three_tier_fallback_never_raises():
     """Codex round-2 MEDIUM: UTC 回退本身也可能溢出 (year=1 且 offset=+14,
     换算需减 14 小时 → 年份下溢)。三档兜底必须保证本函数对任何 aware
-    datetime 都不抛。"""
+    datetime 都不抛。(夹具把显示时区钉在上海, 期望值原值保留。)"""
     up = datetime(9999, 12, 31, 23, 59, 59, tzinfo=timezone.utc)
-    assert picker._today_sh(up) == up.date(), "上界: 上海换算溢出 → 退 UTC 日"
+    assert picker._today_local(up) == up.date(), "上界: 显示时区换算溢出 → 退 UTC 日"
     low = datetime(1, 1, 1, 0, 0, tzinfo=timezone(timedelta(hours=14)))
-    assert picker._today_sh(low) == low.date(), "下界: 上海与 UTC 换算双溢出 → 退自身表示日"
+    assert picker._today_local(low) == low.date(), "下界: 显示时区与 UTC 换算双溢出 → 退自身表示日"
     normal = datetime(2026, 7, 30, 1, 0, tzinfo=timezone.utc)
-    assert picker._today_sh(normal).isoformat() == "2026-07-30", "常规值仍走上海日"
+    assert picker._today_local(normal).isoformat() == "2026-07-30", "常规值仍走显示时区日 (夹具=上海)"
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -2111,7 +2145,11 @@ _TWO_BOARDS = {
     "甲二": _node(board="甲板"),
     "乙一": _node(board="乙板"),
 }
-_TODAY = NOW.astimezone().date().isoformat()
+#: 「今天」按**与 _pin_pick_display_tz 夹具同一个字面量**的时区算 (CARD-G6-9c)。
+#: ⛔ 不能写 NOW.astimezone()(机器本地): 本文件的夹具把 picker._DISPLAY_TZ 钉在
+#: 上海, 而模块级常量在 import 时求值、夹具还没跑 —— 在非上海宿主上两者会差
+#: 一天, board_done 的「值 == 今天」判定当场失效 (让位不发生, 门却说是生产坏了)。
+_TODAY = NOW.astimezone(_FIXED_TZ).date().isoformat()
 
 
 def test_g67_done_board_yields_top_slot_but_stays_on_the_list(tmp_path):
@@ -2144,7 +2182,7 @@ def test_g67_yesterday_done_does_not_yield(tmp_path):
     """(f) 判据是「值 == 今天」: 昨天的完成账不该影响今天的榜首。"""
     _base, base_ranked = _build_with_done(tmp_path, _TWO_BOARDS, None)
     first = base_ranked[0]["board"]
-    yesterday = (NOW.astimezone() - timedelta(days=1)).date().isoformat()
+    yesterday = (NOW.astimezone(_FIXED_TZ) - timedelta(days=1)).date().isoformat()
     _payload, ranked = _build_with_done(tmp_path, _TWO_BOARDS, {first: yesterday})
     assert ranked[0]["board"] == first, "隔日的完成账必须自然失效"
 
