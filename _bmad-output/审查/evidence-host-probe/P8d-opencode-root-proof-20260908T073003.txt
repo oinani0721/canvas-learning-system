@@ -1,0 +1,38 @@
+# P8-d 补充实验：.opencode/skills 是否真被扫（送 Codex 后自查补做）  @ 2026-09-08T07:30:03+08:00
+动机：P8-c 里 probe-skill 三处同名，去重后 location 落在 .agents/skills，
+      .opencode/skills 那份是否真被扫【无直接证据】——原表述「三处都读」对该根是推断。
+设计：在 .opencode/skills 放一个【独有名字】的 skill（opencode-only-skill），
+      它若出现在枚举里且 location 指向 .opencode，则该根确被扫（可翻转结论）。
+      同时在 .agents/skills 放 agents-only-skill 作同批对照。
+
+opencode debug skill rc=0
+来自探针 vault 的条目：
+  name='Bad Name'             location=$PV/.claude/skills/bad-name/SKILL.md
+  name='agents-only-skill'    location=$PV/.claude/skills/agents-only-skill/SKILL.md
+  name='bad-skill'            location=$PV/.agents/skills/bad skill/SKILL.md
+  name='opencode-only-skill'  location=$PV/.opencode/skills/opencode-only-skill/SKILL.md
+  name='probe-skill'          location=$PV/.opencode/skills/probe-skill/SKILL.md
+
+=== 判据 ===
+  opencode-only-skill    出现 = True   location = $PV/.opencode/skills/opencode-only-skill/SKILL.md
+  agents-only-skill      出现 = True   location = $PV/.claude/skills/agents-only-skill/SKILL.md
+  probe-skill            出现 = True   location = $PV/.opencode/skills/probe-skill/SKILL.md
+
+=== 结论（两条，第二条是本次新发现）===
+(1) `.opencode/skills` 确实被扫 —— opencode-only-skill 只存在于该根，且被枚举到、
+    location 指向 .opencode/skills。原表述「三处都读」由【推断】升为【直证】。
+(2) ⚠️ 去重后 location 报哪一条路径【不稳定】：
+    · 本次 probe-skill 的 location = $PV/.opencode/skills/probe-skill/SKILL.md
+      而 P8-c 同一骨架下 location = $PV/.agents/skills/probe-skill/SKILL.md
+    · agents-only-skill 物理只在 .agents/skills 下，却被报成 $PV/.claude/skills/... 路径
+      （.claude/skills 是指向 .agents/skills 的整目录软链，两条路径可达同一文件）
+    ⇒ 【不能用 location 反推「某个根被扫」】，只能用「该根下独有名字的 skill 是否出现」来证明。
+       P8-c 里「三处都读」若仅凭 location 推断，对 .opencode 这一根是不成立的；本条补上了直证。
+    ⇒ 去重本身仍成立：probe-skill 三处同名，两次枚举都只出现 1 次。
+
+=== 本次骨架（较 P8-c 新增两份独有名字 skill）===
+  $PV/.opencode/skills/opencode-only-skill/SKILL.md   （只在 .opencode 根）
+  $PV/.agents/skills/agents-only-skill/SKILL.md       （只在 .agents 根，经软链亦从 .claude 可达）
+  $PV/.opencode/skills/probe-skill/SKILL.md           （与 .agents/.claude 同名，用于去重判据）
+
+rc=0
