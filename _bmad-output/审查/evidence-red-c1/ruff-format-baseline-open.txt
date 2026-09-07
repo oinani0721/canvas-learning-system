@@ -1,0 +1,5 @@
+=== ruff format 存量漂移基线（开工，HEAD=da690bf8）===
+Would reformat: tests/unit/test_cache_configuration.py
+Would reformat: tests/unit/test_qa_38_4_dual_write_extra.py
+Would reformat: tests/unit/test_story_38_4_dual_write_default.py
+3 files would be reformatted, 2 files already formatted

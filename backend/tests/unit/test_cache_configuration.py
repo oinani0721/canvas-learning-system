@@ -14,6 +14,8 @@ Tests:
 import inspect
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 # ---------------------------------------------------------------------------
 # AC-1: Deleted simulate-work sleep
 # ---------------------------------------------------------------------------
@@ -41,6 +43,18 @@ class TestDeleteSimulateWorkSleep:
 class TestMemoryRetryDelayFromSettings:
     """AC-36.13.2: memory_service retry delays use Settings config."""
 
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "59586af1 (2026-03-26) 删除 MemoryService._retry_base_delay / _retry_max_delay"
+            "（连同 _write_to_graphiti_json_with_retry 的退避计算）；memory_service.py 实测 "
+            "0 命中，本用例断言的是 MemoryService 上已不存在的属性。config.py:644/:650 的 "
+            "MEMORY_RETRY_BASE_DELAY / MEMORY_RETRY_MAX_DELAY 字段仍在，但 backend/app 下"
+            "**零消费方**（census 只命中 config.py 自身的定义），属死配置项，归配置清理卡"
+            "（登记）。同类 test_retry_delay_defaults_match_original 只读 Settings 默认值，"
+            "不依赖该属性，仍绿。[CARD-RED-C1]"
+        ),
+    )
     def test_retry_delay_reads_settings(self):
         """MemoryService uses configurable retry delays."""
         with (

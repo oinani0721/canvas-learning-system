@@ -25,25 +25,32 @@ import pytest
 
 
 class TestAC1SafeDefault:
-    """AC-1: Fresh installation defaults to dual-write enabled."""
+    """AC-1: Fresh installation defaults to dual-write DISABLED.
 
-    def test_settings_field_default_is_true(self):
+    契约演进（daa9fd37, 2026-03-26）：Phase 2 用 GraphitiEpisodeWorker 取代 JSON
+    dual-write 后，config.py 的 ENABLE_GRAPHITI_JSON_DUAL_WRITE 由 default=True 翻为
+    ``default=False`` 并标 ``[DEPRECATED]``。因此「safe default」的语义已反转——现在的
+    安全默认是**不写** legacy JSON（避免与 worker 双写打架），True 仅作显式 opt-in。
+    类名保留 TestAC1SafeDefault 以免打断其它卡的 nodeid 清单。[CARD-RED-C1]
+    """
+
+    def test_settings_field_default_is_false(self):
         """
-        [P0] Settings.ENABLE_GRAPHITI_JSON_DUAL_WRITE field default must be True.
+        [P0] Settings.ENABLE_GRAPHITI_JSON_DUAL_WRITE field default must be False.
 
-        Verifies: config.py Field(default=True) at L409-412
+        Verifies: config.py Field(default=False) at L477-480 ([DEPRECATED], daa9fd37)
         """
         from app.config import Settings
 
         field_info = Settings.model_fields["ENABLE_GRAPHITI_JSON_DUAL_WRITE"]
-        assert field_info.default is True, (
-            f"Expected default=True for safe default, got default={field_info.default}. "
-            f"Story 38.4 Task 1.1: Change default=False -> default=True in config.py"
+        assert field_info.default is False, (
+            f"Expected default=False ([DEPRECATED] since daa9fd37), got default={field_info.default}. "
+            f"若此处变红，说明生产默认被改回 True——请先确认是产品裁定而非回归"
         )
 
-    def test_lowercase_alias_returns_true_by_default(self):
+    def test_lowercase_alias_returns_false_by_default(self):
         """
-        [P0] The lowercase property alias also reflects the True default.
+        [P0] The lowercase property alias also reflects the False default.
 
         Verifies: config.py enable_graphiti_json_dual_write property
         """
@@ -54,8 +61,8 @@ class TestAC1SafeDefault:
 
         with patch.dict(os.environ, env_copy, clear=True):
             settings = Settings(_env_file=None)
-            assert settings.enable_graphiti_json_dual_write is True, (
-                "Lowercase property alias should return True by default"
+            assert settings.enable_graphiti_json_dual_write is False, (
+                "Lowercase property alias should return False by default ([DEPRECATED])"
             )
 
     @pytest.mark.asyncio
@@ -236,13 +243,13 @@ class TestAC2ExplicitDisable:
 
 
 class TestAC3MissingEnvVar:
-    """AC-3: Missing env var defaults to True (identical to AC-1)."""
+    """AC-3: Missing env var defaults to False (identical to AC-1, post-daa9fd37)."""
 
-    def test_missing_env_var_defaults_to_true(self):
+    def test_missing_env_var_defaults_to_false(self):
         """
-        [P0] When ENABLE_GRAPHITI_JSON_DUAL_WRITE is not set, Settings defaults to True.
+        [P0] When ENABLE_GRAPHITI_JSON_DUAL_WRITE is not set, Settings defaults to False.
 
-        Verifies: config.py Field(default=True) via Settings instantiation
+        Verifies: config.py Field(default=False) via Settings instantiation (daa9fd37)
         """
         from app.config import Settings
 
@@ -251,7 +258,8 @@ class TestAC3MissingEnvVar:
 
         with patch.dict(os.environ, env_copy, clear=True):
             settings = Settings(_env_file=None)
-            assert settings.ENABLE_GRAPHITI_JSON_DUAL_WRITE is True, (
-                f"Expected True when env var missing, got {settings.ENABLE_GRAPHITI_JSON_DUAL_WRITE}. "
-                f"Story 38.4 AC-3: Missing env var should default to True (safe default)"
+            assert settings.ENABLE_GRAPHITI_JSON_DUAL_WRITE is False, (
+                f"Expected False when env var missing, got {settings.ENABLE_GRAPHITI_JSON_DUAL_WRITE}. "
+                f"daa9fd37 起该字段为 [DEPRECATED] default=False；legacy JSON dual-write 由 "
+                f"GraphitiEpisodeWorker 取代"
             )
