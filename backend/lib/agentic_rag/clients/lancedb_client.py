@@ -576,6 +576,12 @@ def _is_skipped_vault_file(rel_path: str, skip_files) -> bool:
     return False
 
 
+#: CARD-G2-9-F1: ``_owns_table`` 的"没传 vault_id"哨兵。⛔ 不能用 ``None`` 当默认值
+#: —— 显式传 ``None`` 在本类里是**裸表口径**的既有承重语义（见 ``_owns_table``），
+#: 用 ``None`` 作默认值就无法把"没传"与"显式 None"分开。
+_UNSET = object()
+
+
 class LanceDBClient:
     """
     LanceDB 向量数据库客户端
@@ -832,18 +838,55 @@ class LanceDBClient:
             return list(getattr(raw, "tables", raw))
         return list(self._db.table_names(limit=10_000))
 
+    def _owns_table(self, name: str, vault_id: object = _UNSET) -> bool:
+        """表 ``name`` 是否归属某个 vault —— 归属规则的**单点**。
+
+        CARD-G2-9-F1 (BATCH-2026-09-07-第十三批): 归属规则原先在三处同形重写
+        (``resolve_table_name`` / ``list_vault_tables`` / ``_fingerprint_table_name``),
+        而**启动自愈那一处根本没写** —— ``_cache_tables`` 对 ``table_names()``
+        的全部表跑 ``_check_and_fix_dimension_mismatch``, 于是 vault A 的
+        ``initialize()`` 会 drop 掉 schema 与 A 的期望不符的 **vault B 的表**
+        (canary CONFIRMED: ``_bmad-output/审查/evidence-g29/
+        canary-report-20260906T021427Z.json:213-222``)。本方法把规则收成单点,
+        行为门 ``tests/unit/test_lancedb_cross_vault_drop_g29f1.py``。
+
+        ``vault_id`` 是**三态**的 (⛔ 改这里之前先读完):
+
+        1. **不传** (``_UNSET``) → 取 ``self.active_vault_id``, 即"本客户端此刻
+           属于哪个 vault"。
+        2. **显式传** ``None`` / ``""`` / ``"default"`` → **裸表口径**。这是既有
+           承重契约: ``list_vault_tables(None)`` 在一个 ``vault_id="testvault"``
+           的 client 上仍须只回裸表, 判据钉死在
+           ``tests/regression/test_rag_stage1_index_contracts.py:489-490``
+           (H3: 否则 ``DELETE /index/default`` 一次抹掉所有 vault 的变更检测)。
+           ⛔ 所以默认值**不能**写成 ``None`` 再判 ``vault_id is not None`` ——
+           那会把"显式 None"解析成 active vault = 语义反转, 上面那条门当场红。
+        3. **显式传**具体 vault → 该 vault 的前缀口径。
+
+        裸表口径逐字沿用 ``list_vault_tables`` 原来的判据:
+        ``"_" not in name or name == FINGERPRINT_TABLE``。⚠️ 判据是"表名**不含
+        任何下划线**", **不是**"没有 vault 前缀" —— RAG-S1 Code-Review H3
+        (2026-08-03) 原话是"精确匹配裸指纹表": ``endswith`` 会把每个 vault 的
+        ``{vid}_file_fingerprints`` 都归入 default。本卡只做单点化, **不改**这
+        条既有裁定 (含下划线的裸表如 ``canvas_nodes`` 因此不归 default)。
+        """
+        vid = self.active_vault_id if vault_id is _UNSET else vault_id
+        if not vid or vid == "default":
+            return "_" not in name or name == self.FINGERPRINT_TABLE
+        return name.startswith(f"{vid}_")
+
     def list_vault_tables(self, vault_id: str | None = None) -> list[str]:
-        """Return table names belonging to a specific vault."""
+        """Return table names belonging to a specific vault.
+
+        ``vault_id`` 恒**显式**透传给 ``_owns_table`` —— 这里的 ``None`` 是"裸表
+        口径"的意思, 不是"没传"(三态语义见 ``_owns_table``)。
+
+        CARD-G2-9-F1 (d): 表名走 ``_all_table_names()`` 而非 ``table_names()``,
+        否则 >10 张表的库里 ``drop_vault_tables`` 也只删得到前 10 张。
+        """
         if self._db is None:
             return []
-        prefix = f"{vault_id}_" if vault_id and vault_id != "default" else ""
-        all_tables = self._db.table_names()
-        if not prefix:
-            # RAG-S1 Code-Review H3 (2026-08-03): 精确匹配裸指纹表 —
-            # endswith 会把每个 vault 的 {vid}_file_fingerprints 都归入
-            # default, DELETE /index/default 一次抹掉全部 vault 的变更检测。
-            return [t for t in all_tables if "_" not in t or t == self.FINGERPRINT_TABLE]
-        return [t for t in all_tables if t.startswith(prefix)]
+        return [t for t in self._all_table_names() if self._owns_table(t, vault_id)]
 
     def get_all_vault_stats(self) -> dict[str, dict]:
         """Return per-vault table/row statistics."""
@@ -952,7 +995,9 @@ class LanceDBClient:
             return
 
         try:
-            table_names = self._db.table_names()
+            # CARD-G2-9-F1 (d): 绕开 table_names() 的 limit=10 默认分页 —— 否则
+            # >10 张表的库只有前 10 张进启动自愈（与 _is_table_absent:816 同口径）。
+            table_names = self._all_table_names()
             for name in table_names:
                 try:
                     self._tables_cache[name] = self._db.open_table(name)
@@ -963,7 +1008,14 @@ class LanceDBClient:
             # Check vector tables against expected embedding_dim
             # RAG-S1 F1 (2026-08-03): endswith — 前缀化后 {vid}_file_fingerprints
             # 也必须跳过, 否则维度检查会把无 vector 列的指纹表 drop 掉
-            vector_tables = [t for t in self._tables_cache if not t.endswith(self.FINGERPRINT_TABLE)]
+            # CARD-G2-9-F1 (2026-09-07): _owns_table —— 只扫**本 vault** 的表。
+            # 原先这里对全库表跑维度检查，vault A 的启动自愈会 drop 掉 vault B 的
+            # 表（canary CONFIRMED）。vault_id 显式传，读代码即知语义。
+            vector_tables = [
+                t
+                for t in self._tables_cache
+                if self._owns_table(t, self.active_vault_id) and not t.endswith(self.FINGERPRINT_TABLE)
+            ]
             for tname in vector_tables:
                 self._check_and_fix_dimension_mismatch(tname, self.embedding_dim)
 
@@ -3647,7 +3699,13 @@ class LanceDBClient:
 
         try:
             # T3 根治 (2026-07-10): 存在性/句柄都以 db 为准, 不读缓存
-            if table_name not in self._db.table_names():
+            # CARD-G2-9-F1 (d): 走 _all_table_names() —— table_names() 的 limit=10
+            # 默认分页会把第 11 张之后的表误判成「不存在」而直接 return False，于是
+            # _cache_tables 那边的分页收口对**启动自愈**完全无效（扫描面扩大了，每张
+            # 越界的表却在这里被挡回去 = 修复只是移位）。实测证据与行为门:
+            # tests/unit/test_lancedb_cross_vault_drop_g29f1.py
+            # ::test_cache_tables_scans_beyond_default_page
+            if table_name not in self._all_table_names():
                 return False
             tbl = self._db.open_table(table_name)
             # Sample first row to inspect vector dimension
