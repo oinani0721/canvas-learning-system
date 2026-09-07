@@ -1,0 +1,18 @@
+== negctl-3-sentinel-back-to-none ==
+变异: 哨兵默认值换回被否掉的前稿写法 vault_id=None + `is not None`（显式 None 被解析成 active vault）
+跑前 sha: 5a05c31d14cfc665fa79d0194cd33817cf6e931bd9ace1f907b737b067b3851f
+变异体 sha: a3424a8624d1c55c01da4d614254262b17628342fc6964cc269e1b1cb8c60395  (ast.parse OK)
+
+-- tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_list_vault_tables_explicit_none_keeps_bare_scope
+   rc=1  ======================== 1 failed, 10 warnings in 0.45s ========================
+   E   AssertionError: 显式 None = 裸表口径, 不得解析成 active vault (否则打红 tests/regression/test_rag_stage1_index_contracts.py:489-490); 实回 ['a_canvas_nodes', 'a_file_fingerprints']
+   E   assert 'a_file_fingerprints' not in {'a_canvas_nodes', 'a_file_fingerprints'}
+   判定: KILLED（红在声称的那条断言）
+
+-- tests/regression/test_rag_stage1_index_contracts.py::test_e3_default_vault_listing_excludes_prefixed_fingerprints
+   rc=1  ======================== 1 failed, 12 warnings in 0.53s ========================
+   E   AssertionError: assert 'testvault_file_fingerprints' not in ['testvault_file_fingerprints']
+   判定: KILLED（红在声称的那条断言）
+
+跑后 sha: 5a05c31d14cfc665fa79d0194cd33817cf6e931bd9ace1f907b737b067b3851f
+还原逐字节相同: YES ✓

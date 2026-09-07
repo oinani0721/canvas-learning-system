@@ -869,6 +869,19 @@ class LanceDBClient:
         (2026-08-03) 原话是"精确匹配裸指纹表": ``endswith`` 会把每个 vault 的
         ``{vid}_file_fingerprints`` 都归入 default。本卡只做单点化, **不改**这
         条既有裁定 (含下划线的裸表如 ``canvas_nodes`` 因此不归 default)。
+
+        ⚠️ **已知未闭合面 (CARD-G2-9-F1 / Codex r1 HIGH-1, 移交 CARD-G2-9-F2)**:
+        前缀口径是 ``startswith(f"{vid}_")``, 当两个 vault 的 id **互为前缀**时,
+        短 id 的 vault 会认领长 id 的表 —— ``"a_b_canvas_nodes".startswith("a_")``
+        为真, 于是 vault ``a`` 的启动自愈仍会 drop vault ``a_b`` 的漂移表。
+        **本仓可达**: ``app.config.sanitize_vault_id`` 产出的 id 含下划线
+        (``canvas-vault`` -> ``canvas_vault``, ``cs 61b`` -> ``cs_61b``), 所以
+        vault ``cs`` 与 vault ``cs_61b`` 并存就会互相干扰。这是
+        ``resolve_table_name:790`` 起就有的**既有**口径, 本卡只做单点化、**不改**它
+        (改它要能拿到全部 vault 列表, 超出本卡范围)。缺陷面由
+        ``tests/unit/test_lancedb_cross_vault_drop_g29f1.py``
+        ``::test_prefix_overlap_vault_is_not_isolated`` 以 ``xfail(strict=True)``
+        锁住 —— 修好后该门会 ``XPASS(strict)`` 报红, 提醒删掉那个标记。
         """
         vid = self.active_vault_id if vault_id is _UNSET else vault_id
         if not vid or vid == "default":
@@ -1011,10 +1024,14 @@ class LanceDBClient:
             # CARD-G2-9-F1 (2026-09-07): _owns_table —— 只扫**本 vault** 的表。
             # 原先这里对全库表跑维度检查，vault A 的启动自愈会 drop 掉 vault B 的
             # 表（canary CONFIRMED）。vault_id 显式传，读代码即知语义。
+            # ⚠️ active_vault_id 是 property，无 override 时解析链含 import + ContextVar
+            # （实测 ~340-400 µs/次）。必须在循环**外**求值一次 —— 写进列表推导会按表数
+            # 重复解析（1000 张表 ≈ 0.4 s，而这里是启动路径）。
+            owner_vault = self.active_vault_id
             vector_tables = [
                 t
                 for t in self._tables_cache
-                if self._owns_table(t, self.active_vault_id) and not t.endswith(self.FINGERPRINT_TABLE)
+                if self._owns_table(t, owner_vault) and not t.endswith(self.FINGERPRINT_TABLE)
             ]
             for tname in vector_tables:
                 self._check_and_fix_dimension_mismatch(tname, self.embedding_dim)

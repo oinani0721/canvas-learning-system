@@ -30,6 +30,11 @@ vault 的数据。
    ``tests/regression/test_rag_stage1_index_contracts.py:484-490`` 在本卡地盘
    内的**本地副本**, 让"哨兵默认值写错"在本卡自己的门上就红。
 
+5. ``test_prefix_overlap_vault_is_not_isolated`` —— ``xfail(strict=True)``, 锁住本卡
+   **未闭合**的缺陷面 (Codex round-1 HIGH-1): 前缀口径 ``startswith(f"{vid}_")`` 让
+   id **互为前缀**的两个 vault 互相认领。移交 CARD-G2-9-F2; 修好后本门会
+   ``XPASS(strict)`` 报红, 提醒删掉那个标记 (strict=False 会安静挂着, 所以不能用)。
+
 ⚠️ default 口径以 ``list_vault_tables:845`` **逐字**为准: ``"_" not in t or
 t == FINGERPRINT_TABLE`` —— 判据是"表名**不含任何下划线**", 不是"没有 vault
 前缀"。所以裸表 ``canvas_nodes`` (含下划线) 按既有口径**不归 default**, 而
@@ -289,4 +294,58 @@ def test_list_vault_tables_explicit_none_keeps_bare_scope(tmp_path):
     assert {"a_file_fingerprints", "a_canvas_nodes"} <= owned, f"显式传本 vault 时前缀表反而丢了; 实回 {sorted(owned)}"
     assert not ({"file_fingerprints", "notes", "canvas_nodes"} & owned), (
         f"显式传本 vault 时把裸表也算了进来; 实回 {sorted(owned)}"
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 门⑤ 未闭合面锁 —— 前缀重叠 (xfail strict, 跨卡交接给 CARD-G2-9-F2)
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "CARD-G2-9-F1 未闭合面（Codex round-1 HIGH-1）：归属口径是 "
+        'startswith(f"{vid}_")，id 互为前缀的两个 vault 会互相认领 —— '
+        '"a_b_canvas_nodes".startswith("a_") 为真。本仓可达：sanitize_vault_id 产出的 '
+        "id 含下划线（canvas-vault→canvas_vault、cs 61b→cs_61b）。这是 "
+        "resolve_table_name:790 起的既有口径，修它需要拿到全部 vault 列表，超出本卡范围 —— "
+        "移交 CARD-G2-9-F2。修好后本门 XPASS(strict) 会报红，那时请删掉这个 xfail 标记。"
+    ),
+)
+def test_prefix_overlap_vault_is_not_isolated(tmp_path):
+    """vault ``a`` 不得删掉 vault ``a_b`` 的表 —— 当前**做不到**，故 xfail(strict)。
+
+    这不是"未来可能出问题"的假想：``sanitize_vault_id`` 产出的 vault id 含下划线
+    （实测 ``canvas-vault`` → ``canvas_vault``、``cs 61b`` → ``cs_61b``），
+    本项目真实用的就是 ``cs_61b``。只要再存在一个 id 为 ``cs`` 的 vault，
+    它的启动自愈就会删掉 ``cs_61b_*`` 的漂移表。
+
+    对照断言（``b_canvas_nodes`` 仍在）**不带** xfail 的豁免含义 —— 它和主断言在同一
+    个用例里，若哪天连不重叠的 vault 也被删了，本门会从 xfail 变成"仍然 xfail"而看不出来。
+    所以它只作现场记录，真正的不重叠隔离由门① 独立把守。
+    """
+    db_path = tmp_path / "db"
+    db = lancedb.connect(str(db_path))
+    # vault "a_b" 的漂移表 —— 它的前缀 "a_b_" 恰好以 vault "a" 的前缀 "a_" 开头
+    db.create_table("a_b_canvas_nodes", data=_rows("AB-NODES", dim=_DRIFT_DIM))
+    # 不重叠的别 vault，作现场记录
+    db.create_table("b_canvas_nodes", data=_rows("B-NODES", dim=_DRIFT_DIM))
+
+    before = _all_names(db)
+    assert before == {"a_b_canvas_nodes", "b_canvas_nodes"}, f"夹具没建成预期的两张表，断言不可信: {sorted(before)}"
+
+    client = _client(db_path, vault_id="a")
+    # 前提：确认重叠关系真的成立（否则本门锁的不是"前缀重叠"这件事）
+    assert client._owns_table("a_b_canvas_nodes", "a"), (
+        "前提失效：a_b_canvas_nodes 已经不归 vault a 了 —— 前缀口径可能已被修好，"
+        "此时应删掉本门的 xfail 标记而不是保留它"
+    )
+
+    asyncio.run(client._cache_tables())
+    after = _all_names(lancedb.connect(str(db_path)))
+
+    assert "a_b_canvas_nodes" in after, (
+        "vault a 的启动自愈碰了 vault a_b 的表：前缀口径 startswith('a_') 把 "
+        f"a_b_canvas_nodes 认成了自己的; 本次消失的表 = {sorted(before - after)}"
     )
