@@ -17,11 +17,11 @@
 
 **最小读取面（请只读下列，逐项）**：
 
-1. 第 1 轮之后的**增量**代码改动：`git diff 343fce8e <本轮审 SHA> -- . ':(exclude)_bmad-output'`
-2. 本卡代码改动全貌（供上下文）：`git diff da690bf8 <本轮审 SHA> -- . ':(exclude)_bmad-output'`
+1. 第 1 轮之后的**增量**代码改动：`git diff 343fce8e 401e792c -- . ':(exclude)_bmad-output'`
+2. 本卡代码改动全貌（供上下文）：`git diff da690bf8 401e792c -- . ':(exclude)_bmad-output'`
 3. `_bmad-output/审查/evidence-red-c1/c1-verdicts.md`（作者依据表，**§6 事实更正**与 **§7 轮次与裁定**是本轮新增/改写的部分）
 4. `_bmad-output/审查/evidence-red-c1/y4d-skip-marks-close-v2.txt` 与同目录 `y4d-skip-marks-open.txt`（LOW-2 整改物与其对照基线）
-5. `_bmad-output/审查/evidence-red-c1/red-diff-r2-<本轮 ts>.txt`（整改后重跑的 nodeid 差集）与 `unit-after-r2-<本轮 ts>.txt`
+5. `_bmad-output/审查/evidence-red-c1/red-diff-r2-20260908T073613.txt`（整改后重跑的 nodeid 差集）与 `unit-after-r2-20260908T073613.txt`
 6. `_bmad-output/审查/evidence-red-c1/loadbearing-3assertions.txt`（作者对三条翻绿断言做的承重验证）
 
 ## 二 作者自述，请独立核对（不要采信下列任何一句，请自己去证）

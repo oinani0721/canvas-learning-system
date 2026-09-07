@@ -110,7 +110,7 @@
 | 7 | **⚠️ 最像「已接管」的假象**：`main.py:216 recovered = await event_bus.recover_outbox()` 启动期确实在跑，但它恢复的是 `event_bus.py:49 OUTBOX_DIR = backend/data/outbox`（Story 5.7 EventBus Tier-2），与 `backend/data/failed_writes.jsonl`（Story 38.6）**不是同一文件、不是同一机制**。只看「启动期还有没有恢复动作」会得出反向结论 | `grep -rn 'outbox' backend/app --include='*.py'`；`event_bus.py:47-49` |
 | 8 | **删除是「以 X 之名扫到 Y」**：`59586af1` commit message 自述 `remove Story 38.4/38.8 dual-write blocks from main.py`。但被删的 Story 38.8 块调用的 `sync_all_fallbacks` 同步的是**三个**文件（`fallback_sync_service.py:7-8` 头注释：`data/failed_writes.jsonl` Story 38.6 / `app/data/canvas_events_fallback.json` Story 38.5 / learning_memories）。真正退役的「JSON dual-write」只是其中一支；`failed_writes.jsonl` 属 Story 38.6 **评分失败回收**，是另一条机制，被顺带切断 | `git show 59586af1 -- backend/app/main.py`；`sed -n '1,40p' backend/app/services/fallback_sync_service.py` |
 
-**结论**：写侧 11 处生产调用仍活、两条回收路径双双零生产调用方、替代者未接管、启动期恢复的是另一机制 ⇒ 怀疑 `59586af1` 以「删 dual-write」之名连带切断了 Story 38.6 评分失败回收这条独立链路 = **数据面回归，非契约演进** ⇒ 移交 U5-C RED-R 定性。
+**结论**：写侧 **10 处**生产调用仍活（口径 = 直接调用 `AgentService._trigger_memory_write`，见上表行 2；含 `batch_orchestrator` 同名包装则为 12）、两条回收路径双双零生产调用方、替代者未接管、启动期恢复的是另一机制 ⇒ 怀疑 `59586af1` 以「删 dual-write」之名连带切断了 Story 38.6 评分失败回收这条独立链路 = **数据面回归，非契约演进** ⇒ 移交 U5-C RED-R 定性。
 
 **本卡在 (e) 上未证明的**（不得据本表宣称已证）：
 - **未证明现网真的有 pending 条目在丢**。`backend/data/failed_writes.jsonl` 今日 06:46 的 mtime 是**本车道自己的 pytest 跑**造成的（`backend/data/.gitignore:5 *.jsonl` 覆盖 ⇒ `git status` 恒绿看不见这类污染），**不能**当作生产在写的证据；本卡未碰 live vault、未跑服务、未连 7691/7687。
@@ -209,18 +209,18 @@ pytest 的 `-r` 是**替换**而非追加短摘要类别：默认 `-q` 给 `fE`�
 
 ---
 
-## §6 本卡对卡文的事实更正（3 处，均写卡期未预见、开工实测发现）
+## §6 本卡对卡文的事实更正与自纠（7 条：3 条卡文事实更正 + 4 条外审整改）
 
-1. **(d) 3 条的依据 sha 不是 `59586af1` 而是 `daa9fd37`** —— `git show 59586af1 --stat` 的文件列表**只有 main.py 与 memory_service.py**，`config.py` 不在列。卡文 §二.4 已预留「config.py 若不在列，另用 `-S'[DEPRECATED] Legacy JSON dual-write'` 找」的分支，本卡走该分支取到 `daa9fd37`。
+1. **(d) 3 条的依据 sha 不是 `59586af1` 而是 `daa9fd37`** —— `git show 59586af1 --stat -- <那三条路径>`（**限定路径**）的文件列表只有 main.py 与 memory_service.py，`config.py` 不在列；**不限路径**时该 commit 实为 **3** 个文件（另有整文件删除的 `graphiti_bridge_service.py`，见本节第 5 条），`config.py` 在两种口径下都不在列。卡文 §二.4 已预留「config.py 若不在列，另用 `-S'[DEPRECATED] Legacy JSON dual-write'` 找」的分支，本卡走该分支取到 `daa9fd37`。
 2. **(d) ③-b 的 reason 措辞须收窄** —— 卡文原稿「本用例的被测防御模式已无实现」过宽；实测同形 `getattr(settings, "ENABLE_GRAPHITI_JSON_DUAL_WRITE", True)` 在 `canvas_service.py` 仍有 **6 处**（`:267/:360/:440/:457/:986/:995`）且 fallback 默认值是 **True**（与用例名所称 False 相反）。已改为「memory_service 侧的该防御点已删」并把 6 处如实写进 reason。
+3. **同文件模块 docstring 未改，如实登记** —— `test_story_38_4_dual_write_default.py:8/:10` 仍称 "AC-1: Fresh installation defaults … to True" / "AC-3: Missing env var defaults to True"。卡文 §三 只授权改「§〇 点名的 10 个用例的函数名/函数体/装饰器/docstring」与（(d) 明文授权的）`TestAC1SafeDefault` 类 docstring，**未授权**改模块级文件头；该文件头同时描述 AC-2（U11-B 的 C2 地盘）。为免与 U11-B 冲突且不越界，本卡**不改**，登记为残留名实不一致项。
+
+---
+
 4. **写侧调用点计数 11 → 10**（Codex r1 LOW-3 抓到，见 §2 行 2）—— 原文的枚举本身是 8+1+1=10，写出来的数字却是 11，是**内部自相矛盾**；三种单位（直接调用 AgentService 该方法 10 / 含同名包装的全部调用点 12 / 按上游入口 11）必须择一并写明。
 5. **`git show 59586af1 --stat` 的措辞**（Codex r1 LOW-4）—— 不限路径实测是 **3** 个文件（多一个整文件删除的 `graphiti_bridge_service.py`），原文写「只有两个文件」把限定路径的输出说成了全量。结论（`config.py` 不在列）两种口径下都成立。
 6. **收工 skip 快照采法**（Codex r1 LOW-2）—— 原版按开工行号 `sed` 抓，本卡插入 27 行后 `test_story_38_6` 那段抓空，导致「五处标记原文均已留存」这句**比证据宽**。已改内容锚定重采 → `y4d-skip-marks-close-v2.txt`，五块正文归一化后与开工**逐条相同**（`diff` rc=0），实测行号 `37 / 33 / 263 / 162 / 326`。
 7. **配置清理卡缺可定位标识**（Codex r1 LOW-1）—— 原 reason 只写「配置清理卡（登记）」，解除 xfail 时无法从记录定位接收卡。已改为具名 `CARD-CONFIG-CLEANUP`。
-
-3. **同文件模块 docstring 未改，如实登记** —— `test_story_38_4_dual_write_default.py:8/:10` 仍称 "AC-1: Fresh installation defaults … to True" / "AC-3: Missing env var defaults to True"。卡文 §三 只授权改「§〇 点名的 10 个用例的函数名/函数体/装饰器/docstring」与（(d) 明文授权的）`TestAC1SafeDefault` 类 docstring，**未授权**改模块级文件头；该文件头同时描述 AC-2（U11-B 的 C2 地盘）。为免与 U11-B 冲突且不越界，本卡**不改**，登记为残留名实不一致项。
-
----
 
 ## §7 独立复核（Codex）轮次与裁定
 
@@ -264,6 +264,50 @@ pytest 的 `-r` 是**替换**而非追加短摘要类别：默认 `-q` 给 `fE`�
 | commit 时刻 | `07:24:48` | `git log -1 --format='%h %ad'` |
 | 工作树内容 == commit 内容 | **4/4 SAME**（`f1073d45…` / `86c6f161…` / `f6395cde…` / `27c5ea1b…`） | 逐文件 `shasum -a 256` vs `git show 343fce8e:<file> \| shasum -a 256` |
 
-链条：**所有代码编辑（≤06:57:40）< 终审轮起跑（07:17:24）< 终审轮结束（07:21:34）< commit（07:24:48）**，且期间无任何编辑（mtime 为证），工作树内容与 commit 内容逐字节相同 ⇒ 终审轮跑的正是 `343fce8e` 的代码内容。
+链条：**四文件 mtime（≤06:57:40）< 终审轮起跑（07:17:24）< 终审轮结束（07:21:34）< commit（07:24:48）**，且工作树内容与 commit 内容逐字节相同。
+
+⚠️ **这条链证明到什么程度（按 Codex r2 LOW-1 收窄，不再过宽宣称）**：它证明的是「终审轮之后没有留下修改痕迹，且最终内容与 `343fce8e` 一致」，**不等于**「实际执行的字节就是该 commit 的字节」。反例形态：若有人以**保留 mtime** 的方式替换再恢复文件，或测试实际从**另一导入来源**加载（如残留 `__pycache__`、site-packages 里的同名包），事后 sha 相同与时间相容**仍可同时成立**。本卡对这两条反例的实际防护是：跑批一律带 `PYTHONDONTWRITEBYTECODE=1` 且 `-p no:cacheprovider`，测试从 `backend/` 下相对导入 `app.*`（venv 为 symlink，未安装本项目包）。⇒ 声明收窄为：**没有发现跑错版本的迹象，且四文件在终审轮前后内容一致**；不宣称已独立闭合「运行输入 = 该 commit」。
 
 > ⚠️ 该补证覆盖的是 **r1 送审时的状态**。r1 之后为整改 LOW-1 改动了 `test_cache_configuration.py`（reason 文案），**属代码改动 ⇒ 按 D-15 必再送一轮**，见 r2。
+
+---
+
+### r2 — `401e792c`，**BLOCKER 0 / HIGH 0 / MEDIUM 0 / LOW 3**
+
+存档 `_bmad-output/审查/codex-review-CARD-RED-C1-r2.md`。⚠️ 三条 LOW 里**有两条是「r1 整改只改了一半」** —— 我改了被点名的那处，却把**同一文档里其它处的矛盾表述留着**。三条全部成立，全部整改：
+
+| # | 发现 | 我的复验 | 整改 |
+|---|---|---|---|
+| r2-LOW-1 | 终审绑定补证「把事后内容一致 + 时间相容扩大成了精确运行输入证明」 | 成立。保留 mtime 的替换再恢复、或从另一导入来源加载，都能让「事后 sha 相同 + 时间相容」同时成立 | §7 末尾与验收单同处**收窄声明**：改为「未发现跑错版本的迹象，且四文件终审轮前后内容一致」，并写明本卡对两条反例的实际防护（`PYTHONDONTWRITEBYTECODE=1` + `-p no:cacheprovider`，从 `backend/` 相对导入 `app.*`，venv 未安装本项目包）；**不再宣称独立闭合** |
+| r2-LOW-2 | LOW-3 **未更正全文**：§2 结论段仍写「11 处生产调用」，与同文档「统一采 10」矛盾 | 成立。全文 `grep '11 处'` 找到 2 处真残留（本文件结论段 + 验收单「本卡未证明什么」第 4 条），其余命中是**引述旧值**的整改记录（合规） | 两处均改为 **10**（并标注口径来源）；引述性文字保留 |
+| r2-LOW-3 | LOW-4 **未更正全文**：§6 第 1 条仍把不限路径的 `--stat` 写成只有两个文件 | 成立。同一节第 5 条已写「不限路径 3 文件」，与第 1 条自相矛盾 | §6 第 1 条改为「`--stat -- <那三条路径>`（限定路径）… 不限路径时实为 3 个文件（见本节第 5 条）」 |
+
+> ⛔ **本卡自记的教训**：r1 的四条 LOW 我逐条整改并自认为完成，但**只改了外审点名的那一处**。同一份文档里的其它表述没跟着改，于是文档内部自相矛盾 —— 而 r2 正是靠这个矛盾把问题抓回来的。
+> 规矩：**改一个事实性表述后，必须对该表述的关键词做全文 `grep`**，并区分「真残留」与「引述旧值的整改记录」（后者应保留）。
+> 同源记忆：`reference_claims_wider_than_evidence`（改措辞后要 grep 全文）、`reference_fix_chain_self_propagates`（「修一半」形态）。
+
+### Codex r2 指出的一处判据盲区（采纳，记入台账）
+
+> 「**`grep -i skip` 本身不是充分判据**：只改 reason 中不含 `skip` 的一行，它会漏报。完整标记逐字比较，以及确认 diff 改动均落在标记表达式之外，才支撑本次结论。」
+
+成立。本卡「skip 未被改动」的证据链因此是**两条并列**、缺一不可：
+
+1. `y4d-skip-marks-close-v2.txt` 与开工快照的**五块标记逐字比较**（对 reason 改一个字敏感）；
+2. `git diff` 里 `grep -i 'skip'` 无输出（对「有没有动过这一族」敏感，但**对不含 `skip` 字样的 reason 行改动失明**）。
+
+单靠第 2 条不足；第 1 条才是承重的那条。Codex 另确认：两个模块级标记各 8 行、三个类级标记各 4 行，闭合括号全部保留，故 `-A7` 的窗口宽度足够。
+
+### Codex r2 独立核得（第二来源）
+
+- 差集 **8 条互异 `<`、0 条 `>`**；五文件合计 **42 passed / 11 failed / 6 skipped / 5 xfailed**，两条移交仍红，其余失败恰为 9 条。
+- r2 增量「只有相邻字符串字面量的改写；装饰器结构、`strict=True`、函数名、断言与函数体不变」；`5 xfailed`、**无 XPASS**。
+- 承重验证：「三条拒因分别吻合自己的断言」，支持「`FieldInfo.default` 修改并重建模型后，三条所述路径受到变异影响」。
+- 范围：「总 diff 仅涉及四个单元测试文件；未见 `backend/app/**`、五处 skip 标记、其他卡用例或任何类名的改动」。
+
+### Codex r2 自述的核验边界（如实转录）
+
+它指出本轮**未包含**在读取面内的：r1 原始差集、预声明九条名单、开收工 SKIPPED 明细、调用方 census 与历史 `--stat` 的原始输出。因此「跨轮原始集合完全相同、SKIPPED 仅四处行号变化、生产调用枚举完整性、历史文件列表」这四项，**r2 不宣称已重新独立验证**（其中前两项 r1 已验、后两项本卡在 §2 / §6 有实测命令留档）。
+
+### 轮次结论
+
+r2 绑定 `401e792c`，**BLOCKER = 0、HIGH = 0** ⇒ 满足 D-15 的通过条件。r2 之后的整改**只改 `_bmad-output`**（本文件与验收单的表述收窄、编号修复），**零代码改动** ⇒ 按 D-15「只改 `_bmad-output` 不算」，绑定保持，不需要 r3。绑定判据见验收单 A20。
