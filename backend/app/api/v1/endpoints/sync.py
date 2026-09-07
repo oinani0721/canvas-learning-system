@@ -13,7 +13,7 @@ import logging
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from neo4j.exceptions import AuthError, Neo4jError, ServiceUnavailable
+from neo4j.exceptions import AuthError, ServiceUnavailable
 from pydantic import BaseModel, Field
 
 from app.api.v1.endpoints._vault_id_resolver import resolve_vault_group_id

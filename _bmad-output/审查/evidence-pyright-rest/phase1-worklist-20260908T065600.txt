@@ -1,0 +1,190 @@
+非 services 错数 145 文件数 41
+其中共享(阶段2): 11
+阶段1 面: 134 文件 39
+================================================================================
+###  35 clients/claude_client.py
+      :  275 reportArgumentType | Argument of type "list[dict[str, str]]" cannot be assigned to parameter "messages" of type "Iterable[MessagePa
+      :  283 reportAttributeAccessIssue | Cannot access attribute "text" for class "ThinkingBlock"
+      :  283 reportAttributeAccessIssue | Cannot access attribute "text" for class "RedactedThinkingBlock"
+      :  283 reportAttributeAccessIssue | Cannot access attribute "text" for class "ToolUseBlock"
+      :  283 reportAttributeAccessIssue | Cannot access attribute "text" for class "ServerToolUseBlock"
+      :  283 reportAttributeAccessIssue | Cannot access attribute "text" for class "WebSearchToolResultBlock"
+      :  283 reportAttributeAccessIssue | Cannot access attribute "text" for class "WebFetchToolResultBlock"
+      :  283 reportAttributeAccessIssue | Cannot access attribute "text" for class "CodeExecutionToolResultBlock"
+      :  283 reportAttributeAccessIssue | Cannot access attribute "text" for class "BashCodeExecutionToolResultBlock"
+      :  283 reportAttributeAccessIssue | Cannot access attribute "text" for class "TextEditorCodeExecutionToolResultBlock"
+      :  283 reportAttributeAccessIssue | Cannot access attribute "text" for class "ToolSearchToolResultBlock"
+      :  283 reportAttributeAccessIssue | Cannot access attribute "text" for class "ContainerUploadBlock"
+      :  412 reportArgumentType | Argument of type "list[dict[str, Unknown]]" cannot be assigned to parameter "messages" of type "Iterable[Messa
+      :  420 reportAttributeAccessIssue | Cannot access attribute "text" for class "ThinkingBlock"
+      :  420 reportAttributeAccessIssue | Cannot access attribute "text" for class "RedactedThinkingBlock"
+      :  420 reportAttributeAccessIssue | Cannot access attribute "text" for class "ToolUseBlock"
+      :  420 reportAttributeAccessIssue | Cannot access attribute "text" for class "ServerToolUseBlock"
+      :  420 reportAttributeAccessIssue | Cannot access attribute "text" for class "WebSearchToolResultBlock"
+      :  420 reportAttributeAccessIssue | Cannot access attribute "text" for class "WebFetchToolResultBlock"
+      :  420 reportAttributeAccessIssue | Cannot access attribute "text" for class "CodeExecutionToolResultBlock"
+      :  420 reportAttributeAccessIssue | Cannot access attribute "text" for class "BashCodeExecutionToolResultBlock"
+      :  420 reportAttributeAccessIssue | Cannot access attribute "text" for class "TextEditorCodeExecutionToolResultBlock"
+      :  420 reportAttributeAccessIssue | Cannot access attribute "text" for class "ToolSearchToolResultBlock"
+      :  420 reportAttributeAccessIssue | Cannot access attribute "text" for class "ContainerUploadBlock"
+      :  484 reportAttributeAccessIssue | Cannot access attribute "text" for class "ThinkingBlock"
+      :  484 reportAttributeAccessIssue | Cannot access attribute "text" for class "RedactedThinkingBlock"
+      :  484 reportAttributeAccessIssue | Cannot access attribute "text" for class "ToolUseBlock"
+      :  484 reportAttributeAccessIssue | Cannot access attribute "text" for class "ServerToolUseBlock"
+      :  484 reportAttributeAccessIssue | Cannot access attribute "text" for class "WebSearchToolResultBlock"
+      :  484 reportAttributeAccessIssue | Cannot access attribute "text" for class "WebFetchToolResultBlock"
+      :  484 reportAttributeAccessIssue | Cannot access attribute "text" for class "CodeExecutionToolResultBlock"
+      :  484 reportAttributeAccessIssue | Cannot access attribute "text" for class "BashCodeExecutionToolResultBlock"
+      :  484 reportAttributeAccessIssue | Cannot access attribute "text" for class "TextEditorCodeExecutionToolResultBlock"
+      :  484 reportAttributeAccessIssue | Cannot access attribute "text" for class "ToolSearchToolResultBlock"
+      :  484 reportAttributeAccessIssue | Cannot access attribute "text" for class "ContainerUploadBlock"
+###  10 api/v1/endpoints/exam.py
+      :  225 reportAttributeAccessIssue | Cannot access attribute "sync_node_to_source_canvas" for class "ExamService"
+      :  245 reportAttributeAccessIssue | Cannot access attribute "generate_hint" for class "ExamService"
+      :  260 reportAttributeAccessIssue | Cannot access attribute "skip_question" for class "ExamService"
+      :  288 reportAttributeAccessIssue | Cannot access attribute "get_cognitive_load_message" for class "ExamService"
+      :  303 reportAttributeAccessIssue | Cannot access attribute "pause_exam" for class "ExamService"
+      :  317 reportAttributeAccessIssue | Cannot access attribute "resume_exam" for class "ExamService"
+      :  352 reportAttributeAccessIssue | Cannot access attribute "complete_exam" for class "ExamService"
+      :  379 reportAttributeAccessIssue | Cannot access attribute "get_exam_records" for class "ExamService"
+      :  410 reportAttributeAccessIssue | Cannot access attribute "get_records_by_canvas" for class "ExamService"
+      :  436 reportAttributeAccessIssue | Cannot access attribute "get_exam_record" for class "ExamService"
+###   9 api/v1/endpoints/intelligent_parallel.py
+      :  117 reportOptionalMemberAccess | "session_exists" is not a known attribute of "None"
+      :  159 reportOptionalMemberAccess | "_batch_orchestrator" is not a known attribute of "None"
+      :  160 reportOptionalMemberAccess | "_agent_service" is not a known attribute of "None"
+      :  161 reportOptionalMemberAccess | "_canvas_service" is not a known attribute of "None"
+      :  227 reportOptionalMemberAccess | "analyze_canvas" is not a known attribute of "None"
+      :  309 reportOptionalMemberAccess | "start_batch_session" is not a known attribute of "None"
+      :  395 reportOptionalMemberAccess | "get_session_status" is not a known attribute of "None"
+      :  477 reportOptionalMemberAccess | "cancel_session" is not a known attribute of "None"
+      :  559 reportOptionalMemberAccess | "retry_single_node" is not a known attribute of "None"
+###   8 mcp/tools/exam_tools.py
+      :  236 reportCallIssue | Argument missing for parameter "reference_answer"
+      :  251 reportUnusedVariable | Variable "canvas_name" is not accessed
+      :  254 reportCallIssue | Argument missing for parameter "reference_answer"
+      :  371 reportCallIssue | Argument missing for parameter "reference_answer"
+      :  615 reportCallIssue | Arguments missing for parameters "mastery_level", "learning_history_summary"
+      :  694 reportCallIssue | Argument missing for parameter "learning_history_summary"
+      :  705 reportCallIssue | Arguments missing for parameters "mastery_level", "learning_history_summary"
+      :  714 reportCallIssue | Arguments missing for parameters "mastery_level", "learning_history_summary"
+###   7 api/v1/endpoints/review.py [SHARED-P2]
+      :  184 reportCallIssue | No parameter named "model"
+      :  238 reportMissingImports | Import "app.core.config" could not be resolved
+      :  408 reportCallIssue | No parameter named "model"
+      :  849 reportArgumentType | Argument of type "Unknown | None" cannot be assigned to parameter "key" of type "str" in function "__getitem__
+      : 1543 reportAttributeAccessIssue | Cannot access attribute "to_dict" for class "Dict[str, Any]"
+      : 1560 reportAttributeAccessIssue | Cannot access attribute "started_at" for class "Dict[str, Any]"
+      : 1561 reportAttributeAccessIssue | Cannot access attribute "updated_at" for class "Dict[str, Any]"
+###   6 api/v1/endpoints/rollback.py
+      :   31 reportMissingImports | Import "src.rollback" could not be resolved
+      :   97 reportOptionalCall | Object of type "None" cannot be called
+      :  115 reportOptionalCall | Object of type "None" cannot be called
+      :  134 reportOptionalCall | Object of type "None" cannot be called
+      :  380 reportOptionalMemberAccess | "MANUAL" is not a known attribute of "None"
+      :  490 reportOptionalCall | Object of type "None" cannot be called
+###   4 api/v1/endpoints/edges.py
+      :  106 reportAttributeAccessIssue | Cannot access attribute "execute_query" for class "Neo4jClient"
+      :  189 reportAttributeAccessIssue | Cannot access attribute "delete" for class "LanceDBClient"
+      :  207 reportAttributeAccessIssue | Cannot access attribute "upsert" for class "LanceDBClient"
+      :  213 reportAttributeAccessIssue | Cannot access attribute "get_db" for class "LanceDBClient"
+###   4 api/v1/endpoints/health.py
+      :  178 reportArgumentType | Argument of type "Literal['healthy']" cannot be assigned to parameter "status" of type "HealthStatus" in funct
+      :  615 reportReturnType | Type "JSONResponse" is not assignable to return type "Dict[str, Any]"
+      :  698 reportGeneralTypeIssues | "Never" is not awaitable
+      : 1160 reportArgumentType | Argument of type "Iterable[str]" cannot be assigned to parameter "obj" of type "Sized" in function "len"
+###   4 api/v1/endpoints/metadata.py
+      :   76 reportUnusedImport | Import "os" is not accessed
+      :  571 reportOptionalMemberAccess | "drop_table" is not a known attribute of "None"
+      :  571 reportCallIssue | No parameter named "ignore_missing"
+      :  676 reportOptionalMemberAccess | "open_table" is not a known attribute of "None"
+###   4 api/v1/system.py [SHARED-P2]
+      :  336 reportArgumentType | Argument of type "str" cannot be assigned to parameter "status" of type "Literal['ready', 'degraded', 'unavail
+      :  401 reportReturnType | Type "JSONResponse" is not assignable to return type "dict[Unknown, Unknown]"
+      :  568 reportArgumentType | Argument of type "type[LLMStatsSummary]" cannot be assigned to parameter "default_factory" of type "(() -> _T@
+      :  577 reportArgumentType | Argument of type "type[ErrorStats]" cannot be assigned to parameter "default_factory" of type "(() -> _T@Field
+###   4 core/memory_system_logger.py
+      :   89 reportArgumentType | Expression of type "None" cannot be assigned to parameter of type "float"
+      :   89 reportArgumentType | Expression of type "None" cannot be assigned to parameter of type "str"
+      :  111 reportArgumentType | Expression of type "None" cannot be assigned to parameter of type "str"
+      :  111 reportArgumentType | Expression of type "None" cannot be assigned to parameter of type "str"
+###   4 mcp/tools/infra_tools.py
+      :    9 reportUnusedImport | Import "Optional" is not accessed
+      :   45 reportAttributeAccessIssue | Cannot access attribute "body" for class "dict[Unknown, Unknown]"
+      :   56 reportAttributeAccessIssue | Cannot access attribute "vault_name" for class "JSONResponse"
+      :   57 reportAttributeAccessIssue | Cannot access attribute "vault_id" for class "JSONResponse"
+###   4 mcp/tools/mastery_tools.py
+      :  169 reportCallIssue | Arguments missing for parameters "p_mastery", "fsrs_stability", "fsrs_difficulty", "fsrs_retrievability", "eff
+      :  174 reportCallIssue | Arguments missing for parameters "fsrs_stability", "fsrs_difficulty", "fsrs_retrievability", "effective_profic
+      :  200 reportCallIssue | Arguments missing for parameters "p_mastery", "fsrs_stability", "fsrs_difficulty", "fsrs_retrievability", "eff
+      :  206 reportCallIssue | Arguments missing for parameters "p_mastery", "fsrs_stability", "fsrs_difficulty", "fsrs_retrievability", "eff
+###   3 clients/neo4j_client.py
+      :   18 reportUnusedImport | Import "asyncio" is not accessed
+      :  607 reportOptionalMemberAccess | "session" is not a known attribute of "None"
+      :  608 reportArgumentType | Argument of type "str" cannot be assigned to parameter "query" of type "LiteralString | Query" in function "ru
+###   3 core/exception_handlers.py
+      :  305 reportArgumentType | Argument of type "(request: Request[State], exc: CanvasException) -> CoroutineType[Any, Any, JSONResponse]" ca
+      :  306 reportArgumentType | Argument of type "(request: Request[State], exc: HTTPException) -> CoroutineType[Any, Any, JSONResponse]" cann
+      :  307 reportArgumentType | Argument of type "(request: Request[State], exc: RequestValidationError) -> CoroutineType[Any, Any, JSONRespon
+###   3 middleware/llm_call_logger.py
+      :  267 reportGeneralTypeIssues | Argument to class must be a base class
+      :  339 reportAttributeAccessIssue | Cannot access attribute "timestamp" for class "int"
+      :  339 reportAttributeAccessIssue | Cannot access attribute "timestamp" for class "float"
+###   2 api/v1/endpoints/rag.py
+      :  166 reportArgumentType | Argument of type "type[LatencyInfo]" cannot be assigned to parameter "default_factory" of type "(() -> _T@Fiel
+      :  169 reportArgumentType | Argument of type "type[RAGQueryMetadata]" cannot be assigned to parameter "default_factory" of type "(() -> _T
+###   2 api/v1/endpoints/suggestions.py
+      :  204 reportAttributeAccessIssue | Cannot access attribute "choices" for class "CustomStreamWrapper"
+      :  204 reportOptionalMemberAccess | "strip" is not a known attribute of "None"
+###   2 api/v1/endpoints/websocket.py
+      :   42 reportGeneralTypeIssues | Expected class but received "(obj: object, /) -> TypeIs[(...) -> object]"
+      :   45 reportGeneralTypeIssues | Expected class but received "(obj: object, /) -> TypeIs[(...) -> object]"
+###   2 api/v1/endpoints/wikilink.py
+      :   69 reportCallIssue | Argument missing for parameter "vault_path"
+      :  153 reportCallIssue | Argument missing for parameter "changed_files"
+###   2 clients/provider_factory.py
+      :  256 reportAttributeAccessIssue | Cannot access attribute "OPENAI_API_KEY" for class "Settings"
+      :  261 reportAttributeAccessIssue | Cannot access attribute "OPENAI_API_KEY" for class "Settings"
+###   2 core/exceptions.py
+      :   25 reportArgumentType | Expression of type "None" cannot be assigned to parameter of type "str"
+      :   37 reportArgumentType | Expression of type "None" cannot be assigned to parameter of type "str"
+###   2 core/vault_state_paths.py
+      :   24 reportUnusedImport | Import "datetime" is not accessed
+      :   24 reportUnusedImport | Import "timezone" is not accessed
+###   2 mcp/tools/conversation_tools.py
+      :  311 reportCallIssue | Argument missing for parameter "edge_id"
+      :  319 reportCallIssue | Argument missing for parameter "edge_id"
+###   1 api/v1/endpoints/boards.py
+      :   86 reportUnusedExcept | Except clause is unreachable because exception is already handled
+###   1 api/v1/endpoints/canvas.py
+      :   18 reportUnusedImport | Import "Field" is not accessed
+###   1 api/v1/endpoints/chat.py
+      :  664 reportUnusedVariable | Variable "derived_group_id" is not accessed
+###   1 api/v1/endpoints/exam_grade.py
+      :  118 reportAttributeAccessIssue | Cannot access attribute "choices" for class "CustomStreamWrapper"
+###   1 api/v1/endpoints/index.py
+      :  184 reportReturnType | Type "JSONResponse" is not assignable to return type "RefreshChangedResponse"
+###   1 api/v1/endpoints/index_image.py
+      :  134 reportAttributeAccessIssue | Cannot access attribute "choices" for class "CustomStreamWrapper"
+###   1 api/v1/endpoints/multimodal.py
+      :  448 reportArgumentType | Expression of type "EllipsisType" cannot be assigned to parameter of type "MultimodalUpdateRequest"
+###   1 api/v1/endpoints/sync.py
+      :   16 reportUnusedImport | Import "Neo4jError" is not accessed
+###   1 api/v1/endpoints/tips.py
+      :  263 reportArgumentType | Argument of type "List[Dict[str, Any]]" cannot be assigned to parameter "tips" of type "List[TipItem]" in func
+###   1 dependencies.py
+      : 1032 reportArgumentType | Argument of type "str | None" cannot be assigned to parameter "canvas_base_path" of type "str" in function "__
+###   1 domains/agent/gateway.py
+      :   15 reportUnusedImport | Import "TYPE_CHECKING" is not accessed
+###   1 mcp/tools/board_manifest_tools.py
+      :   67 reportUnusedExcept | Except clause is unreachable because exception is already handled
+###   1 mcp/tools/wikilink_tools.py
+      :   10 reportUnusedImport | Import "Optional" is not accessed
+###   1 middleware/agent_metrics.py
+      :  132 reportGeneralTypeIssues | "object*" is not awaitable
+###   1 middleware/error_handler.py
+      :   82 reportGeneralTypeIssues | "Response" is not awaitable
+###   1 middleware/logging_middleware.py
+      :  109 reportGeneralTypeIssues | "Response" is not awaitable
+###   1 middleware/metrics.py
+      :  211 reportArgumentType | Argument of type "None" cannot be assigned to parameter "app" of type "ASGIApp" in function "__init__"

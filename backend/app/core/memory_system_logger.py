@@ -10,6 +10,7 @@ import logging
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
+from typing import Optional
 
 
 def setup_memory_system_logger() -> logging.Logger:
@@ -86,7 +87,9 @@ def log_neo4j_connection_failed(uri: str, error: str):
     memory_logger.error(f"NEO4J_CONNECTION_FAILED | uri={uri} | error={error}")
 
 
-def log_neo4j_health_check(status: str, latency_ms: float = None, error: str = None):
+def log_neo4j_health_check(
+    status: str, latency_ms: Optional[float] = None, error: Optional[str] = None
+):
     """记录 Neo4j 健康检查结果"""
     if status == "success":
         memory_logger.info(
@@ -108,7 +111,9 @@ def log_neo4j_query_failed(query: str, error: str):
     memory_logger.error(f"NEO4J_QUERY_FAILED | query={query_preview} | error={error}")
 
 
-def log_lancedb_status(status: str, path: str = None, error: str = None):
+def log_lancedb_status(
+    status: str, path: Optional[str] = None, error: Optional[str] = None
+):
     """记录 LanceDB 状态"""
     if error:
         memory_logger.warning(f"LANCEDB_STATUS | status={status} | error={error}")

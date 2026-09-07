@@ -19,7 +19,7 @@ from typing import Any, Dict, List, Optional
 # ✅ Verified from Context7:/anthropics/anthropic-sdk-python
 # Pattern: "from anthropic import AsyncAnthropic"
 from anthropic import AsyncAnthropic
-from anthropic.types import Message
+from anthropic.types import ContentBlockParam, Message, MessageParam, TextBlock
 
 from app.config import settings
 from app.middleware.prompt_injection_guard import check_input, check_output
@@ -257,7 +257,7 @@ class ClaudeClient:
             system_prompt = f"{system_prompt}\n\n## Additional Context\n{context}"
 
         # Build messages
-        messages = [
+        messages: List[MessageParam] = [
             {
                 "role": "user",
                 "content": user_prompt,
@@ -279,7 +279,10 @@ class ClaudeClient:
         # Extract text content from response
         response_text = ""
         for block in response.content:
-            if hasattr(block, "text"):
+            # 等价于原 hasattr(block, "text"): anthropic 0.88.0 的 ContentBlock
+            # 12 个成员里只有 TextBlock 声明 text 字段(实测 model_fields)。
+            # 分支顺序与累加逻辑逐字不变。
+            if isinstance(block, TextBlock):
                 response_text += block.text
 
         logger.info(
@@ -367,7 +370,7 @@ class ClaudeClient:
 
         # ✅ Verified from Context7:/anthropics/anthropic-cookbook (multimodal/best_practices_for_vision.ipynb)
         # Build content blocks with images first, then text
-        content_blocks: List[Dict[str, Any]] = []
+        content_blocks: List[ContentBlockParam] = []
 
         # Add image blocks
         if images:
@@ -393,7 +396,7 @@ class ClaudeClient:
         )
 
         # Build messages with content blocks
-        messages = [
+        messages: List[MessageParam] = [
             {
                 "role": "user",
                 "content": content_blocks,
@@ -416,7 +419,10 @@ class ClaudeClient:
         # Extract text content from response
         response_text = ""
         for block in response.content:
-            if hasattr(block, "text"):
+            # 等价于原 hasattr(block, "text"): anthropic 0.88.0 的 ContentBlock
+            # 12 个成员里只有 TextBlock 声明 text 字段(实测 model_fields)。
+            # 分支顺序与累加逻辑逐字不变。
+            if isinstance(block, TextBlock):
                 response_text += block.text
 
         logger.info(
@@ -480,7 +486,10 @@ class ClaudeClient:
 
         response_text = ""
         for block in response.content:
-            if hasattr(block, "text"):
+            # 等价于原 hasattr(block, "text"): anthropic 0.88.0 的 ContentBlock
+            # 12 个成员里只有 TextBlock 声明 text 字段(实测 model_fields)。
+            # 分支顺序与累加逻辑逐字不变。
+            if isinstance(block, TextBlock):
                 response_text += block.text
 
         # Story 3-13 FIX: Output safety check for raw call path

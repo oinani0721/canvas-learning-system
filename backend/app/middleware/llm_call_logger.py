@@ -31,19 +31,24 @@ import logging
 import sqlite3
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
 # Import CustomLogger base class for proper LiteLLM async callback support.
 # Reference: https://docs.litellm.ai/docs/observability/custom_callback
-try:
+# 类型检查器恒看真基类(否则 `class LLMCallLogger(_LiteLLMCustomLogger)` 会被判
+# 「基类不是类」); 运行期仍保留 litellm 缺席时降级到 object 的能力。
+if TYPE_CHECKING:
     from litellm.integrations.custom_logger import CustomLogger as _LiteLLMCustomLogger
-except ImportError:
-    # Fallback: if litellm is not installed, use object as base class.
-    # The logger still works via manual log_call() API.
-    _LiteLLMCustomLogger = object  # type: ignore[assignment,misc]
+else:
+    try:
+        from litellm.integrations.custom_logger import CustomLogger as _LiteLLMCustomLogger
+    except ImportError:
+        # Fallback: if litellm is not installed, use object as base class.
+        # The logger still works via manual log_call() API.
+        _LiteLLMCustomLogger = object
 
 logger = logging.getLogger(__name__)
 
@@ -335,8 +340,11 @@ class LLMCallLogger(_LiteLLMCustomLogger):
             return 0
         if isinstance(start_time, (int, float)) and isinstance(end_time, (int, float)):
             return int((end_time - start_time) * 1000)
+        # pyright 在 `A and B` 的否定分支保留「A 真 B 假」这一支, 于是 start_time
+        # 仍可能是 int|float; 运行期这一支已被上面的 isinstance 分支 return 掉,
+        # 且 hasattr 本身就排除了没有 timestamp 的对象。只关这一行。
         if hasattr(start_time, "timestamp") and hasattr(end_time, "timestamp"):
-            return int((end_time.timestamp() - start_time.timestamp()) * 1000)
+            return int((end_time.timestamp() - start_time.timestamp()) * 1000)  # pyright: ignore[reportAttributeAccessIssue]
         return 0
 
     def _extract_task_type(self, kwargs: Dict[str, Any]) -> str:

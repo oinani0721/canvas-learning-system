@@ -83,7 +83,10 @@ async def get_board_manifest_http(
         raise HTTPException(status_code=422, detail=str(e)) from e
     except KeyError as e:
         raise HTTPException(status_code=404, detail=str(e.args[0]) if e.args else str(e)) from e
-    except pydantic.ValidationError as e:
+    # ⚠️ 死分支(TAIL): pydantic.ValidationError 是 ValueError 的子类
+    # (pydantic 2.12.5 实测 MRO), 已被上面的 except ValueError 先接走。
+    # 调整顺序 = 改行为(该异常会从当前分支的语义换到本分支), 本卡不改。
+    except pydantic.ValidationError as e:  # pyright: ignore[reportUnusedExcept]
         # 纵深兜底: service 已做类型归一, 走到这说明 schema 契约被破 — 诚实
         # 500 + 日志, 绝不把未投影数据吐出去 (Code-Review H3)
         logger.error("[manifest] 投影 schema 异常: %s", e)

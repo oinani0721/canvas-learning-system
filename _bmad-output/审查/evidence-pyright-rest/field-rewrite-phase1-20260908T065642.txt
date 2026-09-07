@@ -1,0 +1,15 @@
+Traceback (most recent call last):
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/_bmad-output/审查/evidence-pyright-rest/field_positional_rewrite.py", line 65, in <module>
+    main()
+    ~~~~^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/_bmad-output/审查/evidence-pyright-rest/field_positional_rewrite.py", line 58, in main
+    c = rewrite(p, apply)
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/_bmad-output/审查/evidence-pyright-rest/field_positional_rewrite.py", line 32, in rewrite
+    src = path.read_text(encoding="utf-8")
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py", line 787, in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors, newline=newline) as f:
+         ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py", line 771, in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: 'backend/app/api/v1/endpoints/rag.py backend/app/mcp/tools/memory_tools.py backend/app/mcp/tools/exam_tools.py backend/app/mcp/tools/mastery_tools.py backend/app/mcp/tools/conversation_tools.py backend/app/mcp/tools/note_search_tools.py backend/app/api/v1/endpoints/config.py backend/app/api/v1/endpoints/profile.py backend/app/core/bug_tracker.py backend/app/api/v1/endpoints/monitoring.py backend/app/api/v1/endpoints/inheritance.py backend/app/api/v1/endpoints/wikilink.py backend/app/api/v1/endpoints/memory.py backend/app/mcp/tools/wikilink_tools.py'

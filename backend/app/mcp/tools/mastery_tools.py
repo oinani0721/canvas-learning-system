@@ -53,27 +53,27 @@ class QueryMasteryOutput(BaseModel):
 
     node_id: str
     p_mastery: Optional[float] = Field(
-        None, description="BKT mastery probability (0.0 - 1.0)"
+        default=None, description="BKT mastery probability (0.0 - 1.0)"
     )
     fsrs_stability: Optional[float] = Field(
-        None, description="FSRS stability parameter"
+        default=None, description="FSRS stability parameter"
     )
     fsrs_difficulty: Optional[float] = Field(
-        None, description="FSRS difficulty parameter"
+        default=None, description="FSRS difficulty parameter"
     )
     fsrs_retrievability: Optional[float] = Field(
-        None, description="FSRS retrievability R (0.0 - 1.0)"
+        default=None, description="FSRS retrievability R (0.0 - 1.0)"
     )
     effective_proficiency: Optional[float] = Field(
-        None, description="Combined effective proficiency (0.0 - 1.0)"
+        default=None, description="Combined effective proficiency (0.0 - 1.0)"
     )
-    interaction_count: int = Field(0, description="Total interaction count")
+    interaction_count: int = Field(default=0, description="Total interaction count")
     last_interaction_ts: Optional[str] = Field(
-        None, description="Last interaction timestamp (ISO 8601)"
+        default=None, description="Last interaction timestamp (ISO 8601)"
     )
-    status: str = Field("ok", description="Query status")
+    status: str = Field(default="ok", description="Query status")
     mastery_degraded: Optional[str] = Field(
-        None,
+        default=None,
         description=(
             "Cross-layer observability marker. None on happy path; "
             "'concept_not_found' / 'exception' / 'fusion_fallback' otherwise."

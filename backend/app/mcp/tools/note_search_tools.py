@@ -64,28 +64,28 @@ class NoteSearchInput(BaseModel):
         description="Natural language search query. Supports Chinese and English.",
     )
     canvas_file: Optional[str] = Field(
-        None,
+        default=None,
         description="Canvas file path to scope search. Extended mode only "
         "(RAG_EXTENDED_MODE); ignored on the default fast path.",
     )
     subject_id: Optional[str] = Field(
-        None,
+        default=None,
         description="Subject ID for multi-subject scope isolation (e.g., 'math', 'physics'). "
         "Extended mode only (RAG_EXTENDED_MODE); ignored on the default fast path.",
     )
     max_results: int = Field(
-        10,
+        default=10,
         ge=1,
         le=50,
         description="Maximum number of results to return.",
     )
     cross_subject: bool = Field(
-        False,
+        default=False,
         description="When True, expand search to related subjects via tag similarity. "
         "Extended mode only (RAG_EXTENDED_MODE); ignored on the default fast path.",
     )
     fusion_strategy: Optional[Literal["rrf", "weighted", "cascade"]] = Field(
-        None,
+        default=None,
         description="Override fusion strategy. Only applies in extended mode "
         "(RAG_EXTENDED_MODE); the default fast path is single-source.",
     )

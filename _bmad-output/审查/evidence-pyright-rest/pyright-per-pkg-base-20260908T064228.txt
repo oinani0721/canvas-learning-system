@@ -1,0 +1,14 @@
+== api
+75 errors, 9 warnings, 0 informations
+== clients
+40 errors, 3 warnings, 0 informations
+== mcp
+22 errors, 9 warnings, 0 informations
+== core
+13 errors, 3 warnings, 0 informations
+== models
+11 errors, 2 warnings, 0 informations
+== middleware
+7 errors, 4 warnings, 0 informations
+== root
+6 errors, 3 warnings, 0 informations

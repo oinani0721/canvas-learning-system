@@ -7,7 +7,7 @@ read_note: Read a vault .md file content.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from pydantic import BaseModel, Field
 
@@ -17,7 +17,7 @@ class GetNeighborsInput(BaseModel):
         ...,
         description="Note filename or path (e.g., 'decision-tree' or 'wiki/concepts/decision-tree.md')",
     )
-    hop: int = Field(2, ge=1, le=5, description="N-hop neighbor depth (default 2)")
+    hop: int = Field(default=2, ge=1, le=5, description="N-hop neighbor depth (default 2)")
 
 
 class NeighborItem(BaseModel):

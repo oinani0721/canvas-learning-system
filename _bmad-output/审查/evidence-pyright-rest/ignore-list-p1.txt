@@ -1,0 +1,25 @@
+dependencies.py:1035:        canvas_base_path=canvas_base_path,  # pyright: ignore[reportArgumentType]
+clients/provider_factory.py:260:        if hasattr(settings, "OPENAI_API_KEY") and settings.OPENAI_API_KEY:  # pyright: ignore[reportAttributeAccessIssue]
+clients/provider_factory.py:265:                        api_key=settings.OPENAI_API_KEY,  # pyright: ignore[reportAttributeAccessIssue]  # 见上 T14
+middleware/metrics.py:213:    middleware = MetricsMiddleware(app=None)  # pyright: ignore[reportArgumentType]
+middleware/agent_metrics.py:135:                result = await func(*args, **kwargs)  # pyright: ignore[reportGeneralTypeIssues]
+middleware/llm_call_logger.py:347:            return int((end_time.timestamp() - start_time.timestamp()) * 1000)  # pyright: ignore[reportAttributeAccessIssue]
+mcp/tools/infra_tools.py:47:        return json.loads(resp.body)["data"]  # pyright: ignore[reportAttributeAccessIssue]
+mcp/tools/infra_tools.py:63:            vault_name=result.vault_name,  # pyright: ignore[reportAttributeAccessIssue]
+mcp/tools/infra_tools.py:64:            vault_id=result.vault_id,  # pyright: ignore[reportAttributeAccessIssue]
+mcp/tools/board_manifest_tools.py:70:    except pydantic.ValidationError as e:  # pyright: ignore[reportUnusedExcept]
+api/v1/endpoints/metadata.py:574:                lancedb_client._db.drop_table(stale_table, ignore_missing=True)  # pyright: ignore[reportCallIssue]
+api/v1/endpoints/index_image.py:135:        raw_content = response.choices[0].message.content  # pyright: ignore[reportAttributeAccessIssue]  # 未传 stream=True ⇒ 运行期恒为 ModelResponse
+api/v1/endpoints/health.py:620:        return JSONResponse(status_code=503, content=result)  # pyright: ignore[reportReturnType]
+api/v1/endpoints/health.py:1169:            table_count=len(tables),  # pyright: ignore[reportArgumentType]
+api/v1/endpoints/suggestions.py:207:        content = response.choices[0].message.content.strip()  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
+api/v1/endpoints/index.py:185:        return JSONResponse(status_code=503, content=resp.model_dump())  # pyright: ignore[reportReturnType]
+api/v1/endpoints/exam_grade.py:119:        raw_content = response.choices[0].message.content or ""  # pyright: ignore[reportAttributeAccessIssue]  # 未传 stream=True ⇒ 运行期恒为 ModelResponse
+api/v1/endpoints/multimodal.py:450:    request: MultimodalUpdateRequest = ...,  # pyright: ignore[reportArgumentType]
+api/v1/endpoints/rollback.py:39:    from src.rollback import (  # pyright: ignore[reportMissingImports]  # 见上: src/ 不存在
+api/v1/endpoints/edges.py:112:        await neo4j.execute_query(  # pyright: ignore[reportAttributeAccessIssue]
+api/v1/endpoints/edges.py:198:                    client.delete,  # pyright: ignore[reportAttributeAccessIssue]
+api/v1/endpoints/edges.py:216:                client.upsert,  # pyright: ignore[reportAttributeAccessIssue]  # 见上: 死分支
+api/v1/endpoints/edges.py:224:                client.get_db()  # pyright: ignore[reportAttributeAccessIssue]
+api/v1/endpoints/tips.py:265:            tips=tips,  # pyright: ignore[reportArgumentType]
+api/v1/endpoints/boards.py:89:    except pydantic.ValidationError as e:  # pyright: ignore[reportUnusedExcept]

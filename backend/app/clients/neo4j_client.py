@@ -15,13 +15,12 @@ Story 30.2: Real Neo4j driver implementation
 [Source: docs/stories/22.4.story.md#Dev-Notes]
 """
 
-import asyncio
 import json
 import logging
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, LiteralString, Optional, cast
 
 # Neo4j async driver
 # ✅ Verified from Context7:/websites/neo4j_cypher-manual_25 (topic: AsyncGraphDatabase)
@@ -595,6 +594,9 @@ class Neo4jClient:
         """
         if not self._driver:
             raise RuntimeError("Neo4j driver not initialized")
+        # 上面的守卫窄化不进闭包(pyright 认为 self._driver 可能在闭包执行前变),
+        # 故在守卫后就地绑定 —— 也顺带把「整次重试用同一个 driver 实例」钉死。
+        driver = self._driver
 
         @retry(
             stop=stop_after_attempt(self._retry_attempts),
@@ -604,8 +606,11 @@ class Neo4jClient:
         )
         async def _execute_with_retry() -> List[Dict[str, Any]]:
             """Execute query with retry on transient errors."""
-            async with self._driver.session(database=self._database) as session:
-                result = await session.run(query, params)
+            async with driver.session(database=self._database) as session:
+                # neo4j 6.1.0 的 run() 只收 LiteralString | Query, 为的是防 f-string
+                # 拼 Cypher; 本方法的 query 由调用方传入, 类型是 str。cast 是纯类型层
+                # 无运行期对象变化。注入面由调用方的参数化 params 保证(TAIL T8)。
+                result = await session.run(cast(LiteralString, query), params)
                 records = await result.data()
                 return records
 

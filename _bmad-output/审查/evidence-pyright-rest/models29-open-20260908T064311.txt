@@ -1,0 +1,401 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 653 items
+
+tests/api/v1/endpoints/test_memory_four_state_api.py ................... [  2%]
+..............................                                           [  7%]
+tests/api/v1/endpoints/test_multimodal.py .............                  [  9%]
+tests/contract/test_node_id_patterns.py ................................ [ 14%]
+.................F                                                       [ 17%]
+tests/contract/test_pact_provider.py ss                                  [ 17%]
+tests/unit/grouping/test_analyze_canvas.py ....FF.                       [ 18%]
+tests/unit/grouping/test_helpers.py .............                        [ 20%]
+tests/unit/test_acp_prompt_externalization.py ...........                [ 22%]
+tests/unit/test_agent_routing_engine.py ................................ [ 27%]
+..........................                                               [ 31%]
+tests/unit/test_archive_legacy_lance_tables_g24.py ..................... [ 34%]
+.                                                                        [ 34%]
+tests/unit/test_difficulty_canvas_integration.py .F...............FF.... [ 37%]
+                                                                         [ 37%]
+tests/unit/test_edge_rationale_fallback.py ............                  [ 39%]
+tests/unit/test_exam_sync_node_group_isolation.py .....                  [ 40%]
+tests/unit/test_fsrs_state_query.py ................                     [ 43%]
+tests/unit/test_intelligent_parallel_endpoints.py .........FFF...F...... [ 46%]
+......                                                                   [ 47%]
+tests/unit/test_kg_relevance_weighted.py ........................        [ 50%]
+tests/unit/test_multimodal_fixes.py ......................               [ 54%]
+tests/unit/test_multimodal_path_security.py ..F.............             [ 56%]
+tests/unit/test_pydantic_contracts.py ....................               [ 59%]
+tests/unit/test_remediation_strategy.py ......................           [ 63%]
+tests/unit/test_review_enrichment_signal.py ....                         [ 63%]
+tests/unit/test_review_history_pagination.py ...F.............           [ 66%]
+tests/unit/test_story_30_24_boundary.py ................F..............F [ 71%]
+FFFF                                                                     [ 71%]
+tests/unit/test_story_33_10_runtime_defects.py ..............            [ 74%]
+tests/unit/test_story_38_3_fsrs_init_guarantee.py .....................  [ 77%]
+tests/unit/test_subject_resolver.py .................................... [ 82%]
+...                                                                      [ 83%]
+tests/unit/test_subjects_group_isolation.py ........                     [ 84%]
+tests/unit/test_wave5_stageb_continued_vault_id_injection.py ........... [ 86%]
+....................F....                                                [ 90%]
+tests/unit/test_wave5_stageb_vault_id_injection.py ..................... [ 93%]
+.......                                                                  [ 94%]
+tests/unit/test_websocket_endpoints.py .............................F... [ 99%]
+....                                                                     [100%]
+
+=================================== FAILURES ===================================
+________ TestNodeIdPatternConsistency.test_pattern_matches_json_schema _________
+tests/contract/test_node_id_patterns.py:157: in test_pattern_matches_json_schema
+    with open(schema_path, "r", encoding="utf-8") as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   FileNotFoundError: [Errno 2] No such file or directory: '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/specs/data/canvas-node.schema.json'
+____________ TestSubjectIsolation.test_group_id_extraction_chinese _____________
+tests/unit/grouping/test_analyze_canvas.py:123: in test_group_id_extraction_chinese
+    assert result.subject_group_id == "数学:离散数学"
+E   AssertionError: assert 'vault:default:数学' == '数学:离散数学'
+E     
+E     - 数学:离散数学
+E     + vault:default:数学
+---------------------------- Captured stdout setup -----------------------------
+{"event": "IntelligentGroupingService initialized with base_path: /test/path", "logger": "app.services.intelligent_grouping_service", "level": "info", "timestamp": "2026-09-07T22:48:09.102079Z"}
+------------------------------ Captured log setup ------------------------------
+INFO     app.services.intelligent_grouping_service:intelligent_grouping_service.py:158 {'event': 'IntelligentGroupingService initialized with base_path: /test/path', 'logger': 'app.services.intelligent_grouping_service', 'level': 'info', 'timestamp': '2026-09-07T22:48:09.102079Z'}
+----------------------------- Captured stdout call -----------------------------
+{"event": "analyze_canvas called: path=\u6570\u5b66/\u79bb\u6563\u6570\u5b66.canvas, color=3, max_groups=None, min_nodes=2", "logger": "app.services.intelligent_grouping_service", "level": "info", "timestamp": "2026-09-07T22:48:09.103242Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.intelligent_grouping_service:intelligent_grouping_service.py:193 {'event': 'analyze_canvas called: path=数学/离散数学.canvas, color=3, max_groups=None, min_nodes=2', 'logger': 'app.services.intelligent_grouping_service', 'level': 'info', 'timestamp': '2026-09-07T22:48:09.103242Z'}
+___________ TestSubjectIsolation.test_group_id_with_skip_directories ___________
+tests/unit/grouping/test_analyze_canvas.py:141: in test_group_id_with_skip_directories
+    assert result.subject_group_id == "物理:力学"
+E   AssertionError: assert 'vault:default:物理' == '物理:力学'
+E     
+E     - 物理:力学
+E     + vault:default:物理
+---------------------------- Captured stdout setup -----------------------------
+{"event": "IntelligentGroupingService initialized with base_path: /test/path", "logger": "app.services.intelligent_grouping_service", "level": "info", "timestamp": "2026-09-07T22:48:09.107768Z"}
+------------------------------ Captured log setup ------------------------------
+INFO     app.services.intelligent_grouping_service:intelligent_grouping_service.py:158 {'event': 'IntelligentGroupingService initialized with base_path: /test/path', 'logger': 'app.services.intelligent_grouping_service', 'level': 'info', 'timestamp': '2026-09-07T22:48:09.107768Z'}
+----------------------------- Captured stdout call -----------------------------
+{"event": "analyze_canvas called: path=\u7b14\u8bb0\u5e93/\u7269\u7406/\u529b\u5b66.canvas, color=3, max_groups=None, min_nodes=2", "logger": "app.services.intelligent_grouping_service", "level": "info", "timestamp": "2026-09-07T22:48:09.108951Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.intelligent_grouping_service:intelligent_grouping_service.py:193 {'event': 'analyze_canvas called: path=笔记库/物理/力学.canvas, color=3, max_groups=None, min_nodes=2', 'logger': 'app.services.intelligent_grouping_service', 'level': 'info', 'timestamp': '2026-09-07T22:48:09.108951Z'}
+______ TestGetDifficultyData.test_memory_service_unavailable_returns_none ______
+tests/unit/test_difficulty_canvas_integration.py:156: in test_memory_service_unavailable_returns_none
+    result = await _get_difficulty_data(sample_nodes, "test_canvas")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app/api/v1/endpoints/review.py:281: in _get_difficulty_data
+    memory_service = await get_memory_service()
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/unittest/mock.py:2333: in _execute_mock_call
+    raise effect
+E   Exception: MemoryService unavailable
+_____ TestAIQuestionDifficultyInjection.test_difficulty_context_in_prompt ______
+tests/unit/test_difficulty_canvas_integration.py:432: in test_difficulty_context_in_prompt
+    await review_mod._generate_ai_questions(sample_nodes, difficulty_map_mixed)
+app/api/v1/endpoints/review.py:448: in _generate_ai_questions
+    agent_service.call_agent(AgentType.VERIFICATION_QUESTION, prompt),
+                             ^^^^^^^^^
+E   NameError: name 'AgentType' is not defined
+___ TestAIQuestionDifficultyInjection.test_no_difficulty_map_no_extra_fields ___
+tests/unit/test_difficulty_canvas_integration.py:476: in test_no_difficulty_map_no_extra_fields
+    await review_mod._generate_ai_questions(sample_nodes, None)
+app/api/v1/endpoints/review.py:448: in _generate_ai_questions
+    agent_service.call_agent(AgentType.VERIFICATION_QUESTION, prompt),
+                             ^^^^^^^^^
+E   NameError: name 'AgentType' is not defined
+____________ TestProgressEndpoint.test_progress_invalid_session_404 ____________
+tests/unit/test_intelligent_parallel_endpoints.py:437: in test_progress_invalid_session_404
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+E   assert 500 == 404
+E    +  where 500 = <Response [500 Internal Server Error]>.status_code
+E    +  and   404 = status.HTTP_404_NOT_FOUND
+---------------------------- Captured stdout setup -----------------------------
+{"event": "IntelligentParallelService: batch_orchestrator not injected \u2014 batch execution will fail", "logger": "app.services.intelligent_parallel_service", "level": "warning", "timestamp": "2026-09-07T22:48:15.597299Z"}
+{"event": "IntelligentParallelService initialized with real service dependencies", "logger": "app.services.intelligent_parallel_service", "level": "info", "timestamp": "2026-09-07T22:48:15.597461Z"}
+------------------------------ Captured log setup ------------------------------
+WARNING  app.services.intelligent_parallel_service:intelligent_parallel_service.py:107 {'event': 'IntelligentParallelService: batch_orchestrator not injected — batch execution will fail', 'logger': 'app.services.intelligent_parallel_service', 'level': 'warning', 'timestamp': '2026-09-07T22:48:15.597299Z'}
+INFO     app.services.intelligent_parallel_service:intelligent_parallel_service.py:122 {'event': 'IntelligentParallelService initialized with real service dependencies', 'logger': 'app.services.intelligent_parallel_service', 'level': 'info', 'timestamp': '2026-09-07T22:48:15.597461Z'}
+----------------------------- Captured stdout call -----------------------------
+{"event": "get_session_status called: session_id=nonexistent-session", "request_id": "5247834960", "logger": "app.services.intelligent_parallel_service", "level": "info", "timestamp": "2026-09-07T22:48:15.598915Z"}
+{"method": "GET", "path": "/api/v1/canvas/intelligent-parallel/nonexistent-session", "endpoint": "/api/v1/canvas/intelligent-parallel/nonexistent-session", "status": 500, "duration_ms": 0.81, "event": "request.completed", "request_id": "5247834960", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T22:48:15.599291Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.intelligent_parallel_service:intelligent_parallel_service.py:324 {'event': 'get_session_status called: session_id=nonexistent-session', 'request_id': '5247834960', 'logger': 'app.services.intelligent_parallel_service', 'level': 'info', 'timestamp': '2026-09-07T22:48:15.598915Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/canvas/intelligent-parallel/nonexistent-session', 'endpoint': '/api/v1/canvas/intelligent-parallel/nonexistent-session', 'status': 500, 'duration_ms': 0.81, 'event': 'request.completed', 'request_id': '5247834960', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T22:48:15.599291Z'}
+________________ TestCancelEndpoint.test_cancel_running_session ________________
+tests/unit/test_intelligent_parallel_endpoints.py:458: in test_cancel_running_session
+    assert response.status_code == status.HTTP_200_OK
+E   assert 409 == 200
+E    +  where 409 = <Response [409 Conflict]>.status_code
+E    +  and   200 = status.HTTP_200_OK
+---------------------------- Captured stdout setup -----------------------------
+{"event": "IntelligentParallelService: batch_orchestrator not injected \u2014 batch execution will fail", "logger": "app.services.intelligent_parallel_service", "level": "warning", "timestamp": "2026-09-07T22:48:15.606912Z"}
+{"event": "IntelligentParallelService initialized with real service dependencies", "logger": "app.services.intelligent_parallel_service", "level": "info", "timestamp": "2026-09-07T22:48:15.607046Z"}
+------------------------------ Captured log setup ------------------------------
+WARNING  app.services.intelligent_parallel_service:intelligent_parallel_service.py:107 {'event': 'IntelligentParallelService: batch_orchestrator not injected — batch execution will fail', 'logger': 'app.services.intelligent_parallel_service', 'level': 'warning', 'timestamp': '2026-09-07T22:48:15.606912Z'}
+INFO     app.services.intelligent_parallel_service:intelligent_parallel_service.py:122 {'event': 'IntelligentParallelService initialized with real service dependencies', 'logger': 'app.services.intelligent_parallel_service', 'level': 'info', 'timestamp': '2026-09-07T22:48:15.607046Z'}
+----------------------------- Captured stdout call -----------------------------
+{"event": "cancel_session called: session_id=parallel-20260209-abc123", "request_id": "5247834000", "logger": "app.services.intelligent_parallel_service", "level": "info", "timestamp": "2026-09-07T22:48:15.608736Z"}
+{"method": "POST", "path": "/api/v1/canvas/intelligent-parallel/cancel/parallel-20260209-abc123", "endpoint": "/api/v1/canvas/intelligent-parallel/cancel/parallel-20260209-abc123", "status": 409, "duration_ms": 1.62, "event": "request.completed", "request_id": "5247834000", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T22:48:15.609612Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.intelligent_parallel_service:intelligent_parallel_service.py:479 {'event': 'cancel_session called: session_id=parallel-20260209-abc123', 'request_id': '5247834000', 'logger': 'app.services.intelligent_parallel_service', 'level': 'info', 'timestamp': '2026-09-07T22:48:15.608736Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/canvas/intelligent-parallel/cancel/parallel-20260209-abc123', 'endpoint': '/api/v1/canvas/intelligent-parallel/cancel/parallel-20260209-abc123', 'status': 409, 'duration_ms': 1.62, 'event': 'request.completed', 'request_id': '5247834000', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T22:48:15.609612Z'}
+____________ TestCancelEndpoint.test_cancel_nonexistent_session_404 ____________
+tests/unit/test_intelligent_parallel_endpoints.py:479: in test_cancel_nonexistent_session_404
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+E   assert 500 == 404
+E    +  where 500 = <Response [500 Internal Server Error]>.status_code
+E    +  and   404 = status.HTTP_404_NOT_FOUND
+---------------------------- Captured stdout setup -----------------------------
+{"event": "IntelligentParallelService: batch_orchestrator not injected \u2014 batch execution will fail", "logger": "app.services.intelligent_parallel_service", "level": "warning", "timestamp": "2026-09-07T22:48:15.617831Z"}
+{"event": "IntelligentParallelService initialized with real service dependencies", "logger": "app.services.intelligent_parallel_service", "level": "info", "timestamp": "2026-09-07T22:48:15.617994Z"}
+------------------------------ Captured log setup ------------------------------
+WARNING  app.services.intelligent_parallel_service:intelligent_parallel_service.py:107 {'event': 'IntelligentParallelService: batch_orchestrator not injected — batch execution will fail', 'logger': 'app.services.intelligent_parallel_service', 'level': 'warning', 'timestamp': '2026-09-07T22:48:15.617831Z'}
+INFO     app.services.intelligent_parallel_service:intelligent_parallel_service.py:122 {'event': 'IntelligentParallelService initialized with real service dependencies', 'logger': 'app.services.intelligent_parallel_service', 'level': 'info', 'timestamp': '2026-09-07T22:48:15.617994Z'}
+----------------------------- Captured stdout call -----------------------------
+{"event": "cancel_session called: session_id=nonexistent-session", "request_id": "5247831504", "logger": "app.services.intelligent_parallel_service", "level": "info", "timestamp": "2026-09-07T22:48:15.619677Z"}
+{"method": "POST", "path": "/api/v1/canvas/intelligent-parallel/cancel/nonexistent-session", "endpoint": "/api/v1/canvas/intelligent-parallel/cancel/nonexistent-session", "status": 500, "duration_ms": 0.93, "event": "request.completed", "request_id": "5247831504", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T22:48:15.620099Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.intelligent_parallel_service:intelligent_parallel_service.py:479 {'event': 'cancel_session called: session_id=nonexistent-session', 'request_id': '5247831504', 'logger': 'app.services.intelligent_parallel_service', 'level': 'info', 'timestamp': '2026-09-07T22:48:15.619677Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/canvas/intelligent-parallel/cancel/nonexistent-session', 'endpoint': '/api/v1/canvas/intelligent-parallel/cancel/nonexistent-session', 'status': 500, 'duration_ms': 0.93, 'event': 'request.completed', 'request_id': '5247831504', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T22:48:15.620099Z'}
+___________________ TestErrorResponses.test_404_error_format ___________________
+tests/unit/test_intelligent_parallel_endpoints.py:581: in test_404_error_format
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+E   assert 500 == 404
+E    +  where 500 = <Response [500 Internal Server Error]>.status_code
+E    +  and   404 = status.HTTP_404_NOT_FOUND
+---------------------------- Captured stdout setup -----------------------------
+{"event": "IntelligentParallelService: batch_orchestrator not injected \u2014 batch execution will fail", "logger": "app.services.intelligent_parallel_service", "level": "warning", "timestamp": "2026-09-07T22:48:15.646112Z"}
+{"event": "IntelligentParallelService initialized with real service dependencies", "logger": "app.services.intelligent_parallel_service", "level": "info", "timestamp": "2026-09-07T22:48:15.646244Z"}
+------------------------------ Captured log setup ------------------------------
+WARNING  app.services.intelligent_parallel_service:intelligent_parallel_service.py:107 {'event': 'IntelligentParallelService: batch_orchestrator not injected — batch execution will fail', 'logger': 'app.services.intelligent_parallel_service', 'level': 'warning', 'timestamp': '2026-09-07T22:48:15.646112Z'}
+INFO     app.services.intelligent_parallel_service:intelligent_parallel_service.py:122 {'event': 'IntelligentParallelService initialized with real service dependencies', 'logger': 'app.services.intelligent_parallel_service', 'level': 'info', 'timestamp': '2026-09-07T22:48:15.646244Z'}
+----------------------------- Captured stdout call -----------------------------
+{"event": "get_session_status called: session_id=nonexistent-session", "request_id": "5247586128", "logger": "app.services.intelligent_parallel_service", "level": "info", "timestamp": "2026-09-07T22:48:15.647623Z"}
+{"method": "GET", "path": "/api/v1/canvas/intelligent-parallel/nonexistent-session", "endpoint": "/api/v1/canvas/intelligent-parallel/nonexistent-session", "status": 500, "duration_ms": 0.75, "event": "request.completed", "request_id": "5247586128", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T22:48:15.647956Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.intelligent_parallel_service:intelligent_parallel_service.py:324 {'event': 'get_session_status called: session_id=nonexistent-session', 'request_id': '5247586128', 'logger': 'app.services.intelligent_parallel_service', 'level': 'info', 'timestamp': '2026-09-07T22:48:15.647623Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/canvas/intelligent-parallel/nonexistent-session', 'endpoint': '/api/v1/canvas/intelligent-parallel/nonexistent-session', 'status': 500, 'duration_ms': 0.75, 'event': 'request.completed', 'request_id': '5247586128', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T22:48:15.647956Z'}
+____________ TestValidateSafePath.test_path_traversal_windows_style ____________
+tests/unit/test_multimodal_path_security.py:64: in test_path_traversal_windows_style
+    with pytest.raises(MultimodalServiceError, match="path traversal"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE <class 'app.services.multimodal_service.MultimodalServiceError'>
+---------------------------- Captured stdout setup -----------------------------
+{"event": "MultimodalStore not available \u2014 using JSON file persistence at /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19173/test_path_traversal_windows_st0/content_index.json. Data will survive restarts but advanced features (vector search) are disabled.", "logger": "app.services.multimodal_service", "level": "warning", "timestamp": "2026-09-07T22:48:15.905268Z"}
+------------------------------ Captured log setup ------------------------------
+WARNING  app.services.multimodal_service:multimodal_service.py:198 {'event': 'MultimodalStore not available — using JSON file persistence at /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19173/test_path_traversal_windows_st0/content_index.json. Data will survive restarts but advanced features (vector search) are disabled.', 'logger': 'app.services.multimodal_service', 'level': 'warning', 'timestamp': '2026-09-07T22:48:15.905268Z'}
+_________ TestHistoryAPIEndpoint.test_endpoint_accepts_limit_parameter _________
+live Neo4j port connect attempted —— 本用例期间有 1 次到现网 Neo4j 的连接尝试被拦下。
+（连接处抛出的异常被 app/main.py 的 lifespan try/except 吞掉了，
+  所以由本哨兵把它转成用例失败——否则这道门什么都证明不了。）
+  - ('::1', 7691, 0, 0) on thread asyncio-portal-1471d9390 (owner=tests/unit/test_review_history_pagination.py::TestHistoryAPIEndpoint::test_endpoint_accepts_limit_parameter)
+----------------------------- Captured stdout call -----------------------------
+{"event": "Wave-5 Stage B: review endpoint both vault_id and group_id missing, falling back to DEFAULT_GROUP_ID", "request_id": "5247006864", "logger": "app.api.v1.endpoints.review", "level": "warning", "timestamp": "2026-09-07T22:48:16.041975Z"}
+{"event": "GET /review/history days=7 limit=5 show_all=False concept=None", "request_id": "5247006864", "logger": "app.api.v1.endpoints.review", "level": "info", "timestamp": "2026-09-07T22:48:16.042076Z"}
+{"event": "Creating MemoryService singleton instance", "request_id": "5247006864", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-07T22:48:16.042147Z"}
+{"event": "Neo4jClient initialized: mode=NEO4J, uri=bolt://localhost:7691, pool_size=50", "request_id": "5247006864", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-07T22:48:16.042253Z"}
+{"event": "Neo4j health check failed: live Neo4j port connect attempted: ('::1', 7691, 0, 0). \u53d7\u62e6\u7aef\u53e3 [7687, 7691] \u662f\u73b0\u7f51 Neo4j\uff1b\u6d4b\u8bd5\u8fdb\u7a0b\u4e0d\u5f97\u8fde\u63a5\u3002\u82e5\u8fd9\u662f\u7aef\u70b9\u6d4b\u8bd5\uff0c\u8bf7\u7528 backend/tests/support/lifespan.py::no_lifespan \u5173\u6389 app.main \u7684 lifespan\uff1b\u82e5\u786e\u9700\u771f\u5e93\uff0c\u7528\u6d4b\u8bd5\u5bb9\u5668 NEO4J_TEST_URI(7692) \u5e76\u6253 integration/real_neo4j marker\u3002", "request_id": "5247006864", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-07T22:48:16.043887Z"}
+{"event": "Neo4j health check failed during initialization", "request_id": "5247006864", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-07T22:48:16.044008Z"}
+{"event": "Falling back to JSON storage mode", "request_id": "5247006864", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-07T22:48:16.044050Z"}
+{"event": "Neo4j driver closed", "request_id": "5247006864", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-07T22:48:16.044097Z"}
+{"event": "Loaded 0 relationships from /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/data/neo4j_memory.json", "request_id": "5247006864", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-07T22:48:16.044298Z"}
+{"event": "MemoryService: recovered 0 episodes from Neo4j (0 returned, 0 deduped)", "request_id": "5247006864", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-07T22:48:16.045014Z"}
+{"event": "MemoryService initialized successfully", "request_id": "5247006864", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-07T22:48:16.045115Z"}
+{"event": "MemoryService singleton initialized", "request_id": "5247006864", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-07T22:48:16.045159Z"}
+{"event": "BackgroundTaskManager initialized", "request_id": "5247006864", "logger": "app.services.background_task_manager", "level": "info", "timestamp": "2026-09-07T22:48:16.045311Z"}
+{"event": "Initialized FSRS scheduler with retention=0.9", "request_id": "5247006864", "logger": "memory.temporal.fsrs_manager", "level": "info", "timestamp": "2026-09-07T22:48:16.045389Z"}
+{"event": "FSRSManager created (desired_retention=0.9)", "request_id": "5247006864", "logger": "app.services.review_service", "level": "info", "timestamp": "2026-09-07T22:48:16.045415Z"}
+{"event": "GraphitiTemporalClient singleton initialized with Neo4jClient (mode=JSON_FALLBACK)", "request_id": "5247006864", "logger": "app.dependencies", "level": "info", "timestamp": "2026-09-07T22:48:16.045513Z"}
+{"event": "FSRS manager initialized successfully", "request_id": "5247006864", "logger": "app.services.review_service", "level": "info", "timestamp": "2026-09-07T22:48:16.045540Z"}
+{"event": "ReviewService singleton created via services layer factory", "request_id": "5247006864", "logger": "app.services.review_service", "level": "info", "timestamp": "2026-09-07T22:48:16.045605Z"}
+{"event": "Loaded 0 learning memories", "request_id": "5247006864", "logger": "app.clients.neo4j_edge_client", "level": "info", "timestamp": "2026-09-07T22:48:16.046027Z"}
+{"event": "Found 0 history records from Graphiti", "request_id": "5247006864", "logger": "app.services.review_service", "level": "info", "timestamp": "2026-09-07T22:48:16.046115Z"}
+{"method": "GET", "path": "/api/v1/review/history", "endpoint": "/api/v1/review/history", "status": 200, "duration_ms": 5.82, "event": "request.completed", "request_id": "5247006864", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T22:48:16.046583Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.api.v1.endpoints.review:review.py:55 Wave-5 Stage B: review endpoint both vault_id and group_id missing, falling back to DEFAULT_GROUP_ID
+INFO     app.api.v1.endpoints.review:review.py:660 GET /review/history days=7 limit=5 show_all=False concept=None
+INFO     app.services.memory_service:memory_service.py:2910 {'event': 'Creating MemoryService singleton instance', 'request_id': '5247006864', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-07T22:48:16.042147Z'}
+INFO     app.clients.neo4j_client:neo4j_client.py:317 Neo4jClient initialized: mode=NEO4J, uri=bolt://localhost:7691, pool_size=50
+WARNING  app.clients.neo4j_client:neo4j_client.py:532 Neo4j health check failed: live Neo4j port connect attempted: ('::1', 7691, 0, 0). 受拦端口 [7687, 7691] 是现网 Neo4j；测试进程不得连接。若这是端点测试，请用 backend/tests/support/lifespan.py::no_lifespan 关掉 app.main 的 lifespan；若确需真库，用测试容器 NEO4J_TEST_URI(7692) 并打 integration/real_neo4j marker。
+WARNING  app.clients.neo4j_client:neo4j_client.py:408 Neo4j health check failed during initialization
+WARNING  app.clients.neo4j_client:neo4j_client.py:430 Falling back to JSON storage mode
+INFO     app.clients.neo4j_client:neo4j_client.py:497 Neo4j driver closed
+INFO     app.clients.neo4j_client:neo4j_client.py:451 Loaded 0 relationships from /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/data/neo4j_memory.json
+INFO     app.services.memory_service:memory_service.py:428 {'event': 'MemoryService: recovered 0 episodes from Neo4j (0 returned, 0 deduped)', 'request_id': '5247006864', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-07T22:48:16.045014Z'}
+INFO     app.services.memory_service:memory_service.py:284 {'event': 'MemoryService initialized successfully', 'request_id': '5247006864', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-07T22:48:16.045115Z'}
+INFO     app.services.memory_service:memory_service.py:2915 {'event': 'MemoryService singleton initialized', 'request_id': '5247006864', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-07T22:48:16.045159Z'}
+INFO     app.services.background_task_manager:background_task_manager.py:109 {'event': 'BackgroundTaskManager initialized', 'request_id': '5247006864', 'logger': 'app.services.background_task_manager', 'level': 'info', 'timestamp': '2026-09-07T22:48:16.045311Z'}
+INFO     memory.temporal.fsrs_manager:fsrs_manager.py:127 Initialized FSRS scheduler with retention=0.9
+INFO     app.services.review_service:review_service.py:442 {'event': 'FSRSManager created (desired_retention=0.9)', 'request_id': '5247006864', 'logger': 'app.services.review_service', 'level': 'info', 'timestamp': '2026-09-07T22:48:16.045415Z'}
+INFO     app.dependencies:dependencies.py:792 GraphitiTemporalClient singleton initialized with Neo4jClient (mode=JSON_FALLBACK)
+INFO     app.services.review_service:review_service.py:504 {'event': 'FSRS manager initialized successfully', 'request_id': '5247006864', 'logger': 'app.services.review_service', 'level': 'info', 'timestamp': '2026-09-07T22:48:16.045540Z'}
+INFO     app.services.review_service:review_service.py:2732 {'event': 'ReviewService singleton created via services layer factory', 'request_id': '5247006864', 'logger': 'app.services.review_service', 'level': 'info', 'timestamp': '2026-09-07T22:48:16.045605Z'}
+INFO     app.clients.neo4j_edge_client:neo4j_edge_client.py:797 Loaded 0 learning memories
+INFO     app.services.review_service:review_service.py:1581 {'event': 'Found 0 history records from Graphiti', 'request_id': '5247006864', 'logger': 'app.services.review_service', 'level': 'info', 'timestamp': '2026-09-07T22:48:16.046115Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/review/history', 'endpoint': '/api/v1/review/history', 'status': 200, 'duration_ms': 5.82, 'event': 'request.completed', 'request_id': '5247006864', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T22:48:16.046583Z'}
+_ TestSpecialCharacterGroupId.test_neo4j_parameterized_query_with_special_chars _
+tests/unit/test_story_30_24_boundary.py:187: in test_neo4j_parameterized_query_with_special_chars
+    assert all_kwargs.get("groupId") == malicious_group_id, (
+E   AssertionError: groupId not passed as keyword param. kwargs={'userId': 'test_user', 'limit': 5, 'group_id': 'vault__script_drop_table_users', 'group_prefix': 'vault__script_drop_table_users__'}
+E   assert None == "<script>'; DROP TABLE users;--"
+E    +  where None = <built-in method get of dict object at 0x14788a980>('groupId')
+E    +    where <built-in method get of dict object at 0x14788a980> = {'group_id': 'vault__script_drop_table_users', 'group_prefix': 'vault__script_drop_table_users__', 'limit': 5, 'userId': 'test_user'}.get
+----------------------------- Captured stdout call -----------------------------
+{"event": "Neo4jClient initialized: mode=NEO4J, uri=bolt://localhost:7687, pool_size=50", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-07T22:48:16.095942Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.clients.neo4j_client:neo4j_client.py:317 Neo4jClient initialized: mode=NEO4J, uri=bolt://localhost:7687, pool_size=50
+______________ TestVaultVerifyExitCode.test_verify_script_exists _______________
+tests/unit/test_story_30_24_boundary.py:473: in test_verify_script_exists
+    assert self.VERIFY_SCRIPT.exists(), (
+E   AssertionError: verify script not found: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/canvas-progress-tracker/obsidian-plugin/scripts/verify-vault.mjs
+E   assert False
+E    +  where False = exists()
+E    +    where exists = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/canvas-progress-tracker/obsidian-plugin/scripts/verify-vault.mjs').exists
+E    +      where PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/canvas-progress-tracker/obsidian-plugin/scripts/verify-vault.mjs') = <tests.unit.test_story_30_24_boundary.TestVaultVerifyExitCode object at 0x146405d10>.VERIFY_SCRIPT
+_ TestVaultVerifyExitCode.test_verify_script_exits_nonzero_when_file_not_found _
+tests/unit/test_story_30_24_boundary.py:497: in test_verify_script_exits_nonzero_when_file_not_found
+    assert "NOT FOUND" in output
+E   assert 'NOT FOUND' in "node:internal/modules/cjs/loader:1503\n  throw err;\n  ^\n\nError: Cannot find module '/Users/Heishing/Desktop/canvas...t node:internal/main/run_main_module:33:47 {\n  code: 'MODULE_NOT_FOUND',\n  requireStack: []\n}\n\nNode.js v24.16.0\n"
+_____ TestVaultVerifyExitCode.test_verify_script_exits_nonzero_when_stale ______
+tests/unit/test_story_30_24_boundary.py:511: in test_verify_script_exits_nonzero_when_stale
+    assert "STALE" in (result.stdout or "")
+E   assert 'STALE' in (('' or ''))
+E    +  where '' = CompletedProcess(args=['node', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyrigh... node:internal/main/run_main_module:33:47 {\n  code: 'MODULE_NOT_FOUND',\n  requireStack: []\n}\n\nNode.js v24.16.0\n").stdout
+_______ TestVaultVerifyExitCode.test_verify_script_exits_zero_when_fresh _______
+tests/unit/test_story_30_24_boundary.py:522: in test_verify_script_exits_zero_when_fresh
+    assert result.returncode == 0
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['node', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyrigh... node:internal/main/run_main_module:33:47 {\n  code: 'MODULE_NOT_FOUND',\n  requireStack: []\n}\n\nNode.js v24.16.0\n").returncode
+_______ TestVaultVerifyExitCode.test_package_json_verify_command_correct _______
+tests/unit/test_story_30_24_boundary.py:528: in test_package_json_verify_command_correct
+    assert pkg_json_path.exists()
+E   AssertionError: assert False
+E    +  where False = exists()
+E    +    where exists = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/canvas-progress-tracker/obsidian-plugin/package.json').exists
+_ TestSharedResolverImportedByEndpoints.test_endpoint_imports_shared_resolver[app.api.v1.endpoints.agents] _
+tests/unit/test_wave5_stageb_continued_vault_id_injection.py:437: in test_endpoint_imports_shared_resolver
+    assert hasattr(module, "resolve_vault_group_id"), (
+E   AssertionError: app.api.v1.endpoints.agents did not import resolve_vault_group_id from _vault_id_resolver
+E   assert False
+E    +  where False = hasattr(<module 'app.api.v1.endpoints.agents' from '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/api/v1/endpoints/agents.py'>, 'resolve_vault_group_id')
+_____ TestWebSocketEndpoint.test_validate_session_handles_validator_error ______
+tests/unit/test_websocket_endpoints.py:538: in test_validate_session_handles_validator_error
+    result = await validate_session("any-session")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app/api/v1/endpoints/websocket.py:79: in validate_session
+    return await _session_validator(session_id)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/unit/test_websocket_endpoints.py:533: in failing_validator
+    raise Exception("Validator error")
+E   Exception: Validator error
+----------------------------- Captured stdout call -----------------------------
+{"event": "Session validator set for WebSocket endpoint", "logger": "app.api.v1.endpoints.websocket", "level": "info", "timestamp": "2026-09-07T22:48:16.858715Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.api.v1.endpoints.websocket:websocket.py:58 Session validator set for WebSocket endpoint
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:805
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/api/v1/endpoints/chat.py:805: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:105
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/api/v1/endpoints/metadata.py:105: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:179
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/api/v1/endpoints/metadata.py:179: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+tests/unit/test_archive_legacy_lance_tables_g24.py::test_archive_survives_client_schema_repair
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/lib/agentic_rag/clients/lancedb_client.py:955: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    table_names = self._db.table_names()
+
+tests/unit/test_archive_legacy_lance_tables_g24.py::test_archive_survives_client_schema_repair
+tests/unit/test_archive_legacy_lance_tables_g24.py::test_archive_survives_client_schema_repair
+tests/unit/test_archive_legacy_lance_tables_g24.py::test_archive_survives_client_schema_repair
+  /opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/asyncio/events.py:94: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    self._context.run(self._callback, *self._args)
+
+tests/unit/test_archive_legacy_lance_tables_g24.py::test_archive_survives_client_schema_repair
+tests/unit/test_archive_legacy_lance_tables_g24.py::test_archive_survives_client_schema_repair
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/lib/agentic_rag/clients/lancedb_client.py:3650: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    if table_name not in self._db.table_names():
+
+tests/unit/test_edge_rationale_fallback.py::test_both_writes_succeed_returns_200
+tests/unit/test_edge_rationale_fallback.py::test_graphiti_ok_lancedb_fail_returns_207
+tests/unit/test_edge_rationale_fallback.py::test_lancedb_ok_graphiti_fail_returns_207
+tests/unit/test_edge_rationale_fallback.py::test_both_writes_fail_returns_500
+tests/unit/test_edge_rationale_fallback.py::test_graphiti_exception_does_not_block_lancedb
+tests/unit/test_edge_rationale_fallback.py::test_lancedb_exception_does_not_block_graphiti
+tests/unit/test_edge_rationale_fallback.py::test_partial_failure_includes_error_details
+tests/unit/test_edge_rationale_fallback.py::test_strategy_fields_accepted
+tests/unit/test_edge_rationale_fallback.py::test_strategy_fields_defaults
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/api/v1/endpoints/edges.py:297: DeprecationWarning: deprecated
+    legacy_group_id=rationale.group_id,
+
+tests/unit/test_edge_rationale_fallback.py: 12 warnings
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/models/edge_rationale.py:115: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    default_factory=lambda: datetime.utcnow().isoformat(),
+
+tests/unit/test_intelligent_parallel_endpoints.py::TestAnalyzeEndpoint::test_analyze_invalid_color
+tests/unit/test_intelligent_parallel_endpoints.py::TestConfirmEndpoint::test_confirm_timeout_validation
+  /opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/asyncio/events.py:94: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY' is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.
+    self._context.run(self._callback, *self._args)
+
+tests/unit/test_wave5_stageb_continued_vault_id_injection.py::TestSyncBatchRequestVaultId::test_sync_batch_has_deprecated_group_id
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/tests/unit/test_wave5_stageb_continued_vault_id_injection.py:218: DeprecationWarning: deprecated
+    assert req.group_id == "cs188"
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=1 (blocked=1, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/contract/test_node_id_patterns.py::TestNodeIdPatternConsistency::test_pattern_matches_json_schema
+FAILED tests/unit/grouping/test_analyze_canvas.py::TestSubjectIsolation::test_group_id_extraction_chinese
+FAILED tests/unit/grouping/test_analyze_canvas.py::TestSubjectIsolation::test_group_id_with_skip_directories
+FAILED tests/unit/test_difficulty_canvas_integration.py::TestGetDifficultyData::test_memory_service_unavailable_returns_none
+FAILED tests/unit/test_difficulty_canvas_integration.py::TestAIQuestionDifficultyInjection::test_difficulty_context_in_prompt
+FAILED tests/unit/test_difficulty_canvas_integration.py::TestAIQuestionDifficultyInjection::test_no_difficulty_map_no_extra_fields
+FAILED tests/unit/test_intelligent_parallel_endpoints.py::TestProgressEndpoint::test_progress_invalid_session_404
+FAILED tests/unit/test_intelligent_parallel_endpoints.py::TestCancelEndpoint::test_cancel_running_session
+FAILED tests/unit/test_intelligent_parallel_endpoints.py::TestCancelEndpoint::test_cancel_nonexistent_session_404
+FAILED tests/unit/test_intelligent_parallel_endpoints.py::TestErrorResponses::test_404_error_format
+FAILED tests/unit/test_multimodal_path_security.py::TestValidateSafePath::test_path_traversal_windows_style
+FAILED tests/unit/test_review_history_pagination.py::TestHistoryAPIEndpoint::test_endpoint_accepts_limit_parameter
+FAILED tests/unit/test_story_30_24_boundary.py::TestSpecialCharacterGroupId::test_neo4j_parameterized_query_with_special_chars
+FAILED tests/unit/test_story_30_24_boundary.py::TestVaultVerifyExitCode::test_verify_script_exists
+FAILED tests/unit/test_story_30_24_boundary.py::TestVaultVerifyExitCode::test_verify_script_exits_nonzero_when_file_not_found
+FAILED tests/unit/test_story_30_24_boundary.py::TestVaultVerifyExitCode::test_verify_script_exits_nonzero_when_stale
+FAILED tests/unit/test_story_30_24_boundary.py::TestVaultVerifyExitCode::test_verify_script_exits_zero_when_fresh
+FAILED tests/unit/test_story_30_24_boundary.py::TestVaultVerifyExitCode::test_package_json_verify_command_correct
+FAILED tests/unit/test_wave5_stageb_continued_vault_id_injection.py::TestSharedResolverImportedByEndpoints::test_endpoint_imports_shared_resolver[app.api.v1.endpoints.agents]
+FAILED tests/unit/test_websocket_endpoints.py::TestWebSocketEndpoint::test_validate_session_handles_validator_error
+=========== 20 failed, 631 passed, 2 skipped, 40 warnings in 10.64s ============

@@ -645,7 +645,7 @@ class ExtractConversationRequest(BaseModel):
     """Request for sidecar fallback conversation extraction."""
 
     node_id: str = Field(..., description="Canvas node identifier")
-    session_id: str = Field("", description="Dialogue session identifier")
+    session_id: str = Field(default="", description="Dialogue session identifier")
     messages: List[dict] = Field(
         ..., description="List of {role, content} message dicts"
     )

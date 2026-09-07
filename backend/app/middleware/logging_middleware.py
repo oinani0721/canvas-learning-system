@@ -18,10 +18,9 @@ Features:
 
 import time
 import uuid
-from typing import Callable
 
 import structlog
-from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import Response
 
@@ -66,7 +65,9 @@ class LoggingMiddleware(BaseHTTPMiddleware):
     async def dispatch(
         self,
         request: Request,
-        call_next: Callable[[Request], Response],
+        # starlette 的官方别名: Callable[[Request], Awaitable[Response]]。
+        # 原注解漏了 Awaitable ⇒ `await call_next(...)` 被判"Response 不可 await"。
+        call_next: RequestResponseEndpoint,
     ) -> Response:
         """
         Process the request and log entry/exit details.

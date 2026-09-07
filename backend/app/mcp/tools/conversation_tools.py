@@ -43,11 +43,11 @@ class ArchiveConversationInput(BaseModel):
         description="Key learning insights extracted from the conversation.",
     )
     mastery_change: Optional[float] = Field(
-        None,
+        default=None,
         description="Change in mastery level during this conversation (-1.0 to 1.0).",
     )
     group_id: Optional[str] = Field(
-        None,
+        default=None,
         description=(
             "Graphiti group_id for memory isolation (D16 format, e.g. "
             "'vault:canvas_vault'). Falls back to the global default when omitted."
@@ -74,10 +74,10 @@ class CreateExamNodeInput(BaseModel):
     )
     exam_title: str = Field(..., description="Title for the exam node.")
     position_x: Optional[float] = Field(
-        None, description="X position on canvas (auto-placed if not specified)."
+        default=None, description="X position on canvas (auto-placed if not specified)."
     )
     position_y: Optional[float] = Field(
-        None, description="Y position on canvas (auto-placed if not specified)."
+        default=None, description="Y position on canvas (auto-placed if not specified)."
     )
 
 
@@ -87,7 +87,7 @@ class CreateExamNodeOutput(BaseModel):
     node_id: str = Field(..., description="The created exam node identifier")
     canvas_id: str
     edge_id: Optional[str] = Field(
-        None, description="Edge connecting exam node to source node"
+        default=None, description="Edge connecting exam node to source node"
     )
     status: str = "ok"
     message: str = ""

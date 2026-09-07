@@ -115,7 +115,8 @@ async def exam_grade(req: ExamGradeRequest) -> ExamGradeResponse:
             temperature=0.3,
             response_format={"type": "json_object"},
         )
-        raw_content = response.choices[0].message.content or ""
+        # 未传 stream=True ⇒ 运行期恒为 ModelResponse(非 CustomStreamWrapper)。
+        raw_content = response.choices[0].message.content or ""  # pyright: ignore[reportAttributeAccessIssue]  # 未传 stream=True ⇒ 运行期恒为 ModelResponse
         data = json.loads(raw_content)
 
         score_raw = int(data.get("score", 0))

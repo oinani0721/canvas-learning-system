@@ -131,7 +131,8 @@ async def index_image(request: ImageIndexRequest) -> ImageIndexResponse:
             response_format={"type": "json_object"},
         )
 
-        raw_content = response.choices[0].message.content
+        # 未传 stream=True ⇒ 运行期恒为 ModelResponse(非 CustomStreamWrapper)。
+        raw_content = response.choices[0].message.content  # pyright: ignore[reportAttributeAccessIssue]  # 未传 stream=True ⇒ 运行期恒为 ModelResponse
         if not raw_content:
             raise HTTPException(
                 status_code=502,

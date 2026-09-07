@@ -181,5 +181,6 @@ async def refresh_changed_paths(req: RefreshChangedRequest) -> RefreshChangedRes
     # CARD-G2-5 HIGH-3: 任一路径 durable 落盘失败 → 503 + 完整 body
     # （默认裁决: 全仓无活消费方; 消费方按 resp.model_dump() 拿到逐 path 状态）。
     if counts["persist_failed"]:
-        return JSONResponse(status_code=503, content=resp.model_dump())
+        # FastAPI 允许路由函数直接返回 Response 子类; 改注解会改 openapi 生成面。
+        return JSONResponse(status_code=503, content=resp.model_dump())  # pyright: ignore[reportReturnType]
     return resp

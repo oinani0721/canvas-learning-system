@@ -1,0 +1,15 @@
+APPLIED total 86 files 14
+  25 backend/app/api/v1/endpoints/rag.py
+  12 backend/app/mcp/tools/memory_tools.py
+   9 backend/app/mcp/tools/exam_tools.py
+   9 backend/app/mcp/tools/mastery_tools.py
+   5 backend/app/mcp/tools/conversation_tools.py
+   5 backend/app/mcp/tools/note_search_tools.py
+   4 backend/app/api/v1/endpoints/config.py
+   4 backend/app/api/v1/endpoints/profile.py
+   4 backend/app/core/bug_tracker.py
+   3 backend/app/api/v1/endpoints/monitoring.py
+   2 backend/app/api/v1/endpoints/inheritance.py
+   2 backend/app/api/v1/endpoints/wikilink.py
+   1 backend/app/api/v1/endpoints/memory.py
+   1 backend/app/mcp/tools/wikilink_tools.py

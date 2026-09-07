@@ -11,6 +11,7 @@ Provides endpoints for operation history, snapshots, and rollback functionality.
 import logging
 import sys
 from pathlib import Path
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, status
 
@@ -20,15 +21,22 @@ _project_root = Path(__file__).parent.parent.parent.parent.parent.parent
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
 
+# ⚠️ 类型层过门, 不改行为(TAIL T1): `src/` 全仓不存在(git ls-files src = 0),
+# 故下面的 import 恒失败, 五个名字恒为 None, 本文件所有端点恒返回 503。
+# 本卡只让类型检查通过, **不删端点、不改 503 行为** —— 该模块是保留还是
+# 退役(G-PIPE 断裂管道)是产品裁定, 另立卡。
+# 标 Any 而不是留裸 None: 留裸 None 会让每个使用点各报一次
+# 「Object of type None cannot be called」, 淹没真信号; Any 把
+# 「这几个名字的类型取决于一个当前不存在的模块」这件事说清楚。
 _rollback_available = False
-OperationTracker = None
-RollbackEngine = None
-RollbackType = None
-SnapshotManager = None
-SnapshotType = None
+OperationTracker: Any = None
+RollbackEngine: Any = None
+RollbackType: Any = None
+SnapshotManager: Any = None
+SnapshotType: Any = None
 
 try:
-    from src.rollback import (
+    from src.rollback import (  # pyright: ignore[reportMissingImports]  # 见上: src/ 不存在
         OperationTracker,
         RollbackEngine,
         RollbackType,

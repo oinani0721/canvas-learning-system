@@ -1,0 +1,18 @@
+== api
+21 errors, 9 warnings, 0 informations
+== clients
+0 errors, 3 warnings, 0 informations
+== mcp
+0 errors, 9 warnings, 0 informations
+== core
+0 errors, 3 warnings, 0 informations
+== models
+0 errors, 2 warnings, 0 informations
+== middleware
+0 errors, 3 warnings, 0 informations
+== root
+0 errors, 3 warnings, 0 informations
+api 总错 21
+api 剔共享后 = 10
+    10 api/v1/endpoints/exam.py
+api 剔共享且剔 exam.py 后 = 0

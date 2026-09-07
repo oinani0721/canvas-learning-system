@@ -1,0 +1,10 @@
+total errors 356
+  211 services
+   65 api
+   40 clients
+   20 mcp
+   11 core
+    7 middleware
+    1 root:dependencies.py
+    1 domains
+--- 非 services 合计: 145

@@ -208,7 +208,9 @@ async def metrics_middleware(request: Request, call_next: Callable) -> Response:
         >>> async def add_metrics(request, call_next):
         >>>     return await metrics_middleware(request, call_next)
     """
-    middleware = MetricsMiddleware(app=None)
+    # 这里只为借用 _normalize_endpoint 而造实例, 它从不被挂进 ASGI 链,
+    # 所以 app=None 不会被调用。改成真 ASGIApp = 改运行期结构, 不在本卡面。
+    middleware = MetricsMiddleware(app=None)  # pyright: ignore[reportArgumentType]
     # Use internal dispatch logic
     CONCURRENT_REQUESTS.inc()
     start_time = time.perf_counter()
