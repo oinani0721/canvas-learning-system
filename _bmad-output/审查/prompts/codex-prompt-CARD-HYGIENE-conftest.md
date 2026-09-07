@@ -7,19 +7,21 @@
 ## 一、背景与最小读取面（**只读这些，不要扩面**）
 
 **树根**：`/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a`
-**基线 commit**：`da690bf8`（本卡从这里切）。本卡**只改一个文件**：`backend/tests/unit/conftest.py`。
+**基线 commit**：`da690bf8`（本卡从这里切）。**本卡 commit（请审这个）**：`13a138c9`。
+本卡**只改一个文件**：`backend/tests/unit/conftest.py`（地盘门实测：
+`git diff --name-only --no-color da690bf8 HEAD -- . ':(exclude)_bmad-output'` 恰为该一项）。
 
 **请只读以下内容**：
 
 1. 本卡改动全文：
-   `git -C <树根> diff da690bf8 HEAD -- backend/tests/unit/conftest.py`
+   `git -C /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a diff da690bf8 HEAD -- backend/tests/unit/conftest.py`
 2. 改动后的完整文件（读懂上下文用）：
-   `<树根>/backend/tests/unit/conftest.py`
+   `/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/tests/unit/conftest.py`
 3. 全部裁判存档（负控 / 正控 / 目录级 / 双树并发）：
-   `<树根>/_bmad-output/审查/evidence-hyg-conftest/` 目录下全部 `*.txt`
+   `/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/_bmad-output/审查/evidence-hyg-conftest/` 目录下全部 `*.txt`
 4. 本卡承接的上一轮外审意见（只读这两段）：
    `/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/审查/codex-review-CARD-TEST-hygiene-vaultinit.md` 的 `:14-20`（HIGH #1）与 `:48-54`（MEDIUM #5）
-5. 验收单：`<树根>/_bmad-output/验收单/UAT-CARD-HYGIENE-conftest-2026-09-08.md`
+5. 验收单：`/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/_bmad-output/验收单/UAT-CARD-HYGIENE-conftest-2026-09-08.md`
 
 **背景一句话**：`backend/tests/unit/conftest.py` 有一道 session 级卫生门，检查跑完
 `tests/unit` 后有没有往工作树里撒 vault 骨架。它的三类信号里，`/tmp/test-vault*`

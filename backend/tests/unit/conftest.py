@@ -13,6 +13,7 @@ ReviewService factory/instance fixtures used by:
 
 import ast
 import hashlib
+import os
 import warnings
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -100,8 +101,8 @@ def _hygiene_snapshot() -> dict:
 def _hygiene_scan_tmp_literals() -> tuple[list[str], list[str]]:
     """扫 tests/unit/**/*.py 里硬编码的 `/tmp/` + `test-vault` 字符串常量。
 
-    **只读**: 只 read_bytes + ast.parse。不创建 / 不删除 / 不写入任何文件,
-    不 import 被扫文件, 不依赖 cwd (扫描根走 __file__, 与门盯 backend/ 同理)。
+    **只读**: 只 scandir + read_bytes + ast.parse。不创建 / 不删除 / 不写入任何
+    文件, 不 import 被扫文件, 不依赖 cwd (扫描根走 __file__, 与门盯 backend/ 同理)。
 
     为什么必须走 AST 而不是 grep 全文:
     - `test_startup_health_check.py:56-66` 有三条 `#` 注释记录 Y6-A 改前的旧
@@ -109,14 +110,35 @@ def _hygiene_scan_tmp_literals() -> tuple[list[str], list[str]]:
     - 本文件自己的告警文案也含同一段路径 —— grep 形态的门必然自指。
     AST 只看 `ast.Constant` 字符串, 两个假红面同时消失。
 
-    已知盲区 (如实登记, 见验收单「本卡未证明什么」②): 运行期拼接出来的路径
-    (`"/tmp/" + name`、f-string 变量段、`os.path.join` 分段) 不是单个 Constant,
-    本门看不见。
+    为什么用 `os.walk(onerror=...)` 而不是 `Path.rglob`
+    (Codex round-1 HIGH #1, 实测):
+        `Path.rglob` 在**遍历期**抑制 `PermissionError` —— 目录枚举被拒时它
+        安静地少产出文件, 于是本函数返回 `([], [])` = 「无命中、无检查失败」,
+        正是这道门自己声称要杜绝的假绿。外层再包 `try` 也够不着, 因为异常
+        在 `rglob` 内部就被吞了。`os.walk` 的 `onerror` 回调是唯一能把这类
+        失败报出来的钩子; `followlinks=False` (默认) 同时挡住目录符号链接
+        把扫描面拐出树外。
+
+    ⚠️ **本门证明的是「源码里没有这种硬编码常量」, 不是「本树没有 /tmp 写者」。**
+    判据只是「某个 `str` 类型的 `ast.Constant` 含连续子串 `_TMP_LITERAL`」,
+    以下形态**一律漏检** (Codex round-1 HIGH #2 逐条实测, 不是穷举):
+      - 路径运算分段:      `Path("/tmp") / ("test-vault-" + x)`
+      - 运行期拼接:        `"/tmp/" + name`、`os.path.join("/tmp", "test-vault…")`
+      - 前缀被**拆开**的 f-string (⚠️ 前缀完整的 f-string 反而**会**命中, 不是漏检)
+      - 等价但不同写法的路径: `"/tmp//test-vault-x"`、`"/tmp/./test-vault-x"`
+        (`/tmp/` 后面不紧跟 `t`, 连续子串就不成立)
+      - `bytes` 字面量 (同一段路径但带 `b` 前缀): 被 `isinstance(..., str)` 排除
+      - API 分参数:        `tempfile.mkdtemp(prefix="test-vault-", dir="/tmp")`
+      - cwd 恰为 `/tmp` 时的相对路径 `"test-vault-x"`
+      - 值来自环境变量 / 配置 / 扫描面之外的模块
+    另: 本文件**整体**被排除 (见下), 故本文件其他 fixture 里将来出现的完整
+    硬编码路径同样漏检。要覆盖这些需要数据流分析, 明确不在本卡范围。
 
     返回 (hits, unchecked):
-      hits      —— "<file>:<lineno>", 可归属到**本 worktree** 的写者嫌疑;
-      unchecked —— 读不了 / 解析不了的文件。**不算通过**:「没命中」与「没检查」
-                   必须分开, 否则一个语法坏掉的文件就能让门静默放行。
+      hits      —— "<file>:<lineno>", 源码里可归属到**本 worktree** 的硬编码常量;
+      unchecked —— 目录枚举失败 / 读不了 / 解析不了 / 符号链接越界的条目。
+                   **不算通过**:「没命中」与「没检查」必须分开, 否则一个权限
+                   坏掉的子目录就能让门静默放行。
     """
     self_path = Path(__file__).resolve()
     scan_root = self_path.parent
@@ -124,24 +146,48 @@ def _hygiene_scan_tmp_literals() -> tuple[list[str], list[str]]:
     hits: list[str] = []
     unchecked: list[str] = []
 
-    for py in sorted(scan_root.rglob("*.py")):
-        try:
-            if py.resolve() == self_path:
+    def _on_walk_error(exc: OSError) -> None:
+        target = getattr(exc, "filename", None) or "<未知路径>"
+        unchecked.append(f"{target} (目录枚举失败: {type(exc).__name__}: {exc})")
+
+    for dirpath, dirnames, filenames in os.walk(scan_root, onerror=_on_walk_error):
+        dirnames.sort()
+        for name in sorted(filenames):
+            if not name.endswith(".py"):
                 continue
-            source = py.read_bytes()
-        except OSError as exc:
-            unchecked.append(f"{py} (读取失败: {type(exc).__name__}: {exc})")
-            continue
+            py = Path(dirpath) / name
 
-        try:
-            tree = ast.parse(source, filename=str(py))
-        except (SyntaxError, ValueError) as exc:
-            unchecked.append(f"{py} (解析失败: {type(exc).__name__}: {exc})")
-            continue
+            try:
+                resolved = py.resolve()
+            except OSError as exc:
+                unchecked.append(f"{py} (路径解析失败: {type(exc).__name__}: {exc})")
+                continue
 
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Constant) and isinstance(node.value, str) and _TMP_LITERAL in node.value:
-                hits.append(f"{py}:{node.lineno}")
+            if resolved == self_path:
+                continue
+
+            # 符号链接越界 (Codex round-1 MEDIUM): 树内的 *.py 若链到树外,
+            # read_bytes() 会读到树外内容, 「三个信号都在本 worktree 内」这句
+            # 声明就不成立了。报边界不符, 不当普通树内源码读, 也不静默跳过。
+            if not resolved.is_relative_to(scan_root):
+                unchecked.append(f"{py} (符号链接越界: 解析到扫描根之外 -> {resolved})")
+                continue
+
+            try:
+                source = py.read_bytes()
+            except OSError as exc:
+                unchecked.append(f"{py} (读取失败: {type(exc).__name__}: {exc})")
+                continue
+
+            try:
+                tree = ast.parse(source, filename=str(py))
+            except (SyntaxError, ValueError) as exc:
+                unchecked.append(f"{py} (解析失败: {type(exc).__name__}: {exc})")
+                continue
+
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Constant) and isinstance(node.value, str) and _TMP_LITERAL in node.value:
+                    hits.append(f"{py}:{node.lineno}")
 
     return hits, unchecked
 
@@ -161,8 +207,11 @@ def _no_vault_skeleton_left_behind():
       本车道 teardown 变红。Codex Y6-A HIGH #1 实证 mtime / ps / lsof 都不能
       单独证明历史写入归属 ⇒ 把它判成「本卡新增回归」是错误归因。
 
-    ⚠️ 降级只发生在**不可归属**这一侧, 不是「放松要求」: 本树自己往
-    /tmp 根写 test-vault* 目录仍然硬红 —— 那正是新增源码字面量门的职责。
+    ⚠️ 降级只发生在**不可归属**这一侧, 不是「放松要求」: 本树源码里
+    **硬编码**的 test-vault* 路径常量仍然硬红 —— 那是新增源码字面量门的职责。
+    ⚠️ 但它是**源码规则门**, 不是写入归属证明: 它只看字符串常量, 对路径运算 /
+    bytes / tempfile 参数 / 相对路径等形态看不见 (Codex round-1 HIGH #2)。
+    所以告警文案只说「归属未知, 请核查或重跑」, **不**说「不是本次新增的回归」。
     (这段说明刻意不写成整段路径: docstring 也是 ast.Constant, 写全了
      就成了门自己要抓的形态 —— 本卡打补丁时被自校验当场拦下过一次。)
     ⚠️ 也不是静默吞掉: 告警文案里的固定串「环境受干扰」是可 grep 的判据,
@@ -219,9 +268,13 @@ def _no_vault_skeleton_left_behind():
                     "\n       跑 tests/unit 同样会产出这些目录 (本卡 2026-09-06 01:55 实测"
                     "\n       card-y9-maingoal 车道即如此)。判定归属请核对 `stat -f '%Sm' <路径>`"
                     "\n       与 `ps -ww -p <pid>` / `lsof -a -p <pid> -d cwd`, 而不是只看存在性。"
-                    "\n    /tmp 全机共享、归属不可判 ⇒ 本 session **不判红** (Codex Y6-A HIGH #1);"
-                    "\n    本树自身的写者由源码字面量门守, 那道门是硬 fail。"
-                    "\n    这条告警 = 环境受干扰、需要重跑, **不是**本次运行新增的回归。"
+                    "\n    /tmp 全机共享 ⇒ **归属未知**: 可能来自本 session, 也可能来自任何"
+                    "\n    别的进程 (Codex Y6-A HIGH #1: mtime / ps / lsof 都不能单独证明历史"
+                    "\n    写入归属)。⇒ 本 session **不判红**, 但**请核查或重跑**, 不要直接"
+                    "\n    当成「别人弄的」。"
+                    "\n    本树源码里的硬编码写者另有源码字面量门守 (硬 fail), 但那道门只看"
+                    "\n    字符串常量 —— 路径运算 / bytes / tempfile 参数 / 相对路径 等形态它"
+                    "\n    看不见, 所以它不能证明本树没有写者。盲区清单见 _hygiene_scan_tmp_literals 的 docstring。"
                 ),
                 stacklevel=1,
             )
