@@ -1,0 +1,51 @@
+# evidence-host-probe 文件清单 + 每份末行 rc=（供复核者定位，勿逐份通读）
+# 生成 2026-09-08T07:26:33+08:00
+
+backend-health-20260908T064311.txt                          bytes=282       末行: lsof_rc=0
+causal-codex-writes-config-20260908T071621.txt              bytes=738       末行: rc=0
+causal-codex-writes-config-r2-20260908T071710.txt           bytes=961       末行: rc=0
+closeout-final-20260908T071818.txt                          bytes=5475      末行: rc=0
+closeout-userconf-20260908T071512.txt                       bytes=1090      末行: rc=0
+helpcheck-dsh-20260908T064500.txt                           bytes=1821      末行: 
+helpcheck-dsh-web-20260908T064500.txt                       bytes=1702      末行: web_help_rc=0
+helpcheck-opencode-20260908T064900.txt                      bytes=8387      末行:                                                             
+INDEX-evidence-list.txt                                     bytes=910       末行: helpcheck-opencode-20260908T064900.txt                      
+P0-skeleton-20260908T065021.txt                             bytes=1344      末行: rc=0
+P10a-root-detection-vault-20260908T071259.txt               bytes=2099      末行: rc=0
+P10b-root-detection-dsh-codex-20260908T071333.txt           bytes=2374      末行: rc=0
+P10c-claude-root-20260908T071420.txt                        bytes=1003      末行: rc=0
+P10d-post-check-20260908T071449.txt                         bytes=1191      末行: rc=0
+P1a-dsh-dumpconfig-20260908T065048.txt                      bytes=720       末行: rc=0
+P1a-dsh-dumpconfig-r2-20260908T065219.txt                   bytes=1847      末行: rc=0
+P1b-dsh-sandbox-skills-20260908T065245.txt                  bytes=5098      末行: rc=0
+P1c-dumpconfig-no-mcp-connect-20260908T065401.txt           bytes=1406      末行: rc=0
+P2a-dsh-mcp-8011-20260908T065433.txt                        bytes=541       末行: rc=0
+P2b-dsh-mcp-8999-failtrue-20260908T065518.txt               bytes=4217      末行: rc=0
+P2c-dsh-mcp-8999-faildefault-20260908T065544.txt            bytes=691       末行: rc=0
+P2d-dsh-side-effects-20260908T065658.txt                    bytes=1380      末行: rc=0
+P2e-mcp-tools-list-20260908T065850.txt                      bytes=836       末行: rc=0
+P2f-mcp-health-call-20260908T065913.txt                     bytes=1255      末行: rc=0
+P3-dsh-write-approval-20260908T071227.txt                   bytes=3080      末行: rc=0
+P4a-claude-skills-symlink-dir-20260908T070137.txt           bytes=5787      末行: rc=0
+P4a2-claude-skills-debug-20260908T070258.txt                bytes=2306      末行: rc=0
+P4b-claude-skills-symlink-entry-20260908T070335.txt         bytes=1120      末行: rc=0
+P5-claude-mcp-list-20260908T070048.txt                      bytes=1885      末行: rc=0
+P6a-codex-readonly-20260908T070528.txt                      bytes=2920      末行: rc=0
+P6b-codex-workspacewrite-20260908T070630.txt                bytes=3183      末行: rc=1
+P6c-codex-write-target-layer-20260908T070744.txt            bytes=2540      末行: rc=0
+P6d-codex-readonly-plaindir-20260908T070851.txt             bytes=1617      末行: rc=0
+P7-codex-mcp-list-20260908T070457.txt                       bytes=2140      末行: rc=0
+P8-opencode-20260908T071157.txt                             bytes=2772      末行: rc=0
+P9-backend-mcp-http-vs-sse-20260908T065732.txt              bytes=1464      末行: {"jsonrpc":"2.0","id":"server-error","error":{"code":-32600,
+P9b-sse-rejection-layer-20260908T065803.txt                 bytes=983       末行: rc=0
+prompt-P4-claude-skills.txt                                 bytes=199       末行: 只列出你能看到的 skills 名称，一行一个。不要使用任何工具，不要读取任何文件，只根据你已加载的 skills 列表
+prompt-P6-codex-skills-write.txt                            bytes=375       末行: 2. 在 .agents/skills/probe-skill/ 目录下创建一个名为 note.txt 的文件，内容写一
+prompt-P6c-codex-two-targets.txt                            bytes=353       末行: 最后用一个两行的表格总结：文件路径 -> 成功/失败。
+prompt-P6d-codex-readonly-plain.txt                         bytes=178       末行: 请尝试创建文件 outputs/probe-readonly.txt，内容写一行 probe。如果创建失败，请把失败的原
+prompt-P8-opencode-skills.txt                               bytes=199       末行: 只列出你能看到的 skills 名称，一行一个。不要调用任何工具，不要读取任何文件，只根据你已加载的 skills 列表
+runtime-state-close-20260908T071818.txt                     bytes=392761    末行: drwxr-xr-x    49 Heishing  staff   1568 Sep  8 06:52 ..
+runtime-state-open-20260908T064311.txt                      bytes=388375    末行: drwxr-xr-x    50 Heishing  staff   1600 Sep  8 06:43 ..
+sentinel-live                                               bytes=0         末行: 
+userconf-sha-after.txt                                      bytes=473       末行: ABSENT ~/.config/opencode/opencode.json
+userconf-sha-before.txt                                     bytes=473       末行: ABSENT ~/.config/opencode/opencode.json
+versions-20260908T064311.txt                                bytes=362       末行: 2.1.263 (Claude Code)

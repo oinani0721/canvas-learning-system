@@ -1,0 +1,31 @@
+# P9 后端 /mcp：POST initialize vs GET SSE  @ 2026-09-08T06:57:32+08:00
+cwd=/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u4-hosts/3ead72c8-729b-41ea-b189-c51910c3e8a4/scratchpad/host-probe/probe-vault
+静态已知：backend/app/mcp/server.py:145 只调 mount_http()，未调 mount_sse()
+
+=== (1) POST initialize ===
+--- 状态码 ---
+http_code=200
+curl_rc=0
+--- 响应头（含 mcp-session-id）---
+HTTP/1.1 200 OK
+date: Mon, 07 Sep 2026 22:57:31 GMT
+server: uvicorn
+content-type: application/json
+mcp-session-id: c583c4292d774866910a493694596a64
+content-length: 390
+
+--- 响应体前 20 行 ---
+{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-03-26","capabilities":{"experimental":{},"tools":{"listChanged":false}},"serverInfo":{"name":"canvas-learning-mcp","version":"Canvas Learning System read-only retrieval tools: note search, wikilink graph traversal, note reading, learning memory search, board manifest (whiteboard structure read-model), and backend health check."}}}
+=== (2) GET SSE（预期 ≠200）===
+http_code=400
+curl_rc=0
+--- SSE 响应头 ---
+HTTP/1.1 400 Bad Request
+date: Mon, 07 Sep 2026 22:57:31 GMT
+server: uvicorn
+content-type: application/json
+mcp-session-id: dcf9b683603f4ce1954db01e150b5486
+content-length: 105
+
+--- SSE 响应体前 10 行 ---
+{"jsonrpc":"2.0","id":"server-error","error":{"code":-32600,"message":"Bad Request: Missing session ID"}}rc=0

@@ -1,0 +1,45 @@
+# P1-a(r2) dsh 配置面：insert 语法修正后的四态对照  @ 2026-09-08T06:52:19+08:00
+cwd=/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u4-hosts/3ead72c8-729b-41ea-b189-c51910c3e8a4/scratchpad/host-probe/probe-vault
+# 判据绑字面量 'id: mcp-cls' 与 'url: http://127.0.0.1:8011/mcp'，不看行数差
+
+--- nopatch : rc=0 行数=     508 ---
+    'id: mcp-cls'                  = 0
+    'url: http://127.0.0.1:8011'   = 0
+    'url: http://127.0.0.1:8999'   = 0
+    'failOnStartupError: true'     = 0
+    'patch: entry .* not found'    = 0
+    skill-filesystem 段:
+      - id: skill-filesystem
+        name: '@deepseek-ai/dsh-skill-filesystem'
+        disabled: true
+--- withpatch-8011 : rc=0 行数=     516 ---
+    'id: mcp-cls'                  = 1
+    'url: http://127.0.0.1:8011'   = 1
+    'url: http://127.0.0.1:8999'   = 0
+    'failOnStartupError: true'     = 1
+    'patch: entry .* not found'    = 0
+    skill-filesystem 段:
+      - id: skill-filesystem
+        name: '@deepseek-ai/dsh-skill-filesystem'
+        disabled: true
+--- withpatch-8999 : rc=0 行数=     516 ---
+    'id: mcp-cls'                  = 1
+    'url: http://127.0.0.1:8011'   = 0
+    'url: http://127.0.0.1:8999'   = 1
+    'failOnStartupError: true'     = 1
+    'patch: entry .* not found'    = 0
+    skill-filesystem 段:
+      - id: skill-filesystem
+        name: '@deepseek-ai/dsh-skill-filesystem'
+        disabled: true
+--- withpatch-skills : rc=0 行数=     516 ---
+    'id: mcp-cls'                  = 1
+    'url: http://127.0.0.1:8011'   = 1
+    'url: http://127.0.0.1:8999'   = 0
+    'failOnStartupError: true'     = 1
+    'patch: entry .* not found'    = 0
+    skill-filesystem 段:
+      - id: skill-filesystem
+        name: '@deepseek-ai/dsh-skill-filesystem'
+        disabled: false
+rc=0

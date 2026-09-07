@@ -1,0 +1,22 @@
+# P9-b GET SSE 拒因归层：400 是「缺 session」还是「不支持 SSE」  @ 2026-09-08T06:58:03+08:00
+
+=== 步骤1：initialize 取 session id ===
+session_id 长度=32 (不打印明文以免与其它证据串味；仅用于本次请求)
+取到 session id: YES
+
+=== 步骤2：notifications/initialized（协议要求，非工具调用）===
+http_code=202
+
+=== 步骤3：GET SSE 带 session id（关键对照）===
+curl: (28) Operation timed out after 6005 milliseconds with 0 bytes received
+http_code=000
+curl_rc=28  (28=超时=流保持打开)
+--- 响应头 ---
+--- 响应体前 10 行 ---
+head: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u4-hosts/3ead72c8-729b-41ea-b189-c51910c3e8a4/scratchpad/host-probe/mcp-sse2-body.txt: No such file or directory
+
+=== 步骤4：旧式 SSE transport 端点是否存在（mount_sse 未调用的直接判据）===
+  GET /sse -> 404
+  GET /mcp/sse -> 404
+  GET /messages -> 404
+rc=0
