@@ -251,9 +251,12 @@ class ErrorExtractor:
                 max_tokens=800,
                 temperature=0.2,
             )
-            _content = cast("ModelResponse", response).choices[0].message.content
-            assert _content is not None  # 原代码此处 None.strip() 同样 AttributeError
-            content = _content.strip()
+            # ⛔ 此处**不能**用 assert: 本方法的 except 只捕获
+            # (ImportError, ValueError, KeyError, AttributeError, JSONDecodeError),
+            # AssertionError 会逃逸 = 改控制流(Codex round-1 MEDIUM)。
+            # cast 是运行期 no-op: content 为 None 时仍抛 AttributeError, 仍被上面那组 except 接住。
+            _resp = cast("ModelResponse", response).choices[0].message.content
+            content = cast(str, _resp).strip()
             content = self._strip_markdown_fence(content)
 
             parsed = json.loads(content)

@@ -22,7 +22,7 @@ from typing import Any, List, Optional, TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     from app.services.agent_routing_engine import AgentRoutingEngine
-    from app.services.agent_service import AgentService, AgentType
+    from app.services.agent_service import AgentService
     from app.services.batch_orchestrator import BatchOrchestrator
     from app.services.canvas_service import CanvasService
     from app.services.intelligent_grouping_service import IntelligentGroupingService
@@ -287,9 +287,10 @@ class IntelligentParallelService:
             timeout: Timeout in seconds
         """
         try:
-            # 本类构造后 _batch_orchestrator 由调用方注入; 原代码 None 时同样 AttributeError。
-            assert self._batch_orchestrator is not None
-            await self._batch_orchestrator.start_batch_session(
+            # ⛔ 此处**不能**用 assert: 本 try 只捕获 (ConnectionError, RuntimeError,
+            # ValueError, asyncio.TimeoutError), AssertionError 会逃逸 = 改控制流。
+            # cast 是运行期 no-op: 为 None 时仍抛 AttributeError, 与原代码逐字相同。
+            await cast("BatchOrchestrator", self._batch_orchestrator).start_batch_session(
                 session_id=session_id,
                 canvas_path=canvas_path,
                 groups=groups,
@@ -643,10 +644,12 @@ class IntelligentParallelService:
                 prompt = f"Process node {node_id} from canvas {canvas_path}"
 
             # Call real agent
-            # 本方法的 agent_type 形参注解是 str(:601), call_agent 要 AgentType(str, Enum);
-            # 运行期传字符串可用(AgentType 继承 str), 这里只做类型层窄化, 不加转换/校验。
+            # ⛔ 既有类型不一致(Codex round-1 MEDIUM): 本方法形参是 agent_type: str, 而
+            # call_agent 要 AgentType(str, Enum)。此处**不做** cast —— 「AgentType 继承 str」
+            # 不能反向证明任意字符串就是 AgentType 实例, cast 只会掩盖。加转换/校验 = 运行期
+            # 语义改动, 不在本卡范围 → 只标注并 TAIL 登记。
             result = await self._agent_service.call_agent(
-                agent_type=cast("AgentType", agent_type),
+                agent_type=agent_type,  # pyright: ignore[reportArgumentType]
                 prompt=prompt,
             )
 

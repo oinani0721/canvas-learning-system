@@ -293,7 +293,9 @@ async def get_belief_history(
     # M1: 排序/比较前统一 aware UTC (历史数据可能混存 naive)
     def _vk(e: EntityEdge) -> datetime:
         # `e.valid_at or e.created_at` 恒非 None(EntityEdge.created_at 必填) →
-        # _to_aware_utc 的 None 分支不可达; 原代码返回 None 时排序同样 TypeError。
+        # _to_aware_utc 的 None 分支不可达。⚠️ 更正(Codex round-1 LOW): 不能说「返回 None
+        # 时排序同样 TypeError」—— 单元素 list 的 sort 不会比较键, 那种情形下原代码不崩。
+        # 本断言的依据只是「None 分支不可达」, 不是「原代码也会崩」。
         _normalized = _to_aware_utc(e.valid_at or e.created_at)
         assert _normalized is not None
         return _normalized
