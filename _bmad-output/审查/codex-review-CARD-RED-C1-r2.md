@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-07-第十三批 · 车道 card-u11-red-c(U11-A) · 卡 CARD-RED-C1 round-2
+> 模型: `gpt-6-astra` · reasoning_effort: `ultra` · codex: `codex-cli 0.153.3`
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat _bmad-output/审查/prompts/codex-prompt-CARD-RED-C1-r2.md)"`
+> 审查绑定: `401e792c`（送审时即 HEAD。此后 HEAD 前进到 `1da50457`，但 `git diff --stat 401e792c HEAD -- . ':(exclude)_bmad-output'` **无输出** ⇒ 代码树未动，绑定保持；其后的改动只在 `_bmad-output`）
+> 会话头自证（stderr 本身不入库）:
+> `Reading additional input from stdin...` / `OpenAI Codex v0.153.3` / `--------`；含 model 的会话头在 `.stderr` 第 4-9 行（`workdir:` / `model: gpt-6-astra` / `provider: openai` / `approval: on-request` / `sandbox: read-only` / `reasoning effort: ultra`）——如实说明：本机 codex 0.153.3 的前三行不含 model 行，故一并抄出第 4-9 行，不谎称「前三行含 model」
+
+---
+
 **BLOCKER 0 / HIGH 0 / MEDIUM 0 / LOW 3**
 
 本轮代码复核绑定 `401e792c`，仅读取指定 diff 与证据，未运行测试或修改文件。

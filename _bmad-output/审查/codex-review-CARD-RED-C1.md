@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-07-第十三批 · 车道 card-u11-red-c(U11-A) · 卡 CARD-RED-C1 round-1
+> 模型: `gpt-6-astra` · reasoning_effort: `ultra` · codex: `codex-cli 0.153.3`
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat _bmad-output/审查/prompts/codex-prompt-CARD-RED-C1.md)"`
+> 审查绑定: `343fce8e`（送审时即 HEAD。此后 HEAD 前进到 `1da50457`，但 `git diff --stat 343fce8e HEAD -- . ':(exclude)_bmad-output'` **无输出** ⇒ 代码树未动，绑定保持；其后的改动只在 `_bmad-output`）
+> 会话头自证（stderr 本身不入库）:
+> `Reading additional input from stdin...` / `OpenAI Codex v0.153.3` / `--------`；含 model 的会话头在 `.stderr` 第 4-9 行（`workdir:` / `model: gpt-6-astra` / `provider: openai` / `approval: on-request` / `sandbox: read-only` / `reasoning effort: ultra`）——如实说明：本机 codex 0.153.3 的前三行不含 model 行，故一并抄出第 4-9 行，不谎称「前三行含 model」
+
+---
+
 **BLOCKER 0 / HIGH 0 / MEDIUM 0 / LOW 4。**
 
 未发现本卡通过自证断言翻绿、波及 skip、改动其他卡用例或修改生产代码。发现的问题集中在交接追踪与证据表述；(e) 的源码证据足以支持移交，不能据此裁定数据面回归。
