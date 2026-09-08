@@ -116,6 +116,7 @@ from __future__ import annotations
 import posixpath
 import re
 import shutil
+from collections import Counter
 from pathlib import Path
 
 import pytest
@@ -154,6 +155,22 @@ URL_DEFAULT_FORM = ":-http://localhost:8011"
 #: `.claude/(skills|scripts)/` 的 ERE 等价 —— 与 §二.2 的 `grep -oE` 逐字同源。
 _CLAUDE_DIR_RE = re.compile(r"\.claude/(?:skills|scripts)/")
 
+#: ⛔ **放行侧要窄, 计入侧可以宽**(Codex round-2 HIGH-c, 2026-09-08)。
+#:
+#: `tmp_ns` 是**放行**端 —— 它每 +1 就抵消一个 `tmp_all`。用裸子串
+#: `count("/tmp/cls-exam/")` 会被 `/var/cache/tmp/cls-exam/x.json` 骗过: 那个路径**根本
+#: 不在 `/tmp` 下**, 却同时给 `tmp_all` 与 `tmp_ns` 各 +1, 于是「把一处真命名空间路径
+#: 替换成这个冒充版」四端全不变 ⇒ 两条判据一起漏网(实测 c' 场景)。放行端因此必须要求
+#: `/tmp/` 是**绝对路径起点**。
+#:
+#: `tmp_all` 是**计入**端, 保持裸子串: `/var/cache/tmp/x` 让它 +1 = 把一个别的绝对路径
+#: 债也算进来, 偏保守 —— 保守在计入端是安全的, 在放行端才是漏洞。
+#:
+#: ⚠️ 与 §二.2 shell 裁判(`grep -oF '/tmp/cls-exam/'`)的口径差**只在有人写冒充路径时
+#: 才出现**; 树上现状无冒充路径, 两侧同为 4。`test_ns_counting_agrees_with_shell_judge`
+#: 把这个「当前一致」钉住 —— 将来两侧分叉, 恰恰说明有人写了冒充路径, 正是要抓的。
+_TMP_NS_RE = re.compile(r"(?<![A-Za-z0-9_.~$-])/tmp/cls-exam/")
+
 #: ⛔ **两端各钉一个数, 不是只钉差值** —— 见模块 docstring「为什么钉两端而不是钉裸值」。
 BODY_METRICS = (
     "ask_user_question",
@@ -180,8 +197,27 @@ def bare_8011(counts: dict[str, int]) -> int:
 
 # ── 越界路径判据 (与上面的子串计数**互补**, 不是替代) ───────────────────────
 #: 一个 `/tmp/…` 路径 token 的粗切分: 到空白、反引号、引号、括号、中文标点为止。
-#: 宁可切多也不切少 —— 切多只会让 normpath 结果更长, 不会把越界路径变成合规路径。
-_TMP_TOKEN_RE = re.compile(r"/tmp/[^\s`\"'()（）,，;；:：]*")
+#:
+#: ⛔ **左边界**(Codex round-2 HIGH, 2026-09-08): 没有 `(?<!…)` 时,
+#: `/var/cache/tmp/cls-exam/x.json` 里的**子串** `/tmp/cls-exam/x.json` 会被提取出来,
+#: normpath 判在命名空间内 ⇒ 放行; 而它根本不在 `/tmp` 下(子串计数同样被这个子串骗过,
+#: tmp_all 与 tmp_ns 各 +1 ⇒ 裸值 0)。要求 `/tmp/` 前面不是路径字符, 才算绝对路径起点。
+_TMP_TOKEN_RE = re.compile(r"(?<![A-Za-z0-9_.~$-])/tmp/[^\s`\"'()（）,，;；:：]*")
+
+#: ⛔ **切分永远不完美, 所以另立一条不依赖切分的保守判据**(Codex round-2 HIGH):
+#: `/tmp/cls-exam/a,b/../../x.json` 会被逗号截成 `/tmp/cls-exam/a`(判在命名空间内),
+#: 而完整路径规范化是 `/tmp/x.json` —— 越界。反过来 `/tmp/cls-exam/..,x` 被截成
+#: `/tmp/cls-exam/..` ⇒ 误报。两种坏法同源: **从自由文本里切路径是启发式**。
+#:
+#: 与其把切分正则越修越复杂(每修一次都可能换一种坏法), 不如承认它不完美, 另加一条
+#: 粗判据: **凡是同时出现 `/tmp` 与 `..` 的行, 一律要人登记**。`..` 在临时路径上下文里
+#: 几乎没有正当用途, 保守报红的代价远小于漏检。
+_TMP_LINE_RE = re.compile(r"/tmp")
+
+#: 同理, shell 变量展开后的落点静态门看不见(`REL=../x` 配合 `P="/tmp/cls-exam/${REL}"`,
+#: token 不含 `..`、normpath 在命名空间内, 展开后却是 `/tmp/x` —— Codex round-2 MEDIUM-4)。
+#: 无法证明变量的值 ⇒ 把「命名空间后面紧跟变量展开」也纳入需登记项。
+_TMP_VAR_EXPANSION_RE = re.compile(r"/tmp/[^\s`\"']*\$[{(]?[A-Za-z_]")
 
 
 #: ⛔ **为什么光有子串计数不够**(Codex round-1 HIGH, 2026-09-08):
@@ -203,6 +239,24 @@ def escaping_tmp_paths(text: str) -> list[tuple[str, str]]:
         norm = posixpath.normpath(tok)
         if norm != ns and not norm.startswith(ns + "/"):
             out.append((tok, norm))
+    return out
+
+
+def suspicious_tmp_lines(text: str) -> list[tuple[int, str]]:
+    """**不依赖 token 切分**的保守判据: 同一行里 `/tmp` 与 `..`(或变量展开) 同时出现。
+
+    返回 `(1-based 行号, 该行 strip 后的内容)`。
+
+    存在的理由见 `_TMP_LINE_RE` 上方注释: 切路径是启发式, 逗号 / 括号 / 引号任一处
+    切错就换一种坏法(漏检或误报)。这条判据只问「这一行值不值得人看一眼」, 不问
+    「路径到底是哪一段」—— 因此不会被切分错误带偏。
+    """
+    out: list[tuple[int, str]] = []
+    for i, line in enumerate(text.splitlines(), start=1):
+        if not _TMP_LINE_RE.search(line):
+            continue
+        if ".." in line or _TMP_VAR_EXPANSION_RE.search(line):
+            out.append((i, line.strip()))
     return out
 
 
@@ -339,6 +393,22 @@ ESCAPING_TMP_BASELINE: dict[str, list[str]] = {
 }
 
 
+#: 「同时含 `/tmp` 与 `..`(或变量展开)」的行号 —— 保守判据的基线(2026-09-08 实测)。
+#: 现状只有 quiz-answer `:98` 一行, 且它是**误报友好**的那类: 该行写的是
+#: `按 Step 4a 格式拼 callout 列表`, `..` 来自省略号/中文标点而非路径穿越。
+#: 保留它进基线而不是放宽判据 —— 放宽会把真的穿越一起放过去; 登记一行的成本远更低。
+SUSPICIOUS_TMP_LINES_BASELINE: dict[str, list[int]] = {
+    "ai-linked-doc": [],
+    "board-recap": [],
+    "chat-with-context": [],
+    "configure-whiteboard": [],
+    "exam-quick": [],
+    "node-chat": [],
+    "quiz-answer": [98],
+    "start-exam-board": [],
+    "study-question": [],
+}
+
 # ── 交接常量 ① ─────────────────────────────────────────────────────────────
 #: **U5-B (CARD-G3-3-R2) 独占更新**; rebase 时保 lint 绿。
 #:
@@ -401,7 +471,8 @@ def _body_counts(text: str) -> dict[str, int]:
         "mcp_tool": _count(text, "mcp__canvas-learning-mcp__"),
         "claude_dir_ref": len(_CLAUDE_DIR_RE.findall(text)),
         "tmp_all": _count(text, "/tmp/"),
-        "tmp_ns": _count(text, TMP_NAMESPACE),
+        # 放行端用带左边界的正则, 不是裸子串 —— 见 `_TMP_NS_RE` 上方注释。
+        "tmp_ns": len(_TMP_NS_RE.findall(text)),
         "p8011_all": _count(text, "8011"),
         "p8011_ns": _count(text, URL_DEFAULT_FORM),
         "tree_name": _count(text, "feature-obsidian-hybrid-dev"),
@@ -507,12 +578,43 @@ def check_escaping_tmp(root: Path, baseline: dict[str, list[str]]) -> list[str]:
         actual = sorted(norm for _tok, norm in escaping_tmp_paths(f.read_text(encoding="utf-8")))
         want = sorted(baseline[name])
         if actual != want:
-            extra = [p for p in actual if actual.count(p) > want.count(p) or p not in want]
-            missing = [p for p in want if p not in actual]
+            # ⛔ 用 Counter 比**次数**, 不是 `in`(Codex round-2 LOW): 期望 [x,x] 实测 [x]
+            # 时, `p not in actual` 恒假 ⇒ 消息显示「缺失=[]」, 明明少了一处却说不出少了什么。
+            ca, cw = Counter(actual), Counter(want)
+            extra = sorted((ca - cw).elements())
+            missing = sorted((cw - ca).elements())
             problems.append(
                 f"[越界] {name}: 越出 {TMP_NAMESPACE} 的路径多重集不等 "
-                f"期望={want} 实测={actual} (新增={sorted(set(extra))} 缺失={sorted(set(missing))}) —— "
+                f"期望={want} 实测={actual} (新增={extra} 缺失={missing}) —— "
                 f"新增即债; 缺失说明有人整改却没同步 ESCAPING_TMP_BASELINE"
+            )
+    return problems
+
+
+def check_suspicious_tmp_lines(root: Path, baseline: dict[str, list[int]]) -> list[str]:
+    """保守判据: 每份 SKILL.md 里「同时含 `/tmp` 与 `..`/变量展开」的**行号集合**钉死。
+
+    不依赖 token 切分 ⇒ 切分正则怎么错都影响不到它(见 `_TMP_LINE_RE` 上方注释)。
+    """
+    problems: list[str] = []
+    skills_dir = root / "skills"
+    for name in sorted(baseline):
+        f = skills_dir / name / "SKILL.md"
+        if not f.exists():
+            problems.append(f"[可疑行] {name}: SKILL.md 不存在 (基线要求存在) path={f}")
+            continue
+        found = suspicious_tmp_lines(f.read_text(encoding="utf-8"))
+        actual = sorted(ln for ln, _txt in found)
+        want = sorted(baseline[name])
+        if actual != want:
+            by_line = dict(found)
+            ca, cw = Counter(actual), Counter(want)
+            extra = sorted((ca - cw).elements())
+            problems.append(
+                f"[可疑行] {name}: `/tmp` 与 `..`(或变量展开) 同行的行号集合不等 "
+                f"期望={want} 实测={actual} (新增={extra} 缺失={sorted((cw - ca).elements())})\n"
+                + "".join(f"        :{ln}  {by_line.get(ln, '')[:100]}\n" for ln in extra)
+                + "        —— 临时路径里的 `..` 与变量展开一律要人看一眼: 静态门证不出它们展开后落在哪"
             )
     return problems
 
@@ -537,6 +639,64 @@ def check_scripts(root: Path, baseline: dict[str, dict[str, int]]) -> list[str]:
             want, got = baseline[rel][metric], actual[metric]
             if want != got:
                 problems.append(f"[层3] {rel}: 指标 {metric} 期望={want} 实测={got}")
+    return problems
+
+
+#: U6 地盘的两个 scripts 目录 —— 手册 §一 明列。
+U6_SEED = frozenset(
+    {
+        "skills/board-recap/scripts/recap_exam_build.py",
+        "skills/clear-inbox/scripts/inbox_preview.py",
+    }
+)
+U6_DIRS = ("skills/board-recap/scripts/", "skills/clear-inbox/scripts/")
+
+
+def check_handoff_constants(
+    main_body_baseline: dict[str, dict[str, int]],
+    scripts_baseline: dict[str, dict[str, int]],
+    u6_baseline: dict[str, dict[str, int]],
+) -> list[str]:
+    """交接常量的**正式判据** —— 单列 / 不重叠 / U6 只收自己地盘且新登记零余量。
+
+    ⛔ 三个基线都走参数(而不是直接读模块全局), 这样负控能把变异后的常量喂进来。
+    用例**必须调用本函数**, 不许自己重写一份集合判断(Codex round-2 MEDIUM-6):
+    自己重写时, 即使正式判据退回旧版, 用例照绿 —— 它声称防守的回归根本抓不到。
+    """
+    problems: list[str] = []
+
+    if "quiz-answer" in main_body_baseline:
+        problems.append("quiz-answer 必须单列在 QUIZ_ANSWER_BASELINE, 不得进主 BASELINE")
+
+    overlap = set(scripts_baseline) & set(u6_baseline)
+    if overlap:
+        problems.append(f"U6 两份必须单列, 不得同时出现在 SCRIPTS_BASELINE: {sorted(overlap)}")
+
+    missing_seed = U6_SEED - set(u6_baseline)
+    if missing_seed:
+        problems.append(
+            f"U6 交接项被删 —— 手册 §一 明列这两份属 U6 地盘, 必须留在 U6_SCRIPTS_BASELINE: 缺={sorted(missing_seed)}"
+        )
+
+    # ⛔ 只收 U6 地盘: 不许把别处(尤其是主基线里已有)的脚本挂到 U6 名下换维护归属。
+    stray = sorted(p for p in u6_baseline if not p.startswith(U6_DIRS))
+    if stray:
+        problems.append(
+            f"U6_SCRIPTS_BASELINE 只收 U6 地盘({' / '.join(U6_DIRS)})下的脚本, 别处的请登记进 SCRIPTS_BASELINE: {stray}"
+        )
+
+    # ⛔ 新登记项必须**零余量**(Codex round-2 MEDIUM-3): 目录约束只保证「登记在对的地方」,
+    # 挡不住「登记的同时把新债一起带进来」。U6 要加脚本可以, 但那脚本不许自带
+    # /tmp / /Users/ / 树名 —— 带债的必须走 SCRIPTS_BASELINE 的人工审阅。
+    for path, counts in sorted(u6_baseline.items()):
+        if path in U6_SEED:
+            continue
+        nonzero = {k: v for k, v in counts.items() if v}
+        if nonzero:
+            problems.append(
+                f"U6 新登记的 {path} 必须零余量, 实测带债 {nonzero} —— "
+                f"带债的脚本请走 SCRIPTS_BASELINE(人工审阅), 不要经 U6 交接常量放进来"
+            )
     return problems
 
 
@@ -588,26 +748,90 @@ def test_escaping_tmp_paths_match_baseline():
     assert not problems, "越界路径基线漂移:\n" + "\n".join(problems)
 
 
+def test_suspicious_tmp_lines_match_baseline():
+    """保守判据(正控): `/tmp` 与 `..`/变量展开同行的行号集合 == 基线。"""
+    problems = check_suspicious_tmp_lines(DEFAULT_ROOT, SUSPICIOUS_TMP_LINES_BASELINE)
+    assert not problems, "可疑行基线漂移:\n" + "\n".join(problems)
+
+
+def test_every_per_skill_baseline_covers_all_nine_skills():
+    """⛔ **每个按 skill 分的基线都必须恰好覆盖 9 份**(Codex round-2 MEDIUM-2)。
+
+    没有这条时: 删掉 `ESCAPING_TMP_BASELINE["start-exam-board"]` 后, `check_escaping_tmp`
+    只遍历 `baseline` 的键 ⇒ 那份 skill **静默不再被检查**, 而所有既有断言照绿。
+    随后把它的命名空间路径换成 `/tmp/cls-exam/../x`(四端计数不变) 就完全无人发现。
+
+    「少一份就静默失明」是按键遍历的判据的通病 —— 三个基线一起钉。
+    """
+    for label, baseline in (
+        ("BASELINE + QUIZ_ANSWER_BASELINE", set(_merged_body_baseline())),
+        ("ESCAPING_TMP_BASELINE", set(ESCAPING_TMP_BASELINE)),
+        ("SUSPICIOUS_TMP_LINES_BASELINE", set(SUSPICIOUS_TMP_LINES_BASELINE)),
+    ):
+        assert baseline == set(EXPECTED_SKILLS), (
+            f"{label} 覆盖面必须恰好 == 9 份 vault skill "
+            f"(缺={sorted(set(EXPECTED_SKILLS) - baseline)} 多={sorted(baseline - set(EXPECTED_SKILLS))}) —— "
+            f"少一份 = 那份 skill 静默不再被检查"
+        )
+
+
+def test_ns_counting_agrees_with_shell_judge_on_current_tree():
+    """放行端口径与卡文 §二.2 的 shell 裁判在**当前树上**一致。
+
+    测试侧 `tmp_ns` 用带左边界的正则(放行端要窄), shell 侧是 `grep -oF '/tmp/cls-exam/'`
+    裸子串。两者**只在有人写 `/var/cache/tmp/cls-exam/…` 这类冒充路径时**才会分叉。
+
+    这条钉住「当前不分叉」: 将来它红了, 说明树上出现了冒充路径 —— 那正是要抓的东西,
+    而不是判据坏了。⛔ 不要因为它红就把左边界删掉。
+    """
+    skills_dir = DEFAULT_ROOT / "skills"
+    for name in sorted(EXPECTED_SKILLS):
+        text = (skills_dir / name / "SKILL.md").read_text(encoding="utf-8")
+        strict = len(_TMP_NS_RE.findall(text))
+        shell_like = text.count(TMP_NAMESPACE)
+        assert strict == shell_like, (
+            f"{name}: 放行端严格计数={strict} 与 shell 裸子串计数={shell_like} 分叉 —— "
+            f"树上出现了形如 `/var/cache{TMP_NAMESPACE}…` 的冒充路径, 请查看该文件"
+        )
+
+
 @pytest.mark.parametrize(
-    "literal,bare_delta,escapes,why",
+    "literal,bare_delta,escapes,suspicious,why",
     [
-        ("/tmp/cls-exam/", 0, False, "钦定形态本身 —— 两条都放行"),
-        ("/tmp/cls-exam/x.json", 0, False, "命名空间内的文件 —— 两条都放行"),
-        ("/tmp/cls-exam", 1, False, "无尾斜杠: 写法不是钦定形态(子串红), 但指向就是命名空间本身(不越界)"),
-        ("/tmp/a/../cls-exam/z", 1, False, "穿越在**前**: 写法不合规(子串红), 规范化后仍落在命名空间内(不越界)"),
-        ("/tmp/cls-exam/../x", 0, True, "穿越在**后**: 子串看不见(裸值 0), 规范化后越界(越界红)"),
-        ("/tmp/other.json", 1, True, "普通裸路径 —— 两条都红"),
+        # 真正合规的两个 —— 三列全放行是**应该**的
+        ("/tmp/cls-exam/", 0, False, False, "钦定形态本身"),
+        ("/tmp/cls-exam/x.json", 0, False, False, "命名空间内的文件"),
+        # 只被计数拦下
+        ("/tmp/cls-exam", 1, False, False, "无尾斜杠: 写法不是钦定形态(计数红), 指向就是命名空间本身(不越界)"),
+        ("/tmp/other.json", 1, True, False, "普通裸路径: 计数与越界都红"),
+        # 计数看不见, 靠越界/可疑行拦下
+        ("/tmp/cls-exam/../x", 0, True, True, "穿越在后: 计数裸值 0, 越界与可疑行都红"),
+        ("/tmp/a/../cls-exam/z", 1, False, True, "穿越在前: 计数红(写法不合规), 规范化后仍在命名空间内"),
+        # ⛔ Codex round-2 找到的四个 —— 它们是这张表存在的理由
+        ("/tmp/cls-exam/a,b/../../x.json", 0, False, True, "逗号截断致 token 漏检 ⇒ 只有不依赖切分的可疑行判据能抓"),
+        ("/tmp/cls-exam/..,x", 0, True, True, "逗号截断致 token 误报 ⇒ 保守报红优于漏检"),
+        ('P="/tmp/cls-exam/${REL}"', 0, False, True, "shell 变量展开: 静态证不出落点 ⇒ 要人登记"),
     ],
 )
-def test_two_judges_cover_each_other_without_gap(literal: str, bare_delta: int, escapes: bool, why: str):
-    """**两条判据的分工表** —— 每个不合规形态都必须至少被其中一条拦下。
+def test_three_judges_cover_each_other_without_gap(
+    literal: str, bare_delta: int, escapes: bool, suspicious: bool, why: str
+):
+    """**三条判据的分工表** —— 每个不合规形态都必须至少被其中一条拦下。
 
-    这张表本身就是判据: 将来若有人放宽任一条(比如把放行改成 `cls-` 前缀类, 或删掉
-    越界判据), 对应行会立刻翻转。⛔ 注意第 3、4 行的 `escapes=False` **不是漏网**
-    —— 它们由子串那一列的 `bare_delta=1` 拦下; 真正危险的是**两列都是 0/False**
-    的行, 那才是放行, 表里只有前两行, 且都是真正合规的形态。
+    这张表本身就是判据: 将来若有人放宽任一条(把放行改成 `cls-` 前缀类、删掉左边界、
+    删掉越界或可疑行判据), 对应行会立刻翻转。
+
+    ⛔ 某一列 `False` **不是漏网** —— 只要同一行还有别的列拦着就行。真正危险的是
+    **三列全放行**的行; 表里只有前两行, 且断言它们必须真在命名空间内。
+
+    ⛔ `/var/cache/tmp/cls-exam/x.json` 那个形态**不在这张表里**, 因为它是「等计数替换」
+    才成立的攻击(单看一个字面量看不出来), 由
+    `test_negative_control_equal_count_swap_with_fake_namespace_must_redden` 覆盖。
     """
     counts = _body_counts(literal)
+    assert bool(suspicious_tmp_lines(literal)) is suspicious, (
+        f"{literal!r} ({why}): 可疑行期望={suspicious} 实测={suspicious_tmp_lines(literal)}"
+    )
     assert bare_tmp(counts) == bare_delta, (
         f"{literal!r} ({why}): 子串裸值期望={bare_delta} 实测={bare_tmp(counts)} "
         f"(all={counts['tmp_all']} ns={counts['tmp_ns']})"
@@ -615,9 +839,9 @@ def test_two_judges_cover_each_other_without_gap(literal: str, bare_delta: int, 
     assert bool(escaping_tmp_paths(literal)) is escapes, (
         f"{literal!r} ({why}): 越界期望={escapes} 实测={escaping_tmp_paths(literal)}"
     )
-    if bare_delta == 0 and not escapes:
+    if bare_delta == 0 and not escapes and not suspicious:
         assert literal.startswith(TMP_NAMESPACE), (
-            f"⛔ {literal!r} 被两条判据一起放行, 但它不在 {TMP_NAMESPACE} 下 —— 这就是缺口"
+            f"⛔ {literal!r} 被**三条判据一起**放行, 但它不在 {TMP_NAMESPACE} 下 —— 这就是缺口"
         )
 
 
@@ -668,59 +892,76 @@ def test_out_of_scope_hardcoded_ports_are_registered():
 
 
 def test_baseline_constants_are_disjoint_and_complete():
-    """交接常量必须**单列**且不与主 dict 重叠 —— 防有人「顺手」把 quiz-answer /
-    U6 两份并回主 dict, 那会让 U5-B / U6 的 rebase diff 混进无关行。"""
-    assert "quiz-answer" not in BASELINE, "quiz-answer 必须单列在 QUIZ_ANSWER_BASELINE, 不得进主 BASELINE"
-    overlap = set(SCRIPTS_BASELINE) & set(U6_SCRIPTS_BASELINE)
-    assert not overlap, f"U6 两份必须单列, 不得同时出现在 SCRIPTS_BASELINE: {sorted(overlap)}"
+    """交接常量(正控): 走**正式判据** `check_handoff_constants`, 不在这里重写逻辑。"""
+    problems = check_handoff_constants(BASELINE, SCRIPTS_BASELINE, U6_SCRIPTS_BASELINE)
+    assert not problems, "交接常量漂移:\n" + "\n".join(problems)
     assert set(_merged_body_baseline()) == EXPECTED_SKILLS, (
         f"层 2 基线覆盖面必须恰好 == 9 份 vault skill "
         f"期望={sorted(EXPECTED_SKILLS)} 实测={sorted(_merged_body_baseline())}"
     )
-    # ⛔ **不得写成 `== {那两份}`**(Codex round-1 MEDIUM, 2026-09-08): 该常量的注释
-    # 要求「U6 新增脚本必须同步登记进来」, 而 `==` 会把照做的 U6 直接打红 —— 门的
-    # 指令与门的判据自相矛盾, U6 无论怎么做都错。判据改为两条, 各自只管自己那面:
-    #   (i) 原本那两份**必须仍在**(不许被人顺手删掉交接项);
-    #   (ii) 新登记的条目**必须落在 U6 的两个 skill 目录下**(不许拿这个常量当垃圾桶,
-    #        把别人地盘的脚本塞进来绕过 SCRIPTS_BASELINE 的审阅)。
-    # 「未登记的新脚本立刻红」由层 3 的文件集合精确相等保证, 不靠这里。
-    u6_seed = {
-        "skills/board-recap/scripts/recap_exam_build.py",
-        "skills/clear-inbox/scripts/inbox_preview.py",
-    }
-    assert u6_seed <= set(U6_SCRIPTS_BASELINE), (
-        f"U6 交接项被删 —— 手册 §一 明列这两份属 U6 地盘, 必须留在 U6_SCRIPTS_BASELINE: "
-        f"缺={sorted(u6_seed - set(U6_SCRIPTS_BASELINE))}"
-    )
-    u6_dirs = ("skills/board-recap/scripts/", "skills/clear-inbox/scripts/")
-    stray = [p for p in U6_SCRIPTS_BASELINE if not p.startswith(u6_dirs)]
-    assert not stray, (
-        f"U6_SCRIPTS_BASELINE 只收 U6 地盘({' / '.join(u6_dirs)})下的脚本, "
-        f"别处的请登记进 SCRIPTS_BASELINE: {sorted(stray)}"
-    )
 
 
-def test_u6_can_register_a_new_script_without_being_blocked():
-    """⑨ **Codex round-1 MEDIUM** —— U6 照注释办事不得被本门自己拦住。
+@pytest.mark.parametrize(
+    "mutate,must_mention,why",
+    [
+        (
+            lambda b, s, u: (
+                b,
+                s,
+                {**u, "skills/clear-inbox/scripts/new_u6_tool.py": {"tmp": 0, "users_path": 0, "tree_name": 0}},
+            ),
+            None,
+            "U6 在自己地盘登记零余量新脚本 ⇒ **必须放行**(注释叫人这么做, 判据就不能拦)",
+        ),
+        (
+            lambda b, s, u: (b, s, {k: v for k, v in u.items() if k != "skills/clear-inbox/scripts/inbox_preview.py"}),
+            "U6 交接项被删",
+            "删掉交接项 ⇒ 拦",
+        ),
+        (
+            lambda b, s, u: (b, s, {**u, "scripts/fsrs_bridge.py": {"tmp": 0, "users_path": 1, "tree_name": 1}}),
+            "只收 U6 地盘",
+            "把别人地盘的脚本挂到 U6 名下换维护归属 ⇒ 拦",
+        ),
+        (
+            lambda b, s, u: (
+                b,
+                s,
+                {**u, "skills/clear-inbox/scripts/new_u6_tool.py": {"tmp": 1, "users_path": 1, "tree_name": 0}},
+            ),
+            "必须零余量",
+            "登记位置对, 但顺手把新债一起带进来 ⇒ 拦(Codex round-2 MEDIUM-3)",
+        ),
+        (
+            lambda b, s, u: ({**b, "quiz-answer": QUIZ_ANSWER_BASELINE}, s, u),
+            "必须单列",
+            "把 quiz-answer 并回主 dict ⇒ 拦(U5-B 的 rebase diff 会混进无关行)",
+        ),
+        (
+            lambda b, s, u: (
+                b,
+                {**s, "skills/clear-inbox/scripts/inbox_preview.py": {"tmp": 0, "users_path": 0, "tree_name": 0}},
+                u,
+            ),
+            "不得同时出现",
+            "同一份脚本两个基线都登记 ⇒ 拦(改一处另一处静默失效)",
+        ),
+    ],
+)
+def test_handoff_judge_is_load_bearing(mutate, must_mention, why):
+    """交接判据的正反负控 —— **全部经由正式判据函数**。
 
-    场景: U6 在 `clear-inbox/scripts/` 下新增一个脚本, 按 `U6_SCRIPTS_BASELINE` 的
-    注释把它登记进来。此时那条交接断言**必须放行**(否则门的指令与门的判据互相打架,
-    U6 怎么做都错); 而「新增脚本不登记就红」仍由层 3 的文件集合保证 —— 见下一条。
+    ⛔ 这是 Codex round-2 MEDIUM-6 的整改: 原先这两条用例自己重写了集合判断, 于是
+    正式判据即使退回 round-1 的 `== u6_seed`, 用例也照绿 —— 它声称防守的那个回归
+    (「U6 照注释办事被门拦住」)根本抓不到。现在两者共用同一个函数, 判据一退化,
+    第一行那条「必须放行」的用例立刻红。
     """
-    extended = {
-        **U6_SCRIPTS_BASELINE,
-        "skills/clear-inbox/scripts/new_u6_tool.py": {"tmp": 0, "users_path": 0, "tree_name": 0},
-    }
-    u6_seed = {"skills/board-recap/scripts/recap_exam_build.py", "skills/clear-inbox/scripts/inbox_preview.py"}
-    u6_dirs = ("skills/board-recap/scripts/", "skills/clear-inbox/scripts/")
-    assert u6_seed <= set(extended), "登记新脚本后原两份仍在 ⇒ 该放行"
-    assert not [p for p in extended if not p.startswith(u6_dirs)], "新脚本在 U6 地盘内 ⇒ 该放行"
-
-    # 反向: 把别人地盘的脚本塞进 U6 常量 ⇒ 必须被拦(否则这个常量变成绕过审阅的垃圾桶)
-    smuggled = {**U6_SCRIPTS_BASELINE, "scripts/fsrs_bridge.py": {"tmp": 0, "users_path": 1, "tree_name": 1}}
-    assert [p for p in smuggled if not p.startswith(u6_dirs)] == ["scripts/fsrs_bridge.py"], (
-        "非 U6 地盘的脚本混进 U6_SCRIPTS_BASELINE 必须被拦"
-    )
+    problems = check_handoff_constants(*mutate(BASELINE, SCRIPTS_BASELINE, U6_SCRIPTS_BASELINE))
+    if must_mention is None:
+        assert not problems, f"{why} —— 实得: {problems}"
+    else:
+        joined = "\n".join(problems)
+        assert any(must_mention in p for p in problems), f"{why} —— 期望消息含 {must_mention!r}, 实得: {joined}"
 
 
 # ── 对 tmp 副本 (负控) ──────────────────────────────────────────────────────
@@ -835,18 +1076,71 @@ def test_negative_control_escape_after_namespace_must_redden(sandbox: Path, lite
     本用例同时断言「计数判据看不见」与「越界判据看得见」—— 前者是为了钉住这条负控
     确实在考越界判据, 而不是被计数那一层顺手打红(判据必须绑定被哪一层拒的)。
     """
-    f = sandbox / "skills" / "exam-quick" / "SKILL.md"
-    before = _body_counts(f.read_text(encoding="utf-8"))
-    _append_body(sandbox, "exam-quick", f"临时写到 {literal} 再读回。")
-    after = _body_counts(f.read_text(encoding="utf-8"))
+    _swap_in_start_exam_board(sandbox, "/tmp/cls-exam/exam-candidates.json", literal)
 
-    assert bare_tmp(after) == bare_tmp(before), (
-        f"本用例的前提是**计数判据看不见**(否则考的不是越界判据): 裸值 {bare_tmp(before)}→{bare_tmp(after)}"
-    )
+    # ⛔ 前提必须是**计数判据放行**, 而且要**实际断言**它放行(Codex round-2 MEDIUM-5):
+    # 原先这条用的是「追加」+ 只看裸值不变 —— 但追加会让 tmp_all/tmp_ns 双双 +1,
+    # 计数判据其实**也会红**, 于是「证明了越界判据承重」就成了空话。改成等计数替换,
+    # 四端纹丝不动, 再断言 check_body 为空, 红是谁给的才没有歧义。
+    body = check_body(sandbox, _merged_body_baseline())
+    assert not body, f"本用例的前提是**计数判据放行**(否则考的不是越界判据), 实得: {body}"
+
     problems = check_escaping_tmp(sandbox, ESCAPING_TMP_BASELINE)
     joined = "\n".join(problems)
-    assert any("exam-quick" in p and "[越界]" in p for p in problems), f"{literal} 必须被越界判据抓到, 实得: {joined}"
+    assert any("start-exam-board" in p and "[越界]" in p for p in problems), (
+        f"{literal} 必须被越界判据抓到, 实得: {joined}"
+    )
     assert norm in joined, f"消息里应给出 normpath 结果 {norm}, 实得: {joined}"
+
+
+def _swap_in_start_exam_board(sandbox: Path, old: str, new: str) -> None:
+    """在副本的 start-exam-board 上做**等计数替换** —— 不是追加。
+
+    ⛔ 追加和替换考的不是一回事(Codex round-2 MEDIUM-5): 追加一处 `/tmp/…` 会让
+    `tmp_all` 与 `tmp_ns` 双双变化 ⇒ **计数判据也会红**, 于是「这条负控证明了越界判据
+    承重」就成了空话 —— 红可能是计数那一层给的。只有替换掉一处**已有**命中, 才能让
+    四端计数纹丝不动, 从而干净地考「计数看不见时, 别的判据看不看得见」。
+    """
+    f = sandbox / "skills" / "start-exam-board" / "SKILL.md"
+    text = f.read_text(encoding="utf-8")
+    swapped = text.replace(old, new, 1)
+    assert swapped != text, f"预置失败: 副本里找不到要替换的 {old!r}"
+    f.write_text(swapped, encoding="utf-8")
+
+
+def test_negative_control_comma_truncated_escape_caught_by_line_judge(sandbox: Path):
+    """⑨ **Codex round-2 HIGH(a)** —— 逗号把 token 截断致越界判据漏检。
+
+    `/tmp/cls-exam/a,b/../../w.json` 被切成 `/tmp/cls-exam/a`(判在命名空间内), 而完整
+    路径规范化是 `/tmp/w.json`。计数与越界**两条都看不见**, 只有不依赖切分的可疑行
+    判据能抓 —— 这正是「切分永远不完美, 所以另立一条粗判据」的理由。
+    """
+    _swap_in_start_exam_board(sandbox, "/tmp/cls-exam/exam-candidates.json", "/tmp/cls-exam/a,b/../../w.json")
+
+    assert not check_body(sandbox, _merged_body_baseline()), "前提: 计数判据放行"
+    assert not check_escaping_tmp(sandbox, ESCAPING_TMP_BASELINE), (
+        "本用例声称越界判据被逗号截断而看不见; 若它其实看得见, 说明这条负控考错了对象"
+    )
+    problems = check_suspicious_tmp_lines(sandbox, SUSPICIOUS_TMP_LINES_BASELINE)
+    joined = "\n".join(problems)
+    assert any("start-exam-board" in p and "[可疑行]" in p for p in problems), f"必须被可疑行判据抓到, 实得: {joined}"
+
+
+def test_negative_control_fake_namespace_swap_must_redden(sandbox: Path):
+    """⑩ **Codex round-2 HIGH(c)** —— 用「不在 `/tmp` 下」的冒充路径做等计数替换。
+
+    `/var/cache/tmp/cls-exam/x.json` 含子串 `/tmp/` 与 `/tmp/cls-exam/` 各一次。放行端
+    若用裸子串计数, 这个替换会让四端纹丝不动、越界判据也看不见(左边界让它不提取 token)
+    ⇒ 两条判据一起漏网。放行端加左边界后 `tmp_ns` 少一个 ⇒ 计数判据报红。
+    """
+    _swap_in_start_exam_board(
+        sandbox, "/tmp/cls-exam/exam-candidates.json", "/var/cache/tmp/cls-exam/exam-candidates.json"
+    )
+    problems = check_body(sandbox, _merged_body_baseline())
+    joined = "\n".join(problems)
+    assert any("start-exam-board" in p and "tmp_ns" in p for p in problems), (
+        f"冒充命名空间的路径必须让放行端计数下降并报红, 实得: {joined}"
+    )
 
 
 def test_negative_control_namespace_form_does_not_raise_bare_value(sandbox: Path):
