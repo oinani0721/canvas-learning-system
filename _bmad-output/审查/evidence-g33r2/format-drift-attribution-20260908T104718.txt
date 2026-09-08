@@ -1,0 +1,15 @@
+# 格式漂移归因：内容口径（不用行号交集 —— 行号对「改契约后错误落在没动过的行」失明）
+# 基线 = HEAD 8686d169（U5-A 末 commit，本卡改动前）
+
+app/services/learning_event_log.py
+   基线 format --diff 改动行数 = 0
+   当前 format --diff 改动行数 = 7
+   增量 = 7
+tests/regression/test_learning_event_log.py
+   基线 format --diff 改动行数 = 4
+   当前 format --diff 改动行数 = 17
+   增量 = 13
+tests/regression/test_g3_2_review_ledger.py
+   基线 format --diff 改动行数 = 0
+   当前 format --diff 改动行数 = 11
+   增量 = 11

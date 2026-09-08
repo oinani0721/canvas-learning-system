@@ -6291,23 +6291,25 @@ def test_g32ccr1_nondict_branch_unreachable_from_validate_record_full():
         assert _m.value_charset_problems(_bad) == [], f"直调非 dict 应返回空表（防御性分支）: {_bad!r}"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "写点缺口（Codex round-1 HIGH，CARD-CX-G3-2c-C-R1 实测复现）："
-        "self_confidence_norm 未经类型/取值检查就**裸插值**进 receipt YAML "
-        "(quiz-answer/SKILL.md:1320 读、:1408 拼)，可改掉新 receipt 条目的 event_id；"
-        "此后原样重跑与下一次正常评分全部 rc=1，该节点评不了分。"
-        "本卡硬边界禁改 quiz-answer SKILL.md 语义 ⇒ **移交写点边界卡**。"
-        "修好后本门 XPASS(strict) 会报红，提醒把它转正。"
-    ),
-)
 def test_g32ccr1_self_confidence_norm_must_not_forge_receipt_identity(vault):
     """receipt 的身份不能被一个**自评分数**字段改写。
 
-    这是本卡「三段防线覆盖 receipt 全部 14 键」这句声明的**反例**：
+    这原是「三段防线覆盖 receipt 全部 14 键」那句声明的**反例**：
     `self_confidence_norm` 既不走 `q_()`、也没有类型约束，`{scn_}` 直接进 YAML。
     期望行为二选一：写点拒（零写），或者写进去但 receipt 身份不变且能重跑。
+
+    ⛔ **已转正**（`[BATCH-2026-09-07-第十三批 / CARD-G3-3-R2-writer-boundary]`）：
+    写点门落在 quiz-answer/SKILL.md 入口区（`evid` 拼好之后、任何写入之前），
+    `None` 放行 / `bool` 拒 / 有限且 0..1 的数转 `float` / 其余 fail-closed 拒写。
+    2026-09-08 实测本用例走的是**拒写**分支：rc=1、账本 0 行、节点字节不变，
+    拒因正文含「须为 null 或 0..1 的数」（存档 `evidence-g33r2/branch-binding-*.txt`
+    与去标前的 `xpass-strict-*.txt`）。
+    ⚠️ 原 xfail reason 里引的 `SKILL.md:1320 读 / :1408 拼` 是**过期行号**，
+    去标时实测更正为 **:1436 读 / :1524 拼**（两行本卡一字未改，门只在它们上游）。
+    ⚠️ 下面的「写入分支」（`returncode == 0` 之后那段）在当前实现下**走不到**——
+    保留它不是死判据而是**方向判据**：它锁的是「就算将来改成放行，receipt 身份
+    也必须还是 `quiz:板戊#q1` 且能原样重跑」。把它删掉，等于允许下一次重构
+    悄悄换成「写进去但身份被改写」——那正是本门最初要防的形态。
     """
     import yaml as _y2
 
@@ -6670,3 +6672,193 @@ def test_g32cc_noncharacters_rejected_and_bmp_plus_still_ok():
         assert _m.value_charset_problems({"payload": {"exam_board": _ok}}) == [], (
             f"误拒合法非 BMP 值（{_why}）: {_ok!r} —— 禁止集写成「U+10000 以上一律拒」了？"
         )
+
+
+# ── CARD-G3-3-R2-writer-boundary: self_confidence_norm 写点入口门 (对称用例) ──
+# 上面 test_g32ccr1_self_confidence_norm_must_not_forge_receipt_identity 只钉了
+# 「注入载荷进不去」这一个点。⛔ 只有它是不够的: 一个把 self_confidence_norm
+# **无条件拒掉**的实现同样能让它绿, 而那会把正常评分一起拒死。所以拒绝面与
+# 放行面必须成对钉住 —— 门的强度来自「哪些必须红」和「哪些必须绿」两侧。
+
+
+@pytest.mark.parametrize(
+    ("_scn", "_why"),
+    [
+        (True, "bool True — 它是 int 子类, 不先拦就被 float() 静默写成 1.0 = 把「没填」伪装成「完全懂」"),
+        (False, "bool False — 同上, 会被写成 0.0 = 伪装成「完全不懂」"),
+        (1.5, "越界 >1"),
+        (-0.1, "越界 <0"),
+        ("0.5", "数字串 — 接受它就得先 strip(), 等于在身份键旁重开一个吃字符的口子"),
+        ("nan", "非数字串"),
+        ('0.5\n    event_id: "quiz:injected"', "换行注入 — 原 Codex round-1 HIGH 形态"),
+        ("0.5\n    attempt_count: 999", "换行注入另一载体 — 改的不是身份键也一样拒"),
+        ([0.5], "list"),
+        ({"v": 0.5}, "dict"),
+    ],
+)
+def test_g33r2_self_confidence_norm_illegal_is_fail_closed(vault, _scn, _why):
+    """非法 `self_confidence_norm` ⇒ rc≠0 + 账本零行 + 节点**字节不变**。
+
+    ⛔ 判据绑定「被**哪一层**拒的」: 只断言 rc≠0 是粗判据 —— 上游任何一道既有门
+    (event_id 空判 / node_id 门 / envelope) 拒掉它, rc 同样非零, 而本卡的门可能
+    根本没跑。所以额外断言拒因正文含本门的特征串「须为 null 或 0..1 的数」。
+    """
+    LED = vault / "learning_events.jsonl"
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    LED.unlink(missing_ok=True)
+    face0 = _write_face(vault)
+    r = _run_writer_settled(vault, _payload(event_id="板辛#q1", ts=TS1, review_time=TS1, self_confidence_norm=_scn))
+    assert r.returncode != 0, f"⛔ 非法值被放行了 ({_why}): {_scn!r}"
+    _err = r.stderr or ""
+    assert "须为 null 或 0..1 的数" in _err, (
+        f"⛔ 拒是拒了, 但**不是本卡这道门**拒的 ({_why}) —— 换成上游别的门拒, 本门可能压根没跑。stderr: {_err[-400:]}"
+    )
+    assert len(_ledger_lines(vault)) == 0, f"拒绝 ⇒ 账本零行 ({_why})"
+    assert _write_face(vault) == face0, f"拒绝 ⇒ 节点与账本整个写入面逐字节不变 ({_why})"
+
+
+@pytest.mark.parametrize(
+    ("_scn", "_expect_line", "_why"),
+    [
+        (0.5, "self_confidence_norm: 0.5", "半懂 — 规范 :175 的典型值"),
+        (None, "self_confidence_norm: null", "解析不了 ⇒ null, 规范 :175 明写"),
+        (0, "self_confidence_norm: 0.0", "int 0 (不懂) ⇒ 转 float; live 现存 receipt 写作 `0`, 本卡后写 `0.0`"),
+        (1, "self_confidence_norm: 1.0", "int 1 (懂) ⇒ 转 float"),
+        (0.4, "self_confidence_norm: 0.4", 'live 实测值 (raw "2" ÷ 5 = 0.4)'),
+        (1.0, "self_confidence_norm: 1.0", "float 上边界 — 闭区间"),
+        (0.0, "self_confidence_norm: 0.0", "float 下边界 — 闭区间"),
+    ],
+)
+def test_g33r2_self_confidence_norm_legal_is_written(vault, _scn, _expect_line, _why):
+    """合法 `self_confidence_norm` 必须照常写进去, 且 receipt 行**逐字**是期望形态。
+
+    ⛔ 这一组是上一个用例的**验伪锚**: 没有它, 「一律拒绝」也能让拒绝面全绿。
+    ⛔ 期望值写死字面量 (不从被测代码算): 判据与被测量同源会跟着变异一起退化。
+    """
+    LED = vault / "learning_events.jsonl"
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    LED.unlink(missing_ok=True)
+    r = _run_writer_settled(vault, _payload(event_id="板壬#q1", ts=TS1, review_time=TS1, self_confidence_norm=_scn))
+    assert r.returncode == 0, f"⛔ 合法值被拒 ({_why}): {_scn!r} / {(r.stderr or '')[-400:]}"
+    assert len(_ledger_lines(vault)) == 1, f"合法 ⇒ 恰落 1 行 ({_why})"
+    _lines = [
+        ln.strip() for ln in (vault / NODE_REL).read_text(encoding="utf-8").split("\n") if "self_confidence_norm" in ln
+    ]
+    assert len(_lines) == 1, f"receipt 里该键应恰 1 行 ({_why}), 实见 {_lines!r}"
+    assert _lines[0] == _expect_line, f"⛔ receipt 形态不符 ({_why}): 期望 {_expect_line!r}, 实见 {_lines[0]!r}"
+    # 类型保真: YAML 读回来必须是数字 (不是字符串), 且等于期望的 float
+    import yaml as _yr
+
+    _entry = _yr.safe_load((vault / NODE_REL).read_text(encoding="utf-8").split("---")[1])["calibration_log"][-1]
+    _v = _entry["self_confidence_norm"]
+    if _scn is None:
+        assert _v is None, f"null 必须读回 None, 实见 {_v!r}"
+    else:
+        assert isinstance(_v, float) and not isinstance(_v, bool), f"须读回 float, 实见 {_v!r} ({type(_v).__name__})"
+        assert _v == float(_scn), f"值变了: {_v!r} != {float(_scn)!r}"
+
+
+def test_g33r2_writer_gate_runs_before_any_write(vault):
+    """门必须在**任何写入之前** —— 用「非法值 + 全新节点」证明零副作用。
+
+    ⛔ 「rc≠0 且账本零行」证不出这一点: 门若落在写完账本之后、只是没写 receipt,
+    也可能表现成账本零行(被回滚)。这里额外断言 **`.quiz-tmp` 类中间产物不存在**
+    且 vault 目录树在拒绝前后**完全一致** —— 写点若已经动过手, 原子写的临时文件
+    或锁文件会留下痕迹。
+    """
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    (vault / "learning_events.jsonl").unlink(missing_ok=True)
+    _before = sorted(str(p.relative_to(vault)) for p in vault.rglob("*"))
+    r = _run_writer_settled(vault, _payload(event_id="板癸#q1", ts=TS1, review_time=TS1, self_confidence_norm=1.5))
+    assert r.returncode != 0 and "须为 null 或 0..1 的数" in (r.stderr or "")
+    _after = sorted(str(p.relative_to(vault)) for p in vault.rglob("*"))
+    _new = [p for p in _after if p not in _before]
+    # per-node 写锁文件是**门之前**就建的(:288 取锁早于入口区), 它出现是预期内的;
+    # 除它以外不得有任何新文件 —— 尤其不得有账本、临时文件、备份。
+    _unexpected = [p for p in _new if ".lock" not in p and "quiz-answer" not in p]
+    assert _unexpected == [], f"⛔ 拒绝路径留下了写入痕迹 ⇒ 门跑得太晚: {_unexpected}"
+    assert "learning_events.jsonl" not in _after or _ledger_lines(vault) == [], "账本必须仍为空"
+
+
+# ── CARD-G3-3-R2-writer-boundary E-2: harness_tree 解析 ──
+
+
+def _write_cfg(vault: Path, extra: str = "") -> None:
+    """按 fixture 原样重写 `.canvas-config.yaml`, 可追加一行 extra。"""
+    (vault / ".canvas-config.yaml").write_text(
+        '# 测试 config\nvault_id: "canvas-vault-测试"\nsubject: cs-61b\n' + extra, encoding="utf-8"
+    )
+
+
+def test_g33r2_harness_tree_absent_falls_back_to_parent(vault):
+    """① 无 `harness_tree` 键 ⇒ 回退 `dirname(VAULT)`, 行为与主干**完全一致**。
+
+    这是缺省路径, 6600+ 行既有门全跑在它上面; 这里再钉一次正面结果, 免得
+    「解析失败也回退」和「无键才回退」被混成一条。
+    """
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    (vault / "learning_events.jsonl").unlink(missing_ok=True)
+    assert "harness_tree" not in (vault / ".canvas-config.yaml").read_text(encoding="utf-8"), "前提: fixture 无该键"
+    r = _run_writer_settled(vault, _payload(event_id="板子#q1", ts=TS1, review_time=TS1))
+    assert r.returncode == 0, f"⛔ 缺省路径被弄坏了: {(r.stderr or '')[-400:]}"
+    assert len(_ledger_lines(vault)) == 1, "缺省路径必须照常写入"
+
+
+def test_g33r2_harness_tree_explicit_real_repo_works(vault):
+    """③ 显式写**真** REPO(带引号) ⇒ 与①同结果, 证明解析出的值真被用上了。
+
+    ⛔ 没有这一条, 「解析根本没跑、永远走回退」也能让①②④全绿。
+    """
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    (vault / "learning_events.jsonl").unlink(missing_ok=True)
+    _write_cfg(vault, f'harness_tree: "{vault.parent}"\n')
+    r = _run_writer_settled(vault, _payload(event_id="板丑#q1", ts=TS1, review_time=TS1))
+    assert r.returncode == 0, f"⛔ 显式真 REPO 反而不通: {(r.stderr or '')[-400:]}"
+    assert len(_ledger_lines(vault)) == 1, "显式真 REPO 必须照常写入"
+
+
+@pytest.mark.parametrize(
+    ("_val", "_why"),
+    [
+        ("/nonexistent/harness-x", "② 绝对路径不存在"),
+        ("~/definitely-missing-8f3a2b1c-quiz-answer", "④ `~` 展开后不存在 — 证 expanduser 走到了"),
+        ('"/nonexistent/harness-quoted"', "带引号的坏路径"),
+        ("../definitely-missing-relative-tree", "相对路径(相对 VAULT)不存在"),
+    ],
+)
+def test_g33r2_harness_tree_broken_is_fail_closed(vault, _val, _why):
+    """②④ 指到不存在的树 ⇒ fail-closed 拒写, **不回退**。
+
+    ⛔ 为什么不回退: 回退等于把「配置写错了」翻译成「按老布局跑」, 而老布局下
+    import 往往**会成功**(另一棵树的 validator), 于是写出去的东西静静地绑到错的
+    harness 上。配置断裂必须说话, 不能被兜底吃掉。
+    """
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    (vault / "learning_events.jsonl").unlink(missing_ok=True)
+    _write_cfg(vault, f"harness_tree: {_val}\n")
+    face0 = _write_face(vault)
+    r = _run_writer_settled(vault, _payload(event_id="板寅#q1", ts=TS1, review_time=TS1))
+    assert r.returncode != 0, f"⛔ 坏 harness_tree 被放行 ({_why})"
+    _err = r.stderr or ""
+    assert "harness_tree" in _err, f"⛔ 拒因须点名 harness_tree ({_why}), 上游别的门拒的不算: {_err[-400:]}"
+    if _val.startswith("~"):
+        assert "~" not in _err.split("harness_tree 指向不存在的树")[-1][:200], (
+            f"⛔ expanduser 没走到: 拒因里还带着未展开的 `~`。{_err[-300:]}"
+        )
+    assert len(_ledger_lines(vault)) == 0, f"拒绝 ⇒ 账本零行 ({_why})"
+    assert _write_face(vault) == face0, f"拒绝 ⇒ 写入面逐字节不变 ({_why})"
+
+
+def test_g33r2_harness_tree_empty_value_falls_back(vault):
+    """空值 / 空引号串 ⇒ 视同无键回退(不是 fail-closed)。
+
+    ⛔ 分界如实: 「有键但值空」= 用户把它清掉了, 语义等同没写; 「有值但树不存在」
+    = 用户写错了, 必须报。两者混成一条会让「清空该键」变成砖化操作。
+    """
+    for _extra, _why in (("harness_tree:\n", "裸空值"), ('harness_tree: ""\n', "空引号串")):
+        (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+        (vault / "learning_events.jsonl").unlink(missing_ok=True)
+        _write_cfg(vault, _extra)
+        r = _run_writer_settled(vault, _payload(event_id="板卯#q1", ts=TS1, review_time=TS1))
+        assert r.returncode == 0, f"⛔ 空值应回退而不是拒写 ({_why}): {(r.stderr or '')[-400:]}"
+        assert len(_ledger_lines(vault)) == 1, f"空值回退后必须照常写入 ({_why})"

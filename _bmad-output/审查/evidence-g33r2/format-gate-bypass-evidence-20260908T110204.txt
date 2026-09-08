@@ -1,0 +1,69 @@
+# python-lint(format) 门绕过证据 — 协议 §2.3 / D-16 甲
+# 卡: CARD-G3-3-R2-writer-boundary · 时刻: 2026-09-08T11:02:04+08:00
+
+## 1. 被跳过的 hook 的**原始输出**
+```
+[Python] Checking format...
+Would reformat: tests/regression/test_learning_event_log.py
+1 file would be reformatted, 3 files already formatted
+rc=1
+```
+
+## 2. 报错**不在本卡改动行**的证明（三条独立判据）
+
+### 判据 a — 唯一 hunk 的内容，与基线逐字相同
+当前工作树 ruff format --diff（唯一 hunk）:
+```
+--- tests/regression/test_learning_event_log.py
++++ tests/regression/test_learning_event_log.py
+@@ -70,9 +70,7 @@
+ 
+ 
+ def test_io_failure_never_raises(monkeypatch):
+-    monkeypatch.setattr(
+-        ev, "_log_path", lambda: (_ for _ in ()).throw(RuntimeError("boom"))
+-    )
++    monkeypatch.setattr(ev, "_log_path", lambda: (_ for _ in ()).throw(RuntimeError("boom")))
+     assert not ev.append_event("answer_scored", event_id="quiz:e2")
+ 
+ 
+
+```
+基线 HEAD 8686d169 同一文件（--stdin-filename 保证同一套规则）:
+```
+--- tests/regression/test_learning_event_log.py
++++ tests/regression/test_learning_event_log.py
+@@ -70,7 +70,5 @@
+ 
+ 
+ def test_io_failure_never_raises(monkeypatch):
+-    monkeypatch.setattr(
+-        ev, "_log_path", lambda: (_ for _ in ()).throw(RuntimeError("boom"))
+-    )
++    monkeypatch.setattr(ev, "_log_path", lambda: (_ for _ in ()).throw(RuntimeError("boom")))
+     assert not ev.append_event("answer_scored", event_id="quiz:e2")
+
+```
+⇒ 两份的 `-` / `+` 内容**逐字相同**（`test_io_failure_never_raises` 里 monkeypatch.setattr 的换行）。
+
+### 判据 b — 内容口径增量 = 0（不用行号交集）
+  app/services/learning_event_log.py             基线=0 当前=0 增量=0
+  tests/regression/test_learning_event_log.py    基线=4 当前=4 增量=0
+  tests/regression/test_g3_2_review_ledger.py    基线=0 当前=0 增量=0
+  ⇒ 三文件增量均为 0；validate_learning_events.py 基线与当前均 format-clean。
+  ⚠️ 用**内容口径**而非行号交集：改契约会让格式问题落在没动过的行上，行号交集对此失明。
+
+### 判据 c — 该 hunk 的行与本卡 diff 面不相交
+  存量 hunk 覆盖: 源文件 :70-76
+  本卡对该文件的改动面（git diff --cached -U0 的 @@ 行）:
+    @@ -76,0 +77,174 @@ def test_io_failure_never_raises(monkeypatch):
+  ⇒ 本卡是 +77 起的**纯追加** 174 行，与 :70-76 不相交。
+
+## 3. 为什么不顺手修掉这 4 行
+  卡文 (j) 与硬边界明写「禁顺手修存量」。已用 `ruff format --range 78-` 只格式化本卡新增段，
+  存量 4 行原样保留（自证见判据 a：修完后该 hunk 仍在）。顺手 format 整文件会把存量改动混进本卡 diff。
+
+## 4. 结论
+  绕过 hook: LEFTHOOK_EXCLUDE=python-lint（仅 format 子步骤失败；lint 与 typecheck 均通过，见下）
+  - ruff check 四文件: All checks passed（本次实测，见 §1 前半 / lint-typecheck-*.txt）
+  - pyright learning_event_log.py: 0 errors, 0 warnings（hook 本次实跑亦为 0，未被绕过）

@@ -1,0 +1,148 @@
+# event_id 形态样本普查 — CARD-G3-3-R2-writer-boundary
+# 生成时刻: 2026-09-08T09:26:58+08:00 / HEAD: 8686d169
+
+## ① tests 样本 (regression 四文件)
+   2 event_id=""
+   6 event_id="板丙#q1"
+   2 event_id="1"
+   1 event_id="板1#q1"
+   1 event_id="板2#q1"
+   1 event_id="板3#q1"
+ 126 event_id="板A#q1"
+   1 event_id="archive:s1"
+  55 event_id="板B#q1"
+   7 event_id="板C#q1"
+   1 event_id="板D#q1"
+   1 event_id="dispute:c-1"
+   3 event_id="E0#q1"
+  28 event_id="E1#q1"
+  12 event_id="E2#q1"
+   3 event_id="E3#q1"
+  11 event_id="K"
+   4 event_id="K#q1"
+   5 event_id="nfd#q1"
+   1 event_id="板P#q1"
+   1 event_id="板Q#q1"
+   9 event_id="quiz:"
+   3 event_id="quiz:补录#q1"
+   1 event_id="quiz:旧板2"
+  23 event_id="quiz:板A#q1"
+   5 event_id="quiz:板B#q1"
+   1 event_id="quiz:contract-1"
+   2 event_id="quiz:e1"
+   1 event_id="quiz:E1#q1"
+   1 event_id="quiz:e2"
+   1 event_id="quiz:板F#q1"
+   1 event_id="quiz:first-in-empty"
+   2 event_id="quiz:fresh-1"
+  11 event_id="quiz:K"
+   1 event_id="quiz:抹掉marker#q1"
+   1 event_id="same#q1"
+   1 event_id="板W#q1"
+   1 event_id="wrong"
+   1 event_id="x-1"
+   1 event_id="板X#q1 "
+   4 event_id="板X#q1"
+   1 event_id="板Y#q1"
+   3 event_id="板Z#q1"
+
+## ①b tests 样本 (JSON 字面量形态 "event_id": "...")
+   1 "event_id": " foreign-history-id "
+   1 "event_id": " quiz:mine "
+   1 "event_id": ""
+   1 "event_id": "a"
+   4 "event_id": "archive:ok"
+   1 "event_id": "archive:torn"
+   1 "event_id": "b"
+   1 "event_id": "bad\xff\xfe"
+   2 "event_id": "c1"
+   2 "event_id": "e1"
+   1 "event_id": "exam:旧板"
+   3 "event_id": "future:1"
+   7 "event_id": "future:x"
+   1 "event_id": "late"
+   1 "event_id": "quiz:损'.encode("
+   8 "event_id": "quiz:旧事件"
+   2 "event_id": "quiz:旧#q0"
+   4 "event_id": "quiz:板A#q1"
+   1 "event_id": "quiz:ext-1"
+   1 "event_id": "quiz:legacy"
+   1 "event_id": "quiz:naive"
+   1 "event_id": "quiz:nan"
+   1 "event_id": "quiz:qsep"
+   1 "event_id": "quiz:r3"
+   1 "event_id": "quiz:v2"
+   3 "event_id": "quiz:x"
+   1 "event_id": "seed"
+   2 "event_id": "x"
+   2 "event_id":"a"
+
+## ② 5 个 backend 生产调用方 event_id 拼法（只读实测）
+1. memory.py:890        event_id=f"archive:{request.session_id}"     — session_id 外部传入
+2. tips.py:596          event_id=f"callout:{request.callout_id}"     — callout_id 外部传入
+3. errors.py:163        event_id=f"accept:{req.candidate_id}"        — candidate_id 外部传入
+4. errors.py:224        event_id=f"dispute:{req.candidate_id}"       — candidate_id 外部传入
+5. conversation_distiller.py:445  event_id=f"cand:{cand_id}"         — cand_id 来自 dual.get()
+   ⇒ 全部 '<前缀>:<id>' 形态; 前缀恒 ASCII, id 段外部可控 ⇒ 形态门对它们是**收紧**(登记于 (k))
+
+## ②b 走 append_event 的既有测试实参（全部无首尾空白/无控制符/短）
+   dispute:c-1 / quiz:e1 / x-1 / ""(本就被 :181-183 拒) / archive:s1 / quiz:e2
+   quiz:contract-1 / callout:cb-1 / archive:s-1 / accept:c-1 / cand:c-2
+   ⇒ 新门全部放行（"" 除外，它由既有空判先拒，行为不变）
+
+## ②c 带首尾空白/坏字节的样本 —— 逐条查明**不走 append_event**
+   test_g3_2_review_ledger.py:1960  event_id="板X#q1 "  → 走 _run_writer (SKILL.md 写点), 已被 SKILL.md:305 拒
+   test_g3_2_review_ledger.py:3092  " foreign-history-id " → 账本行 JSON 字面量（外来账本内容，不经 append_event）
+   test_g3_2_review_ledger.py:3110  " quiz:mine "          → 同上
+   test_learning_events_schema_contract.py:279  b'{"event_id": "bad��"}' → write_bytes 直写账本（校验器面）
+   ⇒ 无一条经 append_event ⇒ 新门不改变它们的行为
+
+## ③ live 账本 event_id 形态（只读）
+"event_id": "archive:2fe93fcc-984a-4ae9-90f9-7fd247e2400f"
+"event_id": "archive:35e1fdd2-fcc1-49fc-b26f-c1cb90f07fc0"
+"event_id": "archive:426ffbde-15f6-4be8-80af-51b6be612bfa"
+"event_id": "archive:5ec3fa7c-8433-4209-aa30-1398a489354d"
+"event_id": "archive:b0e07a30-902b-455b-817e-560525224587"
+"event_id": "archive:dfddedb9-1927-4f11-afa4-da5432c20eac"
+"event_id": "archive:e8eff22c-cce7-4ce7-9c40-700015714f3b"
+"event_id": "callout:cb-e2e-probe-0724-v2"
+"event_id": "callout:cb-e2e-probe-0724"
+"event_id": "callout:cb-ms03p2v9bzhb"
+"event_id": "exam:递归与分治 (Recursion & Divide-Conquer)-2026-07-24-0714"
+"event_id": "exam:特征值与特征向量-2026-07-23-1939"
+"event_id": "exam:特征值与特征向量-2026-07-24-0405"
+"event_id": "exam:特征值与特征向量-2026-07-25-0233"
+"event_id": "exam:CS 61B-2026-08-11-1349"
+"event_id": "exam:CS 61B-2026-08-11-1538"
+"event_id": "quiz:特征值与特征向量-2026-07-16-0112#q1"
+"event_id": "quiz:特征值与特征向量-2026-07-18-1741#q1"
+"event_id": "quiz:特征值与特征向量-2026-07-23-1939#q1"
+"event_id": "quiz:特征值与特征向量-2026-07-25-0233#q1"
+"event_id": "quiz:CS 61B-2026-08-11-1349#q1"
+"event_id":"derive:规划代理的特点"
+   (总行数:       22)
+
+## ④ live 节点 receipt self_confidence_norm 值形态（只读）
+   4 self_confidence_norm: 0
+   1 self_confidence_norm: 0.4
+
+## ③b live 账本 event_id 形态结论（对形态门的直接约束）
+   - 全部 '<prefix>:<id>'；含**内部空格**(exam:CS 61B-… / exam:递归与分治 (Recursion & Divide-Conquer)-…)
+   - 含中文 / 半角括号 / '&' / '#' / '-' / uuid4
+   - 有的**无 '#' 段**(exam:… / archive:… / callout:… / derive:…)
+   - 无一条含首尾空白 / C0 / C1 / 孤立代理；最长 79 字符(含键名) « 512
+   ⇒ 新门全部放行 ✓；⇒ 设计稿正则 ^[a-z]+:[^#]+#[A-Za-z0-9_-]+$ 会拒掉 live 现存 12 条 ⇒ 实证作废
+
+## ④b live 账本 payload 侧（决定数字串裁定）
+   payload 内含 self_confidence_norm 的行数 = **0**（22 行全无）⇒ 该字段确为 receipt-only，实证 §〇 落点更正
+   ⇒ (b)④ 只能看 receipt 值: 0 ×4 / 0.4 ×1，均在 [0,1] 内
+   ⚠️ receipt 对 str/int/float **不可分辨**（scn_ 不过 q_()，裸插值：str '0.4' 与 float 0.4 同写成 0.4）
+   ⇒ **无证据支持接受数字串** ⇒ 按卡文 (c) 缺省：**不接受数字串**
+      理由补强: (i) SKILL.md:218 示例 payload 是裸数字 0.5 非字符串; (ii) :175 规范「0-5 除以 5」产 float;
+               (iii) 接受数字串须 strip()，Codex 问题② 正指其为新注入面; (iv) 拒绝是 fail-closed + 明确报因，非静默
+   ⚠️ 行为变化登记: live 现存 receipt 写作 'self_confidence_norm: 0'（int 0 裸插值）;
+      新门把 int 0 转 float ⇒ 今后写 '0.0'。YAML 语义等价（safe_load 均为数字 0），但字面变化，登记入台账。
+
+## ④c live 节点 self_confidence_raw 形态（只读，佐证归一化路径）
+   4 self_confidence_raw: 不懂
+   1 self_confidence_raw: "2"

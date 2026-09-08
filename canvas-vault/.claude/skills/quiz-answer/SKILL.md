@@ -314,6 +314,30 @@ etype = "answer_abandoned" if p.get("abandoned") else "answer_scored"
 if not (isinstance(eid, str) and eid.strip()):
     raise SystemExit(f"[quiz-answer] event_id 为空 ({eid!r}) — 空的本地 id 会让幂等判定永远认不出这次评分(首跑写入、重跑报缺校准记录), 且同一节点上不同测验会撞成同一个事件, fail-closed 拒写 — 请上游给出非空 event_id")
 evid = "quiz:" + eid
+#: ⛔ CARD-G3-3-R2 写点边界 (Z6-A/RV-D Codex round-1 HIGH 实测复现):
+#: `self_confidence_norm` 从 payload 一路裸奔到 receipt YAML —— 读 :1436 时不过 `q_()`,
+#: 拼 :1524 时是**裸 f-string 插值** `{scn_}`, 而它与 `event_id` 同处一个 YAML 条目。
+#: 于是一个带换行的自评值 (`'0.5\n    event_id: "quiz:injected"'`) 就能在条目里再开
+#: 一行, 把这条 receipt 的身份改写成别人的。实测后果不是「写错一条」而是**节点砖化**:
+#: 首写 rc=0, 其后每一次评分都 rc=1「FSRS 已应用但缺校准记录」, 该节点再也评不了分。
+#: ⛔ 收在**这一处入口**、在任何写入之前, 而不是去 14 个插值点各补一道 ——
+#: 后者是「修一半」的形状(漏一个就等于没修), 前者让下游只可能拿到 None 或 float。
+#: 所以 :1436 / :1524 一字不改, 本门是它们唯一的上游。
+#: ⛔ 不接受数字串 (2026-09-08 只读普查裁定, 证据 evidence-g33r2/event-id-shapes-*.txt):
+#: live 账本 22 行 payload **零**含此键(它是 receipt-only), live receipt 仅 `0`×4 / `0.4`×1;
+#: 而 `self_confidence_raw: "2" → norm: 0.4` 正是规范 :175「数字 0-5 → 除以 5」的除法产物
+#: (float), :218 示例 payload 也写作裸数字 `0.5`。接受字符串就必须先 strip(), 那等于在
+#: 身份键旁边重新开一个「吃掉哪些字符」的口子 —— 上游给字符串 = 上游 bug, 报给它。
+#: ⚠️ `bool` 必须**先**判: 它是 `int` 的子类, `isinstance(True, (int, float))` 为真,
+#: 不先拦就会被 `float(True)` 静默写成 `1.0` —— 把「没填」伪装成「完全懂」。
+import math
+_scn = p.get("self_confidence_norm")
+if _scn is None:
+    pass
+elif isinstance(_scn, bool) or not isinstance(_scn, (int, float)) or not math.isfinite(_scn) or not (0.0 <= _scn <= 1.0):
+    raise SystemExit(f"[quiz-answer] self_confidence_norm 非法 ({_scn!r}; 须为 null 或 0..1 的数) — 它与 receipt 身份键同段落, 非法值会改写条目 event_id, fail-closed 拒写 — 请上游修正后重跑")
+else:
+    p["self_confidence_norm"] = float(_scn)
 node_id = os.path.splitext(os.path.basename(NODE))[0]
 # ⛔ 归属比较**一律**走这个 key (Codex round-10 BLOCKER): round-9 我只在
 # dup owner 检查里做了 NFC 归一化, **适用集路由仍是 raw compare** ——
@@ -329,8 +353,47 @@ _NODE_KEY = _nkey(node_id)
 # 判据与账本侧逐字同款: 非空字符串且无首尾空白。
 if not isinstance(node_id, str) or not node_id.strip() or node_id != node_id.strip():
     raise SystemExit(f"[quiz-answer] 从节点路径派生出的 node_id 不可用 ({node_id!r}; 须为非空且无首尾空白) — 写出去的事件将永远路由不到任何节点, 崩溃后无法自动恢复; fail-closed 拒写 — 请修正节点文件名 {NODE}")
+def _harness_tree(vault_dir):
+    """解析 `REPO` —— 那棵装着 `backend/scripts/validate_learning_events.py` 的 harness 树。
+
+    ⛔ E-2 (用户 2026-09-07 裁定): 缺省仍是 `dirname(VAULT)` —— vault 是代码树直接
+    子目录的老布局, 现有全部门都跑在这条路径上。vault 若在 `.canvas-config.yaml` 里
+    显式写了 `harness_tree`, 以它为准: 一键部署形态下 vault 是用户自己的 Obsidian
+    vault, 可以放在代码树之外的任何地方, 那时 `dirname(VAULT)` 指到的是用户的文稿
+    目录而不是 harness。键名与 U3-B 写入端逐字同 (`harness_tree`)。
+    ⛔ 逐行正则而不是 PyYAML: 本文件 :1075 已经声明「PyYAML 不可用 → F1 判定退回
+    正则扫描」。这里若依赖 PyYAML, 缺库的机器上 harness_tree 会被**静默忽略**、
+    回退到错的树, 然后在下面的 import 处抛一句看不懂的 ImportError —— 降级口径
+    必须与 :1075 同款, 否则「PyYAML 装没装」会改变身份绑定。
+    ⛔ 有值但树不存在时**不回退**: 回退等于把「配置写错了」翻译成「按老布局跑」,
+    而老布局下 import 往往**会成功**(另一棵树的 validator), 于是写出去的东西静静地
+    绑到错的 harness 上 —— 配置断裂必须说话, 不能被兜底吃掉。
+    """
+    _cfg_p = os.path.join(vault_dir, ".canvas-config.yaml")
+    _raw = ""
+    try:
+        with open(_cfg_p, encoding="utf-8") as _cf:
+            for _cl in _cf:
+                _cm = re.match(r'^harness_tree:\s*(.*?)\s*$', _cl.rstrip("\r\n"))
+                if _cm:
+                    _raw = _cm.group(1)
+    except OSError:
+        _raw = ""
+    #: 带引号的值先按引号取内容(引号**内**的 `#` 是路径的一部分, 不是注释);
+    #: 裸值才剥 ` #` 尾注释 —— 反过来先剥注释会把 `"a # b"` 截成 `"a`。
+    _qm = re.match(r'^([\'"])(.*)\1\s*(?:#.*)?$', _raw)
+    _tree = _qm.group(2) if _qm else re.sub(r'\s+#.*$', '', _raw).strip()
+    if not _tree:
+        return os.path.dirname(vault_dir)
+    _tree = os.path.expanduser(_tree)
+    if not os.path.isabs(_tree):
+        _tree = os.path.join(vault_dir, _tree)
+    _tree = os.path.normpath(_tree)
+    if not os.path.isdir(os.path.join(_tree, "backend", "scripts")):
+        raise SystemExit(f"[quiz-answer] harness_tree 指向不存在的树 ({_tree}) — G3-2 依赖不可达, fail-closed 拒写 — 请修正 .canvas-config.yaml 或删掉该键回退到 vault 父目录")
+    return _tree
 VAULT = os.path.dirname(os.path.dirname(os.path.abspath(NODE)))
-REPO = os.path.dirname(VAULT)
+REPO = _harness_tree(VAULT)
 EV = os.path.join(VAULT, "learning_events.jsonl")
 
 # ── G3-2 复用单一实现 (禁第三套, DD-03/DD-13): 三态判别用校验器本体,
