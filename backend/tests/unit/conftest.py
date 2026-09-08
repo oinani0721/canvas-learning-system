@@ -152,8 +152,14 @@ def _hygiene_scan_tmp_literals() -> tuple[list[str], list[str]]:
         安静地少产出文件, 于是本函数返回 `([], [])` = 「无命中、无检查失败」,
         正是这道门自己声称要杜绝的假绿。外层再包 `try` 也够不着, 因为异常
         在 `rglob` 内部就被吞了。`os.walk` 的 `onerror` 回调是唯一能把这类
-        失败报出来的钩子; `followlinks=False` (默认) 同时挡住目录符号链接
-        把扫描面拐出树外。
+        失败报出来的钩子。
+
+    ⚠️ `followlinks=False` (默认) 只是**不跟随**目录符号链接 —— 它**静默跳过**,
+    并不等于「检查过」。所以本函数在每层 walk 里**显式**给目录符号链接记账:
+    目标在扫描根内 ⇒ 跳过 (walk 会独立走到真实目录, 不漏);
+    目标在根外或无法判定 ⇒ 进 unchecked。
+    (自审实测: 不这么做时, 放在指向树外的目录符号链接后面的硬编码常量
+     既不进 hits 也不进 unchecked = 静默放行。)
 
     ⚠️ **本门证明的是「源码里没有这种硬编码常量」, 不是「本树没有 /tmp 写者」。**
     判据只是「某个 `str` 类型的 `ast.Constant` 含连续子串 `_TMP_LITERAL`」,
@@ -188,6 +194,24 @@ def _hygiene_scan_tmp_literals() -> tuple[list[str], list[str]]:
 
     for dirpath, dirnames, filenames in os.walk(scan_root, onerror=_on_walk_error):
         dirnames.sort()
+
+        # ⛔ os.walk(followlinks=False) 对目录符号链接是**静默跳过**, 不是「检查过」。
+        # 链接目标里的源码既不进 hits 也不进 unchecked —— 那正是本门声称杜绝的假绿
+        # (自审实测: 同一份含硬编码常量的文件, 放普通目录会被抓到, 放指向树外的
+        #  目录符号链接后面就既不抓也不记账)。这里显式给它记账。
+        for dirname in list(dirnames):
+            link = Path(dirpath) / dirname
+            if not link.is_symlink():
+                continue
+            try:
+                link_target = link.resolve()
+            except OSError as exc:
+                unchecked.append(f"{link} (目录符号链接: 目标解析失败 {type(exc).__name__}: {exc})")
+                continue
+            if _hygiene_within_root(link_target, scan_root) is True:
+                # 目标就在扫描根内 ⇒ os.walk 会独立走到那个真实目录, 不漏, 无需记账。
+                continue
+            unchecked.append(f"{link} (目录符号链接未跟随, 目标不在扫描根内或无法判定 -> {link_target})")
         for name in sorted(filenames):
             if not name.endswith(".py"):
                 continue
