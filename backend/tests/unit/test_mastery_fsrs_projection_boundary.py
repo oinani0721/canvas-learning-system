@@ -125,32 +125,40 @@ def _call_name(node: ast.Call) -> str | None:
 def _open_is_write(node: ast.Call) -> bool:
     """`open(...)` 是否以写模式打开。
 
-    ⚠️ mode 的位置取决于调用形态, 共**三种** (Codex r1 MEDIUM-2 + r2 MEDIUM-1):
+    ⚠️ mode 的位置取决于调用形态, 共**四种** (Codex r1 MEDIUM-2 + r2 MEDIUM-1
+    + r3 MEDIUM-1 三轮补):
       · 内建 `open(path, mode)`            —— func 是 Name, mode = args[1];
       · 模块函数 `io.open(path, mode)`     —— func 是 Attribute 但接收者是
-        **模块名** (io/builtins/os), mode 仍是 args[1];
+        **模块名** (io/builtins), mode 仍是 args[1];
       · 绑定方法 `Path(p).open(mode)`      —— func 是 Attribute 且接收者是
-        表达式 (如 Call), mode = args[0]。
-    r1 版一律取 args[1] ⇒ `Path(p).open("w")` 漏报; r2 整改版把**所有** Attribute
-    当绑定方法取 args[0] ⇒ `io.open("notes.md", "w")` 把文件名当 mode 又漏报、
-    `io.open("card.md", "r")` 因文件名含 "a" 误报 —— 整改自己打了个洞。
-    本版按接收者是否模块名三分。
+        表达式 (如 Call), mode = args[0];
+      · 低层 `os.open(path, flags)`        —— 接收者是 os 模块但**语义不同**:
+        第二参数是整数位掩码 flags (O_WRONLY/O_RDWR/O_APPEND/O_CREAT/O_TRUNC
+        任一出现即写), 不是文本模式串。r3 版把 os.open 套了文本模式逻辑,
+        `os.open(p, flags=os.O_WRONLY | os.O_CREAT)` 找不到字符串 mode 被
+        当默认只读**放行** —— 新增漏报。
+    r1 版一律取 args[1] ⇒ `Path(p).open("w")` 漏报; r2 版把所有 Attribute 当
+    绑定方法 ⇒ 常量路径的 `io.open("notes.md", "w")` 漏报 (变量路径 p 非字符串
+    常量会 fail-closed 报写, 所以 r2 的洞只在**字符串常量路径**上); r3 版修
+    io.open 又漏了 os.open 的 flags 语义。本版四分。
 
-    fail-closed: mode 不是字面字符串时按**写**处理 —— 一个静态判不出模式的
-    open() 正是边界门最该拦下的形态。这条是**刻意的从严**, 代价是
-    `mode = "r"; open(p, mode)` 这种动态只读会被误拦; 真遇到时应当细化本函数,
-    而不是把 open 从名单里删掉。
+    fail-closed: 文本形态下 mode 不是字面字符串时按**写**处理 —— 一个静态
+    判不出模式的 open() 正是边界门最该拦下的形态。这条是**刻意的从严**, 代价
+    是 `mode = "r"; open(p, mode)` 这种动态只读会被误拦; 真遇到时应当细化本
+    函数, 而不是把 open 从名单里删掉。
     """
     func = node.func
     if isinstance(func, ast.Name):
         mode_index = 1  # 内建 open(path, mode)
     elif isinstance(func, ast.Attribute):
-        recv_is_module = isinstance(func.value, ast.Name) and func.value.id in (
-            "io",
-            "builtins",
-            "os",
-        )
-        mode_index = 1 if recv_is_module else 0
+        recv = func.value
+        recv_is_module = isinstance(recv, ast.Name) and recv.id in ("io", "builtins", "os")
+        if recv_is_module and isinstance(func.ctx, ast.Load) and getattr(func, "attr", "") == "open":
+            if isinstance(recv, ast.Name) and recv.id == "os":
+                return _os_open_is_write(node)  # flags 语义, 单独判
+            mode_index = 1  # io.open / builtins.open(path, mode)
+        else:
+            mode_index = 0  # 绑定方法 Path(p).open(mode)
     else:
         return True  # 罕见形态 (下标取函数等) —— 按写处理, fail-closed
     mode = node.args[mode_index] if len(node.args) > mode_index else None
@@ -162,6 +170,43 @@ def _open_is_write(node: ast.Call) -> bool:
     if isinstance(mode, ast.Constant) and isinstance(mode.value, str):
         return bool(_WRITE_MODE_CHARS & set(mode.value))
     return True
+
+
+# os.open 的写 flags 位 (O_RDONLY=0 只读; 其余打开/创建形态都算写)
+_OS_OPEN_WRITE_FLAGS = frozenset({"O_WRONLY", "O_RDWR", "O_APPEND", "O_CREAT", "O_TRUNC", "O_TEMPORARY"})
+
+
+def _os_open_is_write(node: ast.Call) -> bool:
+    """`os.open(path, flags)` 按整数位掩码 flags 判写 (Codex r3 MEDIUM-1)。
+
+    flags 出现在第二位置参数或 `flags=` 关键字。位或表达式 `os.O_WRONLY |
+    os.O_CREAT` 逐段抽名字/常量检查。flags 缺省 (=O_RDONLY) 放行; flags
+    存在但静态解不出来 (变量/函数返回) 按**写**处理 —— 与文本 open 的
+    fail-closed 同向。
+    """
+    flags = node.args[1] if len(node.args) > 1 else None
+    for kw in node.keywords:
+        if kw.arg == "flags":
+            flags = kw.value
+    if flags is None:
+        return False  # os.open(path) → O_RDONLY, 只读
+    names: set[str] = set()
+
+    def _collect(n: ast.expr) -> None:
+        if isinstance(n, ast.Attribute):
+            names.add(n.attr)
+        elif isinstance(n, ast.Name):
+            names.add(n.id)
+        elif isinstance(n, ast.BinOp):
+            _collect(n.left)
+            _collect(n.right)
+
+    _collect(flags)
+    if names & _OS_OPEN_WRITE_FLAGS:
+        return True
+    # 解析不出任何已知 flag 名 ⇒ 要么是非常规来源的 flags, 要么是纯数字。
+    # names 为空说明 flags 是常量/调用等非名字形态 —— fail-closed 按写。
+    return not names
 
 
 def _receiver_is_filesystem(func: ast.Attribute) -> bool:
@@ -270,6 +315,7 @@ def _find_write_calls(source: str) -> list[str]:
     tree = ast.parse(source)
     found: list[str] = []
     called_attr_nodes: set[int] = set()
+    called_name_nodes: set[int] = set()
     imported_writers = _imported_fs_writers(tree)
     write_names = UNAMBIGUOUS_FS_WRITES | AMBIGUOUS_FS_WRITES
 
@@ -278,6 +324,8 @@ def _find_write_calls(source: str) -> list[str]:
             continue
         if isinstance(node.func, ast.Attribute):
             called_attr_nodes.add(id(node.func))
+        elif isinstance(node.func, ast.Name):
+            called_name_nodes.add(id(node.func))
         name = _call_name(node)
         if name is None:
             continue
@@ -285,23 +333,31 @@ def _find_write_calls(source: str) -> list[str]:
             if _open_is_write(node):
                 found.append(f"open(write-mode)@L{node.lineno}")
             continue
+        if isinstance(node.func, ast.Name) and name in imported_writers:
+            # from os import replace [as r] 的调用名是**别名或原名**——必须
+            # 先查导入表再查原名单 (r3 MEDIUM-2: 早前先查原名单, 别名 r 不在
+            # 名单里 ⇒ 记录了却永远查不到; 第一档的导入别名 copyfile→cp 同漏)
+            found.append(f"{name}(imported)@L{node.lineno}")
+            continue
         if name in UNAMBIGUOUS_FS_WRITES:
             found.append(f"{name}@L{node.lineno}")
             continue
         if name in AMBIGUOUS_FS_WRITES:
-            if isinstance(node.func, ast.Name) and name in imported_writers:
-                found.append(f"{name}(imported)@L{node.lineno}")
-            elif isinstance(node.func, ast.Attribute) and _receiver_is_filesystem(node.func):
+            if isinstance(node.func, ast.Attribute) and _receiver_is_filesystem(node.func):
                 found.append(f"{name}@L{node.lineno}")
 
-    # 形态 2: 没有被调用、只是被当值传走的写方法引用 (两档都扫)
+    # 形态 2: 没有被调用、只是被当值传走的写方法引用 (两档都扫)。
+    # r3 MEDIUM-2: 裸名 (`from os import replace; asyncio.to_thread(replace, a,
+    # b)`) 也是回调形态 —— 只查 Attribute 会漏, Name 且在导入表里同样算。
     for node in ast.walk(tree):
-        if not isinstance(node, ast.Attribute) or node.attr not in write_names:
-            continue
-        if id(node) in called_attr_nodes:
-            continue
-        if node.attr in UNAMBIGUOUS_FS_WRITES or _receiver_is_filesystem(node):
-            found.append(f"{node.attr}(callback-ref)@L{node.lineno}")
+        if isinstance(node, ast.Attribute) and node.attr in write_names:
+            if id(node) in called_attr_nodes:
+                continue
+            if node.attr in UNAMBIGUOUS_FS_WRITES or _receiver_is_filesystem(node):
+                found.append(f"{node.attr}(callback-ref)@L{node.lineno}")
+        elif isinstance(node, ast.Name) and node.id in imported_writers:
+            if id(node) not in called_name_nodes:
+                found.append(f"{node.id}(callback-ref)@L{node.lineno}")
     return found
 
 
@@ -345,20 +401,26 @@ def test_write_call_checker_is_not_vacuous():
         " 禁读会把「backend 不许溯源 frontmatter」这个缺陷写成规格。"
     )
 
-    # 判据矩阵。含三轮反例: r1 MEDIUM-2 的四条 (绑定 open 写/读带 buffering/
-    # 字符串 replace/回调式写), r2 MEDIUM-1 的三条 (io.open 参数错位), r2
-    # MEDIUM-2 的两条 (第二档回调 / from-import 裸名)。早前版本的具体错向:
-    # r1 版在「绑定 open」两行上错, r2 整改版又在「io.open」三行上回退 ——
-    # 内建 open 两行 r1/r2 都对, 留作回归保护。钉成矩阵免得再改回去。
+    # 判据矩阵。含四轮反例, 各轮错向如实记 (r3 LOW-5 更正: r2 的 io.open 洞
+    # 只在**字符串常量路径**上——变量路径 p 非字符串常量会 fail-closed 报写,
+    # 所以矩阵必须用常量路径才能锁住那个回退):
+    #   r1 版错: 绑定 open 写(漏)/读带 buffering(误)/字符串 replace(误)/回调式写(漏);
+    #   r2 版错: io.open("notes.md","w")(漏, 常量路径)/io.open("card.md","r")(误);
+    #   r3 版错: os.open flags(漏)/导入别名(漏)/裸名回调(漏);
+    #   内建 open 两行各版都对, 留作回归保护。
     cases: list[tuple[str, str, bool]] = [
         # (标签, 源码片段, 期望是否命中)
         ("内建 open 写", "open(p, 'w')", True),
         ("内建 open 读", "open(p)", False),
         ("绑定 open 写", "Path(p).open('w')", True),  # ← r1 版漏报
         ("绑定 open 读带 buffering", "Path(p).open('r', -1)", False),  # ← r1 版误报
-        ("io.open 写", "io.open(p, 'w')", True),  # ← r2 整改版漏报 (文件名被当 mode)
-        ("io.open 读", "io.open(p, 'r')", False),  # ← r2 整改版误报 (文件名含 a 被当追加)
-        ("builtins.open 写", "builtins.open(p, 'w')", True),  # ← r2 整改版漏报
+        ("io.open 常量路径写", "io.open('notes.md', 'w')", True),  # ← r2 版漏报(常量路径才是真反例)
+        ("io.open 常量路径读", "io.open('card.md', 'r')", False),  # ← r2 版误报(文件名含 a)
+        ("io.open 变量路径写", "io.open(p, 'w')", True),
+        ("builtins.open 常量路径写", "builtins.open('notes.md', 'w')", True),
+        ("os.open flags 位掩码写", "os.open(p, flags=os.O_WRONLY | os.O_CREAT)", True),  # ← r3 版漏报
+        ("os.open 默认只读", "os.open(p)", False),
+        ("os.open O_RDONLY 只读", "os.open(p, os.O_RDONLY)", False),
         ("字符串 replace", "s.replace('a', 'b')", False),  # ← r1 版误报
         ("字典 copy", "d.copy()", False),  # ← r1 版误报
         ("列表 remove", "items.remove(x)", False),  # ← r1 版误报
@@ -368,8 +430,11 @@ def test_write_call_checker_is_not_vacuous():
         ("json.dumps 只产字符串", "json.dumps(obj)", False),
         ("Path 对象 write_text", "Path(p).write_text('x')", True),
         ("回调式写", "asyncio.to_thread(Path(p).write_text, data)", True),  # ← r1 版漏报
-        ("回调式二档写", "asyncio.to_thread(os.replace, a, b)", True),  # ← r2 整改版漏报
-        ("from-import 裸名写", "from os import replace\n    replace(a, b)", True),  # ← r2 整改版漏报
+        ("回调式二档写", "asyncio.to_thread(os.replace, a, b)", True),  # ← r2 版漏报
+        ("from-import 裸名写", "from os import replace\n    replace(a, b)", True),  # ← r2 版漏报
+        ("from-import 别名写", "from os import replace as r\n    r(a, b)", True),  # ← r3 版漏报(记录了没查询)
+        ("第一档导入别名写", "from shutil import copyfile as cp\n    cp(a, b)", True),  # ← r3 版漏报
+        ("裸名回调写", "from os import replace\n    asyncio.to_thread(replace, a, b)", True),  # ← r3 版漏报
         ("Path 读", "Path(p).read_text('utf-8')", False),
         ("json.load 读", "json.load(fh)", False),
         ("常量名文件对象写", "_CARD_STATES_FILE.write_text('x')", True),
