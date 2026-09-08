@@ -1,0 +1,13 @@
+### 最终 DoD 自检（HEAD=8dcfac8e）
+① pyright 过滤后非共享 = 0     : 0  ✅
+② 多重集 NEW = 0               : 0  ✅
+③ tests/unit nodeid diff        : 完全为空 ✅
+   tests/api                    : 268 passed  ✅
+④ ruff F401,F821                : 0（53 文件）✅
+⑤ format 内容口径不一致          : 1（仅 health_monitor 已知项）✅
+⑥ 地盘 非 services 文件数        : 0  ✅
+⑦ 禁改面 diff                    : 空 ✅
+⑧ *.stderr 入库（本卡新增）      : 1  ✅
+⑨ commit 数（含批次标记）        : 6  ✅
+⑩ Codex 轮次（首部三字段齐）     : 4 份
+⑪ 新增 assert / cast / ignore    : assert=20 cast=30 ignore=16

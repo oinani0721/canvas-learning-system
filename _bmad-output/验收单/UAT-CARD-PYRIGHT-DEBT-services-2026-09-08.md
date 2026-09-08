@@ -271,7 +271,58 @@ prompt 第一节写「53 个文件，**351** insertions / 123 deletions」，而
 
 **教训**：`cast` 是运行期 no-op，`assert` 不是。要「只改类型层」，`cast` 比 `assert` 更严格地满足这个约束。
 
-### 五.14 我加过一个多余的 ignore（已删）
+### 五.15 ⛔ round-1 的 assert 还有第二层问题：异常**消息**也变了（Codex r2 抓到）
+
+§五.13 只解决了「异常类型在窄 except 面前逃逸」。Codex round-2 指出更深一层：
+即使 handler 捕获了 `AssertionError`，只要它把 `{e}` 写进**返回值或日志**，
+`AssertionError` 的空消息就会让可观察文本变化。
+
+实证（`autoscore` 的 handler 把 `{e}` 写进返回的 6 个字段）：
+
+| 版本 | 用户实际看到 |
+|---|---|
+| 基线 | `Evidence extraction failed: the JSON object must be str, bytes or bytearray, not NoneType` |
+| round-1 的 assert | `Evidence extraction failed: ` ← **残缺** |
+| round-2 整改的 cast | 与基线**逐字相同** |
+
+**我把范围扩大了**：Codex 点名 5 处，我按其定性做全量 AST 审计
+（`assert-message-leak-audit-*.txt`：每个新增 assert 的 try 的全部 handler，
+检查是否对异常变量做 `{e}` / `str(e)` / `%s % e` / `, e)` 格式化，并区分「写进返回值」与「仅日志」）
+⇒ **12 个组合 / 9 个 assert 位置**。9 处全部改 `cast`，共删 10 个 assert（36 → 26）。
+
+**方法论教训（本卡第三次同形态）**：
+「原代码也会崩」这个口径漏了两层 —— ①崩成**什么类型**（§五.13）②那个异常的**消息**会不会被读出来（本条）。
+判据要覆盖的是**可观察行为的全部维度**，不是只覆盖「会不会崩」。
+
+### 五.16 ⛔ 管道吞掉退出码，我把失败的 commit 读成了成功
+
+`LEFTHOOK_EXCLUDE=… git commit … | tail -4` —— 打印 `commit rc=0`，但 `git log` 显示 HEAD 没变，
+commitlint 那行是 🥊（失败标记）。原因：**管道的 rc 是最后一个命令（tail）的 rc**，不是 git 的。
+
+讽刺的是这条教训就写在本验收单的其他段落里（协议 §2.2 也写了「`tee` 会吞退出码」），
+我转头就在自己的命令里踩了。修正：不加管道直接取 `$?`，或用 `$pipestatus[1]`。
+
+**通用规则**：任何 `cmd | filter` 都会把 `cmd` 的 rc 换成 `filter` 的。判断成败必须取被测命令自己的 rc。
+
+### 五.18 ⛔ 同一失败形态出现三次 —— 判据的**作用域**一直比它主张的窄
+
+「assert 改变可观察行为」这个形态，被三轮外审逐层剥开：
+
+| 轮 | 发现的层次 | 我当时判据的盲区 |
+|---|---|---|
+| r1 | 落在**窄 except** 内 ⇒ `AssertionError` 逃逸 | 只看「原代码会不会崩」，没看「崩成什么类型」 |
+| r2 | handler 把 `{e}` 写进**返回值/日志** ⇒ 文本变化 | 只看「异常有没有被接住」，没看「消息会不会被读出来」 |
+| r3 | assert 不在本函数 try 内，但**调用方**的 handler 会格式化 | 审计作用域只到「本函数的 try」，没沿调用链上看 |
+
+**记忆库明确说：同一失败形态出现第三次就要换方法，不是换注意力。** 本卡的换法是
+把审计作用域从「本函数」扩到「调用方」，并改用 `cast` 作为默认手段（运行期 no-op，
+异常类型与消息全部保持），而不是继续逐个打补丁。
+
+**为什么不把全部 26 个 assert 一次改光**：在副本上试过批量正则替换，pyright 错误数**反增**
+（类型推断各处不同，正则改不对）。且 Codex round-3 明确裁定「已证明不可达或局部等价的
+assert 可以保留」。所以按「**已证实的差异才改**」执行，剩余 20 个作为「未证明项」登记移交。
+
+### 五.19 我加过一个多余的 ignore（已删）
 
 - 在 `wikilink_graph_service.py:132` 加了 `# pyright: ignore[reportOperatorIssue]`，并写了
   「networkx stub 未声明 `__contains__`」这个**未经证实的解释**。
@@ -314,7 +365,7 @@ prompt 第一节写「53 个文件，**351** insertions / 123 deletions」，而
 | 删死 import | 50 行（覆盖 53 条诊断） | 删前逐个验证：① pyright 判 not accessed ② 全仓无「借道 import」③ 无 `getattr`/`importlib`/字符串动态使用 | `ruff check F401` = 0；负控 ① |
 | import 列表项删/改 | 1（`dataclasses.field`） | 只删未用名字 | 同上 |
 | 行级 ignore | **16** | 行级 + 具体 rule + 同行/上一行理由；零裸 `# type: ignore`、零文件级 | 每条都做了**承重验证**：在副本上逐条删掉该 ignore，pyright 必须在同一行重新报出同一 rule ⇒ 整改后 **16/16 承重、0 多余**（`ignore-necessity-r1fix-*.txt`；round-1 版本另有 12/12 的记录） |
-| `assert x is not None` | **36** | **只加在原代码遇 None 也会崩、且异常类型不变的位置**。⛔ round-1 有 2 处违反：落在**窄 except** 内时 `AssertionError` 会逃逸 = 改控制流（Codex MEDIUM + 本卡自行枚举出的第 2 处），已全部改为 `cast` | 负控 ②；`assert-except-audit-*.txt`（AST 逐个找最内层 try 并判 handler 覆盖面）；`r1-fix-verification-*.txt` 三态对照 |
+| `assert x is not None` | **20**（开工峰值 38 → r1 整改 36 → r2 整改 26 → r3 整改 20） | **只加在原代码遇 None 也会崩、且异常类型不变的位置**。⛔ round-1 有 2 处违反：落在**窄 except** 内时 `AssertionError` 会逃逸 = 改控制流（Codex MEDIUM + 本卡自行枚举出的第 2 处），已全部改为 `cast` | 负控 ②；`assert-except-audit-*.txt`（AST 逐个找最内层 try 并判 handler 覆盖面）；`r1-fix-verification-*.txt` 三态对照 |
 | `cast(...)` 窄化 | **14** = 12 `ModelResponse` + 1 `str` + 1 `BatchOrchestrator` | 只用于**联合类型**或**运行期 no-op 的等价替换**；不改分支顺序、不改异常类型。⛔ round-1 有 3 处误用（2 处掩盖 `CancelledError`、1 处把 str 声称成 Enum），已撤销改 ignore | 负控 ③；运行期自证；Codex r1 HIGH/MEDIUM 整改 |
 | `TYPE_CHECKING` 声明 | **11 文件** | 运行期整块不执行 ⇒ 零 import 图变化 | 运行期自证对照组（基线树 vs 工作树 import 图逐行相同）；签名逐字比对 11/11（`typecheck-sig-parity-*.txt`，含验伪锚） |
 | 注解收紧（`object` → 真类型 / 补 `Optional`） | 6 处 | 先查调用方实际传什么再收紧 | 多重集 NEW=0 |
@@ -338,8 +389,9 @@ prompt 第一节写「53 个文件，**351** insertions / 123 deletions」，而
 9. **五.5 的 format 副作用未消除**（`health_monitor.py` 一块从 1 行变 3 行）—— 只证明 `ruff format --check` 对工作树该块干净，未证明它与基线排版一致。
 10. **12 条 ignore 中的 4 条（#5/#6/#7/#8）是本卡实测出来的真缺陷** —— 本卡只做类型层标注，**未证明这些缺陷不会在生产中造成影响**，只证明了它们各自被哪个 `except` 吞掉、降级成什么。
 11. 开工 tests 基线是混合态（五.7），**未做**一次完全干净的开工跑；权威判据是收工跑对主干 202 基线的 diff。
-12. **25 处不在任何 try 内的 assert，其异常类型仍从原本的 `AttributeError`/`TypeError` 变成了
-    `AssertionError`** —— 本卡只证明了「两者都会向上抛」，**未逐个追查上层调用方是否按异常类型分流**。
+12. **剩余 20 个 assert 中，不在词法 try 内的那些，其异常类型仍从 `AttributeError`/`TypeError`
+    变成 `AssertionError`**（Codex r3 更正：此前是 26 个中 25 个不在 try 内；`agent_routing_engine:577`
+    在 try 内） —— 本卡只证明了「两者都会向上抛」，**未逐个追查上层调用方是否按异常类型分流**。
     风险面已量化（`assert-exception-type-risk-*.txt`）：全仓 `backend/app` 有 **104 处**按
     `AttributeError`/`TypeError` 分流的 `except`；其中与本卡改过的 9 个文件存在 import 关系的
     调用方共 **8 个组合**（`alert_manager`←`monitoring.py`/`main.py`、`conversation_distiller`←
@@ -356,6 +408,23 @@ prompt 第一节写「53 个文件，**351** insertions / 123 deletions」，而
     超出本卡范围。
 15. ~~12 条 ignore 的承重验证只跑在 round-1 版本上~~ —— **已补跑**：整改后 16 条全部重验，
     **16/16 承重、0 多余**（`ignore-necessity-r1fix-*.txt`）。此条不再是未证明项。
+16. **副作用顺序未证明**（Codex round-2 MEDIUM-2 指出）：`assert` 在**解引用之前**失败，
+    而原异常在解引用**那一刻**失败。若两者之间还有别的副作用（日志、计数器、状态写入），
+    执行与否会不同。剩余 26 个 assert 未逐个核查这一点。
+17. **26 个不在 try 内的 assert 的外层传播链未追**：只量化了风险面（§八 #12），
+    未逐条走完调用链。Codex round-2 明确指出「无 try 时还需检查调用方异常契约」，本卡未做。
+18. **本卡的 assert→cast 整改覆盖了两个作用域**（本函数的 try + 调用方的 try 中格式化异常变量的
+    handler），但 Codex round-3 明确指出方法边界还漏这些形态：`logger.exception()` / `exc_info=True` /
+    裸重抛 / 异常链 / 异常对象被传递或存储后再格式化 / 上下文管理器退出处理。
+    ⚠️ Codex 同时声明「这些是方法边界，并非断言当前代码全部存在这些问题」——
+    **本卡未逐个排查这些形态**，剩余 20 个 assert 按「已证明不可达或局部等价可保留」处置。
+19. **剩余 20 个 assert 未被证明「不可达或局部等价」**——只是**没有被证实**有差异。
+    这两者不同：前者需要正面证明，本卡只做到了后者。Codex round-3 的原话是
+    「可以登记为待裁定事项，不能仅凭登记就关闭纯类型卡的等价性要求」。
+    ⇒ **这是移交给主 session 的明确决策点**：接受这 20 个 assert 作为行为例外，或要求继续闭环。
+20. **副作用顺序**：Codex 给了具体例子 `graphiti_belief_service:207` —— `occurred_at=None` 时
+    assert 会**提前**失败，而基线会继续走到索引初始化与旧边处理。
+    该输入违反 `datetime` 注解，Codex 未据此升级为回归，但本卡也**未证明**实际调用方不会传 None。
 
 ---
 
@@ -425,8 +494,37 @@ prompt 第一节写「53 个文件，**351** insertions / 123 deletions」，而
 
 | 轮 | 审 SHA | 结果 | 处置 |
 |---|---|---|---|
-| r1 | `2fa89589` | **暂不通过**：BLOCKER=0 / HIGH=1 / MEDIUM=3 / LOW=3 | **6 条全部采信**，整改见下，commit `958f20a3` |
-| r2 | `958f20a3` | 整改复审，进行中 | — |
+| r1 | `2fa89589` | **暂不通过**：BLOCKER=0 / **HIGH=1** / MEDIUM=3 / LOW=3 | **6 条全部采信**，整改 → commit `958f20a3` |
+| r2 | `958f20a3` | **总判 BLOCKER=0、HIGH=0** ✅（D-15 的门达成）；另提 MEDIUM×2 + LOW×2 未闭环 | **全部采信**，MEDIUM-1 继续整改 → commit `82d15aac` |
+| r3 | `82d15aac` | **总判 BLOCKER=0、HIGH=0**（连续两轮）；MEDIUM×2 + LOW×4 | 采信「已证实的差异应在本卡恢复」的裁定 → commit `8dcfac8e` |
+| r4 | `8dcfac8e` | 收尾复审，进行中 | — |
+
+#### r3 逐条处置
+
+| 级别 | Codex 的发现 | 我的处置 |
+|---|---|---|
+| **MEDIUM-1** | `conversation_distiller.py:319` —— 我上一轮的审计**漏了它**：assert 不在本函数 try 内，但调用方 `:164-166` 的 handler 会把消息记进日志 | **采信**。我据此把审计**作用域从「本函数的 try」扩到「调用方的 try」**，重跑得 5 个 assert 位置（Codex 点 1 个）。已改 `cast` |
+| **MEDIUM-2** | `signal_registry:187/:228/:268` —— 实证 `count` 可为 `None`，我的注释「计数键恒写 int」不成立 | **采信并在本机复现**：三个类 `preload_from_calibration_records` 后 `_cache['x_count'] is None` 均为 True。该文件 5 处全改 `cast`，实证写进注释 |
+| LOW-1 | `cast(Any, ...)` 两处是类型放宽 | 保留（目标分别是运行期注入的 Neo4j 客户端与未解析的 `agentic_rag`，无更精确类型），注释已说明 |
+| LOW-2 | 5 处注释与实际不符 | **逐处验证 handler 真实去向后校正**；另自查 Codex 未点名的 3 处，确认其注释准确未改 |
+| LOW-3 | 计数错误：12 组合 = **10 个** assert（我说 9）；剩余 26 中 **25 个**不在词法 try 内 | **采信更正** |
+| LOW-4 | `CanvasRAGConfig` 属性面 | 保留登记，移交主 session 裁定 |
+
+> D-15 的门（**绑最终 HEAD 的一轮 BLOCKER=0 且 HIGH=0**）在 r2 已达成。
+> r3 是因为「审后又改了代码 ⇒ 必再送一轮」而触发 —— MEDIUM 本可登记不阻断（协议 §1），
+> 但 MEDIUM-1 是**用户可见的行为变化**，直接反驳本卡「零运行期变化」的核心主张，所以选择修。
+
+#### r2 逐条处置（全部采信，无一驳回）
+
+| 级别 | Codex 的发现 | 我的处置 |
+|---|---|---|
+| **MEDIUM-1** | 剩余 assert 有**可观察的返回内容变化**：handler 把 `{e}` 写进返回值时，`AssertionError` 的空消息让用户看到残缺文本。点名 `autoscore:310` / `question_generator:778` / `scoring_faithfulness:269,:351` / `conversation_distiller:319` | **实证确认并扩大范围**：按其定性做全量 AST 审计（每个 assert 的 try 的全部 handler 是否格式化异常变量，区分「写返回值」与「仅日志」）⇒ **12 个组合 / 9 个 assert 位置**（比 Codex 点名的多 4 处）。9 处全改 `cast`，删 10 个 assert（36→26） |
+| **MEDIUM-2** | 审计方法「最内层 try + handler 集合」不足以证明等价，还需比外层传播、重抛、返回字段、日志、副作用 | 采信。本轮把判据从「handler 是否捕获 AssertionError」扩到「handler 是否格式化异常消息」，覆盖返回字段+日志两维；**外层传播与副作用顺序两维仍未覆盖**，如实登记（§八 #12/#16） |
+| **LOW-1** | 我的 evidence 标题「pyright 仍能看见该缺陷」与下一行 `error 数 = 0` 自相矛盾 | 采信。在该文件**末尾追加更正**（保留原文不删，不篡改已落盘证据），写明「诊断被 ignore 显式抑制」并区分 cast 与 ignore 的语义 |
+| **LOW-2** | `rag_service` 属性面变化未满足严格纯类型约束，建议保留显式重导出 | **保留登记，不自行决定**：加回重导出属新增代码，而删除依据是它确实是死 import（全仓无消费者）。移交主 session 裁定 |
+
+**Codex r2 独立重算的数字与我的 AST 完全一致**：14 cast / 11 个新增 TYPE_CHECKING 文件 /
+36 assert / 16 ignore / 53 文件 366 insertions 124 deletions。（本轮整改后 assert 36→26）
 
 #### r1 逐条处置（全部采信，无一驳回）
 

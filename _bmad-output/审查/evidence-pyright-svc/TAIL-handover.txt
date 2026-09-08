@@ -1,0 +1,39 @@
+### CARD-PYRIGHT-DEBT-services 阶段 1 · TAIL 移交与决策点（交主 session）
+HEAD: 8dcfac8e  生成: 2026-09-08 08:37
+
+## A. 本卡实测出的既有真缺陷（只标注 ignore + 登记，未修）
+  T-new-1  wikilink_graph_service.py  obsidiantools 的 Vault 只有 get_source_text，没有 get_source_path
+           ⇒ 该行运行期恒 AttributeError，被 except 吞掉静默降级成 f"{note_key}.md"
+  T-new-2  error_classifier.py        Misconception 在 P0-4(2026-05-14) 把字段改名为 misconception_created_at，
+           此处仍传旧名；pydantic extra='ignore' ⇒ 传入值静默丢弃、回落 default_factory
+  T-new-3  agent_routing_engine.py    app/core/litellm_config.py 只有 get_runtime_model_config，
+           没有 get_litellm_config ⇒ 运行期恒 ImportError，降级成写死 fallback 模型
+  T-new-4  background_task_manager.py Settings 没有 TASK_CLEANUP_INTERVAL_SECONDS ⇒ 运行期恒 AttributeError，
+           且在 while True 内被 except 捕获后**立即重试无退避** ⇒ 清理调度退化为忙循环【建议优先级最高】
+  T-new-5  batch_orchestrator.py      asyncio.CancelledError 继承 BaseException 而非 Exception，
+           isinstance(result, Exception) 筛不掉，gather(return_exceptions=True) 会把它放进 results
+           ⇒ 取消异常被当业务结果 append，随后 result.success 抛 AttributeError（Codex r1 HIGH 实证）
+  T-new-6  intelligent_parallel_service.py  retry_single_node 的 agent_type 形参是 str，
+           而 call_agent 要 AgentType(str, Enum)，中间无转换/校验
+  T1       rollback_service.py        src.rollback 全仓不存在（git ls-files src = 0），3 处 import 恒 ImportError
+
+## B. 需要主 session 明确裁定的决策点
+  D-1  剩余 20 个 assert 的处置 —— Codex r3 原话：「可以登记为待裁定事项，不能仅凭登记就关闭
+       纯类型卡的等价性要求。已证明不可达或局部等价的 assert 可以保留；已证实的差异应在本卡恢复，
+       或由主 session 明确接受行为例外。」本卡已修全部**已证实**的差异；剩余 20 个属「未被证实有差异」
+       而非「已证明等价」。⇒ 请裁定：接受为行为例外，还是要求继续闭环。
+  D-2  rag_service 的 CanvasRAGConfig 属性面变化 —— 删除成功导入路径上的该模块属性（死 import，
+       全仓无消费者），但异常分支仍定义它。Codex 建议「若坚持零运行行为变化，保留显式重导出」。
+       加回重导出属新增代码，本卡不自行决定。
+  D-3  cast(Any, ...) 两处（canvas_projection_sync / rag_service）—— 目标分别是运行期注入的 Neo4j
+       客户端与未解析的 agentic_rag 对象，无更精确类型可用。是否接受这两处类型放宽。
+  D-4  health_monitor.py 的排版变化 —— 加 ignore 注释使该行 124 字符 > line-length 120，
+       该块 format 形态从 1 行变 3 行。是加 ignore 的必然代价（rule 名长度固定），除非改代码结构。
+  D-5  卡文 §二.5 的 ruff 命令在 zsh 下恒假绿（$F 不分词）—— 建议回写协议/卡文改数组写法。
+
+## C. 阶段 2 待办（收到候选树通告后）
+  1. merge 候选树 → 重跑基线
+  2. 清 10 个共享文件 60 条（只叠类型层，不改判定与控制流）
+  3. review_service.py:1809-1813 EdgeRelationship 真签名不匹配：先判死/活路径
+  4. multimodal_service.py:1403 agentic_rag.embedding 真死 import（同 T1 手法）
+  5. 主判据 pyright app/services = 0 errors；残余全落 U2 面
