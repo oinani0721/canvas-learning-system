@@ -1,8 +1,10 @@
-# UAT — CARD-PYRIGHT-DEBT-services（v1.1 · 阶段 1 · 含 Codex round-1 整改）
+# UAT — CARD-PYRIGHT-DEBT-services（v1.3 · 阶段 1 完成 · Codex 四轮）
 
 > 批次: `[BATCH-2026-09-07-第十三批 / CARD-PYRIGHT-DEBT-services]` · 车道 `card-u1-pyright-svc` · 分支 `card/u1-pyright-svc`
-> CODE_BASE: `da690bf8` · 阶段 1 HEAD: **`958f20a3`** · 2026-09-08 · 状态: **阶段 1 完成，等候选树通告**
-> commit: `17d08a8b`(44 文件归零) → `2fa89589`(9 文件降至仅剩 PEND0) → `958f20a3`(Codex r1 整改)
+> CODE_BASE: `da690bf8` · 阶段 1 HEAD: **`e57f9df1`** · 2026-09-08 · 状态: **阶段 1 完成，等候选树通告**
+> Codex: r1(HIGH=1) → r2(B0 H0) → r3(B0 H0) → **r4(B0 H0 M0，判「可条件收尾」)**，四轮 12 条发现**全部采信、无一驳回**
+> commit 链: `17d08a8b`(44 文件归零) → `2fa89589`(9 文件仅剩 PEND0) → `958f20a3`(r1 整改) →
+> `5a31d4fb`(docs) → `82d15aac`(r2 整改) → `8dcfac8e`(r3 整改) → `5dc6a72a`(docs) → `e57f9df1`(r4 LOW-1，纯注释)
 > 证据目录: `_bmad-output/审查/evidence-pyright-svc/`（全部裁判输出末行含 `rc=`）
 
 ---
@@ -430,6 +432,12 @@ assert 可以保留」。所以按「**已证实的差异才改**」执行，剩
 
 ## 九 台账待登记条目（卡文 §一(l) 必填）
 
+> **落盘版**：`_bmad-output/审查/evidence-pyright-svc/TAIL-handover.txt`
+> —— 含 A) 本卡实测出的 7 条既有真缺陷、B) 5 个待主 session 裁定的决策点、C) 阶段 2 待办。
+> 其中 **B 是本卡交出的明确决策点**，不是「登记了就算完」：Codex round-3 的原话是
+> 「可以登记为待裁定事项，**不能仅凭登记就关闭纯类型卡的等价性要求**」。
+
+
 1. **逐文件清零表**：`evidence-pyright-svc/per-file-table-phase1.txt`（54 个非共享文件，44 个完全归零，10 个剩 PEND0）。
 2. **ignore 清单全文**：本文 §六（12 条）。
 3. **跨包交集文件**：**无**（(e) 优先方案奏效，未动 api）。
@@ -497,7 +505,42 @@ assert 可以保留」。所以按「**已证实的差异才改**」执行，剩
 | r1 | `2fa89589` | **暂不通过**：BLOCKER=0 / **HIGH=1** / MEDIUM=3 / LOW=3 | **6 条全部采信**，整改 → commit `958f20a3` |
 | r2 | `958f20a3` | **总判 BLOCKER=0、HIGH=0** ✅（D-15 的门达成）；另提 MEDIUM×2 + LOW×2 未闭环 | **全部采信**，MEDIUM-1 继续整改 → commit `82d15aac` |
 | r3 | `82d15aac` | **总判 BLOCKER=0、HIGH=0**（连续两轮）；MEDIUM×2 + LOW×4 | 采信「已证实的差异应在本卡恢复」的裁定 → commit `8dcfac8e` |
-| r4 | `8dcfac8e` | 收尾复审，进行中 | — |
+| r4 | `8dcfac8e` | **总判 BLOCKER=0、HIGH=0、MEDIUM=0** ✅（MEDIUM 首次归零）；「阶段 1 **可条件收尾**」+ LOW×2 | 采信 LOW-1 并更正 → commit `e57f9df1`（**纯注释**，AST 证明见下） |
+
+#### r4 结果与收尾条件
+
+Codex r4 的总判原文：
+> **本轮 BLOCKER=0、HIGH=0；阶段 1 可条件收尾，正式关闭前应更正两处 LOW 注释，
+> 并由主 session 明确接受 `CanvasRAGConfig` 重导出变化。**
+
+它还逐条给出了**剩余 20 个 assert 的保留依据**（这是本卡一直缺的「正面证明」）：
+
+| 位置 | 数量 | Codex 给出的保留依据 |
+|---|---:|---|
+| `agent_routing_engine:577` | 1 | 两类异常均被捕获，固定日志、返回值相同 |
+| `agent_selector:296` | 1 | 构造时将 `previous_agents=None` 归一为 `[]` |
+| `alert_manager:286` | 1 | 创建 PENDING 状态时同时写入 `pending_since` |
+| `graphiti_belief_service:207/:300` | 2 | 实际调用方 `:356-358` 补齐时间；历史边反序列化验证必填时间 |
+| `extraction_validator:485/:490/:495` | 3 | 无分组无 HAVING 的 `COUNT(*)` 成功执行恒有一行 |
+| `retrieval_reranker:232` | 1 | 前置检查已对任何缺失分数返回 |
+| `rollback_service` ×9 | 9 | 均受组件初始化门约束 |
+| `wikilink_graph_service:135/:156` | 2 | 同步方法前置排除空图，闭包不逃逸 |
+
+**收尾条件 ①（更正两处注释）已完成**：我 r3 时把 calibration 三类的实证复制到了
+`BKTMasterySignal` / `FSRSRetrievabilitySignal` 的注释里，但这两类**没有**
+`preload_from_calibration_records` —— 张冠李戴。已按各类真实写入路径重写 5 处注释，
+并做 AST 自检（该方法名现在只在真有它的 3 个类里被提及）。
+
+**收尾条件 ②（`CanvasRAGConfig`）移交主 session**：Codex 原话「未发现仓库内实际消费者，
+维持 LOW；这是累计变化，**须由主 session 明确接受取消该重导出，仅登记移交尚不等于接受**」。
+⇒ 见 §九 的 TAIL-handover 决策点 D-2。
+
+**关于「末轮绑定」**：Codex r4 绑 `8dcfac8e`，其后有一个 commit `e57f9df1`。
+卡文 §四明文「阶段 1 这一轮可不绑最终 HEAD（首部写明）」，且该 commit 是 **Codex r4 亲自指定
+的收尾条件**。为给出客观判据，做了 **AST 比较**（`r4-binding-ast-proof.txt`）：
+`8dcfac8e` 与 `HEAD` 的 `signal_registry.py` **`ast.dump` 逐字相同 ⇒ 纯注释、代码逻辑零变化**
+（验伪锚：换一个真有代码改动的区间对比，AST 不同 ⇒ 比较器是活的）。
+⇒ **Codex r4 的结论适用于当前 HEAD。** 未再送 round-5，此判断交主 session 复核。
 
 #### r3 逐条处置
 
@@ -571,5 +614,14 @@ assert 可以保留」。所以按「**已证实的差异才改**」执行，剩
 
 ---
 
-> **阶段 1 结论：完成。** 过滤后非共享 = 0、多重集 NEW = 0、地盘零越界、ruff 与负控通过。
-> 等主 session 的「阶段 2 开工：候选树 `<sha>`」通告。
+> **阶段 1 结论：完成。**
+> 主判据 `pyright app/services` 过滤后非共享 = **0**（total 78 = shared 60 + PEND0 18 + P1 0）；
+> 多重集 **NEW = 0** GONE = 179；`tests/unit` nodeid 与主干基线 202 **diff rc=0 完全为空**；
+> `tests/api` 268 passed；ruff F401/F821 = 0（53 文件）；地盘零越界、禁改面全空；
+> Codex 四轮，末轮 **BLOCKER=0 / HIGH=0 / MEDIUM=0**。
+>
+> **交主 session 的两个决策点**（见 §九 TAIL-handover）：
+> D-1 剩余 20 个 assert —— Codex r4 已逐条给出保留依据，但「登记 ≠ 接受」，请明确裁定；
+> D-2 `CanvasRAGConfig` 重导出取消 —— Codex 明确要求由主 session 明确接受。
+>
+> 等「阶段 2 开工：候选树 `<sha>`」通告。

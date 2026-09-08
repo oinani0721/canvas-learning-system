@@ -1,0 +1,8 @@
+### 阶段 1 最终判据（HEAD=e57f9df1，Codex r4 后）
+① pyright app/services 过滤后非共享 : 0  ✅   (total 78 = shared 60 + PEND0 18 + P1 0)
+② ruff F401,F821                    : 0（53 文件）✅
+③ 地盘 非 services 文件数            : 0
+④ 禁改面 diff                        : 空 ✅
+⑤ Codex 轮次 / 总判                  : r1 HIGH=1 → r2 B0H0 → r3 B0H0 → r4 B0H0M0 ✅
+⑥ r4 绑定 8dcfac8e → 代码树差异      : 1 file changed, 24 insertions(+), 15 deletions(-)
+     ⚠️ 非空 = e57f9df1 的纯注释改动（Codex r4 指定的收尾条件）
