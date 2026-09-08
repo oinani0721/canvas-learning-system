@@ -284,9 +284,10 @@ class ErrorClassifier:
                 max_tokens=100,
                 temperature=0.1,
             )
-            # ⛔ 这里**不能**用 assert(Codex round-2 MEDIUM-1): 下面的 except 把异常消息
-            # 写进返回值, AssertionError 的空消息会让用户看到残缺文本。cast 是运行期
-            # no-op —— 为 None 时仍抛原本的异常、消息逐字不变。
+            # ⛔ 这里**不能**用 assert(Codex round-2 MEDIUM-1 / round-3 LOW-2 校正):
+            # 下面的 except 把异常消息写进**日志**(返回值是固定的回退结果, 不含消息)。
+            # AssertionError 的空消息会让日志丢掉原因。cast 是运行期 no-op —— 为 None
+            # 时仍抛原本的异常、消息逐字不变。
             content = cast(str, cast("ModelResponse", response).choices[0].message.content).strip()
             # Story 2.5 HIGH#8 fix — 剥离 markdown fence 防 json.loads 失败
             content = _strip_markdown_fence(content)
@@ -353,9 +354,10 @@ class ErrorClassifier:
                 temperature=0.1,
             )
 
-            # ⛔ 这里**不能**用 assert(Codex round-2 MEDIUM-1): 下面的 except 把异常消息
-            # 写进返回值, AssertionError 的空消息会让用户看到残缺文本。cast 是运行期
-            # no-op —— 为 None 时仍抛原本的异常、消息逐字不变。
+            # ⛔ 这里**不能**用 assert(Codex round-2 MEDIUM-1 / round-3 LOW-2 校正):
+            # 下面的 except 把异常消息写进**日志**(返回值是固定的回退结果, 不含消息)。
+            # AssertionError 的空消息会让日志丢掉原因。cast 是运行期 no-op —— 为 None
+            # 时仍抛原本的异常、消息逐字不变。
             content = cast(str, cast("ModelResponse", response).choices[0].message.content).strip()
 
             # Parse the JSON response

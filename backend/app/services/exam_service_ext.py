@@ -379,8 +379,9 @@ async def generate_hint(self, request: HintRequest) -> HintResponse:
             temperature=0.7,
             max_tokens=500,
         )
-        # ⛔ 同 Codex round-2 MEDIUM-1: 下面的 except 把异常消息写进日志/回退文案,
-        # cast 保持原异常类型与消息。
+        # ⛔ 同 Codex round-2 MEDIUM-1（round-3 LOW-2 校正）: 下面的 except 把异常消息写进
+        # **日志**; 回退文案 _get_fallback_hint(level) 只由 level 决定、不含消息。
+        # cast 是运行期 no-op, 保持原异常类型与消息, 日志原因不丢。
         hint_text = cast(str, cast("ModelResponse", response).choices[0].message.content).strip()
     except Exception as e:
         logger.error(f"[Story 6.6] Hint generation LLM call failed: {e}")

@@ -14,7 +14,7 @@ Signals:
 [Source: _bmad-output/planning-artifacts/architecture.md#能力域5]
 """
 
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, cast
 
 import structlog
 
@@ -106,10 +106,10 @@ class BKTMasterySignal:
     def get_reliability(self, node_id: str) -> float:
         """Reliability increases with interaction count."""
         count = self._cache.get(f"{node_id}_interactions", 0)
-        # _cache 的值类型是 Optional[float] (p_mastery 可为 None), 但计数键恒写 int;
-        # 原代码 None / N 同样 TypeError。
-        assert count is not None
-        return min(1.0, count / 10.0)
+        # ⛔ Codex round-3 实证: preload_from_calibration_records 会把计数键写成 None,
+        # 所以原注释「计数键恒写 int」不成立。这里用 cast 而非 assert —— cast 是运行期
+        # no-op, count 为 None 时仍抛原本带消息的 TypeError（调用方会把它记进日志/返回）。
+        return min(1.0, cast(float, count) / 10.0)
 
     def preload(self, concept) -> None:
         """Preload signal value from a ConceptState object (avoids async in get_value)."""
@@ -145,10 +145,10 @@ class FSRSRetrievabilitySignal:
     def get_reliability(self, node_id: str) -> float:
         """Reliability depends on FSRS reps count."""
         count = self._cache.get(f"{node_id}_reps", 0)
-        # _cache 的值类型是 Optional[float] (p_mastery 可为 None), 但计数键恒写 int;
-        # 原代码 None / N 同样 TypeError。
-        assert count is not None
-        return min(1.0, count / 5.0)
+        # ⛔ Codex round-3 实证: preload_from_calibration_records 会把计数键写成 None,
+        # 所以原注释「计数键恒写 int」不成立。这里用 cast 而非 assert —— cast 是运行期
+        # no-op, count 为 None 时仍抛原本带消息的 TypeError（调用方会把它记进日志/返回）。
+        return min(1.0, cast(float, count) / 5.0)
 
     def preload(self, concept) -> None:
         """Preload R value from a ConceptState using mastery_engine.get_retrievability."""
@@ -182,10 +182,10 @@ class ExamScoreSignal:
 
     def get_reliability(self, node_id: str) -> float:
         count = self._cache.get(f"{node_id}_count", 0)
-        # _cache 的值类型是 Optional[float] (p_mastery 可为 None), 但计数键恒写 int;
-        # 原代码 None / N 同样 TypeError。
-        assert count is not None
-        return min(1.0, count / 5.0)
+        # ⛔ Codex round-3 实证: preload_from_calibration_records 会把计数键写成 None,
+        # 所以原注释「计数键恒写 int」不成立。这里用 cast 而非 assert —— cast 是运行期
+        # no-op, count 为 None 时仍抛原本带消息的 TypeError（调用方会把它记进日志/返回）。
+        return min(1.0, cast(float, count) / 5.0)
 
     def preload_from_calibration_records(self, node_id: str, records) -> None:
         """Preload from calibration records (actual_performance values)."""
@@ -223,10 +223,10 @@ class CalibrationBiasSignal:
 
     def get_reliability(self, node_id: str) -> float:
         count = self._cache.get(f"{node_id}_count", 0)
-        # _cache 的值类型是 Optional[float] (p_mastery 可为 None), 但计数键恒写 int;
-        # 原代码 None / N 同样 TypeError。
-        assert count is not None
-        return min(1.0, count / 10.0)
+        # ⛔ Codex round-3 实证: preload_from_calibration_records 会把计数键写成 None,
+        # 所以原注释「计数键恒写 int」不成立。这里用 cast 而非 assert —— cast 是运行期
+        # no-op, count 为 None 时仍抛原本带消息的 TypeError（调用方会把它记进日志/返回）。
+        return min(1.0, cast(float, count) / 10.0)
 
     def preload_from_calibration_records(self, node_id: str, records) -> None:
         """Preload from calibration records (compute signed_bias, invert to signal)."""
@@ -263,10 +263,10 @@ class SelfConfidenceSignal:
 
     def get_reliability(self, node_id: str) -> float:
         count = self._cache.get(f"{node_id}_count", 0)
-        # _cache 的值类型是 Optional[float] (p_mastery 可为 None), 但计数键恒写 int;
-        # 原代码 None / N 同样 TypeError。
-        assert count is not None
-        return min(1.0, count / 5.0)
+        # ⛔ Codex round-3 实证: preload_from_calibration_records 会把计数键写成 None,
+        # 所以原注释「计数键恒写 int」不成立。这里用 cast 而非 assert —— cast 是运行期
+        # no-op, count 为 None 时仍抛原本带消息的 TypeError（调用方会把它记进日志/返回）。
+        return min(1.0, cast(float, count) / 5.0)
 
     def preload_from_calibration_records(self, node_id: str, records) -> None:
         """Preload from calibration records (self_confidence values)."""

@@ -315,9 +315,11 @@ class ConversationDistiller:
                         api_key=api_key,
                     )
 
-        _content = cast("ModelResponse", response).choices[0].message.content
-        assert _content is not None  # 原代码此处 None.strip() 同样 AttributeError
-        content = _content.strip()
+        # ⛔ 这里不能用 assert(Codex round-3 MEDIUM-1 已证实): 本函数的调用方 :164-166 用
+        # `except Exception as e: logger.warning(f"...: {e}")` 把异常消息记进日志,
+        # AssertionError 的空消息会让日志从「'NoneType' object has no attribute 'strip'」
+        # 变成空。cast 是运行期 no-op, 保持原 AttributeError 与其消息。
+        content = cast(str, cast("ModelResponse", response).choices[0].message.content).strip()
 
         # Strip markdown code fences if present (LLMs often wrap JSON)
         if content.startswith("```"):
