@@ -1,0 +1,20 @@
+### 收窄「未证明」#12：25 处不在 try 内的 assert 把异常类型换成 AssertionError
+### 风险面 = 上层是否按 AttributeError / TypeError 分流
+
+全仓 backend/app 里按 AttributeError/TypeError 分流的 except: 104 处
+
+⚠️ 存在按这两类分流的调用方（需人工判断是否包住本卡的 assert 路径）:
+   alert_manager              <- api/v1/endpoints/monitoring.py                1 处
+   alert_manager              <- main.py                                       2 处
+   conversation_distiller     <- services/conversation_archive.py              2 处
+   extraction_validator       <- services/conversation_archive.py              2 处
+   retrieval_reranker         <- main.py                                       2 处
+   signal_registry            <- main.py                                       2 处
+   wikilink_graph_service     <- main.py                                       2 处
+   wikilink_graph_service     <- services/lancedb_index_service.py             2 处
+
+=== 有风险的 (被改文件, 调用方) 组合 = 8 ===
+
+⚠️ 如实声明：本检查只证明「哪些调用方文件里存在这类 except」，
+   **没有**证明那些 except 恰好包住了本卡 assert 所在的调用路径。
+   要证明后者需要逐条追调用链，本卡未做 —— 保留为「未证明」。

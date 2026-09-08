@@ -1,0 +1,61 @@
+### evidence-pyright-svc 文件清单（供主 session 对账）
+生成时间: 2026-09-08 07:47:16  HEAD: 2fa89589
+
+api-close-20260908T072401.txt                                  9394 字节
+api-final-20260908T074031.txt                                  9394 字节
+api-open-20260908T064241.txt                                   9394 字节
+assert-placement-selfcheck.txt                                  676 字节
+baseline-202-nodeids.txt                                      22162 字节
+checklist-base-20260908T064241.txt                            34147 字节
+drift-at-base-da690bf8.txt                                     1229 字节
+drift-at-work-phase1.txt                                       1229 字节
+final-judges-20260908T074343.txt                                421 字节
+format-content-judge-20260908T071729.txt                        259 字节
+format-content-judge-v2-20260908T071832.txt                     955 字节
+format-content-judge-v3-20260908T071932.txt                     652 字节
+format-judge-falsifier-20260908T071757.txt                      687 字节
+ignore-list-phase1.txt                                         2874 字节
+lefthook-skip-archive-20260908T073738.txt                     10255 字节
+lefthook-skip-archive-groupb-20260908T073905.txt               8684 字节
+multiset-compare.sh                                            1588 字节
+multiset-da690bf8-vs-work-20260908T071546.txt                    58 字节
+negctl-20260908T072134.txt                                     1543 字节
+per-file-table-phase1.txt                                      4579 字节
+pyright-app-base-20260908T064241.txt                             40 字节
+pyright-app-base-da690bf8.json                               335915 字节
+pyright-base-da690bf8.json                                   334903 字节
+pyright-services-base-20260908T064241.txt                        40 字节
+pyright-services-base-da690bf8.json                          190650 字节
+pyright-work-da690bf8.json                                   220419 字节
+regression-control-20260908T073007.txt                         1511 字节
+rollback-close-20260908T072401.txt                            83084 字节
+ruff-phase1-20260908T071623.txt                                2524 字节
+rule-dist-base-20260908T064241.txt                             2965 字节
+runtime-selfproof-20260908T072218.txt                          1900 字节
+runtime-selfproof-control-20260908T072249.txt                   578 字节
+runtime-selfproof-control-v2-20260908T072321.txt                434 字节
+scope-phase1-20260908T072419.txt                               4291 字节
+scope-postcommit-20260908T074150.txt                            646 字节
+stderr-gate-20260908T074213.txt                                 645 字节
+typecheck-sig-parity-20260908T074500.txt                        676 字节
+unit-baselinetree-20260908T074612.txt                          9550 字节
+unit-close-20260908T072401.txt                               364386 字节
+unit-close-nodeids.txt                                        22145 字节
+unit-close2-20260908T073123.txt                              365987 字节
+unit-close2-nodeids.txt                                       22162 字节
+unit-final-20260908T074031.txt                               363861 字节
+unit-final-nodeids.txt                                        22145 字节
+unit-nodeid-diff-close.txt                                      227 字节
+unit-open-20260908T064241.txt                                366010 字节
+unit-open-nodeids.txt                                         22162 字节
+
+总文件数(不含本索引): 47
+⛔ 判据口径说明：下面两条按**扩展名**匹配，不是文件名子串 ——
+   子串口径会把 stderr-gate-*.txt（stderr 入库门的证据）误报成 stderr 转储。
+  .stderr 转储文件数: 0 （须 0；.gitignore:261-264 覆盖）
+  .log 文件数:        0 （须 0；.gitignore:27 全局忽略 *.log，落 .log 会静默不入库）
+
+验伪锚（证明上面两条 grep 是活的）:
+  喂 "x.stderr"      -> 1 (期望 1)
+  喂 "stderr-gate.txt" -> 0 (期望 0，证明不误报)
+  喂 "y.log"         -> 1 (期望 1)

@@ -1,0 +1,11 @@
+### 对照组 v2：litellm / neo4j 是否因本卡改动被拉进 import 图
+--- 基线树 da690bf8 ---
+RESULT litellm_in_sys_modules = True
+RESULT neo4j_in_sys_modules = True
+RESULT neo4j_after_cross_subject = True
+--- 工作树 (本卡) ---
+RESULT litellm_in_sys_modules = True
+RESULT neo4j_in_sys_modules = True
+RESULT neo4j_after_cross_subject = True
+
+### 结论判据：两边逐行相同 ⇒ 本卡零运行期 import 图变化

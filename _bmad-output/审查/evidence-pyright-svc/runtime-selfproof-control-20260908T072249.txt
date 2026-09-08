@@ -1,0 +1,10 @@
+### 对照组：同一检查在 da690bf8 基线树上的结果（区分「本卡引入」与「既有行为」）
+--- 基线树 ---
+--- 工作树 ---
+
+--- 归因：notification_channels 的 SSEConnectionManager 是从哪来的 ---
+171:        Requires SSEConnectionManager from backend/app/services/sse_manager.py
+175:    def __init__(self, sse_manager: Optional["SSEConnectionManager"] = None):
+339:    sse_manager: Optional["SSEConnectionManager"] = None,
+380:class SSEConnectionManager:
+--- 谁在 8 个文件之外把 litellm 拉进来（基线同样发生 ⇒ 既有）---

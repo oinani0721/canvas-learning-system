@@ -1,0 +1,13 @@
+### 整改验证：cast 是运行期 no-op，None 时仍抛原本的 AttributeError
+### （对比 assert 会抛 AssertionError —— 那才是 Codex MEDIUM 指出的控制流改变）
+
+  基线(直接解引用)            content=None ⇒ AttributeError  →  被本方法的窄 except 接住? True
+  round-1 的 assert     content=None ⇒ AssertionError  →  被本方法的窄 except 接住? False
+  整改后的 cast            content=None ⇒ AttributeError  →  被本方法的窄 except 接住? True
+
+### 结论判据：整改后与基线**同一种异常**、**同样被接住**；round-1 的 assert 则逃逸。
+
+### batch_orchestrator 一侧：确认去掉 cast 后 pyright 仍能看见该缺陷（不是被掩盖）
+  该文件 error 数 = 0 （ignore 挡住了，但注释与 TAIL 记录了真相）
+  代码里 'CancelledError' 出现次数 = 2 （0 = 缺陷没被写下来）
+  代码里 'TAIL' 出现次数 = 2

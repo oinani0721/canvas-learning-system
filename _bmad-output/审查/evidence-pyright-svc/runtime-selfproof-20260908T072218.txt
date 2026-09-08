@@ -1,0 +1,21 @@
+### 运行期自证：本卡的 TYPE_CHECKING / cast 改动是否改变了运行期行为
+### 主张 1: 8 个 litellm 文件仍保持「函数内延迟 import」——模块 import 后 litellm 不在 sys.modules
+### 主张 2: TYPE_CHECKING 块内的名字不进模块命名空间
+  litellm 在导入前是否已加载: False
+2026-09-08 07:22:22 [debug    ] RAGService: Added /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/lib to sys.path
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+  from pydantic.v1.fields import FieldInfo as FieldInfoV1
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  import pkg_resources
+Building prefix dict from the default dictionary ...
+Loading model from cache /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/jieba.cache
+Loading model cost 0.223 seconds.
+Prefix dict has been built successfully.
+2026-09-08 07:22:24 [info     ] RAGService: LangGraph/Agentic RAG available. LANGGRAPH_AVAILABLE=True
+  8 个模块导入完毕后 litellm 是否被拉入 sys.modules: True (期望 False)
+  ⛔ notification_channels: 泄漏 -> ['SSEConnectionManager']
+  neo4j 驱动是否被 cross_subject_bridge 拉入: True
+  ExamService 上 11 个方法(猴子补丁挂载后)实际可见: 11/11 (期望 11/11)
+
+  === 运行期自证失败项 = 2 （期望 0）===
+python rc=1

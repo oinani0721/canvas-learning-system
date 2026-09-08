@@ -1,0 +1,17 @@
+### commit 后地盘复核（BASE=da690bf8 → HEAD=2fa89589）
+--- ① 改动全在 services/**? ---
+  文件总数=53
+  非 services 文件数 = 0
+0
+
+--- ② 禁改面 diff 必须为空 ---
+  (空 = 通过)
+
+--- ③ 本卡每个 commit 都不得触碰 pyrightconfig/models ---
+  2fa89589 触碰数=0
+  17d08a8b 触碰数=0
+
+--- ④ *.stderr* 不入库（卡文 §一(j)）---
+  ⛔ "_bmad-output/\345\256\241\346\237\245/G4-9-evidence/census-stderr.txt"
+--- ⑤ .gitignore 是否覆盖本卡的 stderr ---
+.gitignore:264:_bmad-output/审查/**/*.stderr*	"_bmad-output/\345\256\241\346\237\245/codex-review-CARD-PYRIGHT-DEBT-services-r1.stderr"

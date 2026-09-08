@@ -1,0 +1,14 @@
+### 用 AST 精确重数（回应 Codex round-1 LOW：文本 grep 会把注释里的字样也数进去）
+
+cast 调用（新增，按 cast 目标类型分组）总数 = 14
+    12  cast(ModelResponse, ...)
+     1  cast(str, ...)
+     1  cast(BatchOrchestrator, ...)
+
+新增 TYPE_CHECKING 块的文件数 = 11
+   agent_routing_engine.py, autoscore.py, conversation_distiller.py, cross_subject_bridge.py, error_classifier.py, error_extractor.py, exam_service.py, exam_service_ext.py, question_generator.py, recommendation_service.py, scoring_faithfulness.py
+
+新增 `assert x is not None` = 36
+新增 `# pyright: ignore[...]` = 16
+
+diff --shortstat（实测，非引用）: 53 files changed, 366 insertions(+), 124 deletions(-)

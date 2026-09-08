@@ -1,0 +1,18 @@
+### 负控（卡文 §二.8）：把已修错误按 da690bf8 原样写回 → pyright 必须重报**该条原消息**
+### 覆盖三种修复手法：① 删死 import ② assert 窄化 ③ cast 联合类型
+### 跑前基线 sha:
+  f90562d904b536dfd30adef12fea856ee46cdeb5a597f99f9e8924c654633fd1  app/services/autoscore.py
+  04fd38517ba051fc45481f7ee559ab89f16fbb104a48ae2a10bb54cdb24e96a8  app/services/signal_registry.py
+  334e68db2cae611e7fd098ab3df91cc74e7417587247f2bb9b7474ad66cf23da  app/services/weight_calculator.py
+
+[①删死import] weight_calculator.py : 写回原版后 pyright 命中「Import "logging" is not accessed」= 1 次  → 负控成立 ✓
+         还原后命中 = 0 （期望 0）; sha=334e68db2cae611e7fd098ab
+[②assert窄化] signal_registry.py : 写回原版后 pyright 命中「Operator "/" not supported for "None"」= 5 次  → 负控成立 ✓
+         还原后命中 = 0 （期望 0）; sha=04fd38517ba051fc45481f7e
+[③cast联合类型] autoscore.py : 写回原版后 pyright 命中「Cannot access attribute "choices" for class "CustomStreamWrapper"」= 2 次  → 负控成立 ✓
+         还原后命中 = 0 （期望 0）; sha=f90562d904b536dfd30adef1
+
+### 跑后 sha（必须与跑前逐字相同）:
+  f90562d904b536dfd30adef12fea856ee46cdeb5a597f99f9e8924c654633fd1  app/services/autoscore.py
+  04fd38517ba051fc45481f7ee559ab89f16fbb104a48ae2a10bb54cdb24e96a8  app/services/signal_registry.py
+  334e68db2cae611e7fd098ab3df91cc74e7417587247f2bb9b7474ad66cf23da  app/services/weight_calculator.py

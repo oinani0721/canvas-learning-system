@@ -1,0 +1,9 @@
+### 自验：12 条 pyright ignore 是否每条都在挡真实错误
+### 方法：在**副本**上逐条去掉 ignore 注释，跑 pyright 看该 rule 是否重新报出
+### （绝不碰工作树 —— Codex 正在读它）
+
+发现 12 条 ignore
+
+Traceback (most recent call last):
+  File "<stdin>", line 21, in <module>
+FileNotFoundError: [Errno 2] No such file or directory: '/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u1-pyright-svc/6ef05cf3-aec3-476b-8c43-fbcac0346718/scratchpad/ignore-probe/app/services/rollback_service.py'

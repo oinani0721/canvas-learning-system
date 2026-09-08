@@ -1,0 +1,20 @@
+### 自验：12 条 pyright ignore 是否每条都在挡真实错误（Codex 第 4 问）
+### 方法：在**副本**上逐条去掉 ignore 注释，跑 pyright 看同一行同一 rule 是否重新报出
+### （绝不碰工作树 —— Codex 正在读它）
+
+发现 12 条 ignore
+
+  ✓ rollback_service.py:124 [reportMissingImports] — 去掉后重新报出 1 条
+  ✓ rollback_service.py:298 [reportMissingImports] — 去掉后重新报出 1 条
+  ✓ rollback_service.py:361 [reportMissingImports] — 去掉后重新报出 1 条
+  ✓ exam_service.py:556 [reportUnusedImport] — 去掉后重新报出 1 条
+  ✓ wikilink_graph_service.py:325 [reportAttributeAccessIssue] — 去掉后重新报出 1 条
+  ✓ error_classifier.py:202 [reportCallIssue] — 去掉后重新报出 1 条
+  ✓ health_monitor.py:256 [reportAttributeAccessIssue, reportOptionalMemberAccess] — 去掉后重新报出 2 条
+  ✓ intelligent_parallel_service.py:656 [reportAttributeAccessIssue] — 去掉后重新报出 1 条
+  ✓ background_task_manager.py:350 [reportAttributeAccessIssue] — 去掉后重新报出 1 条
+  ✓ agent_routing_engine.py:559 [reportAttributeAccessIssue] — 去掉后重新报出 1 条
+  ✓ memory_service.py:2170 [reportAttributeAccessIssue] — 去掉后重新报出 1 条
+  ✓ memory_service.py:2173 [reportAttributeAccessIssue] — 去掉后重新报出 1 条
+
+=== 承重 12/12，多余 0 （期望多余 = 0）===

@@ -1,0 +1,55 @@
+### 收窄「未证明」#12：25 处不在 try 内的 assert 把异常类型从 AttributeError/TypeError 换成了
+### AssertionError。风险面 = 上层是否有按这两个类型分流的 except。
+
+--- 全仓 backend/app 里按 AttributeError / TypeError 分流的 except ---
+  总数:      104
+--- 其中位于本卡改过的 25 处 assert 所在文件的 ---
+  ⚠️ alert_manager.py : 1 处
+  ⚠️ retrieval_reranker.py : 2 处
+  （无 ⚠️ = 这 9 个文件自身没有按这两类分流）
+
+--- 这 9 个文件的**调用方**里有按这两类分流的吗（跨文件）---
+ugrep: warning: backend/app/main.py
+backend/app/domains/infra/gateway.py
+backend/app/api/v1/endpoints/monitoring.py: No such file or directory
+  ⚠️ alert_manager 的调用方 main.py
+backend/app/domains/infra/gateway.py
+backend/app/api/v1/endpoints/monitoring.py 有  处按 AttributeError/TypeError 分流
+ugrep: warning: backend/app/domains/agent/gateway.py
+backend/app/api/v1/endpoints/memory.py
+backend/app/api/v1/endpoints/inheritance.py
+backend/app/services/conversation_archive.py: No such file or directory
+  ⚠️ conversation_distiller 的调用方 domains/agent/gateway.py
+backend/app/api/v1/endpoints/memory.py
+backend/app/api/v1/endpoints/inheritance.py
+backend/app/services/conversation_archive.py 有  处按 AttributeError/TypeError 分流
+ugrep: warning: backend/app/domains/agent/gateway.py
+backend/app/api/v1/system.py
+backend/app/services/conversation_archive.py: No such file or directory
+  ⚠️ extraction_validator 的调用方 domains/agent/gateway.py
+backend/app/api/v1/system.py
+backend/app/services/conversation_archive.py 有  处按 AttributeError/TypeError 分流
+ugrep: warning: backend/app/services/episode_worker.py
+backend/app/services/graphiti_structured_writer.py: No such file or directory
+  ⚠️ graphiti_belief_service 的调用方 services/episode_worker.py
+backend/app/services/graphiti_structured_writer.py 有  处按 AttributeError/TypeError 分流
+  ⚠️ retrieval_reranker 的调用方 main.py 有 2 处按 AttributeError/TypeError 分流
+ugrep: warning: backend/app/main.py
+backend/app/domains/mastery/gateway.py
+backend/app/services/mastery_fusion.py: No such file or directory
+  ⚠️ signal_registry 的调用方 main.py
+backend/app/domains/mastery/gateway.py
+backend/app/services/mastery_fusion.py 有  处按 AttributeError/TypeError 分流
+ugrep: warning: backend/app/main.py
+backend/app/mcp/tools/wikilink_tools.py
+backend/app/api/v1/endpoints/wikilink.py
+backend/app/api/v1/endpoints/chat.py
+backend/app/services/lancedb_index_service.py
+backend/app/services/wikilink_context_service.py: No such file or directory
+  ⚠️ wikilink_graph_service 的调用方 main.py
+backend/app/mcp/tools/wikilink_tools.py
+backend/app/api/v1/endpoints/wikilink.py
+backend/app/api/v1/endpoints/chat.py
+backend/app/services/lancedb_index_service.py
+backend/app/services/wikilink_context_service.py 有  处按 AttributeError/TypeError 分流
+  （无 ⚠️ = 无调用方按这两类分流 ⇒ 异常类型变化不改变可观察行为）

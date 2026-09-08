@@ -1,0 +1,11 @@
+### stderr 入库判据（收窄口径：只看本卡新增的文件）
+--- 本卡 commit 新增/修改的文件里含 stderr 的 ---
+
+--- 待 commit 的 _bmad-output 里含 stderr 的（untracked + modified）---
+
+--- 既有命中来源（非本卡，仅记录）---
+  4c125f19 fix(census): G4-9 Codex round-5 findings 整改 [BATCH-2026-08-28-第五批 / CARD-G4-9]
+  → 属 G4-9 卡的 evidence（内容是 stderr 普查结果，不是 stderr 转储本身），非本卡引入。
+
+--- 验伪锚：确认 grep -i stderr 确实能命中（喂一个已知含 stderr 的路径）---
+  命中: _bmad-output/审查/G4-9-evidence/census-stderr.txt

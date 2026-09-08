@@ -1,0 +1,46 @@
+### 系统性审计：每个新增 assert 是否落在「窄 except」内 —— 那样 AssertionError 会逃逸 = 改控制流
+### 触发源：Codex round-1 MEDIUM 指出 error_extractor.py:255。枚举同类全部。
+
+新增 assert 落在 try 内且该 try **不捕获** AssertionError（= 控制流改变）: 2
+  ⛔ app/services/error_extractor.py:255   包住它的 try(:235) 只捕获 ['AttributeError', 'ImportError', 'KeyError', 'ValueError', 'json.JSONDecodeError']
+  ⛔ app/services/intelligent_parallel_service.py:291   包住它的 try(:289) 只捕获 ['ConnectionError', 'RuntimeError', 'ValueError', 'asyncio.TimeoutError']
+
+落在 try 内且 try 捕获 Exception/裸 except（AssertionError 同样被吃）: 11
+  ✓ app/services/agent_routing_engine.py:577  捕获 ['Exception']
+  ✓ app/services/autoscore.py:310  捕获 ['Exception']
+  ✓ app/services/autoscore.py:390  捕获 ['Exception']
+  ✓ app/services/canvas_projection_sync.py:161  捕获 ['Exception']
+  ✓ app/services/error_classifier.py:288  捕获 ['Exception', 'ImportError', 'TypeError', 'ValueError', 'json.JSONDecodeError']
+  ✓ app/services/error_classifier.py:356  捕获 ['Exception', 'ImportError', 'json.JSONDecodeError']
+  ✓ app/services/exam_service_ext.py:383  捕获 ['Exception']
+  ✓ app/services/question_generator.py:778  捕获 ['Exception']
+  ✓ app/services/rag_service.py:322  捕获 ['Exception', 'RAGServiceError']
+  ✓ app/services/scoring_faithfulness.py:269  捕获 ['Exception']
+  ✓ app/services/scoring_faithfulness.py:351  捕获 ['Exception']
+
+不在任何 try 内（原样向上抛，与原异常同样逃逸）: 25
+  · app/services/agent_selector.py:296
+  · app/services/alert_manager.py:286
+  · app/services/conversation_distiller.py:319
+  · app/services/extraction_validator.py:485
+  · app/services/extraction_validator.py:490
+  · app/services/extraction_validator.py:495
+  · app/services/graphiti_belief_service.py:207
+  · app/services/graphiti_belief_service.py:298
+  · app/services/retrieval_reranker.py:232
+  · app/services/rollback_service.py:188
+  · app/services/rollback_service.py:207
+  · app/services/rollback_service.py:224
+  · app/services/rollback_service.py:253
+  · app/services/rollback_service.py:272
+  · app/services/rollback_service.py:302
+  · app/services/rollback_service.py:325
+  · app/services/rollback_service.py:368
+  · app/services/rollback_service.py:406
+  · app/services/signal_registry.py:111
+  · app/services/signal_registry.py:150
+  · app/services/signal_registry.py:187
+  · app/services/signal_registry.py:228
+  · app/services/signal_registry.py:268
+  · app/services/wikilink_graph_service.py:135
+  · app/services/wikilink_graph_service.py:156

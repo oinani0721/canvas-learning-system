@@ -1,0 +1,12 @@
+### 验伪锚：确认上条判据的两个集合都非空（否则交集恒 0 = 死判据）
+app/services/signal_registry.py : 本卡改动 hunk 数=0 ; ruff reformat 建议 hunk 数=2
+app/services/memory_service.py : 本卡改动 hunk 数=0 ; ruff reformat 建议 hunk 数=19
+app/services/rollback_service.py : 本卡改动 hunk 数=0 ; ruff reformat 建议 hunk 数=3
+
+### 正控：人为把一个改动行写成 format 不干净的形态，判据必须变红
+Traceback (most recent call last):
+  File "<stdin>", line 4, in <module>
+AssertionError
+  改动行集大小=0 reformat建议行集大小=18 交集=0
+  → 正控结论: ⛔ 判据是死的
+  已还原; sha=04fd38517ba051fc

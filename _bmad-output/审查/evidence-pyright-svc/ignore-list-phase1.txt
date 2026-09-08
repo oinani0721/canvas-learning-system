@@ -1,0 +1,51 @@
+### 本卡新增的 pyright ignore 清单（文件:行 | rule | 理由）
+### 判据：只允许行级 + 具体 rule；禁裸 # type: ignore；禁文件级
+from app.core.litellm_config import get_litellm_config  # pyright: ignore[reportAttributeAccessIssue]
+settings.TASK_CLEANUP_INTERVAL_SECONDS  # pyright: ignore[reportAttributeAccessIssue]
+created_at=datetime.now(timezone.utc).isoformat(),  # pyright: ignore[reportCallIssue]
+import app.services.exam_service_ext  # noqa: E402, F401  # pyright: ignore[reportUnusedImport]
+await index_svc.find_duplicates()  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
+result.file_path  # pyright: ignore[reportAttributeAccessIssue]
+engine._concept_cache,  # pyright: ignore[reportAttributeAccessIssue]
+concept_state = engine._concept_cache.get(  # pyright: ignore[reportAttributeAccessIssue]
+from src.rollback import (  # pyright: ignore[reportMissingImports]
+from src.rollback import SnapshotType  # pyright: ignore[reportMissingImports]
+from src.rollback import RollbackType  # pyright: ignore[reportMissingImports]
+source = self._vault.get_source_path(note_key)  # pyright: ignore[reportAttributeAccessIssue]
+
+--- 精确定位（当前工作树）---
+services/exam_service.py:556
+    import app.services.exam_service_ext  # noqa: E402, F401  # pyright: ignore[reportUnusedImport]
+services/rollback_service.py:124
+    from src.rollback import (  # pyright: ignore[reportMissingImports]
+services/rollback_service.py:298
+    from src.rollback import SnapshotType  # pyright: ignore[reportMissingImports]
+services/rollback_service.py:361
+    from src.rollback import RollbackType  # pyright: ignore[reportMissingImports]
+services/wikilink_graph_service.py:322
+    source = self._vault.get_source_path(note_key)  # pyright: ignore[reportAttributeAccessIssue]
+services/error_classifier.py:202
+    created_at=datetime.now(timezone.utc).isoformat(),  # pyright: ignore[reportCallIssue]
+services/agent_routing_engine.py:559
+    from app.core.litellm_config import get_litellm_config  # pyright: ignore[reportAttributeAccessIssue]
+services/health_monitor.py:256
+    await index_svc.find_duplicates()  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
+services/intelligent_parallel_service.py:656
+    result.file_path  # pyright: ignore[reportAttributeAccessIssue]
+services/background_task_manager.py:350
+    settings.TASK_CLEANUP_INTERVAL_SECONDS  # pyright: ignore[reportAttributeAccessIssue]
+services/memory_service.py:2170
+    engine._concept_cache,  # pyright: ignore[reportAttributeAccessIssue]
+services/memory_service.py:2173
+    concept_state = engine._concept_cache.get(  # pyright: ignore[reportAttributeAccessIssue]
+
+### 裸 # type: ignore 新增数（必须为 0）
+0
+0
+### 文件级 ignore / basic 新增数（必须为 0）
+0
+0
+### 新增 assert 数
+38
+### 新增 cast 数
+23

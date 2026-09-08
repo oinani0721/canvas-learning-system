@@ -1,0 +1,19 @@
+### 自验：ExamService 的 TYPE_CHECKING 方法声明 vs exam_service_ext 的 def —— 签名逐字比对
+### 判据：参数名/顺序、默认值、async 与否、返回注解 全部相同
+
+ext 侧顶层 def 数 = 15 | TYPE_CHECKING 块内 stub 数 = 11
+
+  ✓ sync_node_to_source_canvas
+  ✓ generate_hint
+  ✓ skip_question
+  ✓ pause_exam
+  ✓ resume_exam
+  ✓ _update_exam_lifecycle_status
+  ✓ get_cognitive_load_message
+  ✓ complete_exam
+  ✓ get_exam_records
+  ✓ get_exam_record
+  ✓ get_records_by_canvas
+
+=== 不一致数 = 0 （期望 0）===
+验伪锚: 拿两个不同方法的签名对比 -> 相等? False （期望 False = 比较器是活的）

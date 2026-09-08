@@ -1,0 +1,247 @@
+[ ] P1	services/agent_routing_engine.py:31:8	reportUnusedImport	Import "logging" is not accessed
+[ ] P1	services/agent_routing_engine.py:290:9	reportUnusedVariable	Variable "normalized_lower" is not accessed
+[ ] P1	services/agent_routing_engine.py:474:20	reportUnusedVariable	Variable "top_score" is not accessed
+[ ] P1	services/agent_routing_engine.py:550:49	reportAttributeAccessIssue	"get_litellm_config" is unknown import symbol
+[ ] P1	services/agent_routing_engine.py:567:29	reportAttributeAccessIssue	Cannot access attribute "choices" for class "CustomStreamWrapper"   Attribute "choices" is unknown
+[ ] P1	services/agent_routing_engine.py:567:56	reportOptionalMemberAccess	"strip" is not a known attribute of "None"
+[ ] P1	services/agent_selector.py:33:8	reportUnusedImport	Import "logging" is not accessed
+[ ] P1	services/agent_selector.py:100:34	reportAssignmentType	Type "None" is not assignable to declared type "List[str]"   "None" is not assignable to "List[str]"
+[ ] SHARED	services/agent_service.py:18:8	reportUnusedImport	Import "logging" is not accessed
+[ ] SHARED	services/agent_service.py:1486:18	reportMissingImports	Import "agentic_rag.clients.graphiti_client" could not be resolved
+[ ] SHARED	services/agent_service.py:1487:18	reportMissingImports	Import "agentic_rag.clients.lancedb_client" could not be resolved
+[ ] SHARED	services/agent_service.py:1540:18	reportMissingImports	Import "agentic_rag.clients.graphiti_client" could not be resolved
+[ ] SHARED	services/agent_service.py:1541:18	reportMissingImports	Import "agentic_rag.clients.lancedb_client" could not be resolved
+[ ] SHARED	services/agent_service.py:2219:13	reportUnusedVariable	Variable "source_desc" is not accessed
+[ ] SHARED	services/agent_service.py:3042:18	reportMissingImports	Import "agentic_rag.agent_graph" could not be resolved
+[ ] SHARED	services/agent_service.py:4181:22	reportMissingImports	Import "memory.temporal.fsrs_manager" could not be resolved
+[ ] P1	services/alert_manager.py:284:31	reportOperatorIssue	Operator "-" not supported for types "datetime" and "datetime | None"   Operator "-" not supported for types "datetime" and "None"
+[ ] P1	services/archive_scheduler.py:12:8	reportUnusedImport	Import "logging" is not accessed
+[ ] P1	services/autoscore.py:18:8	reportUnusedImport	Import "logging" is not accessed
+[ ] P1	services/autoscore.py:303:32	reportAttributeAccessIssue	Cannot access attribute "choices" for class "CustomStreamWrapper"   Attribute "choices" is unknown
+[ ] P1	services/autoscore.py:304:35	reportArgumentType	Argument of type "str | Unknown | None" cannot be assigned to parameter "s" of type "str | bytes | bytearray" in function "loads"   Type "str | Unknown | None" is not ass
+[ ] P1	services/autoscore.py:382:32	reportAttributeAccessIssue	Cannot access attribute "choices" for class "CustomStreamWrapper"   Attribute "choices" is unknown
+[ ] P1	services/autoscore.py:383:33	reportArgumentType	Argument of type "str | Unknown | None" cannot be assigned to parameter "s" of type "str | bytes | bytearray" in function "loads"   Type "str | Unknown | None" is not ass
+[ ] P1	services/background_task_manager.py:15:8	reportUnusedImport	Import "logging" is not accessed
+[ ] P1	services/background_task_manager.py:346:50	reportAttributeAccessIssue	Cannot access attribute "TASK_CLEANUP_INTERVAL_SECONDS" for class "Settings"   Attribute "TASK_CLEANUP_INTERVAL_SECONDS" is unknown
+[ ] P1	services/batch_orchestrator.py:501:42	reportArgumentType	Argument of type "GroupExecutionResult | BaseException" cannot be assigned to parameter "object" of type "GroupExecutionResult" in function "append"   Type "GroupExecutio
+[ ] P1	services/batch_orchestrator.py:562:37	reportArgumentType	Argument of type "NodeExecutionResult | BaseException" cannot be assigned to parameter "object" of type "NodeExecutionResult" in function "append"   Type "NodeExecutionRe
+[ ] P1	services/batch_orchestrator.py:563:27	reportAttributeAccessIssue	Cannot access attribute "success" for class "BaseException"   Attribute "success" is unknown
+[ ] SHARED	services/calibration_tracker.py:15:8	reportUnusedImport	Import "logging" is not accessed
+[ ] P1	services/candidate_expiry_service.py:20:8	reportUnusedImport	Import "yaml" is not accessed
+[ ] P1	services/candidate_service.py:19:8	reportUnusedImport	Import "uuid" is not accessed
+[ ] P1	services/candidate_service.py:42:5	reportUnusedImport	Import "validate_status_transition" is not accessed
+[ ] P1	services/candidate_service.py:273:9	reportUnusedVariable	Variable "idx" is not accessed
+[ ] P1	services/candidate_service.py:494:9	reportUnusedVariable	Variable "idx" is not accessed
+[ ] P1	services/candidate_service.py:501:40	reportArgumentType	Argument of type "str" cannot be assigned to parameter "target" of type "CandidateStatus" in function "apply_status_change"   Type "str" is not assignable to type "Candid
+[ ] P1	services/canvas_projection_sync.py:159:40	reportOptionalMemberAccess	"run_query" is not a known attribute of "None"
+[ ] SHARED	services/canvas_service.py:22:8	reportUnusedImport	Import "logging" is not accessed
+[ ] SHARED	services/canvas_service.py:70:33	reportArgumentType	Expression of type "None" cannot be assigned to parameter of type "str"   "None" is not assignable to "str"
+[ ] SHARED	services/canvas_service.py:340:39	reportOptionalMemberAccess	"record_temporal_event" is not a known attribute of "None"
+[ ] P1	services/context_enrichment_service.py:21:8	reportUnusedImport	Import "logging" is not accessed
+[ ] P1	services/context_enrichment_service.py:204:9	reportUnusedVariable	Variable "display" is not accessed
+[ ] P1	services/context_enrichment_service.py:206:20	reportUnusedVariable	Variable "display" is not accessed
+[ ] P1	services/conversation_archive.py:19:8	reportUnusedImport	Import "logging" is not accessed
+[ ] P1	services/conversation_distiller.py:15:8	reportUnusedImport	Import "logging" is not accessed
+[ ] P1	services/conversation_distiller.py:312:28	reportAttributeAccessIssue	Cannot access attribute "choices" for class "CustomStreamWrapper"   Attribute "choices" is unknown
+[ ] P1	services/conversation_distiller.py:312:55	reportOptionalMemberAccess	"strip" is not a known attribute of "None"
+[ ] P1	services/conversation_inheritance.py:17:8	reportUnusedImport	Import "logging" is not accessed
+[ ] P1	services/cross_subject_bridge.py:23:8	reportUnusedImport	Import "logging" is not accessed
+[ ] P1	services/cross_subject_bridge.py:163:33	reportAttributeAccessIssue	Cannot access attribute "session" for class "object"   Attribute "session" is unknown
+[ ] P1	services/cross_subject_bridge.py:225:33	reportAttributeAccessIssue	Cannot access attribute "session" for class "object"   Attribute "session" is unknown
+[ ] SHARED	services/difficulty_matcher.py:23:8	reportUnusedImport	Import "logging" is not accessed
+[ ] SHARED	services/difficulty_matcher.py:148:28	reportCallIssue	No overloads for "__new__" match the provided arguments
+[ ] SHARED	services/difficulty_matcher.py:148:37	reportArgumentType	Argument of type "Iterable[Row]" cannot be assigned to parameter "sequence" of type "SupportsLenAndGetItem[_T@reversed]" in function "__new__"   "Iterable[Row]" is incomp
+[ ] SHARED	services/difficulty_matcher.py:222:28	reportAttributeAccessIssue	Cannot access attribute "choices" for class "CustomStreamWrapper"   Attribute "choices" is unknown
+[ ] SHARED	services/difficulty_matcher.py:222:55	reportOptionalMemberAccess	"strip" is not a known attribute of "None"
+[ ] P1	services/episode_worker.py:22:8	reportUnusedImport	Import "logging" is not accessed
+[ ] P1	services/error_aggregator.py:23:8	reportUnusedImport	Import "logging" is not accessed
+[ ] PEND0	services/error_aggregator.py:270:18	reportCallIssue	Arguments missing for parameters "llm_errors", "network_errors", "algorithm_errors", "data_errors", "uncategorized"
+[ ] P1	services/error_classifier.py:15:8	reportUnusedImport	Import "logging" is not accessed
+[ ] P1	services/error_classifier.py:191:13	reportCallIssue	No parameter named "created_at"
+[ ] P1	services/error_classifier.py:276:32	reportAttributeAccessIssue	Cannot access attribute "choices" for class "CustomStreamWrapper"   Attribute "choices" is unknown
+[ ] P1	services/error_classifier.py:276:59	reportOptionalMemberAccess	"strip" is not a known attribute of "None"
+[ ] P1	services/error_classifier.py:342:32	reportAttributeAccessIssue	Cannot access attribute "choices" for class "CustomStreamWrapper"   Attribute "choices" is unknown
+[ ] P1	services/error_classifier.py:342:59	reportOptionalMemberAccess	"strip" is not a known attribute of "None"
+[ ] P1	services/error_extractor.py:247:32	reportAttributeAccessIssue	Cannot access attribute "choices" for class "CustomStreamWrapper"   Attribute "choices" is unknown
+[ ] P1	services/error_extractor.py:247:59	reportOptionalMemberAccess	"strip" is not a known attribute of "None"
+[ ] P1	services/error_rebuild_service.py:13:8	reportUnusedImport	Import "asyncio" is not accessed
+[ ] SHARED	services/event_bus.py:25:8	reportUnusedImport	Import "logging" is not accessed
+[ ] P1	services/event_handlers.py:14:8	reportUnusedImport	Import "logging" is not accessed
+[ ] P1	services/exam_service.py:21:8	reportUnusedImport	Import "logging" is not accessed
+[ ] P1	services/exam_service.py:492:8	reportUnusedImport	Import "app.services.exam_service_ext" is not accessed
+[ ] P1	services/exam_service_ext.py:14:8	reportUnusedImport	Import "logging" is not accessed
+[ ] PEND0	services/exam_service_ext.py:309:16	reportCallIssue	Arguments missing for parameters "hint_available", "max_allowed_level"
+[ ] P1	services/exam_service_ext.py:376:30	reportAttributeAccessIssue	Cannot access attribute "choices" for class "CustomStreamWrapper"   Attribute "choices" is unknown
+[ ] P1	services/exam_service_ext.py:376:57	reportOptionalMemberAccess	"strip" is not a known attribute of "None"
+[ ] PEND0	services/exam_service_ext.py:689:16	reportCallIssue	Argument missing for parameter "record_id"
+[ ] P1	services/exam_service_ext.py:832:27	reportArgumentType	Argument of type "List[Dict[str, Any]]" cannot be assigned to parameter "score_history" of type "List[NodeScoreRecord]" in function "__init__"   "List[Dict[str, Any]]" is
+[ ] P1	services/exam_service_ext.py:833:30	reportArgumentType	Argument of type "List[Dict[str, Any]]" cannot be assigned to parameter "discovered_nodes" of type "List[DiscoveredNode]" in function "__init__"   "List[Dict[str, Any]]" 
+[ ] P1	services/exam_service_ext.py:834:27	reportArgumentType	Argument of type "List[Dict[str, Any]]" cannot be assigned to parameter "skipped_nodes" of type "List[SkipRecord]" in function "__init__"   "List[Dict[str, Any]]" is not 
+[ ] P1	services/exam_service_ext.py:835:30	reportArgumentType	Argument of type "List[Dict[str, Any]]" cannot be assigned to parameter "conversation_log" of type "List[ConversationMessage]" in function "__init__"   "List[Dict[str, An
+[ ] P1	services/exam_service_ext.py:836:29	reportArgumentType	Argument of type "List[Dict[str, Any]]" cannot be assigned to parameter "mastery_changes" of type "List[MasteryChange]" in function "__init__"   "List[Dict[str, Any]]" is
+[ ] P1	services/exam_service_ext.py:947:17	reportAttributeAccessIssue	Cannot assign to attribute "sync_node_to_source_canvas" for class "type[ExamService]"   Attribute "sync_node_to_source_canvas" is unknown
+[ ] P1	services/exam_service_ext.py:948:17	reportAttributeAccessIssue	Cannot assign to attribute "generate_hint" for class "type[ExamService]"   Attribute "generate_hint" is unknown
+[ ] P1	services/exam_service_ext.py:949:17	reportAttributeAccessIssue	Cannot assign to attribute "skip_question" for class "type[ExamService]"   Attribute "skip_question" is unknown
+[ ] P1	services/exam_service_ext.py:950:17	reportAttributeAccessIssue	Cannot assign to attribute "pause_exam" for class "type[ExamService]"   Attribute "pause_exam" is unknown
+[ ] P1	services/exam_service_ext.py:951:17	reportAttributeAccessIssue	Cannot assign to attribute "resume_exam" for class "type[ExamService]"   Attribute "resume_exam" is unknown
+[ ] P1	services/exam_service_ext.py:952:17	reportAttributeAccessIssue	Cannot assign to attribute "_update_exam_lifecycle_status" for class "type[ExamService]"   Attribute "_update_exam_lifecycle_status" is unknown
+[ ] P1	services/exam_service_ext.py:953:17	reportAttributeAccessIssue	Cannot assign to attribute "get_cognitive_load_message" for class "type[ExamService]"   Attribute "get_cognitive_load_message" is unknown
+[ ] P1	services/exam_service_ext.py:954:17	reportAttributeAccessIssue	Cannot assign to attribute "complete_exam" for class "type[ExamService]"   Attribute "complete_exam" is unknown
+[ ] P1	services/exam_service_ext.py:955:17	reportAttributeAccessIssue	Cannot assign to attribute "get_exam_records" for class "type[ExamService]"   Attribute "get_exam_records" is unknown
+[ ] P1	services/exam_service_ext.py:956:17	reportAttributeAccessIssue	Cannot assign to attribute "get_exam_record" for class "type[ExamService]"   Attribute "get_exam_record" is unknown
+[ ] P1	services/exam_service_ext.py:957:17	reportAttributeAccessIssue	Cannot assign to attribute "get_records_by_canvas" for class "type[ExamService]"   Attribute "get_records_by_canvas" is unknown
+[ ] P1	services/extraction_validator.py:22:8	reportUnusedImport	Import "logging" is not accessed
+[ ] PEND0	services/extraction_validator.py:239:16	reportCallIssue	Argument missing for parameter "updated_at"
+[ ] P1	services/extraction_validator.py:484:21	reportOptionalSubscript	Object of type "None" is not subscriptable
+[ ] P1	services/extraction_validator.py:487:25	reportOptionalSubscript	Object of type "None" is not subscriptable
+[ ] P1	services/extraction_validator.py:490:23	reportOptionalSubscript	Object of type "None" is not subscriptable
+[ ] P1	services/fallback_sync_service.py:13:8	reportUnusedImport	Import "logging" is not accessed
+[ ] P1	services/frontmatter_signals.py:64:15	reportGeneralTypeIssues	"object" is not iterable   "__iter__" method not defined
+[ ] P1	services/frontmatter_signals.py:81:16	reportGeneralTypeIssues	"object" is not iterable   "__iter__" method not defined
+[ ] P1	services/graphiti_belief_service.py:30:18	reportUnusedImport	Import "NAMESPACE_DNS" is not accessed
+[ ] P1	services/graphiti_belief_service.py:30:33	reportUnusedImport	Import "uuid5" is not accessed
+[ ] P1	services/graphiti_belief_service.py:34:33	reportUnusedImport	Import "EntityNode" is not accessed
+[ ] P1	services/graphiti_belief_service.py:206:19	reportAssignmentType	Type "datetime | None" is not assignable to declared type "datetime"   Type "datetime | None" is not assignable to type "datetime"     "None" is not assignable to "dateti
+[ ] P1	services/graphiti_belief_service.py:293:16	reportReturnType	Type "datetime | None" is not assignable to return type "datetime"   Type "datetime | None" is not assignable to type "datetime"     "None" is not assignable to "datetime
+[ ] P1	services/health_monitor.py:32:8	reportUnusedImport	Import "logging" is not accessed
+[ ] PEND0	services/health_monitor.py:228:20	reportCallIssue	Argument missing for parameter "message"
+[ ] P1	services/health_monitor.py:255:33	reportAttributeAccessIssue	Cannot access attribute "find_duplicates" for class "LanceDBIndexService"   Attribute "find_duplicates" is unknown
+[ ] P1	services/health_monitor.py:255:33	reportOptionalMemberAccess	"find_duplicates" is not a known attribute of "None"
+[ ] PEND0	services/health_monitor.py:269:20	reportCallIssue	Argument missing for parameter "message"
+[ ] P1	services/intelligent_grouping_service.py:27:8	reportUnusedImport	Import "logging" is not accessed
+[ ] P1	services/intelligent_grouping_service.py:434:13	reportUnusedVariable	Variable "cluster_id" is not accessed
+[ ] P1	services/intelligent_parallel_service.py:17:8	reportUnusedImport	Import "logging" is not accessed
+[ ] P1	services/intelligent_parallel_service.py:291:44	reportOptionalMemberAccess	"start_batch_session" is not a known attribute of "None"
+[ ] P1	services/intelligent_parallel_service.py:367:17	reportUnusedVariable	Variable "node_ids_set" is not accessed
+[ ] PEND0	services/intelligent_parallel_service.py:382:33	reportCallIssue	Argument missing for parameter "file_size"
+[ ] P1	services/intelligent_parallel_service.py:647:28	reportArgumentType	Argument of type "str" cannot be assigned to parameter "agent_type" of type "AgentType" in function "call_agent"   "str" is not assignable to "AgentType"
+[ ] P1	services/intelligent_parallel_service.py:652:36	reportAttributeAccessIssue	Cannot access attribute "file_path" for class "AgentResult"   Attribute "file_path" is unknown
+[ ] P1	services/lancedb_index_service.py:19:8	reportUnusedImport	Import "logging" is not accessed
+[ ] P1	services/lancedb_index_service.py:371:13	reportUnusedVariable	Variable "canvas_name" is not accessed
+[ ] PEND0	services/lancedb_index_service.py:492:18	reportMissingImports	Import "agentic_rag.clients.lancedb_client" could not be resolved
+[ ] P1	services/learning_context_service.py:18:8	reportUnusedImport	Import "logging" is not accessed
+[ ] PEND0	services/learning_context_service.py:200:26	reportCallIssue	Argument missing for parameter "query"
+[ ] SHARED	services/mastery_engine.py:26:8	reportUnusedImport	Import "logging" is not accessed
+[ ] SHARED	services/mastery_engine.py:55:10	reportMissingImports	Import "memory.temporal.fsrs_manager" could not be resolved
+[ ] SHARED	services/mastery_engine.py:312:55	reportArgumentType	Argument of type "None" cannot be assigned to parameter "default" of type "float" in function "_card_attr"   "None" is not assignable to "float"
+[ ] SHARED	services/mastery_engine.py:313:57	reportArgumentType	Argument of type "None" cannot be assigned to parameter "default" of type "float" in function "_card_attr"   "None" is not assignable to "float"
+[ ] SHARED	services/mastery_engine.py:322:23	reportAttributeAccessIssue	Cannot access attribute "value" for class "float"   Attribute "value" is unknown
+[ ] SHARED	services/mastery_engine.py:670:47	reportArgumentType	Argument of type "None" cannot be assigned to parameter "default" of type "float" in function "_card_attr"   "None" is not assignable to "float"
+[ ] SHARED	services/mastery_fusion.py:20:8	reportUnusedImport	Import "logging" is not accessed
+[ ] SHARED	services/mastery_store.py:15:8	reportUnusedImport	Import "logging" is not accessed
+[ ] P1	services/memory_service.py:39:8	reportUnusedImport	Import "logging" is not accessed
+[ ] P1	services/memory_service.py:48:8	reportUnusedImport	Import "neo4j.exceptions" is not accessed
+[ ] P1	services/memory_service.py:1261:13	reportArgumentType	Argument of type "Literal[0]" cannot be assigned to parameter "value" of type "str" in function "__setitem__"   "Literal[0]" is not assignable to "str"
+[ ] P1	services/memory_service.py:1837:60	reportUnusedImport	Import "SearchConfig" is not accessed
+[ ] P1	services/memory_service.py:2161:54	reportUnusedImport	Import "ConceptState" is not accessed
+[ ] P1	services/memory_service.py:2166:76	reportAttributeAccessIssue	Cannot access attribute "_concept_cache" for class "MasteryEngine"   Attribute "_concept_cache" is unknown
+[ ] P1	services/memory_service.py:2167:44	reportAttributeAccessIssue	Cannot access attribute "_concept_cache" for class "MasteryEngine"   Attribute "_concept_cache" is unknown
+[ ] SHARED	services/multimodal_service.py:21:8	reportUnusedImport	Import "logging" is not accessed
+[ ] SHARED	services/multimodal_service.py:311:49	reportAttributeAccessIssue	"LANCZOS" is not a known attribute of module "PIL.Image"
+[ ] SHARED	services/multimodal_service.py:583:20	reportCallIssue	Arguments missing for parameters "width", "height", "duration", "page_count", "author", "title", "language"
+[ ] SHARED	services/multimodal_service.py:608:22	reportMissingImports	Import "agentic_rag.models.multimodal_content" could not be resolved
+[ ] SHARED	services/multimodal_service.py:630:28	reportCallIssue	Arguments missing for parameters "extracted_text", "source_location", "updated_at"
+[ ] SHARED	services/multimodal_service.py:727:20	reportCallIssue	Arguments missing for parameters "width", "height", "duration", "page_count", "author", "title", "language"
+[ ] SHARED	services/multimodal_service.py:751:28	reportCallIssue	Arguments missing for parameters "extracted_text", "source_location", "updated_at"
+[ ] SHARED	services/multimodal_service.py:823:34	reportCallIssue	Arguments missing for parameters "author", "title", "language"
+[ ] SHARED	services/multimodal_service.py:1201:26	reportMissingImports	Import "agentic_rag.models.multimodal_content" could not be resolved
+[ ] SHARED	services/multimodal_service.py:1221:13	reportUnusedVariable	Variable "cid" is not accessed
+[ ] SHARED	services/multimodal_service.py:1317:30	reportMissingImports	Import "agentic_rag.models.multimodal_content" could not be resolved
+[ ] SHARED	services/multimodal_service.py:1357:13	reportUnusedVariable	Variable "content_id" is not accessed
+[ ] SHARED	services/multimodal_service.py:1403:18	reportMissingImports	Import "agentic_rag.embedding.embedding_service" could not be resolved
+[ ] SHARED	services/multimodal_service.py:1473:26	reportMissingImports	Import "agentic_rag.models.multimodal_content" could not be resolved
+[ ] SHARED	services/multimodal_service.py:1497:26	reportMissingImports	Import "agentic_rag.models.multimodal_content" could not be resolved
+[ ] SHARED	services/multimodal_service.py:1529:17	reportUnusedVariable	Variable "content_id" is not accessed
+[ ] P1	services/notification_channels.py:175:62	reportArgumentType	Expression of type "None" cannot be assigned to parameter of type "SSEConnectionManager"   "None" is not assignable to "SSEConnectionManager"
+[ ] P1	services/notification_channels.py:339:43	reportArgumentType	Expression of type "None" cannot be assigned to parameter of type "SSEConnectionManager"   "None" is not assignable to "SSEConnectionManager"
+[ ] P1	services/prompt_registry.py:22:8	reportUnusedImport	Import "logging" is not accessed
+[ ] P1	services/question_generator.py:22:8	reportUnusedImport	Import "logging" is not accessed
+[ ] P1	services/question_generator.py:645:39	reportAttributeAccessIssue	Cannot access attribute "choices" for class "CustomStreamWrapper"   Attribute "choices" is unknown
+[ ] P1	services/question_generator.py:771:32	reportAttributeAccessIssue	Cannot access attribute "choices" for class "CustomStreamWrapper"   Attribute "choices" is unknown
+[ ] P1	services/question_generator.py:772:38	reportArgumentType	Argument of type "str | Unknown | None" cannot be assigned to parameter "s" of type "str | bytes | bytearray" in function "loads"   Type "str | Unknown | None" is not ass
+[ ] P1	services/rag_service.py:16:8	reportUnusedImport	Import "logging" is not accessed
+[ ] PEND0	services/rag_service.py:52:10	reportMissingImports	Import "agentic_rag" could not be resolved
+[ ] P1	services/rag_service.py:54:9	reportUnusedImport	Import "CanvasRAGConfig" is not accessed
+[ ] P1	services/rag_service.py:322:47	reportOptionalMemberAccess	"ainvoke" is not a known attribute of "None"
+[ ] P1	services/react_agent.py:14:8	reportUnusedImport	Import "logging" is not accessed
+[ ] P1	services/recommendation_service.py:14:8	reportUnusedImport	Import "logging" is not accessed
+[ ] P1	services/recommendation_service.py:193:43	reportAttributeAccessIssue	Cannot access attribute "run_query" for class "object"   Attribute "run_query" is unknown
+[ ] P1	services/recommendation_service.py:213:40	reportAttributeAccessIssue	Cannot access attribute "run_query" for class "object"   Attribute "run_query" is unknown
+[ ] P1	services/recommendation_service.py:246:47	reportAttributeAccessIssue	Cannot access attribute "run_query" for class "object"   Attribute "run_query" is unknown
+[ ] P1	services/recommendation_service.py:278:47	reportAttributeAccessIssue	Cannot access attribute "run_query" for class "object"   Attribute "run_query" is unknown
+[ ] P1	services/recommendation_service.py:300:47	reportAttributeAccessIssue	Cannot access attribute "run_query" for class "object"   Attribute "run_query" is unknown
+[ ] P1	services/retrieval_reranker.py:232:13	reportCallIssue	No overloads for "__setitem__" match the provided arguments
+[ ] P1	services/retrieval_reranker.py:232:13	reportArgumentType	Argument of type "float | None" cannot be assigned to parameter "value" of type "float" in function "__setitem__"   Type "float | None" is not assignable to type "float" 
+[ ] SHARED	services/review_service.py:64:8	reportUnusedImport	Import "logging" is not accessed
+[ ] SHARED	services/review_service.py:90:10	reportMissingImports	Import "memory.temporal.fsrs_manager" could not be resolved
+[ ] SHARED	services/review_service.py:91:9	reportUnusedImport	Import "CardState" is not accessed
+[ ] SHARED	services/review_service.py:620:25	reportArgumentType	Argument of type "str | object" cannot be assigned to parameter "value" of type "str" in function "__setitem__"   Type "str | object" is not assignable to type "str"     
+[ ] SHARED	services/review_service.py:870:49	reportAttributeAccessIssue	Cannot access attribute "get_canvas" for class "CanvasService"   Attribute "get_canvas" is unknown
+[ ] SHARED	services/review_service.py:882:9	reportUnusedVariable	Variable "mastery_lookup" is not accessed
+[ ] SHARED	services/review_service.py:910:13	reportUnusedVariable	Variable "mastery_lookup" is not accessed
+[ ] SHARED	services/review_service.py:1161:64	reportAttributeAccessIssue	Cannot access attribute "value" for class "int"   Attribute "value" is unknown
+[ ] SHARED	services/review_service.py:1259:26	reportArgumentType	Argument of type "Unknown | int | None" cannot be assigned to parameter "x" of type "ConvertibleToInt" in function "__new__"   Type "Unknown | int | None" is not assignab
+[ ] SHARED	services/review_service.py:1259:26	reportArgumentType	Argument of type "Unknown | int | None" cannot be assigned to parameter "x" of type "ConvertibleToInt" in function "__new__"   Type "Unknown | int | None" is not assignab
+[ ] SHARED	services/review_service.py:1286:31	reportUnusedVariable	Variable "review_log" is not accessed
+[ ] SHARED	services/review_service.py:1384:47	reportAttributeAccessIssue	Cannot access attribute "value" for class "int"   Attribute "value" is unknown
+[ ] SHARED	services/review_service.py:1809:28	reportCallIssue	Arguments missing for parameters "canvas_path", "from_node_id", "to_node_id"
+[ ] SHARED	services/review_service.py:1810:17	reportCallIssue	No parameter named "canvas_name"
+[ ] SHARED	services/review_service.py:1811:17	reportCallIssue	No parameter named "from_node"
+[ ] SHARED	services/review_service.py:1812:17	reportCallIssue	No parameter named "to_node"
+[ ] SHARED	services/review_service.py:1813:17	reportCallIssue	No parameter named "label"
+[ ] SHARED	services/review_service.py:2533:43	reportAttributeAccessIssue	Cannot access attribute "value" for class "int"   Attribute "value" is unknown
+[ ] P1	services/rollback_service.py:16:8	reportUnusedImport	Import "logging" is not accessed
+[ ] P1	services/rollback_service.py:122:14	reportMissingImports	Import "src.rollback" could not be resolved
+[ ] P1	services/rollback_service.py:185:40	reportOptionalMemberAccess	"get_history" is not a known attribute of "None"
+[ ] P1	services/rollback_service.py:202:40	reportOptionalMemberAccess	"get_total_count" is not a known attribute of "None"
+[ ] P1	services/rollback_service.py:217:40	reportOptionalMemberAccess	"get_operation" is not a known attribute of "None"
+[ ] P1	services/rollback_service.py:244:45	reportOptionalMemberAccess	"list_snapshots" is not a known attribute of "None"
+[ ] P1	services/rollback_service.py:261:45	reportOptionalMemberAccess	"get_total_count" is not a known attribute of "None"
+[ ] P1	services/rollback_service.py:283:14	reportMissingImports	Import "src.rollback" could not be resolved
+[ ] P1	services/rollback_service.py:286:45	reportOptionalMemberAccess	"create_snapshot" is not a known attribute of "None"
+[ ] P1	services/rollback_service.py:307:45	reportOptionalMemberAccess	"get_snapshot" is not a known attribute of "None"
+[ ] P1	services/rollback_service.py:339:14	reportMissingImports	Import "src.rollback" could not be resolved
+[ ] P1	services/rollback_service.py:345:44	reportOptionalMemberAccess	"rollback" is not a known attribute of "None"
+[ ] P1	services/rollback_service.py:381:49	reportOptionalMemberAccess	"get_snapshot" is not a known attribute of "None"
+[ ] P1	services/scoring_faithfulness.py:22:8	reportUnusedImport	Import "logging" is not accessed
+[ ] P1	services/scoring_faithfulness.py:262:32	reportAttributeAccessIssue	Cannot access attribute "choices" for class "CustomStreamWrapper"   Attribute "choices" is unknown
+[ ] P1	services/scoring_faithfulness.py:263:43	reportArgumentType	Argument of type "str | Unknown | None" cannot be assigned to parameter "text" of type "str" in function "_parse_json_response"   Type "str | Unknown | None" is not assig
+[ ] P1	services/scoring_faithfulness.py:343:32	reportAttributeAccessIssue	Cannot access attribute "choices" for class "CustomStreamWrapper"   Attribute "choices" is unknown
+[ ] P1	services/scoring_faithfulness.py:344:43	reportArgumentType	Argument of type "str | Unknown | None" cannot be assigned to parameter "text" of type "str" in function "_parse_json_response"   Type "str | Unknown | None" is not assig
+[ ] P1	services/signal_registry.py:17:8	reportUnusedImport	Import "logging" is not accessed
+[ ] P1	services/signal_registry.py:109:25	reportOptionalOperand	Operator "/" not supported for "None"
+[ ] P1	services/signal_registry.py:144:25	reportOptionalOperand	Operator "/" not supported for "None"
+[ ] P1	services/signal_registry.py:178:25	reportOptionalOperand	Operator "/" not supported for "None"
+[ ] P1	services/signal_registry.py:216:25	reportOptionalOperand	Operator "/" not supported for "None"
+[ ] P1	services/signal_registry.py:253:25	reportOptionalOperand	Operator "/" not supported for "None"
+[ ] P1	services/skill_registry.py:22:8	reportUnusedImport	Import "logging" is not accessed
+[ ] P1	services/subject_resolver.py:18:8	reportUnusedImport	Import "logging" is not accessed
+[ ] PEND0	services/supplementary_search_service.py:139:10	reportMissingImports	Import "agentic_rag.clients.lancedb_client" could not be resolved
+[ ] PEND0	services/supplementary_search_service.py:855:10	reportMissingImports	Import "agentic_rag.clients.lancedb_client" could not be resolved
+[ ] P1	services/sync_service.py:16:8	reportUnusedImport	Import "logging" is not accessed
+[ ] P1	services/targeting_material_service.py:88:17	reportGeneralTypeIssues	"object" is not iterable   "__iter__" method not defined
+[ ] P1	services/targeting_material_service.py:96:16	reportGeneralTypeIssues	"object" is not iterable   "__iter__" method not defined
+[ ] P1	services/targeting_material_service.py:118:16	reportGeneralTypeIssues	"object" is not iterable   "__iter__" method not defined
+[ ] P1	services/tool_executor.py:11:8	reportUnusedImport	Import "logging" is not accessed
+[ ] P1	services/tool_executor.py:231:13	reportUnusedVariable	Variable "source" is not accessed
+[ ] P1	services/vault_index_orchestrator.py:24:8	reportUnusedImport	Import "fnmatch" is not accessed
+[ ] P1	services/vault_index_orchestrator.py:29:36	reportUnusedImport	Import "field" is not accessed
+[ ] PEND0	services/vault_index_orchestrator.py:170:22	reportMissingImports	Import "agentic_rag.clients" could not be resolved
+[ ] PEND0	services/vault_index_orchestrator.py:171:22	reportMissingImports	Import "agentic_rag.config" could not be resolved
+[ ] PEND0	services/vault_index_orchestrator.py:208:14	reportMissingImports	Import "agentic_rag.clients.lancedb_client" could not be resolved
+[ ] PEND0	services/vault_index_orchestrator.py:228:18	reportMissingImports	Import "agentic_rag.clients.lancedb_client" could not be resolved
+[ ] PEND0	services/vault_index_orchestrator.py:532:14	reportMissingImports	Import "agentic_rag.clients.lancedb_client" could not be resolved
+[ ] PEND0	services/vault_index_orchestrator.py:543:18	reportMissingImports	Import "agentic_rag.clients.lancedb_client" could not be resolved
+[ ] P1	services/verification_service.py:42:8	reportUnusedImport	Import "logging" is not accessed
+[ ] P1	services/websocket_manager.py:22:8	reportUnusedImport	Import "logging" is not accessed
+[ ] P1	services/websocket_manager.py:346:25	reportCallIssue	No overloads for "min" match the provided arguments
+[ ] P1	services/websocket_manager.py:346:54	reportArgumentType	Argument of type "Overload[(key: str, default: None = None, /) -> (datetime | None), (key: str, default: datetime, /) -> datetime, (key: str, default: _T@get, /) -> (date
+[ ] P1	services/websocket_manager.py:347:25	reportCallIssue	No overloads for "max" match the provided arguments
+[ ] P1	services/websocket_manager.py:347:54	reportArgumentType	Argument of type "Overload[(key: str, default: None = None, /) -> (datetime | None), (key: str, default: datetime, /) -> datetime, (key: str, default: _T@get, /) -> (date
+[ ] P1	services/weight_calculator.py:12:8	reportUnusedImport	Import "logging" is not accessed
+[ ] P1	services/wikilink_graph_service.py:132:16	reportOperatorIssue	Operator "not in" not supported for types "str" and "MultiDiGraph[Unknown, dict[str, Any], dict[str, Any]] | None"   Operator "not in" not supported for types "str" and "
+[ ] P1	services/wikilink_graph_service.py:135:40	reportOptionalMemberAccess	"successors" is not a known attribute of "None"
+[ ] P1	services/wikilink_graph_service.py:137:40	reportOptionalMemberAccess	"neighbors" is not a known attribute of "None"
+[ ] P1	services/wikilink_graph_service.py:140:38	reportOptionalMemberAccess	"predecessors" is not a known attribute of "None"
+[ ] P1	services/wikilink_graph_service.py:150:48	reportOptionalMemberAccess	"successors" is not a known attribute of "None"
+[ ] P1	services/wikilink_graph_service.py:312:34	reportAttributeAccessIssue	Cannot access attribute "get_source_path" for class "Vault"   Attribute "get_source_path" is unknown
