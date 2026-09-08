@@ -256,6 +256,24 @@ canvas-vault/.claude/skills/quiz-answer/SKILL.md
 
 **R1 整改后裁判全部重跑**：五回归 **436 passed, 1 skipped, 0 failed, 0 xfailed**；`test_learning_event_log.py` 43 passed；`g33r2/g32ccr1` 选集 28 passed；tests/skills **369 passed**；三 harness ANCHOR-ERROR=0 且与开工逐字同（双侧滤 `rc=` 后 diff=0——单侧漏滤会假报 2 行，判据口径又踩一次）；判据③④/验伪锚①②/禁改锚行/fsrs 零写全部复核通过；ruff check 过、pyright 0 错、format 增量三文件 0（存量 4 行原样保留）。
 
-### round-2（绑定 `<R1 整改 commit>`）
+### round-2（绑定 `b060259b` = R1 整改 commit）
 
-（随轮次补）
+- 存档：`_bmad-output/审查/codex-review-CARD-G3-3-R2-writer-boundary-r2.md`（首部六行 blockquote 按协议 §2.1）
+- prompt：`_bmad-output/审查/prompts/codex-prompt-CARD-G3-3-R2-writer-boundary-r2.md`（五分节；禁用措辞扫描 0 命中）
+- 模型 `gpt-6-astra` · `ultra` · `codex-cli 0.153.3` · read-only
+- **BLOCKER 0 / HIGH 0 / MEDIUM 2 / LOW 1**
+
+**逐条独立验证与处置**：
+
+| # | 级别 | 内容 | 独立验证 | 处置 |
+|---|---|---|---|---|
+| M1' | MEDIUM | R1 整改版裸值**一律**截 `#`：`harness_tree: /repo#alt` 的 `#` 前无空白，YAML 里是标量**内容**——截掉后若 `/repo` 恰好存在则**静默换树**（恰是本函数要防的形态）；「与 YAML 规则一致」的声明不成立 | **复现确认**（探针实测 `/repo#alt`→`/repo`） | ✅ 修：裸值注释判据 = 「`#` 前有空白 **或** `#` 是值的第一个字符」——与 YAML 1.1/1.2 标量规则真一致；注释文字如实记录两轮演化（只用 `\s+#` 会把「注释掉键」变砖化；一律截会静默换树）+ 两端点对照回归用例（`<真树>#alt` 拒且拒因报**完整原路径** / `<真树> # alt` 正常） |
+| M2' | MEDIUM | 零写指纹不记 symlink：`is_dir()` **跟随**链接 ⇒ 目录链接换目标指纹不变；文件链接换指向同内容文件也同指纹 | **确认**（`Path.is_dir()` 语义核对） | ✅ 修：指纹对 symlink 先于 is_dir 判（`is_symlink()` 不跟随），记 `("symlink", None, os.readlink(q))`；判据自证探针之二（造目录链接换指向，两次指纹必须不同） |
+| L3' | LOW | 锁豁免只按 key 匹配不看形态：拒绝路径把 `.locks` 建成**非空普通文件**会被放行；锁文件缺失时 0 字节断言被跳过 | **确认**（代码核对：`_allowed_added` 是 key 集合） | ✅ 修：`_allowed_entries` 写死期望形态（`.locks` 必须是 dir 条目；锁文件必须是 `("file", 0, sha256(b""))`），entry 不匹配 = unexpected |
+| 补充 | — | 行号漂移提示：`:1499/:1513/:1587` → `:1521/:1535/:1609`，拼接点超出 prompt 的 `:1600` 截止线 | 属实 | 📋 round-3 prompt 读取面已按新行号放宽 |
+
+round-2 的核对确认（作者自述面）：M1 引号形态修复成立；M4 caplog 判据在固定实参下成立（未知 event_type 理论上可回显同串，但测试固定 `answer_scored` 不受影响）；写点数值门对 NaN/±Inf/超大 int/bool/str/None 全部落预期分支；「唯一上游」置信度——差分确认中间段与拼接链本轮未改，但静态「未改」补全不了此前未检查的数据流（如实登记为未证明项）。
+
+### round-3（绑定 `<R2 整改 commit>`）
+
+（随结果补）

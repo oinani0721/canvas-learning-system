@@ -6784,11 +6784,20 @@ def test_g33r2_writer_gate_runs_before_any_write(vault):
     import hashlib
 
     def _tree_fingerprint(root: Path) -> dict[str, object]:
-        """全树内容指纹: 相对路径 → (是否目录, 大小, sha256)。"""
+        """全树内容指纹: 相对路径 → (类型, 大小, sha256 / 链接目标)。
+
+        ⚠️ **R2 整改**(Codex round-2 MEDIUM-2): 上一版只区分 dir/file, 对 **symlink**
+        双盲 —— `is_dir()` **跟随**链接, 于是「目录链接换目标」仍记 `("dir", None, None)`;
+        「文件链接改指向一个同内容文件」也得到相同指纹。symlink 必须先于 is_dir 判
+        (`is_symlink()` 不跟随), 并把 `os.readlink` 的目标记进指纹 —— 链接指向哪里
+        本身就是持久的写入面状态。
+        """
         out: dict[str, object] = {}
         for q in sorted(root.rglob("*")):
             rel = str(q.relative_to(root))
-            if q.is_dir():
+            if q.is_symlink():
+                out[rel] = ("symlink", None, os.readlink(q))
+            elif q.is_dir():
                 out[rel] = ("dir", None, None)
             else:
                 b = q.read_bytes()
@@ -6801,20 +6810,23 @@ def test_g33r2_writer_gate_runs_before_any_write(vault):
     _after = _tree_fingerprint(vault)
 
     # per-node 写锁在**门之前**就取好了(取锁早于入口区), 是唯一预期内的新增。
-    # ⛔ 按**精确路径**豁免, 不按名字子串 —— 子串豁免(`".lock" not in p`)会顺带放行
-    # 任何路径里带该字样的文件, 比它要豁免的那一个宽得多。锁名可精确推算:
-    # `<VAULT>/.locks/node-<sha1(realpath(NODE))[:16]>.lock`(SKILL.md :281-285)。
+    # ⛔ 豁免按**路径 + 形态**双匹配, 不按名字子串、也不只按 key ——
+    # round-2 LOW-3 实测反例: 上一版 `_allowed_added` 是 key 集合, 若拒绝路径把
+    # `.locks` 建成了**非空普通文件**(而非目录), key 命中即被放行; 锁文件缺失时
+    # 0 字节断言又被 `if _lock_entry is not None` 跳过 ⇒ 全绿。现在 allowed 里
+    # 写死期望形态: `.locks` 必须是 dir 条目, 锁文件必须是「0 字节 + 空 sha」条目,
+    # entry 不匹配 = unexpected。
     _lock_h = hashlib.sha1(os.path.realpath(vault / NODE_REL).encode("utf-8")).hexdigest()[:16]
-    _allowed_added = {".locks", f".locks/node-{_lock_h}.lock"}
+    _empty_sha = hashlib.sha256(b"").hexdigest()
+    _allowed_entries = {
+        ".locks": ("dir", None, None),
+        f".locks/node-{_lock_h}.lock": ("file", 0, _empty_sha),
+    }
     _added = {k: v for k, v in _after.items() if k not in _before}
     _removed = {k: v for k, v in _before.items() if k not in _after}
     _changed = {k: (_before[k], _after[k]) for k in _before if k in _after and _before[k] != _after[k]}
-    _unexpected_added = {k: v for k, v in _added.items() if k not in _allowed_added}
-    assert _unexpected_added == {}, f"⛔ 拒绝路径新建了文件 ⇒ 门跑得太晚: {_unexpected_added}"
-    # 锁文件必须是**空**的 —— 它只是一个取锁载体, 有内容就说明写点已经动过手。
-    _lock_entry = _added.get(f".locks/node-{_lock_h}.lock")
-    if _lock_entry is not None:
-        assert _lock_entry[1] == 0, f"⛔ 锁文件非空 ({_lock_entry[1]} 字节) ⇒ 拒绝路径写了东西"
+    _unexpected_added = {k: v for k, v in _added.items() if _allowed_entries.get(k) != v}
+    assert _unexpected_added == {}, f"⛔ 拒绝路径新建了文件或形态不对 ⇒ 门跑得太晚: {_unexpected_added}"
     assert _removed == {}, f"⛔ 拒绝路径**删掉**了已有文件（旧判据对此双盲）: {sorted(_removed)}"
     assert _changed == {}, f"⛔ 拒绝路径**改写**了已有文件（旧判据对此双盲）: {sorted(_changed)}"
     assert "learning_events.jsonl" not in _after, "账本连文件都不该被创建"
@@ -6823,6 +6835,20 @@ def test_g33r2_writer_gate_runs_before_any_write(vault):
     _probe.write_text(NODE_V0 + "\n# probe\n", encoding="utf-8")
     assert _tree_fingerprint(vault) != _after, "⛔ 指纹函数看不见内容变化 ⇒ 上面三条判据是空真"
     _probe.write_text(NODE_V0, encoding="utf-8")
+    # 判据自证之二(R2 整改): 指纹也看得见「symlink 换目标」——上一版在这里双盲
+    # (`is_dir()` 跟随链接, 换了目标仍记 ("dir", None, None))。造一个目录链接、
+    # 换一次指向, 两次指纹必须不同。
+    _ln = vault / ".claude" / "scripts" / "probe-link"
+    _t1 = vault / ".claude" / "scripts" / "probe-target-1"
+    _t2 = vault / ".claude" / "scripts" / "probe-target-2"
+    _t1.mkdir()
+    _t2.mkdir()
+    _ln.symlink_to(_t1)
+    _fp1 = _tree_fingerprint(vault)
+    _ln.unlink()
+    _ln.symlink_to(_t2)
+    assert _tree_fingerprint(vault) != _fp1, "⛔ 指纹函数看不见 symlink 换目标 ⇒ R2 整改形同虚设"
+    _ln.unlink()
 
 
 # ── CARD-G3-3-R2-writer-boundary E-2: harness_tree 解析 ──
@@ -6928,6 +6954,40 @@ def test_g33r2_harness_tree_commented_out_key_falls_back(vault):
         r = _run_writer_settled(vault, _payload(event_id="板未#q1", ts=TS1, review_time=TS1))
         assert r.returncode == 0, f"⛔ 注释掉该键应回退而不是拒写 ({_why}): {(r.stderr or '')[-400:]}"
         assert len(_ledger_lines(vault)) == 1, f"回退后必须照常写入 ({_why})"
+
+
+def test_g33r2_harness_tree_hash_without_space_is_path_content(vault):
+    """裸值里**无空白分隔**的 `#` 是路径内容，不是注释（Codex round-2 MEDIUM-1 回归）。
+
+    ⛔ round-1 整改版在这里矫枉过正：为了让 `harness_tree: # reset`（空值+注释）不被
+    当成相对路径，它把裸值的 `#` **一律**当注释起点 —— 于是 `harness_tree: /repo#alt`
+    被截成 `/repo`。若 `/repo` 恰好是一棵**存在**的树，写错的配置会**静默换成那棵树**
+    （实测复现），正是本函数「树不对必须说话」要防的形态；若不存在则误拒，报的还是
+    一个用户没写过的路径。YAML 1.1/1.2 里无分隔空白的 `#` 本就是标量内容。
+
+    两端点对照：
+      · `<真树>#alt` —— `#` 前无空白 ⇒ 值 = `<真树>#alt` ⇒ 该路径**不存在** ⇒ 拒；
+      · `<真树> # alt` —— `#` 前有空白 ⇒ 注释 ⇒ 值 = `<真树>` ⇒ 照常写入。
+    同一棵真树、同一个 `#alt`，唯一变量是那个空白 —— 两条结论合起来才钉住判据。
+    """
+    alt = _build_alt_harness(vault.parent / "alt-harness-hash")
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    (vault / "learning_events.jsonl").unlink(missing_ok=True)
+    # 端点 A：无空白 ⇒ `#` 是路径 ⇒ `<alt>#alt` 不存在 ⇒ fail-closed
+    _write_cfg(vault, f"harness_tree: {alt}#alt\n")
+    rA = _run_writer_settled(vault, _payload(event_id="板申#q1", ts=TS1, review_time=TS1))
+    assert rA.returncode != 0, "⛔ 无空白 `#` 被当注释截掉 ⇒ 静默换树（round-2 MEDIUM-1 形态回归）"
+    assert f"{alt}#alt" in (rA.stderr or ""), (
+        f"拒因必须报出**含 # 的完整路径**（用户写的原值），而不是截断后的: {(rA.stderr or '')[-300:]}"
+    )
+    assert len(_ledger_lines(vault)) == 0, "端点 A 拒绝 ⇒ 零写"
+    # 端点 B：有空白 ⇒ 注释 ⇒ 值 = alt ⇒ 正常
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    (vault / "learning_events.jsonl").unlink(missing_ok=True)
+    _write_cfg(vault, f"harness_tree: {alt} # alt 树\n")
+    rB = _run_writer_settled(vault, _payload(event_id="板酉#q1", ts=TS1, review_time=TS1))
+    assert rB.returncode == 0, f"⛔ 有空白 `#` 应被当注释剥掉: {(rB.stderr or '')[-400:]}"
+    assert len(_ledger_lines(vault)) == 1, "端点 B 必须照常写入"
 
 
 @pytest.mark.parametrize(

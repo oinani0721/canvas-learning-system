@@ -394,17 +394,28 @@ def _harness_tree(vault_dir):
     except OSError:
         _raw = ""
     #: 带引号的值先按引号取内容(引号**内**的 `#` 是路径的一部分, 不是注释);
-    #: 裸值才剥 `#` 尾注释 —— 反过来先剥注释会把 `"a # b"` 截成 `"a`。
+    #: 裸值才剥尾注释 —— 反过来先剥注释会把 `"a # b"` 截成 `"a`。
     #: ⛔ 引号内容用**非贪婪** `(.*?)` + 结尾锚(Codex round-1 MEDIUM-1 实测):
     #: 贪婪版 `(.*)\1\s*(?:#.*)?$` 对 `"/valid/repo" # use "main"` 会让 `.*` 一路吃到
     #: 最后一个引号, 解析出 `/valid/repo" # use "main` —— 一个**写对了**的配置被判成坏路径,
     #: 于是整条评分链 fail-closed 停摆。非贪婪让 `\1` 优先匹配**第一个**闭合引号。
-    #: ⛔ 裸值的注释判据不能要求 `#` 前有空白(同轮 MEDIUM-1 第二形态): `harness_tree: # reset`
-    #: 是 YAML 的「空值 + 注释」, 而 `\s+#` 要求前置空白 ⇒ 整个 `# reset` 被当成相对路径,
-    #: 同样把「用户临时注释掉这个键」变成砖化操作。裸值里的 `#` **一律**视为注释起点 ——
-    #: 路径含 `#` 的用户必须加引号, 这与 YAML 本身的规则一致。
+    #: ⛔ 裸值的注释判据 = 「`#` 前有空白, 或 `#` 就是值的第一个字符」(两轮实测演化, 别再动):
+    #:   · 只用 `\s+#`(最初版): `harness_tree: # reset` 是「空值+紧跟注释」, `#` 前在
+    #:     值区里没有空白 ⇒ 不匹配 ⇒ 整个 `# reset` 被当成相对路径, 「把键注释掉」
+    #:     变成砖化操作 (round-1 MEDIUM-1);
+    #:   · 一律截 `#`(round-1 整改版): `harness_tree: /repo#alt` 的 `#` 前无空白,
+    #:     在 YAML 里是标量**内容**不是注释 —— 截掉它会让写错的路径**静默变成另一棵
+    #:     存在的树**(实测 `/repo#alt`→`/repo`), 恰是本函数「树不对必须说话」要防的
+    #:     形态 (round-2 MEDIUM-1)。
+    #: 即与 YAML 1.1/1.2 标量规则一致: 无分隔空白的 `#` 属于路径; 路径里 `#` 前恰有
+    #: 空白的形态罕见, 真遇上的用户加引号即可(引号内一切按字面)。
     _qm = re.match(r'^([\'"])(.*?)\1\s*(?:#.*)?$', _raw)
-    _tree = _qm.group(2) if _qm else re.sub(r'#.*$', '', _raw).strip()
+    if _qm:
+        _tree = _qm.group(2)
+    elif _raw.startswith("#"):
+        _tree = ""
+    else:
+        _tree = re.sub(r'\s+#.*$', '', _raw).strip()
     if not _tree:
         return os.path.dirname(vault_dir)
     _tree = os.path.expanduser(_tree)

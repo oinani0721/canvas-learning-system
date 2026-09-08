@@ -10,7 +10,7 @@ round-1（存档 `_bmad-output/审查/codex-review-CARD-G3-3-R2-writer-boundary.
 
 **请只读以下范围**（不需要读别的文件；不要运行任何写操作）：
 
-1. `git diff 609ce455 REPLACE_WITH_SHA -- . ':(exclude)_bmad-output'` —— round-1 整改的全部代码改动
+1. `git diff 609ce455 b060259b -- . ':(exclude)_bmad-output'` —— round-1 整改的全部代码改动
 2. `canvas-vault/.claude/skills/quiz-answer/SKILL.md` 的 `:290-420`
    （写点门重构：`float()` 前置 + `except (OverflowError, ValueError)` 走同一句拒因——round-1 LOW-6；
    `_harness_tree` 的引号正则改**非贪婪**、裸值 `#` 一律视为注释起点——round-1 MEDIUM-1；
