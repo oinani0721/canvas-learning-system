@@ -291,13 +291,16 @@ class MasteryEngine:
         为什么本卡只标注不收敛 (裁定表 _bmad-output/审查/evidence-g37/decision.md ③):
           - 「改造」须改 MasteryStore 写侧并连 Neo4j 7691 验证 —— CARD-G3-7 硬边界
             禁连 7691/7687;
-          - 「下线」会摘掉在线读方的掌握度信号, 破坏面远超本卡。读方实测清单
-            (CARD-G3-7-R2 更正: 原文写的 mastery_engine.py:326/:651 两个行号是错的
-            —— :326 是本方法的**写点** concept.fsrs_card_data=..., :651 是空行):
-              * 本模块内: _get_retrievability :342/:349/:352、
-                concept_to_response :667/:669;
-              * 模块外: mastery_tools.py:187-190/:274-277、
-                signal_registry.py:148、event_handlers.py:102-103/:332-333。
+          - 「下线」会摘掉在线读方的掌握度信号, 破坏面远超本卡。读方清单:
+              * 本模块内 —— `_get_retrievability`(读 fsrs_card_data / fsrs_stability)
+                与 `concept_to_response`(读 fsrs_card_data 取 due);
+              * 模块外 —— mastery_tools.py(读 fsrs_stability/fsrs_difficulty ×2 处)、
+                signal_registry.py(读 fsrs_card_data/fsrs_reps)、
+                event_handlers.py(读 fsrs_stability/difficulty/state ×2 处)。
+            ⚠️ **本模块内的读方刻意只写函数名不写行号**(CARD-G3-7-R2 Codex r1 LOW-5):
+            原文写的 :326/:651 是错的(:326 是本方法的**写点**, :651 是空行); 改成
+            实测行号后, **本 docstring 自己变长又把它们推下去了** —— 同一个文件里
+            引用行号, 每次改这段注释都会让它失效。函数名不随行数漂移。
         ⇒ 隔离 + 登记立卡。**隔离不等于无害**: 在收敛卡落地前, mastery 域的 FSRS
         仍在独立推进, 与 frontmatter 可以任意漂移 —— 写边界门锁的是「不落到
         review 那份投影」, **不**证明两份状态不漂移。
