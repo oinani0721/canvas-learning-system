@@ -601,45 +601,40 @@ class TestAutoPersistCounterRemoved:
 
     @pytest.mark.asyncio
     @pytest.mark.usefixtures("isolate_card_states_file")
-    async def test_save_and_load_card_state_touch_no_memory_client(
-        self, review_service_factory, monkeypatch
-    ):
-        """Codex MEDIUM-3 补强: save/load_card_state 真实入口零外部访问——
-        两处直接幻影路径若复活, 此锁必红。"""
+    async def test_card_state_persist_paths_touch_no_memory_client(self, review_service_factory, monkeypatch):
+        """Codex MEDIUM-3 补强: 卡状态的写/读真实入口零外部访问——
+        两处直接幻影路径若复活, 此锁必红。
+
+        CARD-G3-7-R2: 写侧从退役的公开包装改指其被包装者 `_save_card_states`
+        (唯一真实持久化通道)。覆盖面**未变窄**: 被退役的那层只是转调本方法,
+        所以原路径上仍存在的每一行都还在本用例的执行面内, 少掉的只是那层
+        已不存在的包装本身。读侧 `load_card_state` 两条断言原样保留。"""
         import app.clients.graphiti_client as gc_module
 
         def _forbidden(*args, **kwargs):
-            raise AssertionError(
-                "load/save_card_state 不得访问 LearningMemoryClient (G-FAKE-007)"
-            )
+            raise AssertionError("_save_card_states/load_card_state 不得访问 LearningMemoryClient (G-FAKE-007)")
 
         monkeypatch.setattr(gc_module, "get_learning_memory_client", _forbidden)
         svc = review_service_factory()
-        assert (
-            await svc.save_card_state("c4-lock", '{"state": 1}', "board.canvas", 3)
-            is True
-        )
+        assert await svc._save_card_states(pending=("c4-lock", '{"state": 1}')) is True
         assert await svc.load_card_state("c4-lock") == '{"state": 1}'
         assert await svc.load_card_state("missing-c4-lock") is None
 
     @pytest.mark.asyncio
-    async def test_save_card_state_returns_false_when_file_write_fails(
-        self, review_service_factory, monkeypatch
-    ):
+    async def test_save_card_states_returns_false_when_file_write_fails(self, review_service_factory, monkeypatch):
         """Codex HIGH-1 锁定: 唯一真实持久化通道 (文件) 失败时不得谎报 True
-        ('仅内存暂存、重启即丢' != '持久化成功')。"""
+        ('仅内存暂存、重启即丢' != '持久化成功')。
+
+        CARD-G3-7-R2: 原先经退役的公开包装断言, 现直接断言被包装者
+        `_save_card_states` —— 谎报 True 的能力本来就在它这一层, 改指后
+        锁的是同一层, 且不再依赖一个已不存在的入口。"""
         from pathlib import Path
 
         import app.services.review_service as rs_module
 
-        monkeypatch.setattr(
-            rs_module, "_CARD_STATES_FILE", Path("/dev/null/card-states.json")
-        )
+        monkeypatch.setattr(rs_module, "_CARD_STATES_FILE", Path("/dev/null/card-states.json"))
         svc = review_service_factory()
-        assert (
-            await svc.save_card_state("c4-fail", '{"state": 1}', "board.canvas", 3)
-            is False
-        )
+        assert await svc._save_card_states(pending=("c4-fail", '{"state": 1}')) is False
 
 
 class TestCardStatePersistHonestyD3:

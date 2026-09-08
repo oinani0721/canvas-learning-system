@@ -584,8 +584,9 @@ class ReviewService:
         Returns:
             True if the atomic write completed; False if it failed (logged).
             CARD-C4 Codex HIGH-1: 文件是唯一真实持久化通道, 失败必须可被
-            调用方看见。CARD-D3: 评分/auto-create/save_card_state 三处
-            调用点均已消费此值。失败时 pending concept 进 _unpersisted_
+            调用方看见。CARD-D3: 评分/auto-create 两处调用点均已消费此值
+            (原第三处是一条零调用方的死路径, 已随 CARD-G3-7-R2 退役)。
+            失败时 pending concept 进 _unpersisted_
             concepts; 成功的全量快照治愈全部历史失败 (clear)。
             CARD-D3 Codex HIGH-3: except 含 ValueError — lone surrogate
             concept_id 的 UnicodeEncodeError 属 ValueError 族, 必须在
@@ -2361,48 +2362,19 @@ class ReviewService:
 
         return None
 
-    async def save_card_state(
-        self,
-        concept_id: str,
-        card_data: str,
-        canvas_name: str,
-        rating: int,
-        score: Optional[float] = None,
-    ) -> bool:
-        """
-        Save FSRS card state to the in-memory cache + JSON file (P0-2).
-
-        Story 32.2 AC-32.2.4: Stores card state for later scheduling.
-        CARD-C4 (G-FAKE-007): 原 "persist to Graphiti" 幻影调用已下线——
-        它调用的方法在整个 git 历史中从未定义, 每次抛 AttributeError 被吞
-        后记 warning, 但 return True 不区分镜像失败, 且源码含永远不可达的
-        "已存入 Graphiti" 成功日志 (详见 docs/known-gotchas.md G-FAKE-007);
-        底层 LearningMemoryClient 也非 Graphiti 而是本地 JSON。文件通道
-        (_save_card_states) 是唯一真实持久化。真接 Graphiti 须等 epic-5a
-        C-1/C-2 契约。
-
-        Args:
-            concept_id: Concept identifier
-            card_data: Serialized FSRS card JSON
-            canvas_name: Unused; kept for call-site compatibility
-            rating: Unused; kept for call-site compatibility
-            score: Unused; kept for call-site compatibility
-
-        Returns:
-            True if persisted to file; False if the file write failed
-            (in-memory cache still updated, lost on restart). Codex HIGH-1:
-            返回值必须如实反映唯一真实通道的结果。
-        """
-        # CARD-D3 Codex HIGH-2: mutation 随 pending 进锁内
-        # CARD-G3-7 裁定 ④ = 隔离: 本方法在 backend/app 内**零调用方**
-        # (`git grep 'save_card_state(' backend/app` 只命中定义), 但既有回归测试
-        # tests/unit/test_review_service_fsrs.py:619/:640 与主 spec
-        # openspec/specs/concept-identity/spec.md:14/:39 仍按名引用其契约, 故保留
-        # 定义不删, 只标注: 此处写的是**非 FSRS 调度真相源**的投影/缓存。
-        # 退役处置登记为 G-PIPE 待立卡; 仓外调用不可证。
-        persisted = await self._save_card_states(pending=(concept_id, card_data))
-        logger.debug(f"Saved card state to memory cache: {concept_id}")
-        return persisted
+    # CARD-G3-7-R2 (BATCH-2026-09-07-第十三批): 此处原有一个公开的卡状态
+    # 保存入口, 已退役 —— 它在 backend/app 内零调用方, 唯一动作是转调
+    # `_save_card_states`, 即 DD-13 意义上的名实不符: 一个看似公开的写入口,
+    # 实际既没有调用者, 也不是这份状态的真实持久化通道。退役后 backend/app
+    # 内**不再出现它的名字** (含注释), 否则 grep 到的人会以为它还在;
+    # 该名字与本次处置记在 docs/known-gotchas.md G-FAKE-007 与
+    # docs/fsrs-truth-source-d0-revision.md 的四写点表 ④ 行。
+    # 现在写入口只剩 `_save_card_states` 一个 (调用点: record_review_result /
+    # get_fsrs_state auto-create 两处)。
+    # 注意 `load_card_state` **未**退役: 它有真实调用方 (get_fsrs_state 内存
+    # 未命中时的回退)。两者名字相似, 改动面必须逐字区分。
+    # G-FAKE-007 防复活锁未削弱, 只是改指真实通道: 见
+    # tests/unit/test_review_service_fsrs.py::TestAutoPersistCounterRemoved。
 
     def get_cached_card_states(self) -> Dict[str, str]:
         """
