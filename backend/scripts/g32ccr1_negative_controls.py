@@ -36,19 +36,21 @@ from __future__ import annotations
 
 import hashlib
 import os
-import signal
 import subprocess
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from mutation_kill_identity import (  # noqa: E402  (必须在 sys.path 兜底之后)
+    VERDICTS,
+    RestoreGuard,
     check_expect_msg_unique,
+    failed_locations,
     failed_reasons,
     gate_hit,
     judge_env,
-    judge_surface_missing,
-    kill_identity_ok,
+    judge_flags,
+    kill_identity,
     syntax_check,
 )
 
@@ -58,6 +60,8 @@ VALIDATOR = WT / "backend" / "scripts" / "validate_learning_events.py"
 #: ⚠️ 不硬编码别的车道的 venv：先认环境变量，再回落本树 `backend/.venv`。
 PYTEST = Path(os.environ.get("G32CCR1_PYTEST") or (WT / "backend" / ".venv" / "bin" / "pytest"))
 LEDGER_TEST = "tests/regression/test_g3_2_review_ledger.py"
+#: 门文件绝对路径 —— round-19 的位置判据 (c)① 要拿它比对 pytest 报的失败位置。
+GATE_FILE = WT / "backend" / LEDGER_TEST
 
 _EMITTER = "test_g32cc_emitter_rebuild_never_mutates_existing_entries"
 
@@ -226,16 +230,21 @@ def _check_expect_msg() -> list[str]:
     return problems
 
 
-class _Terminated(Exception):
-    """把 SIGTERM/SIGINT 转成异常，好让 finally 里的还原跑得到。"""
+#: 当前**已落盘**的变异 `{路径: 原始文本}` —— 信号到达时按它无条件还原。
+_ACTIVE_SNAPSHOT: dict[Path, str] = {}
 
 
-def _install_signal_handlers() -> None:
-    def _handler(signum, _frame):
-        raise _Terminated(f"收到信号 {signum}")
+def _restore_active() -> None:
+    """把 `_ACTIVE_SNAPSHOT` 里记着的文件写回。幂等。"""
+    for _p, _t in list(_ACTIVE_SNAPSHOT.items()):
+        _p.write_text(_t, encoding="utf-8")
+    _ACTIVE_SNAPSHOT.clear()
 
-    for _sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
-        signal.signal(_sig, _handler)
+
+#: ⛔ round-19 统一（CARD-DEBT-mutkill-R2 (h)）：四个信号（**补齐 SIGQUIT**）+
+#: 先还原再退出 + **还原期不可打断**。收口前这里只挂三个信号，且信号若落在还原
+#: 循环内部，异常会从 finally 里逃出去 ⇒ 部分还原（负控 negctl_signal.py 实测）。
+_GUARD = RestoreGuard(_restore_active)
 
 
 def _sha(p: Path) -> str:
@@ -253,8 +262,8 @@ def _run_gate(test_name: str) -> tuple[int, str]:
     # 截成空串 ⇒ expect_msg 恒不命中 ⇒ 全报 SURVIVED（harness 坏了却像门失效）。
     env.update(judge_env())
     r = subprocess.run(
-        # ⛔ `-rf` 不可省：击杀身份判据取的就是短摘要行 `FAILED <nodeid> - <reason>`。
-        [str(PYTEST), "-q", "-p", "no:cacheprovider", "--tb=line", "-rf", _nodeid(test_name)],
+        # ⛔ 命令行开关统一从 `judge_flags()` 取（round-19，四套一份）。
+        [str(PYTEST), *judge_flags(), _nodeid(test_name)],
         cwd=WT / "backend",
         capture_output=True,
         text=True,
@@ -310,11 +319,28 @@ def main(argv: list[str]) -> int:
                 ok = False
             return 0 if ok else 4
         if a.startswith("--only"):
-            only = set((a.split("=", 1)[1] if "=" in a else argv[argv.index(a) + 1]).split(","))
+            # ⛔ 裸 `--only`（缺值）原先直接 `argv[index+1]` ⇒ **IndexError 崩掉**，
+            # 而 g32b 对同一形态有显式防线（「缺值/空前缀一律当场报错，不猜用户意图」）。
+            # 崩掉与「报错退出」的区别在于：崩掉时 rc=1，与「门不承重」同码。
+            if "=" in a:
+                _val = a.split("=", 1)[1]
+            elif argv.index(a) + 1 < len(argv) and not argv[argv.index(a) + 1].startswith("--"):
+                _val = argv[argv.index(a) + 1]
+            else:
+                print("✗✗ `--only` 缺少取值（用法：`--only E1,E2` 或 `--only=E1`）")
+                return 4
+            only = {x for x in _val.split(",") if x.strip()}
+            if not only:
+                print(f"✗✗ `--only` 取值为空 {_val!r} —— 空前缀会命中全部 tag, 拒绝执行")
+                return 4
     muts = [m for m in MUTATIONS if only is None or m[0] in only]
     if not muts:
         print(f"⛔ --only 没选中任何变异: {only}")
         return 4
+    #: ⛔ 部分跑**不构成全量结论**：与 g32b 同口径，rc 恒为 4，绝不落到 PASS 那条路上。
+    #: 收口前 `--only` 跑完照样 rc=0 + 「六档之和 ✓」，与全量通过在输出上不可分 ——
+    #: 而定点复核的输出正是最容易被当成存档证据的那种（独立复核 2026-09-08）。
+    _partial = only is not None
 
     # ⛔ EXPECT_MSG 自检**先于**一切慢步骤：绑不唯一 ⇒ 「红在哪一条断言上」不再可证。
     if bad := _check_expect_msg():
@@ -322,8 +348,10 @@ def main(argv: list[str]) -> int:
             print(f"⛔ EXPECT_MSG 自检失败 — {p}", flush=True)
         return 4
 
-    _install_signal_handlers()
-    healed = _self_heal()
+    _GUARD.install()
+    # ⛔ 同 g32b/g32cb: 自愈的写盘窗口放进 critical()(独立复核 2026-09-08)。
+    with _GUARD.critical():
+        healed = _self_heal()
     if healed:
         print(f"⚠️ 自愈：还原了上一次残留的变异体 {healed}", flush=True)
 
@@ -365,36 +393,32 @@ def main(argv: list[str]) -> int:
             results.append((mid, gate, "SYNTAX-INVALID", desc))
             continue
         try:
+            _ACTIVE_SNAPSHOT[target] = src  # 先登记快照再落盘（信号可能落在两者之间）
             target.write_text(mutated_text, encoding="utf-8")
             rc, out = _run_gate(gate)
             nodeid = _nodeid(gate)
             expect = EXPECT_MSG.get(mid)
-            if surface := judge_surface_missing(rc, out):
-                print(f"  [{mid}] ⛔ 判据面不成立 — {surface}", flush=True)
-                results.append((mid, gate, "JUDGE-SURFACE-MISSING", desc))
-                continue
-            # KILLED 判据：rc 恰为 1 **且** 失败的是指定的那道门 **且** 红在
-            # `EXPECT_MSG[mid]` 声称的那一条断言上。
-            # ⛔ Codex round-1 MEDIUM-4 整改：rc 不是 1 是**负控自己坏了**，不是
-            # 「门不承重」；印成 SURVIVED 会把诊断指向完全相反的方向。
-            killed = kill_identity_ok(rc, out, nodeid, expect)
-            if killed:
-                # ⛔ HIGH-3 整改：豁免条目判据仍是旧口径，不与「绑定断言击杀」并数。
-                verdict = "KILLED" if expect is not None else "KILLED-UNBOUND"
-            elif rc != 1:
-                verdict = f"HARNESS-ERROR(rc={rc})"
-            else:
-                verdict = "SURVIVED(rc=1)"
-            print(f"  [{mid}] {desc}\n        {gate} → rc={rc} ⇒ {verdict}", flush=True)
+            # ⛔ round-19：裁决统一走共用模块的 `kill_identity()`，六档口径与另三套
+            # 逐字一致（原先这里还有个第七档 `JUDGE-SURFACE-MISSING`，不进任何计数）。
+            # ⚠️ 按用户裁定 D-28 本套**不加** `expect_loc`，只做 (c)① 的「失败位置须
+            # 在门文件里」这道弱位置判据 ⇒ **挡不住** Y1-B HIGH-1 的形态（前提断言与
+            # 目标断言同在门文件里）。该项移交第十四批，验收单里写明。
+            verdict, why = kill_identity(rc, out, nodeid, expect, gate_file=GATE_FILE, require_gate_file=True)
+            killed = verdict.startswith("KILLED")
+            print(f"  [{mid}] {desc}\n        {gate} → rc={rc} ⇒ {verdict} ({why})", flush=True)
             if not killed:
                 obs = [r for nid, r in failed_reasons(out) if gate_hit(nodeid, {nid})]
+                locs = [(Path(_p).name, _ln) for _p, _ln, _ in failed_locations(out)]
                 print(f"        ⚠️ expect={expect!r}", flush=True)
                 print(f"        ⚠️ 该门实际拒因: {obs or '(该门没红)'}", flush=True)
+                print(f"        ⚠️ 实际失败位置: {locs or '(无位置行)'}", flush=True)
                 tail = out.strip().splitlines()[-1][:160] if out.strip() else "(空)"
                 print(f"        ⚠️ 输出尾部: {tail}", flush=True)
             results.append((mid, gate, verdict, desc))
         finally:
-            target.write_text(src, encoding="utf-8")
+            with _GUARD.critical():  # round-19: 还原期不可被第二个信号打断
+                target.write_text(src, encoding="utf-8")
+                _ACTIVE_SNAPSHOT.clear()
 
     print("\n═══ 变异后 sha 复核 ═══", flush=True)
     dirty = []
@@ -407,22 +431,55 @@ def main(argv: list[str]) -> int:
     print("\n═══ 汇总 ═══", flush=True)
     for mid, gate, verdict, _d in results:
         print(f"  {mid:4} {verdict:22} {gate}", flush=True)
-    n_killed = sum(1 for _, _, v, _ in results if v == "KILLED")
-    n_unbound = sum(1 for _, _, v, _ in results if v == "KILLED-UNBOUND")
-    n_harness = sum(1 for _, _, v, _ in results if v.startswith("HARNESS-ERROR"))
-    n_anchor = sum(1 for _, _, v, _ in results if v == "ANCHOR-ERROR")
-    n_syntax = sum(1 for _, _, v, _ in results if v == "SYNTAX-INVALID")
-    print(f"\n  {n_killed}/{len(muts)} KILLED (绑定断言身份)", flush=True)
-    print(f"  KILLED-UNBOUND: {n_unbound} (仅证明指定门红了)", flush=True)
-    print(f"  HARNESS-ERROR: {n_harness} (负控自己坏了, 不是关于被测物的结论)", flush=True)
+    # ⛔ round-19：六档口径与另三套逐字一致，且「六档之和 = 结果条数」可核。
+    n = {v: sum(1 for _, _, x, _ in results if x == v) for v in VERDICTS}
+    n_killed = n["KILLED"]
+    # ⛔ 文案不得比证据宽：本套按 D-28 **没有** `expect_loc`，位置只绑到门文件一级。
+    print(
+        f"\n  {n_killed}/{len(muts)} KILLED "
+        f"(绑定: 消息 + 失败位置在门文件内; ⚠️ 未绑到具体断言 —— expect_loc 按 D-28 移交十四批)",
+        flush=True,
+    )
+    print(f"  KILLED-UNBOUND: {n['KILLED-UNBOUND']} (仅证明指定门红了)", flush=True)
+    print(f"  SURVIVED: {n['SURVIVED']}", flush=True)
+    print(f"  HARNESS-ERROR: {n['HARNESS-ERROR']} (负控自己坏了, 不是关于被测物的结论)", flush=True)
     # ⛔ 两者都**不是**关于被测物的结论：ANCHOR-ERROR 是变异没打进去，
     # SYNTAX-INVALID 是负控自己坏了。单列，不并进 KILLED / SURVIVED 任何一边。
-    print(f"  ANCHOR-ERROR: {n_anchor} (变异未施加)", flush=True)
-    print(f"  SYNTAX-INVALID: {n_syntax} (>0 说明负控自己坏了)", flush=True)
+    print(f"  ANCHOR-ERROR: {n['ANCHOR-ERROR']} (变异未施加)", flush=True)
+    print(f"  SYNTAX-INVALID: {n['SYNTAX-INVALID']} (>0 说明负控自己坏了)", flush=True)
+    # ⛔ 分母必须是「本次**应该**处理多少条变异」，不是 `len(results)` —— 后者恒等于
+    # 六档之和（每个写进 `results` 的裁决值都字面来自 `VERDICTS`），那是个**恒真判据**。
+    # 用变异条数当分母才能抓住「某条变异跑完没落进任何一档」（独立复核 2026-09-08）。
+    _total = sum(n.values())
+    _sum_ok = _total == len(muts)
+    print(
+        f"  六档之和: {_total} (应 = 变异条数 {len(muts)}) {'✓' if _sum_ok else '⛔ 对不上, 有条目没落进任何一档'}",
+        flush=True,
+    )
     if dirty:
         print(f"⛔ 有文件未还原：{[str(p) for p in dirty]}", flush=True)
         return 3
-    return 0 if n_killed == len(muts) else 1
+    if not _sum_ok:
+        print("⛔ 六档计数对不上 —— 有条目没落进任何一档，计数口径坏了(负控自己坏, rc=2)", flush=True)
+        return 2
+    # ⛔ 退出码语义四套统一（独立复核 2026-09-08：原先 HARNESS-ERROR 与 SURVIVED 压成
+    # 同一个 rc=1 —— 「pytest 没跑成」与「门不承重」两个方向完全相反的结论共用一个码）：
+    #   rc=2  有 HARNESS-ERROR（负控自己坏了，先去修 harness，别去改门）
+    #   rc=1  有 SURVIVED 或别的 failures（关于被测物的结论）
+    #   rc=4  部分跑（--only / --probe / --list 自检不过）—— 不构成全量结论
+    #   rc=0  全部 KILLED；⚠️ **已登记**的 KILLED-UNBOUND 残留只报不判失败 ——
+    #         未登记的那种在跑之前就被 `_check_expect_loc()` / `_check_expect_msg()`
+    #         挡在 rc=2 上了，走不到这里。
+    if n["HARNESS-ERROR"]:
+        print(f"⛔ HARNESS-ERROR {n['HARNESS-ERROR']} 条 —— 负控自己坏了 (rc=2)", flush=True)
+        return 2
+    if _partial:
+        print(
+            f"\n⚠️ --only {sorted(only)} 选中 {len(muts)}/{len(MUTATIONS)} 条 —— 部分跑不构成全量结论，rc 恒为 4",
+            flush=True,
+        )
+        return 4
+    return 0 if (n_killed + n["KILLED-UNBOUND"]) == len(muts) else 1
 
 
 if __name__ == "__main__":

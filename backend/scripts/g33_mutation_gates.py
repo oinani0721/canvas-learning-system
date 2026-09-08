@@ -33,7 +33,6 @@ import importlib.util
 import json
 import os
 import re
-import signal
 import stat
 import subprocess
 import sys
@@ -43,12 +42,15 @@ from pathlib import Path
 # 共用同一份「击杀必须落在声称的断言上 + 变异体先编译自检」，避免同一道封堵
 # 在四个文件里各写一遍、各漂一点。本文件只保留**它自己的**变异表与跑法。
 from mutation_kill_identity import (
+    VERDICTS,
+    RestoreGuard,
     check_expect_msg_unique,
+    failed_locations,
     failed_reasons,
     gate_hit,
     judge_env,
-    judge_surface_missing,
-    kill_identity_ok,
+    judge_flags,
+    kill_identity,
     parse_failed_nodeids,
     syntax_check,
 )
@@ -364,7 +366,10 @@ def _check_expect_msg_unique() -> list[str]:
 
 def _run_gate(nodeid: str) -> tuple[int, str]:
     proc = subprocess.run(
-        [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-rf", "--no-header", nodeid],
+        # ⛔ round-19: 命令行开关统一从 `judge_flags()` 取（四套一份）。本套原先
+        # **没有** `--tb=line` ⇒ 输出里根本没有失败位置行, (c)① 的位置判据无从求值;
+        # 也没有 `--show-capture=no` ⇒ captured 区里被测进程可以伪造摘要行。
+        [sys.executable, "-m", "pytest", *judge_flags(), "--no-header", nodeid],
         cwd=str(BACKEND),
         capture_output=True,
         text=True,
@@ -410,25 +415,22 @@ def main() -> int:
     # ⛔ 基线覆盖**所有会被变异的文件**, 不是只盯一个: grep 标记有盲区
     # (变异体文本未必含该字样), 全文件 sha 才是外部锚点。
     baseline = {str(p): (p.read_bytes(), _sha(p)) for p in _TARGET_FILES}
-    restored = {"done": False}
 
     def restore_all() -> None:
-        if restored["done"]:
-            return
-        for sp, (data, _) in baseline.items():
-            Path(sp).write_bytes(data)
-        restored["done"] = True
+        # ⛔ round-19: 去掉 `restored["done"]` 早退闩。它让「还原」变成**一次性**事件,
+        # 而后面每条变异跑完都要还原一次 —— 早退闩一旦置位, 之后的还原全被跳过。
+        # (收口前它没出事只是因为调用点恰好都在最后; 这类闩是「降级开关是闩不是事件」
+        #  那条教训的同族。) 现在无条件写回, 幂等。
+        with _guard.critical():  # 还原期收到的信号只记待办、不打断
+            for sp, (data, _) in baseline.items():
+                Path(sp).write_bytes(data)
 
-    def _on_signal(signum, _frame):
-        # ⛔ SIGTERM 默认处置不做栈展开 ⇒ finally 不执行 ⇒ 变异体留在生产文件里。
-        restore_all()
-        print(f"\n⚠️ 收到信号 {signum}, 已无条件还原全部目标文件后退出", file=sys.stderr)
-        sys.exit(130)
-
-    # SIGQUIT (Ctrl-\) 的默认处置同样不做栈展开 —— 漏了它 finally 一样不执行。
+    # ⛔ 四个信号 + 先还原再退出 + **还原期不可打断**, 四套统一（见 RestoreGuard）。
+    # 收口前这里已经是「先还原再退出」且四信号齐全, 缺的是最后一条: 还原循环本身
+    # 若被第二个信号打断, 会停在「还原了一半」的状态。
     # SIGKILL 挡不住, 如实声明: 被 -9 打断时变异体会留在生产文件里, 须手动 restore。
-    for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP, signal.SIGQUIT):
-        signal.signal(sig, _on_signal)
+    _guard = RestoreGuard(restore_all)
+    _guard.install()
 
     results = []
     try:
@@ -438,7 +440,9 @@ def main() -> int:
             src = path.read_text(encoding="utf-8")
             n = src.count(old)
             if n != 1:
-                results.append({"id": mid, "verdict": "ANCHOR-DRIFT", "hits": n, "nodeid": nodeid, "why": why})
+                # ⛔ round-19 改名: 收口前本套叫 `ANCHOR-DRIFT`, 另三套叫 `ANCHOR-ERROR`
+                # —— 同义不同名, 跨套对照汇总时要靠人脑翻译。统一成后者。
+                results.append({"id": mid, "verdict": "ANCHOR-ERROR", "hits": n, "nodeid": nodeid, "why": why})
                 print(f"⛔ {mid}: 锚点命中 {n} 次 (应为 1) — 生产代码已漂移, 变异未施加")
                 continue
             mutated = src.replace(old, new, 1)
@@ -455,45 +459,60 @@ def main() -> int:
                 rc, out = _run_gate(nodeid)
             finally:
                 # 逐条立即还原: 下一条变异必须打在干净的树上。
-                for sp, (data, _) in baseline.items():
-                    Path(sp).write_bytes(data)
+                # ⛔ round-19: 走 `restore_all()`（内含 `critical()`）而不是自己写循环 ——
+                # 循环中途收到信号时旧写法会停在还原了一半的状态。
+                restore_all()
             # ⛔ 先问「判据面在不在」再问「杀没杀死」: 缺 `-rf` 时短摘要不存在,
             # 判据会安静退化成恒假 ⇒ 全报 SURVIVED, 长得跟「门都不承重」一样。
-            if surface := judge_surface_missing(rc, out):
-                print(f"⛔ 判据面不成立 {mid}: {surface}", file=sys.stderr)
-                return 2
             failed = parse_failed_nodeids(out)
             err_text = _error_lines(out)
             reasons = [r for nid, r in failed_reasons(out) if gate_hit(nodeid, {nid})]
             expect_hit = expect_msg is None or any(expect_msg in r for r in reasons)
-            # ⛔ 判据 = rc 恰为 1 **且 指定的那道门**在失败集里 **且 指定的那一条断言**
-            # 真的抛了 (共用实现见 mutation_kill_identity.kill_identity_ok)。只判 rc 会
-            # 被别的门红了喂饱; 只判 nodeid 会被**同一个门里别的断言**喂饱 —— 后者正是
-            # 旧 M15 假杀的形态。
-            killed = kill_identity_ok(rc, out, nodeid, expect_msg)
+            locs = [(Path(_p).name, _ln) for _p, _ln, _ in failed_locations(out)]
+            # ⛔ round-19: 裁决统一走共用模块的 `kill_identity()`, 六档口径与另三套逐字
+            # 一致。判据依次是: 判据面在不在 → rc 恰为 1 → 摘要区里失败的是不是**指定的
+            # 那道门** → 失败**位置**在不在门文件里 ((c)① 弱位置判据) → 摘要区 reason
+            # 含不含 `expect_msg`。只判 rc 会被别的门红了喂饱; 只判 nodeid 会被**同一个
+            # 门里别的断言**喂饱 —— 后者正是旧 M15 假杀的形态。
+            # ⚠️ 按用户裁定 D-28 本套**不加** `expect_loc` ⇒ 挡不住 Y1-B HIGH-1 那种
+            # 「前提断言把子进程输出插进消息首行」的形态, 已登记移交第十四批。
+            # ⛔ `judge_surface_missing` 不再在这里单独调用后 `return 2`: 判据面缺失现在
+            # 由 `kill_identity()` 判成 `HARNESS-ERROR` 并**继续跑完其余条目** ——
+            # 原先一条判据面异常就整份中止, 「其余 17 条还好着」这个信息也一起丢掉。
+            verdict, why_v = kill_identity(
+                rc, out, nodeid, expect_msg, gate_file=BACKEND / TESTS, require_gate_file=True
+            )
+            killed = verdict.startswith("KILLED")
             results.append(
                 {
                     "id": mid,
-                    "verdict": "KILLED" if killed else "SURVIVED",
+                    "verdict": verdict,
+                    "verdict_why": why_v,
                     "rc": rc,
                     "nodeid": nodeid,
                     "failed": sorted(failed),
                     "expect_msg": expect_msg,
                     "expect_hit": expect_hit,
+                    "failed_locations": locs,
                     "why": why,
                     "failed_reasons": reasons,
                     "error_lines": err_text.splitlines()[:8],
                     "tail": out.strip().splitlines()[-3:],
                 }
             )
-            _why_not = "" if killed else (" (expect_msg 未命中抛出的异常文本)" if not expect_hit else "")
             print(
-                f"{'✅ KILLED  ' if killed else '❌ SURVIVED'} {mid}: rc={rc} "
-                f"failed={sorted(failed) or '∅'} expect_hit={expect_hit}{_why_not}"
+                f"{'✅ ' if killed else '❌ '}{verdict:15} {mid}: rc={rc} "
+                f"failed={sorted(failed) or '∅'} expect_hit={expect_hit} loc={locs or '∅'} — {why_v}"
             )
     finally:
         restore_all()
 
+    # ⛔ round-19 修回归: 收口前「判据面不成立」是 `return 2`(负控自己坏了)，改走
+    # `kill_identity` 判 HARNESS-ERROR 之后, 它会和 SURVIVED 一起压进 rc=1 ——
+    # 「门不承重」与「pytest 没跑成」两个方向完全相反的结论共用一个退出码, 正是本族
+    # 反复栽的坑。⇒ 有 HARNESS-ERROR 时仍以 rc=2 报出, 且**跑完**其余条目再报
+    # (收口前是当场中止, 会把「其余 17 条还好着」这个信息一起丢掉)。
+    n_harness_err = sum(1 for r in results if r["verdict"] == "HARNESS-ERROR")
     drift = [str(p) for p in _TARGET_FILES if _sha(p) != baseline[str(p)][1]]
     ok_restore = not drift
 
@@ -599,11 +618,31 @@ def main() -> int:
         leftovers = None
         baseline_missing = None
 
-    n_killed = sum(1 for r in results if r["verdict"] == "KILLED")
-    n_syntax = sum(1 for r in results if r["verdict"] == "SYNTAX-INVALID")
+    # ⛔ round-19: 六档口径与另三套逐字一致（`mutation_kill_identity.VERDICTS`）。
+    # 收口前本套只有 KILLED / SURVIVED / SYNTAX-INVALID 三档, 锚点异常还另叫
+    # `ANCHOR-DRIFT` —— 同一个 `kill_identity` 在四套里被四种口径消费。
+    nv = {v: sum(1 for r in results if r["verdict"] == v) for v in VERDICTS}
+    n_killed = nv["KILLED"]
+    n_syntax = nv["SYNTAX-INVALID"]
     print("\n── 汇总 ──")
-    print(f"杀灭: {n_killed}/{len(results)}")
+    # ⛔ 文案不得比证据宽：本套按 D-28 **没有** `expect_loc`，位置只绑到门文件一级。
+    print(
+        f"KILLED (绑定: 消息 + 失败位置在门文件内; ⚠️ 未绑到具体断言, expect_loc 按 D-28 移交十四批): "
+        f"{n_killed}/{len(results)}"
+    )
+    print(f"KILLED-UNBOUND: {nv['KILLED-UNBOUND']} (仅证明指定门红了)")
+    print(f"SURVIVED: {nv['SURVIVED']}")
+    print(f"HARNESS-ERROR: {nv['HARNESS-ERROR']} (负控自己坏了, 不是关于被测物的结论)")
+    print(f"ANCHOR-ERROR: {nv['ANCHOR-ERROR']} (变异未施加, 不是结论)")
     print(f"SYNTAX-INVALID: {n_syntax} (>0 说明负控自己坏了, 不是被测物坏了)")
+    # ⛔ 分母必须是「本次**应该**处理多少条变异」，不是 `len(results)` —— 后者恒等于
+    # 六档之和（每个写进 `results` 的裁决值都字面来自 `VERDICTS`），那是个**恒真判据**，
+    # 什么也证不了（独立复核 2026-09-08 指出；收口时我照抄了 g32b 的形态却换错了分母）。
+    # 用「选中的变异条数」当分母，才能抓住「某条变异跑完没落进任何一档」。
+    _selected = [m for m in MUTATIONS if not args.only or m[0].startswith(args.only)]
+    _total = sum(nv.values())
+    _sum_ok = _total == len(_selected)
+    print(f"六档之和: {_total} (应 = 选中的变异条数 {len(_selected)}) {'✓' if _sum_ok else '⛔ 对不上'}")
     print(f"还原逐字节相同: {'是' if ok_restore else '否 — ' + ', '.join(drift)}")
     print(f"{MARK} 扫描: {'完成' if scan_ok else '⛔ 失败 (见上)'}")
     _unknown = "⛔ 未知 (扫描失败, 不等于「无」)"
@@ -620,8 +659,14 @@ def main() -> int:
                 {
                     "results": results,
                     "killed": n_killed,
-                    "total": len(results),
+                    # ⛔ total 用「选中的变异条数」而不是 len(results) —— 后者恒等于
+                    # 六档之和, 消费方拿它复现「sum==total」会得到恒真式(独立复核)。
+                    "total": len(_selected),
+                    "partial": bool(args.only),
                     "syntax_invalid": n_syntax,
+                    # round-19: 六档计数进 JSON, 消费方不必自己从 results 里数
+                    "verdict_counts": nv,
+                    "verdict_sum_matches_total": _sum_ok,
                     "restore_identical": ok_restore,
                     "mark_scan_ok": scan_ok,
                     "leftovers": leftovers,
@@ -636,10 +681,42 @@ def main() -> int:
     # 用一条无效变异跑真实门, 得到 SURVIVED 却 rc=0 —— 一条死门可以让整份负控
     # 看起来通过)。判据: 有选到东西 + 无锚点漂移 + 全部 KILLED + 还原干净 +
     # 扫描真的跑成了 + 无残留 + 基线不缺项 (后三条见独立复核 R1-05)。
-    all_killed = bool(results) and all(r["verdict"] == "KILLED" for r in results)
+    all_killed = bool(results) and all(r["verdict"].startswith("KILLED") for r in results)
     if not results:
         print("⛔ 没有任何变异被选中 (--only 过滤过窄?) — 判失败, 免得空跑被当成通过")
-    return 0 if (all_killed and ok_restore and scan_ok and not leftovers and not baseline_missing) else 1
+    # ⛔⛔ 「部分跑 rc=4」这条**不能**放在还原/残留检查之前（独立复核 2026-09-08 抓到:
+    # 我上一版就是那么放的）——那样 `--only` 会把「还原失败 / 标记残留 / 扫描失败」
+    # 全部吞掉，而这三件正是**必须**盖过一切的。次序: 先报硬事实, 再报「部分跑」。
+    if not ok_restore:
+        print(f"⛔ 还原后字节不同: {', '.join(drift)} —— 变异体可能留在生产文件里 (rc=3)")
+        return 3
+    if not scan_ok:
+        print(f"⛔ {MARK} 扫描失败 —— 「无残留」这句话此刻是「未知」而不是「无」 (rc=3)")
+        return 3
+    if leftovers or baseline_missing:
+        print(f"⛔ {MARK} 残留/基线缺失: 新增={leftovers} 基线缺失={baseline_missing} (rc=3)")
+        return 3
+    # ⛔ 退出码语义四套统一（独立复核 2026-09-08：原先 HARNESS-ERROR 与 SURVIVED 压成
+    # 同一个 rc=1 —— 「pytest 没跑成」与「门不承重」两个方向完全相反的结论共用一个码）：
+    #   rc=2  有 HARNESS-ERROR（负控自己坏了，先去修 harness，别去改门）
+    #   rc=1  有 SURVIVED 或别的 failures（关于被测物的结论）
+    #   rc=4  部分跑（--only / --probe / --list 自检不过）—— 不构成全量结论
+    #   rc=0  全部 KILLED；⚠️ **已登记**的 KILLED-UNBOUND 残留只报不判失败 ——
+    #         未登记的那种在跑之前就被 `_check_expect_loc()` / `_check_expect_msg()`
+    #         挡在 rc=2 上了，走不到这里。
+    if n_harness_err:
+        print(f"⛔ HARNESS-ERROR {n_harness_err} 条 —— 负控自己坏了, 不是关于被测物的结论 (rc=2)")
+        return 2
+    if args.only:
+        # ⛔ 与 g32b / g32ccr1 同口径：部分跑**不构成全量结论**，rc 恒为 4。
+        # 收口前 `--only M1` 跑完照样 rc=0 + 「六档之和 ✓」，与全量通过在输出上不可分 ——
+        # 而定点复核的输出正是最容易被当成存档证据的那种（独立复核 2026-09-08）。
+        print(f"\n⚠️ --only {args.only!r} 选中 {len(_selected)}/{len(MUTATIONS)} 条 —— 部分跑不构成全量结论，rc 恒为 4")
+        return 4
+    # 到这里 ok_restore / scan_ok / leftovers / baseline_missing 已各自单独判过并早退,
+    # 保留在条件里是**冗余的**第二道 —— 冗余不等于多余: 它让「rc=0」这句话不依赖上面
+    # 那几个早退分支的完整性（少写一个早退, 这里仍会把 rc 压到 1）。
+    return 0 if (all_killed and ok_restore and scan_ok and not leftovers and not baseline_missing and _sum_ok) else 1
 
 
 if __name__ == "__main__":
