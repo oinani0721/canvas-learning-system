@@ -166,3 +166,32 @@ round-3 绑 `736eb490`，结论 **0 BLOCKER / 3 HIGH / 4 MEDIUM / 4 LOW**。
    注释里的 `backslashreplace`）。判据一律绑 AST。
 4. **门因自己的代码变红时，先找不需要豁免的实现。** 断管收尾的三种写法里，
    有一种不含可写调用且效果相同，于是零写门原样保留。
+
+---
+
+## 九 Codex round-4 之后（round-5 整改，2026-09-08）—— **卡族轮次上限**
+
+round-4 绑 `977d1e6d`，结论 **0 BLOCKER / 4 HIGH / 3 MEDIUM / 2 LOW**（HIGH 从 3 涨到 4）。
+七条全部本机独立复现后才动手（探针 `verify-r4-claims-probe-*.py.txt`）。
+**协议 §1 的轮次上限是 5 —— 这是最后一轮。**
+
+| 级别 | 问题 | 处置 |
+|---|---|---|
+| **HIGH【遗留】** | 软链目标经 `str(Path.readlink())` **规范化**后判等：`payload` 与 `payload/`、`x//y` 与 `x/./y` 摘要相同。**摘要在编码之前就丢了信息，换编码器救不回来** | **修**。改 `os.readlink()` 取原文 |
+| **HIGH【遗漏】** | FIFO / Unix socket / 设备节点一律记 `"?:unknown"` 且 `bad=False` ⇒ 两种不同类型的特殊文件判等 | **修**。非「软链/普通文件/目录」的条目记 `stat.S_IFMT` 类型位（实测 FIFO `?:010000` vs socket `?:140000`） |
+| **HIGH【新引入】** | round-4 让 `_kind_ok` 一律返回 False ⇒ 丢了失败原因（调用方无从登记 unreadable），且会把条目从「故意不复制」翻成「清单外的 extra」= 误报 | **修**。改**三态** `bool \| None`；`matches_exact` / `is_under_exclusion` / `hits_for` 全部接三态并透传失败位置 |
+| **HIGH【遗漏】** | `lstat` 成功不代表**跟随软链后**查得到：扫描根或 `main.js` 是指向不可搜索目录的软链时，`is_dir()`/`is_file()` 仍返回 False ⇒ 扫描被跳过 / 产物被说成「没生成」 | **修**。新增 `_resolved_kind()`（`dir`/`file`/`other`/`unreadable`），extra 覆盖面根与 `main.js` 两处都用它 |
+| MEDIUM【新引入】 | 先比总摘要 ⇒ 「两侧内容相同、只一侧不可读」被报成 content-drift（把读取能力差异说成字节差异） | **修**。`_digest` 拆成 `_digest_pairs()` + `_fold(pairs, skip)`；`verify()` 取**两侧 unreadable 的并集**做 skip，两侧同时剔掉后再比 |
+| MEDIUM【遗漏】 | 目标 missing 时，源端的查询失败只写进 `missing.detail`，没进四档分类 ⇒ 整轮可能 `unreadable=0`、rc=1 | **修**。同时登记 unreadable |
+| MEDIUM【整改不完整】 | 断管保护只覆盖最后的 stdout flush：`-u` 无缓冲下 write 当场抛（rc=1）、stderr 断管（rc=120）都没接住 | **修**。`main()` 外层加 `except BrokenPipeError`；收尾**两个流都 flush** 并各自换哑对象。九种形态实测：ascii `--help`=0 / 默认·无缓冲 × stdout·stderr·双断=全 3 / 正常 run=2 / 正常 `--help`=0 / 正常参数错=3 |
+| LOW | 摘要门**按名字**判（「不许出现 backslashreplace」），换成 `ignore`/`replace` 照样有损而门不红 | **修**。改成**性质门**：10 个两两不同、历史上会被各种有损变换压到一起的叶子（尾斜杠 / 冗余分隔 / 非法字节 / 字面转义串 / FIFO / socket / 普通文件 / 目录）喂进真实摘要，断言两两不同 |
+| LOW | 去重门只证「有两条配置」，没证「两个失败来源都实际到达」 | **修**。改成**逐条单独跑** `hits_for`，每条都必须登记到该位置 |
+
+### 这一轮我**没有**做的（如实声明）
+
+- Codex round-4 列的「真漏」清单里，`V:738` / `V:1246` / `V:1258`（`_forbidden_roots` 与报告落点的
+  身份/类型查询）**未改**。理由：那条链上的策略已经是 **fail-closed**（扫描没跑完就拒绝落盘），
+  查询失败最坏的后果是「多拒一次」而不是「放行一次」；Codex 本人也写了「未实证写穿」。
+  改它会动本卡最重的那道禁写防线，在**最后一轮**动它风险大于收益。**登记，转下一张卡。**
+- `V:880` skeleton 的 `is_dir()`（软链目标查不到时归 missing）**未改**，同上理由，登记。
+- hotkeys 的假放行/假拦下（注释、拼接表达式、JS 转义）**未改**，需要 JS 语法分析，超出本卡范围。

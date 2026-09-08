@@ -64,6 +64,7 @@ import hashlib
 import json
 import os
 import re
+import stat
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -533,7 +534,26 @@ def _iter_relative(root: Path, base: Path, unreadable: list[str] | None = None) 
     return out
 
 
-def _kind_ok(item: Item, path: Path) -> bool:
+def _resolved_kind(path: Path) -> str:
+    """跟随软链之后的类型: `"dir"` / `"file"` / `"other"` / `"unreadable"`。
+
+    `lstat` 成功只说明**那个目录项**在, 不说明它指向的东西查得到 —— 一条指向不可搜索
+    目录里对象的软链, `_entry_state` 是 present, 而 `is_dir()` / `is_file()` 仍会
+    (吞掉 OSError 后)返回 False。用它们判「不是目录 ⇒ 不扫描」「不是文件 ⇒ 产物没生成」
+    就又把「问不出来」说成了「不是」。
+    """
+    try:
+        st = os.stat(path)
+    except OSError:
+        return "unreadable"
+    if stat.S_ISDIR(st.st_mode):
+        return "dir"
+    if stat.S_ISREG(st.st_mode):
+        return "file"
+    return "other"
+
+
+def _kind_ok(item: Item, path: Path) -> bool | None:
     """item.kind 声明的类型条件是否被 path 满足。
 
     对应 install-vault.sh 里那两条命令自带的类型限定:
@@ -542,11 +562,12 @@ def _kind_ok(item: Item, path: Path) -> bool:
     kind 为空 = 不限类型 (`:68`/`:69` 那些按路径声明「不复制」的项本就没有类型条件)。
     """
     if _entry_state(path) == "unreadable":
-        # 问不出类型就**不能宣称满足任何类型条件** —— 包括 `nondir`。
+        # **三态**: 问不出类型就返回 None(「判不了」), 既不宣称满足、也不宣称不满足。
+        # round-4 曾一律返回 False —— 那既丢了失败原因(调用方无从登记 unreadable),
+        # 又会把一个查不动的条目从「故意不复制」翻成「清单外的 extra」= 误报。
         # 原写法 `not (is_dir() and not is_symlink())` 在谓词被权限吞掉时恒为 True,
-        # 于是一个查不动的条目会被当成 nondir 而误判为「故意不复制」。
-        # 保守取 False: 不当作命中, 由调用方另行登记 unreadable。
-        return False
+        # 于是查不动的条目会被当成 nondir 而误判为「故意不复制」= 漏报。两个方向都不对。
+        return None
     if item.kind == "dir":
         return path.is_dir() and not path.is_symlink()
     if item.kind == "file":
@@ -567,18 +588,29 @@ class ExcludeMatcher:
     def __init__(self, items: tuple[Item, ...]) -> None:
         self._rules = [(item, _pattern_to_regex(item.path) if _has_glob(item.path) else None) for item in items]
 
-    def matches_exact(self, base: Path, rel: str) -> bool:
-        """rel 这一条本身是否被某条 exclude 覆盖 (含类型条件)。"""
+    def matches_exact(self, base: Path, rel: str, unreadable: list[str] | None = None) -> bool:
+        """rel 这一条本身是否被某条 exclude 覆盖 (含类型条件)。
+
+        类型判不了时(`_kind_ok` 返回 None)**不算命中**, 但会把位置透传给 `unreadable` ——
+        「判不了」既不能说成「排除了」(漏报), 也不能默默说成「没排除」(会翻成误报 extra)。
+        """
         for item, regex in self._rules:
             hit = bool(regex.fullmatch(rel)) if regex is not None else rel == item.path
-            if hit and _kind_ok(item, base / rel):
+            if not hit:
+                continue
+            verdict = _kind_ok(item, base / rel)
+            if verdict is None:
+                if unreadable is not None and rel not in unreadable:
+                    unreadable.append(rel)
+                continue
+            if verdict:
                 return True
         return False
 
-    def is_under_exclusion(self, base: Path, rel: str) -> bool:
+    def is_under_exclusion(self, base: Path, rel: str, unreadable: list[str] | None = None) -> bool:
         """rel 本身**或它的任一祖先**被排除 —— 用于整棵剪掉被排除的子树。"""
         parts = rel.split("/")
-        return any(self.matches_exact(base, "/".join(parts[:n])) for n in range(1, len(parts) + 1))
+        return any(self.matches_exact(base, "/".join(parts[:n]), unreadable) for n in range(1, len(parts) + 1))
 
     def hits_for(self, vault: Path, item: Item, unreadable: list[str] | None = None) -> list[str]:
         """单条 exclude 在 vault 里实际命中的相对路径 (按静态前缀限定遍历面)。
@@ -595,47 +627,135 @@ class ExcludeMatcher:
                 if unreadable is not None:
                     unreadable.append(item.path)
                 return []
-            return [item.path] if state == "present" and _kind_ok(item, target) else []
+            verdict = _kind_ok(item, target)
+            if verdict is None:
+                if unreadable is not None:
+                    unreadable.append(item.path)
+                return []
+            return [item.path] if state == "present" and verdict else []
         prefix = _static_prefix(item.path)
         scan_root = vault / prefix if prefix else vault
         regex = _pattern_to_regex(item.path)
-        return sorted(
-            rel
-            for rel in _iter_relative(scan_root, vault, unreadable)
-            if regex.fullmatch(rel) and _kind_ok(item, vault / rel)
-        )
+        hits: list[str] = []
+        for rel in _iter_relative(scan_root, vault, unreadable):
+            if not regex.fullmatch(rel):
+                continue
+            verdict = _kind_ok(item, vault / rel)
+            if verdict is None:
+                if unreadable is not None and rel not in unreadable:
+                    unreadable.append(rel)
+                continue
+            if verdict:
+                hits.append(rel)
+        return sorted(hits)
 
 
 # ── 内容摘要 ─────────────────────────────────────────────────────────
 
 
 def _leaf_digest(path: Path) -> tuple[str, bool]:
-    """单个条目的 (摘要, 是否读不动)。软链记指向, 文件记字节, 目录只记类型。
+    """单个条目的 (摘要, 是否读不动)。软链记**原始**指向, 普通文件记字节, 其余记类型位。
 
     **必须把「读不动」一并返回**: 早先这里遇到 OSError 只是返回一个标记字符串,
     调用方无从知道发生过读取失败 —— 于是「两侧同名文件都是 000 权限、内容其实不同」
     会摘要相等、unreadable 为空、退出码 0。那是假绿, 比误报危险。
+
+    两处「摘要在编码之前就丢信息」的坑(round-4 复审抓到, 换编码器救不回来):
+      1. **软链目标必须用 `os.readlink` 取原文**。`str(Path.readlink())` 会做路径规范化 ——
+         `payload/` → `payload`(尾斜杠是「目标必须是目录」的语义)、`x//y` 与 `x/./y` 也被
+         并成 `x/y` —— 于是语义不同的两个目标判等。
+      2. **非「软链/普通文件/目录」的条目必须带类型位**。FIFO、Unix socket、设备节点
+         原先一律记成同一个 `"?:unknown"`, 两个不同类型的特殊文件因此判等。
+
+    单次 `lstat` 决定分支, 不再用会吞 OSError 的 `is_*()` 谓词(那几个在权限不足时
+    **全部返回 False**, 会一路落到末尾的兜底分支且 bad=False)。
     """
-    # 先用 lstat 问一次: 下面那几个谓词全都吞 OSError, 权限不足时会**全部返回 False**,
-    # 于是走到末尾的 "?:unknown" 且 bad=False —— 两侧都这样就「判等」, 是假绿。
-    # (实测: 目录 0444 可列名字但不可 stat 里面的条目, 正是这个形态。)
-    if _entry_state(path) == "unreadable":
-        return "U:unreadable", True
     try:
-        if path.is_symlink():
-            # surrogatepass 而**不是** backslashreplace: 摘要要的不只是「不抛异常」,
-            # 还必须**单射** —— 不同的输入必须给出不同的字节。backslashreplace 有损:
-            # `os.fsdecode(b"bad\xff")` 与字面串 `"bad" + 反斜杠 + "udcff"` 编码后逐字节相同
-            # (本机实测 sha 相等) ⇒ 两个**不同**的软链目标会判等, 内容差异被吃掉 = 假绿。
-            # surrogatepass 把孤立代理编成它自己的 3 字节形式, 与任何合法 UTF-8 都不碰撞。
-            return "L:" + hashlib.sha256(str(path.readlink()).encode("utf-8", "surrogatepass")).hexdigest(), False
-        if path.is_file():
-            return "F:" + hashlib.sha256(path.read_bytes()).hexdigest(), False
-        if path.is_dir():
-            return "D:", False
+        st = os.lstat(path)
     except OSError:
         return "U:unreadable", True
-    return "?:unknown", False
+    if stat.S_ISLNK(st.st_mode):
+        try:
+            target = os.readlink(path)
+        except OSError:
+            return "U:unreadable", True
+        return "L:" + hashlib.sha256(target.encode("utf-8", "surrogatepass")).hexdigest(), False
+    if stat.S_ISREG(st.st_mode):
+        try:
+            data = path.read_bytes()
+        except OSError:
+            return "U:unreadable", True
+        return "F:" + hashlib.sha256(data).hexdigest(), False
+    if stat.S_ISDIR(st.st_mode):
+        return "D:", False
+    return "?:%06o" % stat.S_IFMT(st.st_mode), False
+
+
+def _digest_pairs(
+    path: Path,
+    excluder: ExcludeMatcher | None = None,
+    base: Path | None = None,
+    unreadable: list[str] | None = None,
+) -> list[tuple[str, str]]:
+    """产出 (相对 base 的路径, 叶子摘要) 对。非目录时只有一条。只读, 单次遍历。
+
+    key 一律取「相对 base」(没给 base 就退回相对 path) —— 两侧同一 item 的 key 完全一致,
+    `_fold()` 的 skip 集才能在两侧同时生效。
+
+    给了 excluder + base 时, **被 exclude 覆盖的子孙整棵剔除** —— 否则
+    「模板源里有 __pycache__ / 归档队列, 目标按脚本剪掉了」这种**正确部署**会被
+    判成 content-drift。读不进去的条目写成 U: 参与摘要, 并登记到 unreadable。
+    """
+    root_key = ""
+    if base is not None and path != base:
+        try:
+            root_key = path.relative_to(base).as_posix()
+        except ValueError:  # pragma: no cover — path 总在 base 之下
+            root_key = path.name
+
+    def _note(key: str) -> None:
+        if unreadable is not None:
+            unreadable.append(key)
+
+    if path.is_symlink() or not path.is_dir():
+        digest, bad = _leaf_digest(path)
+        if bad:
+            _note(root_key or path.name)
+        return [(root_key, digest)]
+
+    pairs: list[tuple[str, str]] = []
+    for rel, kind in sorted(_walk(path)):
+        child = path / rel if rel else path
+        key = f"{root_key}/{rel}" if root_key and rel else (root_key or rel)
+        if excluder is not None and base is not None and excluder.is_under_exclusion(base, key, unreadable):
+            continue
+        if kind == "unreadable":
+            _note(key)
+            pairs.append((key, "U:unreadable"))
+            continue
+        leaf, bad = _leaf_digest(child)
+        if bad:
+            _note(key)
+        pairs.append((key, leaf))
+    return pairs
+
+
+def _fold(pairs: list[tuple[str, str]], skip: frozenset[str] = frozenset()) -> str:
+    """把 (路径, 叶子摘要) 对折成一个摘要; `skip` 里的路径整条排除。
+
+    `skip` 的用处: 把**任一侧**读不动的那些位置从两侧**同时**剔掉。否则
+    「两侧内容其实相同、只有一侧读不动」会因为一边是 U: 标记而摘要不同,
+    被报成 content-drift —— 把「读取能力的差异」说成「字节的差异」, 会把人引到
+    错误的排查方向。剔掉之后, 剩下能读的部分若仍不同, 那才是真漂移。
+    """
+    if len(pairs) == 1 and not pairs[0][0]:
+        return pairs[0][1]
+    acc = hashlib.sha256()
+    for key, leaf in pairs:
+        if key in skip:
+            continue
+        acc.update(f"{key}\0{leaf}\n".encode("utf-8", "surrogatepass"))
+    return "D:" + acc.hexdigest()
 
 
 def _digest(
@@ -644,46 +764,8 @@ def _digest(
     base: Path | None = None,
     unreadable: list[str] | None = None,
 ) -> str:
-    """目录按 (相对路径, 叶子摘要) 的稳定聚合; 非目录直接取叶子摘要。只读。
-
-    给了 excluder + base 时, **被 exclude 覆盖的子孙整棵剔除**再算 —— 否则
-    「模板源里有 __pycache__ / 归档队列, 目标按脚本剪掉了」这种**正确部署**会被
-    判成 content-drift。base 是该 exclude 模式所相对的 vault 根 (源与目标各自的根)。
-    读不进去的条目写成 U: 参与摘要, 并登记到 unreadable —— 不能当作「不存在」。
-    """
-
-    def _note_unreadable(node: Path, fallback: str) -> None:
-        if unreadable is None:
-            return
-        try:
-            unreadable.append(node.relative_to(base).as_posix() if base is not None else fallback)
-        except ValueError:  # pragma: no cover
-            unreadable.append(fallback)
-
-    if path.is_symlink() or not path.is_dir():
-        digest, bad = _leaf_digest(path)
-        if bad:
-            _note_unreadable(path, path.name)
-        return digest
-    acc = hashlib.sha256()
-    for rel, kind in sorted(_walk(path)):
-        child = path / rel if rel else path
-        if excluder is not None and base is not None:
-            try:
-                full_rel = child.relative_to(base).as_posix()
-            except ValueError:  # pragma: no cover — child 总在 base 之下
-                full_rel = rel
-            if excluder.is_under_exclusion(base, full_rel):
-                continue
-        if kind == "unreadable":
-            _note_unreadable(child, rel)
-            acc.update(f"{rel}\0U:unreadable\n".encode("utf-8", "surrogatepass"))
-            continue
-        leaf, bad = _leaf_digest(child)
-        if bad:
-            _note_unreadable(child, rel)
-        acc.update(f"{rel}\0{leaf}\n".encode("utf-8", "surrogatepass"))
-    return "D:" + acc.hexdigest()
+    """目录按 (相对路径, 叶子摘要) 的稳定聚合; 非目录直接取叶子摘要。只读。"""
+    return _fold(_digest_pairs(path, excluder, base, unreadable))
 
 
 # ── 报告落点与落盘 ───────────────────────────────────────────────────
@@ -866,6 +948,17 @@ def verify(
                     detail = "模板源也没有这一项 (install-vault.sh 会打 ⚠️ 跳过)"
                 elif src_state == "unreadable":
                     detail = "模板源那一项查询不到, 不能断言「模板源也没有」"
+                    # 已经发生的查询失败必须进四档分类, 不能只躺在 missing 的说明里 ——
+                    # 否则整轮可能 unreadable=0、rc=1, 看上去「只是缺东西」。
+                    report.unreadable.append(
+                        Finding(
+                            path=item.path,
+                            category="unreadable",
+                            action=item.action,
+                            role=item.role,
+                            detail="模板源那一项查询不到, 无法判断它在不在模板源里",
+                        )
+                    )
             report.missing.append(
                 Finding(
                     path=item.path,
@@ -906,9 +999,17 @@ def verify(
                     )
                 )
                 continue
-            unreadable_here: list[str] = []
-            src_digest = _digest(src, excluder, source, unreadable_here)
-            tgt_digest = _digest(target, excluder, vault, unreadable_here)
+            src_unreadable: list[str] = []
+            tgt_unreadable: list[str] = []
+            src_pairs = _digest_pairs(src, excluder, source, src_unreadable)
+            tgt_pairs = _digest_pairs(target, excluder, vault, tgt_unreadable)
+            unreadable_here = src_unreadable + tgt_unreadable
+            # 把**任一侧**读不动的位置从两侧同时剔掉再比 —— 否则「两侧内容其实相同、
+            # 只有一侧读不动」会因为一边是 U: 标记而摘要不同, 被报成 content-drift,
+            # 把「读取能力的差异」说成「字节的差异」。
+            skip = frozenset(src_unreadable) | frozenset(tgt_unreadable)
+            src_digest = _fold(src_pairs, skip)
+            tgt_digest = _fold(tgt_pairs, skip)
             for rel in unreadable_here:
                 report.unreadable.append(
                     Finding(
@@ -971,7 +1072,19 @@ def _collect_extra(vault: Path, manifest: Manifest, report: Report, excluder: Ex
                 )
             )
             continue
-        if not scan_dir.is_dir():
+        resolved = _resolved_kind(scan_dir)
+        if resolved == "unreadable":
+            report.unreadable.append(
+                Finding(
+                    path=scan.dir or ".",
+                    category="unreadable",
+                    action="-",
+                    role="-",
+                    detail="extra 覆盖面的根跟随软链后查询不到, 无法证明没有清单外的东西",
+                )
+            )
+            continue
+        if resolved != "dir":
             continue
         name_regex = _pattern_to_regex(scan.match)
         try:
@@ -1054,8 +1167,20 @@ def _check_hotkeys(vault: Path, report: Report) -> None:
     if hotkeys_state == "absent":
         report.hotkeys_note = f"not evaluated (无 {HOTKEYS_REL})"
         return
-    if main_js_state == "absent" or not main_js_path.is_file():
+    if main_js_state == "absent":
         report.hotkeys_note = f"not evaluated ({PLUGIN_MAIN_JS_REL} 缺 — gitignored 构建产物)"
+        return
+    main_js_kind = _resolved_kind(main_js_path)
+    if main_js_kind == "unreadable":
+        # lstat 成功但跟随软链后查不到 —— 「问不出来」不得说成「产物没生成」。
+        _unreadable(
+            PLUGIN_MAIN_JS_REL,
+            "插件构建产物跟随软链后查询不到, 无法核对快捷键",
+            f"not evaluated ({PLUGIN_MAIN_JS_REL} 查询不到)",
+        )
+        return
+    if main_js_kind != "file":
+        report.hotkeys_note = f"not evaluated ({PLUGIN_MAIN_JS_REL} 不是普通文件)"
         return
     try:
         raw = hotkeys_path.read_text(encoding="utf-8")
@@ -1336,39 +1461,52 @@ def main(argv: list[str] | None = None) -> int:
     return report.exit_code
 
 
+class _ClosedStdout:
+    """下游把管道关掉之后顶替 `sys.stdout` 的哑对象。
+
+    用它而不是 `os.dup2(os.open(os.devnull, ...))`: 后者是一次**可写调用**, 会让
+    「所有写调用都收敛在 _write_report 内」那道 AST 门变红 —— 为了让自己的收尾代码
+    过关去放宽零写门是本末倒置。两种写法实测同为 rc=3 且无退出期噪音。
+    """
+
+    def write(self, _data: str) -> int:
+        return 0
+
+    def flush(self) -> None:
+        return None
+
+
 if __name__ == "__main__":  # pragma: no cover
-    # **stdout 的可写性不在四档契约的保护范围内**, 但它照样能把退出码搅乱:
-    #   - `PYTHONIOENCODING=ascii` 下, 报告正文(含中文)编码失败 ⇒ 实测 rc=1,
-    #     被读成「只有 missing」;
-    #   - 下游管道提前关闭 ⇒ 解释器退出期 flush 失败 ⇒ 实测 rc=120。
-    # 两者都不是「vault 有问题」。先把两个流改成不会因编码失败的形态, 再兜住断管。
+    # **输出流的可写性不在四档契约的保护范围内**, 但它照样能把退出码搅乱, 而且
+    # **断在哪一步取决于缓冲**(这一点让我第一版修复漏了一半):
+    #   - `PYTHONIOENCODING=ascii` 下报告正文编码失败 ⇒ 实测 rc=1, 被读成「只有 missing」;
+    #   - 默认缓冲 + 下游关管道: 小报告先进管道缓冲, 直到退出期 flush 才炸 ⇒ 实测 rc=120;
+    #   - `-u` 无缓冲 + 下游关管道: `sys.stdout.write(text)` **当场**抛, 异常从 main()
+    #     里逃出来 ⇒ 实测 rc=1;
+    #   - stderr 关掉后触发参数错误: 同样从 main() 里逃出来 ⇒ 实测 rc=120。
+    # 四种都要接住 —— 只包 flush 或只测 `--help` 都只覆盖其中一条路径。
     for _stream in (sys.stdout, sys.stderr):
         try:
             _stream.reconfigure(errors="backslashreplace")
         except (AttributeError, OSError, ValueError):
             pass
-    # SystemExit 也要接住: `--help` 从 argparse 内部就 sys.exit(0) 出来了, 只 try
-    # BrokenPipeError 接不到它 —— 帮助文本的 flush 会推迟到解释器退出期才炸(rc=120)。
     try:
         _rc = main()
     except SystemExit as _exc:
+        # `--help` 从 argparse 内部就 sys.exit(0) 出来了, 不接住就走不到下面的 flush。
         _rc = _exc.code if isinstance(_exc.code, int) else EXIT_USAGE
-    try:
-        sys.stdout.flush()
-    except (BrokenPipeError, OSError):
-        # 下游把管道关了。校验本身跑完了, 只是结果送不出去 —— 归环境/用法错档。
-        # 还得挡住解释器**退出期**的那次 flush, 否则它会再炸一遍并把退出码改成 120。
-        # 这里换一个哑对象而不是 `os.dup2(os.open(os.devnull, ...))`: 后者是一次
-        # **可写调用**, 会让「所有写调用都收敛在 _write_report 内」那道 AST 门变红 ——
-        # 为了让自己的收尾代码过关去放宽零写门, 是本末倒置。实测两种写法都给 rc=3
-        # 且都没有退出期噪音, 于是取不需要放宽判据的那种。
-        class _ClosedStdout:
-            def write(self, _data: str) -> int:
-                return 0
-
-            def flush(self) -> None:
-                return None
-
+    except BrokenPipeError:
+        # 无缓冲 / stderr 断管: 写当场就抛。**只捕这一种**, 不捕宽泛的 OSError ——
+        # 那会把校验逻辑里真正的意外错误静默成用法错档。
         sys.stdout = _ClosedStdout()  # type: ignore[assignment]
         _rc = EXIT_USAGE
+    # 默认缓冲: 写进了缓冲区, 到这一步才炸。**两个流都要收** —— 只 flush stdout 时,
+    # 「stderr 断管 + 参数错误」仍会在解释器退出期炸并把退出码改成 120(实测)。
+    # 同时把炸掉的那个流换成哑对象, 挡住退出期的第二次 flush。
+    for _name in ("stdout", "stderr"):
+        try:
+            getattr(sys, _name).flush()
+        except (BrokenPipeError, OSError):
+            setattr(sys, _name, _ClosedStdout())
+            _rc = EXIT_USAGE
     sys.exit(_rc)
