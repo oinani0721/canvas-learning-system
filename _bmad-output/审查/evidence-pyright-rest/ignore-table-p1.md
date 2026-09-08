@@ -1,6 +1,8 @@
-# CARD-PYRIGHT-DEBT-rest — 阶段 1 ignore 清单（25 条，基线 da690bf8 为 0 条）
+# CARD-PYRIGHT-DEBT-rest — 阶段 1 ignore 清单（**28 条**，基线 da690bf8 为 0 条）
 
-> 判据：`grep -rn 'pyright: ignore' backend/app --include='*.py' | wc -l` = 25；
+> ⚠️ **Codex r1 整改后从 25 更正为 28**：`claude_client.py` 三处从 `isinstance(block, TextBlock)` **退回 `hasattr`** 并各加一条行级 ignore（等价性证明被 Codex 推翻，见下表 #26-28 与验收单 §7-bis）。
+
+> 判据：`grep -rn 'pyright: ignore' backend/app --include='*.py' | wc -l` = **28**；
 > `git grep -c 'pyright: ignore' da690bf8 -- backend/app` = 0（全部为本卡新增）。
 > 每条都是**行级**（无文件级 ignore）、带具体 rule、带一句理由。
 
@@ -26,12 +28,14 @@
 | 23 | `middleware/agent_metrics.py` `await func(...)` | reportGeneralTypeIssues | `R` 是 sync/async 两条包装路径共用的类型变量；运行期只有 `iscoroutinefunction(func)` 为真才返回本包装器 | 假阳 | — |
 | 24 | `middleware/llm_call_logger.py` `.timestamp()` | reportAttributeAccessIssue | pyright 在 `A and B` 否定分支保留「A 真 B 假」⇒ 仍含 `int\|float`；运行期已被上一分支 return 掉 | 假阳 | — |
 | 25 | `middleware/metrics.py` `MetricsMiddleware(app=None)` | reportArgumentType | 只为借用 `_normalize_endpoint` 造实例，从不挂进 ASGI 链 | 结构性 | — |
+| 26-28 | `clients/claude_client.py` `response_text += block.text` ×3 | reportAttributeAccessIssue | `hasattr` 守卫无法用类型表达：`ContentBlock` 12 个成员**全部** `extra='allow'`，非 `TextBlock` 的块可携带未声明的 `text` ⇒ 只关类型、不动判断 | 保行为 | — |
+| — | `clients/neo4j_client.py` `driver` | （非 ignore）| Codex r1 MEDIUM 整改：`driver = self._driver` 从闭包外移入 `_execute_with_retry` 内，恢复"每次重试重读" | **行为修正** | — |
 
 ## 非 ignore 的结构性修复（更值得看的部分）
 
 | 文件 | 消错数 | 做法 |
 |---|---|---|
-| `clients/claude_client.py` | 35 → 0 | 三处 `hasattr(block,"text")` → `isinstance(block, TextBlock)`（**先实证等价**：anthropic 0.88.0 的 `ContentBlock` 12 个成员只有 `TextBlock` 声明 `text`）；`messages` 注解 `List[MessageParam]`；`content_blocks` 收紧成 `List[ContentBlockParam]`（**不需要 cast**） |
+| `clients/claude_client.py` | 35 → 0 | `messages` 注解 `List[MessageParam]`；`content_blocks` 收紧成 `List[ContentBlockParam]`（**不需要 cast**）。⛔ 三处 `hasattr(block,"text")` **保持不动**（#26-28 各一条行级 ignore）——曾改成 `isinstance(block, TextBlock)` 并自称"已实证等价"，Codex r1 Q8 推翻：12 个块类型 `model_config.extra` 全为 `'allow'`，`ThinkingBlock.model_validate({...,"text":"x"})` 得 `hasattr=True` / `isinstance=False` ⇒ 换 `isinstance` 会静默漏文本 |
 | `api/v1/endpoints/intelligent_parallel.py` | 9 → 0 | 一处根因：`Optional["IntelligentParallelService"]` 的前向引用在模块作用域解析不了 ⇒ 退化成 `Optional[Unknown]`。改 `if TYPE_CHECKING:` 导入（运行期一行不执行，循环 import 顾虑原样保留）+ `get_service()` 返回注解 + 一处 `assert` |
 | `api/v1/endpoints/rollback.py` | 6 → 0 | 五个名字标 `Any`（而不是留裸 `None` 让每个使用点各报一次）+ import 行 ignore；**端点与 503 行为一字未动**（运行期实证 `_rollback_available=False`） |
 | `middleware/{error_handler,logging_middleware}.py` | 2 → 0 | `call_next: Callable[[Request], Response]` → `RequestResponseEndpoint`（原注解漏了 `Awaitable`） |

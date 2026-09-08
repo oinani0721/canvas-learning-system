@@ -99,16 +99,33 @@
 - [x] ruff：`ruff-p1-*.txt` + 集合差
 - [ ] Codex 首部：见 §8
 
-### 4-B 你来验（零技术词，约 3 分钟）
+### 4-B 你来验（零技术词，约 5 分钟）
 
-> 照常打开一张你平时用的原白板 → 跑一次索引 → 看一眼今天的复习建议 → 再随手问一次 AI。
-> **应该看到**：一切和昨天一模一样地出现，没有新的红字、没有哪个按钮变得点不动、复习列表条数和昨天对得上。
->
-> 一句示例：「我照常打开一张原白板、跑一次索引、看一眼复习建议 → 一切和昨天一样出现、没有新的红字 → 我感觉这次『把代码里所有标错的类型改对』没有碰到我用的任何功能，踏实。」
->
-> **felt-sense**：这张卡的性质是"给代码贴标签"，不是"改代码做什么"。所以验收时你要找的**不是新东西**，而是**一种"什么都没发生"的安静**——如果你在任何一步感到"咦，这里以前不是这样"，那就是本卡出了问题，请直接说，不用去看任何日志。
+这张卡**没有加任何新功能**，它做的事情用一句话说是：**把代码里"这个东西是什么类型"标注错了的地方改对**。所以你要验的不是"新东西好不好用"，而是**"旧东西有没有被碰坏"**。
 
----
+按你平时的顺序走一遍，每步只需要问自己"和昨天一样吗"：
+
+1. **打开一张你常用的原白板** → 内容、连线、颜色和昨天一样吗？
+2. **跑一次索引** → 跑完了吗？条数和你印象里差不多吗？（不用记准数，"没有突然变成 0"就行）
+3. **看一眼今天的复习建议** → 有东西出来吗？还是空的？（空的话请立刻说 —— 本卡碰过复习相关的数据模型）
+4. **随手问一次 AI**（挑一个概念让它解释）→ **回答是完整的一段话吗？有没有中途断掉、少了半截？**
+   > 这一步请多花 10 秒。本卡在"怎么从 AI 的回复里把文字拼起来"那段代码上，一度改了一个"看起来更干净"的写法，后来发现它在某些情况下**会悄悄少拼一段文字**，已经改回去了。所以"回答完不完整"是这张卡最值得你亲自看一眼的地方。
+5. **做一道检验题、给它打个分** → 分数存下来了吗？（本卡改了评分结果的数据结构：原先四个评分维度可以"不传"，但一旦真的不传就会报一个指错地方的错；现在改成"必须传"，报错会更早也更准）
+
+**应该看到**：全程没有任何新的红字/报错弹窗，每一步都和昨天一样地出现。
+
+一句示例：「我照常打开一张原白板、跑一次索引、看一眼复习建议、又让 AI 解释了一个概念 → 一切和昨天一样出现，AI 的回答是完整的一段没有断 → 我感觉这次『把代码里所有标错的类型改对』没有碰到我用的任何功能，踏实。」
+
+**felt-sense（两处，请对照你的实际感受）**：
+
+- **第一处 —— "安静"**：这张卡做对了的样子，是**什么都没发生**。如果你在任何一步冒出"咦，这里以前不是这样"的念头，哪怕说不清哪里不对，那就是本卡出了问题，请直接说出那个"咦"，不用去看任何日志或截图。
+- **第二处 —— "少了半截"**：第 4 步 AI 回答那里，我要的不是"它答得好不好"，而是**有没有一种话说到一半被切掉的感觉**。这种缺失很滑，因为剩下的部分读起来是通顺的。如果有这种感觉，请把那次提问原样告诉我。
+
+> 另外三件本卡**明确没有修**、你可能会撞到的旧毛病（不是本次引入的，已单独登记）：
+> ① 回滚/快照相关的功能一直是不可用状态（会返回"服务不可用"）——本卡只让代码通过检查，没有让它复活；
+> ② 保存"连线理由"的那个功能，写入知识图谱那一半是坏的；
+> ③ 切换 vault 的那个内部工具一直报失败。
+> 这三条如果你碰到了，属于**已知旧账**，不是本次改动造成的。
 
 ## 7. tests 对账（阶段 1 收工）
 
@@ -140,8 +157,8 @@
 Codex：把 `driver` 绑在闭包**外**改变了原先"每次重试重新读 `self._driver`"的行为；请求 A 在重试等待期间若 `cleanup()` 关掉旧连接、别的请求建了新连接，A 仍会向已关闭的旧实例开 session。
 
 **我错了**。我当时把它写成"语义相同，顺带把整次重试用同一个 driver 钉死"——那句"顺带"正是行为变化本身，我却把它当成好处描述了。
-**整改**：把 `driver = self._driver` 移进 `_execute_with_retry` 内（每次重试重读），并补 `assert driver is not None, "Neo4j driver 在重试期间变为 None"`。
-**判据**：`awk '/async def _execute_with_retry/,/async with driver.session/' | grep -c 'driver = self._driver'` = **1**（在闭包内）；全文件该赋值恰 1 处。存档 `negctl-p1r2-*.txt`。
+**整改**：把 `driver = self._driver` 移进 `_execute_with_retry` 内（每次重试重读），并补 `assert driver is not None, "…"`。⚠️ 按 Codex r2 收窄：新旧异常（`AttributeError` / 带消息 `AssertionError`）**分流不变**（都不在 `RETRYABLE_EXCEPTIONS` 内、都不转 `RetryError`、都跳过 JSON fallback 向外抛），但**异常类型与正文已变**，本卡不宣称「逐字等价」。
+**判据**：`awk '/async def _execute_with_retry/,/async with driver.session/' | grep -c 'driver = self._driver'` = **1**（在闭包内）；全文件该赋值恰 1 处。⚠️ 该判据当时被我误标为「负控 4」，Codex r2 LOW-1 指出它并未执行变异——真负控见 §7-ter，结论是**没有任何自动门看得见这个回归**。存档 `negctl-p1r2-*.txt`（已就地标注更正）+ `negctl4-real-*.txt`。
 
 ### Q8 等价性 —— ✅ **Codex 的质疑成立，我的证明有洞，已推翻并回退**
 
@@ -176,7 +193,7 @@ Codex：`exam_models.py:150-153` 给四个属性新增了 `description`，模型
 | 判据 | 结果 |
 |---|---|
 | 分包 pyright | 5 包 `0 errors`；api 21 = 三个延后文件，剔后 **0** |
-| 多重集 vs `41cc849c` | **`NEW=0 GONE=0`**（整改零副作用） |
+| 多重集 vs `41cc849c` | **`NEW=0 GONE=0`**（**诊断集合**零新增；按 Codex r2，这不等同于「运行期零副作用」） |
 | 多重集 vs `da690bf8`（全卡视角） | **`421 → 232，NEW=1，GONE=190`**；唯一那条 NEW 是 `services/rag_service.py` 的 `ainvoke config`，由本卡 `extraPaths` 引出但**落在 U1 面**，本卡不能改 ⇒ 移交 U1（他们 merge 阶段 0 sha 后会看到） |
 | AST | 14，只剩共享 `system.py` |
 | ruff | `F401,F821` 全过；format 集合差 37 = 37，**新引入 0** |
@@ -186,11 +203,57 @@ Codex：`exam_models.py:150-153` 给四个属性新增了 `description`，模型
 
 > ⚠️ **口径更正**：阶段 0 记的"extraPaths 新冒 6 条"到阶段 1 末已过期——其中 5 条（`edges.py` ×3 + `metadata.py` ×2）已由本卡在自己地盘关掉，只剩 1 条在 `services/`。引用历史数字前必须重测。
 
+## 7-ter. Codex round-2 逐条处置（BLOCKER 0 / HIGH 0 / MEDIUM 0 / LOW 1）
+
+> 存档 `codex-review-CARD-PYRIGHT-DEBT-rest-r2.md`，**绑定 `acbc79be` = 当前 HEAD**。
+> 按 D-15（绑最终 HEAD 的一轮 BLOCKER=0 且 HIGH=0）：阶段 1 的轮次条件**已满足**。
+
+### LOW-1 「负控 4」名不副实 —— ✅ **成立，已真跑并推翻我自己的记法**
+
+Codex：所谓「负控 4」只检查当前赋值位置、末行写着"未改动 OK"，**并未执行标题所称的移出闭包变异**；拿它证明"错误变异已被判据拒绝"会把**没跑过的验证记成通过**。
+
+**Codex 是对的，而且这正是本项目反复记的"把没做的说成做了"。** 「负控」有确切含义 = 把修复破坏掉、看判据变红；我那段只是结构断言。
+
+**整改 = 真跑一遍**（存档 `negctl4-real-*.txt` + 对照组 `negctl4-control-*.txt`）：
+
+| 判据 | 未变异 | 变异（driver 挪回闭包外，重演 r1 缺陷） | 结论 |
+|---|---|---|---|
+| 变异体语法 | — | `ast.parse` 通过 | 排除"因语法错而红"的假杀 |
+| `pyright app/clients/neo4j_client.py` | `0 errors` | **`0 errors`** | ⛔ **类型门看不见** |
+| `tests/unit -k neo4j` | 19F / 255P / 5E | **19F / 255P / 5E（逐项相同）** | ⛔ **测试也看不见**（它们本来就红） |
+| 结构判据（闭包内该赋值计数） | 1 | **0** | ✅ 唯一看得见的 |
+| 还原 sha | `2f5bdc2f…` | — | 与变异前**逐字节相同** |
+
+**这条负控最有价值的产出不是"通过"，而是这个事实**：`driver` 那类"绑定位置改变语义"的回归，**不在本仓任何自动门的覆盖面内**——r1 那条 MEDIUM 是 Codex **读代码**抓到的，不是门抓到的。唯一能看见它的结构计数判据，是我在被指出**之后**才补的。已写进 §9「本卡未证明什么」。
+
+### Codex r2 判"证据不足"的两项 —— ✅ **已补测，现已足够**
+
+**(c) OpenAPI「对外契约零影响」**。r2：静态文件不含那两个名字，只能证明该制品；缺"基线与当前树**各自经应用入口重新生成**再逐键比"。
+**已补**（存档 `codex-r2-cd-closure-*.txt`）：基线树（自证 `default_factory=RubricDimension` 计数 = 4）与当前树各跑 `check-openapi-drift.py --write` 到独立临时文件，剔除 `x-generated-at` / `x-generator` 后**逐键差异 = 0**；`paths 194 → 194`、`schemas 354 → 354`，两文件**字节数完全相同（903318 = 903318）**。⇒ 整张卡对 OpenAPI **零影响**，比原先的 `DRIFT: none` 强一档。
+
+**(d) `metadata.py` 的 `ignore_missing` 假阳判定**。r2：两个 `drop_table` 签名只证明"具体类支持该参数"，还缺"运行期 `_db` 确实绑定 `LanceDBConnection`"。
+**已补**：`lancedb.connect(...)` 运行期返回 `lancedb.db.LanceDBConnection`（`isinstance` = True），其 `drop_table(self, name, namespace=None, ignore_missing=False)` **含**该参数；生产侧绑定点 `lancedb_client.py:900 / :928` 均为 `self._db = lancedb.connect(self.db_path)`。⇒ 链条闭合，假阳判定成立。
+
+### Codex r2 要求收窄的表述 —— ✅ **已逐条改口径**
+
+| r2 指出 | 本验收单的更正 |
+|---|---|
+| `neo4j_client` 异常类型与正文确实变了（`AttributeError` → 带消息 `AssertionError`），**不能称"逐字等价"** | 改为：**分流不变**（两者都不在 `RETRYABLE_EXCEPTIONS` 内、都不转 `RetryError`、都跳过 JSON fallback 向外抛），但**异常类型与正文已变**；本卡不再宣称"逐字等价" |
+| `claude_client.py` 三处**可执行逻辑**与基线相同，但**整份文件并非字节相同**（多了注释与类型声明） | 采纳，改为"三个循环的判断与累加表达式、AST 与 `da690bf8` 相同；`TextBlock` 在可执行代码中引用 0 次" |
+| ignore 是 **28 条 / 29 个规则项**（`suggestions.py` 一行两规则） | 采纳，清单已注明 |
+| 四条 assert **不能统一表述为"原位置遇 None 都会崩"** —— `intelligent_parallel.py` 基线处只是 `return _service`，不是属性解引用 | 采纳：前三条是"原本也会崩"，**第四条**成立的是"**不变式保证非 None**"，不是"遇 None 会崩"。这是我原表述的过度概括 |
+| multiset 算术成立，但**只支持诊断集合结论，不能证明运行期"零副作用"** | 采纳，措辞已改为"诊断集合零新增"，不再说"零副作用" |
+| 四维必填化确实改变 schema 与缺字段时的错误内容，**不是严格的运行期逐字等价** | 采纳，本就是本卡唯一的**有意**语义收紧（错误更早更准），已在 §2 写明 |
+| **不能称"整个非 services 范围已清零"** | 采纳，全文改为"非 services 面**除三个按卡文延后的文件外** = 0" |
+
 ## 8. Codex
 
-- round-1：绑 `41cc849c`（= 阶段 1 末 HEAD）。按 D-15，**阶段 1 这一轮可不绑最终 HEAD**（阶段 2 还要 `git merge` 候选树 + 清 `review.py` / `system.py`），存档首部已按协议 §2.1 写明；**阶段 2 末轮必绑最终 HEAD 且 BLOCKER/HIGH = 0**，上限 5 轮。
-- prompt：`_bmad-output/审查/prompts/codex-prompt-CARD-PYRIGHT-DEBT-rest-r1.md`（五分节 + 最小读取面写死）。协议 §2 点名的四类措辞自检全 0（含"构造"一词已中性化为"实例化"/"实参形态"）；`grep -c 'gpt-5.6'` = 0。
-- 存档：`_bmad-output/审查/codex-review-CARD-PYRIGHT-DEBT-rest-r1.md`（`.stderr` 不入库，`.gitignore:261-263` 覆盖）。
+- **round-1**：绑 `41cc849c`。BLOCKER 0 / HIGH 0 / **MEDIUM 1**。逐条处置见 §7-bis——**两处是我的真错**（driver 钉在闭包外；`hasattr`→`isinstance` 的等价性证明只覆盖一个轴），均已整改并落 commit `acbc79be`。
+- **round-2**：绑 **`acbc79be` = 当前 HEAD**。**BLOCKER 0 / HIGH 0 / MEDIUM 0 / LOW 1**。逐条处置见 §7-ter——LOW-1（「负控 4」名不副实）已真跑变异整改，并补齐 r2 判「证据不足」的 (c)(d) 两项。
+- **D-15 轮次判定**：绑最终 HEAD 的那一轮（round-2）**BLOCKER = 0 且 HIGH = 0** ⇒ **阶段 1 的轮次条件已满足**。round-2 之后**只改了 `_bmad-output`**（本验收单 + 存档首部 + 三份新证据），代码树自 `acbc79be` 起零改动，判据：`git diff --stat acbc79be HEAD -- . ':(exclude)_bmad-output'` 为空。
+- ⚠️ 阶段 2 会 `git merge` 候选树并清 `review.py` / `system.py`，届时**必须再送一轮并绑那时的最终 HEAD**（上限 5 轮，本卡已用 2 轮）。
+- prompt：r1 / r2 各一份，五分节 + 最小读取面写死。协议 §2 点名的四类措辞两份自检均为 0（「构造」已中性化为「实例化」/「实参形态」）；`grep -c 'gpt-5.6'` = 0。
+- 存档首部按协议 §2.1 六行 blockquote，三字段（模型 / reasoning_effort / codex 版本）齐，会话头自证抄自 `.stderr` 前三行（`.stderr` 本身不入库，`.gitignore:261-263` 覆盖）。
 
 ### openapi 逐 commit 记录
 
@@ -198,12 +261,17 @@ Codex：`exam_models.py:150-153` 给四个属性新增了 `description`，模型
 |---|---|---|---|
 | `5638ac6c`（阶段 0） | 2 行：`x-generated-at` + `review_overview.py` 的**存量** description 漂移（来自 `d209622d`，U6 地盘，本卡未碰该文件；由 spec-sync 恒写行为带入） | **0** | 无 |
 | `41cc849c`（阶段 1） | **1 行：只有 `x-generated-at`** | **0** | 无 |
+| `acbc79be`（r1 整改） | **1 行：只有 `x-generated-at`** | **0** | 无 |
+
+**全卡终局判据（Codex r2 (c) 收口，比逐 commit 更强）**：基线树 `da690bf8` 与当前树**各自经应用入口重新生成** openapi 到独立临时文件，剔除 `x-generated-at` / `x-generator` 后**逐键差异 = 0**；`paths 194 → 194`、`schemas 354 → 354`，两文件**字节数完全相同（903318 = 903318）**。⇒ 整张卡对 OpenAPI **零影响**。存档 `codex-r2-cd-closure-*.txt`。
 
 ---
 
 ## 9. 本卡未证明什么
 
-1. 只证 pyright 归 0，**未证** anthropic / litellm / neo4j / lancedb 的真调用路径行为不变——类型层窄化没跑真 API。
+1. 只证 pyright 归 0，**未证** anthropic / litellm / neo4j / lancedb 的真调用路径行为不变——类型层改动没跑真 API。
+1-bis. **`claude_client.py` 的 `hasattr` 保持不动，但也因此没有任何门盯住它**：本卡证明了「换 `isinstance` 会漏文本」（`extra='allow'` 实测），却**未证明**服务端当前是否真的会在非 `TextBlock` 上多回 `text`——只证明了它**可能**发生。这条留作现状，不新增门。
+1-ter. **`neo4j_client.py` 的 driver 重读只做了结构判据，未做并发行为门**：整改后我用「闭包内该赋值恰 1 处」证明结构对了，**未构造**「A 重试期间 B 重连」的并发场景实测它确实用上了新 driver。写这样一条门要起真 driver 生命周期，超出本卡（零 Neo4j 面）。
 2. **未证** `rollback` 端点该退役——只让类型过门，端点与 503 行为一字未动（运行期实证 `_rollback_available=False`）；保留还是退役是产品裁定（T1）。
 3. **未证** 366 处位置默认改写后 openapi schema 逐键相同——只证了 `--snapshot` 无漂移 + `required` 差集为 0 + schemas 无增删；`description`/`examples` 等键**未逐键比**。
 4. `review.py:1543` 族（对 dict 取属性）是 api 侧真 bug，本卡**未修**，阶段 2 也只 ignore + 登记（归 U9 / 主 session）。
@@ -240,6 +308,9 @@ Codex：`exam_models.py:150-153` 给四个属性新增了 `description`，模型
    - **T-SWITCHVAULT（新）** `mcp/tools/infra_tools.py:56/57` —— `vault.switch_vault` 被 P0-3 隔离后恒返回 `JSONResponse`，读 `.vault_name`/`.vault_id` 必 `AttributeError`，被 `except Exception` 吞成 `success=False` ⇒ 该 MCP 工具**恒报失败**。
    - **T-UNREACH（新）** `boards.py:86` / `board_manifest_tools.py:67` 的 `except pydantic.ValidationError` 是**死分支**（`ValidationError` 是 `ValueError` 子类，pydantic 2.12.5 实测 MRO）⇒ 注释里写的"纵深兜底 500/结构化错误"从未生效，实际走的是上面的 `except ValueError`（422 / "非法参数"）。调顺序 = 改行为，本卡不动。
    - **跨车道** `dependencies.py:1032` 的 ignore 根因在 `services/canvas_service.py` 的隐式 Optional（U1 地盘）；U1 修好后该 ignore 会被 `reportUnnecessaryTypeIgnoreComment` 自曝，阶段 2 清理。
-8. **Codex 轮次与绑定 SHA**：见 §8 / §11。
+8. **Codex 轮次与绑定 SHA**：round-1 绑 `41cc849c`（B0/H0/M1）→ 整改 `acbc79be` → round-2 绑 `acbc79be`（B0/H0/M0/L1）。D-15 条件满足。阶段 2 必须再送一轮绑那时的最终 HEAD（已用 2/5 轮）。
+8-bis. **⚠️ 门覆盖面缺口（真负控实测，建议进 PYRIGHT-TAIL）**：把 `neo4j_client` 的 `driver` 挪回闭包外（重演 r1 MEDIUM 的缺陷形态）后，`pyright` 仍 `0 errors`、`tests/unit -k neo4j` 结果与未变异态**逐项相同**（19F/255P/5E）——即「绑定位置改变语义」这类回归**不在本仓任何自动门的覆盖面内**，r1 那条是 Codex **读代码**抓到的。唯一看得见它的是本卡事后补的结构计数判据。存档 `negctl4-real-*.txt` + `negctl4-control-*.txt`。
+8-ter. **openapi 全卡终局**：基线树与当前树各自经应用入口重生成后逐键差 = 0、字节数相同（903318）。
+8-quater. **`ignore_missing` 假阳链条闭合**：`lancedb.connect()` → `LanceDBConnection`（`isinstance` True，其 `drop_table` 含该参数），生产绑定点 `lancedb_client.py:900/:928`。
 9. **阶段 2 末的 `services/` 残余全清单**：阶段 2 才产出（本 v1 只记当前 211 条的分组计数，逐条清单见 `group-p1-*.txt` 的 services 侧）。
 10. **格式门与 `LEFTHOOK_EXCLUDE`**：阶段 0 commit 用了 `LEFTHOOK_EXCLUDE=python-lint`（原始输出 + 集合差 + 不动点内容口径三份证据齐）；`python-typecheck` **未绕过**且实测 `0 errors`。
