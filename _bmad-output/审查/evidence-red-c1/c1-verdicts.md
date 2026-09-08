@@ -112,6 +112,44 @@
 
 **结论**：写侧 **10 处**生产调用仍活（口径 = 直接调用 `AgentService._trigger_memory_write`，见上表行 2；含 `batch_orchestrator` 同名包装则为 12）、两条回收路径双双零生产调用方、替代者未接管、启动期恢复的是另一机制 ⇒ 怀疑 `59586af1` 以「删 dual-write」之名连带切断了 Story 38.6 评分失败回收这条独立链路 = **数据面回归，非契约演进** ⇒ 移交 U5-C RED-R 定性。
 
+### ⬆️ 移交证据升级（2026-09-08，U11-A 两轮 Codex 之后追加）
+
+项目负责人要求对本条移交判断做独立裁定。裁定结果：**原判成立，且偏保守**。
+完整审计见 `_bmad-output/审查/evidence-resilience-audit/AUDIT-neo4j-offline-resilience-2026-09-08.md`。
+
+三个**互不可见**的独立视角（穷举重放侧 / 替代者本体 / 启动期恢复动作）各自追踪后收敛，
+把本表 §2 的 8 条源码证据**全部复现**，并发现缺口比本卡认定的更宽：
+
+1. **暂存面不止一个**：除 `failed_writes.jsonl` 外，`canvas_events_fallback.json`、
+   `learning_memories.json`、`neo4j_memory.json` 的重放侧同样 orphaned
+   （前三者的重放器都挂在零调用方的 `FallbackSyncService` 上；第四个从来就不在任何重放器覆盖面内）。
+2. **有比「暂存了没人捡」更靠前的一层**：Neo4j **启动期离线**时学习事件
+   （`record_learning_event` / `record_batch_learning_events` / `record_canvas_temporal_event`）
+   **零暂存、零死信**，只落一行 `logger.debug` 后丢弃。
+3. **替代者自身不提供持久性**：内存 `asyncio.Queue(maxsize=100)`、单消费者；进程重启即全失；
+   死信文件**无任何重放器**（读侧只有一个只读查询端点与一个被回归测试锁死为只读的 census 脚本）；
+   死信默认截断到 200 字符。
+4. **告警被同一次改动删掉**：`59586af1` 从 `main.py` 删除行含
+   `-        logger.warning("JSON fallback is disabled. Neo4j outage will cause data loss.")`
+   ⇒ 缺口发生时无运行期信号。
+5. **本卡移交的这两条正是那道一直在响的门**：视角 D 独立指出「两条本应报红的守门测试确实在红基线里，
+   说明这个缺口已被门抓到但一直只登记未处置」——指的就是本条的两个 nodeid。
+
+**本 session 独立复验了其中四条最高严重度条目，4/4 属实**（命令与原文见审计 §2），
+其中一条改变了修法方向：`memory_service.py:2740-2762` 在 `_enqueue_episode` 返回 True 后
+**把该行从持久文件删除**，而此时数据仅存于内存队列 ⇒ **把恢复功能直接挂回启动流程会引入新的丢失路径**，
+必须先改「先删后确认」的顺序。（该路径当前零生产调用方，属**潜在**危险而非正在发生的损失。）
+
+⚠️ **本次升级的强度边界（不得写强）**：8 个对抗性反驳 agent 与第 4 个视角（穷举写侧）
+**全部因配额未跑成**。workflow 摘要里的 `refutedCount: 0` **不是「经反驳未被推翻」，而是「反驳没跑」**
+（同日写入 `reference_gate_design_pitfalls` 第八个陷阱的形态）。
+⇒ 本升级的强度 = 「三独立视角收敛 + 本 session 抽验四条」，**不含对抗性验证**。
+
+⚠️ **另一处必须校准的事实**：`backend/data/failed_writes.jsonl` 当前 28 行内容
+**全是测试污染**（`test.canvas` / `node-001` 形态），不是生产数据。
+⇒ 「写侧活着、读侧全断」是**代码事实**；「现网正在丢真实学习数据」是**尚未证明的推论**。
+本卡与本次审计都只证明了前者。
+
 **本卡在 (e) 上未证明的**（不得据本表宣称已证）：
 - **未证明现网真的有 pending 条目在丢**。`backend/data/failed_writes.jsonl` 今日 06:46 的 mtime 是**本车道自己的 pytest 跑**造成的（`backend/data/.gitignore:5 *.jsonl` 覆盖 ⇒ `git status` 恒绿看不见这类污染），**不能**当作生产在写的证据；本卡未碰 live vault、未跑服务、未连 7691/7687。
 - **未证明「应恢复 lifespan 调用」**这一处置 —— 那是 U5-C 的定性范围，本卡只提供上述 8 条源码层证据。
