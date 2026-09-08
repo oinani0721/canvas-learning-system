@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-07-第十三批 · 车道 U10 (`card-u10-red-a`) · 卡 CARD-HYGIENE-conftest round-1
+> 模型: `gpt-6-astra` · reasoning_effort: `ultra` · codex: `codex-cli v0.153.3`
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat _bmad-output/审查/prompts/codex-prompt-CARD-HYGIENE-conftest.md)"`
+> 审查绑定: `13a138c9`（= 本轮送审时的 HEAD）
+> 会话头自证（抄 .stderr 实测行，stderr 本身不入库）:
+> `OpenAI Codex v0.153.3` / `model: gpt-6-astra` / `reasoning effort: ultra`
+
+---
+
 ## 结论
 
 **不建议 `13a138c9` 原样合并。**降级机制的正负控、双树并发和 202 条红基线对账成立；但新增源码门存在**目录枚举失败后静默通过**的 HIGH 问题，而且漏检范围超过已登记的“运行期拼接”，不能据此断言告警“不是本次新增回归”。另有文件符号链接越界读取的健壮性问题。依据见下列发现。
