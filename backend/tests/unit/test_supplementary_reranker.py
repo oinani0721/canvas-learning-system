@@ -576,22 +576,42 @@ class TestTypeWeightsIndexerTransition:
     """P0-A: TYPE_WEIGHTS 必须覆盖 indexer 真实 source_type 防全删."""
 
     def test_indexer_note_mapped_to_canonical(self):
-        """indexer 写入 source_type='note' 必须 → 中档 0.7 (近 chat_session)
-        而不是 DEFAULT 0.5 — DEFAULT 会让真实数据被 0.42 filter 全删."""
+        """indexer 写入 source_type='note' 必须映射到最高档 1.0（用户手写）。
+
+        契约演进（fcd34953, 2026-08-09 "feat(rag): 阶段 2 T2 快修批 — 权重方向翻转"）：
+        过渡表把 note 放在中档 0.7（"近 chat_session"），T2 认定方向反了——普通 vault
+        笔记是**用户手写**，应高于素材层（video_transcript / image_ocr），故翻到 1.0。
+        生产现值见 supplementary_reranker.py:65 `"note": 1.0,  # 普通 vault 笔记 → 用户手写, 最高`。
+
+        期望值 1.0 是从生产源码**抄写**的字面量，不是 import 常量比自己
+        （`assert get_type_weight("note") == TYPE_WEIGHTS["note"]` 那种写法恒真、
+        权重被改成任何值都照样绿）。硬编码的代价是权重再变时这条会红——那正是
+        本条该做的事：权重方向是产品裁定，变了就该有人来看一眼。   [CARD-RED-C2]
+        """
         from app.services.supplementary_reranker import (
             DEFAULT_TYPE_WEIGHT,
             get_type_weight,
         )
 
         w = get_type_weight("note")
-        assert w == 0.7
+        assert w == 1.0, "note 应为最高档 1.0（fcd34953 起用户手写优先于素材层）"
+        # 相对不变量：手写笔记必须高于「未知类型」兜底，否则真实数据会被 0.42 filter 全删。
+        # 这条比较的是两个生产值，不是拿被测物当期望值。
         assert w > DEFAULT_TYPE_WEIGHT
 
     def test_indexer_video_transcript_mapped_to_canonical(self):
+        """video_transcript 现为 0.75（素材层，低于手写笔记）。
+
+        契约演进同 fcd34953：过渡表给 0.9（"近 discussion"），翻转后降到素材层
+        0.75。生产现值见 supplementary_reranker.py:66
+        `"video_transcript": 0.75,  # 视频 transcript → 素材层, 低于手写`。
+        期望值同样是抄写字面量而非 import 常量。                    [CARD-RED-C2]
+        """
         from app.services.supplementary_reranker import get_type_weight
 
-        # video transcript 是核心讲义内容 → 0.9 近 discussion
-        assert get_type_weight("video_transcript") == 0.9
+        assert get_type_weight("video_transcript") == 0.75
+        # 方向不变量：素材层必须低于手写笔记（这是 fcd34953 翻转的语义内核）
+        assert get_type_weight("video_transcript") < get_type_weight("note")
 
     def test_indexer_image_ocr_mapped_to_low_canonical(self):
         from app.services.supplementary_reranker import get_type_weight
@@ -644,7 +664,7 @@ class TestFilterFloor:
 
         # 全部 note × 0.5 = 0.35 < 0.42, 默认 min_keep=3 → floor 触发
         materials = [
-            {"score": 0.5, "source_type": "note", "title": f"n{i}"} for i in range(5)
+            {"score": 0.5, "source_type": "image_ocr", "title": f"n{i}"} for i in range(5)
         ]
         result = rerank(materials, min_score_threshold=0.42)
         # floor 触发 → 不删, 5 条全保留
@@ -677,7 +697,7 @@ class TestFilterFloor:
         from app.services.supplementary_reranker import rerank
 
         materials = [
-            {"score": 0.5, "source_type": "note", "title": f"n{i}"} for i in range(5)
+            {"score": 0.5, "source_type": "image_ocr", "title": f"n{i}"} for i in range(5)
         ]
         result = rerank(materials, min_score_threshold=0.42, min_keep=0)
         # min_keep=0 → 全删, 返回空
@@ -690,7 +710,7 @@ class TestFilterFloor:
         # 100 条都过 filter 但只剩 5 条? 我们要构造 80%+ kill 的场景:
         # 100 条 note × 0.5 = 0.35 < 0.42 全部不过 → kill_ratio=100% → floor
         materials = [
-            {"score": 0.5, "source_type": "note", "title": f"n{i}"} for i in range(20)
+            {"score": 0.5, "source_type": "image_ocr", "title": f"n{i}"} for i in range(20)
         ]
         result = rerank(materials, min_score_threshold=0.42, min_keep=1)
         # n_post=0, n_pre=20, kill_ratio=100% > 80% → floor
@@ -702,7 +722,7 @@ class TestFilterFloor:
         from app.services.supplementary_reranker import rerank
 
         materials = [
-            {"score": 0.5, "source_type": "note", "title": f"n{i:02d}"}
+            {"score": 0.5, "source_type": "image_ocr", "title": f"n{i:02d}"}
             for i in range(10)
         ]
         result = rerank(materials, min_score_threshold=0.42, top_k=5)
@@ -728,20 +748,20 @@ class TestFilterFloorTaintExclusion:
         materials = [
             {
                 "score": 0.5,
-                "source_type": "note",  # 0.5 × 0.7 = 0.35 < 0.42 → 不通过 filter
+                "source_type": "image_ocr",  # 0.5 × 0.6 = 0.30 < 0.42 → 不通过 filter
                 "title": "clean-1",
                 "taint": "clean",
             },
             {
                 "score": 0.5,
-                "source_type": "note",
+                "source_type": "image_ocr",
                 "title": "review-malicious",
                 "taint": "review",
                 "injection_risk": 0.55,
             },
             {
                 "score": 0.5,
-                "source_type": "note",
+                "source_type": "image_ocr",
                 "title": "clean-2",
                 "taint": "clean",
             },
@@ -787,7 +807,7 @@ class TestFilterFloorTaintExclusion:
         from app.services.supplementary_reranker import rerank
 
         materials = [
-            {"score": 0.5, "source_type": "note", "title": f"n{i}"} for i in range(5)
+            {"score": 0.5, "source_type": "image_ocr", "title": f"n{i}"} for i in range(5)
         ]
         result = rerank(materials, min_score_threshold=0.42, min_keep=3)
         # 无 taint 字段视为 clean → floor 保留全部 5 条
@@ -801,7 +821,7 @@ class TestFilterFloorTaintExclusion:
         materials = [
             {
                 "score": 0.5,
-                "source_type": "note",
+                "source_type": "image_ocr",
                 "title": f"mal-{i}",
                 "taint": "review",
                 "injection_risk": 0.6,

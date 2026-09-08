@@ -1,0 +1,52 @@
+2026-09-08 08:21:41 [debug    ] RAGService: Added /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u11-red-c/backend/lib to sys.path
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+  from pydantic.v1.fields import FieldInfo as FieldInfoV1
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  import pkg_resources
+Building prefix dict from the default dictionary ...
+Loading model from cache /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/jieba.cache
+Loading model cost 0.247 seconds.
+Prefix dict has been built successfully.
+2026-09-08 08:21:44 [info     ] RAGService: LangGraph/Agentic RAG available. LANGGRAPH_AVAILABLE=True
+=== 现行权重表（生产实测）===
+  lecture_notes        1.0
+  discussion           0.9
+  exam_review          0.85
+  wiki_concepts        0.8
+  chat_session         0.7
+  raw_notes            0.6
+  concept              1.0
+  note                 1.0
+  video_transcript     0.75
+  image_ocr            0.6
+  <unknown fallback>   0.5
+
+=== score=0.5 时各 type 的 score×weight vs 阈值 0.42 ===
+  lecture_notes        w=1.0   0.5*w=0.500  高于阈值
+  discussion           w=0.9   0.5*w=0.450  高于阈值
+  exam_review          w=0.85  0.5*w=0.425  高于阈值
+  wiki_concepts        w=0.8   0.5*w=0.400  低于阈值 ✅
+  chat_session         w=0.7   0.5*w=0.350  低于阈值 ✅
+  raw_notes            w=0.6   0.5*w=0.300  低于阈值 ✅
+  concept              w=1.0   0.5*w=0.500  高于阈值
+  note                 w=1.0   0.5*w=0.500  高于阈值
+  video_transcript     w=0.75  0.5*w=0.375  低于阈值 ✅
+  image_ocr            w=0.6   0.5*w=0.300  低于阈值 ✅
+  __unknown_type__     w=0.5   0.5*w=0.250  低于阈值 ✅
+
+=== 行为验证：floor 是否仍会被触发（用 image_ocr）===
+2026-09-08 08:21:44 [warning  ] [Rerank] filter_floor_triggered min_keep=3 post=0 pre=5 threshold=0.42
+  输入 5 条 image_ocr(0.5*0.6=0.30) → 返回 5 条
+  result[0].filter_floor_triggered = True
+
+=== 对照：同样数据但 min_keep=0（floor 关闭）应全删 ===
+  返回 0 条（期望 0）
+
+=== 对照：原 note 数据在现行权重下确实不再被过滤（说明 floor 本就不该触发）===
+  5 条 note(0.5*1.0=0.50) → 返回 5 条，floor 旗帜 = None
+  ⇒ 这正是 9 条红的机制：数据不再落在误杀区间，floor 没被触发，断言「floor 触发」当然失败。floor 机制本身未坏。
+
+=== kill_ratio 分支（20 条全低于阈值，min_keep=1）===
+2026-09-08 08:21:44 [warning  ] [Rerank] filter_floor_triggered min_keep=1 post=0 pre=20 threshold=0.42
+  返回 20 条（期望 20 = 全保留），floor 旗帜 = True
+rc=0

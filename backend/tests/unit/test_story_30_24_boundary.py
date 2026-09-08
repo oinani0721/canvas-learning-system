@@ -20,6 +20,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from app.core.subject_config import build_group_id, sanitize_subject_name
+from app.graphiti.group_id_compat import to_physical_group_id
 
 # ============================================================================
 # AC-30.24.1: Empty input boundary test
@@ -181,17 +182,43 @@ class TestSpecialCharacterGroupId:
         )
 
         call_args = client.run_query.call_args
-        # Verify group_id is passed as a named parameter (not interpolated into query)
-        # Support both positional and keyword calling conventions
+        # Verify group scope is passed as named parameters (not interpolated into query).
+        #
+        # 契约演进（4db8e94a 2026-08-30 CARD-G4-1a + 88cb13a7 2026-08-31 读侧收口）：
+        # 读侧统一走 app.core.vault_scope.read_scope_params()，绑定参数由单个
+        # `groupId`（原样透传）改为 `group_id` + `group_prefix` 两个键，且值经
+        # to_physical_group_id() 物理化。所以「kwargs 里有 groupId 且逐字等于原串」
+        # 这个旧断言必然红——被断言的是已被替换的参数命名/值形态，不是安全性本身。
         all_kwargs = call_args.kwargs if call_args.kwargs else {}
-        assert all_kwargs.get("groupId") == malicious_group_id, (
-            f"groupId not passed as keyword param. kwargs={all_kwargs}"
+        assert "groupId" not in all_kwargs, (
+            f"旧参数名 groupId 复活了（读侧应只用 group_id/group_prefix）。kwargs={sorted(all_kwargs)}"
         )
+        assert {"group_id", "group_prefix"} <= set(all_kwargs), (
+            f"group scope 未以命名参数传入。kwargs={sorted(all_kwargs)}"
+        )
+        # 期望值现算，不硬编码结果串：硬编码会在物理化规则变化时静默通过。
+        expected_physical = to_physical_group_id(malicious_group_id)
+        assert all_kwargs["group_id"] == expected_physical, (
+            f"group_id 未物理化。got={all_kwargs['group_id']!r} want={expected_physical!r}"
+        )
+        assert all_kwargs["group_prefix"] == expected_physical + "__", (
+            f"group_prefix 应为物理组 + '__' 定界符。got={all_kwargs['group_prefix']!r}"
+        )
+
+        # ── 安全内核（本条用例的真正意义，不得删除或放宽）────────────────────
         # Verify the Cypher query string does NOT contain raw malicious input
         query_str = call_args.args[0] if call_args.args else ""
         assert malicious_group_id not in query_str, (
             "Malicious input found in query string — possible Cypher injection!"
         )
+        # 物理化后的值同样不得被拼进查询文本——它必须始终以参数形式传递。
+        # （只查原始串是不够的：若实现改成把物理化结果 f-string 进查询，原始串
+        #  确实不在文本里，但注入面又回来了。）
+        for _k, _v in all_kwargs.items():
+            if isinstance(_v, str) and _v:
+                assert _v not in query_str, (
+                    f"参数 {_k} 的值被拼进了查询文本，应作为绑定参数传递"
+                )
 
 
 # ============================================================================
@@ -468,6 +495,18 @@ class TestVaultVerifyExitCode:
         "canvas-progress-tracker/obsidian-plugin/scripts/verify-vault.mjs"
     )
 
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "146218b5(2026-03-24 '上下文污染清理 — 归档legacy') 把整个 legacy "
+            "canvas-progress-tracker（旧插件 id canvas-review-system）移到 _archive/："
+            "同一 commit 里 --diff-filter=D 删旧路径、--diff-filter=A 加 _archive/ 副本，"
+            "是归档不是删除。VERIFY_SCRIPT 指向的仓根路径自此不存在（仓内唯一副本在 "
+            "_archive/，本卡禁改指向——让单元测试起 node 子进程跑归档脚本等于把已退役物"
+            "重新变成生产契约）。Obsidian Hybrid 架构下 vault 新鲜度校验的等价覆盖缺口归 "
+            "CARD-VAULT-FRESHNESS-COVERAGE（台账登记）。[CARD-RED-C2]"
+        ),
+    )
     def test_verify_script_exists(self):
         """verify-vault.mjs script must exist."""
         assert self.VERIFY_SCRIPT.exists(), (
@@ -489,6 +528,18 @@ class TestVaultVerifyExitCode:
             timeout=timeout,
         )
 
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "146218b5(2026-03-24 '上下文污染清理 — 归档legacy') 把整个 legacy "
+            "canvas-progress-tracker（旧插件 id canvas-review-system）移到 _archive/："
+            "同一 commit 里 --diff-filter=D 删旧路径、--diff-filter=A 加 _archive/ 副本，"
+            "是归档不是删除。VERIFY_SCRIPT 指向的仓根路径自此不存在（仓内唯一副本在 "
+            "_archive/，本卡禁改指向——让单元测试起 node 子进程跑归档脚本等于把已退役物"
+            "重新变成生产契约）。Obsidian Hybrid 架构下 vault 新鲜度校验的等价覆盖缺口归 "
+            "CARD-VAULT-FRESHNESS-COVERAGE（台账登记）。[CARD-RED-C2]"
+        ),
+    )
     def test_verify_script_exits_nonzero_when_file_not_found(self, tmp_path):
         """When vault main.js doesn't exist, script exits with code 1."""
         result = self._run_verify({"OBSIDIAN_VAULT": str(tmp_path)})
@@ -496,6 +547,18 @@ class TestVaultVerifyExitCode:
         output = (result.stdout or "") + (result.stderr or "")
         assert "NOT FOUND" in output
 
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "146218b5(2026-03-24 '上下文污染清理 — 归档legacy') 把整个 legacy "
+            "canvas-progress-tracker（旧插件 id canvas-review-system）移到 _archive/："
+            "同一 commit 里 --diff-filter=D 删旧路径、--diff-filter=A 加 _archive/ 副本，"
+            "是归档不是删除。VERIFY_SCRIPT 指向的仓根路径自此不存在（仓内唯一副本在 "
+            "_archive/，本卡禁改指向——让单元测试起 node 子进程跑归档脚本等于把已退役物"
+            "重新变成生产契约）。Obsidian Hybrid 架构下 vault 新鲜度校验的等价覆盖缺口归 "
+            "CARD-VAULT-FRESHNESS-COVERAGE（台账登记）。[CARD-RED-C2]"
+        ),
+    )
     def test_verify_script_exits_nonzero_when_stale(self, tmp_path):
         """When vault main.js is stale (>5min old), script exits with code 1."""
         # Create a stale main.js (set mtime to 10 minutes ago)
@@ -510,6 +573,18 @@ class TestVaultVerifyExitCode:
         assert result.returncode == 1
         assert "STALE" in (result.stdout or "")
 
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "146218b5(2026-03-24 '上下文污染清理 — 归档legacy') 把整个 legacy "
+            "canvas-progress-tracker（旧插件 id canvas-review-system）移到 _archive/："
+            "同一 commit 里 --diff-filter=D 删旧路径、--diff-filter=A 加 _archive/ 副本，"
+            "是归档不是删除。VERIFY_SCRIPT 指向的仓根路径自此不存在（仓内唯一副本在 "
+            "_archive/，本卡禁改指向——让单元测试起 node 子进程跑归档脚本等于把已退役物"
+            "重新变成生产契约）。Obsidian Hybrid 架构下 vault 新鲜度校验的等价覆盖缺口归 "
+            "CARD-VAULT-FRESHNESS-COVERAGE（台账登记）。[CARD-RED-C2]"
+        ),
+    )
     def test_verify_script_exits_zero_when_fresh(self, tmp_path):
         """When vault main.js is fresh (<5min), script exits with code 0."""
         # Create a fresh main.js (just created = fresh)
@@ -522,6 +597,18 @@ class TestVaultVerifyExitCode:
         assert result.returncode == 0
         assert "FRESH" in (result.stdout or "")
 
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "146218b5(2026-03-24 '上下文污染清理 — 归档legacy') 把整个 legacy "
+            "canvas-progress-tracker（旧插件 id canvas-review-system）移到 _archive/："
+            "同一 commit 里 --diff-filter=D 删旧路径、--diff-filter=A 加 _archive/ 副本，"
+            "是归档不是删除。VERIFY_SCRIPT 指向的仓根路径自此不存在（仓内唯一副本在 "
+            "_archive/，本卡禁改指向——让单元测试起 node 子进程跑归档脚本等于把已退役物"
+            "重新变成生产契约）。Obsidian Hybrid 架构下 vault 新鲜度校验的等价覆盖缺口归 "
+            "CARD-VAULT-FRESHNESS-COVERAGE（台账登记）。[CARD-RED-C2]"
+        ),
+    )
     def test_package_json_verify_command_correct(self):
         """package.json verify script points to verify.mjs."""
         pkg_json_path = self.VERIFY_SCRIPT.parent.parent / "package.json"

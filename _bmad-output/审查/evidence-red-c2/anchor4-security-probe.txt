@@ -1,0 +1,24 @@
+[来源自证] 从 tests/unit/test_story_30_24_boundary.py 取到常量，长度 =30，repr 首尾 ="<script>'"…'s;--'
+[物理化] 结果长度 =30  与原串相同? False
+[物理化] 结果是否逐字包含原串: False   （若 True 需警惕）
+[物理化] repr = 'vault__script_drop_table_users'
+
+=== run_query 调用形态 ===
+positional 个数 = 1
+kwargs 键 = ['group_id', 'group_prefix', 'limit', 'userId']
+是否含旧参数名 groupId: False
+是否含 group_id: True
+是否含 group_prefix: True
+group_id 值 == to_physical_group_id(原串)? True
+group_prefix 值 = 'vault__script_drop_table_users__'
+
+=== 安全内核判据 ===
+A. 原始串出现在 query 文本里? False          （必须 False）
+B. query 文本含 'DROP TABLE'? False          （必须 False）
+C. 哪些 kwargs 的值被拼进了 query 文本: []   （必须为空）
+D. query 是否为 str 且非空: True
+
+=== query 里与 group 相关的行 ===
+   AND (c.group_id = $group_id OR c.group_id STARTS WITH $group_prefix)
+   AND (r.group_id = $group_id OR r.group_id STARTS WITH $group_prefix)
+rc=0
