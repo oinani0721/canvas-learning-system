@@ -14,9 +14,10 @@
 | 视角 B `replayers`（穷举重放侧） | 独立追踪 | ✅ 完成（16 路径 / 9 缺口） |
 | 视角 C `replacement`（替代者本体） | 独立追踪 | ✅ 完成（20 路径 / 11 缺口） |
 | 视角 D `startup`（启动期恢复动作） | 独立追踪 | ✅ 完成（23 路径 / 9 缺口） |
-| 对抗性反驳（每视角 ×2，共 8 个） | 主动推翻各视角结论 | ❌ **全部未跑成**（同上配额） |
+| 对抗性反驳（每视角 ×2，共 8 个） | 主动推翻各视角结论 | ❌ **两次补跑均未成**（先 session 配额、后 **weekly 配额**，重置 Sep 9 19:00 Asia/Shanghai） |
 | 合并裁定 | 汇总 + 标注争议 | ❌ **未跑成**（同上） |
 | 本 session 复验 | 抽验最高严重度条目 | ✅ 完成（4 条，见 §2） |
+| 视角 C/D 重测 | （非计划，意外获得） | ✅ 11:1x 补跑时缓存未命中、真跑第二遍 ⇒ 获得**重测信度**观察（见 §0.1） |
 
 ### ⛔ 一个必须写明的判据陷阱
 
@@ -26,6 +27,17 @@ workflow 的返回摘要里每个视角都是 `refutedCount: 0`。**这不表示
 这正是同日写入 `reference_gate_design_pitfalls`（第八个陷阱）的形态：**空输出流进下游比较器，被一个看起来正常的绿色结果掩盖**。
 
 ⇒ **本文件全部结论的强度 = 「三个独立视角收敛 + 本 session 抽验四条最要命的」，不含对抗性验证。**
+
+### §0.1 重测信度（2026-09-08 第二次补跑意外获得）
+
+补跑未命中缓存，`replacement` 与 `startup` 两视角**真跑了第二遍**（缺口数 11→12 / 9→8）：
+
+- **语义层高度稳定**：两轮各自独立命中同一批核心主张（队列纯内存 / 死信无重放 / 死信默认无正文 /
+  failed_writes 写活读死 / 告警被删 / 先删后确认），审计 §1 的结论在两轮里都成立。
+- **条目层零重叠（措辞级）**：两轮的缺口清单措辞完全不同、数量有出入 ⇒
+  **任何一轮的条目清单都是采样不是普查**，应视为缺口集合的**下界**。
+  （第 3 跑 startup 还给出一条第 2 跑没有的事实，已吸收进 §1.1 的修正。）
+- 这进一步支持本审计的定位：**方向可信、清单不穷尽**——正是「没有对抗性验证」时应有的表述。
 
 ---
 
@@ -38,7 +50,7 @@ workflow 的返回摘要里每个视角都是 `refutedCount: 0`。**这不表示
 | 暂存面 | 写侧 | 重放侧 |
 |---|---|---|
 | `backend/data/failed_writes.jsonl` | **活**（2 个生产写入方） | **零个在跑** |
-| `backend/app/data/canvas_events_fallback.json` | 活 | orphaned |
+| `backend/app/data/canvas_events_fallback.json` | **默认态停**（6 个写点全被 `ENABLE_GRAPHITI_JSON_DUAL_WRITE` 门住，`canvas_service.py:267/:360/:440/:457/:986/:995`；默认 False ⇒ 不写）| orphaned ⇒ **双向断裂**（第 3 跑 startup 视角修正；初版误写「活」） |
 | `backend/data/learning_memories.json` | 活 | orphaned |
 | `backend/data/neo4j_memory.json` | 活（`neo4j_client.py:55/:422/:476`） | **从来就不在任何重放器的覆盖面内** |
 
@@ -174,4 +186,9 @@ U11-A 给的 8 条源码证据全部被三视角独立复现。且三视角发�
 | 本文件 | 汇总裁定 + 本 session 复验 |
 | `../evidence-red-c1/c1-verdicts.md` §2 | U11-A 原始 8 条移交证据（本审计复现了全部） |
 
-workflow 运行记录：`wf_69753b68-0aa`（两次运行，首次 5 agent 全败于鉴权抖动；重跑 11 agent 中 3 成功 8 败于配额）。
+workflow 运行记录：`wf_69753b68-0aa`，共三次：
+1. 首发：5 agent 全败于鉴权抖动（403）；
+2. 重跑：11 agent 中 3 成功（replayers / replacement / startup）8 败于 session 配额；
+3. 补跑（配额重置后）：9 agent 中 2 成功（replacement / startup 第二遍，见 §0.1）7 败于 **weekly 配额**（重置 Sep 9 19:00 Asia/Shanghai）。
+journal 共 5 份结构化 result，全部导出于 `raw-lens-results.json`（该文件为第 2 跑的 3 份；第 3 跑两份见 journal 或本文件 §0.1）。
+补跑命令（Sep 9 19:00 后可用）：`Workflow({scriptPath: '…/resilience-gap-audit-wf_69753b68-0aa.js', resumeFromRunId: 'wf_69753b68-0aa'})`。
