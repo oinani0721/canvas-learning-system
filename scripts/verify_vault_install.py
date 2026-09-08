@@ -106,11 +106,11 @@ LocationGuard = Callable[[Path], "str | None"]
 
 
 class ManifestError(Exception):
-    """manifest 结构或取值非法 —— 一律走退出码 2, 不与内容差异混为一谈。"""
+    """manifest 结构或取值非法 —— 一律走用法错档 EXIT_USAGE(3), 不与内容差异混为一谈。"""
 
 
 class ReportWriteError(Exception):
-    """报告落盘失败 —— 同样走退出码 2, 不能让它伪装成内容差异。"""
+    """报告落盘失败 —— 同样走用法错档 EXIT_USAGE(3), 不能让它伪装成内容差异。"""
 
 
 @dataclass(frozen=True)
@@ -208,7 +208,7 @@ def _require_encodable(value: str, label: str) -> None:
 
     孤立代理字符(如 JSON 里的 "\\ud800")能通过 json.loads, 却会在写报告时抛
     UnicodeEncodeError —— 那时已经过了 ManifestError 的捕获面, 调用方拿到的不是
-    承诺的退出码 2, 还会留下临时文件。所以在加载阶段就挡掉。
+    承诺的用法错档(EXIT_USAGE=3), 还会留下临时文件。所以在加载阶段就挡掉。
     """
     try:
         value.encode("utf-8")
@@ -306,7 +306,7 @@ def load_manifest(path: Path | str) -> Manifest:
                     raise ManifestError(f"items[{index}] 的 {optional} 必须是字符串")
                 _require_encodable(entry[optional], f"items[{index}] 的 {optional}")
         # 先验类型再查枚举: `action: []` / `{}` 这类 unhashable 值直接做集合成员判断会抛
-        # TypeError, 逃出 ManifestError 的捕获面, CLI 就给不出承诺的退出码 2。
+        # TypeError, 逃出 ManifestError 的捕获面, CLI 就给不出承诺的用法错档(EXIT_USAGE=3)。
         if not isinstance(entry["action"], str):
             raise ManifestError(f"items[{index}] 的 action 必须是字符串, 实为 {type(entry['action']).__name__}")
         if entry["action"] not in VALID_ACTIONS:
@@ -480,6 +480,26 @@ def _walk(root: Path):
                 yield (child, "file")
 
 
+def _entry_state(path: Path) -> str:
+    """`"present"` / `"absent"` / `"unreadable"` —— 取代 `Path.exists()` 做存在性判断。
+
+    **`exists()` 把「不存在」和「问不出来」都返回 False**(它吞 `OSError`): 一个因为祖先目录
+    缺搜索权限而 stat 不到的条目, 看起来跟「压根没这个文件」一模一样。于是 exclude 分类
+    在**进入** `_walk()` 的错误透传链**之前**就提前返回了空, 报告照样 0 —— 与 `_digest`
+    早先「两侧都读不动就判等」同一形态, 只是换了个入口。
+
+    用 `os.lstat` 而不是 `stat`: 悬空软链要算 present(那个目录项确实在, 部署脚本也会删它),
+    这与 `hits_for` 原先 `exists() or is_symlink()` 的意图一致。
+    """
+    try:
+        os.lstat(path)
+    except FileNotFoundError:
+        return "absent"
+    except OSError:
+        return "unreadable"
+    return "present"
+
+
 def _iter_relative(root: Path, base: Path, unreadable: list[str] | None = None) -> list[str]:
     """列出 root 子树里全部条目相对 base 的 POSIX 路径 (含 root 自身)。
 
@@ -489,7 +509,13 @@ def _iter_relative(root: Path, base: Path, unreadable: list[str] | None = None) 
     那是漏报, 与 `_digest` 早先的「摘要相等就算一致」同一形态。
     (UAT-CARD-G2-6 「未证明」#25, 由 CARD-RV-G2-6 收口。)
     """
-    if not root.exists():
+    state = _entry_state(root)
+    if state == "unreadable":
+        # 扫描面的根就问不出来 —— 不能当成「这里没有可排除的东西」。
+        if unreadable is not None:
+            unreadable.append(root.relative_to(base).as_posix() if root != base else ".")
+        return []
+    if state == "absent":
         return []
     out = [root.relative_to(base).as_posix()] if root != base else []
     if root.is_dir() and not root.is_symlink():
@@ -553,10 +579,15 @@ class ExcludeMatcher:
         """
         if not _has_glob(item.path):
             target = vault / item.path
-            # exists() 对悬空软链是 False, 但那个条目**确实在目标里**(部署脚本也会删它),
-            # 不登记就等于漏报。用 lstat 口径: 只要目录项在, 就算存在。
-            present = target.exists() or target.is_symlink()
-            return [item.path] if present and _kind_ok(item, target) else []
+            # 用 lstat 口径(`_entry_state`): 悬空软链算 present —— 那个目录项**确实在目标里**
+            # (部署脚本也会删它), 不登记就等于漏报; 而「问不出来」必须与「不存在」分开,
+            # 否则一个 stat 不到的排除项会被静默当成「不在这儿」。
+            state = _entry_state(target)
+            if state == "unreadable":
+                if unreadable is not None:
+                    unreadable.append(item.path)
+                return []
+            return [item.path] if state == "present" and _kind_ok(item, target) else []
         prefix = _static_prefix(item.path)
         scan_root = vault / prefix if prefix else vault
         regex = _pattern_to_regex(item.path)
@@ -579,7 +610,10 @@ def _leaf_digest(path: Path) -> tuple[str, bool]:
     """
     try:
         if path.is_symlink():
-            return "L:" + hashlib.sha256(str(path.readlink()).encode("utf-8")).hexdigest(), False
+            # backslashreplace: 软链目标文本可能带 surrogateescape 出来的字符,
+            # 严格编码会抛 UnicodeEncodeError —— 那个异常不在任何捕获面里, 会让 CLI
+            # 以 1 退出而被读成「只有 missing」。摘要只需确定性, 转义不影响可比性。
+            return "L:" + hashlib.sha256(str(path.readlink()).encode("utf-8", "backslashreplace")).hexdigest(), False
         if path.is_file():
             return "F:" + hashlib.sha256(path.read_bytes()).hexdigest(), False
         if path.is_dir():
@@ -628,12 +662,12 @@ def _digest(
                 continue
         if kind == "unreadable":
             _note_unreadable(child, rel)
-            acc.update(f"{rel}\0U:unreadable\n".encode("utf-8"))
+            acc.update(f"{rel}\0U:unreadable\n".encode("utf-8", "backslashreplace"))
             continue
         leaf, bad = _leaf_digest(child)
         if bad:
             _note_unreadable(child, rel)
-        acc.update(f"{rel}\0{leaf}\n".encode("utf-8"))
+        acc.update(f"{rel}\0{leaf}\n".encode("utf-8", "backslashreplace"))
     return "D:" + acc.hexdigest()
 
 
@@ -852,6 +886,10 @@ def verify(
                         detail="读不进去, 无法证明两侧一致",
                     )
                 )
+            if unreadable_here:
+                # 有读不动的条目 ⇒ 这一项**没被证明一致**, 不能记 match。
+                # (摘要里两侧都写同一个 U: 标记会让它们「判等」—— 那正是假绿的来源。)
+                continue
             if src_digest != tgt_digest:
                 report.content_drift.append(
                     Finding(
@@ -1098,8 +1136,19 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _expanduser(raw: str) -> tuple[Path | None, str | None]:
+    """`~未知用户名` 会让 `expanduser()` 抛 `RuntimeError` —— 它不在任何捕获面里,
+    CLI 会以 1 退出(而 1 在四档里是「只有 missing」)。统一归用法错档。"""
+    try:
+        return Path(raw).expanduser(), None
+    except RuntimeError as exc:
+        return None, f"路径展开失败: {raw!r} — {exc}"
+
+
 def _resolve_dir(raw: str, label: str) -> tuple[Path | None, str | None]:
-    path = Path(raw).expanduser()
+    path, err = _expanduser(raw)
+    if err is not None or path is None:
+        return None, f"{label} {err or '路径展开失败'}"
     if not path.is_dir():
         return None, f"{label} 不是存在的目录: {path}"
     return path.resolve(), None
@@ -1192,14 +1241,21 @@ def main(argv: list[str] | None = None) -> int:
 
     report_path: Path | None = None
     if args.report:
-        report_path = Path(args.report).expanduser().resolve()
+        expanded, err = _expanduser(args.report)
+        if err is not None or expanded is None:
+            print(f"❌ --report {err or '路径展开失败'}", file=sys.stderr)
+            return EXIT_USAGE
+        report_path = expanded.resolve()
         trees = [(vault, "--vault"), (source, "--source")]
         problem = _check_report_location(report_path, trees)
         if problem:
             print(f"❌ {problem}", file=sys.stderr)
             return EXIT_USAGE
 
-    manifest_path = Path(args.manifest).expanduser()
+    manifest_path, err = _expanduser(args.manifest)
+    if err is not None or manifest_path is None:
+        print(f"❌ --manifest {err or '路径展开失败'}", file=sys.stderr)
+        return EXIT_USAGE
     try:
         manifest = load_manifest(manifest_path)
     except ManifestError as exc:

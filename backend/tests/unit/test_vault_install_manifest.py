@@ -1464,14 +1464,29 @@ def test_install_sh_skills_check_counts_skill_md_dirs(tmp_path):
         (good / ".claude" / "skills" / f"s{i}" / "SKILL.md").write_text("# s", encoding="utf-8")
     assert "✅" in _probe(good), "9 个含 SKILL.md 的 skill 应当通过"
 
-    shy = tmp_path / "shy"  # 8 个目录, 但其中一个只有 scripts/, 另一个的 SKILL.md 是**目录**
+    # 负控 A —— 只隔离 `-type f`: 7 个合格文件 + 1 个「SKILL.md 是目录」。
+    # 不区分类型时数到 8 会通过, 加上 -type f 是 7 而拦下 ⇒ 这条样例单独承重。
+    # (早先写成「6 文件 + 1 scripts + 1 目录」不隔离: 去掉 -type f 也才 7, 照样红,
+    #  于是那条负控其实是被别的原因打红的 —— Codex round-2 LOW 实证。)
+    dir_entry = tmp_path / "dir-entry"
+    for i in range(8):
+        (dir_entry / ".claude" / "skills" / f"s{i}").mkdir(parents=True)
+        if i < 7:
+            (dir_entry / ".claude" / "skills" / f"s{i}" / "SKILL.md").write_text("# s", encoding="utf-8")
+    (dir_entry / ".claude" / "skills" / "s7" / "SKILL.md").mkdir()
+    assert len(list((dir_entry / ".claude" / "skills").glob("*/SKILL.md"))) == 8, (
+        "负控前提: 不区分类型时恰好数到 8, 否则这条样例隔离不出 -type f"
+    )
+    assert "❌" in _probe(dir_entry), "SKILL.md 是目录的条目不得计为一个 skill"
+
+    # 负控 B —— 只隔离「数目录条目 vs 数入口文件」: 8 个目录, 其中一个只有 scripts/
+    shy = tmp_path / "shy"
     for i in range(8):
         (shy / ".claude" / "skills" / f"s{i}").mkdir(parents=True)
-        if i < 6:
+        if i < 7:
             (shy / ".claude" / "skills" / f"s{i}" / "SKILL.md").write_text("# s", encoding="utf-8")
-    (shy / ".claude" / "skills" / "s6" / "scripts").mkdir()
-    (shy / ".claude" / "skills" / "s7" / "SKILL.md").mkdir()
-    assert "❌" in _probe(shy), "半成品 skill(无入口文件 / SKILL.md 是目录)不得计为完成"
+    (shy / ".claude" / "skills" / "s7" / "scripts").mkdir()
+    assert "❌" in _probe(shy), "无入口文件的半成品 skill 不得计为完成"
 
 
 # ── CARD-RV-G2-6 round-2 整改的门（Codex round-1 结论）────────────────
@@ -1612,3 +1627,109 @@ def test_declared_paths_has_a_single_source_of_truth():
         for i in json.loads(MANIFEST.read_text(encoding="utf-8"))["items"]
         if i["action"] in ("copy", "skeleton")
     } == {".canvas-config.yaml"}
+
+
+def test_extra_allow_overlap_check_uses_the_same_declared_set_as_the_property(tmp_path, manifest_data):
+    """LOW 回归: 「单一真相源」不能只比 helper 与调用 helper 的 property —— 那是自证。
+
+    要证的是**加载侧**也走同一口径。判据取 `generate` 那一类: 它在 declared 里、
+    却不在集合等价门那 27 项里。加载侧若自己另写一份而漏掉 generate,
+    `extra_allow=[".canvas-config.yaml"]` 就会被错误接受 —— 本门直接拦这个行为。
+    """
+    manifest_data["extra_allow"] = [".canvas-config.yaml"]  # action=generate 的那一项
+    m = tmp_path / "gen-overlap.json"
+    m.write_text(json.dumps(manifest_data), encoding="utf-8")
+    with pytest.raises(vv.ManifestError) as exc:
+        vv.load_manifest(m)
+    assert "重叠" in str(exc.value) and ".canvas-config.yaml" in str(exc.value)
+
+
+def test_unreachable_exclude_scan_root_is_registered_not_treated_as_absent(tmp_path, vault_pair, manifest_data):
+    """HIGH 回归: `Path.exists()` 把「不存在」和「问不出来」都返回 False。
+
+    一个因祖先目录缺搜索权限而 stat 不到的 exclude 目标, 会在**进入** `_walk()` 的
+    错误透传链之前就提前返回空 —— 报告照样 0。glob 分支与精确分支两个入口都要盖到。
+    """
+    _source, target = vault_pair
+    guard = target / "outputs"
+    (guard / "locked").mkdir(parents=True)
+    (guard / "locked" / "x.jsonl").write_text("x", encoding="utf-8")
+    manifest_data["items"].append(
+        {"path": "outputs/locked/**", "role": "test", "action": "exclude", "origin": "test-only"}
+    )
+    manifest_data["items"].append(
+        {"path": "outputs/locked/x.jsonl", "role": "test", "action": "exclude", "origin": "test-only"}
+    )
+    m = tmp_path / "unreachable.json"
+    m.write_text(json.dumps(manifest_data), encoding="utf-8")
+    os.chmod(guard, 0o000)  # 祖先无搜索权限 ⇒ 子项 lstat 不到
+    try:
+        result = vv.verify(target, vv.load_manifest(m))
+        paths = [f.path for f in result.unreadable]
+        assert "outputs/locked" in paths, f"glob 分支的扫描根问不出来时必须登记, 实得 {paths}"
+        assert "outputs/locked/x.jsonl" in paths, f"精确分支同样要登记, 实得 {paths}"
+        assert result.exit_code == vv.EXIT_MISMATCH == 2
+    finally:
+        os.chmod(guard, 0o755)
+
+
+def test_exclude_scan_failure_is_registered_exactly_once(vault_pair):
+    """LOW 回归: 同一个读不动的位置被多条 exclude 前缀扫到时**只登记一次**。
+
+    `any()` / `next()` 这类断言允许重复登记 —— 要锁去重就得数次数。
+    `.claude/hooks` 同时落在 `.claude/**/__pycache__` 与
+    `.claude/hooks/pending_archives*.jsonl` 两条 exclude 的扫描面里。
+    """
+    _source, target = vault_pair
+    locked = target / ".claude" / "hooks"
+    (locked / "x.txt").write_text("x", encoding="utf-8")
+    os.chmod(locked, 0o111)  # 可按名访问, 不可列目录
+    try:
+        result = vv.verify(target, vv.load_manifest(MANIFEST))
+        hits = [f.path for f in result.unreadable if f.path == ".claude/hooks"]
+        assert len(hits) == 1, f"同一位置必须恰好登记一次, 实得 {len(hits)} 次"
+        assert result.exit_code == vv.EXIT_MISMATCH == 2
+    finally:
+        os.chmod(locked, 0o755)
+
+
+def test_both_sides_unreadable_is_not_counted_as_match(vault_pair):
+    """MEDIUM 回归: 两侧都读不动、摘要标记因此相等时, 该项**不得**同时计入 match。
+
+    登记了 unreadable 却还把它算作「一致」, 等于在同一份报告里既说「没证明」又说「证明了」。
+    """
+    source, target = vault_pair
+    for root in (source, target):
+        (root / "Dashboard.md").chmod(0o000)
+    try:
+        result = _classify(target, source=source)
+        assert "Dashboard.md" in [f.path for f in result.unreadable]
+        assert "Dashboard.md" not in [f.path for f in result.match], "未证明一致的项不得记 match"
+        assert result.exit_code == vv.EXIT_MISMATCH == 2
+    finally:
+        for root in (source, target):
+            (root / "Dashboard.md").chmod(0o644)
+
+
+def test_symlink_target_with_undecodable_bytes_does_not_crash_the_digest(vault_pair):
+    """MEDIUM 回归: 摘要阶段的编码也不得抛 —— `_printable()` 只守 render 出口, 守不到这里。
+
+    软链目标是任意字节串, `os.readlink` 用 surrogateescape 解码; 严格 `encode("utf-8")`
+    会抛 `UnicodeEncodeError`, 而它不在任何捕获面里 —— CLI 会以 1 退出, 被读成「只有 missing」。
+    """
+    source, target = vault_pair
+    link = target / ".claude" / "skills" / "odd-link"
+    os.symlink(b"bad\xff-target", os.fsencode(link))
+    result = _classify(target, source=source)  # 不抛即为通过
+    assert result.exit_code in (vv.EXIT_MISSING, vv.EXIT_MISMATCH)
+    text = vv.render(result, vv.load_manifest(MANIFEST))
+    text.encode("utf-8")  # 报告仍可编码
+
+
+def test_tilde_expansion_failure_uses_the_usage_exit_code(vault_pair, capsys):
+    """MEDIUM 回归: `~未知用户名` 让 `expanduser()` 抛 `RuntimeError` —— 归用法错档 3, 不是 1。"""
+    _source, target = vault_pair
+    bogus = "~cls-no-such-user-9c1f/x"
+    assert vv.main(["--vault", bogus]) == vv.EXIT_USAGE == 3
+    assert "路径展开失败" in capsys.readouterr().err
+    assert vv.main(["--vault", str(target), "--manifest", bogus]) == vv.EXIT_USAGE == 3

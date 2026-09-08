@@ -17,7 +17,7 @@
 
 ## 一 Codex r3 十条结论 × 在 HEAD 上的复现定性
 
-复现脚本 = `evidence-g26/g26_verify_r3_claims.py.txt` 复制到 scratch 去后缀跑一次；**唯一改动 = `WT` 由 `card-y9-maingoal` 改指 `card-u3-deploy`**（diff 只 1 行，已存档），断言一字未改。跑前自证读取面：`grep -n 'canvas-vault' <脚本>` → **0 命中**（只造 tmp 夹具，不碰 live）。输出：`evidence-rv-g26/r3-claims-on-HEAD-20260908T064916.txt`。
+复现脚本 = `evidence-g26/g26_verify_r3_claims.py.txt` 复制到 scratch 去后缀跑一次；**唯一改动 = `WT` 由 `card-y9-maingoal` 改指 `card-u3-deploy`**（diff 只 1 行，已存档），断言一字未改。跑前做过一次辅助检查：`grep -n 'canvas-vault' <脚本>` → **0 命中**。⚠️ **这条只证明「脚本里没有该字面量」，不足以证明「只访问了临时夹具」**（路径若来自变量就不必出现字面量）——Codex round-2 LOW 更正。真正承重的是脚本正文：全部路径来自 `tempfile.TemporaryDirectory()` 与 `WT` 常量，而 `WT` 指向车道树、不指向 live vault；`WT` 那一行就是本卡唯一改过的一行，diff 已存档。输出：`evidence-rv-g26/r3-claims-on-HEAD-20260908T064916.txt`。
 
 | # | 级别 | 原指控（一句） | 整改落点 HEAD file:line | 定性 | 依据（复现输出行） |
 |---|---|---|---|---|---|
@@ -64,7 +64,7 @@
 | # | 内容 | 本卡处置 |
 |---|---|---|
 | #19 | 测试文件头注写于 round-1，未随钉死点扩充更新；UAT 说「留到 round-3 有结论之后再补一个纯注释 commit」——**该 commit 从未做** | **本卡 (i) 还上**：头注按现状重写并列出本卡新增门。已不存在「改它会让 round-3 绑定失效」的理由（round-3 早已结束且本卡就是它的复审） |
-| #25 | `_iter_relative()` 丢弃遍历错误类型：读不动的目录里藏着 exclude 项不会被报出来（`:376-386`，与 `_digest` 的 unreadable 登记不同口径） | **登记，不修**。落点检查那条路径已因 `_forbidden_roots` 的 failures 拒绝落盘；exclude 分类这一路仍静默跳过。修它要改 `_iter_relative` 签名并波及 `hits_for`，超出本卡 (c)-(f) 范围 ⇒ 进「未证明」与台账 |
+| #25 | `_iter_relative()` 丢弃遍历错误类型：读不动的目录里藏着 exclude 项不会被报出来 | ⚠️ **本行的原处置「登记，不修」已作废** —— Codex round-1 把它判为 HIGH，**round-2 已修**（`_iter_relative` 增 `unreadable` 出参并透传到 `hits_for` → `verify()`，跨 exclude 项去重）；round-3 进一步补上了「祖先目录不可搜索 ⇒ 连扫描根都 stat 不到」这个更早的入口（见 §六）。详见 §六与 §七 |
 
 ## 五 结论
 
@@ -85,7 +85,7 @@ round-1 绑 `523c10f0`，结论 **0 BLOCKER / 2 HIGH / 5 MEDIUM / 5 LOW**。
 | HIGH | 给了 `--source` 而源端缺该 copy 项时，未比较的目标仍记 **match** | **修**。改记 `unreadable`（「看不见不等于一致」同一纪律），计入阻断。门 `test_copy_item_missing_on_source_is_not_reported_as_match` |
 | HIGH | exclude 扫描失败仍可能静默返回 0（= UAT-CARD-G2-6 #25） | **修**。`_iter_relative` 增 `unreadable` 出参并透传到 `hits_for` → `verify()` 登记（跨 exclude 项去重）。门 `test_unreadable_dir_in_exclude_scan_surface_is_registered`。**本卡原登记「不修」的 #25 就此收口** |
 | MEDIUM | `main.js` 未评估仍 rc=0，部署核验留盲区 | **登记不修**：这是卡文 (e) 钉死的语义（不计 rc、不静默）。盲区写进「未证明」与台账 |
-| MEDIUM | 命令字面量法假放行/假拦下；`main.ts` 数量门不证明注册语义 | **修一半**：正则改认三种引号（消除**假拦下**）；`main.ts` 门绑到 `addCommand({ id:` 注册点。**假放行**（注释里的同形字面量）仍在，登记 |
+| MEDIUM | 命令字面量法假放行/假拦下；`main.ts` 数量门不证明注册语义 | **修一半**：正则改认三种引号 —— 只消除了**引号风格**造成的假拦下，⚠️ **不是「消除假拦下」**（Codex round-2 MEDIUM 更正）：产物里写成 JS 转义的注册（如 `"canvas:\u0061"`）仍提取不到，而其它 id 提取成功会让集合非空、绕过零命令分支，于是那条真实绑定被报成 orphan。`main.ts` 门已绑到 `addCommand({ id:` 注册点。**假放行**（注释里的同形字面量）与**转义形态的假拦下**都仍在，登记 |
 | MEDIUM | 新 hotkeys 输入重开了未捕获的 `UnicodeEncodeError`（实测 rc=**1**，被误归「只有 missing」档） | **修**。`_printable()` 在 **render 输出边界**统一收口，一处覆盖全部来源 |
 | MEDIUM | `argparse` 参数错误仍 rc=**2**，与新语义的 mismatch 撞车 | **修**。`_Parser.error()` 抛 `SystemExit(EXIT_USAGE)` |
 | MEDIUM | `:117` 仍把 `SKILL.md` **是目录**的半成品计为完成；测试只查命令字符串 | **修**。判据加 `-type f`（仍一行、157 行不变）；门补**行为断言**（真跑抽出的两行）+ `SKILL.md` 为目录的负控 |
@@ -106,3 +106,33 @@ Codex 另指出两条口径需要限定，已采纳：
 
 `_iter_relative` 的收口把 UAT #25 从「登记不修」变成「已修」——
 本表 §四 的 #25 行与 §五「未证明」相应条目按此更新（见 UAT §十二）。
+
+---
+
+## 七 Codex round-2 之后（round-3 整改，2026-09-08）
+
+round-2 绑 `6bdb0fab`，结论 **0 BLOCKER / 1 HIGH / 4 MEDIUM / 5 LOW**。
+它明确写了「本轮**未确认整改新引入的运行时缺陷**」，并独立复核确认：源端缺项整改无问题、
+新出参调用链无遗漏且跨项去重成立、四档桶优先级 **128 种组合全部通过**、
+`_Parser.error()` 四种参数错误实测 `SystemExit(3)` 且 `--help` 保持 0、
+render 正文转义有效、零命令处理没把真问题放绿、收紧后的主要门都能针对相应退化承重。
+
+| 级别 | 问题 | 处置 |
+|---|---|---|
+| **HIGH** | **整改遗漏**：exclude 的存在性谓词吞 `OSError`，扫描根/精确目标 stat 不到时提前返回，**根本没进** round-2 建的 unreadable 透传链 ⇒ 仍可返回 0 | **修**。新增三态谓词 `_entry_state()`（`present`/`absent`/`unreadable`，用 `os.lstat`），`_iter_relative` 入口与 `hits_for` 精确分支两处都换掉。门 `test_unreachable_exclude_scan_root_is_registered_not_treated_as_absent`（glob 与精确两个入口各一条断言） |
+| MEDIUM | **遗留**：两侧都读不动、摘要标记相等时，同一 copy 项仍计入 match | **修**。`unreadable_here` 非空即 `continue`，不再记 match。门 `test_both_sides_unreadable_is_not_counted_as_match` |
+| MEDIUM | **遗留**：`_printable()` 挡不住 render **之前**的摘要编码异常（文件名 / 软链目标文本） | **修**。三处摘要编码改 `errors="backslashreplace"`（摘要只需确定性，转义不影响可比性）。门 `test_symlink_target_with_undecodable_bytes_does_not_crash_the_digest` |
+| MEDIUM | **遗留**：`expanduser()` 对 `~未知用户名` 抛 `RuntimeError`，CLI 以 1 结束 | **修**。抽 `_expanduser()` 统一归用法错档，`--vault`/`--source`/`--report`/`--manifest` 四处共用。门 `test_tilde_expansion_failure_uses_the_usage_exit_code` |
+| MEDIUM | **整改不完整**：三种引号没有消除「部分命令解析失败」的假拦下；本表「消除假拦下」表述过宽 | **改表述 + 登记**。JS 转义形态（`"canvas:a"`）仍提取不到，而其它 id 提取成功会让集合非空、绕过零命令分支 ⇒ 真实绑定被报 orphan。真修需要 JS 语法分析，超出本卡范围 |
+| LOW | `SKILL.md` 目录负控**没有单独承重**（去掉 `-type f` 也只有 7 个 ⇒ 照样红） | **修**。改成 7 合格文件 + 1 目录入口：不区分类型时数到 8 会放行、加 `-type f` 是 7 而拦下。另加前提断言 + 外部对照实测（带 `-type f`→NO / 去掉→OK） |
+| LOW | 「单一真相源」门只比 helper 与调用 helper 的 property = **自证**，没检验加载侧 | **修**。改成**行为门**：`extra_allow=[".canvas-config.yaml"]`（唯一的 `generate` 项）必须被拒 —— 加载侧若漏掉 generate 就会错误接受 |
+| LOW | exclude unreadable 门**没锁跨项去重**（`any()`/`next()` 允许重复登记） | **修**。改数次数：`.claude/hooks` 同时落在两条 exclude 的扫描面里，断言**恰好一次** |
+| LOW | 文档旧口径冲突：本表 `:67` 仍写 #25「登记，不修」；代码注释仍称配置/报告错误返回 2 | **修**。`:67` 改写；代码四处「退出码 2」全部改为「用法错档 EXIT_USAGE(3)」，`grep '退出码 2'` 现 **0 命中** |
+| LOW | 本表 `:20` 把 `grep 'canvas-vault'` 零命中当成「只访问临时夹具」的**自证** | **修**。降级为辅助检查，并写明真正承重的是脚本正文（全部路径来自 `TemporaryDirectory()` 与 `WT` 常量） |
+
+### 一句话总结这一轮
+
+round-2 的 HIGH 修法**只覆盖了「已经进入遍历」的失败**，没覆盖「**连遍历都没开始**」的失败 ——
+`Path.exists()` / `is_dir()` / `is_file()` / `is_symlink()` / `rglob()` 都会把「问不出来」返回成
+「不存在 / 空」。这份被测代码的 `_walk` docstring 早就为 `rglob` 写过同一条教训，
+而同一份代码在另外两个入口照样用了 `exists()` —— **写下教训 ≠ 变成判据**。
