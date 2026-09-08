@@ -185,7 +185,7 @@ mcp__canvas-learning-mcp__get_board_manifest
    秩号会整体错位，Step 7 那张「可外部机械比对」的排序表就对不上了（审查 HIGH-2）。
    候选池被剔空 → 停止：`⚠ 该白板的节点都还没剖析（正文是空模板）。先去节点里写下你的理解/打批注，再来考。`
 
-4. 把剩余候选写到 `/tmp/exam-candidates.json`：
+4. 把剩余候选写到 `/tmp/cls-exam/exam-candidates.json`（⛔ 先 `Bash: mkdir -p /tmp/cls-exam/` 建这个命名空间目录——它首次运行时尚不存在，而下一步是用 `Write` 落文件）：
    `{"vault_root": "<vault 绝对路径>", "now": "<当前 UTC ISO8601>", "candidates": [{"node": "<X>", "a": <mastery_a 或 null>, "b": <mastery_b 或 null>, "legacy": <mastery_score/mastery/mastery_level 或 null>, "last_examined": "<该节点 last_examined 原值字符串，Grep 没抓到填 null>"}, ...]}`
    ⛔ `last_examined` 直接给**原值字符串**，天数由 python 算（别自己心算日期差）。
 
@@ -195,7 +195,7 @@ mcp__canvas-learning-mcp__get_board_manifest
 python3 - <<'PYEOF'
 import json, os, sys
 from datetime import datetime, timezone
-P = "/tmp/exam-candidates.json"
+P = "/tmp/cls-exam/exam-candidates.json"
 p = json.load(open(P, encoding="utf-8"))
 sys.path.insert(0, os.path.join(p["vault_root"], ".claude", "scripts"))
 from decay_beta import PRIOR_A, PRIOR_B, effective, from_legacy, mu, pick_score, sigma
@@ -301,7 +301,7 @@ PYEOF
 后端在线时可拿"增殖邻居的确认错误"作跨节点针对素材（S2-2 甲方初衷：节点 A 的错误在节点 B 的考察中被引用）。**完全可选——curl 失败/超时/空结果一律静默跳过，出题流程与没有本步骤时完全一致（离线可用不破）**：
 
 ```
-Bash: curl -sS --fail -m 5 -X POST http://localhost:8011/api/v1/exam/targeting-material \
+Bash: curl -sS --fail -m 5 -X POST "${CLS_BACKEND_URL:-http://localhost:8011}/api/v1/exam/targeting-material" \
   -H 'Content-Type: application/json' \
   -H "X-CLS-Internal-Key: $(cat .obsidian/cls-internal-key.txt 2>/dev/null)" \
   -d '{"node_id": "<target>", "vault_id": "<vault 目录名>"}' 2>/dev/null || true
@@ -571,3 +571,7 @@ PYEOF
 - 出题口吻参照：`.claude/skills/exam-quick/SKILL.md`（§5）
 - 建板/读 config 参照：`.claude/skills/configure-whiteboard/SKILL.md`
 - 配套评分 Skill：`.claude/skills/quiz-answer/SKILL.md`
+
+## 变更记录
+
+- **CARD-SKILL-PORT-LINT**（BATCH-2026-09-07-第十三批，可移植性最小整改）：候选池临时文件改用固定命名空间 `/tmp/cls-exam/`（Step 3 降级块第 4 步落文件、第 5 步选点 python 读同一路径；写之前先 `mkdir -p` 建目录）；跨节点针对素材那步的后端地址改 `${CLS_BACKEND_URL:-…}` 缺省形态，不再写死端口——环境变量没设时行为与改前完全一致。Step 6.5 落账块的 `exam-created-event` 路径**未动**：该字面量被 `backend/tests/regression/` 两个文件的模块级断言逐字钉死，解耦归后续卡。本文件的可移植性指标由 `backend/tests/skills/test_skill_portability_lint.py` 逐项钉住（新增一处临时路径或写死端口即报红）。

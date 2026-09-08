@@ -1,0 +1,7 @@
+skills/board-recap/scripts/recap_exam_build.py tmp=0 users=0 tree=0
+skills/board-recap/scripts/recap_scan.py tmp=1 users=0 tree=0
+skills/board-split/scripts/split_preview.py tmp=0 users=0 tree=0
+skills/clear-inbox/scripts/inbox_preview.py tmp=0 users=0 tree=0
+scripts/decay_beta.py tmp=0 users=0 tree=0
+scripts/fsrs_bridge.py tmp=0 users=1 tree=1
+scripts/sync_board_concepts.py tmp=0 users=0 tree=0
