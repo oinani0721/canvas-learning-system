@@ -82,6 +82,8 @@ def test_io_failure_never_raises(monkeypatch):
 # (_bmad-output/审查/evidence-g33r2/event-id-shapes-*.txt): 既有 regression 实参、
 # 5 个生产调用点的拼法、以及 live 账本里真实存在的形态。
 
+import logging
+
 import pytest
 
 
@@ -123,21 +125,30 @@ def test_g33r2_event_id_shape_gate_allows_real_samples(monkeypatch, tmp_path, _e
         ("quiz:x\t", "U+0009", "尾部制表符 (既是 C0 也是首尾空白)"),
         ("a\x85b", "U+0085", "C1 NEL — 在终端里看起来就是个空格, 不报码点上游没法修"),
         ("a\x7fb", "U+007F", "DEL"),
-        ("a b", "U+2028", "LINE SEPARATOR — 校验器禁止集里有, 窄了就是「写得进读不回」"),
-        ("a￾b", "U+FFFE", "Unicode noncharacter"),
+        ("a\u2028b", "U+2028", "LINE SEPARATOR — 校验器禁止集里有, 窄了就是「写得进读不回」"),
+        ("a\ufffeb", "U+FFFE", "Unicode noncharacter"),
         ("\ud800", "U+D800", "孤立代理 — utf-8 编码直接失败"),
         ("a" * 513, "过长", "长度越界 513"),
         (123, "必须是字符串", "非 str: int"),
-        (None, "必须是字符串", "非 str: None"),
         (b"quiz:x", "必须是字符串", "非 str: bytes"),
         (["quiz:x"], "必须是字符串", "非 str: list"),
+        # ⚠️ `None` **不在**本组: 它是假值, 会被既有空判 `if not event_id` 先拒,
+        # 形态门根本跑不到 —— 见下面 test_g33r2_falsy_id_is_rejected_by_the_earlier_gate。
+        # 把它留在这里会让「绑定拒绝层」的断言在一个**本就该由别人拒**的输入上报红。
     ],
 )
-def test_g33r2_event_id_shape_gate_rejects(monkeypatch, tmp_path, _eid, _needle, _why):
+def test_g33r2_event_id_shape_gate_rejects(monkeypatch, tmp_path, caplog, _eid, _needle, _why):
     """形态非法 ⇒ `append_event` 返回 False + 账本**行数不变** + 拒因带码点/理由。
 
     ⛔ 判据绑定「被哪一层拒的」: `assert not append_event(...)` 是粗判据 ——
-    未知 event_type、空 id、取锁超时都返回 False。这里断言拒因正文含本门特征串。
+    未知 event_type、空 id、取锁超时都返回 False。
+
+    ⚠️ **R1 整改**(Codex round-1 MEDIUM-4): 上一版查的是**另一次直接调用 helper**
+    的返回值，那跟 `append_event` 这一次实际走了哪条分支**没有绑定关系**。实测反例:
+    传 `None` 时 helper 报「必须是字符串」，而 `append_event` 早在既有空判
+    `if not event_id` 就返回了 —— 本门根本没跑，旧断言照样全绿。
+    现在改为断言 **`append_event` 自己打出来的那条 warning**（`caplog`）含本门的
+    固定前缀与拒因，那句日志只在形态门这一条分支里产生。
     """
     _patch_path(monkeypatch, tmp_path)
     ledger = tmp_path / "learning_events.jsonl"
@@ -151,8 +162,43 @@ def test_g33r2_event_id_shape_gate_rejects(monkeypatch, tmp_path, _eid, _needle,
     assert any(_needle in p for p in _problems), (
         f"⛔ 拒了, 但拒因不含 {_needle!r} ({_why}) —— 报不出码点/理由上游没法修: {_problems}"
     )
-    assert not ev.append_event("answer_scored", event_id=_eid), f"⛔ 形态非法却写进去了 ({_why}): {_eid!r}"
+
+    caplog.clear()
+    with caplog.at_level(logging.WARNING, logger="app.services.learning_event_log"):
+        _ok = ev.append_event("answer_scored", event_id=_eid)
+    assert not _ok, f"⛔ 形态非法却写进去了 ({_why}): {_eid!r}"
+    # ⛔ 承重处: 这一句只在形态门那条分支里打; 空判分支打的是「拒绝空 event_id」,
+    # 未知类型分支打的是「拒绝未知 event_type」—— 三者互不相同, 故可分辨。
+    _gate_logs = [r.getMessage() for r in caplog.records if "拒绝形态非法的 event_id" in r.getMessage()]
+    assert _gate_logs, (
+        f"⛔ 拒是拒了, 但**不是形态门**拒的 ({_why}) —— `append_event` 没打出形态门那句 warning, "
+        f"说明它在更早的分支就返回了。实见日志: {[r.getMessage() for r in caplog.records]}"
+    )
+    assert any(_needle in m for m in _gate_logs), (
+        f"⛔ 形态门跑了, 但它给出的拒因不含 {_needle!r} ({_why}): {_gate_logs}"
+    )
     assert ledger.read_bytes() == _before, f"⛔ 拒绝路径动了账本 ({_why})"
+
+
+@pytest.mark.parametrize("_falsy", [None, "", 0, [], {}, False])
+def test_g33r2_falsy_id_is_rejected_by_the_earlier_gate(monkeypatch, tmp_path, caplog, _falsy):
+    """假值 `event_id` 由**既有空判**拒（不是形态门）—— 分层如实钉住。
+
+    ⛔ R1 整改（Codex round-1 MEDIUM-4）的另一半：那条意见让我发现，
+    「都被拒了」并不等于「被我这道门拒了」。`if not event_id` 在形态门**之前**，
+    所有假值都在那里返回，形态门跑不到。把这件事写成断言，而不是让它含混地
+    藏在「反正 return False」里 —— 将来谁调换这两道门的顺序，这条会红。
+    """
+    _patch_path(monkeypatch, tmp_path)
+    caplog.clear()
+    with caplog.at_level(logging.WARNING, logger="app.services.learning_event_log"):
+        assert not ev.append_event("answer_scored", event_id=_falsy), f"假值必须被拒: {_falsy!r}"
+    _msgs = [r.getMessage() for r in caplog.records]
+    assert any("拒绝空 event_id" in m for m in _msgs), f"应由**空判**拒: {_msgs}"
+    assert not any("拒绝形态非法" in m for m in _msgs), (
+        f"⛔ 假值走到了形态门 ⇒ 两道门的顺序变了，请同步更新本用例与上一条的分层说明: {_msgs}"
+    )
+    assert not (tmp_path / "learning_events.jsonl").exists(), "拒绝 ⇒ 零写"
 
 
 def test_g33r2_event_id_shape_gate_never_raises(monkeypatch, tmp_path):
@@ -208,9 +254,40 @@ def test_g33r2_shape_gate_charset_matches_validator():
     )
     # ⛔ 验伪锚: 上面的相等断言在**两侧都空**时同样成立(空真)。钉住集合非空
     # 且真的覆盖那几个关键码点, 免得「一起被清空」被读成「一致」。
+    #
+    # ⚠️ **R1 整改**(Codex round-1 MEDIUM-5b): 上一版的关键码点表漏了
+    # `0xFDD0-0xFDEF` 这一段, 于是「**两侧同时**删掉那一段」这个变异下,
+    # 「范围相等」与「关键码点都在」两条断言**同时**成立 —— 相等断言天生对
+    # 「一起改」失明, 唯一的补救就是让这张表**逐段**覆盖禁止集的每一个来源段。
+    # 现在按段列全: C0 / DEL / C1 / LS-PS / 代理区 / noncharacters(FDD0 族)
+    # / 每平面末两码点(抽头中尾三个平面)。
     assert len(_ours) >= 6, f"禁止集不该这么小: {len(_ours)}"
-    for _cp in (0x0000, 0x001F, 0x007F, 0x0085, 0x2028, 0xD800, 0xFFFE, 0x10FFFF):
-        assert any(lo <= _cp <= hi for lo, hi in _ours), f"关键码点 U+{_cp:04X} 不在本门禁止集里"
+    for _cp, _seg in (
+        (0x0000, "C0 首"),
+        (0x001F, "C0 尾"),
+        (0x007F, "DEL"),
+        (0x0080, "C1 首"),
+        (0x0085, "C1/NEL"),
+        (0x009F, "C1 尾"),
+        (0x2028, "LS"),
+        (0x2029, "PS"),
+        (0xD800, "代理区首"),
+        (0xDFFF, "代理区尾"),
+        (0xFDD0, "noncharacter 族首"),
+        (0xFDEF, "noncharacter 族尾"),
+        (0xFFFE, "平面 0 末"),
+        (0xFFFF, "平面 0 末"),
+        (0x8FFFE, "平面 8 末"),
+        (0x10FFFF, "平面 16 末"),
+    ):
+        assert any(lo <= _cp <= hi for lo, hi in _ours), (
+            f"关键码点 U+{_cp:04X}（{_seg}）不在本门禁止集里 —— 该段整段消失了？"
+        )
+    # ⛔ 误拒方向的验伪锚: 禁止集不能宽到吃掉正常字符, 否则「一律拒绝」也能让上面全绿。
+    for _cp, _why in ((0x0041, "ASCII A"), (0x4E2D, "中文 中"), (0x1F3AF, "emoji 🎯"), (0x20000, "CJK 扩展 B")):
+        assert not any(lo <= _cp <= hi for lo, hi in _ours), (
+            f"⛔ 正常字符 U+{_cp:04X}（{_why}）落进禁止集 ⇒ 会拒掉真实 id"
+        )
 
 
 def test_g33r2_shape_gate_agrees_with_validator_on_event_id():
@@ -229,18 +306,32 @@ def test_g33r2_shape_gate_agrees_with_validator_on_event_id():
     _sys.modules["_g33r2_validator2"] = _mod
     _spec.loader.exec_module(_mod)
 
+    # ⚠️ **R1 整改**(Codex round-1 MEDIUM-5a): 上一版的非法样本全都把坏码点放在
+    # **第 1-2 个字符**, 于是把遍历改成 `for ch in event_id[:7]` 这种截断实现,
+    # 整组样本照样绿, 却会漏掉「坏码点在后面」的真实形态。
+    # 下面每个非法样本都补一个**深位**孪生体（坏码点在 45 字符之后）。
+    # ⛔ 不可见码点一律写 `\uXXXX` 转义而不是字面字符 —— 字面写法在编辑器/工具链
+    # 里看不见, 一次无意的重新保存就能把它静默换成普通空格, 而测试依旧全绿。
+    _deep = "quiz:" + "板" * 40 + "#q1"
     for _eid in (
         "quiz:板A#q1",
         "x-1",
         "exam:CS 61B-2026-08-11-1349",
         "derive:规划代理的特点",
-        "a\x85b",
-        "a b",
-        "a￾b",
+        "a\u0085b",
+        "a\u2028b",
+        "a\ufffeb",
         "quiz:x\n",
-        "a\x7fb",
-        "emoji🎯",
-        "𠀀扩展",
+        "a\u007fb",
+        "emoji\U0001f3af",
+        "\U00020000扩展",
+        # 深位孪生体：坏码点在第 45+ 个字符 —— 截断式遍历会在这里分叉
+        _deep + "\u0085tail",
+        _deep + "\u2028tail",
+        _deep + "\u007ftail",
+        _deep + "\ufffetail",
+        # 深位**合法**对照：同样长、同样位置放的是正常字符 ⇒ 两侧均须放行
+        _deep + "正常tail",
     ):
         _ours = bool([p for p in ev._event_id_shape_problems(_eid) if "码点" in p])
         _theirs = bool(_mod.value_charset_problems({"event_id": _eid}))

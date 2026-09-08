@@ -233,4 +233,29 @@ canvas-vault/.claude/skills/quiz-answer/SKILL.md
 
 ## 七 Codex 轮次
 
-（随轮次补：存档路径 / 模型与 reasoning_effort / 绑定 SHA / BLOCKER·HIGH·MEDIUM·LOW 计数）
+### round-1（绑定 `609ce455`）
+
+- 存档：`_bmad-output/审查/codex-review-CARD-G3-3-R2-writer-boundary.md`（首部六行 blockquote 按协议 §2.1）
+- prompt：`_bmad-output/审查/prompts/codex-prompt-CARD-G3-3-R2-writer-boundary.md`（五分节；禁用措辞扫描 0 命中）
+- 模型 `gpt-6-astra` · `ultra` · `codex-cli 0.153.3` · read-only
+- **BLOCKER 0 / HIGH 0 / MEDIUM 5 / LOW 3**（tokens 61,129）
+
+**逐条独立验证与处置**（每条先复现再改，未复现的不改）：
+
+| # | 级别 | 内容 | 独立验证 | 处置 |
+|---|---|---|---|---|
+| M1 | MEDIUM | `_harness_tree` 引号正则贪婪，`"/x" # use "main"` 解析成 `/x" # use "main`；`harness_tree: # reset` 的 `#` 被当路径 | **复现确认**（两种形态实测都错） | ✅ 修：引号内容改非贪婪 `(.*?)`；裸值 `#` **一律**视为注释起点（路径含 `#` 须加引号，与 YAML 本身规则一致）+ 2 个回归用例 |
+| M2 | MEDIUM | 零写测试只看新增路径差集，对「改写已有/删除/建后删」三盲；`.lock`/`quiz-answer` 豁免按**名字子串**过宽 | **确认**（判据面确实窄于声明） | ✅ 修：全树 `(path → size, sha256)` 内容指纹逐条比对 + 精确路径豁免（锁名 = `sha1(realpath(NODE))[:16]` 可推算）+ 锁文件必须 0 字节 + 判据自证探针 |
+| M3 | MEDIUM | 显式真 REPO 用例写 `vault.parent` = 回退值本身，「解析被采用」证不出来 | **确认**（我在 docstring 里称它是验伪锚，当时不成立） | ✅ 修：两端点对照——A 端先把缺省目标 `backend/` 改名并**断言前提成立**（缺省必须失败），B 端只加一行配置必须成功 |
+| M4 | MEDIUM | 拒因断言查的是另一次直接调 helper 的结果，与 `append_event` 实际分支无绑定（`None` 时空判先拒、门没跑也绿） | **确认** | ✅ 修：改查 `caplog` 里 `append_event` 自己打出的形态门 warning（该句只在形态门分支产生）+ 新增假值分层用例（断言空判拒、形态门**不**拒，门序对调会红） |
+| M5 | MEDIUM | 一致性门锁不住「截断遍历」（`event_id[:7]`）与「两侧同时删同段」 | **确认** | ✅ 修：深位孪生体（坏码点在 45+ 字符处）+ 合法深位对照 + 关键码点表逐段覆盖（补 `0xFDD0/FDEF`、每平面末两码点抽三个平面）+ 误拒方向验伪锚（ASCII/中文/emoji/扩展 B 不得入集） |
+| L6 | LOW | `math.isfinite(10**400)` 抛 `OverflowError` 绕过受控拒因 | **复现确认** | ✅ 修：`float()` 前置 + `except (OverflowError, ValueError)` 走同一句拒因 |
+| L7 | LOW | `1e-6` 经裸插值写 `1e-06`，PyYAML 读回**字符串**（类型保真，原拼接方式残留） | **实测不砖化**（重跑 rc=0 / 后续评分 rc=0 / validator rc=0，`evidence-g33r2/low7-scientific-notation-probe-*.txt`） | 📋 登记不改（Codex 自评也不属本卡范围；它是 `:1524` 裸插值的既有形态，该行本卡禁改） |
+| L8 | LOW | 「写入分支是方向判据，删掉它等于允许伪造」的解释过强——非法载荷的拒绝面已由 `illegal_is_fail_closed` 组锁住 | **确认**（逻辑成立） | ✅ 修：docstring 措辞按实测更正——保留分支的真实价值是**语义演化**场景（门合法化时唯一还锁身份保持的锚），当前不可达性由拒绝面组间接保证 |
+| 补充 | — | 「接受字符串须 strip() ⇒ 重开吃字符口子」的因果不成立（若只使用转出的 float，被剥字符不进 YAML） | **确认** | ✅ 修：SKILL.md 注释理由换成真实依据（**类型契约**：上游给字符串=归一化没做完，报给它；并如实记下原因果为何不成立） |
+
+**R1 整改后裁判全部重跑**：五回归 **436 passed, 1 skipped, 0 failed, 0 xfailed**；`test_learning_event_log.py` 43 passed；`g33r2/g32ccr1` 选集 28 passed；tests/skills **369 passed**；三 harness ANCHOR-ERROR=0 且与开工逐字同（双侧滤 `rc=` 后 diff=0——单侧漏滤会假报 2 行，判据口径又踩一次）；判据③④/验伪锚①②/禁改锚行/fsrs 零写全部复核通过；ruff check 过、pyright 0 错、format 增量三文件 0（存量 4 行原样保留）。
+
+### round-2（绑定 `<R1 整改 commit>`）
+
+（随轮次补）

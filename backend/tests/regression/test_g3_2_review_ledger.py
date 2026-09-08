@@ -6306,10 +6306,14 @@ def test_g32ccr1_self_confidence_norm_must_not_forge_receipt_identity(vault):
     与去标前的 `xpass-strict-*.txt`）。
     ⚠️ 原 xfail reason 里引的 `SKILL.md:1320 读 / :1408 拼` 是**过期行号**，
     去标时实测更正为 **:1436 读 / :1524 拼**（两行本卡一字未改，门只在它们上游）。
-    ⚠️ 下面的「写入分支」（`returncode == 0` 之后那段）在当前实现下**走不到**——
-    保留它不是死判据而是**方向判据**：它锁的是「就算将来改成放行，receipt 身份
-    也必须还是 `quiz:板戊#q1` 且能原样重跑」。把它删掉，等于允许下一次重构
-    悄悄换成「写进去但身份被改写」——那正是本门最初要防的形态。
+    ⚠️ 下面的「写入分支」（`returncode == 0` 之后那段）在当前实现下**走不到**，
+    且它**不是**当前身份保持的证据（Codex round-1 LOW-8 如实更正）：这个注入载荷
+    必须被拒这件事，已由 `test_g33r2_self_confidence_norm_illegal_is_fail_closed`
+    （同一载荷断言 rc≠0 + 零写）锁住——「悄悄改成写进去」会先红在那组。
+    保留它的价值在**语义演化**场景：将来若有人把入口门合法化（例如改成接受数字串
+    并 strip），那组的期望会随语义同步修改，届时这里是唯一还锁着「就算放行，
+    receipt 身份也必须是 `quiz:板戊#q1` 且能原样重跑」的判据。删它不会立刻放走
+    什么，但会把语义演化时唯一的方向锚一起删掉——不值得。
     """
     import yaml as _y2
 
@@ -6762,22 +6766,63 @@ def test_g33r2_writer_gate_runs_before_any_write(vault):
     """门必须在**任何写入之前** —— 用「非法值 + 全新节点」证明零副作用。
 
     ⛔ 「rc≠0 且账本零行」证不出这一点: 门若落在写完账本之后、只是没写 receipt,
-    也可能表现成账本零行(被回滚)。这里额外断言 **`.quiz-tmp` 类中间产物不存在**
-    且 vault 目录树在拒绝前后**完全一致** —— 写点若已经动过手, 原子写的临时文件
-    或锁文件会留下痕迹。
+    也可能表现成账本零行(被回滚)。这里比的是整个 vault 的**内容指纹**。
+
+    ⚠️ **R1 整改**(Codex round-1 MEDIUM-2): 上一版只做「新增路径集差」, 对三种形态
+    双盲 —— ① **改写**已有文件(路径集不变) ② **删除**已有文件(只会让 after 变小,
+    而差集只取 after 里多出来的) ③ 建了临时文件又删掉(前后路径集相同)。而且豁免写成
+    `".lock" not in p and "quiz-answer" not in p`, 那是**按名字**豁免: 任何路径里
+    带 `quiz-answer` 字样的新文件都被放行 —— 比它要豁免的那一个锁文件宽得多。
+    现在改为 **path → (size, sha256)** 的全树映射逐条比对, 并把豁免收窄成
+    「恰好是这一个锁文件路径」; ③ 由 rglob 看不见, 故另加 fsync 后的**账本字节**
+    与节点字节双重锚 —— 三种形态里能留下持久痕迹的都被覆盖, 建后即删的纯临时文件
+    如实声明为**未覆盖**(它不改变最终状态, 也不构成数据损失)。
     """
     (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
     (vault / "learning_events.jsonl").unlink(missing_ok=True)
-    _before = sorted(str(p.relative_to(vault)) for p in vault.rglob("*"))
+
+    import hashlib
+
+    def _tree_fingerprint(root: Path) -> dict[str, object]:
+        """全树内容指纹: 相对路径 → (是否目录, 大小, sha256)。"""
+        out: dict[str, object] = {}
+        for q in sorted(root.rglob("*")):
+            rel = str(q.relative_to(root))
+            if q.is_dir():
+                out[rel] = ("dir", None, None)
+            else:
+                b = q.read_bytes()
+                out[rel] = ("file", len(b), hashlib.sha256(b).hexdigest())
+        return out
+
+    _before = _tree_fingerprint(vault)
     r = _run_writer_settled(vault, _payload(event_id="板癸#q1", ts=TS1, review_time=TS1, self_confidence_norm=1.5))
     assert r.returncode != 0 and "须为 null 或 0..1 的数" in (r.stderr or "")
-    _after = sorted(str(p.relative_to(vault)) for p in vault.rglob("*"))
-    _new = [p for p in _after if p not in _before]
-    # per-node 写锁文件是**门之前**就建的(:288 取锁早于入口区), 它出现是预期内的;
-    # 除它以外不得有任何新文件 —— 尤其不得有账本、临时文件、备份。
-    _unexpected = [p for p in _new if ".lock" not in p and "quiz-answer" not in p]
-    assert _unexpected == [], f"⛔ 拒绝路径留下了写入痕迹 ⇒ 门跑得太晚: {_unexpected}"
-    assert "learning_events.jsonl" not in _after or _ledger_lines(vault) == [], "账本必须仍为空"
+    _after = _tree_fingerprint(vault)
+
+    # per-node 写锁在**门之前**就取好了(取锁早于入口区), 是唯一预期内的新增。
+    # ⛔ 按**精确路径**豁免, 不按名字子串 —— 子串豁免(`".lock" not in p`)会顺带放行
+    # 任何路径里带该字样的文件, 比它要豁免的那一个宽得多。锁名可精确推算:
+    # `<VAULT>/.locks/node-<sha1(realpath(NODE))[:16]>.lock`(SKILL.md :281-285)。
+    _lock_h = hashlib.sha1(os.path.realpath(vault / NODE_REL).encode("utf-8")).hexdigest()[:16]
+    _allowed_added = {".locks", f".locks/node-{_lock_h}.lock"}
+    _added = {k: v for k, v in _after.items() if k not in _before}
+    _removed = {k: v for k, v in _before.items() if k not in _after}
+    _changed = {k: (_before[k], _after[k]) for k in _before if k in _after and _before[k] != _after[k]}
+    _unexpected_added = {k: v for k, v in _added.items() if k not in _allowed_added}
+    assert _unexpected_added == {}, f"⛔ 拒绝路径新建了文件 ⇒ 门跑得太晚: {_unexpected_added}"
+    # 锁文件必须是**空**的 —— 它只是一个取锁载体, 有内容就说明写点已经动过手。
+    _lock_entry = _added.get(f".locks/node-{_lock_h}.lock")
+    if _lock_entry is not None:
+        assert _lock_entry[1] == 0, f"⛔ 锁文件非空 ({_lock_entry[1]} 字节) ⇒ 拒绝路径写了东西"
+    assert _removed == {}, f"⛔ 拒绝路径**删掉**了已有文件（旧判据对此双盲）: {sorted(_removed)}"
+    assert _changed == {}, f"⛔ 拒绝路径**改写**了已有文件（旧判据对此双盲）: {sorted(_changed)}"
+    assert "learning_events.jsonl" not in _after, "账本连文件都不该被创建"
+    # 判据自证: 上面的指纹函数确实看得见「内容改变」——否则三条 assert 是空真。
+    _probe = vault / NODE_REL
+    _probe.write_text(NODE_V0 + "\n# probe\n", encoding="utf-8")
+    assert _tree_fingerprint(vault) != _after, "⛔ 指纹函数看不见内容变化 ⇒ 上面三条判据是空真"
+    _probe.write_text(NODE_V0, encoding="utf-8")
 
 
 # ── CARD-G3-3-R2-writer-boundary E-2: harness_tree 解析 ──
@@ -6804,17 +6849,85 @@ def test_g33r2_harness_tree_absent_falls_back_to_parent(vault):
     assert len(_ledger_lines(vault)) == 1, "缺省路径必须照常写入"
 
 
-def test_g33r2_harness_tree_explicit_real_repo_works(vault):
-    """③ 显式写**真** REPO(带引号) ⇒ 与①同结果, 证明解析出的值真被用上了。
+def _build_alt_harness(root: Path) -> Path:
+    """在 `root` 下造一棵**真能用**的 harness 树（与 vault 父目录不是同一棵）。"""
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "backend" / "scripts").mkdir(parents=True)
+    (root / "backend" / ".venv").symlink_to(WT / "backend" / ".venv", target_is_directory=True)
+    (root / "backend" / "scripts" / "validate_learning_events.py").symlink_to(VALIDATOR)
+    return root
 
-    ⛔ 没有这一条, 「解析根本没跑、永远走回退」也能让①②④全绿。
+
+def test_g33r2_harness_tree_explicit_alt_tree_is_actually_used(vault):
+    """③ 显式指向**另一棵**树 ⇒ 真被用上（两端点对照，缺省端必须先坏掉）。
+
+    ⛔ **本用例是 R1 整改**（Codex round-1 MEDIUM-3）。上一版把 `harness_tree` 写成
+    `vault.parent` —— 那**正好就是缺省回退值**，于是「解析结果被采用」与「解析压根
+    没跑、永远走回退」两种实现给出**同一个结果**，它证不了任何东西。我在 docstring 里
+    却称它是「解析真被用上的验伪锚」，这个说法当时就不成立。
+
+    真正的两端点对照：**同一个 vault、同一份 payload，唯一变量是那一行配置**——
+      · 端点 A（缺省）：把 vault 父目录的 `backend/` 改名 ⇒ 回退路径**必须失败**
+        （若这一步没红，说明「缺省端已坏」这个前提没成立，后面的对比是空的）；
+      · 端点 B（显式）：加上指向 alt 树的 `harness_tree` ⇒ **必须成功**。
+    A 红 B 绿，才排除得掉「永远走回退」。
+    """
+    alt = _build_alt_harness(vault.parent / "alt-harness")
+    # ── 端点 A: 弄坏缺省回退目标，先**断言前提成立**（缺省端确实不通）──
+    (vault.parent / "backend").rename(vault.parent / "backend-disabled")
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    (vault / "learning_events.jsonl").unlink(missing_ok=True)
+    _write_cfg(vault)  # 无 harness_tree
+    rA = _run_writer_settled(vault, _payload(event_id="板丑#q1", ts=TS1, review_time=TS1))
+    assert rA.returncode != 0, (
+        "⛔ 前提没成立：把 vault 父目录的 backend/ 改名后，缺省回退**仍然**跑通了 —— "
+        "那说明 REPO 根本没被用于 import（或另有来源），本用例的 A/B 对照是空的"
+    )
+    assert "G3-2 依赖不可达" in (rA.stderr or ""), f"缺省端应死在依赖 import 处: {(rA.stderr or '')[-300:]}"
+    assert len(_ledger_lines(vault)) == 0, "端点 A 拒绝 ⇒ 零写"
+
+    # ── 端点 B: 只加那一行配置，其余一切不变 ──
+    _write_cfg(vault, f'harness_tree: "{alt}"\n')
+    rB = _run_writer_settled(vault, _payload(event_id="板丑#q1", ts=TS1, review_time=TS1))
+    assert rB.returncode == 0, f"⛔ 显式指向 alt 树反而不通 ⇒ 解析出的值没被用上: {(rB.stderr or '')[-400:]}"
+    assert len(_ledger_lines(vault)) == 1, "端点 B 必须照常写入"
+
+
+def test_g33r2_harness_tree_quoted_value_survives_trailing_comment(vault):
+    """带引号的值后面跟注释 ⇒ 引号内容原样取出（Codex round-1 MEDIUM-1 回归）。
+
+    ⛔ 原实现的引号正则是**贪婪**的：`^(['\"])(.*)\\1\\s*(?:#.*)?$` 对
+    `harness_tree: "/x" # use "main"` 会让 `.*` 一路吃到最后一个引号，解析出
+    `/x" # use "main` —— 一个**写对了**的配置被判成坏路径，整条评分链停摆。
+    """
+    alt = _build_alt_harness(vault.parent / "alt-harness-cmt")
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    (vault / "learning_events.jsonl").unlink(missing_ok=True)
+    _write_cfg(vault, f'harness_tree: "{alt}"  # 指向另一棵树 "main"\n')
+    r = _run_writer_settled(vault, _payload(event_id="板午#q1", ts=TS1, review_time=TS1))
+    assert r.returncode == 0, f"⛔ 带引号 + 尾注释（注释里还有引号）被误判成坏路径: {(r.stderr or '')[-400:]}"
+    assert len(_ledger_lines(vault)) == 1
+
+
+def test_g33r2_harness_tree_commented_out_key_falls_back(vault):
+    """`harness_tree: # 注释` = YAML 的「空值 + 注释」⇒ 视同没写，回退（MEDIUM-1 第二形态）。
+
+    ⛔ 原实现剥注释用 `\\s+#`，要求 `#` 前有空白；`harness_tree: # reset` 的 `#` 前
+    没有空白（`\\s*` 已被前面的键值正则吃掉），于是整个 `# reset` 被当成**相对路径**，
+    fail-closed 拒写 —— 「用户把这个键临时注释掉」变成了砖化操作。
     """
     (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
     (vault / "learning_events.jsonl").unlink(missing_ok=True)
-    _write_cfg(vault, f'harness_tree: "{vault.parent}"\n')
-    r = _run_writer_settled(vault, _payload(event_id="板丑#q1", ts=TS1, review_time=TS1))
-    assert r.returncode == 0, f"⛔ 显式真 REPO 反而不通: {(r.stderr or '')[-400:]}"
-    assert len(_ledger_lines(vault)) == 1, "显式真 REPO 必须照常写入"
+    for _extra, _why in (
+        ("harness_tree: # reset\n", "空值 + 紧跟注释"),
+        ("harness_tree:   # 先关掉，等部署时再填\n", "空值 + 空白 + 中文注释"),
+    ):
+        (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+        (vault / "learning_events.jsonl").unlink(missing_ok=True)
+        _write_cfg(vault, _extra)
+        r = _run_writer_settled(vault, _payload(event_id="板未#q1", ts=TS1, review_time=TS1))
+        assert r.returncode == 0, f"⛔ 注释掉该键应回退而不是拒写 ({_why}): {(r.stderr or '')[-400:]}"
+        assert len(_ledger_lines(vault)) == 1, f"回退后必须照常写入 ({_why})"
 
 
 @pytest.mark.parametrize(

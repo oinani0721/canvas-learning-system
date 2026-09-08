@@ -326,18 +326,32 @@ evid = "quiz:" + eid
 #: ⛔ 不接受数字串 (2026-09-08 只读普查裁定, 证据 evidence-g33r2/event-id-shapes-*.txt):
 #: live 账本 22 行 payload **零**含此键(它是 receipt-only), live receipt 仅 `0`×4 / `0.4`×1;
 #: 而 `self_confidence_raw: "2" → norm: 0.4` 正是规范 :175「数字 0-5 → 除以 5」的除法产物
-#: (float), :218 示例 payload 也写作裸数字 `0.5`。接受字符串就必须先 strip(), 那等于在
-#: 身份键旁边重新开一个「吃掉哪些字符」的口子 —— 上游给字符串 = 上游 bug, 报给它。
+#: (float), :218 示例 payload 也写作裸数字 `0.5`。理由是**类型契约**: 上游给字符串
+#: 说明归一化那一步没做完, 报给它比替它猜更对。
+#: ⚠️ 理由更正 (Codex round-1 MEDIUM, 如实记): 上一版写「接受字符串就必须先 strip(),
+#: 那等于重开一个吃字符的口子」—— 这个因果**不成立**。若 strip 之后转成有限且在范围内的
+#: float 且**只使用那个 float**, 被剥掉的字符根本不会进 YAML。真正会出事的是
+#: 「只 strip 却继续裸插值那个字符串」。把一个站不住的理由写成硬规则, 下一个人照抄就
+#: 会在别处推出错的结论, 所以这里换成真实理由。
 #: ⚠️ `bool` 必须**先**判: 它是 `int` 的子类, `isinstance(True, (int, float))` 为真,
 #: 不先拦就会被 `float(True)` 静默写成 `1.0` —— 把「没填」伪装成「完全懂」。
+#: ⚠️ `float()` 必须在 `isfinite` **之前** (Codex round-1 LOW 实测): JSON 能携带任意
+#: 精度整数, 而 `math.isfinite(10**400)` 抛的是 `OverflowError` 而不是返回 False ——
+#: 那会绕过下面这句受控拒因, 上游收到一句看不懂的 traceback 而不是「须为 0..1 的数」。
+#: 先转 float 就把它变成 `inf`, 由 `isfinite` 正常判掉; 转不动的(超大 int)在
+#: except 里走同一句拒因, 两条路给同一个答案。
 import math
 _scn = p.get("self_confidence_norm")
+try:
+    _scn_f = float(_scn) if isinstance(_scn, (int, float)) and not isinstance(_scn, bool) else None
+except (OverflowError, ValueError):
+    _scn_f = float("inf")
 if _scn is None:
     pass
-elif isinstance(_scn, bool) or not isinstance(_scn, (int, float)) or not math.isfinite(_scn) or not (0.0 <= _scn <= 1.0):
+elif _scn_f is None or not math.isfinite(_scn_f) or not (0.0 <= _scn_f <= 1.0):
     raise SystemExit(f"[quiz-answer] self_confidence_norm 非法 ({_scn!r}; 须为 null 或 0..1 的数) — 它与 receipt 身份键同段落, 非法值会改写条目 event_id, fail-closed 拒写 — 请上游修正后重跑")
 else:
-    p["self_confidence_norm"] = float(_scn)
+    p["self_confidence_norm"] = _scn_f
 node_id = os.path.splitext(os.path.basename(NODE))[0]
 # ⛔ 归属比较**一律**走这个 key (Codex round-10 BLOCKER): round-9 我只在
 # dup owner 检查里做了 NFC 归一化, **适用集路由仍是 raw compare** ——
@@ -380,9 +394,17 @@ def _harness_tree(vault_dir):
     except OSError:
         _raw = ""
     #: 带引号的值先按引号取内容(引号**内**的 `#` 是路径的一部分, 不是注释);
-    #: 裸值才剥 ` #` 尾注释 —— 反过来先剥注释会把 `"a # b"` 截成 `"a`。
-    _qm = re.match(r'^([\'"])(.*)\1\s*(?:#.*)?$', _raw)
-    _tree = _qm.group(2) if _qm else re.sub(r'\s+#.*$', '', _raw).strip()
+    #: 裸值才剥 `#` 尾注释 —— 反过来先剥注释会把 `"a # b"` 截成 `"a`。
+    #: ⛔ 引号内容用**非贪婪** `(.*?)` + 结尾锚(Codex round-1 MEDIUM-1 实测):
+    #: 贪婪版 `(.*)\1\s*(?:#.*)?$` 对 `"/valid/repo" # use "main"` 会让 `.*` 一路吃到
+    #: 最后一个引号, 解析出 `/valid/repo" # use "main` —— 一个**写对了**的配置被判成坏路径,
+    #: 于是整条评分链 fail-closed 停摆。非贪婪让 `\1` 优先匹配**第一个**闭合引号。
+    #: ⛔ 裸值的注释判据不能要求 `#` 前有空白(同轮 MEDIUM-1 第二形态): `harness_tree: # reset`
+    #: 是 YAML 的「空值 + 注释」, 而 `\s+#` 要求前置空白 ⇒ 整个 `# reset` 被当成相对路径,
+    #: 同样把「用户临时注释掉这个键」变成砖化操作。裸值里的 `#` **一律**视为注释起点 ——
+    #: 路径含 `#` 的用户必须加引号, 这与 YAML 本身的规则一致。
+    _qm = re.match(r'^([\'"])(.*?)\1\s*(?:#.*)?$', _raw)
+    _tree = _qm.group(2) if _qm else re.sub(r'#.*$', '', _raw).strip()
     if not _tree:
         return os.path.dirname(vault_dir)
     _tree = os.path.expanduser(_tree)
