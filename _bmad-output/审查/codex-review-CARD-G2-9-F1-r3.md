@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-07-第十三批 · 车道 U5 · 卡 CARD-G2-9-F1 round-3
+> 模型: `gpt-6-astra` · reasoning_effort: `ultra` · codex: `codex-cli 0.153.3`
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat _bmad-output/审查/prompts/codex-prompt-CARD-G2-9-F1-r3.md)"`
+> 审查绑定: `0ec1f0c3`（本轮送审时的 HEAD；round-4 已前进到 `b80c5f25`，故本轮**不**绑最终 HEAD）
+> 会话头自证（抄 .stderr 前几行含 model 行，stderr 本身不入库）:
+> `Reading additional input from stdin...` / `OpenAI Codex v0.153.3` / `workdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u5-lance` / `model: gpt-6-astra`
+
+---
+
 代码审查绑定 **`0ec1f0c3`**；未修改文件、执行测试或连接数据库、网络。验收单期间新增了六行未提交说明，下文文档行号按当前文件。
 
 **B 类未发现 BLOCKER／HIGH；A 类移交处置仍有缺口。** 我不认为安排 F2 根治本身不可接受，但当前材料不足以支持认定 A 类处置已经完成。

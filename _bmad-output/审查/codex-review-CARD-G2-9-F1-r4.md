@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-07-第十三批 · 车道 U5 · 卡 CARD-G2-9-F1 round-4
+> 模型: `gpt-6-astra` · reasoning_effort: `ultra` · codex: `codex-cli 0.153.3`
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat _bmad-output/审查/prompts/codex-prompt-CARD-G2-9-F1-r4.md)"`
+> 审查绑定: `b80c5f25`（本轮送审时的 HEAD；round-5 已前进到 `0db66c20`，故本轮**不**绑最终 HEAD）
+> 会话头自证（抄 .stderr 前几行含 model 行，stderr 本身不入库）:
+> `Reading additional input from stdin...` / `OpenAI Codex v0.153.3` / `workdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u5-lance` / `model: gpt-6-astra`
+
+---
+
 审查绑定 **`b80c5f25`**，三份本卡源码均与提交一致；文档按当前工作区核对。未修改文件、执行测试或连接数据库、网络。**A-1 部分闭合，A-4 的指定修复场景已有证据；仍有以下处置与文档问题。**
 
 1. **[A] [MEDIUM] [test_lancedb_cross_vault_drop_g29f1.py:449](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u5-lance/backend/tests/unit/test_lancedb_cross_vault_drop_g29f1.py:449)：前提门通过后，最终枚举抛异常时，仍会与“缺陷正常复现”同报 PASS＋XFAIL。**

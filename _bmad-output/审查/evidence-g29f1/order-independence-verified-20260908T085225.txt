@@ -1,0 +1,14 @@
+# 顺序依赖已消除的**行为**验证（r5；Codex r4 B-6 只做了静态确认）
+# 做法：pytest 按命令行给定的 nodeid 顺序执行 ⇒ 显式把缺陷锁排在前提门之前。
+# 2026-09-08T00:52:25Z
+
+A 正常顺序（文件顺序）                    → ================== 10 passed, 6 xfailed, 62 warnings in 0.62s ==================
+B 反序：缺陷锁**全部先跑**，前提门在后    → ================== 6 passed, 6 xfailed, 46 warnings in 0.64s ===================
+C 只跑前提门（库未被任何锁改过）          → ======================== 6 passed, 34 warnings in 0.51s ========================
+D 只跑缺陷锁                              → ======================= 6 xfailed, 46 warnings in 0.58s ========================
+
+结论:
+  B 场景里缺陷锁已经把共享库改掉（删表），前提门随后仍 **6 passed** ⇒ 顺序依赖消除。
+  对比 r4 时的同类复现（order-dependency-of-shared-fixture-*.txt）：那时前提门当场
+  ValueError: Table 'a_b_canvas_nodes' was not found = 假红。
+  A 的 10 passed = 4 真门 + 6 前提门；B/C 的 6 passed = 6 条前提门。

@@ -1,7 +1,8 @@
 # CARD-G2-9-F1 — 交主 session 的裁定请求（一页版）
 
-> 车道 `card-u5-lance` · 分支 `card/u5-lance` · HEAD **待 r5 commit**（da690bf8 起 5 个 commit）
-> Codex 四轮：r1 / r2 各 1 HIGH（均复核成立并处置）→ r3 / r4 连续两轮 **B 类 BLOCKER=0、HIGH=0**
+> 车道 `card-u5-lance` · 分支 `card/u5-lance` · HEAD `0db66c20`（da690bf8 起 5 个 commit）
+> Codex **五轮**：r1 / r2 各 1 HIGH（均复核成立并处置）→ r3 / r4 / r5 **连续三轮 B 类 BLOCKER=0、HIGH=0**
+> ⚠️ r5 绑定 `0db66c20` **即当前 HEAD**，代码树自那以后未变（其后只改 `_bmad-output`）⇒ 满足 D-15 的绑定要求
 > 完整依据见 `_bmad-output/验收单/UAT-CARD-G2-9-F1-2026-09-08.md` §三.6 与 §五 #1。
 > ⚠️ 本车道**不自判可合**（协议 §1 + D-15）。以下是裁定所需的全部事实。
 
@@ -44,7 +45,7 @@
 
 | 路径 | 入口 | 触发条件 | 实测存档 |
 |---|---|---|---|
-| **cache** 启动自愈 | 进程启动 → `_cache_tables` | (i) id 互为前缀 + (ii) 表数 >10 + (iii) 重叠表在页外 + **(iv) 该表 schema 漂移** | `high1-r2-pagination-widens-overlap-*.txt` |
+| **cache** 启动自愈 | 进程启动 → `_cache_tables` | (i) id 互为前缀 + (ii) 表数 >10 + (iii) 重叠表在页外 + **(iv) 该表 schema 漂移**；⚠️ 指纹表被 `endswith` 豁免，这条路径碰不到 | `high1-r2-pagination-widens-overlap-*.txt` |
 | **drop** 显式删索引 | `DELETE /index/{vault_id}` → `drop_vault_tables` → `list_vault_tables` | (i) + (ii) + (iii)，**不需要 (iv)** | `a2-dropvault-path-*.txt`（用**健康**表：改前删 10 张不含它，改后删 11 张含它） |
 
 ⇒ **drop 路径门槛更低**（少一个条件），且入口是**用户显式操作**而非后台启动。
@@ -66,11 +67,12 @@
 
 ## 三 已加的锁与移交
 
-- 门⑤ 族 **4 条** `xfail(strict=True)`：两条路径（cache / drop）× 两种形态（page-inner 既有面 / page-outer 本卡新打开）
-- 前提另立 **4 条不带 xfail** 的门，与缺陷锁共用 **module-scope fixture**
-  —— 否则 xfail 会吞掉前提失败（含 fixture setup），且 F2 修好后停在 XFAIL 而非 XPASS
-- **负控 7** 在真实源码上模拟 F2 修好，实测 `8 failed, 4 passed`（4 前提门红 + 4 缺陷锁 XPASS）
-  ⇒ 交接机制**已实测可用**，不是推理
+- 门⑤ 族 **6 条** `xfail(strict=True)`：两条路径 × 两种形态，drop 侧再按表种（数据表 / 指纹表）分
+- 前提另立 **6 条不带 xfail** 的门，与缺陷锁共用 **module-scope fixture**，且每个
+  (形态 × 路径 × 表) 一个**独立库** —— 否则 xfail 会吞掉前提失败（含 fixture setup），
+  F2 修好后会停在 XFAIL 而非 XPASS；共享库还会让参数化的后一条看到前一条的残局
+- **负控 7** 在真实源码上模拟 F2 修好，实测 `12 failed, 4 passed`
+  （6 前提门红 + 6 缺陷锁 XPASS；4 绿是门①②③④）⇒ 交接机制**已实测可用**，不是推理
 - 移交 `CARD-G2-9-F2`：需拿到全部 vault 列表做最长前缀优先，涉及
   `resolve_table_name` / `_fingerprint_table_name` / `_owns_table` 三处同口径，**整体一张卡**
 
