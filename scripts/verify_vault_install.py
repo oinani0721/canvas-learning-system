@@ -261,7 +261,7 @@ def load_manifest(path: Path | str) -> Manifest:
 
     读取阶段把 OSError / UnicodeDecodeError / ValueError 一并转成 ManifestError ——
     「--manifest 指向一个目录 / 不可读 / 非 UTF-8」不该以未捕获异常终止, 那样调用方
-    拿到的是 1 而不是承诺的 2。
+    拿到的是 1 而不是承诺的用法错档(EXIT_USAGE=3)。
     """
     path = Path(path)
     try:
@@ -493,7 +493,9 @@ def _entry_state(path: Path) -> str:
     """
     try:
         os.lstat(path)
-    except FileNotFoundError:
+    except (FileNotFoundError, NotADirectoryError):
+        # ENOTDIR 是**确定的**否定答案(路径中间某段是普通文件 ⇒ 这条路径不可能存在),
+        # 与「权限不足问不出来」不是一回事。归 absent, 否则 exclude 会被误阻断。
         return "absent"
     except OSError:
         return "unreadable"
@@ -539,6 +541,12 @@ def _kind_ok(item: Item, path: Path) -> bool:
       :86 强制删除 `pending_archives*.jsonl`     → 删一切**非目录**条目
     kind 为空 = 不限类型 (`:68`/`:69` 那些按路径声明「不复制」的项本就没有类型条件)。
     """
+    if _entry_state(path) == "unreadable":
+        # 问不出类型就**不能宣称满足任何类型条件** —— 包括 `nondir`。
+        # 原写法 `not (is_dir() and not is_symlink())` 在谓词被权限吞掉时恒为 True,
+        # 于是一个查不动的条目会被当成 nondir 而误判为「故意不复制」。
+        # 保守取 False: 不当作命中, 由调用方另行登记 unreadable。
+        return False
     if item.kind == "dir":
         return path.is_dir() and not path.is_symlink()
     if item.kind == "file":
@@ -608,12 +616,19 @@ def _leaf_digest(path: Path) -> tuple[str, bool]:
     调用方无从知道发生过读取失败 —— 于是「两侧同名文件都是 000 权限、内容其实不同」
     会摘要相等、unreadable 为空、退出码 0。那是假绿, 比误报危险。
     """
+    # 先用 lstat 问一次: 下面那几个谓词全都吞 OSError, 权限不足时会**全部返回 False**,
+    # 于是走到末尾的 "?:unknown" 且 bad=False —— 两侧都这样就「判等」, 是假绿。
+    # (实测: 目录 0444 可列名字但不可 stat 里面的条目, 正是这个形态。)
+    if _entry_state(path) == "unreadable":
+        return "U:unreadable", True
     try:
         if path.is_symlink():
-            # backslashreplace: 软链目标文本可能带 surrogateescape 出来的字符,
-            # 严格编码会抛 UnicodeEncodeError —— 那个异常不在任何捕获面里, 会让 CLI
-            # 以 1 退出而被读成「只有 missing」。摘要只需确定性, 转义不影响可比性。
-            return "L:" + hashlib.sha256(str(path.readlink()).encode("utf-8", "backslashreplace")).hexdigest(), False
+            # surrogatepass 而**不是** backslashreplace: 摘要要的不只是「不抛异常」,
+            # 还必须**单射** —— 不同的输入必须给出不同的字节。backslashreplace 有损:
+            # `os.fsdecode(b"bad\xff")` 与字面串 `"bad" + 反斜杠 + "udcff"` 编码后逐字节相同
+            # (本机实测 sha 相等) ⇒ 两个**不同**的软链目标会判等, 内容差异被吃掉 = 假绿。
+            # surrogatepass 把孤立代理编成它自己的 3 字节形式, 与任何合法 UTF-8 都不碰撞。
+            return "L:" + hashlib.sha256(str(path.readlink()).encode("utf-8", "surrogatepass")).hexdigest(), False
         if path.is_file():
             return "F:" + hashlib.sha256(path.read_bytes()).hexdigest(), False
         if path.is_dir():
@@ -662,12 +677,12 @@ def _digest(
                 continue
         if kind == "unreadable":
             _note_unreadable(child, rel)
-            acc.update(f"{rel}\0U:unreadable\n".encode("utf-8", "backslashreplace"))
+            acc.update(f"{rel}\0U:unreadable\n".encode("utf-8", "surrogatepass"))
             continue
         leaf, bad = _leaf_digest(child)
         if bad:
             _note_unreadable(child, rel)
-        acc.update(f"{rel}\0{leaf}\n".encode("utf-8", "backslashreplace"))
+        acc.update(f"{rel}\0{leaf}\n".encode("utf-8", "surrogatepass"))
     return "D:" + acc.hexdigest()
 
 
@@ -829,10 +844,28 @@ def verify(
             continue
 
         target = vault / item.path
-        if not target.exists():
+        target_state = _entry_state(target)
+        if target_state == "unreadable":
+            # 「问不出来」不是「不在」: 降级成 missing 会给出 rc=1(只缺东西), 而实情是
+            # 这一项根本没被核对过。归 unreadable ⇒ rc=2, 并在报告里说清原因。
+            report.unreadable.append(
+                Finding(
+                    path=item.path,
+                    category="unreadable",
+                    action=item.action,
+                    role=item.role,
+                    detail="查询不到(祖先目录不可搜索等), 无法判断它在不在目标里",
+                )
+            )
+            continue
+        if target_state == "absent":
             detail = ""
-            if item.action == "copy" and source is not None and not (source / item.path).exists():
-                detail = "模板源也没有这一项 (install-vault.sh 会打 ⚠️ 跳过)"
+            if item.action == "copy" and source is not None:
+                src_state = _entry_state(source / item.path)
+                if src_state == "absent":
+                    detail = "模板源也没有这一项 (install-vault.sh 会打 ⚠️ 跳过)"
+                elif src_state == "unreadable":
+                    detail = "模板源那一项查询不到, 不能断言「模板源也没有」"
             report.missing.append(
                 Finding(
                     path=item.path,
@@ -886,10 +919,9 @@ def verify(
                         detail="读不进去, 无法证明两侧一致",
                     )
                 )
-            if unreadable_here:
-                # 有读不动的条目 ⇒ 这一项**没被证明一致**, 不能记 match。
-                # (摘要里两侧都写同一个 U: 标记会让它们「判等」—— 那正是假绿的来源。)
-                continue
+            # 顺序要紧: **先判漂移再判读不动**。反过来写(读不动就直接 continue)会把
+            # 同一项里**已经看得见的**内容差异一起吃掉 —— 报告的 content-drift 变成 0,
+            # 退出码虽仍是 2, 分类信息却退化了。
             if src_digest != tgt_digest:
                 report.content_drift.append(
                     Finding(
@@ -900,6 +932,10 @@ def verify(
                         detail="与模板源字节不一致",
                     )
                 )
+                continue
+            if unreadable_here:
+                # 摘要相等但有读不动的条目 ⇒ 这一项**没被证明一致**, 不能记 match。
+                # (两侧都写同一个 U: 标记会让它们「判等」—— 那正是假绿的来源。)
                 continue
 
         report.match.append(Finding(path=item.path, category="match", action=item.action, role=item.role))
@@ -923,6 +959,18 @@ def _collect_extra(vault: Path, manifest: Manifest, report: Report, excluder: Ex
     seen: set[str] = set()
     for scan in manifest.extra_scan:
         scan_dir = vault / scan.dir if scan.dir else vault
+        if _entry_state(scan_dir) == "unreadable":
+            # 覆盖面的根问不出来 ⇒ 不能说「这里没有清单外的东西」。
+            report.unreadable.append(
+                Finding(
+                    path=scan.dir or ".",
+                    category="unreadable",
+                    action="-",
+                    role="-",
+                    detail="extra 覆盖面的根查询不到, 无法证明没有清单外的东西",
+                )
+            )
+            continue
         if not scan_dir.is_dir():
             continue
         name_regex = _pattern_to_regex(scan.match)
@@ -991,10 +1039,22 @@ def _check_hotkeys(vault: Path, report: Report) -> None:
         report.unreadable.append(Finding(path=path_rel, category="unreadable", action="-", role="-", detail=detail))
         report.hotkeys_note = note
 
-    if not hotkeys_path.exists():
+    hotkeys_state = _entry_state(hotkeys_path)
+    main_js_state = _entry_state(main_js_path)
+    # 「查询不到」与「确实没有」必须分开: 前者是 unreadable(计入阻断), 后者才是
+    # 「无可核对 / 构建产物没生成」这类不计 rc 的说明。把前者说成后者 = 把「没法查」
+    # 记成「查过了没问题」。
+    for state, rel, what in (
+        (hotkeys_state, HOTKEYS_REL, "快捷键清单"),
+        (main_js_state, PLUGIN_MAIN_JS_REL, "插件构建产物"),
+    ):
+        if state == "unreadable":
+            _unreadable(rel, f"{what}查询不到, 无法核对快捷键", f"not evaluated ({rel} 查询不到)")
+            return
+    if hotkeys_state == "absent":
         report.hotkeys_note = f"not evaluated (无 {HOTKEYS_REL})"
         return
-    if not main_js_path.is_file():
+    if main_js_state == "absent" or not main_js_path.is_file():
         report.hotkeys_note = f"not evaluated ({PLUGIN_MAIN_JS_REL} 缺 — gitignored 构建产物)"
         return
     try:
@@ -1277,4 +1337,38 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":  # pragma: no cover
-    sys.exit(main())
+    # **stdout 的可写性不在四档契约的保护范围内**, 但它照样能把退出码搅乱:
+    #   - `PYTHONIOENCODING=ascii` 下, 报告正文(含中文)编码失败 ⇒ 实测 rc=1,
+    #     被读成「只有 missing」;
+    #   - 下游管道提前关闭 ⇒ 解释器退出期 flush 失败 ⇒ 实测 rc=120。
+    # 两者都不是「vault 有问题」。先把两个流改成不会因编码失败的形态, 再兜住断管。
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(errors="backslashreplace")
+        except (AttributeError, OSError, ValueError):
+            pass
+    # SystemExit 也要接住: `--help` 从 argparse 内部就 sys.exit(0) 出来了, 只 try
+    # BrokenPipeError 接不到它 —— 帮助文本的 flush 会推迟到解释器退出期才炸(rc=120)。
+    try:
+        _rc = main()
+    except SystemExit as _exc:
+        _rc = _exc.code if isinstance(_exc.code, int) else EXIT_USAGE
+    try:
+        sys.stdout.flush()
+    except (BrokenPipeError, OSError):
+        # 下游把管道关了。校验本身跑完了, 只是结果送不出去 —— 归环境/用法错档。
+        # 还得挡住解释器**退出期**的那次 flush, 否则它会再炸一遍并把退出码改成 120。
+        # 这里换一个哑对象而不是 `os.dup2(os.open(os.devnull, ...))`: 后者是一次
+        # **可写调用**, 会让「所有写调用都收敛在 _write_report 内」那道 AST 门变红 ——
+        # 为了让自己的收尾代码过关去放宽零写门, 是本末倒置。实测两种写法都给 rc=3
+        # 且都没有退出期噪音, 于是取不需要放宽判据的那种。
+        class _ClosedStdout:
+            def write(self, _data: str) -> int:
+                return 0
+
+            def flush(self) -> None:
+                return None
+
+        sys.stdout = _ClosedStdout()  # type: ignore[assignment]
+        _rc = EXIT_USAGE
+    sys.exit(_rc)

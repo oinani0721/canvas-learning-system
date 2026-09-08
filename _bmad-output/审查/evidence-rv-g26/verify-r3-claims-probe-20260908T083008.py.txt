@@ -1,0 +1,70 @@
+#!/usr/bin/env python3
+"""独立复验 Codex round-3 的三条 HIGH 与两条新引入 MEDIUM。不采信，自己跑。"""
+from __future__ import annotations
+import hashlib, importlib.util, os, subprocess, sys, tempfile
+from pathlib import Path
+WT = Path("/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy")
+V = WT / "scripts" / "verify_vault_install.py"
+spec = importlib.util.spec_from_file_location("_vv_c3", V)
+vv = importlib.util.module_from_spec(spec); sys.modules["_vv_c3"] = vv
+sys.dont_write_bytecode = True; spec.loader.exec_module(vv)
+
+print("=" * 74); print("HIGH-1: backslashreplace 是否不保序（两个不同输入 → 同一摘要）"); print("=" * 74)
+raw_a = b"bad\xff-target"                       # 非法字节 → surrogateescape → '\udcff'
+s_a = os.fsdecode(raw_a)
+s_b = "bad\\udcff-target"                       # 纯 ASCII 字面反斜杠
+e_a = s_a.encode("utf-8", "backslashreplace")
+e_b = s_b.encode("utf-8", "backslashreplace")
+print(f"  A 原始字节 {raw_a!r} → 解码 {s_a!r} → 编码 {e_a!r}")
+print(f"  B 字面串   {s_b!r} → 编码 {e_b!r}")
+print(f"  ⇒ 编码后相等: {e_a == e_b}   sha 相等: {hashlib.sha256(e_a).hexdigest() == hashlib.sha256(e_b).hexdigest()}")
+print(f"  对照 surrogatepass: {s_a.encode('utf-8','surrogatepass')!r} vs {s_b.encode('utf-8','surrogatepass')!r}"
+      f"  相等={s_a.encode('utf-8','surrogatepass') == s_b.encode('utf-8','surrogatepass')}")
+
+print(); print("=" * 74); print("HIGH-1 端到端: 两个不同软链目标是否被判等"); print("=" * 74)
+with tempfile.TemporaryDirectory() as td:
+    td = Path(td)
+    a, b = td / "a", td / "b"
+    a.mkdir(); b.mkdir()
+    os.symlink(raw_a, os.fsencode(a / "link"))
+    os.symlink(s_b.encode(), os.fsencode(b / "link"))
+    da = vv._digest(a); db = vv._digest(b)
+    print(f"  A 摘要 {da[:24]}…  B 摘要 {db[:24]}…")
+    print(f"  ⇒ 两个**不同**的软链目标判等: {da == db}   ← True 即为假绿")
+
+print(); print("=" * 74); print("MEDIUM-1: ENOTDIR 是否被误判成 unreadable"); print("=" * 74)
+print(f"  _entry_state({V.name}/child) = {vv._entry_state(V / 'child')!r}   ← 期望 absent, 实得?")
+
+print(); print("=" * 74); print("HIGH-3: 目录可列但不可搜索时 _leaf_digest 落到 unknown 且 bad=False"); print("=" * 74)
+with tempfile.TemporaryDirectory() as td:
+    td = Path(td)
+    d = td / "d"; d.mkdir()
+    (d / "f.txt").write_text("AAA", encoding="utf-8")
+    os.chmod(d, 0o444)          # r 无 x: 能列名字, 不能 stat 里面的条目
+    try:
+        digest, bad = vv._leaf_digest(d / "f.txt")
+        print(f"  _leaf_digest = ({digest!r}, bad={bad})   ← bad=False 即为漏报")
+        ur = []
+        dg = vv._digest(d, unreadable=ur)
+        print(f"  _digest 摘要={dg[:20]}…  登记 unreadable={ur}")
+    finally:
+        os.chmod(d, 0o755)
+
+print(); print("=" * 74); print("HIGH-2: 其余「查不到当不存在」入口"); print("=" * 74)
+with tempfile.TemporaryDirectory() as td:
+    td = Path(td)
+    guard = td / "g"; guard.mkdir()
+    inner = guard / "x"; inner.mkdir()
+    os.chmod(guard, 0o000)
+    try:
+        for label, fn in [("target.exists() (:832 面)", lambda: inner.exists()),
+                          ("scan_dir.is_dir() (:926 面)", lambda: inner.is_dir()),
+                          ("main_js.is_file() (:997 面)", lambda: (inner / "main.js").is_file())]:
+            print(f"  {label}: {fn()}   ← False 而实际是「问不出来」")
+    finally:
+        os.chmod(guard, 0o755)
+
+print(); print("=" * 74); print("MEDIUM-3: stdout 编码/flush 失败是否脱离四档"); print("=" * 74)
+r = subprocess.run([sys.executable, "-B", str(V), "--help"], capture_output=True,
+                   env={**os.environ, "PYTHONIOENCODING": "ascii"})
+print(f"  PYTHONIOENCODING=ascii --help → rc={r.returncode}   ← 期望 0")

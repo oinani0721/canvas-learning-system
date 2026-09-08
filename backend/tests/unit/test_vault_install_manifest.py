@@ -1685,7 +1685,14 @@ def test_exclude_scan_failure_is_registered_exactly_once(vault_pair):
     (locked / "x.txt").write_text("x", encoding="utf-8")
     os.chmod(locked, 0o111)  # 可按名访问, 不可列目录
     try:
-        result = vv.verify(target, vv.load_manifest(MANIFEST))
+        manifest = vv.load_manifest(MANIFEST)
+        # 前提: 确实有**两条** exclude 的扫描面覆盖 .claude/hooks —— 否则「只登记一次」
+        # 也可能是「只有一个来源到达」, 少扫一个会伪装成去重成功(Codex round-3 LOW)。
+        reaching = [
+            i.path for i in manifest.exclude_items if vv._static_prefix(i.path) in ("", ".claude", ".claude/hooks")
+        ]
+        assert len(reaching) >= 2, f"前提不成立: 覆盖 .claude/hooks 的 exclude 只有 {reaching}"
+        result = vv.verify(target, manifest)
         hits = [f.path for f in result.unreadable if f.path == ".claude/hooks"]
         assert len(hits) == 1, f"同一位置必须恰好登记一次, 实得 {len(hits)} 次"
         assert result.exit_code == vv.EXIT_MISMATCH == 2
@@ -1730,6 +1737,196 @@ def test_tilde_expansion_failure_uses_the_usage_exit_code(vault_pair, capsys):
     """MEDIUM 回归: `~未知用户名` 让 `expanduser()` 抛 `RuntimeError` —— 归用法错档 3, 不是 1。"""
     _source, target = vault_pair
     bogus = "~cls-no-such-user-9c1f/x"
+    # 四个调用点逐个覆盖 —— 只测 vault/manifest 时, 把 --report 恢复成直接
+    # expanduser 也不会红(Codex round-3 LOW)。
     assert vv.main(["--vault", bogus]) == vv.EXIT_USAGE == 3
     assert "路径展开失败" in capsys.readouterr().err
+    assert vv.main(["--vault", str(target), "--source", bogus]) == vv.EXIT_USAGE == 3
     assert vv.main(["--vault", str(target), "--manifest", bogus]) == vv.EXIT_USAGE == 3
+    assert vv.main(["--vault", str(target), "--report", bogus]) == vv.EXIT_USAGE == 3
+
+
+# ── CARD-RV-G2-6 round-4 整改的门（Codex round-3 结论）────────────────
+
+
+def test_digest_encoding_is_injective_not_merely_total():
+    """HIGH 回归: 摘要编码必须**单射**, 「不抛异常」不够。
+
+    round-3 我选了 `backslashreplace`，理由写的是「摘要只需确定性」—— 确定性是必要
+    条件不是充分条件。它有损: 一个非法字节经 surrogateescape 解码后, 与字面写出来的
+    同名转义串编码后**逐字节相同** ⇒ 两个不同的软链目标判等 = 假绿。
+    这条门直接钉住「不同输入 → 不同字节」这个性质本身，而不是钉某个函数名。
+    """
+    from_bytes = os.fsdecode(b"bad\xff-target")  # → 含 U+DCFF 的字符串
+    literal = "bad\\udcff-target"  # 纯 ASCII，字面反斜杠
+    assert from_bytes != literal, "前提: 这两个字符串本来就不同"
+    assert from_bytes.encode("utf-8", "backslashreplace") == literal.encode("utf-8", "backslashreplace"), (
+        "前提: backslashreplace 确实把它们压成同一串 —— 否则这条门在防一个不存在的东西"
+    )
+    # 判据绑 AST 而不是文本: 这一轮已经被**注释里的词**误伤过三次
+    # (标签里的 "ls "、docstring 里的代理转义、这里的 "backslashreplace")。
+    # 只看 `.encode(...)` 调用的实参，注释与说明文字怎么写都不影响判定。
+    import ast
+
+    tree = ast.parse(VERIFIER.read_text(encoding="utf-8"))
+    digest_funcs = {"_leaf_digest", "_digest"}
+    offenders = []
+    for func in ast.walk(tree):
+        if not isinstance(func, ast.FunctionDef) or func.name not in digest_funcs:
+            continue
+        for node in ast.walk(func):
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "encode":
+                errs = [a.value for a in node.args[1:] if isinstance(a, ast.Constant)]
+                errs += [
+                    k.value.value for k in node.keywords if k.arg == "errors" and isinstance(k.value, ast.Constant)
+                ]
+                if "backslashreplace" in errs:
+                    offenders.append((func.name, node.lineno))
+    assert offenders == [], f"摘要路径上的 encode 不得用有损的 backslashreplace: {offenders}"
+    # 验伪锚: 这套 AST 判据确实能看见摘要函数里的 encode 调用（否则它恒真）
+    seen = [
+        n.lineno
+        for f in ast.walk(tree)
+        if isinstance(f, ast.FunctionDef) and f.name in digest_funcs
+        for n in ast.walk(f)
+        if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == "encode"
+    ]
+    assert len(seen) >= 3, f"摘要路径上应当有至少 3 处 encode 调用, 实见 {len(seen)} 处"
+
+
+def test_two_different_symlink_targets_do_not_collide(tmp_path):
+    """HIGH 回归（行为面）: 上一条钉性质，这一条钉后果 —— 两个不同软链目标不得判等。"""
+    a, b = tmp_path / "a", tmp_path / "b"
+    a.mkdir()
+    b.mkdir()
+    os.symlink(b"bad\xff-target", os.fsencode(a / "link"))
+    os.symlink(b"bad\\udcff-target", os.fsencode(b / "link"))
+    assert vv._digest(a) != vv._digest(b), "不同的软链目标必须给出不同摘要"
+
+
+def test_entry_state_maps_enotdir_to_absent(tmp_path):
+    """MEDIUM 回归: `ENOTDIR` 是**确定的**否定答案，不是「问不出来」。
+
+    `a` 是普通文件时，`a/b` 不可能存在 —— 归 unreadable 会让 exclude 被误阻断。
+    """
+    plain = tmp_path / "a"
+    plain.write_text("x", encoding="utf-8")
+    assert vv._entry_state(plain / "b") == "absent"
+    assert vv._entry_state(tmp_path / "nope") == "absent"
+    assert vv._entry_state(plain) == "present"
+
+
+def test_unreadable_leaf_in_listable_but_unsearchable_dir_is_registered(tmp_path):
+    """HIGH 回归: 目录可列名字但不可 stat 里面的条目（0444）时，叶子摘要不得落到 unknown。
+
+    那几个类型谓词全都吞 OSError ⇒ 权限不足时**全部返回 False** ⇒ 走到 `"?:unknown"`
+    且 `bad=False` ⇒ 两侧都这样就判等，unreadable 为空，退出码 0 = 假绿。
+    """
+    d = tmp_path / "d"
+    d.mkdir()
+    (d / "f.txt").write_text("AAA", encoding="utf-8")
+    os.chmod(d, 0o444)
+    try:
+        digest, bad = vv._leaf_digest(d / "f.txt")
+        assert bad is True, f"读不动的叶子必须回报 bad=True, 实得 ({digest!r}, {bad})"
+        assert digest == "U:unreadable"
+        collected: list[str] = []
+        vv._digest(d, unreadable=collected)
+        assert collected == ["f.txt"], f"目录摘要必须把它登记进 unreadable, 实得 {collected}"
+    finally:
+        os.chmod(d, 0o755)
+
+
+def test_kind_ok_refuses_to_claim_a_type_it_cannot_query(tmp_path):
+    """HIGH 回归: 问不出类型时不得宣称满足任何类型条件 —— 尤其 `nondir`。
+
+    原写法 `not (is_dir() and not is_symlink())` 在谓词被权限吞掉时**恒为 True**,
+    于是一个查不动的条目会被当成 nondir 而误判成「故意不复制」。
+    """
+    guard = tmp_path / "g"
+    guard.mkdir()
+    (guard / "x").write_text("x", encoding="utf-8")
+    os.chmod(guard, 0o000)
+    try:
+        target = guard / "x"
+        for kind in ("dir", "file", "nondir", ""):
+            item = vv.Item(path="x", role="t", action="exclude", kind=kind)
+            assert vv._kind_ok(item, target) is False, f"kind={kind!r} 时不得宣称命中"
+    finally:
+        os.chmod(guard, 0o755)
+
+
+def test_unqueryable_item_target_is_not_downgraded_to_missing(tmp_path, vault_pair, manifest_data):
+    """HIGH 回归: item 目标「问不出来」不得降级成 missing（那会给 rc=1「只缺东西」）。"""
+    _source, target = vault_pair
+    guard = target / ".claude"
+    os.chmod(guard, 0o000)
+    try:
+        result = _classify(target)
+        assert not any(f.path.startswith(".claude/") for f in result.missing), (
+            f"查询不到的项不得记 missing, 实得 {[f.path for f in result.missing]}"
+        )
+        assert any(f.path.startswith(".claude/") and "查询不到" in f.detail for f in result.unreadable)
+        assert result.exit_code == vv.EXIT_MISMATCH == 2
+    finally:
+        os.chmod(guard, 0o755)
+
+
+def test_unqueryable_extra_scan_root_is_registered(tmp_path, vault_pair):
+    """HIGH 回归: extra 覆盖面的根问不出来时不得静默跳过 —— 「没扫」不等于「没有」。"""
+    _source, target = vault_pair
+    guard = target / ".obsidian"
+    os.chmod(guard, 0o000)
+    try:
+        result = _classify(target)
+        assert any(f.path in (".obsidian", ".obsidian/plugins") for f in result.unreadable), (
+            f"覆盖面根查询不到必须登记, 实得 {[f.path for f in result.unreadable]}"
+        )
+        assert result.exit_code == vv.EXIT_MISMATCH == 2
+    finally:
+        os.chmod(guard, 0o755)
+
+
+def test_content_drift_is_not_hidden_by_an_unreadable_sibling(vault_pair):
+    """MEDIUM 回归: 同一 copy 项里既有读不动的叶子、又有真实内容差异时，两者都要报。
+
+    round-3 我把「读不动就 continue」放在漂移判断**之前**，于是 content-drift 归 0 ——
+    退出码仍是 2，但分类信息退化了，人会照着错误的方向去查。
+    """
+    source, target = vault_pair
+    skills = "skills"
+    (source / ".claude" / skills / "readable.txt").write_text("AAA", encoding="utf-8")
+    (target / ".claude" / skills / "readable.txt").write_text("BBB", encoding="utf-8")
+    for root in (source, target):
+        blocked = root / ".claude" / skills / "blocked.txt"
+        blocked.write_text("x", encoding="utf-8")
+        blocked.chmod(0o000)
+    try:
+        result = _classify(target, source=source)
+        assert ".claude/skills" in [f.path for f in result.content_drift], (
+            f"可见的内容差异不得被读不动的兄弟条目遮掉, 实得 drift={[f.path for f in result.content_drift]}"
+        )
+        assert result.unreadable, "读不动的叶子仍要登记"
+        assert result.exit_code == vv.EXIT_MISMATCH == 2
+    finally:
+        for root in (source, target):
+            (root / ".claude" / skills / "blocked.txt").chmod(0o644)
+
+
+def test_stdout_encoding_and_broken_pipe_stay_inside_the_exit_contract():
+    """MEDIUM 回归: stdout 写不出去也不得脱离四档。
+
+    `PYTHONIOENCODING=ascii` 下报告正文编码失败曾给 rc=1（被读成「只有 missing」）；
+    下游关管道曾让解释器退出期 flush 失败给 rc=120。两者都不是「vault 有问题」。
+    """
+    env = {**os.environ, "PYTHONIOENCODING": "ascii"}
+    done = subprocess.run([sys.executable, "-B", str(VERIFIER), "--help"], capture_output=True, env=env)
+    assert done.returncode == 0, f"ascii 环境下 --help 应为 0, 实得 {done.returncode}"
+
+    proc = subprocess.Popen(
+        [sys.executable, "-B", str(VERIFIER), "--help"], stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    )
+    proc.stdout.close()
+    _, err = proc.communicate()
+    assert proc.returncode == vv.EXIT_USAGE == 3, f"断管应归用法错档 3, 实得 {proc.returncode}"
+    assert b"Exception ignored" not in err, "不得在解释器退出期留下未处理异常"

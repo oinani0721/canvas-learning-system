@@ -1,0 +1,52 @@
+### round-4 复跑 (ts=20260908T082649)  verifier sha256=f47b48592143af88a66e922ccb4575292c2ef7aaf1cb6f3a6aba65fd4c955cf6
+--- 翻转总表 ---
+①  extra_allow 含 .obsidian/graph.json 且夹具有它
+  旧版(da690bf8): rc=1  buckets={'match': 28, 'extra': 1}
+  新版(本卡)    : rc=0  buckets={'match': 28, 'allowed_extra': 1}
+②  未列 extra (.claude/cache) — 既有门 test_extra_is_detected_alone 的语义迁移
+  旧版(da690bf8): rc=1  buckets={'match': 28, 'extra': 1}
+  新版(本卡)    : rc=2  buckets={'match': 28, 'extra': 1}
+③  只 missing — 既有门 test_missing_is_detected_alone, 期望值不变
+  旧版(da690bf8): rc=1  buckets={'match': 27, 'missing': 1}
+  新版(本卡)    : rc=1  buckets={'match': 27, 'missing': 1}
+④  只 content-drift — 既有门 test_content_drift_is_detected_alone 的语义迁移
+  旧版(da690bf8): rc=1  buckets={'match': 27, 'content_drift': 1}
+  新版(本卡)    : rc=2  buckets={'match': 27, 'content_drift': 1}
+④'  四类混合 (missing+extra+drift+excluded) — 既有零写门的语义迁移
+  旧版(da690bf8): rc=1  buckets={'match': 26, 'missing': 1, 'extra': 1, 'content_drift': 1, 'intentionally_excluded': 1}
+  新版(本卡)    : rc=2  buckets={'match': 26, 'missing': 1, 'extra': 1, 'content_drift': 1, 'intentionally_excluded': 1}
+④''  unreadable 单独 — 既有门 test_unreadable_alone_still_blocks 的语义迁移
+  旧版(da690bf8): rc=1  buckets={'match': 28, 'unreadable': 2}
+  新版(本卡)    : rc=2  buckets={'match': 27, 'unreadable': 3}
+⑤  用法错 (manifest 含绝对 path)
+  旧版(da690bf8): rc=2  ❌ manifest 不可用: item 的 path 必须相对 vault 根, 不得是绝对路径: '/etc/passwd'
+  新版(本卡)    : rc=3  ❌ manifest 不可用: item 的 path 必须相对 vault 根, 不得是绝对路径: '/etc/passwd'
+⑥  extra_allow 与 declared 重叠
+  旧版(da690bf8): rc=0  # vault-install verification report (CARD-G2-6, read-only)
+  新版(本卡)    : rc=3  ❌ manifest 不可用: extra_allow[0] '.obsidian/hotkeys.json' 与 已声明项 '.obsidian/hotkeys.json' 重叠 —— 同一路径不得既「该在这里」/「故意不复制」又「允许多出来」
+⑦  hotkeys 绑了不存在的命令 id
+  旧版(da690bf8): rc=0  buckets={'match': 28}
+  新版(本卡)    : rc=2  buckets={'match': 28, 'hotkey_orphan': 1}
+⑧  hotkeys 绑真 id (⑦ 的对照, 证不是恒红)
+  旧版(da690bf8): rc=0  buckets={'match': 28}
+  新版(本卡)    : rc=0  buckets={'match': 28}
+⑨  main.js 缺 (gitignored 构建产物)
+  旧版(da690bf8): rc=0  buckets={'match': 28}
+  新版(本卡)    : rc=0  buckets={'match': 28}
+  旧版报告行: (无 hotkeys 行)
+flip-table-rc=0
+--- 无降级穷尽证明 ---
+枚举组合数: 128   违规: 0
+  只有 missing: 新版实测 = 1 (必须是 1)
+  只有 allowed_extra: 新版实测 = 0 (必须是 0)
+  只有 intentionally_excluded: 新版实测 = 0 (必须是 0)
+--- Codex r3 五条指控在 round-4 上的复验（应全部不成立）---
+  ⇒ 编码后相等: True   sha 相等: True
+  ⇒ 两个**不同**的软链目标判等: False   ← True 即为假绿
+  _entry_state(verify_vault_install.py/child) = 'absent'   ← 期望 absent, 实得?
+HIGH-3: 目录可列但不可搜索时 _leaf_digest 落到 unknown 且 bad=False
+  _leaf_digest = ('U:unreadable', bad=True)   ← bad=False 即为漏报
+  target.exists() (:832 面): False   ← False 而实际是「问不出来」
+  scan_dir.is_dir() (:926 面): False   ← False 而实际是「问不出来」
+  main_js.is_file() (:997 面): False   ← False 而实际是「问不出来」
+  PYTHONIOENCODING=ascii --help → rc=0   ← 期望 0

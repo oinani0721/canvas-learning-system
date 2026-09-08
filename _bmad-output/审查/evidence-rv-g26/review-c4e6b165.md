@@ -121,13 +121,13 @@ render 正文转义有效、零命令处理没把真问题放绿、收紧后的�
 |---|---|---|
 | **HIGH** | **整改遗漏**：exclude 的存在性谓词吞 `OSError`，扫描根/精确目标 stat 不到时提前返回，**根本没进** round-2 建的 unreadable 透传链 ⇒ 仍可返回 0 | **修**。新增三态谓词 `_entry_state()`（`present`/`absent`/`unreadable`，用 `os.lstat`），`_iter_relative` 入口与 `hits_for` 精确分支两处都换掉。门 `test_unreachable_exclude_scan_root_is_registered_not_treated_as_absent`（glob 与精确两个入口各一条断言） |
 | MEDIUM | **遗留**：两侧都读不动、摘要标记相等时，同一 copy 项仍计入 match | **修**。`unreadable_here` 非空即 `continue`，不再记 match。门 `test_both_sides_unreadable_is_not_counted_as_match` |
-| MEDIUM | **遗留**：`_printable()` 挡不住 render **之前**的摘要编码异常（文件名 / 软链目标文本） | **修**。三处摘要编码改 `errors="backslashreplace"`（摘要只需确定性，转义不影响可比性）。门 `test_symlink_target_with_undecodable_bytes_does_not_crash_the_digest` |
+| MEDIUM | **遗留**：`_printable()` 挡不住 render **之前**的摘要编码异常（文件名 / 软链目标文本） | **修**（⚠️ **round-3 的修法本身有缺陷，已由 round-4 更正**）：round-3 改成 `backslashreplace`，理由写的是「摘要只需确定性，转义不影响可比性」—— **这句话是错的**，Codex round-3 HIGH-1 推翻并本机复现：确定性是必要条件不是充分条件，摘要还必须**单射**。`backslashreplace` 有损，`os.fsdecode(b"bad\xff")` 与字面转义串编码后逐字节相同 ⇒ 两个不同的软链目标判等 = **假绿**。round-4 改用 `surrogatepass`（单射且不抛）。门 `test_digest_encoding_is_injective_not_merely_total`（AST 判据）+ `test_two_different_symlink_targets_do_not_collide`（行为判据） |
 | MEDIUM | **遗留**：`expanduser()` 对 `~未知用户名` 抛 `RuntimeError`，CLI 以 1 结束 | **修**。抽 `_expanduser()` 统一归用法错档，`--vault`/`--source`/`--report`/`--manifest` 四处共用。门 `test_tilde_expansion_failure_uses_the_usage_exit_code` |
-| MEDIUM | **整改不完整**：三种引号没有消除「部分命令解析失败」的假拦下；本表「消除假拦下」表述过宽 | **改表述 + 登记**。JS 转义形态（`"canvas:a"`）仍提取不到，而其它 id 提取成功会让集合非空、绕过零命令分支 ⇒ 真实绑定被报 orphan。真修需要 JS 语法分析，超出本卡范围 |
+| MEDIUM | **整改不完整**：三种引号没有消除「部分命令解析失败」的假拦下；本表「消除假拦下」表述过宽 | **改表述 + 登记**。⚠️ **round-4 再次更正**：假拦下**不止 JS 转义**一种形态，而且我原先举的例子在 Markdown 里丢了反斜杠、写成了一个能被正常提取的串（Codex round-3 LOW 指出）。实际形态至少两类：① 转义写法 `` `"canvas:\u0061"` ``（反斜杠 u 0 0 6 1）提取不到；② **拼接表达式** `` `{id:"canvas:open-"+"dashboard"}` `` 会提取出 `canvas:open-` —— 于是真实的 `canvas:open-dashboard` 被报 orphan（假拦下），而从未注册的 `canvas:open-` 反被放行（假放行）。两类都**未修、登记**：真修需要 JS 语法分析，超出本卡范围 |
 | LOW | `SKILL.md` 目录负控**没有单独承重**（去掉 `-type f` 也只有 7 个 ⇒ 照样红） | **修**。改成 7 合格文件 + 1 目录入口：不区分类型时数到 8 会放行、加 `-type f` 是 7 而拦下。另加前提断言 + 外部对照实测（带 `-type f`→NO / 去掉→OK） |
 | LOW | 「单一真相源」门只比 helper 与调用 helper 的 property = **自证**，没检验加载侧 | **修**。改成**行为门**：`extra_allow=[".canvas-config.yaml"]`（唯一的 `generate` 项）必须被拒 —— 加载侧若漏掉 generate 就会错误接受 |
 | LOW | exclude unreadable 门**没锁跨项去重**（`any()`/`next()` 允许重复登记） | **修**。改数次数：`.claude/hooks` 同时落在两条 exclude 的扫描面里，断言**恰好一次** |
-| LOW | 文档旧口径冲突：本表 `:67` 仍写 #25「登记，不修」；代码注释仍称配置/报告错误返回 2 | **修**。`:67` 改写；代码四处「退出码 2」全部改为「用法错档 EXIT_USAGE(3)」，`grep '退出码 2'` 现 **0 命中** |
+| LOW | 文档旧口径冲突：本表 `:67` 仍写 #25「登记，不修」；代码注释仍称配置/报告错误返回 2 | **修**（⚠️ **round-3 只清了一半，round-4 补齐**）：`:67` 已改写；代码里「退出码 2」四处改完后，`load_manifest` docstring 仍留着「拿到的是 1 而不是承诺的 **2**」这一处旧口径（Codex round-3 LOW 抓到），round-4 一并改成「承诺的用法错档(EXIT_USAGE=3)」。现 `grep '承诺的 2'` 与 `grep '退出码 2'` **均 0 命中** |
 | LOW | 本表 `:20` 把 `grep 'canvas-vault'` 零命中当成「只访问临时夹具」的**自证** | **修**。降级为辅助检查，并写明真正承重的是脚本正文（全部路径来自 `TemporaryDirectory()` 与 `WT` 常量） |
 
 ### 一句话总结这一轮
@@ -136,3 +136,33 @@ round-2 的 HIGH 修法**只覆盖了「已经进入遍历」的失败**，没�
 `Path.exists()` / `is_dir()` / `is_file()` / `is_symlink()` / `rglob()` 都会把「问不出来」返回成
 「不存在 / 空」。这份被测代码的 `_walk` docstring 早就为 `rglob` 写过同一条教训，
 而同一份代码在另外两个入口照样用了 `exists()` —— **写下教训 ≠ 变成判据**。
+
+---
+
+## 八 Codex round-3 之后（round-4 整改，2026-09-08）
+
+round-3 绑 `736eb490`，结论 **0 BLOCKER / 3 HIGH / 4 MEDIUM / 4 LOW**。
+**三条 HIGH 里有一条是 round-3 的修法自己引入的**，另加两条新引入的 MEDIUM ——
+这一轮把「修复链会自我繁殖」演示得最彻底。全部五条我都**本机独立复现后才动手**
+（`evidence-rv-g26/verify-r3-claims-*.txt`），不采信结论本身。
+
+| 级别 | 问题 | 处置 |
+|---|---|---|
+| **HIGH【新引入】** | `backslashreplace` **不单射** ⇒ 两个不同的软链目标判等 = 假绿 | **修**。改 `surrogatepass`（单射且不抛）。⚠️ 根因是我 round-3 写的那句理由「摘要只需确定性」—— **确定性是必要条件不是充分条件**，摘要还必须单射。两道门：AST 判据（摘要函数里的 `encode` 不得用 `backslashreplace`，带验伪锚）+ 行为判据（两个不同软链目标必须给出不同摘要） |
+| **HIGH【遗漏】** | 还有四个「查不到即不存在／不扫描」的入口：item 目标 `exists()`、extra 覆盖面根 `is_dir()`、hotkeys 两处 | **修**。四处全换 `_entry_state`。item 目标问不出来时归 unreadable（原会降级成 missing ⇒ rc=1「只缺东西」）；覆盖面根问不出来时登记（原静默跳过）；hotkeys 两处把「查不到」与「确实没有」分开 |
+| **HIGH【遗漏】** | `_leaf_digest` 在类型谓词全失败时落到 `"?:unknown"` 且 `bad=False`；`_kind_ok` 把查询失败当成 `nondir` | **修**。`_leaf_digest` 先用 `_entry_state` 探一次；`_kind_ok` 问不出类型时对**所有** kind 返回 False（原 `nondir` 分支在谓词被吞时恒 True） |
+| MEDIUM【新引入】 | `_entry_state` 把 `ENOTDIR` 错归 unreadable ⇒ exclude 被误阻断 | **修**。`NotADirectoryError` 归 `absent`（它是**确定的**否定答案） |
+| MEDIUM【新引入】 | `unreadable_here` 的提前 `continue` 把同一项里**已经看得见的**内容差异也遮掉了 | **修**。调换顺序：先判漂移、再判读不动 |
+| MEDIUM【遗留】 | stdout 编码失败（rc=1）/ 断管退出期 flush 失败（rc=120）脱离四档 | **修**。`__main__` 里先 `reconfigure(errors=...)`，再接住 `SystemExit` 与 `BrokenPipeError`。⚠️ **没有为此放宽零写门**：`os.dup2(os.open(os.devnull,…))` 会让 AST 零写门变红，改用哑对象替换 `sys.stdout`，两种写法实测同为 rc=3 且无退出期噪音 |
+| MEDIUM【遗留】 | hotkeys 假拦下不止 JS 转义；我举的例子在 Markdown 里丢了反斜杠 | **改表述 + 登记**（见 §一 那一行）。新增登记：**拼接表达式**同时造假拦下与假放行 |
+| LOW ×4 | 入口门缺正常/不存在对照 / 去重门没证两个来源都到达 / 编码门与展开门覆盖不全 / 表述三处 | **全部已修**：入口门的对照由 `test_entry_state_maps_enotdir_to_absent` 承担（`_entry_state` 恒返 unreadable 会打红它）；去重门补「覆盖 `.claude/hooks` 的 exclude ≥2 条」前提断言；编码门改 AST 覆盖全部摘要 `encode`；展开门覆盖四个调用点；表述三处见 §一 |
+
+### 这一轮的方法论教训
+
+1. **给哈希选编码器，判据是单射性，不是「不抛异常」。** 我 round-3 只验了「不抛」。
+2. **修一类缺陷要枚举同类入口，不能顺着 finding 往下走。** `_entry_state` 是 round-3 引入的，
+   但 round-3 只换了两个被点名的入口；剩下四个是 round-4 才补的。
+3. **文本判据在源码上不可靠 —— 本卡被注释误伤三次**（标签里的 `ls `、docstring 里的代理转义、
+   注释里的 `backslashreplace`）。判据一律绑 AST。
+4. **门因自己的代码变红时，先找不需要豁免的实现。** 断管收尾的三种写法里，
+   有一种不含可写调用且效果相同，于是零写门原样保留。

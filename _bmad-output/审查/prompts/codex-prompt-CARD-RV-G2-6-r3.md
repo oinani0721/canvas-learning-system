@@ -3,7 +3,7 @@
 ## 一 背景与最小读取面
 
 仓库 worktree：`/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy`
-分支 `card/u3-deploy`，本卡最终 HEAD **`__HEAD3__`**，基线 `da690bf8`。
+分支 `card/u3-deploy`，本卡最终 HEAD **`736eb490`**，基线 `da690bf8`。
 前两轮送审态：round-1 `523c10f0`（0B/2H/5M/5L）、round-2 `6bdb0fab`（0B/1H/4M/5L）。
 
 round-2 你给的那条 HIGH 是「整改遗漏」：round-2 的修法只覆盖了**已经进入遍历**的失败，
@@ -13,8 +13,8 @@ round-2 你给的那条 HIGH 是「整改遗漏」：round-2 的修法只覆盖�
 
 **请只读以下五处，不要读别的文件、不要读任何 live vault 路径下的内容：**
 
-1. round-2 之后的整改：`git diff 6bdb0fab __HEAD3__ -- . ':(exclude)_bmad-output'`
-2. 本卡全部改动：`git diff da690bf8 __HEAD3__ -- . ':(exclude)_bmad-output'`
+1. round-2 之后的整改：`git diff 6bdb0fab 736eb490 -- . ':(exclude)_bmad-output'`
+2. 本卡全部改动：`git diff da690bf8 736eb490 -- . ':(exclude)_bmad-output'`
 3. 被复审的那段历史改动（零外审面）：`git diff ff105706 c4e6b165 -- . ':(exclude)_bmad-output'`
 4. 复审结论表：`_bmad-output/审查/evidence-rv-g26/review-c4e6b165.md`
 5. 被改文件全文：`scripts/verify_vault_install.py`

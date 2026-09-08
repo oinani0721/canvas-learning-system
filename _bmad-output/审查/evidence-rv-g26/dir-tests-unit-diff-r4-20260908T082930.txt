@@ -1,0 +1,10 @@
+### tests/unit 目录级 收工(round-4) diff  ts=20260908T082930
+raw: dir-tests-unit-close-r4-20260908T082515.raw
+汇总: = 173 failed, 4799 passed, 48 skipped, 121 warnings, 29 errors in 227.27s (0:03:47) =
+开工=     202  收工r4=     202  --ignore 对照=     202
+--- 收工 r4 vs 开工 ---
+  diff-rc=0
+  <=0  >=0
+skipped 开工 48 / 收工 48 skipped
+passed 开工 4749 / 收工 4799  (+50 = 本文件 85→135)
+U10-A 噪音 test-vault 命中=4（开工同为 4）
