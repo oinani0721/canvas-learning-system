@@ -65,8 +65,28 @@ exam-created-event(被 tests/regression 钉死) + quiz-answer 4 处(E-2 归 U5-B
 
 ## `UserPromptSubmit` 为什么不进指标
 
-决策页称它「注入 26 行」, 但主干实测 9 份 SKILL.md 里 **0 命中**, 口径不可复现,
-无法钉出有意义的基线 ⇒ 不纳入指标, 差异登记在验收单。
+决策页称它「注入 26 行」。9 份 SKILL.md 里 **0 命中** —— 但那不是「口径不可复现」,
+是**找错了地方**: 2026-09-08 实测它在 `canvas-vault/.claude/settings.json`(`:3` 键名 +
+`:9` 降级 payload), 是一个真实的 hook, 调 `/api/v1/chat/rag/enrich-hook` 往每轮对话里
+注入笔记片段。
+
+那个文件**不在本门的覆盖面内**(见下方「本门测量不到的面」), 归 U3-C。「26 行」这个数
+仍未证实(要证得跑后端看它实际注入多少行, 本卡禁连) ⇒ 不纳入指标, 差异登记在验收单。
+
+## 本门测量不到的面 (如实声明, 不是遗漏)
+
+覆盖面 = `skills/*/SKILL.md` + `skills/*/scripts/*.py` + `scripts/*.py`。
+2026-09-08 实测, `canvas-vault/.claude/` 下**剩余**的 git-tracked 文件里确实还有债:
+
+    hooks/session-end-archive.py:21   1 处 8011
+    mcp.json:5 (URL) + :13 (说明文字)  2 处 8011
+    settings.json:9                   1 处 8011  ← 同时是上面那个 UserPromptSubmit hook
+
+合计 **4 处 8011**, 全部归 **U3-C 步 3**(模板化), 本卡不碰也测不到。
+`skills/configure-whiteboard/templates/whiteboard.md.template` 也在覆盖面外, 实测 0 债。
+
+⚠️ 卡文 §〇 把这 4 处记成「`.claude/mcp.json:5` / 仓根 `.mcp.json:5`」—— 实测**仓根
+`.mcp.json` 没有 8011**, 而 `canvas-vault/.claude/mcp.json` 有**两处**。总数对, 分布不对。
 
 ## 交接
 
@@ -605,6 +625,46 @@ def test_layer3_scripts_counts_and_fileset_match_baseline():
     """层 3: scripts 文件集合 + 3 指标精确计数 (含 U6 地盘两份)。"""
     problems = check_scripts(DEFAULT_ROOT, _merged_scripts_baseline())
     assert not problems, "scripts 基线漂移:\n" + "\n".join(problems)
+
+
+#: 本门**测量不到**但确实存在的债 —— 全部归 U3-C 步 3(模板化)。
+#: 路径相对 `canvas-vault/.claude/`; 值 = 该文件里 `8011` 的出现次数。
+#: 钉住它是为了让「本门看不见这些」这句话有判据撑着, 而不是一句会过期的散文:
+#:   · U3-C 真把它们模板化了 ⇒ 这里变红 ⇒ 逼人回来删掉这条(债已还清)
+#:   · 有人往这些文件里再加一处写死端口 ⇒ 这里也变红 ⇒ 至少有人知道
+OUT_OF_SCOPE_8011 = {
+    "hooks/session-end-archive.py": 1,
+    "mcp.json": 2,
+    "settings.json": 1,
+}
+
+
+def test_out_of_scope_hardcoded_ports_are_registered():
+    """本门覆盖面**之外**的 8011 债: 逐文件计数钉死(归 U3-C, 本卡不碰)。
+
+    ⛔ 这条**不是**在测本门的判据, 是在钉「本门测不到什么」这个声明本身。
+    覆盖面 = skills/*/SKILL.md + skills/*/scripts/*.py + scripts/*.py; 下面这些文件
+    一个都不在里面, 所以前面四类判据对它们完全失明 —— 如实登记, 而不是假装干净。
+    """
+    root = DEFAULT_ROOT
+    actual = {}
+    for rel in sorted(OUT_OF_SCOPE_8011):
+        f = root / rel
+        assert f.exists(), f"登记的越界债文件不存在(路径漂移?): {f}"
+        actual[rel] = f.read_text(encoding="utf-8").count("8011")
+    assert actual == OUT_OF_SCOPE_8011, (
+        f"覆盖面外的 8011 债漂移 期望={OUT_OF_SCOPE_8011} 实测={actual} —— "
+        f"变少说明 U3-C 已模板化(请删掉本常量对应项), 变多说明有人新写了写死端口"
+    )
+
+    # 验伪锚: 确认这些文件真的不在本门四类判据的覆盖面内(否则这条用例是多余的)
+    covered = (
+        {p.relative_to(root).as_posix() for p in (root / "skills").glob("*/SKILL.md")}
+        | {p.relative_to(root).as_posix() for p in (root / "skills").glob("*/scripts/*.py")}
+        | {p.relative_to(root).as_posix() for p in (root / "scripts").glob("*.py")}
+    )
+    overlap = set(OUT_OF_SCOPE_8011) & covered
+    assert not overlap, f"这些文件其实**在**覆盖面内, 本用例的前提不成立: {sorted(overlap)}"
 
 
 def test_baseline_constants_are_disjoint_and_complete():
