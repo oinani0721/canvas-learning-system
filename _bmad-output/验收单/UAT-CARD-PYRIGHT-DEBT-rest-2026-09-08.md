@@ -82,7 +82,9 @@
 2. **tests 基线**：开工那一跑与 `models/` 机械改写**并发**，按本项目教训本应作废。它能用不是因为"我觉得没影响"，而是**汇总行与主 session 在 `da690bf8` 独立采集的红基线逐字相同**（`173 failed / 4749 passed / 48 skipped / 29 errors`）——外部锚点，不是自证。
    nodeid 提取器收紧过：`^(FAILED|ERROR) ` 会把 pytest 捕获的 `logging` 输出行（`ERROR    app.main:…`）当成 nodeid，虚报 4 条差异；改成必须匹配 `tests/…py::` 并配**验伪锚**（3 行探针，噪音剔掉 / 真 nodeid 留下）。脚本 `nodeids.sh`。
 3. **入库禁令的取名面**：协议禁的是 `*.stderr*`。第一版判据写成 `git ls-tree | grep -c stderr` 报了 1 条——查下去是 `_bmad-output/审查/G4-9-evidence/census-stderr.txt`（**连字符**形式，第五批 `67ccebe1` 引入，`da690bf8` 即存在，非本卡）。判据的取名面必须**恰好等于**其主张，改成 `grep -E '\.stderr'` 后 = 0，并配验伪锚（拿真 `.stderr` 路径试，确认判据看得见违规、同时放过 `census-stderr.txt`）。本卡两个 commit 新增文件里 `.stderr` = 0。
-4. **U10-A 的 `/tmp` 负控窗口**（06:59–07:19）：期间 `tests/unit` 目录级会多一条 `/tmp/test-vault*` 的 teardown ERROR。本卡阶段 1 的收工跑在窗口关闭后启动，未受影响。
+4. **U10-A 的 `/tmp` 负控窗口（共三次，第三次未通告本车道）**：窗口一 06:59:14–07:18:58 / 窗口二 07:44:00–07:50:26 / 窗口三 08:19:52–08:24:5x。窗口内 `tests/unit` 目录级会多一条 `新出现 /tmp/test-vault*` 的 teardown ERROR。
+   **核对方式不是算时间窗，是直接找症状**（存档 `crosslane-tmpwindow-check-*.txt`）：真信号 `新出现 … test-vault` 在本卡全部 4 份 `tests/unit` 存档里 **0 命中**（配验伪锚，探针命中 1 证明判据不死）；四组 nodeid 全 202、与红基线的新红 `>` 全为 **0**。⇒ 三个窗口均未影响本卡证据。
+   ⚠️ 附一次自己的假阳：第一版判据写成宽 `grep test-vault`，**4 份存档全命中**——查下去全是 pytest 自身的 `tmp_path`（`/private/var/folders/…/pytest-of-Heishing/pytest-NNNNN/test_endpoint_exists0/test-vault/`），与 `/tmp/test-vault*` 不同根。**今天同一形态第三次**（`grep stderr` 命中 `census-stderr.txt`、`pgrep -f` 命中别车道的 codex、这次），共性都是"判据的取名面比它的主张宽"。收敛办法：先写下要找的**确切字符串**，再决定 grep 怎么写。（06:59–07:19）：期间 `tests/unit` 目录级会多一条 `/tmp/test-vault*` 的 teardown ERROR。本卡阶段 1 的收工跑在窗口关闭后启动，未受影响。
 
 ---
 
