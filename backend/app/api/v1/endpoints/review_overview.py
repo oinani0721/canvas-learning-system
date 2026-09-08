@@ -81,6 +81,8 @@ import structlog
 from fastapi import APIRouter, Form, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
+from zoneinfo import ZoneInfo
+
 from app.config import get_settings
 from app.core.display_tz import display_tz as _resolve_display_tz
 
@@ -411,6 +413,7 @@ def _gate_buckets(
     generated_at: str,
     future_map: dict[str, tuple[int, str]],
     up_gated: list[dict],
+    producer_tz: str | None = None,
 ) -> tuple[dict[str, int], dict[str, list[dict]]]:
     """G3-6a 加性 buckets 门禁 (可选顶层键: 旧投影缺省走 None 路径)。
 
@@ -490,23 +493,44 @@ def _gate_buckets(
     try:
         ref = datetime.fromisoformat(generated_at.replace("Z", "+00:00"))
         ref_z = ref.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        # 参照系按**证据**在两者间择一 (Codex r1 HIGH-2 + r2 HIGH-2 两轮收敛):
-        #   · 若此刻的显示时区在 generated_at 那一刻的偏移与它自带的偏移**相同**,
-        #     说明投影很可能就是这个时区生成的 ⇒ 用它的**完整规则** (含 DST)。
-        #     只有完整规则判得对 DST 边界: 纽约 EST 时刻生成、EDT 时刻到期时,
-        #     拿固定 -05:00 换算会把次日的到期算成同日 (r2 HIGH-2 实测)。
-        #   · 偏移不同 ⇒ 投影来自别的时区 ⇒ 退回它**自带的固定偏移**。
-        #     信息只有这么多; 此时投影多半已 stale, 页面会提示重新生成。
-        # ⛔ 两个极端都试过、都不对: 恒用此刻时区 ⇒ 用户一改时区, 盘上那份完全
-        #    合法的投影被判 corrupt (r1 HIGH-2); 恒用自带偏移 ⇒ DST 边界上误拒
-        #    合法投影, 反过来还会放行错误归桶的投影 (r2 HIGH-2, 门比原来更弱)。
-        # 「投影是不是今天的」由 _vault_entry 的 stale 判定负责, 那里恒用此刻的
-        # 时区才对 —— 切时区后它变 stale ⇒ 触发重新生成, 是正确行为。
-        _now_tz = _display_tz()
-        ref_tz = _now_tz if ref.astimezone(_now_tz).utcoffset() == ref.utcoffset() else ref.tzinfo
-        ref_day = ref.astimezone(ref_tz).date()
+        # 参照系 = 生产器**自报**的时区 (payload 顶层 display_tz)。三轮收敛的结论:
+        #   · 恒用此刻的显示时区 ⇒ 用户一改时区, 盘上合法投影被判 corrupt (r1);
+        #   · 恒用 generated_at 自带的固定偏移 ⇒ DST 边界误拒, 反过来放行错误归桶 (r2);
+        #   · 靠"偏移是否匹配"在两者间猜 ⇒ 同偏移不同规则的时区对 (Bogota 恒 -05:00
+        #     vs New_York 的 EST) 仍会选错, 而且两个方向都错 (r3)。
+        # 偏移**不能**决定时区规则, 只有生产器自己知道它用了哪个 —— 所以让它自报。
+        # 自报值必须与 generated_at 的偏移自洽 (否则 payload 自相矛盾, 拒收);
+        # 缺席 (旧投影 / 末档无名时区) 则退回此刻的显示时区 —— 那是 r2 之前的形态,
+        # 它会误判 corrupt 但**不会放行错误归桶**, 是两害相权的那一侧。
+        # 「投影是不是今天的」由 _vault_entry 的 stale 判定负责, 那里恒用此刻时区。
     except (ValueError, OverflowError, OSError) as e:
         raise ValueError(f"generated_at 无法换算为参照时钟: {generated_at!r} ({e})")
+    # ⛔ display_tz 的校验放在上面那个 try **之外**: 它抛的 ValueError 语义是
+    #    「payload 自相矛盾」, 落进 except 会被重包成「generated_at 无法换算」——
+    #    两个完全不同的拒因混成一条, 排障时看不出是哪种。
+    ref_tz = None
+    if isinstance(producer_tz, str) and producer_tz:
+        try:
+            candidate = ZoneInfo(producer_tz)
+        except Exception as e:  # noqa: BLE001 — 不认识的时区名 = 非生产器产物
+            raise ValueError(f"display_tz 不是可解析的时区名: {producer_tz!r} ({type(e).__name__})")
+        try:
+            same_offset = ref.astimezone(candidate).utcoffset() == ref.utcoffset()
+        except (OverflowError, OSError) as e:
+            raise ValueError(f"display_tz={producer_tz!r} 在 generated_at 处换算溢出 ({type(e).__name__})")
+        if not same_offset:
+            raise ValueError(
+                f"display_tz={producer_tz!r} 与 generated_at={generated_at} 的偏移不自洽 "
+                f"(该时区在那一刻是 {ref.astimezone(candidate).utcoffset()}, "
+                f"generated_at 自带 {ref.utcoffset()}) — payload 自相矛盾"
+            )
+        ref_tz = candidate
+    if ref_tz is None:
+        ref_tz = _display_tz()
+    try:
+        ref_day = ref.astimezone(ref_tz).date()
+    except (OverflowError, OSError) as e:
+        raise ValueError(f"generated_at 无法换算为参照日: {generated_at!r} ({type(e).__name__})")
     nondue_by_board: dict[str, list[str]] = {}
     nondue_ids: dict[tuple[str, str], str] = {}
     # Codex round-5 HIGH: 节点身份全局唯一 (生产器 = 文件 stem) —— 用
@@ -821,7 +845,13 @@ def _summarize(payload: dict) -> dict:
         if future_map is None:
             raise ValueError("buckets 在场但 boards 缺席 — 非生产器产物 (二者同版一起落盘)")
         bucket_counts, bucket_rows = _gate_buckets(
-            payload["buckets"], groups, stats, generated_at, future_map, up_gated
+            payload["buckets"],
+            groups,
+            stats,
+            generated_at,
+            future_map,
+            up_gated,
+            producer_tz=payload.get("display_tz"),
         )
         # CARD-G6-5-R 边界不变量 = **逐桶行数漂移守卫**, 不是来源/身份守卫
         # (Codex round-1 LOW 收窄措辞): 它只能发现"行数与计数对不上"; 等长的

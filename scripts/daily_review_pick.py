@@ -1045,6 +1045,13 @@ def build_payload(vault: Path, now: datetime, board_last_recommended: dict, deca
         # CARD-C1a: 顶层加性新增 — send 侧据此组合 per-vault 有效通知 id,
         # C2 总览页据此标卡片; notification.id 值与其余字段零改动 (A2 冻结)
         "vault_id": Path(vault).resolve().name,
+        # CARD-G6-9c 加性顶层键: 生产器**自报**它归日用的时区 IANA 名。
+        # 消费侧 (review_overview._gate_buckets) 复算桶位时必须用同一个时区规则 ——
+        # 只有 generated_at 的**偏移**是不够的: 同一偏移可能来自规则不同的时区
+        # (Bogota 恒 -05:00 vs New_York 的 EST), DST 边界上就会把合法投影判成
+        # corrupt、或反过来放行错误归桶的投影 (Codex r3 HIGH-2 两个方向都实测过)。
+        # 末档固定偏移无 .key ⇒ None, 消费侧退回自己的显示时区。
+        "display_tz": getattr(_DISPLAY_TZ, "key", None),
         "date": now.astimezone(_DISPLAY_TZ).date().isoformat(),
         "generated_at": now.astimezone(_DISPLAY_TZ).isoformat(timespec="seconds"),
         # CARD-G3-6b: 字面量 3 换成具名常量 —— 值恒等 (行为零变化), 但让

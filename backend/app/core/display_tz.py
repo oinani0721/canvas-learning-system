@@ -25,6 +25,7 @@ runner 的机器本地 —— 换个时区跑「今天」就分叉。本函数�
 
 from __future__ import annotations
 
+import calendar
 import os
 import time
 from datetime import datetime, timedelta, tzinfo
@@ -33,26 +34,61 @@ from zoneinfo import ZoneInfo
 
 
 class _SystemLocalTZ(tzinfo):
-    """C 库按 TZ **逐时刻**解析的本地时区（含 DST 转换规则）。
+    """C 库按 TZ **逐时刻**解析的本地时区（含 DST 与历史规则）。
 
     ZoneInfo 认不出的 TZ 写法（POSIX 串 "EST5EDT,M3.2.0,M11.1.0" / "UTC0"、
-    前导冒号 ":Asia/Shanghai"）C 库都认得。直接返回
-    `datetime.now().astimezone().tzinfo` 只是**此刻**的固定偏移 —— 拿它去换算
-    别的时刻，会在 DST 切换两侧错一小时，进而错日、错桶（Codex r2 HIGH-1 实测：
-    `TZ=EST5EDT,M3.2.0,M11.1.0` 下 `2026-11-02T04:30Z` 被算成 11-02 00:30，
-    而 C 库给的是 11-01 23:30 —— 差一天）。
+    前导冒号 ":Asia/Shanghai"）C 库都认得。两个被否掉的做法：
+      · 读 `/etc/localtime` —— 那是宿主时区，压根不看 TZ；
+      · `datetime.now().astimezone().tzinfo` —— 只是**此刻**的固定偏移，换算别的
+        时刻会在 DST 两侧错一小时（`TZ=EST5EDT,…` 把 `2026-11-02T04:30Z` 算成
+        11-02 00:30，C 库是 11-01 23:30）。
+
+    ⛔ **必须自己实现 `fromutc()`**（Codex r3 HIGH-1）：默认实现拿 `utcoffset(dt)`
+    去猜，而传进来的 dt 是 **UTC 值**、`_isdst()` 却把它当本地墙钟送进 `mktime()`
+    —— 南半球 DST 上直接错日，且**连时刻都不守恒**（`TZ=:America/Santiago`，
+    `2026-04-05T03:30Z` 被算成 04-05 00:30−04:00，转回 UTC 成了 04:30Z）。
+    这里改为把 UTC 值换成 epoch 秒、直接问 `time.localtime()` —— 那是 C 库
+    UTC→本地的正解，DST 与历史规则一并带上。
 
     ⛔ 不把 `time.timezone` / `time.altzone` 缓存成模块级常量（Python 文档那份
     LocalTimezone 示例就是那么写的）：`tzset()` 之后它们会变，缓存等于把时区
     固化在 import 时刻 —— 与本模块「每次调用现取」的口径直接冲突。
+
+    ⚠️ 如实声明：`utcoffset()` / `dst()` 收到的是**本地墙钟**，DST 折叠时段本身
+    有歧义（同一墙钟对应两个时刻），这里按 `mktime(tm_isdst=-1)` 让 C 库选一个，
+    不区分 `fold`。本模块的用法是 UTC→本地（走 `fromutc`），不经过这条歧义路径。
     """
+
+    @staticmethod
+    def _dst_gap() -> int:
+        """本时区 DST 的偏移跨度（秒）。非 DST 时区为 0。"""
+        return max(0, time.timezone - time.altzone)
+
+    def fromutc(self, dt: datetime) -> datetime:
+        ts = calendar.timegm(dt.timetuple())
+        lt = time.localtime(ts)
+        # 折叠时段（回拨后重复的那一小时）：同一墙钟对应两个时刻。若把时刻往前
+        # 推一个 DST 跨度还得到**相同的墙钟**，说明这是第二次出现 ⇒ fold=1。
+        gap = self._dst_gap()
+        fold = 1 if gap and time.localtime(ts - gap)[:6] == lt[:6] else 0
+        return datetime(*lt[:6], microsecond=dt.microsecond, tzinfo=self, fold=fold)
 
     def _isdst(self, dt: datetime) -> bool:
         tt = (dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second, dt.weekday(), 0, -1)
         return time.localtime(time.mktime(tt)).tm_isdst > 0
 
     def utcoffset(self, dt):
-        return timedelta(seconds=-(time.altzone if self._isdst(dt) else time.timezone))
+        if dt is None:
+            return None
+        wall = (dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second, dt.weekday(), 0, -1)
+        stamp = time.mktime(wall)
+        gap = self._dst_gap()
+        # mktime 对折叠墙钟返回**较早**那个时刻；dt.fold=1 时要取较晚的那个，
+        # 否则 astimezone 回 UTC 会落在原时刻之外（Codex r3 HIGH-1 的
+        # :America/Santiago 实测：转回去差了一小时）。
+        if dt.fold and gap and time.localtime(stamp + gap)[:6] == wall[:6]:
+            stamp += gap
+        return timedelta(seconds=calendar.timegm(dt.timetuple()) - stamp)
 
     def dst(self, dt):
         return timedelta(seconds=time.timezone - time.altzone) if self._isdst(dt) else timedelta(0)

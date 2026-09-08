@@ -397,7 +397,17 @@ def _gate_payload(payload: dict) -> dict[str, int]:
     assert future_map is not None, "boards rollup 没给出 future_map，门禁无法逐板对账"
     # 集成期适配 (BATCH-2026-09-05-第十二批 主 session): Y2-A CARD-G6-5-R 把 _gate_buckets 的返回
     # 从 dict[str,int] 改成 (counts, passed_rows) 二元组; 本门只消费 counts, 判据不变。
-    counts, _rows = _gate_buckets(payload["buckets"], groups, payload["stats"], payload["generated_at"], future_map, up_gated)
+    counts, _rows = _gate_buckets(
+        payload["buckets"],
+        groups,
+        payload["stats"],
+        payload["generated_at"],
+        future_map,
+        up_gated,
+        # CARD-G6-9c: 生产器自报的归日时区 —— 门用它当参照系，
+        # 不传的话会退回此刻的显示时区，切时区/DST 边界上会误判。
+        producer_tz=payload.get("display_tz"),
+    )
     return counts
 
 

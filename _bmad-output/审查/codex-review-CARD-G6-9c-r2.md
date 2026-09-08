@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-07-第十三批 · 车道 card-u6-reviewtime · 卡 CARD-G6-9c round-2
+> 模型: `gpt-6-astra` · reasoning_effort: `ultra` · codex: `codex-cli 0.153.3`（/opt/homebrew/bin/codex）
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat <树>/_bmad-output/审查/prompts/codex-prompt-CARD-G6-9c-r2.md)"`
+> 审查绑定: `0e8dc06e → d858c357`（送审时 HEAD = d858c357；本轮之后有整改 b1e58489，末轮绑定见 round-3 存档）
+> 会话头自证（抄 .stderr 含 model 行的三行，stderr 本身不入库）:
+> `OpenAI Codex v0.153.3` / `model: gpt-6-astra` / `reasoning effort: ultra`
+
+---
+
 绑定已核实为 `0e8dc06e → d858c357`。**两条 HIGH 仍不能关闭，其中桶校验整改引入了新的 DST 回归。**
 
 **BLOCKER：无。**

@@ -77,7 +77,7 @@ import os
 import re
 import unicodedata
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -101,7 +101,10 @@ if str(_REPO_SCRIPTS) not in sys.path:
     sys.path.append(str(_REPO_SCRIPTS))
 
 import check_vault_doc_roles as cvr  # noqa: E402  — 同目录 G8-1 台账裁判 (只 import, 禁改)
-import local_tz  # noqa: E402  — 单一时区来源 (CARD-G6-9c, 与 app/core/display_tz.py 同源)
+import local_tz  # type: ignore[import-not-found]  # noqa: E402  — 单一时区来源
+# ⛔ type: ignore 的理由：local_tz 在仓根 scripts/，靠上面那段运行期 sys.path
+#    注入解析；pyright 做静态解析看不到它。运行期由 test_cli_help_writes_no_pyc
+#    的隔离副本四件套与 test_vault_lint_today_actually_reads_the_shared_tz_source 证明可用。
 
 # CommonMark 解析器 (round-7 终局): Markdown 语义全交库, 不再手写剥除/区间解析。
 # lazy 初始化 (首次调用 _wikilink_targets 时 import), 保持模块 import 零重依赖。

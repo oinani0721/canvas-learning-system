@@ -1,66 +1,114 @@
 # CARD-G6-9c (j) 变异负控 —— M1-M3 卡文指定，M4/M5 锁 Codex r1 两条 HIGH 的修复
 
 ## 跑前基线 shasum -a 256
-  b036f104da4d3fd8c0a26ca1fc585d1e0a6c617f84c615e5e09ecc7ed313cbb4  scripts/local_tz.py
-  e909370625bfcea4487345d4cd60d11b98b637d86c650a8cb8628465d224432d  backend/app/core/display_tz.py
-  13b51f02ee6805b027c67a38ef95c4d191399a4336f0506517aaaa5d88b3e2a0  backend/app/api/v1/endpoints/review_overview.py
-  99a4e4ce9274f9c538685ce8624a32bb14ae05ae2b7e1244f16509fdfe4a8518  backend/scripts/vault_lint.py
+  86a6f3a05970092f13dd377aeb993ec61cdea7cda782a5e81ad208af837cc26d  scripts/local_tz.py
+  e78909b8e2a053d0cf47b99d390db3813c420856904206aceee829ce76a32c66  backend/app/core/display_tz.py
+  c215f5a5e8e14eaa705bdbbb69ed0ddd8480edd5b3405ac6c5ffbe44dd2de51e  backend/app/api/v1/endpoints/review_overview.py
+  17bd31701739e261a173cdfcf8eda24875bfda4bd5d43de40bf5f262fed033b7  backend/scripts/vault_lint.py
 
 ## M1 — scripts/local_tz.py 函数体改回硬编码 Asia/Shanghai（副本漂移）
   目标门: `tests/regression/test_g6_9c_single_tz_source.py::test_two_copies_share_identical_function_body`
   rc=1  期望断言串='同源副本漂移了'  正文命中=True
-  汇总行: ['======================== 1 failed, 10 warnings in 0.54s ========================']
+  汇总行: ['======================== 1 failed, 10 warnings in 0.46s ========================']
   附加门: `tests/regression/test_g6_9_boundary_matrix.py::test_known_divergent_table_is_current` env={'TZ': 'UTC'}
     rc=1  期望断言串='分叉登记表与实测不符'  正文命中=True
-    汇总行: ['======================== 1 failed, 10 warnings in 0.55s ========================']
+    汇总行: ['======================== 1 failed, 10 warnings in 0.58s ========================']
   ⇒ **KILLED**
 
 ## M2 — review_overview._display_tz() 改回模块级常量（求值时机固化在 import）
   目标门: `tests/regression/test_g6_9c_single_tz_source.py::test_display_side_reevaluates_every_call`
   rc=1  期望断言串='把时区固化在 import 时刻了'  正文命中=True
-  汇总行: ['======================== 1 failed, 10 warnings in 0.52s ========================']
+  汇总行: ['======================== 1 failed, 10 warnings in 0.47s ========================']
   ⇒ **KILLED**
 
 ## M3 — display_tz() 跳过 TZ / /etc/localtime 两档，直接落固定偏移
   目标门: `tests/regression/test_g6_9c_single_tz_source.py::test_default_resolution_yields_a_named_zone`
   rc=1  期望断言串='落到了固定偏移末档'  正文命中=True
-  汇总行: ['======================== 1 failed, 10 warnings in 0.62s ========================']
+  汇总行: ['======================== 1 failed, 10 warnings in 0.56s ========================']
   ⇒ **KILLED**
 
 ## M4 — 退回 r1 HIGH-1 缺陷：POSIX TZ 串被拒后继续读 /etc/localtime（无视 TZ）
   目标门: `tests/regression/test_g6_9c_single_tz_source.py::test_posix_tz_string_resolves_to_process_local_not_etc_localtime`
   rc=1  期望断言串='与 C 库不一致'  正文命中=True
-  汇总行: ['======================== 4 failed, 10 warnings in 0.54s ========================']
+  汇总行: ['======================= 10 failed, 10 warnings in 0.55s ========================']
   ⇒ **KILLED**
 
 ## M6 — 退回 r2 HIGH-1 缺陷：POSIX TZ 串回落到**此刻的固定偏移**（丢 DST 规则）
   目标门: `tests/regression/test_g6_9c_single_tz_source.py::test_posix_tz_string_resolves_to_process_local_not_etc_localtime`
   rc=1  期望断言串='与 C 库不一致'  正文命中=True
-  汇总行: ['=================== 2 failed, 2 passed, 10 warnings in 0.54s ===================']
+  汇总行: ['=================== 6 failed, 4 passed, 10 warnings in 0.55s ===================']
   ⇒ **KILLED**
 
-## M5 — 退回 r1 整改形态：桶位参照系恒用投影自带固定偏移（DST 边界误判）
+## M5 — 退回 r1/r2 形态：桶位参照系恒用投影自带固定偏移（DST 边界误判）
   目标门: `tests/regression/test_g6_9c_single_tz_source.py::test_bucket_gate_reference_day_handles_dst_and_tz_switch`
   rc=1  期望断言串='春季前跳'  正文命中=True
-  汇总行: ['=================== 2 failed, 2 passed, 10 warnings in 0.54s ===================']
+  汇总行: ['=================== 2 failed, 3 passed, 10 warnings in 0.59s ===================']
   ⇒ **KILLED**
 
-## M7 — 退回 r1 之前的形态：桶位参照系恒用此刻显示时区（切时区判 corrupt）
+## M7 — 忽略生产器自报时区，恒用此刻显示时区（切时区判 corrupt）
   目标门: `tests/regression/test_g6_9c_single_tz_source.py::test_bucket_gate_reference_day_handles_dst_and_tz_switch`
   rc=1  期望断言串='切时区'  正文命中=True
-  汇总行: ['=================== 1 failed, 3 passed, 10 warnings in 0.55s ===================']
+  汇总行: ['=================== 2 failed, 3 passed, 10 warnings in 0.55s ===================']
+  ⇒ **KILLED**
+
+## M9 — 门不校验 display_tz 与 generated_at 自洽（放行伪造的时区名）
+  目标门: `tests/regression/test_g6_9c_single_tz_source.py::test_bucket_gate_rejects_wrong_bucket_and_forged_display_tz`
+  rc=1  期望断言串='payload 自洽校验失效'  正文命中=True
+  汇总行: ['======================== 1 failed, 10 warnings in 0.46s ========================']
+  ⇒ **KILLED**
+
+## M10 — 删掉 _SystemLocalTZ 类（scripts 副本）—— 该副本运行期会 NameError
+  目标门: `tests/regression/test_g6_9c_single_tz_source.py::test_two_copies_share_identical_localtz_class`
+  rc=1  期望断言串='同源副本漂移了'  正文命中=True
+  汇总行: ['======================== 1 failed, 10 warnings in 0.49s ========================']
+  ⇒ **KILLED**
+
+## M11 — 删掉 _SystemLocalTZ 类（backend 副本）
+  目标门: `tests/regression/test_g6_9c_single_tz_source.py::test_two_copies_share_identical_localtz_class`
+  rc=1  期望断言串='同源副本漂移了'  正文命中=True
+  汇总行: ['======================== 1 failed, 10 warnings in 0.49s ========================']
+  ⇒ **KILLED**
+
+## M12 — 类体在两份副本间漂移一行（_dst_gap 改写）
+  目标门: `tests/regression/test_g6_9c_single_tz_source.py::test_two_copies_share_identical_localtz_class`
+  rc=1  期望断言串='同源副本漂移了'  正文命中=True
+  汇总行: ['======================== 1 failed, 10 warnings in 0.55s ========================']
+  ⇒ **KILLED**
+
+## M13 — 删掉自定义 fromutc（backend）—— 退回 tzinfo 默认实现，南半球 DST 错日
+  目标门: `tests/regression/test_g6_9c_single_tz_source.py::test_posix_tz_string_resolves_to_process_local_not_etc_localtime`
+  rc=1  期望断言串='与 C 库不一致'  正文命中=True
+  汇总行: ['=================== 3 failed, 7 passed, 10 warnings in 0.56s ===================']
+  ⇒ **KILLED**
+
+## M14 — 删掉自定义 fromutc（scripts）—— 证明门覆盖了两份副本
+  目标门: `tests/regression/test_g6_9c_single_tz_source.py::test_posix_tz_string_resolves_to_process_local_not_etc_localtime`
+  rc=1  期望断言串='与 C 库不一致'  正文命中=True
+  汇总行: ['=================== 3 failed, 7 passed, 10 warnings in 0.54s ===================']
+  ⇒ **KILLED**
+
+## M15 — 删掉 fold 标注 —— 墙钟仍对但时刻不守恒（datetime.__eq__ 忽略 fold）
+  目标门: `tests/regression/test_g6_9c_single_tz_source.py::test_posix_tz_string_resolves_to_process_local_not_etc_localtime`
+  rc=1  期望断言串='时刻不守恒'  正文命中=True
+  汇总行: ['=================== 3 failed, 7 passed, 10 warnings in 0.51s ===================']
+  ⇒ **KILLED**
+
+## M16 — 断开生产接线 producer_tz=payload.get('display_tz') —— 整卡回到 r1 形态
+  目标门: `tests/regression/test_g6_9c_single_tz_source.py::test_bucket_gate_reference_day_handles_dst_and_tz_switch`
+  rc=1  期望断言串='参照系取错了'  正文命中=True
+  汇总行: ['=================== 2 failed, 3 passed, 10 warnings in 0.59s ===================']
   ⇒ **KILLED**
 
 ## M8 — vault_lint._display_tz() 内部硬编码回固定时区（不走共享来源）
   目标门: `tests/unit/test_vault_lint.py::test_vault_lint_today_actually_reads_the_shared_tz_source`
   rc=1  期望断言串='CANVAS_TZ 没有真正驱动 lint 的「今天」'  正文命中=True
-  汇总行: ['======================== 1 failed, 10 warnings in 0.59s ========================']
+  汇总行: ['======================== 1 failed, 10 warnings in 0.56s ========================']
   ⇒ **KILLED**
 
 ## 跑后复核 shasum -a 256（须与跑前逐字节相同）
-  b036f104da4d3fd8c0a26ca1fc585d1e0a6c617f84c615e5e09ecc7ed313cbb4  scripts/local_tz.py  ✅ 同
-  e909370625bfcea4487345d4cd60d11b98b637d86c650a8cb8628465d224432d  backend/app/core/display_tz.py  ✅ 同
-  13b51f02ee6805b027c67a38ef95c4d191399a4336f0506517aaaa5d88b3e2a0  backend/app/api/v1/endpoints/review_overview.py  ✅ 同
-  99a4e4ce9274f9c538685ce8624a32bb14ae05ae2b7e1244f16509fdfe4a8518  backend/scripts/vault_lint.py  ✅ 同
+  86a6f3a05970092f13dd377aeb993ec61cdea7cda782a5e81ad208af837cc26d  scripts/local_tz.py  ✅ 同
+  e78909b8e2a053d0cf47b99d390db3813c420856904206aceee829ce76a32c66  backend/app/core/display_tz.py  ✅ 同
+  c215f5a5e8e14eaa705bdbbb69ed0ddd8480edd5b3405ac6c5ffbe44dd2de51e  backend/app/api/v1/endpoints/review_overview.py  ✅ 同
+  17bd31701739e261a173cdfcf8eda24875bfda4bd5d43de40bf5f262fed033b7  backend/scripts/vault_lint.py  ✅ 同
 
-## 裁定: {'M1': 'KILLED', 'M2': 'KILLED', 'M3': 'KILLED', 'M4': 'KILLED', 'M6': 'KILLED', 'M5': 'KILLED', 'M7': 'KILLED', 'M8': 'KILLED'}  | 还原逐字节相同: True
+## 裁定: {'M1': 'KILLED', 'M2': 'KILLED', 'M3': 'KILLED', 'M4': 'KILLED', 'M6': 'KILLED', 'M5': 'KILLED', 'M7': 'KILLED', 'M9': 'KILLED', 'M10': 'KILLED', 'M11': 'KILLED', 'M12': 'KILLED', 'M13': 'KILLED', 'M14': 'KILLED', 'M15': 'KILLED', 'M16': 'KILLED', 'M8': 'KILLED'}  | 还原逐字节相同: True

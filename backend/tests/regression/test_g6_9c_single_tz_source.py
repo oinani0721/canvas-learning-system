@@ -101,6 +101,33 @@ def test_two_copies_share_identical_function_body():
     assert any("CANVAS_TZ" in ln for ln in a), "函数体里没有 CANVAS_TZ —— 比的不是这个函数"
 
 
+def test_two_copies_share_identical_localtz_class():
+    """两份 `_SystemLocalTZ` 类体也必须逐行相同（Codex r3 MEDIUM + 自验变异 A）。
+
+    ⛔ 门 ① 只比 `display_tz` 那个**函数**。HIGH-1 的整个修复体是这个 35 行的类
+    （`fromutc` / `utcoffset` / `dst` / `tzname` / `_dst_gap`）—— 它不在门 ① 的
+    比较范围内。自验实测：把 `scripts/local_tz.py` 的类名改掉（等价于删掉它），
+    整个测试文件仍 22 passed，而该副本在运行期会 `NameError`。
+    """
+    local_tz = _load_local_tz()
+    # 先查**存在性**再比内容：类被删/改名时 inspect.getsource 抛的是 AttributeError，
+    # 那条 traceback 不带可辨认的身份，变异负控绑不住「是这一条红的」。
+    for label, mod in (("backend/app/core/display_tz.py", backend_tz), ("scripts/local_tz.py", local_tz)):
+        assert hasattr(mod, "_SystemLocalTZ"), (
+            f"{label} 里没有 _SystemLocalTZ —— 同源副本漂移了（类被删或改名）。"
+            "该类是 POSIX TZ 分支的整个实现体，缺了它这份副本在运行期会 NameError。"
+        )
+    a = [ln.rstrip() for ln in textwrap.dedent(inspect.getsource(backend_tz._SystemLocalTZ)).splitlines()]
+    b = [ln.rstrip() for ln in textwrap.dedent(inspect.getsource(local_tz._SystemLocalTZ)).splitlines()]
+    assert a == b, (
+        "两份 _SystemLocalTZ 类体不一致 —— 同源副本漂移了。\n"
+        f"  首个差异: {next((f'{i}: {x!r} vs {y!r}' for i, (x, y) in enumerate(zip(a, b)) if x != y), '(长度不同)')}"
+    )
+    # 验伪锚：类体不能是空壳，且必须含本卡赖以成立的三个方法名
+    for must in ("def fromutc", "def utcoffset", "def _dst_gap"):
+        assert any(must in ln for ln in a), f"类体里没有 {must} —— 比的不是这个类"
+
+
 def test_both_copies_carry_the_d18_ruling_date():
     """两份 docstring 都必须带裁定日期字面量 —— 换口径的人得先看见它是谁定的。"""
     local_tz = _load_local_tz()
@@ -279,48 +306,77 @@ def test_explicit_override_wins_over_machine_tz(tz_env):
 # ══════════════════════════════════════════════════════════════════════════
 
 
-#: ZoneInfo 认不出、但 C 库认得的 TZ 写法。最后一个带 DST 规则 —— 它是 r2 的关键：
+#: ZoneInfo 认不出、但 C 库认得的 TZ 写法。带 DST 规则的那两个是关键 ——
 #: 只有**逐时刻**解析才判得对，用「此刻的固定偏移」在 DST 两侧会错一小时。
-_POSIX_TZ_VALUES = ["UTC0", "EST5", ":America/New_York", "EST5EDT,M3.2.0,M11.1.0"]
-
-#: 三个跨 DST 两侧的换算时刻（北半球夏令时内 / 秋季回拨后 / 春季前跳前）
-_DST_PROBE_INSTANTS = [
-    datetime(2026, 7, 31, 16, 30, tzinfo=timezone.utc),
-    datetime(2026, 11, 2, 4, 30, tzinfo=timezone.utc),
-    datetime(2026, 3, 9, 4, 30, tzinfo=timezone.utc),
+_POSIX_TZ_VALUES = [
+    "UTC0",
+    "EST5",
+    ":America/New_York",
+    "EST5EDT,M3.2.0,M11.1.0",
+    ":America/Santiago",
 ]
 
+#: 探测时刻。**必须含折叠窗口内的时刻**（Codex r3 + 自验变异 B/C）：
+#: 初版三个时刻全落在折叠窗口之外，于是「删掉自定义 fromutc」「删掉 fold 处理」
+#: 两个变异在 12 格里全部存活。折叠时段是这两处实现唯一会显形的地方。
+_DST_PROBE_INSTANTS = [
+    datetime(2026, 7, 31, 16, 30, tzinfo=timezone.utc),  # 夏令时内
+    datetime(2026, 11, 2, 4, 30, tzinfo=timezone.utc),  # 回拨之后
+    datetime(2026, 3, 9, 4, 30, tzinfo=timezone.utc),  # 前跳之后
+    datetime(2026, 11, 1, 5, 30, tzinfo=timezone.utc),  # 北半球折叠窗口：NY 01:30 EDT（第一次）
+    datetime(2026, 11, 1, 6, 30, tzinfo=timezone.utc),  # 同一墙钟第二次：NY 01:30 EST
+    datetime(2026, 3, 8, 7, 30, tzinfo=timezone.utc),  # 北半球空缺窗口边缘
+    datetime(2026, 4, 5, 3, 30, tzinfo=timezone.utc),  # 南半球折叠：Santiago
+    datetime(2026, 4, 5, 4, 30, tzinfo=timezone.utc),
+]
 
+#: 两份同源副本都要被测 —— 门此前只喂 backend 那份，scripts 副本的 POSIX 分支
+#: 从未被任何测试执行过（自验变异 A：改坏 scripts 副本，全文件仍绿）。
+_COPY_IDS = ["backend", "scripts"]
+
+
+def _display_tz_of(copy_id):
+    """按副本 id 取 display_tz()。两份是同源副本，门必须都跑。"""
+    if copy_id == "backend":
+        return ro._display_tz()
+    return _load_local_tz().display_tz()
+
+
+@pytest.mark.parametrize("copy_id", _COPY_IDS)
 @pytest.mark.parametrize("tz_value", _POSIX_TZ_VALUES)
-def test_posix_tz_string_resolves_to_process_local_not_etc_localtime(tz_env, tz_value):
-    """`TZ` 是 ZoneInfo 不认、但 C 库认的写法时，换算结果必须与 C 库**逐时刻**一致。
+def test_posix_tz_string_resolves_to_process_local_not_etc_localtime(tz_env, tz_value, copy_id):
+    """`TZ` 是 ZoneInfo 不认、但 C 库认的写法时，换算必须与 C 库**逐时刻**一致。
 
     ⛔ 这些都是**合法**的 `TZ` 值：POSIX 风格（`UTC0` / `EST5` / 带 DST 规则的
-    `EST5EDT,M3.2.0,M11.1.0`）与前导冒号（`:America/New_York`）。`ZoneInfo` 全拒。
-    两个被否掉的实现都在这里翻车：
-      · 继续往下读 `/etc/localtime` —— 那是**宿主**时区、压根不看 `TZ`
-        （上海宿主 + `TZ=UTC0` 把 `2026-07-31T16:30Z` 算成 08-01，C 库是 07-31）；
-      · 返回 `datetime.now().astimezone().tzinfo` —— 那只是**此刻**的固定偏移，
-        换算别的时刻会在 DST 两侧错一小时（`TZ=EST5EDT,…` 下 `2026-11-02T04:30Z`
-        算成 11-02 00:30，C 库是 11-01 23:30，**差一天**）。
+    `EST5EDT,M3.2.0,M11.1.0`）与前导冒号（`:America/New_York` / `:America/Santiago`）。
+    `ZoneInfo` 全拒。三个被否掉的实现都在这里翻车：
+      · 继续读 `/etc/localtime` —— 那是**宿主**时区、压根不看 `TZ`；
+      · 返回 `datetime.now().astimezone().tzinfo` —— 只是**此刻**的固定偏移，
+        换算别的时刻会在 DST 两侧错一小时；
+      · 用默认的 `tzinfo.fromutc()` —— 它拿 `utcoffset(dt)` 去猜，而 dt 是 UTC 值、
+        `_isdst()` 却把它当本地墙钟，南半球 DST 上直接错日。
 
-    ⛔ 基准取**无参** `instant.astimezone()`（C 库逐时刻规则），不取
-    `datetime.now().astimezone().tzinfo`（Codex r2 MEDIUM）：后者本身就是被否掉的
-    那个实现，拿它当 oracle 等于把被测错误复制进判据，DST 错日测不出来。
-
-    ⛔ 比的是**本地墙钟表示**（`replace(tzinfo=None)`），不是两个 aware 值：
-    aware 比较按时刻，两边恒等 —— 那样断言永真。
+    两条判据缺一不可：
+      1. **墙钟**与 C 库无参 `astimezone()` 逐时刻相同；
+      2. **时刻守恒** —— 换算结果转回 UTC 必须等于原时刻。
+         没有第 2 条，`fold` 处理是不可击杀的：`datetime.__eq__` 忽略 `fold`，
+         折叠时段里墙钟看着对、转回 UTC 却差一小时（自验变异 C）。
     """
     tz_env(tz=tz_value)
-    resolved = ro._display_tz()
+    resolved = _display_tz_of(copy_id)
     for instant in _DST_PROBE_INSTANTS:
-        got = instant.astimezone(resolved).replace(tzinfo=None)
-        libc = instant.astimezone().replace(tzinfo=None)
-        assert got == libc, (
-            f"TZ={tz_value!r} 在 {instant.isoformat()} 上与 C 库不一致：\n"
-            f"  display_tz() 给 {got}（resolved={resolved!r}）\n"
-            f"  C 库逐时刻给 {libc}\n"
-            "解析器要么忽略了 TZ 去读 /etc/localtime，要么把此刻的固定偏移拿去换算别的时刻。"
+        got = instant.astimezone(resolved)
+        libc = instant.astimezone()
+        assert got.replace(tzinfo=None) == libc.replace(tzinfo=None), (
+            f"[{copy_id}] TZ={tz_value!r} 在 {instant.isoformat()} 上墙钟与 C 库不一致：\n"
+            f"  display_tz() 给 {got.replace(tzinfo=None)}（resolved={resolved!r}）\n"
+            f"  C 库逐时刻给 {libc.replace(tzinfo=None)}"
+        )
+        assert got.astimezone(timezone.utc) == instant, (
+            f"[{copy_id}] TZ={tz_value!r} 在 {instant.isoformat()} 上**时刻不守恒**：\n"
+            f"  换算得 {got!r}，转回 UTC 是 {got.astimezone(timezone.utc).isoformat()}，"
+            f"原时刻是 {instant.isoformat()}\n"
+            "  折叠时段没标对 fold，或 utcoffset() 没按 fold 取那一侧。"
         )
 
 
@@ -377,12 +433,11 @@ def test_bucket_gate_uses_projection_own_tz_not_current_display_tz(tmp_path, tz_
     sys.path.insert(0, str(REPO_SCRIPTS))
     import daily_review_pick as picker  # noqa: PLC0415  # pyright: ignore[reportMissingImports]
 
-    from app.api.v1.endpoints.review_overview import (  # noqa: PLC0415
-        _gate_boards_rollup,
-        _gate_buckets,
-        _gate_due_groups,
-        _gate_upcoming,
-    )
+    # ⛔ 走 **_summarize**（_gate_buckets 的唯一生产调用方）而不是自己拼调用：
+    #    `producer_tz=payload.get("display_tz")` 那一行接线就在它内部。三处门此前
+    #    都自己复刻了那一行 —— 于是把生产侧的接线删掉，门照样全绿（自验实测
+    #    变异 D SURVIVED）。这是本文件第二次栽在「复刻而非调用」上。
+    from app.api.v1.endpoints.review_overview import _summarize  # noqa: PLC0415
 
     vault = _tmp_vault(tmp_path, name="vaultGate")
     # 17:00Z 到期：在上海是次日 01:00（future），在 UTC 是当日 17:00（due_today）——
@@ -407,12 +462,7 @@ def test_bucket_gate_uses_projection_own_tz_not_current_display_tz(tmp_path, tz_
     assert where.get("甲") == "future", f"前提：上海视角下甲应属 future（次日 01:00 到期），实得 {where}"
 
     def _gate() -> None:
-        groups = _gate_due_groups(payload["due_nodes"])
-        up = _gate_upcoming(payload["upcoming"])
-        _ph, _zero, future_map = _gate_boards_rollup(
-            payload["boards"], groups, len(payload["ineligible"]["placeholder"])
-        )
-        _gate_buckets(payload["buckets"], groups, payload["stats"], payload["generated_at"], future_map, up)
+        _summarize(payload)
 
     for tz_name in ("Asia/Shanghai", "UTC", "America/Los_Angeles"):
         tz_env(canvas_tz=tz_name)
@@ -453,6 +503,18 @@ def test_bucket_gate_uses_projection_own_tz_not_current_display_tz(tmp_path, tz_
             "due_today",
             "秋季回拨·NY 生成 NY 显示",
         ),
+        # ⛔ Codex r3 反例：Bogota 与 New_York 在 generated_at 那一刻**同为 -05:00**，
+        #    但规则不同（Bogota 恒 -05:00，NY 会进 EDT）。靠"偏移是否匹配"猜生成时区，
+        #    这里会猜成 NY，把 Bogota 的合法 due_today 判成 future。
+        #    只有生产器**自报**时区名才判得对。
+        (
+            "America/Bogota",
+            "2026-03-08T05:30:00Z",
+            "2026-03-09T04:30:00Z",
+            "America/New_York",
+            "due_today",
+            "同偏移不同规则·Bogota 生成 NY 显示",
+        ),
         # 切了时区：当前显示时区在 generated_at 那刻的偏移与它自带的不符
         # ⇒ 退回自带偏移，合法投影必须仍被放行（r1 HIGH-2）。
         ("Asia/Shanghai", "2026-07-31T15:00:00Z", "2026-07-31T17:00:00Z", "UTC", "future", "切时区·上海生成 UTC 显示"),
@@ -475,12 +537,11 @@ def test_bucket_gate_reference_day_handles_dst_and_tz_switch(
     sys.path.insert(0, str(REPO_SCRIPTS))
     import daily_review_pick as picker  # noqa: PLC0415  # pyright: ignore[reportMissingImports]
 
-    from app.api.v1.endpoints.review_overview import (  # noqa: PLC0415
-        _gate_boards_rollup,
-        _gate_buckets,
-        _gate_due_groups,
-        _gate_upcoming,
-    )
+    # ⛔ 走 **_summarize**（_gate_buckets 的唯一生产调用方）而不是自己拼调用：
+    #    `producer_tz=payload.get("display_tz")` 那一行接线就在它内部。三处门此前
+    #    都自己复刻了那一行 —— 于是把生产侧的接线删掉，门照样全绿（自验实测
+    #    变异 D SURVIVED）。这是本文件第二次栽在「复刻而非调用」上。
+    from app.api.v1.endpoints.review_overview import _summarize  # noqa: PLC0415
 
     vault = _tmp_vault(tmp_path, name=f"vaultGate{abs(hash(label)) % 10**6}")
     (vault / "节点" / "甲.md").write_text(
@@ -506,17 +567,87 @@ def test_bucket_gate_reference_day_handles_dst_and_tz_switch(
 
     # 门在 gate_tz 下复算这份合法投影，必须放行
     tz_env(canvas_tz=gate_tz)
-    groups = _gate_due_groups(payload["due_nodes"])
-    up = _gate_upcoming(payload["upcoming"])
-    _ph, _zero, future_map = _gate_boards_rollup(payload["boards"], groups, len(payload["ineligible"]["placeholder"]))
     try:
-        _gate_buckets(payload["buckets"], groups, payload["stats"], payload["generated_at"], future_map, up)
+        _summarize(payload)
     except ValueError as exc:
         raise AssertionError(
             f"{label}: 门在显示时区 {gate_tz} 下拒绝了一份合法投影：{exc}\n"
             f"  generated_at={payload['generated_at']}  甲实际归入 {expect_bucket}\n"
             "  参照系取错了：DST 边界要用完整时区规则，切了时区要退回投影自带的偏移。"
         ) from exc
+
+
+def test_bucket_gate_rejects_wrong_bucket_and_forged_display_tz(tmp_path, tz_env):
+    """⑨ 的负控：门放行合法投影**不等于**它还拦得住坏的。
+
+    r2 那版（参照系恒用 `generated_at` 自带偏移）在 DST 边界不但误拒合法投影，
+    还会**放行错误归桶** —— 门比它要替换的那版更弱。所以这条把四种坏输入逐个喂进去：
+      · 节点被挪到错误的桶 ⇒ 必须拒；
+      · `display_tz` 伪造成与 `generated_at` 偏移不自洽的时区 ⇒ 必须拒；
+      · `display_tz` 伪造成不可解析的名字 ⇒ 必须拒；
+      · 旧投影（根本没有这个键）⇒ 必须**放行**（加性字段要向后兼容）。
+
+    每条都用 `pytest.raises(match=...)` 绑**具体拒因**，不只看「抛了异常」——
+    否则「被更早的防线拒掉」也会被记成通过。
+    """
+    import copy  # noqa: PLC0415
+
+    sys.path.insert(0, str(REPO_SCRIPTS))
+    import daily_review_pick as picker  # noqa: PLC0415  # pyright: ignore[reportMissingImports]
+
+    # ⛔ 走 **_summarize**（_gate_buckets 的唯一生产调用方）而不是自己拼调用：
+    #    `producer_tz=payload.get("display_tz")` 那一行接线就在它内部。三处门此前
+    #    都自己复刻了那一行 —— 于是把生产侧的接线删掉，门照样全绿（自验实测
+    #    变异 D SURVIVED）。这是本文件第二次栽在「复刻而非调用」上。
+    from app.api.v1.endpoints.review_overview import _summarize  # noqa: PLC0415
+
+    vault = _tmp_vault(tmp_path, name="vaultNeg")
+    (vault / "节点" / "甲.md").write_text(
+        '---\ntype: concept\nsource_board: "[[原白板/板]]"\nfsrs_due: 2026-03-09T04:30:00Z\n---\n内容。\n',
+        encoding="utf-8",
+    )
+    saved = picker._DISPLAY_TZ
+    picker._DISPLAY_TZ = ZoneInfo("America/New_York")
+    try:
+        payload, _r = picker.build_payload(
+            vault, datetime(2026, 3, 8, 5, 30, tzinfo=timezone.utc), {}, picker.load_decay(vault)
+        )
+    finally:
+        picker._DISPLAY_TZ = saved
+
+    tz_env(canvas_tz="America/New_York")
+
+    def _gate(p):
+        _summarize(p)
+
+    _gate(payload)  # 前提：这份是合法的，门放行
+
+    moved = copy.deepcopy(payload)
+    moved["buckets"]["due_today"] = moved["buckets"]["future"]
+    moved["buckets"]["future"] = []
+    with pytest.raises(ValueError, match="非 generated_at 的同一本地日"):
+        _gate(moved)
+
+    for fake, pattern in (("Asia/Tokyo", "偏移不自洽"), ("Not/AZone", "不是可解析的时区名")):
+        forged = copy.deepcopy(payload)
+        forged["display_tz"] = fake
+        # ⛔ 不用 pytest.raises(match=...)：它在「压根没抛」时的失败消息是
+        #    `DID NOT RAISE`，不含 pattern —— 变异负控没法拿一个稳定的串绑住
+        #    「是这一条红了」（memory：承重串别用 DID NOT RAISE）。显式写，
+        #    让两种失败各自带可辨认的身份。
+        try:
+            _gate(forged)
+        except ValueError as exc:
+            assert re.search(pattern, str(exc)), f"display_tz 伪造成 {fake!r} 后门确实拒了，但拒因不是预期的那条：{exc}"
+        else:
+            raise AssertionError(
+                f"display_tz 伪造成 {fake!r} 后门仍放行 —— payload 自洽校验失效。"
+                f"（该值与 generated_at={payload['generated_at']} 的偏移不符，或根本不是可解析的时区名）"
+            )
+
+    legacy = copy.deepcopy(payload)
+    legacy.pop("display_tz")
+    _gate(legacy)  # 旧投影没有该键：必须仍能放行（加性字段向后兼容）
 
 
 # ══════════════════════════════════════════════════════════════════════════

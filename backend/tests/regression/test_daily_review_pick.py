@@ -260,6 +260,11 @@ def test_projection_v3_purely_additive_keeps_v2_contract(tmp_path):
         "notification",
         "rank_manifest",  # CARD-G3-6b 加性新增 (S5 系数版本+指纹, 本断言显式扩)
         "truncated",  # CARD-G3-6b 加性新增 (S6 榜被截过的显式声明, 同上)
+        # CARD-G6-9c 加性新增: 生产器自报它归日用的时区 IANA 名。消费侧
+        # (review_overview._gate_buckets) 复算桶位时必须用同一个时区规则 ——
+        # 只有 generated_at 的偏移不够: 同偏移不同规则的时区对 (Bogota 恒 -05:00
+        # vs New_York 的 EST) 会让门在 DST 边界误拒合法投影、或放行错误归桶。
+        "display_tz",
     }
     for key in (
         "new",
@@ -444,6 +449,7 @@ def test_boards_rollup_golden_old_fields_frozen(tmp_path):
     # 三件套 + due_nodes 行内 idle_days (同一条累积冻结纪律)
     payload.pop("rank_manifest")
     payload.pop("truncated")
+    payload.pop("display_tz")  # CARD-G6-9c 加性顶层键（生产器自报归日时区）
     for _tb in payload["top_boards"]:
         _tb.pop("why_this_board")
         _tb.pop("estimated_minutes")
@@ -744,6 +750,7 @@ def test_buckets_golden_pre_g36a_fields_frozen(tmp_path):
     # 金样, 每轮新加性都要在此证明自己没动旧字段/旧键序)
     payload.pop("rank_manifest")
     payload.pop("truncated")
+    payload.pop("display_tz")  # CARD-G6-9c 加性顶层键（生产器自报归日时区）
     for _tb in payload["top_boards"]:
         _tb.pop("why_this_board")
         _tb.pop("estimated_minutes")
