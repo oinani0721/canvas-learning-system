@@ -279,28 +279,73 @@ def test_explicit_override_wins_over_machine_tz(tz_env):
 # ══════════════════════════════════════════════════════════════════════════
 
 
-@pytest.mark.parametrize("tz_value", ["UTC0", "EST5", ":America/New_York"])
+#: ZoneInfo 认不出、但 C 库认得的 TZ 写法。最后一个带 DST 规则 —— 它是 r2 的关键：
+#: 只有**逐时刻**解析才判得对，用「此刻的固定偏移」在 DST 两侧会错一小时。
+_POSIX_TZ_VALUES = ["UTC0", "EST5", ":America/New_York", "EST5EDT,M3.2.0,M11.1.0"]
+
+#: 三个跨 DST 两侧的换算时刻（北半球夏令时内 / 秋季回拨后 / 春季前跳前）
+_DST_PROBE_INSTANTS = [
+    datetime(2026, 7, 31, 16, 30, tzinfo=timezone.utc),
+    datetime(2026, 11, 2, 4, 30, tzinfo=timezone.utc),
+    datetime(2026, 3, 9, 4, 30, tzinfo=timezone.utc),
+]
+
+
+@pytest.mark.parametrize("tz_value", _POSIX_TZ_VALUES)
 def test_posix_tz_string_resolves_to_process_local_not_etc_localtime(tz_env, tz_value):
-    """`TZ` 是 ZoneInfo 不认、但 C 库认的写法时，算出的日期必须与进程本地一致。
+    """`TZ` 是 ZoneInfo 不认、但 C 库认的写法时，换算结果必须与 C 库**逐时刻**一致。
 
-    ⛔ 这三个都是**合法**的 `TZ` 值：POSIX 风格（`UTC0` / `EST5`）与前导冒号
-    （`:America/New_York`）。`ZoneInfo` 全部拒绝它们。初版在这里 `pass` 掉、
-    继续往下读 `/etc/localtime` —— 而 `/etc/localtime` 是**宿主**时区，压根不看
-    `TZ`。于是「设了 TZ 却按宿主时区算」，静默错一天：
-    上海宿主 + `TZ=UTC0`，`2026-07-31T16:30Z` 被算成 08-01，而 C 库本地是 07-31。
+    ⛔ 这些都是**合法**的 `TZ` 值：POSIX 风格（`UTC0` / `EST5` / 带 DST 规则的
+    `EST5EDT,M3.2.0,M11.1.0`）与前导冒号（`:America/New_York`）。`ZoneInfo` 全拒。
+    两个被否掉的实现都在这里翻车：
+      · 继续往下读 `/etc/localtime` —— 那是**宿主**时区、压根不看 `TZ`
+        （上海宿主 + `TZ=UTC0` 把 `2026-07-31T16:30Z` 算成 08-01，C 库是 07-31）；
+      · 返回 `datetime.now().astimezone().tzinfo` —— 那只是**此刻**的固定偏移，
+        换算别的时刻会在 DST 两侧错一小时（`TZ=EST5EDT,…` 下 `2026-11-02T04:30Z`
+        算成 11-02 00:30，C 库是 11-01 23:30，**差一天**）。
 
-    判据取「与 C 库本地**同一天**」而不是「等于某个字面量」：这三种写法各自
-    对应什么偏移由 tzdata 决定，钉字面量等于把 tzdata 抄进测试。
+    ⛔ 基准取**无参** `instant.astimezone()`（C 库逐时刻规则），不取
+    `datetime.now().astimezone().tzinfo`（Codex r2 MEDIUM）：后者本身就是被否掉的
+    那个实现，拿它当 oracle 等于把被测错误复制进判据，DST 错日测不出来。
+
+    ⛔ 比的是**本地墙钟表示**（`replace(tzinfo=None)`），不是两个 aware 值：
+    aware 比较按时刻，两边恒等 —— 那样断言永真。
     """
-    instant = datetime(2026, 7, 31, 16, 30, tzinfo=timezone.utc)
     tz_env(tz=tz_value)
     resolved = ro._display_tz()
-    process_local = datetime.now().astimezone().tzinfo
-    assert instant.astimezone(resolved).date() == instant.astimezone(process_local).date(), (
-        f"TZ={tz_value!r} 下 display_tz() 给出的日期与进程本地不一致 —— "
-        f"解析器忽略了 TZ 去读 /etc/localtime。"
-        f"resolved={resolved!r} 日={instant.astimezone(resolved).date()}; "
-        f"进程本地={process_local!r} 日={instant.astimezone(process_local).date()}"
+    for instant in _DST_PROBE_INSTANTS:
+        got = instant.astimezone(resolved).replace(tzinfo=None)
+        libc = instant.astimezone().replace(tzinfo=None)
+        assert got == libc, (
+            f"TZ={tz_value!r} 在 {instant.isoformat()} 上与 C 库不一致：\n"
+            f"  display_tz() 给 {got}（resolved={resolved!r}）\n"
+            f"  C 库逐时刻给 {libc}\n"
+            "解析器要么忽略了 TZ 去读 /etc/localtime，要么把此刻的固定偏移拿去换算别的时刻。"
+        )
+
+
+def test_posix_probe_actually_differs_from_etc_localtime(tz_env):
+    """⑦ 的**前提断言**：探针用的 TZ 必须与宿主 `/etc/localtime` 给出不同答案。
+
+    没有这条，⑦ 在「宿主时区恰好与探针 TZ 同解」的机器上会变成恒真 ——
+    那时「继续读 /etc/localtime」这条缺陷根本无从暴露（Codex r2 MEDIUM 实测：
+    把 `/etc/localtime` 设为 UTC 后 M4 的三个参数全部通过）。
+    """
+    tz_env(tz=None, canvas_tz=None)
+    host = ro._display_tz()  # 无 TZ ⇒ 走 /etc/localtime 那一档
+    differing = []
+    for tz_value in _POSIX_TZ_VALUES:
+        tz_env(tz=tz_value)
+        resolved = ro._display_tz()
+        if any(
+            i.astimezone(resolved).replace(tzinfo=None) != i.astimezone(host).replace(tzinfo=None)
+            for i in _DST_PROBE_INSTANTS
+        ):
+            differing.append(tz_value)
+    assert differing, (
+        f"本宿主的 /etc/localtime（{host!r}）与全部探针 TZ 在所有探测时刻上给出相同答案 —— "
+        "门 ⑦ 在这台机器上无法区分「读了 TZ」与「读了 /etc/localtime」，是恒真的。"
+        "⛔ 这是宿主形态问题，须登记并报主 session，不得改判据放行。"
     )
 
 
@@ -378,6 +423,100 @@ def test_bucket_gate_uses_projection_own_tz_not_current_display_tz(tmp_path, tz_
                 f"显示时区切到 {tz_name} 后，同一份合法投影被门拒绝：{exc}\n"
                 "门用了此刻的显示时区当参照日 —— 应改用 generated_at 自带的偏移。"
             ) from exc
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# ⑨ DST 边界上的桶位参照系（Codex r2 HIGH-2：r1 的整改造成了缺陷位移）
+# ══════════════════════════════════════════════════════════════════════════
+
+
+@pytest.mark.parametrize(
+    "producer_tz,moment_iso,due_iso,gate_tz,expect_bucket,label",
+    [
+        # 纽约在 EST 时刻生成、节点在 EDT 时刻到期：只有**完整时区规则**判得对。
+        # 拿 generated_at 自带的固定 -05:00 换算，会把次日的到期算成同日 ⇒ 误拒。
+        (
+            "America/New_York",
+            "2026-03-08T05:30:00Z",
+            "2026-03-09T04:30:00Z",
+            "America/New_York",
+            "future",
+            "春季前跳·NY 生成 NY 显示",
+        ),
+        # 秋季回拨：due 在 NY 是 11-01 23:30 EST，与 gen 的 11-01 **同日**；
+        # 固定 -04:00 会算成 11-02 ⇒ 误判 future。
+        (
+            "America/New_York",
+            "2026-11-01T04:30:00Z",
+            "2026-11-02T04:30:00Z",
+            "America/New_York",
+            "due_today",
+            "秋季回拨·NY 生成 NY 显示",
+        ),
+        # 切了时区：当前显示时区在 generated_at 那刻的偏移与它自带的不符
+        # ⇒ 退回自带偏移，合法投影必须仍被放行（r1 HIGH-2）。
+        ("Asia/Shanghai", "2026-07-31T15:00:00Z", "2026-07-31T17:00:00Z", "UTC", "future", "切时区·上海生成 UTC 显示"),
+        ("Asia/Shanghai", "2026-07-31T01:00:00Z", "2026-07-31T13:00:00Z", "Asia/Shanghai", "due_today", "同区当日"),
+    ],
+)
+def test_bucket_gate_reference_day_handles_dst_and_tz_switch(
+    tmp_path, tz_env, producer_tz, moment_iso, due_iso, gate_tz, expect_bucket, label
+):
+    """桶位门的参照系必须在 DST 边界与切时区两种情形下都放行合法投影。
+
+    ⛔ **走真实 `_gate_buckets`**，不在测试里复刻那行参照系逻辑：初版就是复刻的，
+    结果把参照系改成任一极端（变异 M5 / M7）门都毫无反应 —— 复刻出来的是我自己
+    抄的公式，不是被测代码（矩阵文件 round-1 栽过同一个坑）。
+
+    两个极端都被这组用例否掉：
+      · 恒用投影自带的固定偏移 ⇒ 两条 DST 用例误判（M5）；
+      · 恒用此刻的显示时区 ⇒「切时区」那条误判成 corrupt（M7）。
+    """
+    sys.path.insert(0, str(REPO_SCRIPTS))
+    import daily_review_pick as picker  # noqa: PLC0415  # pyright: ignore[reportMissingImports]
+
+    from app.api.v1.endpoints.review_overview import (  # noqa: PLC0415
+        _gate_boards_rollup,
+        _gate_buckets,
+        _gate_due_groups,
+        _gate_upcoming,
+    )
+
+    vault = _tmp_vault(tmp_path, name=f"vaultGate{abs(hash(label)) % 10**6}")
+    (vault / "节点" / "甲.md").write_text(
+        f'---\ntype: concept\nsource_board: "[[原白板/板]]"\nfsrs_due: {due_iso}\n---\n内容。\n',
+        encoding="utf-8",
+    )
+    # 生产器侧钉在 producer_tz（pick 用模块级常量，setenv 对已 import 的它无效）
+    saved = picker._DISPLAY_TZ
+    picker._DISPLAY_TZ = ZoneInfo(producer_tz)
+    try:
+        moment = datetime.fromisoformat(moment_iso.replace("Z", "+00:00"))
+        payload, _ranked = picker.build_payload(vault, moment, {}, picker.load_decay(vault))
+    finally:
+        picker._DISPLAY_TZ = saved
+
+    where = {
+        n: b for b, rows in payload["buckets"].items() if isinstance(rows, list) for n in (r["node"] for r in rows)
+    }
+    assert where.get("甲") == expect_bucket, (
+        f"{label}: 前提不成立 —— 生产器（{producer_tz}）把甲归入 {where.get('甲')!r}，"
+        f"本用例要测的是它归入 {expect_bucket!r} 的情形。generated_at={payload['generated_at']}"
+    )
+
+    # 门在 gate_tz 下复算这份合法投影，必须放行
+    tz_env(canvas_tz=gate_tz)
+    groups = _gate_due_groups(payload["due_nodes"])
+    up = _gate_upcoming(payload["upcoming"])
+    _ph, _zero, future_map = _gate_boards_rollup(payload["boards"], groups, len(payload["ineligible"]["placeholder"]))
+    try:
+        _gate_buckets(payload["buckets"], groups, payload["stats"], payload["generated_at"], future_map, up)
+    except ValueError as exc:
+        raise AssertionError(
+            f"{label}: 门在显示时区 {gate_tz} 下拒绝了一份合法投影：{exc}\n"
+            f"  generated_at={payload['generated_at']}  甲实际归入 {expect_bucket}\n"
+            "  参照系取错了：DST 边界要用完整时区规则，切了时区要退回投影自带的偏移。"
+        ) from exc
 
 
 # ══════════════════════════════════════════════════════════════════════════

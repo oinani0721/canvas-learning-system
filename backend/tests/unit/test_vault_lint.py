@@ -87,6 +87,31 @@ def _oracle():
 # ---------------------------------------------------------------------------
 
 
+@pytest.fixture
+def host_tz():
+    """临时改**宿主**时区并无条件还原 —— 还原后必须再 tzset() 一次。
+
+    ⛔ 只靠 monkeypatch 还原环境变量是不够的（Codex r2 LOW）：`time` 模块把
+    tzname / timezone / altzone 缓存在 C 层，不重新 `tzset()` 就还留着上一个
+    时区，污染后续用例（实测环境还原成 LA 后 `time.tzname` 仍是上海）。
+    形态与矩阵的 `machine_tz` 一致。
+    """
+    saved = os.environ.get("TZ")
+
+    def _set(tz_name: str) -> None:
+        os.environ["TZ"] = tz_name
+        time.tzset()
+
+    try:
+        yield _set
+    finally:
+        if saved is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = saved
+        time.tzset()
+
+
 @pytest.fixture(autouse=True)
 def _pin_display_tz(monkeypatch):
     """把显示时区钉在 Asia/Shanghai —— **两侧同时钉住**, 期望值一字不动。
@@ -610,7 +635,7 @@ def test_orphan_quoted_null_is_string_not_yaml_null(tmp_path):
     assert res.findings == [], f'带引号的 "null" 是有效字符串值, 应豁免 (被误判成 YAML null 才会报): {res.findings}'
 
 
-def test_resolve_today_default_is_display_tz_not_host_local(monkeypatch):
+def test_resolve_today_default_is_display_tz_not_host_local(monkeypatch, host_tz):
     """Codex round-1 MEDIUM-2 + round-2 MEDIUM-2: 环境无关地锁死默认分支的时区语义。
 
     手法: 把 vl 命名空间的 datetime 类整个换成固定钟 (不读系统钟), 并把
@@ -636,13 +661,47 @@ def test_resolve_today_default_is_display_tz_not_host_local(monkeypatch):
     # 把**宿主**时区也钉住：否则 `astimezone(宿主本地)` 那条变异的可杀性取决于
     # 跑在哪台机器上（洛杉矶宿主下 LA 日恰与 NY 日相同 ⇒ 杀不掉）。钉成上海后
     # 宿主日 = 09-01，与期望的 NY 日 08-31 不同，判别力不再依赖运行环境。
-    monkeypatch.setenv("TZ", "Asia/Shanghai")
-    time.tzset()
+    host_tz("Asia/Shanghai")  # 走 fixture：teardown 会重新 tzset()，不留状态污染
     monkeypatch.setattr(vl, "datetime", _FrozenDT)
     monkeypatch.setattr(vl, "_display_tz", lambda: ny)
     assert vl.resolve_today(None) == date(2026, 8, 31), (
         "默认分支必须按 _display_tz() (此处替身返回 NY) 换算: UTC 09-01 02:00 = NY 08-31 22:00; "
         "宿主本地(上海=09-01)/UTC 直取(09-01)/date.today()(真实今天) 三条变异各给出不同结果"
+    )
+
+
+def test_vault_lint_today_actually_reads_the_shared_tz_source(monkeypatch):
+    """证明 lint 的「今天」真的来自共享来源 `local_tz`，而不是它自己内部的硬编码。
+
+    ⛔ 为什么单靠 `test_resolve_today_default_is_display_tz_not_host_local` 不够
+    （Codex r2 MEDIUM）：那条把 `vl._display_tz` 整个替换成替身，于是
+    「`_display_tz()` 内部硬编码回某个固定时区」这种**接线错误**它压根碰不到——
+    替身把被测的接线短路了。本文件其余用例又都被 `_pin_display_tz` 钉在上海，
+    硬编码回上海同样逃得掉。
+
+    这条**不替换任何东西**，只动 `CANVAS_TZ` —— 那是 `local_tz.display_tz()` 的
+    第一档，只有真的走到它才会生效。两个偏移差 5 小时的时区必须给出不同的「今天」。
+    """
+    from datetime import datetime as real_datetime
+
+    class _FrozenDT(real_datetime):
+        @classmethod
+        def now(cls, tz=None):  # noqa: ARG003
+            # UTC 12:00 → 东京(+9) 当日 21:00；Kiritimati(+14) 次日 02:00
+            return cls(2026, 8, 31, 12, 0, tzinfo=timezone.utc)
+
+    monkeypatch.setattr(vl, "datetime", _FrozenDT)
+
+    monkeypatch.setenv("CANVAS_TZ", "Asia/Tokyo")
+    tokyo = vl.resolve_today(None)
+    monkeypatch.setenv("CANVAS_TZ", "Pacific/Kiritimati")
+    kiritimati = vl.resolve_today(None)
+
+    assert (tokyo, kiritimati) == (date(2026, 8, 31), date(2026, 9, 1)), (
+        f"CANVAS_TZ 没有真正驱动 lint 的「今天」：东京={tokyo} 基里巴斯={kiritimati}，"
+        f"期望 2026-08-31 / 2026-09-01。"
+        "若两者相同，说明 _display_tz() 没走到 local_tz 的 CANVAS_TZ 那一档"
+        "（内部硬编码了某个固定时区，或根本没接上共享来源）。"
     )
 
 

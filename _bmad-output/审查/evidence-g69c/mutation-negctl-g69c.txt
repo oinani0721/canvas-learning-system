@@ -1,46 +1,66 @@
 # CARD-G6-9c (j) 变异负控 —— M1-M3 卡文指定，M4/M5 锁 Codex r1 两条 HIGH 的修复
 
 ## 跑前基线 shasum -a 256
-  57ebb7c6db6821bea38eb4f891ecbab082ec5a93b97d76538438b041fda28a0b  scripts/local_tz.py
-  bbfd449dabddd2b7be17c818f9e24cdb50e049977306db22140d22db0610e4da  backend/app/core/display_tz.py
-  5d5bd1f20c444d2297a26d5737478f4af01ad50a83ecd9cbaed217d512a54313  backend/app/api/v1/endpoints/review_overview.py
+  b036f104da4d3fd8c0a26ca1fc585d1e0a6c617f84c615e5e09ecc7ed313cbb4  scripts/local_tz.py
+  e909370625bfcea4487345d4cd60d11b98b637d86c650a8cb8628465d224432d  backend/app/core/display_tz.py
+  13b51f02ee6805b027c67a38ef95c4d191399a4336f0506517aaaa5d88b3e2a0  backend/app/api/v1/endpoints/review_overview.py
+  99a4e4ce9274f9c538685ce8624a32bb14ae05ae2b7e1244f16509fdfe4a8518  backend/scripts/vault_lint.py
 
 ## M1 — scripts/local_tz.py 函数体改回硬编码 Asia/Shanghai（副本漂移）
   目标门: `tests/regression/test_g6_9c_single_tz_source.py::test_two_copies_share_identical_function_body`
   rc=1  期望断言串='同源副本漂移了'  正文命中=True
-  汇总行: ['======================== 1 failed, 10 warnings in 0.40s ========================']
+  汇总行: ['======================== 1 failed, 10 warnings in 0.54s ========================']
   附加门: `tests/regression/test_g6_9_boundary_matrix.py::test_known_divergent_table_is_current` env={'TZ': 'UTC'}
     rc=1  期望断言串='分叉登记表与实测不符'  正文命中=True
-    汇总行: ['======================== 1 failed, 10 warnings in 0.54s ========================']
+    汇总行: ['======================== 1 failed, 10 warnings in 0.55s ========================']
   ⇒ **KILLED**
 
 ## M2 — review_overview._display_tz() 改回模块级常量（求值时机固化在 import）
   目标门: `tests/regression/test_g6_9c_single_tz_source.py::test_display_side_reevaluates_every_call`
   rc=1  期望断言串='把时区固化在 import 时刻了'  正文命中=True
-  汇总行: ['======================== 1 failed, 10 warnings in 0.45s ========================']
+  汇总行: ['======================== 1 failed, 10 warnings in 0.52s ========================']
   ⇒ **KILLED**
 
-## M3 — display_tz() 缺省分支改回裸 astimezone().tzinfo（两份同改，保持副本同源）
+## M3 — display_tz() 跳过 TZ / /etc/localtime 两档，直接落固定偏移
   目标门: `tests/regression/test_g6_9c_single_tz_source.py::test_default_resolution_yields_a_named_zone`
   rc=1  期望断言串='落到了固定偏移末档'  正文命中=True
-  汇总行: ['======================== 1 failed, 10 warnings in 0.50s ========================']
+  汇总行: ['======================== 1 failed, 10 warnings in 0.62s ========================']
   ⇒ **KILLED**
 
-## M4 — 退回 Codex r1 HIGH-1 缺陷：POSIX TZ 串被 ZoneInfo 拒后继续读 /etc/localtime
+## M4 — 退回 r1 HIGH-1 缺陷：POSIX TZ 串被拒后继续读 /etc/localtime（无视 TZ）
   目标门: `tests/regression/test_g6_9c_single_tz_source.py::test_posix_tz_string_resolves_to_process_local_not_etc_localtime`
-  rc=1  期望断言串='解析器忽略了 TZ 去读 /etc/localtime'  正文命中=True
-  汇总行: ['======================== 1 failed, 10 warnings in 0.44s ========================']
+  rc=1  期望断言串='与 C 库不一致'  正文命中=True
+  汇总行: ['======================== 4 failed, 10 warnings in 0.54s ========================']
   ⇒ **KILLED**
 
-## M5 — 退回 Codex r1 HIGH-2 缺陷：桶位门参照日用此刻的显示时区而非 generated_at 自带偏移
-  目标门: `tests/regression/test_g6_9c_single_tz_source.py::test_bucket_gate_uses_projection_own_tz_not_current_display_tz`
-  rc=1  期望断言串='同一份合法投影被门拒绝'  正文命中=True
-  汇总行: ['======================== 1 failed, 10 warnings in 0.45s ========================']
+## M6 — 退回 r2 HIGH-1 缺陷：POSIX TZ 串回落到**此刻的固定偏移**（丢 DST 规则）
+  目标门: `tests/regression/test_g6_9c_single_tz_source.py::test_posix_tz_string_resolves_to_process_local_not_etc_localtime`
+  rc=1  期望断言串='与 C 库不一致'  正文命中=True
+  汇总行: ['=================== 2 failed, 2 passed, 10 warnings in 0.54s ===================']
+  ⇒ **KILLED**
+
+## M5 — 退回 r1 整改形态：桶位参照系恒用投影自带固定偏移（DST 边界误判）
+  目标门: `tests/regression/test_g6_9c_single_tz_source.py::test_bucket_gate_reference_day_handles_dst_and_tz_switch`
+  rc=1  期望断言串='春季前跳'  正文命中=True
+  汇总行: ['=================== 2 failed, 2 passed, 10 warnings in 0.54s ===================']
+  ⇒ **KILLED**
+
+## M7 — 退回 r1 之前的形态：桶位参照系恒用此刻显示时区（切时区判 corrupt）
+  目标门: `tests/regression/test_g6_9c_single_tz_source.py::test_bucket_gate_reference_day_handles_dst_and_tz_switch`
+  rc=1  期望断言串='切时区'  正文命中=True
+  汇总行: ['=================== 1 failed, 3 passed, 10 warnings in 0.55s ===================']
+  ⇒ **KILLED**
+
+## M8 — vault_lint._display_tz() 内部硬编码回固定时区（不走共享来源）
+  目标门: `tests/unit/test_vault_lint.py::test_vault_lint_today_actually_reads_the_shared_tz_source`
+  rc=1  期望断言串='CANVAS_TZ 没有真正驱动 lint 的「今天」'  正文命中=True
+  汇总行: ['======================== 1 failed, 10 warnings in 0.59s ========================']
   ⇒ **KILLED**
 
 ## 跑后复核 shasum -a 256（须与跑前逐字节相同）
-  57ebb7c6db6821bea38eb4f891ecbab082ec5a93b97d76538438b041fda28a0b  scripts/local_tz.py  ✅ 同
-  bbfd449dabddd2b7be17c818f9e24cdb50e049977306db22140d22db0610e4da  backend/app/core/display_tz.py  ✅ 同
-  5d5bd1f20c444d2297a26d5737478f4af01ad50a83ecd9cbaed217d512a54313  backend/app/api/v1/endpoints/review_overview.py  ✅ 同
+  b036f104da4d3fd8c0a26ca1fc585d1e0a6c617f84c615e5e09ecc7ed313cbb4  scripts/local_tz.py  ✅ 同
+  e909370625bfcea4487345d4cd60d11b98b637d86c650a8cb8628465d224432d  backend/app/core/display_tz.py  ✅ 同
+  13b51f02ee6805b027c67a38ef95c4d191399a4336f0506517aaaa5d88b3e2a0  backend/app/api/v1/endpoints/review_overview.py  ✅ 同
+  99a4e4ce9274f9c538685ce8624a32bb14ae05ae2b7e1244f16509fdfe4a8518  backend/scripts/vault_lint.py  ✅ 同
 
-## 裁定: {'M1': 'KILLED', 'M2': 'KILLED', 'M3': 'KILLED', 'M4': 'KILLED', 'M5': 'KILLED'}  | 还原逐字节相同: True
+## 裁定: {'M1': 'KILLED', 'M2': 'KILLED', 'M3': 'KILLED', 'M4': 'KILLED', 'M6': 'KILLED', 'M5': 'KILLED', 'M7': 'KILLED', 'M8': 'KILLED'}  | 还原逐字节相同: True

@@ -26,9 +26,39 @@ runner 的机器本地 —— 换个时区跑「今天」就分叉。本函数�
 from __future__ import annotations
 
 import os
-from datetime import datetime
+import time
+from datetime import datetime, timedelta, tzinfo
 from pathlib import Path
 from zoneinfo import ZoneInfo
+
+
+class _SystemLocalTZ(tzinfo):
+    """C 库按 TZ **逐时刻**解析的本地时区（含 DST 转换规则）。
+
+    ZoneInfo 认不出的 TZ 写法（POSIX 串 "EST5EDT,M3.2.0,M11.1.0" / "UTC0"、
+    前导冒号 ":Asia/Shanghai"）C 库都认得。直接返回
+    `datetime.now().astimezone().tzinfo` 只是**此刻**的固定偏移 —— 拿它去换算
+    别的时刻，会在 DST 切换两侧错一小时，进而错日、错桶（Codex r2 HIGH-1 实测：
+    `TZ=EST5EDT,M3.2.0,M11.1.0` 下 `2026-11-02T04:30Z` 被算成 11-02 00:30，
+    而 C 库给的是 11-01 23:30 —— 差一天）。
+
+    ⛔ 不把 `time.timezone` / `time.altzone` 缓存成模块级常量（Python 文档那份
+    LocalTimezone 示例就是那么写的）：`tzset()` 之后它们会变，缓存等于把时区
+    固化在 import 时刻 —— 与本模块「每次调用现取」的口径直接冲突。
+    """
+
+    def _isdst(self, dt: datetime) -> bool:
+        tt = (dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second, dt.weekday(), 0, -1)
+        return time.localtime(time.mktime(tt)).tm_isdst > 0
+
+    def utcoffset(self, dt):
+        return timedelta(seconds=-(time.altzone if self._isdst(dt) else time.timezone))
+
+    def dst(self, dt):
+        return timedelta(seconds=time.timezone - time.altzone) if self._isdst(dt) else timedelta(0)
+
+    def tzname(self, dt):
+        return time.tzname[1 if self._isdst(dt) else 0]
 
 
 def display_tz():
@@ -46,11 +76,13 @@ def display_tz():
         try:
             return ZoneInfo(env_tz)
         except Exception:  # noqa: BLE001 — TZ 也允许 "UTC0"/"EST5"/":Asia/X" 这类 POSIX 串
-            # ⛔ 回落到**进程本地**, 不是 /etc/localtime (Codex r1 HIGH-1):
-            #    TZ 已经把 C 库的本地时区改掉了, 去读软链等于无视 TZ ——
-            #    实测上海宿主 + TZ=UTC0 时会把 2026-07-31T16:30Z 算成 08-01,
-            #    而 C 库本地是 07-31, 静默错一天。
-            return datetime.now().astimezone().tzinfo
+            # ⛔ 回落到 C 库**逐时刻**解析的本地时区, 不是 /etc/localtime, 也不是
+            #    此刻的固定偏移:
+            #    · 读 /etc/localtime 等于无视 TZ (r1 HIGH-1: 上海宿主 + TZ=UTC0
+            #      把 2026-07-31T16:30Z 算成 08-01, C 库本地是 07-31);
+            #    · datetime.now().astimezone().tzinfo 只是此刻的偏移, 换算别的
+            #      时刻会在 DST 两侧错一小时 (r2 HIGH-1)。
+            return _SystemLocalTZ()
     try:
         parts = Path("/etc/localtime").resolve().parts
         return ZoneInfo("/".join(parts[parts.index("zoneinfo") + 1 :]))

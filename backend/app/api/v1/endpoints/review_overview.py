@@ -490,15 +490,21 @@ def _gate_buckets(
     try:
         ref = datetime.fromisoformat(generated_at.replace("Z", "+00:00"))
         ref_z = ref.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        # ⛔ 参照日取 generated_at **自带的偏移**, 不用此刻的 _display_tz()
-        #    (Codex r1 HIGH-2)。本门的职责是校验「这份产出自不自洽」——
-        #    投影是生产器在某个时刻、按它当时的显示时区算出来的。用此刻的时区
-        #    重算 ⇒ 用户一改时区, 盘上那份完全合法的投影就被判 corrupt
-        #    (实测: 上海生成的 future 节点, 切 UTC 后门说它该在 due_today)。
-        #    「投影是不是今天的」由 _vault_entry 的 stale 判定负责, 那里用此刻的
-        #    时区才对 —— 切时区后它变 stale ⇒ 触发重新生成, 是正确行为。
-        ref_tz = ref.tzinfo
-        ref_day = ref.date()
+        # 参照系按**证据**在两者间择一 (Codex r1 HIGH-2 + r2 HIGH-2 两轮收敛):
+        #   · 若此刻的显示时区在 generated_at 那一刻的偏移与它自带的偏移**相同**,
+        #     说明投影很可能就是这个时区生成的 ⇒ 用它的**完整规则** (含 DST)。
+        #     只有完整规则判得对 DST 边界: 纽约 EST 时刻生成、EDT 时刻到期时,
+        #     拿固定 -05:00 换算会把次日的到期算成同日 (r2 HIGH-2 实测)。
+        #   · 偏移不同 ⇒ 投影来自别的时区 ⇒ 退回它**自带的固定偏移**。
+        #     信息只有这么多; 此时投影多半已 stale, 页面会提示重新生成。
+        # ⛔ 两个极端都试过、都不对: 恒用此刻时区 ⇒ 用户一改时区, 盘上那份完全
+        #    合法的投影被判 corrupt (r1 HIGH-2); 恒用自带偏移 ⇒ DST 边界上误拒
+        #    合法投影, 反过来还会放行错误归桶的投影 (r2 HIGH-2, 门比原来更弱)。
+        # 「投影是不是今天的」由 _vault_entry 的 stale 判定负责, 那里恒用此刻的
+        # 时区才对 —— 切时区后它变 stale ⇒ 触发重新生成, 是正确行为。
+        _now_tz = _display_tz()
+        ref_tz = _now_tz if ref.astimezone(_now_tz).utcoffset() == ref.utcoffset() else ref.tzinfo
+        ref_day = ref.astimezone(ref_tz).date()
     except (ValueError, OverflowError, OSError) as e:
         raise ValueError(f"generated_at 无法换算为参照时钟: {generated_at!r} ({e})")
     nondue_by_board: dict[str, list[str]] = {}
