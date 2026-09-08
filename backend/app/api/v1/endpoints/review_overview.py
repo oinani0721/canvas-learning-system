@@ -375,10 +375,19 @@ _BUCKET_CN = {
 }
 
 
-def _display_day(ts: str):
-    """UTC-Z 定长串 → 显示时区的日期; 不可表示时 None (年份极值)。"""
+def _display_day(ts: str, tz=None):
+    """UTC-Z 定长串 → 显示时区(或显式指定 tz)的日期; 不可表示时 None (年份极值)。
+
+    `tz` 显式传入的唯一用途见 _gate_buckets: 校验一份**已落盘**的投影时, 参照系
+    必须是它**生成时**的时区 (由 generated_at 自带偏移给出), 不是此刻的显示时区。
+    """
     try:
-        return datetime.strptime(ts, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).astimezone(_display_tz()).date()
+        return (
+            datetime.strptime(ts, "%Y-%m-%dT%H:%M:%SZ")
+            .replace(tzinfo=timezone.utc)
+            .astimezone(tz if tz is not None else _display_tz())
+            .date()
+        )
     except (ValueError, OverflowError, OSError):
         return None
 
@@ -440,7 +449,8 @@ def _gate_buckets(
        远期 FAKE-* 身份仍能拿到 ok):
        (a) 以投影自带的 generated_at 为参照时钟**重算桶判据** —— 每行
            fsrs_due 必须严格晚于 generated_at (未到期), 且 due_today 与
-           generated_at 同一 Asia/Shanghai 日、future 必须晚于该日;
+           generated_at 同一本地日 (按 generated_at 自带偏移, 见 ref_tz)、
+           future 必须晚于该日;
            时刻不可表示 (年份极值) 只允许出现在 future (与生产器兜底同口径);
        (b) 与 boards rollup 逐板对账 —— 板级非到期行数 == rollup.future,
            板内最早 fsrs_due == rollup.next_due;
@@ -480,7 +490,15 @@ def _gate_buckets(
     try:
         ref = datetime.fromisoformat(generated_at.replace("Z", "+00:00"))
         ref_z = ref.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        ref_day = ref.astimezone(_display_tz()).date()
+        # ⛔ 参照日取 generated_at **自带的偏移**, 不用此刻的 _display_tz()
+        #    (Codex r1 HIGH-2)。本门的职责是校验「这份产出自不自洽」——
+        #    投影是生产器在某个时刻、按它当时的显示时区算出来的。用此刻的时区
+        #    重算 ⇒ 用户一改时区, 盘上那份完全合法的投影就被判 corrupt
+        #    (实测: 上海生成的 future 节点, 切 UTC 后门说它该在 due_today)。
+        #    「投影是不是今天的」由 _vault_entry 的 stale 判定负责, 那里用此刻的
+        #    时区才对 —— 切时区后它变 stale ⇒ 触发重新生成, 是正确行为。
+        ref_tz = ref.tzinfo
+        ref_day = ref.date()
     except (ValueError, OverflowError, OSError) as e:
         raise ValueError(f"generated_at 无法换算为参照时钟: {generated_at!r} ({e})")
     nondue_by_board: dict[str, list[str]] = {}
@@ -516,15 +534,17 @@ def _gate_buckets(
                 raise ValueError(f"buckets.{name}[{i}] 未到期桶的 fsrs_due 不得为空: {key[0]!r}/{key[1]!r}")
             if ts <= ref_z:
                 raise ValueError(f"buckets.{name}[{i}] fsrs_due={ts} 不晚于 generated_at, 应属到期侧")
-            day = _display_day(ts)
+            day = _display_day(ts, ref_tz)
             if day is None:
                 # 时刻不可表示: 生产器兜底恒归 future, 不可能是"今天"
                 if name != "future":
                     raise ValueError(f"buckets.{name}[{i}] fsrs_due={ts} 不可换算, 只允许出现在 future 桶")
             elif name == "due_today" and day != ref_day:
-                raise ValueError(f"buckets.due_today[{i}] fsrs_due={ts} 非 generated_at 的同一上海日 {ref_day}")
+                raise ValueError(f"buckets.due_today[{i}] fsrs_due={ts} 非 generated_at 的同一本地日 {ref_day}")
             elif name == "future" and day <= ref_day:
-                raise ValueError(f"buckets.future[{i}] fsrs_due={ts} 仍在上海日 {ref_day} 内, 应属 due_today")
+                raise ValueError(
+                    f"buckets.future[{i}] fsrs_due={ts} 仍在 generated_at 的本地日 {ref_day} 内, 应属 due_today"
+                )
             nondue_by_board.setdefault(r["board"], []).append(ts)
             nondue_ids[key] = ts
         counts[name] = len(rows)
@@ -649,8 +669,16 @@ def _fmt_local_dt(dt: datetime) -> str:
     """tz-aware 时刻 → 显示时区本地 "YYYY-MM-DD HH:MM (UTC+N)"。"""
     local = dt.astimezone(_display_tz())
     off = local.utcoffset() or timedelta(0)
-    hours = int(off.total_seconds() // 3600)
-    return local.strftime("%Y-%m-%d %H:%M") + f" (UTC{'+' if hours >= 0 else ''}{hours})"
+    # ⛔ 不能只取整小时（Codex r1 LOW-2）：本卡之前显示时区恒是整小时偏移的
+    #    Asia/Shanghai，取整看不出问题；收敛到「跟随用户所在地」之后，半小时/
+    #    三刻钟时区变得可达 —— Kolkata 的 +05:30 会被显示成 UTC+5、
+    #    St. John's 的 -02:30 显示成 UTC-3，都是错的。
+    #    整小时偏移的输出与本卡之前逐字相同（+08:00 仍是 "UTC+8"）。
+    total_min = int(off.total_seconds()) // 60
+    sign = "-" if total_min < 0 else "+"
+    hh, mm = divmod(abs(total_min), 60)
+    off_txt = f"UTC{sign}{hh}" + (f":{mm:02d}" if mm else "")
+    return local.strftime("%Y-%m-%d %H:%M") + f" ({off_txt})"
 
 
 def _fmt_projection_time(generated_at: str) -> str:

@@ -29,11 +29,13 @@ import os
 import re
 import shutil
 import subprocess
+import textwrap
 import sys
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -68,10 +70,17 @@ def _load_local_tz():
 
 
 def test_two_copies_share_identical_function_body():
-    """两份 `display_tz()` 的函数体逐行相同（剥每行首尾空白后比较）。
+    """两份 `display_tz()` 的源码逐行相同（`dedent` 去公共缩进 + 去行尾空白后比较）。
 
-    只比**函数体**，不比模块 docstring / import —— 两份文件的模块级说明本来
-    就该各写各的（一份对 backend 说话、一份对 launchd 说话）。
+    比的范围是 `inspect.getsource()` 给出的**整段**——含 `def` 行、签名与函数
+    docstring，不含模块 docstring / import（两份文件的模块级说明本来就该各写各的，
+    一份对 backend 说话、一份对 launchd 说话）。
+
+    ⛔ **保留行首缩进**（Codex r1 MEDIUM-2）：初版用 `ln.strip()` 逐行剥首尾空白，
+    那把 Python 的控制流缩进也剥掉了 —— 把 `env_tz = ...` 多缩进一级塞进
+    `if name:` 分支里，比较照样通过，而正常调用会抛 `UnboundLocalError`。
+    缩进在 Python 里是语义，判据不能把它抹掉。`dedent` 只去**公共**前缀，
+    相对缩进原样保留。
 
     ⚠️ 如实声明本门**证不到**什么：它比的是源码文本，能挡住"改了一份忘了另一份"
     这类真实漂移，但挡不住"两边同时改成同一个错的写法"。语义等价而写法不同的
@@ -79,8 +88,8 @@ def test_two_copies_share_identical_function_body():
     有意的改写必须两边同时做。
     """
     local_tz = _load_local_tz()
-    a = [ln.strip() for ln in inspect.getsource(backend_tz.display_tz).splitlines()]
-    b = [ln.strip() for ln in inspect.getsource(local_tz.display_tz).splitlines()]
+    a = [ln.rstrip() for ln in textwrap.dedent(inspect.getsource(backend_tz.display_tz)).splitlines()]
+    b = [ln.rstrip() for ln in textwrap.dedent(inspect.getsource(local_tz.display_tz)).splitlines()]
     assert a == b, (
         "两份 display_tz() 函数体不一致 —— 同源副本漂移了。\n"
         f"  backend/app/core/display_tz.py: {len(a)} 行\n"
@@ -263,6 +272,112 @@ def test_explicit_override_wins_over_machine_tz(tz_env):
     second = (ro._display_tz_name(), str(ro._display_day("2026-07-31T03:30:00Z")))
 
     assert first == second == ("Asia/Tokyo", "2026-07-31"), f"CANVAS_TZ 没压住机器本地 TZ：{first} vs {second}"
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# ⑦ POSIX TZ 串必须落到**进程本地**，不能去读 /etc/localtime（Codex r1 HIGH-1）
+# ══════════════════════════════════════════════════════════════════════════
+
+
+@pytest.mark.parametrize("tz_value", ["UTC0", "EST5", ":America/New_York"])
+def test_posix_tz_string_resolves_to_process_local_not_etc_localtime(tz_env, tz_value):
+    """`TZ` 是 ZoneInfo 不认、但 C 库认的写法时，算出的日期必须与进程本地一致。
+
+    ⛔ 这三个都是**合法**的 `TZ` 值：POSIX 风格（`UTC0` / `EST5`）与前导冒号
+    （`:America/New_York`）。`ZoneInfo` 全部拒绝它们。初版在这里 `pass` 掉、
+    继续往下读 `/etc/localtime` —— 而 `/etc/localtime` 是**宿主**时区，压根不看
+    `TZ`。于是「设了 TZ 却按宿主时区算」，静默错一天：
+    上海宿主 + `TZ=UTC0`，`2026-07-31T16:30Z` 被算成 08-01，而 C 库本地是 07-31。
+
+    判据取「与 C 库本地**同一天**」而不是「等于某个字面量」：这三种写法各自
+    对应什么偏移由 tzdata 决定，钉字面量等于把 tzdata 抄进测试。
+    """
+    instant = datetime(2026, 7, 31, 16, 30, tzinfo=timezone.utc)
+    tz_env(tz=tz_value)
+    resolved = ro._display_tz()
+    process_local = datetime.now().astimezone().tzinfo
+    assert instant.astimezone(resolved).date() == instant.astimezone(process_local).date(), (
+        f"TZ={tz_value!r} 下 display_tz() 给出的日期与进程本地不一致 —— "
+        f"解析器忽略了 TZ 去读 /etc/localtime。"
+        f"resolved={resolved!r} 日={instant.astimezone(resolved).date()}; "
+        f"进程本地={process_local!r} 日={instant.astimezone(process_local).date()}"
+    )
+
+
+def test_valid_tz_names_still_win_over_process_local(tz_env):
+    """⑦ 的正控：`TZ` 是合法 IANA 名时仍走 ZoneInfo（有 `.key`），没被上面那条修复带偏。"""
+    tz_env(tz="America/New_York")
+    resolved = ro._display_tz()
+    assert getattr(resolved, "key", None) == "America/New_York", f"合法 IANA 名应直接解析成有名时区，实得 {resolved!r}"
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# ⑧ 桶位门以投影**自带**的时区为参照，切时区不得把合法投影判成 corrupt
+#    （Codex r1 HIGH-2）
+# ══════════════════════════════════════════════════════════════════════════
+
+
+def test_bucket_gate_uses_projection_own_tz_not_current_display_tz(tmp_path, tz_env):
+    """一份合法投影，在任何显示时区下复算都必须被放行。
+
+    ⛔ 场景：用户在上海生成了今天的投影（`generated_at` 带 `+08:00`），随后改了
+    时区。投影内容一个字节没变、仍然自洽，但门若用**此刻**的显示时区重算参照日，
+    就会说「future 桶里那条应该在 due_today」并把整份投影判成 corrupt ——
+    页面上显示「投影损坏」，而它其实好好的。
+
+    门的职责是校验「这份产出自不自洽」，参照系必须取 `generated_at` 自带的偏移。
+    「投影是不是今天的」是另一件事，由 `_vault_entry` 的 stale 判定负责（那里用
+    此刻的时区才对：切时区后它变 stale ⇒ 触发重新生成，是正确行为）。
+    """
+    sys.path.insert(0, str(REPO_SCRIPTS))
+    import daily_review_pick as picker  # noqa: PLC0415  # pyright: ignore[reportMissingImports]
+
+    from app.api.v1.endpoints.review_overview import (  # noqa: PLC0415
+        _gate_boards_rollup,
+        _gate_buckets,
+        _gate_due_groups,
+        _gate_upcoming,
+    )
+
+    vault = _tmp_vault(tmp_path, name="vaultGate")
+    # 17:00Z 到期：在上海是次日 01:00（future），在 UTC 是当日 17:00（due_today）——
+    # 正是「换个时区结论就翻面」的那种节点
+    (vault / "节点" / "甲.md").write_text(
+        '---\ntype: concept\nsource_board: "[[原白板/板]]"\nfsrs_due: 2026-07-31T17:00:00Z\n---\n内容。\n',
+        encoding="utf-8",
+    )
+    tz_env(canvas_tz="Asia/Shanghai")
+    picker_tz_saved = picker._DISPLAY_TZ
+    picker._DISPLAY_TZ = ZoneInfo("Asia/Shanghai")
+    try:
+        moment = datetime(2026, 7, 31, 15, 0, tzinfo=timezone.utc)  # 上海 7/31 23:00
+        payload, _ranked = picker.build_payload(vault, moment, {}, picker.load_decay(vault))
+    finally:
+        picker._DISPLAY_TZ = picker_tz_saved
+
+    assert payload["generated_at"].endswith("+08:00"), f"前提：投影须由上海时区生成，实得 {payload['generated_at']}"
+    where = {
+        n: b for b, rows in payload["buckets"].items() if isinstance(rows, list) for n in (r["node"] for r in rows)
+    }
+    assert where.get("甲") == "future", f"前提：上海视角下甲应属 future（次日 01:00 到期），实得 {where}"
+
+    def _gate() -> None:
+        groups = _gate_due_groups(payload["due_nodes"])
+        up = _gate_upcoming(payload["upcoming"])
+        _ph, _zero, future_map = _gate_boards_rollup(
+            payload["boards"], groups, len(payload["ineligible"]["placeholder"])
+        )
+        _gate_buckets(payload["buckets"], groups, payload["stats"], payload["generated_at"], future_map, up)
+
+    for tz_name in ("Asia/Shanghai", "UTC", "America/Los_Angeles"):
+        tz_env(canvas_tz=tz_name)
+        try:
+            _gate()
+        except ValueError as exc:
+            raise AssertionError(
+                f"显示时区切到 {tz_name} 后，同一份合法投影被门拒绝：{exc}\n"
+                "门用了此刻的显示时区当参照日 —— 应改用 generated_at 自带的偏移。"
+            ) from exc
 
 
 # ══════════════════════════════════════════════════════════════════════════

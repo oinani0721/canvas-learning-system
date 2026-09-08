@@ -36,6 +36,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 import unicodedata
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -625,14 +626,23 @@ def test_resolve_today_default_is_display_tz_not_host_local(monkeypatch):
     class _FrozenDT(real_datetime):
         @classmethod
         def now(cls, tz=None):  # noqa: ARG003
-            return cls(2026, 8, 31, 23, 0, tzinfo=timezone.utc)  # UTC 23:00 → NY 18:00 同日
+            # ⛔ 时刻的选择就是本门的判别力（Codex r1 MEDIUM-4）：初版用 UTC 23:00，
+            #    那一刻 NY 是同日 18:00 —— 于是「直接取 UTC 日」这条变异算出的也是
+            #    08-31，与期望相同、杀不掉。改用 UTC 09-01 02:00：NY 是前一天 22:00，
+            #    UTC 日与 NY 日**不同**，三条变异这才都能被区分开。
+            return cls(2026, 9, 1, 2, 0, tzinfo=timezone.utc)  # UTC 09-01 02:00 → NY 08-31 22:00
 
     ny = ZoneInfo("America/New_York")
+    # 把**宿主**时区也钉住：否则 `astimezone(宿主本地)` 那条变异的可杀性取决于
+    # 跑在哪台机器上（洛杉矶宿主下 LA 日恰与 NY 日相同 ⇒ 杀不掉）。钉成上海后
+    # 宿主日 = 09-01，与期望的 NY 日 08-31 不同，判别力不再依赖运行环境。
+    monkeypatch.setenv("TZ", "Asia/Shanghai")
+    time.tzset()
     monkeypatch.setattr(vl, "datetime", _FrozenDT)
     monkeypatch.setattr(vl, "_display_tz", lambda: ny)
     assert vl.resolve_today(None) == date(2026, 8, 31), (
-        "默认分支必须按 _display_tz() (此处替身返回 NY) 换算: UTC 23:00 = NY 18:00 = 08-31; "
-        "宿主本地/UTC 直取/date.today() 等变异会给出不同结果"
+        "默认分支必须按 _display_tz() (此处替身返回 NY) 换算: UTC 09-01 02:00 = NY 08-31 22:00; "
+        "宿主本地(上海=09-01)/UTC 直取(09-01)/date.today()(真实今天) 三条变异各给出不同结果"
     )
 
 

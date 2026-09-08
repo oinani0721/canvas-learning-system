@@ -45,8 +45,12 @@ def display_tz():
     if env_tz:
         try:
             return ZoneInfo(env_tz)
-        except Exception:  # noqa: BLE001 — TZ 也允许 "CST-8" 之类 POSIX 串 (非 tzdata 名)
-            pass
+        except Exception:  # noqa: BLE001 — TZ 也允许 "UTC0"/"EST5"/":Asia/X" 这类 POSIX 串
+            # ⛔ 回落到**进程本地**, 不是 /etc/localtime (Codex r1 HIGH-1):
+            #    TZ 已经把 C 库的本地时区改掉了, 去读软链等于无视 TZ ——
+            #    实测上海宿主 + TZ=UTC0 时会把 2026-07-31T16:30Z 算成 08-01,
+            #    而 C 库本地是 07-31, 静默错一天。
+            return datetime.now().astimezone().tzinfo
     try:
         parts = Path("/etc/localtime").resolve().parts
         return ZoneInfo("/".join(parts[parts.index("zoneinfo") + 1 :]))

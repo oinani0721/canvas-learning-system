@@ -104,9 +104,14 @@ def machine_tz():
     ``test_tz_fixture_actually_moves_the_local_clock`` 单独证明这套机制真生效。
     """
     saved = os.environ.get("TZ")
+    saved_canvas = os.environ.get("CANVAS_TZ")
 
     def _set(tz_name: str) -> None:
         os.environ["TZ"] = tz_name
+        # ⛔ 必须同时清掉显式覆盖（Codex r1 MEDIUM-3）：它的优先级高于 TZ，
+        #    外部环境里若设了它，下面 16 格就全退化成同一个时区的自我比较，
+        #    「runner 硬编码某时区」这类变异照样通过 —— 矩阵变成恒绿。
+        os.environ.pop("CANVAS_TZ", None)
         time.tzset()
 
     try:
@@ -116,6 +121,10 @@ def machine_tz():
             os.environ.pop("TZ", None)
         else:
             os.environ["TZ"] = saved
+        if saved_canvas is None:
+            os.environ.pop("CANVAS_TZ", None)
+        else:
+            os.environ["CANVAS_TZ"] = saved_canvas
         time.tzset()
 
 
@@ -148,6 +157,7 @@ def _real_runner_today(tmp_path: Path, monkeypatch, tz_name: str, instant: datet
     现在走真实入口：`runner.main()` → `load_state/save_state` → 磁盘上的 state 文件。
     """
     os.environ["TZ"] = tz_name
+    os.environ.pop("CANVAS_TZ", None)  # 同 machine_tz：显式覆盖会让整个矩阵退化
     time.tzset()
     name = f"tz{abs(hash((tz_name, instant.isoformat()))) % 10**8}"
     vault = _vault(tmp_path, {"甲": _node_md("时区板")}, name=name)

@@ -155,8 +155,17 @@ _PROJECTION_REL = ("outputs", "今日复习.json")
 #: 那一刻就固化了, setenv 对本侧完全失效 ⇒ 两侧口径分叉、17 组在非上海宿主
 #: 上必红, 而那条红看起来像"被测物坏了"。
 def _display_tz() -> Any:
-    """归日/freshness 判定用时区 —— 每次调用现取 (见上方 ⛔ 段)。"""
-    return local_tz.display_tz()
+    """归日/freshness 判定用时区 —— 每次调用现取 (见上方 ⛔ 段)。
+
+    时区配置无效时转成 LintConfigError (Codex r1 LOW-3): local_tz 抛的是
+    ValueError, 裸抛会逃过 main() 的 LintConfigError 捕获、以退出码 1 结束 ——
+    而 1 的语义是「vault 有 fail 项」。配置错必须走 3 (EXIT_CONFIG), 否则调用方
+    分不清「vault 有问题」与「lint 没跑成」(见模块 docstring 的 3 号码说明)。
+    """
+    try:
+        return local_tz.display_tz()
+    except ValueError as exc:
+        raise LintConfigError(f"时区配置无效: {exc}") from exc
 
 
 #: A2 生产器的确切 generated_at 形态 (review_overview.py:93) —— 数字串/纯日期/

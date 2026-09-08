@@ -372,7 +372,7 @@ def _fm_int(fm: str, key: str):
     return int(v)
 
 
-def _sh_local(ts: str):
+def _display_local(ts: str):
     """UTC-Z 定长时间串 → 显示时区 aware datetime; 不可表示时 None。
 
     ts 已由 scan_nodes 的 fsrs_due 门禁保证形态 (非规范值早被 fail-open
@@ -419,7 +419,7 @@ def _overdue_cn(n: dict, today_local) -> str:
     """S3 到期片段 (仅已到期节点)。脏日期如实点名原值摘录, 不装能解析。"""
     if n["due_fail_open"]:
         return f"到期时间无法解析({_safe_raw(n['fsrs_due_raw'])})，保守视同到期"
-    due_local = _sh_local(n["fsrs_due"])
+    due_local = _display_local(n["fsrs_due"])
     if due_local is None:
         return "到期时刻超出可显示范围"
     delta = (due_local.date() - today_local).days
@@ -445,7 +445,7 @@ def assign_bucket(n: dict, now: datetime) -> tuple[str, str]:
             return BUCKET_LEARNING, f"{phase} · {_overdue_cn(n, today_local)} · {idle}"
         return BUCKET_DUE_NOW, f"到期待复习 · {_overdue_cn(n, today_local)} · {idle}"
     # 未到期两桶: fsrs_due 恒为规范非空串 (空串必定 due_now)
-    due_local = _sh_local(n["fsrs_due"])
+    due_local = _display_local(n["fsrs_due"])
     if due_local is None:
         # 不可表示 = 年份极值远期, 定义上不可能是"今天" → future 兜底
         return BUCKET_FUTURE, "到期时刻超出可显示范围，按未来排期处理"
@@ -781,7 +781,7 @@ def _board_factors(board: str, due: list, top: dict, today_local, board_last_rec
     scheduled = [n["fsrs_due"] for n in due if n["fsrs_due"]]
     overdue_days = None
     if scheduled:
-        earliest_local = _sh_local(min(scheduled))
+        earliest_local = _display_local(min(scheduled))
         if earliest_local is not None:
             # delta > 0 不可达 (到期判定是 UTC 词法 <= now, 上海日差不会为正);
             # 仍夹到 0 —— 真出现时按"今天到期"说, 不吐负数天。

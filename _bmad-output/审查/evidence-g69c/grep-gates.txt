@@ -1,38 +1,41 @@
-# CARD-G6-9c grep 门总表（卡文 §二.5）
-# 采集: 2026-09-08T07:41:46  树: da690bf8 + 工作区改动
+# CARD-G6-9c grep 门总表（卡文 §二.5）· Codex r1 整改后重采
+# 采集: 2026-09-08T08:18:20  树: 0e8dc06e + 工作区改动
 
 ## (c) review_overview.py
-  ✅      _TZ_SHANGHAI|_sh_day|_sh_today|"Asia/Shanghai"|env["TZ"]   实得=0 期望=0
-  ✅      ^_DISPLAY_TZ(_NAME)? *=  (模块级常量归零)                         实得=0 期望=0
-  ✅      def _display_tz / _display_tz_name                         实得=2 期望=2
+  ✅    _TZ_SHANGHAI|_sh_day|_sh_today|"Asia/Shanghai"|env["TZ"] 实得=0 期望=0
+  ✅    ^_DISPLAY_TZ(_NAME)? *=  (模块级常量归零)                       实得=0 期望=0
+  ✅    def _display_tz / _display_tz_name                       实得=2 期望=2
 ## (d) refresh 透传
-  ✅      "TZ", "CANVAS_TZ"                                          实得=1 期望=1
+  ✅    "TZ", "CANVAS_TZ"                                        实得=1 期望=1
 ## (e) review_app.py
-  ✅      Asia/Shanghai                                              实得=0 期望=0
-  ✅      shDay 残留                                                   实得=0 期望=0
+  ✅    Asia/Shanghai                                            实得=0 期望=0
+  ✅    shDay 残留                                                 实得=0 期望=0
 ## (c2) vault_lint.py
-  ✅      Asia/Shanghai|_TZ_SHANGHAI                                 实得=0 期望=0
-  ✅      import local_tz                                            实得=1 期望=1
-  ✅      ^from app\.|^import app\.                                  实得=0 期望=0
-  ✅      def _display_tz                                            实得=1 期望=1
-  ✅      ^_DISPLAY_TZ (模块级常量归零)                                     实得=0 期望=0
+  ✅    Asia/Shanghai|_TZ_SHANGHAI                               实得=0 期望=0
+  ✅    import local_tz                                          实得=1 期望=1
+  ✅    ^from app\.|^import app\.                                实得=0 期望=0
+  ✅    def _display_tz                                          实得=1 期望=1
+  ✅    ^_DISPLAY_TZ (模块级常量归零)                                   实得=0 期望=0
 ## (c2) test_vault_lint.py
-  ✅      _TZ_SHANGHAI                                               实得=0 期望=0
-  ✅      monkeypatch.setattr(vl, "_display_tz"                      实得=1 期望=1
-  ✅      CANVAS_TZ (≥1)                                             实得=ge1 期望=ge1
-  ✅      local_tz.py 四件套 (≥1)                                       实得=ge1 期望=ge1
+  ✅    _TZ_SHANGHAI                                             实得=0 期望=0
+  ✅    monkeypatch.setattr(vl, "_display_tz"                    实得=1 期望=1
+  ✅    CANVAS_TZ (≥1)                                           实得=ge1 期望=ge1
+  ✅    local_tz.py 四件套 (≥1)                                     实得=ge1 期望=ge1
 ## (f)(g) pick / runner
-  ✅      pick: _TZ_SHANGHAI|_today_sh|"Asia/Shanghai"|215-216       实得=0 期望=0
-  ✅      pick: import local_tz                                      实得=1 期望=1
-  ✅      run:  import local_tz                                      实得=1 期望=1
+  ✅    pick: 旧名/字面量/过期行号                                        实得=0 期望=0
+  ✅    pick: import local_tz                                    实得=1 期望=1
+  ✅    run:  import local_tz                                    实得=1 期望=1
 ## (b) 两份同源副本
-  ⛔      display_tz.py: D-18 2026-09-07                             实得=2 期望=1
-  ⛔      local_tz.py:   D-18 2026-09-07                             实得=2 期望=1
-  ✅      CANVAS_TZ environ 只在两份副本                                   实得=0 期望=0
+  ✅    display_tz.py: D-18 2026-09-07                           实得=1 期望=1
+  ✅    local_tz.py:   D-18 2026-09-07                           实得=1 期望=1
+  ✅    CANVAS_TZ environ 只在两份副本                                 实得=0 期望=0
 ## (i2) 矩阵文件
-  ✅      _DISPLAY_TZ_NAME|_TZ_SHANGHAI                              实得=0 期望=0
-  ✅      _FIXED_HOST_TZ (≥5)                                        实得=ge5 期望=ge5
-  ✅      门自指形态 machine_tz(_display_*)                               实得=0 期望=0
-  ✅      def _expected_display_day                                  实得=1 期望=1
-  ✅      def _display_day (撞名已解)                                    实得=0 期望=0
-  ✅      KNOWN_DIVERGENT 条目残留                                       实得=0 期望=0
+  ✅    _DISPLAY_TZ_NAME|_TZ_SHANGHAI                            实得=0 期望=0
+  ✅    _FIXED_HOST_TZ (≥5)                                      实得=ge5 期望=ge5
+  ✅    门自指形态 machine_tz(_display_*)                             实得=0 期望=0
+  ✅    def _expected_display_day                                实得=1 期望=1
+  ✅    def _display_day (撞名已解)                                  实得=0 期望=0
+  ✅    KNOWN_DIVERGENT 条目残留                                     实得=0 期望=0
+  ✅    machine_tz 清 CANVAS_TZ (r1 M-3)                          实得=3 期望=3
+        (三处: _set 内 1 + fixture teardown 还原 1 + _real_runner_today 内 1；
+         初采期望写成 2 是我漏数了 teardown 那处，非代码问题)
