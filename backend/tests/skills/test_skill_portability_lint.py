@@ -49,21 +49,27 @@
 只放行 `:-http://localhost:8011` 这一个缺省形态, `${X:-8011}` / `${X-8011}`(单破折号,
 语义不同: 只在**未定义**时用缺省, 空串时展开成空) 之类一律报红。
 
-## 第四条判据: 越界路径 (normpath)
+## 第四条判据: 越界路径 (normpath, v2 引号感知)
 
 子串计数天生看不见路径语义。`/tmp/cls-exam/../x` 含 `/tmp/` 一次 + `/tmp/cls-exam/`
 一次 ⇒ 裸值 0 ⇒ **计数判据放行**, 而它规范化之后是 `/tmp/x`, 已经越出命名空间
 (Codex round-1 HIGH, 2026-09-08)。`check_escaping_tmp()` 把每份的越界 normpath
-**多重集**钉死, 与计数判据分工互补:
+**集合**钉死, 与计数判据分工互补:
 
   计数判据 —— 命中数变没变(与 shell 裁判逐字同源)
   越界判据 —— 命中的那个路径规范化后指向哪里
 
+r1→r4 每轮都出现新的切分绕过(逗号截断 → 冒充子串 → 白名单边界 → 跨行拼接 →
+**引号内的空格/开括号冒充** → 混合引号拼接 → 单行点号拼接), 根因是正则看不见
+引号上下文 ⇒ v2 改为**字面量原子化**: 引号内是一个整体; fence 内相邻字面量拼接组
+整组求值; 裸 token 沿用白名单边界正则。详见 `_TMP_TOKEN_RE` 上方 v2 注释。
+
 ⚠️ 两条判据对同一输入可以给出**不同**结论, 那是分工不是矛盾: `/tmp/a/../cls-exam/z`
 在计数下报红(写法不是钦定形态), 在越界判据下放行(规范化后确实落在命名空间内)。
 
-越界基线现状 6 处, 全是「只钉不改」的已知项: start-exam-board `:430/:435` 的
-exam-created-event(被 tests/regression 钉死) + quiz-answer 4 处(E-2 归 U5-B)。
+越界基线现状(2026-09-08 v2 实测) 全是「只钉不改」的已知项: start-exam-board 的
+exam-created-event(被 tests/regression 钉死)、`:128` 裸 `/tmp` 提法、`:188` 变更行
+backtick 命令 span; quiz-answer 两形态(E-2 归 U5-B); board-recap `:58` 裸 `/tmp` 提法。
 
 ## 第五条判据: 可疑行(不依赖切分的兜底) + 已知的保守误报方向
 
@@ -71,10 +77,14 @@ exam-created-event(被 tests/regression 钉死) + quiz-answer 4 处(E-2 归 U5-B
 只问「这一**逻辑行**值不值得人看一眼」(`/tmp` 且有 `..` 或 `$`), 不问路径是哪一段,
 因此不会被切分错误带偏。逻辑行 = 物理行经反斜杠续行与相邻同引号字面量拼接合并。
 
-**登记的保守误报方向(Codex r3 LOW-7 等, 不修)**: 白名单边界与判据在下列形态上
+**登记的保守误报方向(Codex r3 LOW-7 / r4 LOW-7·9 等, 不修)**: 判据在下列形态上
 会**多**报红(判成债), 方向安全 —— `P=/tmp/x` 无空格赋值、`>/tmp/x` 重定向、
-`curl -o/tmp/cls-exam/x` 短选项连写、`file:///tmp/…`。树上无这些形态; 真要用时
-写成分隔符隔开的形式(`-o /tmp/…`)即可。
+`curl -o/tmp/cls-exam/x` 短选项连写、`file:///tmp/…`、全角标点紧贴(`路径：/tmp/…`、
+`路径，/tmp/…` 计入端 ns=0); fence 裸 token 会把紧邻的 ASCII 逗号并进条目
+(`/tmp/x.json, then…` 的越界条目带尾逗号)。树上无这些形态; 真要用时写成分隔符
+隔开的形式(`-o /tmp/…`)即可。另: 覆盖表末尾的「整字面量 normpath」断言是纵深
+防御 —— 对合规行退回 `startswith` 不会被现有行抓住(不存在前缀失败而 normpath
+成立的合规形态), 如实声明不强辩。
 
 ## `UserPromptSubmit` 为什么不进指标
 
@@ -217,86 +227,161 @@ def bare_8011(counts: dict[str, int]) -> int:
     return counts["p8011_all"] - counts["p8011_ns"]
 
 
-# ── 越界路径判据 (与上面的子串计数**互补**, 不是替代) ───────────────────────
-#: 一个 `/tmp/…` 路径 token 的粗切分: 到空白、反引号、引号、括号、中文标点为止。
-#:
-#: ⛔ **左边界**(Codex round-2 HIGH, 2026-09-08): 没有 `(?<!…)` 时,
-#: `/var/cache/tmp/cls-exam/x.json` 里的**子串** `/tmp/cls-exam/x.json` 会被提取出来,
-#: normpath 判在命名空间内 ⇒ 放行; 而它根本不在 `/tmp` 下(子串计数同样被这个子串骗过,
-#: tmp_all 与 tmp_ns 各 +1 ⇒ 裸值 0)。要求 `/tmp/` 前面不是路径字符, 才算绝对路径起点。
+# ── 越界路径判据 v2: 引号感知 (与上面的子串计数**互补**, 不是替代) ───────────
+#: r1→r4 的教训: 用正则从自由文本切 `/tmp` token, 每一轮都被换一种坏法骗过
+#: (r1 穿越在后 → r2 逗号截断/冒充子串 → r3 白名单边界/跨行拼接 → r4 **引号内的
+#: 空格与开括号冒充**、混合引号拼接、单行点号拼接 `"." "./x"`)。
+#: 根因是**看不见引号上下文**。v2 改为字面量原子化:
+#:   · 引号(backtick/单/双)里的内容是**一个整体** —— 引号内的空格、括号、逗号、
+#:     分号、中文标点都是路径字符, 不再是「路径起点/截断」的证据(r4 HIGH-1 与
+#:     MEDIUM-3 的引号内变质由此封住);
+#:   · fenced code 内的**相邻字面量拼接组**(Python 隐式拼接, 任意引号可混用;
+#:     反斜杠续行与「行尾引号 + 次行引号开头」先并回同一逻辑行)整组求值 ——
+#:     `"." "./x"` 在源码里没有连续 `..`, 拼起来才有(r4 HIGH-2 由此封住);
+#:   · **裸 token**(如 `mkdir -p /tmp/cls-exam/`)沿用 r3 的白名单边界正则, 全文适用
+#:     —— 未加引号的 `/var/cache /tmp/cls-exam/x` 是两个 shell 词, 后者本就在命名
+#:     空间内, 不是攻击; 攻击必须把整串放进引号, 而引号内已由字面量原子性接管;
+#:   · 散文里的引号只认 **backtick 代码 span**(markdown 语义); 单双引号在散文里是
+#:     自然语言, 不当字面量。
+_FENCE_MARK = "```"
+_QUOTE_CHARS = "'\"`"
+_BACKTICK_SPAN_RE = re.compile(r"`([^`\n]*)`")
+#: 裸 token: 白名单左边界(r3 HIGH-1) + 中文标点停止(防散文拖尾)。
 _TMP_TOKEN_RE = re.compile(r'(?<![^\s"`\'(\[{（【])/tmp/[^\s`"\'()（）；;：，、。]*')
-
-#: ⛔ **切分永远不完美, 所以另立一条不依赖切分的保守判据**(Codex round-2/3 HIGH):
-#: r2 时 `/tmp/cls-exam/a,b/../../x.json` 被**ASCII 逗号**截成 `/tmp/cls-exam/a`
-#: (判在命名空间内)而完整路径越界; r3 又发现已登记行可在逗号后**静默变质**
-#: (`/tmp/quiz-answer-incr.json,sub/../../x` 的提取结果与基线逐字相同)。
-#: ⇒ ASCII 逗号**不再**是停止符(代码上下文里逗号可拼进路径段, 让整个 token 进
-#: normpath 与越界多重集); 中文标点 `，、。` 仍停止(防散文把 token 拖进正文)。
-#: 即便如此切分仍是启发式 —— 可疑行判据(下)不依赖切分, 是兜底。
 _TMP_LINE_RE = re.compile(r"/tmp")
+_QUOTE_TAIL_RE = re.compile(r"['\"`]\s*\Z")  # 行尾(可带尾随空白)的引号
+_QUOTE_HEAD_RE = re.compile(r"^\s*['\"`]")
+#: 相邻字面量之间的**隐式拼接间隙**: 只许空白与括号 —— 逗号是元组分隔符, 不是拼接。
+_CONCAT_GAP_RE = re.compile(r"^[\s()\[\]{}+]*$")
 
-#: 同理, shell 变量展开后的落点静态门看不见(`REL=../x` 配合 `P="/tmp/cls-exam/${REL}"`,
-#: token 不含 `..`、normpath 在命名空间内, 展开后却是 `/tmp/x` —— Codex round-2 MEDIUM-4)。
-#: 无法证明变量的值 ⇒ 把「命名空间后面紧跟变量展开」也纳入需登记项。
-#: ⛔ **物理行切分漏掉确定的跨行穿越**(Codex round-3 HIGH-2, 2026-09-08):
-#: `P = ("/tmp/cls-exam/"\n     "../exam-candidates.json")` 是合法 Python(相邻字面量
-#: 隐式拼接), 九项计数不变、越界/可疑行都空 —— 但拼接结果 normpath 是
-#: `/tmp/exam-candidates.json`, 越出命名空间。反斜杠续行同病。
-#: ⇒ 行级判据先做**逻辑行合并**(续行 + 相邻同引号拼接)再判。
-_QUOTE_TAIL_RE = re.compile(r'(["\'])\s*\Z')  # 行尾(可带尾随空白)的引号
+
+def _iter_lines_by_context(text: str):
+    """yield `(行号, 行, in_fence)`; fence 标记行(``` 开头)自身被跳过。"""
+    in_fence = False
+    for i, line in enumerate(text.splitlines(), 1):
+        if line.lstrip().startswith(_FENCE_MARK):
+            in_fence = not in_fence
+            continue
+        yield i, line, in_fence
+
+
+def _literals_in(line: str) -> list[tuple[str, int, int]]:
+    """扫描一行里的引号字面量, 返回 `(内容, 起始列, 结束列)`。
+
+    同种引号闭合; 反斜杠转义; 未闭合(合并后理论上不该有)保守取到行尾 —— 方向是
+    多抓不少放。**只在 fence 行上调用**(散文只扫 backtick span)。
+    """
+    lits: list[tuple[str, int, int]] = []
+    i, n = 0, len(line)
+    while i < n:
+        c = line[i]
+        if c in _QUOTE_CHARS:
+            j = i + 1
+            while j < n:
+                if line[j] == "\\":
+                    j += 2
+                    continue
+                if line[j] == c:
+                    break
+                j += 1
+            end = j if j < n else n
+            lits.append((line[i + 1 : end], i, end))
+            i = end + 1
+        else:
+            i += 1
+    return lits
+
+
+def _concat_groups_in(line: str) -> list[str]:
+    """一行内的相邻字面量拼接组(Python 隐式拼接的保守超集): 组值 = 逐个字面量内容相连。
+
+    span 约定: `(内容, 开引号列, 闭引号列)` ⇒ 相邻间隙 = `line[前闭引号+1 : 后开引号]`,
+    即两条引号**之间**的原文 —— 只许空白与括号才算隐式拼接(逗号是元组分隔符)。
+    """
+    lits = _literals_in(line)
+    groups: list[str] = []
+    cur_val = ""
+    cur_end = -1
+    for content, s, e in lits:
+        if cur_val and _CONCAT_GAP_RE.match(line[cur_end + 1 : s]):
+            cur_val += content
+        else:
+            if cur_val:
+                groups.append(cur_val)
+            cur_val = content
+        cur_end = e
+    if cur_val:
+        groups.append(cur_val)
+    return groups
 
 
 #: ⛔ **为什么光有子串计数不够**(Codex round-1 HIGH, 2026-09-08):
 #: `/tmp/cls-exam/../x` 含 `/tmp/` 一次、`/tmp/cls-exam/` 一次 ⇒ 裸值 = 0 ⇒ 子串规则
-#: **放行**, 而它 normpath 之后是 `/tmp/x`, 已经越出命名空间。作者原先的负控只覆盖了
-#: 穿越发生在**进入命名空间之前**的 `/tmp/a/../cls-exam/`, 漏掉了发生在**之后**的
-#: 对称变体。子串规则天生看不见路径语义 ⇒ 另立这条 normpath 判据。
+#: **放行**, 而它 normpath 之后是 `/tmp/x`, 已经越出命名空间。子串规则天生看不见
+#: 路径语义 ⇒ 另立这条 normpath 判据; r4 起它**引号感知**(见上方 v2 注释)。
 #:
 #: 两条判据分工: 计数判据管「有没有新增/减少命中」(与 shell 裁判逐字同源),
 #: 本判据管「命中的那个路径到底指向哪里」。各自有自己的负控。
 def escaping_tmp_paths(text: str) -> list[tuple[str, str]]:
-    """返回 `(原始 token, normpath 结果)`, 只含 **normpath 后不在命名空间内**的那些。
+    """返回 `(候选, normpath 结果)`, 只含**含 `/tmp` 且 normpath 后不在命名空间内**的。
 
+    候选 = fence 内字面量拼接组 / 散文 backtick span / 全文裸 token。
     命名空间内 = 规范化后等于 `/tmp/cls-exam` 或以 `/tmp/cls-exam/` 开头。
     """
     ns = TMP_NAMESPACE.rstrip("/")
     out: list[tuple[str, str]] = []
-    for tok in _TMP_TOKEN_RE.findall(text):
-        norm = posixpath.normpath(tok)
-        if norm != ns and not norm.startswith(ns + "/"):
-            out.append((tok, norm))
+    seen: set[tuple[str, str]] = set()
+
+    def add(cand: str) -> None:
+        if "/tmp" not in cand:
+            return
+        norm = posixpath.normpath(cand)
+        if norm != ns and not norm.startswith(ns + "/") and (cand, norm) not in seen:
+            seen.add((cand, norm))
+            out.append((cand, norm))
+
+    for _ln, line, fence in _logical_lines(text):
+        if fence:
+            for group in _concat_groups_in(line):
+                add(group)
+        else:
+            for m in _BACKTICK_SPAN_RE.finditer(line):
+                add(m.group(1))
+        for tok in _TMP_TOKEN_RE.findall(line):  # 裸 token: fence 与散文都扫
+            add(tok)
     return out
 
 
-def _logical_lines(text: str) -> list[tuple[int, str]]:
-    """物理行 → 逻辑行: 合并反斜杠续行与相邻同引号字面量拼接, 返回 (起始行号, 行)。
+def _logical_lines(text: str) -> list[tuple[int, str, bool]]:
+    """物理行 → 逻辑行, 返回 `(起始行号, 合并后行, in_fence)`。
 
-    行号取逻辑行的**首个物理行** —— 基线按它钉, 中间插入行会推移后续行号 ⇒ 红 ⇒
-    逼人重新登记, 正是想要的保守性。
-
-    相邻拼接的判据: buf 以**未闭合**的同引号收尾(该引号在 buf 里出现奇数次)且下一行
-    以同引号开头 ⇒ 把中间的引号对去掉后接上。合并次数有界(4), 防散文里奇数引号把
-    整份文件吞成一行 —— 吞错的方向是多并了几行散文, 会让行号基线红(保守), 不会静默。
+    **只在 fence 内容行内合并**(r4 LOW-8: 散文行尾加个引号就足以搬动行号基线,
+    散文不该参与拼接语义): 反斜杠续行(原样拼接, 去掉续行符) + 「行尾引号 → 次行以
+    引号开头」(任意引号混用, 原样拼接 —— 引号配对交给字面量扫描器)。合并次数有界(6)。
     """
-    raw = text.splitlines()
-    out: list[tuple[int, str]] = []
+    raw = list(_iter_lines_by_context(text))
+    out: list[tuple[int, str, bool]] = []
     i = 0
     while i < len(raw):
-        start, buf = i + 1, raw[i]
+        ln, line, fence = raw[i]
         i += 1
-        while buf.rstrip().endswith("\\") and i < len(raw):  # 反斜杠续行
-            buf = buf.rstrip()[:-1] + raw[i]
-            i += 1
-        for _ in range(4):  # 相邻同引号字面量拼接: 行尾闭引号 + 次行同引号开头
-            mt = _QUOTE_TAIL_RE.search(buf)
-            if not mt or i >= len(raw):
+        if not fence:
+            out.append((ln, line, fence))
+            continue
+        buf = line
+        for _ in range(6):
+            if i >= len(raw) or not raw[i][2]:
                 break
-            nxt = raw[i]
-            if not nxt.lstrip().startswith(mt.group(1)):
+            nxt = raw[i][1]
+            if buf.rstrip().endswith("\\"):  # 反斜杠续行
+                buf = buf.rstrip()[:-1] + nxt
+                i += 1
+            elif _QUOTE_TAIL_RE.search(buf) and _QUOTE_HEAD_RE.match(nxt):  # 行尾引号+次行引号
+                buf = buf + nxt
+                i += 1
+            else:
                 break
-            buf = buf[: mt.start()] + nxt.lstrip()[1:]
-            i += 1
-        out.append((start, buf))
+        out.append((ln, buf, fence))
     return out
 
 
@@ -315,11 +400,12 @@ def suspicious_tmp_lines(text: str) -> list[tuple[int, str]]:
     无法求解任何 `$` 的值, 保守面越大越安全。代价是含 `${CLS_BACKEND_URL:-…}`
     等无害展开的 `/tmp` 行也要登记(现状 1 行, 见基线注释)。
 
-    **逻辑行**(r3 HIGH-2): 物理行上被换行拆开的 `"/tmp/cls-exam/"` + `"../x"` 先拼回
-    再判 —— 否则 `/tmp` 与 `..` 不同行, 本判据跟着失明。
+    **逻辑行合并只在 fence 内**(r4 LOW-8): 物理行上被换行拆开的 `"/tmp/cls-exam/"`
+    + `"../x"` 先拼回再判 —— 否则 `/tmp` 与 `..` 不同行, 本判据跟着失明; 散文行
+    不参与合并, 散文里的引号编辑不会无端搬动行号基线。
     """
     out: list[tuple[int, str]] = []
-    for lineno, line in _logical_lines(text):
+    for lineno, line, _fence in _logical_lines(text):
         if not _TMP_LINE_RE.search(line):
             continue
         if ".." in line or "$" in line:
@@ -433,28 +519,31 @@ BASELINE: dict[str, dict[str, int]] = {
     },
 }
 
-# ── 越界路径基线 (normpath 口径; 按 skill 的**多重集**钉, 不只钉数量) ────────
-#: 用多重集(排序后的列表)而不是个数 —— 换掉一个越界路径而个数不变时也要红。
+# ── 越界路径基线 (v2 引号感知, 2026-09-08 实测; 按 skill 钉 normpath **集合**) ──
+#: v2 对相同 (候选, normpath) **去重** ⇒ 这里是集合语义(排序列表), 不是多重集 ——
+#: 换掉一个越界路径、或同一形态从散文挪进 fence, 都会改变集合 ⇒ 红。
 #: 现状全部是「只钉不改」的已知项:
-#:   start-exam-board `:430/:435` 的 exam-created-event(被 tests/regression 钉死),
-#:   quiz-answer 的 4 处(E-2 归 U5-B)。
-#: **新增任何越界路径 = 红**, 这正是子串计数看不见的那一面。
+#:   · quiz-answer 两形态(散文 backtick 与 fence 字面量同串, 去重后各 1 条; E-2 归 U5-B);
+#:   · start-exam-board `:430/:435` 的 exam-created-event(被 tests/regression 钉死)、
+#:     `:128` 散文 backtick 的裸 `/tmp` 提法、`:188` 变更行 backtick 整段命令
+#:     `Bash: mkdir -p /tmp/cls-exam`(含 /tmp 的非路径 span, 保守登记);
+#:   · board-recap `:58` 散文 backtick 的裸 `/tmp` 提法("禁写 /tmp"声明)。
+#: **新增任何越界候选 = 红**, 这正是子串计数看不见的那一面。
 ESCAPING_TMP_BASELINE: dict[str, list[str]] = {
     "ai-linked-doc": [],
-    "board-recap": [],
+    "board-recap": ["/tmp"],
     "chat-with-context": [],
     "configure-whiteboard": [],
     "exam-quick": [],
     "node-chat": [],
     "quiz-answer": [
         "/tmp/quiz-answer-incr.json",
-        "/tmp/quiz-answer-incr.json",
-        "/tmp/quiz-answer-payload.json",
         "/tmp/quiz-answer-payload.json",
     ],
     "start-exam-board": [
+        "/tmp",
         "/tmp/exam-created-event.json",
-        "/tmp/exam-created-event.json",
+        "Bash: mkdir -p /tmp/cls-exam",
     ],
     "study-question": [],
 }
@@ -632,11 +721,11 @@ def check_body(root: Path, baseline: dict[str, dict[str, int]]) -> list[str]:
 
 
 def check_escaping_tmp(root: Path, baseline: dict[str, list[str]]) -> list[str]:
-    """越界路径判据: 每份 SKILL.md 的越界 normpath **多重集**精确相等。
+    """越界路径判据(v2 引号感知): 每份 SKILL.md 的越界 normpath **集合**精确相等。
 
     与 `check_body` 的子串计数**互补**: 计数管「命中数变没变」, 这里管「命中的那个
     路径规范化之后指向哪里」。`/tmp/cls-exam/../x` 在计数下裸值为 0(放行), 在这里
-    normpath 成 `/tmp/x` ⇒ 越界 ⇒ 红。
+    normpath 成 `/tmp/x` ⇒ 越界 ⇒ 红。v2 对相同 (候选, normpath) 去重 ⇒ 集合语义。
     """
     problems: list[str] = []
     skills_dir = root / "skills"
@@ -742,10 +831,16 @@ def check_handoff_constants(
     if overlap:
         problems.append(f"U6 两份必须单列, 不得同时出现在 SCRIPTS_BASELINE: {sorted(overlap)}")
 
-    missing_seed = U6_SEED - set(u6_baseline)
+    # ⛔ seed 允许**迁移**而非只能留驻(Codex round-4 MEDIUM-5): U6 给 seed 脚本加了债
+    # ⇒ 该条目必须挪进 SCRIPTS_BASELINE 走人工审阅 —— 若此处仍要求 seed ⊆ u6, 那条
+    # 「合法迁移」的路就被堵死(留 U6 报零余量, 挪过去又报"被删", 怎么做都错)。
+    # 判据改为: seed 每份至少在**两张表之一**登记, 且不允许两张表同时登记(上方的
+    # overlap 检查管后者)。
+    missing_seed = U6_SEED - set(u6_baseline) - set(scripts_baseline)
     if missing_seed:
         problems.append(
-            f"U6 交接项被删 —— 手册 §一 明列这两份属 U6 地盘, 必须留在 U6_SCRIPTS_BASELINE: 缺={sorted(missing_seed)}"
+            f"U6 交接项被删 —— 手册 §一 明列这两份属 U6 地盘, 必须留在 U6_SCRIPTS_BASELINE"
+            f"(带债时迁去 SCRIPTS_BASELINE 亦可, 两处都不在才算删): 缺={sorted(missing_seed)}"
         )
 
     # ⛔ 只收 U6 地盘: 不许把别处(尤其是主基线里已有)的脚本挂到 U6 名下换维护归属。
@@ -897,7 +992,42 @@ def test_ns_counting_agrees_with_shell_judge_on_current_tree():
             "双斜杠冒充: 白名单边界拒绝把内层 /tmp 当起点 ⇒ ns 掉 ⇒ 计数红",
         ),
         ('P="/tmp/cls-exam/$1"', 0, False, True, "位置参数: `$` 任意位置触发可疑行"),
-        ('P = ("/tmp/cls-exam/"\n     "../x")', 0, False, True, "相邻字面量拼接: 逻辑行合并后可疑行红(r3 HIGH-2)"),
+        (
+            '```\nP = ("/tmp/cls-exam/"\n     "../x")\n```',
+            0,
+            True,
+            True,
+            "相邻字面量拼接(r3 HIGH-2): fence 逻辑行合并后可疑行红, 拼接组求值后越界也红",
+        ),
+        # ⛔ Codex round-4 找到的 —— v2 引号感知封住的四类
+        (
+            '```\nP = "/var/cache /tmp/cls-exam/exam-candidates.json"\n```',
+            0,
+            True,
+            False,
+            "引号内空格冒充(r4 HIGH-1): 字面量原子化 ⇒ 整串进 normpath ⇒ 越界红",
+        ),
+        (
+            '```\nP = "/var/cache(/tmp/cls-exam/exam-candidates.json"\n```',
+            0,
+            True,
+            False,
+            "引号内开括号冒充(r4 HIGH-1): 同上",
+        ),
+        (
+            '```\nP = ("/tmp/cls-exam/" "." "./exam-candidates.json")\n```',
+            0,
+            True,
+            False,
+            "单行点号拼接(r4 HIGH-2): 源码无连续 `..`, 拼接组求值后越界红",
+        ),
+        (
+            '```\nP = "/tmp/quiz-answer-incr.json;sub/../../x"\n```',
+            1,
+            True,
+            True,
+            "引号内分号变质(r4 MEDIUM-3): 字面量原子化 ⇒ 尾巴不再截断(裸 1: 本就不在命名空间)",
+        ),
     ],
 )
 def test_three_judges_cover_each_other_without_gap(
@@ -969,8 +1099,17 @@ def _discover_out_of_scope_8011(root: Path) -> dict[str, int]:
         | {p.relative_to(root).as_posix() for p in (root / "scripts").glob("*.py")}
     )
     found: dict[str, int] = {}
+    skip_names = {".DS_Store"}
+    skip_dirs = {"__pycache__", ".git"}
     for p in sorted(root.rglob("*")):
-        if not p.is_file() or p.relative_to(root).as_posix() in covered:
+        rel = p.relative_to(root).as_posix()
+        if not p.is_file() or rel in covered:
+            continue
+        # ⛔ r4 MEDIUM-6 的条件性副作用加固: 符号链接可能把扫描根指向树外 —— 不跟随;
+        # 超大文件(备份/日志/缓存)不整读; 系统杂物按名跳过。
+        if p.is_symlink() or p.stat().st_size > 1_000_000:
+            continue
+        if any(part in skip_names or part in skip_dirs for part in p.parts):
             continue
         try:
             text = p.read_text(encoding="utf-8")
@@ -978,7 +1117,7 @@ def _discover_out_of_scope_8011(root: Path) -> dict[str, int]:
             continue
         n = text.count("8011")
         if n:
-            found[p.relative_to(root).as_posix()] = n
+            found[rel] = n
     return found
 
 
@@ -1007,6 +1146,16 @@ def test_baseline_constants_are_disjoint_and_complete():
         f"层 2 基线覆盖面必须恰好 == 9 份 vault skill "
         f"期望={sorted(EXPECTED_SKILLS)} 实测={sorted(_merged_body_baseline())}"
     )
+    # ⛔ 指标键集合精确相等(Codex round-4 LOW-11): 多出的键不被任何循环消费 ⇒ 加了
+    # 也白加(假登记); 少了则 KeyError。每张 per-file 表都钉一次。
+    for name, counts in _merged_body_baseline().items():
+        assert set(counts) == set(BODY_METRICS), (
+            f"{name}: 层 2 基线指标键漂移 期望={sorted(BODY_METRICS)} 实测={sorted(counts)}"
+        )
+    for rel, counts in _merged_scripts_baseline().items():
+        assert set(counts) == set(SCRIPT_METRICS), (
+            f"{rel}: 层 3 基线指标键漂移 期望={sorted(SCRIPT_METRICS)} 实测={sorted(counts)}"
+        )
 
 
 @pytest.mark.parametrize(
@@ -1054,6 +1203,27 @@ def test_baseline_constants_are_disjoint_and_complete():
             "不得同时出现",
             "同一份脚本两个基线都登记 ⇒ 拦(改一处另一处静默失效)",
         ),
+        (
+            lambda b, s, u: (
+                b,
+                {
+                    **s,
+                    "skills/clear-inbox/scripts/inbox_preview.py": {"tmp": 1, "users_path": 0, "tree_name": 0},
+                },
+                {k: v for k, v in u.items() if k != "skills/clear-inbox/scripts/inbox_preview.py"},
+            ),
+            None,
+            "seed 脚本带债 ⇒ **迁去 SCRIPTS_BASELINE 必须放行**(r4 MEDIUM-5 的人工审阅迁移路径)",
+        ),
+        (
+            lambda b, s, u: (
+                b,
+                s,
+                {**u, "skills/clear-inbox/scripts/inbox_preview.py": {"tmp": 1, "users_path": 0, "tree_name": 0}},
+            ),
+            "必须零余量",
+            "seed 脚本带债仍留 U6 表 ⇒ 拦(r4 MEDIUM-6; 此例同时抓住 r2 版『seed 豁免』的回退)",
+        ),
     ],
 )
 def test_handoff_judge_is_load_bearing(mutate, must_mention, why):
@@ -1091,10 +1261,14 @@ def _append_body(root: Path, skill: str, line: str) -> None:
 
 
 def test_negative_control_untouched_copy_is_green(sandbox: Path):
-    """④ 对照组: 未改副本三层全绿 —— 证明负控的「红」来自变异而非副本本身。"""
+    """④ 对照组: 未改副本**五条判据全绿** —— 证明负控的「红」来自变异而非副本本身。"""
     assert not check_frontmatter(sandbox), check_frontmatter(sandbox)
     assert not check_body(sandbox, _merged_body_baseline()), check_body(sandbox, _merged_body_baseline())
     assert not check_scripts(sandbox, _merged_scripts_baseline()), check_scripts(sandbox, _merged_scripts_baseline())
+    assert not check_escaping_tmp(sandbox, ESCAPING_TMP_BASELINE), check_escaping_tmp(sandbox, ESCAPING_TMP_BASELINE)
+    assert not check_suspicious_tmp_lines(sandbox, SUSPICIOUS_TMP_LINES_BASELINE), check_suspicious_tmp_lines(
+        sandbox, SUSPICIOUS_TMP_LINES_BASELINE
+    )
 
 
 def test_negative_control_new_bare_tmp_reddens_layer2(sandbox: Path):
@@ -1290,10 +1464,17 @@ def test_negative_control_multiline_concat_escape_must_redden(sandbox: Path):
     f.write_text(swapped, encoding="utf-8")
 
     assert not check_body(sandbox, _merged_body_baseline()), "前提: 计数判据放行(等计数替换)"
-    problems = check_suspicious_tmp_lines(sandbox, SUSPICIOUS_TMP_LINES_BASELINE)
-    joined = "\n".join(problems)
-    assert any("start-exam-board" in p and "[可疑行]" in p for p in problems), (
-        f"跨行拼接必须在逻辑行合并后被可疑行判据抓到, 实得: {joined}"
+
+    # ⛔ r4 MEDIUM-4: 这条负控原先只对基线断言「含 skill 名 + [可疑行]」—— 而本替换
+    # 会把 :577 挤到 :578, 行号基线**无论合并逻辑在不在都会红**, 于是它考的不是合并
+    # 逻辑本身(不承重)。改为**直接函数断言**: 合并在 ⇒ 拼起来的逻辑行里有 `..`;
+    # 合并不在 ⇒ /tmp 与 .. 分处两行, 函数返回空 ⇒ 这里立刻红 —— 归因干净。
+    text2 = f.read_text(encoding="utf-8")
+    flagged = [l for _ln, l, _f in _logical_lines(text2) if "/tmp" in l]
+    assert any(".." in l for l in flagged), f"fence 逻辑行合并必须在场: 含 /tmp 的逻辑行应拼出 `..`, 实得: {flagged}"
+    esc = check_escaping_tmp(sandbox, ESCAPING_TMP_BASELINE)
+    assert any("start-exam-board" in p and "/tmp/exam-candidates.json" in p for p in esc), (
+        f"拼接组求值必须让越界判据抓到 normpath=/tmp/exam-candidates.json, 实得: {esc}"
     )
 
 
