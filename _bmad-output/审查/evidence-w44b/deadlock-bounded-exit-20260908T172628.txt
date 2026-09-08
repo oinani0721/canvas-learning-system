@@ -1,0 +1,7 @@
+=== 死锁回退 · 整进程有界退出验证（Codex round-1 LOW#5）===
+MUTANT-APPLIED: case=r3 files=['live_port_guard.py']
+_bmad-output/审查/evidence-w44b/deadlock-bounded-exit-negctl.sh: line 66: RC�: unbound variable
+--- 还原 ---
+sha-before = b60f01928d0f73ab3de4ab82a885e419d63d7cf882eedc662bf3cff45c660561
+sha-after  = b60f01928d0f73ab3de4ab82a885e419d63d7cf882eedc662bf3cff45c660561
+RESTORE-OK: sha-before == sha-after

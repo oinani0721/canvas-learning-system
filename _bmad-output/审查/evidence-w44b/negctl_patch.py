@@ -153,6 +153,16 @@ def _review_edits(case: str) -> list[tuple[pathlib.Path, str, str]]:
                 'f"{BLOCK_REASON}: {address!r}. "',
             )
         ]
+    if case == "r3":
+        # Codex round-1 LOW#5：record() 的 repr 挪回锁内 —— 死锁门要抓的那个回退。
+        # 用整条 pytest 进程验证失败形态是「一条红 + 有界退出」而不是「session 挂住」。
+        return [
+            (
+                GUARD,
+                "        addr_text = _safe_repr(address)\n        with self._lock:\n",
+                "        with self._lock:\n            addr_text = _safe_repr(address)\n",
+            )
+        ]
     if case == "r2":
         # 复核 MEDIUM：_PUBLISHED_SEQ 退回「写盘成功之后才推进」（I/O 失败重开 M4 的门）
         return [

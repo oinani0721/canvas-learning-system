@@ -45,6 +45,8 @@ echo "--- 失败正文（_ 限定行）---"
 echo "$OUT" | grep -E '^E ' | head -6
 if echo "$OUT" | grep -qE '[0-9]+ failed' && echo "$OUT" | grep -qF "$EXPECT"; then
   echo "REVIEW-NEGCTL-$CASE: PASS（门在修前形态上以指定理由拦下）"
+  exit 0
 else
   echo "REVIEW-NEGCTL-$CASE: FAIL（期望串命中=$(echo "$OUT" | grep -cF "$EXPECT")）"
+  exit 1
 fi

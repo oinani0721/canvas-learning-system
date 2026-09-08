@@ -69,8 +69,10 @@ echo "被测门: ${NODE:-<M4 探针>}"
 echo "期望新门失败正文含: ${EXPECT:-<见探针 reason>}"
 echo
 
-# 旧门取自 U7-A 末 commit（本卡改动之前那一版），放进 tests/unit 以便用同一个 runner 跑。
-git -C "$ROOT" show HEAD:backend/tests/unit/test_live_port_guard_contract.py > "$OLD_CONTRACT"
+# 旧门取自本卡开工前那一 commit（钉死，不用动态 HEAD —— 本卡合入后 HEAD 已是新门，
+# 再跑会把新门当旧门，对照变成自证；Codex round-1 LOW）。
+BASE_SHA="10c80be7"
+git -C "$ROOT" show "${BASE_SHA}:backend/tests/unit/test_live_port_guard_contract.py" > "$OLD_CONTRACT"
 
 cd "$ROOT/backend" || exit 91
 export PYTHONDONTWRITEBYTECODE=1
@@ -108,6 +110,8 @@ echo
 
 if [ "$OLD_VERDICT" = "pass" ] && [ "$NEW_VERDICT" = "fail" ] && echo "$NEW_OUT" | grep -qF "$EXPECT"; then
   echo "NEGCTL-$CASE: PASS（旧门放行 / 新门以指定理由拦下）"
+  exit 0
 else
   echo "NEGCTL-$CASE: FAIL（old=$OLD_VERDICT new=$NEW_VERDICT 期望串命中=$(echo "$NEW_OUT" | grep -cF "$EXPECT")）"
+  exit 1
 fi
