@@ -1023,6 +1023,21 @@ def verify(
             continue
 
         # generate 项按 vault 重新生成, 内容本就该与模板源不同 —— 不评 drift。
+        # 但**形态**仍要查: digest 侧会把 generate 路径从父目录摘要整棵剔掉(见
+        # _digest_pairs 的 generated 过滤), 若不在这里查, 「data.json 被误建成目录」
+        # 这类形态错误就完全没有信号 —— 存在即 match, 父摘要又看不见它。
+        # (Codex round-1 MEDIUM)
+        if item.action == "generate" and not target.is_file():
+            report.unreadable.append(
+                Finding(
+                    path=item.path,
+                    category="unreadable",
+                    action=item.action,
+                    role=item.role,
+                    detail="生成件存在但不是普通文件 (应为脚本生成的单文件)",
+                )
+            )
+            continue
         if item.action == "copy" and source is not None:
             src = source / item.path
             if not src.exists():

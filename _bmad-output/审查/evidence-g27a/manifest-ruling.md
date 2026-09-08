@@ -91,12 +91,15 @@
 `intentionally-excluded: outputs/** — 目标里存在: outputs/exam_boards`。
 20 条既有门因此变红（实测）。
 
-两条出路，都不好：
+出路盘点（⚠️ Codex round-1 MEDIUM 指出初稿只列两条、漏了第三条；如实补全）：
 
 | 出路 | 代价 |
 |---|---|
-| 把 `outputs/**` 改成 `kind: "nondir"`（只排除文件、不排除目录） | **悄悄改变 intentionally-excluded 的报告面** —— outputs 下其它嵌套目录从此不再被报，而它们也不在 `extra_scan` 覆盖面内 ⇒ 变成新的无声盲区。为塞进一个新条目去动一条既有语义，代价不对等 |
-| 只加进脚本数组、不进 manifest | 集合等价门（双向差集）必红 |
+| 把 `outputs/**` 改成 `kind: "nondir"` | **悄悄改变 intentionally-excluded 的报告面**——outputs 下其它嵌套目录从此不再被报，而它们也不在 `extra_scan` 覆盖面内 ⇒ 新的无声盲区 |
+| 只加脚本数组、不进 manifest | 集合等价门（双向差集）必红 |
+| **skeleton 与 exclude 并存**（加载器允许同路径不同深度的两条；报告桶不计 rc） | 语义上可行，但既有约 20 条门的 intentionally-excluded 期望都要精确加一条 `outputs/** — 存在: outputs/exam_boards` 的**自指噪声**（「排除 outputs 全部内容」的报告里出现「因为刚建了 outputs/exam_boards」），且每条期望的语义可读性都变差 |
+
+三条路都要么动既有语义、要么给一批门加自指噪声。**本卡缩范围：只加 `wiki/concepts` 与 `wiki/canvases`（无冲突），`outputs/exam_boards` 登记转下一卡**——修它需要先想清楚 `outputs/**` 的类型语义，**那个冲突本身是下一张卡要裁的信息**。
 
 ⇒ **本卡缩范围：只加 `wiki/concepts` 与 `wiki/canvases`（无冲突），`outputs/exam_boards` 登记转下一张卡。**
 影响面评估：`outputs` 骨架目录本身**会**被创建，消费方 `mkdir -p outputs/exam_boards` 即可；

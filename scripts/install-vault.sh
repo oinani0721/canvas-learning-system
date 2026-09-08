@@ -53,14 +53,12 @@ case "$VAULT_NAME" in
         exit 64 ;;
 esac
 
-# 模板源: 缺省从 .env ACTIVE_VAULT + .env 宿主侧 VAULTS_ROOT 解析活 vault
-# (与推送 VAULT-SYNC 同一逻辑)。注意源解析独立于 --vaults-root (那是目标根,
-# 测试场景会指向 scratch 目录, 模板源不能跟着跑偏)。
+# 模板源 (E-4, CARD-G2-7a): 缺省 = **harness 树的 canvas-vault/**(git 追踪系统件)。
+# ⚠️ 不再从 .env ACTIVE_VAULT 解析 —— 那会把「当前活 vault」当模板, 活 vault 里的
+# gitignored 件(密钥/插件绑定值)会整个带进新库, 正是 E-3 要停的行为。
+# 要取那些 gitignored 件(Obsidian 配置/第三方插件), **显式** --source <活 vault>。
 if [ -z "$SOURCE" ]; then
-    # 审查 M2: || true 防 set -e 在 .env 缺失/缺行时静默死亡, 让回退值生效
-    AV=$(grep -E '^ACTIVE_VAULT=' "$ENV_FILE" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '"' | tr -d "'" || true)
-    SRC_ROOT=$(grep -E '^VAULTS_ROOT=' "$ENV_FILE" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '"' | tr -d "'" || true)
-    SOURCE="${SRC_ROOT:-$REPO}/${AV:-canvas-vault}"
+    SOURCE="$REPO/canvas-vault"
 fi
 TARGET="$VAULTS_ROOT/$VAULT_NAME"
 
@@ -130,12 +128,18 @@ push_enabled: false
 EOF
 
 # ── 生成件 (CARD-G2-7a): 每 vault 应当**不同**的东西一律生成, 不从模板源复制 ──
-# 三份都「目标已存在则不覆盖」—— 脚本对同一目标重跑要幂等, 且绝不覆盖用户已改过的值。
+# ⚠️ 先清再写: 插件目录是**整目录** cp -R 过来的, --source 指 live 时 live 的旧 data.json
+#    (含上一个 vault 的 internalApiKey/backendUrl)会跟着进来 —— 只靠下面的 [ ! -e ] 生成
+#    会被它短路。生成位必须先删, 与清 pending_archives(:96 附近)同一模式。
+#    (Codex round-1 HIGH-1; (h)② 真跑实测目标 data.json 里是 live 的真实 key。)
 # ⚠️ 后端鉴权 key 不在这里生成: 它归 deploy-vault.sh 的 activate 步 (CARD-G2-7b),
 #    那一步才知道要跟哪个后端实例配对。自检 :key 反向判会确认这里**没有**从源复制过来。
+rm -f "$TARGET/.obsidian/plugins/canvas-learning-system/data.json" \
+      "$TARGET/.obsidian/plugins/templater-obsidian/data.json" \
+      "$TARGET/.claude/settings.local.json"
 
 PLUGIN_DATA="$TARGET/.obsidian/plugins/canvas-learning-system/data.json"
-if [ ! -e "$PLUGIN_DATA" ]; then
+if [ ! -e "$PLUGIN_DATA" ]; then    # 上面已清, 此守卫是防御式(防手工预放/未来重入)
     mkdir -p "$(dirname "$PLUGIN_DATA")"
     cat > "$PLUGIN_DATA" <<EOF
 {
@@ -148,6 +152,7 @@ EOF
     echo "   ✏️  生成 插件 data.json (backendUrl=$BACKEND_URL; key 由 activate 步写入)"
 fi
 
+# templater 目录在树源部署时整个不存在(manifest optional), 只在 from-live 时被复制进来
 TEMPLATER_DATA="$TARGET/.obsidian/plugins/templater-obsidian/data.json"
 if [ -d "$(dirname "$TEMPLATER_DATA")" ] && [ ! -e "$TEMPLATER_DATA" ]; then
     cat > "$TEMPLATER_DATA" <<'TPLEOF'
@@ -182,7 +187,7 @@ check "hooks 配置 settings.json" '[ -f "$TARGET/.claude/settings.json" ]'
 check "MCP 注册件 .mcp.json"      '[ -f "$TARGET/.mcp.json" ]'
 check "核心插件与模板源字节一致"  'if [ -e "$SOURCE/.obsidian/plugins/canvas-learning-system/main.js" ]; then cmp -s "$SOURCE/.obsidian/plugins/canvas-learning-system/main.js" "$TARGET/.obsidian/plugins/canvas-learning-system/main.js"; else echo "      ↳ 模板源没有 main.js — 先在 harness 树跑 npm run build (deploy-vault.sh preflight, CARD-G2-7b)"; false; fi'
 check "插件启用清单+快捷键"       '[ -f "$TARGET/.obsidian/community-plugins.json" ] && [ -f "$TARGET/.obsidian/hotkeys.json" ]'
-check "后端鉴权 key 未从源复制"   '! cmp -s "$SOURCE/.obsidian/cls-internal-key.txt" "$TARGET/.obsidian/cls-internal-key.txt"'
+check "后端鉴权 key 未从源复制"   'if [ ! -f "$TARGET/.obsidian/cls-internal-key.txt" ]; then true; elif [ -r "$SOURCE/.obsidian/cls-internal-key.txt" ] && [ -r "$TARGET/.obsidian/cls-internal-key.txt" ]; then ! cmp -s "$SOURCE/.obsidian/cls-internal-key.txt" "$TARGET/.obsidian/cls-internal-key.txt"; else echo "      ↳ key 存在但源/目标不可读, 无法证明未复制"; false; fi'
 check "Dashboard + CLAUDE.md"    '[ -f "$TARGET/Dashboard.md" ] && [ -f "$TARGET/CLAUDE.md" ]'
 check "vault 配置 yaml"          'grep -q "vault_id" "$TARGET/.canvas-config.yaml"'
 

@@ -165,7 +165,7 @@
       "role": "obsidian-plugin",
       "action": "copy",
       "origin": "install-vault.sh:76",
-      "note": "核心插件; install-vault.sh:121 自检对 main.js 与模板源做字节级 cmp。"
+      "note": "核心插件; install-vault.sh:183 附近自检(CARD-G2-7a 后行号)对 main.js 与模板源做字节级 cmp。"
     },
     {
       "path": ".obsidian/plugins/claudian",
@@ -257,6 +257,20 @@
       "action": "exclude",
       "origin": "install-vault.sh:84",
       "note": "同 raw/**: :74 的 mkdir 循环覆盖全部六个骨架目录, 内容一律不复制。"
+    },
+    {
+      "path": "wiki/concepts/**",
+      "role": "learning-data",
+      "action": "exclude",
+      "origin": "install-vault.sh:84",
+      "note": "骨架目录只 mkdir, 内容不复制 —— CARD-G2-7a 补入 skeleton 的同时必须补内容排除, 否则 wiki 下多出的文件既不报 extra 也不报 intentionally-excluded(Codex round-1 MEDIUM)。"
+    },
+    {
+      "path": "wiki/canvases/**",
+      "role": "learning-data",
+      "action": "exclude",
+      "origin": "install-vault.sh:84",
+      "note": "同 wiki/concepts/**。"
     },
     {
       "path": ".obsidian/workspace.json",

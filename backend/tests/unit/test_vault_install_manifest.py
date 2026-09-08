@@ -93,9 +93,9 @@ ARRAY_PREFIX = {
     "OBSIDIAN_PLUGINS": ".obsidian/plugins/",
     "ROOT_FILES": "",
 }
-MANIFEST_BLOCK = (73, 77)  # MANIFEST 数组区间 (1-indexed, 含两端)
-# ⚠️ CARD-G2-7a 把区间从 (63,67) 下移到 (73,77): 新增 --harness-tree / --backend-url
-#    两个参数与其用法注释加在数组之前。这个常量是**手写的**, 不会自己跟着脚本走 ——
+MANIFEST_BLOCK = (71, 75)  # MANIFEST 数组区间 (1-indexed, 含两端)
+# ⚠️ CARD-G2-7a 把区间从 (63,67) 下移到 (71,75): 新增 --harness-tree / --backend-url
+#    参数与用法注释、E-4 缺省源块(替换原 .env 解析块, 少一行)加在数组之前。这个常量是**手写的**, 不会自己跟着脚本走 ——
 #    区间写错时 _parse_install_arrays 会解析到别的行、甚至解析到空集,
 #    所以 test_install_arrays_parse_as_expected 那条验伪锚 (断言恰好解析出 5 个数组
 #    且元素数与预期相符) 是这个常量唯一的守门人 —— 改脚本行数时必须让它红一次。
@@ -213,10 +213,11 @@ def test_manifest_covers_implicit_and_generated_semantics():
 
     sh_lines = INSTALL_SH.read_text(encoding="utf-8").splitlines()
     for o in origins:
-        m = _re.match(r"install-vault\.sh:(\d+)", o)
+        m = _re.match(r"install-vault\.sh:(\d+)(?:-(\d+))?", o)
         if m:
             n = int(m.group(1))
-            assert 1 <= n <= len(sh_lines), f"origin {o} 指向脚本外的行（脚本 {len(sh_lines)} 行）"
+            end = int(m.group(2) or n)
+            assert 1 <= n <= end <= len(sh_lines), f"origin {o} 指向脚本外的行（脚本 {len(sh_lines)} 行）"
 
     # CARD-G2-7a: generate 由 1 条扩到 5 条 —— 每 vault 应当**不同**的东西一律生成不复制
     generated = sorted(i["path"] for i in data["items"] if i["action"] == "generate")
@@ -1193,7 +1194,8 @@ def test_skeleton_content_excludes_are_pinned(vault_pair):
     assert "templates/**" in got
     data = json.loads(MANIFEST.read_text(encoding="utf-8"))
     by_origin = [i["path"] for i in data["items"] if i["origin"] == "install-vault.sh:84"]
-    assert sorted(by_origin) == ["raw/**", "templates/**"]
+    # CARD-G2-7a Codex r1 M2: wiki 两件随 skeleton 一起补「内容不复制」(Codex round-1 MEDIUM)
+    assert sorted(by_origin) == ["raw/**", "templates/**", "wiki/canvases/**", "wiki/concepts/**"]
 
 
 def test_bracket_exclude_declaration_works_end_to_end(tmp_path, vault_pair, manifest_data):
@@ -1320,7 +1322,9 @@ def test_extra_allow_moves_entry_out_of_extra(tmp_path, vault_pair, manifest_dat
     manifest = vv.load_manifest(allow)
     after = vv.verify(target, manifest)
     assert after.extra == [], "放行后不得再计入 extra"
-    assert probe in [f.path for f in after.allowed_extra]
+    # 精确集合(Codex round-1 LOW): 夹具只造了 probe 一个额外文件, allowed-extra 应恰为它 ——
+    # 成员包含式断言会容忍多出非预期条目。
+    assert [f.path for f in after.allowed_extra] == [probe]
     assert after.exit_code == vv.EXIT_OK == 0, "allowed-extra 不计退出码"
     assert "## allowed-extra" in vv.render(after, manifest)
 
@@ -2520,3 +2524,129 @@ def test_tree_head_is_self_consistent_under_the_new_manifest():
         f"optional-missing 与树上 ABSENT 集漂移:\n  多出 {sorted(set(got) - set(absent))}\n  少了 {sorted(set(absent) - set(got))}"
     )
     assert result.exit_code == vv.EXIT_OK == 0
+
+
+# ── CARD-G2-7a round-1 整改的门（Codex r1: H1/H2/M1/M3）────────────────
+
+
+def _extract_block(start_marker: str, end_marker: str, *, last: bool = False, close_fi: bool = False) -> str:
+    """按**子串**切出脚本的某一段（不写死行号——见 skills 门那条教训）。
+
+    纯 `in` 匹配而非正则: marker 里常带 `$`/引号, 当正则会静默失配
+    (实测 `TARGET="$VAULTS_ROOT…"` 作为正则匹配不到任何行)。
+    `last=True` 取 end 的**最后一次**命中 —— 切到 heredoc 结束符时,
+    第一次命中是 `<<'EOF'` 起始行, 结束行在后。
+    """
+    lines = INSTALL_SH.read_text(encoding="utf-8").splitlines()
+    starts = [i for i, ln in enumerate(lines) if start_marker in ln]
+    ends = [i for i, ln in enumerate(lines) if end_marker in ln]
+    assert len(starts) == 1, f"start {start_marker!r} 命中 {len(starts)} 次"
+    assert ends, f"end {end_marker!r} 零命中"
+    end = ends[-1] if last else ends[0]
+    assert end > starts[0], (starts, ends[:3])
+    stop = end
+    if close_fi:
+        # end 行常落在 if 块**内部**(如 echo), 向后找到本块的 fi 才闭合
+        j = end + 1
+        while j < len(lines) and lines[j].strip() != "fi":
+            j += 1
+        assert j < len(lines), f"end({end}) 之后找不到 fi"
+        stop = j
+    return "\n".join(lines[starts[0] : stop + 1])
+
+
+def test_stale_data_json_from_dir_copy_is_cleared_before_generate(tmp_path):
+    """H1 回归: 整目录复制带进来的旧 data.json 必须在生成前被清掉。
+
+    (h)② 真跑实测: live 源的 internalApiKey/backendUrl 原样进了新 vault ——
+    `[ ! -e ]` 生成被短路, verify 的 generate 摘要过滤又看不见它。先 rm 再生成。
+    """
+    target = tmp_path / "t"
+    (target / ".obsidian/plugins/canvas-learning-system").mkdir(parents=True)
+    (target / ".obsidian/plugins/canvas-learning-system/data.json").write_text(
+        '{"internalApiKey": "STALE-KEY-FROM-LIVE"}', encoding="utf-8"
+    )
+    # 只切「rm 清理行 + 插件 data.json 生成块」: 切到 settings 块的 heredoc 结束符
+    # 会把它的 if 留半截(语法错), 切到 echo 行会把 cat<<EOF 断在中间 —— 都实测踩过。
+    # 生成块以 echo 收尾、不含未闭合结构, 是安全边界。
+    block = _extract_block(
+        'rm -f "$TARGET/.obsidian/plugins/canvas-learning-system/data.json"',
+        "✏️  生成 插件 data.json",
+        close_fi=True,
+    )
+    done = subprocess.run(
+        ["bash", "-c", block],
+        env={**os.environ, "TARGET": str(target), "BACKEND_URL": "http://127.0.0.1:8123"},
+        capture_output=True,
+        text=True,
+    )
+    assert done.returncode == 0, done.stderr
+    data = json.loads((target / ".obsidian/plugins/canvas-learning-system/data.json").read_text(encoding="utf-8"))
+    assert data["internalApiKey"] == "", f"旧 key 必须被清掉, 实得 {data['internalApiKey']!r}"
+    assert data["backendUrl"] == "http://127.0.0.1:8123", "生成值必须来自 --backend-url"
+
+
+def test_default_source_is_harness_canvas_vault(tmp_path):
+    """H2 回归: 不传 --source 时, 模板源缺省 = $REPO/canvas-vault(harness 树)。
+
+    不再从 .env ACTIVE_VAULT 解析 —— 那会把「当前活 vault」当模板,
+    活 vault 里的 gitignored 件整个带进新库, 正是 E-3/E-4 要停的行为。
+    """
+    block = _extract_block('if [ -z "$SOURCE" ]', 'TARGET="$VAULTS_ROOT/$VAULT_NAME"')
+    harness = tmp_path / "harness"
+    done = subprocess.run(
+        ["bash", "-c", block + '\necho "SOURCE=$SOURCE"'],
+        env={**os.environ, "REPO": str(harness), "ENV_FILE": str(tmp_path / "no.env"), "SOURCE": ""},
+        capture_output=True,
+        text=True,
+    )
+    # ENV_FILE 指向不存在的文件: 若仍走 .env 解析会回退默认, 而不是 harness
+    assert f"SOURCE={harness}/canvas-vault" in done.stdout, (
+        f"缺省源必须是 harness 树的 canvas-vault, 实得: {done.stdout!r}"
+    )
+
+
+def test_generate_item_wrong_shape_is_not_a_match(vault_pair, tmp_path, manifest_data):
+    """M1 回归: generate 项被误建成**目录**时不得记 match —— digest 侧的
+    generate 过滤会把整棵剔掉, 这里是形态错误唯一的信号点。"""
+    _source, target = vault_pair
+    probe = target / ".obsidian" / "plugins" / "canvas-learning-system" / "data.json"
+    probe.parent.mkdir(parents=True, exist_ok=True)
+    if probe.exists():
+        probe.unlink()
+    probe.mkdir()  # 误建成目录
+    (probe / "inner.txt").write_text("x", encoding="utf-8")
+    result = _classify(target)
+    assert any(f.path == str(probe.relative_to(target)) and "不是普通文件" in f.detail for f in result.unreadable), (
+        f"形态错误必须登记 unreadable, 实得 {[(f.path, f.detail) for f in result.unreadable]}"
+    )
+    assert str(probe.relative_to(target)) not in [f.path for f in result.match]
+    assert result.exit_code == vv.EXIT_MISMATCH == 2
+
+
+def test_key_self_check_rejects_unreadable_key(tmp_path):
+    """M3 回归: `! cmp -s` 会把 cmp 的读错误也当通过 —— 目标 key 存在但源不可读时
+    必须显式 ❌, 不能证明「未复制」。"""
+    lines = INSTALL_SH.read_text(encoding="utf-8").splitlines()
+    check_def = [ln for ln in lines if ln.startswith("check() {")]
+    key_line = [ln for ln in lines if ln.startswith("check ") and "cls-internal-key" in ln]
+    assert len(check_def) == 1 and len(key_line) == 1
+    snippet = "\n".join(check_def + key_line)
+
+    src = tmp_path / "src"
+    (src / ".obsidian").mkdir(parents=True)
+    (src / ".obsidian" / "cls-internal-key.txt").write_text("A\n", encoding="utf-8")
+    (src / ".obsidian" / "cls-internal-key.txt").chmod(0o000)
+    tgt = tmp_path / "tgt"
+    (tgt / ".obsidian").mkdir(parents=True)
+    (tgt / ".obsidian" / "cls-internal-key.txt").write_text("B\n", encoding="utf-8")
+    try:
+        out = subprocess.run(
+            ["bash", "-c", snippet],
+            env={**os.environ, "SOURCE": str(src), "TARGET": str(tgt)},
+            capture_output=True,
+            text=True,
+        ).stdout
+        assert "❌" in out and "不可读" in out, f"源不可读必须显式拒绝, 实得: {out!r}"
+    finally:
+        (src / ".obsidian" / "cls-internal-key.txt").chmod(0o644)
