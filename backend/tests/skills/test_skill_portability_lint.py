@@ -17,26 +17,51 @@
 
 层 1 frontmatter — 键集精确相等 + `name` == 目录名且 kebab-case + `description` 非空
                    + `allowed-tools` 形态(现状: 非空 YAML list)。
-层 2 正文 grep   — 9 份 × 7 指标精确计数。
+层 2 正文 grep   — 9 份 × 9 指标精确计数(`/tmp` 与 8011 各钉 all/ns **两端**)。
 层 3 scripts     — `skills/*/scripts/*.py` + `scripts/*.py` × 3 指标精确计数, **文件集合本身也钉**
                    (新增脚本 = 红, 逼人登记)。
+越界判据       — 每份 SKILL.md 的越界 `/tmp` normpath 多重集精确相等(见下方专段)。
 
-## 层 2 的「裸」口径 (⛔ 不是总数)
+## 层 2 的「裸」口径, 以及**为什么钉两端而不是钉裸值**
 
-`bare_tmp` 与 `bare_8011` 一律按 **总数 − 放行形态数** 算, 与卡文 §二.2 的 shell
-裁判**逐字同源**:
+「裸」的语义是 **总数 − 放行形态数**, 与卡文 §二.2 的 shell 裁判逐字同源:
 
     bare_tmp  = count("/tmp/")  − count("/tmp/cls-exam/")
     bare_8011 = count("8011")   − count(":-http://localhost:8011")
 
 ⛔ 不得只数总数: `/tmp/cls-exam/x` 仍含 `/tmp/`、`${CLS_BACKEND_URL:-http://localhost:8011}`
-仍含 `8011` —— 只数总数则整改在指标上**不可见**, 等于假绿。也不得在这里另写一套
-正则(口径分叉)。
+仍含 `8011` —— 只数总数则整改在指标上**不可见**。也不得在这里另写一套正则(口径分叉)。
+
+⛔⛔ **但基线钉的是 `tmp_all` / `tmp_ns` / `p8011_all` / `p8011_ns` 四个数, 不是两个差值。**
+只钉差值有一个真实的假绿面 —— 差值对「一增一减」完全失明。2026-09-08 实测:
+把 `:435` 那处裸 `/tmp/exam-created-event.json` 改进命名空间(ns +1), 同时另加一行
+全新的裸 `/tmp/attacker-new-file.json`(all +1), 则 `all=7 ns=5 ⇒ bare 仍 = 2`,
+门**照绿**, 而新增的那处裸 `/tmp/` 完全不可见。那正是本门存在的理由被击穿。
+
+钉住两端 ⇒ 自动钉住它们的差, 反之不成立。`bare_tmp()` / `bare_8011()` 保留为派生
+算式, 供断言消息与「对账卡文 §二.2 裸值」那条用例引用。
 
 放行的是**写死的字面量**, 不是「`cls-` 前缀类」: 这样 `/tmp/clsx.json`(无 `-`)、
 `/tmp/cls-x/y.json`(`cls-` 后是别的东西)、`/tmp/cls-exam.json`(无尾斜杠, 不是目录
-命名空间)、`/tmp/a/../cls-exam/` 全部照旧计入裸值报红。同理 8011 只放行
-`:-http://localhost:8011` 这一个缺省形态, `${X:-8011}` 之类一律报红。
+命名空间)、`/tmp/a/../cls-exam/`(写法不是钦定形态) 全部照旧计入裸值报红。同理 8011
+只放行 `:-http://localhost:8011` 这一个缺省形态, `${X:-8011}` / `${X-8011}`(单破折号,
+语义不同: 只在**未定义**时用缺省, 空串时展开成空) 之类一律报红。
+
+## 第四条判据: 越界路径 (normpath)
+
+子串计数天生看不见路径语义。`/tmp/cls-exam/../x` 含 `/tmp/` 一次 + `/tmp/cls-exam/`
+一次 ⇒ 裸值 0 ⇒ **计数判据放行**, 而它规范化之后是 `/tmp/x`, 已经越出命名空间
+(Codex round-1 HIGH, 2026-09-08)。`check_escaping_tmp()` 把每份的越界 normpath
+**多重集**钉死, 与计数判据分工互补:
+
+  计数判据 —— 命中数变没变(与 shell 裁判逐字同源)
+  越界判据 —— 命中的那个路径规范化后指向哪里
+
+⚠️ 两条判据对同一输入可以给出**不同**结论, 那是分工不是矛盾: `/tmp/a/../cls-exam/z`
+在计数下报红(写法不是钦定形态), 在越界判据下放行(规范化后确实落在命名空间内)。
+
+越界基线现状 6 处, 全是「只钉不改」的已知项: start-exam-board `:430/:435` 的
+exam-created-event(被 tests/regression 钉死) + quiz-answer 4 处(E-2 归 U5-B)。
 
 ## `UserPromptSubmit` 为什么不进指标
 
@@ -68,6 +93,7 @@
 
 from __future__ import annotations
 
+import posixpath
 import re
 import shutil
 from pathlib import Path
@@ -108,15 +134,57 @@ URL_DEFAULT_FORM = ":-http://localhost:8011"
 #: `.claude/(skills|scripts)/` 的 ERE 等价 —— 与 §二.2 的 `grep -oE` 逐字同源。
 _CLAUDE_DIR_RE = re.compile(r"\.claude/(?:skills|scripts)/")
 
+#: ⛔ **两端各钉一个数, 不是只钉差值** —— 见模块 docstring「为什么钉两端而不是钉裸值」。
 BODY_METRICS = (
     "ask_user_question",
     "mcp_tool",
     "claude_dir_ref",
-    "bare_tmp",
-    "bare_8011",
+    "tmp_all",
+    "tmp_ns",
+    "p8011_all",
+    "p8011_ns",
     "tree_name",
     "users_path",
 )
+
+
+#: 卡文 §二.2 与验收单以「裸值」为口径, 这里给出派生算式供断言消息与对账用例引用。
+#: 钉住 all 与 ns 两端 ⇒ 自动钉住它们的差, 反之不成立。
+def bare_tmp(counts: dict[str, int]) -> int:
+    return counts["tmp_all"] - counts["tmp_ns"]
+
+
+def bare_8011(counts: dict[str, int]) -> int:
+    return counts["p8011_all"] - counts["p8011_ns"]
+
+
+# ── 越界路径判据 (与上面的子串计数**互补**, 不是替代) ───────────────────────
+#: 一个 `/tmp/…` 路径 token 的粗切分: 到空白、反引号、引号、括号、中文标点为止。
+#: 宁可切多也不切少 —— 切多只会让 normpath 结果更长, 不会把越界路径变成合规路径。
+_TMP_TOKEN_RE = re.compile(r"/tmp/[^\s`\"'()（）,，;；:：]*")
+
+
+#: ⛔ **为什么光有子串计数不够**(Codex round-1 HIGH, 2026-09-08):
+#: `/tmp/cls-exam/../x` 含 `/tmp/` 一次、`/tmp/cls-exam/` 一次 ⇒ 裸值 = 0 ⇒ 子串规则
+#: **放行**, 而它 normpath 之后是 `/tmp/x`, 已经越出命名空间。作者原先的负控只覆盖了
+#: 穿越发生在**进入命名空间之前**的 `/tmp/a/../cls-exam/`, 漏掉了发生在**之后**的
+#: 对称变体。子串规则天生看不见路径语义 ⇒ 另立这条 normpath 判据。
+#:
+#: 两条判据分工: 计数判据管「有没有新增/减少命中」(与 shell 裁判逐字同源),
+#: 本判据管「命中的那个路径到底指向哪里」。各自有自己的负控。
+def escaping_tmp_paths(text: str) -> list[tuple[str, str]]:
+    """返回 `(原始 token, normpath 结果)`, 只含 **normpath 后不在命名空间内**的那些。
+
+    命名空间内 = 规范化后等于 `/tmp/cls-exam` 或以 `/tmp/cls-exam/` 开头。
+    """
+    ns = TMP_NAMESPACE.rstrip("/")
+    out: list[tuple[str, str]] = []
+    for tok in _TMP_TOKEN_RE.findall(text):
+        norm = posixpath.normpath(tok)
+        if norm != ns and not norm.startswith(ns + "/"):
+            out.append((tok, norm))
+    return out
+
 
 # ── 层 2 基线 (2026-09-08 开工实测; start-exam-board 为**整改后**目标值) ────
 #: ⛔ 精确相等, 不是 ≤ —— 增红是防新债, 减红是逼人登记整改。
@@ -125,8 +193,10 @@ BASELINE: dict[str, dict[str, int]] = {
         "ask_user_question": 4,
         "mcp_tool": 2,
         "claude_dir_ref": 2,
-        "bare_tmp": 0,
-        "bare_8011": 0,
+        "tmp_all": 0,
+        "tmp_ns": 0,
+        "p8011_all": 0,
+        "p8011_ns": 0,
         "tree_name": 0,
         "users_path": 0,
     },
@@ -134,8 +204,10 @@ BASELINE: dict[str, dict[str, int]] = {
         "ask_user_question": 5,
         "mcp_tool": 3,
         "claude_dir_ref": 5,
-        "bare_tmp": 0,
-        "bare_8011": 0,
+        "tmp_all": 0,
+        "tmp_ns": 0,
+        "p8011_all": 0,
+        "p8011_ns": 0,
         "tree_name": 0,
         "users_path": 0,
     },
@@ -143,8 +215,10 @@ BASELINE: dict[str, dict[str, int]] = {
         "ask_user_question": 0,
         "mcp_tool": 9,
         "claude_dir_ref": 0,
-        "bare_tmp": 0,
-        "bare_8011": 0,
+        "tmp_all": 0,
+        "tmp_ns": 0,
+        "p8011_all": 0,
+        "p8011_ns": 0,
         "tree_name": 0,
         "users_path": 0,
     },
@@ -152,8 +226,10 @@ BASELINE: dict[str, dict[str, int]] = {
         "ask_user_question": 15,
         "mcp_tool": 2,
         "claude_dir_ref": 2,
-        "bare_tmp": 0,
-        "bare_8011": 0,
+        "tmp_all": 0,
+        "tmp_ns": 0,
+        "p8011_all": 0,
+        "p8011_ns": 0,
         "tree_name": 0,
         "users_path": 0,
     },
@@ -161,8 +237,10 @@ BASELINE: dict[str, dict[str, int]] = {
         "ask_user_question": 0,
         "mcp_tool": 1,
         "claude_dir_ref": 0,
-        "bare_tmp": 0,
-        "bare_8011": 0,
+        "tmp_all": 0,
+        "tmp_ns": 0,
+        "p8011_all": 0,
+        "p8011_ns": 0,
         "tree_name": 0,
         "users_path": 0,
     },
@@ -170,8 +248,10 @@ BASELINE: dict[str, dict[str, int]] = {
         "ask_user_question": 0,
         "mcp_tool": 2,
         "claude_dir_ref": 0,
-        "bare_tmp": 0,
-        "bare_8011": 0,
+        "tmp_all": 0,
+        "tmp_ns": 0,
+        "p8011_all": 0,
+        "p8011_ns": 0,
         "tree_name": 0,
         "users_path": 0,
     },
@@ -181,18 +261,21 @@ BASELINE: dict[str, dict[str, int]] = {
     #    而写入方是 Write 工具、不是那段 python(它只读 + `os.remove`), 所以建目录
     #    必须落在 Write **之前**; 该字面量带尾斜杠 ⇒ 同时计入 tmpAll 与 tmpNS,
     #    裸值不受影响)
-    #   ⇒ 收工实测 tmpAll 4→6 / tmpNS 0→4 / **裸 4→2**(剩 `:430/:435`, 归第十四批解耦卡)
-    #   (6/4 而非 5/3: 文件末尾的「变更记录」小节自身也写了一次 `/tmp/cls-exam/`,
-    #    同时进 All 与 NS ⇒ 裸值不受影响。⛔ 这里只钉**裸值**, 所以 All/NS 怎么涨
-    #    都不影响本门 —— 但两个数必须同涨, 单涨 All 就是新增了裸命中。)
+    #   ⇒ 收工实测 tmp_all 4→6 / tmp_ns 0→4 / **裸 4→2**(剩 `:430/:435`, 归第十四批解耦卡)
+    #   (6/4 而非卡文预估的 5/3: 文件末尾的「变更记录」小节自身也写了一次
+    #    `/tmp/cls-exam/`, 同时进 all 与 ns ⇒ 裸值不受影响。)
+    #   ⛔ 基线钉的是 **all 与 ns 两端**, 不是裸值 —— 见模块 docstring
+    #   「为什么钉两端而不是钉裸值」: 只钉裸值时「一增一减」不可见。
     #   `:304` 的 `http://localhost:8011` → `${CLS_BACKEND_URL:-http://localhost:8011}`
     #   ⇒ p8011All 1 / p8011NS 1 / **裸 1→0**
     "start-exam-board": {
         "ask_user_question": 4,
         "mcp_tool": 3,
         "claude_dir_ref": 3,
-        "bare_tmp": 2,
-        "bare_8011": 0,
+        "tmp_all": 6,
+        "tmp_ns": 4,
+        "p8011_all": 1,
+        "p8011_ns": 1,
         "tree_name": 0,
         "users_path": 0,
     },
@@ -200,12 +283,41 @@ BASELINE: dict[str, dict[str, int]] = {
         "ask_user_question": 0,
         "mcp_tool": 10,
         "claude_dir_ref": 0,
-        "bare_tmp": 0,
-        "bare_8011": 0,
+        "tmp_all": 0,
+        "tmp_ns": 0,
+        "p8011_all": 0,
+        "p8011_ns": 0,
         "tree_name": 0,
         "users_path": 0,
     },
 }
+
+# ── 越界路径基线 (normpath 口径; 按 skill 的**多重集**钉, 不只钉数量) ────────
+#: 用多重集(排序后的列表)而不是个数 —— 换掉一个越界路径而个数不变时也要红。
+#: 现状全部是「只钉不改」的已知项:
+#:   start-exam-board `:430/:435` 的 exam-created-event(被 tests/regression 钉死),
+#:   quiz-answer 的 4 处(E-2 归 U5-B)。
+#: **新增任何越界路径 = 红**, 这正是子串计数看不见的那一面。
+ESCAPING_TMP_BASELINE: dict[str, list[str]] = {
+    "ai-linked-doc": [],
+    "board-recap": [],
+    "chat-with-context": [],
+    "configure-whiteboard": [],
+    "exam-quick": [],
+    "node-chat": [],
+    "quiz-answer": [
+        "/tmp/quiz-answer-incr.json",
+        "/tmp/quiz-answer-incr.json",
+        "/tmp/quiz-answer-payload.json",
+        "/tmp/quiz-answer-payload.json",
+    ],
+    "start-exam-board": [
+        "/tmp/exam-created-event.json",
+        "/tmp/exam-created-event.json",
+    ],
+    "study-question": [],
+}
+
 
 # ── 交接常量 ① ─────────────────────────────────────────────────────────────
 #: **U5-B (CARD-G3-3-R2) 独占更新**; rebase 时保 lint 绿。
@@ -218,8 +330,10 @@ QUIZ_ANSWER_BASELINE: dict[str, int] = {
     "ask_user_question": 2,
     "mcp_tool": 1,
     "claude_dir_ref": 4,
-    "bare_tmp": 4,
-    "bare_8011": 0,
+    "tmp_all": 4,
+    "tmp_ns": 0,
+    "p8011_all": 0,
+    "p8011_ns": 0,
     "tree_name": 0,
     "users_path": 0,
 }
@@ -266,8 +380,10 @@ def _body_counts(text: str) -> dict[str, int]:
         "ask_user_question": _count(text, "AskUserQuestion"),
         "mcp_tool": _count(text, "mcp__canvas-learning-mcp__"),
         "claude_dir_ref": len(_CLAUDE_DIR_RE.findall(text)),
-        "bare_tmp": _count(text, "/tmp/") - _count(text, TMP_NAMESPACE),
-        "bare_8011": _count(text, "8011") - _count(text, URL_DEFAULT_FORM),
+        "tmp_all": _count(text, "/tmp/"),
+        "tmp_ns": _count(text, TMP_NAMESPACE),
+        "p8011_all": _count(text, "8011"),
+        "p8011_ns": _count(text, URL_DEFAULT_FORM),
         "tree_name": _count(text, "feature-obsidian-hybrid-dev"),
         "users_path": _count(text, "/Users/"),
     }
@@ -354,6 +470,33 @@ def check_body(root: Path, baseline: dict[str, dict[str, int]]) -> list[str]:
     return problems
 
 
+def check_escaping_tmp(root: Path, baseline: dict[str, list[str]]) -> list[str]:
+    """越界路径判据: 每份 SKILL.md 的越界 normpath **多重集**精确相等。
+
+    与 `check_body` 的子串计数**互补**: 计数管「命中数变没变」, 这里管「命中的那个
+    路径规范化之后指向哪里」。`/tmp/cls-exam/../x` 在计数下裸值为 0(放行), 在这里
+    normpath 成 `/tmp/x` ⇒ 越界 ⇒ 红。
+    """
+    problems: list[str] = []
+    skills_dir = root / "skills"
+    for name in sorted(baseline):
+        f = skills_dir / name / "SKILL.md"
+        if not f.exists():
+            problems.append(f"[越界] {name}: SKILL.md 不存在 (基线要求存在) path={f}")
+            continue
+        actual = sorted(norm for _tok, norm in escaping_tmp_paths(f.read_text(encoding="utf-8")))
+        want = sorted(baseline[name])
+        if actual != want:
+            extra = [p for p in actual if actual.count(p) > want.count(p) or p not in want]
+            missing = [p for p in want if p not in actual]
+            problems.append(
+                f"[越界] {name}: 越出 {TMP_NAMESPACE} 的路径多重集不等 "
+                f"期望={want} 实测={actual} (新增={sorted(set(extra))} 缺失={sorted(set(missing))}) —— "
+                f"新增即债; 缺失说明有人整改却没同步 ESCAPING_TMP_BASELINE"
+            )
+    return problems
+
+
 def check_scripts(root: Path, baseline: dict[str, dict[str, int]]) -> list[str]:
     """层 3: 返回违规描述列表 (空 = 全绿)。文件集合本身也钉。"""
     problems: list[str] = []
@@ -395,9 +538,67 @@ def test_layer1_frontmatter_matches_baseline():
 
 
 def test_layer2_body_counts_match_baseline():
-    """层 2: 9 份 × 7 指标精确计数 (裸口径 = 总数 − 放行形态数)。"""
+    """层 2: 9 份 × 9 指标精确计数 (`/tmp` 与 8011 各钉 all/ns 两端, 不只钉差值)。"""
     problems = check_body(DEFAULT_ROOT, _merged_body_baseline())
     assert not problems, "正文指标基线漂移:\n" + "\n".join(problems)
+
+
+def test_bare_values_match_card_expectations():
+    """与卡文 §二.2 / 验收单的**裸值**口径对账 —— 那两份文档以裸值叙述, 这里把
+    派生算式显式钉一次, 免得「基线钉的是四端」与「文档写的是裸值」两套说法漂开。
+
+    整改目标: start-exam-board 裸 `/tmp/` 4 → **2**(剩 `:430/:435`)、裸 8011 1 → **0**。
+    """
+    skills_dir = DEFAULT_ROOT / "skills"
+    seb = _body_counts((skills_dir / "start-exam-board" / "SKILL.md").read_text(encoding="utf-8"))
+    assert bare_tmp(seb) == 2, (
+        f"start-exam-board 裸 /tmp/ 期望=2 实测={bare_tmp(seb)} "
+        f"(all={seb['tmp_all']} ns={seb['tmp_ns']}); 剩的两处是 :430/:435 的 exam-created-event"
+    )
+    assert bare_8011(seb) == 0, (
+        f"start-exam-board 裸 8011 期望=0 实测={bare_8011(seb)} (all={seb['p8011_all']} ns={seb['p8011_ns']})"
+    )
+    qa = _body_counts((skills_dir / "quiz-answer" / "SKILL.md").read_text(encoding="utf-8"))
+    assert bare_tmp(qa) == 4, f"quiz-answer 裸 /tmp/ 期望=4(只钉不改, 归 U5-B) 实测={bare_tmp(qa)}"
+
+
+def test_escaping_tmp_paths_match_baseline():
+    """越界判据(正控): 9 份的越界路径多重集 == 基线(只钉不改的 6 处已知项)。"""
+    problems = check_escaping_tmp(DEFAULT_ROOT, ESCAPING_TMP_BASELINE)
+    assert not problems, "越界路径基线漂移:\n" + "\n".join(problems)
+
+
+@pytest.mark.parametrize(
+    "literal,bare_delta,escapes,why",
+    [
+        ("/tmp/cls-exam/", 0, False, "钦定形态本身 —— 两条都放行"),
+        ("/tmp/cls-exam/x.json", 0, False, "命名空间内的文件 —— 两条都放行"),
+        ("/tmp/cls-exam", 1, False, "无尾斜杠: 写法不是钦定形态(子串红), 但指向就是命名空间本身(不越界)"),
+        ("/tmp/a/../cls-exam/z", 1, False, "穿越在**前**: 写法不合规(子串红), 规范化后仍落在命名空间内(不越界)"),
+        ("/tmp/cls-exam/../x", 0, True, "穿越在**后**: 子串看不见(裸值 0), 规范化后越界(越界红)"),
+        ("/tmp/other.json", 1, True, "普通裸路径 —— 两条都红"),
+    ],
+)
+def test_two_judges_cover_each_other_without_gap(literal: str, bare_delta: int, escapes: bool, why: str):
+    """**两条判据的分工表** —— 每个不合规形态都必须至少被其中一条拦下。
+
+    这张表本身就是判据: 将来若有人放宽任一条(比如把放行改成 `cls-` 前缀类, 或删掉
+    越界判据), 对应行会立刻翻转。⛔ 注意第 3、4 行的 `escapes=False` **不是漏网**
+    —— 它们由子串那一列的 `bare_delta=1` 拦下; 真正危险的是**两列都是 0/False**
+    的行, 那才是放行, 表里只有前两行, 且都是真正合规的形态。
+    """
+    counts = _body_counts(literal)
+    assert bare_tmp(counts) == bare_delta, (
+        f"{literal!r} ({why}): 子串裸值期望={bare_delta} 实测={bare_tmp(counts)} "
+        f"(all={counts['tmp_all']} ns={counts['tmp_ns']})"
+    )
+    assert bool(escaping_tmp_paths(literal)) is escapes, (
+        f"{literal!r} ({why}): 越界期望={escapes} 实测={escaping_tmp_paths(literal)}"
+    )
+    if bare_delta == 0 and not escapes:
+        assert literal.startswith(TMP_NAMESPACE), (
+            f"⛔ {literal!r} 被两条判据一起放行, 但它不在 {TMP_NAMESPACE} 下 —— 这就是缺口"
+        )
 
 
 def test_layer3_scripts_counts_and_fileset_match_baseline():
@@ -416,10 +617,50 @@ def test_baseline_constants_are_disjoint_and_complete():
         f"层 2 基线覆盖面必须恰好 == 9 份 vault skill "
         f"期望={sorted(EXPECTED_SKILLS)} 实测={sorted(_merged_body_baseline())}"
     )
-    assert set(U6_SCRIPTS_BASELINE) == {
+    # ⛔ **不得写成 `== {那两份}`**(Codex round-1 MEDIUM, 2026-09-08): 该常量的注释
+    # 要求「U6 新增脚本必须同步登记进来」, 而 `==` 会把照做的 U6 直接打红 —— 门的
+    # 指令与门的判据自相矛盾, U6 无论怎么做都错。判据改为两条, 各自只管自己那面:
+    #   (i) 原本那两份**必须仍在**(不许被人顺手删掉交接项);
+    #   (ii) 新登记的条目**必须落在 U6 的两个 skill 目录下**(不许拿这个常量当垃圾桶,
+    #        把别人地盘的脚本塞进来绕过 SCRIPTS_BASELINE 的审阅)。
+    # 「未登记的新脚本立刻红」由层 3 的文件集合精确相等保证, 不靠这里。
+    u6_seed = {
         "skills/board-recap/scripts/recap_exam_build.py",
         "skills/clear-inbox/scripts/inbox_preview.py",
-    }, "U6 地盘定义漂移 —— 手册 §一 明列的是 board-recap/recap_exam_build.py 与 clear-inbox/inbox_preview.py"
+    }
+    assert u6_seed <= set(U6_SCRIPTS_BASELINE), (
+        f"U6 交接项被删 —— 手册 §一 明列这两份属 U6 地盘, 必须留在 U6_SCRIPTS_BASELINE: "
+        f"缺={sorted(u6_seed - set(U6_SCRIPTS_BASELINE))}"
+    )
+    u6_dirs = ("skills/board-recap/scripts/", "skills/clear-inbox/scripts/")
+    stray = [p for p in U6_SCRIPTS_BASELINE if not p.startswith(u6_dirs)]
+    assert not stray, (
+        f"U6_SCRIPTS_BASELINE 只收 U6 地盘({' / '.join(u6_dirs)})下的脚本, "
+        f"别处的请登记进 SCRIPTS_BASELINE: {sorted(stray)}"
+    )
+
+
+def test_u6_can_register_a_new_script_without_being_blocked():
+    """⑨ **Codex round-1 MEDIUM** —— U6 照注释办事不得被本门自己拦住。
+
+    场景: U6 在 `clear-inbox/scripts/` 下新增一个脚本, 按 `U6_SCRIPTS_BASELINE` 的
+    注释把它登记进来。此时那条交接断言**必须放行**(否则门的指令与门的判据互相打架,
+    U6 怎么做都错); 而「新增脚本不登记就红」仍由层 3 的文件集合保证 —— 见下一条。
+    """
+    extended = {
+        **U6_SCRIPTS_BASELINE,
+        "skills/clear-inbox/scripts/new_u6_tool.py": {"tmp": 0, "users_path": 0, "tree_name": 0},
+    }
+    u6_seed = {"skills/board-recap/scripts/recap_exam_build.py", "skills/clear-inbox/scripts/inbox_preview.py"}
+    u6_dirs = ("skills/board-recap/scripts/", "skills/clear-inbox/scripts/")
+    assert u6_seed <= set(extended), "登记新脚本后原两份仍在 ⇒ 该放行"
+    assert not [p for p in extended if not p.startswith(u6_dirs)], "新脚本在 U6 地盘内 ⇒ 该放行"
+
+    # 反向: 把别人地盘的脚本塞进 U6 常量 ⇒ 必须被拦(否则这个常量变成绕过审阅的垃圾桶)
+    smuggled = {**U6_SCRIPTS_BASELINE, "scripts/fsrs_bridge.py": {"tmp": 0, "users_path": 1, "tree_name": 1}}
+    assert [p for p in smuggled if not p.startswith(u6_dirs)] == ["scripts/fsrs_bridge.py"], (
+        "非 U6 地盘的脚本混进 U6_SCRIPTS_BASELINE 必须被拦"
+    )
 
 
 # ── 对 tmp 副本 (负控) ──────────────────────────────────────────────────────
@@ -453,7 +694,7 @@ def test_negative_control_new_bare_tmp_reddens_layer2(sandbox: Path):
     problems = check_body(sandbox, _merged_body_baseline())
     assert problems, "新增裸 /tmp/ 必须报红"
     joined = "\n".join(problems)
-    assert "exam-quick" in joined and "bare_tmp" in joined, joined
+    assert "exam-quick" in joined and "tmp_all" in joined, joined
     assert "期望=0 实测=1" in joined, joined
 
 
@@ -491,10 +732,82 @@ def test_negative_control_new_script_reddens_layer3_twice(sandbox: Path):
     assert "期望=0 实测=1" in joined2, joined2
 
 
-def test_negative_control_namespace_form_is_allowed(sandbox: Path):
-    """⑤ `/tmp/cls-exam/x.json` 加进副本 → 层 2 **不**红 (证放行口径生效)。"""
+def test_negative_control_equal_count_swap_must_redden(sandbox: Path):
+    """⑦ **差值判据的假绿面** —— 一增一减必须被抓到。
+
+    攻击形态: 把一处原本裸的 `/tmp/` 改进命名空间(ns +1), 同时另加一处全新的裸
+    `/tmp/`(all +1)。此时 `bare = all − ns` **不变**, 只钉差值的门会照绿, 而实际上
+    新增了一处裸 `/tmp/` —— 那正是本门存在的理由被击穿。基线钉两端就能抓到。
+    """
+    f = sandbox / "skills" / "start-exam-board" / "SKILL.md"
+    text = f.read_text(encoding="utf-8")
+    swapped = text.replace('P = "/tmp/exam-created-event.json"', 'P = "/tmp/cls-exam/exam-created-event.json"', 1)
+    assert swapped != text, "预置失败: 没找到要搬进命名空间的那处裸 /tmp/"
+    f.write_text(swapped + "\n临时缓存写到 /tmp/attacker-new-file.json 再读回。\n", encoding="utf-8")
+
+    counts = _body_counts(f.read_text(encoding="utf-8"))
+    assert bare_tmp(counts) == BASELINE["start-exam-board"]["tmp_all"] - BASELINE["start-exam-board"]["tmp_ns"], (
+        "本用例的前提是**裸值不变**(否则抓到的是别的东西, 不是这个假绿面): "
+        f"实测裸值={bare_tmp(counts)} all={counts['tmp_all']} ns={counts['tmp_ns']}"
+    )
+    problems = check_body(sandbox, _merged_body_baseline())
+    joined = "\n".join(problems)
+    assert any("start-exam-board" in p and "tmp_all" in p for p in problems), (
+        f"一增一减必须被 tmp_all 那一端抓到(裸值此时不变), 实得: {joined}"
+    )
+
+
+@pytest.mark.parametrize(
+    "literal,norm",
+    [
+        ("/tmp/cls-exam/../x.json", "/tmp/x.json"),
+        ("/tmp/cls-exam/a/../../y.json", "/tmp/y.json"),
+        ("/tmp/cls-exam/./../z.json", "/tmp/z.json"),
+    ],
+)
+def test_negative_control_escape_after_namespace_must_redden(sandbox: Path, literal: str, norm: str):
+    """⑧ **Codex round-1 HIGH** —— 穿越发生在**进入命名空间之后**。
+
+    这三个形态在子串计数下都是 `/tmp/` 一次 + `/tmp/cls-exam/` 一次 ⇒ **裸值 0, 计数
+    判据放行**; 但 normpath 之后它们指向命名空间外。作者原先只测了穿越在**前**的
+    `/tmp/a/../cls-exam/`, 漏了这个对称变体。
+
+    本用例同时断言「计数判据看不见」与「越界判据看得见」—— 前者是为了钉住这条负控
+    确实在考越界判据, 而不是被计数那一层顺手打红(判据必须绑定被哪一层拒的)。
+    """
+    f = sandbox / "skills" / "exam-quick" / "SKILL.md"
+    before = _body_counts(f.read_text(encoding="utf-8"))
+    _append_body(sandbox, "exam-quick", f"临时写到 {literal} 再读回。")
+    after = _body_counts(f.read_text(encoding="utf-8"))
+
+    assert bare_tmp(after) == bare_tmp(before), (
+        f"本用例的前提是**计数判据看不见**(否则考的不是越界判据): 裸值 {bare_tmp(before)}→{bare_tmp(after)}"
+    )
+    problems = check_escaping_tmp(sandbox, ESCAPING_TMP_BASELINE)
+    joined = "\n".join(problems)
+    assert any("exam-quick" in p and "[越界]" in p for p in problems), f"{literal} 必须被越界判据抓到, 实得: {joined}"
+    assert norm in joined, f"消息里应给出 normpath 结果 {norm}, 实得: {joined}"
+
+
+def test_negative_control_namespace_form_does_not_raise_bare_value(sandbox: Path):
+    """⑤ `/tmp/cls-exam/x.json` 加进副本 → **裸值不变**(证放行口径生效)。
+
+    ⚠️ 注意与「不红」的区别: 基线钉的是 all/ns **两端**, 所以新增任何一处 `/tmp/`
+    ——哪怕是合规的命名空间形态——都会让两端同时 +1 而报红, **这是设计如此**
+    (新增即须登记基线)。放行口径要证的是「它不抬高**裸值**」, 不是「它不用登记」。
+    对照 `test_negative_control_near_miss_tmp_forms_must_redden`: 那些形态只抬高
+    `tmp_all` 一端, 裸值 +1。
+    """
+    before = _body_counts((sandbox / "skills" / "exam-quick" / "SKILL.md").read_text(encoding="utf-8"))
     _append_body(sandbox, "exam-quick", "临时写到 /tmp/cls-exam/x.json 再读回。")
-    assert not check_body(sandbox, _merged_body_baseline()), check_body(sandbox, _merged_body_baseline())
+    after = _body_counts((sandbox / "skills" / "exam-quick" / "SKILL.md").read_text(encoding="utf-8"))
+
+    assert after["tmp_all"] == before["tmp_all"] + 1, "预置失败: 该形态没被 tmp_all 端计到"
+    assert after["tmp_ns"] == before["tmp_ns"] + 1, "放行口径失效: 命名空间形态没被 tmp_ns 端计到"
+    assert bare_tmp(after) == bare_tmp(before), (
+        f"命名空间形态不得抬高裸值 期望={bare_tmp(before)} 实测={bare_tmp(after)} "
+        f"(all {before['tmp_all']}→{after['tmp_all']} ns {before['tmp_ns']}→{after['tmp_ns']})"
+    )
 
 
 @pytest.mark.parametrize(
@@ -509,31 +822,65 @@ def test_negative_control_namespace_form_is_allowed(sandbox: Path):
 def test_negative_control_near_miss_tmp_forms_must_redden(sandbox: Path, literal: str, why: str):
     """⑤' 反向: 放行口径是**写死的 `/tmp/cls-exam/`**, 不是「`cls-` 前缀类」。
 
-    这四个形态各自差一处写法, 全部必须照旧计入裸值报红 —— 否则「含 cls- 就放」
+    这四个形态各自差一处写法, 全部必须照旧计入**裸值**报红 —— 否则「含 cls- 就放」
     会把整类假放行放进来。
+
+    ⛔ 判据盯**裸值 +1**, 不是盯「tmp_all 变了」: 合规的命名空间形态也会抬高 tmp_all
+    (两端同涨), 只断言 tmp_all 变了区分不出这两类, 等于判据比它声称的宽。
     """
+    f = sandbox / "skills" / "exam-quick" / "SKILL.md"
+    before = _body_counts(f.read_text(encoding="utf-8"))
     _append_body(sandbox, "exam-quick", f"临时写到 {literal} 再读回。")
+    after = _body_counts(f.read_text(encoding="utf-8"))
+
+    assert bare_tmp(after) == bare_tmp(before) + 1, (
+        f"{literal} ({why}) 必须被当作**裸**命中 期望裸值={bare_tmp(before) + 1} "
+        f"实测={bare_tmp(after)} (all {before['tmp_all']}→{after['tmp_all']} "
+        f"ns {before['tmp_ns']}→{after['tmp_ns']})"
+    )
     problems = check_body(sandbox, _merged_body_baseline())
     joined = "\n".join(problems)
-    assert any("exam-quick" in p and "bare_tmp" in p for p in problems), f"{literal} ({why}) 必须报红, 实得: {joined}"
+    assert any("exam-quick" in p and "tmp_all" in p for p in problems), f"{literal} ({why}) 必须报红, 实得: {joined}"
 
 
-def test_negative_control_url_default_form_allowed_but_bare_reddens(sandbox: Path):
-    """⑥ `${CLS_BACKEND_URL:-http://localhost:8011}` 不红; 裸 `http://localhost:8011` 红。"""
+def test_negative_control_url_default_form_does_not_raise_bare_but_plain_does(sandbox: Path):
+    """⑥ 缺省形态**不抬高裸 8011**; 裸 `http://localhost:8011` 抬高。
+
+    与 ⑤ 同理: 两者都会让 `p8011_all` 变化并因此报红(新增即须登记), 区分点在**裸值**。
+    """
+    f = sandbox / "skills" / "exam-quick" / "SKILL.md"
+    before = _body_counts(f.read_text(encoding="utf-8"))
     _append_body(sandbox, "exam-quick", 'curl "${CLS_BACKEND_URL:-http://localhost:8011}/api/v1/ping"')
-    assert not check_body(sandbox, _merged_body_baseline()), check_body(sandbox, _merged_body_baseline())
+    after_ns = _body_counts(f.read_text(encoding="utf-8"))
+    assert after_ns["p8011_all"] == before["p8011_all"] + 1, "预置失败: 该形态没被 p8011_all 端计到"
+    assert after_ns["p8011_ns"] == before["p8011_ns"] + 1, "放行口径失效: 缺省形态没被 p8011_ns 端计到"
+    assert bare_8011(after_ns) == bare_8011(before), (
+        f"缺省形态不得抬高裸 8011 期望={bare_8011(before)} 实测={bare_8011(after_ns)}"
+    )
 
     _append_body(sandbox, "exam-quick", "curl http://localhost:8011/api/v1/ping")
+    after_bare = _body_counts(f.read_text(encoding="utf-8"))
+    assert bare_8011(after_bare) == bare_8011(after_ns) + 1, (
+        f"裸 URL 必须抬高裸 8011 期望={bare_8011(after_ns) + 1} 实测={bare_8011(after_bare)}"
+    )
     problems = check_body(sandbox, _merged_body_baseline())
     joined = "\n".join(problems)
-    assert any("exam-quick" in p and "bare_8011" in p for p in problems), joined
-    assert "期望=0 实测=1" in joined, joined
+    assert any("exam-quick" in p and "p8011_all" in p for p in problems), joined
 
 
-@pytest.mark.parametrize("form", ["${X:-8011}", "PORT=8011", "http://127.0.0.1:8011"])
-def test_negative_control_other_8011_forms_must_redden(sandbox: Path, form: str):
-    """⑥' 反向: 只放行 `:-http://localhost:8011` 这**一个**缺省形态, 别的 8011 一律红。"""
+@pytest.mark.parametrize(
+    "form", ["${X:-8011}", "PORT=8011", "http://127.0.0.1:8011", "${CLS_BACKEND_URL-http://localhost:8011}"]
+)
+def test_negative_control_other_8011_forms_raise_bare(sandbox: Path, form: str):
+    """⑥' 只放行 `:-http://localhost:8011` 这**一个**缺省形态, 别的一律抬高裸值。
+
+    末一条是 `${X-…}` **单破折号** —— 与 `:-` 语义不同(前者只在**未定义**时用缺省,
+    变量被设成空串时会展开成空), 不在放行名单内。
+    """
+    f = sandbox / "skills" / "exam-quick" / "SKILL.md"
+    before = _body_counts(f.read_text(encoding="utf-8"))
     _append_body(sandbox, "exam-quick", f"端口配置 {form}")
-    problems = check_body(sandbox, _merged_body_baseline())
-    joined = "\n".join(problems)
-    assert any("exam-quick" in p and "bare_8011" in p for p in problems), f"{form} 必须报红, 实得: {joined}"
+    after = _body_counts(f.read_text(encoding="utf-8"))
+    assert bare_8011(after) == bare_8011(before) + 1, (
+        f"{form} 必须被当作裸命中 期望裸值={bare_8011(before) + 1} 实测={bare_8011(after)}"
+    )
