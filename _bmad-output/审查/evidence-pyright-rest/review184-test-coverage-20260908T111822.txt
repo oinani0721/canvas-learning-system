@@ -1,0 +1,37 @@
+=== review.py:184 的 500 为什么没被测试抓住？（决定它能不能算「已知旧账」）===
+
+--- ① 那 5 个 verification-session 端点的路径
+  (按行号取)
+  --- 附近的路由装饰器（:1533 之前最近的 @router）
+    
+  --- 附近的路由装饰器（:1605 之前最近的 @router）
+    
+  --- 附近的路由装饰器（:1661 之前最近的 @router）
+    
+  --- 附近的路由装饰器（:1738 之前最近的 @router）
+    
+  --- 附近的路由装饰器（:1822 之前最近的 @router）
+    
+
+--- ② 有没有测试覆盖这些端点
+tests/unit/test_nfr_cache_bounds.py
+tests/unit/test_mock_degradation_transparency.py
+tests/unit/test_verification_service_activation.py
+tests/unit/test_degraded_flag_propagation.py
+tests/integration/test_session_persistence.py
+tests/integration/test_epic31_e2e.py
+tests/integration/test_verification_service_e2e.py
+  tests 里提到 _get_or_create_verification_service 的文件:
+tests/integration/test_verification_interactive_e2e.py
+
+--- ③ 关键：测试环境里 AI_API_KEY 是否为空（若为空 ⇒ :181 不进 ⇒ 测试看不见这个 bug）
+   进程 env AI_API_KEY 长度: 39
+   backend/.env 里 AI_API_KEY 行:
+47:# AI_API_KEY inherited from shell env via Keychain (see incident 2026-04-06)
+59:# Same revoked key as AI_API_KEY above; both now come from Keychain at shell startup.
+   conftest 有没有清掉它:
+tests/conftest.py:667:    settings.OPENAI_API_KEY =<REDACTED>
+
+--- ④ 结论判据：测试跑的时候 AI_API_KEY 到底有没有值
+   get_settings().AI_API_KEY 非空: True
+   ⇒ 若测试进程同样非空, 那这 5 个端点在测试里也该 500 —— 除非根本没有测试碰它们

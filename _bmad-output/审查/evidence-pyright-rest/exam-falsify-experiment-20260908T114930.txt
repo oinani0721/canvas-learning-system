@@ -1,0 +1,37 @@
+══════════════════════════════════════════════════════════════════
+exam.py 反例实验存档 · 2026-09-08 · 隔离树(仓内零改动)
+══════════════════════════════════════════════════════════════════
+
+【实验一】按 U1-A §一(e) 方案, 在隔离副本自己写 TYPE_CHECKING 块
+  隔离树 = git archive HEAD(815b8112→f59d945f 内容同) + .env + venv symlink
+  前置自证: 副本无 TYPE_CHECKING(基线态) / exam.py = 10 errors ✓
+  写入: 模块级 TYPE_CHECKING import 缺失模型名 + 类体内 11 个签名声明(逐字抄 ext)
+  运行期自证: import 后挂载链照常(exam_service.py:492 底部 import → ext 自动 attach)
+
+  ⚠️ 首跑出现 1 条新错 :494 'ExamNodeSyncResponse is not defined'
+     → 归因: 我抄漏了该名(实验者的转写滑误, 非方案缺陷)
+     → pyright 立即在用点报 reportUndefinedVariable = 该方案对转写滑误**自暴露**
+     → 补上后复跑: 全部判据通过
+
+  结果: exam.py 10→0 | exam_service.py 仅剩 2 条存量(:21/:520=基线:492 平移)
+        ext 21→8(单文件口径) | 全量 232→211
+  多重集(vs 我的 HEAD): NEW=0 GONE=21(exam -10, ext -11)
+  ⚠️ 曾误算 +2 未闭合: 把单文件跑(8)与全量跑(10)两个口径混数 — 全量前后对才有效
+
+【实验二·决定性】只换入 U1 分支的 exam_service.py(唯一变量)
+  隔离树2 = 我的 HEAD + git show card/u1-pyright-svc:...exam_service.py
+  前置自证: 换前 exam.py = 10 ✓ / 换后 grep TYPE_CHECKING = 3(U1 已写过声明) ✓
+
+  结果: exam.py 10→0 | exam_service.py 0 errors 1 warning
+        全量 232→209
+  多重集: NEW=0 GONE=23 (exam.py -10, exam_service.py -2, ext -11)
+  ⇒ U1 的这一个文件单独落进我的树, 即可消掉全部 10 条, 零副作用
+
+【U1 分支现状】阶段1 已完成: 44 文件归零 + Codex r1/r2/r3 三轮整改
+  exam_service.py diff 103 行(含 TYPE_CHECKING 声明块, 设计与本实验一相同构)
+  ⇒ 两个独立实现得出同一结果 = U1 方案的交叉验证
+
+【结论】
+  1. U1-A 的预测成立: TYPE_CHECKING 声明确实消掉 api 侧 10 条(且连带 ext 11 条)
+  2. 跨卡矛盾仍然成立: 候选树不含 U1 ⇒ 这 10 条不会自动到 U2 树
+  3. 但修法已从『推测』变成『实测』: 单文件 crossover 即可, 不需要 10 条 ignore
