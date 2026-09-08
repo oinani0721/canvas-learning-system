@@ -15,7 +15,7 @@ Story 23.1 Implementation:
 
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional, cast
 
 import structlog
 
@@ -317,12 +317,10 @@ class RAGService:
 
         try:
             # ✅ Verified from LangGraph Skill: ainvoke for async execution
-            # ImportError 分支会把 canvas_agentic_rag 置 None(:76/:84);
-            # 原代码 None.ainvoke 同样 AttributeError, 且同样被本 try 捕获。
-            assert canvas_agentic_rag is not None
-            result = await canvas_agentic_rag.ainvoke(
-                initial_state, config=runtime_config
-            )
+            # ImportError 分支会把 canvas_agentic_rag 置 None(:76/:84)。用 cast 而非
+            # assert(Codex round-2 MEDIUM-1): 下面的 except 把异常消息写进返回值,
+            # cast 是运行期 no-op —— 为 None 时仍抛原本的 AttributeError、消息不变。
+            result = await cast(Any, canvas_agentic_rag).ainvoke(initial_state, config=runtime_config)
 
             # ✅ Epic 12.K.2: None value protection - ainvoke may return None
             if result is None:

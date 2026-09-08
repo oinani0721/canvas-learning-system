@@ -284,9 +284,10 @@ class ErrorClassifier:
                 max_tokens=100,
                 temperature=0.1,
             )
-            _content = cast("ModelResponse", response).choices[0].message.content
-            assert _content is not None  # 原代码此处 None.strip() 同样 AttributeError
-            content = _content.strip()
+            # ⛔ 这里**不能**用 assert(Codex round-2 MEDIUM-1): 下面的 except 把异常消息
+            # 写进返回值, AssertionError 的空消息会让用户看到残缺文本。cast 是运行期
+            # no-op —— 为 None 时仍抛原本的异常、消息逐字不变。
+            content = cast(str, cast("ModelResponse", response).choices[0].message.content).strip()
             # Story 2.5 HIGH#8 fix — 剥离 markdown fence 防 json.loads 失败
             content = _strip_markdown_fence(content)
             parsed = json.loads(content)
@@ -352,9 +353,10 @@ class ErrorClassifier:
                 temperature=0.1,
             )
 
-            _content = cast("ModelResponse", response).choices[0].message.content
-            assert _content is not None  # 原代码此处 None.strip() 同样 AttributeError
-            content = _content.strip()
+            # ⛔ 这里**不能**用 assert(Codex round-2 MEDIUM-1): 下面的 except 把异常消息
+            # 写进返回值, AssertionError 的空消息会让用户看到残缺文本。cast 是运行期
+            # no-op —— 为 None 时仍抛原本的异常、消息逐字不变。
+            content = cast(str, cast("ModelResponse", response).choices[0].message.content).strip()
 
             # Parse the JSON response
             parsed = json.loads(content)

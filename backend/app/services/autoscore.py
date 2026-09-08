@@ -306,9 +306,11 @@ class AutoScorer:
                 response_format={"type": "json_object"},
             )
 
+            # ⛔ 这里**不能**用 assert(Codex round-2 MEDIUM-1): 下面的 except 把异常消息
+            # 写进返回值, AssertionError 的空消息会让用户看到残缺文本。cast 是运行期
+            # no-op —— 为 None 时仍抛原本的异常、消息逐字不变。
             content = cast("ModelResponse", response).choices[0].message.content
-            assert content is not None  # 原代码 json.loads(None) 同样 TypeError
-            evidence = json.loads(content)
+            evidence = json.loads(cast(str, content))
 
             # Flatten evidence for storage
             all_evidence = list()
@@ -386,9 +388,11 @@ class AutoScorer:
                 response_format={"type": "json_object"},
             )
 
+            # ⛔ 这里**不能**用 assert(Codex round-2 MEDIUM-1): 下面的 except 把异常消息
+            # 写进返回值, AssertionError 的空消息会让用户看到残缺文本。cast 是运行期
+            # no-op —— 为 None 时仍抛原本的异常、消息逐字不变。
             content = cast("ModelResponse", response).choices[0].message.content
-            assert content is not None  # 原代码 json.loads(None) 同样 TypeError
-            result = json.loads(content)
+            result = json.loads(cast(str, content))
 
             # Extract scores from potentially nested structure
             scores_data = result.get("scores", result)
