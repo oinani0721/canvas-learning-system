@@ -254,8 +254,11 @@ def _no_vault_skeleton_left_behind():
     所以告警文案只说「归属未知, 请核查或重跑」, **不**说「不是本次新增的回归」。
     (这段说明刻意不写成整段路径: docstring 也是 ast.Constant, 写全了
      就成了门自己要抓的形态 —— 本卡打补丁时被自校验当场拦下过一次。)
-    ⚠️ 也不是静默吞掉: 告警文案里的固定串「环境受干扰」是可 grep 的判据,
-    pytest.ini 无 filterwarnings ⇒ 它会进 warnings summary 与汇总行。
+    ⚠️ 也不是静默吞掉: 告警文案里的固定串「环境受干扰」是可 grep 的判据。
+    ⚠️ 可见性的**边界**(Codex round-1/round-4): 本仓 pytest.ini 本身没有配置
+    filterwarnings / -W error / --disable-warnings, 本卡各轮存档里告警也确实可见且 rc 不受影响;
+    但这**不能**保证所有调用方式 —— 外部启动参数与运行期过滤器仍可能升级或隐藏它。
+    升级成 error 时它仍然是红 (只是可能提前遮蔽同轮的其他诊断), 不构成新的假绿。
     """
     # setup 段扫源码: 扫的是 session 开跑那一刻的树内状态, 不受运行期改动影响。
     literal_hits, literal_unchecked = _hygiene_scan_tmp_literals()
@@ -330,9 +333,9 @@ def _no_vault_skeleton_left_behind():
             "  失败会记 None, None <-> hash 的差异未必是内容改变 (既有边界, 已移交)。\n"
             "  写入与归属请结合下列具体条目核查:\n"
             + "\n".join(pollution)
-            + "\n  **最常见**的成因 (是排查起点, 不是结论): 某个用例往 setup-wizard 端点"
-            "\n  传了相对路径或空串的 vault_path (system.py 会 resolve() 成 cwd),"
-            "\n  或直接给 VaultInitService 传了非 tmp_path 的路径。修法: 一律用 tmp_path。"
+            + "\n  **可先排查的情形** (是排查起点, 不是结论, 也不主张它最高发): 某个用例往"
+            "\n  setup-wizard 端点传了相对路径或空串的 vault_path (system.py 会 resolve()"
+            "\n  成 cwd), 或直接给 VaultInitService 传了非 tmp_path 的路径。修法: 一律用 tmp_path。"
         )
 
     if source_rule:

@@ -44,8 +44,13 @@
 
 **§〇 第 4 行的 grep 事实复验**（⚠️ 结论收窄，Codex round-3 HIGH #2）：
 **在这两条搜索的命中里未发现写者** —— 这**不等于**「本树已无 `/tmp` 根写者」。
-文本搜索与 (e) 的 AST 门有同一组盲区（路径运算 / 运行期拼接 / bytes / `tempfile` 分参数 /
-相对路径 / 外部来源），它们看不见的写者，这两条 grep 同样看不见。
+⛔ **技术性更正（Codex round-4 MEDIUM）**：我上一版写「文本搜索与 AST 门**共享同一组盲区**」，
+**这是错的** —— 两者盲区**不同**，只是都不完备：
+`b"/tmp/test-vault-x"` 不命中 AST 门（被 `isinstance(str)` 排除）却**会**命中完整路径 grep；
+`Path("/tmp") / "test-vault-x"` 不命中 AST 门却**会**命中 `grep 'test-vault'`。
+准确说法：**两种搜索都不足以穷尽写者，但覆盖范围不同。**
+「未证明本树没有写者」这个较弱结论仍成立，只是理由不是我原先写的那个 ——
+**我在收窄一个越界结论时，顺手编了一个新的错误理由去支撑它。**
 - `grep -rn '/tmp/test-vault' backend/tests --include='*.py'` = **4** 行，**无一是写者**
   （`conftest.py:118` 门自己的提示文案 + `test_startup_health_check.py:56/:58/:66` 三条 `#` 注释）;
 - `grep -rn 'test-vault' …` = **14** 行，其余 10 行不含 `/tmp/` 前缀（`tmp_path / "test-vault…"` 六处、
@@ -64,7 +69,7 @@
 
 | 目录级 | 汇总行 | rc | nodeid 判据 |
 |---|---|---|---|
-| `tests/unit` | `173 failed, 4749 passed, 48 skipped, 122 warnings, 29 errors in 253.34s` | 1 | **与 202 基线 diff 为空** ✅（`red-diff-open.txt` 零行） |
+| `tests/unit` | `173 failed, 4749 passed, 48 skipped, 122 warnings, 29 errors in 253.34s` | 1 | **与 202 基线 diff 为空** ✅（`red-diff-r1open.txt` 零行）⚠️ 旧引用 `red-diff-after.txt` 已被后轮复用覆盖（Codex round-4 MEDIUM），现改为**每轮独立文件名** `red-diff-{r1open,n2,n2p-r3,r4,r4b}.txt` |
 | `tests/api` | `268 passed, 40 warnings in 1.61s` | 0 | 零红 nodeid |
 | `tests/regression` | `1464 passed, 6 skipped, 10 xfailed, 556 warnings in 339.92s` | 0 | 零红 nodeid |
 | `tests/skills` | `369 passed, 22 warnings in 39.57s` | 0 | 零红 nodeid |
@@ -120,10 +125,15 @@ mkdir_done=2026-09-08T06:59:27  dir=/tmp/test-vault-negctl-43048
   ⛔ 未用相邻字面量 —— 实测 `ast.parse('"/tmp/" "test-vault"')` 在词法期折叠成**单个** `Constant`，
   拆了等于没拆（前提自证存档 `selfprobe-const-premise-20260908T071236.txt`）。
 
-**告警不会被升级成错误（独立核对）**：`backend/pytest.ini` 无 `filterwarnings`、无 `-W error`、
-无 `--disable-warnings`，`addopts` 只有 `-v --tb=short`。另跑最小实验实证 session fixture teardown
-里的 `warnings.warn` **确实**被 pytest 捕获、进 warnings summary、归到最后一个 item、`rc=0`、
-多行消息完整渲染（不是推理 `_pytest/warnings.py` 的 hookwrapper 覆盖范围）。
+**告警在本卡各轮存档中可见且未升级（结论已按 Codex round-4 MEDIUM 收窄）**：
+`backend/pytest.ini` **本身**没有配置 `filterwarnings` / `-W error` / `--disable-warnings`
+（`addopts` 只有 `-v --tb=short`）；各轮 N1' 存档里告警确实可见且 `rc=0`；
+另跑最小实验实证 teardown 里的 `warnings.warn` **确实**被 pytest 捕获、进 warnings summary、
+归到最后一个 item、多行消息完整渲染（不是推理 hookwrapper 覆盖范围）。
+⛔ 但这**不构成普遍保证**：外部启动参数与运行期过滤器仍可能升级或隐藏它。
+⛔ 并更正我 round-2 的一处理解偏差：round-1 那条意见的原因**不只是**它没被允许读 `pytest.ini`，
+还包括上述外部因素 —— 我当时把它窄化成「只是没读 ini」。
+（真被升级成 error 时告警仍是**红**，只可能提前遮蔽同轮其他诊断，不构成新的假绿。）
 
 ### (e) 新增源码字面量硬门（可归属，硬 fail）—— **以 Codex round-1 整改后的实现为准**
 
@@ -621,7 +631,10 @@ Codex 同时确认：三态路径判定与三类失败出口**未发现新增假
 
 - **#3「全部裁判重跑」仍只能部分确认** —— 7a / 7d / ruff 缺 r3 独立存档。已补
   `static-gates-r4-20260908T084107.txt`（含 7a 的**双向**验伪锚：当前版 = 0、`da690bf8` 版 = 1）。
-- **#4 缺独立命名的 r3 P1-green** —— 已在 r4 补齐独立存档。
+- **#4 缺独立命名的 r3 P1-green** —— ⛔ 我上一轮写「已在 r4 补齐独立存档」，**实际没有交付**。
+  Codex round-4 HIGH #2 点名这就是**第 9 处同型错误：把未交付的证据登记成已交付**。
+  **round-5 已真跑并交付**：`negctl-p1-green-r5-20260908T091401.txt`（抬头绑 HEAD 与两文件
+  sha256），`8 passed` / `ERROR tests/` = 0 / `rc=0`。⚠️ r4 自指探针的绿跑**不能**冒充 P1-green。
 - **#7 `_hygiene_within_root` docstring 措辞** —— 已收窄：**目标文件本身消失不一定返回 `None`**，
   只要父目录仍在且字面包含成立就返回 `True`，由后续 `read_bytes()` 的 `OSError` 收进 `unchecked`。
 - **#13 `U:569` 仍写「nodeid 口径」** —— 已改「**红** nodeid 口径」。
@@ -673,10 +686,15 @@ r4 收工 `tests/unit`（`unit-after-r4-20260908T084422.txt`）与 202 基线 di
 
 ### 处置
 
-1. **交付轮取 r4b**（diff 为空），但 **r4 那一轮原样留档**并在此说明 —— 不删、不重跑挑好的。
-2. **判据改绑**（与本仓既有教训一致）：对这条信号，`逐 nodeid diff 为空` **自带 flaky**；
-   可靠判据是 **`NEO4J_LIVE_PORT_CONNECT_ATTEMPTS` 计数 + 失败正文**，两者本卡前后恒定。
-3. 登记进「本卡未证明什么」与「台账待登记条目」，供主 session 复核时裁定。
+1. **r4 与 r4b 共同作为送审结果**（Codex round-4 HIGH #1 整改）—— 不删、不挑好的那轮当交付。
+   ⛔ **r4b 的空 diff 不能消除 r4 已经出现的验收偏离**，只能说明该偏离不稳定。
+2. ⛔ **不写「判据改绑」** —— 上一版我写成「可靠判据是计数 + 失败正文」，那**扩大了原验收门的
+   接受范围**：相同总数与同类错误模板**不能区分**「同一原因换了归属」与「不同原因发生增减」。
+   正确姿态是**向主 session 申请一次限定例外**（仅针对这一条 W4 哨兵类失败），
+   其余红项的逐条原始对账要求**一律不放宽**，由主 session 裁定是否接受。
+3. 关于「补 n≥10 采样就能排除」—— 这也说过头了：**没有预先定义效应阈值与判断标准，
+   有限次数不能排除任意概率变化**。本单不再把它写成「真正排除」的保证，它只是可选的后续设计。
+4. 登记进「本卡未证明什么」与「台账待登记条目」，供主 session 裁定。
 
 ---
 
