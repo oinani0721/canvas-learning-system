@@ -1,0 +1,21 @@
+== negctl-8-list-vault-tables-back-to-paged ==
+变异: 把 list_vault_tables 的表名来源改回默认分页 ⇒ drop 侧 page-outer 锁应 XPASS 报红
+跑前 sha: 5235c00d99f343a57924855193cfc5d4f8ffb5d72e4687438aac707287d312ff
+变异体 sha: a2c1df02416dbecb2030e86e1113cc375ad3bf2c7ccec03327e9f22d78501297  (ast.parse OK)
+变异体 diff（1 删 / 1 增，hunk 1 个）:
+    --- baseline
+    +++ mutant[negctl-8-list-vault-tables-back-to-paged]
+    @@ -912,3 +912,3 @@
+                 return []
+    -        return [t for t in self._all_table_names() if self._owns_table(t, vault_id)]
+    +        return [t for t in self._db.table_names() if self._owns_table(t, vault_id)]
+     
+
+-- tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_prefix_overlap_not_touched_by_drop_vault_tables
+   rc=1  ================== 2 failed, 2 xfailed, 50 warnings in 0.49s ===================
+   期望红的 nodeid 命中: False   不该红的 nodeid 保持不红: True   附加期望全部命中: False
+     · test_prefix_overlap_not_touched_by_drop_vault_tables[a_b_file_fingerprints-page-outer-10] → 0 条红
+   判定: NOT-KILLED ⛔
+
+跑后 sha: 5235c00d99f343a57924855193cfc5d4f8ffb5d72e4687438aac707287d312ff
+还原逐字节相同: YES ✓

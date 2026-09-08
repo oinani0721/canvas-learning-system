@@ -888,11 +888,15 @@ class LanceDBClient:
         ``high1-r2-pagination-widens-overlap-*.txt``: 同一夹具改前留存、改后被删)。
         这一点**不能**说成「沿用既有口径、本卡无影响」。
 
-        两种形态都由 ``tests/unit/test_lancedb_cross_vault_drop_g29f1.py`` 锁住:
-        ``::test_prefix_overlap_vault_is_not_isolated[page-inner-0]`` (既有面) 与
-        ``[page-outer-10]`` (本卡新打开的面), 均 ``xfail(strict=True)``; 前提另由
-        ``::test_prefix_overlap_premises_hold`` 在**不带** xfail 的用例里把守。
-        修好后缺陷锁会 ``XPASS(strict)`` 报红, 提醒删掉那个标记。
+        全部形态由 ``tests/unit/test_lancedb_cross_vault_drop_g29f1.py`` 锁住 ——
+        两条消费路径各自成门: ``::test_prefix_overlap_not_touched_by_cache_tables``
+        (启动自愈, 需 schema 漂移且指纹表有 endswith 豁免) 与
+        ``::test_prefix_overlap_not_touched_by_drop_vault_tables``
+        (``DELETE /index`` -> ``drop_vault_tables``, **不需要**漂移、**没有**指纹表
+        豁免), 各按 ``page-inner`` (既有面) / ``page-outer`` (本卡新打开的面) 参数化,
+        均 ``xfail(strict=True)``; 前提另由 ``::test_prefix_overlap_premises_hold``
+        在**不带** xfail 的用例里把守。修好后缺陷锁会 ``XPASS(strict)`` 报红 ——
+        ⚠️ 但 XPASS 还有另外两种成因 (分页收口被撤 / 删除异常被吞), 见门的 reason。
         """
         vid = self.active_vault_id if vault_id is _UNSET else vault_id
         if not vid or vid == "default":

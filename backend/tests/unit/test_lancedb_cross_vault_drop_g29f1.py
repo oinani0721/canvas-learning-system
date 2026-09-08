@@ -30,13 +30,16 @@ vault 的数据。
    ``tests/regression/test_rag_stage1_index_contracts.py:484-490`` 在本卡地盘
    内的**本地副本**, 让"哨兵默认值写错"在本卡自己的门上就红。
 
-5. ``test_prefix_overlap_premises_hold`` + ``test_prefix_overlap_vault_is_not_isolated``
-   —— 前者是**不带** xfail 的前提门, 后者是 ``xfail(strict=True)`` 的缺陷锁, 两条各
-   参数化为 ``page-inner`` / ``page-outer``。锁住本卡**未闭合**的面 (Codex round-1 与
-   round-2 的 HIGH-1): 归属口径 ``startswith(f"{vid}_")`` 让短 id 的 vault **单向**
-   认领长 id vault 的表 (需下划线边界; ``ab_x`` 与 vault ``a`` 不碰撞)。其中
-   ``page-outer`` 一例是**本卡的分页收口新打开**的可达面 —— ``da690bf8`` 因默认分页
-   看不到那张表所以不删, 本卡全量枚举后会删。移交 CARD-G2-9-F2。
+5. 门⑤ 族 —— ``test_prefix_overlap_premises_hold`` (**不带** xfail 的前提门) +
+   ``test_prefix_overlap_not_touched_by_cache_tables`` /
+   ``test_prefix_overlap_not_touched_by_drop_vault_tables`` (两条 ``xfail(strict=True)``
+   的缺陷锁, 分别对应启动自愈与显式删索引两条消费路径), 各按 ``page-inner`` /
+   ``page-outer`` 参数化, drop 侧再按重叠表种 (数据表 / 指纹表) 参数化。
+   锁住本卡**未闭合**的面 (Codex round-1~3 的 HIGH-1 与 A-2): 归属口径
+   ``startswith(f"{vid}_")`` 让短 id 的 vault **单向**认领长 id vault 的表
+   (需下划线边界; ``ab_x`` 与 vault ``a`` 不碰撞)。其中 ``page-outer`` 各例是
+   **本卡的分页收口新打开**的可达面 —— ``da690bf8`` 因默认分页看不到那张表所以不碰,
+   本卡全量枚举后会碰。移交 CARD-G2-9-F2。
    ⚠️ 前提**必须**待在不带 xfail 的那一条里: xfail 会吞掉同一用例内所有失败, 既让
    「夹具坏」与「缺陷仍在」不可区分, 也让 F2 修好后的结果停在 XFAIL 而非承诺的
    ``XPASS(strict)``。
@@ -337,25 +340,43 @@ def test_list_vault_tables_explicit_none_keeps_bare_scope(tmp_path):
 # 门⑤ 族 —— 未闭合面锁（xfail strict，跨卡交接给 CARD-G2-9-F2）
 #
 # 归属口径 startswith(f"{vid}_") 让**短 id 的 vault 单向认领长 id vault 的表**。
-# 两个维度各两种形态，四条缺陷锁：
+# 三个维度：
 #
 #   形态（表在不在默认分页内）
 #     page-inner  重叠表在默认分页内 → da690bf8 与本卡**都**会碰（既有缺陷）
 #     page-outer  重叠表在默认分页外 → da690bf8 **碰不到**、本卡**会碰**
 #                                      ⇒ **本卡的分页收口打开的新可达面**
 #   消费路径（谁去碰它）
-#     cache  启动自愈 _cache_tables  —— 需要该表有 schema 漂移才会被 drop
+#     cache  启动自愈 _cache_tables  —— 需要该表有 schema 漂移才会被 drop；
+#            且 :966 的 endswith(FINGERPRINT_TABLE) 会豁免指纹表
 #     drop   DELETE /index → drop_vault_tables → list_vault_tables
-#            —— ⚠️ **不需要任何 schema 漂移**，纯表名归属误判即删（Codex r3 A-2）
+#            —— ⚠️ **不需要 schema 漂移**，纯表名归属误判即删（Codex r3 A-2），
+#               且**没有**指纹表豁免
+#   表种（仅 drop 路径需要区分）
+#     canvas_nodes       普通数据表
+#     file_fingerprints  ⚠️ 变更检测基线。RAG-S1 H3 的原话是「一次抹掉所有 vault 的
+#                        变更检测」—— 它没了比丢一张数据表更重，而 drop 路径不豁免它
 #
-# 实测存档：evidence-g29f1/high1-r2-pagination-widens-overlap-*.txt（cache 路径）
-#           evidence-g29f1/a2-dropvault-path-*.txt（drop 路径，用**健康**表）
+# 实测存档：high1-r2-pagination-widens-overlap-*.txt（cache 路径）
+#           a2-dropvault-path-*.txt（drop 路径，用**健康**表）
+#           fingerprint-drift-gap-*.txt（两条路径对指纹表的豁免差别）
 # ═══════════════════════════════════════════════════════════════════════════
 
 #: (形态 id, 填充表数量)。填充表是本 vault 的健康表，用来把重叠表挤出默认分页。
 _OVERLAP_SHAPES = [("page-inner", 0), ("page-outer", 10)]
-#: 消费路径。``drop`` 用**健康**重叠表（它不靠 schema 漂移）。
-_OVERLAP_CONSUMERS = ["cache", "drop"]
+#: (消费路径, 重叠表名)。指纹表只在 drop 侧单列 —— ``_cache_tables:1045`` 的
+#: ``endswith(FINGERPRINT_TABLE)`` 豁免它，而 ``drop_vault_tables`` **不**豁免
+#: （``fingerprint-drift-gap-*.txt`` 实测）。
+#: ⚠️ 每个 (形态 × 消费路径 × 表) 一个**独立**库：它们跑的都是**有副作用**的操作
+#: （删表），共享库会让后跑的用例看到先跑的结果 —— 负控 8 当场抓到过这个串扰
+#: （共享时变异体下只有第一条 XPASS，第二条被第一条的残局改掉了语义）。
+_OVERLAP_CASES = [
+    ("cache", "a_b_canvas_nodes"),
+    ("drop", "a_b_canvas_nodes"),
+    ("drop", "a_b_file_fingerprints"),
+]
+#: drop 侧覆盖的两张表（供 drop 锁参数化用）
+_OVERLAP_DROP_TABLES = [t for c, t in _OVERLAP_CASES if c == "drop"]
 
 #: 缺陷锁共用的 reason。⚠️ 明确列出 XPASS 的**两种**成因，避免维护者只按第一种解读。
 _OVERLAP_XFAIL_REASON = (
@@ -363,10 +384,13 @@ _OVERLAP_XFAIL_REASON = (
     'startswith(f"{vid}_")，短 id 的 vault 会**单向**认领长 id vault 的表 —— '
     '"a_b_canvas_nodes".startswith("a_") 为真（需下划线边界，"ab_x" 不碰撞）。'
     "本仓可达：sanitize_vault_id 产出的 id 含下划线（cs 61b→cs_61b）。"
-    "page-outer 那两例还是**本卡分页收口新打开**的可达面。移交 CARD-G2-9-F2。"
-    "⚠️ 本门 XPASS 有**两种**成因，别只按第一种解读：(1) F2 把归属修好了 —— "
-    "此时同族前提门的归属断言会同时翻红，两者一起变色；(2) 有人撤掉了本卡的分页收口 —— "
-    "此时只有 page-outer 那两例 XPASS，前提门仍绿（负控 6 复现的正是这种）。"
+    "page-outer 那几例还是**本卡分页收口新打开**的可达面。移交 CARD-G2-9-F2。"
+    "⚠️ 本门 XPASS 至少有**三种**成因，别只按第一种解读："
+    "(1) F2 把归属修好了 —— 此时同族前提门的归属断言会同时翻红，两者一起变色；"
+    "(2) 有人撤掉了本卡的分页收口 —— 此时只有 page-outer 那几例 XPASS 而前提门仍绿"
+    "（负控 6 复现的是其中的 cache/page-outer 一例；drop 侧要另做 list_vault_tables 的回退才能覆盖）；"
+    "(3) 删除本身失败而异常被生产代码吞掉（drop_vault_tables 的 except: pass）—— "
+    "表因此保留，归属与分页都没变，只有这条锁变绿。遇到 XPASS 请先按这三条分辨再动标记。"
 )
 
 
@@ -381,34 +405,63 @@ def overlap_envs(tmp_path_factory):
     **它**那里报 ``ERROR`` —— 信号照样到达；而且缺陷锁不再有「只有我自己的建库
     失败了」这种与「缺陷仍在」不可区分的第四状态（Codex round-3 A-1）。
 
-    缺陷锁用例内因此**只做**「跑被测操作 + 用本 fixture 的 db 句柄枚举 + 断言」，
+    ⚠️ **依赖库状态的前提全部在这里查完，不放进前提门**（r5 修正）：缺陷锁会**改库**
+    （``_cache_tables`` / ``drop_vault_tables`` 都删表），而它与前提门共用同一实例 ——
+    若执行顺序被打乱（``-k`` 过滤、随机化插件），前提门里那次**实时** ``open_table``
+    会读到已被删掉的表而**假红**（实测存档
+    ``evidence-g29f1/order-dependency-of-shared-fixture-*.txt``：把缺陷锁定义在前，
+    前提门当场 ``ValueError: Table ... was not found``）。在 fixture 里查则**一定**
+    发生在任何用例改库之前。前提门于是只剩两样**不依赖库当前状态**的断言。
+
+    缺陷锁用例内因此也**只做**「跑被测操作 + 用本 fixture 的 db 句柄枚举 + 断言」，
     不再自己 ``lancedb.connect``（实测旧句柄在 drop 后反映最新状态）。
     """
     envs = {}
     for shape, filler in _OVERLAP_SHAPES:
-        for consumer in _OVERLAP_CONSUMERS:
-            path = tmp_path_factory.mktemp(f"ov-{shape}-{consumer}") / "db"
+        for consumer, table in _OVERLAP_CASES:
+            path = tmp_path_factory.mktemp(f"ov-{shape}-{consumer}-{table[-6:]}") / "db"
             db = lancedb.connect(str(path))
             for i in range(filler):
                 db.create_table(f"a_{i:02d}", data=_rows(f"FILL{i}"))
-            # drop 路径用**健康**表：它不靠 schema 漂移，纯归属误判即删
+            # drop 路径用**健康**表（它不靠 schema 漂移）；cache 路径要漂移才会被 drop
             dim = _DIM if consumer == "drop" else _DRIFT_DIM
-            db.create_table("a_b_canvas_nodes", data=_rows("AB-NODES", dim=dim))
-            envs[(shape, consumer)] = {
+            db.create_table(table, data=_rows(f"AB-{table}", dim=dim))
+            client = _client(path, vault_id="a")
+            before = _all_names(db)
+
+            # ── 依赖库状态的前提：此刻查，此刻库还没被任何用例动过 ──────────
+            tag = f"[{shape}/{consumer}/{table}]"
+            assert len(before) == filler + 1, f"{tag} 夹具表数不符: 期望 {filler + 1}，实得 {len(before)}"
+            assert table in before, f"{tag} 夹具没建成重叠表: {sorted(before)}"
+            _assert_table_shape(db, table, dim=dim, has_doc_type=True)
+            in_page = table in set(db.table_names())
+            if shape == "page-inner":
+                assert in_page, f"{tag} 前提失效: 重叠表竟然不在默认分页内"
+            else:
+                assert not in_page, (
+                    f"{tag} 前提失效: 重叠表仍在默认分页内 —— 填充表没把它挤出去"
+                    f"（默认分页 {len(db.table_names())} 张），就区分不出「本卡打开的新可达面」"
+                )
+
+            envs[(shape, consumer, table)] = {
                 "db": db,
-                "client": _client(path, vault_id="a"),
-                "before": _all_names(db),
+                "client": client,
+                "before": before,
                 "shape": shape,
                 "filler": filler,
                 "consumer": consumer,
+                "table": table,
                 "dim": dim,
+                # 供前提门复述 —— 建库当时的快照，不随后续用例改库而变
+                "premises_checked": True,
+                "in_default_page": in_page,
             }
     return envs
 
 
-@pytest.mark.parametrize("consumer", _OVERLAP_CONSUMERS)
+@pytest.mark.parametrize(("consumer", "table"), _OVERLAP_CASES)
 @pytest.mark.parametrize(("shape", "filler"), _OVERLAP_SHAPES)
-def test_prefix_overlap_premises_hold(overlap_envs, shape, filler, consumer):
+def test_prefix_overlap_premises_hold(overlap_envs, shape, filler, consumer, table):
     """门⑤ 族的前提 —— **不带 xfail**，夹具坏了或缺陷被修好都必须以红色暴露。
 
     与缺陷锁共用 ``overlap_envs``（见该 fixture 的 docstring），因此本条通过就
@@ -416,27 +469,21 @@ def test_prefix_overlap_premises_hold(overlap_envs, shape, filler, consumer):
     夹具坏 → 本条 ERROR/FAILED；缺陷仍在 → 本条 passed + 缺陷锁 xfailed；
     缺陷修好 → 本条 **FAILED**（归属断言翻转，正是它喊「去删 xfail 标记」）
     + 缺陷锁 XPASS(strict)。
+
+    ⚠️ **本条只做不依赖库当前状态的事**（r5 修正）：复述 fixture 的自检结果、
+    以及查归属关系（``_owns_table`` 是**纯函数**，只看表名与 vault id）。
+    依赖库状态的检查（表在不在、schema、分页位置）全部在 fixture 里做完 ——
+    因为缺陷锁会把库改掉，而两者共用同一实例，顺序一旦被打乱，写在这里的实时查询
+    就会读到被删的表而**假红**（实测见 fixture docstring 引的存档）。
     """
-    env = overlap_envs[(shape, consumer)]
-    db, client, before = env["db"], env["client"], env["before"]
+    env = overlap_envs[(shape, consumer, table)]
 
-    assert "a_b_canvas_nodes" in before, f"夹具没建成重叠表，缺陷锁不可信: {sorted(before)}"
-    assert len(before) == filler + 1, f"夹具表数不符: 期望 {filler + 1}，实得 {len(before)}"
-    _assert_table_shape(db, "a_b_canvas_nodes", dim=env["dim"], has_doc_type=True)
-
-    # 分页位置前提 —— 两种形态的**可达性**差别全在这里
-    in_default_page = "a_b_canvas_nodes" in set(db.table_names())
-    if shape == "page-inner":
-        assert in_default_page, "前提失效: page-inner 形态里重叠表竟然不在默认分页内"
-    else:
-        assert not in_default_page, (
-            "前提失效: page-outer 形态里重叠表仍在默认分页内 —— 填充表没把它挤出去"
-            f"（默认分页 {len(db.table_names())} 张），本条就区分不出「本卡打开的新可达面」"
-        )
-
-    assert client._owns_table("a_b_canvas_nodes", "a"), (
-        "前提失效：a_b_canvas_nodes 已经不归 vault a 了 —— 前缀口径可能已被修好，"
-        "此时应删掉门⑤ 族的 xfail 标记而不是保留它"
+    assert env["premises_checked"] is True, "fixture 的建库自检没通过"
+    assert env["in_default_page"] is (shape == "page-inner"), (
+        f"分页位置前提与形态不符: shape={shape} 却 in_default_page={env['in_default_page']}"
+    )
+    assert env["client"]._owns_table(table, "a"), (
+        f"前提失效：{table} 已经不归 vault a 了 —— 前缀口径可能已被修好，此时应删掉门⑤ 族的 xfail 标记而不是保留它"
     )
 
 
@@ -444,7 +491,7 @@ def test_prefix_overlap_premises_hold(overlap_envs, shape, filler, consumer):
 @pytest.mark.xfail(strict=True, reason=_OVERLAP_XFAIL_REASON)
 def test_prefix_overlap_not_touched_by_cache_tables(overlap_envs, shape, filler):
     """启动自愈路径：vault ``a`` 的 ``_cache_tables`` 不得删掉 vault ``a_b`` 的表。"""
-    env = overlap_envs[(shape, "cache")]
+    env = overlap_envs[(shape, "cache", "a_b_canvas_nodes")]
     asyncio.run(env["client"]._cache_tables())
     after = _all_names(env["db"])
     assert "a_b_canvas_nodes" in after, (
@@ -453,19 +500,27 @@ def test_prefix_overlap_not_touched_by_cache_tables(overlap_envs, shape, filler)
     )
 
 
+@pytest.mark.parametrize("table", _OVERLAP_DROP_TABLES)
 @pytest.mark.parametrize(("shape", "filler"), _OVERLAP_SHAPES)
 @pytest.mark.xfail(strict=True, reason=_OVERLAP_XFAIL_REASON)
-def test_prefix_overlap_not_touched_by_drop_vault_tables(overlap_envs, shape, filler):
+def test_prefix_overlap_not_touched_by_drop_vault_tables(overlap_envs, shape, filler, table):
     """显式删索引路径（``DELETE /index/{vault_id}`` → ``drop_vault_tables``）。
 
-    ⚠️ 这条与启动自愈那条的关键差别：重叠表是**健康**的（无任何 schema 漂移），
-    ``drop_vault_tables`` 直接删 ``list_vault_tables`` 的结果，**不看 schema**。
-    所以它的触发条件比启动自愈少一条，且入口是**用户显式操作**（Codex round-3 A-2）。
+    ⚠️ 与启动自愈那条的两点差别：
+    1. 重叠表是**健康**的（无 schema 漂移）—— ``drop_vault_tables`` 直接删
+       ``list_vault_tables`` 的结果，**不看 schema**，所以触发条件少一条；
+    2. **没有指纹表豁免** —— ``_cache_tables:966`` 的 ``endswith(FINGERPRINT_TABLE)``
+       在这条路径上不存在，所以 ``a_b_file_fingerprints`` 也会被删掉，
+       那等于抹掉 vault ``a_b`` 的**变更检测基线**（RAG-S1 H3）。
+
+    ⚠️ 每个 ``table`` 参数有**自己独立**的库 —— 共享会串扰：本用例跑的
+    ``drop_vault_tables`` 有副作用，共享时后跑的参数看到的是先跑那个的残局
+    （负控 8 当场抓到：共享时变异体下只有第一条 XPASS）。
     """
-    env = overlap_envs[(shape, "drop")]
+    env = overlap_envs[(shape, "drop", table)]
     env["client"].drop_vault_tables("a")
     after = _all_names(env["db"])
-    assert "a_b_canvas_nodes" in after, (
-        "删 vault a 的索引连带删掉了 vault a_b 的表：list_vault_tables('a') 把 "
-        f"a_b_canvas_nodes 算成了 a 的; 形态={shape}; 消失的表 = {sorted(env['before'] - after)}"
+    assert table in after, (
+        f"删 vault a 的索引连带删掉了 vault a_b 的表 {table}：list_vault_tables('a') 把它"
+        f"算成了 a 的; 形态={shape}; 消失的表 = {sorted(env['before'] - after)}"
     )

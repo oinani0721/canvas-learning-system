@@ -1,6 +1,7 @@
 # CARD-G2-9-F1 — 交主 session 的裁定请求（一页版）
 
-> 车道 `card-u5-lance` · 分支 `card/u5-lance` · HEAD `0ec1f0c3`（da690bf8 起 3 个 commit）
+> 车道 `card-u5-lance` · 分支 `card/u5-lance` · HEAD **待 r5 commit**（da690bf8 起 5 个 commit）
+> Codex 四轮：r1 / r2 各 1 HIGH（均复核成立并处置）→ r3 / r4 连续两轮 **B 类 BLOCKER=0、HIGH=0**
 > 完整依据见 `_bmad-output/验收单/UAT-CARD-G2-9-F1-2026-09-08.md` §三.6 与 §五 #1。
 > ⚠️ 本车道**不自判可合**（协议 §1 + D-15）。以下是裁定所需的全部事实。
 
@@ -11,11 +12,11 @@
 
 | 判据 | 结果 |
 |---|---|
-| 新行为门（先红后绿） | 改前 3 failed / 改后 **6 passed + 2 xfailed** rc=0 |
-| 负控（卡文要求 3 段） | **6 段**全 KILLED，各含变异 diff + sha 前后逐字相同 |
+| 新行为门（先红后绿） | 改前 3 failed / 改后 **10 passed + 6 xfailed** rc=0 |
+| 负控（卡文要求 3 段） | **8 段**全 KILLED，各含变异体逐行 diff + sha 前后逐字相同 |
 | 邻近六套件 | **118 passed** rc=0（含 g24 `:624/:625` 正向对照、`test_e3` 承重契约） |
-| `tests/unit` 目录级 | nodeid diff 对 202 基线 **空**；本卡门不在红集；4749 → **4755 passed** |
-| 现网只读 | 三个 LanceDB 目录 `find -newer` 全 **0**；10 处 `connect` 经 AST 溯源全在 tmp_path |
+| `tests/unit` 目录级 | nodeid diff 对 202 基线 **空**；本卡门不在红集 |
+| 现网只读 | 三个 LanceDB 目录 `find -newer` 全 **0**；`connect` 经 AST 溯源全在 pytest 临时目录（判据 v5，四个安全名逐项承重） |
 | 地盘门 | 恒为三文件；未碰 `backend/app/**` |
 
 ## 二 ⛔ 需要裁定的一件事
