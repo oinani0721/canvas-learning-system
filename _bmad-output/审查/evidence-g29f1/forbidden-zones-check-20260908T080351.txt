@@ -1,0 +1,20 @@
+## 受保护函数逐字节比对（AST 切片，不受行号平移影响）
+  resolve_table_name               ✓ 逐字节相同
+  _fingerprint_table_name          ✓ 逐字节相同
+  connect_lightweight              ✓ 逐字节相同
+  drop_vault_tables                ✓ 逐字节相同
+  _all_table_names                 ✓ 逐字节相同
+  _is_table_absent                 ✓ 逐字节相同
+
+## _check_and_fix_dimension_mismatch 的 drop 条件（§三 只禁这三处，:3650 不在禁改区）
+  dim_mismatch 计算                da690bf8=1  HEAD=1  ✓
+  doc_type_missing 反射            da690bf8=1  HEAD=1  ✓
+  doc_type 行检查回落                 da690bf8=1  HEAD=1  ✓
+  drop_table 调用                  da690bf8=1  HEAD=1  ✓
+  早退判据 not dim and not doc       da690bf8=1  HEAD=1  ✓
+
+## _cache_tables 的装载循环（§三: :956-960 一行不改）
+  装载循环片段  da690bf8=1  HEAD=1  ✓ 逐字节保留
+
+判定: ✓ 全部禁改区未被触碰
+验伪锚（_cache_tables 应当已改）: ✓ 已改，判据在数东西

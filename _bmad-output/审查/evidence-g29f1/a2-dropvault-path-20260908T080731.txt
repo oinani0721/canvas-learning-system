@@ -1,0 +1,15 @@
+# Codex r3 A-2 复核: drop_vault_tables / DELETE /index 路径（**不需要 schema 漂移**）
+# 夹具: a_00..a_09 健康占满默认分页 + 页外**健康** a_b_canvas_nodes（属 vault a_b）
+# 2026-09-08T00:07:31Z
+--- 改前（da690bf8）---
+list_vault_tables('a') 张数 = 10  含 a_b_canvas_nodes? False
+drop_vault_tables('a') 返回 = 10
+a_b_canvas_nodes 仍在? True
+消失的表 = ['a_00', 'a_01', 'a_02', 'a_03', 'a_04', 'a_05', 'a_06', 'a_07', 'a_08', 'a_09']
+--- 改后（本卡）---
+list_vault_tables('a') 张数 = 11  含 a_b_canvas_nodes? True
+drop_vault_tables('a') 返回 = 11
+a_b_canvas_nodes 仍在? False
+消失的表 = ['a_00', 'a_01', 'a_02', 'a_03', 'a_04', 'a_05', 'a_06', 'a_07', 'a_08', 'a_09', 'a_b_canvas_nodes']
+--- 还原核对 ---
+5235c00d99f343a57924855193cfc5d4f8ffb5d72e4687438aac707287d312ff  backend/lib/agentic_rag/clients/lancedb_client.py

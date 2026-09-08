@@ -1,0 +1,27 @@
+# CARD-G2-9-F1 完成条件 (a)-(l) 逐条核对  2026-09-08T00:00:51Z
+# HEAD = 0ec1f0c3   工作树 = 5 项未提交
+
+(a) 第0分钟+开工diff空+五邻近绿+手册:70 → ✓（BASE=202 自证 / diff 空 / 118 passed / :70 命中）
+(b) 先红存档 门①必红 门④必绿          → ✓（3 failed 1 passed；门① 红在指定断言）
+(c) _owns_table 哨兵单点+两调用点显式传参+保留两字面量 → ✓（源码门 True；对撞 128 组合 0 分歧）
+(d) :955/:840 改 _all_table_names       → ✓（:3650 也改了 = 偏离 A1，已登记 + 负控 5 证其必要）
+(e) canary verdict+守卫+ast+区段计数    → ✓（0/0/2 → 1/1/4；④b 0→1；AST 精确判据替代宽口径）
+(f) 负控（卡文要求三段）                → ✓ **六段**，全 KILLED，含变异 diff 与 sha 还原
+(g) g24 :624/:625 + 四邻近 + 源码门     → ✓（118 passed rc=0；源码门 True）
+(h) tests/unit 收工 diff 只许 <         → ✓ **空**（202=202；本卡门不在红集；2 xfailed）
+(i) connect 全 tmp_path + 现网 -newer=0 → ✓（AST 三步溯源 10/10，验伪锚 9；三目录全 0）
+(j) Codex 多轮                          → r1 / r2 完成并存档（含 §2.1 首部）；r3 进行中
+(k) 单独 commit + 不碰 backend/app      → ✓（3 个 commit；地盘门恒为三文件）
+(l) 两个必填锚                          → ✓ 未证明 13 条 / 台账 15 条
+
+## 核心裁判 1-5
+1. 新门 改前红/改后绿                   → ✓
+2. 五邻近 + regression 0 failed          → ✓ 118 passed
+3. tests/unit diff 只许 <                → ✓ 空
+4. 负控红在指定断言 + sha 前后同         → ✓ 六段
+5. 地盘门 ⊆ 三文件                       → backend/lib/agentic_rag/clients/lancedb_client.py backend/scripts/g29_dual_vault_canary.py backend/tests/unit/test_lancedb_cross_vault_drop_g29f1.py 
+
+## 待主 session 裁定（车道不自判）
+⛔ 本卡的分页收口新增了一个**条件性**跨 vault 数据丢失可达面（协议 §1「数据丢失」属阻断级）。
+   证据: high1-r2-pagination-widens-overlap-*.txt（改前留存/改后被删）+ 负控 6（门内）。
+   选项 A（保留，靠 F2 闭合）/ 选项 B（保守收口）及各自代价见验收单 §三.6。

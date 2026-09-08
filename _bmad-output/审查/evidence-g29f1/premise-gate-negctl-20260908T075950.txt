@@ -1,0 +1,14 @@
+# 前提门自身的负控：page-outer 的分页前提在别的 lancedb 版本上会不会**静默**失效
+# 做法：filler 从 10 减到 5（等价于「默认 limit 变大到挤不出去」），看谁会红。
+# 2026-09-07T23:59:50Z  （复现文件在 scratchpad，不入库）
+
+E       AssertionError: 前提失效: page-outer 形态里重叠表仍在默认分页内 —— 填充表没把它挤出去（默认分页 6 张），本条就区分不出「本卡打开的新可达面」
+E       assert not True
+XFAIL test_premise_gate_negctl.py::test_defect_lock_is_blind_to_insufficient_filler - 缺陷锁：filler 不足时它看不出差别
+1 failed, 1 xfailed, 13 warnings in 5.74s
+
+结论:
+  前提门 → FAILED，正文报出**实际**默认分页张数（6），不会静默通过 ✓
+  缺陷锁 → 仍然 xfail（它对 filler 是否足够**不敏感**）
+  ⇒ 「默认 limit 变了」这类环境漂移的信号只能来自前提门，而前提门确实会红。
+  ⇒ 这也是把前提与缺陷锁**分开**的第二个理由（第一个是 xfail 吞前提失败）。

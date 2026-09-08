@@ -334,50 +334,95 @@ def test_list_vault_tables_explicit_none_keeps_bare_scope(tmp_path):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# 门⑤ 未闭合面锁 —— 前缀重叠（xfail strict，跨卡交接给 CARD-G2-9-F2）
+# 门⑤ 族 —— 未闭合面锁（xfail strict，跨卡交接给 CARD-G2-9-F2）
 #
-# 两种形态**可达性不同**，必须分开锁：
-#   page-inner  重叠表在默认分页内 → da690bf8 与本卡**都**会删（既有缺陷，本卡未改变）
-#   page-outer  重叠表在默认分页外 → da690bf8 **不**删、本卡**会**删
-#                                    ⇒ 这是**本卡的分页收口打开的新可达面**
-# 后者是 Codex round-2 HIGH-1 的反例，实测存档
-# ``evidence-g29f1/high1-r2-pagination-widens-overlap-*.txt``（改前 True / 改后 False）。
+# 归属口径 startswith(f"{vid}_") 让**短 id 的 vault 单向认领长 id vault 的表**。
+# 两个维度各两种形态，四条缺陷锁：
+#
+#   形态（表在不在默认分页内）
+#     page-inner  重叠表在默认分页内 → da690bf8 与本卡**都**会碰（既有缺陷）
+#     page-outer  重叠表在默认分页外 → da690bf8 **碰不到**、本卡**会碰**
+#                                      ⇒ **本卡的分页收口打开的新可达面**
+#   消费路径（谁去碰它）
+#     cache  启动自愈 _cache_tables  —— 需要该表有 schema 漂移才会被 drop
+#     drop   DELETE /index → drop_vault_tables → list_vault_tables
+#            —— ⚠️ **不需要任何 schema 漂移**，纯表名归属误判即删（Codex r3 A-2）
+#
+# 实测存档：evidence-g29f1/high1-r2-pagination-widens-overlap-*.txt（cache 路径）
+#           evidence-g29f1/a2-dropvault-path-*.txt（drop 路径，用**健康**表）
 # ═══════════════════════════════════════════════════════════════════════════
 
-#: 门⑤ 的两种形态：(id, 填充表数量)。填充表是本 vault 的健康表，用来把重叠表挤出默认分页。
+#: (形态 id, 填充表数量)。填充表是本 vault 的健康表，用来把重叠表挤出默认分页。
 _OVERLAP_SHAPES = [("page-inner", 0), ("page-outer", 10)]
+#: 消费路径。``drop`` 用**健康**重叠表（它不靠 schema 漂移）。
+_OVERLAP_CONSUMERS = ["cache", "drop"]
+
+#: 缺陷锁共用的 reason。⚠️ 明确列出 XPASS 的**两种**成因，避免维护者只按第一种解读。
+_OVERLAP_XFAIL_REASON = (
+    "CARD-G2-9-F1 未闭合面（Codex round-1/2/3 的 HIGH-1 与 A-2）：归属口径是 "
+    'startswith(f"{vid}_")，短 id 的 vault 会**单向**认领长 id vault 的表 —— '
+    '"a_b_canvas_nodes".startswith("a_") 为真（需下划线边界，"ab_x" 不碰撞）。'
+    "本仓可达：sanitize_vault_id 产出的 id 含下划线（cs 61b→cs_61b）。"
+    "page-outer 那两例还是**本卡分页收口新打开**的可达面。移交 CARD-G2-9-F2。"
+    "⚠️ 本门 XPASS 有**两种**成因，别只按第一种解读：(1) F2 把归属修好了 —— "
+    "此时同族前提门的归属断言会同时翻红，两者一起变色；(2) 有人撤掉了本卡的分页收口 —— "
+    "此时只有 page-outer 那两例 XPASS，前提门仍绿（负控 6 复现的正是这种）。"
+)
 
 
-def _overlap_fixture(db_path, filler: int):
-    """门⑤ 与其前提门共用的夹具。``filler`` 张健康表用来把重叠表挤出默认分页。"""
-    db = lancedb.connect(str(db_path))
-    for i in range(filler):
-        db.create_table(f"a_{i:02d}", data=_rows(f"FILL{i}"))
-    # vault "a_b" 的漂移表 —— 前缀 "a_b_" 恰好以 vault "a" 的前缀 "a_" 开头
-    db.create_table("a_b_canvas_nodes", data=_rows("AB-NODES", dim=_DRIFT_DIM))
-    client = _client(db_path, vault_id="a")
-    return db, client, _all_names(db)
+@pytest.fixture(scope="module")
+def overlap_envs(tmp_path_factory):
+    """一次建好全部 (形态 × 消费路径) 的库并**当场自检**；四种组合各一个独立库。
 
+    ⚠️ **为什么是 module scope、且与不带 xfail 的前提门共用同一实例**：
+    ``xfail`` 会吞掉用例内**任何**失败，**fixture setup 阶段也不例外**（实测：
+    setup 抛异常的 xfail 用例照样报 ``xfailed``，不是 ``ERROR``）。
+    但只要**不带 xfail 的前提门**用的是同一个 fixture 实例，setup 失败就会在
+    **它**那里报 ``ERROR`` —— 信号照样到达；而且缺陷锁不再有「只有我自己的建库
+    失败了」这种与「缺陷仍在」不可区分的第四状态（Codex round-3 A-1）。
 
-@pytest.mark.parametrize(("shape", "filler"), _OVERLAP_SHAPES)
-def test_prefix_overlap_premises_hold(tmp_path, shape, filler):
-    """门⑤ 的前提 —— **不带 xfail**，夹具坏了必须以 FAILED 暴露。
-
-    ``xfail`` 会吞掉用例里**所有**的失败，前提断言的也一样。实测（存档
-    ``evidence-g29f1/xfail-swallows-premise-*.txt``）：同一个 ``xfail(strict=True)``
-    用例里，「夹具没建成」与「缺陷仍在」**都报 xfailed**，不可区分 —— 夹具哪天悄悄坏掉，
-    门⑤ 会继续安静地 xfail，看起来一切正常。更要紧的是：F2 把归属修好之后，写在
-    xfail 用例里的前提断言会**先失败**，于是结果仍是 XFAIL 而**不是**承诺的
-    ``XPASS(strict)``（Codex round-2 MEDIUM）。所以前提必须待在**不带** xfail 的用例里。
-
-    三态由此两两可区分（存档 ``xfail-split-premise-fix-*.txt``）：夹具坏 → 本条 FAILED；
-    缺陷仍在 → 本条 passed + 门⑤ xfailed；缺陷修好 → 本条 **FAILED**（归属断言翻转，
-    正是它告诉维护者「该去删 xfail 标记了」）+ 门⑤ XPASS(strict)。
+    缺陷锁用例内因此**只做**「跑被测操作 + 用本 fixture 的 db 句柄枚举 + 断言」，
+    不再自己 ``lancedb.connect``（实测旧句柄在 drop 后反映最新状态）。
     """
-    db, client, before = _overlap_fixture(tmp_path / "db", filler)
-    assert "a_b_canvas_nodes" in before, f"夹具没建成重叠表，门⑤ 的断言不可信: {sorted(before)}"
+    envs = {}
+    for shape, filler in _OVERLAP_SHAPES:
+        for consumer in _OVERLAP_CONSUMERS:
+            path = tmp_path_factory.mktemp(f"ov-{shape}-{consumer}") / "db"
+            db = lancedb.connect(str(path))
+            for i in range(filler):
+                db.create_table(f"a_{i:02d}", data=_rows(f"FILL{i}"))
+            # drop 路径用**健康**表：它不靠 schema 漂移，纯归属误判即删
+            dim = _DIM if consumer == "drop" else _DRIFT_DIM
+            db.create_table("a_b_canvas_nodes", data=_rows("AB-NODES", dim=dim))
+            envs[(shape, consumer)] = {
+                "db": db,
+                "client": _client(path, vault_id="a"),
+                "before": _all_names(db),
+                "shape": shape,
+                "filler": filler,
+                "consumer": consumer,
+                "dim": dim,
+            }
+    return envs
+
+
+@pytest.mark.parametrize("consumer", _OVERLAP_CONSUMERS)
+@pytest.mark.parametrize(("shape", "filler"), _OVERLAP_SHAPES)
+def test_prefix_overlap_premises_hold(overlap_envs, shape, filler, consumer):
+    """门⑤ 族的前提 —— **不带 xfail**，夹具坏了或缺陷被修好都必须以红色暴露。
+
+    与缺陷锁共用 ``overlap_envs``（见该 fixture 的 docstring），因此本条通过就
+    等于缺陷锁那一份夹具也建成了。三态两两可区分：
+    夹具坏 → 本条 ERROR/FAILED；缺陷仍在 → 本条 passed + 缺陷锁 xfailed；
+    缺陷修好 → 本条 **FAILED**（归属断言翻转，正是它喊「去删 xfail 标记」）
+    + 缺陷锁 XPASS(strict)。
+    """
+    env = overlap_envs[(shape, consumer)]
+    db, client, before = env["db"], env["client"], env["before"]
+
+    assert "a_b_canvas_nodes" in before, f"夹具没建成重叠表，缺陷锁不可信: {sorted(before)}"
     assert len(before) == filler + 1, f"夹具表数不符: 期望 {filler + 1}，实得 {len(before)}"
-    _assert_table_shape(db, "a_b_canvas_nodes", dim=_DRIFT_DIM, has_doc_type=True)
+    _assert_table_shape(db, "a_b_canvas_nodes", dim=env["dim"], has_doc_type=True)
 
     # 分页位置前提 —— 两种形态的**可达性**差别全在这里
     in_default_page = "a_b_canvas_nodes" in set(db.table_names())
@@ -385,46 +430,42 @@ def test_prefix_overlap_premises_hold(tmp_path, shape, filler):
         assert in_default_page, "前提失效: page-inner 形态里重叠表竟然不在默认分页内"
     else:
         assert not in_default_page, (
-            "前提失效: page-outer 形态里重叠表仍在默认分页内 —— "
-            f"填充表没把它挤出去（默认分页 {len(db.table_names())} 张），"
-            "本条就区分不出「本卡打开的新可达面」"
+            "前提失效: page-outer 形态里重叠表仍在默认分页内 —— 填充表没把它挤出去"
+            f"（默认分页 {len(db.table_names())} 张），本条就区分不出「本卡打开的新可达面」"
         )
 
     assert client._owns_table("a_b_canvas_nodes", "a"), (
         "前提失效：a_b_canvas_nodes 已经不归 vault a 了 —— 前缀口径可能已被修好，"
-        "此时应删掉门⑤ 的 xfail 标记而不是保留它"
+        "此时应删掉门⑤ 族的 xfail 标记而不是保留它"
     )
 
 
 @pytest.mark.parametrize(("shape", "filler"), _OVERLAP_SHAPES)
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "CARD-G2-9-F1 未闭合面（Codex round-1 HIGH-1 / round-2 HIGH-1）：归属口径是 "
-        'startswith(f"{vid}_")，短 id 的 vault 会**单向**认领长 id vault 的表 —— '
-        '"a_b_canvas_nodes".startswith("a_") 为真（需要下划线边界，"ab_x" 不碰撞）。'
-        "本仓可达：sanitize_vault_id 产出的 id 含下划线（canvas-vault→canvas_vault、"
-        "cs 61b→cs_61b）。page-outer 那一例还是**本卡分页收口新打开**的可达面。"
-        "修它需要拿到全部 vault 列表做最长前缀优先，超出本卡范围 —— 移交 CARD-G2-9-F2。"
-        "修好后本门 XPASS(strict) 会报红，那时请连同前提门的归属断言一起更新。"
-    ),
-)
-def test_prefix_overlap_vault_is_not_isolated(tmp_path, shape, filler):
-    """vault ``a`` 不得删掉 vault ``a_b`` 的表 —— 当前**做不到**，故 xfail(strict)。
-
-    这不是「未来可能出问题」的假想：``sanitize_vault_id`` 产出的 vault id 含下划线
-    （实测 ``canvas-vault`` → ``canvas_vault``、``cs 61b`` → ``cs_61b``），本项目真实
-    用的就是 ``cs_61b``。只要再存在一个 id 为 ``cs`` 的 vault，它的启动自愈就会删掉
-    ``cs_61b_*`` 的漂移表。
-
-    夹具与全部前提由 ``test_prefix_overlap_premises_hold`` 独立把守 —— 本用例里
-    **不放**任何前提断言，否则 xfail 会把它们的失败一并吞掉。
-    """
-    db, client, before = _overlap_fixture(tmp_path / "db", filler)
-    asyncio.run(client._cache_tables())
-    after = _all_names(lancedb.connect(str(tmp_path / "db")))
-
+@pytest.mark.xfail(strict=True, reason=_OVERLAP_XFAIL_REASON)
+def test_prefix_overlap_not_touched_by_cache_tables(overlap_envs, shape, filler):
+    """启动自愈路径：vault ``a`` 的 ``_cache_tables`` 不得删掉 vault ``a_b`` 的表。"""
+    env = overlap_envs[(shape, "cache")]
+    asyncio.run(env["client"]._cache_tables())
+    after = _all_names(env["db"])
     assert "a_b_canvas_nodes" in after, (
         "vault a 的启动自愈碰了 vault a_b 的表：前缀口径 startswith('a_') 把 "
-        f"a_b_canvas_nodes 认成了自己的; 形态={shape}; 本次消失的表 = {sorted(before - after)}"
+        f"a_b_canvas_nodes 认成了自己的; 形态={shape}; 消失的表 = {sorted(env['before'] - after)}"
+    )
+
+
+@pytest.mark.parametrize(("shape", "filler"), _OVERLAP_SHAPES)
+@pytest.mark.xfail(strict=True, reason=_OVERLAP_XFAIL_REASON)
+def test_prefix_overlap_not_touched_by_drop_vault_tables(overlap_envs, shape, filler):
+    """显式删索引路径（``DELETE /index/{vault_id}`` → ``drop_vault_tables``）。
+
+    ⚠️ 这条与启动自愈那条的关键差别：重叠表是**健康**的（无任何 schema 漂移），
+    ``drop_vault_tables`` 直接删 ``list_vault_tables`` 的结果，**不看 schema**。
+    所以它的触发条件比启动自愈少一条，且入口是**用户显式操作**（Codex round-3 A-2）。
+    """
+    env = overlap_envs[(shape, "drop")]
+    env["client"].drop_vault_tables("a")
+    after = _all_names(env["db"])
+    assert "a_b_canvas_nodes" in after, (
+        "删 vault a 的索引连带删掉了 vault a_b 的表：list_vault_tables('a') 把 "
+        f"a_b_canvas_nodes 算成了 a 的; 形态={shape}; 消失的表 = {sorted(env['before'] - after)}"
     )
