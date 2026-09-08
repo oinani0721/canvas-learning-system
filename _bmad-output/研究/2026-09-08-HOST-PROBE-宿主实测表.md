@@ -136,7 +136,8 @@
 13. **禁写面 (i)/(ii) 两层口径出处 = 手册 §四.5 D-26**；(i) 五项与 (ii) 四类的开工/收工实测已分别落 `userconf-sha-before/after.txt` 与 `runtime-state-open/close-*.txt`。
 14. **其它硬判据全绿**：live vault `find -newer` = **0**；车道树 `git status -- canvas-vault/` = **0**；零代码门 `git diff --stat --no-color da690bf8 HEAD -- . ':(exclude)_bmad-output'` = **0 行**（⛔ 用 `':(exclude)…'`，`':!…'` 在 zsh 下 rc=128 假绿）。
 15. **⚠️ 送审后自查补做项（P8-d）**：Codex 已绑 `434c77dc` 送审；此后本卡只改 `_bmad-output`（代码树仍零变更，协议 §1 的绑定判据不破）。补做内容 = 用「各根独有名字 skill」把 OpenCode「三处都读」从推断升为直证，并**收紧**原证据口径（location 不可用于反推某根被扫）。该补做**修正的是本卡自己的证据强度，未推翻任何结论**。
-16. **意外面（登记，非本卡范围）**：用户级 `~/.claude/skills/zero-hallucination-research/SKILL.md` 及其 `sub-skills/zhr-run.md` 的 YAML frontmatter **解析失败并被忽略**（Claude Code debug 日志 WARN/ERROR）；既有问题，本卡不改用户级。
+16. **批级事件（协议 §2.3）**：同批车道 `card-u10-red-a-58` 在共享 `/tmp` 下开过**三个**负控窗口（06:59–07:19 / 07:44–07:50 / 08:19–08:24，共 8 个空目录，已全清）。本卡影响面 = **零**（全程未跑 pytest）。窗口二/三晚于本卡收工对账（07:46），故于 08:29 做了跨窗口复查：live vault `find -newer`、车道树 `git status`、零代码门、Codex 绑定门**全部仍为 0**，配置面 (i) 与收工快照**逐字节一致** ⇒ 判据时间覆盖由「收工那一刻」加强为「整个批次作业窗口」。⚠️ 该车道的窗口时刻与清理结果系其自述，本卡只独立复查了自己的判据面。
+17. **意外面（登记，非本卡范围）**：用户级 `~/.claude/skills/zero-hallucination-research/SKILL.md` 及其 `sub-skills/zhr-run.md` 的 YAML frontmatter **解析失败并被忽略**（Claude Code debug 日志 WARN/ERROR）；既有问题，本卡不改用户级。
 
 ---
 

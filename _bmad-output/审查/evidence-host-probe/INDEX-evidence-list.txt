@@ -1,7 +1,8 @@
 # evidence-host-probe 文件清单 + 每份末行 rc=（供复核者定位，勿逐份通读）
-# 生成 2026-09-08T07:46:40+08:00（r1 整改后重生成）
+# 生成 2026-09-08T08:29:42+08:00
 
 backend-health-20260908T064311.txt                          bytes=282       末行: lsof_rc=0
+batch-event-u10a-window-recheck-20260908T082918.txt         bytes=1851      末行: rc=0
 causal-codex-writes-config-20260908T071621.txt              bytes=738       末行: rc=0
 causal-codex-writes-config-r2-20260908T071710.txt           bytes=961       末行: rc=0
 closeout-final-20260908T071818.txt                          bytes=5475      末行: rc=0
@@ -10,7 +11,7 @@ closeout-userconf-20260908T071512.txt                       bytes=1090      末�
 helpcheck-dsh-20260908T064500.txt                           bytes=1821      末行: 
 helpcheck-dsh-web-20260908T064500.txt                       bytes=1702      末行: web_help_rc=0
 helpcheck-opencode-20260908T064900.txt                      bytes=8387      末行:                                                             
-INDEX-evidence-list.txt                                     bytes=1026      末行: helpcheck-opencode-20260908T064900.txt                      
+INDEX-evidence-list.txt                                     bytes=1088      末行: helpcheck-opencode-20260908T064900.txt                      
 P0-skeleton-20260908T065021.txt                             bytes=1344      末行: rc=0
 P10a-root-detection-vault-20260908T071259.txt               bytes=2099      末行: rc=0
 P10b-root-detection-dsh-codex-20260908T071333.txt           bytes=2374      末行: rc=0
