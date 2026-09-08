@@ -1,0 +1,23 @@
+=== 全仓 GeminiClient( 调用点普查（不靠 -A N 窗口，按 AST 精确取）===
+GeminiClient( 调用点共 7 处，其中传 model= 的 2 处：
+  app/api/v1/endpoints/review.py:406    kwargs=['api_key', 'model', 'base_url']  ⛔ 传 model
+  app/api/v1/endpoints/review.py:182    kwargs=['api_key', 'model', 'base_url']  ⛔ 传 model
+  app/clients/gemini_client.py:1062   kwargs=[]  ✓ 未传
+  app/dependencies.py:202    kwargs=['api_key', 'base_url']  ✓ 未传
+  app/dependencies.py:533    kwargs=['api_key', 'base_url']  ✓ 未传
+  app/dependencies.py:1012   kwargs=['api_key', 'base_url']  ✓ 未传
+  app/graphiti/llm_factory.py:134    kwargs=['config']  ✓ 未传
+
+=== 三处传 model= 的可达性分档 ===
+--- review.py:184  上游门
+        if settings.AI_API_KEY:
+--- review.py:408  上游门（_ai_question_available 恒 False？）
+    if not _ai_question_available or not nodes_to_review:
+        gemini_client = GeminiClient(
+--- 第三处上下文
+
+=== _ai_question_available 实测值（决定 :408 可达性）===
+  from pydantic.v1.fields import FieldInfo as FieldInfoV1
+  import pkg_resources
+Loading model cost 0.253 seconds.
+   _ai_question_available = False
