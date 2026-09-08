@@ -15,6 +15,7 @@ import ast
 import inspect
 import json
 import textwrap
+import threading
 from pathlib import Path
 
 import pytest
@@ -582,6 +583,146 @@ def _called_names(node: ast.AST) -> list[str]:
     return names
 
 
+def _callers_of(callee: str) -> list[str]:
+    """整个 ``live_port_guard`` 模块里，直接调用 ``callee()`` 的函数名（可重复）。
+
+    用于「某个写盘/取锁的原语只准从一个地方调」这类**全模块**判据 —— 只看单个函数的
+    ``_called_names`` 挡不住「别处又新开一个调用点」。
+    """
+    tree = ast.parse(inspect.getsource(guard))
+    parents: dict[ast.AST, ast.AST] = {}
+    for node in ast.walk(tree):
+        for child in ast.iter_child_nodes(node):
+            parents[child] = node
+
+    def enclosing(node: ast.AST) -> str:
+        current: ast.AST | None = node
+        while current is not None:
+            if isinstance(current, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                return current.name
+            current = parents.get(current)
+        return "<module>"
+
+    return [
+        enclosing(node)
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == callee
+    ]
+
+
+def _is_self_attr(node: ast.AST, attr: str) -> bool:
+    """严格判 ``self.<attr>``（``self`` 必须是最里层的 ``Name``）。
+
+    ``self.pending.setdefault`` 这类链式访问的 ``value`` 是另一个 ``Attribute``，
+    不算 —— 判据要盯的是「直接对 self 做的那一下」。
+    """
+    return (
+        isinstance(node, ast.Attribute)
+        and node.attr == attr
+        and isinstance(node.value, ast.Name)
+        and node.value.id == "self"
+    )
+
+
+def _self_lock_with_nodes(func) -> list[ast.With]:
+    """函数体里所有 ``with self._lock:`` 临界区（按源码顺序）。"""
+    return [
+        node
+        for node in ast.walk(_fn_ast(func))
+        if isinstance(node, ast.With) and node.items and _is_self_attr(node.items[0].context_expr, "_lock")
+    ]
+
+
+def _referenced_names(node: ast.AST) -> set[str]:
+    """子树里出现的所有裸名字（``Name`` 节点的 ``id``）。"""
+    return {n.id for n in ast.walk(node) if isinstance(n, ast.Name)}
+
+
+def _contains(haystack: ast.AST, needle: ast.AST) -> bool:
+    """``needle`` 这个**具体节点**是否落在 ``haystack`` 子树里（按身份，不是按内容）。"""
+    return any(n is needle for n in ast.walk(haystack))
+
+
+def _parent_map(node: ast.AST) -> dict[ast.AST, ast.AST]:
+    parents: dict[ast.AST, ast.AST] = {}
+    for parent in ast.walk(node):
+        for child in ast.iter_child_nodes(parent):
+            parents[child] = parent
+    return parents
+
+
+def _guard_state_ast() -> ast.ClassDef:
+    """``_GuardState`` 的类 AST。"""
+    node = ast.parse(textwrap.dedent(inspect.getsource(guard._GuardState))).body[0]
+    assert isinstance(node, ast.ClassDef)
+    return node
+
+
+def _locked_helper_names() -> set[str]:
+    """``_GuardState`` 里以 ``_locked`` 结尾的方法名，**从源码 AST 导出**。
+
+    白名单不写死，是为了让「有人新加了一个已持锁 helper」这件事被那条相等断言逼出来，
+    而不是让判据悄悄跟着源码漂移（见 ``test_settlement_path_never_nests_the_lock``）。
+    """
+    return {n.name for n in _guard_state_ast().body if isinstance(n, ast.FunctionDef) and n.name.endswith("_locked")}
+
+
+def _direct_self_calls(node: ast.AST) -> list[str]:
+    """子树里所有 ``self.<name>(...)`` 的 ``<name>``（只认直接对 self 的调用）。"""
+    names: list[str] = []
+    for child in ast.walk(node):
+        if isinstance(child, ast.Call) and isinstance(child.func, ast.Attribute):
+            if isinstance(child.func.value, ast.Name) and child.func.value.id == "self":
+                names.append(child.func.attr)
+    return names
+
+
+def _is_dead_branch(node: ast.AST) -> bool:
+    """``if False:`` / ``while 0:`` 这类**恒假**分支（Codex round-1 MEDIUM-7）。
+
+    只认字面常量：``if False`` / ``if 0`` / ``if None`` / ``if ""``。变量条件一律当
+    可达（保守方向 —— 判据宁可多数一条，也不能把真调用当死代码放过）。
+    """
+    return isinstance(node, (ast.If, ast.While)) and isinstance(node.test, ast.Constant) and not node.test.value
+
+
+def _live_called_names(node: ast.AST) -> list[str]:
+    """同 :func:`_called_names`，但**跳过恒假分支的 body**（Codex round-1 MEDIUM-7）。
+
+    ``_called_names`` 走 ``ast.walk``，于是 ``if False: _install_audit_hook()`` 这条
+    死代码也会被数进去 —— 顺序类断言（谁排在谁前面）因此可以被一个**诱饵**骗过：
+    把恒假分支里的假调用摆在前面，真调用挪到后面，旧门照样绿。这里按控制流剪枝：
+    恒假分支的 ``body`` 不算数，``test`` 与 ``orelse`` 仍算（``if False: A`` 的
+    ``else`` 支是会跑的）。
+
+    ⛔ 剪枝判定必须发生在**进入每个节点时**，包括传进来的那个根节点。初版只在
+    ``iter_child_nodes`` 的子节点上判，于是 ``_live_called_names(<if False 语句>)``
+    ——顺序门正是这么逐条调它的——从该 ``If`` 的子节点开始遍历，恒假分支的 body 原样
+    被数进去，诱饵照样生效。负控 case 4 当场抓到（2026-09-08 实测：新门在变异体上
+    仍 passed）。
+    """
+    names: list[str] = []
+
+    def visit(current: ast.AST) -> None:
+        if _is_dead_branch(current):
+            assert isinstance(current, (ast.If, ast.While))
+            visit(current.test)
+            for stmt in current.orelse:
+                visit(stmt)
+            return
+        if isinstance(current, ast.Call):
+            func = current.func
+            if isinstance(func, ast.Name):
+                names.append(func.id)
+            elif isinstance(func, ast.Attribute):
+                names.append(func.attr)
+        for child in ast.iter_child_nodes(current):
+            visit(child)
+
+    visit(node)
+    return names
+
+
 class TestSettlementAtomicity:
     """结算标志 / 账本快照 / 记账必须在**同一把锁**里（CARD-W4-4 的要害）。
 
@@ -646,36 +787,193 @@ class TestSettlementAtomicity:
         """``finalize_and_snapshot`` 的函数体里，置标志与取快照必须在**同一个** with。
 
         这是本卡的核心不变量：拆成两条独立语句（哪怕都各自持锁）就重新打开了那个
-        夹缝。断言盯的是「``self.finalizing = True`` 与取快照同属一个 ``with self._lock``」。
+        夹缝。断言盯的是「``self.finalizing = True`` 与取快照同属一个
+        ``with self._lock``」。
+
+        ⚠️ 收紧（Codex round-1 MEDIUM-7）：旧写法对 ``ast.dump(withs[0])`` 做**子串**
+        匹配，于是 ``with self.unrelated_lock:`` 只要体内出现那两个名字就照样绿 ——
+        判据完全没检查这个 ``with`` 锁的是不是 ``self._lock``。现在按结构判：
+        同一个 ``With``、``items[0]`` 必须是 ``self._lock``、体内同时有对
+        ``self.finalizing`` 的赋值与对 ``_ledger_locked`` 的调用。
         """
         node = _fn_ast(guard._GuardState.finalize_and_snapshot)
         withs = [n for n in node.body if isinstance(n, ast.With)]
         assert len(withs) == 1, "结算必须只有一个临界区"
-        body_src = ast.dump(withs[0])
-        assert "finalizing" in body_src, "结算标志不在这个临界区里"
-        assert "_ledger_locked" in body_src, "快照不在同一个临界区里"
+        critical = withs[0]
+        assert critical.items and _is_self_attr(critical.items[0].context_expr, "_lock"), (
+            "结算的临界区锁的不是 self._lock —— 换成别的锁，夹缝原样存在"
+        )
+        assigns_flag = any(
+            isinstance(stmt, ast.Assign) and any(_is_self_attr(t, "finalizing") for t in stmt.targets)
+            for stmt in ast.walk(critical)
+        )
+        assert assigns_flag, "结算标志不是在这个临界区里赋的值"
+        assert "_ledger_locked" in _direct_self_calls(critical), "快照不在同一个临界区里"
 
     def test_settlement_path_never_nests_the_lock(self):
-        """``_lock`` 不可重入 ⇒ 持锁的方法里禁止再调会取锁的公共读接口。
+        """持锁方法的临界区里，对 self 的直接调用必须**恰好**是已持锁 helper。
 
-        调了就是死锁，而死锁在 atexit 期表现为「进程挂住」，比翻红难查得多。
+        ``_lock`` 不可重入 ⇒ 在临界区里调任何会自己取锁的方法就是死锁，而死锁在
+        atexit 期表现为「进程挂住」，比翻红难查得多。
+
+        ⚠️ 收紧（Codex round-1 MEDIUM-7）：旧写法是黑名单
+        ``("ledger", "unaccounted_blocked", "summary_line", "take")`` —— 名单外的任何
+        新公共读接口一律漏网。改成白名单：临界区内 ``self.<name>()`` 的 ``<name>``
+        必须落在以 ``_locked`` 结尾的方法集里。该集合从源码 AST 导出，并与手写清单做
+        **相等**断言 —— 新增一个 ``_locked`` helper 会当场把这条门顶红，逼人确认它
+        确实不再取锁，而不是让白名单悄悄变宽。
+
+        受检方法也从源码导出（凡是有 ``with self._lock:`` 的都算），不写死名单。
         """
-        for method in (
-            guard._GuardState.finalize_and_snapshot,
-            guard._GuardState.late_snapshot,
-            guard._GuardState.record,
-            guard._GuardState.ledger,
-        ):
-            called = _called_names(_fn_ast(method))
-            for forbidden in ("ledger", "unaccounted_blocked", "summary_line", "take"):
-                assert forbidden not in called, f"{method.__name__} 里嵌套调用了会取锁的 {forbidden}()"
+        allowed = _locked_helper_names()
+        assert allowed == {"_unaccounted_locked", "_ledger_locked"}, (
+            f"_GuardState 的 _locked 方法集漂移了：{sorted(allowed)} —— "
+            "新增的『已持锁』helper 会自动进白名单，先确认它体内确实不再取 self._lock"
+        )
+        checked: list[str] = []
+        for method in _guard_state_ast().body:
+            if not isinstance(method, ast.FunctionDef):
+                continue
+            for critical in ast.walk(method):
+                if not (
+                    isinstance(critical, ast.With)
+                    and critical.items
+                    and _is_self_attr(critical.items[0].context_expr, "_lock")
+                ):
+                    continue
+                checked.append(method.name)
+                for name in _direct_self_calls(critical):
+                    assert name in allowed, (
+                        f"{method.name} 的临界区里调了 self.{name}() —— 不在已持锁 helper "
+                        f"白名单 {sorted(allowed)} 内；_lock 不可重入，调了就是死锁"
+                    )
+        assert checked, "一个 with self._lock 都没找到 —— 判据失去锚点，先核 _GuardState"
 
     def test_audit_hook_reads_the_settlement_state_through_record(self):
-        """hook 不得再对结算标志做**锁外读**（这正是被修掉的那个缺陷）。"""
+        """hook 不得再对结算标志做**锁外读**（这正是被修掉的那个缺陷）。
+
+        ⚠️ 收紧（Codex round-1 MEDIUM-7）：旧写法只查旧拼写 ``_FINALIZING``，于是
+        ``if STATE.finalizing:`` 这种**新拼写**的锁外读照样漏网 —— 而它正是同一个
+        缺陷（锁外读标志 + 另一把锁记账，两步之间的夹缝整条丢记录）。现在按 AST 数
+        ``finalizing`` 这个属性名在 hook 里出现的次数，必须是 0。
+        """
         called = _called_names(_fn_ast(guard._audit_hook))
         assert "record" in called, "hook 必须经 record() 拿归宿"
         src = inspect.getsource(guard._audit_hook)
         assert "_FINALIZING" not in src, "hook 里又出现了锁外读的模块级结算标志"
+        reads = [
+            n for n in ast.walk(_fn_ast(guard._audit_hook)) if isinstance(n, ast.Attribute) and n.attr == "finalizing"
+        ]
+        assert not reads, (
+            f"hook 里出现了 {len(reads)} 处 .finalizing 属性访问 —— 那是锁外读结算标志，判定必须留在 record() 的锁内"
+        )
+
+    def test_record_does_not_format_the_address_inside_the_lock(self):
+        """``repr(address)`` 必须在 ``self._lock`` **外面**算（Codex round-1 MEDIUM-8）。
+
+        ``address`` 完全由调用方给，``__repr__`` 是任意用户代码。在临界区里调它有两个
+        后果：回调 :meth:`ledger` ⇒ 再取同一把**不可重入**的锁 ⇒ 自死锁（表现为进程
+        挂住）；抛异常 ⇒ 从 ``total += 1`` **之前**逃出去 ⇒ 这次尝试整条不进账。
+
+        两条断言配着用：临界区里不做格式化（既不 ``repr`` 也不 ``_safe_repr``），
+        **且** ``record`` 里仍然有一次 ``_safe_repr`` —— 只断前者的话，把格式化整个
+        删掉（账本从此没有地址）也能过。
+        """
+        withs = _self_lock_with_nodes(guard._GuardState.record)
+        assert len(withs) == 1, f"record() 应恰有一个 self._lock 临界区，实测 {len(withs)}"
+        formatting = {"repr", "_safe_repr"}
+        inside = set(_called_names(withs[0])) & formatting
+        assert not inside, (
+            f"record() 在锁内做地址格式化（{sorted(inside)}）—— __repr__ 回调 ledger() 会自死锁，抛异常则整条跳过记账"
+        )
+        assert "_safe_repr" in _called_names(_fn_ast(guard._GuardState.record)), (
+            "record() 里已经没有地址格式化了 —— 账本会丢掉地址这一列"
+        )
+
+    def test_block_message_binds_the_reason_despite_a_hostile_repr(self, isolated_state):
+        """拒因里的 ``BLOCK_REASON`` 绑定不得被恶意 ``__repr__`` 劫持（MEDIUM-8 后半）。
+
+        同一条受拦路径上格式化地址的有两处：``record``（已由上一条门锁住）与
+        ``_block_message``。后者决定**拒因文本** —— 裸 ``{address!r}`` 时，地址的
+        ``__repr__`` 抛什么，逃出 hook 的就是什么：父进程与探针全按
+        ``BLOCK_REASON in str(e)`` 判「红得是因为这件事」，这个绑定一断，
+        「连接没发生」还在，「红的原因可归因」没了。
+
+        判据放在**最远下游**（真 ``sys.audit`` 走完整条承重路径，不是直接调
+        ``_block_message``）：地址是 tuple 子类（``extract_port`` 按底层槽位照常取到
+        7691、进受拦分支），``__repr__`` 抛异常 —— 抛出的 ``RuntimeError`` 必须仍以
+        ``BLOCK_REASON`` 开头，且账已记上。
+        """
+
+        class BoomAddr(tuple):
+            def __new__(cls):
+                return tuple.__new__(cls, ("127.0.0.1", 7691))
+
+            def __repr__(self):
+                raise RuntimeError("__repr__ 故意抛出 —— 不得劫持拒因绑定")
+
+        with pytest.raises(RuntimeError, match=guard.BLOCK_REASON):
+            import sys as _sys
+
+            _sys.audit("socket.connect", None, BoomAddr())
+
+        assert isolated_state.blocked == 1 and isolated_state.total == 1
+        assert isolated_state.records[0]["address"] == "<unrepr BoomAddr>"
+
+    def test_record_survives_an_address_whose_repr_raises(self, isolated_state):
+        """地址的 ``__repr__`` 抛异常，仍必须 ``total += 1`` 且归宿正确（MEDIUM-8）。"""
+
+        class Boom:
+            def __repr__(self):
+                raise RuntimeError("__repr__ 故意抛出 —— 不得让这次尝试逃出账本")
+
+        assert isolated_state.record(Boom()) == guard.RECORD_BLOCK
+        assert isolated_state.total == 1 and isolated_state.blocked == 1
+        assert isolated_state.records[0]["address"] == "<unrepr Boom>"
+        assert isolated_state.late_snapshot()["unaccounted"] == 1
+
+    def test_record_does_not_deadlock_when_repr_reads_the_ledger(self, isolated_state, monkeypatch):
+        """地址的 ``__repr__`` 回调 ``ledger()`` 不得自死锁（MEDIUM-8）。
+
+        ``_lock`` 不可重入：repr 若在锁内跑（正是本门要抓的回退），worker 会**永久
+        持有** ``isolated_state._lock``。判定用独立线程 + ``Event.wait(10)`` ——
+        主线程超时即翻红。
+
+        ⚠️ 两处写法是「红真的能落地」的前提（自查 HIGH 修正，2026-09-08；初版两处
+        都没做，回退一旦发生是**整条 session 挂住**而不是一条红 —— conftest 哨兵
+        ``pytest_runtest_makereport`` 会在 call 报告期无超时地 ``STATE.take()``，取的
+        正是那把已被永久持有的锁）：
+
+        * ``__repr__`` **闭包引用 fixture 实例**（``isolated_state.ledger()``）而不是
+          读 ``guard.STATE`` —— 要复现的就是「回调**同一个**正在记账的 state」这个
+          死锁形态；经 ``guard.STATE`` 间接读会让复现依赖 monkeypatch 的摆法。
+        * ``guard.STATE`` 在本用例内被指到**另一份全新 state**：fixture 换进来的那把
+          锁一旦被回退卡死，session 里所有走 ``guard.STATE`` 的消费者（哨兵 ``take``
+          / ``summary_line``）碰的都是这份新的，照常返回；卡死的 worker 只是一个
+          daemon 线程，随进程退出。monkeypatch 在 teardown 期自动还原，真 STATE
+          不受影响。
+        """
+
+        class Reentrant:
+            def __repr__(self) -> str:
+                return f"<addr unaccounted={isolated_state.ledger()['unaccounted']}>"
+
+        monkeypatch.setattr(guard, "STATE", guard._GuardState())
+        done = threading.Event()
+        outcome: list = []
+
+        def run() -> None:
+            try:
+                outcome.append(isolated_state.record(Reentrant()))
+            finally:
+                done.set()
+
+        worker = threading.Thread(target=run, name="w4-repr-reentrant", daemon=True)
+        worker.start()
+        assert done.wait(10), "record() 挂住了 —— repr 在锁内回调 ledger()，不可重入锁自死锁"
+        assert outcome == [guard.RECORD_BLOCK]
+        assert isolated_state.total == 1
+        assert isolated_state.records[0]["address"] == "<addr unaccounted=0>"
 
     def test_module_level_finalizing_global_is_gone(self):
         """模块级 ``_FINALIZING`` 必须整个消失，不能只是「没人读」。
@@ -722,6 +1020,108 @@ class TestSingleLedgerSnapshot:
         assert len(taken) == 1, "结算快照必须恰好取一次"
         assert captured["ledger"] is taken[0], "落盘写的不是裁定用的那一份快照"
 
+    def test_settlement_paths_publish_instead_of_writing_directly(self):
+        """两条写盘路径都必须经 ``_publish_ledger``（Codex round-1 MEDIUM-4）。
+
+        结算与迟到重写各自「先取快照、后 ``open(path,"w")`` 整写」，中间没有发布顺序
+        控制：结算取到零账快照 → 迟到线程记账并写出 ``unaccounted=1`` → 结算拿旧快照
+        把文件盖回零账 → 迟到线程 ``os._exit(3)``。进程 rc=3 而文件说什么都没发生。
+
+        三条断言配着用：两条路径各自**只**调 ``_publish_ledger``；且全模块的
+        ``write_ledger()`` 调用点恰好落在 ``_publish_ledger`` 里 —— 少了第三条，
+        「在别处新开一个直写调用点」这条路照样通。
+
+        行为面在探针 ``guard-late-ledger-survives-stale-final-write``。
+        """
+        for func in (guard._final_accounting, guard._rewrite_ledger_after_late_record):
+            called = _called_names(_fn_ast(func))
+            assert "_publish_ledger" in called, f"{func.__name__} 没走 _publish_ledger"
+            assert "write_ledger" not in called, (
+                f"{func.__name__} 直接调了 write_ledger —— 绕过发布顺序，陈旧快照能盖掉新账"
+            )
+        callers = _callers_of("write_ledger")
+        assert callers == ["_publish_ledger"], f"write_ledger() 的调用点应恰好只有 _publish_ledger 一处，实测 {callers}"
+
+    def test_publish_ledger_refuses_a_stale_snapshot(self, tmp_path, isolated_state):
+        """序号落后的快照**不得**回写（MEDIUM-4 的判定本体）。
+
+        这里不造线程交错（那在探针里），只把 ``_publish_ledger`` 的判定本身钉死：
+        先发布新的、再拿旧的去发布，文件必须一字不动。
+
+        用 ``late_snapshot()`` 而不是 ``ledger()`` 取快照 —— 发布序只盖在**要发布的**
+        快照上，纯读取不消耗序号（见 ``_ledger_locked`` 的 ``stamp``）。
+        """
+        path = str(tmp_path / "ledger.json")
+        stale = isolated_state.late_snapshot()
+        isolated_state.record(("127.0.0.1", 7691))
+        fresh = isolated_state.late_snapshot()
+        assert fresh["seq"] > stale["seq"], "账本快照没有单调序 —— 发布顺序无从判起"
+
+        assert guard._publish_ledger(path, fresh) is True
+        assert json.loads(Path(path).read_text(encoding="utf-8"))["unaccounted"] == 1
+        assert guard._publish_ledger(path, stale) is False, "陈旧快照被回写了"
+        assert json.loads(Path(path).read_text(encoding="utf-8"))["unaccounted"] == 1
+
+    def test_publish_ledger_accepts_a_newer_snapshot(self, tmp_path, isolated_state):
+        """验伪锚：序号更大的快照必须照常发布（不是「恒拒绝」）。"""
+        path = str(tmp_path / "ledger.json")
+        first = isolated_state.late_snapshot()
+        assert guard._publish_ledger(path, first) is True
+        isolated_state.record(("127.0.0.1", 7691))
+        later = isolated_state.late_snapshot()
+        assert guard._publish_ledger(path, later) is True
+        assert json.loads(Path(path).read_text(encoding="utf-8"))["unaccounted"] == 1
+
+    def test_publish_ledger_refuses_stale_even_after_a_failed_write(self, tmp_path, isolated_state, monkeypatch):
+        """新快照写盘**失败**后，陈旧快照仍然不得回写（I/O 失败不得重开 MEDIUM-4 的门）。
+
+        初版把 ``_PUBLISHED_SEQ = seq`` 放在 ``write_ledger`` 成功之后：较新的那份写
+        失败（磁盘满 / 权限）⇒ 序号没动 ⇒ 紧接着的陈旧发布 ``seq <= _PUBLISHED_SEQ``
+        判假 ⇒ 照写 ⇒ 文件是合法的零账 JSON 而进程 rc=3 —— MEDIUM-4 关掉的交错从
+        I/O 失败这条缝里原样回来。先行推进后，失败方向是「更旧的也别写」：文件根本
+        不存在 / 停留在上一份的完好内容，父进程要么读到新账、要么 ``json.loads``
+        直接报错 —— 可辨识的坏，不是可信的谎。
+        """
+        path = str(tmp_path / "ledger.json")
+        calls = {"n": 0}
+        real_write = guard.write_ledger
+
+        def flaky_write(p, ledger=None):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise OSError("磁盘满（负控：新快照的写盘失败）")
+            return real_write(p, ledger)
+
+        monkeypatch.setattr(guard, "write_ledger", flaky_write)
+        stale = isolated_state.late_snapshot()
+        isolated_state.record(("127.0.0.1", 7691))
+        fresh = isolated_state.late_snapshot()
+        assert fresh["seq"] > stale["seq"]
+
+        # 新快照写盘失败：异常照常向上传（调用点各自的 try 负责），不吞不藏
+        with pytest.raises(OSError, match="磁盘满"):
+            guard._publish_ledger(path, fresh)
+        # 随后的陈旧发布必须被拒 —— 且根本轮不到写盘（第二次调用是成功的）
+        assert guard._publish_ledger(path, stale) is False, (
+            "新快照写盘失败后，陈旧快照反而写成功了 —— I/O 失败把 MEDIUM-4 的门重开了"
+        )
+        assert calls["n"] == 1, "陈旧那次真的调了 write_ledger —— 判据被假喂饱了"
+        assert not Path(path).exists()
+
+    def test_plain_ledger_read_does_not_consume_a_publish_seq(self, isolated_state):
+        """「随手看一眼账面」不得推进发布序（2026-09-08 实测教训）。
+
+        起初把 ``seq`` 加在 ``_ledger_locked`` 的无条件路径上，于是**纯读取**也自增 ——
+        探针 ``guard-finalize-seam-inert-when-unset`` 的「前后账本逐字节相同」当场恒假、
+        转红。那是本设计的错（读不该有副作用），不是那道判据该让路，所以序号收窄到只盖
+        在要发布的快照上。这条门把「读无副作用」钉住，防止再被放回无条件路径。
+        """
+        first = isolated_state.ledger()
+        second = isolated_state.ledger()
+        assert "seq" not in first and "seq" not in second, "ledger() 这种纯读取不该带发布序"
+        assert first == second, "两次纯读取之间账本变了 —— 读取有副作用"
+        assert "seq" in isolated_state.late_snapshot(), "要发布的快照必须带发布序"
+
     def test_write_ledger_dumps_exactly_what_it_is_given(self, tmp_path):
         """给了快照就写那一份，不得自己再取一次（那正是双快照的来源）。"""
         path = tmp_path / "ledger.json"
@@ -745,34 +1145,115 @@ class TestInstallOrder:
         行为面的证明是探针 ``guard-install-order-precheck-is-guarded``
         （在预检内部真发一次连接，看它被不被拦 + 记不记账）。这里锁的是顺序本身 ——
         进程内跑一次 ``install()`` 只会看到一个已经装好的门，顺序观测不到。
+
+        ⚠️ 下标只数**可达**语句（``_live_called_names``，Codex round-1 MEDIUM-7）：旧写法
+        用 ``_called_names`` 走 ``ast.walk``，于是 ``if False: _install_audit_hook()``
+        这条死代码也算数 —— 把诱饵摆在前面、真调用挪到预检之后，旧门照样绿。
         """
         node = _fn_ast(guard.install)
         hook_at = precheck_at = None
         for index, stmt in enumerate(node.body):
-            names = _called_names(stmt)
+            names = _live_called_names(stmt)
             if hook_at is None and "_install_audit_hook" in names:
                 hook_at = index
             if precheck_at is None and "assert_neo4j_target_blocked" in names:
                 precheck_at = index
-        assert hook_at is not None, "install() 里找不到 _install_audit_hook()"
-        assert precheck_at is not None, "install() 里找不到 assert_neo4j_target_blocked()"
+        assert hook_at is not None, "install() 里找不到（可达的）_install_audit_hook()"
+        assert precheck_at is not None, "install() 里找不到（可达的）assert_neo4j_target_blocked()"
         assert hook_at < precheck_at, (
             "承重 hook 装在预检之后 —— 预检（含 canonical_target_ports 的延迟 "
             "import neo4j）整段在门外，那里的连接既不被拦也不进账"
         )
 
-    def test_final_accounting_is_registered_after_the_precheck(self):
-        """相对顺序不变：预检抛出时就该拒绝装门，不留一个会 os._exit 的 atexit。"""
+    def test_final_accounting_is_registered_before_the_precheck(self):
+        """结算器必须排在预检**之前**（Codex round-1 HIGH-2 的翻转）。
+
+        ⛔ 旧断言要求的是**预检下标在注册下标之前**（本用例旧名
+        ``…_registered_after_the_precheck``），docstring 写「相对顺序不变：预检抛出时
+        就该拒绝装门，不留一个会 os._exit 的 atexit」——**那把缺陷钉成了规格**。
+        （旧断言原文见 ``_bmad-output/审查/evidence-w44b/d-old-contract-verbatim.txt``；
+        这里刻意不复写它的字面量，好让「旧写法已绝迹」可以用 grep 判。）
+        真实情形是：``_install_audit_hook()`` 摘不掉（CPython 无
+        ``sys.removeaudithook``），预检抛出时 hook 已经不可撤销地生效、照常拦照常记账，
+        而结算器没注册 —— 那些记录无人交账，进程 ``exit 0``（Codex 实测
+        ``audit_installed=True / final_registered=False / unaccounted=1 / rc=0``）。
+
+        「不留 atexit」这个目标本身是错的：atexit 处理器不是负担而是**责任**。正确目标
+        是「装了 hook 就必有结算」，所以顺序反过来，断言也跟着反过来。零账时最终总账
+        不改退出码，留下它没有代价。
+
+        行为面在 ``test_partial_install_still_registers_final_accounting``（同类）与探针
+        ``guard-partial-install-settles-late-connection``。
+        """
         node = _fn_ast(guard.install)
-        precheck_at = register_at = None
+        precheck_at = register_at = hook_at = None
         for index, stmt in enumerate(node.body):
-            names = _called_names(stmt)
+            names = _live_called_names(stmt)
             if precheck_at is None and "assert_neo4j_target_blocked" in names:
                 precheck_at = index
             if register_at is None and "register_final_accounting" in names:
                 register_at = index
-        assert precheck_at is not None and register_at is not None
-        assert precheck_at < register_at
+            if hook_at is None and "_install_audit_hook" in names:
+                hook_at = index
+        assert precheck_at is not None and register_at is not None and hook_at is not None
+        assert register_at < precheck_at, (
+            "结算器注册排在预检之后 —— 预检抛出时 hook 已不可撤销地生效却无人结账，"
+            "迟到连接以 rc=0 收场（Codex round-1 HIGH-2）"
+        )
+        assert hook_at < register_at, (
+            "结算器排到了 hook 前面 —— 本门的因果是单向的「装了 hook 就必有结算」，"
+            "倒过来写会把这条因果读反（纵深断言；``_install_audit_hook`` 唯一的抛出点"
+            "是模块单例冲突，而那蕴含另一份实例已装 hook）"
+        )
+
+    def test_partial_install_still_registers_final_accounting(self, monkeypatch):
+        """预检抛出 ⇒ 装门失败，但**结算器必须已经注册**（Codex round-1 HIGH-2）。
+
+        ``_install_audit_hook()`` 不可撤销（CPython 无 ``sys.removeaudithook``）。旧顺序
+        把 ``register_final_accounting()`` 排在预检之后，于是
+        ``W4_GUARD_REQUIRE_BLOCKED_TARGET=1`` 而目标不在射程内时，进程停在
+        「hook 已生效 / 结算器没注册 / ``STATE.installed`` 仍 False」这个**部分安装态** ——
+        此后被拦下的连接照常记账，却没有任何人在退出时把账交出来，进程 ``exit 0``。
+
+        断言两条缺一不可：``_FINAL_REGISTERED`` 置位，**且**注册进 atexit 的确实是
+        ``_final_accounting``。只断前者会被「把 ``_FINAL_REGISTERED = True`` 挪到预检
+        之前但不真注册」骗过 —— 判据必须绑定「是哪一层做的」。
+
+        行为面（真的走一遍部分安装态、看进程 rc）在探针
+        ``guard-partial-install-settles-late-connection`` 里；那条要跑到进程退出，
+        pytest 进程内做不了。
+        """
+        registered: list = []
+
+        class _FakeAtexit:
+            """只替换 ``guard`` 命名空间里的 ``atexit``，真模块一动不动。
+
+            本用例必须把 ``_FINAL_REGISTERED`` 复位才观测得到注册动作，而真注册会给
+            本进程留下**第二个** ``_final_accounting`` 处理器 —— monkeypatch 撤不回
+            ``atexit.register``，那是不可撤销的进程级副作用。
+            """
+
+            @staticmethod
+            def register(func, *args, **kwargs):
+                registered.append(func)
+                return func
+
+        def boom() -> None:
+            raise RuntimeError("预检故意抛出 —— 目标不在受拦集合内")
+
+        monkeypatch.setenv(guard.ENV_REQUIRE_BLOCKED_TARGET, "1")
+        monkeypatch.setattr(guard, "assert_neo4j_target_blocked", boom)
+        monkeypatch.setattr(guard, "atexit", _FakeAtexit)
+        monkeypatch.setattr(guard, "_FINAL_REGISTERED", False)
+
+        with pytest.raises(RuntimeError, match="预检故意抛出"):
+            guard.install()
+
+        assert guard._FINAL_REGISTERED is True, (
+            "预检抛出后结算器没注册 —— audit hook 已不可撤销地生效、照常记账，"
+            "却没有人在退出时结账：迟到连接以 rc=0 收场"
+        )
+        assert registered == [guard._final_accounting], f"注册进 atexit 的不是 _final_accounting：{registered!r}"
 
 
 class TestPrecheckBeforeExemption:
@@ -858,15 +1339,74 @@ class TestFinalizeRaceSeam:
         assert len(body) == 1 and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant)
 
     def test_seam_is_called_unconditionally_not_inside_a_condition(self):
-        """注入点**不出现在任何判据里**：它是一条独立语句，不是某个 ``if`` 的条件。"""
+        """注入点必须是**受拦分支里的一条独立语句**，且不出现在任何判据里。
+
+        ⚠️ 收紧（Codex round-1 MEDIUM-7）：旧写法只要求「没进 ``if`` 的条件」+「存在
+        某条含它的 ``Expr``」，于是 ``if False: _finalize_race_seam_hook()`` 照样绿 ——
+        注入点被摘掉而门看不见。四条子规则：
+
+        (i)   它是一条独立 ``Expr``（保留旧断言的这一半）；
+        (ii)  它落在**受拦分支**内 —— 即 ``_audit_hook`` 里那个 ``if port in
+              BLOCKED_PORTS or not port_is_trustworthy(address)`` 的 ``body`` 子树。
+              该 ``If`` 用 AST 定位而不是写死行号；**定位不到就报红**（提示去核
+              ``_audit_hook`` 的受拦判据），不是默默放行 —— 找不到锚点却当通过，是
+              判据恒真的经典写法；
+        (iii) 祖先链上不得有**恒假分支**（``if False:`` / ``while 0:`` 之类）；
+        (iv)  它不得出现在任何 ``If`` / ``While`` / ``IfExp`` 的 ``test`` 或 ``BoolOp``
+              的短路项里（旧断言的另一半，保留）。
+
+        (v) ``Try`` **允许**并且必须允许：现状里它就包在 ``try/except BaseException``
+        里，那是 Codex round-1 HIGH-1 的整改本身（seam 抛异常不得跳过记账）。所以
+        「祖先链不含任何复合语句」这种写法是**自伤门** —— 它在未改动的代码上就直接红。
+        """
+        seam = "_finalize_race_seam_hook"
         node = _fn_ast(guard._audit_hook)
+        parents = _parent_map(node)
+
+        # (iv) 不得进任何判据
         for child in ast.walk(node):
-            if isinstance(child, (ast.If, ast.While)):
-                assert "_finalize_race_seam_hook" not in _called_names(child.test), "注入点进了分支条件"
-        assert any(
-            isinstance(child, ast.Expr) and "_finalize_race_seam_hook" in _called_names(child)
-            for child in ast.walk(node)
-        ), "注入点必须是一条独立的调用语句"
+            if isinstance(child, (ast.If, ast.While, ast.IfExp)):
+                assert seam not in _called_names(child.test), "注入点进了分支条件"
+            if isinstance(child, ast.BoolOp):
+                for value in child.values:
+                    assert seam not in _called_names(value), "注入点进了布尔短路判据"
+
+        # (i) 恰好一处调用，且是一条独立语句
+        calls = [
+            n for n in ast.walk(node) if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == seam
+        ]
+        assert len(calls) == 1, f"注入点调用点应恰好 1 处，实测 {len(calls)}"
+        seam_call = calls[0]
+        assert isinstance(parents.get(seam_call), ast.Expr), "注入点必须是一条独立的调用语句"
+
+        # 祖先链（由内到外）
+        chain: list[ast.AST] = []
+        cursor = parents.get(seam_call)
+        while cursor is not None:
+            chain.append(cursor)
+            cursor = parents.get(cursor)
+
+        # (iii) 祖先链上没有恒假分支
+        for ancestor in chain:
+            assert not _is_dead_branch(ancestor), (
+                "注入点落在恒假分支里 —— 等于被摘掉，而『存在一条含它的 Expr』照样成立"
+            )
+
+        # (ii) 必须落在受拦分支的 body 里
+        guarded = [
+            n
+            for n in ast.walk(node)
+            if isinstance(n, ast.If)
+            and ("BLOCKED_PORTS" in _referenced_names(n.test) or "port_is_trustworthy" in _called_names(n.test))
+        ]
+        assert guarded, (
+            "在 _audit_hook 里定位不到受拦分支（test 含 BLOCKED_PORTS 或 "
+            "port_is_trustworthy 的那个 if）—— 受拦判据的措辞变了，先核 _audit_hook "
+            "的 event/port 两层 if，再决定这条门怎么改"
+        )
+        assert any(any(_contains(stmt, seam_call) for stmt in branch.body) for branch in guarded), (
+            "注入点不在受拦分支内 —— 它会对每一次 socket.connect 触发，而它存在的理由只是在『即将记账』那一点制造交错"
+        )
 
     def test_seam_replacement_is_detected_as_drift(self, monkeypatch):
         """有人拿注入点当旁路 ⇒ 下一个用例边界就 GuardDrift。"""

@@ -74,7 +74,12 @@ venv（CPython 3.14.4）实测，这条防线有一个结构性缺口：
 所以一条记录只有两种归宿，没有第三种：``record`` 先拿到锁 ⇒ 它在快照里；
 ``finalize_and_snapshot`` 先拿到锁 ⇒ 它被判迟到、hook 就地 ``os._exit(3)``。
 裁定与落盘从此用**同一个** dict（:func:`write_ledger` 接收快照），迟到路径在退出前
-把含迟到记录的账本**重写**一次，保证「``rc=3`` ⇔ 账本 ``unaccounted>0``」双向成立。
+把含迟到记录的账本**重写**一次，保证 **账本 ``unaccounted>0`` ⇒ ``rc=3``**。
+
+⚠️ 这是**单向**的，反向不成立（原文写「双向成立」是过宽表述，2026-09-08 撤回）：
+:func:`_final_accounting` 的退出判据还有第二个分支 —— ``blocked > 0`` 且原本的
+``reported_status`` 为 0 时同样退 3，而那种形态下 ``unaccounted`` 可以是 0。
+父进程复核 rc=3 时该读的是 ``blocked`` 与 ``unaccounted`` 两个字段，不能只看后者。
 
 ⛔ 这里刻意**没有** sleep / 重试 / 「多取一次快照」—— 那些只会把窗口变窄，
 不会让它消失，而变窄的窗口比明显的窗口更难被门抓住。
@@ -92,7 +97,9 @@ fail-closed。
 本模块读三个环境变量，**没有任何一个能把门打开**：
 
 * ``W4_GUARD_NO_EXEMPT=1`` —— 关掉 integration/e2e 的豁免（更严）；
-* ``W4_GUARD_REQUIRE_BLOCKED_TARGET=1`` —— 目标端口不在射程内就**拒绝装门**（更严）；
+* ``W4_GUARD_REQUIRE_BLOCKED_TARGET=1`` —— 目标端口不在射程内就**拒绝装门**（更严；
+  拒的是 belt / ``STATE.installed`` —— 此刻 audit hook 与 atexit 结算器**已生效且摘
+  不掉**：零账时不改退出码，有未结账的拦截则强制退 3，见 :func:`install`）；
 * ``W4_GUARD_LEDGER=<path>`` —— 把账本落盘供父进程复核（只增加可观测性）。
 
 「改个环境变量就能让测试连上现网库」这条路刻意不存在。同理，
@@ -246,6 +253,25 @@ class GuardDrift(RuntimeError):
 # ═══════════════════════════════════════════════════════════════════════════
 
 
+#: 取账本快照的**全进程单调序**。每取一次快照 +1，于是任意两份快照都能比出「谁取得
+#: 更晚」—— 账本落盘的发布顺序就靠它（见 :func:`_publish_ledger`）。
+#:
+#: 用模块级而不是实例级：契约测试里每个用例新建一份 :class:`_GuardState`，实例级计数
+#: 会让不同 state 的序号撞车，比不出先后。
+_SNAPSHOT_SEQ = 0
+#: 只保护 :data:`_SNAPSHOT_SEQ` 的**叶子锁**：它自己不再取任何别的锁，所以在
+#: ``_GuardState._lock`` 里面取它不可能成环（锁序固定：``_lock`` → ``_SEQ_LOCK``）。
+_SEQ_LOCK = threading.Lock()
+
+
+def _next_snapshot_seq() -> int:
+    """取下一个快照序号（全进程单调递增，从 1 起）。"""
+    global _SNAPSHOT_SEQ
+    with _SEQ_LOCK:
+        _SNAPSHOT_SEQ += 1
+        return _SNAPSHOT_SEQ
+
+
 class _GuardState:
     """门的运行时账。计数跨线程累加；归属走 ContextVar。"""
 
@@ -290,8 +316,10 @@ class _GuardState:
         :data:`RECORD_LATE`。没有第三种。
 
         迟到记录**照常进账**（``total`` / ``blocked`` / ``pending`` 都加），所以它必然
-        体现为 ``unaccounted`` —— 迟到路径重写账本后，「``rc=3`` ⇔ 账本
-        ``unaccounted>0``」两个方向都成立，父进程复核不会与子进程 rc 打架。
+        体现为 ``unaccounted`` —— 迟到路径重写账本后，**账本 ``unaccounted>0`` ⇒
+        ``rc=3``**，父进程按账本复核不会与子进程 rc 打架。反向不成立：``rc=3`` 也可能
+        来自 :func:`_final_accounting` 的第二个分支（``blocked>0`` 且原 rc=0），那时
+        ``unaccounted`` 可以是 0（2026-09-08 撤回原「两个方向都成立」的过宽表述）。
         迟到路径**不看豁免**：结算之后已经没有任何一层能把 advisory 变成非零 rc，
         「只记不拦」在这一刻等于「什么都没做」（旧实现的 ``if _FINALIZING`` 同样
         不看豁免，语义未变）。
@@ -299,6 +327,14 @@ class _GuardState:
         owner = _OWNER_CV.get()
         exempt = _EXEMPT_CV.get()
         gen = _GEN_CV.get()
+        # ⛔ 地址的 ``repr`` 必须在**锁外**算（Codex round-1 MEDIUM-8）。``address``
+        #    完全由调用方提供，``__repr__`` 是任意用户代码：
+        #      * 它若回调 :meth:`ledger` / :meth:`unaccounted_blocked`，就会再取同一把
+        #        **不可重入**的 ``self._lock`` ⇒ 自死锁，表现为「进程挂住」；
+        #      * 它若抛异常，异常会从**计数之前**逃出去 ⇒ 这次尝试整条不进账。
+        #    锁内只放一个已经算好的字符串，上面两条都被挡在临界区外面。
+        #    （格式化细节与 ``BaseException`` 的理由见 :func:`_safe_repr`。）
+        addr_text = _safe_repr(address)
         with self._lock:
             stale = gen != self.current_gen
             if stale or self.finalizing:
@@ -307,7 +343,7 @@ class _GuardState:
                 owner = _UNKNOWN_OWNER
                 exempt = False
             rec = {
-                "address": repr(address),
+                "address": addr_text,
                 "thread": threading.current_thread().name,
                 "owner": owner,
                 "exempt": exempt,
@@ -338,16 +374,19 @@ class _GuardState:
         """
         with self._lock:
             self.finalizing = True
-            return self._ledger_locked()
+            return self._ledger_locked(stamp=True)
 
     def late_snapshot(self) -> dict:
         """迟到路径用的账本快照：结算快照之后落地的记录**也在里面**。
 
         用于在 ``os._exit(FINAL_EXIT_CODE)`` 之前把账本文件重写一次 —— 否则文件里
         会是结算那一刻的空账，而进程 rc=3，父进程复核与子进程裁定又打起来。
+
+        带发布序（``stamp=True``）：这一份**一定**比结算那份取得晚，序号也就一定更大，
+        于是结算线程手上的旧快照再也盖不回来（见 :func:`_publish_ledger`）。
         """
         with self._lock:
-            return self._ledger_locked()
+            return self._ledger_locked(stamp=True)
 
     def take(self, owner: str) -> list[dict]:
         with self._lock:
@@ -378,14 +417,25 @@ class _GuardState:
         with self._lock:
             return self._ledger_locked()
 
-    def _ledger_locked(self) -> dict:
+    def _ledger_locked(self, *, stamp: bool = False) -> dict:
         """``self._lock`` 已持有的前提下取账本快照（不可重入锁，禁止嵌套获取）。
 
         字段名是**对外契约**：父进程复核脚本、``test_ledger_shape``、探针
         ``ledger-written`` 都按名读，别改。
+
+        ``stamp=True`` 时额外带一个 ``seq`` —— CARD-W4-4b 新增的**发布序**（全进程单调，
+        取快照即定）。它让 :func:`_publish_ledger` 判得出「我手上这份是不是已经过时了」：
+        结算线程取了零账快照、迟到线程随后记账并把含迟到记录的账本写进文件，结算线程
+        再拿旧快照 ``open(path,"w")`` 就会把它盖回零账（Codex round-1 MEDIUM-4）。
+
+        ⛔ 只有**要发布的**快照才盖序号（:meth:`finalize_and_snapshot` /
+        :meth:`late_snapshot`）。:meth:`ledger` 这种「随手看一眼账面」的读**不盖** ——
+        否则一次纯读取也会推进发布序，探针 ``guard-finalize-seam-inert-when-unset``
+        的「前后账本逐字节相同」当场变成恒假（2026-09-08 实测：加进无条件路径后它转红，
+        那是本设计的错，不是那道判据该让路）。
         """
         unaccounted = self._unaccounted_locked()
-        return {
+        ledger: dict = {
             "total": self.total,
             "blocked": self.blocked,
             "advisory": self.advisory,
@@ -397,6 +447,9 @@ class _GuardState:
             "blocked_ports": sorted(BLOCKED_PORTS),
             "exempt_disabled": exempt_disabled(),
         }
+        if stamp:
+            ledger["seq"] = _next_snapshot_seq()
+        return ledger
 
     def summary_line(self) -> str:
         with self._lock:
@@ -546,9 +599,35 @@ def port_is_trustworthy(address) -> bool:
     return type(raw) is int  # noqa: E721 —— 必须是精确 int，子类（含 bool）不算
 
 
+def _safe_repr(address) -> str:
+    """对**不可信的**地址对象做 ``repr``，任何异常都不得逃出去（MEDIUM-8）。
+
+    ``address`` 完全由调用方给，``__repr__`` 是任意用户代码：
+
+    * 在 :meth:`_GuardState.record` 里，它在 ``self._lock`` **之外**跑 —— ``__repr__``
+      若回调 :meth:`ledger` 会再取同一把**不可重入**的锁 ⇒ 自死锁；若抛异常，会从
+      ``total += 1`` **之前**穿出去 ⇒ 这次尝试整条不进账（与 HIGH-1 修掉的
+      「跳过记账的旁路」同形）。
+    * 在 :func:`_block_message` 里，它决定拒因文本 —— 裸 ``{address!r}`` 会被
+      恶意 ``__repr__`` 劫持：逃出 hook 的成了 ``__repr__`` 自己的异常而不是含
+      ``BLOCK_REASON`` 的 ``RuntimeError``，「红得是因为这件事」的绑定断裂
+      （父进程 / 探针全按 ``BLOCK_REASON in str(e)`` 判拒因身份）。
+
+    捕 ``BaseException``：从 ``__repr__`` 逃出的**任何**东西（含 ``KeyboardInterrupt``）
+    都会破坏上面两条；退化串本身再包一层，免得兜底路径自己抛。
+    """
+    try:
+        return repr(address)
+    except BaseException:  # noqa: BLE001 —— 可观测性不得挡住记账/拒因绑定
+        try:
+            return f"<unrepr {type(address).__name__}>"
+        except BaseException:  # noqa: BLE001 —— 同上
+            return "<unrepr>"
+
+
 def _block_message(address) -> str:
     return (
-        f"{BLOCK_REASON}: {address!r}. "
+        f"{BLOCK_REASON}: {_safe_repr(address)}. "
         f"受拦端口 {sorted(BLOCKED_PORTS)} 是现网 Neo4j；测试进程不得连接。"
         f"若这是端点测试，请用 backend/tests/support/lifespan.py::no_lifespan "
         f"关掉 app.main 的 lifespan；若确需真库，用测试容器 "
@@ -759,6 +838,18 @@ def install() -> None:
     ``sys.removeaudithook``）；belt 的 :func:`uninstall` 仅为 API 完整保留，
     生产代码路径不调用。CLI 测试进程的迟到线程在 ``pytest_unconfigure`` 之后
     仍可能发起连接，先恢复 socket 会留下无账窗口——门随进程存活到退出。
+
+    ⛔ **hook 一旦生效就必须有人结账**（Codex round-1 HIGH-2）。正因为
+    ``_install_audit_hook()`` 摘不掉，它与 :func:`register_final_accounting` 之间
+    不允许夹任何可抛出的步骤：中途抛出 ⇒ 门在位、照常记账，却没有人在退出时把账
+    交出来。所以顺序是 **hook → 结算器 → 预检 → 身份复核**，预检抛出时结算器
+    **照样已经注册**。
+
+    此时 ``STATE.installed`` 仍是 ``False``，账本 ``installed`` 字段如实写 False ——
+    :func:`_final_accounting` 在这种「装门失败但账本仍要交」的形态下语义不变：它读
+    的是 ``unaccounted`` / ``blocked`` / ``reported_status``，与 ``installed`` 无关
+    （退出码判据见那里，本卡不改）。一次连接都没有 ⇒ 零账 ⇒ 不改退出码，装门失败
+    该以什么 rc 收场就还是什么。
     """
     uvloop_mod = sys.modules.get("uvloop")
     if uvloop_mod is not None:
@@ -775,12 +866,16 @@ def install() -> None:
     #    触发的任何连接）原来跑在门装上**之前**，完全不受保护也不进账。
     #    2026-09-05 实测（``evidence-w4-4/before-3``）：在预检内发起一次到受拦端口的
     #    连接，旧顺序下结果是 ``connected`` 且 ``STATE.blocked=0``。
-    #    ``register_final_accounting()`` 的相对位置不变（仍在预检之后）：预检抛出时
-    #    本来就拒绝装门，此时不该留下一个会 os._exit 的 atexit 处理器。
+    # ⛔ ``register_final_accounting()`` 必须紧跟在 hook 之后、排在**预检之前**
+    #    （Codex round-1 HIGH-2）。hook 摘不掉：预检抛出时它已经在位、照常记账，而旧
+    #    顺序下结算器还没注册 —— 那些记录无人交账，进程 ``exit 0``。旧注释写的
+    #    「预检抛出时本来就拒绝装门，此时不该留下一个会 os._exit 的 atexit」把因果
+    #    弄反了：atexit 处理器不是负担而是**责任**，装了 hook 就必须有人结账。零账时
+    #    它本来也不改退出码（见 :func:`_final_accounting`），留下它没有代价。
     _install_audit_hook()
+    register_final_accounting()
     if os.environ.get(ENV_REQUIRE_BLOCKED_TARGET) == "1":
         assert_neo4j_target_blocked()
-    register_final_accounting()
     if STATE.installed:
         assert_guard_live("install(已装过，复核身份)")
         return
@@ -1140,7 +1235,10 @@ def assert_neo4j_target_blocked() -> None:
     因 ``blocked=0`` 报失败，而实害已经发生。
 
     所以负控用 ``W4_GUARD_REQUIRE_BLOCKED_TARGET=1`` 打开本检查：目标不在射程内
-    就在**任何测试跑起来之前**拒绝装门。检查读的是 **环境变量**（负控显式钉死的
+    就在**任何测试跑起来之前**拒绝装门（拒的是 belt / ``STATE.installed`` —— audit
+    hook 与 atexit 结算器已生效且摘不掉，零账不改 rc、有账强制 3，见
+    :func:`install`；探针 ``guard-partial-install-settles-late-connection`` 钉的正是
+    这种半装形态下「有人结账」）。检查读的是 **环境变量**（负控显式钉死的
     那一份），不是 ``Settings``——本模块刻意不 import ``app.*``，装门必须早于任何
     业务 import。负控另有一道 ``Settings`` 侧的前置自检（见负控脚本 step 0c），
     两边口径一致才放行。
@@ -1234,14 +1332,79 @@ def write_ledger(path: str, ledger: dict | None = None) -> None:
         json.dump(ledger, fh, ensure_ascii=False, indent=2)
 
 
+#: 已发布到账本文件的最高快照序（只增）。见 :func:`_publish_ledger`。
+_PUBLISHED_SEQ = -1
+#: 只保护「比序号 + 写文件」这一小段的锁。
+_PUBLISH_LOCK = threading.Lock()
+#: 取 :data:`_PUBLISH_LOCK` 的上限。迟到路径在 ``os._exit`` **之前**走这里，绝不能被
+#: 另一个线程无限期挡住 —— 超时就放弃写盘（账本只是可观测性，强制非零 rc 才承重）。
+_PUBLISH_LOCK_TIMEOUT = 5.0
+
+
+def _publish_ledger(path: str, ledger: dict) -> bool:
+    """发布账本到 ``path`` —— **只在这份快照比已发布的那份更新时**才真写。
+
+    ⛔ CARD-W4-4b / Codex round-1 MEDIUM-4：两条写盘路径（:func:`_final_accounting`
+    与 :func:`_rewrite_ledger_after_late_record`）各自「先取快照、后 ``open(path,"w")``
+    整写」，中间没有任何发布顺序控制。于是这个交错会让文件与 rc 打架：
+
+    1. 结算线程取到**零账**快照，尚未写盘；
+    2. 迟到线程记账（``unaccounted=1``）、取快照、把含迟到记录的账本写进文件；
+    3. 结算线程拿着第 1 步那份**旧**快照 ``open(path,"w")``，把文件盖回零账；
+    4. 迟到线程 ``os._exit(3)``。
+    ⇒ 进程 rc=3，而父进程按文件复核得到「什么都没发生」。
+
+    修法是给每份快照一个取快照时就定下的单调序（``ledger["seq"]``，见
+    :meth:`_GuardState._ledger_locked`），发布时比一次：序号不比已发布的大就**不回写**。
+    第 3 步于是变成一次 no-op，文件停在 ``unaccounted=1``。
+
+    ⚠️ **发布序必须在写盘之前推进**（自查修正，2026-09-08）：初版把
+    ``_PUBLISHED_SEQ = seq`` 放在 ``write_ledger`` 成功之后 —— 于是「较新的那份写
+    失败（磁盘满 / 权限 / 路径消失）」会把门**重开**：序号没动，紧接着的陈旧发布
+    ``seq <= _PUBLISHED_SEQ`` 判假 ⇒ 照写 ⇒ 账本文件是合法的零账 JSON 而进程 rc=3，
+    MEDIUM-4 关掉的交错从 I/O 失败这条缝里原样回来。先行推进后，失败方向变成
+    「**更旧的也别写**」：文件停留在截断/无效态，父进程 ``json.loads`` 直接报错 ——
+    是可辨识的坏，不是可信的谎（裁判门
+    ``test_publish_ledger_refuses_stale_even_after_a_failed_write``）。
+
+    返回是否真的写了。**失败方向一律是「不写」**：拿不到锁（超时）或序号落后都返回
+    ``False``，而 :func:`write_ledger` 自己抛出的 I/O 异常照常向上传（两个调用点各自
+    有 try 包着，见那里；HIGH-3 的「异常不得越过 ``os._exit``」语义不变；此时序号
+    已先行推进，后续任何陈旧发布都会被拒）。
+
+    ``ledger`` 没有 ``seq`` 字段时（手工构造的账本）按「此刻最新」处理 —— 那种调用方
+    本来就没有可比的先后关系。
+    """
+    global _PUBLISHED_SEQ
+    seq = ledger.get("seq")
+    if seq is None:
+        seq = _next_snapshot_seq()
+    if not _PUBLISH_LOCK.acquire(timeout=_PUBLISH_LOCK_TIMEOUT):
+        return False
+    try:
+        if seq <= _PUBLISHED_SEQ:
+            # 已经有更新的一份发布过了 —— 回写就是把新账盖成旧账。
+            return False
+        _PUBLISHED_SEQ = seq  # 先行推进：写盘失败也不许更旧的再写（见上）
+        write_ledger(path, ledger)
+        return True
+    finally:
+        _PUBLISH_LOCK.release()
+
+
 def _rewrite_ledger_after_late_record() -> None:
     """迟到记录落地之后，把账本文件重写成**含这条记录**的版本。
 
     由 :func:`_audit_hook` 的迟到分支在 ``os._exit(FINAL_EXIT_CODE)`` **之前**调用。
     没有这一步，账本文件停留在结算那一刻（空账），而进程 rc=3 —— 父进程按文件复核
-    会得出「什么都没发生」，与 rc 直接矛盾。有了它，
-    「``rc=3`` ⇔ 账本 ``unaccounted>0``」两个方向都成立（探针
-    ``guard-ledger-matches-verdict`` 正反两跑钉这一条）。
+    会得出「什么都没发生」，与 rc 直接矛盾。有了它，**账本 ``unaccounted>0`` ⇒
+    ``rc=3``** 成立。
+
+    ⚠️ 反向不成立（2026-09-08 撤回原「两个方向都成立」）：``rc=3`` 还可能来自
+    :func:`_final_accounting` 的第二个分支（``blocked>0`` 且原 ``reported_status``
+    为 0），那时 ``unaccounted`` 可以是 0。探针 ``guard-ledger-matches-verdict``
+    钉的也不是等价，而是**两个特例**（有迟到 ⇒ rc=3 且 unaccounted>0；零连接 ⇒
+    rc=0 且零账），判据本身不变。
 
     ⚠️ 全程 fail-open：这是解释器收尾期、在任意线程里跑的，落盘失败绝不能挡住
     ``os._exit`` —— 强制非零 rc 才是承重的那一层，账本只是可观测性。
@@ -1250,7 +1413,9 @@ def _rewrite_ledger_after_late_record() -> None:
         path = os.environ.get(ENV_LEDGER)
         if not path:
             return
-        write_ledger(path, STATE.late_snapshot())
+        # 经 _publish_ledger 而不是直接 write_ledger：这一份是**较新**的快照，
+        # 发布后结算线程手上的旧快照就再也盖不回来（MEDIUM-4）。
+        _publish_ledger(path, STATE.late_snapshot())
     except Exception:  # noqa: BLE001 —— 见上：绝不阻断 os._exit
         pass
 
@@ -1276,7 +1441,9 @@ def _final_accounting() -> None:
     path = os.environ.get(ENV_LEDGER)
     if path:
         try:
-            write_ledger(path, ledger)  # ← 同一份快照，不再取第二次
+            # 同一份快照，不再取第二次；经 _publish_ledger ⇒ 若迟到线程已经发布了
+            # 更新的一份，这里不回写（MEDIUM-4 的陈旧覆盖）。
+            _publish_ledger(path, ledger)
         except Exception as exc:  # noqa: BLE001 —— 落盘失败要说话，但不能盖掉结账
             print(f"*** W4 guard: 账本落盘失败 {path}: {exc!r} ***", file=sys.stderr)
     unaccounted = ledger["unaccounted"]
