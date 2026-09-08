@@ -76,3 +76,23 @@ drwxr-xr-x@ 6 Heishing  wheel  192 Sep  8 00:00 /tmp/test-vault.pre-1788598134
 13d12
 < /tmp/test-vault*
 tmp_listing_diff_rc=1
+
+=== 6b. 【Codex round-3 MEDIUM 补记】上面 §6 的 13d12 是**判据坏了**，不是没归位 ===
+原始失败记录保留在上方不删（协议：保留原档 + 追加正确结果）。
+坏在哪：grep -oE '/tmp/test-vault[^ ]*' 把开工存档的标题行与 ls 命令回显里的
+        通配符文本也抽成了目录条目，多算一条。
+⚠️ 这是同一判据错误第 **3** 次复发。前两次我只在存档里追加更正、**没修脚本本体**，
+   所以第三次原样复发 —— 登记为『写下教训 ≠ 变成判据』的又一实例。
+   本次已从根上修 cleanup.sh（awk '/^d/ {print $NF}'）。
+
+--- 更正判据 ---
+开工条数=12
+现在条数=12
+corrected_diff_rc=0  (0 且无输出 = 逐条归位)
+
+--- 验伪锚：这条更正后的判据真的会报差异吗 ---
+falsifier_rc=1  (非 0 = 判据活着，不是恒 0 死判据)
+
+--- worktree 与工作树 ---
+treeB_residue=0  (期望 0)
+porcelain_code=1

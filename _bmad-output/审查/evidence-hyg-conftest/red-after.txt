@@ -63,6 +63,7 @@ FAILED tests/unit/test_cache_configuration.py::TestEnrichmentCacheFromSettings::
 FAILED tests/unit/test_cache_configuration.py::TestMemoryRetryDelayFromSettings::test_retry_delay_reads_settings
 FAILED tests/unit/test_calibration_tracker.py::TestCalibrationRating::test_over_confident_boundary
 FAILED tests/unit/test_calibration_tracker.py::TestCalibrationRating::test_under_confident_boundary
+FAILED tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422
 FAILED tests/unit/test_canvas_memory_trigger.py::TestAddEdgeMemoryTrigger::test_add_edge_triggers_memory_event
 FAILED tests/unit/test_chat_endpoint.py::test_enrich_context_accepts_user_question_and_mode_answer
 FAILED tests/unit/test_chat_endpoint.py::test_enrich_context_answer_mode_uses_lazy_init_path
@@ -116,7 +117,6 @@ FAILED tests/unit/test_intelligent_parallel_endpoints.py::TestErrorResponses::te
 FAILED tests/unit/test_intelligent_parallel_endpoints.py::TestProgressEndpoint::test_progress_invalid_session_404
 FAILED tests/unit/test_kg_health.py::TestKGHealthEndpoint::test_endpoint_returns_200
 FAILED tests/unit/test_mastery_fusion.py::TestPearsonCorrelation::test_no_correlation
-FAILED tests/unit/test_mock_degradation_transparency.py::TestMockScoringWarningLogs::test_mock_mode_logs_warning
 FAILED tests/unit/test_multimodal_path_security.py::TestValidateSafePath::test_path_traversal_windows_style
 FAILED tests/unit/test_neo4j_fulltext_index.py::TestEnsureFulltextIndex::test_ensure_fulltext_index_idempotent
 FAILED tests/unit/test_neo4j_health.py::TestNeo4jHealthEndpoint::test_neo4j_connection_timeout

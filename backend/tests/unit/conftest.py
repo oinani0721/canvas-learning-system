@@ -109,8 +109,11 @@ def _hygiene_within_root(target: Path, root: Path) -> bool | None:
 
     做法: 先试字面包含 (快, 覆盖绝大多数情况); 不成立再逐级向上用
     `samefile` 做**文件系统身份**比对 (inode 级, 不受拼写影响)。
-    比对本身失败 (权限 / 竞态换链 / 目标消失) 一律返回 None ——
+    比对本身失败 (权限 / 竞态换链 / 中间目录消失) 一律返回 None ——
     「问不出来」不能压成「在根外」, 也不能压成「在根内」。
+    ⚠️ 精确边界 (Codex round-3 自述 #7): **目标文件本身消失不一定走到这里** ——
+    只要它的父目录仍在且字面包含成立, 本函数就返回 True, 由后续 read_bytes()
+    的 OSError 负责把它收进 unchecked。本函数只回答「在不在根内」。
     """
     try:
         if target.is_relative_to(root):
@@ -265,10 +268,11 @@ def _no_vault_skeleton_left_behind():
 
     # 三类信号分开收集 (Codex round-2 HIGH #1)。它们的**语义不同**, 不能共用
     # 一句「运行污染了工作树」和同一份写者推定:
-    #   pollution   —— 首尾快照真的变了, 本次运行确实写了东西;
-    #   source_rule —— 源码里有硬编码常量, 是**静态**规则, 不表示本次跑写了什么
-    #                  (P1 正控用的就是一个从不执行的常量);
-    #   cannot_check—— 既没通过也没违规, 门拒绝把「没检查」当「没问题」。
+    #   pollution   —— 首尾快照之间发生了变化; 差异**不指认写者**, 也不单独证明
+    #                  写入内容 (sha 侧读取失败记 None, None <-> hash 未必是内容改变);
+    #   source_rule —— 源码里有被禁止的硬编码常量, 是**静态**规则: 既不表示本次跑
+    #                  写了什么, 也不预言将来一定会写 (P1 正控用的就是从不执行的常量);
+    #   cannot_check—— **是否违规尚不能判定**, 门拒绝把「没检查」当「没问题」。
     pollution: list[str] = []
     source_rule: list[str] = []
     cannot_check: list[str] = []
@@ -321,12 +325,14 @@ def _no_vault_skeleton_left_behind():
 
     if pollution:
         sections.append(
-            "【工作树被写坏】以下变化发生在本次 session 首尾两次快照之间, "
-            "即本次运行确实写了东西:\n"
+            "【快照差异】以下目标在本次 session 首尾两次快照之间发生了变化;\n"
+            "  ⚠️ 差异本身**不指认写者**, 也不单独证明写入内容 —— 例如 sha 侧读取\n"
+            "  失败会记 None, None <-> hash 的差异未必是内容改变 (既有边界, 已移交)。\n"
+            "  写入与归属请结合下列具体条目核查:\n"
             + "\n".join(pollution)
-            + "\n  最可能的写者: 某个用例往 setup-wizard 端点传了**相对路径或空串**的"
-            "\n  vault_path (system.py 会 resolve() 成 cwd), 或直接给 VaultInitService"
-            "\n  传了非 tmp_path 的路径。修法: 测试一律用 tmp_path fixture。"
+            + "\n  **最常见**的成因 (是排查起点, 不是结论): 某个用例往 setup-wizard 端点"
+            "\n  传了相对路径或空串的 vault_path (system.py 会 resolve() 成 cwd),"
+            "\n  或直接给 VaultInitService 传了非 tmp_path 的路径。修法: 一律用 tmp_path。"
         )
 
     if source_rule:
@@ -335,18 +341,20 @@ def _no_vault_skeleton_left_behind():
             + _TMP_LITERAL
             + " 路径常量:\n"
             + "\n".join(source_rule)
-            + "\n  ⚠️ 这是**静态**规则, **不表示本次运行写了任何东西** —— 它拦的是"
-            "\n  「将来会往全机共享 /tmp 写」。Y6-A 已把这类路径改成 tmp_path,"
-            "\n  重新出现即回归。修法: 用 tmp_path fixture。"
+            + "\n  ⚠️ 这是**静态**规则: 它只说明源码里出现了被禁止的硬编码常量,"
+            "\n  **既不表示本次运行写了什么, 也不预言将来一定会写** (常量可能从不执行 ——"
+            "\n  本卡 P1 正控用的就是这种)。禁它的理由是 Y6-A 已把这类路径统一改成"
+            "\n  tmp_path, 重新出现即偏离约定。修法: 用 tmp_path fixture。"
         )
 
     if cannot_check:
         sections.append(
-            "【检查无法完成】以下目标既没通过也没违规 —— 门拒绝把「没检查」"
+            "【检查无法完成】以下目标**是否违规尚不能判定** —— 门拒绝把「没检查」"
             "当成「没问题」:\n"
             + "\n".join(cannot_check)
-            + "\n  ⚠️ 这**不是**已经发生写入的证据, 只是这道门这次没能看全。"
-            "\n  多半是权限 / 符号链接 / 语法错误。恢复可见性后重跑。"
+            + "\n  ⚠️ 这**既不是**已经发生写入的证据, **也不表示这些目标没有问题** ——"
+            "\n  只是这道门这次没能看全。多半是权限 / 符号链接 / 语法错误。"
+            "\n  恢复可见性后重跑。"
         )
 
     if sections:
