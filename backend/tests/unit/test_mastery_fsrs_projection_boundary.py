@@ -125,20 +125,34 @@ def _call_name(node: ast.Call) -> str | None:
 def _open_is_write(node: ast.Call) -> bool:
     """`open(...)` 是否以写模式打开。
 
-    ⚠️ mode 的位置取决于调用形态 (Codex round-1 MEDIUM-2 指出的实错):
-      · 内建 `open(path, mode)`        —— mode 是**第二**个位置参数;
-      · 绑定方法 `Path(p).open(mode)`  —— mode 是**第一**个位置参数。
-    早前一律取 args[1], 于是 `Path(p).open("w")` (只有一个位置参数) 被当成
-    默认只读**放行**, 而 `Path(p).open("r", -1)` 的 buffering 参数被当成 mode
-    **误拦**。两个方向同时错。
+    ⚠️ mode 的位置取决于调用形态, 共**三种** (Codex r1 MEDIUM-2 + r2 MEDIUM-1):
+      · 内建 `open(path, mode)`            —— func 是 Name, mode = args[1];
+      · 模块函数 `io.open(path, mode)`     —— func 是 Attribute 但接收者是
+        **模块名** (io/builtins/os), mode 仍是 args[1];
+      · 绑定方法 `Path(p).open(mode)`      —— func 是 Attribute 且接收者是
+        表达式 (如 Call), mode = args[0]。
+    r1 版一律取 args[1] ⇒ `Path(p).open("w")` 漏报; r2 整改版把**所有** Attribute
+    当绑定方法取 args[0] ⇒ `io.open("notes.md", "w")` 把文件名当 mode 又漏报、
+    `io.open("card.md", "r")` 因文件名含 "a" 误报 —— 整改自己打了个洞。
+    本版按接收者是否模块名三分。
 
     fail-closed: mode 不是字面字符串时按**写**处理 —— 一个静态判不出模式的
     open() 正是边界门最该拦下的形态。这条是**刻意的从严**, 代价是
     `mode = "r"; open(p, mode)` 这种动态只读会被误拦; 真遇到时应当细化本函数,
     而不是把 open 从名单里删掉。
     """
-    is_bound_method = isinstance(node.func, ast.Attribute)
-    mode_index = 0 if is_bound_method else 1
+    func = node.func
+    if isinstance(func, ast.Name):
+        mode_index = 1  # 内建 open(path, mode)
+    elif isinstance(func, ast.Attribute):
+        recv_is_module = isinstance(func.value, ast.Name) and func.value.id in (
+            "io",
+            "builtins",
+            "os",
+        )
+        mode_index = 1 if recv_is_module else 0
+    else:
+        return True  # 罕见形态 (下标取函数等) —— 按写处理, fail-closed
     mode = node.args[mode_index] if len(node.args) > mode_index else None
     for kw in node.keywords:
         if kw.arg == "mode":
@@ -209,19 +223,55 @@ def _needle_in_executable_code(source: str, needle: str) -> list[str]:
     return hits
 
 
+def _imported_fs_writers(tree: ast.AST) -> set[str]:
+    """`from os import replace` / `from shutil import copyfileobj` 一类导入的名字。
+
+    r2 整改版把 `from os import replace; replace(a, b)` 归入「import 别名盲区」——
+    归类错了: 这不是别名 (别名是 `as r`), 是**直接导入**, AST 完全可见
+    (Codex r2 MEDIUM-2)。本函数把 FS 模块里属于两档名单的名字记下来,
+    之后按 Name 调用即命中。
+    """
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.ImportFrom):
+            continue
+        if node.module is None:
+            continue
+        # "os.path" → 取顶层 "os" 判模块归属
+        top = node.module.split(".")[0]
+        if top not in FS_MODULE_NAMES:
+            continue
+        for alias in node.names:
+            if alias.name in UNAMBIGUOUS_FS_WRITES or alias.name in AMBIGUOUS_FS_WRITES:
+                names.add(alias.asname or alias.name)
+    return names
+
+
 def _find_write_calls(source: str) -> list[str]:
     """返回源码里全部文件写操作, 形如 ['write_text@L120', 'open(write-mode)@L88']。
 
-    覆盖三种形态:
+    覆盖的形态 (Codex r1 MEDIUM-2 + r2 MEDIUM-1/2 两轮补全):
       1. 直接调用 `p.write_text(x)` / `os.replace(a, b)` / `open(p, "w")`;
-      2. **回调式**引用 `asyncio.to_thread(p.write_text, data)` —— 名字被当值传走,
-         语法上不是 Call。生产的真实持久化通道 `_save_card_states` 用的正是这个
-         形态 (`review_service.py`), 只查 Call 会整条漏掉 (Codex round-1 MEDIUM-2);
-      3. 有歧义的名字只在接收者像文件系统时才算 —— 见 AMBIGUOUS_FS_WRITES。
+      2. **回调式**引用 `asyncio.to_thread(p.write_text, data)` —— 名字被当值
+         传走, 语法上不是 Call。生产的真实持久化通道 `_save_card_states` 用的
+         正是这个形态, 只查 Call 会整条漏掉。r2 整改版只扫第一档的名字,
+         `to_thread(os.replace, a, b)` 仍漏 —— 本版两档都扫 (第二档需接收者
+         判 filesystem);
+      3. 有歧义的名字只在接收者像文件系统时才算 (AMBIGUOUS_FS_WRITES);
+      4. `from os import replace` 后的裸 Name 调用 (r2 MEDIUM-2)。
+
+    已知从严面 (fail-closed 方向, 登记不修):
+      · 变量名含 file/path/dir 等片段的**非文件对象**调用 `.replace()/.copy()`
+        会误拦 (如 `file_text = p.read_text(); file_text.replace(a, b)`) ——
+        赋值追踪超出本门复杂度预算, 宁可误拦逼人看一眼;
+      · `shutil.copyfileobj(buf1, buf2)` 操作两个 BytesIO 是内存复制, 静态
+        判不了参数类型, 会被报为写 —— copyfileobj 确实也能写真文件。
     """
     tree = ast.parse(source)
     found: list[str] = []
     called_attr_nodes: set[int] = set()
+    imported_writers = _imported_fs_writers(tree)
+    write_names = UNAMBIGUOUS_FS_WRITES | AMBIGUOUS_FS_WRITES
 
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
@@ -239,14 +289,19 @@ def _find_write_calls(source: str) -> list[str]:
             found.append(f"{name}@L{node.lineno}")
             continue
         if name in AMBIGUOUS_FS_WRITES:
-            if isinstance(node.func, ast.Attribute) and _receiver_is_filesystem(node.func):
+            if isinstance(node.func, ast.Name) and name in imported_writers:
+                found.append(f"{name}(imported)@L{node.lineno}")
+            elif isinstance(node.func, ast.Attribute) and _receiver_is_filesystem(node.func):
                 found.append(f"{name}@L{node.lineno}")
 
-    # 形态 2: 没有被调用、只是被当值传走的无歧义写方法引用
+    # 形态 2: 没有被调用、只是被当值传走的写方法引用 (两档都扫)
     for node in ast.walk(tree):
-        if isinstance(node, ast.Attribute) and node.attr in UNAMBIGUOUS_FS_WRITES:
-            if id(node) not in called_attr_nodes:
-                found.append(f"{node.attr}(callback-ref)@L{node.lineno}")
+        if not isinstance(node, ast.Attribute) or node.attr not in write_names:
+            continue
+        if id(node) in called_attr_nodes:
+            continue
+        if node.attr in UNAMBIGUOUS_FS_WRITES or _receiver_is_filesystem(node):
+            found.append(f"{node.attr}(callback-ref)@L{node.lineno}")
     return found
 
 
@@ -290,23 +345,31 @@ def test_write_call_checker_is_not_vacuous():
         " 禁读会把「backend 不许溯源 frontmatter」这个缺陷写成规格。"
     )
 
-    # 判据矩阵。前四条是 Codex round-1 MEDIUM-2 给出的反例 —— 早前的一档写法
-    # 在这四条上全错; 把它们钉成用例, 免得改回去时没人发现。
+    # 判据矩阵。含三轮反例: r1 MEDIUM-2 的四条 (绑定 open 写/读带 buffering/
+    # 字符串 replace/回调式写), r2 MEDIUM-1 的三条 (io.open 参数错位), r2
+    # MEDIUM-2 的两条 (第二档回调 / from-import 裸名)。早前版本的具体错向:
+    # r1 版在「绑定 open」两行上错, r2 整改版又在「io.open」三行上回退 ——
+    # 内建 open 两行 r1/r2 都对, 留作回归保护。钉成矩阵免得再改回去。
     cases: list[tuple[str, str, bool]] = [
         # (标签, 源码片段, 期望是否命中)
         ("内建 open 写", "open(p, 'w')", True),
         ("内建 open 读", "open(p)", False),
-        ("绑定 open 写", "Path(p).open('w')", True),  # ← 早前漏报
-        ("绑定 open 读带 buffering", "Path(p).open('r', -1)", False),  # ← 早前误报
-        ("字符串 replace", "s.replace('a', 'b')", False),  # ← 早前误报
-        ("字典 copy", "d.copy()", False),  # ← 早前误报
-        ("列表 remove", "items.remove(x)", False),  # ← 早前误报
+        ("绑定 open 写", "Path(p).open('w')", True),  # ← r1 版漏报
+        ("绑定 open 读带 buffering", "Path(p).open('r', -1)", False),  # ← r1 版误报
+        ("io.open 写", "io.open(p, 'w')", True),  # ← r2 整改版漏报 (文件名被当 mode)
+        ("io.open 读", "io.open(p, 'r')", False),  # ← r2 整改版误报 (文件名含 a 被当追加)
+        ("builtins.open 写", "builtins.open(p, 'w')", True),  # ← r2 整改版漏报
+        ("字符串 replace", "s.replace('a', 'b')", False),  # ← r1 版误报
+        ("字典 copy", "d.copy()", False),  # ← r1 版误报
+        ("列表 remove", "items.remove(x)", False),  # ← r1 版误报
         ("os.replace 真改名", "os.replace(a, b)", True),
         ("shutil.move 真移动", "shutil.move(a, b)", True),
         ("json.dump 写文件", "json.dump(obj, fh)", True),
         ("json.dumps 只产字符串", "json.dumps(obj)", False),
         ("Path 对象 write_text", "Path(p).write_text('x')", True),
-        ("回调式写", "asyncio.to_thread(Path(p).write_text, data)", True),  # ← 早前漏报
+        ("回调式写", "asyncio.to_thread(Path(p).write_text, data)", True),  # ← r1 版漏报
+        ("回调式二档写", "asyncio.to_thread(os.replace, a, b)", True),  # ← r2 整改版漏报
+        ("from-import 裸名写", "from os import replace\n    replace(a, b)", True),  # ← r2 整改版漏报
         ("Path 读", "Path(p).read_text('utf-8')", False),
         ("json.load 读", "json.load(fh)", False),
         ("常量名文件对象写", "_CARD_STATES_FILE.write_text('x')", True),
@@ -321,11 +384,12 @@ def test_write_call_checker_is_not_vacuous():
 
 
 def test_mastery_modules_contain_no_filesystem_writes():
-    """门 ②: 两个 mastery 模块内不存在任何文件系统写调用。
+    """门 ②: 两个 mastery 模块内不存在任何文件系统写操作。
 
     比卡文要求的「不写 .md / 不写 fsrs_card_states.json」更强, 理由写在模块
-    常量 BANNED_WRITE_CALLS 上方: 写目标的路径可以是运行期拼出来的, 静态判不了
-    「写到哪」, 所以判「有没有写」。这两个模块本来就不该碰盘, 该不变量成立。
+    常量 UNAMBIGUOUS_FS_WRITES / AMBIGUOUS_FS_WRITES 上方: 写目标的路径可以
+    是运行期拼出来的, 静态判不了「写到哪」, 所以判「有没有写」。这两个模块
+    本来就不该碰盘, 该不变量成立。
     """
     offenders = {}
     for label, path in TARGET_MODULES.items():
