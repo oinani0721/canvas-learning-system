@@ -44,6 +44,11 @@ unreadable, 并且**计入阻断** —— 「我看不见」不等于「一致�
 产物, 可能根本不在** —— 那时报告明写 `not evaluated`, **不计退出码也不静默**:
 把「没法查」说成「查过了没问题」是假绿。
 
+**optional** (item 级布尔, CARD-G2-7a): 声明了但**允许它不在**。缺失时进 optional-missing 段,
+**不计退出码**。两类用途: ① Obsidian 首次打开自建的配置; ② gitignored 因而模板源里本就没有、
+只在 `--source` 指 live 时才拿得到的件。它只放松「在不在」, **不放松「内容对不对」** ——
+项在位时照常参与 drift/match, 且始终留在 declared_paths 里(否则在位时会被反过来报成 extra)。
+
 退出码 (CARD-RV-G2-6 分四档 —— 调用方要能区分「缺东西」与「多东西」):
   0  没有 missing / extra / content-drift / unreadable / hotkey-orphan
   1  **只有 missing**: 该有的没到位, 补齐即可
@@ -122,6 +127,12 @@ class Item:
     kind: str = ""  # "" 不限 / "dir" 只目录 / "file" 只普通文件 / "nondir" 一切非目录
     origin: str = ""
     note: str = ""
+    # optional (CARD-G2-7a): 声明了但**允许它不在**。缺失时进 optional-missing 段,
+    # **不计退出码**。用于两类项: ① Obsidian 首次打开自建的配置 (app.json 等);
+    # ② gitignored 因而模板源里本就没有、只在 --source 指 live 时才拿得到的件。
+    # ⚠️ 它只放松「在不在」, **不放松「内容对不对」** —— 项在位时照常参与 drift/match,
+    # 且始终留在 declared_paths 里 (否则它在位时会被反过来报成 extra)。
+    optional: bool = False
 
 
 @dataclass(frozen=True)
@@ -181,6 +192,7 @@ class Report:
     content_drift: list[Finding] = field(default_factory=list)
     intentionally_excluded: list[Finding] = field(default_factory=list)
     allowed_extra: list[Finding] = field(default_factory=list)
+    optional_missing: list[Finding] = field(default_factory=list)
     unreadable: list[Finding] = field(default_factory=list)
     hotkey_orphan: list[Finding] = field(default_factory=list)
     hotkeys_note: str = "not evaluated (未检查)"
@@ -192,7 +204,7 @@ class Report:
         unreadable 计入阻断: 读不进去就无法证明一致, 不能报 0。
         missing 与 mismatch 并存时取 **2** —— 「多出来 / 对不上」的那些项需要人判断,
         而 missing 是照单补齐就行的。合并成一个 1 会让调用方分不出这两件事。
-        allowed_extra 与 intentionally_excluded 只报告, 不进退出码。
+        allowed_extra / intentionally_excluded / optional_missing 只报告, 不进退出码。
         """
         if self.content_drift or self.extra or self.unreadable or self.hotkey_orphan:
             return EXIT_MISMATCH
@@ -301,11 +313,15 @@ def load_manifest(path: Path | str) -> Manifest:
         if not isinstance(entry["role"], str) or not entry["role"]:
             raise ManifestError(f"items[{index}] 的 role 必须是非空字符串")
         _require_encodable(entry["role"], f"items[{index}] 的 role")
-        for optional in ("origin", "note"):
-            if optional in entry:
-                if not isinstance(entry[optional], str):
-                    raise ManifestError(f"items[{index}] 的 {optional} 必须是字符串")
-                _require_encodable(entry[optional], f"items[{index}] 的 {optional}")
+        for optional_key in ("origin", "note"):
+            if optional_key in entry:
+                if not isinstance(entry[optional_key], str):
+                    raise ManifestError(f"items[{index}] 的 {optional_key} 必须是字符串")
+                _require_encodable(entry[optional_key], f"items[{index}] 的 {optional_key}")
+        # optional 单独校验: 它是 bool 不是 str。写成字符串 "true" 会被静默当成真值,
+        # 于是一个本该阻断的缺失被放行 —— 类型错直接拒绝加载, 不留模糊地带。
+        if "optional" in entry and not isinstance(entry["optional"], bool):
+            raise ManifestError(f"items[{index}] 的 optional 必须是布尔值, 实为 {type(entry['optional']).__name__}")
         # 先验类型再查枚举: `action: []` / `{}` 这类 unhashable 值直接做集合成员判断会抛
         # TypeError, 逃出 ManifestError 的捕获面, CLI 就给不出承诺的用法错档(EXIT_USAGE=3)。
         if not isinstance(entry["action"], str):
@@ -323,6 +339,7 @@ def load_manifest(path: Path | str) -> Manifest:
                 kind=kind,
                 origin=entry.get("origin", ""),
                 note=entry.get("note", ""),
+                optional=bool(entry.get("optional", False)),
             )
         )
 
@@ -581,6 +598,7 @@ class ExcludeMatcher:
     """manifest 全部 exclude 项的统一判定口径。
 
     分类 (intentionally-excluded)、extra 豁免、目录摘要过滤三处**必须共用它**——
+    (CARD-G2-7a 起 digest 侧还复用它过滤 generate 项, 见 verify() 里的 `generated`)
     三处各写一份判断就会互相漂移: 摘要那一处曾没用上排除规则, 于是一个被正确部署
     (脚本已剪掉 __pycache__) 的 vault 反被报 drift。
     """
@@ -696,6 +714,7 @@ def _digest_pairs(
     excluder: ExcludeMatcher | None = None,
     base: Path | None = None,
     unreadable: list[str] | None = None,
+    generated: ExcludeMatcher | None = None,
 ) -> list[tuple[str, str]]:
     """产出 (相对 base 的路径, 叶子摘要) 对。非目录时只有一条。只读, 单次遍历。
 
@@ -728,6 +747,12 @@ def _digest_pairs(
         child = path / rel if rel else path
         key = f"{root_key}/{rel}" if root_key and rel else (root_key or rel)
         if excluder is not None and base is not None and excluder.is_under_exclusion(base, key, unreadable):
+            continue
+        if generated is not None and base is not None and generated.is_under_exclusion(base, key):
+            # generate 项按定义**每个 vault 都不同**(密钥/绑定值/按 vault 重生), 它的内容
+            # 不参与任何**父目录**的内容摘要 —— 否则「脚本刚生成了 data.json」会被报成
+            # 父插件目录的 content-drift。条目自身的 generate 不评 drift 是既有规则,
+            # 这里只是把它推广到嵌套形态(generate 项落在 copy 目录里面)。
             continue
         if kind == "unreadable":
             _note(key)
@@ -891,6 +916,8 @@ def verify(
         drift_evaluated=source is not None,
     )
     excluder = ExcludeMatcher(manifest.exclude_items)
+    # 摘要过滤用: exclude 项 + generate 项都不参与父目录摘要(见 _digest_pairs)。
+    generated = ExcludeMatcher(tuple(i for i in manifest.items if i.action == "generate"))
     scan_failures_seen: set[str] = set()
 
     for item in manifest.items:
@@ -959,6 +986,19 @@ def verify(
                             detail="模板源那一项查询不到, 无法判断它在不在模板源里",
                         )
                     )
+            if item.optional:
+                # 声明为 optional 的项缺失 ⇒ 只报告, 不进退出码。
+                # 它仍留在 declared_paths 里 —— 在位时不会被反过来报成 extra。
+                report.optional_missing.append(
+                    Finding(
+                        path=item.path,
+                        category="optional-missing",
+                        action=item.action,
+                        role=item.role,
+                        detail=detail or "声明为 optional, 允许缺失 (不计退出码)",
+                    )
+                )
+                continue
             report.missing.append(
                 Finding(
                     path=item.path,
@@ -1001,8 +1041,8 @@ def verify(
                 continue
             src_unreadable: list[str] = []
             tgt_unreadable: list[str] = []
-            src_pairs = _digest_pairs(src, excluder, source, src_unreadable)
-            tgt_pairs = _digest_pairs(target, excluder, vault, tgt_unreadable)
+            src_pairs = _digest_pairs(src, excluder, source, src_unreadable, generated)
+            tgt_pairs = _digest_pairs(target, excluder, vault, tgt_unreadable, generated)
             unreadable_here = src_unreadable + tgt_unreadable
             # 把**任一侧**读不动的位置从两侧同时剔掉再比 —— 否则「两侧内容其实相同、
             # 只有一侧读不动」会因为一边是 U: 标记而摘要不同, 被报成 content-drift,
@@ -1258,6 +1298,7 @@ def render(report: Report, manifest: Manifest) -> str:
         "#            extra_scan 声明的覆盖面 (根级文档不在覆盖面内, 故不报 extra);",
         "#            读不进去的条目记 unreadable 并计入退出码 —— 看不见不等于一致;",
         "#            extra_allow 放行的项进 allowed-extra, 只报告不计退出码;",
+        "#            声明为 optional 的项缺失进 optional-missing, 同样不计退出码;",
         "#            退出码 0 ok / 1 只缺 / 2 多出·漂移·读不动·快捷键孤儿 / 3 用法错。",
         "-" * 66,
         f"match                  : {len(report.match)}",
@@ -1267,6 +1308,7 @@ def render(report: Report, manifest: Manifest) -> str:
         + (str(len(report.content_drift)) if report.drift_evaluated else "not evaluated (无 --source)"),
         f"intentionally-excluded : {len(report.intentionally_excluded)}",
         f"allowed-extra          : {len(report.allowed_extra)}",
+        f"optional-missing       : {len(report.optional_missing)}",
         f"unreadable             : {len(report.unreadable)}",
         f"hotkeys                : {report.hotkeys_note}",
         f"hotkey-orphan          : {len(report.hotkey_orphan)}",
@@ -1279,6 +1321,7 @@ def render(report: Report, manifest: Manifest) -> str:
         ("hotkey-orphan", report.hotkey_orphan),
         ("intentionally-excluded", report.intentionally_excluded),
         ("allowed-extra", report.allowed_extra),
+        ("optional-missing", report.optional_missing),
     ):
         if not findings:
             continue

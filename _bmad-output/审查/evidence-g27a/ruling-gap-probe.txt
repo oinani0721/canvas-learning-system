@@ -1,0 +1,30 @@
+### 裁定表漏项核实
+--- 这三项在 manifest 里吗 ---
+  .claudian : manifest 命中 0 条
+  .quarantine : manifest 命中 0 条
+  .trash : manifest 命中 0 条
+  .obsidian/templates : manifest 命中 0 条
+  .obsidian/themes : manifest 命中 0 条
+--- 它们在 extra_scan 覆盖面内吗（覆盖面 = .claude/* , .obsidian/*.json , .obsidian/plugins/*）---
+   覆盖面: {'dir': '.claude', 'match': '*'}
+   覆盖面: {'dir': '.obsidian', 'match': '*.json'}
+   覆盖面: {'dir': '.obsidian/plugins', 'match': '*'}
+   ⇒ 根级 .claudian / .quarantine / .trash 与 .obsidian/themes/ 均不在任何覆盖面内
+--- live 上这些是什么 ---
+  .claudian    目录, 2 个条目: claudian-settings.json sessions 
+  .quarantine  目录, 1 个条目: UAT-2.5.X-test.md 
+  .trash       目录, 5 个条目: 样稿-错误候选复盘UX-方案A预览.md ai-linked-doc-fill.deprecated-2026-05-01 An-eigenvalue-of-a-linear-transformation.md.cleanup-2026-05-01-v41 
+--- git 是否追踪 ---
+canvas-vault/.claudian/claudian-settings.json
+canvas-vault/.claudian/sessions/conv-1776676336319-sl0k3arzs.meta.json
+canvas-vault/.claudian/sessions/conv-1776729466815-gzzd936ir.meta.json
+canvas-vault/.claudian/sessions/conv-1777538503276-uhmk7u8ol.meta.json
+canvas-vault/.claudian/sessions/conv-1777539396556-9t8uipa1q.meta.json
+canvas-vault/.claudian/sessions/conv-1777544824333-47ssohh5w.meta.json
+canvas-vault/.claudian/sessions/conv-1777612864902-v0pz027xr.meta.json
+canvas-vault/.claudian/sessions/conv-1777615685409-37vsm7od4.meta.json
+  (空 = 均未追踪)
+--- .gitignore 是否点名 ---
+216:canvas-vault/.obsidian/plugins/claudian/
+217:# Obsidian trash (user-deleted files)
+218:canvas-vault/.trash/

@@ -1,0 +1,26 @@
+### vault_init_service 是死管道还是活的？
+--- 谁 import 它 ---
+backend/app/api/v1/system.py:464:    from app.services.vault_init_service import VaultInitService
+--- 测试里的引用 ---
+backend/tests/unit/conftest.py
+backend/tests/unit/test_vault_init_service.py
+backend/tests/unit/test_kg_health.py
+--- 有没有 API 端点暴露它 ---
+backend/app/api/v1/system.py:464:    from app.services.vault_init_service import VaultInitService
+
+--- live vault 上这几个目录实际在不在 ---
+  wiki/concepts          live:有  树:有
+  wiki/canvases          live:有  树:有
+  outputs/exam_boards    live:有  树:有
+  原白板                    live:有  树:有
+  检验白板                   live:有  树:有
+  节点                     live:有  树:有
+  templates              live:有  树:有
+  raw                    live:有  树:有
+--- 树上 wiki/ 里除了 .gitkeep 还有什么 ---
+canvas-vault/wiki/canvases/.gitkeep
+canvas-vault/wiki/concepts/.gitkeep
+--- live wiki/ 里有什么 ---
+.gitkeep
+  concepts 条目数: 1
+  canvases 条目数: 3

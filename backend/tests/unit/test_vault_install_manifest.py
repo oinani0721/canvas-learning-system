@@ -93,7 +93,12 @@ ARRAY_PREFIX = {
     "OBSIDIAN_PLUGINS": ".obsidian/plugins/",
     "ROOT_FILES": "",
 }
-MANIFEST_BLOCK = (63, 67)  # 卡文锚定的 MANIFEST 数组区间 (1-indexed, 含两端)
+MANIFEST_BLOCK = (73, 77)  # MANIFEST 数组区间 (1-indexed, 含两端)
+# ⚠️ CARD-G2-7a 把区间从 (63,67) 下移到 (73,77): 新增 --harness-tree / --backend-url
+#    两个参数与其用法注释加在数组之前。这个常量是**手写的**, 不会自己跟着脚本走 ——
+#    区间写错时 _parse_install_arrays 会解析到别的行、甚至解析到空集,
+#    所以 test_install_arrays_parse_as_expected 那条验伪锚 (断言恰好解析出 5 个数组
+#    且元素数与预期相符) 是这个常量唯一的守门人 —— 改脚本行数时必须让它红一次。
 
 
 def _load_verifier():
@@ -150,14 +155,20 @@ def test_install_arrays_parse_as_expected():
     arrays = _parse_install_arrays()
     assert set(arrays) == set(ARRAY_PREFIX), f"解析到的数组名与预期不符: {sorted(arrays)}"
     counts = {k: len(v) for k, v in arrays.items()}
+    # CARD-G2-7a 后的值（逐条依据见 evidence-g27a/manifest-ruling.md）:
+    #   SKELETON_DIRS 6→8   +wiki/concepts +wiki/canvases（后端 vault_init_service 建它、脚本原本不建）
+    #   CLAUDE_ITEMS  8→6   -settings.local.json（改生成）-mcp.json（退役）
+    #   OBSIDIAN_FILES 6→9  -cls-internal-key.txt（改生成）+templates×2 +themes×2
+    #   OBSIDIAN_PLUGINS 5→4 -claudian（退役）
+    #   ROOT_FILES    2→3   +.mcp.json（git 追踪却从未进过任一数组）
     assert counts == {
-        "SKELETON_DIRS": 6,
-        "CLAUDE_ITEMS": 8,
-        "OBSIDIAN_FILES": 6,
-        "OBSIDIAN_PLUGINS": 5,
-        "ROOT_FILES": 2,
-    }, f"数组元素数与卡文勘探不符: {counts}"
-    assert sum(counts.values()) == 27
+        "SKELETON_DIRS": 8,
+        "CLAUDE_ITEMS": 6,
+        "OBSIDIAN_FILES": 9,
+        "OBSIDIAN_PLUGINS": 4,
+        "ROOT_FILES": 3,
+    }, f"数组元素数与预期不符: {counts}"
+    assert sum(counts.values()) == 30
 
 
 def test_manifest_matches_install_arrays():
@@ -168,30 +179,57 @@ def test_manifest_matches_install_arrays():
     from_manifest = {i["path"] for i in data["items"] if i["action"] in ("copy", "skeleton")}
     assert from_manifest - from_script == set(), "manifest 多出脚本没有的项"
     assert from_script - from_manifest == set(), "脚本数组有项未进 manifest"
-    assert len(from_manifest) == 27
+    assert len(from_manifest) == 30
 
 
 def test_manifest_covers_implicit_and_generated_semantics():
-    """:68/:69 的排除语义、:84/:86 两个隐含 exclude、:103-109 的 generate 都要有 item。"""
+    """排除语义、两个隐含 exclude、generate 段都要有 item。
+
+    ⚠️ CARD-G2-7a 后行号整体下移（脚本加了 --harness-tree / --backend-url 与生成件段）:
+    `:68/:69`→`:78`、`:84`→`:94`、`:86`→`:96`、`:103-109`→`:116-130`；
+    `:74`（骨架 mkdir 循环）→`:84`。origin 是**手写**的, 不会自己跟着脚本走 ——
+    这条门就是它的守门人。
+    """
     data = json.loads(MANIFEST.read_text(encoding="utf-8"))
     origins = {i["origin"] for i in data["items"]}
     for required in (
-        "install-vault.sh:68",
-        "install-vault.sh:69",
-        "install-vault.sh:84",
-        "install-vault.sh:86",
-        "install-vault.sh:103-109",
+        "install-vault.sh:78",  # 「明确不复制」注释块
+        "install-vault.sh:84",  # 骨架 mkdir 循环
+        "install-vault.sh:94",  # find __pycache__ -prune
+        "install-vault.sh:96",  # rm pending_archives*.jsonl
+        "install-vault.sh:116-130",  # yaml 生成器 heredoc
+        "install-vault.sh:132-171 (生成件段)",
     ):
         assert required in origins, f"缺少源自 {required} 的 item"
     by_origin = {}
     for i in data["items"]:
         by_origin.setdefault(i["origin"], []).append(i)
-    # :84 的 find 只在 "$TARGET/.claude" 下剪 __pycache__ — 模式必须带该前缀,
+    # :94 的 find 只在 "$TARGET/.claude" 下剪 __pycache__ — 模式必须带该前缀,
     # 写成全树 `**/__pycache__` 就比源语义宽了。
-    assert [i["path"] for i in by_origin["install-vault.sh:84"]] == [".claude/**/__pycache__"]
-    assert [i["path"] for i in by_origin["install-vault.sh:86"]] == [".claude/hooks/pending_archives*.jsonl"]
-    generated = [i for i in data["items"] if i["action"] == "generate"]
-    assert [i["path"] for i in generated] == [".canvas-config.yaml"]
+    assert [i["path"] for i in by_origin["install-vault.sh:94"]] == [".claude/**/__pycache__"]
+    assert [i["path"] for i in by_origin["install-vault.sh:96"]] == [".claude/hooks/pending_archives*.jsonl"]
+    # 每条 origin 都要真的指向脚本里存在的行（防「行号写错但没人发现」）
+    import re as _re
+
+    sh_lines = INSTALL_SH.read_text(encoding="utf-8").splitlines()
+    for o in origins:
+        m = _re.match(r"install-vault\.sh:(\d+)", o)
+        if m:
+            n = int(m.group(1))
+            assert 1 <= n <= len(sh_lines), f"origin {o} 指向脚本外的行（脚本 {len(sh_lines)} 行）"
+
+    # CARD-G2-7a: generate 由 1 条扩到 5 条 —— 每 vault 应当**不同**的东西一律生成不复制
+    generated = sorted(i["path"] for i in data["items"] if i["action"] == "generate")
+    assert generated == [
+        ".canvas-config.yaml",
+        ".claude/settings.local.json",
+        ".obsidian/cls-internal-key.txt",
+        ".obsidian/plugins/canvas-learning-system/data.json",
+        ".obsidian/plugins/templater-obsidian/data.json",
+    ], f"generate 清单不符: {generated}"
+    # 其中 4 条带 optional（除 .canvas-config.yaml —— 脚本无条件生成它, 必须在）
+    gen_opt = sorted(i["path"] for i in data["items"] if i["action"] == "generate" and i.get("optional"))
+    assert len(gen_opt) == 4 and ".canvas-config.yaml" not in gen_opt, f"generate+optional 不符: {gen_opt}"
 
 
 def test_manifest_has_no_absolute_paths_and_no_secrets_inline():
@@ -210,7 +248,7 @@ def test_manifest_is_template_free():
     banned = {"sha256", "sha", "checksum", "content", "bytes", "size", "hash"}
     for item in data["items"]:
         assert not (set(item) & banned), f"{item['path']} 携带了内容基线字段"
-    assert data["source"] == "live-vault"
+    assert data["source"] == "harness-canvas-vault"  # E-4: 模板源改为 harness 树的 canvas-vault/
 
 
 # ── schema (钉死点 2) ─────────────────────────────────────────────────
@@ -307,7 +345,9 @@ def test_clean_pair_is_all_match(vault_pair, tmp_path):
     assert result.extra == []
     assert result.content_drift == []
     assert result.intentionally_excluded == []
-    assert len(result.match) == 28  # 27 数组项 + .canvas-config.yaml (generate)
+    # 30 数组项 + .canvas-config.yaml（generate，夹具显式造）= 31。
+    # 其余 4 条 generate 项夹具不造 ⇒ 它们都带 optional ⇒ 进 optional-missing 不进 match。
+    assert len(result.match) == 31
 
 
 # ── 四类 diff 各自独立承重 (钉死点 3) ──────────────────────────────────
@@ -335,8 +375,10 @@ def test_missing_is_detected_alone(vault_pair):
 
 def test_extra_is_detected_alone(vault_pair):
     source, target = vault_pair
-    (target / ".claude" / "cache").mkdir()
-    _assert_only(_classify(target, source=source), "extra", [".claude/cache"])
+    # ⚠️ 不能再用 .claude/cache —— CARD-G2-7a 把它放进 extra_allow 了, 它现在进
+    # allowed-extra 而不是 extra。换一个**不在**白名单里的名字, 这条门才还在测 extra。
+    (target / ".claude" / "probe-extra").mkdir()
+    _assert_only(_classify(target, source=source), "extra", [".claude/probe-extra"])
     assert _run(target, source=source) == 2
 
 
@@ -1139,7 +1181,8 @@ def test_dangling_symlink_exclude_is_registered(vault_pair):
 def test_skeleton_content_excludes_are_pinned(vault_pair):
     """LOW 回归: `raw/**` 与 `templates/**` 删掉后曾仍然全绿——现在钉住它们。
 
-    `:74` 的 mkdir 循环对六个骨架目录一视同仁，清单必须逐个声明「内容不复制」。
+    骨架 mkdir 循环对**全部**骨架目录一视同仁，清单必须逐个声明「内容不复制」。
+    ⚠️ CARD-G2-7a 后该循环由 `:74` 移到 `:84`（脚本加了两个参数与用法注释）。
     """
     _source, target = vault_pair
     (target / "raw" / "lecture.pdf").write_text("x", encoding="utf-8")
@@ -1149,7 +1192,7 @@ def test_skeleton_content_excludes_are_pinned(vault_pair):
     assert "raw/**" in got, "raw 下的遗留内容必须被登记为「故意不复制」"
     assert "templates/**" in got
     data = json.loads(MANIFEST.read_text(encoding="utf-8"))
-    by_origin = [i["path"] for i in data["items"] if i["origin"] == "install-vault.sh:74"]
+    by_origin = [i["path"] for i in data["items"] if i["origin"] == "install-vault.sh:84"]
     assert sorted(by_origin) == ["raw/**", "templates/**"]
 
 
@@ -1247,7 +1290,7 @@ def test_missing_and_mismatch_together_take_mismatch(vault_pair):
     only_missing = _classify(target)
     assert [f.path for f in only_missing.missing] == [".obsidian/hotkeys.json"]
     assert only_missing.exit_code == vv.EXIT_MISSING == 1
-    (target / ".claude" / "cache").mkdir(parents=True)
+    (target / ".claude" / "probe-extra").mkdir(parents=True)  # cache 已进 extra_allow, 换名
     both = _classify(target)
     assert both.missing and both.extra
     assert both.exit_code == vv.EXIT_MISMATCH == 2
@@ -1255,23 +1298,29 @@ def test_missing_and_mismatch_together_take_mismatch(vault_pair):
 
 def test_extra_allow_moves_entry_out_of_extra(tmp_path, vault_pair, manifest_data):
     """(g)① extra_allow 放行的项进 allowed-extra 且不计 rc; 未放行仍是 extra(2)。"""
+    # ⚠️ 不能再用 graph.json —— CARD-G2-7a 已把它写进仓内 extra_allow, 「未放行」那一半
+    # 会拿不到 extra。用一个**不在**白名单里的名字, 翻转的两端才都成立。
+    probe = ".obsidian/probe-extra.json"
     _source, target = vault_pair
-    (target / ".obsidian" / "graph.json").write_text("{}", encoding="utf-8")
+    (target / ".obsidian" / "probe-extra.json").write_text("{}", encoding="utf-8")
 
-    base = tmp_path / "base.json"
-    base.write_text(json.dumps(manifest_data), encoding="utf-8")
-    before = vv.verify(target, vv.load_manifest(base))
-    assert [f.path for f in before.extra] == [".obsidian/graph.json"], "未放行时必须是 extra"
+    base = json.loads(json.dumps(manifest_data))
+    base["extra_allow"] = [e for e in base.get("extra_allow", []) if e != probe]
+    base_path = tmp_path / "base.json"
+    base_path.write_text(json.dumps(base), encoding="utf-8")
+    before = vv.verify(target, vv.load_manifest(base_path))
+    assert [f.path for f in before.extra] == [probe], "未放行时必须是 extra"
     assert before.exit_code == vv.EXIT_MISMATCH == 2
     assert not before.allowed_extra
 
-    manifest_data["extra_allow"] = [".obsidian/graph.json"]
+    allowed = json.loads(json.dumps(manifest_data))
+    allowed["extra_allow"] = list(manifest_data.get("extra_allow", [])) + [probe]
     allow = tmp_path / "allow.json"
-    allow.write_text(json.dumps(manifest_data), encoding="utf-8")
+    allow.write_text(json.dumps(allowed), encoding="utf-8")
     manifest = vv.load_manifest(allow)
     after = vv.verify(target, manifest)
     assert after.extra == [], "放行后不得再计入 extra"
-    assert [f.path for f in after.allowed_extra] == [".obsidian/graph.json"]
+    assert probe in [f.path for f in after.allowed_extra]
     assert after.exit_code == vv.EXIT_OK == 0, "allowed-extra 不计退出码"
     assert "## allowed-extra" in vv.render(after, manifest)
 
@@ -1288,11 +1337,25 @@ def test_extra_allow_glob_is_supported(tmp_path, vault_pair, manifest_data):
     assert result.exit_code == vv.EXIT_OK
 
 
-def test_manifest_ships_empty_extra_allow():
-    """本卡只造机制不替 U3-B 裁定 —— 仓内清单的初值必须是空列表。"""
+def test_manifest_ships_the_five_ruled_extra_allow_entries():
+    """CARD-G2-7a 裁定：live 那 5 个 extra 逐字进 extra_allow（U3-A 时初值是 []）。
+
+    ⛔ **逐字列出，不得用 glob**：`.obsidian/plugins/*` 这类会与已声明的插件项重叠，
+    U3-A 的重叠检查会直接 `ManifestError`（那是设计，不是 bug）。
+    """
     data = json.loads(MANIFEST.read_text(encoding="utf-8"))
-    assert data["extra_allow"] == [], "extra_allow 初值必须为 [] (live 5 项归 U3-B 裁定)"
+    assert sorted(data["extra_allow"]) == sorted(
+        [
+            ".claude/cache",
+            ".obsidian/graph.json",
+            ".obsidian/types.json",
+            ".obsidian/plugins/excalibrain",
+            ".obsidian/plugins/obsidian-excalidraw-plugin",
+        ]
+    ), f"extra_allow 与裁定表不符: {data['extra_allow']}"
+    assert not any("*" in e for e in data["extra_allow"]), "不得用 glob（会与 declared 重叠）"
     assert "extra_allow" in data["description"], "description 须说明 extra_allow 语义"
+    assert "optional" in data["description"], "description 须说明 optional 语义"
 
 
 @pytest.mark.parametrize("bad", ["not-a-list", {"a": 1}, 5, None])
@@ -1437,7 +1500,13 @@ def test_install_sh_skills_check_counts_skill_md_dirs(tmp_path):
     树内 .claude/skills 有 11 个目录但只有 9 个含 SKILL.md —— 旧 `ls | wc -l`
     对「有目录没 SKILL.md」的半成品 skill 失明。
     """
-    line = INSTALL_SH.read_text(encoding="utf-8").splitlines()[116]
+    # 按**内容**定位, 不按行号索引: U3-A 写这条门时用的是 splitlines()[116],
+    # CARD-G2-7a 在它上面加了两个参数与用法注释, 行号就指到别处去了 (门变红且理由离谱)。
+    # 硬编码行号的门, 寿命只到下一次有人在它上面插一行为止。
+    lines = INSTALL_SH.read_text(encoding="utf-8").splitlines()
+    hits = [ln for ln in lines if ln.startswith("check ") and "skills" in ln]
+    assert len(hits) == 1, f"skills 自检行应当恰好一条, 实得 {len(hits)}: {hits}"
+    line = hits[0]
     # 判据只看 check 的第二个参数(单引号包住的 eval 体), 不看标签 ——
     # 标签里的 "skills " 本身就含子串 "ls ", 拿整行做黑名单会因无关文本假红。
     assert line.count("'") == 2, f":117 不是「check \"标签\" '判据'」的形态: {line}"
@@ -1450,7 +1519,9 @@ def test_install_sh_skills_check_counts_skill_md_dirs(tmp_path):
 
     # 行为断言: 只查命令字符串挡不住「给判据加 `|| true`」这类退化, 必须真跑一次。
     # 抽 :113(check 函数定义) + :117 两行喂给 bash, 不跑整个脚本(它会建目录)。
-    two_lines = "\n".join(INSTALL_SH.read_text(encoding="utf-8").splitlines()[112:113] + [line])
+    check_def = [ln for ln in lines if ln.startswith("check() {")]
+    assert len(check_def) == 1, f"check() 定义应当恰好一条, 实得 {len(check_def)}"
+    two_lines = "\n".join(check_def + [line])
 
     def _probe(root: Path) -> str:
         return subprocess.run(
@@ -1489,6 +1560,18 @@ def test_install_sh_skills_check_counts_skill_md_dirs(tmp_path):
             (shy / ".claude" / "skills" / f"s{i}" / "SKILL.md").write_text("# s", encoding="utf-8")
     (shy / ".claude" / "skills" / "s7" / "scripts").mkdir()
     assert "❌" in _probe(shy), "无入口文件的半成品 skill 不得计为完成"
+
+
+# ── CARD-G2-7a: manifest v2（E-4 模板源 = harness 树 + optional 语义 + 裁定表落地）──
+#   新增/改动的门:
+#     optional 四门(缺失不计 rc / 在位仍比 drift / 在位不报 extra / 类型校验)
+#     yaml 2.1 两门(生成器六键 + 后端单键兼容)
+#     裁定表落地三门(五项 allow / 四条改动 / 后端-脚本骨架不漂移)
+#     key 自检反向门 | 树 HEAD 自洽门(常驻 E-4)
+#     generate 项不参与父目录摘要门
+#   钉点迁移: 数组计数 6/8/6/5/2 → 8/6/9/4/3 (合计 27→30);
+#     MANIFEST_BLOCK (63,67)→(73,77); match 28→31; declared 28→35;
+#     origin 全量按行号重测(:68→:78, :84→:94, :86→:96, :103-109→:116-130)
 
 
 # ── CARD-RV-G2-6 round-2 整改的门（Codex round-1 结论）────────────────
@@ -1621,14 +1704,20 @@ def test_declared_paths_has_a_single_source_of_truth():
     """
     manifest = vv.load_manifest(MANIFEST)
     assert vv._declared_paths(manifest.items) == manifest.declared_paths
-    # 28 而不是 27: declared 是 copy+skeleton+**generate**, 比集合等价门那 27 项多
-    # 一条 .canvas-config.yaml。两个数字各有出处, 不得互抄 —— 抄错正是本条的来历。
-    assert len(manifest.declared_paths) == 28
+    # 35 而不是 30: declared 是 copy+skeleton+**generate**, 比集合等价门那 30 项多
+    # 5 条 generate。两个数字各有出处, 不得互抄 —— 抄错正是本条的来历。
+    assert len(manifest.declared_paths) == 35
     assert manifest.declared_paths - {
         i["path"]
         for i in json.loads(MANIFEST.read_text(encoding="utf-8"))["items"]
         if i["action"] in ("copy", "skeleton")
-    } == {".canvas-config.yaml"}
+    } == {
+        ".canvas-config.yaml",
+        ".claude/settings.local.json",
+        ".obsidian/cls-internal-key.txt",
+        ".obsidian/plugins/canvas-learning-system/data.json",
+        ".obsidian/plugins/templater-obsidian/data.json",
+    }
 
 
 def test_extra_allow_overlap_check_uses_the_same_declared_set_as_the_property(tmp_path, manifest_data):
@@ -2071,3 +2160,363 @@ def test_source_side_query_failure_enters_the_unreadable_bucket(tmp_path, vault_
         assert result.exit_code == vv.EXIT_MISMATCH == 2, "不得只报 rc=1「只缺东西」"
     finally:
         os.chmod(source, 0o755)
+
+
+# ── CARD-G2-7a: manifest item 级 optional ────────────────────────────
+
+
+def _manifest_with(tmp_path, manifest_data, name="opt.json"):
+    m = tmp_path / name
+    m.write_text(json.dumps(manifest_data), encoding="utf-8")
+    return m
+
+
+def _mark_optional(manifest_data, path, flag=True):
+    """把**既有**条目标成 optional —— 不能追加同 path 的新条目(会触发重复声明校验)。
+
+    这也更贴近本卡的实际做法: (b) 裁定表是给现有条目加 `optional: true`, 不是新增条目。
+    """
+    data = json.loads(json.dumps(manifest_data))  # 深拷贝, 不污染 fixture
+    hit = [i for i in data["items"] if i["path"] == path]
+    assert len(hit) == 1, f"前提: {path} 在清单里恰好一条, 实得 {len(hit)}"
+    if flag:
+        hit[0]["optional"] = True
+    else:
+        hit[0].pop("optional", None)
+    return data
+
+
+def test_optional_missing_is_reported_but_does_not_block(tmp_path, vault_pair, manifest_data):
+    """(g)② optional 项缺失 → optional-missing 段 + rc **0**；非 optional 缺失 → rc 1。
+
+    这是本卡的核心语义：E-4 之后一批 declared 项在 git 树上本就不存在
+    （`.gitignore` 让 Obsidian 配置、第三方插件、插件 data.json 都不入库），
+    「树自身跑校验器」必须能 rc 0，否则部署链上没有一个绿的基线态。
+    """
+    _source, target = vault_pair
+    (target / ".obsidian" / "app.json").write_text("{}", encoding="utf-8")  # 先造出来再删, 确保路径可控
+    (target / ".obsidian" / "app.json").unlink()
+
+    # 对照组: 同一条目**不带** optional ⇒ 仍是 missing、rc 1
+    plain = _mark_optional(manifest_data, ".obsidian/app.json", flag=False)
+    before = vv.verify(target, vv.load_manifest(_manifest_with(tmp_path, plain, "plain.json")))
+    assert ".obsidian/app.json" in [f.path for f in before.missing]
+    # 同样收敛到被测那一项 —— 别的 optional 项缺失不影响「这一条是不是 missing」
+    assert ".obsidian/app.json" not in [f.path for f in before.optional_missing]
+    assert before.exit_code == vv.EXIT_MISSING == 1
+
+    # 处理组: 同一条目带 optional ⇒ 进 optional-missing、rc 0
+    opt = _mark_optional(manifest_data, ".obsidian/app.json")
+    manifest = vv.load_manifest(_manifest_with(tmp_path, opt, "opt.json"))
+    after = vv.verify(target, manifest)
+    assert ".obsidian/app.json" not in [f.path for f in after.missing], "optional 项不得再进 missing"
+    # ⚠️ 断言收敛到**被测那一项**: 仓内清单现在有 12 条 optional, 夹具不造其中多数,
+    # 所以 optional_missing 本来就不为空 —— 要求它全局为空是错的判据。
+    assert ".obsidian/app.json" in [f.path for f in after.optional_missing]
+    assert after.exit_code == vv.EXIT_OK == 0, "optional 缺失不得计入退出码"
+    assert "## optional-missing" in vv.render(after, manifest)
+
+
+def test_optional_item_present_still_participates_in_drift(vault_pair, tmp_path, manifest_data):
+    """optional 只放松「在不在」，**不放松「内容对不对」** —— 在位时照常参与 drift。"""
+    source, target = vault_pair
+    (source / ".obsidian" / "app.json").write_text("AAA", encoding="utf-8")
+    (target / ".obsidian" / "app.json").write_text("BBB", encoding="utf-8")
+    data = _mark_optional(manifest_data, ".obsidian/app.json")
+    result = vv.verify(target, vv.load_manifest(_manifest_with(tmp_path, data, "drift.json")), source_dir=source)
+    assert [f.path for f in result.content_drift] == [".obsidian/app.json"], "optional 项在位时仍要比内容"
+    # 被测那一项**在位** ⇒ 它不该出现在 optional-missing 里（别的 optional 项缺失不影响本判据）
+    assert ".obsidian/app.json" not in [f.path for f in result.optional_missing]
+    assert result.exit_code == vv.EXIT_MISMATCH == 2
+
+
+def test_optional_item_present_is_not_reported_as_extra(vault_pair, tmp_path, manifest_data):
+    """optional 项始终留在 declared_paths 里 —— 在位时不得被反过来报成 extra。"""
+    _source, target = vault_pair
+    (target / ".obsidian" / "app.json").write_text("{}", encoding="utf-8")
+    data = _mark_optional(manifest_data, ".obsidian/app.json")
+    manifest = vv.load_manifest(_manifest_with(tmp_path, data, "decl.json"))
+    assert ".obsidian/app.json" in manifest.declared_paths
+    result = vv.verify(target, manifest)
+    assert [f.path for f in result.extra] == [], (
+        f"在位的 optional 项不得报 extra, 实得 {[f.path for f in result.extra]}"
+    )
+    assert result.exit_code == vv.EXIT_OK
+
+
+@pytest.mark.parametrize("bad", ["true", 1, 0, None, [], {}])
+def test_optional_must_be_a_boolean(tmp_path, manifest_data, bad):
+    """optional 写成字符串 "true" 会被静默当真值 ⇒ 一个本该阻断的缺失被放行。类型错直接拒绝加载。"""
+    data = json.loads(json.dumps(manifest_data))
+    data["items"].append(
+        {"path": "probe-optional-type", "role": "t", "action": "copy", "optional": bad, "origin": "test-only"}
+    )
+    m = _manifest_with(tmp_path, data, "badopt.json")
+    with pytest.raises(vv.ManifestError) as exc:
+        vv.load_manifest(m)
+    assert "optional" in str(exc.value) and "布尔" in str(exc.value)
+
+
+def test_optional_type_error_uses_the_usage_exit_code(tmp_path, vault_pair, manifest_data):
+    """optional 非 bool 走用法错档 3（配置错，不是内容差异）。"""
+    _source, target = vault_pair
+    data = json.loads(json.dumps(manifest_data))
+    data["items"].append(
+        {"path": "probe-optional-type", "role": "t", "action": "copy", "optional": "true", "origin": "test-only"}
+    )
+    m = _manifest_with(tmp_path, data, "badopt2.json")
+    assert vv.main(["--vault", str(target), "--manifest", str(m)]) == vv.EXIT_USAGE == 3
+
+
+# ── CARD-G2-7a: .canvas-config.yaml schema 2.1 ───────────────────────
+
+YAML_SCHEMA_VERSION = "2.1-vault-harness-2026-09-07"
+
+
+def _extract_yaml_generator() -> str:
+    """按**内容**切出 yaml 生成器那段 heredoc（不写死行号——见 skills 门那条教训）。"""
+    lines = INSTALL_SH.read_text(encoding="utf-8").splitlines()
+    starts = [i for i, ln in enumerate(lines) if ln.startswith('cat > "$TARGET/.canvas-config.yaml" <<EOF')]
+    assert len(starts) == 1, f"yaml 生成器应当恰好一处, 实得 {len(starts)}"
+    i = starts[0]
+    ends = [j for j in range(i + 1, len(lines)) if lines[j] == "EOF"]
+    assert ends, "找不到 heredoc 的 EOF 结束行"
+    return "\n".join(lines[i : ends[0] + 1])
+
+
+def test_generated_yaml_is_schema_2_1_with_the_three_new_keys(tmp_path):
+    """(f) 生成器产出 schema 2.1，含 backend_url / harness_tree / push_enabled 三个新键。
+
+    `schema_version` 的字面量写死在这里 —— CARD-G2-7b 与 U5-B 引用**同一串**，
+    三处对不上就是部署链断了，而这种断裂平时没有任何信号。
+    """
+    yaml = pytest.importorskip("yaml")
+    target = tmp_path / "probe-vault"
+    target.mkdir()
+    harness = tmp_path / "harness-tree"
+    harness.mkdir()
+    done = subprocess.run(
+        ["bash", "-c", _extract_yaml_generator()],
+        env={
+            **os.environ,
+            "TARGET": str(target),
+            "VAULT_NAME": "probe",
+            "SUBJECT": "probe-subject",
+            "HARNESS_TREE": str(harness),
+            "BACKEND_URL": "http://127.0.0.1:8123",
+        },
+        capture_output=True,
+        text=True,
+    )
+    assert done.returncode == 0, f"生成器跑失败: {done.stderr}"
+    produced = target / ".canvas-config.yaml"
+    assert produced.exists(), "生成器没有产出 yaml"
+    parsed = yaml.safe_load(produced.read_text(encoding="utf-8"))
+
+    required = {"vault_id", "subject", "schema_version", "backend_url", "harness_tree", "push_enabled"}
+    assert required <= set(parsed), f"yaml 缺键: {sorted(required - set(parsed))}"
+    assert parsed["schema_version"] == YAML_SCHEMA_VERSION
+    assert parsed["schema_version"].startswith("2.1-")
+    assert parsed["vault_id"] == "probe"
+    assert parsed["subject"] == "probe-subject"
+    assert parsed["backend_url"] == "http://127.0.0.1:8123", "backend_url 必须取 --backend-url 的值"
+    assert parsed["harness_tree"] == str(harness), "harness_tree 必须是传入的绝对路径"
+    assert parsed["push_enabled"] is False, "push_enabled 缺省必须是 false（--also-push 归 U3-C）"
+
+
+def test_backend_still_reads_vault_id_from_schema_2_1(tmp_path):
+    """后端对新键**天然兼容** —— 它用单键 `.get`，没有 schema_version 校验。
+
+    这条门证的是「加键不会把后端弄坏」。若哪天后端加了 schema 白名单，它会红。
+    """
+    yaml = pytest.importorskip("yaml")
+    target = tmp_path / "probe-vault-2"
+    target.mkdir()
+    harness = tmp_path / "h2"
+    harness.mkdir()
+    done = subprocess.run(
+        ["bash", "-c", _extract_yaml_generator()],
+        env={
+            **os.environ,
+            "TARGET": str(target),
+            "VAULT_NAME": "probe",
+            "SUBJECT": "x",
+            "HARNESS_TREE": str(harness),
+            "BACKEND_URL": "http://127.0.0.1:8123",
+        },
+        capture_output=True,
+        text=True,
+    )
+    assert done.returncode == 0
+    # sanitize_vault_id 就定义在 config.py（不是 graphiti.group_id_compat —— 实测更正）
+    from app.config import Settings, sanitize_vault_id
+
+    assert Settings(CANVAS_BASE_PATH=str(target)).vault_id == sanitize_vault_id("probe")
+
+
+# ── CARD-G2-7a (g)③④⑧: 裁定表落地的行为门 ─────────────────────────
+
+
+def test_five_ruled_extra_entries_become_allowed_extra(vault_pair):
+    """(g)③ live 那 5 个 extra 在新清单下进 allowed-extra，rc 0（U3-A 时是 extra、rc 2）。"""
+    _source, target = vault_pair
+    (target / ".claude" / "cache").mkdir(parents=True, exist_ok=True)
+    (target / ".obsidian" / "graph.json").write_text("{}", encoding="utf-8")
+    (target / ".obsidian" / "types.json").write_text("{}", encoding="utf-8")
+    (target / ".obsidian" / "plugins" / "excalibrain").mkdir(parents=True, exist_ok=True)
+    (target / ".obsidian" / "plugins" / "obsidian-excalidraw-plugin").mkdir(parents=True, exist_ok=True)
+    manifest = vv.load_manifest(MANIFEST)
+    result = vv.verify(target, manifest)
+    assert sorted(f.path for f in result.allowed_extra) == sorted(
+        [
+            ".claude/cache",
+            ".obsidian/graph.json",
+            ".obsidian/types.json",
+            ".obsidian/plugins/excalibrain",
+            ".obsidian/plugins/obsidian-excalidraw-plugin",
+        ]
+    )
+    assert result.extra == [], f"这 5 项都该被放行, 实得 extra={[f.path for f in result.extra]}"
+    assert result.exit_code == vv.EXIT_OK == 0
+    assert "## allowed-extra" in vv.render(result, manifest)
+
+
+def test_ruling_table_landed_in_the_manifest():
+    """(g)④ 裁定表的四条关键改动真的落到了清单里（不是只写在文档中）。"""
+    data = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    by = {i["path"]: i for i in data["items"]}
+    copy_set = {i["path"] for i in data["items"] if i["action"] == "copy"}
+    exclude_set = {i["path"] for i in data["items"] if i["action"] == "exclude"}
+
+    # ① 根级 .mcp.json 进 copy（git 追踪却从未进过任一数组）
+    assert ".mcp.json" in copy_set
+    # ② .claude/mcp.json 退役：出 copy、进 exclude
+    assert ".claude/mcp.json" not in copy_set and ".claude/mcp.json" in exclude_set
+    assert "sse" in by[".claude/mcp.json"]["note"] or "SSE" in by[".claude/mcp.json"]["note"]
+    # ③ claudian 退役
+    assert ".obsidian/plugins/claudian" not in copy_set
+    assert ".obsidian/plugins/claudian" in exclude_set
+    # ④ 密钥件改生成 + optional
+    key = by[".obsidian/cls-internal-key.txt"]
+    assert key["action"] == "generate" and key.get("optional") is True
+    # ⑤ 本卡新补的两条 skeleton（交叉真相源找出的缺口）
+    skeleton_set = {i["path"] for i in data["items"] if i["action"] == "skeleton"}
+    assert {"wiki/concepts", "wiki/canvases"} <= skeleton_set
+
+
+def test_backend_and_script_skeleton_definitions_do_not_diverge_on_wiki():
+    """(g)④ 附加：两个「新 vault 需要哪些目录」的真相源在 wiki 上必须一致。
+
+    `backend/app/services/vault_init_service.py` 的 `VAULT_DIRECTORIES` 是**第二份**定义。
+    本卡之前两者只在 `raw` 上重合 —— `wiki/concepts` / `wiki/canvases` 后端建、脚本不建,
+    而 skills 与 MCP 工具都引用这些路径 ⇒ 新部署的 vault 拿不到。
+    这条门盯住**已经对齐的那部分**不再漂回去。
+    """
+    init_src = (BACKEND_DIR / "app" / "services" / "vault_init_service.py").read_text(encoding="utf-8")
+    block = re.search(r"VAULT_DIRECTORIES\s*=\s*\[(.*?)\]", init_src, re.S)
+    assert block, "找不到 VAULT_DIRECTORIES（后端骨架定义改名了？）"
+    backend_dirs = set(re.findall(r'"([^"]+)"', block.group(1)))
+    assert {"wiki/concepts", "wiki/canvases"} <= backend_dirs, "前提: 后端确实定义了这两个目录"
+
+    arrays = _parse_install_arrays()
+    script_dirs = set(arrays["SKELETON_DIRS"])
+    assert {"wiki/concepts", "wiki/canvases"} <= script_dirs, (
+        f"脚本骨架必须包含后端也建的 wiki 两件, 实得 {sorted(script_dirs)}"
+    )
+    # 如实登记仍未对齐的部分（本卡不修, 见 manifest-ruling.md §2.2）
+    assert "outputs/exam_boards" in backend_dirs, "前提: 后端还建 outputs/exam_boards"
+    assert "outputs/exam_boards" not in script_dirs, (
+        "outputs/exam_boards 本卡刻意不加（与 outputs/** exclude 冲突），若已加请同步更新裁定表"
+    )
+
+
+def test_key_self_check_is_reversed(tmp_path):
+    """(g)⑧ 密钥件自检**反向**：源目标同字节 → ❌；目标没有 key → ✅。
+
+    E-3 各 vault 各 key：从模板源复制过来就是错的，自检要抓的正是「复制过来了」。
+    抽行 eval，不真跑脚本。
+    """
+    lines = INSTALL_SH.read_text(encoding="utf-8").splitlines()
+    check_def = [ln for ln in lines if ln.startswith("check() {")]
+    key_line = [ln for ln in lines if ln.startswith("check ") and "cls-internal-key" in ln]
+    assert len(check_def) == 1 and len(key_line) == 1, "check 定义 / key 自检行应各恰一条"
+    assert "! cmp -s" in key_line[0], "必须是反向判（! cmp）"
+    snippet = "\n".join(check_def + key_line)
+
+    def _probe(source, target):
+        return subprocess.run(
+            ["bash", "-c", snippet],
+            env={**os.environ, "SOURCE": str(source), "TARGET": str(target)},
+            capture_output=True,
+            text=True,
+        ).stdout
+
+    src = tmp_path / "src"
+    (src / ".obsidian").mkdir(parents=True)
+    (src / ".obsidian" / "cls-internal-key.txt").write_text("SECRET-A\n", encoding="utf-8")
+
+    # 负控: 目标的 key 与源逐字节相同 = 被复制过来了 ⇒ ❌
+    copied = tmp_path / "copied"
+    (copied / ".obsidian").mkdir(parents=True)
+    (copied / ".obsidian" / "cls-internal-key.txt").write_text("SECRET-A\n", encoding="utf-8")
+    assert "❌" in _probe(src, copied), "从源复制过来的 key 必须被抓住"
+
+    # 正控一: 目标没有 key（本卡的期望态——由 activate 步重生）⇒ ✅
+    absent = tmp_path / "absent"
+    (absent / ".obsidian").mkdir(parents=True)
+    assert "✅" in _probe(src, absent), "目标没有 key 是期望态"
+
+    # 正控二: 目标有一个**不同**的 key（activate 步已重生）⇒ ✅
+    regen = tmp_path / "regen"
+    (regen / ".obsidian").mkdir(parents=True)
+    (regen / ".obsidian" / "cls-internal-key.txt").write_text("SECRET-B\n", encoding="utf-8")
+    assert "✅" in _probe(src, regen), "重生成的不同 key 是期望态"
+
+
+def test_generated_items_do_not_participate_in_parent_dir_digest(vault_pair):
+    """(h)① 真跑照出的缺陷：generate 项嵌套在 copy 目录里时，父目录被误报 drift。
+
+    脚本刚在新 vault 里生成了插件 data.json（源里没有）⇒ 插件目录两侧摘要不同
+    ⇒ content-drift。generate 项按定义每 vault 都不同，本就不该参与父目录摘要 ——
+    条目自身的「generate 不评 drift」是既有规则，这只是把它推广到嵌套形态。
+    """
+    source, target = vault_pair
+    plugin = ".obsidian/plugins/canvas-learning-system"
+    (source / plugin).mkdir(parents=True, exist_ok=True)
+    (target / plugin).mkdir(parents=True, exist_ok=True)
+    manifest = vv.load_manifest(MANIFEST)
+    assert f"{plugin}/data.json" in manifest.declared_paths, "前提: 清单声明了它"
+    assert next(i for i in manifest.items if i.path == f"{plugin}/data.json").action == "generate"
+
+    # 生成件只在目标侧（脚本刚生成、源里没有）→ 不得让父目录报 drift
+    (target / plugin / "data.json").write_text('{"generated": true}', encoding="utf-8")
+    result = vv.verify(target, manifest, source_dir=source)
+    assert result.content_drift == [], f"生成件不得让父目录报 drift: {[f.path for f in result.content_drift]}"
+
+    # 对照：同一目录放一个**没有** generate 声明的文件 → 必须报 drift（证门不是恒绿）
+    (target / plugin / "stray-file.js").write_text("x", encoding="utf-8")
+    result2 = vv.verify(target, manifest, source_dir=source)
+    assert plugin in [f.path for f in result2.content_drift], "非生成件的差异仍要比"
+
+
+def test_tree_head_is_self_consistent_under_the_new_manifest():
+    """(g)⑥ E-4 自洽门（常驻版）：树 HEAD 自身作 --vault 与 --source，rc 必须 0。
+
+    卡文特别强调期望**不是**「optional-missing 为空」—— .gitignore 让一批 declared 项
+    在树上本就不存在，它们靠 optional 语义放行。期望是：missing / extra / drift /
+    unreadable 全 0，且 optional-missing 与「declared 且树上 ABSENT」的集合**恰好相等**
+    （二者任何一侧多出来都是清单与树的漂移）。
+    """
+    tree_vault = REPO_ROOT / "canvas-vault"
+    if not tree_vault.is_dir():  # pragma: no cover — 只在完整 checkout 上跑
+        pytest.skip("canvas-vault 不在本树")
+    manifest = vv.load_manifest(MANIFEST)
+    result = vv.verify(tree_vault, manifest, source_dir=tree_vault)
+    assert [f.path for f in result.missing] == [], f"树上 declared 缺失未标 optional: {result.missing}"
+    assert result.extra == [] and result.content_drift == [] and result.unreadable == []
+    absent = sorted(i.path for i in manifest.items if i.action != "exclude" and not (tree_vault / i.path).exists())
+    got = sorted(f.path for f in result.optional_missing)
+    assert got == absent, (
+        f"optional-missing 与树上 ABSENT 集漂移:\n  多出 {sorted(set(got) - set(absent))}\n  少了 {sorted(set(absent) - set(got))}"
+    )
+    assert result.exit_code == vv.EXIT_OK == 0

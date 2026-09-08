@@ -1,0 +1,12 @@
+### U3-B 第 0 分钟 (ts=20260908T093637)
+pwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy
+card/u3-deploy
+HEAD=086771d3
+086771d3 docs(rv-g2-6): 定性表按卡文 (b) 三维度重做 + 17 条新门逐条变异证承重 [BATCH-2026-09-07-第十三批 / CARD-RV-G2-6]
+porcelain=1
+--- live 只读快照（密钥件只记文件名+sha）---
+d1f64c3fd70a5ac12dbe0595667b58b7a9908a5215acdc052ae8ae4cf9fb3acf  .canvas-config.yaml
+b6cf27d0b9ca3aeb27d64299f1adee18a6299cc0739a4f02a78c256b72851513  .mcp.json
+3abd9d4da9f7dcf93595e0c11a77512610e46ae5e5553c598ddc98b29742a8f3  .claude/mcp.json
+8370b1679fecd7f5abb5e0419a02144b63f94997fcfebbf9063601ae6718ff05  .obsidian/hotkeys.json
+65b54e56b97ea1098e84419bc73871ca7c6774dbdab1aed4ce2cc744b5e202e0  .obsidian/cls-internal-key.txt

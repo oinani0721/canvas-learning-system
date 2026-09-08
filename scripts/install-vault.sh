@@ -1,14 +1,20 @@
 #!/usr/bin/env bash
 # Canvas Learning System — vault 一键部署 (DEPLOY-VAULT-2026-08-02, 方案 1 用户拍板)
 #
-# 「活 vault 即模板」: 从当前活 vault 复制全部系统件到新 vault, 没有第二份
-# 模板要维护 (decay_beta.py 双副本 skew 教训)。系统件清单显式声明在下方
-# MANIFEST 区 — 部署边界一目了然: 复制的是"系统", 不碰任何学习数据。
+# 模板源 (E-4, CARD-G2-7a): `<harness>/canvas-vault/` 的 git 追踪系统件 + 本脚本
+# 的生成件。`--source` 可改指一个活 vault, 用来取那些 gitignored、树里本就没有的件
+# (Obsidian 配置、第三方插件、插件 data.json)。清单显式声明在下方 MANIFEST 区 —
+# 部署边界一目了然: 复制的是"系统", 不碰任何学习数据。
+# ⚠️ 每 vault 应当不同的东西 (后端鉴权 key、插件绑定值、MCP 批准) 一律**生成**而非复制,
+#    否则会把上一个 vault 的私有状态带进新库。
 #
 # 用法:
 #   scripts/install-vault.sh <vault-name> [--subject <学科>] [--activate]
 #                            [--vaults-root <dir>] [--source <vault-dir>]
-#                            [--env-file <path>]
+#                            [--env-file <path>] [--harness-tree <path>]
+#                            [--backend-url <url>]
+#   --harness-tree / --backend-url: 只写进新 vault 的 .canvas-config.yaml (schema 2.1),
+#     供 skill 侧定位 harness 树与后端地址; 不影响复制行为。
 #   --activate: 把 .env ACTIVE_VAULT 切到新 vault (之后需 docker compose up -d backend)
 #   缺省只部署不激活 — 可先建多个 vault 再选一个激活。
 set -euo pipefail
@@ -20,6 +26,8 @@ VAULTS_ROOT="$REPO"
 SOURCE=""
 SUBJECT=""
 ACTIVATE=0
+HARNESS_TREE="$WT"                        # 写进 yaml 的 harness_tree (skill 侧定位仓根)
+BACKEND_URL="http://127.0.0.1:8011"       # 写进 yaml 的 backend_url (与 .mcp.json 同源)
 
 VAULT_NAME="${1:?用法: install-vault.sh <vault-name> [--subject <学科>] [--activate]}"
 shift
@@ -30,6 +38,8 @@ while [ $# -gt 0 ]; do
         --vaults-root) VAULTS_ROOT="$2"; shift 2 ;;
         --source)      SOURCE="$2"; shift 2 ;;
         --env-file)    ENV_FILE="$2"; shift 2 ;;
+        --harness-tree) HARNESS_TREE="$2"; shift 2 ;;
+        --backend-url)  BACKEND_URL="$2"; shift 2 ;;
         *) echo "未知参数: $1" >&2; exit 64 ;;
     esac
 done
@@ -60,11 +70,11 @@ TARGET="$VAULTS_ROOT/$VAULT_NAME"
 # ═══════════════════════════════════════════════════════════════════
 # MANIFEST — 系统件清单 (相对 vault 根)。改动部署边界只改这里。
 # ═══════════════════════════════════════════════════════════════════
-SKELETON_DIRS=(原白板 检验白板 节点 outputs raw templates)
-CLAUDE_ITEMS=(skills scripts hooks agents commands settings.json settings.local.json mcp.json)
-OBSIDIAN_FILES=(app.json appearance.json core-plugins.json community-plugins.json hotkeys.json cls-internal-key.txt)
-OBSIDIAN_PLUGINS=(canvas-learning-system claudian dataview breadcrumbs templater-obsidian)
-ROOT_FILES=(CLAUDE.md Dashboard.md)
+SKELETON_DIRS=(原白板 检验白板 节点 outputs raw templates wiki/concepts wiki/canvases)
+CLAUDE_ITEMS=(skills scripts hooks agents commands settings.json)
+OBSIDIAN_FILES=(app.json appearance.json core-plugins.json community-plugins.json hotkeys.json templates/concept.md templates/exam-board.md themes/Underwater/manifest.json themes/Underwater/theme.css)
+OBSIDIAN_PLUGINS=(canvas-learning-system dataview breadcrumbs templater-obsidian)
+ROOT_FILES=(CLAUDE.md Dashboard.md .mcp.json)
 # 明确不复制: 原白板/检验白板/节点 内容、learning_events.jsonl、outputs 产物、
 # workspace.json (会话状态)、.canvas-config.yaml (按 vault 重新生成)
 
@@ -86,6 +96,9 @@ find "$TARGET/.claude" -type d -name __pycache__ -prune -exec rm -rf {} + 2>/dev
 rm -f "$TARGET/.claude/hooks/pending_archives"*.jsonl 2>/dev/null || true
 
 for f in "${OBSIDIAN_FILES[@]}"; do
+    # 数组里现在有含 `/` 的条目 (templates/*.md、themes/Underwater/*), 裸 cp 会因为
+    # 父目录不存在而失败 —— 先建父目录。对不含 `/` 的条目 dirname 得到 `.`, mkdir -p 无副作用。
+    mkdir -p "$(dirname "$TARGET/.obsidian/$f")"
     [ -e "$SOURCE/.obsidian/$f" ] && cp "$SOURCE/.obsidian/$f" "$TARGET/.obsidian/$f" \
         || echo "   ⚠️ 模板缺 .obsidian/$f — 跳过"
 done
@@ -103,24 +116,73 @@ done
 cat > "$TARGET/.canvas-config.yaml" <<EOF
 # Canvas Learning System · Vault 级配置 (install-vault.sh 生成)
 # 本 vault 只学一个学科 (subject), 不跨学科。
+# 如需切换学科 → 新建 vault: 仓根 .claude/skills/deploy-vault/SKILL.md (不在 vault 内)。
 vault_id: "$VAULT_NAME"
 subject: "$SUBJECT"
-schema_version: "2.0-multi-vault-2026-05-10"
+schema_version: "2.1-vault-harness-2026-09-07"
+# backend_url: 后端地址, 与 .mcp.json 同源 (缺省 127.0.0.1:8011)。
+backend_url: "$BACKEND_URL"
+# harness_tree: 这套 vault 归哪棵 harness 树管 — skill 侧据此定位 backend/scripts,
+#   不再靠 os.path.dirname(VAULT) 猜 (quiz-answer/SKILL.md:333 那条假设)。
+harness_tree: "$HARNESS_TREE"
+# push_enabled: 缺省 false; 由 deploy-vault.sh --also-push 打开 (CARD-G2-7b)。
+push_enabled: false
 EOF
+
+# ── 生成件 (CARD-G2-7a): 每 vault 应当**不同**的东西一律生成, 不从模板源复制 ──
+# 三份都「目标已存在则不覆盖」—— 脚本对同一目标重跑要幂等, 且绝不覆盖用户已改过的值。
+# ⚠️ 后端鉴权 key 不在这里生成: 它归 deploy-vault.sh 的 activate 步 (CARD-G2-7b),
+#    那一步才知道要跟哪个后端实例配对。自检 :key 反向判会确认这里**没有**从源复制过来。
+
+PLUGIN_DATA="$TARGET/.obsidian/plugins/canvas-learning-system/data.json"
+if [ ! -e "$PLUGIN_DATA" ]; then
+    mkdir -p "$(dirname "$PLUGIN_DATA")"
+    cat > "$PLUGIN_DATA" <<EOF
+{
+  "backendUrl": "$BACKEND_URL",
+  "nodePathPrefixes": ["节点/"],
+  "activeVaultName": "",
+  "internalApiKey": ""
+}
+EOF
+    echo "   ✏️  生成 插件 data.json (backendUrl=$BACKEND_URL; key 由 activate 步写入)"
+fi
+
+TEMPLATER_DATA="$TARGET/.obsidian/plugins/templater-obsidian/data.json"
+if [ -d "$(dirname "$TEMPLATER_DATA")" ] && [ ! -e "$TEMPLATER_DATA" ]; then
+    cat > "$TEMPLATER_DATA" <<'TPLEOF'
+{
+  "templates_folder": ".obsidian/templates"
+}
+TPLEOF
+    echo "   ✏️  生成 templater data.json (templates_folder)"
+fi
+
+# settings.local.json: 只批准本系统自己的 MCP。⛔ 绝不从模板源复制 —— 那会把上一个
+# vault 的私有批准清单(含用户全局开发用 MCP)带进新库。键名核自 Claude Code 2.1.263。
+CLAUDE_LOCAL="$TARGET/.claude/settings.local.json"
+if [ ! -e "$CLAUDE_LOCAL" ]; then
+    cat > "$CLAUDE_LOCAL" <<'LOCALEOF'
+{
+  "enabledMcpjsonServers": ["canvas-learning-mcp"]
+}
+LOCALEOF
+    echo "   ✏️  生成 .claude/settings.local.json (只批准 canvas-learning-mcp)"
+fi
 
 # ── 自检 ──────────────────────────────────────────────────────────
 PASS=0; FAIL=0
 check() { if eval "$2"; then echo "   ✅ $1"; PASS=$((PASS+1)); else echo "   ❌ $1"; FAIL=$((FAIL+1)); fi; }
 echo ""
 echo "🔍 自检:"
-check "骨架目录 5 个"            '[ -d "$TARGET/原白板" ] && [ -d "$TARGET/检验白板" ] && [ -d "$TARGET/节点" ] && [ -d "$TARGET/outputs" ] && [ -d "$TARGET/raw" ]'
+check "骨架目录 (含 wiki 两件)"   '[ -d "$TARGET/原白板" ] && [ -d "$TARGET/检验白板" ] && [ -d "$TARGET/节点" ] && [ -d "$TARGET/outputs" ] && [ -d "$TARGET/raw" ] && [ -d "$TARGET/wiki/concepts" ] && [ -d "$TARGET/wiki/canvases" ]'
 check "skills ≥8 个 (含 SKILL.md)" '[ "$(find "$TARGET/.claude/skills" -mindepth 2 -maxdepth 2 -type f -name SKILL.md 2>/dev/null | wc -l)" -ge 8 ]'
 check "decay_beta + fsrs_bridge" '[ -f "$TARGET/.claude/scripts/decay_beta.py" ] && [ -f "$TARGET/.claude/scripts/fsrs_bridge.py" ]'
 check "hooks 配置 settings.json" '[ -f "$TARGET/.claude/settings.json" ]'
-check "mcp.json"                 '[ -f "$TARGET/.claude/mcp.json" ]'
-check "核心插件与模板源字节一致"  'cmp -s "$SOURCE/.obsidian/plugins/canvas-learning-system/main.js" "$TARGET/.obsidian/plugins/canvas-learning-system/main.js"'
+check "MCP 注册件 .mcp.json"      '[ -f "$TARGET/.mcp.json" ]'
+check "核心插件与模板源字节一致"  'if [ -e "$SOURCE/.obsidian/plugins/canvas-learning-system/main.js" ]; then cmp -s "$SOURCE/.obsidian/plugins/canvas-learning-system/main.js" "$TARGET/.obsidian/plugins/canvas-learning-system/main.js"; else echo "      ↳ 模板源没有 main.js — 先在 harness 树跑 npm run build (deploy-vault.sh preflight, CARD-G2-7b)"; false; fi'
 check "插件启用清单+快捷键"       '[ -f "$TARGET/.obsidian/community-plugins.json" ] && [ -f "$TARGET/.obsidian/hotkeys.json" ]'
-check "后端鉴权 key"             '[ -f "$TARGET/.obsidian/cls-internal-key.txt" ]'
+check "后端鉴权 key 未从源复制"   '! cmp -s "$SOURCE/.obsidian/cls-internal-key.txt" "$TARGET/.obsidian/cls-internal-key.txt"'
 check "Dashboard + CLAUDE.md"    '[ -f "$TARGET/Dashboard.md" ] && [ -f "$TARGET/CLAUDE.md" ]'
 check "vault 配置 yaml"          'grep -q "vault_id" "$TARGET/.canvas-config.yaml"'
 
