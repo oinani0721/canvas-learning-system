@@ -126,7 +126,7 @@ def get_service() -> "IntelligentParallelService":
                 pass  # WebSocket module not available
 
     # 上面的分支要么复用已有单例, 要么刚构造完 —— 两条路都非 None。
-    assert _service is not None
+    assert _service is not None, "IntelligentParallelService 单例未构造"
     return _service
 
 

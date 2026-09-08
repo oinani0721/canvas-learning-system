@@ -1,0 +1,21 @@
+=== 负控 3（r1 整改后新增）: 摘掉一条 block.text 的 ignore, 11 条错必须回来 ===
+变异前 sha = f12a72086e1d1160988a3c3f8c42d85430eb39a4d51d8342e099f2fab7814a82
+--- 变异前 'Cannot access attribute "text"' 计数
+0
+0
+MUTATED: 摘掉第 1 条 ignore
+--- 变异后计数（期望 11 = 除 TextBlock 外的 11 个块类型）
+11
+NEGCTL-3 PASS（判据承重）
+--- 还原（从 scratchpad 副本, 禁 git checkout / 禁 git show HEAD:）
+还原后 sha = f12a72086e1d1160988a3c3f8c42d85430eb39a4d51d8342e099f2fab7814a82
+RESTORE-BYTEWISE-OK
+0 errors, 0 warnings, 0 informations
+
+=== 负控 4: 把 neo4j driver 重新钉到闭包外（重演 Codex r1 MEDIUM），证明该改动可被看见 ===
+锚点存在 ⇒ 当前是「每次重试内重读」形态（Codex r1 MEDIUM 已整改）
+610:            driver = self._driver
+  ↑ 恰 1 处且在 _execute_with_retry 内 = 整改生效的结构判据
+1
+  ↑ 必须为 1（在闭包内）
+未改动 OK

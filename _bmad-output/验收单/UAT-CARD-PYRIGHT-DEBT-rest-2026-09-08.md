@@ -1,7 +1,7 @@
 # UAT — CARD-PYRIGHT-DEBT-rest（v1：阶段 0 + 阶段 1 完成，等候选树通告）
 
 > 批次 `[BATCH-2026-09-07-第十三批 / CARD-PYRIGHT-DEBT-rest]` · 车道 `card-u2-pyright-rest`（分支 `card/u2-pyright-rest`）
-> CODE_BASE `da690bf8` · 阶段 0 commit `5638ac6c` · 阶段 1 commit `<见 §6>`
+> CODE_BASE `da690bf8` · 阶段 0 commit `5638ac6c` · 阶段 1 commit `41cc849c`
 > 证据目录 `_bmad-output/审查/evidence-pyright-rest/`（本文件只**引用**路径与末行，不自述数字）
 
 ---
@@ -81,7 +81,8 @@
    - ⇒ 阶段 0 commit 用 `LEFTHOOK_EXCLUDE=python-lint`，原始 hook 输出存 `lefthook-precommit-raw-*.txt`。**`python-typecheck` 未绕过且实测通过（`0 errors`）**——协议禁止改 `backend/app/**` 的卡绕过它。
 2. **tests 基线**：开工那一跑与 `models/` 机械改写**并发**，按本项目教训本应作废。它能用不是因为"我觉得没影响"，而是**汇总行与主 session 在 `da690bf8` 独立采集的红基线逐字相同**（`173 failed / 4749 passed / 48 skipped / 29 errors`）——外部锚点，不是自证。
    nodeid 提取器收紧过：`^(FAILED|ERROR) ` 会把 pytest 捕获的 `logging` 输出行（`ERROR    app.main:…`）当成 nodeid，虚报 4 条差异；改成必须匹配 `tests/…py::` 并配**验伪锚**（3 行探针，噪音剔掉 / 真 nodeid 留下）。脚本 `nodeids.sh`。
-3. **U10-A 的 `/tmp` 负控窗口**（06:59–07:19）：期间 `tests/unit` 目录级会多一条 `/tmp/test-vault*` 的 teardown ERROR。本卡阶段 1 的收工跑在窗口关闭后启动，未受影响。
+3. **入库禁令的取名面**：协议禁的是 `*.stderr*`。第一版判据写成 `git ls-tree | grep -c stderr` 报了 1 条——查下去是 `_bmad-output/审查/G4-9-evidence/census-stderr.txt`（**连字符**形式，第五批 `67ccebe1` 引入，`da690bf8` 即存在，非本卡）。判据的取名面必须**恰好等于**其主张，改成 `grep -E '\.stderr'` 后 = 0，并配验伪锚（拿真 `.stderr` 路径试，确认判据看得见违规、同时放过 `census-stderr.txt`）。本卡两个 commit 新增文件里 `.stderr` = 0。
+4. **U10-A 的 `/tmp` 负控窗口**（06:59–07:19）：期间 `tests/unit` 目录级会多一条 `/tmp/test-vault*` 的 teardown ERROR。本卡阶段 1 的收工跑在窗口关闭后启动，未受影响。
 
 ---
 
@@ -129,9 +130,74 @@
 
 ---
 
+## 7-bis. Codex round-1 逐条处置（BLOCKER 0 / HIGH 0 / MEDIUM 1）
+
+> 存档 `_bmad-output/审查/codex-review-CARD-PYRIGHT-DEBT-rest-r1.md`，绑定 `41cc849c`。
+> **这一轮抓到了我两处真错**，都不是"措辞不严谨"，是判断错误。逐条如下。
+
+### MEDIUM-1 `neo4j_client.py:599` driver 钉在重试循环外 —— ✅ **成立，已修**
+
+Codex：把 `driver` 绑在闭包**外**改变了原先"每次重试重新读 `self._driver`"的行为；请求 A 在重试等待期间若 `cleanup()` 关掉旧连接、别的请求建了新连接，A 仍会向已关闭的旧实例开 session。
+
+**我错了**。我当时把它写成"语义相同，顺带把整次重试用同一个 driver 钉死"——那句"顺带"正是行为变化本身，我却把它当成好处描述了。
+**整改**：把 `driver = self._driver` 移进 `_execute_with_retry` 内（每次重试重读），并补 `assert driver is not None, "Neo4j driver 在重试期间变为 None"`。
+**判据**：`awk '/async def _execute_with_retry/,/async with driver.session/' | grep -c 'driver = self._driver'` = **1**（在闭包内）；全文件该赋值恰 1 处。存档 `negctl-p1r2-*.txt`。
+
+### Q8 等价性 —— ✅ **Codex 的质疑成立，我的证明有洞，已推翻并回退**
+
+Codex：「只有 TextBlock **声明** text」不足以证明实例不可能带额外属性。
+**实测坐实**：anthropic 0.88.0 的 12 个块类型 `model_config.extra` **全部是 `'allow'`**；
+`ThinkingBlock.model_validate({... , "text": "SMUGGLED"})` → `hasattr(text)=True` 而 `isinstance(TextBlock)=False`，`model_extra={'text': 'SMUGGLED'}`。
+⇒ 若服务端在非 `TextBlock` 上多回一个 `text`，换 `isinstance` 会**静默漏掉那段文本** = 运行期行为变化。
+**整改**：三处**退回 `hasattr`**，改用行级 `# pyright: ignore[reportAttributeAccessIssue]` + 写明上述实证；删掉不再需要的 `TextBlock` 导入。
+**我的原错误在哪**：`model_fields` 回答的是"它声明了什么"，`hasattr` 问的是"这个实例现在有什么"——两个问题。我只枚举了**已声明字段**这一个轴，漏了**额外字段**轴，而"我做过实证"反而给了我假信心。
+**新负控（负控 3）**：摘掉一条 ignore → `Cannot access attribute "text"` 精确回到 **11** 条；还原自 scratchpad 副本，sha 逐字节相同。
+
+### Q2 裸 assert 的日志退化 —— ✅ **成立，已修**
+
+Codex：`metadata.py:570` 遇 None 时异常从 `AttributeError` 变成**无消息的** `AssertionError`，日志内容有变化。
+**整改**：本卡新增的 4 条 assert 全部补上消息（`"LanceDB 连接未初始化(force_rebuild)"` / `"…(index status)"` / `"IntelligentParallelService 单例未构造"` / `"Neo4j driver 在重试期间变为 None"`），使日志信息量**不低于**它替换掉的 `AttributeError`。
+
+### Q4 openapi 证明强度 —— ✅ **成立，已量化**
+
+Codex：`exam_models.py:150-153` 给四个属性新增了 `description`，模型 JSON Schema 除 `required` 外确有变化；是否进入实际 OpenAPI 本轮无法确认。
+**量化**（存档 `q4-schema-delta-*.txt`，基线树 vs 当前树逐键比）：`AutoScoreResult.model_json_schema()` 恰好变 **5 处** = 4 个 `description` 新增 + `required` 从 `[node_id, exam_id, overall_score, grade]` 变为加上四个维度名。
+**是否进 OpenAPI**：`AutoScoreResult` 与 `RubricDimension` **都不在** `backend/openapi.json` 的 `components.schemas`（354 个 schema 里均不存在，实测）⇒ 对外契约零影响。验收单原先只说"required 差集为 0"，现更正为上面这句更强也更准的表述。
+
+### Q1 / Q3 / Q9 与 multiset 末行 —— 读取面所限，本轮补齐
+
+- **Q1**：Codex 无法独立验证 `metadata.py:574` 的 SDK 签名与 `health.py:1169` 的实际返回类型（不在允许读取面）。r2 把这两条的实测输出直接写进 prompt。
+- **Q3**：Codex 无法确认四维必填化全仓无遗漏。本卡补了全仓 grep（`AutoScoreResult` 仅 `services/autoscore.py:141/:197` 两个构造点，`RubricDimension` 仅同文件 8 处，全仓无 `model_validate` / `parse_obj` / `**dict` 生产路径），r2 附上该输出。
+- **Q9**：Codex 指出"卡文 §三 不在读取面 ⇒ 不能认定 `exam.py` 延后已获授权"。**这条提醒很对**——r2 把卡文 §三 的原文段落贴进 prompt，让它能独立判定是"阶段安排"还是"放宽判据"。
+- **multiset 末行**：存档最后一行是 `rc=`，`base=… work=… NEW=… GONE=…` 在其上方几行。r2 直接引用该行文本。
+
+### 整改后复跑（全部仍绿）
+
+| 判据 | 结果 |
+|---|---|
+| 分包 pyright | 5 包 `0 errors`；api 21 = 三个延后文件，剔后 **0** |
+| 多重集 vs `41cc849c` | **`NEW=0 GONE=0`**（整改零副作用） |
+| 多重集 vs `da690bf8`（全卡视角） | **`421 → 232，NEW=1，GONE=190`**；唯一那条 NEW 是 `services/rag_service.py` 的 `ainvoke config`，由本卡 `extraPaths` 引出但**落在 U1 面**，本卡不能改 ⇒ 移交 U1（他们 merge 阶段 0 sha 后会看到） |
+| AST | 14，只剩共享 `system.py` |
+| ruff | `F401,F821` 全过；format 集合差 37 = 37，**新引入 0** |
+| openapi | `DRIFT: none (paths=194 schemas=354)` |
+| 负控 3 / 4 | 见上，都点着 |
+| tests（整改后重跑） | `tests/unit` **202 = 202** diff 空、skipped 48=48；`tests/api` **0 红**；29 文件+rollback5 **85 = 85** diff 空。三项与整改前逐项相同。存档 `*-p1r2-20260908T075444.txt` |
+
+> ⚠️ **口径更正**：阶段 0 记的"extraPaths 新冒 6 条"到阶段 1 末已过期——其中 5 条（`edges.py` ×3 + `metadata.py` ×2）已由本卡在自己地盘关掉，只剩 1 条在 `services/`。引用历史数字前必须重测。
+
 ## 8. Codex
 
-阶段 1 round-1 见 §10。按 D-15：**阶段 1 这一轮可不绑最终 HEAD**（阶段 2 还要 merge 候选树 + 清共享文件），首部已写明；阶段 2 末轮必绑 HEAD 且 BLOCKER/HIGH = 0。
+- round-1：绑 `41cc849c`（= 阶段 1 末 HEAD）。按 D-15，**阶段 1 这一轮可不绑最终 HEAD**（阶段 2 还要 `git merge` 候选树 + 清 `review.py` / `system.py`），存档首部已按协议 §2.1 写明；**阶段 2 末轮必绑最终 HEAD 且 BLOCKER/HIGH = 0**，上限 5 轮。
+- prompt：`_bmad-output/审查/prompts/codex-prompt-CARD-PYRIGHT-DEBT-rest-r1.md`（五分节 + 最小读取面写死）。协议 §2 点名的四类措辞自检全 0（含"构造"一词已中性化为"实例化"/"实参形态"）；`grep -c 'gpt-5.6'` = 0。
+- 存档：`_bmad-output/审查/codex-review-CARD-PYRIGHT-DEBT-rest-r1.md`（`.stderr` 不入库，`.gitignore:261-263` 覆盖）。
+
+### openapi 逐 commit 记录
+
+| commit | `backend/openapi.json` 变化 | `required` 差集 | schemas 增删 |
+|---|---|---|---|
+| `5638ac6c`（阶段 0） | 2 行：`x-generated-at` + `review_overview.py` 的**存量** description 漂移（来自 `d209622d`，U6 地盘，本卡未碰该文件；由 spec-sync 恒写行为带入） | **0** | 无 |
+| `41cc849c`（阶段 1） | **1 行：只有 `x-generated-at`** | **0** | 无 |
 
 ---
 

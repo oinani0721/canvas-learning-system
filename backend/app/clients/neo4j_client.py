@@ -594,9 +594,6 @@ class Neo4jClient:
         """
         if not self._driver:
             raise RuntimeError("Neo4j driver not initialized")
-        # 上面的守卫窄化不进闭包(pyright 认为 self._driver 可能在闭包执行前变),
-        # 故在守卫后就地绑定 —— 也顺带把「整次重试用同一个 driver 实例」钉死。
-        driver = self._driver
 
         @retry(
             stop=stop_after_attempt(self._retry_attempts),
@@ -606,6 +603,12 @@ class Neo4jClient:
         )
         async def _execute_with_retry() -> List[Dict[str, Any]]:
             """Execute query with retry on transient errors."""
+            # ⚠️ 必须在**每次重试内**重新读 self._driver(Codex r1 MEDIUM 整改):
+            # 上一版把它绑在闭包外, 于是请求 A 在重试等待期间, 若 cleanup() 关掉
+            # 旧连接、别的请求初始化了新连接, A 仍会向已关闭的旧实例开 session,
+            # 用不上已恢复的新连接 —— 那是运行期行为变化, 不是纯类型改动。
+            driver = self._driver
+            assert driver is not None, "Neo4j driver 在重试期间变为 None"
             async with driver.session(database=self._database) as session:
                 # neo4j 6.1.0 的 run() 只收 LiteralString | Query, 为的是防 f-string
                 # 拼 Cypher; 本方法的 query 由调用方传入, 类型是 str。cast 是纯类型层

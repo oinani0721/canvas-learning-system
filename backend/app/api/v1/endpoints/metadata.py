@@ -567,7 +567,9 @@ async def index_vault_notes(
             try:
                 stale_table = lancedb_client.resolve_table_name("vault_notes")
                 # _db 为 None 时原本就 AttributeError, 与 assert 同落下方 except。
-                assert lancedb_client._db is not None
+                # 带消息(Codex r1 Q2): 裸 assert 的 AssertionError 无正文, 日志会
+                # 比原来的 AttributeError 信息更少。
+                assert lancedb_client._db is not None, "LanceDB 连接未初始化(force_rebuild)"
                 # pyright 读的是抽象基类 DBConnection.drop_table(name, namespace),
                 # 而运行期实现 LanceDBConnection.drop_table 确有 ignore_missing
                 # (lancedb 0.30.2 实测 inspect.signature) ⇒ 假阳, 只关这一行。
@@ -678,7 +680,7 @@ async def vault_index_status(
         if resolved_table in existing_tables:
             # existing_tables 非空 ⇒ 上一行走的是 db 非 None 分支; _db 为 None 时
             # 该列表恒为 [], 本分支进不来 ⇒ assert 在原本也会崩的位置上。
-            assert lancedb_client._db is not None
+            assert lancedb_client._db is not None, "LanceDB 连接未初始化(index status)"
             table = lancedb_client._db.open_table(resolved_table)
             count = table.count_rows()
             return {
