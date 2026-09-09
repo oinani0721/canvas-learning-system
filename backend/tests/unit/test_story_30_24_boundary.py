@@ -307,19 +307,33 @@ class TestSpecialCharacterGroupId:
             )
             # `SKIP` 与 `LIMIT` 同属分页子句、同样吃整数，只查 LIMIT 时 `SKIP 5` 能漏过
             # （同为送 round-8 前自测抓到）。
-            for _clause, _expr in re.findall(
-                r"\b(LIMIT|SKIP)\b([^\n]*)", _query_no_comments, flags=re.I
-            ):
+            # ⚠️ 表达式的右边界必须切在**下一个子句关键字**上，不能贪婪吃到行尾：
+            # `LIMIT $limit SKIP 5` 里，贪婪写法让 LIMIT 的表达式吞掉 " $limit SKIP 5"
+            # （含 `$` ⇒ 通过），扫描位置越过 SKIP，SKIP 就再也没被单独检查过。
+            # 本车道送 round-8 前自测抓到（负控 ⑰ 期望 FAIL 实测 PASS）。
+            # ⚠️ `(?<!\$)` 不可省：`$limit` 里的 "limit" 前面是 `$`（非词字符），
+            # `\b` 照样成立 ⇒ 不排除的话，`LIMIT $limit` 会被当成**两个** LIMIT 子句，
+            # 第二个的表达式为空、立刻误报。本车道改这条时当场被自己的用例红出来。
+            _CLAUSE = r"LIMIT|SKIP|RETURN|ORDER|WITH|MATCH|WHERE|UNION|CALL"
+            for _m in re.finditer(r"(?<!\$)\b(LIMIT|SKIP)\b", _query_no_comments, flags=re.I):
+                _rest = _query_no_comments[_m.end():]
+                _nxt = re.search(rf"(?<!\$)\b(?:{_CLAUSE})\b", _rest, flags=re.I)
+                _expr = _rest[: _nxt.start()] if _nxt else _rest
+                _expr = _expr.split("\n", 1)[0]
                 assert "$" in _expr, (
-                    f"{_clause.upper()} 子句里没有 `$` 参数引用，说明分页值被内联进了文本。"
+                    f"{_m.group(1).upper()} 子句里没有 `$` 参数引用，说明分页值被内联进了文本。"
                     f"expr={_expr!r} query={query_str!r}"
                 )
 
         # ── B 层：至少一次调用带完整作用域参数集，并在那一次上验物理化 ──────
+        # ⚠️ 用**子集**而不是相等：合法查询可能多绑一个参数（例如分页加 `SKIP $skip`），
+        # 「恰好四个」会把它误判成没有主查询。本车道送 round-8 前自测抓到
+        # （负控 ⑤ `SKIP $skip` 期望 PASS 实测 FAIL）。
+        # 少绑仍会红——那正是「内联 + 删参数」要挡的形态。
         scoped_calls = [
             c
             for c in client.run_query.call_args_list
-            if set(c.kwargs or {}) == EXPECTED_BOUND_PARAMS
+            if EXPECTED_BOUND_PARAMS <= set(c.kwargs or {})
         ]
         assert scoped_calls, (
             "没有任何一次 run_query 带完整的作用域参数集 "
