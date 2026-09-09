@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import copy
+import errno
 import fcntl
 import hashlib
 import json
@@ -82,33 +83,78 @@ def state_path(vault: Path | None = None) -> Path:
 
 
 def load_state(vault: Path | None = None) -> dict:
+    """读回 state（缺文件给默认账，损坏则隔离留档后重建）。
+
+    ⚠ Codex round-2 H1: 读取 / 损坏判断 / 隔离改名必须在**同一把锁**内。
+    分开的话会拿过期的判断去移走文件: runner 读到坏 JSON、还没来得及隔离,
+    这时 Web 取到锁、把那个坏文件隔离掉、写进完成账并返回 200; runner 随后
+    按它那份早已过期的「坏」判断执行 os.replace, 把**此刻已经有效、含那笔
+    账**的文件移进 .corrupt-*, 再整写一份空账 —— 一次成功的点击就没了。
+    锁可重入, Web 侧在自己的 with 里调到这里时复用同一把, 不重复 open。
+    """
+    with state_locked(vault):
+        return _load_state_locked(vault)
+
+
+def _fresh_state() -> dict:
+    return {"schema_version": STATE_SCHEMA_VERSION, "board_last_recommended": {}, "board_done": {}}
+
+
+def _parse_state_file(state: Path) -> dict | None:
+    """读并校验 state; 读不出 / 语法坏 / 结构错型一律 None (不写盘、不隔离)。
+
+    Codex-D2b M1: 合法 JSON 但结构错型 (顶层非 dict / 账本非 dict) 与语法损坏
+    同等对待 —— 不让 setdefault/.values() 半路炸。
+    CARD-G6-7: board_done 与 board_last_recommended 同等对待。少这一条的话,
+    一个 "board_done": [] 会让写侧的 dict 下标炸成 500, 而不是像本文件其余
+    部分那样诚实地隔离重建。
+    """
+    try:
+        st = json.loads(state.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError, ValueError):
+        return None
+    if not isinstance(st, dict) or not isinstance(st.get("board_last_recommended", {}), dict):
+        return None
+    if not isinstance(st.get("board_done", {}), dict):
+        return None
+    return st
+
+
+def _normalize_state(st: dict) -> dict:
+    """补齐 v2 形态并把声明版本单调推到当前值 (就地改, 返回同一个 dict)。
+
+    这不是迁移器: 没有独立的迁移入口, 也不改任何既有键的值。
+    """
+    st.setdefault("board_last_recommended", {})
+    st.setdefault("board_done", {})
+    declared = st.get("schema_version")
+    if not isinstance(declared, int) or declared < STATE_SCHEMA_VERSION:
+        st["schema_version"] = STATE_SCHEMA_VERSION
+    return st
+
+
+def _load_state_locked(vault: Path | None = None) -> dict:
     state = state_path(vault)
     if not state.exists():
-        fresh = {"schema_version": STATE_SCHEMA_VERSION, "board_last_recommended": {}, "board_done": {}}
+        fresh = _fresh_state()
         # ⚠ Codex round-1 H2: base 记这份**默认值本身**而不是 None。文件当时不
         # 存在, 我手上这几个键全是构造出来的默认值 —— 不是我改的。窗口内别人
         # 新建了文件并写进真账时, 那些账必须以磁盘为准; 记 None 会让 save_state
         # 走整写分支, 把别人刚建的账连读都不读就抹掉。
         _remember_base(state, fresh)
         return fresh
-    try:
-        st = json.loads(state.read_text(encoding="utf-8"))
-        # Codex-D2b M1: 合法 JSON 但结构错型 (顶层非 dict / 账本非 dict) 与
-        # 语法损坏同等对待 — 隔离重建, 不让 setdefault/.values() 半路炸
-        if not isinstance(st, dict) or not isinstance(st.get("board_last_recommended", {}), dict):
-            raise ValueError("state 结构错型")
-        # CARD-G6-7: board_done 与 board_last_recommended 同等对待 —— 错型也走
-        # 隔离重建。少这一条的话, 一个 "board_done": [] 会让写侧的 dict 下标
-        # 在半路炸成 500, 而不是像本文件其余部分那样诚实地隔离重建。
-        if not isinstance(st.get("board_done", {}), dict):
-            raise ValueError("state 结构错型 (board_done)")
-        st.setdefault("board_last_recommended", {})
-        st.setdefault("board_done", {})
-        # 形态已是 v2 (上一行保证 board_done 恒在) → 声明版本随之前进, 单调
-        # 不回退。这不是迁移器: 没有独立的迁移入口, 也不改任何既有键的值。
-        declared = st.get("schema_version")
-        if not isinstance(declared, int) or declared < STATE_SCHEMA_VERSION:
-            st["schema_version"] = STATE_SCHEMA_VERSION
+
+    st = _parse_state_file(state)
+    if st is None:
+        # ⚠ Codex round-2 H1 的残余: 隔离之前**再读一次**。整段已经在锁里, 走锁
+        # 的写者插不进来; 但不经锁的写者 (手工编辑、别的工具、还没接入这把锁的
+        # 未来调用点) 仍可能在"判断"与"改名"之间把文件换成好的 —— 那时按旧判断
+        # os.replace 就把一份**有效**的 state 移进 .corrupt-*, 随后整写空账,
+        # 里面的完成账一起没了。重读一次是纯收益: 好了就用, 没好就照常隔离。
+        st = _parse_state_file(state)
+
+    if st is not None:
+        _normalize_state(st)
         # ⚠ Codex round-1 H1: 快照取在**归一化之后**。初版取在之前, 于是
         # setdefault 补出来的空 board_done 算成"本进程改过", 一个 v1 文件下
         # runner 的空账就有权覆盖窗口内 Web 刚写成功的完成记录 —— 加性升版
@@ -116,16 +162,16 @@ def load_state(vault: Path | None = None) -> dict:
         # (schema_version 因此也成了"我没改过", 由合并末尾的单调取大兜住。)
         _remember_base(state, st)
         return st
-    except (json.JSONDecodeError, OSError, ValueError):
-        quarantine = state.with_name(state.name + ".corrupt-" + datetime.now().strftime("%Y%m%dT%H%M%S"))
-        try:
-            os.replace(state, quarantine)
-        except OSError:
-            pass
-        print(f"[runner] state 损坏, 已隔离到 {quarantine.name}, 重建", file=sys.stderr)
-        fresh = {"schema_version": STATE_SCHEMA_VERSION, "board_last_recommended": {}, "board_done": {}}
-        _remember_base(state, fresh)  # 同缺文件分支 (H2): 重建出来的默认值不是"我改的"
-        return fresh
+
+    quarantine = state.with_name(state.name + ".corrupt-" + datetime.now().strftime("%Y%m%dT%H%M%S"))
+    try:
+        os.replace(state, quarantine)
+    except OSError:
+        pass
+    print(f"[runner] state 损坏, 已隔离到 {quarantine.name}, 重建", file=sys.stderr)
+    fresh = _fresh_state()
+    _remember_base(state, fresh)  # 同缺文件分支 (round-1 H2): 重建出来的默认值不是"我改的"
+    return fresh
 
 
 #: state 的跨进程写锁 (CARD-G6-7-R)。**文件**锁, 与 push.sh 的 mkdir **目录**
@@ -146,9 +192,15 @@ _STATE_LOCK_FDS: dict[str, list] = {}
 _STATE_LOCK_LOCAL = threading.local()
 
 #: state 的「读到手时磁盘长什么样」快照 —— 三方合并的 base。
-#: 值 = 解析后**归一化前**的 dict, 或 None (文件当时不存在 / 读不出)。
+#: 值 = **归一化之后**的 dict (Codex round-1 H1: setdefault 补出来的默认值不是
+#: 本进程的修改), 文件当时不存在或损坏隔离时则是那份默认账本身 (round-1 H2)。
 #: 深拷贝存: 浅拷贝与调用方共享嵌套 dict, mine 一改 base 跟着变,
 #: 「我到底改没改过这个键」就永远答 False。
+#: ⚠ 键是 **state 路径**, 不是"哪个 dict 对象" (Codex round-2 L2)。所以它记的
+#: 是「这条路径上一次被本进程读成什么样」, 而不是「这个 st 从哪来」—— 同一路径
+#: 读过之后再传进来一份**另外构造**的 dict, 也会走合并而不是整写。生产上够用
+#: (Web 侧同库 load→save 全程在锁内串行, runner 在另一个进程), 但契约就这么窄,
+#: 别按"绑定到返回对象"去理解。
 _STATE_BASE_SNAPSHOTS: dict[str, dict | None] = {}
 _NO_SNAPSHOT = object()
 
@@ -213,6 +265,20 @@ def state_locked(vault: Path | None = None):
             #    破掉"完成账不写 vault"这条写面承诺。
             fd = os.open(lock, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o644)
             try:
+                # ⚠ Codex round-2 H2: O_NOFOLLOW 只拒**符号**链接, 对硬链接无效。
+                # 事先把 <state>.lock 做成 <state>.json 的硬链接, 两者就是同一个
+                # inode: 取锁成功之后 load_state 的一次读盘 close 会释放本进程在
+                # 该 inode 上的全部记录锁 (POSIX 记录锁按进程 × 文件), 而登记表
+                # 还报告持锁 —— 互斥凭空消失且无人察觉。
+                # nlink != 1 一律拒: 锁文件由本模块自建自用, 正常永远只有一条
+                # 链接; 多出来的那条无论指向什么都不该信。
+                info = os.fstat(fd)
+                if info.st_nlink != 1:
+                    raise OSError(
+                        errno.EMLINK,
+                        f"锁文件有 {info.st_nlink} 条硬链接 —— 可能与 state 或库内文件共用 inode",
+                        str(lock),
+                    )
                 fcntl.lockf(fd, fcntl.LOCK_EX)
             except BaseException:
                 os.close(fd)
@@ -261,9 +327,10 @@ def _merge_state_with_disk(mine: dict, state: Path) -> dict:
         schema_version 升版、board_done setdefault) ⇒ 这个键我动过, 写 mine;
       · 相同 ⇒ 我没动过, 以磁盘为准 (别人可能刚改过);
       · theirs 里没有而 mine 里有 ⇒ 写 mine (不替别人接受"删除")。
-    base 缺席 (st 不是本进程 load 来的 / 当时文件不存在) 或 theirs 读不出
-    (缺文件 / 损坏) ⇒ **不合并, 整写 mine** = 本卡之前的行为, 既有的
-    「改了就写」语义逐字节不变。
+    base 缺席 (这条路径本进程从没 load 过) 或 theirs 读不出 (缺文件 / 损坏)
+    ⇒ **不合并, 整写 mine** = 本卡之前的行为, 既有的「改了就写」语义逐字节
+    不变。⚠ 「文件当时不存在」**不再**走这条 (round-1 H2): 那时 base 记的是
+    默认账本身, 窗口内别人新建并写进去的账因此保得住。
 
     合并**不写死键归属** —— 运行期确实是 board_done 归 Web、其余归 runner,
     但那是当下的分工不是不变量; 靶子始终是"我没改的键"。

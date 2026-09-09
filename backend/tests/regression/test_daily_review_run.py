@@ -1175,10 +1175,22 @@ import json, sys, time
 sys.path.insert(0, sys.argv[1])
 from pathlib import Path
 import daily_review_run as runner
-# argv[3] = 就绪标记。⚠ Codex round-1 M3: 没有它, "父进程持锁 1.5s 期间子进程
-# 没完成"可以被「子进程那时还在 import」解释掉 —— 判据量的就成了启动延迟。
-# 标记写在取锁之前的最后一刻, 父进程等它出现后才开始计时。
-Path(sys.argv[3]).write_text("ready", encoding="utf-8")
+# argv[3] = 就绪标记, argv[4] = 锁文件路径。
+# ⚠ Codex round-1 M3 / round-2 M1: 标记不能只表示"import 完成" —— 那样
+# 「持锁 1.5s 期间子进程没完成」还可以被"它 ready 之后又停了 2 秒"解释掉。
+# 这里先对**同一个锁文件**做一次真实的非阻塞取锁, 把结果写进标记:
+# blocked = 我已经到了锁这一步且此刻拿不到 (正门期望); free = 拿得到
+# (对照组期望)。父进程读标记内容来断言, 计时因此绑在"锁"上而不是"启动"。
+import errno, fcntl, os
+_probe = os.open(sys.argv[4], os.O_RDWR | os.O_CREAT, 0o644)
+try:
+    fcntl.lockf(_probe, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    _state = "free"
+    fcntl.lockf(_probe, fcntl.LOCK_UN)
+except BlockingIOError:
+    _state = "blocked"
+os.close(_probe)
+Path(sys.argv[3]).write_text(_state, encoding="utf-8")
 started = time.time()
 runner.save_state(
     {"schema_version": 2, "board_last_recommended": {}, "board_done": {"子进程板": "2026-07-30"}},
@@ -1291,7 +1303,7 @@ def test_g67r_state_lock_blocks_other_process_until_released(tmp_path, monkeypat
     scripts_dir = str(WT / "scripts")
 
     def _child(ready):
-        return [sys.executable, "-c", _SAVE_STATE_CHILD, scripts_dir, str(vault), str(ready)]
+        return [sys.executable, "-c", _SAVE_STATE_CHILD, scripts_dir, str(vault), str(ready), str(lock_path)]
 
     # ── 对照: 不持锁 ⇒ 子进程一路畅通 ──
     t_spawn = time.time()
@@ -1301,6 +1313,9 @@ def test_g67r_state_lock_blocks_other_process_until_released(tmp_path, monkeypat
     assert free.returncode == 0, f"对照组子进程本身就跑不起来, 本门无效: {free.stderr}"
     free_elapsed = json.loads(free.stdout)["finished"] - t_spawn
     assert free_elapsed < 5.0, f"对照组不该等 (实为 {free_elapsed:.2f}s) —— 阈值放宽到 5s 仍超 = 环境问题"
+    assert ready_free.read_text(encoding="utf-8") == "free", (
+        "对照组的非阻塞探测应当拿得到锁 —— 拿不到说明有别人在持锁, 对照不成立"
+    )
     assert runner.load_state(vault)["board_done"] == {"子进程板": "2026-07-30"}
 
     # ── 正门: 父进程持锁 1.5s ──
@@ -1318,6 +1333,11 @@ def test_g67r_state_lock_blocks_other_process_until_released(tmp_path, monkeypat
             assert proc.poll() is None, f"子进程在写出就绪标记前就退出了: {proc.communicate()[1]}"
             time.sleep(0.02)
         assert ready_held.exists(), "子进程 30s 内没到达取锁点 —— 本门的前提不成立"
+        # ⚠ Codex round-2 M1: 标记的**内容**才是判据 —— "已经在锁上被拒过一次"。
+        # 只看文件在不在, 等于只证明了 import 跑完了。
+        assert ready_held.read_text(encoding="utf-8") == "blocked", (
+            "子进程到达锁时并没有被挡住 —— 后面那 1.5s 量的就不是锁"
+        )
         ready_at = time.time()
         time.sleep(hold)
         assert proc.poll() is None, "子进程在锁被持有期间就完成了 —— 锁没起作用"
@@ -1413,6 +1433,87 @@ def test_g67r_state_lock_refuses_symlinked_lock_path(tmp_path, monkeypatch):
         assert lock_path.is_file() and not lock_path.is_symlink()
 
 
+def test_g67r_hardlinked_lock_is_refused(tmp_path, monkeypatch):
+    """(c) Codex round-2 H2: 锁文件是**硬链接**时必须拒绝取锁。
+
+    O_NOFOLLOW 只拒符号链接。把 <state>.lock 做成 <state>.json 的硬链接,
+    两者就是同一个 inode —— 取锁成功之后 load_state 的一次读盘 close 会释放
+    本进程在该 inode 上的全部记录锁 (POSIX 记录锁按进程 × 文件), 而登记表
+    还报告持锁, 互斥凭空消失且无人察觉。
+    判据绑 errno 身份 (EMLINK), 不用"有没有报错"。
+    """
+    vault = _vault(tmp_path, {"甲": _node(board="A板")})
+    _patch_runner(monkeypatch, vault, tmp_path)
+    state = runner.state_path(vault)
+    runner.save_state({"schema_version": 2, "board_last_recommended": {}, "board_done": {"甲板": TODAY}}, vault)
+    state_bytes = state.read_bytes()
+    lock_path = runner.state_lock_path(vault)
+
+    lock_path.unlink(missing_ok=True)
+    os.link(state, lock_path)  # 硬链接: 同 inode, O_NOFOLLOW 看不见
+    assert lock_path.stat().st_ino == state.stat().st_ino, "夹具前提: 必须真的是同一个 inode"
+    with pytest.raises(OSError) as ei:
+        with runner.state_locked(vault):
+            pass
+    assert ei.value.errno == errno.EMLINK, f"拒绝的不是硬链接那一层: errno={ei.value.errno}"
+    assert state.read_bytes() == state_bytes, "被拒的取锁不许动 state"
+
+    # 正控: 换回独立文件, 锁必须照常拿得到 (证明本门不是恒红)
+    lock_path.unlink()
+    with runner.state_locked(vault):
+        assert lock_path.stat().st_nlink == 1
+
+
+def test_g67r_corrupt_quarantine_happens_under_the_lock(tmp_path, monkeypatch):
+    """(c) Codex round-2 H1: 损坏隔离不许用过期判断移走别人刚写好的文件。
+
+    失败时序 (锁只盖住 save 而不盖住"读+判断+隔离"时成立):
+      · runner 读到坏 JSON, 还没执行 os.replace;
+      · Web 取到锁, 把坏文件隔离掉、写进完成账 A、返回 200;
+      · runner 按早已过期的「坏」判断执行 os.replace, 把**此刻已经有效、含 A
+        的文件**移进 .corrupt-*, 再整写一份空账 —— A 从活动 state 里消失。
+
+    本门把「Web 那一手」插在 runner 读盘之后、隔离之前: 用 monkeypatch 包住
+    load_state 内部实际读盘用的 Path.read_text, 在它返回坏内容之后立刻替换
+    磁盘文件。锁若覆盖了整段读+判断+隔离, 这只手根本插不进来 (它要先拿锁),
+    所以本门用"不经锁的直写"模拟, 判据落在最终 state 上。
+    """
+    vault = _vault(tmp_path, {"甲": _node(board="A板")})
+    _patch_runner(monkeypatch, vault, tmp_path)
+    state = runner.state_path(vault)
+    state.parent.mkdir(parents=True, exist_ok=True)
+    state.write_text("{这是坏的", encoding="utf-8")
+
+    good = json.dumps(
+        {"schema_version": 2, "board_last_recommended": {}, "board_done": {"A板": TODAY}}, ensure_ascii=False
+    )
+    real_read_text = Path.read_text
+    swapped = []
+
+    def _read_then_swap(self, *a, **kw):
+        out = real_read_text(self, *a, **kw)
+        if self == state and not swapped:
+            # 「Web 已经把它换成好的了」—— 就在 runner 读完、还没判断完的那一刻
+            swapped.append(True)
+            state.write_text(good, encoding="utf-8")
+        return out
+
+    monkeypatch.setattr(Path, "read_text", _read_then_swap)
+    st = runner.load_state(vault)
+    monkeypatch.undo()
+    assert swapped, "夹具前提: 那一手必须真的插进去了"
+
+    on_disk_now = state.read_text(encoding="utf-8") if state.exists() else None
+    quarantined = sorted(state.parent.glob(state.name + ".corrupt-*"))
+    assert on_disk_now is not None, (
+        f"活动 state 被移走了 —— 用过期判断隔离掉了别人刚写好的文件 (隔离件: {[q.name for q in quarantined]})"
+    )
+    assert json.loads(on_disk_now)["board_done"] == {"A板": TODAY}, "窗口内写成功的完成账没了"
+    st["last_generate_date"] = TODAY
+    runner.save_state(st, vault)
+    assert json.loads(state.read_text(encoding="utf-8"))["board_done"] == {"A板": TODAY}, "随后的整写又把那笔账抹掉了"
+
+
 def test_g67r_fresh_state_does_not_clobber_account_created_in_the_window(tmp_path, monkeypatch):
     """(c) Codex round-1 H2: 「读时没有文件」不等于「我有权整写」。
 
@@ -1506,6 +1607,24 @@ def test_g67r_schema_version_never_goes_backwards_on_merge(tmp_path, monkeypatch
     st["last_generate_date"] = TODAY
     runner.save_state(st, vault)
     assert json.loads(state.read_text(encoding="utf-8"))["schema_version"] == 99, "版本号只前进不后退"
+
+    # ⚠ Codex round-2 L1: 上面那半**不依赖** max 特判 —— mine 没改过版本, 普通
+    # 合并本来就会选磁盘的 99。真正需要特判的是反方向: 磁盘更旧。
+    state.write_text(
+        json.dumps({"schema_version": 2, "board_last_recommended": {}, "board_done": {}}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    st2 = runner.load_state(vault)
+    assert st2["schema_version"] == 2
+    state.write_text(
+        json.dumps({"schema_version": 1, "board_last_recommended": {}, "board_done": {}}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    st2["last_generate_date"] = TODAY
+    runner.save_state(st2, vault)
+    assert json.loads(state.read_text(encoding="utf-8"))["schema_version"] == 2, (
+        "磁盘上更旧的声明把已经前进的版本拉回去了 —— 单调取大没生效"
+    )
 
 
 def test_g67r_v1_state_load_save_lands_as_v2_with_values_intact(tmp_path, monkeypatch):

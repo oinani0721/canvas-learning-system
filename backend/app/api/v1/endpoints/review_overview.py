@@ -1853,6 +1853,9 @@ def _rebuild_projection(vault_dir: Path, script: Path, state_file: Path | None =
         return {
             "rebuilt": False,
             "reason": "in_progress",
+            # ⚠ Codex round-2 L3: 没起子进程 ⇒ 这一次**没有**把账交给生产器。
+            # 报 true 会让调用方以为让位已经算过了 (它其实只是"路径可用")。
+            "state_passed": False,
             "duration_ms": None,
             "retry_after_seconds": round(_REFRESH_TTL_SECONDS, 3),
             "rebuild_count": _refresh_counts.get(key, 0),
@@ -1864,6 +1867,7 @@ def _rebuild_projection(vault_dir: Path, script: Path, state_file: Path | None =
             return {
                 "rebuilt": False,
                 "reason": "debounced",
+                "state_passed": False,  # 同 in_progress: 本次没起子进程, 账没交出去
                 "duration_ms": None,
                 "retry_after_seconds": round(_REFRESH_TTL_SECONDS - (now - last), 3),
                 "rebuild_count": _refresh_counts.get(key, 0),
@@ -1964,6 +1968,8 @@ def _rebuild_projection(vault_dir: Path, script: Path, state_file: Path | None =
         return {
             "rebuilt": True,
             "reason": "rebuilt",
+            # 本次真起了子进程 —— argv 里到底带没带 --state
+            "state_passed": state_file is not None,
             "duration_ms": elapsed_ms,
             "retry_after_seconds": 0.0,
             "rebuild_count": _refresh_counts[key],
@@ -2608,10 +2614,10 @@ def review_overview_refresh(
             "vault_path": str(vault_dir),
             "pick_script": str(script),
             "debounce_ttl_seconds": _REFRESH_TTL_SECONDS,
-            # 加性: 本次有没有把完成账 / tie-break 记录交给生产器。false 不是
-            # 失败 —— 是"runner 不可达, 这轮排序里没有那两笔账", 如实说出来
-            # 比让调用方猜为什么榜首没让位好。
-            "state_passed": state_file is not None,
+            # state_passed 由 _rebuild_projection 放进 result —— 只有它知道这一次
+            # 到底有没有起子进程 (⚠ Codex round-2 L3: 在这里按"路径可用"算, 会让
+            # debounced / in_progress 也报 true, 而那两条路根本没把账交出去)。
+            # 语义: 本次有没有把完成账 / tie-break 记录交给生产器。false 不是失败。
             **result,
             "entry": entry,
         }

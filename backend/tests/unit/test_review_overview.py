@@ -3566,6 +3566,32 @@ def test_g67r_refresh_without_runner_degrades_to_no_state_not_503(board_done_env
     assert _proj_of(vault)["top_boards"][0]["board"] == top
 
 
+def test_g67r_state_passed_is_false_when_no_subprocess_ran(board_done_env, monkeypatch):
+    """(b) Codex round-2 L3: state_passed 说的是「本次有没有把账交给生产器」。
+
+    去抖 / 已有重建在飞这两条路根本没起子进程 —— 按"runner 路径可用"去算,
+    它们会报 true, 调用方就以为让位已经算过了。字段名说的是这一次做了什么,
+    不是环境有没有这个能力。
+    """
+    import app.api.v1.endpoints.review_overview as mod
+
+    root, client, runner, _mod = board_done_env
+    vault = _mk_node_vault(root, "vault-passed", _YIELD_NODES)
+    _write_v2_state(runner, vault)
+
+    first = client.post(_REFRESH_URL, data={"vault_id": "vault-passed"})
+    assert first.status_code == 200 and first.json()["rebuilt"] is True
+    assert first.json()["state_passed"] is True, "真重建且 runner 可达 ⇒ 账交出去了"
+
+    # 去抖窗口拉开 (refresh_env 把它归零了), 第二次必然 debounced
+    monkeypatch.setattr(mod, "_REFRESH_TTL_SECONDS", 600.0)
+    second = client.post(_REFRESH_URL, data={"vault_id": "vault-passed"})
+    assert second.status_code == 200
+    body = second.json()
+    assert body["rebuilt"] is False and body["reason"] == "debounced"
+    assert body["state_passed"] is False, "没起子进程就没把账交出去 —— 不许报 true"
+
+
 def test_g67r_web_write_keeps_keys_runner_wrote_in_the_window(board_done_env, monkeypatch):
     """(c) 门②  Web 向: Web 落账不许吃掉窗口内 runner 写的推送账。
 
