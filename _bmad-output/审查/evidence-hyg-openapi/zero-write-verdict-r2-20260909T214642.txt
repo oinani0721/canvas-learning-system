@@ -1,0 +1,24 @@
+=== (e) 重跑零写判据（R2 整改后） ===
+--- 全跑 rc（如实）: rc=1 ---
+
+### 判据 3-a：git status --porcelain 排除本卡两文件（须空）
+  行数 = 0
+
+### 判据 3-a'：未排除版原始输出
+  行数 = 0
+
+### 判据 3-b：五项骨架 test -e（须无输出）
+  (无 POLLUTED 行即通过)
+
+### 判据 3-c：find -newer sentinel-r2（排除 .venv/.hypothesis/__pycache__）
+backend/app/data/vault_index_pending__canvas_vault.jsonl
+backend/logs/memory-system-2026-09-09.log
+  行数 = 2
+
+### 对照：首轮（R1 版，92 operation）命中 6 条 —— 本轮排除了 3 条请求期写盘的 GET
+    首轮 6 条: app/data/vault_index_pending__canvas_vault.jsonl / .ruff_cache/... /
+               logs/memory-system-*.log / data/llm_call_logs.db / data/qa_metrics.db /
+               data/fsrs_card_states.json
+    其中 data/fsrs_card_states.json 由 GET /api/v1/review/fsrs-state/{concept_id} 请求期写
+    (Codex round-2 HIGH-1，作者已核源码) ⇒ 本轮该 GET 已排除，预期它不再出现。
+rc=0

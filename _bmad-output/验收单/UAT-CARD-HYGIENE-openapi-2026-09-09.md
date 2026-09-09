@@ -124,49 +124,57 @@ wiki       type=Directory     mtime=2026-09-05T10:13:14
 
 ### 改动
 
-`test_openapi_contract.py:27`（原行号）改为链式过滤：
+`test_openapi_contract.py` 的 `from_asgi` 改为链式过滤（最终态，含 Codex round-2 整改）：
 
 ```python
 schema = (
     schemathesis.openapi.from_asgi("/api/v1/openapi.json", app)
     .include(method_regex=r"^(GET|HEAD)$")
     .exclude(path_regex=r"^/api/v1/health/lancedb$")
+    .exclude(path_regex=r"^/api/v1/review/fsrs-state/\{concept_id\}$")
+    .exclude(path_regex=r"^/api/v1/health/storage$")
+    .exclude(path_regex=r"^/api/v1/multimodal/health$")
 )
 ```
 
 `@schema.parametrize()` 与 `@settings(max_examples=10, …)` **未动**（`max_examples` 未改大也未改小）。
 
-### 数字对账
+### 数字对账（最终态）
 
 | 量 | 值 | 出处 |
 |---|---|---|
 | `T_BEFORE`（改前 `test_api_contract[` 条数） | **206** | `collect-before.txt` |
 | `G`（改前 GET/HEAD 条数） | **93**（GET 93 / HEAD 0） | `collect-before.txt` |
-| `EXTRA`（写原语命中后追加排除的只读条数） | **1** | 见下 |
-| `T_AFTER`（改后 `test_api_contract[` 条数） | **92** | `collect-after.txt` |
-| `N`（`comm -23` 差集行数） | **114** | `excluded-operations.txt` |
+| `EXTRA`（会写盘、故追加排除的只读条数） | **4** | 见下「剩余 GET 面写原语复核」 |
+| `T_AFTER`（改后 `test_api_contract[` 条数） | **89** | `collect-after.txt` |
+| `N`（`comm -23` 差集行数） | **117** | `excluded-operations.txt` |
 
 **改前 method 分布**：POST 96 / GET 93 / DELETE 9 / PUT 6 / PATCH 2 = 206 ✅
-**被排除 method 分布**：POST 96 / DELETE 9 / PUT 6 / PATCH 2 / GET 1 = 114 ✅
+**被排除 method 分布**：POST 96 / DELETE 9 / PUT 6 / GET 4 / PATCH 2 = 117 ✅
+
+> 中间态（Codex round-2 整改前）为 `EXTRA=1 / T_AFTER=92 / N=114`，正控当时同样全 PASS，
+> 存档 `collect-verdict-20260909T161913.txt`。整改后的 `collect-after` 是中间态的**真子集**
+> （新增 0 行，恰移除那 3 条），存档 `collect-verdict-r2-20260909T214525.txt`。
 
 ### ⛔ 正控（口径修订如实登记）
 
 卡文写死 `T_AFTER == G`，但 (c) 同时要求「剩余 GET 面写原语命中即追加排除」。
-本卡**确有 1 条命中**，两条要求在此互斥 ⇒ 正控参数化为 `T_AFTER == G − EXTRA`，
+本卡**确有命中**（最终 4 条），两条要求在此互斥 ⇒ 正控参数化为 `T_AFTER == G − EXTRA`，
 并补一条独立对账 `T_BEFORE == T_AFTER + N`。两条合起来仍堵死「全被排掉」
 （那时 `T_AFTER = 0`，正控-2 失败）。
 
 | 正控 | 判据 | 实测 | 结论 |
 |---|---|---|---|
-| 正控-1 | `T_AFTER == G − EXTRA` | `92 == 92` | **PASS** |
-| 正控-2 | `T_AFTER > 0` | `92 > 0` | **PASS** |
-| 正控-3 | `T_BEFORE == T_AFTER + N` | `206 == 92 + 114` | **PASS** |
-| 正控-3' | `T_BEFORE == G + (N − EXTRA)` | `206 == 93 + 113` | **PASS** |
+| 正控-1 | `T_AFTER == G − EXTRA` | `89 == 93 − 4` | **PASS** |
+| 正控-2 | `T_AFTER > 0` | `89 > 0` | **PASS** |
+| 正控-3 | `T_BEFORE == T_AFTER + N` | `206 == 89 + 117` | **PASS** |
 | 正控-4 | 点名 GET nodeid 仍在 `collect-after` | `test_api_contract[GET /]` 命中 **1** | **PASS** |
+| 正控-5 | 整改后 `collect-after` ⊆ 整改前 | 新增 **0** 行，恰移除 3 条 | **PASS** |
 
-其余三条既有判据：`collect-after` 的 `setup-wizard` 计数 **0** ✅；
+其余既有判据：`collect-after` 的 `setup-wizard` 计数 **0** ✅；
 `grep -vE '\[(GET\|HEAD) ' collect-after \| grep 'test_api_contract\['` **空** ✅；
-`health/lancedb` 已不在 `collect-after`（命中 0）✅。
+四条会写盘的 GET（`health/lancedb`、`review/fsrs-state/{concept_id}`、`health/storage`、
+`multimodal/health`）均已不在 `collect-after`（各命中 0）✅。
 
 ### 剩余 GET 面写原语复核
 
@@ -178,16 +186,34 @@ schema = (
 > 修正后扫到 **93** 个（装饰器基名 27 种别名 + `app.get` 的 `GET /`），
 > **93 == 93**，这个相等本身就是扫描面完整性的证据。
 
-**命中 1 条**：
+**(1) 直接命中 1 条**（作者的 AST 扫描）：
 
 | 位置 | handler | 原语 | 实际写面 |
 |---|---|---|---|
 | `app/api/v1/endpoints/health.py:1139` | `check_lancedb_health` | `mkdir` | `lancedb_path = getattr(settings, "lancedb_path", "./data/lancedb")` 是**相对路径**，随后 `db_path.mkdir(parents=True, exist_ok=True)` ⇒ 从 `backend/` 起跑会造出 `backend/data/lancedb/` |
 
-⇒ 已按卡文追加 `.exclude(path_regex=r"^/api/v1/health/lancedb$")`，理由单列于文件头注释。
+**(2) 间接命中 3 条**（Codex round-2 补出，作者已逐条独立核过源码）：
 
-**该扫描的边界（如实）**：只覆盖 handler 函数体**一层直接文本**；
-handler → service → 写盘的**间接路径未覆盖**（列入 Codex 问题 ②）。
+> ⚠️ 这三条正是上面那句「只覆盖一层直接文本」的**已声明局限**所漏掉的。
+> 声明局限不等于免除责任 —— 独立审查把局限变成了实际缺陷，本卡按同一条规则（(c)
+> 「命中即追加排除」）处置。
+
+| 等级 | GET operation | 写链（作者复核确认） |
+|---|---|---|
+| **HIGH** | `GET /api/v1/review/fsrs-state/{concept_id}` | `endpoints/review.py:1430` → `review_service.get_fsrs_state()` → 该 concept 无卡且不受 frontmatter 管辖时 auto-create 默认卡 → `_save_card_states()`(`review_service.py:2507`) → `:600 mkdir` + `:604 write_text` + `:605 replace`，目标 `_CARD_STATES_FILE`(`:116-118` = `backend/data/fsrs_card_states.json`) |
+| MEDIUM | `GET /api/v1/health/storage` | `endpoints/health.py:1671` → `_check_json_health()` → `:1444` 默认 `./data` → `:1448 mkdir` → `:1452-1453` `.health_check` `touch()`/`unlink()` |
+| MEDIUM | `GET /api/v1/multimodal/health` | `endpoints/multimodal.py:251` → `multimodal_service.get_health_status()` → `:1034-1036` `.health_check` `write_text()`/`unlink()` |
+
+⇒ 四条已全部追加 `.exclude(path_regex=...)`，逐条理由单列于文件头注释。
+
+**其中 HIGH 那条同时更正了作者的一处归因错误**：首轮 `find -newer` 命中的
+`data/fsrs_card_states.json`（mtime `2026-09-09T18:26`，落在全跑**中途**）被作者归因为
+「app lifespan 与运行期写入」，实为该 GET 在**请求期**写的。
+
+**该扫描的边界（如实，修正后仍然存在）**：作者的 AST 扫描只覆盖 handler 函数体**一层
+直接文本**；`health/storage` 与 `multimodal/health` 这类「探针写完即删」的写入，
+连跑完后的 `find -newer` 也看不见 —— 只能靠读调用链发现。
+本卡**未**对剩余 89 条 GET 做逐条调用链审计，Codex 也只在授权读取面内查到这三条。
 
 ---
 
@@ -208,7 +234,46 @@ handler → service → 写盘的**间接路径未覆盖**（列入 Codex 问题
 
 ## 四 裁判结果
 
-<!-- PLACEHOLDER-E -->
+### (e) 改后全跑 + 零写判据 —— 跑了**两轮**（Codex round-2 整改后重跑）
+
+| | 首轮（`EXTRA=1`，92 operation） | **终轮**（`EXTRA=4`，89 operation） |
+|---|---|---|
+| 存档 | `contract-after-20260909T162042.txt.gz` + `.summary.txt` | `contract-after-r2-20260909T214642.txt` |
+| 哨兵 | `sentinel`（16:20:42） | `sentinel-r2`（21:46:42） |
+| 结果 | `92 failed, 1 skipped`，**4:55:14** | `89 failed, 1 skipped`，**5:06:32** |
+| `rc` | **1**（如实） | **1**（如实） |
+| 判据 3-a（`git status` 排除本卡两文件） | 0 行 ✅ | 0 行 ✅ |
+| 判据 3-b（五项骨架 `test -e`） | 无 POLLUTED ✅ | 无 POLLUTED ✅ |
+| 判据 3-c（`find -newer`） | **6 条，未通过** ❌ | **2 条，仍未通过** ❌ |
+
+> `rc=1` 的含义：92 / 89 条全部 `DeadlineExceeded` —— `@settings(deadline=10000)` 对本机
+> app 响应过紧。这是**存量契约红**，卡文明示「本卡判据是零写，不是契约全绿」，登记不修。
+>
+> 判据 3-a′（未排除版原始输出）首轮是 2 行（` M test_openapi_contract.py` + `?? conftest.py`），
+> 恰好只有本卡自己那两个文件；终轮是 0 行（两文件此时已 commit）。
+
+#### ⛔ 判据 3-c 两轮均未通过 —— 逐条归因，不放宽判据
+
+**首轮 6 条**（存档 `find-newer-attribution-20260909T211708.txt`）：全部被 gitignore 覆盖、
+全部不在五项骨架内。其中 `.ruff_cache/...` 是作者自己跑 ruff 造成的（裁判自身副作用）。
+作者当时把其余 5 条归因为「app lifespan 与运行期写入」——**这个归因不够精确**，
+被 Codex round-2 纠正（见下）。
+
+**终轮 2 条**（存档 `find-newer-attribution-r2-20260909T....txt`）：
+
+| 文件 | mtime | 归因 | 处置 |
+|---|---|---|---|
+| `logs/memory-system-2026-09-09.log` | `22:06:45`（开跑后约 20 分钟，**跑中**） | 被保留的 health 系 GET 在请求处理中经 `memory_logger` 写的**日志**（`endpoints/health.py:849/853/865/883/909`） | **登记不排除**：可观测性输出，`.gitignore:192 logs/` 覆盖，非 vault 骨架；为它排除整个 health GET 面，覆盖损失远大于收益 |
+| `app/data/vault_index_pending__canvas_vault.jsonl` | `2026-09-10T02:53:30`（= `21:46:42 + 5:06:32`，**跑结束时刻**） | app **关闭时**持久化，非任何单个 GET 触发 | **登记不排除**：排除任何 GET 都消不掉它；`.gitignore:253` 覆盖；非 vault 骨架 |
+
+#### ✅ 两轮对照实测确认了 Codex round-2 HIGH-1
+
+排除 `GET /api/v1/review/fsrs-state/{concept_id}` 后，`data/fsrs_card_states.json` 的 mtime
+**停在 18:26:21**（首轮时间），终轮全程未被写。`llm_call_logs.db`（16:21:24）与
+`qa_metrics.db`（17:20:56）同理停在首轮时间。
+
+**这不是推理，是两轮全跑的对照实测** —— 命中从 6 条降到 2 条，降掉的正是 Codex 指认的那条
+及两个只在首次创建时写的文件。
 
 ### (f) 负控二 —— fixture 面对预置骨架必红
 
@@ -235,9 +300,56 @@ handler → service → 写盘的**间接路径未覆盖**（列入 Codex 问题
 `shasum -a 256 backend/tests/contract/conftest.py` 跑前/跑后：
 `ba8734acf9221c1be7caf9a46742c34fe92b6fff72964121317ef653da82f071` —— **逐字节同** ✅
 
-<!-- PLACEHOLDER-NEGCTL1 -->
+### (f) 负控一 —— 去掉过滤后 collect-only 应重现 setup-wizard
 
-<!-- PLACEHOLDER-G -->
+存档 `collect-negctl-20260909T211728.txt`。**只用 `--collect-only`，不真跑**；
+EXIT trap 无条件还原；禁 `git stash` / `git checkout`。
+
+| 步 | 实测 |
+|---|---|
+| 跑前 `shasum -a 256 test_openapi_contract.py` | `e2206057c7a770153ba9a32f93914cdfc68d43e5c87560ed859614f4536caeb2` |
+| 去掉 `.include`/`.exclude`（脚本断言待替换片段恰出现 1 次，否则中止） | 替换 1 处 ✅ |
+| 去过滤态 collect-only | **207** 行 / `test_api_contract[` **206** 条；`setup-wizard` 命中 **1**（`POST /api/v1/system/setup-wizard`）；`health/lancedb` 命中 **1** |
+| 显式还原 | ✅（trap 亦兜底） |
+| 还原后 `shasum` | 与跑前**逐字节同** ✅ |
+| 还原后 collect-only | **93** 行 / `test_api_contract[` **92** 条；`setup-wizard` 命中 **0**；与 `collect-after.txt` **逐行相同** ✅ |
+
+> 该负控跑在 Codex round-2 整改**之前**（当时 `T_AFTER=92`），故对照的是 92 条那一版。
+> 整改后的 collect 面已由 `collect-verdict-r2-*.txt` 单独落档，且证明是 92 条那版的真子集。
+
+### (g) 目录级三数对比
+
+**⚠️ 开工基线未取得，如实说明**：卡文要「与开工对比」，但改前跑 `test_openapi_contract.py`
+全跑 = 在长期树真跑写端点 = §三 硬禁，**开工基线拿不到**。
+且该文件单跑实测约 5 小时，目录级若把它再跑一遍就是重复的 5 小时。
+故 (g) 拆成两块，合并方式写明如下：
+
+| 块 | 命令 | 结果 |
+|---|---|---|
+| 块 A：`test_openapi_contract.py` | (e) 终轮已单独跑过 | `89 failed, 1 skipped`（5:06:32） |
+| 块 B：目录内其余 5 文件 | `pytest -q tests/contract --ignore=tests/contract/test_openapi_contract.py` | **`3 failed, 99 passed, 2 skipped`**（2:22），`rc=1` |
+| **合并（目录级等价三数）** | 块 A + 块 B | **`92 failed, 99 passed, 3 skipped`** |
+
+存档：`contract-dir-others-20260909T211904.txt` + `contract-dir-others-zerowrite-20260909T211904.txt`。
+块 B 跑完的零写复核：五项无 POLLUTED、`git status` 排除本卡两文件后 0 行 ✅。
+
+#### 块 B 的 3 红是**存量**，不是本卡 conftest 引入 —— 有对照基线
+
+存档 `contract-dir-baseline-noconftest-20260909T212214.txt`。
+手法：临时把本卡新增的 `conftest.py` 移出 `tests/contract/`（EXIT trap 还原，
+禁 `git stash`/`git checkout`），重跑同一组文件。
+
+| | 有本卡 conftest | 移走 conftest（基线） |
+|---|---|---|
+| 三数 | `3 failed, 99 passed, 2 skipped`（142.90s） | `3 failed, 99 passed, 2 skipped`（142.07s） |
+| FAILED nodeid | `test_health_contract.py::test_health_contract[GET /api/v1/health]`、`test_node_id_patterns.py::TestNodeIdPatternConsistency::test_pattern_matches_json_schema`、`test_openapi_snapshot_drift.py::test_committed_snapshot_has_no_drift` | **三条完全一致** |
+| W4 门计数 | `NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=19 (blocked=19)` | 同 |
+
+⇒ **逐条相同**，这 3 红是存量。`conftest.py` 的 `shasum` 移走前/还原后
+`ba8734acf9221c1be7caf9a46742c34fe92b6fff72964121317ef653da82f071` **逐字节同** ✅
+
+> 本卡不跑 `tests/unit` 目录级：协议 §3「改了什么面就跑那个面」，
+> 本卡零 `backend/app` 改动，只须 `tests/contract` 本目录级。
 
 ### (g) lint
 
@@ -246,7 +358,44 @@ handler → service → 写盘的**间接路径未覆盖**（列入 Codex 问题
 - `ruff check` 两文件 → `All checks passed!`，`rc=0` ✅
 - `ruff format --check` 两文件 → `2 files already formatted`，`rc=0` ✅
 
-<!-- PLACEHOLDER-DOMAIN -->
+### 地盘门（§二.7）与入库卫生（(i)）
+
+存档 `domain-gate-20260909T212721.txt` + `gate-anomaly-attribution-20260909T212805.txt`。
+
+```
+git diff --name-only --no-color ce1e085b HEAD -- . ':(exclude)_bmad-output'
+→ backend/tests/contract/conftest.py
+  backend/tests/contract/test_openapi_contract.py      （恰 2 行，⊆ 两文件 ✅）
+```
+
+**⚠️ 验伪锚一度显示 0，实为 `core.quotepath` 陷阱（如实登记）**：
+「去掉 exclude 应多出 `_bmad-output/`」这条验伪锚初测为 **0**。
+根因是 git 默认 `core.quotepath=on`，把中文路径转义成 `"_bmad-output/\345\256\241..."`（**带引号**），
+`grep '^_bmad-output/'` 因此匹配不到。加 `-c core.quotepath=false` 后计数 **42**，
+验伪锚成立 ✅。—— 若不查这一步，会得出「地盘门没有反证支撑」的错误结论。
+
+| (i) 项 | 判据 | 实测 | 结论 |
+|---|---|---|---|
+| 单独 commit | 本卡自己的 commit | `3c064c9d` → `dddfc598` → `11dfe410` | ✅ |
+| commit header ≤100 | `wc -m` | 94 / 86 / 86 | ✅ |
+| body 行 ≤100 | `wc -m` 逐行 | 无超限 | ✅ |
+| `*.stderr*` 不入库 | `git ls-files \| grep -E '\.stderr($\|\.)'` | **0** | ✅ |
+| `.hypothesis/` 不入库 | `git ls-files backend/.hypothesis \| wc -l` | **202** | ❌ 见下 |
+
+**⚠️ `.hypothesis` 判据未通过 —— 历史遗留，本卡未新增（如实登记）**：
+卡文 (i) 要求该计数为 0，实测 **202**。查证：本卡 commit `3c064c9d` **未碰**任何
+`.hypothesis` 文件（`git show --name-only` 命中 0）；`ce1e085b` 时已是 **202**，HEAD 仍 **202**
+（`git ls-tree` 对照，数量未变）；最早入库于 `992a2d5a 2025-12-15 chore: backup before Epic
+optimization`。`.gitignore:107` 对**已跟踪**文件不生效，这是历史债，不在本卡地盘。
+
+**⚠️ `stderr` 计数一度显示 2**：那是 `_bmad-output/审查/` 下**别的卡**的证据档
+文件名里含 "stderr"（`G4-9-evidence/census-stderr.txt`、`evidence-g29f1/stderr-not-tracked-*.txt`），
+不是 `*.stderr` 后缀。收窄口径为 `grep -E '\.stderr($|\.)'` 后计数 **0** ✅。
+
+**大存档处置**：首轮全跑原档 59,477,945 字节 / 106,172 warnings（绝大多数是同一条
+`DeprecationWarning` 的重复），逐字全文入库不现实 ⇒ gzip 后入库（2,195,473 字节），
+并另出 `contract-after-20260909T162042.summary.txt`（会话头 + 进度行 + 全部 92 条 FAILED
++ 结尾摘要 + `rc`，逐字抄自原档，未改写）。终轮存档 331KB 以内，原样入库。
 
 ### (h) Codex 独立审查（gpt-6-astra · ultra · 多轮直到绑最终 HEAD 且 BLOCKER/HIGH = 0）
 
@@ -261,7 +410,7 @@ handler → service → 写盘的**间接路径未覆盖**（列入 Codex 问题
 注释里的覆盖面数字写成「保留 93 / 排除 113」，那是**追加排除 `health/lancedb` 之前**的值。
 已改为当时实测的 92 / 114。纯注释修改，`collect-only` 结果与整改前**逐行相同**（行为未变）。
 
-#### round-2 HIGH-1 + MEDIUM-2/3 → 已整改（commit `<R2_SHA>`）
+#### round-2 HIGH-1 + MEDIUM-2/3 → 已整改（commit `11dfe410`）
 
 Codex 补出了作者扫描面的**已声明局限**（只扫 handler 函数体一层直接文本）漏掉的
 **间接写**。作者已逐条独立核过源码，三条**全部成立**：
@@ -384,9 +533,9 @@ Codex 指出零写门只查 `backend/` 顶层五个名称，若 vault 根是 `ba
 ## 七 台账待登记条目
 
 1. **Y6-A 勘误「真写者 = 合约测试对写端点无 exclude」→ 本卡修复**：
-   修复 sha `<COMMIT_SHA>`；排除面 **114 条**（POST 96 / DELETE 9 / PUT 6 / PATCH 2 / GET 1），
+   修复 sha `3c064c9d` → `dddfc598` → `11dfe410`；排除面 **117 条**（POST 96 / DELETE 9 / PUT 6 / GET 4 / PATCH 2），
    清单 `_bmad-output/审查/evidence-hyg-openapi/excluded-operations.txt`
-   （分组版 `excluded-operations-grouped.md`）。契约覆盖面从 206 → 92。
+   （分组版 `excluded-operations-grouped.md`）。契约覆盖面从 206 → **89**。
 2. **`setup-wizard` 任意绝对路径写面**：Y6-A 的 `_must_be_absolute`（`system.py:430-455`）
    只拒相对路径/空串，`system.py:467-470` 黑名单只 6 个目录，`Path(...).resolve()` 对其余
    任意绝对路径照建 ⇒ **写面挪走了不是消失** → U10-D / 第十四批候选。
@@ -432,10 +581,25 @@ Codex 指出零写门只查 `backend/` 顶层五个名称，若 vault 根是 `ba
 14. **卡文 (b)⓪ 第 1 步前提不成立**：车道树 `backend/.env:67 NEO4J_URI=bolt://localhost:7691`
     就是现网，`:31/:33` 指向 live vault。已按 §三 硬边界在 scratch 副本中改指
     不可达端口与 scratch 内目录后再用（改后 `grep -c '7691\|7687'` = 0）→ 登记。
-15. **`GET /api/v1/health/lancedb` 是只读端点里的直接写盘者**：
-    `health.py:1139` 的 `lancedb_path` 默认相对路径 `./data/lancedb` + `mkdir`。
-    本卡只把它排除出合约测试，**端点本身未修** → 后续卡候选。
-16. **合约测试全跑耗时是存量问题**：92 个 GET operation 实测约 3.3 分钟/个
-    （全部 `DeadlineExceeded`，`@settings(deadline=10000)` 对本机 app 响应过紧），
-    全跑约 5 小时；改前 206 个 operation 约需 11 小时。本卡的过滤把它减半，
+15. **4 条「只读」GET 实际会写盘，本卡只排除、端点本身未修** → 后续卡候选：
+    - `GET /api/v1/health/lancedb`（`health.py:1139`）：`lancedb_path` 默认相对路径
+      `./data/lancedb` + `mkdir`（直接写原语）。
+    - **`GET /api/v1/review/fsrs-state/{concept_id}`**（`review.py:1430` →
+      `review_service.py:2507` → `:600/:604/:605`）：查询无卡的 concept 会 **auto-create
+      默认卡并持久化**到 `backend/data/fsrs_card_states.json`。**一个 GET 改变了持久化状态**，
+      这不只是测试卫生问题，是端点语义问题 → 建议单独立卡评估。
+    - `GET /api/v1/health/storage`（`health.py:1671` → `_check_json_health` `:1448/:1452-1453`）：
+      默认 `./data` + `mkdir` + `.health_check` 探针 touch/unlink。
+    - `GET /api/v1/multimodal/health`（`multimodal.py:251` → `multimodal_service.py:1034-1036`）：
+      `.health_check` 探针 write_text/unlink；构造器还会创建媒体目录。
+16. **合约测试全跑耗时是存量问题**：首轮 92 个 GET operation 实测 **4:55:14**（约 3.2 分钟/个，
+    92 failed / 1 skipped，全部 `DeadlineExceeded` —— `@settings(deadline=10000)` 对本机
+    app 响应过紧）；改前 206 个 operation 按同速率约需 11 小时。本卡的过滤把它减半，
     但**未修** deadline 本身（卡文禁改 `max_examples`，deadline 同理不动）→ 登记。
+17. **「探针写完即删」的写入，跑后 `find -newer` 看不见**（`health/storage` 与
+    `multimodal/health` 的 `.health_check`）。⇒ 单靠「跑完扫一遍文件系统」这类事后判据
+    **系统性地漏掉一整类写入**，必须配合读调用链。建议主 session 收进协议 —— 与
+    条目 11 的「空集恒真」同属「判据本身看不见某类事实」的坑。
+18. **零写门的检测边界缺口**（Codex round-2 MEDIUM-4）：`conftest.py` 只查 `backend/`
+    顶层五项名称；若 vault 根是 `backend/<非五项名>/`，骨架仍写进代码目录而门看不见。
+    卡文 (d) 写死这五项，扩大检测面超出本卡授权 → 登记，后续卡候选。
