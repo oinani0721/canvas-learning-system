@@ -119,3 +119,27 @@ session fixture 进入/teardown 时，**不是进程起止时点**，两者差�
   `'math-group__semantic' == 'math-group'` / recipe 集合多项 / 硬编码路径 /
   `Neo4j connection lost` / `'str' object has no attribute 'value'` /
   `get_graphiti_temporal_client` 未被调用 / `resolve_vault_group_id` 未从共享模块导入 / `0.0 < 0.0`
+
+## 族A/B/C 完成（2026-09-08 午，34/66，工作树未提交）
+
+| 族 | 条数 | 文件 | 依据 | 处置 | 验证 |
+|---|---|---|---|---|---|
+| A 搜索委托改名 | 4 | `test_agent_context_injection.py` | `5d2b95ba`（G-FAKE-001）+ **`a9304c69`**（S35 except 精确化，第 4 条的独立依据） | 4 条改指新名 `_search_learning_relations`（夹具 11 处 / 方法 7 处整体改名，DD-13 两条函数名同步改）；`test_search_graceful_on_exception` 的 mock 从裸 `Exception` 改成元组内的 `asyncio.TimeoutError`；**新增反向锚** `test_search_propagates_unexpected_exception`（锁住 S35 收窄，防改回 `except Exception`） | 5 passed |
+| B association cache 裁撤 | 4 | `test_cache_configuration.py` | `836d0986`（Epic2 pruning，148+/700−） | xfail(strict=True) ×4 → `CARD-CONFIG-CLEANUP`；`ENRICHMENT_CACHE_MAXSIZE` census 实测 `backend/app` 零消费方（只有 config.py:678 定义），与 MEMORY_RETRY_* 同族。**AST 类边界定位**打装饰器：`test_cache_uses_custom_maxsize` 在 `TestMemoryServiceCacheFromSettings`（绿）与 `TestEnrichmentCacheFromSettings`（本卡）**同名各一份**，全文锚定会误伤 | 10 passed / 5 xfailed / XPASS 0，同名绿测试复跑仍 1 passed |
+| C 2hop kwarg 改名 | 2 | `test_context_enrichment_2hop.py` | `5d2b95ba`（`include_graphiti` → `include_learning_memory`） | 2 处 kwarg 改名 | 17 passed |
+
+族A/B/C 集合：32 passed / 5 xfailed / FAILED 0 / XPASS 0（`files-abc-*.txt`）。
+全部已改 6 文件集合：131 passed / 10 xfailed / FAILED 0 / XPASS 0 / 污染 0（`files-8files-*.txt`）。
+§二.6 判据强度门（四种弱化形态）无输出 ✅；§二.7 fixture 门 autouse=0、无 .env/ACTIVE_VAULT ✅。
+
+### 补丁防线实测（本批三次被断言拦下、零误写）
+- 族A：`mock_graphiti_service` 计数预期 9 → 实测 **11**（漏数夹具参数与构造 kwarg）；`_search_graphiti_relations(` 预期 3 → 实测 **5**（漏了 `:82` 与模块 docstring `:6`）。两次断言拦截、零写入，第三次用 grep 实测数写入。
+- 族B：`test_cache_uses_custom_maxsize` 全文锚定命中 **2**（同名跨类）⇒ 改 AST 类边界定位。
+- 教训（已有记忆同族）：**计数锚必须 grep 实测，函数名锚必须查同名跨类**。
+
+### 剩余 32 条（族D，17 文件）
+`test_agent_service_comparison` 6 · `test_rag_multimodal_integration` 4 · `test_agent_service_neo4j_memory` 4 ·
+`test_story_38_4_dual_write_default` 3 · `test_story_38_1_review_fixes` 2 · `grouping/test_analyze_canvas` 2 ·
+11 个单条文件（wave5 参数化 / verification_service_injection / subject_isolation / story_38_8_fallback_sync /
+story_1_7_env_config / s02_search_upgrade / s02_entity_types / neo4j_health / intelligent_parallel_endpoints /
+degraded_flag_propagation / agent_memory_trigger）
