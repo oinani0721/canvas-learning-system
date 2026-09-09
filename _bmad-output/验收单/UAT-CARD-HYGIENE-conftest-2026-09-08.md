@@ -3,7 +3,7 @@
 > 批次: `BATCH-2026-09-07-第十三批` · 车道 `card-u10-red-a`（分支 `card/u10-red-a`）· CODE_BASE `da690bf8`
 > 卡文: `…/feature-obsidian-hybrid-dev/_bmad-output/implementation-artifacts/goal-cards/第十三批-goals/U10-A.md`
 > 地盘: **只** `backend/tests/unit/conftest.py`（本卡零生产代码改动）
-> evidence: `_bmad-output/审查/evidence-hyg-conftest/`（全 `.txt`；**跑分类**存档（unit-/api-/regression-/skills-/negctl-/selfprobe-）末行 `rc=`；red-*/window-*/probe-*/static-gates-* 为派生清单与探针存档、无 rc 行 —— 补审 LOW 整改，原「全部末行 rc=」对 78/136 个文件不成立）
+> evidence: `_bmad-output/审查/evidence-hyg-conftest/`（全 `.txt`；**跑分类**存档（unit-/api-/regression-/skills- 等）**测试结果行之后**记录测试 `rc=`，**其后可能再附清理/还原对账记录**（如 P1-red 末行是还原一致性 rc=0，非测试 rc）—— Codex round-6 LOW：早前「跑分类末行 rc=」仍不成立；探针类（negctl-/selfprobe-/probe-）按各自判据读取；red-*/window-*/static-gates-* 为派生清单与探针存档、无 rc 行 —— 补审 LOW 整改，原「全部末行 rc=」对 78/136 个文件不成立）
 > 日期: 2026-09-08
 
 ---
@@ -211,7 +211,10 @@ mkdir_done=2026-09-08T07:09:23  dir=/tmp/test-vault-negctl-72013
 
 | 目录级 | 汇总行 | rc | diff |
 |---|---|---|---|
-| `tests/unit` | `173 failed, 4749 passed, 48 skipped, 122 warnings, 29 errors in 242.69s` | 1 | **对 202 基线 diff 为空** ✅（该轮独立证据 = `red-diff-n2p-r3.txt`，零行；⚠️ 原引用的 `red-diff-after.txt` 已被 r4 复用覆盖、现含一增一减，勿再引 —— Codex round-5 MEDIUM） |
+| `tests/unit` | `173 failed, 4749 passed, 48 skipped, 122 warnings, 29 errors in 242.69s` | 1 | **对 202 基线 diff 为空** ✅（原始证据 = `unit-n2p-20260908T071312.txt`（本表 round-1 期那次
+N2' 的原始日志）；该轮派生 diff 当时落在复用文件 `red-diff-after.txt`、已于 r5 期改为每轮
+独立命名 —— Codex round-6 MEDIUM：先前把指针改指 `red-diff-n2p-r3.txt` 是 r3 期那轮，
+时长与 warning 数都对不上本表汇总行） |
 | `tests/api` | `268 passed, 40 warnings in 1.68s` | 0 | 与开工**红** nodeid 集 diff **为空** ✅ |
 | `tests/regression` | `1464 passed, 6 skipped, 10 xfailed, 556 warnings in 350.53s` | 0 | 与开工**红** nodeid 集 diff **为空** ✅ |
 | `tests/skills` | `369 passed, 22 warnings in 43.03s` | 0 | 与开工**红** nodeid 集 diff **为空** ✅ |
@@ -726,8 +729,11 @@ r5 整改（docs-only，`0491b12a`）之后、送 round-6 之前，本卡对最�
    `unchecked`（不产生 onerror）—— 与 docstring「越界一律进 unchecked / 不静默跳过」正相反。
    round-1 MEDIUM 只让我处理了**文件**链接那一半（`_hygiene_within_root`）；
    docstring 里「`followlinks=False` 挡住目录符号链接」**这句话本身是真的**，
-   但「挡住」≠「记账」—— 我把一个「不跟随」写成了「已设防」。这是**第 13 处同型**，
-   且是第一次落在**代码行为**上（前 12 处都在声明/文档层）。
+   但「挡住」≠「记账」—— 我把一个「不跟随」写成了「已设防」。这是**第 13 处同型**。
+   ⚠️ 措辞更正（Codex round-6 MEDIUM）：本行原写「第一次落在代码行为上（前 12 处都在声明/
+   文档层）」**不准确** —— 第 1 次就在**代码里**（conftest 告警文案），第 4 次也是实际诊断
+   出口错标。准确说法：第 13 次是第一次**门的假绿面**（门该拦却静默放行的行为缺陷），
+   此前各次的「代码里」都是文案/措辞层、门行为本身未错。
    - **实测取证**（`negctl-n4-dirlink-20260908T112304-VOID.txt`， VOID 前身）：
      正控 = 同内容放普通目录，门**抓到**（harness 活着）；被测 = 放指向树外的目录符号链接后面，
      **既不抓也不记账**。树内指向 `tests/api` 的链接同样静默。
@@ -737,7 +743,7 @@ r5 整改（docs-only，`0491b12a`）之后、送 round-6 之前，本卡对最�
      正控仍抓到；被测从静默放行变为 `unchecked` 记账（「目录符号链接未跟随, 目标不在扫描根内…」）；
      树内链接同样记账；探针零残留、conftest sha 前后一致。
 2. **【HIGH · 文档】§六⑫ 计数停在 8**，而本单 §三·七 / §七 已记第 9 处、存档已记第 10 处 —— 已更新为
-   「至少十四次」并补枚举 9~14（见 §六⑫）。
+   「至少十四次」并补枚举 9~14（见 §六⑫；后经补审增至十五，见 §六⑫ 第 15 次）。
 3. **【LOW · 文档】§七 遗留句「两条 HIGH 我都判成立」**（round-1 时期写法，与五轮 10 条 HIGH 的表格
    自相矛盾）+ §六⑤ 只写到 round-2 —— 均已补齐。
 4. **【LOW · 文档】§一(e) 仍描述已废弃的 `violations` 合并出口**（round-2 已拆三列表）—— 已改。
@@ -773,7 +779,10 @@ dirlink 补丁**第一次**运行时 `ANCHOR_FAIL[docstring_dirlink]`（锚点�
 | 同轮拦下的险情 | N3b 重跑时旧版对照文件未拷入新工作目录、旧版侧根本没跑 —— 判据「SILENT_PASS=0（期望 1）」**正确拦下**，存档 VOID 后从 git 重提取旧版（sha 对 `13a138c9` 逐字节核验）重跑通过（`negctl-n3b-enum-denied-samefixture-20260908T115612.txt`） |
 
 **两轮自审合计**：7 视角全跑通（首轮 2 个成功 + 补跑 5 个），共 **14 条确认**（首轮 4 + 补跑 10，
-去重后 11 个根因），**全部处置**；驳回 10 条（理由均复核接受）。
+去重后 11 个根因），**全部处置**；明确驳回 6 条（理由复核后接受）；另有 **4 条零票**
+（反驳者全部 429 未跑成 ⇒ **未达确认阈值**，既非确认也非驳回 —— Codex round-6 MEDIUM：
+早前笼统写「驳回理由均复核接受」把这 4 条也算进去了，经比对均为已确认根因的重复）与
+1 条边缘项（1/2 票被驳回、复核存档后仍修）。
 
 ---
 
@@ -787,7 +796,10 @@ dirlink 补丁**第一次**运行时 `ANCHOR_FAIL[docstring_dirlink]`（锚点�
 - 自指验伪锚 7a/7b/7c①/7c②/7d 五条，其中 7c② 另附前提自证（防死探针）。
 - 地盘门（只一个文件）+ 禁改面为空 + ruff check/format 全绿 + `:(exclude)` 写法验伪锚。
 - **r6（dirlink 修复后）收工四目录级重跑**：`tests/unit` 对 202 基线 diff **空**（`red-diff-r6.txt` 零行；`NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=12` 门 fail 0 告警 0）；`tests/api` / `tests/regression` / `tests/skills` 与开工红 nodeid 集 diff 全空、rc 全 0 —— 存档 `{unit,api,regression,skills}-after-r6-20260908T114233.txt`（补审 LOW：§三·九 曾引用「§四 4-A r6 行」而本节原为无 r6 的 bullet 清单，悬空已补）。
-- 全部裁判存档在 `evidence-hyg-conftest/`（跑分类末行 `rc=`，口径见首部说明）。
+- 全部裁判存档在 `evidence-hyg-conftest/`（rc 口径见首部说明：测试 rc 在测试结果行之后，
+  其後可能附还原对账）。⚠️ 勘误（Codex round-6 LOW）：`negctl-p1-green-r6-20260908T115820.txt`
+  抬头写「见 `negctl-p1-red-2026*r6*.txt`」—— 该 glob 名不存在，实际还原对账在
+  `negctl-p1-red-20260908T115408.txt:76-79`（SHA_MATCH=YES + git_diff_quiet_rc=0）。
 
 ### 4-B 你来验（一句话 + 感觉）
 
@@ -895,7 +907,8 @@ dirlink 补丁**第一次**运行时 `ANCHOR_FAIL[docstring_dirlink]`（锚点�
    与 §七 D-15 说明）。⚠️ 本条早前只写到 round-2，自审 LOW 抓到的漏更。
 
 12. **【本卡新增登记 · 判据比证据宽，同型当天已发现至少十五次；计数无法穷尽】**
-    ⚠️ 「十四」是**已被发现的**次数，**不是「全部」，而且这个计数无法穷尽**。
+    ⚠️ 「十五」是**已被发现的**次数，**不是「全部」，而且这个计数无法穷尽**。
+    （Codex round-6 MEDIUM：本行「十四」是更新标题时漏改的下一行残留。）
     每一轮外审都在我声称「没有更多了」之后又找出新的：round-2 判「三次之外没有更多」不成立
     （+3，第 4~6 次），round-3 判「七次之外没有更多」不成立（+1，第 8 次），round-4 判
     「七次之外」（即 §三·七 #15）不成立（+1，第 9 次），随后我自查与自审又各发现新的。
@@ -1048,7 +1061,11 @@ dirlink 补丁**第一次**运行时 `ANCHOR_FAIL[docstring_dirlink]`（锚点�
      快照窗口交叠」的时序面 —— 该面**已由 (n) 的 N2 / N2' 补跑覆盖**（真起第二棵 worktree、两侧
      `date` 自证交叠、修前红修后不红）。(n) 之外仍未覆盖的面见「本卡未证明什么」⑦。
    - **唯一放宽面**：不可归属的 `/tmp` 信号 硬 fail → 告警。**补偿** = 新增源码字面量硬门 +
-     骨架 / tracked sha 面一字未动。**revert 点 = 本卡单 commit**。
+     骨架 / tracked sha 面一字未动。**回退点（Codex round-6 MEDIUM 更正：本条早前写
+     「本卡单 commit」是 D-27 裁定当时的快照，卡后来多 commit 已不成立）**：完整回退 =
+     `git reset da690bf8`（本卡全部 8 个 commit）；只回退代码面 = revert `4fa30e48` +
+     `bbdf19ea`+`ce5bc6e9`+`459190f0`+`2c799422`+`13a138c9`（六个含 conftest 改动的 commit），
+     其中 `0491b12a`/`475f2bee` 是纯 `_bmad-output`、不涉代码。
    - **另请主 session 一并处理两件文档面事项（不阻断本卡合并，D-27 未涉及）**：
      ① 设计稿 §9.E.5 措辞仍是「按 worktree 唯一前缀 / `tmp_path_factory`」，未随 D-27 同步，
      建议改成「可归属 / 不可归属分流 + 双树并发验证」，免得下一张卡照旧稿再写一遍无效方案；
@@ -1091,7 +1108,8 @@ prompt 五分节 + 最小读取面写死；禁用措辞自检 4 项全 0、`grep
 | round-2 | `2c799422` | BLOCKER 0 / HIGH 3 / MEDIUM 2 | 五条全部成立并整改，无驳回 |
 | round-3 | `459190f0` | BLOCKER 0 / HIGH 2 / MEDIUM 1 | 三条全部成立并整改，无驳回 |
 | round-4 | `ce5bc6e9` | BLOCKER 0 / HIGH 2 / MEDIUM 4 / LOW 1 | 七条全部成立并整改，无驳回。其中 HIGH #2 被点名为**第 9 处同型错误**（把未交付的证据登记成已交付） |
-| **round-5（末轮）** | **`bbdf19ea`** | **BLOCKER 0 / HIGH 1 / MEDIUM 4** | **五条全部成立并整改，无驳回。全部为文档口径问题，零代码问题** |
+| round-5 | `bbdf19ea` | BLOCKER 0 / HIGH 1 / MEDIUM 4 | 五条全部成立并整改，无驳回。全部为文档口径问题，零代码问题 |
+| **round-6（人审补充证据）** | **`475f2bee`** | **BLOCKER 0 / HIGH 1 / MEDIUM 2 / LOW 1（代码层 B/H = 0）** | **四条全部成立、无驳回。HIGH = 轮次口径裁定（docs-only 不扣减已完成的第五轮 ⇒ 本轮为人审补充证据、车道停轮）；MEDIUM#2 代码层保守假红（扫描根大小写别名目录, 已复现取证 `probe-within-root-alias-r6-*.txt`, 按其「登记类不新增阻断」移交不改）；MEDIUM#3 文档残留 6 处 + LOW 2 处均已整改（本轮 docs-only）** |
 
 ### ⛔ D-15 停轮说明（末轮仍有 HIGH ⇒ 停下交主 session 人审）
 
@@ -1104,12 +1122,18 @@ prompt 五分节 + 最小读取面写死；禁用措辞自检 4 项全 0、`grep
   最终提交文件 sha」三者对应）、grep 旧理由撤回、warning 原因转述更正、历史 diff 引用改指独立文件。
 - ⚠️ **这些整改之后没有再送审**：协议 §1 明写「审后再改代码 ⇒ 必再送一轮（**只改 `_bmad-output` 不算**）」，
   而本轮整改**只动 `_bmad-output`，`backend/tests/unit/conftest.py` 一字未改**
-  （`git diff bbdf19ea HEAD -- backend/` 为空，见 §一 (j)）。故未触发第 6 轮，也未超 D-15 上限。
+  （`git diff bbdf19ea 0491b12a -- backend/` 为空，见 §一 (j)；⚠️ 原文写 `HEAD` ——
+  写时 HEAD=`0491b12a` 故为真，r6 代码修复后不再成立，Codex round-6 MEDIUM 抓到的过期表述，
+  已钉死为 `0491b12a`）。故该次 docs-only 整改未触发再送轮。
 - **Codex 末轮给出的最小阻断项**（原文）：「统一验收口径并取得该项裁定，不需要扩面修改 W4 或默认补跑二十轮」。
   前半已做完；**后半（限定例外的裁定）只能由主 session 作出** —— 见 §三·八 处置 2。
 
-**⇒ 提请主 session 裁定的唯一事项**：是否接受 r4 那一次 W4 哨兵归属漂移造成的验收偏离
-（`red-diff-r4.txt` 的一增一减）。**在获准前，本卡按「有未裁定的验收偏离」处理，不主张可合。**
+**⇒ 提请主 session 裁定的事项（Codex round-6 HIGH 后从一件扩为两件）**：
+1. **W4 限定例外**：是否接受 r4 那一次 W4 哨兵归属漂移造成的验收偏离（`red-diff-r4.txt`
+   的一增一减）。在获准前按「有未裁定的验收偏离」处理。
+2. **最终 HEAD 的人审处置**：按 D-15 停轮条款，`475f2bee`（及 round-6 补充证据）交主 session
+   人审裁定可否合 —— 车道不再自续轮次。
+**两项获准前，本卡不主张可合。**
 
 ### D-15 续（r6 状态）：为什么在 5 轮之后还有 round-6 —— 车道不自判，交 Codex 与主 session 裁
 
@@ -1117,16 +1141,21 @@ prompt 五分节 + 最小读取面写死；禁用措辞自检 4 项全 0、`grep
    括注「只改 `_bmad-output` 不算」**不触发**再送轮 —— 但这也意味着 `0491b12a` 从未被审。
 2. 随后的对抗自审发现**代码层 HIGH**（§三·九 dirlink），修复 = **审后再改代码** ⇒ 协议明文
    「必再送一轮」。round-6 因此**既是强制重审、也是第一个绑最终 HEAD 的轮**。
-3. **轮次计数口径未由车道自定**：若把 docs-only 整改计入 5 轮上限，则 round-6 超限，应停下交
-   主 session 人审；若按 §1 括注不计入，则 round-6 是合法的第 5 个「代码审」轮。**该口径已写进
-   round-6 prompt 请 Codex 独立判**，无论其结论如何，超限与否最终由主 session 裁定。
-4. round-6 的 prompt 同时声明：末轮 B/H=0 之外的**唯一待裁事项**仍是上面的 W4 限定例外。
+3. **Codex round-6 已给出独立判断（HIGH，本卡接受）**：五轮已用尽，§1 括注约束的是「审后修改
+   是否触发重审」，**没有规定按发现属于代码还是文档来扣除已完成的审查轮次** —— `0491b12a`
+   的 docs-only 整改本身没产生新轮，因此没有一轮可减。**round-6 定性 = 交主 session 人审的
+   补充复核证据，不是车道自计的「第五个代码审」**。「审后再改代码必审」不能自动解除
+   「五轮仍有 HIGH 就转人审」的停止条件。
+4. ⛔ **车道就此停轮**（这也是 round-6 结论原文的处置）。round-6 本身：BLOCKER 0 / HIGH 1 /
+   MEDIUM 2 / LOW 1，**代码层 BLOCKER/HIGH = 0**（conftest 实算 sha 与送审值一致、允许文件
+   与该提交无差异）；那条 HIGH 即上面的轮次口径裁定，**按其性质不可能由车道整改消除**。
 
 - round-2 的 prompt 相对 round-1 增补：把 `backend/pytest.ini` 加进读取面（round-1 判我自述 #1
   它当时判「普遍保证不成立」的原因**不只是**读取面 —— ⛔ 我此前把它窄化成「直接原因就是
   不在允许读取面内」是**误述**；round-1 同时明确指出**外部启动参数与运行期过滤器**也可能升级
   或隐藏 warning，读到 ini 只能核验**仓库内配置**、不能建立普遍保证）、把整改点与 N3b/N3c 存档列入、
   把我接受的三处收窄写明。
-- ⛔ 车道不对 HIGH 自判通过：五轮共 **10 条 HIGH**（2+3+2+2+1）我全部判**成立并整改**，
-  无驳回项。⚠️ 本行早前写「两条 HIGH」是 round-1 时期的遗留句，自审 LOW 抓到的漏更。
+- ⛔ 车道不对 HIGH 自判通过：前五轮共 **10 条 HIGH**（2+3+2+2+1）+ round-6 的 **1 条**，
+  全部判**成立并整改/接受**，无驳回项。⚠️ 本行早前写「两条 HIGH」是 round-1 时期的遗留句，
+  自审 LOW 抓到的漏更。
 - D-15：有代码改动 ⇒ 多轮直到绑最终 HEAD 的一轮 BLOCKER/HIGH = 0，上限 5。
