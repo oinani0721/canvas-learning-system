@@ -120,7 +120,9 @@
 那唯一一次真连不是被消掉、而是被推给进程里**下一个**调用方 —— 哨兵换个 nodeid 照样报出来。
 改 patch `health_check` 则是把债**付清**：单例照建，`_initialize_neo4j_driver` 照走
 `_fallback_to_json()` ⇒ `_use_json_fallback=True` + `_initialized=True`（`neo4j_client.py:467`），
-**进程终态与打桩前逐项相同，只少了那一次 socket**。返 `False` 而非抛，因为真实 `health_check:529-535`
+**决定「还会不会再连」的那两个标志与打桩前完全一致，只少了那一次 socket**
+（⚠️ 不是「进程终态逐项相同」—— 真实失败路径 `:534` 会写 `_last_health_check` 时间戳、`AsyncMock` 不会；
+该字段不参与再连判定，Codex r1 LOW-3 更正过我这处措辞）。返 `False` 而非抛，因为真实 `health_check:529-535`
 本来就把异常吞成 `False`。收工日志可证该路径被走到：`WARNING app.clients.neo4j_client:neo4j_client.py:408 Neo4j health check failed during initialization`。
 
 **归属漂移的实证（开工期，同一份代码只换收集顺序）**：
@@ -197,7 +199,11 @@
 其 `INTERNAL_API_KEY` 为空 + `DEBUG=True` ⇒ 落 `security.py:110-142` **Branch 2**（`TestClient` 的
 client host 恒为 `"testclient"`，拿不到 loopback bypass）。
 ⇒ **这正是卡文要求「必须同批声明 403 **和** 503」的实证**：只声明 403 的话，这四条会因「返回了 schema 里
-没声明的 503」被 `status_code_conformance` 打红。实测该检查出现 **0** 次 ⇒ 两个码都声明到位。
+没声明的 503」被 `status_code_conformance` 打红。
+⚠️ **但「该检查出现 0 次」推不出「两个码都声明到位」**（Codex r1 LOW-4② / r2 LOW-5 两次点到）：
+存档里没有该检查的结论，只能说明**它没有报告失败**，不能反推它跑过并通过。
+「503 已声明」这一点的真正依据在 `backend/openapi.json` 本身（16 个 `/system/*` operation 的
+`responses` 都含 `503`，见 §1(f-补) 探针输出的 `declared=` 列），不在这份 contract 存档里。
 
 **补的判据：`status_conformance_probe.py`（本目录，带负控）** — 存档 `status-conformance-after-20260909T173152.txt`
 （⚠️ 文件名用本机时区 17:31，存档正文里日志行的 `timestamp` 是 UTC 09:31，同一次跑）
@@ -207,8 +213,9 @@ client host 恒为 `"testclient"`，拿不到 loopback bypass）。
 | 覆盖面 | `app.openapi()` 里全部 **16** 个 `/api/v1/system/*` operation（不是抽样） |
 | 正判 | 不带 key 各发一次请求 ⇒ **16 个全返 403**，且 **16 个全都在自己的 `responses` 里声明了 403** ⇒ 未声明的返回码 **0** 个 |
 | **负控 A** | 把 spec **副本**里每个 operation 的 `403` 声明摘掉后重判 ⇒ 摘掉 16 个、**仍判 PASS 的 0 个** ⇒ 判定函数确实在读声明 |
-| **负控 B**（Codex r1 后新增，更强） | 在**真实 `app.routes`** 上删掉 403 声明 + 清 `app.openapi_schema` 缓存 + **原样重跑观测** ⇒ 16 个 operation **全部判 FAIL**；还原后重新观测**再次全部 PASS** ⇒ 「真的缺声明时这套探针会红」 |
-| 终判 | `VERDICT=PASS`，`rc=0`（`status-conformance-v2-*.txt`） |
+| **负控 B**（r1 后新增，更强） | 在**真实 `app.routes`** 上删掉 403 声明 + 清 `app.openapi_schema` 缓存 + **原样重跑观测** ⇒ 16 个 operation **全部判 FAIL**，且**键集与正判逐条相同**（r2 LOW 后收紧，原先只比条数）⇒ 「真的缺声明时这套探针会红」 |
+| **还原自证** | r2 LOW 指出原写法（只问「有没有未声明码」）**对空观测会误报 PASS**（Codex 用受控反例复现）。现改为逐条比对 `(method,path)→(状态码,声明集合)` 完整指纹且要求非空 ⇒ 实测**缺失 0 / 指纹变化 0 / 逐条相同 True** |
+| 终判 | `VERDICT=PASS`，`rc=0`（v3: `status-conformance-v3-*.txt`；v2 存档保留作对照） |
 | 未连 7691 | 三轮观测（正判 / 负控 B / 还原）共 48 次请求，各耗时 ~3.5ms、全部止步于鉴权层 ⇒ **端点函数体一次都没执行** |
 
 **⚠️ 更正一处我原先的错误声明（Codex r1 LOW）**：初版验收单写「未在真实树态上跑负控，
@@ -307,8 +314,13 @@ per-operation 的 `security` 写的是 `{"APIKeyHeader": []}`，而 `components.
 **不成立**，文件级粒度看不见「已经脏了的文件里**新增**的违规」，而实测我的新增行确实还不合格
 （`system.py:41-43` / `test_mock_degradation_transparency.py:53-55` / `test_review_mode_support.py:45-47`）。
 
-**现判据 = hunk 内容多重集对照**（`ruff-format-hunk-multiset-*.txt`）：取 `ruff format --diff` 的
-`+`/`-` 行内容（去行号）排序后，U0 版本与收工版本逐条比。同时把上述三处**本卡新增的块**
+**现判据 = 带符号行内容多重集比较**（`ruff-format-hunk-multiset-*.txt`）：取 `ruff format --diff` 的
+`+`/`-` 行内容（去行号）排序后，U0 版本与收工版本比多重集。
+⚠️ **它比「文件级集合」细，但仍有盲区**（Codex r2 LOW-4）：多重集丢掉了位置、上下文与 hunk 边界，
+所以「把旧位置的一处违规修好、同时在新位置引入一处**内容相同**的违规」两侧仍相等 —— 这类**抵消**看不见。
+纯新增（哪怕与存量内容重复）不会漏，因为计数会增加。本卡这次经 Codex 独立核对：
+formatter 想改的位置与本卡新增行**无交集**，未发生上述抵消。
+同时把上述三处**本卡新增的块**
 整理成 ruff 偏好写法（⛔ 存量行仍一行不动）。实测：
 
 | 文件 | U0 hunk 行数 | 收工 hunk 行数 | 结果 |
@@ -462,7 +474,28 @@ $ git log --format='%h %s' --no-merges 0acea4e3..b8017248        → 只有 b801
 | 轮 | 模型 / effort | 审查绑定 | 结论 |
 |---|---|---|---|
 | r1 | `gpt-6-astra` / `ultra` | `b8017248` | **BLOCKER 0 / HIGH 0**；2 MEDIUM + 3 LOW。存档 `codex-review-CARD-RED-A1-sentinel.md` |
-| r2 | `gpt-6-astra` / `ultra` | r1 整改后的 HEAD（见下） | 因 r1 整改动了代码 ⇒ 按 D-15 必再送一轮 |
+| r2 | `gpt-6-astra` / `ultra` | `e74757c5`（r1 整改后的 HEAD） | **BLOCKER 0 / HIGH 0**；2 MEDIUM（均为「登记未闭合」，判定移交恰当）+ 3 LOW。存档 `codex-review-CARD-RED-A1-sentinel-r2.md` |
+
+**停轮判定**：r2 绑定 `e74757c5` = 当时 HEAD，`BLOCKER=0 / HIGH=0`。r2 之后的整改**只动 `_bmad-output`**
+（验收单文案 + 探针加固），**代码零改动** ⇒ 按协议「只改 `_bmad-output` 不算」，r2 即末轮。
+末轮绑定自证见 §4.4。
+
+#### r2 逐条处置（三条 LOW 都是「我改了处置表却没把正文里被推翻的说法一起改掉」）
+
+| # | 级别 | Codex r2 指出 | 处置 |
+|---|---|---|---|
+| 1 | MEDIUM | 悬空 security 引用：新表述准确、移交符合地盘约束，**但缺陷仍未修复，应继续标为未解决**，不能视为仅文案问题 | **接受**。§6 台账 ⑭ 标注为 **OPEN（未解决）**，不是「已说明」 |
+| 2 | MEDIUM | 装机档撤回正确，但新描述**仍不是完整配置矩阵**（还差 bypass 档与 `Settings` 建不出来那档） | **接受**，§5.5 补全四档矩阵 |
+| 3 | LOW | **还原自证会对空观测误报 PASS**：`restored=[]` 也满足「没有未声明码」；Codex 用受控反例复现（删光 `/system/*` paths 后仍 `VERDICT=PASS`）。负控 B 也只比条数、未绑键集 | **接受并加固探针**（`_bmad-output` 内，不触发新轮次）：还原自证改为**逐条比对完整指纹** `(method,path)→(状态码,声明集合)` 且要求非空；负控 B 从「条数相同」收紧为「**键集与正判逐条相同**」。v3 实测：键集相同 `True`、还原指纹缺失 0 / 变化 0 |
+| 4 | LOW | 「新增违规必然出现新内容」**过强**：多重集丢了位置与上下文，「旧位置修好 + 新位置引入同样违规」两侧仍相等（抵消）。**纯新增不会漏**（计数会涨） | **接受**，§1(i-1) 改写为「带符号行内容多重集比较」并写明抵消盲区；Codex 独立核对本卡 formatter 想改的位置与新增行**无交集**，本次未发生抵消 |
+| 5 | LOW | 验收单 `:123` / `:200` / `:501` **仍重复着被 r1 否定的说法**（「逐项相同」/「检查 0 次 ⇒ 两码都声明到位」/「现在会 403」）⇒ L3/L4②/M2 的文档整改**未全文完成** | **接受，逐处改正**（本轮已改） |
+
+#### r2 独立复核确认的几条（不是我的自述）
+
+- 两个 fixture 的新 docstring **通过复核**；`431/467/534/554` 行号仍准确（`554` 是判定、实际调用在 `555`）。
+- 冷首触候选 `test_verification_service_activation.py:221` **确实成立**，Codex 动态验证到 driver 初始化入口即停（未拨号）；该路径在 `U0..HEAD` **无改动** ⇒ 属**既有隔离边界**，无依据要求本卡越界修复。
+- 存档数字独立重算一致：unit `120 failed / 4810 passed / 48 skipped / 29 errors`；对 202 基线 **减 53 / 增 0**，对开工 **减 12 / 增 0**；双序各 72 passed 零哨兵；api 268 passed 端口 0。
+- 负控 B 的还原**本次没有失败**：路由声明内容、字典与内层对象身份、键顺序、完整 OpenAPI 内容、依赖覆盖、lifespan 均已恢复，连接尝试 0。
 
 #### r1 逐条处置（⛔ 三条是「把推断当事实写进 docstring/验收单」，属名实不符，必须改正）
 
@@ -482,13 +515,30 @@ $ git log --format='%h %s' --no-merges 0acea4e3..b8017248        → 只有 b801
 
 本验收单 §1(b)/(f) 两处一直是分开写的，未受影响；错的是 prompt 那一句，记此备查。
 
-命令（协议 §2 原样）：
+命令（协议 §2 原样，`-rN` 逐轮递增）：
 ```
 codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" \
-  "$(cat _bmad-output/审查/prompts/codex-prompt-CARD-RED-A1-sentinel.md)" \
-  > _bmad-output/审查/codex-review-CARD-RED-A1-sentinel.md \
-  2> _bmad-output/审查/codex-review-CARD-RED-A1-sentinel.stderr </dev/null
+  "$(cat _bmad-output/审查/prompts/codex-prompt-CARD-RED-A1-sentinel[-r2].md)" \
+  > _bmad-output/审查/codex-review-CARD-RED-A1-sentinel[-r2].md \
+  2> _bmad-output/审查/codex-review-CARD-RED-A1-sentinel[-r2].stderr </dev/null
 ```
+两份存档首部均按协议 §2.1 补齐（模型 / reasoning_effort / codex 版本 / 审查绑定 / 会话头自证）。
+⚠️ 会话头那条如实写明：字面「前三行」是 stdin 提示 + `codex_models_manager` 刷新超时 ERROR，**不含 model 行**，
+故抄的是真正的会话头四行（`OpenAI Codex v0.153.3` / `model:` / `reasoning effort:` / `session id:`）。
+`*.stderr` 未入库。`grep -c 'gpt-5'` 两份均为 **0**。
+
+### 4.4 末轮绑定自证（D-15 停轮条件）
+
+| 条件 | 实测 |
+|---|---|
+| 末轮 = r2，绑定 `e74757c5` | ✅ |
+| 该轮 `BLOCKER = 0` 且 `HIGH = 0` | ✅（r2 正文首句） |
+| 审后**代码**零改动 —— `git diff --stat e74757c5 HEAD -- . ':(exclude)_bmad-output'` | **空**，`bind_rc=0` ✅ |
+| 工作树未提交的代码面 | **空**，`wt_rc=0` ✅ |
+| r2 之后只改了 `_bmad-output`（验收单文案 + 探针加固） | ⇒ 协议「只改 `_bmad-output` 不算」⇒ **r2 即末轮**，不需要 r3 |
+| 轮次上限 5 | 用了 2 轮 |
+
+⛔ 写法自查：`':(exclude)…'` 而非 `':!…'`（后者在 zsh 下 rc=128 且 stdout 空 = 假绿）。
 
 ---
 
@@ -498,7 +548,13 @@ codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" 
 2. **未证明 `/system/health` 没有本树之外的无 key 探针依赖**。census 只覆盖本仓 + `docker-compose.yml`，未查用户机上的外部监控 / 浏览器书签 / 手工脚本。
 3. **未证明 `get_neo4j_client()` 单例在别的目录级套件里的首触者是谁**（`tests/api` 该跑里 268 条全绿、无哨兵红，但那不等于证明了首触者身份）。
 4. **未证明 `kg_health.py` 的生产真连点在别处不会红**。本卡只在**单元测试进程**里打桩；生产端点仍无鉴权、仍会真连。
-5. **未证明 router 级鉴权对「首次装机时还没有 key」的场景无害**。`POST /system/setup-wizard` 与 `GET /system/health` 现在会 403 —— **产品面风险，本卡只登记不处置**（见 4-B 第 2 条，需用户裁决）。
+5. **未证明 router 级鉴权对「首次装机时还没有 key」的场景无害**。`POST /system/setup-wizard` 与 `GET /system/health` 现在都受鉴权 —— **产品面风险，本卡只登记不处置，明确不宣布该项验收通过**（见 4-B 第 2 条，需用户裁决）。
+   ⚠️ **不要简写成「现在会 403」**（Codex r1 M2 / r2 M2 两次点到）。完整配置矩阵是：
+   - 后端**已配置** key + 请求缺头 ⇒ `403`（`security.py:144`）
+   - 后端 key **为空** ⇒ 通常 `503`（`security.py:96` / `:110`）
+   - `DEBUG=True` + `ALLOW_UNSAFE_DEV_AUTH_BYPASS=true` + loopback 三者同时成立 ⇒ **放行**
+   - 非本地配置且 key 为空 ⇒ `config.py:295` 在 `Settings` 校验期就 raise，**根本没有 HTTP 响应**
+   本卡未验证「实际页面表现」与「先配后端 key、再把 key 交给客户端」这条流程。
 6. **未跑 `tests/integration` / `tests/e2e`**。
 7. **未证明 openapi.json 的 security 段变化与插件侧实际请求头一致**；且 `APIKeyHeader` / `InternalApiKey` 名字不一致是**既有**缺陷，本卡未修（§1(h)）。
 8. **未证明 `tests/contract` 全量面**，且**那道门本身看不见本卡要验的性质**（见 §1(f-补)）：定向 4 条的 before 全红，拒因是 `DeadlineExceeded`，`status_code_conformance` 出现 0 次 ⇒ 差集为空不构成证据。本卡改用自带负控的 `status_conformance_probe.py` 覆盖 `/system/*` 全部 16 个 operation；其余 190 个 operation、以及 schema / content-type / headers 三项一致性，**本卡未证明**。
@@ -529,7 +585,7 @@ codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" 
 11. **kg_health 地盘裁决 (甲) 已执行**：`backend/tests/unit/test_kg_health.py` 做了测试侧打桩（该条**已消红**，不是「登记不豁免留红」）；生产 `app/api/v1/endpoints/kg_health.py` 一字未改 ⇒ 该端点仍无鉴权、真连点仍在。
 12. **`tests/api` 目录级对照**：`api-open-…164338.txt` / `api-after-…163754.txt`，各 `268 passed`，diff 空。
 13. **⚠️ openapi.json 顺带扫入一处既有漂移**（`learning_events.jsonl` → `learning_events` 的 description 文本），来自 2026-09-06 之后别的卡改了 docstring 而未再生快照。hook 在 commit 时会做同样的事，无法只再生本卡那部分 —— 合并期需知晓。
-14. **⚠️ 悬空 security 引用：根因既有，但本卡把面从 2 扩到 16（带数字移交）**：per-op 用 `APIKeyHeader`，`securitySchemes` 只定义 `InternalApiKey`。悬空 operation 总数 **U0 17 → HEAD 31**，其中 `/system/*` **2 → 16**。那 14 个原先继承 `main.py:568` 的**有效**全局声明，现被**无效**的局部声明覆盖。修法要动 `main.py` / `security.py` 的方案名（本卡地盘外）⇒ **移交**，建议与 U5-D 的 contract 面一起处置。插件侧 `main.ts:1753` 的请求头本身是对的，不受影响。
+14. **⚠️ OPEN（未解决）— 悬空 security 引用：根因既有，但本卡把面从 2 扩到 16（带数字移交）**：per-op 用 `APIKeyHeader`，`securitySchemes` 只定义 `InternalApiKey`。悬空 operation 总数 **U0 17 → HEAD 31**，其中 `/system/*` **2 → 16**。那 14 个原先继承 `main.py:568` 的**有效**全局声明，现被**无效**的局部声明覆盖。修法要动 `main.py` / `security.py` 的方案名（本卡地盘外）⇒ **移交**，建议与 U5-D 的 contract 面一起处置。插件侧 `main.ts:1753` 的请求头本身是对的，不受影响。
 15. **⚠️ `tests/contract` 有两个跨卡的工程事实**（不只影响本卡，建议单独立卡）：
     - **跑不完**：≈3.6 min/operation × 207 ⇒ 外推 ≈12 小时；
     - **⛔ 它对「状态码是否被声明」这条性质是瞎的**：4 条定向 before 全红，拒因全是 `hypothesis.errors.DeadlineExceeded`（W4 端口门让每次真实请求 16–19s，超过 `@settings(deadline=10000)`），`status_code_conformance` 在整份存档里出现 **0 次**。

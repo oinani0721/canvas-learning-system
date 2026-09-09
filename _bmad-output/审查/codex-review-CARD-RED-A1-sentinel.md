@@ -1,3 +1,13 @@
+> 批次: BATCH-2026-09-07-第十三批 · 车道 card-u10-red-a · 卡 CARD-RED-A1-sentinel round-1
+> 模型: `gpt-6-astra` · reasoning_effort: `ultra` · codex: `codex-cli 0.153.3`（`codex --version` 实测）
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat _bmad-output/审查/prompts/codex-prompt-CARD-RED-A1-sentinel.md)"`
+> 审查绑定: `0acea4e3..b8017248c59d6091c2827d5772cd20718502e6d1`（阶段一，**未** merge 候选树；提交后 HEAD，审时工作树干净）
+> 会话头自证（抄 .stderr，stderr 本身不入库）:
+> ⚠️ 字面「前三行」是 `Reading additional input from stdin...` + 两条 `codex_models_manager` 刷新超时 ERROR，不含 model 行；
+> 故抄真正的会话头四行: `OpenAI Codex v0.153.3` / `model: gpt-6-astra` / `reasoning effort: ultra` / `session id: 01a085b2-cf37-7e50-85da-51e8f3f78306`
+
+---
+
 **审查结论：阶段一 PARTIAL；未发现可坐实的 BLOCKER/HIGH。** 12 条消红的核心结论成立，但存在新增 OpenAPI 契约缺陷，以及若干需要纠正的验收表述。
 
 审查绑定仍为 `0acea4e3..b8017248c59d6091c2827d5772cd20718502e6d1`，八个代码文件与 HEAD 一致。以下按严重性排列。

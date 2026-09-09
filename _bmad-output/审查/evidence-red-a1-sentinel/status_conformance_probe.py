@@ -48,6 +48,12 @@ Codex round-1 LOW 打回）：Hypothesis 是**先执行测试函数体、再判�
   · 负控 B（路由对象变异 + 重新观测）—— 证明**在一棵真的缺声明的应用上**，
     这套探针会红。B 强于 A；A 保留是因为它不改任何进程状态。
 
+⛔ **还原自证不能只问「有没有未声明码」**（Codex round-2 LOW，已用受控反例复现）：
+在还原后把 ``/system/*`` 的 paths 全删掉，观测结果为**空**，「没有未声明码」照样成立，
+`VERDICT` 会误判 PASS。所以本版把还原自证改成**逐条比对完整指纹**
+``(method, path) → (实际状态码, 声明集合)``，并要求非空；负控 B 也从「条数相同」
+收紧为「**键集与正判逐条相同**」——数量相同挡不住换人。
+
 用法: cd backend && .venv/bin/python ../_bmad-output/审查/evidence-red-a1-sentinel/status_conformance_probe.py
 """
 
@@ -164,25 +170,39 @@ def main() -> int:
     neg_a_ok = mutated_total > 0 and not still_pass
     print(f"  => 负控 A {'成立（判定函数确实在读 403 声明）' if neg_a_ok else '不成立 —— 正判作废'}\n")
 
+    # ⛔ 键集必须逐条绑住, 不能只比条数 (Codex round-2 LOW: 「数量相同」挡不住换人)。
+    baseline_keys = {(m, p) for m, p, _, _ in rows}
+    baseline_fingerprint = {(m, p): (s, tuple(sorted(r))) for m, p, s, r in rows}
+
     print("## 负控 B（更强）：在真实 app.routes 上删掉 403 声明 + 清 schema 缓存，**原样重跑观测**")
     saved = _mutate_routes_drop_403()
     try:
         mutated_rows = _observe()
-        b_bad = [
-            (m, p, s) for m, p, s, r in mutated_rows if not _declared(r, s)
-        ]
-        b_declared_still = [
-            (m, p, s) for m, p, s, r in mutated_rows if _declared(r, s)
-        ]
+        b_bad = [(m, p, s) for m, p, s, r in mutated_rows if not _declared(r, s)]
+        b_declared_still = [(m, p, s) for m, p, s, r in mutated_rows if _declared(r, s)]
+        mutated_keys = {(m, p) for m, p, _, _ in mutated_rows}
         print(f"  变异后观测到 {len(mutated_rows)} 个 operation；其中判 FAIL（未声明）{len(b_bad)} 个")
         print(f"  仍判 PASS 的 {len(b_declared_still)} 个 {b_declared_still}")
-        neg_b_ok = len(mutated_rows) == len(rows) and not b_declared_still
+        print(f"  键集与正判**逐条相同** = {mutated_keys == baseline_keys}")
+        neg_b_ok = bool(mutated_keys) and mutated_keys == baseline_keys and not b_declared_still
     finally:
         _restore_routes(saved)
     print(f"  => 负控 B {'成立（真的缺声明时这套探针会红）' if neg_b_ok else '不成立 —— 正判作废'}")
+
+    # ⛔ 还原自证不能只问「有没有未声明码」——空观测同样满足那个条件, 会把
+    #    「路由被删光了」误判成 PASS (Codex round-2 LOW, 已用受控反例复现)。
+    #    改为逐条比对 (method, path) → (实际状态码, 声明集合) 的**完整指纹**。
     restored = _observe()
-    restored_ok = not [(m, p, s) for m, p, s, r in restored if not _declared(r, s)]
-    print(f"  => 还原自证：还原后重新观测再次全部 PASS = {restored_ok}\n")
+    restored_fingerprint = {(m, p): (s, tuple(sorted(r))) for m, p, s, r in restored}
+    restored_ok = bool(restored_fingerprint) and restored_fingerprint == baseline_fingerprint
+    missing = sorted(baseline_fingerprint.keys() - restored_fingerprint.keys())
+    changed = sorted(
+        k for k in baseline_fingerprint.keys() & restored_fingerprint.keys()
+        if baseline_fingerprint[k] != restored_fingerprint[k]
+    )
+    print(f"  => 还原自证：观测到 {len(restored)} 个 operation（正判时 {len(rows)} 个）")
+    print(f"     缺失 {len(missing)} 个 {missing}；指纹变化 {len(changed)} 个 {changed}")
+    print(f"     指纹逐条相同 = {restored_ok}\n")
 
     verdict = (not bad) and neg_a_ok and neg_b_ok and restored_ok
     print(f"VERDICT={'PASS' if verdict else 'FAIL'}")
