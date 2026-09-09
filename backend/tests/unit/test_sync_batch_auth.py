@@ -18,6 +18,7 @@ Fail-closed matrix:
 
 from __future__ import annotations
 
+import logging
 from typing import Generator
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -58,18 +59,52 @@ EMPTY_OK_RESPONSE = SyncBatchResponse(results=[], synced_count=0, failed_count=0
 
 
 def _settings_factory(*, debug: bool, key: str):
-    """Build a get_settings override that returns the requested DEBUG/key combo."""
+    """Build a get_settings override that returns the requested DEBUG/key combo.
+
+    CARD-RED-A2 (2026-09-09) — 为什么 ``debug=False, key=""`` 这一档要走
+    ``model_construct``：
+
+    该档过去建不出 ``Settings``。``app/config.py::validate_security_defaults``
+    是个 ``@model_validator(mode="after")``，``is_local`` 要求 ``DEBUG=True``
+    且 CORS 含 localhost；``DEBUG=False`` + 空 key 命中 ``raise ValueError(
+    "INTERNAL_API_KEY required outside local dev. ...")``。异常抛在这个
+    override 闭包里 = **请求处理期**，被 ``app/main.py::CORSExceptionMiddleware``
+    兜成 **500** —— 请求根本没走到 ``app/security.py``。于是这一档过去测到的
+    是配置层而非它声称要测的鉴权层（失败身份 ``assert 500 == 503``；
+    bug_tracker 记的 ``error_type`` 是 ``ValidationError``，不是 HTTPException）。
+
+    ``model_construct`` 跳过 pydantic 校验（含 after-validator）与 ``.env``
+    读取，按传入值 + 各字段 Field 默认值直接装配，让请求真正撞到
+    ``security.py`` 的 Branch 1（fail-closed 503）。
+
+    ⚠️ 这**不是**放宽 ``validate_security_defaults``：生产代码一字未改，进程
+    启动装配 ``Settings()`` 时它照样拦得住空 key。改的只是「测试如何造出
+    『运维忘了配 key』的那个非法配置」—— 而那正是 Branch 1 声称要防的现实
+    场景。其余档位（``debug=True`` 或已配 key）仍走原来的 ``Settings(...)``。
+    """
+
+    fields = dict(
+        PROJECT_NAME="Canvas Learning System API (Test)",
+        VERSION="1.0.0-test",
+        DEBUG=debug,
+        LOG_LEVEL="DEBUG",
+        CORS_ORIGINS="http://localhost:3000",
+        CANVAS_BASE_PATH="./test_canvas",
+        INTERNAL_API_KEY=key,
+    )
 
     def override() -> Settings:
-        return Settings(
-            PROJECT_NAME="Canvas Learning System API (Test)",
-            VERSION="1.0.0-test",
-            DEBUG=debug,
-            LOG_LEVEL="DEBUG",
-            CORS_ORIGINS="http://localhost:3000",
-            CANVAS_BASE_PATH="./test_canvas",
-            INTERNAL_API_KEY=key,
-        )
+        if not debug and not key:
+            settings = Settings.model_construct(**fields)
+            # 自检：model_construct 不过校验，必须确认它没把关键字段跳成别的值。
+            # NEO4J_PASSWORD 断言 Field 默认 "" —— 同时证明该档没从真 .env 取值
+            # （真 ``Settings(...)`` 会把 .env 与 init kwargs 合并后再校验）。
+            assert settings.DEBUG is False
+            assert settings.INTERNAL_API_KEY == ""
+            assert settings.CORS_ORIGINS == "http://localhost:3000"
+            assert settings.NEO4J_PASSWORD == ""
+            return settings
+        return Settings(**fields)
 
     return override
 
@@ -111,13 +146,29 @@ def auth_client() -> Generator[TestClient, None, None]:
 class TestProductionFailClosed:
     """When DEBUG=False, missing or wrong keys MUST be rejected."""
 
-    def test_no_key_configured_fails_closed_503(self, auth_client: TestClient) -> None:
+    def test_no_key_configured_fails_closed_503(
+        self, auth_client: TestClient, caplog: pytest.LogCaptureFixture
+    ) -> None:
         app.dependency_overrides[get_settings] = _settings_factory(debug=False, key="")
-        response = auth_client.post("/api/v1/sync/batch", json=SAMPLE_PAYLOAD)
+        with caplog.at_level(logging.ERROR, logger="app.security"):
+            response = auth_client.post("/api/v1/sync/batch", json=SAMPLE_PAYLOAD)
         assert response.status_code == 503, (
             "DEBUG=False with empty INTERNAL_API_KEY must fail closed (503), not silently allow"
         )
         assert "not configured" in response.json()["detail"].lower()
+        # CARD-RED-A2: 上面两条断不出「被哪一层拒的」—— security.py 的 Branch 1
+        # (prod + 空 key) 与 Branch 2 (dev + 空 key + 无 bypass) 都返回 503，而且
+        # Branch 2 的 detail **以 Branch 1 的整句为前缀**（它是那句后面接
+        # "... Set INTERNAL_API_KEY env for production, or
+        # ALLOW_UNSAFE_DEV_AUTH_BYPASS=true for loopback dev." 的长文案）——
+        # 所以任何 `in` 形式的 detail 断言都分辨不了层，只有 `==` 可以。
+        # 下面两条把判据绑到 Branch 1 的身份上：
+        #   ① detail 精确等值；
+        #   ② Branch 1 的 logger.error 独有的那个串（见下一行断言），Branch 2
+        #      在 security.py 里记的是另一句、不含它。security.py 刻意用 stdlib
+        #      logging 而非 structlog（见其模块注释）正是为了让 caplog 捕得到。
+        assert response.json()["detail"] == "Internal API key not configured"
+        assert "auth_fail_closed" in caplog.text
 
     def test_missing_header_returns_403(self, auth_client: TestClient) -> None:
         app.dependency_overrides[get_settings] = _settings_factory(debug=False, key="real-key")
