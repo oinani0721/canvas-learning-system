@@ -1,0 +1,25 @@
+# 负控（送 round-8 前，第二次）：17 输入 —— 八轮复现 + 三条自测缺口 + 五个正控
+HEAD=3f26185a  代码面未提交改动=1（仓根 pathspec；>0 表示跑的是工作树）
+⚠️ 前一份 negctl-security-r8pre-20260909T173958.txt 有两条不符预期（⑤ 正控误报、⑰ 漏过），
+   已整改后重跑本份，那份保留作记录。
+跑于 2026-09-09 17:42:41
+
+OK  ① 正控：基线  期望=PASS 实测=PASS  
+OK  ② 正控：合法分步 count  期望=PASS 实测=PASS  
+OK  ③ 正控：AS unlimited_count  期望=PASS 实测=PASS  
+OK  ④ 正控：LIMIT toInteger($limit)  期望=PASS 实测=PASS  
+OK  ⑤ 正控：SKIP $skip（合法多绑一个参数）  期望=PASS 实测=PASS  
+OK  ⑥ r5：无 kwargs 裸查询  期望=FAIL 实测=FAIL  本次 run_query 没带 group 作用域参数——R1 读契约要求每条业务读都带 group 过滤。kwargs=[] query='MATCH (n)
+OK  ⑦ r5：绑错物理组  期望=FAIL 实测=FAIL  group_id 未物理化或绑错组。got='vault__WRONG' want='vault__script_drop_table_users'
+OK  ⑧ r5：内联 LIMIT 5 删 limit  期望=FAIL 实测=FAIL  LIMIT 子句里没有 `$` 参数引用，说明分页值被内联进了文本。expr=' 5' query='MATCH (u:User {id: $userId})-
+OK  ⑨ r6：内联 userId 删 kwarg  期望=FAIL 实测=FAIL  本用例喂进去的 user_id 值被拼进了查询文本，应作为绑定参数传递。value='test_user' query="MATCH (u:User {id: 
+OK  ⑩ r7：单引号拆两半拼 userId  期望=FAIL 实测=FAIL  查询文本里出现内联字符串字面量，本用例要求全参数化——任何用户可控值要拼进 Cypher 都得先加引号，故这条不枚举具体值也能挡住变形内联。literals=[
+OK  ⑪ r7：单引号拆两半拼恶意原串  期望=FAIL 实测=FAIL  查询文本里出现内联字符串字面量，本用例要求全参数化——任何用户可控值要拼进 Cypher 都得先加引号，故这条不枚举具体值也能挡住变形内联。literals=[
+OK  ⑫ r7：大小写变形内联  期望=FAIL 实测=FAIL  查询文本里出现内联字符串字面量，本用例要求全参数化——任何用户可控值要拼进 Cypher 都得先加引号，故这条不枚举具体值也能挡住变形内联。literals=[
+OK  ⑬ r7：LIMIT (5)  期望=FAIL 实测=FAIL  LIMIT 子句里没有 `$` 参数引用，说明分页值被内联进了文本。expr=' (5)' query='MATCH (u:User {id: $userId}
+OK  ⑭ r7：LIMIT toInteger(5)  期望=FAIL 实测=FAIL  LIMIT 子句里没有 `$` 参数引用，说明分页值被内联进了文本。expr=' toInteger(5)' query='MATCH (u:User {id:
+OK  ⑮ 自测：双引号拆两半拼 userId  期望=FAIL 实测=FAIL  查询文本里出现内联字符串字面量，本用例要求全参数化——任何用户可控值要拼进 Cypher 都得先加引号，故这条不枚举具体值也能挡住变形内联。literals=[
+OK  ⑯ 自测：双引号拆两半拼恶意原串  期望=FAIL 实测=FAIL  查询文本里出现内联字符串字面量，本用例要求全参数化——任何用户可控值要拼进 Cypher 都得先加引号，故这条不枚举具体值也能挡住变形内联。literals=[
+OK  ⑰ 自测：SKIP 5 内联整数（与 LIMIT $limit 同句）  期望=FAIL 实测=FAIL  SKIP 子句里没有 `$` 参数引用，说明分页值被内联进了文本。expr=' 5' query='MATCH (u:User {id: $userId})-[
+
+还原校验: is ORIG = True | 17 条全部符合期望 = True
