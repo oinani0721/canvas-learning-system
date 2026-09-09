@@ -670,6 +670,18 @@ def _is_inline_span(m: re.Match[str], line: str) -> bool:
     return "`" in line[m.end() :]
 
 
+def _decode_bytes(raw: bytes) -> str:
+    r"""bytes → **保身份**的文本表示。
+
+    ⛔ r20 MEDIUM-4: 用 `backslashreplace` 而非 `replace` —— 后者把不同的不可解码字节
+    都压成 U+FFFD, 登记一条后另一条可静默顶替(基线是多重集)。
+    ⛔ r21 MEDIUM-5: 光换 `backslashreplace` 还不够 —— 它产出的 `\xNN` 会与**原本就
+    含字面反斜杠**的内容撞名: `b"/tmp/\xff/x"`(无效字节)与 `b"/tmp/\\xff/x"`(反斜杠+xff)
+    解出同一个字符串。先把已有反斜杠转义成两个, 编码才是单射。
+    """
+    return raw.replace(b"\\", b"\\\\").decode("utf-8", "backslashreplace")
+
+
 def _fold_const(node: ast.AST) -> str | bytes | None:
     """`Constant` 或 `BinOp(+)` 常量链 → 值本身, **保留 str/bytes 类型**; 不可折返回 None。
 
@@ -701,7 +713,7 @@ def _fold_str(node: ast.AST) -> str | None:
     value = _fold_const(node)
     if value is None:
         return None
-    return value if isinstance(value, str) else value.decode("utf-8", "backslashreplace")
+    return value if isinstance(value, str) else _decode_bytes(value)
 
 
 def _py_strings(src: str) -> list[str] | None:
@@ -751,7 +763,7 @@ def _py_strings_cached(src: str) -> tuple[str, ...] | None:
             # 被 `ast` 合成 `b"/tmp/cls-exam/../x"`, 只收 str 的话越界判据整类看不到。
             # ⛔ r20 MEDIUM-4: 与 `_fold_str()` 同口径用 `backslashreplace` —— `replace`
             # 会把不同的不可解码字节压成同一个 U+FFFD, 登记后可被静默顶替。
-            out.append(node.value.decode("utf-8", "backslashreplace"))
+            out.append(_decode_bytes(node.value))
     return tuple(out)
 
 
@@ -1064,6 +1076,71 @@ _STATEMENT_NODES = (ast.Assign, ast.AnnAssign, ast.Return)
 #: `.annotation` 还是 `.value` 上。
 
 
+def _target_names(node: ast.expr | None) -> list[str]:
+    """一个赋值目标里**全部被写入的名字** —— 元组/列表解包、`*rest` 都要拆开。
+
+    ⛔ r21 HIGH-1: 上一版写的是 `if not isinstance(tgt, ast.Name): continue`, 于是
+    `P, = ("/etc/passwd",)` 的目标是 `Tuple[Name]`、整条跳过 ⇒ `P` 的第二次写入没被计数,
+    重赋值判据静默, 而 `P` 已经从命名空间内变成 `/etc/passwd`。
+    `Attribute` / `Subscript` 写的不是这个名字本身(`a.b = …` 不重绑 `a`), 故不收。
+    """
+    if isinstance(node, ast.Name):
+        return [node.id]
+    if isinstance(node, ast.Starred):
+        return _target_names(node.value)
+    if isinstance(node, (ast.Tuple, ast.List)):
+        return [n for elt in node.elts for n in _target_names(elt)]
+    return []
+
+
+def _assignments(tree: ast.AST) -> list[tuple[int, str, ast.expr | None]]:
+    """`(行号, 被写入的名字, 这次写入的值)`。
+
+    ⛔ r21 HIGH-1: 「写入」不止 `Assign` —— `(P := …)` 是 `NamedExpr`,
+    `P *= 0; P += "/etc/passwd"` 是两次 `AugAssign`, `for P in …` / `with … as P`
+    同样重绑。只认 `Assign`/`AnnAssign` 的话这四类写入全部不计数。
+    """
+    out: list[tuple[int, str, ast.expr | None]] = []
+    for node in ast.walk(tree):
+        line = getattr(node, "lineno", 0)
+        if isinstance(node, ast.Assign):
+            for tgt in node.targets:
+                out += [(line, n, node.value) for n in _target_names(tgt)]
+        elif isinstance(node, ast.AnnAssign) and node.value is not None:
+            out += [(line, n, node.value) for n in _target_names(node.target)]
+        elif isinstance(node, (ast.AugAssign, ast.NamedExpr)):
+            out += [(line, n, node.value) for n in _target_names(node.target)]
+        elif isinstance(node, (ast.For, ast.AsyncFor)):
+            out += [(line, n, None) for n in _target_names(node.target)]
+        elif isinstance(node, ast.withitem):
+            out += [(getattr(node.context_expr, "lineno", 0), n, None) for n in _target_names(node.optional_vars)]
+    return out
+
+
+def _value_has_tmp(value: ast.expr | None) -> bool:
+    """这次写入的值里有没有(折叠后)含 `/tmp` 的常量。r20 HIGH-1: 必须用折叠值, 不是叶常量。"""
+    if value is None:
+        return False
+    return any((folded := _fold_str(n)) is not None and "/tmp" in folded for n in ast.walk(value))
+
+
+def _reassigned_after_tmp(tree: ast.AST) -> int | None:
+    """「先把某个名字赋成含 `/tmp` 的值, 之后又重新写入」⇒ 返回**后一次**写入的行号。
+
+    ⛔ r21 HIGH-2: 这条必须在**整个 fence 块**上跑, 不能只在语法单元里跑。
+    `P = "/t" + "mp/cls-exam/x"` 与 `P = "/etc/passwd"` 是同一个 fence 里两条**相邻**
+    语句, `_parse_units()` 返回两个单元 ⇒ 两次写入从来没同时进入判据。这不是已声明的
+    跨块边界, 是同块普通相邻语句 —— 源码里也没有连续的 `/tmp`, 所以块指纹入口同样不进。
+    """
+    tmp_names: set[str] = set()
+    for line, name, value in sorted(_assignments(tree), key=lambda r: r[0]):
+        if name in tmp_names:
+            return line  # 合规常量还在, 但这个名字的最终值已经不是它了
+        if _value_has_tmp(value):
+            tmp_names.add(name)
+    return None
+
+
 def _has_dynamic_tmp_join(src: str) -> bool:
     r"""该源码里是否存在「含 `/tmp` 的字符串常量**参与了静态折不出来的运算**」。
 
@@ -1097,28 +1174,15 @@ def _has_dynamic_tmp_join(src: str) -> bool:
     # ⛔ r12 LOW-3: 只统计**目标名**的赋值次数不够精细 —— `N=1; N=2; P="/tmp/…"` 会误报。
     # 现在只在「同一个名字被赋值多次, 且**其中至少一次的值里含 `/tmp`**」时才登记。
     # ⛔ r12 HIGH-5: `AnnAssign`(`P: str = "/var/cache/x"`)同样是赋值, 一并计入。
+    # ⛔ r20 HIGH-1: 判「这次写入的值含不含 `/tmp`」用**折叠值**(`_value_has_tmp()`),
+    # 不是叶常量 —— 下面 `starts` 那圈 r11 起就是折叠值, 同一个函数里曾经两套口径。
+    # ⛔ r21 HIGH-1: 「写入目标」也不止 `Assign` 的直接 `Name`(见 `_assignments()`)。
     assigned: Counter[str] = Counter()
     tmp_targets: set[str] = set()
-    for node in ast.walk(tree):
-        targets: list[ast.expr] = []
-        if isinstance(node, ast.Assign):
-            targets = list(node.targets)
-        elif isinstance(node, ast.AnnAssign) and node.value is not None:
-            targets = [node.target]
-        for tgt in targets:
-            if not isinstance(tgt, ast.Name):
-                continue
-            assigned[tgt.id] += 1
-            value = node.value
-            # ⛔ r20 HIGH-1: 判「这次赋值里含不含 `/tmp`」不能只看**叶常量** —— 下面
-            # `starts` 那圈 r11 起就用 `_fold_str()` 了, 这圈还停在叶常量, 同一个函数里
-            # 两套口径。`P = "/t" + "mp/cls-exam/x"; P = "/etc/passwd"` 的两个叶都不含
-            # `/tmp` ⇒ `P` 进不了 `tmp_targets`, 重复赋值整条静默(九项计数、七组附加结果
-            # 连同块指纹全部不变), 而最终路径已经是 `/etc/passwd`。bytes 同形态同理。
-            if value is not None and any(
-                (folded := _fold_str(n)) is not None and "/tmp" in folded for n in ast.walk(value)
-            ):
-                tmp_targets.add(tgt.id)
+    for _line, name, value in _assignments(tree):
+        assigned[name] += 1
+        if _value_has_tmp(value):
+            tmp_targets.add(name)
     if any(assigned[name] > 1 for name in tmp_targets):
         return True
 
@@ -1130,12 +1194,9 @@ def _has_dynamic_tmp_join(src: str) -> bool:
         folded = _fold_str(node)
         if folded is not None and "/tmp" in folded:
             starts.append(node)
-        elif (
-            isinstance(node, ast.Constant)
-            and isinstance(node.value, bytes)
-            and "/tmp" in node.value.decode("utf-8", "replace")
-        ):
-            starts.append(node)
+        # (r21 清单: 原先这里还有一个「bytes 叶常量用 `replace` 解码」的分支 ——
+        #  `_fold_str()` 现在覆盖了它的全部命中条件, 且用的是保身份的 `backslashreplace`,
+        #  留着只会让同一个问题有两套解码口径。已删。)
     for node in starts:
         cur: ast.AST = node
         while True:
@@ -1184,7 +1245,16 @@ def dynamic_tmp_join_lines(text: str) -> list[tuple[int, str]]:
                 continue
             if _has_dynamic_tmp_join(chunk):
                 out.append((start + offset, chunk.splitlines()[0].strip()))
-    return out
+        # ⛔ r21 HIGH-2: 再在**整块**上跑一次重赋值检查 —— 逐单元跑的话, 同一个 fence 里
+        # 两条相邻赋值语句分处两个单元, 两次写入从来不会同时被看见。
+        tree = _quiet_parse(textwrap.dedent("\n".join(body)))
+        if tree is not None:
+            hit = _reassigned_after_tmp(tree)
+            if hit is not None:
+                entry = (start + hit - 1, body[hit - 1].strip())
+                if entry not in out:
+                    out.append(entry)
+    return sorted(out)
 
 
 #: fence 内使「这条路径的字面值」跨语言不可判的记号(r6 HIGH-1/2/3 的共同根因)。
@@ -1862,7 +1932,11 @@ def check_dynamic_tmp_joins(root: Path, baseline: dict[str, list[int]]) -> list[
 #: ⛔ 残余(登记不修): `unset C'LS'_BACKEND_URL` 这类**引号拼接出的变量名**正则认不出,
 #: 与 §六 里「散文/shell 侧的字面量拼接」同一档。
 #: 赋值形态。
-_URL_ASSIGN_RE = re.compile(r"(?<![{$:])\bCLS_BACKEND_URL\s*=")
+#: ⛔ r21 MEDIUM-4: `CLS_BACKEND_URL[0]=''` 也让随后的 `:-` 取缺省(bash 里 `${V}`
+#: 就是 `${V[0]}`), 只认裸名 `=` 会漏。
+_URL_ASSIGN_RE = re.compile(r"(?<![{$:])\bCLS_BACKEND_URL(?:\[[^\]]*\])?\s*=")
+#: ⛔ r21 MEDIUM-4: `printf -v CLS_BACKEND_URL %s ''` 把结果写进变量, 同样确定性清空。
+_URL_PRINTF_V_RE = re.compile(r"\bprintf\b[^\n]*?\s-v\s*['\"]?CLS_BACKEND_URL\b")
 #: `unset` 形态: 选项**只看紧跟其后的那些**(`-v` / `--`), 变量列表止于命令分隔符。
 #: ⛔ r13 MEDIUM-1: 原先写 `(?![^\n;]*\s-{1,2}f\b)` 会越过命令边界 ——
 #: `unset CLS_BACKEND_URL && curl -f "…"` 里 curl 的 `-f` 被当成 `unset -f` ⇒ 漏检。
@@ -1873,41 +1947,131 @@ _URL_EXPANSION_RE = re.compile(r"\$\{CLS_BACKEND_URL(?:[^{}]|\{[^{}]*\})*\}")
 _URL_DEFAULTING_RE = re.compile(r"^\$\{CLS_BACKEND_URL:?-")
 
 
-def _strip_sh_comment(line: str) -> str:
-    r"""剥掉 shell 行注释; 引号内、参数展开里的 `#` 都不是注释。
+def _sh_protect_mask(line: str) -> list[bool]:
+    r"""逐字符标注「这个位置在引号内 / 参数展开内 / 命令替换内」。
 
-    ⛔ r20 MEDIUM-1: 上一版是 `re.split(r"(?<![\w$])#", line, maxsplit=1)[0]`, 于是
-    `printf "#"; unset CLS_BACKEND_URL; curl …` 被截成 `printf "`, 后面**真实存在**的
-    `unset` 整条漏检 —— 漏检方向, 且安全对照(把 `unset` 换成 `:`)九项计数、七组附加结果
-    连同块指纹全部相同。`${#CLS_BACKEND_URL}` 的长度展开同一个根因。
-    POSIX: `#` 只在**词首**(行首, 或紧跟未引用的空白/命令分隔符)才开启注释。
+    ⛔ r20 与 r21 各错一次, 根因相同: `_strip_sh_comment()` 与「按 `;` 切命令段」都要
+    回答同一个问题「这个字符是结构字符还是数据」, 却各写了一份状态机。这里统一成一个
+    掩码, 两边共用。
+    · `${…}` / `$(…)` 里的 `#` 是长度展开、`;` 不是命令分隔符 ⇒ 算被保护;
+    · `$(…)` 内部有**自己独立的引号状态**(`"$(printf '%s' " #")"` 的内层引号不该与
+      外层配对), 所以用栈存「进入这一层前的引号」;
+    · `$'…'` 是 ANSI-C 引号, 里面的 `\'` 是转义单引号, 不结束引用;
+    · 单引号内反斜杠是普通字符, 其余上下文里 `\x` 转义下一个字符。
+    ⛔ 已登记不修: 跨**物理行**的引号内容(状态每行重置)。`_logical_lines()` 只合并
+    反斜杠续行, 不合并引号内的换行。
     """
-    out: list[str] = []
-    quote: str | None = None
-    at_word_start = True
+    mask = [False] * len(line)
+    stack: list[tuple[str, str | None]] = []  # (期待的结束符, 进入这层前的引号)
+    quote: str | None = None  # "'" / '"' / "$'"
     i, n = 0, len(line)
+
+    def protected() -> bool:
+        return quote is not None or bool(stack)
+
     while i < n:
         ch = line[i]
-        if ch == "\\" and quote != "'" and i + 1 < n:  # 单引号内反斜杠是普通字符
-            out.append(line[i : i + 2])
+        if ch == "\\" and quote != "'" and i + 1 < n:
+            mask[i] = mask[i + 1] = protected()
             i += 2
-            at_word_start = False
             continue
-        if quote is not None:
-            out.append(ch)
-            if ch == quote:
-                quote = None
+        if quote is None:
+            if line.startswith("$'", i):
+                mask[i] = mask[i + 1] = protected()
+                quote = "$'"
+                i += 2
+                continue
+            if ch in "\"'":
+                mask[i] = protected()
+                quote = ch
+                i += 1
+                continue
+        elif (quote == "$'" and ch == "'") or (quote in ("'", '"') and ch == quote):
+            mask[i] = True
+            quote = None
             i += 1
             continue
-        if ch == "#" and at_word_start:
-            break
-        if ch in "\"'":
-            quote = ch
-        out.append(ch)
-        # `{` / `}` **不是**词分隔符 —— 否则 `${#VAR}` 的 `#` 会被当成注释开头。
-        at_word_start = ch in " \t;&|()<>"
+        if quote not in ("'", "$'"):  # 单引号内不做任何展开
+            if line.startswith("${", i) or line.startswith("$(", i):
+                mask[i] = protected()
+                mask[i + 1] = True
+                stack.append(("}" if line[i + 1] == "{" else ")", quote))
+                quote = None  # 子层引号状态独立
+                i += 2
+                continue
+            if stack and quote is None and ch == stack[-1][0]:
+                mask[i] = True
+                _, quote = stack.pop()
+                i += 1
+                continue
+        mask[i] = protected()
         i += 1
-    return "".join(out)
+    return mask
+
+
+def _strip_sh_comment(line: str) -> str:
+    r"""剥掉 shell 行注释; 引号内、参数展开内、命令替换内的 `#` 都不是注释。
+
+    ⛔ r20 MEDIUM-1: 旧的 `re.split(r"(?<![\w$])#", …)` 把
+    `printf "#"; unset CLS_BACKEND_URL; curl …` 截成 `printf "`, 后面**真实存在**的
+    `unset` 整条漏检。
+    ⛔ r21 MEDIUM-2: 第一版状态机不跟踪参数展开, `: ${OTHER:- #}; unset …` 又被截掉。
+    POSIX: `#` 只在**词首**(行首, 或紧跟未被引用的空白/命令分隔符)才开启注释。
+    """
+    mask = _sh_protect_mask(line)
+    for i, ch in enumerate(line):
+        if ch != "#" or mask[i]:
+            continue
+        if i == 0 or (line[i - 1] in " \t;&|()<>" and not mask[i - 1]):
+            return line[:i]
+    return line
+
+
+def _sh_segments(code: str) -> list[str]:
+    r"""按命令分隔符切段 —— **引号与展开内部的分隔符不算**。
+
+    ⛔ r21 MEDIUM-1: 旧的 `re.split(r"[;&|\n]+", code)` 会从单引号脚本中间切开 ——
+    `env -i bash -c 'true; curl "${CLS_BACKEND_URL:-…}"'` 第一段只剩 `env -i bash -c 'true`,
+    第二段才有目标变量, 关联丢失 ⇒ 原本能抓的形态, 只加一个 `true;` 就漏。
+    """
+    mask = _sh_protect_mask(code)
+    out: list[str] = []
+    cur: list[str] = []
+    for i, ch in enumerate(code):
+        if ch in ";&|\n" and not mask[i]:
+            out.append("".join(cur))
+            cur = []
+        else:
+            cur.append(ch)
+    out.append("".join(cur))
+    return [seg for seg in out if seg.strip()]
+
+
+def _url_word_is_controlled(word: str) -> bool:
+    r"""这个含 `8011` 的词, 它的**地址**真由 `${CLS_BACKEND_URL:-…}` 决定吗?
+
+    ⛔ r21 MEDIUM-3: 「端口号落在展开里面」还不够 ——
+    · `"${CLS_BACKEND_URL:-http://localhost:8011}@localhost/x"`: 展开落进 **userinfo**,
+      真实主机是 `@` 后面那个;
+    · `"http://localhost:80/${CLS_BACKEND_URL:-http://localhost:8011}/x"`: 展开整体在 path。
+    两者与正常形态相比全部指标相同。
+
+    判准: 存在一处 `${CLS_BACKEND_URL:-…}` 展开, **它自己罩住那个端口号**, 且
+    (a) 它是所在 URL token 的**开头** —— 它前面到最近一个分隔符(空白/引号/`=`/`(`)之间
+    没有别的字符; (b) 它后面紧跟的不是 `@`。
+
+    ⛔ 判准不能写成「展开在**词**的开头」(第一版这么写, 当场把
+    `env -u OTHER sh -c 'curl "${CLS_BACKEND_URL:-…}/x"'` 判成误报): 被引号包住的整条
+    shell 脚本也是一个词, 它的开头是 `curl`。要绑的是 URL 的边界, 不是词的边界。
+    """
+    for e in _URL_EXPANSION_RE.finditer(word):
+        if not _URL_DEFAULTING_RE.match(e.group(0)) or "8011" not in e.group(0):
+            continue
+        if word[e.end() : e.end() + 1] == "@":
+            continue  # 展开进了 userinfo, 真正的主机在 `@` 后面
+        if re.split(r"[\s\"\'=(]", word[: e.start()])[-1] == "":
+            return True  # 展开就是这个 URL token 的开头
+    return False
 
 
 def _env_clears_url(segment: str) -> bool:
@@ -1917,13 +2081,19 @@ def _env_clears_url(segment: str) -> bool:
     · 漏检 —— `--ignore-environment` 是 `-i` 的长名, `-uCLS_BACKEND_URL` 是**粘连**写法,
       上一版两者都认不出, 而两种都确定性清掉配置。
     · 误报 —— `env -i bash -c 'true'; curl "${CLS_BACKEND_URL:-…}"` 清的是**无关子进程**
-      的环境, 跟后面那条 curl 没关系。所以本判据现在**逐命令段**跑, 且要求 `-c` 脚本里
-      真的出现该变量。
+      的环境, 跟后面那条 curl 没关系。所以本判据**逐命令段**跑(`_sh_segments()` 是引号
+      感知的切法, r21 MEDIUM-1: 按原文切 `;` 会把单引号脚本从中间切开), 且要求 `-c`
+      脚本里真的出现该变量。
     · 误报 —— `env -i bash -c "curl ${CLS_BACKEND_URL:-…}"` 用**双引号**, URL 由外层
-      shell 先展开完了才交给 env, `env` 撤销不了已经在参数里的值 ⇒ 只认单引号脚本。
+      shell 先展开完了才交给 env, `env` 撤销不了已经在参数里的值。
+    ⛔ r21 MEDIUM-1 的三处词法漏检一并补上: 组合选项 `bash -lc '…'`、ANSI-C 引号
+    `bash -c $'…'`、以及双引号脚本里把 `$` **转义**留给子 shell 展开的 `"curl \${VAR:-…}"`。
+    ⛔ 登记不修(需要数据流, 不是词法): `SCRIPT='curl …'` 后 `env -i bash -c "$SCRIPT"`
+    —— 脚本正文在另一条语句里, 本判据只看这一段的字面。
     """
     m = re.search(
-        r"\benv\b(?P<opts>(?:\s+-{1,2}[\w-]*(?:[= ]\s*[\w'\"]+)?)*)\s+(?P<sh>\S+)\s+-c\s+(?P<script>.*)$",
+        r"\benv\b(?P<opts>(?:\s+-{1,2}[\w-]*(?:[= ]\s*[\w'\"]+)?)*)"
+        r"\s+(?P<sh>\S+)\s+-[a-zA-Z]*c\s+(?P<script>.*)$",
         segment,
     )
     if not m or not re.search(r"\b(?:sh|bash|zsh|dash)$", m.group("sh")):
@@ -1935,7 +2105,14 @@ def _env_clears_url(segment: str) -> bool:
     if not cleared:
         return False
     script = m.group("script").strip()
-    return script.startswith("'") and "CLS_BACKEND_URL" in script
+    if "CLS_BACKEND_URL" not in script:
+        return False
+    # 只认单引号 / ANSI-C 引号: 整段原样交给子 shell, 由它展开。
+    # 双引号脚本一律不认 —— 外层 shell 会先展开。
+    # ⛔ 这里**没有**「双引号里 `$` 被转义就算」的分支: 写过一版, 回退验证发现它
+    # **恒不决定结果** —— `\$` 出现在展开前面, 就使那个展开不再是 URL token 的开头,
+    # 于是词级判据 `_url_word_is_controlled()` 必然已经报了。留着只会让人以为是它在承重。
+    return script.startswith(("'", "$'"))
 
 
 def _url_override_hit(line: str) -> bool:
@@ -1950,23 +2127,13 @@ def _url_override_hit(line: str) -> bool:
     ⛔ 残余(登记不修): `unset C'LS'_BACKEND_URL` 这类引号拼接出的变量名认不出。
     """
     code = _strip_sh_comment(line)
-    if _URL_ASSIGN_RE.search(code):
+    if _URL_ASSIGN_RE.search(code) or _URL_PRINTF_V_RE.search(code):
         return True
-    for segment in re.split(r"[;&|\n]+", code):
+    for segment in _sh_segments(code):
         for word in _shell_words(segment):
-            for hit in re.finditer(r"8011", word):
-                # ⛔ r20 MEDIUM-2: 「截掉 query/fragment」**不等于**「只看主机+端口」——
-                # `curl "${OTHER:-http://localhost:8011}/${CLS_BACKEND_URL}"` 里变量落在
-                # **path** 上(也在 `?` 之前), 上一版据此放行, 而地址其实由 `OTHER` 决定,
-                # 与写死 URL 相比全部指标和指纹相等。
-                # 判准换成: 端口号本身必须**落在** `${CLS_BACKEND_URL:-…}` 这一次展开的
-                # 里面 —— 那正是整改要求的形态, 变量摆在别处都不控制地址。
-                if not any(
-                    e.start() <= hit.start() and hit.end() <= e.end() and _URL_DEFAULTING_RE.match(e.group(0))
-                    for e in _URL_EXPANSION_RE.finditer(word)
-                ):
-                    return True
-    for segment in re.split(r"[;&|\n]+", code):
+            if "8011" in word and not _url_word_is_controlled(word):
+                return True
+    for segment in _sh_segments(code):
         m = _URL_UNSET_RE.search(segment)
         if m and "f" not in (m.group("opts") or "").replace("-", ""):
             if re.search(r"\bCLS_BACKEND_URL\b", m.group("vars") or ""):
@@ -2604,6 +2771,119 @@ def test_opaque_baseline_entries_are_content_bound():
     )
 
 
+def test_r21_reassignment_targets_and_block_scope_are_load_bearing():
+    r"""⛔ 局部回归断言: 重赋值判据的**写入目标识别**与**作用域**各自可被单独证伪。
+
+    r21 两条 HIGH 都出在这一处判据上, 但它们是**两个不同的修点**:
+      · HIGH-1 是「值的口径修好了, 写入目标的识别没补齐」——
+        `P, = (…)` / `(P := …)` / `P += …` / `for P in …` 都是重绑, 只认 `Assign` 的
+        直接 `Name` 就全漏;
+      · HIGH-2 是「作用域太小」—— 同一个 fence 里两条**相邻**语句分处两个语法单元,
+        两次写入从来不会同时被看见。这不是已声明的跨块边界。
+    两条的坏形态源码里都**没有连续的 `/tmp`**, 所以块指纹兜底网也不进 —— 不能指望它。
+    """
+    good = 'P = "/t" + "mp/cls-exam/x"'
+    # ① 写入目标: 六种重绑写法, 每种配一个「换个名字」的等结构安全对照。
+    for label, second, swapped in (
+        ("元组解包", 'P, = ("/etc/passwd",)', 'Q, = ("/etc/passwd",)'),
+        ("walrus", '(P := "/etc/passwd")', '(Q := "/etc/passwd")'),
+        ("增量赋值", 'P *= 0; P += "/etc/passwd"', 'Q *= 0; Q += "/etc/passwd"'),
+        ("列表解包", '[P] = ["/etc/passwd"]', '[Q] = ["/etc/passwd"]'),
+        ("星号解包", '*P, _ = ("/etc/passwd", 1)', '*Q, _ = ("/etc/passwd", 1)'),
+    ):
+        bad = f"```python\n{good}; {second}\n```"
+        safe = f"```python\n{good}; {swapped}\n```"
+        assert dynamic_tmp_join_lines(bad), f"{label}的重绑没被计为写入: {second}"
+        assert not dynamic_tmp_join_lines(safe), f"{label}的安全对照被误报: {swapped}"
+    loop_bad = f'```python\n{good}\nfor P in ["/etc/passwd"]:\n    pass\n```'
+    loop_safe = loop_bad.replace("for P in", "for Q in")
+    assert dynamic_tmp_join_lines(loop_bad), "`for P in …` 的重绑没被计为写入"
+    assert not dynamic_tmp_join_lines(loop_safe), "`for Q in …` 的安全对照被误报"
+
+    # ② 作用域: 同 fence 相邻语句(跨语法单元)。
+    adj_bad = f'```python\n{good}\nP = "/etc/passwd"\n```'
+    adj_safe = f'```python\n{good}\nQ = "/etc/passwd"\n```'
+    assert dynamic_tmp_join_lines(adj_bad), "同 fence 相邻两行的重赋值没被看见(判据只在语法单元内跑)"
+    assert not dynamic_tmp_join_lines(adj_safe), f"相邻两行的安全对照被误报: {dynamic_tmp_join_lines(adj_safe)}"
+    spread = f'```python\n{good}\nX = 1\nY = 2\nP = "/etc/passwd"\n```'
+    assert dynamic_tmp_join_lines(spread), "隔了几条语句的重赋值没被看见"
+    # 顺序相反 ⇒ 最终值就是合规的那个, 不该报。
+    assert not dynamic_tmp_join_lines(f'```python\nP = "/etc/passwd"\n{good}\n```'), (
+        "先赋越界值、后赋合规值 —— 最终值合规, 不该登记"
+    )
+
+
+def test_r21_shell_lexer_branches_are_load_bearing():
+    r"""⛔ 局部回归断言: 共用 shell 掩码 / URL 地址绑定 / 目标变量写入面 各自可被证伪。
+
+    r20 的注释剥离与 r21 的分号切段**各错一次, 根因相同**: 两处都要回答「这个字符是
+    结构字符还是数据」, 却各写了一份状态机。现在统一走 `_sh_protect_mask()`, 这条
+    把两边的行为一起钉住。
+    """
+    d = 'curl "${CLS_BACKEND_URL:-http://localhost:8011}/x"'
+
+    # ① 引号感知的命令段切分 + 子 shell 识别面(r21 MEDIUM-1)。
+    assert _url_override_hit("env -i bash -c 'true; " + d + "'"), (
+        "单引号脚本被从中间按 `;` 切开了 —— `env -i` 与目标变量分处两段, 关联丢失"
+    )
+    assert not _url_override_hit("env bash -c 'true; " + d + "'"), "安全对照(没有 -i)被误报"
+    assert _url_override_hit("env -i bash -lc '" + d + "'"), "组合选项 `-lc` 没被识别"
+    assert _url_override_hit("env -i bash -c $'" + d + "'"), "ANSI-C 引号脚本没被识别"
+    # 双引号里**转义**的 `$` 留给子 shell 展开 —— 但抓到它的是**词级**判据而不是
+    # `_env_clears_url()`: `\\` 挡在展开前面, 那个展开就不再是 URL token 的开头。
+    # (曾为它写过一个 `env` 分支, 回退验证显示恒不决定结果, 已删。)
+    assert _url_override_hit('env -i bash -c "curl \\${CLS_BACKEND_URL:-http://localhost:8011}/x"'), (
+        "双引号里转义 `$` 的形态没被登记"
+    )
+    assert not _url_override_hit('env -i bash -c "' + d.replace('"', '\\"') + '"'), (
+        "双引号未转义 ⇒ 外层 shell 已展开, `env` 撤销不了 ⇒ 不该报"
+    )
+
+    # ② 注释状态机: 参数展开 / ANSI-C 引号 / 嵌套命令替换里的 `#` 都不是注释。
+    assert _url_override_hit(": ${OTHER:- #}; unset CLS_BACKEND_URL; " + d), (
+        "`${…}` 里的 `#` 被当成注释开头, 后面真实的 `unset` 消失"
+    )
+    assert not _url_override_hit(": ${OTHER:- #}; :; " + d), "安全对照(`unset` 换成 `:`)被误报"
+    assert _url_override_hit("echo $'a\\' #'; unset CLS_BACKEND_URL"), "ANSI-C 引号里的转义单引号被误当结束"
+    assert _url_override_hit("""echo "$(printf '%s' " #")"; unset CLS_BACKEND_URL"""), (
+        "命令替换内层的引号与外层混淆了 —— `$(…)` 需要独立的引号状态"
+    )
+    assert not _url_override_hit(d + "  # unset CLS_BACKEND_URL"), "真注释没被剥掉 ⇒ 误报"
+
+    # ③ URL 地址绑定(r21 MEDIUM-3): 端口落在展开里 ≠ 展开控制主机。
+    assert _url_override_hit('curl "${CLS_BACKEND_URL:-http://localhost:8011}@localhost/x"'), (
+        "展开落进 userinfo, 真实主机是 `@` 后面那个"
+    )
+    assert _url_override_hit('curl "http://localhost:80/${CLS_BACKEND_URL:-http://localhost:8011}/x"'), (
+        "展开整体在 path 上, 不控制地址"
+    )
+    assert not _url_override_hit(d), "整改形态本身被误报"
+    assert not _url_override_hit("curl --url=${CLS_BACKEND_URL:-http://localhost:8011}/x"), (
+        "`--url=` 前缀后的展开仍是 URL 开头, 不该报"
+    )
+    assert not _url_override_hit("env -u OTHER sh -c '" + d + "'"), (
+        "判准写成「展开在**词**的开头」会在这里误报 —— 被引号包住的整条脚本也是一个词"
+    )
+
+    # ④ 目标变量的写入面(r21 MEDIUM-4): 数组下标赋值与 `printf -v` 同样清空配置。
+    for bad, safe in (
+        ("CLS_BACKEND_URL[0]=''; ", "OTHER[0]=''; "),
+        ("printf -v CLS_BACKEND_URL %s ''; ", "printf -v OTHER %s ''; "),
+    ):
+        assert _url_override_hit(bad + d), f"目标变量写入形态漏检: {bad}"
+        assert not _url_override_hit(safe + d), f"换个变量名的安全对照被误报: {safe}"
+
+    # ⑤ bytes 编码必须单射(r21 MEDIUM-5): `backslashreplace` 生成的 `\xNN` 会与
+    #    **原本就含字面反斜杠**的内容撞名, 所以要先把已有反斜杠转义掉。
+    invalid = [n for _c, n in escaping_tmp_paths('```python\nP = b"/t" + b"mp/\\xff/x"\n```')]
+    literal = [n for _c, n in escaping_tmp_paths('```python\nP = b"/t" + b"mp/\\\\xff/x"\n```')]
+    assert invalid and literal and invalid != literal, f"无效字节与字面反斜杠折成了同一个候选: {invalid} vs {literal}"
+    # r21 LOW-1: 叶常量分支要有自己的断言 —— 隐式相邻拼接走的不是 `_fold_str()` 那条路。
+    li = [n for _c, n in escaping_tmp_paths('```python\nP = b"/t" b"mp/\\xff/x"\n```')]
+    ll = [n for _c, n in escaping_tmp_paths('```python\nP = b"/t" b"mp/\\\\xff/x"\n```')]
+    assert li and ll and li != ll, f"bytes **叶**常量分支的解码不单射: {li} vs {ll}"
+
+
 def test_parse_unit_cost_on_current_tree():
     r"""钉住 `_parse_units()` 在**当前树上的真实成本** —— 不是返回单元的长度。
 
@@ -2623,6 +2903,10 @@ def test_parse_unit_cost_on_current_tree():
     r19 给动态判据加的「整段源码预筛」每个单元多一次 `ast.parse` + 折叠遍历, 而上一版
     哨兵根本不调这条路径, 新增成本它一点都看不见。Codex 合成语料实测: 1000 个普通赋值
     单元 0.264ms → 9.420ms。数量级仍在, 但哨兵得能看见它。
+    r21 LOW 指出「真实树耗时未验证」——**本轮实测**(9 份 SKILL.md, 动态判据全路径):
+    冷缓存 **317ms** / 暖缓存 **46ms**(其中 `_parse_units()` 2.8ms), 阈值 10s 余量 >30x。
+    `_py_strings` 缓存实测 hits=3281 / misses=1913, 命中率 63% —— 「每单元多一次 parse」
+    这个说法只在冷缓存下成立。
     """
     _parse_units_cached.cache_clear()  # r12 LOW-1: 不清缓存的话前面的检查已预热, 量的是暖路径
     _py_strings_cached.cache_clear()
