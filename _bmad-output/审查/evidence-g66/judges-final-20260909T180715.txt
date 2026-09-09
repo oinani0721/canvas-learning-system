@@ -1,0 +1,26 @@
+# 最终裁判集（round-2 三条 LOW 整改后）
+--- 四文件 ---
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+====================== 362 passed, 10 warnings in 12.70s =======================
+--- TZ=America/Los_Angeles ---
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+====================== 362 passed, 10 warnings in 13.30s =======================
+--- 金样 + 矩阵 ---
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================= 26 passed, 10 warnings in 0.63s ========================
+--- g67r ---
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=============== 27 passed, 148 deselected, 10 warnings in 3.28s ================
+--- U6-A 时区源 + vault_lint ---
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================= 164 passed, 10 warnings in 3.02s =======================
+--- FSRS 正门 + 负控 ---
+PASSED tests/unit/test_review_overview.py::test_g66_board_snooze_writes_only_state_and_never_touches_fsrs
+PASSED tests/unit/test_review_overview.py::test_g66_fsrs_gate_reddens_under_contaminating_snooze_write_point
+================ 2 passed, 107 deselected, 10 warnings in 0.64s ================
+--- 写点普查 ---
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================== 1 passed, 10 warnings in 0.87s ========================
+--- tests/api ---
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================= 268 passed, 40 warnings in 1.39s =======================

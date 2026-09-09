@@ -211,7 +211,17 @@ function snoozeKey(vaultId, board) {
   // 「推迟在飞」把完成钮也一起禁掉, 那是另一件事。⛔ 渲染层与 handler 必须调
   // **同一个**函数取键: 初版渲染层查裸键、handler 写前缀键, 于是在飞期间一次
   // 重绘就把禁用的钮解锁, 而 doneInflight 的存在意义正是"重绘不解锁"。
-  return "snooze:" + doneKey(vaultId, board);
+  //
+  // ⚠ Codex round-2 LOW-1: 前缀分隔符是 \u0000 而不是 ":"。用 ":" 时
+  //   snoozeKey("math", "A") === doneKey("snooze:math", "A")
+  // 两个都等于 "snooze:math" + NUL + "A" —— 于是 math 的推迟在飞时, 名叫
+  // "snooze:math" 的那个库的完成钮被连带禁用、它的完成 handler 也静默返回。
+  // 这正是 doneKey 自己那段注释说的分隔符碰撞, 加前缀时被原样重现了一次。
+  // 换成 \u0000 之后要碰撞, 就得有一个库名里含 NUL —— POSIX 禁止文件名
+  // 含 NUL, 而 vault_id 只来自真实目录名, 那个值取不到。
+  // ⛔ 分隔符写成转义而不是直接敲那个字节: 理由与 doneKey 同 —— 不可见字符
+  // 在源码里就该看得见 (本卡实测: 直接敲进去, diff 与 sed 都显示成一个空格)。
+  return "snooze\u0000" + doneKey(vaultId, board);
 }
 function tzOpts() {
   // CARD-G6-9c / D-18: 显示时区取**服务端下发**的 display_tz (GET /overview 顶层键,

@@ -3146,6 +3146,34 @@ test("在飞期间的重绘不许把钮解锁 (busy 键两侧必须是同一个)
   assert.ok(btns.length >= 2, "两档各一个钮");
   for (const t of btns) assert.match(t, / disabled/, "在飞的那块板, 重绘出来的钮必须仍是禁用的");
 });
+test("推迟键不与另一库的完成键碰撞 (Codex round-2 LOW-1)", () => {
+  // ⛔ 用 ":" 做前缀时 snoozeKey("math","A") === doneKey("snooze:math","A") ——
+  // 两个都是合法目录名, 于是 math 的推迟在飞时, 名叫 "snooze:math" 的库的完成钮
+  // 被连带禁用、它的完成 handler 也静默返回。这正是 doneKey 那段注释说的分隔符
+  // 碰撞, 加前缀时被原样重现了一次。换成 \u0000 之后要碰撞得有个库名含 NUL,
+  // 而 POSIX 禁止文件名含 NUL。
+  const b = boot();
+  assert.notEqual(b.api.snoozeKey("math", "A"), b.api.doneKey("snooze:math", "A"),
+    "推迟键与另一库的完成键相等 —— 前缀分隔符选错了");
+  // 反向也验一次: 前缀不许把别的库的推迟键吃掉
+  assert.notEqual(b.api.snoozeKey("math", "A"), b.api.snoozeKey("math\u0000", "A"));
+  // 同一块板自己的两个键必须不同 (推迟 / 完成各占一格的前提)
+  assert.notEqual(b.api.snoozeKey("cs_61b", "哈希表"), b.api.doneKey("cs_61b", "哈希表"));
+});
+test("取回渲染侧**单独**受保护 (Codex round-2 LOW-3: 两处渲染分支各自可被违反)", () => {
+  // 上一条门只覆盖了待做区的推迟钮。只把**取回**渲染侧改回裸 doneKey 时, 上一条
+  // 仍然全绿 —— 于是"两处渲染分支都用了 snoozeKey"这件事只被证明了一半。
+  const b = boot();
+  const busy = Object.create(null);
+  busy[b.api.snoozeKey("cs_61b", "图论基础")] = true;   // 被推迟的那块板在飞
+  const h = b.api.renderPage(g66Data(true), G66_NOW, null, null, busy);
+  const i = h.indexOf('<details class="snoozewrap"');
+  assert.ok(i > 0, "夹具前提: 必须有已推迟区");
+  const fold = h.slice(i);
+  const undoBtns = fold.match(/<button class="btn undo"[^>]*>/g) || [];
+  assert.equal(undoBtns.length, 1, "已推迟区恰一个取回钮");
+  assert.match(undoBtns[0], / disabled/, "在飞的那块板, 重绘出来的取回钮必须仍是禁用的");
+});
 test("自动轮询与可见性路径一个 POST 都不发", async () => {
   // boot 末尾自己就调了一次 poll() —— 那是真实的启动轮询路径
   const b = boot({getJson: G66_OK});

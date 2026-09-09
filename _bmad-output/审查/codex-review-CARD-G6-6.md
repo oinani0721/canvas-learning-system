@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-07-第十三批 · 车道 card-u6-reviewtime · 卡 CARD-G6-6 round-1
+> 模型: `gpt-6-astra` · reasoning_effort: `ultra` · codex: `codex-cli 0.153.3`
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat _bmad-output/审查/prompts/codex-prompt-CARD-G6-6.md)"`
+> 审查绑定: `8e3a1306db5b523493d46e9bbeb4c8420d9a52f3`（本轮之后有 round-1 整改 commit `39d6c93c`，故本轮**不绑最终 HEAD**；末轮见 round-2 存档）
+> 会话头自证（抄 .stderr 会话头含 model 行，stderr 本身不入库）:
+> `OpenAI Codex v0.153.3` / `model: gpt-6-astra` / `reasoning effort: ultra` / `sandbox: read-only`
+
+---
+
 审查范围：给定 BASE → `8e3a1306db5b523493d46e9bbeb4c8420d9a52f3`。确认 **4 项 MEDIUM、1 项 LOW**。
 
 **BLOCKER：无。**

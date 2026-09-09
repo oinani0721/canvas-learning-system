@@ -3988,17 +3988,36 @@ def test_g66_tomorrow_survives_dst_transitions(board_done_env, monkeypatch):
     ⛔ 这条是 `datetime.combine(date + 1天, 00:00, tz)` 与
     `now + timedelta(hours=24)` 的分水岭: 切换日那一天不是 24 小时, 加满
     24 小时会落到 23:00 或次日 01:00 —— 而用户看到的文案还写着"明天零点"。
-    两个方向各一条 (spring forward / fall back), 且 offset 必须是**次日**那天的。
+    两个方向各一条 (spring forward / fall back)。
+
+    两类 case, 各自守不同的性质:
+      · **America/New_York 两组** 守 `hour == 0` —— 它抓得住裸
+        `now + timedelta(hours=24)`(实测这三个日期上都给 hour=10)。
+        ⚠ 但这两组的 **offset 断言无区分力**: 美国 DST 在**凌晨 02:00** 切换,
+        于是「今天白天的 offset」与「次日 00:00 的 offset」恒相同 —— 连"把今天的
+        固定偏移硬搬到明天"(`tzinfo=timezone(now.utcoffset())`) 也给出逐字节相同
+        的结果。
+      · **America/Nuuk 两组** 才是 offset 那条的承重面 (Codex round-2 LOW-2)。
+        格陵兰的切换在 **UTC 22:00**, 落在「今天白天之后、次日 00:00 之前」——
+        于是 3/28 10:00 是 -02:00 而次日零点是 **-01:00**, 10/24 反向。
+        硬搬今天偏移的实现会**晚/早一小时唤醒**, 本组当场红。
+    ⛔ 本卡初版 docstring 断言过「IANA 现行库里没有这样的时区」——**那是错的**,
+    Codex round-2 给出了 Nuuk 这个反例, 实测成立。教训: "找不到"不等于"不存在",
+    没穷举就不该把它写成事实。
     """
     root, client, runner, mod = board_done_env
     _mk_node_vault(root, "vault-dst", {"定义甲": _node_md()})
     cases = [
-        # (钉住的此刻, 期望的次日, 次日零点那一刻的 UTC 偏移小时数)
-        ("2026-03-08T10:00:00", (2026, 3, 9), -4),  # spring forward 当天 (EST→EDT)
-        ("2026-11-01T10:00:00", (2026, 11, 2), -5),  # fall back 当天 (EDT→EST)
+        # (时区, 钉住的此刻, 期望的次日, 次日零点那一刻的 UTC 偏移小时数)
+        # ── 守 hour == 0 (offset 在这两组上恒真, 见 docstring) ──
+        ("America/New_York", "2026-03-08T10:00:00", (2026, 3, 9), -4),  # spring forward 当天
+        ("America/New_York", "2026-11-01T10:00:00", (2026, 11, 2), -5),  # fall back 当天
+        # ── 守 offset 取**次日**那天的值 (切换在 UTC 22:00, 今天与次日零点不同组) ──
+        ("America/Nuuk", "2026-03-28T10:00:00", (2026, 3, 29), -1),  # 今天 -02:00 → 次日零点 -01:00
+        ("America/Nuuk", "2026-10-24T10:00:00", (2026, 10, 25), -2),  # 今天 -01:00 → 次日零点 -02:00
     ]
-    for when, expect_date, expect_offset_h in cases:
-        _pin_now(monkeypatch, mod, when, tz_name="America/New_York")
+    for tz_name, when, expect_date, expect_offset_h in cases:
+        pinned = _pin_now(monkeypatch, mod, when, tz_name=tz_name)
         resp = client.post(_BOARD_SNOOZE_URL, data={"vault_id": "vault-dst", "board": "CS 61B", "until": "tomorrow"})
         assert resp.status_code == 200, resp.text
         until = datetime.fromisoformat(resp.json()["snoozed_until"])
@@ -4007,8 +4026,13 @@ def test_g66_tomorrow_survives_dst_transitions(board_done_env, monkeypatch):
             f"{when}: DST 切换日的「明天」落到了 {until.hour}:{until.minute:02d} 而不是零点"
         )
         assert until.utcoffset() == timedelta(hours=expect_offset_h), (
-            f"{when}: offset 用的不是**次日**那天的值 (把今天的偏移硬搬过去了)"
+            f"{tz_name} {when}: offset 用的不是**次日**那天的值 (把今天的偏移硬搬过去了)"
         )
+        if tz_name == "America/Nuuk":
+            # 夹具前提: 这一组的今天与次日零点**确实不同组**, 否则本组也是空的
+            assert pinned.utcoffset() != until.utcoffset(), (
+                f"{tz_name} {when}: 夹具前提不成立 —— 今天与次日零点同 offset, 这组守不住任何东西"
+            )
 
 
 def test_g66_tonight_after_2000_is_422_and_writes_nothing(board_done_env, monkeypatch):
@@ -4399,3 +4423,43 @@ def _utf8_encodable(s: str) -> bool:
     except UnicodeEncodeError:
         return False
     return True
+
+
+def test_g66_encodable_filter_does_not_harm_cjk_or_emoji_board_names(board_done_env, monkeypatch):
+    """(Codex round-1 MEDIUM-2 的配套) 那道编码过滤**不许误伤合法的非 ASCII 板名**。
+
+    ⛔ 这条是修复本身的负控。本项目的板名主流就是中文（「图论基础」「数学」），
+    修 surrogate 时顺手把非 ASCII 一起挡掉，会是一个**本卡引入的功能性缺陷**，
+    而且只在真实数据上才看得见 —— 上面那条门用的是 "CS 61B"（纯 ASCII），
+    它绿着证明不了这件事。
+
+    三类各一条: 中文 / emoji / 带重音符的拉丁字母。
+    """
+    root, client, runner, mod = board_done_env
+    vault = _mk_node_vault(root, "vault-cjk", {"甲": _node_md()})
+    _pin_now(monkeypatch, mod, "2026-09-09T10:00:00")
+
+    names = ["图论基础", "数学 📐", "Café 复习"]
+    until = "2099-09-09T20:00:00+08:00"
+    state_file = runner.state_path(vault)
+    state_file.parent.mkdir(parents=True, exist_ok=True)
+    state_file.write_text(
+        json.dumps(
+            {
+                "schema_version": runner.STATE_SCHEMA_VERSION,
+                "board_last_recommended": {},
+                "board_done": {},
+                "snoozed": {n: until for n in names},
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    assert set(mod._read_snoozed(state_file)) == set(names), "编码过滤误伤了合法的非 ASCII 板名"
+    entry = next(v for v in client.get("/api/v1/review/overview").json()["vaults"] if v["vault_id"] == "vault-cjk")
+    assert set(entry["snoozed"]) == set(names), "三类非 ASCII 板名都必须原样投影出来"
+    # 页面不在本门的作用面内: 「已推迟」区只渲染**投影 boards 里存在**的板, 而本夹具的
+    # 投影里没有这三块 —— 那时不渲染是正确行为, 与编码过滤无关。页面侧的板名渲染由
+    # test_g66_page_folds_snoozed_board_without_dropping_it 覆盖。
+    assert client.get(_PAGE_URL).status_code == 200, "非 ASCII 板名不许把页面打成 500"

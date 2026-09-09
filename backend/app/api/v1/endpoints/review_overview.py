@@ -2496,7 +2496,11 @@ def _read_snoozed(state_file: Path) -> dict[str, str]:
             (k + v).encode("utf-8")
         except UnicodeEncodeError:
             # 与本模块其余读路径同纪律: 读不出的条目丢弃, 不把只读请求打成 500
-            logger.warning("review_overview 推迟账含不可编码字符, 已丢弃该条", vault=state_file.parent.name)
+            # ⚠ 字段名给的是 **state 文件名**(含 vault key) 而不是 `vault=` ——
+            # state_file.parent.name 恒是 "backups", 拿它当 vault 名是 DD-13 名实不符。
+            # 也不把那个坏键塞进日志: 它正是编不出 UTF-8 的那个东西, structlog 的
+            # 序列化会在同一处再炸一次。
+            logger.warning("review_overview 推迟账含不可编码字符, 已丢弃该条", state_file=state_file.name)
             continue
         out[k] = v
     return out
