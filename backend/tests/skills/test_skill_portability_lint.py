@@ -1733,9 +1733,10 @@ def _python_regions(body: list[str], info: str = "") -> list[tuple[int, str]]:
             #   · info 是 python 系  ⇒ `<<` 一定是左移, 不是 heredoc;
             #   · info 是 shell 系   ⇒ 是 heredoc(算术 `(( ))` 已由掩码挡在前面);
             #   · info 缺失/其它     ⇒ 回落到「这一行能不能当合法 Python 解析」。
+            # ⛔ r28: 只有 fence **声明**是 python 时才敢排除 heredoc 解释。
+            # 「未知标签 / 声明不符 / 解析失败都要登记，不能用『Python 可解析』排除 shell」
+            # —— `python3 <<'END'` 恰好能当 Python 解析, 无标签时按可解析性排除就整类漏。
             if info in _PY_FENCE_INFO:
-                continue
-            if info not in _SH_FENCE_INFO and _quiet_parse(code.strip()) is not None:
                 continue
             tag, dash = mm.group("tag"), bool(mm.group("dash"))
             end = j
@@ -1779,7 +1780,9 @@ def _python_regions(body: list[str], info: str = "") -> list[tuple[int, str]]:
                 if _quiet_parse(chunk) is not None:
                     out.append((start, chunk))
         i = j if ops else i + 1
-    if not saw_heredoc:
+    # ⛔ r28: 语言未声明时**两种解释都保留** —— heredoc 区照收, 整块区也照收。
+    # 只有 fence 明确声明是 shell 时, 整块解释才确定不成立(`cat <<'A'` 那类)。
+    if not (saw_heredoc and info in _SH_FENCE_INFO):
         whole = textwrap.dedent("\n".join(body))
         if _quiet_parse(whole) is not None:
             out.insert(0, (0, whole))
@@ -2674,7 +2677,9 @@ def _sh_protect_mask(line: str) -> list[bool]:
                 continue
             # ⛔ r27 HIGH-1: 顶层 `(( … ))` 是**算术求值**, 里面的 `<<` 是左移不是重定向。
             # `$(( … ))` 走下面的 `$(` 分支已被覆盖, 裸 `((` 之前没人管。
-            if line.startswith("((", i):
+            # ⛔ r28: 只在**未被引用**时才当算术 —— `echo "(("` 里那对括号是字面量,
+            # 压栈会把后面真正的 heredoc 整个遮住。
+            if quote is None and line.startswith("((", i):
                 mask[i] = mask[i + 1] = True
                 stack.append(("))", quote))
                 quote = None
@@ -2917,11 +2922,15 @@ def _url_override_hit(line: str) -> bool:
         # `exec` / `!` 这些合法前缀, 以及前置重定向 —— 它们都不改变「这是一条 unset」。
         words = _shell_words(segment)
         k = 0
-        while k < len(words) and (
-            re.fullmatch(r"[A-Za-z_]\w*=.*", words[k])
-            or _sh_strip_quotes(words[k]) in {"command", "builtin", "exec", "!", "time", "nohup"}
-            or _REDIR_RE.fullmatch(words[k])
-            or words[k][:1] in "<>"
+        while (
+            k < len(words)
+            and (
+                re.fullmatch(r"[A-Za-z_]\w*=.*", words[k])
+                # ⛔ r28: 复合命令的 `{` / `(` 也是前缀 —— `{ unset X; }` 里 `unset` 仍是命令词。
+                or _sh_strip_quotes(words[k]) in {"command", "builtin", "exec", "!", "time", "nohup", "{", "("}
+                or _REDIR_RE.fullmatch(words[k])
+                or words[k][:1] in "<>"
+            )
         ):
             k += 1
         if k < len(words) and _sh_strip_quotes(words[k]) == "unset":
@@ -4303,6 +4312,125 @@ def test_r27_namespace_aliases_and_binding_facts():
     for probe in ("printf '%s %s' unset CLS_BACKEND_URL", "printf '%s %s' unset C'LS'_BACKEND_URL"):
         assert not _url_override_hit(f"{probe}; {d}"), f"`{probe}` 只是打印, 不该报"
     assert not _url_override_hit(f"unset -f CLS_BACKEND_URL; {d}"), "`unset -f` 删的是函数"
+
+
+#: ⛔⛔ **第十一条判据 = 结构性收口**(2026-09-09, Codex r28 建议)。
+#:
+#: 立它的理由是 r20~r27 八轮的数据: HIGH 数 2/2/3/3/5/6/6/4/5, **从未到 0**。
+#: 判据 ④~⑨ 要做的事本质上是在手写代码里复现 Markdown + shell + Python 三层语义;
+#: r13 加的第⑩条兜底网本该封住这一类, 但 r28 指出它**在输入过滤器上就有洞** ——
+#: `tmp_block_fingerprints()` 用**连续 `/tmp`** 筛输入, 于是
+#:
+#:     ROOT = "/t"
+#:     P = ROOT + "mp/cls-exam/../x"      # 把 `..` 换成 `a` 就是安全对照
+#:
+#: 这类拆分常量**根本进不了指纹集合**, 九项计数、五项路径判据、URL 判据、块指纹全空。
+#:
+#: 这一条反过来: **不看内容是什么, 只看这些文件有没有变**。
+#:   · 整文件原始字节的 sha256, **不依赖** `/tmp`、语言标签、Markdown 分块、AST;
+#:   · 文件集合精确钉死 —— 新增/删除受管文件同样红;
+#:   · 代价明确: 普通文字修改也要更新快照。这是**刻意**的 —— 更新快照 = 接受一次
+#:     人工审核, 不等于债务消除。
+#:
+#: ⚠️ 它**不**证明任何路径构造安全, 只保证「受管文件的任何字节变化都留下可审查的痕迹」。
+MANAGED_FILE_DIGESTS: dict[str, str] = {
+    "skills/ai-linked-doc/SKILL.md": "77807e2a8e3b6d3f",
+    "skills/board-recap/SKILL.md": "86ff0b3fa0179604",
+    "skills/chat-with-context/SKILL.md": "cdd0472591e75860",
+    "skills/configure-whiteboard/SKILL.md": "9eb21ecc6ac044a9",
+    "skills/exam-quick/SKILL.md": "eb30e407a1414547",
+    "skills/node-chat/SKILL.md": "3b15bc91dabea7e7",
+    "skills/quiz-answer/SKILL.md": "63b51029ea96a78a",
+    "skills/start-exam-board/SKILL.md": "0f2c085a1bae1244",
+    "skills/study-question/SKILL.md": "0142b7833ff3ab54",
+    "scripts/decay_beta.py": "3bf4ed9402a4c8ed",
+    "scripts/fsrs_bridge.py": "a766fbcc28e3ff91",
+    "scripts/sync_board_concepts.py": "282b7a968033f622",
+    "skills/board-recap/scripts/recap_exam_build.py": "cf6a60b5159e2627",
+    "skills/board-recap/scripts/recap_scan.py": "7ec79cba1e6b47f8",
+    "skills/board-split/scripts/split_preview.py": "d088c5e38f0c6eb0",
+    "skills/clear-inbox/scripts/inbox_preview.py": "a2b97f068445d9b4",
+}
+
+
+def managed_file_digests(root: Path) -> dict[str, str]:
+    """受管文件 → 整文件原始字节的 sha256 前 16。
+
+    刻意**不读文本、不按行、不解码** —— 换行风格、BOM、尾随空白的任何变化都要留痕。
+    """
+    out: dict[str, str] = {}
+    for f in sorted(root.glob("skills/*/SKILL.md")):
+        out[f"skills/{f.parent.name}/SKILL.md"] = hashlib.sha256(f.read_bytes()).hexdigest()[:16]
+    for f in sorted([*root.glob("skills/*/scripts/*.py"), *root.glob("scripts/*.py")]):
+        out[str(f.relative_to(root))] = hashlib.sha256(f.read_bytes()).hexdigest()[:16]
+    return out
+
+
+def check_managed_files(root: Path, baseline: dict[str, str]) -> list[str]:
+    """第十一条判据: 受管文件集合与整文件摘要**精确相等**。"""
+    actual = managed_file_digests(root)
+    problems: list[str] = []
+    for rel in sorted(set(baseline) - set(actual)):
+        problems.append(f"[受管文件] 缺失: {rel} —— 基线要求它存在")
+    for rel in sorted(set(actual) - set(baseline)):
+        problems.append(f"[受管文件] 新增: {rel} sha16={actual[rel]} —— 新文件必须先登记再纳管")
+    for rel in sorted(set(baseline) & set(actual)):
+        if baseline[rel] != actual[rel]:
+            problems.append(
+                f"[受管文件] 内容变化: {rel}\n"
+                f"        基线 {baseline[rel]}  实测 {actual[rel]}\n"
+                f"        —— 更新这个摘要表示**接受一次人工审核快照**, 不等于债务已消除"
+            )
+    return problems
+
+
+def test_managed_files_match_digest_baseline():
+    r"""⛔ 第十一条(正控): 受管 16 份文件的**整文件字节摘要**与集合精确相等。
+
+    这是本卡的**结构性收口**(Codex r28)。前十条判据都在回答「这条路径指向哪」——
+    那需要在手写代码里复现三层语义, 八轮数据显示它不收敛。这一条不问内容,
+    只保证**任何字节变化都留下可审查的痕迹**。
+
+    ⚠️ 它与前十条的关系是**兜底而非取代**: 前十条给出「是哪一类问题」的诊断,
+    这一条保证「不管什么形态, 文件变了就红」。⚠️ 反过来说, 它**绿**只意味着
+    「这些文件一个字节都没动」, **不**证明任何路径构造安全。
+    """
+    problems = check_managed_files(DEFAULT_ROOT, MANAGED_FILE_DIGESTS)
+    assert not problems, "受管文件基线漂移:\n" + "\n".join(problems)
+
+
+def test_managed_file_gate_catches_what_semantic_judges_miss():
+    r"""⛔ 负控: 第十一条要能接住**前十条全部静默**的那一类。
+
+    r28 给的反例 —— 拆分常量根本进不了第⑩条的输入过滤器(它用**连续 `/tmp`** 筛):
+
+        ROOT = "/t"
+        P = ROOT + "mp/cls-exam/../x"
+
+    这条断言先**证明前十条确实看不见它**(否则这个负控考错了对象), 再证明
+    第十一条的摘要会变。
+    """
+    escaping = 'ROOT = "/t"\nP = ROOT + "mp/cls-exam/../x"'
+    block = f"```python\n{escaping}\n```"
+    silent = {
+        "越界候选": escaping_tmp_paths(block),
+        "可疑行": suspicious_tmp_lines(block),
+        "动态拼接": dynamic_tmp_join_lines(block),
+        "父目录散文": parent_dir_prose_lines(block),
+        "opaque": opaque_tmp_lines(block),
+        "URL 覆盖": url_default_overridden_lines(block),
+        "块指纹": tmp_block_fingerprints(block),
+    }
+    assert not any(silent.values()), (
+        "前提不成立: 前十条判据里有人看得见这个形态, 这条负控就考错了对象 —— "
+        f"实测 { ({k: v for k, v in silent.items() if v}) }"
+    )
+    # 第十一条只看字节: 同一份文件改掉任意一个字节, 摘要必变。
+    original = (DEFAULT_ROOT / "skills" / "start-exam-board" / "SKILL.md").read_bytes()
+    mutated = original + b"\n" + escaping.encode()
+    assert hashlib.sha256(original).hexdigest()[:16] != hashlib.sha256(mutated).hexdigest()[:16], (
+        "整文件摘要对追加内容不敏感 —— 那它兜不住任何东西"
+    )
 
 
 def test_parse_unit_cost_on_current_tree():
