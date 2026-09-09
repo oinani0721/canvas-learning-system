@@ -1,0 +1,15 @@
+# 负控：Codex round-2 LOW 给的两个漏过输入，整改后必须变红
+# 方法：**运行期**替换 Neo4jClient.get_review_suggestions 为变异实现（纯内存，不改文件），
+#       再跑**测试本体**。还原用 try/finally 无条件执行。
+HEAD=cfd299f3  跑于 2026-09-09 14:12:10
+
+OK  ① 基线形态（等价于现行生产：全部参数化）
+     期望=PASS 实测=PASS  
+OK  ② r2-LOW(a)：内联 LIMIT 5 且删掉 limit kwarg
+     期望=FAIL 实测=FAIL  绑定参数集变了。got=['group_id', 'group_prefix', 'userId'] want=['group_id', 'group_prefix', 'limit', 'userId']；少一个通常意味着该值被内联进了查询文本
+OK  ③ r2-LOW(b)：内联 LIMIT 5，占位符只写在 // 注释里
+     期望=FAIL 实测=FAIL  参数 limit 没有对应的 $limit 占位符（已排除 // 注释），说明它的值可能被内联进了查询文本。query='MATCH (u:User {id: $userId})-[r:LEARNED]->(c:Concept)\n        WHERE 
+
+还原校验: get_review_suggestions is ORIG = True
+
+判据：② ③ 是 Codex round-2 给的漏过输入，整改后必须 FAIL；① 基线 PASS。
