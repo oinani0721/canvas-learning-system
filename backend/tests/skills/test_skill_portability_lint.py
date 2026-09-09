@@ -4370,6 +4370,25 @@ MANAGED_FILE_DIGESTS: dict[str, str] = {
 }
 
 
+def _root_untrustworthy(root: Path) -> str | None:
+    """受管**根本身**可信吗 —— 返回问题描述, `None` 表示可信。
+
+    ⛔ r30 MEDIUM: `_real_relpath()` 逐级核对的是根**以下**的分量, 根自己没人查。
+    把整个 `.claude` 换成指向同内容目录的符号链接时, `glob()` 与 `read_bytes()` 都会
+    沿根链接走, **路径键与摘要一个都不变**, 门照绿。大小写不敏感文件系统上根名的
+    大小写变化属同一个遗漏。
+    """
+    if root.is_symlink():
+        return f"受管根本身是符号链接: {root}"
+    try:
+        entries = os.listdir(root.parent)
+    except OSError as exc:
+        return f"受管根的父目录读不出来: {root.parent} ({type(exc).__name__})"
+    if root.name not in entries:
+        return f"受管根的目录项名字不符(大小写?): 期望 {root.name!r}, 父目录里没有这个名字"
+    return None
+
+
 def _real_relpath(root: Path, path: Path) -> str | None:
     """按**实际目录项**拼出相对路径; 任一分量是符号链接则返回 None。
 
@@ -4421,8 +4440,11 @@ def managed_file_digests(root: Path) -> dict[str, str]:
 
 def check_managed_files(root: Path, baseline: dict[str, str]) -> list[str]:
     """第十一条判据: 受管文件集合与整文件摘要**精确相等**。"""
-    actual = managed_file_digests(root)
     problems: list[str] = []
+    if (why := _root_untrustworthy(root)) is not None:
+        # 根不可信时后面的枚举与摘要全都不能采信 —— 直接判红, 不再往下比。
+        return [f"[受管文件] {why} —— 受管根必须是真实目录且名字逐字符相符"]
+    actual = managed_file_digests(root)
     for rel in sorted(set(baseline) - set(actual)):
         problems.append(f"[受管文件] 缺失: {rel} —— 基线要求它存在")
     for rel in sorted(set(actual) - set(baseline)):
@@ -4552,6 +4574,18 @@ def test_managed_file_gate_rejects_symlinks_and_case_drift(tmp_path):
     · 大小写不敏感的文件系统上 `SKILL.md → skill.md`, 字面 glob 仍找得到, 键名却硬编码。
     """
     root, baseline = _tiny_managed_tree(tmp_path)
+    # ⓪ **受管根本身**换成指向同内容目录的符号链接 —— 路径键与摘要一个都不变。
+    moved_root = tmp_path / "claude-real"
+    root.rename(moved_root)
+    root.symlink_to(moved_root, target_is_directory=True)
+    assert managed_file_digests(root) == baseline, (
+        "前提: 沿根链接读出来的键与摘要**本来就应该一模一样** —— 否则这条负控考错了对象"
+    )
+    assert check_managed_files(root, baseline), "受管**根本身**是符号链接必须红"
+    root.unlink()
+    moved_root.rename(root)
+    assert not check_managed_files(root, baseline), "还原根目录后应重新变绿"
+
     # ① 文件本身换成符号链接(内容一致)
     target = root / "scripts" / "top.py"
     payload = tmp_path / "elsewhere.py"
