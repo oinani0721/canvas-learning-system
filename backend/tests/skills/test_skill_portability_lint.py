@@ -275,7 +275,8 @@ def bare_8011(counts: dict[str, int]) -> int:
 #: 以及 `shlex` 也无法解析的畸形 shell(此时退回裸 token 与可疑行两道)。
 #: fence **开启**标记: 允许列表项前缀(`- ` / `1. `)与引用前缀(`> `)——CommonMark 里
 #: 列表项/引用块内的 fence 合法, 原先 `^\s*` 认不出 `- ```python` / `> ```python`。
-_FENCE_OPEN_RE = re.compile(r"^\s*(?:>\s*)*(?:[-*+]\s+|\d+[.)]\s+)?(`{3,}|~{3,})")
+#: r9 HIGH-3b: 列表与引用两种嵌套顺序都认(`- > ```py` 与 `> - ```py`)。
+_FENCE_OPEN_RE = re.compile(r"^\s*(?:(?:>\s*)+|(?:[-*+]\s+|\d+[.)]\s+))*(`{3,}|~{3,})")
 #: fence **闭合**标记: ⛔ r8 HIGH-3 —— 闭合**不允许**列表项前缀。普通 fence 里的
 #: `- ``` ` 是内容行, 让它闭合围栏会把后面的真代码块推成散文(方向是漏检)。
 _FENCE_CLOSE_RE = re.compile(r"^\s*(?:>\s*)*(`{3,}|~{3,})")
@@ -291,9 +292,31 @@ _MD_ESCAPE_RE = re.compile(r"\\.")
 
 
 def _backtick_spans(text: str) -> list[str]:
-    r"""text 里的 markdown code span 内容 —— 先把反斜杠转义序列掩掉再找 run。"""
-    masked = _MD_ESCAPE_RE.sub("\x00\x00", text)
-    return [text[m.start(2) : m.end(2)] for m in _BACKTICK_SPAN_RE.finditer(masked)]
+    r"""text 里的 markdown code span 内容。
+
+    ⛔ r9 HIGH-2: 掩码**只用于定位 opening run** —— code span **内部**的反斜杠是
+    普通字符, CommonMark 找 closing run 时不处理转义。上一版对全串掩码, 于是
+    `` `/tmp/cls-exam/x\` `` 的末尾反引号被抹掉、整个 span 提不出来(**漏检**方向)。
+    """
+    masked = _MD_ESCAPE_RE.sub("\x00\x00", text)  # 只用来判「这枚反引号是不是被转义的」
+    out: list[str] = []
+    i, n = 0, len(text)
+    while i < n:
+        if text[i] != "`" or masked[i] != "`":  # 被转义的反引号不开启 span
+            i += 1
+            continue
+        run = 0
+        while i + run < n and text[i + run] == "`" and masked[i + run] == "`":
+            run += 1
+        close = text.find("`" * run, i + run)  # closing 在**原串**上找, 不看转义
+        while close != -1 and close + run < n and text[close + run] == "`":
+            close = text.find("`" * run, close + run + 1)
+        if close == -1:
+            i += run
+            continue
+        out.append(text[i + run : close])
+        i = close + run
+    return out
 
 
 #: 裸 token: 白名单左边界(r3 HIGH-1) + 中文标点停止(防散文拖尾)。
@@ -328,7 +351,10 @@ def _fence_blocks(text: str) -> list[tuple[int, list[str], bool]]:
             out.append((i + 1, [lines[i]], False))
             # r8 HIGH-3b: 引用块内的 fence —— body 每行带 `> ` 前缀, 不剥掉则 ast/shlex
             # 全都解析不了, 整块退化成只有裸 token。按开启行的引用深度剥。
-            quote_depth = lines[i][: _FENCE_OPEN_RE.match(lines[i]).start(1)].count(">")
+            # 容器前缀的长度(>0 即「开启行在引用/列表里」); 闭合行的引用深度须与之相同。
+            _prefix = lines[i][: _FENCE_OPEN_RE.match(lines[i]).start(1)]
+            quote_depth = len(_prefix.strip()) and _prefix.count(">")
+            container_depth = 1 if _prefix.strip() else 0
             body: list[str] = []
             start = i + 2  # body 的首个物理行号
             closing: tuple[int, list[str], bool] | None = None
@@ -338,11 +364,18 @@ def _fence_blocks(text: str) -> list[tuple[int, list[str], bool]]:
                 # ⚠️ r7 HIGH-2: CommonMark 规定**闭合** fence 行不得带 info string ——
                 # ` ```not-a-close ` 不闭合任何东西, 原先却按闭合处理, 于是后面真正的
                 # 代码块被当成散文。
-                if m2 and m2.group(1)[0] == ch and len(m2.group(1)) >= width and not lines[i][m2.end() :].strip():
+                if (
+                    m2
+                    and m2.group(1)[0] == ch
+                    and len(m2.group(1)) >= width
+                    and not lines[i][m2.end() :].strip()
+                    # r9 HIGH-3a: closing 的引用深度必须**等于** opening 的
+                    and lines[i][: m2.start(1)].count(">") == quote_depth
+                ):
                     closing = (i + 1, [lines[i]], False)
                     i += 1
                     break
-                body.append(_strip_quote_prefix(lines[i], quote_depth))
+                body.append(_strip_quote_prefix(lines[i], container_depth))
                 i += 1
             out.append((start, body, True))
             if closing is not None:
@@ -371,7 +404,10 @@ def _quiet_parse(src: str) -> ast.AST | None:
 #: span 两侧的「正常 markdown 分隔符」: 空白 + 中英文标点 + 强调号。
 #: ⛔ 刻意**不含引号**(`"` `'`) —— 引号在 shell 里是词的一部分, 而
 #: `P="/tmp/cls-exam/"`printf .`"./x"` 的 span 恰恰被引号夹住, 那正是要抓的特征。
-_SPAN_SEP_CHARS = frozenset(" \t，。、；：！？（）【】「」《》〈〉…—·,;:!?()[]{}<>*_~|")
+#: ⛔ r9 HIGH-5a: **不含任何 ASCII 标点**。`_` `:` `,` 同样是合法 shell 词的一部分,
+#: 留在表里就等于放行 ``cp "/tmp/cls-exam/"_`printf a`_ out`` 这种形态。
+#: ⛔ r9 LOW-2: 补齐中文引号与括号(“”‘’『』〔〕), 它们在中文技术文档里包 span 很常见。
+_SPAN_SEP_CHARS = frozenset(" \t，。、；：！？（）【】「」『』〔〕《》〈〉“”‘’…—·*")
 
 
 def _is_span_sep(ch: str) -> bool:
@@ -404,17 +440,51 @@ def _has_embedded_span_near_tmp(line: str) -> bool:
     return False
 
 
-def _strip_quote_prefix(line: str, depth: int) -> str:
-    """剥掉行首至多 `depth` 层 markdown 引用前缀(`> `)。`depth=0` 时原样返回。"""
-    out = line
-    for _ in range(depth):
-        stripped = out.lstrip()
-        if not stripped.startswith(">"):
-            break
-        out = stripped[1:]
-        if out.startswith(" "):
-            out = out[1:]
+#: 容器前缀(引用 / 列表, 任意嵌套顺序) —— 与 `_FENCE_OPEN_RE` 的前缀部分同口径。
+_CONTAINER_PREFIX_RE = re.compile(r"^\s*(?:(?:>\s*)+|(?:[-*+]\s+|\d+[.)]\s+))*")
+
+
+def _prose_segments(text: str) -> list[tuple[int, list[str]]]:
+    r"""把**连续的散文行**并成段, 返回 `[(段首物理行号, 行列表)]`。
+
+    ⛔ r9 HIGH-5c: `_fence_blocks()` 对散文是**逐行**产出的(每块 body 只有一行),
+    于是跨物理行的 code span(CommonMark 把换行当空格)两行都拿不到完整 span。
+    要按 CommonMark 语义找 span, 就得先把散文拼回段。fence 是天然的段边界。
+    """
+    out: list[tuple[int, list[str]]] = []
+    cur_start: int | None = None
+    cur: list[str] = []
+
+    def flush() -> None:
+        nonlocal cur_start, cur
+        if cur and cur_start is not None:
+            out.append((cur_start, cur))
+        cur_start, cur = None, []
+
+    for start, body, is_fence in _fence_blocks(text):
+        # ⛔ fence **标记行**虽按散文产出(为了让裸 token 扫到 info string 上的路径),
+        # 但它不是散文正文 —— 并进段会让相邻两个 ``` 凑成一个假的跨行 span(树上实测
+        # 误报 board-recap `:135` / quiz-answer `:165`)。它同时也是段边界。
+        if is_fence or (len(body) == 1 and _FENCE_OPEN_RE.match(body[0])):
+            flush()
+            continue
+        if cur_start is None:
+            cur_start = start
+        cur.extend(body)
+    flush()
     return out
+
+
+def _strip_quote_prefix(line: str, depth: int) -> str:
+    r"""剥掉 fence body 行的**容器前缀**。`depth=0`(开启行无容器前缀)时原样返回。
+
+    ⛔ r9 HIGH-3b: 只剥 `>` 不够 —— `- > ```python` 的 body 是 `- > P = …`,
+    留着 `- ` 一样解析不了。按 `_FENCE_OPEN_RE` 的同一套前缀模式整体剥。
+    ⛔ 只在开启行**确实带容器前缀**时才剥, 否则普通 fence 里的 `- foo` 会被误剥。
+    """
+    if depth <= 0:
+        return line
+    return line[_CONTAINER_PREFIX_RE.match(line).end() :]
 
 
 def _is_inline_span(m: re.Match[str], line: str) -> bool:
@@ -468,8 +538,10 @@ def _py_strings(src: str) -> list[str] | None:
     return out
 
 
-#: 病态保护: 连续这么多行都判「还没写完」就放弃(不假装解析得了, 退回单行)。
-_UNIT_MAX_LINES = 200
+#: 复合语句的**续接子句**: 单元不能切在它们前面, 否则孤立的 `elif` 头再也解析不了。
+#: ⛔ r9 HIGH-1a: `if False:`␊`    pass`␊`elif (P := "/tmp/…" + "." * 2 + "/x"):` ——
+#: 贪心「第一次成功即认」会把 `if False: pass` 认走, 剩下的 `elif` 头转交 shlex, 拼接丢失。
+_PY_CONTINUATION_RE = re.compile(r"^\s*(elif|else|except|finally|case)\b")
 
 
 def _py_needs_more(src: str) -> bool:
@@ -527,7 +599,10 @@ def _parse_units(body: list[str]) -> list[tuple[int, str, list[str] | None]]:
     out: list[tuple[int, str, list[str] | None]] = []
     i, n = 0, len(body)
     while i < n:
-        end = min(n - 1, i + _UNIT_MAX_LINES - 1)
+        # ⛔ r9 HIGH-1b: **不设行数上限**。r8 版留了 200 行, Codex 实测 201 行的
+        # heredoc 常量拼接整段漏检 ——「固定上限」只是把缺口挪个位置。`_py_needs_more()`
+        # 的剪枝已经保证复杂度: 非 Python 行立刻判「语法错误」⇒ 不累加 ⇒ O(n)。
+        end = n - 1
         unit: tuple[int, str, list[str] | None] | None = None
         # ⛔ 两个窗口必须**先后**而不是交错: `shlex` 对 `P = (` 这种单行也「成功」
         # (返回 ['P','=','(']), 若与 Python 同循环, 第一次就被 shell 认掉,
@@ -535,11 +610,13 @@ def _parse_units(body: list[str]) -> list[tuple[int, str, list[str] | None]]:
         for j in range(i, end + 1):  # ① Python 窗口
             chunk = textwrap.dedent("\n".join(body[i : j + 1]))
             values = _py_strings(chunk)
-            if values is not None:
+            # r9 HIGH-1a: 下一行若是复合语句的续接子句(elif/else/except/…), 不能在此切断
+            follows = j + 1 <= end and _PY_CONTINUATION_RE.match(body[j + 1]) is not None
+            if values is not None and not follows:
                 unit = (i, "\n".join(body[i : j + 1]), values)
                 i = j + 1
                 break
-            if not _py_needs_more(chunk):  # 不是「还没写完」⇒ 再累也没用
+            if values is None and not _py_needs_more(chunk) and not follows:
                 break
         if unit is None:
             for j in range(i, end + 1):  # ② shell 窗口
@@ -613,6 +690,12 @@ def escaping_tmp_paths(text: str) -> list[tuple[str, str]]:
         for line in body:  # ③ 裸 token 始终扫
             for tok in _TMP_TOKEN_RE.findall(line):
                 add(tok, source)
+    # ⑤ ⛔ r9 HIGH-5c: 跨物理行的 code span —— CommonMark 把 span 内的换行当空格,
+    # 逐行扫时两行都拿不到完整 span。只补**跨行**的那些(单行的已由 ④ 覆盖)。
+    for _seg_start, seg in _prose_segments(text):
+        for content in _backtick_spans("\n".join(seg)):
+            if "\n" in content:
+                add(content, "prose")
     return out
 
 
@@ -659,7 +742,10 @@ def _logical_lines(text: str) -> list[tuple[int, str, bool]]:
 #: ⛔ r7 HIGH-4: **`AugAssign` 不在名单里** —— `P += "/tmp/cls-exam/x"` 的 `+=`
 #: 本身就是拼接, 抵达该语句节点**证明不了**「纯静态字面量」(`P` 之前是什么完全未知,
 #: 实测 `P = "/var/cache"` 在前时真实值是 `/var/cache/tmp/cls-exam/x`)。
-_STATEMENT_NODES = (ast.Assign, ast.AnnAssign, ast.Expr, ast.Return)
+#: ⛔ r9 HIGH-4: **`Expr` 不在名单里** —— `"/tmp/cls-exam/x"; P = "/etc/passwd"` 里
+#: 那个常量是个**无用表达式**, 实际赋值是别的; 抵达 `Expr` 证明不了它是这条语句的落点。
+#: 树上实测 0 处受影响(fence 内没有含 `/tmp` 的孤立字符串表达式)。
+_STATEMENT_NODES = (ast.Assign, ast.AnnAssign, ast.Return)
 #: ⛔ r8 HIGH-4: `P: "/tmp/cls-exam/x" = "/etc/passwd"` —— 常量只是**注解**,
 #: 实际值是别的。抵达 `AnnAssign` 不能一概判「纯静态字面量」, 要看常量落在
 #: `.annotation` 还是 `.value` 上。
@@ -762,6 +848,16 @@ def opaque_tmp_lines(text: str) -> list[tuple[int, str]]:
     登记成本为零, 而任何新写的此类形态都必须先被人看见。
     """
     out: list[tuple[int, str]] = []
+    # ⛔ r9 HIGH-5c: 跨物理行的 code span —— 先把连续散文并成段再找 span, 行号取段内偏移。
+    # 逐行扫时两行都拿不到完整 span（CommonMark 把 span 内的换行当空格）。
+    for seg_start, seg in _prose_segments(text):
+        joined = "\n".join(seg)
+        for content in _backtick_spans(joined):
+            if "\n" in content and "/tmp" in content and _OPAQUE_TMP_RE.search(content):
+                off = joined[: joined.find(content)].count("\n")
+                entry = (seg_start + off, seg[off].strip())
+                if entry not in out:
+                    out.append(entry)
     for start, body, is_fence in _fence_blocks(text):
         if not is_fence:
             # ⛔ r7 HIGH-1: 散文侧只看 **backtick span 的内容** —— 整行不行(散文里反引号
@@ -778,9 +874,13 @@ def opaque_tmp_lines(text: str) -> list[tuple[int, str]]:
                 # 里 span 两侧是空白(`⛔ 不落 `/tmp` 等…`), 而命令替换的反引号**紧贴**
                 # 前后的非空白字符 —— 后者才可能是 shell。只问「行内有没有反引号」会把
                 # board-recap `:58`/`:139`、quiz-answer `:98`/`:205` 全部误报(实测踩到)。
-                if any(
-                    "/tmp" in c and _OPAQUE_TMP_RE.search(c) for c in _backtick_spans(line)
-                ) or _has_embedded_span_near_tmp(line):
+                # ⛔ r9 HIGH-5b: 散文里裸写、连反引号都没有的形态
+                # (`P="/tmp/cls-exam/"\.\./x`) —— 含 `/tmp` 的**词里带反斜杠**即登记。
+                if (
+                    any("/tmp" in c and _OPAQUE_TMP_RE.search(c) for c in _backtick_spans(line))
+                    or _has_embedded_span_near_tmp(line)
+                    or any("/tmp" in w and "\\" in w for w in line.split())
+                ):
                     out.append((start + offset, line.strip()))
             continue
         i = 0
@@ -1008,6 +1108,19 @@ DYNAMIC_TMP_JOIN_BASELINE: dict[str, list[int]] = {
 #: 层 2 附加⑤(r6 三类 HIGH 的同因收口): fence 内 `/tmp` 行带反引号/反斜杠的行号。
 #: 全树实测 0 —— 空基线意味着**任何**此类新写法都要先登记, 代价为零。
 OPAQUE_TMP_BASELINE: dict[str, list[int]] = {
+    "ai-linked-doc": [],
+    "board-recap": [],
+    "chat-with-context": [],
+    "configure-whiteboard": [],
+    "exam-quick": [],
+    "node-chat": [],
+    "quiz-answer": [],
+    "start-exam-board": [],
+    "study-question": [],
+}
+
+#: 层 2 附加⑥(r9 MEDIUM-2): fence 内给 `CLS_BACKEND_URL` 赋值的行号。全树实测 0。
+URL_OVERRIDE_BASELINE: dict[str, list[int]] = {
     "ai-linked-doc": [],
     "board-recap": [],
     "chat-with-context": [],
@@ -1262,6 +1375,8 @@ def check_escaping_tmp(root: Path, baseline: dict[str, list[str]]) -> list[str]:
             problems.append(
                 f"[越界] {name}: 越出 {TMP_NAMESPACE} 的路径多重集不等 "
                 f"期望={want} 实测={actual} (新增={extra} 缺失={missing}) —— "
+                f"⚠️ `fence:` / `prose:` 是**提取来源**: 同一处路径从 inline 挪进 fence 会让"
+                f"一边缺失、另一边新增, 那是来源翻转**不是**物理债增减(r9 LOW-3); "
                 f"新增即债; 缺失说明有人整改却没同步 ESCAPING_TMP_BASELINE"
             )
     return problems
@@ -1321,6 +1436,50 @@ def check_dynamic_tmp_joins(root: Path, baseline: dict[str, list[int]]) -> list[
                 f"期望={want} 实测={actual} (新增={extra} 缺失={sorted((cw - ca).elements())})\n"
                 + "".join(f"        :{ln}  {by_line.get(ln, '')[:100]}\n" for ln in extra)
                 + "        —— 变量拼接/格式化后的落点静态不可判(`ast` 折不了非常量), 必须登记"
+            )
+    return problems
+
+
+#: 把 `${CLS_BACKEND_URL:-…}` 的缺省形态**架空**的写法: 同一 fence 块里给该变量赋空/别的值。
+#: ⛔ r9 MEDIUM-2: `CLS_BACKEND_URL=; curl "${CLS_BACKEND_URL:-http://localhost:8011}/…"`
+#: 九项计数与五个集合全部不变, 但外部配置被清空、命令无条件走 localhost:8011 ——
+#: 「改成缺省形态」这项整改被就地取消, 而门看不见。这是可静态确定的等计数缺口。
+_URL_OVERRIDE_RE = re.compile(r"(?<![{$:])\bCLS_BACKEND_URL\s*=")
+
+
+def url_default_overridden_lines(text: str) -> list[tuple[int, str]]:
+    """fence 内「给 `CLS_BACKEND_URL` 赋值」的行 —— 返回 `(行号, 行)`。全树实测 0。"""
+    out: list[tuple[int, str]] = []
+    for start, body, is_fence in _fence_blocks(text):
+        if not is_fence:
+            continue
+        for offset, line in enumerate(body):
+            if _URL_OVERRIDE_RE.search(line):
+                out.append((start + offset, line.strip()))
+    return out
+
+
+def check_url_override(root: Path, baseline: dict[str, list[int]]) -> list[str]:
+    """URL 覆盖判据: 每份 SKILL.md 里给 `CLS_BACKEND_URL` 赋值的行号集合精确相等（现状全 0）。"""
+    problems: list[str] = []
+    skills_dir = root / "skills"
+    for name in sorted(baseline):
+        f = skills_dir / name / "SKILL.md"
+        if not f.exists():
+            problems.append(f"[URL 覆盖] {name}: SKILL.md 不存在 (基线要求存在) path={f}")
+            continue
+        found = url_default_overridden_lines(f.read_text(encoding="utf-8"))
+        actual = sorted(ln for ln, _t in found)
+        want = sorted(baseline[name])
+        if actual != want:
+            by_line = dict(found)
+            ca, cw = Counter(actual), Counter(want)
+            extra = sorted((ca - cw).elements())
+            problems.append(
+                f"[URL 覆盖] {name}: 给 CLS_BACKEND_URL 赋值的行号集合不等 "
+                f"期望={want} 实测={actual} (新增={extra} 缺失={sorted((cw - ca).elements())})\n"
+                + "".join(f"        :{ln}  {by_line.get(ln, '')[:100]}\n" for ln in extra)
+                + "        —— 给它赋值就把 `${CLS_BACKEND_URL:-…}` 的缺省形态架空了, 等于取消了本卡的整改"
             )
     return problems
 
@@ -1572,6 +1731,12 @@ def test_opaque_tmp_lines_match_baseline():
     assert not problems, "不透明记号基线漂移:\n" + "\n".join(problems)
 
 
+def test_url_override_lines_match_baseline():
+    """第九条判据(正控): 给 `CLS_BACKEND_URL` 赋值的行号集合 == 基线(现状全 9 份皆空)。"""
+    problems = check_url_override(DEFAULT_ROOT, URL_OVERRIDE_BASELINE)
+    assert not problems, "URL 覆盖基线漂移:\n" + "\n".join(problems)
+
+
 def test_every_per_skill_baseline_covers_all_nine_skills():
     """⛔ **每个按 skill 分的基线都必须恰好覆盖 9 份**(Codex round-2 MEDIUM-2)。
 
@@ -1588,6 +1753,7 @@ def test_every_per_skill_baseline_covers_all_nine_skills():
         ("DYNAMIC_TMP_JOIN_BASELINE", set(DYNAMIC_TMP_JOIN_BASELINE)),
         ("PARENT_DIR_PROSE_BASELINE", set(PARENT_DIR_PROSE_BASELINE)),
         ("OPAQUE_TMP_BASELINE", set(OPAQUE_TMP_BASELINE)),
+        ("URL_OVERRIDE_BASELINE", set(URL_OVERRIDE_BASELINE)),
     ):
         assert baseline == set(EXPECTED_SKILLS), (
             f"{label} 覆盖面必须恰好 == 9 份 vault skill "
@@ -2274,7 +2440,9 @@ def test_r5_high1_independent_args_must_not_mask_each_other():
         f"第二个独立参数的越界必须被单独抓到(不得被第一个参数拼组遮蔽), 实得: {escapes}"
     )
     # 验伪锚: 合规的第一个参数不该被误报 —— 否则「抓到」可能只是整体误报
-    assert "/tmp/cls-exam/a" not in norms, f"命名空间内的第一个参数不应被判越界: {escapes}"
+    assert (
+        "fence:/tmp/cls-exam/a" not in norms
+    )  # r9 LOW-1: 前缀漏更新会让这条空跑, f"命名空间内的第一个参数不应被判越界: {escapes}"
 
 
 def test_negative_control_r5_tilde_fence_must_redden(sandbox: Path):
@@ -2351,6 +2519,71 @@ _R7_HIGH_FORMS: list[tuple[str, str, str, str]] = [
         "不透明记号",
         "HIGH-6 七条反斜杠续行 —— 链长上限 6 把记号与 `/tmp` 切进不同组(边界呈模 7 锯齿)",
     ),
+    # ── Codex round-9 五类 HIGH + 1 MEDIUM ────────────────────────────────
+    (
+        '```sh\npython3 - <<\'PYEOF\'\nif False:\n    pass\nelse:\n    P = "/tmp/cls-exam/" ".." "/x"\nPYEOF\n```',
+        '```sh\npython3 - <<\'PYEOF\'\nif False:\n    pass\nelse:\n    P = "/tmp/cls-exam/" "ab" "/x"\nPYEOF\n```',
+        "越界",
+        "r9HIGH-1a 复合语句续接子句 —— 贪心「第一次成功即认」会把 `if` 认走、孤立 `elif` 转交 shlex",
+    ),
+    (
+        "```sh\npython3 - <<'PYEOF'\nP = (\n    \"/tmp/cls-exam/\"\n"
+        + "    # c\n" * 197
+        + '    + "." + "./x"\n)\nPYEOF\n```',
+        "```sh\npython3 - <<'PYEOF'\nP = (\n    \"/tmp/cls-exam/\"\n"
+        + "    # c\n" * 197
+        + '    + "a" + "/x"\n)\nPYEOF\n```',
+        "越界",
+        "r9HIGH-1b 201 行 —— 固定行数上限只是把缺口挪个位置(r8 已报, r8 整改时漏修)",
+    ),
+    (
+        "执行 `/var/cache(/tmp/cls-exam/x\\`",
+        "执行 `/tmp/cls-exam/x\\`",
+        "越界",
+        "r9HIGH-2 掩码毁 span 闭合 —— span **内部**的反斜杠是普通字符, closing 不看转义",
+    ),
+    (
+        '```python\nA = 1\n> ```\nP = "/tmp/cls-exam/" + "." * 2 + "/x"\n```',
+        '```python\nA = 1\n> ```\nP = "/tmp/cls-exam/x"\n```',
+        "动态拼接",
+        "r9HIGH-3a closing 的引用深度必须等于 opening 的 —— 否则 `> ``` ` 提前闭合",
+    ),
+    (
+        '- > ```python\n- > P = "/tmp/cls-exam/" + "." * 2 + "/x"\n- > ```',
+        '- > ```python\n- > P = "/tmp/cls-exam/x"\n- > ```',
+        "动态拼接",
+        "r9HIGH-3b 列表→引用嵌套 —— body 的容器前缀要整体剥, 只剥 `>` 不够",
+    ),
+    (
+        '```python\n"/tmp/cls-exam/x"; P = "/etc/passwd"\n```',
+        '```python\nP = "/tmp/cls-exam/x"\n```',
+        "动态拼接",
+        "r9HIGH-4 常量与实际赋值脱钩 —— `Expr` 不能算安全停止点",
+    ),
+    (
+        '执行 cp "/var/cache""/tmp/cls-exam/"_`printf a`_ out',
+        '执行 cp "/tmp/cls-exam/x" out',
+        "不透明记号",
+        "r9HIGH-5a `_` `:` 也是合法 shell 词的一部分 —— 分隔符表不能含 ASCII 标点",
+    ),
+    (
+        '执行 P="/tmp/cls-exam/"\\.\\./x',
+        '执行 P="/tmp/cls-exam/x"',
+        "不透明记号",
+        "r9HIGH-5b 散文里裸写、连反引号都没有 —— 含 `/tmp` 的词里带反斜杠即登记",
+    ),
+    (
+        "执行 `/var/cache(\n/tmp/cls-exam/x`",
+        "执行 `/tmp/cls-exam/x\n`",
+        "越界",
+        "r9HIGH-5c 跨物理行的 code span —— 散文要先并成段再找 span",
+    ),
+    (
+        '```sh\nCLS_BACKEND_URL=; curl "${CLS_BACKEND_URL:-http://localhost:8011}/api/v1/ping"\n```',
+        '```sh\ncurl "${CLS_BACKEND_URL:-http://localhost:8011}/api/v1/ping"\n```',
+        "URL 覆盖",
+        "r9MEDIUM-2 给变量赋值把缺省形态架空 —— 九项计数与五集合全不变",
+    ),
     # ── Codex round-8 五类 HIGH ──────────────────────────────────────────
     (
         '```sh\npython3 - <<\'PYEOF\'\nP = ( # )\n    "/tmp/cls-exam/"\n    + "." + "./x"\n)\nPYEOF\n```',
@@ -2416,6 +2649,7 @@ def test_r7_high_forms_are_caught_and_safe_forms_are_not(bad: str, safe: str, ju
         "可疑行": suspicious_tmp_lines,
         "动态拼接": dynamic_tmp_join_lines,
         "不透明记号": opaque_tmp_lines,
+        "URL 覆盖": url_default_overridden_lines,
     }
     assert judges[judge](bad), f"{why} —— 坏形态未被**{judge}**判据抓到: {bad!r}"
     assert any(fn(bad) for fn in judges.values()), f"{why} —— 坏形态八条判据全盲: {bad!r}"
