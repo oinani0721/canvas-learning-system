@@ -1,0 +1,14 @@
+### r4 处置后 rc 全量 ###
+A dry-run                 rc=0  期望 0
+B apply                   rc=0  期望 0
+C 空输入 apply            rc=0  期望 0
+D live闸 --file           rc=2  期望 2
+E live闸 --out            rc=2  期望 2
+F --out 别名 --file       rc=2  期望 2
+G 缺 --vault-id           rc=2  期望 2
+H 互斥组 required         rc=2  期望 2
+I vault-id 含冒号         rc=2  期望 2
+J --out=简单备份路径      rc=2  期望 2
+K [新r4H1] vault-id=保留键 rc=2  期望 2
+L [新r4H3] 认领隔离区     rc=0  期望 0
+   认领结果: {"A":{"c":"iso"}}
