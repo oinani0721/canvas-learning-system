@@ -1202,6 +1202,17 @@ def load_decay(vault: Path):
     return decay_beta
 
 
+def _str_pairs(raw) -> dict:
+    """把 state 里的账本收成 {str: str} —— 非 dict / 键值错型一律丢弃。
+
+    生产器对上游脏数据一贯的纪律: 一个坏掉的 state 不该让整轮生成换个结果,
+    更不该让它崩。这里丢弃而不是修正 —— 我们无从知道 7 本来想写哪一天。
+    """
+    if not isinstance(raw, dict):
+        return {}
+    return {k: v for k, v in raw.items() if isinstance(k, str) and isinstance(v, str)}
+
+
 def main():
     # allow_abbrev=False 与 runner/push.sh 同源 (Codex-C1a F1)
     ap = argparse.ArgumentParser(description="每日复习选板", allow_abbrev=False)
@@ -1247,12 +1258,14 @@ def main():
             # traceback —— 那不是"降级为无记录", 是整轮生成崩掉。逐键判型:
             # 一个键坏掉不该连累另一个。
             if isinstance(_st, dict):
-                blr = _st.get("board_last_recommended") or {}
-                bd = _st.get("board_done") or {}
-                if not isinstance(blr, dict):
-                    blr = {}
-                if not isinstance(bd, dict):
-                    bd = {}
+                # ⚠ Codex round-3 M3: 逐**值**过滤, 不只看外层是不是 dict。
+                # {"board_last_recommended": {"A": 7}} 会让 rank_boards 的排序键
+                # 拿 7 去和另一块板的 "" 比大小 → TypeError → 整轮生成崩掉 →
+                # 手动刷新拿到 503。这是既有排序缺陷的**新暴露路径**: BASE 的
+                # refresh 不传 state, 本卡把它接上了, 就得为这条新输入面负责。
+                # 与读侧 _read_board_done 同一条纪律: 读不出/形状不对 = 没有记录。
+                blr = _str_pairs(_st.get("board_last_recommended"))
+                bd = _str_pairs(_st.get("board_done"))
 
     payload, ranked = build_payload(vault, now, blr, load_decay(vault), board_done=bd)
     if args.write:

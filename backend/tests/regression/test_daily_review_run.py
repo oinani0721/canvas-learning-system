@@ -1171,26 +1171,37 @@ def test_g67_upgrade_day_missing_signature_with_nonempty_account_still_rescans(t
 #: 判据要的是"它什么时候**完成**", 不是"它有没有报错" —— 后者在锁失效时
 #: 同样是不报错的 (两个写者各写各的, 谁也不知道对方存在)。
 _SAVE_STATE_CHILD = """
-import json, sys, time
+import contextlib, errno, fcntl, json, os, sys, time
 sys.path.insert(0, sys.argv[1])
 from pathlib import Path
 import daily_review_run as runner
-# argv[3] = 就绪标记, argv[4] = 锁文件路径。
-# ⚠ Codex round-1 M3 / round-2 M1: 标记不能只表示"import 完成" —— 那样
-# 「持锁 1.5s 期间子进程没完成」还可以被"它 ready 之后又停了 2 秒"解释掉。
-# 这里先对**同一个锁文件**做一次真实的非阻塞取锁, 把结果写进标记:
-# blocked = 我已经到了锁这一步且此刻拿不到 (正门期望); free = 拿得到
-# (对照组期望)。父进程读标记内容来断言, 计时因此绑在"锁"上而不是"启动"。
-import errno, fcntl, os
-_probe = os.open(sys.argv[4], os.O_RDWR | os.O_CREAT, 0o644)
-try:
-    fcntl.lockf(_probe, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    _state = "free"
-    fcntl.lockf(_probe, fcntl.LOCK_UN)
-except BlockingIOError:
-    _state = "blocked"
-os.close(_probe)
-Path(sys.argv[3]).write_text(_state, encoding="utf-8")
+# argv[3] = 握手标记, argv[4] = 锁文件路径。
+# ⚠ Codex round-1 M3 / round-2 M1 / round-3 M1: 握手必须绑在**生产取锁的入口**,
+# 而不是 import 之后随便某处。前两版把探测写在模块顶层, 于是「持锁 1.5s 期间
+# 子进程没完成」还可以被"它探测完又停了 2 秒"解释掉 —— 量的仍不是锁。
+# 这里包住 runner.state_locked 本身: 探测紧挨着真锁, 中间没有任何业务代码。
+# 探测报 blocked 且下一行就进真锁 ⇒ 「保存被这把锁挡住」的因果链是闭合的。
+_real_locked = runner.state_locked
+
+
+@contextlib.contextmanager
+def _traced(vault=None):
+    _lock = runner.state_lock_path(vault)
+    _lock.parent.mkdir(parents=True, exist_ok=True)
+    _fd = os.open(str(_lock), os.O_RDWR | os.O_CREAT, 0o644)
+    try:
+        fcntl.lockf(_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        _seen = "free"
+        fcntl.lockf(_fd, fcntl.LOCK_UN)
+    except BlockingIOError:
+        _seen = "blocked"
+    os.close(_fd)
+    Path(sys.argv[3]).write_text(_seen, encoding="utf-8")
+    with _real_locked(vault):
+        yield
+
+
+runner.state_locked = _traced
 started = time.time()
 runner.save_state(
     {"schema_version": 2, "board_last_recommended": {}, "board_done": {"子进程板": "2026-07-30"}},
@@ -1251,9 +1262,13 @@ def test_g67r_runner_save_does_not_clobber_web_written_board_done(tmp_path, monk
     几秒, 期间浏览器点了「这板做完了」把 board_done 写进同一个文件; runner
     :264 的 save 若整写 mine, 那次点击就静默消失了。
 
-    ⚠ 预置必须已是 v2 形态 (含 board_done 键): load_state 的 setdefault 属于
-    "本进程改过"(合并律明写), 缺键的 v1 文件下 mine["board_done"]={} 会正当地
-    压过磁盘 —— 那不是缺陷, 是升版语义。现网 state 实测已是 v2 且含该键。
+    ⚠ 本门预置 v2 形态 (含 board_done 键), 与现网实测一致。
+    ⛔ 初版这里写着「缺键的 v1 文件下空账会**正当地**压过磁盘 —— 那不是缺陷,
+    是升版语义」。那句话是错的, 而且它正是 Codex round-1 H1 抓到的那个丢账:
+    v1 文件下 setdefault 补出来的空账把 Web 刚写成功的完成记录覆盖掉了。
+    现在 base 记在归一化之后, 补出来的默认值不算"我改过";
+    v1 的那条路由 test_g67r_upgrade_default_account_does_not_clobber_window_write
+    专门守着。本门只负责 v2 这条路。
     """
     vault = _vault(tmp_path, {"甲": _node(board="A板")})
     _push_harness(monkeypatch, tmp_path, vault, rcs=[0])
@@ -1512,6 +1527,153 @@ def test_g67r_corrupt_quarantine_happens_under_the_lock(tmp_path, monkeypatch):
     st["last_generate_date"] = TODAY
     runner.save_state(st, vault)
     assert json.loads(state.read_text(encoding="utf-8"))["board_done"] == {"A板": TODAY}, "随后的整写又把那笔账抹掉了"
+
+
+#: 子进程: **守规矩地取锁**之后写一笔完成账。用来验外层锁是不是真的挡得住
+#: 一个合规写者 —— 不经锁的直写超出锁的承诺范围, 用它做判据等于在验别的东西。
+_LOCK_ABIDING_WRITER = """
+import json, sys
+sys.path.insert(0, sys.argv[1])
+from pathlib import Path
+import daily_review_run as runner
+vault = Path(sys.argv[2])
+with runner.state_locked(vault):
+    st = runner.load_state(vault)
+    st.setdefault("board_done", {})["A板"] = sys.argv[3]
+    runner.save_state(st, vault)
+print("written")
+"""
+
+
+def test_g67r_state_and_lock_must_not_share_an_inode(tmp_path, monkeypatch):
+    """(c) Codex round-3 H1: 锁与 state 落到同一个 inode 一律拒 —— 两个方向都要。
+
+    前几层拦的是**形态**: O_NOFOLLOW 拒"锁路径是软链", nlink 拒硬链接。危险的
+    却是**结果**: 反方向的软链 (state.json → state.lock) 让锁路径本身是普通
+    文件、nlink 也是 1, 三层形态判断全过; 而 load_state 的读盘跟随 state 的
+    软链打开并关闭锁 inode, 本进程在该文件上的记录锁**整个**被释放, 登记表
+    却还报告持锁 —— 互斥凭空消失, 两个写者可以同时合并旧状态再先后发布。
+    """
+    vault = _vault(tmp_path, {"甲": _node(board="A板")})
+    _patch_runner(monkeypatch, vault, tmp_path)
+    lock_path = runner.state_lock_path(vault)
+    state = runner.state_path(vault)
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # 反向软链: state → lock。锁路径本身是普通空文件, 前三层判断全过。
+    lock_path.unlink(missing_ok=True)
+    lock_path.write_bytes(b"")
+    state.unlink(missing_ok=True)
+    state.symlink_to(lock_path)
+    assert not lock_path.is_symlink() and lock_path.stat().st_nlink == 1, (
+        "夹具前提: 锁路径必须是普通文件且 nlink==1, 否则红的是前几层而不是 inode 那条"
+    )
+    with pytest.raises(OSError) as ei:
+        with runner.state_locked(vault):
+            pass
+    assert ei.value.errno == errno.EMLINK, f"拒绝的不是 inode 那一层: errno={ei.value.errno}"
+
+    # 正控: 拆掉软链, 锁必须照常拿得到 (证明本门不是恒红)
+    state.unlink()
+    lock_path.unlink()
+    with runner.state_locked(vault):
+        assert lock_path.stat().st_ino != (state.stat().st_ino if state.exists() else -1)
+
+
+def test_g67r_base_snapshot_survives_state_symlink_being_replaced(tmp_path, monkeypatch):
+    """(c) Codex round-3 H2: state 原本是软链时, 第一次保存换掉它不许让 base 失效。
+
+    时序 (**所有写者都正确取了锁**, 照样丢账):
+      · state.json 是指向 T 的软链, 完成账为空;
+      · runner load_state —— 若 base 按 resolve 后的路径存, 键落在 T 上;
+      · runner 第一次保存: os.replace 把软链换成一个普通文件 S;
+      · Web 守规矩取锁写入完成账 A;
+      · runner 第二次保存: 按 S 查 base 查不到 ⇒ 走整写分支 ⇒ A 被空账覆盖。
+    修法是 base 按**逻辑路径**存 —— 快照记的本来就是"我这条路径上次读到什么"。
+    """
+    vault = _vault(tmp_path, {"甲": _node(board="A板")})
+    _patch_runner(monkeypatch, vault, tmp_path)
+    state = runner.state_path(vault)
+    state.parent.mkdir(parents=True, exist_ok=True)
+    target = state.parent / "真身.json"
+    target.write_text(
+        json.dumps({"schema_version": 2, "board_last_recommended": {}, "board_done": {}}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    state.symlink_to(target)
+    assert state.is_symlink(), "夹具前提: state 必须真的是一条软链"
+
+    st = runner.load_state(vault)  # base 记在这一刻
+    st["last_generate_date"] = TODAY
+    runner.save_state(st, vault)  # os.replace 把软链换成普通文件
+    assert not state.is_symlink(), "夹具前提: 第一次保存应当把软链换成普通文件"
+
+    # Web 守规矩地取锁写入完成账
+    state.write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "board_last_recommended": {},
+                "board_done": {"A板": TODAY},
+                "last_generate_date": TODAY,
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    st["last_push_accepted_date"] = TODAY  # runner 第二次保存 (推送账)
+    runner.save_state(st, vault)
+
+    on_disk = json.loads(state.read_text(encoding="utf-8"))
+    assert on_disk["board_done"] == {"A板": TODAY}, "第二次保存整写掉了守规矩写进来的完成账"
+    assert on_disk["last_push_accepted_date"] == TODAY
+
+
+def test_g67r_quarantine_lock_blocks_a_lock_abiding_writer(tmp_path, monkeypatch):
+    """(c) Codex round-3 M2: load_state 的**外层锁**本身承重。
+
+    上一条隔离门用"不经锁的直写"做插手, 于是撤掉外层锁它照样绿 (第二次读就把
+    账救回来了) —— 那条门验的是重读, 不是锁。这条补上锁那一半: 插手者是一个
+    **守规矩取锁**的子进程, 放在第二次读之后、隔离之前。
+      · 锁在: 子进程被挡在 load_state 之外, 等隔离做完才写 ⇒ 它写的账留得住;
+      · 锁不在: 子进程当场写好账, runner 随后按旧判断把它隔离掉 ⇒ 账没了。
+    """
+    vault = _vault(tmp_path, {"甲": _node(board="A板")})
+    _patch_runner(monkeypatch, vault, tmp_path)
+    state = runner.state_path(vault)
+    state.parent.mkdir(parents=True, exist_ok=True)
+    state.write_text("{这是坏的", encoding="utf-8")
+
+    reads = []
+    real_read_text = Path.read_text
+    holder = {}
+
+    def _spy(self, *a, **kw):
+        out = real_read_text(self, *a, **kw)
+        if self == state:
+            reads.append(1)
+            if len(reads) == 2 and "proc" not in holder:
+                # 第二次读 (隔离前重读) 刚回来 —— 隔离还没做。放一个合规写者进来。
+                holder["proc"] = subprocess.Popen(
+                    [sys.executable, "-c", _LOCK_ABIDING_WRITER, str(WT / "scripts"), str(vault), TODAY],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    env=_child_env(tmp_path),
+                )
+                time.sleep(0.6)  # 给它足够时间跑到取锁点 (锁在的话它会停在那里)
+        return out
+
+    monkeypatch.setattr(Path, "read_text", _spy)
+    runner.load_state(vault)
+    monkeypatch.undo()
+    assert len(reads) >= 2, "夹具前提: 隔离前必须真的读了第二次"
+    proc = holder["proc"]
+    out, err = proc.communicate(timeout=60)
+    assert proc.returncode == 0, f"合规写者本身跑挂了, 本门无效: {err}"
+
+    on_disk = json.loads(state.read_text(encoding="utf-8"))
+    assert on_disk["board_done"] == {"A板": TODAY}, "守规矩取锁写进来的完成账被隔离掉了 —— load_state 的外层锁没挡住它"
 
 
 def test_g67r_fresh_state_does_not_clobber_account_created_in_the_window(tmp_path, monkeypatch):

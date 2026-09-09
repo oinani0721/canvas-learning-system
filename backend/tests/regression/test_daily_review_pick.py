@@ -2338,3 +2338,48 @@ def test_g67r_main_state_corrupt_degrades_like_no_state(tmp_path, monkeypatch, c
     out = _run_cli(monkeypatch, capsys, vault, binary)
     for key in ("top_boards", "boards", "buckets", "stats", "due_nodes"):
         assert out[key] == baseline[key], f"非 UTF-8 的 state 改变了 {key}"
+
+
+def test_g67r_main_state_with_wrongly_typed_values_does_not_crash(tmp_path, monkeypatch, capsys):
+    """(b) Codex round-3 M3: 账本里的**值**错型也不许打死生产器。
+
+    只检查"外层是不是 dict"是不够的: {"board_last_recommended": {"A板": 7}}
+    会让排序键拿 7 去和另一块板的 "" 比大小 → TypeError → 整轮生成崩掉 →
+    手动刷新拿到 503。这是既有排序缺陷的**新暴露路径** —— BASE 的 refresh
+    不传 state, 本卡把它接上了, 就得为这条新输入面负责。
+    与读侧 _read_board_done 同一条纪律: 形状不对 = 没有这条记录 (丢弃而不是
+    修正 —— 我们无从知道 7 本来想写哪一天)。
+    """
+    vault = _mk_two_board_vault(tmp_path)
+    baseline = _run_cli(monkeypatch, capsys, vault, None)
+    top = baseline["top_boards"][0]["board"]
+
+    for bad_blr, bad_bd in (
+        ({top: 7}, {}),
+        ({top: None}, {}),
+        ({top: []}, {}),
+        ({}, {top: 7}),
+        ({}, {top: {"嵌套": 1}}),
+        ({7: "2026-07-30"}, {}),
+    ):
+        state = tmp_path / f"typed{next(_seq)}.json"
+        state.write_text(
+            json.dumps(
+                {"schema_version": 2, "board_last_recommended": bad_blr, "board_done": bad_bd}, ensure_ascii=False
+            ),
+            encoding="utf-8",
+        )
+        out = _run_cli(monkeypatch, capsys, vault, state)
+        for key in ("top_boards", "boards", "buckets", "stats", "due_nodes"):
+            assert out[key] == baseline[key], f"错型值 blr={bad_blr} bd={bad_bd} 改变了 {key}"
+
+    # 正控: 值类型对的时候, 那两个键仍然真的被消费 (否则上面全绿只说明"整个忽略了")
+    ok = tmp_path / f"typed{next(_seq)}.json"
+    ok.write_text(
+        json.dumps(
+            {"schema_version": 2, "board_last_recommended": {}, "board_done": {top: _TODAY}}, ensure_ascii=False
+        ),
+        encoding="utf-8",
+    )
+    good = _run_cli(monkeypatch, capsys, vault, ok)
+    assert good["top_boards"][0]["board"] != top, "合法账没被消费 —— 上面那批全绿证明不了什么"

@@ -279,6 +279,23 @@ def state_locked(vault: Path | None = None):
                         f"锁文件有 {info.st_nlink} 条硬链接 —— 可能与 state 或库内文件共用 inode",
                         str(lock),
                     )
+                # ⚠ Codex round-3 H1: 直接比 inode —— 前面几层都是**形态**判断
+                # (O_NOFOLLOW 拒锁路径是软链、nlink 拒硬链接), 而危险的是**结果**:
+                # 锁与 state 落到同一个 inode。反方向的软链 (state.json → state.lock)
+                # 让锁路径本身是普通文件、nlink 也是 1, 三层形态判断全过, 但
+                # load_state 的读盘跟随 state 的软链打开并关闭锁 inode, 本进程在
+                # 该文件上的记录锁**整个**被释放, 而登记表还报告持锁。
+                # 比 inode 是本质判据, 上面两条是它的早期、可给出更准确报文的补充。
+                try:
+                    st_state = os.stat(state_path(vault))  # 跟随软链: 要的就是最终落点
+                except OSError:
+                    st_state = None
+                if st_state is not None and (st_state.st_dev, st_state.st_ino) == (info.st_dev, info.st_ino):
+                    raise OSError(
+                        errno.EMLINK,
+                        "锁与 state 落在同一个 inode —— 读 state 的一次 close 会把锁一起释放",
+                        str(lock),
+                    )
                 fcntl.lockf(fd, fcntl.LOCK_EX)
             except BaseException:
                 os.close(fd)
@@ -311,8 +328,22 @@ def state_locked(vault: Path | None = None):
         tlock.release()
 
 
+def _base_key(state: Path) -> str:
+    """base 快照的键 = **逻辑路径**, 刻意不 resolve。
+
+    ⚠ Codex round-3 H2: 用 resolve 的话, state 是软链时键落在链的目标 T 上;
+    而 save_state 的 os.replace 会把软链**换成一个普通文件** S —— 同一轮里
+    第二次保存按 S 查就查不到 base 了, 于是走整写分支, 把这中间别人守规矩
+    写进去的完成账整个覆盖掉 (所有写者都正确取了锁, 照样丢)。
+    state_path() 对同一个 vault 恒定, 逻辑路径因此是稳定的键;
+    「同一文件的两条不同写法」这件事归**锁**的登记表管 (那边必须 resolve),
+    快照记的本来就是"我这条路径上次读到什么"。
+    """
+    return str(state)
+
+
 def _remember_base(state: Path, raw: dict | None) -> None:
-    _STATE_BASE_SNAPSHOTS[str(state.resolve())] = copy.deepcopy(raw) if raw is not None else None
+    _STATE_BASE_SNAPSHOTS[_base_key(state)] = copy.deepcopy(raw) if raw is not None else None
 
 
 def _merge_state_with_disk(mine: dict, state: Path) -> dict:
@@ -323,8 +354,11 @@ def _merge_state_with_disk(mine: dict, state: Path) -> dict:
     档可能把推送账落了盘。谁整写谁就把对方那次写静默抹掉 (last-writer-wins)。
 
     三方 = base (我读到手时的磁盘) / mine (我手上这份) / theirs (此刻的磁盘):
-      · mine[k] 与 base[k] 不同 (含**删掉了这个键**, 也含 load_state 的归一化:
-        schema_version 升版、board_done setdefault) ⇒ 这个键我动过, 写 mine;
+      · mine[k] 与 base[k] 不同 (含**删掉了这个键**) ⇒ 这个键我动过, 写 mine;
+        ⚠ load_state 的归一化 (schema_version 升版、board_done setdefault)
+        **不算**"我动过" —— base 就记在归一化之后 (round-1 H1)。初版把它算
+        进来, 于是 v1 文件下补出的空账有权压过磁盘, 加性升版反倒删掉一次
+        用户操作。schema_version 因此另走单调取大, 见本函数末尾。
       · 相同 ⇒ 我没动过, 以磁盘为准 (别人可能刚改过);
       · theirs 里没有而 mine 里有 ⇒ 写 mine (不替别人接受"删除")。
     base 缺席 (这条路径本进程从没 load 过) 或 theirs 读不出 (缺文件 / 损坏)
@@ -338,7 +372,7 @@ def _merge_state_with_disk(mine: dict, state: Path) -> dict:
     ⚠ 键序按 mine 优先、theirs 补尾: 用 set 遍历会让落盘 JSON 的键序随机,
     「二次 load→save 字节幂等」那道门就会随机红。
     """
-    base = _STATE_BASE_SNAPSHOTS.get(str(state.resolve()), _NO_SNAPSHOT)
+    base = _STATE_BASE_SNAPSHOTS.get(_base_key(state), _NO_SNAPSHOT)
     if base is _NO_SNAPSHOT or base is None:
         return mine
     try:

@@ -3591,6 +3591,23 @@ def test_g67r_state_passed_is_false_when_no_subprocess_ran(board_done_env, monke
     assert body["rebuilt"] is False and body["reason"] == "debounced"
     assert body["state_passed"] is False, "没起子进程就没把账交出去 —— 不许报 true"
 
+    # ⛔ in_progress 也是"没起子进程"的一种 —— 两条分支各写各的 state_passed,
+    # 只守 debounced 那一处的话, 把 in_progress 那处改回 true 本门照样绿
+    # (Codex round-3 实测: 上一轮负控确实漏了这一半)。
+    monkeypatch.setattr(mod, "_REFRESH_TTL_SECONDS", 0.0)
+    key = str(Path(root).resolve() / "vault-passed")  # 端点侧的 key 是 resolve 过的
+    inflight = threading.Lock()
+    with mod._refresh_guard:
+        mod._refresh_locks[key] = inflight
+    assert inflight.acquire(blocking=False), "夹具前提: 得先真的把该库的锁占住"
+    try:
+        third = client.post(_REFRESH_URL, data={"vault_id": "vault-passed"})
+    finally:
+        inflight.release()
+    body3 = third.json()
+    assert body3["rebuilt"] is False and body3["reason"] == "in_progress"
+    assert body3["state_passed"] is False, "在飞时本次也没起子进程 —— 不许报 true"
+
 
 def test_g67r_web_write_keeps_keys_runner_wrote_in_the_window(board_done_env, monkeypatch):
     """(c) 门②  Web 向: Web 落账不许吃掉窗口内 runner 写的推送账。
