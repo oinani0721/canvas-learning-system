@@ -560,7 +560,15 @@ def extract_port(address) -> int | None:
         return None
     try:
         return operator.index(raw)
-    except TypeError:
+    except Exception:  # noqa: BLE001 —— 见下：这里只能 fail-closed，不能让异常逸出
+        # ⛔ 必须与上面读槽位那半**同口径**（RV-C H-1a）。原来只捕 ``TypeError``：
+        #    ``__index__`` 是调用方给的任意用户代码，它抛 ``ValueError`` /
+        #    ``RuntimeError`` 时异常会从这里逸出 —— 而本函数的唯一调用点
+        #    :func:`_audit_hook` 是在 ``STATE.record()` **之前**调它的，于是那次尝试
+        #    连接确实被阻断了（异常传给调用方），账本却是零。与 round-1 HIGH-1
+        #    「seam 抛异常跳过记账」同型：**任何在记账之前执行用户代码的地方都得
+        #    fail-closed**。取不到端口 ⇒ 返回 None ⇒ ``port_is_trustworthy`` 随后判
+        #    不可信 ⇒ 照样走受拦分支、照样进账，没有放宽任何东西。
         return None
 
 
@@ -674,6 +682,34 @@ def _finalize_race_seam() -> None:
 _finalize_race_seam_hook = _finalize_race_seam
 
 
+def _is_uvloop_module(name) -> bool:
+    """``import`` 审计事件里的模块名是不是 uvloop 或它的子模块（RV-C M-4）。
+
+    ⛔ 判据必须覆盖**子模块**，原因是实测出来的（2026-09-08，本树 CPython 3.14.4，
+    证据 ``_bmad-output/审查/evidence-w47/m4-importlib-*.txt``）：
+
+    * ``import uvloop``（语句）⇒ ``__import__`` 抛 ``import`` 事件，``args[0]`` 恰是
+      ``"uvloop"`` —— 旧判据拦得住；
+    * ``importlib.import_module("uvloop")`` ⇒ 走 ``_bootstrap._gcd_import``，**不为顶层名
+      抛事件**。于是 ``del sys.modules["uvloop"]`` 绕过非承重的毒化层之后，这条路
+      **两层防御全都越过、uvloop 真的被导入了**。
+
+    但 hook 并不是没被调用：uvloop 的 ``__init__.py`` 自己 import 子模块，实测触发了
+    ``uvloop.includes`` / ``uvloop.loop`` / ``uvloop._noop`` / ``uvloop._version``。
+    所以把判据从「等于 uvloop」放宽到「uvloop 或 uvloop. 开头」，就能在**同一层**
+    （audit ``import`` 事件）把这条路关上 —— 承重方式没有改变，模块 docstring 对
+    「audit 事件承重、毒化不承重」的定性照旧成立。
+
+    前缀带**点**（``uvloop.``）而不是裸 ``startswith("uvloop")``：否则 ``uvloopx`` /
+    ``uvloop_shim`` 这类无关模块会被误拦（契约 ``test_lookalike_module_names_are_not_blocked``
+    是这条的验伪锚）。``type(name) is str`` 而不是 ``isinstance``：审计事件的参数由
+    调用方给，``str`` 子类可以重载 ``__eq__`` / ``startswith``。
+    """
+    if type(name) is not str:  # noqa: E721 —— str 子类可重载比较，不认
+        return False
+    return name == "uvloop" or name.startswith("uvloop.")
+
+
 def _is_selftest_address(address) -> bool:
     """这条地址是不是**本模块自己合成的**自证探针地址。
 
@@ -759,7 +795,7 @@ def _audit_hook(event: str, args) -> None:
                 os._exit(FINAL_EXIT_CODE)
             if outcome == RECORD_BLOCK:
                 raise RuntimeError(_block_message(address))
-    elif event == "import" and args and args[0] == "uvloop":
+    elif event == "import" and args and _is_uvloop_module(args[0]):
         raise RuntimeError(
             "uvloop 的 import 被本门拦下：uvloop 走 libuv，不触发 socket.connect "
             "审计事件，门会静默失效。若确需 uvloop，必须连本门一起重新设计。"

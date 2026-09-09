@@ -306,6 +306,137 @@ def probe_uvloop_reimport_blocked() -> dict:
     return _run("uvloop-reimport", body, expect_rc=0)
 
 
+def probe_uvloop_importlib_reimport_blocked() -> dict:
+    """RV-C M-4：``importlib.import_module`` 这条路也必须被 audit 拦下。
+
+    ⛔ 2026-09-08 实测（``evidence-w47/m4-importlib-*.txt``）：``import`` 审计事件由
+    ``__import__``（``import`` **语句**）抛出，``importlib.import_module(name)`` 走
+    ``_bootstrap._gcd_import``，**不为顶层名抛事件**。所以修前这条路把两层防御都越过了：
+    ``del sys.modules["uvloop"]`` 摘掉非承重的毒化层之后，uvloop 真的被导入成功
+    （上面 ``probe_uvloop_reimport_blocked`` 用的是 ``import`` 语句，覆盖不到这条）。
+
+    现在判据覆盖子模块（uvloop 的 ``__init__.py`` 自己 import ``uvloop.loop`` 等，
+    那些**是**走 ``import`` 语句的），于是同一层就能关上这条路。
+
+    与上一条并列而不是替换它：两条各自钉一种 import 形态，删任一条都会让对应形态失去用例。
+    """
+    body = """
+    import importlib
+    from tests.support import live_port_guard as g
+    g.install()
+    del sys.modules["uvloop"]                  # 把毒化条目摘掉，只剩承重的 audit 层
+    try:
+        importlib.import_module("uvloop")
+        verdict(False, "uvloop-importlib-reimport", "importlib 路径成功导入 uvloop —— 两层防御都被越过")
+    except RuntimeError as e:
+        if "uvloop 的 import 被本门拦下" in str(e):
+            verdict(True, "uvloop-importlib-reimport")
+        else:
+            verdict(False, "uvloop-importlib-reimport", "抛了但不是本门的原因: " + repr(e)[:120])
+    except ImportError as e:
+        verdict(False, "uvloop-importlib-reimport", "落到 ImportError —— 拦的是「装没装」而不是「不许装」: " + repr(e)[:80])
+    """
+    return _run("uvloop-importlib-reimport", body, expect_rc=0)
+
+
+#: M-3 的最小会话：一个真实 pytest 入口能收集到的、什么都不做的用例。
+_MINIMAL_SESSION_TEST = "def test_smoke():\n    assert True\n"
+
+#: 预检拒因里**只属于这条判据**的串（`assert_test_uri_not_blocked` 的白名单分支）。
+_PRECHECK_REJECT_MARK = "不在允许的测试端口白名单"
+
+
+def _run_minimal_pytest_session(*, extra_env: dict) -> subprocess.CompletedProcess:
+    """在临时目录里跑一次**真实 pytest 入口**的最小会话（不收集 backend/tests）。
+
+    刻意把测试文件放在 ``backend/tests`` **之外**：那里的 ``conftest.py`` 也做同一条
+    预检，留着它会让「把预检从 guard_plugin 摘掉」的对照跑不出翻转（判据被另一层喂饱）。
+    插件用 ``-p tests.support.guard_plugin`` 显式加载 —— 这正是要证明的那个真实入口。
+    """
+    tmp = Path(tempfile.mkdtemp(prefix="w4-m3-session-"))
+    (tmp / "test_smoke.py").write_text(_MINIMAL_SESSION_TEST, encoding="utf-8")
+    env = os.environ.copy()
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    env["PYTHONPATH"] = str(BACKEND_DIR) + os.pathsep + env.get("PYTHONPATH", "")
+    for key in [k for k in env if k.upper().startswith("NEO4J")]:
+        env.pop(key, None)
+    env.update(extra_env)
+    try:
+        return subprocess.run(
+            [PY, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-p", "tests.support.guard_plugin", str(tmp)],
+            cwd=BACKEND_DIR,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=180,
+        )
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def probe_precheck_runs_through_the_real_entrypoint() -> dict:
+    """``NEO4J_TEST_URI`` 预检必须**经真实 pytest 入口**跑到（RV-C M-3）。
+
+    既有证据只有两种，都不覆盖这件事：
+
+    * 契约 ``test_precheck_lives_in_pytest_configure_not_in_a_session_fixture`` 是
+      **静态**的 —— 它遍历模块级 ``FunctionDef``，只锁「这行代码写在 pytest_configure 里」，
+      不证明真实入口跑过它；
+    * 探针 ``guard-allowed-test-ports-cannot-admit-live`` **直调** ``assert_test_uri_not_blocked()``，
+      同样绕开了入口。
+
+    这条起一个真实 pytest 会话（``-p tests.support.guard_plugin`` + 临时目录里的一个空
+    用例），把 ``NEO4J_TEST_URI`` 指向受拦端口，要求会话 **fail-closed**：非零 rc 且输出
+    里出现预检自己的拒因串。判据绑定那个串而不是只看 rc —— 只看 rc 会被「用例失败」
+    「插件 import 失败」这类别的原因喂饱。
+
+    ⛔ 只做 URI 字符串判定，**不连任何端口**（``assert_test_uri_not_blocked`` 走的是
+    驱动的地址解析，不建连接）。
+    """
+    name = "guard-precheck-runs-through-real-entrypoint"
+    proc = _run_minimal_pytest_session(extra_env={"NEO4J_TEST_URI": "bolt://127.0.0.1:7691"})
+    blob = proc.stdout + proc.stderr
+    problems = []
+    if proc.returncode == 0:
+        problems.append(f"会话没有 fail-closed（rc={proc.returncode}）—— 预检没在真实入口跑到")
+    if _PRECHECK_REJECT_MARK not in blob:
+        problems.append("输出里没有预检的拒因串 —— 非零 rc 可能来自别的原因")
+    return {
+        "name": name,
+        "ok": not problems,
+        "rc": proc.returncode,
+        "expect_rc": "非 0 且输出含预检拒因",
+        "verdict": f"PROBE-RESULT: {'PASS' if not problems else 'FAIL'} {name}",
+        "reason": "; ".join(problems),
+        "stderr_tail": blob[-400:],
+    }
+
+
+def probe_precheck_entrypoint_negative_control() -> dict:
+    """验伪锚：同一个最小会话，URI 指向**允许的** 7692 时必须正常跑完。
+
+    没有这一条，「无论如何都让会话非零退出」也能让上一条绿 —— 那时判据证明的是
+    「这个会话跑不起来」，不是「预检拦下了它」。
+    """
+    name = "guard-precheck-entrypoint-negative-control"
+    proc = _run_minimal_pytest_session(extra_env={"NEO4J_TEST_URI": "bolt://127.0.0.1:7692"})
+    blob = proc.stdout + proc.stderr
+    problems = []
+    if proc.returncode != 0:
+        problems.append(f"合法 URI 下会话也没跑通（rc={proc.returncode}）—— 上一条的非零 rc 不能归因给预检")
+    if _PRECHECK_REJECT_MARK in blob:
+        problems.append("合法 URI 却出现了预检拒因串")
+    return {
+        "name": name,
+        "ok": not problems,
+        "rc": proc.returncode,
+        "expect_rc": 0,
+        "verdict": f"PROBE-RESULT: {'PASS' if not problems else 'FAIL'} {name}",
+        "reason": "; ".join(problems),
+        "stderr_tail": blob[-400:],
+    }
+
+
 def probe_late_after_finalizing() -> dict:
     """R1 Codex HIGH-2：在 import 本门**之前**注册的 atexit 回调里发起连接。
 
@@ -2005,6 +2136,11 @@ def main() -> int:
         probe_drift_reinstall(),
         probe_extract_port_mutation_detected(),
         probe_uvloop_reimport_blocked(),
+        # RV-C M-4：importlib 路径（修前两层防御都被越过，实测见 evidence-w47）。
+        probe_uvloop_importlib_reimport_blocked(),
+        # RV-C M-3：预检必须经**真实 pytest 入口**跑到（正探针 + 验伪锚）。
+        probe_precheck_runs_through_the_real_entrypoint(),
+        probe_precheck_entrypoint_negative_control(),
         probe_late_after_finalizing(),
         probe_plugin_import_installs(),
         probe_audit_liveness_control(),

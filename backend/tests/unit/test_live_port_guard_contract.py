@@ -69,6 +69,55 @@ class TestExtractPort:
         assert guard.extract_port(None) is None
         assert guard.extract_port(["127.0.0.1", 7691]) is None
 
+    @pytest.mark.parametrize("exc_type", [ValueError, RuntimeError])
+    def test_index_raising_non_typeerror_is_fail_closed(self, exc_type):
+        """``__index__`` 抛 ``TypeError`` 之外的异常 ⇒ 取端口必须**返回 None，不得抛**。
+
+        ⛔ RV-C H-1a：``extract_port`` 上半段读底层槽位用的是 ``except Exception``
+        （fail-closed），下半段 ``operator.index(raw)`` 却只捕 ``TypeError`` —— 同一个
+        函数里两半口径不一致。``__index__`` 是**调用方给的任意用户代码**，抛
+        ``ValueError`` / ``RuntimeError`` 时异常从这里逸出，越过 ``_audit_hook`` 里
+        ``STATE.record()`` 那一行 ⇒ 连接确实被阻断了（异常传给调用方），账本却是零。
+        与 round-1 HIGH-1（seam 抛异常跳过记账）是同一形态。
+
+        地址用 tuple **子类**：neo4j 驱动自己的 ``Address`` 家族就是 tuple 子类，
+        而门读的是底层槽位（见 ``extract_port`` 的说明）。
+        """
+
+        class _Addr(tuple):
+            __slots__ = ()
+
+        class _Port:
+            def __index__(self):
+                raise exc_type("__index__ 故意抛出 —— 取端口必须 fail-closed")
+
+        assert guard.extract_port(_Addr(("127.0.0.1", _Port()))) is None
+
+    def test_audit_hook_still_accounts_when_index_raises(self, isolated_state):
+        """行为面：``__index__`` 抛非 ``TypeError`` 时，审计回调**仍然记账**（H-1a）。
+
+        上一条锁的是纯函数返回值；这条锁的是**后果** —— 端口取不到 ⇒
+        ``port_is_trustworthy`` 判不可信 ⇒ 走受拦分支 ⇒ ``record()`` 照常进账、
+        非豁免连接照常抛本门的 ``RuntimeError``。
+
+        修前这里抛的是 ``ValueError``（``__index__`` 自己那条），``pytest.raises``
+        原样再抛 ⇒ 用例红，且 ``STATE.total`` 停在 0 —— 那正是「已阻断、零账本」。
+        """
+
+        class _Addr(tuple):
+            __slots__ = ()
+
+        class _Port:
+            def __index__(self):
+                raise ValueError("__index__ 故意抛出 —— 不得跳过记账")
+
+        with pytest.raises(RuntimeError, match=guard.BLOCK_REASON):
+            guard._audit_hook("socket.connect", (None, _Addr(("127.0.0.1", _Port()))))
+
+        assert isolated_state.total == 1, "取端口时抛异常把这次尝试整条跳过了记账"
+        assert isolated_state.blocked == 1
+        assert isolated_state.late_snapshot()["unaccounted"] == 1
+
 
 class TestTargetScopePrecheck:
     """``assert_neo4j_target_blocked``（负控专用）也必须用驱动口径。
@@ -203,10 +252,16 @@ class TestDriverCanonicalPortContract:
     #: 驱动的 ``parse_neo4j_uri`` 对这些 scheme 直接 ConfigurationError（连 driver 都建不起来）。
     #: ``bolt+routing`` 是被改名的旧 scheme，驱动对它单独报错。
     UNSUPPORTED_SCHEME_URIS = [
+        # ⚠️ ftp / http / https 三条走的是**同一条**判据分支（驱动 `parse_neo4j_uri`
+        #    对未知 scheme 一律 ConfigurationError）—— RV-C L-2 点名的重复。三条**保留
+        #    不删**：删掉会让「这三种 scheme 都拒」这句话失去用例（属放宽），而它们是
+        #    最容易被人手滑写进 NEO4J_TEST_URI 的三个。留着的成本是 2 个多余的
+        #    parametrize 实例，收益是这句承诺仍有判据。
         "ftp://127.0.0.1:7692",
         "http://127.0.0.1:7692",
         "https://127.0.0.1:7692",
-        "bolt+routing://127.0.0.1:7692",
+        # 下面两条各自是**独立**分支，不与上面三条同源：
+        "bolt+routing://127.0.0.1:7692",  # 被改名的旧 scheme，驱动单独报错
         "127.0.0.1:7692",  # 压根没有 scheme（urlparse 会把 127.0.0.1 当 scheme）
     ]
 
@@ -290,8 +345,14 @@ class TestDriverCanonicalPortContract:
 
     #: 合法的测试容器写法 —— 白名单是**默认拒绝**语义，代价就是误拒，所以
     #: 「不该拒的别拒」必须有门。这些形态 2026-09-05 在本车道 venv 上逐个实跑过。
+    #: ⚠️ 最朴素的那条 ``bolt://127.0.0.1:7692`` **刻意不在这里**（RV-C L-2 去重）：
+    #: 它与 ``TestBlockedPortsContract::test_test_uri_on_container_port_is_fine``
+    #: 输入、调用、期望三者完全相同。保留的是那一条独立用例而不是这里的列表项 ——
+    #: 它在那个类里承担**局部验伪锚**：没有它，同类的
+    #: ``test_test_uri_pointing_at_live_port_is_an_error`` 会被「一律拒绝」的实现骗过。
+    #: 本列表要覆盖的是 scheme / 大小写 / 路径 / query / IPv6 这些**变体**，少一条朴素形态
+    #: 不丢分支。
     LEGITIMATE_CONTAINER_URIS = [
-        "bolt://127.0.0.1:7692",
         "bolt+s://127.0.0.1:7692",
         "bolt+ssc://127.0.0.1:7692",
         "neo4j://127.0.0.1:7692",
@@ -463,6 +524,53 @@ class TestSelftestAddressClassification:
         with pytest.raises(guard._SelfTestBlocked):
             guard._audit_hook("socket.connect", (None, (guard._SELFTEST_HOST, 7691)))
 
+    # ── RV-C H-2：哨兵常量本身要有独立断言 ────────────────────────────────
+    def test_selftest_host_is_an_unconnectable_sentinel(self):
+        """``_SELFTEST_HOST`` 必须是**连不上任何东西**的哨兵，而不是普通主机名。
+
+        ⛔ RV-C H-2：本类原有 6 条用例**没有一条**能拦住「把哨兵常量改成
+        ``"localhost"``」—— 4 条以该常量为输入或期望值（跟着常量一起变），另 2 条
+        （非 tuple / 普通安全地址）本就不看它。于是「自证地址不进账」这条豁免的**前提**
+        （这个主机名不可能是真实 connect 的目标）从来没有被判据钉住：常量一改，
+        任何连 ``localhost`` 的真实拦截都会被分类成自证 ⇒ 不记账 ⇒ 结账无从拒绝 rc=0。
+
+        判据分两层，缺一不可：
+
+        * **行为层**（``ord`` / ``len``）—— 常量的**值**必须首字符是 NUL。这一层
+          grep 证不了；
+        * **拼写层**（裁判 7 的 ``grep '\\x00'``）—— 源码里必须写转义，不许敲
+          不可见字符（否则工具链会静默把它换掉，且 code review 看不出来）。
+
+        ``len == 28`` 是本树实测值（1 个 NUL + 27 个字符），改常量长度会顶红 ——
+        这是刻意的：改它就该有人重新想一遍这条豁免的前提。
+        """
+        host = guard._SELFTEST_HOST
+        assert type(host) is str, "哨兵必须是精确 str（_is_selftest_address 用 type(...) is str 判）"
+        assert ord(host[0]) == 0, "哨兵首字符必须是 NUL —— 那才是它连不上任何东西的理由"
+        assert len(host) == 28, f"哨兵长度变了（实测 {len(host)}）—— 改它请重新论证这条豁免的前提"
+        assert host != "localhost"
+        assert host != "127.0.0.1"
+        assert "\x00" in host
+
+    # ── RV-C M-1：普通 tuple + 真实主机 + 受拦端口的直判负例 ──────────────
+    #
+    # 原有用例只有一条正例（真哨兵 ⇒ True）与两条**形状**负例（非 tuple / 空 tuple），
+    # 缺这一类：形状完全合法、只是主机名不对。Codex 原话是「把实现改成只判
+    # ``type(host) is str``，该类六个测试仍能满足」—— 那个实现会把每一条到 7691 的
+    # 真实连接都判成自证、从而不记账。旁证 ``test_audit_hook_does_not_block_plain_safe_address``
+    # 用的是**非**受拦端口 11434，挡不住这条（那条地址本来就不进受拦分支）。
+    #
+    # 三条分开写而不参数化：三种地址形态（IPv4 / 主机名 / IPv6 四元组）各自可归因，
+    # 且判据 ``grep -c '_is_selftest_address(('`` 数的是这个字面调用形态。
+    def test_plain_ipv4_on_blocked_port_is_not_selftest(self):
+        assert guard._is_selftest_address(("127.0.0.1", 7691)) is False
+
+    def test_plain_hostname_on_blocked_port_is_not_selftest(self):
+        assert guard._is_selftest_address(("localhost", 7687)) is False
+
+    def test_plain_ipv6_four_tuple_on_blocked_port_is_not_selftest(self):
+        assert guard._is_selftest_address(("::1", 7691, 0, 0)) is False
+
 
 class TestExemption:
     def test_marker_exempts(self, tmp_path):
@@ -531,6 +639,43 @@ class TestGuardLiveness:
         finally:
             if saved is not None or "uvloop" not in sys.modules:
                 sys.modules["uvloop"] = saved
+
+    @pytest.mark.parametrize(
+        "module_name",
+        ["uvloop", "uvloop.loop", "uvloop.includes", "uvloop._noop", "uvloop._version"],
+    )
+    def test_uvloop_submodule_import_is_blocked_by_audit(self, module_name):
+        """子模块的 ``import`` 事件也必须被拦（RV-C M-4，2026-09-08 实测定案）。
+
+        ⛔ 实测（``evidence-w47/m4-importlib-*.txt``）：``importlib.import_module("uvloop")``
+        **不会**为「uvloop」这个顶层名抛 ``import`` 审计事件 —— 该事件由 ``__import__``
+        （即 ``import`` 语句）抛出，``import_module`` 走的是 ``_bootstrap._gcd_import``。
+        于是 ``del sys.modules["uvloop"]`` 绕过非承重的毒化层之后，
+        ``importlib.import_module("uvloop")`` **两层防御全都越过、成功导入**。
+
+        但 hook 并非没被调用：uvloop 的 ``__init__.py`` 自己 ``import`` 子模块，实测
+        触发了 ``uvloop.includes`` / ``uvloop.loop`` / ``uvloop._noop`` / ``uvloop._version``
+        四个事件。判据从「``args[0] == "uvloop"``」放宽到「``uvloop`` 或 ``uvloop.``
+        开头」即可在**同一层**（audit import 事件）关上这条路 —— 承重方式没变。
+        """
+        import sys
+
+        saved = sys.modules.pop("uvloop", None)
+        try:
+            with pytest.raises(RuntimeError, match="uvloop 的 import 被本门拦下"):
+                sys.audit("import", module_name, None, None, None, None)
+        finally:
+            if saved is not None or "uvloop" not in sys.modules:
+                sys.modules["uvloop"] = saved
+
+    @pytest.mark.parametrize("module_name", ["uvloopx", "uvloop_shim", "myuvloop", "uv"])
+    def test_lookalike_module_names_are_not_blocked(self, module_name):
+        """验伪锚：名字**像** uvloop 但不是它的模块不得被误拦（M-4 收紧的反向）。
+
+        判据用 ``"uvloop."`` 带点前缀而不是裸 ``startswith("uvloop")``，正是为了
+        ``uvloopx`` 这类名字 —— 没有这条，「一律拒绝以 uvloop 开头的模块」也能让上一条全绿。
+        """
+        assert guard._audit_hook("import", (module_name, None, None, None, None)) is None
 
     def test_ledger_shape(self):
         led = guard.STATE.ledger()
