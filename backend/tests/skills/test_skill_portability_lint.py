@@ -157,6 +157,7 @@ import ast
 import codeop
 import functools
 import hashlib
+import os
 import posixpath
 import re
 import shlex
@@ -1733,6 +1734,11 @@ def _python_regions(body: list[str], info: str = "") -> list[tuple[int, str]]:
             #   · info 是 python 系  ⇒ `<<` 一定是左移, 不是 heredoc;
             #   · info 是 shell 系   ⇒ 是 heredoc(算术 `(( ))` 已由掩码挡在前面);
             #   · info 缺失/其它     ⇒ 回落到「这一行能不能当合法 Python 解析」。
+            # ⚠️ **已登记的保守误报**(r29 LOW-3, 随 ④~⑨ 的诊断降级一并接受):
+            # 无标签 fence 里, Python **三引号字符串内部**若写着 `python3 <<'END'` 与两次
+            # 路径赋值, 这里会把字符串内容也当成执行候选 ⇒ 多报一处。方向是**误报**,
+            # 代价是一条基线登记; 要消掉它需要先判「这段文本在哪个字符串里」——
+            # 那正是 r28 判定不收敛的那类工作。
             # ⛔ r28: 只有 fence **声明**是 python 时才敢排除 heredoc 解释。
             # 「未知标签 / 声明不符 / 解析失败都要登记，不能用『Python 可解析』排除 shell」
             # —— `python3 <<'END'` 恰好能当 Python 解析, 无标签时按可解析性排除就整类漏。
@@ -2926,6 +2932,9 @@ def _url_override_hit(line: str) -> bool:
             k < len(words)
             and (
                 re.fullmatch(r"[A-Za-z_]\w*=.*", words[k])
+                # ⚠️ **已登记的保守误报**(r29 LOW-3): `"{" unset CLS_BACKEND_URL` 里那个
+                # **被引号包住**的 `{` 是命令名而不是语法前缀, 这里去引号后当成前缀 ⇒ 多报。
+                # 同上, 方向是误报, 代价是一条登记。
                 # ⛔ r28: 复合命令的 `{` / `(` 也是前缀 —— `{ unset X; }` 里 `unset` 仍是命令词。
                 or _sh_strip_quotes(words[k]) in {"command", "builtin", "exec", "!", "time", "nohup", "{", "("}
                 or _REDIR_RE.fullmatch(words[k])
@@ -2970,14 +2979,22 @@ def tmp_block_fingerprints(text: str) -> list[str]:
     在手写代码里复现)本质上需要三个真解析器, 而每补一个边界就开一个新边界。
 
     这条判据反过来: **不问路径指向哪, 只问这块文本变没变**。
-      · 没有解析、没有正则边界、没有缩进猜测 ⇒ 几乎没有回归空间;
+      · 对**已取到的块**没有解析、没有正则边界、没有缩进猜测 ⇒ 那一段几乎没有回归空间
+        (但取块本身仍依赖分块与 `/tmp` 筛选, 见下面的更正);
       · 对形态表 51 个反例实测 **45 个可区分**(其余 6 个是 URL/`unset` 类,
         不含 `/tmp`, 归第九条判据);
       · 树上代价 12 项(逐块/逐行), 见 `TMP_BLOCK_BASELINE`。
 
     与 ④~⑨ 的关系是**互补而非取代**: 那九条告诉你「是哪一类问题」(报错信息里有
-    形态名), 这条保证「不管什么形态, 块变了就红」。r13 MEDIUM-3 指出的
+    形态名), 这条保证「**在它取到的候选范围内**, 块变了就红」。r13 MEDIUM-3 指出的
     「多行 opaque 记录只绑首行 ⇒ 换第二行仍静默」也由它直接封住。
+
+    ⛔⛔ r28 更正(本条 docstring 原先写的是「不管什么形态, 块变了就红」, **那句是错的**):
+    这条判据在**输入过滤器**上就用**连续 `/tmp`** 筛 —— 于是
+        ROOT = "/t"
+        P = ROOT + "mp/cls-exam/../x"
+    这类**拆分常量根本进不了指纹集合**, 前十条(含本条)全部静默。防线的覆盖面等于它的
+    **输入面**, 不等于它的判定质量。这个盲区由**第十一条**(整文件字节摘要)收口。
     """
     out: list[str] = []
     raw_lines = _lines(text)
@@ -4332,37 +4349,73 @@ def test_r27_namespace_aliases_and_binding_facts():
 #:   · 代价明确: 普通文字修改也要更新快照。这是**刻意**的 —— 更新快照 = 接受一次
 #:     人工审核, 不等于债务消除。
 #:
-#: ⚠️ 它**不**证明任何路径构造安全, 只保证「受管文件的任何字节变化都留下可审查的痕迹」。
+#: ⚠️ 它**不**证明任何路径构造安全, 只保证「受管文件的路径集合与原始字节摘要一致」。
 MANAGED_FILE_DIGESTS: dict[str, str] = {
-    "skills/ai-linked-doc/SKILL.md": "77807e2a8e3b6d3f",
-    "skills/board-recap/SKILL.md": "86ff0b3fa0179604",
-    "skills/chat-with-context/SKILL.md": "cdd0472591e75860",
-    "skills/configure-whiteboard/SKILL.md": "9eb21ecc6ac044a9",
-    "skills/exam-quick/SKILL.md": "eb30e407a1414547",
-    "skills/node-chat/SKILL.md": "3b15bc91dabea7e7",
-    "skills/quiz-answer/SKILL.md": "63b51029ea96a78a",
-    "skills/start-exam-board/SKILL.md": "0f2c085a1bae1244",
-    "skills/study-question/SKILL.md": "0142b7833ff3ab54",
-    "scripts/decay_beta.py": "3bf4ed9402a4c8ed",
-    "scripts/fsrs_bridge.py": "a766fbcc28e3ff91",
-    "scripts/sync_board_concepts.py": "282b7a968033f622",
-    "skills/board-recap/scripts/recap_exam_build.py": "cf6a60b5159e2627",
-    "skills/board-recap/scripts/recap_scan.py": "7ec79cba1e6b47f8",
-    "skills/board-split/scripts/split_preview.py": "d088c5e38f0c6eb0",
-    "skills/clear-inbox/scripts/inbox_preview.py": "a2b97f068445d9b4",
+    "skills/ai-linked-doc/SKILL.md": "77807e2a8e3b6d3f291724e0f6b53c706a6cc4b6c841d13a1e63cdb30dda7767",
+    "skills/board-recap/SKILL.md": "86ff0b3fa0179604816e9251ae35bcf0df6151f7cdc62a4ef88dd46bed4c3aa4",
+    "skills/chat-with-context/SKILL.md": "cdd0472591e75860e947aa726dcbd46aa150e3eaa1ceef50be6dee332af2738c",
+    "skills/configure-whiteboard/SKILL.md": "9eb21ecc6ac044a914ce11009025f8a84e51c5135221ec3b50f8c021ccfa2177",
+    "skills/exam-quick/SKILL.md": "eb30e407a14145477710cbf439e7e85705afeb157c98c5993ee0b3616c324853",
+    "skills/node-chat/SKILL.md": "3b15bc91dabea7e7b3876b75c2c0973e7a9284d48081e5d1b864623258b40fb7",
+    "skills/quiz-answer/SKILL.md": "63b51029ea96a78abd757902023f378697688c28db1b8dc0aaee8969e9ee48e8",
+    "skills/start-exam-board/SKILL.md": "0f2c085a1bae12446dd74ab89cc1e6aa5c8bc34901dd3be7ac5d8521310d0dce",
+    "skills/study-question/SKILL.md": "0142b7833ff3ab54c9307227d59ebaa7d5ff3f9c18a76b07344d0ab295fa22e4",
+    "scripts/decay_beta.py": "3bf4ed9402a4c8edfde16630a79094a5d4518fd181fa60810319fe46d37abb90",
+    "scripts/fsrs_bridge.py": "a766fbcc28e3ff917e740843c633e800aa8a75e949295f83efc90f55105f90f0",
+    "scripts/sync_board_concepts.py": "282b7a968033f622cba03fae57e4330424c2465ad08d73f5abdc8f3162f6d123",
+    "skills/board-recap/scripts/recap_exam_build.py": "cf6a60b5159e2627acea6814fed0c546a1e8f684c0ab38c1a63407f5b553e771",
+    "skills/board-recap/scripts/recap_scan.py": "7ec79cba1e6b47f8463c138d2b26b7484d47c26f57928cc77c26387daf117e0e",
+    "skills/board-split/scripts/split_preview.py": "d088c5e38f0c6eb0f9ca98a547bb4a06a9e45eed722dbdd604a7b578602ab7ad",
+    "skills/clear-inbox/scripts/inbox_preview.py": "a2b97f068445d9b441262c4eb02f72071b06483e4f91d884e274b71eb631e565",
 }
 
 
+def _real_relpath(root: Path, path: Path) -> str | None:
+    """按**实际目录项**拼出相对路径; 任一分量是符号链接则返回 None。
+
+    ⛔ r29 MEDIUM-1: 只用 `glob` 的字面结果有三个静默面 ——
+      · 普通文件换成指向同内容的**符号链接**, 摘要与键都不变;
+      · **目录分量**也能用符号链接把读取引到受管根之外;
+      · 大小写不敏感的文件系统上 `SKILL.md → skill.md` 改名后, 字面 glob 仍能找到它,
+        而键名是硬编码的 `SKILL.md` ⇒ 改名静默。
+    所以逐级用 `os.listdir()` 的**真实名字**核对大小写, 并拒绝任何一级符号链接。
+    """
+    parts: list[str] = []
+    cur = root
+    for want in path.relative_to(root).parts:
+        try:
+            entries = os.listdir(cur)
+        except OSError:
+            return None
+        if want not in entries:  # 大小写不一致时 `glob` 找得到, 这里找不到
+            return None
+        cur = cur / want
+        if cur.is_symlink():
+            return None
+        parts.append(want)
+    return "/".join(parts)
+
+
 def managed_file_digests(root: Path) -> dict[str, str]:
-    """受管文件 → 整文件原始字节的 sha256 前 16。
+    """受管文件 → 整文件原始字节的 sha256(**全长**)。
 
     刻意**不读文本、不按行、不解码** —— 换行风格、BOM、尾随空白的任何变化都要留痕。
+    ⛔ r29 LOW-2: 用全部 64 个十六进制字符。前 16 位只有 64 bit, 对固定基线的普通回归
+    检测够用(误同约 `2^-64`), 但它**不是**完整 SHA-256, 不该写成「任何字节变化必红」。
+    ⚠️ 文件**模式**(chmod)不属于字节, 明确不在本判据覆盖面内。
     """
     out: dict[str, str] = {}
-    for f in sorted(root.glob("skills/*/SKILL.md")):
-        out[f"skills/{f.parent.name}/SKILL.md"] = hashlib.sha256(f.read_bytes()).hexdigest()[:16]
-    for f in sorted([*root.glob("skills/*/scripts/*.py"), *root.glob("scripts/*.py")]):
-        out[str(f.relative_to(root))] = hashlib.sha256(f.read_bytes()).hexdigest()[:16]
+    seen: list[Path] = [
+        *root.glob("skills/*/SKILL.md"),
+        *root.glob("skills/*/scripts/*.py"),
+        *root.glob("scripts/*.py"),
+    ]
+    for f in sorted(seen):
+        rel = _real_relpath(root, f)
+        if rel is None:
+            out[f"⚠️不可信路径:{f.relative_to(root)}"] = "符号链接或大小写不符"
+            continue
+        out[rel] = hashlib.sha256(f.read_bytes()).hexdigest()
     return out
 
 
@@ -4425,12 +4478,105 @@ def test_managed_file_gate_catches_what_semantic_judges_miss():
         "前提不成立: 前十条判据里有人看得见这个形态, 这条负控就考错了对象 —— "
         f"实测 { ({k: v for k, v in silent.items() if v}) }"
     )
+    # ⛔ r29 MEDIUM-2: **计数前提**也要断言 —— 否则「前十条静默」可能只是因为层 2 的
+    # 九项计数先把它抓走了, 那这条负控同样考错了对象。
+    counts = _body_counts(escaping)
+    assert not any(counts.values()), f"前提不成立: 层 2 的九项计数看得见这个形态 —— {counts}"
     # 第十一条只看字节: 同一份文件改掉任意一个字节, 摘要必变。
     original = (DEFAULT_ROOT / "skills" / "start-exam-board" / "SKILL.md").read_bytes()
     mutated = original + b"\n" + escaping.encode()
     assert hashlib.sha256(original).hexdigest()[:16] != hashlib.sha256(mutated).hexdigest()[:16], (
         "整文件摘要对追加内容不敏感 —— 那它兜不住任何东西"
     )
+
+
+def _tiny_managed_tree(base: Path) -> tuple[Path, dict[str, str]]:
+    """搭一棵**最小受管样本树**并返回它的基线。
+
+    ⛔ r29 MEDIUM-2: 负控必须让四种情形**真正走一遍正式门禁**
+    (`managed_file_digests()` / `check_managed_files()`) —— 上一版只比了两次
+    `hashlib.sha256`, 正式检查退化成 `return []` 它照样绿。
+    ⚠️ 只在 tmp 副本里搭, 绝不碰真实 vault(卡文硬边界: 负控只在 tmp 副本)。
+    """
+    root = base / ".claude"
+    (root / "skills" / "demo").mkdir(parents=True)
+    (root / "skills" / "demo" / "SKILL.md").write_bytes(b"---\nname: demo\n---\nbody\n")
+    (root / "skills" / "demo" / "scripts").mkdir()
+    (root / "skills" / "demo" / "scripts" / "run.py").write_bytes(b"X = 1\n")
+    (root / "scripts").mkdir()
+    (root / "scripts" / "top.py").write_bytes(b"Y = 2\n")
+    return root, managed_file_digests(root)
+
+
+def test_managed_file_gate_is_load_bearing(tmp_path):
+    r"""⛔ 正式门禁负控: 未改必绿; 新增/删除/改一个字节必红 —— 都走 `check_managed_files()`。
+
+    ⛔ r29 MEDIUM-2 指出上一版负控的问题: 它只比两次 `sha256`, **没有调用正式门禁**,
+    所以 `check_managed_files()` 若退化成 `return []`, 那两条测试仍然全过。
+    """
+    root, baseline = _tiny_managed_tree(tmp_path)
+    assert len(baseline) == 3, f"样本树应有 3 份受管文件: {sorted(baseline)}"
+    assert not check_managed_files(root, baseline), "未改快照必须绿"
+
+    # ① 改一个字节
+    target = root / "skills" / "demo" / "SKILL.md"
+    original = target.read_bytes()
+    target.write_bytes(original.replace(b"body", b"bodX"))
+    problems = check_managed_files(root, baseline)
+    assert any("内容变化" in p and "skills/demo/SKILL.md" in p for p in problems), f"改一个字节没有红: {problems}"
+    target.write_bytes(original)
+    assert not check_managed_files(root, baseline), "还原后应重新变绿"
+
+    # ② 只改**行尾**(LF → CRLF): 字节变了就要红, 不做任何归一化
+    target.write_bytes(original.replace(b"\n", b"\r\n"))
+    assert check_managed_files(root, baseline), "只改行尾风格也必须红(摘要不做字节归一化)"
+    target.write_bytes(original)
+
+    # ③ 新增受管文件
+    (root / "scripts" / "extra.py").write_bytes(b"Z = 3\n")
+    problems = check_managed_files(root, baseline)
+    assert any("新增" in p and "scripts/extra.py" in p for p in problems), f"新增受管文件没有红: {problems}"
+    (root / "scripts" / "extra.py").unlink()
+
+    # ④ 删除受管文件
+    (root / "scripts" / "top.py").unlink()
+    problems = check_managed_files(root, baseline)
+    assert any("缺失" in p and "scripts/top.py" in p for p in problems), f"删除受管文件没有红: {problems}"
+
+
+def test_managed_file_gate_rejects_symlinks_and_case_drift(tmp_path):
+    r"""⛔ r29 MEDIUM-1: 符号链接与大小写改名不得静默。
+
+    · 普通文件换成指向**相同内容**的符号链接 —— 摘要一模一样, 只有实际路径类型变了;
+    · **目录分量**的符号链接能把读取引到受管根之外;
+    · 大小写不敏感的文件系统上 `SKILL.md → skill.md`, 字面 glob 仍找得到, 键名却硬编码。
+    """
+    root, baseline = _tiny_managed_tree(tmp_path)
+    # ① 文件本身换成符号链接(内容一致)
+    target = root / "scripts" / "top.py"
+    payload = tmp_path / "elsewhere.py"
+    payload.write_bytes(target.read_bytes())
+    target.unlink()
+    target.symlink_to(payload)
+    assert check_managed_files(root, baseline), "受管文件换成符号链接(内容相同)必须红"
+    target.unlink()
+    target.write_bytes(payload.read_bytes())
+    assert not check_managed_files(root, baseline), "换回普通文件后应重新变绿"
+
+    # ② **目录分量**是符号链接
+    real = root / "skills" / "demo"
+    moved = tmp_path / "demo-real"
+    real.rename(moved)
+    real.symlink_to(moved, target_is_directory=True)
+    assert check_managed_files(root, baseline), "受管路径的目录分量是符号链接必须红"
+    real.unlink()
+    moved.rename(real)
+    assert not check_managed_files(root, baseline), "还原目录后应重新变绿"
+
+    # ③ 大小写改名 —— 在大小写不敏感的文件系统上 `glob` 仍能找到, 但目录项名字变了。
+    skill = root / "skills" / "demo" / "SKILL.md"
+    skill.rename(root / "skills" / "demo" / "skill.md")
+    assert check_managed_files(root, baseline), "受管文件大小写改名必须红(逐级按真实目录项核对)"
 
 
 def test_parse_unit_cost_on_current_tree():
