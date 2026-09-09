@@ -21,8 +21,13 @@
 层 3 scripts     — `skills/*/scripts/*.py` + `scripts/*.py` × 3 指标精确计数, **文件集合本身也钉**
                    (新增脚本 = 红, 逼人登记)。
 越界判据 v3    — 每份 SKILL.md 的越界 `/tmp` normpath **集合**精确相等(ast/shlex 真解析)。
-可疑行判据     — `/tmp` 与 `..` 或 `$` 同一**逻辑行**(续行/相邻字面量拼接已合并)的
-                   行号集合精确相等 —— 不依赖 token 切分的兜底。
+可疑行判据     — `/tmp` 与 `..` 或 `$` 同一**逻辑行**的行号集合精确相等(字面证据档)。
+动态拼接判据   — fence 内「含 `/tmp` 的常量参与了动态拼接/格式化」的行号集合精确相等
+                   (`ast` 层面的证据档; 现状全 9 份皆空 = 零余量)。
+
+⚠️ 后两条是**同一处置的两个触发面**: 落点静态不可判 ⇒ 要人登记, 不假装能算出来。
+它们互补 —— `"/tmp/cls-exam/" + PARENT + "/x"` 既无 `..` 也无 `$`, 只有动态拼接
+判据看得见; `P="/tmp/cls-exam/$1"` 的 `$` 只有可疑行判据看得见。
 
 ## 层 2 的「裸」口径, 以及**为什么钉两端而不是钉裸值**
 
@@ -425,6 +430,59 @@ def _logical_lines(text: str) -> list[tuple[int, str, bool]]:
     return out
 
 
+def _has_dynamic_tmp_join(src: str) -> bool:
+    """该源码里是否存在「含 `/tmp` 的字符串常量参与了**动态**拼接/格式化」。
+
+    ⛔ **v3 自查发现的残余边界**(2026-09-09, 本卡自己找的, 不是 Codex 报的):
+    `P = "/tmp/cls-exam/" + PARENT + "/x"` —— `ast` 折不了非常量, 所以越界判据只看到
+    合规的 `/tmp/cls-exam/` 片段; 行内既无 `..` 也无 `$`, 可疑行判据同样看不见 ⇒
+    **五条判据全盲**。同形态还有 `% updir`、`.format(d)`、`os.path.join(NS, U, x)`、
+    f-string 插值、`chr(46)*2` 之类把 `..` 藏进变量的写法。
+
+    这些的共同点是: 最终路径**静态不可判**, 与 `$1`/`${REL}` 属同一档 —— 所以处置
+    也相同: **要求登记**, 而不是假装能算出它指向哪里。触发条件刻意从宽:
+      · `BinOp(+ 或 %)` 折不出常量, 且链里有含 `/tmp` 的字符串常量;
+      · `JoinedStr`(带插值的 f-string) 里有含 `/tmp` 的常量;
+      · 任何 `Call` 的参数里有含 `/tmp` 的常量(覆盖 `.format` / `join` / `os.path.join`)。
+    合规的纯常量与隐式拼接**不触发**(它们由 `ast` 折成单个 Constant, 越界判据已能定论)。
+    """
+    try:
+        tree = ast.parse(src)
+    except (SyntaxError, ValueError):
+        return False
+
+    def _mentions_tmp(node: ast.AST) -> bool:
+        return any(
+            isinstance(sub, ast.Constant) and isinstance(sub.value, str) and "/tmp" in sub.value
+            for sub in ast.walk(node)
+        )
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.BinOp) and isinstance(node.op, (ast.Add, ast.Mod)):
+            if _fold_str(node) is None and _mentions_tmp(node):
+                return True
+        elif isinstance(node, (ast.JoinedStr, ast.Call)) and _mentions_tmp(node):
+            return True
+    return False
+
+
+def dynamic_tmp_join_lines(text: str) -> list[tuple[int, str]]:
+    """fence 内「含 `/tmp` 且存在动态拼接/格式化」的行 —— 返回 `(行号, 行)`。
+
+    与 `suspicious_tmp_lines` 同属「静态不可判 ⇒ 要人登记」这一档, 但触发面互补:
+    那条看的是行内有没有 `..` / `$` 的**字面证据**, 这条看的是 `ast` 层面有没有
+    **动态参与** —— 变量拼接既没有 `..` 也没有 `$`, 只有这条看得见。
+    """
+    out: list[tuple[int, str]] = []
+    for start, body, is_fence in _fence_blocks(text):
+        if not is_fence:
+            continue
+        for offset, line in enumerate(body):
+            if "/tmp" in line and _has_dynamic_tmp_join(line):
+                out.append((start + offset, line.strip()))
+    return out
+
+
 def suspicious_tmp_lines(text: str) -> list[tuple[int, str]]:
     """**不依赖解析**的保守兜底: 同一**逻辑行**里 `/tmp` 与 `..` 或 `$` 同时出现。
 
@@ -599,6 +657,22 @@ SUSPICIOUS_TMP_LINES_BASELINE: dict[str, list[int]] = {
     # :577 = 本卡「变更记录」行, 含 `${CLS_BACKEND_URL:-…}` —— 无害展开, 照样登记
     # (r3 MEDIUM-3 起 `$` 任意位置触发; 保守面换零漏报)。
     "start-exam-board": [577],
+    "study-question": [],
+}
+
+#: 「含 `/tmp` 且存在动态拼接/格式化」的行号 —— 第六条判据的基线(2026-09-09 实测)。
+#: **全 9 份皆空 = 零余量**: 树上没有任何一处用变量拼临时路径, 新增一处即红。
+#: 与 `SUSPICIOUS_TMP_LINES_BASELINE` 互补 —— 那条看行内有没有 `..`/`$` 的字面证据,
+#: 这条看 `ast` 层面有没有动态参与(变量拼接两样都没有, 只有这条看得见)。
+DYNAMIC_TMP_JOIN_BASELINE: dict[str, list[int]] = {
+    "ai-linked-doc": [],
+    "board-recap": [],
+    "chat-with-context": [],
+    "configure-whiteboard": [],
+    "exam-quick": [],
+    "node-chat": [],
+    "quiz-answer": [],
+    "start-exam-board": [],
     "study-question": [],
 }
 
@@ -812,6 +886,36 @@ def check_suspicious_tmp_lines(root: Path, baseline: dict[str, list[int]]) -> li
     return problems
 
 
+def check_dynamic_tmp_joins(root: Path, baseline: dict[str, list[int]]) -> list[str]:
+    """动态拼接判据: 每份 SKILL.md 里「含 `/tmp` 且动态拼接」的**行号集合**精确相等。
+
+    现状全 0 —— 树上没有这种写法。**零余量**: 任何人往 fence 里写
+    `"/tmp/…" + VAR` / `% var` / `.format()` / `os.path.join(...)` 都会立刻红,
+    必须登记（因为静态证不出它最终指向哪里）。
+    """
+    problems: list[str] = []
+    skills_dir = root / "skills"
+    for name in sorted(baseline):
+        f = skills_dir / name / "SKILL.md"
+        if not f.exists():
+            problems.append(f"[动态拼接] {name}: SKILL.md 不存在 (基线要求存在) path={f}")
+            continue
+        found = dynamic_tmp_join_lines(f.read_text(encoding="utf-8"))
+        actual = sorted(ln for ln, _txt in found)
+        want = sorted(baseline[name])
+        if actual != want:
+            by_line = dict(found)
+            ca, cw = Counter(actual), Counter(want)
+            extra = sorted((ca - cw).elements())
+            problems.append(
+                f"[动态拼接] {name}: 含 `/tmp` 的动态拼接行号集合不等 "
+                f"期望={want} 实测={actual} (新增={extra} 缺失={sorted((cw - ca).elements())})\n"
+                + "".join(f"        :{ln}  {by_line.get(ln, '')[:100]}\n" for ln in extra)
+                + "        —— 变量拼接/格式化后的落点静态不可判(`ast` 折不了非常量), 必须登记"
+            )
+    return problems
+
+
 def check_scripts(root: Path, baseline: dict[str, dict[str, int]]) -> list[str]:
     """层 3: 返回违规描述列表 (空 = 全绿)。文件集合本身也钉。"""
     problems: list[str] = []
@@ -954,6 +1058,12 @@ def test_suspicious_tmp_lines_match_baseline():
     assert not problems, "可疑行基线漂移:\n" + "\n".join(problems)
 
 
+def test_dynamic_tmp_joins_match_baseline():
+    """第六条判据(正控): 含 `/tmp` 的动态拼接行号集合 == 基线(现状全 9 份皆空)。"""
+    problems = check_dynamic_tmp_joins(DEFAULT_ROOT, DYNAMIC_TMP_JOIN_BASELINE)
+    assert not problems, "动态拼接基线漂移:\n" + "\n".join(problems)
+
+
 def test_every_per_skill_baseline_covers_all_nine_skills():
     """⛔ **每个按 skill 分的基线都必须恰好覆盖 9 份**(Codex round-2 MEDIUM-2)。
 
@@ -967,6 +1077,7 @@ def test_every_per_skill_baseline_covers_all_nine_skills():
         ("BASELINE + QUIZ_ANSWER_BASELINE", set(_merged_body_baseline())),
         ("ESCAPING_TMP_BASELINE", set(ESCAPING_TMP_BASELINE)),
         ("SUSPICIOUS_TMP_LINES_BASELINE", set(SUSPICIOUS_TMP_LINES_BASELINE)),
+        ("DYNAMIC_TMP_JOIN_BASELINE", set(DYNAMIC_TMP_JOIN_BASELINE)),
     ):
         assert baseline == set(EXPECTED_SKILLS), (
             f"{label} 覆盖面必须恰好 == 9 份 vault skill "
@@ -1613,6 +1724,57 @@ def test_fence_close_requires_same_char_and_width(sandbox: Path):
     assert any("/var/cache(" in line for line in fenced[0][1]), f"内层内容应留在同一块里: {fenced[0][1]}"
     # 且该冒充路径仍被抓到(内层内容按 fence 处理 ⇒ 走解析层)
     assert any("/var/cache(" in c for c, _n in escaping_tmp_paths(text)), escaping_tmp_paths(text)
+
+
+@pytest.mark.parametrize(
+    "replacement,why",
+    [
+        ('P = "/tmp/cls-exam/" + PARENT + "/x"', "变量拼接: ast 折不了非常量"),
+        ('P = "/tmp/cls-exam/%s/x" % updir', "% 格式化 + 变量"),
+        ('P = "/tmp/cls-exam/{}/x".format(updir)', ".format() + 变量"),
+        # ⛔ 带尾斜杠: 无尾斜杠会让 tmp_ns 掉 1 而破坏「等计数」前提, 归因就不干净了
+        ('P = os.path.join("/tmp/cls-exam/", updir, "x")', "os.path.join + 变量"),
+        ('P = f"/tmp/cls-exam/{updir}/x"', "f-string 插值"),
+    ],
+)
+def test_negative_control_dynamic_join_must_be_registered(sandbox: Path, replacement: str, why: str):
+    """⑫ **第六条判据** —— 前五条全盲的那一类: 把落点藏进变量。
+
+    这些形态没有 `..` 的字面证据、没有 `$`、`ast` 也折不出常量 ⇒ 越界判据只看到
+    合规的 `/tmp/cls-exam/` 片段, 可疑行判据两个触发词都不命中, 计数判据更是不变。
+    **五条判据一起放行** —— 这是本卡自查(非 Codex 报)找到的残余边界。
+
+    第六条判据从 `ast` 层面问「有没有动态参与」, 命中即要求登记(不假装能算出落点)。
+
+    ⛔ 三段归因: ① 计数判据放行(等计数替换) ② 越界与可疑行**都看不见**
+    (证明这条负控考的确实是第六条, 不是被别人代打红) ③ 第六条报红。
+    """
+    _swap_in_start_exam_board(sandbox, 'P = "/tmp/cls-exam/exam-candidates.json"', replacement)
+
+    assert not check_body(sandbox, _merged_body_baseline()), f"① 前提: 计数判据放行({why})"
+    assert not check_escaping_tmp(sandbox, ESCAPING_TMP_BASELINE), (
+        f"② 前提: 越界判据看不见({why}) —— 若它看得见, 这条负控考错了对象"
+    )
+    assert not check_suspicious_tmp_lines(sandbox, SUSPICIOUS_TMP_LINES_BASELINE), f"② 前提: 可疑行判据也看不见({why})"
+    problems = check_dynamic_tmp_joins(sandbox, DYNAMIC_TMP_JOIN_BASELINE)
+    joined = "\n".join(problems)
+    assert any("start-exam-board" in p and "[动态拼接]" in p for p in problems), (
+        f"③ {why} 必须被第六条判据要求登记, 实得: {joined}"
+    )
+
+
+def test_dynamic_join_judge_does_not_fire_on_constants():
+    """⑫' 验伪锚: 第六条判据**不得**对纯常量与隐式拼接开火。
+
+    否则它会把树上所有合规写法都拖进登记清单, 判据就退化成噪声 —— 而基线现状
+    全 9 份皆空正是靠这一点成立的。
+    """
+    for src, why in [
+        ('P = "/tmp/cls-exam/exam-candidates.json"', "纯常量"),
+        ('P = ("/tmp/cls-exam/" "x.json")', "隐式拼接(ast 已折成单常量)"),
+        ('P = "/tmp/cls-exam/" + "x.json"', "显式 + 常量链(_fold_str 可折)"),
+    ]:
+        assert not _has_dynamic_tmp_join(src), f"{why} 不该触发第六条判据: {src!r}"
 
 
 def test_negative_control_fake_namespace_swap_must_redden(sandbox: Path):
