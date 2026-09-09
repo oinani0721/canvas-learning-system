@@ -16,7 +16,7 @@
 
 **请只读下面这些，不要扩大读取面**：
 
-- `git diff ce1e085b <AUDIT_SHA> -- . ':(exclude)_bmad-output'`
+- `git diff ce1e085b 3c064c9d -- . ':(exclude)_bmad-output'`
 - `backend/tests/contract/test_openapi_contract.py`（全文）
 - `backend/tests/contract/conftest.py`（全文）
 - `_bmad-output/审查/evidence-hyg-openapi/collect-before.txt`

@@ -39,8 +39,10 @@ from hypothesis import Phase, settings
 #   - `tests/conftest.py` 把 `CANVAS_BASE_PATH` 设成相对的 `"./test_canvas"`, canvas /
 #     index / sync 端点因此写进 `backend/test_canvas/`。
 #
-# 代价(如实): 契约覆盖面从 206 个 operation 收窄到 93 个 GET(HEAD 面为 0)。被排除的 113 条
-# 清单见 `_bmad-output/审查/evidence-hyg-openapi/excluded-operations.txt`。合约测试本就
+# 代价(如实): 契约覆盖面从 206 个 operation 收窄到 **92** 条 —— 93 个 GET(HEAD 面为 0)
+# 再减去下方追加排除的 1 条只读端点。被排除的共 **114** 条(POST 96 / DELETE 9 / PUT 6 /
+# PATCH 2 / GET 1), 清单见 `_bmad-output/审查/evidence-hyg-openapi/excluded-operations.txt`
+# (`comm -23 collect-before.txt collect-after.txt` 实测)。合约测试本就
 # **不在 CI 白名单**(`.github/workflows/test.yml`), 只在本机以 importorskip 形式跑,
 # 故此次收窄不减少 CI 覆盖面。写端点的契约校验需另立隔离夹具后恢复。
 #
