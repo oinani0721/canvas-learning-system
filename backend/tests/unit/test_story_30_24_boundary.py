@@ -296,16 +296,23 @@ class TestSpecialCharacterGroupId:
             # ⚠️ 如实声明本条比卡文要求强：卡文 (f) 只要求保留 `:191-194` 并改参数形态断言。
             #    S1 会拒绝任何内联字符串常量（包括无害的 `'active' AS status` 这类写法）——
             #    这是有意的：本方法的查询面全部参数化，需要常量时应当也走参数。
-            _literals = re.findall(r"'[^']*'", _query_no_comments)
+            # ⚠️ 单引号与**双引号**都要认：Cypher 两种都是字符串字面量，只查单引号时
+            # `("test_" + "user")` 这种双引号拼接能同时绕开 S1 与「按输入值查」那条
+            # （本车道送 round-8 前自测抓到，非 Codex 指出）。
+            _literals = re.findall(r"'[^']*'|\"[^\"]*\"", _query_no_comments)
             assert not _literals, (
                 "查询文本里出现内联字符串字面量，本用例要求全参数化——"
                 "任何用户可控值要拼进 Cypher 都得先加引号，故这条不枚举具体值也能挡住变形内联。"
                 f"literals={_literals} query={query_str!r}"
             )
-            for _limit_expr in re.findall(r"\bLIMIT\b([^\n]*)", _query_no_comments, flags=re.I):
-                assert "$" in _limit_expr, (
-                    "LIMIT 子句里没有 `$` 参数引用，说明分页值被内联进了文本。"
-                    f"limit_expr={_limit_expr!r} query={query_str!r}"
+            # `SKIP` 与 `LIMIT` 同属分页子句、同样吃整数，只查 LIMIT 时 `SKIP 5` 能漏过
+            # （同为送 round-8 前自测抓到）。
+            for _clause, _expr in re.findall(
+                r"\b(LIMIT|SKIP)\b([^\n]*)", _query_no_comments, flags=re.I
+            ):
+                assert "$" in _expr, (
+                    f"{_clause.upper()} 子句里没有 `$` 参数引用，说明分页值被内联进了文本。"
+                    f"expr={_expr!r} query={query_str!r}"
                 )
 
         # ── B 层：至少一次调用带完整作用域参数集，并在那一次上验物理化 ──────
