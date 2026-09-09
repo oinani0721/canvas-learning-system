@@ -4017,7 +4017,7 @@ def test_g66_tomorrow_survives_dst_transitions(board_done_env, monkeypatch):
         # ── 守 hour == 0 (offset 在这两组上恒真, 见 docstring) ──
         ("America/New_York", "2026-03-08T10:00:00", (2026, 3, 9), -4),  # spring forward 当天
         ("America/New_York", "2026-11-01T10:00:00", (2026, 11, 2), -5),  # fall back 当天
-        # ── 守 offset 取**次日**那天的值 (切换在 UTC 22:00, 今天与次日零点不同组) ──
+        # ── 守 offset 取**次日**那天的值 (切换在当地午夜, 今天与次日零点不同组) ──
         ("America/Nuuk", "2026-03-28T10:00:00", (2026, 3, 29), -1),  # 切换 2026-03-29T01:00Z
         ("America/Nuuk", "2026-10-24T10:00:00", (2026, 10, 25), -2),  # 切换 2026-10-25T01:00Z
     ]

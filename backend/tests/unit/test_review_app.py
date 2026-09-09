@@ -3155,13 +3155,22 @@ test("推迟键不与另一库的完成键碰撞 (Codex round-2 LOW-1)", () => {
   const b = boot();
   assert.notEqual(b.api.snoozeKey("math", "A"), b.api.doneKey("snooze:math", "A"),
     "推迟键与另一库的完成键相等 —— 前缀分隔符选错了");
-  // ⛔ 覆盖边界如实登记 (Codex round-3 LOW-1): 换成 \u0000 之后**仍有**一条
-  // 反向碰撞 —— snoozeKey("math","A") === doneKey("snooze", "math\u0000A"),
-  // 两个库名都合法, NUL 在**板名**里。本卡**不修**它, 理由:
-  //   · doneKey 自己就有完全同款的碰撞 (doneKey("a","b\u0000c") === doneKey("a\u0000b","c")),
-  //     snoozeKey 继承的是同一个前提「库名与板名都不含 NUL」;
-  //   · 真正的修法是把键编码换成长度前缀或转义, 那会动 board-done / board-undone
-  //     的既有形态 —— 超出本卡范围 (卡文 §三 禁改 U6-B 产物)。
+  // ⛔ 覆盖边界如实登记 (Codex round-3 LOW-1, round-4 更正理由): 换成 \u0000 之后
+  // **仍有**一条反向碰撞 —— snoozeKey("math","A") === doneKey("snooze", "math\u0000A"),
+  // 两个库名 math / snooze 都合法, NUL 在**板名**里。
+  //
+  // ⚠ 本卡初版把不修的理由写成「doneKey 自己有同款碰撞, 这是继承的同一个前提」——
+  // **那个类比不成立** (Codex round-4 更正): doneKey 那条碰撞需要库名含 NUL
+  // (doneKey("a","b\u0000c") === doneKey("a\u0000b","c")), 而含 NUL 的目录名 POSIX 就造不出来;
+  // snooze 这条只需要**板名**含 NUL, 板名来自 frontmatter 的 source_board,
+  // _assert_board_name 只查长度不查字符集 ⇒ **两者不同域, 后者理论可达**。
+  //
+  // 也**不是**「必须动 U6-B 才能修」: 只收窄 snooze 侧的板名值域就够 (例如拒绝
+  // 含控制字符的板名), 不必碰既有完成键。本卡**选择不修**的真实理由是 ——
+  // 那是给端点新增一条产品行为约束 (某些板名从此被拒), 属于要用户裁定的口径,
+  // 不是本卡范围内的实现细节。触发它需要 markdown frontmatter 里出现 NUL 字节,
+  // UTF-8 文本文件里几乎不会, 但**本卡未证明它不可达**。已登记为移交项。
+  //
   // 下面这条只验「前缀不把别的**库名**吃掉」, **不覆盖**上面那条板名侧的反向碰撞。
   assert.notEqual(b.api.snoozeKey("math", "A"), b.api.snoozeKey("math\u0000", "A"));
   // 同一块板自己的两个键必须不同 (推迟 / 完成各占一格的前提)
