@@ -178,9 +178,20 @@ def _load_state_locked(vault: Path | None = None) -> dict:
 #: 锁 `.daily-review.<key>.lock` 既不同名也不同形 —— 那把锁覆盖 runner 整轮,
 #: 但浏览器点「这板做完了」的那个进程根本不经过 push.sh, 拿不到它。
 #:
-#: ⛔ POSIX 记录锁按「进程 × 文件」释放: 持锁期间对同一路径**再 open 一次
-#: 再 close**, 整把锁会被一起丢掉, 而本进程完全察觉不到。所以锁 fd 专用,
-#: 由下面的登记表持有; 重入只加计数, 不重复 open。
+#: ⛔ 锁原语是 **flock 而不是 lockf**(Codex round-4 H1 根治)。POSIX 记录锁
+#: (fcntl/lockf) 按「进程 × inode」释放 —— 本进程对**同一个 inode** 的任何一次
+#: 额外 open+close 都会把整把锁丢掉, 而登记表毫无察觉。这条语义被前后四轮
+#: 审查用四种不同形态利用到: 锁路径是软链指向 state (round-1 H3)、锁是 state
+#: 的硬链接 (round-2 H2)、反向软链 state→lock (round-3 H1)、以及跨库的
+#: A.state.json → B.state.lock (round-4 H1)。逐条堵路径形态是堵不完的:
+#: 只要有**任何**别名能让某次读盘碰到锁 inode, 锁就没了。
+#: flock 的锁绑在**打开文件描述**上, 不绑 inode —— 关掉另一个 fd 不影响它,
+#: 这一整类问题在原语层面消失。代价如实登记: flock 在 NFS / 某些网络盘上
+#: 语义不同 (本机 APFS 实测为准), 且不支持字节范围 (本模块不需要)。
+#: 下面的 O_NOFOLLOW / nlink / inode 三条检查**保留**为防御深度: 它们挡的
+#: 是"锁被摆成指向别处"这种配置错误本身 (尤其是 O_CREAT 在库内造文件),
+#: 不再是失锁的唯一防线。
+#: 锁 fd 仍专用、由登记表持有, 重入只加计数不重复 open。
 _STATE_LOCK_GUARD = threading.Lock()
 #: resolve 后的锁路径 → per-path 可重入线程锁 (同线程嵌套不阻塞, 跨线程串行)
 _STATE_LOCK_TLOCKS: dict[str, threading.RLock] = {}
@@ -279,13 +290,13 @@ def state_locked(vault: Path | None = None):
                         f"锁文件有 {info.st_nlink} 条硬链接 —— 可能与 state 或库内文件共用 inode",
                         str(lock),
                     )
-                # ⚠ Codex round-3 H1: 直接比 inode —— 前面几层都是**形态**判断
-                # (O_NOFOLLOW 拒锁路径是软链、nlink 拒硬链接), 而危险的是**结果**:
-                # 锁与 state 落到同一个 inode。反方向的软链 (state.json → state.lock)
-                # 让锁路径本身是普通文件、nlink 也是 1, 三层形态判断全过, 但
-                # load_state 的读盘跟随 state 的软链打开并关闭锁 inode, 本进程在
-                # 该文件上的记录锁**整个**被释放, 而登记表还报告持锁。
-                # 比 inode 是本质判据, 上面两条是它的早期、可给出更准确报文的补充。
+                # 锁与 state 落到同一个 inode = 配置错了: 一个文件同时当"锁"和
+                # "数据"用, 读它、隔离它、os.replace 它都会碰到锁。
+                # ⚠ 这条与上面两条现在都是**防御深度**, 不是失锁的防线 —— 换成
+                # flock 之后 (见模块注释), 同 inode 的额外 open/close 不再释放锁;
+                # 逐条堵路径形态本来也堵不完 (跨库别名 A.state.json → B.state.lock
+                # 就不在本库的比对范围内, Codex round-4 H1)。留着是因为它们能在
+                # 早期给出准确报文, 且挡住 O_CREAT 在库内造文件那半条。
                 try:
                     st_state = os.stat(state_path(vault))  # 跟随软链: 要的就是最终落点
                 except OSError:
@@ -296,7 +307,7 @@ def state_locked(vault: Path | None = None):
                         "锁与 state 落在同一个 inode —— 读 state 的一次 close 会把锁一起释放",
                         str(lock),
                     )
-                fcntl.lockf(fd, fcntl.LOCK_EX)
+                fcntl.flock(fd, fcntl.LOCK_EX)
             except BaseException:
                 os.close(fd)
                 raise
@@ -322,7 +333,7 @@ def state_locked(vault: Path | None = None):
                         _STATE_LOCK_FDS[key][1] -= 1
         if release_fd is not None:
             try:
-                fcntl.lockf(release_fd, fcntl.LOCK_UN)
+                fcntl.flock(release_fd, fcntl.LOCK_UN)
             finally:
                 os.close(release_fd)
         tlock.release()

@@ -1190,24 +1190,27 @@ def _traced(vault=None):
     _lock.parent.mkdir(parents=True, exist_ok=True)
     _fd = os.open(str(_lock), os.O_RDWR | os.O_CREAT, 0o644)
     try:
-        fcntl.lockf(_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        fcntl.flock(_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         _seen = "free"
-        fcntl.lockf(_fd, fcntl.LOCK_UN)
+        fcntl.flock(_fd, fcntl.LOCK_UN)
     except BlockingIOError:
         _seen = "blocked"
     os.close(_fd)
     Path(sys.argv[3]).write_text(_seen, encoding="utf-8")
+    _marks["entered"] = time.time()
     with _real_locked(vault):
+        _marks["acquired"] = time.time()
         yield
 
 
+_marks = {}
 runner.state_locked = _traced
 started = time.time()
 runner.save_state(
     {"schema_version": 2, "board_last_recommended": {}, "board_done": {"子进程板": "2026-07-30"}},
     Path(sys.argv[2]),
 )
-print(json.dumps({"started": started, "finished": time.time()}))
+print(json.dumps({"started": started, "finished": time.time(), **_marks}))
 """
 
 #: 子进程: 对锁文件做一次**非阻塞**探测, 什么都不写。
@@ -1217,7 +1220,7 @@ _LOCK_PROBE_CHILD = """
 import errno, fcntl, os, sys
 fd = os.open(sys.argv[1], os.O_RDWR | os.O_CREAT, 0o644)
 try:
-    fcntl.lockf(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
 except BlockingIOError as e:
     print("BLOCKED:" + errno.errorcode.get(e.errno, str(e.errno)))
     sys.exit(1)
@@ -1225,7 +1228,7 @@ except OSError as e:
     print("OTHER:" + errno.errorcode.get(e.errno, str(e.errno)))
     sys.exit(2)
 print("ACQUIRED")
-fcntl.lockf(fd, fcntl.LOCK_UN)
+fcntl.flock(fd, fcntl.LOCK_UN)
 os.close(fd)
 sys.exit(0)
 """
@@ -1328,15 +1331,19 @@ def test_g67r_state_lock_blocks_other_process_until_released(tmp_path, monkeypat
     assert free.returncode == 0, f"对照组子进程本身就跑不起来, 本门无效: {free.stderr}"
     free_elapsed = json.loads(free.stdout)["finished"] - t_spawn
     assert free_elapsed < 5.0, f"对照组不该等 (实为 {free_elapsed:.2f}s) —— 阈值放宽到 5s 仍超 = 环境问题"
+    free_marks = json.loads(free.stdout)
     assert ready_free.read_text(encoding="utf-8") == "free", (
         "对照组的非阻塞探测应当拿得到锁 —— 拿不到说明有别人在持锁, 对照不成立"
+    )
+    assert free_marks["acquired"] - free_marks["entered"] < 0.5, (
+        f"对照组取锁本身就花了 {free_marks['acquired'] - free_marks['entered']:.3f}s —— 那正门那 1.5s 也未必是锁"
     )
     assert runner.load_state(vault)["board_done"] == {"子进程板": "2026-07-30"}
 
     # ── 正门: 父进程持锁 1.5s ──
     hold = 1.5
     fd = os.open(lock_path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o644)
-    fcntl.lockf(fd, fcntl.LOCK_EX)
+    fcntl.flock(fd, fcntl.LOCK_EX)
     try:
         proc = subprocess.Popen(
             _child(ready_held), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=_child_env(tmp_path)
@@ -1358,18 +1365,30 @@ def test_g67r_state_lock_blocks_other_process_until_released(tmp_path, monkeypat
         assert proc.poll() is None, "子进程在锁被持有期间就完成了 —— 锁没起作用"
         released = time.time()
     finally:
-        fcntl.lockf(fd, fcntl.LOCK_UN)
+        fcntl.flock(fd, fcntl.LOCK_UN)
         os.close(fd)
     out, err = proc.communicate(timeout=60)
     assert proc.returncode == 0, f"释放后子进程仍失败: {err}"
     finished = json.loads(out)["finished"]
+    marks = json.loads(out)
+    entered, acquired = marks["entered"], marks["acquired"]
+    # ⚠ Codex round-4 M1: 光看"完成时刻 ≥ 释放时刻"不够 —— 把生产取锁换成
+    # sleep(2) 也满足它。判据收成三条, 合起来只有"它一直阻塞在这把锁上"才成立:
+    #   ① 握手到进真锁之间没有停顿 (否则量的是那段停顿);
+    #   ② 拿到锁不早于父进程释放 (锁真的挡住了);
+    #   ③ 拿到锁**紧跟**释放 (0.5s 内) —— sleep(2) 型的假等待会在这里差 0.5s。
+    assert entered <= ready_at + 0.5, f"握手 {ready_at:.3f} 到进真锁 {entered:.3f} 之间有停顿"
+    assert acquired >= released - 0.05, f"子进程 {acquired:.3f} 早于释放 {released:.3f} 就拿到了锁"
+    assert acquired - released <= 0.5, (
+        f"释放后 {acquired - released:.3f}s 才拿到锁 —— 它等的可能不是这把锁 (sleep 型假等待)"
+    )
     assert finished >= released, f"子进程完成时刻 {finished:.3f} 早于释放时刻 {released:.3f} —— 锁形同虚设"
-    assert finished - released <= 5.0, f"释放后 {finished - released:.2f}s 才完成, 超出可接受范围"
     assert runner.load_state(vault)["board_done"] == {"子进程板": "2026-07-30"}
     print(
         f"[g67r-lock] ready_at={ready_at:.3f} released={released:.3f} child_finished={finished:.3f} "
-        f"blocked_after_ready={released - ready_at:.3f}s wait_after_release={finished - released:.3f}s "
-        f"free_elapsed={free_elapsed:.3f}s"
+        f"blocked_after_ready={released - ready_at:.3f}s acquired={acquired:.3f} "
+        f"lock_wait={acquired - entered:.3f}s acquire_after_release={acquired - released:.3f}s "
+        f"free_lock_wait={free_marks['acquired'] - free_marks['entered']:.3f}s free_elapsed={free_elapsed:.3f}s"
     )
 
 
@@ -1532,17 +1551,72 @@ def test_g67r_corrupt_quarantine_happens_under_the_lock(tmp_path, monkeypatch):
 #: 子进程: **守规矩地取锁**之后写一笔完成账。用来验外层锁是不是真的挡得住
 #: 一个合规写者 —— 不经锁的直写超出锁的承诺范围, 用它做判据等于在验别的东西。
 _LOCK_ABIDING_WRITER = """
-import json, sys
+import contextlib, json, sys
 sys.path.insert(0, sys.argv[1])
 from pathlib import Path
 import daily_review_run as runner
 vault = Path(sys.argv[2])
+# argv[4] = 握手标记, 写在**进真锁之前**的最后一刻。
+# ⚠ Codex round-4 M2: 父进程原先只 sleep(0.6) 就往下走 —— 子进程启动慢一点,
+# 隔离就先做完了, 于是"撤掉外层锁"的实现也能过门。改成父进程等这个标记。
+_real = runner.state_locked
+
+
+@contextlib.contextmanager
+def _traced(v=None):
+    Path(sys.argv[4]).write_text("entering", encoding="utf-8")
+    with _real(v):
+        yield
+
+
+runner.state_locked = _traced
 with runner.state_locked(vault):
     st = runner.load_state(vault)
     st.setdefault("board_done", {})["A板"] = sys.argv[3]
     runner.save_state(st, vault)
 print("written")
 """
+
+
+def test_g67r_lock_survives_an_extra_open_close_on_the_same_inode(tmp_path, monkeypatch):
+    """(c) Codex round-4 H1 根治面: 同 inode 的额外 open+close **不许**丢锁。
+
+    这是整整四轮里同一个根因的最后一形: POSIX 记录锁 (fcntl/lockf) 按
+    「进程 × inode」释放 —— 本进程对同一个 inode 的任何一次额外 open+close
+    都会把锁整个丢掉, 而登记表毫无察觉。前四轮各用一种别名利用它 (锁是软链
+    指向 state / 锁是 state 的硬链接 / 反向软链 state→lock / 跨库
+    A.state.json → B.state.lock)。**逐条堵路径形态堵不完** —— 只要有任何别名
+    让某次读盘碰到锁 inode, 锁就没了。
+
+    换成 flock (锁绑在打开文件描述上, 不绑 inode) 之后这一类在原语层面消失。
+    本门直接钉那条语义: 持锁期间对锁文件本身再 open 一次再 close, 子进程的
+    非阻塞探测**仍须被拒**。换回 lockf 就会红。
+    """
+    vault = _vault(tmp_path, {"甲": _node(board="A板")})
+    _patch_runner(monkeypatch, vault, tmp_path)
+    lock_path = runner.state_lock_path(vault)
+
+    with runner.state_locked(vault):
+        before = _probe_lock(lock_path, tmp_path)
+        assert before.returncode == 1, f"前提: 持锁期间探测本来就该被拒, 实为 {before.stdout!r}"
+        # 同 inode 的另一个 fd 开了又关 —— lockf 语义下这一步就把锁丢了
+        extra = os.open(lock_path, os.O_RDWR)
+        os.close(extra)
+        after = _probe_lock(lock_path, tmp_path)
+        assert after.returncode == 1, (
+            f"同 inode 的一次 open+close 之后锁没了 (探测拿到了锁: {after.stdout!r}) —— "
+            "这正是 lockf 的「进程 × inode」释放语义, 必须用 flock"
+        )
+        assert after.stdout.strip() in ("BLOCKED:EAGAIN", "BLOCKED:EACCES"), after.stdout
+        # 读一次 state 也是同样的形态 (生产里 load_state 就这么干)
+        state = runner.state_path(vault)
+        state.write_text("{}", encoding="utf-8")
+        state.read_text(encoding="utf-8")
+        again = _probe_lock(lock_path, tmp_path)
+        assert again.returncode == 1, f"读盘之后锁没了: {again.stdout!r}"
+
+    # 正控: 退出 with 之后必须拿得到 (证明本门不是恒红)
+    assert _probe_lock(lock_path, tmp_path).returncode == 0
 
 
 def test_g67r_state_and_lock_must_not_share_an_inode(tmp_path, monkeypatch):
@@ -1647,6 +1721,7 @@ def test_g67r_quarantine_lock_blocks_a_lock_abiding_writer(tmp_path, monkeypatch
     reads = []
     real_read_text = Path.read_text
     holder = {}
+    ready = tmp_path / "abiding-ready"
 
     def _spy(self, *a, **kw):
         out = real_read_text(self, *a, **kw)
@@ -1655,13 +1730,20 @@ def test_g67r_quarantine_lock_blocks_a_lock_abiding_writer(tmp_path, monkeypatch
             if len(reads) == 2 and "proc" not in holder:
                 # 第二次读 (隔离前重读) 刚回来 —— 隔离还没做。放一个合规写者进来。
                 holder["proc"] = subprocess.Popen(
-                    [sys.executable, "-c", _LOCK_ABIDING_WRITER, str(WT / "scripts"), str(vault), TODAY],
+                    [sys.executable, "-c", _LOCK_ABIDING_WRITER, str(WT / "scripts"), str(vault), TODAY, str(ready)],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     text=True,
                     env=_child_env(tmp_path),
                 )
-                time.sleep(0.6)  # 给它足够时间跑到取锁点 (锁在的话它会停在那里)
+                # ⚠ Codex round-4 M2: 等它**真的到了取锁点**再往下走, 不用固定
+                # sleep —— 子进程启动慢一点, 隔离就先做完了, 于是"撤掉外层锁"
+                # 的实现也能过门 (门量的成了调度速度)。
+                deadline = time.time() + 30
+                while not ready.exists() and time.time() < deadline:
+                    assert holder["proc"].poll() is None, "合规写者在到达取锁点前就退出了"
+                    time.sleep(0.02)
+                assert ready.exists(), "合规写者 30s 内没到达取锁点 —— 本门前提不成立"
         return out
 
     monkeypatch.setattr(Path, "read_text", _spy)

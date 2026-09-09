@@ -3484,11 +3484,14 @@ def _proj_of(vault: Path) -> dict:
 
 
 def _write_v2_state(runner, vault: Path, **keys) -> Path:
-    """预置一个**已是 v2 形态**的 state (含 board_done 键)。
+    """预置一个**已是 v2 形态**的 state (含 board_done 键), 与现网实测同形。
 
-    ⚠ 缺该键的 v1 文件下, load_state 的 setdefault 属于合并律里的"本进程
-    改过", mine 的空账会正当地压过磁盘 —— 那是升版语义不是缺陷。现网 state
-    实测已是 v2 且含 board_done, 所以门要预置成同一形态才验得到真行为。
+    ⛔ 初版这里写着「v1 文件下补出的空账会**正当地**压过磁盘 —— 那是升版语义
+    不是缺陷」。那句话是错的, 而且它描述的正是 Codex round-1 H1 抓到的丢账:
+    setdefault 补出来的空账把 Web 刚写成功的完成记录覆盖掉了。现在 base 记在
+    归一化之后, 补出来的默认值不算"我改过"; v1 那条路由 runner 侧的
+    test_g67r_upgrade_default_account_does_not_clobber_window_write 专门守着。
+    这里预置 v2 只是为了让本文件的门贴近现网形态, 不是因为 v1 可以覆盖。
     """
     state_file = runner.state_path(vault)
     state_file.parent.mkdir(parents=True, exist_ok=True)
