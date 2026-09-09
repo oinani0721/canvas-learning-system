@@ -1,0 +1,79 @@
+# lefthook python-lint 走 LEFTHOOK_EXCLUDE 的最终依据（全 23 文件一次测完）— CARD-RED-C2
+# 协议 §2.3：必须贴被跳过 hook 的原始输出 + 「报错不在本卡改动行」的证明
+# ⚠️ 本文件取代同目录两份早期 SUPERSEDED 存档（它们不带 --config、用了 ruff 默认 88 而非项目 120）
+
+## 〇 被跳过的是什么
+python-lint = ruff lint（必须绿，本卡不跳）+ ruff format --check（下面这段）。hook 无法只跳一段。
+
+## 一 ruff lint —— 本卡 23 个改动文件，必须绿
+$ ruff check --config backend/ruff.toml <23 files>
+All checks passed!
+rc=0
+
+## 二 判据：同一批 23 文件，基线原样副本 vs 当前工作树，同一个 ruff 同一份 config
+方法：git show da690bf8:<path> 取 23 个文件的基线原样（未经本卡任何编辑）→ 同 --config 跑 --check。
+
+### 2.1 基线 da690bf8 原样副本
+$ cd <baseline-copies> && ruff format --check --color never --config backend/ruff.toml backend/
+Would reformat: backend/tests/unit/grouping/test_analyze_canvas.py
+Would reformat: backend/tests/unit/test_agent_context_injection.py
+Would reformat: backend/tests/unit/test_agent_memory_trigger.py
+Would reformat: backend/tests/unit/test_agent_service_comparison.py
+Would reformat: backend/tests/unit/test_agent_service_neo4j_memory.py
+Would reformat: backend/tests/unit/test_cache_configuration.py
+Would reformat: backend/tests/unit/test_context_enrichment_2hop.py
+Would reformat: backend/tests/unit/test_degraded_flag_propagation.py
+Would reformat: backend/tests/unit/test_intelligent_parallel_endpoints.py
+Would reformat: backend/tests/unit/test_neo4j_health.py
+Would reformat: backend/tests/unit/test_rag_multimodal_integration.py
+Would reformat: backend/tests/unit/test_s02_entity_types.py
+Would reformat: backend/tests/unit/test_s02_search_upgrade.py
+Would reformat: backend/tests/unit/test_story_1_7_env_config.py
+Would reformat: backend/tests/unit/test_story_30_24_boundary.py
+Would reformat: backend/tests/unit/test_story_38_1_review_fixes.py
+Would reformat: backend/tests/unit/test_story_38_4_dual_write_default.py
+Would reformat: backend/tests/unit/test_story_38_8_fallback_sync.py
+Would reformat: backend/tests/unit/test_subject_isolation.py
+Would reformat: backend/tests/unit/test_supplementary_reranker.py
+Would reformat: backend/tests/unit/test_verification_service_injection.py
+21 files would be reformatted, 2 files already formatted
+
+### 2.2 当前工作树（本卡改后）
+$ ruff format --check --color never --config backend/ruff.toml <23 files>
+Would reformat: backend/tests/unit/grouping/test_analyze_canvas.py
+Would reformat: backend/tests/unit/test_agent_context_injection.py
+Would reformat: backend/tests/unit/test_agent_memory_trigger.py
+Would reformat: backend/tests/unit/test_agent_service_comparison.py
+Would reformat: backend/tests/unit/test_agent_service_neo4j_memory.py
+Would reformat: backend/tests/unit/test_cache_configuration.py
+Would reformat: backend/tests/unit/test_context_enrichment_2hop.py
+Would reformat: backend/tests/unit/test_degraded_flag_propagation.py
+Would reformat: backend/tests/unit/test_intelligent_parallel_endpoints.py
+Would reformat: backend/tests/unit/test_neo4j_health.py
+Would reformat: backend/tests/unit/test_rag_multimodal_integration.py
+Would reformat: backend/tests/unit/test_s02_entity_types.py
+Would reformat: backend/tests/unit/test_s02_search_upgrade.py
+Would reformat: backend/tests/unit/test_story_1_7_env_config.py
+Would reformat: backend/tests/unit/test_story_30_24_boundary.py
+Would reformat: backend/tests/unit/test_story_38_1_review_fixes.py
+Would reformat: backend/tests/unit/test_story_38_4_dual_write_default.py
+Would reformat: backend/tests/unit/test_story_38_8_fallback_sync.py
+Would reformat: backend/tests/unit/test_subject_isolation.py
+Would reformat: backend/tests/unit/test_supplementary_reranker.py
+Would reformat: backend/tests/unit/test_verification_service_injection.py
+21 files would be reformatted, 2 files already formatted
+
+## 三 结论
+基线 21 漂 / 2 净；本卡改后仍是 21 漂 / 2 净 —— **两侧计数与名单完全一致**。
+⇒ 本卡对 format 门的净新增漂移 = 0，被跳过的那 21 个是 da690bf8 既有存量（D-16 甲：禁顺手修存量）。
+
+两个基线就干净的文件里：
+  · test_wave5_stageb_continued_vault_id_injection.py —— 本卡改后仍干净，无须处理；
+  · test_config_neo4j.py —— 本卡加 _LOCAL_DEV_ENV 后有两处 with 行超 120 被拆行 ⇒ 新漂，
+    已就地 ruff format（diff 实测只动本卡自己加的那两行，无其它文件、无无关行），故 2.2 里它已回到「净」。
+
+## 四 名单同一性（不只比数量）
+计数相等挡不住「一个变干净、另一个变脏」的等量替换 ⇒ 逐名比对两侧漂移名单：
+  baseline drift set size = 21 · current = 21 · identical name sets = **True**
+  only-in-baseline = [] · only-in-current = []
+（判据脚本：把 2.1 / 2.2 两段的 'Would reformat:' 行取出、归一化路径前缀后做集合比较）

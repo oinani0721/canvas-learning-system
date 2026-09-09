@@ -176,3 +176,50 @@ degraded_flag_propagation / agent_memory_trigger）
 其余 11 个单条文件：wave5 参数化 / verification_service_injection / subject_isolation /
 story_38_8_fallback_sync / story_1_7_env_config / s02_search_upgrade / s02_entity_types /
 neo4j_health / intelligent_parallel_endpoints / degraded_flag_propagation / agent_memory_trigger
+
+---
+
+## 收官（2026-09-09）：66/66 处置完毕，全量裁判通过，待 Codex
+
+**本文件到此为止是过程记录；结论以 `c2-verdicts.md` 与验收单为准。**
+
+### 族D 尾部 8 条（最后一批）
+
+| 条数 | 文件 | 依据 | 处置 |
+|---|---|---|---|
+| 3 | `test_story_38_4_dual_write_default` | `59586af1`(2026-03-26 删 dual-write 桥与启动播报) + `836d0986`(删 `set_session_validator`) | **xfail(strict=True)** 交接 `CARD-STORY-38-4-DUALWRITE-RETIREMENT` |
+| 2 | `test_story_38_1_review_fixes` | `14f0412d`(加 `await client.initialize()`) + `a9304c69`(except 收窄) | 替身 `initialize` 换 AsyncMock + 补 `assert_awaited_once`（强度上升） |
+| 1 | `test_wave5_stageb_continued_vault_id_injection` | `d14b50ab`(2026-09-05 G4-4a agents.py 迁 VaultScope) | module→符号映射 + 对象同一性断言（强度上升）；**不动 parametrize id** |
+| 1 | `test_story_1_7_env_config` | `8a80595f`(2026-07-12 neo4j 挂载迁主仓，commit body 自述「worktree 清理 = 记忆蒸发」) | 三条 bind-mount 显式豁免名单（**子集**非相等） |
+| 1 | `test_agent_memory_trigger` | `1a4f42ae`(2026-02-09 补第 15 个 `hint-generation`) | 由「数个数」升级为「锁键集身份」（强度上升） |
+
+### ⚠️ 本批最重要的一次中途改判：dual-write 三条
+
+先按「`836d0986` 删了 `set_session_validator` ⇒ 那行 `patch()` 是死代码 ⇒ 删掉」改。
+删完实测：**那行 patch 正是断路器**——它在 `with` 入口 `AttributeError`，让这三条单测
+在真 lifespan 跑起来之前停住。删掉后三条单测跑起整个生产启动流程（加载 BGE-M3、扫 live vault、
+连 7691；0.8s → 30.6s，每条 1 次现网端口连接尝试）。已还原并注明理由，处置改判为 xfail 交接
+（再查发现 `59586af1` 早把断言的对象整段删了）。
+
+> **教训（已进依据表与验收单）**：删一行 patch 之前，先问它拦住了什么。
+> 「引用了不存在的符号」是它**能当断路器**的原因，不是它无用的证据。
+
+### 全量裁判结果
+
+- 目录级 `unit-after-20260909T132109`：`>` 行 **零**；本卡贡献 `comm -12` = **66**；仍红 **0**；
+  汇总 `99 failed, 4811 passed, 48 skipped, 17 xfailed, 29 errors in 294.36s`；末行 `rc=1`。
+- 23 文件级 `files-23-20260909T132712`：failed 集合逐条 == 预声明 R 族外来红 4 条（`diff` 空）；
+  `XPASS` = 0；现网端口连接尝试 = 0；`rc=1`。
+- `gates-20260909T132820`：强度门无输出、`autouse` 0、`backend/app` 与 `_archive` diff 均空、
+  改动 23 文件全 ⊆ 清单、既有 skip 零改动。**两处门自身假阳已逐条查清**（见文件尾部）。
+- `sha-proof-sweep-20260909T132543`：21 个 sha / 27 行 sha×文件×符号，不合格行数 **0**。
+- `ruff-format-drift-final-23files-20260909T133924`：基线 21 漂 / 2 净，改后仍 21 / 2，
+  **逐名比对两侧名单完全相同** ⇒ 净新增漂移 0。
+
+### 本批又拦下 / 自曝的三次
+
+1. `test_story_38_4` 后置断言比主张宽（把自己写的注释也算成残留）—— **判据取名面必须恰好等于其主张**，本日第 4 次同形态。
+2. ruff 漂移基线首两轮**不带 `--config`**，用了 ruff 默认 `line-length=88` 而非项目 `120`，结论相反。
+   两份存档已标 `SUPERSEDED` 保留。⇒ **同一个工具、不同配置面 ≠ 同口径**。
+3. sha 证明扫描首轮 4 行 file/symbol 写错 —— 因为脚本写了「回退到全 commit 搜索并打印真正命中的文件」，
+   当场自曝而非静默算过。⇒ **验证工具需要自己的验伪锚**。
