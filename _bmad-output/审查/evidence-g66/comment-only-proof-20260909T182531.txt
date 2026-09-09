@@ -1,0 +1,10 @@
+# round-3 处置轮（1ccc9711 → dc6cfb17）是否真的只改注释
+# 判据不用「diff 行以 # 或 // 开头」—— 那太粗（docstring 行与含尾注释的代码行都不匹配，
+# 我第一次就用它得出了误导性的『非注释行 15』）。改用 Python tokenize 的**代码 token 流**
+# 与 JS 的去注释正文逐字节比对。
+
+本轮改动文件（排除 _bmad-output）: 2
+  ✗ backend/tests/unit/test_review_app.py  (Python 代码 token 流**不同**)
+  ✓ backend/tests/unit/test_review_overview.py  (Python 代码 token 流相同)
+
+结论: 本轮**有代码改动**
