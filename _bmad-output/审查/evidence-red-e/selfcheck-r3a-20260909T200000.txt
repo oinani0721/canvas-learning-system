@@ -1,0 +1,35 @@
+### 自查 r3-(a)：新用例实例化 AgentService 的副作用面
+
+-- 1. 单跑 3 次是否稳定 --
+run 1: ======================= 49 passed, 10 warnings in 6.79s ========================
+run 2: ======================= 49 passed, 10 warnings in 1.47s ========================
+run 3: ======================= 49 passed, 10 warnings in 1.16s ========================
+
+-- 2. 随机顺序下是否仍绿（-p no:randomly 未装时此项为普通重跑）--
+======================= 49 passed, 10 warnings in 2.89s ========================
+
+-- 3. 该用例是否连了 Neo4j/网络（门哨兵读数）--
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================== 1 passed, 10 warnings in 4.14s ========================
+
+-- 4. 是否往磁盘写了东西（跑前后 git status 对比）--
+git status 非空即有副作用:
+?? "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-RED-E-r3.md"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-red-e/selfcheck-r3a-20260909T200000.txt"
+?? "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-RED-E-r3.md"
+(空 = 无写入)
+
+-- 5. AgentService() 是否创建了需要清理的资源 --
+2026-09-09 11:41:26 [info     ] AgentService Phase 4: React Agent ENABLED (ENABLE_REACT_AGENT=true)
+2026-09-09 11:41:26 [debug    ] AgentService max_concurrent=10
+gemini client: None
+has aiohttp/httpx session attr: ['_gemini_client', '_memory_client', '_neo4j_client']
+prompt_templates total: 13
+no unclosed-resource warning above == clean
+
+--- 事后澄清（追加，不改上方原始输出）---
+第 4 项打印出的三个 ?? 文件（codex-review-CARD-RED-E-r3.md / selfcheck-r3a-*.txt /
+prompts/codex-prompt-CARD-RED-E-r3.md）是本 session 在这一轮自己创建的产物，
+不是测试写入的。判据「测试无磁盘副作用」的正确读法是：tracked 文件 0 改动
+（git status 无 M/A/D 行），且未出现任何测试产生的新文件。
+上方那句「(空 = 无写入)」措辞不准，以本段为准。

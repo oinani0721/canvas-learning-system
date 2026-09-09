@@ -101,11 +101,13 @@ def _health_expected_templates() -> list[str]:
     rather than a path guess, and parses it with ``ast`` instead of a regex.
 
     ⚠️ This is a *source* read and cannot see edits that change the list's
-    contents without rebinding the name — ``expected_templates.remove(x)`` and
-    ``expected_templates[:] = ...`` both do exactly that. Reading this list is
-    therefore only half the gate; the other half is
-    ``test_health_probe_output_matches_the_table_this_gate_reads``, which
-    compares this list against what the probe actually produced at runtime.
+    contents without rebinding the name — ``expected_templates.remove(x)``,
+    ``expected_templates[:] = ...`` and ``expected_templates[-1] = "other"`` all
+    do exactly that, and the last one does not even change the length. Reading
+    this list is therefore only half the gate; the other half is
+    ``test_health_probe_watches_exactly_the_names_this_gate_reads``, which
+    recovers the probe's actual member list at runtime and compares it item by
+    item against what this function returned.
     """
     fn = _health_check_body()
 
@@ -201,40 +203,72 @@ class TestAgentTemplateFiles:
             f"Expected >= 18 agent templates, found {len(actual_files)}: {[f.name for f in actual_files]}"
         )
 
-    async def test_health_probe_output_matches_the_table_this_gate_reads(self):
-        """Bind the source read to what the probe actually produced at runtime.
+    async def test_health_probe_reports_no_missing_template(self):
+        """The probe, run for real, must find every template it watches.
 
-        `_health_expected_templates` reads a list literal out of the source, and
-        a source read is blind to edits that change the list's *contents* without
-        rebinding the name — `expected_templates.remove("hint-generation")` and
-        `expected_templates[:] = expected_templates[:-1]` both do that, leaving a
-        purely static gate green over a table it no longer describes.
+        This is the production-facing half: /agents/health goes `degraded` the
+        moment any watched .md is absent, which is exactly the state this card
+        found (hint-generation.md never existed, so the probe could never be clean).
 
-        Running the real probe closes that: any such edit changes the length the
-        probe reports, so `total` stops matching the static list. `missing == []`
-        additionally catches a name the table watches but the directory lacks —
-        which is the whole failure this card exists to fix.
-
-        No network: `include_api_test=False` never reaches the AI provider, and a
-        bare AgentService() has no client configured.
+        No network: `include_api_test=False` skips the AI ping branch, and a bare
+        AgentService() has no client configured.
         """
         from app.services.agent_service import AgentService
 
-        names = _health_expected_templates()
         report = await AgentService().health_check(include_api_test=False)
         check = report["checks"]["prompt_templates"]
 
-        assert check["total"] == len(names), (
-            f"the probe iterates {check['total']} templates but the list this gate "
-            f"reads from source has {len(names)} ({sorted(names)}) — the table is "
-            f"being modified after it is defined, so the source read is stale"
-        )
         assert check["missing"] == [], (
             f"the probe reports missing templates: {check['missing']}; "
-            f"/agents/health is degraded until those .md files are restored"
+            f"/agents/health stays degraded until those .md files are restored"
         )
-        assert check["available"] == len(names), (
-            f"probe available={check['available']} but the table has {len(names)} entries"
+        assert check["available"] == check["total"], f"probe available={check['available']} of total={check['total']}"
+
+    async def test_health_probe_watches_exactly_the_names_this_gate_reads(self, tmp_path, monkeypatch):
+        """Bind the source read to the probe's actual member list, not just its size.
+
+        `_health_expected_templates` reads a list literal out of the source and is
+        blind to edits that change the list's *contents* in place. Comparing only
+        counts is not enough either: `expected_templates[-1] = "graphiti-memory-agent"`
+        keeps total/available/missing identical while hint-generation silently
+        leaves the watch list.
+
+        Pointing AGENT_PROMPT_PATH at an empty directory makes every watched entry
+        missing, so `missing` comes back as the probe's **full list, in order** —
+        which turns this into an identity check instead of an arithmetic one. The
+        duplicate check catches a swap onto a name already in the list, which would
+        otherwise shrink the real watch set without changing its length.
+
+        `monkeypatch` restores the setting even if the probe or an assertion raises.
+        The override is asserted to have taken effect before the probe runs: a
+        silently ineffective patch would otherwise leave this test measuring the
+        real templates dir, where `missing` is `[]` and the comparison below would
+        be vacuous in exactly the way this card exists to prevent.
+        """
+        from app.config import settings
+        from app.services.agent_service import AgentService
+
+        names = _health_expected_templates()
+        monkeypatch.setattr(settings, "AGENT_PROMPT_PATH", str(tmp_path))
+        assert settings.AGENT_PROMPT_PATH == str(tmp_path), "AGENT_PROMPT_PATH override did not take effect"
+
+        report = await AgentService().health_check(include_api_test=False)
+        check = report["checks"]["prompt_templates"]
+        probe_names = check["missing"]
+
+        assert probe_names == names, (
+            f"the probe watches {probe_names} but the list this gate reads from "
+            f"source is {names}; only in probe: {sorted(set(probe_names) - set(names))}; "
+            f"only in source: {sorted(set(names) - set(probe_names))} — the table is "
+            f"modified after it is defined, so the source read is stale"
+        )
+        assert len(set(probe_names)) == len(probe_names), (
+            f"the probe's watch list has duplicates: {probe_names} — a duplicated "
+            f"entry means some template silently dropped out of the watch set"
+        )
+        assert check["available"] == 0, (
+            f"an empty dir should yield 0 available, got {check['available']} — "
+            f"the probe did not read {tmp_path}, so `missing` is not its full list"
         )
 
     def test_health_expected_templates_equals_loadable_agent_types(self):

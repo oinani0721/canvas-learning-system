@@ -1,0 +1,12 @@
+### D 系列复跑（确认 r3 整改未让先前的门退化）
+--- expected_templates.remove("hint-generation") ---
+FAILED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_health_probe_watches_exactly_the_names_this_gate_reads
+================== 1 failed, 49 passed, 10 warnings in 2.57s ===================
+--- expected_templates[:] = expected_templates[:-1] ---
+FAILED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_health_probe_watches_exactly_the_names_this_gate_reads
+================== 1 failed, 49 passed, 10 warnings in 2.95s ===================
+
+--- L-1 反向：无关同名局部（须仍全绿）---
+======================= 50 passed, 10 warnings in 3.41s ========================
+
+最终 sha: 329a42cbe879e752396c9fbfc6e939033f6734027a1a09f7a80bf8522afb35af  diff_rc=0

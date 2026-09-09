@@ -259,10 +259,21 @@ base=421 work=421 NEW=0 GONE=0
 5. **未证明防删门能拦住「在 Obsidian / Finder 里手删」**。pytest 门只在跑测试时说话。`.claude/hooks/pretool-guard.js` 存在但 `.claude/settings.json` 的 `hooks` 是 `{}`、未注册任何 PreToolUse ⇒ D-22 的 hook 分支不成立，本卡按裁定走纯 pytest 门，未动 hook。
 6. **未证明 `agent_metrics.py:67-84` 的 `VALID_AGENT_TYPES`（14 项，不含 `hint-generation`）对指标面的影响**。该文件不在本卡地盘，只读未改。
 7. **未证明 `f425d7b7` 那次删除的动机**（commit message 只有 `ralph-loop: iteration 0`）。只作事实登记。
-8. **两表门的静态那一半仍有已知盲区（Codex r2 M-1 之后收窄的说法）**。`ast` 读的是 `AgentService.health_check` 里名为 `expected_templates` 的列表字面量。**「绑定唯一」不等于「读到的就是 probe 实际迭代的」** —— 原地改内容（`remove` / 切片赋值 / `match-case`）不改变绑定。这一面现由运行期用例 `test_health_probe_output_matches_the_table_this_gate_reads` 兜住（对照输入 D 实证），但兜的判据是**长度与 missing 集合**：一个**不改长度、且替换后的名字对应文件也恰好存在**的替换，两条断言都不会红（其中「替换成表内已有的名字」会因 set 去重被第三条断言抓到，「替换成 `AgentType` 之外但文件存在的名字」则会被 `test_health_expected_templates_equals_loadable_agent_types` 抓到 —— 但这两条走的仍是**静态**读，所以只在替换写成字面量时有效）。彻底绑定需要 probe 直接回报名单，而 `prompt_template_check` 只回 `total` / `available` / `missing`，**本卡未改生产以扩大它的回报面**（越界）。
-   ⚠️ **本条曾被写宽过，此处更正**：r1 的注释与验收单曾称 `ast.Store` "covers every binding form" 并据此宣称门锁住了 health 迭代的内容。前半句（六种绑定形式）成立，**后半句的推论不成立** —— Codex r2 M-1 用三种原地修改证伪。已改代码 + 改注释 + 改此处声明。
+8. **两表门的能力边界（经 Codex 三轮收窄后的说法，含两次自我更正）**。当前形态是「静态读名单 + 运行期读名单 + 逐项比对 + 查重」：
+   - **静态半边**：`ast` 读 `AgentService.health_check` 内的 `expected_templates` 列表字面量。「绑定唯一」**不等于**「读到的就是 probe 实际迭代的」——原地改内容不改绑定。
+   - **运行期半边**：把 `AGENT_PROMPT_PATH` 指向空目录，`missing` 原样返回 probe 的完整名单（有序），逐项比对 + 查重。**这一半才是身份绑定**。
+   - **仍未证明**：① 未验证「表被移出 `health_check`、改由该方法调用的 helper 提供」——那时静态半边报 `bound 0` 会红（Codex r3 实测），但这是**噪声红而非精确诊断**，本卡未为该重构提供可用路径；② 未验证 probe 在**非空但内容不同**的目录下的行为（只测了「本树真实目录」与「空目录」两端）；③ `prompt_template_check` 只回 `total`/`available`/`missing`，身份靠「制造全缺失」间接取得，**本卡未改生产以让它直接回报名单**（越界）；④ 未证明该手法在 `AGENT_PROMPT_PATH` 被别的机制（如 endpoint 层缓存）固化时仍有效。
+
+   ⚠️ **本条被写宽过两次，此处是第三版**：
+   - r1 曾称 `ast.Store` "covers every binding form" 并据此宣称门锁住了 health 迭代的内容 —— 前半句成立，**后半句的推论**被 Codex r2 用 `remove` / `[:]=` / `match-case` 证伪。
+   - r2 改后又写下 "any such edit changes the length" —— 被 Codex r3 用**等长替换** `[-1] = "other"` 证伪。
+   两次都是「一个真实观测 + 多走一步的普遍化」。第三版起，本条只陈述**已被对照输入实证**的覆盖面，未实证的一律列进上面的「仍未证明」。
 9. **未证明 `test_minimum_template_count` 对「删一份 + 加一份无关 .md」免疫**。它数的是 `_AGENTS_DIR.glob("*.md")` 的总数，不是期望名单的交集；这个盲区由新增的 `test_no_expected_template_is_missing`（按名单逐份 exists）覆盖，两条合起来才完整——单看阈值那条仍有此余量。
 10. **未证明开工基线那两条漂移与 U10-A 的因果**。见 §六⑩，只观测到现象，未做归因实验。
+11. **未证明这 7 份文件不会经只动 index 的路径掉出版本控制**（Codex r1/r2/r3 三轮均点名）。`git rm --cached` 保留磁盘文件却移除 index 条目，**本地 smoke 仍全绿**，只有干净 checkout 才暴露；退出跟踪后 ignore 规则又会阻止普通 `git add` 收录。pytest 门只看工作树，不检查 Git 跟踪状态。
+12. **未证明 `exists()` 分桶能识别「文件在但内容为空或不可解析」**。health 探针只判存在。smoke 侧 `not_empty` 覆盖空文件，但**不覆盖**「非空却不可被 `_parse_prompt_template` 解析」（那 3 份无 frontmatter 的恢复模板正是此类，见 ③）。
+13. **未证明在单元测试里实例化 `AgentService()` 没有副作用、也未证明它在无配置的 CI 环境下稳定**。本卡自查到的是：单跑 3 次全绿、`NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0`、tracked 文件 0 改动、`gemini_client=None` 无未关闭资源告警。**Codex r3 明确保留此项为「未完整核验」**（其读取面不含构造器与完整 health 方法），本卡随之不宣称该结论。
+14. **未证明新用例对 `settings.AGENT_PROMPT_PATH` 的临时改写在并行测试下安全**。它直接 `setattr` 全局 `settings` 对象并在 `finally` 还原，未用 `monkeypatch`；在 `pytest-xdist` 并行或同进程内有其他测试同时读该设置时，存在理论上的竞争窗口。本卡跑的是串行单文件与串行 `tests/unit`，**未在并行下验证**。
 
 ---
 
@@ -302,7 +313,9 @@ base=421 work=421 NEW=0 GONE=0
 11. **现存模板的 `input_format` / `output_format` 在生产解析器下全部为 `None`**（本卡实测的既有事实，非本卡引入）：`_parse_prompt_template` 的正则要求 `## Output Format\n` **紧接** ` ```json `，而现存 11 份全都按 Markdown 惯例在中间插了一行说明文字（如「你必须返回以下JSON格式的输出：」）⇒ 正则不匹配、字段恒 `None`。功能上未坏（`system_prompt` 保留全文，模型仍看得到 JSON 示例），但 `AgentPromptTemplate.output_format` 这个结构化字段在全仓恒空。本卡新模板已避开（标题行后紧接代码块），**未改任何现存模板**。是否统一排版 = 移交项。
 12. **`git check-ignore` 不能当入库判据（比卡文写的更强的理由）**：卡文预期 `add -f` 后 check-ignore「仍打印 `.gitignore:44`」，**实测是不打印且 rc=1** —— `check-ignore` 对**已跟踪**文件不做 ignore 判定。也就是说它的返回值在 `add -f` 前后会**翻转**，拿它当判据会给出方向相反的结论。判据取 `git ls-files` 是对的。
 13. **r1 存档一度被主 session 自己清空并重建**（详见 §七 round-1 的事故框）：BSD sed 语法错误 → 原始 stdout 正文丢失 → 自 codex session rollout 提取还原，字节账（7151 − 内部标记 = 6886，对 6887 差 1 个换行）与 11 处特征串双重核对通过。该存档**非原始落盘产物**，请复核时裁定是否计入轮次配额。
-14. **协议 §2.1「抄 .stderr 前三行含 model 行」是位置判据，在 codex 0.153.3 上会失效**：models 刷新超时时两条 ERROR 会顶掉会话头位置，`model:` 落到 :7 ⇒ 照字面抄前三行抄不到任何自证字段。建议改为「抄含 `model:` 的那段会话头并标注实际行号」。**移交排批修订协议**。
+14. **协议 §2.1「抄 .stderr 前三行含 model 行」是位置判据，在 codex 0.153.3 上会失效**：models 刷新超时时两条 ERROR 会顶掉会话头位置，`model:` 落到 :7（r1）/ :5（r2）/ :7（r3），**每轮位置还不一样** ⇒ 照字面抄前三行抄不到任何自证字段。建议改为「抄含 `model:` 的那段会话头并标注实际行号」。**移交排批修订协议**。
+15. **变异还原源的口径需要写进协议**（本卡两次事故的共同根因，建议补进 §2.2）：`git show HEAD:<path> > <path>` 只有在该文件**已提交且工作树无本地改动**时才等于「还原到变异前」。对有未提交改动的文件，它会静默回退掉那些改动。本卡在 smoke 文件上踩中此坑，丢失了尚未提交的整轮整改（详见 §七 round-3 事故框）。建议协议明确：**变异前先 `cp` 出工作树副本作为唯一还原源**，并在还原后断言 sha 等于该副本（而不是等于 HEAD）。
+16. **本卡两次存档/工作树事故的登记**（均由主 session 自曝，非审查者发现）：① r1 存档被 BSD sed 清空后自 codex rollout 还原（§七 round-1 事故框）；② r3 工作树改动被错误还原源清掉后重写（§七 round-3 事故框）。两次都由「写完立刻自检」抓到 —— ① 是 `grep -c 'BLOCKER：该档 0 条'` 返回 0，② 是还原脚本里的 WARNING 自检行。**建议把「破坏性操作后立即断言目标内容仍在」写成排批的通用要求**。
 15. **smoke 文件的两处注释更正（本卡自主判断，超出卡文明列范围，请复核时裁定）**：
     - `:22` 原注释 `# Expected agent template files after recovery (git checkout eb86275)` —— 该树只有 17 份且无 `hint-generation.md`，拿不出第 18 项，是**误导后人用错误手段恢复**的不实陈述。本卡改为记录真实来源（11 未删 + 6 从 `f425d7b7^` 恢复 + 1 新作）。
     - `:84` docstring「At least 17」按卡文要求更新为实测口径。
@@ -386,3 +399,44 @@ Codex r2 同轮独立确认（无需整改）：
 三次注入还原后 `agent_service.py` sha 均为 `329a42cb…`，与 HEAD 逐字节相同，`git diff --quiet` rc=0。
 
 > **判据类型的升级（本轮最实质的改动）**：r1 的门是「读源码猜 health 用什么表」，r2 的门是「跑 health、读它自己报出来的 total/missing」。前者对「不改绑定只改内容」的编辑天然失明——这不是实现 bug，是**判据类型**选错了。Codex 两轮把它从静态推断推到了运行期观测。
+>
+> ⚠️ 但 r2 的运行期判据仍只绑定**数量**，r3 用等长替换直接证伪，见下。
+
+### round-3 — 绑 `49994317`
+
+存档：`_bmad-output/审查/codex-review-CARD-RED-E-r3.md`（**正文为原始落盘 stdout，未经处理**）
+结论：**BLOCKER 0 条 / HIGH 0 条 / LOW 0 条**；MEDIUM 1 条。Codex 自述绑定 `49994317d89fbdf4b1ef2ae981305dac89e0d3cb`，与当时 HEAD 一致。
+
+| 条目 | 处置 |
+|---|---|
+| **M-1（门缺口，第三次同类）** r2 的运行期用例只断言 `total == len(names)` / `missing == []` / `available == len(names)` —— **三条全是数量**。在表定义之后注入 `expected_templates[-1] = "graphiti-memory-agent"`：静态名单仍 13 项含 `hint-generation`，运行期名单也是 13 项但**已不含它**，`total=13 / available=13 / missing=[]` ⇒ 三条断言全 PASS。换成 `"scoring-agent"` 则实际只剩 12 个不同成员，同样全绿。作者注释里那句 "any such edit changes the length" **范围过宽** | ✅ **已改，判据从数量升级为身份**。新增 `test_health_probe_watches_exactly_the_names_this_gate_reads`：把 `settings.AGENT_PROMPT_PATH` 临时指向 pytest `tmp_path`（空目录）→ 每一项都落进 `missing` ⇒ **probe 把自己的完整名单按顺序原样吐出来**；再与静态名单**逐项比较** + **查重**。这正是 Codex 建议的修法。`finally` 还原设置，并额外断言还原成功。原 r2 用例保留并改名为 `test_health_probe_reports_no_missing_template`（守生产面：probe 不得报缺失） |
+| **表述更正（Codex 再次指出）** r2/r3 的 prompt §二 第 5 条仍写着「两个对照输入各自只让指定用例变红」，B 实际 4 failed | ⚠️ **我的疏漏**：LOW-2 我只更正了验收单，**没有同步更正 prompt 里的作者自述**，导致 Codex 每轮都重新看到那句不实表述并重新纠正。已在 r4 prompt 中改正。这条记在这里，是因为「只改一处、忘了同源的另一处」正是本卡 §六⑨ 批评 api 侧 mock 的同一种毛病，我自己也犯了 |
+
+Codex r3 同轮独立确认（无需整改）：作用域收窄后改名 / 外移 / 改成 helper 调用 / 方法内二次绑定四种路径均明确失败（分别 `bound 0` / `bound 0` / `not to a list literal` / `bound 2`），没有静默失效；恢复六份满足「工作树 = HEAD blob = `f425d7b7^` blob」三方一致，tracked 模板精确 18；health 新增一项的语义方向正确。
+
+### round-3 整改后的对照输入（本卡补做）
+
+| 对照输入 | 注入 | 结果 | 存档 |
+|---|---|---|---|
+| **E-1** | `expected_templates[-1] = "graphiti-memory-agent"` | `1 failed, 49 passed`，红的正是 `test_health_probe_watches_exactly_the_names_this_gate_reads` | `negctl-e-20260909T210000.txt` |
+| **E-2** | `expected_templates[-1] = "scoring-agent"`（制造重复项） | 同上，恰 1 红且为指定用例 | 同上 |
+| **D 复跑** | `remove(...)` / `[:] = ...` 两种减项 | 各 `1 failed`，红的都是身份绑定用例（未因 r3 改动退化） | `negctl-d-rerun-20260909T210000.txt` |
+| **L-1 反向复跑** | 追加无关同名局部 | **50 passed**（噪声红仍未复发） | 同上 |
+
+四次注入还原后 `agent_service.py` sha 均为 `329a42cb…`，与 HEAD 逐字节相同。
+
+> ⛔ **第二次自曝事故：对照输入 F 的还原源用错，清掉了尚未提交的 r3 改动**
+>
+> **经过**：对照输入 F 变异的是 **smoke 文件本身**（把 `monkeypatch` 的目标改成真实目录，验证「覆盖失效」时该用例是否仍红）。变异确实红了、红在正确的前置断言上。但**还原源写成了 `git show HEAD:<path>`** —— 而 r3 的改动当时**还在工作树、尚未提交**，HEAD 是 r2 版本 ⇒ 这一还原把新增的身份绑定用例、拆分后的两个用例、以及 docstring 更新全部清掉，文件回退到 49 用例。
+>
+> **发现方式**：还原脚本里那句自检 `print('WARNING: restored to HEAD, which lacks the r3 fix' if 'watches_exactly' not in ...)` 立即打出了 WARNING。
+>
+> **为什么前面 D/E 系列没事**：那几组变异的是 `agent_service.py`，它**已提交**，HEAD 恰好就是变异前状态，`git show HEAD:` 语义正确。**同一条还原命令在两个文件上正确性不同，取决于该文件有没有未提交改动** —— 这正是 memory 里「还原基准是变异前的 sha 不是 HEAD」那条，我读过却仍然踩中。
+>
+> **补救**：r3 三处改动全部重写。重建版 sha `d2cb6492…` 与丢失前 `f4020149…` **不同**（丢失前是「try/finally 版 → 改 monkeypatch → format」两次编辑的产物，重建是一次写成），故**不以 sha 为等价判据，改以行为为判据**：复跑 D/E/F **五组注入**，全部 `1 failed, 49 passed` 且红的都是 `test_health_probe_watches_exactly_the_names_this_gate_reads`；还原后 50 passed、两文件 sha 均回到变异前。存档 `negctl-rebuild-verify-20260909T230000.txt`。
+>
+> **流程改正**：此后凡变异**有未提交改动的文件**，还原源一律取变异前的工作树副本（scratchpad），并在脚本开头显式 `cp` 出来；`git show HEAD:` 只用于已提交且无本地改动的文件。
+>
+> **连带作废**：同一时间窗内在后台跑的 `unit-r4-20260909T220000.txt`（`164 failed, 4763 passed`）测的是损坏中间态，**已改名 `VOID-` 并在文件内追加作废声明，不作为任何判据**。重跑见 `unit-r5-*.txt`。
+
+**r3 关注点 (a) 的自查**（存档 `selfcheck-r3a-20260909T200000.txt`）：单跑 3 次全绿；`NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0`（新用例不碰 Neo4j）；tracked 文件 0 改动；`gemini_client=None` 且无未关闭资源告警。⚠️ Codex 明确保留 (a) 为「未完整核验」——它的读取面不含构造器与完整 health 方法，故**不授予**「无副作用 / CI 无配置稳定」结论；本卡也不宣称，见 §五⑬。
