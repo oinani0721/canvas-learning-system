@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-07-第十三批 · 车道 U7（`card-u7-w4guard`） · 卡 CARD-W4-7 round-3
+> 模型: `gpt-6-astra` · reasoning_effort: `ultra` · codex: `codex-cli 0.153.3`
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat _bmad-output/审查/codex-prompt-CARD-W4-7-r3.md)"`
+> 审查绑定: `ad4c853b`（跑时 HEAD `ad4c853b` —— 同审 SHA）
+> 会话头自证（抄 `codex-review-CARD-W4-7-r3.stderr` 会话头含 model 行的三行，stderr 本身不入库；该文件**字面前三行**为 `Reading additional input from stdin...` / 版本行 / `--------`，不含 model 行，故按规则「含 model 行」抄取三要素并标注实际行号）:
+> `:2 OpenAI Codex v0.153.3` / `:5 model: gpt-6-astra` / `:9 reasoning effort: ultra`
+
+---
+
 **BLOCKER 0 / HIGH 0。残留 MEDIUM 2、LOW 2；三项整改未全部闭合。**
 
 审 SHA：`ad4c853baac769b50ae68c3ca8527ec448d6cfd5`。仅核对指定增量与本地归档；未运行测试、探针或负控，未连接端口。以下反例均为静态推导。

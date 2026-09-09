@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-07-第十三批 · 车道 U7（`card-u7-w4guard`） · 卡 CARD-W4-7 round-2
+> 模型: `gpt-6-astra` · reasoning_effort: `ultra` · codex: `codex-cli 0.153.3`
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat _bmad-output/审查/codex-prompt-CARD-W4-7-r2.md)"`
+> 审查绑定: `001a8271`（跑时 HEAD `001a8271` —— 同审 SHA）
+> 会话头自证（抄 `codex-review-CARD-W4-7-r2.stderr` 会话头含 model 行的三行，stderr 本身不入库；该文件**字面前三行**为 `Reading additional input from stdin...` / 版本行 / `--------`，不含 model 行，故按规则「含 model 行」抄取三要素并标注实际行号）:
+> `:2 OpenAI Codex v0.153.3` / `:5 model: gpt-6-astra` / `:9 reasoning effort: ultra`
+
+---
+
 BLOCKER 0 / HIGH 0。
 
 审查绑定 `001a8271fae56853f8f808ba05d0d67143695743`。两条原 HIGH 在真实 tuple／str 子类输入域内闭合；仍有 **MEDIUM 2 / LOW 1**。全程只读，未运行测试、探针或负控，未连接端口。以下按未闭合问题优先排序；“原级别”不计入本轮未闭合数量。

@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-07-第十三批 · 车道 U7（`card-u7-w4guard`） · 卡 CARD-W4-7 round-5
+> 模型: `gpt-6-astra` · reasoning_effort: `ultra` · codex: `codex-cli 0.153.3`
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat _bmad-output/审查/codex-prompt-CARD-W4-7-r5.md)"`
+> 审查绑定: `b9ba828b`（跑时 HEAD `e9a68b78` —— **不同**：跑时 HEAD 为 `e9a68b78`（只动 `_bmad-output` 的存档 commit），代码树与审 SHA 等价（实测 `git diff --stat b9ba828b e9a68b78 -- . ':(exclude)_bmad-output'` rc=0 且空））
+> 会话头自证（抄 `codex-review-CARD-W4-7-r5.stderr` 会话头含 model 行的三行；该文件**字面前三行**不含 model 行，故按 §2.1「含 model 行」抄三要素并标实际行号）:
+> `:2 OpenAI Codex v0.153.3` / `:5 model: gpt-6-astra` / `:9 reasoning effort: ultra`
+
+---
+
 **BLOCKER 0 / HIGH 0；0/0 审查门达标，但现有证据不足以按完整验收口径直接收口。**
 
 本轮全程只读，未运行测试、探针、负控或连接端口。新增反例均为静态推导，运行结果**未验证**。

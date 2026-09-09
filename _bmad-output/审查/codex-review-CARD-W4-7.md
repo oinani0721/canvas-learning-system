@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-07-第十三批 · 车道 U7（`card-u7-w4guard`） · 卡 CARD-W4-7 round-1
+> 模型: `gpt-6-astra` · reasoning_effort: `ultra` · codex: `codex-cli 0.153.3`
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat _bmad-output/审查/codex-prompt-CARD-W4-7.md)"`
+> 审查绑定: `d172e7e4`（跑时 HEAD `d172e7e4` —— 同审 SHA）
+> 会话头自证（抄 `codex-review-CARD-W4-7.stderr` 会话头含 model 行的三行，stderr 本身不入库；该文件**字面前三行**为 `Reading additional input from stdin...` / 版本行 / `--------`，不含 model 行，故按规则「含 model 行」抄取三要素并标注实际行号）:
+> `:2 OpenAI Codex v0.153.3` / `:5 model: gpt-6-astra` / `:9 reasoning effort: ultra`
+
+---
+
 **BLOCKER 0 / HIGH 2。**
 
 审查对象：`de6ea625 → d172e7e4652dbc4e1f06f4eeedb36e5937df714b`。三份被审源码与 HEAD 一致。全程未修改文件，未运行测试、探针或负控，未连接本地端口；Python／pytest 机制另核对了官方源码。以下按重要性排序，保留原问题编号。

@@ -1,0 +1,32 @@
+=== 协议 §2.1 存档首部补齐（只加 blockquote + `---`，正文一字不改）===
+依据：五份 `.stderr` 均在磁盘（.gitignore 覆盖，不入库），`模型` / `reasoning_effort` / `codex` 版本三项**据实自证**；
+无法自证的字段不写、不追认。行号由检索得出（**不硬编码** —— r4 的 stderr 多两行 models-manager ERROR，行号与其余四份不同）。
+
+[codex-review-CARD-W4-7] round-1 · 首部已在（前次同脚本所加）
+    审SHA=d172e7e4 跑时HEAD=d172e7e4  会话头行号 v:2 model:5 effort:9
+    正文 sha256（剥首部）= 24194d9956f8b3747dab1fd135dc215169314b24ae713bccb10b242ec1f40d69
+    HEAD 原文 sha256      = 24194d9956f8b3747dab1fd135dc215169314b24ae713bccb10b242ec1f40d69
+    正文与入库原文逐字节相同 = True
+[codex-review-CARD-W4-7-r2] round-2 · 首部已在（前次同脚本所加）
+    审SHA=001a8271 跑时HEAD=001a8271  会话头行号 v:2 model:5 effort:9
+    正文 sha256（剥首部）= 25996a54a02dfcf0a1b2c8ccbde35d8468828426d099f2dd3214ed596cfa3aa4
+    HEAD 原文 sha256      = 25996a54a02dfcf0a1b2c8ccbde35d8468828426d099f2dd3214ed596cfa3aa4
+    正文与入库原文逐字节相同 = True
+[codex-review-CARD-W4-7-r3] round-3 · 首部已在（前次同脚本所加）
+    审SHA=ad4c853b 跑时HEAD=ad4c853b  会话头行号 v:2 model:5 effort:9
+    正文 sha256（剥首部）= 9675b8ace7de439b77f8f5c77c33a81cc5450a8c37552a3fc7ee857080bc505f
+    HEAD 原文 sha256      = 9675b8ace7de439b77f8f5c77c33a81cc5450a8c37552a3fc7ee857080bc505f
+    正文与入库原文逐字节相同 = True
+[codex-review-CARD-W4-7-r4] round-4 · 本次新加首部
+    审SHA=3a9beaae 跑时HEAD=3a9beaae  会话头行号 v:4 model:7 effort:11
+    正文 sha256（剥首部）= 3f755a35719a69ffac511555ef5f19cf37ad7f102d40baa89e4f14e8706cfe24
+    HEAD 原文 sha256      = 3f755a35719a69ffac511555ef5f19cf37ad7f102d40baa89e4f14e8706cfe24
+    正文与入库原文逐字节相同 = True
+[codex-review-CARD-W4-7-r5] round-5 · 本次新加首部
+    审SHA=b9ba828b 跑时HEAD=e9a68b78  会话头行号 v:2 model:5 effort:9
+    正文 sha256（剥首部）= 7c634daf8dd188d761eaf85f62e62ef6609481b566ededf9eee5b5502f361d4b
+    HEAD 原文 sha256      = 7c634daf8dd188d761eaf85f62e62ef6609481b566ededf9eee5b5502f361d4b
+    正文与入库原文逐字节相同 = True
+
+=== 五份全部完成 ===
+判据：每份剥掉新加首部后的正文，与 `git show HEAD:<path>` 的入库原文 sha256 逐字节相同 ⇒ 正文一字未改。

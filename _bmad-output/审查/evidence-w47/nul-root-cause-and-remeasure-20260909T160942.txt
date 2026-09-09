@@ -1,0 +1,50 @@
+=== 验收单字面 NUL 字节：根因复现 + 裁判 3 重测（当前 HEAD 10e0dd6e）===
+
+## 一 现象
+验收单 _bmad-output/验收单/UAT-CARD-W4-7-2026-09-09.md 内含 **1 个字面 NUL 字节**（第 89 行，命令串内），
+git 因此把整份验收单判为 binary —— `git diff --numstat` 显示 `-<TAB>-`，主 session 无法逐行 diff 审阅，
+`grep` 也会报 'binary file matches'。契约/守卫等代码文件本身**零 NUL**，污染只在这一份文档。
+
+## 二 根因（本次当场复现，非推断）
+zsh 的**内建 echo 默认解释反斜杠转义**（bash 内建 echo 需 -e 才解释）。
+文档里要写 U+0000 的**转义拼写**时，若经 zsh echo 落盘，该拼写会被展开成真正的 NUL 字节。
+复现（本次实跑，展示 stdout 的原始字节）：
+  zsh  : stdout bytes = b'X\x00Y\n'   NUL 数 = 1
+  bash : stdout bytes = b'X\\u0000Y\n'   NUL 数 = 0
+结论：**文档里写这类转义拼写必须用 printf '%s' 或直接由 Python 写文件，不得用 zsh 内建 echo**。
+（本次修复过程中我自己先踩了同一个坑：第一版证据文件 nul-fix-remeasure-20260909T160745.txt
+  是用 zsh echo 写的，落盘后实测 NUL 数 = 1 —— 同一个坑在「修这个坑的那次操作」里二次发生。
+  该文件**已删除、不入库**（含 NUL 的文件进库就是再造一个 binary 文档）；此处如实登记事件本身，
+  证据是本文件 §二 的 zsh/bash 对照实跑，不依赖那份已删的中间产物。）
+
+## 三 裁判 3 重测（原命令串已被 NUL 破坏、不可复现 ⇒ 不复原猜测值，改为在当前 HEAD 重测）
+
+--- 契约文件自身 NUL 字节数（应为 0） ---
+$ LC_ALL=C tr -dc '\000' < backend/tests/unit/test_live_port_guard_contract.py | wc -c
+       0
+rc=0
+
+--- 哨兵转义拼写出现处 ---
+$ grep -n 'x00' backend/tests/unit/test_live_port_guard_contract.py
+580:        * **拼写层**（裁判 7 的 ``grep '\\x00'``）—— 源码里必须写转义，不许敲
+595:        assert "\x00" in host
+rc=0
+
+--- 断言行计数 ---
+$ grep -c 'assert "\\x00" in host' backend/tests/unit/test_live_port_guard_contract.py
+1
+rc=0
+
+--- 含转义拼写的行数（docstring + 断言） ---
+$ grep -c 'x00' backend/tests/unit/test_live_port_guard_contract.py
+2
+rc=0
+
+--- _is_selftest_address(( 计数（卡文裁判 3 要求 >= 5） ---
+$ grep -c '_is_selftest_address((' backend/tests/unit/test_live_port_guard_contract.py
+7
+rc=0
+
+## 四 处置
+验收单 :89 那一行改写为本次重测的确切命令与输出；改后全文件字面 NUL 数须为 0，
+且 `git diff --numstat` 不再显示 `-<TAB>-`（即 git 重新按文本处理）。

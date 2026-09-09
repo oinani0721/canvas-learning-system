@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-07-第十三批 · 车道 U7（`card-u7-w4guard`） · 卡 CARD-W4-7 round-4
+> 模型: `gpt-6-astra` · reasoning_effort: `ultra` · codex: `codex-cli 0.153.3`
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat _bmad-output/审查/codex-prompt-CARD-W4-7-r4.md)"`
+> 审查绑定: `3a9beaae`（跑时 HEAD `3a9beaae` —— 同审 SHA（该 commit 只动 `_bmad-output`，代码树 = `b6dc69d0`；实测 `git diff --stat b6dc69d0 3a9beaae -- . ':(exclude)_bmad-output'` rc=0 且空））
+> 会话头自证（抄 `codex-review-CARD-W4-7-r4.stderr` 会话头含 model 行的三行；该文件**字面前三行**不含 model 行，故按 §2.1「含 model 行」抄三要素并标实际行号）:
+> `:4 OpenAI Codex v0.153.3` / `:7 model: gpt-6-astra` / `:11 reasoning effort: ultra`
+
+---
+
 **BLOCKER 0 / HIGH 0；不建议按“四条整改全部闭合”收口，仍有 MEDIUM 1、LOW 2。**
 
 审 SHA：`3a9beaae80a1536ca064b422ba7f648ec29db405`。全程只读，未运行测试、探针、负控或连接端口。下面的新增反例均为静态推导。
