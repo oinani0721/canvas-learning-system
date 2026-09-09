@@ -9,7 +9,7 @@
 
 ## 1. 🎯 一句话目标
 
-有 37 个自动检查长期报错，但报的不是它们真正要查的东西——它们全都卡在门口的一道"钥匙"检查上，从来没进过屋。这张卡给它们配了钥匙，让检查真正查到它该查的地方。
+有 37 个自动检查长期报错，但报的不是它们真正要查的东西——开工时它们全都卡在门口的一道"钥匙"检查上。这张卡给它们配了钥匙：其中 32 个恢复到了各自该走的路（有的进业务逻辑，有的按设计就该在门口被挡回），剩下 5 个卡在另一道"这是不是你自己的书架"的检查上，交给下一张卡处理。
 
 ## 2. 📖 你的视角
 
@@ -99,7 +99,7 @@
 
 | 层 | 条数 | 去向 |
 |---|---|---|
-| 第一层 鉴权 503 | 37 | 全部由 `authed_client` 解除；其中 15 条解开即绿 |
+| 第一层 鉴权 503 | 37 | 全部由 `authed_client` 解除；其中 15 条在**迁移 + sync 两桩之后**转绿（Codex r5 LOW-2 更正：那 15 条含 /sync/batch 六条，不能全归因于鉴权解除） |
 | 第二层 409 | 17（chat 10 + deep_mode 7） | **本卡修**：fixture patch `app.config.get_current_vault_id`（先例 `test_sync_batch_auth.py:98`） |
 | 第二层 哨兵 | 1（`test_enrich_context_happy_path`，409 解除后才显形） | **本卡修**：fixture patch `app.api.v1.endpoints.chat.get_memory_service` |
 | 第二层 前提未适配 | 5（`test_enrich_context_vault_isolation`） | **移交 U5-C `CARD-RED-R`** —— 本卡不改用例代码 |
@@ -232,7 +232,36 @@ git diff --stat --no-color 7004a365 -- backend/app  → 空 + rc=0   ✅ 零生�
 | r2 | `codex-review-CARD-RED-A1-auth-r2.md` | `7004a365..faeda37f` | **0** | **0** | 2 | 2 | 4 条**全部采纳整改**，故必再送一轮 |
 | r3 | `codex-review-CARD-RED-A1-auth-r3.md` | `7004a365..bcbe2741` | **0** | **0** | **0** | 2 | 两条 MEDIUM 确认已落实；2 LOW 采纳整改，故必再送一轮 |
 | r4 | `codex-review-CARD-RED-A1-auth-r4.md` | `7004a365..1e326860` | **0** | **0** | **0** | 1 | 已达停轮条件；那条 LOW 采纳整改，故再送末轮 |
-| r5 | `codex-review-CARD-RED-A1-auth-r5.md` | 待填 | 待填 | 待填 | 待填 | 待填 | 待填 |
+| r5 | `codex-review-CARD-RED-A1-auth-r5.md` | `7004a365..385078b8` | **0** | **0** | **0** | 4 | **末轮，停轮条件达成**（轮次上限 5/5） |
+
+### 停轮判定（协议 §1 / D-15）
+
+r5 绑最终 HEAD `385078b8`，**BLOCKER = 0、HIGH = 0** ⇒ 停轮条件达成。轮次 5/5 用尽。
+r5 之后的整改**只动 `_bmad-output`**，协议 §1 的绑定判据
+`git diff --stat <审SHA> HEAD -- . ':(exclude)_bmad-output'` 排除该目录，**绑定不失效**。
+
+**r5 四条 LOW 的处置**：
+
+| # | 内容 | 处置 |
+|---|---|---|
+| LOW-1 | §1 总述与 §8.6 仍笼统涵盖 37 条 | ✅ 已改：明写 32 条各归其位（含 3 条校验 + 1 条提前返回本就不该进业务层）、5 条移交 |
+| LOW-2 | 「15 条解开鉴权即绿」漏掉同期的 sync 两桩 | ✅ 已改：改为「完成 authed_client 迁移 + sync 两桩之后转绿」 |
+| LOW-3 | `_dev_settings` docstring「只在鉴权相关字段一致」**收窄过度** | ⛔ **登记不改**，理由见下 |
+| LOW-4 | 耗时归因与日志相反 | ✅ 已推翻：实测那次初始化仅约 1.9 ms、请求 128.12 ms，改为「来源未闭合」 |
+
+**LOW-3 为何登记不改**（如实说明，不是遗漏）：
+- 该条**成立**。作者逐字段实测：两份 Settings 有 **5 个字段相同**（`VERSION` / `DEBUG` / `LOG_LEVEL` /
+  `CANVAS_BASE_PATH` / `INTERNAL_API_KEY`），只有 `PROJECT_NAME` 与 `CORS_ORIGINS` 不同。
+  现 docstring 写「只在鉴权相关字段上一致 / 其余字段并不相同」确实收窄过度。
+- 但整改它要动 `backend/tests/unit/test_sync_exception_classification.py` 这个**代码文件**，
+  会让末轮绑定判据非空 ⇒ 按 D-15 必须再送一轮，而**轮次上限 5 已用尽**。
+- 权衡：这是一句「比实际更保守」的说明（说少了相同字段，没有夸大任何保证），
+  不影响任何判据与行为。故**登记移交**，由主 session 复核时人审或并入下一张卡。
+- 建议改法（Codex 原文）：「鉴权相关字段一致；`PROJECT_NAME` 与 `CORS_ORIGINS` 不同，
+  因此整份 Settings 并不等价」。
+
+⚠️ **本卡已知的未复审面**：上述 LOW-1/2/4 三条整改**本身未经 Codex 复审**（轮次已满）。
+它们都是纯 `_bmad-output` 文档改动、零代码改动，但如实登记在此，供主 session 复核。
 
 **r4 一条 LOW 整改落点**：台账 §9.6 仍写 `test_sync_exception_classification.py:48-58 _dev_settings`
 ——那是本卡文件的行号，与 r3 立下的「本卡位置一律用名称」自相矛盾（且 `:48-58` 只覆盖函数头与部分
@@ -294,7 +323,9 @@ r4 还核了三个 commit 之间五个 Python 文件**去掉 docstring 后的可
    仍是「dev + 空 key 放行」，与 REST 侧不一致。只登记，本卡不改也不测。
 4. **未证明 `block_reason()` 在真 Neo4j 可用时的行为** —— 本卡只在测试侧把它打成返回 `None`。
 5. **未证明 `authed_client` 在 `tests/api` / `tests/integration` 下可用** —— 只在 `tests/unit` 的四个文件里用过。
-6. **未证明这 37 条背后的业务断言当前仍是正确契约** —— 本卡只把请求送进业务层；断言本身对不对没有重新评估
+6. **未证明这 37 条背后的业务断言当前仍是正确契约** —— 本卡只是解除了鉴权阻挡，让 32 条恢复到各自
+   预期的路径（其中 3 条校验类与 1 条提前返回类**本就不该进业务层**，见判据 6 的三类划分）；
+   断言本身对不对没有重新评估
    （vault_isolation 那 5 条只是**前提未适配**，本卡并未证明它们的断言是错的——见判据 6）。
 7. **未证明 `X-CLS-Internal-Key` 头名与生产插件一致** —— header 名从 `app.security.INTERNAL_API_KEY_HEADER_NAME`
    import（不抄字面量），但没有与前端 `api-client.ts` 侧交叉核对。
@@ -305,8 +336,11 @@ r4 还核了三个 commit 之间五个 Python 文件**去掉 docstring 后的可
    本卡给 chat / deep_mode 两个文件加了 active-vault 桩，等于在这两个文件里把该前提设成恒一致，
    所以**本卡的改动不为这条性质提供任何证据**。它由 `test_vault_scope_409.py:333-343` 把关
    （开工收工均绿）。⚠️ 本条先前写成「全仓没有这样的测试」，是错的，已于 Codex round-2 后更正。
-10. **未证明四文件级耗时从 1.07s 涨到 51-96s 的全部来源** —— 哨兵归 0 后仍慢，初判是
-   `search_supplementary` 侧的既有开销（本卡解开鉴权后这些代码才第一次真正执行到），非本卡引入，登记不处置。
+10. **未证明四文件级耗时从 1.07s 涨到 51-96s 的来源** —— ⚠️ 本条先前把它归因于那次被拦的真连，
+   **与日志相反**（Codex r5 LOW-4）：实测那次 MemoryService 初始化仅约 1.9 ms、整个请求 128.12 ms，
+   解释不了几十秒。耗时增长是观测事实，来源**未闭合**；初判方向是解开鉴权后 `search_supplementary`
+   等下游第一次真正被执行到，但本卡未证实。「非本卡引入」只能限定为「本卡未改任何相关生产代码」
+   （`git diff -- backend/app` 为空），不能据此宣称没有性能影响。
 
 ---
 

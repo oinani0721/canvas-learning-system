@@ -14,7 +14,10 @@ CARD-RED-A1-auth — 第二层红三分类表（完成条件 (f) / 核心裁判 
       'INTERNAL_API_KEY empty + DEBUG=True without explicit bypass' 命中 74；
       four-mid1/mid2/mid3 三份里两者均为 0。
 
-其中 15 条**解开鉴权即绿**。⚠️ Codex round-1 LOW-1 更正了本行原先的分类
+其中 15 条在**完成 authed_client 迁移 + sync 两桩之后**转绿（⚠️ Codex round-5 LOW-2 更正：
+本行原写「解开鉴权即绿」，但这 15 条里含 /sync/batch 六条，而 sync fixture 的桩说明已写明
+不适配 active vault 那六条都会停在 409 —— 存档支持的是**组合改动后**的结果，不能全部归因于
+鉴权解除）。⚠️ Codex round-1 LOW-1 更正了本行原先的分类
 （原写「请求本就不进业务层 / 非 HTTP 的 rag_enrich_hook 单元」，两处都不实）。按请求
 实际走到哪里重分三类：
   (i) 输入校验即返回，不进端点函数体：Pydantic 422（max_hops / mode / vault_id 缺失或空串）；
@@ -121,6 +124,12 @@ four-mid2 里 'live Neo4j port connect attempted' 文本命中 3 次，但**实�
 哨兵标题 1 行 + stdout JSON 1 行 + captured log 1 行，同一次 ('::1', 7691) 事件。
 owner=test_enrich_context_happy_path。它是 MemoryService **进程级单例**的首次初始化，
 所以「谁被判红」取决于执行顺序 —— 单跑本文件红在 happy_path，全量跑可能转嫁给别的文件；
-这正是必须在测试侧掐掉而不是登记了事的原因。四文件级耗时也从 1.07s→57s→96s 反映了
-这条真连的超时等待（mid3 哨兵归 0 后仍 96s，属 search_supplementary 侧的既有慢，非本卡引入，登记不处置）。
+这正是必须在测试侧掐掉而不是登记了事的原因。⚠️ **耗时归因已推翻（Codex round-5 LOW-4，实测确认）**：本段原先写「四文件级耗时
+1.07s→57s→96s 反映了这条真连的超时等待」——与日志相反。four-mid2 里这次 MemoryService 初始化
+的时间戳跨度是 05:38:25.315652 → .317518 = **约 1.9 ms**，整个请求 `duration_ms` = **128.12 ms**
+（同文件 stdout JSON）。这次被拦的连接**解释不了几十秒**。
+正确表述：耗时从 1.07s 涨到 51-96s 是**观测事实**，来源**未闭合**——解开鉴权后 enrich-context
+的下游（`search_supplementary` 等）第一次真正被执行到，是初判方向但本卡未证实。
+「非本卡引入」只能限定为「本卡未修改任何相关生产代码」（`git diff -- backend/app` 为空），
+不能据此宣称没有性能影响。登记待确认，不在本卡处置。
 rc=0
