@@ -293,33 +293,38 @@ class TestSpecialCharacterGroupId:
             #       而 `LIMIT $limit` / `LIMIT toInteger($limit)` 都带 `$`。
             #       round-6 用的 `\bLIMIT\s+\d` 被 `LIMIT (5)` 与 `LIMIT toInteger(5)` 绕过。
             #
-            # ⚠️ 如实声明本条比卡文要求强：卡文 (f) 只要求保留 `:191-194` 并改参数形态断言。
-            #    S1 会拒绝任何内联字符串常量（包括无害的 `'active' AS status` 这类写法）——
-            #    这是有意的：本方法的查询面全部参数化，需要常量时应当也走参数。
-            # ⚠️ 单引号与**双引号**都要认：Cypher 两种都是字符串字面量，只查单引号时
-            # `("test_" + "user")` 这种双引号拼接能同时绕开 S1 与「按输入值查」那条
-            # （本车道送 round-8 前自测抓到，非 Codex 指出）。
+            # ⚠️⚠️ **S1 的前提在 Cypher 里不成立——round-8 证伪，如实降级为启发式**：
+            #    我原来的理由是「要把用户可控字符串拼进 Cypher 就必须加引号」。Codex round-8
+            #    给出纯原生反例：`head(keys({test_:0})) + head(keys({user:0}))` 拼出 "test_user"，
+            #    **既无引号、也不含完整输入值**（map 的键是标识符，`keys()` 把它变成字符串）。
+            #    ⇒ S1 **不是**「全参数化」的证明，只是「常见内联形态」的探针。
+            #    要真正判定「这条 Cypher 是否全参数化」需要 Cypher 解析器，超出本卡范围，登记不修。
+            # ⚠️ 它仍比卡文要求强（卡文 (f) 只要求保留 `:191-194` 并改参数形态断言）：
+            #    S1 会拒绝任何内联字符串常量（含无害的 `'active' AS status`）。这是有意取舍。
+            # 单双引号都认：`("test_" + "user")` 这种双引号拼接能同时绕开只查单引号的 S1
+            # 与「按输入值查」那条（送 round-8 前自测抓到）。
             _literals = re.findall(r"'[^']*'|\"[^\"]*\"", _query_no_comments)
             assert not _literals, (
-                "查询文本里出现内联字符串字面量，本用例要求全参数化——"
-                "任何用户可控值要拼进 Cypher 都得先加引号，故这条不枚举具体值也能挡住变形内联。"
+                "查询文本里出现内联字符串字面量。⚠️ 本条是**启发式**不是全参数化的证明"
+                "（round-8 已给出无引号构造字符串的原生反例），但它能挡住带引号的内联形态。"
                 f"literals={_literals} query={query_str!r}"
             )
-            # `SKIP` 与 `LIMIT` 同属分页子句、同样吃整数，只查 LIMIT 时 `SKIP 5` 能漏过
-            # （同为送 round-8 前自测抓到）。
-            # ⚠️ 表达式的右边界必须切在**下一个子句关键字**上，不能贪婪吃到行尾：
-            # `LIMIT $limit SKIP 5` 里，贪婪写法让 LIMIT 的表达式吞掉 " $limit SKIP 5"
-            # （含 `$` ⇒ 通过），扫描位置越过 SKIP，SKIP 就再也没被单独检查过。
-            # 本车道送 round-8 前自测抓到（负控 ⑰ 期望 FAIL 实测 PASS）。
-            # ⚠️ `(?<!\$)` 不可省：`$limit` 里的 "limit" 前面是 `$`（非词字符），
-            # `\b` 照样成立 ⇒ 不排除的话，`LIMIT $limit` 会被当成**两个** LIMIT 子句，
-            # 第二个的表达式为空、立刻误报。本车道改这条时当场被自己的用例红出来。
-            _CLAUSE = r"LIMIT|SKIP|RETURN|ORDER|WITH|MATCH|WHERE|UNION|CALL"
-            for _m in re.finditer(r"(?<!\$)\b(LIMIT|SKIP)\b", _query_no_comments, flags=re.I):
-                _rest = _query_no_comments[_m.end():]
-                _nxt = re.search(rf"(?<!\$)\b(?:{_CLAUSE})\b", _rest, flags=re.I)
+
+            # ── S2：LIMIT / SKIP 子句必须含 `$` ────────────────────────────
+            # ⚠️ 扫描前先把**反引号标识符**挖掉：``e.`limit` `` 里的 limit 是属性名不是子句，
+            #    不挖会误报（round-8 MEDIUM）。
+            # ⚠️ 右边界要认子查询收尾 `}` 与 UNWIND：`CALL { … LIMIT 5 } UNWIND [$limit] …`
+            #    里，外层的 `$limit` 会被算进内层分页表达式（round-8 HIGH-2）。
+            # ⚠️ **不能按换行截断**：Cypher 把换行当空白，`LIMIT\n$limit` 是合法排版，
+            #    截断后 `_expr` 变空串、误报（round-8 MEDIUM）。
+            # ⚠️ `(?<!\$)` 不可省：`$limit` 里的 "limit" 前面是 `$`（非词字符），`\b` 照样成立，
+            #    不排除会把 `LIMIT $limit` 当成两个子句（本车道自测时被真实生产查询红出来）。
+            _scan = re.sub(r"`[^`]*`", " ", _query_no_comments)   # 反引号标识符挖空
+            _CLAUSE = r"LIMIT|SKIP|RETURN|ORDER|WITH|MATCH|WHERE|UNION|CALL|UNWIND|CREATE|MERGE|DELETE|SET"
+            for _m in re.finditer(r"(?<!\$)\b(LIMIT|SKIP)\b", _scan, flags=re.I):
+                _rest = _scan[_m.end():]
+                _nxt = re.search(rf"(?<!\$)\b(?:{_CLAUSE})\b|\}}", _rest, flags=re.I)
                 _expr = _rest[: _nxt.start()] if _nxt else _rest
-                _expr = _expr.split("\n", 1)[0]
                 assert "$" in _expr, (
                     f"{_m.group(1).upper()} 子句里没有 `$` 参数引用，说明分页值被内联进了文本。"
                     f"expr={_expr!r} query={query_str!r}"
