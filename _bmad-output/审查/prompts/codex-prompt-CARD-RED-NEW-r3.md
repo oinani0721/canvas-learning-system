@@ -27,7 +27,17 @@
 
 ## 二 作者自述，请独立核对（不要采信，请自行验证）
 
-<PLACEHOLDER-R2-REMEDIATION>
+round-2 的 4 条发现（MEDIUM×3 + LOW×1）车道**全部接受、无驳回**，处置如下：
+
+1. **MEDIUM-1（#1/#2 主张超出证据）** → 补齐你点名的排除项：在诞生 commit `43d291d8` 上实测——该常量全模块只有 2 处出现（定义 `0.15` + 使用）、**无** `_load_calibration_thresholds`、**无** `global`、**无**环境变量读取、**无**模块级副作用调用、**全树除定义模块外 0 处引用**、当时的测试文件**不 monkeypatch 该常量**。同时把主张收窄为「**只证明诞生那一刻即红**」，明确不覆盖中间 commit。证据 `codex-r2-M1-threshold-writepoints.txt`。
+2. **MEDIUM-2（#3 裁定行与 §〇 自相矛盾）** → 承认是真实疏漏（在一处收窄了却没从结论行里减掉），已改：裁定列改为「async 竞态：等待原语选错」，依据列明写「**本条不主张该测试历史上曾为绿**」并列出未分离的候选 `c01bd39c`。
+3. **MEDIUM-3（format v2 仍丢位置）** → 补位置维度 v3：在**同一文件同一版本**上取 `A = 本卡改动行（git diff -U0 的 +hunk）`、`B = ruff 真正要替换的行（--diff 里带 '-' 前缀的行，不是整个 hunk 范围）`，判据 `A ∩ B = ∅`，六文件合计 **0**。证据 `format-position-gate-v3.txt`。
+   - ⚠️ 该判据的**初版实现有假阳性**（把 hunk 整个范围含上下文当成 B），在 `test_calibration_tracker.py` 误报 291–293；查证后确认那三行本身 format-clean、只是落在针对存量行的 hunk 上下文里。已如实记录在裁定表 §六。
+4. **LOW（「未放宽」没限定基线）** → 已写明该表述**只对 `b17b710d` 成立**；相对 round-1 初版的放宽正是修复本身，并把你给的 `base=Path(r"/storage\..")` 反例（`b17=True / r1=False / r2=True`）原样收录，注明它不是新增磁盘越界面。
+
+另有两份**非卡文要求的自查**：`sec-monotonicity-selfcheck.txt`（60 例枚举，「旧拒绝→新接受」= 0，含符号链接 base）与 `sec-alias-edgecase-selfcheck.txt`（真实文件系统：base 名含反斜杠且 `a/b` 同时存在、符号链接指向含反斜杠目录）。
+
+**本轮增量（`9848c2c1..HEAD`）只有一处代码改动**：`test_difficulty_matcher.py` 的一处 **docstring**（把 round-1 提醒的「空窗不告警」措辞校准为「health_monitor 确实报 warning，只是不读 is_healthy」）。纯注释，行为不变，该文件 19 passed。
 
 ## 三 按重要性排序的问题
 

@@ -268,8 +268,11 @@ class TestCalibrationRating:
         The implementation classifies WELL_CALIBRATED on ``abs(bias) < threshold``,
         so the threshold value itself falls on the OVER side — which is what this
         test's own docstring always claimed. The previous expectation
-        (0.15 == WELL_CALIBRATED) contradicted that docstring from the day both
-        were introduced (43d291d8); it was never a regression.
+        (0.15 == WELL_CALIBRATED) already contradicted that docstring at the commit
+        that introduced both (43d291d8): the threshold was a plain module constant
+        there, with no config loader, so 0.15 landed on OVER from day one. That
+        rules out "a later change broke it" as the explanation; it is not a claim
+        about every commit in between, which was not replayed.
         """
         # Pin the threshold's value separately from using it. _load_calibration_thresholds()
         # can override the module constant from mastery_config.json at import time, and

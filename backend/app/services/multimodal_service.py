@@ -509,14 +509,22 @@ class MultimodalService:
         # On POSIX a backslash is an ordinary filename character, so a component such
         # as "..\..\etc" stays inside storage here, yet the same string escapes once
         # it is read with '\' as the separator. Reject when either reading escapes.
-        # Both sides of the second comparison are normalised: comparing a normalised
-        # candidate against a raw root would reject every ordinary upload whenever the
-        # storage base itself legitimately contains a backslash.
+        #
+        # Only the part *below* the storage root is re-read that way. Normalising the
+        # root itself would reject ordinary uploads whenever the storage base legitimately
+        # contains a backslash, or whenever the normalised spelling of the base happens to
+        # resolve into a different subtree (e.g. via a symlink on that other path).
+        #
         # The returned value is still the plain resolve(), so callers write where they
         # did before; this only widens what is refused, never what is allowed through.
-        normalized_root = Path(str(self.storage_base_path).replace("\\", "/")).resolve()
-        backslash_normalized = Path(str(file_path).replace("\\", "/")).resolve()
-        if not resolved_path.is_relative_to(storage_root) or not backslash_normalized.is_relative_to(normalized_root):
+        try:
+            below_root = str(file_path.relative_to(self.storage_base_path))
+        except ValueError:
+            below_root = None
+        reinterpreted = (
+            (storage_root / below_root.replace("\\", "/")).resolve() if below_root is not None else resolved_path
+        )
+        if not resolved_path.is_relative_to(storage_root) or not reinterpreted.is_relative_to(storage_root):
             # Use repr() to prevent log injection via newlines in crafted paths
             logger.warning(
                 "Path traversal attempt detected: %s -> %s",
