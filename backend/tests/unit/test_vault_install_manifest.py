@@ -194,7 +194,7 @@ def test_manifest_covers_implicit_and_generated_semantics():
     pycache = f"install-vault.sh:{_sh_line('__pycache__ -prune')}"
     pending = f"install-vault.sh:{_sh_line('pending_archives')}"
     for required in (
-        f"install-vault.sh:{_sh_line('明确不复制')}",  # 「明确不复制」注释块
+        f"install-vault.sh:{_sh_line('明确不复制', kind='comment')}",  # 「明确不复制」注释块
         f"install-vault.sh:{_sh_line(SKELETON_LOOP_ANCHOR)}",  # 骨架 mkdir 循环
         pycache,  # find __pycache__ -prune
         pending,  # rm pending_archives*.jsonl
@@ -202,7 +202,7 @@ def test_manifest_covers_implicit_and_generated_semantics():
         assert required in origins, f"缺少源自 {required} 的 item"
     # yaml 生成器与生成件段是**区间** origin, 起点按内容锚, 区间尾另有越界门把关
     yaml_start = f"install-vault.sh:{_sh_line(YAML_HEREDOC_ANCHOR, prefix=True)}-"
-    gen_start = f"install-vault.sh:{_sh_line('生成件 (CARD-G2-7a)')}-"
+    gen_start = f"install-vault.sh:{_sh_line('生成件 (CARD-G2-7a)', kind='comment')}-"
     assert any(o.startswith(yaml_start) for o in origins), f"缺少 yaml 生成器区间 origin ({yaml_start}…)"
     assert any(o.startswith(gen_start) and "生成件段" in o for o in origins), f"缺少生成件段 origin ({gen_start}…)"
     by_origin = {}
@@ -302,6 +302,9 @@ def _looks_like_file(path: str) -> bool:
     return "." in Path(path).name
 
 
+HOTKEYS_REL_IN_VAULT = ".obsidian/hotkeys.json"
+
+
 def _build_vault(root: Path, manifest: dict) -> None:
     root.mkdir(parents=True, exist_ok=True)
     for item in manifest["items"]:
@@ -311,7 +314,14 @@ def _build_vault(root: Path, manifest: dict) -> None:
             target = root / item["path"]
             if _looks_like_file(item["path"]):
                 target.parent.mkdir(parents=True, exist_ok=True)
-                target.write_text(f"content of {item['path']}\n", encoding="utf-8")
+                if item["path"] == HOTKEYS_REL_IN_VAULT:
+                    # 夹具形态必须与生产一致: 真实 vault 的 hotkeys.json 是 JSON 对象。
+                    # 早先这里写的是 `content of …`(非法 JSON), 之所以没人发现, 是因为
+                    # 校验器在 main.js 缺失时就提前 return、根本没验过 hotkeys 自身 ——
+                    # 那个提前 return 正是 Codex round-4 的 MEDIUM。修好之后夹具立刻暴露。
+                    target.write_text("{}\n", encoding="utf-8")
+                else:
+                    target.write_text(f"content of {item['path']}\n", encoding="utf-8")
             else:
                 target.mkdir(parents=True, exist_ok=True)
                 (target / "payload.txt").write_text(f"payload of {item['path']}\n", encoding="utf-8")
@@ -722,12 +732,20 @@ def test_verifier_write_calls_are_confined_to_write_report():
 
 
 def _is_readonly_open(node) -> bool:
-    """`open()` 调用是否**确定**只读: 模式缺省, 或模式是不含 w/a/x/+ 的字面量。"""
+    """`open()` 调用是否**确定**只读: 模式缺省, 或模式是不含 w/a/x/+ 的字面量。
+
+    ⚠️ 模式参数的**位置随调用形态变**: 内置 `open(path, mode)` 是第 2 个,
+    而绑定方法 `path.open(mode)` 是第 **1** 个。上一轮统一按第 2 个判 ⇒
+    `path.open("wb+")` 被当成「没给模式」而放行 —— 我为只读探测开的豁免,
+    把 U3-A 的零写门重新捅开了(Codex round-4 实测)。
+    """
     import ast
 
+    bound_method = isinstance(node.func, ast.Attribute)  # x.open(...) ⇒ 模式在 args[0]
+    mode_index = 0 if bound_method else 1
     mode = None
-    if len(node.args) >= 2:
-        mode = node.args[1]
+    if len(node.args) > mode_index:
+        mode = node.args[mode_index]
     for kw in node.keywords:
         if kw.arg == "mode":
             mode = kw.value
@@ -2573,7 +2591,7 @@ SKELETON_LOOP_ANCHOR = 'for d in "${SKELETON_DIRS[@]}"'
 YAML_HEREDOC_ANCHOR = 'cat > "$TARGET/.canvas-config.yaml"'
 
 
-def _sh_line(marker: str, *, prefix: bool = False) -> int:
+def _sh_line(marker: str, *, prefix: bool = False, kind: str = "code") -> int:
     """按**内容**定位脚本里的唯一锚行, 返回 1-based 行号。
 
     ⚠️ 门里禁写死行号字面量: 脚本每加一个参数/注释, 全部 origin 都平移,
@@ -2585,11 +2603,16 @@ def _sh_line(marker: str, *, prefix: bool = False) -> int:
     def _match(ln: str) -> bool:
         return ln.startswith(marker) if prefix else marker in ln
 
-    all_hits = [i + 1 for i, ln in enumerate(lines) if _match(ln)]
-    code_hits = [i + 1 for i, ln in enumerate(lines) if _match(ln) and not ln.lstrip().startswith("#")]
-    # 优先用可执行行: 注释里提到同样字样会把唯一命中变双命中 = 一句说明就让门假红
-    # (Codex round-3 LOW 实例)。锚本身就是注释时(如「生成件」段标题)才回退到全部命中。
-    hits = code_hits or all_hits
+    # 锚**分型**, 不做「优先/回退」(Codex round-4 LOW): 回退式会让「把命令整行注释掉」
+    # 照样命中(命令没了、门还绿), 反过来给 echo 加一句注释又能把标题锚抢走。
+    #   kind="code"    命令锚 —— 只在剥掉行内注释后的**代码**里找
+    #   kind="comment" 注释标题锚 —— 只在注释行里找
+    if kind == "code":
+        hits = [i + 1 for i, ln in enumerate(lines) if not ln.lstrip().startswith("#") and _match(ln.split("#", 1)[0])]
+    elif kind == "comment":
+        hits = [i + 1 for i, ln in enumerate(lines) if ln.lstrip().startswith("#") and _match(ln)]
+    else:  # pragma: no cover — 调用方拼错类型应当立刻暴露
+        raise AssertionError(f"未知锚类型 {kind!r}")
     assert len(hits) == 1, f"锚 {marker!r} 命中 {hits}（应恰好 1 处）"
     return hits[0]
 
@@ -2749,8 +2772,11 @@ def test_generate_section_covers_exactly_the_generate_items():
         if stripped.startswith("rm "):
             in_rm = True
         if in_rm:
-            cleaned.update(_re3.findall(r'\$TARGET/(\S+?)"', ln))
-            in_rm = stripped.endswith("\\")  # 反斜杠续行才继续算同一条 rm
+            # 先剥**行内注释**: 把操作数注释掉、路径字面量却还留在行上, 原判据照收
+            # ⇒ 「已不再清理」却仍然通过(Codex round-4 实测)。
+            code_part = ln.split("#", 1)[0]
+            cleaned.update(_re3.findall(r'\$TARGET/(\S+?)"', code_part))
+            in_rm = code_part.rstrip().endswith("\\")  # 反斜杠续行才继续算同一条 rm
     touched = cleaned
     data = json.loads(MANIFEST.read_text(encoding="utf-8"))
     # 两个例外的归属（首版门就抓到了这个漂移——不是脚本漏，是归属不同）:
@@ -2790,16 +2816,19 @@ def test_every_recursive_copy_follows_operand_symlinks():
         code = raw.split("#", 1)[0]  # 剥行内注释（本脚本的命令行里不含带 # 的字面量）
         code = code.rstrip().rstrip("\\")  # 剥行尾续行反斜杠: 否则 shlex 抛错整行被跳过
         # (变异实测 `cp -PR` 因此存活)
-        if "cp " not in code:
+        if "cp" not in code:
             continue
         try:
             tokens = _shlex.split(code)
         except ValueError:  # 引号未闭合的续行片段, 交给别的行去判
             continue
-        if "cp" not in tokens:
+        # 按 **basename** 认命令: `/bin/cp -R` 与 `cp -R` 是同一条命令,
+        # 只认裸 token 会漏掉带路径的写法(Codex round-4 实测七门全 PASS)。
+        cp_at = next((k for k, tok in enumerate(tokens) if tok.rsplit("/", 1)[-1] == "cp"), None)
+        if cp_at is None:
             continue
         flags = set()
-        for tok in tokens[tokens.index("cp") + 1 :]:
+        for tok in tokens[cp_at + 1 :]:
             if tok.startswith("-") and not tok.startswith("--"):
                 flags.update(tok[1:])
             elif not tok.startswith("-"):
@@ -2907,13 +2936,13 @@ def test_origin_points_at_the_array_that_actually_declares_each_item():
 
     data = json.loads(MANIFEST.read_text(encoding="utf-8"))
     sh_lines = INSTALL_SH.read_text(encoding="utf-8").splitlines()
-    arrays = {
-        name: i + 1
-        for i, ln in enumerate(sh_lines)
-        for name in ("SKELETON_DIRS", "CLAUDE_ITEMS", "OBSIDIAN_FILES", "OBSIDIAN_PLUGINS", "ROOT_FILES")
-        if ln.startswith(name + "=")
-    }
-    assert len(arrays) == 5, f"五个数组必须各恰好一处定义: {arrays}"
+    names = ("SKELETON_DIRS", "CLAUDE_ITEMS", "OBSIDIAN_FILES", "OBSIDIAN_PLUGINS", "ROOT_FILES")
+    hits = {name: [i + 1 for i, ln in enumerate(sh_lines) if ln.startswith(name + "=")] for name in names}
+    # ⚠️ 逐个断言**唯一**: 用 dict 推导会把重复定义静默吞掉(后一条覆盖前一条),
+    # 于是「在后面补一行 CLAUDE_ITEMS=(skills) 把数组改瘦」也能通过(Codex round-4 实测)。
+    for name, ls in hits.items():
+        assert len(ls) == 1, f"{name} 必须恰好一处定义, 实测在 {ls}"
+    arrays = {name: ls[0] for name, ls in hits.items()}
 
     def owner(path: str, action: str) -> str | None:
         """这一条**应当**由哪个数组声明（None = 不由数组声明，如 exclude/generate）。"""
@@ -2939,6 +2968,8 @@ def test_origin_points_at_the_array_that_actually_declares_each_item():
             continue
         m = _re4.match(r"install-vault\.sh:(\d+)(?:-(\d+))?$", item["origin"])
         assert m, f"{item['path']} 的 origin 形态异常: {item['origin']!r}"
+        # 数组声明是**单行**来源, 写成区间(如 72-180)等于把整段脚本都算作出处
+        assert m.group(2) is None, f"{item['path']} 由数组单行声明, origin 不该是区间: {item['origin']}"
         assert int(m.group(1)) == arrays[want], (
             f"{item['path']} 应由 {want}(第 {arrays[want]} 行) 声明，origin 却指 {item['origin']}"
         )
@@ -2949,7 +2980,7 @@ def test_origin_points_at_the_array_that_actually_declares_each_item():
     # 区间 origin 的**尾**要精确：yaml 段收在它的 heredoc 结束符，生成段收在 settings 块的 fi
     yaml_start = _sh_line(YAML_HEREDOC_ANCHOR, prefix=True)
     yaml_end = next(i + 1 for i, ln in enumerate(sh_lines) if ln.strip() == "EOF" and i + 1 > yaml_start)
-    gen_start = _sh_line("生成件 (CARD-G2-7a)")
+    gen_start = _sh_line("生成件 (CARD-G2-7a)", kind="comment")
     localeof = [i + 1 for i, ln in enumerate(sh_lines) if ln.strip() == "LOCALEOF"][-1]
     gen_end = next(i + 1 for i, ln in enumerate(sh_lines) if i + 1 > localeof and ln.strip() == "fi")
     by_path = {i["path"]: i["origin"] for i in data["items"]}
@@ -3041,3 +3072,54 @@ def test_symlinked_source_dir_copied_with_H_is_not_reported_as_drift(tmp_path, m
         f"源侧根软链 + -H 实体化后内容相同，不该报 drift：{[(f.path, f.detail) for f in result.content_drift]}"
     )
     assert ".obsidian/plugins/dataview" in [f.path for f in result.match]
+
+
+def test_malformed_hotkeys_is_caught_even_when_main_js_is_absent(vault_pair):
+    """MEDIUM-1 回归：hotkeys 顶层不是对象时，即使 main.js 缺席也必须拦下。
+
+    原顺序是「main.js 缺 → not evaluated → return」，于是 hotkeys 自身的结构错误
+    在**树源部署**（main.js 是 gitignored 构建产物、本来就不在）下完全无声：
+    两层检查同时放行、rc=0。hotkeys 的自校验必须独立于 main.js 在不在。
+    """
+    _source, target = vault_pair
+    main_js = target / vv.PLUGIN_MAIN_JS_REL
+    assert not main_js.exists(), "该夹具本就没有 main.js（正是这条门要覆盖的场景）"
+    (target / vv.HOTKEYS_REL).write_text('[{"canvas-learning-system:canvas-start-exam": []}]', encoding="utf-8")
+    result = _classify(target)
+    assert any(f.path == vv.HOTKEYS_REL for f in result.unreadable), (
+        f"hotkeys 顶层非对象必须登记 unreadable，实得 {[(f.path, f.detail) for f in result.unreadable]}"
+    )
+    assert result.exit_code == vv.EXIT_MISMATCH == 2
+
+
+def test_claude_dir_symlink_does_not_write_through_either(tmp_path):
+    """LOW-2 回归：`.claude` 复制点与插件复制点同样要防写穿。
+
+    原来只有插件复制点有行为门，于是把 `.claude` 那行改成 `/bin/cp -R`（去掉 -H、
+    带绝对路径）时，结构门与七条 origin 门全部通过——审查者实测。
+    """
+    shared = tmp_path / "shared-skills"
+    shared.mkdir()
+    guard = shared / "SKILL.md"
+    guard.write_text("SHARED-MUST-NOT-CHANGE", encoding="utf-8")
+    before = guard.read_bytes()
+
+    source = tmp_path / "src"
+    (source / ".claude").mkdir(parents=True)
+    (source / ".claude" / "skills").symlink_to(shared, target_is_directory=True)
+    target = tmp_path / "tgt"
+    (target / ".claude").mkdir(parents=True)
+
+    block = _extract_block('for item in "${CLAUDE_ITEMS[@]}"', "done")
+    script = "CLAUDE_ITEMS=(skills)\n" + block
+    done = subprocess.run(
+        ["bash", "-c", script],
+        env={**os.environ, "SOURCE": str(source), "TARGET": str(target)},
+        capture_output=True,
+        text=True,
+    )
+    assert done.returncode == 0, done.stderr
+    copied = target / ".claude" / "skills"
+    assert not copied.is_symlink(), ".claude 下的目录软链必须被实体化，否则写它会穿到共享源"
+    (copied / "SKILL.md").write_text("LOCAL-EDIT", encoding="utf-8")
+    assert guard.read_bytes() == before, "共享源被沿软链写穿（LOW-2 回归）"

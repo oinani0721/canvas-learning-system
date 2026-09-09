@@ -720,6 +720,11 @@ def _probe_regular_readable(path: Path) -> tuple[bool, str]:
          生成件按定义是脚本自己写出来的实体文件, 用 `lstat` + `S_ISREG` 判。
       2. 可读性要**真开一次**。但只读 1 字节就够 —— 早先复用 `_leaf_digest` 会把整份文件
          读进内存做哈希、结果又不使用(16 MiB 生成件 ⇒ 同量级分配峰值), 纯浪费。
+
+    **它证明什么、不证明什么**(Codex round-4 LOW, 如实收窄):
+      证明 = 末级路径项本身是普通文件(不经软链) + `open()` 成功 + 第一次 `read(1)` 不抛。
+      **不**证明 = 整件可读(首字节之后坏块/截断的网络文件仍会放行; 空文件也放行,
+      那是合法形态), 也**不**排除**祖先目录**是软链(只看末级项自己的 lstat)。
     """
     try:
         st = os.lstat(path)
@@ -1265,6 +1270,27 @@ def _check_hotkeys(vault: Path, report: Report) -> None:
     if hotkeys_state == "absent":
         report.hotkeys_note = f"not evaluated (无 {HOTKEYS_REL})"
         return
+    # ⚠️ 顺序要紧: hotkeys **自身**的结构必须先独立验完, 再看 main.js 在不在。
+    # 反过来写(缺 main.js 就直接 not evaluated)会让「hotkeys 顶层是数组/字符串」这类
+    # 结构错误在树源部署下完全无声 —— 两层检查同时放行, rc=0(Codex round-4 MEDIUM)。
+    try:
+        raw = hotkeys_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        _unreadable(HOTKEYS_REL, f"快捷键文件读不进去: {exc}", "not evaluated (读不进去)")
+        return
+    try:
+        bindings = json.loads(raw)
+    except ValueError as exc:
+        _unreadable(HOTKEYS_REL, f"不是合法 JSON, 无法核对快捷键: {exc}", "not evaluated (JSON 非法)")
+        return
+    if not isinstance(bindings, dict):
+        _unreadable(
+            HOTKEYS_REL,
+            f"顶层不是对象 (实为 {type(bindings).__name__}), 无法核对快捷键",
+            "not evaluated (结构非法)",
+        )
+        return
+
     if main_js_state == "absent":
         report.hotkeys_note = f"not evaluated ({PLUGIN_MAIN_JS_REL} 缺 — gitignored 构建产物)"
         return
@@ -1281,22 +1307,9 @@ def _check_hotkeys(vault: Path, report: Report) -> None:
         report.hotkeys_note = f"not evaluated ({PLUGIN_MAIN_JS_REL} 不是普通文件)"
         return
     try:
-        raw = hotkeys_path.read_text(encoding="utf-8")
         source = main_js_path.read_text(encoding="utf-8", errors="replace")
     except (OSError, UnicodeDecodeError) as exc:
-        _unreadable(HOTKEYS_REL, f"快捷键或插件产物读不进去: {exc}", "not evaluated (读不进去)")
-        return
-    try:
-        bindings = json.loads(raw)
-    except ValueError as exc:
-        _unreadable(HOTKEYS_REL, f"不是合法 JSON, 无法核对快捷键: {exc}", "not evaluated (JSON 非法)")
-        return
-    if not isinstance(bindings, dict):
-        _unreadable(
-            HOTKEYS_REL,
-            f"顶层不是对象 (实为 {type(bindings).__name__}), 无法核对快捷键",
-            "not evaluated (结构非法)",
-        )
+        _unreadable(PLUGIN_MAIN_JS_REL, f"插件产物读不进去: {exc}", "not evaluated (读不进去)")
         return
 
     known = {m.group(2) for m in COMMAND_ID_RE.finditer(source)}
