@@ -560,15 +560,22 @@ def extract_port(address) -> int | None:
         return None
     try:
         return operator.index(raw)
-    except Exception:  # noqa: BLE001 —— 见下：这里只能 fail-closed，不能让异常逸出
+    except BaseException:  # noqa: BLE001 —— 见下：这里只能 fail-closed，不能让异常逸出
         # ⛔ 必须与上面读槽位那半**同口径**（RV-C H-1a）。原来只捕 ``TypeError``：
         #    ``__index__`` 是调用方给的任意用户代码，它抛 ``ValueError`` /
         #    ``RuntimeError`` 时异常会从这里逸出 —— 而本函数的唯一调用点
-        #    :func:`_audit_hook` 是在 ``STATE.record()` **之前**调它的，于是那次尝试
+        #    :func:`_audit_hook` 是在 ``STATE.record()`` **之前**调它的，于是那次尝试
         #    连接确实被阻断了（异常传给调用方），账本却是零。与 round-1 HIGH-1
         #    「seam 抛异常跳过记账」同型：**任何在记账之前执行用户代码的地方都得
         #    fail-closed**。取不到端口 ⇒ 返回 None ⇒ ``port_is_trustworthy`` 随后判
         #    不可信 ⇒ 照样走受拦分支、照样进账，没有放宽任何东西。
+        #
+        # ⛔ 捕 ``BaseException`` 而不是 ``Exception``（RV-C round-1 HIGH-1 追加）：
+        #    ``__index__`` 抛 ``SystemExit`` / ``KeyboardInterrupt`` / 自定义
+        #    ``BaseException`` 子类时，只捕 ``Exception`` 仍会让它从这里逸出、越过记账
+        #    —— 缺陷原样存在，只是触发它需要换一个异常类型。与 :func:`_safe_repr`
+        #    （U7-B 立的同型防线）口径统一：**记账之前执行的用户代码，一律 fail-closed**。
+        #    代价是那个微秒级窗口里的 Ctrl-C 会被吞掉一次，与 :func:`_safe_repr` 同一取舍。
         return None
 
 
@@ -690,24 +697,42 @@ def _is_uvloop_module(name) -> bool:
 
     * ``import uvloop``（语句）⇒ ``__import__`` 抛 ``import`` 事件，``args[0]`` 恰是
       ``"uvloop"`` —— 旧判据拦得住；
-    * ``importlib.import_module("uvloop")`` ⇒ 走 ``_bootstrap._gcd_import``，**不为顶层名
-      抛事件**。于是 ``del sys.modules["uvloop"]`` 绕过非承重的毒化层之后，这条路
-      **两层防御全都越过、uvloop 真的被导入了**。
+    * ``importlib.import_module("uvloop")`` ⇒ 走 ``_bootstrap._gcd_import``，本机实测
+      **不为顶层名抛事件**。于是 ``del sys.modules["uvloop"]`` 绕过非承重的毒化层之后，
+      这条路 **两层防御全都越过、uvloop 真的被导入了**。
 
-    但 hook 并不是没被调用：uvloop 的 ``__init__.py`` 自己 import 子模块，实测触发了
-    ``uvloop.includes`` / ``uvloop.loop`` / ``uvloop._noop`` / ``uvloop._version``。
+    ⚠️ **不要把它读成全称结论**（round-1 Codex MEDIUM）：本函数只声称「`import` 语句这个
+    入口发顶层名事件、`import_module` 这个入口不发」——**不**声称「只有 ``__import__``
+    才发事件」。动态扩展 loader 自己也会发事件，缓存命中的导入则可能一个都不发。
+    「每一个 Python / uvloop / loader 组合都必然产生一个能命中的事件」**未证明**，
+    实测只覆盖本机 CPython 3.14.4 的这四种形态。
+
+    但 hook 并不是没被调用：uvloop 的 ``__init__.py`` 自己 import 子模块，**那些走的是
+    ``import`` 语句**、照常抛事件。**不装门**时观测到的完整序列是 ``uvloop.includes`` /
+    ``uvloop.loop`` / ``uvloop._noop`` / ``uvloop._version``；装了门之后只会看到**第一条**
+    （``uvloop.includes``），因为门在那一条上就抛了 —— 两个数字含义不同，别混用。
     所以把判据从「等于 uvloop」放宽到「uvloop 或 uvloop. 开头」，就能在**同一层**
     （audit ``import`` 事件）把这条路关上 —— 承重方式没有改变，模块 docstring 对
     「audit 事件承重、毒化不承重」的定性照旧成立。
 
     前缀带**点**（``uvloop.``）而不是裸 ``startswith("uvloop")``：否则 ``uvloopx`` /
     ``uvloop_shim`` 这类无关模块会被误拦（契约 ``test_lookalike_module_names_are_not_blocked``
-    是这条的验伪锚）。``type(name) is str`` 而不是 ``isinstance``：审计事件的参数由
-    调用方给，``str`` 子类可以重载 ``__eq__`` / ``startswith``。
+    是这条的验伪锚）。
+
+    ⛔ ``str`` **子类必须照判，不能一律放行**（round-1 Codex HIGH-2 打回）：本函数第一版
+    写的是 ``type(name) is not str: return False`` —— 本意是「不信任可被重载的比较方法」，
+    实际效果却是**比旧实现更宽**：一个没有任何重载、值就是 ``"uvloop"`` 的 ``str`` 子类，
+    旧的 ``args[0] == "uvloop"`` 拦得住，那一版反而放行。而 CPython 接受 Unicode 子类、
+    绝对导入保留原 name 对象、审计事件原样传递，所以这不是只有手工 ``sys.audit`` 才构造
+    得出的形态。
+
+    正确做法与本文件处理 tuple 子类同一个惯用法：**用未绑定的基类方法读真实值**，
+    绕开子类可能重载的 ``__eq__`` / ``startswith``，而不是把整类输入放掉。
     """
-    if type(name) is not str:  # noqa: E721 —— str 子类可重载比较，不认
+    if not isinstance(name, str):
         return False
-    return name == "uvloop" or name.startswith("uvloop.")
+    # 未绑定调用 ⇒ 走 str 自己的实现，子类重载骗不过（同 tuple.__len__/__getitem__ 的用法）
+    return str.__eq__(name, "uvloop") is True or str.startswith(name, "uvloop.")
 
 
 def _is_selftest_address(address) -> bool:

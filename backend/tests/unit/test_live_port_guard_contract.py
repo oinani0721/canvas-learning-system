@@ -23,6 +23,10 @@ import pytest
 from tests.support import live_port_guard as guard
 
 
+class _CustomBaseException(BaseException):
+    """直接继承 ``BaseException`` 的自定义异常（``except Exception`` 捕不到）。"""
+
+
 class _StubItem:
     """``is_exempt`` 只用到 ``get_closest_marker`` 与 ``path`` 两个面。"""
 
@@ -90,6 +94,25 @@ class TestExtractPort:
         class _Port:
             def __index__(self):
                 raise exc_type("__index__ 故意抛出 —— 取端口必须 fail-closed")
+
+        assert guard.extract_port(_Addr(("127.0.0.1", _Port()))) is None
+
+    @pytest.mark.parametrize("exc_type", [SystemExit, KeyboardInterrupt, _CustomBaseException])
+    def test_index_raising_baseexception_is_also_fail_closed(self, exc_type):
+        """``__index__`` 抛 ``BaseException`` 子类时同样必须返回 None（round-1 HIGH-1）。
+
+        ⛔ 本卡第一版只把 ``except TypeError`` 扩到 ``except Exception``，
+        ``SystemExit`` / ``KeyboardInterrupt`` / 自定义 ``BaseException`` 仍会逸出并越过
+        ``STATE.record()`` —— 缺陷原样存在，只是触发它要换一个异常类型。
+        与 ``_safe_repr``（U7-B 立的同型防线）口径统一为 ``BaseException``。
+        """
+
+        class _Addr(tuple):
+            __slots__ = ()
+
+        class _Port:
+            def __index__(self):
+                raise exc_type("__index__ 抛 BaseException —— 取端口仍必须 fail-closed")
 
         assert guard.extract_port(_Addr(("127.0.0.1", _Port()))) is None
 
@@ -548,6 +571,9 @@ class TestSelftestAddressClassification:
         assert type(host) is str, "哨兵必须是精确 str（_is_selftest_address 用 type(...) is str 判）"
         assert ord(host[0]) == 0, "哨兵首字符必须是 NUL —— 那才是它连不上任何东西的理由"
         assert len(host) == 28, f"哨兵长度变了（实测 {len(host)}）—— 改它请重新论证这条豁免的前提"
+        # ⚠️ 下面三条是**说明性**的，不算三份独立检出能力（round-1 Codex LOW）：
+        #    前两条断言（精确 str + 首字符 NUL）已经蕴含它们，没有哪种输入能只让这三条红。
+        #    留着是给读代码的人一眼看出「哨兵不能是普通主机名」这个意图。
         assert host != "localhost"
         assert host != "127.0.0.1"
         assert "\x00" in host
@@ -570,6 +596,16 @@ class TestSelftestAddressClassification:
 
     def test_plain_ipv6_four_tuple_on_blocked_port_is_not_selftest(self):
         assert guard._is_selftest_address(("::1", 7691, 0, 0)) is False
+
+    def test_selftest_lookalike_without_the_nul_is_not_selftest(self):
+        """**去掉 NUL** 的近似哨兵不得被判成自证（round-1 Codex LOW 建议补的负例）。
+
+        上面三条杀得掉「只判 ``type(host) is str``」那个变异，但杀不掉
+        ``host.endswith("w4-live-port-guard-selftest")`` 这类**后缀匹配**实现 ——
+        那种实现会把这个不含 NUL、因而**连得上**的同名主机也判成自证 ⇒ 不记账。
+        NUL 才是「这个名字连不上任何东西」的全部理由，所以判据必须是精确相等。
+        """
+        assert guard._is_selftest_address(("w4-live-port-guard-selftest", 7691)) is False
 
 
 class TestExemption:
@@ -653,10 +689,14 @@ class TestGuardLiveness:
         于是 ``del sys.modules["uvloop"]`` 绕过非承重的毒化层之后，
         ``importlib.import_module("uvloop")`` **两层防御全都越过、成功导入**。
 
-        但 hook 并非没被调用：uvloop 的 ``__init__.py`` 自己 ``import`` 子模块，实测
-        触发了 ``uvloop.includes`` / ``uvloop.loop`` / ``uvloop._noop`` / ``uvloop._version``
-        四个事件。判据从「``args[0] == "uvloop"``」放宽到「``uvloop`` 或 ``uvloop.``
-        开头」即可在**同一层**（audit import 事件）关上这条路 —— 承重方式没变。
+        但 hook 并非没被调用：uvloop 的 ``__init__.py`` 自己 ``import`` 子模块，**那些走
+        ``import`` 语句**、照常抛事件。**不装门**时观测到的完整序列是 ``uvloop.includes`` /
+        ``uvloop.loop`` / ``uvloop._noop`` / ``uvloop._version``；**装了门**之后只会看到
+        第一条（实测 ``['uvloop.includes']``），因为门在那一条上就抛了 —— 两个数字含义
+        不同，别混用（证据 ``evidence-w47/m4-importlib-r2-*.txt`` 的 `uvloop 事件` 行）。
+
+        判据从「``args[0] == "uvloop"``」放宽到「``uvloop`` 或 ``uvloop.`` 开头」即可在
+        **同一层**（audit import 事件）关上这条路 —— 承重方式没变。
         """
         import sys
 
@@ -664,6 +704,67 @@ class TestGuardLiveness:
         try:
             with pytest.raises(RuntimeError, match="uvloop 的 import 被本门拦下"):
                 sys.audit("import", module_name, None, None, None, None)
+        finally:
+            if saved is not None or "uvloop" not in sys.modules:
+                sys.modules["uvloop"] = saved
+
+    @pytest.mark.parametrize("value", ["uvloop", "uvloop.loop"])
+    def test_str_subclass_module_name_is_still_blocked(self, value):
+        """``str`` **子类**的模块名照样要拦（round-1 Codex HIGH-2 打回的判定回退）。
+
+        ⛔ 本卡第一版把判据写成 ``type(name) is not str: return False`` —— 本意是不信任
+        可重载的比较方法，实际效果却**比旧实现更宽**：一个毫无重载、值就是 ``"uvloop"``
+        的 ``str`` 子类，旧的 ``args[0] == "uvloop"`` 拦得住，那一版反而放行。
+        CPython 接受 Unicode 子类、绝对导入保留原 name 对象、审计事件原样传递，
+        所以这不是只有手工 ``sys.audit`` 才构造得出的形态。
+        """
+
+        class _Name(str):
+            __slots__ = ()
+
+        import sys
+
+        saved = sys.modules.pop("uvloop", None)
+        try:
+            with pytest.raises(RuntimeError, match="uvloop 的 import 被本门拦下"):
+                sys.audit("import", _Name(value), None, None, None, None)
+        finally:
+            if saved is not None or "uvloop" not in sys.modules:
+                sys.modules["uvloop"] = saved
+
+    def test_lying_str_subclass_is_judged_by_its_real_value(self):
+        """重载了比较方法的 ``str`` 子类，按**真实值**判而不是按它自己说的判。
+
+        两个方向各一条：
+        * 真实值是 ``"uvloop"`` 但 ``__eq__`` / ``startswith`` 谎称不是 ⇒ 仍必须拦；
+        * 真实值是 ``"json"`` 但 ``__eq__`` / ``startswith`` 谎称是 uvloop ⇒ 不得误拦。
+
+        判据用未绑定的 ``str.__eq__`` / ``str.startswith`` 读真实值（与本仓处理 tuple
+        子类时用 ``tuple.__len__`` / ``tuple.__getitem__`` 同一个惯用法）。
+        """
+
+        class _Liar(str):
+            __slots__ = ()
+
+            def __eq__(self, other):  # noqa: D105
+                return not str.__eq__(self, other)
+
+            def __ne__(self, other):  # noqa: D105
+                return not self.__eq__(other)
+
+            def startswith(self, *a, **k):  # noqa: D102
+                return not str.startswith(self, *a, **k)
+
+            __hash__ = str.__hash__
+
+        import sys
+
+        saved = sys.modules.pop("uvloop", None)
+        try:
+            with pytest.raises(RuntimeError, match="uvloop 的 import 被本门拦下"):
+                sys.audit("import", _Liar("uvloop"), None, None, None, None)
+            # 反向：谎称自己是 uvloop 的无关模块不得被误拦
+            assert guard._audit_hook("import", (_Liar("json"), None, None, None, None)) is None
         finally:
             if saved is not None or "uvloop" not in sys.modules:
                 sys.modules["uvloop"] = saved
