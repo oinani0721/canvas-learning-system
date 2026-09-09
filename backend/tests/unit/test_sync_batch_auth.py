@@ -151,6 +151,7 @@ class TestProductionFailClosed:
     ) -> None:
         app.dependency_overrides[get_settings] = _settings_factory(debug=False, key="")
         with caplog.at_level(logging.ERROR, logger="app.security"):
+            caplog.clear()
             response = auth_client.post("/api/v1/sync/batch", json=SAMPLE_PAYLOAD)
         assert response.status_code == 503, (
             "DEBUG=False with empty INTERNAL_API_KEY must fail closed (503), not silently allow"
@@ -164,11 +165,20 @@ class TestProductionFailClosed:
         # 所以任何 `in` 形式的 detail 断言都分辨不了层，只有 `==` 可以。
         # 下面两条把判据绑到 Branch 1 的身份上：
         #   ① detail 精确等值；
-        #   ② Branch 1 的 logger.error 独有的那个串（见下一行断言），Branch 2
-        #      在 security.py 里记的是另一句、不含它。security.py 刻意用 stdlib
-        #      logging 而非 structlog（见其模块注释）正是为了让 caplog 捕得到。
+        #   ② 发出 Branch 1 那条 logger.error 的**函数** + 带括号的完整标记。
+        #      ⚠️ 不能用裸 token 子串匹配 caplog.text：security.py 的 WebSocket
+        #      侧分支用同一个 logger、同样是 ERROR 级别，其标记以 "ws_" 打头
+        #      因而**包含**那个裸 token，裸子串判据会把它误判成命中。
+        #      security.py 刻意用 stdlib logging 而非 structlog（见其模块注释）
+        #      正是为了让 caplog 捕得到这条记录。
         assert response.json()["detail"] == "Internal API key not configured"
-        assert "auth_fail_closed" in caplog.text
+        assert any(
+            r.name == "app.security"
+            and r.levelno == logging.ERROR
+            and r.funcName == "require_internal_api_key"
+            and "(auth_fail_closed)" in r.getMessage()
+            for r in caplog.records
+        ), "expected the Branch 1 fail-closed record emitted by require_internal_api_key"
 
     def test_missing_header_returns_403(self, auth_client: TestClient) -> None:
         app.dependency_overrides[get_settings] = _settings_factory(debug=False, key="real-key")

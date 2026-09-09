@@ -144,15 +144,24 @@ class TestSystemConfigAuth:
     def test_prod_no_key_configured_503(self, auth_client: TestClient, caplog: pytest.LogCaptureFixture) -> None:
         app.dependency_overrides[get_settings] = _settings_factory(debug=False, key="")
         with caplog.at_level(logging.ERROR, logger="app.security"):
+            caplog.clear()
             response = auth_client.post("/api/v1/system/config", json=CONFIG_PAYLOAD)
         assert response.status_code == 503
         assert "not configured" in response.json()["detail"].lower()
         # CARD-RED-A2: 绑「被哪一层拒的」。Branch 1 与 Branch 2 都返回 503，且
         # Branch 2 的 detail 以 Branch 1 的整句为前缀 —— 任何 `in` 形式的 detail
-        # 断言都分辨不了层。精确等值 + Branch 1 logger.error 独有的那个串
-        # （见下一行断言）才能证明请求走到了 security.py 的生产分支。
+        # 断言都分辨不了层。精确等值 + 发出 Branch 1 那条记录的函数与带括号的
+        # 完整标记，才能证明请求走到了 security.py 的生产分支。⚠️ 不能用裸 token
+        # 子串匹配 caplog.text：WebSocket 侧分支同 logger 同级别，其标记以 "ws_"
+        # 打头因而包含那个裸 token，会被裸子串判据误判成命中。
         assert response.json()["detail"] == "Internal API key not configured"
-        assert "auth_fail_closed" in caplog.text
+        assert any(
+            r.name == "app.security"
+            and r.levelno == logging.ERROR
+            and r.funcName == "require_internal_api_key"
+            and "(auth_fail_closed)" in r.getMessage()
+            for r in caplog.records
+        ), "expected the Branch 1 fail-closed record emitted by require_internal_api_key"
 
     def test_prod_wrong_key_403(self, auth_client: TestClient) -> None:
         app.dependency_overrides[get_settings] = _settings_factory(debug=False, key="real-key")
@@ -200,14 +209,23 @@ class TestSystemTestLLMAuth:
     def test_prod_no_key_configured_503(self, auth_client: TestClient, caplog: pytest.LogCaptureFixture) -> None:
         app.dependency_overrides[get_settings] = _settings_factory(debug=False, key="")
         with caplog.at_level(logging.ERROR, logger="app.security"):
+            caplog.clear()
             response = auth_client.post("/api/v1/system/test-llm", json=TEST_LLM_PAYLOAD)
         assert response.status_code == 503
         # CARD-RED-A2: 绑「被哪一层拒的」。Branch 1 与 Branch 2 都返回 503，单看
         # 状态码分辨不了层，而 Branch 2 的 detail 以 Branch 1 的整句为前缀，`in`
-        # 形式同样分辨不了。精确等值 + Branch 1 logger.error 独有的那个串
-        # （见下一行断言）才能证明请求走到了 security.py 的生产分支。
+        # 形式同样分辨不了。精确等值 + 发出 Branch 1 那条记录的函数与带括号的
+        # 完整标记，才能证明请求走到了 security.py 的生产分支。⚠️ 不能用裸 token
+        # 子串匹配 caplog.text：WebSocket 侧分支同 logger 同级别，其标记以 "ws_"
+        # 打头因而包含那个裸 token，会被裸子串判据误判成命中。
         assert response.json()["detail"] == "Internal API key not configured"
-        assert "auth_fail_closed" in caplog.text
+        assert any(
+            r.name == "app.security"
+            and r.levelno == logging.ERROR
+            and r.funcName == "require_internal_api_key"
+            and "(auth_fail_closed)" in r.getMessage()
+            for r in caplog.records
+        ), "expected the Branch 1 fail-closed record emitted by require_internal_api_key"
 
     def test_prod_wrong_key_403(self, auth_client: TestClient) -> None:
         app.dependency_overrides[get_settings] = _settings_factory(debug=False, key="real-key")
