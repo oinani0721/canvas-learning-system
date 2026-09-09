@@ -14,8 +14,10 @@
 #      光看「非零」会把「脚本因 set -u 崩了(rc=1)」读成「判据拦住了(rc=71)」。
 #      这不是假想: 本卡实测过三次 —— `"$abs）"` 里全角括号紧跟变量被 bash 吃进
 #      变量名, set -u 报 unbound, rc=1 而不是 71, 消息里也没有「禁写面」。
-#   2. 非 ASCII 紧跟变量门(test_no_var_ref_followed_by_non_ascii): 上面那个坑
-#      修了三次又被自己的新代码引入两次 ⇒ 做成门, 不靠记性。
+#   2. 非 ASCII 紧跟变量门(test_no_var_ref_followed_by_non_ascii): 上面那个坑在本卡
+#      **总共踩了 6 次** —— 存量 8 处 + 我自己在 step4/step5/HIGH-1 整改/MEDIUM-2 整改里
+#      又新引入 4 次, 每次都是「写中文消息时顺手用了全角括号」。靠记性无效, 只能靠门。
+#      Codex r1 LOW-1 又指出它对 bash 续行是瞎的 ⇒ 现在按**逻辑行**扫(见 _logical_lines)。
 #   3. 禁写面判据必须覆盖 --vault / --evidence-dir / --env-dir **三个**路径参数;
 #      只测 --vault 会让另两个零覆盖。
 #   4. compose 缺省等价: 不传 CLS_*_CONTAINER 时, config 渲染与**参数化之前**的
@@ -430,7 +432,15 @@ def test_dry_run_step6_is_skip_not_ok(tmp_path: Path):
 
 # ═══ ⑧ compose 缺省等价 ═════════════════════════════════════════════════════
 def _compose_config(compose_path: Path, project_dir: Path, env: dict[str, str] | None = None):
+    """渲染 compose config。
+
+    Codex r1 LOW-2：必须先从继承的环境里**清掉** CLS_*_CONTAINER —— 否则「不传变量」
+    这个前提不成立（测试继承整个 os.environ，宿主若设过其中任一个，缺省等价门比的
+    就不是默认环境）。要覆盖某个变量的用例通过 env 参数显式传入。
+    """
     full_env = dict(os.environ)
+    for _k in CONTAINER_VARS:
+        full_env.pop(_k, None)
     if env:
         full_env.update(env)
     return subprocess.run(
@@ -573,7 +583,7 @@ def _apply(tmp_path: Path, name: str, port: str, *extra: str, timeout: int = 120
         str(ev_d),
         "--apply",
         *extra,
-        env={"CLS_DEPLOY_NO_DOCKER_UP": "1", "CLS_LIVE_VAULT": str(_fake_live(tmp_path))},
+        env={"CLS_LIVE_VAULT": str(_fake_live(tmp_path))},
         timeout=timeout,
     )
 
@@ -632,7 +642,11 @@ def test_apply_templates_port_in_all_four_files(tmp_path: Path):
     reason="见上：树上无 main.js 时 apply 会 build",
 )
 def test_step5_skips_up_when_no_docker_up_flag_set(tmp_path: Path):
-    """CLS_DEPLOY_NO_DOCKER_UP=1 ⇒ 步 5 跑完 config 断言就 SKIP，绝不 up -d。"""
+    """缺省（不设 CLS_DEPLOY_ALLOW_DOCKER_UP）⇒ 步 5 跑完 config 断言就 SKIP，绝不 up -d。
+
+    Codex r1 HIGH-2: 旧实现的闸门是 CLS_DEPLOY_NO_DOCKER_UP 缺省 0，即「不设开关就真起
+    容器」。现在反转成 opt-in —— 本用例**故意不设任何开关**，验证缺省就是不 up。
+    """
     if shutil.which("docker") is None:
         pytest.skip("本机没有 docker CLI —— 步 5 的 config 断言无法渲染")
     r = _apply(tmp_path, "probe_a5", "8194", "--activate")
@@ -641,9 +655,20 @@ def test_step5_skips_up_when_no_docker_up_flag_set(tmp_path: Path):
     assert m, f"没有 [5/6] 行: {r.stdout}"
     assert m.group(1) == "SKIP", f"步 5 应 SKIP, 实为 {m.group(1)}: {m.group(2)}"
     assert "config 断言过" in m.group(2), f"步 5 未做 config 断言: {m.group(2)}"
-    # 零容器
+    # 零容器 —— 三态，不把「问不出来」压成「没有」
     ps = subprocess.run(["docker", "ps", "-a", "--format", "{{.Names}}"], capture_output=True, text=True)
-    assert "cls-probe_a5" not in ps.stdout, "步 5 真起了容器"
+    # Codex r1 LOW-1：不能只看 stdout —— docker 查询失败时它是空的，
+    # 「空输出里没有那个名字」会被读成「容器没起来」= 假绿。
+    # 但 rc≠0 也不该判 FAIL：那是**问不出来**，不是「起来了」。本机实测 daemon 未运行时
+    # `docker ps` rc=1，而 `docker compose config` 不需要 daemon，所以别的门照样能跑。
+    if ps.returncode == 0:
+        assert "cls-probe_a5" not in ps.stdout, "步 5 真起了容器"
+    else:
+        # 降级证据：步 5 打的是 SKIP（上面已断言过）。如实记：这一支**没有**用
+        # docker 侧证据交叉验证「零容器」，只证明脚本自己走的是不 up 的分支。
+        assert m.group(1) == "SKIP", (
+            f"docker ps 问不出来(rc={ps.returncode})，此时只剩脚本输出这一条证据，而它不是 SKIP: {m.group(0)}"
+        )
 
 
 @pytest.mark.skipif(
@@ -707,6 +732,26 @@ def test_env_file_mismatch_fails_closed_before_any_write(tmp_path: Path):
 _VAR_THEN_NON_ASCII = re.compile(r"\$[A-Za-z_][A-Za-z0-9_]*[^\x00-\x7f]")
 
 
+def _logical_lines(text: str):
+    """把 bash 的反斜杠续行折叠成逻辑行，并保留起始物理行号。
+
+    Codex r1 LOW-1：逐**物理行**扫描可以被续行躲开 —— 变量在上一行行尾、非 ASCII 字符
+    在下一行行首，物理行上看不到「紧跟」，而 bash 看到的是折叠后的逻辑行。
+    """
+    out, buf, start = [], "", None
+    for i, raw in enumerate(text.splitlines(), 1):
+        if start is None:
+            start = i
+        if raw.endswith("\\"):
+            buf += raw[:-1]
+            continue
+        out.append((start, buf + raw))
+        buf, start = "", None
+    if buf:
+        out.append((start or 1, buf))
+    return out
+
+
 @pytest.mark.parametrize("script", ["deploy-vault.sh", "install-vault.sh"])
 def test_no_var_ref_followed_by_non_ascii(script: str):
     """`"...（$abs）"` 这种写法会让 bash 把全角括号的首字节吃进变量名。
@@ -719,7 +764,7 @@ def test_no_var_ref_followed_by_non_ascii(script: str):
     """
     path = REPO_ROOT / "scripts" / script
     bad = []
-    for i, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+    for i, line in _logical_lines(path.read_text(encoding="utf-8")):
         if line.lstrip().startswith("#"):
             continue
         for m in _VAR_THEN_NON_ASCII.finditer(line):
@@ -733,6 +778,14 @@ def test_var_then_non_ascii_gate_has_a_falsifier():
     assert _VAR_THEN_NON_ASCII.search(sample), "门的正则抓不到已知坏样本"
     fixed = 'FORBIDDEN_HIT="*.env 文件（${abs}）"'
     assert not _VAR_THEN_NON_ASCII.search(fixed), "门把正确写法也当成坏样本"
+    # Codex r1 LOW-1：续行样本 —— 逐物理行看不见，折叠成逻辑行才看得见
+    split_sample = 'MSG="x $abs\\\n）"'
+    assert not any(_VAR_THEN_NON_ASCII.search(ln) for ln in split_sample.splitlines()), (
+        "样本构造错了：它在物理行上就应该看不见"
+    )
+    assert any(_VAR_THEN_NON_ASCII.search(ln) for _n, ln in _logical_lines(split_sample)), (
+        "折叠续行后仍抓不到 —— 门对续行是瞎的"
+    )
 
 
 def test_port_templated_files_is_single_source_shared_by_step3_and_step4():

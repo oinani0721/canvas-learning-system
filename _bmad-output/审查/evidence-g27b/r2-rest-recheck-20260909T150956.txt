@@ -1,0 +1,38 @@
+=== BLOCKER-2: --apply 不得在 preflight 之前建 evidence 目录 ===
+     📦 deploy-vault [apply] vault=ok_a port=8172 hosts=claude
+        harness=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy
+     [1/6] preflight: FAIL 禁写面: --evidence-dir 指向 /Users/Heishing/.claude*（前缀规则）
+  OK   rc                                                   71
+  OK   禁写目录未被创建                             absent
+  OK   目标 vault 未被创建                            absent
+
+=== HIGH-1: 目标**已存在**时的 dry-run 也必须零写 ===
+  OK   预置：apply 建出目标                          0
+     [4/6] verify: SKIP will run: verify_vault_install.py --vault /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27b/r2rest-20260909T150956/v2/probe_ex（dry-run 零写, 不跑不落报告）
+     [6/6] evidence: SKIP will write: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27b/r2rest-20260909T150956/dryev/deploy-<ts>.txt（dry-run 零写, 不落盘）
+  OK   dry-run rc                                           0
+  OK   步 4 是 SKIP                                       1
+  OK   步 6 是 SKIP                                       1
+  OK   dry-run 未写 evidence 文件                       0
+  OK   dry-run 未动目标 vault                           0
+  OK   dry-run 未留源镜像                              0
+
+=== HIGH-2: --apply --activate **不设任何开关**时缺省不得 up -d ===
+     [5/6] activate: SKIP config 断言过（container_name/端口各 1）; 未设 CLS_DEPLOY_ALLOW_DOCKER_UP=1 ⇒ 不执行 up -d（缺省即不做, 需用户当次授权）
+  OK   rc                                                   0
+  OK   步 5 是 SKIP（缺省不 up）                     1
+  OK   消息说明缺省即不做                          1
+  OK   确无容器起来                                   0
+
+=== HIGH-4: key 形态非法（残缺前缀）必须拒同步，而不是把残值写进另两处 ===
+     [2/6] install: FAIL install-vault.sh rc=66, 见 /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27b/r2rest-20260909T150956/e4ev/install-20260909T151000.txt
+  OK   rc 落在 72/73（未继续同步）                 yes
+  OK   残缺 key 未被写进 .env                         0
+
+=== 直接验 key 格式校验分支（绕过 install 防覆盖：用全新目标 + 预置 key）===
+  OK   正控：全新目标 apply rc 0                     0
+  OK   key 长度 64                                        64
+  OK   key 权限 600                                       600
+  OK   无 .tmp 残留                                      0
+
+=== 汇总: PASS=20 FAIL=0 ===

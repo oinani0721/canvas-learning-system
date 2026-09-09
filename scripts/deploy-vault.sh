@@ -37,15 +37,23 @@
 #   live vault（$CLS_LIVE_VAULT，缺省见下）/ $HOME/Library / $HOME/.claude* / $HOME/.codex /
 #   $HOME/.pi / $HOME/.gemini / $HOME/.deepcode / $HOME/.config/opencode / $HOME/.dsh /
 #   路径中任何名为 .git 的段 / 自身是 *.env|.env|.env.* 文件。
-#   判据解 realpath 后比较；对**尚不存在**的路径取最近存在祖先的物理路径再拼回剩余段
-#   （不能因为 realpath 对缺失路径返回空就跳过检查 = 静默放行）。
+#   判据对每个参数做**三种解释并列判定**，任一命中即拦（宁可多拦，不可漏拦）：
+#     ① resolve_abs — 解软链；对尚不存在的尾部取最近存在祖先的物理路径再拼回剩余段
+#        （不能因为 realpath 对缺失路径返回空就跳过检查 = 静默放行）
+#     ② norm_path   — 折叠 `.` 与 `..`；只靠 ① 会漏 `$HOME/missing/../.codex/x`（missing
+#        不存在 ⇒ `..` 一个字符都没动，而 mkdir -p 会解析它）
+#     ③ 大小写归一后比较 — macOS/APFS 缺省大小写不敏感，`$HOME/.CODEX/x` 与 `.codex/x`
+#        是同一个目录；在大小写敏感的文件系统上这会多拦，方向可接受
+#   `$HOME/.claude*` 用**前缀规则**而不是 glob 枚举 —— 枚举只登记当下已存在的条目，
+#   而要防的恰恰是「现在不存在、脚本正要去建」的那一类。
 #
 # ═══ 环境开关 ═══
 #   CLS_MIN_SKILLS            preflight 要求的「含 SKILL.md 的 skill 目录数」下限，缺省 9。
 #                             ⚠️ 现状恰 9 = 零余量：退役任一 skill 会让本判据 FAIL 71，而
 #                             install-vault.sh:188 的 ≥8 仍绿 —— 两条判据会给出相反结论，
 #                             退役 skill 时必须同步改两处。
-#   CLS_DEPLOY_NO_DOCKER_UP   =1 时步 5 只跑 `config` 断言后 SKIP，不 `up -d`。缺省关。
+#   CLS_DEPLOY_ALLOW_DOCKER_UP  **缺省 0 = 步 5 只跑 `config` 断言后 SKIP，不 `up -d`**。
+#                             显式 =1 才真起容器（顶替现网容器不可逆 ⇒ opt-in，需用户当次授权）。
 #   CLS_LIVE_VAULT            live vault 绝对路径（禁写面第一条），缺省为主仓 canvas-vault。
 #
 # ⚠️ set -e 与分步返回码的交互（Codex 问题 ②）：每个 stepN 函数都在 `|| rc=$?` 的条件
@@ -55,7 +63,10 @@
 set -euo pipefail
 
 CLS_MIN_SKILLS="${CLS_MIN_SKILLS:-9}"
-CLS_DEPLOY_NO_DOCKER_UP="${CLS_DEPLOY_NO_DOCKER_UP:-0}"
+# ⛔ 闸门方向（Codex r1 HIGH-2）：`up -d` 顶替现网容器 = 不可逆, 故**默认不做**。
+#    旧的 CLS_DEPLOY_NO_DOCKER_UP 缺省 0 意味着「不设开关就真起容器」, 而「需用户授权」
+#    只写在注释里、没有执行闸门。现在改成 opt-in：必须显式 =1 才会 up。
+CLS_DEPLOY_ALLOW_DOCKER_UP="${CLS_DEPLOY_ALLOW_DOCKER_UP:-0}"
 CLS_LIVE_VAULT="${CLS_LIVE_VAULT:-/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault}"
 FEATURE_TREE="/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev"
 
@@ -125,50 +136,120 @@ resolve_abs() {
     printf '%s%s' "$p" "$rest"
 }
 
+# 纯字符串折叠 `.` 与 `..`（Codex r1 BLOCKER-1）。
+# 为什么需要它：`resolve_abs` 对**不存在**的尾部只做「剥到存在祖先 + 原样拼回」，
+# `..` 一个字符都没动 —— `$HOME/missing/../.codex/probe`（missing 不存在）会原样返回，
+# 与 `$HOME/.codex` 字符串不匹配 ⇒ 漏拦，而 `mkdir -p` 会解析 `..` 真写进 `.codex`。
+# ⚠️ 只对不含软链的段安全, 故与 resolve_abs 的结果**并列判定**（见 is_forbidden）：
+# 两种解释任一命中就拦。方向是**多拦**, 禁写面上宁可误拦不可漏拦。
+norm_path() {
+    local p="$1" out="" seg oldifs="$IFS"
+    case "$p" in
+        "~") p="$HOME" ;;
+        "~/"*) p="$HOME/${p#\~/}" ;;
+    esac
+    case "$p" in
+        /*) ;;
+        *) p="$PWD/$p" ;;
+    esac
+    IFS='/'
+    # shellcheck disable=SC2086
+    set -- $p
+    IFS="$oldifs"
+    for seg in "$@"; do
+        case "$seg" in
+            '' | .) ;;
+            ..) out="${out%/*}" ;;
+            *) out="$out/$seg" ;;
+        esac
+    done
+    printf '%s' "${out:-/}"
+}
+
+# 大小写归一（Codex r1 BLOCKER-1）。macOS/APFS 缺省**大小写不敏感**：
+# `$HOME/.CODEX/probe` 与 `$HOME/.codex/probe` 是同一个目录, 但字符串不等 ⇒ 漏拦。
+# 归一后比较会在大小写敏感的文件系统上**多拦**（两个真不同的目录被当成一个）——
+# 禁写面上这个方向是可接受的, 反过来不可接受。
+lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
+
 declare -a FORBIDDEN=()
+declare -a FORBIDDEN_PREFIX=()
 build_forbidden() {
     FORBIDDEN=()
+    FORBIDDEN_PREFIX=()
     local d
     FORBIDDEN+=("$(resolve_abs "$CLS_LIVE_VAULT")")
     FORBIDDEN+=("$(resolve_abs "$HOME/Library")")
-    for d in "$HOME"/.claude*; do
-        [ -e "$d" ] && FORBIDDEN+=("$(resolve_abs "$d")")
-    done
     for d in .codex .pi .gemini .deepcode .dsh; do
         FORBIDDEN+=("$(resolve_abs "$HOME/$d")")
     done
     FORBIDDEN+=("$(resolve_abs "$HOME/.config/opencode")")
+    # ⚠️ `$HOME/.claude*` 必须是**前缀规则**而不是 glob 枚举（Codex r1 BLOCKER-1）：
+    # `for d in "$HOME"/.claude*` 只登记**当下已存在**的条目, 于是 `$HOME/.claude-new/probe`
+    # 这种「现在还不存在、脚本正要去创建」的路径完全不在名单里 —— 而它恰好是要防的那一类。
+    FORBIDDEN_PREFIX+=("$(resolve_abs "$HOME")/.claude")
 }
 
 # 返回 0 = 命中禁写面（拦），并把命中的那一条写进 FORBIDDEN_HIT
 FORBIDDEN_HIT=""
-is_forbidden() {
-    local raw="$1" abs seg t
-    abs="$(resolve_abs "$raw")"
-    FORBIDDEN_HIT=""
+_hits_one() {
+    # $1 = 待判路径（已归一）, 其余不用。命中则设 FORBIDDEN_HIT 并返回 0。
+    local cand="$1" lc t lt seg probe
+    lc="$(lower "$cand")"
 
     # 自身是 env 文件
-    case "$(basename "$abs")" in
-        .env | *.env | .env.*) FORBIDDEN_HIT="*.env 文件（${abs}）"; return 0 ;;
+    case "$(basename "$cand")" in
+        .env | *.env | .env.*) FORBIDDEN_HIT="*.env 文件（${cand}）"; return 0 ;;
     esac
     # 路径中任何一段名为 .git
-    local probe="$abs"
+    probe="$cand"
     while [ -n "$probe" ] && [ "$probe" != "/" ]; do
         seg="$(basename "$probe")"
         if [ "$seg" = ".git" ]; then
-            FORBIDDEN_HIT=".git 目录内（${abs}）"
+            FORBIDDEN_HIT=".git 目录内（${cand}）"
             return 0
         fi
         probe="$(dirname "$probe")"
     done
-    # 等于或位于禁写目标之下
+    # 等于或位于禁写目标之下（大小写归一比较, 见 lower()）
     for t in "${FORBIDDEN[@]}"; do
         [ -n "$t" ] || continue
-        if [ "$abs" = "$t" ] || [ "${abs#"$t"/}" != "$abs" ]; then
+        lt="$(lower "$t")"
+        if [ "$lc" = "$lt" ] || [ "${lc#"$lt"/}" != "$lc" ]; then
             FORBIDDEN_HIT="$t"
             return 0
         fi
     done
+    # 前缀规则（$HOME/.claude* 这一族, 含尚不存在的）
+    for t in "${FORBIDDEN_PREFIX[@]}"; do
+        [ -n "$t" ] || continue
+        lt="$(lower "$t")"
+        if [ "${lc#"$lt"}" != "$lc" ]; then
+            FORBIDDEN_HIT="${t}*（前缀规则）"
+            return 0
+        fi
+    done
+    return 1
+}
+
+is_forbidden() {
+    local raw="$1" a b
+    FORBIDDEN_HIT=""
+    # 两种解释**并列**判定, 任一命中即拦（Codex r1 BLOCKER-1）：
+    #   a = resolve_abs：解软链, 但对不存在的尾部不折叠 `..`
+    #   b = norm_path  ：折叠 `..`, 但不解软链
+    # 只用 a 会漏 `$HOME/missing/../.codex/probe`；只用 b 会漏软链。
+    # 两者都查 ⇒ 方向是多拦, 禁写面上可接受。
+    a="$(resolve_abs "$raw")"
+    _hits_one "$a" && return 0
+    b="$(norm_path "$a")"
+    if [ "$b" != "$a" ]; then
+        _hits_one "$b" && return 0
+    fi
+    b="$(norm_path "$raw")"
+    if [ "$b" != "$a" ]; then
+        _hits_one "$b" && return 0
+    fi
     return 1
 }
 
@@ -215,18 +296,29 @@ if [ -z "$HARNESS" ]; then
     _cfg=""
     if command -v docker > /dev/null 2>&1; then
         _json="$(docker compose ls --format json 2>/dev/null || printf '[]')"
+        # Codex r1 MEDIUM-2 两处收紧：
+        #   ① Status 前缀匹配改**大小写不敏感**（`Running(1)` 之前会被漏掉 ⇒ 明明有一个
+        #      在跑却报「0 个」并 rc 64，行为随 docker 输出大小写摇摆）
+        #   ② ConfigFiles 含多份（base + override，逗号分隔）时**拒绝推断**而不是取第一份 ——
+        #      取第一份等于静默丢掉 override 上下文，后续所有步骤都用错的 compose
         _n="$(printf '%s' "$_json" | python3 -c 'import json,sys
 try: d=json.load(sys.stdin)
 except Exception: d=[]
-print(len([p for p in d if str(p.get("Status","")).startswith("running")]))' 2>/dev/null || printf '0')"
+print(len([p for p in d if str(p.get("Status","")).lower().startswith("running")]))' 2>/dev/null || printf '0')"
         _cfg="$(printf '%s' "$_json" | python3 -c 'import json,sys
 try: d=json.load(sys.stdin)
 except Exception: d=[]
-r=[p for p in d if str(p.get("Status","")).startswith("running")]
+r=[p for p in d if str(p.get("Status","")).lower().startswith("running")]
 print(r[0].get("ConfigFiles","") if len(r)==1 else "")' 2>/dev/null || printf '')"
     fi
     if [ "$_n" = "1" ] && [ -n "$_cfg" ]; then
-        HARNESS="$(cd "$(dirname "${_cfg%%,*}")" && pwd -P)"
+        case "$_cfg" in
+            *,*)
+                die64 "--harness 无法推断：该项目有多份 compose 配置（${_cfg}）。取第一份会静默丢掉 override，请显式 --harness <树绝对路径>"
+                ;;
+        esac
+        HARNESS="$(cd "$(dirname "$_cfg")" && pwd -P)" \
+            || die64 "--harness 推断出的目录进不去: $(dirname "$_cfg")"
     else
         die64 "--harness 无法推断（running compose 项目数 = ${_n}，需恰 1）。请显式 --harness <树绝对路径>"
     fi
@@ -362,8 +454,11 @@ if s != n or v != n:
             STEP_MSG="npm run build 未产出 main.js"
             return 1
         fi
-        mkdir -p "$(dirname "$mainjs")"
-        cp "$HARNESS/frontend/obsidian-plugin/main.js" "$mainjs"
+        mkdir -p "$(dirname "$mainjs")" \
+            || { STEP_MSG="建插件目录失败: $(dirname "$mainjs")"; return 1; }
+        cp "$HARNESS/frontend/obsidian-plugin/main.js" "$mainjs" \
+            || { STEP_MSG="cp main.js 失败: $mainjs"; return 1; }
+        [ -s "$mainjs" ] || { STEP_MSG="main.js 就位后为空: $mainjs"; return 1; }
         STEP_MSG="树完整 / 禁写面过 / 名不动点 / port $PORT 空闲 / skills $nskills; main.js 已 build 并就位"
         return 0
     fi
@@ -374,14 +469,16 @@ if s != n or v != n:
 # ═══ 步 2 install ═══════════════════════════════════════════════════════════
 ENV_KEYS_WHITELIST="NEO4J_HTTP_PORT NEO4J_BOLT_PORT OLLAMA_HOST VAULT_MOUNT_MODE LOCAL_EMBEDDER_BASE_URL"
 ENV_KEYS_SKIPPED=""
+SEED_ERR=""
 
 seed_env_file() {
     # 从 <harness>/.env 只抄白名单键；源里没有的键**跳过**（不写空值——空键会让读者
     # 分不清「没配」与「配成空」；compose 侧 ${VAR:-默认} 对 unset 与 empty 同样回落，
     # 故跳过与写空在 compose 语义上等价, 跳过更诚实）。跳过清单进步 3 的输出。
     local src="$HARNESS/.env" k v
-    mkdir -p "$ENV_DIR"
-    : > "$ENV_FILE.tmp"
+    SEED_ERR=""
+    mkdir -p "$ENV_DIR" || { SEED_ERR="建 --env-dir 失败: $ENV_DIR"; return 1; }
+    : > "$ENV_FILE.tmp" || { SEED_ERR="建 .env 临时文件失败: $ENV_FILE.tmp"; return 1; }
     printf '# CARD-G2-7b deploy-vault.sh 生成 — vault=%s port=%s ts=%s\n' "$VAULT_NAME" "$PORT" "$TS" >> "$ENV_FILE.tmp"
     ENV_KEYS_SKIPPED=""
     for k in $ENV_KEYS_WHITELIST; do
@@ -398,8 +495,9 @@ seed_env_file() {
         printf 'INTERNAL_API_KEY=\n'
         printf 'DAILY_REVIEW_VAULTS=\n'
     } >> "$ENV_FILE.tmp"
-    mv "$ENV_FILE.tmp" "$ENV_FILE"
-    chmod 600 "$ENV_FILE"
+    mv "$ENV_FILE.tmp" "$ENV_FILE" || { SEED_ERR="mv .env 失败: $ENV_FILE"; return 1; }
+    chmod 600 "$ENV_FILE" || { SEED_ERR="chmod 600 .env 失败: $ENV_FILE"; return 1; }
+    return 0
 }
 
 step2_install() {
@@ -410,16 +508,27 @@ step2_install() {
         STEP_MSG="will run: $cmd"
         return 2
     fi
-    [ -f "$ENV_FILE" ] || seed_env_file
-    if ! CLS_REPO="$HARNESS" "$HARNESS/scripts/install-vault.sh" "$VAULT_NAME" \
+    if [ ! -f "$ENV_FILE" ]; then
+        seed_env_file || { STEP_MSG="${SEED_ERR:-派生 .env 失败}"; return 1; }
+    fi
+    # ⚠️ evidence 目录必须**在这里**建, 不能在主流程顶层建（Codex r1 BLOCKER-2：那样会早于
+    #    preflight, 禁写面拒绝时目录已经落地）。此刻 preflight 已过, 建它是安全的。
+    #    这一步不是可选的：下面 install 的输出要重定向进去, 目录不存在 ⇒ 重定向失败 ⇒
+    #    install **根本没跑**, 而旧消息会把它说成「install-vault.sh 非零退出」（误导）。
+    mkdir -p "$EVIDENCE_DIR" || { STEP_MSG="建 evidence 目录失败: $EVIDENCE_DIR"; return 1; }
+    local ilog="$EVIDENCE_DIR/install-$TS.txt"
+    : > "$ilog" || { STEP_MSG="无法写 install 日志(重定向失败, install 未执行): $ilog"; return 1; }
+    local irc=0
+    CLS_REPO="$HARNESS" "$HARNESS/scripts/install-vault.sh" "$VAULT_NAME" \
         --subject "$SUBJECT" --vaults-root "$(dirname "$VAULT")" \
         --source "$HARNESS/canvas-vault" --env-file "$ENV_FILE" \
         --harness-tree "$HARNESS" --backend-url "http://127.0.0.1:$PORT" \
-        > "$EVIDENCE_DIR/install-$TS.txt" 2>&1; then
-        STEP_MSG="install-vault.sh 非零退出, 见 $EVIDENCE_DIR/install-$TS.txt"
+        >> "$ilog" 2>&1 || irc=$?
+    if [ "$irc" != 0 ]; then
+        STEP_MSG="install-vault.sh rc=${irc}, 见 $ilog"
         return 1
     fi
-    STEP_MSG="install-vault.sh rc 0, 输出 $EVIDENCE_DIR/install-$TS.txt"
+    STEP_MSG="install-vault.sh rc 0, 输出 $ilog"
     return 0
 }
 
@@ -469,21 +578,39 @@ step3_postprocess() {
     fi
 
     # A4 key 值确定（已存在则读, 不重生 = 幂等）——**此时不落盘**, 见 B5
-    local key
+    local key krc=0
     if [ -f "$keyfile" ]; then
-        key="$(cat "$keyfile")"
+        # ⛔ 必须检查 cat 的 rc 并校验格式（Codex r1 HIGH-4 指出的精确条件）：
+        #    `key="$(cat …)"` 在读到**部分内容后失败**时（I/O 错误、被并发截断）会返回
+        #    非空前缀且 rc≠0。原版忽略 rc ⇒ B3/B4 用那个残缺前缀写 .env 与 data.json,
+        #    而 B5 见「文件已存在」不重写 ⇒ 文件里是完整旧 key、另两处是残缺前缀。
+        key="$(cat "$keyfile")" || krc=$?
+        if [ "$krc" != 0 ]; then
+            STEP_MSG="读 key 文件失败(rc=${krc}), 拒绝用可能残缺的值同步三处: $keyfile"
+            return 1
+        fi
         KEY_REGENERATED="no(已存在)"
     else
         key="$(openssl rand -hex 32)" || { STEP_MSG="openssl rand 失败"; return 1; }
         KEY_REGENERATED="yes"
     fi
-    [ -n "$key" ] || { STEP_MSG="key 为空"; return 1; }
+    # 格式校验：openssl rand -hex 32 恒为 64 个小写 hex。任何别的形态都拒 ——
+    # 残缺前缀、被编辑器加了尾注、文件里被写进别的内容, 都在这里止住。
+    case "$key" in
+        *[!0-9a-f]* | "") STEP_MSG="key 形态非法(应为 64 位小写 hex), 拒绝同步"; return 1 ;;
+    esac
+    if [ "${#key}" != 64 ]; then
+        STEP_MSG="key 长度 ${#key} != 64, 拒绝同步（疑为读取残缺或被改写）"
+        return 1
+    fi
 
     # ══ Phase B：写 ═══════════════════════════════════════════════════════════
     # 顺序讲究：key **文件**最后写。「key 文件存在」是幂等锚点（A4 据它判不重生），
     # 只在其余两处都同步完成后才让这个最强信号出现。
     # B1 .env.<vault> 不存在则按白名单派生
-    [ -f "$ENV_FILE" ] || seed_env_file
+    if [ ! -f "$ENV_FILE" ]; then
+        seed_env_file || { STEP_MSG="${SEED_ERR:-派生 .env 失败}"; return 1; }
+    fi
 
     # B2 端口模板化（只对目标副本；:8011 精确到端口段, 不误伤别的数字）
     # 清单单一来源 = $PORT_TEMPLATED_FILES（步 4 的源镜像用同一份）+ data.json。
@@ -536,7 +663,7 @@ PY
         STEP_MSG="写 $ENV_FILE 的 INTERNAL_API_KEY 失败"
         return 1
     fi
-    chmod 600 "$ENV_FILE"
+    chmod 600 "$ENV_FILE" || { STEP_MSG="chmod 600 失败: $ENV_FILE"; return 1; }
 
     # B5 key **文件**落盘 —— 最后一步。A4 已确定值; 已存在则不重写、只校正权限。
     # 为什么最后：「key 文件存在」是 A4 判「不重生」的锚点。若它先落盘而后续两处失败，
@@ -544,8 +671,17 @@ PY
     # 前面任何失败都不会留下这个信号（如实声明：Phase B 内部失败仍可能留半成品，
     # 方向是「另两处有值、key 文件缺」, 重跑会重生并覆盖两处 ⇒ 自愈）。
     if [ "$KEY_REGENERATED" = "yes" ]; then
-        mkdir -p "$(dirname "$keyfile")"
-        (umask 077 && printf '%s\n' "$key" > "$keyfile") || { STEP_MSG="写 key 文件失败"; return 1; }
+        mkdir -p "$(dirname "$keyfile")" || { STEP_MSG="建 key 文件父目录失败"; return 1; }
+        # 原子落盘：先写 tmp（umask 077）→ 回读比对 → mv。中途失败不会留下**部分内容的**
+        # key 文件, 而「key 文件存在」正是 A4 判「不重生」的锚点 —— 半个 key 比没有 key 更坏。
+        (umask 077 && printf '%s\n' "$key" > "$keyfile.tmp") \
+            || { STEP_MSG="写 key 临时文件失败"; return 1; }
+        if [ "$(cat "$keyfile.tmp")" != "$key" ]; then
+            rm -f -- "$keyfile.tmp"
+            STEP_MSG="key 临时文件回读不一致, 已丢弃（未污染 ${keyfile}）"
+            return 1
+        fi
+        mv "$keyfile.tmp" "$keyfile" || { STEP_MSG="mv key 文件失败"; return 1; }
     fi
     chmod 600 "$keyfile" || { STEP_MSG="chmod 600 key 文件失败"; return 1; }
 
@@ -563,20 +699,33 @@ PY
 # 模板化，再当 --source。drift 轴保留：步 3 若改坏别的东西照样报。
 PORT_TEMPLATED_FILES=".mcp.json .claude/settings.json .claude/hooks/session-end-archive.py"
 SRC_MIRROR=""
+CLEANUP_MIRROR_ERR=""
 cleanup_mirror() {
     if [ -n "$SRC_MIRROR" ] && [ -d "$SRC_MIRROR" ]; then
-        rm -rf -- "$SRC_MIRROR"
-        SRC_MIRROR=""
+        # ⛔ 清理失败必须留痕（Codex r1 HIGH-3）：原版无论成败都把 SRC_MIRROR 清空,
+        #    于是「tmp 里留了一份源镜像」被静默吞掉, 步 4 仍报 OK。
+        if rm -rf -- "$SRC_MIRROR"; then
+            SRC_MIRROR=""
+        else
+            CLEANUP_MIRROR_ERR="源镜像未能清理: $SRC_MIRROR"
+        fi
     fi
 }
 trap cleanup_mirror EXIT INT TERM
 
 step4_verify() {
-    if [ ! -d "$VAULT" ]; then
-        STEP_MSG="目标 vault 尚不存在（dry-run 且未 install）, 跳过只读校验"
+    # ⛔ dry-run 一律 SKIP（Codex r1 HIGH-1）：原版只判 vault 是否存在, 没判 APPLY ——
+    #    目标**已存在**时的 dry-run 会建 evidence 目录、写报告, 非 8011 还会建源镜像,
+    #    「不传 --apply = 零写」当场不成立。零写复验此前只测过「目标不存在」那一支。
+    if [ "$APPLY" != 1 ]; then
+        STEP_MSG="will run: verify_vault_install.py --vault ${VAULT}（dry-run 零写, 不跑不落报告）"
         return 2
     fi
-    mkdir -p "$EVIDENCE_DIR"
+    if [ ! -d "$VAULT" ]; then
+        STEP_MSG="目标 vault 不存在, 无从校验"
+        return 1
+    fi
+    mkdir -p "$EVIDENCE_DIR" || { STEP_MSG="建 evidence 目录失败: $EVIDENCE_DIR"; return 1; }
 
     local src="$HARNESS/canvas-vault" basis="源本体" t
     if [ "$PORT" != "8011" ]; then
@@ -608,6 +757,10 @@ step4_verify() {
     cleanup_mirror
     if [ "$rc" != 0 ]; then
         STEP_MSG="verify_vault_install.py rc=${rc}（1 missing / 2 mismatch / 3 usage）, 基准=$basis, 报告 $rep"
+        return 1
+    fi
+    if [ -n "$CLEANUP_MIRROR_ERR" ]; then
+        STEP_MSG="校验器 rc 0（基准=${basis}）但 $CLEANUP_MIRROR_ERR"
         return 1
     fi
     STEP_MSG="校验器 rc 0（含 content-drift 轴, 基准=${basis}）, 报告 $rep"
@@ -668,8 +821,8 @@ PY
         STEP_MSG="config 结构化断言不成立(rc=${prc}): ${pout:-无输出}"
         return 1
     fi
-    if [ "$CLS_DEPLOY_NO_DOCKER_UP" = 1 ]; then
-        STEP_MSG="config 断言过（container_name/端口各 1）; CLS_DEPLOY_NO_DOCKER_UP=1 ⇒ 不执行 up -d, 主 session 授权后执行"
+    if [ "$CLS_DEPLOY_ALLOW_DOCKER_UP" != 1 ]; then
+        STEP_MSG="config 断言过（container_name/端口各 1）; 未设 CLS_DEPLOY_ALLOW_DOCKER_UP=1 ⇒ 不执行 up -d（缺省即不做, 需用户当次授权）"
         return 2
     fi
     # 真 activate（G2-8 面）：起/重建该 vault 的绑定实例 + 健康断言 + 失败回滚。
@@ -679,17 +832,33 @@ PY
         -p "cls-$VAULT_NAME" --project-directory "$HARNESS" up -d backend \
         >> "$cfg" 2>&1 || up_rc=$?
     if [ "$up_rc" != 0 ]; then
-        STEP_MSG="up -d backend rc=$up_rc, 已回滚 down"
+        local down_rc=0
         docker compose -f "$HARNESS/docker-compose.yml" --env-file "$ENV_FILE" \
-            -p "cls-$VAULT_NAME" --project-directory "$HARNESS" down >> "$cfg" 2>&1 || true
+            -p "cls-$VAULT_NAME" --project-directory "$HARNESS" down >> "$cfg" 2>&1 || down_rc=$?
+        # ⛔ down 失败时不得仍声称「已回滚」（Codex r1 HIGH-3）
+        if [ "$down_rc" = 0 ]; then
+            STEP_MSG="up -d backend rc=${up_rc}, 已回滚 down"
+        else
+            STEP_MSG="up -d backend rc=${up_rc}, 且回滚 down 也失败(rc=${down_rc}) — 容器可能仍在, 需人工处置"
+        fi
         return 1
     fi
-    local cur=""
-    cur="$(curl -sS --fail -m 10 "http://127.0.0.1:$PORT/api/v1/vault/current" 2> /dev/null || printf '')"
-    if ! printf '%s' "$cur" | grep -q "$VAULT_NAME"; then
-        STEP_MSG="/api/v1/vault/current 未报告 $VAULT_NAME, 已回滚 down"
+    # ⛔ curl 的 rc 必须单独判（Codex r1 HIGH-3）：`… || printf ''` 会把「已输出部分
+    #    响应后失败」变成「拿到了内容」, 而那段部分响应里恰好可能已经含 vault 名 ⇒ 假绿。
+    local cur="" curl_rc=0
+    cur="$(curl -sS --fail -m 10 "http://127.0.0.1:$PORT/api/v1/vault/current" 2> /dev/null)" || curl_rc=$?
+    if [ "$curl_rc" != 0 ]; then
+        cur=""
+    fi
+    if [ -z "$cur" ] || ! printf '%s' "$cur" | grep -q "$VAULT_NAME"; then
+        local down_rc2=0
         docker compose -f "$HARNESS/docker-compose.yml" --env-file "$ENV_FILE" \
-            -p "cls-$VAULT_NAME" --project-directory "$HARNESS" down >> "$cfg" 2>&1 || true
+            -p "cls-$VAULT_NAME" --project-directory "$HARNESS" down >> "$cfg" 2>&1 || down_rc2=$?
+        if [ "$down_rc2" = 0 ]; then
+            STEP_MSG="/api/v1/vault/current 未报告 $VAULT_NAME, 已回滚 down"
+        else
+            STEP_MSG="/api/v1/vault/current 未报告 $VAULT_NAME, 且回滚 down 失败(rc=${down_rc2}) — 需人工处置"
+        fi
         return 1
     fi
     STEP_MSG="实例 cls-$VAULT_NAME 已起, /vault/current 报告 $VAULT_NAME"
@@ -714,7 +883,7 @@ step6_evidence() {
         printf '  harness=%s port=%s hosts=%s subject=%s\n' "$HARNESS" "$PORT" "$HOSTS" "$SUBJECT"
         printf '  activate=%s also_push=%s(未实现,登记 G2-8) evidence_dir=%s env_dir=%s\n' \
             "$ACTIVATE" "$ALSO_PUSH" "$EVIDENCE_DIR" "$ENV_DIR"
-        printf '  CLS_MIN_SKILLS=%s CLS_DEPLOY_NO_DOCKER_UP=%s\n' "$CLS_MIN_SKILLS" "$CLS_DEPLOY_NO_DOCKER_UP"
+        printf '  CLS_MIN_SKILLS=%s CLS_DEPLOY_ALLOW_DOCKER_UP=%s\n' "$CLS_MIN_SKILLS" "$CLS_DEPLOY_ALLOW_DOCKER_UP"
         printf '## 六行状态\n'
         for t in "${STEP_LINES[@]}"; do printf '  %s\n' "$t"; done
         printf '## 文件 sha256（密钥件只 sha, 不记内容）\n'
@@ -728,8 +897,10 @@ step6_evidence() {
                 printf '  %-64s %s (ABSENT)\n' '-' "${t#"$VAULT"/}"
             fi
         done
-    } > "$out" 2>&1
-    printf 'rc=0\n' >> "$out"
+    } > "$out.tmp" 2>&1 || { STEP_MSG="写 evidence 临时文件失败: $out.tmp"; return 1; }
+    printf 'rc=0\n' >> "$out.tmp" || { STEP_MSG="追加 rc 行失败: $out.tmp"; return 1; }
+    mv "$out.tmp" "$out" || { STEP_MSG="mv evidence 失败: $out"; return 1; }
+    [ -s "$out" ] || { STEP_MSG="evidence 落盘后为空: $out"; return 1; }
     STEP_MSG="$out"
     return 0
 }
@@ -737,7 +908,9 @@ step6_evidence() {
 # ── 主流程 ────────────────────────────────────────────────────────────────────
 printf '📦 deploy-vault [%s] vault=%s port=%s hosts=%s\n' "$MODE" "$VAULT_NAME" "$PORT" "$HOSTS"
 printf '   harness=%s\n' "$HARNESS"
-[ "$APPLY" = 1 ] && mkdir -p "$EVIDENCE_DIR"
+# ⛔ 不在这里建 evidence 目录（Codex r1 BLOCKER-2）：它早于 preflight，
+#    `--apply --evidence-dir "$HOME/.codex/x"` 会先把目录建出来、再被 71 拒 ——
+#    返回码撤不回已经发生的写入。改为由**通过了 preflight 的**步骤按需自建。
 
 run_step 1 preflight step1_preflight
 run_step 2 install step2_install

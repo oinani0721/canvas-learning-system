@@ -1,0 +1,33 @@
+=== Codex r1 BLOCKER-1 点名的漏拦形态 —— 整改后复验 ===
+（CLS_LIVE_VAULT 指向 /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27b/r2neg-20260909T150606/fakelive，判据应对下列别名全部命中 rc 71）
+  ① 大小写别名(APFS 不敏感)              rc=127 ❌ 漏拦
+(eval):31: command not found: head
+(eval):31: command not found: cut
+(eval):31: command not found: sed
+  ② ..且前段不存在                     rc=127 ❌ 漏拦
+(eval):31: command not found: head
+(eval):31: command not found: cut
+(eval):31: command not found: sed
+  ③ .claude* 尚不存在                rc=127 ❌ 漏拦
+(eval):31: command not found: head
+(eval):31: command not found: cut
+(eval):31: command not found: sed
+(eval):25: command not found: ln
+  ④ 目录软链(r1 已命中,回归)              rc=127 ❌ 漏拦
+(eval):31: command not found: head
+(eval):31: command not found: cut
+(eval):31: command not found: sed
+  ⑤ 相对路径                         rc=127 ❌ 漏拦
+(eval):31: command not found: head
+(eval):31: command not found: cut
+(eval):31: command not found: sed
+  ⑥ 混合: 大小写+..                   rc=127 ❌ 漏拦
+(eval):31: command not found: head
+(eval):31: command not found: cut
+(eval):31: command not found: sed
+
+=== 零写自证：被拦下时目标一个都没被创建 ===
+  ❌ 竟然存在: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27b/r2neg-20260909T150606/FAKELIVE
+  ✅ 不存在: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27b/r2neg-20260909T150606/missing
+  ✅ 不存在: /Users/Heishing/.claude-nonexistent-probe
+  ✅ 不存在: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27b/r2neg-20260909T150606/x
