@@ -1835,8 +1835,14 @@ def test_tmpdir_and_npm_dirs_are_in_pending_writes():
     src = _sh_src()
     i = src.index("local -a PENDING_WRITES=(")
     block = src[i : src.index("\n    )", i)]
-    for key in ("ev-npm-cache:", "ev-npm-logs:", "tmpdir:"):
+    for key in ("ev-npm-cache:", "ev-npm-logs:"):
         assert key in block, f"待写清单缺 {key}（该写入面未过判据）"
+    # ⚠️ `tmpdir` 自 r11 MEDIUM-1 起**不在** PENDING_WRITES 里 —— 那份清单的语义是
+    #    「本脚本创建/截断的**叶子文件**」，其消费方会做 `-L` 软链拒绝，而 TMPDIR 是
+    #    「**写入其中**的目录」，`/tmp -> /private/tmp` 这种合法软链会被误拒。
+    #    它改走 DIR_WRITES：**只过判据、不过叶子规则**。主张不变，位置变了。
+    assert 'DIR_WRITES=("tmpdir:${TMPDIR:-/tmp}")' in src, "TMPDIR 未进 DIR_WRITES"
+    assert '--outputs "${PENDING_WRITES[@]}" "${DIR_WRITES[@]}"' in src, "DIR_WRITES 必须与 PENDING_WRITES 一起交给判据"
     # 基准固定：相对 --evidence-dir/--env-dir 必须在解析期就绝对化
     assert 'EVIDENCE_DIR="$PWD/$EVIDENCE_DIR"' in src, "相对 --evidence-dir 未做词法绝对化"
     assert 'ENV_DIR="$PWD/$ENV_DIR"' in src, "相对 --env-dir 未做词法绝对化"
@@ -1850,8 +1856,115 @@ def test_hosts_whitespace_stripping_reaches_fixpoint():
     """
     src = _sh_src()
     seg = src[src.index('_rest="$HOSTS"') : src.index("done", src.index('_rest="$HOSTS"'))]
-    assert "while :; do" in seg, "去空白必须循环到不动点，不能是几段串行"
-    assert seg.count('_h="${_h# }"') == 1, "不动点循环里每种剥法各一次即可"
+    # ⚠️ 自 r11 LOW-1 起不再用「剥首尾」的不动点循环 —— 旧 `tr -d '[:space:]'` 删的是
+    #    **全部位置**的**所有** ASCII 空白（含 \v \f \r 与中间空白）。
+    #    bash 模式替换一次删净，零 fork、线性时间（顺带消掉 r10 LOW-2 的二次复杂度）。
+    assert "_h=\"${_h//[$' \\t\\n\\r\\v\\f']/}\"" in seg, "去空白必须用模式替换删净全部位置的 ASCII 空白，不能只剥首尾"
+    assert "while :; do" not in seg, "剥首尾的不动点循环已被取代，不应再出现"
+
+
+def test_relative_harness_still_yields_absolute_default_dirs(tmp_path: Path):
+    """⛔ r11 HIGH-1：绝对化必须在**默认值赋好之后**。
+
+    我 r10 把词法绝对化放在了默认值赋值**之前** ⇒ `--harness .` + 省略 `--evidence-dir`
+    时，默认值 `$HARNESS/_bmad-output/…` 是之后才填的，整条仍是相对串、绝对化白做。
+    随后 npm 段先按调用 cwd `mkdir -p`、再 `cd` 进插件目录把同一相对串交给 npm ⇒ 落点分裂。
+    """
+    r = subprocess.run(
+        [
+            str(DEPLOY_SH),
+            "--vault",
+            str(tmp_path / "vaults" / "course"),
+            "--harness",
+            ".",
+            "--port",
+            "8291",
+            "--hosts",
+            "claude",
+            "--env-dir",
+            str(tmp_path / "env"),
+        ],
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+        env={
+            **{k: v for k, v in os.environ.items() if k not in _STRIP_ENV},
+            "CLS_LIVE_VAULT": str(_fake_live(tmp_path)),
+        },
+    )
+    assert r.returncode == 0, f"rc={r.returncode}: {r.stdout}{r.stderr}"
+    m = re.search(r"^\[6/6\] evidence: SKIP will write: (\S+)", r.stdout, re.M)
+    assert m, f"没拿到 evidence 路径: {r.stdout!r}"
+    assert m.group(1).startswith("/"), f"默认 evidence-dir 仍是相对路径: {m.group(1)!r}"
+
+
+def test_legitimate_tmpdir_symlink_is_not_rejected(tmp_path: Path):
+    """⛔ r11 MEDIUM-1：`TMPDIR=/tmp` 必须放行 —— macOS 的 `/tmp -> /private/tmp` 是**合法**软链。
+
+    我 r10 把 `tmpdir` 塞进 `PENDING_WRITES`，于是它过了**叶子文件**的 `-L` 软链规则，
+    `TMPDIR=/tmp`（极常见，未设时也回退到它）当场 rc 71，dry-run 同样中招。
+    TMPDIR 是「**写入其中**的目录」而非「本脚本创建/截断的叶子」⇒ 只走判据、不走叶子规则。
+    """
+    env = {k: v for k, v in os.environ.items() if k not in _STRIP_ENV}
+    env["CLS_LIVE_VAULT"] = str(_fake_live(tmp_path))
+    base = [
+        str(DEPLOY_SH),
+        "--vault",
+        str(tmp_path / "vaults" / "course"),
+        "--harness",
+        str(REPO_ROOT),
+        "--port",
+        "8292",
+        "--hosts",
+        "claude",
+        "--env-dir",
+        str(tmp_path / "env"),
+        "--evidence-dir",
+        str(tmp_path / "ev"),
+    ]
+    for tmpdir in ("/tmp", ""):
+        r = subprocess.run(base, capture_output=True, text=True, env={**env, "TMPDIR": tmpdir})
+        assert r.returncode == 0, f"TMPDIR={tmpdir!r} 被误拒: rc={r.returncode} {r.stdout}"
+    # 控制组：指向保护目录仍必须拦
+    r = subprocess.run(base, capture_output=True, text=True, env={**env, "TMPDIR": str(tmp_path / "protected")})
+    (tmp_path / "protected").mkdir(exist_ok=True)
+    r = subprocess.run(
+        base,
+        capture_output=True,
+        text=True,
+        env={**env, "CLS_LIVE_VAULT": str(tmp_path / "protected"), "TMPDIR": str(tmp_path / "protected")},
+    )
+    assert r.returncode == 71, f"TMPDIR 指向保护目录未被拦: rc={r.returncode} {r.stdout}"
+    assert "tmpdir" in r.stdout, f"消息未点名 tmpdir: {r.stdout!r}"
+
+
+def test_hosts_strips_all_whitespace_like_tr(tmp_path: Path):
+    """⛔ r11 LOW-1：旧 `tr -d '[:space:]'` 删的是**全部位置**的**所有** ASCII 空白。
+
+    含 `\v` `\f` `\r` 与**中间**空白（`cl au\tde` → `claude`）。
+    我 r9 只剥首尾空格、r10 改不动点循环仍只剥首尾 —— 两版都不等价。
+    """
+    env = {k: v for k, v in os.environ.items() if k not in _STRIP_ENV}
+    env["CLS_LIVE_VAULT"] = str(_fake_live(tmp_path))
+    base = [
+        str(DEPLOY_SH),
+        "--vault",
+        str(tmp_path / "vaults" / "course"),
+        "--harness",
+        str(REPO_ROOT),
+        "--port",
+        "8293",
+        "--env-dir",
+        str(tmp_path / "env"),
+        "--evidence-dir",
+        str(tmp_path / "ev"),
+    ]
+    for hosts in ("cl au\tde", "\vclaude\f", "\rclaude\r", "\t claude \t"):
+        real = hosts.encode().decode("unicode_escape")
+        r = subprocess.run(base + ["--hosts", real], capture_output=True, text=True, env=env)
+        assert r.returncode == 0, f"--hosts {real!r} 被误拒: rc={r.returncode} {r.stderr}"
+    r = subprocess.run(base + ["--hosts", "claude,codex"], capture_output=True, text=True, env=env)
+    assert r.returncode == 64, "二线宿主必须仍被拒（判据不能因放宽空白而放宽宿主）"
 
 
 def test_no_here_string_before_preflight():

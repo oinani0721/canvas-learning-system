@@ -274,17 +274,12 @@ _rest="$HOSTS"
 while [ -n "$_rest" ]; do
     _h="${_rest%%,*}"
     if [ "$_h" = "$_rest" ]; then _rest=""; else _rest="${_rest#*,}"; fi
-    # 去空白不用 `tr`（那会 fork 子进程）。⛔ 必须循环到**不动点**（Codex r10 LOW-1）：
-    #    我 r9 写的是「空格轮 → tab 轮」四段串行, 于是 `$'\t claude \t'` 剥完 tab 后
-    #    留下的空格**不会再处理** ⇒ 旧版接受、新版拒绝, 是一条行为回归。
-    #    改成「有任一前后缀是空白就再剥一轮」, 混合顺序也收敛。
-    while :; do
-        case "$_h" in
-            ' '* | *' ' | "	"* | *"	")
-                _h="${_h# }"; _h="${_h% }"; _h="${_h#	}"; _h="${_h%	}" ;;
-            *) break ;;
-        esac
-    done
+    # ⛔ 恢复旧 `tr -d '[:space:]'` 的语义（Codex r11 LOW-1）：它删的是**全部位置**的
+    #    **所有** ASCII 空白（含 \v \f \r 与**中间**空白, `cl au\tde` → `claude`）。
+    #    我 r9 只剥首尾空格、r10 改成不动点循环仍只剥首尾 —— 两版都不等价。
+    #    bash 的模式替换 `${var//[类]/}` 一次删净, 零 fork、线性时间,
+    #    顺带解决 r10 LOW-2 的二次复杂度。
+    _h="${_h//[$' \t\n\r\v\f']/}"
     [ -n "$_h" ] || continue
     if [ "$_h" != "claude" ]; then
         printf '❌ 用法错: --hosts 含未实现的宿主 %s。\n' "$_h" >&2
@@ -348,13 +343,19 @@ case "$VAULT" in
 esac
 [ -n "$VAULT_NAME" ] || die64 "--vault 解析不出 vault 名: $VAULT"
 [ -n "$SUBJECT" ] || SUBJECT="$VAULT_NAME"
-# ⛔ 基准固定（Codex r10 HIGH-1 后半）：相对的 `--evidence-dir` 会让**创建**与**使用**
+# ⛔ 基准固定（Codex r10 HIGH-1 后半 + r11 HIGH-1 收口）：相对目录会让**创建**与**使用**
 #    分裂 —— npm 段先在调用 cwd 下 `mkdir -p`, 随后 `cd` 进插件目录再把**同一个相对串**
 #    交给 npm ⇒ 两者落点不同。这里只做**词法**绝对化（不 realpath, 免得改变语义）。
-case "$EVIDENCE_DIR" in ""|/*) ;; *) EVIDENCE_DIR="$PWD/$EVIDENCE_DIR" ;; esac
-case "$ENV_DIR" in ""|/*) ;; *) ENV_DIR="$PWD/$ENV_DIR" ;; esac
+# ⛔⛔ 顺序：绝对化必须在**默认值赋好之后**（r11 HIGH-1 —— 我 r10 放在了之前）。
+#    `--harness .` + 省略 `--evidence-dir` 时, 默认值 `$HARNESS/_bmad-output/…` 是**之后**
+#    才填进去的, 于是整条仍是相对串 ⇒ 绝对化白做。HARNESS 本身也要先绝对化, 否则
+#    由它派生的两个默认值天然带相对前缀。
+case "$HARNESS" in /*) ;; *) HARNESS="$PWD/$HARNESS" ;; esac
 [ -n "$EVIDENCE_DIR" ] || EVIDENCE_DIR="$HARNESS/_bmad-output/审查/evidence-deploy-$VAULT_NAME"
 [ -n "$ENV_DIR" ] || ENV_DIR="$HARNESS"
+# 两个默认值都赋好了, 现在统一绝对化（显式传入的相对值也在这里被覆盖到）。
+case "$EVIDENCE_DIR" in /*) ;; *) EVIDENCE_DIR="$PWD/$EVIDENCE_DIR" ;; esac
+case "$ENV_DIR" in /*) ;; *) ENV_DIR="$PWD/$ENV_DIR" ;; esac
 ENV_FILE="$ENV_DIR/.env.$VAULT_NAME"
 
 if [ "$ALSO_PUSH" = 1 ]; then
@@ -425,15 +426,20 @@ step1_preflight() {
         #    我 r9 删掉 `<<<` 只修好了 preflight **之前**那一条, 没闭合这一类。
         #    放进 preflight 清单 ⇒ 任何 heredoc 执行之前就判过（preflight 自身只用
         #    `python3 -c` 与带 argv 的调用, 无 heredoc）。
-        "tmpdir:${TMPDIR:-/tmp}"
     )
+    # ⛔ TMPDIR 单独判（Codex r11 MEDIUM-1 —— 我 r10 把它塞进 PENDING_WRITES 的回归）：
+    #    它是「**写入其中**的目录」, 不是「本脚本创建/截断的叶子文件」。
+    #    塞进同一份清单会让它过下面的 `-L` 软链规则, 而 macOS 的 `/tmp -> /private/tmp`
+    #    是**合法**软链 ⇒ `TMPDIR=/tmp`（极常见, 未设时也回退到它）当场 rc 71, dry-run 同样中招。
+    #    判据侧（realpath 物理解析）本来就能正确处理合法软链, 所以只走判据、不走叶子规则。
+    local -a DIR_WRITES=("tmpdir:${TMPDIR:-/tmp}")
 
     # 三个路径参数 + **脚本真正会写的每个对象**（Codex r2 BLOCKER-4）
     if check_forbidden_paths \
         "--vault:$VAULT" \
         "--evidence-dir:$EVIDENCE_DIR" \
         "--env-dir:$ENV_DIR" \
-        --outputs "${PENDING_WRITES[@]}"; then
+        --outputs "${PENDING_WRITES[@]}" "${DIR_WRITES[@]}"; then
         STEP_MSG="禁写面: $FORBIDDEN_HIT"
         return 1
     fi

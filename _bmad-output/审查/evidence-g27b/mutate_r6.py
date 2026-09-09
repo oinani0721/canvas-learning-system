@@ -211,10 +211,10 @@ MUTANTS = [
     (
         "H-2(r10) TMPDIR 退出待写清单（heredoc 临时写入不再受检）",
         DEPLOY,
-        '        "tmpdir:${TMPDIR:-/tmp}"',
-        '        "tmpdir-removed:/dev/null"',
-        "test_tmpdir_and_npm_dirs_are_in_pending_writes",
-        "待写清单缺 tmpdir:",
+        '    local -a DIR_WRITES=("tmpdir:${TMPDIR:-/tmp}")',
+        '    local -a DIR_WRITES=("tmpdir-removed:/dev/null")',
+        "test_legitimate_tmpdir_symlink_is_not_rejected",
+        "未被拦",
     ),
     (
         "H-1(r10) npm 子路径退出待写清单",
@@ -223,6 +223,33 @@ MUTANTS = [
         '        "ev-npm-removed:/dev/null"',
         "test_tmpdir_and_npm_dirs_are_in_pending_writes",
         "待写清单缺 ev-npm-cache:",
+    ),
+    # ── r11 整改 ────────────────────────────────────────────────────────────
+    (
+        "H-1(r11) HARNESS 不再绝对化（默认目录退回相对）",
+        DEPLOY,
+        'case "$HARNESS" in /*) ;; *) HARNESS="$PWD/$HARNESS" ;; esac\n',
+        "",
+        "test_relative_harness_still_yields_absolute_default_dirs",
+        "仍是相对路径",
+        'case "$EVIDENCE_DIR" in /*) ;; *) EVIDENCE_DIR="$PWD/$EVIDENCE_DIR" ;; esac',
+        ":",
+    ),
+    (
+        "M-1(r11) TMPDIR 退回 PENDING_WRITES（合法软链被叶子规则误拒）",
+        DEPLOY,
+        '    local -a DIR_WRITES=("tmpdir:${TMPDIR:-/tmp}")',
+        '    local -a DIR_WRITES=("noop:$EVIDENCE_DIR"); PENDING_WRITES+=("tmpdir:${TMPDIR:-/tmp}")',
+        "test_legitimate_tmpdir_symlink_is_not_rejected",
+        "被误拒",
+    ),
+    (
+        "L-1(r11) 空白只剥首尾（不删中间与 \\v\\f\\r）",
+        DEPLOY,
+        "    _h=\"${_h//[$' \\t\\n\\r\\v\\f']/}\"",
+        '    while :; do case "$_h" in \' \'*|*\' \') _h="${_h# }"; _h="${_h% }";; *) break;; esac; done',
+        "test_hosts_strips_all_whitespace_like_tr",
+        "被误拒",
     ),
 ]
 
