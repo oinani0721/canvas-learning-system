@@ -33,6 +33,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -53,9 +54,18 @@ CONTAINER_VARS = {
 ALL_PROFILES = ["--profile", "test", "--profile", "windows", "--profile", "dev"]
 
 
+#: 必须从继承环境里剥掉的开关（Codex r2 HIGH-1）。
+#: `_run` 继承整个 os.environ；宿主若设了 CLS_DEPLOY_ALLOW_DOCKER_UP=1，
+#: 「缺省不 up」那条用例会**先真起容器**再断言 SKIP —— 断言发生在脚本跑完之后，
+#: 拦不住启动。这是 r1 把闸门反转成 opt-in 之后留下的新回归。
+_STRIP_ENV = ("CLS_DEPLOY_ALLOW_DOCKER_UP", "CLS_MIN_SKILLS", "CLS_LIVE_VAULT")
+
+
 def _run(*args: str, env: dict[str, str] | None = None, timeout: int = 120):
     """跑 deploy-vault.sh，返回 CompletedProcess（不 check）。"""
     full_env = dict(os.environ)
+    for _k in _STRIP_ENV:
+        full_env.pop(_k, None)
     if env:
         full_env.update(env)
     return subprocess.run(
@@ -842,6 +852,29 @@ def test_second_tier_hosts_not_implemented_anywhere():
                 pytest.fail(f"deploy-vault.sh:{i} 在非注释行提到二线件 {artifact}: {line.strip()}")
 
 
+def test_run_helper_strips_host_authorization_switch(monkeypatch, tmp_path: Path):
+    """`_run` 必须剥掉宿主的 CLS_DEPLOY_ALLOW_DOCKER_UP（Codex r2 HIGH-1）。
+
+    宿主设了 1 而测试继承它时，「缺省不 up」那条用例会先真起容器再断言 SKIP ——
+    断言在脚本跑完之后，拦不住启动。这条门直接验剥离行为，不依赖 docker 状态。
+    """
+    monkeypatch.setenv("CLS_DEPLOY_ALLOW_DOCKER_UP", "1")
+    # --help 不走部署路径，只用来观察脚本看到的环境：改用一个会打印环境的探针
+    probe = tmp_path / "probe.sh"
+    probe.write_text(
+        '#!/usr/bin/env bash\nprintf "ALLOW=%s\\n" "${CLS_DEPLOY_ALLOW_DOCKER_UP:-<unset>}"\n',
+        encoding="utf-8",
+    )
+    probe.chmod(0o755)
+    full_env = dict(os.environ)
+    for _k in _STRIP_ENV:
+        full_env.pop(_k, None)
+    r = subprocess.run([str(probe)], capture_output=True, text=True, env=full_env)
+    assert r.returncode == 0, r.stderr
+    assert "ALLOW=<unset>" in r.stdout, f"_STRIP_ENV 没有剥掉 CLS_DEPLOY_ALLOW_DOCKER_UP: {r.stdout!r}"
+    assert "CLS_DEPLOY_ALLOW_DOCKER_UP" in _STRIP_ENV
+
+
 def test_yaml_module_is_available_for_step5_assertion():
     """步 5 的结构化断言依赖 harness venv 的 pyyaml —— 缺了会让断言恒 FAIL。"""
     assert yaml is not None
@@ -952,3 +985,217 @@ def test_evidence_dir_has_no_stderr_archives():
         pytest.skip("evidence-g27b 尚不存在")
     stray = [p.name for p in ev.rglob("*stderr*")]
     assert not stray, f"evidence 里有 stderr 存档: {stray}"
+
+
+# ═══ 禁写面判据本体的门（Codex r2 BLOCKER-1~4 整改后新增）══════════════════════
+# ⚠️ 为什么这些门是**直接调判据脚本**而不是看 deploy-vault.sh 的源码：
+#    Codex r2 MEDIUM 指出源码门「检查字符串数量或存在性」，对功能退化不敏感 ——
+#    把 `src="$SRC_MIRROR"` 改回源树、把失败判断改成 `if false && …`，源码门照样绿。
+#    判据本体的正确性只能由**喂输入看判定**来锁。
+FORBID_PY = REPO_ROOT / "scripts" / "cls_forbidden_paths.py"
+
+
+def _forbid(live: str, *items: str, outputs: tuple[str, ...] = ()):
+    argv = [sys.executable, str(FORBID_PY), live, *items]
+    if outputs:
+        argv += ["--outputs", *outputs]
+    return subprocess.run(argv, capture_output=True, text=True)
+
+
+@pytest.fixture
+def alias_tree(tmp_path: Path):
+    """建一棵含各种别名形态的树：prot 是保护目录，safe 是合法区。"""
+    prot = tmp_path / "prot"
+    (prot / "sub").mkdir(parents=True)
+    safe = tmp_path / "safe"
+    safe.mkdir()
+    (safe / "link").symlink_to(prot / "sub", target_is_directory=True)
+    (safe / "alias").symlink_to(prot, target_is_directory=True)
+    (safe / "link2").symlink_to(safe / "link", target_is_directory=True)
+    return prot, safe
+
+
+def test_forbidden_judge_catches_symlink_dotdot_physical_target(alias_tree):
+    """`link/..` 的物理落点在保护目录内 —— r1 的三种词法解释**全部**漏拦这一条。
+
+    `/safe/link/../probe`（`link → prot/sub`）：`..` 是 link **目标**的父目录，
+    所以真实落点是 `prot/probe`。`cd -L` 与字符串折叠都得出 `/safe/probe`。
+    这是把判据从 bash 搬到 `os.path.realpath` 的唯一理由，必须锁住。
+    """
+    prot, safe = alias_tree
+    r = _forbid(str(prot), f"p:{safe}/link/../probe")
+    assert r.returncode == 1, f"漏拦: {r.stdout}{r.stderr}"
+    assert r.stdout.startswith("HIT"), r.stdout
+
+
+@pytest.mark.parametrize(
+    "form",
+    [
+        "missing/../alias/probe",  # 缺失段之后接软链：折叠后必须再解链
+        "link2/../probe",  # 多重软链
+        "alias/probe",  # 普通软链
+        "alias/deep/nested/probe",  # 软链下的深层路径
+    ],
+)
+def test_forbidden_judge_catches_alias_forms(alias_tree, form: str):
+    prot, safe = alias_tree
+    r = _forbid(str(prot), f"p:{safe}/{form}")
+    assert r.returncode == 1, f"{form} 漏拦: {r.stdout}"
+
+
+def test_forbidden_judge_is_case_insensitive_for_protected_dir(alias_tree):
+    """APFS 缺省大小写不敏感 ⇒ 大写别名指向同一目录，必须拦。"""
+    prot, safe = alias_tree
+    upper = str(prot.parent / prot.name.upper() / "probe")
+    r = _forbid(str(prot), f"p:{upper}")
+    assert r.returncode == 1, f"大小写别名漏拦: {r.stdout}"
+
+
+@pytest.mark.parametrize("seg", [".git", ".GIT", ".Git"])
+def test_forbidden_judge_catches_dotgit_any_case(alias_tree, seg: str):
+    """Codex r2 BLOCKER-2：原实现算了 lc 却用原串比 `.git` ⇒ `.GIT` 漏拦。"""
+    prot, safe = alias_tree
+    r = _forbid(str(prot), f"p:{safe}/{seg}/probe")
+    assert r.returncode == 1, f"{seg} 漏拦: {r.stdout}"
+    assert ".git" in r.stdout.lower(), r.stdout
+
+
+@pytest.mark.parametrize("name", [".env", "a.env", ".env.local", ".ENV.local", "A.ENV"])
+def test_forbidden_judge_catches_env_names_any_case_in_strict_mode(alias_tree, name: str):
+    prot, safe = alias_tree
+    r = _forbid(str(prot), f"p:{safe}/{name}")
+    assert r.returncode == 1, f"{name} 在 strict 模式漏拦: {r.stdout}"
+
+
+@pytest.mark.parametrize("name", [".env.probe_x", ".env.probe_x.tmp"])
+def test_outputs_mode_allows_the_scripts_own_env_files(alias_tree, name: str):
+    """⛔ 反向门：脚本自己产出的 `.env.<vault>` 必须**放行**。
+
+    本卡实测过这个坑：把 env 文件名规则也套在产出对象上，脚本会永远拦下自己的
+    正常产出 —— 整改后所有正控一度 rc 71。门必须两个方向都测。
+    """
+    prot, safe = alias_tree
+    r = _forbid(str(prot), outputs=(f"p:{safe}/{name}",))
+    assert r.returncode == 0, f"outputs 模式误拦自己的产出: {r.stdout}"
+    assert r.stdout.startswith("OK"), r.stdout
+
+
+def test_outputs_mode_still_blocks_protected_dirs(alias_tree):
+    """outputs 模式只放宽**文件名**规则，保护目录规则一分不放。"""
+    prot, _safe = alias_tree
+    r = _forbid(str(prot), outputs=(f"p:{prot}/.env.sneaky",))
+    assert r.returncode == 1, f"outputs 模式把保护目录也放过了: {r.stdout}"
+
+
+def test_forbidden_judge_rejects_literal_tilde(alias_tree):
+    """字面 `~` 开头：判据会展开、shell 不会 ⇒ 落点必然分歧，直接拒。"""
+    prot, _safe = alias_tree
+    r = _forbid(str(prot), "p:~/probe")
+    assert r.returncode == 1, r.stdout
+    assert "~" in r.stdout, r.stdout
+
+
+def test_forbidden_judge_does_not_glob_expand(alias_tree):
+    """含 `*` 的路径按**字面**处理 —— bash 的 `set -- $p` 会做通配符展开（r1 的缺陷）。"""
+    prot, safe = alias_tree
+    r = _forbid(str(prot), f"p:{safe}/*/../probe")
+    # 不论判定结果，都不应崩、也不应因展开出多个名字而行为不定
+    assert r.returncode in (0, 1), f"rc={r.returncode}: {r.stderr}"
+    assert r.stdout.count("\n") == 1, f"一个输入应只有一行输出: {r.stdout!r}"
+
+
+def test_forbidden_judge_control_group_allows_legit_paths(alias_tree):
+    """⛔ 控制组：合法路径必须放行 —— 否则判据从「能拦」退化成「永远拦」。"""
+    prot, safe = alias_tree
+    r = _forbid(
+        str(prot),
+        f"vault:{safe}/vaults/ok_name",
+        f"ev:{safe}/evidence",
+        f"envdir:{safe}/envs",
+    )
+    assert r.returncode == 0, f"误拦合法路径: {r.stdout}"
+    assert r.stdout.count("OK") == 3, r.stdout
+
+
+def test_forbidden_judge_usage_error_is_64(alias_tree):
+    prot, _ = alias_tree
+    r = _forbid(str(prot), "no-colon-here")
+    assert r.returncode == 64, f"rc={r.returncode}: {r.stdout}{r.stderr}"
+
+
+def test_deploy_script_delegates_forbidden_judge_to_python_helper():
+    """deploy-vault.sh 不得自己用 bash 判物理路径（r1 的三种词法解释已被证伪）。"""
+    src = DEPLOY_SH.read_text(encoding="utf-8")
+    assert "cls_forbidden_paths.py" in src, "未委派给 python 判据脚本"
+    body = "\n".join(ln for ln in src.splitlines() if not ln.lstrip().startswith("#"))
+    for gone in ("norm_path()", "_hits_one()", "build_forbidden()"):
+        assert gone not in body, f"bash 侧的旧判据 {gone} 还在（应已删除）"
+    assert FORBID_PY.is_file(), f"{FORBID_PY} 不存在"
+
+
+def test_forbidden_judge_covers_actual_output_objects_not_just_params():
+    """Codex r2 BLOCKER-4：三个参数过检 ≠ 实际写入对象过检。
+
+    断言 preflight 把脚本真正会写的对象也送进判据（按标签名核，不数字符串个数）。
+    """
+    src = DEPLOY_SH.read_text(encoding="utf-8")
+    seg = src[src.index("check_forbidden_paths \\") : src.index('STEP_MSG="禁写面')]
+    for label in (
+        "--vault:",
+        "--evidence-dir:",
+        "--env-dir:",
+        "env-file:",
+        "env-file-tmp:",
+        "key-file:",
+        "plugin-data:",
+    ):
+        assert label in seg, f"判据调用缺对象 {label}"
+    assert "--outputs" in seg, "产出对象未划入 --outputs 组（会被 env 文件名规则误拦）"
+
+
+# ═══ 行为门：替代不承重的源码门（Codex r2 MEDIUM）══════════════════════════════
+@pytest.mark.skipif(
+    not (REPO_ROOT / "canvas-vault" / ".obsidian" / "plugins" / "canvas-learning-system" / "main.js").exists(),
+    reason="树上无 gitignored main.js 时 apply 会触发 npm run build",
+)
+def test_step4_actually_evaluates_content_drift_when_port_differs(tmp_path: Path):
+    """步 4 在 `--port != 8011` 时必须**真的评了 content-drift**，而不是跳过它。
+
+    Codex r2 MEDIUM 指出源码门不承重：把 `src="$SRC_MIRROR"` 改回源树、或把步 4 的
+    模板化清单砍成一项，`assert "--source" in step4` / `assert "SRC_MIRROR" in step4`
+    照样绿。所以这里改成**看报告内容**：
+
+      · `content-drift : 0`  ⇒ 传了 --source 且没有漂移（若不传 --source，
+        校验器会打 `not evaluated`，这条断言直接红）
+      · `match` > 0          ⇒ 真比过内容，不是空集比空集
+    """
+    r = _apply(tmp_path, "probe_drift", "8189")
+    assert r.returncode == 0, f"rc={r.returncode}: {r.stdout}{r.stderr}"
+    m = re.search(r"^\[4/6\] verify: (OK|SKIP|FAIL) (.*)$", r.stdout, re.M)
+    assert m and m.group(1) == "OK", f"步 4 不是 OK: {r.stdout}"
+    assert "源镜像" in m.group(2), f"步 4 未用源镜像做基准: {m.group(2)}"
+
+    reports = sorted((tmp_path / "ev").glob("verify-*.txt"))
+    assert reports, f"没有 verify 报告: {list((tmp_path / 'ev').iterdir())}"
+    body = reports[-1].read_text(encoding="utf-8")
+    drift = re.search(r"^content-drift\s*:\s*(\S+)", body, re.M)
+    assert drift, f"报告里没有 content-drift 行:\n{body[:600]}"
+    assert drift.group(1) == "0", (
+        f"content-drift = {drift.group(1)!r} —— 'not evaluated' 意味着没传 --source，"
+        f"内容比较这一整个轴被丢掉了（门却会因为源码里有 '--source' 字样而绿）"
+    )
+    match = re.search(r"^match\s*:\s*(\d+)", body, re.M)
+    assert match and int(match.group(1)) > 0, f"match = {match.group(1) if match else '?'} —— 空集比空集也会得 drift 0"
+
+
+@pytest.mark.skipif(
+    not (REPO_ROOT / "canvas-vault" / ".obsidian" / "plugins" / "canvas-learning-system" / "main.js").exists(),
+    reason="树上无 gitignored main.js 时 apply 会触发 npm run build",
+)
+def test_step4_leaves_no_source_mirror_behind(tmp_path: Path):
+    """源镜像必须被清掉 —— 清理失败时步 4 应报 FAIL 而不是静默 OK。"""
+    before = set(Path(os.environ.get("TMPDIR", "/tmp")).glob("cls-srcmirror-*"))
+    r = _apply(tmp_path, "probe_mirror", "8188")
+    assert r.returncode == 0, f"rc={r.returncode}: {r.stdout}"
+    after = set(Path(os.environ.get("TMPDIR", "/tmp")).glob("cls-srcmirror-*"))
+    assert after <= before, f"步 4 留下了源镜像: {sorted(after - before)}"

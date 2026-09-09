@@ -136,120 +136,37 @@ resolve_abs() {
     printf '%s%s' "$p" "$rest"
 }
 
-# 纯字符串折叠 `.` 与 `..`（Codex r1 BLOCKER-1）。
-# 为什么需要它：`resolve_abs` 对**不存在**的尾部只做「剥到存在祖先 + 原样拼回」，
-# `..` 一个字符都没动 —— `$HOME/missing/../.codex/probe`（missing 不存在）会原样返回，
-# 与 `$HOME/.codex` 字符串不匹配 ⇒ 漏拦，而 `mkdir -p` 会解析 `..` 真写进 `.codex`。
-# ⚠️ 只对不含软链的段安全, 故与 resolve_abs 的结果**并列判定**（见 is_forbidden）：
-# 两种解释任一命中就拦。方向是**多拦**, 禁写面上宁可误拦不可漏拦。
-norm_path() {
-    local p="$1" out="" seg oldifs="$IFS"
-    case "$p" in
-        "~") p="$HOME" ;;
-        "~/"*) p="$HOME/${p#\~/}" ;;
-    esac
-    case "$p" in
-        /*) ;;
-        *) p="$PWD/$p" ;;
-    esac
-    IFS='/'
-    # shellcheck disable=SC2086
-    set -- $p
-    IFS="$oldifs"
-    for seg in "$@"; do
-        case "$seg" in
-            '' | .) ;;
-            ..) out="${out%/*}" ;;
-            *) out="$out/$seg" ;;
-        esac
-    done
-    printf '%s' "${out:-/}"
-}
+# ── 禁写面判据 ────────────────────────────────────────────────────────────────
+# ⛔ 判定**不在 bash 里做**（Codex r2 BLOCKER-1）：`cd -L`、字符串折叠 `..`、大小写归一
+#    这三种解释全是词法/逻辑层面的，没有一种能回答「mkdir -p 最终写到哪个 inode」。
+#    一个反例就让三条同时错到同一个错答案：
+#        /safe/link/../probe   link → $HOME/.codex/sub
+#        物理落点 = $HOME/.codex/probe  （`..` 是 link **目标**的父目录）
+#        三种解释一致地得出 /safe/probe ⇒ 一致地漏拦
+#    另有：命令替换剥掉末尾换行、`set -- $p` 会做**通配符展开**、字面 `~` 只有判据展开。
+#    故整套判据搬到 scripts/cls_forbidden_paths.py，用 os.path.realpath（**先解链再折叠**）。
+FORBID_PY="$(dirname "$0")/cls_forbidden_paths.py"
 
-# 大小写归一（Codex r1 BLOCKER-1）。macOS/APFS 缺省**大小写不敏感**：
-# `$HOME/.CODEX/probe` 与 `$HOME/.codex/probe` 是同一个目录, 但字符串不等 ⇒ 漏拦。
-# 归一后比较会在大小写敏感的文件系统上**多拦**（两个真不同的目录被当成一个）——
-# 禁写面上这个方向是可接受的, 反过来不可接受。
-lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
-
-declare -a FORBIDDEN=()
-declare -a FORBIDDEN_PREFIX=()
-build_forbidden() {
-    FORBIDDEN=()
-    FORBIDDEN_PREFIX=()
-    local d
-    FORBIDDEN+=("$(resolve_abs "$CLS_LIVE_VAULT")")
-    FORBIDDEN+=("$(resolve_abs "$HOME/Library")")
-    for d in .codex .pi .gemini .deepcode .dsh; do
-        FORBIDDEN+=("$(resolve_abs "$HOME/$d")")
-    done
-    FORBIDDEN+=("$(resolve_abs "$HOME/.config/opencode")")
-    # ⚠️ `$HOME/.claude*` 必须是**前缀规则**而不是 glob 枚举（Codex r1 BLOCKER-1）：
-    # `for d in "$HOME"/.claude*` 只登记**当下已存在**的条目, 于是 `$HOME/.claude-new/probe`
-    # 这种「现在还不存在、脚本正要去创建」的路径完全不在名单里 —— 而它恰好是要防的那一类。
-    FORBIDDEN_PREFIX+=("$(resolve_abs "$HOME")/.claude")
-}
-
-# 返回 0 = 命中禁写面（拦），并把命中的那一条写进 FORBIDDEN_HIT
+# 一次判**全部**待写对象（Codex r2 BLOCKER-4：三个参数过检 ≠ 实际写入对象过检）。
+# 传入的不只是三个目录参数, 还有脚本真正会写的每个文件路径。
 FORBIDDEN_HIT=""
-_hits_one() {
-    # $1 = 待判路径（已归一）, 其余不用。命中则设 FORBIDDEN_HIT 并返回 0。
-    local cand="$1" lc t lt seg probe
-    lc="$(lower "$cand")"
-
-    # 自身是 env 文件
-    case "$(basename "$cand")" in
-        .env | *.env | .env.*) FORBIDDEN_HIT="*.env 文件（${cand}）"; return 0 ;;
-    esac
-    # 路径中任何一段名为 .git
-    probe="$cand"
-    while [ -n "$probe" ] && [ "$probe" != "/" ]; do
-        seg="$(basename "$probe")"
-        if [ "$seg" = ".git" ]; then
-            FORBIDDEN_HIT=".git 目录内（${cand}）"
-            return 0
-        fi
-        probe="$(dirname "$probe")"
-    done
-    # 等于或位于禁写目标之下（大小写归一比较, 见 lower()）
-    for t in "${FORBIDDEN[@]}"; do
-        [ -n "$t" ] || continue
-        lt="$(lower "$t")"
-        if [ "$lc" = "$lt" ] || [ "${lc#"$lt"/}" != "$lc" ]; then
-            FORBIDDEN_HIT="$t"
-            return 0
-        fi
-    done
-    # 前缀规则（$HOME/.claude* 这一族, 含尚不存在的）
-    for t in "${FORBIDDEN_PREFIX[@]}"; do
-        [ -n "$t" ] || continue
-        lt="$(lower "$t")"
-        if [ "${lc#"$lt"}" != "$lc" ]; then
-            FORBIDDEN_HIT="${t}*（前缀规则）"
-            return 0
-        fi
-    done
-    return 1
-}
-
-is_forbidden() {
-    local raw="$1" a b
+check_forbidden_paths() {
+    local out rc=0
+    if [ ! -f "$FORBID_PY" ]; then
+        FORBIDDEN_HIT="判据脚本缺失: $FORBID_PY"
+        return 0
+    fi
+    out="$(python3 "$FORBID_PY" "$CLS_LIVE_VAULT" "$@" 2>&1)" || rc=$?
+    if [ "$rc" = 64 ]; then
+        FORBIDDEN_HIT="判据脚本用法错: $out"
+        return 0
+    fi
+    if [ "$rc" != 0 ]; then
+        FORBIDDEN_HIT="$(printf '%s\n' "$out" | grep '^HIT ' | head -1 | sed 's/^HIT //')"
+        [ -n "$FORBIDDEN_HIT" ] || FORBIDDEN_HIT="判据脚本 rc=${rc}: $out"
+        return 0
+    fi
     FORBIDDEN_HIT=""
-    # 两种解释**并列**判定, 任一命中即拦（Codex r1 BLOCKER-1）：
-    #   a = resolve_abs：解软链, 但对不存在的尾部不折叠 `..`
-    #   b = norm_path  ：折叠 `..`, 但不解软链
-    # 只用 a 会漏 `$HOME/missing/../.codex/probe`；只用 b 会漏软链。
-    # 两者都查 ⇒ 方向是多拦, 禁写面上可接受。
-    a="$(resolve_abs "$raw")"
-    _hits_one "$a" && return 0
-    b="$(norm_path "$a")"
-    if [ "$b" != "$a" ]; then
-        _hits_one "$b" && return 0
-    fi
-    b="$(norm_path "$raw")"
-    if [ "$b" != "$a" ]; then
-        _hits_one "$b" && return 0
-    fi
     return 1
 }
 
@@ -370,16 +287,29 @@ step1_preflight() {
         return 1
     fi
 
-    build_forbidden
-    local pname praw
-    for pname in --vault --evidence-dir --env-dir; do
-        case "$pname" in
-            --vault) praw="$VAULT" ;;
-            --evidence-dir) praw="$EVIDENCE_DIR" ;;
-            --env-dir) praw="$ENV_DIR" ;;
-        esac
-        if is_forbidden "$praw"; then
-            STEP_MSG="禁写面: $pname 指向 $FORBIDDEN_HIT"
+    # 三个路径参数 + **脚本真正会写的每个对象**（Codex r2 BLOCKER-4）
+    if check_forbidden_paths \
+        "--vault:$VAULT" \
+        "--evidence-dir:$EVIDENCE_DIR" \
+        "--env-dir:$ENV_DIR" \
+        --outputs \
+        "env-file:$ENV_FILE" \
+        "env-file-tmp:$ENV_FILE.tmp" \
+        "key-file:$VAULT/.obsidian/cls-internal-key.txt" \
+        "key-file-tmp:$VAULT/.obsidian/cls-internal-key.txt.tmp" \
+        "plugin-data:$VAULT/.obsidian/plugins/canvas-learning-system/data.json" \
+        "harness-mainjs:$HARNESS/canvas-vault/.obsidian/plugins/canvas-learning-system/main.js" \
+        "harness-build-out:$HARNESS/frontend/obsidian-plugin/main.js"; then
+        STEP_MSG="禁写面: $FORBIDDEN_HIT"
+        return 1
+    fi
+    # 已存在的 .env / key 若是**软链**, 写入会沿链穿到别处 —— 直接拒（判据脚本只看路径,
+    # 这里补一条对「已存在对象本身是链」的显式拒绝）。
+    local lnk
+    for lnk in "$ENV_FILE" "$VAULT/.obsidian/cls-internal-key.txt" \
+        "$VAULT/.obsidian/plugins/canvas-learning-system/data.json"; do
+        if [ -L "$lnk" ]; then
+            STEP_MSG="待写对象是软链, 写入会沿链穿到别处: $lnk -> $(readlink "$lnk")"
             return 1
         fi
     done
@@ -410,10 +340,13 @@ if s != n or v != n:
     local e
     for e in "$HARNESS"/.env "$HARNESS"/.env.*; do
         [ -f "$e" ] || continue
-        if grep -qE "^ACTIVE_VAULT=[\"']?${VAULT_NAME}[\"']?[[:space:]]*$" "$e" 2> /dev/null; then
-            STEP_MSG="vault 名与 $(basename "$e") 的 ACTIVE_VAULT 碰撞"
-            return 1
-        fi
+        local arc=0
+        grep -qE "^ACTIVE_VAULT=[\"']?${VAULT_NAME}[\"']?[[:space:]]*$" "$e" 2> /dev/null || arc=$?
+        case "$arc" in
+            0) STEP_MSG="vault 名与 $(basename "$e") 的 ACTIVE_VAULT 碰撞"; return 1 ;;
+            1) ;;
+            *) STEP_MSG="读 $(basename "$e") 出错(grep rc=${arc}), 无从断言无碰撞"; return 1 ;;
+        esac
     done
 
     # 端口
@@ -424,10 +357,15 @@ if s != n or v != n:
             ;;
     esac
     if command -v lsof > /dev/null 2>&1; then
-        if lsof -nP -iTCP:"$PORT" -sTCP:LISTEN > /dev/null 2>&1; then
-            STEP_MSG="--port $PORT 已被占用（lsof LISTEN 命中）"
-            return 1
-        fi
+        # lsof 的 rc：0 有命中 / 1 无命中 / **其它 = 出错**（Codex r2 HIGH-2：
+        # 原版把「出错」也当成「空闲」）。出错时不敢断言空闲, 直接拒。
+        local lrc=0
+        lsof -nP -iTCP:"$PORT" -sTCP:LISTEN > /dev/null 2>&1 || lrc=$?
+        case "$lrc" in
+            0) STEP_MSG="--port $PORT 已被占用（lsof LISTEN 命中）"; return 1 ;;
+            1) ;;
+            *) STEP_MSG="lsof 查询 --port $PORT 出错(rc=${lrc}), 无从断言端口空闲"; return 1 ;;
+        esac
     fi
 
     # skills 数（零余量, 见头注 CLS_MIN_SKILLS）
@@ -483,18 +421,30 @@ seed_env_file() {
     ENV_KEYS_SKIPPED=""
     for k in $ENV_KEYS_WHITELIST; do
         if [ -f "$src" ] && v="$(grep -E "^${k}=" "$src" 2> /dev/null | tail -1)"; then
-            [ -n "$v" ] && printf '%s\n' "$v" >> "$ENV_FILE.tmp" && continue
+            if [ -n "$v" ]; then
+                # ⛔ 逐项判 rc（Codex r2 HIGH-2）：原版靠 `&& continue` 串起来,
+                #    追加失败会静默落到「记为 skipped」而不是报错。
+                printf '%s\n' "$v" >> "$ENV_FILE.tmp" \
+                    || { SEED_ERR="写 .env 白名单键 ${k} 失败"; return 1; }
+                continue
+            fi
         fi
         ENV_KEYS_SKIPPED="$ENV_KEYS_SKIPPED $k"
     done
     {
-        printf 'ACTIVE_VAULT=%s\n' "$VAULT_NAME"
-        printf 'VAULTS_ROOT=%s\n' "$(dirname "$VAULT")"
-        printf 'API_PORT=%s\n' "$PORT"
-        printf 'CLS_BACKEND_CONTAINER=cls-%s-backend\n' "$VAULT_NAME"
-        printf 'INTERNAL_API_KEY=\n'
-        printf 'DAILY_REVIEW_VAULTS=\n'
-    } >> "$ENV_FILE.tmp"
+        printf 'ACTIVE_VAULT=%s\n' "$VAULT_NAME" || exit 1
+        printf 'VAULTS_ROOT=%s\n' "$(dirname "$VAULT")" || exit 1
+        printf 'API_PORT=%s\n' "$PORT" || exit 1
+        printf 'CLS_BACKEND_CONTAINER=cls-%s-backend\n' "$VAULT_NAME" || exit 1
+        printf 'INTERNAL_API_KEY=\n' || exit 1
+        printf 'DAILY_REVIEW_VAULTS=\n' || exit 1
+    } >> "$ENV_FILE.tmp" || { SEED_ERR="写 .env 固定字段失败"; return 1; }
+    # 回读校验：确认六个必填键都真的落进去了（追加成功 ≠ 内容完整）
+    local kk
+    for kk in ACTIVE_VAULT VAULTS_ROOT API_PORT CLS_BACKEND_CONTAINER INTERNAL_API_KEY DAILY_REVIEW_VAULTS; do
+        grep -qE "^${kk}=" "$ENV_FILE.tmp" \
+            || { SEED_ERR="写 .env 后回读缺键: ${kk}"; return 1; }
+    done
     mv "$ENV_FILE.tmp" "$ENV_FILE" || { SEED_ERR="mv .env 失败: $ENV_FILE"; return 1; }
     chmod 600 "$ENV_FILE" || { SEED_ERR="chmod 600 .env 失败: $ENV_FILE"; return 1; }
     return 0
@@ -620,11 +570,25 @@ step3_postprocess() {
     done
     sed -i '' "s|:8011|:$PORT|g" "$datajson" || { STEP_MSG="sed 模板化失败: $datajson"; return 1; }
     if [ "$PORT" != "8011" ]; then
-        local left=""
+        # ⛔ grep 的 rc 有三态（Codex r2 HIGH-2）：0 命中 / 1 未命中 / **2 出错**。
+        #    原版 `grep -q … && left=…` 把 rc 2 当成「未命中 = 无残留」 ⇒ 读不动文件时假绿。
+        local left="" grc=0
         for rel in $PORT_TEMPLATED_FILES; do
-            grep -q ':8011' "$VAULT/$rel" 2> /dev/null && left="$left $rel"
+            grc=0
+            grep -q ':8011' "$VAULT/$rel" 2> /dev/null || grc=$?
+            case "$grc" in
+                0) left="$left $rel" ;;
+                1) ;;
+                *) STEP_MSG="残留检查读不动 ${rel}（grep rc=${grc}）, 无从断言"; return 1 ;;
+            esac
         done
-        grep -q ':8011' "$datajson" 2> /dev/null && left="$left data.json"
+        grc=0
+        grep -q ':8011' "$datajson" 2> /dev/null || grc=$?
+        case "$grc" in
+            0) left="$left data.json" ;;
+            1) ;;
+            *) STEP_MSG="残留检查读不动 data.json（grep rc=${grc}）, 无从断言"; return 1 ;;
+        esac
         if [ -n "$left" ]; then
             STEP_MSG="模板化后仍有 :8011 残留:$left"
             return 1
@@ -668,15 +632,22 @@ PY
     # B5 key **文件**落盘 —— 最后一步。A4 已确定值; 已存在则不重写、只校正权限。
     # 为什么最后：「key 文件存在」是 A4 判「不重生」的锚点。若它先落盘而后续两处失败，
     # 下次重跑会读到它、不重生, 而另两处仍旧空 —— 半成品被这个最强信号掩盖。放最后则
-    # 前面任何失败都不会留下这个信号（如实声明：Phase B 内部失败仍可能留半成品，
-    # 方向是「另两处有值、key 文件缺」, 重跑会重生并覆盖两处 ⇒ 自愈）。
+    # 前面任何失败都不会留下这个信号。
+    # ⚠️ 如实声明（Codex r2 MEDIUM 更正了原注释）：tmp + 回读 + mv 只保证**这一个文件**的
+    #    发布是原子的, **不是三文件事务**。Phase B 内部失败后三处可能不一致；而**整脚本
+    #    重跑会先被 install 的防覆盖闸门拦成 rc 72**, 到不了步 3 ⇒ **不会自动收敛**。
+    #    原注释写的「重跑会重生并覆盖两处 ⇒ 自愈」与实际入口不符, 已删。
+    #    收敛需要 adopt 语义（重新绑定已有 vault）, 归 CARD-G2-7c。
     if [ "$KEY_REGENERATED" = "yes" ]; then
         mkdir -p "$(dirname "$keyfile")" || { STEP_MSG="建 key 文件父目录失败"; return 1; }
         # 原子落盘：先写 tmp（umask 077）→ 回读比对 → mv。中途失败不会留下**部分内容的**
         # key 文件, 而「key 文件存在」正是 A4 判「不重生」的锚点 —— 半个 key 比没有 key 更坏。
         (umask 077 && printf '%s\n' "$key" > "$keyfile.tmp") \
             || { STEP_MSG="写 key 临时文件失败"; return 1; }
-        if [ "$(cat "$keyfile.tmp")" != "$key" ]; then
+        # ⛔ 回读也要判 rc（Codex r2 MEDIUM）：完整输出后 rc≠0 时比较仍相等 ⇒ 假绿。
+        local rb rbrc=0
+        rb="$(cat "$keyfile.tmp")" || rbrc=$?
+        if [ "$rbrc" != 0 ] || [ "$rb" != "$key" ]; then
             rm -f -- "$keyfile.tmp"
             STEP_MSG="key 临时文件回读不一致, 已丢弃（未污染 ${keyfile}）"
             return 1
@@ -773,7 +744,7 @@ step5_activate() {
         STEP_MSG="未传 --activate（缺省只部署不激活）"
         return 2
     fi
-    mkdir -p "$EVIDENCE_DIR"
+    mkdir -p "$EVIDENCE_DIR" || { STEP_MSG="建 evidence 目录失败: $EVIDENCE_DIR"; return 1; }
     # ⛔ `docker compose config` 会把 --env-file 与宿主 env 里的凭据**展开成明文**
     #    （INTERNAL_API_KEY / GOOGLE_API_KEY / NEO4J_PASSWORD / NEO4J_AUTH / …）。
     #    原样落盘 = 把密钥写进 evidence 目录, 而 evidence 是要入库的。
@@ -875,7 +846,7 @@ step6_evidence() {
         return 2
     fi
     mkdir -p "$EVIDENCE_DIR" || { STEP_MSG="建 evidence 目录失败: $EVIDENCE_DIR"; return 1; }
-    local out="$EVIDENCE_DIR/deploy-$TS.txt" t
+    local out="$EVIDENCE_DIR/deploy-$TS.txt" t _sha _sha_fail=0
     {
         printf '# CARD-G2-7b deploy-vault.sh — %s\n' "$TS"
         printf '## 参数\n'
@@ -892,7 +863,14 @@ step6_evidence() {
             "$VAULT/.obsidian/plugins/canvas-learning-system/data.json" \
             "$VAULT/.obsidian/cls-internal-key.txt" "$ENV_FILE"; do
             if [ -f "$t" ]; then
-                printf '  %s  %s\n' "$(shasum -a 256 "$t" | cut -d' ' -f1)" "${t#"$VAULT"/}"
+                # ⛔ shasum 失败会被外层 printf 的成功掩盖（Codex r2 HIGH-2）⇒ 先算再判。
+                _sha="$(shasum -a 256 "$t" 2> /dev/null | cut -d' ' -f1)"
+                if [ -z "$_sha" ]; then
+                    printf '  %-64s %s (SHASUM-FAILED)\n' '-' "${t#"$VAULT"/}"
+                    _sha_fail=1
+                else
+                    printf '  %s  %s\n' "$_sha" "${t#"$VAULT"/}"
+                fi
             else
                 printf '  %-64s %s (ABSENT)\n' '-' "${t#"$VAULT"/}"
             fi
@@ -901,6 +879,10 @@ step6_evidence() {
     printf 'rc=0\n' >> "$out.tmp" || { STEP_MSG="追加 rc 行失败: $out.tmp"; return 1; }
     mv "$out.tmp" "$out" || { STEP_MSG="mv evidence 失败: $out"; return 1; }
     [ -s "$out" ] || { STEP_MSG="evidence 落盘后为空: $out"; return 1; }
+    if [ "$_sha_fail" = 1 ]; then
+        STEP_MSG="evidence 已写但有文件 shasum 失败（见 SHASUM-FAILED 行）: $out"
+        return 1
+    fi
     STEP_MSG="$out"
     return 0
 }
