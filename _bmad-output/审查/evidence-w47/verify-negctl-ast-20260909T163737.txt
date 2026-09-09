@@ -1,0 +1,3 @@
+### 裁判 8c：AST 负控
+AST-NEGATIVE-CONTROL: PASS (48 绕过全抓 / 27 正例全净)
+rc=0

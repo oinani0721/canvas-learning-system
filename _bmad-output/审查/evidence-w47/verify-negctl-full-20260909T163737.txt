@@ -1,0 +1,4 @@
+### 裁判 8b：全量负控
+RUNTIME-FILES-SELFTEST: PASS (3 固定项 + 1 glob；重新展开 / 旧名在册 / 旁文件排除 / 按字节序排列（乱序前提已验证）四条全过)
+NEGATIVE-CONTROL: PASS (3 nodeids red for expected reason; summary=(7, 7, 0, 0); positive control: 3/3 passed, zero attempts, zero runtime writes; mutated run in an isolated copy did touch runtime files (isolation is load-bearing); real tree untouched; AST-GATE: PASS 0/391 files)
+rc=0
