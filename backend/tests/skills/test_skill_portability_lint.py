@@ -165,6 +165,7 @@ import textwrap
 import time
 import warnings
 from collections import Counter
+from typing import NamedTuple
 from pathlib import Path
 
 import pytest
@@ -670,6 +671,20 @@ def _is_inline_span(m: re.Match[str], line: str) -> bool:
     return "`" in line[m.end() :]
 
 
+def _ident_text(value: str | bytes) -> str:
+    r"""常量值 → **保身份**的文本; str 与 bytes 走同一套编码。
+
+    ⛔ r22 MEDIUM-6: 单射性是**整个值域**(str ∪ bytes)上的性质, 不是一个类型内部的。
+    r21 只做到「两个不同 bytes 不同名」, 而 `backslashreplace` 产出的 `\xNN` 恰好落进
+    普通 str 本来就能表示的区域: `b"/tmp/\xff/x"`(真的 0xFF 字节)与
+    `r"/tmp/\xff/x"`(字面反斜杠)解出同一个候选, 登记一条后另一条可静默顶替。
+    统一规则: **先把已有反斜杠都转义成两个** ⇒ 不可解码字节产出的 `\xNN` 里那个 `\`
+    永远是单个, 而任何文本里的 `\` 永远是双个, 两个像域不再相交。
+    (可解码 bytes 与同内容 str 仍同名 —— 那是**对的**, 它们就是同一条路径。)
+    """
+    return value.replace("\\", "\\\\") if isinstance(value, str) else _decode_bytes(value)
+
+
 def _decode_bytes(raw: bytes) -> str:
     r"""bytes → **保身份**的文本表示。
 
@@ -713,7 +728,7 @@ def _fold_str(node: ast.AST) -> str | None:
     value = _fold_const(node)
     if value is None:
         return None
-    return value if isinstance(value, str) else _decode_bytes(value)
+    return _ident_text(value)
 
 
 def _py_strings(src: str) -> list[str] | None:
@@ -757,13 +772,13 @@ def _py_strings_cached(src: str) -> tuple[str, ...] | None:
         if id(node) in folded or not isinstance(node, ast.Constant):
             continue
         if isinstance(node.value, str):
-            out.append(node.value)
+            out.append(_ident_text(node.value))
         elif isinstance(node.value, bytes):
             # ⛔ r18 HIGH-2: bytes 字面量也是路径 —— `b"/t" b"mp/cls-exam/" b"." b"./x"`
             # 被 `ast` 合成 `b"/tmp/cls-exam/../x"`, 只收 str 的话越界判据整类看不到。
             # ⛔ r20 MEDIUM-4: 与 `_fold_str()` 同口径用 `backslashreplace` —— `replace`
             # 会把不同的不可解码字节压成同一个 U+FFFD, 登记后可被静默顶替。
-            out.append(_decode_bytes(node.value))
+            out.append(_ident_text(node.value))
     return tuple(out)
 
 
@@ -1076,6 +1091,37 @@ _STATEMENT_NODES = (ast.Assign, ast.AnnAssign, ast.Return)
 #: `.annotation` 还是 `.value` 上。
 
 
+#: 建立**新作用域**的节点 —— 里面的同名变量与外面不是同一个绑定。
+#: ⚠️ 推导式(`ListComp` 等)**不在**这里: PEP 572 规定推导式内的海象赋值绑定在
+#: **外层**作用域, 把它当边界会漏掉 `[... := ...]`; 而推导式自己的 `for` 目标本来就不收。
+_SCOPE_NODES = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)
+
+
+def _own_nodes(root: ast.AST) -> list[ast.AST]:
+    """`root` 这一层作用域**自己**的节点 —— 不下钻进嵌套的函数/类/lambda 体内。
+
+    嵌套作用域节点本身仍要产出(`def f():` 是对 `f` 的一次写入), 只是不进它的 body。
+    """
+    out: list[ast.AST] = []
+    stack: list[ast.AST] = list(ast.iter_child_nodes(root))
+    while stack:
+        node = stack.pop()
+        out.append(node)
+        if not isinstance(node, _SCOPE_NODES):
+            stack.extend(ast.iter_child_nodes(node))
+    return out
+
+
+class _Write(NamedTuple):
+    """一次名字绑定: `pos` 用 `(行号, 列偏移)` —— 分号写成一行时行号相同, 只比行号
+    会让「同样内容写成一行还是两行」结果不同(r22 LOW)。`node` 留着判循环/分支归属。"""
+
+    pos: tuple[int, int]
+    name: str
+    value: ast.expr | None
+    node: ast.AST
+
+
 def _target_names(node: ast.expr | None) -> list[str]:
     """一个赋值目标里**全部被写入的名字** —— 元组/列表解包、`*rest` 都要拆开。
 
@@ -1093,52 +1139,221 @@ def _target_names(node: ast.expr | None) -> list[str]:
     return []
 
 
-def _assignments(tree: ast.AST) -> list[tuple[int, str, ast.expr | None]]:
-    """`(行号, 被写入的名字, 这次写入的值)`。
+def _assignments(scope_root: ast.AST) -> list[_Write]:
+    """这一层作用域里的 `(行号, 被写入的名字, 这次写入的值)`。
 
-    ⛔ r21 HIGH-1: 「写入」不止 `Assign` —— `(P := …)` 是 `NamedExpr`,
-    `P *= 0; P += "/etc/passwd"` 是两次 `AugAssign`, `for P in …` / `with … as P`
-    同样重绑。只认 `Assign`/`AnnAssign` 的话这四类写入全部不计数。
+    ⛔ r21 HIGH-1: 「写入」远不止 `Assign` —— `(P := …)` 是 `NamedExpr`,
+    `P *= 0` 是 `AugAssign`, `for P in …` / `with … as P` 同样重绑。
+    ⛔ r22 自查(接 Codex 中断前的探针): 还有三类同样是重绑而当时全漏 ——
+    `except ValueError as P`(`ExceptHandler.name` 是**裸字符串**不是 `Name` 节点)、
+    `import … as P` / `from … import X as P`(`alias`)、`match: case P`(`MatchAs`/
+    `MatchStar`/`MatchMapping.rest`, 名字同样是裸字符串)。三者都把 `P` 绑到别的东西上。
     """
-    out: list[tuple[int, str, ast.expr | None]] = []
-    for node in ast.walk(tree):
-        line = getattr(node, "lineno", 0)
+    out: list[_Write] = []
+    for node in _own_nodes(scope_root):
+        pos = (getattr(node, "lineno", 0), getattr(node, "col_offset", 0))
         if isinstance(node, ast.Assign):
             for tgt in node.targets:
-                out += [(line, n, node.value) for n in _target_names(tgt)]
+                out += [_Write(pos, n, node.value, node) for n in _target_names(tgt)]
         elif isinstance(node, ast.AnnAssign) and node.value is not None:
-            out += [(line, n, node.value) for n in _target_names(node.target)]
+            out += [_Write(pos, n, node.value, node) for n in _target_names(node.target)]
         elif isinstance(node, (ast.AugAssign, ast.NamedExpr)):
-            out += [(line, n, node.value) for n in _target_names(node.target)]
+            out += [_Write(pos, n, node.value, node) for n in _target_names(node.target)]
         elif isinstance(node, (ast.For, ast.AsyncFor)):
-            out += [(line, n, None) for n in _target_names(node.target)]
+            out += [_Write(pos, n, None, node) for n in _target_names(node.target)]
         elif isinstance(node, ast.withitem):
-            out += [(getattr(node.context_expr, "lineno", 0), n, None) for n in _target_names(node.optional_vars)]
+            out += [
+                _Write((getattr(node.context_expr, "lineno", 0), 0), n, None, node)
+                for n in _target_names(node.optional_vars)
+            ]
+        elif isinstance(node, ast.ExceptHandler) and node.name:
+            out.append(_Write(pos, node.name, None, node))
+        elif isinstance(node, ast.alias):
+            out.append(_Write(pos, (node.asname or node.name).split(".")[0], None, node))
+        elif isinstance(node, (ast.MatchAs, ast.MatchStar)) and node.name:
+            out.append(_Write(pos, node.name, None, node))
+        elif isinstance(node, ast.MatchMapping) and node.rest:
+            out.append(_Write(pos, node.rest, None, node))
+        elif isinstance(node, _SCOPE_NODES) and not isinstance(node, ast.Lambda):
+            out.append(_Write(pos, node.name, None, node))  # `def f` / `class C` 也是一次写入
     return out
 
 
 def _value_has_tmp(value: ast.expr | None) -> bool:
-    """这次写入的值里有没有(折叠后)含 `/tmp` 的常量。r20 HIGH-1: 必须用折叠值, 不是叶常量。"""
+    """这次写入的值里有没有(折叠后)含 `/tmp` 的常量。r20 HIGH-1: 用折叠值, 不是叶常量。"""
     if value is None:
         return False
     return any((folded := _fold_str(n)) is not None and "/tmp" in folded for n in ast.walk(value))
 
 
-def _reassigned_after_tmp(tree: ast.AST) -> int | None:
-    """「先把某个名字赋成含 `/tmp` 的值, 之后又重新写入」⇒ 返回**后一次**写入的行号。
-
-    ⛔ r21 HIGH-2: 这条必须在**整个 fence 块**上跑, 不能只在语法单元里跑。
-    `P = "/t" + "mp/cls-exam/x"` 与 `P = "/etc/passwd"` 是同一个 fence 里两条**相邻**
-    语句, `_parse_units()` 返回两个单元 ⇒ 两次写入从来没同时进入判据。这不是已声明的
-    跨块边界, 是同块普通相邻语句 —— 源码里也没有连续的 `/tmp`, 所以块指纹入口同样不进。
-    """
-    tmp_names: set[str] = set()
-    for line, name, value in sorted(_assignments(tree), key=lambda r: r[0]):
-        if name in tmp_names:
-            return line  # 合规常量还在, 但这个名字的最终值已经不是它了
-        if _value_has_tmp(value):
-            tmp_names.add(name)
+def _branch_index(parent: ast.AST, child: ast.AST) -> int | None:
+    """`child` 落在 `parent` 的第几条**互斥分支**里; `parent` 不是分支节点则返回 None。"""
+    if isinstance(parent, ast.If):
+        for idx, block in enumerate((parent.body, parent.orelse)):
+            if any(stmt is child for stmt in block):
+                return idx
+    elif isinstance(parent, ast.Try):
+        blocks: list[list] = [parent.body, *([h] for h in parent.handlers), parent.orelse]
+        for idx, block in enumerate(blocks):
+            if any(stmt is child for stmt in block):
+                return idx
+    elif isinstance(parent, ast.Match):
+        for idx, case in enumerate(parent.cases):
+            if case is child:
+                return idx
     return None
+
+
+def _branch_path(parent: dict[int, ast.AST], node: ast.AST) -> tuple[tuple[int, int], ...]:
+    """从外到内的 `(分支节点, 分支序号)` 链 —— 两条链在同一节点上分岔 ⇒ 两处互斥。"""
+    path: list[tuple[int, int]] = []
+    cur = node
+    while (par := parent.get(id(cur))) is not None:
+        idx = _branch_index(par, cur)
+        if idx is not None:
+            path.append((id(par), idx))
+        cur = par
+    return tuple(reversed(path))
+
+
+def _in_loop(parent: dict[int, ast.AST], node: ast.AST) -> bool:
+    """这处写入在不在循环体里 —— 在的话**回边**会让它反复执行, 源码序说明不了执行序。"""
+    cur = node
+    while (par := parent.get(id(cur))) is not None:
+        if isinstance(par, (ast.For, ast.AsyncFor, ast.While)):
+            return True
+        cur = par
+    return False
+
+
+def _mutually_exclusive(pa: tuple[tuple[int, int], ...], pb: tuple[tuple[int, int], ...]) -> bool:
+    """两条分支链是否在某个共同节点上走了**不同的分支**。"""
+    for (na, ia), (nb, ib) in zip(pa, pb):
+        if na != nb:
+            return False
+        if ia != ib:
+            return True
+    return False
+
+
+def _risky_reassign(parent: dict[int, ast.AST], records: list[_Write]) -> int | None:
+    """这一层作用域里, 合规常量所在的名字会不会被改写成别的 —— 返回改写处的行号。
+
+    ⛔ r22 HIGH-1 是**双向**的, 所以判据必须分三种情形, 不能一刀切:
+
+    | 两处写入的关系 | 源码序能不能代表执行序 | 判法 |
+    |---|---|---|
+    | 任一处在**循环体**内 | 不能(回边) | 只要一含 `/tmp` 一不含 ⇒ 登记 |
+    | 落在**互斥分支** | 不能(走哪支不定) | 同上 |
+    | 都在**直线**代码里 | 能 | 只有「先合规、后越界」才登记 |
+
+    上一版按源码行序一刀切, 于是:
+    · 漏 —— `for i in (0,1): if i: P="/etc/passwd"; break` 后面才是合规赋值,
+      按行序看「越界那行在前」就放行, 实际次轮覆盖掉了合规值;
+    · 误 —— `if c: P=<合规A>` / `else: P=<合规B>` 照样报。我曾把它辩护成
+      「静态不可判 ⇒ 该报」, **那个辩护是错的**: 两支都合规时最终值必然合规。
+
+    我第一版整改改成**完全顺序无关**, 当场把形态表 HIGH-4 的安全对照
+    (`P = "/var/cache"` 后 `P = "/tmp/cls-exam/x"`, 最终值合规)判红 —— 收紧一处
+    丢掉一整个轴。三分法两边都保住。
+    位置比较用 `(lineno, col_offset)`: 分号写成一行时两处 `lineno` 相同,
+    只比行号会让「同样内容写成一行还是两行」结果不同(r22 LOW)。
+    """
+    tmp_w: dict[str, list[_Write]] = {}
+    other_w: dict[str, list[_Write]] = {}
+    for rec in records:
+        (tmp_w if _value_has_tmp(rec.value) else other_w).setdefault(rec.name, []).append(rec)
+    hits: list[int] = []
+    for name, tws in tmp_w.items():
+        for tw in tws:
+            for ow in other_w.get(name, []):
+                if (
+                    _in_loop(parent, tw.node)
+                    or _in_loop(parent, ow.node)
+                    or _mutually_exclusive(_branch_path(parent, tw.node), _branch_path(parent, ow.node))
+                    or tw.pos < ow.pos  # 直线: 合规在前、被后面这处改写
+                ):
+                    hits.append(ow.pos[0])
+    return min(hits) if hits else None
+
+
+def _scoped_records(tree: ast.AST) -> list[tuple[dict[int, ast.AST], list[_Write]]]:
+    """把整棵树的写入记录**按作用域**分组; `global`/`nonlocal` 声明的名字并回外层。
+
+    ⛔ r21/r22: 模块、函数、class 里的同名变量是**不同的绑定** —— 上一版对整棵树
+    `ast.walk` 后按裸名字比, 于是函数局部的 `P = "/etc/passwd"`(甚至那个函数根本没被
+    调用)被当成对模块级 `P` 的重赋值, 属误报。
+    """
+    scopes: list[ast.AST] = [tree] + [n for n in ast.walk(tree) if isinstance(n, _SCOPE_NODES)]
+    grouped: list[tuple[dict[int, ast.AST], list[_Write]]] = []
+    module_extra: list[_Write] = []
+    for scope in scopes:
+        parent: dict[int, ast.AST] = {}
+        for node in [scope, *_own_nodes(scope)]:
+            for child in ast.iter_child_nodes(node):
+                parent[id(child)] = node
+        records = _assignments(scope)
+        if scope is tree:
+            grouped.append((parent, records))
+            continue
+        declared = {
+            name for node in _own_nodes(scope) if isinstance(node, (ast.Global, ast.Nonlocal)) for name in node.names
+        }
+        module_extra += [r for r in records if r.name in declared]
+        grouped.append((parent, [r for r in records if r.name not in declared]))
+    grouped[0][1].extend(module_extra)
+    return grouped
+
+
+def _reassigned_after_tmp(tree: ast.AST) -> int | None:
+    """这棵树里有没有「合规常量还在, 但持有它的名字被改写成别的」——返回改写处的行号。"""
+    for parent, records in _scoped_records(tree):
+        hit = _risky_reassign(parent, records)
+        if hit is not None:
+            return hit
+    return None
+
+
+#: shell heredoc 开启标记: `<<EOF` / `<<-'EOF'` / `<<"EOF"`。
+_HEREDOC_RE = re.compile(r"<<-?\s*(?P<q>['\"]?)(?P<tag>[A-Za-z_]\w*)(?P=q)")
+
+
+def _python_regions(body: list[str]) -> list[tuple[int, str]]:
+    """这个 fence 块里的**Python 执行区** —— `(区首行偏移, 源码)`。
+
+    ⛔ r22 HIGH-2: 上一版只在「整块是合法 Python」时做块级重赋值检查, 于是
+
+    ```sh
+    python3 - <<'PYEOF'
+    P = "/t" + "mp/cls-exam/x"
+    P = "/etc/passwd"
+    PYEOF
+    ```
+    整块不是 Python ⇒ 补查直接跳过, 而这**是同一个 fence、同一个 Python 执行区**里的
+    相邻赋值, 不能归到「相邻 fence 可能是不同进程」那条已声明边界里去。
+
+    ⚠️ 只取 heredoc 与整块两种区, **不跨 fence 串联** —— 相邻 fence 可能是不同示例、
+    不同进程, 仅凭同名默认串联会造成误报(r22 复核明确指出)。
+    """
+    out: list[tuple[int, str]] = []
+    whole = textwrap.dedent("\n".join(body))
+    if _quiet_parse(whole) is not None:
+        out.append((0, whole))
+    i, n = 0, len(body)
+    while i < n:
+        m = _HEREDOC_RE.search(body[i])
+        if not m:
+            i += 1
+            continue
+        tag, start = m.group("tag"), i + 1
+        j = start
+        while j < n and body[j].strip() != tag:
+            j += 1
+        chunk = textwrap.dedent("\n".join(body[start:j]))
+        if j > start and _quiet_parse(chunk) is not None:
+            out.append((start, chunk))
+        i = j + 1
+    return out
 
 
 def _has_dynamic_tmp_join(src: str) -> bool:
@@ -1174,16 +1389,9 @@ def _has_dynamic_tmp_join(src: str) -> bool:
     # ⛔ r12 LOW-3: 只统计**目标名**的赋值次数不够精细 —— `N=1; N=2; P="/tmp/…"` 会误报。
     # 现在只在「同一个名字被赋值多次, 且**其中至少一次的值里含 `/tmp`**」时才登记。
     # ⛔ r12 HIGH-5: `AnnAssign`(`P: str = "/var/cache/x"`)同样是赋值, 一并计入。
-    # ⛔ r20 HIGH-1: 判「这次写入的值含不含 `/tmp`」用**折叠值**(`_value_has_tmp()`),
-    # 不是叶常量 —— 下面 `starts` 那圈 r11 起就是折叠值, 同一个函数里曾经两套口径。
-    # ⛔ r21 HIGH-1: 「写入目标」也不止 `Assign` 的直接 `Name`(见 `_assignments()`)。
-    assigned: Counter[str] = Counter()
-    tmp_targets: set[str] = set()
-    for _line, name, value in _assignments(tree):
-        assigned[name] += 1
-        if _value_has_tmp(value):
-            tmp_targets.add(name)
-    if any(assigned[name] > 1 for name in tmp_targets):
+    # 重赋值检查与块级走**同一个**规则(`_risky_reassign()`), 否则同样的内容会因为
+    # 写成一行还是两行而结果不同(r22 LOW 实测: 分号版报、换行版不报)。
+    if _reassigned_after_tmp(tree) is not None:
         return True
 
     # ⛔ r11 HIGH-8: 起点不能只取**叶**常量 —— `("/t" + "mp/cls-exam/") + "." * 2 + "/x"`
@@ -1245,13 +1453,18 @@ def dynamic_tmp_join_lines(text: str) -> list[tuple[int, str]]:
                 continue
             if _has_dynamic_tmp_join(chunk):
                 out.append((start + offset, chunk.splitlines()[0].strip()))
-        # ⛔ r21 HIGH-2: 再在**整块**上跑一次重赋值检查 —— 逐单元跑的话, 同一个 fence 里
-        # 两条相邻赋值语句分处两个单元, 两次写入从来不会同时被看见。
-        tree = _quiet_parse(textwrap.dedent("\n".join(body)))
-        if tree is not None:
+        # ⛔ r21 HIGH-2: 再在**执行区**级别跑一次重赋值检查 —— 逐单元跑的话, 同一个
+        # fence 里两条相邻赋值语句分处两个单元, 两次写入从来不会同时被看见。
+        # ⛔ r22 HIGH-2: 执行区不只是「整块」—— shell fence 里的 Python heredoc 也是
+        # 一个执行区, 只认整块的话它整类漏检(见 `_python_regions()`)。
+        for region_off, region_src in _python_regions(body):
+            tree = _quiet_parse(region_src)
+            if tree is None:
+                continue
             hit = _reassigned_after_tmp(tree)
             if hit is not None:
-                entry = (start + hit - 1, body[hit - 1].strip())
+                idx = region_off + hit - 1
+                entry = (start + idx, body[idx].strip())
                 if entry not in out:
                     out.append(entry)
     return sorted(out)
@@ -1936,7 +2149,10 @@ def check_dynamic_tmp_joins(root: Path, baseline: dict[str, list[int]]) -> list[
 #: 就是 `${V[0]}`), 只认裸名 `=` 会漏。
 _URL_ASSIGN_RE = re.compile(r"(?<![{$:])\bCLS_BACKEND_URL(?:\[[^\]]*\])?\s*=")
 #: ⛔ r21 MEDIUM-4: `printf -v CLS_BACKEND_URL %s ''` 把结果写进变量, 同样确定性清空。
-_URL_PRINTF_V_RE = re.compile(r"\bprintf\b[^\n]*?\s-v\s*['\"]?CLS_BACKEND_URL\b")
+#: ⛔ r22 MEDIUM-7: 必须锚在**命令段开头**且 `-v` 在 `--` 之前 —— 上一版整行搜,
+#: 于是 `printf '%s' x; test -v CLS_BACKEND_URL`(只是查变量存在)与
+#: `printf -- -v CLS_BACKEND_URL`(那是**参数文本**)都被误报。
+_URL_PRINTF_V_RE = re.compile(r"^\s*printf\s+(?:-(?!-)[a-zA-Z]*\s+)*-v\s*['\"]?CLS_BACKEND_URL\b")
 #: `unset` 形态: 选项**只看紧跟其后的那些**(`-v` / `--`), 变量列表止于命令分隔符。
 #: ⛔ r13 MEDIUM-1: 原先写 `(?![^\n;]*\s-{1,2}f\b)` 会越过命令边界 ——
 #: `unset CLS_BACKEND_URL && curl -f "…"` 里 curl 的 `-f` 被当成 `unset -f` ⇒ 漏检。
@@ -1972,7 +2188,11 @@ def _sh_protect_mask(line: str) -> list[bool]:
     while i < n:
         ch = line[i]
         if ch == "\\" and quote != "'" and i + 1 < n:
-            mask[i] = mask[i + 1] = protected()
+            # ⛔ r22 MEDIUM-2: 被转义的字符**永远**是数据, 与当前在不在引号里无关。
+            # 上一版顶层写 `protected()`(=False), 于是 `printf %s \ #; unset …` 里
+            # 那个转义空格被当成词分隔符 ⇒ 后面的 `#` 被当注释、真实的 `unset` 消失;
+            # 转义的 `;` 同理会被 `_sh_segments()` 错切。
+            mask[i] = mask[i + 1] = True
             i += 2
             continue
         if quote is None:
@@ -1992,6 +2212,26 @@ def _sh_protect_mask(line: str) -> list[bool]:
             i += 1
             continue
         if quote not in ("'", "$'"):  # 单引号内不做任何展开
+            # ⛔ r22 MEDIUM-3: 反引号命令替换要自己一层 ——
+            # ``echo "`printf '%s' " #"`"; unset …`` 里没有这一层就会提前恢复外层引号。
+            if ch == "`":
+                if stack and quote is None and stack[-1][0] == "`":
+                    mask[i] = True
+                    _, quote = stack.pop()
+                else:
+                    mask[i] = protected()
+                    stack.append(("`", quote))
+                    quote = None
+                i += 1
+                continue
+            # ⛔ r22 MEDIUM-3: `$( (:) ; … )` 里的裸 `(` 必须配对, 否则它的 `)` 会把
+            # `$(` 提前闭掉。只在**已经进了展开层**时跟踪裸括号 —— 顶层的 `(`
+            # 可能来自 `case x)` 这类不配对写法, 跟踪它会让整行后面全被当成数据。
+            if ch == "(" and stack:
+                mask[i] = True
+                stack.append((")", quote))
+                i += 1
+                continue
             if line.startswith("${", i) or line.startswith("$(", i):
                 mask[i] = protected()
                 mask[i + 1] = True
@@ -2047,30 +2287,74 @@ def _sh_segments(code: str) -> list[str]:
     return [seg for seg in out if seg.strip()]
 
 
-def _url_word_is_controlled(word: str) -> bool:
-    r"""这个含 `8011` 的词, 它的**地址**真由 `${CLS_BACKEND_URL:-…}` 决定吗?
+def _sh_strip_quotes(word: str) -> str:
+    r"""只去掉**引号定界符**, 保留其余一切(尤其是反斜杠)。
 
-    ⛔ r21 MEDIUM-3: 「端口号落在展开里面」还不够 ——
-    · `"${CLS_BACKEND_URL:-http://localhost:8011}@localhost/x"`: 展开落进 **userinfo**,
-      真实主机是 `@` 后面那个;
-    · `"http://localhost:80/${CLS_BACKEND_URL:-http://localhost:8011}/x"`: 展开整体在 path。
-    两者与正常形态相比全部指标相同。
-
-    判准: 存在一处 `${CLS_BACKEND_URL:-…}` 展开, **它自己罩住那个端口号**, 且
-    (a) 它是所在 URL token 的**开头** —— 它前面到最近一个分隔符(空白/引号/`=`/`(`)之间
-    没有别的字符; (b) 它后面紧跟的不是 `@`。
-
-    ⛔ 判准不能写成「展开在**词**的开头」(第一版这么写, 当场把
-    `env -u OTHER sh -c 'curl "${CLS_BACKEND_URL:-…}/x"'` 判成误报): 被引号包住的整条
-    shell 脚本也是一个词, 它的开头是 `curl`。要绑的是 URL 的边界, 不是词的边界。
+    ⛔ r22 MEDIUM-4: URL 边界不能在**带引号的原串**上判 —— 三种写法都会骗过它:
+    `"http://h:80/path?target=${V:-…}/x"`(`=` 被当 token 分隔符)、
+    `"http://h:80/""${V:-…}/x"`(相邻引号拼成同一个参数)、
+    `"${V:-…}"@localhost/x`(结束引号隔断了 `@` 检查)。剥掉定界符后三者都现形。
+    ⛔ **反斜杠必须留着**: `"curl \${V:-…}/x"` 里 `\$` 表示留给子 shell 展开,
+    与外层直接展开的 `${V:-…}` 是两回事(r22 MEDIUM-5)。去转义会把两者抹平。
     """
-    for e in _URL_EXPANSION_RE.finditer(word):
-        if not _URL_DEFAULTING_RE.match(e.group(0)) or "8011" not in e.group(0):
+    out: list[str] = []
+    quote: str | None = None
+    i, n = 0, len(word)
+    while i < n:
+        ch = word[i]
+        if ch == "\\" and quote != "'" and i + 1 < n:
+            nxt = word[i + 1]
+            # POSIX: 双引号内 `\\` 只对 `$ \\ " 换行 反引号` 特殊, 其中两类含义不同 ——
+            # `\\"` / `\\\\` 是**结构**(外层 shell 吃掉反斜杠, 那个引号交给内层当定界符),
+            # `\\$` / `` \\` `` 是**延后展开**(留给子 shell 自己展开, 与外层直接展开是两回事)。
+            # 只对前者去转义: 保住 r22 MEDIUM-5 那条区分, 同时让内层引号能被下一轮剥掉。
+            if quote == '"' and nxt in '"\\':
+                out.append(nxt)
+            else:
+                out.append(ch)
+                out.append(nxt)
+            i += 2
             continue
-        if word[e.end() : e.end() + 1] == "@":
-            continue  # 展开进了 userinfo, 真正的主机在 `@` 后面
-        if re.split(r"[\s\"\'=(]", word[: e.start()])[-1] == "":
-            return True  # 展开就是这个 URL token 的开头
+        if quote is None and ch in "\"'":
+            quote = ch
+        elif quote is not None and ch == quote:
+            quote = None
+        else:
+            out.append(ch)
+        i += 1
+    return "".join(out)
+
+
+def _url_token_is_controlled(token: str) -> bool:
+    """这个含 `8011` 的**已剥引号的 token**, 地址是不是由 `${CLS_BACKEND_URL:-…}` 决定。
+
+    判准: 剥掉可能的 `--opt=` / `NAME=` 前缀后, 该展开必须**从 token 的第 0 位开始**,
+    且后面紧跟的不是 `@`(否则它落进 userinfo, 真实主机在 `@` 之后)。
+    """
+    body = re.sub(r"^(?:--?[\w-]+=|[A-Za-z_]\w*=)", "", token)
+    for e in _URL_EXPANSION_RE.finditer(body):
+        if e.start() != 0 or not _URL_DEFAULTING_RE.match(e.group(0)) or "8011" not in e.group(0):
+            continue
+        if body[e.end() : e.end() + 1] != "@":
+            return True
+    return False
+
+
+def _url_word_hits(word: str) -> bool:
+    """这个词里有没有**任何一处** `8011` 不受目标变量控制。
+
+    ⛔ r22 MEDIUM-5: 上一版「一处受控就放行整词」——
+    `bash -c "curl \\${V:-…}/x; curl ${V:-…}/y"` 的第二处由外层展开、清环境管不着,
+    却因为第一处受控而整词放行。改成**逐处**检查。
+    """
+    for tok in _sh_strip_quotes(word).split():
+        # ⛔ 剥到**不动点**: 被引号包住的整条 shell 脚本本身还有自己的引号层 ——
+        # `'curl "${V:-…}/x"'` 剥掉外层单引号后 token 仍是 `"${V:-…}/x"`,
+        # 展开就不在第 0 位, 会把合规写法误报(实测踩到)。
+        while (stripped := _sh_strip_quotes(tok)) != tok:
+            tok = stripped
+        if "8011" in tok and not _url_token_is_controlled(tok):
+            return True
     return False
 
 
@@ -2092,8 +2376,12 @@ def _env_clears_url(segment: str) -> bool:
     —— 脚本正文在另一条语句里, 本判据只看这一段的字面。
     """
     m = re.search(
-        r"\benv\b(?P<opts>(?:\s+-{1,2}[\w-]*(?:[= ]\s*[\w'\"]+)?)*)"
-        r"\s+(?P<sh>\S+)\s+-[a-zA-Z]*c\s+(?P<script>.*)$",
+        # ⛔ r22: 选项的「空格分隔参数」只放给 `-u` / `--unset` —— 写成通用的
+        # `[= ]\s*[\w'\"]+` 时, `env -i bash -l -c …` 里 `bash` 会被当成 `-i` 的参数吃掉,
+        # `sh` 组于是捕到 `-l`, 整条判据静默(实测踩到)。
+        # shell 名也放进正则参与回溯, 否则引擎在错误的切分上「匹配成功」就不再尝试。
+        r"\benv\b(?P<opts>(?:\s+(?:-u|--unset)[= ]\s*['\"]?\w+|\s+-{1,2}[\w-]*(?:=['\"]?\w+)?)*)"
+        r"\s+(?P<sh>\S*(?:sh|bash|zsh|dash))(?:\s+-(?!-)[a-zA-Z]*)*?\s+-[a-zA-Z]*c\s+(?P<rest>.*)$",
         segment,
     )
     if not m or not re.search(r"\b(?:sh|bash|zsh|dash)$", m.group("sh")):
@@ -2104,7 +2392,12 @@ def _env_clears_url(segment: str) -> bool:
     )
     if not cleared:
         return False
-    script = m.group("script").strip()
+    # ⛔ r22 MEDIUM-8: `bash -c SCRIPT ARG0 ARG1 …` —— `-c` 后面**只有第一个词**是脚本,
+    # 其余是位置参数($0/$1…)。上一版 `(?P<script>.*)$` 把参数也吃进来, 于是
+    # `env -i bash -c 'true' "${CLS_BACKEND_URL:-…}/x"`(URL 由外层 shell 展开、
+    # `env` 根本管不着)因为「脚本里出现了该变量」而误报。
+    words = _shell_words(m.group("rest"))
+    script = words[0].strip() if words else ""
     if "CLS_BACKEND_URL" not in script:
         return False
     # 只认单引号 / ANSI-C 引号: 整段原样交给子 shell, 由它展开。
@@ -2127,11 +2420,13 @@ def _url_override_hit(line: str) -> bool:
     ⛔ 残余(登记不修): `unset C'LS'_BACKEND_URL` 这类引号拼接出的变量名认不出。
     """
     code = _strip_sh_comment(line)
-    if _URL_ASSIGN_RE.search(code) or _URL_PRINTF_V_RE.search(code):
+    if _URL_ASSIGN_RE.search(code):
+        return True
+    if any(_URL_PRINTF_V_RE.match(seg) for seg in _sh_segments(code)):
         return True
     for segment in _sh_segments(code):
         for word in _shell_words(segment):
-            if "8011" in word and not _url_word_is_controlled(word):
+            if _url_word_hits(word):
                 return True
     for segment in _sh_segments(code):
         m = _URL_UNSET_RE.search(segment)
@@ -2882,6 +3177,182 @@ def test_r21_shell_lexer_branches_are_load_bearing():
     li = [n for _c, n in escaping_tmp_paths('```python\nP = b"/t" b"mp/\\xff/x"\n```')]
     ll = [n for _c, n in escaping_tmp_paths('```python\nP = b"/t" b"mp/\\\\xff/x"\n```')]
     assert li and ll and li != ll, f"bytes **叶**常量分支的解码不单射: {li} vs {ll}"
+
+
+def test_r22_reassignment_is_scope_aware_and_covers_all_bindings():
+    r"""⛔ 局部回归断言: 重赋值判据的**作用域**与**绑定形式**全覆盖。
+
+    本轮 Codex 在给出结论前用尽配额(见验收单 §五 round-22)。它中断时留在 stderr 里的是
+    **探针输入**而不是裁定 —— 我把那些输入取出来自己跑, 实测出 3 条漏检 + 2 条误报,
+    与后来补的形态一起钉在这里。**这条断言的依据是我自己的复现, 不是抢救来的结论。**
+
+    · 漏检: `except … as P` / `import … as P` / `match: case P` —— 这三类的名字在 `ast`
+      里是**裸字符串**(`ExceptHandler.name` / `alias.asname` / `MatchAs.name`),
+      不是 `Name` 节点, 只按 `_target_names()` 找就整类看不见;
+    · 误报: 上一版对整棵树 `ast.walk` 后**按名字**比, 于是函数体 / class 体里的同名
+      局部变量被当成对模块级 `P` 的重赋值 —— 那是另一个绑定, 模块级的 `P` 一动没动。
+    """
+    good = 'P = "/t" + "mp/cls-exam/x"'
+    fence = lambda body: f"```python\n{body}\n```"  # noqa: E731
+
+    # ① 九种绑定形式都算写入, 每种配「换个名字」的等结构安全对照。
+    for label, bad_tail, safe_tail in (
+        (
+            "except as",
+            'try:\n    raise ValueError("/etc/passwd")\nexcept ValueError as P:\n    print(P)',
+            'try:\n    raise ValueError("/etc/passwd")\nexcept ValueError as Q:\n    print(Q)',
+        ),
+        ("from-import as", "from pathlib import Path as P", "from pathlib import Path as Q"),
+        ("import", "import P", "import Z"),
+        (
+            "match 捕获",
+            'match "/etc/passwd":\n    case P:\n        print(P)',
+            'match "/etc/passwd":\n    case Q:\n        print(Q)',
+        ),
+        ("match 星号", "match [1]:\n    case [*P]:\n        print(P)", "match [1]:\n    case [*Q]:\n        print(Q)"),
+        ("def 同名", "def P():\n    pass", "def Z():\n    pass"),
+        ("class 同名", "class P:\n    pass", "class Z:\n    pass"),
+        (
+            "global 后重绑",
+            'def f():\n    global P\n    P = "/etc/passwd"',
+            'def f():\n    global Q\n    Q = "/etc/passwd"',
+        ),
+        ("with as", "with ctx() as P:\n    pass", "with ctx() as Q:\n    pass"),
+    ):
+        assert dynamic_tmp_join_lines(fence(f"{good}\n{bad_tail}")), f"{label} 的重绑没被计为写入"
+        assert not dynamic_tmp_join_lines(fence(f"{good}\n{safe_tail}")), f"{label} 的安全对照被误报"
+
+    # ② 嵌套作用域里的同名变量是**另一个绑定**, 不是重赋值。
+    for label, body in (
+        ("函数体内同名", f'{good}\ndef f():\n    P = "/etc/passwd"\n    return P'),
+        ("class 体内同名", f'{good}\nclass C:\n    P = "/etc/passwd"'),
+        ("lambda 参数同名", f"{good}\ng = lambda P: P"),
+        ("推导式变量", f'{good}\nQ = [P for P in ["/etc/passwd"]]'),
+        ("嵌套函数局部", f'{good}\ndef f():\n    def g():\n        P = "/etc/passwd"\n    return g'),
+    ):
+        assert not dynamic_tmp_join_lines(fence(body)), f"{label} 被误报成重赋值(按名字比、没分作用域)"
+
+    # ③ 刻意保留的保守面 —— 这三条**应该**报, 别当误报去修。
+    assert dynamic_tmp_join_lines(fence(f'if c:\n    {good}\nelse:\n    P = "/etc/passwd"')), (
+        "互斥分支的最终值静态不可判 —— 按本判据契约就该登记"
+    )
+    assert dynamic_tmp_join_lines(fence(f'def f():\n    {good}\n    P = "/etc/passwd"')), (
+        "同一个函数作用域内的重赋值仍要抓"
+    )
+    assert dynamic_tmp_join_lines(fence(f'{good}\nQ = [(P := "/etc/passwd") for _ in [1]]')), (
+        "PEP 572: 推导式内的海象绑在**外层**作用域 —— 所以推导式不能算作用域边界"
+    )
+
+
+def test_r22_reassignment_respects_control_flow_and_execution_regions():
+    r"""⛔ 局部回归断言: 重赋值判据的**控制流三分法**与**执行区**边界。
+
+    r22 复核给出的正确边界是「**同一执行区内的实际绑定与可达执行关系**」。它拆成三件事:
+      · 绑定 —— 作用域(已由 `test_r22_…_covers_all_bindings` 钉住);
+      · 可达执行关系 —— 源码行序**不等于**执行顺序, 见下面 ①;
+      · 执行区 —— 一个 fence 里可能有多个(shell fence 内的 Python heredoc), 见 ③;
+        而**相邻 fence 不能仅凭同名默认串联**(可能是不同示例、不同进程), 见 ③ 末条。
+    """
+    good = 'P = "/t" + "mp/cls-exam/x"'
+    fence = lambda body, info="python": f"```{info}\n{body}\n```"  # noqa: E731
+    hit = lambda body, info="python": bool(dynamic_tmp_join_lines(fence(body, info)))  # noqa: E731
+
+    # ① 循环回边: 源码里越界那行在**前**, 但次轮才执行, 最终覆盖掉合规值。
+    loop = f'for i in (0, 1):\n    if i:\n        P = "/etc/passwd"\n        break\n    {good}'
+    assert hit(loop), "循环回边下按源码行序放行了 —— 源码行序不是执行顺序"
+    assert not hit(loop.replace('        P = "/etc/passwd"', '        Q = "/etc/passwd"')), "循环安全对照被误报"
+    assert hit(f'while c:\n    P = "/etc/passwd"\n    {good}'), "`while` 的回边同理"
+
+    # ② 互斥分支: **两支都合规**时最终值必然合规 —— 上一版一律报, 那是误报。
+    #    我曾把它辩护成「静态不可判 ⇒ 该报」, r22 复核指出该辩护不成立。
+    assert not hit('if c:\n    P = "/tmp/cls-exam/a"\nelse:\n    P = "/tmp/cls-exam/b"'), (
+        "互斥分支两支都合规, 走哪支最终值都合规 —— 不该登记"
+    )
+    assert hit(f'if c:\n    {good}\nelse:\n    P = "/etc/passwd"'), "一支合规一支越界 ⇒ 静态不可判, 要登记"
+    assert hit(f'try:\n    {good}\nexcept E:\n    P = "/etc/passwd"'), "`try/except` 两支混合同理"
+    # ⛔ 这一条才真正考「互斥」判定: 越界那支在**前**、合规那支在后, 直线规则会判成
+    # 「先越界后合规 ⇒ 安全」, 但两支互斥, 走 `if` 分支时最终值就是越界的那个。
+    assert hit(f'if c:\n    P = "/etc/passwd"\nelse:\n    {good}'), (
+        "互斥分支下越界在前, 被直线规则误判成安全 —— 分支不能按源码先后看"
+    )
+
+    # ③ 直线代码里顺序**有**意义 —— 全顺序无关会把形态表的安全对照弄红(第一版踩到)。
+    assert hit(f'{good}\nP = "/etc/passwd"'), "直线: 先合规、被后面改写 ⇒ 登记"
+    assert not hit(f'P = "/etc/passwd"\n{good}'), "直线: 先越界后合规, 最终值合规 ⇒ 不登记"
+    assert not hit('P = "/var/cache"\nP = "/tmp/cls-exam/x"'), "形态表 HIGH-4 的安全对照必须保持绿"
+    # 位置比较用 `(行号, 列偏移)`: 分号写成一行时行号相同, 只比行号会让同样的内容
+    # 因为写成一行还是两行而结果不同(r22 LOW)。
+    for a, b in (
+        (f'{good}; P="/etc/passwd"', f'{good}\nP="/etc/passwd"'),
+        ('P="/etc/passwd"; ' + good, 'P="/etc/passwd"\n' + good),
+    ):
+        assert hit(a) == hit(b), f"同样的内容, 分号版与换行版结果不同: {a!r}"
+
+    # ④ 执行区: shell fence 里的 Python heredoc 是**同一个** Python 执行区。
+    hd = f"python3 - <<'PYEOF'\n{good}\nP = \"/etc/passwd\"\nPYEOF"
+    assert hit(hd, "sh"), "shell fence 里的 Python heredoc 整类漏检(只认「整块是合法 Python」)"
+    assert not hit(hd.replace('\nP = "/etc/passwd"', '\nQ = "/etc/passwd"'), "sh"), "heredoc 安全对照被误报"
+    for opener, closer in (('<<"EOF"', "EOF"), ("<<EOF", "EOF"), ("<<-'T'", "T")):
+        body = f'python3 - {opener}\n{good}\nP = "/etc/passwd"\n{closer}'
+        assert hit(body, "sh"), f"heredoc 开启形态 {opener} 没被识别"
+    # 相邻 fence 可能是不同示例/不同进程 —— 不得仅凭同名串联。
+    assert not dynamic_tmp_join_lines(fence(good) + "\n" + fence('P = "/etc/passwd"')), (
+        "跨 fence 按同名串联了 —— 相邻 fence 可能是不同进程, 这是误报方向"
+    )
+
+
+def test_r22_shell_lexer_and_url_boundary_are_load_bearing():
+    r"""⛔ 局部回归断言: r22 的 shell 词法与 URL 地址绑定七处整改各自可被证伪。"""
+    d = 'curl "${CLS_BACKEND_URL:-http://localhost:8011}/x"'
+
+    # ① 被转义的字符**永远**是数据(与在不在引号里无关)。
+    assert _url_override_hit("printf %s \\ #; unset CLS_BACKEND_URL; " + d), (
+        "顶层的转义空格被当成词分隔符 ⇒ 后面的 `#` 被当注释、真实的 `unset` 消失"
+    )
+    assert not _url_override_hit("printf %s \\ #; :; " + d), "安全对照被误报"
+
+    # ② 命令替换: `$( … )` 内的裸括号要配对; 反引号要自己一层。
+    assert _url_override_hit('echo "$( (:) ; printf %s " #")"; unset CLS_BACKEND_URL'), (
+        "`$( (:) … )` 里的裸 `)` 把命令替换提前闭掉了"
+    )
+    assert _url_override_hit("""echo "`printf '%s' " #"`"; unset CLS_BACKEND_URL"""), "反引号命令替换没有自己的层"
+    assert not _url_override_hit("""echo "`printf '%s' " #"`"; :"""), "反引号安全对照被误报"
+
+    # ③ URL 地址绑定必须在**剥掉引号后**判 —— 三种写法都能骗过按原串的字符判定。
+    for label, line in (
+        ("query 里的 `=`", 'curl "http://localhost:80/path?target=${CLS_BACKEND_URL:-http://localhost:8011}/x"'),
+        ("相邻引号拼接", 'curl "http://localhost:80/""${CLS_BACKEND_URL:-http://localhost:8011}/x"'),
+        ("引号后的 @userinfo", 'curl "${CLS_BACKEND_URL:-http://localhost:8011}"@localhost/x'),
+    ):
+        assert _url_override_hit(line), f"{label}: 地址不由目标变量决定, 判据却放行"
+    assert not _url_override_hit(d), "整改形态本身被误报"
+    assert not _url_override_hit("env -u OTHER sh -c '" + d + "'"), "被引号包住的整条脚本要剥到不动点再判"
+    assert not _url_override_hit('env -i bash -c "curl \\"${CLS_BACKEND_URL:-http://localhost:8011}/x\\""'), (
+        "双引号内的转义引号是**结构**转义(交给内层当定界符), 不是延后展开 —— 不该报"
+    )
+
+    # ④ 一处受控不能放行整词(第一处留给子 shell、第二处外层已展开)。
+    assert _url_override_hit(
+        'env -i bash -c "curl \\${CLS_BACKEND_URL:-http://localhost:8011}/x; '
+        'curl ${CLS_BACKEND_URL:-http://localhost:8011}/y"'
+    ), "同一个词里有两处 `8011`, 一处受控就整词放行了"
+
+    # ⑤ `printf -v` 必须锚在命令段开头且在 `--` 之前。
+    assert not _url_override_hit("printf '%s' x; test -v CLS_BACKEND_URL"), "`test -v` 只是查存在, 不是写变量"
+    assert not _url_override_hit("printf -- -v CLS_BACKEND_URL"), "`--` 之后是参数文本, 不是选项"
+    assert _url_override_hit("printf -v CLS_BACKEND_URL %s ''; " + d), "真正的 `printf -v` 写变量仍要抓"
+
+    # ⑥ `env` 的参数边界: 选项可以分开写; `-c` 后**只有第一个词**是脚本。
+    assert _url_override_hit("env -i bash -l -c '" + d + "'"), "`-l -c` 分开写没被识别"
+    assert _url_override_hit("env -i /bin/bash -c '" + d + "'"), "shell 写全路径时没被识别"
+    assert not _url_override_hit("""env -i bash -c 'true' "${CLS_BACKEND_URL:-http://localhost:8011}/x\""""), (
+        "`-c` 后的**位置参数**被当成脚本内容 ⇒ 误报"
+    )
+
+    # ⑦ 身份编码在 str ∪ bytes **整个值域**上单射。
+    b = [n for _c, n in escaping_tmp_paths('```python\nP = b"/t" + b"mp/\\xff/x"\n```')]
+    r = [n for _c, n in escaping_tmp_paths('```python\nP = "/t" + r"mp/\\xff/x"\n```')]
+    assert b and r and b != r, f"真 0xFF 字节与字面反斜杠折成了同一个候选: {b} vs {r}"
 
 
 def test_parse_unit_cost_on_current_tree():
