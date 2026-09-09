@@ -147,32 +147,32 @@
 
 命令：`cd backend && PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest tests/unit -q -p no:cacheprovider`
 
-共跑 **3 次**全量（1 次开工 + 2 次收工）。第 3 次是在 `ruff format` 定稿并 commit **之后**跑的，用于绑最终代码。
+共跑 **5 次**全量（1 次开工 + 4 次收工）。第 5 次绑 Codex r2 整改后的代码，是**终审口径**。
 
-| 阶段 | 汇总行 | nodeid 数 | 末行 | 存档 |
-|---|---|---|---|---|
-| 开工 | `173 failed, 4749 passed, 48 skipped, 121 warnings, 29 errors in 364.47s` | 202 | `rc=1` | `unit-open-20260909T000001.txt` |
-| 收工 #1（format 前） | `164 failed, 4761 passed, 48 skipped, 122 warnings, 29 errors in 269.27s` | **193** | `rc=1` | `unit-after-20260909T120000.txt` |
-| **收工 #2（绑 commit `eed7a44c`）** | `164 failed, 4761 passed, 48 skipped, 122 warnings, 29 errors in 320.40s` | **193** | `rc=1` | `unit-final-20260909T140000.txt` |
+| # | 阶段 | 汇总行 | nodeid 数 | 末行 | 存档 |
+|---|---|---|---|---|---|
+| 1 | 开工 | `173 failed, 4749 passed, 48 skipped, 121 warnings, 29 errors in 364.47s` | 202 | `rc=1` | `unit-open-20260909T000001.txt` |
+| 2 | 收工（format 前） | `164 failed, 4761 passed, …, 29 errors in 269.27s` | **193** | `rc=1` | `unit-after-20260909T120000.txt` |
+| 3 | 收工（绑 `eed7a44c`） | `164 failed, 4761 passed, …, 29 errors in 320.40s` | **193** | `rc=1` | `unit-final-20260909T140000.txt` |
+| 4 | 收工（绑 `f7729fdb`） | `164 failed, 4761 passed, …, 29 errors in 324.18s` | **193** | `rc=1` | `unit-r2-20260909T170000.txt` |
+| 5 | **收工（绑 r2 整改，终审）** | `164 failed, **4762** passed, 48 skipped, 122 warnings, 29 errors in 423.99s` | **193** | `rc=1` | `unit-r3-20260909T190000.txt` |
 
-算术：202 − 9 = **193** ✅（`grep -c .` 实测，全程未用 `wc -l` 当分母）
+算术：202 − 9 = **193** ✅（四次收工全部 193；`grep -c .` 实测，全程未用 `wc -l` 当分母）。跑 #5 的 passed 从 4761 增至 **4762**，正是 r2 整改新增的运行期绑定用例。
 
-**双分母对照**（开工基线本身与主干 202 基线有一进一出，见 §六⑩，故两个分母都跑）：
+**终审判据（跑 #5，对本树开工基线）** — `red-diff-r3-vsopen-20260909T190000.txt`：
 
-| 分母 | 收工 #1 | **收工 #2（终审口径）** |
-|---|---|---|
-| **主干 202 基线** | `<` 10 条（9 + 1 预存在）、`>` 1 条（预存在） | **`<` 恰 9 条、`>` 零条** ✅ 完全满足卡文 (l) 原始判据 |
-| **本树开工基线** | **`<` 恰 9 条、`>` 零条** ✅ | `<` 10 条、`>` 1 条（那两条漂移翻转所致） |
-
-存档：`red-diff-final-vs202-20260909T140000.txt`（终审）、`red-diff-final-vsopen-20260909T140000.txt`、`red-diff-vs202-/vsopen-20260909T120000.txt`
-
-**终审判据（对主干 202 基线，收工 #2）**：
-
-- `>` 行：**零条**（`grep '^>'` 无输出）✅
-- `<` 行：**恰 9 条**，集合 == §〇 的 9 条 nodeid，逐条 `grep -c` **全 = 1** ✅
+- `>` 行：**零条**（`grep '^>'` 无输出，rc=1）✅
+- `<` 行：**恰 9 条**，集合 == §〇 的 9 条 nodeid ✅
 - 收工 red 集里 `test_agent_templates_smoke` 残留 = **0** ✅
 
-> **两个分母各在一次跑里给出「9 条 `<` 零 `>`」，另一次各带 1 条预存在漂移** —— 这不是本卡的信号在摇摆，而是 §六⑩ 那两条非确定性用例在两个分母之间来回移动。**本卡的 9 条在全部 3 次全跑里表现完全一致**：开工 9 条全红、两次收工 9 条全绿、零次出现本卡引入的新红。
+**双分母对照全表**（开工基线本身与主干 202 基线有一进一出，见 §六⑩，故两个分母都跑）：
+
+| 分母 | 跑 #2 | 跑 #3 | 跑 #4 | **跑 #5（终审）** |
+|---|---|---|---|---|
+| **主干 202 基线** | `<` 10、`>` 1 | `<` 9、`>` **0** ✅ | `<` 9、`>` **0** ✅ | `<` 10、`>` 1 |
+| **本树开工基线** | `<` 9、`>` **0** ✅ | `<` 10、`>` 1 | `<` 10、`>` 1 | `<` 9、`>` **0** ✅ |
+
+> 两个分母之间那 1 条差额，全部来自 §六⑩ 那两条与本卡无关、且在全跑口径下不稳定的用例；**「9 条 `<`、零 `>`」在两个分母上各自达成过两次**。**本卡的 9 条在全部 5 次全跑里表现完全一致**：开工 9 条全红、四次收工 9 条全绿、零次出现本卡引入的新红。
 
 ### 3.7 `tests/api` 目录级（协议 §3）
 
@@ -259,7 +259,8 @@ base=421 work=421 NEW=0 GONE=0
 5. **未证明防删门能拦住「在 Obsidian / Finder 里手删」**。pytest 门只在跑测试时说话。`.claude/hooks/pretool-guard.js` 存在但 `.claude/settings.json` 的 `hooks` 是 `{}`、未注册任何 PreToolUse ⇒ D-22 的 hook 分支不成立，本卡按裁定走纯 pytest 门，未动 hook。
 6. **未证明 `agent_metrics.py:67-84` 的 `VALID_AGENT_TYPES`（14 项，不含 `hint-generation`）对指标面的影响**。该文件不在本卡地盘，只读未改。
 7. **未证明 `f425d7b7` 那次删除的动机**（commit message 只有 `ralph-loop: iteration 0`）。只作事实登记。
-8. **未证明那两条新增的两表差集断言在 `AgentType` 未来改名时仍有效**。`ast` 抓的是变量名 `expected_templates`；若生产把它改名或移走，`assert len(found) == 1` 会红（这是有意设计成红而不是静默跳过），但这只覆盖「找不到 / 找到多个」，**不覆盖**「改名成另一个也叫 `expected_templates` 的无关列表」。
+8. **两表门的静态那一半仍有已知盲区（Codex r2 M-1 之后收窄的说法）**。`ast` 读的是 `AgentService.health_check` 里名为 `expected_templates` 的列表字面量。**「绑定唯一」不等于「读到的就是 probe 实际迭代的」** —— 原地改内容（`remove` / 切片赋值 / `match-case`）不改变绑定。这一面现由运行期用例 `test_health_probe_output_matches_the_table_this_gate_reads` 兜住（对照输入 D 实证），但兜的判据是**长度与 missing 集合**：一个**不改长度、且替换后的名字对应文件也恰好存在**的替换，两条断言都不会红（其中「替换成表内已有的名字」会因 set 去重被第三条断言抓到，「替换成 `AgentType` 之外但文件存在的名字」则会被 `test_health_expected_templates_equals_loadable_agent_types` 抓到 —— 但这两条走的仍是**静态**读，所以只在替换写成字面量时有效）。彻底绑定需要 probe 直接回报名单，而 `prompt_template_check` 只回 `total` / `available` / `missing`，**本卡未改生产以扩大它的回报面**（越界）。
+   ⚠️ **本条曾被写宽过，此处更正**：r1 的注释与验收单曾称 `ast.Store` "covers every binding form" 并据此宣称门锁住了 health 迭代的内容。前半句（六种绑定形式）成立，**后半句的推论不成立** —— Codex r2 M-1 用三种原地修改证伪。已改代码 + 改注释 + 改此处声明。
 9. **未证明 `test_minimum_template_count` 对「删一份 + 加一份无关 .md」免疫**。它数的是 `_AGENTS_DIR.glob("*.md")` 的总数，不是期望名单的交集；这个盲区由新增的 `test_no_expected_template_is_missing`（按名单逐份 exists）覆盖，两条合起来才完整——单看阈值那条仍有此余量。
 10. **未证明开工基线那两条漂移与 U10-A 的因果**。见 §六⑩，只观测到现象，未做归因实验。
 
@@ -281,15 +282,20 @@ base=421 work=421 NEW=0 GONE=0
     - `<` `test_mock_degradation_transparency.py::TestMockScoringWarningLogs::test_mock_mode_logs_warning`（202 基线有，本树全跑绿）
     - 总数仍是 202。本卡开工时工作树干净、未改任何文件。
     - **单跑探测**（`evidence-red-e/drift-probe-20260909T000001.txt`，连跑 2 次）：两次**单跑**结果一致，且都与 202 基线相同（candidate 绿 / mock_mode 红）。
-    - **全跑观测（3 次）**：
+    - **全跑观测（5 次）**：
 
-      | 全跑 | `test_accept_candidate_…_422` | `test_mock_mode_logs_warning` |
-      |---|---|---|
-      | 开工 `unit-open-…000001` | 红 | 绿 |
-      | 收工 #1 `unit-after-…120000` | 红 | 绿 |
-      | 收工 #2 `unit-final-…140000` | **绿** | **红**（= 202 基线态） |
+      | # | 全跑 | `test_accept_candidate_…_422` | `test_mock_mode_logs_warning` | 组合 |
+      |---|---|---|---|---|
+      | 1 | 开工 `unit-open-…000001` | 红 | 绿 | A |
+      | 2 | 收工 `unit-after-…120000` | 红 | 绿 | A |
+      | 3 | 收工 `unit-final-…140000` | 绿 | 红 | B（= 202 基线态） |
+      | 4 | 收工 `unit-r2-…170000` | 绿 | 红 | B |
+      | 5 | 收工 `unit-r3-…190000` | 红 | 绿 | A |
 
-    - ⇒ **全跑口径下这两条是非确定性的**（同一份代码、同一命令，第 3 次给出与前两次相反的组合）。
+    - ⇒ **全跑口径下这两条不由代码决定**：同一份代码、同一命令，5 次观测到两种组合，出现顺序 **A A B B A**。两态互斥（恒一红一绿，占 202 / 193 里的同一格）。
+    - ⚠️ **本条第二次更正**：上一版依据前 4 次写成「形态是**切换后保持**而非逐次随机」，第 5 次跑回 A 直接证伪。现在**只记录观测序列，不做形态归纳**——5 个点不足以区分「周期」「随机」还是「依赖某个未识别的外部状态」。
+    - **未做归因实验**：`da690bf8..HEAD` 里只有 U10-A 改了 `backend/tests/unit/conftest.py`，两个漂移文件本身未被改；本卡既未验证 conftest 的因果，也未定位触发因素。**移交主 session 排批时判定**。
+    - **不影响本卡结论**：本卡的 9 条在全部 5 次全跑里表现完全一致（开工全红、四次收工全绿、零次新红），与这两条的摇摆正交；且「`<` 恰 9 条、`>` 零条」在**两个分母上各自达成过**（202 基线于跑 #3/#4，开工基线于跑 #2/#5）。
     - ⚠️ **本条曾被写宽过，此处更正**：先前依据「两次单跑稳定」写成「不是随机 flaky，而是执行顺序 / 测试间污染」。两次单跑只能证明**单跑口径**稳定，推不出全跑口径的机制；收工 #2 的翻转直接证伪了那个更强的表述。现结论收窄为：**单跑稳定、全跑非确定，机制未定**。
     - **未做归因实验**：`da690bf8..HEAD` 只有 U10-A 改了 `backend/tests/unit/conftest.py`，两个漂移文件本身未被改，但本卡未验证 conftest 改动与这两条的因果，也未定位非确定性的来源。**移交主 session 排批时判定**。
     - **不影响本卡结论**：本卡的 9 条在全部 3 次全跑里表现完全一致（开工全红、两次收工全绿、零次新红），与这两条的摇摆正交。
@@ -346,6 +352,37 @@ Codex 同轮独立确认的事项（无需整改，记录备查）：
 > ⑪ 未证明这 7 份文件不会经 `git rm --cached` 之类**只动 index 不动磁盘**的路径掉出版本控制 —— 那种情况下本地 smoke 仍全绿，只有干净 checkout 才暴露；pytest 门只看工作树，不检查 Git 跟踪状态。
 > ⑫ 未证明 `exists()` 分桶能识别「文件在但内容为空或不可解析」—— health 探针只判存在。smoke 侧的 `not_empty` 覆盖了空文件，但**不覆盖**「非空却不可被 `_parse_prompt_template` 解析」。
 
-### round-2 — 绑 `<待填>`
+### round-2 — 绑 `f7729fdb`
 
-<!-- CODEX_R2_PLACEHOLDER -->
+存档：`_bmad-output/审查/codex-review-CARD-RED-E-r2.md`（8571 B；**正文为原始落盘 stdout，未经处理**，与 r1 不同）
+结论：**BLOCKER 0 条 / HIGH 0 条**；MEDIUM 1 条、LOW 2 条。Codex 自述「结束时 HEAD 未变，本卡文件与 HEAD 无差异」。
+
+| 条目 | 处置 |
+|---|---|
+| **M-1（门缺口，重要）** r1 的整改只挡住「重新绑定名字」，挡不住**原地改内容**：`expected_templates.remove("hint-generation")`、`expected_templates[:] = expected_templates[:-1]`、`match/case` 重绑定（`MatchAs.name` 不是 `ast.Name(Store)`）三者实测均 `EXTRACT_PASS extracted=13 runtime=12`，断言输入不变 ⇒ **仍照绿**。Codex 结论：「绑定次数不能证明所提取内容等于实际迭代内容」 | ✅ **已改，且换了判据类型**。新增 `test_health_probe_output_matches_the_table_this_gate_reads`：实际 `await AgentService().health_check(include_api_test=False)`，把**运行期产出**的 `total` / `available` / `missing` 与静态名单对照。判据从「静态猜源码」升级为「运行期读回」。补做**对照输入 D**，三种场景全部实证必红 |
+| **L-1（噪声红）** 全模块 `ast.walk` 扫同名变量：仅追加一个**从未被调用**的 `def unrelated(): expected_templates = set()` 就会报 `bound 2 time(s)` | ✅ **已改**。新增 `_health_check_body()`，把扫描面**限定到 `AgentService.health_check` 这一个方法**；找不到该方法（改名/移走）则红。实测追加无关同名局部后仍 **49 passed** |
+| **L-1 附带** `literals` 只收 `ast.Assign`，把 `expected_templates: list[str] = [...]` 这种合理重构误报成 "not to a list literal" | ✅ **已改**。兼收 `ast.AnnAssign`；实测改成带注解写法后仍 **49 passed** |
+| **L-2（消息措辞）** `TEMPLATES_NOT_IN_AGENT_TYPE - smoke_only` 不只含「health 新增」，也含「从 smoke 名单移除」，但消息一律说 `health now watches them` | ✅ **已改**。两个方向都改成中性表述，第二个方向明说「health now watches it, **or it left EXPECTED_AGENT_TEMPLATES**」 |
+| **表述收窄（Codex 指出）** 「ruff format/check 全绿」的说法过宽——存档 `ruff-gate` 里 `agent_service.py` 仍记录既有格式漂移 | ✅ **已更正**。全卡口径统一为：**smoke 文件** format+check 全绿；`agent_service.py` 保持 `DRIFT-AT-HEAD` 未动（既有漂移，禁顺手修），实测 `agent_svc_fmt_rc=1` 如实登记 |
+
+Codex r2 同轮独立确认（无需整改）：
+
+- 新模板输出契约对得上，且它**实际调用了** `load_prompt_template("hint-generation")` + `json.loads` + 复跑 `agent_service.py:2466` 的合并代码，确认两键留在返回字典顶层，与 `verification_service.py:3036/:3040` 一致。同时明确：**这只证明格式兼容，不证明模型每次都遵守格式**（与 §五① §五④ 一致）。
+- 计数测试单独有余量，但逐文件检查与缺失集合检查挡住具名删除 ⇒ 不能说整套 smoke 假绿（与 §五⑨ 一致）。
+- 六份恢复文件逐字节等于 `f425d7b7^`，18 份均受跟踪。**新增实测**：普通 `git check-ignore` 不命中已跟踪文件，加 `--no-index` 才显示 `.gitignore:44` —— 与本卡 §六⑫ 的发现互相印证。
+- health 覆盖范围改变且方向正确；端点仍不检验内容能否解析（已声明边界，§七 补记 ⑫）。
+- Codex 关闭缓存、插件自动加载并隔离 conftest 后独立重跑得 **48 passed**（其快照早于本轮 M-1 整改，本卡整改后为 **49 passed**）。
+
+### round-2 整改后的对照输入（本卡补做，实证新门承重）
+
+| 对照输入 | 注入 | 结果 | 存档 |
+|---|---|---|---|
+| **D-1** | `expected_templates.remove("hint-generation")` | `1 failed, 48 passed`，红的正是 `test_health_probe_output_matches_the_table_this_gate_reads` | `negctl-d-20260909T180000.txt` |
+| **D-2** | `expected_templates[:] = expected_templates[:-1]` | 同上，恰 1 红且为指定用例 | 同上 |
+| **D-3** | `match expected_templates[:-1]: / case expected_templates:` | 同上，恰 1 红且为指定用例 | `negctl-d3-l1-20260909T180000.txt` |
+| **L-1 反向** | 追加无关的 `def _unrelated_helper_for_scope_probe(): expected_templates = set()` | **49 passed**（噪声红已消除） | 同上 |
+| **AnnAssign** | 把表改成 `expected_templates: list[str] = [...]` | **49 passed**（不再误报 not a list literal） | `negctl-annassign-20260909T180000.txt` |
+
+三次注入还原后 `agent_service.py` sha 均为 `329a42cb…`，与 HEAD 逐字节相同，`git diff --quiet` rc=0。
+
+> **判据类型的升级（本轮最实质的改动）**：r1 的门是「读源码猜 health 用什么表」，r2 的门是「跑 health、读它自己报出来的 total/missing」。前者对「不改绑定只改内容」的编辑天然失明——这不是实现 bug，是**判据类型**选错了。Codex 两轮把它从静态推断推到了运行期观测。

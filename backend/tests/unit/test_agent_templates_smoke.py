@@ -68,47 +68,70 @@ TEMPLATES_NOT_IN_AGENT_TYPE = {
 }
 
 
+def _health_check_body() -> ast.AST:
+    """Locate AgentService.health_check in the production source.
+
+    Scoped to that one method on purpose: a module-wide scan for the name
+    ``expected_templates`` turns any unrelated local of the same name — in a
+    helper nobody calls — into a failure of this gate.
+    """
+    from app.services import agent_service
+
+    source_path = agent_service.__file__
+    tree = ast.parse(Path(source_path).read_text(encoding="utf-8"))
+    functions = [
+        node
+        for cls in ast.walk(tree)
+        if isinstance(cls, ast.ClassDef) and cls.name == "AgentService"
+        for node in cls.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == "health_check"
+    ]
+    assert len(functions) == 1, (
+        f"expected exactly one AgentService.health_check in {source_path}, "
+        f"found {len(functions)} — the /agents/health probe moved or was renamed, "
+        f"so this gate no longer watches it"
+    )
+    return functions[0]
+
+
 def _health_expected_templates() -> list[str]:
     """Read the /agents/health probe's expected_templates list from source.
 
     Binds to the production module actually imported (``agent_service.__file__``)
     rather than a path guess, and parses it with ``ast`` instead of a regex.
 
-    Two checks, in this order, because the first one is what keeps this gate
-    honest: scanning only for list literals would miss a later rebinding such as
-    ``expected_templates = expected_templates[:-1]``, which changes what the
-    health probe really iterates while a literal-only scan keeps returning the
-    stale list — the gate would stay green over a table it no longer describes.
-    ``ast.Store`` covers every binding form (Assign / AugAssign / AnnAssign /
-    for-target / with-as / walrus), so any second binding fails here instead.
+    ⚠️ This is a *source* read and cannot see edits that change the list's
+    contents without rebinding the name — ``expected_templates.remove(x)`` and
+    ``expected_templates[:] = ...`` both do exactly that. Reading this list is
+    therefore only half the gate; the other half is
+    ``test_health_probe_output_matches_the_table_this_gate_reads``, which
+    compares this list against what the probe actually produced at runtime.
     """
-    from app.services import agent_service
-
-    source_path = agent_service.__file__
-    tree = ast.parse(Path(source_path).read_text(encoding="utf-8"))
+    fn = _health_check_body()
 
     bindings = [
         n
-        for n in ast.walk(tree)
+        for n in ast.walk(fn)
         if isinstance(n, ast.Name) and n.id == "expected_templates" and isinstance(n.ctx, ast.Store)
     ]
     assert len(bindings) == 1, (
-        f"`expected_templates` is bound {len(bindings)} time(s) in {source_path} "
-        f"at line(s) {sorted(n.lineno for n in bindings)}; this gate reads a single "
-        f"list literal, so 0 bindings means the health probe was renamed or removed "
-        f"and 2+ means the list this gate reads may not be the one the probe iterates"
+        f"`expected_templates` is bound {len(bindings)} time(s) inside "
+        f"AgentService.health_check at line(s) {sorted(n.lineno for n in bindings)}; "
+        f"this gate reads a single list literal, so 0 bindings means the table was "
+        f"renamed or removed and 2+ means the list this gate reads may not be the "
+        f"one the probe iterates"
     )
 
     literals = [
         [e.value for e in node.value.elts if isinstance(e, ast.Constant)]
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Assign) and isinstance(node.value, ast.List)
-        for t in node.targets
+        for node in ast.walk(fn)
+        if isinstance(node, (ast.Assign, ast.AnnAssign)) and isinstance(node.value, ast.List)
+        for t in (node.targets if isinstance(node, ast.Assign) else [node.target])
         if isinstance(t, ast.Name) and t.id == "expected_templates"
     ]
     assert len(literals) == 1, (
-        f"`expected_templates` is bound exactly once in {source_path} but not to a "
-        f"list literal, so this gate can no longer read the health probe's table"
+        f"`expected_templates` is bound exactly once inside AgentService.health_check "
+        f"but not to a list literal, so this gate can no longer read the probe's table"
     )
     return literals[0]
 
@@ -178,6 +201,42 @@ class TestAgentTemplateFiles:
             f"Expected >= 18 agent templates, found {len(actual_files)}: {[f.name for f in actual_files]}"
         )
 
+    async def test_health_probe_output_matches_the_table_this_gate_reads(self):
+        """Bind the source read to what the probe actually produced at runtime.
+
+        `_health_expected_templates` reads a list literal out of the source, and
+        a source read is blind to edits that change the list's *contents* without
+        rebinding the name — `expected_templates.remove("hint-generation")` and
+        `expected_templates[:] = expected_templates[:-1]` both do that, leaving a
+        purely static gate green over a table it no longer describes.
+
+        Running the real probe closes that: any such edit changes the length the
+        probe reports, so `total` stops matching the static list. `missing == []`
+        additionally catches a name the table watches but the directory lacks —
+        which is the whole failure this card exists to fix.
+
+        No network: `include_api_test=False` never reaches the AI provider, and a
+        bare AgentService() has no client configured.
+        """
+        from app.services.agent_service import AgentService
+
+        names = _health_expected_templates()
+        report = await AgentService().health_check(include_api_test=False)
+        check = report["checks"]["prompt_templates"]
+
+        assert check["total"] == len(names), (
+            f"the probe iterates {check['total']} templates but the list this gate "
+            f"reads from source has {len(names)} ({sorted(names)}) — the table is "
+            f"being modified after it is defined, so the source read is stale"
+        )
+        assert check["missing"] == [], (
+            f"the probe reports missing templates: {check['missing']}; "
+            f"/agents/health is degraded until those .md files are restored"
+        )
+        assert check["available"] == len(names), (
+            f"probe available={check['available']} but the table has {len(names)} entries"
+        )
+
     def test_health_expected_templates_equals_loadable_agent_types(self):
         """The /agents/health probe must watch exactly the loadable AgentType values.
 
@@ -207,15 +266,17 @@ class TestAgentTemplateFiles:
         smoke = {n.removesuffix(".md") for n in EXPECTED_AGENT_TEMPLATES}
         health = set(_health_expected_templates())
         smoke_only = smoke - health
-        # Report each direction separately: a symmetric difference would label a
-        # template that just *joined* AgentType (so it is correctly no longer
-        # smoke-only) as an "unexpected smoke-only" entry.
+        # Report each direction separately (a symmetric difference cannot say
+        # which side moved) and state each side neutrally: an entry can leave
+        # the smoke-only set either because health started watching it OR
+        # because it was dropped from EXPECTED_AGENT_TEMPLATES.
         assert smoke_only == TEMPLATES_NOT_IN_AGENT_TYPE, (
             f"smoke-only set drifted; "
-            f"newly smoke-only (in smoke, not watched by health): "
-            f"{sorted(smoke_only - TEMPLATES_NOT_IN_AGENT_TYPE)}; "
-            f"no longer smoke-only (health now watches them, update "
-            f"TEMPLATES_NOT_IN_AGENT_TYPE): {sorted(TEMPLATES_NOT_IN_AGENT_TYPE - smoke_only)}"
+            f"in EXPECTED_AGENT_TEMPLATES but not watched by health, and not listed "
+            f"as tripwire-only: {sorted(smoke_only - TEMPLATES_NOT_IN_AGENT_TYPE)}; "
+            f"listed as tripwire-only but no longer smoke-only (health now watches it, "
+            f"or it left EXPECTED_AGENT_TEMPLATES): "
+            f"{sorted(TEMPLATES_NOT_IN_AGENT_TYPE - smoke_only)}"
         )
         assert health - smoke == set(), (
             f"health probe watches templates this file does not guard: {sorted(health - smoke)}"

@@ -1,0 +1,9 @@
+########## AnnAssign 支持核查（Codex r2 L-1 附带指出的原有限制）##########
+把 expected_templates = [...] 改成 expected_templates: list[str] = [...]
+整改前：literals 只收 ast.Assign ⇒ 误报 'not to a list literal'。
+整改后：literals 兼收 ast.AnnAssign ⇒ 应保持全绿。
+rewrote :5711 -> expected_templates: list[str] = [
+======================= 49 passed, 10 warnings in 0.88s ========================
+restored, diff_rc=0
+final sha: 329a42cbe879e752396c9fbfc6e939033f6734027a1a09f7a80bf8522afb35af
+HEAD  sha: 329a42cbe879e752396c9fbfc6e939033f6734027a1a09f7a80bf8522afb35af
