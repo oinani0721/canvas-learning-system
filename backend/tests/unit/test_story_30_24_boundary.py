@@ -219,6 +219,16 @@ class TestSpecialCharacterGroupId:
                 assert _v not in query_str, (
                     f"参数 {_k} 的值被拼进了查询文本，应作为绑定参数传递"
                 )
+        # 上面那条循环只覆盖非空字符串值（Codex round-1 LOW）：若实现把 limit=5 写死成
+        # `LIMIT 5` 却照旧把 limit 传进 kwargs，字符串检查发现不了。对非字符串值直接查
+        # `str(_v) in query_str` 会误报（查询里出现数字 5 的正当写法很多），故改用**正面**
+        # 形式表达同一主张：每个绑定参数都必须在查询文本里以 `$name` 占位符被引用——
+        # 值一旦被内联进文本，对应占位符就会消失，这条立即红。
+        for _k in all_kwargs:
+            assert f"${_k}" in query_str, (
+                f"参数 {_k} 传进了 kwargs 却没有对应的 ${_k} 占位符，"
+                f"说明它的值可能被内联进了查询文本。query={query_str!r}"
+            )
 
 
 # ============================================================================

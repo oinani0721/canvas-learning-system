@@ -55,23 +55,48 @@ class TestDockerComposeVariableization:
         # 相对路径 ./docker/neo4j/* 随启动目录漂移，519MB 学习记忆图谱（唯一不可再生
         # 数据）因此寄居在一个随时会被清理的 worktree 里；commit body 原文「worktree
         # 清理 = 记忆蒸发」，并留了 backend/data/backups/ 的全量导出。⇒ 有据演进。
-        # 处置：三条做成**显式豁免名单**，其余任何硬编码用户路径照旧红。
-        # ⛔ 不改 docker-compose.yml（本卡零生产改动）、不放宽正则。
-        # ⛔ 用「子集」而不是「相等」：若日后真把这三条改回变量化，本用例应当继续绿，
-        #    而不是被这份名单钉死在今天这个中间状态。[CARD-RED-C2]
+        #
+        # 豁免面收窄到「**neo4j 这一个 service 内、每条最多出现一次**」——
+        # Codex round-1 HIGH 指出：只按行内容做集合豁免时，把任一获准 mount 行**复制**
+        # 到另一个 service 里，新断言照样通过而原断言会红（本车道已复现确认）。
+        # 故本轮改为：先按顶层缩进解析出每行属于哪个 service，再要求
+        #   ① 该行在豁免名单里；② 该行所属 service 恰为 neo4j；③ 该行至多出现一次。
+        # ⛔ 三条判据都用「子集/上界」而不是「相等」：日后真把这三条改回变量化时，
+        #    本用例应当继续绿，而不是被这份名单钉死在今天这个中间状态。
+        # ⛔ 不改 docker-compose.yml（本卡零生产改动）、不放宽正则。[CARD-RED-C2]
         GRANDFATHERED_ABS_MOUNTS = {
             "- /Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/data:/data",
             "- /Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/logs:/logs",
             "- /Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/plugins:/plugins",
         }
-        offending = [
-            line.strip()
-            for line in content.splitlines()
-            if re.search(r"/Users/\w+/", line)
+        EXEMPT_SERVICE = "neo4j"
+
+        service = None
+        offending = []  # [(service, 行原文)]
+        for line in content.splitlines():
+            m = re.match(r"^  ([A-Za-z0-9_.-]+):\s*$", line)
+            if m:
+                service = m.group(1)
+            if re.search(r"/Users/\w+/", line):
+                offending.append((service, line.strip()))
+
+        wrong_content = [t for t in offending if t[1] not in GRANDFATHERED_ABS_MOUNTS]
+        assert not wrong_content, (
+            f"Hardcoded user paths outside the 8a80595f neo4j exemption: {wrong_content}"
+        )
+
+        wrong_service = [t for t in offending if t[0] != EXEMPT_SERVICE]
+        assert not wrong_service, (
+            f"Exempted mount lines appearing outside service '{EXEMPT_SERVICE}': {wrong_service}"
+        )
+
+        duplicated = [
+            line
+            for line in GRANDFATHERED_ABS_MOUNTS
+            if sum(1 for t in offending if t[1] == line) > 1
         ]
-        unexpected = [line for line in offending if line not in GRANDFATHERED_ABS_MOUNTS]
-        assert not unexpected, (
-            f"Hardcoded user paths found outside the 8a80595f neo4j exemption: {unexpected}"
+        assert not duplicated, (
+            f"Exempted mount lines used more than once: {duplicated}"
         )
 
     def test_neo4j_ports_use_variables(self):

@@ -159,6 +159,27 @@ class TestSecurityDefaultsFailClosed:
                 Settings(_env_file=None)
         assert "INTERNAL_API_KEY required outside local dev" in str(exc.value)
 
+    def test_debug_true_but_non_local_cors_still_raises(self):
+        """DEBUG=true 但 CORS 不含 localhost/127.0.0.1 ⇒ 仍须抛。
+
+        Codex round-1 MEDIUM 指出的输入缺口：原来三条反向锚只走了 DEBUG 这一半，
+        若有人把 `is_local` 简化成「只看 DEBUG」，那三条的结果一条都不会变，
+        但非本地 CORS 就被错误放行了。本条专门钉住 `is_local` 的**合取右半**
+        （config.py:286 的 `and ("localhost" in ... or "127.0.0.1" in ...)`）。
+        """
+        with patch.dict(
+            os.environ,
+            {"DEBUG": "true", "CORS_ORIGINS": "https://example.com"},
+            clear=True,
+        ):
+            with pytest.raises(ValidationError) as exc:
+                Settings(_env_file=None)
+        message = str(exc.value)
+        assert (
+            "NEO4J_PASSWORD must be set explicitly outside local dev" in message
+            or "INTERNAL_API_KEY required outside local dev" in message
+        ), message
+
     def test_local_dev_shape_does_not_raise(self):
         """对照组：DEBUG=true + 默认 CORS（含 localhost）⇒ 不抛。
 

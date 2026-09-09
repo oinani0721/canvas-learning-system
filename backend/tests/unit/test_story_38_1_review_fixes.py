@@ -95,6 +95,14 @@ class TestDoIndexCoverage:
                 # 判据强度提升：14f0412d 引入的「索引前先 initialize」新契约本身要有锚，
                 # 否则本次修改只是让替身跟上、把新契约的覆盖留成空白。
                 mock_client.initialize.assert_awaited_once()
+                # Codex round-1 LOW：只断次数不证明**顺序**（把 initialize 挪到索引之后
+                # 次数仍是 1）。两者都是同一个 mock_client 的子调用，mock_calls 按真实
+                # 发生顺序记录 ⇒ 直接比对下标即可锁住「先 initialize 再 index」。
+                _names = [c[0] for c in mock_client.mock_calls]
+                assert "initialize" in _names and "index_canvas" in _names, _names
+                assert _names.index("initialize") < _names.index("index_canvas"), (
+                    f"initialize 必须在 index_canvas 之前发生，实际顺序={_names}"
+                )
                 call_kwargs = mock_client.index_canvas.call_args
                 assert (
                     call_kwargs.kwargs.get("canvas_path") == "my_canvas.canvas"
@@ -139,6 +147,12 @@ class TestDoIndexCoverage:
                 ):
                     with pytest.raises(FileNotFoundError):
                         await svc._do_index("nonexistent_canvas", tmpdir)
+
+                # Codex round-1 LOW：本条原先没有 initialize 的锚，于是「取消初始化」
+                # 这个改动不会让它翻红。initialize 发生在文件存在性检查之前
+                # （lancedb_index_service.py:451-453 → :462 才解析 canvas_path），
+                # 故即便本条以 FileNotFoundError 收场，initialize 也必须已被等待。
+                mock_client.initialize.assert_awaited_once()
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

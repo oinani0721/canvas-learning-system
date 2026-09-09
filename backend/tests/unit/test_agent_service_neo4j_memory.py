@@ -468,7 +468,13 @@ class TestMemoryFormatting:
 
         result = agent_service_with_neo4j._format_learning_memories(memories)
 
-        assert "N/A" in result  # 缺失 timestamp 渲染为 N/A
+        # Codex round-1 LOW：`"N/A" in result` 太弱——只返回 "N/A" 三个字的错误实现也能过。
+        # 与同族另一条格式化用例统一升级为**整串精确相等**。期望值按 agent_service.py
+        # :2213/:2234/:2238/:2247 的拼装规则逐段抄写，不 import 生产格式化器：
+        #   标题行 "## 历史学习记忆"；条目行 f"- [{timestamp_str}] {type_tag} {concept}: {snippet}"，
+        #   本例 timestamp 空 ⇒ "N/A"；entity_type 空 ⇒ type_tag 为空串（故 "] " 与概念名之间是
+        #   两个空格）；understanding 空 ⇒ 冒号后是空串（故行尾有一个空格）。[CARD-RED-C2]
+        assert result == "## 历史学习记忆\n- [N/A]  未评分概念: "
 
     def test_format_multiple_memories(
         self, agent_service_with_neo4j, sample_neo4j_results
