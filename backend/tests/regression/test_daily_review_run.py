@@ -12,6 +12,7 @@ ensure_payload 缓存失效三场景锁定: 当天已生成后, 节点池比 pay
 import errno
 import fcntl
 import hashlib
+import builtins
 import json
 import os
 import plistlib
@@ -2216,3 +2217,78 @@ def test_g66_upgrade_day_v2_state_is_not_falsely_invalidated(tmp_path, monkeypat
     _pin_pool_older_than_payload(vault, BASE)
     _, how = runner.ensure_payload(runner.load_state(), NOW, TODAY)
     assert how == "cached", "缺签名且账为空 = 没对过账也没变过, 必须照常复用缓存"
+
+
+def test_g66_extreme_until_does_not_abort_the_runner(tmp_path, monkeypatch):
+    """(Codex round-1 MEDIUM-3) 极值 until 转 UTC 溢出不许终止本轮。
+
+    `9999-12-31T23:59:59-01:00` 解析得出、也判得出活跃, 但转 UTC 越到 10000 年
+    抛 OverflowError。那一刻 payload 已经写出去了、state 还没保存 —— 于是整轮
+    runner 带着 traceback 退出, **连推送都不跑**。换不出 UTC 串的条目跳过 =
+    它进不了唤醒点, 与"读不出"同等对待。
+    """
+    vault = _vault(tmp_path, {"甲": _node(board="A板")})
+    _patch_runner(monkeypatch, vault, tmp_path)
+
+    st = runner.load_state()
+    st["snoozed"] = {"A板": "9999-12-31T23:59:59-01:00"}
+    runner.save_state(st)
+
+    payload, how = runner.ensure_payload(runner.load_state(), NOW, TODAY)
+    assert how == "new", "推迟账变了必须重扫 —— 而不是在算唤醒点时崩掉"
+    assert payload["top_boards"], "payload 必须真的生成出来"
+    assert runner.load_state()["snooze_wake_utc"] == "", "换不出 UTC 的条目不进唤醒点"
+
+
+def test_g66_wrong_typed_wake_marker_does_not_abort_the_cache_gate(tmp_path, monkeypatch):
+    """(Codex round-1 MEDIUM-4) `snooze_wake_utc` 错型不许让整轮 runner 崩。
+
+    state 是外部文件。一个 `"snooze_wake_utc": 1` 会让 `1 <= "…Z"` 抛 TypeError,
+    而缓存分支的 except 只接 JSONDecodeError / OSError —— 于是本轮 runner 退出。
+    正确行为: 当作"没有唤醒点", 照常按其余判据决定复用还是重扫。
+    """
+    vault = _vault(tmp_path, {"甲": _node(board="A板")})
+    _patch_runner(monkeypatch, vault, tmp_path)
+
+    runner.ensure_payload(runner.load_state(), NOW, TODAY)  # 先造出当日缓存
+    _pin_pool_older_than_payload(vault, BASE)
+
+    st = runner.load_state()
+    st["snooze_wake_utc"] = 1  # 错型
+    runner.save_state(st)
+
+    _, how = runner.ensure_payload(runner.load_state(), NOW, TODAY)
+    assert how == "cached", "错型唤醒点当作没有, 照常复用缓存 (而不是 TypeError 崩掉)"
+
+
+def test_g66_active_snoozed_suppresses_bytecode_writes(monkeypatch):
+    """(Codex round-1 LOW-1) 只读路径转调生产器时, import 那一刻必须禁写字节码。
+
+    Web 的 GET 经 `_snoozed_active` 走到本模块的 `active_snoozed`, 那里的惰性
+    import 会让 SourceFileLoader 往 `scripts/__pycache__/` 写字节码 —— 一个 GET
+    写文件, 哪怕写的是 gitignored 的东西, 也已经破坏了 review_overview 那条
+    「两个 GET 端点只读」的不变量。review_overview._load_runner 对**它自己那次**
+    加载做了同样的保护, 但盖不到这一层 (picker 是在本模块里才被 import 的)。
+
+    ⛔ 判据**不是**"目录里前后有没有多出 .pyc"。初版就是那么写的, 变异验证当场
+    抓到它是空的: 那个 .pyc 早被同一轮里别的用例写出来了, 于是 `after == before`
+    恒真, 撤掉修复照样绿。现在直接观察 **import 发生的那一刻**解释器的标志位,
+    并验它事后无条件恢复 —— 判据绑在修复点上, 而不是绑在一个易被前序污染的
+    外部状态上。
+    """
+    seen = []
+    real_import = builtins.__import__
+
+    def spy(name, *a, **kw):
+        if name == "daily_review_pick":
+            seen.append(sys.dont_write_bytecode)
+        return real_import(name, *a, **kw)
+
+    monkeypatch.delitem(sys.modules, "daily_review_pick", raising=False)
+    monkeypatch.setattr(sys, "dont_write_bytecode", False)
+    monkeypatch.setattr(builtins, "__import__", spy)
+
+    runner.active_snoozed({}, NOW)
+
+    assert seen == [True], f"import 那一刻必须禁写字节码, 实为 {seen!r}"
+    assert sys.dont_write_bytecode is False, "标志必须无条件恢复 (它是解释器级全局)"

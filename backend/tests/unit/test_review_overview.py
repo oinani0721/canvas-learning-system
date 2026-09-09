@@ -4351,3 +4351,51 @@ def test_g66_end_to_end_snooze_yields_top_slot_in_the_real_projection(board_done
     assert entry["status"] == "ok", f"投影必须仍能通过合计恒等门: {entry.get('error')}"
     assert entry["projection"]["due_count"] == after["stats"]["due_nodes"] == 3
     assert set(entry["snoozed"]) == {first}
+
+
+def test_g66_unencodable_snoozed_key_does_not_500_the_whole_overview(board_done_env, monkeypatch):
+    """(Codex round-1 MEDIUM-2) 不可编码的推迟板名不许把**整个**总览 GET 打成 500。
+
+    JSON 的 `\\ud800` 转义解出的是孤立 surrogate —— 它是合格的 `str`, 过得了
+    `isinstance` 的门, 却在响应做 UTF-8 序列化时才抛 UnicodeEncodeError。那一刻
+    已经出了 `_collect` 的单库兜底（`except Exception` 包的是 `_vault_entry`
+    那一层），于是**别的库也一起看不成**。projection 那一侧早有同款门。
+
+    两条一起才说明得了问题:
+      ① 请求仍是 200，且**另一个健康的库照常出现**（不是整页降级）;
+      ② 坏条目被丢弃，好条目留下（不是把整个 snoozed 清空了事）。
+    """
+    root, client, runner, mod = board_done_env
+    vault = _mk_node_vault(root, "vault-sur", {"甲": _node_md()})
+    _mk_node_vault(root, "vault-ok", {"乙": _node_md()})
+    _pin_now(monkeypatch, mod, "2026-09-09T10:00:00")
+
+    state_file = runner.state_path(vault)
+    state_file.parent.mkdir(parents=True, exist_ok=True)
+    state_file.write_text(
+        '{"schema_version": 3, "board_last_recommended": {}, "board_done": {}, '
+        '"snoozed": {"\\ud800": "2099-09-09T20:00:00+08:00", "CS 61B": "2099-09-09T20:00:00+08:00"}}',
+        encoding="utf-8",
+    )
+    # 夹具前提: 那个键真的是解得出、却编不出 UTF-8 的孤立 surrogate
+    raw = json.loads(state_file.read_text(encoding="utf-8"))
+    assert any(isinstance(k, str) and not _utf8_encodable(k) for k in raw["snoozed"]), (
+        "夹具前提: state 里必须真的有一个编不出 UTF-8 的键, 否则本门是空的"
+    )
+
+    resp = client.get("/api/v1/review/overview")
+    assert resp.status_code == 200, f"一个坏板名不许把整个总览打成 500: {resp.text[:200]}"
+    vaults = {v["vault_id"]: v for v in resp.json()["vaults"]}
+    assert "vault-ok" in vaults, "别的库必须照常出现"
+    assert set(vaults["vault-sur"]["snoozed"]) == {"CS 61B"}, "坏条目丢弃、好条目留下"
+
+    # 页面路径同样不许 500
+    assert client.get(_PAGE_URL).status_code == 200
+
+
+def _utf8_encodable(s: str) -> bool:
+    try:
+        s.encode("utf-8")
+    except UnicodeEncodeError:
+        return False
+    return True

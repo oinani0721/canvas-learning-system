@@ -496,8 +496,21 @@ def active_snoozed(snoozed, now: datetime) -> dict:
     判定再造一套 importlib 壳、或者在 Web 侧另写一遍 (页面说"已回来"而榜上
     还压着, 就是这么来的), 不如从这里转调 —— 判定的定义点仍然只有一处。
     惰性 import 与 ensure_payload 同形: 本模块顶部已把 scripts/ 插进 sys.path。
+
+    ⚠ Codex round-1 LOW-1: 这个 import 会被**只读的 GET** 走到 (Web 的
+    _snoozed_active 转调本函数), 而 SourceFileLoader 默认往 scripts/__pycache__
+    写 .pyc —— 一个 GET 写文件, 哪怕写的是 gitignored 的字节码, 也已经破坏了
+    review_overview 那条「两个 GET 端点只读」的不变量。review_overview._load_runner
+    对**自己那次**加载做了同样的保护, 但它盖不到这一层 (picker 是在本模块里
+    才被 import 的)。副作用面如实登记: dont_write_bytecode 是解释器级全局,
+    这段窗口内其它线程的 import 也不写缓存 —— 代价只是慢一点, 且无条件恢复。
     """
-    import daily_review_pick as picker
+    prev_dont_write = sys.dont_write_bytecode
+    sys.dont_write_bytecode = True
+    try:
+        import daily_review_pick as picker
+    finally:
+        sys.dont_write_bytecode = prev_dont_write
 
     return picker.active_snoozed(snoozed, now)
 
@@ -577,7 +590,12 @@ def ensure_payload(st: dict, now: datetime, today: str) -> tuple[dict | None, st
                 # 少这一条的话, 「今晚再说」到点后**不会**有任何东西把榜首换回来:
                 # 推迟账没再变 (snooze_unchanged 为真)、节点也没动, 缓存分支会一路
                 # cached 到明天, until 形同虚设。
-                wake_crossed = bool(st.get("snooze_wake_utc")) and st["snooze_wake_utc"] <= now_z
+                # ⚠ Codex round-1 MEDIUM-4: 先判型再比较。state 是外部文件, 一个
+                # "snooze_wake_utc": 1 会让 `1 <= "…Z"` 抛 TypeError —— 而这里的
+                # except 只接 JSONDecodeError / OSError, 于是整轮 runner 带着
+                # traceback 退出 (连推送都不跑), 而不是"当作没有唤醒点、照常重扫"。
+                _wake = st.get("snooze_wake_utc")
+                wake_crossed = isinstance(_wake, str) and bool(_wake) and _wake <= now_z
                 if not due_crossed and not wake_crossed and _nodes_max_mtime(VAULT) <= payload_path.stat().st_mtime:
                     return json.loads(raw), "cached"
         except (json.JSONDecodeError, OSError):
@@ -623,10 +641,16 @@ def ensure_payload(st: dict, now: datetime, today: str) -> tuple[dict | None, st
     # CARD-G6-6: 最早的推迟唤醒点 (与 next_due_utc 同形、同一段 UTC-Z 串口径),
     # 供上面的缓存门 wake_crossed 用。活跃判定复用生产器的 active_snoozed ——
     # 已过期 / 读不出的条目不进这个 min, 于是它只在"还有板被推着"时非空。
-    wakes = [
-        u.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        for u in picker.active_snoozed(st.get("snoozed"), now).values()
-    ]
+    # ⚠ Codex round-1 MEDIUM-3: 逐条 try —— 极值 until (如 9999-12-31T23:59:59-01:00)
+    # 解析得出、也判得出活跃, 但转 UTC 会越到 10000 年抛 OverflowError。那一刻
+    # payload 已经写出去了、state 还没保存, 于是本轮 runner 带着 traceback 退出,
+    # 推送也不跑。换不出 UTC 串的条目跳过 = 它进不了唤醒点, 与"读不出"同等对待。
+    wakes = []
+    for _u in picker.active_snoozed(st.get("snoozed"), now).values():
+        try:
+            wakes.append(_u.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
+        except (OverflowError, OSError, ValueError):
+            continue
     st["snooze_wake_utc"] = min(wakes, default="")
     credited_today = (
         st.get("last_recommend_credit_date") == today

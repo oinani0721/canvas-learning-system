@@ -2473,6 +2473,13 @@ def _read_snoozed(state_file: Path) -> dict[str, str]:
     与 _read_board_done 逐条同纪律 (见那里): 读得出就用, 读不出 / 形状不对
     一律当作"没有推迟记录", 绝不把总览页打成 500, 也绝不在只读请求里动盘。
     值本身能不能解析成时刻由 _snoozed_active 再判一道 —— 这里只管形状。
+
+    ⚠ Codex round-1 MEDIUM-2: `isinstance(str)` 不够。JSON 的 "\\ud800" 转义解出
+    的是**孤立 surrogate** —— 它是合格的 str, 过得了下面的门, 却在响应做 UTF-8
+    序列化时才抛 UnicodeEncodeError。那一刻已经出了 _collect 的单库兜底
+    (`except Exception` 包的是 _vault_entry 那一层), 于是**整个**总览 GET 变 500,
+    连别的库都看不成。projection 那一侧早有同款门 (_vault_entry 里那句
+    `json.dumps(...).encode("utf-8")`), 本卡新增的这条投影必须同样过一遍。
     """
     try:
         st = json.loads(state_file.read_text(encoding="utf-8"))
@@ -2481,7 +2488,18 @@ def _read_snoozed(state_file: Path) -> dict[str, str]:
     snoozed = st.get("snoozed") if isinstance(st, dict) else None
     if not isinstance(snoozed, dict):
         return {}
-    return {k: v for k, v in snoozed.items() if isinstance(k, str) and isinstance(v, str)}
+    out: dict[str, str] = {}
+    for k, v in snoozed.items():
+        if not (isinstance(k, str) and isinstance(v, str)):
+            continue
+        try:
+            (k + v).encode("utf-8")
+        except UnicodeEncodeError:
+            # 与本模块其余读路径同纪律: 读不出的条目丢弃, 不把只读请求打成 500
+            logger.warning("review_overview 推迟账含不可编码字符, 已丢弃该条", vault=state_file.parent.name)
+            continue
+        out[k] = v
+    return out
 
 
 def _snoozed_active(vault_dir: Path, vaults_root: Path, now: datetime) -> dict[str, str]:

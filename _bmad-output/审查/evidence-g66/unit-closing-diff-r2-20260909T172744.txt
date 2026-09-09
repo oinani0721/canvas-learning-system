@@ -1,0 +1,5 @@
+# 裁判 9 (round-1 整改后): tests/unit 收工 nodeid diff
+# 开工 202 条 (= evidence-b13 红基线, diff 空)
+= 173 failed, 4783 passed, 48 skipped, 122 warnings, 29 errors in 245.39s (0:04:05) =
+--- diff 开工 → 收工 (须无 '>') ---
+rc=0

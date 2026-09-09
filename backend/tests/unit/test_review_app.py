@@ -845,6 +845,9 @@ export function boot({getJson, postJson, hidden = false} = {}) {
     "\n;return {esc, displayDay, parseDueMs, humanizeDue, computePollDelayMs, visibilityAction," +
     " boardLink, nodeLink, nodeDetailHtml, boardTableHtml, queueLayersHtml, restDayHtml, renderVaultCard," +
     " doneKey, boardDoneBtnHtml, boardsSplitHtml, renderBoardDoneResult," +
+    // CARD-G6-6: 暴露 snoozeKey —— 「在飞期间重绘不解锁」那道门要用生产代码
+    // **自己那个**取键函数, 在测试里重写一遍前缀等于把被测的东西抄了一份
+    " snoozeKey," +
     " renderPage, renderUnavailableBanner, renderRefreshResult, freshNotes," +
     // CARD-G6-9c: 暴露 state 供用例注入 display_tz —— 显示时区来自服务端下发,
     // 直接调 renderVaultCard 的用例走不到 poll(), 只能在这里预置。
@@ -2978,14 +2981,32 @@ test("④ 没有活跃推迟 → 一个「已推迟」区都不出现 (条件渲
   assert.ok(!h.includes("snoozewrap"), "空集不该输出空的折叠区");
   assert.ok(!h.includes("data-unsnooze-board"), "没东西可取回就不该有取回钮");
 });
-test("④b until 已过期 → 同样不出现 (前端也现算活跃, 不等下一轮 GET)", () => {
+test("④b 服务端是唯一裁判: entry.snoozed 里的就算活跃, 前端不重判 (Codex M-1)", () => {
+  // ⛔ 这条门的方向在 round-1 之后**反过来**了。初版让前端用 Date.parse 又筛
+  // 一道, 两条路都会推翻服务端的结论:
+  //   ① 浏览器钟快几分钟 ⇒ 服务端说还活着, 页面已经把它放回待做区、连「取回」
+  //      的入口都没了;
+  //   ② 秒级 offset 的 until (显示时区支持), Python 解析得出而 Date.parse 给
+  //      NaN ⇒ 推迟成功了页面却当它没被推迟。
+  // 现在的契约: entry.snoozed 是服务端筛过的活跃集, 前端照单全收。
   const b = boot();
   const busy = Object.create(null);
   const past = g66Data(true);
+  // 一个"看起来早就过期"的时刻 —— 服务端既然把它放进 entry.snoozed, 前端就得信
   past.vaults[0].snoozed = {"图论基础": "2020-01-01T00:00:00+08:00"};
   const h = b.api.renderPage(past, G66_NOW, null, null, busy);
-  assert.ok(!h.includes("snoozewrap"), "过期的推迟不该还挂在已推迟区里");
-  assert.match(h, /图论基础/, "过期 ≠ 消失 —— 它该回到待做区");
+  assert.match(h, /snoozewrap/, "服务端投影了它, 前端不许自己判它过期");
+  assert.match(h, /data-unsnooze-board="图论基础"/, "「取回」的入口必须还在");
+});
+test("④c 秒级 offset 的 until 不被前端丢掉 (Date.parse 给 NaN 的那一类)", () => {
+  const b = boot();
+  const busy = Object.create(null);
+  const odd = g66Data(true);
+  odd.vaults[0].snoozed = {"图论基础": "2099-09-09T20:00:00+08:00:30"};
+  assert.ok(Number.isNaN(Date.parse("2099-09-09T20:00:00+08:00:30")),
+    "夹具前提: 这个串确实是 Date.parse 解不出的, 否则本门是空的");
+  const h = b.api.renderPage(odd, G66_NOW, null, null, busy);
+  assert.match(h, /snoozewrap/, "解析不出 ≠ 没被推迟 —— 服务端说它活着");
 });
 """,
     )
@@ -3109,6 +3130,21 @@ test("失败结局不许长得像成功 (422 过点了那一档)", async () => {
   assert.match(note.innerHTML, /推迟失败/);
   assert.match(note.innerHTML, /422/);
   assert.ok(!note.innerHTML.includes("已把"), "失败绝不许出现成功文案");
+});
+test("在飞期间的重绘不许把钮解锁 (busy 键两侧必须是同一个)", async () => {
+  // ⛔ doneInflight 的存在意义就是"它是渲染态的一部分, 重绘不解锁"。初版渲染层
+  // 查裸 doneKey、handler 写 "snooze:" 前缀键 —— 于是在飞期间一次 poll 重绘就把
+  // 禁用的钮画成可点的 (第二个 POST 仍被 handler 挡下, 但用户看到的是一个点了
+  // 没反应的钮)。本门直接对渲染输出断言, 不依赖 DOM 的 disabled 属性。
+  const b = boot();
+  const busy = Object.create(null);
+  busy[b.api.snoozeKey("cs_61b", "哈希表")] = true;
+  const h = b.api.renderPage(g66Data(true), G66_NOW, null, null, busy);
+  const row = h.slice(h.indexOf("哈希表"));
+  assert.match(row, /data-snooze-board="哈希表"[^>]*/, "夹具前提: 那块板确实渲染了推迟钮");
+  const btns = h.match(/<button class="btn snooze"[^>]*>/g) || [];
+  assert.ok(btns.length >= 2, "两档各一个钮");
+  for (const t of btns) assert.match(t, / disabled/, "在飞的那块板, 重绘出来的钮必须仍是禁用的");
 });
 test("自动轮询与可见性路径一个 POST 都不发", async () => {
   // boot 末尾自己就调了一次 poll() —— 那是真实的启动轮询路径

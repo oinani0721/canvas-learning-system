@@ -206,6 +206,13 @@ function doneKey(vaultId, board) {
   // ("a","b|c") 撞成同一个键, 在飞禁用就会串到别的板上。
   return String(vaultId) + "\u0000" + String(board);
 }
+function snoozeKey(vaultId, board) {
+  // CARD-G6-6: 推迟 / 取回共用 doneInflight 这一格, 但键带前缀 —— 裸键会让
+  // 「推迟在飞」把完成钮也一起禁掉, 那是另一件事。⛔ 渲染层与 handler 必须调
+  // **同一个**函数取键: 初版渲染层查裸键、handler 写前缀键, 于是在飞期间一次
+  // 重绘就把禁用的钮解锁, 而 doneInflight 的存在意义正是"重绘不解锁"。
+  return "snooze:" + doneKey(vaultId, board);
+}
 function tzOpts() {
   // CARD-G6-9c / D-18: 显示时区取**服务端下发**的 display_tz (GET /overview 顶层键,
   // 与后端 _display_tz() 同一来源)。此前这里写死一个固定时区名 —— 那是独立于
@@ -353,16 +360,22 @@ function boardUnsnoozeBtnHtml(vaultId, board, busy) {
   return '<button class="btn undo"' + (busy ? " disabled" : "") +
     ' data-unsnooze-vault="' + esc(vaultId) + '" data-unsnooze-board="' + esc(board) + '">↩︎ 取回</button>';
 }
-function activeSnoozed(snoozedMap, nowMs) {
-  // CARD-G6-6: 服务端 GET 已经只投影仍在生效的了; 这里再判一道是为了「页面
-  // 开着不动、until 过了但下一轮 poll 还没回来」那段窗口 —— 到点的板不该还
-  // 挂在已推迟区里。比较用 epoch ms, **不做任何时区换算**(until 是带 offset
-  // 的绝对时刻, Date.parse 已经把它解成绝对毫秒数了)。
+function activeSnoozed(snoozedMap) {
+  // CARD-G6-6: ⛔ **只做形状归一, 不重判活跃** —— entry.snoozed 是服务端已经
+  // 筛过的活跃集 (GET 的 _snoozed_active), 前端再判一遍就成了第二个裁判。
+  //
+  // ⚠ Codex round-1 MEDIUM-1 整改: 初版在这里用 `Date.parse(...) > nowMs` 又筛
+  // 一道, 两条路都会**推翻服务端的结论**:
+  //   ① 浏览器钟快两分钟 ⇒ 服务端说 19:59 还活着、页面已经把它放回待做区,
+  //      连「取回」的入口都没了;
+  //   ② 显示时区带秒级 offset 时 (`+08:00:30`), Python 解析得出而 `Date.parse`
+  //      给 NaN ⇒ 推迟成功了, 页面却当它没被推迟。
+  // 「页面开着不动、until 刚过」那段窗口本来就由 poll (5-60s 一轮) 收敛, 不需要
+  // 前端自己算 —— 而它算错的代价比多显示几十秒大得多。
   const out = Object.create(null);   // 外部字符串做键: null-prototype (round-2 M1 同纪律)
   if (!snoozedMap || typeof snoozedMap !== "object") return out;
   for (const k of Object.keys(snoozedMap)) {
-    const t = Date.parse(snoozedMap[k]);
-    if (Number.isFinite(t) && t > nowMs) out[k] = snoozedMap[k];
+    if (typeof snoozedMap[k] === "string") out[k] = snoozedMap[k];
   }
   return out;
 }
@@ -375,7 +388,7 @@ function boardsSplitHtml(vaultId, boards, nowMs, doneList, doneBusy, snoozedMap,
   const rows = Array.isArray(boards) ? boards : [];
   const done = Object.create(null);   // 外部字符串做键: null-prototype (round-2 M1 同纪律)
   for (const b of (Array.isArray(doneList) ? doneList : [])) done[b] = true;
-  const snoozed = activeSnoozed(snoozedMap, nowMs);
+  const snoozed = activeSnoozed(snoozedMap);
   const todo = rows.filter(r => r && !done[r.board] && !snoozed[r.board]);
   const fin = rows.filter(r => r && done[r.board]);
   const pending = rows.filter(r => r && snoozed[r.board] && !done[r.board]);
@@ -411,8 +424,12 @@ function boardTableHtml(vaultId, boards, nowMs, doneBusy, undoBusy, snoozeBusy, 
     // snoozeBusy 缺省时这一格与本参数出现之前逐字节相同 (只剩完成钮那一份)。
     if (doneBusy || snoozeBusy) {
       let btns = "";
+      // 键必须与 onBoardSnoozeClick 写进 doneInflight 的那个**逐字相同**(含
+      // "snooze:" 前缀)。初版这里查的是裸 doneKey —— 于是在飞期间一次重绘就把
+      // 禁用的钮解锁成可点, 破坏了 doneInflight 那条「它是渲染态的一部分」的
+      // 不变量 (第二个 POST 仍被 handler 挡下, 但用户看到的是一个点了没反应的钮)。
       if (snoozeBusy) btns += boardSnoozeBtnHtml(vaultId, r.board,
-        snoozeBusy[doneKey(vaultId, r.board)], tonightAvailable !== false);
+        snoozeBusy[snoozeKey(vaultId, r.board)], tonightAvailable !== false);
       if (doneBusy) btns += boardDoneBtnHtml(vaultId, r.board, doneBusy[doneKey(vaultId, r.board)]);
       out += '<tr><td colspan="5" style="padding-top:0">' + btns + "</td></tr>";
     }
@@ -422,7 +439,7 @@ function boardTableHtml(vaultId, boards, nowMs, doneBusy, undoBusy, snoozeBusy, 
       boardUndoneBtnHtml(vaultId, r.board, undoBusy[doneKey(vaultId, r.board)]) + "</td></tr>";
     // CARD-G6-6: 「取回」只在已推迟区 (调用方传 unsnoozeBusy 而不传另外两个)
     if (unsnoozeBusy) out += '<tr><td colspan="5" style="padding-top:0">' +
-      boardUnsnoozeBtnHtml(vaultId, r.board, unsnoozeBusy[doneKey(vaultId, r.board)]) + "</td></tr>";
+      boardUnsnoozeBtnHtml(vaultId, r.board, unsnoozeBusy[snoozeKey(vaultId, r.board)]) + "</td></tr>";
     return out;
   }).join("");
   return '<div class="tblwrap"><table><thead><tr>' + head + "</tr></thead><tbody>" + rows + "</tbody></table></div>";
@@ -877,7 +894,7 @@ async function onBoardSnoozeClick(ev) {
   // 复用 doneInflight (前缀分开): 同一块板的完成 / 推迟不会同时在飞, 共享
   // 一格顺带保证"推迟还没落定就点完成"发不出去。前缀不能省 —— 两个动作
   // 共用裸键会让推迟在飞时连完成钮一起禁掉, 那是另一件事。
-  const key = "snooze:" + doneKey(vid, board);
+  const key = snoozeKey(vid, board);
   if (state.doneInflight[key]) return;
   // 与 onBoardDoneClick 同一条纪律 (Z1-A HIGH-1): 上一次重建挂下的 pending
   // 不许再改写本次动作的反馈。覆盖面的如实声明见 onBoardDoneClick 那段。
@@ -913,7 +930,7 @@ async function onBoardUnsnoozeClick(ev) {
   if (!btn) return;
   const vid = btn.getAttribute("data-unsnooze-vault");
   const board = btn.getAttribute("data-unsnooze-board");
-  const key = "snooze:" + doneKey(vid, board);
+  const key = snoozeKey(vid, board);
   if (state.doneInflight[key]) return;
   delete state.pendingSync[vid];
   state.doneInflight[key] = true;

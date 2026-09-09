@@ -1,0 +1,38 @@
+# round-1 整改后 grep 门复跑
+1) method:"POST" (期望 5):                     5
+5) learning_events.jsonl 四文件各须 0:          0 / 0 / 0 / 0
+8) JS 自算 20:00 嫌疑 (须无命中):
+8b) JS 里残留的时刻比较 (Date.parse/nowMs 判活跃, 须 0):  0
+9) STATE_SCHEMA_VERSION == 2 (须 0):            0
+   宽口径 ["schema_version"] == 2 (须 0):        0
+10) STATE_SCHEMA_VERSION == 3 (须恰 1):         1
+12) ^_DISPLAY_TZ 模块级常量 (须 0):             0
+13) _DISPLAY_TZ 任意出现 (须 0):                0
+14) busy 键两侧同一函数 (snoozeKey 出现处):
+     209:function snoozeKey(vaultId, board) {
+     432:        snoozeBusy[snoozeKey(vaultId, r.board)], tonightAvailable !== false);
+     442:      boardUnsnoozeBtnHtml(vaultId, r.board, unsnoozeBusy[snoozeKey(vaultId, r.board)]) + "</td></tr>";
+     897:  const key = snoozeKey(vid, board);
+     933:  const key = snoozeKey(vid, board);
+15) <details> 计数断言删除行 (须 0):            0
+16) AST 门符号改动 (须全 0):
+     _ALLOWED_CALL_NAMES : 0
+     _ALLOWED_RECEIVERS : 0
+     _root_name : 0
+     _assert_module_closed : 0
+     test_ast_gate_rejects_shadowing_forms : 0
+17) run.py hunk 旧行区间 (与 163-183 / 251-263 无交集):
+     @@ -61,7 +61,10 @@ def _now(arg: str | None) -> datetime:
+     @@ -97,7 +100,13 @@ def load_state(vault: Path | None = None) -> dict:
+     @@ -117,6 +126,10 @@ def _parse_state_file(state: Path) -> dict | None:
+     @@ -127,6 +140,9 @@ def _normalize_state(st: dict) -> dict:
+     @@ -472,6 +488,33 @@ def save_state(st: dict, vault: Path | None = None):
+     @@ -527,15 +570,33 @@ def ensure_payload(st: dict, now: datetime, today: str) -> tuple[dict | None, st
+     @@ -546,8 +607,16 @@ def ensure_payload(st: dict, now: datetime, today: str) -> tuple[dict | None, st
+     @@ -560,6 +629,7 @@ def ensure_payload(st: dict, now: datetime, today: str) -> tuple[dict | None, st
+     @@ -568,6 +638,20 @@ def ensure_payload(st: dict, now: datetime, today: str) -> tuple[dict | None, st
+18) pick 删除行 (<=3):                          3
+19) canvas-vault/ 改动 (须 0):                  0
+--- openapi 再生 (应无变化: 端点 docstring 未改) ---
+WROTE: backend/openapi.json (paths=197 schemas=357, x-generated-at=2026-09-09T09:27:03.677569+00:00)
+  工作区 openapi diff 行数: 13
