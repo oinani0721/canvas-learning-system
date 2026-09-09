@@ -595,3 +595,26 @@ codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" 
     - `-k "'substr' or 'substr'"`（带单引号）**静默匹配全部**（207 collected / 0 deselected），无引号的 `-k "system"` 才真过滤（16 selected / 191 deselected）。
       **带引号那种写法会把「只跑了 4 条」伪装成「跑了全部」——是典型的假绿面。**
 17. **开工 `<` 行里 9 条 `test_agent_templates_smoke.py`** 在本车道树上绿、在 202 基线树上红，成因未定位（属 U10-B 面），登记。
+
+---
+
+## 7 收官状态（如实，含两处不完美）
+
+| 项 | 实测 |
+|---|---|
+| 分支 / HEAD | `card/u10-red-a` / `b422e9dc` |
+| 本卡 commit | 3 个（`b8017248` 落地 → `e74757c5` r1 整改 → `b422e9dc` r2 整改，末者仅 `_bmad-output`） |
+| 代码改动面 | 恰好 8 个文件（`system.py` + `openapi.json` + 6 个 `tests/unit/test_*.py`） |
+| 禁改路径 | 空（`forbid_rc=0`）；逐 commit 佐证全空（`own_rc=0`） |
+| `*.stderr*` 入库 | **本卡零**（三个 commit 都没有添加过名字含 `stderr` 的文件）。⚠️ `git ls-files` 里确有一个 `_bmad-output/审查/G4-9-evidence/census-stderr.txt`，实测由 `4c125f19`（CARD-G4-9，第五批）引入，**非本卡**；它也不匹配 `.gitignore` 的 `*.stderr*`（是 `-stderr.` 不是 `.stderr`） |
+| push | **未 push**；本地无 `origin/card/u10-red-a` 追踪分支 |
+| openapi 快照门（收官复跑） | `26 passed`，`NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0` |
+
+**⚠️ 两处不完美，如实登记而不粉饰：**
+
+1. **工作树不是完全干净**：evidence 目录里留了 5 个未跟踪的 `.ts-*` 临时标记文件
+   （各一行 `TS=...`，是跑裁判时记时间戳用的）。本 session 的 guard hook 拦下了 `rm`
+   （破坏性操作需用户确认），所以**没删**。它们不影响任何 commit、不在任何判据面内；
+   主 session 若介意可自行删除。
+2. **`tests/contract` 全量面本卡未证明**（≈12 小时跑不完，且那道门对本卡要验的性质没有给出结论）。
+   已用自带双重负控的探针补了 `/system/*` 那一格，其余 190 个 operation 仍缺判据 —— 见 §5.8。
