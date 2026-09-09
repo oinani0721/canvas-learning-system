@@ -124,9 +124,7 @@ FSRS_RUNTIME_OK: Optional[bool] = None
 # 前提: 「同名 concept 由目录天然隔离」只在**一进程一 vault** 时成立 ——
 # 真相源 reader 的 ``settings.CANVAS_BASE_PATH`` 是进程级
 # (``frontmatter_signals._node_md_path``), 该缺口本卡只登记不修。
-_CARD_STATES_FILE = (
-    _Path(__file__).parent.parent.parent / "data" / "fsrs_card_states.json"
-)
+_CARD_STATES_FILE = _Path(__file__).parent.parent.parent / "data" / "fsrs_card_states.json"
 
 # H2 fix: Module-level asyncio.Lock for concurrent card_states write protection
 _card_states_lock = asyncio.Lock()
@@ -341,6 +339,7 @@ def _fmt_optional_2f(value: Optional[float]) -> str:
     stability/difficulty, and f-string ':.2f' on None raises TypeError."""
     return f"{value:.2f}" if value is not None else "None"
 
+
 if TYPE_CHECKING:
     from app.services.background_task_manager import BackgroundTaskManager
     from app.services.canvas_service import CanvasService
@@ -351,6 +350,32 @@ logger = structlog.get_logger(__name__)
 # ═══════════════════════════════════════════════════════════════════════════
 # CARD-G3-5 (BATCH-2026-09-07-第十三批): FSRS 投影状态的 vault 分桶
 # ═══════════════════════════════════════════════════════════════════════════
+
+
+#: 隔离区在落盘 JSON 里的**保留顶层键** (CARD-G3-5, Codex r3 H1/H2)。
+#:
+#: 为什么隔离区要独立命名空间, 而不是把 orphan 平铺在顶层:
+#:   · H1 —— 平铺时 legacy 的 concept_id 若与某个 vault_id 同名, 写回只能二选一:
+#:     让它顶掉 vault 桶(灾难), 或跳过它(数据照样丢)。有了保留键, 两者各有各的
+#:     位置, 都不丢;
+#:   · H2 —— 平铺的 orphan 与"还没迁过的 legacy 裸键"在文件里长得一模一样,
+#:     下次启动会被当成 legacy **自动收养**进当时的作用域桶, "等人用迁移器裁定"
+#:     就落空了。放在保留键下 = 显式记录"这条已经被隔离过", 加载时直接回隔离区,
+#:     不参与任何推定归属。
+_ORPHAN_LEGACY_KEY = "__g35_orphan_legacy__"
+
+
+def _json_writable(key: str, value: Any) -> bool:
+    """该键值对能否真的落盘 (CARD-G3-5, Codex r3 M1)。
+
+    判据必须**同时**覆盖序列化与 UTF-8 编码: lone surrogate 之类的键能通过
+    ``json.loads``, 也能通过 ``json.dumps``, 却在 ``encode("utf-8")`` 时炸。
+    """
+    try:
+        json.dumps({key: value}, ensure_ascii=False).encode("utf-8")
+    except (TypeError, ValueError, UnicodeEncodeError):
+        return False
+    return True
 
 
 class _VaultScopedCardStates:
@@ -387,16 +412,17 @@ class _VaultScopedCardStates:
     def __init__(
         self,
         buckets: Optional[Dict[str, Dict[str, str]]] = None,
-        orphan_legacy: Optional[Dict[str, Any]] = None,
+        orphan_legacy: Optional[Dict[str, List[Any]]] = None,
     ) -> None:
         self._buckets: Dict[str, Dict[str, str]] = buckets if buckets is not None else {}
         #: **未归属**的 legacy 裸键 —— 归不掉但也不能丢的那部分 (Codex r2 H4)。
         #: 它不参与任何读写 (不属于任何 vault), 但**必须随每次落盘原样写回**:
         #: 否则「本次不加载」只保护了这一次读, 下一次成功写入的全量快照就会把
         #: 它从磁盘永久删除 —— 那是把 fail-closed 变成了静默删数据。
-        self._orphan_legacy: Dict[str, Any] = (
-            orphan_legacy if orphan_legacy is not None else {}
-        )
+        #: 值是**列表**: 同一个 concept_id 可以挂多份尚未裁定归属的卡 (Codex
+        #: r4 H2 —— 用 dict 合并会让后来的静默吃掉先前的, 两份都是待裁定记录,
+        #: 谁也不比谁更可信)。
+        self._orphan_legacy: Dict[str, List[Any]] = orphan_legacy if orphan_legacy is not None else {}
 
     # ── 作用域解析 ──────────────────────────────────────────────────────
     @staticmethod
@@ -423,10 +449,20 @@ class _VaultScopedCardStates:
         # 内换白板读不到自己刚写的卡。
         segments = group_id.split(":")
         if len(segments) >= 2 and segments[1].strip():
-            return segments[1]
+            vault_id = segments[1]
+            if vault_id == _ORPHAN_LEGACY_KEY:
+                # 撞名 fail-closed (Codex r4 H1): sanitize_vault_id 理论上能产出
+                # 这个串 (它只含字母数字下划线)。真有这么一个 vault 时, 它的桶与
+                # 隔离区在文件里无法区分 —— 与其带着歧义读写, 不如拒绝并要求改名。
+                logger.error(
+                    "CARD-G3-5: vault_id %r 与隔离区保留键同名 — 该名字在投影文件里"
+                    "已被隔离区占用, 两者无法区分。拒绝推进投影, 请改 vault 目录名。",
+                    vault_id,
+                )
+                return None
+            return vault_id
         logger.error(
-            "CARD-G3-5 vault scope shape invalid [context: %s]: %r 取不出 vault 段 — "
-            "拒绝推进 FSRS 投影",
+            "CARD-G3-5 vault scope shape invalid [context: %s]: %r 取不出 vault 段 — 拒绝推进 FSRS 投影",
             context,
             group_id,
         )
@@ -531,23 +567,20 @@ class _VaultScopedCardStates:
         ⚠️ **未归属的 legacy 裸键必须原样写回** (Codex r2 H4): 它们归不掉
         (作用域解析不出来 / 与已迁桶同名冲突), 但**不能丢** —— 若落盘时省略,
         下一次成功写入就会把它们从磁盘永久删除, 「本次不加载」这道 fail-closed
-        就变成了静默删数据。写回后文件是混合形态, 这是**有意**的: 保住数据 >
-        格式纯净, 且下次启动的逐条分类照样认得出它们。
+        就变成了静默删数据。
+
+        它们写在**保留键** ``_ORPHAN_LEGACY_KEY`` 下, 不与 vault 桶抢同一层
+        (Codex r3 H1/H2 —— 平铺写法在同名时仍会丢, 且下次启动会被当成未迁的
+        legacy 自动收养)。
         """
-        payload: Dict[str, Any] = {
-            vid: dict(bucket) for vid, bucket in self._buckets.items()
-        }
-        for concept_id, card in self._orphan_legacy.items():
-            # setdefault: 万一某个 legacy concept_id 与某个 vault_id 同名,
-            # 保留 vault 桶 (它有明确身份), 不让裸键顶掉它。
-            payload.setdefault(concept_id, card)
+        payload: Dict[str, Any] = {vid: dict(bucket) for vid, bucket in self._buckets.items()}
+        if self._orphan_legacy:
+            payload[_ORPHAN_LEGACY_KEY] = {k: list(v) for k, v in self._orphan_legacy.items()}
         return payload
 
     def total_cards(self) -> int:
         """全部 vault 桶的卡数 + 未归属 legacy 条数 — 日志用 (``len()`` 只数当前桶)。"""
-        return sum(len(bucket) for bucket in self._buckets.values()) + len(
-            self._orphan_legacy
-        )
+        return sum(len(bucket) for bucket in self._buckets.values()) + sum(len(v) for v in self._orphan_legacy.values())
 
     @classmethod
     def from_persisted(cls, raw: Dict[str, Any]) -> "_VaultScopedCardStates":
@@ -587,14 +620,75 @@ class _VaultScopedCardStates:
         # 逐条分形态 —— 与迁移器 classify() 同口径
         buckets: Dict[str, Dict[str, str]] = {}
         legacy: Dict[str, Any] = {}
+        already_isolated: Dict[str, List[Any]] = {}
         for key, value in raw.items():
+            if str(key) == _ORPHAN_LEGACY_KEY:
+                # 保留键: 上一轮已判定"归不掉"的条目 (Codex r3 H2)。它们**不再
+                # 参与推定归属** —— 否则换个 vault 重启就被自动收养, "等人用
+                # 迁移器裁定"这句话就没有约束力了。
+                #
+                # ⚠️ 值不是 dict 时**不能跳过** (Codex r4 H1): 旧快照里完全可能
+                # 有一个**名字恰好等于保留键**的 legacy 裸 concept, 它的值是卡
+                # 字符串。跳过 = 既不保留也不报错, 下次成功保存就把它删了。
+                # 这种形态按普通 legacy 裸键处置。
+                if isinstance(value, dict):
+                    for k, v in value.items():
+                        already_isolated.setdefault(str(k), []).extend(v if isinstance(v, list) else [v])
+                else:
+                    legacy[str(key)] = value
+                continue
             if isinstance(value, dict):
                 buckets[str(key)] = dict(value)
             else:
                 legacy[str(key)] = value
 
+        # 毒条目预检 (Codex r3 M1 / r4 M1): 序列化或 UTF-8 编码不出去的条目会让
+        # **此后每一次**合法保存都在同一个 json.dumps 上失败 —— 一次性的坏数据被
+        # 放大成永久写阻断。它本来就落不了盘, 故不予保留, 改为逐条 error 点名。
+        #
+        # ⚠️ **vault 桶里的存量也要预检** (r4 M1): 只查 legacy 与隔离区是不够的,
+        # 一条 `{"va": {"c": "\ud800"}}` 同样会让任意 vault 的下一次保存炸。
+        #
+        # ⚠️ 取舍如实声明: 本方法**不会**先做备份, 日志也不含被丢弃的值。若磁盘上
+        # 没有既存备份, 下一次成功保存就会删掉唯一副本 —— "从备份恢复"是操作建议,
+        # 不是代码提供的保证。
+        def _keep_writable(k: str, v: Any, origin: str) -> bool:
+            if _json_writable(k, v):
+                return True
+            logger.error(
+                "CARD-G3-5: %s 的 %s 条目 %r 无法序列化/编码为 UTF-8, **不予保留** "
+                "—— 留着它会让此后每一次投影落盘都失败。⚠️ 本方法不做备份, 若磁盘上"
+                "没有既存备份, 这条数据的唯一副本会在下次成功保存时消失。",
+                _CARD_STATES_FILE,
+                origin,
+                k,
+            )
+            return False
+
+        buckets = {
+            vid: {k: v for k, v in bucket.items() if _keep_writable(k, v, f"vault 桶 {vid!r}")}
+            for vid, bucket in buckets.items()
+        }
+        already_isolated = {
+            k: [v for v in vals if _keep_writable(k, v, "隔离区")] for k, vals in already_isolated.items()
+        }
+        already_isolated = {k: v for k, v in already_isolated.items() if v}
+        legacy = {k: v for k, v in legacy.items() if _keep_writable(k, v, "legacy 裸键")}
+
+        def _merge_orphan(base: Dict[str, List[Any]], extra: Dict[str, Any]) -> Dict[str, List[Any]]:
+            """把新的"归不掉"条目并进隔离区 —— **同名也不覆盖** (Codex r4 H2)。
+
+            隔离区里同名的两份都是"尚未裁定归属"的记录, 谁也不比谁更可信, 用
+            ``{**a, **b}`` 合并等于让后者静默吃掉前者。故值是**列表**: 同一个
+            concept_id 可以挂多份待裁定的卡, 由人在迁移时选。
+            """
+            merged = {k: list(v) for k, v in base.items()}
+            for k, v in extra.items():
+                merged.setdefault(k, []).append(v)
+            return merged
+
         if not legacy:
-            return cls(buckets)
+            return cls(buckets, orphan_legacy=already_isolated)
 
         vault_id = cls._resolve_vault("review_service._load_card_states.legacy")
         if vault_id is None:
@@ -609,7 +703,7 @@ class _VaultScopedCardStates:
                 len(legacy),
                 len(buckets),
             )
-            return cls(buckets, orphan_legacy=legacy)
+            return cls(buckets, orphan_legacy=_merge_orphan(already_isolated, legacy))
 
         bucket = buckets.setdefault(vault_id, {})
         # 同名冲突: 桶内那份有**明确** vault 身份, legacy 那份只是**推定**归属。
@@ -634,12 +728,10 @@ class _VaultScopedCardStates:
             if clobbered
             else "",
         )
-        return cls(buckets, orphan_legacy=orphan)
+        return cls(buckets, orphan_legacy=_merge_orphan(already_isolated, orphan))
 
 
-def _card_states_try_set(
-    states: Any, concept_id: str, card_data: str, *, context: str
-) -> bool:
+def _card_states_try_set(states: Any, concept_id: str, card_data: str, *, context: str) -> bool:
     """写入形态分派 — 返回本次是否真的推进了投影。
 
     容器走 ``try_set`` (作用域解析不出来 ⇒ False, fail-closed);
@@ -738,16 +830,12 @@ class ReviewProgress:
             "green_nodes": self.green_nodes,
             "purple_nodes": self.purple_nodes,
             "red_nodes": self.red_nodes,
-            "status": self.status.value
-            if isinstance(self.status, ReviewStatus)
-            else str(self.status),
+            "status": self.status.value if isinstance(self.status, ReviewStatus) else str(self.status),
             "progress": self.progress,
             "progress_percentage": self.progress_percentage,
             "mastery_percentage": self.mastery_percentage,
             "started_at": self.started_at.isoformat() if self.started_at else None,
-            "completed_at": self.completed_at.isoformat()
-            if self.completed_at
-            else None,
+            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
             "error": self.error,
         }
 
@@ -859,9 +947,7 @@ class ReviewService:
                 self._fsrs_manager = None
                 self._fsrs_init_reason = "FSRS disabled or unavailable"
                 FSRS_RUNTIME_OK = False
-                logger.warning(
-                    f"FSRS manager not initialized: {self._fsrs_init_reason}"
-                )
+                logger.warning(f"FSRS manager not initialized: {self._fsrs_init_reason}")
 
         self._initialized = True
         self._task_canvas_map: Dict[str, str] = {}  # Maps task_id to canvas_name
@@ -941,18 +1027,14 @@ class ReviewService:
         vault 解析不出来 ⇒ 用 ``None`` 占位: 那种情形投影本来就没推进, 记录它
         只为让查询侧仍能如实说"没落盘"。
         """
-        vault_id = _card_states_vault(
-            self._card_states, context="review_service._dirty_key"
-        )
+        vault_id = _card_states_vault(self._card_states, context="review_service._dirty_key")
         return (vault_id, concept_id)
 
     def _is_unpersisted(self, concept_id: str) -> bool:
         """该 concept 在**当前作用域**下是否有未落盘的写 (见 :meth:`_dirty_key`)。"""
         return self._dirty_key(concept_id) in self._unpersisted_concepts
 
-    async def _save_card_states(
-        self, pending: Optional[Tuple[str, str]] = None
-    ) -> bool:
+    async def _save_card_states(self, pending: Optional[Tuple[str, str]] = None) -> bool:
         """P0-2: Persist card states to JSON file with concurrency protection.
 
         CARD-G3-7: 非 FSRS 调度真相源 —— 本方法写的是投影/缓存, 落盘成功
@@ -1009,10 +1091,7 @@ class ReviewService:
                 tmp_file = _CARD_STATES_FILE.with_suffix(".json.tmp")
                 await asyncio.to_thread(tmp_file.write_text, data, "utf-8")
                 await asyncio.to_thread(tmp_file.replace, _CARD_STATES_FILE)
-                logger.debug(
-                    f"Saved {_card_states_count(self._card_states)} FSRS card states "
-                    f"to {_CARD_STATES_FILE}"
-                )
+                logger.debug(f"Saved {_card_states_count(self._card_states)} FSRS card states to {_CARD_STATES_FILE}")
                 # 全量快照已落盘 → 所有历史写失败的 concept 同时被治愈
                 self._unpersisted_concepts.clear()
                 return True
@@ -1062,9 +1141,7 @@ class ReviewService:
             # No colon - ask about the whole text
             return f"请解释{text}的概念和含义？"
 
-    async def generate_review_canvas(
-        self, canvas_name: str, node_ids: Optional[List[str]] = None
-    ) -> Dict[str, Any]:
+    async def generate_review_canvas(self, canvas_name: str, node_ids: Optional[List[str]] = None) -> Dict[str, Any]:
         """
         Generate a verification canvas asynchronously.
 
@@ -1279,17 +1356,13 @@ class ReviewService:
 
         # Filter by colors (baseline)
         eligible_nodes = [
-            node
-            for node in all_nodes
-            if node.get("type") == "text" and node.get("color") in include_colors
+            node for node in all_nodes if node.get("type") == "text" and node.get("color") in include_colors
         ]
 
         # === Mastery enrichment (Phase 1.5) ===
         # Expand eligible_nodes with mastery-weak concepts not caught by color filter
         mastery_lookup: dict = {}  # node_text[:50] -> effective_proficiency
-        enrichment_available = (
-            False  # G-SILENT-001: signal whether enrichment succeeded
-        )
+        enrichment_available = False  # G-SILENT-001: signal whether enrichment succeeded
         try:
             from app.clients.neo4j_client import get_neo4j_client
             from app.services.mastery_engine import get_mastery_engine
@@ -1306,17 +1379,13 @@ class ReviewService:
             # wave-5 Stage B P0 (2026-05-11): prefer ContextVar so the review
             # candidates are pulled from the originating request's vault.
             _ctx_value = get_current_subject_id()
-            _effective_group_id = (
-                canonical_group_id(_ctx_value) if _ctx_value else DEFAULT_GROUP_ID
-            )
+            _effective_group_id = canonical_group_id(_ctx_value) if _ctx_value else DEFAULT_GROUP_ID
 
             all_mastery = await m_store.get_all_concepts(group_id=_effective_group_id)
             review_candidates = m_engine.get_review_candidates(all_mastery)
 
             # Build name -> proficiency lookup for question_generator
-            mastery_lookup = {
-                c.name: m_engine.effective_proficiency(c) for c in all_mastery
-            }
+            mastery_lookup = {c.name: m_engine.effective_proficiency(c) for c in all_mastery}
 
             # Add mastery-weak concepts that aren't already in eligible_nodes
             eligible_ids = {n.get("id") for n in eligible_nodes}
@@ -1356,9 +1425,7 @@ class ReviewService:
 
         if mode == "targeted":
             # Query Graphiti for review history (Story 24.3)
-            review_history = await self._query_review_history_from_memory(
-                source_canvas_name
-            )
+            review_history = await self._query_review_history_from_memory(source_canvas_name)
 
             # AC2: Detect fallback scenario (Graphiti unavailable or no history)
             if not review_history:
@@ -1369,16 +1436,11 @@ class ReviewService:
                 )
 
             # Prepare concepts list from eligible nodes
-            concepts = [
-                {"id": node.get("id", ""), "name": node.get("text", "")}
-                for node in eligible_nodes
-            ]
+            concepts = [{"id": node.get("id", ""), "name": node.get("text", "")} for node in eligible_nodes]
 
             # Calculate weakness scores using WeightCalculator (Story 24.3)
             calculator = WeightCalculator()
-            weight_data = await calculator.calculate_weakness_scores(
-                concepts, review_history
-            )
+            weight_data = await calculator.calculate_weakness_scores(concepts, review_history)
 
             # Apply weighted selection (Story 24.3)
             target_count = question_count or len(eligible_nodes)
@@ -1388,9 +1450,7 @@ class ReviewService:
 
             # Convert back to node objects for canvas generation
             selected_ids = {c.concept_id for c in selected_weight_data}
-            selected_concepts = [
-                node for node in eligible_nodes if node.get("id", "") in selected_ids
-            ]
+            selected_concepts = [node for node in eligible_nodes if node.get("id", "") in selected_ids]
 
             # Prepare weak_concepts for response (AC5)
             weak_concepts_data = [
@@ -1425,9 +1485,7 @@ class ReviewService:
         review_canvas_name = f"{source_canvas_name}-检验白板-{timestamp}"
 
         # Store relationship in Graphiti
-        await self._store_review_relationship(
-            source_canvas_name, review_canvas_name, mode
-        )
+        await self._store_review_relationship(source_canvas_name, review_canvas_name, mode)
 
         result = {
             "review_canvas_name": review_canvas_name,
@@ -1453,8 +1511,7 @@ class ReviewService:
         )
 
         logger.info(
-            f"Generated verification canvas: {review_canvas_name} "
-            f"with {len(selected_concepts)} questions (mode={mode})"
+            f"Generated verification canvas: {review_canvas_name} with {len(selected_concepts)} questions (mode={mode})"
         )
 
         return result
@@ -1515,9 +1572,7 @@ class ReviewService:
 
                 # Calculate interval in days from now
                 if due_date:
-                    interval_days = max(
-                        0, (due_date - datetime.now(due_date.tzinfo)).days
-                    )
+                    interval_days = max(0, (due_date - datetime.now(due_date.tzinfo)).days)
                 else:
                     interval_days = 0  # New card, due immediately
 
@@ -1547,9 +1602,7 @@ class ReviewService:
                     "concept_id": concept_id,
                     "scheduled_date": due_date.isoformat()
                     if due_date
-                    else (
-                        datetime.now(timezone.utc) + timedelta(days=interval_days)
-                    ).isoformat(),
+                    else (datetime.now(timezone.utc) + timedelta(days=interval_days)).isoformat(),
                     "interval_days": interval_days,
                     "retrievability": retrievability,
                     # Display mirror of the card: new cards carry None
@@ -1685,9 +1738,7 @@ class ReviewService:
                     else:
                         # New card - existing Ebbinghaus records treated as first FSRS review
                         card = self._fsrs_manager.create_card()
-                        logger.info(
-                            f"Created new FSRS card for {concept_id} (migration from Ebbinghaus)"
-                        )
+                        logger.info(f"Created new FSRS card for {concept_id} (migration from Ebbinghaus)")
 
                 # Story 32.2 AC-32.2.3: Review card with FSRS algorithm
                 updated_card, review_log = self._fsrs_manager.review_card(card, rating)
@@ -1718,17 +1769,12 @@ class ReviewService:
                 # 的名义制造错误。诚实义务由 truth_source / degraded_reason 承担。
                 if concept_id:
                     # Codex HIGH-2: mutation 随 pending 进锁内, 不在此处赋值
-                    card_state_persisted = await self._save_card_states(
-                        pending=(concept_id, card_data)
-                    )
-                    degraded_reason = (
-                        None if card_state_persisted else "card_state_write_failed"
-                    )
+                    card_state_persisted = await self._save_card_states(pending=(concept_id, card_data))
+                    degraded_reason = None if card_state_persisted else "card_state_write_failed"
                 else:
                     # M3 fix: Warn when concept_id is empty — card state will not be persisted
                     logger.warning(
-                        f"Empty concept_id for canvas '{canvas_name}' — "
-                        f"FSRS card state computed but NOT persisted"
+                        f"Empty concept_id for canvas '{canvas_name}' — FSRS card state computed but NOT persisted"
                     )
                     card_state_persisted = False
                     degraded_reason = "empty_concept_id_not_persisted"
@@ -1739,9 +1785,7 @@ class ReviewService:
                 lib_ok = self._fsrs_library_ok()
                 if not lib_ok:
                     degraded_reason = (
-                        "fsrs_library_missing"
-                        if degraded_reason is None
-                        else f"fsrs_library_missing,{degraded_reason}"
+                        "fsrs_library_missing" if degraded_reason is None else f"fsrs_library_missing,{degraded_reason}"
                     )
 
                 # CARD-G3-7: 真相源状态 —— 本次结果只进投影缓存, 真相源须由
@@ -1931,15 +1975,9 @@ class ReviewService:
                     timestamp_str = memory.get("timestamp", "")
                     try:
                         if isinstance(timestamp_str, str):
-                            record_date = datetime.fromisoformat(
-                                timestamp_str.replace("Z", "+00:00")
-                            ).date()
+                            record_date = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00")).date()
                         else:
-                            record_date = (
-                                timestamp_str.date()
-                                if hasattr(timestamp_str, "date")
-                                else end_date
-                            )
+                            record_date = timestamp_str.date() if hasattr(timestamp_str, "date") else end_date
                     except (ValueError, AttributeError):
                         continue
 
@@ -1948,16 +1986,12 @@ class ReviewService:
                         continue
 
                     # Filter by canvas_path if specified
-                    record_canvas = memory.get(
-                        "canvas_name", memory.get("canvas_path", "")
-                    )
+                    record_canvas = memory.get("canvas_name", memory.get("canvas_path", ""))
                     if canvas_path and canvas_path not in record_canvas:
                         continue
 
                     # Filter by concept_name if specified
-                    record_concept = memory.get(
-                        "concept", memory.get("concept_name", "")
-                    )
+                    record_concept = memory.get("concept", memory.get("concept_name", ""))
                     if concept_name and concept_name not in record_concept:
                         continue
 
@@ -1974,9 +2008,7 @@ class ReviewService:
 
                     all_records.append(
                         {
-                            "concept_id": memory.get(
-                                "concept_id", memory.get("id", "")
-                            ),
+                            "concept_id": memory.get("concept_id", memory.get("id", "")),
                             "concept_name": record_concept,
                             "canvas_path": record_canvas,
                             "rating": rating,
@@ -2016,15 +2048,9 @@ class ReviewService:
                         continue
 
                     if isinstance(last_review, str):
-                        record_date = datetime.fromisoformat(
-                            last_review.replace("Z", "+00:00")
-                        ).date()
+                        record_date = datetime.fromisoformat(last_review.replace("Z", "+00:00")).date()
                     else:
-                        record_date = (
-                            last_review.date()
-                            if hasattr(last_review, "date")
-                            else end_date
-                        )
+                        record_date = last_review.date() if hasattr(last_review, "date") else end_date
 
                     if record_date < start_date or record_date > end_date:
                         continue
@@ -2090,9 +2116,7 @@ class ReviewService:
         # Build daily records list
         daily_records = []
         for date_key in sorted(records_by_date.keys(), reverse=True):
-            daily_records.append(
-                {"date": date_key, "reviews": records_by_date[date_key]}
-            )
+            daily_records.append({"date": date_key, "reviews": records_by_date[date_key]})
 
         # Story 34.12 AC3: Calculate retention_rate from rating data
         # retention_rate = count(rating >= 3) / count(total records with rating)
@@ -2111,9 +2135,7 @@ class ReviewService:
             "retention_rate": retention_rate,
         }
 
-    async def _query_weak_concepts_from_memory(
-        self, canvas_name: str
-    ) -> List[Dict[str, Any]]:
+    async def _query_weak_concepts_from_memory(self, canvas_name: str) -> List[Dict[str, Any]]:
         """
         Query historical weak concepts from LearningMemoryClient (JSON storage).
 
@@ -2188,9 +2210,7 @@ class ReviewService:
             logger.error(f"Error querying weak concepts: {e}")
             return []
 
-    async def _store_review_relationship(
-        self, original_canvas: str, review_canvas: str, mode: str
-    ) -> None:
+    async def _store_review_relationship(self, original_canvas: str, review_canvas: str, mode: str) -> None:
         """
         Store GENERATED_FROM relationship in Graphiti.
 
@@ -2234,9 +2254,7 @@ class ReviewService:
                 },
             )
 
-            logger.info(
-                f"Stored review relationship: {review_canvas} --[{mode}]--> {original_canvas}"
-            )
+            logger.info(f"Stored review relationship: {review_canvas} --[{mode}]--> {original_canvas}")
 
         except (
             ConnectionError,
@@ -2295,23 +2313,15 @@ class ReviewService:
         if weak:
             selected.extend(self._weighted_sample(weak, min(weak_count, len(weak))))
         if mastered:
-            selected.extend(
-                self._weighted_sample(mastered, min(mastered_count, len(mastered)))
-            )
+            selected.extend(self._weighted_sample(mastered, min(mastered_count, len(mastered))))
         if borderline:
-            selected.extend(
-                self._weighted_sample(
-                    borderline, min(borderline_count, len(borderline))
-                )
-            )
+            selected.extend(self._weighted_sample(borderline, min(borderline_count, len(borderline))))
 
         # Fill remaining from any category
         remaining = question_count - len(selected)
         if remaining > 0:
             all_remaining = [c for c in weight_data if c not in selected]
-            selected.extend(
-                self._weighted_sample(all_remaining, min(remaining, len(all_remaining)))
-            )
+            selected.extend(self._weighted_sample(all_remaining, min(remaining, len(all_remaining))))
 
         logger.info(
             f"Weighted selection complete: {len(selected)} concepts selected "
@@ -2320,9 +2330,7 @@ class ReviewService:
 
         return selected
 
-    def _weighted_sample(
-        self, concepts: List[ConceptWeightData], count: int
-    ) -> List[ConceptWeightData]:
+    def _weighted_sample(self, concepts: List[ConceptWeightData], count: int) -> List[ConceptWeightData]:
         """
         Sample concepts with weights based on weakness_score.
 
@@ -2419,9 +2427,7 @@ class ReviewService:
             logger.warning(f"Graphiti query failed, using empty history: {e}")
             return []
 
-    async def get_multi_review_progress(
-        self, original_canvas_path: str
-    ) -> Dict[str, Any]:
+    async def get_multi_review_progress(self, original_canvas_path: str) -> Dict[str, Any]:
         """
         Get multi-review trend analysis for an original canvas.
 
@@ -2444,9 +2450,7 @@ class ReviewService:
         reviews = await self._query_review_sessions_from_memory(original_canvas_path)
 
         if not reviews:
-            raise CanvasNotFoundException(
-                f"No review history for: {original_canvas_path}"
-            )
+            raise CanvasNotFoundException(f"No review history for: {original_canvas_path}")
 
         # Calculate trends
         trends = self._calculate_trend_analysis(reviews)
@@ -2458,9 +2462,7 @@ class ReviewService:
             "trends": trends,
         }
 
-    async def _query_review_sessions_from_memory(
-        self, original_canvas_path: str
-    ) -> List[Dict[str, Any]]:
+    async def _query_review_sessions_from_memory(self, original_canvas_path: str) -> List[Dict[str, Any]]:
         """
         Query LearningMemoryClient (JSON storage) for all review sessions linked to original canvas.
 
@@ -2501,9 +2503,7 @@ class ReviewService:
 
             # Get all learning episodes for this canvas
             # Filter for verification canvas pattern: *-检验白板-*
-            all_memories = await memory_client.get_learning_history(
-                original_canvas_path, limit=100
-            )
+            all_memories = await memory_client.get_learning_history(original_canvas_path, limit=100)
 
             # Group by verification canvas sessions
             review_sessions: Dict[str, Dict[str, Any]] = {}
@@ -2527,9 +2527,7 @@ class ReviewService:
                 # Add concept score
                 score = memory.get("score")
                 if score is not None:
-                    review_sessions[source]["concepts"].append(
-                        memory.get("concept", "")
-                    )
+                    review_sessions[source]["concepts"].append(memory.get("concept", ""))
                     review_sessions[source]["scores"].append(score)
 
             # Transform to ReviewEntry format
@@ -2541,9 +2539,7 @@ class ReviewService:
 
                 total_concepts = len(scores)
                 passed_concepts = sum(1 for s in scores if s >= 24)  # >= 60% threshold
-                pass_rate = (
-                    passed_concepts / total_concepts if total_concepts > 0 else 0.0
-                )
+                pass_rate = passed_concepts / total_concepts if total_concepts > 0 else 0.0
 
                 reviews.append(
                     {
@@ -2559,9 +2555,7 @@ class ReviewService:
             # Sort by date descending (newest first)
             reviews.sort(key=lambda x: x["date"], reverse=True)
 
-            logger.info(
-                f"Found {len(reviews)} review sessions for {original_canvas_path}"
-            )
+            logger.info(f"Found {len(reviews)} review sessions for {original_canvas_path}")
             return reviews
 
         except (
@@ -2575,9 +2569,7 @@ class ReviewService:
             logger.error(f"Error querying review history: {e}")
             return []
 
-    def _calculate_trend_analysis(
-        self, reviews: List[Dict[str, Any]]
-    ) -> Optional[Dict[str, Any]]:
+    def _calculate_trend_analysis(self, reviews: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
         """
         Calculate trend metrics from review history.
 
@@ -2600,9 +2592,7 @@ class ReviewService:
         # Pass rate trend (newest first in reviews, reverse for chronological chart)
         pass_rate_trend = [
             {
-                "date": r["date"].split("T")[0]
-                if isinstance(r["date"], str)
-                else r["date"].strftime("%Y-%m-%d"),
+                "date": r["date"].split("T")[0] if isinstance(r["date"], str) else r["date"].strftime("%Y-%m-%d"),
                 "pass_rate": r["pass_rate"],
             }
             for r in reversed(reviews)
@@ -2633,9 +2623,7 @@ class ReviewService:
             },
         }
 
-    async def _query_weak_concepts_improvement(
-        self, original_canvas_path: str
-    ) -> List[Dict[str, Any]]:
+    async def _query_weak_concepts_improvement(self, original_canvas_path: str) -> List[Dict[str, Any]]:
         """
         Query Graphiti for weak concept improvement over time.
 
@@ -2666,14 +2654,10 @@ class ReviewService:
             await memory_client.initialize()
 
             # Get all verification session memories
-            all_memories = await memory_client.get_learning_history(
-                original_canvas_path, limit=200
-            )
+            all_memories = await memory_client.get_learning_history(original_canvas_path, limit=200)
 
             # Filter for verification canvas sessions
-            verification_memories = [
-                m for m in all_memories if "-检验白板-" in m.get("source_canvas", "")
-            ]
+            verification_memories = [m for m in all_memories if "-检验白板-" in m.get("source_canvas", "")]
 
             # Group by concept
             concept_scores: Dict[str, List[Dict[str, Any]]] = {}
@@ -2685,9 +2669,7 @@ class ReviewService:
                 if concept and score is not None and timestamp:
                     if concept not in concept_scores:
                         concept_scores[concept] = []
-                    concept_scores[concept].append(
-                        {"score": score, "timestamp": timestamp}
-                    )
+                    concept_scores[concept].append({"score": score, "timestamp": timestamp})
 
             # Calculate improvement for each concept
             improvements = []
@@ -2700,9 +2682,7 @@ class ReviewService:
 
                 # Only include if initially weak (< 60%)
                 if first_score < 24:  # 24/40 = 60%
-                    improvement_rate = (
-                        last_score - first_score
-                    ) / 40  # Normalize to 0-1
+                    improvement_rate = (last_score - first_score) / 40  # Normalize to 0-1
 
                     # Determine status
                     if last_score >= 32:  # >= 80%
@@ -2741,9 +2721,7 @@ class ReviewService:
     # [Source: docs/stories/32.2.story.md#Task-4]
     # ═══════════════════════════════════════════════════════════════════════════════
 
-    async def load_card_state(
-        self, concept_id: str, canvas_name: Optional[str] = None
-    ) -> Optional[str]:
+    async def load_card_state(self, concept_id: str, canvas_name: Optional[str] = None) -> Optional[str]:
         """
         Load FSRS card state from the in-memory cache (file-backed, P0-2).
 
@@ -2862,9 +2840,7 @@ class ReviewService:
             gate_blocked = False
             if not card_data:
                 # Story 38.3 AC-4: Auto-create default FSRS card for new concepts
-                logger.info(
-                    f"Auto-creating default FSRS card for concept: {concept_id}"
-                )
+                logger.info(f"Auto-creating default FSRS card for concept: {concept_id}")
                 card = self._fsrs_manager.create_card()
                 card_data = self._fsrs_manager.serialize_card(card)
                 # Cache the newly created card + persist to file (P0-2).
@@ -3081,13 +3057,9 @@ async def get_review_service() -> "ReviewService":
 
             memory_client = await _get_mem()
         except (ImportError, RuntimeError, AttributeError) as e:
-            logger.warning(
-                f"MemoryService not available for CanvasService edge sync: {e}"
-            )
+            logger.warning(f"MemoryService not available for CanvasService edge sync: {e}")
 
-        canvas_service = CanvasService(
-            canvas_base_path=settings.canvas_base_path, memory_client=memory_client
-        )
+        canvas_service = CanvasService(canvas_base_path=settings.canvas_base_path, memory_client=memory_client)
 
         # 2. BackgroundTaskManager
         task_manager = BackgroundTaskManager()
@@ -3105,10 +3077,7 @@ async def get_review_service() -> "ReviewService":
             logger.warning(f"Failed to get graphiti_client for ReviewService: {e}")
 
         if not graphiti_client:
-            logger.warning(
-                "Graphiti client not available for ReviewService, "
-                "history will use FSRS fallback"
-            )
+            logger.warning("Graphiti client not available for ReviewService, history will use FSRS fallback")
 
         _review_service_singleton = ReviewService(
             canvas_service=canvas_service,
