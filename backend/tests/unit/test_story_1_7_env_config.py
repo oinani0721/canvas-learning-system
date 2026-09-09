@@ -98,14 +98,6 @@ class TestDockerComposeVariableization:
         # ⚠️ 数量判据必须在文本层做，不能只数 YAML 解析后的值（Codex round-3 MEDIUM）：
         # `<<:` 合并键 + 显式覆盖会让原文里出现两次的路径在解析结果里只剩一次甚至归零，
         # 只数解析值时重复就被 safe_load 悄悄吃掉了。
-        duplicated_in_text = [
-            value
-            for value in GRANDFATHERED_MOUNT_VALUES
-            if sum(1 for line in offending_lines if line.lstrip("- ").strip() == value) > 1
-        ]
-        assert not duplicated_in_text, (
-            f"Exempted mount values appear more than once in the file text: {duplicated_in_text}"
-        )
 
         # ── 轴二：位置（YAML 结构）──────────────────────────────────────────
         import yaml
@@ -122,8 +114,13 @@ class TestDockerComposeVariableization:
             elif isinstance(node, list):
                 for idx, v in enumerate(node):
                     _walk(v, path + (str(idx),))
-            elif isinstance(node, str) and HARDCODED.search(node):
-                located.append((path, node))
+            elif isinstance(node, (str, bytes)):
+                # ⚠️ bytes 分支是 Codex round-4 HIGH：`- !!binary L1VzZXJz...` 被 PyYAML
+                # 解码成 bytes，只判 `isinstance(node, str)` 会整个跳过结构扫描，
+                # 而 Compose 照样把它当成一条新的主机路径挂载。
+                text = node.decode("utf-8", "replace") if isinstance(node, bytes) else node
+                if HARDCODED.search(text):
+                    located.append((path, text))
 
         _walk(compose, ())
 
@@ -141,6 +138,22 @@ class TestDockerComposeVariableization:
         ]
         assert not misplaced, (
             f"Hardcoded user paths outside services.neo4j.volumes[<i>]: {misplaced}"
+        )
+
+        # ── 轴三：数量（文本轴与解析轴取**较大值**）────────────────────────
+        # 两个方向各有盲区，必须都数（前者是 Codex round-3 MEDIUM，后者是 round-4 LOW）：
+        #   · 只数解析值：`<<:` 合并键 + 显式覆盖能让原文两次的路径在解析结果里只剩一次；
+        #   · 只数文本行：YAML alias（`- &mount <值>` 再 `- *mount`）文本只出现一次、
+        #     解析后是两条。
+        # 取 max 即「任一轴看到重复就红」。
+        duplicated = []
+        for value in GRANDFATHERED_MOUNT_VALUES:
+            n_text = sum(1 for line in offending_lines if line.lstrip("- ").strip() == value)
+            n_parsed = sum(1 for _p, v in located if v == value)
+            if max(n_text, n_parsed) > 1:
+                duplicated.append((value, {"text": n_text, "parsed": n_parsed}))
+        assert not duplicated, (
+            f"Exempted mount values used more than once (text/parsed counts): {duplicated}"
         )
 
     def test_neo4j_ports_use_variables(self):
