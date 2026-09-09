@@ -262,7 +262,7 @@ base=421 work=421 NEW=0 GONE=0
 8. **两表门的能力边界（经 Codex 三轮收窄后的说法，含两次自我更正）**。当前形态是「静态读名单 + 运行期读名单 + 逐项比对 + 查重」：
    - **静态半边**：`ast` 读 `AgentService.health_check` 内的 `expected_templates` 列表字面量。「绑定唯一」**不等于**「读到的就是 probe 实际迭代的」——原地改内容不改绑定。
    - **运行期半边**：把 `AGENT_PROMPT_PATH` 指向空目录，`missing` 原样返回 probe 的完整名单（有序），逐项比对 + 查重。**这一半才是身份绑定**。
-   - **仍未证明**：① 未验证「表被移出 `health_check`、改由该方法调用的 helper 提供」——那时静态半边报 `bound 0` 会红（Codex r3 实测），但这是**噪声红而非精确诊断**，本卡未为该重构提供可用路径；② 未验证 probe 在**非空但内容不同**的目录下的行为（只测了「本树真实目录」与「空目录」两端）；③ `prompt_template_check` 只回 `total`/`available`/`missing`，身份靠「制造全缺失」间接取得，**本卡未改生产以让它直接回报名单**（越界）；④ 未证明该手法在 `AGENT_PROMPT_PATH` 被别的机制（如 endpoint 层缓存）固化时仍有效。
+   - **仍未证明**：① 未验证「表被移出 `health_check`、改由该方法调用的 helper 提供」——那时静态半边报 `bound 0` 会红（Codex r3 实测），但这是**噪声红而非精确诊断**，本卡未为该重构提供可用路径；② 未验证 probe 在**非空但内容不同**的目录下的行为（只测了「本树真实目录」与「空目录」两端）；③ `prompt_template_check` 只回 `total`/`available`/`missing`，身份靠「制造全缺失」间接取得，**本卡未改生产以让它直接回报名单**（越界）；④ 未证明该手法在 `AGENT_PROMPT_PATH` 被别的机制（如 endpoint 层缓存）固化时仍有效；⑤ **门绑定的是 probe「报告出来的成员名」，不是「每个成员对应的文件路径」**（Codex r4 问题 4 实测：把路径构造改成恒查 `scoring-agent.md`、而报告名称不变，四条测试全过）—— 当前生产路径构造正确，故这是覆盖边界而非现存缺陷；⑥ **「probe 在 prompt_path 不存在时提前 return 会被抓住」这条推断是错的**（Codex r4 实测证伪：`tmp_path` 是已存在的空目录，该分支不触发，四条测试全过）。
 
    ⚠️ **本条被写宽过两次，此处是第三版**：
    - r1 曾称 `ast.Store` "covers every binding form" 并据此宣称门锁住了 health 迭代的内容 —— 前半句成立，**后半句的推论**被 Codex r2 用 `remove` / `[:]=` / `match-case` 证伪。
@@ -438,5 +438,48 @@ Codex r3 同轮独立确认（无需整改）：作用域收窄后改名 / 外�
 > **流程改正**：此后凡变异**有未提交改动的文件**，还原源一律取变异前的工作树副本（scratchpad），并在脚本开头显式 `cp` 出来；`git show HEAD:` 只用于已提交且无本地改动的文件。
 >
 > **连带作废**：同一时间窗内在后台跑的 `unit-r4-20260909T220000.txt`（`164 failed, 4763 passed`）测的是损坏中间态，**已改名 `VOID-` 并在文件内追加作废声明，不作为任何判据**。重跑见 `unit-r5-*.txt`。
+
+### round-4 — 绑 `798b39b1`
+
+存档：`_bmad-output/审查/codex-review-CARD-RED-E-r4.md`（正文为原始落盘 stdout）
+结论：**BLOCKER 0 / HIGH 0 / MEDIUM 0 / LOW 1**。Codex 自述「结束时再次核对，本卡代码与 HEAD 一致」。**MEDIUM 首次归零**。
+
+LOW-1 的三条全是**说明性文字失实或过宽**（非代码缺陷），已全部改正：
+
+| 条目 | 我原先怎么写 | 实况 | 处置 |
+|---|---|---|---|
+| ① `:209` docstring | 「hint-generation 从未存在，所以 probe *could never be clean*」 | **因果搭错**。旧 health 表 12 项里**没有** hint-generation ⇒ 它的缺失对旧 probe **不可见**；probe 恒 `degraded` 的真实原因是表里的 `canvas-orchestrator` 不在盘。且 `:5771-5774` 优先判 `unhealthy`，并非缺模板就无条件 `degraded` | ✅ 改写为区分两类失败：`canvas-orchestrator` 在表不在盘（probe 真的卡在 degraded）；`hint-generation` 盘和表都没有（probe 根本看不见它）——**后者正是它能藏 7 个月的原因，也是本卡把它加进表而不只是补文件的理由** |
+| ② `:243-246` docstring | 覆盖失效会造成「空集比较、断言 vacuous」 | **过宽**。`probe_names == names` 比的是完整列表，`[] != 13 项` **仍会红**。前置断言改善的是**错误定位**，不是防假绿；对照输入 F 的存档本身也显示它红在前置断言上 | ✅ 改写为「for diagnosis, not for correctness」，并说明失效时仍会红、只是指向名单不匹配而非真因 |
+| ③ 自查存档 `selfcheck-r4bc:43` | 「probe 改为路径不存在时提前 return 会被抓住」 | **推错**。`tmp_path` 是 pytest 创建的**已存在**空目录，该分支不触发；Codex 内存实测加入该分支后四条测试全过 | ✅ 存档已落盘不改，在验收单本节与 §五⑧⑥ 处更正 |
+
+**这轮整改是纯文档改动**，有严格证明：剥去全部 docstring 后，工作树与 `798b39b1` 的 **AST `ast.dump` 逐字节相同**（存档 `r4fix-docstring-only-20260910T010000.txt`，输出 `True`），复跑 50 passed。
+
+Codex r4 同轮独立确认（无需整改，两条记入 §五⑧）：门绑定的是 probe **报告的成员名**而非**每个成员对应的文件路径**（把路径构造改成恒查 `scoring-agent.md`、报告名不变时四条测试全过——当前生产路径构造正确，属覆盖边界）；`monkeypatch` **未发现实际隔离缺陷**（Codex 自己跑了「真实目录 → `/var/empty` 身份检查 → 恢复后真实目录」三段并断言设置已还原）；七份文件均为 HEAD 中的 `100644 blob`、目录共跟踪 18 份。
+
+### round-4 送审前的自查（r4 关注点 (b)(c)）
+
+存档：`selfcheck-r4bc-20260910T000000.txt`、`probe-b3-20260910T000000.txt`
+
+**(b) `monkeypatch` 全局 `settings` 的隔离性**：
+
+- 全仓读 `AGENT_PROMPT_PATH` 的站点共 4 处生产代码（`config.py:361` 定义、`claude_client.py:90`、`gemini_client.py:129`、`agent_service.py:5727`），全部在**调用时**读、无 import 期固化 ⇒ `monkeypatch` 生效且还原后立即恢复。
+- 顺序无关：默认顺序与「把身份用例排到最前」两种跑法都是 **50 passed**。
+- **与 `test_startup_health_check.py` 同跑出现 6 failed —— 已三重排除，与本卡无关**：
+  | 跑法 | 结果 |
+  |---|---|
+  | 单跑 `test_startup_health_check.py`（本卡未碰该文件） | **6 failed** |
+  | 同跑 smoke（含 monkeypatch）+ startup | **同样那 6 条**，一条不多 |
+  | 反向对照：无 monkeypatch 的文件 + startup | **还是同样 6 条** |
+  这 6 条逐条 `grep -c` 主干 202 基线 **全 = 1**，是既有红。三个数据点分别排除了「同跑才出现」「我的 patch 加红」「两文件同跑的效应」三种解释。
+  ⚠️ 顺带更正一处我自己的读数：先前从开工全跑输出里看到 `test_startup_health_check.py FFFFF` 就记成「5 红」，那一行当时**被输出截断**，实为 6 红。印象不能当分母。
+
+**(c) 「空目录 ⇒ `missing` 即完整名单」依赖的实现细节**（`agent_service.py:5731-5742` 实测）：
+
+- 依赖 1：probe 用 `exists()` 分桶，把不存在项**原样按序**追加进 `missing_templates`；
+- 依赖 2：`prompt_path` 在**调用时**读 `settings.AGENT_PROMPT_PATH`（`:5727`），非 import 期固化。
+
+这两条若变化，用例的表现（自评，非实测）：probe 改为对 `missing` 排序/去重 → 逐项 `list ==` 比较会红；改为只回计数不回名单 → `probe_names` 类型/内容不符会红。
+
+⚠️ **此处第三条已被 Codex r4 证伪，更正**：我原写「probe 改为路径不存在时提前 return → `missing` 变空 → 会红」。**错**：`tmp_path` 是 pytest 创建的**已存在**的空目录，那个分支根本不会触发。Codex 在内存中加入该分支后，两条静态 + 两条运行期测试**全部通过**。这三条推断本就是「未逐一注入实测」的自评，其中一条推错了 —— 已登记进 §五⑧「仍未证明」。
 
 **r3 关注点 (a) 的自查**（存档 `selfcheck-r3a-20260909T200000.txt`）：单跑 3 次全绿；`NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0`（新用例不碰 Neo4j）；tracked 文件 0 改动；`gemini_client=None` 且无未关闭资源告警。⚠️ Codex 明确保留 (a) 为「未完整核验」——它的读取面不含构造器与完整 health 方法，故**不授予**「无副作用 / CI 无配置稳定」结论；本卡也不宣称，见 §五⑬。

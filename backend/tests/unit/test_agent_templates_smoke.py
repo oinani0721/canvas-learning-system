@@ -206,9 +206,16 @@ class TestAgentTemplateFiles:
     async def test_health_probe_reports_no_missing_template(self):
         """The probe, run for real, must find every template it watches.
 
-        This is the production-facing half: /agents/health goes `degraded` the
-        moment any watched .md is absent, which is exactly the state this card
-        found (hint-generation.md never existed, so the probe could never be clean).
+        This is the production-facing half: /agents/health reports `degraded` the
+        moment any *watched* .md is absent (unless api key / client already made it
+        `unhealthy`, which takes priority).
+
+        Note the two failures this card fixed are different in kind, and it is worth
+        not conflating them: `canvas-orchestrator` was in the old 12-item table but
+        not on disk, so the probe really was stuck at `degraded`; `hint-generation`
+        was missing from disk *and* from the table, so the probe never saw it at all
+        — which is exactly why it could stay broken for 7 months and why this card
+        adds it to the table rather than only restoring the file.
 
         No network: `include_api_test=False` skips the AI ping branch, and a bare
         AgentService() has no client configured.
@@ -240,10 +247,12 @@ class TestAgentTemplateFiles:
         otherwise shrink the real watch set without changing its length.
 
         `monkeypatch` restores the setting even if the probe or an assertion raises.
-        The override is asserted to have taken effect before the probe runs: a
-        silently ineffective patch would otherwise leave this test measuring the
-        real templates dir, where `missing` is `[]` and the comparison below would
-        be vacuous in exactly the way this card exists to prevent.
+
+        The override is asserted to have taken effect *before* the probe runs. This
+        is for diagnosis, not for correctness: if the patch silently did nothing the
+        probe would read the real dir and return `missing == []`, and the comparison
+        below would still fail (`[] != <13 names>`) — it would just fail pointing at
+        a name mismatch instead of at the real cause.
         """
         from app.config import settings
         from app.services.agent_service import AgentService
