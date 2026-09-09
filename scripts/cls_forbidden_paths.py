@@ -77,6 +77,16 @@ import sys
 import unicodedata
 
 
+class ForbiddenPath(PermissionError):
+    """判据自己的拒绝 —— 与**内核**的 EACCES 区分开（Codex r9 MEDIUM-1）。
+
+    `PermissionError` 本身就是 `OSError(EACCES/EPERM)` 的子类，所以
+    `except PermissionError: raise` 会把内核对 0200 文件的 EACCES 一并吞掉，
+    让下面的 `O_WRONLY` 回退**永远不可达** —— 我 r8 写的那个回退就是这么废掉的。
+    给判据的拒绝一个专属类型，两者才分得开。
+    """
+
+
 def phys(p: str) -> str:
     """物理解析：展开 ~ → 绝对化 → **解软链后再折叠 `..`**。对不存在的路径也可用。"""
     p = os.path.expanduser(p)
@@ -142,7 +152,7 @@ def open_pinned(path: str, flags: int, mode: int = 0o600, live_vault: str = "") 
     if why is None and enumerate_failed:
         why = "无法枚举 HOME, fail-closed"
     if why is not None:
-        raise PermissionError(f"父目录解析后落在禁写面({why}): {path} -> {parent}")
+        raise ForbiddenPath(f"父目录解析后落在禁写面({why}): {path} -> {parent}")
     # ② 沿已校验的物理串逐级 O_NOFOLLOW —— 校验之后再被换掉的那一级由内核拒。
     dirfd = os.open(os.sep, os.O_RDONLY | os.O_DIRECTORY)
     try:
@@ -181,9 +191,11 @@ def chmod_pinned(path: str, mode: int = 0o600, live_vault: str = "") -> None:
     # ⚠️ 0200（只写不可读）的既存文件用 O_RDONLY 打不开（r8 MEDIUM-1）⇒ EACCES 时退到 O_WRONLY。
     try:
         fd = open_pinned(path, os.O_RDONLY | os.O_NONBLOCK, live_vault=live_vault)
-    except PermissionError:
-        raise
+    except ForbiddenPath:
+        raise  # 判据自己的拒绝：永不回退
     except OSError as e:
+        # 只有**内核**的 EACCES 才回退（0200 只写文件）。ForbiddenPath 已在上面拦掉,
+        # 所以这里不会把判据的拒绝误当成权限问题（r9 MEDIUM-1 修正）。
         if e.errno != errno.EACCES:
             raise
         fd = open_pinned(path, os.O_WRONLY | os.O_NONBLOCK, live_vault=live_vault)

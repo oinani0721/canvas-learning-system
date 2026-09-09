@@ -182,6 +182,31 @@ MUTANTS = [
         "test_script_disables_bytecode_cache_before_importing_primitives",
         "禁字节码缓存必须在任何 import 之前",
     ),
+    # ── r9 整改 ────────────────────────────────────────────────────────────
+    (
+        "M-2(r9) write_all 假推进（一次跳完）",
+        FORBID,
+        "        view = view[n:]",
+        "        view = view[len(view) :]",
+        "test_write_all_actually_completes_short_writes",
+        "短写下没有写全",
+    ),
+    (
+        "M-1(r9) EACCES 回退退回被 PermissionError 吞掉",
+        FORBID,
+        "    except ForbiddenPath:",
+        "    except PermissionError:",
+        "test_chmod_pinned_allows_write_only_file",
+        "Permission denied",
+    ),
+    (
+        "H-1(r9) here-string 回退（preflight 前的临时文件写入）",
+        DEPLOY,
+        '_rest="$HOSTS"',
+        'IFS=\',\' read -r -a _hosts_arr <<< "$HOSTS"; _rest=""',
+        "test_no_here_string_before_preflight",
+        "here-string",
+    ),
 ]
 
 # MEDIUM-5 探针：不是「必须 KILLED」，而是**如实测量** ancestor_symlink_hits 是否独立承重。

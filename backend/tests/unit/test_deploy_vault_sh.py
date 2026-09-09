@@ -1752,6 +1752,90 @@ def test_open_pinned_allows_legitimate_symlinked_ancestor(tmp_path: Path):
     assert (real / "ok.txt").read_bytes() == b"ok", "合法软链下的正常写入被误拦或写错地方"
 
 
+def test_write_all_actually_completes_short_writes(tmp_path: Path, monkeypatch):
+    """⛔ r9 MEDIUM-2：字符串门抓不到「假推进」。
+
+    把 `write_all` 的推进改成 `view = view[len(view):]`，短写仍会被当成功，
+    而「存在 `n = os.write(fd, view)`」这种源码断言照样满足。
+    ⇒ 换成**行为门**：注入一个每次只写 1 字节的 `os.write`，断言全量落盘且调用次数
+    等于字节数（后者能抓住「一次跳完」的假推进）。
+    """
+    sys.path.insert(0, str(REPO_ROOT / "scripts"))
+    import cls_forbidden_paths as cfp
+
+    payload = b"0123456789abcdef"
+    real_write = os.write
+    calls = {"n": 0}
+
+    def one_byte_write(fd, data):
+        calls["n"] += 1
+        return real_write(fd, bytes(data)[:1])
+
+    target = tmp_path / "out.bin"
+    fd = os.open(target, os.O_WRONLY | os.O_CREAT, 0o600)
+    try:
+        monkeypatch.setattr(cfp.os, "write", one_byte_write)
+        cfp.write_all(fd, payload)
+    finally:
+        monkeypatch.undo()
+        os.close(fd)
+    assert target.read_bytes() == payload, "短写下没有写全 —— write_all 的推进有问题"
+    assert calls["n"] == len(payload), (
+        f"os.write 只被调用 {calls['n']} 次而数据 {len(payload)} 字节 —— 推进量与实际写入量脱节（假推进）"
+    )
+
+
+def test_write_all_raises_when_write_makes_no_progress(tmp_path: Path, monkeypatch):
+    """控制组：`os.write` 恒返回 0 时必须抛错，而不是死循环或静默成功。"""
+    sys.path.insert(0, str(REPO_ROOT / "scripts"))
+    import cls_forbidden_paths as cfp
+
+    target = tmp_path / "stuck.bin"
+    fd = os.open(target, os.O_WRONLY | os.O_CREAT, 0o600)
+    try:
+        monkeypatch.setattr(cfp.os, "write", lambda _fd, _d: 0)
+        with pytest.raises(OSError, match="短写"):
+            cfp.write_all(fd, b"abc")
+    finally:
+        monkeypatch.undo()
+        os.close(fd)
+
+
+def test_chmod_pinned_allows_write_only_file(tmp_path: Path):
+    """⛔ r9 MEDIUM-1：0200（只写不可读）的既存文件必须能被收紧，而不是打不开就失败。
+
+    我 r8 写的 `except PermissionError: raise` 把**内核**的 EACCES 一并吞了 ——
+    `PermissionError` 本身就是 `OSError(EACCES)` 的子类，于是 `O_WRONLY` 回退
+    **永远不可达**。修法是给判据自己的拒绝一个专属类型 `ForbiddenPath`，两者才分得开。
+    """
+    if os.geteuid() == 0:
+        pytest.skip("root 无视权限位，0200 也能 O_RDONLY 打开，本条无从制造前提")
+    sys.path.insert(0, str(REPO_ROOT / "scripts"))
+    from cls_forbidden_paths import chmod_pinned
+
+    prot = tmp_path / "protected"
+    prot.mkdir()
+    f = tmp_path / "writeonly.txt"
+    f.write_text("x", encoding="utf-8")
+    f.chmod(0o200)
+    chmod_pinned(str(f), 0o600, live_vault=str(prot))
+    assert f.stat().st_mode & 0o777 == 0o600, "0200 文件未被收紧（EACCES 回退不可达）"
+
+
+def test_no_here_string_before_preflight():
+    """⛔ r9 HIGH-1：`<<<` 在 Bash 3.2 下会在 `$TMPDIR` **建临时文件**。
+
+    `--hosts` 的解析在 preflight **之前**、dry-run 也会走到 —— `TMPDIR` 指向保护目录时
+    就是一次先于任何判据的写入，事后删除撤不回。步 4 的 TMPDIR 检查来得太晚，
+    且只覆盖非 8011 的镜像分支。
+    ⇒ 改成纯参数展开切分（零子进程、零临时文件）。本门钉住它不许回退。
+    """
+    src = _sh_src()
+    code = "\n".join(ln for ln in src.splitlines() if not ln.lstrip().startswith("#"))
+    assert "<<<" not in code, "非注释行仍有 here-string（Bash 3.2 会写临时文件）"
+    assert '_rest="$HOSTS"' in code, "--hosts 必须用纯参数展开切分"
+
+
 def test_chmod_pinned_rejects_hardlink_and_nonregular(tmp_path: Path):
     """⛔ r8 HIGH-3 / MEDIUM-2：`chmod_pinned` 必须挡硬链接、且只对普通文件生效。
 

@@ -265,9 +265,20 @@ esac
 [ "$ACTIVATE" = 1 ] && [ "$APPLY" != 1 ] && die64 "--activate 只能与 --apply 同用"
 
 # --hosts：本版只 claude（E-1）
-IFS=',' read -r -a _hosts_arr <<< "$HOSTS"
-for _h in "${_hosts_arr[@]}"; do
-    _h="$(printf '%s' "$_h" | tr -d '[:space:]')"
+# ⛔ 不用 here-string（Codex r9 HIGH-1）：Bash 3.2（本机 /bin/bash）对 `<<<` 会在
+#    `$TMPDIR` **建一个临时文件**。这一行在 preflight **之前**、dry-run 也会走到 ——
+#    `TMPDIR` 若指向保护目录, 那就是一次先于任何判据的写入, 事后删除撤不回。
+#    步 4 的 TMPDIR 检查（只覆盖非 8011 的镜像分支）来得太晚。
+#    改成纯参数展开切分：零子进程、零临时文件。
+_rest="$HOSTS"
+while [ -n "$_rest" ]; do
+    _h="${_rest%%,*}"
+    if [ "$_h" = "$_rest" ]; then _rest=""; else _rest="${_rest#*,}"; fi
+    # 去空白也不用 `tr`（那会 fork 一个子进程；这里用 bash 内建的 extglob-free 循环）
+    while [ "${_h# }" != "$_h" ]; do _h="${_h# }"; done
+    while [ "${_h% }" != "$_h" ]; do _h="${_h% }"; done
+    while [ "${_h#	}" != "$_h" ]; do _h="${_h#	}"; done
+    while [ "${_h%	}" != "$_h" ]; do _h="${_h%	}"; done
     [ -n "$_h" ] || continue
     if [ "$_h" != "claude" ]; then
         printf '❌ 用法错: --hosts 含未实现的宿主 %s。\n' "$_h" >&2
@@ -491,7 +502,21 @@ if s != n or v != n:
             STEP_MSG="树完整 / 禁写面过 / 名不动点 / port $PORT 空闲 / skills $nskills; will build main.js（dry-run 不执行）"
             return 0
         fi
-        if ! (cd "$HARNESS/frontend/obsidian-plugin" && npm run build) > /dev/null 2>&1; then
+        # ⛔ 约束 npm 的写入面（Codex r9 §二.5 补边界）：缺省下 npm 会往 `~/.npm`
+        #    与日志目录写，而那两处**不在本卡的待写清单里**、也没过判据。
+        #    这里把 cache 与 logs 钉到 evidence 目录下（该目录已在 preflight 过判据），
+        #    并关掉 audit/fund 的网络与额外输出。
+        #    ⚠️ 如实声明：这只约束了 npm **配置层**能约束的部分；npm 及其依赖是否还有
+        #    别的写入路径, 本卡未读其实现, **完整写入集合未证明**（已登记）。
+        local _npmroot="$EVIDENCE_DIR/npm-$TS"
+        mkdir -p "$_npmroot/cache" "$_npmroot/logs" \
+            || { STEP_MSG="建 npm 缓存目录失败: $_npmroot"; return 1; }
+        if ! (cd "$HARNESS/frontend/obsidian-plugin" \
+            && npm_config_cache="$_npmroot/cache" \
+               npm_config_logs_dir="$_npmroot/logs" \
+               npm_config_update_notifier=false \
+               npm_config_fund=false npm_config_audit=false \
+               npm run build) > /dev/null 2>&1; then
             STEP_MSG="npm run build 失败（$HARNESS/frontend/obsidian-plugin）"
             return 1
         fi

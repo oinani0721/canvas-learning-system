@@ -1,0 +1,51 @@
+# CARD-G2-7b r9 整改后目录级对账 + 收工对账
+汇总行: 173 failed, 4979 passed, 48 skipped, 122 warnings, 29 errors in 231.93s
+原始: dir-tests-unit-r9fix-20260909T232321.raw
+
+## 红集：基线 202 == 本次 202，diff 空 ⇒ 本卡引入 0 / 修复 0 ✅
+## passed 增量：4975 → 4979 = +4；新增 def test_ = 4，删除 = 0 ⇒ 逐数吻合
+   r9 新增 4 条门：write_all 行为门 + 其控制组 / 0200 回退门 / here-string 门
+
+## r9「必须本卡处理」四条的实测
+  H-1 here-string  : 非注释行 `<<<` 归零；--hosts 三种输入行为不变（claude→0 / ' claude '→0 / claude,codex→64）
+  M-1 EACCES 回退  : 0200 文件 → 收紧到 600 ✅；禁写面拒绝仍是 ForbiddenPath、未被回退吞掉 ✅
+  M-2 write_all    : 注入 1 字节短写 → 全量落盘且调用次数 == 字节数；恒返回 0 → 抛「短写」✅
+  npm 写入面       : **真跑一次 build**（移走 gitignored main.js 逼 preflight 触发）
+                     → npm-*/{cache,logs} 落在 evidence 下；**~/.npm 新写入 = 0**；
+                     main.js 重建 130139 字节，与移走前**同尺寸**（顺带排除「跑成功但产出残缺」）
+
+## 禁写面（哨兵 = dir-red-close-r8fix.txt）
+  ~/Desktop/canvas/canvas-learning-system/canvas-vault 0
+  ~/.dsh                                     0
+  ~/.config/opencode                         0
+  ~/Library/LaunchAgents                     1
+  ~/.npm                                     19  ⚠️ 见下方逐条归属
+  $WT/.env sha == 基线: ✅
+  git status -- canvas-vault/: 0 行
+  裸 chmod / 裸 os.write / 非注释 here-string: 0 / 0 / 0
+
+## 地盘门: 7 文件（未变）；本轮改动 3 个
+rc=0
+
+## ⚠️ `~/.npm` 计 19 的精确归属（我先前那句「~/.npm 新写入 = 0」口径太窄，此处更正）
+
+先前我用的是 build **跑完后**的 `find ~/.npm -newermt '-2 minutes'` = 0 —— 那只覆盖了
+两分钟窗口。用收工哨兵（22:52:51）重算得 **19**，两个数字看似矛盾，实为**窗口不同**。
+
+精确判据（以我的 build 标记目录 `npm-20260909T232306`，mtime 23:23:06 为界）：
+  $ find ~/.npm -newer <build 标记目录> | wc -l                    → **0**   ✅
+  $ find ~/.npm -newer <哨兵> ! -newer <build 标记目录> | wc -l    → **19**
+  ⇒ 那 19 个全部写于 **22:55–23:20:54**，**早于**我的 build（23:23:06）。
+     同期 `ps | grep -c 'npm\|node'` = **23** 个进程（本批其它车道）。
+  ⇒ **我的 build 对 `~/.npm` 的写入确为 0**；19 个属其它车道。
+     我的产出落在 `<evidence>/npm-20260909T232306/{cache,logs}` ✅
+
+⚠️ 方法论教训：`-newermt '-N minutes'` 这类**相对窗口**只能证明「那一小段内没有」，
+   不能证明「整个作业期内没有」。收工对账必须用**固定哨兵**，两者不可互相替代 ——
+   我先前那句话不算错，但它证明的范围比它听起来的小。
+
+## `~/Library/LaunchAgents` 计 1
+  `local.mlx-serve.prefill-2048.plist` —— MLX 本地模型服务自身 plist（与 r8 同源）。
+  本卡代码面对 launchd/plist 零引用，`scripts/launchd/*` 零触碰。
+
+rc=0
