@@ -1,0 +1,39 @@
+# CARD-G2-7b r11 整改后目录级对账 + 收工对账
+汇总行: 173 failed, 4984 passed, 48 skipped, 121 warnings, 29 errors in 233.97s
+原始: dir-tests-unit-r11fix-20260910T010642.raw
+
+## ⚠️ 本轮目录级跑了 4 次，前 3 次被本机 OOM 杀
+   其中一次报 `completed` 但**产物不存在** —— 「任务 completed」不等于「任务做完了」，
+   判据必须落在**产物**上（ls 找不到 raw 才暴露）。这是今天第三种「成功信号不可信」。
+   我加的内存等待守卫反而更早被杀（它要等 5-10 分钟，正好覆盖最紧张时段）。
+   第 4 次不带守卫直接跑，正常完成。
+
+## 红集：基线 202 == 本次 202，diff 空 ⇒ 本卡引入 0 / 修复 0 ✅
+## passed 增量：4981 → 4984 = +3；新增 def test_ = 3，删除 = 0 ⇒ 逐数吻合
+   r11 新增 3 条行为门：相对 harness 默认目录绝对化 / TMPDIR 合法软链放行 / 全位置空白删除
+
+## ⛔ 本轮还抓到 2 条**已失效的旧门**（我只跑 -k 子集没发现）
+   test_tmpdir_and_npm_dirs_are_in_pending_writes（tmpdir 已移出 PENDING_WRITES）
+   test_hosts_whitespace_stripping_reaches_fixpoint（不动点循环已被模式替换取代）
+   ⇒ 已同步到新实现（主张不变、位置变了）。**改完代码必须跑全量文件级。**
+   ⚠️ 更险的是：变异探针因此报「ancestor_symlink_hits 现在独立承重」——那 2 条变红
+      与探针**毫无关系**，是本来就红的。修好后探针恢复「全绿 ⇒ 仍零承重」。
+      若采信该假信号，会同时得出假的承重判断并继续错过 2 条失效门。
+
+## 禁写面（哨兵 = dir-red-close-r10fix.txt）
+  ~/Desktop/canvas/canvas-learning-system/canvas-vault 0
+  ~/.dsh                                     0
+  ~/.config/opencode                         0
+  ~/Library/LaunchAgents                     0
+  ~/.npm                                     16
+  $WT/.env sha == 基线: ✅
+  git status -- canvas-vault/: 0 行
+  裸 chmod / 裸 os.write / 非注释 here-string: 0 / 0 / 0
+## 地盘门: 7 文件（应 7）
+rc=0
+
+## `~/.npm` 计 16 的归属（本轮**未跑过 build**）
+  本轮 judges 全部使用已在位的 main.js ⇒ E-4 build 分支未触发，
+  scratch 下 `npm-*` 标记目录数 = **0**（跑过 build 必然产生一个）。
+  ⇒ 不可能来自本卡本轮；与 r9/r10 同源（其它车道并发的 npm/node）。
+  ⚠️ 判据是「本轮没有产生 build 标记目录」，不是「代码里没写 npm」—— 如实记数不写 0。
