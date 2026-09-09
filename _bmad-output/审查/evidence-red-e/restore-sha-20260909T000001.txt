@@ -1,0 +1,11 @@
+# CARD-RED-E 恢复对账 — 源 f425d7b7^ 逐份逐字节
+# 生成时刻: 2026-09-09T10:34:08+08:00
+# HEAD: 0465a35ca3c8a47b99b2ca782416523c9e7db200
+
+NAME                             EXPECT_BYTES ACTUAL_BYTES SHA_FROM_GIT                                                       SHA_ON_DISK                                                        VERDICT
+canvas-orchestrator              104719       104719       82080fd976499b846fc09d4cbc7fa63c19651edbb63f464656bedcf16fcca17e   82080fd976499b846fc09d4cbc7fa63c19651edbb63f464656bedcf16fcca17e   OK
+graphiti-memory-agent            5584         5584         814c82899bb81b11ba51236c3af9a094fc51519d70d9eccf90c1b51d5dfd9db1   814c82899bb81b11ba51236c3af9a094fc51519d70d9eccf90c1b51d5dfd9db1   OK
+iteration-validator              13690        13690        f37033fb54e5a89c5b2a739ec3e7aa7225e13fac57fb5a24e84052ef5e7c55c1   f37033fb54e5a89c5b2a739ec3e7aa7225e13fac57fb5a24e84052ef5e7c55c1   OK
+parallel-dev-orchestrator        13392        13392        76a67f32af0bbdaa8a29a42cbcd52ec744697f808c9dc40c1ef7f36feab55a36   76a67f32af0bbdaa8a29a42cbcd52ec744697f808c9dc40c1ef7f36feab55a36   OK
+planning-orchestrator            16492        16492        2306af615922165165a09efd01be8482acc9534bb9cbc428f6d44cafd3bc3f19   2306af615922165165a09efd01be8482acc9534bb9cbc428f6d44cafd3bc3f19   OK
+review-board-agent-selector      7579         7579         744ce6f57b156f1fa5c987fd7522aff0a38b2727090e7f47bee0f44cb4c4080e   744ce6f57b156f1fa5c987fd7522aff0a38b2727090e7f47bee0f44cb4c4080e   OK
