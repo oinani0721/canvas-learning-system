@@ -1,0 +1,14 @@
+### 自查 r3-①: cp -R -H 对目录**内部**软链的行为
+--- TARGET 里各项形态 ---
+  link-abs.txt     lrwxr-xr-x@
+  link-rel.txt     lrwxr-xr-x@
+  sub/dir-link     lrwxr-xr-x@
+  real.txt         -rw-r--r--@
+--- 沿 target 的内部链写, 会不会改到源外文件? ---
+  outside/secret.txt 现内容: X
+  ⇒ 若变成 X, 说明内部链仍会写穿(但生成段只写 data.json, 不写这些路径)
+
+### 自查 r3-②: 生成段实际触碰的三个路径, 在源里若是软链会怎样
+  shared/data.json 跑后: {"internalApiKey":"SHARED"}  (跑前: {"internalApiKey":"SHARED"})
+  ⇒ 相同 = rm 删的是链本身、生成写的是新文件, 不沿链写穿 ✅
+  target/data.json 形态: -rw-r--r--@
