@@ -152,8 +152,9 @@ class TestSystemConfigAuth:
         assert response.status_code == 503
         assert "not configured" in response.json()["detail"].lower()
         # CARD-RED-A2: 绑「被哪一层拒的」。Branch 1 与 Branch 2 都返回 503，且
-        # Branch 2 的 detail 以 Branch 1 的整句为前缀 —— 任何 `in` 形式的 detail
-        # 断言都分辨不了层。精确等值 + 发出 Branch 1 那条记录的函数与带括号的
+        # Branch 2 的 detail 以 Branch 1 的整句为前缀 —— 对两支共有的那段前缀做
+        # 正向子串断言（如上一行）分辨不了层；正向锁定 Branch 1 要用精确等值。
+        # 精确等值 + 发出 Branch 1 那条记录的函数与带括号的
         # 完整标记，才能证明请求走到了 security.py 的生产分支。⚠️ 不能用裸 token
         # 子串匹配 caplog.text：WebSocket 侧分支同 logger 同级别，其标记以 "ws_"
         # 打头因而包含那个裸 token，会被裸子串判据误判成命中。
@@ -216,8 +217,9 @@ class TestSystemTestLLMAuth:
             response = auth_client.post("/api/v1/system/test-llm", json=TEST_LLM_PAYLOAD)
         assert response.status_code == 503
         # CARD-RED-A2: 绑「被哪一层拒的」。Branch 1 与 Branch 2 都返回 503，单看
-        # 状态码分辨不了层，而 Branch 2 的 detail 以 Branch 1 的整句为前缀，`in`
-        # 形式同样分辨不了。精确等值 + 发出 Branch 1 那条记录的函数与带括号的
+        # 状态码分辨不了层；Branch 2 的 detail 又以 Branch 1 的整句为前缀，对两支
+        # 共有的那段前缀做正向子串断言同样分不开，正向锁定要用精确等值。
+        # 精确等值 + 发出 Branch 1 那条记录的函数与带括号的
         # 完整标记，才能证明请求走到了 security.py 的生产分支。⚠️ 不能用裸 token
         # 子串匹配 caplog.text：WebSocket 侧分支同 logger 同级别，其标记以 "ws_"
         # 打头因而包含那个裸 token，会被裸子串判据误判成命中。

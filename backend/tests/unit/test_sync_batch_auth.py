@@ -165,7 +165,9 @@ class TestProductionFailClosed:
         # Branch 2 的 detail **以 Branch 1 的整句为前缀**（它是那句后面接
         # "... Set INTERNAL_API_KEY env for production, or
         # ALLOW_UNSAFE_DEV_AUTH_BYPASS=true for loopback dev." 的长文案）——
-        # 所以任何 `in` 形式的 detail 断言都分辨不了层，只有 `==` 可以。
+        # 所以对**两支共有的那段前缀**做正向子串断言（如上一行那条既有断言）
+        # 分辨不了层。对 Branch 2 独有的后缀做 `in` 倒是能分，但那断的是
+        # 「不是 Branch 1」、方向相反；要正向锁定 Branch 1 仍得用 `==`。
         # 下面两条把判据绑到 Branch 1 的身份上：
         #   ① detail 精确等值；
         #   ② 发出 Branch 1 那条 logger.error 的**函数** + 带括号的完整标记。
