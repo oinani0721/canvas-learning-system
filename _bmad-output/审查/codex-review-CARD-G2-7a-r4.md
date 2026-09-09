@@ -1,3 +1,14 @@
+> 批次: BATCH-2026-09-07-第十三批 · 车道 U3 · 卡 CARD-G2-7a round-4
+> 模型: `gpt-6-astra` · reasoning_effort: `ultra` · codex: `codex-cli 0.153.3`
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat _bmad-output/审查/prompts/codex-prompt-CARD-G2-7a-r4.md)"`
+> 审查绑定: `5a0257fc`（审查者自证四文件与该提交逐字节一致）
+> 会话头自证（抄 .stderr 含 model 行的三行，stderr 本身不入库）:
+> `OpenAI Codex v0.153.3` / `model: gpt-6-astra` / `reasoning effort: ultra`
+
+> **连续第二轮 0 BLOCKER / 0 HIGH**（r3 亦然）。1 MEDIUM / 6 LOW 已全数整改，见 round-5 送审。
+
+---
+
 本轮结论：**0 BLOCKER / 0 HIGH / 1 MEDIUM / 6 LOW**。四个工作文件均与 `5a0257fc` 对应对象逐字节一致。
 
 变异验证使用原门函数、内存副本及自动清理的合成目录；未运行完整 pytest、安装脚本，也未访问 live vault。下述“存活”仅指明确列出的门。
