@@ -1236,7 +1236,11 @@ def main():
             # 之间开一个新的撕裂窗 (runner/Web 都可能正在换它), 于是 tie-break
             # 记录与完成账可能来自两个不同版本的 state。
             _st = json.loads(Path(args.state).read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
+        # ⚠ Codex round-1 M2: 捕 ValueError 而不是只捕 JSONDecodeError ——
+        # 非法字节 (如 0xff) 让 read_text 抛 UnicodeDecodeError, 它同是
+        # ValueError 的子类但不是 JSONDecodeError, 漏网就是整轮生成崩掉。
+        # 自本卡起 Web 手动刷新也走这条路, 一个坏字节能打死刷新按钮。
+        except (ValueError, OSError):
             pass  # state 损坏由 runner 处置, 选点侧降级为无记录
         else:
             # 顶层非 dict (如 "[]") 从前会在 .get 上抛 AttributeError 逃逸成

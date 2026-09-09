@@ -472,6 +472,10 @@ function renderBoardDoneResult(status, board, payload) {
 function renderBoardUndoneResult(status, board, payload) {
   // 与 renderBoardDoneResult 同纪律: 结局各有其形, 失败绝不长得像成功。
   // 成功文案不预告"它回到待做区了" —— 那要等下一轮 GET 把 board_done 带回来。
+  // already_undone 单独说 (Codex round-1 第 5 问): 「撤掉了一条」与「本来就
+  // 没有」在服务端是两个结果, 页面上说成同一句话, 板名打错就无从察觉。
+  if (status === 200 && payload && payload.already_undone === true)
+    return '<span class="rnote ok">「' + esc(board) + '」今天本来就没有完成标记</span>';
   if (status === 200) return '<span class="rnote ok">↩︎ 已撤销「' + esc(board) +
     '」今天的完成标记</span>';
   let detail = "";

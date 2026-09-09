@@ -2259,35 +2259,39 @@ def _write_board_done(vault_dir: Path, vaults_root: Path, board: str, day: str) 
     state_file = runner.state_path(vault_dir)
     with _board_done_locks_guard:
         lock = _board_done_locks.setdefault(str(state_file), threading.Lock())
-    with lock, runner.state_locked(vault_dir):
-        st = runner.load_state(vault_dir)
-        done = st.setdefault("board_done", {})
-        done[board] = day
-        # 形态已含 v2 键 → 声明版本同步前进 (load_state 的同一条单调规则)
-        declared = st.get("schema_version")
-        if not isinstance(declared, int) or declared < runner.STATE_SCHEMA_VERSION:
-            st["schema_version"] = runner.STATE_SCHEMA_VERSION
-        try:
+    try:
+        # ⚠ Codex round-1 M1: 取锁本身也在 try 里 —— mkdir/open 失败 (backups 被
+        # 文件占位、锁文件不可写、锁路径是软链被 O_NOFOLLOW 拒) 都是 OSError,
+        # 它们发生在 save_state 之前, 漏在 try 外就成了 500 裸 traceback,
+        # 表单路径连动作专属错误页都拿不到。BASE 上这些情形返回的是 503。
+        with lock, runner.state_locked(vault_dir):
+            st = runner.load_state(vault_dir)
+            done = st.setdefault("board_done", {})
+            done[board] = day
+            # 形态已含 v2 键 → 声明版本同步前进 (load_state 的同一条单调规则)
+            declared = st.get("schema_version")
+            if not isinstance(declared, int) or declared < runner.STATE_SCHEMA_VERSION:
+                st["schema_version"] = runner.STATE_SCHEMA_VERSION
             runner.save_state(st, vault_dir)
-        except OSError as e:
-            # CARD-G6-7: save_state 的 mkdir / open / write / os.replace **四段任一**
-            # 失败都落到这里 —— 那是**拒绝写出去**, 是本端点的正常失败态, 不该逃逸成
-            # 500 裸 traceback。
-            # ⚠ round-2 整改: 原文案把因果写死成「临时件路径异常」, 于是磁盘写满 /
-            # backups 只读 / 超配额 (ENOSPC/EROFS/EDQUOT, 全是裸 OSError) 都被指向
-            # "去查软链"这个错方向; 且 FileExistsError 在「backups 被文件占位」与
-            # 「tmp 被抢先建成软链」两个不相干根因下报文逐字节相同。改回本文件其余
-            # 6 处 OSError 一贯的 `类名: 详情` 形态 —— errno 与出错路径都在 str(e) 里。
-            # 「未写出任何内容」这半句是承重的且全分支为真: 写失败即 unlink tmp,
-            # os.replace 原子, state 与节点 md 逐字节不动。
-            logger.warning("board-done 落账失败", vault=vault_dir.name, error=repr(e))
-            raise HTTPException(
-                status_code=503,
-                detail={
-                    "error": "state_write_refused",
-                    "message": f"完成账落盘被拒绝 ({type(e).__name__}: {str(e)[:200]}) —— 未写出任何内容",
-                },
-            )
+    except OSError as e:
+        # CARD-G6-7: save_state 的 mkdir / open / write / os.replace **四段任一**
+        # 失败都落到这里 —— 那是**拒绝写出去**, 是本端点的正常失败态, 不该逃逸成
+        # 500 裸 traceback。CARD-G6-7-R 起取锁的 mkdir/open 失败同样落这里。
+        # ⚠ round-2 整改: 原文案把因果写死成「临时件路径异常」, 于是磁盘写满 /
+        # backups 只读 / 超配额 (ENOSPC/EROFS/EDQUOT, 全是裸 OSError) 都被指向
+        # "去查软链"这个错方向; 且 FileExistsError 在「backups 被文件占位」与
+        # 「tmp 被抢先建成软链」两个不相干根因下报文逐字节相同。改回本文件其余
+        # 6 处 OSError 一贯的 `类名: 详情` 形态 —— errno 与出错路径都在 str(e) 里。
+        # 「未写出任何内容」这半句是承重的且全分支为真: 写失败即 unlink tmp,
+        # os.replace 原子, state 与节点 md 逐字节不动。
+        logger.warning("board-done 落账失败", vault=vault_dir.name, error=repr(e))
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "state_write_refused",
+                "message": f"完成账落盘被拒绝 ({type(e).__name__}: {str(e)[:200]}) —— 未写出任何内容",
+            },
+        )
     return state_file
 
 
@@ -2319,6 +2323,23 @@ def _extra_allowed_hosts() -> frozenset[str]:
     return frozenset(out)
 
 
+def _assert_board_name(board: str) -> None:
+    """板名长度门 —— 两个写侧端点共用这一个实现。
+
+    ⚠ CARD-G6-7-R (Codex round-1 第 5 问): 此前两处各写一份判断与错误体, 只共享
+    _BOARD_NAME_MAX 一个常量, 自述里却称"三道门都是复用"。两份 422 报文会漂移,
+    自述也就名实不符 (DD-13)。
+    """
+    if not board or len(board) > _BOARD_NAME_MAX:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": "board_invalid",
+                "message": f"board 必须是 1..{_BOARD_NAME_MAX} 字符的白板名 (实为 {len(board)} 字符)",
+            },
+        )
+
+
 def _write_board_undone(vault_dir: Path, vaults_root: Path, board: str) -> tuple[Path, bool]:
     """把「这块板的完成记录」撤掉, 返回 (被写的 state 文件, 本来就没有)。
 
@@ -2334,36 +2355,40 @@ def _write_board_undone(vault_dir: Path, vaults_root: Path, board: str) -> tuple
     答成功 —— 所以 already_undone 单独出现在响应里, 调用方分得出
     "撤掉了一条"与"本来就没有"。
 
-    ⚠ 本来就没有时**不落盘**: 一次无事可做的撤销不该改写 state (mtime 与
-    字节都不动), 否则每点一次都在跟 runner 的 :05 档抢一次锁。
+    ⚠ 本来就没有时**不改写 state**: 一次无事可做的撤销不该动 state 的字节与
+    mtime, 否则每点一次都在跟 runner 的 :05 档抢一次发布。
+    说"不落盘"要收窄到 state 本身 (Codex round-1 第 5 问): 这条路仍会创建那把
+    锁文件, 且若 state 当时是损坏的, load_state 照旧把它改名隔离 —— 两者都不是
+    完成账的内容写入, 但确实动了盘。
     """
     runner = _require_runner(vaults_root)
     state_file = runner.state_path(vault_dir)
     with _board_done_locks_guard:
         lock = _board_done_locks.setdefault(str(state_file), threading.Lock())
-    with lock, runner.state_locked(vault_dir):
-        st = runner.load_state(vault_dir)
-        done = st.setdefault("board_done", {})
-        if board not in done:
-            return state_file, True
-        done.pop(board, None)
-        declared = st.get("schema_version")
-        if not isinstance(declared, int) or declared < runner.STATE_SCHEMA_VERSION:
-            st["schema_version"] = runner.STATE_SCHEMA_VERSION
-        try:
+    try:
+        # 取锁也在 try 内 (Codex round-1 M1, 与 _write_board_done 同款)
+        with lock, runner.state_locked(vault_dir):
+            st = runner.load_state(vault_dir)
+            done = st.setdefault("board_done", {})
+            if board not in done:
+                return state_file, True
+            done.pop(board, None)
+            declared = st.get("schema_version")
+            if not isinstance(declared, int) or declared < runner.STATE_SCHEMA_VERSION:
+                st["schema_version"] = runner.STATE_SCHEMA_VERSION
             runner.save_state(st, vault_dir)
-        except OSError as e:
-            # 与 board-done 同款: mkdir / open / write / os.replace 四段任一失败
-            # 都是**拒绝写出去**, 是正常失败态而不是 500 裸 traceback。
-            # 「未写出任何内容」全分支为真: 写失败即 unlink tmp, os.replace 原子。
-            logger.warning("board-undone 落账失败", vault=vault_dir.name, error=repr(e))
-            raise HTTPException(
-                status_code=503,
-                detail={
-                    "error": "state_write_refused",
-                    "message": f"撤销落盘被拒绝 ({type(e).__name__}: {str(e)[:200]}) —— 未写出任何内容",
-                },
-            )
+    except OSError as e:
+        # 与 board-done 同款: 取锁的 mkdir/open 与 save_state 的四段任一失败
+        # 都是**拒绝写出去**, 是正常失败态而不是 500 裸 traceback。
+        # 「未写出任何内容」全分支为真: 写失败即 unlink tmp, os.replace 原子。
+        logger.warning("board-undone 落账失败", vault=vault_dir.name, error=repr(e))
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "state_write_refused",
+                "message": f"撤销落盘被拒绝 ({type(e).__name__}: {str(e)[:200]}) —— 未写出任何内容",
+            },
+        )
     return state_file, False
 
 
@@ -2632,14 +2657,7 @@ def review_overview_board_done(
     """
     try:
         _assert_same_origin(request)
-        if not board or len(board) > _BOARD_NAME_MAX:
-            raise HTTPException(
-                status_code=422,
-                detail={
-                    "error": "board_invalid",
-                    "message": f"board 必须是 1..{_BOARD_NAME_MAX} 字符的白板名 (实为 {len(board)} 字符)",
-                },
-            )
+        _assert_board_name(board)
         day = _display_today()
         if not day:
             # _display_day 在年份极值下返回 None —— 拿不到"今天"就没有可写的账,
@@ -2693,10 +2711,10 @@ def review_overview_board_undone(
     让给了别人, 而唯一的恢复途径是**等到明天**。一天太久了, 何况手滑是最
     常见的那种错。
 
-    三道写侧门与 board-done 完全同源 (复用不复制 —— 复制一份 = 两份会漂移):
+    三道写侧门与 board-done 是**同一个函数**, 不是各写一份 (两份必然漂移):
       _assert_same_origin              跨站表单 CSRF;
       _assert_write_target_contained   (在 _refresh_target 内) 软链逃逸;
-      _BOARD_NAME_MAX                  超长板名 422。
+      _assert_board_name               空 / 超长板名 422。
     失败一律回原样 4xx/5xx —— 表单路径渲染人话错误页, 状态码不粉饰。
 
     本动作**不需要**「今天」: 完成账按 {board: 日期} 存, 撤销是按板名摘键。
@@ -2707,14 +2725,7 @@ def review_overview_board_undone(
     """
     try:
         _assert_same_origin(request)
-        if not board or len(board) > _BOARD_NAME_MAX:
-            raise HTTPException(
-                status_code=422,
-                detail={
-                    "error": "board_invalid",
-                    "message": f"board 必须是 1..{_BOARD_NAME_MAX} 字符的白板名 (实为 {len(board)} 字符)",
-                },
-            )
+        _assert_board_name(board)
         vault_dir, _script = _refresh_target(vault_id)
         s = get_settings()
         vaults_root = Path(s.VAULTS_ROOT).resolve()

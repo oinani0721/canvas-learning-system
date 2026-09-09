@@ -2329,3 +2329,12 @@ def test_g67r_main_state_corrupt_degrades_like_no_state(tmp_path, monkeypatch, c
     missing = tmp_path / "根本不存在.json"
     out = _run_cli(monkeypatch, capsys, vault, missing)
     assert out["top_boards"] == baseline["top_boards"]
+
+    # ⚠ Codex round-1 M2: 非法字节让 read_text 抛 UnicodeDecodeError —— 它同是
+    # ValueError 的子类但**不是** JSONDecodeError, 只捕后者就漏网, 整轮生成崩掉。
+    # 自本卡起 Web 手动刷新也走这条路, 一个坏字节能打死刷新按钮。
+    binary = tmp_path / f"nonutf8-{next(_seq)}.json"
+    binary.write_bytes(b'{"board_done": {"\xff\xfe": "x"}}')
+    out = _run_cli(monkeypatch, capsys, vault, binary)
+    for key in ("top_boards", "boards", "buckets", "stats", "due_nodes"):
+        assert out[key] == baseline[key], f"非 UTF-8 的 state 改变了 {key}"

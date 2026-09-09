@@ -84,8 +84,13 @@ def state_path(vault: Path | None = None) -> Path:
 def load_state(vault: Path | None = None) -> dict:
     state = state_path(vault)
     if not state.exists():
-        _remember_base(state, None)  # 无快照 ⇒ save_state 整写 (合并律的缺席分支)
-        return {"schema_version": STATE_SCHEMA_VERSION, "board_last_recommended": {}, "board_done": {}}
+        fresh = {"schema_version": STATE_SCHEMA_VERSION, "board_last_recommended": {}, "board_done": {}}
+        # ⚠ Codex round-1 H2: base 记这份**默认值本身**而不是 None。文件当时不
+        # 存在, 我手上这几个键全是构造出来的默认值 —— 不是我改的。窗口内别人
+        # 新建了文件并写进真账时, 那些账必须以磁盘为准; 记 None 会让 save_state
+        # 走整写分支, 把别人刚建的账连读都不读就抹掉。
+        _remember_base(state, fresh)
+        return fresh
     try:
         st = json.loads(state.read_text(encoding="utf-8"))
         # Codex-D2b M1: 合法 JSON 但结构错型 (顶层非 dict / 账本非 dict) 与
@@ -97,10 +102,6 @@ def load_state(vault: Path | None = None) -> dict:
         # 在半路炸成 500, 而不是像本文件其余部分那样诚实地隔离重建。
         if not isinstance(st.get("board_done", {}), dict):
             raise ValueError("state 结构错型 (board_done)")
-        # CARD-G6-7-R: 快照取在**归一化之前** —— setdefault 与升版都算"本进程
-        # 改过", 这样旧文件的空账才不会被别人窗口内写的账压掉的反面: 是我们
-        # 自己补的键, 该以我们为准。
-        _remember_base(state, st)
         st.setdefault("board_last_recommended", {})
         st.setdefault("board_done", {})
         # 形态已是 v2 (上一行保证 board_done 恒在) → 声明版本随之前进, 单调
@@ -108,6 +109,12 @@ def load_state(vault: Path | None = None) -> dict:
         declared = st.get("schema_version")
         if not isinstance(declared, int) or declared < STATE_SCHEMA_VERSION:
             st["schema_version"] = STATE_SCHEMA_VERSION
+        # ⚠ Codex round-1 H1: 快照取在**归一化之后**。初版取在之前, 于是
+        # setdefault 补出来的空 board_done 算成"本进程改过", 一个 v1 文件下
+        # runner 的空账就有权覆盖窗口内 Web 刚写成功的完成记录 —— 加性升版
+        # 反倒删掉了一次用户操作。补出来的默认值不是"我的修改"。
+        # (schema_version 因此也成了"我没改过", 由合并末尾的单调取大兜住。)
+        _remember_base(state, st)
         return st
     except (json.JSONDecodeError, OSError, ValueError):
         quarantine = state.with_name(state.name + ".corrupt-" + datetime.now().strftime("%Y%m%dT%H%M%S"))
@@ -116,8 +123,9 @@ def load_state(vault: Path | None = None) -> dict:
         except OSError:
             pass
         print(f"[runner] state 损坏, 已隔离到 {quarantine.name}, 重建", file=sys.stderr)
-        _remember_base(state, None)  # 原文件已被改名走, 没有可合并的 base
-        return {"schema_version": STATE_SCHEMA_VERSION, "board_last_recommended": {}, "board_done": {}}
+        fresh = {"schema_version": STATE_SCHEMA_VERSION, "board_last_recommended": {}, "board_done": {}}
+        _remember_base(state, fresh)  # 同缺文件分支 (H2): 重建出来的默认值不是"我改的"
+        return fresh
 
 
 #: state 的跨进程写锁 (CARD-G6-7-R)。**文件**锁, 与 push.sh 的 mkdir **目录**
@@ -196,7 +204,14 @@ def state_locked(vault: Path | None = None):
         else:
             lock = state_lock_path(vault)
             lock.parent.mkdir(parents=True, exist_ok=True)
-            fd = os.open(lock, os.O_RDWR | os.O_CREAT, 0o644)
+            # ⚠ Codex round-1 H3: O_NOFOLLOW 与 save_state 的 tmp 同款理由。
+            # 不加的话, 事先把 <state>.lock 摆成一条软链就能同时做到两件事:
+            # ① 指向 state.json 本身 ⇒ 锁 fd 与 state 同 inode, load_state 的
+            #    读盘 close 会把整个进程在该 inode 上的记录锁一起释放 (POSIX
+            #    记录锁按进程×文件), 而登记表还以为锁在;
+            # ② 指向库内一个尚不存在的节点路径 ⇒ O_CREAT 会在库里创建文件,
+            #    破掉"完成账不写 vault"这条写面承诺。
+            fd = os.open(lock, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o644)
             try:
                 fcntl.lockf(fd, fcntl.LOCK_EX)
             except BaseException:
@@ -277,6 +292,12 @@ def _merge_state_with_disk(mine: dict, state: Path) -> dict:
             merged[k] = theirs[k]
         elif in_mine:
             merged[k] = mine[k]
+    # schema_version 单调不回退 (与 load_state 同一条规则)。它是**形态声明**不是
+    # 业务数据, "谁动过谁说了算"对它不适用: base 记的是归一化之后的值 (H1 修法),
+    # 于是升版本身成了"我没改过", 不特判就会被磁盘上更旧的声明拉回去。取两侧较大者。
+    versions = [v for v in (mine.get("schema_version"), theirs.get("schema_version")) if isinstance(v, int)]
+    if versions:
+        merged["schema_version"] = max(versions)
     return merged
 
 

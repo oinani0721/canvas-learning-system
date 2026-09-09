@@ -3721,6 +3721,32 @@ def test_g67r_board_undone_reuses_the_same_three_write_gates(board_done_env, tmp
     assert state_file.read_bytes() == settled
 
 
+def test_g67r_lock_acquisition_failure_is_503_not_500(board_done_env, monkeypatch):
+    """(d) Codex round-1 M1: 取锁阶段的 OSError 也要翻成 503, 不能逃逸成 500。
+
+    取锁的 mkdir / open 发生在 save_state **之前**。初版把 state_locked 放在
+    try 之外, 于是 backups 被普通文件占位、锁不可写、锁路径是软链被 O_NOFOLLOW
+    拒 —— 这几种都从 503 state_write_refused 退化成 500 裸 traceback,
+    零 JS 表单路径连动作专属错误页都拿不到。BASE 上这些情形返回的是 503。
+    """
+    root, client, runner, _mod = board_done_env
+    _mk_node_vault(root, "vault-lockfail", {"甲": _node_md()})
+    # backups 被一个**普通文件**占位 ⇒ mkdir(parents=True) 抛 FileExistsError
+    blocked = Path(root) / "backups-占位"
+    blocked.write_text("我不是目录", encoding="utf-8")
+    monkeypatch.setattr(runner, "BACKUPS", blocked / "sub")
+
+    for url, label in ((_BOARD_DONE_URL, "标记完成"), (_BOARD_UNDONE_URL, "取消完成")):
+        resp = client.post(url, data={"vault_id": "vault-lockfail", "board": "CS 61B"})
+        assert resp.status_code == 503, f"{label}: 取锁失败必须 503 而不是 500, 实为 {resp.status_code}"
+        assert resp.json()["detail"]["error"] == "state_write_refused"
+        form = client.post(
+            url, data={"vault_id": "vault-lockfail", "board": "CS 61B", "redirect": "page"}, follow_redirects=False
+        )
+        assert form.status_code == 503
+        assert f"{label}失败" in form.text, f"错误页说的必须是{label}这个动作"
+
+
 def test_g67r_board_undone_zero_js_form_path(board_done_env):
     """(d) 零 JS 表单路径: 成功 303 回本页; 失败渲染的错误页说的是**这个**动作。
 
