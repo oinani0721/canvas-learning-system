@@ -279,16 +279,19 @@ class TestSpecialCharacterGroupId:
             # 「把值内联进文本**同时**把该参数从 kwargs 里删掉」——两边都没了反而通过。
             # 对本用例真正要守的那个量（limit）用正面形式表达：**凡是带 LIMIT 的查询，
             # 就必须绑 $limit**。合法的分步 count 查询没有 LIMIT，不受此条约束。
-            # ── 结构性判据（round-7：前面所有「枚举式」判据的共同上位）──────────
-            # 前六轮的判据都在**枚举**：先枚举参数名（r2/r5 被换个参数破），再枚举输入值
-            # （r7 被「拆成两半在文本里拼接」「大小写变形」「只内联子串」破）。
-            # 枚举永远追不上变形。下面两条改为**结构性**表述，不枚举任何东西：
+            # ── S1 / S2：两条**启发式探针**（round-9 统一文案；此前自称「结构性判据」已被证伪）
+            # 演化史（每一层都被下一轮换个写法绕开）：
+            #   枚举参数名（r2/r5 破）→ 枚举输入值（r7 破）→ 枚举语法形态（r8 破 S1 前提）。
+            # ⛔ **它们不是「全参数化」的证明**：round-8 给出纯原生反例
+            #    `head(keys({a:0})) + head(keys({b:0}))`——无引号、无完整输入值即可拼出用户串
+            #    （map 的键是标识符，`keys()` 把它变成字符串）。该输入至今仍漏过，已登记。
+            #    真正判定需 Cypher 解析器级判据，属另一张卡（见验收单台账）。
+            # ✅ 它们**能**挡住的：带引号的内联（单/双引号、拆分拼接、大小写变形）、
+            #    分页整数内联（`LIMIT 5` / `(5)` / `toInteger(5)` / `SKIP 5`）。
             #
-            #   S1  查询文本里不得出现内联的单引号字符串字面量。
-            #       依据：要把任何用户可控的**字符串**拼进 Cypher，就必须给它加引号；
-            #       反过来，一条完全参数化的查询根本不需要内联字符串。
-            #       现行生产查询实测 `'…'` 字面量数为 0（本条不是凭空收紧）。
-            #   S2  每个 LIMIT 子句的表达式里必须出现 `$` 参数引用。
+            #   S1  查询文本里不得出现内联字符串字面量（单双引号都算）。
+            #       现行生产查询实测字面量数 = 0（本条不是凭空收紧）。
+            #   S2  每个 LIMIT / SKIP 子句的表达式里必须出现 `$` 参数引用。
             #       依据：`LIMIT 5` / `LIMIT (5)` / `LIMIT toInteger(5)` 都是把分页值内联，
             #       而 `LIMIT $limit` / `LIMIT toInteger($limit)` 都带 `$`。
             #       round-6 用的 `\bLIMIT\s+\d` 被 `LIMIT (5)` 与 `LIMIT toInteger(5)` 绕过。
@@ -305,8 +308,9 @@ class TestSpecialCharacterGroupId:
             # 与「按输入值查」那条（送 round-8 前自测抓到）。
             _literals = re.findall(r"'[^']*'|\"[^\"]*\"", _query_no_comments)
             assert not _literals, (
-                "查询文本里出现内联字符串字面量。⚠️ 本条是**启发式**不是全参数化的证明"
-                "（round-8 已给出无引号构造字符串的原生反例），但它能挡住带引号的内联形态。"
+                "查询文本里出现内联字符串字面量。⚠️ 本条是**启发式**、不是全参数化的证明"
+                "（round-8 已给出无引号拼出用户串的原生反例，至今仍漏过、已登记），"
+                "但它能挡住带引号的内联形态。"
                 f"literals={_literals} query={query_str!r}"
             )
 
@@ -320,11 +324,27 @@ class TestSpecialCharacterGroupId:
             # ⚠️ `(?<!\$)` 不可省：`$limit` 里的 "limit" 前面是 `$`（非词字符），`\b` 照样成立，
             #    不排除会把 `LIMIT $limit` 当成两个子句（本车道自测时被真实生产查询红出来）。
             _scan = re.sub(r"`[^`]*`", " ", _query_no_comments)   # 反引号标识符挖空
-            _CLAUSE = r"LIMIT|SKIP|RETURN|ORDER|WITH|MATCH|WHERE|UNION|CALL|UNWIND|CREATE|MERGE|DELETE|SET"
+            # ⚠️ `}` 不能一律当边界（round-9 MEDIUM）：`LIMIT size(keys({})) + $limit` 里的
+            #    `}` 是 **map 字面量**的收尾，把它当边界会在空 map 处截断 ⇒ 误报合法分页。
+            #    改为跟踪**花括号深度**：只有让深度低于子句起点的 `}`（即收掉外层子查询）才算边界。
+            # ⚠️ `FOREACH` 也要进边界集（round-9 MEDIUM）：`WITH e LIMIT 5 FOREACH (v IN [$limit] …)`
+            #    里外层的 `$limit` 会被算进内层分页片段。
+            _CLAUSE = (r"LIMIT|SKIP|RETURN|ORDER|WITH|MATCH|WHERE|UNION|CALL|UNWIND"
+                       r"|CREATE|MERGE|DELETE|SET|FOREACH|DETACH|REMOVE")
             for _m in re.finditer(r"(?<!\$)\b(LIMIT|SKIP)\b", _scan, flags=re.I):
                 _rest = _scan[_m.end():]
-                _nxt = re.search(rf"(?<!\$)\b(?:{_CLAUSE})\b|\}}", _rest, flags=re.I)
-                _expr = _rest[: _nxt.start()] if _nxt else _rest
+                _kw = re.search(rf"(?<!\$)\b(?:{_CLAUSE})\b", _rest, flags=re.I)
+                _end = _kw.start() if _kw else len(_rest)
+                _depth = 0
+                for _i, _ch in enumerate(_rest[:_end]):
+                    if _ch == "{":
+                        _depth += 1
+                    elif _ch == "}":
+                        if _depth == 0:      # 收掉的是子句外层的 `{`（子查询）⇒ 才是边界
+                            _end = _i
+                            break
+                        _depth -= 1
+                _expr = _rest[:_end]
                 assert "$" in _expr, (
                     f"{_m.group(1).upper()} 子句里没有 `$` 参数引用，说明分页值被内联进了文本。"
                     f"expr={_expr!r} query={query_str!r}"
