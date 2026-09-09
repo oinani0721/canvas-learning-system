@@ -13,6 +13,7 @@ AC-30.24.5: Unicode concept name test
 
 import json
 import os
+import re
 import time
 from datetime import datetime
 from pathlib import Path
@@ -181,72 +182,80 @@ class TestSpecialCharacterGroupId:
             user_id="test_user", limit=5, group_id=malicious_group_id
         )
 
-        call_args = client.run_query.call_args
-        # Verify group scope is passed as named parameters (not interpolated into query).
-        #
-        # 契约演进（4db8e94a 2026-08-30 CARD-G4-1a + 88cb13a7 2026-08-31 读侧收口）：
-        # 读侧统一走 app.core.vault_scope.read_scope_params()，绑定参数由单个
-        # `groupId`（原样透传）改为 `group_id` + `group_prefix` 两个键，且值经
-        # to_physical_group_id() 物理化。所以「kwargs 里有 groupId 且逐字等于原串」
-        # 这个旧断言必然红——被断言的是已被替换的参数命名/值形态，不是安全性本身。
-        all_kwargs = call_args.kwargs if call_args.kwargs else {}
-        assert "groupId" not in all_kwargs, (
-            f"旧参数名 groupId 复活了（读侧应只用 group_id/group_prefix）。kwargs={sorted(all_kwargs)}"
-        )
-        assert {"group_id", "group_prefix"} <= set(all_kwargs), (
-            f"group scope 未以命名参数传入。kwargs={sorted(all_kwargs)}"
-        )
-        # 期望值现算而非硬编码结果串：硬编码会在物理化规则变化时**静默通过**。
-        # ⚠️ 但这带来一处同源盲区（Codex round-1 MEDIUM，已登记不修）：期望值与生产
-        # 走**同一个** to_physical_group_id，若该 helper 本身恒返回同一个串，两边会
-        # 同步变化、本条发现不了。独立重实现物理化规则 = 在测试里复制一份生产逻辑，
-        # 且本卡禁改 backend/app ⇒ 如实登记。两种写法各有盲区，此处选的是这一种。
-        expected_physical = to_physical_group_id(malicious_group_id)
-        assert all_kwargs["group_id"] == expected_physical, (
-            f"group_id 未物理化。got={all_kwargs['group_id']!r} want={expected_physical!r}"
-        )
-        assert all_kwargs["group_prefix"] == expected_physical + "__", (
-            f"group_prefix 应为物理组 + '__' 定界符。got={all_kwargs['group_prefix']!r}"
-        )
-
-        # ── 安全内核（本条用例的真正意义，不得删除或放宽）────────────────────
-        # Verify the Cypher query string does NOT contain raw malicious input
-        query_str = call_args.args[0] if call_args.args else ""
-        assert malicious_group_id not in query_str, (
-            "Malicious input found in query string — possible Cypher injection!"
-        )
-        # 物理化后的值同样不得被拼进查询文本——它必须始终以参数形式传递。
-        # （只查原始串是不够的：若实现改成把物理化结果 f-string 进查询，原始串
-        #  确实不在文本里，但注入面又回来了。）
-        for _k, _v in all_kwargs.items():
-            if isinstance(_v, str) and _v:
-                assert _v not in query_str, (
-                    f"参数 {_k} 的值被拼进了查询文本，应作为绑定参数传递"
-                )
-        # 上面那条循环只覆盖非空字符串值（Codex round-1 LOW）：若实现把 limit=5 写死成
-        # `LIMIT 5` 却照旧把 limit 传进 kwargs，字符串检查发现不了。对非字符串值直接查
-        # `str(_v) in query_str` 会误报（查询里出现数字 5 的正当写法很多），故改用**正面**
-        # 形式表达同一主张：每个绑定参数都必须在查询文本里以 `$name` 占位符被引用——
-        # 值一旦被内联进文本，对应占位符就会消失，这条立即红。
-        # Codex round-2 LOW 指出前一版的两个漏过面：
-        #   (a) 只按 kwargs 逐个查占位符 —— 把 `limit=5` 内联成 `LIMIT 5` **同时删掉**
-        #       limit kwarg，检查集合跟着缩小，两边都没了反而通过；
-        #   (b) `LIMIT 5 // $limit` 这类注释里的占位符也能满足子串检查。
-        # 故改成两条：先钉死**期望的参数集**（不随实现缩小），再在**去掉 // 行注释**
-        # 的查询文本里查占位符。
-        EXPECTED_BOUND_PARAMS = {"userId", "limit", "group_id", "group_prefix"}
-        assert set(all_kwargs) == EXPECTED_BOUND_PARAMS, (
-            f"绑定参数集变了。got={sorted(all_kwargs)} want={sorted(EXPECTED_BOUND_PARAMS)}；"
-            "少一个通常意味着该值被内联进了查询文本"
-        )
-        _query_no_comments = "\n".join(
-            line.split("//", 1)[0] for line in query_str.splitlines()
-        )
-        for _k in EXPECTED_BOUND_PARAMS:
-            assert f"${_k}" in _query_no_comments, (
-                f"参数 {_k} 没有对应的 ${_k} 占位符（已排除 // 注释），"
-                f"说明它的值可能被内联进了查询文本。query={query_str!r}"
+        # ⚠️ Codex round-3 LOW（本轮新发现的既有盲区）：原来只取 `call_args`（**最后一次**
+        # 调用），先发一条含恶意原串的查询、再发一条干净的参数化查询就能全绿。
+        # 改为逐条审**全部** run_query 调用；断言在每一条上都必须成立。
+        assert client.run_query.call_args_list, "run_query 一次都没被调用"
+        for call_args in client.run_query.call_args_list:
+            # Verify group scope is passed as named parameters (not interpolated into query).
+            #
+            # 契约演进（4db8e94a 2026-08-30 CARD-G4-1a + 88cb13a7 2026-08-31 读侧收口）：
+            # 读侧统一走 app.core.vault_scope.read_scope_params()，绑定参数由单个
+            # `groupId`（原样透传）改为 `group_id` + `group_prefix` 两个键，且值经
+            # to_physical_group_id() 物理化。所以「kwargs 里有 groupId 且逐字等于原串」
+            # 这个旧断言必然红——被断言的是已被替换的参数命名/值形态，不是安全性本身。
+            all_kwargs = call_args.kwargs if call_args.kwargs else {}
+            assert "groupId" not in all_kwargs, (
+                f"旧参数名 groupId 复活了（读侧应只用 group_id/group_prefix）。kwargs={sorted(all_kwargs)}"
             )
+            assert {"group_id", "group_prefix"} <= set(all_kwargs), (
+                f"group scope 未以命名参数传入。kwargs={sorted(all_kwargs)}"
+            )
+            # 期望值现算而非硬编码结果串：硬编码会在物理化规则变化时**静默通过**。
+            # ⚠️ 但这带来一处同源盲区（Codex round-1 MEDIUM，已登记不修）：期望值与生产
+            # 走**同一个** to_physical_group_id，若该 helper 本身恒返回同一个串，两边会
+            # 同步变化、本条发现不了。独立重实现物理化规则 = 在测试里复制一份生产逻辑，
+            # 且本卡禁改 backend/app ⇒ 如实登记。两种写法各有盲区，此处选的是这一种。
+            expected_physical = to_physical_group_id(malicious_group_id)
+            assert all_kwargs["group_id"] == expected_physical, (
+                f"group_id 未物理化。got={all_kwargs['group_id']!r} want={expected_physical!r}"
+            )
+            assert all_kwargs["group_prefix"] == expected_physical + "__", (
+                f"group_prefix 应为物理组 + '__' 定界符。got={all_kwargs['group_prefix']!r}"
+            )
+
+            # ── 安全内核（本条用例的真正意义，不得删除或放宽）────────────────────
+            # Verify the Cypher query string does NOT contain raw malicious input
+            query_str = call_args.args[0] if call_args.args else ""
+            assert malicious_group_id not in query_str, (
+                "Malicious input found in query string — possible Cypher injection!"
+            )
+            # 物理化后的值同样不得被拼进查询文本——它必须始终以参数形式传递。
+            # （只查原始串是不够的：若实现改成把物理化结果 f-string 进查询，原始串
+            #  确实不在文本里，但注入面又回来了。）
+            for _k, _v in all_kwargs.items():
+                if isinstance(_v, str) and _v:
+                    assert _v not in query_str, (
+                        f"参数 {_k} 的值被拼进了查询文本，应作为绑定参数传递"
+                    )
+            # 上面那条循环只覆盖非空字符串值（Codex round-1 LOW）：若实现把 limit=5 写死成
+            # `LIMIT 5` 却照旧把 limit 传进 kwargs，字符串检查发现不了。对非字符串值直接查
+            # `str(_v) in query_str` 会误报（查询里出现数字 5 的正当写法很多），故改用**正面**
+            # 形式表达同一主张：每个绑定参数都必须在查询文本里以 `$name` 占位符被引用——
+            # 值一旦被内联进文本，对应占位符就会消失，这条立即红。
+            # Codex round-2 LOW 指出前一版的两个漏过面：
+            #   (a) 只按 kwargs 逐个查占位符 —— 把 `limit=5` 内联成 `LIMIT 5` **同时删掉**
+            #       limit kwarg，检查集合跟着缩小，两边都没了反而通过；
+            #   (b) `LIMIT 5 // $limit` 这类注释里的占位符也能满足子串检查。
+            # 故改成两条：先钉死**期望的参数集**（不随实现缩小），再在**去掉 // 行注释**
+            # 的查询文本里查占位符。
+            EXPECTED_BOUND_PARAMS = {"userId", "limit", "group_id", "group_prefix"}
+            assert set(all_kwargs) == EXPECTED_BOUND_PARAMS, (
+                f"绑定参数集变了。got={sorted(all_kwargs)} want={sorted(EXPECTED_BOUND_PARAMS)}；"
+                "少一个通常意味着该值被内联进了查询文本"
+            )
+            # 行注释 // 与块注释 /* */ 都要剥（Codex round-3 LOW：`LIMIT 5 /* $limit */`
+            # 能骗过只剥 // 的版本）。⚠️ 如实声明：剥注释只堵掉「占位符藏在注释里」这一面，
+            # 仍**不能**证明该参数真的参与了查询语义（例如 `$limit` 写在一个无用表达式里）。
+            _stripped = re.sub(r"/\*.*?\*/", " ", query_str, flags=re.S)
+            _query_no_comments = "\n".join(
+                line.split("//", 1)[0] for line in _stripped.splitlines()
+            )
+            for _k in EXPECTED_BOUND_PARAMS:
+                assert f"${_k}" in _query_no_comments, (
+                    f"参数 {_k} 没有对应的 ${_k} 占位符（已排除 // 注释），"
+                    f"说明它的值可能被内联进了查询文本。query={query_str!r}"
+                )
 
 
 # ============================================================================

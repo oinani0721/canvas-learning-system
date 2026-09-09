@@ -78,7 +78,7 @@ class TestDockerComposeVariableization:
             "/Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/logs:/logs",
             "/Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/plugins:/plugins",
         }
-        EXEMPT_PATH_PREFIX = ("services", "neo4j", "volumes")
+        EXEMPT_VOLUMES_PATH = ("services", "neo4j", "volumes")
         HARDCODED = re.compile(r"/Users/\w+/")
 
         # ── 轴一：内容（含注释行）────────────────────────────────────────────
@@ -92,6 +92,19 @@ class TestDockerComposeVariableization:
         ]
         assert not wrong_content, (
             f"Hardcoded user paths outside the 8a80595f neo4j exemption: {wrong_content}"
+        )
+
+        # 轴一.b（数量，也走原始文本）：每条豁免值在**全文**至多出现一次。
+        # ⚠️ 数量判据必须在文本层做，不能只数 YAML 解析后的值（Codex round-3 MEDIUM）：
+        # `<<:` 合并键 + 显式覆盖会让原文里出现两次的路径在解析结果里只剩一次甚至归零，
+        # 只数解析值时重复就被 safe_load 悄悄吃掉了。
+        duplicated_in_text = [
+            value
+            for value in GRANDFATHERED_MOUNT_VALUES
+            if sum(1 for line in offending_lines if line.lstrip("- ").strip() == value) > 1
+        ]
+        assert not duplicated_in_text, (
+            f"Exempted mount values appear more than once in the file text: {duplicated_in_text}"
         )
 
         # ── 轴二：位置（YAML 结构）──────────────────────────────────────────
@@ -114,22 +127,21 @@ class TestDockerComposeVariableization:
 
         _walk(compose, ())
 
+        # ⚠️ 深度必须**精确**是 4（services / neo4j / volumes / <序号>），不能只比前三段
+        # （Codex round-3 HIGH）：`path[:3]` 会把 volumes 元素的**后代字段**一并豁免，
+        # 于是长格式挂载 `- {type: bind, source: <获准串>, target: /other}` 的 source
+        # 落在 (services, neo4j, volumes, 0, "source")，前三段相同就放行了——
+        # 而它实际挂到了另一个 target，是一条**新的**主机路径挂载。
         misplaced = [
             (path, value)
             for path, value in located
-            if path[:3] != EXEMPT_PATH_PREFIX
+            if len(path) != 4
+            or path[:3] != EXEMPT_VOLUMES_PATH
             or value not in GRANDFATHERED_MOUNT_VALUES
         ]
         assert not misplaced, (
-            f"Hardcoded user paths outside services.neo4j.volumes: {misplaced}"
+            f"Hardcoded user paths outside services.neo4j.volumes[<i>]: {misplaced}"
         )
-
-        duplicated = [
-            value
-            for value in GRANDFATHERED_MOUNT_VALUES
-            if sum(1 for _p, v in located if v == value) > 1
-        ]
-        assert not duplicated, f"Exempted mount values used more than once: {duplicated}"
 
     def test_neo4j_ports_use_variables(self):
         dc = PROJECT_ROOT / "docker-compose.yml"
