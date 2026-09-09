@@ -20,7 +20,7 @@
 层 2 正文 grep   — 9 份 × 9 指标精确计数(`/tmp` 与 8011 各钉 all/ns **两端**)。
 层 3 scripts     — `skills/*/scripts/*.py` + `scripts/*.py` × 3 指标精确计数, **文件集合本身也钉**
                    (新增脚本 = 红, 逼人登记)。
-越界判据       — 每份 SKILL.md 的越界 `/tmp` normpath 多重集精确相等(见下方专段)。
+越界判据 v3    — 每份 SKILL.md 的越界 `/tmp` normpath **集合**精确相等(ast/shlex 真解析)。
 可疑行判据     — `/tmp` 与 `..` 或 `$` 同一**逻辑行**(续行/相邻字面量拼接已合并)的
                    行号集合精确相等 —— 不依赖 token 切分的兜底。
 
@@ -49,7 +49,7 @@
 只放行 `:-http://localhost:8011` 这一个缺省形态, `${X:-8011}` / `${X-8011}`(单破折号,
 语义不同: 只在**未定义**时用缺省, 空串时展开成空) 之类一律报红。
 
-## 第四条判据: 越界路径 (normpath, v2 引号感知)
+## 第四条判据: 越界路径 (normpath, v3 真解析)
 
 子串计数天生看不见路径语义。`/tmp/cls-exam/../x` 含 `/tmp/` 一次 + `/tmp/cls-exam/`
 一次 ⇒ 裸值 0 ⇒ **计数判据放行**, 而它规范化之后是 `/tmp/x`, 已经越出命名空间
@@ -59,10 +59,18 @@
   计数判据 —— 命中数变没变(与 shell 裁判逐字同源)
   越界判据 —— 命中的那个路径规范化后指向哪里
 
-r1→r4 每轮都出现新的切分绕过(逗号截断 → 冒充子串 → 白名单边界 → 跨行拼接 →
-**引号内的空格/开括号冒充** → 混合引号拼接 → 单行点号拼接), 根因是正则看不见
-引号上下文 ⇒ v2 改为**字面量原子化**: 引号内是一个整体; fence 内相邻字面量拼接组
-整组求值; 裸 token 沿用白名单边界正则。详见 `_TMP_TOKEN_RE` 上方 v2 注释。
+r1→r5 每轮都出现新的切分绕过(逗号截断 → 冒充子串 → 白名单边界 → 跨行拼接 →
+引号内空格/开括号冒充 → 混合引号/点号拼接 → **拼组遮蔽 / 三引号 / `\x2e` 转义 /
+`r` 前缀 / `+` 拼接 / shell 单引号 / `~~~` 围栏**)。根因始终是同一个:
+**手写切分器在模拟解析器, 而模拟得不够像**。
+
+v3 不再模拟, 直接调用真解析器: fence 整块试 `ast.parse`(隐式拼接在解析期就被折成
+单个 `Constant`, 三引号 / 前缀 / 转义全部还原; 显式 `+` 常量链另行折叠), 整块非
+Python 时逐行降级到单行 `ast` → `shlex.split(posix=True)`; 裸 token 正则始终再扫;
+散文只认 markdown backtick span。详见 `_FENCE_RE` 上方 v3 注释。
+
+**每个 `Constant` / shell 词是独立候选** ⇒ 不会像 v2 那样把两个函数参数拼成一串而
+互相遮蔽(r5 HIGH-1 是 v2 引入的回归, v3 一并消除)。
 
 ⚠️ 两条判据对同一输入可以给出**不同**结论, 那是分工不是矛盾: `/tmp/a/../cls-exam/z`
 在计数下报红(写法不是钦定形态), 在越界判据下放行(规范化后确实落在命名空间内)。
@@ -71,11 +79,13 @@ r1→r4 每轮都出现新的切分绕过(逗号截断 → 冒充子串 → 白�
 exam-created-event(被 tests/regression 钉死)、`:128` 裸 `/tmp` 提法、`:188` 变更行
 backtick 命令 span; quiz-answer 两形态(E-2 归 U5-B); board-recap `:58` 裸 `/tmp` 提法。
 
-## 第五条判据: 可疑行(不依赖切分的兜底) + 已知的保守误报方向
+## 第五条判据: 可疑行(不依赖解析的兜底) + 已知的保守误报方向
 
-切分是启发式 —— r2 被逗号截断、r3 被跨行拼接骗过。`check_suspicious_tmp_lines()`
-只问「这一**逻辑行**值不值得人看一眼」(`/tmp` 且有 `..` 或 `$`), 不问路径是哪一段,
-因此不会被切分错误带偏。逻辑行 = 物理行经反斜杠续行与相邻同引号字面量拼接合并。
+v3 之后越界判据已走真解析, 但**运行期展开静态不可判**: `P="/tmp/cls-exam/$1"`
+(位置参数)、`P="/tmp/cls-exam/"$REL`(引号外拼接)—— `ast`/`shlex` 只看得到源码,
+看不到 `$1` 的值。`check_suspicious_tmp_lines()` 只问「这一**逻辑行**值不值得人
+看一眼」(`/tmp` 且有 `..` 或 `$`), 因此不受任何解析能力所限, 是最后一道。
+逻辑行 = fence 内经反斜杠续行与「行尾引号 + 次行引号开头」合并(散文行不参与)。
 
 **登记的保守误报方向(Codex r3 LOW-7 / r4 LOW-7·9 等, 不修)**: 判据在下列形态上
 会**多**报红(判成债), 方向安全 —— `P=/tmp/x` 无空格赋值、`>/tmp/x` 重定向、
@@ -136,8 +146,10 @@ backtick 命令 span; quiz-answer 两形态(E-2 归 U5-B); board-recap `:58` 裸
 
 from __future__ import annotations
 
+import ast
 import posixpath
 import re
+import shlex
 import shutil
 from collections import Counter
 from pathlib import Path
@@ -227,105 +239,118 @@ def bare_8011(counts: dict[str, int]) -> int:
     return counts["p8011_all"] - counts["p8011_ns"]
 
 
-# ── 越界路径判据 v2: 引号感知 (与上面的子串计数**互补**, 不是替代) ───────────
-#: r1→r4 的教训: 用正则从自由文本切 `/tmp` token, 每一轮都被换一种坏法骗过
-#: (r1 穿越在后 → r2 逗号截断/冒充子串 → r3 白名单边界/跨行拼接 → r4 **引号内的
-#: 空格与开括号冒充**、混合引号拼接、单行点号拼接 `"." "./x"`)。
-#: 根因是**看不见引号上下文**。v2 改为字面量原子化:
-#:   · 引号(backtick/单/双)里的内容是**一个整体** —— 引号内的空格、括号、逗号、
-#:     分号、中文标点都是路径字符, 不再是「路径起点/截断」的证据(r4 HIGH-1 与
-#:     MEDIUM-3 的引号内变质由此封住);
-#:   · fenced code 内的**相邻字面量拼接组**(Python 隐式拼接, 任意引号可混用;
-#:     反斜杠续行与「行尾引号 + 次行引号开头」先并回同一逻辑行)整组求值 ——
-#:     `"." "./x"` 在源码里没有连续 `..`, 拼起来才有(r4 HIGH-2 由此封住);
-#:   · **裸 token**(如 `mkdir -p /tmp/cls-exam/`)沿用 r3 的白名单边界正则, 全文适用
-#:     —— 未加引号的 `/var/cache /tmp/cls-exam/x` 是两个 shell 词, 后者本就在命名
-#:     空间内, 不是攻击; 攻击必须把整串放进引号, 而引号内已由字面量原子性接管;
-#:   · 散文里的引号只认 **backtick 代码 span**(markdown 语义); 单双引号在散文里是
-#:     自然语言, 不当字面量。
-_FENCE_MARK = "```"
-_QUOTE_CHARS = "'\"`"
+# ── 越界路径判据 v3: 真解析 (与上面的子串计数**互补**, 不是替代) ─────────────
+#: ⛔ **五轮教训: 手写切分器追不上语言语义**。r1→r5 每轮都被换一种坏法骗过 ——
+#: r1 穿越在后 → r2 逗号截断 / 冒充子串 → r3 白名单边界 / 跨行拼接 →
+#: r4 引号内空格与开括号冒充 / 混合引号拼接 / 单行点号拼接 →
+#: r5 **拼组遮蔽**(两个独立参数被保守拼组连成一串, 反而掩盖了第二个的越界)、
+#: 三引号 `\"\"\"…\"\"\"`、`\x2e\x2e` 源码级转义、`r"."` 前缀、`+` 拼接、
+#: shell 单引号内 `\` 不转义、`~~~` fence、嵌套反引号 fence。
+#:
+#: 这些**全部**是「模拟解析器而模拟得不够像」的产物。v3 不再模拟, 直接调用真解析器:
+#:   ① fenced block 整块试 `ast.parse` —— Python 在**解析期**就把隐式拼接折成单个
+#:      `Constant`(`("/tmp/cls-exam/" r"." "./x")` 直接得到 `/tmp/cls-exam/../x`),
+#:      三引号 / 各种前缀 / `\x2e` 转义也都由解析器还原; 显式 `+` 的常量链由
+#:      `_fold_str()` 折叠。**每个 `Constant` 是独立候选** ⇒ 不会像 v2 那样把两个
+#:      函数参数连成一串而互相遮蔽(r5 HIGH-1)。
+#:   ② 整块不是合法 Python(SKILL.md 的 fence 多是 bash + heredoc) ⇒ 逐行降级:
+#:      先试单行 `ast.parse`, 再试 `shlex.split(posix=True)` 取真 shell 词
+#:      (单/双引号与反斜杠转义按 POSIX 语义, r5 HIGH-2 的吞尾由此消失)。
+#:   ③ 裸 token 正则**始终**再扫一遍(散文与 fence 都扫): 覆盖 `mkdir -p /tmp/cls-exam/`
+#:      这类未加引号的命令行片段。
+#:   ④ 散文只认 markdown **backtick span**(单双引号在散文里是自然语言, 不是字面量)。
+#:
+#: 仍然做不到的(如实声明, 见模块 docstring「保守误报与残余盲区」):
+#: 运行期变量展开(`$1` / `${REL}` —— 由可疑行判据要求登记)、symlink 落点、
+#: 以及 `shlex` 也无法解析的畸形 shell(此时退回裸 token 与可疑行两道)。
+_FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 _BACKTICK_SPAN_RE = re.compile(r"`([^`\n]*)`")
 #: 裸 token: 白名单左边界(r3 HIGH-1) + 中文标点停止(防散文拖尾)。
 _TMP_TOKEN_RE = re.compile(r'(?<![^\s"`\'(\[{（【])/tmp/[^\s`"\'()（）；;：，、。]*')
 _TMP_LINE_RE = re.compile(r"/tmp")
 _QUOTE_TAIL_RE = re.compile(r"['\"`]\s*\Z")  # 行尾(可带尾随空白)的引号
 _QUOTE_HEAD_RE = re.compile(r"^\s*['\"`]")
-#: 相邻字面量之间的**隐式拼接间隙**: 只许空白与括号 —— 逗号是元组分隔符, 不是拼接。
-_CONCAT_GAP_RE = re.compile(r"^[\s()\[\]{}+]*$")
 
 
-def _iter_lines_by_context(text: str):
-    """yield `(行号, 行, in_fence)`; fence 标记行(``` 开头)自身被跳过。"""
-    in_fence = False
-    for i, line in enumerate(text.splitlines(), 1):
-        if line.lstrip().startswith(_FENCE_MARK):
-            in_fence = not in_fence
-            continue
-        yield i, line, in_fence
+def _fence_blocks(text: str) -> list[tuple[int, list[str], bool]]:
+    """把正文切成 `(起始行号, 行列表, is_fence)`。
 
-
-def _literals_in(line: str) -> list[tuple[str, int, int]]:
-    """扫描一行里的引号字面量, 返回 `(内容, 起始列, 结束列)`。
-
-    同种引号闭合; 反斜杠转义; 未闭合(合并后理论上不该有)保守取到行尾 —— 方向是
-    多抓不少放。**只在 fence 行上调用**(散文只扫 backtick span)。
+    fence 标记支持 ``` 与 ~~~, 且**闭合必须同字符、长度 >= 开启**(r5 HIGH-4:
+    四反引号块里的三反引号内容行不该切换状态)。标记行本身不进 body。
     """
-    lits: list[tuple[str, int, int]] = []
-    i, n = 0, len(line)
+    lines = text.splitlines()
+    out: list[tuple[int, list[str], bool]] = []
+    i, n = 0, len(lines)
     while i < n:
-        c = line[i]
-        if c in _QUOTE_CHARS:
-            j = i + 1
-            while j < n:
-                if line[j] == "\\":
-                    j += 2
-                    continue
-                if line[j] == c:
-                    break
-                j += 1
-            end = j if j < n else n
-            lits.append((line[i + 1 : end], i, end))
-            i = end + 1
-        else:
+        m = _FENCE_RE.match(lines[i])
+        if m:
+            mark = m.group(1)
+            ch, width = mark[0], len(mark)
+            body: list[str] = []
+            start = i + 2  # body 的首个物理行号
             i += 1
-    return lits
-
-
-def _concat_groups_in(line: str) -> list[str]:
-    """一行内的相邻字面量拼接组(Python 隐式拼接的保守超集): 组值 = 逐个字面量内容相连。
-
-    span 约定: `(内容, 开引号列, 闭引号列)` ⇒ 相邻间隙 = `line[前闭引号+1 : 后开引号]`,
-    即两条引号**之间**的原文 —— 只许空白与括号才算隐式拼接(逗号是元组分隔符)。
-    """
-    lits = _literals_in(line)
-    groups: list[str] = []
-    cur_val = ""
-    cur_end = -1
-    for content, s, e in lits:
-        if cur_val and _CONCAT_GAP_RE.match(line[cur_end + 1 : s]):
-            cur_val += content
+            while i < n:
+                m2 = _FENCE_RE.match(lines[i])
+                if m2 and m2.group(1)[0] == ch and len(m2.group(1)) >= width:
+                    i += 1
+                    break
+                body.append(lines[i])
+                i += 1
+            out.append((start, body, True))
         else:
-            if cur_val:
-                groups.append(cur_val)
-            cur_val = content
-        cur_end = e
-    if cur_val:
-        groups.append(cur_val)
-    return groups
+            out.append((i + 1, [lines[i]], False))
+            i += 1
+    return out
 
 
-#: ⛔ **为什么光有子串计数不够**(Codex round-1 HIGH, 2026-09-08):
-#: `/tmp/cls-exam/../x` 含 `/tmp/` 一次、`/tmp/cls-exam/` 一次 ⇒ 裸值 = 0 ⇒ 子串规则
-#: **放行**, 而它 normpath 之后是 `/tmp/x`, 已经越出命名空间。子串规则天生看不见
-#: 路径语义 ⇒ 另立这条 normpath 判据; r4 起它**引号感知**(见上方 v2 注释)。
-#:
-#: 两条判据分工: 计数判据管「有没有新增/减少命中」(与 shell 裁判逐字同源),
-#: 本判据管「命中的那个路径到底指向哪里」。各自有自己的负控。
+def _fold_str(node: ast.AST) -> str | None:
+    """`Constant` 或 `BinOp(+)` 常量链 → 字符串; 不可折返回 None。"""
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        left, right = _fold_str(node.left), _fold_str(node.right)
+        if left is not None and right is not None:
+            return left + right
+    return None
+
+
+def _py_strings(src: str) -> list[str] | None:
+    """`ast` 解析出的全部字符串值(含折叠的 `+` 链); 解析失败返回 None。
+
+    折进 `+` 链的 `Constant` 不再单独计一次 —— 否则同一处会产生两个候选。
+    """
+    try:
+        tree = ast.parse(src)
+    except (SyntaxError, ValueError):  # ValueError: 源码含 NUL 等
+        return None
+    out: list[str] = []
+    folded: set[int] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+            value = _fold_str(node)
+            if value is not None:
+                out.append(value)
+                for sub in ast.walk(node):
+                    if isinstance(sub, ast.Constant) and isinstance(sub.value, str):
+                        folded.add(id(sub))
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Constant) and isinstance(node.value, str) and id(node) not in folded:
+            out.append(node.value)
+    return out
+
+
+def _sh_words(line: str) -> list[str] | None:
+    """`shlex` 按 POSIX 语义切出的词; 引号不闭合等畸形输入返回 None。"""
+    try:
+        return shlex.split(line, posix=True)
+    except ValueError:
+        return None
+
+
 def escaping_tmp_paths(text: str) -> list[tuple[str, str]]:
     """返回 `(候选, normpath 结果)`, 只含**含 `/tmp` 且 normpath 后不在命名空间内**的。
 
-    候选 = fence 内字面量拼接组 / 散文 backtick span / 全文裸 token。
+    候选来源见上方 v3 注释 ①~④。相同 `(候选, normpath)` 去重 ⇒ 集合语义。
     命名空间内 = 规范化后等于 `/tmp/cls-exam` 或以 `/tmp/cls-exam/` 开头。
     """
     ns = TMP_NAMESPACE.rstrip("/")
@@ -333,46 +358,61 @@ def escaping_tmp_paths(text: str) -> list[tuple[str, str]]:
     seen: set[tuple[str, str]] = set()
 
     def add(cand: str) -> None:
-        if "/tmp" not in cand:
+        if not isinstance(cand, str) or "/tmp" not in cand:
             return
         norm = posixpath.normpath(cand)
         if norm != ns and not norm.startswith(ns + "/") and (cand, norm) not in seen:
             seen.add((cand, norm))
             out.append((cand, norm))
 
-    for _ln, line, fence in _logical_lines(text):
-        if fence:
-            for group in _concat_groups_in(line):
-                add(group)
+    for _start, body, is_fence in _fence_blocks(text):
+        if is_fence:
+            values = _py_strings("\n".join(body))  # ① 整块 Python
+            if values is None:
+                values = []
+                for line in body:  # ② 逐行: Python → shell
+                    per_line = _py_strings(line)
+                    if per_line is None:
+                        per_line = _sh_words(line) or []
+                    values.extend(per_line)
+            for value in values:
+                add(value)
         else:
-            for m in _BACKTICK_SPAN_RE.finditer(line):
+            for m in _BACKTICK_SPAN_RE.finditer("\n".join(body)):  # ④ 散文 backtick span
                 add(m.group(1))
-        for tok in _TMP_TOKEN_RE.findall(line):  # 裸 token: fence 与散文都扫
-            add(tok)
+        for line in body:  # ③ 裸 token 始终扫
+            for tok in _TMP_TOKEN_RE.findall(line):
+                add(tok)
     return out
 
 
 def _logical_lines(text: str) -> list[tuple[int, str, bool]]:
-    """物理行 → 逻辑行, 返回 `(起始行号, 合并后行, in_fence)`。
+    """物理行 → 逻辑行, 返回 `(起始行号, 合并后行, in_fence)`, 供可疑行判据用。
 
-    **只在 fence 内容行内合并**(r4 LOW-8: 散文行尾加个引号就足以搬动行号基线,
-    散文不该参与拼接语义): 反斜杠续行(原样拼接, 去掉续行符) + 「行尾引号 → 次行以
-    引号开头」(任意引号混用, 原样拼接 —— 引号配对交给字面量扫描器)。合并次数有界(6)。
+    **只在 fence 内合并**(r4 LOW-8: 散文行尾加个引号就足以搬动行号基线, 散文不该
+    参与拼接语义): 反斜杠续行 + 「行尾引号 → 次行以引号开头」。合并次数有界(6)。
+
+    ⚠️ 这条**只服务可疑行判据**(它要问「`/tmp` 与 `..`/`$` 是否同一逻辑行」)。
+    越界判据不再依赖它 —— v3 走真解析, 拼接由 `ast` 处理。
     """
-    raw = list(_iter_lines_by_context(text))
+    flat: list[tuple[int, str, bool]] = []
+    for start, body, is_fence in _fence_blocks(text):
+        for offset, line in enumerate(body):
+            flat.append((start + offset, line, is_fence))
+
     out: list[tuple[int, str, bool]] = []
     i = 0
-    while i < len(raw):
-        ln, line, fence = raw[i]
+    while i < len(flat):
+        ln, line, fence = flat[i]
         i += 1
         if not fence:
             out.append((ln, line, fence))
             continue
         buf = line
         for _ in range(6):
-            if i >= len(raw) or not raw[i][2]:
+            if i >= len(flat) or not flat[i][2]:
                 break
-            nxt = raw[i][1]
+            nxt = flat[i][1]
             if buf.rstrip().endswith("\\"):  # 反斜杠续行
                 buf = buf.rstrip()[:-1] + nxt
                 i += 1
@@ -386,23 +426,17 @@ def _logical_lines(text: str) -> list[tuple[int, str, bool]]:
 
 
 def suspicious_tmp_lines(text: str) -> list[tuple[int, str]]:
-    """**不依赖 token 切分**的保守判据: 同一**逻辑行**里 `/tmp` 与 `..` 或 `$` 同时出现。
+    """**不依赖解析**的保守兜底: 同一**逻辑行**里 `/tmp` 与 `..` 或 `$` 同时出现。
 
     返回 `(1-based 起始行号, 该逻辑行 strip 后的内容)`。
 
-    存在的理由见 `_TMP_LINE_RE` 上方注释: 切路径是启发式, 逗号 / 括号 / 引号任一处
-    切错就换一种坏法(漏检或误报)。这条判据只问「这一行值不值得人看一眼」, 不问
-    「路径到底是哪一段」—— 因此不会被切分错误带偏。
+    v3 之后越界判据已走真解析, 但**运行期展开仍然静态不可判**:
+    `P="/tmp/cls-exam/$1"`(位置参数)、`P="/tmp/cls-exam/"$REL`(引号外拼接)——
+    `ast`/`shlex` 都只能看到源码, 看不到 `$1` 的值。这条判据只问「这一行值不值得
+    人看一眼」, 因此不受任何解析能力所限, 是最后一道。
 
-    触发条件(r3 后加宽): `/tmp` 在行内 且 (`..` 在行内 或 `$` 在行内)。
-    `$` 放宽到**任意位置**而非「紧跟命名空间」: `P="/tmp/cls-exam/$1"`(位置参数,
-    r3 MEDIUM-3)与 `P="/tmp/cls-exam/"$REL`(引号外拼接, 同条)都必须登记 —— 静态门
-    无法求解任何 `$` 的值, 保守面越大越安全。代价是含 `${CLS_BACKEND_URL:-…}`
-    等无害展开的 `/tmp` 行也要登记(现状 1 行, 见基线注释)。
-
-    **逻辑行合并只在 fence 内**(r4 LOW-8): 物理行上被换行拆开的 `"/tmp/cls-exam/"`
-    + `"../x"` 先拼回再判 —— 否则 `/tmp` 与 `..` 不同行, 本判据跟着失明; 散文行
-    不参与合并, 散文里的引号编辑不会无端搬动行号基线。
+    触发条件: `/tmp` 在行内 且 (`..` 在行内 或 `$` 在行内)。代价是含
+    `${CLS_BACKEND_URL:-…}` 等无害展开的 `/tmp` 行也要登记(现状见基线注释)。
     """
     out: list[tuple[int, str]] = []
     for lineno, line, _fence in _logical_lines(text):
@@ -1465,17 +1499,18 @@ def test_negative_control_multiline_concat_escape_must_redden(sandbox: Path):
 
     assert not check_body(sandbox, _merged_body_baseline()), "前提: 计数判据放行(等计数替换)"
 
-    # ⛔ r4 MEDIUM-4: 这条负控原先只对基线断言「含 skill 名 + [可疑行]」—— 而本替换
-    # 会把 :577 挤到 :578, 行号基线**无论合并逻辑在不在都会红**, 于是它考的不是合并
-    # 逻辑本身(不承重)。改为**直接函数断言**: 合并在 ⇒ 拼起来的逻辑行里有 `..`;
-    # 合并不在 ⇒ /tmp 与 .. 分处两行, 函数返回空 ⇒ 这里立刻红 —— 归因干净。
-    text2 = f.read_text(encoding="utf-8")
-    flagged = [l for _ln, l, _f in _logical_lines(text2) if "/tmp" in l]
-    assert any(".." in l for l in flagged), f"fence 逻辑行合并必须在场: 含 /tmp 的逻辑行应拼出 `..`, 实得: {flagged}"
+    # ⛔ r4 MEDIUM-4 的归因整改: 本替换会把 :577 挤到 :578, **行号基线无论判据在不在
+    # 都会红** ⇒ 只断言「可疑行报红」考不出解析层是否在场(不承重)。改为对**越界判据**
+    # 发问, 并要求新增项里出现命名空间片段。
+    # v3 下这段 fence 是 bash 块 ⇒ 整块 ast 解析失败 ⇒ 逐行降级, `shlex` 把
+    # `("/tmp/cls-exam/"` 切成一个词, 其 normpath 越出命名空间 ⇒ 越界集合改变。
+    # 归因干净: 解析层(ast / shlex 两条路)都不在时, 这里得到的就是原基线 ⇒ 立刻红。
     esc = check_escaping_tmp(sandbox, ESCAPING_TMP_BASELINE)
-    assert any("start-exam-board" in p and "/tmp/exam-candidates.json" in p for p in esc), (
-        f"拼接组求值必须让越界判据抓到 normpath=/tmp/exam-candidates.json, 实得: {esc}"
+    assert any("start-exam-board" in p and "新增=" in p and "/tmp/cls-exam" in p for p in esc), (
+        f"跨行拼接必须改变越界集合(新增含 /tmp/cls-exam 的候选), 实得: {esc}"
     )
+    # 可疑行同样报红(冗余的第二道)—— 但它单独不足以证明解析层在场, 见上方注释。
+    assert check_suspicious_tmp_lines(sandbox, SUSPICIOUS_TMP_LINES_BASELINE), "可疑行判据也应报红"
 
 
 @pytest.mark.parametrize(
@@ -1495,6 +1530,89 @@ def test_negative_control_positional_and_outer_quote_vars_must_redden(sandbox: P
     problems = check_suspicious_tmp_lines(sandbox, SUSPICIOUS_TMP_LINES_BASELINE)
     joined = "\n".join(problems)
     assert any("exam-quick" in p and "[可疑行]" in p for p in problems), f"含 `$` 的 /tmp 行必须登记, 实得: {joined}"
+
+
+@pytest.mark.parametrize(
+    "replacement,why",
+    [
+        # r5 HIGH-2: 三引号 / 源码级转义 / shell 单引号内反斜杠不转义
+        ('P = """/var/cache"/tmp/cls-exam/x.json"""', "r5 HIGH-2 三引号: ast 还原真值"),
+        (r'P = "/tmp/cls-exam/\x2e\x2e/x.json"', "r5 HIGH-2 \\x2e 转义: ast 还原成 .."),
+        # r5 HIGH-3: 字符串前缀与显式 + 阻断手写拼接
+        ('P = ("/tmp/cls-exam/" r"." "./x")', "r5 HIGH-3 r 前缀: ast 在解析期折叠隐式拼接"),
+        ('P = ("/tmp/cls-exam/" + "." "./x")', "r5 HIGH-3 显式 +: _fold_str 折叠常量链"),
+    ],
+)
+def test_negative_control_r5_parser_class_escapes_must_redden(sandbox: Path, replacement: str, why: str):
+    """⑪ **Codex round-5 HIGH-1/2/3** —— 手写切分器追不上语言语义的那一类。
+
+    这些形态在 v2(手写字面量扫描 + 保守拼组)下**全部放行**: 三引号被错误闭合、
+    `\x2e` 停留在源码形态、`r` 前缀阻断间隙匹配、独立参数被拼组遮蔽。
+    v3 改走真解析(`ast` 整块 → 逐行 `ast` → `shlex`)后逐个封住。
+
+    ⛔ 用**等计数替换**: 九项计数纹丝不动 ⇒ 计数判据放行 ⇒ 红只可能来自越界判据,
+    归因干净。
+    """
+    _swap_in_start_exam_board(sandbox, 'P = "/tmp/cls-exam/exam-candidates.json"', replacement)
+
+    assert not check_body(sandbox, _merged_body_baseline()), f"前提: 计数判据放行({why})"
+    esc = check_escaping_tmp(sandbox, ESCAPING_TMP_BASELINE)
+    assert any("start-exam-board" in p and "[越界]" in p for p in esc), f"{why} —— 越界判据必须抓到, 实得: {esc}"
+
+
+def test_r5_high1_independent_args_must_not_mask_each_other():
+    """⑪ **Codex round-5 HIGH-1** —— 独立参数不得被拼组互相遮蔽。
+
+    v2 把 fence 行内相邻字面量做「保守拼组」, 于是
+    `cp "/tmp/cls-exam/a" "/var/cache(/tmp/cls-exam/x"` 的两个**独立参数**被连成
+    `/tmp/cls-exam/a/var/cache(/tmp/cls-exam/x` —— 该串仍以命名空间开头 ⇒ 放行,
+    第二个参数的真实越界被**掩盖**。这是 v2 引入的回归(比不拼更糟)。
+
+    v3 走 `shlex.split`(整块非 Python ⇒ 逐行降级), 得到三个真词, 各自判 ⇒ 第二个
+    参数的 normpath 是 `/var/cache(/tmp/cls-exam/x`, 越出命名空间 ⇒ 抓到。
+
+    ⛔ 直接对纯函数发问: 它考的是「独立参数各自判」这一语义, 与副本文件无关;
+    放进副本反而会因为多了一个 `/tmp/cls-exam/` 而改变计数, 让归因不干净。
+    """
+    text = '```sh\ncp "/tmp/cls-exam/a" "/var/cache(/tmp/cls-exam/x"\n```'
+    escapes = escaping_tmp_paths(text)
+    norms = [n for _c, n in escapes]
+    assert "/var/cache(/tmp/cls-exam/x" in norms, (
+        f"第二个独立参数的越界必须被单独抓到(不得被第一个参数拼组遮蔽), 实得: {escapes}"
+    )
+    # 验伪锚: 合规的第一个参数不该被误报 —— 否则「抓到」可能只是整体误报
+    assert "/tmp/cls-exam/a" not in norms, f"命名空间内的第一个参数不应被判越界: {escapes}"
+
+
+def test_negative_control_r5_tilde_fence_must_redden(sandbox: Path):
+    """⑪' **Codex round-5 HIGH-4** —— `~~~` 围栏。
+
+    v2 的 fence 状态机只认 ```; 用合法的 `~~~python` 标记, 整块被当散文处理 ⇒
+    字面量与拼组两层保护同时关闭。v3 的 `_fence_RE` 认 ``` 与 ~~~ 两种标记。
+    """
+    f = sandbox / "skills" / "start-exam-board" / "SKILL.md"
+    text = f.read_text(encoding="utf-8")
+    swapped = text + '\n\n~~~python\nP = "/var/cache(/tmp/cls-exam/x"\n~~~\n'
+    f.write_text(swapped, encoding="utf-8")
+
+    esc = check_escaping_tmp(sandbox, ESCAPING_TMP_BASELINE)
+    assert any("start-exam-board" in p and "/var/cache(" in p for p in esc), (
+        f"~~~ 围栏内的冒充路径必须被越界判据抓到, 实得: {esc}"
+    )
+
+
+def test_fence_close_requires_same_char_and_width(sandbox: Path):
+    """⑪'' **Codex round-5 HIGH-4 后半** —— 四反引号块里的三反引号内容行不得切换状态。
+
+    直接对纯函数发问(不经副本), 因为它考的是 `_fence_blocks` 的闭合规则本身。
+    """
+    text = '````md\n```\nP = "/var/cache(/tmp/cls-exam/x"\n```\n````\n'
+    blocks = _fence_blocks(text)
+    fenced = [b for b in blocks if b[2]]
+    assert len(fenced) == 1, f"四反引号块应是**一个** fence, 内层三反引号不切换状态, 实得: {blocks}"
+    assert any("/var/cache(" in line for line in fenced[0][1]), f"内层内容应留在同一块里: {fenced[0][1]}"
+    # 且该冒充路径仍被抓到(内层内容按 fence 处理 ⇒ 走解析层)
+    assert any("/var/cache(" in c for c, _n in escaping_tmp_paths(text)), escaping_tmp_paths(text)
 
 
 def test_negative_control_fake_namespace_swap_must_redden(sandbox: Path):
