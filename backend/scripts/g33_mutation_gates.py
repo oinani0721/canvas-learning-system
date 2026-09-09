@@ -439,10 +439,14 @@ def main() -> int:
         `_finish` 抛 `SystemExit(131)` 后栈展开仍进 `finally` 再还原一次；还原若持续
         遇到同一个 I/O 错误，第二次异常会替换掉 131 —— 约定的「还原失败」信号丢了。
         """
+        # ⛔ round-4 HIGH：绑**进入时**的状态。`exiting()` 在 `_finish` 抛出之前就置位，
+        # 于是「正常还原期间收到信号」产生的首次 `SystemExit(130)` 会被这里吞掉，
+        # 进程继续跑下一条变异 —— 信号退出彻底失效。只抑制进来前就已在退出展开的。
+        _was_exiting = _guard.exiting()
         try:
             restore_all()
-        except BaseException:  # noqa: BLE001
-            if not _guard.exiting():
+        except BaseException:
+            if not _was_exiting:
                 raise
             try:
                 traceback.print_exc()

@@ -50,19 +50,22 @@ def _wants_subprocess_success(node) -> bool:
     # ⛔ round-3 LOW：`ast.walk` 全树找会把 `assert not (r.returncode == 0)` 也算成
     # 「期望成功」—— 那恰恰是**期望失败**，按第 13 行的口径不算前提。先剥掉极性：
     # 顶层若被 `not` 包着，语义翻转 ⇒ 直接不算。
-    test = node.test
-    if isinstance(test, ast.UnaryOp) and isinstance(test.op, ast.Not):
-        return False  # 顶层否定 ⇒ 期望失败, 不是构造前提
-    for sub in ast.walk(test):
-        if not isinstance(sub, ast.Compare) or len(sub.ops) != 1:
-            continue
-        if not isinstance(sub.ops[0], ast.Eq):
-            continue
-        left, right = sub.left, sub.comparators[0]
-        if isinstance(left, ast.Attribute) and left.attr == "returncode":
-            if isinstance(right, ast.Constant) and right.value == 0:
-                return True
-    return False
+    # ⛔ round-4 LOW：只排顶层 `not` 不够 —— `a and not (rc == 0)` 里那个比较仍会被
+    # `ast.walk` 找到。改成**带极性的递归**：只有在**正极性**位置出现的
+    # `returncode == 0` 才算「期望子进程成功」。
+    def _walk(n, positive: bool) -> bool:
+        if isinstance(n, ast.UnaryOp) and isinstance(n.op, ast.Not):
+            return _walk(n.operand, not positive)
+        if isinstance(n, ast.BoolOp):
+            return any(_walk(v, positive) for v in n.values)
+        if isinstance(n, ast.Compare) and len(n.ops) == 1 and isinstance(n.ops[0], ast.Eq):
+            left, right = n.left, n.comparators[0]
+            if isinstance(left, ast.Attribute) and left.attr == "returncode":
+                if isinstance(right, ast.Constant) and right.value == 0:
+                    return positive
+        return False
+
+    return _walk(node.test, True)
 
 
 assert_nodes: dict[int, ast.Assert] = {}

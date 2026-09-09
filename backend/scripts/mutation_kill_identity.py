@@ -185,6 +185,32 @@ PYEOF_RE = re.compile(r"<<'PYEOF'[ \t]*\r?\n(.*?)\r?\n^PYEOF[ \t]*\r?$", re.DOTA
 _FAILED_RE = re.compile(r"^(?P<status>FAILED|ERROR) (?P<nodeid>\S+?)(?: - (?P<reason>.*))?$", re.M)
 
 
+def _split_unique(line: str, nodeid: str) -> bool:
+    r"""整行的 `nodeid - reason` 切分是否**唯一可判定**。
+
+    ⛔ round-4 HIGH：只查「截断结果里方括号成对」不够 ——
+        `FAILED tests/x.py::test_x[case] - EXPECT[] - AssertionError: other`
+    真实参数 ID 可能是 `case] - EXPECT[`（整体括号也成对），解析器却在**第一个**
+    ` - ` 处切成 `test_x[case]`，把 `EXPECT[] - AssertionError: other` 当 reason
+    ⇒ 期望消息若是 `EXPECT`，弱位置判据遇到门内前提失败就能记 KILLED。
+    判据：枚举整行**所有** ` - ` 切点，凡「左侧无空白且方括号成对」的都是一种合法
+    读法；多于一种 ⇒ 边界不可判定 ⇒ 调用方判 HARNESS-ERROR。⛔ 仍不用贪婪/`rsplit`。
+    """
+    body = line.split(" ", 1)[1] if " " in line else line
+    # ⛔ 候选 nodeid **允许含空格**：参数 ID 里本来就可能有（`test_x[case] - EXPECT[`
+    # 正是这种）。唯一的结构约束是方括号成对 —— 这恰恰让「截断读法」与「完整读法」
+    # 同时合法，于是切分不唯一，必须拒。
+    cands = []
+    for i in range(len(body)):
+        if body.startswith(" - ", i):
+            left = body[:i]
+            if left and left.count("[") == left.count("]"):
+                cands.append(left)
+    if not cands:  # 无 reason 的行（`FAILED <nodeid>`）
+        return body.count("[") == body.count("]")
+    return len(cands) == 1 and cands[0] == nodeid
+
+
 def _boundary_ok(nodeid: str) -> bool:
     r"""nodeid 的切分边界是否可判定。
 
@@ -232,7 +258,7 @@ def failure_records(out: str) -> list[tuple[str, str, str]]:
     return [
         (m.group("status"), m.group("nodeid"), m.group("reason") or "")
         for m in _FAILED_RE.finditer(region)
-        if _boundary_ok(m.group("nodeid"))
+        if _boundary_ok(m.group("nodeid")) and _split_unique(m.group(0), m.group("nodeid"))
     ]
 
 
@@ -260,7 +286,7 @@ def unparsed_failure_lines(out: str) -> list[str]:
         m = _FAILED_RE.match(ln)
         # 匹配不上，或匹配上了但**切分边界不可判定**（方括号未闭合）—— 后者更危险：
         # 它整行匹配成功，不报出来就会带着错误的 nodeid/reason 进判据（round-3 HIGH）。
-        if m is None or not _boundary_ok(m.group("nodeid")):
+        if m is None or not _boundary_ok(m.group("nodeid")) or not _split_unique(ln, m.group("nodeid")):
             bad.append(ln)
     return bad
 
@@ -362,7 +388,11 @@ def parse_failed_nodeids(out: str) -> set[str]:
     region = summary_region(out)
     if region is None:
         return set()
-    return {m.group("nodeid") for m in _FAILED_RE.finditer(region) if _boundary_ok(m.group("nodeid"))}
+    return {
+        m.group("nodeid")
+        for m in _FAILED_RE.finditer(region)
+        if _boundary_ok(m.group("nodeid")) and _split_unique(m.group(0), m.group("nodeid"))
+    }
 
 
 def failed_reasons(out: str) -> list[tuple[str, str]]:
@@ -373,7 +403,7 @@ def failed_reasons(out: str) -> list[tuple[str, str]]:
     return [
         (m.group("nodeid"), m.group("reason") or "")
         for m in _FAILED_RE.finditer(region)
-        if _boundary_ok(m.group("nodeid"))
+        if _boundary_ok(m.group("nodeid")) and _split_unique(m.group(0), m.group("nodeid"))
     ]
 
 

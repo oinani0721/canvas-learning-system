@@ -56,6 +56,9 @@ def main() -> int:
             (r"^\[(M[^\]]+)\] \u26d4 complete \u5bf9\u7167 rc=", "HARNESS-ERROR(complete对照未跑成)"),
             (r"^\[(M[^\]]+)\] \u26d4 \u7a7a\u53d8\u5f02\u5bf9\u7167 rc=", "HARNESS-ERROR(空对照未跑成)"),
             (r"^\[(M[^\]]+)\] \u26d4 \u7a7a\u53d8\u5f02\u5bf9\u7167\u7684\u4f4d\u7f6e\u5224\u636e\u9762", "HARNESS-ERROR(位置判据面缺失)"),
+            # round-4 MEDIUM 补齐：对照**锚异常**（对照根本没施加）也会撤销 KILLED
+            (r"^\[(M[^\]]+)\] \u2717 \u5bf9\u7167\u951a\u70b9\u5f02\u5e38", "HARNESS-ERROR(对照锚异常)"),
+            (r"^\[(M[^\]]+)\] \u2717 complete \u5bf9\u7167\u951a\u70b9\u5f02\u5e38", "HARNESS-ERROR(complete对照锚异常)"),
         ):
             for m in _re.finditer(pat, txt, _re.M):
                 final[m.group(1)] = lab
@@ -97,6 +100,31 @@ def main() -> int:
     import collections as _c
     _dist = _c.Counter(final.values())
     print(f"> 存档终裁分布: {dict(_dist)}\n")
+    # ⛔ round-4 MEDIUM：真的与运行汇总**硬核对**（此前只统计自己解析的结果就宣称
+    # 「交叉核对」—— 那是自证）。从存档的汇总段取六档计数，逐档比对。
+    _sum = {}
+    for _lab, _pat in (
+        ("KILLED", r"^KILLED \(.*?\): (\d+)/"),
+        ("KILLED-UNBOUND", r"^KILLED-UNBOUND .*?: (\d+)"),
+        ("SURVIVED", r"^SURVIVED: (\d+)"),
+        ("HARNESS-ERROR", r"^HARNESS-ERROR: (\d+)"),
+        ("ANCHOR-ERROR", r"^ANCHOR-ERROR: (\d+)"),
+        ("SYNTAX-INVALID", r"^SYNTAX-INVALID: (\d+)"),
+    ):
+        _m = _re.search(_pat, txt, _re.M)
+        if _m:
+            _sum[_lab] = int(_m.group(1))
+    _mine = {
+        "KILLED": sum(1 for v in final.values() if v == "KILLED"),
+        "KILLED-UNBOUND": sum(1 for v in final.values() if v == "KILLED-UNBOUND"),
+        "SURVIVED": sum(1 for v in final.values() if v == "SURVIVED"),
+        "HARNESS-ERROR": sum(1 for v in final.values() if v.startswith("HARNESS-ERROR")),
+    }
+    _bad = [k for k in _mine if k in _sum and _sum[k] != _mine[k]]
+    print(f"> 与运行汇总交叉核对: 汇总={_sum} / 本表解析={_mine} "
+          f"⇒ {'一致 ✓' if not _bad else '⛔ 不一致 ' + str(_bad)}\n")
+    if _bad:
+        raise SystemExit(f"⛔ 处置表解析与运行汇总不一致: {_bad} —— 解析漏了某类降档")
     n_final_killed = sum(1 for t in loc if t in msg_ex and final.get(t) == "KILLED")
     n_final_other = n_bound - n_final_killed
     print(f"\n**按最终裁决**：{n_bound} 条新增位置绑定中，{n_final_killed} 条最终 KILLED，"

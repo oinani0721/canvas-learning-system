@@ -40,7 +40,7 @@
 | 5 | 信号负控（还原期打断） | `negctl-signal-<ts>.txt` | ✅ naive 对照（收口前写法）留下 **3/5 个未还原**（`target_2/3/4.txt`）⇒ 负控承重；guarded **0 未还原 + rc=130**；`RESTORE_SIGNALS` 实测含 `SIGQUIT` |
 | 5b | 信号还原的**现场**检验（非计划内） | `signal-restore-live-check-<ts>.txt` | ✅ **在真生产文件上**：`--probe` 跑到一半时对 python 进程发 SIGTERM，`RestoreGuard` 先还原再退出，8 个目标文件**逐字节**回到基线。⚠️ 这一跑是非计划内的（我先误 kill 了 shell 包装进程，python 继续跑），如实记录 |
 | 6 | PYEOF 等价性 + 三洞负控 + 两验伪锚 | `pyeof-negctl-<ts>.txt` | ✅ 两个真实 SKILL.md（quiz-answer 2 块 / start-exam-board 3 块）新旧正则提取**逐块逐字节相同**（收紧不丢覆盖面）；三洞负控 PASS；两条验伪锚 PASS —— 其中「终止行带尾随空格」这一条**正是我初稿写错的断言**，保留作验伪锚 |
-| 7 | 四套全跑（串行，**v5 = Codex round-3 整改后定稿**；v1–v4 存档早于定稿，作废不引用） | `run-g32b-20260909T140549.txt` / `run-g32cb-20260909T150112.txt` / `run-g32ccr1-20260909T150507.txt` / `run-g33-20260909T150922.txt`（+ 同批 `run-code-state-*.txt` 记录跑时五脚本 sha 与 HEAD） | ✅ **g32b：KILLED 131 / KILLED-UNBOUND 3 / SURVIVED 0 / HARNESS-ERROR 4 / ANCHOR-ERROR 0 / SYNTAX-INVALID 0，六档之和 138 ✓，rc=2**（v2–v5 五轮逐项一致 ⇒ round-1/2/3 合计**二十五条**收紧未引入新回归，也未改变任何一条关于被测物的结论）；g32cb **9/9 KILLED**（rc=0，和=9 ✓）；g32ccr1 **11/11 KILLED**（rc=0，和=11 ✓）；g33 **18/18 KILLED**（rc=0，和=18 ✓，还原逐字节+标记扫描双绿）。⚠️ g32b 的 3 条 UNBOUND 与 4 条 HARNESS-ERROR 全部**登记不改判据**：UNBOUND = M97（失败落在 yaml 库里）+ M89/M90（位置锚在前置 setup 断言上，复核抓到后主动收回）；HARNESS-ERROR = M10/M18b/M120/M125 四条**假杀暴露**——空变异对照改按**位置**比对后「只加层那趟已红在同一条断言」再也藏不住（旧文本比对被 stderr 尾巴差异掩护；复核验证者用 v1 存档独立坐实 M18b/M120/M125 三条）。另两条 complete 层债（M100/M151「变异体单独即可杀 ⇒ 撤层」）仍在 failures。⛔ 这 6 条层债的**变异重设计**移交下一批，本卡判据只负责把它们照出来 |
+| 7 | 四套全跑（串行，**v6 = Codex round-4 整改后定稿**；v1–v5 存档早于定稿，作废不引用） | `run-g32b-20260909T154901.txt` / `run-g32cb-20260909T163005.txt` / `run-g32ccr1-20260909T163354.txt` / `run-g33-20260909T163820.txt`（+ 同批 `run-code-state-*.txt` 记录跑时五脚本 sha 与 HEAD） | ✅ **g32b：KILLED 131 / KILLED-UNBOUND 3 / SURVIVED 0 / HARNESS-ERROR 4 / ANCHOR-ERROR 0 / SYNTAX-INVALID 0，六档之和 138 ✓，rc=2**（v2–v6 **六轮**逐项一致 ⇒ round-1/2/3/4 合计**三十条**收紧未引入新回归，也未改变任何一条关于被测物的结论）；g32cb **9/9 KILLED**（rc=0，和=9 ✓）；g32ccr1 **11/11 KILLED**（rc=0，和=11 ✓）；g33 **18/18 KILLED**（rc=0，和=18 ✓，还原逐字节+标记扫描双绿）。⚠️ g32b 的 3 条 UNBOUND 与 4 条 HARNESS-ERROR 全部**登记不改判据**：UNBOUND = M97（失败落在 yaml 库里）+ M89/M90（位置锚在前置 setup 断言上，复核抓到后主动收回）；HARNESS-ERROR = M10/M18b/M120/M125 四条**假杀暴露**——空变异对照改按**位置**比对后「只加层那趟已红在同一条断言」再也藏不住（旧文本比对被 stderr 尾巴差异掩护；复核验证者用 v1 存档独立坐实 M18b/M120/M125 三条）。另两条 complete 层债（M100/M151「变异体单独即可杀 ⇒ 撤层」）仍在 failures。⛔ 这 6 条层债的**变异重设计**移交下一批，本卡判据只负责把它们照出来 |
 | 8 | 六档收口前后对照（含 g33 的验伪锚） | `six-verdicts-before-after-<ts>.txt` | ✅ g33 收口前 `ANCHOR-ERROR=0`（只有 `ANCHOR-DRIFT`）/ `KILLED-UNBOUND=0` / `HARNESS-ERROR=0`；收口后 **3 / 1 / 2**，三个方向都由 0 变正 —— 这就是它自己的验伪锚。⚠️ 「收口前」一列取自 `git show 3f073a1a:<file>`（收口前的状态就是那个 commit），不是另跑一次 |
 | 9 | 统一性结构判据（VERDICTS / judge_flags / RestoreGuard） | `unification-audit-<ts>.txt` | ✅ 四套均 `from mutation_kill_identity import VERDICTS` 且 `for v in VERDICTS` 算汇总；四套均走 `judge_flags()`，**残留的手写 pytest 开关 0 行**；四套均 `RestoreGuard(`，**自写 `signal.signal(` 0 处** |
 | 10 | 跑后 sha + 标记残留 | `sha-targets-post-<ts>.txt` / `marker-post-<ts>.txt` | ✅ 8 个目标文件跑后 sha 与跑前**逐字节相同**；标记文件清单仍是那 5 项；⚠️ `g32b_mutation_gates.py` 计数 **153 → 151**，差额 2 已逐行归因：本卡 diff 里含该标记的**删除行 2 / 新增行 0**，两行都是 `_restore_one` docstring 里的**注释**，与变异体文本无关。⚠️ 卫生判据收紧：`grep -c stderr` 会命中别的卡留下的 `census-stderr.txt`（口径比它的主张宽），改精确判据 `grep -cE '\.stderr'` → 已跟踪 **0** / 工作树未跟踪 **0** |
@@ -77,7 +77,7 @@
 
 ## 6. 39 条逐条处置表 / 四套分档对照表
 
-> 最终裁决取自 `run-g32b-20260909T140549.txt`（抽到 138 条）。
+> 最终裁决取自 `run-g32b-20260909T154901.txt`（抽到 138 条）。
 
 ## 39 条 KILLED-UNBOUND 逐条处置表
 
@@ -129,6 +129,8 @@
 | 39 | `M97-writeback-regex-only` | ④ 该变异让门以**未捕获异常**失败(yaml.parser.ParserError), 而不是落在门里任何一 | **保留 UNBOUND** | ⓐ 该变异让门在**门文件之外**失败(实见 file:parser.py), 只能绑到文件级弱身份; 按 check_expect_loc |
 > 存档终裁分布: {'KILLED': 131, 'HARNESS-ERROR(假杀)': 4, 'KILLED-UNBOUND': 3}
 
+> 与运行汇总交叉核对: 汇总={'KILLED': 131, 'KILLED-UNBOUND': 3, 'SURVIVED': 0, 'HARNESS-ERROR': 4, 'ANCHOR-ERROR': 0, 'SYNTAX-INVALID': 0} / 本表解析={'KILLED': 131, 'KILLED-UNBOUND': 3, 'SURVIVED': 0, 'HARNESS-ERROR': 4} ⇒ 一致 ✓
+
 
 **按最终裁决**：36 条新增位置绑定中，35 条最终 KILLED，1 条被空变异对照降档（假杀 ⇒ HARNESS-ERROR）。
 
@@ -163,7 +165,7 @@
 
 ## 7. 跑前跑后 sha 对账
 
-跑前基线 `sha-targets-pre-20260908T073501.txt`（8 个文件，名单由 `count_mutations.py` 从 `MUTATIONS` 表**实测**取，不靠卡文枚举）；跑后对账 `finalize-v5-<ts>.txt` 第一段（v5 全跑后）。
+跑前基线 `sha-targets-pre-20260908T073501.txt`（8 个文件，名单由 `count_mutations.py` 从 `MUTATIONS` 表**实测**取，不靠卡文枚举）；跑后对账 `finalize-v6-<ts>.txt` 第一段（v6 全跑后）。
 
 ```
 8dc761f8…  backend/app/services/learning_event_log.py
@@ -264,7 +266,13 @@ a766fbcc…  canvas-vault/.claude/scripts/fsrs_bridge.py         ← 零写者�
     - MEDIUM 退出展开期间**二次还原的异常覆盖 131** ⇒ `RestoreGuard.exiting()` + 四套 `finally` 走保号包装（还原尝试与诊断都保留，只是不让它改写退出码）。
     - MEDIUM 阶段 2 **对照锚异常**只记 failures、保留阶段 1 的 KILLED ⇒ 对照未施加即撤销 KILLED 记 HARNESS-ERROR（与「对照未跑成」口径一致）。
     - LOW premise 筛忽略否定语义（`assert not (rc == 0)` 被当成「期望成功」）⇒ 顶层 `not` 直接排除。
-29. **跨车道交叉通报已消费**：U10-A 通报的 `Path.rglob` 抑制 `PermissionError` 形态在 `check_expect_msg_unique` 的生产侧扫描面上**真实存在**，已改 `os.walk(onerror=...)` 并把枚举失败收进返回的 problems 列表。
+29. **Codex round-4 判「不通过」（2 HIGH / 2 MEDIUM / 1 LOW，无 BLOCKER），五条全部整改、无驳回**（存档 `codex-review-CARD-DEBT-mutkill-R2-r4.md`，绑 `01ac27d0`）：
+    - **HIGH 括号计数相等仍不能证明切分正确**（本树实测复现）：`FAILED …::test_x[case] - EXPECT[] - AssertionError: other` 里，真实参数 ID 可以是 `case] - EXPECT[`（整体括号也成对），解析器却在第一个 ` - ` 处切成 `test_x[case]` ⇒ 期望消息若是 `EXPECT` 就能被 reason 满足。⚠️ 这说明 round-3 的修法**只堵住了它给的那一条负控输入**（括号不闭合），没覆盖「边界不可判定」这个性质。改**整行切分唯一性**：枚举所有 ` - ` 切点，凡「方括号成对」都算一种合法读法，多于一种即拒；候选**允许含空格**（那正是攻击形态）。正控三形态（普通 reason / 参数化 / 无 reason）仍照常通过。
+    - **HIGH g33 保号包装吞掉正常还原期间的首次 `SystemExit(130)`** —— ⚠️ 这是我 **round-3 的修复本身**制造的：`exiting()` 在 `_finish` 抛出**之前**就置位，于是「本次还原触发的首次退出」与「退出展开中的二次异常」不可区分，信号退出被整个吞掉、进程继续跑下一条变异。改绑**进入包装时**的快照 `_was_exiting`，四套同改。
+    - MEDIUM g32cb 的保号函数只定义未调用 ⇒ 接进 `finally`。
+    - MEDIUM 处置表漏两类对照锚异常，且「交叉核对」只统计自己解析的结果（自证）⇒ 补两类 + **真的**从存档汇总段取六档计数逐档硬比，不一致即 `SystemExit`。
+    - LOW premise 筛只排顶层 `not`（`a and not (rc == 0)` 仍误判）⇒ 改带极性的递归，五个形态实测全对。
+30. **跨车道交叉通报已消费**：U10-A 通报的 `Path.rglob` 抑制 `PermissionError` 形态在 `check_expect_msg_unique` 的生产侧扫描面上**真实存在**，已改 `os.walk(onerror=...)` 并把枚举失败收进返回的 problems 列表。
 
 ---
 

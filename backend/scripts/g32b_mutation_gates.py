@@ -2515,10 +2515,15 @@ def _restore_active_or_keep_exit_code() -> None:
     第二次异常会**替换掉** `SystemExit(131)`，进程按未捕获异常退出 —— 约定的
     「还原失败=131」这个信号就丢了。还原尝试与诊断都保留，只是不让它改写退出码。
     """
+    # ⛔ round-4 HIGH：判据必须绑**进入包装时**的状态。`exiting()` 在 `_finish` 抛出
+    # **之前**就已置位，所以「捕获到异常时 exiting() 为 True」既可能是二次异常，也可能
+    # 是**本次还原自己触发的首次 SystemExit(130)** —— 后者被吞掉就等于信号退出失效，
+    # 进程继续跑下一条变异。只抑制「进来前就已在退出展开」的那种。
+    _was_exiting = _GUARD.exiting()
     try:
         _restore_active()
-    except BaseException:  # noqa: BLE001
-        if not _GUARD.exiting():
+    except BaseException:
+        if not _was_exiting:
             raise
         try:
             traceback.print_exc()
