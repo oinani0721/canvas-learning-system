@@ -130,7 +130,11 @@ class TestNeo4jHealthEndpoint:
             assert response.status == "unhealthy"
             assert response.checks.neo4j_enabled is True
             assert response.checks.neo4j_connection is False
-            assert response.checks.error == "Connection timeout (>500ms)"
+            # 契约演进 74337632(2026-02-04)：wait_for timeout 由 2.0s 提到 30.0s，
+            # 文案随超时预算同步；现行生产串见 health.py:900。
+            # ⚠️ 该裸串在本文件共 3 处，另两处属当前绿的用例（自造响应模型），
+            # 故锚点必须带 12 空格缩进定点，禁 replace_all。[CARD-RED-C2]
+            assert response.checks.error == "Connection timeout (>30000ms)"
 
     @pytest.mark.asyncio
     async def test_neo4j_connection_error(self):
