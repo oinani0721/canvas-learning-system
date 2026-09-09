@@ -66,6 +66,7 @@ class TestAC1SafeDefault:
             )
 
     @pytest.mark.asyncio
+    @pytest.mark.xfail(strict=True, reason="59586af1(2026-03-26 refactor(phase2): delete fake bridge/JSON dual-write code, replaced by GraphitiEpisodeWorker) 删掉了 main.py 里 JSON dual-write 的启动日志（现全文已无 Dual-write 字样），本用例断言的那条日志不再存在；836d0986(2026-03-31) 又删掉了 set_session_validator，使本用例在 patch 入口即 AttributeError。设置项 ENABLE_GRAPHITI_JSON_DUAL_WRITE 本身仍在（config.py:477，canvas_service.py:267/:360 仍消费），故不是整条能力消失，只是「启动期播报」这一面被撤。等价覆盖缺口（GraphitiEpisodeWorker 路径的开关可见性）交接 CARD-STORY-38-4-DUALWRITE-RETIREMENT（台账登记）")
     async def test_startup_log_dual_write_enabled_default(self, caplog):
         """
         [P1] Startup log shows "Dual-write: enabled (default)" when enabled
@@ -90,6 +91,12 @@ class TestAC1SafeDefault:
             patch("app.main.get_memory_service", new_callable=AsyncMock),
             patch("app.main.cleanup_memory_service", new_callable=AsyncMock),
             patch("app.main.set_alert_manager"),
+            # ⚠️ 本行 patch 的目标已不存在（836d0986 2026-03-31 Epic2 pruning 把
+            #    set_session_validator 从 app/main.py 的 import 块删掉，符号现只在
+            #    app/api/v1/endpoints/websocket.py:45）。**故意保留**：它在 with 入口就
+            #    AttributeError，使本用例在真 lifespan 启动前停住。删掉它实测会让这条
+            #    单测跑起整个生产启动流程——加载 BGE-M3、扫 live vault、连 7691
+            #    （实测 30.6s / 每条 1 次现网端口连接尝试）。见下方 xfail reason。
             patch("app.main.set_session_validator"),
             patch("app.main.settings") as mock_settings,
             patch.dict(os.environ, env_without_dw, clear=True),
@@ -141,6 +148,7 @@ class TestAC2ExplicitDisable:
             assert settings.ENABLE_GRAPHITI_JSON_DUAL_WRITE is False
 
     @pytest.mark.asyncio
+    @pytest.mark.xfail(strict=True, reason="59586af1(2026-03-26 refactor(phase2): delete fake bridge/JSON dual-write code, replaced by GraphitiEpisodeWorker) 删掉了 main.py 里 JSON dual-write 的启动日志（现全文已无 Dual-write 字样），本用例断言的那条日志不再存在；836d0986(2026-03-31) 又删掉了 set_session_validator，使本用例在 patch 入口即 AttributeError。设置项 ENABLE_GRAPHITI_JSON_DUAL_WRITE 本身仍在（config.py:477，canvas_service.py:267/:360 仍消费），故不是整条能力消失，只是「启动期播报」这一面被撤。等价覆盖缺口（GraphitiEpisodeWorker 路径的开关可见性）交接 CARD-STORY-38-4-DUALWRITE-RETIREMENT（台账登记）")
     async def test_startup_log_dual_write_disabled_explicit(self, caplog):
         """
         [P1] Startup log shows "Dual-write: disabled (explicit configuration)" when disabled.
@@ -157,6 +165,12 @@ class TestAC2ExplicitDisable:
             patch("app.main.get_memory_service", new_callable=AsyncMock),
             patch("app.main.cleanup_memory_service", new_callable=AsyncMock),
             patch("app.main.set_alert_manager"),
+            # ⚠️ 本行 patch 的目标已不存在（836d0986 2026-03-31 Epic2 pruning 把
+            #    set_session_validator 从 app/main.py 的 import 块删掉，符号现只在
+            #    app/api/v1/endpoints/websocket.py:45）。**故意保留**：它在 with 入口就
+            #    AttributeError，使本用例在真 lifespan 启动前停住。删掉它实测会让这条
+            #    单测跑起整个生产启动流程——加载 BGE-M3、扫 live vault、连 7691
+            #    （实测 30.6s / 每条 1 次现网端口连接尝试）。见下方 xfail reason。
             patch("app.main.set_session_validator"),
             patch("app.main.settings") as mock_settings,
             patch.dict(os.environ, {"ENABLE_GRAPHITI_JSON_DUAL_WRITE": "false"}),
@@ -188,6 +202,7 @@ class TestAC2ExplicitDisable:
             )
 
     @pytest.mark.asyncio
+    @pytest.mark.xfail(strict=True, reason="59586af1(2026-03-26 refactor(phase2): delete fake bridge/JSON dual-write code, replaced by GraphitiEpisodeWorker) 删掉了 main.py 里 JSON dual-write 的启动日志（现全文已无 Dual-write 字样），本用例断言的那条日志不再存在；836d0986(2026-03-31) 又删掉了 set_session_validator，使本用例在 patch 入口即 AttributeError。设置项 ENABLE_GRAPHITI_JSON_DUAL_WRITE 本身仍在（config.py:477，canvas_service.py:267/:360 仍消费），故不是整条能力消失，只是「启动期播报」这一面被撤。等价覆盖缺口（GraphitiEpisodeWorker 路径的开关可见性）交接 CARD-STORY-38-4-DUALWRITE-RETIREMENT（台账登记）")
     async def test_warning_log_data_loss_risk_when_disabled(self, caplog):
         """
         [P1] WARNING log emitted when dual-write is disabled.
@@ -205,6 +220,12 @@ class TestAC2ExplicitDisable:
             patch("app.main.get_memory_service", new_callable=AsyncMock),
             patch("app.main.cleanup_memory_service", new_callable=AsyncMock),
             patch("app.main.set_alert_manager"),
+            # ⚠️ 本行 patch 的目标已不存在（836d0986 2026-03-31 Epic2 pruning 把
+            #    set_session_validator 从 app/main.py 的 import 块删掉，符号现只在
+            #    app/api/v1/endpoints/websocket.py:45）。**故意保留**：它在 with 入口就
+            #    AttributeError，使本用例在真 lifespan 启动前停住。删掉它实测会让这条
+            #    单测跑起整个生产启动流程——加载 BGE-M3、扫 live vault、连 7691
+            #    （实测 30.6s / 每条 1 次现网端口连接尝试）。见下方 xfail reason。
             patch("app.main.set_session_validator"),
             patch("app.main.settings") as mock_settings,
             patch.dict(os.environ, {"ENABLE_GRAPHITI_JSON_DUAL_WRITE": "false"}),

@@ -47,9 +47,39 @@ class TestAgentMemoryMapping:
         assert expected_types == actual_types
 
     def test_all_14_agents_are_mapped(self):
-        """Test that all 14 agents have memory type mappings."""
-        assert len(ALL_AGENT_NAMES) == 14
-        assert len(AGENT_MEMORY_MAPPING) == 14
+        """Test that every mapped agent has a memory type (now 15, was 14).
+
+        契约演进 1a4f42ae (2026-02-09 "TTLCache for agent memory, inject memory_client
+        into VS AgentService")：该 commit 往 AGENT_MEMORY_MAPPING 补了第 15 个条目
+        `"hint-generation": AgentMemoryType.EXPLANATION_GENERATED`（生产行内注释自述
+        "Story 30.12 fix: was missing, trigger in verification_service.py"）——
+        提示生成本来就在触发记忆写入，只是漏登记，补齐是修漏不是扩面。
+        ⛔ 函数名保留 `_14_` 不改：改名 = nodeid 变化 = 这条红「消失」而非「转绿」，
+           名实不符已登记进台账，留给专门的重命名卡处理。[CARD-RED-C2]
+        """
+        # 判据强度提升：原断言只数个数，等长替换（删一个补一个）照样能过。
+        # 改为锁**身份**——键集必须逐字等于下面这份抄写的字面量（不 import 生产常量，
+        # import 当期望值就是自证）。任何增/删/改名都会红。
+        expected_agents = {
+            "basic-decomposition",
+            "deep-decomposition",
+            "question-decomposition",
+            "four-level-explanation",
+            "oral-explanation",
+            "example-teaching",
+            "clarification-path",
+            "comparison-table",
+            "verification-question-agent",
+            "hint-generation",
+            "scoring-agent",
+            "memory-anchor",
+            "canvas-orchestrator",
+            "review-board-agent-selector",
+            "graphiti-memory-agent",
+        }
+        assert len(expected_agents) == 15, "字面量完整性守卫：重复串会让集合悄悄缩小"
+        assert set(AGENT_MEMORY_MAPPING.keys()) == expected_agents
+        assert ALL_AGENT_NAMES == expected_agents
 
     def test_expected_agents_are_in_mapping(self):
         """Test that expected agent names are in the mapping."""

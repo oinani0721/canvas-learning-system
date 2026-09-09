@@ -50,8 +50,29 @@ class TestDockerComposeVariableization:
     def test_no_hardcoded_user_paths(self):
         dc = PROJECT_ROOT / "docker-compose.yml"
         content = dc.read_text()
-        matches = re.findall(r"/Users/\w+/", content)
-        assert not matches, f"Hardcoded user paths found: {matches}"
+        # 契约演进 8a80595f (2026-07-12 "neo4j 挂载迁主仓")：Story 1.7 的「compose 里
+        # 不得有硬编码用户路径」被该 commit 就 neo4j 三条 bind-mount **有意推翻**——
+        # 相对路径 ./docker/neo4j/* 随启动目录漂移，519MB 学习记忆图谱（唯一不可再生
+        # 数据）因此寄居在一个随时会被清理的 worktree 里；commit body 原文「worktree
+        # 清理 = 记忆蒸发」，并留了 backend/data/backups/ 的全量导出。⇒ 有据演进。
+        # 处置：三条做成**显式豁免名单**，其余任何硬编码用户路径照旧红。
+        # ⛔ 不改 docker-compose.yml（本卡零生产改动）、不放宽正则。
+        # ⛔ 用「子集」而不是「相等」：若日后真把这三条改回变量化，本用例应当继续绿，
+        #    而不是被这份名单钉死在今天这个中间状态。[CARD-RED-C2]
+        GRANDFATHERED_ABS_MOUNTS = {
+            "- /Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/data:/data",
+            "- /Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/logs:/logs",
+            "- /Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/plugins:/plugins",
+        }
+        offending = [
+            line.strip()
+            for line in content.splitlines()
+            if re.search(r"/Users/\w+/", line)
+        ]
+        unexpected = [line for line in offending if line not in GRANDFATHERED_ABS_MOUNTS]
+        assert not unexpected, (
+            f"Hardcoded user paths found outside the 8a80595f neo4j exemption: {unexpected}"
+        )
 
     def test_neo4j_ports_use_variables(self):
         dc = PROJECT_ROOT / "docker-compose.yml"
