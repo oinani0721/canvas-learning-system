@@ -293,6 +293,27 @@ def main() -> int:
         assert frag, f"变异 {_n!r} 没写期望片段 —— 空片段会让 KILLED 判据形同虚设（r6 MEDIUM-3）"
 
     base = {p: (p.read_bytes(), sha(p)) for p in (FORBID, DEPLOY)}
+
+    # ⛔ 先确认**绿基线**（Codex r12 LOW-3）：未变异时若已有断言失败，
+    #    那条失败会被后续每一次变异都当成 KILLED —— 今天就发生过一次
+    #    （两条门早已因整改失效而红，探针据此报出假的「独立承重成立」）。
+    #    绿基线不成立时**直接停下**，不产出任何 KILLED 结论。
+    print("== 绿基线自检（未变异时整份测试必须全绿）==")
+    r0 = subprocess.run(
+        [str(PYTEST), "-q", "-p", "no:cacheprovider", TESTFILE],
+        cwd=ROOT / "backend",
+        capture_output=True,
+        text=True,
+    )
+    if r0.returncode != 0:
+        pre = [ln for ln in (r0.stdout + r0.stderr).splitlines() if ln.startswith("FAILED")]
+        print("  ❌ 基线不绿, 以下用例在**未变异**时就红 —— 任何 KILLED 结论都不可信:")
+        for ln in pre:
+            print("     ", ln)
+        print("  ⇒ 先修好这些门（多半是被后续整改取代的过时断言）再跑变异。")
+        return 2
+    print("  ✅ 基线全绿, 可以开始变异\n")
+
     print("== 变异前基线 sha256（还原以此为准，不是 HEAD）==")
     for p, (_b, h) in base.items():
         print(f"  {h}  {p.relative_to(ROOT)}")
@@ -345,7 +366,9 @@ def main() -> int:
                 text=True,
             )
             tail = [ln for ln in (r.stdout + r.stderr).splitlines() if ln.startswith("FAILED")]
-            if r.returncode == 0:
+            # ⛔ 按**有没有 FAILED nodeid** 判，而不是退出码（r12 LOW-3）：
+            #    收集错误/超时同样让 rc≠0, 那不等于「该函数承重」。
+            if r.returncode == 0 or not tail:
                 print(f"[PROBE] {name} → **全绿**")
                 print("        ⇒ 该函数在现有用例下**零承重**。如实登记为冗余，")
                 print("          不得再宣称「两轴各自承重」（Codex r6 MEDIUM-5 原话）。")
