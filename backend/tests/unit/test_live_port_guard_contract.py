@@ -105,6 +105,12 @@ class TestExtractPort:
         ``SystemExit`` / ``KeyboardInterrupt`` / 自定义 ``BaseException`` 仍会逸出并越过
         ``STATE.record()`` —— 缺陷原样存在，只是触发它要换一个异常类型。
         与 ``_safe_repr``（U7-B 立的同型防线）口径统一为 ``BaseException``。
+
+        ⛔ 断言写成「**自己捕获**再判有没有逃出来」，而不是直接调用（round-2 Codex LOW）：
+        直接调用时，回退实现里逃出来的 ``KeyboardInterrupt`` 会被 pytest 当成**会话中断**
+        （实测 rc=2），后面的参数**根本不跑** —— 存档里只会看到一个参数失败，另两个
+        「未验证」。自己捕获之后，三个参数都以普通 ``AssertionError`` 各自翻红，
+        失败正文还点名了逃出来的异常类型。
         """
 
         class _Addr(tuple):
@@ -114,7 +120,17 @@ class TestExtractPort:
             def __index__(self):
                 raise exc_type("__index__ 抛 BaseException —— 取端口仍必须 fail-closed")
 
-        assert guard.extract_port(_Addr(("127.0.0.1", _Port()))) is None
+        escaped = None
+        got = "<未取到>"
+        try:
+            got = guard.extract_port(_Addr(("127.0.0.1", _Port())))
+        except BaseException as exc:  # noqa: BLE001 —— 正是要判它有没有逃出来
+            escaped = exc
+
+        assert escaped is None, (
+            f"取端口把 {type(escaped).__name__} 放了出来 —— 它会越过 STATE.record()，这次尝试整条不进账"
+        )
+        assert got is None
 
     def test_audit_hook_still_accounts_when_index_raises(self, isolated_state):
         """行为面：``__index__`` 抛非 ``TypeError`` 时，审计回调**仍然记账**（H-1a）。
@@ -690,10 +706,17 @@ class TestGuardLiveness:
         ``importlib.import_module("uvloop")`` **两层防御全都越过、成功导入**。
 
         但 hook 并非没被调用：uvloop 的 ``__init__.py`` 自己 ``import`` 子模块，**那些走
-        ``import`` 语句**、照常抛事件。**不装门**时观测到的完整序列是 ``uvloop.includes`` /
-        ``uvloop.loop`` / ``uvloop._noop`` / ``uvloop._version``；**装了门**之后只会看到
-        第一条（实测 ``['uvloop.includes']``），因为门在那一条上就抛了 —— 两个数字含义
-        不同，别混用（证据 ``evidence-w47/m4-importlib-r2-*.txt`` 的 `uvloop 事件` 行）。
+        ``import`` 语句**、照常抛事件。证据 ``evidence-w47/m4-importlib-r3-*.txt`` 的
+        `uvloop 事件` 行（两个形态各有记录，**都限定本机 CPython 3.14.4 + 本 venv 的
+        uvloop 版本**）：
+
+        * ``no-guard__baseline``（**不装门**、只挂旁观 hook）⇒
+          ``['uvloop.includes', 'uvloop.loop', 'uvloop.loop', 'uvloop._noop', 'uvloop._version']``
+          —— 5 个事件，``uvloop.loop`` 出现两次；
+        * ``importlib__poison-removed``（**装了门**）⇒ ``['uvloop.includes']`` 一条，
+          因为门在第一条上就抛了。
+
+        两个记录含义不同，别混用。
 
         判据从「``args[0] == "uvloop"``」放宽到「``uvloop`` 或 ``uvloop.`` 开头」即可在
         **同一层**（audit import 事件）关上这条路 —— 承重方式没变。
@@ -732,28 +755,35 @@ class TestGuardLiveness:
             if saved is not None or "uvloop" not in sys.modules:
                 sys.modules["uvloop"] = saved
 
-    def test_lying_str_subclass_is_judged_by_its_real_value(self):
-        """重载了比较方法的 ``str`` 子类，按**真实值**判而不是按它自己说的判。
+    @pytest.mark.parametrize("value", ["uvloop", "uvloop.loop"])
+    def test_denying_str_subclass_is_still_blocked(self, value):
+        """两个比较方法**恒说不是**的 ``str`` 子类，仍必须按真实值拦下。
 
-        两个方向各一条：
-        * 真实值是 ``"uvloop"`` 但 ``__eq__`` / ``startswith`` 谎称不是 ⇒ 仍必须拦；
-        * 真实值是 ``"json"`` 但 ``__eq__`` / ``startswith`` 谎称是 uvloop ⇒ 不得误拦。
+        ⛔ round-2 Codex MEDIUM：上一版用的是「取反」型说谎子类，对
+        ``_Liar("uvloop")`` 而言 ``startswith("uvloop.")`` 恰好返回 **True**（原串本来就
+        不以带点前缀开头，取反成真），于是**即使把判据错误地改回绑定调用**，正向那半仍绿。
+        Codex 给的静态反例是::
 
-        判据用未绑定的 ``str.__eq__`` / ``str.startswith`` 读真实值（与本仓处理 tuple
-        子类时用 ``tuple.__len__`` / ``tuple.__getitem__`` 同一个惯用法）。
+            str.__eq__(name, "uvloop") is True or (
+                str.startswith(name, "uvloop.") and name.startswith("uvloop.")
+            )
+
+        它能满足普通子类用例、取反型 ``"uvloop"`` 与 ``"json"`` 用例，却**放行**
+        ``uvloop.loop``。改成「两个方法恒返回 False」的子类 + 参数化两个真实值之后，
+        那个反例在 ``uvloop.loop`` 这一参数上必红。
         """
 
-        class _Liar(str):
+        class _Denier(str):
             __slots__ = ()
 
             def __eq__(self, other):  # noqa: D105
-                return not str.__eq__(self, other)
+                return False
 
             def __ne__(self, other):  # noqa: D105
-                return not self.__eq__(other)
+                return True
 
             def startswith(self, *a, **k):  # noqa: D102
-                return not str.startswith(self, *a, **k)
+                return False
 
             __hash__ = str.__hash__
 
@@ -762,12 +792,33 @@ class TestGuardLiveness:
         saved = sys.modules.pop("uvloop", None)
         try:
             with pytest.raises(RuntimeError, match="uvloop 的 import 被本门拦下"):
-                sys.audit("import", _Liar("uvloop"), None, None, None, None)
-            # 反向：谎称自己是 uvloop 的无关模块不得被误拦
-            assert guard._audit_hook("import", (_Liar("json"), None, None, None, None)) is None
+                sys.audit("import", _Denier(value), None, None, None, None)
         finally:
             if saved is not None or "uvloop" not in sys.modules:
                 sys.modules["uvloop"] = saved
+
+    def test_affirming_str_subclass_is_not_mistakenly_blocked(self):
+        """两个比较方法**恒说是**的 ``str`` 子类，真实值无关时不得误拦（反方向）。
+
+        与上一条配对：上一条防「按子类的谎话放行」，这一条防「按子类的谎话误拦」。
+        判据只认未绑定 ``str.__eq__`` / ``str.startswith`` 读到的真实值。
+        """
+
+        class _Affirmer(str):
+            __slots__ = ()
+
+            def __eq__(self, other):  # noqa: D105
+                return True
+
+            def __ne__(self, other):  # noqa: D105
+                return False
+
+            def startswith(self, *a, **k):  # noqa: D102
+                return True
+
+            __hash__ = str.__hash__
+
+        assert guard._audit_hook("import", (_Affirmer("json"), None, None, None, None)) is None
 
     @pytest.mark.parametrize("module_name", ["uvloopx", "uvloop_shim", "myuvloop", "uv"])
     def test_lookalike_module_names_are_not_blocked(self, module_name):

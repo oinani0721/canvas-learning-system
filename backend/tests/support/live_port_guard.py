@@ -708,9 +708,12 @@ def _is_uvloop_module(name) -> bool:
     实测只覆盖本机 CPython 3.14.4 的这四种形态。
 
     但 hook 并不是没被调用：uvloop 的 ``__init__.py`` 自己 import 子模块，**那些走的是
-    ``import`` 语句**、照常抛事件。**不装门**时观测到的完整序列是 ``uvloop.includes`` /
-    ``uvloop.loop`` / ``uvloop._noop`` / ``uvloop._version``；装了门之后只会看到**第一条**
-    （``uvloop.includes``），因为门在那一条上就抛了 —— 两个数字含义不同，别混用。
+    ``import`` 语句**、照常抛事件。本机实测（``evidence-w47/m4-importlib-r3-*.txt``
+    的 ``no-guard__baseline`` 形态，**不装门**、只挂旁观 hook）：完整序列是
+    ``['uvloop.includes', 'uvloop.loop', 'uvloop.loop', 'uvloop._noop', 'uvloop._version']``
+    （5 个事件，``uvloop.loop`` 出现两次）。**装了门**之后同一条路径只会看到**第一条**
+    ``uvloop.includes``（同文件 ``importlib__poison-removed`` 形态），因为门在那一条上就抛了。
+    两个记录含义不同，别混用；两者都限定为本机 CPython 3.14.4 + 本 venv 的 uvloop 版本。
     所以把判据从「等于 uvloop」放宽到「uvloop 或 uvloop. 开头」，就能在**同一层**
     （audit ``import`` 事件）把这条路关上 —— 承重方式没有改变，模块 docstring 对
     「audit 事件承重、毒化不承重」的定性照旧成立。
