@@ -399,23 +399,27 @@ def _harness_tree(vault_dir):
     #: 贪婪版 `(.*)\1\s*(?:#.*)?$` 对 `"/valid/repo" # use "main"` 会让 `.*` 一路吃到
     #: 最后一个引号, 解析出 `/valid/repo" # use "main` —— 一个**写对了**的配置被判成坏路径,
     #: 于是整条评分链 fail-closed 停摆。非贪婪让 `\1` 优先匹配**第一个**闭合引号。
-    #: ⛔ 裸值的注释判据 = 「`#` 前有空白, 或 `#` 就是值的第一个字符」(两轮实测演化, 别再动):
+    #: ⛔ 裸值的注释判据 = 「`#` 前有 SP/TAB, 或 `#` 就是值的第一个字符」(三轮实测演化, 别再动):
     #:   · 只用 `\s+#`(最初版): `harness_tree: # reset` 是「空值+紧跟注释」, `#` 前在
     #:     值区里没有空白 ⇒ 不匹配 ⇒ 整个 `# reset` 被当成相对路径, 「把键注释掉」
     #:     变成砖化操作 (round-1 MEDIUM-1);
     #:   · 一律截 `#`(round-1 整改版): `harness_tree: /repo#alt` 的 `#` 前无空白,
     #:     在 YAML 里是标量**内容**不是注释 —— 截掉它会让写错的路径**静默变成另一棵
     #:     存在的树**(实测 `/repo#alt`→`/repo`), 恰是本函数「树不对必须说话」要防的
-    #:     形态 (round-2 MEDIUM-1)。
-    #: 即与 YAML 1.1/1.2 标量规则一致: 无分隔空白的 `#` 属于路径; 路径里 `#` 前恰有
-    #: 空白的形态罕见, 真遇上的用户加引号即可(引号内一切按字面)。
+    #:     形态 (round-2 MEDIUM-1);
+    #:   · 注释分隔用 `\s+`(round-2 整改版): Python 的 `\s` 把**全角空格 U+3000 /
+    #:     NBSP U+00A0** 也当分隔符, 而 YAML 的 s-white 只有 SP/TAB ——
+    #:     `/repo　#alt` 被截成 `/repo`, 静默换树形态**又回来了一次**(round-3 MEDIUM)。
+    #:     收窄到 `[ \t]+#` 才与 YAML 1.1/1.2 逐字对齐。
+    #: 即: 无 SP/TAB 分隔的 `#` 属于路径(含全角空格/NBSP 隔开的); 路径里 `#` 前恰有
+    #: SP/TAB 的形态罕见, 真遇上的用户加引号即可(引号内一切按字面)。
     _qm = re.match(r'^([\'"])(.*?)\1\s*(?:#.*)?$', _raw)
     if _qm:
         _tree = _qm.group(2)
     elif _raw.startswith("#"):
         _tree = ""
     else:
-        _tree = re.sub(r'\s+#.*$', '', _raw).strip()
+        _tree = re.sub(r'[ \t]+#.*$', '', _raw).strip()
     if not _tree:
         return os.path.dirname(vault_dir)
     _tree = os.path.expanduser(_tree)

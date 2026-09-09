@@ -274,6 +274,23 @@ canvas-vault/.claude/skills/quiz-answer/SKILL.md
 
 round-2 的核对确认（作者自述面）：M1 引号形态修复成立；M4 caplog 判据在固定实参下成立（未知 event_type 理论上可回显同串，但测试固定 `answer_scored` 不受影响）；写点数值门对 NaN/±Inf/超大 int/bool/str/None 全部落预期分支；「唯一上游」置信度——差分确认中间段与拼接链本轮未改，但静态「未改」补全不了此前未检查的数据流（如实登记为未证明项）。
 
-### round-3（绑定 `<R2 整改 commit>`）
+### round-3（绑定 `23b26e6e` = R2 整改 commit）
+
+- 存档：`_bmad-output/审查/codex-review-CARD-G3-3-R2-writer-boundary-r3.md`（首部六行 blockquote 按协议 §2.1）
+- prompt：`_bmad-output/审查/prompts/codex-prompt-CARD-G3-3-R2-writer-boundary-r3.md`（五分节；读取面行号已按 round-2 提示放宽到 `:1521/:1535/:1609`；禁用措辞扫描 0 命中）
+- 模型 `gpt-6-astra` · `ultra` · `codex-cli 0.153.3` · read-only
+- **BLOCKER 0 / HIGH 0 / MEDIUM 1 / LOW 0**
+
+**逐条独立验证与处置**：
+
+| # | 级别 | 内容 | 独立验证 | 处置 |
+|---|---|---|---|---|
+| M1'' | MEDIUM | Python `\s` 把全角空格 U+3000 / NBSP U+00A0 也当注释分隔符，超出 YAML s-white（只有 SP/TAB）——`/repo　#alt` 被截成 `/repo`，**静默换树形态第三次出现**；Codex 明示非登记项 | **复现确认**（两种空白实测都截） | ✅ 修：注释分隔收窄 `[ \t]+#`（与 YAML s-white 逐字对齐）；注释记录三轮演化。**+TAB 意外发现（实测）**：真 YAML plain scalar 禁 TAB，校验器读 config 层直接判损坏拒写——两层各自 fail-closed；参数化用例改三态期望（path 拒+报完整原路径 / comment 写入 / invalid 不静默），参数化样本一律 `\uXXXX` 转义 |
+
+round-3 同时确认：断链 symlink 不会落 `read_bytes()`（先判 symlink）；`rglob` 默认不递归目录链接；既存锁文件的「空→非空」等变化进 `_changed` 会被拒（完全不变通过 = 检测「本次持久变化」，符合语义）；值首 `#hashtag-dir` 回退正确（表达该目录名须加引号）；写点门三处行号再漂至 `:1532/:1546/:1620`，可见分支无新注入路径。
+
+### round-4（绑定 `<R3 整改 commit>`）
 
 （随结果补）
+
+**R2 整改后裁判（最终态，commit `23b26e6e`）**：最终五回归 **437 passed, 1 skipped, 0 failed, 0 xfailed**（`five-regression-final2-*.txt`）；`tests/skills` **369**；`tests/unit` nodeid diff **空**（202=202，SKIPPED 48=48，承重跑 `unit-close-20260908T120453.txt`）；三 harness ANCHOR-ERROR=0 且与开工逐字同；判据③④/验伪锚①②复核通过；`pyright` 0 错；`ruff check` 过；format 增量三文件 **0**（存量 4 行原样保留）。

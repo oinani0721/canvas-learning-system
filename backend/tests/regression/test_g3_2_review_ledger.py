@@ -6956,38 +6956,59 @@ def test_g33r2_harness_tree_commented_out_key_falls_back(vault):
         assert len(_ledger_lines(vault)) == 1, f"回退后必须照常写入 ({_why})"
 
 
-def test_g33r2_harness_tree_hash_without_space_is_path_content(vault):
-    """裸值里**无空白分隔**的 `#` 是路径内容，不是注释（Codex round-2 MEDIUM-1 回归）。
+@pytest.mark.parametrize(
+    ("_sep", "_expect"),
+    [
+        ("", "path"),  # \u65e0\u5206\u9694 \u21d2 # \u662f\u8def\u5f84\uff08round-2 MEDIUM-1\uff09
+        (" ", "comment"),  # SP \u21d2 \u6ce8\u91ca\uff08YAML s-white\uff09
+        (
+            "\t",
+            "invalid",
+        ),  # TAB \u21d2 \u8bed\u6cd5\u5c42\u662f\u6ce8\u91ca, \u4f46\u771f YAML plain scalar \u7981 TAB \u21d2 \u94fe\u8def\u5c42\u5224\u635f\u574f\u62d2\u5199(\u5b9e\u6d4b)
+        (
+            "\u3000",
+            "path",
+        ),  # \u5168\u89d2\u7a7a\u683c U+3000 \u21d2 \u975e YAML \u5206\u9694 \u21d2 # \u662f\u8def\u5f84\uff08round-3 MEDIUM\uff09
+        ("\u00a0", "path"),  # NBSP U+00A0 \u21d2 \u540c\u4e0a
+    ],
+)
+def test_g33r2_harness_tree_hash_separator_is_yaml_s_white_only(vault, _sep, _expect):
+    """\u88f8\u503c `#` \u7684\u6ce8\u91ca\u5224\u636e = \u300c`#` \u524d\u6709 **SP/TAB**\uff0c\u6216 `#` \u662f\u9996\u5b57\u7b26\u300d\u2014\u2014 \u4e0e YAML
+    \u7684 s-white \u9010\u5b57\u5bf9\u9f50\uff08Codex round-2 MEDIUM-1 + round-3 MEDIUM \u4e24\u8f6e\u56de\u5f52\uff09\u3002
 
-    ⛔ round-1 整改版在这里矫枉过正：为了让 `harness_tree: # reset`（空值+注释）不被
-    当成相对路径，它把裸值的 `#` **一律**当注释起点 —— 于是 `harness_tree: /repo#alt`
-    被截成 `/repo`。若 `/repo` 恰好是一棵**存在**的树，写错的配置会**静默换成那棵树**
-    （实测复现），正是本函数「树不对必须说话」要防的形态；若不存在则误拒，报的还是
-    一个用户没写过的路径。YAML 1.1/1.2 里无分隔空白的 `#` 本就是标量内容。
+    \u6f14\u5316\uff08\u6bcf\u4e00\u8f6e\u90fd\u88ab\u4e0b\u4e00\u8f6e\u6253\u56de\u4e00\u6b21\uff0c\u522b\u518d\u52a8\uff09\uff1a
+      \u00b7 \u4e00\u5f8b\u622a `#`\uff1a`/repo#alt`\uff08\u65e0\u5206\u9694\uff09\u88ab\u622a \u21d2 \u9759\u9ed8\u6362\u6811\uff08round-2\uff09\uff1b
+      \u00b7 `\s+` \u5f53\u5206\u9694\uff1aPython `\s` \u542b\u5168\u89d2\u7a7a\u683c/NBSP\uff0cYAML s-white \u53ea\u6709 SP/TAB \u2014\u2014
+        `/repo\u3000#alt` \u88ab\u622a \u21d2 **\u540c\u4e00\u5f62\u6001\u53c8\u56de\u6765\u4e00\u6b21**\uff08round-3\uff09\u3002
 
-    两端点对照：
-      · `<真树>#alt` —— `#` 前无空白 ⇒ 值 = `<真树>#alt` ⇒ 该路径**不存在** ⇒ 拒；
-      · `<真树> # alt` —— `#` 前有空白 ⇒ 注释 ⇒ 值 = `<真树>` ⇒ 照常写入。
-    同一棵真树、同一个 `#alt`，唯一变量是那个空白 —— 两条结论合起来才钉住判据。
+    \u4e09\u6001\u671f\u671b\uff08`_expect`\uff09\uff1a
+      \u00b7 `path`\uff1a`#` \u662f\u8def\u5f84\u5185\u5bb9 \u21d2 \u8def\u5f84\u4e0d\u5b58\u5728 \u21d2 \u62d2\uff0c\u4e14\u62d2\u56e0\u62a5**\u5b8c\u6574\u539f\u8def\u5f84**\uff1b
+      \u00b7 `comment`\uff1aSP \u5206\u9694 \u21d2 \u6ce8\u91ca\u5265\u6389 \u21d2 \u503c = alt \u21d2 \u7167\u5e38\u5199\u5165\uff1b
+      \u00b7 `invalid`\uff1aTAB \u2014\u2014 \u6211\u4eec\u7684\u6b63\u5219\u5c42\u6309 s-white \u5265\u5b83\uff08\u4e0e YAML \u8bed\u6cd5\u4e00\u81f4\uff09\uff0c\u4f46
+        **\u771f YAML \u91cc plain scalar \u7981 TAB**\uff0c\u6821\u9a8c\u5668\u8bfb config \u90a3\u5c42\u76f4\u63a5\u5224\u635f\u574f\u62d2\u5199
+        \uff082026-09-08 \u5b9e\u6d4b\uff1arc\u22600\u300cvault \u5f52\u5c5e\u65e0\u6cd5\u7ed1\u5b9a \u2026 config \u635f\u574f\u300d\uff09\u3002\u4e24\u5c42
+        \u5404\u81ea fail-closed\uff0c\u4efb\u4f55\u4e00\u5c42\u90fd\u4e0d\u4ea7\u751f\u300c\u9759\u9ed8\u5199\u5165\u300d\u2014\u2014\u8fd9\u6b63\u662f\u8981\u9489\u7684\u4e0d\u53d8\u91cf\u3002
+        \u4e0d\u65ad\u8a00\u300c\u5fc5\u987b\u7531\u54ea\u5c42\u62d2\u300d\uff0c\u53ea\u65ad\u8a00**\u4e0d\u9759\u9ed8**\u3002
     """
     alt = _build_alt_harness(vault.parent / "alt-harness-hash")
     (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
     (vault / "learning_events.jsonl").unlink(missing_ok=True)
-    # 端点 A：无空白 ⇒ `#` 是路径 ⇒ `<alt>#alt` 不存在 ⇒ fail-closed
-    _write_cfg(vault, f"harness_tree: {alt}#alt\n")
-    rA = _run_writer_settled(vault, _payload(event_id="板申#q1", ts=TS1, review_time=TS1))
-    assert rA.returncode != 0, "⛔ 无空白 `#` 被当注释截掉 ⇒ 静默换树（round-2 MEDIUM-1 形态回归）"
-    assert f"{alt}#alt" in (rA.stderr or ""), (
-        f"拒因必须报出**含 # 的完整路径**（用户写的原值），而不是截断后的: {(rA.stderr or '')[-300:]}"
-    )
-    assert len(_ledger_lines(vault)) == 0, "端点 A 拒绝 ⇒ 零写"
-    # 端点 B：有空白 ⇒ 注释 ⇒ 值 = alt ⇒ 正常
-    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
-    (vault / "learning_events.jsonl").unlink(missing_ok=True)
-    _write_cfg(vault, f"harness_tree: {alt} # alt 树\n")
-    rB = _run_writer_settled(vault, _payload(event_id="板酉#q1", ts=TS1, review_time=TS1))
-    assert rB.returncode == 0, f"⛔ 有空白 `#` 应被当注释剥掉: {(rB.stderr or '')[-400:]}"
-    assert len(_ledger_lines(vault)) == 1, "端点 B 必须照常写入"
+    _write_cfg(vault, f"harness_tree: {alt}{_sep}#alt\n")
+    r = _run_writer_settled(vault, _payload(event_id="\u677f\u7533#q1", ts=TS1, review_time=TS1))
+    if _expect == "comment":
+        assert r.returncode == 0, (
+            f"\u26a0\ufe0f\u26a0\ufe0f SP \u5206\u9694\u7684 `#` \u5e94\u88ab\u5f53\u6ce8\u91ca\u5265\u6389: {(r.stderr or '')[-400:]}"
+        )
+        assert len(_ledger_lines(vault)) == 1, "SP \u6ce8\u91ca\u5f62\u6001\u5fc5\u987b\u7167\u5e38\u5199\u5165"
+    else:
+        assert r.returncode != 0, (
+            f"\u26a0\ufe0f\u26a0\ufe0f \u8be5\u5206\u9694\u5f62\u6001\u88ab\u9759\u9ed8\u653e\u884c \u21d2 \u6362\u6811\u98ce\u9669\uff08sep={_sep!r}, expect={_expect}\uff09"
+        )
+        assert len(_ledger_lines(vault)) == 0, "\u62d2\u7edd \u21d2 \u96f6\u5199"
+        if _expect == "path":
+            assert f"{alt}{_sep}#alt" in (r.stderr or ""), (
+                f"\u62d2\u56e0\u5fc5\u987b\u62a5\u51fa**\u5b8c\u6574\u539f\u8def\u5f84**\uff08\u542b\u5206\u9694\u4e0e # \u5c3e\uff09\uff0c\u800c\u4e0d\u662f\u622a\u65ad\u540e\u7684: {(r.stderr or '')[-300:]}"
+            )
 
 
 @pytest.mark.parametrize(
