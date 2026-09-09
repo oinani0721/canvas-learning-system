@@ -78,6 +78,46 @@ def _vault(tmp_path, nodes: dict, name: str = "vault") -> Path:
     return vault
 
 
+@pytest.fixture(autouse=True)
+def _forbid_live_backups_writes(tmp_path):
+    """⛔ 常驻护栏: 本文件任何用例结束时, **真实仓库**的 backups/ 不许多出文件。
+
+    本卡实测踩到过一次: 一条门用了 monkeypatch.undo() —— 它撤销的是整个
+    fixture 的补丁, 包括 _patch_runner 设的 BACKUPS, 于是之后那句 save_state
+    落到了真实仓库的 backups/ 里 (daily-review.vault.state.json 与同名 .lock,
+    内容正是那条门的测试数据)。生产 key 是 canvas-vault, 功能上没被影响,
+    但「禁写 live backups/」是硬边界, 靠"记得打补丁"守不住, 得有门。
+
+    判据是 (文件名, 大小, mtime) 三元组的差集, 不只是文件名集合。
+    ⛔ 只比文件名的初版**没有牙**: 上一次污染留下的那两个文件已经在 before 里,
+    于是把缺陷改回去、让它再写一次同名文件, 门照样绿 (本卡实测)。
+    生产 launchd 每小时真的会动下面这几个, 它们走白名单 —— 与测试无关, 比它们
+    会假红。白名单之外的任何新增或改动一律红。
+    """
+    live = Path(os.environ.get("CANVAS_REPO", "/Users/Heishing/Desktop/canvas/canvas-learning-system")) / "backups"
+    churn = {"daily-review.log", "memory-health.log", "daily-review.canvas-vault.state.json", "neo4j"}
+
+    def _snap():
+        if not live.is_dir():
+            return {}
+        out = {}
+        for entry in live.iterdir():
+            if entry.name in churn:
+                continue
+            try:
+                st = entry.stat()
+            except OSError:
+                continue
+            out[entry.name] = (st.st_size, st.st_mtime_ns)
+        return out
+
+    before = _snap()
+    yield
+    after = _snap()
+    changed = {k for k in set(before) | set(after) if before.get(k) != after.get(k)}
+    assert not changed, f"用例动了真实仓库的 backups/: {sorted(changed)}"
+
+
 def _patch_runner(monkeypatch, vault, tmp_path):
     """CARD-C1a: STATE/LOG 常量已函数化为 BACKUPS 派生 (state_path/log_line),
     fixture 只注入 BACKUPS 一处 — 所有 state/log 写入随之进 tmp, 防写真实
@@ -1532,9 +1572,15 @@ def test_g67r_corrupt_quarantine_happens_under_the_lock(tmp_path, monkeypatch):
             state.write_text(good, encoding="utf-8")
         return out
 
-    monkeypatch.setattr(Path, "read_text", _read_then_swap)
-    st = runner.load_state(vault)
-    monkeypatch.undo()
+    # ⛔ 用独立的 MonkeyPatch 上下文, **不能**用 monkeypatch.undo() ——
+    # undo() 撤销的是这个 fixture 的**全部**补丁, 包括 _patch_runner 设的
+    # BACKUPS。之后那句 save_state 就会写进**真实仓库**的 backups/。
+    # (本卡实测踩到过: live backups/ 里多出 daily-review.vault.state.{json,lock},
+    #  内容正是本门的测试数据。生产 key 是 canvas-vault, 未受影响, 但这已经
+    #  违反了「禁写 live backups/」这条硬边界。)
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(Path, "read_text", _read_then_swap)
+        st = runner.load_state(vault)
     assert swapped, "夹具前提: 那一手必须真的插进去了"
 
     on_disk_now = state.read_text(encoding="utf-8") if state.exists() else None
@@ -1746,9 +1792,11 @@ def test_g67r_quarantine_lock_blocks_a_lock_abiding_writer(tmp_path, monkeypatch
                 assert ready.exists(), "合规写者 30s 内没到达取锁点 —— 本门前提不成立"
         return out
 
-    monkeypatch.setattr(Path, "read_text", _spy)
-    runner.load_state(vault)
-    monkeypatch.undo()
+    # ⛔ 同上: 独立上下文, 不用 monkeypatch.undo() (它会把 BACKUPS 也还原掉,
+    # 后面的落盘就打到真实仓库的 backups/ 上)
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(Path, "read_text", _spy)
+        runner.load_state(vault)
     assert len(reads) >= 2, "夹具前提: 隔离前必须真的读了第二次"
     proc = holder["proc"]
     out, err = proc.communicate(timeout=60)
