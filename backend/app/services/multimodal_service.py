@@ -515,12 +515,14 @@ class MultimodalService:
         # contains a backslash, or whenever the normalised spelling of the base happens to
         # resolve into a different subtree (e.g. via a symlink on that other path).
         #
+        # Both sides are taken *after* resolve(), so how the base happens to be spelled
+        # (relative vs absolute, with or without "..") cannot change the outcome.
+        #
         # The returned value is still the plain resolve(), so callers write where they
         # did before; this only widens what is refused, never what is allowed through.
-        try:
-            below_root = str(file_path.relative_to(self.storage_base_path))
-        except ValueError:
-            below_root = None
+        below_root = (
+            str(resolved_path.relative_to(storage_root)) if resolved_path.is_relative_to(storage_root) else None
+        )
         reinterpreted = (
             (storage_root / below_root.replace("\\", "/")).resolve() if below_root is not None else resolved_path
         )

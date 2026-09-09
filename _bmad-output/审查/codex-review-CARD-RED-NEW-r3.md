@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-07-第十三批 · 车道 U11-C · 卡 CARD-RED-NEW round-3
+> 模型: `gpt-6-astra` · reasoning_effort: `ultra` · codex: `codex-cli 0.153.3`
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat _bmad-output/审查/prompts/codex-prompt-CARD-RED-NEW-r3.md)"`
+> 审查绑定: `0266fb08`（送审时 HEAD）。⚠️ 本轮运行期间车道未改动读取面内文件（r2 的瑕疵已纠正）。本轮结论促成第三版路径修法，整改后另送 round-4。
+> 会话头自证（抄 .stderr 前三行含 model 行，stderr 本身不入库）:
+> `OpenAI Codex v0.153.3` / `workdir: …/worktrees/card-u11-red-c` / `model: gpt-6-astra`
+
+---
+
 绑定 **`0266fb083d5526aab456c72f97d6f70c10caaa97`**。结论：**BLOCKER 0 / HIGH 0 / MEDIUM 2 / LOW 1**。
 
 **BLOCKER：无。**

@@ -36,7 +36,7 @@
 | 5 | `test_event_bus.py::TestTier2Important::test_tier2_retry_then_success` | `assert 0 >= 2`（`call_count`） | `test_event_bus.py:159` `assert call_count >= 2` | `event_bus.py:299-300` `if attempt < TIER2_MAX_RETRIES: await asyncio.sleep(delay)` | 生产 `43d291d8` / 测试 `43d291d8`（两侧 `git log -L` 各仅 1 commit） | **测试写错（patch 面过宽）** | ① git：两侧各仅 1 commit ⇒ 诞生即红。② **运行期铁证**（`identity-open-*.txt`）：断言是 `assert 0 >= 2`（handler 零调用），但同一次运行的日志里有 `EventBus[T2]: flaky_handler FAILED (attempt=1/3 ... retry in 2.0s)` —— 该日志是**断言失败后**事件循环清理 pending task 时才产生的 ⇒ 断言时 wrapper 一次都没跑。③ 机理：`app.services.event_bus.asyncio` **就是全局 asyncio 模块对象**，patch 它的 `sleep` 连带把测试自己 `:158` 的让步（以及 conftest `wait_for_*` 内部的 `asyncio.sleep(interval)`）一并变成 no-op ⇒ 事件循环从不让出。④ 同类绿对照：`:136 test_tier2_success`（同 Tier 2，**未** patch sleep）当前绿 | 改测试：不再 patch `asyncio.sleep`；改用 `monkeypatch.setattr("app.services.event_bus.TIER2_BASE_DELAY_S", 0.0)` 缩短**测试期**退避（生产常量 `:54 = 2.0` 一字未动），等待改用 conftest 的 `wait_condition` fixture；`assert call_count >= 2` **原样保留** |
 | 6 | `...::test_tier2_all_retries_exhausted_writes_outbox` | `assert 0 >= 1`（`_stats["outbox_written"]`） | `test_event_bus.py:172` `assert bus._stats["outbox_written"] >= 1` | `event_bus.py:302-304` `self._stats["handled_failed"] += 1; self._write_outbox(event, ..., "retries_exhausted")` | 同 #5 | **测试写错（patch 面过宽）** | 同 #5（同一机理、同一份日志证据：`always_fail FAILED (attempt=1/3)` 出现在断言之后）。**另有负控**见下节 | 同 #5 写法；`assert ... >= 1` **原样保留** |
 | 7 | `test_mastery_fusion.py::TestPearsonCorrelation::test_no_correlation` | `assert 1.0 < 0.5` where `1.0 = abs(-1.0)` | `test_mastery_fusion.py:316-317` `a = [1,0,1,0,1]; b = [0,1,0,1,0]` + `:320 assert abs(r) < 0.5` | `mastery_fusion.py:157-168`（教科书 Pearson 公式，无缺陷） | 生产 `43d291d8` / 测试 `43d291d8`（两侧各仅 1 commit） | **测试写错（数据非正交）** | ① git：两侧各仅 1 commit ⇒ 诞生即红。② 数学：`b = 1 - a` 是**完全负相关**，r = −1.0 是**数学正确值**，与 docstring `"Orthogonal signals → r near 0"` 不符 ⇒ 错在数据不在实现。③ 非实现错的独立证据：同文件 `:307-312 test_perfect_negative_correlation`（`a=[.1..,.5]` / `b=[.5..,.1]` → `r == approx(-1.0)`）当前**绿** ⇒ 实现对「完全负相关 = −1.0」已有正确覆盖 | 改测试数据为真正正交：`a=[1,0,1,0]` / `b=[1,1,0,0]`（mean 均 0.5，cov = .25−.25−.25+.25 = 0 ⇒ r = 0.0，算式写进 docstring）；`assert abs(r) < 0.5` **判据强度原样保留**；公式**未动** |
-| 8 | `test_multimodal_path_security.py::TestValidateSafePath::test_path_traversal_windows_style` | `Failed: DID NOT RAISE <class MultimodalServiceError>` | `test_multimodal_path_security.py:63-65`（**一字未改**） | `multimodal_service.py:507-508`（改前）`resolved_path = file_path.resolve()` / `if not resolved_path.is_relative_to(self.storage_base_path.resolve()):` | 生产 `e626bef6` 2026-02-09 / 测试 `d12856dd` 2026-02-09（两侧各仅 1 commit） | **契约演进**（处置性质 = 防御深度加强，选 B 改生产判定行） | 见下节单列。归类理由：测试断言的是一个**比实现所满足的更强的契约**（「Windows 风格穿越应被拒绝」不限平台），实现只满足了 POSIX 单一读法下的弱契约；本卡令实现向该已声明契约靠拢 ⇒ 属契约演进，不是「测试写错」（测试意图正确）、也不是「回归」（从未绿过） | 只改判定行使实现**更严**；断言、`match=` 串、返回值、warning/raise 均未动 |
+| 8 | `test_multimodal_path_security.py::TestValidateSafePath::test_path_traversal_windows_style` | `Failed: DID NOT RAISE <class MultimodalServiceError>` | `test_multimodal_path_security.py:63-65`（**一字未改**） | `multimodal_service.py:507-508`（改前）`resolved_path = file_path.resolve()` / `if not resolved_path.is_relative_to(self.storage_base_path.resolve()):` | 生产 `e626bef6` 2026-02-09 / 测试 `d12856dd` 2026-02-09（两侧各仅 1 commit） | **契约演进**（处置性质 = 防御深度加强，选 B 改生产判定行） | 见下节单列。归类理由：测试断言的是一个**比实现所满足的更强的契约**（「Windows 风格穿越应被拒绝」不限平台），实现只满足了 POSIX 单一读法下的弱契约；本卡令实现向该已声明契约靠拢 ⇒ 属契约演进，不是「测试写错」（测试意图正确）、也不是「回归」（两侧各仅 1 commit，本平台上引入时即红）。⚠️ 此处**不用「从未绿过」**：#8 是**平台相关**的，同一份代码在 Windows 上本来就会绿 | 只改判定行使实现**更严**；断言、`match=` 串、返回值、warning/raise 均未动 |
 
 ---
 
@@ -62,32 +62,31 @@
 
 ### 收益边界（如实，不夸大）
 
-实测 `Path(filename).suffix` 恒为「`.` + 不含点的串」（`posix-path-semantics.txt` 末节：`x.png\..\..\evil` → `.\evil`），因此**无法经 ext 注入 `..`**；两个生产调用方（终态 `:584` / `:728`）的文件名均由服务端 `_generate_unique_filename` 生成。⇒ **在当前两个调用方上，本修复堵的是一条不可达路径，收益是前瞻性的**，不是修一个当前可利用的漏洞。这一点不得表述为「修复了高危漏洞」。
+实测 `Path(filename).suffix` 恒为「`.` + 不含点的串」（`posix-path-semantics.txt` 末节：`x.png\..\..\evil` → `.\evil`），因此**无法经 ext 注入 `..`**；两个生产调用方（终态 `:586` / `:730`）的文件名均由服务端 `_generate_unique_filename` 生成。⇒ **在当前两个调用方上，本修复堵的是一条不可达路径，收益是前瞻性的**，不是修一个当前可利用的漏洞。这一点不得表述为「修复了高危漏洞」。
 
 ### 改法与副作用逐条核对
 
 ```python
 resolved_path = file_path.resolve()                       # :507
 storage_root = self.storage_base_path.resolve()           # :508
-try:                                                      # :520
-    below_root = str(file_path.relative_to(self.storage_base_path))
-except ValueError:
-    below_root = None
-reinterpreted = (                                         # :524
-    (storage_root / below_root.replace("\\", "/")).resolve()
-    if below_root is not None else resolved_path
+below_root = (                                            # :523
+    str(resolved_path.relative_to(storage_root)) if resolved_path.is_relative_to(storage_root) else None
 )
-if not resolved_path.is_relative_to(storage_root) or not reinterpreted.is_relative_to(storage_root):  # :527
-    <warning / raise 原样, :528-537>
-return resolved_path          # :538 ← 返回值不变
+reinterpreted = (                                         # :526
+    (storage_root / below_root.replace("\\", "/")).resolve() if below_root is not None else resolved_path
+)
+if not resolved_path.is_relative_to(storage_root) or not reinterpreted.is_relative_to(storage_root):  # :529
+    <warning / raise 原样, :530-539>
+return resolved_path          # :540 ← 返回值不变
 ```
 
 > ⚠️ **这一处经过两轮打回才收敛，两次都是「合法路径被误拒」**：
 > - **round-1 HIGH**：初版把归一化后的候选与**未归一化的 root** 比较 ⇒ storage base 自身含反斜杠时，每次普通上传都被误拒。
 > - **round-3 MEDIUM-1**：第二版把 root 也归一化，但**归一化后的 root 是另一条真实路径** —— 若那条路径上有指向别处的符号链接（Codex 的构造：真实存储是 `/T/a\b/image`，而 `/T/a/b/image -> /T/outside`），普通上传又被误拒。
-> - **终版**：**root 完全不参与归一化**，只把 storage root **之下**的那段按 `\` 重读一遍。base 怎么拼写都不再影响判定，两类误拒一并消失。
+> - **第三版**：root 不参与归一化，只把 storage root **之下**的那段按 `\` 重读一遍——但 `relative_to` 用的是**未 resolve 的字面路径**，于是 base 写成相对还是绝对会走到不同分支（`ValueError` 分支让第二重检查退化）。（round-4 MEDIUM-1）
+> - **终版（第四版）**：`relative_to` **两侧都用 resolve 后的路径**，base 的拼写在比较前就已归一，再也不能影响结果；`try/except` 随之消失（第一重已保证 `relative_to` 必然成功）。
 
-- 返回值仍是 `file_path.resolve()` ⇒ 两个调用方（终态 `:584` / `:728`）拿到的路径与改前**逐字节相同**（对所有未被新条件拒绝的输入）⇒ 写盘位置不变。
+- 返回值仍是 `file_path.resolve()` ⇒ 两个调用方（终态 `:586` / `:730`）拿到的路径与改前**逐字节相同**（对所有未被新条件拒绝的输入）⇒ 写盘位置不变。
 - 未新增任何类型注解（新增的三个名字都是赋值，非注解）。
 - 未改常量、未改 `warning` / `raise` 文案与 error_code。
 
@@ -138,7 +137,7 @@ return resolved_path          # :538 ← 返回值不变
 2. **#3 不是「诞生即矛盾」**（见 §〇），卡文 §〇 第 3 行未覆盖 `14f0412d` 的等待原语替换。
 3. **`multimodal_service` 子集的模块名口径与窄口径实测重合**：`grep -rln 'multimodal_service' backend/tests/unit` 与 `grep -rln 'upload_file\|_validate_safe_path' ...` **同为 2 文件**，且基线里只有本卡 #8 一条红 ⇒ **0 failed 可达**，(j) 与 (g)-B② 无口径冲突（卡文 §〇 担心的 8 文件 / 5 条外来红是宽口径 `grep 'multimodal'` 的情形，本卡未采用）。
 4. **`comm` 口径**：卡文 §二.0 的 `.bare` 副本方案实测正确——带前缀基线直接 `comm` 会吐出全部 8 行。本卡全程用 `.bare` 副本做 `comm`、带前缀两侧做 `diff`。
-5. **`_validate_safe_path` 行号位移（终态，经 r1 LOW / r2 / r3 三轮复核）**：判定行 `:507-508` → **`:507-527`**；返回行 `:519` → **`:538`**；两个生产调用方 `:565` / `:709` → **`:584` / `:728`**（`grep -n` 实测）。`backend/app` diff 实数 **+20/−1**。
+5. **`_validate_safe_path` 行号位移（终态，经 r1 LOW / r2 / r3 三轮复核）**：判定行 `:507-508` → **`:507-529`**；返回行 `:519` → **`:540`**；两个生产调用方 `:565` / `:709` → **`:586` / `:730`**（`grep -n` 实测）。`backend/app` diff 实数 **+22/−1**。
 
 ---
 
@@ -194,10 +193,10 @@ return resolved_path          # :538 ← 返回值不变
 
 ---
 
-## 七 Codex round-3 整改记录（绑最终 HEAD，D-15 达成轮）
+## 七 Codex round-3 整改记录
 
 > 存档 `codex-review-CARD-RED-NEW-r3.md`（绑定 `0266fb083d5526aab456c72f97d6f70c10caaa97`）
-> 结论 **BLOCKER 0 / HIGH 0 / MEDIUM 2 / LOW 1** ⇒ **D-15 达成**（绑最终 HEAD 的一轮 B/H 均为 0）。
+> 结论 **BLOCKER 0 / HIGH 0 / MEDIUM 2 / LOW 1**。⚠️ **该轮的 B/H=0 不能作为「当前 HEAD 已通过最终审查」的依据**（Codex r4 MEDIUM-2 指出）：r3 之后本卡又改了生产判定，`0266fb08` 已不是最终 HEAD。D-15 的达成以**最后一轮**为准。
 > 3 条发现车道**全部接受、无驳回**；其中 MEDIUM-1 再次改了生产代码。
 
 | 级别 | Codex r3 发现 | 车道处置 | 证据 |
@@ -217,3 +216,28 @@ return resolved_path          # :538 ← 返回值不变
 `_validate_safe_path` 的修法改了**三版**，前两版都在「让判定更严」的同时引入了**合法路径误拒**，而且两次都不是靠我自己的枚举自查发现的——第一次是 Codex r1，第二次是 Codex r3。我的 60 例、48 例枚举都跑过「符号链接 base」，但都没造出「**归一化后的那条路径上**有符号链接」这个结构。
 
 ⇒ **枚举自查的盲区不是样本数量，是结构想象力**。终版之所以可靠，不是因为枚举更多，而是因为它**把变量消掉了**——root 不参与归一化，base 的拼写就再也不能影响判定。**能消掉的变量，不要用枚举去覆盖。**
+
+---
+
+## 八 Codex round-4 整改记录
+
+> 存档 `codex-review-CARD-RED-NEW-r4.md`（绑定 `7f16c916492546f6b3227f68ef566727afed1c6a`）
+> 结论 **BLOCKER 0 / HIGH 0 / MEDIUM 2 / LOW 1**。3 条发现车道**全部接受、无驳回**；MEDIUM-1 第四次改生产。
+
+| 级别 | Codex r4 发现 | 车道处置 | 证据 |
+|---|---|---|---|
+| **MEDIUM-1** | `ValueError` 分支可**绕过**新增的反斜杠检查：`base=Path("backend")`（相对）+ 绝对路径候选 ⇒ `file_path.relative_to(base)` 抛 ValueError ⇒ `below_root=None` ⇒ 第二重检查退化 ⇒ **r3 拒绝、r4 接受**；同候选改绝对 base 又拒绝。因此「base 拼写再也不能影响判定」**不成立**。Codex 注明未发现实际磁盘越界、现有调用方不采用该拼法，故不定 HIGH | **接受，改生产（第四版）**：`relative_to` 两侧都改用 **resolve 后**的路径（`resolved_path.relative_to(storage_root)`），并用 `is_relative_to` 前置判断取代 `try/except`。实测：相对 base 与绝对 base **结果一致**，Codex 的构造两种拼法都被拒 | `sec-r4-M1-fix-verify.txt`（[A] 相对/绝对 base 均拒；[B] r3 构造 3/3 符合期望；[C] 60 例无放宽无误拒；[D] 返回值不变） |
+| **MEDIUM-2** | §七 把 r3 记为「绑最终 HEAD，D-15 达成轮」，但 r3 之后又改了生产判定 ⇒ **r3 的 B/H=0 不能作为当前 HEAD 已通过最终审查的依据** | **接受，改表述**：§七 标题去掉「D-15 达成轮」，并加注「D-15 的达成以**最后一轮**为准」 | 本文件 §七 |
+| **LOW** | `format-position-gate-v3.txt` 记录的是 `A∩B=3 [525,526,527]`，与裁定表宣称的「合计 0」**不一致** —— 证据未同步 | **接受，重跑并落盘**：那份存档是**修 format 债之前**的快照（重跑时用了内联脚本、忘了 `tee`）。现已绑最终代码重跑并落盘，六文件合计 **0**，同时把 v2/v3 的**不完备性**一并写进存档 | `format-position-gate-v3.txt`（已更新） |
+
+### Codex r4 明确核验通过的项（原文摘要）
+
+- **「固定文件系统状态下，原生包含检查仍是必要条件，返回路径不变：不存在相对 `b17b710d` 的旧拒绝→新接受；`below_root` 含 `..` 也不改变这一结论。」**
+- **r3 指出的普通上传误拒机制已消除**；相对 base、正常拼接及普通 `..` 输入**未发现新的上传误拒**。
+- calibration docstring 与 §〇 已同步收窄；增量**未改断言、类型注解、conftest 或其他车道代码**；生产全卡 diff 确为 **+20/−1**（r4 送审时值；第四版整改后见 §九）。
+
+### 第四版修法为什么比第三版更彻底
+
+第三版用 `file_path.relative_to(self.storage_base_path)`——**两侧都是未 resolve 的字面路径**，所以 base 写成相对还是绝对会走到不同分支。第四版改用 `resolved_path.relative_to(storage_root)`——**两侧都在 resolve 之后**，base 的拼写（相对/绝对、含不含 `..`、是不是符号链接）在比较前就已经归一，因此再也不能影响结果。`try/except ValueError` 也随之消失：第一重检查已经保证 `resolved_path` 在 `storage_root` 之下，`relative_to` 必然成功。
+
+⇒ 这是「**消变量**」这条思路的第二次应用：第三版消掉了「base 的归一化拼写」，第四版消掉了「base 的字面拼写」。每消掉一个变量，就少一整类需要枚举的场景。
