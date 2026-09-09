@@ -1,0 +1,32 @@
+=== 正控 dry-run（应 rc 0、六行、零写）===
+📦 deploy-vault [dry-run] vault=course port=8123 hosts=claude
+   harness=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy
+[1/6] preflight: OK 树完整 / 禁写面过 / 名不动点 / port 8123 空闲 / skills 9 / main.js 在位
+[2/6] install: SKIP will run: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy/scripts/install-vault.sh course --subject course --vaults-root /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/5b092bcf-221c-4ad5-84df-7045de3d93c2/scratchpad/g27b-r5/vaults --source /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy/canvas-vault --env-file /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/5b092bcf-221c-4ad5-84df-7045de3d93c2/scratchpad/g27b-r5/env/.env.course --harness-tree /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy --backend-url http://127.0.0.1:8123
+[3/6] postprocess: SKIP will: 重生 key(0600) → 同值写 /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/5b092bcf-221c-4ad5-84df-7045de3d93c2/scratchpad/g27b-r5/vaults/course/.obsidian/cls-internal-key.txt / .env.course INTERNAL_API_KEY / data.json internalApiKey; :8011 → :8123 ×4; 在位判 CLAUDE.md/.claude/skills/.mcp.json
+[4/6] verify: SKIP will run: verify_vault_install.py --vault /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/5b092bcf-221c-4ad5-84df-7045de3d93c2/scratchpad/g27b-r5/vaults/course（dry-run 零写, 不跑不落报告）
+[5/6] activate: SKIP 未传 --activate（缺省只部署不激活）
+[6/6] evidence: SKIP will write: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/5b092bcf-221c-4ad5-84df-7045de3d93c2/scratchpad/g27b-r5/ev/deploy-<ts>.txt（dry-run 零写, 不落盘）
+✅ rc=0（dry-run）
+dryrun rc=0
+目标是否仍不存在: ✅不存在
+
+=== 正控 apply（CLS_DEPLOY_NO_DOCKER_UP=1）===
+📦 deploy-vault [apply] vault=course port=8123 hosts=claude
+   harness=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy
+[1/6] preflight: OK 树完整 / 禁写面过 / 名不动点 / port 8123 空闲 / skills 9 / main.js 在位
+[2/6] install: OK install-vault.sh rc 0, 输出 /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/5b092bcf-221c-4ad5-84df-7045de3d93c2/scratchpad/g27b-r5/ev/install-20260909T195035.txt
+[3/6] postprocess: OK key 重生=yes(0600) 三处同值; :8011→:8123 ×4 已验残留 0; 绑定三件在位; .env 白名单跳过: NEO4J_HTTP_PORT NEO4J_BOLT_PORT OLLAMA_HOST VAULT_MOUNT_MODE LOCAL_EMBEDDER_BASE_URL
+[4/6] verify: OK 校验器 rc 0（含 content-drift 轴, 基准=源镜像(同 :8123 口径)）, 报告 /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/5b092bcf-221c-4ad5-84df-7045de3d93c2/scratchpad/g27b-r5/ev/verify-20260909T195035.txt
+[5/6] activate: SKIP 未传 --activate（缺省只部署不激活）
+[6/6] evidence: OK /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/5b092bcf-221c-4ad5-84df-7045de3d93c2/scratchpad/g27b-r5/ev/deploy-20260909T195035.txt
+✅ rc=0（apply）
+apply rc=0
+
+=== apply 后断言 ===
+key 文件权限: 600  （期望 600）
+.env.course 权限: 600  （期望 600）
+8011 残留: 0  （期望 0）
+三处密钥同值(sha 前 12): key=9e196ffd9baa
+三处同值: ✅ | key sha256[:12]= 46f4bae11575
+rc=0

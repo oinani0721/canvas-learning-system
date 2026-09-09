@@ -88,7 +88,7 @@ def k(p: str) -> str:
     return unicodedata.normalize("NFC", phys(p)).lower()
 
 
-def build_targets(live: str) -> tuple[list[tuple[str, str]], str, bool]:
+def build_targets(live: str) -> tuple[list[tuple[str, str]], list[str], bool]:
     home = os.path.expanduser("~")
     raw = [live, os.path.join(home, "Library")]
     for d in (".codex", ".pi", ".gemini", ".deepcode", ".dsh"):
@@ -102,10 +102,25 @@ def build_targets(live: str) -> tuple[list[tuple[str, str]], str, bool]:
     #      fail-closed 处理（enumerate_failed）。
     #   ② `startswith(".claude")` 大小写敏感 —— `.CLAUDE-cache -> /external/cache` 漏登记。
     enumerate_failed = False
+    # ⛔ `listdir` 成功 ≠ **解链**成功（Codex r5 BLOCKER-3）：HOME 有读权限（r）但无搜索权限
+    #    （x）时，`listdir` 照常返回名字，而解析子项需要**搜索**权限 ——
+    #    `realpath(strict=False)` 会把 EACCES 吞掉、返回未解析的路径串，于是外部保护目标
+    #    （`.claude-cache -> /external/cache`）整批漏登记，而 `enumerate_failed` 仍是 False。
+    #    这里两道一起上：先问权限位，再对每个软链条目**真的 readlink 一次**。
+    #    只问权限位不够（`os.access` 用实际 uid，root 恒真——r4 LOW-1 同型）；
+    #    只 readlink 也不够（还没走到条目就不可搜索时，islink 本身静默返回 False）。
+    if not os.access(home, os.R_OK | os.X_OK):
+        enumerate_failed = True
     try:
         for name in sorted(os.listdir(home)):
             if name.lower().startswith(".claude"):
-                raw.append(os.path.join(home, name))
+                entry = os.path.join(home, name)
+                raw.append(entry)
+                try:
+                    if os.path.islink(entry):
+                        os.readlink(entry)
+                except OSError:
+                    enumerate_failed = True
     except OSError:
         enumerate_failed = True
 
@@ -115,59 +130,125 @@ def build_targets(live: str) -> tuple[list[tuple[str, str]], str, bool]:
             targets.append((k(r), r))
         except OSError:
             continue
-    # 规则 4②：**词法**前缀（覆盖尚不存在的 .claude*）
-    # ⛔ 绝不能过 k()（Codex r4 BLOCKER-1，我 r3 统一 NFC 时引入的回归）：k() 内含 realpath。
-    #    若 `$HOME/.claude -> /external/claude-base`, 前缀就变成 `/external/claude-base` ——
-    #    于是 `$HOME/.claude-new/probe`（尚不存在, 枚举登记不到）**失去保护**,
-    #    而 `/external/claude-baseball/probe` 反被误拦。
-    #    这条规则存在的唯一理由就是覆盖 realpath **看不到**的东西；把它 realpath 掉 = 删了它。
-    #    解链那一轴由规则 4① 的枚举覆盖（已存在的 .claude* 登记其解析结果）。
-    claude_prefix = unicodedata.normalize("NFC", os.path.join(home, ".claude")).lower()
-    return targets, claude_prefix, enumerate_failed
+    # 规则 4②：**词法**前缀（覆盖尚不存在的 .claude*）—— **两条轴并存**
+    # ⛔ 绝不能对 `.claude` 那一段过 k()（Codex r4 BLOCKER-1，我 r3 统一 NFC 时引入的回归）：
+    #    k() 内含 realpath。若 `$HOME/.claude -> /external/claude-base`, 前缀就变成
+    #    `/external/claude-base` —— 于是 `$HOME/.claude-new/probe`（尚不存在, 枚举登记不到）
+    #    **失去保护**, 而 `/external/claude-baseball/probe` 反被误拦。
+    # ⛔ 但只留**词法** HOME 又丢掉物理轴（Codex r5 BLOCKER-1，r4 修上一条时引入的反向回归）：
+    #    `HOME=/homealias -> /homephys` 时, 尚不存在的 `/homephys/.claude-new/probe`
+    #    既不在枚举名单里、也不匹配 `/homealias/.claude` ⇒ 放行。
+    #    ⇒ 这两条需求是**正交**的, 不是二选一：不 realpath `.claude` 这一段, 但要 realpath
+    #      **HOME 那一段**。故前缀取两条：词法 HOME 与物理 HOME 各拼一次 `.claude`。
+    #      两条都不含 realpath(`.claude`) ⇒ baseball 误拦与 `.claude-new` 失保护都不会回来。
+    claude_prefixes: list[str] = []
+    for base in (home, os.path.realpath(home)):
+        pfx = unicodedata.normalize("NFC", os.path.join(base, ".claude")).lower()
+        if pfx not in claude_prefixes:
+            claude_prefixes.append(pfx)
+    return targets, claude_prefixes, enumerate_failed
 
 
-def resolve_chain(p: str, limit: int = 64) -> list[str]:
-    """逐步解链, 返回途中经过的**每一跳**（含起点与中间目标）。
+def walk_visited(p: str, limit: int = 256) -> tuple[list[str], bool]:
+    """模拟内核 `namei`：**逐段**解析, 返回途中经过的每一个路径对象。
 
-    ⛔ Codex r4 BLOCKER-2：`/safe/alias -> /repo/.git -> /external/meta` 时,
-    原始串里只有 `alias`、realpath 结果里只有 `meta` —— **中途那个 `.git` 两边都看不见**。
-    只比首尾会漏掉解链途中经过的保护目标。
+    ⛔ Codex r5 BLOCKER-2 —— 旧的 `resolve_chain` 把「路径」当成一个**原子对象**来解，
+    而内核是**逐段**解的。两个拓扑因此漏掉：
+
+      (a) `alias -> hop/sub`, `hop -> repo/.git`, `.git -> external/meta`
+          旧实现只在**整条路径**上判 `islink`：`islink("/x/hop/sub")` 会先解掉 `hop`
+          落到 `external/meta/sub`, `sub` 自身不是链 ⇒ False ⇒ 链停在第一跳。
+          中间那个 `.git` **原始串里没有、realpath 结果里也没有**, 两边都看不见。
+      (b) `alias -> /repo/.git/../sub`, `.git -> /external/meta/sub`
+          旧实现 `os.path.normpath(nxt)` 把 `.git/..` **词法折叠**成 `/repo/sub` ——
+          而内核是**解完 `.git` 才处理 `..`**, 真实落点是 `/external/meta/sub`。
+
+    这与 r3 BLOCKER-1（`mkdir -p` 的写入面不是一个 inode 而是一串）是**同一个认知错误
+    的第二次出现**：上次是「创建面是一串」, 这次是「遍历面是一串」。
+
+    做法：从根开始逐段拼, 每拼一段就记录该段的完整路径；遇软链读出目标并把目标的**段**
+    压回待处理队列（**不 normpath**, 让 `..` 在解链之后才被处理）；遇 `..` 先记录当前
+    位置再上移（`..` 之前的那一级是真的被遍历过的）。
+
+    ⚠️ 与 `phys()` / `k()` 是**两个不同命题**, 不可互相替代也不可合并：
+       前者答「途中经过哪些对象」, 后者答「最终落点是哪个」。合并 = 又一次「统一 helper
+       会删掉一条规则」。
+    返回 (visited, truncated)；`truncated` 为真时调用方必须 fail-closed。
     """
-    seen: list[str] = []
-    cur = os.path.expanduser(p)
-    if not os.path.isabs(cur):
-        cur = os.path.join(os.getcwd(), cur)
-    for _ in range(limit):
-        seen.append(cur)
+    path = os.path.expanduser(p)
+    if not os.path.isabs(path):
+        path = os.path.join(os.getcwd(), path)
+    pending = path.split(os.sep)
+    cur = os.sep
+    visited: list[str] = []
+    steps = 0
+    while pending:
+        steps += 1
+        if steps > limit:
+            # ⛔ 超限**不再静默 break**（原第 21 条「未证明 64 跳够用」的正面回应）：
+            #    静默停下等于对剩余部分宣称「安全」, 而我们并不知道。
+            return visited, True
+        seg = pending.pop(0)
+        if seg in ("", "."):
+            continue
+        if seg == "..":
+            visited.append(cur)
+            parent = os.path.dirname(cur.rstrip(os.sep)) if cur != os.sep else os.sep
+            cur = parent or os.sep
+            continue
+        nxt = os.sep + seg if cur == os.sep else cur.rstrip(os.sep) + os.sep + seg
+        visited.append(nxt)
         try:
-            if not os.path.islink(cur):
-                break
-            nxt = os.readlink(cur)
+            is_link = os.path.islink(nxt)
         except OSError:
-            break
-        if not os.path.isabs(nxt):
-            nxt = os.path.join(os.path.dirname(cur), nxt)
-        cur = os.path.normpath(nxt)
-    return seen
+            is_link = False
+        if not is_link:
+            cur = nxt
+            continue
+        try:
+            tgt = os.readlink(nxt)
+        except OSError:
+            cur = nxt
+            continue
+        if not os.path.isabs(tgt):
+            # 相对目标以**链所在目录**为基准, 即 cur（不是 nxt）。
+            tgt = os.sep + tgt if cur == os.sep else cur.rstrip(os.sep) + os.sep + tgt
+        visited.append(tgt)
+        pending = tgt.split(os.sep) + pending
+        cur = os.sep
+    visited.append(cur)
+    return visited, False
 
 
-def chain_hits(p: str, targets: list[tuple[str, str]]) -> str | None:
-    """对 p 的整条解链途径逐跳查 `.git` 段与保护目标（Codex r4 BLOCKER-2）。"""
-    for hop in resolve_chain(p):
+def chain_hits(p: str, targets: list[tuple[str, str]], claude_prefixes: list[str]) -> str | None:
+    """对 p 的整条遍历途径逐跳查 `.git` 段、保护目标与 `.claude*` 前缀。"""
+    visited, truncated = walk_visited(p)
+    for hop in visited:
         hop_key = unicodedata.normalize("NFC", hop).lower()
         if ".git" in hop_key.split(os.sep):
-            return f".git 目录内（解链途中经过 {hop}）"
+            return f".git 目录内（遍历途中经过 {hop}）"
         for tk, orig in targets:
             if hop_key == tk or hop_key.startswith(tk + os.sep):
-                return f"{orig}（解链途中经过 {hop}）"
+                return f"{orig}（遍历途中经过 {hop}）"
+        for pfx in claude_prefixes:
+            if hop_key.startswith(pfx):
+                return f"{pfx}*（遍历途中经过 {hop}）"
+    if truncated:
+        return "遍历跳数超过上限（疑似环或深链）, 无从断言安全 ⇒ fail-closed"
     return None
 
 
-def ancestor_symlink_hits(p: str, targets: list[tuple[str, str]], claude_prefix: str) -> str | None:
+def ancestor_symlink_hits(p: str, targets: list[tuple[str, str]], claude_prefixes: list[str]) -> str | None:
     """规则 5：路径中任何一段是软链且解开后落在保护目标里。
 
-    `phys()` 已经解了链，所以这条主要覆盖「祖先段是软链、但它自己不在保护目标里，
-    而它的**目标**在」的情形——`phys()` 会一并解掉，此处作为显式的第二道。
+    ⛔ **职责与 `chain_hits` 严格不重叠**（r5 整改时由变异测试逼出来的）：
+    第一版我让本函数**也**调 `chain_hits`, 结果变异测试显示「删掉 `hits()` 里的逐段判据」
+    那条门**仍绿** —— 因为本函数把它兜住了。两层互相兜底 = 谁都测不出承重，
+    正是 r4 批过的「留着让人以为有两道防线」。
+    ⇒ 现在分工是：
+       · `chain_hits`（在 `hits()` 里直接调）—— **逐段遍历**轴：途中经过的每个对象
+       · 本函数 —— **整体 realpath**轴：`k(cur)` 把祖先软链一次解到底后比保护目标
+      两者是不同的计算，各自有变异门证明承重；本函数**不再**转调 `chain_hits`。
     """
     cur = os.path.expanduser(p)
     if not os.path.isabs(cur):
@@ -176,16 +257,13 @@ def ancestor_symlink_hits(p: str, targets: list[tuple[str, str]], claude_prefix:
     while cur and cur != os.sep and seen < 64:
         seen += 1
         if os.path.islink(cur):
-            # 祖先段的软链也可能是**多层**的, 中途经过保护目标（Codex r4 BLOCKER-2）。
-            ch = chain_hits(cur, targets)
-            if ch is not None:
-                return f"{ch}（祖先软链 {cur}）"
             resolved = k(cur)
             for tk, orig in targets:
                 if resolved == tk or resolved.startswith(tk + os.sep):
                     return f"{orig}（经软链 {cur}）"
-            if resolved.startswith(claude_prefix):
-                return f"{claude_prefix}*（经软链 {cur}）"
+            for pfx in claude_prefixes:
+                if resolved.startswith(pfx):
+                    return f"{pfx}*（经软链 {cur}）"
         parent = os.path.dirname(cur)
         if parent == cur:
             break
@@ -223,7 +301,7 @@ def mkdir_p_segments(raw_path: str) -> list[str]:
 def hits(
     raw_path: str,
     targets: list[tuple[str, str]],
-    claude_prefix: str,
+    claude_prefixes: list[str],
     *,
     skip_env_name: bool = False,
 ) -> str | None:
@@ -253,16 +331,25 @@ def hits(
         if key == tk or key.startswith(tk + os.sep):
             return orig
     # 词法前缀要拿**词法 key** 比（同口径, 不解链）；物理 key 也比一次, 两轴都不漏。
+    # 前缀现为**两条**（词法 HOME / 物理 HOME, 见 build_targets 的 r5 BLOCKER-1 注释）。
     lex_key = unicodedata.normalize("NFC", os.path.abspath(os.path.expanduser(raw_path))).lower()
-    if key.startswith(claude_prefix) or lex_key.startswith(claude_prefix):
-        return f"{claude_prefix}*（词法前缀规则）"
+    for pfx in claude_prefixes:
+        if key.startswith(pfx) or lex_key.startswith(pfx):
+            return f"{pfx}*（词法前缀规则）"
 
-    # 规则 5（含 r4 BLOCKER-2 的逐跳）。
-    # ⚠️ 这里**不**再单独调 chain_hits(raw_path)：`ancestor_symlink_hits` 的游标从
-    #    路径自身起步, 自身是链时同样会走 chain_hits ⇒ 那一层是**死代码**。
-    #    实测证明：把它删掉, 两跳 `.git` 用例仍红（变异存活 ⇒ 不承重）。留着会让人以为
-    #    有两道防线, 实际只有一道被验证过。
-    return ancestor_symlink_hits(raw_path, targets, claude_prefix)
+    # ⛔ 逐段遍历判据（Codex r5 BLOCKER-2）：这一层是**唯一**的逐段轴。
+    #    r4 的注释说这一层是死代码——那结论对**当时**的 `resolve_chain` 成立
+    #    （它只解整条路径的末段, 能命中的 `ancestor_symlink_hits` 都能命中）。
+    #    换成逐段 walker 之后关系反转：walker 能看见「祖先软链的目标里再有软链」
+    #    这类中间跳, 而 `ancestor_symlink_hits` 的 `k(cur)` 一次解到底, 看不见途中。
+    #    ⚠️ 承重性是**变异测试逼出来的**：第一版 `ancestor_symlink_hits` 也转调 chain_hits,
+    #    于是删掉这一行门仍绿（两层互相兜底 ⇒ 谁都证不出承重）。现已拆开职责。
+    ch = chain_hits(raw_path, targets, claude_prefixes)
+    if ch is not None:
+        return ch
+
+    # 规则 5（保留；与 walker 的关系见 ancestor_symlink_hits 的 docstring，不宣称两道防线）。
+    return ancestor_symlink_hits(raw_path, targets, claude_prefixes)
 
 
 def main(argv: list[str]) -> int:
@@ -270,7 +357,7 @@ def main(argv: list[str]) -> int:
         print("用法: cls_forbidden_paths.py <live_vault> <label>:<path> [...]", file=sys.stderr)
         return 64
     live = argv[1]
-    targets, claude_prefix, enumerate_failed = build_targets(live)
+    targets, claude_prefixes, enumerate_failed = build_targets(live)
 
     mode = "strict"
     items: list[tuple[str, str]] = []
@@ -305,7 +392,7 @@ def main(argv: list[str]) -> int:
             why = hits(
                 seg_path,
                 targets,
-                claude_prefix,
+                claude_prefixes,
                 skip_env_name=(True if not is_last else (mode_i == "outputs")),
             )
             if why:

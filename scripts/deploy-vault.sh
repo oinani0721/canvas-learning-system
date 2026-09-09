@@ -233,6 +233,16 @@ while [ $# -gt 0 ]; do
 done
 
 [ -n "$VAULT" ] || die64 "缺 --vault <绝对路径>"
+# ⛔ 必须是绝对路径（Codex r5 HIGH-2）：相对 `--vault` 会让 VAULTS_ROOT 的**解析基准分裂** ——
+#    `--vault course` ⇒ VAULT_PARENT="." ⇒ installer 按**调用 cwd** 解释这个 `.`,
+#    而写进 `.env.<vault>` 的 `VAULTS_ROOT=.` 由 compose 按 `--project-directory "$HARNESS"`
+#    解释（compose `:218` 的 `"${VAULTS_ROOT:-.}:/vaults:…"`）。从非 harness 目录部署
+#    ⇒ 库建在 cwd、容器却挂 harness, 而步 5 的 config 断言只验容器名与端口, **抓不到**。
+#    头注 `:22` 本就写「必填绝对路径」, 此前只判非空 = 文档与实现不一致, 这里补上强制。
+case "$VAULT" in
+    /*) ;;
+    *) die64 "--vault 必须是绝对路径（收到 '$VAULT'）: 相对路径会让 installer 按调用 cwd、compose 按 --project-directory 解释同一个 VAULTS_ROOT" ;;
+esac
 case "$PORT" in
     '' | *[!0-9]*) die64 "--port 必须是数字: $PORT" ;;
 esac
@@ -291,13 +301,17 @@ fi
 #    引入的回归）：① 单段相对路径 `course` ⇒ `${VAULT%/*}` 原样返回 `course`（dirname 给 `.`）
 #    ② 尾斜杠 `/tmp/course/` ⇒ `${VAULT##*/}` 得**空** vault 名。
 #    先剥尾部斜杠（保留根 `/`）, 再按有无 `/` 分支。仍不经命令替换（保末尾换行, r3 B-4）。
+# ⚠️ ① 那一半自 r5 HIGH-2 起**由入口的绝对路径强制承担**（相对路径直接 rc 64, 到不了这里）;
+#    ② 尾斜杠仍必须在这里处理 —— `--vault /tmp/course/` 是合法绝对路径, 不剥就得空 vault 名。
 _v="$VAULT"
 while [ "${_v%/}" != "$_v" ] && [ "$_v" != "/" ]; do _v="${_v%/}"; done
 VAULT="$_v"
 VAULT_NAME="${VAULT##*/}"
 case "$VAULT" in
     */*) VAULT_PARENT="${VAULT%/*}"; [ -n "$VAULT_PARENT" ] || VAULT_PARENT="/" ;;
-    *) VAULT_PARENT="." ;;
+    # ⛔ 不留死代码（r4 的教训：不可达分支会让人以为有两道防线）。入口已保证 `/*`,
+    #    所以「不含 `/`」只可能是上面的强制被改坏 —— 让它**出声**而不是静默给个 `.`。
+    *) die64 "内部不变量破坏: --vault 已判绝对路径却不含 '/'（${VAULT}）" ;;
 esac
 [ -n "$VAULT_NAME" ] || die64 "--vault 解析不出 vault 名: $VAULT"
 [ -n "$SUBJECT" ] || SUBJECT="$VAULT_NAME"
@@ -494,7 +508,10 @@ seed_env_file() {
     SEED_ERR=""
     mkdir -p "$ENV_DIR" || { SEED_ERR="建 --env-dir 失败: $ENV_DIR"; return 1; }
     assert_writable_now "$ENV_FILE.tmp" || { SEED_ERR="$WRITE_GUARD_ERR"; return 1; }
-    : > "$ENV_FILE.tmp" || { SEED_ERR="建 .env 临时文件失败: $ENV_FILE.tmp"; return 1; }
+    # umask 077 纵深（Codex r5 HIGH-3 同族）：临时文件从**诞生那一刻**就是 0600, 而不是
+    # 先按缺省 umask 落 0644、等末尾 mv 后再 chmod。`||` 在子 shell 外, return 仍在函数里。
+    (umask 077 && : > "$ENV_FILE.tmp") \
+        || { SEED_ERR="建 .env 临时文件失败: $ENV_FILE.tmp"; return 1; }
     printf '# CARD-G2-7b deploy-vault.sh 生成 — vault=%s port=%s ts=%s\n' "$VAULT_NAME" "$PORT" "$TS" >> "$ENV_FILE.tmp"
     ENV_KEYS_SKIPPED=""
     local wrc
@@ -750,6 +767,15 @@ PY
     fi
 
     # B4 .env.<vault> 的 INTERNAL_API_KEY 同值
+    # ⛔ 写**之前**先收紧权限（Codex r5 HIGH-3）：`os.open(..., 0o600)` 的 mode 只对**新建**
+    #    文件生效, 对已存在文件内核直接忽略。若 `.env.<vault>` 由脚本以外的来源预先存在且
+    #    权限较宽（用户手建预置 NEO4J_PASSWORD 等键 / `--env-dir` 指向已有同名文件）,
+    #    密钥会先 fsync 进 0644 文件、下面那次 chmod 才收紧 —— 中间是真实的可读窗口。
+    #    ⚠️ 文件不存在时 chmod 必失败, 故条件执行; 写后那次 chmod **保留**（覆盖新建情形）。
+    #    本脚本自己 seed 出来的那份在 seed_env_file 末尾已 chmod 600, 走不到这个窗口。
+    if [ -e "$ENV_FILE" ]; then
+        chmod 600 "$ENV_FILE" || { STEP_MSG="写前 chmod 600 失败: $ENV_FILE"; return 1; }
+    fi
     if ! python3 - "$ENV_FILE" "$key" << 'PY'; then
 import os, sys
 p, key = sys.argv[1], sys.argv[2]
@@ -869,9 +895,37 @@ step4_verify() {
             STEP_MSG="镜像源失败: $SRC_MIRROR"
             return 1
         fi
+        # ⛔ 镜像**根**合法 ≠ 镜像**里**要写的对象合法（Codex r5 BLOCKER-4）：
+        #    `cp -R` 会**保留源树里的软链**。源树若有 `canvas-vault/.claude/hooks -> <保护目录>`,
+        #    镜像里那一段仍是指向保护区的软链, 下面的 `sed -i` 会沿链写过去 —— 无需任何
+        #    竞争窗口, 而 r4 只把 `TMPDIR` 这个**根**交给了判据。
+        #    修法与 preflight 的 PENDING_WRITES 同律：把**实际要写的每个文件**过同一份
+        #    判据 + 同一个写前复查, 而不是再发明一层新判据（新形状 = 新的边）。
+        # ⚠️ 必须 `local -a` 且显式赋空：bash 3.2 下对**未声明**数组做 `"${a[@]}"` 在
+        #    `set -u` 里会报错；先 `=()` 声明成空数组, 再用计数守住展开。
+        local mt
+        local -a MIRROR_WRITES=()
+        for t in $PORT_TEMPLATED_FILES; do
+            [ -f "$SRC_MIRROR/$t" ] && MIRROR_WRITES+=("mirror-$t:$SRC_MIRROR/$t")
+        done
+        if [ "${#MIRROR_WRITES[@]}" -gt 0 ]; then
+            if check_forbidden_paths --outputs "${MIRROR_WRITES[@]}"; then
+                cleanup_mirror
+                STEP_MSG="禁写面: 源镜像内待模板化文件 $FORBIDDEN_HIT"
+                return 1
+            fi
+            for mt in "${MIRROR_WRITES[@]}"; do
+                assert_writable_now "${mt#*:}" || {
+                    cleanup_mirror
+                    STEP_MSG="$WRITE_GUARD_ERR"
+                    return 1
+                }
+            done
+        fi
         for t in $PORT_TEMPLATED_FILES; do
             if [ -f "$SRC_MIRROR/$t" ]; then
                 sed -i '' "s|:8011|:$PORT|g" "$SRC_MIRROR/$t" || {
+                    cleanup_mirror
                     STEP_MSG="源镜像模板化失败: $t"
                     return 1
                 }

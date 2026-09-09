@@ -1335,6 +1335,227 @@ def test_forbidden_judge_allows_two_hop_chain_that_stays_safe(tmp_path: Path):
     assert r.returncode == 0, f"误拦了全程安全的两跳链: {r.stdout}{r.stderr}"
 
 
+# ═══ Codex r5 BLOCKER-2：把「路径」当原子对象解 ⇒ 逐段遍历面漏两类 ════════════
+@pytest.fixture
+def nested_hop_git(tmp_path: Path):
+    """`alias -> hop/sub`，`hop -> repo/.git`，`.git -> external/meta`。
+
+    与 r4 的 `two_hop_git` **不同**：`.git` 不在链的**目标本身**，而在目标的
+    **祖先段**里。旧实现 `islink("<safe>/hop/sub")` 会先解掉 `hop` 落到
+    `external/meta/sub`，`sub` 自身不是链 ⇒ False ⇒ 链停在第一跳，`.git` 全程不出现。
+    """
+    ext = tmp_path / "external" / "meta"
+    (ext / "sub").mkdir(parents=True)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / ".git").symlink_to(ext, target_is_directory=True)
+    safe = tmp_path / "safe"
+    safe.mkdir()
+    (safe / "hop").symlink_to(repo / ".git", target_is_directory=True)
+    (safe / "alias").symlink_to(safe / "hop" / "sub", target_is_directory=True)
+    live = tmp_path / "fake-live"
+    live.mkdir()
+    return safe, live
+
+
+def test_forbidden_judge_catches_git_in_ancestor_of_link_target(nested_hop_git):
+    """⛔ r5 BLOCKER-2(a)：`.git` 藏在**链目标的祖先段**里，首尾两侧都看不见。"""
+    safe, live = nested_hop_git
+    for probe in (str(safe / "alias"), str(safe / "alias" / "x")):
+        r = _forbid_home(Path.home(), str(live), f"--env-dir:{probe}")
+        assert r.returncode != 0, f"未拦住链目标祖先里的 .git（{probe}）: {r.stdout}{r.stderr}"
+        assert ".git" in r.stdout
+
+
+def test_forbidden_judge_does_not_fold_dotdot_before_resolving(tmp_path: Path):
+    """⛔ r5 BLOCKER-2(b)：`..` 必须在**解完软链之后**才处理，不能词法先折。
+
+    `alias -> <repo>/.git/../sub`：旧实现 `normpath` 把 `.git/..` 折成 `<repo>/`，
+    `.git` 这一段当场消失；而内核是先解 `.git`（→ external/meta）再退一级。
+    """
+    ext = tmp_path / "external" / "meta"
+    ext.mkdir(parents=True)
+    (tmp_path / "external" / "sub").mkdir()
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / ".git").symlink_to(ext, target_is_directory=True)
+    safe = tmp_path / "safe"
+    safe.mkdir()
+    (safe / "alias").symlink_to(f"{repo}/.git/../sub")
+    live = tmp_path / "fake-live"
+    live.mkdir()
+    r = _forbid_home(Path.home(), str(live), f"--env-dir:{safe / 'alias' / 'x'}")
+    assert r.returncode != 0, f"`..` 被提前折叠，漏掉途中的 .git: {r.stdout}{r.stderr}"
+    assert ".git" in r.stdout
+
+
+def test_forbidden_judge_allows_dotdot_chain_that_stays_safe(tmp_path: Path):
+    """控制组：同样带 `..` 的链、但途中不经过保护目标 —— 必须放行。"""
+    base = tmp_path / "base"
+    (base / "inner").mkdir(parents=True)
+    (base / "sub").mkdir()
+    safe = tmp_path / "safe"
+    safe.mkdir()
+    (safe / "alias").symlink_to(f"{base}/inner/../sub")
+    live = tmp_path / "fake-live"
+    live.mkdir()
+    r = _forbid_home(Path.home(), str(live), f"--env-dir:{safe / 'alias' / 'x'}")
+    assert r.returncode == 0, f"误拦了全程安全的 `..` 链: {r.stdout}{r.stderr}"
+
+
+# ═══ Codex r5 BLOCKER-1：HOME 自身是软链时物理别名轴丢失 ══════════════════════
+@pytest.fixture
+def symlinked_home(tmp_path: Path):
+    """HOME 自身是软链：`homealias -> homephys`。"""
+    phys = tmp_path / "homephys"
+    phys.mkdir()
+    alias = tmp_path / "homealias"
+    alias.symlink_to(phys, target_is_directory=True)
+    live = tmp_path / "fake-live"
+    live.mkdir()
+    return alias, phys, live
+
+
+def test_forbidden_judge_covers_physical_home_claude_prefix(symlinked_home):
+    """⛔ r5 BLOCKER-1：用**物理** HOME 写出的 `.claude-new`（尚不存在）必须仍被拦。
+
+    r4 为修「前缀被 realpath 掉」把 `claude_prefix` 改成纯词法 `join($HOME, ".claude")`，
+    于是 `HOME=/homealias -> /homephys` 时，`/homephys/.claude-new/probe` 既不在枚举
+    名单里（尚不存在）、也不匹配 `/homealias/.claude` ⇒ **放行**。
+    两条需求是正交的：不 realpath `.claude` 那一段，但要 realpath **HOME 那一段**。
+    """
+    alias, phys, live = symlinked_home
+    probe = str(phys / ".claude-new" / "probe")
+    r = _forbid_home(alias, str(live), f"--env-dir:{probe}")
+    assert r.returncode != 0, f"物理 HOME 下的 .claude-new 未被拦: {r.stdout}{r.stderr}"
+    assert "HIT" in r.stdout
+
+
+def test_forbidden_judge_still_covers_lexical_home_claude_prefix(symlinked_home):
+    """另一轴不能丢：用**词法** HOME 写的同一目标也必须拦（两条前缀并存）。"""
+    alias, _phys, live = symlinked_home
+    r = _forbid_home(alias, str(live), f"--env-dir:{alias / '.claude-new' / 'probe'}")
+    assert r.returncode != 0, f"词法 HOME 下的 .claude-new 未被拦: {r.stdout}{r.stderr}"
+
+
+def test_forbidden_judge_physical_home_axis_does_not_overblock(symlinked_home):
+    """控制组：物理 HOME 下**不叫 .claude\\*** 的目录必须放行。
+
+    加物理轴的代价必须是零误拦 —— 否则就是把判据推向「永远拦」。
+    """
+    alias, phys, live = symlinked_home
+    r = _forbid_home(alias, str(live), f"--env-dir:{phys / 'notclaude' / 'probe'}")
+    assert r.returncode == 0, f"物理轴误拦了非 .claude 目录: {r.stdout}{r.stderr}"
+
+
+# ═══ Codex r5 BLOCKER-3：HOME 可读但不可搜索 ⇒ 枚举结果不可信 ═════════════════
+def test_forbidden_judge_fail_closed_when_home_not_searchable(tmp_path: Path):
+    """⛔ r5 BLOCKER-3：`listdir` 成功 ≠ 解链成功。
+
+    HOME 有读权限（r）无搜索权限（x）时，名字照常列得出来，而解析子项需要搜索权限，
+    `realpath(strict=False)` 会把 EACCES 吞掉 ⇒ 外部保护目标整批漏登记，
+    旧实现的 `enumerate_failed` 仍是 False，判据却照常宣称「全部 OK」。
+    """
+    if os.geteuid() == 0:
+        pytest.skip("以 root 运行时权限位不生效，本条无从制造前提（r4 LOW-1 同型）")
+    home = tmp_path / "home"
+    home.mkdir()
+    ext = tmp_path / "ext"
+    ext.mkdir()
+    (home / ".claude-cache").symlink_to(ext, target_is_directory=True)
+    live = tmp_path / "fake-live"
+    live.mkdir()
+    safe = tmp_path / "safe"
+    safe.mkdir()
+    os.chmod(home, 0o444)  # r 但无 x
+    try:
+        # ⛔ 先断言**前提真的成立**（记忆：补了控制组 ≠ 控制组成立）：
+        #    若本机/文件系统让 X_OK 仍为真，这条门就没在测它自称的东西。
+        assert not os.access(home, os.X_OK), "前提不成立：HOME 仍可搜索，本条门测不到 B-3"
+        r = _forbid_home(home, str(live), f"--env-dir:{safe / 'x'}")
+    finally:
+        os.chmod(home, 0o755)
+    assert r.returncode != 0, f"HOME 不可搜索时未 fail-closed: {r.stdout}{r.stderr}"
+    assert "fail-closed" in r.stdout, f"未走 fail-closed 分支: {r.stdout!r}"
+
+
+def _sh_src() -> str:
+    return DEPLOY_SH.read_text(encoding="utf-8")
+
+
+def test_step4_mirror_files_pass_the_same_judge_before_sed(tmp_path: Path):
+    """⛔ r5 BLOCKER-4：镜像**根**合法 ≠ 镜像**里**要写的对象合法。
+
+    `cp -R` 保留源树软链；源树若有 `.claude/hooks -> <保护目录>`，`sed -i` 会沿链
+    写过去，而 r4 只把 `TMPDIR` 这个根交给了判据。
+
+    ⚠️ **这条门自己证不到端到端**（Codex r4 MEDIUM-4/M-2 的教训：源码门不等于恒真）：
+    它只证明「判据调用存在且未被就地失效、对象取自 `$PORT_TEMPLATED_FILES` 这个单一
+    来源、位置在 `sed -i` **之前**」。
+
+    端到端由**车道负控**承担，不在 pytest 里（要造一个能过 preflight 的 harness 副本，
+    单条用例跑十几秒）：`evidence-g27b/neg-positive-r5fix-*.txt` 记录了
+      · 把 harness 副本的 `canvas-vault/.claude/hooks` 换成指向保护目录的软链
+        → `rc=74`，消息点名 `mirror-.claude/hooks/session-end-archive.py` 与命中的目标，
+        且保护目录 `find -newermt` 计数为 **0**（拦在写之前，不是写完才发现）；
+      · 同一副本把 hooks 还原为真目录 → `rc=0`（控制组：判据不是「永远拦」）。
+    """
+    src = _sh_src()
+    call = 'check_forbidden_paths --outputs "${MIRROR_WRITES[@]}"'
+    judge = src.index(call)
+    sed_at = src.index('sed -i \'\' "s|:8011|:$PORT|g" "$SRC_MIRROR/$t"')
+    assert judge < sed_at, "镜像判据必须在 sed -i 之前，否则拦截发生时已经写过了"
+    # ⛔ 「文本存在」挡不住**就地失效**（本卡实测：把它改成 `false && check_forbidden_paths …`
+    #    这条门原样绿 —— 正是 Codex r4 MEDIUM-4 说的「留在注释或不可达代码中仍能满足断言」）。
+    #    故钉住整条语句的**形状**：它必须是 `if` 的直接条件，前面不许挂任何短路。
+    line = next(ln for ln in src.splitlines() if call in ln)
+    assert line.strip() == f"if {call}; then", f"镜像判据被就地失效或改写: {line.strip()!r}"
+    # 对象身份：清单必须从 $PORT_TEMPLATED_FILES 构建（与 sed 循环同一来源），
+    # 而不是另抄一份 —— 两份手抄清单必然漂移（r4 HIGH-1 的原话）。
+    build = src.index("MIRROR_WRITES+=(")
+    loop_hdr = src.rfind("for t in $PORT_TEMPLATED_FILES", 0, build)
+    assert loop_hdr != -1, "镜像待写清单未取自 $PORT_TEMPLATED_FILES 单一来源"
+    # 写前复查也要覆盖到镜像文件（软链/硬链接两条）。
+    assert 'assert_writable_now "${mt#*:}"' in src, "镜像文件缺写前复查"
+
+
+def test_env_file_is_chmod_600_before_key_is_written(tmp_path: Path):
+    """⛔ r5 HIGH-3：`os.open(..., 0o600)` 对**已存在**文件不改权限。
+
+    若 `.env.<vault>` 由脚本以外的来源预先存在且权限较宽，密钥会先 fsync 进 0644 文件、
+    随后那次 `chmod` 才收紧 —— 中间是真实的可读窗口。
+
+    ⚠️ **这条门只能验顺序，不能验窗口**（如实写明）：最终权限在整改前后**都是 0600**，
+    post-hoc 观察不到差别；有区别的是「密钥落盘时」文件是什么权限，而那一刻无法从外部
+    采样。故这里钉的是源码**顺序**：写前的 chmod 必须出现在 B4 的 python 写入之前，
+    且写后的那次必须**保留**（覆盖「文件是本次新建」的情形）。
+    """
+    src = _sh_src()
+    pre = src.index('if [ -e "$ENV_FILE" ]; then\n        chmod 600 "$ENV_FILE"')
+    write = src.index('if ! python3 - "$ENV_FILE" "$key"')
+    post = src.index('chmod 600 "$ENV_FILE" || { STEP_MSG="chmod 600 失败')
+    assert pre < write, "写前 chmod 必须在密钥写入之前"
+    assert write < post, "写后 chmod 必须保留（新建文件走这一条）"
+    # seed 出来的那份从诞生就是 0600，走不到这个窗口。
+    assert '(umask 077 && : > "$ENV_FILE.tmp")' in src, "seed 的临时文件缺 umask 077"
+
+
+def test_forbidden_judge_does_not_fail_closed_on_normal_home(tmp_path: Path):
+    """控制组：正常可读可搜索的 HOME 必须**不**报 fail-closed。
+
+    否则这条整改会把判据变成「永远拦」——比漏拦更难发现。
+    """
+    home = tmp_path / "home"
+    home.mkdir()
+    live = tmp_path / "fake-live"
+    live.mkdir()
+    safe = tmp_path / "safe"
+    safe.mkdir()
+    r = _forbid_home(home, str(live), f"--env-dir:{safe / 'x'}")
+    assert r.returncode == 0, f"正常 HOME 下误报: {r.stdout}{r.stderr}"
+    assert "fail-closed" not in r.stdout
+
+
 # ═══ 行为门：替代不承重的源码门（Codex r2 MEDIUM）══════════════════════════════
 @pytest.mark.skipif(
     not (REPO_ROOT / "canvas-vault" / ".obsidian" / "plugins" / "canvas-learning-system" / "main.js").exists(),
@@ -1655,18 +1876,38 @@ def test_trailing_slash_vault_yields_same_name_and_parent(tmp_path: Path):
     assert grab(a) == grab(b), f"尾斜杠改变了安装参数:\n{grab(a)}\n{grab(b)}"
 
 
-def test_single_segment_relative_vault_gets_dot_as_parent(tmp_path: Path):
-    """⛔ r4 MEDIUM-3 另一半：单段相对路径 `course` 的父目录是 `.`，不是 `course`。
+def test_relative_vault_is_rejected_at_entry(tmp_path: Path):
+    """⛔ Codex r5 HIGH-2：相对 `--vault` 一律 rc 64，不再进六步。
 
-    `${VAULT%/*}` 在串里没有 `/` 时**原样返回整串** —— 于是 vaults-root 会等于
-    vault 名自己，安装会去 `./course/course`。
+    **本条替换了旧的 `test_single_segment_relative_vault_gets_dot_as_parent`**，
+    那条门钉的是 r4 的行为（单段相对路径 ⇒ `--vaults-root .`）。r5 指出该行为本身
+    就是缺陷：`.` 由 installer 按**调用 cwd** 解释，而写进 `.env.<vault>` 的
+    `VAULTS_ROOT=.` 由 compose 按 `--project-directory "$HARNESS"` 解释
+    （`docker-compose.yml` 的 `"${VAULTS_ROOT:-.}:/vaults:…"`）。从非 harness 目录
+    部署就会「库建在 cwd、容器却挂 harness」，而步 5 的 config 断言只验容器名与端口，
+    **抓不到**。头注本就写「必填绝对路径」，此前只判非空 = 文档与实现不一致。
+
+    ⇒ 统一解析基准的最小做法是让相对路径根本进不来。
     """
     (tmp_path / "relcourse").mkdir()
     r = _preview(tmp_path, "relcourse", "8195", cwd=tmp_path)
+    assert r.returncode == 64, f"相对 --vault 未被入口拒: rc={r.returncode} {r.stdout}{r.stderr}"
+    assert "绝对路径" in r.stderr, f"消息未点明原因: {r.stderr!r}"
+
+
+def test_absolute_vault_still_previews_with_absolute_vaults_root(tmp_path: Path):
+    """控制组（另一个方向）：绝对 `--vault` 必须照常走完六步，且 `--vaults-root` 绝对。
+
+    ⛔ 只测「该拦的拦住了」会让判据退化成「永远拦」—— 本卡 r2 就是这么把所有正控
+    打成 rc 71 的。这条钉住 H-2 的整改**没有**顺手拒掉合法输入。
+    """
+    (tmp_path / "relcourse").mkdir()
+    r = _preview(tmp_path, str(tmp_path / "relcourse"), "8196", cwd=tmp_path)
     assert r.returncode == 0, f"rc={r.returncode}: {r.stdout}{r.stderr}"
     argv = shlex.split(re.search(r"^\[2/6\] install: SKIP will run: (.*)$", r.stdout, re.M).group(1))
     i = argv.index("--vaults-root")
-    assert argv[i + 1] == ".", f"单段相对路径的父目录算错: {argv[i + 1]!r}（应为 '.'）"
+    assert argv[i + 1] == str(tmp_path), f"vaults-root 应是绝对父目录: {argv[i + 1]!r}"
+    assert argv[i + 1].startswith("/"), "vaults-root 必须绝对，否则解析基准仍会分裂"
 
 
 def _fake_python3(tmp_path: Path, c_output: str) -> Path:
