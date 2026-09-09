@@ -340,6 +340,17 @@ _QUOTE_TAIL_RE = re.compile(r"['\"`]\s*\Z")  # 行尾(可带尾随空白)的引�
 _QUOTE_HEAD_RE = re.compile(r"^\s*['\"`]")
 
 
+def _lines(text: str) -> list[str]:
+    r"""只按 `\n` 切行, 顺手去掉行尾 `\r`。
+
+    ⛔ r15 MEDIUM-4: `str.splitlines()` 还把 VT(U+000B)/FF/NEL/LS/PS 当换行, 而 shell
+    不把它们当行分隔 —— `P="/tmp/cls-exam/"<VT>P="/etc/passwd"` 在 shell 里是**一个**
+    赋值(路径合规), 换成 LF 才变成两个(最终值 `/etc/passwd`), 而 `splitlines()` 对两者
+    给出完全相同的分块与指纹。
+    """
+    return [ln.rstrip("\r") for ln in text.split("\n")]
+
+
 def _fence_blocks(text: str) -> list[tuple[int, list[str], bool]]:
     """把正文切成 `(起始行号, 行列表, is_fence)`。
 
@@ -352,7 +363,7 @@ def _fence_blocks(text: str) -> list[tuple[int, list[str], bool]]:
     info string 不得含反引号, 故此判定与规范同向。这类行退回散文, 由 ④ backtick
     span 与 ③ 裸 token 接管。
     """
-    lines = text.splitlines()
+    lines = _lines(text)
     out: list[tuple[int, list[str], bool]] = []
     i, n = 0, len(lines)
     while i < n:
@@ -373,12 +384,18 @@ def _fence_blocks(text: str) -> list[tuple[int, list[str], bool]]:
             # 内的 fence 只是整体右移了容器 marker 的宽度。所以阈值 = 3 + **marker 宽度**,
             # 不是 3 + 「fence 标记的列位置」—— 后者会把 opening 自身的缩进也当成额度,
             # 于是 3 空格 opening 配 4 空格 closing 被错判为闭合(r13 实测)。
-            # ⛔ r14 HIGH-1A/MEDIUM-2: 缩进按 **tab 展开后的列数**算, 不是字符数 ——
-            # 一个真实 tab 开头的 ``` 原先按缩进 1 处理、提前闭合了围栏(块后半段整个
-            # 不进指纹)。`_lead` 减法也退掉: 阈值直接以 fence 标记的**列位置**为基准,
-            # 容器整体缩进本来就该计入(r14 MEDIUM-2 实测三空格 + `- ` 会误吞)。
+            # ⛔ CommonMark 的额度算法(r13→r15 三轮才算对, 每轮都栽在同一处):
+            #   closing 缩进 ≤ **容器内容基线** + 3。
+            #   · 无容器时基线 = **0** —— opening 自己的缩进(≤3 也是合法的)**不给额度**,
+            #     所以 `   ```py` 配 4 空格 closing 不闭合(r15 HIGH-1);
+            #   · 有容器时基线 = 容器前缀的列宽 —— `   - ```py` 的基线是 5,
+            #     配 6 空格 closing 要闭合(r14 MEDIUM-2)。
+            #   两者都按 **tab 展开后的列数**算, 且要数**整个前缀**(含 `>`/`- `),
+            #   只数 `>` 之前的缩进会让 `> \t\t```` 提前闭合(r15 HIGH-1 同根)。
             _open_m = _FENCE_OPEN_RE.match(lines[i])
-            open_indent = len(lines[i][: _open_m.start(1)].expandtabs(4))
+            _prefix_raw = lines[i][: _open_m.start(1)]
+            _has_container = bool(_prefix_raw.strip())
+            open_indent = len(_prefix_raw.expandtabs(4)) if _has_container else 0
             _prefix = lines[i][: _FENCE_OPEN_RE.match(lines[i]).start(1)]
             quote_depth = len(_prefix.strip()) and _prefix.count(">")
             container_depth = 1 if _prefix.strip() else 0
@@ -494,6 +511,8 @@ def _has_embedded_span_near_tmp(line: str) -> bool:
 
 #: bytes 字面量(含 `rb` / `bR` 等前缀) —— 预筛不能因为它不进 `_py_strings()` 就放行。
 _BYTES_LITERAL_RE = re.compile(r"\b[rRbB]{1,2}['\"]")
+#: ATX 标题(自成一块, 前后都是边界)。
+_ATX_HEADING_RE = re.compile(r"^ {0,3}#{1,6}(\s|$)")
 #: markdown 块边界(除空行外): ATX 标题、thematic break、setext 下划线。
 #: ⛔ r12 HIGH-3: **列表项**同样是块边界 —— 相邻两个列表项各有独立的 code span,
 #: 拼起来会让前一项的未闭合反引号夺走后一项的合法 opening。
@@ -547,6 +566,12 @@ def _prose_segments(text: str) -> list[tuple[int, list[str]]]:
                 # ⛔ 块边界行**本身是新块的第一行** —— flush 之后要留下它, 不能 continue
                 # 掉(r12 整改时踩到: 列表项的第一行被丢掉, 那一项的 span 就提不出来了)。
                 flush()
+                if _ATX_HEADING_RE.match(line):
+                    # ⛔ r15 HIGH-2: ATX 标题**自成一块** —— 它前后都是边界。只在标题前
+                    # 断段的话, 标题里一个未闭合的反引号会夺走后面正文的 span opening。
+                    cur_start, cur = start + body.index(line), [line]
+                    flush()
+                    continue
             if cur_start is None:
                 cur_start = start + body.index(line)
             cur.append(line)
@@ -647,7 +672,16 @@ def _py_strings(src: str) -> list[str] | None:
 #: 贪心「第一次成功即认」会把 `if False: pass` 认走, 剩下的 `elif` 头转交 shlex, 拼接丢失。
 #: ⛔ r14 LOW-5: `case` 是**软关键字** —— `case = 0` 是普通赋值。要求它后面跟模式且
 #: 行尾是冒号, 否则 200 行独立的 `case = 0` 会被合成一个单元(实测 0.072s vs 0.0016s)。
-_PY_CONTINUATION_RE = re.compile(r"^\s*(?:(?:elif|else|except|finally)\b|case\b.*:\s*$)")
+#: ⛔ r15 HIGH-3: 续接子句**必须带冒号**。合法的 shell heredoc 结束标记可以恰好叫
+#: `else`/`elif`/`except`/`finally`(`python3 - <<'else'` … `else`), 不带冒号时它是
+#: 结束标记而不是 Python 续接; 误当续接会让已经解析成功的整段被丢弃、降级到 shlex。
+#: `else` / `try` / `finally` 自己就是完整子句 ⇒ **必须**紧跟冒号, 否则它是 heredoc
+#: 结束标记(`python3 - <<'else'` … `else`, r15 HIGH-3)。
+#: `elif` / `except` / `case` 后面**必带内容** ⇒ 只要求「后面还有非空白」——
+#: 冒号可能在续行上(`elif ("/tmp/…" +`␊`    "a" + "/x") == q:`), 强求同行冒号会把
+#: 多行子句头切断。单独一个 `elif`/`except` 仍判为结束标记。
+#: ⛔ 已知保守面: `case = 0`(软关键字当变量名)会被判为续接 —— 误报方向, 树上无此写法。
+_PY_CONTINUATION_RE = re.compile(r"^\s*(?:(?:else|try|finally)\s*:|(?:elif|except|case)\b[ \t]*\S)")
 
 
 def _py_needs_more(src: str) -> bool:
@@ -885,7 +919,9 @@ def _logical_lines(text: str) -> list[tuple[int, str, bool]]:
             out.append((ln, line, fence))
             continue
         buf = line
-        for _ in range(6):
+        # ⛔ r15 MEDIUM-2: 去掉「最多 6 次」的上限 —— 七次反斜杠续行就静默了(实测)。
+        # 与 `_parse_units` 同理: 固定上限只是把缺口挪个位置。
+        while True:
             if i >= len(flat) or not flat[i][2]:
                 break
             nxt = flat[i][1]
@@ -1352,24 +1388,24 @@ OPAQUE_TMP_BASELINE: dict[str, list[str]] = {
 #: 代价: 块内**任何**改动(包括无关措辞)都要同步指纹 —— 这正是「增红减也红」的精神。
 TMP_BLOCK_BASELINE: dict[str, list[str]] = {
     "ai-linked-doc": [],
-    "board-recap": ["L58:ca3698587183c7cb", "L139:0f6b5a2ff16914cd"],
+    "board-recap": ["S54:e4e9abc1df909943", "S139:0f6b5a2ff16914cd"],
     "chat-with-context": [],
     "configure-whiteboard": [],
     "exam-quick": [],
     "node-chat": [],
     "quiz-answer": [
-        "B104:cd24514a7f7ffadd",
-        "B229:b26c3c3f9e130b1a",
-        "L98:918de56473d5be1b",
-        "L205:44b7655dd97c27b7",
+        "B104:53c5e24e48a924de",
+        "B229:1ece4b165eaff4e8",
+        "S98:918de56473d5be1b",
+        "S205:44b7655dd97c27b7",
     ],
     "start-exam-board": [
-        "B195:0344107288effd22",
-        "B433:e568006ab2b9d0fb",
-        "L128:ac5b00bda0455a9e",
-        "L188:65b99234f2075b8f",
-        "L430:6df0e9ca43fe93e0",
-        "L577:249fe6bc3d886700",
+        "B195:49bbb79cdd7750a1",
+        "B433:abad24172c59e1c3",
+        "S128:3d332975e351d095",
+        "S188:35c02f61a9f9604b",
+        "S430:6df0e9ca43fe93e0",
+        "S577:249fe6bc3d886700",
     ],
     "study-question": [],
 }
@@ -1727,7 +1763,9 @@ def _url_override_hit(line: str) -> bool:
     # 等于整改没做 —— 用户配了 `CLS_BACKEND_URL` 也不会生效。九项计数与全部集合不变。
     # ⛔ r14 MEDIUM-3: 用**词边界** —— `${CLS_BACKEND_URL_OTHER:-…}` 里虽然出现了
     # `CLS_BACKEND_URL` 这个子串, 但它不是约定变量, 用户配了也不生效。
-    if "8011" in line and not re.search(r"\bCLS_BACKEND_URL\b", line):
+    # ⛔ r15 MEDIUM-1: 要绑「**变量真的被展开**」, 不是「名字出现在行内」——
+    # `curl "${OTHER:-…:8011}" # CLS_BACKEND_URL` 里名字只在注释里, 用户配了也不生效。
+    if "8011" in line and not re.search(r"\$\{CLS_BACKEND_URL\b", line):
         return True
     for segment in re.split(r"[;&|\n]+", line):
         m = _URL_UNSET_RE.search(segment)
@@ -1772,7 +1810,7 @@ def tmp_block_fingerprints(text: str) -> list[str]:
     「多行 opaque 记录只绑首行 ⇒ 换第二行仍静默」也由它直接封住。
     """
     out: list[str] = []
-    raw_lines = text.splitlines()
+    raw_lines = _lines(text)
     for start, body, is_fence in _fence_blocks(text):
         blob = "\n".join(body)
         if "/tmp" not in blob:
@@ -1781,12 +1819,17 @@ def tmp_block_fingerprints(text: str) -> list[str]:
             # ⛔ r14 HIGH-1B: 用**原文行**(含容器前缀), 不用剥过前缀的 body ——
             # `> P = …` 与 `P = …` 剥完前缀后完全一样, 于是「把一行移进/移出引用块」
             # (CommonMark 下这会改变它在不在代码块里)对指纹完全静默。
-            raw = "\n".join(raw_lines[start - 1 : start - 1 + len(body)])
+            # ⛔ r15 MEDIUM-3: 把**开启标记行**一并纳入 —— info string 决定执行者用哪个
+            # 解释器, 而 `P="/tmp/cls-exam/"'\\x2e\\x2e/x'` 在 sh 下合规、在 python 下越界。
+            # 只把 `sh` 改成 `python` 时块体一字未变, 不纳入标记行就完全静默。
+            raw = "\n".join(raw_lines[max(start - 2, 0) : start - 1 + len(body)])
             out.append(f"B{start}:{_line_fingerprint(raw)}")
-        else:
-            for offset, line in enumerate(body):
-                if "/tmp" in line:
-                    out.append(f"L{start + offset}:{_line_fingerprint(line)}")
+    # ⛔ r15 HIGH-2: 散文侧按**段**取指纹, 不逐行 —— 一个跨行 code span 的第二行可能
+    # 不含 `/tmp`(`执行 \`P = ("/tmp/cls-exam/"`␊`"../x")\``), 逐行绑就完全静默。
+    for seg_start, seg in _prose_segments(text):
+        blob = "\n".join(seg)
+        if "/tmp" in blob:
+            out.append(f"S{seg_start}:{_line_fingerprint(blob)}")
     return sorted(out)
 
 
@@ -2196,7 +2239,13 @@ _NET_ONLY_FORMS: list[tuple[str, str, str]] = [
         '```sh\npython3 - <<\'else\'\nif False:\n    pass\nelif P := "/tmp/cls-exam/" "." "./x":\n    pass\nelse\necho done\n```',
         '```sh\npython3 - <<\'else\'\nif False:\n    pass\nelif P := "/tmp/cls-exam/" "a" "/x":\n    pass\nelse\necho done\n```',
     ),
-    ("NBSP 分隔的两段引号", '执行 P="/var/cache" "/tmp/cls-exam/x"', '执行 P="/tmp/cls-exam/x"'),
+    # ⛔ r15 LOW: 这里必须是**真 NBSP**(U+00A0)。上一版写成了 ASCII 空格, 于是这条
+    # 负控根本没在考 NBSP —— 用 `\u00a0` 转义写出来, 顺带避免它在编辑中被静默改回空格。
+    (
+        "NBSP 分隔的两段引号",
+        '执行 P="/var/cache"\u00a0"/tmp/cls-exam/x"',
+        '执行 P="/tmp/cls-exam/x"',
+    ),
     ('转义引号 `\\"` 被误当闭合', '执行 P="/var/cache \\" /tmp/cls-exam/x"', '执行 P="/tmp/cls-exam/x"'),
     (
         "标题里的未闭合反引号",
@@ -2234,6 +2283,8 @@ def test_net_only_forms_are_caught_by_the_tenth_judge(why: str, bad: str, safe: 
     (它只要求兜底网能区分), 但那说明语义判据的覆盖面变宽了, 是好事。
     真正要防的是**兜底网自己失效** —— 那时这里立刻红。
     """
+    if "NBSP" in why:
+        assert "\u00a0" in bad, "标为 NBSP 的样本里必须真的有 U+00A0(r15 LOW: 上一版写成了 ASCII 空格)"
     assert tmp_block_fingerprints(bad) != tmp_block_fingerprints(safe), (
         f"兜底网分不开这对形态({why}) —— 九条判据对它们也全瞎, 那就是一个完全静默的面"
     )
