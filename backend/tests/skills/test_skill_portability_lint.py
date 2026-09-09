@@ -156,6 +156,8 @@ import posixpath
 import re
 import shlex
 import shutil
+import textwrap
+import warnings
 from collections import Counter
 from pathlib import Path
 
@@ -282,13 +284,19 @@ def _fence_blocks(text: str) -> list[tuple[int, list[str], bool]]:
 
     fence 标记支持 ``` 与 ~~~, 且**闭合必须同字符、长度 >= 开启**(r5 HIGH-4:
     四反引号块里的三反引号内容行不该切换状态)。标记行本身不进 body。
+
+    ⚠️ r6 HIGH-4: 开启标记**同一行**若还有同字符、长度 >= 开启的 run, 它其实是
+    **行内 code span**(``` `​``/tmp/cls-exam/../x`​`` ``` 之流), 不是 fence ——
+    按 fence 处理会把整行连同路径一起删掉。CommonMark 亦规定反引号 fence 的
+    info string 不得含反引号, 故此判定与规范同向。这类行退回散文, 由 ④ backtick
+    span 与 ③ 裸 token 接管。
     """
     lines = text.splitlines()
     out: list[tuple[int, list[str], bool]] = []
     i, n = 0, len(lines)
     while i < n:
         m = _FENCE_RE.match(lines[i])
-        if m:
+        if m and not re.search(re.escape(m.group(1)[0]) + "{%d,}" % len(m.group(1)), lines[i][m.end() :]):
             mark = m.group(1)
             ch, width = mark[0], len(mark)
             body: list[str] = []
@@ -308,6 +316,21 @@ def _fence_blocks(text: str) -> list[tuple[int, list[str], bool]]:
     return out
 
 
+def _quiet_parse(src: str) -> ast.AST | None:
+    """`ast.parse` 被测**语料**; 失败返 None, 并吞掉语料自身的 `SyntaxWarning`。
+
+    判据解析的是别人写的任意文本 —— 语料里的 `"\\/"` 之类非法转义会让 CPython 冲
+    测试输出打 warning。那是**被测对象的性质**(且正是第八条判据要登记的东西),
+    不是本模块的缺陷, 不该污染裁判输出。
+    """
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", SyntaxWarning)
+            return ast.parse(src)
+    except (SyntaxError, ValueError):  # ValueError: 源码含 NUL 等
+        return None
+
+
 def _fold_str(node: ast.AST) -> str | None:
     """`Constant` 或 `BinOp(+)` 常量链 → 字符串; 不可折返回 None。"""
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
@@ -324,9 +347,8 @@ def _py_strings(src: str) -> list[str] | None:
 
     折进 `+` 链的 `Constant` 不再单独计一次 —— 否则同一处会产生两个候选。
     """
-    try:
-        tree = ast.parse(src)
-    except (SyntaxError, ValueError):  # ValueError: 源码含 NUL 等
+    tree = _quiet_parse(src)
+    if tree is None:
         return None
     out: list[str] = []
     folded: set[int] = set()
@@ -372,11 +394,16 @@ def escaping_tmp_paths(text: str) -> list[tuple[str, str]]:
 
     for _start, body, is_fence in _fence_blocks(text):
         if is_fence:
-            values = _py_strings("\n".join(body))  # ① 整块 Python
+            block = "\n".join(body)
+            values = _py_strings(block)  # ① 整块 Python
+            if values is None:
+                values = _py_strings(textwrap.dedent(block))  # ①' 整块缩进
             if values is None:
                 values = []
                 for line in body:  # ② 逐行: Python → shell
                     per_line = _py_strings(line)
+                    if per_line is None:  # r6 HIGH-3: 缩进行单跑是 IndentationError
+                        per_line = _py_strings(line.strip())
                     if per_line is None:
                         per_line = _sh_words(line) or []
                     values.extend(per_line)
@@ -446,9 +473,11 @@ def _has_dynamic_tmp_join(src: str) -> bool:
       · 任何 `Call` 的参数里有含 `/tmp` 的常量(覆盖 `.format` / `join` / `os.path.join`)。
     合规的纯常量与隐式拼接**不触发**(它们由 `ast` 折成单个 Constant, 越界判据已能定论)。
     """
-    try:
-        tree = ast.parse(src)
-    except (SyntaxError, ValueError):
+    tree = next(
+        (t for t in (_quiet_parse(c) for c in (src, src.strip(), textwrap.dedent(src))) if t is not None),
+        None,
+    )
+    if tree is None:
         return False
 
     def _mentions_tmp(node: ast.AST) -> bool:
@@ -480,6 +509,49 @@ def dynamic_tmp_join_lines(text: str) -> list[tuple[int, str]]:
         for offset, line in enumerate(body):
             if "/tmp" in line and _has_dynamic_tmp_join(line):
                 out.append((start + offset, line.strip()))
+    return out
+
+
+#: fence 内使「这条路径的字面值」跨语言不可判的记号(r6 HIGH-1/2/3 的共同根因)。
+#: · 反引号 —— fence 内已不可能是 markdown span, 只能是 shell 命令替换 `cmd`;
+#: · 反斜杠 —— 转义序列的含义由**读它的那门语言**决定(JSON 的 `\/` 是 `/`,
+#:   Python 的 `\/` 是两个字符), 且行尾反斜杠还是续行, 逐行降级会把它切断。
+_OPAQUE_TMP_RE = re.compile(r"[`\\]")
+
+
+def opaque_tmp_lines(text: str) -> list[tuple[int, str]]:
+    r"""fence 内「含 `/tmp` 且带跨语言不可判记号」的行 —— 返回 `(行号, 行)`。
+
+    r6 的 HIGH-1(shell 命令替换)、HIGH-2(JSON `\u002e\u002e\/`、shell 反斜杠
+    续行)、HIGH-3(heredoc 内续行)是**同一根因**: v3 的真解析解决了「字面量怎么
+    写」, 但一段文本到底按哪门语言解析、其中的反斜杠算不算转义, 静态判不了 ——
+    `ast` 把 `"\u002e"` 读成 `.`(恰好对), 把 `"\/"` 读成 `\/`(错, JSON 里是 `/`)。
+
+    处置与第六条 `dynamic_tmp_join_lines`、兜底的 `suspicious_tmp_lines` 完全同档:
+    **不猜它指向哪, 只要求登记**。三条判据触发面互补 ——
+      · 本条: 反引号 / 反斜杠(语言歧义);
+      · 第六条: `ast` 层面的动态参与(变量、f-string、`.format`);
+      · 兜底: 行内 `..` 或 `$` 的字面证据。
+
+    按**行尾反斜杠续行组**扫(链长上限 6): r6 的 shell `P='\\`␊`/tmp/…'` 把反斜杠
+    留在上一行、`/tmp` 留在下一行, 物理行粒度两边都不触发。`_logical_lines` 合并时
+    会**擦掉**反斜杠(那是它的活), 所以这里自己拼、原样保留。
+    2026-09-09 开工实测: 9 份 SKILL.md + 7 份 scripts **全树命中 0**, 故基线全空 ——
+    登记成本为零, 而任何新写的此类形态都必须先被人看见。
+    """
+    out: list[tuple[int, str]] = []
+    for start, body, is_fence in _fence_blocks(text):
+        if not is_fence:
+            continue
+        i = 0
+        while i < len(body):
+            j = i  # 行尾反斜杠续行链: 整组一起看
+            while j + 1 < len(body) and body[j].rstrip().endswith("\\") and j - i < 6:
+                j += 1
+            joined = "\n".join(body[i : j + 1])  # ⛔ 原样拼, 不擦反斜杠(它正是证据)
+            if "/tmp" in joined and _OPAQUE_TMP_RE.search(joined):
+                out.append((start + i, body[i].strip()))
+            i = j + 1
     return out
 
 
@@ -665,6 +737,33 @@ SUSPICIOUS_TMP_LINES_BASELINE: dict[str, list[int]] = {
 #: 与 `SUSPICIOUS_TMP_LINES_BASELINE` 互补 —— 那条看行内有没有 `..`/`$` 的字面证据,
 #: 这条看 `ast` 层面有没有动态参与(变量拼接两样都没有, 只有这条看得见)。
 DYNAMIC_TMP_JOIN_BASELINE: dict[str, list[int]] = {
+    "ai-linked-doc": [],
+    "board-recap": [],
+    "chat-with-context": [],
+    "configure-whiteboard": [],
+    "exam-quick": [],
+    "node-chat": [],
+    "quiz-answer": [],
+    "start-exam-board": [],
+    "study-question": [],
+}
+
+#: 散文里「`/tmp` + 父目录语义」的行号 —— 第七条判据基线(2026-09-09 实测全空)。
+#: 层 2 附加⑤(r6 三类 HIGH 的同因收口): fence 内 `/tmp` 行带反引号/反斜杠的行号。
+#: 全树实测 0 —— 空基线意味着**任何**此类新写法都要先登记, 代价为零。
+OPAQUE_TMP_BASELINE: dict[str, list[int]] = {
+    "ai-linked-doc": [],
+    "board-recap": [],
+    "chat-with-context": [],
+    "configure-whiteboard": [],
+    "exam-quick": [],
+    "node-chat": [],
+    "quiz-answer": [],
+    "start-exam-board": [],
+    "study-question": [],
+}
+
+PARENT_DIR_PROSE_BASELINE: dict[str, list[int]] = {
     "ai-linked-doc": [],
     "board-recap": [],
     "chat-with-context": [],
@@ -916,6 +1015,93 @@ def check_dynamic_tmp_joins(root: Path, baseline: dict[str, list[int]]) -> list[
     return problems
 
 
+def check_opaque_tmp(root: Path, baseline: dict[str, list[int]]) -> list[str]:
+    r"""不透明记号判据: 每份 SKILL.md 里「含 `/tmp` 且带反引号/反斜杠」的行号集合精确相等。
+
+    现状全 0 —— **零余量**。往 fence 里写 ``P="/tmp/cls-exam/"`printf .`"./x"``、
+    JSON 的 `"\u002e\u002e\/x"`、或任何反斜杠续行, 都会立刻红并要求登记:
+    这段文本按哪门语言解析、其中反斜杠算不算转义, 静态判不了。
+    """
+    problems: list[str] = []
+    skills_dir = root / "skills"
+    for name in sorted(baseline):
+        f = skills_dir / name / "SKILL.md"
+        if not f.exists():
+            problems.append(f"[不透明记号] {name}: SKILL.md 不存在 (基线要求存在) path={f}")
+            continue
+        found = opaque_tmp_lines(f.read_text(encoding="utf-8"))
+        actual = sorted(ln for ln, _txt in found)
+        want = sorted(baseline[name])
+        if actual != want:
+            by_line = dict(found)
+            ca, cw = Counter(actual), Counter(want)
+            extra = sorted((ca - cw).elements())
+            problems.append(
+                f"[不透明记号] {name}: 含 `/tmp` 的反引号/反斜杠行号集合不等 "
+                f"期望={want} 实测={actual} (新增={extra} 缺失={sorted((cw - ca).elements())})\n"
+                + "".join(f"        :{ln}  {by_line.get(ln, '')[:100]}\n" for ln in extra)
+                + "        —— 命令替换与转义序列的含义由读它的那门语言决定, 静态门不猜, 要人登记"
+            )
+    return problems
+
+
+#: 散文里把「上一级 / 父目录」写成**自然语言**的关键词(中英)。
+#: SKILL.md 的散文**就是给 agent 的执行指令** —— Step 3 第 4 步用 `Write` 工具落文件,
+#: 落点由那句散文决定。把越界的那一段搬到反引号**外面**, 它就成了自然语言:
+#:     把剩余候选写到 `/tmp/cls-exam/` **的上一级目录**下的 exam-candidates.json
+#: backtick span 只剩 `/tmp/cls-exam/`(合规), 计数四端不动, 无 `..` 无 `$` ⇒ 六条全绿,
+#: 而 agent 会把文件写到 `/tmp/exam-candidates.json`。
+_PARENT_DIR_PROSE_RE = re.compile(
+    r"上一级|上級|父目录|父目錄|父级|父級|同级目录|同級目錄|平级|平級"
+    r"|parent directory|parent dir|\bpardir\b"
+)
+
+
+def parent_dir_prose_lines(text: str) -> list[tuple[int, str]]:
+    """**散文**里同时出现 `/tmp` 与「父目录/上一级」语义词的行 —— `(行号, 行)`。
+
+    只扫 fence **之外**(fence 内的同类由第六条判据从 `ast` 层面管)。
+    """
+    out: list[tuple[int, str]] = []
+    for start, body, is_fence in _fence_blocks(text):
+        if is_fence:
+            continue
+        for offset, line in enumerate(body):
+            if "/tmp" in line and _PARENT_DIR_PROSE_RE.search(line):
+                out.append((start + offset, line.strip()))
+    return out
+
+
+def check_parent_dir_prose(root: Path, baseline: dict[str, list[int]]) -> list[str]:
+    """第七条判据: 散文里的「父目录」语义行号集合精确相等(现状全 9 份皆空)。
+
+    ⛔ 这条与前六条的区别: 前六条问「**这串文本**指向哪里」, 它问「**这句指令**
+    会让 agent 把文件放在哪里」。判据能证明的是前者, 而 SKILL.md 的效力在后者 ——
+    这个落差正是 finding #2 的根因, 补这条是承认落差、要求登记, 不是假装能推断语义。
+    """
+    problems: list[str] = []
+    skills_dir = root / "skills"
+    for name in sorted(baseline):
+        f = skills_dir / name / "SKILL.md"
+        if not f.exists():
+            problems.append(f"[散文父目录] {name}: SKILL.md 不存在 (基线要求存在) path={f}")
+            continue
+        found = parent_dir_prose_lines(f.read_text(encoding="utf-8"))
+        actual = sorted(ln for ln, _txt in found)
+        want = sorted(baseline[name])
+        if actual != want:
+            by_line = dict(found)
+            ca, cw = Counter(actual), Counter(want)
+            extra = sorted((ca - cw).elements())
+            problems.append(
+                f"[散文父目录] {name}: 散文里 `/tmp` 与「父目录/上一级」同行的行号集合不等 "
+                f"期望={want} 实测={actual} (新增={extra} 缺失={sorted((cw - ca).elements())})\n"
+                + "".join(f"        :{ln}  {by_line.get(ln, '')[:100]}\n" for ln in extra)
+                + "        —— 散文是给 agent 的执行指令: 落点写在反引号外面时判据看不见路径, 必须登记"
+            )
+    return problems
+
+
 def check_scripts(root: Path, baseline: dict[str, dict[str, int]]) -> list[str]:
     """层 3: 返回违规描述列表 (空 = 全绿)。文件集合本身也钉。"""
     problems: list[str] = []
@@ -1064,6 +1250,18 @@ def test_dynamic_tmp_joins_match_baseline():
     assert not problems, "动态拼接基线漂移:\n" + "\n".join(problems)
 
 
+def test_parent_dir_prose_matches_baseline():
+    """第七条判据(正控): 散文「父目录」语义行号集合 == 基线(现状全 9 份皆空)。"""
+    problems = check_parent_dir_prose(DEFAULT_ROOT, PARENT_DIR_PROSE_BASELINE)
+    assert not problems, "散文父目录基线漂移:\n" + "\n".join(problems)
+
+
+def test_opaque_tmp_lines_match_baseline():
+    """第八条判据(正控): 含 `/tmp` 的反引号/反斜杠行号集合 == 基线(现状全 9 份皆空)。"""
+    problems = check_opaque_tmp(DEFAULT_ROOT, OPAQUE_TMP_BASELINE)
+    assert not problems, "不透明记号基线漂移:\n" + "\n".join(problems)
+
+
 def test_every_per_skill_baseline_covers_all_nine_skills():
     """⛔ **每个按 skill 分的基线都必须恰好覆盖 9 份**(Codex round-2 MEDIUM-2)。
 
@@ -1078,6 +1276,8 @@ def test_every_per_skill_baseline_covers_all_nine_skills():
         ("ESCAPING_TMP_BASELINE", set(ESCAPING_TMP_BASELINE)),
         ("SUSPICIOUS_TMP_LINES_BASELINE", set(SUSPICIOUS_TMP_LINES_BASELINE)),
         ("DYNAMIC_TMP_JOIN_BASELINE", set(DYNAMIC_TMP_JOIN_BASELINE)),
+        ("PARENT_DIR_PROSE_BASELINE", set(PARENT_DIR_PROSE_BASELINE)),
+        ("OPAQUE_TMP_BASELINE", set(OPAQUE_TMP_BASELINE)),
     ):
         assert baseline == set(EXPECTED_SKILLS), (
             f"{label} 覆盖面必须恰好 == 9 份 vault skill "
@@ -1760,6 +1960,99 @@ def test_negative_control_dynamic_join_must_be_registered(sandbox: Path, replace
     joined = "\n".join(problems)
     assert any("start-exam-board" in p and "[动态拼接]" in p for p in problems), (
         f"③ {why} 必须被第六条判据要求登记, 实得: {joined}"
+    )
+
+
+# ⛔ 第八条判据(不透明记号)负控 —— Codex round-6 HIGH-1/2/3 的同因收口。
+#: 等计数替换: 两种形态的 `/tmp` 与 `/tmp/cls-exam/` 各 1, 九项向量一字不动。
+@pytest.mark.parametrize(
+    "replacement,why",
+    [
+        (
+            'P = "/tmp/cls-exam/`printf .`./exam-candidates.json"',
+            "r6 HIGH-1: shell 命令替换 —— `ast` 把整串当常量读, 但真跑起来 `printf .` 会展开",
+        ),
+        (
+            'P = "/tmp/cls-exam/\\u002e\\u002e\\/exam-candidates.json"',
+            "r6 HIGH-2: JSON 语义 —— `\\/` 在 JSON 是 `/`, Python 读成两个字符, 谁对取决于读它的语言",
+        ),
+    ],
+)
+def test_negative_control_opaque_tmp_must_be_registered(sandbox: Path, replacement: str, why: str):
+    """⑬ **第八条判据** —— 前七条全盲的那一类: 字面量的**含义**取决于读它的语言。
+
+    v3 的真解析解决了「字面量怎么写」, 这两例暴露的是「字面量被谁读」: `ast` 能
+    parse 出一个 `Constant`, 但那个值只在 Python 语义下成立。第八条不猜哪门语言,
+    只认记号(反引号 / 反斜杠)并要求登记。
+
+    ⛔ 三段归因: ① 计数判据放行(等计数替换) ② 越界/可疑行/动态拼接/散文四条**都
+    看不见**(证明考的确实是第八条) ③ 第八条报红。
+    """
+    _swap_in_start_exam_board(sandbox, 'P = "/tmp/cls-exam/exam-candidates.json"', replacement)
+
+    assert not check_body(sandbox, _merged_body_baseline()), f"① 前提: 计数判据放行({why})"
+    for label, blind in (
+        ("越界", check_escaping_tmp(sandbox, ESCAPING_TMP_BASELINE)),
+        ("可疑行", check_suspicious_tmp_lines(sandbox, SUSPICIOUS_TMP_LINES_BASELINE)),
+        ("动态拼接", check_dynamic_tmp_joins(sandbox, DYNAMIC_TMP_JOIN_BASELINE)),
+        ("散文父目录", check_parent_dir_prose(sandbox, PARENT_DIR_PROSE_BASELINE)),
+    ):
+        assert not blind, f"② 前提: {label}判据看不见({why}) —— 若它看得见, 这条负控考错了对象"
+
+    problems = check_opaque_tmp(sandbox, OPAQUE_TMP_BASELINE)
+    assert any("start-exam-board" in x and "[不透明记号]" in x for x in problems), (
+        f"③ {why} 必须被第八条判据要求登记, 实得: {chr(10).join(problems)}"
+    )
+
+
+def test_opaque_judge_does_not_fire_on_plain_literals():
+    """验伪锚: 第八条不得对**没有**反引号/反斜杠的合规写法报红 —— 否则它只是「见 /tmp 就红」。
+
+    左边四例是树上真实出现过的合规形态; 右边两例带记号, 必须红。两侧一起断言,
+    这条才同时钉住「不误报」与「真会红」。
+    """
+    for clean in (
+        '```python\nP = "/tmp/cls-exam/exam-candidates.json"\n```',
+        "```sh\nmkdir -p /tmp/cls-exam/\n```",
+        '```python\nP = ("/tmp/cls-exam/" "exam.json")\n```',
+        "不落 `/tmp` 等 vault 外临时文件",  # 散文带 backtick: fence 外不算
+    ):
+        assert not opaque_tmp_lines(clean), f"合规写法被误判为不透明: {clean!r}"
+    for dirty in (
+        '```sh\ncp "/tmp/cls-exam/"`printf .`"./x" out\n```',
+        '```python\nP = "/tmp/cls-exam/\\x2e\\x2e/x"\n```',
+    ):
+        assert opaque_tmp_lines(dirty), f"带记号的写法未被抓到: {dirty!r}"
+
+
+def test_negative_control_parent_dir_prose_must_be_registered(sandbox: Path):
+    """⑭ **第七条判据** —— 散文侧的「上一级目录」指令。
+
+    这一类不写 `..`、不进 fence、不动任何计数: 它靠**中文措辞**让执行者自己算出
+    父目录。五条路径判据全部只看代码形态, 对散文里的 `上一级目录` 一无所知
+    (2026-09-09 用一次 5 路 Workflow 独立找出, 非 Codex 报)。
+
+    ⛔ 三段归因: ① 计数判据放行(等计数替换) ② 越界/可疑行/动态拼接/不透明四条
+    **都看不见** ③ 第七条报红。
+    """
+    _swap_in_start_exam_board(
+        sandbox,
+        "逐节点 Grep 五种掌握度字段 → 写 `/tmp` json",
+        "逐节点 Grep 五种掌握度字段 → 写 `/tmp` 上一级目录的 json",
+    )
+
+    assert not check_body(sandbox, _merged_body_baseline()), "① 前提: 计数判据放行(散文改词不动计数)"
+    for label, blind in (
+        ("越界", check_escaping_tmp(sandbox, ESCAPING_TMP_BASELINE)),
+        ("可疑行", check_suspicious_tmp_lines(sandbox, SUSPICIOUS_TMP_LINES_BASELINE)),
+        ("动态拼接", check_dynamic_tmp_joins(sandbox, DYNAMIC_TMP_JOIN_BASELINE)),
+        ("不透明记号", check_opaque_tmp(sandbox, OPAQUE_TMP_BASELINE)),
+    ):
+        assert not blind, f"② 前提: {label}判据看不见散文措辞 —— 若它看得见, 这条负控考错了对象"
+
+    problems = check_parent_dir_prose(sandbox, PARENT_DIR_PROSE_BASELINE)
+    assert any("start-exam-board" in x for x in problems), (
+        f"③ 散文「上一级目录」必须被第七条判据要求登记, 实得: {chr(10).join(problems)}"
     )
 
 
