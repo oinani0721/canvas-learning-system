@@ -8,11 +8,11 @@ round-4 你审 `b1e58489 → 96d3013e`，判定两条 HIGH 未关闭并给出三
 Lord Howe 1985 / 上海 1991 历史跨度、display_tz 缺失/null/垃圾值的回退误判）。
 两条我都复现确认，本轮**换掉了整条技术路线**，请复核。
 
-审查绑定：`96d3013e → __HEAD__`
+审查绑定：`96d3013e → 129c14fa`
 
 **请读这些**：
 
-1. `git diff 96d3013e __HEAD__ -- . ':(exclude)_bmad-output'` —— 本轮全部整改
+1. `git diff 96d3013e 129c14fa -- . ':(exclude)_bmad-output'` —— 本轮全部整改
 2. `scripts/local_tz.py` 与 `backend/app/core/display_tz.py` 全文（`_SystemLocalTZ` 已删，
    换成 `parse_posix_tz` + `_PosixTZ`，两份副本共享定义逐字相同）
 3. `backend/tests/regression/test_g6_9c_single_tz_source.py` 全文（门 ⑦ 扩到 11 个 POSIX
