@@ -109,11 +109,12 @@ class TestSlidingWindowStats:
 
         is_healthy is defined as ``rate >= MATCH_THRESHOLD`` — the qa_models field
         description says "True if match_rate >= 0.7" — so an empty window is not
-        healthy. "No data should not alert" is handled one level up: the only
-        alerting consumer, health_monitor._check_difficulty_match_rate, branches on
-        ``total_in_window == 0`` and returns "no data" before it ever reads
-        is_healthy. Whether the flag itself should special-case the empty window is
-        a product question, tracked as CARD-DIFFMATCH-EMPTY-WINDOW.
+        healthy. The empty window is handled one level up rather than by this flag:
+        the only alerting consumer, health_monitor._check_difficulty_match_rate,
+        branches on ``total_in_window == 0`` and returns its own "no data" warning
+        without ever reading is_healthy — so changing this flag would not change
+        that alert either way. Whether the flag itself should special-case an empty
+        window is a product question, tracked as CARD-DIFFMATCH-EMPTY-WINDOW.
         """
         matcher = self._make_matcher(str(tmp_path))
         stats = matcher.get_stats()

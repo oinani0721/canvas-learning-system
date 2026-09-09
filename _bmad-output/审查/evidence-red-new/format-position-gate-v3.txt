@@ -1,0 +1,18 @@
+=== format 判据 v3（修正版；Codex r2 MEDIUM-3 要求的位置维度）===
+口径：同一文件同一版本（工作树）上的两个行号集合——
+  A = 本卡改动的行：git diff -U0 的 +hunk（-U0 保证无上下文）
+  B = ruff format 真正要替换的行：--diff 输出里**带 '-' 前缀的行**（⛔ 不是整个 hunk 范围）
+判据：A ∩ B = ∅
+
+⚠️ v3 初版把整个 hunk 范围（含上下文行）当成 B，在 test_calibration_tracker.py 上报出
+   291-293 的假阳性——那三行是本卡写的、format-clean 的，只是恰好位于一个针对存量行
+   （294-296 的 -0.16 断言，本卡未碰）的 hunk 的上下文里。判据修正后重跑。
+
+  multimodal_service.py              A=  12  B=  79  A∩B=0  ✅
+  test_calibration_tracker.py        A=  25  B=  13  A∩B=0  ✅
+  test_canvas_memory_trigger.py      A=  17  B=  27  A∩B=0  ✅
+  test_difficulty_matcher.py         A=  12  B=   0  A∩B=0  ✅
+  test_event_bus.py                  A=  21  B=   9  A∩B=0  ✅
+  test_mastery_fusion.py             A=  11  B=   3  A∩B=0  ✅
+
+  合计 A∩B = 0   ← 判据要求为 0

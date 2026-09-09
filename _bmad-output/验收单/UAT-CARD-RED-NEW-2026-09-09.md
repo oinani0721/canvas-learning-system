@@ -50,7 +50,7 @@
 | 1 | calibration `test_over_confident_boundary` | 测试写错 | 断言与**自身 docstring** 互斥；判定行 `git log -L` 仅 1 commit ⇒ 从未绿过；同文件 `test_well_calibrated_boundary` 绿已锁定 `<` 语义 |
 | 2 | calibration `test_under_confident_boundary` | 测试写错 | 同上，对称 |
 | 3 | canvas `test_add_edge_triggers_memory_event` | 测试写错（async 竞态） | **两条运行期证据**，见下「一处推翻卡文推定」 |
-| 4 | difficulty `test_empty_window_stats` | 测试写错 / 契约未定 ⇒ 改测试 | 唯一告警消费方 `health_monitor` 先判 `total_in_window == 0`，**根本不读 `is_healthy`**；内部消费方在空窗上不可达 |
+| 4 | difficulty `test_empty_window_stats` | 测试写错 / 契约未定 ⇒ 改测试 | 唯一告警消费方 `health_monitor` 先判 `total_in_window == 0` 并**独立返回 warning**，全程**不读 `is_healthy`** ⇒ 改它不改变任何告警行为（**不是**「空窗不告警」）；内部消费方在空窗上不可达 |
 | 5 | event_bus `test_tier2_retry_then_success` | 测试写错（patch 面过宽） | `assert 0 >= 2` 却在同一次运行的日志里看到 `attempt=1/3` ⇒ 那行日志是断言**之后**才产生的 |
 | 6 | event_bus `test_tier2_all_retries_exhausted_writes_outbox` | 测试写错（同因） | 同上 + 负控 |
 | 7 | fusion `test_no_correlation` | 测试写错（数据非正交） | `b = 1 - a` 是**完全负相关**，r = −1.0 是数学正确值；同文件 `test_perfect_negative_correlation` 绿 |
@@ -117,6 +117,19 @@ POSIX 上反斜杠是普通文件名字符，整串是**单个路径分量** ⇒
 **改动**（`multimodal_service.py`，**+12/−1**，判定行 `:507-519`，返回行 `:530` 未变，两个调用方 `:576`/`:720`，warning/raise/error_code 未变，无类型注解改动）。
 
 > ⚠️ **这一条被 Codex 打回过一次，是本卡唯一的真缺陷**：初版把**归一化后的候选**与**未归一化的 `storage_root`** 相比，于是当 storage base 自身合法含反斜杠时，**每一次普通上传都会被误拒**（旧实现接受、初版拒绝），两个生产调用方都会撞上。我在设计阶段**预见过**这个风险，却只把它写进「本卡未证明什么」而没有修——预见不等于处置。已补 `normalized_root` 让比较两侧都归一化，逐场景实测（`codex-r1-HIGH1-repro.txt`）确认：误拒消除，且穿越用例**一格都没放宽**。
+
+### 4-A 附：#8 拒绝面单调性自查（安全面的关键性质，自加）
+
+「只让实现更严」不能只靠代码形状（`A` → `A∧B`）论证——`normalized_root` 的引入让**比较的基准本身**变了，所以必须实测「有没有哪个输入原本被拒、现在反而放行」。
+
+| 项 | 结果 |
+|---|---|
+| 样本 | 5 种 storage base（正常 / 含反斜杠 / 含 `..` 分量 / 反斜杠在中间 / 子目录）× 12 种候选路径（正常、unix 穿越、win 穿越、混合、合法含反斜杠…）= **60 例** |
+| 「旧接受 → 新拒绝」（收紧） | 10 例 |
+| **「旧拒绝 → 新接受」（放宽）** | **0 例** ✅ ← 判据 |
+| 符号链接 base | 正常文件两版都放行；win 穿越旧放行、新拒绝 ✅ |
+
+存档 `sec-monotonicity-selfcheck.txt`。⇒ 拒绝面**严格只增不减**，不存在安全回退。
 
 ### 4-A 附：#5/#6 负控（(e) 要求，`negctl-eventbus-20260909T220559.txt`）
 
@@ -265,7 +278,17 @@ Codex r1 提到「现有材料不足以认定 `== 1` 新增脆性」——本卡
 - LOW → 行号与 diff 实数复核更正。
 逐条整改记录见 `evidence-red-new/new-verdicts.md` §五。
 
-**round-2** — <PLACEHOLDER-R2>
+**round-2** — 存档 `_bmad-output/审查/codex-review-CARD-RED-NEW-r2.md`，绑定 `9848c2c1`，同模型同参数（首部六行齐）。
+结论：**BLOCKER 0 / HIGH 0 / MEDIUM 3 / LOW 1** —— **HIGH 已清零**。车道处置：**全部接受、无驳回**。
+- MEDIUM-1（#1/#2 主张仍超出证据）→ 补齐排除项（诞生 commit 上无 loader / 无 global / 无环境变量 / 全树 0 外部引用 / 测试不 monkeypatch）+ 主张收窄为「只证明诞生那一刻即红」。
+- MEDIUM-2（#3 **裁定行仍写着「曾经绿过」，与 §〇 的收窄自相矛盾**）→ **真实疏漏，已改**：在一处收窄了却没从结论行里减掉。
+- MEDIUM-3（format v2 仍丢位置）→ 补位置维度 v3：同一文件同一版本上 `本卡改动行 ∩ ruff 实际替换行 = ∅`，六文件合计 **0**。
+- LOW（「未放宽」没限定基线）→ 写明只对 `b17b710d` 成立；相对 r1 初版的放宽正是修复本身。
+逐条整改记录见 `evidence-red-new/new-verdicts.md` §六。
+
+> ⚠️ **作业瑕疵，如实记录**：round-2 运行**期间**我改动了它读取面内的 `new-verdicts.md`（以及验收单和一处测试 docstring），因此 r2 的结论可能对应中间态。按 D-15「审后再改代码必再送一轮」，整改后送 **round-3 绑最终 HEAD**。
+
+**round-3** — <PLACEHOLDER-R3>
 
 ---
 
@@ -292,7 +315,7 @@ Codex r1 提到「现有材料不足以认定 `== 1` 新增脆性」——本卡
 4. **环境依赖登记**：`calibration_tracker._load_calibration_thresholds()` 在 **import 时**从 `mastery_config.json`（仓根 / `backend/` 两处候选）覆盖模块常量 = 测试结果的隐藏可变量；本树两处均不存在。新测试已单独断言 `CALIBRATION_BIAS_THRESHOLD == 0.15` 使漂移显形。
 5. **`event_bus` Tier2 测试的等待写法与 `TIER2_BASE_DELAY_S=2.0` 的耦合**：测试改为 `monkeypatch.setattr(..., 0.0)`；若后续调整生产退避需同步复核该测试。
 6. **本卡对 `backend/app` 的实际改动清单**（供 U1 阶段 2 清 pyright 时对照）：仅 `backend/app/services/multimodal_service.py` 的 `_validate_safe_path` 判定行（原 `:507-508` → 现 `:507-517`，返回行 `:519` → `:528`），+10/−1，无类型注解改动。
-7. **Codex 各轮存档路径 / 绑定 SHA / B-H-M-L 计数**：<PLACEHOLDER-LEDGER-CODEX>
+7. **Codex 各轮存档路径 / 绑定 SHA / B-H-M-L 计数**：r1 `codex-review-CARD-RED-NEW.md` @ `9a5bc79d` = **0/1/4/1**；r2 `codex-review-CARD-RED-NEW-r2.md` @ `9848c2c1` = **0/0/3/1**；r3 见 §7。三轮均 `gpt-6-astra` + `ultra` + `codex-cli 0.153.3`，首部六行齐。**车道对全部 9 条发现零驳回**。
 8. **开工/收工 nodeid diff 与 comm 拆分结果**：`red-diff-open-20260909T214440.txt`（开工，`>` 零、`<` 74）/ 收工见 §DoD (i)。
 9. **负控 sha 前后一致的存档**：`negctl-eventbus-20260909T220559.txt`（`7072eead8977…` 前后一致）；#3 两次取证的 trap 还原 sha `7f0d1199…` 前后一致。
 10. **卡文事实更正（本卡实测）**：
