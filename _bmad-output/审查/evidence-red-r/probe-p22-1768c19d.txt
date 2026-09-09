@@ -1,0 +1,87 @@
+### CARD-RED-R 单点探针 (取失败身份, 非 bisect)
+tag: p22-1768c19d
+rev: 1768c19d -> 1768c19d   (2026-03-26 fix(phase2): remove dead code calling non-existent GraphitiEdgeClient methods (C5/C6))
+nodeid: tests/unit/test_verification_dedup.py::TestVerificationDedup::test_no_history_generates_standard_question
+started: 2026-09-09T12:26:10+0800
+
+Preparing worktree (detached HEAD 1768c19d)
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-probe-p22-1768c19d/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 1 item
+tests/unit/test_verification_dedup.py F                                  [100%]
+=================================== FAILURES ===================================
+______ TestVerificationDedup.test_no_history_generates_standard_question _______
+self = <tests.unit.test_verification_dedup.TestVerificationDedup object at 0x1367ec550>
+service_with_graphiti = <app.services.verification_service.VerificationService object at 0x1367901a0>
+mock_graphiti_client = <MagicMock id='5208869248'>
+    @pytest.mark.asyncio
+    async def test_no_history_generates_standard_question(
+        self, service_with_graphiti, mock_graphiti_client
+    ):
+        """
+        AC-31.4.1: When no history exists, generate standard verification question.
+        [Source: docs/stories/31.4.story.md#Task-2.3]
+        """
+        # Setup: Empty history
+        mock_graphiti_client.search_verification_questions.return_value = []
+        # Act
+        question = await service_with_graphiti.generate_question_with_rag(
+            concept="逆否命题",
+            canvas_name="离散数学"
+        )
+        # Assert: Graphiti was queried
+>       mock_graphiti_client.search_verification_questions.assert_called_once()
+tests/unit/test_verification_dedup.py:51: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+self = <AsyncMock name='mock.search_verification_questions' id='5208872608'>
+    def assert_called_once(self):
+        """assert that the mock was called only once.
+        """
+        if not self.call_count == 1:
+            msg = ("Expected '%s' to have been called once. Called %s times.%s"
+                   % (self._mock_name or 'mock',
+                      self.call_count,
+                      self._calls_repr()))
+>           raise AssertionError(msg)
+E           AssertionError: Expected 'search_verification_questions' to have been called once. Called 0 times.
+/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/unittest/mock.py:965: AssertionError
+---------------------------- Captured stdout setup -----------------------------
+2026-09-09 12:26:18,581 | INFO     | app.services.verification_service:490 | VerificationService initialized (RAG: False, CrossCanvas: False, Textbook: False, Canvas: False, Agent: True, Graphiti: True, Memory: False, MockMode: False)
+2026-09-09 12:26:18,581 | WARNING  | app.services.verification_service:503 | VerificationService using IN-MEMORY TTLCache for session storage (maxsize=500, ttl=3600s). Sessions will be LOST on service restart. This is a known limitation — see Story 31.A.7.
+------------------------------ Captured log setup ------------------------------
+INFO     app.services.verification_service:verification_service.py:490 VerificationService initialized (RAG: False, CrossCanvas: False, Textbook: False, Canvas: False, Agent: True, Graphiti: True, Memory: False, MockMode: False)
+WARNING  app.services.verification_service:verification_service.py:503 VerificationService using IN-MEMORY TTLCache for session storage (maxsize=500, ttl=3600s). Sessions will be LOST on service restart. This is a known limitation — see Story 31.A.7.
+----------------------------- Captured stdout call -----------------------------
+2026-09-09 12:26:18,924 | WARNING  | app.services.verification_service:2685 | No agent service available, using fallback question for 逆否命题
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.verification_service:verification_service.py:2685 No agent service available, using fallback question for 逆否命题
+=============================== warnings summary ===============================
+../../../../../../../../Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+../../../../../../../../Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+../../../../../../../../Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+../../../../../../../../Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+    import pkg_resources
+<frozen importlib._bootstrap>:491
+<frozen importlib._bootstrap>:491
+app/api/v1/endpoints/metadata.py:97
+    canvas_path: str = Query(
+app/api/v1/endpoints/metadata.py:150
+    canvas_path: str = Query(
+../../../../../../../../Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/unit/test_verification_dedup.py::TestVerificationDedup::test_no_history_generates_standard_question
+======================== 1 failed, 9 warnings in 0.47s =========================
+pytest_raw_rc=0 (⛔ 非判据: 老 commit addopts 含 --cov-fail-under=85)
+worktree_removed_rc=0
+rc=0

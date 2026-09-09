@@ -1,0 +1,132 @@
+### CARD-RED-R bisect archive
+slug: test_story_2_3_error_reminders--test_search_memories_node_id_none_is_no_filter
+nodeid: tests/unit/test_story_2_3_error_reminders.py::test_search_memories_node_id_none_is_no_filter
+interval: good=931f8537 (4236b12e^)  bad=4236b12e (4236b12e)
+started: 2026-09-09T11:59:39+0800
+runner-judge: pytest 摘要行 (⛔ 非退出码 —— 老 commit addopts 含 --cov-fail-under=85, passed 也 rc=1)
+sparse-checkout: 排除 /backend/.canvas-learning/ (该目录含非法字节序列路径, macOS 无法 checkout)
+
+Preparing worktree (detached HEAD 4236b12e)
+== 端点验证 1/2: BAD=4236b12e (期望 VERDICT=BAD) ==
+--- HEAD=4236b12e nodeid=tests/unit/test_story_2_3_error_reminders.py::test_search_memories_node_id_none_is_no_filter
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-test_story_2_3_error_reminders--test_search_memories_node_id_none_is_no_filter/backend/app/api/v1/endpoints/metadata.py:222: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-test_story_2_3_error_reminders--test_search_memories_node_id_none_is_no_filter/backend/app/mcp/server.py:135: DeprecationWarning: mount() is deprecated and will be removed in a future version. Use mount_http() for HTTP transport (recommended) or mount_sse() for SSE transport instead.
+FAILED tests/unit/test_story_2_3_error_reminders.py::test_search_memories_node_id_none_is_no_filter
+======================== 1 failed, 11 warnings in 0.54s ========================
+--- pytest_raw_rc=1 (仅记录, 不作判据)
+VERDICT=BAD
+bad_end_rc=1
+
+== 端点验证 2/2: GOOD=931f8537 (期望 VERDICT=GOOD) ==
+--- HEAD=931f8537 nodeid=tests/unit/test_story_2_3_error_reminders.py::test_search_memories_node_id_none_is_no_filter
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-test_story_2_3_error_reminders--test_search_memories_node_id_none_is_no_filter/backend/app/api/v1/endpoints/metadata.py:149: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-test_story_2_3_error_reminders--test_search_memories_node_id_none_is_no_filter/backend/app/api/v1/endpoints/metadata.py:222: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-test_story_2_3_error_reminders--test_search_memories_node_id_none_is_no_filter/backend/app/mcp/server.py:135: DeprecationWarning: mount() is deprecated and will be removed in a future version. Use mount_http() for HTTP transport (recommended) or mount_sse() for SSE transport instead.
+======================== 1 passed, 11 warnings in 0.38s ========================
+--- pytest_raw_rc=0 (仅记录, 不作判据)
+VERDICT=GOOD
+good_end_rc=0
+
+ENDPOINT_STATUS=INTERVAL_OK
+
+== git bisect run ==
+4236b12ed6f4bc458575aa857f2833bc849f8312 is the first bad commit
+commit 4236b12ed6f4bc458575aa857f2833bc849f8312
+Author: oinani0721 <2272104243@qq.com>
+Date:   Thu Jul 23 12:53:19 2026 +0800
+
+    feat(mem-batch1): 批次1' 隔离守门五项 — fail-closed+去重+地板+子组+精排 (MEM-FLYWHEEL-2026-07-22)
+    
+    ① 写入层强校验: memory.py 两处 DEFAULT_GROUP_ID 回落改 default_vault_group_id
+       推导(蒸馏写侧落错桶=永久污染), 4 处死 import 清理, 静态守卫测试拦回潮
+    ② targeting fail-closed: errors[] 缺 group_id 拒收(C1 泄漏通道), Cypher n/e/m
+       三侧严格相等(移除 IS NULL 放行), ORDER BY 确定性, degraded 四态可区分
+    ④ 文本级去重(difflib 0.92 跨 Tier) + 相关度地板 0.05(0.2 实测误杀跨语弱相关
+       -9pt 已调) + punycode 白板子组并入检索(TTL 缓存, q1 中文答案不再搁浅)
+    ⑤ MCP search_memories 接 combined_cross_encoder — 18012 bge-reranker 零调用→上岗
+    ⑥ 每日污染审计进 memory-health.sh(实测生产组 6 污染节点)
+    
+    批次1'后基线(G0门禁复测+重固化): recall@5 63.64%→72.73%, MRR 0.621→0.697,
+    重复率 13.2%→0%, 假阳性率 100%→20%, 泄漏率 0%→2.94%(污染本体被 cross_encoder
+    暴露, 非代码回退 — 清污③拍板后验收目标=归零)。regression 104 passed 含 20 新测试。
+    
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+ _decisions/CURRENT_TASK.md                         |   8 +-
+ backend/app/api/v1/endpoints/memory.py             |  20 ++-
+ backend/app/mcp/tools/conversation_tools.py        |   2 -
+ backend/app/mcp/tools/memory_tools.py              |   7 +-
+ backend/app/services/memory_service.py             | 107 ++++++++++++-
+ backend/app/services/targeting_material_service.py |  47 ++++--
+ .../memory_retrieval_baseline.json                 | 178 ++++++++++-----------
+ .../memory_retrieval_last_run.json                 | 178 ++++++++++-----------
+ backend/tests/regression/memory_gold_set.yaml      |   2 +
+ .../tests/regression/test_search_dedupe_floor.py   |  55 +++++++
+ .../test_targeting_material_isolation.py           | 170 ++++++++++++++++++++
+ .../regression/test_write_side_group_guard.py      |  55 +++++++
+ scripts/memory-health.sh                           |  25 ++-
+ 13 files changed, 644 insertions(+), 210 deletions(-)
+ create mode 100644 backend/tests/regression/test_search_dedupe_floor.py
+ create mode 100644 backend/tests/regression/test_targeting_material_isolation.py
+ create mode 100644 backend/tests/regression/test_write_side_group_guard.py
+running 'sh' '/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-runner.sh'
+--- HEAD=4236b12e nodeid=tests/unit/test_story_2_3_error_reminders.py::test_search_memories_node_id_none_is_no_filter
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-test_story_2_3_error_reminders--test_search_memories_node_id_none_is_no_filter/backend/app/api/v1/endpoints/metadata.py:222: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-test_story_2_3_error_reminders--test_search_memories_node_id_none_is_no_filter/backend/app/mcp/server.py:135: DeprecationWarning: mount() is deprecated and will be removed in a future version. Use mount_http() for HTTP transport (recommended) or mount_sse() for SSE transport instead.
+FAILED tests/unit/test_story_2_3_error_reminders.py::test_search_memories_node_id_none_is_no_filter
+======================== 1 failed, 11 warnings in 0.44s ========================
+--- pytest_raw_rc=1 (仅记录, 不作判据)
+VERDICT=BAD
+4236b12ed6f4bc458575aa857f2833bc849f8312 is the first bad commit
+commit 4236b12ed6f4bc458575aa857f2833bc849f8312
+Author: oinani0721 <2272104243@qq.com>
+Date:   Thu Jul 23 12:53:19 2026 +0800
+
+    feat(mem-batch1): 批次1' 隔离守门五项 — fail-closed+去重+地板+子组+精排 (MEM-FLYWHEEL-2026-07-22)
+    
+    ① 写入层强校验: memory.py 两处 DEFAULT_GROUP_ID 回落改 default_vault_group_id
+       推导(蒸馏写侧落错桶=永久污染), 4 处死 import 清理, 静态守卫测试拦回潮
+    ② targeting fail-closed: errors[] 缺 group_id 拒收(C1 泄漏通道), Cypher n/e/m
+       三侧严格相等(移除 IS NULL 放行), ORDER BY 确定性, degraded 四态可区分
+    ④ 文本级去重(difflib 0.92 跨 Tier) + 相关度地板 0.05(0.2 实测误杀跨语弱相关
+       -9pt 已调) + punycode 白板子组并入检索(TTL 缓存, q1 中文答案不再搁浅)
+    ⑤ MCP search_memories 接 combined_cross_encoder — 18012 bge-reranker 零调用→上岗
+    ⑥ 每日污染审计进 memory-health.sh(实测生产组 6 污染节点)
+    
+    批次1'后基线(G0门禁复测+重固化): recall@5 63.64%→72.73%, MRR 0.621→0.697,
+    重复率 13.2%→0%, 假阳性率 100%→20%, 泄漏率 0%→2.94%(污染本体被 cross_encoder
+    暴露, 非代码回退 — 清污③拍板后验收目标=归零)。regression 104 passed 含 20 新测试。
+    
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+ _decisions/CURRENT_TASK.md                         |   8 +-
+ backend/app/api/v1/endpoints/memory.py             |  20 ++-
+ backend/app/mcp/tools/conversation_tools.py        |   2 -
+ backend/app/mcp/tools/memory_tools.py              |   7 +-
+ backend/app/services/memory_service.py             | 107 ++++++++++++-
+ backend/app/services/targeting_material_service.py |  47 ++++--
+ .../memory_retrieval_baseline.json                 | 178 ++++++++++-----------
+ .../memory_retrieval_last_run.json                 | 178 ++++++++++-----------
+ backend/tests/regression/memory_gold_set.yaml      |   2 +
+ .../tests/regression/test_search_dedupe_floor.py   |  55 +++++++
+ .../test_targeting_material_isolation.py           | 170 ++++++++++++++++++++
+ .../regression/test_write_side_group_guard.py      |  55 +++++++
+ scripts/memory-health.sh                           |  25 ++-
+ 13 files changed, 644 insertions(+), 210 deletions(-)
+ create mode 100644 backend/tests/regression/test_search_dedupe_floor.py
+ create mode 100644 backend/tests/regression/test_targeting_material_isolation.py
+ create mode 100644 backend/tests/regression/test_write_side_group_guard.py
+bisect found first bad commit
+-- bisect log --
+# bad: [4236b12ed6f4bc458575aa857f2833bc849f8312] feat(mem-batch1): 批次1' 隔离守门五项 — fail-closed+去重+地板+子组+精排 (MEM-FLYWHEEL-2026-07-22)
+# good: [931f85370974c38f6bf84c7504018ad205de3e8d] feat(mem-g0): G0 评测门禁 — gold set 25条+5指标回归脚本+基线固化 (MEM-FLYWHEEL-2026-07-22)
+git bisect start '4236b12e' '931f8537'
+# first bad commit: [4236b12ed6f4bc458575aa857f2833bc849f8312] feat(mem-batch1): 批次1' 隔离守门五项 — fail-closed+去重+地板+子组+精排 (MEM-FLYWHEEL-2026-07-22)
+# bad: [4236b12ed6f4bc458575aa857f2833bc849f8312] feat(mem-batch1): 批次1' 隔离守门五项 — fail-closed+去重+地板+子组+精排 (MEM-FLYWHEEL-2026-07-22)
+git bisect bad 4236b12ed6f4bc458575aa857f2833bc849f8312
+# first bad commit: [4236b12ed6f4bc458575aa857f2833bc849f8312] feat(mem-batch1): 批次1' 隔离守门五项 — fail-closed+去重+地板+子组+精排 (MEM-FLYWHEEL-2026-07-22)
+
+# first bad commit: [4236b12ed6f4bc458575aa857f2833bc849f8312] feat(mem-batch1): 批次1' 隔离守门五项 — fail-closed+去重+地板+子组+精排 (MEM-FLYWHEEL-2026-07-22)
+worktree_removed_rc=0
+finished: 2026-09-09T12:00:17+0800
+rc=0

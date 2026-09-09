@@ -1,0 +1,20 @@
+### U11-B 合入状态复核（Codex r2 MEDIUM-3：is-ancestor rc=1 不能排除 squash/cherry-pick）
+时间: 2026-09-09T13:31:43+0800
+
+== 1. main 上按关键词搜合入记录 ==
+$ git log main --first-parent --format='%H %s' --grep='U11-B\|RED-C2\|card/u11-red-c'
+rc=0
+
+== 2. 全量 log（非 first-parent）同关键词 ==
+rc=0
+
+== 3. squash tag 是否存在 ==
+rc=0
+
+== 4. is-ancestor（仅作参考，不足以证明未合）==
+rc=1 (1=tip 不是 main 祖先)
+
+== 结论口径 ==
+以上三种检索均无命中 ⇒ 未发现 U11-B 的合入记录；但按 Codex r2 MEDIUM-3，
+无命中不等于证明未合（squash 可能不带这些关键词）。本卡如实降级为：
+「未发现合入记录」，而非「已证明未合入」。

@@ -1,0 +1,16 @@
+### CARD-RED-R 零代码门 + bisect 隔离验证
+时间: 2026-09-09T12:54:57+0800
+HEAD: 8f5f9efc  U5-B 末 commit: 8f5f9efc
+
+== 1. git diff --stat --no-color 8f5f9efc HEAD -- . ':(exclude)_bmad-output' ==
+rc=0
+
+== 2. 验伪锚：去掉 exclude（应能列出 _bmad-output 侧改动）==
+"_bmad-output
+
+== 3. 车道树 git bisect log（不接管道，取真实 rc）==
+error: We are not bisecting.
+rc=1
+
+== 4. 车道树 backend/tests 零改动 ==
+       0
