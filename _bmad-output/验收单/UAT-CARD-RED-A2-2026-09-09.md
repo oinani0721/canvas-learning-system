@@ -122,6 +122,29 @@
 
 模型 `gpt-6-astra` · reasoning_effort `ultra` · codex-cli `0.153.3`（`codex --version` 实测）。五份存档均已补协议 §2.1 六行首部（模型 / reasoning_effort / codex 版本 / 绑定 SHA / 会话头自证三行，字段齐备性已跑门）。
 
+### 7.1 新 session 复核重跑（2026-09-09 21:45–21:51，HEAD `c1664c35`）
+
+本卡在 `c1664c35` 收工后，会话被 `/clear`。新 session 按记忆铁律「压缩后动手前必查 git log」先判定本卡**已完成**，故**只复核不重做**。存档 `evidence-red-a2/RECHECK-newsession-20260909T215104.txt`（末行 rc=0）。
+
+**先决绑定**：当前工作树两文件 `shasum -a 256` = `7a630ed5…` / `e8c243b4…`，与末轮存档 `FINAL-GATES-r5` 记录的最终 sha **逐字节一致** ⇒ 上一 session 的存档确实绑当前树，不是陈旧证据。
+
+| 裁判 | 本次重跑结果 | 与末轮存档对照 |
+|---|---|---|
+| 1 统一裁判 `tests/unit` | `117 failed, 4813 passed, 48 skipped, 29 errors in 288.43s`，末行 `rc=1` | 与末轮收工行**逐字对上** |
+| 1 nodeid diff（vs 202 基线） | `>` 行 **0 条**；三条目标 nodeid `diff=1 / still-red=0`（= 已变绿） | 一致 |
+| 2 两文件级 | `17 passed`，`FAILED=0`，同族逐条 PASSED（无 skip/xfail） | 一致 |
+| 2 层身份实证 | `security.py:97`（Branch 1 `auth_fail_closed`）出现 **3** 次 = 本卡三条；`security.py:126`（Branch 2）出现 **3** 次 = 三条 dev 档同族用例 | 判据确实分辨了两层 |
+| 2 真连 | `NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0` | 未连现网 |
+| 6 判据门 | `auth_fail_closed` sync=1 / system=2 / 合计 3；detail 精确等值 sync=1 / system=2 | 一致 |
+| 7 地盘门 | `052a9289..HEAD -- . ':(exclude)_bmad-output'` 只含两个测试文件；`backend/app` + conftest + support **空**（rc=0） | 一致 |
+| 9 末轮绑定门 | `87f75b19..HEAD -- . ':(exclude)_bmad-output'` **空**（rc=0） | 仍绑定 |
+| 8 ruff | check rc=0；format `2 files already formatted` rc=0 | 一致 |
+
+**负控有效性延续（本方自证，非采信 Codex）**：五段负控实跑于 `0b9be419`，其后 `88a15609` / `cc74b130` / `87f75b19` 三次整改若含执行逻辑变化，负控即对最终 HEAD 失效。本次用 `ast.parse` + 剔除 Module/Class/Function 三级 docstring 后的 `ast.dump` 逐字符比对该 commit 与当前 HEAD 的两文件 —— **两份均 True，rc=0**（存档 `ast-equiv-negctl-vs-head-20260909T215125.txt`）⇒ L1–L5 对最终 HEAD 仍承重。
+判据边界（如实）：它证明的是「剔除 docstring 后语法树相同」，覆盖不到「docstring 被当运行时值读取」（本两文件无 `__doc__` 引用）与格式/lint 影响（另由裁判 8 覆盖）。
+
+**本次复核未做什么**：① 未重跑五段负控本身（改以上述 AST 等价自证替代）；② 未重发 Codex（轮次已达上限 5、末轮 B0/H0 且绑最终代码 HEAD）；③ 未跑 `tests/integration` / `tests/e2e`（同卡文边界）。
+
 ---
 
 ## 8. 本卡未证明什么（如实登记）
