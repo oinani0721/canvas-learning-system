@@ -653,9 +653,18 @@ def _is_inline_span(m: re.Match[str], line: str) -> bool:
 
 
 def _fold_str(node: ast.AST) -> str | None:
-    """`Constant` 或 `BinOp(+)` 常量链 → 字符串; 不可折返回 None。"""
-    if isinstance(node, ast.Constant) and isinstance(node.value, str):
-        return node.value
+    r"""`Constant` 或 `BinOp(+)` 常量链 → 字符串; 不可折返回 None。
+
+    ⛔ r19 HIGH-3: **bytes 也要折**。`b"/t" + b"mp/cls-exam/" + b".." + b"/x"` 是单块、
+    合法 Python、普通常量加法, 只折 str 的话整条链折不出来, 越界判据只看到分散的叶常量,
+    动态判据也找不到含 `/tmp` 的起点 ⇒ 完整漏检(不需要特殊转义或跨块分析)。
+    """
+    if isinstance(node, ast.Constant):
+        if isinstance(node.value, str):
+            return node.value
+        if isinstance(node.value, bytes):
+            return node.value.decode("utf-8", "replace")
+        return None
     if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
         left, right = _fold_str(node.left), _fold_str(node.right)
         if left is not None and right is not None:
@@ -1111,8 +1120,14 @@ def dynamic_tmp_join_lines(text: str) -> list[tuple[int, str]]:
             # `P = "/t" "mp/cls-exam/" + "." * 2 + "/x"` 的源码里没有 `/tmp` 三个字符
             # 连在一起, 但 `ast` 折完隐式拼接后有。改用**解析出的字符串**做预筛,
             # 源码字面只作为兜底(解析失败时)。
+            # ⛔ r19 HIGH-2: 预筛不能用**扣重后的 delta** —— 长单元的 delta 只含它比短
+            # 单元多出来的那部分, 而动态判据要问的是「**整段**里有没有含 /tmp 的常量」。
+            # `P = "/t" "mp/cls-exam/x"` 在短单元、`P = "/etc/passwd"` 在长单元 delta 里,
+            # 两边都不含 `/tmp` ⇒ 整段被跳过, 而它正是「合规常量与实际赋值脱钩」那一类。
+            whole = _py_strings(textwrap.dedent(chunk)) or []
             if not (
                 (parsed and any("/tmp" in v for v in parsed))
+                or any("/tmp" in v for v in whole)
                 or "/tmp" in chunk
                 # ⛔ r11 HIGH-7: bytes 字面量不进 `_py_strings()`(它只收 str), 于是
                 # `P = b"/t" b"mp/cls-exam/" + b"." * 2 + b"/x"` 的 parsed 是 `[]`、
@@ -1810,52 +1825,36 @@ _URL_UNSET_RE = re.compile(r"\bunset\b(?P<opts>(?:\s+-{1,2}[a-zA-Z]*)*)(?P<vars>
 def _url_override_hit(line: str) -> bool:
     r"""这一行有没有把 `${CLS_BACKEND_URL:-…}` 的缺省形态**架空**?
 
-    两种形态: 直接赋值, 或 `unset` 掉它。
-    ⛔ `unset -f X` 只删同名**函数**, 不动环境变量 ⇒ 不算(否则误报); 但选项只认
-    **紧跟 `unset` 的那些**, 变量列表止于命令分隔符 —— 否则
-    `unset CLS_BACKEND_URL && curl -f "…"` 里 curl 的 `-f` 会被当成 `unset -f`(r13 MEDIUM-1)。
-    ⛔ 残余(登记不修): `unset C'LS'_BACKEND_URL` 这类**引号拼接出的变量名**认不出,
-    与 §六 里「散文/shell 侧的字面量拼接」同一档。
+    三类: 直接赋值 / `unset` 掉 / `env` 清环境后由**子 shell** 再展开。
+    ⛔ 注释先剥掉(r19): `# unset CLS_BACKEND_URL` 之类不是命令, 三个分支都要剥,
+    上一版只在 `env` 分支剥了。
+    ⛔ `env -i curl "${X:-…}"` 的 URL 由**外层 shell** 先展开, `env` 撤销不了已在参数里
+    的值 ⇒ 不算; 只有 `env -i sh -c '…'` / `bash -c '…'` 这种**清环境后子 shell 再展开**
+    才算(r18 MEDIUM-6)。而 `env -u OTHER sh -c '…'` 删的不是目标变量 ⇒ 也不算(r19)。
+    ⛔ 残余(登记不修): `unset C'LS'_BACKEND_URL` 这类引号拼接出的变量名认不出。
     """
-    if _URL_ASSIGN_RE.search(line):
+    code = re.split(r"(?<![\w$])#", line, maxsplit=1)[0]
+    if _URL_ASSIGN_RE.search(code):
         return True
-    # ⛔ r13 MEDIUM-2: 写死端口而**没用约定变量**(`${OTHER:-http://localhost:8011}`)
-    # 等于整改没做 —— 用户配了 `CLS_BACKEND_URL` 也不会生效。九项计数与全部集合不变。
-    # ⛔ r14 MEDIUM-3: 用**词边界** —— `${CLS_BACKEND_URL_OTHER:-…}` 里虽然出现了
-    # `CLS_BACKEND_URL` 这个子串, 但它不是约定变量, 用户配了也不生效。
-    # ⛔ r15/r16 MEDIUM-1: 要绑「变量被展开**在写死端口的那个串里**」——
-    # `curl "${OTHER:-…:8011}/x"; : "${CLS_BACKEND_URL}"` 里名字确实展开了, 但没用于
-    # curl; 放进注释同理。所以只看**含 8011 的那一段**(按 shell 词切)里有没有它。
-    # ⛔ r17 MEDIUM-2: 先按命令分隔符切段 —— `curl "…"; URL="${CLS_BACKEND_URL}"` 里
-    # 后半段的展开与前半段的地址无关, 不切段就会被当成「地址受该变量控制」。
-    for segment in re.split(r"[;&|\n]+", line):
+    for segment in re.split(r"[;&|\n]+", code):
         for word in _shell_words(segment):
-            if word.startswith("#"):
-                break  # shell 注释: 这之后的都不是命令的一部分
             if "8011" not in word:
                 continue
-            # ⛔ 只有 `${X:-…}`(缺省) 与 `${X}`(直接展开) 才真的控制地址;
-            # `${X:+}` 无论设没设都展开成空, 地址其实写死了(r17 MEDIUM-2)。
-            # ⛔ r18 MEDIUM-5: URL 的 `#fragment` 不参与寻址 —— `…:8011}/x#${CLS_BACKEND_URL}`
-            # 的主机端口仍由前半段决定。只看 `#` **之前**的部分。
-            addr = word.split("#", 1)[0]
+            # ⛔ r19 MEDIUM: 变量必须出现在**主机+端口**那一段才算控制地址 ——
+            # `…:8011}/x?config=${CLS_BACKEND_URL}` 里它在 query, `#fragment` 里同理。
+            addr = re.split(r"[?#]", word, maxsplit=1)[0]
             if not re.search(r"\$\{CLS_BACKEND_URL(:-|\}|:?[-=?]\s*[^+])", addr):
                 return True
-    # ⛔ r16/r17 MEDIUM: `env -u CLS_BACKEND_URL …` 删除该变量, `env -i …` 清空整个环境,
-    # 两者都让缺省形态无条件生效, 与赋值/unset 同根。
-    # ⛔ r18 MEDIUM-6: `env -i curl "${X:-…}"` 的 URL 由**外层 shell** 先展开, `env -i`
-    # 撤销不了已经在参数里的值 ⇒ 不算架空; 只有清环境后再由**子 shell**(`sh -c '…'`)
-    # 展开才可能。另外注释里的 `# env -i` / `# unset X` 也不算(先剥注释)。
-    code = re.split(r"(?<![\w$])#", line, maxsplit=1)[0]
-    if re.search(r"\benv\b[^;&|\n]*\s-[ui][= ]?[^;&|\n]*\bsh\b[^;&|\n]*-c\b", code):
-        return True
-    for segment in re.split(r"[;&|\n]+", line):
+    for segment in re.split(r"[;&|\n]+", code):
         m = _URL_UNSET_RE.search(segment)
-        if not m:
-            continue
-        if "f" in (m.group("opts") or "").replace("-", ""):
-            continue  # `unset -f` 只删函数
-        if re.search(r"\bCLS_BACKEND_URL\b", m.group("vars") or ""):
+        if m and "f" not in (m.group("opts") or "").replace("-", ""):
+            if re.search(r"\bCLS_BACKEND_URL\b", m.group("vars") or ""):
+                return True
+    # `env` 清环境 + 子 shell 再展开
+    env_m = re.search(r"\benv\b((?:\s+-{1,2}\w*(?:[= ]\S+)?)*)\s+(\S+)\s+-c\b", code)
+    if env_m and re.search(r"\b(?:sh|bash|zsh|dash)$", env_m.group(2)):
+        opts = env_m.group(1)
+        if re.search(r"-i\b", opts) or re.search(r"-u[= ]\s*['\"]?CLS_BACKEND_URL\b", opts):
             return True
     return False
 
@@ -2352,6 +2351,37 @@ def test_union_expansion_is_looped_unbounded_and_deduplicated():
     assert any("else:" in c for _o, c, p_ in empty_delta if p_ is not None), (
         f"候选为空的长单元被丢弃了, 而 `cur_j` 照样前进 ⇒ 那几行再也没人看(r18 HIGH-1): "
         f"{[c[:28] for _o, c, _p in empty_delta]}"
+    )
+
+
+def test_constant_chain_and_bytes_handling_are_load_bearing():
+    r"""⛔ 局部回归断言: 「只收最外层折叠链」与「bytes 一并折/收」各自可被单独证伪。
+
+    r19 LOW 指出这两处整改仍没有断言锁住(撤销后 93 次现有调用仍全过)。这条把它们
+    分别钉死 —— 判据的正确性不该靠「碰巧别的机制补上了」。
+    """
+    # ① 嵌套 `+` 链只收最外层: `"/t" + "mp" + ""` 是**一处**路径, 只该贡献一个候选。
+    #    收内层子链的话会贡献两个, 登记后就成了可以抵消新增路径的额度(r18 MEDIUM-1)。
+    one = [n for _c, n in escaping_tmp_paths('```python\nP = "/t" + "mp" + ""\n```')]
+    assert one.count("fence:/tmp") == 1, f"嵌套常量链重复贡献了候选: {one}"
+
+    # ② bytes 的显式 `+` 链要能折出整条路径(r19 HIGH-3) —— 单块、合法 Python、
+    #    普通常量加法, 只折 str 的话整类漏检。
+    bad = '```python\nP = b"/t" + b"mp/cls-exam/" + b".." + b"/x"\n```'
+    assert any(n == "fence:/tmp/x" for _c, n in escaping_tmp_paths(bad)), (
+        f"bytes 常量链没被折出越界路径: {escaping_tmp_paths(bad)}"
+    )
+    safe = bad.replace('b".."', 'b"ok"')
+    assert not escaping_tmp_paths(safe), f"对照的合规 bytes 链不该报越界: {escaping_tmp_paths(safe)}"
+
+    # ③ 动态判据的预筛要看**整段**解析出的字符串, 不是扣重后的 delta(r19 HIGH-2)。
+    脱钩 = (
+        '```python\nif True:\n    P = "/t" "mp/cls-exam/x"\n'
+        '    if False:\n        pass\n    else:\n        P = "/etc/passwd"\n```'
+    )
+    assert dynamic_tmp_join_lines(脱钩), "合规常量与实际赋值脱钩, 动态判据必须要求登记"
+    assert not dynamic_tmp_join_lines(脱钩.replace('        P = "/etc/passwd"', '        Q = "/etc/passwd"')), (
+        "改成另一个变量名后不该报红(否则这条负控考错了对象)"
     )
 
 
