@@ -233,119 +233,30 @@ class TestLoadMixedSnapshot:
         `bucket.update(legacy)` 会把 A.c 覆盖成推定归属的旧值, 下次落盘固化。
         用**推定**去覆盖**明确**是反的。
         """
-        from app.services.review_service import _ORPHAN_LEGACY_KEY, _VaultScopedCardStates
+        from app.services.review_service import _VaultScopedCardStates
 
         with vault_scope("vault_a"):
             states = _VaultScopedCardStates.from_persisted({"vault_a": {"c": "A-new"}, "c": "legacy-unknown"})
             nested = states.to_nested()
 
         assert nested["vault_a"]["c"] == "A-new", f"桶内明确身份的记录被推定归属的 legacy 覆盖了: {nested!r}"
-        # 冲突的那份 legacy 不能丢 —— 进隔离区的保留键, 落盘原样写回 (r3 H1)
-        assert "legacy-unknown" in nested[_ORPHAN_LEGACY_KEY]["c"], f"冲突的 legacy 条目被丢弃了 (数据丢失): {nested!r}"
+        # ⛔ 本卡范围（用户 2026-09-09 裁定 ③）：冲突的那份 legacy **未载入**，
+        # legacy 兼容（隔离区/保留键/多份候选）整体移交下一张卡。这里只锁住
+        # 「不能用推定归属覆盖明确身份」这条 —— 磁盘上的原文件没被动过。
+        assert set(nested.keys()) == {"vault_a"}, f"不应产生 vault_a 以外的顶层键: {nested!r}"
 
-    @pytest.mark.asyncio
-    async def test_unadopted_legacy_survives_a_later_successful_save(self, svc, states_file, monkeypatch):
-        """H4: 拒载的 legacy 不得被后续一次成功写入从磁盘删掉。
+    def test_legacy_without_scope_is_fail_fast_not_silently_dropped(self, svc, monkeypatch):
+        """作用域解析不出来时对 legacy 裸键 **fail-fast**，而不是"这次不加载"。
 
-        触发链: 启动推导失败 → legacy 未归入任何桶 → 后续请求注入合法 vault →
-        成功保存 → 全量快照落盘。若 legacy 只是"没加载"而没被保留, 这一步就把
-        它永久删除了 —— fail-closed 变成静默删数据。
+        Codex r2 H4：只"不加载"的话，下一次成功写入的全量快照会把这些 legacy 从
+        磁盘**永久删除** —— fail-closed 变成静默删数据。拒绝构造则文件原样躺在
+        磁盘上没人动它，数据零风险。
+
+        ⛔ 本卡范围（用户 2026-09-09 裁定 ③）：legacy 兼容整体归下一张卡，本卡
+        只保证「不丢」这条最小性质。
         """
         from app.core import subject_config
-        from app.services.review_service import _ORPHAN_LEGACY_KEY, _VaultScopedCardStates
-
-        def _broken():
-            raise RuntimeError("probe: derivation broken at load time")
-
-        # 载入时作用域解析不出来 ⇒ legacy 进隔离区
-        #
-        # ⚠️ 定点保存/恢复，**绝不能用 `monkeypatch.undo()`**：它撤销的是同一测试内
-        # 的**全部** patch，包括 `states_file` fixture 设的 `_CARD_STATES_FILE`。
-        # 实测后果：后面那次写入落到了车道树真实的 backend/data/ 下，零写门直接破
-        # （事故存档 evidence-g35/incident-zero-write-leak.txt）。
-        real_get_subject = subject_config.get_current_subject_id
-        real_derive = subject_config.default_vault_group_id
-        monkeypatch.setattr(
-            subject_config,
-            "get_current_subject_id",
-            lambda: subject_config.DEFAULT_SUBJECT_ID,
-        )
-        monkeypatch.setattr(subject_config, "default_vault_group_id", _broken)
-        states = _VaultScopedCardStates.from_persisted({"orphan-c": "legacy-card"})
-        monkeypatch.setattr(subject_config, "get_current_subject_id", real_get_subject)
-        monkeypatch.setattr(subject_config, "default_vault_group_id", real_derive)
-
-        svc._card_states = states
-
-        # 之后一次**作用域合法**的成功写入
-        with vault_scope("vault_a"):
-            assert await svc._save_card_states(pending=("new-c", "new-card")) is True
-
-        on_disk = json.loads(states_file.read_text(encoding="utf-8"))
-        assert "legacy-card" in on_disk[_ORPHAN_LEGACY_KEY]["orphan-c"], (
-            f"未归属的 legacy 被后续成功写入从磁盘删掉了 (数据丢失): {on_disk!r}"
-        )
-        assert on_disk["vault_a"]["new-c"] == "new-card", "本次写入未落盘"
-
-    @pytest.mark.asyncio
-    async def test_orphan_named_like_a_vault_survives(self, svc, states_file, monkeypatch):
-        """r3 H1: legacy 的 concept_id 与某个 vault_id **同名**时也不能丢。
-
-        平铺写回时这条只能二选一（顶掉 vault 桶 / 跳过自己），本门锁的是隔离区
-        有自己的命名空间，两者都留得住。
-        """
-        from app.core import subject_config
-        from app.services.review_service import _ORPHAN_LEGACY_KEY, _VaultScopedCardStates
-
-        def _broken():
-            raise RuntimeError("probe: derivation broken at load time")
-
-        real_get = subject_config.get_current_subject_id
-        real_derive = subject_config.default_vault_group_id
-        monkeypatch.setattr(subject_config, "get_current_subject_id", lambda: subject_config.DEFAULT_SUBJECT_ID)
-        monkeypatch.setattr(subject_config, "default_vault_group_id", _broken)
-        # legacy 裸键的名字**恰好**等于后面要用的 vault_id
-        states = _VaultScopedCardStates.from_persisted({"vault_a": "legacy-card"})
-        monkeypatch.setattr(subject_config, "get_current_subject_id", real_get)
-        monkeypatch.setattr(subject_config, "default_vault_group_id", real_derive)
-
-        svc._card_states = states
-        with vault_scope("vault_a"):
-            assert await svc._save_card_states(pending=("new-c", "new-card")) is True
-
-        on_disk = json.loads(states_file.read_text(encoding="utf-8"))
-        assert on_disk["vault_a"]["new-c"] == "new-card", f"本次写入丢了: {on_disk!r}"
-        assert "legacy-card" in on_disk[_ORPHAN_LEGACY_KEY]["vault_a"], (
-            f"与 vault 同名的 legacy 被挤掉了 (数据丢失): {on_disk!r}"
-        )
-
-    def test_isolated_entries_are_not_re_adopted_on_reload(self, svc):
-        """r3 H2: 已隔离的条目重启后不得被自动收养进当时的作用域桶。
-
-        隔离状态若不落进文件, 它与"还没迁过的 legacy 裸键"长得一样, 换个 vault
-        重启就被收养了 —— "等人用迁移器裁定"随之落空。
-        """
-        from app.services.review_service import _ORPHAN_LEGACY_KEY, _VaultScopedCardStates
-
-        persisted = {_ORPHAN_LEGACY_KEY: {"c": ["isolated-card"]}}
-        with vault_scope("vault_b"):
-            states = _VaultScopedCardStates.from_persisted(persisted)
-            nested = states.to_nested()
-            # 在 vault_b 作用域下读: 不该看到它 (它不属于任何 vault)
-            assert states.get("c") is None, "已隔离的条目被当成本 vault 的数据了"
-
-        assert "vault_b" not in nested, f"已隔离的条目被自动收养进 vault_b: {nested!r}"
-        assert nested[_ORPHAN_LEGACY_KEY] == {"c": ["isolated-card"]}, f"隔离区未原样保留: {nested!r}"
-
-    @pytest.mark.asyncio
-    async def test_poison_legacy_does_not_block_all_future_saves(self, svc, states_file, monkeypatch):
-        """r3 M1: 序列化不出去的 legacy 不得留在隔离区阻断此后每一次保存。
-
-        lone surrogate 键能过 json.loads / json.dumps，却在 encode("utf-8") 时炸。
-        若把它放进隔离区，之后**每一次**合法保存都会在同一处失败 —— 一次性坏数据
-        被放大成永久写阻断。
-        """
-        from app.core import subject_config
+        from app.core.vault_scope import VaultScopeUnresolved
         from app.services.review_service import _VaultScopedCardStates
 
         def _broken():
@@ -355,84 +266,12 @@ class TestLoadMixedSnapshot:
         real_derive = subject_config.default_vault_group_id
         monkeypatch.setattr(subject_config, "get_current_subject_id", lambda: subject_config.DEFAULT_SUBJECT_ID)
         monkeypatch.setattr(subject_config, "default_vault_group_id", _broken)
-        states = _VaultScopedCardStates.from_persisted({"\ud800": "poison", "ok-c": "fine"})
-        monkeypatch.setattr(subject_config, "get_current_subject_id", real_get)
-        monkeypatch.setattr(subject_config, "default_vault_group_id", real_derive)
-
-        svc._card_states = states
-        with vault_scope("vault_a"):
-            ok = await svc._save_card_states(pending=("new-c", "new-card"))
-
-        assert ok is True, "毒 legacy 把后续合法保存永久阻断了"
-        on_disk = json.loads(states_file.read_text(encoding="utf-8"))
-        assert on_disk["vault_a"]["new-c"] == "new-card"
-        # 能写出去的那条 legacy 仍在隔离区
-        assert any("ok-c" in v for v in on_disk.values() if isinstance(v, dict)), (
-            f"可写的 legacy 被连坐丢弃了: {on_disk!r}"
-        )
-
-    def test_reserved_key_with_non_dict_value_is_not_dropped(self, svc):
-        """r4 H1: 保留键的值不是 dict 时不能静默跳过 —— 那是丢数据。
-
-        旧快照完全可能有一个**名字恰好等于保留键**的 legacy 裸 concept，它的值
-        是卡字符串。跳过 = 既不保留也不报错，下次成功保存就把它删了。
-        """
-        from app.services.review_service import _ORPHAN_LEGACY_KEY, _VaultScopedCardStates
-
-        with vault_scope("vault_a"):
-            nested = _VaultScopedCardStates.from_persisted({_ORPHAN_LEGACY_KEY: '{"state": 1}'}).to_nested()
-
-        flat = json.dumps(nested, ensure_ascii=False)
-        assert '{\\"state\\": 1}' in flat or '"state": 1' in flat, f"保留键下的非 dict 值被静默丢弃了: {nested!r}"
-
-    def test_two_isolated_entries_with_same_id_both_survive(self, svc):
-        """r4 H2: 隔离区里同名的两份都是待裁定记录，谁也不能静默吃掉谁。"""
-        from app.services.review_service import _ORPHAN_LEGACY_KEY, _VaultScopedCardStates
-
-        with vault_scope("va"):
-            nested = _VaultScopedCardStates.from_persisted(
-                {
-                    _ORPHAN_LEGACY_KEY: {"c": ["old-isolated"]},
-                    "va": {"c": "bucket-card"},
-                    "c": "new-legacy",
-                }
-            ).to_nested()
-
-        assert nested["va"]["c"] == "bucket-card", "明确身份的桶内记录被覆盖了"
-        isolated = nested[_ORPHAN_LEGACY_KEY]["c"]
-        assert "old-isolated" in isolated and "new-legacy" in isolated, f"隔离区里同名的两份没有都保住: {isolated!r}"
-
-    @pytest.mark.asyncio
-    async def test_poison_inside_a_vault_bucket_does_not_block_saves(self, svc, states_file):
-        """r4 M1: 毒存量在 **vault 桶**里时同样会阻断所有保存，预检不能只查 legacy。"""
-        from app.services.review_service import _VaultScopedCardStates
-
-        with vault_scope("vault_a"):
-            svc._card_states = _VaultScopedCardStates.from_persisted({"vault_a": {"poison": "\ud800", "ok": "fine"}})
-            ok = await svc._save_card_states(pending=("new-c", "new-card"))
-
-        assert ok is True, "桶里的毒存量把后续保存永久阻断了"
-        on_disk = json.loads(states_file.read_text(encoding="utf-8"))
-        assert on_disk["vault_a"]["new-c"] == "new-card"
-        assert on_disk["vault_a"]["ok"] == "fine", "可写的存量被连坐丢弃了"
-
-    def test_vault_id_equal_to_reserved_key_is_fail_closed(self, svc):
-        """r4 H1: vault_id 与保留键撞名时无法区分桶与隔离区 ⇒ 拒绝推进。"""
-        from app.services.review_service import _ORPHAN_LEGACY_KEY, _VaultScopedCardStates
-
-        from app.core.subject_config import get_current_subject_id, set_current_subject_id
-
-        # ⚠️ 不能走 vault_scope(): `sanitize_vault_id` 会剥掉前导下划线
-        # (`__g35_orphan_legacy__` → `g35_orphan_legacy`)，标准管线**产不出**这个
-        # 名字。故直接注入该 D16 组，验的是"万一它从别处进来时守卫在不在"。
-        prev = get_current_subject_id()
-        set_current_subject_id(f"vault:{_ORPHAN_LEGACY_KEY}")
         try:
-            got = _VaultScopedCardStates._resolve_vault("probe")
+            with pytest.raises(VaultScopeUnresolved):
+                _VaultScopedCardStates.from_persisted({"orphan-c": "legacy-card"})
         finally:
-            set_current_subject_id(prev)
-
-        assert got is None, f"撞名的 vault_id 应 fail-closed, 实得 {got!r}"
+            monkeypatch.setattr(subject_config, "get_current_subject_id", real_get)
+            monkeypatch.setattr(subject_config, "default_vault_group_id", real_derive)
 
     def test_pure_nested_snapshot_is_loaded_as_is(self, svc):
         """纯嵌套快照原样载入, 不触发 legacy 归桶。"""
@@ -616,46 +455,6 @@ class TestMigratorWriteGuards:
         assert rc == 2, f"备份路径指向受保护文件时必须拒 (rc=2), 实得 {rc}"
         assert protected.read_bytes() == before, "受保护文件被备份写入覆写了"
         assert json.loads(snap.read_text(encoding="utf-8")) == {"c-legacy": "card"}, "被拒时不得改动输入"
-
-    def test_isolated_entries_are_adopted_by_apply(self, tmp_path):
-        """r4 H3: `--apply --vault-id X` 必须能把隔离区的条目认领进 X。
-
-        隔离区的存在意义就是"等人用迁移器裁定归属"；迁移器若不认这个键，链路是断的。
-        """
-        m = _migrator()
-        snap = tmp_path / "snap.json"
-        snap.write_text(json.dumps({"__g35_orphan_legacy__": {"c": ["card"]}}), encoding="utf-8")
-
-        rc = m.main(["--apply", "--vault-id", "A", "--file", str(snap)])
-
-        assert rc == 0, f"应能认领并成功迁移, 实得 rc={rc}"
-        out = json.loads(snap.read_text(encoding="utf-8"))
-        assert out["A"]["c"] == "card", f"隔离区条目未被认领: {out!r}"
-        assert "__g35_orphan_legacy__" not in out, f"认领后保留键应消失: {out!r}"
-
-    def test_migrator_does_not_count_isolation_as_a_vault_bucket(self, tmp_path):
-        """r4 H3 的统计面: 隔离区不得计入 n_new（否则"还剩多少要迁"从头就是假的）。"""
-        m = _migrator()
-        raw = {
-            "vault_a": {"c1": "a"},
-            "__g35_orphan_legacy__": {"o": ["iso"]},
-            "bare": "legacy",
-        }
-        n_old, n_new, conflicts, n_isolated = m.classify(raw)
-        assert (n_old, n_new, n_isolated) == (1, 1, 1), (
-            f"分类口径不对: n_old={n_old} n_new={n_new} n_isolated={n_isolated}"
-        )
-
-    def test_vault_id_equal_to_reserved_key_is_refused(self, tmp_path):
-        """r4 H1: 迁进保留键名的桶会被加载器整个当成隔离区 ⇒ 拒。"""
-        m = _migrator()
-        snap = tmp_path / "snap.json"
-        before = json.dumps({"c": "card"})
-        snap.write_text(before, encoding="utf-8")
-
-        rc = m.main(["--apply", "--vault-id", "__g35_orphan_legacy__", "--file", str(snap)])
-        assert rc == 2, "保留键名不能当 vault-id"
-        assert snap.read_text(encoding="utf-8") == before
 
     def test_stamped_backup_symlinked_to_out_is_refused(self, tmp_path, monkeypatch):
         """r4 M2: 时间戳备份是指向 `--out` 的符号链接时，静态命名检查抓不到。

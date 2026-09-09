@@ -352,32 +352,6 @@ logger = structlog.get_logger(__name__)
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-#: 隔离区在落盘 JSON 里的**保留顶层键** (CARD-G3-5, Codex r3 H1/H2)。
-#:
-#: 为什么隔离区要独立命名空间, 而不是把 orphan 平铺在顶层:
-#:   · H1 —— 平铺时 legacy 的 concept_id 若与某个 vault_id 同名, 写回只能二选一:
-#:     让它顶掉 vault 桶(灾难), 或跳过它(数据照样丢)。有了保留键, 两者各有各的
-#:     位置, 都不丢;
-#:   · H2 —— 平铺的 orphan 与"还没迁过的 legacy 裸键"在文件里长得一模一样,
-#:     下次启动会被当成 legacy **自动收养**进当时的作用域桶, "等人用迁移器裁定"
-#:     就落空了。放在保留键下 = 显式记录"这条已经被隔离过", 加载时直接回隔离区,
-#:     不参与任何推定归属。
-_ORPHAN_LEGACY_KEY = "__g35_orphan_legacy__"
-
-
-def _json_writable(key: str, value: Any) -> bool:
-    """该键值对能否真的落盘 (CARD-G3-5, Codex r3 M1)。
-
-    判据必须**同时**覆盖序列化与 UTF-8 编码: lone surrogate 之类的键能通过
-    ``json.loads``, 也能通过 ``json.dumps``, 却在 ``encode("utf-8")`` 时炸。
-    """
-    try:
-        json.dumps({key: value}, ensure_ascii=False).encode("utf-8")
-    except (TypeError, ValueError, UnicodeEncodeError):
-        return False
-    return True
-
-
 class _VaultScopedCardStates:
     """FSRS 投影状态容器 — 存储按 vault 分桶, 调用面保持裸 concept_id 语义。
 
@@ -407,22 +381,10 @@ class _VaultScopedCardStates:
     时真相源 reader 本身就串库, 投影侧键化救不了 (CARD-G3-5 登记, 归后续卡)。
     """
 
-    __slots__ = ("_buckets", "_orphan_legacy")
+    __slots__ = ("_buckets",)
 
-    def __init__(
-        self,
-        buckets: Optional[Dict[str, Dict[str, str]]] = None,
-        orphan_legacy: Optional[Dict[str, List[Any]]] = None,
-    ) -> None:
+    def __init__(self, buckets: Optional[Dict[str, Dict[str, str]]] = None) -> None:
         self._buckets: Dict[str, Dict[str, str]] = buckets if buckets is not None else {}
-        #: **未归属**的 legacy 裸键 —— 归不掉但也不能丢的那部分 (Codex r2 H4)。
-        #: 它不参与任何读写 (不属于任何 vault), 但**必须随每次落盘原样写回**:
-        #: 否则「本次不加载」只保护了这一次读, 下一次成功写入的全量快照就会把
-        #: 它从磁盘永久删除 —— 那是把 fail-closed 变成了静默删数据。
-        #: 值是**列表**: 同一个 concept_id 可以挂多份尚未裁定归属的卡 (Codex
-        #: r4 H2 —— 用 dict 合并会让后来的静默吃掉先前的, 两份都是待裁定记录,
-        #: 谁也不比谁更可信)。
-        self._orphan_legacy: Dict[str, List[Any]] = orphan_legacy if orphan_legacy is not None else {}
 
     # ── 作用域解析 ──────────────────────────────────────────────────────
     @staticmethod
@@ -449,18 +411,7 @@ class _VaultScopedCardStates:
         # 内换白板读不到自己刚写的卡。
         segments = group_id.split(":")
         if len(segments) >= 2 and segments[1].strip():
-            vault_id = segments[1]
-            if vault_id == _ORPHAN_LEGACY_KEY:
-                # 撞名 fail-closed (Codex r4 H1): sanitize_vault_id 理论上能产出
-                # 这个串 (它只含字母数字下划线)。真有这么一个 vault 时, 它的桶与
-                # 隔离区在文件里无法区分 —— 与其带着歧义读写, 不如拒绝并要求改名。
-                logger.error(
-                    "CARD-G3-5: vault_id %r 与隔离区保留键同名 — 该名字在投影文件里"
-                    "已被隔离区占用, 两者无法区分。拒绝推进投影, 请改 vault 目录名。",
-                    vault_id,
-                )
-                return None
-            return vault_id
+            return segments[1]
         logger.error(
             "CARD-G3-5 vault scope shape invalid [context: %s]: %r 取不出 vault 段 — 拒绝推进 FSRS 投影",
             context,
@@ -562,25 +513,12 @@ class _VaultScopedCardStates:
 
     # ── 存储层 ──────────────────────────────────────────────────────────
     def to_nested(self) -> Dict[str, Any]:
-        """落盘快照 (浅拷贝到二层, 防调用方改动内部桶)。
-
-        ⚠️ **未归属的 legacy 裸键必须原样写回** (Codex r2 H4): 它们归不掉
-        (作用域解析不出来 / 与已迁桶同名冲突), 但**不能丢** —— 若落盘时省略,
-        下一次成功写入就会把它们从磁盘永久删除, 「本次不加载」这道 fail-closed
-        就变成了静默删数据。
-
-        它们写在**保留键** ``_ORPHAN_LEGACY_KEY`` 下, 不与 vault 桶抢同一层
-        (Codex r3 H1/H2 —— 平铺写法在同名时仍会丢, 且下次启动会被当成未迁的
-        legacy 自动收养)。
-        """
-        payload: Dict[str, Any] = {vid: dict(bucket) for vid, bucket in self._buckets.items()}
-        if self._orphan_legacy:
-            payload[_ORPHAN_LEGACY_KEY] = {k: list(v) for k, v in self._orphan_legacy.items()}
-        return payload
+        """落盘快照 (浅拷贝到二层, 防调用方改动内部桶)。"""
+        return {vid: dict(bucket) for vid, bucket in self._buckets.items()}
 
     def total_cards(self) -> int:
-        """全部 vault 桶的卡数 + 未归属 legacy 条数 — 日志用 (``len()`` 只数当前桶)。"""
-        return sum(len(bucket) for bucket in self._buckets.values()) + sum(len(v) for v in self._orphan_legacy.values())
+        """全部 vault 桶的卡数 — 日志用 (``len()`` 只数当前桶)。"""
+        return sum(len(bucket) for bucket in self._buckets.values())
 
     @classmethod
     def from_persisted(cls, raw: Dict[str, Any]) -> "_VaultScopedCardStates":
@@ -589,30 +527,27 @@ class _VaultScopedCardStates:
         **形态判据必须逐条, 不能整体** (Codex r1 HIGH-1 整改): 用
         ``all(isinstance(v, dict) ...)`` 整体判形态时, 混合快照
         ``{"vaultA": {"c": "卡"}, "d": "另一张卡"}`` 会被整体当成 legacy ——
-        **已经迁好的 vaultA 桶被降格成一个名叫 "vaultA" 的 concept**, 它的卡
-        数据变成一个 dict。迁移器 ``classify()`` 一直是逐条分类的, 加载器必须
-        与它同口径, 否则两边对同一份文件给出不同的形态判断。
+        **已经迁好的 vaultA 桶被降格成一个名叫 "vaultA" 的 concept**。迁移器
+        ``classify()`` 也是逐条分类的, 两边必须同口径。
 
-        **legacy 裸键的归属是「推定」, 不是「可证」** (同上整改): 归进当前解析
-        到的 vault 桶并 ``logger.warning``。必须说清它可能错 —— 反例: 旧进程
-        服务 vault A 留下扁平快照, 配置改成 B 后重启; 两个时点都满足「一进程一
-        vault」, 但全部旧数据会被归进 B, 且**下一次落盘就把这个错误归属固化**。
-        所以这里做的是「过渡期不丢数据」的推定, 不是归属证明; 真正的归属裁定
-        在迁移器 (人显式 ``--vault-id``)。
+        ⛔ **本卡范围（用户 2026-09-09 裁定 ③「缩小本卡」）**: 本卡只负责
+        **键化核心**（vault 分桶 + fail-closed + 迁移器）。**legacy 兼容整体
+        移交下一张卡** —— 隔离区、保留键命名空间、多份候选、毒条目预检那一整
+        套在 Codex r2→r5 里反复长出新边界（每一轮修复都产生新缺陷），核心键化
+        则五轮未被推翻，故按裁定回退。
 
-        **「没有请求上下文」不构成保护** (同上整改): 解析链在 ContextVar 未注入
-        时仍会推导进程 active vault, 正常启动**不会**因缺上下文而拒载。只有推导
-        失败 / 结果落进污染桶时才拒 —— 那时连"归给谁"都答不上来, 此时**只载入
-        已是 vault 桶的部分**, legacy 裸键进 ``_orphan_legacy`` (硬归缺省桶属读
-        契约 R4 同族的静默降级)。
+        本卡对 legacy 裸键只做**两种**最小且可证的处置:
 
-        **归不掉的 legacy 不丢, 进 ``_orphan_legacy``** (Codex r2 H3/H4):
-          · 作用域解析不出来 ⇒ 全部 legacy 进隔离区 —— 否则「不加载」只保护了
-            这一次读, 下一次成功写入的全量快照会把它们从磁盘**永久删除**;
-          · legacy 的 concept_id 与目标桶已有条目**同名** ⇒ 保留桶内那份 (它有
-            **明确**的 vault 身份), legacy 那份进隔离区。用推定归属去覆盖明确
-            身份是反的: 前者可能错, 后者是上一次迁移/写入确定下来的。
-        隔离区的内容随每次落盘原样写回, 直到有人用迁移器显式裁定归属。
+        1. **作用域解析得出来** ⇒ 按当前作用域**推定**归桶 + ``logger.warning``。
+           这是 r1 的行为, Codex 已核实"不丢数据"。归属是**推定不是证明** ——
+           反例: 旧进程服务 vault A 留下扁平快照, 配置改成 B 后重启, 全部旧数据
+           会被归进 B 且下次落盘固化。真正的归属裁定在迁移器 (人显式
+           ``--vault-id``)。
+        2. **作用域解析不出来** ⇒ **抛 ``VaultScopeUnresolved`` 拒绝构造**
+           (fail-fast)。此时连"归给谁"都答不上来; 若只是"不加载", 下一次成功
+           写入的全量快照会把这些 legacy 从磁盘**永久删除** (Codex r2 H4)。
+           拒绝启动则**文件原样躺在磁盘上没人动它, 数据零风险**, 且口径只有
+           一处 —— 这正是回退隔离区那一套之后仍能保住 r2 H4 的最简做法。
         """
         if not raw:
             return cls()
@@ -620,115 +555,52 @@ class _VaultScopedCardStates:
         # 逐条分形态 —— 与迁移器 classify() 同口径
         buckets: Dict[str, Dict[str, str]] = {}
         legacy: Dict[str, Any] = {}
-        already_isolated: Dict[str, List[Any]] = {}
         for key, value in raw.items():
-            if str(key) == _ORPHAN_LEGACY_KEY:
-                # 保留键: 上一轮已判定"归不掉"的条目 (Codex r3 H2)。它们**不再
-                # 参与推定归属** —— 否则换个 vault 重启就被自动收养, "等人用
-                # 迁移器裁定"这句话就没有约束力了。
-                #
-                # ⚠️ 值不是 dict 时**不能跳过** (Codex r4 H1): 旧快照里完全可能
-                # 有一个**名字恰好等于保留键**的 legacy 裸 concept, 它的值是卡
-                # 字符串。跳过 = 既不保留也不报错, 下次成功保存就把它删了。
-                # 这种形态按普通 legacy 裸键处置。
-                if isinstance(value, dict):
-                    for k, v in value.items():
-                        already_isolated.setdefault(str(k), []).extend(v if isinstance(v, list) else [v])
-                else:
-                    legacy[str(key)] = value
-                continue
             if isinstance(value, dict):
                 buckets[str(key)] = dict(value)
             else:
                 legacy[str(key)] = value
 
-        # 毒条目预检 (Codex r3 M1 / r4 M1): 序列化或 UTF-8 编码不出去的条目会让
-        # **此后每一次**合法保存都在同一个 json.dumps 上失败 —— 一次性的坏数据被
-        # 放大成永久写阻断。它本来就落不了盘, 故不予保留, 改为逐条 error 点名。
-        #
-        # ⚠️ **vault 桶里的存量也要预检** (r4 M1): 只查 legacy 与隔离区是不够的,
-        # 一条 `{"va": {"c": "\ud800"}}` 同样会让任意 vault 的下一次保存炸。
-        #
-        # ⚠️ 取舍如实声明: 本方法**不会**先做备份, 日志也不含被丢弃的值。若磁盘上
-        # 没有既存备份, 下一次成功保存就会删掉唯一副本 —— "从备份恢复"是操作建议,
-        # 不是代码提供的保证。
-        def _keep_writable(k: str, v: Any, origin: str) -> bool:
-            if _json_writable(k, v):
-                return True
-            logger.error(
-                "CARD-G3-5: %s 的 %s 条目 %r 无法序列化/编码为 UTF-8, **不予保留** "
-                "—— 留着它会让此后每一次投影落盘都失败。⚠️ 本方法不做备份, 若磁盘上"
-                "没有既存备份, 这条数据的唯一副本会在下次成功保存时消失。",
-                _CARD_STATES_FILE,
-                origin,
-                k,
-            )
-            return False
-
-        buckets = {
-            vid: {k: v for k, v in bucket.items() if _keep_writable(k, v, f"vault 桶 {vid!r}")}
-            for vid, bucket in buckets.items()
-        }
-        already_isolated = {
-            k: [v for v in vals if _keep_writable(k, v, "隔离区")] for k, vals in already_isolated.items()
-        }
-        already_isolated = {k: v for k, v in already_isolated.items() if v}
-        legacy = {k: v for k, v in legacy.items() if _keep_writable(k, v, "legacy 裸键")}
-
-        def _merge_orphan(base: Dict[str, List[Any]], extra: Dict[str, Any]) -> Dict[str, List[Any]]:
-            """把新的"归不掉"条目并进隔离区 —— **同名也不覆盖** (Codex r4 H2)。
-
-            隔离区里同名的两份都是"尚未裁定归属"的记录, 谁也不比谁更可信, 用
-            ``{**a, **b}`` 合并等于让后者静默吃掉前者。故值是**列表**: 同一个
-            concept_id 可以挂多份待裁定的卡, 由人在迁移时选。
-            """
-            merged = {k: list(v) for k, v in base.items()}
-            for k, v in extra.items():
-                merged.setdefault(k, []).append(v)
-            return merged
-
         if not legacy:
-            return cls(buckets, orphan_legacy=already_isolated)
+            return cls(buckets)
 
         vault_id = cls._resolve_vault("review_service._load_card_states.legacy")
         if vault_id is None:
-            logger.warning(
-                "CARD-G3-5: %s 含 %d 条 legacy 裸 concept_id 键, 但当前作用域解析"
-                "不出来 ⇒ 这部分**不归入任何 vault**(拒绝硬归缺省桶), 转入隔离区: "
-                "它们不参与读写, 但**每次落盘都会原样写回**, 不会被删掉。已是 "
-                "vault 桶的 %d 个桶照常载入。请跑 backend/scripts/"
-                "migrate_fsrs_card_states_vault_key_g35.py --apply --vault-id <vault> "
-                "裁定归属。",
-                _CARD_STATES_FILE,
-                len(legacy),
-                len(buckets),
+            # fail-fast: 拒绝构造, 而不是"这次不加载" —— 后者会让下一次成功写入
+            # 把这些 legacy 从磁盘删掉 (Codex r2 H4)。
+            from app.core.vault_scope import VaultScopeUnresolved
+
+            raise VaultScopeUnresolved(
+                f"CARD-G3-5: {_CARD_STATES_FILE} 含 {len(legacy)} 条 legacy 裸 "
+                "concept_id 键, 但当前作用域解析不出来 —— 无法判定它们归哪个 "
+                "vault。拒绝启动 (不加载会让下一次成功写入把它们从磁盘删掉)。"
+                "请先跑 backend/scripts/migrate_fsrs_card_states_vault_key_g35.py "
+                "--apply --vault-id <vault> 裁定归属。"
             )
-            return cls(buckets, orphan_legacy=_merge_orphan(already_isolated, legacy))
 
         bucket = buckets.setdefault(vault_id, {})
         # 同名冲突: 桶内那份有**明确** vault 身份, legacy 那份只是**推定**归属。
-        # 用推定去覆盖明确是反的 (Codex r2 H3) —— 保留桶内, legacy 进隔离区。
+        # 用推定去覆盖明确是反的 (Codex r2 H3) —— 保留桶内那份。
         clobbered = [cid for cid in legacy if cid in bucket]
-        orphan = {cid: legacy[cid] for cid in clobbered}
         for cid, card in legacy.items():
             if cid not in bucket:
                 bucket[cid] = card
         logger.warning(
             "CARD-G3-5: %s 含 %d 条 legacy 裸 concept_id 键, 已按当前作用域**推定**"
-            "归入 vault %r 桶 (另有 %d 个已迁桶原样载入)。⚠️ 该归属是推定不是证明: "
-            "若这份快照出自服务别的 vault 的旧进程, 归属就是错的, 且下次落盘会把它"
-            "固化。%s请跑 backend/scripts/migrate_fsrs_card_states_vault_key_g35.py "
-            "以显式 --vault-id 裁定归属。",
+            "归入 vault %r 桶。⚠️ 该归属是推定不是证明: 若这份快照出自服务别的 "
+            "vault 的旧进程, 归属就是错的, 且下次落盘会把它固化。%s请跑 "
+            "backend/scripts/migrate_fsrs_card_states_vault_key_g35.py 以显式 "
+            "--vault-id 裁定归属。",
             _CARD_STATES_FILE,
             len(legacy) - len(clobbered),
             vault_id,
-            max(len(buckets) - 1, 0),
             f"另有 {len(clobbered)} 条与该桶已有同名条目冲突 {clobbered[:5]}, "
-            "**保留桶内那份**(它有明确 vault 身份), legacy 那份转入隔离区不丢也不覆盖。 "
+            "**保留桶内那份**(它有明确 vault 身份), legacy 那份未载入 —— "
+            "legacy 兼容整体归下一张卡。 "
             if clobbered
             else "",
         )
-        return cls(buckets, orphan_legacy=_merge_orphan(already_isolated, orphan))
+        return cls(buckets)
 
 
 def _card_states_try_set(states: Any, concept_id: str, card_data: str, *, context: str) -> bool:

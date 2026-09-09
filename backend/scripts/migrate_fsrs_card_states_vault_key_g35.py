@@ -61,11 +61,6 @@ LIVE_VAULT_DIR = LIVE_REPO_ROOT / "canvas-vault"
 
 DEFAULT_FILE = Path(__file__).resolve().parent.parent / "data" / "fsrs_card_states.json"
 
-#: 隔离区保留键 —— 必须与 ``review_service._ORPHAN_LEGACY_KEY`` **逐字一致**。
-#: 加载器把归不掉的 legacy 放在这个键下"等人用迁移器裁定归属"; 本脚本就是那个
-#: "人裁定"的执行者。若它不认这个键 (原实现按 isinstance(dict) 当成一个 vault
-#: 桶), 隔离区里的条目永远出不来, 整条链路是断的 (Codex r4 H3)。
-_ORPHAN_LEGACY_KEY = "__g35_orphan_legacy__"
 
 
 def _resolved(path: Path) -> Path:
@@ -209,7 +204,7 @@ def assert_out_is_safe(out: Optional[Path], data_file: Path) -> Optional[str]:
 # ── 形态分类与迁移 ──────────────────────────────────────────────────────────
 
 
-def classify(raw: Dict[str, Any]) -> Tuple[int, int, List[str], int]:
+def classify(raw: Dict[str, Any]) -> Tuple[int, int, List[str]]:
     """统计三个数: 裸键条数 n_old / 已带 vault 维度条数 n_new / 冲突 concept.
 
     判据:
@@ -217,24 +212,13 @@ def classify(raw: Dict[str, Any]) -> Tuple[int, int, List[str], int]:
       · value 不是 dict    → 该键是**裸 concept_id**, 计入 ``n_old``。
 
     冲突 = 同一个 ``concept_id`` 出现在**多个** vault 桶里。它不是错误 (正是
-    键化要支持的形态), 但迁移时要让操作者看见: 把裸键并进某个已有桶可能与
-    该桶里的同名条目撞上。
+    键化要支持的形态), 但迁移时要让操作者看见。
     """
     n_old = 0
     n_new = 0
-    n_isolated = 0
     per_concept_vaults: Dict[str, List[str]] = {}
 
     for key, value in raw.items():
-        if str(key) == _ORPHAN_LEGACY_KEY:
-            # 隔离区**不是** vault 桶 (Codex r4 H3): 把它算进 n_new 会让
-            # "还剩多少要迁"这个数从一开始就是假的, 也不参与跨 vault 冲突检测
-            # (它不属于任何 vault)。值不是 dict 时按裸键处置, 与加载器同口径。
-            if isinstance(value, dict):
-                n_isolated += sum(len(v) if isinstance(v, list) else 1 for v in value.values())
-            else:
-                n_old += 1
-            continue
         if isinstance(value, dict):
             n_new += len(value)
             for concept_id in value:
@@ -242,8 +226,8 @@ def classify(raw: Dict[str, Any]) -> Tuple[int, int, List[str], int]:
         else:
             n_old += 1
 
-    conflicts = sorted(concept_id for concept_id, vaults in per_concept_vaults.items() if len(vaults) > 1)
-    return n_old, n_new, conflicts, n_isolated
+    conflicts = sorted(cid for cid, vaults in per_concept_vaults.items() if len(vaults) > 1)
+    return n_old, n_new, conflicts
 
 
 def build_migrated(raw: Dict[str, Any], vault_id: str) -> Tuple[Dict[str, Any], List[str]]:
@@ -251,52 +235,17 @@ def build_migrated(raw: Dict[str, Any], vault_id: str) -> Tuple[Dict[str, Any], 
 
     已是 vault 桶的部分**原样保留** —— 迁移器不重排已迁好的数据。
     """
-    migrated: Dict[str, Any] = {
-        str(k): dict(v) for k, v in raw.items() if isinstance(v, dict) and str(k) != _ORPHAN_LEGACY_KEY
-    }
+    migrated: Dict[str, Any] = {str(k): dict(v) for k, v in raw.items() if isinstance(v, dict)}
     bucket = migrated.setdefault(vault_id, {})
     clobbered: List[str] = []
 
-    # ① 裸 concept_id 键
     for key, value in raw.items():
-        if str(key) == _ORPHAN_LEGACY_KEY:
-            continue
         if isinstance(value, dict):
             continue
         concept_id = str(key)
         if concept_id in bucket:
             clobbered.append(concept_id)
         bucket[concept_id] = value
-
-    # ② 隔离区认领 —— 这就是"人工裁定归属"的落地动作 (Codex r4 H3)。
-    #    加载器把归不掉的条目放进隔离区等这一步; 迁移器若不认领, 它们永远出不来。
-    #    同一 concept 可能挂多份待裁定的卡 (值是列表): 取**第一份**并把其余逐条
-    #    报出来 —— 脚本不替人选, 但也不静默丢: 未被选中的那些留在隔离区。
-    isolated_raw = raw.get(_ORPHAN_LEGACY_KEY)
-    leftover: Dict[str, Any] = {}
-    if isinstance(isolated_raw, dict):
-        for key, value in isolated_raw.items():
-            concept_id = str(key)
-            cards = value if isinstance(value, list) else [value]
-            if not cards:
-                continue
-            if concept_id in bucket:
-                clobbered.append(concept_id)
-                leftover[concept_id] = cards
-                continue
-            bucket[concept_id] = cards[0]
-            if len(cards) > 1:
-                leftover[concept_id] = cards[1:]
-    elif isolated_raw is not None:
-        # 保留键的值不是 dict = 一个名字恰好等于保留键的 legacy 裸 concept
-        concept_id = _ORPHAN_LEGACY_KEY
-        if concept_id in bucket:
-            clobbered.append(concept_id)
-        else:
-            bucket[concept_id] = isolated_raw
-
-    if leftover:
-        migrated[_ORPHAN_LEGACY_KEY] = leftover
 
     return migrated, clobbered
 
@@ -346,7 +295,7 @@ def write_report(out: Optional[Path], payload: Dict[str, Any]) -> bool:
 
 
 def run_dry_run(path: Path, raw: Dict[str, Any], vault_id: Optional[str], out: Optional[Path]) -> int:
-    n_old, n_new, conflicts, n_isolated = classify(raw)
+    n_old, n_new, conflicts = classify(raw)
 
     print("=" * 68)
     print("CARD-G3-5 FSRS 投影 vault 键化迁移 — DRY RUN (不改输入, 不产生备份)")
@@ -356,7 +305,6 @@ def run_dry_run(path: Path, raw: Dict[str, Any], vault_id: Optional[str], out: O
     print(f"n_old    : {n_old}   (裸 concept_id 键, 待迁)")
     print(f"n_new    : {n_new}   (已在 vault 桶内的条目)")
     print(f"冲突     : {len(conflicts)}   (同一 concept 出现在多个 vault 桶)")
-    print(f"隔离区   : {n_isolated}   (归不掉、等本命令裁定归属的条目)")
     if conflicts:
         for concept_id in conflicts[:10]:
             print(f"           · {concept_id}")
@@ -388,7 +336,6 @@ def run_dry_run(path: Path, raw: Dict[str, Any], vault_id: Optional[str], out: O
             "vault_id": vault_id,
             "n_old": n_old,
             "n_new": n_new,
-            "n_isolated": n_isolated,
             "conflicts": conflicts,
             "top_level_keys": len(raw),
         },
@@ -401,7 +348,7 @@ def run_dry_run(path: Path, raw: Dict[str, Any], vault_id: Optional[str], out: O
 
 
 def run_apply(path: Path, raw: Dict[str, Any], vault_id: str, out: Optional[Path]) -> int:
-    n_old, n_new_before, conflicts, n_isolated = classify(raw)
+    n_old, n_new_before, conflicts = classify(raw)
 
     print("=" * 68)
     print("CARD-G3-5 FSRS 投影 vault 键化迁移 — APPLY")
@@ -410,12 +357,11 @@ def run_apply(path: Path, raw: Dict[str, Any], vault_id: str, out: Optional[Path
     print(f"目标桶   : {vault_id}")
     print(f"n_old    : {n_old}")
     print(f"n_new    : {n_new_before} (迁移前已在桶内)")
-    print(f"隔离区   : {n_isolated}   (本次 --vault-id 会认领它们)")
 
     # 「迁完」与「本来就空」必须分得开 —— 0 → 0 不算迁移成功。
-    if n_old == 0 and n_isolated == 0:
+    if n_old == 0:
         print("-" * 68)
-        print("无可迁移条目 (裸键 0 条、隔离区 0 条) — 未做任何写入, 未产生备份。")
+        print("无可迁移条目 (n_old = 0) — 未做任何写入, 未产生备份。")
         print("=" * 68)
         wrote = write_report(
             out,
@@ -425,7 +371,6 @@ def run_apply(path: Path, raw: Dict[str, Any], vault_id: str, out: Optional[Path
                 "vault_id": vault_id,
                 "n_old": 0,
                 "n_new": n_new_before,
-                "n_isolated": 0,
                 "migrated": 0,
                 "result": "nothing-to-migrate",
                 "backups": [],
@@ -436,19 +381,14 @@ def run_apply(path: Path, raw: Dict[str, Any], vault_id: str, out: Optional[Path
         return 0
 
     migrated, clobbered = build_migrated(raw, vault_id)
-    _, n_new_after, _, n_isolated_after = classify(migrated)
+    _, n_new_after, _ = classify(migrated)
     gained = n_new_after - n_new_before
 
     if clobbered:
         print(f"⚠️ {len(clobbered)} 条裸键与目标桶已有同名条目撞键, 用裸键那份覆盖: {clobbered[:10]}")
 
     # 数量判据: 迁进去的条数必须等于迁移前的裸键条数, 且 > 0。
-    # 认领的隔离区条目也是"迁进去的" (Codex r4 H3), 数量判据必须含它们, 否则
-    # 迁移隔离区会被判成"数量不符"而拒写。
-    claimed_from_isolation = n_isolated - sum(
-        len(v) if isinstance(v, list) else 1 for v in (migrated.get(_ORPHAN_LEGACY_KEY) or {}).values()
-    )
-    expected = n_old + claimed_from_isolation - len(clobbered)
+    expected = n_old - len(clobbered)
     if gained != expected or n_new_after <= 0:
         print(
             f"ERROR: 数量判据不成立 — 迁移前裸键 {n_old} 条 (其中 {len(clobbered)} "
@@ -566,7 +506,7 @@ def run_apply(path: Path, raw: Dict[str, Any], vault_id: str, out: Optional[Path
     if verify != migrated:
         return _restore("重读校验失败 — 落盘内容与预期不一致")
 
-    _, n_new_verified, _, _ = classify(verify)
+    _, n_new_verified, _ = classify(verify)
     if n_new_verified != n_new_after:
         return _restore(f"重读后条目数不符 (期望 {n_new_after}, 实得 {n_new_verified})")
 
@@ -661,14 +601,6 @@ def main(argv: Optional[List[str]] = None) -> int:
         # `group_id.split(":")[1]`, 其结果**不可能含冒号**。迁移器若接受
         # `--vault-id 'vault_a:subject'`, 会写出一个语法合法、重读一致、但
         # service 永远选不中的桶 —— 「内容重读一致」不等于「结果可被消费」。
-        if args.vault_id.strip() == _ORPHAN_LEGACY_KEY:
-            # Codex r4 H1: 迁进这个名字的桶, 加载器会把整个桶当成隔离区。
-            print(
-                f"ERROR: --vault-id 不能是隔离区保留键 {_ORPHAN_LEGACY_KEY!r} — "
-                "加载器会把该桶整个当成隔离区, 迁出来的数据不可消费。",
-                file=sys.stderr,
-            )
-            return 2
         bad_chars = [c for c in (":", "/", "\\") if c in args.vault_id]
         if bad_chars:
             print(
