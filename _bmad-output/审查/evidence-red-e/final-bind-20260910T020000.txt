@@ -1,0 +1,35 @@
+### 终审绑定核验（协议 §1）
+-- 末轮审 SHA = 2b9d44d8；代码树是否仍绑定 --
+bind_rc=0  (空 + rc=0 = 仍绑定)
+
+-- 全卡改动面 --
+.claude/agents/canvas-orchestrator.md
+.claude/agents/graphiti-memory-agent.md
+.claude/agents/hint-generation.md
+.claude/agents/iteration-validator.md
+.claude/agents/parallel-dev-orchestrator.md
+.claude/agents/planning-orchestrator.md
+.claude/agents/review-board-agent-selector.md
+backend/app/services/agent_service.py
+backend/tests/unit/test_agent_templates_smoke.py
+
+-- 五个 commit --
+2b9d44d8 docs(agents): Codex r4 整改 — 三处说明失实/过宽全部改正（纯 docstring）[BATCH-2026-09-07-第十三批 / CARD-RED-E]
+798b39b1 fix(agents): Codex r3 整改 — 门从数量判据升级为身份判据 [BATCH-2026-09-07-第十三批 / CARD-RED-E]
+49994317 fix(agents): Codex r2 整改 — 门从静态推断升级为运行期观测 [BATCH-2026-09-07-第十三批 / CARD-RED-E]
+f7729fdb fix(agents): Codex r1 整改 — 两表门绑全部绑定 + 消息分方向 + 表述更正 [BATCH-2026-09-07-第十三批 / CARD-RED-E]
+eed7a44c fix(agents): 恢复 6 份模板 + 新作 hint-generation + 假绿修 + 两表对齐 [BATCH-2026-09-07-第十三批 / CARD-RED-E]
+
+-- 存档禁词/旧模型名（全须 0）--
+codex-review-CARD-RED-E-r1.md                  gpt-5:0
+codex-review-CARD-RED-E-r2.md                  gpt-5:0
+codex-review-CARD-RED-E-r3.md                  gpt-5:0
+codex-review-CARD-RED-E-r4.md                  gpt-5:0
+codex-review-CARD-RED-E-r5.md                  gpt-5:0
+
+-- 五份存档首部三字段齐全 --
+codex-review-CARD-RED-E-r1.md                  1/1/1
+codex-review-CARD-RED-E-r2.md                  1/1/1
+codex-review-CARD-RED-E-r3.md                  1/1/1
+codex-review-CARD-RED-E-r4.md                  1/1/1
+codex-review-CARD-RED-E-r5.md                  1/1/1
