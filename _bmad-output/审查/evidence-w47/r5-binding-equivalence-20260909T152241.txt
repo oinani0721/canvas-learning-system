@@ -1,0 +1,67 @@
+=== 终审绑定等价证明（协议 §1：纯注释尾巴由主 session 逐行核后可判等价，写明）===
+r5 审 SHA = b9ba828b ; 当前 HEAD = 542e78fb94f8763017dd966581df1dfcd48d3b62
+
+--- 代码树差异面（排 _bmad-output）---
+ .../tests/unit/test_live_port_guard_contract.py    | 32 ++++++++++++++++------
+ 1 file changed, 23 insertions(+), 9 deletions(-)
+
+--- 差异逐行（应全部落在 docstring 内）---
+diff --git a/backend/tests/unit/test_live_port_guard_contract.py b/backend/tests/unit/test_live_port_guard_contract.py
+index f09a928f..fc8e3cd6 100644
+--- a/backend/tests/unit/test_live_port_guard_contract.py
++++ b/backend/tests/unit/test_live_port_guard_contract.py
+@@ -827,23 +827,37 @@ class TestGuardLiveness:
+     def test_uvloop_judge_never_touches_the_name_through_bound_operations(self):
+         """``_is_uvloop_module`` 里的 ``name`` **只能**当未绑定基类方法的参数用。
+ 
+-        ⛔ 这条是**结构门**，用来一次性关掉「说谎 str 子类」这一整族，而不是继续往
+-        参数化里补格子（round-4 之前已经补了三轮，每轮 Codex 都能给出新的一格）：
++        ⛔ 这条是**结构门**，拦的是「让 ``name`` 自己参与判断」这个形状 —— 三轮复核里
++        Codex 每轮给一个「说谎 str 子类」反例，而枚举子类行为 × 真实值的笛卡尔积治不了
++        它们（子类可以对不同参数说不同的谎）：
+ 
+         * round-2 反例：``... and name.startswith("uvloop.")`` —— 走**绑定** startswith；
+         * round-3 反例：``... and not (name == "uvloop")`` —— 走**绑定** ``__eq__``；
+         * round-4 反例：``... and (not (name == "uvloop") or name.startswith("uvloop."))``
+           —— 两者都走。
+ 
+-        三个反例的共同形状是「让 ``name`` 自己参与判断」。枚举子类行为 × 真实值的
+-        笛卡尔积治不了这个族（族是无限的：子类可以对不同参数说不同的谎）；
+-        **能治的是那条不变量本身** —— 判据一旦只走 ``str.<method>(name, ...)``
+-        这种未绑定形式，子类重载什么都影响不到结果，整族当场消失。
+-
+-        两个方向都要断（缺一就能被「把判断整个删掉」骗过）：
++        三条子规则：
+         (i) ``name`` 不得是任何属性访问的接收者（``name.startswith`` / ``name.lower`` …）；
+         (ii) ``name`` 不得出现在任何 ``Compare`` 里（那会调用它自己的 ``__eq__``）；
+-        (iii) 且**确实存在**以 ``name`` 为第一实参的未绑定 ``str`` 方法调用。
++        (iii) 且**确实存在**以 ``name`` 为第一实参的未绑定 ``str`` 方法调用
++        （少了它，「把判断整个删成 ``return False``」也能过前两条）。
++
++        ⚠️ **本门的证明范围（round-5 Codex 更正，原先写「一次性关掉整族」是过宽声明）**：
++        它只识别**直接拼写为** ``name`` 的 ``ast.Name``，所以**关不住整族** ——
++        下列写法能绕过前两条而仍满足第三条，实测未做，静态成立：
++
++        * 先赋别名再操作：``alias = name`` 之后用 ``alias == ...`` / ``alias.startswith(...)``；
++        * ``getattr(name, "startswith")(...)``；
++        * ``operator.eq(name, ...)``；
++        * f-string / ``"%s" % name``（触发子类的 ``__format__`` / ``__str__``）。
++
++        （``"uvloop" == name`` 这种把 ``name`` 放右侧的比较**会**被 (ii) 拦下 —— 它检查
++        ``Compare`` 的左右两侧。）
++
++        准确的说法是：**它拦住上面三个历史反例的直接写法，不是全称证明**。
++        「整族封闭」需要对这个短函数约束完整允许语法/方法/返回值依赖，属另立卡的范围。
++        (iii) 也只要求「存在某个未绑定调用」，不限定方法名与可达性 ——
++        ``str.__len__(name)`` 后 ``return False`` 能过三条，那种恒假实现要靠行为门拒。
+         """
+         node = _fn_ast(guard._is_uvloop_module)
+ 
+
+--- 等价判据：剥掉 docstring 后 AST 逐字节比较 ---
+b9ba828b 版 AST 长度 = 151455
+HEAD     版 AST 长度 = 151455
+剥 docstring 后 AST 逐字节相同 = True
+
+⚠️ 用 ast.parse 而非剥 '^\s*#' 文本行：后者对块标量内的注释失明（既有教训）。
+   docstring 是 AST 节点，所以这里把它清空后再比 —— 判定逻辑有任何改动都会让它为 False。
