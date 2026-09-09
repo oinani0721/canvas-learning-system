@@ -1,0 +1,16 @@
+### 对照输入 C — Codex r1 MEDIUM-1 指出的失效场景
+在 expected_templates 之后追加一次再绑定，让 health 真正迭代的列表变成 12 项缺 hint-generation。
+整改前：提取器只扫 List 字面量 ⇒ 仍返回 13 项 ⇒ 断言照绿（假绿）。
+整改后：ast.Store 计数 = 2 ⇒ 必红。
+
+-- 改前 sha --
+329a42cbe879e752396c9fbfc6e939033f6734027a1a09f7a80bf8522afb35af  backend/app/services/agent_service.py
+-- 注入（在 :5725 的 ] 之后插入一行）--
+inserted at line 5726
+-- 注入后 :5723-5728 --
+5723	            "canvas-orchestrator",
+5724	            "hint-generation",
+5725	        ]
+5726	        expected_templates = expected_templates[:-1]
+5727	
+5728	        prompt_path = Path(settings.AGENT_PROMPT_PATH)

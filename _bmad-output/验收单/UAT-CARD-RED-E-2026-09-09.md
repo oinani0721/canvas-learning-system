@@ -132,28 +132,47 @@
 
 ⚠️ 若阈值仍停在 17，对照输入 B 会**不红**——它是 (f)② 是否真做到位的判据。实测红，故成立。
 
+> ⚠️ **表述更正（Codex r1 LOW-2）**：首个 commit message 里写的「两个对照输入各只让指定用例变红」**过宽**。准确说法是：**A 恰 1 条红**；**B 是 4 条红**，其中 `test_minimum_template_count` 是被承重的那条（消息含 `found 17`），另外 3 条是同一次删除必然连带的。判据从来是「**指定的那条**必须红」（`grep -c <用例名>` ≥ 1），不是「只有它红」。本单 §3.5 原文一直如实列着 4 failed，是 commit message 的总述收窄失当，已在整改 commit 中更正。
+
+**对照输入 C**（承重 = 两表 AST 门；来源 = Codex r1 MEDIUM-1 指出的失效场景，本卡整改后补做）：
+
+在 `agent_service.py:5725` 的 `]` 之后注入一行 `expected_templates = expected_templates[:-1]` —— health 真正迭代的列表随之变成 12 项、缺 `hint-generation`。
+
+- **整改前**的提取器只扫 List 字面量 ⇒ 仍返回原 13 项 ⇒ 两条集合断言的输入毫无变化 ⇒ **照绿**（Codex 在内存中复现，本卡确认成立）。
+- **整改后**：`2 failed, 46 passed`，`test_health_expected_templates_equals_loadable_agent_types` 红（指定用例 `grep -c` = 1），失败消息 `` `expected_templates` is bound 2 time(s) … at line(s) [5711, 5726] ``（`grep -c` = 2，两条依赖同一 helper 的测试各命中一次）。
+- 还原：`git show HEAD:backend/app/services/agent_service.py > <同路径>` → sha `329a42cb…` 与 HEAD 版**逐字节相同**、`git diff --quiet` rc=0、`:5726` 恢复为空行；复跑 **48 passed**、`ruff format --check` + `ruff check` 全绿。
+- 存档：`negctl-c-setup / negctl-c-red / negctl-c-restore / smoke-postnegctl-c-20260909T160000.txt`
+
 ### 3.6 统一裁判 `tests/unit`（裁判 1）
 
 命令：`cd backend && PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest tests/unit -q -p no:cacheprovider`
 
+共跑 **3 次**全量（1 次开工 + 2 次收工）。第 3 次是在 `ruff format` 定稿并 commit **之后**跑的，用于绑最终代码。
+
 | 阶段 | 汇总行 | nodeid 数 | 末行 | 存档 |
 |---|---|---|---|---|
 | 开工 | `173 failed, 4749 passed, 48 skipped, 121 warnings, 29 errors in 364.47s` | 202 | `rc=1` | `unit-open-20260909T000001.txt` |
-| 收工 | `164 failed, 4761 passed, 48 skipped, 122 warnings, 29 errors in 269.27s` | **193** | `rc=1` | `unit-after-20260909T120000.txt` |
+| 收工 #1（format 前） | `164 failed, 4761 passed, 48 skipped, 122 warnings, 29 errors in 269.27s` | **193** | `rc=1` | `unit-after-20260909T120000.txt` |
+| **收工 #2（绑 commit `eed7a44c`）** | `164 failed, 4761 passed, 48 skipped, 122 warnings, 29 errors in 320.40s` | **193** | `rc=1` | `unit-final-20260909T140000.txt` |
 
-算术：202 − 9 = **193** ✅（`grep -c .` 实测，未用 `wc -l`）
+算术：202 − 9 = **193** ✅（`grep -c .` 实测，全程未用 `wc -l` 当分母）
 
-**双分母对照**（因为开工基线本身与主干 202 基线有一进一出，见 §六⑩，所以两个分母都跑）：
+**双分母对照**（开工基线本身与主干 202 基线有一进一出，见 §六⑩，故两个分母都跑）：
 
-- **分母二 · 本树开工基线（干净增量判据）** — `red-diff-vsopen-20260909T120000.txt`
-  - `>` 行：**无**（`grep '^>'` 无输出，rc=1）✅
-  - `<` 行：**恰 9 条**，集合 == §〇 的 9 条 nodeid，逐条 `grep -c -F` **全 = 1** ✅
-  - 收工 red 集里 `test_agent_templates_smoke` 残留 = **0** ✅
-- **分母一 · 主干 202 基线** — `red-diff-vs202-20260909T120000.txt`
-  - `<` 行 10 条 = 本卡 9 条 + 1 条预存在（`test_mock_degradation_transparency.py::…::test_mock_mode_logs_warning`，开工即绿）
-  - `>` 行 1 条 = `test_candidate_service.py::test_accept_candidate_already_accepted_returns_422`，**开工即红**、非本卡引入，已登记 §六⑩
+| 分母 | 收工 #1 | **收工 #2（终审口径）** |
+|---|---|---|
+| **主干 202 基线** | `<` 10 条（9 + 1 预存在）、`>` 1 条（预存在） | **`<` 恰 9 条、`>` 零条** ✅ 完全满足卡文 (l) 原始判据 |
+| **本树开工基线** | **`<` 恰 9 条、`>` 零条** ✅ | `<` 10 条、`>` 1 条（那两条漂移翻转所致） |
 
-⛔ 全程未用 `wc -l` 当分母；`rc=` 行与 pytest 汇总行都在存档里。
+存档：`red-diff-final-vs202-20260909T140000.txt`（终审）、`red-diff-final-vsopen-20260909T140000.txt`、`red-diff-vs202-/vsopen-20260909T120000.txt`
+
+**终审判据（对主干 202 基线，收工 #2）**：
+
+- `>` 行：**零条**（`grep '^>'` 无输出）✅
+- `<` 行：**恰 9 条**，集合 == §〇 的 9 条 nodeid，逐条 `grep -c` **全 = 1** ✅
+- 收工 red 集里 `test_agent_templates_smoke` 残留 = **0** ✅
+
+> **两个分母各在一次跑里给出「9 条 `<` 零 `>`」，另一次各带 1 条预存在漂移** —— 这不是本卡的信号在摇摆，而是 §六⑩ 那两条非确定性用例在两个分母之间来回移动。**本卡的 9 条在全部 3 次全跑里表现完全一致**：开工 9 条全红、两次收工 9 条全绿、零次出现本卡引入的新红。
 
 ### 3.7 `tests/api` 目录级（协议 §3）
 
@@ -166,6 +185,29 @@
 | `test_agents_health.py` 收工 | `12 passed`，rc=0 | `agents-health-after-20260909T120000.txt` |
 
 > ⛔ **这条只证「没被本卡改红」，不证「期望表已对齐」**。`test_agents_health.py` 用的是 `MockAgentService`，其 `expected_templates`（`:64-77`）是 mock 内**硬编码的 12 项**，`:141-142` 硬编码 `total == 12` / `available == 12`、`:172 available == 10`，**完全不读文件系统、不读生产表**。本卡把生产表改成 13 之后它照样全绿 —— 这正是「同源期望只改一处」的静默漂移。该文件不在本卡地盘（手册 §一 未分派），故只跑不改，修复移交见 §六⑨。
+
+### 3.7b health 期望表 12 → 13 的语义影响（实测，非推断）
+
+存档：`evidence-red-e/health-semantics-20260909T140000.txt`
+
+在不起服务、不外呼的前提下复现 `agent_service.py:5727-5742` 的 exists 分桶循环（`expected_templates` 由 `ast` 从生产源码取，`prompt_path` 取 `settings.AGENT_PROMPT_PATH`）：
+
+```
+prompt_path      = …/card-u10-red-a/.claude/agents
+total            = 13
+available        = 13
+missing          = []
+=> len(missing) > 0 ?  False   (True 才会让 status = degraded)
+```
+
+**这是一处正向语义修复，不是回归**：
+
+- 改**前**：表里 12 项中 `canvas-orchestrator.md` 也不存在 ⇒ `missing_templates` 非空 ⇒ `:5773-5774` 恒判 `degraded`。
+- 改**后**：13 项全部在盘 ⇒ `missing = []` ⇒ 模板这一层不再 degraded。
+
+⚠️ 端点最终状态仍取决于 `:5771-5772` 的 `api_key_configured` / `gemini_client_initialized`，本卡**未实跑端点**（见 §五②）。本条只证「模板这一层从恒 degraded 变为不 degraded」，不证端点整体为 healthy。
+
+⚠️ 副作用：`prompt_template_check["total"]` 由 12 变 13。任何硬编码 12 的地方随之不一致 —— 实测唯一命中处是 api 侧 mock，见 §六⑨。
 
 ### 3.8 pyright 多重集对照（裁判 7 / 协议 §2.3）
 
@@ -238,11 +280,24 @@ base=421 work=421 NEW=0 GONE=0
     - `>` `test_candidate_service.py::test_accept_candidate_already_accepted_returns_422`（本树全跑红，202 基线里没有）
     - `<` `test_mock_degradation_transparency.py::TestMockScoringWarningLogs::test_mock_mode_logs_warning`（202 基线有，本树全跑绿）
     - 总数仍是 202。本卡开工时工作树干净、未改任何文件。
-    - **稳定性探测**（`evidence-red-e/drift-probe-20260909T000001.txt`，两次单跑）：两条**单跑**结果都与 202 基线一致（前者绿、后者红），只有**全跑**时互换 ⇒ 这是**执行顺序 / 测试间污染**造成的，不是随机 flaky。`test_mock_mode_logs_warning` 全跑绿单跑红，说明它的绿是借前面测试留下的状态得来的。
-    - **未做归因实验**：`da690bf8..HEAD` 只有 U10-A 改了 `backend/tests/unit/conftest.py`，两个漂移文件本身未被改，但本卡未验证 conftest 改动与这两条的因果。**移交主 session 排批时判定**。
+    - **单跑探测**（`evidence-red-e/drift-probe-20260909T000001.txt`，连跑 2 次）：两次**单跑**结果一致，且都与 202 基线相同（candidate 绿 / mock_mode 红）。
+    - **全跑观测（3 次）**：
+
+      | 全跑 | `test_accept_candidate_…_422` | `test_mock_mode_logs_warning` |
+      |---|---|---|
+      | 开工 `unit-open-…000001` | 红 | 绿 |
+      | 收工 #1 `unit-after-…120000` | 红 | 绿 |
+      | 收工 #2 `unit-final-…140000` | **绿** | **红**（= 202 基线态） |
+
+    - ⇒ **全跑口径下这两条是非确定性的**（同一份代码、同一命令，第 3 次给出与前两次相反的组合）。
+    - ⚠️ **本条曾被写宽过，此处更正**：先前依据「两次单跑稳定」写成「不是随机 flaky，而是执行顺序 / 测试间污染」。两次单跑只能证明**单跑口径**稳定，推不出全跑口径的机制；收工 #2 的翻转直接证伪了那个更强的表述。现结论收窄为：**单跑稳定、全跑非确定，机制未定**。
+    - **未做归因实验**：`da690bf8..HEAD` 只有 U10-A 改了 `backend/tests/unit/conftest.py`，两个漂移文件本身未被改，但本卡未验证 conftest 改动与这两条的因果，也未定位非确定性的来源。**移交主 session 排批时判定**。
+    - **不影响本卡结论**：本卡的 9 条在全部 3 次全跑里表现完全一致（开工全红、两次收工全绿、零次新红），与这两条的摇摆正交。
 11. **现存模板的 `input_format` / `output_format` 在生产解析器下全部为 `None`**（本卡实测的既有事实，非本卡引入）：`_parse_prompt_template` 的正则要求 `## Output Format\n` **紧接** ` ```json `，而现存 11 份全都按 Markdown 惯例在中间插了一行说明文字（如「你必须返回以下JSON格式的输出：」）⇒ 正则不匹配、字段恒 `None`。功能上未坏（`system_prompt` 保留全文，模型仍看得到 JSON 示例），但 `AgentPromptTemplate.output_format` 这个结构化字段在全仓恒空。本卡新模板已避开（标题行后紧接代码块），**未改任何现存模板**。是否统一排版 = 移交项。
 12. **`git check-ignore` 不能当入库判据（比卡文写的更强的理由）**：卡文预期 `add -f` 后 check-ignore「仍打印 `.gitignore:44`」，**实测是不打印且 rc=1** —— `check-ignore` 对**已跟踪**文件不做 ignore 判定。也就是说它的返回值在 `add -f` 前后会**翻转**，拿它当判据会给出方向相反的结论。判据取 `git ls-files` 是对的。
-13. **smoke 文件的两处注释更正（本卡自主判断，超出卡文明列范围，请复核时裁定）**：
+13. **r1 存档一度被主 session 自己清空并重建**（详见 §七 round-1 的事故框）：BSD sed 语法错误 → 原始 stdout 正文丢失 → 自 codex session rollout 提取还原，字节账（7151 − 内部标记 = 6886，对 6887 差 1 个换行）与 11 处特征串双重核对通过。该存档**非原始落盘产物**，请复核时裁定是否计入轮次配额。
+14. **协议 §2.1「抄 .stderr 前三行含 model 行」是位置判据，在 codex 0.153.3 上会失效**：models 刷新超时时两条 ERROR 会顶掉会话头位置，`model:` 落到 :7 ⇒ 照字面抄前三行抄不到任何自证字段。建议改为「抄含 `model:` 的那段会话头并标注实际行号」。**移交排批修订协议**。
+15. **smoke 文件的两处注释更正（本卡自主判断，超出卡文明列范围，请复核时裁定）**：
     - `:22` 原注释 `# Expected agent template files after recovery (git checkout eb86275)` —— 该树只有 17 份且无 `hint-generation.md`，拿不出第 18 项，是**误导后人用错误手段恢复**的不实陈述。本卡改为记录真实来源（11 未删 + 6 从 `f425d7b7^` 恢复 + 1 新作）。
     - `:84` docstring「At least 17」按卡文要求更新为实测口径。
     - 两处均为注释 / docstring，**未触碰 `EXPECTED_AGENT_TEMPLATES` 名单本身**。
@@ -251,4 +306,46 @@ base=421 work=421 NEW=0 GONE=0
 
 ## 七 Codex 轮次
 
-<!-- CODEX_PLACEHOLDER -->
+模型固定 `gpt-6-astra` + `model_reasoning_effort="ultra"`，`codex-cli 0.153.3`，`--sandbox read-only`。
+
+### round-1 — 绑 `eed7a44c`
+
+存档：`_bmad-output/审查/codex-review-CARD-RED-E-r1.md`
+结论：**BLOCKER 0 条 / HIGH 0 条**；MEDIUM 1 条、LOW 2 条。Codex 自述审查绑定 `0465a35c → eed7a44cdfbc797b5bb9fa5549991b76c7d16318`，与本卡当时 HEAD 一致。
+
+> ⛔ **存档事故与还原（主 session 自曝，必须随卡上交）**
+>
+> 给该存档写协议 §2.1 首部时，主 session 用了 `sed '1{/^$/d}'` —— **BSD sed 不支持这种写法**，报 `extra characters at the end of d command`，管道随之失败，`awk | sed > /tmp/body` 产出 0 字节，`mv` 又把它盖回原文件 ⇒ **原始 stdout 正文被清空**，文件一度只剩 884 B 首部。发现方式：写完立刻跑的完整性自查 `grep -c 'BLOCKER：该档 0 条'` 返回 **0**。
+>
+> **还原来源**：`~/.codex/sessions/2026/09/09/rollout-2026-09-09T10-51-01-01a08413-7128-7533-abc6-f36cdb5ac43f.jsonl`（时间戳与 `.stderr` 首条 `2026-09-09T02:51:01Z` 一致）的 assistant 最终消息。**未用记忆重写冒充原文**。
+>
+> **还原正确性的双重核对**：
+> 1. **字节账对上**：rollout 原文 7151 B → 剥去模型内部标记 `<oai-mem-citation>…</oai-mem-citation>`（该块是模型原始输出的一部分，`codex exec` 写 stdout 时本就不输出）后 **6886 B**，与损坏前 stdout 实测的 **6887 B** 仅差 1 个末尾换行。差额被完整解释，无剩余。
+> 2. **特征串核对**：11 处（审查绑定句 / 四档标题 / `expected_templates[:-1]` / `negctl-b-red` / `4 failed / 44 passed` / `git rm --cached` / `healthy → degraded` /「42 个文件检查用例」等）逐一 `grep -c` **全 = 1**。
+>
+> ⚠️ 因此该存档**不是未经处理的原始落盘产物**，首部已就此加了两条 blockquote 说明（另一条是会话头位移，见下）。复核时若认为重建存档不计入轮次配额，本卡接受重跑 r1，请裁定。
+>
+> 附带发现（协议改进建议，移交排批）：协议 §2.1 要求「抄 .stderr 前三行含 model 行」是**位置判据**。codex 0.153.3 在 models 刷新超时时会把两条 `codex_models_manager` ERROR 打在会话头之前，`model:` 行被顶到 :7 —— 照字面抄「前三行」会**抄不到任何自证字段**，而首部三字段因为是手填的，看上去仍然齐全。建议把判据改为「抄含 `model:` 的那段会话头（行号如实标注）」。
+
+| 条目 | 处置 |
+|---|---|
+| **MEDIUM-1** 两表门只绑同名**字面量**，未绑 health 实际迭代的列表：追加 `expected_templates = expected_templates[:-1]` 后运行列表变 12 项缺 hint-generation，提取器仍返回 13 项 ⇒ **门假绿** | ✅ **已改**。`_health_expected_templates` 改为先用 `ast.Store` 统计**全部绑定**（覆盖 Assign / AugAssign / AnnAssign / for-target / with-as / walrus），`!= 1` 即红并报出行号；再取唯一的 List 字面量，取不到也红。补做**对照输入 C** 实证该场景现在必红（§3.5） |
+| **LOW-1a** 差集消息用对称差 `^`：某模板日后正式加入 AgentType 后已退出 smoke-only 集，消息却仍称其 `unexpected smoke-only` | ✅ **已改**。改为分方向报「newly smoke-only」/「no longer smoke-only（health now watches them，update TEMPLATES_NOT_IN_AGENT_TYPE）」 |
+| **LOW-1b** 第二个同名字面量触发 `found 2`，消息却解释成 health 被 "renamed or removed"，实际是匹配歧义 | ✅ **已改**。新消息区分 0 绑定（renamed or removed）与 2+ 绑定（gate 读的列表可能不是 probe 迭代的那个），并列出全部绑定行号 |
+| **LOW-2** 「两个对照输入各只让指定用例变红」的总述与存档不符（B 实际 4 failed） | ✅ **已更正**表述，见 §3.5 的更正框。判据本身（指定用例必红）不变，删除门有效性不受影响 |
+
+Codex 同轮独立确认的事项（无需整改，记录备查）：
+
+- 输出字段与层级对齐：`hint-generation.md:48` 顶层直接含两键；`gemini_client.py:193` 提取的是**字符串**，`json.loads` 后得到含两键的 dict，无额外 `data` 包装；`agent_service.py:2466` 的 `result.update(parsed)` 保留顶层键，与 `verification_service.py:3036` 消费路径相符。**但解析成功 ≠ 模型输出经 schema 校验**，且本卡未作真实调用验收（与 §五① §五④ 一致）。
+- `>= 18` 单条**确实**能被「删一份 + 补一份无关 .md」通过，但按名单的存在性 / 非空 / 缺失汇总三条（`:120` / `:132` / `:143`）挡住具名模板缺失 ⇒ **不能据此说整套 smoke 假绿**（与 §五⑨ 的登记一致）。
+- 六份恢复文件的工作树 / HEAD / index / `f425d7b7^` **四方字节一致**，字节数与 SHA256 与存档相符；当前 HEAD 与 index 均有完整 18 份。
+- `.gitignore:44` 对已跟踪文件不起忽略作用。但文件仍可经 `git rm`、删除后暂存、合并删除、回退提交而丢失；**尤其 `git rm --cached` 保留磁盘文件却移除 index 条目，本地 smoke 照绿，只有干净 checkout 才暴露** —— 退出跟踪后 ignore 规则又会阻止普通 `git add` 收录。这是 pytest 工作树检查的**边界**，补记入 §五（见下条）。
+- health 语义方向正确：其余条件正常、原 12 项齐全但缺 hint 的部署会从 `healthy → degraded`；只增期望项不会让 `degraded → healthy`（恢复文件才会）。空文件或不可解析模板仍会被 `exists()` 判为 available —— 原有存在性检查的边界。
+
+> **补记入「本卡未证明什么」（源自 Codex r1，编号接 §五）**：
+> ⑪ 未证明这 7 份文件不会经 `git rm --cached` 之类**只动 index 不动磁盘**的路径掉出版本控制 —— 那种情况下本地 smoke 仍全绿，只有干净 checkout 才暴露；pytest 门只看工作树，不检查 Git 跟踪状态。
+> ⑫ 未证明 `exists()` 分桶能识别「文件在但内容为空或不可解析」—— health 探针只判存在。smoke 侧的 `not_empty` 覆盖了空文件，但**不覆盖**「非空却不可被 `_parse_prompt_template` 解析」。
+
+### round-2 — 绑 `<待填>`
+
+<!-- CODEX_R2_PLACEHOLDER -->

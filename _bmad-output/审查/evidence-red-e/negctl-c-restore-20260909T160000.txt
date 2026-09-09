@@ -1,0 +1,16 @@
+### 对照输入 C 还原 — 源 = git show HEAD:<path>（本卡已 commit，HEAD 有此文件）
+-- 还原后 sha（须 329a42cb…）--
+329a42cbe879e752396c9fbfc6e939033f6734027a1a09f7a80bf8522afb35af  backend/app/services/agent_service.py
+-- HEAD 版 sha --
+329a42cbe879e752396c9fbfc6e939033f6734027a1a09f7a80bf8522afb35af  -
+-- git diff --quiet --
+rc=0
+-- :5723-5728 --
+5723	            "canvas-orchestrator",
+5724	            "hint-generation",
+5725	        ]
+5726	
+5727	        prompt_path = Path(settings.AGENT_PROMPT_PATH)
+5728	        available_templates = []
+-- 工作树（只应有 smoke 的 M）--
+ M backend/tests/unit/test_agent_templates_smoke.py
