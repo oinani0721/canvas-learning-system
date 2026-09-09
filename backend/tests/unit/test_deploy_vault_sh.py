@@ -1223,14 +1223,30 @@ def test_every_bash_write_site_has_a_prewrite_recheck():
     #    两处 python 写入统一走 `cls_forbidden_paths.open_pinned()`（解析后当场过判据 +
     #    逐级 `O_DIRECTORY|O_NOFOLLOW` + `openat` 叶子）。门跟着改，不是删。
     assert src.count("open_pinned(") == 2, "两处 python 写入必须都走 open_pinned"
+    # ⛔ 裸 `os.write` 会**短写**（Codex r8 HIGH-4）：返回值小于长度时文件已被截断，
+    #    忽略返回值 = 把「只写了一半」当成功。两处写入必须走循环写。
+    assert src.count("write_all(fd, ") == 2, "两处写入必须走 write_all（防短写）"
+    # 原语本体在判据模块里（与 open_pinned 同理：两个 heredoc 各抄一份必然漂移，本卡栽过）
+    _f = FORBID_PY.read_text(encoding="utf-8")
+    assert "def write_all(" in _f and "n = os.write(fd, view)" in _f, "write_all 必须真的调 os.write 并按返回值推进"
+    bare = [ln for ln in src.splitlines() if "os.write(" in ln and "write_all" not in ln]
+    assert not bare, f"脚本内仍有裸 os.write（短写会被当成功）: {bare}"
     assert src.count("os.ftruncate(fd, 0)") == 2, "必须先 fstat 查链接数再 ftruncate"
     assert src.count("st.st_nlink > 1") == 2, "O_NOFOLLOW 之后还要挡硬链接（共享 inode）"
     # 原语本体的形状（在判据模块里）：逐级 O_NOFOLLOW + 叶子也带 O_NOFOLLOW
     fsrc = FORBID_PY.read_text(encoding="utf-8")
     assert "os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW" in fsrc, "逐级打开必须带 O_NOFOLLOW"
     assert "flags | os.O_NOFOLLOW" in fsrc, "叶子打开必须强制带 O_NOFOLLOW"
-    assert "hits(parent, targets, claude_prefixes" in fsrc, (
-        "解析父目录后必须**当场过判据** —— 只 realpath 等于替攻击者把链走完（本卡实测证伪过）"
+    # ⚠️ 锚点必须**抗格式化**：ruff format 会把长调用折成多行，钉连续字面量的门
+    #    会被自己的 formatter 打红（本门第一版就是这么红的 —— 记忆里「门锚点失效」同型）。
+    #    先把空白折叠成单空格再断言。
+    flat = " ".join(fsrc.split())
+    assert "hits(path, targets, claude_prefixes" in flat, (
+        "**原路径**必须过判据 —— 只判解析后的 parent 会丢掉 walker 的沿链 `.git` 保护"
+        "（Codex r8 HIGH-1：本卡第 6 次「改判据形状 = 删掉一条已有规则」）"
+    )
+    assert "hits( parent, targets, claude_prefixes" in flat, (
+        "解析后的父目录也必须过判据 —— 只 realpath 等于替攻击者把链走完（本卡实测证伪过）"
     )
     # ⛔ 路径式 chmod 必须绝迹：它每次重新解析路径，末段/祖先被换掉就改到别人的权限
     bare = [
@@ -1589,6 +1605,11 @@ def test_step4_mirror_symlink_is_blocked_end_to_end(tmp_path: Path):
     判据：rc **74** + 消息点名那个镜像文件 + 保护目录**零写入**。
     控制组在下一条（hooks 还原为真目录 → rc 0），证明不是「永远拦」。
     """
+    # ⛔ 干净 checkout 上缺 gitignored main.js 时，preflight 会在**真实**前端目录跑
+    #    `npm run build`（deploy-vault.sh 的 E-4 分支）—— 越出本用例声称的 tmp_path
+    #    写入范围，还可能在镜像判据之前就失败（Codex r8 MEDIUM-5）。
+    if not (REPO_ROOT / "canvas-vault" / ".obsidian" / "plugins" / "canvas-learning-system" / "main.js").exists():
+        pytest.skip("树上无 gitignored main.js 时 apply 会在真实前端目录触发 npm run build")
     src_cv = REPO_ROOT / "canvas-vault"
     if not (src_cv / ".claude" / "hooks" / "session-end-archive.py").is_file():
         pytest.skip("源树缺 .claude/hooks/session-end-archive.py，无从造该拓扑")
@@ -1640,6 +1661,11 @@ def test_step4_mirror_symlink_is_blocked_end_to_end(tmp_path: Path):
 
 def test_step4_mirror_control_group_passes_without_symlink(tmp_path: Path):
     """控制组：同样的 harness 副本、hooks 是真目录 → 必须 rc 0（判据不是「永远拦」）。"""
+    # ⛔ 干净 checkout 上缺 gitignored main.js 时，preflight 会在**真实**前端目录跑
+    #    `npm run build`（deploy-vault.sh 的 E-4 分支）—— 越出本用例声称的 tmp_path
+    #    写入范围，还可能在镜像判据之前就失败（Codex r8 MEDIUM-5）。
+    if not (REPO_ROOT / "canvas-vault" / ".obsidian" / "plugins" / "canvas-learning-system" / "main.js").exists():
+        pytest.skip("树上无 gitignored main.js 时 apply 会在真实前端目录触发 npm run build")
     src_cv = REPO_ROOT / "canvas-vault"
     if not (src_cv / ".claude" / "hooks").is_dir():
         pytest.skip("源树缺 .claude/hooks")
@@ -1724,6 +1750,58 @@ def test_open_pinned_allows_legitimate_symlinked_ancestor(tmp_path: Path):
     finally:
         os.close(fd)
     assert (real / "ok.txt").read_bytes() == b"ok", "合法软链下的正常写入被误拦或写错地方"
+
+
+def test_chmod_pinned_rejects_hardlink_and_nonregular(tmp_path: Path):
+    """⛔ r8 HIGH-3 / MEDIUM-2：`chmod_pinned` 必须挡硬链接、且只对普通文件生效。
+
+    叶子被换成**保护文件的硬链接**时 `O_NOFOLLOW` 照常打开，直接 `fchmod` 就改了共享 inode
+    ——这个洞旧的裸 `chmod` 也有，不是本轮新造，但必须补上。
+    目录若被 `chmod 0600` 会丢搜索权限；FIFO 会让 `open` 阻塞（故原语带 `O_NONBLOCK`）。
+    """
+    sys.path.insert(0, str(REPO_ROOT / "scripts"))
+    from cls_forbidden_paths import chmod_pinned
+
+    prot = tmp_path / "protected"
+    prot.mkdir()
+    victim = tmp_path / "victim.txt"
+    victim.write_text("x", encoding="utf-8")
+    victim.chmod(0o644)
+    hard = tmp_path / "hardlink.txt"
+    os.link(victim, hard)
+    with pytest.raises(OSError, match="硬链接"):
+        chmod_pinned(str(hard), 0o600, live_vault=str(prot))
+    assert victim.stat().st_mode & 0o777 == 0o644, "共享 inode 的权限被改了"
+
+    d = tmp_path / "adir"
+    d.mkdir(mode=0o755)
+    with pytest.raises(OSError):
+        chmod_pinned(str(d), 0o600, live_vault=str(prot))
+    assert d.stat().st_mode & 0o777 == 0o755, "目录被 chmod 成 0600 会丢搜索权限"
+
+    # 控制组：普通单链接文件必须正常收紧（判据不是「永远拒」）
+    ok = tmp_path / "ok.txt"
+    ok.write_text("y", encoding="utf-8")
+    ok.chmod(0o644)
+    chmod_pinned(str(ok), 0o600, live_vault=str(prot))
+    assert ok.stat().st_mode & 0o777 == 0o600
+
+
+def test_script_disables_bytecode_cache_before_importing_primitives():
+    """⛔ r8 HIGH-2：`import cls_forbidden_paths` 本身会写 `scripts/__pycache__/*.pyc`。
+
+    那次写入发生在 `open_pinned` 检查**之前**，也不在 preflight 的待写清单里 ——
+    `__pycache__` 若指向保护目录就是一次**未受检写入**。
+    把判据搬进模块换来了单一来源，同时新造了一个写入面：每个架构改动都要重新问
+    「它新增了哪些写入」。
+    """
+    # ⚠️ 用 find 而不是 index：`index` 找不到会抛 ValueError，红的就不是这条断言了
+    #    —— 本卡第 3 次踩这个形状（r6 MEDIUM-3 首次由 Codex 指出）。
+    src = _sh_src()
+    export_at = src.find("export PYTHONDONTWRITEBYTECODE=1")
+    first_import = src.find("from cls_forbidden_paths import")
+    assert export_at != -1, "禁字节码缓存必须在任何 import 之前（export 整行缺失）"
+    assert first_import == -1 or export_at < first_import, "禁字节码缓存必须在任何 import 之前"
 
 
 def test_multi_segment_relative_vault_is_rejected_at_entry(tmp_path: Path):

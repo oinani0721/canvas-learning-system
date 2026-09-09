@@ -118,9 +118,9 @@ MUTANTS = [
     ),
     # ── r7 整改 ────────────────────────────────────────────────────────────
     (
-        "H-1(r7) open_pinned 去掉「解析后当场过判据」这一步",
+        "H-1(r7+r8) 判据步骤**整体**移除（hits(path) 与 hits(parent) 两半一起）",
         FORBID,
-        "    why = hits(parent, targets, claude_prefixes, skip_env_name=True)",
+        "    why = hits(path, targets, claude_prefixes, skip_env_name=True) or hits(\n        parent, targets, claude_prefixes, skip_env_name=True\n    )",
         "    why = None",
         "test_open_pinned_rejects_ancestor_symlink_into_protected",
         "DID NOT RAISE",
@@ -148,6 +148,39 @@ MUTANTS = [
         '            false && MIRROR_WRITES+=("mirror-$t:$SRC_MIRROR/$t")',
         "test_step4_mirror_symlink_is_blocked_end_to_end",
         "镜像内软链未被步 4 拦下",
+    ),
+    # ── r8 整改 ────────────────────────────────────────────────────────────
+    (
+        "H-1(r8) open_pinned 只判 parent（丢掉沿链 .git 保护）",
+        FORBID,
+        "    why = hits(path, targets, claude_prefixes, skip_env_name=True) or hits(",
+        "    why = None or hits(",
+        "test_every_bash_write_site_has_a_prewrite_recheck",
+        "原路径**必须过判据",
+    ),
+    (
+        "H-3(r8) chmod_pinned 去掉 nlink 拒绝",
+        FORBID,
+        '        if st.st_nlink > 1:\n            raise OSError(f"{path} 有 {st.st_nlink} 个硬链接',
+        '        if False:\n            raise OSError(f"{path} 有 {st.st_nlink} 个硬链接',
+        "test_chmod_pinned_rejects_hardlink_and_nonregular",
+        "硬链接",
+    ),
+    (
+        "H-4(r8) 裸 os.write 短写当成功",
+        DEPLOY,
+        '    write_all(fd, "\\n".join(out).encode("utf-8"))',
+        '    os.write(fd, "\\n".join(out).encode("utf-8"))',
+        "test_every_bash_write_site_has_a_prewrite_recheck",
+        "短写",
+    ),
+    (
+        "H-2(r8) 去掉 PYTHONDONTWRITEBYTECODE",
+        DEPLOY,
+        "export PYTHONDONTWRITEBYTECODE=1\n",
+        "",
+        "test_script_disables_bytecode_cache_before_importing_primitives",
+        "禁字节码缓存必须在任何 import 之前",
     ),
 ]
 

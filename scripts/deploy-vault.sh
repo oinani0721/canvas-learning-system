@@ -150,6 +150,10 @@ resolve_abs() {
 #        三种解释一致地得出 /safe/probe ⇒ 一致地漏拦
 #    另有：命令替换剥掉末尾换行、`set -- $p` 会做**通配符展开**、字面 `~` 只有判据展开。
 #    故整套判据搬到 scripts/cls_forbidden_paths.py，用 os.path.realpath（**先解链再折叠**）。
+# ⛔ 禁字节码缓存（Codex r8 HIGH-2）：下面几处 `import cls_forbidden_paths` 会写
+#    `scripts/__pycache__/*.pyc`, 而这次写入发生在 `open_pinned` 检查**之前**、
+#    也不在 preflight 的待写清单里。若 `__pycache__` 指向保护目录就是一次未受检写入。
+export PYTHONDONTWRITEBYTECODE=1
 FORBID_PY="$(dirname "$0")/cls_forbidden_paths.py"
 
 # 一次判**全部**待写对象（Codex r2 BLOCKER-4：三个参数过检 ≠ 实际写入对象过检）。
@@ -755,9 +759,14 @@ step3_postprocess() {
 import json, os, sys
 p, key, moddir, live = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
 sys.path.insert(0, moddir)
-from cls_forbidden_paths import open_pinned
+from cls_forbidden_paths import open_pinned, write_all
+
+
 # 同 .env：读与写绑同一个 pinned fd（Codex r7 HIGH-1）
-fd = open_pinned(p, os.O_RDWR | os.O_CREAT, 0o600, live_vault=live)
+# ⛔ 不带 O_CREAT（Codex r8 MEDIUM-4）：`.env`/`data.json` 到这一步**必然已存在**
+#    （seed / installer 建的）。带 O_CREAT 会在文件被移走时**造一个空文件**继续走完,
+#    把「实例字段全丢了」伪装成成功；不带则 ENOENT, 如实失败。
+fd = open_pinned(p, os.O_RDWR, 0o600, live_vault=live)
 try:
     st = os.fstat(fd)
     if st.st_nlink > 1:
@@ -773,7 +782,7 @@ try:
     d["internalApiKey"] = key
     os.lseek(fd, 0, os.SEEK_SET)
     os.ftruncate(fd, 0)
-    os.write(fd, (json.dumps(d, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
+    write_all(fd, (json.dumps(d, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
     os.fsync(fd)
 finally:
     os.close(fd)
@@ -796,12 +805,17 @@ PY
 import os, sys
 p, key, moddir, live = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
 sys.path.insert(0, moddir)
-from cls_forbidden_paths import open_pinned
+from cls_forbidden_paths import open_pinned, write_all
+
+
 # ⛔ 读与写必须绑在**同一个** pinned fd 上（Codex r7 HIGH-1）：
 #    原来「先按路径 open() 读、再按路径 open() 写」有两个各自跟随祖先的解析,
 #    父目录在两次之间被换掉就会把**安全文件的旧内容**写进保护文件。
 #    open_pinned 见 cls_forbidden_paths：解析后当场过判据 + 逐级 O_NOFOLLOW。
-fd = open_pinned(p, os.O_RDWR | os.O_CREAT, 0o600, live_vault=live)
+# ⛔ 不带 O_CREAT（Codex r8 MEDIUM-4）：`.env`/`data.json` 到这一步**必然已存在**
+#    （seed / installer 建的）。带 O_CREAT 会在文件被移走时**造一个空文件**继续走完,
+#    把「实例字段全丢了」伪装成成功；不带则 ENOENT, 如实失败。
+fd = open_pinned(p, os.O_RDWR, 0o600, live_vault=live)
 try:
     st = os.fstat(fd)
     if st.st_nlink > 1:
@@ -814,7 +828,11 @@ try:
         if not b:
             break
         chunks.append(b)
-    lines = b"".join(chunks).decode("utf-8").split("\n")
+    # ⛔ 恢复通用换行（Codex r8 MEDIUM-3）：旧的文本模式读取把 `\r` / `\r\n` 也当换行,
+    #    换成裸字节后只按 `\n` 切会把 `KEY=old\rEXTRA=keep` 整段当**一行**替换掉,
+    #    连带删掉 EXTRA。先归一到 `\n` 再切, 与旧行为等价。
+    _raw = b"".join(chunks).decode("utf-8").replace("\r\n", "\n").replace("\r", "\n")
+    lines = _raw.split("\n")
     out, done = [], False
     for line in lines:
         if line.startswith("INTERNAL_API_KEY="):
@@ -826,7 +844,7 @@ try:
         out.append(f"INTERNAL_API_KEY={key}")
     os.lseek(fd, 0, os.SEEK_SET)
     os.ftruncate(fd, 0)
-    os.write(fd, "\n".join(out).encode("utf-8"))
+    write_all(fd, "\n".join(out).encode("utf-8"))
     os.fsync(fd)
 finally:
     os.close(fd)

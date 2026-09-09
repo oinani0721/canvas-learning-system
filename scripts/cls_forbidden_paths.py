@@ -70,7 +70,9 @@ argv 保真（不剥末尾换行），也不做通配符展开。
 
 from __future__ import annotations
 
+import errno
 import os
+import stat
 import sys
 import unicodedata
 
@@ -127,9 +129,16 @@ def open_pinned(path: str, flags: int, mode: int = 0o600, live_vault: str = "") 
     if not leaf:
         raise ValueError(f"open_pinned 需要一个叶子名, 收到: {path!r}")
     parent = os.path.realpath(os.path.dirname(path) or os.sep)
-    # ① 解析结果必须当场过判据 —— 否则 realpath 只是替攻击者把链走完了。
+    # ① **原路径**与**解析后的父目录**都要过判据 —— 缺一不可：
+    #    · 只判 parent（我 r7 的做法）会**丢掉 walker 的沿链保护**（Codex r8 HIGH-1）：
+    #      `safe/sub -> repo/.git -> external/meta` 解析后 parent 只剩 `external/meta`,
+    #      既不在固定目标里、也不再含 `.git` ⇒ 放行, 而原来的 `hits(原路径)` 会拒。
+    #      这是本卡第 6 次「改判据形状 = 删掉一条已有规则」, 故这里**只加不换**。
+    #    · 只判原路径则漏掉「解析后落进保护目标」那一轴（r7 HIGH-1 本身）。
     targets, claude_prefixes, enumerate_failed = build_targets(live_vault or _default_live())
-    why = hits(parent, targets, claude_prefixes, skip_env_name=True)
+    why = hits(path, targets, claude_prefixes, skip_env_name=True) or hits(
+        parent, targets, claude_prefixes, skip_env_name=True
+    )
     if why is None and enumerate_failed:
         why = "无法枚举 HOME, fail-closed"
     if why is not None:
@@ -165,11 +174,46 @@ def chmod_pinned(path: str, mode: int = 0o600, live_vault: str = "") -> None:
     路径式 `chmod` 每次都重新解析路径, 末段被换成软链时会改到**软链目标**的权限。
     这里先按 `open_pinned` 拿到已确认的 fd, 再 `fchmod` —— 检查与作用落在同一句柄。
     """
-    fd = open_pinned(path, os.O_RDONLY, live_vault=live_vault)
+    # ⛔ 必须与 B4 写入同律地挡硬链接（Codex r8 HIGH-3，旧裸 chmod 也有此洞）：
+    #    叶子被换成保护文件的**硬链接**时 `O_NOFOLLOW` 照常打开, 直接 fchmod 就改了共享 inode。
+    # ⛔ 且必须限定**普通文件**（r8 MEDIUM-2）：FIFO 会让 open 阻塞（故加 O_NONBLOCK）,
+    #    目录被 chmod 成 0600 会丢搜索权限。
+    # ⚠️ 0200（只写不可读）的既存文件用 O_RDONLY 打不开（r8 MEDIUM-1）⇒ EACCES 时退到 O_WRONLY。
     try:
+        fd = open_pinned(path, os.O_RDONLY | os.O_NONBLOCK, live_vault=live_vault)
+    except PermissionError:
+        raise
+    except OSError as e:
+        if e.errno != errno.EACCES:
+            raise
+        fd = open_pinned(path, os.O_WRONLY | os.O_NONBLOCK, live_vault=live_vault)
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode):
+            raise OSError(f"chmod_pinned 只对普通文件生效, 实际类型 {stat.S_IFMT(st.st_mode):#o}: {path}")
+        if st.st_nlink > 1:
+            raise OSError(f"{path} 有 {st.st_nlink} 个硬链接, 改权限会改共享 inode")
         os.fchmod(fd, mode)
     finally:
         os.close(fd)
+
+
+def write_all(fd: int, data: bytes) -> None:
+    """循环写直到全部落盘 —— `os.write` 可能**短写**（Codex r8 HIGH-4）。
+
+    空间不足 / 文件大小限制时 `os.write` 返回值小于请求长度，而文件**已被截断**；
+    忽略返回值等于把「只写了一半」当成功，后面的 `fsync` 也证明不了完整。
+    旧的缓冲文本写入本来自带这个保障，换成裸 `os.write` 时被丢掉了 ——
+    「换成更底层的实现」总会丢掉高层替你做的事。
+
+    放在本模块与 `open_pinned` 同理：两个 heredoc 各抄一份 = 必然漂移（本卡栽过）。
+    """
+    view = memoryview(data)
+    while view:
+        n = os.write(fd, view)
+        if n <= 0:
+            raise OSError(f"短写: 还剩 {len(view)} 字节未写入")
+        view = view[n:]
 
 
 def under(key: str, tk: str) -> bool:

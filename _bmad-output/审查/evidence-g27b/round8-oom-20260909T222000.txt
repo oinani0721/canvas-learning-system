@@ -1,0 +1,44 @@
+# CARD-G2-7b round-8：两次被本机 OOM 杀掉（**不是配额**）
+# ⚠️ 批级环境事件 —— 其它并发车道跑 codex 时同样会撞，建议主 session 通告。
+
+## 成因判别（与 09-09 17:32 那次 0 字节**形状相同、成因不同**）
+
+stdout 两次都是 **0 字节**，但：
+  $ grep -c 'usage limit' codex-review-CARD-G2-7b-r8.stderr   → **0**
+  stderr 末尾不是服务端错误，而是**推理摘要**戛然而止：
+    尝试 1 末行: `**Refining fd protection checks**`
+    尝试 2 末行: `**Reviewing exported path scope**`
+  harness 的任务通知明确写：`stopped because the system is running low on memory`
+
+⇒ 是**本机内存不足被杀**，不是账号配额、也不是命令没跑成。
+
+## 三种成因给出同一个观测，必须分开
+
+| 成因 | 观测 | 判别依据 | 处置 |
+|---|---|---|---|
+| 账号配额（09-09 17:32） | stdout 0 字节 | stderr 有 `usage limit ... try again at` | 探针复测；重发无意义 |
+| 本机 OOM（本次） | stdout 0 字节 | stderr 停在推理摘要 + harness 报 low memory | 等内存恢复后重发 |
+| 命令没跑成（`timeout` 那次） | stdout 0 字节 | **rc=127**，stderr 是 `command not found` | 改命令 |
+
+**「0 字节」永远只是现象**。协议 §1 的「0 字节重发一次，再 0 字节 → 人审」是为**配额**
+写的（那种情形重发只会撞同一堵墙）；本次成因是**瞬时资源压力**，重发有实质意义，
+故不直接套用该条出口，而是先降低并发再重试。
+
+## 现场（2026-09-09 22:20 CST 实测）
+
+$ memory_pressure → System-wide memory free percentage: **15%**
+$ ps -Ao rss,pid,comm | sort -rn | head
+    4.0 GB  /Applications/MLX…          ← 本地模型栈（Qwen3.5 / reranker / embedder，常驻）
+    2.5 GB  python3.14                  ← 另一车道的 pytest
+    1.8 GB  Google Chrome
+    0.5 GB × 3  claude
+$ ps | grep -c 'codex exec' → **0**（本次并非 codex 之间互撞）
+
+## 处置
+
+1. 本条落档（批级事件，建议通告各车道：**codex + 目录级 pytest 不要同机并发**）。
+2. 等大户退出 / 内存回升后**重发一次**，成功则本文件仅作事件记录。
+3. 若仍被杀，则按协议 §1 的精神转人审，并在验收单写明「r8 未能取得，成因 = 本机 OOM，
+   非配额、非内容问题」——与 r5 那次的成因区分写清，不混为一谈。
+
+rc=0
