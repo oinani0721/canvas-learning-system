@@ -90,8 +90,11 @@ def _settings_factory(*, debug: bool, key: str):
         if not debug and not key:
             settings = Settings.model_construct(**fields)
             # 自检：model_construct 不过校验，必须确认它没把关键字段跳成别的值。
-            # NEO4J_PASSWORD 断言 Field 默认 "" —— 同时证明该档没从真 .env 取值
-            # （真 ``Settings(...)`` 会把 .env 与 init kwargs 合并后再校验）。
+            # ⚠️ NEO4J_PASSWORD 断言的是 Field 默认 ""，它**证明不了**「该档没读
+            # .env」—— .env 里不设这个键、只设别的键时它同样是 ""。「不读 .env」
+            # 的依据是 model_construct 本身不走 BaseSettings 的取值链（只有真
+            # ``Settings(...)`` 才会把 .env 与 init kwargs 合并后再校验）；下面
+            # 四条断言只用来确认字段值符合预期，不承担那个证明。
             assert settings.DEBUG is False
             assert settings.INTERNAL_API_KEY == ""
             assert settings.CORS_ORIGINS == "http://localhost:3000"
