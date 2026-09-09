@@ -24,7 +24,42 @@ from hypothesis import Phase, settings
 
 # ✅ Verified from Context7:/schemathesis/schemathesis (topic: from_asgi)
 # Pattern: Load OpenAPI schema from ASGI app for testing
-schema = schemathesis.openapi.from_asgi("/api/v1/openapi.json", app)
+#
+# CARD-HYGIENE-openapi [BATCH-2026-09-07-第十三批] —— `.include(method_regex=...)` 只保留
+# GET/HEAD, 把全部写方法(POST/PUT/PATCH/DELETE)排除出 schemathesis 的生成面。
+#
+# 为什么: 写端点在 TestClient 下对**真文件系统 / LanceDB / 进程内 state** 有副作用,
+# 而这里没有任何一个跑在夹具隔离下 ——
+#   - `POST /api/v1/system/setup-wizard` (`app/api/v1/system.py:456`) 调
+#     `VaultInitService.initialize_vault()` (`app/services/vault_init_service.py:18-23,:93-104`),
+#     按请求体 `vault_path` 建整套 vault 骨架(raw/ wiki/ outputs/ CLAUDE.md/ .gitkeep/ .gitignore)。
+#     已有冻结污染现场: worktree `card-z4-redbase` @ c8611a89 的 `backend/` 下四项俱在。
+#     Y6-A 的 `_must_be_absolute` (`system.py:430-455`) 只拒相对路径/空串, 且 field_validator
+#     不进 JSON Schema, 生成面依旧覆盖任意**绝对**路径 —— 写面是挪走了, 不是消失。
+#   - `tests/conftest.py` 把 `CANVAS_BASE_PATH` 设成相对的 `"./test_canvas"`, canvas /
+#     index / sync 端点因此写进 `backend/test_canvas/`。
+#
+# 代价(如实): 契约覆盖面从 206 个 operation 收窄到 93 个 GET(HEAD 面为 0)。被排除的 113 条
+# 清单见 `_bmad-output/审查/evidence-hyg-openapi/excluded-operations.txt`。合约测试本就
+# **不在 CI 白名单**(`.github/workflows/test.yml`), 只在本机以 importorskip 形式跑,
+# 故此次收窄不减少 CI 覆盖面。写端点的契约校验需另立隔离夹具后恢复。
+#
+# API 形态实测(schemathesis 4.14.3): `BaseSchema.include` / `.exclude` 见
+# `schemathesis/schemas.py:132` / `:182`; `filters.py:66` 对 method 正则用 re.IGNORECASE,
+# `:84-87` 把 method 取值统一大写 ⇒ `^(GET|HEAD)$` 成立。
+# 追加排除的**只读方法**(逐条列理由, 不做无清单的放宽):
+#   - `GET /api/v1/health/lancedb` → `check_lancedb_health`
+#     (`app/api/v1/endpoints/health.py:1139`) 里
+#     `lancedb_path = getattr(settings, "lancedb_path", "./data/lancedb")` 是**相对路径**,
+#     紧接着 `db_path.mkdir(parents=True, exist_ok=True)` —— 从 `backend/` 起跑的合约测试
+#     会因此在代码目录里造出 `backend/data/lancedb/`。这是 93 条 GET 里唯一一条直接写原语
+#     命中(扫描面 = `backend/app` 全树 93 个 `<任意名>.get` handler, 与收集到的 GET 数逐一对齐;
+#     存档 `evidence-hyg-openapi/get-handler-write-primitive-scan-*.txt`)。
+schema = (
+    schemathesis.openapi.from_asgi("/api/v1/openapi.json", app)
+    .include(method_regex=r"^(GET|HEAD)$")
+    .exclude(path_regex=r"^/api/v1/health/lancedb$")
+)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

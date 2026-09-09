@@ -1,0 +1,10 @@
+/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/2da550aa-215a-4060-9688-bb7ebd2a788b/scratchpad/hyg-openapi-prered/backend
+/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/2da550aa-215a-4060-9688-bb7ebd2a788b/scratchpad/hyg-openapi-prered/backend/app
+/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/2da550aa-215a-4060-9688-bb7ebd2a788b/scratchpad/hyg-openapi-prered/backend/logs
+/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/2da550aa-215a-4060-9688-bb7ebd2a788b/scratchpad/hyg-openapi-prered/backend/data
+/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/2da550aa-215a-4060-9688-bb7ebd2a788b/scratchpad/hyg-openapi-prered/backend/app/data
+/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/2da550aa-215a-4060-9688-bb7ebd2a788b/scratchpad/hyg-openapi-prered/backend/.hypothesis/tmp
+/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/2da550aa-215a-4060-9688-bb7ebd2a788b/scratchpad/hyg-openapi-prered/backend/data/outbox
+/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/2da550aa-215a-4060-9688-bb7ebd2a788b/scratchpad/hyg-openapi-prered/backend/data/llm_call_logs.db
+/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/2da550aa-215a-4060-9688-bb7ebd2a788b/scratchpad/hyg-openapi-prered/backend/data/neo4j_memory.json
+/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/2da550aa-215a-4060-9688-bb7ebd2a788b/scratchpad/hyg-openapi-prered/backend/data/lancedb
