@@ -38,6 +38,24 @@ def dict_literal(path: Path, name: str) -> dict[str, str]:
 
 
 def main() -> int:
+    import re as _re
+
+    ev = TREE / "_bmad-output" / "审查" / "evidence-mutkill-r2"
+    runs = sorted(ev.glob("run-g32b-*.txt"), key=lambda x: x.stat().st_mtime)
+    final: dict[str, str] = {}
+    if runs:
+        txt = runs[-1].read_text(encoding="utf-8", errors="replace")
+        for m in _re.finditer(r"^\[(M[^\]]+)\] \S+ \u2192 (KILLED-UNBOUND|KILLED|SURVIVED|HARNESS-ERROR)", txt, _re.M):
+            final[m.group(1)] = m.group(2)
+        # 空变异对照的降档发生在逐条裁决**之后**，要覆盖掉上面的 KILLED
+        for m in _re.finditer(r"^\[(M[^\]]+)\] \u2717 \u5047\u6740", txt, _re.M):
+            final[m.group(1)] = "HARNESS-ERROR(假杀)"
+        # ⛔ 抽取为空不是「没问题」：先断言抽取本身命中，再谈交叉结果。
+        if not final:
+            raise SystemExit(f"⛔ 从 {runs[-1].name} 一条裁决都没抽到 —— 抽取器坏了，不许出空表")
+        print(f"> 最终裁决取自 `{runs[-1].name}`（抽到 {len(final)} 条）。\n")
+    else:
+        raise SystemExit("⛔ 找不到 run-g32b-*.txt 存档 —— 无法交叉终裁")
     msg = dict_literal(G32B, "EXPECT_MSG")
     msg_ex = dict_literal(G32B, "EXPECT_MSG_EXEMPT")
     loc = dict_literal(G32B, "EXPECT_LOC")
@@ -56,13 +74,21 @@ def main() -> int:
         short = why.split("——")[0].split("; ")[0][:56]
         if tag in loc:
             n_bound += 1
-            print(f"| {i} | `{tag}` | {short} | **绑（位置）** | `{loc[tag]}` |")
+            fin = final.get(tag, "(未在最新存档里)")
+            mark = "**绑（位置）**" if fin == "KILLED" else f"**绑（位置）→ 最终 {fin}**"
+            print(f"| {i} | `{tag}` | {short} | {mark} | `{loc[tag]}` |")
         else:
             n_still += 1
             r = loc_ex.get(tag, "⛔ 既不在 EXPECT_LOC 也不在 EXPECT_LOC_EXEMPT（表脱节）")
             print(f"| {i} | `{tag}` | {short} | **保留 UNBOUND** | {r[:70]} |")
+    # ⛔ 「新增位置绑定」≠「最终裁决 KILLED」（Codex round-1 LOW）：空变异对照可能把
+    # 某条降档成 HARNESS-ERROR（假杀）。表里必须与**最新一份全跑存档**的裁决交叉。
     retired = dict_literal(G32B, "RETIRED_MUTATIONS")
-    print(f"\n**小计**：{len(msg_ex)} 条中 **{n_bound} 条改绑位置身份**（`KILLED-UNBOUND` → `KILLED`），"
+    n_final_killed = sum(1 for t in loc if t in msg_ex and final.get(t) == "KILLED")
+    n_final_other = n_bound - n_final_killed
+    print(f"\n**按最终裁决**：{n_bound} 条新增位置绑定中，{n_final_killed} 条最终 KILLED，"
+          f"{n_final_other} 条被空变异对照降档（假杀 ⇒ HARNESS-ERROR）。")
+    print(f"\n**小计**：{len(msg_ex)} 条中 **{n_bound} 条改绑位置身份**（新增位置绑定；最终裁决见上行），"
           f"**{n_still} 条仍保留 UNBOUND**（逐条理由见上表右列），**退役 {len(retired)} 条**。")
     if not retired:
         print("退役 0 条的理由：位置身份把「门文件里没有可绑的**字面片段**」这个障碍整体绕开了 —— "

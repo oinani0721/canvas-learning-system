@@ -1,0 +1,24 @@
+── A) 真实 SKILL.md 等价性（收紧不得丢覆盖面）──
+  quiz-answer/SKILL.md: 旧 2 块 / 新 2 块 / 逐字节相同=True
+  start-exam-board/SKILL.md: 旧 3 块 / 新 3 块 / 逐字节相同=True
+── B) 负控（期望 旧版坏 / 新版对）──
+  洞① 块内行首 PYEOFX ⇒ 旧版提前截断
+      旧=['x = 1']
+      新=['x = 1\nPYEOFX = 2\ndef f(:\n    pass']  ⇒ PASS
+  洞② 引导行 `<<'PYEOF' ` 带尾随空白 ⇒ 旧版整块提不到
+      旧=[]
+      新=['def f(:\n    pass']  ⇒ PASS
+  洞③ CRLF 行尾 ⇒ 旧版整块提不到
+      旧=[]
+      新=['def f(:\r\n    pass']  ⇒ PASS
+── 验伪锚（两版必须一致；否则「新版更对」可能只是恒不匹配）──
+  验伪锚1 普通形态
+      旧=['print(1)']
+      新=['print(1)']  ⇒ PASS
+  验伪锚2 终止行带尾随空格(初稿曾误判为洞)
+      旧=['print(1)']
+      新=['print(1)']  ⇒ PASS
+── C) 覆盖面丢失的后果（洞②③ 为什么比洞① 更糟）──
+  洞②: 旧版提取 0 块 ⇒ 编译自检**恒通过**; 新版报 'SyntaxError: invalid syntax (<x.md#PYEOF0>, line 1)' ⇒ PASS
+  洞③: 旧版提取 0 块 ⇒ 编译自检**恒通过**; 新版报 'SyntaxError: invalid syntax (<x.md#PYEOF0>, line 1)' ⇒ PASS
+VERDICT: PASS

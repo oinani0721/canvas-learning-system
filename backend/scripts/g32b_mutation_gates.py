@@ -52,6 +52,7 @@ from mutation_kill_identity import (  # noqa: E402  (必须在 sys.path 兜底�
     judge_flags,
     kill_identity,
     loc_token_for,
+    matched_loc_tokens,
     syntax_check,
 )
 
@@ -2721,7 +2722,13 @@ def main():
             # 内嵌被测子进程的输出（正是 Y1-B HIGH-1 的喂饱面）。两次跑只要子进程输出
             # 有一点不同，同一条断言也会被判成「不同失败点」⇒ 层贡献的假杀被放行
             # （独立复核 2026-09-08 实测已放行两条）。位置 token 不含任何子进程可控字节。
-            kill_fail[tag] = (observed_loc(r.stdout + r.stderr)[0], first_fail(r.stdout))
+            # ⛔ 记**全部**位置 token 而不是 locs[0]（Codex round-1 HIGH）：判据侧
+            # 用「任一命中」，对照侧却固定取第一条 ⇒ 「别的位置, 目标位置」这种序列
+            # 会让两边比的不是同一次失败，假杀被放行。
+            kill_fail[tag] = (
+                [t for t in matched_loc_tokens(r.stdout + r.stderr, GATE_FILE) if t],
+                first_fail(r.stdout),
+            )
         if _probe:
             _out = r.stdout + r.stderr
             # ⛔ round-19: 位置**也要**记下来 —— `EXPECT_LOC` 就是从这里回填的。
@@ -2830,7 +2837,12 @@ def main():
         try:
             _arm_mutation(f"{tag}-layeronly", {_p: (originals[_p], _t.encode("utf-8")) for _p, _t in texts.items()})
             r0 = run_gate(gate)
-            red0 = r0.returncode == 1 and "1 failed" in r0.stdout
+            # ⛔ 「对照绿」只认 rc=0（Codex round-1 HIGH）：旧写法 `rc==1 and "1 failed"`
+            # 把 rc=4/5（用法错、零收集）与 rc=1 但「2 failed」全都落进 else 的
+            # 「✓ 对照绿 ⇒ 击杀干净归因于变异体」—— 负控没跑成被读成结论。
+            _r0_green = r0.returncode == 0
+            _r0_single_red = r0.returncode == 1 and "1 failed" in r0.stdout
+            red0 = _r0_single_red
         finally:
             with _GUARD.critical():  # round-19: 还原期不可被第二个信号打断
                 _restore_active()
@@ -2849,7 +2861,11 @@ def main():
         # **不同断言** ⇒ 变异体确实改变了行为, 不是假杀。
         # 正确判据: 只有两次败在**同一条**断言上, 才说明变异体毫无贡献。
         # `(位置 token, 文本)` 两元组：位置是承重判据，文本只用于打印诊断。
-        fa = (observed_loc(r0.stdout + r0.stderr)[0], first_fail(r0.stdout)) if red0 else None
+        fa = (
+            ([t for t in matched_loc_tokens(r0.stdout + r0.stderr, GATE_FILE) if t], first_fail(r0.stdout))
+            if red0
+            else None
+        )
         fb = kill_fail.get(tag)
         if kind == "complete":
             # 这类层的合格判据不是「只加层要绿」, 而是「变异体单独不够」。
@@ -2863,6 +2879,8 @@ def main():
             try:
                 _arm_mutation(f"{tag}-bodyonly", {_bp: (_bsnap, _btxt.replace(_bo, _bn, 1).encode("utf-8"))})
                 rb = run_gate(gate)
+                # 同上：complete 对照的「变异体单独不够」只认 rc=0 为绿。
+                _rb_green = rb.returncode == 0
                 b_only = rb.returncode == 1 and "1 failed" in rb.stdout
             finally:
                 with _GUARD.critical():  # round-19: 还原期不可被第二个信号打断
@@ -2873,23 +2891,38 @@ def main():
             if b_only:
                 failures.append(f"{tag}: 声明为 complete 但变异体单独即可杀 ⇒ 层是多余的")
                 print(f"[{tag}] ✗ complete 但变异体单独即可杀 ⇒ 撤层")
+            elif _rb_green:
+                print(f"[{tag}] ✓ complete: 变异体单独不够(门绿 rc=0), 补齐站点后才红 ⇒ 层必要")
             else:
-                print(f"[{tag}] ✓ complete: 变异体单独不够(门绿), 补齐站点后才红 ⇒ 层必要")
+                failures.append(f"{tag}: complete 对照 rc={rb.returncode} 既非绿也非单条红 — 判据面不成立")
+                print(f"[{tag}] ⛔ complete 对照 rc={rb.returncode}（非 0/1 或多例失败）—— 不构成结论")
+                if _verdicts.get(tag) == "KILLED":
+                    _verdicts[tag] = "HARNESS-ERROR"
+        elif _r0_green:
+            print(f"[{tag}] ✓ 对照绿 (rc=0) ⇒ 击杀干净归因于变异体")
         elif not red0:
-            print(f"[{tag}] ✓ 对照绿 (rc={r0.returncode}) ⇒ 击杀干净归因于变异体")
-        elif fb is not None and fa is not None and fa[0] is not None and fa[0] == fb[0]:
-            # ⛔ 判据落在**位置**上：两次败在同一条语句 ⇒ 变异体毫无贡献 = 假杀。
-            failures.append(f"{tag}: 只加层与层+变异体败在同一条断言 ⇒ 击杀由层贡献 (假杀): {fa[0]} {fa[1][:70]}")
-            print(f"[{tag}] ✗ 假杀 — 两次同一失败点 {fa[0]}: {fa[1][:80]}")
+            # rc 既不是 0 也不是「恰一条红」⇒ 对照本身没跑成，不能当成「绿」。
+            failures.append(f"{tag}: 空变异对照 rc={r0.returncode} 既非绿也非单条红 — 判据面不成立")
+            print(f"[{tag}] ⛔ 空变异对照 rc={r0.returncode}（非 0/1 或多例失败）—— 不构成结论")
+            if _verdicts.get(tag) == "KILLED":
+                _verdicts[tag] = "HARNESS-ERROR"
+        elif fb is not None and fa is not None and fa[0] and fb[0] and set(fa[0]) & set(fb[0]):
+            # ⛔ 判据落在**位置**上：两次的位置集合**有交集** ⇒ 存在同一条语句既被层
+            # 打红、也在层+变异体那趟红 ⇒ 变异体在那条上毫无贡献 = 假杀。
+            _same = sorted(set(fa[0]) & set(fb[0]))
+            failures.append(f"{tag}: 只加层与层+变异体败在同一条断言 ⇒ 击杀由层贡献 (假杀): {_same} {fa[1][:70]}")
+            print(f"[{tag}] ✗ 假杀 — 两次同一失败点 {_same}: {fa[1][:80]}")
             # ⛔ 还要**降档**：独立复核指出, 首版只 append failures 不回写 _verdicts,
             # 于是主循环记下的 KILLED 原样进汇总 —— 「137/138 KILLED」里混着已判假杀
             # 的条目, 出口文案说得比证据宽。假杀 = 负控自己的变异没有鉴别力 ⇒ HARNESS-ERROR。
             if _verdicts.get(tag) == "KILLED":
                 _verdicts[tag] = "HARNESS-ERROR"
-        elif fb is not None and fa is not None and (fa[0] is None or fb[0] is None):
+        elif fb is not None and fa is not None and (not fa[0] or not fb[0]):
             # 位置取不到就**不敢下结论**：报 harness 面的问题，而不是替它猜一个。
             failures.append(f"{tag}: 空变异对照拿不到位置 token (只加层={fa[0]} 层+变异体={fb[0]}) — 判据面不成立")
             print(f"[{tag}] ⛔ 空变异对照的位置判据面不成立: 只加层={fa[0]!r} 层+变异体={fb[0]!r}")
+            if _verdicts.get(tag) == "KILLED":
+                _verdicts[tag] = "HARNESS-ERROR"
         else:
             print(f"[{tag}] ✓ 对照红但失败**位置**不同 ⇒ 变异体有可观测效果 (门较粗, 隔离不干净)")
             print(f"       只加层  : {fa[0] if fa else None} {(fa[1] if fa else '')[:70]}")
@@ -2905,8 +2938,13 @@ def main():
         if not ok:
             _drifted.append(f"{p.name}: {h0[:16]} → {h1[:16]}")
     if _drifted:
-        failures.append("全文件基线漂移（有变异体没还原）: " + "; ".join(_drifted))
-        print("   ⛔ 基线漂移 —— 生产文件里可能残留变异体, 立即人工核对")
+        # ⛔ 还原失败是**数据完整性**问题，优先级高于一切结论（Codex round-1 MEDIUM：
+        # 验收单声明了 rc=3 契约而代码没实现）。这里直接 rc=3 退出，不与 SURVIVED/
+        # HARNESS-ERROR 混在同一个码上。
+        print("   ⛔ 基线漂移 —— 生产文件里可能残留变异体, 立即人工核对 (rc=3)")
+        for _d in _drifted:
+            print("   -", _d)
+        return 3
 
     # ── 汇总: 六档计数（四套统一口径, 见 mutation_kill_identity.VERDICTS）
     # ⛔ ANCHOR-ERROR 与 SYNTAX-INVALID 都**不是**关于被测物的结论 —— 前者是变异
@@ -2957,7 +2995,9 @@ def main():
             " —— 两者看到的树不同（变异窗口内锚文本被改？）"
         )
     if not _sum_ok:
-        failures.append(f"六档之和 {_total} != {_expect_total} —— 有条目没落进任何一档, 计数口径坏了")
+        # ⛔ 计数口径坏了 = 负控自己坏了 ⇒ rc=2（与另三套同契约）。
+        print(f"⛔ 六档之和 {_total} != {_expect_total} —— 有条目没落进任何一档, 计数口径坏了 (rc=2)")
+        return 2
     print()
     # ⛔ 退出码语义四套统一（独立复核 2026-09-08：原先 HARNESS-ERROR 与 SURVIVED 压成
     # 同一个 rc=1 —— 「pytest 没跑成」与「门不承重」两个方向完全相反的结论共用一个码）：

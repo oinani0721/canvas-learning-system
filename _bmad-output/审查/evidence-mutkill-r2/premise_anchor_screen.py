@@ -58,7 +58,10 @@ _probes = [x for x in _probes if "作废" not in x.read_text(encoding="utf-8", e
 if not _probes:
     print("⛔ 找不到可用的 probe 存档 —— 抽取面为空不等于「没问题」")
     sys.exit(1)
-_obs = {m["tag"]: (m["raw"], int(m["rc"])) for m in _CAND.finditer(_probes[-1].read_text(encoding="utf-8"))}
+_matches = list(_CAND.finditer(_probes[-1].read_text(encoding="utf-8")))
+_obs = {m["tag"]: (m["raw"], int(m["rc"])) for m in _matches}
+_obs_loc = {m["tag"]: m["loc"] for m in _matches}
+unlocatable: list[tuple[str, str | None, int]] = []
 print(f"位置来源: {_probes[-1].name}（{len(_obs)} 条实测位置）")
 if len(_obs) != len(g32b.MUTATIONS):
     print(f"⛔ probe 里只有 {len(_obs)} 条，与 MUTATIONS {len(g32b.MUTATIONS)} 条对不上 —— 抽取面不完整")
@@ -73,8 +76,19 @@ for mut in g32b.MUTATIONS:
     _path, _, _lno = raw.rpartition(":")
     if pathlib.Path(_path).name != GATE.name:
         continue
+    # ⛔ 用 probe 记下的**指纹**重定位，不用旧行号（Codex round-1 MEDIUM）：门一挪行，
+    # 按旧行号查会落到别的语句上、或查不到而 `continue` ⇒ 零 suspects 也 PASS = 死判据。
+    _tok = _obs_loc.get(tag)
+    if _tok and _tok.startswith("stmt:"):
+        _hits = fps.get(_tok[5:], [])
+        if len(_hits) != 1:
+            unlocatable.append((tag, _tok, len(_hits)))
+            continue
+        ln = _hits[0]
+    else:
+        unlocatable.append((tag, _tok, -1))
+        continue
     checked += 1
-    ln = int(_lno)
     text = lines[ln - 1].strip()
     owner = next((f for f, a in func_asserts.items() if ln in a), None)
     if owner is None:
@@ -91,5 +105,11 @@ for tag, gate, owner, ln, text in sorted(suspects):
     print(f"  ⚠️ {tag}\n     门 {gate}\n     位置 {owner}:{ln} 第 1/{len(func_asserts[owner])} 条 assert\n     {text[:110]}")
 exempt = [t for t, *_ in suspects if t in g32b.EXPECT_LOC_EXEMPT and t not in g32b.EXPECT_LOC]
 print(f"其中已登记进 EXPECT_LOC_EXEMPT 的: {len(exempt)}/{len(suspects)}  {exempt}")
-print(f"VERDICT: {'PASS（全部已登记）' if len(exempt) == len(suspects) else f'⛔ 有 {len(suspects) - len(exempt)} 条仍绑在可疑锚上'}")
-sys.exit(0 if len(exempt) == len(suspects) else 1)
+# ⛔ 「重定位不到」不是「没问题」：报出来并计入失败，否则门一挪行本判据就静默失效。
+if unlocatable:
+    print(f"⛔ 有 {len(unlocatable)} 条按指纹重定位不到（门已挪动/改写？）—— 判据面不完整:")
+    for t, tok, n in unlocatable[:8]:
+        print(f"   {t}: loc={tok!r} 命中 {n} 条语句")
+ok = len(exempt) == len(suspects) and not unlocatable
+print(f"VERDICT: {'PASS（全部已登记且全部可重定位）' if ok else '⛔ 未通过'}")
+sys.exit(0 if ok else 1)

@@ -125,7 +125,10 @@ __all__ = [
     "kill_identity",
     "kill_identity_ok",
     "loc_token_for",
+    "matched_loc_tokens",
     "parse_failed_nodeids",
+    "unparsed_failure_lines",
+    "line_stmt_ambiguous",
     "stmt_fingerprints",
     "summary_region",
     "syntax_check",
@@ -192,6 +195,21 @@ _FAILURES_HEAD_RE = re.compile(r"^=+ (?:FAILURES|ERRORS) =+$", re.M)
 #: ⚠️ 路径用非贪婪 + 要求以 `.py` 结尾：pytest 只对 Python 源打这种行；不加后缀
 #: 约束的话 `1 failed in 0.13s` 之类也会被凑成 `path:lineno:`。
 _LOC_RE = re.compile(r"^(?P<path>\S+\.py):(?P<line>\d+): (?P<rest>\S+.*)$", re.M)
+
+#: 摘要区里「长得像失败行」的行（用来抓**解析不掉**的那种 —— Codex round-1 MEDIUM：
+#: `_FAILED_RE` 的 nodeid 是 `\\S+?`，参数化 id 带空格（如 `test_x["a b"]`）就匹配不上，
+#: 旧实现把这种行**静默丢掉**，`all(gate_hit)` 于是在一个不完整的集合上通过）。
+_FAILEDISH_RE = re.compile(r"^(FAILED|ERROR) .+$")
+
+
+def unparsed_failure_lines(out: str) -> list[str]:
+    """摘要区里以 `FAILED `/`ERROR ` 开头却解析不出 nodeid 的行。
+
+    非空 ⇒ 失败集合**不完整**，「摘要区里所有失败都属于目标门」这个前提不可证。
+    调用方应判 HARNESS-ERROR，⛔ 不得当作「没有别的失败」。
+    """
+    region = summary_region(out) or ""
+    return [ln for ln in region.splitlines() if _FAILEDISH_RE.match(ln) and not _FAILED_RE.match(ln)]
 
 
 def judge_env() -> dict[str, str]:
@@ -425,9 +443,15 @@ def stmt_fingerprints(gate_file: str | Path) -> dict[str, list[int]]:
     return out
 
 
-def _smallest_stmt_at(gate_file: str | Path, lineno: int) -> tuple[ast.stmt, str] | None:
-    """覆盖 `lineno` 的**最小**语句节点 + 其作用域（`None` = 该行不属于任何语句）。"""
-    best: tuple[ast.stmt, str] | None = None
+def _smallest_stmts_at(gate_file: str | Path, lineno: int) -> list[tuple[ast.stmt, str]]:
+    """覆盖 `lineno` 的**全部并列最小**语句节点 + 作用域（空 = 该行不属于任何语句）。
+
+    ⛔ 「并列最小」必须整组返回（Codex round-1 HIGH）：两条语句写在同一行
+    （`a; b` / 同行双 assert）时跨度相同，首版只留第一条 ⇒ 该行永远映射到第一条的
+    指纹，第二条失败会被认成第一条。本树门文件实测 0 行多语句，但这条不能靠
+    「今天没有」立住 —— 门一改就有了。
+    """
+    best: list[tuple[ast.stmt, str]] = []
     best_span = None
     for node, scope in _stmts_with_scope(gate_file):
         end = getattr(node, "end_lineno", None) or node.lineno
@@ -435,8 +459,21 @@ def _smallest_stmt_at(gate_file: str | Path, lineno: int) -> tuple[ast.stmt, str
             continue
         span = end - node.lineno
         if best_span is None or span < best_span:
-            best, best_span = (node, scope), span
+            best, best_span = [(node, scope)], span
+        elif span == best_span:
+            best.append((node, scope))
     return best
+
+
+def _smallest_stmt_at(gate_file: str | Path, lineno: int) -> tuple[ast.stmt, str] | None:
+    """兼容旧接口：唯一最小语句；并列（同行多语句）时返回 `None`（归属不可证）。"""
+    got = _smallest_stmts_at(gate_file, lineno)
+    return got[0] if len(got) == 1 else None
+
+
+def line_stmt_ambiguous(gate_file: str | Path, lineno: int) -> bool:
+    """该行是否有多条并列最小语句（失败位置无法唯一归属到一条语句）。"""
+    return len(_smallest_stmts_at(gate_file, lineno)) > 1
 
 
 def _same_file(path: str, gate: Path) -> bool:
@@ -473,6 +510,16 @@ def loc_token_for(gate_file: str | Path, path: str, lineno: int) -> str | None:
     return f"stmt:{_fp(*found)}"
 
 
+def matched_loc_tokens(out: str, gate_file: str | Path) -> list[str | None]:
+    """FAILURES 区里**每一条**位置行折算出的 token（保持原顺序）。
+
+    ⛔ 判据侧用 `expect_loc in tokens`（任一命中即算），诊断/对照侧却曾固定取
+    `locs[0]` —— 位置序列是「别的位置, 目标位置」时两边看的不是同一次失败
+    （Codex round-1 HIGH）。空变异对照改用这个**全集**做交集判断。
+    """
+    return [loc_token_for(gate_file, p, ln) for p, ln, _ in failed_locations(out)]
+
+
 def _loc_identity(out: str, nodeid: str, gate_file: str | Path, expect_loc: str) -> tuple[bool, str]:
     """位置判据。返回 `(ok, 说明)`；说明以 `HARNESS:` 开头 = 判据面坏了，不是结论。"""
     failed = parse_failed_nodeids(out)
@@ -489,6 +536,16 @@ def _loc_identity(out: str, nodeid: str, gate_file: str | Path, expect_loc: str)
             # 下一个人会去修一个根本没坏的门。
             return False, f"HARNESS: expect_loc {expect_loc} 在门文件里已找不到对应语句 —— 门被改写，锚失效"
     tokens = [loc_token_for(gate_file, p, ln) for p, ln, _ in locs]
+    # ⛔ 同行多语句 ⇒ 位置归属不可证（Codex round-1 HIGH）：两条并列最小语句共享一个
+    # 行号，`--tb=line` 只给行号 ⇒ 到底哪条失败分不开。判 HARNESS-ERROR，不猜。
+    amb = [
+        f"{Path(p).name}:{ln}"
+        for p, ln, _ in locs
+        if line_stmt_ambiguous(gate_file, ln)
+        if _same_file(p, Path(gate_file).resolve())
+    ]
+    if amb:
+        return False, f"HARNESS: 失败行 {amb} 存在多条并列最小语句，位置无法唯一归属"
     if expect_loc in tokens:
         return True, f"位置命中 {expect_loc}"
     return False, f"位置不符: 期望 {expect_loc}, 实见 {tokens}"
@@ -525,9 +582,18 @@ def kill_identity(
     surface = judge_surface_missing(rc, out, need_location=require_gate_file or expect_loc is not None)
     if surface:
         return "HARNESS-ERROR", f"⛔ 判据面不成立: {surface}"
+    if rc == 0:
+        # ⛔ rc=0 是**关于被测物的结论**：门全绿 = 变异没被这道门抓住 = SURVIVED。
+        # 首版把它并进「rc != 1 ⇒ HARNESS-ERROR」—— 真·存活的变异被解释成
+        # 「负控自己坏了」，诊断方向整个反掉（Codex round-1 MEDIUM 抓的正是 g33 的
+        # 这条回归：基线记 SURVIVED，统一调用后变 HARNESS-ERROR ⇒ rc=2）。
+        return "SURVIVED", "rc=0 门全绿 —— 变异未被这道门抓住"
     if rc != 1:
-        return "HARNESS-ERROR", f"rc={rc}（非 1 = 不是测试失败；4=门名/用法错误 5=零收集 2=中断 3=内部错）"
+        return "HARNESS-ERROR", f"rc={rc}（非 0/1 = 负控没跑成；4=门名/用法错误 5=零收集 2=中断 3=内部错）"
     failed = parse_failed_nodeids(out)
+    if bad_lines := unparsed_failure_lines(out):
+        # ⛔ 失败集合不完整 ⇒ 「所有失败都属于目标门」不可证（Codex round-1 MEDIUM）。
+        return "HARNESS-ERROR", f"摘要区有解析不掉的失败行(失败集合不完整): {bad_lines[:3]}"
     if not gate_hit(nodeid, failed):
         return "SURVIVED", f"rc=1 但失败的不是指定的那道门（摘要区失败集 {sorted(failed) or '∅'}）"
 
@@ -647,7 +713,19 @@ class RestoreGuard:
         self._exit_code = exit_code
         # ⚠️ 默认带 flush：信号路径上的日志若卡在缓冲里，进程退出时可能根本没印出来，
         # 于是「还原过了吗」这件事在事后无从判断。
-        self._log = log or (lambda msg: print(msg, flush=True))
+        _raw_log = log or (lambda msg: print(msg, flush=True))
+
+        def _safe_log(msg: str) -> None:
+            # ⛔ 日志**绝不能**挡住退出（Codex round-1 MEDIUM）：还原期 handler 登记
+            # pending 后立即 log，失败/成功路径也都先 log 再 raise SystemExit ——
+            # 日志一抛异常就到不了退出语句，而 `_finishing` 已置位 ⇒ 信号全体失效。
+            # 写不出来就算了，退出码不依赖日志是否写成功。
+            try:
+                _raw_log(msg)
+            except BaseException:  # noqa: BLE001  日志失败不改变控制流
+                pass
+
+        self._log = _safe_log
         self._in_critical = False
         self._pending: int | None = None
         # ⛔ 防重入：`_finish` 期间再收到信号，只能记待办、不能再起一次 `_finish`。
@@ -740,7 +818,16 @@ def _read_prod_blobs(prod_roots: tuple[Path, ...]) -> tuple[list[tuple[Path, byt
             for dirpath, _dirnames, filenames in os.walk(root, onerror=_onerror, followlinks=False):
                 candidates.extend(Path(dirpath) / f for f in filenames)
         for f in candidates:
-            if f.is_symlink() or not f.is_file():
+            # ⛔ 符号链接**不静默跳过**（Codex round-1 MEDIUM，撤回我此前对同型发现的
+            # 误推翻）：跳过就意味着「expect_msg 生产侧 0 次」对链接目标**不成立**，
+            # 而 errors 里一点痕迹没有 —— 与 rglob 吞 PermissionError 是同一个假绿面。
+            # 现在把跳过记进 errors：自检消费方只看返回列表, 打印等于没说。
+            if f.is_symlink():
+                errors.append(
+                    f"扫描面跳过符号链接 {f} —— 「生产侧命中 0 次」对其链接目标不成立, 须人工核或解引用后重扫"
+                )
+                continue
+            if not f.is_file():
                 continue
             try:
                 blobs.append((f, f.read_bytes()))

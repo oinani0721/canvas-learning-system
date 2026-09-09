@@ -40,7 +40,7 @@
 | 5 | 信号负控（还原期打断） | `negctl-signal-<ts>.txt` | ✅ naive 对照（收口前写法）留下 **3/5 个未还原**（`target_2/3/4.txt`）⇒ 负控承重；guarded **0 未还原 + rc=130**；`RESTORE_SIGNALS` 实测含 `SIGQUIT` |
 | 5b | 信号还原的**现场**检验（非计划内） | `signal-restore-live-check-<ts>.txt` | ✅ **在真生产文件上**：`--probe` 跑到一半时对 python 进程发 SIGTERM，`RestoreGuard` 先还原再退出，8 个目标文件**逐字节**回到基线。⚠️ 这一跑是非计划内的（我先误 kill 了 shell 包装进程，python 继续跑），如实记录 |
 | 6 | PYEOF 等价性 + 三洞负控 + 两验伪锚 | `pyeof-negctl-<ts>.txt` | ✅ 两个真实 SKILL.md（quiz-answer 2 块 / start-exam-board 3 块）新旧正则提取**逐块逐字节相同**（收紧不丢覆盖面）；三洞负控 PASS；两条验伪锚 PASS —— 其中「终止行带尾随空格」这一条**正是我初稿写错的断言**，保留作验伪锚 |
-| 7 | 四套全跑（串行，**v2 = 代码定稿后**；v1 存档 `run-*-2026-09-08T09*.txt` 早于定稿已作废） | `run-g32b-20260908T115653.txt` / `run-g32cb-20260908T123027.txt` / `run-g32ccr1-20260908T123409.txt` / `run-g33-20260908T123836.txt` | ✅ **g32b：KILLED 131 / KILLED-UNBOUND 3 / SURVIVED 0 / HARNESS-ERROR 4 / ANCHOR-ERROR 0 / SYNTAX-INVALID 0，六档之和 138 ✓，rc=2**；g32cb **9/9 KILLED**（rc=0，和=9 ✓）；g32ccr1 **11/11 KILLED**（rc=0，和=11 ✓）；g33 **18/18 KILLED**（rc=0，和=18 ✓，还原逐字节+标记扫描双绿）。⚠️ g32b 的 3 条 UNBOUND 与 4 条 HARNESS-ERROR 全部**登记不改判据**：UNBOUND = M97（失败落在 yaml 库里）+ M89/M90（位置锚在前置 setup 断言上，复核抓到后主动收回）；HARNESS-ERROR = M10/M18b/M120/M125 四条**假杀暴露**——空变异对照改按**位置**比对后「只加层那趟已红在同一条断言」再也藏不住（旧文本比对被 stderr 尾巴差异掩护；复核验证者用 v1 存档独立坐实 M18b/M120/M125 三条）。另两条 complete 层债（M100/M151「变异体单独即可杀 ⇒ 撤层」）仍在 failures。⛔ 这 6 条层债的**变异重设计**移交下一批，本卡判据只负责把它们照出来 |
+| 7 | 四套全跑（串行，**v3 = Codex round-1 整改后定稿**；v1/v2 存档早于定稿，作废不引用） | `run-g32b-20260909T103053.txt` / `run-g32cb-20260909T112309.txt` / `run-g32ccr1-20260909T113018.txt` / `run-g33-20260909T114559.txt` | ✅ **g32b：KILLED 131 / KILLED-UNBOUND 3 / SURVIVED 0 / HARNESS-ERROR 4 / ANCHOR-ERROR 0 / SYNTAX-INVALID 0，六档之和 138 ✓，rc=2**（v3 与 v2 逐项一致 ⇒ round-1 的十条收紧**未引入新回归**，也未改变任何一条关于被测物的结论）；g32cb **9/9 KILLED**（rc=0，和=9 ✓）；g32ccr1 **11/11 KILLED**（rc=0，和=11 ✓）；g33 **18/18 KILLED**（rc=0，和=18 ✓，还原逐字节+标记扫描双绿）。⚠️ g32b 的 3 条 UNBOUND 与 4 条 HARNESS-ERROR 全部**登记不改判据**：UNBOUND = M97（失败落在 yaml 库里）+ M89/M90（位置锚在前置 setup 断言上，复核抓到后主动收回）；HARNESS-ERROR = M10/M18b/M120/M125 四条**假杀暴露**——空变异对照改按**位置**比对后「只加层那趟已红在同一条断言」再也藏不住（旧文本比对被 stderr 尾巴差异掩护；复核验证者用 v1 存档独立坐实 M18b/M120/M125 三条）。另两条 complete 层债（M100/M151「变异体单独即可杀 ⇒ 撤层」）仍在 failures。⛔ 这 6 条层债的**变异重设计**移交下一批，本卡判据只负责把它们照出来 |
 | 8 | 六档收口前后对照（含 g33 的验伪锚） | `six-verdicts-before-after-<ts>.txt` | ✅ g33 收口前 `ANCHOR-ERROR=0`（只有 `ANCHOR-DRIFT`）/ `KILLED-UNBOUND=0` / `HARNESS-ERROR=0`；收口后 **3 / 1 / 2**，三个方向都由 0 变正 —— 这就是它自己的验伪锚。⚠️ 「收口前」一列取自 `git show 3f073a1a:<file>`（收口前的状态就是那个 commit），不是另跑一次 |
 | 9 | 统一性结构判据（VERDICTS / judge_flags / RestoreGuard） | `unification-audit-<ts>.txt` | ✅ 四套均 `from mutation_kill_identity import VERDICTS` 且 `for v in VERDICTS` 算汇总；四套均走 `judge_flags()`，**残留的手写 pytest 开关 0 行**；四套均 `RestoreGuard(`，**自写 `signal.signal(` 0 处** |
 | 10 | 跑后 sha + 标记残留 | `sha-targets-post-<ts>.txt` / `marker-post-<ts>.txt` | ✅ 8 个目标文件跑后 sha 与跑前**逐字节相同**；标记文件清单仍是那 5 项；⚠️ `g32b_mutation_gates.py` 计数 **153 → 151**，差额 2 已逐行归因：本卡 diff 里含该标记的**删除行 2 / 新增行 0**，两行都是 `_restore_one` docstring 里的**注释**，与变异体文本无关。⚠️ 卫生判据收紧：`grep -c stderr` 会命中别的卡留下的 `census-stderr.txt`（口径比它的主张宽），改精确判据 `grep -cE '\.stderr'` → 已跟踪 **0** / 工作树未跟踪 **0** |
@@ -77,6 +77,8 @@
 
 ## 6. 39 条逐条处置表 / 四套分档对照表
 
+> 最终裁决取自 `run-g32b-20260909T103053.txt`（抽到 138 条）。
+
 ## 39 条 KILLED-UNBOUND 逐条处置表
 
 > 来源：`g32b_mutation_gates.py` 的四张表按 AST 实读（EXPECT_MSG 99 / EXPECT_MSG_EXEMPT 39 / EXPECT_LOC 135 / EXPECT_LOC_EXEMPT 3）。
@@ -86,7 +88,7 @@
 
 | # | 变异 tag | 消息为什么绑不出来（原豁免理由，节选） | 处置 | 位置身份 |
 |---|---|---|---|---|
-| 1 | `M10-R2-value-not-literal` | ① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N] | **绑（位置）** | `stmt:c8e430b5ce69` |
+| 1 | `M10-R2-value-not-literal` | ① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N] | **绑（位置）→ 最终 HARNESS-ERROR(假杀)** | `stmt:c8e430b5ce69` |
 | 2 | `M102-receipt-attempt-type-only` | ① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N] | **绑（位置）** | `stmt:4a06447ea2ed` |
 | 3 | `M117-empty-source-skips-provenance` | ① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N] | **绑（位置）** | `stmt:9ca250d2cb86` |
 | 4 | `M12-N1-drop-out-of-order-shape-gate` | ① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N] | **绑（位置）** | `stmt:35b14b243932` |
@@ -126,7 +128,9 @@
 | 38 | `M91-f1-only-unconditional-noop` | ① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N] | **绑（位置）** | `stmt:1f2e99d5342c` |
 | 39 | `M97-writeback-regex-only` | ④ 该变异让门以**未捕获异常**失败(yaml.parser.ParserError), 而不是落在门里任何一 | **保留 UNBOUND** | ⓐ 该变异让门在**门文件之外**失败(实见 file:parser.py), 只能绑到文件级弱身份; 按 check_expect_loc |
 
-**小计**：39 条中 **36 条改绑位置身份**（`KILLED-UNBOUND` → `KILLED`），**3 条仍保留 UNBOUND**（逐条理由见上表右列），**退役 0 条**。
+**按最终裁决**：36 条新增位置绑定中，35 条最终 KILLED，1 条被空变异对照降档（假杀 ⇒ HARNESS-ERROR）。
+
+**小计**：39 条中 **36 条改绑位置身份**（新增位置绑定；最终裁决见上行），**3 条仍保留 UNBOUND**（逐条理由见上表右列），**退役 0 条**。
 退役 0 条的理由：位置身份把「门文件里没有可绑的**字面片段**」这个障碍整体绕开了 —— 消息绑不出来的那些条目，位置照样绑得出来，所以没有一条需要靠删掉来收口（删掉就是减覆盖，且要说明谁接管它守的规则）。
 
 ## 四套分档对照表（收口后）
@@ -157,7 +161,7 @@
 
 ## 7. 跑前跑后 sha 对账
 
-跑前基线 `sha-targets-pre-20260908T073501.txt`（8 个文件，名单由 `count_mutations.py` 从 `MUTATIONS` 表**实测**取，不靠卡文枚举）；跑后对账 `finalize-v2-<ts>.txt` 第一段（v2 全跑后）。
+跑前基线 `sha-targets-pre-20260908T073501.txt`（8 个文件，名单由 `count_mutations.py` 从 `MUTATIONS` 表**实测**取，不靠卡文枚举）；跑后对账 `finalize-v3-<ts>.txt` 第一段（v3 全跑后）。
 
 ```
 8dc761f8…  backend/app/services/learning_event_log.py
@@ -233,7 +237,19 @@ a766fbcc…  canvas-vault/.claude/scripts/fsrs_bridge.py         ← 零写者�
 21. **四套退出码语义统一后的新契约**：`rc=3` 还原/残留（数据完整性，最高优先）＞`rc=2` HARNESS-ERROR/六档对不上（负控自己坏了）＞`rc=4` 部分跑/用法错（不构成全量结论；但 rc=2/3 盖过它）＞`rc=1` SURVIVED/failures（关于被测物）＞`rc=0` 全部 KILLED（**已登记**的 KILLED-UNBOUND 残留只报不判失败；未登记的在跑前自检就被挡在 rc=2/4 上）。该契约已由 v2 全跑实证：g32b 以 **rc=2** 收（4 条假杀暴露），g32cb/g32ccr1/g33 以 rc=0 收；旧存档（run-*-2026-09-08T09*/10*）早于代码定稿，**作废不引用**。
 22. **`file:` 形态整体删除**：`expect_loc` 的 `file:` 取值原先被 `check_expect_loc_unique` 判违规却又在 `kill_identity` 里有支持分支——死代码且三处文案比代码宽。现统一为「落在门文件外 ⇒ expect_loc 留空 + 两张豁免表 ⇒ KILLED-UNBOUND」；`loc_token_for` 产出的 `file:` token 仅作 probe 观察输出与 mismatch 诊断。
 23. **复核方法本身的教训（登记给后续卡）**：负控要测「真 harness 的函数」，不是「同一逻辑的自建复刻」——`negctl_signal.py` 用自建 `restore_all`，于是「先还原再退出」把第三方存证判据打穿这件事四道裁判全绿照不出；两条 HIGH 修复又各引入一条新 HIGH（`finally: raise` 吞还原失败、`--only` 早退吞残留检查），同一缺陷形态在本卡出现第三次时才换成「先写负控再改代码」。
-24. **跨车道交叉通报已消费**：U10-A 通报的 `Path.rglob` 抑制 `PermissionError` 形态在 `check_expect_msg_unique` 的生产侧扫描面上**真实存在**，已改 `os.walk(onerror=...)` 并把枚举失败收进返回的 problems 列表。
+24. **Codex round-1 判「不通过」（3 HIGH / 6 MEDIUM / 1 LOW），十条全部整改，无驳回**（存档 `codex-review-CARD-DEBT-mutkill-R2.md`，首部六行齐、模型 `gpt-6-astra` ultra、codex-cli 0.153.3、绑 `f395d900`）：
+    - **HIGH 同行歧义**：两条并列最小语句共享行号时首版只留第一条 ⇒ 第二条失败会被认成第一条。改 `_smallest_stmts_at` 整组返回 + `line_stmt_ambiguous`，判据遇到歧义行判 HARNESS-ERROR。⚠️ 本树门文件实测 **0 行多语句**（未触发），但「今天没有」不能当判据。
+    - **HIGH 空对照取 `locs[0]`**：判据侧「任一位置命中」而对照侧固定取第一条 ⇒ 位置序列为「别的位置, 目标位置」时两边比的不是同一次失败。改 `matched_loc_tokens` 全集 + 交集判定。
+    - **HIGH 空对照把「没跑成」当「绿」**：`red0 = rc==1 and "1 failed"` 使 rc=4/5 与「2 failed」全落进「✓ 对照绿 ⇒ 击杀干净归因于变异体」。改「绿只认 rc=0」，其余判 HARNESS-ERROR 并**降档**已记的 KILLED。
+    - **MEDIUM rc=0 被判 HARNESS-ERROR**（g33 分档回归）：真·存活被解释成「负控自己坏了」。改先判 `rc == 0 → SURVIVED`。
+    - **MEDIUM 摘要区失败行静默丢弃**：`_FAILED_RE` 的 nodeid 是 `\S+?`，参数化 id 带空格就解析不掉而被丢，`all(gate_hit)` 于是在不完整集合上通过。新增 `unparsed_failure_lines()`，非空即 HARNESS-ERROR。
+    - **MEDIUM 信号路径日志异常绕开退出码**：`_log` 抛异常就到不了 `raise SystemExit` 而 `_finishing` 已置位。日志改 `_safe_log`（吞异常），退出码不依赖日志写成功。
+    - **MEDIUM g32b 未实现声明的 rc 契约**：还原漂移只 append failures。改还原失败 **rc=3 优先返回**、计数不一致 **rc=2**。
+    - **MEDIUM 符号链接静默跳过 —— 撤回我此前的「推翻」**：`_read_prod_blobs` 确有 `if f.is_symlink(): continue` 且不记 errors，与 rglob 吞 PermissionError 是同一个假绿面。我此前以「锚点错 17 行」把同型发现列为不采信，⛔ **行号错不足以推翻结论**。现已把跳过记进 errors。
+    - **MEDIUM 前提锚筛依赖旧行号**：门挪行后按旧行号查不到就 `continue`，零 suspects 也 PASS = 死判据。改用 probe 的**指纹**重定位，重定位不到即判失败。
+    - **LOW 处置表把「新增位置绑定」写成「最终 KILLED」**：与 M10 被降档为假杀矛盾。表改为与**最新全跑存档的最终裁决**交叉，并单列「最终 KILLED / 被降档」两个数。
+25. **Codex round-1 明确未验证的项（如实转录，不当已证）**：39 条中「当前是否已有同行歧义布局」「是否触发多失败形态」「参数化 id 是否出现过空白」「真实信号与日志故障交错」「36 条语句唯一性与目标语义」「v2 存档与当前代码的精确绑定」——均标注未验证；且它明确指出**我那 10 条「被推翻」不能整体采信**（只点名符号链接一条并已反驳，其余 9 条缺逐项反证）。这一条按原样登记，⛔ 不辩解。
+26. **跨车道交叉通报已消费**：U10-A 通报的 `Path.rglob` 抑制 `PermissionError` 形态在 `check_expect_msg_unique` 的生产侧扫描面上**真实存在**，已改 `os.walk(onerror=...)` 并把枚举失败收进返回的 problems 列表。
 
 ---
 
