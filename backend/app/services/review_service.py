@@ -113,6 +113,17 @@ FSRS_RUNTIME_OK: Optional[bool] = None
 # 的 quiz-answer × fsrs_bridge 链。此处的 JSON 及其内存镜像 self._card_states
 # 只是后端侧投影, 与 frontmatter 分歧时**一律以 frontmatter 为准**, 并须以
 # degraded 信号如实透出 (禁假成功)。裁定表: _bmad-output/审查/evidence-g37/decision.md
+#
+# ⚠️ CARD-G3-5: 本文件的 JSON **顶层键是 vault_id**, 二层才是 concept_id
+# (``{vault_id: {concept_id: card_json}}``)。键化前是扁平
+# ``{concept_id: card_json}``, 不带 vault 维度 —— 两个 vault 的同名 concept
+# 撞同一个 JSON 键、后写覆盖先写。legacy 扁平快照在启动时按当前作用域**推定**
+# 归桶 (可能归错, 见 _VaultScopedCardStates.from_persisted 的反例) 并告警;
+# 只有作用域解析不出来时才不载入那部分。归属的**裁定**走
+# ``backend/scripts/migrate_fsrs_card_states_vault_key_g35.py``(人给 --vault-id)。
+# 前提: 「同名 concept 由目录天然隔离」只在**一进程一 vault** 时成立 ——
+# 真相源 reader 的 ``settings.CANVAS_BASE_PATH`` 是进程级
+# (``frontmatter_signals._node_md_path``), 该缺口本卡只登记不修。
 _CARD_STATES_FILE = (
     _Path(__file__).parent.parent.parent / "data" / "fsrs_card_states.json"
 )
@@ -337,6 +348,340 @@ if TYPE_CHECKING:
 logger = structlog.get_logger(__name__)
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# CARD-G3-5 (BATCH-2026-09-07-第十三批): FSRS 投影状态的 vault 分桶
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class _VaultScopedCardStates:
+    """FSRS 投影状态容器 — 存储按 vault 分桶, 调用面保持裸 concept_id 语义。
+
+    **存储形态 (内存与落盘同构)**: ``{vault_id: {concept_id: card_json_str}}``
+    嵌套字典。**禁**分隔符拼接的复合键 (如 ``"vault_a:concept"``):
+    ``concept_id`` 是节点文件 basename, 可含任意分隔符字面量, 拼接方案会让
+    ``vault_a`` 的键面吃掉 ``vault_ab`` 的 (同 ``vault_scope.read_group_filter``
+    的 ``__`` 定界符教训); 嵌套字典把这条歧义整个消掉。
+
+    **调用面**: ``states[cid]`` / ``cid in states`` / ``states.get(cid)`` /
+    ``states.items()`` 一律作用于**当前作用域**那一桶 — 既有调用点一行不用改,
+    vault 维度由本容器在存取时解析。
+
+    **作用域取值口 (fail-closed)**: ``require_read_group(None)`` 抛
+    ``VaultScopeUnresolved`` 是"解析不出来"的**唯一**判据。⚠️ **不用**
+    ``vault_scope.current_vault_id()``: 它**不会主动拒绝**无 ContextVar 的情形 ——
+    未注入时回落进程级 active vault, 返回值里没有"解析不出来"的信号 (它并非
+    在任何执行下都不抛: 依赖调用的异常它也没捕获, 但那不是可用的失败判据)。
+    拿"缺 ContextVar"当它的失败判据, 那条 fail-closed 分支永远走不到 = 假
+    fail-closed (读契约 R4「静默退化」同族)。解析失败 ⇒ **不推进投影** + ``logger.error``,
+    绝不静默落进某个缺省桶 — 那是把配置断裂伪装成写入成功。
+
+    ⚠️ **本容器解决的是投影侧撞键, 不解决真相源侧串库**: 调度真相源是节点
+    ``.md`` 的 frontmatter, 其 reader (``frontmatter_signals._node_md_path``)
+    走**进程级** ``settings.CANVAS_BASE_PATH``。「不同 vault 的同名 concept 由
+    目录天然隔离」只在**一个后端进程只服务一个 vault** 时成立; 一进程多 vault
+    时真相源 reader 本身就串库, 投影侧键化救不了 (CARD-G3-5 登记, 归后续卡)。
+    """
+
+    __slots__ = ("_buckets", "_orphan_legacy")
+
+    def __init__(
+        self,
+        buckets: Optional[Dict[str, Dict[str, str]]] = None,
+        orphan_legacy: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        self._buckets: Dict[str, Dict[str, str]] = buckets if buckets is not None else {}
+        #: **未归属**的 legacy 裸键 —— 归不掉但也不能丢的那部分 (Codex r2 H4)。
+        #: 它不参与任何读写 (不属于任何 vault), 但**必须随每次落盘原样写回**:
+        #: 否则「本次不加载」只保护了这一次读, 下一次成功写入的全量快照就会把
+        #: 它从磁盘永久删除 —— 那是把 fail-closed 变成了静默删数据。
+        self._orphan_legacy: Dict[str, Any] = (
+            orphan_legacy if orphan_legacy is not None else {}
+        )
+
+    # ── 作用域解析 ──────────────────────────────────────────────────────
+    @staticmethod
+    def _resolve_vault(context: str) -> Optional[str]:
+        """当前作用域的 vault 段; 解析不出来返回 None (调用方据此 fail-closed)。
+
+        延迟 import: 保 monkeypatch 可达 (负控 N2 靠打断解析链让本函数返 None)。
+        """
+        from app.core.vault_scope import VaultScopeUnresolved, require_read_group
+
+        try:
+            group_id = require_read_group(None, context=context)
+        except VaultScopeUnresolved as e:
+            logger.error(
+                "CARD-G3-5 vault scope unresolved [context: %s]: %s — "
+                "拒绝推进 FSRS 投影 (不落进缺省桶: 那会把配置断裂伪装成写入成功)",
+                context,
+                e,
+            )
+            return None
+
+        # D16 逻辑组 ``vault:<vid>[:<二级>]`` → 取 vault 段。二级 (subject /
+        # canvas) 段**故意不进键**: 投影按 vault 隔离即可, 再细分会让同一 vault
+        # 内换白板读不到自己刚写的卡。
+        segments = group_id.split(":")
+        if len(segments) >= 2 and segments[1].strip():
+            return segments[1]
+        logger.error(
+            "CARD-G3-5 vault scope shape invalid [context: %s]: %r 取不出 vault 段 — "
+            "拒绝推进 FSRS 投影",
+            context,
+            group_id,
+        )
+        return None
+
+    def _bucket(self, context: str, *, create: bool = False) -> Optional[Dict[str, str]]:
+        vault_id = self._resolve_vault(context)
+        if vault_id is None:
+            return None
+        if create:
+            return self._buckets.setdefault(vault_id, {})
+        return self._buckets.get(vault_id, {})
+
+    # ── 写入 (显式返回是否推进, 供 fail-closed 调用方消费) ─────────────
+    def try_set(self, concept_id: str, card_data: str, *, context: str) -> bool:
+        """写入当前作用域桶; 作用域解析不出来 ⇒ 不写并返回 False。"""
+        bucket = self._bucket(context, create=True)
+        if bucket is None:
+            return False
+        bucket[concept_id] = card_data
+        return True
+
+    # ── Mapping 协议 (扁平 concept_id 语义, 作用于当前作用域桶) ────────
+    def __getitem__(self, concept_id: str) -> str:
+        bucket = self._bucket("review_service._card_states.__getitem__")
+        if bucket is None or concept_id not in bucket:
+            raise KeyError(concept_id)
+        return bucket[concept_id]
+
+    def __setitem__(self, concept_id: str, value: str) -> None:
+        # 形参名与 ``dict.__setitem__(key, value)`` 对齐 —— 调用面是扁平 dict
+        # 语义, 类型诊断消息也应与 dict 同形。
+        #
+        # 作用域解析失败时静默不写是**有意**的: 本魔术方法无返回值通道,
+        # fail-closed 的可观测信号由 _resolve_vault 的 logger.error 承担;
+        # 需要知道写没写成的调用方一律走 try_set。
+        self.try_set(concept_id, value, context="review_service._card_states.__setitem__")
+
+    def __contains__(self, concept_id: object) -> bool:
+        bucket = self._bucket("review_service._card_states.__contains__")
+        return bool(bucket) and concept_id in bucket
+
+    def __eq__(self, other: object) -> bool:
+        """与普通 dict 比较时按**当前作用域桶**比 — 保持扁平调用面的等价语义。
+
+        既有调用点/测试写 ``states == {...}`` 时问的是"当前这个 vault 看到的
+        投影是不是这些", 不是"全部 vault 的桶结构长这样"。与另一个容器比较
+        则比全部桶 (存储层等价)。
+        """
+        if isinstance(other, _VaultScopedCardStates):
+            return self._buckets == other._buckets
+        if isinstance(other, dict):
+            bucket = self._bucket("review_service._card_states.__eq__")
+            return (bucket or {}) == other
+        return NotImplemented
+
+    # 注: 定义 __eq__ 的类, Python 自动置 __hash__ = None (与 dict 同为不可
+    # 哈希的可变映射) —— 不必也不该显式重复赋值。
+
+    def __len__(self) -> int:
+        bucket = self._bucket("review_service._card_states.__len__")
+        return len(bucket) if bucket else 0
+
+    def __bool__(self) -> bool:
+        bucket = self._bucket("review_service._card_states.__bool__")
+        return bool(bucket)
+
+    def __iter__(self):
+        bucket = self._bucket("review_service._card_states.__iter__")
+        return iter(bucket or {})
+
+    def get(self, concept_id: str, default: Any = None) -> Any:
+        # default 取 Any 而非 Optional[str]: 调用方用哨兵对象区分"缺失"与
+        # "值为 None" (_save_card_states 的 `_missing = object()` 回滚路径)。
+        bucket = self._bucket("review_service._card_states.get")
+        if bucket is None:
+            return default
+        return bucket.get(concept_id, default)
+
+    def pop(self, concept_id: str, default: Any = None) -> Any:
+        bucket = self._bucket("review_service._card_states.pop", create=True)
+        if bucket is None:
+            return default
+        return bucket.pop(concept_id, default)
+
+    def items(self):
+        bucket = self._bucket("review_service._card_states.items")
+        return (bucket or {}).items()
+
+    def keys(self):
+        bucket = self._bucket("review_service._card_states.keys")
+        return (bucket or {}).keys()
+
+    def values(self):
+        bucket = self._bucket("review_service._card_states.values")
+        return (bucket or {}).values()
+
+    # ── 存储层 ──────────────────────────────────────────────────────────
+    def to_nested(self) -> Dict[str, Any]:
+        """落盘快照 (浅拷贝到二层, 防调用方改动内部桶)。
+
+        ⚠️ **未归属的 legacy 裸键必须原样写回** (Codex r2 H4): 它们归不掉
+        (作用域解析不出来 / 与已迁桶同名冲突), 但**不能丢** —— 若落盘时省略,
+        下一次成功写入就会把它们从磁盘永久删除, 「本次不加载」这道 fail-closed
+        就变成了静默删数据。写回后文件是混合形态, 这是**有意**的: 保住数据 >
+        格式纯净, 且下次启动的逐条分类照样认得出它们。
+        """
+        payload: Dict[str, Any] = {
+            vid: dict(bucket) for vid, bucket in self._buckets.items()
+        }
+        for concept_id, card in self._orphan_legacy.items():
+            # setdefault: 万一某个 legacy concept_id 与某个 vault_id 同名,
+            # 保留 vault 桶 (它有明确身份), 不让裸键顶掉它。
+            payload.setdefault(concept_id, card)
+        return payload
+
+    def total_cards(self) -> int:
+        """全部 vault 桶的卡数 + 未归属 legacy 条数 — 日志用 (``len()`` 只数当前桶)。"""
+        return sum(len(bucket) for bucket in self._buckets.values()) + len(
+            self._orphan_legacy
+        )
+
+    @classmethod
+    def from_persisted(cls, raw: Dict[str, Any]) -> "_VaultScopedCardStates":
+        """从落盘 JSON 还原 —— **逐条**分形态: dict 值 = vault 桶, 其余 = legacy 裸键。
+
+        **形态判据必须逐条, 不能整体** (Codex r1 HIGH-1 整改): 用
+        ``all(isinstance(v, dict) ...)`` 整体判形态时, 混合快照
+        ``{"vaultA": {"c": "卡"}, "d": "另一张卡"}`` 会被整体当成 legacy ——
+        **已经迁好的 vaultA 桶被降格成一个名叫 "vaultA" 的 concept**, 它的卡
+        数据变成一个 dict。迁移器 ``classify()`` 一直是逐条分类的, 加载器必须
+        与它同口径, 否则两边对同一份文件给出不同的形态判断。
+
+        **legacy 裸键的归属是「推定」, 不是「可证」** (同上整改): 归进当前解析
+        到的 vault 桶并 ``logger.warning``。必须说清它可能错 —— 反例: 旧进程
+        服务 vault A 留下扁平快照, 配置改成 B 后重启; 两个时点都满足「一进程一
+        vault」, 但全部旧数据会被归进 B, 且**下一次落盘就把这个错误归属固化**。
+        所以这里做的是「过渡期不丢数据」的推定, 不是归属证明; 真正的归属裁定
+        在迁移器 (人显式 ``--vault-id``)。
+
+        **「没有请求上下文」不构成保护** (同上整改): 解析链在 ContextVar 未注入
+        时仍会推导进程 active vault, 正常启动**不会**因缺上下文而拒载。只有推导
+        失败 / 结果落进污染桶时才拒 —— 那时连"归给谁"都答不上来, 此时**只载入
+        已是 vault 桶的部分**, legacy 裸键进 ``_orphan_legacy`` (硬归缺省桶属读
+        契约 R4 同族的静默降级)。
+
+        **归不掉的 legacy 不丢, 进 ``_orphan_legacy``** (Codex r2 H3/H4):
+          · 作用域解析不出来 ⇒ 全部 legacy 进隔离区 —— 否则「不加载」只保护了
+            这一次读, 下一次成功写入的全量快照会把它们从磁盘**永久删除**;
+          · legacy 的 concept_id 与目标桶已有条目**同名** ⇒ 保留桶内那份 (它有
+            **明确**的 vault 身份), legacy 那份进隔离区。用推定归属去覆盖明确
+            身份是反的: 前者可能错, 后者是上一次迁移/写入确定下来的。
+        隔离区的内容随每次落盘原样写回, 直到有人用迁移器显式裁定归属。
+        """
+        if not raw:
+            return cls()
+
+        # 逐条分形态 —— 与迁移器 classify() 同口径
+        buckets: Dict[str, Dict[str, str]] = {}
+        legacy: Dict[str, Any] = {}
+        for key, value in raw.items():
+            if isinstance(value, dict):
+                buckets[str(key)] = dict(value)
+            else:
+                legacy[str(key)] = value
+
+        if not legacy:
+            return cls(buckets)
+
+        vault_id = cls._resolve_vault("review_service._load_card_states.legacy")
+        if vault_id is None:
+            logger.warning(
+                "CARD-G3-5: %s 含 %d 条 legacy 裸 concept_id 键, 但当前作用域解析"
+                "不出来 ⇒ 这部分**不归入任何 vault**(拒绝硬归缺省桶), 转入隔离区: "
+                "它们不参与读写, 但**每次落盘都会原样写回**, 不会被删掉。已是 "
+                "vault 桶的 %d 个桶照常载入。请跑 backend/scripts/"
+                "migrate_fsrs_card_states_vault_key_g35.py --apply --vault-id <vault> "
+                "裁定归属。",
+                _CARD_STATES_FILE,
+                len(legacy),
+                len(buckets),
+            )
+            return cls(buckets, orphan_legacy=legacy)
+
+        bucket = buckets.setdefault(vault_id, {})
+        # 同名冲突: 桶内那份有**明确** vault 身份, legacy 那份只是**推定**归属。
+        # 用推定去覆盖明确是反的 (Codex r2 H3) —— 保留桶内, legacy 进隔离区。
+        clobbered = [cid for cid in legacy if cid in bucket]
+        orphan = {cid: legacy[cid] for cid in clobbered}
+        for cid, card in legacy.items():
+            if cid not in bucket:
+                bucket[cid] = card
+        logger.warning(
+            "CARD-G3-5: %s 含 %d 条 legacy 裸 concept_id 键, 已按当前作用域**推定**"
+            "归入 vault %r 桶 (另有 %d 个已迁桶原样载入)。⚠️ 该归属是推定不是证明: "
+            "若这份快照出自服务别的 vault 的旧进程, 归属就是错的, 且下次落盘会把它"
+            "固化。%s请跑 backend/scripts/migrate_fsrs_card_states_vault_key_g35.py "
+            "以显式 --vault-id 裁定归属。",
+            _CARD_STATES_FILE,
+            len(legacy) - len(clobbered),
+            vault_id,
+            max(len(buckets) - 1, 0),
+            f"另有 {len(clobbered)} 条与该桶已有同名条目冲突 {clobbered[:5]}, "
+            "**保留桶内那份**(它有明确 vault 身份), legacy 那份转入隔离区不丢也不覆盖。 "
+            if clobbered
+            else "",
+        )
+        return cls(buckets, orphan_legacy=orphan)
+
+
+def _card_states_try_set(
+    states: Any, concept_id: str, card_data: str, *, context: str
+) -> bool:
+    """写入形态分派 — 返回本次是否真的推进了投影。
+
+    容器走 ``try_set`` (作用域解析不出来 ⇒ False, fail-closed);
+    被测试整体替换成普通 dict 时直接写 (旧扁平语义, 恒 True)。
+
+    ``states`` 取 ``Any``: 运行期它可能是容器也可能是普通 dict, 收窄成前者
+    会让这里的 isinstance 变成"恒真"而被静态检查判为多余 —— 那正好把本函数
+    存在的理由(形态分派)注释掉。
+    """
+    if isinstance(states, _VaultScopedCardStates):
+        return states.try_set(concept_id, card_data, context=context)
+    states[concept_id] = card_data
+    return True
+
+
+def _card_states_vault(states: Any, *, context: str) -> Optional[str]:
+    """当前作用域的 vault 段 — 形态分派。
+
+    容器走它自己的解析口 (失败返 None 并记 logger.error); 被测试整体替换成
+    普通 dict 时没有 vault 维度可言, 返回 None。
+
+    ``states`` 取 ``Any`` 的理由同 :func:`_card_states_try_set`。
+    """
+    if isinstance(states, _VaultScopedCardStates):
+        return states._resolve_vault(context)
+    return None
+
+
+def _card_states_payload(states: Any) -> Any:
+    """落盘 payload — 容器给嵌套快照; 被替换成普通 dict 时原样写。"""
+    if isinstance(states, _VaultScopedCardStates):
+        return states.to_nested()
+    return states
+
+
+def _card_states_count(states: Any) -> int:
+    """日志计数 — 容器数全部桶的卡总数, 而不是当前桶 (``len()`` 只数当前桶)。"""
+    if isinstance(states, _VaultScopedCardStates):
+        return states.total_cards()
+    return len(states)
+
+
 class ReviewStatus(str, Enum):
     """复习状态枚举"""
 
@@ -523,9 +868,26 @@ class ReviewService:
         # Story 32.2 + P0-2: Card state storage with file persistence
         # CARD-G3-7: 非 FSRS 调度真相源 —— 这是 frontmatter 的后端投影/缓存,
         # 不是 current state。分歧时以 frontmatter 为准 (D0 修订 T1)。
-        self._card_states: Dict[str, str] = self._load_card_states()
+        #
+        # ⚠️ CARD-G3-5: 本容器的**存储键带 vault 维度**
+        # (``{vault_id: {concept_id: card}}``), 但调用面仍是裸 ``concept_id``
+        # 语义 —— 读写自动落到**当前作用域**那一桶 (取值口
+        # ``require_read_group(None)``, 解析不出来即 fail-closed 不推进)。
+        # 键化前这里是扁平 ``{concept_id: card}``, 两个 vault 的同名 concept
+        # 撞同一条记录、后写覆盖先写。
+        # 前提缺口 (本卡不修, 只登记): 调度真相源 reader 走**进程级**
+        # ``settings.CANVAS_BASE_PATH`` (``frontmatter_signals._node_md_path``),
+        # 故「同名 concept 由目录天然隔离」只在**一进程一 vault** 时成立;
+        # 一进程多 vault 时真相源侧本身就串库, 投影侧键化救不了。
+        self._card_states: "_VaultScopedCardStates" = self._load_card_states()
         # CARD-D3 Codex HIGH-1: 写失败后仍留在内存缓存的 concept (重启即丢)。
         # 全量快照写成功时整体治愈 (clear), 查询侧据此如实上报 persisted。
+        #
+        # ⚠️ CARD-G3-5 (Codex r1 MEDIUM-1): 元素是 **(vault_id, concept_id)**
+        # 二元组, 不是裸 concept_id —— 主状态有了 vault 维度, 这个附属状态就
+        # 必须同维, 否则 A 的 c 写盘失败会让 B 的同名 c 也被报成
+        # persisted=False (跨 vault 误报)。vault 解析不出来时用 None 占位:
+        # 那种情形下投影本来就没推进, 记录它只为让查询侧仍能如实说"没落盘"。
         self._unpersisted_concepts: set = set()
         logger.debug("ReviewService initialized")
 
@@ -543,24 +905,50 @@ class ReviewService:
         return bool(getattr(self._fsrs_manager, "library_available", True))
 
     @staticmethod
-    def _load_card_states() -> Dict[str, str]:
+    def _load_card_states() -> "_VaultScopedCardStates":
         """P0-2: Load card states from persistent JSON file on startup.
 
         CARD-G3-7: 非 FSRS 调度真相源 —— 载入的是投影/缓存快照。调度真相源是
         节点 frontmatter (见 _read_frontmatter_fsrs)。
+
+        CARD-G3-5: 返回 vault 分桶容器 (``{vault_id: {concept_id: card}}``)。
+        legacy 裸键按当前作用域**推定**归桶 (可能归错, 会告警; 作用域解析不出来
+        时该部分不载入) —— 处置、反例与理由见
+        ``_VaultScopedCardStates.from_persisted``。
         """
         try:
             if _CARD_STATES_FILE.exists():
                 data = _CARD_STATES_FILE.read_text(encoding="utf-8")
                 loaded = json.loads(data)
                 if isinstance(loaded, dict):
+                    states = _VaultScopedCardStates.from_persisted(loaded)
                     logger.info(
-                        f"Loaded {len(loaded)} FSRS card states from {_CARD_STATES_FILE}"
+                        f"Loaded {states.total_cards()} FSRS card states "
+                        f"across {len(states.to_nested())} vault(s) from {_CARD_STATES_FILE}"
                     )
-                    return loaded
+                    return states
         except (OSError, json.JSONDecodeError, UnicodeDecodeError) as e:
             logger.warning(f"Failed to load FSRS card states: {e}")
-        return {}
+        return _VaultScopedCardStates()
+
+    def _dirty_key(self, concept_id: str) -> Tuple[Optional[str], str]:
+        """`_unpersisted_concepts` 的元素身份 = ``(vault_id, concept_id)``。
+
+        CARD-G3-5 (Codex r1 MEDIUM-1): 主状态有了 vault 维度, 这个附属状态就
+        必须同维 —— 否则 vault A 的 concept ``c`` 写盘失败后, vault B 的同名
+        ``c`` 命中缓存时也会被报成 ``persisted=False``(跨 vault 误报)。
+
+        vault 解析不出来 ⇒ 用 ``None`` 占位: 那种情形投影本来就没推进, 记录它
+        只为让查询侧仍能如实说"没落盘"。
+        """
+        vault_id = _card_states_vault(
+            self._card_states, context="review_service._dirty_key"
+        )
+        return (vault_id, concept_id)
+
+    def _is_unpersisted(self, concept_id: str) -> bool:
+        """该 concept 在**当前作用域**下是否有未落盘的写 (见 :meth:`_dirty_key`)。"""
+        return self._dirty_key(concept_id) in self._unpersisted_concepts
 
     async def _save_card_states(
         self, pending: Optional[Tuple[str, str]] = None
@@ -596,16 +984,34 @@ class ReviewService:
         async with _card_states_lock:
             if pending is not None:
                 prev = self._card_states.get(pending[0], _missing)
-                self._card_states[pending[0]] = pending[1]
+                dirty_key = self._dirty_key(pending[0])
+                # CARD-G3-5 fail-closed: 作用域解析不出来 ⇒ **不推进投影**。
+                # 判据是 try_set 的返回值 (内部走 require_read_group(None) 捕
+                # VaultScopeUnresolved); 静默落进某个缺省桶 = 把配置断裂伪装成
+                # 写入成功, 且会把一个 vault 的卡写进另一个 vault 的桶。
+                # logger.error 由 _resolve_vault 记 (含 context)。
+                if not _card_states_try_set(
+                    self._card_states,
+                    pending[0],
+                    pending[1],
+                    context="review_service._save_card_states",
+                ):
+                    self._unpersisted_concepts.add(dirty_key)
+                    return False
             try:
                 _CARD_STATES_FILE.parent.mkdir(parents=True, exist_ok=True)
-                data = json.dumps(self._card_states, ensure_ascii=False, indent=2)
+                data = json.dumps(
+                    _card_states_payload(self._card_states),
+                    ensure_ascii=False,
+                    indent=2,
+                )
                 # Atomic write: write to temp file then rename
                 tmp_file = _CARD_STATES_FILE.with_suffix(".json.tmp")
                 await asyncio.to_thread(tmp_file.write_text, data, "utf-8")
                 await asyncio.to_thread(tmp_file.replace, _CARD_STATES_FILE)
                 logger.debug(
-                    f"Saved {len(self._card_states)} FSRS card states to {_CARD_STATES_FILE}"
+                    f"Saved {_card_states_count(self._card_states)} FSRS card states "
+                    f"to {_CARD_STATES_FILE}"
                 )
                 # 全量快照已落盘 → 所有历史写失败的 concept 同时被治愈
                 self._unpersisted_concepts.clear()
@@ -619,14 +1025,14 @@ class ReviewService:
                         self._card_states.pop(pending[0], None)
                     else:
                         self._card_states[pending[0]] = prev
-                    self._unpersisted_concepts.add(pending[0])
+                    self._unpersisted_concepts.add(dirty_key)
                 logger.warning(f"Failed to save FSRS card states: {e}")
                 return False
             except OSError as e:
                 # 磁盘失败: 卡数据本身没问题, 保留内存 (重启即丢, dirty
                 # 标记), 磁盘恢复后下一次成功全量写即治愈。
                 if pending is not None:
-                    self._unpersisted_concepts.add(pending[0])
+                    self._unpersisted_concepts.add(dirty_key)
                 logger.warning(f"Failed to save FSRS card states: {e}")
                 return False
 
@@ -2380,8 +2786,12 @@ class ReviewService:
         """
         Get all cached card states.
 
+        CARD-G3-5: "all" 的语义已收窄为**当前作用域那一个 vault 桶** —— 不再
+        跨 vault 返回全部投影 (那正是撞键期的旧行为)。作用域解析不出来时返回
+        空字典 (fail-closed, 见 ``_VaultScopedCardStates``)。
+
         Returns:
-            Dictionary of concept_id -> card_data JSON
+            Dictionary of concept_id -> card_data JSON (当前 vault 桶)
         """
         return dict(self._card_states)
 
@@ -2433,7 +2843,12 @@ class ReviewService:
             # 全局写锁内再做一次文件 I/O (把 vault 磁盘延迟拖进所有写者的临界区),
             # 代价大于收益; 后果有界 —— 写进去的是一张默认卡, 落点是已显式降格的
             # 非真相源缓存, 且**下一次 GET 就会读到 frontmatter、正确拦截并报
-            # truth_source_divergence**, 不会静默固化。彻底闭合归 G3-5 键化卡。
+            # truth_source_divergence**, 不会静默固化。
+            # ⚠️ CARD-G3-5 已落地 (投影按 vault 分桶), **但没有闭合本 TOCTOU**:
+            # 键化改的是"写到哪个桶", 真相源在此读一次、之后还要 await
+            # load_card_state 与 _card_states_lock 的那个窗口原样还在 —— 窗口
+            # 长度与键形态无关。彻底闭合仍待后续卡 (需在全局写锁内重读真相源,
+            # 代价是把 vault 磁盘延迟拖进所有写者的临界区)。
             fm_truth = _read_frontmatter_fsrs(concept_id)
             has_truth_source = bool(fm_truth["governed"])
 
@@ -2491,7 +2906,7 @@ class ReviewService:
                 # add / 成功 clear 之后本读取才进行)。
                 auto_created = False
                 async with _card_states_lock:
-                    persisted = concept_id not in self._unpersisted_concepts
+                    persisted = not self._is_unpersisted(concept_id)
 
             # Get retrievability (current recall probability)
             retrievability = self._fsrs_manager.get_retrievability(card)

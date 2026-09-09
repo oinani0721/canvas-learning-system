@@ -262,7 +262,18 @@ async def test_gate_allows_write_when_no_truth_source(svc, isolate_card_states, 
     assert result["found"] is True
     assert cid in svc._card_states, "正控失败：无真相源时 auto-create 未写内存"
     assert isolate_card_states.exists(), "正控失败：无真相源时 auto-create 未落盘"
-    assert cid in json.loads(isolate_card_states.read_text("utf-8"))
+    # CARD-G3-5: 落盘按 vault 分桶 ⇒ 顶层是 vault_id, cid 在二层。本正控原意
+    # (无真相源时门放行、确实落了盘) 一字不减。
+    #
+    # ⚠️ Codex r1 MEDIUM-2 整改: 绑**正确身份 (vault, concept)** 而不是"某处
+    # 出现过 cid"。旧写法 `any(cid in bucket for ...)` 有两个弱点: 落进错误
+    # vault 也通过; bucket 若是字符串, `in` 会退化成子串匹配而恒真。这里向 svc
+    # 问它当前解析到的 vault, 定点查那个桶, 且显式断言桶是 dict。
+    on_disk = json.loads(isolate_card_states.read_text("utf-8"))
+    current_vault = svc._dirty_key(cid)[0]
+    assert current_vault is not None, "作用域应能解析出来, 否则 auto-create 不会落盘"
+    assert isinstance(on_disk.get(current_vault), dict), f"落盘顶层应是 vault 桶 (dict), 实得 {on_disk!r}"
+    assert cid in on_disk[current_vault], f"正控失败：无真相源时 auto-create 未进**本 vault** 的桶: {on_disk!r}"
     assert result["persisted"] is True
 
 

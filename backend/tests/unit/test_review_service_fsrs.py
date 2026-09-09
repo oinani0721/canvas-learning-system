@@ -775,12 +775,28 @@ class TestCardStatePersistHonestyD3:
         assert ok is True
         assert svc._card_states["d3-bind"] == '{"state": 1}'
         on_disk = _json.loads(rs_module._CARD_STATES_FILE.read_text("utf-8"))
-        assert on_disk["d3-bind"] == '{"state": 1}'
-        assert "d3-bind" not in svc._unpersisted_concepts
+        # CARD-G3-5: 落盘顶层键改成 vault_id (投影按 vault 分桶), concept_id 落
+        # 二层。本用例原意 (锁内 mutation 必进落盘快照) 一字不减。
+        #
+        # ⚠️ Codex r1 MEDIUM-2 整改: 断言要绑**正确身份 (vault, concept)**, 不能
+        # 只问"某处出现过这张卡"—— 那样"内存写对桶、落盘落进另一个 vault"也会
+        # 通过。这里向 svc 问它自己当前解析到的 vault, 再定点查那个桶: 既绑住了
+        # 身份, 又不把测试钉死在某个具体 vault 名上 (它随 active vault 配置变)。
+        current_vault = svc._dirty_key("d3-bind")[0]
+        assert current_vault is not None, "作用域应能解析出来, 否则前面的写不会成功"
+        assert isinstance(on_disk.get(current_vault), dict), (
+            f"落盘顶层应是 vault 桶 (dict), 实得 {on_disk!r}"
+        )
+        assert on_disk[current_vault]["d3-bind"] == '{"state": 1}', (
+            f"本次 pending 状态未进**本 vault** 的落盘桶: {on_disk!r}"
+        )
+        assert not svc._is_unpersisted("d3-bind")
 
         monkeypatch.setattr(
             rs_module, "_CARD_STATES_FILE", Path("/dev/null/card-states.json")
         )
         bad = await svc._save_card_states(pending=("d3-bind-fail", "{}"))
         assert bad is False
-        assert "d3-bind-fail" in svc._unpersisted_concepts
+        # CARD-G3-5: dirty 集的身份是 (vault, concept), 见 _dirty_key 的
+        # 跨 vault 误报理由。
+        assert svc._is_unpersisted("d3-bind-fail")
