@@ -309,8 +309,13 @@ def _backtick_spans(text: str) -> list[str]:
         while i + run < n and text[i + run] == "`" and masked[i + run] == "`":
             run += 1
         close = text.find("`" * run, i + run)  # closing 在**原串**上找, 不看转义
-        while close != -1 and close + run < n and text[close + run] == "`":
-            close = text.find("`" * run, close + run + 1)
+        # ⛔ r10 HIGH-1: closing run 必须**恰好**等长 —— 两端都要检查。只查右边界时
+        # `` `p ```/var/cache(/tmp/…``` `` 会用三反引号串的**尾部**提前闭合单反引号,
+        # 真正的路径 span 整个消失(漏检方向)。
+        while close != -1 and (
+            (close + run < n and text[close + run] == "`") or (close > 0 and text[close - 1] == "`")
+        ):
+            close = text.find("`" * run, close + 1)
         if close == -1:
             i += run
             continue
@@ -407,7 +412,10 @@ def _quiet_parse(src: str) -> ast.AST | None:
 #: ⛔ r9 HIGH-5a: **不含任何 ASCII 标点**。`_` `:` `,` 同样是合法 shell 词的一部分,
 #: 留在表里就等于放行 ``cp "/tmp/cls-exam/"_`printf a`_ out`` 这种形态。
 #: ⛔ r9 LOW-2: 补齐中文引号与括号(“”‘’『』〔〕), 它们在中文技术文档里包 span 很常见。
-_SPAN_SEP_CHARS = frozenset(" \t，。、；：！？（）【】「」『』〔〕《》〈〉“”‘’…—·*")
+#: ⛔ r10 HIGH-5: 连 `*` 与中文引号也去掉 —— 它们同样能属于合法 shell 词
+#: (`P="/tmp/cls-exam/"*`printf a`*` / 用 `“”` 包裹同理)。**只留空白与中文句读**:
+#: 表里多一个字符就是多一条放行, 而遗漏只会造成误报(方向安全)。
+_SPAN_SEP_CHARS = frozenset(" \t，。、；：！？…—·")
 
 
 def _is_span_sep(ch: str) -> bool:
@@ -440,8 +448,11 @@ def _has_embedded_span_near_tmp(line: str) -> bool:
     return False
 
 
-#: 容器前缀(引用 / 列表, 任意嵌套顺序) —— 与 `_FENCE_OPEN_RE` 的前缀部分同口径。
-_CONTAINER_PREFIX_RE = re.compile(r"^\s*(?:(?:>\s*)+|(?:[-*+]\s+|\d+[.)]\s+))*")
+#: 容器前缀(引用 / 列表, 任意嵌套顺序)。
+#: ⛔ r10 HIGH-2: `>` 后**只吃一个空格** —— CommonMark 规定 block quote marker 后至多
+#: 一个空格属于标记, 再多就是内容缩进。原先写 `>\s*` 会把 Python 的真实缩进一并删掉,
+#: `>     pass` 变成 `pass`, 函数体没了、整段解析失败(漏检方向)。
+_CONTAINER_PREFIX_RE = re.compile(r"^[ \t]*(?:(?:> ?)+|(?:[-*+][ \t]+|\d+[.)][ \t]+))*")
 
 
 def _prose_segments(text: str) -> list[tuple[int, list[str]]]:
@@ -465,12 +476,20 @@ def _prose_segments(text: str) -> list[tuple[int, list[str]]]:
         # ⛔ fence **标记行**虽按散文产出(为了让裸 token 扫到 info string 上的路径),
         # 但它不是散文正文 —— 并进段会让相邻两个 ``` 凑成一个假的跨行 span(树上实测
         # 误报 board-recap `:135` / quiz-answer `:165`)。它同时也是段边界。
-        if is_fence or (len(body) == 1 and _FENCE_OPEN_RE.match(body[0])):
-            flush()
+        marker = _FENCE_OPEN_RE.match(body[0]) if len(body) == 1 else None
+        if is_fence or (marker is not None and not _is_inline_span(marker, body[0])):
+            flush()  # fence 与其标记行都是段边界(标记行只为裸 token 而按散文产出)
             continue
-        if cur_start is None:
-            cur_start = start
-        cur.extend(body)
+        for line in body:
+            # ⛔ r10 HIGH-4: **空行是 markdown 块边界**。不断段的话, 前一段里一个
+            # 未闭合的反引号会夺走后一段的合法 opening(实测整段 span 消失), 反方向
+            # 还会跨空行拼出不存在的 span(误报)。
+            if not line.strip():
+                flush()
+                continue
+            if cur_start is None:
+                cur_start = start + body.index(line)
+            cur.append(line)
     flush()
     return out
 
@@ -576,6 +595,19 @@ def _sh_needs_more(chunk: str) -> bool:
     return False
 
 
+def _has_continuation_after(body: list[str], i: int, j: int, end: int) -> bool:
+    """`body[i:j+1]` 之后, 跳过比首行更深的缩进块, 第一个**同级**行是不是续接子句?"""
+    base = len(body[i]) - len(body[i].lstrip())
+    for k in range(j + 1, end + 1):
+        line = body[k]
+        if not line.strip():
+            continue  # 空行不结束复合语句
+        if len(line) - len(line.lstrip()) > base:
+            continue  # 仍在本语句的缩进块里
+        return _PY_CONTINUATION_RE.match(line) is not None
+    return False
+
+
 def _parse_units(body: list[str]) -> list[tuple[int, str, list[str] | None]]:
     r"""fence 体 → `[(块内偏移, 源码块, 解析出的字符串或 None)]` —— **按语法单元切, 不按物理行**。
 
@@ -600,8 +632,12 @@ def _parse_units(body: list[str]) -> list[tuple[int, str, list[str] | None]]:
     i, n = 0, len(body)
     while i < n:
         # ⛔ r9 HIGH-1b: **不设行数上限**。r8 版留了 200 行, Codex 实测 201 行的
-        # heredoc 常量拼接整段漏检 ——「固定上限」只是把缺口挪个位置。`_py_needs_more()`
-        # 的剪枝已经保证复杂度: 非 Python 行立刻判「语法错误」⇒ 不累加 ⇒ O(n)。
+        # heredoc 常量拼接整段漏检 ——「固定上限」只是把缺口挪个位置。
+        # ⛔ r10 LOW-3 更正: 上一版在这里写「⇒ O(n)」是**错的**, 未经验证。`_py_needs_more()`
+        # 只保证**非 Python 行**不累加; 一个合法的长括号单元里, 每加一行都要对整个累积块
+        # 重解析一次 ⇒ 该单元内是 **O(k²)**(Codex 实测 1000/2000/4000 行注释 =
+        # 0.10/0.37/1.40s)。可接受的理由是**单元长度**而不是块长度: 树上最长单元
+        # 见 `test_parse_unit_length_on_current_tree`。这是如实声明, 不是「已优化」。
         end = n - 1
         unit: tuple[int, str, list[str] | None] | None = None
         # ⛔ 两个窗口必须**先后**而不是交错: `shlex` 对 `P = (` 这种单行也「成功」
@@ -610,8 +646,10 @@ def _parse_units(body: list[str]) -> list[tuple[int, str, list[str] | None]]:
         for j in range(i, end + 1):  # ① Python 窗口
             chunk = textwrap.dedent("\n".join(body[i : j + 1]))
             values = _py_strings(chunk)
-            # r9 HIGH-1a: 下一行若是复合语句的续接子句(elif/else/except/…), 不能在此切断
-            follows = j + 1 <= end and _PY_CONTINUATION_RE.match(body[j + 1]) is not None
+            # r9 HIGH-1a / r10 HIGH-3: 后面若还有本复合语句的续接子句(elif/else/except/…),
+            # 不能在此切断。⛔ 只看**紧邻**下一行不够 —— 分支里有多行时, 第一个 `pass`
+            # 后就切开了; 要跳过整个缩进块再看第一个**同级**行。
+            follows = _has_continuation_after(body, i, j, end)
             if values is not None and not follows:
                 unit = (i, "\n".join(body[i : j + 1]), values)
                 i = j + 1
@@ -810,8 +848,16 @@ def dynamic_tmp_join_lines(text: str) -> list[tuple[int, str]]:
     for start, body, is_fence in _fence_blocks(text):
         if not is_fence:
             continue
-        for offset, chunk, _parsed in _parse_units(body):  # 按语法单元, 不按物理行
-            if "/tmp" in chunk and _has_dynamic_tmp_join(chunk):
+        for offset, chunk, parsed in _parse_units(body):  # 按语法单元, 不按物理行
+            # ⛔ r10 HIGH-6: 预筛不能只看**源码字面**含不含 `/tmp` ——
+            # `P = "/t" "mp/cls-exam/" + "." * 2 + "/x"` 的源码里没有 `/tmp` 三个字符
+            # 连在一起, 但 `ast` 折完隐式拼接后有。改用**解析出的字符串**做预筛,
+            # 源码字面只作为兜底(解析失败时)。
+            if not (
+                (parsed and any("/tmp" in v for v in parsed)) or (parsed is None and "/tmp" in chunk) or "/tmp" in chunk
+            ):
+                continue
+            if _has_dynamic_tmp_join(chunk):
                 out.append((start + offset, chunk.splitlines()[0].strip()))
     return out
 
@@ -1114,8 +1160,13 @@ OPAQUE_TMP_BASELINE: dict[str, list[int]] = {
     "configure-whiteboard": [],
     "exam-quick": [],
     "node-chat": [],
-    "quiz-answer": [],
-    "start-exam-board": [],
+    # ⛔ 以下三行是**保守误报**, 不是债: markdown 的 `**粗体**` 紧贴 span 边界, 被
+    # 「嵌入式 span」判据当成了 shell 命令替换。r10 起 `_SPAN_SEP_CHARS` 去掉了 `*`
+    # —— 因为 `*` 同样能属于合法 shell 词(`P="/tmp/cls-exam/"*`printf a`*`), 留在表里
+    # 就是一条放行。**方向取舍**: 表里多一个字符 = 多一条漏检; 少一个字符 = 多一条误报。
+    # 漏检不可接受, 误报可以登记 ⇒ 登记这三行, 零余量不变(新增仍即红)。
+    "quiz-answer": [205],
+    "start-exam-board": [188, 577],
     "study-question": [],
 }
 
@@ -1444,7 +1495,8 @@ def check_dynamic_tmp_joins(root: Path, baseline: dict[str, list[int]]) -> list[
 #: ⛔ r9 MEDIUM-2: `CLS_BACKEND_URL=; curl "${CLS_BACKEND_URL:-http://localhost:8011}/…"`
 #: 九项计数与五个集合全部不变, 但外部配置被清空、命令无条件走 localhost:8011 ——
 #: 「改成缺省形态」这项整改被就地取消, 而门看不见。这是可静态确定的等计数缺口。
-_URL_OVERRIDE_RE = re.compile(r"(?<![{$:])\bCLS_BACKEND_URL\s*=")
+#: ⛔ r10 MEDIUM: `unset` 同样确定性清空配置, 与赋值同根。
+_URL_OVERRIDE_RE = re.compile(r"(?<![{$:])\bCLS_BACKEND_URL\s*=|\bunset\s+CLS_BACKEND_URL\b")
 
 
 def url_default_overridden_lines(text: str) -> list[tuple[int, str]]:
@@ -1735,6 +1787,34 @@ def test_url_override_lines_match_baseline():
     """第九条判据(正控): 给 `CLS_BACKEND_URL` 赋值的行号集合 == 基线(现状全 9 份皆空)。"""
     problems = check_url_override(DEFAULT_ROOT, URL_OVERRIDE_BASELINE)
     assert not problems, "URL 覆盖基线漂移:\n" + "\n".join(problems)
+
+
+def test_parse_unit_length_on_current_tree():
+    r"""钉住树上**最长语法单元**的行数 —— `_parse_units()` 的复杂度声明依赖它。
+
+    ⛔ r10 LOW-3: 去掉行数上限后, 一个合法的长括号单元里每加一行都要对整个累积块
+    重解析一次 ⇒ 该单元内是 **O(k²)**(Codex 实测 1000/2000/4000 行 =
+    0.10/0.37/1.40s)。「`_py_needs_more()` 保证 O(n)」那句话是错的, 已从 docstring 删掉。
+
+    可接受的理由是**单元长度**有界, 不是块长度有界。这条把那个前提钉住: 树上最长单元
+    一旦暴涨(比如有人往 fence 里贴一个几千行的括号表达式), 这里先红, 而不是等到某天
+    整套测试莫名其妙变慢。
+    """
+    longest = 0
+    where = ""
+    for name in sorted(EXPECTED_SKILLS):
+        text = (DEFAULT_ROOT / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
+        for _start, body, is_fence in _fence_blocks(text):
+            if not is_fence:
+                continue
+            for _off, chunk, _parsed in _parse_units(body):
+                n = len(chunk.splitlines())
+                if n > longest:
+                    longest, where = n, name
+    assert longest <= 400, (
+        f"树上最长语法单元 {longest} 行(在 {where}) —— 超过 400 行时 `_parse_units()` 的"
+        f"单元内 O(k²) 会变成真实成本, 请先看那个单元是不是解析边界判错了"
+    )
 
 
 def test_every_per_skill_baseline_covers_all_nine_skills():
@@ -2519,12 +2599,55 @@ _R7_HIGH_FORMS: list[tuple[str, str, str, str]] = [
         "不透明记号",
         "HIGH-6 七条反斜杠续行 —— 链长上限 6 把记号与 `/tmp` 切进不同组(边界呈模 7 锯齿)",
     ),
+    # ── Codex round-10 六类 HIGH + 1 MEDIUM ───────────────────────────────
+    (
+        "`p ```/var/cache(/tmp/cls-exam/x```",
+        "`p ```/tmp/cls-exam/x```",
+        "越界",
+        "r10HIGH-1 closing run 必须**恰好**等长 —— 只查右边界会用长串的尾部提前闭合",
+    ),
+    (
+        '> ```python\n> def f():\n>     P = "/tmp/cls-exam/" + "." * 2 + "/x"\n>     return P\n> ```',
+        '> ```python\n> def f():\n>     P = "/tmp/cls-exam/x"\n>     return P\n> ```',
+        "动态拼接",
+        "r10HIGH-2 剥引用标记后只吃**一个**空格 —— `>\\s*` 会把 Python 的真实缩进一起删掉",
+    ),
+    (
+        "段尾 `未闭合\n\n执行 `/var/cache(\n/tmp/cls-exam/x`",
+        "段尾 `未闭合\n\n执行 `/tmp/cls-exam/x\n`",
+        "越界",
+        "r10HIGH-4 空行是 markdown 块边界 —— 不断段则前段的未闭反引号夺走后段的 opening",
+    ),
+    (
+        '执行 P="/var/cache""/tmp/cls-exam/"*`printf a`*',
+        '执行 P="/tmp/cls-exam/x"',
+        "不透明记号",
+        "r10HIGH-5a `*` 也能属于合法 shell 词 —— 分隔符表里多一个字符就是多一条放行",
+    ),
+    (
+        '执行 P="/var/cache""/tmp/cls-exam/"“`printf a`”',
+        '执行 P="/tmp/cls-exam/y"',
+        "不透明记号",
+        "r10HIGH-5b 中文引号同理 —— r9 为消误报把它们加进表, 反而开了一条放行",
+    ),
+    (
+        '```python\nP = "/t" "mp/cls-exam/" + "." * 2 + "/x"\n```',
+        '```python\nP = "/t" "mp/cls-exam/" + "a" + "/x"\n```',
+        "动态拼接",
+        "r10HIGH-6 预筛不能只看源码字面 —— 隐式拼接后才出现 `/tmp`, `ast` 折得出、预筛挡掉了",
+    ),
+    (
+        '```sh\nunset CLS_BACKEND_URL; curl "${CLS_BACKEND_URL:-http://localhost:8011}/api/v1/ping"\n```',
+        '```sh\ncurl "${CLS_BACKEND_URL:-http://localhost:8011}/api/v1/ping"\n```',
+        "URL 覆盖",
+        "r10MEDIUM `unset` 与赋值同根 —— 都确定性清空配置、让缺省形态无条件生效",
+    ),
     # ── Codex round-9 五类 HIGH + 1 MEDIUM ────────────────────────────────
     (
-        '```sh\npython3 - <<\'PYEOF\'\nif False:\n    pass\nelse:\n    P = "/tmp/cls-exam/" ".." "/x"\nPYEOF\n```',
-        '```sh\npython3 - <<\'PYEOF\'\nif False:\n    pass\nelse:\n    P = "/tmp/cls-exam/" "ab" "/x"\nPYEOF\n```',
+        '```sh\npython3 - <<\'PYEOF\'\nif False:\n    pass\n    pass\nelif ("/tmp/cls-exam/" "../x") == q:\n    pass\nPYEOF\n```',
+        '```sh\npython3 - <<\'PYEOF\'\nif False:\n    pass\n    pass\nelif ("/tmp/cls-exam/" "x") == q:\n    pass\nPYEOF\n```',
         "越界",
-        "r9HIGH-1a 复合语句续接子句 —— 贪心「第一次成功即认」会把 `if` 认走、孤立 `elif` 转交 shlex",
+        "r9HIGH-1a/r10HIGH-3 续接子句 —— `elif` 头里的表达式**必须依附它**才能解析; 分支内多行时只看紧邻下一行不够",
     ),
     (
         "```sh\npython3 - <<'PYEOF'\nP = (\n    \"/tmp/cls-exam/\"\n"
@@ -2549,8 +2672,8 @@ _R7_HIGH_FORMS: list[tuple[str, str, str, str]] = [
         "r9HIGH-3a closing 的引用深度必须等于 opening 的 —— 否则 `> ``` ` 提前闭合",
     ),
     (
-        '- > ```python\n- > P = "/tmp/cls-exam/" + "." * 2 + "/x"\n- > ```',
-        '- > ```python\n- > P = "/tmp/cls-exam/x"\n- > ```',
+        '- > ```python\n  > P = "/tmp/cls-exam/" + "." * 2 + "/x"\n  > ```',
+        '- > ```python\n  > P = "/tmp/cls-exam/x"\n  > ```',
         "动态拼接",
         "r9HIGH-3b 列表→引用嵌套 —— body 的容器前缀要整体剥, 只剥 `>` 不够",
     ),
