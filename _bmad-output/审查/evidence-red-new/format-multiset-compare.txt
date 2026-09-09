@@ -1,0 +1,39 @@
+=== format 债多重集对照（协议 §2.3 判据；⛔ 非行号交集）===
+口径：ruff format --diff 输出里的变更行内容（剥 ± 前缀、去行号），排序后做多重集
+--- 仅出现在【本卡版本】的 format 债条目（= 本卡新增，必须为空）---
+            == CalibrationRating.OVER_CONFIDENT
+            == CalibrationRating.UNDER_CONFIDENT
+            == CalibrationRating.WELL_CALIBRATED
+            == CalibrationRating.WELL_CALIBRATED
+            compute_calibration_rating(-CALIBRATION_BIAS_THRESHOLD + 0.001, 20)
+            compute_calibration_rating(-CALIBRATION_BIAS_THRESHOLD, 20)
+            compute_calibration_rating(CALIBRATION_BIAS_THRESHOLD - 0.001, 20)
+            compute_calibration_rating(CALIBRATION_BIAS_THRESHOLD, 20)
+            lambda: call_count >= 2, description="flaky_handler retried"
+            storage_root
+        )
+        )
+        )
+        )
+        ) or not backslash_normalized.is_relative_to(storage_root):
+        assert (
+        assert (
+        assert (
+        assert compute_calibration_rating(-CALIBRATION_BIAS_THRESHOLD + 0.001, 20) == CalibrationRating.WELL_CALIBRATED
+        assert compute_calibration_rating(-CALIBRATION_BIAS_THRESHOLD, 20) == CalibrationRating.UNDER_CONFIDENT
+        assert compute_calibration_rating(CALIBRATION_BIAS_THRESHOLD - 0.001, 20) == CalibrationRating.WELL_CALIBRATED
+        assert compute_calibration_rating(CALIBRATION_BIAS_THRESHOLD, 20) == CalibrationRating.OVER_CONFIDENT
+        await wait_condition(
+        await wait_condition(lambda: call_count >= 2, description="flaky_handler retried")
+        if not resolved_path.is_relative_to(
+        if not resolved_path.is_relative_to(storage_root) or not backslash_normalized.is_relative_to(storage_root):
+        self, monkeypatch, wait_condition
+    ):
+    async def test_tier2_all_retries_exhausted_writes_outbox(
+    async def test_tier2_all_retries_exhausted_writes_outbox(self, monkeypatch, wait_condition):
+[END-NEW]
+
+--- 仅出现在【HEAD 基线】的条目（= 本卡顺带消除的，正常也应为空）---
+            compute_calibration_rating(-0.15, 20) == CalibrationRating.WELL_CALIBRATED
+        assert compute_calibration_rating(-0.15, 20) == CalibrationRating.WELL_CALIBRATED
+[END-GONE]

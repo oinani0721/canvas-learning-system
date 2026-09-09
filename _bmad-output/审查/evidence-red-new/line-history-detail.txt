@@ -1,0 +1,159 @@
+########## #1/#2 断言行：836d0986 究竟改了什么 ##########
+@@COMMIT 836d0986 2026-03-31 feat(Epic2): architectural pruning — remove cross_canvas + textbook + fix vault_notes
+
+diff --git a/backend/tests/unit/test_calibration_tracker.py b/backend/tests/unit/test_calibration_tracker.py
+--- a/backend/tests/unit/test_calibration_tracker.py
++++ b/backend/tests/unit/test_calibration_tracker.py
+@@ -257,11 +264,15 @@
+     def test_over_confident_boundary(self):
+         """signed_bias >= 0.15 → OVER_CONFIDENT."""
+         assert compute_calibration_rating(0.15, 20) == CalibrationRating.WELL_CALIBRATED
+         assert compute_calibration_rating(0.16, 20) == CalibrationRating.OVER_CONFIDENT
+         assert compute_calibration_rating(0.5, 30) == CalibrationRating.OVER_CONFIDENT
+ 
+     def test_under_confident_boundary(self):
+         """signed_bias <= -0.15 → UNDER_CONFIDENT."""
+-        assert compute_calibration_rating(-0.15, 20) == CalibrationRating.WELL_CALIBRATED
+-        assert compute_calibration_rating(-0.16, 20) == CalibrationRating.UNDER_CONFIDENT
++        assert (
++            compute_calibration_rating(-0.15, 20) == CalibrationRating.WELL_CALIBRATED
++        )
++        assert (
++            compute_calibration_rating(-0.16, 20) == CalibrationRating.UNDER_CONFIDENT
++        )
+         assert compute_calibration_rating(-0.5, 30) == CalibrationRating.UNDER_CONFIDENT
+@@COMMIT 43d291d8 2026-03-16 feat(sprint-4): implement 14 stories - CRAG, fingerprint, chat UI, context, skills, annotations, archive, defense, calibration, fusion, eventbus
+
+########## #3 生产 canvas_service.py:895-901 的三次变更 ##########
+@@COMMIT 836d0986 2026-03-31 feat(Epic2): architectural pruning — remove cross_canvas + textbook + fix vault_notes
+
+diff --git a/backend/app/services/canvas_service.py b/backend/app/services/canvas_service.py
+--- a/backend/app/services/canvas_service.py
++++ b/backend/app/services/canvas_service.py
+@@ -823,4 +904,7 @@
+         # Story 30.5 AC-30.5.2: Trigger edge_created memory event (fire-and-forget)
+         await self._trigger_memory_event(
+-            event_type=CanvasEventType.EDGE_CREATED, canvas_name=canvas_name, edge_id=new_edge["id"], edge_data=new_edge
++            event_type=CanvasEventType.EDGE_CREATED,
++            canvas_name=canvas_name,
++            edge_id=new_edge["id"],
++            edge_data=new_edge,
+         )
+@@COMMIT 14f2d5a5 2026-03-18 feat(E3-wave1): complete Story 3-1/3-2/3-3 — dialog engine foundation
+
+diff --git a/backend/app/services/canvas_service.py b/backend/app/services/canvas_service.py
+--- a/backend/app/services/canvas_service.py
++++ b/backend/app/services/canvas_service.py
+@@ -908,7 +819,4 @@
+         # Story 30.5 AC-30.5.2: Trigger edge_created memory event (fire-and-forget)
+         await self._trigger_memory_event(
+-            event_type=CanvasEventType.EDGE_CREATED,
+-            canvas_name=canvas_name,
+-            edge_id=new_edge["id"],
+-            edge_data=new_edge
++            event_type=CanvasEventType.EDGE_CREATED, canvas_name=canvas_name, edge_id=new_edge["id"], edge_data=new_edge
+         )
+@@COMMIT abf1d585 2026-02-04 chore: Clean repository and rewrite README
+
+diff --git a/backend/app/services/canvas_service.py b/backend/app/services/canvas_service.py
+--- a/backend/app/services/canvas_service.py
++++ b/backend/app/services/canvas_service.py
+@@ -367,0 +700,7 @@
++        # Story 30.5 AC-30.5.2: Trigger edge_created memory event (fire-and-forget)
++        await self._trigger_memory_event(
++            event_type=CanvasEventType.EDGE_CREATED,
++            canvas_name=canvas_name,
++            edge_id=new_edge["id"],
++            edge_data=new_edge
++        )
+########## #3 测试断言行 :243-269 的三次变更 ##########
+@@COMMIT 836d0986 2026-03-31 feat(Epic2): architectural pruning — remove cross_canvas + textbook + fix vault_notes
+
+diff --git a/backend/tests/unit/test_canvas_memory_trigger.py b/backend/tests/unit/test_canvas_memory_trigger.py
+--- a/backend/tests/unit/test_canvas_memory_trigger.py
++++ b/backend/tests/unit/test_canvas_memory_trigger.py
+@@ -257,27 +243,27 @@
+         # Reset mock to isolate edge test
+         mock_memory_client.record_temporal_event.reset_mock()
+ 
+         # Act
+         result = await canvas_service_with_memory.add_edge(
+             "test-canvas",
+             {
+                 "fromNode": "node1",
+                 "toNode": "node2",
+                 "fromSide": "right",
+-                "toSide": "left"
+-            }
++                "toSide": "left",
++            },
+         )
+ 
+         # Assert - CRUD succeeded
+         assert result["id"] is not None
+         assert result["fromNode"] == "node1"
+         assert result["toNode"] == "node2"
+ 
+         # Assert - Memory event was triggered
+         await wait_for_call(mock_memory_client.record_temporal_event)
+         mock_memory_client.record_temporal_event.assert_called()
+ 
+         # Verify call arguments
+         call_args = mock_memory_client.record_temporal_event.call_args
+         assert call_args.kwargs["event_type"] == "edge_created"
+         assert call_args.kwargs["edge_id"] == result["id"]
+@@COMMIT 14f0412d 2026-02-07 chore: clean release — remove legacy docs/specs, consolidate code fixes
+
+diff --git a/backend/tests/unit/test_canvas_memory_trigger.py b/backend/tests/unit/test_canvas_memory_trigger.py
+--- a/backend/tests/unit/test_canvas_memory_trigger.py
++++ b/backend/tests/unit/test_canvas_memory_trigger.py
+@@ -255,27 +256,27 @@
+         # Reset mock to isolate edge test
+         mock_memory_client.record_temporal_event.reset_mock()
+ 
+         # Act
+         result = await canvas_service_with_memory.add_edge(
+             "test-canvas",
+             {
+                 "fromNode": "node1",
+                 "toNode": "node2",
+                 "fromSide": "right",
+                 "toSide": "left"
+             }
+         )
+ 
+         # Assert - CRUD succeeded
+         assert result["id"] is not None
+         assert result["fromNode"] == "node1"
+         assert result["toNode"] == "node2"
+ 
+         # Assert - Memory event was triggered
+-        await asyncio.sleep(0.1)
++        await wait_for_call(mock_memory_client.record_temporal_event)
+         mock_memory_client.record_temporal_event.assert_called()
+ 
+         # Verify call arguments
+         call_args = mock_memory_client.record_temporal_event.call_args
+         assert call_args.kwargs["event_type"] == "edge_created"
+         assert call_args.kwargs["edge_id"] == result["id"]
+@@COMMIT abf1d585 2026-02-04 chore: Clean repository and rewrite README
+
+diff --git a/backend/tests/unit/test_canvas_memory_trigger.py b/backend/tests/unit/test_canvas_memory_trigger.py
+--- /dev/null
++++ b/backend/tests/unit/test_canvas_memory_trigger.py
+@@ -0,0 +255,27 @@
++        # Reset mock to isolate edge test
++        mock_memory_client.record_temporal_event.reset_mock()
++
++        # Act
++        result = await canvas_service_with_memory.add_edge(
++            "test-canvas",
++            {
++                "fromNode": "node1",
++                "toNode": "node2",
++                "fromSide": "right",
++                "toSide": "left"
++            }
++        )
++
++        # Assert - CRUD succeeded

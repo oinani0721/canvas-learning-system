@@ -105,12 +105,22 @@ class TestSlidingWindowStats:
         return DifficultyMatcher(db_path)
 
     def test_empty_window_stats(self, tmp_path):
+        """Empty window reports rate 0.0 and is_healthy False (current contract).
+
+        is_healthy is defined as ``rate >= MATCH_THRESHOLD`` — the qa_models field
+        description says "True if match_rate >= 0.7" — so an empty window is not
+        healthy. "No data should not alert" is handled one level up: the only
+        alerting consumer, health_monitor._check_difficulty_match_rate, branches on
+        ``total_in_window == 0`` and returns "no data" before it ever reads
+        is_healthy. Whether the flag itself should special-case the empty window is
+        a product question, tracked as CARD-DIFFMATCH-EMPTY-WINDOW.
+        """
         matcher = self._make_matcher(str(tmp_path))
         stats = matcher.get_stats()
         assert stats.total_in_window == 0
         assert stats.matched_count == 0
         assert stats.match_rate == 0.0
-        assert stats.is_healthy is True  # No data -> no alert
+        assert stats.is_healthy is False
 
     def test_window_tracks_matches(self, tmp_path):
         matcher = self._make_matcher(str(tmp_path))

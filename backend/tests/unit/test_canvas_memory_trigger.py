@@ -240,6 +240,12 @@ class TestAddEdgeMemoryTrigger:
             {"id": "node2", "type": "text", "text": "Node 2", "x": 300, "y": 100},
         )
 
+        # add_node fires its memory event as a background task. Wait for it to
+        # land before resetting: otherwise the reset races that task, the stale
+        # node_created call arrives afterwards, and it looks like it belonged to
+        # add_edge.
+        await wait_for_call(mock_memory_client.record_temporal_event)
+
         # Reset mock to isolate edge test
         mock_memory_client.record_temporal_event.reset_mock()
 
@@ -263,10 +269,17 @@ class TestAddEdgeMemoryTrigger:
         await wait_for_call(mock_memory_client.record_temporal_event)
         mock_memory_client.record_temporal_event.assert_called()
 
-        # Verify call arguments
-        call_args = mock_memory_client.record_temporal_event.call_args
-        assert call_args.kwargs["event_type"] == "edge_created"
-        assert call_args.kwargs["edge_id"] == result["id"]
+        # Verify call arguments. Assert that an edge_created call exists rather
+        # than inspecting only the most recent call: call_args holds the *last*
+        # call, so any later event would mask the one under test. This form still
+        # fails if edge_created is never emitted, or is emitted with a wrong id.
+        edge_calls = [
+            c
+            for c in mock_memory_client.record_temporal_event.call_args_list
+            if c.kwargs.get("event_type") == "edge_created"
+        ]
+        assert len(edge_calls) == 1
+        assert edge_calls[0].kwargs["edge_id"] == result["id"]
 
 
 # =============================================================================

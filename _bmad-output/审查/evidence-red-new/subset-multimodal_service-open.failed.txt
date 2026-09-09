@@ -1,0 +1,1 @@
+tests/unit/test_multimodal_path_security.py::TestValidateSafePath::test_path_traversal_windows_style

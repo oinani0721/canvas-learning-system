@@ -1,0 +1,8 @@
+tests/unit/test_calibration_tracker.py::TestCalibrationRating::test_over_confident_boundary
+tests/unit/test_calibration_tracker.py::TestCalibrationRating::test_under_confident_boundary
+tests/unit/test_canvas_memory_trigger.py::TestAddEdgeMemoryTrigger::test_add_edge_triggers_memory_event
+tests/unit/test_difficulty_matcher.py::TestSlidingWindowStats::test_empty_window_stats
+tests/unit/test_event_bus.py::TestTier2Important::test_tier2_all_retries_exhausted_writes_outbox
+tests/unit/test_event_bus.py::TestTier2Important::test_tier2_retry_then_success
+tests/unit/test_mastery_fusion.py::TestPearsonCorrelation::test_no_correlation
+tests/unit/test_multimodal_path_security.py::TestValidateSafePath::test_path_traversal_windows_style
