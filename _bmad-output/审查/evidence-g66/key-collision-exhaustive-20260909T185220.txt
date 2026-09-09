@@ -1,0 +1,36 @@
+# 键碰撞：哪些修法真能挡住（Codex round-5 LOW 之后的穷举验证）
+# ⚠ 这条「不修理由」我已经写错三次（r3 类比不成立 / r4 说要动 U6-B / r5 说收窄 snooze 侧值域就够）。
+# 这次每个候选都实际构造碰撞去试，构造不出来才敢说挡得住。
+
+=== 候选修法逐个试 ===
+  ① 初版：字符串前缀 'snooze:'
+    target = 'snooze:math\x00A'
+    ✗ 撞得上: doneKey('snooze:math', 'A')
+  ② 当前：NUL 前缀
+    target = 'snooze\x00math\x00A'
+    ✗ 撞得上: doneKey('snooze', 'math\x00A')
+    ✗ 撞得上: doneKey('snooze\x00math', 'A')
+  ③ 长度前缀
+    target = 'snooze\x004\x00math\x00A'
+    ✗ 撞得上: doneKey('snooze', '4\x00math\x00A')
+    ✗ 撞得上: doneKey('snooze\x004', 'math\x00A')
+    ✗ 撞得上: doneKey('snooze\x004\x00math', 'A')
+
+=== 结论 ===
+  doneKey(v, b) 的值域 = 任意「含至少一个 NUL 的字符串」——因为 v 与 b 都无约束。
+  只要 snoozeKey 的输出里含 NUL，就一定能在某个 NUL 处劈开、反构造出一个 doneKey 调用。
+  ⇒ 上面三个候选**都挡不住**；收窄 snooze 侧的板名值域更挡不住
+    （Codex round-5 的场景里，坏板名在 **done 侧**，根本不经过 snooze 端点）。
+
+⚠⚠ 本文件初版据此写下「任何**同一 key 空间内的编码技巧**都挡不住，唯一办法是分开 map」——
+**那是错的，而且是本卡第四次同形**：我只试了三个「输出含 NUL」的候选，就把搜索面当成了全集。
+
+补验证（同一天，见下）推翻了它：
+  · doneKey(v,b) = v + NUL + b ⇒ 它的值域恒**含至少一个 NUL**。
+  · 所以只要让 snoozeKey 的输出**恒不含 NUL**，两族值域就不相交 —— 碰撞在原理上消除，
+    且**不必碰 doneKey**。Codex round-5 说的「仅修改 snooze 内部键编码确实可以不动 U6-B」成立。
+  · 落地方案：分隔符 "|"，把 % | NUL 三者都百分号转义（转义表自身不含分隔符 ⇒ 劈分唯一 ⇒ 单射）。
+    四条性质各自验过：输出恒不含 NUL / 单射 / 穷举劈分反构造不出 doneKey / 2000 组模糊测试全 0。
+
+⇒ 于是「不修」这条也站不住了：没有技术障碍、不需要产品裁定、改动全在本卡自己新增的代码里。
+  **本卡最终选择修它**（换 snoozeKey 的编码），而不是再写第四版「不修理由」。

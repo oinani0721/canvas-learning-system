@@ -3146,35 +3146,42 @@ test("在飞期间的重绘不许把钮解锁 (busy 键两侧必须是同一个)
   assert.ok(btns.length >= 2, "两档各一个钮");
   for (const t of btns) assert.match(t, / disabled/, "在飞的那块板, 重绘出来的钮必须仍是禁用的");
 });
-test("推迟键不与另一库的完成键碰撞 (Codex round-2 LOW-1)", () => {
-  // ⛔ 用 ":" 做前缀时 snoozeKey("math","A") === doneKey("snooze:math","A") ——
-  // 两个都是合法目录名, 于是 math 的推迟在飞时, 名叫 "snooze:math" 的库的完成钮
-  // 被连带禁用、它的完成 handler 也静默返回。这正是 doneKey 那段注释说的分隔符
-  // 碰撞, 加前缀时被原样重现了一次。换成 \u0000 之后要碰撞得有个库名含 NUL,
-  // 而 POSIX 禁止文件名含 NUL。
+test("推迟键与完成键**不同族**: 输出恒不含 NUL (Codex round-2 / round-5 LOW-1)", () => {
   const b = boot();
+  const NUL = "\u0000";
+  // ⛔ 根因: doneKey(v,b) = v + NUL + b, 两个分量都无约束 ⇒ 它的值域是**任意含至少
+  // 一个 NUL 的字符串**。前缀式编码试过两版都被打回:
+  //   · "snooze:" + doneKey(v,b)      ⇒ 撞 doneKey("snooze:math", "A")        (round-2)
+  //   · "snooze" + NUL + doneKey(v,b) ⇒ 撞 doneKey("snooze", "math"+NUL+"A")  (round-5)
+  // 后者那个含 NUL 的板名在**完成侧**, 根本不经过推迟端点 —— 所以"收窄推迟侧板名
+  // 值域"也挡不住 (我为此写错过三版理由)。
+  // 现在靠**值域不相交**: snoozeKey 的输出恒不含 NUL。
+
+  // ① 原理性判据: 任意输入 (含本身带 NUL / % / | 的) 输出都不含 NUL
+  for (const [v, bd] of [["math", "A"], ["snooze", "math" + NUL + "A"], ["a%b", "c|d"],
+                         ["", ""], ["中文库", "🌙 板"]]) {
+    assert.ok(!b.api.snoozeKey(v, bd).includes(NUL),
+      `snoozeKey(${JSON.stringify(v)}, ${JSON.stringify(bd)}) 的输出含 NUL — 值域与 doneKey 相交了`);
+  }
+
+  // ② round-2 与 round-5 两个具体反例都必须撞不上
   assert.notEqual(b.api.snoozeKey("math", "A"), b.api.doneKey("snooze:math", "A"),
-    "推迟键与另一库的完成键相等 —— 前缀分隔符选错了");
-  // ⛔ 覆盖边界如实登记 (Codex round-3 LOW-1, round-4 更正理由): 换成 \u0000 之后
-  // **仍有**一条反向碰撞 —— snoozeKey("math","A") === doneKey("snooze", "math\u0000A"),
-  // 两个库名 math / snooze 都合法, NUL 在**板名**里。
-  //
-  // ⚠ 本卡初版把不修的理由写成「doneKey 自己有同款碰撞, 这是继承的同一个前提」——
-  // **那个类比不成立** (Codex round-4 更正): doneKey 那条碰撞需要库名含 NUL
-  // (doneKey("a","b\u0000c") === doneKey("a\u0000b","c")), 而含 NUL 的目录名 POSIX 就造不出来;
-  // snooze 这条只需要**板名**含 NUL, 板名来自 frontmatter 的 source_board,
-  // _assert_board_name 只查长度不查字符集 ⇒ **两者不同域, 后者理论可达**。
-  //
-  // 也**不是**「必须动 U6-B 才能修」: 只收窄 snooze 侧的板名值域就够 (例如拒绝
-  // 含控制字符的板名), 不必碰既有完成键。本卡**选择不修**的真实理由是 ——
-  // 那是给端点新增一条产品行为约束 (某些板名从此被拒), 属于要用户裁定的口径,
-  // 不是本卡范围内的实现细节。触发它需要 markdown frontmatter 里出现 NUL 字节,
-  // UTF-8 文本文件里几乎不会, 但**本卡未证明它不可达**。已登记为移交项。
-  //
-  // 下面这条只验「前缀不把别的**库名**吃掉」, **不覆盖**上面那条板名侧的反向碰撞。
-  assert.notEqual(b.api.snoozeKey("math", "A"), b.api.snoozeKey("math\u0000", "A"));
-  // 同一块板自己的两个键必须不同 (推迟 / 完成各占一格的前提)
+    "round-2 反例: 冒号前缀那一版会在这里相等");
+  assert.notEqual(b.api.snoozeKey("math", "A"), b.api.doneKey("snooze", "math" + NUL + "A"),
+    "round-5 反例: NUL 前缀那一版会在这里相等 (坏板名在完成侧)");
+
+  // ③ 穷举劈分反构造: 拿 snoozeKey 的输出在每个 NUL 处劈开, 都造不出等价的 doneKey
+  const t = b.api.snoozeKey("math", "A");
+  for (let i = 0; i < t.length; i++) {
+    if (t[i] !== NUL) continue;
+    assert.notEqual(b.api.doneKey(t.slice(0, i), t.slice(i + 1)), t,
+      `能在第 ${i} 位劈开反构造出 doneKey — 值域相交`);
+  }
+
+  // ④ 单射 + 同板两动作各占一格
   assert.notEqual(b.api.snoozeKey("cs_61b", "哈希表"), b.api.doneKey("cs_61b", "哈希表"));
+  assert.notEqual(b.api.snoozeKey("a%b", "c"), b.api.snoozeKey("a", "25b%c"),
+    "转义不是单射 — 两组不同输入产生了同一个键");
 });
 test("取回渲染侧**单独**受保护 (Codex round-2 LOW-3: 两处渲染分支各自可被违反)", () => {
   // 上一条门只覆盖了待做区的推迟钮。只把**取回**渲染侧改回裸 doneKey 时, 上一条
