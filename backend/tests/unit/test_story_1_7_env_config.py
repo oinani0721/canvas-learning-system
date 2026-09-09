@@ -56,48 +56,80 @@ class TestDockerComposeVariableization:
         # 数据）因此寄居在一个随时会被清理的 worktree 里；commit body 原文「worktree
         # 清理 = 记忆蒸发」，并留了 backend/data/backups/ 的全量导出。⇒ 有据演进。
         #
-        # 豁免面收窄到「**neo4j 这一个 service 内、每条最多出现一次**」——
-        # Codex round-1 HIGH 指出：只按行内容做集合豁免时，把任一获准 mount 行**复制**
-        # 到另一个 service 里，新断言照样通过而原断言会红（本车道已复现确认）。
-        # 故本轮改为：先按顶层缩进解析出每行属于哪个 service，再要求
-        #   ① 该行在豁免名单里；② 该行所属 service 恰为 neo4j；③ 该行至多出现一次。
+        # 豁免面 = 「**恰好 services.neo4j.volumes 里的这三条，各至多一次**」。
+        # 判据分两轴，缺一不可：
+        #   轴一（内容，逐行文本）：任何含硬编码用户路径的**行**，其内容必须在豁免名单里。
+        #       用原始文本扫描而非 YAML 值，是为了不放过写在**注释**里的路径——
+        #       原断言的正则是对全文跑的，换成只看 YAML 值会在这一面变弱。
+        #   轴二（位置，YAML 结构）：任何含硬编码用户路径的**值**，其结构路径必须恰为
+        #       services → neo4j → volumes → <序号>，且每条至多出现一次。
+        #
+        # ⚠️ 轴二为什么不能用「按缩进认 service」的行扫描（Codex round-1 HIGH + round-2
+        #    HIGH 连续两轮打回本条）：`other: # comment` / `"other":` 都是合法 YAML 但
+        #    不匹配 `^  name:$`，于是那一行会**沿用上一个**被认出的名字；实测把一条挪到
+        #    `other: # comment` 的 volumes 下，行扫描把它算成了 `neo4j-test-data`
+        #    （顶层 volumes 段的一个卷名，根本不是 service）而三段判据全过。
+        #    结构问题要用结构化解析回答，不能用缩进启发式。
         # ⛔ 三条判据都用「子集/上界」而不是「相等」：日后真把这三条改回变量化时，
         #    本用例应当继续绿，而不是被这份名单钉死在今天这个中间状态。
         # ⛔ 不改 docker-compose.yml（本卡零生产改动）、不放宽正则。[CARD-RED-C2]
-        GRANDFATHERED_ABS_MOUNTS = {
-            "- /Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/data:/data",
-            "- /Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/logs:/logs",
-            "- /Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/plugins:/plugins",
+        GRANDFATHERED_MOUNT_VALUES = {
+            "/Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/data:/data",
+            "/Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/logs:/logs",
+            "/Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/plugins:/plugins",
         }
-        EXEMPT_SERVICE = "neo4j"
+        EXEMPT_PATH_PREFIX = ("services", "neo4j", "volumes")
+        HARDCODED = re.compile(r"/Users/\w+/")
 
-        service = None
-        offending = []  # [(service, 行原文)]
-        for line in content.splitlines():
-            m = re.match(r"^  ([A-Za-z0-9_.-]+):\s*$", line)
-            if m:
-                service = m.group(1)
-            if re.search(r"/Users/\w+/", line):
-                offending.append((service, line.strip()))
-
-        wrong_content = [t for t in offending if t[1] not in GRANDFATHERED_ABS_MOUNTS]
+        # ── 轴一：内容（含注释行）────────────────────────────────────────────
+        offending_lines = [
+            line.strip() for line in content.splitlines() if HARDCODED.search(line)
+        ]
+        wrong_content = [
+            line
+            for line in offending_lines
+            if line.lstrip("- ").strip() not in GRANDFATHERED_MOUNT_VALUES
+        ]
         assert not wrong_content, (
             f"Hardcoded user paths outside the 8a80595f neo4j exemption: {wrong_content}"
         )
 
-        wrong_service = [t for t in offending if t[0] != EXEMPT_SERVICE]
-        assert not wrong_service, (
-            f"Exempted mount lines appearing outside service '{EXEMPT_SERVICE}': {wrong_service}"
+        # ── 轴二：位置（YAML 结构）──────────────────────────────────────────
+        import yaml
+
+        compose = yaml.safe_load(content)
+        located: list[tuple[tuple, str]] = []
+
+        def _walk(node, path: tuple):
+            if isinstance(node, dict):
+                for k, v in node.items():
+                    if isinstance(k, str) and HARDCODED.search(k):
+                        located.append((path + (k,), k))
+                    _walk(v, path + (str(k),))
+            elif isinstance(node, list):
+                for idx, v in enumerate(node):
+                    _walk(v, path + (str(idx),))
+            elif isinstance(node, str) and HARDCODED.search(node):
+                located.append((path, node))
+
+        _walk(compose, ())
+
+        misplaced = [
+            (path, value)
+            for path, value in located
+            if path[:3] != EXEMPT_PATH_PREFIX
+            or value not in GRANDFATHERED_MOUNT_VALUES
+        ]
+        assert not misplaced, (
+            f"Hardcoded user paths outside services.neo4j.volumes: {misplaced}"
         )
 
         duplicated = [
-            line
-            for line in GRANDFATHERED_ABS_MOUNTS
-            if sum(1 for t in offending if t[1] == line) > 1
+            value
+            for value in GRANDFATHERED_MOUNT_VALUES
+            if sum(1 for _p, v in located if v == value) > 1
         ]
-        assert not duplicated, (
-            f"Exempted mount lines used more than once: {duplicated}"
-        )
+        assert not duplicated, f"Exempted mount values used more than once: {duplicated}"
 
     def test_neo4j_ports_use_variables(self):
         dc = PROJECT_ROOT / "docker-compose.yml"

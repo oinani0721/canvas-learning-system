@@ -196,7 +196,11 @@ class TestSpecialCharacterGroupId:
         assert {"group_id", "group_prefix"} <= set(all_kwargs), (
             f"group scope 未以命名参数传入。kwargs={sorted(all_kwargs)}"
         )
-        # 期望值现算，不硬编码结果串：硬编码会在物理化规则变化时静默通过。
+        # 期望值现算而非硬编码结果串：硬编码会在物理化规则变化时**静默通过**。
+        # ⚠️ 但这带来一处同源盲区（Codex round-1 MEDIUM，已登记不修）：期望值与生产
+        # 走**同一个** to_physical_group_id，若该 helper 本身恒返回同一个串，两边会
+        # 同步变化、本条发现不了。独立重实现物理化规则 = 在测试里复制一份生产逻辑，
+        # 且本卡禁改 backend/app ⇒ 如实登记。两种写法各有盲区，此处选的是这一种。
         expected_physical = to_physical_group_id(malicious_group_id)
         assert all_kwargs["group_id"] == expected_physical, (
             f"group_id 未物理化。got={all_kwargs['group_id']!r} want={expected_physical!r}"
@@ -224,9 +228,23 @@ class TestSpecialCharacterGroupId:
         # `str(_v) in query_str` 会误报（查询里出现数字 5 的正当写法很多），故改用**正面**
         # 形式表达同一主张：每个绑定参数都必须在查询文本里以 `$name` 占位符被引用——
         # 值一旦被内联进文本，对应占位符就会消失，这条立即红。
-        for _k in all_kwargs:
-            assert f"${_k}" in query_str, (
-                f"参数 {_k} 传进了 kwargs 却没有对应的 ${_k} 占位符，"
+        # Codex round-2 LOW 指出前一版的两个漏过面：
+        #   (a) 只按 kwargs 逐个查占位符 —— 把 `limit=5` 内联成 `LIMIT 5` **同时删掉**
+        #       limit kwarg，检查集合跟着缩小，两边都没了反而通过；
+        #   (b) `LIMIT 5 // $limit` 这类注释里的占位符也能满足子串检查。
+        # 故改成两条：先钉死**期望的参数集**（不随实现缩小），再在**去掉 // 行注释**
+        # 的查询文本里查占位符。
+        EXPECTED_BOUND_PARAMS = {"userId", "limit", "group_id", "group_prefix"}
+        assert set(all_kwargs) == EXPECTED_BOUND_PARAMS, (
+            f"绑定参数集变了。got={sorted(all_kwargs)} want={sorted(EXPECTED_BOUND_PARAMS)}；"
+            "少一个通常意味着该值被内联进了查询文本"
+        )
+        _query_no_comments = "\n".join(
+            line.split("//", 1)[0] for line in query_str.splitlines()
+        )
+        for _k in EXPECTED_BOUND_PARAMS:
+            assert f"${_k}" in _query_no_comments, (
+                f"参数 {_k} 没有对应的 ${_k} 占位符（已排除 // 注释），"
                 f"说明它的值可能被内联进了查询文本。query={query_str!r}"
             )
 
