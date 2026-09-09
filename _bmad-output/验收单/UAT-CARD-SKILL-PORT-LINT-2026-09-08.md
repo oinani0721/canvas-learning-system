@@ -1194,6 +1194,81 @@ tests/skills **534 passed**（369 + 165）/ regression 1480 collected / routing 
 live newer 0（前提已断言）/ 禁改三份逐字节一致 / 地盘门恰 2 项 / ruff 干净 /
 真实树动态判据全路径 冷 **324ms** 暖 **111ms**。回退验证 **16 处全部承重**。
 
+### round-24（绑 `e22c6d27`，blob `8c13199e`）— `codex-review-CARD-SKILL-PORT-LINT-r24.md`
+
+**BLOCKER 0 / HIGH 6 / MEDIUM 2 / LOW 1**。
+
+#### ⛔ 首先：方向确认了
+
+> **默认方向正确，但目前的沉默条件还不够严。**「没有名单中的祖先」并不等于必经。
+
+r23 的翻转（证明不了安全就登记）被确认是对的。本轮修的是**沉默条件的具体判据**，
+不是再次改方向。
+
+#### ⛔ 其中两条是我 r23 引入的回归（Codex 明确标注）
+
+| | 形态 | Codex 原话 |
+|---|---|---|
+| HIGH-3 | `python3 - 3<<'A' <<'B' <&3` | 「fd 示例已验证属于相对 `b001cf83` 的**回归**」 |
+| HIGH-4 | `python3 -W ignore <<'A'` / `'python3' - <<'A'` | 「已验证为 `b001cf83` **能抓**、`e22c6d27` **漏掉**」 |
+
+我 r23 重写 `_python_regions()` 时把「取整行最后一个 heredoc」当成了 shell 语义，
+实际语义是**按 fd 与重定向顺序**归属；同时新写的 `_python_reads_stdin()` 没处理
+带参数的解释器选项和带引号的可执行词。
+
+#### 六条 HIGH 的整改
+
+| r24 意见 | 整改 |
+|---|---|
+| **HIGH-1** 祖先黑名单证明不了必经（`with suppress` 吞异常 / `return` 在前 / `except*`） | `_CONDITIONAL_NODES` 补 `With`/`AsyncWith`/`TryStar`；新增**提前离开**判定（同块里 `return`/`raise`/`break`/`continue` 在它之前 ⇒ 到不了） |
+| **HIGH-2** `nonlocal` 要找最近**实际绑定该名字**的函数（含形参），且搬运要**迭代到不动点** | `_bound_names()`（赋值目标 + 形参）+ `nonlocal_target()` 逐层外找 + 不动点循环 |
+| **HIGH-3** heredoc 按命令/fd/重定向顺序归属 | `_REDIR_RE` 逐条解析 `N<<tag` / `<&N` / `<file`，逐命令段维护 fd 表，取 fd 0 的最终来源 |
+| **HIGH-4** 解释器参数与命令边界 | 可执行词先去引号；`-W`/`-X`/`-Q` 吃掉下一个词；`-c'脚本'` 连写；**每个命令段**都看，不再只取第一处 |
+| **HIGH-5** 原文里的假 heredoc 标记吞掉后续执行区 | heredoc 扫描改用**去注释 + 引号感知**的版本（`# <<'NO'` / `echo '<<NO'` 不再是重定向） |
+| **HIGH-6** 反射式写入完全静默 | `globals()[…]=` / `globals().update(…)` / `exec(…)` / `type P = int` 一律进「证明不了 ⇒ 登记」 |
+
+#### 两条 MEDIUM + 一条 LOW
+
+- **MEDIUM-1** 定义处表达式被**重复归属**：`_own_nodes(root)` 从作用域自己出发时要按
+  **字段名**（`args`/`decorator_list`/`bases`/`keywords`/`returns`/`type_params`）整个跳过。
+  上一版按「外层求值子节点的 id」比对，而 `iter_child_nodes` 产出的是 `arguments` 节点，
+  id 对不上 ⇒ 照样下钻、同一处写入计两次，再被内层 `global` 搬到模块 ⇒ 误报。
+- **MEDIUM-2** 「整块能被 `ast` 解析」≠「整块是一个执行区」：`cat <<'A'` 恰好能解析成
+  左移表达式。**块里只要出现真 heredoc 就不再取整块**。
+- **LOW** `_branch_index` / `_branch_path` / `_in_loop` / `_mutually_exclusive` 整组
+  已成死代码（r23 换成必经性判定后），**已删**。
+
+#### 一个两处共用的错误：`&` 不总是命令分隔符
+
+`<&3` / `2>&1` / `&>log` 里 `&` 是**重定向的一部分**。我按字符切段，于是
+`python3 - 3<<'A' <<'B' <&3` 被从 `<&` 中间切成两段（fd 关联丢失），
+而**同一个 bug** 在 URL 判据那边表现为 `2>&1` 被错切。⇒ 抽出 `_is_sh_separator()`
+让两个切段函数共用，免得再分叉。
+
+#### 差点打破三条负控的一次收紧
+
+反射写入检测第一版把 `globals().<任意方法>` 都算成写，结果树上 quiz-answer `:1431` 的
+`globals().get("n_att", "null")`（一个**读**）被判成动态拼接，
+`test_negative_control_opaque_tmp_must_be_registered` 等**三条负控的前提当场失效**。
+收紧到 `update`/`setdefault`/`pop`/`popitem`/`clear`/`__setitem__` 才对。
+
+#### 回退验证 16 处全部承重 —— 但过程中照出**三条考不出差异的断言**
+
+| 断言 | 为什么考不出 | 改法 |
+|---|---|---|
+| `except* E:` 里放合规写入 | 那是 `ExceptHandler`，早被覆盖 | 写入放进 **`try` 体**，祖先才是 `TryStar` |
+| nonlocal 不动点（中间层写 `/var/cache`） | 中间层那次**越界**写入自己迁到 outer 就够报了 | 中间层改成**合规**值 `/tmp/cls-exam/y` |
+| 绑定查找含形参 | 原来**没有**对应用例 | 补一条**误报方向**的：`middle(P)` 用形参绑定，`nonlocal` 不该越过它 |
+
+⇒ 「断言通过」有两种：因为修复生效，和**因为别的机制顺带覆盖**。只有单独撤掉修复
+再看这条断言会不会红，才分得清。
+
+#### 本轮实测
+
+tests/skills **536 passed**（369 + 167）/ regression 1480 collected / routing 66/66 /
+live newer 0（前提已断言）/ 禁改三份逐字节一致 / 地盘门恰 2 项 / ruff 干净 /
+真实树动态判据全路径 冷 **363ms** 暖 **154ms**。
+
 ## 六 本卡未证明什么
 - **`try/else` 与 `match` guard 的保守登记**：`try:` 体内写越界、`else:` 写合规，
   以及 guard 失败后落到下一个 `case` —— Codex r23 把这两类归为**误报**，本卡按
