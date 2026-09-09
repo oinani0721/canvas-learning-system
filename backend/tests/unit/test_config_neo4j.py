@@ -104,17 +104,13 @@ class TestNeo4jSettingsFromEnv:
 
     def test_neo4j_enabled_false_from_env(self):
         """NEO4J_ENABLED=false correctly parsed as bool False."""
-        with patch.dict(
-            os.environ, {**_LOCAL_DEV_ENV, "NEO4J_ENABLED": "false"}, clear=True
-        ):
+        with patch.dict(os.environ, {**_LOCAL_DEV_ENV, "NEO4J_ENABLED": "false"}, clear=True):
             settings = Settings(_env_file=None)
             assert settings.neo4j_enabled is False
 
     def test_neo4j_enabled_case_insensitive(self):
         """NEO4J_ENABLED accepts 'False' (case-insensitive)."""
-        with patch.dict(
-            os.environ, {**_LOCAL_DEV_ENV, "NEO4J_ENABLED": "False"}, clear=True
-        ):
+        with patch.dict(os.environ, {**_LOCAL_DEV_ENV, "NEO4J_ENABLED": "False"}, clear=True):
             settings = Settings(_env_file=None)
             assert settings.neo4j_enabled is False
 
