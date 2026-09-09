@@ -1,0 +1,101 @@
+CARD-RED-A1-auth — 第二层红三分类表（完成条件 (f) / 核心裁判 6）
+每行: nodeid | 类别 | 依据 | 去向
+类别: 409 = resolve_vault_scope/resolve_vault_group_id 的 vault fail-closed
+      哨兵 = W4 live Neo4j port connect attempted
+      断言 = 真业务断言红 / 契约演进
+阶段存档（本目录）:
+  four-open-20260909T133056.txt   37 failed  开工，全部止于 router 级鉴权 503
+  four-mid1-20260909T133341.txt   22 failed  仅 authed_client + sync 两桩后
+  four-mid2-20260909T133815.txt    6 failed  + chat/deep 的 get_current_vault_id 桩后
+  four-mid3-20260909T134131.txt    5 failed  + chat/deep 的 get_memory_service 桩后（收工态）
+
+── 第一层（鉴权 503）：37 条全部由 authed_client 解除 ───────────────────────
+依据: four-open 里 'Internal API key not configured' 命中 4、
+      'INTERNAL_API_KEY empty + DEBUG=True without explicit bypass' 命中 74；
+      four-mid1/mid2/mid3 三份里两者均为 0。
+
+其中 15 条**解开鉴权即绿**。⚠️ Codex round-1 LOW-1 更正了本行原先的分类
+（原写「请求本就不进业务层 / 非 HTTP 的 rag_enrich_hook 单元」，两处都不实）。按请求
+实际走到哪里重分三类：
+  (i) 输入校验即返回，不进端点函数体：Pydantic 422（max_hops / mode / vault_id 缺失或空串）；
+  (ii) 进了端点函数体但提前返回：empty_node_path 的 400；
+  (iii) **确实进了业务处理**：rag_enrich_hook 三条走的是 HTTP
+       `client.post("/api/v1/chat/rag/enrich-hook")`（test_chat_endpoint.py:429/458/480），
+       /sync/batch 六条也真的进了端点的异常分类分支（four-after 日志有 sync.py:141/:154
+       的分类日志与经 process_sync_batch 的 traceback）。
+转绿条数不受此更正影响，错的只是分类说明。逐条：
+  tests/unit/test_chat_endpoint.py::test_enrich_context_empty_node_path_rejected
+  tests/unit/test_chat_endpoint.py::test_enrich_context_max_hops_validation
+  tests/unit/test_chat_endpoint.py::test_enrich_context_rejects_invalid_mode
+  tests/unit/test_chat_endpoint.py::test_rag_enrich_hook_lazy_init_returns_none_injects_degraded_marker
+  tests/unit/test_chat_endpoint.py::test_rag_enrich_hook_short_prompt_skips_lazy_init
+  tests/unit/test_chat_endpoint.py::test_rag_enrich_hook_uses_lazy_init
+  tests/unit/test_enrich_context_vault_isolation.py::test_vault_id_empty_string_rejected_422
+  tests/unit/test_enrich_context_vault_isolation.py::test_vault_id_missing_rejected_422
+  tests/unit/test_study_question_deep_mode.py::test_mode_invalid_rejected_by_pydantic
+  tests/unit/test_sync_exception_classification.py::TestInfrastructureErrors::test_auth_error_returns_503
+  tests/unit/test_sync_exception_classification.py::TestInfrastructureErrors::test_connection_error_returns_503
+  tests/unit/test_sync_exception_classification.py::TestInfrastructureErrors::test_service_unavailable_returns_503
+  tests/unit/test_sync_exception_classification.py::TestLogicErrors::test_generic_exception_returns_500
+  tests/unit/test_sync_exception_classification.py::TestLogicErrors::test_type_error_returns_500
+  tests/unit/test_sync_exception_classification.py::TestLogicErrors::test_value_error_returns_500
+
+── 第二层（22 条，mid1 存档为准）───────────────────────────────────────────
+tests/unit/test_chat_endpoint.py::test_enrich_context_accepts_user_question_and_mode_answer | 409 | four-mid1 'assert 409 == 200'；payload vault_id 恒 TEST_VAULT_ID='test_vault'，.env ACTIVE_VAULT='canvas-vault' | 本卡修：fixture patch app.config.get_current_vault_id（先例 test_sync_batch_auth.py:98）
+tests/unit/test_chat_endpoint.py::test_enrich_context_answer_mode_uses_lazy_init_path | 409 | four-mid1 'assert 409 == 200'；payload vault_id 恒 TEST_VAULT_ID='test_vault'，.env ACTIVE_VAULT='canvas-vault' | 本卡修：fixture patch app.config.get_current_vault_id（先例 test_sync_batch_auth.py:98）
+tests/unit/test_chat_endpoint.py::test_enrich_context_assembler_budget_field | 409 | four-mid1 'assert 409 == 200'；payload vault_id 恒 TEST_VAULT_ID='test_vault'，.env ACTIVE_VAULT='canvas-vault' | 本卡修：fixture patch app.config.get_current_vault_id（先例 test_sync_batch_auth.py:98）
+tests/unit/test_chat_endpoint.py::test_enrich_context_default_frontmatter | 409 | four-mid1 'assert 409 == 200'；payload vault_id 恒 TEST_VAULT_ID='test_vault'，.env ACTIVE_VAULT='canvas-vault' | 本卡修：fixture patch app.config.get_current_vault_id（先例 test_sync_batch_auth.py:98）
+tests/unit/test_chat_endpoint.py::test_enrich_context_degraded_appends_notice | 409 | four-mid1 'assert 409 == 200'；payload vault_id 恒 TEST_VAULT_ID='test_vault'，.env ACTIVE_VAULT='canvas-vault' | 本卡修：fixture patch app.config.get_current_vault_id（先例 test_sync_batch_auth.py:98）
+tests/unit/test_chat_endpoint.py::test_enrich_context_happy_path | 409→哨兵（两段） | four-mid1:409==200；桩 409 后 four-mid2 显形 'live Neo4j port connect attempted ('::1', 7691)' owner=本用例，请求本身 status=200 | 本卡修：fixture 双桩（get_current_vault_id + get_memory_service）
+tests/unit/test_chat_endpoint.py::test_enrich_context_preload_mode_skips_supplementary | 409 | four-mid1 'assert 409 == 200'；payload vault_id 恒 TEST_VAULT_ID='test_vault'，.env ACTIVE_VAULT='canvas-vault' | 本卡修：fixture patch app.config.get_current_vault_id（先例 test_sync_batch_auth.py:98）
+tests/unit/test_chat_endpoint.py::test_enrich_context_response_includes_elapsed_ms | 409 | four-mid1 'assert 409 == 200'；payload vault_id 恒 TEST_VAULT_ID='test_vault'，.env ACTIVE_VAULT='canvas-vault' | 本卡修：fixture patch app.config.get_current_vault_id（先例 test_sync_batch_auth.py:98）
+tests/unit/test_chat_endpoint.py::test_enrich_context_returns_retrieval_trace | 409 | four-mid1 'assert 409 == 200'；payload vault_id 恒 TEST_VAULT_ID='test_vault'，.env ACTIVE_VAULT='canvas-vault' | 本卡修：fixture patch app.config.get_current_vault_id（先例 test_sync_batch_auth.py:98）
+tests/unit/test_chat_endpoint.py::test_enrich_context_trace_includes_degradation_when_graph_unbuilt | 409 | four-mid1 'assert 409 == 200'；payload vault_id 恒 TEST_VAULT_ID='test_vault'，.env ACTIVE_VAULT='canvas-vault' | 本卡修：fixture patch app.config.get_current_vault_id（先例 test_sync_batch_auth.py:98）
+tests/unit/test_enrich_context_vault_isolation.py::test_chinese_vault_id_not_collapsed_to_default | 409 → 前提未适配（非断言证伪） | four-mid3 逐条 'assert 409 == 200'（:111/:140/:164/:231/:253） | 移交 U5-C CARD-RED-R（本卡不改用例代码；理由见表尾 §A，已按 Codex r1 收窄）
+tests/unit/test_enrich_context_vault_isolation.py::test_subject_id_optional_backward_compat | 409 → 前提未适配（非断言证伪） | four-mid3 逐条 'assert 409 == 200'（:111/:140/:164/:231/:253） | 移交 U5-C CARD-RED-R（本卡不改用例代码；理由见表尾 §A，已按 Codex r1 收窄）
+tests/unit/test_enrich_context_vault_isolation.py::test_vault_id_emoji_stripped | 409 → 前提未适配（非断言证伪） | four-mid3 逐条 'assert 409 == 200'（:111/:140/:164/:231/:253） | 移交 U5-C CARD-RED-R（本卡不改用例代码；理由见表尾 §A，已按 Codex r1 收窄）
+tests/unit/test_enrich_context_vault_isolation.py::test_vault_id_provided_triggers_context_var_injection | 409 → 前提未适配（非断言证伪） | four-mid3 逐条 'assert 409 == 200'（:111/:140/:164/:231/:253） | 移交 U5-C CARD-RED-R（本卡不改用例代码；理由见表尾 §A，已按 Codex r1 收窄）
+tests/unit/test_enrich_context_vault_isolation.py::test_vault_id_with_special_chars_sanitized | 409 → 前提未适配（非断言证伪） | four-mid3 逐条 'assert 409 == 200'（:111/:140/:164/:231/:253） | 移交 U5-C CARD-RED-R（本卡不改用例代码；理由见表尾 §A，已按 Codex r1 收窄）
+tests/unit/test_study_question_deep_mode.py::test_mode_answer_keeps_top_k_20_and_hard_cap_15 | 409 | four-mid1 'assert 409 == 200'；payload vault_id 恒 TEST_VAULT_ID='test_vault' | 本卡修：fixture patch app.config.get_current_vault_id（先例 test_sync_batch_auth.py:98）
+tests/unit/test_study_question_deep_mode.py::test_mode_deep_accepted_by_request_model | 409 | four-mid1 'assert 409 == 200'；payload vault_id 恒 TEST_VAULT_ID='test_vault' | 本卡修：fixture patch app.config.get_current_vault_id（先例 test_sync_batch_auth.py:98）
+tests/unit/test_study_question_deep_mode.py::test_mode_deep_empty_user_question_skips_search | 409 | four-mid1 'assert 409 == 200'；payload vault_id 恒 TEST_VAULT_ID='test_vault' | 本卡修：fixture patch app.config.get_current_vault_id（先例 test_sync_batch_auth.py:98）
+tests/unit/test_study_question_deep_mode.py::test_mode_deep_uses_top_k_30_and_hard_cap_20 | 409 | four-mid1 'assert 409 == 200'；payload vault_id 恒 TEST_VAULT_ID='test_vault' | 本卡修：fixture patch app.config.get_current_vault_id（先例 test_sync_batch_auth.py:98）
+tests/unit/test_study_question_deep_mode.py::test_mode_deep_without_user_question_skips_search | 409 | four-mid1 'assert 409 == 200'；payload vault_id 恒 TEST_VAULT_ID='test_vault' | 本卡修：fixture patch app.config.get_current_vault_id（先例 test_sync_batch_auth.py:98）
+tests/unit/test_study_question_deep_mode.py::test_mode_default_is_preload | 409 | four-mid1 'assert 409 == 200'；payload vault_id 恒 TEST_VAULT_ID='test_vault' | 本卡修：fixture patch app.config.get_current_vault_id（先例 test_sync_batch_auth.py:98）
+tests/unit/test_study_question_deep_mode.py::test_mode_preload_with_user_question_still_skips_search | 409 | four-mid1 'assert 409 == 200'；payload vault_id 恒 TEST_VAULT_ID='test_vault' | 本卡修：fixture patch app.config.get_current_vault_id（先例 test_sync_batch_auth.py:98）
+
+── 收工仍红（5 条，mid3 = 目录级 unit-after 同集）─────────────────────────
+全部为 test_enrich_context_vault_isolation.py 的 409，去向 = 移交，理由见 §A。
+
+§A 为什么这 5 条本卡不修（⚠️ 已按 Codex round-1 MEDIUM-1 收窄，原版论证过强）
+
+**先声明本卡没有证明什么**（原版第 2、3 条的说法不成立，此处更正）：
+- 本卡**没有**证明这 5 条的断言是错的。它们验的是 ContextVar 注入 / 中文保留 /
+  subject_id 可选 / 路径字符净化 / emoji 剥离，**没有任何一条把「请求属于另一个 vault」
+  当作被测前提**——它们只是没有安排「payload vault 与 active vault 一致」这个新前提。
+- 为正向用例配一个匹配的 active vault **不等于「关掉隔离」**：
+  `vault_scope.py:162-176` 的 `requested not in active_vault_aliases()` 仍然真实执行，
+  桩改的是输入，不是判定本身。
+- 因此不能说「必须重写才能修」，也不能说「本卡无法修复」。
+
+**本卡实际的处置依据（分工，不是技术不可能）**：
+1. 要修需**逐用例**改用例代码：5 条各用不同的 vault_id —— "CS 61B"(:108) / "数学101"(:137)
+   / "cs_61b"(:162) / "../etc/passwd"(:228) / "📚 笔记本"(:250)，fixture 级单桩只能声明
+   一个 active vault。而本卡的地盘约定是「不改被测用例本身、只换测试装置」。
+2. 这 5 条属于 **vault 隔离面**，与本卡「解开鉴权装置」的主题不同轴；同批已有专门承接
+   RED 收敛的卡（U5-C `CARD-RED-R`），放在那里一次性处理前提适配更合适。
+3. 顺带登记一个**真实的覆盖缺口**（Codex MEDIUM-2 实证）：全仓当前**没有任何测试**对
+   enrich-context 断言 409。这 5 条正向用例被 409 阻断（红），另两条验 422，一条验
+   ContextVar 并发——都不是「不一致时会拒绝」的回归覆盖。接手卡宜在适配前提的同时补一条
+   反向用例（显式异 vault → 期望 409），否则这道门失效不会有任何测试报警。
+4. 同文件的 test_concurrent_two_vaults_dont_share_context_var 不走 HTTP，开工就是绿的，
+   不受影响（four-open 里唯一的 1 passed）。
+
+§B 哨兵那条的如实计数（防「grep -c 计文本 ≠ 计事件」）
+four-mid2 里 'live Neo4j port connect attempted' 文本命中 3 次，但**实际连接尝试 1 次**：
+哨兵标题 1 行 + stdout JSON 1 行 + captured log 1 行，同一次 ('::1', 7691) 事件。
+owner=test_enrich_context_happy_path。它是 MemoryService **进程级单例**的首次初始化，
+所以「谁被判红」取决于执行顺序 —— 单跑本文件红在 happy_path，全量跑可能转嫁给别的文件；
+这正是必须在测试侧掐掉而不是登记了事的原因。四文件级耗时也从 1.07s→57s→96s 反映了
+这条真连的超时等待（mid3 哨兵归 0 后仍 96s，属 search_supplementary 侧的既有慢，非本卡引入，登记不处置）。
+rc=0

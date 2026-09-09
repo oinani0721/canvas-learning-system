@@ -1,0 +1,16 @@
+=== ruff check（r1 整改后）===
+All checks passed!
+check_rc=0
+
+=== AST 门复跑（判据 4）===
+autouse=: 无  os.environ: 无  import os: 无
+VERDICT: PASS
+
+=== 地盘门复跑（判据 7）===
+backend/tests/unit/test_chat_endpoint.py
+backend/tests/unit/test_enrich_context_vault_isolation.py
+backend/tests/unit/test_study_question_deep_mode.py
+backend/tests/unit/test_sync_exception_classification.py
+rc=0
+app+conftest_rc=0（空 = 零写面）
+rc=0

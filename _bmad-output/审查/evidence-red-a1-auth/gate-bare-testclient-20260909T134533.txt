@@ -1,0 +1,39 @@
+开工(7004a365) 扫描 .py 文件数: 252   裸 TestClient 构造点: 16
+  OPEN  backend/tests/unit/test_chat_endpoint.py:26 TestClient(app)
+  OPEN  backend/tests/unit/test_edge_rationale_fallback.py:33 TestClient(minimal_app)
+  OPEN  backend/tests/unit/test_enrich_context_vault_isolation.py:30 TestClient(app)
+  OPEN  backend/tests/unit/test_fsrs_state_query.py:60 TestClient(app)
+  OPEN  backend/tests/unit/test_mastery_api.py:58 TestClient(app)
+  OPEN  backend/tests/unit/test_review_history_pagination.py:101 TestClient(app)
+  OPEN  backend/tests/unit/test_review_history_pagination.py:117 TestClient(app)
+  OPEN  backend/tests/unit/test_review_history_pagination.py:73 TestClient(app)
+  OPEN  backend/tests/unit/test_review_history_pagination.py:87 TestClient(app)
+  OPEN  backend/tests/unit/test_startup_health_check.py:18 TestClient(app)
+  OPEN  backend/tests/unit/test_study_question_deep_mode.py:26 TestClient(app)
+  OPEN  backend/tests/unit/test_subjects_group_isolation.py:270 TestClient(app)
+  OPEN  backend/tests/unit/test_sync_batch_auth.py:101 TestClient(app)
+  OPEN  backend/tests/unit/test_sync_exception_classification.py:64 TestClient(app)
+  OPEN  backend/tests/unit/test_sync_group_isolation.py:294 TestClient(app)
+  OPEN  backend/tests/unit/test_system_endpoint_auth.py:95 TestClient(app)
+收工(工作树) 扫描 .py 文件数: 252   裸 TestClient 构造点: 12
+  AFTER backend/tests/unit/test_edge_rationale_fallback.py:33 TestClient(minimal_app)
+  AFTER backend/tests/unit/test_fsrs_state_query.py:60 TestClient(app)
+  AFTER backend/tests/unit/test_mastery_api.py:58 TestClient(app)
+  AFTER backend/tests/unit/test_review_history_pagination.py:101 TestClient(app)
+  AFTER backend/tests/unit/test_review_history_pagination.py:117 TestClient(app)
+  AFTER backend/tests/unit/test_review_history_pagination.py:73 TestClient(app)
+  AFTER backend/tests/unit/test_review_history_pagination.py:87 TestClient(app)
+  AFTER backend/tests/unit/test_startup_health_check.py:18 TestClient(app)
+  AFTER backend/tests/unit/test_subjects_group_isolation.py:270 TestClient(app)
+  AFTER backend/tests/unit/test_sync_batch_auth.py:101 TestClient(app)
+  AFTER backend/tests/unit/test_sync_group_isolation.py:294 TestClient(app)
+  AFTER backend/tests/unit/test_system_endpoint_auth.py:95 TestClient(app)
+
+消失的文件: ['backend/tests/unit/test_chat_endpoint.py', 'backend/tests/unit/test_enrich_context_vault_isolation.py', 'backend/tests/unit/test_study_question_deep_mode.py', 'backend/tests/unit/test_sync_exception_classification.py']
+新增的文件: 无
+验伪锚 裸构造 → 1 (期望 1)
+验伪锚 带headers → 0 (期望 0)
+验伪锚 docstring → 0 (期望 0，文本 grep 会误命中)
+
+VERDICT: PASS (无新增裸 client)
+rc=0

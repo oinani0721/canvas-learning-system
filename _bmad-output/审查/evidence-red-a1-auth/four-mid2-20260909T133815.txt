@@ -1,0 +1,511 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 38 items
+
+tests/unit/test_chat_endpoint.py F...............                        [ 42%]
+tests/unit/test_enrich_context_vault_isolation.py ..FFF.FF               [ 63%]
+tests/unit/test_study_question_deep_mode.py ........                     [ 84%]
+tests/unit/test_sync_exception_classification.py ......                  [100%]
+
+=================================== FAILURES ===================================
+________________________ test_enrich_context_happy_path ________________________
+live Neo4j port connect attempted —— 本用例期间有 1 次到现网 Neo4j 的连接尝试被拦下。
+（连接处抛出的异常被 app/main.py 的 lifespan try/except 吞掉了，
+  所以由本哨兵把它转成用例失败——否则这道门什么都证明不了。）
+  - ('::1', 7691, 0, 0) on thread asyncio-portal-13a971a90 (owner=tests/unit/test_chat_endpoint.py::test_enrich_context_happy_path)
+----------------------------- Captured stdout call -----------------------------
+{"event": "Creating MemoryService singleton instance", "request_id": "5286206768", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-09T05:38:25.315652Z"}
+{"event": "Neo4jClient initialized: mode=NEO4J, uri=bolt://localhost:7691, pool_size=50", "request_id": "5286206768", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-09T05:38:25.315828Z"}
+{"event": "Neo4j health check failed: live Neo4j port connect attempted: ('::1', 7691, 0, 0). \u53d7\u62e6\u7aef\u53e3 [7687, 7691] \u662f\u73b0\u7f51 Neo4j\uff1b\u6d4b\u8bd5\u8fdb\u7a0b\u4e0d\u5f97\u8fde\u63a5\u3002\u82e5\u8fd9\u662f\u7aef\u70b9\u6d4b\u8bd5\uff0c\u8bf7\u7528 backend/tests/support/lifespan.py::no_lifespan \u5173\u6389 app.main \u7684 lifespan\uff1b\u82e5\u786e\u9700\u771f\u5e93\uff0c\u7528\u6d4b\u8bd5\u5bb9\u5668 NEO4J_TEST_URI(7692) \u5e76\u6253 integration/real_neo4j marker\u3002", "request_id": "5286206768", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-09T05:38:25.317014Z"}
+{"event": "Neo4j health check failed during initialization", "request_id": "5286206768", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-09T05:38:25.317121Z"}
+{"event": "Falling back to JSON storage mode", "request_id": "5286206768", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-09T05:38:25.317157Z"}
+{"event": "Neo4j driver closed", "request_id": "5286206768", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-09T05:38:25.317197Z"}
+{"event": "Loaded 0 relationships from /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/data/neo4j_memory.json", "request_id": "5286206768", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-09T05:38:25.317404Z"}
+{"event": "MemoryService: recovered 0 episodes from Neo4j (0 returned, 0 deduped)", "request_id": "5286206768", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-09T05:38:25.317518Z"}
+{"event": "MemoryService initialized successfully", "request_id": "5286206768", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-09T05:38:25.317591Z"}
+{"event": "MemoryService singleton initialized", "request_id": "5286206768", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-09T05:38:25.317644Z"}
+{"event": "No mastery_config.json found, using defaults", "request_id": "5286206768", "logger": "app.services.mastery_engine", "level": "info", "timestamp": "2026-09-09T05:38:25.318377Z"}
+{"event": "Initialized FSRS scheduler with retention=0.9", "request_id": "5286206768", "logger": "memory.temporal.fsrs_manager", "level": "info", "timestamp": "2026-09-09T05:38:25.318494Z"}
+{"event": "[search_memories] Tier 1: 0 results, Tier 2: 0 results, Tier 3: 0 results (deduped 0, floor=0.05, returned 0)", "request_id": "5286206768", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-09T05:38:25.318524Z"}
+{"node_id": "Eigenvalues", "group_id": "vault:test_vault:eigenvalues", "count": 0, "memory_search_latency_ms": 2, "event": "story_2_3_error_memories_loaded", "request_id": "5286206768", "logger": "app.api.v1.endpoints.chat", "level": "info", "timestamp": "2026-09-09T05:38:25.318595Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 200, "duration_ms": 128.12, "event": "request.completed", "request_id": "5286206768", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:38:25.437964Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.memory_service:memory_service.py:2910 {'event': 'Creating MemoryService singleton instance', 'request_id': '5286206768', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-09T05:38:25.315652Z'}
+INFO     app.clients.neo4j_client:neo4j_client.py:317 Neo4jClient initialized: mode=NEO4J, uri=bolt://localhost:7691, pool_size=50
+WARNING  app.clients.neo4j_client:neo4j_client.py:532 Neo4j health check failed: live Neo4j port connect attempted: ('::1', 7691, 0, 0). 受拦端口 [7687, 7691] 是现网 Neo4j；测试进程不得连接。若这是端点测试，请用 backend/tests/support/lifespan.py::no_lifespan 关掉 app.main 的 lifespan；若确需真库，用测试容器 NEO4J_TEST_URI(7692) 并打 integration/real_neo4j marker。
+WARNING  app.clients.neo4j_client:neo4j_client.py:408 Neo4j health check failed during initialization
+WARNING  app.clients.neo4j_client:neo4j_client.py:430 Falling back to JSON storage mode
+INFO     app.clients.neo4j_client:neo4j_client.py:497 Neo4j driver closed
+INFO     app.clients.neo4j_client:neo4j_client.py:451 Loaded 0 relationships from /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/data/neo4j_memory.json
+INFO     app.services.memory_service:memory_service.py:428 {'event': 'MemoryService: recovered 0 episodes from Neo4j (0 returned, 0 deduped)', 'request_id': '5286206768', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-09T05:38:25.317518Z'}
+INFO     app.services.memory_service:memory_service.py:284 {'event': 'MemoryService initialized successfully', 'request_id': '5286206768', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-09T05:38:25.317591Z'}
+INFO     app.services.memory_service:memory_service.py:2915 {'event': 'MemoryService singleton initialized', 'request_id': '5286206768', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-09T05:38:25.317644Z'}
+INFO     app.services.mastery_engine:mastery_engine.py:95 {'event': 'No mastery_config.json found, using defaults', 'request_id': '5286206768', 'logger': 'app.services.mastery_engine', 'level': 'info', 'timestamp': '2026-09-09T05:38:25.318377Z'}
+INFO     memory.temporal.fsrs_manager:fsrs_manager.py:127 Initialized FSRS scheduler with retention=0.9
+INFO     app.services.memory_service:memory_service.py:2421 {'event': '[search_memories] Tier 1: 0 results, Tier 2: 0 results, Tier 3: 0 results (deduped 0, floor=0.05, returned 0)', 'request_id': '5286206768', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-09T05:38:25.318524Z'}
+INFO     app.api.v1.endpoints.chat:chat.py:323 {'node_id': 'Eigenvalues', 'group_id': 'vault:test_vault:eigenvalues', 'count': 0, 'memory_search_latency_ms': 2, 'event': 'story_2_3_error_memories_loaded', 'request_id': '5286206768', 'logger': 'app.api.v1.endpoints.chat', 'level': 'info', 'timestamp': '2026-09-09T05:38:25.318595Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 200, 'duration_ms': 128.12, 'event': 'request.completed', 'request_id': '5286206768', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:38:25.437964Z'}
+____________ test_vault_id_provided_triggers_context_var_injection _____________
+tests/unit/test_enrich_context_vault_isolation.py:111: in test_vault_id_provided_triggers_context_var_injection
+    assert resp.status_code == 200
+E   assert 409 == 200
+E    +  where 409 = <Response [409 Conflict]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 409, "duration_ms": 6.67, "event": "request.completed", "request_id": "5303277648", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:38:40.553220Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 409, 'duration_ms': 6.67, 'event': 'request.completed', 'request_id': '5303277648', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:38:40.553220Z'}
+________________ test_chinese_vault_id_not_collapsed_to_default ________________
+tests/unit/test_enrich_context_vault_isolation.py:140: in test_chinese_vault_id_not_collapsed_to_default
+    assert resp.status_code == 200
+E   assert 409 == 200
+E    +  where 409 = <Response [409 Conflict]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 409, "duration_ms": 6.12, "event": "request.completed", "request_id": "5303977168", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:38:40.597846Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 409, 'duration_ms': 6.12, 'event': 'request.completed', 'request_id': '5303977168', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:38:40.597846Z'}
+___________________ test_subject_id_optional_backward_compat ___________________
+tests/unit/test_enrich_context_vault_isolation.py:164: in test_subject_id_optional_backward_compat
+    assert resp.status_code == 200
+E   assert 409 == 200
+E    +  where 409 = <Response [409 Conflict]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 409, "duration_ms": 6.04, "event": "request.completed", "request_id": "5303979088", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:38:40.608270Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 409, 'duration_ms': 6.04, 'event': 'request.completed', 'request_id': '5303979088', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:38:40.608270Z'}
+__________________ test_vault_id_with_special_chars_sanitized __________________
+tests/unit/test_enrich_context_vault_isolation.py:231: in test_vault_id_with_special_chars_sanitized
+    assert resp.status_code == 200
+E   assert 409 == 200
+E    +  where 409 = <Response [409 Conflict]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 409, "duration_ms": 5.99, "event": "request.completed", "request_id": "5303982544", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:38:40.631216Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 409, 'duration_ms': 5.99, 'event': 'request.completed', 'request_id': '5303982544', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:38:40.631216Z'}
+_________________________ test_vault_id_emoji_stripped _________________________
+tests/unit/test_enrich_context_vault_isolation.py:253: in test_vault_id_emoji_stripped
+    assert resp.status_code == 200
+E   assert 409 == 200
+E    +  where 409 = <Response [409 Conflict]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 409, "duration_ms": 5.37, "event": "request.completed", "request_id": "5303983312", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:38:40.640827Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 409, 'duration_ms': 5.37, 'event': 'request.completed', 'request_id': '5303983312', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:38:40.640827Z'}
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:805
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/api/v1/endpoints/chat.py:805: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:105
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/api/v1/endpoints/metadata.py:105: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:179
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/api/v1/endpoints/metadata.py:179: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+tests/unit/test_chat_endpoint.py::test_enrich_context_accepts_user_question_and_mode_answer
+tests/unit/test_study_question_deep_mode.py::test_mode_deep_accepted_by_request_model
+tests/unit/test_study_question_deep_mode.py::test_mode_deep_uses_top_k_30_and_hard_cap_20
+tests/unit/test_study_question_deep_mode.py::test_mode_answer_keeps_top_k_20_and_hard_cap_15
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/lib/agentic_rag/clients/lancedb_client.py:955: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    table_names = self._db.table_names()
+
+tests/unit/test_chat_endpoint.py::test_enrich_context_accepts_user_question_and_mode_answer
+tests/unit/test_study_question_deep_mode.py::test_mode_deep_accepted_by_request_model
+tests/unit/test_study_question_deep_mode.py::test_mode_deep_uses_top_k_30_and_hard_cap_20
+tests/unit/test_study_question_deep_mode.py::test_mode_answer_keeps_top_k_20_and_hard_cap_15
+  /opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/asyncio/events.py:94: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    self._context.run(self._callback, *self._args)
+
+tests/unit/test_sync_exception_classification.py::TestInfrastructureErrors::test_service_unavailable_returns_503
+tests/unit/test_sync_exception_classification.py::TestInfrastructureErrors::test_auth_error_returns_503
+tests/unit/test_sync_exception_classification.py::TestInfrastructureErrors::test_connection_error_returns_503
+tests/unit/test_sync_exception_classification.py::TestLogicErrors::test_value_error_returns_500
+tests/unit/test_sync_exception_classification.py::TestLogicErrors::test_type_error_returns_500
+tests/unit/test_sync_exception_classification.py::TestLogicErrors::test_generic_exception_returns_500
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/api/v1/endpoints/sync.py:117: DeprecationWarning: deprecated
+    legacy_group_id=request.group_id,
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+_________________ test_enrich_context_degraded_appends_notice __________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[search_memories] Tier 1: 0 results, Tier 2: 0 results, Tier 3: 0 results (deduped 0, floor=0.05, returned 0)", "request_id": "5283419568", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-09T05:38:25.445946Z"}
+{"node_id": "Eigenvalues", "group_id": "vault:test_vault:eigenvalues", "count": 0, "memory_search_latency_ms": 0, "event": "story_2_3_error_memories_loaded", "request_id": "5283419568", "logger": "app.api.v1.endpoints.chat", "level": "info", "timestamp": "2026-09-09T05:38:25.446081Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 200, "duration_ms": 5.14, "event": "request.completed", "request_id": "5283419568", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:38:25.446566Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.memory_service:memory_service.py:2421 {'event': '[search_memories] Tier 1: 0 results, Tier 2: 0 results, Tier 3: 0 results (deduped 0, floor=0.05, returned 0)', 'request_id': '5283419568', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-09T05:38:25.445946Z'}
+INFO     app.api.v1.endpoints.chat:chat.py:323 {'node_id': 'Eigenvalues', 'group_id': 'vault:test_vault:eigenvalues', 'count': 0, 'memory_search_latency_ms': 0, 'event': 'story_2_3_error_memories_loaded', 'request_id': '5283419568', 'logger': 'app.api.v1.endpoints.chat', 'level': 'info', 'timestamp': '2026-09-09T05:38:25.446081Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 200, 'duration_ms': 5.14, 'event': 'request.completed', 'request_id': '5283419568', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:38:25.446566Z'}
+_________________ test_enrich_context_empty_node_path_rejected _________________
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 400, "duration_ms": 4.98, "event": "request.completed", "request_id": "5278801968", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:38:25.453963Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 400, 'duration_ms': 4.98, 'event': 'request.completed', 'request_id': '5278801968', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:38:25.453963Z'}
+___________________ test_enrich_context_max_hops_validation ____________________
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 422, "duration_ms": 4.36, "event": "request.completed", "request_id": "5277359696", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:38:25.460547Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 422, "duration_ms": 4.31, "event": "request.completed", "request_id": "5279885456", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:38:25.465433Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 422, 'duration_ms': 4.36, 'event': 'request.completed', 'request_id': '5277359696', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:38:25.460547Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 422, 'duration_ms': 4.31, 'event': 'request.completed', 'request_id': '5279885456', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:38:25.465433Z'}
+___________________ test_enrich_context_default_frontmatter ____________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[search_memories] Tier 1: 0 results, Tier 2: 0 results, Tier 3: 0 results (deduped 0, floor=0.05, returned 0)", "request_id": "5284645776", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-09T05:38:25.471945Z"}
+{"node_id": "X", "group_id": "vault:test_vault:x", "count": 0, "memory_search_latency_ms": 0, "event": "story_2_3_error_memories_loaded", "request_id": "5284645776", "logger": "app.api.v1.endpoints.chat", "level": "info", "timestamp": "2026-09-09T05:38:25.472046Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 200, "duration_ms": 4.71, "event": "request.completed", "request_id": "5284645776", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:38:25.472474Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.memory_service:memory_service.py:2421 {'event': '[search_memories] Tier 1: 0 results, Tier 2: 0 results, Tier 3: 0 results (deduped 0, floor=0.05, returned 0)', 'request_id': '5284645776', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-09T05:38:25.471945Z'}
+INFO     app.api.v1.endpoints.chat:chat.py:323 {'node_id': 'X', 'group_id': 'vault:test_vault:x', 'count': 0, 'memory_search_latency_ms': 0, 'event': 'story_2_3_error_memories_loaded', 'request_id': '5284645776', 'logger': 'app.api.v1.endpoints.chat', 'level': 'info', 'timestamp': '2026-09-09T05:38:25.472046Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 200, 'duration_ms': 4.71, 'event': 'request.completed', 'request_id': '5284645776', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:38:25.472474Z'}
+_______________ test_enrich_context_response_includes_elapsed_ms _______________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[search_memories] Tier 1: 0 results, Tier 2: 0 results, Tier 3: 0 results (deduped 0, floor=0.05, returned 0)", "request_id": "5284643856", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-09T05:38:25.478799Z"}
+{"node_id": "Eigenvalues", "group_id": "vault:test_vault:eigenvalues", "count": 0, "memory_search_latency_ms": 0, "event": "story_2_3_error_memories_loaded", "request_id": "5284643856", "logger": "app.api.v1.endpoints.chat", "level": "info", "timestamp": "2026-09-09T05:38:25.478916Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 200, "duration_ms": 4.62, "event": "request.completed", "request_id": "5284643856", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:38:25.479339Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.memory_service:memory_service.py:2421 {'event': '[search_memories] Tier 1: 0 results, Tier 2: 0 results, Tier 3: 0 results (deduped 0, floor=0.05, returned 0)', 'request_id': '5284643856', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-09T05:38:25.478799Z'}
+INFO     app.api.v1.endpoints.chat:chat.py:323 {'node_id': 'Eigenvalues', 'group_id': 'vault:test_vault:eigenvalues', 'count': 0, 'memory_search_latency_ms': 0, 'event': 'story_2_3_error_memories_loaded', 'request_id': '5284643856', 'logger': 'app.api.v1.endpoints.chat', 'level': 'info', 'timestamp': '2026-09-09T05:38:25.478916Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 200, 'duration_ms': 4.62, 'event': 'request.completed', 'request_id': '5284643856', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:38:25.479339Z'}
+_________________ test_enrich_context_returns_retrieval_trace __________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[search_memories] Tier 1: 0 results, Tier 2: 0 results, Tier 3: 0 results (deduped 0, floor=0.05, returned 0)", "request_id": "5280128976", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-09T05:38:25.485671Z"}
+{"node_id": "Eigenvalues", "group_id": "vault:test_vault:eigenvalues", "count": 0, "memory_search_latency_ms": 0, "event": "story_2_3_error_memories_loaded", "request_id": "5280128976", "logger": "app.api.v1.endpoints.chat", "level": "info", "timestamp": "2026-09-09T05:38:25.485782Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 200, "duration_ms": 4.7, "event": "request.completed", "request_id": "5280128976", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:38:25.486252Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.memory_service:memory_service.py:2421 {'event': '[search_memories] Tier 1: 0 results, Tier 2: 0 results, Tier 3: 0 results (deduped 0, floor=0.05, returned 0)', 'request_id': '5280128976', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-09T05:38:25.485671Z'}
+INFO     app.api.v1.endpoints.chat:chat.py:323 {'node_id': 'Eigenvalues', 'group_id': 'vault:test_vault:eigenvalues', 'count': 0, 'memory_search_latency_ms': 0, 'event': 'story_2_3_error_memories_loaded', 'request_id': '5280128976', 'logger': 'app.api.v1.endpoints.chat', 'level': 'info', 'timestamp': '2026-09-09T05:38:25.485782Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 200, 'duration_ms': 4.7, 'event': 'request.completed', 'request_id': '5280128976', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:38:25.486252Z'}
+______ test_enrich_context_trace_includes_degradation_when_graph_unbuilt _______
+----------------------------- Captured stdout call -----------------------------
+{"event": "[search_memories] Tier 1: 0 results, Tier 2: 0 results, Tier 3: 0 results (deduped 0, floor=0.05, returned 0)", "request_id": "5280128592", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-09T05:38:25.492448Z"}
+{"node_id": "Eigenvalues", "group_id": "vault:test_vault:eigenvalues", "count": 0, "memory_search_latency_ms": 0, "event": "story_2_3_error_memories_loaded", "request_id": "5280128592", "logger": "app.api.v1.endpoints.chat", "level": "info", "timestamp": "2026-09-09T05:38:25.492557Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 200, "duration_ms": 4.51, "event": "request.completed", "request_id": "5280128592", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:38:25.492981Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.memory_service:memory_service.py:2421 {'event': '[search_memories] Tier 1: 0 results, Tier 2: 0 results, Tier 3: 0 results (deduped 0, floor=0.05, returned 0)', 'request_id': '5280128592', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-09T05:38:25.492448Z'}
+INFO     app.api.v1.endpoints.chat:chat.py:323 {'node_id': 'Eigenvalues', 'group_id': 'vault:test_vault:eigenvalues', 'count': 0, 'memory_search_latency_ms': 0, 'event': 'story_2_3_error_memories_loaded', 'request_id': '5280128592', 'logger': 'app.api.v1.endpoints.chat', 'level': 'info', 'timestamp': '2026-09-09T05:38:25.492557Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 200, 'duration_ms': 4.51, 'event': 'request.completed', 'request_id': '5280128592', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:38:25.492981Z'}
+__________________ test_enrich_context_assembler_budget_field __________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[search_memories] Tier 1: 0 results, Tier 2: 0 results, Tier 3: 0 results (deduped 0, floor=0.05, returned 0)", "request_id": "5280137040", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-09T05:38:25.500020Z"}
+{"node_id": "Eigenvalues", "group_id": "vault:test_vault:eigenvalues", "count": 0, "memory_search_latency_ms": 0, "event": "story_2_3_error_memories_loaded", "request_id": "5280137040", "logger": "app.api.v1.endpoints.chat", "level": "info", "timestamp": "2026-09-09T05:38:25.500132Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 200, "duration_ms": 4.86, "event": "request.completed", "request_id": "5280137040", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:38:25.500569Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.memory_service:memory_service.py:2421 {'event': '[search_memories] Tier 1: 0 results, Tier 2: 0 results, Tier 3: 0 results (deduped 0, floor=0.05, returned 0)', 'request_id': '5280137040', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-09T05:38:25.500020Z'}
+INFO     app.api.v1.endpoints.chat:chat.py:323 {'node_id': 'Eigenvalues', 'group_id': 'vault:test_vault:eigenvalues', 'count': 0, 'memory_search_latency_ms': 0, 'event': 'story_2_3_error_memories_loaded', 'request_id': '5280137040', 'logger': 'app.api.v1.endpoints.chat', 'level': 'info', 'timestamp': '2026-09-09T05:38:25.500132Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 200, 'duration_ms': 4.86, 'event': 'request.completed', 'request_id': '5280137040', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:38:25.500569Z'}
+__________ test_enrich_context_accepts_user_question_and_mode_answer ___________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[search_memories] Tier 1: 0 results, Tier 2: 0 results, Tier 3: 0 results (deduped 0, floor=0.05, returned 0)", "request_id": "5280136272", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-09T05:38:25.508242Z"}
+{"node_id": "Eigenvalues", "group_id": "vault:test_vault:eigenvalues", "count": 0, "memory_search_latency_ms": 0, "event": "story_2_3_error_memories_loaded", "request_id": "5280136272", "logger": "app.api.v1.endpoints.chat", "level": "info", "timestamp": "2026-09-09T05:38:25.508380Z"}
+{"event": "Load pretrained SentenceTransformer: BAAI/bge-m3", "logger": "sentence_transformers.SentenceTransformer", "level": "info", "timestamp": "2026-09-09T05:38:25.635700Z"}
+{"timeout": 5.0, "event": "[Story-2.2-PhaseA] LanceDBClient init \u672a\u5c31\u7eea (\u540e\u53f0\u4efb\u52a1\u7ee7\u7eed), \u672c\u6b21\u964d\u7ea7", "request_id": "5280136272", "logger": "app.api.v1.endpoints.chat", "level": "warning", "timestamp": "2026-09-09T05:38:30.509838Z"}
+{"vault_key": "vault_test_vault_eigenvalues", "hint": "vault path could not be resolved from VAULTS_ROOT or settings.canvas_base_path \u2014 first request will return degraded=True; check VAULTS_ROOT config or sanitize_vault_id match", "event": "wikilink.lazy_build_skipped_unresolvable_vault_path", "request_id": "5280136272", "logger": "app.services.wikilink_graph_service", "level": "warning", "timestamp": "2026-09-09T05:38:30.511351Z"}
+{"pre": 0, "post": 0, "filter_threshold": 0.42, "median_degree": 0.0, "query": "\u7279\u5f81\u503c\u548c PCA \u7684\u5173\u7cfb\uff1f", "event": "[Story-2.2+2.9-T3] rerank \u5b8c\u6210", "request_id": "5280136272", "logger": "app.api.v1.endpoints.chat", "level": "info", "timestamp": "2026-09-09T05:38:30.511435Z"}
+{"count": 0, "degraded": true, "reason": "lancedb_unavailable", "query": "Eigenvalues \u7279\u5f81\u503c\u548c PCA \u7684\u5173\u7cfb\uff1f", "event": "[Story-2.2-PhaseA] supplementary \u6ce8\u5165\u5b8c\u6210", "request_id": "5280136272", "logger": "app.api.v1.endpoints.chat", "level": "info", "timestamp": "2026-09-09T05:38:30.511496Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 200, "duration_ms": 5008.73, "event": "request.completed", "request_id": "5280136272", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:38:30.511995Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.memory_service:memory_service.py:2421 {'event': '[search_memories] Tier 1: 0 results, Tier 2: 0 results, Tier 3: 0 results (deduped 0, floor=0.05, returned 0)', 'request_id': '5280136272', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-09T05:38:25.508242Z'}
+INFO     app.api.v1.endpoints.chat:chat.py:323 {'node_id': 'Eigenvalues', 'group_id': 'vault:test_vault:eigenvalues', 'count': 0, 'memory_search_latency_ms': 0, 'event': 'story_2_3_error_memories_loaded', 'request_id': '5280136272', 'logger': 'app.api.v1.endpoints.chat', 'level': 'info', 'timestamp': '2026-09-09T05:38:25.508380Z'}
+INFO     sentence_transformers.SentenceTransformer:SentenceTransformer.py:227 Load pretrained SentenceTransformer: BAAI/bge-m3
+WARNING  app.api.v1.endpoints.chat:chat.py:108 {'timeout': 5.0, 'event': '[Story-2.2-PhaseA] LanceDBClient init 未就绪 (后台任务继续), 本次降级', 'request_id': '5280136272', 'logger': 'app.api.v1.endpoints.chat', 'level': 'warning', 'timestamp': '2026-09-09T05:38:30.509838Z'}
+WARNING  app.services.wikilink_graph_service:wikilink_graph_service.py:525 {'vault_key': 'vault_test_vault_eigenvalues', 'hint': 'vault path could not be resolved from VAULTS_ROOT or settings.canvas_base_path — first request will return degraded=True; check VAULTS_ROOT config or sanitize_vault_id match', 'event': 'wikilink.lazy_build_skipped_unresolvable_vault_path', 'request_id': '5280136272', 'logger': 'app.services.wikilink_graph_service', 'level': 'warning', 'timestamp': '2026-09-09T05:38:30.511351Z'}
+INFO     app.api.v1.endpoints.chat:chat.py:455 {'pre': 0, 'post': 0, 'filter_threshold': 0.42, 'median_degree': 0.0, 'query': '特征值和 PCA 的关系？', 'event': '[Story-2.2+2.9-T3] rerank 完成', 'request_id': '5280136272', 'logger': 'app.api.v1.endpoints.chat', 'level': 'info', 'timestamp': '2026-09-09T05:38:30.511435Z'}
+INFO     app.api.v1.endpoints.chat:chat.py:476 {'count': 0, 'degraded': True, 'reason': 'lancedb_unavailable', 'query': 'Eigenvalues 特征值和 PCA 的关系？', 'event': '[Story-2.2-PhaseA] supplementary 注入完成', 'request_id': '5280136272', 'logger': 'app.api.v1.endpoints.chat', 'level': 'info', 'timestamp': '2026-09-09T05:38:30.511496Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 200, 'duration_ms': 5008.73, 'event': 'request.completed', 'request_id': '5280136272', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:38:30.511995Z'}
+--------------------------- Captured stderr teardown ---------------------------
+Loading weights:   0%|          | 0/391 [00:00<?, ?it/s]Loading weights: 100%|██████████| 391/391 [00:00<00:00, 43618.62it/s]
+___________________ test_enrich_context_rejects_invalid_mode ___________________
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 422, "duration_ms": 5.6, "event": "request.completed", "request_id": "5283052816", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:38:40.486259Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 422, 'duration_ms': 5.6, 'event': 'request.completed', 'request_id': '5283052816', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:38:40.486259Z'}
+_____________ test_enrich_context_answer_mode_uses_lazy_init_path ______________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[search_memories] Tier 1: 0 results, Tier 2: 0 results, Tier 3: 0 results (deduped 0, floor=0.05, returned 0)", "request_id": "5299652176", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-09T05:38:40.494363Z"}
+{"node_id": "Eigenvalues", "group_id": "vault:test_vault:eigenvalues", "count": 0, "memory_search_latency_ms": 0, "event": "story_2_3_error_memories_loaded", "request_id": "5299652176", "logger": "app.api.v1.endpoints.chat", "level": "info", "timestamp": "2026-09-09T05:38:40.494522Z"}
+{"pre": 0, "post": 0, "filter_threshold": 0.42, "median_degree": 0.0, "query": "what is admissible heuristic?", "event": "[Story-2.2+2.9-T3] rerank \u5b8c\u6210", "request_id": "5299652176", "logger": "app.api.v1.endpoints.chat", "level": "info", "timestamp": "2026-09-09T05:38:40.494980Z"}
+{"count": 0, "degraded": true, "reason": "lancedb_unavailable", "query": "Eigenvalues what is admissible heuristic?", "event": "[Story-2.2-PhaseA] supplementary \u6ce8\u5165\u5b8c\u6210", "request_id": "5299652176", "logger": "app.api.v1.endpoints.chat", "level": "info", "timestamp": "2026-09-09T05:38:40.495055Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 200, "duration_ms": 6.04, "event": "request.completed", "request_id": "5299652176", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:38:40.495369Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.memory_service:memory_service.py:2421 {'event': '[search_memories] Tier 1: 0 results, Tier 2: 0 results, Tier 3: 0 results (deduped 0, floor=0.05, returned 0)', 'request_id': '5299652176', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-09T05:38:40.494363Z'}
+INFO     app.api.v1.endpoints.chat:chat.py:323 {'node_id': 'Eigenvalues', 'group_id': 'vault:test_vault:eigenvalues', 'count': 0, 'memory_search_latency_ms': 0, 'event': 'story_2_3_error_memories_loaded', 'request_id': '5299652176', 'logger': 'app.api.v1.endpoints.chat', 'level': 'info', 'timestamp': '2026-09-09T05:38:40.494522Z'}
+INFO     app.api.v1.endpoints.chat:chat.py:455 {'pre': 0, 'post': 0, 'filter_threshold': 0.42, 'median_degree': 0.0, 'query': 'what is admissible heuristic?', 'event': '[Story-2.2+2.9-T3] rerank 完成', 'request_id': '5299652176', 'logger': 'app.api.v1.endpoints.chat', 'level': 'info', 'timestamp': '2026-09-09T05:38:40.494980Z'}
+INFO     app.api.v1.endpoints.chat:chat.py:476 {'count': 0, 'degraded': True, 'reason': 'lancedb_unavailable', 'query': 'Eigenvalues what is admissible heuristic?', 'event': '[Story-2.2-PhaseA] supplementary 注入完成', 'request_id': '5299652176', 'logger': 'app.api.v1.endpoints.chat', 'level': 'info', 'timestamp': '2026-09-09T05:38:40.495055Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 200, 'duration_ms': 6.04, 'event': 'request.completed', 'request_id': '5299652176', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:38:40.495369Z'}
+_____________ test_enrich_context_preload_mode_skips_supplementary _____________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[search_memories] Tier 1: 0 results, Tier 2: 0 results, Tier 3: 0 results (deduped 0, floor=0.05, returned 0)", "request_id": "5299654672", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-09T05:38:40.503665Z"}
+{"node_id": "Eigenvalues", "group_id": "vault:test_vault:eigenvalues", "count": 0, "memory_search_latency_ms": 0, "event": "story_2_3_error_memories_loaded", "request_id": "5299654672", "logger": "app.api.v1.endpoints.chat", "level": "info", "timestamp": "2026-09-09T05:38:40.503796Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 200, "duration_ms": 5.52, "event": "request.completed", "request_id": "5299654672", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:38:40.504342Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.memory_service:memory_service.py:2421 {'event': '[search_memories] Tier 1: 0 results, Tier 2: 0 results, Tier 3: 0 results (deduped 0, floor=0.05, returned 0)', 'request_id': '5299654672', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-09T05:38:40.503665Z'}
+INFO     app.api.v1.endpoints.chat:chat.py:323 {'node_id': 'Eigenvalues', 'group_id': 'vault:test_vault:eigenvalues', 'count': 0, 'memory_search_latency_ms': 0, 'event': 'story_2_3_error_memories_loaded', 'request_id': '5299654672', 'logger': 'app.api.v1.endpoints.chat', 'level': 'info', 'timestamp': '2026-09-09T05:38:40.503796Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 200, 'duration_ms': 5.52, 'event': 'request.completed', 'request_id': '5299654672', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:38:40.504342Z'}
+_____________________ test_rag_enrich_hook_uses_lazy_init ______________________
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/chat/rag/enrich-hook", "endpoint": "/api/v1/chat/rag/enrich-hook", "status": 200, "duration_ms": 5.78, "event": "request.completed", "request_id": "5299657168", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:38:40.512766Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/rag/enrich-hook', 'endpoint': '/api/v1/chat/rag/enrich-hook', 'status': 200, 'duration_ms': 5.78, 'event': 'request.completed', 'request_id': '5299657168', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:38:40.512766Z'}
+______________ test_rag_enrich_hook_short_prompt_skips_lazy_init _______________
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/chat/rag/enrich-hook", "endpoint": "/api/v1/chat/rag/enrich-hook", "status": 200, "duration_ms": 5.21, "event": "request.completed", "request_id": "5299659856", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:38:40.520564Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/rag/enrich-hook', 'endpoint': '/api/v1/chat/rag/enrich-hook', 'status': 200, 'duration_ms': 5.21, 'event': 'request.completed', 'request_id': '5299659856', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:38:40.520564Z'}
+_____ test_rag_enrich_hook_lazy_init_returns_none_injects_degraded_marker ______
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/chat/rag/enrich-hook", "endpoint": "/api/v1/chat/rag/enrich-hook", "status": 200, "duration_ms": 4.8, "event": "request.completed", "request_id": "5299663312", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:38:40.528145Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/rag/enrich-hook', 'endpoint': '/api/v1/chat/rag/enrich-hook', 'status': 200, 'duration_ms': 4.8, 'event': 'request.completed', 'request_id': '5299663312', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:38:40.528145Z'}
+______________________ test_vault_id_missing_rejected_422 ______________________
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 422, "duration_ms": 5.1, "event": "request.completed", "request_id": "5299664656", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:38:40.535971Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 422, 'duration_ms': 5.1, 'event': 'request.completed', 'request_id': '5299664656', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:38:40.535971Z'}
+___________________ test_vault_id_empty_string_rejected_422 ____________________
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 422, "duration_ms": 4.7, "event": "request.completed", "request_id": "5303274576", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:38:40.543486Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 422, 'duration_ms': 4.7, 'event': 'request.completed', 'request_id': '5303274576', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:38:40.543486Z'}
+___________________ test_mode_deep_accepted_by_request_model ___________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[search_memories] Tier 1: 0 results, Tier 2: 0 results, Tier 3: 0 results (deduped 0, floor=0.05, returned 0)", "request_id": "5303986000", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-09T05:38:40.650340Z"}
+{"node_id": "Eigenvalues", "group_id": "vault:test_vault:eigenvalues", "count": 0, "memory_search_latency_ms": 0, "event": "story_2_3_error_memories_loaded", "request_id": "5303986000", "logger": "app.api.v1.endpoints.chat", "level": "info", "timestamp": "2026-09-09T05:38:40.650468Z"}
+{"event": "Load pretrained SentenceTransformer: BAAI/bge-m3", "logger": "sentence_transformers.SentenceTransformer", "level": "info", "timestamp": "2026-09-09T05:38:40.652631Z"}
+{"timeout": 5.0, "event": "[Story-2.2-PhaseA] LanceDBClient init \u672a\u5c31\u7eea (\u540e\u53f0\u4efb\u52a1\u7ee7\u7eed), \u672c\u6b21\u964d\u7ea7", "request_id": "5303986000", "logger": "app.api.v1.endpoints.chat", "level": "warning", "timestamp": "2026-09-09T05:38:45.652033Z"}
+{"pre": 0, "post": 0, "filter_threshold": 0.42, "median_degree": 0.0, "query": "\u4ec0\u4e48\u662f admissibility", "event": "[Story-2.2+2.9-T3] rerank \u5b8c\u6210", "request_id": "5303986000", "logger": "app.api.v1.endpoints.chat", "level": "info", "timestamp": "2026-09-09T05:38:45.652230Z"}
+{"count": 0, "degraded": true, "reason": "lancedb_unavailable", "query": "Eigenvalues \u4ec0\u4e48\u662f admissibility", "event": "[Story-2.2-PhaseA] supplementary \u6ce8\u5165\u5b8c\u6210", "request_id": "5303986000", "logger": "app.api.v1.endpoints.chat", "level": "info", "timestamp": "2026-09-09T05:38:45.652290Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 200, "duration_ms": 5007.28, "event": "request.completed", "request_id": "5303986000", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:38:45.652558Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.memory_service:memory_service.py:2421 {'event': '[search_memories] Tier 1: 0 results, Tier 2: 0 results, Tier 3: 0 results (deduped 0, floor=0.05, returned 0)', 'request_id': '5303986000', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-09T05:38:40.650340Z'}
+INFO     app.api.v1.endpoints.chat:chat.py:323 {'node_id': 'Eigenvalues', 'group_id': 'vault:test_vault:eigenvalues', 'count': 0, 'memory_search_latency_ms': 0, 'event': 'story_2_3_error_memories_loaded', 'request_id': '5303986000', 'logger': 'app.api.v1.endpoints.chat', 'level': 'info', 'timestamp': '2026-09-09T05:38:40.650468Z'}
+INFO     sentence_transformers.SentenceTransformer:SentenceTransformer.py:227 Load pretrained SentenceTransformer: BAAI/bge-m3
+WARNING  app.api.v1.endpoints.chat:chat.py:108 {'timeout': 5.0, 'event': '[Story-2.2-PhaseA] LanceDBClient init 未就绪 (后台任务继续), 本次降级', 'request_id': '5303986000', 'logger': 'app.api.v1.endpoints.chat', 'level': 'warning', 'timestamp': '2026-09-09T05:38:45.652033Z'}
+INFO     app.api.v1.endpoints.chat:chat.py:455 {'pre': 0, 'post': 0, 'filter_threshold': 0.42, 'median_degree': 0.0, 'query': '什么是 admissibility', 'event': '[Story-2.2+2.9-T3] rerank 完成', 'request_id': '5303986000', 'logger': 'app.api.v1.endpoints.chat', 'level': 'info', 'timestamp': '2026-09-09T05:38:45.652230Z'}
+INFO     app.api.v1.endpoints.chat:chat.py:476 {'count': 0, 'degraded': True, 'reason': 'lancedb_unavailable', 'query': 'Eigenvalues 什么是 admissibility', 'event': '[Story-2.2-PhaseA] supplementary 注入完成', 'request_id': '5303986000', 'logger': 'app.api.v1.endpoints.chat', 'level': 'info', 'timestamp': '2026-09-09T05:38:45.652290Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 200, 'duration_ms': 5007.28, 'event': 'request.completed', 'request_id': '5303986000', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:38:45.652558Z'}
+--------------------------- Captured stderr teardown ---------------------------
+Loading weights:   0%|          | 0/391 [00:00<?, ?it/s]Loading weights: 100%|██████████| 391/391 [00:00<00:00, 45228.15it/s]
+____________________ test_mode_invalid_rejected_by_pydantic ____________________
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 422, "duration_ms": 5.78, "event": "request.completed", "request_id": "5353348112", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:38:52.044362Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 422, 'duration_ms': 5.78, 'event': 'request.completed', 'request_id': '5353348112', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:38:52.044362Z'}
+_________________________ test_mode_default_is_preload _________________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[search_memories] Tier 1: 0 results, Tier 2: 0 results, Tier 3: 0 results (deduped 0, floor=0.05, returned 0)", "request_id": "5353349456", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-09T05:38:52.054751Z"}
+{"node_id": "Eigenvalues", "group_id": "vault:test_vault:eigenvalues", "count": 0, "memory_search_latency_ms": 0, "event": "story_2_3_error_memories_loaded", "request_id": "5353349456", "logger": "app.api.v1.endpoints.chat", "level": "info", "timestamp": "2026-09-09T05:38:52.054940Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 200, "duration_ms": 6.94, "event": "request.completed", "request_id": "5353349456", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:38:52.055564Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.memory_service:memory_service.py:2421 {'event': '[search_memories] Tier 1: 0 results, Tier 2: 0 results, Tier 3: 0 results (deduped 0, floor=0.05, returned 0)', 'request_id': '5353349456', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-09T05:38:52.054751Z'}
+INFO     app.api.v1.endpoints.chat:chat.py:323 {'node_id': 'Eigenvalues', 'group_id': 'vault:test_vault:eigenvalues', 'count': 0, 'memory_search_latency_ms': 0, 'event': 'story_2_3_error_memories_loaded', 'request_id': '5353349456', 'logger': 'app.api.v1.endpoints.chat', 'level': 'info', 'timestamp': '2026-09-09T05:38:52.054940Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 200, 'duration_ms': 6.94, 'event': 'request.completed', 'request_id': '5353349456', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:38:52.055564Z'}
+_________________ test_mode_deep_uses_top_k_30_and_hard_cap_20 _________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[search_memories] Tier 1: 0 results, Tier 2: 0 results, Tier 3: 0 results (deduped 0, floor=0.05, returned 0)", "request_id": "5353352912", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-09T05:38:52.065386Z"}
+{"node_id": "Eigenvalues", "group_id": "vault:test_vault:eigenvalues", "count": 0, "memory_search_latency_ms": 0, "event": "story_2_3_error_memories_loaded", "request_id": "5353352912", "logger": "app.api.v1.endpoints.chat", "level": "info", "timestamp": "2026-09-09T05:38:52.065624Z"}
+{"event": "Load pretrained SentenceTransformer: BAAI/bge-m3", "logger": "sentence_transformers.SentenceTransformer", "level": "info", "timestamp": "2026-09-09T05:38:52.068247Z"}
+{"timeout": 5.0, "event": "[Story-2.2-PhaseA] LanceDBClient init \u672a\u5c31\u7eea (\u540e\u53f0\u4efb\u52a1\u7ee7\u7eed), \u672c\u6b21\u964d\u7ea7", "request_id": "5353352912", "logger": "app.api.v1.endpoints.chat", "level": "warning", "timestamp": "2026-09-09T05:38:57.066821Z"}
+{"pre": 0, "post": 0, "filter_threshold": 0.42, "median_degree": 0.0, "query": "\u4ec0\u4e48\u662f admissibility", "event": "[Story-2.2+2.9-T3] rerank \u5b8c\u6210", "request_id": "5353352912", "logger": "app.api.v1.endpoints.chat", "level": "info", "timestamp": "2026-09-09T05:38:57.067014Z"}
+{"count": 0, "degraded": false, "reason": null, "query": "Eigenvalues \u4ec0\u4e48\u662f admissibility", "event": "[Story-2.2-PhaseA] supplementary \u6ce8\u5165\u5b8c\u6210", "request_id": "5353352912", "logger": "app.api.v1.endpoints.chat", "level": "info", "timestamp": "2026-09-09T05:38:57.067073Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 200, "duration_ms": 5008.13, "event": "request.completed", "request_id": "5353352912", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:38:57.067377Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.memory_service:memory_service.py:2421 {'event': '[search_memories] Tier 1: 0 results, Tier 2: 0 results, Tier 3: 0 results (deduped 0, floor=0.05, returned 0)', 'request_id': '5353352912', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-09T05:38:52.065386Z'}
+INFO     app.api.v1.endpoints.chat:chat.py:323 {'node_id': 'Eigenvalues', 'group_id': 'vault:test_vault:eigenvalues', 'count': 0, 'memory_search_latency_ms': 0, 'event': 'story_2_3_error_memories_loaded', 'request_id': '5353352912', 'logger': 'app.api.v1.endpoints.chat', 'level': 'info', 'timestamp': '2026-09-09T05:38:52.065624Z'}
+INFO     sentence_transformers.SentenceTransformer:SentenceTransformer.py:227 Load pretrained SentenceTransformer: BAAI/bge-m3
+WARNING  app.api.v1.endpoints.chat:chat.py:108 {'timeout': 5.0, 'event': '[Story-2.2-PhaseA] LanceDBClient init 未就绪 (后台任务继续), 本次降级', 'request_id': '5353352912', 'logger': 'app.api.v1.endpoints.chat', 'level': 'warning', 'timestamp': '2026-09-09T05:38:57.066821Z'}
+INFO     app.api.v1.endpoints.chat:chat.py:455 {'pre': 0, 'post': 0, 'filter_threshold': 0.42, 'median_degree': 0.0, 'query': '什么是 admissibility', 'event': '[Story-2.2+2.9-T3] rerank 完成', 'request_id': '5353352912', 'logger': 'app.api.v1.endpoints.chat', 'level': 'info', 'timestamp': '2026-09-09T05:38:57.067014Z'}
+INFO     app.api.v1.endpoints.chat:chat.py:476 {'count': 0, 'degraded': False, 'reason': None, 'query': 'Eigenvalues 什么是 admissibility', 'event': '[Story-2.2-PhaseA] supplementary 注入完成', 'request_id': '5353352912', 'logger': 'app.api.v1.endpoints.chat', 'level': 'info', 'timestamp': '2026-09-09T05:38:57.067073Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 200, 'duration_ms': 5008.13, 'event': 'request.completed', 'request_id': '5353352912', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:38:57.067377Z'}
+--------------------------- Captured stderr teardown ---------------------------
+Loading weights:   0%|          | 0/391 [00:00<?, ?it/s]Loading weights: 100%|██████████| 391/391 [00:00<00:00, 40383.47it/s]
+_______________ test_mode_answer_keeps_top_k_20_and_hard_cap_15 ________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[search_memories] Tier 1: 0 results, Tier 2: 0 results, Tier 3: 0 results (deduped 0, floor=0.05, returned 0)", "request_id": "5352005776", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-09T05:39:06.558512Z"}
+{"node_id": "Eigenvalues", "group_id": "vault:test_vault:eigenvalues", "count": 0, "memory_search_latency_ms": 0, "event": "story_2_3_error_memories_loaded", "request_id": "5352005776", "logger": "app.api.v1.endpoints.chat", "level": "info", "timestamp": "2026-09-09T05:39:06.558634Z"}
+{"event": "Load pretrained SentenceTransformer: BAAI/bge-m3", "logger": "sentence_transformers.SentenceTransformer", "level": "info", "timestamp": "2026-09-09T05:39:06.560482Z"}
+{"timeout": 5.0, "event": "[Story-2.2-PhaseA] LanceDBClient init \u672a\u5c31\u7eea (\u540e\u53f0\u4efb\u52a1\u7ee7\u7eed), \u672c\u6b21\u964d\u7ea7", "request_id": "5352005776", "logger": "app.api.v1.endpoints.chat", "level": "warning", "timestamp": "2026-09-09T05:39:11.560128Z"}
+{"pre": 0, "post": 0, "filter_threshold": 0.42, "median_degree": 0.0, "query": "\u4ec0\u4e48\u662f admissibility", "event": "[Story-2.2+2.9-T3] rerank \u5b8c\u6210", "request_id": "5352005776", "logger": "app.api.v1.endpoints.chat", "level": "info", "timestamp": "2026-09-09T05:39:11.560334Z"}
+{"count": 0, "degraded": false, "reason": null, "query": "Eigenvalues \u4ec0\u4e48\u662f admissibility", "event": "[Story-2.2-PhaseA] supplementary \u6ce8\u5165\u5b8c\u6210", "request_id": "5352005776", "logger": "app.api.v1.endpoints.chat", "level": "info", "timestamp": "2026-09-09T05:39:11.560396Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 200, "duration_ms": 5006.88, "event": "request.completed", "request_id": "5352005776", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:39:11.560678Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.memory_service:memory_service.py:2421 {'event': '[search_memories] Tier 1: 0 results, Tier 2: 0 results, Tier 3: 0 results (deduped 0, floor=0.05, returned 0)', 'request_id': '5352005776', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-09T05:39:06.558512Z'}
+INFO     app.api.v1.endpoints.chat:chat.py:323 {'node_id': 'Eigenvalues', 'group_id': 'vault:test_vault:eigenvalues', 'count': 0, 'memory_search_latency_ms': 0, 'event': 'story_2_3_error_memories_loaded', 'request_id': '5352005776', 'logger': 'app.api.v1.endpoints.chat', 'level': 'info', 'timestamp': '2026-09-09T05:39:06.558634Z'}
+INFO     sentence_transformers.SentenceTransformer:SentenceTransformer.py:227 Load pretrained SentenceTransformer: BAAI/bge-m3
+WARNING  app.api.v1.endpoints.chat:chat.py:108 {'timeout': 5.0, 'event': '[Story-2.2-PhaseA] LanceDBClient init 未就绪 (后台任务继续), 本次降级', 'request_id': '5352005776', 'logger': 'app.api.v1.endpoints.chat', 'level': 'warning', 'timestamp': '2026-09-09T05:39:11.560128Z'}
+INFO     app.api.v1.endpoints.chat:chat.py:455 {'pre': 0, 'post': 0, 'filter_threshold': 0.42, 'median_degree': 0.0, 'query': '什么是 admissibility', 'event': '[Story-2.2+2.9-T3] rerank 完成', 'request_id': '5352005776', 'logger': 'app.api.v1.endpoints.chat', 'level': 'info', 'timestamp': '2026-09-09T05:39:11.560334Z'}
+INFO     app.api.v1.endpoints.chat:chat.py:476 {'count': 0, 'degraded': False, 'reason': None, 'query': 'Eigenvalues 什么是 admissibility', 'event': '[Story-2.2-PhaseA] supplementary 注入完成', 'request_id': '5352005776', 'logger': 'app.api.v1.endpoints.chat', 'level': 'info', 'timestamp': '2026-09-09T05:39:11.560396Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 200, 'duration_ms': 5006.88, 'event': 'request.completed', 'request_id': '5352005776', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:39:11.560678Z'}
+--------------------------- Captured stderr teardown ---------------------------
+Loading weights:   0%|          | 0/391 [00:00<?, ?it/s]Loading weights: 100%|██████████| 391/391 [00:00<00:00, 41489.94it/s]
+______________ test_mode_deep_without_user_question_skips_search _______________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[search_memories] Tier 1: 0 results, Tier 2: 0 results, Tier 3: 0 results (deduped 0, floor=0.05, returned 0)", "request_id": "5283718032", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-09T05:39:21.623679Z"}
+{"node_id": "Eigenvalues", "group_id": "vault:test_vault:eigenvalues", "count": 0, "memory_search_latency_ms": 0, "event": "story_2_3_error_memories_loaded", "request_id": "5283718032", "logger": "app.api.v1.endpoints.chat", "level": "info", "timestamp": "2026-09-09T05:39:21.623816Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 200, "duration_ms": 5.25, "event": "request.completed", "request_id": "5283718032", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:39:21.624427Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.memory_service:memory_service.py:2421 {'event': '[search_memories] Tier 1: 0 results, Tier 2: 0 results, Tier 3: 0 results (deduped 0, floor=0.05, returned 0)', 'request_id': '5283718032', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-09T05:39:21.623679Z'}
+INFO     app.api.v1.endpoints.chat:chat.py:323 {'node_id': 'Eigenvalues', 'group_id': 'vault:test_vault:eigenvalues', 'count': 0, 'memory_search_latency_ms': 0, 'event': 'story_2_3_error_memories_loaded', 'request_id': '5283718032', 'logger': 'app.api.v1.endpoints.chat', 'level': 'info', 'timestamp': '2026-09-09T05:39:21.623816Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 200, 'duration_ms': 5.25, 'event': 'request.completed', 'request_id': '5283718032', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:39:21.624427Z'}
+_______________ test_mode_deep_empty_user_question_skips_search ________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[search_memories] Tier 1: 0 results, Tier 2: 0 results, Tier 3: 0 results (deduped 0, floor=0.05, returned 0)", "request_id": "5283715920", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-09T05:39:21.631317Z"}
+{"node_id": "Eigenvalues", "group_id": "vault:test_vault:eigenvalues", "count": 0, "memory_search_latency_ms": 0, "event": "story_2_3_error_memories_loaded", "request_id": "5283715920", "logger": "app.api.v1.endpoints.chat", "level": "info", "timestamp": "2026-09-09T05:39:21.631427Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 200, "duration_ms": 4.93, "event": "request.completed", "request_id": "5283715920", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:39:21.631863Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.memory_service:memory_service.py:2421 {'event': '[search_memories] Tier 1: 0 results, Tier 2: 0 results, Tier 3: 0 results (deduped 0, floor=0.05, returned 0)', 'request_id': '5283715920', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-09T05:39:21.631317Z'}
+INFO     app.api.v1.endpoints.chat:chat.py:323 {'node_id': 'Eigenvalues', 'group_id': 'vault:test_vault:eigenvalues', 'count': 0, 'memory_search_latency_ms': 0, 'event': 'story_2_3_error_memories_loaded', 'request_id': '5283715920', 'logger': 'app.api.v1.endpoints.chat', 'level': 'info', 'timestamp': '2026-09-09T05:39:21.631427Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 200, 'duration_ms': 4.93, 'event': 'request.completed', 'request_id': '5283715920', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:39:21.631863Z'}
+___________ test_mode_preload_with_user_question_still_skips_search ____________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[search_memories] Tier 1: 0 results, Tier 2: 0 results, Tier 3: 0 results (deduped 0, floor=0.05, returned 0)", "request_id": "5283711888", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-09T05:39:21.638762Z"}
+{"node_id": "Eigenvalues", "group_id": "vault:test_vault:eigenvalues", "count": 0, "memory_search_latency_ms": 0, "event": "story_2_3_error_memories_loaded", "request_id": "5283711888", "logger": "app.api.v1.endpoints.chat", "level": "info", "timestamp": "2026-09-09T05:39:21.638886Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 200, "duration_ms": 4.93, "event": "request.completed", "request_id": "5283711888", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:39:21.639372Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.memory_service:memory_service.py:2421 {'event': '[search_memories] Tier 1: 0 results, Tier 2: 0 results, Tier 3: 0 results (deduped 0, floor=0.05, returned 0)', 'request_id': '5283711888', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-09T05:39:21.638762Z'}
+INFO     app.api.v1.endpoints.chat:chat.py:323 {'node_id': 'Eigenvalues', 'group_id': 'vault:test_vault:eigenvalues', 'count': 0, 'memory_search_latency_ms': 0, 'event': 'story_2_3_error_memories_loaded', 'request_id': '5283711888', 'logger': 'app.api.v1.endpoints.chat', 'level': 'info', 'timestamp': '2026-09-09T05:39:21.638886Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 200, 'duration_ms': 4.93, 'event': 'request.completed', 'request_id': '5283711888', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:39:21.639372Z'}
+________ TestInfrastructureErrors.test_service_unavailable_returns_503 _________
+----------------------------- Captured stdout call -----------------------------
+{"event": "sync_batch_neo4j_unavailable: type=ServiceUnavailable detail=neo4j down", "request_id": "5283709392", "logger": "app.api.v1.endpoints.sync", "level": "error", "timestamp": "2026-09-09T05:39:21.650630Z"}
+{"method": "POST", "path": "/api/v1/sync/batch", "endpoint": "/api/v1/sync/batch", "status": 503, "duration_ms": 5.2, "event": "request.completed", "request_id": "5283709392", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:39:21.650906Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.api.v1.endpoints.sync:sync.py:141 sync_batch_neo4j_unavailable: type=ServiceUnavailable detail=neo4j down
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/sync/batch', 'endpoint': '/api/v1/sync/batch', 'status': 503, 'duration_ms': 5.2, 'event': 'request.completed', 'request_id': '5283709392', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:39:21.650906Z'}
+_____________ TestInfrastructureErrors.test_auth_error_returns_503 _____________
+----------------------------- Captured stdout call -----------------------------
+{"event": "sync_batch_neo4j_unavailable: type=AuthError detail=bad creds", "request_id": "5279907664", "logger": "app.api.v1.endpoints.sync", "level": "error", "timestamp": "2026-09-09T05:39:21.658532Z"}
+{"method": "POST", "path": "/api/v1/sync/batch", "endpoint": "/api/v1/sync/batch", "status": 503, "duration_ms": 4.95, "event": "request.completed", "request_id": "5279907664", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:39:21.658784Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.api.v1.endpoints.sync:sync.py:141 sync_batch_neo4j_unavailable: type=AuthError detail=bad creds
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/sync/batch', 'endpoint': '/api/v1/sync/batch', 'status': 503, 'duration_ms': 4.95, 'event': 'request.completed', 'request_id': '5279907664', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:39:21.658784Z'}
+__________ TestInfrastructureErrors.test_connection_error_returns_503 __________
+----------------------------- Captured stdout call -----------------------------
+{"event": "sync_batch_neo4j_unavailable: type=ConnectionError detail=refused", "request_id": "5352011344", "logger": "app.api.v1.endpoints.sync", "level": "error", "timestamp": "2026-09-09T05:39:21.666243Z"}
+{"method": "POST", "path": "/api/v1/sync/batch", "endpoint": "/api/v1/sync/batch", "status": 503, "duration_ms": 4.66, "event": "request.completed", "request_id": "5352011344", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:39:21.666549Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.api.v1.endpoints.sync:sync.py:141 sync_batch_neo4j_unavailable: type=ConnectionError detail=refused
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/sync/batch', 'endpoint': '/api/v1/sync/batch', 'status': 503, 'duration_ms': 4.66, 'event': 'request.completed', 'request_id': '5352011344', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:39:21.666549Z'}
+_________________ TestLogicErrors.test_value_error_returns_500 _________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "sync_batch_unexpected_error: type=ValueError", "exc_info": ["<class 'ValueError'>", "ValueError('unexpected payload shape')", "<traceback object at 0x13b1eda40>"], "request_id": "5352010000", "logger": "app.api.v1.endpoints.sync", "level": "error", "timestamp": "2026-09-09T05:39:21.674180Z"}
+{"method": "POST", "path": "/api/v1/sync/batch", "endpoint": "/api/v1/sync/batch", "status": 500, "duration_ms": 5.17, "event": "request.completed", "request_id": "5352010000", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:39:21.674999Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.api.v1.endpoints.sync:sync.py:154 sync_batch_unexpected_error: type=ValueError
+Traceback (most recent call last):
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/api/v1/endpoints/sync.py", line 138, in sync_batch
+    return await service.process_sync_batch(request, group_id=physical_gid)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/unittest/mock.py", line 2344, in _execute_mock_call
+    result = await effect(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/tests/unit/test_sync_exception_classification.py", line 108, in raiser
+    raise exc
+ValueError: unexpected payload shape
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/sync/batch', 'endpoint': '/api/v1/sync/batch', 'status': 500, 'duration_ms': 5.17, 'event': 'request.completed', 'request_id': '5352010000', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:39:21.674999Z'}
+_________________ TestLogicErrors.test_type_error_returns_500 __________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "sync_batch_unexpected_error: type=TypeError", "exc_info": ["<class 'TypeError'>", "TypeError('int has no len()')", "<traceback object at 0x13f5e1e40>"], "request_id": "5352003280", "logger": "app.api.v1.endpoints.sync", "level": "error", "timestamp": "2026-09-09T05:39:21.682013Z"}
+{"method": "POST", "path": "/api/v1/sync/batch", "endpoint": "/api/v1/sync/batch", "status": 500, "duration_ms": 4.94, "event": "request.completed", "request_id": "5352003280", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:39:21.682673Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.api.v1.endpoints.sync:sync.py:154 sync_batch_unexpected_error: type=TypeError
+Traceback (most recent call last):
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/api/v1/endpoints/sync.py", line 138, in sync_batch
+    return await service.process_sync_batch(request, group_id=physical_gid)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/unittest/mock.py", line 2344, in _execute_mock_call
+    result = await effect(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/tests/unit/test_sync_exception_classification.py", line 108, in raiser
+    raise exc
+TypeError: int has no len()
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/sync/batch', 'endpoint': '/api/v1/sync/batch', 'status': 500, 'duration_ms': 4.94, 'event': 'request.completed', 'request_id': '5352003280', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:39:21.682673Z'}
+______________ TestLogicErrors.test_generic_exception_returns_500 ______________
+----------------------------- Captured stdout call -----------------------------
+{"event": "sync_batch_unexpected_error: type=UnknownError", "exc_info": ["<class 'tests.unit.test_sync_exception_classification.TestLogicErrors.test_generic_exception_returns_500.<locals>.UnknownError'>", "UnknownError('mystery')", "<traceback object at 0x13f3748c0>"], "request_id": "5352000976", "logger": "app.api.v1.endpoints.sync", "level": "error", "timestamp": "2026-09-09T05:39:21.689504Z"}
+{"method": "POST", "path": "/api/v1/sync/batch", "endpoint": "/api/v1/sync/batch", "status": 500, "duration_ms": 4.58, "event": "request.completed", "request_id": "5352000976", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:39:21.689952Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.api.v1.endpoints.sync:sync.py:154 sync_batch_unexpected_error: type=UnknownError
+Traceback (most recent call last):
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/api/v1/endpoints/sync.py", line 138, in sync_batch
+    return await service.process_sync_batch(request, group_id=physical_gid)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/unittest/mock.py", line 2344, in _execute_mock_call
+    result = await effect(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/tests/unit/test_sync_exception_classification.py", line 108, in raiser
+    raise exc
+tests.unit.test_sync_exception_classification.TestLogicErrors.test_generic_exception_returns_500.<locals>.UnknownError: mystery
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/sync/batch', 'endpoint': '/api/v1/sync/batch', 'status': 500, 'duration_ms': 4.58, 'event': 'request.completed', 'request_id': '5352000976', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:39:21.689952Z'}
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=1 (blocked=1, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+PASSED tests/unit/test_chat_endpoint.py::test_enrich_context_degraded_appends_notice
+PASSED tests/unit/test_chat_endpoint.py::test_enrich_context_empty_node_path_rejected
+PASSED tests/unit/test_chat_endpoint.py::test_enrich_context_max_hops_validation
+PASSED tests/unit/test_chat_endpoint.py::test_enrich_context_default_frontmatter
+PASSED tests/unit/test_chat_endpoint.py::test_enrich_context_response_includes_elapsed_ms
+PASSED tests/unit/test_chat_endpoint.py::test_enrich_context_returns_retrieval_trace
+PASSED tests/unit/test_chat_endpoint.py::test_enrich_context_trace_includes_degradation_when_graph_unbuilt
+PASSED tests/unit/test_chat_endpoint.py::test_enrich_context_assembler_budget_field
+PASSED tests/unit/test_chat_endpoint.py::test_enrich_context_accepts_user_question_and_mode_answer
+PASSED tests/unit/test_chat_endpoint.py::test_enrich_context_rejects_invalid_mode
+PASSED tests/unit/test_chat_endpoint.py::test_enrich_context_answer_mode_uses_lazy_init_path
+PASSED tests/unit/test_chat_endpoint.py::test_enrich_context_preload_mode_skips_supplementary
+PASSED tests/unit/test_chat_endpoint.py::test_rag_enrich_hook_uses_lazy_init
+PASSED tests/unit/test_chat_endpoint.py::test_rag_enrich_hook_short_prompt_skips_lazy_init
+PASSED tests/unit/test_chat_endpoint.py::test_rag_enrich_hook_lazy_init_returns_none_injects_degraded_marker
+PASSED tests/unit/test_enrich_context_vault_isolation.py::test_vault_id_missing_rejected_422
+PASSED tests/unit/test_enrich_context_vault_isolation.py::test_vault_id_empty_string_rejected_422
+PASSED tests/unit/test_enrich_context_vault_isolation.py::test_concurrent_two_vaults_dont_share_context_var
+PASSED tests/unit/test_study_question_deep_mode.py::test_mode_deep_accepted_by_request_model
+PASSED tests/unit/test_study_question_deep_mode.py::test_mode_invalid_rejected_by_pydantic
+PASSED tests/unit/test_study_question_deep_mode.py::test_mode_default_is_preload
+PASSED tests/unit/test_study_question_deep_mode.py::test_mode_deep_uses_top_k_30_and_hard_cap_20
+PASSED tests/unit/test_study_question_deep_mode.py::test_mode_answer_keeps_top_k_20_and_hard_cap_15
+PASSED tests/unit/test_study_question_deep_mode.py::test_mode_deep_without_user_question_skips_search
+PASSED tests/unit/test_study_question_deep_mode.py::test_mode_deep_empty_user_question_skips_search
+PASSED tests/unit/test_study_question_deep_mode.py::test_mode_preload_with_user_question_still_skips_search
+PASSED tests/unit/test_sync_exception_classification.py::TestInfrastructureErrors::test_service_unavailable_returns_503
+PASSED tests/unit/test_sync_exception_classification.py::TestInfrastructureErrors::test_auth_error_returns_503
+PASSED tests/unit/test_sync_exception_classification.py::TestInfrastructureErrors::test_connection_error_returns_503
+PASSED tests/unit/test_sync_exception_classification.py::TestLogicErrors::test_value_error_returns_500
+PASSED tests/unit/test_sync_exception_classification.py::TestLogicErrors::test_type_error_returns_500
+PASSED tests/unit/test_sync_exception_classification.py::TestLogicErrors::test_generic_exception_returns_500
+FAILED tests/unit/test_chat_endpoint.py::test_enrich_context_happy_path - liv...
+FAILED tests/unit/test_enrich_context_vault_isolation.py::test_vault_id_provided_triggers_context_var_injection
+FAILED tests/unit/test_enrich_context_vault_isolation.py::test_chinese_vault_id_not_collapsed_to_default
+FAILED tests/unit/test_enrich_context_vault_isolation.py::test_subject_id_optional_backward_compat
+FAILED tests/unit/test_enrich_context_vault_isolation.py::test_vault_id_with_special_chars_sanitized
+FAILED tests/unit/test_enrich_context_vault_isolation.py::test_vault_id_emoji_stripped
+================== 6 failed, 32 passed, 24 warnings in 57.22s ==================
+rc=1
