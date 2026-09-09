@@ -930,7 +930,53 @@ def _body(top: dict) -> str:
     return f"{top['top_node']} 待巩固 · {idle}"
 
 
-def build_payload(vault: Path, now: datetime, board_last_recommended: dict, decay, manifest_path=None, board_done=None):
+def parse_snooze_until(value) -> datetime | None:
+    """把一条 snoozed 值解析成 **aware** datetime; 解析不出的一律 None。
+
+    CARD-G6-6。三种"读不出"合并成同一个结果 —— 非字符串 / 不是 ISO-8601 /
+    naive (没有 offset)。naive 串**不是**"就近解释成本地时刻": 一个没有偏移
+    的时刻在跨时区读写下指的是不同的绝对时间, 拿它去和 now 比大小会给出
+    随宿主而变的答案。与 _str_pairs 同一条纪律: 丢弃, 不修正。
+    """
+    if not isinstance(value, str):
+        return None
+    try:
+        dt = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    return dt if dt.utcoffset() is not None else None
+
+
+def active_snoozed(snoozed, now: datetime) -> dict:
+    """当前**仍在生效**的推迟项 {board: until_dt} (CARD-G6-6)。
+
+    ⛔ 这是 runner 与生产器**共用**的那一个判定 —— runner 的 snooze_wake_utc
+    与本文件的让位分区必须对"谁还活着"给出逐字相同的答案, 两处各写一遍
+    早晚会漂移 (同形复制的代价见 daily_review_run.save_state 的注释)。
+
+    到期 = 不活跃, 不需要谁去删那个键: 值 <= now 就自然回队。
+    """
+    if not isinstance(snoozed, dict):
+        return {}
+    out = {}
+    for board, raw in snoozed.items():
+        if not isinstance(board, str):
+            continue
+        until = parse_snooze_until(raw)
+        if until is not None and until > now:
+            out[board] = until
+    return out
+
+
+def build_payload(
+    vault: Path,
+    now: datetime,
+    board_last_recommended: dict,
+    decay,
+    manifest_path=None,
+    board_done=None,
+    snoozed=None,
+):
     """CARD-G3-6b: 新增可选 manifest_path (缺省 = 本脚本同目录的系数清单)。
 
     runner 侧调用形态不变 (daily_review_run:159-160 传四个位置参数) —— 新
@@ -939,6 +985,11 @@ def build_payload(vault: Path, now: datetime, board_last_recommended: dict, deca
     CARD-G6-7: 再加一个可选 board_done ({board: "YYYY-MM-DD"}, 来自 runner
     state 的加性键) —— 今天被用户按「这板做完了」的板不占当日榜首。缺省 None
     = 与本参数出现之前逐字节同行为。
+
+    CARD-G6-6: 再加一个可选 snoozed ({board: "<aware ISO-8601>"}, 同样来自
+    runner state) —— 被用户按「今晚 / 明天再说」推迟的板暂时不占榜首, until
+    一过自然回队。缺省 None = 与本参数出现之前逐字节同行为; 值读不出 / 已过期
+    的条目与"没记过"同等对待 (active_snoozed 的判定, 见那里)。
     """
     version, minutes, recorded = load_rank_manifest(manifest_path)
     rank_manifest = build_rank_manifest(decay, version, minutes, recorded, decay_source_path(vault))
@@ -960,6 +1011,21 @@ def build_payload(vault: Path, now: datetime, board_last_recommended: dict, deca
         _undone = [r for r in ranked if board_done.get(r["board"]) != _today_key]
         if _undone:
             ranked = _undone + [r for r in ranked if board_done.get(r["board"]) == _today_key]
+    # ── CARD-G6-6 加性: 被推迟的板让出榜首 ────────────────────────────
+    # 与上面的完成分区同一条律 (稳定分区、不删行、不改分), 只是判据换成
+    # "until 还没到"。⛔ 顺序上排在完成分区**之后**: 于是同板既完成又被推迟
+    # 时的次序是 [未让位] + [已完成] + [已推迟∧未完成] + [已推迟∧已完成] ——
+    # 这是实现决定不是产品裁定 (卡文 (x)③ 已登记)。
+    # 全部板都被推迟时分区退化为恒等 (awake 为空 → ranked 原样): 与完成那边
+    # 同理, 没有"下一块"可让, 强行清空只会让当天通知凭空消失。
+    # 时钟: active_snoozed 只拿 aware until 与入参 now 比绝对时刻, 不做任何
+    # 时区换算 —— 本函数里那个 _DISPLAY_TZ 是日历口径 (哪一天), 与"到没到点"
+    # 是两件事, 不许串用。
+    _awake_snooze = active_snoozed(snoozed, now)
+    if _awake_snooze:
+        _awake = [r for r in ranked if r["board"] not in _awake_snooze]
+        if _awake:
+            ranked = _awake + [r for r in ranked if r["board"] in _awake_snooze]
     stats["unassigned"] = len(unassigned)
     # CARD-G3-6a S1: 级联判桶 + why_due 一次算好, due_nodes 行与 buckets 分组
     # 同源引用同一对值 (禁两处各算一遍 → 禁口径分裂)。划分域 = 已归板。
@@ -1217,7 +1283,7 @@ def main():
     # allow_abbrev=False 与 runner/push.sh 同源 (Codex-C1a F1)
     ap = argparse.ArgumentParser(description="每日复习选板", allow_abbrev=False)
     ap.add_argument("--vault", required=True)
-    ap.add_argument("--state", help="daily-review.state.json (只读, 取 board_last_recommended 与 board_done)")
+    ap.add_argument("--state", help="daily-review.state.json (只读, 取 board_last_recommended / board_done / snoozed)")
     ap.add_argument("--now", help="ISO 时间覆盖 (测试用)")
     ap.add_argument("--write", action="store_true", help="写 outputs/今日复习.md+json")
     args = ap.parse_args()
@@ -1241,6 +1307,7 @@ def main():
         now = datetime.now(timezone.utc)
     blr = {}
     bd = {}
+    sn = {}  # CARD-G6-6: 推迟账 (与 bd 同一次解析取出, 见下)
     if args.state and Path(args.state).exists():
         try:
             # CARD-G6-7-R: 两个键取自**同一次**解析 —— 再读一遍文件会在两次读
@@ -1266,8 +1333,11 @@ def main():
                 # 与读侧 _read_board_done 同一条纪律: 读不出/形状不对 = 没有记录。
                 blr = _str_pairs(_st.get("board_last_recommended"))
                 bd = _str_pairs(_st.get("board_done"))
+                # CARD-G6-6: 同一条纪律 —— 非 dict / 键值错型丢弃; 值本身
+                # 能不能解析成时刻由 active_snoozed 再判一道 (丢弃不修正)。
+                sn = _str_pairs(_st.get("snoozed"))
 
-    payload, ranked = build_payload(vault, now, blr, load_decay(vault), board_done=bd)
+    payload, ranked = build_payload(vault, now, blr, load_decay(vault), board_done=bd, snoozed=sn)
     if args.write:
         out = vault / "outputs"
         out.mkdir(parents=True, exist_ok=True)

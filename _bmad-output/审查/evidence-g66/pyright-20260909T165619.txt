@@ -1,0 +1,4 @@
+# pyright (D-16 甲: python-typecheck 门面 = backend/app/*.py)
+--- HEAD (本卡改后) 两文件 ---
+0 errors, 0 warnings, 0 informations
+rc=0

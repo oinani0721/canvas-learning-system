@@ -1,0 +1,5 @@
+# 裁判 5: FSRS 零触碰正门 + 常驻负控 (-rA)
+PASSED tests/unit/test_review_overview.py::test_g66_board_snooze_writes_only_state_and_never_touches_fsrs
+PASSED tests/unit/test_review_overview.py::test_g66_fsrs_gate_reddens_under_contaminating_snooze_write_point
+================ 2 passed, 105 deselected, 10 warnings in 0.61s ================
+rc=0

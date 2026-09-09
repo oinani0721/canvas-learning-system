@@ -1,0 +1,21 @@
+# 裁判 11: openapi 再生 (spec-sync hook 同一命令, 不手改)
+{"event": "src.rollback not available \u2014 rollback endpoints will return 503", "logger": "app.api.v1.endpoints.rollback", "level": "warning", "timestamp": "2026-09-09T08:57:35.507569Z"}
+{"event": "[MCP] Patched fastapi-mcp anyOf+type schema conflict (v0.4.0 bug)", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-09-09T08:57:35.726097Z"}
+{"event": "[P0-2] Registered 6 read-only MCP tool routes + 14 quarantined (410) stubs", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-09-09T08:57:35.736010Z"}
+{"event": "[MCP] Stripped spurious 'type' from 325 anyOf properties across 208 tools", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-09-09T08:57:36.129443Z"}
+{"event": "No auth config provided, skipping auth setup", "logger": "fastapi_mcp.server", "level": "info", "timestamp": "2026-09-09T08:57:36.130495Z"}
+{"event": "MCP HTTP server listening at /mcp", "logger": "fastapi_mcp.server", "level": "info", "timestamp": "2026-09-09T08:57:36.130537Z"}
+{"event": "[Story 3.2] MCP server mounted at /mcp (streamable HTTP) with canvas-learning tools", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-09-09T08:57:36.130558Z"}
+WROTE: backend/openapi.json (paths=197 schemas=357, x-generated-at=2026-09-09T08:57:36.623201+00:00)
+rc=0
+--- git diff --stat ---
+ backend/openapi.json | 152 ++++++++++++++++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 151 insertions(+), 1 deletion(-)
+--- board-snooze 命中 (>=1) ---
+  board-snooze:   1
+  board-unsnooze: 1
+--- 新增 path 摘要 ---
++            "description": "推迟档位: tonight (当日 20:00) 或 tomorrow (次日 00:00), 显示时区",
++        "description": "把「这块板今天先放一放」记进 runner 的 per-vault state。\n\n与 board-done 同一条纪律, 差别只在**它会自己回来**:\n\n  · 写面恰是 backups/daily-review.<key>.state.json 一个文件 —— 节点\n    frontmatter 的 fsrs_* 一个字节不动, learning_events 账本不追加。\n    ⛔ **推迟不压制 due**: 板上每张卡该什么时候到期还是什么时候到期,\n    五桶与合计一个数不动 —— 变的只是\"今天先推荐哪块板\"。\n  · 两档而已 (D-8 甲): 今晚 = 当日 20:00, 明天 = 次日 00:00, 都按显示\n    时区。没有自定义天数, 也没有自由时间输入 —— 一个\"推迟多久\"的框会\n    让它变成第二套排期系统, 而排期归 FSRS。\n  · until 一到自然回队: 没有清理器, 也不需要有。生产器每次算榜都现判\n    \"还活着吗\", runner 的缓存门记着最早的唤醒点, 越过就重扫。\n\n⚠ 20:00 之后点「今晚」= 一个已经过去的时刻 ⇒ 422 snooze_until_in_past,\nstate 一个字节不动。页面本来就不该在那时渲染出「今晚」钮 (服务端按\ntonight_available 决定), 这条 422 是**兜底而不是消除竞态** —— GET 与\nPOST 之间隔着一次网络往返, 正好跨过 20:00 那一秒的用户会看到钮、被打回。\n\n三道写侧门与 board-done 是**同一个函数**, 不是各写一份 (两份必然漂移):\n  _assert_same_origin              跨站表单 CSRF;\n  _assert_write_target_contained   (在 _refresh_target 内) 软链逃逸;\n  _assert_board_name               空 / 超长板名 422。",
++        "summary": "把某块白板推迟到今晚 / 明天 (CARD-G6-6; 显式用户触发, 零 FSRS 写入)",
++        "summary": "取消某块白板的推迟 (CARD-G6-6; 显式用户触发, 零 FSRS 写入)",

@@ -61,7 +61,10 @@ def _now(arg: str | None) -> datetime:
 #: 键即视同 {} (load_state 兜底), 声明版本在下一次落盘时随形态一起前进。
 #: 升版行为门 (CARD-G6-7-R, 落盘面而非内存面):
 #: test_g67r_v1_state_load_save_lands_as_v2_with_values_intact 等三条。
-STATE_SCHEMA_VERSION = 2
+#:
+#: CARD-G6-6 把它推到 3: 再加一个同样加性的 snoozed 账 {board: until_iso}
+#: (板级推迟, 两档「今晚 / 明天」)。同一条单调升版规则, 同样不配迁移器。
+STATE_SCHEMA_VERSION = 3
 
 
 def _vault_key(vault: Path | None = None) -> str:
@@ -97,7 +100,13 @@ def load_state(vault: Path | None = None) -> dict:
 
 
 def _fresh_state() -> dict:
-    return {"schema_version": STATE_SCHEMA_VERSION, "board_last_recommended": {}, "board_done": {}}
+    return {
+        "schema_version": STATE_SCHEMA_VERSION,
+        "board_last_recommended": {},
+        "board_done": {},
+        # CARD-G6-6: 板级推迟账 {board: "<aware ISO-8601 带 offset, 秒精度>"}
+        "snoozed": {},
+    }
 
 
 def _parse_state_file(state: Path) -> dict | None:
@@ -117,6 +126,10 @@ def _parse_state_file(state: Path) -> dict | None:
         return None
     if not isinstance(st.get("board_done", {}), dict):
         return None
+    # CARD-G6-6: snoozed 与前两个账同等对待 —— 一个 "snoozed": [] 会让写侧的
+    # dict 下标在半路炸成 500, 而不是像本文件其余部分那样诚实地隔离重建。
+    if not isinstance(st.get("snoozed", {}), dict):
+        return None
     return st
 
 
@@ -127,6 +140,9 @@ def _normalize_state(st: dict) -> dict:
     """
     st.setdefault("board_last_recommended", {})
     st.setdefault("board_done", {})
+    # CARD-G6-6: 缺键读为 {} (与 board_done 同型)。**不删过期键** —— 值 <= now
+    # 即非活跃, 与完成账的隔日自然失效同律: 没有清理器, 也不需要有。
+    st.setdefault("snoozed", {})
     declared = st.get("schema_version")
     if not isinstance(declared, int) or declared < STATE_SCHEMA_VERSION:
         st["schema_version"] = STATE_SCHEMA_VERSION
@@ -472,6 +488,20 @@ def save_state(st: dict, vault: Path | None = None):
         raise
 
 
+def active_snoozed(snoozed, now: datetime) -> dict:
+    """当前仍在生效的推迟项 {board: until_dt} —— 转调生产器那**一个**判定。
+
+    CARD-G6-6。Web 只读侧 (review_overview._snoozed_active) 为了 state 的
+    schema 与路径规则已经加载了本模块, 但它没有生产器的加载器。与其为一个
+    判定再造一套 importlib 壳、或者在 Web 侧另写一遍 (页面说"已回来"而榜上
+    还压着, 就是这么来的), 不如从这里转调 —— 判定的定义点仍然只有一处。
+    惰性 import 与 ensure_payload 同形: 本模块顶部已把 scripts/ 插进 sys.path。
+    """
+    import daily_review_pick as picker
+
+    return picker.active_snoozed(snoozed, now)
+
+
 def log_line(msg: str):
     log = BACKUPS / "daily-review.log"
     log.parent.mkdir(parents=True, exist_ok=True)
@@ -527,15 +557,28 @@ def ensure_payload(st: dict, now: datetime, today: str) -> tuple[dict | None, st
     done_sig = json.dumps(st.get("board_done") or {}, ensure_ascii=False, sort_keys=True)
     cached_sig = st.get("board_done_sig")
     done_unchanged = cached_sig == done_sig or (cached_sig is None and not st.get("board_done"))
+    # CARD-G6-6: 推迟账变了同样算缓存失效 —— 与 board_done_sig 逐条同形 (含
+    # 「签名缺席 ≠ 变化」那条收紧: 本卡之前落盘的 state 都没有 snoozed_sig,
+    # 一律当"变了"会把「当天已缓存的 payload 照常复用」这条既有契约打掉)。
+    # ⛔ **另立一个键**而不是把 snoozed 掺进 done_sig: 后者会让升级当天所有
+    # 既有 v2 state 的 board_done_sig 一次性对不上, 每个库白重扫一轮。
+    snoozed_sig = json.dumps(st.get("snoozed") or {}, ensure_ascii=False, sort_keys=True)
+    cached_snooze_sig = st.get("snoozed_sig")
+    snooze_unchanged = cached_snooze_sig == snoozed_sig or (cached_snooze_sig is None and not st.get("snoozed"))
     first_gen_today = st.get("last_generate_date") != today
-    if not first_gen_today and payload_path.exists() and done_unchanged:
+    if not first_gen_today and payload_path.exists() and done_unchanged and snooze_unchanged:
         try:
             raw = payload_path.read_text(encoding="utf-8")
             # sha 校验 (Code-Review L3): 外部改动/半写的 payload 不复用, 重新生成
             if hashlib.sha256(raw.encode("utf-8")).hexdigest() == st.get("payload_sha256"):
                 now_z = now.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
                 due_crossed = bool(st.get("next_due_utc")) and st["next_due_utc"] <= now_z
-                if not due_crossed and _nodes_max_mtime(VAULT) <= payload_path.stat().st_mtime:
+                # CARD-G6-6: 越过最早的推迟唤醒点也重扫 —— 与 due_crossed 同律。
+                # 少这一条的话, 「今晚再说」到点后**不会**有任何东西把榜首换回来:
+                # 推迟账没再变 (snooze_unchanged 为真)、节点也没动, 缓存分支会一路
+                # cached 到明天, until 形同虚设。
+                wake_crossed = bool(st.get("snooze_wake_utc")) and st["snooze_wake_utc"] <= now_z
+                if not due_crossed and not wake_crossed and _nodes_max_mtime(VAULT) <= payload_path.stat().st_mtime:
                     return json.loads(raw), "cached"
         except (json.JSONDecodeError, OSError):
             pass  # 落盘 payload 损坏 → 重新生成
@@ -546,8 +589,16 @@ def ensure_payload(st: dict, now: datetime, today: str) -> tuple[dict | None, st
     # CARD-G6-7 加性: board_done 只影响「今天谁占榜首」, 不改分不改排序律
     # (见 daily_review_pick.build_payload 的 board_done 分区块)。缺键的旧
     # state 传 None = 与本卡之前逐字节同行为。
+    # CARD-G6-6 加性: snoozed 同样只影响「今天谁占榜首」, 判定 (谁还活着) 由
+    # 生产器的 active_snoozed 一处说了算 —— 下面的 snooze_wake_utc 复用同一个
+    # 函数, 两侧不可能对"到没到点"给出不同答案。
     payload, ranked = picker.build_payload(
-        VAULT, now, st["board_last_recommended"], picker.load_decay(VAULT), board_done=st.get("board_done")
+        VAULT,
+        now,
+        st["board_last_recommended"],
+        picker.load_decay(VAULT),
+        board_done=st.get("board_done"),
+        snoozed=st.get("snoozed"),
     )
     out = VAULT / "outputs"
     out.mkdir(parents=True, exist_ok=True)
@@ -560,6 +611,7 @@ def ensure_payload(st: dict, now: datetime, today: str) -> tuple[dict | None, st
 
     st["last_generate_date"] = today
     st["board_done_sig"] = done_sig  # CARD-G6-7: 与上面的缓存门同源
+    st["snoozed_sig"] = snoozed_sig  # CARD-G6-6: 同上, 另立一键
     st["payload_sha256"] = hashlib.sha256(raw.encode("utf-8")).hexdigest()
     # 最早未来到期点: ranked 是全量榜 (payload.top_boards 才截断), 每行
     # next_due 已是板内未来最小值; upcoming 按 next_due 升序, [0] 即全局
@@ -568,6 +620,14 @@ def ensure_payload(st: dict, now: datetime, today: str) -> tuple[dict | None, st
     if payload.get("upcoming"):
         nexts.append(payload["upcoming"][0]["next_due"])
     st["next_due_utc"] = min(nexts, default="")
+    # CARD-G6-6: 最早的推迟唤醒点 (与 next_due_utc 同形、同一段 UTC-Z 串口径),
+    # 供上面的缓存门 wake_crossed 用。活跃判定复用生产器的 active_snoozed ——
+    # 已过期 / 读不出的条目不进这个 min, 于是它只在"还有板被推着"时非空。
+    wakes = [
+        u.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        for u in picker.active_snoozed(st.get("snoozed"), now).values()
+    ]
+    st["snooze_wake_utc"] = min(wakes, default="")
     credited_today = (
         st.get("last_recommend_credit_date") == today
         # Codex-D2a H1: 升级当天旧 state 自然缺 marker, 但旧门若已落账其值

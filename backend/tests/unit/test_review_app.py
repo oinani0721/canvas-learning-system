@@ -48,6 +48,8 @@ OVERVIEW_PATH = "/api/v1/review/overview"
 REFRESH_PATH = "/api/v1/review/overview/refresh"
 BOARD_DONE_PATH = "/api/v1/review/overview/board-done"  # CARD-G6-7
 BOARD_UNDONE_PATH = "/api/v1/review/overview/board-undone"  # CARD-G6-7-R
+BOARD_SNOOZE_PATH = "/api/v1/review/overview/board-snooze"  # CARD-G6-6
+BOARD_UNSNOOZE_PATH = "/api/v1/review/overview/board-unsnooze"  # CARD-G6-6
 
 _ENDPOINTS_DIR = Path(__file__).resolve().parents[2] / "app" / "api" / "v1" / "endpoints"
 #: 开工基线 (2026-09-01 主干 9af18b27 实测): review_overview.py 的 `<script`
@@ -137,11 +139,16 @@ def test_api_paths_injected_from_url_for_not_hardcoded(client, page_html):
         "boardDone": app.url_path_for("review_overview_board_done"),
         # CARD-G6-7-R 第四条 (取消完成) —— 白名单式门, 新去处必须先写进这里
         "boardUndone": app.url_path_for("review_overview_board_undone"),
+        # CARD-G6-6 第五 / 六条 (推迟两档 / 取回) —— 同上, 登记而非放宽
+        "boardSnooze": app.url_path_for("review_overview_board_snooze"),
+        "boardUnsnooze": app.url_path_for("review_overview_board_unsnooze"),
     }
     assert urls["overview"] == OVERVIEW_PATH
     assert urls["refresh"] == REFRESH_PATH
     assert urls["boardDone"] == BOARD_DONE_PATH
     assert urls["boardUndone"] == BOARD_UNDONE_PATH
+    assert urls["boardSnooze"] == BOARD_SNOOZE_PATH
+    assert urls["boardUnsnooze"] == BOARD_UNSNOOZE_PATH
     # 篡改门: 若有人把路径写死进模板, 上面的相等断言仍会过 (值恰好一样) ——
     # 这条才是真正锁"注入"的: 模板常量里连 /api/v1 的影子都不许有。
     assert "/api/v1" not in _PAGE_TEMPLATE
@@ -173,6 +180,8 @@ def test_api_paths_follow_mount_prefix_not_hardcoded():
             "refresh": "/alt-prefix/overview/refresh",
             "boardDone": "/alt-prefix/overview/board-done",
             "boardUndone": "/alt-prefix/overview/board-undone",
+            "boardSnooze": "/alt-prefix/overview/board-snooze",
+            "boardUnsnooze": "/alt-prefix/overview/board-unsnooze",
         }, f"注入路径没有跟随挂载前缀 — 疑似硬编码: {urls}"
     finally:
         c.close()
@@ -183,10 +192,18 @@ def test_js_fetches_only_the_two_same_origin_endpoints(page_html):
 
     CARD-G6-7 起白名单是**三**个 (加了 board-done)。名单本身是正向合约:
     多一个去处就要先有意识地改这里, 评审必然看见。
+    CARD-G6-6 加到**六**个 (board-snooze / board-unsnooze) —— 同一条纪律。
     """
     targets = re.findall(r"fetch\(\s*([^,)\s]+)", page_html)
     assert targets, "没有找到任何 fetch 调用 — 页面不会拉数据?"
-    assert set(targets) == {"URLS.overview", "URLS.refresh", "URLS.boardDone", "URLS.boardUndone"}
+    assert set(targets) == {
+        "URLS.overview",
+        "URLS.refresh",
+        "URLS.boardDone",
+        "URLS.boardUndone",
+        "URLS.boardSnooze",
+        "URLS.boardUnsnooze",
+    }
 
 
 def test_auto_poll_never_posts_only_manual_button_does(page_html):
@@ -197,17 +214,24 @@ def test_auto_poll_never_posts_only_manual_button_does(page_html):
     visibilitychange 处理器体内一个 POST 都不许有。
 
     CARD-G6-7 把计数从 1 提到 2 (新增「这板做完了」); CARD-G6-7-R 提到 3
-    (新增「撤销」)。⚠ 这不是放宽: 名单从"唯一那个 handler"变成"这三个
-    handler", 每一处仍要被点名归属; 出现第四处 POST 而没有对应的点击处理器,
-    本门照样红。
+    (新增「撤销」); CARD-G6-6 提到 5 (新增「今晚 / 明天再说」与「取回」)。
+    ⚠ 这不是放宽: 名单从"唯一那个 handler"变成"这五个 handler", 每一处仍要
+    被点名归属; 出现第六处 POST 而没有对应的点击处理器, 本门照样红。
     """
-    handlers = ("onRefreshClick", "onBoardDoneClick", "onBoardUndoneClick")
+    handlers = (
+        "onRefreshClick",
+        "onBoardDoneClick",
+        "onBoardUndoneClick",
+        "onBoardSnoozeClick",
+        "onBoardUnsnoozeClick",
+    )
     assert page_html.count('method: "POST"') == len(handlers)
     for fn in ("poll",):
         body = _group(rf"async function {fn}\(\)\s*\{{(.*?)\n\}}", page_html, re.S)
         assert "POST" not in body, f"{fn}() 体内出现 POST"
         assert "URLS.refresh" not in body and "URLS.boardDone" not in body
         assert "URLS.boardUndone" not in body
+        assert "URLS.boardSnooze" not in body and "URLS.boardUnsnooze" not in body
     vis_body = _group(r'document\.addEventListener\("visibilitychange", \(\) => \{(.*?)\n\}\)', page_html, re.S)
     assert "POST" not in vis_body, "visibilitychange 分支出现 POST"
     seen = 0
@@ -275,6 +299,8 @@ _ALLOWED_IMPORTS = {
     "app.api.v1.endpoints.review_overview._STATUS_META",
     # CARD-G6-7: 「不影响 FSRS」文案与徽标文案同纪律 —— 共享不复制
     "app.api.v1.endpoints.review_overview._DONE_NOTE",
+    # CARD-G6-6: 推迟那句诚实说明同上 (登记一项 = 正向合约, 不是放宽)
+    "app.api.v1.endpoints.review_overview._SNOOZE_NOTE",
 }
 _ALLOWED_CALL_NAMES = {"APIRouter", "list", "_js_json", "HTMLResponse"}
 _ALLOWED_CALL_ATTRS = {"get", "replace", "url_for", "dumps", "items"}
@@ -290,6 +316,7 @@ _BANNED_REBINDS = (
         "_BUCKET_CN",
         "_BUCKET_ORDER",
         "_DONE_NOTE",  # CARD-G6-7: 重绑它 = 页面上那句 FSRS 声明可以被换掉
+        "_SNOOZE_NOTE",  # CARD-G6-6: 同上 —— 推迟那句「不影响 FSRS」也不许被换掉
         "review_overview_router",
         # `Request` 本身不是调用名也不是接收者, 却是 request 形参豁免**所依赖的**名字:
         # 豁免判据只比对注解的拼写, 所以 `Request = str` 之后 `def f(request: Request)`
@@ -771,6 +798,9 @@ export function matches(node, sel) {
   if (sel === "[data-note-for]") return node._attrs["data-note-for"] !== undefined;
   if (sel === "[data-done-board]") return node._attrs["data-done-board"] !== undefined;
   if (sel === "[data-undo-board]") return node._attrs["data-undo-board"] !== undefined;
+  // CARD-G6-6: 新的两个委托属性 —— 沙箱不认它就模拟不出点击, 门也就覆盖不到
+  if (sel === "[data-snooze-board]") return node._attrs["data-snooze-board"] !== undefined;
+  if (sel === "[data-unsnooze-board]") return node._attrs["data-unsnooze-board"] !== undefined;
   return false;
 }
 
@@ -2869,5 +2899,276 @@ test("自动轮询与可见性切换路径上 POST 恒为 0", async () => {
   assert.equal(b.calls.post, 0, "撤销上线后, 自动路径仍然一个 POST 都不许有");
 });
 """.replace("URLS_BOARD_UNDONE", json.dumps(BOARD_UNDONE_PATH)),
+    )
+    _assert_node_green(proc)
+
+
+# ══ CARD-G6-6 (BATCH-2026-09-07-第十三批): 板级 snooze 两档 ══════════════
+
+#: 一块被推迟的板 + 一块待做的板。until 写成 2099 年的绝对时刻 —— 与宿主
+#: 时区无关 (Date.parse 解的是绝对毫秒数), 于是"还活着"在任何机器上都成立。
+_G66_FIX = r"""
+const G66_UNTIL = "2099-09-09T20:00:00+08:00";
+const G66 = {
+  vault_id: "cs_61b", status: "ok", error: null, board_done: [],
+  snoozed: {"图论基础": G66_UNTIL},
+  projection: {
+    due_count: 3, due_new_count: 1, placeholder_backlog: 0, bucket_counts: null,
+    generated_at: "2026-09-09T09:05:00+08:00", next_upcoming: null,
+    boards: [
+      {board: "图论基础", due: 2, due_new: 1, placeholder: null,
+       earliest: "2026-09-09T02:00:00Z", nodes: []},
+      {board: "哈希表", due: 1, due_new: 0, placeholder: null,
+       earliest: "2026-09-09T03:00:00Z", nodes: []},
+    ],
+  },
+};
+//: node 进程的**本地**时钟钉在 2026-09-09 10:00 —— 若 JS 自己按小时数判
+//: 20:00, tonight_available:false 那一组必然渲染出「今晚」钮 (10 < 20), 门就红。
+const G66_NOW = new Date(2026, 8, 9, 10, 0, 0).getTime();
+const g66Data = (tonightAvailable) => {
+  const d = {vaults: [JSON.parse(JSON.stringify(G66))]};
+  d.vaults[0].snoozed = {"图论基础": G66_UNTIL};
+  if (tonightAvailable !== undefined) d.tonight_available = tonightAvailable;
+  return d;
+};
+const G66_OK = () => ({ok: true, status: 200, json: async () => g66Data(true)});
+"""
+
+
+def test_js_g66_snoozed_board_folds_into_its_own_section(node_harness):
+    """(f) 交互壳: 被推迟的板折进「已推迟」区 —— **折叠不是删除**。
+
+    与零 JS 页同形, 四条各自可被违反:
+      ① 被推迟的板行仍在 HTML 里 (details 内), 不是被过滤掉;
+      ② 已推迟区内**不带**推迟钮 (推过的板不该再给一个"再推一次");
+      ③ 已推迟区带「取回」钮 —— 误点的唯一出口;
+      ④ 活跃推迟集为空时**一个「已推迟」区都不输出**(条件渲染)。
+    """
+    proc = _run_node(
+        node_harness,
+        _BOOT_PRELUDE
+        + _G66_FIX
+        + r"""
+test("① 被推迟的板折进 snoozewrap, 行还在; ②③ 区内无推迟钮、有取回钮", () => {
+  const b = boot();
+  const busy = Object.create(null);
+  const h = b.api.renderPage(g66Data(true), G66_NOW, null, null, busy);
+  const i = h.indexOf('<details class="snoozewrap"');
+  assert.ok(i > 0, "必须有「已推迟」折叠区");
+  const head = h.slice(0, i), fold = h.slice(i);
+  assert.match(head, /哈希表/, "未推迟的板留在主表格");
+  assert.match(fold, /图论基础/, "被推迟的板必须仍在页面上, 不许被剔除");
+  assert.ok(!head.includes("图论基础"), "被推迟的板应从待做区移出");
+  assert.deepEqual(fold.match(/data-snooze-board="[^"]*"/g) || [], [], "已推迟的板不该再带推迟钮");
+  assert.deepEqual(fold.match(/data-unsnooze-board="[^"]*"/g) || [],
+    ['data-unsnooze-board="图论基础"'], "已推迟的板必须带取回钮");
+  // 两档 = 两个钮, 于是这个属性在待做的那一块板上出现两次 (今晚 / 明天各一)
+  assert.deepEqual(head.match(/data-snooze-board="[^"]*"/g) || [],
+    ['data-snooze-board="哈希表"', 'data-snooze-board="哈希表"'], "未推迟的板仍要带两档推迟钮");
+  assert.deepEqual(head.match(/data-snooze-until="[^"]*"/g) || [],
+    ['data-snooze-until="tonight"', 'data-snooze-until="tomorrow"'], "两档各一个, 且顺序稳定");
+});
+test("④ 没有活跃推迟 → 一个「已推迟」区都不出现 (条件渲染)", () => {
+  const b = boot();
+  const busy = Object.create(null);
+  const none = g66Data(true);
+  none.vaults[0].snoozed = {};
+  const h = b.api.renderPage(none, G66_NOW, null, null, busy);
+  assert.ok(!h.includes("snoozewrap"), "空集不该输出空的折叠区");
+  assert.ok(!h.includes("data-unsnooze-board"), "没东西可取回就不该有取回钮");
+});
+test("④b until 已过期 → 同样不出现 (前端也现算活跃, 不等下一轮 GET)", () => {
+  const b = boot();
+  const busy = Object.create(null);
+  const past = g66Data(true);
+  past.vaults[0].snoozed = {"图论基础": "2020-01-01T00:00:00+08:00"};
+  const h = b.api.renderPage(past, G66_NOW, null, null, busy);
+  assert.ok(!h.includes("snoozewrap"), "过期的推迟不该还挂在已推迟区里");
+  assert.match(h, /图论基础/, "过期 ≠ 消失 —— 它该回到待做区");
+});
+""",
+    )
+    _assert_node_green(proc)
+
+
+def test_js_g66_tonight_button_follows_the_server_flag_not_its_own_clock(node_harness):
+    """(g) ⛔ 20:00 的判定**只在服务端做一次**, JS 照下发的布尔渲染。
+
+    三态各一条, 且夹具把 node 进程的本地时钟钉在 **10:00**:
+      · tonight_available:false → 不出「今晚」钮 —— 若 JS 自己按小时数算,
+        10 < 20 必然渲染出来, 本条当场红 (这就是门的牙齿);
+      · true → 出;
+      · 字段缺席 → 出 (保守分支: 与旧后端并存也不炸, 真过点了端点会 422 兜底)。
+    三态里「明天」钮**恒在** —— 关掉的是那一档, 不是整个动作。
+    """
+    proc = _run_node(
+        node_harness,
+        _BOOT_PRELUDE
+        + _G66_FIX
+        + r"""
+const countTonight = h => (h.match(/data-snooze-until="tonight"/g) || []).length;
+const countTomorrow = h => (h.match(/data-snooze-until="tomorrow"/g) || []).length;
+test("tonight_available:false → 不渲染「今晚」钮 (本地钟 10:00 也一样)", () => {
+  const b = boot();
+  const h = b.api.renderPage(g66Data(false), G66_NOW, null, null, Object.create(null));
+  assert.equal(new Date(G66_NOW).getHours(), 10, "夹具前提: 本地钟就是 10 点");
+  assert.equal(countTonight(h), 0, "服务端说不可用就不许渲染 —— JS 不许自己按钟点判");
+  assert.equal(countTomorrow(h), 1, "关掉的是那一档, 不是整个动作");
+});
+test("tonight_available:true → 渲染「今晚」钮", () => {
+  const b = boot();
+  const h = b.api.renderPage(g66Data(true), G66_NOW, null, null, Object.create(null));
+  assert.equal(countTonight(h), 1);
+  assert.equal(countTomorrow(h), 1);
+});
+test("字段缺席 → 保守渲染 (与旧后端并存也不炸)", () => {
+  const b = boot();
+  const h = b.api.renderPage(g66Data(undefined), G66_NOW, null, null, Object.create(null));
+  assert.equal(countTonight(h), 1, "拿不到结论时保守给出口, 真过点了服务端会 422 兜底");
+  assert.equal(countTomorrow(h), 1);
+});
+""",
+    )
+    _assert_node_green(proc)
+
+
+@pytest.mark.usefixtures("page_html")
+def test_js_g66_snooze_click_posts_once_and_never_from_poll(node_harness):
+    """(g) 第四条 POST 路径的接线: 只由点击触发、带 until 档位、在飞不重发。
+
+    与静态计数门的分工同 CARD-G6-7: 那门数源码里的 method:"POST", 这门数
+    沙箱 fetch **实际收到**几次、打到哪个 URL、带了什么。
+    """
+    proc = _run_node(
+        node_harness,
+        _BOOT_PRELUDE
+        + _G66_FIX
+        + r"""
+function mkSnoozeBtn(vid, board, until) {
+  const btn = mkNode("snoozebtn");
+  btn._attrs["data-snooze-vault"] = vid;
+  btn._attrs["data-snooze-board"] = board;
+  btn._attrs["data-snooze-until"] = until;
+  return btn;
+}
+test("点一次 → 恰一个 POST, 打到 board-snooze 且带 vault_id + board + until", async () => {
+  const posts = [];
+  const b = boot({getJson: G66_OK,
+    postJson: (url, opts) => { posts.push([url, String(opts.body)]);
+      return {ok: true, status: 200, json: async () => ({vault_id: "cs_61b", board: "哈希表",
+        snoozed_until: "2026-09-09T20:00:00+08:00", fsrs_touched: false})}; }});
+  await flush();
+  const btn = mkSnoozeBtn("cs_61b", "哈希表", "tonight");
+  const note = mkNode("note");
+  note._attrs["data-note-for"] = "cs_61b";
+  b.els["cards"]._desc = [btn, note];
+  const getsBefore = b.calls.get;
+  await b.handlers["cards::click"]({target: {closest: sel => (matches(btn, sel) ? btn : null)}});
+  await flush();
+  assert.equal(b.calls.post, 1, "点一次只发一个 POST");
+  assert.equal(posts[0][0], URLS_BOARD_SNOOZE, "POST 必须打到 board-snooze 端点");
+  assert.match(posts[0][1], /vault_id=cs_61b/);
+  assert.match(decodeURIComponent(posts[0][1]), /board=哈希表/);
+  assert.match(posts[0][1], /until=tonight/, "档位必须原样带上 —— 前端不替用户改档");
+  assert.match(note.innerHTML, /已把/, "反馈必须落到该库的 note 上");
+  assert.ok(b.calls.get > getsBefore, "成功后应重拉一轮 (挪不挪由服务端说了算)");
+});
+test("同板在飞时的第二次点击不发第二个 POST", async () => {
+  let release;
+  const gate = new Promise(r => { release = r; });
+  const b = boot({getJson: G66_OK,
+    postJson: () => gate.then(() => ({ok: true, status: 200, json: async () => ({})}))});
+  await flush();
+  const btn = mkSnoozeBtn("cs_61b", "哈希表", "tomorrow");
+  b.els["cards"]._desc = [btn];
+  const click = () => b.handlers["cards::click"]({target: {closest: sel => (matches(btn, sel) ? btn : null)}});
+  const first = click();
+  await flush();
+  assert.equal(b.calls.post, 1);
+  assert.equal(btn.disabled, true, "在飞期间按钮必须禁用");
+  await click();
+  await flush();
+  assert.equal(b.calls.post, 1, "同板在飞期间不许发第二个 POST");
+  release();
+  await first;
+  await flush();
+  assert.equal(btn.disabled, false, "结束后必须解锁");
+});
+test("失败结局不许长得像成功 (422 过点了那一档)", async () => {
+  const b = boot({getJson: G66_OK,
+    postJson: () => ({ok: false, status: 422, json: async () =>
+      ({detail: {error: "snooze_until_in_past", message: "已经过去了"}})})});
+  await flush();
+  const btn = mkSnoozeBtn("cs_61b", "哈希表", "tonight");
+  const note = mkNode("note");
+  note._attrs["data-note-for"] = "cs_61b";
+  b.els["cards"]._desc = [btn, note];
+  await b.handlers["cards::click"]({target: {closest: sel => (matches(btn, sel) ? btn : null)}});
+  await flush();
+  assert.match(note.innerHTML, /推迟失败/);
+  assert.match(note.innerHTML, /422/);
+  assert.ok(!note.innerHTML.includes("已把"), "失败绝不许出现成功文案");
+});
+test("自动轮询与可见性路径一个 POST 都不发", async () => {
+  // boot 末尾自己就调了一次 poll() —— 那是真实的启动轮询路径
+  const b = boot({getJson: G66_OK});
+  await flush();
+  assert.ok(b.calls.get > 0, "夹具前提: 启动时确实拉过一轮, 否则本门是空的");
+  assert.equal(b.calls.post, 0, "启动轮询不许 POST");
+  b.handlers["document::visibilitychange"]();
+  await flush();
+  assert.equal(b.calls.post, 0, "visibilitychange 不许 POST");
+});
+""".replace("URLS_BOARD_SNOOZE", json.dumps(BOARD_SNOOZE_PATH)),
+    )
+    _assert_node_green(proc)
+
+
+@pytest.mark.usefixtures("page_html")
+def test_js_g66_unsnooze_click_posts_once_to_its_own_endpoint(node_harness):
+    """(h) 第五条 POST 路径: 取回只打 board-unsnooze, 且与推迟共用在飞格。"""
+    proc = _run_node(
+        node_harness,
+        _BOOT_PRELUDE
+        + _G66_FIX
+        + r"""
+function mkUnsnoozeBtn(vid, board) {
+  const btn = mkNode("unsnoozebtn");
+  btn._attrs["data-unsnooze-vault"] = vid;
+  btn._attrs["data-unsnooze-board"] = board;
+  return btn;
+}
+test("点一次 → 恰一个 POST, 打到 board-unsnooze", async () => {
+  const posts = [];
+  const b = boot({getJson: G66_OK,
+    postJson: (url, opts) => { posts.push([url, String(opts.body)]);
+      return {ok: true, status: 200, json: async () => ({vault_id: "cs_61b", board: "图论基础",
+        unsnoozed: true, already_unsnoozed: false, fsrs_touched: false})}; }});
+  await flush();
+  const btn = mkUnsnoozeBtn("cs_61b", "图论基础");
+  const note = mkNode("note");
+  note._attrs["data-note-for"] = "cs_61b";
+  b.els["cards"]._desc = [btn, note];
+  await b.handlers["cards::click"]({target: {closest: sel => (matches(btn, sel) ? btn : null)}});
+  await flush();
+  assert.equal(b.calls.post, 1);
+  assert.equal(posts[0][0], URLS_BOARD_UNSNOOZE);
+  assert.match(note.innerHTML, /取回/, "反馈必须落到该库的 note 上");
+});
+test("already_unsnoozed 与真撤掉说的不是同一句话", async () => {
+  const b = boot({getJson: G66_OK,
+    postJson: () => ({ok: true, status: 200, json: async () =>
+      ({board: "图论基础", unsnoozed: true, already_unsnoozed: true})})});
+  await flush();
+  const btn = mkUnsnoozeBtn("cs_61b", "图论基础");
+  const note = mkNode("note");
+  note._attrs["data-note-for"] = "cs_61b";
+  b.els["cards"]._desc = [btn, note];
+  await b.handlers["cards::click"]({target: {closest: sel => (matches(btn, sel) ? btn : null)}});
+  await flush();
+  assert.match(note.innerHTML, /本来就没有被推迟/, "「本来就没有」必须说得出来 —— 板名打错才察觉得到");
+});
+""".replace("URLS_BOARD_UNSNOOZE", json.dumps(BOARD_UNSNOOZE_PATH)),
     )
     _assert_node_green(proc)

@@ -407,6 +407,20 @@ def _display_today(now_utc: datetime | None = None) -> str:
     return d.isoformat() if d is not None else ""
 
 
+def _display_now() -> datetime:
+    """此刻的显示时区本地时间 —— 页面 / 端点共用的**同一个**时钟入口。
+
+    CARD-G6-6。单独抽成模块级函数而不是各处写 `datetime.now(_display_tz())`:
+      · 「读了几次时钟」这件事在源码里数得出来 —— 推迟的两档换算、20:00 判定、
+        页面时间人话必须来自同一次读数, 分散的 now() 调用点谁也数不清;
+      · 门可以把它钉死。没有可钉的入口就只能去打 datetime 这个**解释器全局**,
+        那会连累同进程里任何别的调用方 (本仓已为同类做法付过一次代价, 见
+        daily_review_run._state_tmp_path 的注释)。
+    时区仍是每次现调 _display_tz() (U6-A 的「不缓存」口径), 本函数不持有任何状态。
+    """
+    return datetime.now(_display_tz())
+
+
 def _gate_buckets(
     buckets,
     due_groups: dict[str, dict],
@@ -1000,13 +1014,22 @@ def _reject_nonstandard_json(const: str):
     raise ValueError(f"非标准 JSON 常量 {const}")
 
 
-def _vault_entry(vault_dir: Path, today: date, done_boards: "list[str] | tuple[str, ...]" = ()) -> dict:
+def _vault_entry(
+    vault_dir: Path,
+    today: date,
+    done_boards: "list[str] | tuple[str, ...]" = (),
+    snoozed: "dict[str, str] | None" = None,
+) -> dict:
     """单 vault 聚合条目 — 诚实四态, 任何脏数据都不许把请求打成 500。
 
     CARD-G6-7 加性 board_done: 今天被标「做完了」的板名列表。它**不进
     projection** —— 投影是 A2 唯一裁判的产物, 完成状态是本机用户偏好,
     混进去会让"投影字段"这个词失去意义。四态一律带该键 (空列表 = 没有
     完成记录), 消费方不做存在性分支。
+
+    CARD-G6-6 加性 snoozed: {board: until_iso}, 与 board_done 同一条纪律
+    (不进 projection、四态一律带该键)。**只投影仍在生效的**那些 —— 到期的
+    条目虽然还留在 state 里, 但它对页面和榜单都已经不存在了。
     """
     entry: dict = {
         "vault_id": vault_dir.name,
@@ -1015,6 +1038,7 @@ def _vault_entry(vault_dir: Path, today: date, done_boards: "list[str] | tuple[s
         "projection": None,
         "error": None,
         "board_done": list(done_boards),
+        "snoozed": dict(snoozed or {}),
     }
     proj_path = vault_dir.joinpath(*_PROJECTION_REL)
     try:
@@ -1077,7 +1101,7 @@ def _collect() -> dict:
                 "message": f"VAULTS_ROOT not a directory: {vaults_root}",
             },
         )
-    now = datetime.now(_display_tz())  # CARD-G6-9c: 全链路单一显示时区
+    now = _display_now()  # CARD-G6-9c: 全链路单一显示时区 (CARD-G6-6 收成单一入口)
     try:
         vault_dirs = _list_vault_dirs(vaults_root)
     except OSError as e:
@@ -1090,7 +1114,16 @@ def _collect() -> dict:
     vaults = []
     for v in vault_dirs:
         try:
-            vaults.append(_vault_entry(v, now.date(), _board_done_today(v, vaults_root, today_local)))
+            vaults.append(
+                _vault_entry(
+                    v,
+                    now.date(),
+                    _board_done_today(v, vaults_root, today_local),
+                    # CARD-G6-6: 与完成账共用同一次 now 读数 —— 两个账各读一次
+                    # 时钟, 跨 20:00 / 跨午夜那一秒会给出互相矛盾的页面
+                    _snoozed_active(v, vaults_root, now),
+                )
+            )
         except Exception as e:  # noqa: BLE001 — 终极防线 (Codex-C2 B1):
             # 单库任何未预期异常都不许把全局打成 500, 以 corrupt 条目呈现;
             # traceback 落服务端日志 (兜底不等于不可观测)
@@ -1103,6 +1136,7 @@ def _collect() -> dict:
                     "projection": None,
                     "error": f"{type(e).__name__}: {str(e)[:200]}",
                     "board_done": [],
+                    "snoozed": {},
                 }
             )
     return {
@@ -1111,6 +1145,13 @@ def _collect() -> dict:
         # 用同一口径归日 (此前 JS 里写死了一个固定时区名, 那是第五套时钟)。
         # 每次请求现算; 三档都取不到名 (末档固定偏移) 时为 null, 前端退浏览器本地。
         "display_tz": _display_tz_name(),
+        # CARD-G6-6 加性: 「今晚再说」这一档此刻还给不给点。⛔ **20:00 的判定
+        # 只在服务端做这一次**, 前端拿到的是结论不是原料 —— 让 JS 自己按
+        # display_tz 算一遍就有了两个判定: display_tz 为 null 时 (三档都取不到
+        # IANA 名) JS 退回浏览器本地, 异地访问的用户会看到「今晚」钮, 而服务端
+        # 按自己的本地时间必以 snooze_until_in_past 打回。同一次 now 读数, 与
+        # 端点那侧的比较口径逐字相同。
+        "tonight_available": now.hour < _SNOOZE_TONIGHT_HOUR,
         "vaults_root": str(vaults_root),
         "active_vault": s.ACTIVE_VAULT,
         "vaults": vaults,
@@ -1242,6 +1283,9 @@ def _board_table_html(
     now_local: datetime,
     done_action: str | None = None,
     undo_action: str | None = None,
+    snooze_action: str | None = None,
+    unsnooze_action: str | None = None,
+    tonight_available: bool = True,
 ) -> str:
     """三级视图第二/三级: 板表格 白板名|到期|新卡|待剖析|最早到期。
 
@@ -1257,6 +1301,10 @@ def _board_table_html(
     CARD-G6-7-R: undo_action 同理, 只在**已完成区**在场 —— 那里才有东西可撤。
     两个参数互斥地用: 待做区给 done_action, 已完成区给 undo_action; 同时给
     会让同一块板既能"再做完一次"又能撤销, 两个钮说的是矛盾的话。
+    CARD-G6-6: snooze_action / unsnooze_action 同一条互斥纪律 —— 待做区给
+    snooze_action (两档「再说」), 已推迟区给 unsnooze_action (「取回」)。
+    tonight_available 只在 snooze_action 在场时起作用: 已过 20:00 就不出
+    「今晚」那个钮 (判定在服务端做过, 这里只照结论渲染)。
     """
     if not boards:
         return '<div style="color:#6b7280;margin:10px 0;font-size:13px">该库暂无到期或已排期的白板</div>'
@@ -1291,15 +1339,25 @@ def _board_table_html(
         detail = _node_detail_html(vault_id, r.get("nodes") or [], now_local)
         if detail:
             rows_html.append(f'<tr><td colspan="5" style="{_TD};padding-top:0">{detail}</td></tr>')
-        if done_action:
-            rows_html.append(
-                f'<tr><td colspan="5" style="{_TD};padding-top:0">'
-                f"{_board_done_form_html(vault_id, r['board'], done_action)}</td></tr>"
-            )
+        # CARD-G6-6: 推迟与完成是待做区并列的两个出口, 同一格里挨着放 ——
+        # 「今天先不做」和「今天做过了」都是对同一块板的处置。⚠ snooze_action
+        # 缺省时这一格与本参数出现之前逐字节相同 (只剩完成钮那一份)。
+        if done_action or snooze_action:
+            btns = ""
+            if snooze_action:
+                btns += _board_snooze_form_html(vault_id, r["board"], snooze_action, tonight_available)
+            if done_action:
+                btns += _board_done_form_html(vault_id, r["board"], done_action)
+            rows_html.append(f'<tr><td colspan="5" style="{_TD};padding-top:0">{btns}</td></tr>')
         if undo_action:
             rows_html.append(
                 f'<tr><td colspan="5" style="{_TD};padding-top:0">'
                 f"{_board_undone_form_html(vault_id, r['board'], undo_action)}</td></tr>"
+            )
+        if unsnooze_action:
+            rows_html.append(
+                f'<tr><td colspan="5" style="{_TD};padding-top:0">'
+                f"{_board_unsnooze_form_html(vault_id, r['board'], unsnooze_action)}</td></tr>"
             )
     return (
         '<div style="overflow-x:auto;margin:10px 0 4px">'
@@ -1353,6 +1411,62 @@ _UNDO_BTN = (
 )
 
 
+#: 「再说」按钮样式 (CARD-G6-6) — 琥珀系, 与绿色的完成钮、灰色的撤销钮都
+#: 拉开: 完成是"做过了", 推迟是"今天先不做", 两件事的代价与可逆性都不同
+_SNOOZE_BTN = (
+    "font-size:12px;color:#b45309;background:#fffbeb;border:1px solid #fde68a;"
+    "border-radius:6px;padding:2px 9px;cursor:pointer;font-family:inherit;margin-right:6px"
+)
+
+#: 「取回」按钮样式 (CARD-G6-6) — 与撤销完成同一个灰系: 两者都是收回一个
+#: 误操作, 长得一样反而是对的
+_UNSNOOZE_BTN = _UNDO_BTN
+
+#: 推迟动作的诚实说明 —— 与 _DONE_NOTE 同一条纪律: 这个钮到底动了什么,
+#: 答案必须就在钮旁边。⛔ 文案里不写事件账的文件名 (写点普查门的白名单是
+#: 按文件字面量算的, 一条注释就能让它多出一个"实现点")。
+_SNOOZE_NOTE = (
+    "⏰「今晚 / 明天再说」只把它挪进下面的「已推迟」区，把今天的推荐让给下一块板 ——"
+    " 到点它自己回来。不影响 FSRS 记忆曲线（不写节点、不记学习事件，卡片该什么时候到期还是什么时候）。"
+)
+
+
+def _board_snooze_form_html(vault_id: str, board: str, action: str, tonight_available: bool) -> str:
+    """两档「再说」表单按钮 — 一个 form 两个 submit, 零 JS。
+
+    档位靠 `<button name="until" value="…">` 携带 —— 浏览器只提交被点的那个
+    按钮的 name/value, 于是两档共用一份 hidden 字段, 也不需要单选框。
+    ⛔ 没有输入框: 两档就是全部选择 (D-8 甲)。
+
+    tonight_available 为假 (已过 20:00) 时**不渲染**「今晚」钮 —— 判定在服务端
+    做过了, 这里只是照结论渲染。留着它只会让人点出一个必然 422 的请求。
+    """
+    tonight = (
+        f'<button type="submit" name="until" value="tonight" style="{_SNOOZE_BTN}">🌙 今晚再说</button>'
+        if tonight_available
+        else ""
+    )
+    return (
+        f'<form method="post" action="{html.escape(action)}" style="display:inline;margin:0">'
+        f'<input type="hidden" name="vault_id" value="{html.escape(vault_id)}">'
+        f'<input type="hidden" name="board" value="{html.escape(board)}">'
+        '<input type="hidden" name="redirect" value="page">'
+        f"{tonight}"
+        f'<button type="submit" name="until" value="tomorrow" style="{_SNOOZE_BTN}">📅 明天再说</button></form>'
+    )
+
+
+def _board_unsnooze_form_html(vault_id: str, board: str, action: str) -> str:
+    """「取回」表单按钮 — 纯 HTML form POST, 零 JS (沿 _board_undone_form_html)。"""
+    return (
+        f'<form method="post" action="{html.escape(action)}" style="display:inline;margin:0">'
+        f'<input type="hidden" name="vault_id" value="{html.escape(vault_id)}">'
+        f'<input type="hidden" name="board" value="{html.escape(board)}">'
+        '<input type="hidden" name="redirect" value="page">'
+        f'<button type="submit" style="{_UNSNOOZE_BTN}">↩︎ 取回</button></form>'
+    )
+
+
 def _board_undone_form_html(vault_id: str, board: str, action: str) -> str:
     """「撤销」表单按钮 — 纯 HTML form POST, 零 JS (沿 _board_done_form_html)。"""
     return (
@@ -1378,6 +1492,30 @@ def _board_done_form_html(vault_id: str, board: str, action: str) -> str:
     )
 
 
+def _snooze_wake_label(untils: "list[str]") -> str:
+    """「已推迟（N）· 到 HH:MM 自动回来」里的那个时刻 (CARD-G6-6)。
+
+    多块板各有各的 until ⇒ 取**最早**的那个: summary 上那一行回答的是
+    "这个区什么时候开始有东西回来"。解析不出的条目跳过; 一条都解析不出
+    → 空串, 调用方退回不带时刻的措辞 (不编一个时间出来)。
+    显示时区现调 `_display_tz()` —— 与页面其余时间人话同一来源。
+    """
+    times = []
+    for raw in untils:
+        try:
+            dt = datetime.fromisoformat(raw)
+        except (TypeError, ValueError):
+            continue
+        if dt.utcoffset() is not None:
+            times.append(dt)
+    if not times:
+        return ""
+    try:
+        return min(times).astimezone(_display_tz()).strftime("%H:%M")
+    except (OverflowError, OSError, ValueError):
+        return ""  # 极值时刻换算溢出 → 退回不带时刻的措辞, 不把只读页打成 500
+
+
 def _boards_split_html(
     vault_id: str,
     boards: list[dict],
@@ -1385,35 +1523,73 @@ def _boards_split_html(
     done: set,
     done_action: str,
     undo_action: str | None = None,
+    snoozed: "dict[str, str] | None" = None,
+    snooze_action: str | None = None,
+    unsnooze_action: str | None = None,
+    tonight_available: bool = True,
 ) -> str:
     """CARD-G6-7: 板表格分成「待做」与「已完成」两区。
 
     ⛔ 折叠不是隐藏, 也不是从投影里剔除 —— 已完成的板行原样还在页面上,
     只是收进 details 里。投影层压制会当场撞 _gate_buckets 的"到期三桶合计
     恒等 stats.due_nodes", 更要紧的是它会让页面上的数字对不上盘上的数字。
+
+    CARD-G6-6 第三区「已推迟」同一条律 —— 行原样在, 只是折起来。
+    ⛔ **活跃推迟集为空时一个字节都不输出**(沿已完成区 `if not finished` 的
+    同一条律): 页面上 `<details>` 的个数是有「恰好等于」断言守着的
+    (test_review_overview.py 的 g64 两条), 无条件多渲染一个空折叠区会当场
+    打红它们 —— 而那两条断言不该为了本卡的新区被放宽。
+    同一块板既完成又被推迟时**只进已完成区**(done 优先): 一行渲染两次会让
+    页面上的板数比投影里的多。这是实现决定, 不是产品裁定。
     """
-    todo = [r for r in boards if r["board"] not in done]
+    snoozed = snoozed or {}
+    todo = [r for r in boards if r["board"] not in done and r["board"] not in snoozed]
     finished = [r for r in boards if r["board"] in done]
+    pending = [r for r in boards if r["board"] in snoozed and r["board"] not in done]
     if todo:
-        head = _board_table_html(vault_id, todo, now_local, done_action)
-    elif finished:
+        head = _board_table_html(vault_id, todo, now_local, done_action, None, snooze_action, None, tonight_available)
+    elif finished and not pending:
         # 全做完了: 不复用 _board_table_html 的空态文案 (那句说的是"没有板",
         # 与"板都做完了"是两回事 —— 一字之差就把成就说成了空库)
         head = '<div style="color:#16a34a;margin:10px 0 4px;font-size:14px">🎉 今天列出的白板都标完成了</div>'
+    elif pending:
+        # 全被推迟 (或推迟+完成) 时那句"都标完成了"是错的 —— 推迟不是做完
+        head = (
+            '<div style="color:#b45309;margin:10px 0 4px;font-size:14px">😴 今天列出的白板都推开了 · 到点自己回来</div>'
+        )
     else:
         head = _board_table_html(vault_id, todo, now_local, done_action)
-    if not finished:
-        return head
-    return (
-        head + f'<details style="margin:6px 0 2px"><summary style="cursor:pointer;color:#6b7280;font-size:12px">'
-        f"已完成（{len(finished)}）· 明天自动回来</summary>"
-        # 已完成区: 不带完成钮 (done_action 缺省), 带撤销钮 —— 误点的唯一出口
-         + _board_table_html(vault_id, finished, now_local, None, undo_action) + "</details>"
-    )
+    out = head
+    if finished:
+        out += (
+            f'<details style="margin:6px 0 2px"><summary style="cursor:pointer;color:#6b7280;font-size:12px">'
+            f"已完成（{len(finished)}）· 明天自动回来</summary>"
+            # 已完成区: 不带完成钮 (done_action 缺省), 带撤销钮 —— 误点的唯一出口
+            + _board_table_html(vault_id, finished, now_local, None, undo_action)
+            + "</details>"
+        )
+    if pending:
+        wake = _snooze_wake_label([snoozed[r["board"]] for r in pending])
+        back = f"· 到 {html.escape(wake)} 自动回来" if wake else "· 到点自动回来"
+        out += (
+            f'<details style="margin:6px 0 2px"><summary style="cursor:pointer;color:#6b7280;font-size:12px">'
+            f"已推迟（{len(pending)}）{back}</summary>"
+            # 已推迟区: 既不带完成钮也不带撤销钮, 只带「取回」—— 误点的唯一出口
+            + _board_table_html(vault_id, pending, now_local, None, None, None, unsnooze_action)
+            + "</details>"
+        )
+    return out
 
 
 def _card_html(
-    entry: dict, now_local: datetime, refresh_action: str, done_action: str, undo_action: str | None = None
+    entry: dict,
+    now_local: datetime,
+    refresh_action: str,
+    done_action: str,
+    undo_action: str | None = None,
+    snooze_action: str | None = None,
+    unsnooze_action: str | None = None,
+    tonight_available: bool = True,
 ) -> str:
     """三级视图第一级: vault 卡片 (名+四态徽标+汇总行) → 板表格 → 操作行。"""
     vid = html.escape(entry["vault_id"])
@@ -1471,8 +1647,18 @@ def _card_html(
                 set(entry.get("board_done") or ()),
                 done_action,
                 undo_action,
+                # CARD-G6-6: 只投影仍在生效的推迟 (到期的条目对页面已不存在)
+                dict(entry.get("snoozed") or {}),
+                snooze_action,
+                unsnooze_action,
+                tonight_available,
             )
             + f'<div style="color:#6b7280;font-size:12px;margin:2px 0 6px">{html.escape(_DONE_NOTE)}</div>'
+            + (
+                f'<div style="color:#6b7280;font-size:12px;margin:2px 0 6px">{html.escape(_SNOOZE_NOTE)}</div>'
+                if snooze_action
+                else ""
+            )
             + f'<div style="color:#6b7280;font-size:12px;margin:4px 0 6px">生成于 {gen_disp}</div>'
             + open_link
         )
@@ -1517,9 +1703,17 @@ async def review_overview_page(request: Request) -> HTMLResponse:
     refresh_action = request.url_for("review_overview_refresh").path
     done_action = request.url_for("review_overview_board_done").path
     undo_action = request.url_for("review_overview_board_undone").path
-    cards = "".join(_card_html(e, now_local, refresh_action, done_action, undo_action) for e in data["vaults"]) or (
-        '<div style="color:#6b7280">VAULTS_ROOT 下未发现任何 vault (需含 .obsidian/ 目录)</div>'
-    )
+    snooze_action = request.url_for("review_overview_board_snooze").path
+    unsnooze_action = request.url_for("review_overview_board_unsnooze").path
+    # CARD-G6-6: 「今晚」这一档还给不给点, 由 _collect 那**一次**判定说了算 ——
+    # 页面这里不再读一遍时钟 (两次读数会在 20:00 那一秒上互相矛盾)
+    tonight_available = bool(data.get("tonight_available", True))
+    cards = "".join(
+        _card_html(
+            e, now_local, refresh_action, done_action, undo_action, snooze_action, unsnooze_action, tonight_available
+        )
+        for e in data["vaults"]
+    ) or ('<div style="color:#6b7280">VAULTS_ROOT 下未发现任何 vault (需含 .obsidian/ 目录)</div>')
     generated = html.escape(_fmt_local_dt(now_local))
     page = (
         '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">'
@@ -2247,6 +2441,75 @@ def _board_done_today(vault_dir: Path, vaults_root: Path, today: str) -> list[st
     return sorted(b for b, d in _read_board_done(state_file).items() if d == today)
 
 
+#: 「今晚」这一档的小时阈值 (显示时区本地时)。⚠ CARD-G6-6: 这是**任务书默认
+#: 值**, 未经用户显式裁定 —— 改产品语义只动这一个常量, 但那是用户的决定。
+_SNOOZE_TONIGHT_HOUR = 20
+
+#: 推迟的两档 (D-8 甲: 板级 + 两档)。⛔ 只有这两档 —— 自定义天数 / 自由时间
+#: 一律 422, 页面上也没有输入框。收窄的理由: 一个"推迟多久"的输入框会让
+#: snooze 变成第二套排期系统, 而排期归 FSRS。
+_SNOOZE_CHOICES = ("tonight", "tomorrow")
+
+
+def _snooze_until(choice: str, now_local: datetime) -> datetime | None:
+    """把一档枚举换算成绝对时刻; 不在两档里 → None (调用方 422)。
+
+    ⛔ 「明天」用 **date 加法 + combine** 而不是 `now + timedelta(hours=24)`:
+    DST 切换日的一天不是 24 小时, 加满 24 小时会落到 23:00 或次日 01:00 ——
+    「明天 00:00」就成了今天深夜或明天凌晨一点, 而用户看到的文案还写着 00:00。
+    tzinfo 用调用方那一次读数的 tzinfo (ZoneInfo 实例), 于是 offset 按**那一天**
+    求值, 不是把今天的偏移量硬搬到明天。
+    """
+    if choice == "tonight":
+        return now_local.replace(hour=_SNOOZE_TONIGHT_HOUR, minute=0, second=0, microsecond=0)
+    if choice == "tomorrow":
+        return datetime.combine(now_local.date() + timedelta(days=1), datetime.min.time(), tzinfo=now_local.tzinfo)
+    return None
+
+
+def _read_snoozed(state_file: Path) -> dict[str, str]:
+    """state 的 snoozed 只读投影 —— **不隔离、不重建、不写盘**。
+
+    与 _read_board_done 逐条同纪律 (见那里): 读得出就用, 读不出 / 形状不对
+    一律当作"没有推迟记录", 绝不把总览页打成 500, 也绝不在只读请求里动盘。
+    值本身能不能解析成时刻由 _snoozed_active 再判一道 —— 这里只管形状。
+    """
+    try:
+        st = json.loads(state_file.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    snoozed = st.get("snoozed") if isinstance(st, dict) else None
+    if not isinstance(snoozed, dict):
+        return {}
+    return {k: v for k, v in snoozed.items() if isinstance(k, str) and isinstance(v, str)}
+
+
+def _snoozed_active(vault_dir: Path, vaults_root: Path, now: datetime) -> dict[str, str]:
+    """该库此刻**仍在生效**的推迟 {board: until_iso}。读路径, 不可用 → 空。
+
+    活跃判定与生产器**共用同一个函数** (daily_review_pick.active_snoozed) ——
+    页面上"还在已推迟区里"与榜上"还没回来"必须是同一件事; 两处各写一遍
+    早晚会漂移出「页面说已回来、榜上还压着」这种自相矛盾的形态。
+    """
+    runner = _runner_or_none(vaults_root)
+    if runner is None:
+        return {}
+    try:
+        state_file = runner.state_path(vault_dir)
+    except Exception:  # noqa: BLE001 — 派生失败按"没有推迟记录", 不拖垮总览
+        logger.warning("review_overview 无法派生 state 路径 (snoozed)", vault=vault_dir.name)
+        return {}
+    raw = _read_snoozed(state_file)
+    if not raw:
+        return {}
+    try:
+        active = runner.active_snoozed(raw, now)
+    except Exception:  # noqa: BLE001 — 与本模块其余读路径同纪律, 只读绝不 500
+        logger.warning("review_overview 推迟账解析失败", vault=vault_dir.name)
+        return {}
+    return {board: raw[board] for board in sorted(active)}
+
+
 def _write_board_done(vault_dir: Path, vaults_root: Path, board: str, day: str) -> Path:
     """把「板 board 在 day 这天做完了」记进 state, 返回被写的 state 文件。
 
@@ -2393,6 +2656,83 @@ def _write_board_undone(vault_dir: Path, vaults_root: Path, board: str) -> tuple
             detail={
                 "error": "state_write_refused",
                 "message": f"撤销落盘被拒绝 ({type(e).__name__}: {str(e)[:200]}) —— 未写出任何内容",
+            },
+        )
+    return state_file, False
+
+
+def _write_board_snooze(vault_dir: Path, vaults_root: Path, board: str, until_iso: str) -> Path:
+    """把「板 board 推迟到 until_iso」记进 state, 返回被写的 state 文件。
+
+    与 _write_board_done 逐条同纪律 (同一把锁、同一个写面、零 FSRS):
+      · 写面恰是那一个 state 文件 (加 backups/ 下那把锁);
+      · 不碰任何节点 md —— **推迟改的是今天的推荐顺序, 不是任何节点的
+        到期时刻**。压制 due 仍然是禁令 (D-8): 一块板被推到晚上, 它的卡
+        该什么时候到期还是什么时候到期, 桶与合计一个数都不动;
+      · 不追加 learning_events 账本 ——「今天先不看这块」是看板偏好, 不是
+        学习事件。
+
+    到期不需要清理器: 值 <= now 即非活跃 (active_snoozed 的判定), 旧键留在
+    账里也不影响任何人。与完成账的隔日自然失效同一条律。
+    """
+    runner = _require_runner(vaults_root)
+    state_file = runner.state_path(vault_dir)
+    with _board_done_locks_guard:
+        lock = _board_done_locks.setdefault(str(state_file), threading.Lock())
+    try:
+        # 取锁也在 try 内 (Codex round-1 M1, 与 _write_board_done 同款)
+        with lock, runner.state_locked(vault_dir):
+            st = runner.load_state(vault_dir)
+            snoozed = st.setdefault("snoozed", {})
+            snoozed[board] = until_iso
+            declared = st.get("schema_version")
+            if not isinstance(declared, int) or declared < runner.STATE_SCHEMA_VERSION:
+                st["schema_version"] = runner.STATE_SCHEMA_VERSION
+            runner.save_state(st, vault_dir)
+    except OSError as e:
+        # 与 board-done 同款: 取锁的 mkdir/open 与 save_state 的四段任一失败
+        # 都是**拒绝写出去**, 是正常失败态而不是 500 裸 traceback。
+        logger.warning("board-snooze 落账失败", vault=vault_dir.name, error=repr(e))
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "state_write_refused",
+                "message": f"推迟落盘被拒绝 ({type(e).__name__}: {str(e)[:200]}) —— 未写出任何内容",
+            },
+        )
+    return state_file
+
+
+def _write_board_unsnooze(vault_dir: Path, vaults_root: Path, board: str) -> tuple[Path, bool]:
+    """把「这块板的推迟记录」撤掉, 返回 (被写的 state 文件, 本来就没有)。
+
+    与 _write_board_undone 逐条同形 —— 幂等 200 而不是 404 (用户要的结果
+    「这块板现在没被推迟」已经成立), 本来就没有时**不改写 state**(一次无事
+    可做的撤销不该动 state 的字节与 mtime, 否则每点一次都在跟 runner 的
+    :05 档抢一次发布)。
+    """
+    runner = _require_runner(vaults_root)
+    state_file = runner.state_path(vault_dir)
+    with _board_done_locks_guard:
+        lock = _board_done_locks.setdefault(str(state_file), threading.Lock())
+    try:
+        with lock, runner.state_locked(vault_dir):
+            st = runner.load_state(vault_dir)
+            snoozed = st.setdefault("snoozed", {})
+            if board not in snoozed:
+                return state_file, True
+            snoozed.pop(board, None)
+            declared = st.get("schema_version")
+            if not isinstance(declared, int) or declared < runner.STATE_SCHEMA_VERSION:
+                st["schema_version"] = runner.STATE_SCHEMA_VERSION
+            runner.save_state(st, vault_dir)
+    except OSError as e:
+        logger.warning("board-unsnooze 落账失败", vault=vault_dir.name, error=repr(e))
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "state_write_refused",
+                "message": f"取消推迟落盘被拒绝 ({type(e).__name__}: {str(e)[:200]}) —— 未写出任何内容",
             },
         )
     return state_file, False
@@ -2756,6 +3096,144 @@ def review_overview_board_undone(
             "undone": True,
             # 分开说: 调用方要区分得出"我撤掉了一条"和"本来就没有"
             "already_undone": already_undone,
+            "state_path": str(state_file),
+            "fsrs_touched": False,  # 契约字面化: 本动作永不改调度面
+        }
+    )
+
+
+@review_overview_router.post(
+    "/overview/board-snooze",
+    summary="把某块白板推迟到今晚 / 明天 (CARD-G6-6; 显式用户触发, 零 FSRS 写入)",
+)
+def review_overview_board_snooze(
+    request: Request,
+    vault_id: str = Form(..., description="板所属的 vault 目录名 (须命中 VAULTS_ROOT 下的真实库)"),
+    board: str = Form(..., description="白板名 (与投影 boards[].board 逐字节同形)"),
+    until: str = Form(..., description="推迟档位: tonight (当日 20:00) 或 tomorrow (次日 00:00), 显示时区"),
+    redirect: str | None = Form(None, description="传 page 则 303 回总览页 (纯 HTML 表单用, 零 JS)"),
+) -> Response:
+    """把「这块板今天先放一放」记进 runner 的 per-vault state。
+
+    与 board-done 同一条纪律, 差别只在**它会自己回来**:
+
+      · 写面恰是 backups/daily-review.<key>.state.json 一个文件 —— 节点
+        frontmatter 的 fsrs_* 一个字节不动, learning_events 账本不追加。
+        ⛔ **推迟不压制 due**: 板上每张卡该什么时候到期还是什么时候到期,
+        五桶与合计一个数不动 —— 变的只是"今天先推荐哪块板"。
+      · 两档而已 (D-8 甲): 今晚 = 当日 20:00, 明天 = 次日 00:00, 都按显示
+        时区。没有自定义天数, 也没有自由时间输入 —— 一个"推迟多久"的框会
+        让它变成第二套排期系统, 而排期归 FSRS。
+      · until 一到自然回队: 没有清理器, 也不需要有。生产器每次算榜都现判
+        "还活着吗", runner 的缓存门记着最早的唤醒点, 越过就重扫。
+
+    ⚠ 20:00 之后点「今晚」= 一个已经过去的时刻 ⇒ 422 snooze_until_in_past,
+    state 一个字节不动。页面本来就不该在那时渲染出「今晚」钮 (服务端按
+    tonight_available 决定), 这条 422 是**兜底而不是消除竞态** —— GET 与
+    POST 之间隔着一次网络往返, 正好跨过 20:00 那一秒的用户会看到钮、被打回。
+
+    三道写侧门与 board-done 是**同一个函数**, 不是各写一份 (两份必然漂移):
+      _assert_same_origin              跨站表单 CSRF;
+      _assert_write_target_contained   (在 _refresh_target 内) 软链逃逸;
+      _assert_board_name               空 / 超长板名 422。
+    """
+    try:
+        _assert_same_origin(request)
+        _assert_board_name(board)
+        # 同一次时钟读数贯穿换算与"是不是已经过去了"的判定 —— 两次各读一遍
+        # 会在 20:00 那一秒上给出自相矛盾的答案 (换算出的时刻合法, 紧接着的
+        # 比较又说它已经过去)。tz 现调不缓存 (U6-A: 每次调用现取)。
+        now_local = _display_now()
+        until_dt = _snooze_until(until, now_local)
+        if until_dt is None:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "error": "snooze_until_invalid",
+                    "message": f"until 只接受 {' / '.join(_SNOOZE_CHOICES)} 两档 (实为 {until[:50]!r})",
+                },
+            )
+        if until_dt <= now_local:
+            # ⛔ 不静默夹到下一档: 用户点的是「今晚」, 把它悄悄改成「明天」
+            # 等于替他做了一个他没做的决定, 而他看到的反馈还写着"今晚"。
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "error": "snooze_until_in_past",
+                    "message": f"「{until}」换算出的时刻已经过去了 ({until_dt.isoformat(timespec='seconds')})",
+                },
+            )
+        until_iso = until_dt.isoformat(timespec="seconds")
+        vault_dir, _script = _refresh_target(vault_id)
+        s = get_settings()
+        vaults_root = Path(s.VAULTS_ROOT).resolve()
+        state_file = _write_board_snooze(vault_dir, vaults_root, board, until_iso)
+    except HTTPException as e:
+        if redirect != "page":
+            raise
+        return HTMLResponse(
+            content=_error_page_html(
+                e.status_code, vault_id, e.detail, request.url_for("review_overview_page").path, "推迟"
+            ),
+            status_code=e.status_code,
+        )
+    if redirect == "page":
+        # PRG: 303 回 GET —— 与 board-done 同款, 走到这一行就是账已经落盘了
+        return RedirectResponse(url=request.url_for("review_overview_page").path, status_code=303)
+    return JSONResponse(
+        {
+            "vault_id": vault_dir.name,
+            "board": board,
+            "snoozed_until": until_iso,
+            "state_path": str(state_file),
+            "fsrs_touched": False,  # 契约字面化: 本动作永不改调度面
+        }
+    )
+
+
+@review_overview_router.post(
+    "/overview/board-unsnooze",
+    summary="取消某块白板的推迟 (CARD-G6-6; 显式用户触发, 零 FSRS 写入)",
+)
+def review_overview_board_unsnooze(
+    request: Request,
+    vault_id: str = Form(..., description="板所属的 vault 目录名 (须命中 VAULTS_ROOT 下的真实库)"),
+    board: str = Form(..., description="白板名 (与投影 boards[].board 逐字节同形)"),
+    redirect: str | None = Form(None, description="传 page 则 303 回总览页 (纯 HTML 表单用, 零 JS)"),
+) -> Response:
+    """把「这块板被推迟了」这条记录撤掉 —— 它立刻回到待做区。
+
+    与 board-undone 同形 (那条的理由逐字适用: 误点之后唯一的恢复途径不该是
+    "等到点"), 本动作同样**不需要**「今天」: 推迟账按 {board: 时刻} 存, 撤销
+    是按板名摘键, 少一个可失败的依赖就少一条失败路径。
+
+    键本来就不在账里 ⇒ 幂等 200 + already_unsnoozed, 不 404。
+    """
+    try:
+        _assert_same_origin(request)
+        _assert_board_name(board)
+        vault_dir, _script = _refresh_target(vault_id)
+        s = get_settings()
+        vaults_root = Path(s.VAULTS_ROOT).resolve()
+        state_file, already_unsnoozed = _write_board_unsnooze(vault_dir, vaults_root, board)
+    except HTTPException as e:
+        if redirect != "page":
+            raise
+        return HTMLResponse(
+            content=_error_page_html(
+                e.status_code, vault_id, e.detail, request.url_for("review_overview_page").path, "取消推迟"
+            ),
+            status_code=e.status_code,
+        )
+    if redirect == "page":
+        return RedirectResponse(url=request.url_for("review_overview_page").path, status_code=303)
+    return JSONResponse(
+        {
+            "vault_id": vault_dir.name,
+            "board": board,
+            "unsnoozed": True,
+            # 分开说: 调用方要区分得出"我撤掉了一条"和"本来就没有"
+            "already_unsnoozed": already_unsnoozed,
             "state_path": str(state_file),
             "fsrs_touched": False,  # 契约字面化: 本动作永不改调度面
         }

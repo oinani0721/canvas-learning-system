@@ -1,0 +1,12 @@
+# 裁判 10: live 只读核 (开工 vs 收工)
+--- 开工 shasum (存档) ---
+5d6e2d2db2a34e7254026b545cffc9d139b6eeee43cb18081ea963f1234f4100  /Users/Heishing/Desktop/canvas/canvas-learning-system/backups/daily-review.canvas-vault.state.json
+00989816afefaf0d4ea514b065725b10225d069d42ab23072a1e7e6812a6b3a9  /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/outputs/今日复习.json
+--- 收工 shasum ---
+5d6e2d2db2a34e7254026b545cffc9d139b6eeee43cb18081ea963f1234f4100  /Users/Heishing/Desktop/canvas/canvas-learning-system/backups/daily-review.canvas-vault.state.json
+00989816afefaf0d4ea514b065725b10225d069d42ab23072a1e7e6812a6b3a9  /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/outputs/今日复习.json
+--- backups 里 state.lock 计数 (开工实测=1, 非卡文预期的 0; 须仍=1 且同一文件) ---
+-rw-r--r--@  1 Heishing  staff      0 Sep  9 13:15 daily-review.vault.state.lock
+  count = 1
+--- git status canvas-vault/ backups/ (须 0) ---
+  0

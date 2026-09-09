@@ -1,0 +1,9 @@
+# ruff + pyright (本卡改动面)
+--- ruff check ---
+All checks passed!
+ruff rc=0
+--- ruff format --check ---
+Would reformat: backend/app/api/v1/endpoints/review_overview.py
+Would reformat: scripts/daily_review_pick.py
+2 files would be reformatted, 2 files already formatted
+format rc=1
