@@ -1397,6 +1397,62 @@ tests/skills **540 passed**（369 + 171）/ regression 1480 collected / routing 
 live newer 0（前提已断言）/ 禁改三份逐字节一致 / 地盘门恰 2 项 / ruff 干净 /
 真实树动态判据全路径 冷 **391ms** 暖 **173ms**。
 
+### round-27（绑 `9c29aacb`，blob `7cae776f`）— `codex-review-CARD-SKILL-PORT-LINT-r27.md`
+
+**BLOCKER 0 / HIGH 5 / MEDIUM 2 / LOW 0**。
+
+#### ⛔ 我的 heredoc 判别**连续两轮被证伪**
+
+| 轮次 | 我用的判别 | 被证伪的方式 |
+|---|---|---|
+| r25 | 结束标记存在 | 正文里恰好有一行 `2` ⇒ `N = 1 << 2` 被认成 heredoc；真 heredoc 缺尾反被丢掉 |
+| r26 | 定界符带引号 | `(( 1 << "2" ))` **带引号却是算术**；`python3 -B <<EOF` **不带引号却能当 Python 解析** |
+
+⇒ r27 改用 **fence 的 info string** 作主信号 —— 这块正文早就写明了是什么语言，
+那是最直接的证据，**前几轮一直没用上**：
+
+```
+info ∈ {python, py, python3, …}  ⇒ `<<` 一定是左移
+info ∈ {sh, bash, zsh, console, …} ⇒ 是 heredoc（算术 `(( ))` 由掩码挡在前面）
+info 缺失/其它                     ⇒ 回落到「这一行能不能当合法 Python 解析」
+```
+另给顶层 `(( … ))` 算术加掩码（`$(( … ))` 之前已被 `$(` 分支覆盖，裸 `((` 没人管）。
+
+#### 五条 HIGH
+
+| r27 意见 | 整改 |
+|---|---|
+| **HIGH-1（回归）** 引号判别两个方向都错 | 见上：info string 主信号 + 算术掩码 |
+| **HIGH-2（回归）** 排除带参数 `vars()` 把 `vars(模块)` 一起排除了 | `vars(X)` 当 X 是模块表达式时**就是**模块字典；补别名（`import sys as s`、`m = globals()`、`import importlib as imp`）——**都是直接可见的，不需要跨过程分析** |
+| **HIGH-3（既存）** 解包赋值把整个右值当成每个目标的值 | `_Write.partial` 标记 —— `P, *_ = "/t"+"mp/cls-exam/x"` 之后 `P == "/"`，值不可信，`_provably_last()` 一律判「证不出」 |
+| **HIGH-4（既存）** `del P` 不计为写入 | `ast.Delete` 的目标计为一次写入（`class C: P=…; del P; result=P` 读到的是**模块级**的坏值） |
+| **HIGH-5（既存）** 生成器暂停没进必经性检查 | `Yield`/`YieldFrom` 进 `_EARLY_EXIT_NODES` —— `next(f())` 停在 `yield`，后面的合规赋值**还没跑** |
+
+#### 两条 MEDIUM
+
+- **MEDIUM-1（回归）**：命令词前缀除 `VAR=值` 外还有 `command` / `builtin` / `exec` / `!` /
+  前置重定向，r26 我只允许赋值前缀 ⇒ `command unset …` 漏检。
+- **MEDIUM-2（既存误报未修净）**：r26 我加了「命令词」检查，但**后备正则**
+  `_URL_UNSET_RE.search(segment)` 没有位置约束，把新检查整个绕过去 ——
+  `printf '%s %s' unset CLS_BACKEND_URL` 照样报红。**后备正则已删除**
+  （上面那圈已覆盖它的全部真形态，含引号拼接的变量名）。
+  ⚠️ r26 我给的负控用了 `C'LS'_BACKEND_URL`，**恰好避开后备正则** ——
+  所以那条负控没有证明普通拼写下的误报已消除。
+
+#### ⛔ Codex 对我自检脚本的批评（已采纳）
+
+> 逐 commit 差分能发现**行为变化**，却发现不了 HIGH-3～5 这种「**两版共同漏检**」。
+> 每组还需固定安全／坏形态的**预期判据**，避免把历史输出本身当成正确答案。
+
+⇒ 自检脚本升级：47 条语料每条带 **`RED`（必须报）/ `GREEN`（必须不报）** 预期，
+脚本同时做两件事 —— (a) 比两版差异、(b) 拿新版逐条对预期。**后者才抓得住两版都错的**。
+本轮实测：47 条预期全部符合；8 处版本差异全是本轮修复，无意料之外。
+
+#### 本轮实测
+
+tests/skills **542 passed**（369 + 173）/ regression 1480 collected / routing 66/66 /
+live newer 0（前提已断言）/ 禁改三份逐字节一致 / 地盘门恰 2 项 / ruff 干净。
+
 ## 六 本卡未证明什么
 - **`_provably_last()` 的「整段最早退出」是近似**：Codex r25 指出两个明确的**误报**
   方向 —— `return P` 落在 `if False` 里、或前面的 `raise` 已被对应 `except` 接住时，
