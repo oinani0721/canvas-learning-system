@@ -1206,7 +1206,7 @@ def main():
     # allow_abbrev=False 与 runner/push.sh 同源 (Codex-C1a F1)
     ap = argparse.ArgumentParser(description="每日复习选板", allow_abbrev=False)
     ap.add_argument("--vault", required=True)
-    ap.add_argument("--state", help="daily-review.state.json (只读, 取 board_last_recommended)")
+    ap.add_argument("--state", help="daily-review.state.json (只读, 取 board_last_recommended 与 board_done)")
     ap.add_argument("--now", help="ISO 时间覆盖 (测试用)")
     ap.add_argument("--write", action="store_true", help="写 outputs/今日复习.md+json")
     args = ap.parse_args()
@@ -1229,13 +1229,28 @@ def main():
     else:
         now = datetime.now(timezone.utc)
     blr = {}
+    bd = {}
     if args.state and Path(args.state).exists():
         try:
-            blr = json.loads(Path(args.state).read_text(encoding="utf-8")).get("board_last_recommended", {})
+            # CARD-G6-7-R: 两个键取自**同一次**解析 —— 再读一遍文件会在两次读
+            # 之间开一个新的撕裂窗 (runner/Web 都可能正在换它), 于是 tie-break
+            # 记录与完成账可能来自两个不同版本的 state。
+            _st = json.loads(Path(args.state).read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError):
             pass  # state 损坏由 runner 处置, 选点侧降级为无记录
+        else:
+            # 顶层非 dict (如 "[]") 从前会在 .get 上抛 AttributeError 逃逸成
+            # traceback —— 那不是"降级为无记录", 是整轮生成崩掉。逐键判型:
+            # 一个键坏掉不该连累另一个。
+            if isinstance(_st, dict):
+                blr = _st.get("board_last_recommended") or {}
+                bd = _st.get("board_done") or {}
+                if not isinstance(blr, dict):
+                    blr = {}
+                if not isinstance(bd, dict):
+                    bd = {}
 
-    payload, ranked = build_payload(vault, now, blr, load_decay(vault))
+    payload, ranked = build_payload(vault, now, blr, load_decay(vault), board_done=bd)
     if args.write:
         out = vault / "outputs"
         out.mkdir(parents=True, exist_ok=True)

@@ -2227,3 +2227,105 @@ def test_g67_four_positional_call_form_still_works(tmp_path):
     assert [r["board"] for r in ranked] == [r["board"] for r in golden_ranked]
     assert payload["top_boards"] == golden["top_boards"]
     assert payload["schema_version"] == 3, "本卡不动投影 schema"
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# CARD-G6-7-R: --state 同时取 board_last_recommended 与 board_done
+# ══════════════════════════════════════════════════════════════════════════
+
+
+def _mk_two_board_vault(tmp_path) -> Path:
+    vault = tmp_path / f"vault{next(_seq)}"
+    scripts = vault / ".claude" / "scripts"
+    scripts.mkdir(parents=True)
+    (vault / "节点").mkdir()
+    shutil.copy(WT / "canvas-vault" / ".claude" / "scripts" / "decay_beta.py", scripts)
+    for name, content in _TWO_BOARDS.items():
+        (vault / "节点" / f"{name}.md").write_text(content, encoding="utf-8")
+    return vault
+
+
+def _run_cli(monkeypatch, capsys, vault: Path, state: Path | None) -> dict:
+    argv = ["daily_review_pick.py", "--vault", str(vault), "--now", NOW.isoformat()]
+    if state is not None:
+        argv += ["--state", str(state)]
+    monkeypatch.setattr(sys, "argv", argv)
+    picker.main()
+    return json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+
+
+def test_g67r_main_reads_both_keys_from_state_in_one_parse(tmp_path, monkeypatch, capsys):
+    """(b) CLI 侧: --state 不再只取 board_last_recommended, board_done 同批取走。
+
+    Web 手动刷新走的就是这条 CLI —— Codex M-1 当时只修了 runner 那一半, 于是
+    浏览器上点「重新算一遍」时完成账根本流不进生产器, 榜首不让位。
+
+    三件事一起钉:
+      · 对照先证明"甲板本来是榜首"(否则让位断言可能恒真);
+      · 让位后甲板仍在 boards (折叠不是剔除, 撞 _gate_buckets 的合计恒等);
+      · state 文件**只被读一次**且前后字节不变 —— 两个键必须来自同一次解析
+        (加第二次 read_text 会在两次读之间开一个新的撕裂窗), 且 pick 对 state
+        的只读承诺是 _rebuild_projection 写侧承诺 ② 的前提。
+    """
+    vault = _mk_two_board_vault(tmp_path)
+    baseline = _run_cli(monkeypatch, capsys, vault, None)
+    # ⛔ 榜首**实测**取, 不写死板名: 卡文把 rank_boards 的排序律列为硬边界,
+    # 门若绑死"甲板恒第一"就等于在门里复刻了一份排序律, 排序律一动门就红在
+    # 与本卡无关的地方。(实测 ranked[0] 是乙板 —— 该文件 _TWO_BOARDS 上方的
+    # 既有注释说的是甲板, 与事实不符; 本卡不改存量注释, 只不依赖它。)
+    top = baseline["top_boards"][0]["board"]
+    assert len(baseline["top_boards"]) >= 2, "夹具前提: 至少两块板才谈得上'让给下一块'"
+    other = next(b["board"] for b in baseline["top_boards"] if b["board"] != top)
+
+    state = tmp_path / "daily-review.probe.state.json"
+    state.write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "board_last_recommended": {other: _TODAY},
+                "board_done": {top: _TODAY},
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    before = state.read_bytes()
+
+    reads: list[str] = []
+    real_read_text = Path.read_text
+
+    def _spy_read_text(self, *a, **kw):
+        if self == state:
+            reads.append(str(self))
+        return real_read_text(self, *a, **kw)
+
+    monkeypatch.setattr(Path, "read_text", _spy_read_text)
+    out = _run_cli(monkeypatch, capsys, vault, state)
+
+    assert out["top_boards"][0]["board"] != top, "已完成的板必须让出榜首"
+    assert top in [b["board"] for b in out["boards"]], "让位不是剔除 —— 板行必须还在"
+    assert out["stats"] == baseline["stats"], "让位只换顺序, 不动任何计数"
+    assert len(reads) == 1, f"state 必须只解析一次取两个键, 实读 {len(reads)} 次"
+    assert state.read_bytes() == before, "生产器对 state 只读, 一个字节都不许写"
+
+
+def test_g67r_main_state_corrupt_degrades_like_no_state(tmp_path, monkeypatch, capsys):
+    """(b) 损坏的 state 与"没有 state"逐项等价 —— 不崩、不半读。
+
+    卡文把这条列进"未证明什么"; 加起来很便宜, 而它守的正是 board_done 引入
+    的新失败面: 两个键从同一次解析里取, 一旦解析失败就必须两个都退回空,
+    不能出现"blr 拿到了、bd 没拿到"这种半截状态。
+    """
+    vault = _mk_two_board_vault(tmp_path)
+    baseline = _run_cli(monkeypatch, capsys, vault, None)
+
+    for bad in ("{不是合法 JSON", "[]", '"就是个字符串"', '{"board_done": [], "board_last_recommended": 7}'):
+        state = tmp_path / f"corrupt{next(_seq)}.json"
+        state.write_text(bad, encoding="utf-8")
+        out = _run_cli(monkeypatch, capsys, vault, state)
+        for key in ("top_boards", "boards", "buckets", "stats", "due_nodes"):
+            assert out[key] == baseline[key], f"损坏 state ({bad[:20]}) 改变了 {key}"
+
+    missing = tmp_path / "根本不存在.json"
+    out = _run_cli(monkeypatch, capsys, vault, missing)
+    assert out["top_boards"] == baseline["top_boards"]

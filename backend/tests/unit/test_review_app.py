@@ -47,6 +47,7 @@ PAGE_PATH = "/api/v1/review/overview/page"
 OVERVIEW_PATH = "/api/v1/review/overview"
 REFRESH_PATH = "/api/v1/review/overview/refresh"
 BOARD_DONE_PATH = "/api/v1/review/overview/board-done"  # CARD-G6-7
+BOARD_UNDONE_PATH = "/api/v1/review/overview/board-undone"  # CARD-G6-7-R
 
 _ENDPOINTS_DIR = Path(__file__).resolve().parents[2] / "app" / "api" / "v1" / "endpoints"
 #: 开工基线 (2026-09-01 主干 9af18b27 实测): review_overview.py 的 `<script`
@@ -134,10 +135,13 @@ def test_api_paths_injected_from_url_for_not_hardcoded(client, page_html):
         "refresh": app.url_path_for("review_overview_refresh"),
         # CARD-G6-7 第三条注入路径 (完成本板反馈)
         "boardDone": app.url_path_for("review_overview_board_done"),
+        # CARD-G6-7-R 第四条 (取消完成) —— 白名单式门, 新去处必须先写进这里
+        "boardUndone": app.url_path_for("review_overview_board_undone"),
     }
     assert urls["overview"] == OVERVIEW_PATH
     assert urls["refresh"] == REFRESH_PATH
     assert urls["boardDone"] == BOARD_DONE_PATH
+    assert urls["boardUndone"] == BOARD_UNDONE_PATH
     # 篡改门: 若有人把路径写死进模板, 上面的相等断言仍会过 (值恰好一样) ——
     # 这条才是真正锁"注入"的: 模板常量里连 /api/v1 的影子都不许有。
     assert "/api/v1" not in _PAGE_TEMPLATE
@@ -168,6 +172,7 @@ def test_api_paths_follow_mount_prefix_not_hardcoded():
             "overview": "/alt-prefix/overview",
             "refresh": "/alt-prefix/overview/refresh",
             "boardDone": "/alt-prefix/overview/board-done",
+            "boardUndone": "/alt-prefix/overview/board-undone",
         }, f"注入路径没有跟随挂载前缀 — 疑似硬编码: {urls}"
     finally:
         c.close()
@@ -181,7 +186,7 @@ def test_js_fetches_only_the_two_same_origin_endpoints(page_html):
     """
     targets = re.findall(r"fetch\(\s*([^,)\s]+)", page_html)
     assert targets, "没有找到任何 fetch 调用 — 页面不会拉数据?"
-    assert set(targets) == {"URLS.overview", "URLS.refresh", "URLS.boardDone"}
+    assert set(targets) == {"URLS.overview", "URLS.refresh", "URLS.boardDone", "URLS.boardUndone"}
 
 
 def test_auto_poll_never_posts_only_manual_button_does(page_html):
@@ -191,16 +196,18 @@ def test_auto_poll_never_posts_only_manual_button_does(page_html):
     处理器的条数**, 且每一处都落在某个点击处理器体内; 轮询函数 poll() 与
     visibilitychange 处理器体内一个 POST 都不许有。
 
-    CARD-G6-7 把计数从 1 提到 2 (新增「这板做完了」)。⚠ 这不是放宽: 名单
-    从"唯一那个 handler"变成"这两个 handler", 每一处仍要被点名归属; 出现
-    第三处 POST 而没有对应的点击处理器, 本门照样红。
+    CARD-G6-7 把计数从 1 提到 2 (新增「这板做完了」); CARD-G6-7-R 提到 3
+    (新增「撤销」)。⚠ 这不是放宽: 名单从"唯一那个 handler"变成"这三个
+    handler", 每一处仍要被点名归属; 出现第四处 POST 而没有对应的点击处理器,
+    本门照样红。
     """
-    handlers = ("onRefreshClick", "onBoardDoneClick")
+    handlers = ("onRefreshClick", "onBoardDoneClick", "onBoardUndoneClick")
     assert page_html.count('method: "POST"') == len(handlers)
     for fn in ("poll",):
         body = _group(rf"async function {fn}\(\)\s*\{{(.*?)\n\}}", page_html, re.S)
         assert "POST" not in body, f"{fn}() 体内出现 POST"
         assert "URLS.refresh" not in body and "URLS.boardDone" not in body
+        assert "URLS.boardUndone" not in body
     vis_body = _group(r'document\.addEventListener\("visibilitychange", \(\) => \{(.*?)\n\}\)', page_html, re.S)
     assert "POST" not in vis_body, "visibilitychange 分支出现 POST"
     seen = 0
@@ -209,7 +216,7 @@ def test_auto_poll_never_posts_only_manual_button_does(page_html):
         seen += click_body.count('method: "POST"')
         # 点击处理器确实被接到 cards 容器上 (不是只有个没人调用的函数)
         assert f'addEventListener("click", {fn})' in page_html
-    assert seen == len(handlers), f"有 POST 不在任何点击处理器体内 (handler 内 {seen} 处, 全页 2 处)"
+    assert seen == len(handlers), f"有 POST 不在任何点击处理器体内 (handler 内 {seen} 处, 全页 {len(handlers)} 处)"
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -763,6 +770,7 @@ export function matches(node, sel) {
   if (sel === "[data-refresh-vault]") return node._attrs["data-refresh-vault"] !== undefined;
   if (sel === "[data-note-for]") return node._attrs["data-note-for"] !== undefined;
   if (sel === "[data-done-board]") return node._attrs["data-done-board"] !== undefined;
+  if (sel === "[data-undo-board]") return node._attrs["data-undo-board"] !== undefined;
   return false;
 }
 
@@ -2722,5 +2730,144 @@ test("刷新 pending 在飞时标完成失败 → 失败提示不被旧结算改
   assert.ok(!note.innerHTML.includes("数字已更新"));
 });
 """,
+    )
+    _assert_node_green(proc)
+
+
+# ════════════════════════════════════════════════════════════════════
+# CARD-G6-7-R 「取消完成」交互壳 (BATCH-2026-09-07-第十三批)
+# ════════════════════════════════════════════════════════════════════
+
+
+def test_js_g67r_undo_button_lives_only_in_the_done_section(node_harness):
+    """(d) 撤销钮只挂在已完成区; 未完成板不带撤销钮, 已完成板不带完成钮。
+
+    两个动作各占一个属性名 (data-done-board / data-undo-board) —— 不共用,
+    于是事件委托各认各的, 也让本门的两条断言各自可被违反。
+    """
+    proc = _run_node(
+        node_harness,
+        _BOOT_PRELUDE
+        + _G67_FIX
+        + r"""
+test("撤销钮恰在折叠区那一块板上", () => {
+  const b = boot();
+  const h = b.api.renderVaultCard(G67, 1788000000000, "", false, Object.create(null));
+  const i = h.indexOf("<details");
+  assert.ok(i > 0, "必须有折叠区");
+  const head = h.slice(0, i), fold = h.slice(i);
+  assert.deepEqual(head.match(/data-undo-board="[^"]*"/g) || [], [], "未完成板不该带撤销钮");
+  assert.deepEqual(fold.match(/data-undo-board="[^"]*"/g) || [],
+    ['data-undo-board="图论基础"'], "已完成板必须带撤销钮");
+  assert.deepEqual(fold.match(/data-done-board="[^"]*"/g) || [], [], "已完成板不该再带完成钮");
+  assert.deepEqual(head.match(/data-done-board="[^"]*"/g) || [],
+    ['data-done-board="哈希表"'], "未完成板仍要带完成钮");
+  assert.match(fold, /data-undo-vault="cs_61b"/);
+});
+test("没有完成记录 → 一个撤销钮都不出现", () => {
+  const b = boot();
+  const none = JSON.parse(JSON.stringify(G67));
+  none.board_done = [];
+  const h = b.api.renderVaultCard(none, 1788000000000, "", false, Object.create(null));
+  assert.ok(!h.includes("data-undo-board"), "没东西可撤就不该有撤销钮");
+});
+""",
+    )
+    _assert_node_green(proc)
+
+
+@pytest.mark.usefixtures("page_html")
+def test_js_g67r_undo_click_posts_once_and_never_from_poll(node_harness):
+    """(d) 第三条 POST 路径的接线: 只由点击触发, 在飞不重发, 轮询路径恒 0。
+
+    与静态计数门的分工同 CARD-G6-7: 那门数源码里的 method:"POST", 这门数
+    沙箱 fetch **实际收到**几次、打到哪个 URL。
+    """
+    proc = _run_node(
+        node_harness,
+        _BOOT_PRELUDE
+        + _G67_FIX
+        + r"""
+function mkUndoBtn(vid, board) {
+  const btn = mkNode("undobtn");
+  btn._attrs["data-undo-vault"] = vid;
+  btn._attrs["data-undo-board"] = board;
+  return btn;
+}
+test("点一次 → 恰一个 POST, 打到 board-undone 且带 vault_id + board", async () => {
+  const posts = [];
+  const b = boot({getJson: G67_OK,
+    postJson: (url, opts) => { posts.push([url, String(opts.body)]);
+      return {ok: true, status: 200, json: async () => ({vault_id: "cs_61b", board: "图论基础",
+        undone: true, already_undone: false, fsrs_touched: false})}; }});
+  await flush();
+  const btn = mkUndoBtn("cs_61b", "图论基础");
+  const note = mkNode("note");
+  note._attrs["data-note-for"] = "cs_61b";
+  b.els["cards"]._desc = [btn, note];
+  const getsBefore = b.calls.get;
+  await b.handlers["cards::click"]({target: {closest: sel => (matches(btn, sel) ? btn : null)}});
+  await flush();
+  assert.equal(b.calls.post, 1, "点一次只发一个 POST");
+  assert.equal(posts[0][0], URLS_BOARD_UNDONE, "POST 必须打到 board-undone 端点");
+  assert.match(posts[0][1], /vault_id=cs_61b/);
+  assert.match(decodeURIComponent(posts[0][1]), /board=图论基础/);
+  assert.match(note.innerHTML, /已撤销/, "反馈必须落到该库的 note 上");
+  assert.ok(b.calls.get > getsBefore, "成功后应重拉一轮 (折不折由服务端说了算)");
+});
+test("同板在飞时的第二次点击不发第二个 POST", async () => {
+  let release;
+  const gate = new Promise(r => { release = r; });
+  const b = boot({getJson: G67_OK,
+    postJson: () => gate.then(() => ({ok: true, status: 200, json: async () => ({})}))});
+  await flush();
+  const btn = mkUndoBtn("cs_61b", "图论基础");
+  b.els["cards"]._desc = [btn];
+  const click = () => b.handlers["cards::click"]({target: {closest: sel => (matches(btn, sel) ? btn : null)}});
+  const first = click();
+  await flush();
+  assert.equal(b.calls.post, 1);
+  assert.equal(btn.disabled, true, "在飞期间按钮必须禁用");
+  await click();
+  await flush();
+  assert.equal(b.calls.post, 1, "同板在飞期间不许发第二个 POST");
+  release();
+  await first;
+  await flush();
+  assert.equal(btn.disabled, false, "结束后必须解锁");
+});
+test("失败结局不许长得像成功", async () => {
+  const b = boot({getJson: G67_OK,
+    postJson: () => ({ok: false, status: 503, json: async () =>
+      ({detail: {error: "runner_script_not_found", message: "脚本不可达"}})})});
+  await flush();
+  const btn = mkUndoBtn("cs_61b", "图论基础");
+  const note = mkNode("note");
+  note._attrs["data-note-for"] = "cs_61b";
+  b.els["cards"]._desc = [btn, note];
+  await b.handlers["cards::click"]({target: {closest: sel => (matches(btn, sel) ? btn : null)}});
+  await flush();
+  assert.match(note.innerHTML, /撤销失败/);
+  assert.match(note.innerHTML, /503/);
+  assert.ok(!note.innerHTML.includes("已撤销"), "失败绝不许出现成功文案");
+});
+test("自动轮询与可见性切换路径上 POST 恒为 0", async () => {
+  const b = boot({getJson: G67_OK});
+  await flush();
+  b.els["cards"]._desc = [mkUndoBtn("cs_61b", "图论基础")];
+  for (let i = 0; i < 5; i++) {
+    const t = b.timers.pop();
+    assert.ok(t, "每轮结束都应排下一轮");
+    t.fn();
+    await flush();
+  }
+  b.document.hidden = true;
+  b.handlers["document::visibilitychange"]();
+  b.document.hidden = false;
+  b.handlers["document::visibilitychange"]();
+  await flush();
+  assert.equal(b.calls.post, 0, "撤销上线后, 自动路径仍然一个 POST 都不许有");
+});
+""".replace("URLS_BOARD_UNDONE", json.dumps(BOARD_UNDONE_PATH)),
     )
     _assert_node_green(proc)

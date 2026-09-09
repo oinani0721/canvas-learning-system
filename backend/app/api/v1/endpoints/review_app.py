@@ -315,6 +315,13 @@ function boardDoneBtnHtml(vaultId, board, busy) {
   return '<button class="btn done"' + (busy ? " disabled" : "") +
     ' data-done-vault="' + esc(vaultId) + '" data-done-board="' + esc(board) + '">✅ 这板做完了</button>';
 }
+function boardUndoneBtnHtml(vaultId, board, busy) {
+  // CARD-G6-7-R: 「撤销」—— 与零 JS 页 _board_undone_form_html 同一动作、同一端点。
+  // 属性名与完成钮分开 (data-undo-* vs data-done-*): 事件委托各认各的, 一块板
+  // 不可能同时落进两个 handler。
+  return '<button class="btn undo"' + (busy ? " disabled" : "") +
+    ' data-undo-vault="' + esc(vaultId) + '" data-undo-board="' + esc(board) + '">↩︎ 撤销</button>';
+}
 function boardsSplitHtml(vaultId, boards, nowMs, doneList, doneBusy) {
   // CARD-G6-7: 待做 / 已完成两区 — 与零 JS 页 _boards_split_html 同形。
   // ⛔ 折叠不是隐藏: 已完成的板行原样还在页面上 (收进 details), 计数与
@@ -328,9 +335,9 @@ function boardsSplitHtml(vaultId, boards, nowMs, doneList, doneBusy) {
     : (fin.length ? '<div class="alldone">🎉 今天列出的白板都标完成了</div>' : "");
   if (!fin.length) return out;
   return out + '<details class="donewrap"><summary class="qsum">已完成（' + fin.length +
-    "）· 明天自动回来</summary>" + boardTableHtml(vaultId, fin, nowMs, null) + "</details>";
+    "）· 明天自动回来</summary>" + boardTableHtml(vaultId, fin, nowMs, null, doneBusy) + "</details>";
 }
-function boardTableHtml(vaultId, boards, nowMs, doneBusy) {
+function boardTableHtml(vaultId, boards, nowMs, doneBusy, undoBusy) {
   if (!Array.isArray(boards) || !boards.length) return "";
   const head = ["白板名", "到期", "新卡", "待剖析", "最早到期"].map(c => "<th>" + c + "</th>").join("");
   const rows = boards.map(r => {
@@ -350,6 +357,10 @@ function boardTableHtml(vaultId, boards, nowMs, doneBusy) {
     if (detail) out += '<tr><td colspan="5" style="padding-top:0">' + detail + "</td></tr>";
     if (doneBusy) out += '<tr><td colspan="5" style="padding-top:0">' +
       boardDoneBtnHtml(vaultId, r.board, doneBusy[doneKey(vaultId, r.board)]) + "</td></tr>";
+    // CARD-G6-7-R: 撤销钮只在已完成区 (调用方传 undoBusy 而不传 doneBusy) ——
+    // 两者同时在场会让一块板既能"再做完一次"又能撤销, 两个钮说的是矛盾的话。
+    if (undoBusy) out += '<tr><td colspan="5" style="padding-top:0">' +
+      boardUndoneBtnHtml(vaultId, r.board, undoBusy[doneKey(vaultId, r.board)]) + "</td></tr>";
     return out;
   }).join("");
   return '<div class="tblwrap"><table><thead><tr>' + head + "</tr></thead><tbody>" + rows + "</tbody></table></div>";
@@ -456,6 +467,18 @@ function renderBoardDoneResult(status, board, payload) {
     detail = typeof payload.detail === "string" ? payload.detail : (payload.detail.message || JSON.stringify(payload.detail));
   if (status === 0) return '<span class="rnote err">❌ 标记失败（网络错误）：' + esc(detail || "连接失败") + "</span>";
   return '<span class="rnote err">❌ 标记失败（HTTP ' + esc(status) + "）" + (detail ? "：" + esc(detail) : "") + "</span>";
+}
+
+function renderBoardUndoneResult(status, board, payload) {
+  // 与 renderBoardDoneResult 同纪律: 结局各有其形, 失败绝不长得像成功。
+  // 成功文案不预告"它回到待做区了" —— 那要等下一轮 GET 把 board_done 带回来。
+  if (status === 200) return '<span class="rnote ok">↩︎ 已撤销「' + esc(board) +
+    '」今天的完成标记</span>';
+  let detail = "";
+  if (payload && payload.detail)
+    detail = typeof payload.detail === "string" ? payload.detail : (payload.detail.message || JSON.stringify(payload.detail));
+  if (status === 0) return '<span class="rnote err">❌ 撤销失败（网络错误）：' + esc(detail || "连接失败") + "</span>";
+  return '<span class="rnote err">❌ 撤销失败（HTTP ' + esc(status) + "）" + (detail ? "：" + esc(detail) : "") + "</span>";
 }
 
 // ═══ 副作用壳: 只消费上面纯函数的返回值 ═══
@@ -698,8 +721,49 @@ async function onBoardDoneClick(ev) {
     for (const b of doneButtons(vid, board)) b.disabled = false;
   }
 }
+function undoButtons(vid, board) {
+  return Array.from(el("cards").querySelectorAll("[data-undo-board]"))
+    .filter(b => b.getAttribute("data-undo-vault") === vid && b.getAttribute("data-undo-board") === board);
+}
+async function onBoardUndoneClick(ev) {
+  const btn = ev.target.closest("[data-undo-board]");
+  if (!btn) return;
+  const vid = btn.getAttribute("data-undo-vault");
+  const board = btn.getAttribute("data-undo-board");
+  const key = doneKey(vid, board);
+  // 复用 doneInflight 而不是新开一格: 同一块板在同一时刻只可能落在待做区
+  // 或已完成区之一, 两个动作不会同时在飞; 共享一格顺带保证"完成还没落定
+  // 就点撤销"发不出去。
+  if (state.doneInflight[key]) return;
+  // 与 onBoardDoneClick 同一条纪律 (Z1-A HIGH-1): 上一次重建挂下的 pending
+  // 不许再改写本次动作的反馈。覆盖面的如实声明见 onBoardDoneClick 那段 ——
+  // 「刷新的 POST 还在飞时点撤销」同样挡不住, 血统与修法方向一并沿用。
+  delete state.pendingSync[vid];
+  state.doneInflight[key] = true;
+  for (const b of undoButtons(vid, board)) b.disabled = true;
+  try {
+    // 第三条 POST 路径 —— 与另外两个钮同纪律: **只由显式点击触发**, 不接进
+    // timer / visibilitychange (默认裁决②: 自动轮询绝不 POST)
+    const resp = await fetch(URLS.boardUndone, {method: "POST",
+      body: new URLSearchParams({vault_id: vid, board: board})});
+    let payload = null;
+    try { payload = await resp.json(); } catch (_e) { payload = null; }
+    state.notes[vid] = {html: renderBoardUndoneResult(resp.status, board, payload), atMs: Date.now()};
+    if (!applyNote(vid) && state.lastData) renderCards(Date.now());
+    // 板回不回待做区等服务端说 (前端不自作主张改数据); 隐藏时不起网络活动
+    if (resp.ok && !document.hidden) poll();
+  } catch (e) {
+    state.notes[vid] = {html: renderBoardUndoneResult(0, board, {detail: String((e && e.message) || e)}),
+      atMs: Date.now()};
+    if (!applyNote(vid) && state.lastData) renderCards(Date.now());
+  } finally {
+    delete state.doneInflight[key];
+    for (const b of undoButtons(vid, board)) b.disabled = false;
+  }
+}
 el("cards").addEventListener("click", onRefreshClick);
 el("cards").addEventListener("click", onBoardDoneClick);
+el("cards").addEventListener("click", onBoardUndoneClick);
 poll();
 </script>
 </body>
@@ -722,6 +786,7 @@ async def review_overview_app(request: Request) -> HTMLResponse:
         "overview": request.url_for("review_overview").path,
         "refresh": request.url_for("review_overview_refresh").path,
         "boardDone": request.url_for("review_overview_board_done").path,
+        "boardUndone": request.url_for("review_overview_board_undone").path,
     }
     page = (
         _PAGE_TEMPLATE.replace("__URLS_JSON__", _js_json(urls))

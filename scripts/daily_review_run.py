@@ -16,11 +16,15 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
+import copy
+import fcntl
 import hashlib
 import json
 import os
 import subprocess
 import sys
+import threading
 import time
 import uuid
 from datetime import datetime, time as dtime, timezone
@@ -54,6 +58,8 @@ def _now(arg: str | None) -> datetime:
 #: state 文件 schema 版本。v2 (CARD-G6-7): 加性新增 board_done —— 板级
 #: 「今天做完了」账 {board: "YYYY-MM-DD"}。加性升级不配迁移器: 旧文件缺该
 #: 键即视同 {} (load_state 兜底), 声明版本在下一次落盘时随形态一起前进。
+#: 升版行为门 (CARD-G6-7-R, 落盘面而非内存面):
+#: test_g67r_v1_state_load_save_lands_as_v2_with_values_intact 等三条。
 STATE_SCHEMA_VERSION = 2
 
 
@@ -78,6 +84,7 @@ def state_path(vault: Path | None = None) -> Path:
 def load_state(vault: Path | None = None) -> dict:
     state = state_path(vault)
     if not state.exists():
+        _remember_base(state, None)  # 无快照 ⇒ save_state 整写 (合并律的缺席分支)
         return {"schema_version": STATE_SCHEMA_VERSION, "board_last_recommended": {}, "board_done": {}}
     try:
         st = json.loads(state.read_text(encoding="utf-8"))
@@ -90,6 +97,10 @@ def load_state(vault: Path | None = None) -> dict:
         # 在半路炸成 500, 而不是像本文件其余部分那样诚实地隔离重建。
         if not isinstance(st.get("board_done", {}), dict):
             raise ValueError("state 结构错型 (board_done)")
+        # CARD-G6-7-R: 快照取在**归一化之前** —— setdefault 与升版都算"本进程
+        # 改过", 这样旧文件的空账才不会被别人窗口内写的账压掉的反面: 是我们
+        # 自己补的键, 该以我们为准。
+        _remember_base(state, st)
         st.setdefault("board_last_recommended", {})
         st.setdefault("board_done", {})
         # 形态已是 v2 (上一行保证 board_done 恒在) → 声明版本随之前进, 单调
@@ -105,7 +116,168 @@ def load_state(vault: Path | None = None) -> dict:
         except OSError:
             pass
         print(f"[runner] state 损坏, 已隔离到 {quarantine.name}, 重建", file=sys.stderr)
+        _remember_base(state, None)  # 原文件已被改名走, 没有可合并的 base
         return {"schema_version": STATE_SCHEMA_VERSION, "board_last_recommended": {}, "board_done": {}}
+
+
+#: state 的跨进程写锁 (CARD-G6-7-R)。**文件**锁, 与 push.sh 的 mkdir **目录**
+#: 锁 `.daily-review.<key>.lock` 既不同名也不同形 —— 那把锁覆盖 runner 整轮,
+#: 但浏览器点「这板做完了」的那个进程根本不经过 push.sh, 拿不到它。
+#:
+#: ⛔ POSIX 记录锁按「进程 × 文件」释放: 持锁期间对同一路径**再 open 一次
+#: 再 close**, 整把锁会被一起丢掉, 而本进程完全察觉不到。所以锁 fd 专用,
+#: 由下面的登记表持有; 重入只加计数, 不重复 open。
+_STATE_LOCK_GUARD = threading.Lock()
+#: resolve 后的锁路径 → per-path 可重入线程锁 (同线程嵌套不阻塞, 跨线程串行)
+_STATE_LOCK_TLOCKS: dict[str, threading.RLock] = {}
+#: resolve 后的锁路径 → [fd, depth]。depth 归零才 LOCK_UN + close。
+_STATE_LOCK_FDS: dict[str, list] = {}
+#: 本线程当前持有哪些锁 (键同上, 值 = 重入深度)。
+#: ⚠ 必须按**线程**记而不是只看 _STATE_LOCK_FDS 有没有那个键: 另一个线程
+#: 持锁时登记表里同样有键, 只查表会让本线程误以为"我已经持锁了"而无锁直写。
+_STATE_LOCK_LOCAL = threading.local()
+
+#: state 的「读到手时磁盘长什么样」快照 —— 三方合并的 base。
+#: 值 = 解析后**归一化前**的 dict, 或 None (文件当时不存在 / 读不出)。
+#: 深拷贝存: 浅拷贝与调用方共享嵌套 dict, mine 一改 base 跟着变,
+#: 「我到底改没改过这个键」就永远答 False。
+_STATE_BASE_SNAPSHOTS: dict[str, dict | None] = {}
+_NO_SNAPSHOT = object()
+
+
+def state_lock_path(vault: Path | None = None) -> Path:
+    """per-vault state 的写锁文件 (与 state_path 同目录同命名规则)。"""
+    return BACKUPS / f"daily-review.{_vault_key(vault)}.state.lock"
+
+
+def _state_lock_key(vault: Path | None = None) -> str:
+    """登记表的键 —— **resolve 之后**的路径。
+
+    同一个文件的两种写法 (软链 / 相对路径) 不 resolve 就会各拿一把锁,
+    于是"锁住了"只是因为两边在动不同的键。
+    """
+    return str(state_lock_path(vault).resolve())
+
+
+def _held_locks() -> dict:
+    d = getattr(_STATE_LOCK_LOCAL, "keys", None)
+    if d is None:
+        d = {}
+        _STATE_LOCK_LOCAL.keys = d
+    return d
+
+
+def _state_lock_held(vault: Path | None = None) -> bool:
+    """本线程此刻是否已经持有这个 vault 的 state 锁。"""
+    return _held_locks().get(_state_lock_key(vault), 0) > 0
+
+
+@contextlib.contextmanager
+def state_locked(vault: Path | None = None):
+    """持有该 vault 的 state 跨进程写锁; 可重入。
+
+    读改写要整段在锁内才有意义 —— 只锁"写"那一下, load 与 save 之间照样
+    是别人的窗口。Web 侧的完成账写点就是这么用的:
+        with runner.state_locked(vault):
+            st = runner.load_state(vault); ...; runner.save_state(st, vault)
+    内层的 save_state 会检测到本线程已持锁而**复用**它 (不 open 也不 close),
+    见 save_state 的第一段。
+    """
+    key = _state_lock_key(vault)
+    with _STATE_LOCK_GUARD:
+        tlock = _STATE_LOCK_TLOCKS.setdefault(key, threading.RLock())
+    tlock.acquire()
+    held = _held_locks()
+    try:
+        if held.get(key):
+            held[key] += 1
+            with _STATE_LOCK_GUARD:
+                _STATE_LOCK_FDS[key][1] += 1
+        else:
+            lock = state_lock_path(vault)
+            lock.parent.mkdir(parents=True, exist_ok=True)
+            fd = os.open(lock, os.O_RDWR | os.O_CREAT, 0o644)
+            try:
+                fcntl.lockf(fd, fcntl.LOCK_EX)
+            except BaseException:
+                os.close(fd)
+                raise
+            with _STATE_LOCK_GUARD:
+                _STATE_LOCK_FDS[key] = [fd, 1]
+            held[key] = 1
+        yield
+    finally:
+        # ⛔ 递减必须在 finally: 异常路径不减的话, 这个键在本线程里永远"已持锁",
+        # 之后每一次 save_state 都会走无锁的复用分支。
+        release_fd = None
+        if held.get(key):
+            held[key] -= 1
+            if held[key] <= 0:
+                del held[key]
+                with _STATE_LOCK_GUARD:
+                    entry = _STATE_LOCK_FDS.pop(key, None)
+                if entry is not None:
+                    release_fd = entry[0]
+            else:
+                with _STATE_LOCK_GUARD:
+                    if key in _STATE_LOCK_FDS:
+                        _STATE_LOCK_FDS[key][1] -= 1
+        if release_fd is not None:
+            try:
+                fcntl.lockf(release_fd, fcntl.LOCK_UN)
+            finally:
+                os.close(release_fd)
+        tlock.release()
+
+
+def _remember_base(state: Path, raw: dict | None) -> None:
+    _STATE_BASE_SNAPSHOTS[str(state.resolve())] = copy.deepcopy(raw) if raw is not None else None
+
+
+def _merge_state_with_disk(mine: dict, state: Path) -> dict:
+    """锁内三方合并: **我没改过的键, 不许被我覆盖**。
+
+    窄窗有两个方向 —— runner 的 load(main) → 扫描(秒级) → save 之间, 浏览器
+    可能把 board_done 落了盘; 反过来 Web 的 load → save 之间, runner 的 :05
+    档可能把推送账落了盘。谁整写谁就把对方那次写静默抹掉 (last-writer-wins)。
+
+    三方 = base (我读到手时的磁盘) / mine (我手上这份) / theirs (此刻的磁盘):
+      · mine[k] 与 base[k] 不同 (含**删掉了这个键**, 也含 load_state 的归一化:
+        schema_version 升版、board_done setdefault) ⇒ 这个键我动过, 写 mine;
+      · 相同 ⇒ 我没动过, 以磁盘为准 (别人可能刚改过);
+      · theirs 里没有而 mine 里有 ⇒ 写 mine (不替别人接受"删除")。
+    base 缺席 (st 不是本进程 load 来的 / 当时文件不存在) 或 theirs 读不出
+    (缺文件 / 损坏) ⇒ **不合并, 整写 mine** = 本卡之前的行为, 既有的
+    「改了就写」语义逐字节不变。
+
+    合并**不写死键归属** —— 运行期确实是 board_done 归 Web、其余归 runner,
+    但那是当下的分工不是不变量; 靶子始终是"我没改的键"。
+
+    ⚠ 键序按 mine 优先、theirs 补尾: 用 set 遍历会让落盘 JSON 的键序随机,
+    「二次 load→save 字节幂等」那道门就会随机红。
+    """
+    base = _STATE_BASE_SNAPSHOTS.get(str(state.resolve()), _NO_SNAPSHOT)
+    if base is _NO_SNAPSHOT or base is None:
+        return mine
+    try:
+        theirs = json.loads(state.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError, ValueError):
+        return mine
+    if not isinstance(theirs, dict):
+        return mine
+    merged: dict = {}
+    for k in list(mine) + [k for k in theirs if k not in mine]:
+        in_mine, in_base = k in mine, k in base
+        mine_changed = (in_mine != in_base) or (in_mine and mine[k] != base[k])
+        if mine_changed:
+            if in_mine:
+                merged[k] = mine[k]
+            continue  # 我把它删了 ⇒ 合并结果里也不该有
+        if k in theirs:
+            merged[k] = theirs[k]
+        elif in_mine:
+            merged[k] = mine[k]
+    return merged
 
 
 def _state_tmp_path(state: Path) -> Path:
@@ -136,9 +308,23 @@ def save_state(st: dict, vault: Path | None = None):
     两处刻意与 atomic_write 同形而不是 import 它: 两个脚本在模块级互不依赖
     (runner 只在 ensure_payload 里惰性 import picker), 为一个 8 行原语建立
     模块级耦合不划算。同形处如实登记, 改一处要记得改另一处。
+
+    ⚠ CARD-G6-7-R: 落盘现在整段在 state_locked 内, 且先与磁盘做一次三方
+    合并 (见 _merge_state_with_disk)。未持锁时**先取锁再自调一次**, 而不是
+    把下面整段包进一个 with —— 上面那两行 (O_EXCL|O_NOFOLLOW 的 os.open 与
+    os.replace) 是 Y2-B Codex round-1 HIGH 的修复面, 卡文把它们钉成"逐字节
+    不动", 换个缩进就是动了。递归至多一层: state_locked 成功即登记, 登记后
+    _state_lock_held 恒真。
     """
+    if not _state_lock_held(vault):
+        with state_locked(vault):
+            return save_state(st, vault)
+    # 本线程已持锁 ⇒ 复用那把锁: 读盘 / 合并 / replace 直接跑, 对锁文件
+    # 既不 open 也不 close (POSIX 记录锁按进程×文件释放, 内层一次 close
+    # 会把外层的锁一起丢掉)。
     state = state_path(vault)
     state.parent.mkdir(parents=True, exist_ok=True)
+    st = _merge_state_with_disk(st, state)
     tmp = _state_tmp_path(state)
     fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644)
     try:

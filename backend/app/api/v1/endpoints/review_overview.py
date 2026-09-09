@@ -1236,7 +1236,13 @@ def _queue_layers_html(vault_id: str, bucket_rows: dict | None, now_local: datet
     )
 
 
-def _board_table_html(vault_id: str, boards: list[dict], now_local: datetime, done_action: str | None = None) -> str:
+def _board_table_html(
+    vault_id: str,
+    boards: list[dict],
+    now_local: datetime,
+    done_action: str | None = None,
+    undo_action: str | None = None,
+) -> str:
     """三级视图第二/三级: 板表格 白板名|到期|新卡|待剖析|最早到期。
 
     CARD-G6-4: 有到期节点的板在数据行之下多一行 `colspan=5` 的折叠区
@@ -1248,6 +1254,9 @@ def _board_table_html(vault_id: str, boards: list[dict], now_local: datetime, do
     CARD-G6-7: done_action 在场时每块板尾再加一行「这板做完了」表单按钮
     (零 JS, 沿 _refresh_form_html 形态)。缺省 None = 不出按钮 —— 已完成区
     里复用本函数渲染时就走这条 (做完了的板不该再给一个"再做完一次"的钮)。
+    CARD-G6-7-R: undo_action 同理, 只在**已完成区**在场 —— 那里才有东西可撤。
+    两个参数互斥地用: 待做区给 done_action, 已完成区给 undo_action; 同时给
+    会让同一块板既能"再做完一次"又能撤销, 两个钮说的是矛盾的话。
     """
     if not boards:
         return '<div style="color:#6b7280;margin:10px 0;font-size:13px">该库暂无到期或已排期的白板</div>'
@@ -1286,6 +1295,11 @@ def _board_table_html(vault_id: str, boards: list[dict], now_local: datetime, do
             rows_html.append(
                 f'<tr><td colspan="5" style="{_TD};padding-top:0">'
                 f"{_board_done_form_html(vault_id, r['board'], done_action)}</td></tr>"
+            )
+        if undo_action:
+            rows_html.append(
+                f'<tr><td colspan="5" style="{_TD};padding-top:0">'
+                f"{_board_undone_form_html(vault_id, r['board'], undo_action)}</td></tr>"
             )
     return (
         '<div style="overflow-x:auto;margin:10px 0 4px">'
@@ -1327,8 +1341,27 @@ _DONE_BTN = (
 #: 按钮旁边而不是藏在帮助里: 它是"这个钮到底动了什么"的全部答案。
 _DONE_NOTE = (
     "✅「这板做完了」只把它折进下面的「已完成」区，并把今天的推荐让给下一块板 ——"
-    " 不影响 FSRS 记忆曲线（不写节点、不记学习事件），明天自动回来。"
+    " 不影响 FSRS 记忆曲线（不写节点、不记学习事件），明天自动回来，点错了可以撤销。"
 )
+
+
+#: 「撤销」按钮样式 (CARD-G6-7-R) — 灰系, 与绿色的完成钮拉开: 完成是推进,
+#: 撤销是**收回一个误操作**, 长得一样会让人在已完成区里又点一次以为在确认
+_UNDO_BTN = (
+    "font-size:12px;color:#4b5563;background:#f9fafb;border:1px solid #d1d5db;"
+    "border-radius:6px;padding:2px 9px;cursor:pointer;font-family:inherit"
+)
+
+
+def _board_undone_form_html(vault_id: str, board: str, action: str) -> str:
+    """「撤销」表单按钮 — 纯 HTML form POST, 零 JS (沿 _board_done_form_html)。"""
+    return (
+        f'<form method="post" action="{html.escape(action)}" style="display:inline;margin:0">'
+        f'<input type="hidden" name="vault_id" value="{html.escape(vault_id)}">'
+        f'<input type="hidden" name="board" value="{html.escape(board)}">'
+        '<input type="hidden" name="redirect" value="page">'
+        f'<button type="submit" style="{_UNDO_BTN}">↩︎ 撤销</button></form>'
+    )
 
 
 def _board_done_form_html(vault_id: str, board: str, action: str) -> str:
@@ -1345,7 +1378,14 @@ def _board_done_form_html(vault_id: str, board: str, action: str) -> str:
     )
 
 
-def _boards_split_html(vault_id: str, boards: list[dict], now_local: datetime, done: set, done_action: str) -> str:
+def _boards_split_html(
+    vault_id: str,
+    boards: list[dict],
+    now_local: datetime,
+    done: set,
+    done_action: str,
+    undo_action: str | None = None,
+) -> str:
     """CARD-G6-7: 板表格分成「待做」与「已完成」两区。
 
     ⛔ 折叠不是隐藏, 也不是从投影里剔除 —— 已完成的板行原样还在页面上,
@@ -1367,12 +1407,14 @@ def _boards_split_html(vault_id: str, boards: list[dict], now_local: datetime, d
     return (
         head + f'<details style="margin:6px 0 2px"><summary style="cursor:pointer;color:#6b7280;font-size:12px">'
         f"已完成（{len(finished)}）· 明天自动回来</summary>"
-        + _board_table_html(vault_id, finished, now_local)
-        + "</details>"
+        # 已完成区: 不带完成钮 (done_action 缺省), 带撤销钮 —— 误点的唯一出口
+         + _board_table_html(vault_id, finished, now_local, None, undo_action) + "</details>"
     )
 
 
-def _card_html(entry: dict, now_local: datetime, refresh_action: str, done_action: str) -> str:
+def _card_html(
+    entry: dict, now_local: datetime, refresh_action: str, done_action: str, undo_action: str | None = None
+) -> str:
     """三级视图第一级: vault 卡片 (名+四态徽标+汇总行) → 板表格 → 操作行。"""
     vid = html.escape(entry["vault_id"])
     label, color = _STATUS_META[entry["status"]]
@@ -1423,7 +1465,12 @@ def _card_html(entry: dict, now_local: datetime, refresh_action: str, done_actio
             + _queue_layers_html(entry["vault_id"], proj.get("bucket_rows"), now_local)
             # CARD-G6-7: 待做 / 已完成两区 + 写侧动作的诚实说明
             + _boards_split_html(
-                entry["vault_id"], proj["boards"], now_local, set(entry.get("board_done") or ()), done_action
+                entry["vault_id"],
+                proj["boards"],
+                now_local,
+                set(entry.get("board_done") or ()),
+                done_action,
+                undo_action,
             )
             + f'<div style="color:#6b7280;font-size:12px;margin:2px 0 6px">{html.escape(_DONE_NOTE)}</div>'
             + f'<div style="color:#6b7280;font-size:12px;margin:4px 0 6px">生成于 {gen_disp}</div>'
@@ -1469,7 +1516,8 @@ async def review_overview_page(request: Request) -> HTMLResponse:
     # 会), 取 .path 而非绝对 URL 则不受反代改 host/scheme 影响
     refresh_action = request.url_for("review_overview_refresh").path
     done_action = request.url_for("review_overview_board_done").path
-    cards = "".join(_card_html(e, now_local, refresh_action, done_action) for e in data["vaults"]) or (
+    undo_action = request.url_for("review_overview_board_undone").path
+    cards = "".join(_card_html(e, now_local, refresh_action, done_action, undo_action) for e in data["vaults"]) or (
         '<div style="color:#6b7280">VAULTS_ROOT 下未发现任何 vault (需含 .obsidian/ 目录)</div>'
     )
     generated = html.escape(_fmt_local_dt(now_local))
@@ -1631,14 +1679,22 @@ def _child_env() -> dict[str, str]:
     return env
 
 
-def _run_pick(script: Path, vault_dir: Path) -> subprocess.CompletedProcess:
-    """跑 `python <script> --vault <vault> --write` (写面只有 outputs/今日复习.*)。"""
+def _run_pick(script: Path, vault_dir: Path, state_file: Path | None = None) -> subprocess.CompletedProcess:
+    """跑 `python <script> --vault <vault> --write` (写面只有 outputs/今日复习.*)。
+
+    CARD-G6-7-R: state_file 非 None 时追加 `--state <它>` —— 生产器对 state
+    **只读** (取 board_last_recommended 与 board_done), 从不写它。缺省 None
+    保留"不传"这条路: runner 不可达时刷新照常跑, 只是拿不到那两笔账。
+    """
     # stdout 丢弃 (Codex round-3): 生产器会把整份 payload 打到 stdout —— 大库
     # 里那是几 MB 的无用副本, 我们只从盘上读产物。errors="replace": 子进程
     # 若吐出非法字节, 严格解码会抛 UnicodeDecodeError 逃逸成 500, 而这里的
     # 全部错误路径都该是 503。
+    argv = [sys.executable, str(script), "--vault", str(vault_dir), "--write"]
+    if state_file is not None:
+        argv += ["--state", str(state_file)]
     return subprocess.run(  # noqa: S603 — argv 列表 + 服务端自解析路径, 无 shell
-        [sys.executable, str(script), "--vault", str(vault_dir), "--write"],
+        argv,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.PIPE,
         text=True,
@@ -1760,19 +1816,20 @@ def _read_entry(vault_dir: Path) -> dict:
         }
 
 
-def _rebuild_projection(vault_dir: Path, script: Path) -> tuple[dict, dict | None]:
+def _rebuild_projection(vault_dir: Path, script: Path, state_file: Path | None = None) -> tuple[dict, dict | None]:
     """per-vault 串行 + TTL 去抖地重建一次投影 (同步; 由 FastAPI 线程池承载)。
 
     ── 写侧安全 (本函数的全部承诺) ──
     ① 只写 outputs/今日复习.md + .json: 生产器 --write 的写面就是这两个文件
        (加 outputs/ 目录本身的 mkdir), 配 PYTHONDONTWRITEBYTECODE 堵掉
        vault 内 __pycache__ 这条隐藏写面;
-    ② 不走 runner、不写 runner state: 不传 --state (生产器对 state 本就
-       只读), 更不碰 backups/daily-review.*.state.json —— 结构性保证, 不
-       靠约定。**代价如实登记**: runner 的 board_last_recommended 记录不
-       参与本次 tie-break, 故同分并列的板在 refresh 与 launchd 跑批之间
-       可能排序不同 (取 board_last_recommended 需要 send_bark.vault_key
-       的命名规则, 那是本卡硬边界外的文件, 不为一个排序细节去耦合它);
+    ② 不走 runner、**不写** runner state: CARD-G6-7-R 起传 `--state` (生产器
+       对 state 只读, 从不写它), 但本函数自己一个字节都不往
+       backups/daily-review.*.state.json 里写 —— 只读地把它交给子进程。
+       board_last_recommended 与 board_done 自本卡起参与本次 tie-break /
+       让位: 从前不传的代价是"页面上把板折进已完成区了, 榜首却纹丝不动",
+       用户看到的是标了完成也没用。state 不可达 (runner 缺席) 时退回不传,
+       响应里 state_passed=false 如实说出走了哪条路;
     ③ 落盘撕裂: 生产器侧 atomic_write 已改 tmp 唯一化 + os.replace, 与
        宿主 launchd 跑批并发时最坏结果是「后写者覆盖先写者」而非拼接损坏;
     ④ 去抖: 同一库 TTL 窗口内只有第一次真起子进程, 其余直接读盘返回。
@@ -1816,7 +1873,7 @@ def _rebuild_projection(vault_dir: Path, script: Path) -> tuple[dict, dict | Non
         md_path = vault_dir.joinpath(*_PROJECTION_MD_REL)
         before_fp = _publish_fingerprint(json_path)
         try:
-            proc = _run_pick(script, vault_dir)
+            proc = _run_pick(script, vault_dir, state_file)
         except subprocess.TimeoutExpired:
             raise HTTPException(
                 status_code=503,
@@ -2012,16 +2069,33 @@ def _refresh_target(vault_id: str) -> tuple[Path, Path]:
 #: 不给"生产器找得到、runner 找不到"这种半可用状态留缝。
 _RUNNER_BASENAME = "daily_review_run.py"
 
+
+def _refresh_state_file(vault_dir: Path) -> Path | None:
+    """刷新要传给生产器的 state 路径; 拿不到就 None (读松, 不 503)。
+
+    与 _board_done_today 同一条读侧纪律: runner 缺席 / 路径派生失败, 代价
+    只是这一轮少两笔账, 不该把刷新本身打死。
+    """
+    runner = _runner_or_none(Path(get_settings().VAULTS_ROOT).resolve())
+    if runner is None:
+        return None
+    try:
+        return runner.state_path(vault_dir)
+    except Exception:  # noqa: BLE001 — 派生失败按"没有 state", 不拖垮刷新
+        logger.warning("review_overview 无法为刷新派生 state 路径", vault=vault_dir.name)
+        return None
+
+
 #: 已加载的 runner 模块 (进程内单例)。state 文件名规则 (vault_key)、
 #: BACKUPS 位置、损坏隔离与原子写全部住在它里面 —— 本端点一行都不复制。
 _RUNNER_MODULE_NAME = "daily_review_run"
 _runner_load_lock = threading.Lock()
 
 #: per-state-file 写锁: 同一库的两次点击串行化 (read-modify-write)。
-#: ⚠ 只覆盖**本进程内**的并发。runner 每小时 :05 档是另一个进程, 它的
-#: load→save 与本端点的 load→save 之间仍是窄竞态窗 (后写覆盖先写)。
-#: 如实登记, 不在本卡解 —— 真解要么进程间文件锁, 要么把 state 拆成
-#: 两个文件, 两条都超出"第一个写侧动作"该背的重量。
+#: 这是**第二层** —— CARD-G6-7-R 起真正跨进程的那把在 runner 侧
+#: (state_locked, fcntl 文件锁), 本表只省掉同进程内取文件锁的开销并保持
+#: 既有语义。runner 每小时 :05 档与本端点之间的窄竞态窗已由那把锁 + 锁内
+#: 三方合并收口 (合并律见 daily_review_run._merge_state_with_disk)。
 _board_done_locks: dict[str, threading.Lock] = {}
 _board_done_locks_guard = threading.Lock()
 
@@ -2176,12 +2250,16 @@ def _write_board_done(vault_dir: Path, vaults_root: Path, board: str, day: str) 
       · 不写 vault 内任何路径 (BACKUPS 在仓库下, 不在库内)。
     读改写全程复用 runner.load_state / save_state: 损坏隔离与 os.replace
     原子写都是它们的既有行为, 这里不另写一套。
+
+    ⚠ CARD-G6-7-R: load→改→save **三步在同一把跨进程锁内** (runner.state_locked)。
+    只锁"写"那一下没有意义 —— load 与 save 之间正是 runner 的 :05 档能插进来
+    的那段窗口。内层的 save_state 会检测到本线程已持锁而复用它。
     """
     runner = _require_runner(vaults_root)
     state_file = runner.state_path(vault_dir)
     with _board_done_locks_guard:
         lock = _board_done_locks.setdefault(str(state_file), threading.Lock())
-    with lock:
+    with lock, runner.state_locked(vault_dir):
         st = runner.load_state(vault_dir)
         done = st.setdefault("board_done", {})
         done[board] = day
@@ -2239,6 +2317,54 @@ def _extra_allowed_hosts() -> frozenset[str]:
         if h:
             out.add(h)
     return frozenset(out)
+
+
+def _write_board_undone(vault_dir: Path, vaults_root: Path, board: str) -> tuple[Path, bool]:
+    """把「这块板的完成记录」撤掉, 返回 (被写的 state 文件, 本来就没有)。
+
+    与 _write_board_done 同一条纪律 (同一把锁、同一个写面、零 FSRS):
+      · 写面恰是那一个 state 文件 (加 backups/ 下那把锁);
+      · 不碰任何节点 md, 不追加 learning_events 账本;
+      · 「撤销」撤的只是**人的判断**, 调度面本来就没被动过, 所以也没有
+        任何东西需要"恢复"。
+
+    键不存在 = **幂等**: 返回 already_undone=True 让调用方 200, 不 404。
+    用户要的结果 (这块板现在没被标完成) 已经成立了; 把"已经是目标状态"
+    报成失败, 是用状态码描述过程而不是结果。代价如实登记: 板名拼错也会
+    答成功 —— 所以 already_undone 单独出现在响应里, 调用方分得出
+    "撤掉了一条"与"本来就没有"。
+
+    ⚠ 本来就没有时**不落盘**: 一次无事可做的撤销不该改写 state (mtime 与
+    字节都不动), 否则每点一次都在跟 runner 的 :05 档抢一次锁。
+    """
+    runner = _require_runner(vaults_root)
+    state_file = runner.state_path(vault_dir)
+    with _board_done_locks_guard:
+        lock = _board_done_locks.setdefault(str(state_file), threading.Lock())
+    with lock, runner.state_locked(vault_dir):
+        st = runner.load_state(vault_dir)
+        done = st.setdefault("board_done", {})
+        if board not in done:
+            return state_file, True
+        done.pop(board, None)
+        declared = st.get("schema_version")
+        if not isinstance(declared, int) or declared < runner.STATE_SCHEMA_VERSION:
+            st["schema_version"] = runner.STATE_SCHEMA_VERSION
+        try:
+            runner.save_state(st, vault_dir)
+        except OSError as e:
+            # 与 board-done 同款: mkdir / open / write / os.replace 四段任一失败
+            # 都是**拒绝写出去**, 是正常失败态而不是 500 裸 traceback。
+            # 「未写出任何内容」全分支为真: 写失败即 unlink tmp, os.replace 原子。
+            logger.warning("board-undone 落账失败", vault=vault_dir.name, error=repr(e))
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "error": "state_write_refused",
+                    "message": f"撤销落盘被拒绝 ({type(e).__name__}: {str(e)[:200]}) —— 未写出任何内容",
+                },
+            )
+    return state_file, False
 
 
 def _assert_same_origin(request: Request) -> None:
@@ -2408,10 +2534,16 @@ def review_overview_refresh(
     原样的 4xx/5xx** —— 失败时跳回总览页会让人以为刷新成功了 (页面上什么
     都没变), 那正是"静默假成功"的浏览器版本。
     """
+    state_file = None
     try:
         _assert_same_origin(request)
         vault_dir, script = _refresh_target(vault_id)
-        result, entry = _rebuild_projection(vault_dir, script)
+        # CARD-G6-7-R: 把 runner 的 state 只读地交给生产器 —— 完成账要参与
+        # 让位, 否则页面折了、榜首没动。**读松**: 刷新是读侧重算, runner 不
+        # 可达时退回不传而不是 503 (写侧的完成账才 fail-closed) —— Y2 之前
+        # 这条路本来就不传 state, 为一个 tie-break 把整个刷新打死不划算。
+        state_file = _refresh_state_file(vault_dir)
+        result, entry = _rebuild_projection(vault_dir, script, state_file)
         if entry is None:  # debounced / in_progress 分支没读回, 这里补一次
             entry = _read_entry(vault_dir)
     except HTTPException as e:
@@ -2451,6 +2583,10 @@ def review_overview_refresh(
             "vault_path": str(vault_dir),
             "pick_script": str(script),
             "debounce_ttl_seconds": _REFRESH_TTL_SECONDS,
+            # 加性: 本次有没有把完成账 / tie-break 记录交给生产器。false 不是
+            # 失败 —— 是"runner 不可达, 这轮排序里没有那两笔账", 如实说出来
+            # 比让调用方猜为什么榜首没让位好。
+            "state_passed": state_file is not None,
             **result,
             "entry": entry,
         }
@@ -2491,8 +2627,8 @@ def review_overview_board_done(
       _assert_write_target_contained  (在 _refresh_target 内) 软链逃逸。
     失败一律回原样 4xx/5xx —— 表单路径渲染人话错误页, 状态码不粉饰。
 
-    ⚠ 未做 (如实登记): 没有"取消完成"入口 —— 误点后的恢复途径是等明天
-    自动回来。撤销与 snooze 一并归后续卡 (D-8 不排本批)。
+    撤销 (CARD-G6-7-R 已做): 误点后有 POST /overview/board-undone 当场取回,
+    零 JS 页与交互壳各有一个入口。推迟 (snooze) 仍未做, 归后续卡 (D-8)。
     """
     try:
         _assert_same_origin(request)
@@ -2535,6 +2671,74 @@ def review_overview_board_done(
             "vault_id": vault_dir.name,
             "board": board,
             "done_date": day,
+            "state_path": str(state_file),
+            "fsrs_touched": False,  # 契约字面化: 本动作永不改调度面
+        }
+    )
+
+
+@review_overview_router.post(
+    "/overview/board-undone",
+    summary="撤销「这板今天做完了」(CARD-G6-7-R; 显式用户触发, 零 FSRS 写入)",
+)
+def review_overview_board_undone(
+    request: Request,
+    vault_id: str = Form(..., description="板所属的 vault 目录名 (须命中 VAULTS_ROOT 下的真实库)"),
+    board: str = Form(..., description="白板名 (与投影 boards[].board 逐字节同形)"),
+    redirect: str | None = Form(None, description="传 page 则 303 回总览页 (纯 HTML 表单用, 零 JS)"),
+) -> Response:
+    """把「这块板今天做完了」这条记录撤掉。
+
+    为什么要有它: 完成动作从前没有回头路 —— 误点之后板折进已完成区、榜首
+    让给了别人, 而唯一的恢复途径是**等到明天**。一天太久了, 何况手滑是最
+    常见的那种错。
+
+    三道写侧门与 board-done 完全同源 (复用不复制 —— 复制一份 = 两份会漂移):
+      _assert_same_origin              跨站表单 CSRF;
+      _assert_write_target_contained   (在 _refresh_target 内) 软链逃逸;
+      _BOARD_NAME_MAX                  超长板名 422。
+    失败一律回原样 4xx/5xx —— 表单路径渲染人话错误页, 状态码不粉饰。
+
+    本动作**不需要**「今天」: 完成账按 {board: 日期} 存, 撤销是按板名摘键。
+    少一个可失败的依赖 (board-done 那边拿不到今天要 503) 就少一条失败路径。
+
+    与 board-done 唯一形态差异: 键本来就不在账里 ⇒ 幂等 200 + already_undone,
+    不 404 (理由与代价见 _write_board_undone)。
+    """
+    try:
+        _assert_same_origin(request)
+        if not board or len(board) > _BOARD_NAME_MAX:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "error": "board_invalid",
+                    "message": f"board 必须是 1..{_BOARD_NAME_MAX} 字符的白板名 (实为 {len(board)} 字符)",
+                },
+            )
+        vault_dir, _script = _refresh_target(vault_id)
+        s = get_settings()
+        vaults_root = Path(s.VAULTS_ROOT).resolve()
+        state_file, already_undone = _write_board_undone(vault_dir, vaults_root, board)
+    except HTTPException as e:
+        if redirect != "page":
+            raise
+        return HTMLResponse(
+            content=_error_page_html(
+                e.status_code, vault_id, e.detail, request.url_for("review_overview_page").path, "取消完成"
+            ),
+            status_code=e.status_code,
+        )
+    if redirect == "page":
+        # PRG: 303 回 GET —— 与 board-done 同款, 走到这一行就是账已经处理完了
+        # (失败已在上面的 except 里渲染成错误页)。
+        return RedirectResponse(url=request.url_for("review_overview_page").path, status_code=303)
+    return JSONResponse(
+        {
+            "vault_id": vault_dir.name,
+            "board": board,
+            "undone": True,
+            # 分开说: 调用方要区分得出"我撤掉了一条"和"本来就没有"
+            "already_undone": already_undone,
             "state_path": str(state_file),
             "fsrs_touched": False,  # 契约字面化: 本动作永不改调度面
         }
