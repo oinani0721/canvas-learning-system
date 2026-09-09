@@ -1,0 +1,17 @@
+=== R1-HIGH NEGCTL case=r1-high2 ===
+被测门: tests/unit/test_live_port_guard_contract.py::TestGuardLiveness::test_str_subclass_module_name_is_still_blocked
+期望失败正文含: DID NOT RAISE
+MUTANT-APPLIED: case=r1-high2 files=['live_port_guard.py']
+FAILED tests/unit/test_live_port_guard_contract.py::TestGuardLiveness::test_str_subclass_module_name_is_still_blocked[uvloop]
+FAILED tests/unit/test_live_port_guard_contract.py::TestGuardLiveness::test_str_subclass_module_name_is_still_blocked[uvloop.loop]
+======================== 2 failed, 10 warnings in 1.74s ========================
+--- 失败正文 ---
+E           Failed: DID NOT RAISE <class 'RuntimeError'>
+E           Failed: DID NOT RAISE <class 'RuntimeError'>
+期望串命中 = 2
+R1-HIGH-NEGCTL-r1-high2: PASS（修前形态被新门以指定理由拦下）
+--- 还原 ---
+sha-before = 63f1d0b9706d588fd89545076fa2c51f7b461dc6da58aaf4cb0c04099dc0b991
+sha-after  = 63f1d0b9706d588fd89545076fa2c51f7b461dc6da58aaf4cb0c04099dc0b991
+RESTORE-OK: sha-before == sha-after
+rc=0
