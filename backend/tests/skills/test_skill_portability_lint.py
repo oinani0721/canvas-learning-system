@@ -1122,30 +1122,61 @@ _EARLY_EXIT_NODES = (ast.Return, ast.Raise, ast.Break, ast.Continue)
 _NS_MUTATORS = frozenset({"update", "setdefault", "pop", "popitem", "clear", "__setitem__"})
 
 
-def _reflective_write_line(tree: ast.AST, src: str) -> int | None:
-    """这段源码里有没有「绕过名字绑定直接改命名空间」的写法 ⇒ 返回行号。"""
+def _is_namespace_expr(node: ast.AST) -> bool:
+    """这个表达式是不是**模块命名空间本身** —— `globals()` / `vars()` / `x.__dict__` /
+    `sys.modules[…]`。写进它就等于重绑模块级名字。"""
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+        return node.func.id in {"globals", "locals", "vars"}
+    if isinstance(node, ast.Attribute) and node.attr == "__dict__":
+        return True
+    if isinstance(node, ast.Subscript) and isinstance(node.value, ast.Attribute):
+        return node.value.attr == "modules"
+    return False
+
+
+def _reflective_write_line(tree: ast.AST) -> int | None:
+    """有没有「绕过名字绑定、直接改命名空间」的写法 ⇒ 返回行号。
+
+    ⛔ r24 HIGH-6 / r25 HIGH-6: 这类写法静态判不出改的是**哪个**名字, 按
+    「暂不支持的执行关系 ⇒ 登记」一律登记。名单要覆盖**直接可见**的机制:
+    下标赋值(含元组解包、`for` 目标里的)、`globals().update(…)`、
+    `dict.update(globals(), …)`、`setattr(sys.modules[__name__], …)`、
+    `sys.modules[__name__].__dict__[…]`、`importlib.reload(…)`、`exec`/`eval`、
+    以及 `from x import *`(名字未知)。
+    ⛔ 不能把 `globals().get(...)` 这类**读**也算进来 —— 树上 quiz-answer `:1431`
+    就是那个写法, 一律算写会打破三条负控的前提。
+    """
     for node in ast.walk(tree):
-        if not isinstance(node, ast.Call):
-            continue
-        func = node.func
-        if isinstance(func, ast.Name) and func.id in {"exec", "eval"}:
-            return node.lineno
-        # `globals().update(...)` 之类**会改命名空间**的方法。
-        # ⛔ 不能见到 `globals().<任意方法>` 就算 —— `globals().get("x", "null")` 是**读**,
-        # 树上 quiz-answer `:1431` 就是这个写法, 一律算写会把三条负控的前提打破。
-        if isinstance(func, ast.Attribute) and func.attr in _NS_MUTATORS and isinstance(func.value, ast.Call):
-            inner = func.value.func
-            if isinstance(inner, ast.Name) and inner.id in {"globals", "locals", "vars"}:
-                return node.lineno
-    for node in ast.walk(tree):
-        if isinstance(node, (ast.Assign, ast.AugAssign, ast.AnnAssign)):
-            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
-            for tgt in targets:
-                if isinstance(tgt, ast.Subscript) and isinstance(tgt.value, ast.Call):
-                    fn = tgt.value.func
-                    if isinstance(fn, ast.Name) and fn.id in {"globals", "locals", "vars"}:
-                        return node.lineno
-    _ = src
+        if isinstance(node, ast.Call):
+            fn = node.func
+            if isinstance(fn, ast.Name):
+                if fn.id in {"exec", "eval"}:
+                    return node.lineno
+                if fn.id == "setattr" and node.args and _is_namespace_expr(node.args[0]):
+                    return node.lineno
+            if isinstance(fn, ast.Attribute):
+                if fn.attr == "reload":
+                    return node.lineno
+                if fn.attr in _NS_MUTATORS and _is_namespace_expr(fn.value):
+                    return node.lineno
+                # `dict.update(globals(), P=…)` —— 命名空间作为**参数**传进去
+                if fn.attr in _NS_MUTATORS and any(_is_namespace_expr(a) for a in node.args):
+                    return node.lineno
+        # ⛔ r25 HIGH-6: 写入目标要**整棵**走一遍 —— `(globals()["P"],) = (…)` 的顶层是
+        # `Tuple`, 只看顶层就整类跳过; `for globals()["P"] in …` 同理。
+        targets: list[ast.expr] = []
+        if isinstance(node, ast.Assign):
+            targets = list(node.targets)
+        elif isinstance(node, (ast.AugAssign, ast.AnnAssign, ast.For, ast.AsyncFor)):
+            targets = [node.target]
+        elif isinstance(node, ast.withitem) and node.optional_vars is not None:
+            targets = [node.optional_vars]
+        for tgt in targets:
+            for sub in ast.walk(tgt):
+                if isinstance(sub, ast.Subscript) and _is_namespace_expr(sub.value):
+                    return getattr(node, "lineno", sub.lineno)
+        if isinstance(node, ast.ImportFrom) and any(a.name == "*" for a in node.names):
+            return node.lineno  # 覆盖了哪些名字取决于对方模块 ⇒ 未知写入
     return None
 
 
@@ -1302,7 +1333,7 @@ def _has_ancestor(parent: dict[int, ast.AST], node: ast.AST, kinds: tuple[type, 
     return False
 
 
-def _risky_reassign(parent: dict[int, ast.AST], records: list[_Write]) -> int | None:
+def _risky_reassign(parent: dict[int, ast.AST], records: list[_Write], early: tuple[int, int] | None) -> int | None:
     """合规常量所在的名字会不会被改写成别的 —— 返回改写处的行号; 证明不了安全就登记。
 
     ⛔ r23 HIGH-1: 判据的**默认方向反了**。前几轮我一直在试图证明「这处是安全的」,
@@ -1333,14 +1364,7 @@ def _risky_reassign(parent: dict[int, ast.AST], records: list[_Write]) -> int | 
     """
     # ⛔ r24 HIGH-1: 这一层作用域里最早的一处「提前离开」——`return P` 之后的合规赋值
     # 根本到不了, 而它满足当前实现检查的其余全部条件。
-    early_exit = min(
-        (
-            (getattr(node, "lineno", 0), getattr(node, "col_offset", 0))
-            for node in parent.values()
-            if isinstance(node, _EARLY_EXIT_NODES)
-        ),
-        default=None,
-    )
+    early_exit = early
     by_name: dict[str, list[_Write]] = {}
     for rec in records:
         by_name.setdefault(rec.name, []).append(rec)
@@ -1392,8 +1416,17 @@ def _unconditional(parent: dict[int, ast.AST], node: ast.AST) -> bool:
 
 
 def _bound_names(scope: ast.AST) -> set[str]:
-    """这个作用域**实际绑定**的名字 —— 赋值目标 + 形参。`nonlocal` 要找的就是它。"""
+    """这个作用域**实际绑定**的名字 —— `nonlocal` 要找的就是它。
+
+    ⛔ r25 MEDIUM-1: 只看赋值目标与形参不够 —— **只有注解**(`P: str`)和 `del P` 同样
+    让 `P` 成为该作用域的局部名字。漏掉它们会让 `nonlocal` 越过这一层、误报外层。
+    """
     names = {rec.name for rec in _assignments(scope)}
+    for node in _own_nodes(scope):
+        if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            names.add(node.target.id)
+        elif isinstance(node, ast.Delete):
+            names |= {n for t in node.targets for n in _target_names(t)}
     args = getattr(scope, "args", None)
     if args is not None:
         every = [*args.posonlyargs, *args.args, *args.kwonlyargs]
@@ -1402,7 +1435,9 @@ def _bound_names(scope: ast.AST) -> set[str]:
     return names
 
 
-def _scoped_records(tree: ast.AST) -> list[tuple[dict[int, ast.AST], list[_Write]]]:
+def _scoped_records(
+    tree: ast.AST,
+) -> list[tuple[dict[int, ast.AST], list[_Write], tuple[int, int] | None]]:
     """把写入记录**按作用域**分组; `global`/`nonlocal` 各自归到正确的目的地。
 
     ⛔ r23 HIGH-2 / r24 HIGH-2: `nonlocal` 绑的是**最近一个实际绑定该名字的外层函数**,
@@ -1470,19 +1505,33 @@ def _scoped_records(tree: ast.AST) -> list[tuple[dict[int, ast.AST], list[_Write
             records[id(scope)] = keep
         if not moved:
             break
-    return [(parents[id(scope)], records[id(scope)]) for scope in scopes]
+    # ⛔ r25 HIGH-5: 提前离开语句要从**作用域自己的节点**里取 —— 裸 `return` / `raise`
+    # 没有子节点, 永远不会出现在 `parent` 的**值**里(它们只当键)。现有用例里的
+    # `return P` 恰好因为有 `Name` 子节点才被发现, 纯属巧合。
+    out: list[tuple[dict[int, ast.AST], list[_Write], tuple[int, int] | None]] = []
+    for scope in scopes:
+        early = min(
+            (
+                (getattr(node, "lineno", 0), getattr(node, "col_offset", 0))
+                for node in _own_nodes(scope)
+                if isinstance(node, _EARLY_EXIT_NODES)
+            ),
+            default=None,
+        )
+        out.append((parents[id(scope)], records[id(scope)], early))
+    return out
 
 
 def _reassigned_after_tmp(tree: ast.AST) -> int | None:
     """这棵树里有没有「合规常量还在, 但持有它的名字被改写成别的」——返回改写处的行号。"""
     hits: list[int] = []
-    for parent, records in _scoped_records(tree):
-        hit = _risky_reassign(parent, records)
+    for parent, records, early in _scoped_records(tree):
+        hit = _risky_reassign(parent, records, early)
         if hit is not None:
             hits.append(hit)
     # ⛔ r24 HIGH-6: 反射式写入静态判不出改的是哪个名字 ⇒ 只要这段里有合规 `/tmp` 常量,
     # 就按「暂不支持的执行关系 ⇒ 登记」处理。
-    refl = _reflective_write_line(tree, "")
+    refl = _reflective_write_line(tree)
     if refl is not None and any((f := _fold_str(n)) is not None and "/tmp" in f for n in ast.walk(tree)):
         hits.append(refl)
     return min(hits) if hits else None
@@ -1526,9 +1575,12 @@ def _py_invocation(words: list[str]) -> tuple[bool, bool, str | None]:
                 i += 2
                 continue
             body = w.lstrip("-")
-            if body.startswith("c"):
-                return True, False, body[1:] or (norm[i + 1] if i + 1 < len(norm) else "")
-            if body.startswith("m"):
+            # ⛔ r25 HIGH-2: `c` 不一定在选项串开头 —— `python3 -Bc '脚本'` 是合法组合,
+            # 只看 `startswith("c")` 会把脚本内容当成文件名。
+            if not w.startswith("--") and "c" in body:
+                k2 = body.index("c")
+                return True, False, body[k2 + 1 :] or (norm[i + 1] if i + 1 < len(norm) else "")
+            if not w.startswith("--") and "m" in body:
                 return True, False, None
             i += 1
             continue
@@ -1571,18 +1623,26 @@ def _python_regions(body: list[str]) -> list[tuple[int, str]]:
         code = _strip_sh_comment(body[i])
         mask = _sh_protect_mask(code)
         words = _shell_words(code)
-        ops = [m for m in _HEREDOC_RE.finditer(code) if not mask[m.start()]]
-        # 正文按 `<<` 在**整行**里出现的顺序依次跟随
+        # 正文按 `<<` 在**整行**里出现的顺序依次跟随。
+        # ⛔ r25 HIGH-3: 必须**验结束标记确实存在** —— `N = 1 << 2` 也能匹配 heredoc 正则
+        # (fd 空、tag `2`), 认下来就把整块执行区取消了, 而三条独立语句又建立不起
+        # 单元内的重赋值关系 ⇒ 整类漏检。找不到结束标记就不算 heredoc, 也不消费行。
         j = i + 1
+        ops: list[re.Match[str]] = []
         docs: list[tuple[int, str]] = []
-        for mm in ops:
+        for mm in _HEREDOC_RE.finditer(code):
+            if mask[mm.start()]:
+                continue  # 引号里的 `<<` 不是重定向
             tag, dash = mm.group("tag"), bool(mm.group("dash"))
-            start = j
-            while j < n and (body[j].lstrip("\t") if dash else body[j]) != tag:
-                j += 1
-            raw = [x.lstrip("\t") for x in body[start:j]] if dash else body[start:j]
-            docs.append((start, textwrap.dedent("\n".join(raw))))
-            j += 1  # 跳过结束标记行
+            end = j
+            while end < n and (body[end].lstrip("\t") if dash else body[end]) != tag:
+                end += 1
+            if end >= n:
+                continue  # 没有结束标记 ⇒ 不是 heredoc(多半是左移运算)
+            raw = [x.lstrip("\t") for x in body[j:end]] if dash else body[j:end]
+            docs.append((j, textwrap.dedent("\n".join(raw))))
+            ops.append(mm)
+            j = end + 1  # 跳过结束标记行
         if ops:
             saw_heredoc = True
         # 逐个命令段解析重定向, 看谁的 fd 0 最终拿到 heredoc
@@ -1595,6 +1655,11 @@ def _python_regions(body: list[str]) -> list[tuple[int, str]]:
                 out.append((i, script))
             fdmap: dict[int, tuple[str, object]] = {}
             for rd in _REDIR_RE.finditer(seg):
+                # ⛔ r25 HIGH-1: 重定向扫描也要看掩码 —— `python3 - <<'A' '<not-a-file'`
+                # 里那个被引号包住的 `<…` 是普通 argv, 认成 `<file` 会覆盖 fd 0、
+                # 让真正的执行区 A 整个消失。
+                if mask[a + rd.start()]:
+                    continue
                 fd = int(rd.group("fd")) if rd.group("fd") else 0
                 if rd.group("here"):
                     if consumed < len(docs):
@@ -2547,7 +2612,11 @@ def _is_sh_separator(code: str, mask: list[bool], i: int) -> bool:
     ch = code[i]
     if ch not in ";&|\n" or mask[i]:
         return False
-    if ch == "&" and (code[i - 1 : i] in ("<", ">") or code[i + 1 : i + 2] == ">"):
+    # ⛔ r25 HIGH-4: 相邻那个 `<`/`>` 必须是**未被转义**的 —— `true \>& printf …` 里
+    # `\>` 是普通参数, 后面的 `&` 就是真的分隔符。只看字符不看掩码会把 `printf` 拼进前段。
+    if ch == "&" and (
+        (i and code[i - 1] in "<>" and not mask[i - 1]) or (code[i + 1 : i + 2] == ">" and not mask[i + 1])
+    ):
         return False
     return True
 
@@ -2718,6 +2787,19 @@ def _url_override_hit(line: str) -> bool:
     for segment in _sh_segments(code):
         for word in _shell_words(segment):
             if _url_word_hits(word):
+                return True
+    # ⛔ r25 MEDIUM-2: `unset C'LS'_BACKEND_URL` 的变量名完全由**字面词**确定, 只是被
+    # 引号拆开了。按命令词定位 `unset` 后, 把后续词逐个去引号再比 —— 不整行去引号,
+    # 免得把 `printf '%s' 'unset CLS_BACKEND_URL'` 这类**数据**也算成命令。
+    for segment in _sh_segments(code):
+        words = _shell_words(segment)
+        for k, w in enumerate(words):
+            if _sh_strip_quotes(w) != "unset":
+                continue
+            opts = [x for x in words[k + 1 :] if x.startswith("-")]
+            if any("f" in o.lstrip("-") for o in opts):
+                break  # `unset -f` 删的是同名**函数**
+            if any(_sh_strip_quotes(x) == "CLS_BACKEND_URL" for x in words[k + 1 :]):
                 return True
     for segment in _sh_segments(code):
         m = _URL_UNSET_RE.search(segment)
@@ -3866,6 +3948,88 @@ def test_r24_heredoc_attribution_follows_redirection_order():
         "`2>&1` 的 `&` 被当成命令分隔符 ⇒ 切段错位"
     )
     assert not _url_override_hit('true && curl "${CLS_BACKEND_URL:-http://localhost:8011}/x"'), "`&&` 仍是分隔符"
+
+
+def test_r25_regressions_from_r24_are_fixed():
+    r"""⛔ 局部回归断言: r24 我自己引入的四条回归。
+
+    这四条是 Codex r25 用**逐 commit 对照**找出来的(「`e22c6d27` 能抓、`cb4fa9f8` 漏掉」)。
+    我在 r25 prompt 里主动把这个方向指给它 —— 上一轮它就是这样抓到我两条回归的。
+    """
+    good = 'P = "/t" + "mp/cls-exam/x"'
+    bad = 'P = "/etc/passwd"'
+    hit = lambda b, info="python": bool(dynamic_tmp_join_lines(f"```{info}\n{b}\n```"))  # noqa: E731
+
+    # ① 重定向扫描要看引号掩码: `'<not-a-file'` 是普通 argv, 不是重定向。
+    assert hit(f"python3 - <<'A' '<not-a-file'\n{good}\n{bad}\nA", "sh"), (
+        "被引号包住的 `<…` 被当成 `<file` 覆盖了 fd 0, 真正的执行区整个消失"
+    )
+    assert not hit(f"python3 - <<'A' '<not-a-file'\n{good}\nQ = \"/etc/passwd\"\nA", "sh"), "安全对照被误报"
+
+    # ② `c` 不一定在短选项串开头 —— `-Bc '脚本'` 是合法组合。
+    assert hit(f"python3 -Bc '{good}; {bad}'", "sh"), "`-Bc` 的脚本内容被当成文件名"
+
+    # ③ 左移运算不是 heredoc: 必须**验结束标记确实存在**。
+    assert hit(f"{good}\nN = 1 << 2\n{bad}"), (
+        "`N = 1 << 2` 被当成 heredoc 开启 ⇒ 整块执行区被取消, 三条独立语句又建立不起单元内关系"
+    )
+    assert not hit(f'{good}\nN = 1 << 2\nQ = "/etc/passwd"'), "安全对照被误报"
+
+    # ④ 相邻的 `<`/`>` 必须是**未被转义**的, 否则 `&` 仍是分隔符。
+    assert _url_override_hit(
+        'true \\>& printf -v CLS_BACKEND_URL %s ""; curl "${CLS_BACKEND_URL:-http://localhost:8011}/x"'
+    ), "`\\>` 是普通参数, 后面的 `&` 应当分隔命令 —— 只看字符不看掩码会把 `printf` 拼进前段"
+    assert not _url_override_hit('curl "${CLS_BACKEND_URL:-http://localhost:8011}/x" 2>&1'), "真正的 `2>&1` 仍不该切段"
+
+
+def test_r25_early_exit_and_reflective_writes_are_load_bearing():
+    r"""⛔ 局部回归断言: 裸提前离开语句与反射式命名空间写入。"""
+    good = 'P = "/t" + "mp/cls-exam/x"'
+    bad = 'P = "/etc/passwd"'
+    hit = lambda b: bool(dynamic_tmp_join_lines(f"```python\n{b}\n```"))  # noqa: E731
+
+    # ① 裸 `return` / `raise` / `break` **没有子节点**, 永远不出现在父表的**值**里。
+    #    原用例写的是 `return P`, 恰好因为有 `Name` 子节点才被发现 —— 纯属巧合。
+    for label, stmt in (("return", "return"), ("raise", "raise"), ("break", "break")):
+        body = (
+            f"def f():\n    for i in (1,):\n        {bad}\n        {stmt}\n        {good}"
+            if stmt == "break"
+            else f"def f():\n    {bad}\n    {stmt}\n    {good}"
+        )
+        assert hit(body), f"裸 `{label}` 之后的合规赋值到不了, 判据却当成最终值"
+    assert not hit(f"def f():\n    {bad}\n    {good}"), "没有提前离开时, 直线先坏后好仍应沉默"
+
+    # ② 反射式写入: 名单要覆盖**直接可见**的机制, 且写入目标要整棵走一遍。
+    for label, tail in (
+        ("元组解包目标", '(globals()["P"],) = ("/etc/passwd",)'),
+        ("`for` 目标", 'for globals()["P"] in ["/etc/passwd"]:\n    pass'),
+        ("dict.update(globals())", 'dict.update(globals(), P="/etc/passwd")'),
+        ("setattr(sys.modules)", 'import sys\nsetattr(sys.modules[__name__], "P", "/etc/passwd")'),
+        ("__dict__ 直取", 'import sys\nsys.modules[__name__].__dict__["P"] = "/etc/passwd"'),
+        ("importlib.reload", "import importlib, sys\nimportlib.reload(sys.modules[__name__])"),
+        ("from x import *", "from os.path import *"),
+    ):
+        assert hit(f"{good}\n{tail}"), f"{label} 会改模块命名空间, 判据却静默"
+    assert not hit(f'{good}\nx = globals().get("P", "null")'), (
+        "`globals().get(...)` 是**读** —— 一律当写会打破三条负控的前提"
+    )
+
+    # ③ 只有注解 / `del` 也让名字成为该作用域的局部绑定, `nonlocal` 不该越过。
+    for label, mid in (("仅注解", "P: str"), ("del", "del P")):
+        assert not hit(
+            f"def outer():\n    {good}\n    def middle():\n        {mid}\n        def inner():\n"
+            f"            nonlocal P\n            {bad}\n        inner()\n    middle()\n    return P"
+        ), f"`nonlocal` 越过了用**{label}**绑定 `P` 的中间层 ⇒ 误报 outer 的合规值被改"
+    assert hit(
+        f"def outer():\n    {good}\n    def middle():\n        def inner():\n"
+        f"            nonlocal P\n            {bad}\n        inner()\n    middle()\n    return P"
+    ), "中间层确实不绑定 `P` 时仍要抓"
+
+    # ④ 引号拼出来的变量名只是词法问题, 不是数据流问题。
+    d = 'curl "${CLS_BACKEND_URL:-http://localhost:8011}/x"'
+    assert _url_override_hit(f"unset C'LS'_BACKEND_URL; {d}"), "变量名被引号拆开就认不出了"
+    assert not _url_override_hit(f"unset OTHER; {d}"), "删的不是目标变量 ⇒ 不该报"
+    assert not _url_override_hit(f"unset -f CLS_BACKEND_URL; {d}"), "`unset -f` 删的是同名**函数**"
 
 
 def test_parse_unit_cost_on_current_tree():
