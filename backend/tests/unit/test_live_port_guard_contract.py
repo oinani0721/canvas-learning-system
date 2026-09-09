@@ -824,6 +824,65 @@ class TestGuardLiveness:
         cls = self._Denier if liar == "denier" else self._Affirmer
         assert guard._audit_hook("import", (cls(value), None, None, None, None)) is None
 
+    def test_uvloop_judge_never_touches_the_name_through_bound_operations(self):
+        """``_is_uvloop_module`` 里的 ``name`` **只能**当未绑定基类方法的参数用。
+
+        ⛔ 这条是**结构门**，用来一次性关掉「说谎 str 子类」这一整族，而不是继续往
+        参数化里补格子（round-4 之前已经补了三轮，每轮 Codex 都能给出新的一格）：
+
+        * round-2 反例：``... and name.startswith("uvloop.")`` —— 走**绑定** startswith；
+        * round-3 反例：``... and not (name == "uvloop")`` —— 走**绑定** ``__eq__``；
+        * round-4 反例：``... and (not (name == "uvloop") or name.startswith("uvloop."))``
+          —— 两者都走。
+
+        三个反例的共同形状是「让 ``name`` 自己参与判断」。枚举子类行为 × 真实值的
+        笛卡尔积治不了这个族（族是无限的：子类可以对不同参数说不同的谎）；
+        **能治的是那条不变量本身** —— 判据一旦只走 ``str.<method>(name, ...)``
+        这种未绑定形式，子类重载什么都影响不到结果，整族当场消失。
+
+        两个方向都要断（缺一就能被「把判断整个删掉」骗过）：
+        (i) ``name`` 不得是任何属性访问的接收者（``name.startswith`` / ``name.lower`` …）；
+        (ii) ``name`` 不得出现在任何 ``Compare`` 里（那会调用它自己的 ``__eq__``）；
+        (iii) 且**确实存在**以 ``name`` 为第一实参的未绑定 ``str`` 方法调用。
+        """
+        node = _fn_ast(guard._is_uvloop_module)
+
+        bound_uses = [
+            child
+            for child in ast.walk(node)
+            if isinstance(child, ast.Attribute) and isinstance(child.value, ast.Name) and child.value.id == "name"
+        ]
+        assert not bound_uses, (
+            f"_is_uvloop_module 里对 name 做了 {[a.attr for a in bound_uses]} 这类**绑定**访问 —— "
+            "str 子类能重载它们，判据就不再按真实值判了"
+        )
+
+        compares = [
+            child
+            for child in ast.walk(node)
+            if isinstance(child, ast.Compare)
+            and any(
+                isinstance(operand, ast.Name) and operand.id == "name" for operand in [child.left, *child.comparators]
+            )
+        ]
+        assert not compares, (
+            "_is_uvloop_module 里把 name 放进了比较表达式 —— 那会走子类重载的 __eq__，"
+            "应改用未绑定的 str.__eq__(name, ...)"
+        )
+
+        unbound = [
+            child
+            for child in ast.walk(node)
+            if isinstance(child, ast.Call)
+            and isinstance(child.func, ast.Attribute)
+            and isinstance(child.func.value, ast.Name)
+            and child.func.value.id == "str"
+            and child.args
+            and isinstance(child.args[0], ast.Name)
+            and child.args[0].id == "name"
+        ]
+        assert unbound, "_is_uvloop_module 里没有任何 str.<方法>(name, …) 的未绑定调用 —— 判据被删空了？"
+
     @pytest.mark.parametrize("module_name", ["uvloopx", "uvloop_shim", "myuvloop", "uv"])
     def test_lookalike_module_names_are_not_blocked(self, module_name):
         """验伪锚：名字**像** uvloop 但不是它的模块不得被误拦（M-4 收紧的反向）。
