@@ -1,0 +1,32 @@
+=== 跑前 shasum（全文件，所有会被变异的文件）===
+65498ce412b5c5e5e214d188fc5d6034dd2e4007adec677e2617d4881ee01032  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u9-mastery/backend/app/services/mastery_store.py
+c0123ae0e15d77dd6897f27fd7cb25bf17c9e0a4f61922ffa6979c6c7747cfc6  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u9-mastery/backend/app/services/mastery_engine.py
+########## N1: 临时抽掉 mastery_store.py 的锚点句 ##########
+[N1] 替换 2 处锚点 -> '投影状态'
+[N1] 变异体语法自检 OK
+--- [N1] rc=1
+[N1] KILLED (rc=1 + nodeid 命中 + ^E 行含点名断言串)
+--- [N1] 只坏被测那一层？其余门应仍绿:
+FAILED tests/unit/test_mastery_fsrs_projection_boundary.py::test_projection_anchor_present_in_both_modules
+[N1] 已还原
+########## N2: 临时在 _fsrs_update 末尾插一行往 _CARD_STATES_FILE 写盘 ##########
+[N2] 已在行 337 之后插入写盘调用
+[N2] 变异体语法自检 OK
+--- [N2-gate2] rc=1
+[N2-gate2] KILLED (rc=1 + nodeid 命中 + ^E 行含点名断言串)
+--- [N2-gate3] rc=1
+[N2-gate3] KILLED (rc=1 + nodeid 命中 + ^E 行含点名断言串)
+--- [N2] 全部 FAILED 列表:
+FAILED tests/unit/test_mastery_fsrs_projection_boundary.py::test_mastery_modules_contain_no_filesystem_writes
+FAILED tests/unit/test_mastery_fsrs_projection_boundary.py::test_fsrs_update_does_not_write_review_projection
+[N2] 已还原
+=== 跑后 shasum（应与跑前逐字节相同）===
+65498ce412b5c5e5e214d188fc5d6034dd2e4007adec677e2617d4881ee01032  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u9-mastery/backend/app/services/mastery_store.py
+c0123ae0e15d77dd6897f27fd7cb25bf17c9e0a4f61922ffa6979c6c7747cfc6  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u9-mastery/backend/app/services/mastery_engine.py
+SHA-RESTORE: OK（逐字节相同）
+=== 汇总 ===
+N1(门①)      = KILLED
+N2(门②)      = KILLED
+N2(门③)      = KILLED
+[trap] restored
+rc=0

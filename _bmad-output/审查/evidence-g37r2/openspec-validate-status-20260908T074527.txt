@@ -1,0 +1,17 @@
+### validate retire-fsrs-legacy-bucket-spec --strict
+Change 'retire-fsrs-legacy-bucket-spec' is valid
+VALIDATE_RC=0
+### status --change retire-fsrs-legacy-bucket-spec
+- Loading change status...
+Change: retire-fsrs-legacy-bucket-spec
+Schema: spec-driven
+Progress: 4/4 artifacts complete
+
+[x] proposal
+[x] design
+[x] specs
+[x] tasks
+
+All artifacts complete!
+STATUS_RC=0
+rc=0

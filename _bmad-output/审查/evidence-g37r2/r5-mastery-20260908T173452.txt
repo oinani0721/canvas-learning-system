@@ -1,0 +1,6 @@
+### glob 自证:
+      12
+=========================== short test summary info ============================
+FAILED tests/unit/test_mastery_fusion.py::TestPearsonCorrelation::test_no_correlation
+================== 1 failed, 226 passed, 10 warnings in 4.37s ==================
+rc=1

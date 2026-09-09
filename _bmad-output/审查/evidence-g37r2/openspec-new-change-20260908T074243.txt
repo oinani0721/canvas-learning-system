@@ -1,0 +1,5 @@
+### npx --no-install openspec new change retire-fsrs-legacy-bucket-spec
+- Creating change 'retire-fsrs-legacy-bucket-spec'...
+✔ Created change 'retire-fsrs-legacy-bucket-spec' at openspec/changes/retire-fsrs-legacy-bucket-spec/ (schema: spec-driven)
+NEW_RC=0
+rc=0
