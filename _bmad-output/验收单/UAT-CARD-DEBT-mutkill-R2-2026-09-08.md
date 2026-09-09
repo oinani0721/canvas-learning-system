@@ -62,8 +62,20 @@
 ## 5. 🚦 验收结果
 
 > ⛔ **按 D-15 停在第 5 轮，交主 session 人审 —— 我不自判通过。**
-> Codex round-5（绑最终 HEAD `4a612eb3`）判「不通过：2 HIGH / 3 MEDIUM，无 BLOCKER」，
+> Codex round-5（审 SHA `4a612eb3`）判「不通过：2 HIGH / 3 MEDIUM，无 BLOCKER」，
 > 并在结论首句自行写明「按 D-15，应交主 session 人审」。
+>
+> ⚠️ **绑定口径已分叉（round-5 之后我又动了代码，必须如实说明）**：最终 HEAD 是 `88ccb8ed`，
+> 不是 `4a612eb3`。协议 §1 的两条口径给出**相反**结论，两条都列在这里由主 session 裁定：
+>
+> | 口径 | 命令 | 结果 |
+> |---|---|---|
+> | A 全代码树（§1 字面） | `git diff --stat 4a612eb3 HEAD -- . ':(exclude)_bmad-output'` | ⛔ **非空**：15 个文件有差异 |
+> | B 本卡 diff 面（§1 串行车道） | 同命令但只取本卡改过的 5 个脚本 | ✅ **空**：5 个脚本 sha 逐个相同 |
+>
+> 口径 A 非空的**方向是回退**：`88ccb8ed` 把 15 个本卡地盘外脚本还原回基线 `3f073a1a`，
+> 即差异是「撤销一次越界改动」，不是「审后新增改动」。round-5 实际审的那 5 份代码
+> 一字未动（sha 对照见 §5.4）。⛔ 我不主张「因此仍算绑定」—— 那是主 session 的裁定。
 
 ### 5.1 主 session 需要裁决的：仍开放的 2 条 HIGH
 
@@ -93,6 +105,40 @@
 **已闭合**：Y1-B HIGH-1 / HIGH-2（本树复现后由「断言源位置 + 摘要区限定 + `--show-capture=no`」闭合，各配负控）；39 条 KILLED-UNBOUND 收口（36 绑位置 / 3 保留 / 退役 0，终裁 35 KILLED + 1 降档）；四套六档统一 + rc 契约；信号统一（四信号 + 还原期不可打断 + 进入时快照）；PYEOF 三洞；生产扫描面 `rglob → os.walk`（含目录链接）。
 
 **未闭合（原样移交，⛔ 不当已证）**：上表 2 条 HIGH；round-5 的 3 条 MEDIUM（运行期锚漂移不保证报 HARNESS-ERROR、g33 末次还原失败仍报 130、处置表六档核对不完整）；台账 #27 三项欠账（信号组合未验证 / 十条「被推翻」不能整体采信 / 解析面失配不明确报错）；阶段 2 两次落盘无 `syntax_check`（#20）。
+
+### 5.4 ⛔ 自查发现的地盘越界及其修正（round-5 之后）
+
+**违规事实**：卡完成条件 (o) 要求 `git diff --stat 3f073a1a HEAD -- . ':(exclude)_bmad-output'`
+只列 5 个 `backend/scripts/*.py`。收官自查实测 **20 个**，多出 15 个本卡地盘外脚本。
+
+**根因**：commit `01ac27d0`（round-3 整改）里我跑的是 `ruff format backend/scripts/*.py`
+——**通配全目录**而不是点名那 5 个，随后 `git add -A backend/scripts` 一并暂存。
+⚠️ 本验收单原「format 说明」写的是「五个脚本做了一次 ruff format」，**与实际敲的命令不符**；
+违规就是被我自己这句措辞盖住的（已在该处改正）。
+
+**处置**（commit `88ccb8ed`）：
+
+| 步骤 | 判据 | 结果 |
+|---|---|---|
+| 先证明是纯格式 | 15 个文件逐个 `ast.dump(include_attributes=False)` 对照基线 | 15/15 **AST 等价**，语义有变 0 |
+| 还原 | `git show 3f073a1a:<path> > <path>`（⛔ 不用 `git checkout HEAD --`，会清暂存区） | 15/15 与基线**逐字节相同**，对基线 0 增 0 删 |
+| 地盘门复验 | 条件 (o) 的命令 | 恰好 **5 个** `backend/scripts/*.py` |
+| 本卡 5 脚本未受影响 | 与审 SHA `4a612eb3` 逐个 sha 对照 | `37343d46d6f4` / `e583f5ad046a` / `2972963baf71` / `607e1b47535f` / `2201a8fcc0b8` **全同** |
+| 只读入口复验 | 三套 `--list` + g33 `--selfcheck-syntax` | 四个全 **rc=0**；g33 跑前跑后 SKILL.md sha 相同（未落盘） |
+| 受影响测试实跑 | grep 出 3 个引用被还原脚本的测试文件，实跑 | **50 passed / 5 skipped / 1 xfailed**，rc=0，`NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0` |
+| 零写者对账 | `fsrs_bridge` / `decay_beta` | `a766fbcc…` / `3bf4ed94…`，与卡文钉死值一致 |
+
+**绕过声明（协议 §2.3）**：`88ccb8ed` 用了 `LEFTHOOK_EXCLUDE=python-lint`。
+还原后这 15 个文件回到**基线既有的**「不合 `ruff format`」状态，`python-lint` 的
+`ruff format --check {staged_files}` 因此变红。被跳过 hook 的原始输出与
+「报错不在本卡改动行」的证明（这 15 个文件本卡改动行数 = 0）见
+`evidence-mutkill-r2/lefthook-skip-python-lint-20260909T171349.txt`。
+本卡自己的 5 个脚本**不在**该 commit 里，其独立 `ruff check` / `ruff format --check`
+双 rc=0（`scope-fix-20260909T171246.txt` 第 2 段）⇒ 本次绕过损失的覆盖面 = 0。
+
+**顺带照出的既有债**：这 15 个文件在基线上就不过 `ruff format`，却从未被门拦下——
+`python-lint` 是 **staged-only** 语义（只查本次提交碰到的文件），而它们在历史 commit 里
+从未被 stage 过。「门一直绿」与「文件一直脏」可以同时为真。清债 = 另一张卡（见 §10 #34）。
 
 ## 6. 39 条逐条处置表 / 四套分档对照表
 
@@ -232,7 +278,8 @@ a766fbcc…  canvas-vault/.claude/scripts/fsrs_bridge.py         ← 零写者�
 17. **5 条变异的 `expect_loc` 落在共享 helper 里**（`_c1_reject_once` ← M23/M24/M25；`_parity_once` ← M49/M50）：`(nodeid, loc)` 组合仍唯一、判据成立，但指纹证不了「红在哪道门的调用」——身份弱一档。已建 `EXPECT_LOC_HELPER` 显式登记 + `_check_expect_loc` 作用域一致性判据（新增未登记的当场报）。
 18. **「位置与消息必须落在同一次失败上」**：参数化门出多条 FAILED 时，`--tb=line` 的位置行不带 nodeid ⇒ 配对不可证；两维各自由**不同**失败实例满足的形态原先会判 KILLED，现保守判 `HARNESS-ERROR`。
 19. **`M43` / `M36b` 的实测拒因疑似「写点 Traceback 崩溃 / 续跑信号」而非语义断言**（复核 MEDIUM，验证未完成）：需对照门源码逐条读，⛔ 本卡未处置，登记台账移交（同失败配对收紧后若它们真出多条失败会自动浮出）。
-20. **`M97-writeback-regex-only` 的位置绑不出语句身份**：实测它让门死在 `parser.py`（yaml 库）里，不落在门文件的任何一条断言上 —— 与它原来的消息豁免理由 ④「未捕获异常 `yaml.parser.ParserError`」**独立对上**。它保留 `KILLED-UNBOUND`，⛔ 没有改判成 KILLED 凑数。
+20. **地盘还原（`88ccb8ed`）之后我 ⛔ 没有重跑四套 harness**。所依赖的假设，逐条写明供主 session 核：① 四套 harness 的 5 个脚本与末次全跑（v6）**逐字节相同**（sha 对照见 §5.4）；② 8 个被变异目标文件 sha 与 v6 跑后相同（`scope-fix-20260909T171246.txt` 第 4 段）；③ 被还原的 15 个脚本**不被**这 5 个 harness 引用（全仓 grep，命中面只有 3 个测试文件，已实跑全绿）。三条同时成立 ⇒ v6 的四套数字仍有效。⚠️ 但这是**推断**，不是「还原后又跑了一遍」的实测；主 session 若要求实测，四套串行全跑一次即可（约 20 分钟）。
+21. **`M97-writeback-regex-only` 的位置绑不出语句身份**：实测它让门死在 `parser.py`（yaml 库）里，不落在门文件的任何一条断言上 —— 与它原来的消息豁免理由 ④「未捕获异常 `yaml.parser.ParserError`」**独立对上**。它保留 `KILLED-UNBOUND`，⛔ 没有改判成 KILLED 凑数。
 
 ---
 
@@ -293,11 +340,18 @@ a766fbcc…  canvas-vault/.claude/scripts/fsrs_bridge.py         ← 零写者�
     - LOW premise 筛只排顶层 `not`（`a and not (rc == 0)` 仍误判）⇒ 改带极性的递归，五个形态实测全对。
 30. **Codex round-5（D-15 最后一轮，绑最终 HEAD `4a612eb3`）判「不通过：2 HIGH / 3 MEDIUM，无 BLOCKER」，本卡按纪律停手交主 session 人审 —— ⛔ 未自判通过、未驳回任何一条**。两条 HIGH 详见第 5.1 节（`_split_unique` 漏「无 reason 读法」；弱位置判据可借用另一道门的失败位置）。三条 MEDIUM：① 运行期锚漂移不保证报 HARNESS-ERROR（`rc==0 → SURVIVED` 与「红在门文件之外 → SURVIVED」都早于锚检查返回，且 `_loc_identity` 只查指纹「在不在」不复查命中数是否为 1）；② g33 首次信号还原成功抛 130 后，外层 `finally` 的**末次**还原若新失败会被 `_was_exiting` 吞掉，仍报 130，且 SHA 检查不执行；③ 处置表六档核对只比四档且缺字段也判「一致」。
 31. **五轮外审的元教训（建议主 session 一并裁决）**：round-3/4/5 的 HIGH 是**同一条判据被三种不同读法连续打穿**（括号不闭合 → 括号闭合的另一种歧义 → 无 reason 读法）。根因是我每轮按「它给的那条负控输入」修，而不是按「边界不可判定」这个**性质**穷举读法空间。建议：要么在本卡继续收敛，要么把「摘要行解析的边界可判定性」整体另立一卡，用**读法枚举 + 属性测试**重做，而不是继续逐条打补丁。
-32. **跨车道交叉通报已消费**：U10-A 通报的 `Path.rglob` 抑制 `PermissionError` 形态在 `check_expect_msg_unique` 的生产侧扫描面上**真实存在**，已改 `os.walk(onerror=...)` 并把枚举失败收进返回的 problems 列表。
+33. **⛔ 本卡自查出的地盘越界（已修，但主 session 须知情）**：`01ac27d0` 因 `ruff format backend/scripts/*.py` 通配全目录，把 15 个地盘外脚本扫进本卡 diff（完成条件 (o) 实测 20 个 ≠ 5 个）。已于 `88ccb8ed` 用 `git show 3f073a1a:<path>` 逐个还原，15/15 逐字节等于基线、AST 先行验证为纯格式。**副作用**：round-5 审 SHA `4a612eb3` 对 HEAD 的绑定按协议 §1 两条口径给出相反结论（全代码树非空 / 本卡 diff 面为空），差异方向是回退而非新增，裁定权在主 session（详见 §5.4 与 §5 头部表）。⚠️ 教训登记：**验收单里「我做了什么」的措辞与实际敲下的命令不一致时，违规会被自己的描述盖住** —— 本卡原「format 说明」写的是「五个脚本做了一次 ruff format」。
+34. **`backend/scripts/` 15 个文件的 `ruff format` 存量债（建议另立卡）**：`backfill_candidate_callouts` / `backfill_graphiti_structured` / `compare_l1_router_strategies` / `g41a_mutation_negative_controls` / `g41b_mutation_negative_controls` / `generate_regression_tests` / `graphiti_schema_canary` / `impact_map` / `migrate_group_ids` / `migrate_neo4j_data` / `quarantine_test_pollution` / `run_prompt_regression` / `verify_embedder` / `verify_graphiti_native_chain` / `verify_targeted_exam_chain` 在基线上全部 `Would reformat`。它们长期未被 `python-lint` 拦下，因为该门是 **staged-only** 语义、这些文件在历史 commit 里从未被 stage。⚠️ 这也意味着 **CARD-TOOL-lint-glob 把 scripts/ 纳入 glob 之后，门的覆盖面仍不等于「仓库合规」**——任何一张卡只要碰到这 15 个中的任何一个，就会在提交时撞上这堵墙。清债需连带决定：是一次性 format（会产生一个大而无语义的 commit）还是逐卡随手清。
+35. **跨车道交叉通报已消费**：U10-A 通报的 `Path.rglob` 抑制 `PermissionError` 形态在 `check_expect_msg_unique` 的生产侧扫描面上**真实存在**，已改 `os.walk(onerror=...)` 并把枚举失败收进返回的 problems 列表。
 
 ---
 
-> **format 说明**：v2 全跑之后、commit 之前，五个脚本做了一次 `ruff format`（基线 3f073a1a 全干净 ⇒ 345 行漂移全是本卡的，整文件格式化安全）。format 只动空白不动语义；跑后已复核 `--list` rc=0、前提锚判据 PASS、第三方存证负控 PASS、8 个目标文件 sha 不变。四套全跑**未**因纯空白变更重跑（v2 数字仍有效）。
+> **format 说明（2026-09-09 改正）**：v2 全跑之后、commit 之前跑了一次 `ruff format`。
+> ⛔ 原文写「五个脚本做了一次 ruff format」**与实际不符**：实际敲的是
+> `ruff format backend/scripts/*.py`（通配全目录），因此连带格式化了 15 个本卡地盘外脚本，
+> 违反完成条件 (o)。已于 `88ccb8ed` 还原，全过程见 §5.4。
+> 括号里「基线 3f073a1a 全干净」这句只对**那 5 个**成立；对另外 15 个**不成立**——
+> 它们在基线上就不过 `ruff format`（实测 15/15 `Would reformat`）。format 只动空白不动语义；跑后已复核 `--list` rc=0、前提锚判据 PASS、第三方存证负控 PASS、8 个目标文件 sha 不变。四套全跑**未**因纯空白变更重跑（v2 数字仍有效）。
 
 ## 11. 🔗 技术引用
 
