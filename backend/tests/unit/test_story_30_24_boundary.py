@@ -279,15 +279,33 @@ class TestSpecialCharacterGroupId:
             # 「把值内联进文本**同时**把该参数从 kwargs 里删掉」——两边都没了反而通过。
             # 对本用例真正要守的那个量（limit）用正面形式表达：**凡是带 LIMIT 的查询，
             # 就必须绑 $limit**。合法的分步 count 查询没有 LIMIT，不受此条约束。
-            # 分页整数没法用上面那条（"5" 这种子串在查询里到处都可能正当出现），故单列一条，
-            # 但触发条件收成「LIMIT 后面**直接跟数字**」——那正是「整数被内联」的形态。
-            # ⚠️ round-6 MEDIUM：先前写成 `"LIMIT" in query` 会把标识符与字符串里的 LIMIT
-            # 也当成分页子句（`AS unlimited_count` / `'LIMIT' AS marker` 都会误报）。
-            # `LIMIT $limit`、`LIMIT toInteger($limit)`、`'LIMIT'` 都不匹配下面这个模式。
-            if re.search(r"\bLIMIT\s+\d", _query_no_comments, flags=re.I):
-                assert "limit" in all_kwargs and "$limit" in _query_no_comments, (
-                    "查询里出现 `LIMIT <数字>`，说明分页值被内联进了文本而不是绑定参数。"
-                    f"kwargs={sorted(all_kwargs)} query={query_str!r}"
+            # ── 结构性判据（round-7：前面所有「枚举式」判据的共同上位）──────────
+            # 前六轮的判据都在**枚举**：先枚举参数名（r2/r5 被换个参数破），再枚举输入值
+            # （r7 被「拆成两半在文本里拼接」「大小写变形」「只内联子串」破）。
+            # 枚举永远追不上变形。下面两条改为**结构性**表述，不枚举任何东西：
+            #
+            #   S1  查询文本里不得出现内联的单引号字符串字面量。
+            #       依据：要把任何用户可控的**字符串**拼进 Cypher，就必须给它加引号；
+            #       反过来，一条完全参数化的查询根本不需要内联字符串。
+            #       现行生产查询实测 `'…'` 字面量数为 0（本条不是凭空收紧）。
+            #   S2  每个 LIMIT 子句的表达式里必须出现 `$` 参数引用。
+            #       依据：`LIMIT 5` / `LIMIT (5)` / `LIMIT toInteger(5)` 都是把分页值内联，
+            #       而 `LIMIT $limit` / `LIMIT toInteger($limit)` 都带 `$`。
+            #       round-6 用的 `\bLIMIT\s+\d` 被 `LIMIT (5)` 与 `LIMIT toInteger(5)` 绕过。
+            #
+            # ⚠️ 如实声明本条比卡文要求强：卡文 (f) 只要求保留 `:191-194` 并改参数形态断言。
+            #    S1 会拒绝任何内联字符串常量（包括无害的 `'active' AS status` 这类写法）——
+            #    这是有意的：本方法的查询面全部参数化，需要常量时应当也走参数。
+            _literals = re.findall(r"'[^']*'", _query_no_comments)
+            assert not _literals, (
+                "查询文本里出现内联字符串字面量，本用例要求全参数化——"
+                "任何用户可控值要拼进 Cypher 都得先加引号，故这条不枚举具体值也能挡住变形内联。"
+                f"literals={_literals} query={query_str!r}"
+            )
+            for _limit_expr in re.findall(r"\bLIMIT\b([^\n]*)", _query_no_comments, flags=re.I):
+                assert "$" in _limit_expr, (
+                    "LIMIT 子句里没有 `$` 参数引用，说明分页值被内联进了文本。"
+                    f"limit_expr={_limit_expr!r} query={query_str!r}"
                 )
 
         # ── B 层：至少一次调用带完整作用域参数集，并在那一次上验物理化 ──────
