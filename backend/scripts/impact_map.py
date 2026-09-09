@@ -37,7 +37,11 @@ def _extract_app_modules(test_file: Path) -> list[str]:
 
     modules: list[str] = []
     for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and node.module and node.module.startswith("app"):
+        if (
+            isinstance(node, ast.ImportFrom)
+            and node.module
+            and node.module.startswith("app")
+        ):
             # e.g. from app.services.review_service import X -> app/services/review_service.py
             mod_path = node.module.replace(".", "/") + ".py"
             modules.append(mod_path)
@@ -75,7 +79,9 @@ def build_impact_map() -> dict[str, list[str]]:
         impact[key] = sorted(set(impact[key]))
 
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    CACHE_FILE.write_text(json.dumps(impact, indent=2, ensure_ascii=False), encoding="utf-8")
+    CACHE_FILE.write_text(
+        json.dumps(impact, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
     return impact
 
 

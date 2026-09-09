@@ -66,8 +66,12 @@ def header(msg: str) -> None:
 
 async def _cleanup(client) -> None:
     """删除所有 probe 数据 (幂等)。"""
-    await client.run_query("MATCH (e:EpisodicNode) WHERE e.node_id STARTS WITH $p DETACH DELETE e", p=PROBE)
-    await client.run_query("MATCH (n:CanvasNode) WHERE n.id STARTS WITH $p DETACH DELETE n", p=PROBE)
+    await client.run_query(
+        "MATCH (e:EpisodicNode) WHERE e.node_id STARTS WITH $p DETACH DELETE e", p=PROBE
+    )
+    await client.run_query(
+        "MATCH (n:CanvasNode) WHERE n.id STARTS WITH $p DETACH DELETE n", p=PROBE
+    )
 
 
 async def probe0_real_data_census(client) -> None:
@@ -94,7 +98,9 @@ async def probe0_real_data_census(client) -> None:
     print(f"  canonical 批注/错误 EpisodicNode 总数: {total}")
     print(f"  其中带可查 node_id 的:            {with_nid}")
     if total == 0:
-        warn("图谱里还没有 canonical 批注节点 (你可能还没在真实 vault 打过批注, 或写入未落库)。")
+        warn(
+            "图谱里还没有 canonical 批注节点 (你可能还没在真实 vault 打过批注, 或写入未落库)。"
+        )
     elif with_nid == 0:
         fail(
             f"GAP-D 实锤: {total} 条批注/错误节点【全部缺 node_id】→ "
@@ -102,7 +108,9 @@ async def probe0_real_data_census(client) -> None:
             f"检验白板看不到你的累积批注。"
         )
     elif with_nid < total:
-        warn(f"部分缺失: {total - with_nid}/{total} 条缺 node_id (这部分批注检验白板取不到)。")
+        warn(
+            f"部分缺失: {total - with_nid}/{total} 条缺 node_id (这部分批注检验白板取不到)。"
+        )
     else:
         ok(f"全部 {total} 条批注/错误节点都带 node_id (累积批注可被检验白板查到)。")
 
@@ -216,10 +224,14 @@ async def layer2_write_reality(client) -> None:
         else:
             srcs = [r.get("src") for r in rows]
             ok(f"写入产出 EpisodicNode (node_id={T_NODE_W}, source_description={srcs})")
-            if any(s in ("learning-tip-record", "callout-annotation-record") for s in srcs):
+            if any(
+                s in ("learning-tip-record", "callout-annotation-record") for s in srcs
+            ):
                 ok("且 source_description 是 canonical → _get_tips 能查到。")
             else:
-                fail(f"但 source_description={srcs} 不在 _get_tips 的 canonical 白名单。")
+                fail(
+                    f"但 source_description={srcs} 不在 _get_tips 的 canonical 白名单。"
+                )
     except Exception as e:  # noqa: BLE001 — 诊断脚本, 任何异常都报告不中断
         warn(f"Layer 2 无法完整执行 (服务依赖未就绪): {type(e).__name__}: {e}")
         warn("可在后端完整启动 (worker + Gemini) 后重跑本层。")
@@ -275,7 +287,9 @@ async def main() -> int:
     await client.run_query("RETURN 1 AS ok")  # 触发初始化
 
     if getattr(client, "_use_json_fallback", False):
-        print(f"{RED}Neo4j 处于 JSON fallback 模式 (未连真实 Neo4j) — 这不算真验证。{RESET}")
+        print(
+            f"{RED}Neo4j 处于 JSON fallback 模式 (未连真实 Neo4j) — 这不算真验证。{RESET}"
+        )
         print("请先启动 Neo4j (docker compose up) 再跑本脚本。")
         return 2
 
@@ -295,7 +309,9 @@ async def main() -> int:
     print("  · Layer 1 = 读查询本身对不对 (数据形状正确时能否取到)")
     print("  · Layer 2 = 真实写入端产出的形状对不对 (GAP-D 写侧根因)")
     print("  · Layer 3 = 节点增殖原因边写→读 (GAP-E: Fix-E1 frontmatter→CANVAS_EDGE)")
-    print("  若 Layer 1 ✅ 但 Probe0/Layer2 ❌ → 读对、写断 → 修写入端补 node_id 即可打通主链。")
+    print(
+        "  若 Layer 1 ✅ 但 Probe0/Layer2 ❌ → 读对、写断 → 修写入端补 node_id 即可打通主链。"
+    )
     return 0 if (l1 and l3) else 1
 
 

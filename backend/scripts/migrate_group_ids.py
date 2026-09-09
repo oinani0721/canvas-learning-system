@@ -114,7 +114,9 @@ async def run_migration(args: argparse.Namespace) -> int:
     password = args.password or settings.NEO4J_PASSWORD
 
     if not password:
-        print("ERROR: NEO4J_PASSWORD not set. Use --password or env var.", file=sys.stderr)
+        print(
+            "ERROR: NEO4J_PASSWORD not set. Use --password or env var.", file=sys.stderr
+        )
         return 2
 
     dry_run = args.dry_run
@@ -128,7 +130,9 @@ async def run_migration(args: argparse.Namespace) -> int:
 
     if not dry_run and not args.force:
         if not args.json:
-            confirm = input("Proceed with --apply (writes to production Neo4j)? [yes/N]: ")
+            confirm = input(
+                "Proceed with --apply (writes to production Neo4j)? [yes/N]: "
+            )
             if confirm.strip().lower() not in ("yes", "y"):
                 print("Aborted by user.")
                 return 1

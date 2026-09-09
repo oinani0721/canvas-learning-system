@@ -107,7 +107,9 @@ def check_response(body: dict[str, Any]) -> dict[str, bool]:
     checks["no_think_leak"] = not THINK_RE.search(content)
     checks["no_markdown_fence"] = not FENCE_RE.match(content or "")
     # #1773 症状: 约束输出落在 reasoning_content 而 content 为空
-    checks["not_in_reasoning_field"] = not (not content.strip() and reasoning.strip().startswith("{"))
+    checks["not_in_reasoning_field"] = not (
+        not content.strip() and reasoning.strip().startswith("{")
+    )
     try:
         parsed = json.loads(content)
         checks["json_parses"] = True
@@ -122,7 +124,9 @@ def check_response(body: dict[str, Any]) -> dict[str, bool]:
     else:  # 无 graphiti_core 时的等价结构校验
         ents = parsed.get("extracted_entities")
         checks["pydantic_validates"] = isinstance(ents, list) and all(
-            isinstance(e, dict) and isinstance(e.get("name"), str) and isinstance(e.get("entity_type_id"), int)
+            isinstance(e, dict)
+            and isinstance(e.get("name"), str)
+            and isinstance(e.get("entity_type_id"), int)
             for e in ents
         )
     return checks
@@ -157,7 +161,9 @@ async def run_canary(base_url: str, model: str, runs: int, timeout: float) -> in
             }
             t0 = time.monotonic()
             try:
-                resp = await client.post(f"{base_url.rstrip('/')}/chat/completions", json=payload)
+                resp = await client.post(
+                    f"{base_url.rstrip('/')}/chat/completions", json=payload
+                )
                 resp.raise_for_status()
                 body = resp.json()
             except Exception as e:  # noqa: BLE001 — 网络/HTTP 失败也是 canary 失败
@@ -174,7 +180,9 @@ async def run_canary(base_url: str, model: str, runs: int, timeout: float) -> in
                 bad = [k for k, v in checks.items() if not v]
                 print(f"  run {i + 1}/{runs}: FAIL {bad}")
             elif (i + 1) % 10 == 0:
-                print(f"  run {i + 1}/{runs}: ok (avg {sum(latencies) / len(latencies):.1f}s)")
+                print(
+                    f"  run {i + 1}/{runs}: ok (avg {sum(latencies) / len(latencies):.1f}s)"
+                )
 
     # ── 报告 (对齐 ChatGPT DR 建议的 canary 日志格式) ──
     ok = not failures
@@ -187,7 +195,9 @@ async def run_canary(base_url: str, model: str, runs: int, timeout: float) -> in
             "passed": runs - len(failures),
             "failed": len(failures),
             "per_check_pass": tally,
-            "avg_latency_s": round(sum(latencies) / len(latencies), 2) if latencies else None,
+            "avg_latency_s": round(sum(latencies) / len(latencies), 2)
+            if latencies
+            else None,
             "p95_latency_s": round(sorted(latencies)[int(len(latencies) * 0.95) - 1], 2)
             if len(latencies) >= 2
             else None,
@@ -205,7 +215,9 @@ def main() -> None:
     ap.add_argument("--runs", type=int, default=50)
     ap.add_argument("--timeout", type=float, default=120.0)
     args = ap.parse_args()
-    sys.exit(asyncio.run(run_canary(args.base_url, args.model, args.runs, args.timeout)))
+    sys.exit(
+        asyncio.run(run_canary(args.base_url, args.model, args.runs, args.timeout))
+    )
 
 
 if __name__ == "__main__":

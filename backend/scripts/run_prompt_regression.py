@@ -134,7 +134,9 @@ def update_baseline_hashes():
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Prompt Regression Test Runner (Story 7.3)")
+    parser = argparse.ArgumentParser(
+        description="Prompt Regression Test Runner (Story 7.3)"
+    )
     parser.add_argument(
         "--prompt",
         choices=list(PROMPT_TEST_MAP.keys()),

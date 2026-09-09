@@ -75,8 +75,12 @@ def backfill_file(path: Path, dry_run: bool) -> bool:
             cand.setdefault("correction", cor)
             changed = True
         state = _STATE_FOR_STATUS.get(str(cand.get("status")), "pending")
-        card = render_candidate_callout(cand, state, dispute_reason=cand.get("dispute_reason"))
-        body, card_changed = upsert_candidate_callout(body, cand["id"], card, append_if_missing=True)
+        card = render_candidate_callout(
+            cand, state, dispute_reason=cand.get("dispute_reason")
+        )
+        body, card_changed = upsert_candidate_callout(
+            body, cand["id"], card, append_if_missing=True
+        )
         changed = changed or card_changed
 
     if not changed:

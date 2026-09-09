@@ -71,7 +71,9 @@ async def _call_rule_router(query: str) -> tuple[str, float]:
     return intent, elapsed_ms
 
 
-async def _call_llm_router(query: str, model: str, timeout_s: float) -> tuple[str, str, float, bool, str | None]:
+async def _call_llm_router(
+    query: str, model: str, timeout_s: float
+) -> tuple[str, str, float, bool, str | None]:
     from agentic_rag.llm_router import llm_route
 
     result = await llm_route(query, model=model, timeout_s=timeout_s)
@@ -118,7 +120,12 @@ async def main() -> int:
     print(f"Timeout:  {timeout_s}s")
     print(f"Queries:  {len(BENCHMARK_QUERIES)}")
     print()
-    print(f"{'#':<3} {'query':<30}  {'rule_intent':<18}  {'llm_intent':<26}  {'rule_ms / llm_ms':<20}")
+    print(
+        f"{'#':<3} {'query':<30}  "
+        f"{'rule_intent':<18}  "
+        f"{'llm_intent':<26}  "
+        f"{'rule_ms / llm_ms':<20}"
+    )
     print("-" * 100)
 
     rule_comprehensive_count = 0
@@ -134,7 +141,9 @@ async def main() -> int:
         if rule_intent == "comprehensive":
             rule_comprehensive_count += 1
 
-        llm_intent, llm_reason, llm_latency, llm_ok, llm_err = await _call_llm_router(query, model, timeout_s)
+        llm_intent, llm_reason, llm_latency, llm_ok, llm_err = await _call_llm_router(
+            query, model, timeout_s
+        )
         llm_total_latency += llm_latency
 
         if not llm_ok:
@@ -181,14 +190,20 @@ async def main() -> int:
     # Acceptance: ≥6/10 LLM routes non-comprehensive (documented in plan)
     threshold = int(0.6 * total)
     if llm_non_comprehensive_count >= threshold:
-        print(f"✅ PASS — LLM routes non-comprehensive {llm_non_comprehensive_count}/{total} (≥{threshold} required)")
+        print(
+            f"✅ PASS — LLM routes non-comprehensive {llm_non_comprehensive_count}/{total} "
+            f"(≥{threshold} required)"
+        )
         return 0
     else:
         print(
-            f"❌ FAIL — LLM routes non-comprehensive only {llm_non_comprehensive_count}/{total}, expected ≥{threshold}"
+            f"❌ FAIL — LLM routes non-comprehensive only "
+            f"{llm_non_comprehensive_count}/{total}, expected ≥{threshold}"
         )
         if llm_failures > 0:
-            print(f"   (Note: {llm_failures} llm_failures — check GEMINI_API_KEY / network)")
+            print(
+                f"   (Note: {llm_failures} llm_failures — check GEMINI_API_KEY / network)"
+            )
         return 1
 
 

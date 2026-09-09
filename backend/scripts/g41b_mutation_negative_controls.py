@@ -216,8 +216,8 @@ MUTATIONS: list[Mutation] = [
                 # ⚠️ 必须**替换**这一行, 不能在它前面插一个同名键 —— Python dict
                 # 字面量里重复键**后者胜**, 前插等于空操作, 变异脚本实测判 GREEN
                 # 并点名了这条(判据自身又验伪了一次)。
-                '                    "group_id": desanitize_group_id_from_graphiti(\n'
-                '                        rel.get("group_id") or ""\n'
+                "                    \"group_id\": desanitize_group_id_from_graphiti(\n"
+                "                        rel.get(\"group_id\") or \"\"\n"
                 "                    ),\n",
                 "                    # MUTATED (退回不返回归属)\n",
             )
@@ -255,7 +255,7 @@ MUTATIONS: list[Mutation] = [
                 # "指定门必须变红"的判据当场抓出。
                 # 锚点带上前面的注释块保证唯一 (recovery 那处也写 `or 0`)。
                 '                    # → 端点 500。本卡把这条路径从"恒空"变成"真有数据"之后,\n'
-                "                    # 这个既有缺陷才第一次可达, 故随本卡一并收。\n"
+                '                    # 这个既有缺陷才第一次可达, 故随本卡一并收。\n'
                 '                    "review_count": record.get("review_count") or 0,',
                 '                    "review_count": record.get("review_count", 0),  # MUTATED',
             )

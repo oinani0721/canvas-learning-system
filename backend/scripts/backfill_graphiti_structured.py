@@ -58,7 +58,9 @@ async def main() -> int:
     mode = "EXECUTE 真写" if args.execute else "DRY-RUN 仅统计"
     print(f"vault: {vault}\ngroup_id: {group_id}\n模式: {mode}\n{'=' * 60}")
 
-    stats = await backfill_vault(vault, driver, embedder, group_id, execute=args.execute)
+    stats = await backfill_vault(
+        vault, driver, embedder, group_id, execute=args.execute
+    )
     print(f"文件(含批注/关系): {stats['files']}")
     print(f"批注 callouts:    {stats['callouts']}")
     print(f"错误 errors:      {stats['errors']}")
