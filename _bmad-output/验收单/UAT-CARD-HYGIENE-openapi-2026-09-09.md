@@ -248,7 +248,57 @@ handler → service → 写盘的**间接路径未覆盖**（列入 Codex 问题
 
 <!-- PLACEHOLDER-DOMAIN -->
 
-<!-- PLACEHOLDER-CODEX -->
+### (h) Codex 独立审查（gpt-6-astra · ultra · 多轮直到绑最终 HEAD 且 BLOCKER/HIGH = 0）
+
+| 轮 | 绑定 SHA | B | H | M | L | 存档 |
+|---|---|---|---|---|---|---|
+| round-1 | `3c064c9d` | 0 | 0 | 0 | **1** | `codex-review-CARD-HYGIENE-openapi-r1.md` |
+| round-2 | `dddfc598` | 0 | **1** | **3** | 0 | `codex-review-CARD-HYGIENE-openapi-r2.md` |
+| round-3 | `<R3_SHA>` | <R3_B> | <R3_H> | <R3_M> | <R3_L> | `codex-review-CARD-HYGIENE-openapi-r3.md` |
+
+#### round-1 LOW-1 → 已整改（commit `dddfc598`）
+
+注释里的覆盖面数字写成「保留 93 / 排除 113」，那是**追加排除 `health/lancedb` 之前**的值。
+已改为当时实测的 92 / 114。纯注释修改，`collect-only` 结果与整改前**逐行相同**（行为未变）。
+
+#### round-2 HIGH-1 + MEDIUM-2/3 → 已整改（commit `<R2_SHA>`）
+
+Codex 补出了作者扫描面的**已声明局限**（只扫 handler 函数体一层直接文本）漏掉的
+**间接写**。作者已逐条独立核过源码，三条**全部成立**：
+
+| 等级 | GET operation | 写链（作者复核确认） |
+|---|---|---|
+| **HIGH** | `GET /api/v1/review/fsrs-state/{concept_id}` | `endpoints/review.py:1430` → `review_service.get_fsrs_state()` → 无卡且不受 frontmatter 管辖时 auto-create → `_save_card_states()`(`review_service.py:2507`) → `:600 mkdir` + `:604 write_text` + `:605 replace` 写 `_CARD_STATES_FILE`(`:116-118` = `backend/data/fsrs_card_states.json`) |
+| MEDIUM | `GET /api/v1/health/storage` | `endpoints/health.py:1671` → `_check_json_health()` → `:1444` 默认 `./data` → `:1448 mkdir` → `:1452-1453` `.health_check` touch/unlink |
+| MEDIUM | `GET /api/v1/multimodal/health` | `endpoints/multimodal.py:251` → `multimodal_service.get_health_status()` → `:1034-1036` `.health_check` write_text/unlink |
+
+**这条 HIGH 同时解释了首轮 `find -newer` 的一条命中**：`data/fsrs_card_states.json`
+的 mtime 是 `2026-09-09T18:26`，落在全跑**中途**而非启动期 —— 作者首轮把它归因为
+「app lifespan 与运行期写入」是**不够精确的**，它是被保留的那条 GET 在请求期写的。
+
+⇒ 三条已全部追加 `.exclude(path_regex=...)`，逐条理由写进文件头注释。
+整改后 `T_AFTER` 92 → **89**，`N` 114 → **117**（GET 被排除 4 条）。
+正控重跑全 PASS：`89 == G(93) − EXTRA(4)`、`206 == 89 + 117`、点名 `GET /` 仍在。
+且 `collect-after` 是整改前版本的**真子集**（新增 0 行，恰移除那 3 条）。
+
+#### round-2 MEDIUM-4（检测边界）→ 登记不改，理由如下
+
+Codex 指出零写门只查 `backend/` 顶层五个名称，若 vault 根是 `backend/<非五项名>/`
+则骨架仍写进代码目录而门看不见。**这一条属实**，但：
+
+- 卡文 (d) 把 `_SKELETON` 写死为这五项，扩大检测面超出本卡授权；
+- Codex 自己也确认：对「vault 根恰好是 `backend/`」的完整初始化，
+  `VaultInitService:18-23` 的目录被 `raw/wiki/outputs` 覆盖、`:96-98` 的文件被 `CLAUDE.md` 覆盖，
+  **检测充分**；
+- 该缺口已逐字写进 §六「本卡未证明什么」第 13 条与 §七 台账。
+
+#### round-2 未完成归因项（Codex 明确标注，如实转录）
+
+`llm_call_logs.db` 与 `qa_metrics.db` 的写者 **未完成归因**（Codex 说需要 `app/main.py`
+的 lifespan 段与 `system.py` 两个统计 GET，超出本轮授权读取面）；
+`vault_index_pending__canvas_vault.jsonl` 与 `memory-system-*.log` 只确认了
+「存在请求期/后台写入机制」，**未闭合到本次全跑的具体写者**。
+⇒ 登记为本卡未证明项，不写成「已确认是启动期写入」。
 
 ---
 

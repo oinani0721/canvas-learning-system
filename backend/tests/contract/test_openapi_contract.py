@@ -39,9 +39,10 @@ from hypothesis import Phase, settings
 #   - `tests/conftest.py` 把 `CANVAS_BASE_PATH` 设成相对的 `"./test_canvas"`, canvas /
 #     index / sync 端点因此写进 `backend/test_canvas/`。
 #
-# 代价(如实): 契约覆盖面从 206 个 operation 收窄到 **92** 条 —— 93 个 GET(HEAD 面为 0)
-# 再减去下方追加排除的 1 条只读端点。被排除的共 **114** 条(POST 96 / DELETE 9 / PUT 6 /
-# PATCH 2 / GET 1), 清单见 `_bmad-output/审查/evidence-hyg-openapi/excluded-operations.txt`
+# 代价(如实): 契约覆盖面从 206 个 operation 收窄到 **89** 条 —— 93 个 GET(HEAD 面为 0)
+# 再减去下方追加排除的 4 条会写盘的只读端点。被排除的共 **117** 条(POST 96 / DELETE 9 /
+# PUT 6 / PATCH 2 / GET 4), 清单见
+# `_bmad-output/审查/evidence-hyg-openapi/excluded-operations.txt`
 # (`comm -23 collect-before.txt collect-after.txt` 实测)。合约测试本就
 # **不在 CI 白名单**(`.github/workflows/test.yml`), 只在本机以 importorskip 形式跑,
 # 故此次收窄不减少 CI 覆盖面。写端点的契约校验需另立隔离夹具后恢复。
@@ -49,18 +50,38 @@ from hypothesis import Phase, settings
 # API 形态实测(schemathesis 4.14.3): `BaseSchema.include` / `.exclude` 见
 # `schemathesis/schemas.py:132` / `:182`; `filters.py:66` 对 method 正则用 re.IGNORECASE,
 # `:84-87` 把 method 取值统一大写 ⇒ `^(GET|HEAD)$` 成立。
-# 追加排除的**只读方法**(逐条列理由, 不做无清单的放宽):
-#   - `GET /api/v1/health/lancedb` → `check_lancedb_health`
-#     (`app/api/v1/endpoints/health.py:1139`) 里
+# 追加排除的**只读方法**(逐条列理由, 不做无清单的放宽)。
+#
+# (1) 直接写原语命中 —— AST 扫描 `backend/app` 全树 93 个 `<任意名>.get` handler
+#     (与收集到的 GET 数逐一对齐, 存档 `evidence-hyg-openapi/get-handler-write-primitive-scan-*.txt`),
+#     正则 `mkdir|write_text|write_bytes|os.replace|save_state|add_documents|drop_table|
+#     append_event|subprocess` 在 handler 函数体内命中 1 条:
+#   - `GET /api/v1/health/lancedb` → `check_lancedb_health` (`endpoints/health.py:1139`):
 #     `lancedb_path = getattr(settings, "lancedb_path", "./data/lancedb")` 是**相对路径**,
-#     紧接着 `db_path.mkdir(parents=True, exist_ok=True)` —— 从 `backend/` 起跑的合约测试
-#     会因此在代码目录里造出 `backend/data/lancedb/`。这是 93 条 GET 里唯一一条直接写原语
-#     命中(扫描面 = `backend/app` 全树 93 个 `<任意名>.get` handler, 与收集到的 GET 数逐一对齐;
-#     存档 `evidence-hyg-openapi/get-handler-write-primitive-scan-*.txt`)。
+#     紧接着 `db_path.mkdir(parents=True, exist_ok=True)` ⇒ 从 `backend/` 起跑会造出
+#     `backend/data/lancedb/`。
+#
+# (2) **间接**写(handler 自身无写原语, 调用的 service 写盘) —— 上面那次 AST 扫描只看
+#     handler 函数体一层文本, 抓不到这类; 由 Codex round-2 独立审查补出, 作者已逐条核过源码:
+#   - `GET /api/v1/review/fsrs-state/{concept_id}` (`endpoints/review.py:1430`)
+#     → `review_service.get_fsrs_state()` → 该 concept 无卡且不受 frontmatter 管辖时
+#     auto-create 默认卡 → `_save_card_states()` (`services/review_service.py:2507`)
+#     → `:600 mkdir` + `:604 write_text` + `:605 replace` 写
+#     `_CARD_STATES_FILE`(`:116-118` = `backend/data/fsrs_card_states.json`)。
+#     **请求期写盘**, 不是启动期一次性写 —— 全跑实测该文件 mtime 落在跑中(18:26)。
+#   - `GET /api/v1/health/storage` (`endpoints/health.py:1671`) → `_check_json_health()`
+#     (`:1444` 默认 `./data` → `:1448 mkdir` → `:1452-1453` 对 `.health_check` touch/unlink)。
+#     探针会被删掉, 所以跑完的 `find -newer` **看不见**它 —— 更该在生成面就排除。
+#   - `GET /api/v1/multimodal/health` (`endpoints/multimodal.py:251`)
+#     → `multimodal_service.get_health_status()` (`services/multimodal_service.py:1034-1036`)
+#     `.health_check` write_text/unlink; 该服务构造器还会创建媒体目录。
 schema = (
     schemathesis.openapi.from_asgi("/api/v1/openapi.json", app)
     .include(method_regex=r"^(GET|HEAD)$")
     .exclude(path_regex=r"^/api/v1/health/lancedb$")
+    .exclude(path_regex=r"^/api/v1/review/fsrs-state/\{concept_id\}$")
+    .exclude(path_regex=r"^/api/v1/health/storage$")
+    .exclude(path_regex=r"^/api/v1/multimodal/health$")
 )
 
 
