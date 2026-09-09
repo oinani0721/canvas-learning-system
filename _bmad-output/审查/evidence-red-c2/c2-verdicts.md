@@ -20,7 +20,7 @@
 
 **移交 U5-C = 0 的口径声明**：本卡 66 条**每一条都取到了依据 sha 并逐条机器复核**（`sha-proof-sweep-20260909T132543.txt`，不合格行数 = 0），故 (b) 的「依据栏空 ⇒ 只能移交」分支未被触发。这是**「66 条都拿得出演进依据」，不是「66 条都没有回归」**——本卡不做 bisect，见验收单「本卡未证明什么」①。
 
-## 一 判据结果（收工，**全部绑定 HEAD `49b15c77`** = Codex round-5 整改后的代码树（本卡收尾态））
+## 一 判据结果（收工，**全部绑定 HEAD `82c285db`** = Codex round-6 整改后的代码树（本卡收尾态））
 
 > round-1 ~ 5 连着五轮指出「证据未绑定审查 SHA」。本节所有裁判已在 `49b15c77` 上**重跑**，
 > 三份证据文件首行都写死 `HEAD=49b15c77`；`gates-*` §〇 给出**完整 SHA 绑定链的逐段实际输出**
@@ -29,18 +29,18 @@
 > ⚠️ 该节初次生成时是一次**假绿**（zsh 不对未加引号的参数做词分割，`set -- $pair` 让每行 git
 > `fatal: bad revision`、计数落 0，十行全印成「空 = 等价」）。已重做并把 rc 一并打出，纠错过程如实保留。
 
-| 判据 | 结果 | 存档（首行 `HEAD=49b15c77`） |
+| 判据 | 结果 | 存档（首行 `HEAD=82c285db`） |
 |---|---|---|
-| §二.1 目录级 `tests/unit` diff `>` 行 | **零**（`grep '^>'` 无输出） | `red-diff-20260909T151936.txt` |
-| §二.1 本卡贡献 `comm -12` | **66**（= 66 − 移交 0） | `c2-contribution-20260909T151936.txt` |
+| §二.1 目录级 `tests/unit` diff `>` 行 | **零**（`grep '^>'` 无输出） | `red-diff-20260909T161927.txt` |
+| §二.1 本卡贡献 `comm -12` | **66**（= 66 − 移交 0） | `c2-contribution-20260909T161927.txt` |
 | §二.1 本卡 66 条里仍红的 | **0**（`comm -23` 空） | 同上 |
-| §二.1 U11-A 贡献 `comm -13` | 8（逐条列出，非本卡责任） | `u11a-contribution-20260909T151936.txt` |
-| §二.1 汇总行 / rc 行 | `99 failed, 4812 passed, 48 skipped, 17 xfailed, 29 errors in 272.97s` / 末行 `rc=1` | `unit-after-20260909T151936.txt` |
-| §二.3 23 文件 failed 集合 | **逐条 == 预声明 R 族外来红 4 条**（`diff` 无输出） | `files-failed-20260909T152453.txt` vs `expected-failed.txt` |
-| §二.3 汇总行 | `4 failed, 452 passed, 13 xfailed in 2.74s`，末行 `rc=1` | `files-23-20260909T152453.txt` |
+| §二.1 U11-A 贡献 `comm -13` | 8（逐条列出，非本卡责任） | `u11a-contribution-20260909T161927.txt` |
+| §二.1 汇总行 / rc 行 | `99 failed, 4812 passed, 48 skipped, 17 xfailed, 29 errors in 307.86s` / 末行 `rc=1` | `unit-after-20260909T161927.txt` |
+| §二.3 23 文件 failed 集合 | **逐条 == 预声明 R 族外来红 4 条**（`diff` 无输出） | `files-failed-20260909T161810.txt` vs `expected-failed.txt` |
+| §二.3 汇总行 | `4 failed, 452 passed, 13 xfailed in 3.14s`，末行 `rc=1` | `files-23-20260909T161810.txt` |
 | §二.3 `grep -c XPASS` | **0**（13 条 xfail 全 strict=True，无一 XPASS；其中 12 条本卡、1 条 U11-A） | 同上 |
 | §二.3 现网端口连接尝试 | **0**（blocked=0 / advisory=0 / unaccounted=0） | 同上 |
-| §二.6 判据强度门（四种弱化形态） | **无输出** | `gates-20260909T152536.txt` |
+| §二.6 判据强度门（四种弱化形态） | **无输出** | `gates-20260909T161955.txt` |
 | §二.7 fixture 门 `autouse=True` 新增 | **0**；精确读取面模式（排除 `os.environ` 假阳）亦无输出 | 同上 |
 | §二.8 地盘门 | 改动 **23** 个测试文件，全部 ⊆ 卡文点名清单；`backend/app` 与 `_archive` diff **均空** | 同上 |
 | 既有 `skip` 标记被删/改 | **0** | 同上 |
@@ -50,12 +50,12 @@
 | 66 条 nodeid 全在 202 基线内 | `comm -23 c2-nodeids.txt red-baseline-202.bare.txt` 无输出 | `c2-in-202.txt` |
 | 66 条失败身份逐条配上原文 | 66/66，无「未解析到」 | `c2-identities.md` |
 | compose 判据负控（**四轮累积 13 输入 + ⑩ 隔离性补证**） | 四轮 Codex 给的全部复现**全部 FAIL**；现状 PASS。**三个隔离用例**证明每道新判据各自承重：⑩ 长格式折叠标量（内容轴放行、文本计数 1 ⇒ 只有**深度**能拦）、⑪ `!!binary`（附解码类型自证 = `bytes`）、⑬ 锚点单独一行的 alias（内容轴放行、文本计数 1、位置合法 ⇒ 只有**解析层计数**能拦） | `negctl-compose-exemption-r4-20260909T145953.txt`（前三份保留；r2 那份 ④⑤、r4 那份 ⑫ 的「没能隔离」已分别如实更正；文件末尾另附 round-5 要求的 ⑩ 隔离性补证：两档折叠标量的 YAML 原文 + 三轴逐项计算） |
-| 安全面判据负控（**五轮累积 7 输入**） | 运行期替换生产方法为变异体（纯内存 / `finally` 无条件还原 / 末尾断言身份已还原）。③④⑤ = round-5 的三条**组合序列**（坏调用被合法调用掩护），全部 FAIL；⑥⑦ = 前几轮防线回归，仍 FAIL；② = **误报正控**（合法分步查询必须 PASS，不得回退）。⚠️ 同目录另存一次**七条全 ERROR** 的运行（变异体签名写成位置参数、变异根本没生效）——「不是 PASS」不等于「FAIL」，逐条比对期望值才当场暴露 | `negctl-security-r5-20260909T151731.txt`（前几份保留，含那次 ERROR 轮次 `…151650.txt`） |
+| 安全面判据负控（**六轮累积 10 输入**） | 运行期替换生产方法为变异体（纯内存 / `finally` 无条件还原 / 末尾断言身份已还原）。⑤⑥⑦ = round-5 的三条**组合序列**、⑧ = round-6 的 `userId` 内联序列，全部 FAIL；⑨⑩ = 前几轮防线回归（⑨ 已重做成**隔离**形态，只可能死在安全内核那一条上），仍 FAIL；②③④ = **三个误报正控**（合法分步 count、`AS unlimited_count`、`'LIMIT' AS marker`），必须 PASS。⚠️ 同目录另存一次**七条全 ERROR** 的运行（变异体签名写成位置参数、变异根本没生效）——「不是 PASS」不等于「FAIL」，逐条比对期望值才当场暴露 | `negctl-security-r6-20260909T161650.txt`（前几份保留，含那次七条全 ERROR 的轮次 `…151650.txt`） |
 | §5.1 两条改名 nodeid 的等价覆盖 | 旧 nodeid `no tests collected`；新 nodeid 两条 **PASSED**；同文件反向锚 **PASSED** | `renamed-nodeids-proof-20260909T140504.txt` |
 | lefthook `python-lint` 绕开依据 | ruff lint 23 文件全绿；format 门基线 21 漂 / 2 净，改后仍 **21 / 2 且逐名相同** ⇒ 净新增漂移 0 | `ruff-format-drift-final-23files-20260909T133924.txt` |
 
 ⚠️ **两处「门自己报的假阳」已逐条查清、未静默算过**，详见 `gates-20260909T132820.txt` 尾部两节：
-① §二.7 的 `\.env` 正则里 `.` 是通配符，吃到了 `os.environ` 的 "s.env"（11 行全是 `patch.dict(os.environ, …)`）；换精确模式后无输出（本轮 `gates-20260909T152536.txt` 直接用的就是精确模式）。
+① §二.7 的 `\.env` 正则里 `.` 是通配符，吃到了 `os.environ` 的 "s.env"（11 行全是 `patch.dict(os.environ, …)`）；换精确模式后无输出（本轮 `gates-20260909T161955.txt` 直接用的就是精确模式）。
 ② (m) 的 `git ls-tree -r HEAD | grep -c stderr` = 1，命中的是 `CARD-G4-9` 于 2026-08-28 入库的 `census-stderr.txt`（`.txt` 结尾故不被 `.gitignore` 的 `*.stderr*` 覆盖），在本批基线 `da690bf8` 就已在库；本卡 diff 里 stderr 计数 = **0**。
 
 ## 二 逐条 66 行
@@ -289,7 +289,7 @@ Codex round-3 明确**未能**独立确认的面（如实转录）：
 
 **本车道四轮均未驳回任何一条。**
 
-## 十 Codex round-5 处置记录 ＋ **本卡停在这里，交主 session**
+## 十 Codex round-5 处置记录（车道曾在此停下交主 session；用户随后授权破例加跑 round-6）
 
 **round-5 绑定 SHA `2b911c62`，分级：BLOCKER 0 / HIGH 1 / MEDIUM 1 / LOW 2。**
 存档 `codex-review-CARD-RED-C2-r5.md`。
@@ -340,3 +340,45 @@ B 层只保留「主查询仍绑齐四参数」。
    Codex 在其许可读取面内无法独立复核这一点，如实记录，不代为背书。
 
 **本车道五轮均未驳回任何一条。**
+
+## 十一 Codex round-6 处置记录（用户显式授权的破例轮）
+
+**round-6 绑定 SHA `b5047b1d`，分级：BLOCKER 0 / HIGH 1 / MEDIUM 2 / LOW 2。**
+存档 `codex-review-CARD-RED-C2-r6.md`。
+
+> 协议 D-15 的轮次上限是 5。round-5 仍有 HIGH，车道**已按 D-15 停下交主 session、未自判通过**；
+> **用户随后显式授权破例加跑这一轮**，只审那处撤回本身（此前没有任何一轮跑在修好后的树上）。
+
+### round-6 的 HIGH：我一直在**按参数逐个打补丁**
+
+| 轮 | 我当时的修法 | 下一轮的结果 |
+|---|---|---|
+| r2 | 钉死「期望参数集」，挡住 `limit` 的「内联 + 删参数」 | r5：一次合法调用可以**掩护**坏调用 |
+| r5 | 给 `limit` 单写一条规则（有 `LIMIT` 就必须绑 `$limit`） | r6：换成 `userId` 同样的招又漏 |
+| r6 | **换地基**：判据不再看 kwargs | 待复核 |
+
+root cause 不是「少写了一条 `userId` 规则」，而是**判据挂在「攻击者能自己缩小的那个集合」上**——
+把值内联进文本、同时把该参数从 kwargs 删掉，检查集合就跟着缩小，两边都没了反而通过。
+
+**整改（`82c285db`）**：改为依赖**本用例自己喂进去的输入值**（`user_id` / `group_id` 原始 /
+物理化 / prefix）——无论 kwargs 怎么变，这些值都不得出现在任何查询文本里。
+分页整数没法这么查（`"5"` 到处都可能正当出现），故单列一条，但触发条件收成
+`\bLIMIT\s+\d`（`LIMIT` 后**直接跟数字**），那正是「整数被内联」的形态。
+
+| 级别 | Codex 的意见 | 处置 | 复核方式 |
+|---|---|---|---|
+| HIGH | `userId` 的「内联 + 删参数」仍能被合法调用掩护 | **接受并换地基**（见上） | 负控 ⑧ FAIL（整改前实测 PASS） |
+| MEDIUM | `"LIMIT" in query` 把标识符与字符串里的 `LIMIT` 当成分页子句（`AS unlimited_count` / `'LIMIT' AS marker` 都误报） | **接受并收窄**为 `\bLIMIT\s+\d` | 负控 ③④ 两个**误报正控**均 PASS（整改前 FAIL） |
+| MEDIUM | 上一份负控的 `HEAD` 是 `2b911c62`、非提交态，不能证明「在提交态完成验证」 | **接受并重跑**：本份在提交态 `82c285db` 跑，并附「代码面零未提交改动」的 git 自证 | `negctl-security-r6-*.txt` 首部 |
+| LOW | 负控 ⑥ 实际命中「缺 group 参数」，没有隔离它声称回归的「恶意原串不得入 query」那条 | **接受并重做**：新 ⑨ 配齐 scope 与占位符，只可能死在安全内核那一条上 | 负控 ⑨ 的失败理由确为 `Malicious input found in query string` |
+| LOW | 代码注释称两条序列在 round-4「都会红」，与 §十 矛盾 | **接受并改**：改为「round-3 下会红、round-4 下变成 PASS（漏过）」 | 与 §十 表格一致 |
+
+Codex round-6 独立确认成立的部分：原三条序列现分别因**缺 scope / 错误物理组 / 缺 `limit` 绑定**
+而 FAIL；普通分步 count 仍 PASS；注释里的 `LIMIT` 被剥除后不误报；`SKIP $skip LIMIT $limit`
+接完整主查询也 PASS；本轮 diff 确只有一个测试文件、`backend/app/**` 零改动。
+
+Codex round-6 明确未能独立确认的面（如实转录）：还原日志只证明**结束时**方法引用等于 `ORIG`，
+未提供执行脚本，**不能独立确认每条异常路径的 `finally` 都走到**；§十 的字面记录基本准确，
+但**不能扩大为「所有旧防线均被负控分别命中」**。
+
+**本车道六轮均未驳回任何一条。**
