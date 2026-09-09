@@ -85,6 +85,7 @@ from zoneinfo import ZoneInfo
 
 from app.config import get_settings
 from app.core.display_tz import display_tz as _resolve_display_tz
+from app.core.display_tz import parse_posix_tz as _parse_posix_tz
 
 logger = structlog.get_logger(__name__)
 
@@ -509,11 +510,18 @@ def _gate_buckets(
     #    「payload 自相矛盾」, 落进 except 会被重包成「generated_at 无法换算」——
     #    两个完全不同的拒因混成一条, 排障时看不出是哪种。
     ref_tz = None
-    if isinstance(producer_tz, str) and producer_tz:
+    if producer_tz is not None:
+        # 静态签名是 str|None, 该 isinstance 看似恒真; 但运行时该值来自盘上
+        # JSON(payload.get), 12/{} 这类非串真实存在(Codex r4 反例), 必须防。
+        if not isinstance(producer_tz, str) or not producer_tz.strip():  # pyright: ignore[reportUnnecessaryIsInstance]
+            raise ValueError(f"display_tz 非法: {producer_tz!r} — 应为 IANA 名或 POSIX TZ 串")
+        candidate = None
         try:
-            candidate = ZoneInfo(producer_tz)
-        except Exception as e:  # noqa: BLE001 — 不认识的时区名 = 非生产器产物
-            raise ValueError(f"display_tz 不是可解析的时区名: {producer_tz!r} ({type(e).__name__})")
+            candidate = ZoneInfo(producer_tz)  # IANA 名 / tzfile 简名
+        except Exception:  # noqa: BLE001
+            candidate = _parse_posix_tz(producer_tz)  # POSIX 串: 用与生产者同源的解析器重建完整规则
+        if candidate is None:
+            raise ValueError(f"display_tz 不是可解析的时区名: {producer_tz!r}")
         try:
             same_offset = ref.astimezone(candidate).utcoffset() == ref.utcoffset()
         except (OverflowError, OSError) as e:
@@ -526,7 +534,11 @@ def _gate_buckets(
             )
         ref_tz = candidate
     if ref_tz is None:
-        ref_tz = _display_tz()
+        # 旧投影（键缺失/None）⇒ 回退到 generated_at **自带的固定偏移**, 不是此刻的
+        # 显示时区 (Codex r4 HIGH-2): 它忠于生产者写盘那一刻的偏移 —— Bogota 生成的
+        # due_today 在 NY 显示下仍被放行; DST 边界可能误判 corrupt(两害相权的一侧),
+        # 但不会放行错误归桶。生产者跑在 POSIX TZ 下时 payload 会自报规格串, 走不到这里。
+        ref_tz = ref.tzinfo
     try:
         ref_day = ref.astimezone(ref_tz).date()
     except (OverflowError, OSError) as e:

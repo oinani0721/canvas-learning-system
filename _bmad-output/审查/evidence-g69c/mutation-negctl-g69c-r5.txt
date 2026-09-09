@@ -1,0 +1,111 @@
+# CARD-G6-9c r5 变异负控 —— M1-M16（POSIX 规格驱动重写后）
+
+## 跑前基线 shasum -a 256
+  311aa5fcd19fddc1d7209fd7e796cb591a6e0a98a0dffb833c1d9248d889d823  scripts/local_tz.py
+  11cce8350a6d7cc9784c6306b8d00ca9a6ed01d4fe1bb142f7a6a6693055212b  backend/app/core/display_tz.py
+  82340c62557d672a9b6bb2da7813788135ae873b1be66bec0b8390aa0d45df0e  backend/app/api/v1/endpoints/review_overview.py
+  17bd31701739e261a173cdfcf8eda24875bfda4bd5d43de40bf5f262fed033b7  backend/scripts/vault_lint.py
+## M1 — local_tz display_tz 改回硬编码 Asia/Shanghai（副本漂移）
+  目标门: `tests/regression/test_g6_9c_single_tz_source.py::test_two_copies_share_identical_function_body`
+  rc=1  身份命中=True
+  汇总行: ['======================== 1 failed, 10 warnings in 0.49s ========================']
+  附加门: `tests/regression/test_g6_9_boundary_matrix.py::test_known_divergent_table_is_current` rc=1 身份命中=True
+  ⇒ **KILLED**
+
+## M2 — review_overview._display_tz() 改回模块级常量（求值时机固化）
+  目标门: `tests/regression/test_g6_9c_single_tz_source.py::test_display_side_reevaluates_every_call`
+  rc=1  身份命中=True
+  汇总行: ['======================== 1 failed, 10 warnings in 0.47s ========================']
+  ⇒ **KILLED**
+
+## M3 — display_tz() 跳过 TZ / /etc/localtime 两档，直接落固定偏移
+  目标门: `tests/regression/test_g6_9c_single_tz_source.py::test_default_resolution_yields_a_named_zone`
+  rc=1  身份命中=True
+  汇总行: ['======================== 1 failed, 10 warnings in 0.62s ========================']
+  ⇒ **KILLED**
+
+## M4 — POSIX 串被无视：解析成功也不返回，落 UTC（≈读 /etc/localtime 家族）
+  目标门: `tests/regression/test_g6_9c_single_tz_source.py::test_posix_tz_string_resolves_to_process_local_not_etc_localtime`
+  rc=1  身份命中=True
+  汇总行: ['================== 16 failed, 6 passed, 10 warnings in 0.58s ===================']
+  ⇒ **KILLED**
+
+## M6 — POSIX 串落此刻固定偏移（丢 DST 规则）
+  目标门: `tests/regression/test_g6_9c_single_tz_source.py::test_posix_tz_string_resolves_to_process_local_not_etc_localtime`
+  rc=1  身份命中=True
+  汇总行: ['================== 8 failed, 14 passed, 10 warnings in 0.60s ===================']
+  ⇒ **KILLED**
+
+## M5 — 参照系恒用投影自带固定偏移（DST 边界误判）
+  目标门: `tests/regression/test_g6_9c_single_tz_source.py::test_bucket_gate_reference_day_handles_dst_and_tz_switch`
+  rc=1  身份命中=True
+  汇总行: ['=================== 2 failed, 3 passed, 10 warnings in 0.68s ===================']
+  ⇒ **KILLED**
+
+## M7 — 参照系恒用此刻显示时区（切时区判 corrupt）
+  目标门: `tests/regression/test_g6_9c_single_tz_source.py::test_bucket_gate_reference_day_handles_dst_and_tz_switch`
+  rc=1  身份命中=True
+  汇总行: ['=================== 2 failed, 3 passed, 10 warnings in 0.73s ===================']
+  ⇒ **KILLED**
+
+## M9 — 门不校验 display_tz 与 generated_at 自洽（放行伪造）
+  目标门: `tests/regression/test_g6_9c_single_tz_source.py::test_bucket_gate_rejects_wrong_bucket_and_forged_display_tz`
+  rc=1  身份命中=True
+  汇总行: ['======================== 1 failed, 10 warnings in 0.69s ========================']
+  ⇒ **KILLED**
+
+## M10 — 删掉 _PosixTZ 类（scripts 副本）—— 该副本运行期 NameError
+  目标门: `tests/regression/test_g6_9c_single_tz_source.py::test_two_copies_share_identical_localtz_class`
+  rc=1  身份命中=True
+  汇总行: ['======================== 1 failed, 10 warnings in 0.59s ========================']
+  ⇒ **KILLED**
+
+## M11 — 删掉 _PosixTZ 类（backend 副本）
+  目标门: `tests/regression/test_g6_9c_single_tz_source.py::test_two_copies_share_identical_localtz_class`
+  rc=1  身份命中=True
+  汇总行: ['======================== 1 failed, 10 warnings in 1.07s ========================']
+  ⇒ **KILLED**
+
+## M12 — 共享定义在两份副本间漂移一行（_parse_hms）
+  目标门: `tests/regression/test_g6_9c_single_tz_source.py::test_two_copies_share_identical_localtz_class`
+  rc=1  身份命中=True
+  汇总行: ['======================== 1 failed, 10 warnings in 1.71s ========================']
+  ⇒ **KILLED**
+
+## M13 — 删掉自定义 fromutc（backend）—— 退回 tzinfo 默认实现
+  目标门: `tests/regression/test_g6_9c_single_tz_source.py::test_posix_tz_string_resolves_to_process_local_not_etc_localtime`
+  rc=1  身份命中=True
+  汇总行: ['================== 1 failed, 21 passed, 10 warnings in 1.55s ===================']
+  ⇒ **KILLED**
+
+## M14 — 删掉自定义 fromutc（scripts）—— 证明门覆盖两份副本
+  目标门: `tests/regression/test_g6_9c_single_tz_source.py::test_posix_tz_string_resolves_to_process_local_not_etc_localtime`
+  rc=1  身份命中=True
+  汇总行: ['================== 1 failed, 21 passed, 10 warnings in 1.78s ===================']
+  ⇒ **KILLED**
+
+## M15 — 删掉 fold 标注 —— 墙钟仍对但时刻不守恒
+  目标门: `tests/regression/test_g6_9c_single_tz_source.py::test_posix_tz_string_resolves_to_process_local_not_etc_localtime`
+  rc=1  身份命中=True
+  汇总行: ['================== 2 failed, 20 passed, 10 warnings in 1.69s ===================']
+  ⇒ **KILLED**
+
+## M16 — 断开生产接线 producer_tz=payload.get('display_tz')
+  目标门: `tests/regression/test_g6_9c_single_tz_source.py::test_bucket_gate_reference_day_handles_dst_and_tz_switch`
+  rc=1  身份命中=True
+  汇总行: ['=================== 2 failed, 3 passed, 10 warnings in 2.22s ===================']
+  ⇒ **KILLED**
+
+## M8 — vault_lint._display_tz() 内部硬编码回此刻本地（不走共享来源）
+  目标门: `tests/unit/test_vault_lint.py::test_vault_lint_today_actually_reads_the_shared_tz_source`
+  rc=1  身份命中=True
+  汇总行: ['======================== 1 failed, 10 warnings in 0.61s ========================']
+  ⇒ **KILLED**
+
+## 跑后复核 shasum（须与跑前逐字节相同）
+  311aa5fcd19fddc1d7209fd7e796cb591a6e0a98a0dffb833c1d9248d889d823  scripts/local_tz.py  ✅ 同
+  11cce8350a6d7cc9784c6306b8d00ca9a6ed01d4fe1bb142f7a6a6693055212b  backend/app/core/display_tz.py  ✅ 同
+  82340c62557d672a9b6bb2da7813788135ae873b1be66bec0b8390aa0d45df0e  backend/app/api/v1/endpoints/review_overview.py  ✅ 同
+  17bd31701739e261a173cdfcf8eda24875bfda4bd5d43de40bf5f262fed033b7  backend/scripts/vault_lint.py  ✅ 同
+
+## 裁定: {'M1': 'KILLED', 'M2': 'KILLED', 'M3': 'KILLED', 'M4': 'KILLED', 'M6': 'KILLED', 'M5': 'KILLED', 'M7': 'KILLED', 'M9': 'KILLED', 'M10': 'KILLED', 'M11': 'KILLED', 'M12': 'KILLED', 'M13': 'KILLED', 'M14': 'KILLED', 'M15': 'KILLED', 'M16': 'KILLED', 'M8': 'KILLED'}  | 还原逐字节相同: True

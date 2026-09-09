@@ -102,30 +102,42 @@ def test_two_copies_share_identical_function_body():
 
 
 def test_two_copies_share_identical_localtz_class():
-    """两份 `_SystemLocalTZ` 类体也必须逐行相同（Codex r3 MEDIUM + 自验变异 A）。
+    """两份副本的**全部共享定义**逐行相同：`_PosixTZ` 类 + `parse_posix_tz` 及其
+    辅助函数（Codex r3 MEDIUM + 自验变异 A，r4 重写后扩展）。
 
-    ⛔ 门 ① 只比 `display_tz` 那个**函数**。HIGH-1 的整个修复体是这个 35 行的类
-    （`fromutc` / `utcoffset` / `dst` / `tzname` / `_dst_gap`）—— 它不在门 ① 的
-    比较范围内。自验实测：把 `scripts/local_tz.py` 的类名改掉（等价于删掉它），
-    整个测试文件仍 22 passed，而该副本在运行期会 `NameError`。
+    ⛔ 门 ① 只比 `display_tz` 那个**函数**。POSIX TZ 分支的整个实现体是
+    `_PosixTZ` 类 + 解析函数族 —— 不在门 ① 的比较范围。自验实测：把
+    `scripts/local_tz.py` 的类名改掉（等价于删掉它），当时整个测试文件仍全绿，
+    而该副本在运行期会 `NameError`。
     """
     local_tz = _load_local_tz()
-    # 先查**存在性**再比内容：类被删/改名时 inspect.getsource 抛的是 AttributeError，
+    # 先查**存在性**再比内容：定义被删/改名时 inspect.getsource 抛的是 AttributeError，
     # 那条 traceback 不带可辨认的身份，变异负控绑不住「是这一条红的」。
-    for label, mod in (("backend/app/core/display_tz.py", backend_tz), ("scripts/local_tz.py", local_tz)):
-        assert hasattr(mod, "_SystemLocalTZ"), (
-            f"{label} 里没有 _SystemLocalTZ —— 同源副本漂移了（类被删或改名）。"
-            "该类是 POSIX TZ 分支的整个实现体，缺了它这份副本在运行期会 NameError。"
-        )
-    a = [ln.rstrip() for ln in textwrap.dedent(inspect.getsource(backend_tz._SystemLocalTZ)).splitlines()]
-    b = [ln.rstrip() for ln in textwrap.dedent(inspect.getsource(local_tz._SystemLocalTZ)).splitlines()]
-    assert a == b, (
-        "两份 _SystemLocalTZ 类体不一致 —— 同源副本漂移了。\n"
-        f"  首个差异: {next((f'{i}: {x!r} vs {y!r}' for i, (x, y) in enumerate(zip(a, b)) if x != y), '(长度不同)')}"
+    shared = (
+        "_PosixTZ",
+        "parse_posix_tz",
+        "_posix_offset_seconds",
+        "_parse_rule",
+        "_rule_epoch",
+        "_parse_hms",
+        "_strip_name",
     )
-    # 验伪锚：类体不能是空壳，且必须含本卡赖以成立的三个方法名
-    for must in ("def fromutc", "def utcoffset", "def _dst_gap"):
-        assert any(must in ln for ln in a), f"类体里没有 {must} —— 比的不是这个类"
+    for name in shared:
+        for label, mod in (("backend/app/core/display_tz.py", backend_tz), ("scripts/local_tz.py", local_tz)):
+            assert hasattr(mod, name), (
+                f"{label} 里没有 {name} —— 同源副本漂移了（定义被删或改名）。"
+                f"{name} 是 POSIX TZ 分支的实现体，缺了它这份副本在运行期会 NameError。"
+            )
+        a = [ln.rstrip() for ln in textwrap.dedent(inspect.getsource(getattr(backend_tz, name))).splitlines()]
+        b = [ln.rstrip() for ln in textwrap.dedent(inspect.getsource(getattr(local_tz, name))).splitlines()]
+        assert a == b, (
+            f"两份 {name} 不一致 —— 同源副本漂移了。\n"
+            f"  首个差异: {next((f'{i}: {x!r} vs {y!r}' for i, (x, y) in enumerate(zip(a, b)) if x != y), '(长度不同)')}"
+        )
+    # 验伪锚：类体不能是空壳，且必须含 POSIX tzinfo 赖以成立的方法名
+    cls_src = inspect.getsource(backend_tz._PosixTZ)
+    for must in ("def fromutc", "def utcoffset", "def dst", "def tzname"):
+        assert must in cls_src, f"_PosixTZ 类体里没有 {must} —— 比的不是这个类"
 
 
 def test_both_copies_carry_the_d18_ruling_date():
@@ -311,9 +323,15 @@ def test_explicit_override_wins_over_machine_tz(tz_env):
 _POSIX_TZ_VALUES = [
     "UTC0",
     "EST5",
+    "CST-8",
+    "IST-5:30",
     ":America/New_York",
-    "EST5EDT,M3.2.0,M11.1.0",
     ":America/Santiago",
+    "EST5EDT,M3.2.0,M11.1.0",
+    "PST8PDT,M3.2.0,M11.1.0",
+    "<+10:30>-10:30<+11>-11,M10.1.0,M4.1.0/3",  # 引用名 + 半小时 DST + 南半球
+    "NZST-12NZDT,M9.5.0,M4.1.0/3",  # 末周规则 + 显式切换时刻
+    "WART4WARST,J1/0,J365/25",  # J 儒略日规则 + >24h 的切换时刻
 ]
 
 #: 探测时刻。**必须含折叠窗口内的时刻**（Codex r3 + 自验变异 B/C）：
@@ -378,6 +396,131 @@ def test_posix_tz_string_resolves_to_process_local_not_etc_localtime(tz_env, tz_
             f"原时刻是 {instant.isoformat()}\n"
             "  折叠时段没标对 fold，或 utcoffset() 没按 fold 取那一侧。"
         )
+
+
+#: 规则**不写** `/时刻` ⇒ 切换时刻走 POSIX 缺省。逐分钟扫切换点前后。
+#: ⛔ 缺省是当地 02:00:00。曾误写成加两分钟，于是切换后头两分钟的墙钟比 C 库慢
+#: 一档 —— 而 ⑦ 那 9 个整点/半点探针一格都踩不到，238 组对照全绿仍带着这个缺陷。
+#: 「切换点两侧逐分钟」是这类偏移唯一的显形面，只测整点等于没测。
+_DEFAULT_TRANSITION_SCANS = [
+    ("EST5EDT,M3.2.0,M11.1.0", datetime(2026, 3, 8, 6, 50, tzinfo=timezone.utc), 30),
+    ("EST5EDT,M3.2.0,M11.1.0", datetime(2026, 11, 1, 5, 50, tzinfo=timezone.utc), 30),
+    ("IST-1GMT0,M10.5.0,M3.5.0/1", datetime(2026, 10, 25, 0, 30, tzinfo=timezone.utc), 60),
+]
+
+
+@pytest.mark.parametrize("copy_id", _COPY_IDS)
+@pytest.mark.parametrize("tz_value,scan_from,minutes", _DEFAULT_TRANSITION_SCANS)
+def test_default_transition_time_matches_libc_minute_by_minute(tz_env, tz_value, scan_from, minutes, copy_id):
+    """规则不写 `/时刻` 时，切换必须落在当地 02:00:00，逐分钟与 C 库对齐。"""
+    tz_env(tz=tz_value)
+    resolved = _display_tz_of(copy_id)
+    for i in range(minutes):
+        instant = scan_from + timedelta(minutes=i)
+        converted = instant.astimezone(resolved)
+        got = converted.replace(tzinfo=None)
+        libc = instant.astimezone().replace(tzinfo=None)
+        assert got == libc, (
+            f"[{copy_id}] TZ={tz_value!r} 在 {instant.isoformat()} 上缺省切换时刻与 C 库不符：\n"
+            f"  本实现给 {got}，C 库给 {libc}\n"
+            "  规则没写 /时刻 时，切换必须发生在当地 02:00:00。"
+        )
+        # 墙钟只测 fromutc 的「算成几点」，测不到它给这个墙钟标的 fold 对不对。
+        # 切换点两侧恰好是折叠/空缺时段，fold 标错在这里才会让时刻转不回去。
+        assert converted.astimezone(timezone.utc) == instant, (
+            f"[{copy_id}] TZ={tz_value!r} 在 {instant.isoformat()} 上切换点附近**时刻不守恒**：\n"
+            f"  换算得 {converted!r}，转回 UTC 是 {converted.astimezone(timezone.utc).isoformat()}\n"
+            "  fromutc 给折叠时段的墙钟标错了 fold。"
+        )
+
+
+#: (规格, 折叠窗口内的墙钟, 空缺窗口内的墙钟)。第三个是**负偏移差**规格：
+#: 标准侧 UTC+1 比另一侧 UTC+0 偏移大，fold 的两个方向与前两个正好相反。
+_FOLD_CONTRACT_CASES = [
+    ("EST5EDT,M3.2.0,M11.1.0", datetime(2026, 11, 1, 1, 30), datetime(2026, 3, 8, 2, 30)),
+    ("NZST-12NZDT,M9.5.0,M4.1.0/3", datetime(2026, 4, 5, 2, 30), datetime(2026, 9, 27, 2, 30)),
+    ("IST-1GMT0,M10.5.0,M3.5.0/1", datetime(2026, 10, 25, 1, 30), datetime(2026, 3, 29, 1, 30)),
+]
+
+
+@pytest.mark.parametrize("copy_id", _COPY_IDS)
+@pytest.mark.parametrize("tz_value,fold_wall,gap_wall", _FOLD_CONTRACT_CASES)
+def test_fold_side_is_chosen_by_offset_size_not_summer_time_identity(tz_env, tz_value, fold_wall, gap_wall, copy_id):
+    """折叠/空缺的选侧判据是**偏移大小**，不是「哪一侧叫夏令时」。
+
+    Python 的 fold 契约与夏令时身份无关：fold=0 恒指**先发生**的那一次。
+      · 折叠（时钟回拨）⇒ 先发生的是偏移**较大**的一侧；
+      · 空缺（时钟前跳）⇒ fold=0 取切换**前** = 偏移**较小**的一侧。
+    正偏移差的规格里「较大的那侧恰好就是夏令时侧」，按身份写死也能全绿；
+    负偏移差的规格两者方向相反，写死身份会把 fold 语义整个颠倒。
+
+    ⛔ 两条断言方向相反，互为对方的验伪锚：若探针墙钟根本不在折叠/空缺窗口内，
+    两个 fold 会给出**相同**偏移，两条严格不等式同时失败，门不会恒真。
+    ⛔ 这里不与 C 库对照 —— C 库对折叠墙钟取哪一侧是实现定义的，拿它当判据
+    等于把判据交给平台。fold 契约本身就是判据。
+    """
+    tz_env(tz=tz_value)
+    resolved = _display_tz_of(copy_id)
+
+    first = fold_wall.replace(tzinfo=resolved, fold=0)
+    second = fold_wall.replace(tzinfo=resolved, fold=1)
+    assert first.utcoffset() > second.utcoffset(), (
+        f"[{copy_id}] TZ={tz_value!r} 折叠墙钟 {fold_wall} 的 fold=0 没取偏移较大的一侧：\n"
+        f"  fold=0 给 {first.utcoffset()}，fold=1 给 {second.utcoffset()}\n"
+        "  回拨时先发生的是偏移较大那侧；按夏令时身份选侧在负偏移差规格上就是反的。"
+    )
+    assert first.astimezone(timezone.utc) < second.astimezone(timezone.utc), (
+        f"[{copy_id}] TZ={tz_value!r} 折叠墙钟 {fold_wall} 的 fold=0 不是**先发生**的那次：\n"
+        f"  fold=0 → {first.astimezone(timezone.utc).isoformat()}，"
+        f"fold=1 → {second.astimezone(timezone.utc).isoformat()}"
+    )
+    assert second.astimezone(timezone.utc) - first.astimezone(timezone.utc) == (
+        first.utcoffset() - second.utcoffset()
+    ), f"[{copy_id}] TZ={tz_value!r} 折叠墙钟 {fold_wall} 两次出现的间隔不等于偏移差"
+
+    before = gap_wall.replace(tzinfo=resolved, fold=0)
+    after = gap_wall.replace(tzinfo=resolved, fold=1)
+    assert before.utcoffset() < after.utcoffset(), (
+        f"[{copy_id}] TZ={tz_value!r} 空缺墙钟 {gap_wall} 的 fold=0 没取切换**前**的偏移：\n"
+        f"  fold=0 给 {before.utcoffset()}，fold=1 给 {after.utcoffset()}\n"
+        "  前跳跳过的墙钟，fold=0 按约定取切换前 = 偏移较小那侧。"
+    )
+
+
+#: (规格串, 是否应当解析成功, 依据)。⛔ 判据绑 **POSIX 规格**而不是 C 库：本实现
+#: 是规格驱动的，与平台的宽松处有意分歧（如 macOS 接受两字母简名 `AB3`，规格
+#: 要求 ≥3 字符 —— 已登记，不跟）。这里钉住的是我们自己的取值域有没有写错。
+_RULE_RANGE_CASES = [
+    ("EST5EDT,J0,M11.1.0", False, "`Jn` 的下界是 1，不是 0"),
+    ("EST5EDT,J1,M11.1.0", True, "`J1` = 1 月 1 日"),
+    ("EST5EDT,J365,M11.1.0", True, "`J365` 是上界"),
+    ("EST5EDT,J366,M11.1.0", False, "`Jn` 不数闰日，366 越界"),
+    ("EST5EDT,0,M11.1.0", True, "裸 `n` 的下界是 0"),
+    ("EST5EDT,365,M11.1.0", True, "裸 `n` 的上界是 365"),
+    ("EST5EDT,366,M11.1.0", False, "裸 `n` 越界"),
+    ("EST5EDT,M13.2.0,M11.1.0", False, "月份 1..12"),
+    ("EST5EDT,M3.6.0,M11.1.0", False, "周序 1..5"),
+    ("EST5EDT,M3.2.7,M11.1.0", False, "星期 0..6"),
+]
+
+
+@pytest.mark.parametrize("copy_id", _COPY_IDS)
+@pytest.mark.parametrize("spec,should_parse,why", _RULE_RANGE_CASES)
+def test_posix_rule_ranges_follow_the_spec_not_one_shared_bound(copy_id, spec, should_parse, why):
+    """`Jn` 与裸 `n` 的取值域**不同**，一个范围管两边就会放行 `J0`。
+
+    ⛔ 曾把两者合写成 `0 <= n <= 365`：`Jn` 是 1..365（不数闰日），裸 `n` 是
+    0..365（数闰日）。C 库对 `J0` 整串拒收，混用会让本实现比它宽——落到一个
+    C 库根本不认的规则上算「今天」，而且不报错。
+    ⛔ 表里同时有该接受与该拒绝的两侧：只留一侧的话，「恒接受」或「恒拒绝」
+    的实现都能把门跑绿。
+    """
+    module = backend_tz if copy_id == "backend" else _load_local_tz()
+    got = module.parse_posix_tz(spec)
+    if should_parse:
+        assert got is not None, f"[{copy_id}] {spec!r} 应当解析成功（{why}），却被拒绝了"
+    else:
+        assert got is None, f"[{copy_id}] {spec!r} 应当被拒绝（{why}），却解析成功了：{got!r}"
 
 
 def test_posix_probe_actually_differs_from_etc_localtime(tz_env):
@@ -645,9 +788,28 @@ def test_bucket_gate_rejects_wrong_bucket_and_forged_display_tz(tmp_path, tz_env
                 f"（该值与 generated_at={payload['generated_at']} 的偏移不符，或根本不是可解析的时区名）"
             )
 
-    legacy = copy.deepcopy(payload)
-    legacy.pop("display_tz")
-    _gate(legacy)  # 旧投影没有该键：必须仍能放行（加性字段向后兼容）
+    # 旧投影（键缺失）⇒ 回退到 generated_at 自带的**固定偏移**（忠于生产者写盘
+    # 那一刻的偏移，Codex r4 HIGH-2 点名的 Bogota 反例）。两个子情形：
+    #   · 固定偏移语义的生产者（Bogota 恒 -05:00）⇒ 换任何显示时区都必须放行;
+    #   · DST 边界上的生产者（NY 的 EST 生成 / EDT 到期）⇒ 固定偏移判不出那 1 小时,
+    #     会被误判 corrupt —— **如实断言这个误判**（它触发页面重新生成, 自愈;
+    #     无键时这在信息上不可两全, 已在验收单 §四 登记, 不得改断言装作放行）。
+    saved_b = picker._DISPLAY_TZ
+    picker._DISPLAY_TZ = ZoneInfo("America/Bogota")
+    try:
+        bogota_payload, _r2 = picker.build_payload(
+            vault, datetime(2026, 3, 8, 5, 30, tzinfo=timezone.utc), {}, picker.load_decay(vault)
+        )
+    finally:
+        picker._DISPLAY_TZ = saved_b
+    legacy_bogota = copy.deepcopy(bogota_payload)
+    legacy_bogota.pop("display_tz")
+    _gate(legacy_bogota)  # 固定偏移语义的旧投影：跨显示时区必须放行
+
+    legacy_ny = copy.deepcopy(payload)
+    legacy_ny.pop("display_tz")
+    with pytest.raises(ValueError, match="仍在 generated_at"):
+        _gate(legacy_ny)  # DST 边界旧投影的已知误判（登记项，见 docstring）
 
 
 # ══════════════════════════════════════════════════════════════════════════
