@@ -1,0 +1,112 @@
+负控套件 @ HEAD=0b9be419  2026-09-09T20:16:05+08:00
+
+########## 负控 L1-layer：override 换 Branch 2 档(debug=True) ⇒ 判据须红 ##########
+-- 变异前 sha --
+656ef366f02c9c419b5bcc8391e317fa4baca9ab72a7a51dace0fb73478d307e  backend/tests/unit/test_sync_batch_auth.py
+265ad88e31383cd21e9693e48a9e3354017f39823f853e71aa5e43cbef23cd58  backend/tests/unit/test_system_endpoint_auth.py
+  变异 backend/tests/unit/test_sync_batch_auth.py: 1 处 debug=False->True
+  变异 backend/tests/unit/test_system_endpoint_auth.py: 2 处 debug=False->True
+-- 结果 --
+================== 3 failed, 14 passed, 12 warnings in 0.83s ===================
+FAILED tests/unit/test_sync_batch_auth.py::TestProductionFailClosed::test_no_key_configured_fails_closed_503
+FAILED tests/unit/test_system_endpoint_auth.py::TestSystemConfigAuth::test_prod_no_key_configured_503
+FAILED tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuth::test_prod_no_key_configured_503
+红在期望判据上的证据行:
+E   AssertionError: assert 'Internal API...loopback dev.' == 'Internal API...ot configured'
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/tests/unit/test_sync_batch_auth.py:174: AssertionError: assert 'Internal API...loopback dev.' == 'Internal API...ot configure
+末行: rc=1
+-- 还原后 sha --
+656ef366f02c9c419b5bcc8391e317fa4baca9ab72a7a51dace0fb73478d307e  backend/tests/unit/test_sync_batch_auth.py
+265ad88e31383cd21e9693e48a9e3354017f39823f853e71aa5e43cbef23cd58  backend/tests/unit/test_system_endpoint_auth.py
+还原对账 diff-quiet-rc=0 (0=与 HEAD 逐字节一致)
+
+########## 负控 L2-funcname：funcName 绑定改成 WebSocket 侧函数 ⇒ 须红(证明 funcName 条件承重) ##########
+-- 变异前 sha --
+656ef366f02c9c419b5bcc8391e317fa4baca9ab72a7a51dace0fb73478d307e  backend/tests/unit/test_sync_batch_auth.py
+265ad88e31383cd21e9693e48a9e3354017f39823f853e71aa5e43cbef23cd58  backend/tests/unit/test_system_endpoint_auth.py
+  变异 backend/tests/unit/test_sync_batch_auth.py: 1 处 funcName 换 WS 侧
+  变异 backend/tests/unit/test_system_endpoint_auth.py: 2 处 funcName 换 WS 侧
+-- 结果 --
+================== 3 failed, 14 passed, 12 warnings in 0.82s ===================
+FAILED tests/unit/test_sync_batch_auth.py::TestProductionFailClosed::test_no_key_configured_fails_closed_503
+FAILED tests/unit/test_system_endpoint_auth.py::TestSystemConfigAuth::test_prod_no_key_configured_503
+FAILED tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuth::test_prod_no_key_configured_503
+红在期望判据上的证据行:
+E   AssertionError: expected the Branch 1 fail-closed record emitted by require_internal_api_key
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/tests/unit/test_sync_batch_auth.py:175: AssertionError: expected the Branch 1 fail-closed record emitted by require_internal_
+末行: rc=1
+-- 还原后 sha --
+656ef366f02c9c419b5bcc8391e317fa4baca9ab72a7a51dace0fb73478d307e  backend/tests/unit/test_sync_batch_auth.py
+265ad88e31383cd21e9693e48a9e3354017f39823f853e71aa5e43cbef23cd58  backend/tests/unit/test_system_endpoint_auth.py
+还原对账 diff-quiet-rc=0 (0=与 HEAD 逐字节一致)
+
+########## 负控 L3-token：完整标记换成不存在的 token ⇒ 须红(证明不恒真) ##########
+-- 变异前 sha --
+656ef366f02c9c419b5bcc8391e317fa4baca9ab72a7a51dace0fb73478d307e  backend/tests/unit/test_sync_batch_auth.py
+265ad88e31383cd21e9693e48a9e3354017f39823f853e71aa5e43cbef23cd58  backend/tests/unit/test_system_endpoint_auth.py
+  变异 backend/tests/unit/test_sync_batch_auth.py: 1 处 token 换不存在值
+  变异 backend/tests/unit/test_system_endpoint_auth.py: 2 处 token 换不存在值
+-- 结果 --
+================== 3 failed, 14 passed, 12 warnings in 0.81s ===================
+FAILED tests/unit/test_sync_batch_auth.py::TestProductionFailClosed::test_no_key_configured_fails_closed_503
+FAILED tests/unit/test_system_endpoint_auth.py::TestSystemConfigAuth::test_prod_no_key_configured_503
+FAILED tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuth::test_prod_no_key_configured_503
+红在期望判据上的证据行:
+E   AssertionError: expected the Branch 1 fail-closed record emitted by require_internal_api_key
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/tests/unit/test_sync_batch_auth.py:175: AssertionError: expected the Branch 1 fail-closed record emitted by require_internal_
+末行: rc=1
+-- 还原后 sha --
+656ef366f02c9c419b5bcc8391e317fa4baca9ab72a7a51dace0fb73478d307e  backend/tests/unit/test_sync_batch_auth.py
+265ad88e31383cd21e9693e48a9e3354017f39823f853e71aa5e43cbef23cd58  backend/tests/unit/test_system_endpoint_auth.py
+还原对账 diff-quiet-rc=0 (0=与 HEAD 逐字节一致)
+
+===== 套件结束，全树 status =====
+?? "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-RED-A2-r1.md"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-red-a2/"
+?? "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-RED-A2.md"
+
+########## 负控 L4-caplog-solo：移除 detail 等值 + 换 Branch 2 档 ⇒ caplog 判据须独立变红 ##########
+-- 变异前 sha --
+656ef366f02c9c419b5bcc8391e317fa4baca9ab72a7a51dace0fb73478d307e  backend/tests/unit/test_sync_batch_auth.py
+265ad88e31383cd21e9693e48a9e3354017f39823f853e71aa5e43cbef23cd58  backend/tests/unit/test_system_endpoint_auth.py
+  变异 backend/tests/unit/test_sync_batch_auth.py: 移除 detail 等值 1 处 + override 换 Branch 2 档 1 处
+  变异 backend/tests/unit/test_system_endpoint_auth.py: 移除 detail 等值 2 处 + override 换 Branch 2 档 2 处
+-- 结果 --
+================== 3 failed, 14 passed, 12 warnings in 0.84s ===================
+FAILED tests/unit/test_sync_batch_auth.py::TestProductionFailClosed::test_no_key_configured_fails_closed_503
+FAILED tests/unit/test_system_endpoint_auth.py::TestSystemConfigAuth::test_prod_no_key_configured_503
+FAILED tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuth::test_prod_no_key_configured_503
+红在期望判据上的证据行:
+E   AssertionError: expected the Branch 1 fail-closed record emitted by require_internal_api_key
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/tests/unit/test_sync_batch_auth.py:174: AssertionError: expected the Branch 1 fail-closed record emitted 
+末行: rc=1
+-- 还原后 sha --
+656ef366f02c9c419b5bcc8391e317fa4baca9ab72a7a51dace0fb73478d307e  backend/tests/unit/test_sync_batch_auth.py
+265ad88e31383cd21e9693e48a9e3354017f39823f853e71aa5e43cbef23cd58  backend/tests/unit/test_system_endpoint_auth.py
+还原对账 diff-quiet-rc=0 (0=与 HEAD 逐字节一致)
+
+########## 负控 L5-revert：实例化改法退回原样 ⇒ 3 条须回到 assert 500 == 503 ##########
+-- 变异前 sha --
+656ef366f02c9c419b5bcc8391e317fa4baca9ab72a7a51dace0fb73478d307e  backend/tests/unit/test_sync_batch_auth.py
+265ad88e31383cd21e9693e48a9e3354017f39823f853e71aa5e43cbef23cd58  backend/tests/unit/test_system_endpoint_auth.py
+  变异 backend/tests/unit/test_sync_batch_auth.py: 实例化改法退回原样 (1)
+  变异 backend/tests/unit/test_system_endpoint_auth.py: 实例化改法退回原样 (1)
+-- 结果 --
+================== 3 failed, 14 passed, 12 warnings in 0.86s ===================
+FAILED tests/unit/test_sync_batch_auth.py::TestProductionFailClosed::test_no_key_configured_fails_closed_503
+FAILED tests/unit/test_system_endpoint_auth.py::TestSystemConfigAuth::test_prod_no_key_configured_503
+FAILED tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuth::test_prod_no_key_configured_503
+红在期望判据上的证据行:
+    assert 500 == 503
+E   assert 500 == 503
+末行: rc=1
+-- 还原后 sha --
+656ef366f02c9c419b5bcc8391e317fa4baca9ab72a7a51dace0fb73478d307e  backend/tests/unit/test_sync_batch_auth.py
+265ad88e31383cd21e9693e48a9e3354017f39823f853e71aa5e43cbef23cd58  backend/tests/unit/test_system_endpoint_auth.py
+还原对账 diff-quiet-rc=0 (0=与 HEAD 逐字节一致)
+
+===== 套件结束，全树 status =====
+?? "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-RED-A2-r1.md"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-red-a2/"
+?? "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-RED-A2.md"
+===== 五段负控汇总 =====
