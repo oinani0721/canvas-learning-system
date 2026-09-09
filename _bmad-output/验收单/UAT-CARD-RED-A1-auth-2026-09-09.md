@@ -110,13 +110,24 @@
 「payload vault 与 active vault 一致」这个新前提。给它们配匹配的 active vault **也不等于「关掉隔离」**，
 `vault_scope.py:162-176` 的判定仍真实执行。所以不能说「必须重写」或「本卡修不了」。
 
-实际处置依据是**分工**：① 要修需逐用例改用例代码（5 条各用不同 vault_id，fixture 级单桩覆盖不到），
-而本卡地盘约定是「不改被测用例本身、只换测试装置」；② 这 5 条属 vault 隔离面，与本卡「解开鉴权装置」
-不同轴，同批 U5-C `CARD-RED-R` 专门承接 RED 收敛。
+实际处置依据是**分工**：① 要修需**按用例适配 active-vault 前提**（5 条各用不同 vault_id，
+一个固定 `return_value` 的 fixture 级单桩覆盖不到）——但这**不等于「必须改用例体」**
+（Codex round-2 MEDIUM-1 更正：function-scope fixture 完全可以按用例配置前提）；
+本卡不做是因为地盘约定「只换测试装置、不动被测用例这一面」。② 这 5 条属 vault 隔离面，
+与本卡「解开鉴权装置」不同轴，同批 U5-C `CARD-RED-R` 专门承接 RED 收敛。
 
-📌 顺带登记一个**真实的覆盖缺口**（Codex MEDIUM-2 实证）：全仓当前**没有任何测试**对 enrich-context
-断言 409 —— 5 条正向被 409 阻断、2 条验 422、1 条验 ContextVar 并发，都不是「不一致时会拒绝」的回归
-覆盖。接手卡宜在适配前提的同时补一条反向用例（显式异 vault → 期望 409）。
+⚠️ **本节先前写过一条「覆盖缺口」，那句话是错的，此处推翻**。Codex round-2 MEDIUM-2 指出它范围过宽；
+复核后发现问题比「过宽」更严重——它在任何范围下都不成立。实测：
+
+- `tests/unit/test_vault_scope_409.py:333-343` `test_chat_enrich_context_mismatch_409` 就是对
+  **enrich-context** 的 409 断言（异 vault payload → `assert 409`），且它在开工与收工红集里
+  **都不存在**（一直绿）。
+- 同文件 `:345-373` `test_chat_enrich_context_match_path_executes` 用的正是本卡这组桩
+  （`get_current_vault_id` + `get_memory_service` 的 `AsyncMock`），是本卡打桩形态的**直接先例**。
+- 该文件还覆盖 sync / mastery / memory / exam_sessions / boards 五个端点面的 409。
+
+**这反而加强了移交决定**：409 门本身有专门的、绿着的回归覆盖，vault_isolation 那 5 条正向用例
+并不承担这道门的把关职责，接手卡为它们适配 active-vault 前提不会留下覆盖缺口。
 
 ### 判据 7 — 地盘门
 
@@ -216,7 +227,21 @@ git diff --stat --no-color 7004a365 -- backend/app  → 空 + rc=0   ✅ 零生�
 | 轮 | 存档 | 绑定 | BLOCKER | HIGH | MEDIUM | LOW | 结果 |
 |---|---|---|---|---|---|---|---|
 | r1 | `codex-review-CARD-RED-A1-auth-r1.md` | `7004a365..工作区` | **0** | **0** | 2 | 3 | 5 条**全部采纳整改**，故必再送一轮 |
-| r2 | `codex-review-CARD-RED-A1-auth-r2.md` | 待填 | 待填 | 待填 | 待填 | 待填 | 待填 |
+| r2 | `codex-review-CARD-RED-A1-auth-r2.md` | `7004a365..faeda37f` | **0** | **0** | 2 | 2 | 4 条**全部采纳整改**，故必再送一轮 |
+| r3 | `codex-review-CARD-RED-A1-auth-r3.md` | 待填 | 待填 | 待填 | 待填 | 待填 | 待填 |
+
+**r2 四条整改逐条落点**：
+- MEDIUM-1（旧结论残留 + 「必须改用例代码」仍过强）→ 验收单 `:244`/`:264` 清掉「断言过期」「判契约演进」，
+  `second-layer` §A.1 改为「按用例适配前提」并明写 function-scope fixture 本可做到、本卡不做是地盘约定
+- MEDIUM-2（把 enrich-context 的缺口说成全仓无覆盖）→ **复核后发现比「过宽」更严重：该说法在任何范围下
+  都不成立**。`test_vault_scope_409.py:333-343` 就是 enrich-context 的 409 断言且一直绿；其 `:345-373`
+  还用了与本卡同一组桩。两处 fixture docstring + `second-layer` §A.3 + 验收单判据 6 与 §8.9 全部改写为
+  「这条性质另有覆盖且绿」，并说明这**加强**而非削弱移交决定
+- LOW-1（rag hook 三条全归「进业务处理」）→ `second-layer` 把 `short_prompt_skips_lazy_init`
+  改归第 (ii) 类「端点内提前返回」，POST 行号更新为 `:434/:463/:485`
+- LOW-2（三处「每条/全文件」过宽）→ `test_chat_endpoint.py` 限定为「enrich-context 请求」、
+  `test_study_question_deep_mode.py` 限定为「七条有效输入的正向用例」、
+  `test_enrich_context_vault_isolation.py` 限定为「使用 client 的 HTTP 用例」
 
 **r1 五条整改逐条落点**：
 - MEDIUM-1（移交理由过强）→ `second-layer-*.txt` §A 重写 + 本验收单 §4-A 判据 6 同步收窄
@@ -241,15 +266,16 @@ git diff --stat --no-color 7004a365 -- backend/app  → 空 + rc=0   ✅ 零生�
 4. **未证明 `block_reason()` 在真 Neo4j 可用时的行为** —— 本卡只在测试侧把它打成返回 `None`。
 5. **未证明 `authed_client` 在 `tests/api` / `tests/integration` 下可用** —— 只在 `tests/unit` 的四个文件里用过。
 6. **未证明这 37 条背后的业务断言当前仍是正确契约** —— 本卡只把请求送进业务层；断言本身对不对没有重新评估
-   （vault_isolation 那 5 条恰恰是反例：断言过期了）。
+   （vault_isolation 那 5 条只是**前提未适配**，本卡并未证明它们的断言是错的——见判据 6）。
 7. **未证明 `X-CLS-Internal-Key` 头名与生产插件一致** —— header 名从 `app.security.INTERNAL_API_KEY_HEADER_NAME`
    import（不抄字面量），但没有与前端 `api-client.ts` 侧交叉核对。
 8. **未证明 32 条转绿的用例"验的还是它原本想验的东西"** —— 本卡打了 3 类桩
    （`get_current_vault_id` / `get_memory_service` / `get_canvas_schema_gate`）。桩的等价性有论证
    （见各 fixture docstring 与三分类表），但没有做变异验证。这一条已列入 Codex 提问 §三.4/§三.5。
-9. **未证明「请求 vault 与 active vault 不一致时会被拒」有任何回归覆盖** —— 恰恰相反，Codex round-1
-   MEDIUM-2 实证全仓当前**没有**这样的测试。本卡还给 chat/deep_mode 两个文件加了 active-vault 桩，
-   等于在这两个文件里把该前提设成恒一致。这道覆盖缺口本卡不补，已登记移交。
+9. **未证明「请求 vault 与 active vault 不一致时会被拒」——但这条性质另有覆盖，且是绿的**。
+   本卡给 chat / deep_mode 两个文件加了 active-vault 桩，等于在这两个文件里把该前提设成恒一致，
+   所以**本卡的改动不为这条性质提供任何证据**。它由 `test_vault_scope_409.py:333-343` 把关
+   （开工收工均绿）。⚠️ 本条先前写成「全仓没有这样的测试」，是错的，已于 Codex round-2 后更正。
 10. **未证明四文件级耗时从 1.07s 涨到 51-96s 的全部来源** —— 哨兵归 0 后仍慢，初判是
    `search_supplementary` 侧的既有开销（本卡解开鉴权后这些代码才第一次真正执行到），非本卡引入，登记不处置。
 
@@ -261,7 +287,7 @@ git diff --stat --no-color 7004a365 -- backend/app  → 空 + rc=0   ✅ 零生�
    承诺「禁 autouse / 禁进任何 conftest / 禁 os.environ 注入」，AST 门证据见
    `evidence-red-a1-auth/gate-fixture-constraints-*.txt`。U10-D 计划复用它。
 2. **第二层红三分类表**：`evidence-red-a1-auth/second-layer-20260909T134842.txt`，
-   17 条 409 + 1 条哨兵本卡修，5 条判契约演进**移交 U5-C `CARD-RED-R`**。
+   17 条 409 + 1 条哨兵本卡修，5 条判**前提未适配**（非断言证伪）**移交 U5-C `CARD-RED-R`**。
 3. **`security.py:13-22` docstring 矩阵与实现矛盾**：`:15` 行写 `| True | empty | any | allow + structured
    warning (dev mode) |`，与 `:110-142` 的 fail-closed 实现相反。登记不改（本卡零生产写面）。
 4. **`chat.py:39-47` 旧矩阵注释过期**：尤其 `:43`「DEBUG=True + key 未配置 → allow + warning log」，

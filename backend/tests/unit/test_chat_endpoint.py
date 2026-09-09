@@ -21,8 +21,10 @@ from app.services.wikilink_context_service import (
 
 from tests.support.authed_client import authed_client  # noqa: F401
 
-#: 本文件所有请求携带的 vault_id。桩与 payload 共用这一个定义, 否则改了 payload
-#: 默认值却忘了改桩, 全文件会静默退回 409 (CARD-RED-A1-auth)。
+#: 本文件 **enrich-context** 请求携带的 vault_id（``:434/:463/:485`` 三条
+#: ``rag/enrich-hook`` 请求不带这个字段，走的是另一个 request model）。桩与 payload
+#: 共用这一个定义, 否则改了 payload 默认值却忘了改桩, 那些请求会静默退回 409
+#: (CARD-RED-A1-auth; 范围限定按 Codex round-2 LOW-2 收窄)。
 TEST_VAULT_ID = "test_vault"
 
 
@@ -38,15 +40,22 @@ def client(authed_client: TestClient) -> Generator[TestClient, None, None]:
     解开鉴权后请求会再撞 ``chat.py:287-293`` 的 ``resolve_vault_scope``:
     「显式 vault_id ≠ 进程 active vault」→ 409 fail-closed
     (``vault_scope.py:166-176``)。本文件测的是 **enrich-context 的组装与降级行为**,
-    不是 vault 隔离; 不把 ``TEST_VAULT_ID`` 声明成 active vault, 每条 200 断言都会
-    变成 409, 淹没真正要测的信号。桩的形态与理由同 ``test_sync_batch_auth.py:81-84,98``
+    不是 vault 隔离; 不把 ``TEST_VAULT_ID`` 声明成 active vault, **走到 resolver 的那些
+    请求**的 200 断言都会变成 409, 淹没真正要测的信号（不含 ``:434/:463/:485`` 三条
+    ``rag/enrich-hook`` 请求，它们不带 vault_id、不经 ``resolve_vault_scope``；也不含
+    ``:131/:140`` 那两条在 Pydantic / 入参校验就返回的用例）。桩的形态与理由同 ``test_sync_batch_auth.py:81-84,98``
     的先例。
 
     ⚠️ 本桩**不证明**「请求 vault 与 active vault 不一致时会被拒」——它恰恰把这个前提
-    设成一致。全仓当前也没有任何测试对 enrich-context 断言 409：
-    ``test_enrich_context_vault_isolation.py`` 的五条正向用例被 409 阻断（红，已登记移交），
-    另两条验 422、一条验 ContextVar 并发，都不是 409 的回归覆盖。这道覆盖缺口本卡不补
-    （Codex round-1 MEDIUM-2 实证，如实记录）。
+    设成一致。这条性质由**另一个文件**把关且当前是绿的：
+    ``tests/unit/test_vault_scope_409.py:333-343``
+    ``test_chat_enrich_context_mismatch_409``（异 vault payload → 断言 409）。
+    该文件 :345-373 的 ``test_chat_enrich_context_match_path_executes`` 还用了与本
+    fixture **同一组桩**（``app.config.get_current_vault_id`` +
+    ``app.api.v1.endpoints.chat.get_memory_service`` 的 ``AsyncMock``），是本卡打桩形态的
+    直接先例。
+    （Codex round-2 MEDIUM-2 指出本段原先声称「全仓没有 enrich-context 的 409 覆盖」；
+    复核后确认那句话是错的——覆盖一直存在，见上述行号。）
 
     再往后 ``chat.py:313`` ``await get_memory_service()`` 会**真的**建 MemoryService
     单例 → Neo4jClient 连 ``bolt://localhost:7691``（现网），被 W4 哨兵拦下并把用例判红。

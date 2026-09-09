@@ -2,7 +2,7 @@ CARD-RED-A1-auth — 第二层红三分类表（完成条件 (f) / 核心裁判 
 每行: nodeid | 类别 | 依据 | 去向
 类别: 409 = resolve_vault_scope/resolve_vault_group_id 的 vault fail-closed
       哨兵 = W4 live Neo4j port connect attempted
-      断言 = 真业务断言红 / 契约演进
+      断言 = 真业务断言红（本卡最终未用此类；5 条判为「前提未适配」）
 阶段存档（本目录）:
   four-open-20260909T133056.txt   37 failed  开工，全部止于 router 级鉴权 503
   four-mid1-20260909T133341.txt   22 failed  仅 authed_client + sync 两桩后
@@ -18,11 +18,14 @@ CARD-RED-A1-auth — 第二层红三分类表（完成条件 (f) / 核心裁判 
 （原写「请求本就不进业务层 / 非 HTTP 的 rag_enrich_hook 单元」，两处都不实）。按请求
 实际走到哪里重分三类：
   (i) 输入校验即返回，不进端点函数体：Pydantic 422（max_hops / mode / vault_id 缺失或空串）；
-  (ii) 进了端点函数体但提前返回：empty_node_path 的 400；
-  (iii) **确实进了业务处理**：rag_enrich_hook 三条走的是 HTTP
-       `client.post("/api/v1/chat/rag/enrich-hook")`（test_chat_endpoint.py:429/458/480），
-       /sync/batch 六条也真的进了端点的异常分类分支（four-after 日志有 sync.py:141/:154
-       的分类日志与经 process_sync_batch 的 traceback）。
+  (ii) 进了端点函数体但**提前返回**：empty_node_path 的 400；以及
+       `test_rag_enrich_hook_short_prompt_skips_lazy_init`——它发 prompt="hi"，
+       断言 200 且 lazy init 未被调用（test_chat_endpoint.py:452 起，POST 在 :434），
+       这是**预期内的提前返回覆盖**，不是假绿（Codex round-2 LOW-1 归类更正）；
+  (iii) **确实进了业务处理**：另外两条 rag hook（POST 在 :463 / :485）走 HTTP
+       `client.post("/api/v1/chat/rag/enrich-hook")`，/sync/batch 六条也真的进了端点的
+       异常分类分支（four-after 日志有 sync.py:141/:154 的分类日志与经 process_sync_batch
+       的 traceback）。
 转绿条数不受此更正影响，错的只是分类说明。逐条：
   tests/unit/test_chat_endpoint.py::test_enrich_context_empty_node_path_rejected
   tests/unit/test_chat_endpoint.py::test_enrich_context_max_hops_validation
@@ -79,15 +82,25 @@ tests/unit/test_study_question_deep_mode.py::test_mode_preload_with_user_questio
 - 因此不能说「必须重写才能修」，也不能说「本卡无法修复」。
 
 **本卡实际的处置依据（分工，不是技术不可能）**：
-1. 要修需**逐用例**改用例代码：5 条各用不同的 vault_id —— "CS 61B"(:108) / "数学101"(:137)
-   / "cs_61b"(:162) / "../etc/passwd"(:228) / "📚 笔记本"(:250)，fixture 级单桩只能声明
-   一个 active vault。而本卡的地盘约定是「不改被测用例本身、只换测试装置」。
+1. 要修需**按用例适配 active-vault 前提**：5 条各用不同的 vault_id —— "CS 61B"(:110)
+   / "数学101"(:139) / "cs_61b"(:164) / "../etc/passwd"(:230) / "📚 笔记本"(:252)，
+   一个固定 `return_value` 的 fixture 级单桩覆盖不到。
+   ⚠️ 这**不等于「必须改用例体」**（Codex round-2 MEDIUM-1 更正）：function-scope fixture
+   完全可以按用例配置前提（读用例自身 payload、或参数化）。本卡不做，是因为地盘约定是
+   「只换测试装置、不动被测用例这一面」，而这属于 vault 隔离面的适配工作。
 2. 这 5 条属于 **vault 隔离面**，与本卡「解开鉴权装置」的主题不同轴；同批已有专门承接
    RED 收敛的卡（U5-C `CARD-RED-R`），放在那里一次性处理前提适配更合适。
-3. 顺带登记一个**真实的覆盖缺口**（Codex MEDIUM-2 实证）：全仓当前**没有任何测试**对
-   enrich-context 断言 409。这 5 条正向用例被 409 阻断（红），另两条验 422，一条验
-   ContextVar 并发——都不是「不一致时会拒绝」的回归覆盖。接手卡宜在适配前提的同时补一条
-   反向用例（显式异 vault → 期望 409），否则这道门失效不会有任何测试报警。
+3. ⚠️ **本表原先写的「覆盖缺口」不成立，此处更正**（Codex round-2 MEDIUM-2 提示范围过宽，
+   复核后发现比「过宽」更严重：那句话在任何范围下都是错的）。实测：
+   - `tests/unit/test_vault_scope_409.py:333-343` `test_chat_enrich_context_mismatch_409`
+     就是对 **enrich-context** 的 409 断言（异 vault payload → assert 409），
+     且它在开工与收工红集里**都不存在**（一直是绿的）。
+   - 同文件 :345-373 `test_chat_enrich_context_match_path_executes` 用的正是本卡这组桩
+     （`get_current_vault_id` + `get_memory_service` 的 AsyncMock），是打桩形态的直接先例。
+   - `test_sync_batch_auth.py` / `test_vault_scope_409.py` 还覆盖了 sync/mastery/memory/
+     exam_sessions/boards 五个端点面的 409。
+   **这反而加强了移交决定**：409 门本身有专门的、绿着的回归覆盖，vault_isolation 那 5 条
+   正向用例并不承担这道门的把关职责，接手卡为它们适配 active-vault 前提不会留下覆盖缺口。
 4. 同文件的 test_concurrent_two_vaults_dont_share_context_var 不走 HTTP，开工就是绿的，
    不受影响（four-open 里唯一的 1 passed）。
 
