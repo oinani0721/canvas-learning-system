@@ -1219,10 +1219,26 @@ def test_every_bash_write_site_has_a_prewrite_recheck():
         'assert_writable_now "$out.tmp"',
     ):
         assert obj in src, f"写入点缺紧邻复查: {obj}"
-    # python 两处：内核在 open 那一刻拒软链，且**截断前**查链接数
-    assert src.count("os.O_NOFOLLOW") == 2, "两处 python 写入必须都用 O_NOFOLLOW"
+    # ⛔ 架构已变（Codex r7 HIGH-1）：`O_NOFOLLOW` 的字面量不再在本脚本里 ——
+    #    两处 python 写入统一走 `cls_forbidden_paths.open_pinned()`（解析后当场过判据 +
+    #    逐级 `O_DIRECTORY|O_NOFOLLOW` + `openat` 叶子）。门跟着改，不是删。
+    assert src.count("open_pinned(") == 2, "两处 python 写入必须都走 open_pinned"
     assert src.count("os.ftruncate(fd, 0)") == 2, "必须先 fstat 查链接数再 ftruncate"
     assert src.count("st.st_nlink > 1") == 2, "O_NOFOLLOW 之后还要挡硬链接（共享 inode）"
+    # 原语本体的形状（在判据模块里）：逐级 O_NOFOLLOW + 叶子也带 O_NOFOLLOW
+    fsrc = FORBID_PY.read_text(encoding="utf-8")
+    assert "os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW" in fsrc, "逐级打开必须带 O_NOFOLLOW"
+    assert "flags | os.O_NOFOLLOW" in fsrc, "叶子打开必须强制带 O_NOFOLLOW"
+    assert "hits(parent, targets, claude_prefixes" in fsrc, (
+        "解析父目录后必须**当场过判据** —— 只 realpath 等于替攻击者把链走完（本卡实测证伪过）"
+    )
+    # ⛔ 路径式 chmod 必须绝迹：它每次重新解析路径，末段/祖先被换掉就改到别人的权限
+    bare = [
+        ln
+        for ln in src.splitlines()
+        if "chmod " in ln and not ln.lstrip().startswith("#") and "pinned_chmod600" not in ln
+    ]
+    assert not bare, f"仍有路径式 chmod: {bare}"
     # `stat -f '%l'` 在 GNU 下是文件系统信息、会回一个看似合理的数字 —— 不许再用
     assert "stat -f '%l'" not in src, "不要用 stat 取链接数（BSD/GNU 口径不同且都不报错）"
 
@@ -1543,8 +1559,12 @@ def test_env_key_write_chmods_only_after_nofollow_and_nlink(tmp_path: Path):
     blk = src[blk_start : src.index("\nPY", blk_start)]
     for anchor in ("os.fstat(fd)", "st.st_nlink > 1", "os.fchmod(fd, 0o600)", "os.ftruncate(fd, 0)"):
         assert anchor in blk, f"B4 写入块缺锚点 {anchor!r}"
-    assert blk.index("os.fstat(fd)") < blk.index("os.fchmod(fd, 0o600)"), (
-        "fchmod 必须在 fstat/nlink 检查之后 —— 否则又是「先改权限再拒绝」"
+    # ⛔ 光钉「在 fstat 之后」不够（Codex r7 MEDIUM-1）：把 fchmod 塞进 fstat 与
+    #    `if st.st_nlink > 1` **之间**，既存硬链接仍会先被改权限再拒写，而门照样绿。
+    #    真正要锁的是「在**拒绝分支**之后」。
+    reject = blk.index('raise SystemExit(f".env 有 {st.st_nlink}')
+    assert blk.index("os.fstat(fd)") < reject < blk.index("os.fchmod(fd, 0o600)"), (
+        "fchmod 必须在 nlink **拒绝分支之后** —— 否则硬链接会先被改权限再拒写"
     )
     assert blk.index("os.fchmod(fd, 0o600)") < blk.index("os.ftruncate(fd, 0)"), "fchmod 必须在 ftruncate 之前"
     # ③ 路径式 chmod 在步 3 里必须绝迹（seed_env_file 里的那次不在此范围）。
@@ -1557,6 +1577,153 @@ def test_env_key_write_chmods_only_after_nofollow_and_nlink(tmp_path: Path):
     )
     # seed 出来的那份从诞生就是 0600，走不到这个窗口。
     assert '(umask 077 && : > "$ENV_FILE.tmp")' in src, "seed 的临时文件缺 umask 077"
+
+
+def test_step4_mirror_symlink_is_blocked_end_to_end(tmp_path: Path):
+    """⛔ r7 MEDIUM-3：源码门证不了控制流可达 —— 把整块包进 `if false; then … fi`，
+    守卫与内层形状都还在、bash 语法也过，门照样绿而 `sed` 照跑。
+
+    ⇒ 这条改用**端到端**：造一份 harness 副本，把 `canvas-vault/.claude/hooks` 换成
+    指向「保护目录」的软链（`CLS_LIVE_VAULT` 指向它），`--port != 8011` 触发源镜像。
+    `cp -R` 保留软链 ⇒ 若判据没真的跑，`sed -i` 会沿链写进保护目录。
+    判据：rc **74** + 消息点名那个镜像文件 + 保护目录**零写入**。
+    控制组在下一条（hooks 还原为真目录 → rc 0），证明不是「永远拦」。
+    """
+    src_cv = REPO_ROOT / "canvas-vault"
+    if not (src_cv / ".claude" / "hooks" / "session-end-archive.py").is_file():
+        pytest.skip("源树缺 .claude/hooks/session-end-archive.py，无从造该拓扑")
+    h = tmp_path / "harness"
+    h.mkdir()
+    for name in ("scripts", "docker-compose.yml", "backend", "frontend"):
+        os.symlink(REPO_ROOT / name, h / name)
+    shutil.copytree(src_cv, h / "canvas-vault", symlinks=True)
+    live = tmp_path / "protected"
+    (live / "hooks").mkdir(parents=True)
+    hooks = h / "canvas-vault" / ".claude" / "hooks"
+    for f in hooks.iterdir():
+        shutil.copy2(f, live / "hooks" / f.name)
+    shutil.rmtree(hooks)
+    os.symlink(live / "hooks", hooks)
+
+    env = dict(os.environ)
+    for _k in _STRIP_ENV:
+        env.pop(_k, None)
+    env["CLS_LIVE_VAULT"] = str(live)
+    env["CLS_DEPLOY_NO_DOCKER_UP"] = "1"
+    before = time.time()
+    r = subprocess.run(
+        [
+            str(DEPLOY_SH),
+            "--vault",
+            str(tmp_path / "vaults" / "mirrorprobe"),
+            "--harness",
+            str(h),
+            "--port",
+            "8231",
+            "--hosts",
+            "claude",
+            "--env-dir",
+            str(tmp_path / "env"),
+            "--evidence-dir",
+            str(tmp_path / "ev"),
+            "--apply",
+        ],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert r.returncode == 74, f"镜像内软链未被步 4 拦下: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    assert "禁写面" in r.stdout and "mirror-" in r.stdout, f"消息未点名镜像对象: {r.stdout!r}"
+    touched = [f for f in live.rglob("*") if f.stat().st_mtime > before]
+    assert not touched, f"拦下前已经写了保护目录: {touched}"
+
+
+def test_step4_mirror_control_group_passes_without_symlink(tmp_path: Path):
+    """控制组：同样的 harness 副本、hooks 是真目录 → 必须 rc 0（判据不是「永远拦」）。"""
+    src_cv = REPO_ROOT / "canvas-vault"
+    if not (src_cv / ".claude" / "hooks").is_dir():
+        pytest.skip("源树缺 .claude/hooks")
+    h = tmp_path / "harness"
+    h.mkdir()
+    for name in ("scripts", "docker-compose.yml", "backend", "frontend"):
+        os.symlink(REPO_ROOT / name, h / name)
+    shutil.copytree(src_cv, h / "canvas-vault", symlinks=True)
+    live = tmp_path / "protected"
+    live.mkdir()
+    env = dict(os.environ)
+    for _k in _STRIP_ENV:
+        env.pop(_k, None)
+    env["CLS_LIVE_VAULT"] = str(live)
+    env["CLS_DEPLOY_NO_DOCKER_UP"] = "1"
+    r = subprocess.run(
+        [
+            str(DEPLOY_SH),
+            "--vault",
+            str(tmp_path / "vaults" / "mirrorctrl"),
+            "--harness",
+            str(h),
+            "--port",
+            "8232",
+            "--hosts",
+            "claude",
+            "--env-dir",
+            str(tmp_path / "env"),
+            "--evidence-dir",
+            str(tmp_path / "ev"),
+            "--apply",
+        ],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert r.returncode == 0, f"无软链的正常镜像被误拦: rc={r.returncode}\n{r.stdout}{r.stderr}"
+
+
+def test_open_pinned_rejects_ancestor_symlink_into_protected(tmp_path: Path):
+    """⛔ r7 HIGH-1：祖先目录被换成指向保护区的软链 ⇒ 写入必须被拒。
+
+    `O_NOFOLLOW` 只挡末段；祖先照样被跟随。这是本卡最后一条 HIGH。
+    ⚠️ 我的**第一版修法被自己的冒烟当场证伪**：只做「写入时 realpath 父目录 + 逐级
+    O_NOFOLLOW」等于**跟着攻击者当下的链走** —— realpath 把要检测的那条软链解成了
+    目标真路径，遍历一路畅通。现在是两步：解析后**当场过判据**，再逐级 O_NOFOLLOW。
+    """
+    sys.path.insert(0, str(REPO_ROOT / "scripts"))
+    from cls_forbidden_paths import open_pinned
+
+    prot = tmp_path / "protected"
+    (prot / "sub").mkdir(parents=True)
+    victim = prot / "sub" / "b.txt"
+    victim.write_text("secret", encoding="utf-8")
+    safe = tmp_path / "safe"
+    safe.mkdir()
+    os.symlink(prot / "sub", safe / "sub")  # 祖先被换成指向保护区的软链
+    with pytest.raises((PermissionError, OSError)):
+        open_pinned(str(safe / "sub" / "b.txt"), os.O_WRONLY, live_vault=str(prot))
+    assert victim.read_text(encoding="utf-8") == "secret", "保护区内容被改动了"
+
+
+def test_open_pinned_allows_legitimate_symlinked_ancestor(tmp_path: Path):
+    """控制组：**合法**的祖先软链必须放行 —— 否则判据退化成「永远拦」。
+
+    macOS 的 `/tmp -> /private/tmp`、`/var -> private/var` 都是这种；tmp_path 本身
+    就在 `/private/var/folders/...` 下。直接对**原串**逐级 O_NOFOLLOW 会把它们全拒掉，
+    这也是「解析后再判」而不是「不解析」的理由。
+    """
+    sys.path.insert(0, str(REPO_ROOT / "scripts"))
+    from cls_forbidden_paths import open_pinned
+
+    prot = tmp_path / "protected"
+    prot.mkdir()
+    real = tmp_path / "real"
+    real.mkdir()
+    alias = tmp_path / "alias"
+    os.symlink(real, alias)  # 合法软链：目标不在保护区
+    fd = open_pinned(str(alias / "ok.txt"), os.O_WRONLY | os.O_CREAT, 0o600, live_vault=str(prot))
+    try:
+        os.write(fd, b"ok")
+    finally:
+        os.close(fd)
+    assert (real / "ok.txt").read_bytes() == b"ok", "合法软链下的正常写入被误拦或写错地方"
 
 
 def test_multi_segment_relative_vault_is_rejected_at_entry(tmp_path: Path):
@@ -1588,6 +1755,26 @@ def test_forbidden_judge_handles_protected_target_at_root(tmp_path: Path):
     safe.mkdir()
     r = _forbid_home(home, str(live), f"--env-dir:{safe / 'out'}")
     assert r.returncode != 0, f"保护目标为根时漏拦: {r.stdout}{r.stderr}"
+
+
+def test_forbidden_judge_checks_root_path_input(tmp_path: Path):
+    """⛔ r7 MEDIUM-2：输入**本身就是根**（`/`、`////`、`/./`）时判据一条都不跑。
+
+    `mkdir_p_segments("/")` 返回**空列表**，逐段循环于是零次迭代、直接落到 `OK`。
+    空列表不代表「没有写入面」，而代表「写入面就是根本身」。
+
+    ⚠️ 本条与上一条测的是**两件事**：上一条是「保护**目标**解析成根」，
+    这一条是「**输入路径**是根」。r7 首轮变异 SURVIVED 正是因为我只有上一条 ——
+    门没测到它自称测的那件事（`segs = [os.sep]` 那行删掉，上一条照样绿）。
+    """
+    home = tmp_path / "home"
+    home.mkdir()
+    (home / ".claude-cache").symlink_to("/", target_is_directory=True)
+    live = tmp_path / "fake-live"
+    live.mkdir()
+    for probe in ("/", "////", "/./"):
+        r = _forbid_home(home, str(live), f"--env-dir:{probe}")
+        assert r.returncode != 0, f"根路径输入 {probe!r} 未被判据检查: {r.stdout}{r.stderr}"
 
 
 # ═══ Codex r6 BLOCKER-1：第一跳可读 ≠ 整条链可解析 ════════════════════════════

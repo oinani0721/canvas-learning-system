@@ -75,12 +75,12 @@ MUTANTS = [
     ),
     # ── r6 整改 ────────────────────────────────────────────────────────────
     (
-        "H-1(r6) fchmod 挪到 fstat 之前",
+        "H-1(r6) fchmod 挪到 nlink 拒绝分支之前",
         DEPLOY,
-        'st = os.fstat(fd)\nif st.st_nlink > 1:\n    os.close(fd)\n    raise SystemExit(f".env 有 {st.st_nlink} 个硬链接, 写入会改共享 inode: {p}")\n# ⛔ 唯一的权限收紧点',
-        'os.fchmod(fd, 0o600)\nst = os.fstat(fd)\nif st.st_nlink > 1:\n    os.close(fd)\n    raise SystemExit(f".env 有 {st.st_nlink} 个硬链接, 写入会改共享 inode: {p}")\n# ⛔ 唯一的权限收紧点',
+        '    st = os.fstat(fd)\n    if st.st_nlink > 1:\n        raise SystemExit(f".env 有 {st.st_nlink}',
+        '    st = os.fstat(fd)\n    os.fchmod(fd, 0o600)\n    if st.st_nlink > 1:\n        raise SystemExit(f".env 有 {st.st_nlink}',
         "test_env_key_write_chmods_only_after_nofollow_and_nlink",
-        "fchmod 必须在 fstat",
+        "fchmod 必须在 nlink",
     ),
     (
         "B-2(r6) 根处理**整体**移除（under 特例 + walker 登记根）",
@@ -115,6 +115,39 @@ MUTANTS = [
         '    *) : ;;\n    *_never_matches_*) die64 "--vault 必须是绝对路径',
         "test_multi_segment_relative_vault_is_rejected_at_entry",
         "多段相对 --vault 未被入口拒",
+    ),
+    # ── r7 整改 ────────────────────────────────────────────────────────────
+    (
+        "H-1(r7) open_pinned 去掉「解析后当场过判据」这一步",
+        FORBID,
+        "    why = hits(parent, targets, claude_prefixes, skip_env_name=True)",
+        "    why = None",
+        "test_open_pinned_rejects_ancestor_symlink_into_protected",
+        "DID NOT RAISE",
+    ),
+    (
+        "H-1(r7) 叶子打开不再强制 O_NOFOLLOW",
+        FORBID,
+        "        return os.open(leaf, flags | os.O_NOFOLLOW, mode, dir_fd=dirfd)",
+        "        return os.open(leaf, flags, mode, dir_fd=dirfd)",
+        "test_every_bash_write_site_has_a_prewrite_recheck",
+        "叶子打开必须强制带 O_NOFOLLOW",
+    ),
+    (
+        "M-2(r7) 根路径入口退回空逐段列表",
+        FORBID,
+        "        if why is None and not segs:\n            segs = [os.sep]",
+        "        if False:\n            segs = [os.sep]",
+        "test_forbidden_judge_checks_root_path_input",
+        "未被判据检查",
+    ),
+    (
+        "M-3(r7) 镜像清单恒空 ⇒ 守卫为假、整块跳过（源码门看不见，端到端才抓得到）",
+        DEPLOY,
+        '            [ -f "$SRC_MIRROR/$t" ] && MIRROR_WRITES+=("mirror-$t:$SRC_MIRROR/$t")',
+        '            false && MIRROR_WRITES+=("mirror-$t:$SRC_MIRROR/$t")',
+        "test_step4_mirror_symlink_is_blocked_end_to_end",
+        "镜像内软链未被步 4 拦下",
     ),
 ]
 

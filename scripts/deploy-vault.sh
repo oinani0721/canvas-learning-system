@@ -175,6 +175,18 @@ check_forbidden_paths() {
     return 1
 }
 
+# ── 权限收紧：一律走 pinned fd（Codex r7 HIGH-1 同族）────────────────
+# 路径式 `chmod` 每次重新解析路径, 末段/祖先被换成软链时会改到**别人**的权限。
+# chmod_pinned 见 cls_forbidden_paths：解析后当场过判据 + 逐级 O_NOFOLLOW + fchmod。
+pinned_chmod600() {
+    python3 - "$1" "$(dirname "$FORBID_PY")" "$CLS_LIVE_VAULT" << 'PYCHMOD'
+import os, sys
+sys.path.insert(0, sys.argv[2])
+from cls_forbidden_paths import chmod_pinned
+chmod_pinned(sys.argv[1], 0o600, live_vault=sys.argv[3])
+PYCHMOD
+}
+
 WRITE_GUARD_ERR=""
 # 写入**紧邻**前的复查（Codex r4 BLOCKER-4 + HIGH-1）：
 #   ① 硬链接：`.env.<vault>.tmp` 与保护区文件共享 inode 时, realpath 得到的是合法路径、
@@ -561,7 +573,7 @@ seed_env_file() {
             || { SEED_ERR="写 .env 后回读缺键: ${kk}"; return 1; }
     done
     mv "$ENV_FILE.tmp" "$ENV_FILE" || { SEED_ERR="mv .env 失败: $ENV_FILE"; return 1; }
-    chmod 600 "$ENV_FILE" || { SEED_ERR="chmod 600 .env 失败: $ENV_FILE"; return 1; }
+    pinned_chmod600 "$ENV_FILE" || { SEED_ERR="chmod 600 .env 失败: $ENV_FILE"; return 1; }
     return 0
 }
 
@@ -739,28 +751,32 @@ step3_postprocess() {
     fi
 
     # B3 插件 data.json internalApiKey 同值（只改这一键）
-    if ! python3 - "$datajson" "$key" << 'PY'; then
+    if ! python3 - "$datajson" "$key" "$(dirname "$FORBID_PY")" "$CLS_LIVE_VAULT" << 'PY'; then
 import json, os, sys
-p, key = sys.argv[1], sys.argv[2]
-# ⛔ 必须显式关闭并 flush+fsync（Codex r3 HIGH-3）：`json.dump(..., open(...))` 把关闭
-#    留给析构, 析构时的写错误会被忽略而进程仍返回 0 ⇒ 外层判 rc 也证明不了写成功。
-with open(p, encoding="utf-8") as f:
-    d = json.load(f)
-d["internalApiKey"] = key
-# ⛔ O_NOFOLLOW + 先 fstat 后 ftruncate（Codex r4 HIGH-1 / BLOCKER-4）：检查与打开分离留有
-#    时间窗, 这里让**内核在打开那一刻**拒绝软链 —— 原子, 不依赖前面的复查；
-#    并在截断**之前**查链接数, 否则共享 inode 已经被清空了。
-fd = os.open(p, os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW, 0o600)
-st = os.fstat(fd)
-if st.st_nlink > 1:
+p, key, moddir, live = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+sys.path.insert(0, moddir)
+from cls_forbidden_paths import open_pinned
+# 同 .env：读与写绑同一个 pinned fd（Codex r7 HIGH-1）
+fd = open_pinned(p, os.O_RDWR | os.O_CREAT, 0o600, live_vault=live)
+try:
+    st = os.fstat(fd)
+    if st.st_nlink > 1:
+        raise SystemExit(f"data.json 有 {st.st_nlink} 个硬链接, 写入会改共享 inode: {p}")
+    os.fchmod(fd, 0o600)
+    chunks = []
+    while True:
+        b = os.read(fd, 65536)
+        if not b:
+            break
+        chunks.append(b)
+    d = json.loads(b"".join(chunks).decode("utf-8"))
+    d["internalApiKey"] = key
+    os.lseek(fd, 0, os.SEEK_SET)
+    os.ftruncate(fd, 0)
+    os.write(fd, (json.dumps(d, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
+    os.fsync(fd)
+finally:
     os.close(fd)
-    raise SystemExit(f"data.json 有 {st.st_nlink} 个硬链接, 写入会改共享 inode: {p}")
-os.ftruncate(fd, 0)
-with os.fdopen(fd, "w", encoding="utf-8") as f:
-    json.dump(d, f, ensure_ascii=False, indent=2)
-    f.write("\n")
-    f.flush()
-    os.fsync(f.fileno())
 PY
         STEP_MSG="写 data.json internalApiKey 失败"
         return 1
@@ -776,35 +792,44 @@ PY
     #    ⇒ 正解：`os.fchmod(fd)`。fd 由 O_NOFOLLOW 取得（末段是软链就根本打不开）,
     #      且已过 nlink 检查, 此时改权限只可能落在那个已确认安全的 inode 上。
     #      bash 侧的写前 chmod 与写后 chmod 一并删除, 权限收紧只剩这一处。
-    if ! python3 - "$ENV_FILE" "$key" << 'PY'; then
+    if ! python3 - "$ENV_FILE" "$key" "$(dirname "$FORBID_PY")" "$CLS_LIVE_VAULT" << 'PY'; then
 import os, sys
-p, key = sys.argv[1], sys.argv[2]
-# 同 H-3：显式关闭 + flush + fsync
-with open(p, encoding="utf-8") as f:
-    lines = f.read().split("\n")
-out, done = [], False
-for l in lines:
-    if l.startswith("INTERNAL_API_KEY="):
+p, key, moddir, live = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+sys.path.insert(0, moddir)
+from cls_forbidden_paths import open_pinned
+# ⛔ 读与写必须绑在**同一个** pinned fd 上（Codex r7 HIGH-1）：
+#    原来「先按路径 open() 读、再按路径 open() 写」有两个各自跟随祖先的解析,
+#    父目录在两次之间被换掉就会把**安全文件的旧内容**写进保护文件。
+#    open_pinned 见 cls_forbidden_paths：解析后当场过判据 + 逐级 O_NOFOLLOW。
+fd = open_pinned(p, os.O_RDWR | os.O_CREAT, 0o600, live_vault=live)
+try:
+    st = os.fstat(fd)
+    if st.st_nlink > 1:
+        raise SystemExit(f".env 有 {st.st_nlink} 个硬链接, 写入会改共享 inode: {p}")
+    # ⛔ 唯一的权限收紧点（r6 HIGH-1）：在 O_NOFOLLOW + nlink 之后, 作用于同一 fd。
+    os.fchmod(fd, 0o600)
+    chunks = []
+    while True:
+        b = os.read(fd, 65536)
+        if not b:
+            break
+        chunks.append(b)
+    lines = b"".join(chunks).decode("utf-8").split("\n")
+    out, done = [], False
+    for line in lines:
+        if line.startswith("INTERNAL_API_KEY="):
+            out.append(f"INTERNAL_API_KEY={key}")
+            done = True
+        else:
+            out.append(line)
+    if not done:
         out.append(f"INTERNAL_API_KEY={key}")
-        done = True
-    else:
-        out.append(l)
-if not done:
-    out.append(f"INTERNAL_API_KEY={key}")
-# 同上：O_NOFOLLOW + 截断前查链接数（Codex r4 HIGH-1 / BLOCKER-4）
-fd = os.open(p, os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW, 0o600)
-st = os.fstat(fd)
-if st.st_nlink > 1:
+    os.lseek(fd, 0, os.SEEK_SET)
+    os.ftruncate(fd, 0)
+    os.write(fd, "\n".join(out).encode("utf-8"))
+    os.fsync(fd)
+finally:
     os.close(fd)
-    raise SystemExit(f".env 有 {st.st_nlink} 个硬链接, 写入会改共享 inode: {p}")
-# ⛔ 唯一的权限收紧点（r6 HIGH-1）：在 O_NOFOLLOW + nlink 之后, 作用于同一 fd。
-#    `os.open` 的 mode 只对新建文件生效, 已存在的宽权限文件要靠这一行才收紧。
-os.fchmod(fd, 0o600)
-os.ftruncate(fd, 0)
-with os.fdopen(fd, "w", encoding="utf-8") as f:
-    f.write("\n".join(out))
-    f.flush()
-    os.fsync(f.fileno())
 PY
         STEP_MSG="写 $ENV_FILE 的 INTERNAL_API_KEY 失败"
         return 1
@@ -838,7 +863,7 @@ PY
         fi
         mv "$keyfile.tmp" "$keyfile" || { STEP_MSG="mv key 文件失败"; return 1; }
     fi
-    chmod 600 "$keyfile" || { STEP_MSG="chmod 600 key 文件失败"; return 1; }
+    pinned_chmod600 "$keyfile" || { STEP_MSG="chmod 600 key 文件失败"; return 1; }
 
     STEP_MSG="key 重生=$KEY_REGENERATED(0600) 三处同值; :8011→:$PORT ×4 已验残留 0; 绑定三件在位;"
     STEP_MSG="$STEP_MSG .env 白名单跳过:${ENV_KEYS_SKIPPED:- 无}"

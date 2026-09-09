@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""禁写面判据（CARD-G2-7b，Codex r2 BLOCKER-1~4 整改后的唯一实现）。
+"""路径安全**判据与原语**（CARD-G2-7b）。
+
+两块内容，合在一处是为了单一来源：
+  · **判据**（禁写面）—— `hits()` / `chain_hits()` / `walk_visited()` / `under()` / …
+  · **原语**（安全写入）—— `open_pinned()` / `chmod_pinned()`（Codex r7 HIGH-1）
+模块名沿用 `cls_forbidden_paths`（4 个调用点已引用）；DD-13 名实一致按本段口径理解：
+它管的是「路径安全」这一件事的判与做，不只是「判」。
 
 用法：
     cls_forbidden_paths.py <live_vault> [--strict] <label>:<path> ... [--outputs <label>:<path> ...]
@@ -86,6 +92,84 @@ def k(p: str) -> str:
     ⚠️ 如实声明：NFC + lower 仍不等于 APFS 的完整规范化规则，只是覆盖了最常见的一类。
     """
     return unicodedata.normalize("NFC", phys(p)).lower()
+
+
+def open_pinned(path: str, flags: int, mode: int = 0o600, live_vault: str = "") -> int:
+    """沿**物理**父路径逐级 `O_DIRECTORY|O_NOFOLLOW` 打开, 再 `openat` 叶子。
+
+    ⛔ Codex r7 HIGH-1：`O_NOFOLLOW` **只挡末段**, 祖先目录照样被跟随。
+    `.env.<vault>` 的父目录在 preflight 之后被换成指向保护区的软链时,
+    `os.open(完整路径)` 会打开保护区里的同名文件, 随后 `fchmod`/`ftruncate`/写
+    **全部落在保护对象上** —— 权限越界被 r6 的 `fchmod(fd)` 修掉了, 内容越界还在。
+
+    ⛔⛔ **第一版被我自己的冒烟测试当场证伪，痕迹保留**：
+    初版只做「`realpath(父目录)` 后逐级 `O_NOFOLLOW`」，理由是「合法软链已被解析掉所以
+    不会误拒」。误拒确实没了，**但拦截也没了** —— 在**写入时刻**调 `realpath` 等于
+    **跟着攻击者当下的那条链走**：它把要检测的那个被换掉的软链解成了目标真路径，
+    于是逐级遍历一路畅通。冒烟用例 ③（`safe/sub -> prot/sub`）直接打出 "没拒"。
+    教训与本卡 r5 的 `chmod` 同型：**解析/检查必须发生在「可信时刻」，不能在作用时刻现算。**
+
+    现在的形态是两步，缺一不可：
+      ① `realpath` 父目录后, **立刻用本模块的判据重新校验解析结果**（`hits()`）——
+         父目录此刻若指进任何保护目标, 直接拒。这一步管「链被换到哪」。
+      ② 再沿**那个已校验的物理串**逐级 `O_DIRECTORY|O_NOFOLLOW` 打开、`openat` 叶子 ——
+         这一步管「校验之后到打开之间又被换」, 由内核原子拒绝。
+    合法的祖先软链（macOS `/tmp -> /private/tmp`）在 ① 解析掉且不命中保护目标, 故不误拒。
+
+    ⚠️ 如实声明：本函数关的是「祖先被换成指向**保护目标**的软链」。
+    换成指向另一个**非保护**目录、或把祖先**改名/替换成真目录**仍可绕过
+    （需要目录 fd 的稳定性前提或权限隔离），已登记为未闭合。
+
+    放在本模块是为了**单一来源**：4 个调用点各抄一份遍历 = 必然漂移
+    （本卡已因「两份手抄清单」栽过一次），且 ① 要用的判据就在本模块里。
+    """
+    leaf = os.path.basename(path)
+    if not leaf:
+        raise ValueError(f"open_pinned 需要一个叶子名, 收到: {path!r}")
+    parent = os.path.realpath(os.path.dirname(path) or os.sep)
+    # ① 解析结果必须当场过判据 —— 否则 realpath 只是替攻击者把链走完了。
+    targets, claude_prefixes, enumerate_failed = build_targets(live_vault or _default_live())
+    why = hits(parent, targets, claude_prefixes, skip_env_name=True)
+    if why is None and enumerate_failed:
+        why = "无法枚举 HOME, fail-closed"
+    if why is not None:
+        raise PermissionError(f"父目录解析后落在禁写面({why}): {path} -> {parent}")
+    # ② 沿已校验的物理串逐级 O_NOFOLLOW —— 校验之后再被换掉的那一级由内核拒。
+    dirfd = os.open(os.sep, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        for seg in parent.split(os.sep):
+            if not seg:
+                continue
+            nxt = os.open(seg, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=dirfd)
+            os.close(dirfd)
+            dirfd = nxt
+        return os.open(leaf, flags | os.O_NOFOLLOW, mode, dir_fd=dirfd)
+    finally:
+        os.close(dirfd)
+
+
+def _default_live() -> str:
+    """`live_vault` 缺省来源：与 deploy-vault.sh 的 `CLS_LIVE_VAULT` 同一口径。
+
+    缺省值刻意取**主仓 canvas-vault**（与脚本头注一致）。取不到就给一个不存在的路径,
+    让 `chain_resolvable` 走 FileNotFoundError 放行分支 —— 不因为环境变量缺失而恒拒。
+    """
+    return os.environ.get("CLS_LIVE_VAULT", "") or os.path.join(
+        os.path.expanduser("~"), "Desktop/canvas/canvas-learning-system/canvas-vault"
+    )
+
+
+def chmod_pinned(path: str, mode: int = 0o600, live_vault: str = "") -> None:
+    """在同一个 pinned fd 上改权限 —— 替代路径式 `chmod`（Codex r7 HIGH-1 同族）。
+
+    路径式 `chmod` 每次都重新解析路径, 末段被换成软链时会改到**软链目标**的权限。
+    这里先按 `open_pinned` 拿到已确认的 fd, 再 `fchmod` —— 检查与作用落在同一句柄。
+    """
+    fd = open_pinned(path, os.O_RDONLY, live_vault=live_vault)
+    try:
+        os.fchmod(fd, mode)
+    finally:
+        os.close(fd)
 
 
 def under(key: str, tk: str) -> bool:
@@ -432,6 +516,11 @@ def main(argv: list[str]) -> int:
         # ⛔ 逐段判（Codex r3 BLOCKER-1）：`mkdir -p` 会创建的每个中间目录都要过判据,
         #    只判最终落点会漏掉 `$HOME/.codex/new/../../deploy_env` 这类形态。
         segs = mkdir_p_segments(path) if why is None else []
+        # ⛔ 根路径入口漏检（Codex r7 MEDIUM-2）：`/`、`////`、`/./` 的逐段列表是**空的**,
+        #    于是下面的循环一次都不跑、直接落到 `OK` —— 即便保护目标已解析成根。
+        #    空列表不代表「没有写入面」, 而代表「写入面就是根本身」。
+        if why is None and not segs:
+            segs = [os.sep]
         for seg_path in segs:
             # 中间段按 outputs 口径判（它们是目录, 不该被 env 文件名规则拦）;
             # 最终那一段仍按调用方给的口径判。
