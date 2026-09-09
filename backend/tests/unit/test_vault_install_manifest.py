@@ -3123,3 +3123,56 @@ def test_claude_dir_symlink_does_not_write_through_either(tmp_path):
     assert not copied.is_symlink(), ".claude 下的目录软链必须被实体化，否则写它会穿到共享源"
     (copied / "SKILL.md").write_text("LOCAL-EDIT", encoding="utf-8")
     assert guard.read_bytes() == before, "共享源被沿软链写穿（LOW-2 回归）"
+
+
+# ── U3-A(CARD-RV-G2-6) round-5 遗留两条 HIGH 的回归门 ──────────────────
+
+
+def test_kind_file_reports_unreadable_when_symlink_target_is_unqueryable(tmp_path, manifest_data):
+    """U3-A r5 HIGH-1：`kind=file` 的链目标查不到时必须是三态 None，不能说成「不是文件」。
+
+    `_entry_state` 是 lstat 语义，只覆盖「目录项本身查不到」；而 `is_file()` **跟随软链**
+    且吞 OSError —— 链在、链目标查不到时它返回 False = 宣称「不满足 kind」，于是这一项
+    从「故意不复制」翻成可放行，其余检查干净时可得 rc=0（假绿）。
+    """
+    target = tmp_path / "vault"
+    blocked = target / "blocked"
+    blocked.mkdir(parents=True)
+    (blocked / "inner.txt").write_text("payload", encoding="utf-8")
+    probe = target / "x"
+    probe.symlink_to(blocked / "inner.txt")
+    blocked.chmod(0o000)  # 目录不可搜索 ⇒ 跟随链后 stat 失败
+    try:
+        manifest_data["items"] = [
+            {"path": "x", "role": "learning-data", "action": "exclude", "kind": "file", "origin": "test-only"}
+        ]
+        manifest_data["extra_allow"] = []
+        mpath = tmp_path / "m.json"
+        mpath.write_text(json.dumps(manifest_data, ensure_ascii=False), encoding="utf-8")
+        result = vv.verify(target, vv.load_manifest(mpath))
+        assert any(f.path == "x" for f in result.unreadable), (
+            f"链目标查不到必须登记 unreadable，实得 unreadable={[(f.path, f.detail) for f in result.unreadable]} "
+            f"intentionally_excluded={[f.path for f in result.intentionally_excluded]}"
+        )
+        assert result.exit_code == vv.EXIT_MISMATCH == 2, "查不动不得放行成 rc=0"
+    finally:
+        blocked.chmod(0o755)
+
+
+def test_device_nodes_of_same_type_do_not_collide():
+    """U3-A r5 HIGH-2：同类型设备节点必须靠 `st_rdev` 区分，否则不同对象判 match。
+
+    只读取系统已有的字符设备（`lstat` + 摘要，不创建任何节点、不需要 root）。
+    """
+    import stat as _stat
+
+    a, b = Path("/dev/null"), Path("/dev/zero")
+    for p in (a, b):
+        if not p.exists():
+            pytest.skip(f"{p} 不存在，跳过设备节点判据")
+    # 正控：两者确实是同类型（都是字符设备），否则这条门证明不了「同类型不碰撞」
+    assert _stat.S_ISCHR(os.lstat(a).st_mode) and _stat.S_ISCHR(os.lstat(b).st_mode)
+    da, _ = vv._leaf_digest(a)
+    db, _ = vv._leaf_digest(b)
+    assert da != db, f"两个不同的字符设备摘要相同（丢了 st_rdev）：{da} == {db}"
+    assert da.startswith("?:") and db.startswith("?:"), (da, db)

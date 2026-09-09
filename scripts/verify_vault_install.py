@@ -588,9 +588,17 @@ def _kind_ok(item: Item, path: Path) -> bool | None:
         # 于是查不动的条目会被当成 nondir 而误判为「故意不复制」= 漏报。两个方向都不对。
         return None
     if item.kind == "dir":
+        # 「真目录」= 不跟随软链(对应 find -type d 的语义)。带 not is_symlink() 之后
+        # 链一律判 False, 不依赖跟随后的查询结果, 故不受「链目标查不到」影响。
         return path.is_dir() and not path.is_symlink()
     if item.kind == "file":
-        return path.is_file()
+        # ⚠️ 这里**必须**走跟随后的三态: is_file() 跟随软链且吞 OSError, 链目标查不到时
+        # 返回 False = 宣称「不是文件」。那既丢了失败原因, 又把一个查不动的条目从
+        # 「故意不复制」翻成可放行 —— 其余检查干净时可得 rc=0(U3-A round-5 HIGH-1)。
+        kind = _resolved_kind(path)
+        if kind == "unreadable":
+            return None
+        return kind == "file"
     if item.kind == "nondir":
         return not (path.is_dir() and not path.is_symlink())
     return True
@@ -708,6 +716,10 @@ def _leaf_digest(path: Path) -> tuple[str, bool]:
         return "F:" + hashlib.sha256(data).hexdigest(), False
     if stat.S_ISDIR(st.st_mode):
         return "D:", False
+    if stat.S_ISCHR(st.st_mode) or stat.S_ISBLK(st.st_mode):
+        # 设备节点的**身份**是 (类型, 设备号)。只记类型位会让 /dev/null 与 /dev/zero
+        # 摘要相同 ⇒ 两个不同对象判 match(U3-A round-5 HIGH-2)。
+        return "?:%06o:%d" % (stat.S_IFMT(st.st_mode), st.st_rdev), False
     return "?:%06o" % stat.S_IFMT(st.st_mode), False
 
 
