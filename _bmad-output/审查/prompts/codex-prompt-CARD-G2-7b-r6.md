@@ -4,8 +4,8 @@
 
 **只读这些，不要扩大读取面**：
 
-1. `git diff __R5FIX_BASE__ __R6_SHA__ -- . ':(exclude)_bmad-output'` —— **本轮（r5 整改）改了什么**
-   本卡代码面**全量**（若要从头核）：`git diff 0ee633ea __R6_SHA__ -- . ':(exclude)_bmad-output'`
+1. `git diff f8dd5903 e5ab1af0 -- . ':(exclude)_bmad-output'` —— **本轮（r5 整改）改了什么**
+   本卡代码面**全量**（若要从头核）：`git diff 0ee633ea e5ab1af0 -- . ':(exclude)_bmad-output'`
 2. `scripts/cls_forbidden_paths.py` 全文（禁写面判据本体，本轮改动最集中）
 3. `scripts/deploy-vault.sh` 全文
 4. `docker-compose.yml` 全文（本卡只改 5 处 `container_name`，本轮未动）
