@@ -25,7 +25,24 @@ from app.utils.cypher_helpers import allow_cross_vault
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/system", tags=["System"])
+router = APIRouter(
+    prefix="/system",
+    tags=["System"],
+    # CARD-RED-A1-sentinel [BATCH-2026-09-07-第十三批]: router 级鉴权, 与
+    # `endpoints/chat.py:48` 同形。此前只有 `/config` (:782) 与 `/test-llm` (:849)
+    # 两个端点挂了依赖, 而 `app/main.py:561` 的 securitySchemes 文案早就声称
+    # "/chat/*, /sync/*, /system/* endpoints" 都受鉴权 —— 本行让实现追上文档。
+    dependencies=[Depends(require_internal_api_key)],
+    # 必须同批声明, 否则 `tests/contract/test_openapi_contract.py` 的
+    # schemathesis `status_code_conformance` 会因「返回了 schema 里没声明的 403」
+    # 把 /system/* 全线打红。文案与 :783-788 / `endpoints/sync.py:63-72` 同形。
+    responses={
+        403: {"description": "Invalid internal API key"},
+        503: {
+            "description": "Internal API key not configured (production fail-closed)"
+        },
+    },
+)
 
 
 class ComponentStatus(BaseModel):

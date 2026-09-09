@@ -1,0 +1,50 @@
+# 树态: 本卡最终代码（system.py:28 已挂 router 级鉴权 + responses={403,503}）
+# sha256(system.py)=d1148bbecdfb13890f665b8de14faeee5d178c946cff36ca4051e62ef5dc4b76
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+  from pydantic.v1.fields import FieldInfo as FieldInfoV1
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  import pkg_resources
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/api/v1/endpoints/metadata.py:105: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+  canvas_path: str = Query(
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/api/v1/endpoints/metadata.py:179: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+  canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+{"method": "POST", "path": "/api/v1/system/config", "endpoint": "/api/v1/system/config", "status": 403, "duration_ms": 4.55, "event": "request.completed", "request_id": "5228084064", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T09:31:59.856528Z"}
+{"method": "GET", "path": "/api/v1/system/config-check", "endpoint": "/api/v1/system/config-check", "status": 403, "duration_ms": 3.46, "event": "request.completed", "request_id": "5223988752", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T09:31:59.860475Z"}
+{"method": "GET", "path": "/api/v1/system/error-aggregation", "endpoint": "/api/v1/system/error-aggregation", "status": 403, "duration_ms": 3.54, "event": "request.completed", "request_id": "5220654336", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T09:31:59.864424Z"}
+{"method": "GET", "path": "/api/v1/system/extraction-records", "endpoint": "/api/v1/system/extraction-records", "status": 403, "duration_ms": 3.49, "event": "request.completed", "request_id": "5224211792", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T09:31:59.868335Z"}
+{"method": "PATCH", "path": "/api/v1/system/extraction-records/probe-placeholder", "endpoint": "/api/v1/system/extraction-records/probe-placeholder", "status": 403, "duration_ms": 3.75, "event": "request.completed", "request_id": "5226032592", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T09:31:59.872463Z"}
+{"method": "DELETE", "path": "/api/v1/system/extraction-records/probe-placeholder", "endpoint": "/api/v1/system/extraction-records/probe-placeholder", "status": 403, "duration_ms": 3.49, "event": "request.completed", "request_id": "5226524560", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T09:31:59.876395Z"}
+{"method": "POST", "path": "/api/v1/system/extraction-records/probe-placeholder/annotate", "endpoint": "/api/v1/system/extraction-records/probe-placeholder/annotate", "status": 403, "duration_ms": 3.63, "event": "request.completed", "request_id": "5226516304", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T09:31:59.880444Z"}
+{"method": "DELETE", "path": "/api/v1/system/extraction-records/probe-placeholder/annotation", "endpoint": "/api/v1/system/extraction-records/probe-placeholder/annotation", "status": 403, "duration_ms": 3.4, "event": "request.completed", "request_id": "5226527056", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T09:31:59.884232Z"}
+{"method": "GET", "path": "/api/v1/system/health", "endpoint": "/api/v1/system/health", "status": 403, "duration_ms": 3.52, "event": "request.completed", "request_id": "5226527440", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T09:31:59.888166Z"}
+{"method": "GET", "path": "/api/v1/system/health/detailed", "endpoint": "/api/v1/system/health/detailed", "status": 403, "duration_ms": 3.47, "event": "request.completed", "request_id": "5226527824", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T09:31:59.892014Z"}
+{"method": "GET", "path": "/api/v1/system/llm-stats", "endpoint": "/api/v1/system/llm-stats", "status": 403, "duration_ms": 3.47, "event": "request.completed", "request_id": "5226528592", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T09:31:59.895889Z"}
+{"method": "GET", "path": "/api/v1/system/pipeline-health", "endpoint": "/api/v1/system/pipeline-health", "status": 403, "duration_ms": 3.38, "event": "request.completed", "request_id": "5229379856", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T09:31:59.899644Z"}
+{"method": "GET", "path": "/api/v1/system/qa-metrics", "endpoint": "/api/v1/system/qa-metrics", "status": 403, "duration_ms": 3.36, "event": "request.completed", "request_id": "5229380048", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T09:31:59.903371Z"}
+{"method": "POST", "path": "/api/v1/system/setup-wizard", "endpoint": "/api/v1/system/setup-wizard", "status": 403, "duration_ms": 3.87, "event": "request.completed", "request_id": "5229380816", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T09:31:59.907622Z"}
+{"method": "GET", "path": "/api/v1/system/startup-check", "endpoint": "/api/v1/system/startup-check", "status": 403, "duration_ms": 3.43, "event": "request.completed", "request_id": "5229384464", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T09:31:59.911444Z"}
+{"method": "POST", "path": "/api/v1/system/test-llm", "endpoint": "/api/v1/system/test-llm", "status": 403, "duration_ms": 3.66, "event": "request.completed", "request_id": "5229386000", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T09:31:59.915485Z"}
+# 观测到 16 个 /api/v1/system/* operation（不带 key 各发一次请求）
+## 正判：实际返回码必须在该 operation 的 responses 里有声明
+  PASS  POST   /api/v1/system/config                                -> 403  declared=['200', '403', '422', '500', '503']
+  PASS  GET    /api/v1/system/config-check                          -> 403  declared=['200', '403', '500', '503']
+  PASS  GET    /api/v1/system/error-aggregation                     -> 403  declared=['200', '403', '500', '503']
+  PASS  GET    /api/v1/system/extraction-records                    -> 403  declared=['200', '403', '422', '500', '503']
+  PASS  PATCH  /api/v1/system/extraction-records/{record_id}        -> 403  declared=['200', '403', '422', '500', '503']
+  PASS  DELETE /api/v1/system/extraction-records/{record_id}        -> 403  declared=['200', '403', '422', '500', '503']
+  PASS  POST   /api/v1/system/extraction-records/{record_id}/annotate -> 403  declared=['200', '403', '422', '500', '503']
+  PASS  DELETE /api/v1/system/extraction-records/{record_id}/annotation -> 403  declared=['200', '403', '422', '500', '503']
+  PASS  GET    /api/v1/system/health                                -> 403  declared=['200', '403', '500', '503']
+  PASS  GET    /api/v1/system/health/detailed                       -> 403  declared=['200', '403', '500', '503']
+  PASS  GET    /api/v1/system/llm-stats                             -> 403  declared=['200', '403', '422', '500', '503']
+  PASS  GET    /api/v1/system/pipeline-health                       -> 403  declared=['200', '403', '500', '503']
+  PASS  GET    /api/v1/system/qa-metrics                            -> 403  declared=['200', '403', '500', '503']
+  PASS  POST   /api/v1/system/setup-wizard                          -> 403  declared=['200', '403', '422', '500', '503']
+  PASS  GET    /api/v1/system/startup-check                         -> 403  declared=['200', '403', '500', '503']
+  PASS  POST   /api/v1/system/test-llm                              -> 403  declared=['200', '403', '422', '500', '503']
+  => 正判 PASS：未声明的返回码 0 个 []
+## 负控：把 spec 副本里每个 /system/* operation 的 403 声明摘掉，同一批观测必须全部 FAIL
+  => 摘掉 403 的 operation 16 个；其中仍判 PASS 的 0 个 []
+  => 负控 成立（探针确实在读 403 声明）
+VERDICT=PASS
+rc=0

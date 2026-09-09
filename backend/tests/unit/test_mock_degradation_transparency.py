@@ -22,6 +22,39 @@ from app.services.verification_service import (
     VerificationService,
 )
 
+
+@pytest.fixture(autouse=True)
+def stub_neo4j_singleton_health_check():
+    """让 ``Neo4jClient`` 的惰性初始化**不开 socket**, 但终态与今天逐项相同。
+
+    真连点 (实测): ``verification_service.py:1927-1931`` 的
+    ``get_mastery_store()`` → ``mastery_store.py:548 get_neo4j_client()`` → 首个
+    ``run_query`` → ``neo4j_client.py:554 initialize()`` →
+    ``_initialize_neo4j_driver()`` → ``await self.health_check()`` :523
+    ``verify_connectivity()`` —— socket 就开在这里 (哨兵记录的 warning 出自
+    ``neo4j_client.py:532``, 即 health_check 的 except)。
+
+    ⛔ 为什么**不**去 patch ``get_neo4j_client`` / ``get_mastery_store``:
+    那两个是**进程级单例 accessor**。把它们摘掉, 本用例期间单例根本不被建出来,
+    ``_client_instance`` 仍是 ``None`` —— 那唯一一次真连不是被消掉, 而是被推给
+    进程里**下一个**调用它的用例, 哨兵换个 nodeid 照样报出来 (order-a/order-b
+    两次收集顺序实测: 谁先跑谁红, 正是这个机制)。
+
+    ✅ patch ``health_check`` 则是把债**付清**: 单例照建, ``initialize()`` 照走
+    ``_initialize_neo4j_driver``, ``health_ok=False`` 照样落 ``_fallback_to_json()``
+    ⇒ ``_use_json_fallback=True`` + ``_initialized=True`` (``:467``), 与今天连
+    失败之后的进程终态逐项相同, 只少了那一次 socket。返回 ``False`` 而不是抛,
+    因为真实 ``health_check`` :529-535 本来就把异常吞成 ``False``。
+
+    ⛔ 不放宽 W4 端口门、不把 7691 加白名单、不改生产码。
+    """
+    from app.clients.neo4j_client import Neo4jClient
+
+    with patch.object(
+        Neo4jClient, "health_check", AsyncMock(return_value=False)
+    ) as stub:
+        yield stub
+
 # ===========================================================================
 # Test Fixtures
 # ===========================================================================

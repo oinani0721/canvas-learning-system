@@ -1,0 +1,40 @@
+{
+  "InternalApiKey": {
+    "description": "Internal API key for backend authentication. Required for /chat/*, /sync/*, /system/* endpoints in production mode (DEBUG=False). DEBUG=True mode allows requests without key (dev_bypass with warning log). See backend/app/security.py:require_internal_api_key for fail-closed matrix.",
+    "in": "header",
+    "name": "X-CLS-Internal-Key",
+    "type": "apiKey"
+  }
+}
+--- top-level security: [{'InternalApiKey': []}]
+--- 带 per-op security 的 path 数: 29
+--- 其中 /system 前缀: 15
+    /api/v1/boards/manifest
+    /api/v1/chat/enrich-context
+    /api/v1/chat/post-turn-extract
+    /api/v1/chat/rag/enrich-hook
+    /api/v1/exam/targeting-material
+    /api/v1/memory/archive/session
+    /api/v1/memory/concepts/{concept_id}/history
+    /api/v1/memory/episodes
+    /api/v1/memory/episodes/batch
+    /api/v1/memory/health
+    /api/v1/memory/review-suggestions
+    /api/v1/sync/batch
+    /api/v1/sync/relationships/by-node
+    /api/v1/sync/relationships/vault
+    /api/v1/system/config
+    /api/v1/system/config-check
+    /api/v1/system/error-aggregation
+    /api/v1/system/extraction-records
+    /api/v1/system/extraction-records/{record_id}
+    /api/v1/system/extraction-records/{record_id}/annotate
+    /api/v1/system/extraction-records/{record_id}/annotation
+    /api/v1/system/health
+    /api/v1/system/health/detailed
+    /api/v1/system/llm-stats
+    /api/v1/system/pipeline-health
+    /api/v1/system/qa-metrics
+    /api/v1/system/setup-wizard
+    /api/v1/system/startup-check
+    /api/v1/system/test-llm
