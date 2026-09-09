@@ -1,0 +1,18 @@
+=== r7 live 零写 + 域门（口径修正：上一条用错了 live 路径，2>/dev/null 把「目录不存在」吞成 0）===
+真 live 根: /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault
+  ✅ 路径存在（前提成立，否则下面每个 0 都是假绿）
+
+--- ① live/.claude 下比本轮改动更新的文件（应 0；本轮只改开发树测试文件）---
+       0
+--- ② live/.claude/skills 下 newer（本卡改动面，必须 0）---
+       0
+
+--- ③ 域门：开发树 ↔ live 的 fsrs_bridge / decay_beta 逐字节（本卡一字节未碰）---
+  ✅ fsrs_bridge.py 一致
+  ✅ decay_beta.py 一致
+
+--- ④ 禁改三份 shasum（与开工存档同口径）---
+63b51029ea96a78abd757902023f378697688c28db1b8dc0aaee8969e9ee48e8  canvas-vault/.claude/skills/quiz-answer/SKILL.md
+a766fbcc28e3ff917e740843c633e800aa8a75e949295f83efc90f55105f90f0  canvas-vault/.claude/scripts/fsrs_bridge.py
+3bf4ed9402a4c8edfde16630a79094a5d4518fd181fa60810319fe46d37abb90  canvas-vault/.claude/scripts/decay_beta.py
+rc=0

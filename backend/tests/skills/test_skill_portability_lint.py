@@ -300,8 +300,25 @@ _BACKTICK_SPAN_RE = re.compile(r"(?<!`)(`+)(?!`)([^\n]*?)(?<!`)\1(?!`)")
 _MD_ESCAPE_RE = re.compile(r"\\.")
 
 
-def _backtick_spans(text: str) -> list[str]:
+def _normalize_span(content: str) -> str:
+    r"""CommonMark code span 内容归一化: 换行→空格, 再剥**一对**首尾空格。
+
+    ⛔ r20 MEDIUM-5: `` ` /tmp/cls-exam/x ` `` 渲染出来就是合规路径, 不归一化的话模块
+    报 `prose:/tmp/cls-exam/x `(带尾空格)—— **误报**方向, 而且这是很常见的写法。
+    CommonMark 0.31 §6.1: 先把 line ending 换成空格; 若结果首尾都是空格且不全是空格,
+    各剥掉一个。这一条不需要容器栈, 所以在本卡就地修, 不推给分块卡。
+    """
+    content = content.replace("\r\n", " ").replace("\n", " ").replace("\r", " ")
+    if len(content) >= 2 and content[0] == " " and content[-1] == " " and content.strip(" "):
+        content = content[1:-1]
+    return content
+
+
+def _backtick_spans(text: str, *, normalize: bool = True) -> list[str]:
     r"""text 里的 markdown code span 内容。
+
+    `normalize=False` 给**要按原串定位**的调用点用(跨行 span 靠 `"\n" in content` 判定、
+    靠 `joined.find(content)` 取行号, 归一化后两者都失效)。
 
     ⛔ r9 HIGH-2: 掩码**只用于定位 opening run** —— code span **内部**的反斜杠是
     普通字符, CommonMark 找 closing run 时不处理转义。上一版对全串掩码, 于是
@@ -328,7 +345,8 @@ def _backtick_spans(text: str) -> list[str]:
         if close == -1:
             i += run
             continue
-        out.append(text[i + run : close])
+        raw = text[i + run : close]
+        out.append(_normalize_span(raw) if normalize else raw)
         i = close + run
     return out
 
@@ -652,31 +670,56 @@ def _is_inline_span(m: re.Match[str], line: str) -> bool:
     return "`" in line[m.end() :]
 
 
+def _fold_const(node: ast.AST) -> str | bytes | None:
+    """`Constant` 或 `BinOp(+)` 常量链 → 值本身, **保留 str/bytes 类型**; 不可折返回 None。
+
+    分出这一层只为一件事: 让 bytes 链先按 bytes 拼完整, 再由 `_fold_str()` 解码**一次**。
+    """
+    if isinstance(node, ast.Constant):
+        return node.value if isinstance(node.value, (str, bytes)) else None
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        left, right = _fold_const(node.left), _fold_const(node.right)
+        if left is None or right is None or type(left) is not type(right):
+            return None  # `str + bytes` 在 Python 里本来就是 TypeError, 折不出任何值
+        return left + right  # type: ignore[operator]
+    return None
+
+
 def _fold_str(node: ast.AST) -> str | None:
     r"""`Constant` 或 `BinOp(+)` 常量链 → 字符串; 不可折返回 None。
 
     ⛔ r19 HIGH-3: **bytes 也要折**。`b"/t" + b"mp/cls-exam/" + b".." + b"/x"` 是单块、
     合法 Python、普通常量加法, 只折 str 的话整条链折不出来, 越界判据只看到分散的叶常量,
     动态判据也找不到含 `/tmp` 的起点 ⇒ 完整漏检(不需要特殊转义或跨块分析)。
+    ⛔ r20 MEDIUM-4: 解码得(a)**先折完整条链再解一次**, (b)用 `backslashreplace` 而不是
+    `replace`。逐叶 `replace` 有两处**身份损失**: `b"/tmp/\xff/x"` 与 `b"/tmp/\xfe/x"`
+    都解成 `/tmp/\ufffd/x` —— 登记了其中一条, 另一条就能静默顶替它(基线是多重集, 名字
+    一样就抵消); 且 `b"\xc3" + b"\xa9"` 逐叶解出两个 U+FFFD, 整条解是 `é`, 与运行时的
+    真实路径不是同一个字符串。`backslashreplace` 对不可解码字节产出 `\xNN`, 不同字节 ⇒
+    不同文本, 身份不丢。
     """
-    if isinstance(node, ast.Constant):
-        if isinstance(node.value, str):
-            return node.value
-        if isinstance(node.value, bytes):
-            return node.value.decode("utf-8", "replace")
+    value = _fold_const(node)
+    if value is None:
         return None
-    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
-        left, right = _fold_str(node.left), _fold_str(node.right)
-        if left is not None and right is not None:
-            return left + right
-    return None
+    return value if isinstance(value, str) else value.decode("utf-8", "backslashreplace")
 
 
 def _py_strings(src: str) -> list[str] | None:
     """`ast` 解析出的全部字符串值(含折叠的 `+` 链); 解析失败返回 None。
 
     折进 `+` 链的 `Constant` 不再单独计一次 —— 否则同一处会产生两个候选。
+
+    ⛔ r20 LOW-3 的成本面: r19 起动态判据对**每个**语法单元都要整段解析一次, 而
+    `_parse_units()` 的窗口扩张本来就会对同一段源码反复调这里。缓存内部存 tuple、
+    返回时复制成新 list —— `escaping_tmp_paths()` 那边拿到后会 `.extend()`, 直接
+    把缓存对象交出去等于让调用方污染缓存。
     """
+    cached = _py_strings_cached(src)
+    return None if cached is None else list(cached)
+
+
+@functools.lru_cache(maxsize=4096)
+def _py_strings_cached(src: str) -> tuple[str, ...] | None:
     tree = _quiet_parse(src)
     if tree is None:
         return None
@@ -706,8 +749,10 @@ def _py_strings(src: str) -> list[str] | None:
         elif isinstance(node.value, bytes):
             # ⛔ r18 HIGH-2: bytes 字面量也是路径 —— `b"/t" b"mp/cls-exam/" b"." b"./x"`
             # 被 `ast` 合成 `b"/tmp/cls-exam/../x"`, 只收 str 的话越界判据整类看不到。
-            out.append(node.value.decode("utf-8", "replace"))
-    return out
+            # ⛔ r20 MEDIUM-4: 与 `_fold_str()` 同口径用 `backslashreplace` —— `replace`
+            # 会把不同的不可解码字节压成同一个 U+FFFD, 登记后可被静默顶替。
+            out.append(node.value.decode("utf-8", "backslashreplace"))
+    return tuple(out)
 
 
 #: 复合语句的**续接子句**: 单元不能切在它们前面, 否则孤立的 `elif` 头再也解析不了。
@@ -959,9 +1004,9 @@ def escaping_tmp_paths(text: str) -> list[tuple[str, str]]:
     # ⑤ ⛔ r9 HIGH-5c: 跨物理行的 code span —— CommonMark 把 span 内的换行当空格,
     # 逐行扫时两行都拿不到完整 span。只补**跨行**的那些(单行的已由 ④ 覆盖)。
     for _seg_start, seg in _prose_segments(text):
-        for content in _backtick_spans("\n".join(seg)):
+        for content in _backtick_spans("\n".join(seg), normalize=False):
             if "\n" in content:
-                add(content, "prose")
+                add(_normalize_span(content), "prose")
     return out
 
 
@@ -1065,11 +1110,13 @@ def _has_dynamic_tmp_join(src: str) -> bool:
                 continue
             assigned[tgt.id] += 1
             value = node.value
+            # ⛔ r20 HIGH-1: 判「这次赋值里含不含 `/tmp`」不能只看**叶常量** —— 下面
+            # `starts` 那圈 r11 起就用 `_fold_str()` 了, 这圈还停在叶常量, 同一个函数里
+            # 两套口径。`P = "/t" + "mp/cls-exam/x"; P = "/etc/passwd"` 的两个叶都不含
+            # `/tmp` ⇒ `P` 进不了 `tmp_targets`, 重复赋值整条静默(九项计数、七组附加结果
+            # 连同块指纹全部不变), 而最终路径已经是 `/etc/passwd`。bytes 同形态同理。
             if value is not None and any(
-                isinstance(n, ast.Constant)
-                and isinstance(n.value, (str, bytes))
-                and "/tmp" in (n.value if isinstance(n.value, str) else n.value.decode("utf-8", "replace"))
-                for n in ast.walk(value)
+                (folded := _fold_str(n)) is not None and "/tmp" in folded for n in ast.walk(value)
             ):
                 tmp_targets.add(tgt.id)
     if any(assigned[name] > 1 for name in tmp_targets):
@@ -1176,7 +1223,7 @@ def opaque_tmp_lines(text: str) -> list[tuple[int, str]]:
     # 逐行扫时两行都拿不到完整 span（CommonMark 把 span 内的换行当空格）。
     for seg_start, seg in _prose_segments(text):
         joined = "\n".join(seg)
-        for content in _backtick_spans(joined):
+        for content in _backtick_spans(joined, normalize=False):
             if "\n" in content and "/tmp" in content and _OPAQUE_TMP_RE.search(content):
                 off = joined[: joined.find(content)].count("\n")
                 entry = (seg_start + off, seg[off].strip())
@@ -1820,6 +1867,75 @@ _URL_ASSIGN_RE = re.compile(r"(?<![{$:])\bCLS_BACKEND_URL\s*=")
 #: ⛔ r13 MEDIUM-1: 原先写 `(?![^\n;]*\s-{1,2}f\b)` 会越过命令边界 ——
 #: `unset CLS_BACKEND_URL && curl -f "…"` 里 curl 的 `-f` 被当成 `unset -f` ⇒ 漏检。
 _URL_UNSET_RE = re.compile(r"\bunset\b(?P<opts>(?:\s+-{1,2}[a-zA-Z]*)*)(?P<vars>(?:\s+[\w'\"]+)*)")
+#: `${CLS_BACKEND_URL…}` 的一次参数展开(允许缺省值里再嵌一层花括号)。
+_URL_EXPANSION_RE = re.compile(r"\$\{CLS_BACKEND_URL(?:[^{}]|\{[^{}]*\})*\}")
+#: 只有「**未设置时**取缺省」的形态才真让外部配置说了算; `:+` / `+` 的语义正好反过来。
+_URL_DEFAULTING_RE = re.compile(r"^\$\{CLS_BACKEND_URL:?-")
+
+
+def _strip_sh_comment(line: str) -> str:
+    r"""剥掉 shell 行注释; 引号内、参数展开里的 `#` 都不是注释。
+
+    ⛔ r20 MEDIUM-1: 上一版是 `re.split(r"(?<![\w$])#", line, maxsplit=1)[0]`, 于是
+    `printf "#"; unset CLS_BACKEND_URL; curl …` 被截成 `printf "`, 后面**真实存在**的
+    `unset` 整条漏检 —— 漏检方向, 且安全对照(把 `unset` 换成 `:`)九项计数、七组附加结果
+    连同块指纹全部相同。`${#CLS_BACKEND_URL}` 的长度展开同一个根因。
+    POSIX: `#` 只在**词首**(行首, 或紧跟未引用的空白/命令分隔符)才开启注释。
+    """
+    out: list[str] = []
+    quote: str | None = None
+    at_word_start = True
+    i, n = 0, len(line)
+    while i < n:
+        ch = line[i]
+        if ch == "\\" and quote != "'" and i + 1 < n:  # 单引号内反斜杠是普通字符
+            out.append(line[i : i + 2])
+            i += 2
+            at_word_start = False
+            continue
+        if quote is not None:
+            out.append(ch)
+            if ch == quote:
+                quote = None
+            i += 1
+            continue
+        if ch == "#" and at_word_start:
+            break
+        if ch in "\"'":
+            quote = ch
+        out.append(ch)
+        # `{` / `}` **不是**词分隔符 —— 否则 `${#VAR}` 的 `#` 会被当成注释开头。
+        at_word_start = ch in " \t;&|()<>"
+        i += 1
+    return "".join(out)
+
+
+def _env_clears_url(segment: str) -> bool:
+    r"""这一条命令是「`env` 清掉 `CLS_BACKEND_URL` 后由**子 shell 自己**再展开缺省 URL」?
+
+    ⛔ r20 MEDIUM-3 是**双向**的:
+    · 漏检 —— `--ignore-environment` 是 `-i` 的长名, `-uCLS_BACKEND_URL` 是**粘连**写法,
+      上一版两者都认不出, 而两种都确定性清掉配置。
+    · 误报 —— `env -i bash -c 'true'; curl "${CLS_BACKEND_URL:-…}"` 清的是**无关子进程**
+      的环境, 跟后面那条 curl 没关系。所以本判据现在**逐命令段**跑, 且要求 `-c` 脚本里
+      真的出现该变量。
+    · 误报 —— `env -i bash -c "curl ${CLS_BACKEND_URL:-…}"` 用**双引号**, URL 由外层
+      shell 先展开完了才交给 env, `env` 撤销不了已经在参数里的值 ⇒ 只认单引号脚本。
+    """
+    m = re.search(
+        r"\benv\b(?P<opts>(?:\s+-{1,2}[\w-]*(?:[= ]\s*[\w'\"]+)?)*)\s+(?P<sh>\S+)\s+-c\s+(?P<script>.*)$",
+        segment,
+    )
+    if not m or not re.search(r"\b(?:sh|bash|zsh|dash)$", m.group("sh")):
+        return False
+    opts = m.group("opts") or ""
+    cleared = any(opt in {"-i", "--ignore-environment"} for opt in opts.split()) or bool(
+        re.search(r"(?:-u|--unset)[=\s]*['\"]?CLS_BACKEND_URL\b", opts)
+    )
+    if not cleared:
+        return False
+    script = m.group("script").strip()
+    return script.startswith("'") and "CLS_BACKEND_URL" in script
 
 
 def _url_override_hit(line: str) -> bool:
@@ -1833,28 +1949,29 @@ def _url_override_hit(line: str) -> bool:
     才算(r18 MEDIUM-6)。而 `env -u OTHER sh -c '…'` 删的不是目标变量 ⇒ 也不算(r19)。
     ⛔ 残余(登记不修): `unset C'LS'_BACKEND_URL` 这类引号拼接出的变量名认不出。
     """
-    code = re.split(r"(?<![\w$])#", line, maxsplit=1)[0]
+    code = _strip_sh_comment(line)
     if _URL_ASSIGN_RE.search(code):
         return True
     for segment in re.split(r"[;&|\n]+", code):
         for word in _shell_words(segment):
-            if "8011" not in word:
-                continue
-            # ⛔ r19 MEDIUM: 变量必须出现在**主机+端口**那一段才算控制地址 ——
-            # `…:8011}/x?config=${CLS_BACKEND_URL}` 里它在 query, `#fragment` 里同理。
-            addr = re.split(r"[?#]", word, maxsplit=1)[0]
-            if not re.search(r"\$\{CLS_BACKEND_URL(:-|\}|:?[-=?]\s*[^+])", addr):
-                return True
+            for hit in re.finditer(r"8011", word):
+                # ⛔ r20 MEDIUM-2: 「截掉 query/fragment」**不等于**「只看主机+端口」——
+                # `curl "${OTHER:-http://localhost:8011}/${CLS_BACKEND_URL}"` 里变量落在
+                # **path** 上(也在 `?` 之前), 上一版据此放行, 而地址其实由 `OTHER` 决定,
+                # 与写死 URL 相比全部指标和指纹相等。
+                # 判准换成: 端口号本身必须**落在** `${CLS_BACKEND_URL:-…}` 这一次展开的
+                # 里面 —— 那正是整改要求的形态, 变量摆在别处都不控制地址。
+                if not any(
+                    e.start() <= hit.start() and hit.end() <= e.end() and _URL_DEFAULTING_RE.match(e.group(0))
+                    for e in _URL_EXPANSION_RE.finditer(word)
+                ):
+                    return True
     for segment in re.split(r"[;&|\n]+", code):
         m = _URL_UNSET_RE.search(segment)
         if m and "f" not in (m.group("opts") or "").replace("-", ""):
             if re.search(r"\bCLS_BACKEND_URL\b", m.group("vars") or ""):
                 return True
-    # `env` 清环境 + 子 shell 再展开
-    env_m = re.search(r"\benv\b((?:\s+-{1,2}\w*(?:[= ]\S+)?)*)\s+(\S+)\s+-c\b", code)
-    if env_m and re.search(r"\b(?:sh|bash|zsh|dash)$", env_m.group(2)):
-        opts = env_m.group(1)
-        if re.search(r"-i\b", opts) or re.search(r"-u[= ]\s*['\"]?CLS_BACKEND_URL\b", opts):
+        if _env_clears_url(segment):  # r20 MEDIUM-3: 逐段判, 别把无关子进程的清环境算上
             return True
     return False
 
@@ -2374,6 +2491,76 @@ def test_constant_chain_and_bytes_handling_are_load_bearing():
     safe = bad.replace('b".."', 'b"ok"')
     assert not escaping_tmp_paths(safe), f"对照的合规 bytes 链不该报越界: {escaping_tmp_paths(safe)}"
 
+    # ③ bytes **叶**常量的收集(r18 HIGH-2)与②是两处代码: ②是 `_fold_str()` 折显式 `+`,
+    #    这里是 `_py_strings()` 收 `Constant` 叶。`ast` 把**隐式相邻拼接**在解析期就合成
+    #    一个 bytes `Constant`, 所以它走不到 `+` 那条路。r20 LOW-1: 撤掉这处收集后 94 次
+    #    现有纯函数断言仍全过, 只有下面这条会红。
+    implicit = '```python\nP = b"/t" b"mp/cls-exam/" b".." b"/x"\n```'
+    assert any(name == "fence:/tmp/x" for _c, name in escaping_tmp_paths(implicit)), (
+        f"bytes 叶常量(隐式相邻拼接)没被收进候选: {escaping_tmp_paths(implicit)}"
+    )
+
+    # ④ bytes 解码必须**先折完再解一次**且不丢身份(r20 MEDIUM-4)。`replace` 会把不同的
+    #    不可解码字节压成同一个 U+FFFD ⇒ 登记一条后另一条可静默顶替它(基线是多重集);
+    #    逐叶解码把 `b"\xc3" + b"\xa9"` 解成两个 U+FFFD 而不是 `é` —— 与运行时不是同一条路径。
+    ff = [n for _c, n in escaping_tmp_paths('```python\nP = b"/t" + b"mp/\\xff/x"\n```')]
+    fe = [n for _c, n in escaping_tmp_paths('```python\nP = b"/t" + b"mp/\\xfe/x"\n```')]
+    assert ff and fe and ff != fe, f"两个不同的不可解码字节折成了同一个候选: {ff} vs {fe}"
+    utf8 = [n for _c, n in escaping_tmp_paths('```python\nP = b"/t" + b"mp/" + b"\\xc3" + b"\\xa9" + b"/x"\n```')]
+    assert utf8 == ["fence:/tmp/é/x"], f"bytes 链被逐叶解码了(应先拼完整条再解一次): {utf8}"
+
+
+def test_r20_judge_branches_are_load_bearing():
+    r"""⛔ 局部回归断言: r20 整改各自可被单独证伪(HIGH-1 / MEDIUM-1,2,3 / MEDIUM-5)。
+
+    r20 LOW-2 指出上一轮的 URL **整体重写**一条回归断言都没有 —— 而重写恰恰是最该有
+    断言的改法(补丁互相打架到第三次才重写, 说明这块的边界很容易改错)。每组都配一个
+    **结构相同**的安全对照, 否则「坏形态被抓」可能只是判据对什么都报。
+    """
+    # ① HIGH-1: 重复赋值检查要用**折叠值**, 不能只看叶常量。两个叶都不含 `/tmp`,
+    #    折完才含 ⇒ `P` 进不了 `tmp_targets`, 而最终路径已经是 `/etc/passwd`。
+    bad = '```python\nP = "/t" + "mp/cls-exam/x"; P = "/etc/passwd"\n```'
+    safe = '```python\nP = "/t" + "mp/cls-exam/x"; Q = "/etc/passwd"\n```'
+    assert dynamic_tmp_join_lines(bad), "折叠常量的重复赋值没被抓到(判据还停在叶常量)"
+    assert not dynamic_tmp_join_lines(safe), f"安全对照(换个名字)被误报: {dynamic_tmp_join_lines(safe)}"
+
+    # ② MEDIUM-1: 注释剥离必须认引号 —— `printf "#"` 里的 `#` 不开启注释。
+    assert _url_override_hit('printf "#"; unset CLS_BACKEND_URL; curl "${CLS_BACKEND_URL:-http://localhost:8011}/x"'), (
+        "引号内的 `#` 被当成注释开头, 后面真实的 `unset` 整条漏检"
+    )
+    assert not _url_override_hit('printf "#"; :; curl "${CLS_BACKEND_URL:-http://localhost:8011}/x"'), (
+        "安全对照(`unset` 换成 `:`)被误报 —— 说明上一条抓到的不是 `unset`"
+    )
+    assert _url_override_hit("echo ${#CLS_BACKEND_URL}; unset CLS_BACKEND_URL"), "`${#VAR}` 后面的 `unset` 漏检"
+    assert not _url_override_hit('curl "${CLS_BACKEND_URL:-http://localhost:8011}/x"  # unset CLS_BACKEND_URL'), (
+        "真注释没被剥掉 ⇒ 误报"
+    )
+
+    # ③ MEDIUM-2: 变量必须**罩住端口号本身**才算控制地址; 落在 path 上不算。
+    assert _url_override_hit('curl "${OTHER:-http://localhost:8011}/${CLS_BACKEND_URL}"'), (
+        "地址由 `OTHER` 决定、目标变量只在 path 上, 判据却放行了"
+    )
+    assert not _url_override_hit('curl "${CLS_BACKEND_URL:-http://localhost:8011}/x"'), "整改形态本身被误报"
+    assert _url_override_hit('curl "${CLS_BACKEND_URL:+http://localhost:8011}/x"'), "`:+` 语义相反, 应登记"
+
+    # ④ MEDIUM-3: `env` 双向 —— 长选项/粘连要抓, 无关子进程与外层展开不能误报。
+    for form in (
+        "env --ignore-environment bash -c 'curl \"${CLS_BACKEND_URL:-http://localhost:8011}/x\"'",
+        "env -uCLS_BACKEND_URL bash -c 'curl \"${CLS_BACKEND_URL:-http://localhost:8011}/x\"'",
+    ):
+        assert _url_override_hit(form), f"`env` 清环境形态漏检: {form}"
+    for form in (
+        "env -i bash -c 'true'; curl \"${CLS_BACKEND_URL:-http://localhost:8011}/x\"",
+        "env -u OTHER sh -c 'curl \"${CLS_BACKEND_URL:-http://localhost:8011}/x\"'",
+        'env -i bash -c "curl ${CLS_BACKEND_URL:-http://localhost:8011}/x"',
+    ):
+        assert not _url_override_hit(form), f"`env` 误报(清的不是这条命令的环境/外层已展开): {form}"
+
+    # ⑤ MEDIUM-5: code span 空白按 CommonMark 归一化(换行→空格, 剥一对首尾空格)。
+    assert _backtick_spans("见 ` /tmp/cls-exam/x ` 处") == ["/tmp/cls-exam/x"], "首尾各一个空格没剥掉 ⇒ 误报"
+    assert _backtick_spans("见 ` /tmp/x` 处") == [" /tmp/x"], "只有一侧空格时不该剥(CommonMark 要求两侧都是)"
+    assert _backtick_spans("`a\nb`") == ["a b"], "span 内的换行没换成空格"
+
     # ③ 动态判据的预筛要看**整段**解析出的字符串, 不是扣重后的 delta(r19 HIGH-2)。
     脱钩 = (
         '```python\nif True:\n    P = "/t" "mp/cls-exam/x"\n'
@@ -2431,12 +2618,19 @@ def test_parse_unit_cost_on_current_tree():
     两次都是它先红, 而不是等到某天整套测试莫名其妙变慢。
 
     阈值取得宽(10s vs 实测 ~1.5s)是刻意的: 它要抓的是**数量级退化**, 不是机器快慢。
+
+    ⛔ r20 LOW-3: 量的对象从 `_parse_units()` 换成**整条 `dynamic_tmp_join_lines()`** ——
+    r19 给动态判据加的「整段源码预筛」每个单元多一次 `ast.parse` + 折叠遍历, 而上一版
+    哨兵根本不调这条路径, 新增成本它一点都看不见。Codex 合成语料实测: 1000 个普通赋值
+    单元 0.264ms → 9.420ms。数量级仍在, 但哨兵得能看见它。
     """
     _parse_units_cached.cache_clear()  # r12 LOW-1: 不清缓存的话前面的检查已预热, 量的是暖路径
+    _py_strings_cached.cache_clear()
     start = time.perf_counter()
     longest, where = 0, ""
     for name in sorted(EXPECTED_SKILLS):
         text = (DEFAULT_ROOT / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
+        dynamic_tmp_join_lines(text)  # 走完 预筛 + `_has_dynamic_tmp_join()` 的真实路径
         for _start, body, is_fence in _fence_blocks(text):
             if not is_fence:
                 continue
@@ -2446,7 +2640,7 @@ def test_parse_unit_cost_on_current_tree():
                     longest, where = n, name
     elapsed = time.perf_counter() - start
     assert elapsed < 10.0, (
-        f"9 份 SKILL.md 跑一遍 `_parse_units()` 用了 {elapsed:.1f}s(最长单元 {longest} 行, "
+        f"9 份 SKILL.md 跑一遍 动态判据全路径 用了 {elapsed:.1f}s(最长单元 {longest} 行, "
         f"在 {where}) —— 单元内是 O(k²), 这个耗时说明解析边界判错了、把整块吞成一个单元。"
         f"先看那个单元的首行是什么, 别直接放宽阈值"
     )

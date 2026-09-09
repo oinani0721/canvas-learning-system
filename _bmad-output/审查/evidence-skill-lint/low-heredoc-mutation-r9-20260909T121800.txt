@@ -1,0 +1,7 @@
+=== r8 LOW 变异: 禁掉 `_py_needs_more`（单元退回单行）===
+  heredoc 包裹(整改后的形态)         原版红=True 变异红=False  ✅ 承重（变异后漏）
+  纯 python fence(整改前的形态)     原版红=True 变异红=True  ❌ 变异后仍红 ⇒ 该形态考不到 _parse_units
+
+⇒ 纯 python fence 走「整块 ast.parse 成功」那条路, 整个绕开 `_parse_units()`,
+   所以它证明不了窗口修复；heredoc 包裹后才真的考到。
+rc=0
