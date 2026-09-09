@@ -373,9 +373,12 @@ def _fence_blocks(text: str) -> list[tuple[int, list[str], bool]]:
             # 内的 fence 只是整体右移了容器 marker 的宽度。所以阈值 = 3 + **marker 宽度**,
             # 不是 3 + 「fence 标记的列位置」—— 后者会把 opening 自身的缩进也当成额度,
             # 于是 3 空格 opening 配 4 空格 closing 被错判为闭合(r13 实测)。
+            # ⛔ r14 HIGH-1A/MEDIUM-2: 缩进按 **tab 展开后的列数**算, 不是字符数 ——
+            # 一个真实 tab 开头的 ``` 原先按缩进 1 处理、提前闭合了围栏(块后半段整个
+            # 不进指纹)。`_lead` 减法也退掉: 阈值直接以 fence 标记的**列位置**为基准,
+            # 容器整体缩进本来就该计入(r14 MEDIUM-2 实测三空格 + `- ` 会误吞)。
             _open_m = _FENCE_OPEN_RE.match(lines[i])
-            _lead = len(lines[i]) - len(lines[i].lstrip(" \t"))
-            open_indent = _open_m.start(1) - _lead
+            open_indent = len(lines[i][: _open_m.start(1)].expandtabs(4))
             _prefix = lines[i][: _FENCE_OPEN_RE.match(lines[i]).start(1)]
             quote_depth = len(_prefix.strip()) and _prefix.count(">")
             container_depth = 1 if _prefix.strip() else 0
@@ -396,7 +399,7 @@ def _fence_blocks(text: str) -> list[tuple[int, list[str], bool]]:
                     # r9 HIGH-3a: closing 的引用深度必须**等于** opening 的
                     and lines[i][: m2.start(1)].count(">") == quote_depth
                     # r11 HIGH-5b: closing 缩进最多比 **opening** 多 3 空格(CommonMark)
-                    and (len(lines[i]) - len(lines[i].lstrip(" \t"))) <= open_indent + 3  # marker 宽度 + 3
+                    and _indent_cols(lines[i]) <= open_indent + 3  # r14: 按展开后的列数比
                 ):
                     closing = (i + 1, [lines[i]], False)
                     i += 1
@@ -551,6 +554,12 @@ def _prose_segments(text: str) -> list[tuple[int, list[str]]]:
     return out
 
 
+def _indent_cols(line: str) -> int:
+    """行首缩进的**列数**(tab 展开为 4) —— CommonMark 按列算, 不按字符数。"""
+    lead = line[: len(line) - len(line.lstrip(" \t"))]
+    return len(lead.expandtabs(4))
+
+
 def _strip_quote_prefix(line: str, depth: int) -> str:
     r"""剥掉 fence body 行的**容器前缀**。`depth=0`(开启行无容器前缀)时原样返回。
 
@@ -636,7 +645,9 @@ def _py_strings(src: str) -> list[str] | None:
 #: 复合语句的**续接子句**: 单元不能切在它们前面, 否则孤立的 `elif` 头再也解析不了。
 #: ⛔ r9 HIGH-1a: `if False:`␊`    pass`␊`elif (P := "/tmp/…" + "." * 2 + "/x"):` ——
 #: 贪心「第一次成功即认」会把 `if False: pass` 认走, 剩下的 `elif` 头转交 shlex, 拼接丢失。
-_PY_CONTINUATION_RE = re.compile(r"^\s*(elif|else|except|finally|case)\b")
+#: ⛔ r14 LOW-5: `case` 是**软关键字** —— `case = 0` 是普通赋值。要求它后面跟模式且
+#: 行尾是冒号, 否则 200 行独立的 `case = 0` 会被合成一个单元(实测 0.072s vs 0.0016s)。
+_PY_CONTINUATION_RE = re.compile(r"^\s*(?:(?:elif|else|except|finally)\b|case\b.*:\s*$)")
 
 
 def _py_needs_more(src: str) -> bool:
@@ -1087,7 +1098,7 @@ def opaque_tmp_lines(text: str) -> list[tuple[int, str]]:
                     # 而这行没有反引号/反斜杠/`..`/`$`, 五条判据全静默。
                     or any("/tmp" in w and w.count('"') + w.count("'") > 2 for w in _shell_words(line))
                 ):
-                    out.append((start + offset, line.strip()))
+                    out.append((start + offset, line))  # r14 MEDIUM-1: 存**原文**, 指纹才有意义
             continue
         i = 0
         while i < len(body):
@@ -1100,7 +1111,7 @@ def opaque_tmp_lines(text: str) -> list[tuple[int, str]]:
                 j += 1
             joined = "\n".join(body[i : j + 1])  # ⛔ 原样拼, 不擦反斜杠(它正是证据)
             if "/tmp" in joined and _OPAQUE_TMP_RE.search(joined):
-                out.append((start + i, body[i].strip()))
+                out.append((start + i, body[i]))
             i = j + 1
     return out
 
@@ -1320,17 +1331,16 @@ OPAQUE_TMP_BASELINE: dict[str, list[str]] = {
     "configure-whiteboard": [],
     "exam-quick": [],
     "node-chat": [],
-    # ⛔ 以下五行是**保守误报**, 不是债: markdown 的 `**粗体**` 或中文标点紧贴 code span
-    # 边界, 被「嵌入式 span」判据当成了 shell 命令替换。r10→r11 逐步把 `_SPAN_SEP_CHARS`
-    # 清空(先去 `*` 与中文引号, 再去中文句读)——因为它们**同样能属于合法 shell 词**
-    # (`P="/tmp/cls-exam/"*`printf a`*` / `…"，`printf a`，` 实测都漏检)。
-    # **方向取舍**: 表里多一个字符 = 多一条放行(漏检); 少一个字符 = 多一条误报。
-    # 漏检不可接受, 误报可以登记。
-    # ⛔ r11 HIGH-3: 登记项**必须带内容指纹** —— 只钉行号的话, 登记一条误报就等于把那个
-    # 行号变成可以塞真实债的槽(实测把 `` `/tmp/cls-exam/` `` 换成
-    # ``P="/tmp/cls-exam/"`printf .`"./x"`` 后完全静默)。带指纹后换内容即红。
-    "quiz-answer": ["98:118d5be3", "205:44b7655d"],
-    "start-exam-board": ["188:65b99234", "430:6df0e9ca", "577:249fe6bc"],
+    # ⛔ 保守误报, 不是债: markdown 的 `**粗体**` 或中文标点紧贴 code span 边界, 被
+    # 「嵌入式 span」判据当成了 shell 命令替换。`_SPAN_SEP_CHARS` 已清空(只认 ASCII
+    # 空白)——因为任何标点都可能是合法 shell 词的一部分。方向取舍: 漏检不可接受,
+    # 误报可以登记。⛔ 登记项带**内容指纹**(r11 HIGH-3), 16 位、不 strip(r14)。
+    "quiz-answer": ["98:918de56473d5be1b", "205:44b7655dd97c27b7"],
+    "start-exam-board": [
+        "188:65b99234f2075b8f",
+        "430:6df0e9ca43fe93e0",
+        "577:249fe6bc3d886700",
+    ],
     "study-question": [],
 }
 
@@ -1342,19 +1352,24 @@ OPAQUE_TMP_BASELINE: dict[str, list[str]] = {
 #: 代价: 块内**任何**改动(包括无关措辞)都要同步指纹 —— 这正是「增红减也红」的精神。
 TMP_BLOCK_BASELINE: dict[str, list[str]] = {
     "ai-linked-doc": [],
-    "board-recap": ["L58:c36261a7", "L139:0f6b5a2f"],
+    "board-recap": ["L58:ca3698587183c7cb", "L139:0f6b5a2ff16914cd"],
     "chat-with-context": [],
     "configure-whiteboard": [],
     "exam-quick": [],
     "node-chat": [],
-    "quiz-answer": ["B104:cd24514a", "B229:b26c3c3f", "L98:118d5be3", "L205:44b7655d"],
+    "quiz-answer": [
+        "B104:cd24514a7f7ffadd",
+        "B229:b26c3c3f9e130b1a",
+        "L98:918de56473d5be1b",
+        "L205:44b7655dd97c27b7",
+    ],
     "start-exam-board": [
-        "B195:03441072",
-        "B433:e568006a",
-        "L128:ac5b00bd",
-        "L188:65b99234",
-        "L430:6df0e9ca",
-        "L577:249fe6bc",
+        "B195:0344107288effd22",
+        "B433:e568006ab2b9d0fb",
+        "L128:ac5b00bda0455a9e",
+        "L188:65b99234f2075b8f",
+        "L430:6df0e9ca43fe93e0",
+        "L577:249fe6bc3d886700",
     ],
     "study-question": [],
 }
@@ -1710,7 +1725,9 @@ def _url_override_hit(line: str) -> bool:
         return True
     # ⛔ r13 MEDIUM-2: 写死端口而**没用约定变量**(`${OTHER:-http://localhost:8011}`)
     # 等于整改没做 —— 用户配了 `CLS_BACKEND_URL` 也不会生效。九项计数与全部集合不变。
-    if "8011" in line and "CLS_BACKEND_URL" not in line:
+    # ⛔ r14 MEDIUM-3: 用**词边界** —— `${CLS_BACKEND_URL_OTHER:-…}` 里虽然出现了
+    # `CLS_BACKEND_URL` 这个子串, 但它不是约定变量, 用户配了也不生效。
+    if "8011" in line and not re.search(r"\bCLS_BACKEND_URL\b", line):
         return True
     for segment in re.split(r"[;&|\n]+", line):
         m = _URL_UNSET_RE.search(segment)
@@ -1725,13 +1742,12 @@ def _url_override_hit(line: str) -> bool:
 
 def url_default_overridden_lines(text: str) -> list[tuple[int, str]]:
     """fence 内「给 `CLS_BACKEND_URL` 赋值」的行 —— 返回 `(行号, 行)`。全树实测 0。"""
+    # ⛔ r14 MEDIUM-4: 走**逻辑行** —— `unset -v \`␊`CLS_BACKEND_URL; curl …` 是合法的
+    # shell 续行, 逐物理行看的话 `unset -v` 与变量名分处两行, 两边都判不出来。
     out: list[tuple[int, str]] = []
-    for start, body, is_fence in _fence_blocks(text):
-        if not is_fence:
-            continue
-        for offset, line in enumerate(body):
-            if _url_override_hit(line):
-                out.append((start + offset, line.strip()))
+    for lineno, line, in_fence in _logical_lines(text):
+        if in_fence and _url_override_hit(line):
+            out.append((lineno, line))
     return out
 
 
@@ -1756,12 +1772,17 @@ def tmp_block_fingerprints(text: str) -> list[str]:
     「多行 opaque 记录只绑首行 ⇒ 换第二行仍静默」也由它直接封住。
     """
     out: list[str] = []
+    raw_lines = text.splitlines()
     for start, body, is_fence in _fence_blocks(text):
         blob = "\n".join(body)
         if "/tmp" not in blob:
             continue
         if is_fence:
-            out.append(f"B{start}:{_line_fingerprint(blob)}")
+            # ⛔ r14 HIGH-1B: 用**原文行**(含容器前缀), 不用剥过前缀的 body ——
+            # `> P = …` 与 `P = …` 剥完前缀后完全一样, 于是「把一行移进/移出引用块」
+            # (CommonMark 下这会改变它在不在代码块里)对指纹完全静默。
+            raw = "\n".join(raw_lines[start - 1 : start - 1 + len(body)])
+            out.append(f"B{start}:{_line_fingerprint(raw)}")
         else:
             for offset, line in enumerate(body):
                 if "/tmp" in line:
@@ -1818,8 +1839,16 @@ def check_url_override(root: Path, baseline: dict[str, list[int]]) -> list[str]:
 
 
 def _line_fingerprint(text: str) -> str:
-    """行内容的稳定摘要(sha256 前 8 位) —— 让「已登记的行」不能被换成别的内容。"""
-    return hashlib.sha256(text.strip().encode("utf-8")).hexdigest()[:8]
+    r"""内容摘要 —— 让「已登记的行/块」不能被换成别的内容。
+
+    ⛔ r14 LOW-2: 取 **16 位**不是 8 位。Codex 用 32 位摘要真的撞出了一对
+    「安全/坏」内容(`# 133530` vs `# 19218` 同摘要), 虽未撞中现有基线, 但登记项越多
+    撞上的机会越大, 而摘要长度是零成本的。
+    ⛔ r14 MEDIUM-1: **不 `strip()`**。行尾空白在 shell 里有语义 ——
+    `P="/tmp/cls-exam/.."\ ` 末尾那个空格删掉后, 反斜杠变成续行、路径规范化成 `/tmp`,
+    而 `strip()` 让两者摘要相同。只归一化行尾换行符, 不动其余空白。
+    """
+    return hashlib.sha256(text.rstrip("\r\n").encode("utf-8")).hexdigest()[:16]
 
 
 def check_opaque_tmp(root: Path, baseline: dict[str, list[str]]) -> list[str]:
@@ -2091,10 +2120,10 @@ def test_opaque_baseline_entries_are_content_bound():
     声称加了它 —— r12 LOW-2 抓到。补回并记下: **声称加了断言就要能 grep 到**。
     """
     assert all(
-        ":" in entry and len(entry.rsplit(":", 1)[-1]) == 8
+        ":" in entry and len(entry.rsplit(":", 1)[-1]) == 16
         for entries in OPAQUE_TMP_BASELINE.values()
         for entry in entries
-    ), f"登记项必须是 `行号:sha8` 形态: {OPAQUE_TMP_BASELINE}"
+    ), f"登记项必须是 `行号:sha16` 形态(r14 LOW-2 把摘要从 8 位加长到 16 位): {OPAQUE_TMP_BASELINE}"
 
     registered = "- **CARD**：候选池临时文件改用固定命名空间 `/tmp/cls-exam/`（Step 3）"
     swapped = registered.replace("`/tmp/cls-exam/`", 'P="/tmp/cls-exam/"`printf .`"./x"')
@@ -2215,18 +2244,30 @@ def test_tmp_block_net_catches_what_the_nine_judges_may_miss():
 
     这条把「45/51」这个数字钉成断言 —— 它是立第十条判据的**依据**, 不能只写在
     docstring 里(§六 ⑫ 的教训: 未经验证的声明比没有声明更危险)。
-    分不开的那几个必须全部是**不含 `/tmp`** 的 URL/`unset` 形态(归第九条), 而不是
-    「块指纹本该抓到却没抓到」。
+    ⛔ r14 LOW-4 更正: 分不开的六例**不是**「全归 URL/unset」——Codex 实测是
+    **四例 URL/`unset`** + **两例 Python 里 `"/t"`+`"mp/…"` 拼接**(源码字面没有 `/tmp`,
+    由第六条动态拼接判据检出)。所以这里的断言改成: 分不开的形态必须**能被别的判据
+    接住**, 而不是「必须不含 `/tmp`」——后者是我原来写错的归因。
     """
     indistinguishable = [
         (bad, why)
         for bad, safe, _judge, why in _R7_HIGH_FORMS
         if tmp_block_fingerprints(bad) == tmp_block_fingerprints(safe)
     ]
-    assert all("/tmp" not in bad for bad, _why in indistinguishable), (
-        "块指纹分不开的形态里出现了含 `/tmp` 的 —— 那说明兜底网漏了它本该接住的东西: "
-        + "; ".join(why[:60] for _bad, why in indistinguishable if "/tmp" in _bad)
-    )
+    for bad, why in indistinguishable:
+        covered = (
+            escaping_tmp_paths(bad)
+            or suspicious_tmp_lines(bad)
+            or dynamic_tmp_join_lines(bad)
+            or opaque_tmp_lines(bad)
+            or url_default_overridden_lines(bad)
+        )
+        assert covered, f"块指纹分不开、九条判据也全瞎 ⇒ 完全静默的面: {why[:70]}"
+    # ⛔ r14 LOW-1: 也要验**正式消费端** —— 上一版把 `check_tmp_blocks()` 改成恒返 []
+    # 后, 正控与这条都照过, 承重的只有摘要函数。给一份「键对、指纹错」的基线, 门必须红。
+    fake = {n: [f"{e.split(':')[0]}:deadbeefdeadbeef" for e in v] for n, v in TMP_BLOCK_BASELINE.items()}
+    assert check_tmp_blocks(DEFAULT_ROOT, fake), "把基线里的指纹换成假值后 `check_tmp_blocks()` 仍绿 —— 说明门没用指纹"
+
     distinguishable = len(_R7_HIGH_FORMS) - len(indistinguishable)
     assert distinguishable >= 45, (
         f"块指纹只区分了 {distinguishable}/{len(_R7_HIGH_FORMS)} 个形态(基线 45) —— "
@@ -3034,7 +3075,7 @@ _R7_HIGH_FORMS: list[tuple[str, str, str, str]] = [
         '执行 P="/var/cache""/tmp/cls-exam/"\xa0`printf a`\xa0',
         '执行 P="/tmp/cls-exam/z"',
         "不透明记号",
-        "r12HIGH-2 NBSP/U+3000 的 isspace() 是 True, 但 shell 把它们留在词内",
+        "r12HIGH-2 NBSP(U+00A0)/U+3000 的 isspace() 是 True, 但 shell 把它们留在词内",
     ),
     (
         '执行 P="/var/cache /tmp/cls-exam/ "`printf a`',
