@@ -75,6 +75,17 @@ def _edits(case: str) -> list[tuple[pathlib.Path, str, str]]:
             '        str.startswith(name, "uvloop.") and not (name == "uvloop")\n'
             '    )\n',
         )]
+    if case == "r4-med1":
+        # round-4 Codex 的反例：混合两种子类行为都能通过八格交叉，但
+        # 「__eq__ 恒真 + startswith 恒假」的子类对 uvloop.loop 仍被放行。
+        return [(
+            GUARD,
+            '    return str.__eq__(name, "uvloop") is True or str.startswith(name, "uvloop.")\n',
+            '    return str.__eq__(name, "uvloop") is True or (\n'
+            '        str.startswith(name, "uvloop.")\n'
+            '        and (not (name == "uvloop") or name.startswith("uvloop."))\n'
+            '    )\n',
+        )]
     raise SystemExit(f"未知 case: {case}")
 
 

@@ -1,0 +1,18 @@
+=== NEGCTL case=struct-r3 ===
+被测门: tests/unit/test_live_port_guard_contract.py::TestGuardLiveness::test_uvloop_judge_never_touches_the_name_through_bound_operations
+应失败参数: <无>
+应通过参数: <无>
+失败正文期望串: _is_uvloop_module 里
+MUTANT-APPLIED: case=r3-med1 files=['live_port_guard.py']
+pytest 退出码 = 1（要求恰好 1 = failed；2=INTERRUPTED / 3=INTERNALERROR 一律不算）
+FAILED tests/unit/test_live_port_guard_contract.py::TestGuardLiveness::test_uvloop_judge_never_touches_the_name_through_bound_operations
+======================== 1 failed, 10 warnings in 1.15s ========================
+--- 失败正文（^E 限定行）---
+E       AssertionError: _is_uvloop_module 里把 name 放进了比较表达式 —— 那会走子类重载的 __eq__，应改用未绑定的 str.__eq__(name, ...)
+E       assert not [Compare(left=Name(id='name', ctx=Load()), ops=[Eq()], comparators=[Constant(value='uvloop', kind=None)])]
+失败正文命中期望串 = 1 ; 应失败参数数 = 1
+NEGCTL-struct-r3: PASS（逐参数预期全部对上；rc=1）
+--- 还原 ---
+sha-before = 01f8f9e459cf303e99963cabb068802e5e55aaf873db9579acec18d0dc6ed362
+sha-after  = 01f8f9e459cf303e99963cabb068802e5e55aaf873db9579acec18d0dc6ed362
+RESTORE-OK: sha-before == sha-after

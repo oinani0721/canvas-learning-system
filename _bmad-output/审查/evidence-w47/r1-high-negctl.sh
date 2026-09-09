@@ -14,7 +14,7 @@
 # 还原：EXIT 负责还原；INT/TERM 显式退出 130/143（不沿用进入时的 $?，免得被信号
 # 打断的跑因为「上一条命令成功」而以 0 收场，伪装成通过）。
 set -uo pipefail
-CASE="${1:?r1-high1|r1-high2|r2-med1|r3-med1}"
+CASE="${1:?r1-high1|r1-high2|r2-med1|r3-med1|struct-r2|struct-r3|struct-r4}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 EV="$ROOT/_bmad-output/审查/evidence-w47"
 GUARD="$ROOT/backend/tests/support/live_port_guard.py"
@@ -53,6 +53,15 @@ case "$CASE" in
     EXPECT_PASS=('uvloop.loop-denier' 'uvloop-affirmer' 'uvloop-denier')
     EXPECT_BODY='DID NOT RAISE'
     ;;
+  struct-r2|struct-r3|struct-r4)
+    # ⛔ 同一条**结构门**对三个反例各跑一次：它们的共同形状是「让 name 自己参与判断」，
+    #    结构门直接禁掉这个形状 ⇒ 一条门杀掉整族，不必继续枚举子类行为 × 真实值。
+    NODE="$T::TestGuardLiveness::test_uvloop_judge_never_touches_the_name_through_bound_operations"
+    EXPECT_FAIL=()
+    EXPECT_PASS=()
+    EXPECT_BODY='_is_uvloop_module 里'
+    NO_PARAMS=1
+    ;;
   *) echo "未知 case: $CASE"; exit 64 ;;
 esac
 
@@ -74,9 +83,12 @@ _restore_files() {
   echo "RESTORE-OK: sha-before == sha-after"
   return 0
 }
+# ⛔ 还原**只由 EXIT 做一次**（round-4 Codex LOW）：信号处理器里再还原一次会在
+#    备份已被删除后重复 cp，第二次必然失败。INT/TERM 只负责「不冒充成功」的退出码，
+#    退出会触发 EXIT，还原在那里发生。
 on_exit() { local rc=$?; _restore_files || rc=90; exit $rc; }
-on_int() { _restore_files; echo "INTERRUPTED (SIGINT)"; exit 130; }
-on_term() { _restore_files; echo "TERMINATED (SIGTERM)"; exit 143; }
+on_int() { echo "INTERRUPTED (SIGINT)"; exit 130; }
+on_term() { echo "TERMINATED (SIGTERM)"; exit 143; }
 trap on_exit EXIT
 trap on_int INT
 trap on_term TERM
@@ -86,7 +98,13 @@ echo "被测门: $NODE"
 echo "应失败参数: ${EXPECT_FAIL[*]:-<无>}"
 echo "应通过参数: ${EXPECT_PASS[*]:-<无>}"
 echo "失败正文期望串: $EXPECT_BODY"
-"$PY" "$EV/negctl_patch_w47.py" apply "$CASE" || exit $?
+MUT_CASE="$CASE"
+case "$CASE" in
+  struct-r2) MUT_CASE=r2-med1 ;;
+  struct-r3) MUT_CASE=r3-med1 ;;
+  struct-r4) MUT_CASE=r4-med1 ;;
+esac
+"$PY" "$EV/negctl_patch_w47.py" apply "$MUT_CASE" || exit $?
 cd "$ROOT/backend" || exit 91
 export PYTHONDONTWRITEBYTECODE=1
 OUT="$($PYTEST -q -p no:cacheprovider --tb=long "$NODE" 2>&1)"
@@ -97,6 +115,7 @@ echo "--- 失败正文（^E 限定行）---"
 echo "$OUT" | grep -E '^E ' | head -8
 
 PROBLEMS=()
+NO_PARAMS="${NO_PARAMS:-0}"
 [ "$RC" -eq 1 ] || PROBLEMS+=("pytest rc=$RC 不是 1")
 FAILED_LINES="$(echo "$OUT" | grep -E '^FAILED ' || true)"
 for p in ${EXPECT_FAIL[@]+"${EXPECT_FAIL[@]}"}; do
@@ -108,7 +127,7 @@ for p in ${EXPECT_PASS[@]+"${EXPECT_PASS[@]}"}; do
   fi
 done
 BODY_HITS=$(echo "$OUT" | grep -E '^E ' | grep -cF "$EXPECT_BODY")
-WANT_BODY=${#EXPECT_FAIL[@]}
+if [ "$NO_PARAMS" = "1" ]; then WANT_BODY=1; else WANT_BODY=${#EXPECT_FAIL[@]}; fi
 echo "失败正文命中期望串 = $BODY_HITS ; 应失败参数数 = $WANT_BODY"
 if [ "$BODY_HITS" -lt "$WANT_BODY" ]; then
   PROBLEMS+=("失败正文命中 $BODY_HITS < 应失败参数数 $WANT_BODY —— 有参数不是因指定理由红的")
