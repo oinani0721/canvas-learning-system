@@ -1331,6 +1331,72 @@ tests/skills **538 passed**（369 + 169）/ regression 1480 collected / routing 
 live newer 0（前提已断言）/ 禁改三份逐字节一致 / 地盘门恰 2 项 / ruff 干净 /
 真实树动态判据全路径 冷 **438ms** 暖 **196ms**。
 
+### round-26（绑 `6540e409`，blob `ab9cc6fb`）— `codex-review-CARD-SKILL-PORT-LINT-r26.md`
+
+**BLOCKER 0 / HIGH 4 / MEDIUM 2 / LOW 0**。3 条新增漏检 + 2 组新增误报 + 1 条既存未闭合。
+
+#### ⛔ 本轮最重要：我 r25 的**修法方向**被指出不对
+
+> **结束标记存在仍不足以证明 heredoc 解释成立。**
+
+我用「后面有没有出现结束标记」判断 `<<` 是不是 heredoc，**两头都错**：
+
+| | 现象 |
+|---|---|
+| 误认 | 正文里恰好有一行 `2` ⇒ `N = 1 << 2` 被当成 heredoc（两版都漏） |
+| 误否 | **真** heredoc 缺结束标记（文档示例常见）⇒ 整个执行区被丢掉（**我 r25 引入的回归**） |
+
+⇒ 判别换成**引号**：
+
+```
+<<'A' / <<"A"   带引号  → 一定是 heredoc（Python 里 x << 'A' 毫无意义，shell 里无歧义）
+<<A             不带引号 → 看这一行本身能不能当合法 Python 解析
+                           `N = 1 << 2` 能 ⇒ 左移；`python3 - <<A` 不能 ⇒ heredoc
+```
+缺结束标记时正文取到**块尾**，不再整个丢掉。
+
+> **教训**：判别歧义语法要找「**只在一种解释下才会出现**」的特征。结束标记两种解释下
+> 都可能出现，所以证明不了任何事；引号只在 shell 解释下有意义 —— 那才是判别式。
+
+#### 四条 HIGH
+
+| r26 意见 | 整改 |
+|---|---|
+| **HIGH-1（回归）** 缺结束标记时真执行区被丢弃 | 见上：判别改用引号；缺尾时取到块尾 |
+| **HIGH-2（回归）** 整词搜 `c`/`m` 侵入带参数选项的**参数** | 短选项**逐字符按序**扫；遇到 `W`/`X`/`Q` 就停止把余下字符当选项（`-Wignore::DeprecationWarning` 里的 `c` 不再被当成 `-c`） |
+| **HIGH-3（回归）** `(P): str` 被误收为局部绑定 | `AnnAssign.simple` 必须为真 —— 括号包裹的注解**不**产生绑定（树内 `symtable` 实证） |
+| **HIGH-4（既存）** 命名空间写入仍有静默形态 | 写入目标补 `Attribute`（`sys.modules[…].P = …`）；`_NS_MUTATORS` 补 `__ior__` / `__delitem__`；`del globals()[…]` |
+
+#### 两条 MEDIUM —— 同一个判据的**两个方向都要验**
+
+`_is_namespace_expr()` 在写入目标那侧**太窄**（只认 `Subscript`），在识别那侧却**太宽**，
+把五种普通业务写法全部误报。收紧成三条：
+
+| 收紧 | 反例 |
+|---|---|
+| `globals()`/`locals()`/`vars()` **必须无参数** | `config.update(vars(args))` / `vars(args)["P"] = …` |
+| `sys.modules[…]` 接收者必须就是名字 `sys` | `app.modules["x"].y = 1` |
+| `X.__dict__` 只有 `X` **本身是命名空间**才算 | `args.__dict__["verbose"] = True` |
+| `.reload(` 只认 `importlib.reload` | `page.reload()` |
+| 命名空间作**参数**只在未绑定的 `dict.update(globals(), …)` 算写 | `config.update(globals())`（读模块字典、写进别的字典） |
+| 目标里的下标/属性必须在 **Store/Del** 上下文 | `cache[globals()["P"]] = 1`（键是 Load） |
+
+**MEDIUM-2**：`unset` 必须是该段的**命令词**（前面只允许 `VAR=值` 前缀）。
+逐词找的话 `printf '%s %s' unset CLS_BACKEND_URL` 只是打印两个字符串却被当成删除变量；
+选项词也要**一起**去引号，否则 `unset '-f' …` 认不出 `-f`。
+
+#### 回退验证 14 处全部承重 —— 但**第三次**照出「验过没钉住」
+
+`(P): str` 我在临时探针里验过就往下走，回退验证当场照出「撤掉修复后一条断言都不红」。
+前两次分别在 r24、r25。**临时探针证明的是此刻正确，断言保证的是以后不会改回去。**
+（`vars()` 无参数那条同理，补了 `vars(args)["P"] = …` 才隔离得出。）
+
+#### 本轮实测
+
+tests/skills **540 passed**（369 + 171）/ regression 1480 collected / routing 66/66 /
+live newer 0（前提已断言）/ 禁改三份逐字节一致 / 地盘门恰 2 项 / ruff 干净 /
+真实树动态判据全路径 冷 **391ms** 暖 **173ms**。
+
 ## 六 本卡未证明什么
 - **`_provably_last()` 的「整段最早退出」是近似**：Codex r25 指出两个明确的**误报**
   方向 —— `return P` 落在 `if False` 里、或前面的 `raise` 已被对应 `except` 接住时，
