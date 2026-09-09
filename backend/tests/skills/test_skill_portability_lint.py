@@ -369,7 +369,13 @@ def _fence_blocks(text: str) -> list[tuple[int, list[str], bool]]:
             # ⛔ r12 MEDIUM-1: 基准取**fence marker 的列位置**而不是行首缩进 ——
             # `10. ```python` 的 marker 在第 4 列, closing 缩进 4; 用行首缩进(0)作基准
             # 会让它闭不上、把后面的正文吞进块(新增误报, 本轮自己引入的)。
-            open_indent = _FENCE_OPEN_RE.match(lines[i]).start(1)
+            # ⛔ r13 HIGH-4: CommonMark 说 closing 缩进最多 **3 空格**(绝对), 而列表/引用
+            # 内的 fence 只是整体右移了容器 marker 的宽度。所以阈值 = 3 + **marker 宽度**,
+            # 不是 3 + 「fence 标记的列位置」—— 后者会把 opening 自身的缩进也当成额度,
+            # 于是 3 空格 opening 配 4 空格 closing 被错判为闭合(r13 实测)。
+            _open_m = _FENCE_OPEN_RE.match(lines[i])
+            _lead = len(lines[i]) - len(lines[i].lstrip(" \t"))
+            open_indent = _open_m.start(1) - _lead
             _prefix = lines[i][: _FENCE_OPEN_RE.match(lines[i]).start(1)]
             quote_depth = len(_prefix.strip()) and _prefix.count(">")
             container_depth = 1 if _prefix.strip() else 0
@@ -390,7 +396,7 @@ def _fence_blocks(text: str) -> list[tuple[int, list[str], bool]]:
                     # r9 HIGH-3a: closing 的引用深度必须**等于** opening 的
                     and lines[i][: m2.start(1)].count(">") == quote_depth
                     # r11 HIGH-5b: closing 缩进最多比 **opening** 多 3 空格(CommonMark)
-                    and (len(lines[i]) - len(lines[i].lstrip(" \t"))) <= open_indent + 3
+                    and (len(lines[i]) - len(lines[i].lstrip(" \t"))) <= open_indent + 3  # marker 宽度 + 3
                 ):
                     closing = (i + 1, [lines[i]], False)
                     i += 1
@@ -471,10 +477,11 @@ def _has_embedded_span_near_tmp(line: str) -> bool:
             embedded.append((m.start(), m.end()))
     if not embedded:
         return False
-    pos = 0
-    for word in _shell_words(line):
-        span = (pos, pos + len(word))
-        pos += len(word) + 1
+    # ⛔ r13 HIGH-3: 用 `finditer` 拿**真实坐标** —— `pos += len(word) + 1` 假设词间恰好
+    # 一个空格, 40 个空格时坐标就飘了, 嵌入式 span 与含 `/tmp` 的词算不出相交 ⇒ 漏检。
+    for match in _SHELL_WORD_RE.finditer(line):
+        word = match.group(0)
+        span = (match.start(), match.end())
         if "/tmp" not in word:
             continue
         if any(s0 < span[1] and span[0] < e0 for s0, e0 in embedded):
@@ -1328,6 +1335,30 @@ OPAQUE_TMP_BASELINE: dict[str, list[str]] = {
 }
 
 #: 层 2 附加⑥(r9 MEDIUM-2): fence 内给 `CLS_BACKEND_URL` 赋值的行号。全树实测 0。
+#: 层 2 附加⑦(第十条判据 = 兜底网): 含 `/tmp` 的 fence 块整块指纹 / 散文行指纹。
+#: ⛔ **这条不做语义分析** —— 见 `tmp_block_fingerprints` 的 docstring: 立它的理由是
+#: 七轮 Codex 复核的数据(判据 ④~⑨ 每轮被找出 5~9 条 HIGH, 我自己整改引入的新回归
+#: 占比 33%→83%)。它与那九条互补: 那九条说「是哪一类问题」, 这条保证「块变了就红」。
+#: 代价: 块内**任何**改动(包括无关措辞)都要同步指纹 —— 这正是「增红减也红」的精神。
+TMP_BLOCK_BASELINE: dict[str, list[str]] = {
+    "ai-linked-doc": [],
+    "board-recap": ["L58:c36261a7", "L139:0f6b5a2f"],
+    "chat-with-context": [],
+    "configure-whiteboard": [],
+    "exam-quick": [],
+    "node-chat": [],
+    "quiz-answer": ["B104:cd24514a", "B229:b26c3c3f", "L98:118d5be3", "L205:44b7655d"],
+    "start-exam-board": [
+        "B195:03441072",
+        "B433:e568006a",
+        "L128:ac5b00bd",
+        "L188:65b99234",
+        "L430:6df0e9ca",
+        "L577:249fe6bc",
+    ],
+    "study-question": [],
+}
+
 URL_OVERRIDE_BASELINE: dict[str, list[int]] = {
     "ai-linked-doc": [],
     "board-recap": [],
@@ -1657,10 +1688,39 @@ def check_dynamic_tmp_joins(root: Path, baseline: dict[str, list[int]]) -> list[
 #: 但 `unset -f CLS_BACKEND_URL` 只删同名**函数**, 不动环境变量 ⇒ 排除, 否则是误报。
 #: ⛔ 残余(登记不修): `unset C'LS'_BACKEND_URL` 这类**引号拼接出的变量名**正则认不出,
 #: 与 §六 里「散文/shell 侧的字面量拼接」同一档。
-_URL_OVERRIDE_RE = re.compile(
-    r"""(?<![{$:])\bCLS_BACKEND_URL\s*="""  # 赋值
-    r"""|\bunset\b(?![^\n;]*\s-{1,2}f\b)[^\n;]*\bCLS_BACKEND_URL"""  # unset(含多变量/选项)
-)
+#: 赋值形态。
+_URL_ASSIGN_RE = re.compile(r"(?<![{$:])\bCLS_BACKEND_URL\s*=")
+#: `unset` 形态: 选项**只看紧跟其后的那些**(`-v` / `--`), 变量列表止于命令分隔符。
+#: ⛔ r13 MEDIUM-1: 原先写 `(?![^\n;]*\s-{1,2}f\b)` 会越过命令边界 ——
+#: `unset CLS_BACKEND_URL && curl -f "…"` 里 curl 的 `-f` 被当成 `unset -f` ⇒ 漏检。
+_URL_UNSET_RE = re.compile(r"\bunset\b(?P<opts>(?:\s+-{1,2}[a-zA-Z]*)*)(?P<vars>(?:\s+[\w'\"]+)*)")
+
+
+def _url_override_hit(line: str) -> bool:
+    r"""这一行有没有把 `${CLS_BACKEND_URL:-…}` 的缺省形态**架空**?
+
+    两种形态: 直接赋值, 或 `unset` 掉它。
+    ⛔ `unset -f X` 只删同名**函数**, 不动环境变量 ⇒ 不算(否则误报); 但选项只认
+    **紧跟 `unset` 的那些**, 变量列表止于命令分隔符 —— 否则
+    `unset CLS_BACKEND_URL && curl -f "…"` 里 curl 的 `-f` 会被当成 `unset -f`(r13 MEDIUM-1)。
+    ⛔ 残余(登记不修): `unset C'LS'_BACKEND_URL` 这类**引号拼接出的变量名**认不出,
+    与 §六 里「散文/shell 侧的字面量拼接」同一档。
+    """
+    if _URL_ASSIGN_RE.search(line):
+        return True
+    # ⛔ r13 MEDIUM-2: 写死端口而**没用约定变量**(`${OTHER:-http://localhost:8011}`)
+    # 等于整改没做 —— 用户配了 `CLS_BACKEND_URL` 也不会生效。九项计数与全部集合不变。
+    if "8011" in line and "CLS_BACKEND_URL" not in line:
+        return True
+    for segment in re.split(r"[;&|\n]+", line):
+        m = _URL_UNSET_RE.search(segment)
+        if not m:
+            continue
+        if "f" in (m.group("opts") or "").replace("-", ""):
+            continue  # `unset -f` 只删函数
+        if re.search(r"\bCLS_BACKEND_URL\b", m.group("vars") or ""):
+            return True
+    return False
 
 
 def url_default_overridden_lines(text: str) -> list[tuple[int, str]]:
@@ -1670,9 +1730,66 @@ def url_default_overridden_lines(text: str) -> list[tuple[int, str]]:
         if not is_fence:
             continue
         for offset, line in enumerate(body):
-            if _URL_OVERRIDE_RE.search(line):
+            if _url_override_hit(line):
                 out.append((start + offset, line.strip()))
     return out
+
+
+def tmp_block_fingerprints(text: str) -> list[str]:
+    r"""含 `/tmp` 的每个 fence 块 → 整块指纹; 含 `/tmp` 的散文行 → 行指纹。
+
+    ⛔ **第十条判据 = 兜底网, 不做任何语义分析**(2026-09-09, r13 后加)。
+
+    立它的理由是七轮 Codex 复核的**数据**, 不是又一个想法: r7→r13 每轮都在
+    「判断这条路径最终指向哪」这件事上被找出 5~9 条 HIGH, 其中我自己整改引入的
+    新回归占比 33%→83%——判据 ④~⑨ 要做的事(把 markdown + shell + python 三层语义
+    在手写代码里复现)本质上需要三个真解析器, 而每补一个边界就开一个新边界。
+
+    这条判据反过来: **不问路径指向哪, 只问这块文本变没变**。
+      · 没有解析、没有正则边界、没有缩进猜测 ⇒ 几乎没有回归空间;
+      · 对形态表 51 个反例实测 **45 个可区分**(其余 6 个是 URL/`unset` 类,
+        不含 `/tmp`, 归第九条判据);
+      · 树上代价 12 项(逐块/逐行), 见 `TMP_BLOCK_BASELINE`。
+
+    与 ④~⑨ 的关系是**互补而非取代**: 那九条告诉你「是哪一类问题」(报错信息里有
+    形态名), 这条保证「不管什么形态, 块变了就红」。r13 MEDIUM-3 指出的
+    「多行 opaque 记录只绑首行 ⇒ 换第二行仍静默」也由它直接封住。
+    """
+    out: list[str] = []
+    for start, body, is_fence in _fence_blocks(text):
+        blob = "\n".join(body)
+        if "/tmp" not in blob:
+            continue
+        if is_fence:
+            out.append(f"B{start}:{_line_fingerprint(blob)}")
+        else:
+            for offset, line in enumerate(body):
+                if "/tmp" in line:
+                    out.append(f"L{start + offset}:{_line_fingerprint(line)}")
+    return sorted(out)
+
+
+def check_tmp_blocks(root: Path, baseline: dict[str, list[str]]) -> list[str]:
+    """第十条判据: 每份 SKILL.md 里「含 `/tmp` 的块/行」的指纹集合精确相等。"""
+    problems: list[str] = []
+    skills_dir = root / "skills"
+    for name in sorted(baseline):
+        f = skills_dir / name / "SKILL.md"
+        if not f.exists():
+            problems.append(f"[块指纹] {name}: SKILL.md 不存在 (基线要求存在) path={f}")
+            continue
+        actual = tmp_block_fingerprints(f.read_text(encoding="utf-8"))
+        want = sorted(baseline[name])
+        if actual != want:
+            ca, cw = Counter(actual), Counter(want)
+            problems.append(
+                f"[块指纹] {name}: 含 `/tmp` 的块/行指纹集合不等 "
+                f"期望={want} 实测={actual}\n"
+                f"        新增={sorted((ca - cw).elements())} 缺失={sorted((cw - ca).elements())}\n"
+                f"        —— `B<行号>` 是 fence 块整块指纹, `L<行号>` 是散文行指纹。这条**不做语义"
+                f"分析**, 只问「含 /tmp 的那块文本变没变」: 改了就要人看一眼并同步基线"
+            )
+    return problems
 
 
 def check_url_override(root: Path, baseline: dict[str, list[int]]) -> list[str]:
@@ -1986,6 +2103,13 @@ def test_opaque_baseline_entries_are_content_bound():
     )
     assert opaque_tmp_lines(swapped), "换上去的那行本身必须被第八条看见(否则这条负控考错了对象)"
 
+    # ⛔ r13 LOW-2: 上一版只证明「摘要函数会变」, 没证明**门用了摘要**。这里直接对
+    # `check_opaque_tmp()` 发问: 给一份「行号对、指纹错」的基线, 它必须红。
+    fake = {name: [f"{e.split(':')[0]}:deadbeef" for e in entries] for name, entries in OPAQUE_TMP_BASELINE.items()}
+    assert check_opaque_tmp(DEFAULT_ROOT, fake), (
+        "把基线里的指纹换成假值后 `check_opaque_tmp()` 仍绿 —— 说明它只比行号、没用指纹"
+    )
+
 
 def test_parse_unit_cost_on_current_tree():
     r"""钉住 `_parse_units()` 在**当前树上的真实成本** —— 不是返回单元的长度。
@@ -2022,6 +2146,94 @@ def test_parse_unit_cost_on_current_tree():
     )
 
 
+def test_tmp_block_fingerprints_match_baseline():
+    """第十条判据(正控): 含 `/tmp` 的块/行指纹集合 == 基线。
+
+    ⛔ 这是**兜底网**: 前九条判据各自回答「是哪一类问题」, 这条只回答「块变了没有」。
+    它对形态表 51 个反例实测 45 个可区分(其余 6 个不含 `/tmp`, 归第九条 URL 判据),
+    而判据本身没有解析、没有正则边界、没有缩进猜测 —— 几乎没有回归空间。
+    """
+    problems = check_tmp_blocks(DEFAULT_ROOT, TMP_BLOCK_BASELINE)
+    assert not problems, "块指纹基线漂移:\n" + "\n".join(problems)
+
+
+#: Codex round-13 的形态: **九条判据全部看不见, 只有第十条兜底网能区分**。
+#: 这张表是立第十条判据的**直接证据** —— 它们全是「块内文本变了、但九条判据的
+#: 语义分析各自够不着」的形态(heredoc 标记撞关键字 / NBSP 分词 / 转义引号 /
+#: 标题里的未闭合反引号 / 十位数字非 marker / 跨单元赋值覆盖 / 解构赋值 / 注释吸收)。
+_NET_ONLY_FORMS: list[tuple[str, str, str]] = [
+    (
+        "heredoc 结束标记恰好是 `else`",
+        '```sh\npython3 - <<\'else\'\nif False:\n    pass\nelif P := "/tmp/cls-exam/" "." "./x":\n    pass\nelse\necho done\n```',
+        '```sh\npython3 - <<\'else\'\nif False:\n    pass\nelif P := "/tmp/cls-exam/" "a" "/x":\n    pass\nelse\necho done\n```',
+    ),
+    ("NBSP 分隔的两段引号", '执行 P="/var/cache" "/tmp/cls-exam/x"', '执行 P="/tmp/cls-exam/x"'),
+    ('转义引号 `\\"` 被误当闭合', '执行 P="/var/cache \\" /tmp/cls-exam/x"', '执行 P="/tmp/cls-exam/x"'),
+    (
+        "标题里的未闭合反引号",
+        "# 标题 `未闭合\n执行 `/var/cache(\n/tmp/cls-exam/x`",
+        "# 标题 `未闭合\n执行 `/tmp/cls-exam/x\n`",
+    ),
+    (
+        "十位数字不是列表 marker",
+        "执行 `/var/cache(\n1234567890. /tmp/cls-exam/x`",
+        "执行 `/tmp/cls-exam/x\n1234567890. y`",
+    ),
+    (
+        "跨语法单元的赋值覆盖",
+        '```python\nP = "/tmp/cls-exam/x"\nP = "/var/cache/x"\n```',
+        '```python\nP = "/tmp/cls-exam/x"\nQ = "/var/cache/x"\n```',
+    ),
+    (
+        "解构赋值覆盖",
+        '```python\nP = "/tmp/cls-exam/x"; P, = "/var/cache/x",\n```',
+        '```python\nP = "/tmp/cls-exam/x"; Q, = "/var/cache/x",\n```',
+    ),
+    (
+        "合规串移进注释",
+        '```python\nP = "/var/cache/x"  # "/tmp/cls-exam/x"\n```',
+        '```python\nP = "/tmp/cls-exam/x"\n```',
+    ),
+]
+
+
+@pytest.mark.parametrize("why,bad,safe", _NET_ONLY_FORMS, ids=[w[:22] for w, _b, _s in _NET_ONLY_FORMS])
+def test_net_only_forms_are_caught_by_the_tenth_judge(why: str, bad: str, safe: str):
+    """⑳ **只有兜底网接得住的形态** —— 九条判据全瞎, 第十条必须能区分。
+
+    ⛔ 这条同时是**反向断言**: 若哪天九条判据里有谁能抓住其中某个形态, 这条不会红
+    (它只要求兜底网能区分), 但那说明语义判据的覆盖面变宽了, 是好事。
+    真正要防的是**兜底网自己失效** —— 那时这里立刻红。
+    """
+    assert tmp_block_fingerprints(bad) != tmp_block_fingerprints(safe), (
+        f"兜底网分不开这对形态({why}) —— 九条判据对它们也全瞎, 那就是一个完全静默的面"
+    )
+
+
+def test_tmp_block_net_catches_what_the_nine_judges_may_miss():
+    """⛔ 兜底网的**承重**证明: 对形态表里的坏/安全形态, 块指纹应当能区分绝大多数。
+
+    这条把「45/51」这个数字钉成断言 —— 它是立第十条判据的**依据**, 不能只写在
+    docstring 里(§六 ⑫ 的教训: 未经验证的声明比没有声明更危险)。
+    分不开的那几个必须全部是**不含 `/tmp`** 的 URL/`unset` 形态(归第九条), 而不是
+    「块指纹本该抓到却没抓到」。
+    """
+    indistinguishable = [
+        (bad, why)
+        for bad, safe, _judge, why in _R7_HIGH_FORMS
+        if tmp_block_fingerprints(bad) == tmp_block_fingerprints(safe)
+    ]
+    assert all("/tmp" not in bad for bad, _why in indistinguishable), (
+        "块指纹分不开的形态里出现了含 `/tmp` 的 —— 那说明兜底网漏了它本该接住的东西: "
+        + "; ".join(why[:60] for _bad, why in indistinguishable if "/tmp" in _bad)
+    )
+    distinguishable = len(_R7_HIGH_FORMS) - len(indistinguishable)
+    assert distinguishable >= 45, (
+        f"块指纹只区分了 {distinguishable}/{len(_R7_HIGH_FORMS)} 个形态(基线 45) —— "
+        f"兜底网的覆盖面掉了, 先看是不是 `_fence_blocks` 的分块变了"
+    )
+
+
 def test_every_per_skill_baseline_covers_all_nine_skills():
     """⛔ **每个按 skill 分的基线都必须恰好覆盖 9 份**(Codex round-2 MEDIUM-2)。
 
@@ -2039,6 +2251,7 @@ def test_every_per_skill_baseline_covers_all_nine_skills():
         ("PARENT_DIR_PROSE_BASELINE", set(PARENT_DIR_PROSE_BASELINE)),
         ("OPAQUE_TMP_BASELINE", set(OPAQUE_TMP_BASELINE)),
         ("URL_OVERRIDE_BASELINE", set(URL_OVERRIDE_BASELINE)),
+        ("TMP_BLOCK_BASELINE", set(TMP_BLOCK_BASELINE)),
     ):
         assert baseline == set(EXPECTED_SKILLS), (
             f"{label} 覆盖面必须恰好 == 9 份 vault skill "
