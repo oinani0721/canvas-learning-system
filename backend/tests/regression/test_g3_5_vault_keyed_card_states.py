@@ -226,24 +226,30 @@ class TestLoadMixedSnapshot:
             f"legacy 裸键未被归入任何当前作用域桶: {nested!r}"
         )
 
-    def test_legacy_does_not_overwrite_existing_bucket_entry(self, svc):
-        """H3: 同名冲突时保留**桶内**那份(明确身份), legacy 那份不覆盖也不丢。
+    def test_conflicting_legacy_is_fail_fast_not_silently_skipped(self, svc):
+        """同名冲突的 legacy 也必须 fail-fast —— 跳过它等于让下次保存删掉它。
 
-        反例形态: 当前作用域 A, 输入 {"A": {"c": "A-new"}, "c": "legacy-unknown"}。
-        `bucket.update(legacy)` 会把 A.c 覆盖成推定归属的旧值, 下次落盘固化。
-        用**推定**去覆盖**明确**是反的。
+        缩小后复审 HIGH-1：只让「作用域解析失败」fail-fast 是不够的。作用域成功
+        但 legacy 与桶内条目同名时，旧写法「保留桶内那份、跳过 legacy 那份」会让
+        被跳过的那条不在容器里 ⇒ 下一次成功保存的全量快照把它从磁盘永久删除。
+        两种情形本质相同（都答不上"这条归给谁"），故口径统一为**归不掉就拒绝构造**。
         """
+        from app.core.vault_scope import VaultScopeUnresolved
         from app.services.review_service import _VaultScopedCardStates
 
         with vault_scope("vault_a"):
-            states = _VaultScopedCardStates.from_persisted({"vault_a": {"c": "A-new"}, "c": "legacy-unknown"})
-            nested = states.to_nested()
+            with pytest.raises(VaultScopeUnresolved) as ei:
+                _VaultScopedCardStates.from_persisted({"vault_a": {"c": "A-new"}, "c": "legacy-unknown"})
+        assert "同名" in str(ei.value), f"拒绝理由应点明同名冲突: {ei.value}"
 
-        assert nested["vault_a"]["c"] == "A-new", f"桶内明确身份的记录被推定归属的 legacy 覆盖了: {nested!r}"
-        # ⛔ 本卡范围（用户 2026-09-09 裁定 ③）：冲突的那份 legacy **未载入**，
-        # legacy 兼容（隔离区/保留键/多份候选）整体移交下一张卡。这里只锁住
-        # 「不能用推定归属覆盖明确身份」这条 —— 磁盘上的原文件没被动过。
-        assert set(nested.keys()) == {"vault_a"}, f"不应产生 vault_a 以外的顶层键: {nested!r}"
+    def test_non_conflicting_legacy_is_adopted_normally(self, svc):
+        """正控：不冲突的 legacy 照常按当前作用域推定归桶（不能因上一条变成全拒）。"""
+        from app.services.review_service import _VaultScopedCardStates
+
+        with vault_scope("vault_a"):
+            nested = _VaultScopedCardStates.from_persisted({"vault_a": {"c1": "A-new"}, "c2": "legacy"}).to_nested()
+
+        assert nested == {"vault_a": {"c1": "A-new", "c2": "legacy"}}, f"不冲突的 legacy 应正常归桶: {nested!r}"
 
     def test_legacy_without_scope_is_fail_fast_not_silently_dropped(self, svc, monkeypatch):
         """作用域解析不出来时对 legacy 裸键 **fail-fast**，而不是"这次不加载"。
@@ -296,7 +302,8 @@ def _migrator():
     spec = importlib.util.spec_from_file_location("g35_migrator", path)
     assert spec and spec.loader
     mod = importlib.util.module_from_spec(spec)
-    # 先注册再 exec —— 模块级 dataclass 自省会取 sys.modules[cls.__module__]
+    # 先注册再 exec —— 动态加载的模块若含模块级自省(dataclass 等)会取
+    # sys.modules[cls.__module__]; 本迁移器目前没有, 但保持这个安全写法。
     sys.modules["g35_migrator"] = mod
     spec.loader.exec_module(mod)
     return mod
@@ -485,6 +492,115 @@ class TestMigratorWriteGuards:
         rc = m.main(["--apply", "--vault-id", "vx", "--file", str(snap), "--out", str(report)])
         assert rc == 2, f"时间戳备份与 --out 同指一处必须拒, 实得 rc={rc}"
         assert json.loads(snap.read_text(encoding="utf-8")) == {"c-legacy": "card"}, "被拒时源文件不得改动"
+
+    def test_dry_run_and_apply_use_the_same_vault_id(self, tmp_path):
+        """M-1: `--vault-id ' va '` 在 dry-run 与 apply 下必须指向**同一个**桶。
+
+        ⚠️ 本门此前是**假门**（缩小后复审 M-1 指出）：它只跑了 `--apply`，而原
+        缺陷恰恰是「apply 已经 strip、只有 dry-run 没 strip」——把缺陷改回去这条
+        门照样通过。现在**两种模式都真的跑**，并从 dry-run 自己写的报告里读它
+        认定的目标桶，再与 apply 的实际结果对照。
+        """
+        m = _migrator()
+        snap = tmp_path / "snap.json"
+        initial = json.dumps({"va": {"c": "explicit"}, "c2": "legacy"})
+        snap.write_text(initial, encoding="utf-8")
+        report = tmp_path / "report.json"
+
+        # ① dry-run：读它报告的 vault_id（缺陷版会是带空白的 " va "）
+        rc_dry = m.main(["--dry-run", "--vault-id", " va ", "--file", str(snap), "--out", str(report)])
+        assert rc_dry == 0, f"dry-run 应成功, 实得 {rc_dry}"
+        assert snap.read_text(encoding="utf-8") == initial, "dry-run 改动了输入"
+        previewed = json.loads(report.read_text(encoding="utf-8"))["vault_id"]
+        assert previewed == "va", (
+            f"dry-run 预览的目标桶应是 strip 后的 'va'，实得 {previewed!r} —— "
+            "两种模式口径不一致时，预览会漏报实际会发生的覆盖"
+        )
+
+        # ② apply：实际落地的桶名必须与预览一致
+        rc_apply = m.main(["--apply", "--vault-id", " va ", "--file", str(snap)])
+        assert rc_apply == 0, f"apply 应成功, 实得 {rc_apply}"
+        out = json.loads(snap.read_text(encoding="utf-8"))
+        assert set(out.keys()) == {previewed}, (
+            f"apply 落地的桶 {sorted(out.keys())!r} 与 dry-run 预览的 {previewed!r} 不一致"
+        )
+
+    def test_two_backups_aliasing_each_other_is_refused(self, tmp_path):
+        """M-2: 时间戳备份若是简单备份的符号链接，双备份会退化成一份 ⇒ 必须拒。
+
+        符号链接不增加目标的 st_nlink，多名字判据拦不住它。
+        """
+        m = _migrator()
+        snap = tmp_path / "snap.json"
+        before = json.dumps({"c-legacy": "card"})
+        snap.write_text(before, encoding="utf-8")
+        simple = tmp_path / "snap.json.bak"
+        simple.write_text("{}", encoding="utf-8")
+
+        fixed_ts = "20260101_000000"
+
+        class _FixedDatetime:
+            @staticmethod
+            def now():
+                class _D:
+                    @staticmethod
+                    def strftime(fmt):
+                        return fixed_ts
+
+                return _D()
+
+        import pytest as _pytest
+
+        mp = _pytest.MonkeyPatch()
+        try:
+            mp.setattr(m, "datetime", _FixedDatetime)
+            (tmp_path / f"snap.json.bak.{fixed_ts}").symlink_to(simple)
+            rc = m.main(["--apply", "--vault-id", "vx", "--file", str(snap)])
+        finally:
+            mp.undo()
+
+        assert rc == 2, f"两条备份互为别名时必须拒 (rc=2), 实得 {rc}"
+        assert snap.read_text(encoding="utf-8") == before, "被拒时源文件不得改动"
+
+    def test_stamped_backup_pointing_at_old_backup_is_refused(self, tmp_path):
+        """M-2: 时间戳备份路径若已存在（含指向旧历史备份的符号链接）⇒ 必须拒。
+
+        否则 `copy2` 会跟随它、把那份**历史**备份覆盖掉 ——「保留历史版本」的
+        保证落空。双备份彼此不别名并不能防住这一条。
+        """
+        m = _migrator()
+        snap = tmp_path / "snap.json"
+        before = json.dumps({"c-legacy": "card"})
+        snap.write_text(before, encoding="utf-8")
+        old_backup = tmp_path / "older-history.json"
+        old_backup.write_text(json.dumps({"history": "keep-me"}), encoding="utf-8")
+        old_bytes = old_backup.read_bytes()
+
+        fixed_ts = "20260101_000000"
+
+        class _FixedDatetime:
+            @staticmethod
+            def now():
+                class _D:
+                    @staticmethod
+                    def strftime(fmt):
+                        return fixed_ts
+
+                return _D()
+
+        import pytest as _pytest
+
+        mp = _pytest.MonkeyPatch()
+        try:
+            mp.setattr(m, "datetime", _FixedDatetime)
+            (tmp_path / f"snap.json.bak.{fixed_ts}").symlink_to(old_backup)
+            rc = m.main(["--apply", "--vault-id", "vx", "--file", str(snap)])
+        finally:
+            mp.undo()
+
+        assert rc == 2, f"时间戳备份路径已存在时必须拒 (rc=2), 实得 {rc}"
+        assert old_backup.read_bytes() == old_bytes, "历史备份被覆盖了"
+        assert snap.read_text(encoding="utf-8") == before, "被拒时源文件不得改动"
 
     def test_vault_id_with_colon_is_refused(self, tmp_path):
         """M3: 含冒号的 --vault-id 会写出 service 永远选不中的桶 ⇒ 必须拒。"""

@@ -45,6 +45,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import sys
 from datetime import datetime
@@ -60,7 +61,6 @@ LIVE_CARD_STATES = LIVE_REPO_ROOT / "backend" / "data" / "fsrs_card_states.json"
 LIVE_VAULT_DIR = LIVE_REPO_ROOT / "canvas-vault"
 
 DEFAULT_FILE = Path(__file__).resolve().parent.parent / "data" / "fsrs_card_states.json"
-
 
 
 def _resolved(path: Path) -> Path:
@@ -406,6 +406,25 @@ def run_apply(path: Path, raw: Dict[str, Any], vault_id: str, out: Optional[Path
     # ⚠️ 备份路径也是**写入路径**, 必须过同一道闸 (Codex r2 H1): 输入可以是普通
     # 临时副本, 而 `<input>.json.bak` 本身已是现网投影的符号/硬链接 —— 只检查
     # --file / --out 时, 第二次 copy2 就把现网覆写了。
+    # 两条备份**互相之间**也必须不是同一文件 (缩小后复审 M-2): 预置
+    # `snap.json.bak.<ts>` 为指向 `snap.json.bak` 的符号链接时, 两次 copy2 写的是
+    # 同一个目标, "双备份 + 保留历史版本"的保证落空; 符号链接不增加目标的
+    # st_nlink, 多名字判据也拦不住。
+    if _resolved(stamped_backup) == _resolved(simple_backup):
+        print(
+            f"ERROR: 时间戳备份 {_resolved(stamped_backup)} 与简单备份指向同一位置 — "
+            "双备份会退化成一份, 源文件未改动, 已中止。",
+            file=sys.stderr,
+        )
+        return 2
+    _st_id, _sm_id = _identity(stamped_backup), _identity(simple_backup)
+    if _st_id is not None and _sm_id is not None and _st_id == _sm_id:
+        print(
+            f"ERROR: 两条备份路径是同一个文件 (dev/inode {_st_id}) — 双备份会退化成一份, 源文件未改动, 已中止。",
+            file=sys.stderr,
+        )
+        return 2
+
     for backup_path, label in ((stamped_backup, "时间戳备份"), (simple_backup, "简单备份")):
         refusal = assert_target_is_not_live(backup_path, what=f"{label} 的目标")
         if refusal is not None:
@@ -430,6 +449,27 @@ def run_apply(path: Path, raw: Dict[str, Any], vault_id: str, out: Optional[Path
                     file=sys.stderr,
                 )
                 return 2
+    # 时间戳备份必须是**本次新建**的独占文件 (最终轮 M-2): 否则若该路径已是
+    # 一个指向旧历史备份的符号链接, copy2 会跟随它、把那份历史备份覆盖掉 ——
+    # "保留历史版本"的保证随之落空 (双备份彼此不别名并不能防住这一条)。
+    # O_EXCL 同时挡掉"同秒时间戳已存在"的静默覆盖。
+    try:
+        os.close(os.open(stamped_backup, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600))
+    except FileExistsError:
+        print(
+            f"ERROR: 时间戳备份路径 {stamped_backup} 已存在 (可能是同秒时间戳, 或"
+            "指向别处的符号链接) — 覆盖它会毁掉一份历史备份, 源文件未改动, 已中止。",
+            file=sys.stderr,
+        )
+        return 2
+    except OSError as e:
+        print(
+            f"ERROR: 无法新建时间戳备份 {stamped_backup} ({type(e).__name__}: {e}) — "
+            "源文件未改动, 已中止。",
+            file=sys.stderr,
+        )
+        return 2
+
     try:
         shutil.copy2(path, stamped_backup)
         shutil.copy2(path, simple_backup)
@@ -617,9 +657,13 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     raw = load_snapshot(path)
 
+    # 两种模式必须用**同一个** vault_id 口径 (缩小后复审 M-1): 原先 dry-run 用
+    # 原样值、apply 用 strip() 后的值, 于是 `--vault-id ' va '` 在预览里是一个
+    # 新桶(无冲突)、在实际执行时却覆盖已有的 'va' 桶 —— 预览漏报覆盖。
+    vault_id = args.vault_id.strip() if args.vault_id else args.vault_id
     if args.dry_run:
-        return run_dry_run(path, raw, args.vault_id, args.out)
-    return run_apply(path, raw, args.vault_id.strip(), args.out)
+        return run_dry_run(path, raw, vault_id, args.out)
+    return run_apply(path, raw, vault_id, args.out)
 
 
 if __name__ == "__main__":

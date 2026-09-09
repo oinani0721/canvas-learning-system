@@ -119,7 +119,7 @@ FSRS_RUNTIME_OK: Optional[bool] = None
 # ``{concept_id: card_json}``, 不带 vault 维度 —— 两个 vault 的同名 concept
 # 撞同一个 JSON 键、后写覆盖先写。legacy 扁平快照在启动时按当前作用域**推定**
 # 归桶 (可能归错, 见 _VaultScopedCardStates.from_persisted 的反例) 并告警;
-# 只有作用域解析不出来时才不载入那部分。归属的**裁定**走
+# **归不掉时 (作用域解析失败 / 与桶内同名冲突) 拒绝构造**, 让人先裁定。走
 # ``backend/scripts/migrate_fsrs_card_states_vault_key_g35.py``(人给 --vault-id)。
 # 前提: 「同名 concept 由目录天然隔离」只在**一进程一 vault** 时成立 ——
 # 真相源 reader 的 ``settings.CANVAS_BASE_PATH`` 是进程级
@@ -580,25 +580,38 @@ class _VaultScopedCardStates:
 
         bucket = buckets.setdefault(vault_id, {})
         # 同名冲突: 桶内那份有**明确** vault 身份, legacy 那份只是**推定**归属。
-        # 用推定去覆盖明确是反的 (Codex r2 H3) —— 保留桶内那份。
-        clobbered = [cid for cid in legacy if cid in bucket]
-        for cid, card in legacy.items():
-            if cid not in bucket:
-                bucket[cid] = card
+        # 用推定去覆盖明确是反的 (Codex r2 H3)。
+        #
+        # ⛔ 但"保留桶内那份、跳过 legacy 那份"**也不行** (缩小后复审 HIGH-1):
+        # 被跳过的 legacy 不在容器里 ⇒ 下一次成功保存的全量快照就把它从磁盘
+        # 永久删除。fail-fast 若只管"作用域解析失败", 就漏掉了"作用域成功但
+        # 冲突"这条**同一条删除链**。
+        #
+        # 故口径统一为: **凡是归不掉的 legacy 一律 fail-fast** —— 两种情形本质
+        # 相同, 都答不上"这条归给谁", 都该让人去裁定而不是让程序替它做决定。
+        clobbered = sorted(cid for cid in legacy if cid in bucket)
+        if clobbered:
+            from app.core.vault_scope import VaultScopeUnresolved
+
+            raise VaultScopeUnresolved(
+                f"CARD-G3-5: {_CARD_STATES_FILE} 里有 {len(clobbered)} 条 legacy 裸 "
+                f"concept_id 与 vault {vault_id!r} 桶内已有条目同名 "
+                f"({clobbered[:5]})。桶内那份有明确 vault 身份, legacy 那份只是"
+                "按当前作用域推定 —— 无法判定该保留哪个。拒绝启动 (跳过 legacy "
+                "会让下一次成功写入把它从磁盘删掉)。请先跑 backend/scripts/"
+                "migrate_fsrs_card_states_vault_key_g35.py 裁定归属。"
+            )
+
+        bucket.update(legacy)
         logger.warning(
             "CARD-G3-5: %s 含 %d 条 legacy 裸 concept_id 键, 已按当前作用域**推定**"
             "归入 vault %r 桶。⚠️ 该归属是推定不是证明: 若这份快照出自服务别的 "
-            "vault 的旧进程, 归属就是错的, 且下次落盘会把它固化。%s请跑 "
+            "vault 的旧进程, 归属就是错的, 且下次落盘会把它固化。请跑 "
             "backend/scripts/migrate_fsrs_card_states_vault_key_g35.py 以显式 "
             "--vault-id 裁定归属。",
             _CARD_STATES_FILE,
-            len(legacy) - len(clobbered),
+            len(legacy),
             vault_id,
-            f"另有 {len(clobbered)} 条与该桶已有同名条目冲突 {clobbered[:5]}, "
-            "**保留桶内那份**(它有明确 vault 身份), legacy 那份未载入 —— "
-            "legacy 兼容整体归下一张卡。 "
-            if clobbered
-            else "",
         )
         return cls(buckets)
 
@@ -870,8 +883,9 @@ class ReviewService:
         节点 frontmatter (见 _read_frontmatter_fsrs)。
 
         CARD-G3-5: 返回 vault 分桶容器 (``{vault_id: {concept_id: card}}``)。
-        legacy 裸键按当前作用域**推定**归桶 (可能归错, 会告警; 作用域解析不出来
-        时该部分不载入) —— 处置、反例与理由见
+        legacy 裸键按当前作用域**推定**归桶 (可能归错, 会告警); **归不掉时
+        (作用域解析失败 / 与桶内同名冲突) 抛 VaultScopeUnresolved 拒绝构造** ——
+        处置、反例与理由见
         ``_VaultScopedCardStates.from_persisted``。
         """
         try:
@@ -2741,9 +2755,19 @@ class ReviewService:
                 else:
                     persisted = await self._save_card_states(pending=(concept_id, card_data))
                     if not persisted:
+                        # ⚠️ 归因必须分两种 (最终轮 LOW-1): CARD-G3-5 的 fail-closed
+                        # 在作用域不可解析时**尚未写入容器、也尚未尝试写盘**就返回
+                        # False。统一说成"file write failed / 卡还在内存里"是不实的
+                        # ——那种情形下卡**既没落盘也没进缓存**。判据取当次是否真的
+                        # 进了当前作用域桶。
+                        in_memory = concept_id in self._card_states
                         logger.warning(
-                            f"Auto-created FSRS card for {concept_id} NOT persisted "
-                            f"(file write failed) — card exists in memory only"
+                            "Auto-created FSRS card for %s NOT persisted — %s",
+                            concept_id,
+                            "file write failed; card exists in memory only"
+                            if in_memory
+                            else "vault scope unresolved (CARD-G3-5 fail-closed): "
+                            "card was NOT written to disk and NOT kept in memory",
                         )
             else:
                 # Deserialize existing card
