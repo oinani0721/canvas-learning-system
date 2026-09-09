@@ -1,0 +1,901 @@
+# CARD-G2-7b (BATCH-2026-09-07-第十三批) — scripts/deploy-vault.sh 的裁判
+#
+# 被测物: scripts/deploy-vault.sh（六步 + rc 表 + 禁写面 realpath 判据）
+#         + docker-compose.yml 的 5 处 container_name 参数化（缺省等价门）
+# 真相源: 脚本头注的参数全表与 rc 表; docker compose config 的渲染结果。
+#
+# 全部 subprocess 调脚本, 只 dry-run 或写 tmp_path。禁写面用例把 CLS_LIVE_VAULT
+# 覆盖成 tmp 下的假 live —— 判据逻辑同真 live, 但测试不依赖本机真 live 存在、
+# 也绝不去碰它（如实声明: 真 live 路径的那一条由车道负控存档覆盖, 见
+# evidence-g27b/neg-live-vault-*.txt）。
+#
+# 钉死点:
+#   1. rc 表: 0 / 64 用法错 / 7N 第 N 步。每条断言**同时**核 rc 数字与消息片段 ——
+#      光看「非零」会把「脚本因 set -u 崩了(rc=1)」读成「判据拦住了(rc=71)」。
+#      这不是假想: 本卡实测过三次 —— `"$abs）"` 里全角括号紧跟变量被 bash 吃进
+#      变量名, set -u 报 unbound, rc=1 而不是 71, 消息里也没有「禁写面」。
+#   2. 非 ASCII 紧跟变量门(test_no_var_ref_followed_by_non_ascii): 上面那个坑
+#      修了三次又被自己的新代码引入两次 ⇒ 做成门, 不靠记性。
+#   3. 禁写面判据必须覆盖 --vault / --evidence-dir / --env-dir **三个**路径参数;
+#      只测 --vault 会让另两个零覆盖。
+#   4. compose 缺省等价: 不传 CLS_*_CONTAINER 时, config 渲染与**参数化之前**的
+#      版本逐字节相同; 且单独覆盖任一变量只改它自己那一行。
+#      ⚠️ 取名面必须含全部 5 处 ⇒ 必须带 --profile test/windows/dev,
+#      否则 config 只渲染 neo4j + backend 两个服务, 另 3 处改动零覆盖。
+#   5. 端口模板化清单单一来源: 步 3 与步 4(源镜像) 共用 $PORT_TEMPLATED_FILES,
+#      两份清单各自漂移会让「目标已特化 vs 基准未特化」重新变成假 drift。
+
+from __future__ import annotations
+
+import os
+import re
+import shutil
+import subprocess
+import time
+from pathlib import Path
+
+import pytest
+import yaml
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
+DEPLOY_SH = REPO_ROOT / "scripts" / "deploy-vault.sh"
+COMPOSE = REPO_ROOT / "docker-compose.yml"
+
+CONTAINER_VARS = {
+    "CLS_NEO4J_CONTAINER": "canvas-learning-system-neo4j",
+    "CLS_NEO4J_TEST_CONTAINER": "canvas-learning-system-neo4j-test",
+    "CLS_OLLAMA_CONTAINER": "canvas-learning-system-ollama",
+    "CLS_BACKEND_CONTAINER": "canvas-learning-system-backend",
+    "CLS_DEV_CONTAINER": "claude-dev",
+}
+ALL_PROFILES = ["--profile", "test", "--profile", "windows", "--profile", "dev"]
+
+
+def _run(*args: str, env: dict[str, str] | None = None, timeout: int = 120):
+    """跑 deploy-vault.sh，返回 CompletedProcess（不 check）。"""
+    full_env = dict(os.environ)
+    if env:
+        full_env.update(env)
+    return subprocess.run(
+        [str(DEPLOY_SH), *args],
+        capture_output=True,
+        text=True,
+        env=full_env,
+        cwd=str(REPO_ROOT),
+        timeout=timeout,
+    )
+
+
+def _fake_live(tmp_path: Path) -> Path:
+    """建一个 tmp 下的假 live vault，用 CLS_LIVE_VAULT 指向它。"""
+    lv = tmp_path / "fake-live-vault"
+    lv.mkdir(parents=True, exist_ok=True)
+    return lv
+
+
+# ═══ ① bash -n ══════════════════════════════════════════════════════════════
+def test_deploy_vault_sh_parses():
+    r = subprocess.run(["bash", "-n", str(DEPLOY_SH)], capture_output=True, text=True)
+    assert r.returncode == 0, f"bash -n rc={r.returncode}: {r.stderr}"
+
+
+def test_deploy_vault_sh_is_executable():
+    assert os.access(DEPLOY_SH, os.X_OK), f"{DEPLOY_SH} 不可执行"
+
+
+# ═══ ② --help ═══════════════════════════════════════════════════════════════
+HELP_FLAGS = [
+    "--vault",
+    "--harness",
+    "--port",
+    "--hosts",
+    "--subject",
+    "--apply",
+    "--activate",
+    "--also-push",
+    "--evidence-dir",
+    "--env-dir",
+]
+
+
+def test_help_lists_six_steps_and_rc_table():
+    r = _run("--help")
+    assert r.returncode == 0, f"--help rc={r.returncode}"
+    out = r.stdout
+    for n, name in enumerate(["preflight", "install", "postprocess", "verify", "activate", "evidence"], start=1):
+        assert f"[{n}/6]" in out, f"--help 缺 [{n}/6]"
+        assert name in out, f"--help 缺步名 {name}"
+    for rc in ["64", "71", "72", "73", "74", "75", "76"]:
+        assert rc in out, f"--help 的 rc 表缺 {rc}"
+
+
+@pytest.mark.parametrize("flag", HELP_FLAGS)
+def test_help_lists_every_flag(flag: str):
+    """每个参数逐条断言 —— 漏一个就是「测试调了一个 --help 里没定义的开关」。"""
+    r = _run("--help")
+    assert r.returncode == 0
+    assert flag in r.stdout, f"--help 未列出 {flag}"
+
+
+def test_help_documents_env_dir_default_is_harness():
+    """--env-dir 的缺省必须写明是 <harness>/ —— 它决定 .env.<vault> 落哪。"""
+    r = _run("--help")
+    line = next((ln for ln in r.stdout.splitlines() if "--env-dir" in ln), "")
+    assert line, "--help 没有 --env-dir 那一行"
+    assert "<harness>" in line, f"--env-dir 行未写明缺省 <harness>/: {line!r}"
+
+
+# ═══ ③④⑦ 用法错与端口 ═══════════════════════════════════════════════════════
+def test_missing_vault_is_usage_error():
+    r = _run("--harness", str(REPO_ROOT))
+    assert r.returncode == 64, f"rc={r.returncode}"
+    assert "--vault" in r.stderr
+
+
+def test_no_args_is_usage_error():
+    r = _run()
+    assert r.returncode == 64, f"rc={r.returncode}"
+
+
+def test_unknown_flag_is_usage_error():
+    r = _run("--vault", "/tmp/x", "--harness", str(REPO_ROOT), "--no-such-flag")
+    assert r.returncode == 64, f"rc={r.returncode}"
+    assert "未知参数" in r.stderr
+
+
+@pytest.mark.parametrize("host", ["codex", "opencode", "dsh", "claude,codex"])
+def test_second_tier_hosts_rejected_with_e1(tmp_path: Path, host: str):
+    """E-1: 本版只 claude。消息必须点名 E-1，否则读者不知道这是「等实测表」而非 bug。"""
+    r = _run(
+        "--vault",
+        str(tmp_path / "v"),
+        "--harness",
+        str(REPO_ROOT),
+        "--hosts",
+        host,
+        "--env-dir",
+        str(tmp_path / "env"),
+        "--evidence-dir",
+        str(tmp_path / "ev"),
+    )
+    assert r.returncode == 64, f"rc={r.returncode}: {r.stdout}{r.stderr}"
+    assert "E-1" in r.stderr, f"消息未点名 E-1: {r.stderr!r}"
+
+
+def test_activate_without_apply_is_usage_error(tmp_path: Path):
+    r = _run(
+        "--vault",
+        str(tmp_path / "v"),
+        "--harness",
+        str(REPO_ROOT),
+        "--activate",
+        "--env-dir",
+        str(tmp_path / "env"),
+        "--evidence-dir",
+        str(tmp_path / "ev"),
+    )
+    assert r.returncode == 64, f"rc={r.returncode}"
+    assert "--activate" in r.stderr
+
+
+@pytest.mark.parametrize("port", ["7691", "7692", "7478", "11434"])
+def test_reserved_ports_rejected_in_preflight(tmp_path: Path, port: str):
+    r = _run(
+        "--vault",
+        str(tmp_path / "v"),
+        "--harness",
+        str(REPO_ROOT),
+        "--port",
+        port,
+        "--env-dir",
+        str(tmp_path / "env"),
+        "--evidence-dir",
+        str(tmp_path / "ev"),
+        env={"CLS_LIVE_VAULT": str(_fake_live(tmp_path))},
+    )
+    assert r.returncode == 71, f"port {port} rc={r.returncode}: {r.stdout}"
+    assert "端口" in r.stdout
+
+
+def test_non_numeric_port_is_usage_error(tmp_path: Path):
+    r = _run("--vault", str(tmp_path / "v"), "--harness", str(REPO_ROOT), "--port", "80a1")
+    assert r.returncode == 64, f"rc={r.returncode}"
+
+
+# ═══ ⑤ 禁写面：三个路径参数 × 多种命中形态 ═══════════════════════════════════
+def test_forbidden_surface_covers_vault_param(tmp_path: Path):
+    lv = _fake_live(tmp_path)
+    r = _run(
+        "--vault",
+        str(lv),
+        "--harness",
+        str(REPO_ROOT),
+        "--env-dir",
+        str(tmp_path / "env"),
+        "--evidence-dir",
+        str(tmp_path / "ev"),
+        env={"CLS_LIVE_VAULT": str(lv)},
+    )
+    assert r.returncode == 71, f"rc={r.returncode}: {r.stdout}"
+    assert "禁写面" in r.stdout
+    assert "--vault" in r.stdout, f"消息未点名被拦的参数: {r.stdout!r}"
+
+
+def test_forbidden_surface_covers_vault_inside_live(tmp_path: Path):
+    """位于 live vault **之下**（不只等于）也必须拦。"""
+    lv = _fake_live(tmp_path)
+    r = _run(
+        "--vault",
+        str(lv / "nested" / "deep"),
+        "--harness",
+        str(REPO_ROOT),
+        "--env-dir",
+        str(tmp_path / "env"),
+        "--evidence-dir",
+        str(tmp_path / "ev"),
+        env={"CLS_LIVE_VAULT": str(lv)},
+    )
+    assert r.returncode == 71, f"rc={r.returncode}: {r.stdout}"
+    assert "禁写面" in r.stdout
+
+
+def test_forbidden_surface_covers_dot_git_segment(tmp_path: Path):
+    """路径中任何一段名为 .git ⇒ 拦（不限 <harness>/.git）。"""
+    g = tmp_path / "somerepo" / ".git"
+    g.mkdir(parents=True)
+    r = _run(
+        "--vault",
+        str(g / "v"),
+        "--harness",
+        str(REPO_ROOT),
+        "--env-dir",
+        str(tmp_path / "env"),
+        "--evidence-dir",
+        str(tmp_path / "ev"),
+        env={"CLS_LIVE_VAULT": str(_fake_live(tmp_path))},
+    )
+    assert r.returncode == 71, f"rc={r.returncode}: {r.stdout}"
+    assert "禁写面" in r.stdout
+    assert ".git" in r.stdout
+
+
+@pytest.mark.parametrize("name", ["a.env", ".env", ".env.probe"])
+def test_forbidden_surface_covers_env_files(tmp_path: Path, name: str):
+    r = _run(
+        "--vault",
+        str(tmp_path / name),
+        "--harness",
+        str(REPO_ROOT),
+        "--env-dir",
+        str(tmp_path / "env"),
+        "--evidence-dir",
+        str(tmp_path / "ev"),
+        env={"CLS_LIVE_VAULT": str(_fake_live(tmp_path))},
+    )
+    assert r.returncode == 71, f"{name} rc={r.returncode}: {r.stdout}"
+    assert "禁写面" in r.stdout
+
+
+def test_forbidden_surface_covers_evidence_dir_param(tmp_path: Path):
+    """⛔ 只查 --vault 会让 --evidence-dir 零覆盖 —— evidence 会真写进禁写目录。"""
+    lv = _fake_live(tmp_path)
+    r = _run(
+        "--vault",
+        str(tmp_path / "vaults" / "ok_name"),
+        "--harness",
+        str(REPO_ROOT),
+        "--evidence-dir",
+        str(lv / "evidence"),
+        "--env-dir",
+        str(tmp_path / "env"),
+        env={"CLS_LIVE_VAULT": str(lv)},
+    )
+    assert r.returncode == 71, f"rc={r.returncode}: {r.stdout}"
+    assert "--evidence-dir" in r.stdout, f"消息未点名 --evidence-dir: {r.stdout!r}"
+    assert not (lv / "evidence").exists(), "被拦之前就已经写了 = 拦晚了"
+
+
+def test_forbidden_surface_covers_env_dir_param(tmp_path: Path):
+    """⛔ 同上：--env-dir 决定 .env.<vault> 落哪，零覆盖 = 密钥可能落进禁写目录。"""
+    lv = _fake_live(tmp_path)
+    r = _run(
+        "--vault",
+        str(tmp_path / "vaults" / "ok_name"),
+        "--harness",
+        str(REPO_ROOT),
+        "--env-dir",
+        str(lv / "envs"),
+        "--evidence-dir",
+        str(tmp_path / "ev"),
+        env={"CLS_LIVE_VAULT": str(lv)},
+    )
+    assert r.returncode == 71, f"rc={r.returncode}: {r.stdout}"
+    assert "--env-dir" in r.stdout, f"消息未点名 --env-dir: {r.stdout!r}"
+    assert not (lv / "envs").exists(), "被拦之前就已经写了 = 拦晚了"
+
+
+def test_forbidden_surface_resolves_relative_and_dotdot(tmp_path: Path):
+    """判据必须解 realpath：`<live>/../<live 名>` 这类别名不能绕过。"""
+    lv = _fake_live(tmp_path)
+    alias = str(lv / ".." / lv.name)
+    r = _run(
+        "--vault",
+        alias,
+        "--harness",
+        str(REPO_ROOT),
+        "--env-dir",
+        str(tmp_path / "env"),
+        "--evidence-dir",
+        str(tmp_path / "ev"),
+        env={"CLS_LIVE_VAULT": str(lv)},
+    )
+    assert r.returncode == 71, f"别名绕过了判据: rc={r.returncode} {r.stdout}"
+    assert "禁写面" in r.stdout
+
+
+def test_forbidden_surface_resolves_symlink(tmp_path: Path):
+    """软链指向 live ⇒ 解开后仍须拦。"""
+    lv = _fake_live(tmp_path)
+    link = tmp_path / "link-to-live"
+    link.symlink_to(lv, target_is_directory=True)
+    r = _run(
+        "--vault",
+        str(link),
+        "--harness",
+        str(REPO_ROOT),
+        "--env-dir",
+        str(tmp_path / "env"),
+        "--evidence-dir",
+        str(tmp_path / "ev"),
+        env={"CLS_LIVE_VAULT": str(lv)},
+    )
+    assert r.returncode == 71, f"软链绕过了判据: rc={r.returncode} {r.stdout}"
+    assert "禁写面" in r.stdout
+
+
+# ═══ vault 名不动点（两套命名口径不得分裂）═══════════════════════════════════
+@pytest.mark.parametrize("bad", ["probe-b13", "Probe", "probe b13"])
+def test_vault_name_must_be_fixpoint_of_both_naming_functions(tmp_path: Path, bad: str):
+    """sanitize_vault_id（后端）与 vault_key（推送链）必须给出同一个名字。
+
+    `probe-b13` 这类含 `-` 的名字: sanitize 变 `probe_b13`、vault_key 原样 ⇒ 后端与
+    推送链指向不同 key（决策页 §二 G4 的分裂本体）。preflight 必须拒。
+    """
+    r = _run(
+        "--vault",
+        str(tmp_path / "vaults" / bad),
+        "--harness",
+        str(REPO_ROOT),
+        "--port",
+        "8199",
+        "--env-dir",
+        str(tmp_path / "env"),
+        "--evidence-dir",
+        str(tmp_path / "ev"),
+        env={"CLS_LIVE_VAULT": str(_fake_live(tmp_path))},
+    )
+    assert r.returncode == 71, f"{bad!r} rc={r.returncode}: {r.stdout}"
+    assert "不动点" in r.stdout, f"消息未说明不动点: {r.stdout!r}"
+
+
+# ═══ ⑥ dry-run 正控：零写 ═══════════════════════════════════════════════════
+def test_dry_run_prints_six_lines_and_writes_nothing(tmp_path: Path):
+    target = tmp_path / "vaults" / "probe_dry"
+    evd = tmp_path / "ev"
+    envd = tmp_path / "env"
+    r = _run(
+        "--vault",
+        str(target),
+        "--harness",
+        str(REPO_ROOT),
+        "--port",
+        "8198",
+        "--hosts",
+        "claude",
+        "--env-dir",
+        str(envd),
+        "--evidence-dir",
+        str(evd),
+        env={"CLS_LIVE_VAULT": str(_fake_live(tmp_path))},
+    )
+    assert r.returncode == 0, f"rc={r.returncode}: {r.stdout}{r.stderr}"
+    lines = re.findall(r"^\[(\d)/6\] (\w+): (OK|SKIP|FAIL)", r.stdout, re.M)
+    assert len(lines) == 6, f"六行不全: {lines}"
+    assert [n for n, _, _ in lines] == list("123456"), f"步序不对: {lines}"
+    assert not any(st == "FAIL" for _, _, st in lines), f"dry-run 有 FAIL: {lines}"
+    # 零写：三个落点目录都不该被创建
+    assert not target.exists(), "dry-run 建了目标 vault"
+    assert not evd.exists(), "dry-run 写了 evidence（『不传 --apply = 零写』被破）"
+    assert not (envd / "probe_dry").exists() and not list(envd.glob(".env.*")) if envd.exists() else True
+
+
+def test_dry_run_step6_is_skip_not_ok(tmp_path: Path):
+    """步 6 在 dry-run 下必须 SKIP —— OK 意味着它真落盘了。"""
+    r = _run(
+        "--vault",
+        str(tmp_path / "vaults" / "probe_dry2"),
+        "--harness",
+        str(REPO_ROOT),
+        "--port",
+        "8197",
+        "--env-dir",
+        str(tmp_path / "env"),
+        "--evidence-dir",
+        str(tmp_path / "ev"),
+        env={"CLS_LIVE_VAULT": str(_fake_live(tmp_path))},
+    )
+    assert r.returncode == 0
+    assert re.search(r"^\[6/6\] evidence: SKIP", r.stdout, re.M), r.stdout
+
+
+# ═══ ⑧ compose 缺省等价 ═════════════════════════════════════════════════════
+def _compose_config(compose_path: Path, project_dir: Path, env: dict[str, str] | None = None):
+    full_env = dict(os.environ)
+    if env:
+        full_env.update(env)
+    return subprocess.run(
+        [
+            "docker",
+            "compose",
+            "-f",
+            str(compose_path),
+            "--project-directory",
+            str(project_dir),
+            *ALL_PROFILES,
+            "config",
+        ],
+        capture_output=True,
+        text=True,
+        env=full_env,
+        timeout=120,
+    )
+
+
+def _pre_parameterization_compose() -> str | None:
+    """取参数化**之前**那一版 docker-compose.yml 的内容。
+
+    按内容找（不写死 SHA —— 写死会过期, 见 memory「引用的历史数字会过期」）:
+    沿着 docker-compose.yml 的提交史往回, 第一个不含 CLS_BACKEND_CONTAINER 的版本。
+    """
+    log = subprocess.run(
+        ["git", "log", "--format=%H", "--", "docker-compose.yml"],
+        capture_output=True,
+        text=True,
+        cwd=str(REPO_ROOT),
+    )
+    if log.returncode != 0:
+        return None
+    for sha in log.stdout.split():
+        show = subprocess.run(
+            ["git", "show", f"{sha}:docker-compose.yml"],
+            capture_output=True,
+            text=True,
+            cwd=str(REPO_ROOT),
+        )
+        if show.returncode == 0 and "CLS_BACKEND_CONTAINER" not in show.stdout:
+            return show.stdout
+    return None
+
+
+@pytest.mark.skipif(
+    shutil.which("docker") is None, reason="本机没有 docker CLI —— compose 缺省等价门无法渲染（不静默跳过, 理由在此）"
+)
+def test_compose_defaults_render_byte_identical_to_pre_parameterization(tmp_path: Path):
+    """不传任何 CLS_*_CONTAINER 时, config 渲染必须与参数化前逐字节相同。
+
+    ⚠️ 必须带 --profile test/windows/dev: 缺省只渲染 neo4j + backend 两个服务,
+    另 3 处 container_name 改动会完全落在门外（判据取名面 < 它的主张）。
+    """
+    old = _pre_parameterization_compose()
+    if old is None:
+        pytest.skip("找不到参数化前的 docker-compose.yml 版本（浅克隆或历史被改写）")
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    old_path = tmp_path / "docker-compose.old.yml"
+    old_path.write_text(old, encoding="utf-8")
+
+    r_old = _compose_config(old_path, empty)
+    r_new = _compose_config(COMPOSE, empty)
+    assert r_old.returncode == 0, f"旧版 config rc={r_old.returncode}: {r_old.stderr[-400:]}"
+    assert r_new.returncode == 0, f"新版 config rc={r_new.returncode}: {r_new.stderr[-400:]}"
+    assert r_new.stdout == r_old.stdout, (
+        "参数化改变了缺省渲染结果（应逐字节相同）:\n"
+        + "\n".join(
+            f"  {ln}"
+            for ln in __import__("difflib").unified_diff(
+                r_old.stdout.splitlines(),
+                r_new.stdout.splitlines(),
+                fromfile="pre-parameterization",
+                tofile="HEAD",
+                lineterm="",
+                n=1,
+            )
+        )[:2000]
+    )
+
+
+@pytest.mark.skipif(shutil.which("docker") is None, reason="本机没有 docker CLI")
+def test_all_five_container_names_are_in_the_gate_scope(tmp_path: Path):
+    """验伪锚: 门的取名面必须真含 5 处 —— 否则上一条「逐字节同」是空集比空集。"""
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    r = _compose_config(COMPOSE, empty)
+    assert r.returncode == 0, r.stderr[-400:]
+    rendered = re.findall(r"^\s*container_name:\s*(\S+)", r.stdout, re.M)
+    assert sorted(rendered) == sorted(CONTAINER_VARS.values()), (
+        f"渲染出的 container_name 集合与 5 个现网常量不符: {sorted(rendered)}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("docker") is None, reason="本机没有 docker CLI")
+@pytest.mark.parametrize("var", sorted(CONTAINER_VARS))
+def test_each_container_var_changes_exactly_its_own_line(tmp_path: Path, var: str):
+    """单独覆盖任一变量 ⇒ 只改它自己那一行（其余 4 个常量不动）。"""
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    base = _compose_config(COMPOSE, empty)
+    assert base.returncode == 0, base.stderr[-400:]
+    probe = f"probe-{var.lower().replace('_', '-')}"
+    got = _compose_config(COMPOSE, empty, env={var: probe})
+    assert got.returncode == 0, got.stderr[-400:]
+
+    rendered = re.findall(r"^\s*container_name:\s*(\S+)", got.stdout, re.M)
+    assert rendered.count(probe) == 1, f"{var}={probe} 命中 {rendered.count(probe)} 处（期望 1）"
+    others = {v for k, v in CONTAINER_VARS.items() if k != var}
+    assert others <= set(rendered), f"覆盖 {var} 时动了别的容器名: {sorted(rendered)}"
+
+    changed = [
+        ln
+        for ln in __import__("difflib").unified_diff(
+            base.stdout.splitlines(), got.stdout.splitlines(), lineterm="", n=0
+        )
+        if ln.startswith(("+", "-")) and not ln.startswith(("+++", "---"))
+    ]
+    assert len(changed) == 2, f"{var} 改了 {len(changed) // 2} 行（期望 1）: {changed}"
+
+
+# ═══ ⑨⑩ apply / 步 5 / 幂等 ═════════════════════════════════════════════════
+def _apply(tmp_path: Path, name: str, port: str, *extra: str, timeout: int = 120):
+    env_d = tmp_path / "env"
+    ev_d = tmp_path / "ev"
+    return _run(
+        "--vault",
+        str(tmp_path / "vaults" / name),
+        "--harness",
+        str(REPO_ROOT),
+        "--port",
+        port,
+        "--hosts",
+        "claude",
+        "--env-dir",
+        str(env_d),
+        "--evidence-dir",
+        str(ev_d),
+        "--apply",
+        *extra,
+        env={"CLS_DEPLOY_NO_DOCKER_UP": "1", "CLS_LIVE_VAULT": str(_fake_live(tmp_path))},
+        timeout=timeout,
+    )
+
+
+@pytest.mark.skipif(
+    not (REPO_ROOT / "canvas-vault" / ".obsidian" / "plugins" / "canvas-learning-system" / "main.js").exists(),
+    reason="树上没有 gitignored main.js —— apply 会触发 npm run build（联网+耗时），"
+    "本用例只验部署逻辑, 不在单测里 build（build 真跑由车道 (e) 存档覆盖）",
+)
+def test_apply_writes_key_0600_and_syncs_three_places(tmp_path: Path):
+    t0 = time.monotonic()
+    r = _apply(tmp_path, "probe_ap", "8196")
+    elapsed = time.monotonic() - t0
+    assert r.returncode == 0, f"rc={r.returncode}: {r.stdout}{r.stderr}"
+    assert elapsed < 60, f"apply 耗时 {elapsed:.1f}s 超 60s 门"
+
+    v = tmp_path / "vaults" / "probe_ap"
+    keyfile = v / ".obsidian" / "cls-internal-key.txt"
+    assert keyfile.is_file(), "key 文件未生成"
+    assert oct(keyfile.stat().st_mode)[-3:] == "600", oct(keyfile.stat().st_mode)
+    key = keyfile.read_text().strip()
+    assert len(key) == 64, f"openssl rand -hex 32 应为 64 字符, 实为 {len(key)}"
+
+    import json
+
+    dj = json.loads((v / ".obsidian" / "plugins" / "canvas-learning-system" / "data.json").read_text())
+    assert dj["internalApiKey"] == key, "data.json 的 key 与 key 文件不同"
+
+    envf = tmp_path / "env" / ".env.probe_ap"
+    assert envf.is_file(), f".env.probe_ap 未落在 --env-dir: {envf}"
+    assert oct(envf.stat().st_mode)[-3:] == "600", oct(envf.stat().st_mode)
+    assert f"INTERNAL_API_KEY={key}" in envf.read_text(), ".env 的 key 与 key 文件不同"
+
+
+@pytest.mark.skipif(
+    not (REPO_ROOT / "canvas-vault" / ".obsidian" / "plugins" / "canvas-learning-system" / "main.js").exists(),
+    reason="见上：树上无 main.js 时 apply 会 build",
+)
+def test_apply_templates_port_in_all_four_files(tmp_path: Path):
+    r = _apply(tmp_path, "probe_pt", "8195")
+    assert r.returncode == 0, f"rc={r.returncode}: {r.stdout}"
+    v = tmp_path / "vaults" / "probe_pt"
+    for rel in [
+        ".mcp.json",
+        ".claude/settings.json",
+        ".claude/hooks/session-end-archive.py",
+        ".obsidian/plugins/canvas-learning-system/data.json",
+    ]:
+        txt = (v / rel).read_text(encoding="utf-8")
+        assert ":8011" not in txt, f"{rel} 仍有 :8011 残留"
+        assert ":8195" in txt, f"{rel} 没有 :8195"
+
+
+@pytest.mark.skipif(
+    not (REPO_ROOT / "canvas-vault" / ".obsidian" / "plugins" / "canvas-learning-system" / "main.js").exists(),
+    reason="见上：树上无 main.js 时 apply 会 build",
+)
+def test_step5_skips_up_when_no_docker_up_flag_set(tmp_path: Path):
+    """CLS_DEPLOY_NO_DOCKER_UP=1 ⇒ 步 5 跑完 config 断言就 SKIP，绝不 up -d。"""
+    if shutil.which("docker") is None:
+        pytest.skip("本机没有 docker CLI —— 步 5 的 config 断言无法渲染")
+    r = _apply(tmp_path, "probe_a5", "8194", "--activate")
+    assert r.returncode == 0, f"rc={r.returncode}: {r.stdout}{r.stderr}"
+    m = re.search(r"^\[5/6\] activate: (OK|SKIP|FAIL) (.*)$", r.stdout, re.M)
+    assert m, f"没有 [5/6] 行: {r.stdout}"
+    assert m.group(1) == "SKIP", f"步 5 应 SKIP, 实为 {m.group(1)}: {m.group(2)}"
+    assert "config 断言过" in m.group(2), f"步 5 未做 config 断言: {m.group(2)}"
+    # 零容器
+    ps = subprocess.run(["docker", "ps", "-a", "--format", "{{.Names}}"], capture_output=True, text=True)
+    assert "cls-probe_a5" not in ps.stdout, "步 5 真起了容器"
+
+
+@pytest.mark.skipif(
+    not (REPO_ROOT / "canvas-vault" / ".obsidian" / "plugins" / "canvas-learning-system" / "main.js").exists(),
+    reason="见上：树上无 main.js 时 apply 会 build",
+)
+def test_second_apply_is_blocked_and_changes_nothing(tmp_path: Path):
+    """幂等（如实口径）：install 的防覆盖闸门在第二次就拦住 ⇒ 目标零变化。
+
+    ⚠️ 这**不是**「六步重跑一遍结果相同」。install-vault.sh 对已存在目标 exit 66
+    ⇒ 步 2 FAIL 72，到不了步 3。所以「key 已存在则不重生」那条分支在端到端层面
+    不可达（要它可达需要 adopt 语义, 归 G2-7c）。这里锁住的是更强的性质:
+    第二次跑不会动已有 vault 一个字节。
+    """
+    r1 = _apply(tmp_path, "probe_id", "8193")
+    assert r1.returncode == 0, f"首次 rc={r1.returncode}: {r1.stdout}"
+    v = tmp_path / "vaults" / "probe_id"
+    envf = tmp_path / "env" / ".env.probe_id"
+
+    snap = {p.relative_to(v): p.read_bytes() for p in v.rglob("*") if p.is_file()}
+    env_before = envf.read_bytes()
+
+    r2 = _apply(tmp_path, "probe_id", "8193")
+    assert r2.returncode == 72, f"第二次应被 install 防覆盖闸门拦成 72, 实为 {r2.returncode}"
+
+    after = {p.relative_to(v): p.read_bytes() for p in v.rglob("*") if p.is_file()}
+    assert after == snap, (
+        "第二次跑改动了目标 vault: "
+        f"新增={sorted(set(after) - set(snap))} 删除={sorted(set(snap) - set(after))} "
+        f"改内容={sorted(k for k in set(after) & set(snap) if after[k] != snap[k])}"
+    )
+    assert envf.read_bytes() == env_before, ".env 被第二次跑改了"
+
+
+def test_env_file_mismatch_fails_closed_before_any_write(tmp_path: Path):
+    """已有 .env.<vault> 与本次参数矛盾 ⇒ 73，且**任何写之前**就拦。
+
+    这条锁的是 Phase A/B 拆分：修复前版本先写 key、后校验 .env，失败时留下
+    「key 已写、另两处未同步」的半成品（Codex 问题 ③ 正是问这个）。
+    """
+    if not (REPO_ROOT / "canvas-vault" / ".obsidian" / "plugins" / "canvas-learning-system" / "main.js").exists():
+        pytest.skip("树上无 main.js 时 apply 会 build")
+    env_d = tmp_path / "env"
+    env_d.mkdir()
+    (env_d / ".env.probe_mm").write_text(
+        "API_PORT=9999\nACTIVE_VAULT=probe_mm\nCLS_BACKEND_CONTAINER=cls-probe_mm-backend\nINTERNAL_API_KEY=\n",
+        encoding="utf-8",
+    )
+    r = _apply(tmp_path, "probe_mm", "8192")
+    assert r.returncode == 73, f"rc={r.returncode}: {r.stdout}"
+    assert "矛盾" in r.stdout, r.stdout
+    v = tmp_path / "vaults" / "probe_mm"
+    assert not (v / ".obsidian" / "cls-internal-key.txt").exists(), (
+        "步 3 在校验失败前就写了 key 文件 = 半成品（Phase A/B 拆分被破）"
+    )
+    txt = (v / ".mcp.json").read_text(encoding="utf-8")
+    assert ":8011" in txt, "端口模板化在校验失败前就跑了 = 半成品"
+
+
+# ═══ 源码级门（把踩过三次的坑锁住）═════════════════════════════════════════
+_VAR_THEN_NON_ASCII = re.compile(r"\$[A-Za-z_][A-Za-z0-9_]*[^\x00-\x7f]")
+
+
+@pytest.mark.parametrize("script", ["deploy-vault.sh", "install-vault.sh"])
+def test_no_var_ref_followed_by_non_ascii(script: str):
+    """`"...（$abs）"` 这种写法会让 bash 把全角括号的首字节吃进变量名。
+
+    后果不是语法错（bash -n 过、--help 过、正控过），而是**只在那条分支被走到时**
+    `set -u` 报 unbound variable、脚本 rc=1 —— 而不是本该的 rc 71。调用方若只判
+    「非零就算拦住了」就会以为没事，但 rc 语义已错、消息里也没有「禁写面」。
+    本卡实测：修了 8 处之后，我自己新写的两行又引入同一个坑 ⇒ 做成门。
+    修法：一律 `${var}` 显式界定。
+    """
+    path = REPO_ROOT / "scripts" / script
+    bad = []
+    for i, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        if line.lstrip().startswith("#"):
+            continue
+        for m in _VAR_THEN_NON_ASCII.finditer(line):
+            bad.append(f"{script}:{i} {m.group(0)!r} | {line.strip()[:90]}")
+    assert not bad, "变量引用后紧跟非 ASCII 字符（改用 ${var}）:\n  " + "\n  ".join(bad)
+
+
+def test_var_then_non_ascii_gate_has_a_falsifier():
+    """验伪锚：上一条门若正则写坏了就会永远绿。喂一个已知坏样本必须被抓到。"""
+    sample = 'FORBIDDEN_HIT="*.env 文件（$abs）"'
+    assert _VAR_THEN_NON_ASCII.search(sample), "门的正则抓不到已知坏样本"
+    fixed = 'FORBIDDEN_HIT="*.env 文件（${abs}）"'
+    assert not _VAR_THEN_NON_ASCII.search(fixed), "门把正确写法也当成坏样本"
+
+
+def test_port_templated_files_is_single_source_shared_by_step3_and_step4():
+    """端口模板化清单必须只有一份定义, 且步 3 与步 4（源镜像）都引用它。
+
+    两份清单各自漂移 ⇒ 目标被特化、基准没被特化 ⇒ 步 4 重新报假 content-drift。
+    """
+    src = DEPLOY_SH.read_text(encoding="utf-8")
+    assert src.count("PORT_TEMPLATED_FILES=") == 1, "PORT_TEMPLATED_FILES 有多处定义"
+    refs = src.count("$PORT_TEMPLATED_FILES")
+    assert refs >= 3, f"引用数 {refs} < 3（步 3 两处 + 步 4 源镜像一处）"
+
+    body = src[src.index("PORT_TEMPLATED_FILES=") :]
+    decl = body.splitlines()[0]
+    for rel in [".mcp.json", ".claude/settings.json", ".claude/hooks/session-end-archive.py"]:
+        assert rel in decl, f"清单缺 {rel}: {decl}"
+
+
+def test_step4_uses_mirrored_source_when_port_differs():
+    """步 4 在 --port ≠ 8011 时必须用「同端口口径的源镜像」当基准。
+
+    两个错解都要挡住：① 不传 --source（丢掉 content-drift 整个轴，门却还绿）；
+    ② 放宽步 4 的 rc 判据。
+    """
+    src = DEPLOY_SH.read_text(encoding="utf-8")
+    step4 = src[src.index("step4_verify()") : src.index("# ═══ 步 5")]
+    assert "--source" in step4, "步 4 不传 --source = 丢掉 content-drift 轴"
+    assert "SRC_MIRROR" in step4, "步 4 未用源镜像做基准"
+    assert re.search(r'rc"?\s*!=\s*0|"\$rc" != 0', step4), "步 4 未对校验器 rc 做严格判定"
+
+
+def test_rc_table_in_header_matches_actual_exit_codes():
+    """头注 rc 表与 run_step 的实际算法（70+N）必须一致。"""
+    src = DEPLOY_SH.read_text(encoding="typing" if False else "utf-8")
+    assert "exit $((70 + n))" in src, "run_step 的 rc 算法变了, 头注 rc 表需同步"
+    for n in range(1, 7):
+        assert f"7{n} 步 {n}" in src, f"头注 rc 表缺 7{n} 步 {n}"
+
+
+def test_dry_run_is_the_default_not_apply():
+    """缺省必须是 dry-run —— 反过来（缺省就写）是不可逆的默认值。"""
+    src = DEPLOY_SH.read_text(encoding="utf-8")
+    assert re.search(r"^APPLY=0$", src, re.M), "APPLY 缺省不是 0"
+    assert "--apply) APPLY=1" in src
+
+
+def test_second_tier_hosts_not_implemented_anywhere():
+    """E-1：不得偷偷生成二线宿主的配置件。"""
+    src = DEPLOY_SH.read_text(encoding="utf-8")
+    for artifact in ["AGENTS.md", ".codex/config.toml", "opencode.json", ".dsh/"]:
+        # 只允许出现在「不生成」的说明里, 不允许出现在写操作附近
+        for i, line in enumerate(src.splitlines(), 1):
+            if artifact in line and not line.lstrip().startswith("#"):
+                pytest.fail(f"deploy-vault.sh:{i} 在非注释行提到二线件 {artifact}: {line.strip()}")
+
+
+def test_yaml_module_is_available_for_step5_assertion():
+    """步 5 的结构化断言依赖 harness venv 的 pyyaml —— 缺了会让断言恒 FAIL。"""
+    assert yaml is not None
+
+
+# ═══ 脱敏：evidence 是要入库的，明文凭据不许落盘 ═════════════════════════════
+_SECRET_LINE = re.compile(
+    r"^[ \t]*-?[ \t]*[A-Za-z0-9_]*"
+    r"(?:KEY|TOKEN|SECRET|PASSWORD|PASSWD|AUTH|CREDENTIAL)[A-Za-z0-9_]*[:=][ \t]*(.+)$",
+    re.M,
+)
+
+
+def test_step5_pipes_compose_config_through_redaction():
+    """步 5 落盘 config **之前**必须过 redact_secrets。
+
+    `docker compose config` 会把 --env-file 与**宿主 env** 里的凭据展开成明文
+    （INTERNAL_API_KEY / GOOGLE_API_KEY / NEO4J_PASSWORD / NEO4J_AUTH …）。
+    本卡实测: 未脱敏那版把真实 GOOGLE_API_KEY 写进了 evidence 目录。
+    必须是「明文从不落盘」而不是「落了再擦」—— 落了再擦意味着它曾在磁盘上存在过。
+    """
+    src = DEPLOY_SH.read_text(encoding="utf-8")
+    assert "redact_secrets()" in src, "缺 redact_secrets 过滤器"
+    step5 = src[src.index("step5_activate()") : src.index("# ═══ 步 6")]
+    assert "redact_secrets" in step5, "步 5 落盘 config 时未过脱敏"
+    # 必须是管道进脱敏后再重定向，而不是先 > 文件、事后再改
+    assert re.search(r"config[^\n]*\|\s*\n?\s*redact_secrets\s*>", step5) or re.search(
+        r"\|\s*redact_secrets\s*>\s*\"\$cfg\"", step5
+    ), f"步 5 的落盘不是「config | redact_secrets > 文件」形态:\n{step5[:600]}"
+
+
+def test_redaction_filter_masks_secrets_but_keeps_assertion_fields(tmp_path: Path):
+    """脱敏必须盖住凭据、且**不能**盖住步 5 断言要用的字段。
+
+    盖过头（把 container_name / published / target / host_ip 也换掉）会让步 5 的
+    结构化断言恒 FAIL —— 那是另一种坏：门从「能拦」变成「永远拦」。
+    """
+    fn = tmp_path / "redact.sh"
+    src = DEPLOY_SH.read_text(encoding="utf-8")
+    body = src[src.index("redact_secrets()") :]
+    body = body[: body.index("\n}\n") + 3]
+    fn.write_text(body, encoding="utf-8")
+
+    sample = (
+        "      GEMINI_API_KEY: AIzaSyDUMMY1234567890\n"
+        "      INTERNAL_API_KEY: DUMMYKEYDUMMYKEYDUMMYKEYDUMMYKEY\n"
+        "      NEO4J_PASSWORD: DUMMYPASSWORD\n"
+        "      NEO4J_AUTH: neo4j/DUMMYPASSWORD\n"
+        "      - ANTHROPIC_API_KEY=sk-ant-dummy\n"
+        "      container_name: cls-probe-backend\n"
+        '      published: "8124"\n'
+        "      target: 8001\n"
+        "      host_ip: 127.0.0.1\n"
+    )
+    r = subprocess.run(
+        ["bash", "-c", f". '{fn}'; redact_secrets"],
+        input=sample,
+        capture_output=True,
+        text=True,
+    )
+    assert r.returncode == 0, r.stderr
+    out = r.stdout
+
+    # 凭据全没了
+    for leaked in ["AIzaSyDUMMY1234567890", "DUMMYKEYDUMMYKEYDUMMYKEYDUMMYKEY", "sk-ant-dummy", "neo4j/DUMMYPASSWORD"]:
+        assert leaked not in out, f"脱敏漏了 {leaked!r}:\n{out}"
+    # 每一条含敏感键名的行, 值都必须是 <redacted>
+    for m in _SECRET_LINE.finditer(out):
+        assert m.group(1).strip() == "<redacted>", f"未脱敏的行: {m.group(0)!r}"
+    # 断言字段一个不少
+    for keep in ["container_name: cls-probe-backend", 'published: "8124"', "target: 8001", "host_ip: 127.0.0.1"]:
+        assert keep in out, f"脱敏盖过头, 弄丢了断言字段 {keep!r}:\n{out}"
+
+
+def test_no_plaintext_credentials_in_committed_evidence():
+    """evidence-g27b 里不许有明文凭据（它是要入库的）。
+
+    ⚠️ 这条门看的是**当前工作区**的 evidence 目录, 不是历史 —— 它防的是
+    「下一次跑完忘了脱敏就 commit」。
+    """
+    ev = REPO_ROOT / "_bmad-output" / "审查" / "evidence-g27b"
+    if not ev.is_dir():
+        pytest.skip("evidence-g27b 尚不存在（首次跑或已归档）")
+    pats = {
+        "Google API key": re.compile(r"AIzaSy[A-Za-z0-9_\-]{10,}"),
+        "INTERNAL_API_KEY 明文": re.compile(r"INTERNAL_API_KEY[:=]\s*[0-9a-f]{16,}"),
+        "NEO4J 明文密码": re.compile(r"NEO4J_(?:PASSWORD|AUTH)[:=]\s*(?!<redacted>)\S"),
+        "sk-/ghp_/xox token": re.compile(r"\b(?:sk-[A-Za-z0-9]{8,}|ghp_[A-Za-z0-9]{8,}|xox[baprs]-)"),
+    }
+    bad = []
+    for p in ev.rglob("*"):
+        if not p.is_file():
+            continue
+        try:
+            txt = p.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        for label, pat in pats.items():
+            if pat.search(txt):
+                bad.append(f"{p.name}: {label}")
+    assert not bad, "evidence 里有明文凭据:\n  " + "\n  ".join(bad)
+
+
+def test_evidence_dir_has_no_stderr_archives():
+    """协议 §2.2: *.stderr* 永不入库。"""
+    ev = REPO_ROOT / "_bmad-output" / "审查" / "evidence-g27b"
+    if not ev.is_dir():
+        pytest.skip("evidence-g27b 尚不存在")
+    stray = [p.name for p in ev.rglob("*stderr*")]
+    assert not stray, f"evidence 里有 stderr 存档: {stray}"

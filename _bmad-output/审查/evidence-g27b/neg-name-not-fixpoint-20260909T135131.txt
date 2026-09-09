@@ -1,0 +1,8 @@
+### 负控 name-not-fixpoint
+命令: scripts/deploy-vault.sh --vault /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27b/vaults/probe-b13 --harness /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy --port 8123 --env-dir /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27b/env --evidence-dir /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27b/ev
+期望: rc=71 且消息含 不动点
+
+📦 deploy-vault [dry-run] vault=probe-b13 port=8123 hosts=claude
+   harness=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy
+[1/6] preflight: FAIL vault 名 'probe-b13' 不是 sanitize_vault_id/vault_key 的共同不动点（两套口径会分裂, 决策页 §二 G4）
+rc=71

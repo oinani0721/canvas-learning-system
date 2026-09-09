@@ -1,0 +1,30 @@
+=== (e) 目标件逐条判 ===
+① key 权限: 600  (期望 600)
+② key 长度: 64  (openssl rand -hex 32 = 64 字符)
+③ data.json internalApiKey == key: ✅
+④ .env INTERNAL_API_KEY == key: ✅
+⑤ .env 权限: 600  (期望 600)
+⑥ .env 落在 --env-dir: ✅
+⑦ 车道树内无 .env.probe_b13: ✅
+⑧ 四处 8011 残留（期望全 0）:
+     .mcp.json                                                  8011:0
+0  8123:1
+     .claude/settings.json                                      8011:0
+0  8123:1
+     .claude/hooks/session-end-archive.py                       8011:0
+0  8123:1
+     .obsidian/plugins/canvas-learning-system/data.json         8011:0
+0  8123:1
+⑨ key 不存在于 .claude/mcp.json（已退役）: ✅
+⑩ yaml schema/键: ✅ http://127.0.0.1:8123
+
+=== E-4 build 产物对账 ===
+  130139 canvas-vault/.obsidian/plugins/canvas-learning-system/main.js
+  130139 frontend/obsidian-plugin/main.js
+  cmp 同 ✅
+  目标 vault 里的 main.js 与树上同: ✅
+
+=== git status（build 产物应全 gitignored）===
+   M docker-compose.yml
+  ?? scripts/deploy-vault.sh
+  非 _bmad-output 改动数: 2（期望 2 = compose 改 + deploy-vault.sh 新增）

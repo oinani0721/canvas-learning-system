@@ -21,9 +21,7 @@ _DOCKER_COMPOSE_PATH = _PROJECT_ROOT / "docker-compose.yml"
 @pytest.fixture(scope="module")
 def compose_config():
     """Load and parse docker-compose.yml."""
-    assert _DOCKER_COMPOSE_PATH.exists(), (
-        f"docker-compose.yml not found at {_DOCKER_COMPOSE_PATH}"
-    )
+    assert _DOCKER_COMPOSE_PATH.exists(), f"docker-compose.yml not found at {_DOCKER_COMPOSE_PATH}"
     with open(_DOCKER_COMPOSE_PATH, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)
 
@@ -44,9 +42,26 @@ class TestDockerComposeNeo4jImage:
         assert neo4j_service["image"] == "neo4j:5.26-community"
 
     def test_neo4j_container_name(self, neo4j_service):
-        """neo4j service has explicit container name."""
+        """neo4j service has explicit container name (缺省值 = 现网常量)。
+
+        CARD-G2-7b [BATCH-2026-09-07-第十三批]: container_name 参数化为
+        `${CLS_NEO4J_CONTAINER:-canvas-learning-system-neo4j}` —— 缺省值不变，
+        只是允许按 vault 实例覆盖（compose 无顶层 `name:`，5 个常量容器名会让
+        任何树的 `compose up` 顶替现网容器）。
+
+        本断言原先钉的是**源码字面量**，参数化后必红——但它的意图（docstring）是
+        「有显式容器名」，而这个意图没被破坏：缺省值仍是同一个名字。
+        故改为断言「显式声明 + 缺省值正确」，并把「渲染结果与参数化前逐字节相同」
+        这件更强的事交给
+        `test_deploy_vault_sh.py::test_compose_defaults_render_byte_identical_to_pre_parameterization`
+        （它带 --profile test/windows/dev，覆盖全部 5 处）。
+        """
         assert "container_name" in neo4j_service
-        assert neo4j_service["container_name"] == "canvas-learning-system-neo4j"
+        name = neo4j_service["container_name"]
+        assert name in (
+            "canvas-learning-system-neo4j",
+            "${CLS_NEO4J_CONTAINER:-canvas-learning-system-neo4j}",
+        ), f"container_name 既不是现网常量也不是它的参数化形态: {name!r}"
 
 
 class TestDockerComposeNeo4jPorts:

@@ -1,0 +1,9 @@
+# CARD-G2-7b tests/unit 目录级收工红基线对账
+# 基线: evidence-b13/unit-red-baseline-da690bf8.txt（202 nodeid）
+# 当前: dir-tests-unit-final-20260909T143546.raw
+# 汇总: = 173 failed, 4906 passed, 48 skipped, 121 warnings, 29 errors in 396.25s (0:06:36) =
+# ⚠️ 前置判据: raw 必须含 pytest 汇总行才对账 —— 部分写入时 FAILED 摘要尚未写出,
+#    对账会得出「红集 0、202 条全是已修复」的假绿（本卡实测撞过一次, UAT §4.10）。
+# 结果: 新引入 0 / 已修复 0（差集只允许 '<'）
+# 无差异
+rc=0

@@ -1,0 +1,14 @@
+=== 负控 A：预置矛盾 .env（API_PORT=9999 vs --port 8124）→ 期望 73 ===
+  📦 deploy-vault [apply] vault=probe_mm port=8124 hosts=claude
+     harness=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy
+  [1/6] preflight: OK 树完整 / 禁写面过 / 名不动点 / port 8124 空闲 / skills 9 / main.js 在位
+  [2/6] install: OK install-vault.sh rc 0, 输出 /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27b/envmismatch-20260909T140204/ev/install-20260909T140204.txt
+  [3/6] postprocess: FAIL 已有 .env.probe_mm 的 API_PORT=9999 与本次参数 8124 矛盾（拒绝静默覆盖；改 --port/--vault 或删掉该 .env 重来）
+  rc=  ❌ 期望 73
+
+=== 负控 B：结构化 config 断言真能拦（.env 里 CLS_BACKEND_CONTAINER 被改名）→ 期望 75 ===
+  首次 apply rc=0 (建好目标)
+  已把 .env 的 CLS_BACKEND_CONTAINER 篡改为 wrong-name
+  篡改后 config 里的 container_name: 
+container_name='wrong-name' want 'cls-probe_ca-backend'
+  同一断言逻辑对篡改 config 的 rc=1  ✅ 拒了（证判据承重）

@@ -15,8 +15,8 @@
 #                            [--backend-url <url>]
 #   --harness-tree / --backend-url: 只写进新 vault 的 .canvas-config.yaml (schema 2.1),
 #     供 skill 侧定位 harness 树与后端地址; 不影响复制行为。
-#   --activate: 把 .env ACTIVE_VAULT 切到新 vault (之后需 docker compose up -d backend)
-#   缺省只部署不激活 — 可先建多个 vault 再选一个激活。
+#   --activate: ⚠️ deprecated 单实例语义 — 改**全局** .env ACTIVE_VAULT, 旧库随即停推。
+#     多 vault 请用 scripts/deploy-vault.sh --activate (本脚本由它的步 2 调用; 直接调用仍可)。
 set -euo pipefail
 
 REPO="${CLS_REPO:-/Users/Heishing/Desktop/canvas/canvas-learning-system}"  # CLS_REPO 可覆盖仓根 (测试/换机); 不设时逐字节同旧值
@@ -208,6 +208,7 @@ if [ "$ACTIVATE" = 1 ] && [ -n "$ENV_VROOT" ] && [ "$VAULTS_ROOT" != "$ENV_VROOT
     ACTIVATE=0
 fi
 if [ "$ACTIVATE" = 1 ]; then
+    echo "⚠️ deprecated: 单实例激活会改全局 .env ACTIVE_VAULT; 多 vault 请用 deploy-vault.sh --activate (G2-8)" >&2
     if grep -qE '^ACTIVE_VAULT=' "$ENV_FILE"; then
         sed -i '' "s|^ACTIVE_VAULT=.*|ACTIVE_VAULT=$VAULT_NAME|" "$ENV_FILE"
     else
