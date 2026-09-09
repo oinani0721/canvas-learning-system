@@ -26,7 +26,8 @@ unreadable, 并且**计入阻断** —— 「我看不见」不等于「一致�
 范围内; 软链递归有深度上限, 超限按「扫描未完成」拒绝落盘; 身份比较覆盖大小写/软链/
 硬链接这几类别名, 但**不宣称穷尽所有别名**; 本脚本不是特权程序, 防的是误伤而不是对抗。
 
-**「活 vault 即模板」**(install-vault.sh:2-6): manifest 只声明 path/role/action/kind,
+**模板源**(E-4, CARD-G2-7a): 缺省 = harness 树的 `canvas-vault/`(git 追踪系统件),
+`--source` 可改指一个活 vault 取 gitignored 件。manifest 只声明 path/role/action/kind,
 不带任何内容或哈希基线 —— 内容的参照永远是 --source 指向的那个活 vault, 本仓不
 维护第二份模板。所以不给 --source 时, content-drift 一律报 "not evaluated",
 而不是拿某个内置基线冒充。
@@ -1027,17 +1028,22 @@ def verify(
         # _digest_pairs 的 generated 过滤), 若不在这里查, 「data.json 被误建成目录」
         # 这类形态错误就完全没有信号 —— 存在即 match, 父摘要又看不见它。
         # (Codex round-1 MEDIUM)
-        if item.action == "generate" and not target.is_file():
-            report.unreadable.append(
-                Finding(
-                    path=item.path,
-                    category="unreadable",
-                    action=item.action,
-                    role=item.role,
-                    detail="生成件存在但不是普通文件 (应为脚本生成的单文件)",
+        if item.action == "generate":
+            # 形态与可读性都要查: is_file() 对 000 权限的普通文件仍返回 True, 那种
+            # 「在位但读不动」的生成件不该进 match —— 它是脚本写坏的产物。
+            # _leaf_digest 的读探测与摘要路径同源, bad=True 即读不动。
+            probe_digest, probe_bad = _leaf_digest(target)
+            if not target.is_file() or probe_bad:
+                report.unreadable.append(
+                    Finding(
+                        path=item.path,
+                        category="unreadable",
+                        action=item.action,
+                        role=item.role,
+                        detail="生成件存在但不是可读的普通文件 (应为脚本生成的单文件)",
+                    )
                 )
-            )
-            continue
+                continue
         if item.action == "copy" and source is not None:
             src = source / item.path
             if not src.exists():

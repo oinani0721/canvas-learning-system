@@ -1,0 +1,33 @@
+### (h)① 树源（缺省源, 不传 --source）ts=20260909T102735
+   1. Obsidian → 打开 vault → /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/53da01cb-6365-4026-b799-f74947279f9a/scratchpad/g27a/probe-r3-tree-20260909T102735 (插件与快捷键已随 vault 就位)
+   2. 激活: scripts/install-vault.sh 加 --activate, 或手改 .env ACTIVE_VAULT=probe-r3-tree-20260909T102735 后 docker compose up -d backend
+   3. 首验: 在新 vault 建原白板 (Cmd+P 建/配置原白板) → 写内容 → /start-exam-board 应能出题
+报告已写入 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy/_bmad-output/审查/evidence-g27a/verify-tree-r3-20260909T102735.txt
+verify rc=0
+match                  : 25
+missing                : 0
+extra                  : 0
+content-drift          : not evaluated (无 --source)
+optional-missing       : 10
+unreadable             : 0
+hotkeys                : not evaluated (.obsidian/plugins/canvas-learning-system/main.js 缺 — gitignored 构建产物)
+
+### (h)② live 源 ts=20260909T102735
+   1. Obsidian → 打开 vault → /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/53da01cb-6365-4026-b799-f74947279f9a/scratchpad/g27a/probe-r3-live-20260909T102735 (插件与快捷键已随 vault 就位)
+   2. 激活: scripts/install-vault.sh 加 --activate, 或手改 .env ACTIVE_VAULT=probe-r3-live-20260909T102735 后 docker compose up -d backend
+   3. 首验: 在新 vault 建原白板 (Cmd+P 建/配置原白板) → 写内容 → /start-exam-board 应能出题
+报告已写入 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy/_bmad-output/审查/evidence-g27a/verify-live-r3-20260909T102735.txt
+verify rc=0
+match                  : 34
+missing                : 0
+extra                  : 0
+content-drift          : 0
+optional-missing       : 1
+unreadable             : 0
+hotkeys                : 3 绑定 / 10 命令 / 0 orphan
+--- 生成件确为生成值(H1) ---
+  key 空: True | backendUrl: http://127.0.0.1:8011 | activeVaultName: ''
+--- 四重禁写 ---
+  find -newer = 0
+  密钥 sha 同 ✅
+  git status canvas-vault = 0

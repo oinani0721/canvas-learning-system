@@ -185,29 +185,33 @@ def test_manifest_matches_install_arrays():
 def test_manifest_covers_implicit_and_generated_semantics():
     """排除语义、两个隐含 exclude、generate 段都要有 item。
 
-    ⚠️ CARD-G2-7a 后行号整体下移（脚本加了 --harness-tree / --backend-url 与生成件段）:
-    `:68/:69`→`:78`、`:84`→`:94`、`:86`→`:96`、`:103-109`→`:116-130`；
-    `:74`（骨架 mkdir 循环）→`:84`。origin 是**手写**的, 不会自己跟着脚本走 ——
-    这条门就是它的守门人。
+    origin 是**手写**的, 不会自己跟着脚本走 —— 这条门就是它的守门人。
+    锚按**内容**取（`_sh_line`）: CARD-G2-7a 期间脚本三次增删行, 钉行号字面量的
+    门批量假红, 而真正要防的「origin 指错地方」它反而看不见（Codex round-2 LOW）。
     """
     data = json.loads(MANIFEST.read_text(encoding="utf-8"))
     origins = {i["origin"] for i in data["items"]}
+    pycache = f"install-vault.sh:{_sh_line('__pycache__ -prune')}"
+    pending = f"install-vault.sh:{_sh_line('pending_archives')}"
     for required in (
-        "install-vault.sh:78",  # 「明确不复制」注释块
-        "install-vault.sh:84",  # 骨架 mkdir 循环
-        "install-vault.sh:94",  # find __pycache__ -prune
-        "install-vault.sh:96",  # rm pending_archives*.jsonl
-        "install-vault.sh:116-130",  # yaml 生成器 heredoc
-        "install-vault.sh:132-171 (生成件段)",
+        f"install-vault.sh:{_sh_line('明确不复制')}",  # 「明确不复制」注释块
+        f"install-vault.sh:{_sh_line(SKELETON_LOOP_ANCHOR)}",  # 骨架 mkdir 循环
+        pycache,  # find __pycache__ -prune
+        pending,  # rm pending_archives*.jsonl
     ):
         assert required in origins, f"缺少源自 {required} 的 item"
+    # yaml 生成器与生成件段是**区间** origin, 起点按内容锚, 区间尾另有越界门把关
+    yaml_start = f"install-vault.sh:{_sh_line(YAML_HEREDOC_ANCHOR, prefix=True)}-"
+    gen_start = f"install-vault.sh:{_sh_line('生成件 (CARD-G2-7a)')}-"
+    assert any(o.startswith(yaml_start) for o in origins), f"缺少 yaml 生成器区间 origin ({yaml_start}…)"
+    assert any(o.startswith(gen_start) and "生成件段" in o for o in origins), f"缺少生成件段 origin ({gen_start}…)"
     by_origin = {}
     for i in data["items"]:
         by_origin.setdefault(i["origin"], []).append(i)
-    # :94 的 find 只在 "$TARGET/.claude" 下剪 __pycache__ — 模式必须带该前缀,
+    # find 只在 "$TARGET/.claude" 下剪 __pycache__ — 模式必须带该前缀,
     # 写成全树 `**/__pycache__` 就比源语义宽了。
-    assert [i["path"] for i in by_origin["install-vault.sh:94"]] == [".claude/**/__pycache__"]
-    assert [i["path"] for i in by_origin["install-vault.sh:96"]] == [".claude/hooks/pending_archives*.jsonl"]
+    assert [i["path"] for i in by_origin[pycache]] == [".claude/**/__pycache__"]
+    assert [i["path"] for i in by_origin[pending]] == [".claude/hooks/pending_archives*.jsonl"]
     # 每条 origin 都要真的指向脚本里存在的行（防「行号写错但没人发现」）
     import re as _re
 
@@ -218,6 +222,12 @@ def test_manifest_covers_implicit_and_generated_semantics():
             n = int(m.group(1))
             end = int(m.group(2) or n)
             assert 1 <= n <= end <= len(sh_lines), f"origin {o} 指向脚本外的行（脚本 {len(sh_lines)} 行）"
+            # 落在数组区的 origin, 起始行必须真是**某个数组的定义行** —— 行号偏一格
+            # (指向注释/空行)时纯越界检查照样放行 (Codex round-2 LOW 实例)
+            if MANIFEST_BLOCK[0] <= n <= MANIFEST_BLOCK[1]:
+                assert _re.match(r"^[A-Z_]+=", sh_lines[n - 1]), (
+                    f"origin {o} 落在数组区但第 {n} 行不是数组定义: {sh_lines[n - 1]!r}"
+                )
 
     # CARD-G2-7a: generate 由 1 条扩到 5 条 —— 每 vault 应当**不同**的东西一律生成不复制
     generated = sorted(i["path"] for i in data["items"] if i["action"] == "generate")
@@ -1183,7 +1193,7 @@ def test_skeleton_content_excludes_are_pinned(vault_pair):
     """LOW 回归: `raw/**` 与 `templates/**` 删掉后曾仍然全绿——现在钉住它们。
 
     骨架 mkdir 循环对**全部**骨架目录一视同仁，清单必须逐个声明「内容不复制」。
-    ⚠️ CARD-G2-7a 后该循环由 `:74` 移到 `:84`（脚本加了两个参数与用法注释）。
+    循环行按内容锚（`_sh_line`）—— 行号在本卡内漂过三次。
     """
     _source, target = vault_pair
     (target / "raw" / "lecture.pdf").write_text("x", encoding="utf-8")
@@ -1193,7 +1203,8 @@ def test_skeleton_content_excludes_are_pinned(vault_pair):
     assert "raw/**" in got, "raw 下的遗留内容必须被登记为「故意不复制」"
     assert "templates/**" in got
     data = json.loads(MANIFEST.read_text(encoding="utf-8"))
-    by_origin = [i["path"] for i in data["items"] if i["origin"] == "install-vault.sh:84"]
+    mkdir_origin = f"install-vault.sh:{_sh_line(SKELETON_LOOP_ANCHOR)}"
+    by_origin = [i["path"] for i in data["items"] if i["origin"] == mkdir_origin]
     # CARD-G2-7a Codex r1 M2: wiki 两件随 skeleton 一起补「内容不复制」(Codex round-1 MEDIUM)
     assert sorted(by_origin) == ["raw/**", "templates/**", "wiki/canvases/**", "wiki/concepts/**"]
 
@@ -2529,6 +2540,25 @@ def test_tree_head_is_self_consistent_under_the_new_manifest():
 # ── CARD-G2-7a round-1 整改的门（Codex r1: H1/H2/M1/M3）────────────────
 
 
+# 锚字面量提成常量: 它们含双引号, 直接写进 f-string 的 {} 里会复用外层引号 ——
+# 运行时(3.14)能跑, 但项目 ruff target=py39 判 invalid-syntax。
+SKELETON_LOOP_ANCHOR = 'for d in "${SKELETON_DIRS[@]}"'
+YAML_HEREDOC_ANCHOR = 'cat > "$TARGET/.canvas-config.yaml"'
+
+
+def _sh_line(marker: str, *, prefix: bool = False) -> int:
+    """按**内容**定位脚本里的唯一锚行, 返回 1-based 行号。
+
+    ⚠️ 门里禁写死行号字面量: 脚本每加一个参数/注释, 全部 origin 都平移,
+    钉字面量的门会整批假红(本卡实测两次), 而「行号写偏一格」它又照样放行。
+    锚内容 + 实测行号 = 漂移自动跟随, 写错仍然红。
+    """
+    lines = INSTALL_SH.read_text(encoding="utf-8").splitlines()
+    hits = [i + 1 for i, ln in enumerate(lines) if (ln.startswith(marker) if prefix else marker in ln)]
+    assert len(hits) == 1, f"锚 {marker!r} 命中 {hits}（应恰好 1 处）"
+    return hits[0]
+
+
 def _extract_block(start_marker: str, end_marker: str, *, last: bool = False, close_fi: bool = False) -> str:
     """按**子串**切出脚本的某一段（不写死行号——见 skills 门那条教训）。
 
@@ -2539,9 +2569,11 @@ def _extract_block(start_marker: str, end_marker: str, *, last: bool = False, cl
     """
     lines = INSTALL_SH.read_text(encoding="utf-8").splitlines()
     starts = [i for i, ln in enumerate(lines) if start_marker in ln]
-    ends = [i for i, ln in enumerate(lines) if end_marker in ln]
+    # ⚠️ end 只在 start **之后**找: done/fi/EOF 这类结束符在脚本前半段已出现多次,
+    # 取全局第一次命中会得到 end < start（本卡实测 ends[0]=44 而 start=104）。
+    ends = [i for i, ln in enumerate(lines) if end_marker in ln and i > starts[0]]
     assert len(starts) == 1, f"start {start_marker!r} 命中 {len(starts)} 次"
-    assert ends, f"end {end_marker!r} 零命中"
+    assert ends, f"end {end_marker!r} 在 start 之后零命中"
     end = ends[-1] if last else ends[0]
     assert end > starts[0], (starts, ends[:3])
     stop = end
@@ -2594,13 +2626,19 @@ def test_default_source_is_harness_canvas_vault(tmp_path):
     """
     block = _extract_block('if [ -z "$SOURCE" ]', 'TARGET="$VAULTS_ROOT/$VAULT_NAME"')
     harness = tmp_path / "harness"
+    harness.mkdir()
+    # ⚠️ ENV_FILE 必须**有效且指向别处**(Codex round-2 MEDIUM): 指向不存在的文件时,
+    # 旧 .env 解析实现同样回退成 ${REPO}/canvas-vault —— 这条门就恒真、拦不住回退。
+    # 有效 .env 下旧实现输出 other-root/other-vault, 新实现固定 harness, 两者才分得开。
+    other_root = tmp_path / "other-root"
+    env_file = tmp_path / "real.env"
+    env_file.write_text(f"VAULTS_ROOT={other_root}\nACTIVE_VAULT=other-vault\n", encoding="utf-8")
     done = subprocess.run(
         ["bash", "-c", block + '\necho "SOURCE=$SOURCE"'],
-        env={**os.environ, "REPO": str(harness), "ENV_FILE": str(tmp_path / "no.env"), "SOURCE": ""},
+        env={**os.environ, "REPO": str(harness), "ENV_FILE": str(env_file), "SOURCE": ""},
         capture_output=True,
         text=True,
     )
-    # ENV_FILE 指向不存在的文件: 若仍走 .env 解析会回退默认, 而不是 harness
     assert f"SOURCE={harness}/canvas-vault" in done.stdout, (
         f"缺省源必须是 harness 树的 canvas-vault, 实得: {done.stdout!r}"
     )
@@ -2617,9 +2655,9 @@ def test_generate_item_wrong_shape_is_not_a_match(vault_pair, tmp_path, manifest
     probe.mkdir()  # 误建成目录
     (probe / "inner.txt").write_text("x", encoding="utf-8")
     result = _classify(target)
-    assert any(f.path == str(probe.relative_to(target)) and "不是普通文件" in f.detail for f in result.unreadable), (
-        f"形态错误必须登记 unreadable, 实得 {[(f.path, f.detail) for f in result.unreadable]}"
-    )
+    assert any(
+        f.path == str(probe.relative_to(target)) and "不是可读的普通文件" in f.detail for f in result.unreadable
+    ), f"形态错误必须登记 unreadable, 实得 {[(f.path, f.detail) for f in result.unreadable]}"
     assert str(probe.relative_to(target)) not in [f.path for f in result.match]
     assert result.exit_code == vv.EXIT_MISMATCH == 2
 
@@ -2647,6 +2685,145 @@ def test_key_self_check_rejects_unreadable_key(tmp_path):
             capture_output=True,
             text=True,
         ).stdout
-        assert "❌" in out and "不可读" in out, f"源不可读必须显式拒绝, 实得: {out!r}"
+        assert "❌" in out and "形态/可读性异常" in out, f"源不可读必须显式拒绝, 实得: {out!r}"
     finally:
         (src / ".obsidian" / "cls-internal-key.txt").chmod(0o644)
+
+
+def test_generate_section_covers_exactly_the_generate_items():
+    """round-1 自查补门（Codex r2 §三.1 的问题）：脚本生成段清理/生成的路径集合，
+    必须与 manifest 的 generate 集（除 .canvas-config.yaml——它由独立 yaml 生成器写）
+    **恰好一致** —— 将来加第四个 generate 件时，rm 行不会自己跟上来，这条门会红。
+    """
+    import re as _re3
+
+    lines = INSTALL_SH.read_text(encoding="utf-8").splitlines()
+    start = next(i for i, ln in enumerate(lines) if "生成件 (CARD-G2-7a)" in ln)
+    section = lines[start:]
+    # 生成段实际触碰的生成位: rm 行的 "$TARGET/<path>" 与 X="$TARGET/<path>" 赋值
+    touched = set()
+    for ln in section:
+        if ln.startswith("rm -f") or ln.startswith('      "$TARGET'):
+            touched.update(_re3.findall(r'\$TARGET/(\S+?)"', ln))
+        m = _re3.match(r'[A-Z_]+="\$TARGET/(.+)"$', ln.strip())
+        if m:
+            touched.add(m.group(1))
+    data = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    # 两个例外的归属（首版门就抓到了这个漂移——不是脚本漏，是归属不同）:
+    #   .canvas-config.yaml      → 本脚本独立的 yaml 生成器(:116 附近)
+    #   .obsidian/cls-internal-key.txt → deploy-vault.sh 的 activate 步(CARD-G2-7b,
+    #     那一步才知道跟哪个后端实例配对); 本脚本对它只「不清不生成」+ 自检反向判
+    OUTSOURCED = {".canvas-config.yaml", ".obsidian/cls-internal-key.txt"}
+    expected = {i["path"] for i in data["items"] if i["action"] == "generate"} - OUTSOURCED
+    # 验伪锚: 生成段确实被解析到了(否则空集==空集恒真)
+    assert len(touched) >= 3, f"生成段解析结果异常: {touched}"
+    assert touched == expected, (
+        f"脚本生成段与 manifest generate 集漂移:\n  脚本多清/多生成: {sorted(touched - expected)}\n  脚本漏了: {sorted(expected - touched)}"
+    )
+
+
+# ── CARD-G2-7a round-2 整改的门（Codex r2: H1/M1/M2）──────────────────
+
+
+def test_every_recursive_copy_follows_operand_symlinks():
+    """H1 结构门: 脚本里每一处 `cp -R` 都必须带 `-H`。
+
+    裸 `cp -R` 对**目录软链**保留链接（macOS 实测）, 于是 TARGET 里放的是一条指回
+    共享源的链；随后生成段清理/写入就会**沿链改写模板源自己**。这是按性质写的门 ——
+    将来新增任何递归复制点漏了 `-H`, 这里就红, 不必等有人踩到。
+    """
+    # 只看可执行行: 注释里**讲**这条规则(以及讲裸 cp -R 的危害)不是违规 ——
+    # 按文本 grep 的判据两头都假, 这里先剥注释再判(不是剥掉再比对内容, 只是选行)。
+    bad = [
+        (i + 1, ln)
+        for i, ln in enumerate(INSTALL_SH.read_text(encoding="utf-8").splitlines())
+        if "cp -R" in ln and "cp -R -H" not in ln and not ln.lstrip().startswith("#")
+    ]
+    assert bad == [], f"递归复制未带 -H（会沿目录软链写穿模板源）: {bad}"
+
+
+def test_plugin_dir_symlink_does_not_write_through_to_shared_source(tmp_path):
+    """H1 行为门: 源插件目录是软链时, 部署 + 生成不得改写共享源。
+
+    复现 Codex round-2 HIGH-1: 裸 `cp -R` 下 TARGET 里是链, 生成段写 data.json
+    实际落在 shared/ 上（本机实测 shared 被改写）。
+    """
+    # ⚠️ 形态要害: **插件目录自身**是软链, 不是它的父目录。
+    # 若把 plugins/ 做成链, cp 的操作数是穿过链之后的真目录, -H 有没有都一样 ——
+    # 首版夹具就是这么写的, 变异(去掉 -H)照样全绿 = 探针避开了缺陷显形点。
+    shared = tmp_path / "shared"
+    shared.mkdir()
+    guard = shared / "data.json"
+    guard.write_text('{"internalApiKey": "SHARED-MUST-NOT-CHANGE"}', encoding="utf-8")
+    before = guard.read_bytes()
+
+    source = tmp_path / "src"
+    (source / ".obsidian" / "plugins").mkdir(parents=True)
+    (source / ".obsidian" / "plugins" / "canvas-learning-system").symlink_to(shared, target_is_directory=True)
+    target = tmp_path / "tgt"
+    (target / ".obsidian" / "plugins").mkdir(parents=True)
+
+    copy_block = _extract_block('for p in "${OBSIDIAN_PLUGINS[@]}"', "done")
+    gen_block = _extract_block(
+        'rm -f "$TARGET/.obsidian/plugins/canvas-learning-system/data.json"',
+        "✏️  生成 插件 data.json",
+        close_fi=True,
+    )
+    script = "OBSIDIAN_PLUGINS=(canvas-learning-system)\n" + copy_block + "\n" + gen_block
+    done = subprocess.run(
+        ["bash", "-c", script],
+        env={**os.environ, "SOURCE": str(source), "TARGET": str(target), "BACKEND_URL": "http://127.0.0.1:8123"},
+        capture_output=True,
+        text=True,
+    )
+    assert done.returncode == 0, done.stderr
+    assert guard.read_bytes() == before, "共享模板源被沿软链写穿（H1 回归）"
+    tgt_data = json.loads((target / ".obsidian/plugins/canvas-learning-system/data.json").read_text(encoding="utf-8"))
+    assert tgt_data["internalApiKey"] == "", "目标应拿到新生成的空 key"
+
+
+def test_unreadable_generate_file_is_not_a_match(vault_pair):
+    """M1 回归: generate 件在位但**读不动**时不得记 match。
+
+    `is_file()` 对 000 权限的普通文件照样返回 True —— 只查类型会把「脚本写坏的
+    生成件」当成正常件, 而父目录摘要又把 generate 路径整棵剔掉, 两边都没信号。
+    """
+    _source, target = vault_pair
+    probe = target / ".obsidian" / "plugins" / "canvas-learning-system" / "data.json"
+    probe.parent.mkdir(parents=True, exist_ok=True)
+    probe.write_text("{}", encoding="utf-8")
+    probe.chmod(0o000)
+    try:
+        result = _classify(target)
+        rel = str(probe.relative_to(target))
+        assert any(f.path == rel for f in result.unreadable), (
+            f"不可读生成件必须登记 unreadable, 实得 {[f.path for f in result.unreadable]}"
+        )
+        assert rel not in [f.path for f in result.match]
+        assert result.exit_code == vv.EXIT_MISMATCH == 2
+    finally:
+        probe.chmod(0o644)
+
+
+def test_key_self_check_rejects_directory_shaped_key(tmp_path):
+    """M2 回归: 源 key 路径是**可读目录**时, `cmp` 读目录失败(rc=2), `! cmp` 反而成真。
+
+    本机实测: 旧写法对这种形态打 ✅ 并附带 cmp 的错误输出 —— 判据必须先验形态。
+    """
+    lines = INSTALL_SH.read_text(encoding="utf-8").splitlines()
+    snippet = "\n".join(
+        [ln for ln in lines if ln.startswith("check() {")]
+        + [ln for ln in lines if ln.startswith("check ") and "cls-internal-key" in ln]
+    )
+    src = tmp_path / "src"
+    (src / ".obsidian" / "cls-internal-key.txt").mkdir(parents=True)  # 误建成目录
+    tgt = tmp_path / "tgt"
+    (tgt / ".obsidian").mkdir(parents=True)
+    (tgt / ".obsidian" / "cls-internal-key.txt").write_text("B\n", encoding="utf-8")
+    out = subprocess.run(
+        ["bash", "-c", snippet],
+        env={**os.environ, "SOURCE": str(src), "TARGET": str(tgt)},
+        capture_output=True,
+        text=True,
+    ).stdout
+    assert "❌" in out and "形态/可读性异常" in out, f"目录态源必须显式拒绝, 实得: {out!r}"

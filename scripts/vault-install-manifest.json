@@ -1,7 +1,7 @@
 {
   "version": 2,
   "source": "harness-canvas-vault",
-  "description": "Canvas Learning System vault 部署清单 — install-vault.sh MANIFEST 区 (:73-77) 的机器可读投影。模板源 = <harness>/canvas-vault/ 的 git 追踪系统件 + 脚本生成件（E-4）；--source 可改指一个活 vault 取那些 gitignored、树里本就没有的件。extra_allow 是「覆盖面内允许多出来」的路径白名单（与 items 的 path 同口径，支持 *? 通配，与已声明项或 exclude 模式重叠即拒绝加载）——命中的项进报告的 allowed-extra 段，只报告不计退出码。item 级 optional=true 表示「声明了但允许它不在」：缺失进 optional-missing 段、同样不计退出码，但**在位时照常比内容**。",
+  "description": "Canvas Learning System vault 部署清单 — install-vault.sh MANIFEST 区 (:73-77) 的机器可读投影。模板源 = <harness>/canvas-vault/ 的 git 追踪系统件 + 脚本生成件（E-4）；--source 可改指一个活 vault 取那些 gitignored、树里本就没有的件。extra_allow 是「覆盖面内允许多出来」的路径白名单（与 items 的 path 同口径，支持 *? 通配，与已声明项或 exclude 模式重叠即拒绝加载）——命中的项进报告的 allowed-extra 段，只报告不计退出码。item 级 optional=true 表示「声明了但允许它不在」：缺失进 optional-missing 段、同样不计退出码，在位时 copy 项照常比内容，generate 项不比（按定义每 vault 不同，Codex round-2 核对）。",
   "generated_from": "scripts/install-vault.sh",
   "extra_allow": [
     ".claude/cache",
@@ -29,61 +29,61 @@
       "path": "原白板",
       "role": "skeleton-dir",
       "action": "skeleton",
-      "origin": "install-vault.sh:73"
+      "origin": "install-vault.sh:71"
     },
     {
       "path": "检验白板",
       "role": "skeleton-dir",
       "action": "skeleton",
-      "origin": "install-vault.sh:73"
+      "origin": "install-vault.sh:71"
     },
     {
       "path": "节点",
       "role": "skeleton-dir",
       "action": "skeleton",
-      "origin": "install-vault.sh:73"
+      "origin": "install-vault.sh:71"
     },
     {
       "path": "outputs",
       "role": "skeleton-dir",
       "action": "skeleton",
-      "origin": "install-vault.sh:73"
+      "origin": "install-vault.sh:71"
     },
     {
       "path": "raw",
       "role": "skeleton-dir",
       "action": "skeleton",
-      "origin": "install-vault.sh:73"
+      "origin": "install-vault.sh:71"
     },
     {
       "path": "templates",
       "role": "skeleton-dir",
       "action": "skeleton",
-      "origin": "install-vault.sh:73"
+      "origin": "install-vault.sh:71"
     },
     {
       "path": ".claude/skills",
       "role": "claude-system",
       "action": "copy",
-      "origin": "install-vault.sh:74"
+      "origin": "install-vault.sh:72"
     },
     {
       "path": ".claude/scripts",
       "role": "claude-system",
       "action": "copy",
-      "origin": "install-vault.sh:74"
+      "origin": "install-vault.sh:72"
     },
     {
       "path": ".claude/hooks",
       "role": "claude-system",
       "action": "copy",
-      "origin": "install-vault.sh:74"
+      "origin": "install-vault.sh:72"
     },
     {
       "path": ".claude/agents",
       "role": "claude-system",
       "action": "copy",
-      "origin": "install-vault.sh:74",
+      "origin": "install-vault.sh:72",
       "optional": true,
       "note": "optional（CARD-G2-7a）：live 为空目录、未追踪。"
     },
@@ -91,7 +91,7 @@
       "path": ".claude/commands",
       "role": "claude-system",
       "action": "copy",
-      "origin": "install-vault.sh:74",
+      "origin": "install-vault.sh:72",
       "optional": true,
       "note": "optional（CARD-G2-7a）：同上。"
     },
@@ -99,13 +99,13 @@
       "path": ".claude/settings.json",
       "role": "claude-system",
       "action": "copy",
-      "origin": "install-vault.sh:74"
+      "origin": "install-vault.sh:72"
     },
     {
       "path": ".claude/settings.local.json",
       "role": "secret-or-local",
       "action": "generate",
-      "origin": "install-vault.sh:132-171 (生成件段)",
+      "origin": "install-vault.sh:134-179 (生成件段)",
       "note": "只批准本系统自己的 MCP：{\"enabledMcpjsonServers\": [\"canvas-learning-mcp\"]}。键名核自 Claude Code 2.1.263（仓根同名件 + live vault 该件实测只有这一个键）。⛔ 绝不复制——live 那份含 4 个用户全局开发用 MCP，复制进新库正是 Y9-A 转 G2-7 ① 要停的行为。树上不存在 ⇒ optional。",
       "optional": true
     },
@@ -113,14 +113,14 @@
       "path": ".claude/mcp.json",
       "role": "retired",
       "action": "exclude",
-      "origin": "install-vault.sh:74 (CARD-G2-7a 移除)",
+      "origin": "install-vault.sh:72 (CARD-G2-7a 移除)",
       "note": "Claudian 专用（type sse + _claudian 键）。Claudian 已弃用，且后端只 mcp.mount_http()（backend/app/mcp/server.py:145，未调 mount_sse）⇒ 对后端是死配置。CARD-G2-7a 退出部署清单；树上文件本卡不删（删了 live≠HEAD），删除归第十四批。"
     },
     {
       "path": ".obsidian/app.json",
       "role": "obsidian-config",
       "action": "copy",
-      "origin": "install-vault.sh:75",
+      "origin": "install-vault.sh:73",
       "optional": true,
       "note": "optional（CARD-G2-7a）：Obsidian 首次打开自建；--source 指 live 时可复制到。"
     },
@@ -128,7 +128,7 @@
       "path": ".obsidian/appearance.json",
       "role": "obsidian-config",
       "action": "copy",
-      "origin": "install-vault.sh:75",
+      "origin": "install-vault.sh:73",
       "optional": true,
       "note": "optional（CARD-G2-7a）：同上。"
     },
@@ -136,7 +136,7 @@
       "path": ".obsidian/core-plugins.json",
       "role": "obsidian-config",
       "action": "copy",
-      "origin": "install-vault.sh:75",
+      "origin": "install-vault.sh:73",
       "optional": true,
       "note": "optional（CARD-G2-7a）：同上。"
     },
@@ -144,19 +144,19 @@
       "path": ".obsidian/community-plugins.json",
       "role": "obsidian-config",
       "action": "copy",
-      "origin": "install-vault.sh:75"
+      "origin": "install-vault.sh:73"
     },
     {
       "path": ".obsidian/hotkeys.json",
       "role": "obsidian-config",
       "action": "copy",
-      "origin": "install-vault.sh:75"
+      "origin": "install-vault.sh:73"
     },
     {
       "path": ".obsidian/cls-internal-key.txt",
       "role": "secret-or-local",
       "action": "generate",
-      "origin": "install-vault.sh:185 (自检反向判)",
+      "origin": "install-vault.sh:194 (自检反向判)",
       "note": "E-3 各 vault 各 key：不再从模板源复制（原 :65 复制点已删）。由 deploy-vault.sh 的 activate 步按后端实例重生（CARD-G2-7b）。自检 :187 反向判：目标不存在、或与源不同才 ✅。树上不存在（.gitignore:246）⇒ optional。",
       "optional": true
     },
@@ -164,21 +164,21 @@
       "path": ".obsidian/plugins/canvas-learning-system",
       "role": "obsidian-plugin",
       "action": "copy",
-      "origin": "install-vault.sh:76",
-      "note": "核心插件; install-vault.sh:183 附近自检(CARD-G2-7a 后行号)对 main.js 与模板源做字节级 cmp。"
+      "origin": "install-vault.sh:74",
+      "note": "核心插件; install-vault.sh:192 自检对 main.js 与模板源做字节级 cmp。"
     },
     {
       "path": ".obsidian/plugins/claudian",
       "role": "retired",
       "action": "exclude",
-      "origin": "install-vault.sh:76 (CARD-G2-7a 移除)",
+      "origin": "install-vault.sh:74 (CARD-G2-7a 移除)",
       "note": "Claudian 已弃用（决策页前提 ②），CARD-G2-7a 退出部署清单。"
     },
     {
       "path": ".obsidian/plugins/dataview",
       "role": "obsidian-plugin",
       "action": "copy",
-      "origin": "install-vault.sh:76",
+      "origin": "install-vault.sh:74",
       "optional": true,
       "note": "optional（CARD-G2-7a）：第三方插件，.gitignore:213-216 不入库；--source 指 live 时可得。"
     },
@@ -186,7 +186,7 @@
       "path": ".obsidian/plugins/breadcrumbs",
       "role": "obsidian-plugin",
       "action": "copy",
-      "origin": "install-vault.sh:76",
+      "origin": "install-vault.sh:74",
       "optional": true,
       "note": "optional（CARD-G2-7a）：同上。"
     },
@@ -194,7 +194,7 @@
       "path": ".obsidian/plugins/templater-obsidian",
       "role": "obsidian-plugin",
       "action": "copy",
-      "origin": "install-vault.sh:76",
+      "origin": "install-vault.sh:74",
       "optional": true,
       "note": "optional（CARD-G2-7a）：同上。"
     },
@@ -202,81 +202,81 @@
       "path": "CLAUDE.md",
       "role": "vault-doc",
       "action": "copy",
-      "origin": "install-vault.sh:77"
+      "origin": "install-vault.sh:75"
     },
     {
       "path": "Dashboard.md",
       "role": "vault-doc",
       "action": "copy",
-      "origin": "install-vault.sh:77"
+      "origin": "install-vault.sh:75"
     },
     {
       "path": "原白板/**",
       "role": "learning-data",
       "action": "exclude",
-      "origin": "install-vault.sh:78",
+      "origin": "install-vault.sh:76",
       "note": "骨架目录只 mkdir, 不复制学习内容。"
     },
     {
       "path": "检验白板/**",
       "role": "learning-data",
       "action": "exclude",
-      "origin": "install-vault.sh:78",
+      "origin": "install-vault.sh:76",
       "note": "骨架目录只 mkdir, 不复制学习内容。"
     },
     {
       "path": "节点/**",
       "role": "learning-data",
       "action": "exclude",
-      "origin": "install-vault.sh:78",
+      "origin": "install-vault.sh:76",
       "note": "骨架目录只 mkdir, 不复制学习内容。"
     },
     {
       "path": "learning_events.jsonl",
       "role": "learning-data",
       "action": "exclude",
-      "origin": "install-vault.sh:78"
+      "origin": "install-vault.sh:76"
     },
     {
       "path": "outputs/**",
       "role": "build-artifact",
       "action": "exclude",
-      "origin": "install-vault.sh:78",
+      "origin": "install-vault.sh:76",
       "note": "outputs 骨架目录建空, 产物不复制。整棵子树, 不限条目类型。"
     },
     {
       "path": "raw/**",
       "role": "learning-data",
       "action": "exclude",
-      "origin": "install-vault.sh:84",
+      "origin": "install-vault.sh:82",
       "note": "骨架目录只 mkdir, 内容不复制。:68 的注释只点名了 原白板/检验白板/节点 与 outputs, 但 :74 对六个骨架目录一视同仁 — 按代码实际作用面补全, 不按注释的枚举。"
     },
     {
       "path": "templates/**",
       "role": "learning-data",
       "action": "exclude",
-      "origin": "install-vault.sh:84",
+      "origin": "install-vault.sh:82",
       "note": "同 raw/**: :74 的 mkdir 循环覆盖全部六个骨架目录, 内容一律不复制。"
     },
     {
       "path": "wiki/concepts/**",
       "role": "learning-data",
       "action": "exclude",
-      "origin": "install-vault.sh:84",
+      "origin": "install-vault.sh:82",
       "note": "骨架目录只 mkdir, 内容不复制 —— CARD-G2-7a 补入 skeleton 的同时必须补内容排除, 否则 wiki 下多出的文件既不报 extra 也不报 intentionally-excluded(Codex round-1 MEDIUM)。"
     },
     {
       "path": "wiki/canvases/**",
       "role": "learning-data",
       "action": "exclude",
-      "origin": "install-vault.sh:84",
+      "origin": "install-vault.sh:82",
       "note": "同 wiki/concepts/**。"
     },
     {
       "path": ".obsidian/workspace.json",
       "role": "session-state",
       "action": "exclude",
-      "origin": "install-vault.sh:78"
+      "origin": "install-vault.sh:76"
     },
     {
       "path": ".claude/**/__pycache__",
@@ -298,56 +298,56 @@
       "path": ".canvas-config.yaml",
       "role": "vault-config",
       "action": "generate",
-      "origin": "install-vault.sh:116-130",
+      "origin": "install-vault.sh:118-132",
       "note": "install-vault.sh:69 声明「不复制」，生成器按 vault 重新生成：vault_id / subject / schema_version 2.1-vault-harness-2026-09-07 / backend_url / harness_tree / push_enabled。两条源语义落在同一 path 上，故只一条 item，action=generate 已蕴含「不从源复制」。"
     },
     {
       "path": ".mcp.json",
       "role": "claude-system",
       "action": "copy",
-      "origin": "install-vault.sh:77",
+      "origin": "install-vault.sh:75",
       "note": "Claude Code CLI 唯一的 MCP 注册件（type http，url 127.0.0.1:8011/mcp）。git 追踪却从未进过任一数组 —— CARD-G2-7a 补入 ROOT_FILES。"
     },
     {
       "path": ".obsidian/templates/concept.md",
       "role": "obsidian-template",
       "action": "copy",
-      "origin": "install-vault.sh:75",
+      "origin": "install-vault.sh:73",
       "note": "Templater 概念笔记模板。git 追踪（.gitignore:205-206 白名单）却不在任何清单 —— CARD-G2-7a 补入。"
     },
     {
       "path": ".obsidian/templates/exam-board.md",
       "role": "obsidian-template",
       "action": "copy",
-      "origin": "install-vault.sh:75",
+      "origin": "install-vault.sh:73",
       "note": "Templater 考察板模板。git 追踪（.gitignore:205-206 白名单）却不在任何清单 —— CARD-G2-7a 补入。"
     },
     {
       "path": ".obsidian/themes/Underwater/manifest.json",
       "role": "obsidian-theme",
       "action": "copy",
-      "origin": "install-vault.sh:75",
+      "origin": "install-vault.sh:73",
       "note": "主题清单。git 追踪的 UI 资产，既不在任一数组也不在 extra_scan 覆盖面（覆盖面只匹配 .obsidian 下的单层 *.json）⇒ 漏了不会有任何门报警。CARD-G2-7a 补入。"
     },
     {
       "path": ".obsidian/themes/Underwater/theme.css",
       "role": "obsidian-theme",
       "action": "copy",
-      "origin": "install-vault.sh:75",
+      "origin": "install-vault.sh:73",
       "note": "主题样式。git 追踪的 UI 资产，既不在任一数组也不在 extra_scan 覆盖面（覆盖面只匹配 .obsidian 下的单层 *.json）⇒ 漏了不会有任何门报警。CARD-G2-7a 补入。"
     },
     {
       "path": "wiki/concepts",
       "role": "skeleton-dir",
       "action": "skeleton",
-      "origin": "install-vault.sh:73",
+      "origin": "install-vault.sh:71",
       "note": "概念笔记目录。**backend/app/services/vault_init_service.py:19-24 的 VAULT_DIRECTORIES 建它，而 install-vault.sh 的 SKELETON_DIRS 原本不建** ⇒ 新部署的 vault 缺这个目录。该服务是活的（backend/app/api/v1/system.py:464 有端点在用、有自己的测试套件），skills 与 MCP 工具也引用这些路径。CARD-G2-7a 补入。"
     },
     {
       "path": "wiki/canvases",
       "role": "skeleton-dir",
       "action": "skeleton",
-      "origin": "install-vault.sh:73",
+      "origin": "install-vault.sh:71",
       "note": "Canvas 画布目录。**backend/app/services/vault_init_service.py:19-24 的 VAULT_DIRECTORIES 建它，而 install-vault.sh 的 SKELETON_DIRS 原本不建** ⇒ 新部署的 vault 缺这个目录。该服务是活的（backend/app/api/v1/system.py:464 有端点在用、有自己的测试套件），skills 与 MCP 工具也引用这些路径。CARD-G2-7a 补入。"
     },
     {
@@ -355,7 +355,7 @@
       "role": "plugin-config",
       "action": "generate",
       "optional": true,
-      "origin": "install-vault.sh:132-171 (生成件段)",
+      "origin": "install-vault.sh:134-179 (生成件段)",
       "note": "4 键 backendUrl / nodePathPrefixes / activeVaultName / internalApiKey（键集实测自 live 副本，值不抄）。backendUrl 取 --backend-url；key 由 activate 步写入（CARD-G2-7b）。.gitignore:210 ⇒ 树上不存在 ⇒ optional。"
     },
     {
@@ -363,7 +363,7 @@
       "role": "plugin-config",
       "action": "generate",
       "optional": true,
-      "origin": "install-vault.sh:132-171 (生成件段)",
+      "origin": "install-vault.sh:134-179 (生成件段)",
       "note": "只写 templates_folder（live 该文件 17 键，只取模板目录这一项，其余是用户偏好）。.gitignore:210,215 ⇒ 树上整个目录都不存在 ⇒ optional。"
     },
     {

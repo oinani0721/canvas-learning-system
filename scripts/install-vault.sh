@@ -84,7 +84,9 @@ mkdir -p "$TARGET/.claude" "$TARGET/.obsidian/plugins"
 
 for item in "${CLAUDE_ITEMS[@]}"; do
     if [ -e "$SOURCE/.claude/$item" ]; then
-        cp -R "$SOURCE/.claude/$item" "$TARGET/.claude/$item"
+        # -H: 跟随**操作数**软链复制成真目录。裸 -R 会把目录软链原样放进 TARGET,
+        # 后续清理/生成沿链写穿模板源(实测 macOS cp -R 保留链接, shared data.json 被改)。
+        cp -R -H "$SOURCE/.claude/$item" "$TARGET/.claude/$item"
     else
         echo "   ⚠️ 模板缺 .claude/$item — 跳过"
     fi
@@ -101,7 +103,9 @@ for f in "${OBSIDIAN_FILES[@]}"; do
         || echo "   ⚠️ 模板缺 .obsidian/$f — 跳过"
 done
 for p in "${OBSIDIAN_PLUGINS[@]}"; do
-    [ -d "$SOURCE/.obsidian/plugins/$p" ] && cp -R "$SOURCE/.obsidian/plugins/$p" "$TARGET/.obsidian/plugins/$p" \
+    # -H 同上: 插件目录若是软链, 必须复制内容而非链接 —— 否则生成段清 data.json
+    # 会删到共享源、写入也会写穿(Codex round-2 HIGH-1, 实测坐实)。
+    [ -d "$SOURCE/.obsidian/plugins/$p" ] && cp -R -H "$SOURCE/.obsidian/plugins/$p" "$TARGET/.obsidian/plugins/$p" \
         || echo "   ⚠️ 模板缺插件 $p — 跳过"
 done
 
@@ -130,7 +134,7 @@ EOF
 # ── 生成件 (CARD-G2-7a): 每 vault 应当**不同**的东西一律生成, 不从模板源复制 ──
 # ⚠️ 先清再写: 插件目录是**整目录** cp -R 过来的, --source 指 live 时 live 的旧 data.json
 #    (含上一个 vault 的 internalApiKey/backendUrl)会跟着进来 —— 只靠下面的 [ ! -e ] 生成
-#    会被它短路。生成位必须先删, 与清 pending_archives(:96 附近)同一模式。
+#    会被它短路。生成位必须先删, 与上面清会话残留件同一模式。
 #    (Codex round-1 HIGH-1; (h)② 真跑实测目标 data.json 里是 live 的真实 key。)
 # ⚠️ 后端鉴权 key 不在这里生成: 它归 deploy-vault.sh 的 activate 步 (CARD-G2-7b),
 #    那一步才知道要跟哪个后端实例配对。自检 :key 反向判会确认这里**没有**从源复制过来。
@@ -187,7 +191,7 @@ check "hooks 配置 settings.json" '[ -f "$TARGET/.claude/settings.json" ]'
 check "MCP 注册件 .mcp.json"      '[ -f "$TARGET/.mcp.json" ]'
 check "核心插件与模板源字节一致"  'if [ -e "$SOURCE/.obsidian/plugins/canvas-learning-system/main.js" ]; then cmp -s "$SOURCE/.obsidian/plugins/canvas-learning-system/main.js" "$TARGET/.obsidian/plugins/canvas-learning-system/main.js"; else echo "      ↳ 模板源没有 main.js — 先在 harness 树跑 npm run build (deploy-vault.sh preflight, CARD-G2-7b)"; false; fi'
 check "插件启用清单+快捷键"       '[ -f "$TARGET/.obsidian/community-plugins.json" ] && [ -f "$TARGET/.obsidian/hotkeys.json" ]'
-check "后端鉴权 key 未从源复制"   'if [ ! -f "$TARGET/.obsidian/cls-internal-key.txt" ]; then true; elif [ -r "$SOURCE/.obsidian/cls-internal-key.txt" ] && [ -r "$TARGET/.obsidian/cls-internal-key.txt" ]; then ! cmp -s "$SOURCE/.obsidian/cls-internal-key.txt" "$TARGET/.obsidian/cls-internal-key.txt"; else echo "      ↳ key 存在但源/目标不可读, 无法证明未复制"; false; fi'
+check "后端鉴权 key 未从源复制"   'K="$TARGET/.obsidian/cls-internal-key.txt"; S="$SOURCE/.obsidian/cls-internal-key.txt"; if [ ! -e "$K" ]; then true; elif [ -f "$K" ] && [ -r "$K" ] && [ -f "$S" ] && [ -r "$S" ]; then ! cmp -s "$S" "$K"; else echo "      ↳ key 形态/可读性异常, 无法证明未复制"; false; fi'
 check "Dashboard + CLAUDE.md"    '[ -f "$TARGET/Dashboard.md" ] && [ -f "$TARGET/CLAUDE.md" ]'
 check "vault 配置 yaml"          'grep -q "vault_id" "$TARGET/.canvas-config.yaml"'
 
