@@ -25,7 +25,7 @@ from app.services.verification_service import (
 
 @pytest.fixture(autouse=True)
 def stub_neo4j_singleton_health_check():
-    """让 ``Neo4jClient`` 的惰性初始化**不开 socket**, 但终态与今天逐项相同。
+    """让 ``Neo4jClient`` 的惰性初始化**不开 socket**, 且**连接控制状态**与今天相同。
 
     真连点 (实测): ``verification_service.py:1927-1931`` 的
     ``get_mastery_store()`` → ``mastery_store.py:548 get_neo4j_client()`` → 首个
@@ -42,18 +42,23 @@ def stub_neo4j_singleton_health_check():
 
     ✅ patch ``health_check`` 则是把债**付清**: 单例照建, ``initialize()`` 照走
     ``_initialize_neo4j_driver``, ``health_ok=False`` 照样落 ``_fallback_to_json()``
-    ⇒ ``_use_json_fallback=True`` + ``_initialized=True`` (``:467``), 与今天连
-    失败之后的进程终态逐项相同, 只少了那一次 socket。返回 ``False`` 而不是抛,
+    ⇒ ``_use_json_fallback=True`` (``:431``) + ``_initialized=True`` (``:467``),
+    于是下一次 ``run_query`` 在 :554 不再初始化 —— **决定「还会不会再连」的那两个
+    标志与今天连失败之后完全一致**, 只少了那一次 socket。返回 ``False`` 而不是抛,
     因为真实 ``health_check`` :529-535 本来就把异常吞成 ``False``。
+
+    ⚠️ **不是「终态逐项相同」**(Codex round-1 LOW 更正, 原文如此写过): 真实失败路径
+    在 :534 会把 ``_last_health_check`` 写成一个时间戳, 而 ``AsyncMock`` 不执行方法体、
+    该字段留在 ``None``。这一项不同, 但它不参与「是否再次发起连接」的判定, 故不影响
+    上面的结论 —— 精确说法是**连接控制状态**相同, 不是整个实例状态相同。
 
     ⛔ 不放宽 W4 端口门、不把 7691 加白名单、不改生产码。
     """
     from app.clients.neo4j_client import Neo4jClient
 
-    with patch.object(
-        Neo4jClient, "health_check", AsyncMock(return_value=False)
-    ) as stub:
+    with patch.object(Neo4jClient, "health_check", AsyncMock(return_value=False)) as stub:
         yield stub
+
 
 # ===========================================================================
 # Test Fixtures

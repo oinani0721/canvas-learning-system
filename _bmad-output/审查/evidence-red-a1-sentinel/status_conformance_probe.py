@@ -7,11 +7,17 @@
 
 实测（``contract-sys-before-20260909T165510.txt``）：改动**之前**那 4 个 operation
 就已经全红，而拒因是 ``hypothesis.errors.DeadlineExceeded``（18-19s vs 10s 上限），
-``status_code_conformance`` 在整份存档里出现 **0 次**——W4 端口门让每次真实请求变慢，
-用例还没走到 schema 校验就先超时了。
+``status_code_conformance`` 在整份存档里出现 **0 次**。
 
-⇒ **那道门对本卡要验的性质是瞎的**：它红在别的原因上，before/after 都红，
-差集为空也**证明不了**没有引入未声明的状态码。本探针补的正是这一格。
+⚠️ **不要把这读成「用例还没走到 schema 校验就先超时了」**（本文件初版如此写过，
+Codex round-1 LOW 打回）：Hypothesis 是**先执行测试函数体、再判耗时**并抛
+``DeadlineExceeded``（``hypothesis/core.py:1016`` 执行、``:1041`` 判定），所以那些
+检查很可能**已经跑过**；日志里没出现检查名只能说明**它们没有报告失败**，不能证明
+它们没执行。可以确证的只有：**这 4 个 operation 的最终判定被 DeadlineExceeded 占据，
+存档里没有任何 status_code_conformance 结论**。
+
+⇒ 因此 before/after 差集为空**证明不了**没有引入未声明的状态码——那道门在这条性质上
+没有给出结论。本探针补的正是这一格。
 
 本探针证明什么
 --------------
@@ -31,6 +37,16 @@
 第二遍用**同一套观测到的状态码**，但把 spec 副本里每个 /system/* operation 的
 ``403`` 声明摘掉，再判一次。它**必须全部 FAIL**——若仍 PASS，说明本探针根本没在读声明，
 判据不成立，PASS 一律作废。
+
+⚠️ **本文件初版曾声称「真实声明变异必然要执行端点函数体、会去连 7691，所以做不了」
+——那句不成立**（Codex round-1 LOW 打回）。于是本版**补了第二道负控**：保留鉴权依赖
+不动，只在内存里的 ``app.routes`` 对象上删掉 403 声明并清掉 ``app.openapi_schema``
+缓存，然后**原样重跑一遍真实观测**。它同样必须全部 FAIL，且全程不连数据库。
+
+两道负控的力度不同，都保留：
+  · 负控 A（spec 副本变异）—— 证明判定函数会读 403 声明；
+  · 负控 B（路由对象变异 + 重新观测）—— 证明**在一棵真的缺声明的应用上**，
+    这套探针会红。B 强于 A；A 保留是因为它不改任何进程状态。
 
 用法: cd backend && .venv/bin/python ../_bmad-output/审查/evidence-red-a1-sentinel/status_conformance_probe.py
 """
@@ -89,6 +105,32 @@ def _observe() -> list[tuple[str, str, int, dict]]:
     return rows
 
 
+def _mutate_routes_drop_403():
+    """负控 B: 在真实 ``app.routes`` 上删掉 /system/* 的 403 声明, 返回还原用的快照。
+
+    ⛔ 不动鉴权依赖 —— 所以端点函数体依旧一次都不执行, 不会去连 7691。
+    """
+    saved: list[tuple[object, dict]] = []
+    for route in app.routes:
+        path = getattr(route, "path", "")
+        responses = getattr(route, "responses", None)
+        if not path.startswith(SYSTEM_PREFIX) or not isinstance(responses, dict):
+            continue
+        if 403 in responses or "403" in responses:
+            saved.append((route, dict(responses)))
+            responses.pop(403, None)
+            responses.pop("403", None)
+    app.openapi_schema = None  # 逼 FastAPI 重新生成 spec
+    return saved
+
+
+def _restore_routes(saved) -> None:
+    for route, original in saved:
+        route.responses.clear()
+        route.responses.update(original)
+    app.openapi_schema = None
+
+
 def main() -> int:
     rows = _observe()
     if not rows:
@@ -119,10 +161,30 @@ def main() -> int:
         if _declared(mutated, status):
             still_pass.append((method, path, status))
     print(f"  => 摘掉 403 的 operation {mutated_total} 个；其中仍判 PASS 的 {len(still_pass)} 个 {still_pass}")
-    neg_ok = mutated_total > 0 and not still_pass
-    print(f"  => 负控 {'成立（探针确实在读 403 声明）' if neg_ok else '不成立 —— 正判作废'}\n")
+    neg_a_ok = mutated_total > 0 and not still_pass
+    print(f"  => 负控 A {'成立（判定函数确实在读 403 声明）' if neg_a_ok else '不成立 —— 正判作废'}\n")
 
-    verdict = (not bad) and neg_ok
+    print("## 负控 B（更强）：在真实 app.routes 上删掉 403 声明 + 清 schema 缓存，**原样重跑观测**")
+    saved = _mutate_routes_drop_403()
+    try:
+        mutated_rows = _observe()
+        b_bad = [
+            (m, p, s) for m, p, s, r in mutated_rows if not _declared(r, s)
+        ]
+        b_declared_still = [
+            (m, p, s) for m, p, s, r in mutated_rows if _declared(r, s)
+        ]
+        print(f"  变异后观测到 {len(mutated_rows)} 个 operation；其中判 FAIL（未声明）{len(b_bad)} 个")
+        print(f"  仍判 PASS 的 {len(b_declared_still)} 个 {b_declared_still}")
+        neg_b_ok = len(mutated_rows) == len(rows) and not b_declared_still
+    finally:
+        _restore_routes(saved)
+    print(f"  => 负控 B {'成立（真的缺声明时这套探针会红）' if neg_b_ok else '不成立 —— 正判作废'}")
+    restored = _observe()
+    restored_ok = not [(m, p, s) for m, p, s, r in restored if not _declared(r, s)]
+    print(f"  => 还原自证：还原后重新观测再次全部 PASS = {restored_ok}\n")
+
+    verdict = (not bad) and neg_a_ok and neg_b_ok and restored_ok
     print(f"VERDICT={'PASS' if verdict else 'FAIL'}")
     return 0 if verdict else 1
 

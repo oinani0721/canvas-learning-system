@@ -36,11 +36,13 @@ router = APIRouter(
     # 必须同批声明, 否则 `tests/contract/test_openapi_contract.py` 的
     # schemathesis `status_code_conformance` 会因「返回了 schema 里没声明的 403」
     # 把 /system/* 全线打红。文案与 :783-788 / `endpoints/sync.py:63-72` 同形。
+    # ⚠️ 这里刻意**不**照 :783-788 / :849 的多行写法: 那两处是存量, `ruff format`
+    # 同样想把它们并成一行 (本卡按「禁顺手修存量」不动)。本卡新增的行必须自己合格
+    # —— Codex round-1 LOW 指出「format-dirty 文件集合相同」是文件级判据, 看不见
+    # 已脏文件里新增的违规。文案仍与那两处逐字一致。
     responses={
         403: {"description": "Invalid internal API key"},
-        503: {
-            "description": "Internal API key not configured (production fail-closed)"
-        },
+        503: {"description": "Internal API key not configured (production fail-closed)"},
     },
 )
 

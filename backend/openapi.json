@@ -15747,7 +15747,7 @@
     "description": "Multi-agent learning system backend using Feynman method",
     "title": "Canvas Learning System API",
     "version": "1.0.0",
-    "x-generated-at": "2026-09-09T10:22:43.278842+00:00",
+    "x-generated-at": "2026-09-09T10:44:30.870995+00:00",
     "x-generator": "scripts/spec-tools/check-openapi-drift.py --write"
   },
   "openapi": "3.1.0",
