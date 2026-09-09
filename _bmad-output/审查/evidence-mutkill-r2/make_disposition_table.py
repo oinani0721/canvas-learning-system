@@ -48,8 +48,17 @@ def main() -> int:
         for m in _re.finditer(r"^\[(M[^\]]+)\] \S+ \u2192 (KILLED-UNBOUND|KILLED|SURVIVED|HARNESS-ERROR)", txt, _re.M):
             final[m.group(1)] = m.group(2)
         # 空变异对照的降档发生在逐条裁决**之后**，要覆盖掉上面的 KILLED
-        for m in _re.finditer(r"^\[(M[^\]]+)\] \u2717 \u5047\u6740", txt, _re.M):
-            final[m.group(1)] = "HARNESS-ERROR(假杀)"
+        # ⛔ 降档有**四条**路径（round-2 MEDIUM：首版只认「假杀」一条）：
+        #   ① ✗ 假杀（空对照同位置）；② complete 对照 rc 非 0/1；
+        #   ③ 空变异对照 rc 非 0/1；④ 空对照位置判据面不成立。
+        for pat, lab in (
+            (r"^\[(M[^\]]+)\] \u2717 \u5047\u6740", "HARNESS-ERROR(假杀)"),
+            (r"^\[(M[^\]]+)\] \u26d4 complete \u5bf9\u7167 rc=", "HARNESS-ERROR(complete对照未跑成)"),
+            (r"^\[(M[^\]]+)\] \u26d4 \u7a7a\u53d8\u5f02\u5bf9\u7167 rc=", "HARNESS-ERROR(空对照未跑成)"),
+            (r"^\[(M[^\]]+)\] \u26d4 \u7a7a\u53d8\u5f02\u5bf9\u7167\u7684\u4f4d\u7f6e\u5224\u636e\u9762", "HARNESS-ERROR(位置判据面缺失)"),
+        ):
+            for m in _re.finditer(pat, txt, _re.M):
+                final[m.group(1)] = lab
         # ⛔ 抽取为空不是「没问题」：先断言抽取本身命中，再谈交叉结果。
         if not final:
             raise SystemExit(f"⛔ 从 {runs[-1].name} 一条裁决都没抽到 —— 抽取器坏了，不许出空表")
@@ -84,6 +93,10 @@ def main() -> int:
     # ⛔ 「新增位置绑定」≠「最终裁决 KILLED」（Codex round-1 LOW）：空变异对照可能把
     # 某条降档成 HARNESS-ERROR（假杀）。表里必须与**最新一份全跑存档**的裁决交叉。
     retired = dict_literal(G32B, "RETIRED_MUTATIONS")
+    # 与全跑存档的六档计数交叉核对（round-2 MEDIUM 要求）
+    import collections as _c
+    _dist = _c.Counter(final.values())
+    print(f"> 存档终裁分布: {dict(_dist)}\n")
     n_final_killed = sum(1 for t in loc if t in msg_ex and final.get(t) == "KILLED")
     n_final_other = n_bound - n_final_killed
     print(f"\n**按最终裁决**：{n_bound} 条新增位置绑定中，{n_final_killed} 条最终 KILLED，"

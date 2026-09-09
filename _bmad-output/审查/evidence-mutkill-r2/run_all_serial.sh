@@ -28,6 +28,20 @@ step() {  # step <名字> <命令...>
 
 : > "$E/_run_index.txt"
 
+# ⛔ 运行时 SHA 自证（Codex round-2：存档与代码的精确绑定此前未建立 —— v3 存档自报
+# 模块 952 行而 HEAD 是 957 行，差额来自 commit 前那次 ruff format）。把**跑这一趟时**
+# 五个脚本的 sha 与 git 状态落盘，存档才能被独立绑回某个代码状态。
+{
+  echo "=== 本次全跑的代码状态 ==="
+  echo "HEAD: $(git -C "$TREE" rev-parse HEAD)"
+  echo "工作树是否干净: $(test -z "$(git -C "$TREE" status --porcelain --no-renames -- . ':(exclude)_bmad-output')" && echo yes || echo NO)"
+  shasum -a 256 "$TREE"/backend/scripts/mutation_kill_identity.py \
+                "$TREE"/backend/scripts/g32b_mutation_gates.py \
+                "$TREE"/backend/scripts/g32cb_mutation_gates.py \
+                "$TREE"/backend/scripts/g32ccr1_negative_controls.py \
+                "$TREE"/backend/scripts/g33_mutation_gates.py
+} > "$E/run-code-state-$(ts).txt" 2>&1
+
 # ── 目录级（本卡改动后首跑）────────────────────────────────────────────────
 step unit-before .venv/bin/pytest tests/unit -q -p no:cacheprovider
 step regression-before .venv/bin/pytest tests/regression -q -p no:cacheprovider

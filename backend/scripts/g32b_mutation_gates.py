@@ -53,7 +53,9 @@ from mutation_kill_identity import (  # noqa: E402  (必须在 sys.path 兜底�
     kill_identity,
     loc_token_for,
     matched_loc_tokens,
+    parse_failed_nodeids,
     syntax_check,
+    unparsed_failure_lines,
 )
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -2488,11 +2490,17 @@ def _restore_active():
             # 还原」—— 变异体绝不能留, 而第三方改动也不能无声蒸发。
             stash = pathlib.Path(f"/private/tmp/g32b-mutation-thirdparty-{_ACTIVE_TAG[0]}-{_p.name}.bak")
             stash.write_bytes(now)
-            print(
-                f"[{_ACTIVE_TAG[0]}] ⚠️ 变异窗口内 {_p.name} 被第三方改动 — 其内容已存证到 {stash}; "
-                f"仍按快照还原(变异体不得留在生产文件里), 请人工核对是否需要合并回去",
-                flush=True,
-            )
+            # ⛔ 日志**不得挡住还原**（round-2 HIGH）：顺序是 存证 → print → 写回原文，
+            # print 一抛异常，当前文件与后续文件都还原不了；`RestoreGuard._safe_log`
+            # 包不到这个回调（它在 g32b 里）。诊断失败绝不能升级成数据完整性事故。
+            try:
+                print(
+                    f"[{_ACTIVE_TAG[0]}] ⚠️ 变异窗口内 {_p.name} 被第三方改动 — 其内容已存证到 {stash}; "
+                    f"仍按快照还原(变异体不得留在生产文件里), 请人工核对是否需要合并回去",
+                    flush=True,
+                )
+            except BaseException:  # noqa: BLE001  日志失败不改变控制流
+                pass
         _p.write_bytes(_orig)  # 逐字节还原 (无条件 = EXIT trap 等价)
     _ACTIVE_SNAPSHOT.clear()
 
@@ -2712,8 +2720,8 @@ def main():
             if hashlib.sha256(_p.read_bytes()).hexdigest() != hashlib.sha256(originals[_p]).hexdigest()
         ]
         if _drift:
-            print(f"[{tag}] ✗✗ 还原后字节不同: {', '.join(_drift)} — 立即停")
-            sys.exit(2)
+            print(f"[{tag}] ✗✗ 还原后字节不同: {', '.join(_drift)} — 立即停 (rc=3 数据完整性)")
+            sys.exit(3)
         sha_after = sha(path)
         if killed:
             # ⛔ round-19: 记**位置身份**而不是 `first_fail` 的文本。空变异对照要回答的是
@@ -2841,7 +2849,17 @@ def main():
             # 把 rc=4/5（用法错、零收集）与 rc=1 但「2 failed」全都落进 else 的
             # 「✓ 对照绿 ⇒ 击杀干净归因于变异体」—— 负控没跑成被读成结论。
             _r0_green = r0.returncode == 0
-            _r0_single_red = r0.returncode == 1 and "1 failed" in r0.stdout
+            # ⛔ 「恰一条失败」不能用全文子串（round-2 MEDIUM）：`11 failed`、
+            # `1 failed, 1 error` 都含 "1 failed"。改结构化：摘要区里目标门恰 1 条
+            # FAILED 且无 ERROR，且没有解析不掉的失败行。
+            _r0_out = r0.stdout + r0.stderr
+            _r0_fails = parse_failed_nodeids(_r0_out)
+            _r0_single_red = (
+                r0.returncode == 1
+                and len(_r0_fails) == 1
+                and gate_hit(nodeid_of(gate), _r0_fails)
+                and not unparsed_failure_lines(_r0_out)
+            )
             red0 = _r0_single_red
         finally:
             with _GUARD.critical():  # round-19: 还原期不可被第二个信号打断
@@ -2852,8 +2870,8 @@ def main():
             if hashlib.sha256(p.read_bytes()).hexdigest() != hashlib.sha256(originals[p]).hexdigest()
         ]
         if drift:
-            print(f"[{tag}] ✗✗ 对照还原后字节不同: {drift} — 立即停")
-            sys.exit(2)
+            print(f"[{tag}] ✗✗ 对照还原后字节不同: {drift} — 立即停 (rc=3 数据完整性)")
+            sys.exit(3)
         # ⛔ 判据不是「对照红就算假杀」—— 那条判据**太粗**, 而且是我 2026-09-02 在
         # 这道对照里亲手犯的同一个错(与 `rc != 0` 混进续跑信号同型)。粗门(如
         # test_internal_audit_findings)捆了多个子场景, 层可能弄红**另一个**子场景。
@@ -2881,13 +2899,20 @@ def main():
                 rb = run_gate(gate)
                 # 同上：complete 对照的「变异体单独不够」只认 rc=0 为绿。
                 _rb_green = rb.returncode == 0
-                b_only = rb.returncode == 1 and "1 failed" in rb.stdout
+                _rb_out = rb.stdout + rb.stderr
+                _rb_fails = parse_failed_nodeids(_rb_out)
+                b_only = (
+                    rb.returncode == 1
+                    and len(_rb_fails) == 1
+                    and gate_hit(nodeid_of(gate), _rb_fails)
+                    and not unparsed_failure_lines(_rb_out)
+                )
             finally:
                 with _GUARD.critical():  # round-19: 还原期不可被第二个信号打断
                     _restore_active()
             if hashlib.sha256(_bp.read_bytes()).hexdigest() != hashlib.sha256(_bsnap).hexdigest():
-                print(f"[{tag}] ✗✗ complete 对照还原后字节不同 — 立即停")
-                sys.exit(2)
+                print(f"[{tag}] ✗✗ complete 对照还原后字节不同 — 立即停 (rc=3 数据完整性)")
+                sys.exit(3)
             if b_only:
                 failures.append(f"{tag}: 声明为 complete 但变异体单独即可杀 ⇒ 层是多余的")
                 print(f"[{tag}] ✗ complete 但变异体单独即可杀 ⇒ 撤层")
@@ -2906,10 +2931,20 @@ def main():
             print(f"[{tag}] ⛔ 空变异对照 rc={r0.returncode}（非 0/1 或多例失败）—— 不构成结论")
             if _verdicts.get(tag) == "KILLED":
                 _verdicts[tag] = "HARNESS-ERROR"
-        elif fb is not None and fa is not None and fa[0] and fb[0] and set(fa[0]) & set(fb[0]):
-            # ⛔ 判据落在**位置**上：两次的位置集合**有交集** ⇒ 存在同一条语句既被层
-            # 打红、也在层+变异体那趟红 ⇒ 变异体在那条上毫无贡献 = 假杀。
-            _same = sorted(set(fa[0]) & set(fb[0]))
+        elif (
+            fb is not None
+            and fa is not None
+            and fa[0]
+            and fb[0]
+            and (
+                # ⛔ 有目标位置绑定时，只有**目标位置**同时出现在两趟里才算假杀
+                # （round-2 MEDIUM）：泛交集会因「别的失败位置恰好重合」把有效击杀
+                # 误降档 —— 主变异 {目标 T, 其它 U}、空对照 {U} 时 T 只在变异后才红。
+                EXPECT_LOC.get(tag) in set(fa[0]) & set(fb[0]) if EXPECT_LOC.get(tag) else set(fa[0]) & set(fb[0])
+            )
+        ):
+            _tgt = EXPECT_LOC.get(tag)
+            _same = [_tgt] if _tgt else sorted(set(fa[0]) & set(fb[0]))
             failures.append(f"{tag}: 只加层与层+变异体败在同一条断言 ⇒ 击杀由层贡献 (假杀): {_same} {fa[1][:70]}")
             print(f"[{tag}] ✗ 假杀 — 两次同一失败点 {_same}: {fa[1][:80]}")
             # ⛔ 还要**降档**：独立复核指出, 首版只 append failures 不回写 _verdicts,

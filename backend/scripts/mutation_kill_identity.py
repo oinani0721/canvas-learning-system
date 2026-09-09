@@ -622,11 +622,15 @@ def kill_identity(
         hits = [r for r in gate_reasons if expect_msg in r]
         if not hits:
             return "SURVIVED", f"红在别的断言上: expect_msg={expect_msg!r} 实见 {[r[:110] for r in gate_reasons]}"
-        if len(gate_reasons) > 1 and len(hits) < len(gate_reasons) and expect_loc is not None:
+        if len(gate_reasons) > 1 and len(hits) < len(gate_reasons) and (expect_loc is not None or require_gate_file):
             # ⛔ 位置与消息必须落在**同一次失败**上: 参数化门会出多条 FAILED, 若位置命中
             # 「不含期望消息」的那条、消息命中另一条, 两维各自由**不同**失败实例满足 ⇒
             # 单独看哪一维都不红、合起来却判 KILLED(独立复核 2026-09-08)。
             # `--tb=line` 的位置行不带 nodeid, 多条失败时**配对不可证** ⇒ 保守 HARNESS-ERROR。
+            # ⛔ round-2 扩到 `require_gate_file`(三套弱位置判据)：那三套只要求「有**某条**
+            # 失败落在门文件里」+「有**某条** reason 含消息」，两维可由**不同**失败实例
+            # 分别满足 —— 「门内失败但消息不命中」与「门外失败但消息命中」凑成 KILLED。
+            # 这突破的是弱位置判据自己的承诺，不属于 D-28 延期的「具体断言绑定」。
             return "HARNESS-ERROR", (
                 f"目标门有 {len(gate_reasons)} 条失败, 其中仅 {len(hits)} 条含期望消息 —— "
                 f"位置与消息可能落在不同失败实例上, 配对不可证"
@@ -765,7 +769,13 @@ class RestoreGuard:
             with self.critical():
                 self._restore()
         except BaseException as exc:  # noqa: BLE001  故意兜住一切: 这是退出路径的最后一道
-            traceback.print_exc()
+            # ⛔ 诊断输出也不能挡住退出（round-2 MEDIUM）：`traceback.print_exc()` 写
+            # stderr 失败会让下面的 `raise SystemExit` 到不了，而 `_finishing` 已置位
+            # ⇒ 后续信号只记录不退出。round-1 的 `_safe_log` 没覆盖这里。
+            try:
+                traceback.print_exc()
+            except BaseException:  # noqa: BLE001  诊断失败不改变控制流
+                pass
             self._log(
                 f"\n⛔ 收到信号 {signum} 后**还原失败**: {type(exc).__name__}: {exc}\n"
                 f"⛔ 变异体可能仍留在生产文件里 —— 立即人工核对全文件 sha, 不要提交"
@@ -816,6 +826,15 @@ def _read_prod_blobs(prod_roots: tuple[Path, ...]) -> tuple[list[tuple[Path, byt
         else:
             candidates = []
             for dirpath, _dirnames, filenames in os.walk(root, onerror=_onerror, followlinks=False):
+                # ⛔ 目录符号链接：`followlinks=False` 让 os.walk **不进入**它，而
+                # `_dirnames` 被丢掉 ⇒ 整棵子树既没扫也不进 errors（round-2 MEDIUM：
+                # round-1 只补了文件链接）。这里显式记下来。
+                for _d in _dirnames:
+                    _dp = Path(dirpath) / _d
+                    if _dp.is_symlink():
+                        errors.append(
+                            f"扫描面跳过**目录**符号链接 {_dp} —— 其子树未被扫描, 「生产侧命中 0 次」对该子树不成立"
+                        )
                 candidates.extend(Path(dirpath) / f for f in filenames)
         for f in candidates:
             # ⛔ 符号链接**不静默跳过**（Codex round-1 MEDIUM，撤回我此前对同型发现的

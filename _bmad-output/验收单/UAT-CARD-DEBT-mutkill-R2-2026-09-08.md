@@ -40,7 +40,7 @@
 | 5 | 信号负控（还原期打断） | `negctl-signal-<ts>.txt` | ✅ naive 对照（收口前写法）留下 **3/5 个未还原**（`target_2/3/4.txt`）⇒ 负控承重；guarded **0 未还原 + rc=130**；`RESTORE_SIGNALS` 实测含 `SIGQUIT` |
 | 5b | 信号还原的**现场**检验（非计划内） | `signal-restore-live-check-<ts>.txt` | ✅ **在真生产文件上**：`--probe` 跑到一半时对 python 进程发 SIGTERM，`RestoreGuard` 先还原再退出，8 个目标文件**逐字节**回到基线。⚠️ 这一跑是非计划内的（我先误 kill 了 shell 包装进程，python 继续跑），如实记录 |
 | 6 | PYEOF 等价性 + 三洞负控 + 两验伪锚 | `pyeof-negctl-<ts>.txt` | ✅ 两个真实 SKILL.md（quiz-answer 2 块 / start-exam-board 3 块）新旧正则提取**逐块逐字节相同**（收紧不丢覆盖面）；三洞负控 PASS；两条验伪锚 PASS —— 其中「终止行带尾随空格」这一条**正是我初稿写错的断言**，保留作验伪锚 |
-| 7 | 四套全跑（串行，**v3 = Codex round-1 整改后定稿**；v1/v2 存档早于定稿，作废不引用） | `run-g32b-20260909T103053.txt` / `run-g32cb-20260909T112309.txt` / `run-g32ccr1-20260909T113018.txt` / `run-g33-20260909T114559.txt` | ✅ **g32b：KILLED 131 / KILLED-UNBOUND 3 / SURVIVED 0 / HARNESS-ERROR 4 / ANCHOR-ERROR 0 / SYNTAX-INVALID 0，六档之和 138 ✓，rc=2**（v3 与 v2 逐项一致 ⇒ round-1 的十条收紧**未引入新回归**，也未改变任何一条关于被测物的结论）；g32cb **9/9 KILLED**（rc=0，和=9 ✓）；g32ccr1 **11/11 KILLED**（rc=0，和=11 ✓）；g33 **18/18 KILLED**（rc=0，和=18 ✓，还原逐字节+标记扫描双绿）。⚠️ g32b 的 3 条 UNBOUND 与 4 条 HARNESS-ERROR 全部**登记不改判据**：UNBOUND = M97（失败落在 yaml 库里）+ M89/M90（位置锚在前置 setup 断言上，复核抓到后主动收回）；HARNESS-ERROR = M10/M18b/M120/M125 四条**假杀暴露**——空变异对照改按**位置**比对后「只加层那趟已红在同一条断言」再也藏不住（旧文本比对被 stderr 尾巴差异掩护；复核验证者用 v1 存档独立坐实 M18b/M120/M125 三条）。另两条 complete 层债（M100/M151「变异体单独即可杀 ⇒ 撤层」）仍在 failures。⛔ 这 6 条层债的**变异重设计**移交下一批，本卡判据只负责把它们照出来 |
+| 7 | 四套全跑（串行，**v4 = Codex round-2 整改后定稿**；v1/v2/v3 存档早于定稿，作废不引用） | `run-g32b-20260909T123402.txt` / `run-g32cb-20260909T131301.txt` / `run-g32ccr1-20260909T131633.txt` / `run-g33-20260909T132102.txt`（+ 同批 `run-code-state-*.txt` 记录跑时五脚本 sha 与 HEAD） | ✅ **g32b：KILLED 131 / KILLED-UNBOUND 3 / SURVIVED 0 / HARNESS-ERROR 4 / ANCHOR-ERROR 0 / SYNTAX-INVALID 0，六档之和 138 ✓，rc=2**（v2/v3/v4 三轮逐项一致 ⇒ round-1 与 round-2 合计二十条收紧**未引入新回归**，也未改变任何一条关于被测物的结论）；g32cb **9/9 KILLED**（rc=0，和=9 ✓）；g32ccr1 **11/11 KILLED**（rc=0，和=11 ✓）；g33 **18/18 KILLED**（rc=0，和=18 ✓，还原逐字节+标记扫描双绿）。⚠️ g32b 的 3 条 UNBOUND 与 4 条 HARNESS-ERROR 全部**登记不改判据**：UNBOUND = M97（失败落在 yaml 库里）+ M89/M90（位置锚在前置 setup 断言上，复核抓到后主动收回）；HARNESS-ERROR = M10/M18b/M120/M125 四条**假杀暴露**——空变异对照改按**位置**比对后「只加层那趟已红在同一条断言」再也藏不住（旧文本比对被 stderr 尾巴差异掩护；复核验证者用 v1 存档独立坐实 M18b/M120/M125 三条）。另两条 complete 层债（M100/M151「变异体单独即可杀 ⇒ 撤层」）仍在 failures。⛔ 这 6 条层债的**变异重设计**移交下一批，本卡判据只负责把它们照出来 |
 | 8 | 六档收口前后对照（含 g33 的验伪锚） | `six-verdicts-before-after-<ts>.txt` | ✅ g33 收口前 `ANCHOR-ERROR=0`（只有 `ANCHOR-DRIFT`）/ `KILLED-UNBOUND=0` / `HARNESS-ERROR=0`；收口后 **3 / 1 / 2**，三个方向都由 0 变正 —— 这就是它自己的验伪锚。⚠️ 「收口前」一列取自 `git show 3f073a1a:<file>`（收口前的状态就是那个 commit），不是另跑一次 |
 | 9 | 统一性结构判据（VERDICTS / judge_flags / RestoreGuard） | `unification-audit-<ts>.txt` | ✅ 四套均 `from mutation_kill_identity import VERDICTS` 且 `for v in VERDICTS` 算汇总；四套均走 `judge_flags()`，**残留的手写 pytest 开关 0 行**；四套均 `RestoreGuard(`，**自写 `signal.signal(` 0 处** |
 | 10 | 跑后 sha + 标记残留 | `sha-targets-post-<ts>.txt` / `marker-post-<ts>.txt` | ✅ 8 个目标文件跑后 sha 与跑前**逐字节相同**；标记文件清单仍是那 5 项；⚠️ `g32b_mutation_gates.py` 计数 **153 → 151**，差额 2 已逐行归因：本卡 diff 里含该标记的**删除行 2 / 新增行 0**，两行都是 `_restore_one` docstring 里的**注释**，与变异体文本无关。⚠️ 卫生判据收紧：`grep -c stderr` 会命中别的卡留下的 `census-stderr.txt`（口径比它的主张宽），改精确判据 `grep -cE '\.stderr'` → 已跟踪 **0** / 工作树未跟踪 **0** |
@@ -77,7 +77,7 @@
 
 ## 6. 39 条逐条处置表 / 四套分档对照表
 
-> 最终裁决取自 `run-g32b-20260909T103053.txt`（抽到 138 条）。
+> 最终裁决取自 `run-g32b-20260909T123402.txt`（抽到 138 条）。
 
 ## 39 条 KILLED-UNBOUND 逐条处置表
 
@@ -127,6 +127,8 @@
 | 37 | `M90-receipt-drops-attempt` | ③ 该门此处是**无消息断言**, 短摘要给的是 pytest 改写出来的值(如 'assert 1 == 0' | **保留 UNBOUND** | ⓒ 实测位置落在门 `test_round9_structured_receipt` 的**第 1/14 条 assert**(`asser |
 | 38 | `M91-f1-only-unconditional-noop` | ① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N] | **绑（位置）** | `stmt:1f2e99d5342c` |
 | 39 | `M97-writeback-regex-only` | ④ 该变异让门以**未捕获异常**失败(yaml.parser.ParserError), 而不是落在门里任何一 | **保留 UNBOUND** | ⓐ 该变异让门在**门文件之外**失败(实见 file:parser.py), 只能绑到文件级弱身份; 按 check_expect_loc |
+> 存档终裁分布: {'KILLED': 131, 'HARNESS-ERROR(假杀)': 4, 'KILLED-UNBOUND': 3}
+
 
 **按最终裁决**：36 条新增位置绑定中，35 条最终 KILLED，1 条被空变异对照降档（假杀 ⇒ HARNESS-ERROR）。
 
@@ -152,7 +154,7 @@
 | `stmt:c8e430b5ce69` | M10, M2b | **两条都没有** |
 | `stmt:d86d7cf272eb` | M35, M36b, M43 | — |
 | `stmt:f2650d485101` | M68, M69 | — |
-| `stmt:f4a6fae948f0` | M89, M90 | **两条都没有** |
+| `stmt:f4a6fae948f0` | M89, M90 | **两条都没有**（⚠️ 该指纹为**历史 probe 观察值**：M89/M90 的位置绑定已在本卡撤销、回到 KILLED-UNBOUND，见第 9 节 #16） |
 
 ⇒ **5 组（12 条）位置与消息都分不开彼此**。这不影响「红在声称的那条断言上」这个结论（每条变异**单独施加**，谁触发的在运行期不含糊），但它意味着：若某条变异意外走到了它**兄弟条目**的缺陷路径上，本判据看不出来。已写进第 9 节 #13。
 
@@ -161,7 +163,7 @@
 
 ## 7. 跑前跑后 sha 对账
 
-跑前基线 `sha-targets-pre-20260908T073501.txt`（8 个文件，名单由 `count_mutations.py` 从 `MUTATIONS` 表**实测**取，不靠卡文枚举）；跑后对账 `finalize-v3-<ts>.txt` 第一段（v3 全跑后）。
+跑前基线 `sha-targets-pre-20260908T073501.txt`（8 个文件，名单由 `count_mutations.py` 从 `MUTATIONS` 表**实测**取，不靠卡文枚举）；跑后对账 `finalize-v4-<ts>.txt` 第一段（v4 全跑后）。
 
 ```
 8dc761f8…  backend/app/services/learning_event_log.py
@@ -202,7 +204,7 @@ a766fbcc…  canvas-vault/.claude/scripts/fsrs_bridge.py         ← 零写者�
 10. **不跑** `tests/integration` / `tests/e2e`；**不连** 7691 / 7687；**不动** live vault。
 11. **`--show-capture=no` 的代价如实说**：SURVIVED 诊断时不再能看到被测子进程的原文，要人工重跑一次才看得到。
 12. **`check_expect_msg_unique` 的生产侧扫描面从 `rglob` 改成 `os.walk(onerror=...)`** 只证明「枚举失败现在会被报出来」，**不证明**本树上此前真的发生过枚举失败（本树实测 0 次）。
-13. **有 8 组变异共用同一条断言位置；其中 5 组（共 12 条）位置与消息都分不开彼此**（`M23/M24/M25`、`M47/M51`、`M49/M50`、`M10/M2b`、`M89/M90`）。这**不**影响「红在声称的那条断言上」这个结论 —— 每条变异是**单独施加**的，谁触发的在运行期不含糊。但它意味着：若某条变异意外走到了它**兄弟条目**的缺陷路径上，本判据看不出来。⛔ 这一点不能靠「它们各自的门不同」来搪塞 —— 这 5 组里的条目恰恰绑的是**同一道门的同一条断言**。要分开得给门加更具身份的断言消息，而门本体不在本卡范围。逐组明细见 `fill-expect-loc-<ts>.txt` 尾部。
+13. **有 8 组变异共用同一条断言位置；其中 5 组（共 12 条）位置与消息都分不开彼此**（`M23/M24/M25`、`M47/M51`、`M49/M50`、`M10/M2b`、`M89/M90`）。这**不**影响「红在声称的那条断言上」这个结论 —— 每条变异是**单独施加**的，谁触发的在运行期不含糊。但它意味着：若某条变异意外走到了它**兄弟条目**的缺陷路径上，本判据看不出来。⚠️ 措辞更正（Codex round-2 LOW）：这 5 组里 **M23/M24/M25 属于三道不同的 narrow 门**、M49/M50 属于两道不同的门 —— 它们共用的是**同一个 helper 里的同一条断言**，不是「同一道门」。判据层面 `(nodeid, loc)` 组合仍唯一；弱的是「指纹本身跨门共用」。要分开得给门加更具身份的断言消息，而门本体不在本卡范围。逐组明细见 `fill-expect-loc-<ts>.txt` 尾部。
 14. **独立对抗复核（8 维 × 3 视角）只跑完 2 个维度**：`false-kill` / `regex-boundaries` / `loc-drift` / `over-tightening` / `selfcheck-tables` / `claims-vs-evidence` 六个维度的 agent 被**用量上限**打断（`<synthetic>` stop、0 token），⛔ 这**不是**「没发现问题」。已恢复重跑，结果补录在第 10 节 #17。在补录之前，本卡对这六个方向**没有独立复核证据**。
 15. **对抗复核（8 维 × 3 视角，Claude 子代理）的完整账目**：43 条原始发现；**18 条完成对抗验证（8 条站立 / 10 条被推翻）**，其余验证 agent 被账号周限额打断（`<synthetic>` stop、0 token）——⛔ 中断**不是**「没问题」，剩余 25 条由主循环逐条人工处置（处置表见第 10 节 #20）。两条站立 HIGH（第三方存证回归 / 空变异对照 first_fail）+ 一条验证者追加 HIGH（假杀不降档）均已修并配负控；站立 MEDIUM/LOW 中可修的已修（rc 语义统一、`file:` 死代码、两维同失败配对、豁免理由非空、`_finishing` 吞异常与吞信号、g32cb/g32ccr1 自愈窗口、g33 JSON 分母、helper 作用域判据、`--only` 缺值崩溃、陈旧行号注释、`_arm_mutation` 写盘窗口），其余登记台账。
 16. **`M89` / `M90` 的位置锚实测落在构造前提断言上**（`test_round9_structured_receipt` 第 1/14 条 assert，期望子进程成功、无消息）—— Z2-M15 假杀同型，已从 `EXPECT_LOC` 收回 `KILLED-UNBOUND`（⛔ 收紧，不是改判凑数）。筛出它们的可复跑判据：`premise_anchor_screen.py`（从 probe 存档读全部 138 条实测位置，非 `EXPECT_LOC`——只扫表的话修完就恒返 0 成死判据）。
@@ -249,7 +251,14 @@ a766fbcc…  canvas-vault/.claude/scripts/fsrs_bridge.py         ← 零写者�
     - **MEDIUM 前提锚筛依赖旧行号**：门挪行后按旧行号查不到就 `continue`，零 suspects 也 PASS = 死判据。改用 probe 的**指纹**重定位，重定位不到即判失败。
     - **LOW 处置表把「新增位置绑定」写成「最终 KILLED」**：与 M10 被降档为假杀矛盾。表改为与**最新全跑存档的最终裁决**交叉，并单列「最终 KILLED / 被降档」两个数。
 25. **Codex round-1 明确未验证的项（如实转录，不当已证）**：39 条中「当前是否已有同行歧义布局」「是否触发多失败形态」「参数化 id 是否出现过空白」「真实信号与日志故障交错」「36 条语句唯一性与目标语义」「v2 存档与当前代码的精确绑定」——均标注未验证；且它明确指出**我那 10 条「被推翻」不能整体采信**（只点名符号链接一条并已反驳，其余 9 条缺逐项反证）。这一条按原样登记，⛔ 不辩解。
-26. **跨车道交叉通报已消费**：U10-A 通报的 `Path.rglob` 抑制 `PermissionError` 形态在 `check_expect_msg_unique` 的生产侧扫描面上**真实存在**，已改 `os.walk(onerror=...)` 并把枚举失败收进返回的 problems 列表。
+26. **Codex round-2 判「不通过」（2 HIGH / 7 MEDIUM / 1 LOW），十条全部整改、无驳回**（存档 `codex-review-CARD-DEBT-mutkill-R2-r2.md`，绑 `e5dc313c`）：
+    - **HIGH 三套弱位置判据跨实例配对**：`require_gate_file` 只要求「有**某条**失败落在门文件里」+「有**某条** reason 含消息」，两维可由**不同**失败实例分别满足。⛔ 这突破的是弱位置判据自己的承诺，**不属于** D-28 延期范围。已把同次配对检查扩到 `require_gate_file`。
+    - **HIGH 存证后的 `print` 抛异常挡住还原**：顺序是「存证 → print → 写回原文」，print 一抛异常当前及后续文件都还原不了；`RestoreGuard._safe_log` 包不到这个回调（它在 g32b 里）。⚠️ 这是 round-1 修复留下的口子 —— **包装只覆盖被包装的那个调用点**。
+    - MEDIUM `traceback.print_exc()` 同型绕过 131；泛交集误降档（有 `expect_loc` 时只认目标位置在交集里）；「恰一条红」从子串改结构化（`11 failed` / `1 failed, 1 error` 都能满足 `"1 failed" in stdout`）；三处还原漂移 `exit(2)`→`exit(3)`；目录符号链接漏扫记进 `errors`；premise 筛改 AST 节点判（比较表达式挪行时子串判据变假而指纹不变）；处置表补齐四类降档 + 打印终裁分布。
+    - LOW 验收单措辞：M23/M24/M25 是**三道不同的 narrow 门**共用同一个 helper 断言，不是「同一道门」；M89/M90 的指纹标注为**已撤销的历史 probe 观察值**。
+    - **新增运行时 SHA 自证**（治它指出的「v3 存档与 HEAD 绑定未建立」：v3 存档自报模块 952 行而 HEAD 957 行，差额来自 commit 前那次 `ruff format`）：`run_all_serial.sh` 每趟落一份 `run-code-state-*.txt`，记 HEAD、工作树是否干净、五脚本 sha。
+27. **Codex round-2 明确未验证 / 未闭合的三项（原样登记）**：① **信号组合未验证** —— N3/N4/P2/N5 调用真实还原函数但不递送真实信号，信号负控用自建循环只发一次 SIGTERM；「真实信号 × 存证 × 日志故障」「正在写入的窗口」「失败退出 131」缺对应证据；② **十条「被推翻」不能整体采信** —— 符号链接一条已撤回推翻（且修复曾漏目录链接），其余九条缺各自原文与反证；③ 它同时指出若干解析面「失配不会明确报错」（`_SUMMARY_TAIL_RE` 找不到尾行直接读到 EOF、`_LOC_RE` 部分位置漏掉无完整性核对、`COLUMNS` 未检查 reason 截断）。⛔ 这三项**不在本卡闭合**，登记移交。
+28. **跨车道交叉通报已消费**：U10-A 通报的 `Path.rglob` 抑制 `PermissionError` 形态在 `check_expect_msg_unique` 的生产侧扫描面上**真实存在**，已改 `os.walk(onerror=...)` 并把枚举失败收进返回的 problems 列表。
 
 ---
 

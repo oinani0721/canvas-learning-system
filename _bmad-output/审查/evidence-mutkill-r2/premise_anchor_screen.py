@@ -39,10 +39,34 @@ lines = src.splitlines()
 tree = ast.parse(src)
 fps = stmt_fingerprints(GATE)
 
+def _wants_subprocess_success(node) -> bool:
+    """该断言是不是「期望子进程成功」（`....returncode == 0`，且不是 `!= 0`）。
+
+    按 AST 判：`Compare(left=Attribute(attr="returncode"), ops=[Eq], comparators=[0])`，
+    出现在断言测试表达式的**任意**位置（可能被 `and`/`not` 包着，也可能跨多行）。
+    """
+    if node is None:
+        return False
+    for sub in ast.walk(node.test):
+        if not isinstance(sub, ast.Compare) or len(sub.ops) != 1:
+            continue
+        if not isinstance(sub.ops[0], ast.Eq):
+            continue
+        left, right = sub.left, sub.comparators[0]
+        if isinstance(left, ast.Attribute) and left.attr == "returncode":
+            if isinstance(right, ast.Constant) and right.value == 0:
+                return True
+    return False
+
+
+assert_nodes: dict[int, ast.Assert] = {}
 func_asserts: dict[str, list[int]] = {}
 for n in ast.walk(tree):
     if isinstance(n, ast.FunctionDef):
-        a = sorted(x.lineno for x in ast.walk(n) if isinstance(x, ast.Assert))
+        _as = [x for x in ast.walk(n) if isinstance(x, ast.Assert)]
+        for _x in _as:
+            assert_nodes[_x.lineno] = _x
+        a = sorted(x.lineno for x in _as)
         if a:
             func_asserts[n.name] = a
 
@@ -95,7 +119,10 @@ for mut in g32b.MUTATIONS:
         continue
     c1 = g32b.EXPECT_MSG.get(tag) is None
     c2 = func_asserts[owner][0] == ln
-    c3 = "returncode == 0" in text and "!= 0" not in text
+    # ⛔ 用 AST 节点判，不在**起始行**做子串（round-2 MEDIUM）：比较表达式挪到
+    # 后续行时指纹不变、重定位成功，而 `"returncode == 0" in lines[ln-1]` 变假
+    # ⇒ 静默漏判且零 suspects 照样 PASS。
+    c3 = _wants_subprocess_success(assert_nodes.get(ln))
     if c1 and c2 and c3:
         suspects.append((tag, mut[4], owner, ln, text))
 
