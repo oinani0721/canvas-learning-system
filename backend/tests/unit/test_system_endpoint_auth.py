@@ -59,7 +59,7 @@ def _settings_factory(*, debug: bool, key: str):
 
     该档过去建不出 ``Settings``。``app/config.py::validate_security_defaults``
     是个 ``@model_validator(mode="after")``，``is_local`` 要求 ``DEBUG=True``
-    且 CORS 含 localhost；``DEBUG=False`` + 空 key 命中 ``raise ValueError(
+    且 CORS 含 ``localhost`` **或** ``127.0.0.1``；``DEBUG=False`` + 空 key 命中 ``raise ValueError(
     "INTERNAL_API_KEY required outside local dev. ...")``。异常抛在这个
     override 闭包里 = **请求处理期**，被 ``app/main.py::CORSExceptionMiddleware``
     兜成 **500** —— 请求根本没走到 ``app/security.py``。于是这一档过去测到的
@@ -153,7 +153,8 @@ class TestSystemConfigAuth:
         assert "not configured" in response.json()["detail"].lower()
         # CARD-RED-A2: 绑「被哪一层拒的」。Branch 1 与 Branch 2 都返回 503，且
         # Branch 2 的 detail 以 Branch 1 的整句为前缀 —— 对两支共有的那段前缀做
-        # 正向子串断言（如上一行）分辨不了层；正向锁定 Branch 1 要用精确等值。
+        # 正向子串断言（如上一行）分辨不了层。此处采用精确等值，锁定 Branch 1
+        # 的完整 detail 文案（不是唯一可行的正向判据，是本卡选定的那一个）。
         # 精确等值 + 发出 Branch 1 那条记录的函数与带括号的
         # 完整标记，才能证明请求走到了 security.py 的生产分支。⚠️ 不能用裸 token
         # 子串匹配 caplog.text：WebSocket 侧分支同 logger 同级别，其标记以 "ws_"
@@ -218,7 +219,8 @@ class TestSystemTestLLMAuth:
         assert response.status_code == 503
         # CARD-RED-A2: 绑「被哪一层拒的」。Branch 1 与 Branch 2 都返回 503，单看
         # 状态码分辨不了层；Branch 2 的 detail 又以 Branch 1 的整句为前缀，对两支
-        # 共有的那段前缀做正向子串断言同样分不开，正向锁定要用精确等值。
+        # 共有的那段前缀做正向子串断言同样分不开。此处采用精确等值，锁定
+        # Branch 1 的完整 detail 文案（不是唯一可行的正向判据，是选定的那一个）。
         # 精确等值 + 发出 Branch 1 那条记录的函数与带括号的
         # 完整标记，才能证明请求走到了 security.py 的生产分支。⚠️ 不能用裸 token
         # 子串匹配 caplog.text：WebSocket 侧分支同 logger 同级别，其标记以 "ws_"

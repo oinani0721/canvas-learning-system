@@ -66,7 +66,7 @@ def _settings_factory(*, debug: bool, key: str):
 
     该档过去建不出 ``Settings``。``app/config.py::validate_security_defaults``
     是个 ``@model_validator(mode="after")``，``is_local`` 要求 ``DEBUG=True``
-    且 CORS 含 localhost；``DEBUG=False`` + 空 key 命中 ``raise ValueError(
+    且 CORS 含 ``localhost`` **或** ``127.0.0.1``；``DEBUG=False`` + 空 key 命中 ``raise ValueError(
     "INTERNAL_API_KEY required outside local dev. ...")``。异常抛在这个
     override 闭包里 = **请求处理期**，被 ``app/main.py::CORSExceptionMiddleware``
     兜成 **500** —— 请求根本没走到 ``app/security.py``。于是这一档过去测到的
@@ -167,7 +167,8 @@ class TestProductionFailClosed:
         # ALLOW_UNSAFE_DEV_AUTH_BYPASS=true for loopback dev." 的长文案）——
         # 所以对**两支共有的那段前缀**做正向子串断言（如上一行那条既有断言）
         # 分辨不了层。对 Branch 2 独有的后缀做 `in` 倒是能分，但那断的是
-        # 「不是 Branch 1」、方向相反；要正向锁定 Branch 1 仍得用 `==`。
+        # 「不是 Branch 1」、方向相反。此处采用精确等值，锁定 Branch 1 的完整
+        # detail 文案（这不是唯一可行的正向判据，是本卡选定的那一个）。
         # 下面两条把判据绑到 Branch 1 的身份上：
         #   ① detail 精确等值；
         #   ② 发出 Branch 1 那条 logger.error 的**函数** + 带括号的完整标记。
