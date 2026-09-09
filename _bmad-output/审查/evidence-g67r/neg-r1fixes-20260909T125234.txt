@@ -1,0 +1,28 @@
+== 变异前 sha: a70aef4e9f87d1794de5e7333337ffdd642e165a47b09ea1525241cae45eb0ac
+
+════════ 变异 H1 ════════
+[mutate] H1 已退回
+[mutate] H1b 已退回
+105:        _remember_base(state, st)  # [MUTANT-H1] 快照退回归一化之前
+117:        # [MUTANT-H1] 归一化后的快照被挪走了
+2
+FAILED tests/regression/test_daily_review_run.py::test_g67r_upgrade_default_account_does_not_clobber_window_write
+=========== 1 failed, 9 passed, 39 deselected, 10 warnings in 2.42s ============
+
+════════ 变异 H2 ════════
+[mutate] H2 已退回
+117:        _remember_base(state, st)
+1
+FAILED tests/regression/test_daily_review_run.py::test_g67r_fresh_state_does_not_clobber_account_created_in_the_window
+=========== 1 failed, 9 passed, 39 deselected, 10 warnings in 2.41s ============
+
+════════ 变异 H3 ════════
+[mutate] H3 已退回
+117:        _remember_base(state, st)
+1
+FAILED tests/regression/test_daily_review_run.py::test_g67r_state_lock_refuses_symlinked_lock_path
+=========== 1 failed, 9 passed, 39 deselected, 10 warnings in 2.43s ============
+
+== 还原后 sha: a70aef4e9f87d1794de5e7333337ffdd642e165a47b09ea1525241cae45eb0ac
+[restore] 已还原
+rc=0

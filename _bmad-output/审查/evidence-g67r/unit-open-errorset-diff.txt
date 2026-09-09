@@ -1,0 +1,6 @@
+# 开工 ERROR 集定向确认  BASE=709beb0b
+# 全量 -rf 不打印 ERROR 短摘要 (pytest 短摘要 flag 只加了 f), 故定向重跑四个 ERROR 文件补齐逐条比对
+# 定向命令: pytest -q -p no:cacheprovider -rfE tests/unit/test_agent_service_extraction.py tests/unit/test_memory_service_batch.py tests/unit/test_story_30_11_batch_parallel.py tests/unit/test_story_30_13_batch_idempotency.py
+# 结论: 29 条 ERROR nodeid 与红基线该四文件的 29 条逐条相同 (diff 空)
+# 定向输出多出的 FAILED test_config_has_debug_agent_response_field 是 grep 口径差 (基线里它是 FAILED 不是 ERROR), 已在全量 FAILED 集中对上
+rc=0  (0 = 逐条相同)

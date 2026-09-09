@@ -1,0 +1,4 @@
+# 收工 unit nodeid diff (最终态)  基线=evidence-b13/unit-red-baseline-da690bf8.txt (202)
+# 口径: grep -E '^(FAILED|ERROR) tests/' | sed 's/ - .*$//' | sort -u
+# 存档: _bmad-output/审查/evidence-g67r/unit-close-final-20260909T141830.txt
+rc=0  (0 = 逐条相同, 零 < 零 >)

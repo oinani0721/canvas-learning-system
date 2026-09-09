@@ -1,0 +1,24 @@
+# 裁判 6 (BASE 侧对照, 重测)  BASE=709beb0bfa63348394f49f2b7fc6fa829c40b947
+# ⚠ 前一版把 git show 写成内联 $(git show $BASE:path | grep -c) —— zsh 的冒号修饰符
+#   会劫持 rev:path, 计数静默变 0 (memory reference_zsh_colon_modifier_hijacks_git_rev_path)。
+#   本版一律先落文件再 grep, 并打印 git show 的 rc 与字节数自证真跑了。
+backend/app/api/v1/endpoints/review_overview.py  git_show_rc=0 bytes=  138840
+    snooze          BASE=1 HEAD=1
+    board_done=     BASE=0 HEAD=0
+    learning_events.jsonl  BASE=0 HEAD=0
+    method: "POST"  BASE=0 HEAD=0
+backend/app/api/v1/endpoints/review_app.py  git_show_rc=0 bytes=   44661
+    snooze          BASE=0 HEAD=0
+    board_done=     BASE=0 HEAD=0
+    learning_events.jsonl  BASE=0 HEAD=0
+    method: "POST"  BASE=2 HEAD=3
+scripts/daily_review_pick.py  git_show_rc=0 bytes=   70927
+    snooze          BASE=0 HEAD=0
+    board_done=     BASE=1 HEAD=2
+    learning_events.jsonl  BASE=0 HEAD=0
+    method: "POST"  BASE=0 HEAD=0
+scripts/daily_review_run.py  git_show_rc=0 bytes=   19015
+    snooze          BASE=0 HEAD=0
+    board_done=     BASE=1 HEAD=1
+    learning_events.jsonl  BASE=0 HEAD=0
+    method: "POST"  BASE=0 HEAD=0

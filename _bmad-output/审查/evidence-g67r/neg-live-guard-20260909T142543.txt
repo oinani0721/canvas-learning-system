@@ -1,0 +1,9 @@
+# 护栏负控: 把 monkeypatch.undo() 改回去, _forbid_live_backups_writes 必须红
+# (初版护栏只比文件名集合 —— 污染物已在 before 里, 变异照样绿; 已强化为三元组)
+23848d92225b42358f0b7a3d93bce0d377dbfd60f989883ef5bc145892908a78  backend/tests/regression/test_daily_review_run.py
+[mutate] 换回 undo()
+    assert not changed, f"用例动了真实仓库的 backups/: {sorted(changed)}"
+E   AssertionError: 用例动了真实仓库的 backups/: ['daily-review.vault.state.json']
+============ 1 passed, 54 deselected, 10 warnings, 1 error in 0.61s ============
+== 还原后 sha ==
+23848d92225b42358f0b7a3d93bce0d377dbfd60f989883ef5bc145892908a78  backend/tests/regression/test_daily_review_run.py
