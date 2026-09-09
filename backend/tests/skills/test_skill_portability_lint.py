@@ -299,17 +299,24 @@ def _fence_blocks(text: str) -> list[tuple[int, list[str], bool]]:
         if m and not re.search(re.escape(m.group(1)[0]) + "{%d,}" % len(m.group(1)), lines[i][m.end() :]):
             mark = m.group(1)
             ch, width = mark[0], len(mark)
+            # ⚠️ 标记行本身按**散文**产出而不是丢弃: ``` P = "/tmp/cls-exam/../x" 这类
+            # 把路径写在 info string 位置的行, 丢掉标记行就等于让它对全部集合判据隐形。
+            out.append((i + 1, [lines[i]], False))
             body: list[str] = []
             start = i + 2  # body 的首个物理行号
+            closing: tuple[int, list[str], bool] | None = None
             i += 1
             while i < n:
                 m2 = _FENCE_RE.match(lines[i])
                 if m2 and m2.group(1)[0] == ch and len(m2.group(1)) >= width:
+                    closing = (i + 1, [lines[i]], False)
                     i += 1
                     break
                 body.append(lines[i])
                 i += 1
             out.append((start, body, True))
+            if closing is not None:
+                out.append(closing)
         else:
             out.append((i + 1, [lines[i]], False))
             i += 1
@@ -366,6 +373,40 @@ def _py_strings(src: str) -> list[str] | None:
     return out
 
 
+#: 累积窗口上限: 一条逻辑语句最多跨几个物理行。
+_PARSE_WINDOW = 8
+
+
+def _parse_units(body: list[str]) -> list[tuple[int, str, list[str] | None]]:
+    r"""fence 体 → `[(块内偏移, 源码块, ast 字符串或 None)]` —— **按语法单元切, 不按物理行**。
+
+    ⛔ 这是 2026-09-09 一次 50-agent 独立复核实测出的根因(非 Codex 报): 原先整块
+    `ast.parse` 失败就退到**逐物理行** parse, 于是任何跨物理行的语法结构整类失明 ——
+    而本仓每份 SKILL.md 的 python 都装在 `python3 - <<'PYEOF'` heredoc 里, 整块解析
+    **恒失败** ⇒ 恒走逐行 ⇒ 开括号换行的
+    `P = os.path.join(`␊`    "/tmp/cls-exam/", updir, "x")` 两行都 parse 不出来:
+    第一行不完整, 第二行括号不平衡, `shlex` 也弃权, 只剩裸 token 看到合规前缀。
+    (`black` 折长行就会自然产生这个形态, 不需要谁刻意去写。)
+
+    做法: 从每行起累加至多 `_PARSE_WINDOW` 行, 第一次 `ast.parse` 成功即认作一个
+    语法单元并跳过整段; 整窗都失败则该行单独退回(交给 `shlex` 与裸 token)。
+    """
+    out: list[tuple[int, str, list[str] | None]] = []
+    i, n = 0, len(body)
+    while i < n:
+        for j in range(i, min(i + _PARSE_WINDOW, n)):
+            chunk = textwrap.dedent("\n".join(body[i : j + 1]))
+            values = _py_strings(chunk)
+            if values is not None:
+                out.append((i, chunk, values))
+                i = j + 1
+                break
+        else:
+            out.append((i, body[i], None))
+            i += 1
+    return out
+
+
 def _sh_words(line: str) -> list[str] | None:
     """`shlex` 按 POSIX 语义切出的词; 引号不闭合等畸形输入返回 None。"""
     try:
@@ -400,13 +441,8 @@ def escaping_tmp_paths(text: str) -> list[tuple[str, str]]:
                 values = _py_strings(textwrap.dedent(block))  # ①' 整块缩进
             if values is None:
                 values = []
-                for line in body:  # ② 逐行: Python → shell
-                    per_line = _py_strings(line)
-                    if per_line is None:  # r6 HIGH-3: 缩进行单跑是 IndentationError
-                        per_line = _py_strings(line.strip())
-                    if per_line is None:
-                        per_line = _sh_words(line) or []
-                    values.extend(per_line)
+                for _off, chunk, parsed in _parse_units(body):  # ② 语法单元: Python → shell
+                    values.extend(parsed if parsed is not None else (_sh_words(chunk) or []))
             for value in values:
                 add(value)
         else:
@@ -457,21 +493,25 @@ def _logical_lines(text: str) -> list[tuple[int, str, bool]]:
     return out
 
 
+#: 走到这些节点就说明「这个常量一路都是可折的」, 停止上溯。
+_STATEMENT_NODES = (ast.Assign, ast.AnnAssign, ast.AugAssign, ast.Expr, ast.Return)
+
+
 def _has_dynamic_tmp_join(src: str) -> bool:
-    """该源码里是否存在「含 `/tmp` 的字符串常量参与了**动态**拼接/格式化」。
+    r"""该源码里是否存在「含 `/tmp` 的字符串常量**参与了静态折不出来的运算**」。
 
-    ⛔ **v3 自查发现的残余边界**(2026-09-09, 本卡自己找的, 不是 Codex 报的):
-    `P = "/tmp/cls-exam/" + PARENT + "/x"` —— `ast` 折不了非常量, 所以越界判据只看到
-    合规的 `/tmp/cls-exam/` 片段; 行内既无 `..` 也无 `$`, 可疑行判据同样看不见 ⇒
-    **五条判据全盲**。同形态还有 `% updir`、`.format(d)`、`os.path.join(NS, U, x)`、
-    f-string 插值、`chr(46)*2` 之类把 `..` 藏进变量的写法。
+    口径(2026-09-09 由一次 50-agent 独立复核逼出的重写): 原先是**节点类型白名单**
+    (`BinOp(+/%)` / `JoinedStr` / `Call`), 于是 `IfExp` / `Subscript` / `Tuple` /
+    `List` / bytes 字面量整类漏掉 —— 而 `P = "/tmp/cls-exam/x" if 0 else "/etc/passwd"`
+    的真实落点是 `/etc/passwd`, 计数还一动不动(左边那个字面量仍在, `tmp_all`/`tmp_ns`
+    都不变), 越界判据又因 `"/tmp" not in "/etc/passwd"` 早退。
 
-    这些的共同点是: 最终路径**静态不可判**, 与 `$1`/`${REL}` 属同一档 —— 所以处置
-    也相同: **要求登记**, 而不是假装能算出它指向哪里。触发条件刻意从宽:
-      · `BinOp(+ 或 %)` 折不出常量, 且链里有含 `/tmp` 的字符串常量;
-      · `JoinedStr`(带插值的 f-string) 里有含 `/tmp` 的常量;
-      · 任何 `Call` 的参数里有含 `/tmp` 的常量(覆盖 `.format` / `join` / `os.path.join`)。
-    合规的纯常量与隐式拼接**不触发**(它们由 `ast` 折成单个 Constant, 越界判据已能定论)。
+    现在改成**完备的取反口径**: 从每个含 `/tmp` 的常量向上走父链, 只要祖先还能被
+    `_fold_str()` **完全折成一个字符串**就继续上走; 一路折到语句层 ⇒ 这是纯静态字面量
+    (越界判据已能定论); 中途遇到折不出来的祖先 ⇒ 这个常量参与了动态运算, **要求登记**。
+
+    这样不再依赖「我想得到哪些节点类型」: 任何新的表达式形态默认落进「折不出来」一侧。
+    bytes 常量同样纳入(`b"/tmp/…".decode()` 原先被 `isinstance(..., str)` 整个丢掉)。
     """
     tree = next(
         (t for t in (_quiet_parse(c) for c in (src, src.strip(), textwrap.dedent(src))) if t is not None),
@@ -480,18 +520,26 @@ def _has_dynamic_tmp_join(src: str) -> bool:
     if tree is None:
         return False
 
-    def _mentions_tmp(node: ast.AST) -> bool:
-        return any(
-            isinstance(sub, ast.Constant) and isinstance(sub.value, str) and "/tmp" in sub.value
-            for sub in ast.walk(node)
-        )
+    parent: dict[int, ast.AST] = {}
+    for node in ast.walk(tree):
+        for child in ast.iter_child_nodes(node):
+            parent[id(child)] = node
 
     for node in ast.walk(tree):
-        if isinstance(node, ast.BinOp) and isinstance(node.op, (ast.Add, ast.Mod)):
-            if _fold_str(node) is None and _mentions_tmp(node):
-                return True
-        elif isinstance(node, (ast.JoinedStr, ast.Call)) and _mentions_tmp(node):
-            return True
+        if not isinstance(node, ast.Constant) or not isinstance(node.value, (str, bytes)):
+            continue
+        raw = node.value if isinstance(node.value, str) else node.value.decode("utf-8", "replace")
+        if "/tmp" not in raw:
+            continue
+        cur: ast.AST = node
+        while True:
+            par = parent.get(id(cur))
+            if par is None or isinstance(par, _STATEMENT_NODES):
+                break  # 一路可折到语句层 ⇒ 纯静态, 交给越界判据
+            if _fold_str(par) is not None:
+                cur = par  # 祖先仍完全可折, 继续上溯
+                continue
+            return True  # 折不出来 ⇒ 落点静态不可判
     return False
 
 
@@ -506,9 +554,9 @@ def dynamic_tmp_join_lines(text: str) -> list[tuple[int, str]]:
     for start, body, is_fence in _fence_blocks(text):
         if not is_fence:
             continue
-        for offset, line in enumerate(body):
-            if "/tmp" in line and _has_dynamic_tmp_join(line):
-                out.append((start + offset, line.strip()))
+        for offset, chunk, _parsed in _parse_units(body):  # 按语法单元, 不按物理行
+            if "/tmp" in chunk and _has_dynamic_tmp_join(chunk):
+                out.append((start + offset, chunk.splitlines()[0].strip()))
     return out
 
 
@@ -795,17 +843,45 @@ QUIZ_ANSWER_BASELINE: dict[str, int] = {
 }
 
 # ── 层 3 基线 ───────────────────────────────────────────────────────────────
-SCRIPT_METRICS = ("tmp", "users_path", "tree_name")
+SCRIPT_METRICS = ("tmp", "p8011_all", "p8011_ns", "localhost", "users_path", "tree_name")
 
 #: 非 U6 地盘的 5 份。路径相对 root(`canvas-vault/.claude`), posix 写法。
 #: `scripts/fsrs_bridge.py` 的 `/Users/` 1 + 树名 1 是**零写者**的写死路径, 只钉不改
 #: (本卡硬边界: 禁碰 `fsrs_bridge.py` / `decay_beta.py`)。
 SCRIPTS_BASELINE: dict[str, dict[str, int]] = {
-    "skills/board-recap/scripts/recap_scan.py": {"tmp": 1, "users_path": 0, "tree_name": 0},
-    "skills/board-split/scripts/split_preview.py": {"tmp": 0, "users_path": 0, "tree_name": 0},
-    "scripts/decay_beta.py": {"tmp": 0, "users_path": 0, "tree_name": 0},
-    "scripts/fsrs_bridge.py": {"tmp": 0, "users_path": 1, "tree_name": 1},
-    "scripts/sync_board_concepts.py": {"tmp": 0, "users_path": 0, "tree_name": 0},
+    "skills/board-recap/scripts/recap_scan.py": {
+        "tmp": 1,
+        "p8011_all": 0,
+        "p8011_ns": 0,
+        "localhost": 0,
+        "users_path": 0,
+        "tree_name": 0,
+    },
+    "skills/board-split/scripts/split_preview.py": {
+        "tmp": 0,
+        "p8011_all": 0,
+        "p8011_ns": 0,
+        "localhost": 0,
+        "users_path": 0,
+        "tree_name": 0,
+    },
+    "scripts/decay_beta.py": {"tmp": 0, "p8011_all": 0, "p8011_ns": 0, "localhost": 0, "users_path": 0, "tree_name": 0},
+    "scripts/fsrs_bridge.py": {
+        "tmp": 0,
+        "p8011_all": 0,
+        "p8011_ns": 0,
+        "localhost": 0,
+        "users_path": 1,
+        "tree_name": 1,
+    },
+    "scripts/sync_board_concepts.py": {
+        "tmp": 0,
+        "p8011_all": 0,
+        "p8011_ns": 0,
+        "localhost": 0,
+        "users_path": 0,
+        "tree_name": 0,
+    },
 }
 
 # ── 交接常量 ② ─────────────────────────────────────────────────────────────
@@ -816,8 +892,22 @@ SCRIPTS_BASELINE: dict[str, dict[str, int]] = {
 #: U4-B 在合并队列**第 2 组**、U6 在**第 3 组** ⇒ U6 rebase 到含本卡的候选树后自查此常量。
 #: 三项计数实测均 0 = **零余量**, 加任何一处 `/tmp` / `/Users/` / 树名即红。
 U6_SCRIPTS_BASELINE: dict[str, dict[str, int]] = {
-    "skills/board-recap/scripts/recap_exam_build.py": {"tmp": 0, "users_path": 0, "tree_name": 0},
-    "skills/clear-inbox/scripts/inbox_preview.py": {"tmp": 0, "users_path": 0, "tree_name": 0},
+    "skills/board-recap/scripts/recap_exam_build.py": {
+        "tmp": 0,
+        "p8011_all": 0,
+        "p8011_ns": 0,
+        "localhost": 0,
+        "users_path": 0,
+        "tree_name": 0,
+    },
+    "skills/clear-inbox/scripts/inbox_preview.py": {
+        "tmp": 0,
+        "p8011_all": 0,
+        "p8011_ns": 0,
+        "localhost": 0,
+        "users_path": 0,
+        "tree_name": 0,
+    },
 }
 
 
@@ -847,13 +937,22 @@ def _body_counts(text: str) -> dict[str, int]:
 
 
 def _script_counts(text: str) -> dict[str, int]:
-    """一份 scripts/*.py 的 3 项指标实测值。
+    """一份 scripts/*.py 的 5 项指标实测值。
 
     ⛔ 层 3 的 `tmp` 口径是 `/tmp`(**无**尾斜杠) —— 脚本里 `/tmp` 常以
     `os.path.join("/tmp", x)` 或散文形态出现, 带尾斜杠会漏。
+
+    ⛔ `p8011_all` / `p8011_ns` 是 2026-09-09 补的(一次 50-agent 独立复核指出):
+    层 2 对 SKILL.md 把 8011 钉了 all/ns 两端, 层 3 原先**一个端口指标都没有** ——
+    口径分叉, 于是「往受覆盖的 scripts 里搬一行 `BACKEND_URL = "http://…:8011/…"`」
+    在层 3 三项计数上完全等值。7 份实测全 0, 补进来零维护成本。
+    `localhost` 一并纳入: 端口换成别的数字(8012/8000)时 `p8011_*` 是瞎的。
     """
     return {
         "tmp": _count(text, "/tmp"),
+        "p8011_all": _count(text, "8011"),
+        "p8011_ns": _count(text, URL_DEFAULT_FORM),
+        "localhost": _count(text, "localhost") + _count(text, "127.0.0.1"),
         "users_path": _count(text, "/Users/"),
         "tree_name": _count(text, "feature-obsidian-hybrid-dev"),
     }
@@ -1510,7 +1609,17 @@ def test_baseline_constants_are_disjoint_and_complete():
             lambda b, s, u: (
                 b,
                 s,
-                {**u, "skills/clear-inbox/scripts/new_u6_tool.py": {"tmp": 0, "users_path": 0, "tree_name": 0}},
+                {
+                    **u,
+                    "skills/clear-inbox/scripts/new_u6_tool.py": {
+                        "tmp": 0,
+                        "p8011_all": 0,
+                        "p8011_ns": 0,
+                        "localhost": 0,
+                        "users_path": 0,
+                        "tree_name": 0,
+                    },
+                },
             ),
             None,
             "U6 在自己地盘登记零余量新脚本 ⇒ **必须放行**(注释叫人这么做, 判据就不能拦)",
@@ -1521,7 +1630,21 @@ def test_baseline_constants_are_disjoint_and_complete():
             "删掉交接项 ⇒ 拦",
         ),
         (
-            lambda b, s, u: (b, s, {**u, "scripts/fsrs_bridge.py": {"tmp": 0, "users_path": 1, "tree_name": 1}}),
+            lambda b, s, u: (
+                b,
+                s,
+                {
+                    **u,
+                    "scripts/fsrs_bridge.py": {
+                        "tmp": 0,
+                        "p8011_all": 0,
+                        "p8011_ns": 0,
+                        "localhost": 0,
+                        "users_path": 1,
+                        "tree_name": 1,
+                    },
+                },
+            ),
             "只收 U6 地盘",
             "把别人地盘的脚本挂到 U6 名下换维护归属 ⇒ 拦",
         ),
@@ -1529,7 +1652,17 @@ def test_baseline_constants_are_disjoint_and_complete():
             lambda b, s, u: (
                 b,
                 s,
-                {**u, "skills/clear-inbox/scripts/new_u6_tool.py": {"tmp": 1, "users_path": 1, "tree_name": 0}},
+                {
+                    **u,
+                    "skills/clear-inbox/scripts/new_u6_tool.py": {
+                        "tmp": 1,
+                        "p8011_all": 0,
+                        "p8011_ns": 0,
+                        "localhost": 0,
+                        "users_path": 1,
+                        "tree_name": 0,
+                    },
+                },
             ),
             "必须零余量",
             "登记位置对, 但顺手把新债一起带进来 ⇒ 拦(Codex round-2 MEDIUM-3)",
@@ -1542,7 +1675,17 @@ def test_baseline_constants_are_disjoint_and_complete():
         (
             lambda b, s, u: (
                 b,
-                {**s, "skills/clear-inbox/scripts/inbox_preview.py": {"tmp": 0, "users_path": 0, "tree_name": 0}},
+                {
+                    **s,
+                    "skills/clear-inbox/scripts/inbox_preview.py": {
+                        "tmp": 0,
+                        "p8011_all": 0,
+                        "p8011_ns": 0,
+                        "localhost": 0,
+                        "users_path": 0,
+                        "tree_name": 0,
+                    },
+                },
                 u,
             ),
             "不得同时出现",
@@ -1553,7 +1696,14 @@ def test_baseline_constants_are_disjoint_and_complete():
                 b,
                 {
                     **s,
-                    "skills/clear-inbox/scripts/inbox_preview.py": {"tmp": 1, "users_path": 0, "tree_name": 0},
+                    "skills/clear-inbox/scripts/inbox_preview.py": {
+                        "tmp": 1,
+                        "p8011_all": 0,
+                        "p8011_ns": 0,
+                        "localhost": 0,
+                        "users_path": 0,
+                        "tree_name": 0,
+                    },
                 },
                 {k: v for k, v in u.items() if k != "skills/clear-inbox/scripts/inbox_preview.py"},
             ),
@@ -1564,7 +1714,17 @@ def test_baseline_constants_are_disjoint_and_complete():
             lambda b, s, u: (
                 b,
                 s,
-                {**u, "skills/clear-inbox/scripts/inbox_preview.py": {"tmp": 1, "users_path": 0, "tree_name": 0}},
+                {
+                    **u,
+                    "skills/clear-inbox/scripts/inbox_preview.py": {
+                        "tmp": 1,
+                        "p8011_all": 0,
+                        "p8011_ns": 0,
+                        "localhost": 0,
+                        "users_path": 0,
+                        "tree_name": 0,
+                    },
+                },
             ),
             "必须零余量",
             "seed 脚本带债仍留 U6 表 ⇒ 拦(r4 MEDIUM-6; 此例同时抓住 r2 版『seed 豁免』的回退)",
@@ -1652,7 +1812,14 @@ def test_negative_control_new_script_reddens_layer3_twice(sandbox: Path):
     # 计数那一条: 把 probe.py 登记进基线后, 内容里的 /Users/ 仍必须被计数抓到
     baseline = {
         **_merged_scripts_baseline(),
-        "skills/board-split/scripts/probe.py": {"tmp": 0, "users_path": 0, "tree_name": 0},
+        "skills/board-split/scripts/probe.py": {
+            "tmp": 0,
+            "p8011_all": 0,
+            "p8011_ns": 0,
+            "localhost": 0,
+            "users_path": 0,
+            "tree_name": 0,
+        },
     }
     problems2 = check_scripts(sandbox, baseline)
     joined2 = "\n".join(problems2)
@@ -2002,6 +2169,171 @@ def test_negative_control_opaque_tmp_must_be_registered(sandbox: Path, replaceme
     problems = check_opaque_tmp(sandbox, OPAQUE_TMP_BASELINE)
     assert any("start-exam-board" in x and "[不透明记号]" in x for x in problems), (
         f"③ {why} 必须被第八条判据要求登记, 实得: {chr(10).join(problems)}"
+    )
+
+
+# ⛔ 语法单元(累积窗口)负控 —— 2026-09-09 一次 50-agent 独立复核实测出的根因。
+#: **等行数**替换(两行换两行), 后续行号不移动 ⇒ 可疑行基线 `[577]` 不受牵连。
+@pytest.mark.parametrize(
+    "replacement,why",
+    [
+        (
+            'P = os.path.join(\n    "/tmp/cls-exam/", updir, "x"); p = json.load(open(P, encoding="utf-8"))',
+            "开括号换行: `black` 折长行的自然产物, 第一行不完整、第二行括号不平衡",
+        ),
+        (
+            'P = os.path.join(\n    "/tmp/cls-exam/", f"{updir}", "x"); p = json.load(open(P, encoding="utf-8"))',
+            "开括号换行 + f-string: 连第六条判据认的 `JoinedStr` 也躲在跨行结构里",
+        ),
+    ],
+)
+def test_negative_control_open_paren_continuation_must_be_registered(sandbox: Path, replacement: str, why: str):
+    """⑮ **逐物理行降级的整类盲区** —— 跨物理行的语法结构。
+
+    本仓每份 SKILL.md 的 python 都装在 ``python3 - <<'PYEOF'`` heredoc 里 ⇒ 整块
+    `ast.parse` **恒失败** ⇒ 恒走降级。降级若按**物理行**做, 则任何跨行语法结构
+    整类失明: 开括号换行的两行, 第一行不完整、第二行括号不平衡, `ast` 与 `shlex`
+    双双弃权, 只剩裸 token 看到合规的 `/tmp/cls-exam/` 前缀。
+
+    这一类**不带反斜杠也不带反引号**, 所以第八条也看不见 —— 只能靠 `_parse_units`
+    按语法单元(累积窗口)重组后再 parse。
+
+    ⛔ 三段归因: ① 计数判据放行(等计数**且等行数**替换) ② 越界/可疑行/不透明三条
+    **都看不见**(证明考的确实是语法单元重组) ③ 第六条判据(动态拼接)报红。
+    """
+    _swap_in_start_exam_board(
+        sandbox,
+        'P = "/tmp/cls-exam/exam-candidates.json"\np = json.load(open(P, encoding="utf-8"))',
+        replacement,
+    )
+
+    assert not check_body(sandbox, _merged_body_baseline()), f"① 前提: 计数判据放行({why})"
+    for label, blind in (
+        ("越界", check_escaping_tmp(sandbox, ESCAPING_TMP_BASELINE)),
+        ("可疑行", check_suspicious_tmp_lines(sandbox, SUSPICIOUS_TMP_LINES_BASELINE)),
+        ("不透明记号", check_opaque_tmp(sandbox, OPAQUE_TMP_BASELINE)),
+    ):
+        assert not blind, f"② 前提: {label}判据看不见({why}) —— 若它看得见, 这条负控考错了对象"
+
+    problems = check_dynamic_tmp_joins(sandbox, DYNAMIC_TMP_JOIN_BASELINE)
+    assert any("start-exam-board" in x and "[动态拼接]" in x for x in problems), (
+        f"③ {why} 必须被第六条判据要求登记, 实得: {chr(10).join(problems)}"
+    )
+
+
+# ⛔ 「表达式选择」类负控 —— 落点不是拼出来的, 是**从几个候选里挑一个**。
+#: 这类的越界串(`/etc/passwd`)整个不含 `/tmp`, 越界判据的 `add()` 早退看不见;
+#: 也没有反引号/反斜杠, 第八条看不见; 计数纹丝不动(左边那个合规字面量还在)。
+@pytest.mark.parametrize(
+    "replacement,why",
+    [
+        ('P = "/tmp/cls-exam/exam-candidates.json" if 0 else "/etc/passwd"', "IfExp: 三元表达式选另一支"),
+        ('P = ["/tmp/cls-exam/exam-candidates.json", "/etc/passwd"][1]', "Subscript/List: 下标取另一个"),
+        ('P = ("/tmp/cls-exam/exam-candidates.json", "/etc/passwd")[1]', "Subscript/Tuple: 同上, 元组形态"),
+        ('P = b"/tmp/cls-exam/" + bytes([46, 46]) + b"/x"', "bytes: 原先 `isinstance(v, str)` 把它整个丢掉"),
+    ],
+)
+def test_negative_control_selective_expression_must_be_registered(sandbox: Path, replacement: str, why: str):
+    """⑯ **节点类型白名单的整类盲区** —— 第六条判据口径重写后才拦得住。
+
+    原实现是白名单(`BinOp(+/%)` / `JoinedStr` / `Call`), `IfExp` / `Subscript` /
+    `Tuple` / bytes 全在名单外。现在改成取反口径: 从含 `/tmp` 的常量往上走父链,
+    只要祖先还能被 `_fold_str()` 完全折成一个字符串就继续; 中途折不出来 ⇒ 登记。
+    新的表达式形态默认落进「折不出来」一侧, 不需要有人先想到它。
+
+    ⛔ 三段归因: ① 计数放行 ② 越界/可疑行/不透明三条**都看不见** ③ 第六条报红。
+    """
+    _swap_in_start_exam_board(sandbox, 'P = "/tmp/cls-exam/exam-candidates.json"', replacement)
+
+    assert not check_body(sandbox, _merged_body_baseline()), f"① 前提: 计数判据放行({why})"
+    for label, blind in (
+        ("越界", check_escaping_tmp(sandbox, ESCAPING_TMP_BASELINE)),
+        ("可疑行", check_suspicious_tmp_lines(sandbox, SUSPICIOUS_TMP_LINES_BASELINE)),
+        ("不透明记号", check_opaque_tmp(sandbox, OPAQUE_TMP_BASELINE)),
+    ):
+        assert not blind, f"② 前提: {label}判据看不见({why}) —— 若它看得见, 这条负控考错了对象"
+
+    problems = check_dynamic_tmp_joins(sandbox, DYNAMIC_TMP_JOIN_BASELINE)
+    assert any("start-exam-board" in x and "[动态拼接]" in x for x in problems), (
+        f"③ {why} 必须被第六条判据要求登记, 实得: {chr(10).join(problems)}"
+    )
+
+
+def test_negative_control_path_on_fence_marker_line_must_redden(sandbox: Path):
+    r"""⑰ **fence 标记行**上的越界路径 —— 标记行原先整行不进 body ⇒ 对全部集合判据隐形。
+
+    ` ``` P = "/tmp/cls-exam/../x" ` 这一行, markdown 渲染时 info string 那截不显示,
+    但它**在文件里**, 而这道门钉的是文件内容。现在标记行按散文产出, 由裸 token 接管。
+
+    ⛔ **归因如实**: 这个形态在整文件里会多开一个 fence, 把后续每个块的内外状态整体
+    翻转(实测 `:430`/`:577` 两行随之落进 fence, 第八条也跟着红)。所以这里**不声称**
+    「只有越界判据看得见」—— 那种三段归因在这个形态上不成立。改为对**纯函数**发问,
+    并带验伪锚: 同一个 fence 结构、标记行上没有路径时必须绿, 证明红来自标记行的内容
+    而不是来自 fence 结构本身。
+    """
+    dirty = '``` P = "/tmp/cls-exam/../exam-candidates.json"\nfoo\n```'
+    clean = "```python\nfoo\n```"
+    assert escaping_tmp_paths(dirty), "标记行上的越界路径未被越界判据看到"
+    assert not escaping_tmp_paths(clean), "验伪锚失效: 标记行不含路径时也报越界 ⇒ 红来自 fence 结构而非标记行内容"
+    assert _fence_blocks(dirty)[0] == (1, [dirty.splitlines()[0]], False), (
+        f"标记行必须作为散文块产出(否则裸 token 扫不到): {_fence_blocks(dirty)[:1]}"
+    )
+
+    # 整文件侧: 只断言「门整体会红」, 不指定是哪一条(见上方归因说明)。
+    _swap_in_start_exam_board(
+        sandbox,
+        'P = "/tmp/cls-exam/exam-candidates.json"',
+        '``` P = "/tmp/cls-exam/../exam-candidates.json"',
+    )
+    assert check_escaping_tmp(sandbox, ESCAPING_TMP_BASELINE), "整文件替换后越界判据必须红"
+
+
+def test_negative_control_hardcoded_port_in_script_reddens_layer3(sandbox: Path):
+    """⑱ **层 3 的端口指标** —— 层 2 对 SKILL.md 钉了 8011 两端, 层 3 原先一个都没有。
+
+    口径分叉的后果: 把仓内逐字存在的
+    `BACKEND_URL = "http://localhost:8011/api/v1/memory/archive/session"`
+    (现位于 `.claude/hooks/session-end-archive.py`, 本卡覆盖面外)搬进任意一份**受覆盖**
+    的 scripts, 层 3 原三项计数完全等值 ⇒ 静默通过。补 `p8011_all` / `p8011_ns` /
+    `localhost` 三项后必须红; `localhost` 单列是因为端口换成 8012/8000 时 `p8011_*` 是瞎的。
+    """
+    f = sandbox / "skills" / "board-recap" / "scripts" / "recap_scan.py"
+    text = f.read_text(encoding="utf-8")
+    f.write_text(
+        text.replace(
+            "import re\n",
+            'import re\n\nBACKEND_URL = "http://localhost:8011/api/v1/memory/archive/session"\n',
+            1,
+        ),
+        encoding="utf-8",
+    )
+    assert f.read_text(encoding="utf-8") != text, "预置失败: recap_scan.py 里没找到 `import re`"
+
+    problems = check_scripts(sandbox, _merged_scripts_baseline())
+    joined = "\n".join(problems)
+    assert any("recap_scan.py" in x and "p8011_all" in x for x in problems), joined
+    assert any("recap_scan.py" in x and "localhost" in x for x in problems), joined
+    assert not any("文件集合漂移" in x for x in problems), f"改内容不该报文件集合漂移: {joined}"
+
+
+def test_parse_units_splits_by_syntax_not_by_physical_line():
+    r"""验伪锚: `_parse_units` 必须真的按语法单元切, 且不得把合规块切出多余候选。
+
+    左: 开括号换行的两行**必须**合成一个单元(否则上面那条负控就是靠别的机制过的);
+    右: 树上真实的 heredoc 形态**不得**因累积窗口多出越界候选(否则是误报机器)。
+    """
+    units = _parse_units(["P = os.path.join(", '    "/tmp/cls-exam/", updir, "x")'])
+    assert len(units) == 1 and units[0][2] is not None, f"开括号换行未合成一个语法单元: {units}"
+
+    heredoc = [
+        "python3 - <<'PYEOF'",
+        "import json, os, sys",
+        'P = "/tmp/cls-exam/exam-candidates.json"',
+        'p = json.load(open(P, encoding="utf-8"))',
+        "PYEOF",
+    ]
+    assert not escaping_tmp_paths("```bash\n" + "\n".join(heredoc) + "\n```"), (
+        "合规 heredoc 被累积窗口拼出了越界候选 —— 那样这条判据只是台误报机器"
     )
 
 
