@@ -49,3 +49,37 @@ OK  ⑫ r4-LOW：alias 重复（文本 1 次、解析 2 次）
 
   OK  ⑬ 隔离解析层计数轴
      期望=FAIL 实测=FAIL  Exempted mount values used more than once (text/parsed counts): [('/Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/data:/data', {'t
+
+(eval):1: parse error near `>'
+(eval):1: parse error in command substitution
+
+## 追加：⑩ 的隔离性补证（Codex round-5 LOW —— 存档没记清用的是折叠标量的哪一档）
+round-5 指出：不带 strip 的折叠标量会保留尾换行，值变成 '<路径>\n'，
+**旧的值白名单判据也会拒**，于是无法区分「是深度判据拦的」还是「白名单拦的」；
+只有带 strip chomping 的那一档才是纯隔离。本节把实际使用的 YAML 块原样贴出，三轴逐一算给你看。
+
+### ⑩ 实际使用的形态（折叠 + strip chomping）  ——  YAML 块原文：
+        |      - type: bind
+        |        source: >-
+        |          /Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/data:/data
+        |        target: /other
+     解析出的 source 值 = '/Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/data:/data'
+     轴一（内容）：含路径原始行 3 行，不在名单里的 = []
+     轴三（数量）：该值文本出现 1 次
+     值是否仍在白名单里 = True
+     实测 = FAIL  Hardcoded user paths outside services.neo4j.volumes[<i>]: [(('services', 'neo4j', 'volumes', '0', 'source'), '
+
+### 对照：折叠但不 strip  ——  YAML 块原文：
+        |      - type: bind
+        |        source: >
+        |          /Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/data:/data
+        |        target: /other
+     解析出的 source 值 = '/Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/data:/data\n'
+     轴一（内容）：含路径原始行 3 行，不在名单里的 = []
+     轴三（数量）：该值文本出现 1 次
+     值是否仍在白名单里 = False
+     实测 = FAIL  Hardcoded user paths outside services.neo4j.volumes[<i>]: [(('services', 'neo4j', 'volumes', '0', 'source'), '
+
+结论：strip 那一档 —— 轴一放行（不在名单里的行为空）、轴三计数为 1、值仍在白名单内，
+      唯一拒绝它的是**结构深度 5 ≠ 4** ⇒ ⑩ 确为深度判据的纯隔离用例。
+      不 strip 的那一档确实如 round-5 所说会被白名单先拒，故不能用它做隔离证明。
