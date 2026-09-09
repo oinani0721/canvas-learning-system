@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -1146,7 +1147,7 @@ def test_forbidden_judge_covers_actual_output_objects_not_just_params():
     断言 preflight 把脚本真正会写的对象也送进判据（按标签名核，不数字符串个数）。
     """
     src = DEPLOY_SH.read_text(encoding="utf-8")
-    seg = src[src.index("check_forbidden_paths \\") : src.index('STEP_MSG="禁写面')]
+    seg = src[src.index("local -a PENDING_WRITES=(") : src.index('STEP_MSG="禁写面')]
     # ⛔ 不能只验标签（Codex r3 MEDIUM-5）：保留 `plugin-data:` 标签却传一个安全父目录，
     #    只验标签的门照样绿。这里把**实际传的路径表达式**一起钉。
     expected = {
@@ -1161,12 +1162,177 @@ def test_forbidden_judge_covers_actual_output_objects_not_just_params():
     for label, expr in expected.items():
         assert label in seg, f"判据调用缺对象 {label}"
         assert expr in seg, f"{label} 传的不是预期路径表达式，应为 {expr}"
-    assert "--outputs" in seg, "产出对象未划入 --outputs 组（会被 env 文件名规则误拦）"
     for expr in (
         '"ev-install-log:$EVIDENCE_DIR/install-$TS.txt"',
         '"ev-deploy-report-tmp:$EVIDENCE_DIR/deploy-$TS.txt.tmp"',
     ):
         assert expr in seg, f"缺 evidence 对象 {expr}（r3 BLOCKER-2）"
+    # ⛔ 两个**构建产物**（Codex r4 HIGH-1）：它们原本只在判据列表里、不在 -L 列表里。
+    for expr in (
+        '"harness-mainjs:$HARNESS/canvas-vault/.obsidian/plugins/canvas-learning-system/main.js"',
+        '"harness-build-out:$HARNESS/frontend/obsidian-plugin/main.js"',
+    ):
+        assert expr in seg, f"缺构建产物 {expr}（r4 HIGH-1）"
+    # 判据必须**逐字消费那个数组**，而不是再手抄一遍（手抄就会重新漂移）。
+    assert '--outputs "${PENDING_WRITES[@]}"' in seg, (
+        "判据没有直接消费 PENDING_WRITES —— 只要重新手抄一份列表，两份清单就会再次漂移"
+    )
+
+
+def test_pending_writes_is_the_single_source_for_link_and_hardlink_checks():
+    """⛔ Codex r4 HIGH-1 的**结构性**修法：一个数组两个消费方。
+
+    r4 抓到的事实是：`--outputs` 判据列表有 12 项，紧跟着的 `-L` 列表只有 10 项 ——
+    `harness-mainjs` / `harness-build-out` 两个构建产物是软链时**没有任何一层会拦**。
+    两份手抄清单必然漂移，所以门要钉的不是「第 11、12 项也抄上了」，而是
+    「**只有一份清单**」：判据与 -L/硬链接检查都遍历同一个数组。
+
+    反向锚：旧的手抄形态（`for lnk in "$ENV_FILE" ...`）必须**不再存在**——
+    否则有人「顺手加回来」时这道门仍会绿。
+    """
+    src = DEPLOY_SH.read_text(encoding="utf-8")
+    assert src.count("local -a PENDING_WRITES=(") == 1, "待写清单不止一份"
+    assert 'for lnk in "$ENV_FILE" "$ENV_FILE.tmp"' not in src, (
+        "又出现了第二份手抄的 -L 列表 —— 这正是 r4 HIGH-1 漂移的成因"
+    )
+    loop = src[src.index('for item in "${PENDING_WRITES[@]}"') :]
+    loop = loop[: loop.index("done")]
+    assert '[ -L "$lnk" ]' in loop, "-L 检查没有消费 PENDING_WRITES"
+    assert 'assert_writable_now "$lnk"' in loop, (
+        "硬链接检查没有覆盖每个待写对象（r4 BLOCKER-4：路径判据保护不了 inode）"
+    )
+
+
+def test_every_bash_write_site_has_a_prewrite_recheck():
+    """⛔ Codex r4 HIGH-1：只有 install 日志一处做了写前复查。
+
+    脚本里所有**bash 重定向**写入点都要在紧邻处再查一次（软链 + 硬链接）；
+    两处 python 写入改用 `O_NOFOLLOW`，那是真原子的，不靠复查。
+    """
+    src = DEPLOY_SH.read_text(encoding="utf-8")
+    for obj in (
+        'assert_writable_now "$ENV_FILE.tmp"',
+        'assert_writable_now "$ilog"',
+        'assert_writable_now "$keyfile.tmp"',
+        'assert_writable_now "$rep"',
+        'assert_writable_now "$cfg"',
+        'assert_writable_now "$out.tmp"',
+    ):
+        assert obj in src, f"写入点缺紧邻复查: {obj}"
+    # python 两处：内核在 open 那一刻拒软链，且**截断前**查链接数
+    assert src.count("os.O_NOFOLLOW") == 2, "两处 python 写入必须都用 O_NOFOLLOW"
+    assert src.count("os.ftruncate(fd, 0)") == 2, "必须先 fstat 查链接数再 ftruncate"
+    assert src.count("st.st_nlink > 1") == 2, "O_NOFOLLOW 之后还要挡硬链接（共享 inode）"
+    # `stat -f '%l'` 在 GNU 下是文件系统信息、会回一个看似合理的数字 —— 不许再用
+    assert "stat -f '%l'" not in src, "不要用 stat 取链接数（BSD/GNU 口径不同且都不报错）"
+
+
+# ═══ Codex r4 BLOCKER-1：`.claude*` 词法前缀不得被 realpath 物理化 ═══════════════
+def _forbid_home(home: Path, live: str, *items: str, outputs: tuple[str, ...] = ()):
+    """在**假 HOME** 下跑判据（判据用 expanduser("~") 读 HOME）。"""
+    argv = [sys.executable, str(FORBID_PY), live, *items]
+    if outputs:
+        argv += ["--outputs", *outputs]
+    env = dict(os.environ)
+    env["HOME"] = str(home)
+    return subprocess.run(argv, capture_output=True, text=True, env=env)
+
+
+@pytest.fixture
+def home_with_claude_symlink(tmp_path: Path):
+    """假 HOME：`.claude -> <tmp>/claude-base`，另有仅名字相近的 `claude-baseball`。
+
+    这两个名字是刻意选的：`claude-base` 是 `claude-baseball` 的**字符串前缀**。
+    """
+    home = tmp_path / "home"
+    home.mkdir()
+    base = tmp_path / "claude-base"
+    base.mkdir()
+    ball = tmp_path / "claude-baseball"
+    ball.mkdir()
+    (home / ".claude").symlink_to(base, target_is_directory=True)
+    live = tmp_path / "fake-live"
+    live.mkdir()
+    return home, base, ball, live
+
+
+def test_forbidden_judge_keeps_claude_prefix_lexical(home_with_claude_symlink):
+    """⛔ r4 BLOCKER-1：`$HOME/.claude-new/probe`（尚不存在）必须仍被拦。
+
+    我 r3 统一 NFC 时把 `claude_prefix` 从 `.lower()` 换成了 `k()`，而 `k()` **内含
+    realpath** —— 于是这条**刻意保持词法**的规则被物理化成 `<tmp>/claude-base`，
+    尚不存在的 `.claude-new` 既不在枚举名单里、又不再匹配前缀，**保护整条失效**。
+    这条规则存在的唯一理由就是覆盖 realpath 看不到的东西。
+    """
+    home, _base, _ball, live = home_with_claude_symlink
+    probe = str(home / ".claude-new" / "probe")
+    r = _forbid_home(home, str(live), f"--env-dir:{probe}")
+    assert r.returncode != 0, f"未拦住尚不存在的 .claude-new: {r.stdout}{r.stderr}"
+    assert "HIT" in r.stdout
+
+
+def test_forbidden_judge_does_not_falsely_block_prefix_sibling(home_with_claude_symlink):
+    """控制组（另一个方向）：`<tmp>/claude-baseball/probe` 必须**放行**。
+
+    把前缀物理化成 `<tmp>/claude-base` 之后，裸 `startswith` 会把只是名字相近的
+    `claude-baseball` 一起拦掉 —— 判据退化成「永远拦」是另一种坏，且更难发现。
+    """
+    home, _base, ball, live = home_with_claude_symlink
+    probe = str(ball / "probe")
+    r = _forbid_home(home, str(live), f"--env-dir:{probe}")
+    assert r.returncode == 0, f"误拦了仅名字相近的兄弟目录: {r.stdout}{r.stderr}"
+
+
+def test_forbidden_judge_still_blocks_the_claude_symlink_target(home_with_claude_symlink):
+    """同时保住另一轴：`.claude` 的**解链目标**里的路径仍要拦（规则 4① 枚举登记）。
+
+    前缀改回词法之后, 「解链目标」这一轴必须仍由枚举覆盖 —— 否则就是
+    「收紧一处丢掉一整个轴」。
+    """
+    home, base, _ball, live = home_with_claude_symlink
+    r = _forbid_home(home, str(live), f"--env-dir:{base / 'probe'}")
+    assert r.returncode != 0, f"未拦住 .claude 的解链目标: {r.stdout}{r.stderr}"
+
+
+# ═══ Codex r4 BLOCKER-2：两层软链把 `.git` 藏在解链途中 ═══════════════════════
+@pytest.fixture
+def two_hop_git(tmp_path: Path):
+    """`safe/alias -> repo/.git -> external/meta`：`.git` 只出现在**中间那一跳**。"""
+    ext = tmp_path / "external" / "meta"
+    ext.mkdir(parents=True)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / ".git").symlink_to(ext, target_is_directory=True)
+    safe = tmp_path / "safe"
+    safe.mkdir()
+    (safe / "alias").symlink_to(repo / ".git", target_is_directory=True)
+    live = tmp_path / "fake-live"
+    live.mkdir()
+    return safe, live
+
+
+def test_forbidden_judge_catches_git_hidden_mid_chain(two_hop_git):
+    """⛔ r4 BLOCKER-2：原始串里只有 `alias`、realpath 结果里只有 `meta`。
+
+    `.git` 那一跳**两边都看不见** —— 只比首尾（我 r3 的做法）必漏。
+    """
+    safe, live = two_hop_git
+    for probe in (str(safe / "alias"), str(safe / "alias" / "x")):
+        r = _forbid_home(Path.home(), str(live), f"--env-dir:{probe}")
+        assert r.returncode != 0, f"未拦住解链途中的 .git（{probe}）: {r.stdout}{r.stderr}"
+        assert ".git" in r.stdout
+
+
+def test_forbidden_judge_allows_two_hop_chain_that_stays_safe(tmp_path: Path):
+    """控制组：同样两跳、但途中不经过任何保护目标 —— 必须放行。"""
+    safe = tmp_path / "safe"
+    (safe / "final").mkdir(parents=True)
+    (safe / "mid").symlink_to(safe / "final", target_is_directory=True)
+    (safe / "ok").symlink_to(safe / "mid", target_is_directory=True)
+    live = tmp_path / "fake-live"
+    live.mkdir()
+    r = _forbid_home(Path.home(), str(live), f"--env-dir:{safe / 'ok' / 'x'}")
+    assert r.returncode == 0, f"误拦了全程安全的两跳链: {r.stdout}{r.stderr}"
 
 
 # ═══ 行为门：替代不承重的源码门（Codex r2 MEDIUM）══════════════════════════════
@@ -1331,3 +1497,246 @@ def test_forbidden_judge_fails_closed_when_home_unenumerable(tmp_path: Path):
         assert "fail-closed" in r.stdout or "_enumerate" in r.stdout, r.stdout
     finally:
         fake_home.chmod(0o755)
+
+
+# ═══ Codex r4 BLOCKER-4：路径判据保护不了 inode（硬链接）═════════════════════════
+def test_preflight_rejects_hardlinked_env_tmp(tmp_path: Path):
+    """⛔ r4 BLOCKER-4：`.env.<vault>.tmp` 与别处共享 inode 时必须拒。
+
+    realpath 给出的是**合法路径**、`-L` 为假 —— 判据看路径完全看不见这一层，
+    但 `: >` 截断改的是那个**共享 inode**。三层防线（判据 / -L / 硬链接）各管一件事。
+    """
+    (tmp_path / "vaults" / "course").mkdir(parents=True)
+    env_d = tmp_path / "env"
+    env_d.mkdir()
+    victim = tmp_path / "victim.txt"
+    victim.write_text("原内容\n", encoding="utf-8")
+    os.link(victim, env_d / ".env.course.tmp")
+
+    r = _run(
+        "--vault",
+        str(tmp_path / "vaults" / "course"),
+        "--harness",
+        str(REPO_ROOT),
+        "--port",
+        "8191",
+        "--hosts",
+        "claude",
+        "--env-dir",
+        str(env_d),
+        "--evidence-dir",
+        str(tmp_path / "ev"),
+        env={"CLS_LIVE_VAULT": str(_fake_live(tmp_path))},
+    )
+    assert r.returncode == 71, f"rc={r.returncode}（应为 71 preflight）: {r.stdout}{r.stderr}"
+    assert "硬链接" in r.stdout, f"消息没说是硬链接: {r.stdout}"
+    # 控制组的一半：受害文件必须一个字节都没动
+    assert victim.read_text(encoding="utf-8") == "原内容\n", "共享 inode 已被改动"
+
+
+def test_preflight_passes_when_env_tmp_has_single_link(tmp_path: Path):
+    """控制组（另一个方向）：只有一个链接的既存 tmp 文件必须**放行**。
+
+    只测「该拦的拦住了」会让这条判据退化成「凡文件存在就拦」。
+    """
+    (tmp_path / "vaults" / "course").mkdir(parents=True)
+    env_d = tmp_path / "env"
+    env_d.mkdir()
+    (env_d / ".env.course.tmp").write_text("残留\n", encoding="utf-8")
+
+    r = _run(
+        "--vault",
+        str(tmp_path / "vaults" / "course"),
+        "--harness",
+        str(REPO_ROOT),
+        "--port",
+        "8192",
+        "--hosts",
+        "claude",
+        "--env-dir",
+        str(env_d),
+        "--evidence-dir",
+        str(tmp_path / "ev"),
+        env={"CLS_LIVE_VAULT": str(_fake_live(tmp_path))},
+    )
+    assert r.returncode == 0, f"误拦了单链接的既存 tmp: rc={r.returncode} {r.stdout}{r.stderr}"
+
+
+# ═══ Codex r4 HIGH-2：父路径含空格 ═══════════════════════════════════════════
+def test_vault_parent_with_space_survives_name_pipeline(tmp_path: Path):
+    """⛔ r4 HIGH-2：我 r3 加 `VAULTS_ROOT` 比较时用了「空格串 + for 拆词」。
+
+    `/tmp/course vaults/course` 会被拆成两项：比较拿到截断的 `VAULTS_ROOT=/tmp/course`
+    外加一个游离的 `vaults` —— **合法部署在安装完成后 rc=73**，重跑又被 72 拦住。
+    这里只跑 dry-run（不 build），钉的是名字管道：VAULTS_ROOT 必须是完整父路径。
+    """
+    parent = tmp_path / "course vaults"
+    (parent / "course").mkdir(parents=True)
+    r = _run(
+        "--vault",
+        str(parent / "course"),
+        "--harness",
+        str(REPO_ROOT),
+        "--port",
+        "8193",
+        "--hosts",
+        "claude",
+        "--env-dir",
+        str(tmp_path / "env"),
+        "--evidence-dir",
+        str(tmp_path / "ev"),
+        env={"CLS_LIVE_VAULT": str(_fake_live(tmp_path))},
+    )
+    assert r.returncode == 0, f"含空格父路径没跑通: rc={r.returncode} {r.stdout}{r.stderr}"
+    assert "vault=course" in r.stdout, f"vault 名被空格打断: {r.stdout.splitlines()[0]}"
+    m = re.search(r"^\[2/6\] install: SKIP will run: (.*)$", r.stdout, re.M)
+    assert m, f"没有 install 预览行: {r.stdout}"
+    # 预览行必须**能粘贴执行** ⇒ 含空格的值经过转义, 且解析回来就是那个完整父路径
+    argv = shlex.split(m.group(1))
+    i = argv.index("--vaults-root")
+    assert argv[i + 1] == str(parent), f"--vaults-root 被截断: {argv[i + 1]!r} != {str(parent)!r}"
+
+
+def test_want_pairs_is_not_word_split(tmp_path: Path):
+    """源码反向锚：那份「空格分隔字符串 + for 拆词」的写法不得回来。"""
+    src = DEPLOY_SH.read_text(encoding="utf-8")
+    assert "for kv in $want_pairs" not in src, "又用回了会按空格拆词的 for（r4 HIGH-2）"
+    assert "local -a want_keys=(" in src and "local -a want_vals=(" in src, "A3 一致性比较必须用数组（元素含空格不拆）"
+
+
+# ═══ Codex r4 MEDIUM-3：dirname/basename 语义 ═════════════════════════════════
+def _preview(tmp_path: Path, vault: str, port: str, cwd: Path | None = None):
+    full_env = dict(os.environ)
+    for _k in _STRIP_ENV:
+        full_env.pop(_k, None)
+    full_env["CLS_LIVE_VAULT"] = str(_fake_live(tmp_path))
+    return subprocess.run(
+        [
+            str(DEPLOY_SH),
+            "--vault",
+            vault,
+            "--harness",
+            str(REPO_ROOT),
+            "--port",
+            port,
+            "--hosts",
+            "claude",
+            "--env-dir",
+            str(tmp_path / "env"),
+            "--evidence-dir",
+            str(tmp_path / "ev"),
+        ],
+        capture_output=True,
+        text=True,
+        env=full_env,
+        cwd=str(cwd or REPO_ROOT),
+        timeout=120,
+    )
+
+
+def test_trailing_slash_vault_yields_same_name_and_parent(tmp_path: Path):
+    """⛔ r4 MEDIUM-3：`${VAULT##*/}` 对尾斜杠给出**空** vault 名。
+
+    我 r3 为了保住 argv 末尾换行（r3 BLOCKER-4）把 `$(dirname)`/`$(basename)` 换成了
+    参数展开，但没补 dirname/basename 的两个语义。带不带尾斜杠必须给出同一结果。
+    """
+    (tmp_path / "vaults" / "course").mkdir(parents=True)
+    base = str(tmp_path / "vaults" / "course")
+    a = _preview(tmp_path, base, "8194")
+    b = _preview(tmp_path, base + "/", "8194")
+    assert a.returncode == 0 and b.returncode == 0, f"{a.returncode}/{b.returncode}"
+    assert "vault=course" in b.stdout, f"尾斜杠把 vault 名弄空了: {b.stdout.splitlines()[0]}"
+
+    def grab(proc):
+        m = re.search(r"^\[2/6\] install: SKIP will run: (.*)$", proc.stdout, re.M)
+        assert m, f"没有 install 预览行: {proc.stdout}"
+        return m.group(1)
+
+    assert grab(a) == grab(b), f"尾斜杠改变了安装参数:\n{grab(a)}\n{grab(b)}"
+
+
+def test_single_segment_relative_vault_gets_dot_as_parent(tmp_path: Path):
+    """⛔ r4 MEDIUM-3 另一半：单段相对路径 `course` 的父目录是 `.`，不是 `course`。
+
+    `${VAULT%/*}` 在串里没有 `/` 时**原样返回整串** —— 于是 vaults-root 会等于
+    vault 名自己，安装会去 `./course/course`。
+    """
+    (tmp_path / "relcourse").mkdir()
+    r = _preview(tmp_path, "relcourse", "8195", cwd=tmp_path)
+    assert r.returncode == 0, f"rc={r.returncode}: {r.stdout}{r.stderr}"
+    argv = shlex.split(re.search(r"^\[2/6\] install: SKIP will run: (.*)$", r.stdout, re.M).group(1))
+    i = argv.index("--vaults-root")
+    assert argv[i + 1] == ".", f"单段相对路径的父目录算错: {argv[i + 1]!r}（应为 '.'）"
+
+
+def _fake_python3(tmp_path: Path, c_output: str) -> Path:
+    """造一个只劫持 `python3 -c` 的假 python3，其余参数原样转给真 python3。
+
+    只劫持 `-c` 是为了**精确**：脚本还用 python3 跑禁写面判据与名不动点，
+    整体替换会让用例因为别的原因红，证明不了想证明的那一条。
+    """
+    real = shutil.which("python3")
+    assert real, "宿主没有 python3"
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir(exist_ok=True)
+    f = fake_bin / "python3"
+    # ⚠️ 用 raw string 写 bash 的 `\n`：普通字符串里它是**真换行**，
+    #    生成出来的脚本会 printf 出 `1n` 这样的怪值（本条门第一版就这么红的）。
+    f.write_text(
+        "#!/usr/bin/env bash\n"
+        'for a in "$@"; do\n'
+        '  if [ "$a" = "-c" ]; then\n'
+        r'    printf "%s\n" ' + shlex.quote(c_output) + "\n"
+        "    exit 0\n"
+        "  fi\n"
+        "done\n"
+        "exec " + shlex.quote(real) + ' "$@"\n',
+        encoding="utf-8",
+    )
+    f.chmod(0o755)
+    return fake_bin
+
+
+def _preflight_with_existing_env_tmp(tmp_path: Path, port: str, fake_bin: Path | None):
+    (tmp_path / "vaults" / "course").mkdir(parents=True, exist_ok=True)
+    env_d = tmp_path / "env"
+    env_d.mkdir(exist_ok=True)
+    (env_d / ".env.course.tmp").write_text("残留\n", encoding="utf-8")
+    env = {"CLS_LIVE_VAULT": str(_fake_live(tmp_path))}
+    if fake_bin:
+        env["PATH"] = f"{fake_bin}:{os.environ.get('PATH', '')}"
+    return _run(
+        "--vault",
+        str(tmp_path / "vaults" / "course"),
+        "--harness",
+        str(REPO_ROOT),
+        "--port",
+        port,
+        "--hosts",
+        "claude",
+        "--env-dir",
+        str(env_d),
+        "--evidence-dir",
+        str(tmp_path / "ev"),
+        env=env,
+    )
+
+
+def test_preflight_rejects_nonnumeric_nlink(tmp_path: Path):
+    """⛔ 链接数「问不出来」必须 fail-closed，**非数字也算问不出来**。
+
+    原写法只判空串，非数字会落到 `[ "$nlink" -gt 1 ]` —— 那会 rc=2、`if` 判假 ⇒
+    **静默放行**（该拦的没拦）。三态里最容易漏的就是「拿到了东西但不是我要的东西」。
+    """
+    r = _preflight_with_existing_env_tmp(tmp_path, "8197", _fake_python3(tmp_path, "not-a-number"))
+    assert r.returncode == 71, f"非数字链接数应 fail-closed，实为 rc={r.returncode}: {r.stdout}"
+    assert "问不出链接数" in r.stdout, r.stdout
+
+
+def test_preflight_passes_when_nlink_reads_one(tmp_path: Path):
+    """控制组：同一套假 python3 机关、只把 `-c` 的输出换成合法的 `1` —— 必须放行。
+
+    没有这一条，上一条门可能只是证明了「假 python3 把脚本弄坏了」。
+    """
+    r = _preflight_with_existing_env_tmp(tmp_path, "8198", _fake_python3(tmp_path, "1"))
+    assert r.returncode == 0, f"合法链接数 1 被误拦: rc={r.returncode} {r.stdout}{r.stderr}"

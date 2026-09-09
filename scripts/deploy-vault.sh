@@ -175,6 +175,44 @@ check_forbidden_paths() {
     return 1
 }
 
+WRITE_GUARD_ERR=""
+# 写入**紧邻**前的复查（Codex r4 BLOCKER-4 + HIGH-1）：
+#   ① 硬链接：`.env.<vault>.tmp` 与保护区文件共享 inode 时, realpath 得到的是合法路径、
+#      `-L` 为假 —— 但 `: >` 截断改的是那个**共享 inode**。路径判据看不见 inode, 只能看链接数。
+#   ② preflight 与真正打开之间存在时间窗, 期间对象可能被换成软链/硬链。
+# ⚠️ 如实声明：bash 重定向做不到 open(O_NOFOLLOW) 的原子性, 这里只把窗口收到**最窄**,
+#    残留窗口不为零（两处 python 写入已改用 O_NOFOLLOW, 那两处是真原子）。
+assert_writable_now() {
+    local p="$1" nlink=""
+    WRITE_GUARD_ERR=""
+    if [ -L "$p" ]; then
+        WRITE_GUARD_ERR="写入前复查: 对象是软链, 写入会沿链穿到别处: $p -> $(readlink "$p")"
+        return 1
+    fi
+    [ -e "$p" ] || return 0
+    [ -d "$p" ] && return 0
+    # 用 python3 取 st_nlink：`stat` 的 BSD/GNU 口径不同（GNU 的 `-f` 是**文件系统**信息,
+    # `%l` 在那边是「文件名最大长度」—— 会回一个看似合理的数字, 比报错更坏）。
+    nlink="$(python3 -c 'import os,sys
+try:
+    print(os.lstat(sys.argv[1]).st_nlink)
+except OSError:
+    pass' "$p" 2> /dev/null)"
+    # 三态：数字 / 空 / 非数字。**非数字不能落到 `[ -gt ]`** —— 那会 rc=2、`if` 判假 ⇒
+    # 静默 fail-open（该拦的放行了）。空与非数字一律 fail-closed。
+    case "$nlink" in
+        '' | *[!0-9]*)
+            WRITE_GUARD_ERR="写入前复查: 问不出链接数(得到 '${nlink}'), 无从断言不是硬链接: $p"
+            return 1
+            ;;
+    esac
+    if [ "$nlink" -gt 1 ]; then
+        WRITE_GUARD_ERR="写入前复查: 对象有 ${nlink} 个硬链接, 写入会改共享 inode: $p"
+        return 1
+    fi
+    return 0
+}
+
 # ── 参数解析 ──────────────────────────────────────────────────────────────────
 [ $# -eq 0 ] && { usage; exit 64; }
 while [ $# -gt 0 ]; do
@@ -249,9 +287,19 @@ fi
 # ⛔ 不用 $(basename)/$(dirname)（Codex r3 BLOCKER-4）：命令替换会**剥掉末尾换行**,
 #    于是判据检查的是含 LF 的目录、而 installer 收到的是另一个目录 —— 若后者是指向
 #    保护区的软链, 检查与实参就分裂了。bash 参数展开不经命令替换, 保真。
+# ⛔ 参数展开要补齐 dirname/basename 的两个语义（Codex r4 MEDIUM-3，我 r3 换掉命令替换时
+#    引入的回归）：① 单段相对路径 `course` ⇒ `${VAULT%/*}` 原样返回 `course`（dirname 给 `.`）
+#    ② 尾斜杠 `/tmp/course/` ⇒ `${VAULT##*/}` 得**空** vault 名。
+#    先剥尾部斜杠（保留根 `/`）, 再按有无 `/` 分支。仍不经命令替换（保末尾换行, r3 B-4）。
+_v="$VAULT"
+while [ "${_v%/}" != "$_v" ] && [ "$_v" != "/" ]; do _v="${_v%/}"; done
+VAULT="$_v"
 VAULT_NAME="${VAULT##*/}"
-VAULT_PARENT="${VAULT%/*}"
-[ -n "$VAULT_PARENT" ] || VAULT_PARENT="/"
+case "$VAULT" in
+    */*) VAULT_PARENT="${VAULT%/*}"; [ -n "$VAULT_PARENT" ] || VAULT_PARENT="/" ;;
+    *) VAULT_PARENT="." ;;
+esac
+[ -n "$VAULT_NAME" ] || die64 "--vault 解析不出 vault 名: $VAULT"
 [ -n "$SUBJECT" ] || SUBJECT="$VAULT_NAME"
 [ -n "$EVIDENCE_DIR" ] || EVIDENCE_DIR="$HARNESS/_bmad-output/审查/evidence-deploy-$VAULT_NAME"
 [ -n "$ENV_DIR" ] || ENV_DIR="$HARNESS"
@@ -297,46 +345,43 @@ step1_preflight() {
         return 1
     fi
 
+    # ⛔ 待写对象**单一清单**（Codex r4 HIGH-1）：原先「判据的 --outputs 列表」与「-L 列表」
+    #    是两份手抄清单, **已经漂移** —— harness-mainjs / harness-build-out 只在判据列表里,
+    #    这两个构建产物若是软链没有任何一层会拦。改成一个数组两个消费方, 结构上不可能再漂移。
+    local -a PENDING_WRITES=(
+        "env-file:$ENV_FILE"
+        "env-file-tmp:$ENV_FILE.tmp"
+        "key-file:$VAULT/.obsidian/cls-internal-key.txt"
+        "key-file-tmp:$VAULT/.obsidian/cls-internal-key.txt.tmp"
+        "plugin-data:$VAULT/.obsidian/plugins/canvas-learning-system/data.json"
+        "harness-mainjs:$HARNESS/canvas-vault/.obsidian/plugins/canvas-learning-system/main.js"
+        "harness-build-out:$HARNESS/frontend/obsidian-plugin/main.js"
+        "ev-install-log:$EVIDENCE_DIR/install-$TS.txt"
+        "ev-verify-report:$EVIDENCE_DIR/verify-$TS.txt"
+        "ev-compose-config:$EVIDENCE_DIR/compose-config-$TS.txt"
+        "ev-deploy-report:$EVIDENCE_DIR/deploy-$TS.txt"
+        "ev-deploy-report-tmp:$EVIDENCE_DIR/deploy-$TS.txt.tmp"
+    )
+
     # 三个路径参数 + **脚本真正会写的每个对象**（Codex r2 BLOCKER-4）
     if check_forbidden_paths \
         "--vault:$VAULT" \
         "--evidence-dir:$EVIDENCE_DIR" \
         "--env-dir:$ENV_DIR" \
-        --outputs \
-        "env-file:$ENV_FILE" \
-        "env-file-tmp:$ENV_FILE.tmp" \
-        "key-file:$VAULT/.obsidian/cls-internal-key.txt" \
-        "key-file-tmp:$VAULT/.obsidian/cls-internal-key.txt.tmp" \
-        "plugin-data:$VAULT/.obsidian/plugins/canvas-learning-system/data.json" \
-        "harness-mainjs:$HARNESS/canvas-vault/.obsidian/plugins/canvas-learning-system/main.js" \
-        "harness-build-out:$HARNESS/frontend/obsidian-plugin/main.js" \
-        "ev-install-log:$EVIDENCE_DIR/install-$TS.txt" \
-        "ev-verify-report:$EVIDENCE_DIR/verify-$TS.txt" \
-        "ev-compose-config:$EVIDENCE_DIR/compose-config-$TS.txt" \
-        "ev-deploy-report:$EVIDENCE_DIR/deploy-$TS.txt" \
-        "ev-deploy-report-tmp:$EVIDENCE_DIR/deploy-$TS.txt.tmp"; then
+        --outputs "${PENDING_WRITES[@]}"; then
         STEP_MSG="禁写面: $FORBIDDEN_HIT"
         return 1
     fi
-    # 已存在的 .env / key 若是**软链**, 写入会沿链穿到别处 —— 直接拒（判据脚本只看路径,
-    # 这里补一条对「已存在对象本身是链」的显式拒绝）。
-    # ⛔ 列表必须含 **.tmp**（Codex r3 BLOCKER-3）：`ENV_FILE.tmp -> /safe/existing.env`
-    #    被 outputs 放行, 而旧列表没有 tmp ⇒ `: >` 会沿链截断那个文件, 之后还会把软链本身
-    #    发布成 ENV_FILE。evidence 的日志文件同理（Codex r3 BLOCKER-2）。
-    local lnk
-    for lnk in "$ENV_FILE" "$ENV_FILE.tmp" \
-        "$VAULT/.obsidian/cls-internal-key.txt" \
-        "$VAULT/.obsidian/cls-internal-key.txt.tmp" \
-        "$VAULT/.obsidian/plugins/canvas-learning-system/data.json" \
-        "$EVIDENCE_DIR/install-$TS.txt" \
-        "$EVIDENCE_DIR/verify-$TS.txt" \
-        "$EVIDENCE_DIR/compose-config-$TS.txt" \
-        "$EVIDENCE_DIR/deploy-$TS.txt" \
-        "$EVIDENCE_DIR/deploy-$TS.txt.tmp"; do
+    # 已存在的待写对象若是**软链**, 写入会沿链穿到别处；若有**硬链接**, 截断会改共享 inode
+    # （Codex r4 BLOCKER-4）。判据脚本只看路径, 这两条都得在这里补。含 .tmp（r3 BLOCKER-3）。
+    local item lnk
+    for item in "${PENDING_WRITES[@]}"; do
+        lnk="${item#*:}"
         if [ -L "$lnk" ]; then
             STEP_MSG="待写对象是软链, 写入会沿链穿到别处: $lnk -> $(readlink "$lnk")"
             return 1
         fi
+        assert_writable_now "$lnk" || { STEP_MSG="$WRITE_GUARD_ERR"; return 1; }
     done
 
     # vault 名 = sanitize_vault_id 与 vault_key 的**共同不动点**（决策页 §二 G4 两套口径）
@@ -448,11 +493,25 @@ seed_env_file() {
     local src="$HARNESS/.env" k v
     SEED_ERR=""
     mkdir -p "$ENV_DIR" || { SEED_ERR="建 --env-dir 失败: $ENV_DIR"; return 1; }
+    assert_writable_now "$ENV_FILE.tmp" || { SEED_ERR="$WRITE_GUARD_ERR"; return 1; }
     : > "$ENV_FILE.tmp" || { SEED_ERR="建 .env 临时文件失败: $ENV_FILE.tmp"; return 1; }
     printf '# CARD-G2-7b deploy-vault.sh 生成 — vault=%s port=%s ts=%s\n' "$VAULT_NAME" "$PORT" "$TS" >> "$ENV_FILE.tmp"
     ENV_KEYS_SKIPPED=""
+    local wrc
     for k in $ENV_KEYS_WHITELIST; do
-        if [ -f "$src" ] && v="$(grep -E "^${k}=" "$src" 2> /dev/null | tail -1)"; then
+        if [ ! -f "$src" ]; then
+            ENV_KEYS_SKIPPED="$ENV_KEYS_SKIPPED $k"
+            continue
+        fi
+        # ⛔ 区分 rc=1（没这个键）与 rc>1（读不动）（Codex r4 MEDIUM-2）：原版把两者都当
+        #    「没有该键」⇒ 读取出错时白名单值静默丢失, 而六个固定键照写、步骤照样成功。
+        wrc=0
+        v="$(grep -E "^${k}=" "$src" 2> /dev/null | tail -1)" || wrc=$?
+        if [ "$wrc" -gt 1 ]; then
+            SEED_ERR="读 ${src##*/} 的 ${k} 出错(rc=${wrc}), 无从断言该键不存在"
+            return 1
+        fi
+        if [ "$wrc" = 0 ]; then
             if [ -n "$v" ]; then
                 # ⛔ 逐项判 rc（Codex r2 HIGH-2）：原版靠 `&& continue` 串起来,
                 #    追加失败会静默落到「记为 skipped」而不是报错。
@@ -490,9 +549,13 @@ seed_env_file() {
 }
 
 step2_install() {
-    local cmd="$HARNESS/scripts/install-vault.sh $VAULT_NAME --subject $SUBJECT"
-    cmd="$cmd --vaults-root $(dirname "$VAULT") --source $HARNESS/canvas-vault"
-    cmd="$cmd --env-file $ENV_FILE --harness-tree $HARNESS --backend-url http://127.0.0.1:$PORT"
+    # dry-run 的 "will run" 是用户唯一的预览 —— 与下面**真正执行**的那条必须逐项同值
+    # （Codex r4 MEDIUM-3：这行曾残留 `$(dirname "$VAULT")`, 与实际传的 $VAULT_PARENT 分叉）,
+    # 且值里有空格时仍要**能粘贴执行** ⇒ 逐值 %q。cmd 只用于显示, 不用于执行。
+    local cmd
+    cmd="$(printf '%q %q --subject %q --vaults-root %q --source %q --env-file %q --harness-tree %q --backend-url %q' \
+        "$HARNESS/scripts/install-vault.sh" "$VAULT_NAME" "$SUBJECT" "$VAULT_PARENT" \
+        "$HARNESS/canvas-vault" "$ENV_FILE" "$HARNESS" "http://127.0.0.1:$PORT")"
     if [ "$APPLY" != 1 ]; then
         STEP_MSG="will run: $cmd"
         return 2
@@ -512,6 +575,7 @@ step2_install() {
         STEP_MSG="install 日志是软链, 截断会穿到别处: $ilog -> $(readlink "$ilog")"
         return 1
     fi
+    assert_writable_now "$ilog" || { STEP_MSG="$WRITE_GUARD_ERR"; return 1; }
     : > "$ilog" || { STEP_MSG="无法写 install 日志(重定向失败, install 未执行): $ilog"; return 1; }
     local irc=0
     CLS_REPO="$HARNESS" "$HARNESS/scripts/install-vault.sh" "$VAULT_NAME" \
@@ -562,11 +626,15 @@ step3_postprocess() {
         # Codex r3 HIGH-4 三处收紧：① 读取管道判 rc（原版读失败 ⇒ have 空 ⇒ 放行）
         #   ② 缺键也要拒（原版只在 have 非空时比较, 缺 API_PORT/ACTIVE_VAULT 直接通过）
         #   ③ 比较范围补上 VAULTS_ROOT（它决定容器看不看得见这个 vault）
-        local want_pairs="API_PORT=$PORT ACTIVE_VAULT=$VAULT_NAME CLS_BACKEND_CONTAINER=cls-$VAULT_NAME-backend VAULTS_ROOT=$VAULT_PARENT"
-        local kv k v have grc line
-        for kv in $want_pairs; do
-            k="${kv%%=*}"
-            v="${kv#*=}"
+        # ⛔ 不能用「空格分隔的字符串 + for 拆词」（Codex r4 HIGH-2，我 r3 加 VAULTS_ROOT 时
+        #    引入的回归）：父路径含空格时 `/tmp/course vaults/course` 会被拆成两项, 比较拿到
+        #    截断值 ⇒ 合法部署在安装完成后 rc=73、重跑又被 72 拦住。改用**数组**, 元素含空格不拆。
+        local -a want_keys=(API_PORT ACTIVE_VAULT CLS_BACKEND_CONTAINER VAULTS_ROOT)
+        local -a want_vals=("$PORT" "$VAULT_NAME" "cls-$VAULT_NAME-backend" "$VAULT_PARENT")
+        local i k v have grc line
+        for i in "${!want_keys[@]}"; do
+            k="${want_keys[$i]}"
+            v="${want_vals[$i]}"
             grc=0
             line="$(grep -E "^${k}=" "$ENV_FILE" 2> /dev/null | tail -1)" || grc=$?
             if [ "$grc" -gt 1 ]; then
@@ -662,7 +730,16 @@ p, key = sys.argv[1], sys.argv[2]
 with open(p, encoding="utf-8") as f:
     d = json.load(f)
 d["internalApiKey"] = key
-with open(p, "w", encoding="utf-8") as f:
+# ⛔ O_NOFOLLOW + 先 fstat 后 ftruncate（Codex r4 HIGH-1 / BLOCKER-4）：检查与打开分离留有
+#    时间窗, 这里让**内核在打开那一刻**拒绝软链 —— 原子, 不依赖前面的复查；
+#    并在截断**之前**查链接数, 否则共享 inode 已经被清空了。
+fd = os.open(p, os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+st = os.fstat(fd)
+if st.st_nlink > 1:
+    os.close(fd)
+    raise SystemExit(f"data.json 有 {st.st_nlink} 个硬链接, 写入会改共享 inode: {p}")
+os.ftruncate(fd, 0)
+with os.fdopen(fd, "w", encoding="utf-8") as f:
     json.dump(d, f, ensure_ascii=False, indent=2)
     f.write("\n")
     f.flush()
@@ -688,7 +765,14 @@ for l in lines:
         out.append(l)
 if not done:
     out.append(f"INTERNAL_API_KEY={key}")
-with open(p, "w", encoding="utf-8") as f:
+# 同上：O_NOFOLLOW + 截断前查链接数（Codex r4 HIGH-1 / BLOCKER-4）
+fd = os.open(p, os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+st = os.fstat(fd)
+if st.st_nlink > 1:
+    os.close(fd)
+    raise SystemExit(f".env 有 {st.st_nlink} 个硬链接, 写入会改共享 inode: {p}")
+os.ftruncate(fd, 0)
+with os.fdopen(fd, "w", encoding="utf-8") as f:
     f.write("\n".join(out))
     f.flush()
     os.fsync(f.fileno())
@@ -711,6 +795,7 @@ PY
         mkdir -p "$(dirname "$keyfile")" || { STEP_MSG="建 key 文件父目录失败"; return 1; }
         # 原子落盘：先写 tmp（umask 077）→ 回读比对 → mv。中途失败不会留下**部分内容的**
         # key 文件, 而「key 文件存在」正是 A4 判「不重生」的锚点 —— 半个 key 比没有 key 更坏。
+        assert_writable_now "$keyfile.tmp" || { STEP_MSG="$WRITE_GUARD_ERR"; return 1; }
         (umask 077 && printf '%s\n' "$key" > "$keyfile.tmp") \
             || { STEP_MSG="写 key 临时文件失败"; return 1; }
         # ⛔ 回读也要判 rc（Codex r2 MEDIUM）：完整输出后 rc≠0 时比较仍相等 ⇒ 假绿。
@@ -769,6 +854,13 @@ step4_verify() {
 
     local src="$HARNESS/canvas-vault" basis="源本体" t
     if [ "$PORT" != "8011" ]; then
+        # ⛔ TMPDIR 是**继承来的**（Codex r4 BLOCKER-3）：指向保护目录时, 这里的
+        #    mktemp/cp/sed 会直接往保护区写, 而 preflight 的产出清单里根本没有它。
+        #    先把镜像根交给判据, 过了才建。
+        if check_forbidden_paths --outputs "src-mirror-root:${TMPDIR:-/tmp}"; then
+            STEP_MSG="禁写面: 源镜像根（TMPDIR）指向 $FORBIDDEN_HIT"
+            return 1
+        fi
         SRC_MIRROR="$(mktemp -d "${TMPDIR:-/tmp}/cls-srcmirror-XXXXXX")" || {
             STEP_MSG="建源镜像临时目录失败"
             return 1
@@ -790,6 +882,7 @@ step4_verify() {
     fi
 
     local rep="$EVIDENCE_DIR/verify-$TS.txt" rc=0
+    assert_writable_now "$rep" || { cleanup_mirror; STEP_MSG="$WRITE_GUARD_ERR"; return 1; }
     python3 "$HARNESS/scripts/verify_vault_install.py" --vault "$VAULT" \
         --source "$src" \
         --manifest "$HARNESS/scripts/vault-install-manifest.json" \
@@ -820,6 +913,7 @@ step5_activate() {
     #    故落盘前脱敏; 断言只看 container_name 与 ports, 不需要那些值 ——
     #    明文因此**从不落盘**（不是「落了再擦」）。
     local cfg="$EVIDENCE_DIR/compose-config-$TS.txt" rc=0
+    assert_writable_now "$cfg" || { STEP_MSG="$WRITE_GUARD_ERR"; return 1; }
     docker compose -f "$HARNESS/docker-compose.yml" --env-file "$ENV_FILE" \
         -p "cls-$VAULT_NAME" --project-directory "$HARNESS" config 2> /dev/null \
         | redact_secrets > "$cfg" || rc=$?
@@ -916,6 +1010,7 @@ step6_evidence() {
     fi
     mkdir -p "$EVIDENCE_DIR" || { STEP_MSG="建 evidence 目录失败: $EVIDENCE_DIR"; return 1; }
     local out="$EVIDENCE_DIR/deploy-$TS.txt" t _sha _sha_fail=0 _src=0
+    assert_writable_now "$out.tmp" || { STEP_MSG="$WRITE_GUARD_ERR"; return 1; }
     {
         printf '# CARD-G2-7b deploy-vault.sh — %s\n' "$TS"
         printf '## 参数\n'
@@ -950,9 +1045,16 @@ step6_evidence() {
     # ⛔ 先判失败再写 rc 行（Codex r3 MEDIUM-2）：原版先写 `rc=0` 再 return 76,
     #    落盘的证据与进程返回码自相矛盾。
     if [ "$_sha_fail" = 1 ]; then
-        printf 'rc=76\n' >> "$out.tmp" || true
-        mv "$out.tmp" "$out" || true
-        STEP_MSG="有文件 shasum 失败（见 SHASUM-FAILED 行）, 证据已标 rc=76: $out"
+        # ⛔ 不用 `|| true`（Codex r4 MEDIUM-1，我 r3 引入的回归）：那会把「证据没发布出去」
+        #    吞掉, 而消息仍宣称「证据已标 rc=76」。两种失败分开报。
+        local _pub=1
+        printf 'rc=76\n' >> "$out.tmp" || _pub=0
+        [ "$_pub" = 1 ] && { mv "$out.tmp" "$out" || _pub=0; }
+        if [ "$_pub" = 1 ]; then
+            STEP_MSG="有文件 shasum 失败（见 SHASUM-FAILED 行）, 证据已标 rc=76: $out"
+        else
+            STEP_MSG="有文件 shasum 失败, 且证据**未能发布**（$out.tmp 残留或 mv 失败）, 报告不可信"
+        fi
         return 1
     fi
     printf 'rc=0\n' >> "$out.tmp" || { STEP_MSG="追加 rc 行失败: $out.tmp"; return 1; }

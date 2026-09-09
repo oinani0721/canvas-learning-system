@@ -115,9 +115,52 @@ def build_targets(live: str) -> tuple[list[tuple[str, str]], str, bool]:
             targets.append((k(r), r))
         except OSError:
             continue
-    # 规则 4②：词法前缀（覆盖尚不存在的 .claude*）
-    claude_prefix = k(os.path.join(phys(home), ".claude"))
+    # 规则 4②：**词法**前缀（覆盖尚不存在的 .claude*）
+    # ⛔ 绝不能过 k()（Codex r4 BLOCKER-1，我 r3 统一 NFC 时引入的回归）：k() 内含 realpath。
+    #    若 `$HOME/.claude -> /external/claude-base`, 前缀就变成 `/external/claude-base` ——
+    #    于是 `$HOME/.claude-new/probe`（尚不存在, 枚举登记不到）**失去保护**,
+    #    而 `/external/claude-baseball/probe` 反被误拦。
+    #    这条规则存在的唯一理由就是覆盖 realpath **看不到**的东西；把它 realpath 掉 = 删了它。
+    #    解链那一轴由规则 4① 的枚举覆盖（已存在的 .claude* 登记其解析结果）。
+    claude_prefix = unicodedata.normalize("NFC", os.path.join(home, ".claude")).lower()
     return targets, claude_prefix, enumerate_failed
+
+
+def resolve_chain(p: str, limit: int = 64) -> list[str]:
+    """逐步解链, 返回途中经过的**每一跳**（含起点与中间目标）。
+
+    ⛔ Codex r4 BLOCKER-2：`/safe/alias -> /repo/.git -> /external/meta` 时,
+    原始串里只有 `alias`、realpath 结果里只有 `meta` —— **中途那个 `.git` 两边都看不见**。
+    只比首尾会漏掉解链途中经过的保护目标。
+    """
+    seen: list[str] = []
+    cur = os.path.expanduser(p)
+    if not os.path.isabs(cur):
+        cur = os.path.join(os.getcwd(), cur)
+    for _ in range(limit):
+        seen.append(cur)
+        try:
+            if not os.path.islink(cur):
+                break
+            nxt = os.readlink(cur)
+        except OSError:
+            break
+        if not os.path.isabs(nxt):
+            nxt = os.path.join(os.path.dirname(cur), nxt)
+        cur = os.path.normpath(nxt)
+    return seen
+
+
+def chain_hits(p: str, targets: list[tuple[str, str]]) -> str | None:
+    """对 p 的整条解链途径逐跳查 `.git` 段与保护目标（Codex r4 BLOCKER-2）。"""
+    for hop in resolve_chain(p):
+        hop_key = unicodedata.normalize("NFC", hop).lower()
+        if ".git" in hop_key.split(os.sep):
+            return f".git 目录内（解链途中经过 {hop}）"
+        for tk, orig in targets:
+            if hop_key == tk or hop_key.startswith(tk + os.sep):
+                return f"{orig}（解链途中经过 {hop}）"
+    return None
 
 
 def ancestor_symlink_hits(p: str, targets: list[tuple[str, str]], claude_prefix: str) -> str | None:
@@ -133,6 +176,10 @@ def ancestor_symlink_hits(p: str, targets: list[tuple[str, str]], claude_prefix:
     while cur and cur != os.sep and seen < 64:
         seen += 1
         if os.path.islink(cur):
+            # 祖先段的软链也可能是**多层**的, 中途经过保护目标（Codex r4 BLOCKER-2）。
+            ch = chain_hits(cur, targets)
+            if ch is not None:
+                return f"{ch}（祖先软链 {cur}）"
             resolved = k(cur)
             for tk, orig in targets:
                 if resolved == tk or resolved.startswith(tk + os.sep):
@@ -205,10 +252,16 @@ def hits(
     for tk, orig in targets:
         if key == tk or key.startswith(tk + os.sep):
             return orig
-    if key.startswith(claude_prefix):
-        return f"{claude_prefix}*（前缀规则）"
+    # 词法前缀要拿**词法 key** 比（同口径, 不解链）；物理 key 也比一次, 两轴都不漏。
+    lex_key = unicodedata.normalize("NFC", os.path.abspath(os.path.expanduser(raw_path))).lower()
+    if key.startswith(claude_prefix) or lex_key.startswith(claude_prefix):
+        return f"{claude_prefix}*（词法前缀规则）"
 
-    # 规则 5
+    # 规则 5（含 r4 BLOCKER-2 的逐跳）。
+    # ⚠️ 这里**不**再单独调 chain_hits(raw_path)：`ancestor_symlink_hits` 的游标从
+    #    路径自身起步, 自身是链时同样会走 chain_hits ⇒ 那一层是**死代码**。
+    #    实测证明：把它删掉, 两跳 `.git` 用例仍红（变异存活 ⇒ 不承重）。留着会让人以为
+    #    有两道防线, 实际只有一道被验证过。
     return ancestor_symlink_hits(raw_path, targets, claude_prefix)
 
 
