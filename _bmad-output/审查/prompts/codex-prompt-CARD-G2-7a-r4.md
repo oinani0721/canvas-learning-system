@@ -3,7 +3,7 @@
 ## 一 背景与最小读取面
 
 worktree：`/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy`
-分支 `card/u3-deploy`，本卡最终 HEAD **__HEAD__**。
+分支 `card/u3-deploy`，本卡最终 HEAD **5a0257fc**。
 
 前三轮：r1 绑 `7aa89c5b`（0B/2H/4M/2L）、r2 绑 `3c1e3c00`（0B/1H/3M/3L）、
 r3 绑 `725bbd19`（**0B/0H**/3M/5L）。**r3 已满足 D-15 的停止条件**，本轮是自愿加固：
@@ -11,8 +11,8 @@ r3 的 LOW-1/2/3 指出我三条门「给出虚假保证」（你自己跑的变
 
 **请只读以下五处（不要读别的、不要读 live vault、不要执行安装脚本）：**
 
-1. r3 之后的整改：`git diff 725bbd19 __HEAD__ -- . ':(exclude)_bmad-output'`
-2. 本卡全部改动：`git diff 086771d3 __HEAD__ -- . ':(exclude)_bmad-output'`
+1. r3 之后的整改：`git diff 725bbd19 5a0257fc -- . ':(exclude)_bmad-output'`
+2. 本卡全部改动：`git diff 086771d3 5a0257fc -- . ':(exclude)_bmad-output'`
 3. 脚本与清单全文：`scripts/install-vault.sh`、`scripts/vault-install-manifest.json`
 4. 校验器全文：`scripts/verify_vault_install.py`
 5. 门文件：`backend/tests/unit/test_vault_install_manifest.py`
