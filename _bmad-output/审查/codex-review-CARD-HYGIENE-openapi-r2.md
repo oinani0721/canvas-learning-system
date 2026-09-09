@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-07-第十三批 · 车道 U5(card-u5-lance) · 卡 CARD-HYGIENE-openapi round-2
+> 模型: `gpt-6-astra` · reasoning_effort: `ultra` · codex: `codex-cli 0.153.3`
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat _bmad-output/审查/prompts/codex-prompt-CARD-HYGIENE-openapi-r2.md)"`
+> 审查绑定: `dddfc598` （审 SHA = 当时 HEAD；HEAD 现已前进，见 round-3 的绑定）
+> 会话头自证（抄 .stderr 前几行含 model 行，stderr 本身不入库）:
+> `OpenAI Codex v0.153.3` / `model: gpt-6-astra` / `sandbox: read-only`
+
+---
+
 **发现 1 条 HIGH、3 条 MEDIUM。剩余 GET 面仍有请求期写入，不能认定“零写”通过。BLOCKER、LOW：本节无。** 以下为静态调用链结论，未执行请求或测试。
 
 1. **HIGH — FSRS 查询会创建并持久化默认卡。**

@@ -261,19 +261,41 @@ schema = (
 
 **终轮 2 条**（存档 `find-newer-attribution-r2-20260909T....txt`）：
 
-| 文件 | mtime | 归因 | 处置 |
+| 文件 | mtime | 归因（**已按 Codex round-3 降低确定性**） | 处置 |
 |---|---|---|---|
-| `logs/memory-system-2026-09-09.log` | `22:06:45`（开跑后约 20 分钟，**跑中**） | 被保留的 health 系 GET 在请求处理中经 `memory_logger` 写的**日志**（`endpoints/health.py:849/853/865/883/909`） | **登记不排除**：可观测性输出，`.gitignore:192 logs/` 覆盖，非 vault 骨架；为它排除整个 health GET 面，覆盖损失远大于收益 |
-| `app/data/vault_index_pending__canvas_vault.jsonl` | `2026-09-10T02:53:30`（= `21:46:42 + 5:06:32`，**跑结束时刻**） | app **关闭时**持久化，非任何单个 GET 触发 | **登记不排除**：排除任何 GET 都消不掉它；`.gitignore:253` 覆盖；非 vault 骨架 |
+| `logs/memory-system-2026-09-09.log` | `22:06:45`（开跑后约 20 分钟，**跑中**） | 与「请求期健康检查日志」这一机制**相容**：授权源码里闭合的直接写者是 `GET /api/v1/health/neo4j`（`endpoints/health.py:837` enabled 分支 → `:849` 导入 → `:853/865/883/909` 记录 → `core/memory_system_logger.py:68/35/41` 建目录 + 文件 handler）。**mtime 本身不能识别是哪个请求或哪个进程写的。** | **登记不排除**：可观测性输出，`.gitignore:192 logs/` 覆盖，非 vault 骨架 |
+| `app/data/vault_index_pending__canvas_vault.jsonl` | `2026-09-10T02:53:30` | 「mtime 接近结束，与 shutdown 写路径**相容**」。shutdown 路径确实存在（`main.py:474` → `vault_index_orchestrator.py:864` → `:337 mkdir`/`:339 open("w")`/`:341 write`/`:342 os.replace`），但**同一持久化点还有** 文件监听（`:774-776` → `:298/:316`）、启动及周期扫描（`:804` → `:624-628`）、后台批处理（`:519` → `:499`）。最终 mtime 只显示**最后一次**写入，运行中的写入被覆盖。 | **登记不排除**：排除任何 GET 都消不掉 shutdown 路径；`.gitignore:253` 覆盖；非 vault 骨架 |
 
-#### ✅ 两轮对照实测确认了 Codex round-2 HIGH-1
+> **⚠️ 时间算术更正（Codex round-3 MEDIUM-2）**：`21:46:42 + 5:06:32 = 02:53:14`，
+> 而实测 mtime 是 `02:53:30`，**差 16 秒**。本单此前写「= 跑结束时刻」是把近似说成了相等。
+> 正确表述是「接近结束时刻，与 shutdown 写路径相容」，**未闭合唯一写者**。
 
-排除 `GET /api/v1/review/fsrs-state/{concept_id}` 后，`data/fsrs_card_states.json` 的 mtime
-**停在 18:26:21**（首轮时间），终轮全程未被写。`llm_call_logs.db`（16:21:24）与
-`qa_metrics.db`（17:20:56）同理停在首轮时间。
+#### 两轮对照的证据等级（按 Codex round-3 MEDIUM-1 / MEDIUM-3 降级修正）
 
-**这不是推理，是两轮全跑的对照实测** —— 命中从 6 条降到 2 条，降掉的正是 Codex 指认的那条
-及两个只在首次创建时写的文件。
+**本单此前写「这不是推理，是两轮全跑的对照实测」—— 证据等级抬高了，已更正。**
+
+实际可以说的是：
+
+> 终轮**未观察到** `data/fsrs_card_states.json` 的 mtime 更新（停在首轮的 `18:26:21`，
+> 早于终轮哨兵 `21:46:42`）；该结果**与排除修复一致**。
+> 写链成立及其已被移出生成面，由**源码核对 + 集合核对**确认；
+> 「历史唯一写者」与严格因果关系，**未**由这次对照独立证明。
+
+为什么不能说成严格因果（Codex 指出的边界，作者认可）：
+
+- `review_service.py:2468-2476` 先查已有卡，**只有缺卡等条件满足**才在 `:2507` 写盘 ——
+  两轮的初始数据不同（首轮已经把卡写进去了），本来就可能改变写行为；
+- 一般地：写后删除 / 恢复时间戳、SQLite WAL 未刷出主文件、`find -newer` 的严格大于边界，
+  都能让「mtime 未更新」与「未发生写入」脱钩。
+  （这些是推断成立所需的边界条件，**不表示本轮发生了这些反例**。）
+
+**⚠️ 更要紧的更正**：本单此前把 `llm_call_logs.db`（16:21:24）与 `qa_metrics.db`（17:20:56）
+和 `fsrs_card_states.json` **并列**作为「排除生效」的证据 —— **这是错的**。
+Codex round-3 MEDIUM-3 指出：`/system/qa-metrics`、`/system/extraction-records`、
+`/system/error-aggregation`、`/system/pipeline-health`、`/system/llm-stats` 这些 GET
+**仍在保留面里**，它们的写入是**冷初始化**（DB / 表 / 目录缺失时才创建）。
+首轮已经把 schema 建好，终轮这些 GET 照跑却不再更新文件 —— 这是**混杂因素**，
+它们 mtime 的消失**不能归功于那三条排除**。
 
 ### (f) 负控二 —— fixture 面对预置骨架必红
 
@@ -403,7 +425,60 @@ optimization`。`.gitignore:107` 对**已跟踪**文件不生效，这是历史�
 |---|---|---|---|---|---|---|
 | round-1 | `3c064c9d` | 0 | 0 | 0 | **1** | `codex-review-CARD-HYGIENE-openapi-r1.md` |
 | round-2 | `dddfc598` | 0 | **1** | **3** | 0 | `codex-review-CARD-HYGIENE-openapi-r2.md` |
-| round-3 | `<R3_SHA>` | <R3_B> | <R3_H> | <R3_M> | <R3_L> | `codex-review-CARD-HYGIENE-openapi-r3.md` |
+| **round-3（收口轮）** | **`a525d8ad`** | **0** | **0** | 5 | 2 | `codex-review-CARD-HYGIENE-openapi-r3.md` |
+
+**D-15 收口判据**：round-3 绑最终 HEAD `a525d8ad`，
+`git diff --stat 11dfe410 a525d8ad -- . ':(exclude)_bmad-output'` **为空**（代码面自 R2 起零变动），
+该轮 **BLOCKER = 0、HIGH = 0** ✅。MEDIUM 5 / LOW 2 按协议 §1 **登记不阻断**。
+三份存档首部按协议 §2.1 六行 blockquote 补齐，三字段（模型 / reasoning_effort / codex）齐。
+
+#### round-3 的 MEDIUM/LOW → 处置分两类
+
+**(甲) 指出本单措辞不实的 → 已逐条改文（本轮只改 `_bmad-output`，不动代码，故不需再送一轮）**
+
+| 条 | 指出的问题 | 本单已改 |
+|---|---|---|
+| MEDIUM-1 | 「这不是推理，是对照实测」证据等级抬高 | §四 (e) 已降级为「未观察到更新 + 与修复一致；唯一写者与严格因果未独立证明」 |
+| MEDIUM-2 | `vault_index_pending` 归因写死「= 关闭时持久化」，且 `02:53:14` vs `02:53:30` 差 16 秒；orchestrator 另有 3 处写入点 | §四 (e) 已改为「与 shutdown 路径相容，未闭合唯一写者」+ 列出全部写入点 + 更正时间算术 |
+| MEDIUM-3 | 把 `llm_call_logs.db` / `qa_metrics.db` 并列为「排除生效」的证据是错的（冷初始化混杂因素） | §四 (e) 已加「⚠️ 更要紧的更正」段，明确剔除这两条 |
+| LOW-1 | 「排除整个 health 面代价过大」夸大了代价 —— 闭合的直接写者只是 `GET /api/v1/health/neo4j` | §四 (e) 归因表已改为点名该端点，删去「整个 health 面」的说法 |
+| LOW-2 | 4-A 表与 4-B 用户段仍写旧数字（1 条 / 114）、且保证过宽 | 见 §五，已改为 4 / 117 并补上「模块检查时 / backend 顶层五项」的限定 |
+
+**(乙) 新发现的未排除写面 → 登记不阻断，不再扩大排除面**
+
+Codex round-3 用深度调用链（超出卡文 (c) 规定的「handler 函数体一层 grep」口径）
+又找出三组**条件性**写盘的保留 GET。它们都是**冷初始化**（目录 / DB / 文件已存在时不写）：
+
+| 条 | 保留的 GET | 写点 |
+|---|---|---|
+| MEDIUM-3 | `/system/qa-metrics`、`/system/extraction-records`、`/system/error-aggregation`、`/system/pipeline-health`、`/system/llm-stats` | `difficulty_matcher.py:439 mkdir` / `:139-142` SQLite CREATE；`extraction_validator.py:170-180`；`error_aggregator.py:188-191`；`cost_tracker.py:218 makedirs` / `:220-226` |
+| MEDIUM-4 | `/api/v1/multimodal`、`/multimodal/list`、`/multimodal/by-concept/{concept_id}`、`/multimodal/{content_id}` | 依赖解析 `dependencies.py:906/830/897` → `multimodal_service.py:1599-1603` 构造单例 → `:205 _ensure_storage_dirs` → `:214/216 mkdir` |
+| MEDIUM-5 | `/review/history`、`/review/progress/multi/{original_canvas_path}`、`/rag/weak-concepts/{canvas_file}` | `neo4j_edge_client.py:792 mkdir` / `:800-808` 缺文件初始化 / `:822 atomic_write_json_async` → 默认目标 `backend/data/learning_memories.json`（`:43-45`） |
+
+**为什么不追加排除**（判断依据，非回避）：
+
+1. 协议 §1：MEDIUM **登记不阻断**；D-15 的通过门是 BLOCKER/HIGH = 0，已满足。
+2. 卡文 (c) 规定的排除触发口径是「对剩余 GET 的 **handler** grep 写原语，命中即排除」。
+   已排除的 4 条都是按该口径（或 round-2 的直接调用链）命中的；
+   这三组要跟 2-4 层依赖注入与单例构造才能看到，超出卡文授权的判定口径。
+3. 全排会把覆盖面从 89 压到 **77**，且这些写点都是冷初始化 —— 用**扩大排除面**换
+   「跑完文件系统更干净」，损失的是契约覆盖，收益是本卡判据的好看程度。这个交换不划算，
+   且会把「本卡未证明什么」变成「本卡什么也没测」。
+4. Codex 自己也说：**不需要再跑五小时**；若要验这些冷初始化，应在隔离临时目录单验相关
+   初始化函数，而不是重复用已初始化数据的全量测试。
+
+⇒ 三组全部进 §六「本卡未证明什么」与 §七 台账，交主 session 决定是否另立卡。
+
+#### round-3 其余核对结论（转录）
+
+- **问题 4（`.exclude()` 链式语义）本节无发现**：4.14.3 实测 `schemas.py:218` 克隆已有集合、
+  `:224` 追加排除；`filters.py:151-152` 复制旧集合、`:289` `_excludes.add()`、
+  `:166-168` 任一排除命中即拒绝 ⇒ **四次 `.exclude()` 累积生效**，与采集结果一致。
+- **集合正控全部成立**：Codex 独立重算 `206 → 89`、排除 `117`，差集完全一致，`GET /` 保留；
+  相对 `dddfc598` 新增 0、恰移除指定三条。
+- **未把 3-c 写成通过**：Codex 确认本单明确记载两轮未通过。
+- **(g) 只能确认合计口径**：`89 + 3 = 92` 算术成立，但 Codex 未获授权读块 B 的基线文件，
+  故「三条失败原因相同」未经它独立认证；且分跑结果**不是**单进程目录全跑的实测。
 
 #### round-1 LOW-1 → 已整改（commit `dddfc598`）
 
@@ -462,27 +537,29 @@ Codex 指出零写门只查 `backend/` 顶层五个名称，若 vault 根是 `ba
 | (b)① collect-before 含 setup-wizard | `collect-before.txt` 命中 1 | ✅ |
 | (b)② 源码链原文 | 本单 §一.② | ✅ |
 | (b)③ 冻结现场只读核 | `frozen-scene-20260909T160156.txt`，四项俱在 | ✅ |
-| (c) 排除面 = 全部非 GET/HEAD + 追加 1 条 | `excluded-operations.txt` 114 行 | ✅ |
+| (c) 排除面 = 全部非 GET/HEAD + 追加 **4** 条 | `excluded-operations.txt` **117** 行 | ✅ |
 | (c) **正控** | 正控-1/2/3/3′/4 全 PASS（本单 §二） | ✅ |
 | (c) 剩余 GET 写原语复核 | `get-handler-write-primitive-scan-20260909T161754.txt`，93 handler / 1 命中 / 已追加排除 | ✅ |
 | (d) 零写 fixture | `backend/tests/contract/conftest.py`；跑前/跑后双断言 + mtime；自身零写 | ✅ |
-| (e) 改后全跑 + 零写判据 | 见 §四 (e) 段 | <!-- E-VERDICT --> |
-| (f) 两负控 | 负控一 `collect-negctl-*.txt`；负控二 `negctl2-fixture-20260909T162541.txt`（3/3） | <!-- F-VERDICT --> |
-| (g) 目录级三数 + ruff | ruff check/format 两文件 `rc=0`；目录级见 §四 (g) 段 | <!-- G-VERDICT --> |
-| (h) Codex 多轮绑 HEAD | 见 §四 Codex 段 | <!-- H-VERDICT --> |
-| (i) 单独 commit、`.hypothesis` 不入库 | 见 §四 地盘门段 | <!-- I-VERDICT --> |
+| (e) 改后全跑 + 零写判据 | 见 §四 (e) 段（跑两轮） | **部分**：`git status` / 五项骨架两轮均 ✅；`find -newer` 两轮均 ❌（6 → 2 条，已逐条归因） |
+| (f) 两负控 | 负控一 `collect-negctl-20260909T211728.txt`；负控二 `negctl2-fixture-20260909T162541.txt`（3/3） | ✅ |
+| (g) 目录级三数 + ruff | ruff check/format 两文件 `rc=0`；目录级见 §四 (g) 段 | **部分**：ruff ✅、块 A+B 三数与存量对照基线 ✅；**开工基线拿不到**（改前全跑 = 硬禁），已说明合并口径 |
+| (h) Codex 多轮绑 HEAD | 见 §四 Codex 段 | ✅ round-3 绑 `a525d8ad`，B0 H0（M5 L2 登记） |
+| (i) 单独 commit、`.hypothesis` 不入库 | 见 §四 地盘门段 | **部分**：单独 commit ✅、header/body ≤100 ✅、真 `*.stderr` 入库 0 ✅；`.hypothesis` 入库 **202** ❌（历史遗留，本卡未新增，已查证） |
 | (j) 两个必填锚 | §六（13 条）+ §七（16 条） | ✅ |
 
 ### 4-B 用户段（零技术词）
 
-跑一遍接口体检后，代码目录里不会再莫名多出几个课程文件夹和说明文件；
+跑一遍接口体检后，代码目录**最外面一层**不会再莫名多出那几个课程文件夹和说明文件；
 体检只查「读」的那部分接口，会写东西的接口这次先不体检，并且列了清单
-——我感觉工作目录干净了，也知道少查了什么。
+——我感觉工作目录干净了，也知道少查了什么、以及哪些地方还没看。
 
 **felt-sense**：以前跑完体检要先扫一眼目录、心里犯嘀咕「这几个文件夹是刚才冒出来的吗」，
-现在不用犯这个嘀咕了：真冒出来，体检自己会红着脸停下来告诉我是哪几个、什么时候出现的。
-代价我也看得见——清单上那 114 项这次没查，不是「查过了没问题」，是「没查」。
-这两件事分得清，比假装都查过了让人踏实。
+现在不用犯这个嘀咕了：只要它们冒在最外面那一层，体检开始和结束时各看一眼，
+真冒出来就会红着脸停下来告诉我是哪几个、什么时候出现的。
+代价我也看得见——清单上那 117 项这次没查，不是「查过了没问题」，是「没查」。
+还有几个「读」的接口其实也会悄悄建文件，这次挑出四个不查了，另外几个记在本子上没动。
+这几件事分得清，比假装都查过了让人踏实。
 
 ---
 
@@ -507,7 +584,8 @@ Codex 指出零写门只查 `backend/` 顶层五个名称，若 vault 根是 `ba
 5. `card-z4-redbase @ c8611a89` 冻结现场四项俱在，是**历史**污染的实物证据，
    不是本次实证的产物。
 
-因此本卡证明的是「写端点不再进入合约测试的生成面 + 一旦写进来 fixture 会报警
+因此本卡证明的是「写端点不再进入合约测试的生成面 + 骨架若出现在 `backend/` **顶层五项**
+且在**模块检查时刻**仍存在，fixture 会报警
 + 改前在受控 scratch 下的一次实测结果」，**不是**「改前一定在污染」，
 也**不是**「改后一定不写盘」。
 
@@ -526,7 +604,37 @@ Codex 指出零写门只查 `backend/` 顶层五个名称，若 vault 根是 `ba
     handler → service → 写盘的**间接路径未覆盖**（列入 Codex 问题 ②）。
 13. 零写门只看 `backend/` **顶层**五项，不做全树扫描；端点写到 `backend/data/` 之类
     **不在五项内**的位置，本门看不见（`backend/data/` 实测早已存在，mtime `2026-09-08 06:46`，
-    非本卡产生）。
+    非本卡产生）。且门只在 **module setup / teardown 两个时刻**各看一眼 ——
+    「写完即删」的探针（如 `.health_check`）在这两个时刻都不存在，门与跑后的 `find -newer`
+    **同样看不见**。
+
+**以下为 Codex round-3 补出、本卡登记不改的未证明项：**
+
+14. **未证明剩余 89 条 GET 全部不写盘**。round-3 用深度调用链又找出三组**条件性**写盘的
+    保留 GET（冷初始化，目录/DB/文件已存在时不写），本卡**未排除**它们：
+    - `/system/qa-metrics`、`/system/extraction-records`、`/system/error-aggregation`、
+      `/system/pipeline-health`、`/system/llm-stats` → SQLite 建库建表 + `mkdir`；
+    - `/api/v1/multimodal`、`/multimodal/list`、`/multimodal/by-concept/{concept_id}`、
+      `/multimodal/{content_id}` → 依赖解析构造单例时 `_ensure_storage_dirs` 建媒体目录；
+    - `/review/history`、`/review/progress/multi/{...}`、`/rag/weak-concepts/{canvas_file}`
+      → 首次可写出 `backend/data/learning_memories.json`。
+    Codex 自己也声明：部分 rollback / 索引调用进入其授权范围外的实现，**它也停在边界**，
+    并未为全部 89 条签零写证明。
+15. **「mtime 未更新 ⇒ 该轮未被写」不是严格因果**。两轮全跑的初始数据不同
+    （首轮已把 FSRS 卡写进去了），`review_service.py:2468-2476` 有「已有卡就不写」的分支，
+    本来就可能改变写行为；写后恢复时间戳、SQLite WAL 未刷出主文件、
+    `find -newer` 严格大于的边界，也都能让二者脱钩。
+    本卡只能说「终轮**未观察到**更新，且与排除修复一致」，**不能说**「已证明是那三条排除的因果」。
+16. **`vault_index_pending__canvas_vault.jsonl` 的唯一写者未闭合**。除 shutdown 路径外，
+    文件监听、启动/周期扫描、后台批处理都写同一个持久化点，最终 mtime 只显示最后一次；
+    且 `21:46:42 + 5:06:32 = 02:53:14` 与实测 `02:53:30` 差 16 秒。
+17. **`22:06:45` 那条日志的具体写者未闭合**。授权源码里闭合的直接写者是
+    `GET /api/v1/health/neo4j`，但 **mtime 本身不能识别是哪个请求、哪个进程写的**；
+    未处理异常还可能经 `main.py:721` → `core/bug_tracker.py:155-156` 追加 `bug_log.jsonl`，
+    本轮是否触发**未证明**。
+18. **(g) 的目录级不是单进程全跑实测**。块 A 与块 B 分两次跑再合并三数；
+    块 B 的「3 红是存量」由作者的移走-conftest 对照基线证明，
+    但该基线文件不在 Codex 授权读取面内，**未经独立认证**。
 
 ---
 
@@ -603,3 +711,20 @@ Codex 指出零写门只查 `backend/` 顶层五个名称，若 vault 根是 `ba
 18. **零写门的检测边界缺口**（Codex round-2 MEDIUM-4）：`conftest.py` 只查 `backend/`
     顶层五项名称；若 vault 根是 `backend/<非五项名>/`，骨架仍写进代码目录而门看不见。
     卡文 (d) 写死这五项，扩大检测面超出本卡授权 → 登记，后续卡候选。
+19. **12 条保留 GET 仍会条件性写盘（冷初始化），本卡登记不排除** —— Codex round-3
+    MEDIUM-3/4/5，逐条 `file:line` 见 §四 Codex 段的 (乙) 表：
+    5 个 `/system/*` 统计 GET（SQLite 建库建表 + mkdir）、4 个 `/multimodal/*` GET
+    （依赖解析建媒体目录）、3 个 `/review|/rag` GET（首次写 `data/learning_memories.json`）。
+    不排除的理由：MEDIUM 按协议登记不阻断；卡文 (c) 的触发口径是「handler 一层 grep」，
+    这三组要跟 2-4 层依赖注入才可见；全排会把覆盖面 89 → 77，用扩大排除面换判据好看不划算。
+    → **建议主 session 另立卡**：要么在隔离临时目录单验这些初始化函数（Codex 的建议，
+    比重跑 5 小时省），要么把它们改成不在读路径上做冷初始化。
+20. **「写完即删」的探针类写入是判据盲区**：`.health_check` 这类在请求内 touch/unlink 的文件，
+    跑后的 `find -newer` **和** module 级零写门**都看不见**（两个观测时刻它都不存在）。
+    ⇒ 事后扫文件系统这一类判据系统性漏掉一整类写入，必须配合读调用链。
+    与条目 11「空集恒真」、条目 17「事后判据看不见中间态」同族 → 建议收进协议。
+21. **证据等级纪律（本卡自身踩过）**：作者一度把「两轮 mtime 对照」写成
+    「这不是推理，是实测」，并把两个受冷初始化混杂因素影响的文件并列为佐证。
+    经 Codex round-3 MEDIUM-1/3 打回后已逐条改文。
+    教训：**「A 改了、B 变了」不等于「A 导致 B」——两轮之间凡有状态残留（本例是首轮已把
+    schema/卡写进去了），对照就不是受控实验。** → 建议收进协议。

@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-07-第十三批 · 车道 U5(card-u5-lance) · 卡 CARD-HYGIENE-openapi round-1
+> 模型: `gpt-6-astra` · reasoning_effort: `ultra` · codex: `codex-cli 0.153.3`
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat _bmad-output/审查/prompts/codex-prompt-CARD-HYGIENE-openapi.md)"`
+> 审查绑定: `3c064c9d` （审 SHA = 当时 HEAD；HEAD 现已前进，见 round-3 的绑定）
+> 会话头自证（抄 .stderr 前几行含 model 行，stderr 本身不入库）:
+> `OpenAI Codex v0.153.3` / `model: gpt-6-astra` / `sandbox: read-only`
+
+---
+
 **限定读取面内确认 1 项 LOW；整体为部分验证。** 未修改文件、运行端点或连接数据库及外部服务。
 
 - **LOW — [backend/tests/contract/test_openapi_contract.py:42](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u5-lance/backend/tests/contract/test_openapi_contract.py:42)**  
