@@ -1,0 +1,27 @@
+# CARD-G2-7b round-5：未能取得裁判输出 —— Codex 账号配额耗尽
+# 协议依据：card-batch-protocol §1「0 字节存档重发一次，再 0 字节 → 主 session 人审替代，不等配额」
+
+## 尝试 1（完整 r5 prompt，绑 6b9ef8ce）
+命令: codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" \
+        "$(cat _bmad-output/审查/prompts/codex-prompt-CARD-G2-7b-r5.md)"
+stdout: **0 字节**（codex-review-CARD-G2-7b-r5.md；0 字节不是有效存档，无首部 ⇒ 不计轮次）
+stderr: 236787 字节；会话头自证 —— OpenAI Codex v0.153.3 / model: gpt-6-astra /
+        reasoning effort: ultra / sandbox: read-only / session 01a08582-c91d-7e33-98a1-e65be4e4d640
+stderr 末尾:
+  ERROR: You've hit your usage limit. Visit https://chatgpt.com/codex/settings/usage
+         to purchase more credits or try again at Sep 15th, 2026 9:25 AM.
+  tokens used 71,969        <- 读完文件后、产出正文前撞限
+
+## 尝试 2（最小 prompt 探针，用以区分「这一次失败」与「账号级用尽」）
+命令: codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "回答一个字：OK"
+rc=1，stdout **0 字节**，stderr 同一错误、同一重置时间。
+=> 与 prompt 内容无关，是**账号级配额**。
+   用最小探针代替「原样重发」是刻意的：原样重发会再白读约 7 万 token 才撞同一堵墙，
+   且不会给出任何新信息。协议要的是「第二个数据点」，探针提供的数据点更强（它还排除了
+   「prompt 太长/内容被拦」这两种解释）。
+
+## 结论
+round-5 **无法取得**，重置时间 2026-09-15 09:25，距今 6 天。
+按协议**不等配额**，转主 session 人审替代。
+本卡当前状态：r4 整改已完成并绑 6b9ef8ce，工作树干净，r5 未审。
+rc=0
