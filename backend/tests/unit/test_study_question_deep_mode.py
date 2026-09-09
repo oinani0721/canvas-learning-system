@@ -39,9 +39,10 @@ def client(authed_client: TestClient) -> Generator[TestClient, None, None]:
     「显式 vault_id ≠ 进程 active vault」→ 409 fail-closed
     (``vault_scope.py:166-176``)。本文件测的是 **mode 参数如何影响 top_k / hard_cap
     与是否触发检索**, 不是 vault 隔离; 不把 ``TEST_VAULT_ID`` 声明成 active vault,
-    **七条有效输入的正向用例**都会变成 409, 淹没真正要测的信号（``:114`` 的非法 mode
-    用例例外——它在 Pydantic Literal 校验就 422, 到不了 resolver；范围按 Codex round-2
-    LOW-2 收窄）。桩的形态与理由同
+    本文件八条用例里的**七条正向用例**都会变成 409, 淹没真正要测的信号。唯一例外是
+    ``test_mode_invalid_rejected_by_pydantic`` —— 它在 Pydantic Literal 校验就 422,
+    到不了 resolver（范围按 Codex round-2 LOW-2 收窄; 以用例名为准, 行号会随 docstring
+    增减漂移）。桩的形态与理由同
     ``test_sync_batch_auth.py:81-84,98`` 的先例。
 
     ⚠️ 本桩**不证明**「请求 vault 与 active vault 不一致时会被拒」——它恰恰把这个前提

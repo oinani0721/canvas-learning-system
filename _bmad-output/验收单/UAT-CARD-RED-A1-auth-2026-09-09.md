@@ -121,7 +121,9 @@
 
 - `tests/unit/test_vault_scope_409.py:333-343` `test_chat_enrich_context_mismatch_409` 就是对
   **enrich-context** 的 409 断言（异 vault payload → `assert 409`），且它在开工与收工红集里
-  **都不存在**（一直绿）。
+  **都不存在**，且两次目录级存档都正面记录该文件全部通过
+  （`unit-open-20260909T132605.txt:279` / `unit-after-20260909T134347.txt:279`）。
+  ⚠️ 措辞按 Codex round-3 收窄为「这两次存档均通过」，不写「一直绿」——本卡没跑过更早的历史。
 - 同文件 `:345-373` `test_chat_enrich_context_match_path_executes` 用的正是本卡这组桩
   （`get_current_vault_id` + `get_memory_service` 的 `AsyncMock`），是本卡打桩形态的**直接先例**。
 - 该文件还覆盖 sync / mastery / memory / exam_sessions / boards 五个端点面的 409。
@@ -228,13 +230,26 @@ git diff --stat --no-color 7004a365 -- backend/app  → 空 + rc=0   ✅ 零生�
 |---|---|---|---|---|---|---|---|
 | r1 | `codex-review-CARD-RED-A1-auth-r1.md` | `7004a365..工作区` | **0** | **0** | 2 | 3 | 5 条**全部采纳整改**，故必再送一轮 |
 | r2 | `codex-review-CARD-RED-A1-auth-r2.md` | `7004a365..faeda37f` | **0** | **0** | 2 | 2 | 4 条**全部采纳整改**，故必再送一轮 |
-| r3 | `codex-review-CARD-RED-A1-auth-r3.md` | 待填 | 待填 | 待填 | 待填 | 待填 | 待填 |
+| r3 | `codex-review-CARD-RED-A1-auth-r3.md` | `7004a365..bcbe2741` | **0** | **0** | **0** | 2 | 两条 MEDIUM 确认已落实；2 LOW 采纳整改，故必再送一轮 |
+| r4 | `codex-review-CARD-RED-A1-auth-r4.md` | 待填 | 待填 | 待填 | 待填 | 待填 | 待填 |
+
+**r3 两条 LOW 整改落点**（两条恰是作者在 r3 运行期间自查发现的同一批问题，已一并处理）：
+- LOW-1（chat 校验用例少算一条）→ fixture docstring 补上 `test_enrich_context_rejects_invalid_mode`，
+  三条校验用例齐（r3 确认正确计数为 16 = 10 条 enrich-context 正向 + 3 条校验 + 3 条 rag hook）
+- LOW-2（行号仍在漂）→ **本卡内引用同一文件位置的地方一律改用「用例名」**，不再写行号：
+  两轮 docstring 整改让行号整体下移，`:434/:463/:485` 已指向 `AsyncMock` 导入行、`:114` 指向有效
+  deep 请求、`:173` 指向空行。行号是工作树指纹，抄旧值即失实
+- 另采纳 r3 的一处精确化：把「一直绿」收窄为「本卡开工/收工两次目录级存档均通过」
+  （`unit-open-*.txt:279` / `unit-after-*.txt:279` 正面记录），红集缺席只是必要条件
+
+**r3 确认无误的计数**：study 七条有效正向 + 一条非法 mode；isolation 七条 HTTP + 一条并发；rag hook 三条。
 
 **r2 四条整改逐条落点**：
 - MEDIUM-1（旧结论残留 + 「必须改用例代码」仍过强）→ 验收单 `:244`/`:264` 清掉「断言过期」「判契约演进」，
   `second-layer` §A.1 改为「按用例适配前提」并明写 function-scope fixture 本可做到、本卡不做是地盘约定
 - MEDIUM-2（把 enrich-context 的缺口说成全仓无覆盖）→ **复核后发现比「过宽」更严重：该说法在任何范围下
-  都不成立**。`test_vault_scope_409.py:333-343` 就是 enrich-context 的 409 断言且一直绿；其 `:345-373`
+  都不成立**。`test_vault_scope_409.py:333-343` 就是 enrich-context 的 409 断言，在本卡两次目录级
+  存档中均通过；其 `:345-373`
   还用了与本卡同一组桩。两处 fixture docstring + `second-layer` §A.3 + 验收单判据 6 与 §8.9 全部改写为
   「这条性质另有覆盖且绿」，并说明这**加强**而非削弱移交决定
 - LOW-1（rag hook 三条全归「进业务处理」）→ `second-layer` 把 `short_prompt_skips_lazy_init`

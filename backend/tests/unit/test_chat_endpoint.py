@@ -21,10 +21,10 @@ from app.services.wikilink_context_service import (
 
 from tests.support.authed_client import authed_client  # noqa: F401
 
-#: 本文件 **enrich-context** 请求携带的 vault_id（``:434/:463/:485`` 三条
-#: ``rag/enrich-hook`` 请求不带这个字段，走的是另一个 request model）。桩与 payload
-#: 共用这一个定义, 否则改了 payload 默认值却忘了改桩, 那些请求会静默退回 409
-#: (CARD-RED-A1-auth; 范围限定按 Codex round-2 LOW-2 收窄)。
+#: 本文件 **enrich-context** 请求携带的 vault_id。三条 ``test_rag_enrich_hook_*``
+#: 用例打的是 ``/api/v1/chat/rag/enrich-hook``, 走另一个 request model、不带这个字段。
+#: 桩与 payload 共用这一个定义, 否则改了 payload 默认值却忘了改桩, enrich-context 那些
+#: 请求会静默退回 409 (CARD-RED-A1-auth; 范围限定按 Codex round-2 LOW-2 收窄)。
 TEST_VAULT_ID = "test_vault"
 
 
@@ -41,9 +41,14 @@ def client(authed_client: TestClient) -> Generator[TestClient, None, None]:
     「显式 vault_id ≠ 进程 active vault」→ 409 fail-closed
     (``vault_scope.py:166-176``)。本文件测的是 **enrich-context 的组装与降级行为**,
     不是 vault 隔离; 不把 ``TEST_VAULT_ID`` 声明成 active vault, **走到 resolver 的那些
-    请求**的 200 断言都会变成 409, 淹没真正要测的信号（不含 ``:434/:463/:485`` 三条
-    ``rag/enrich-hook`` 请求，它们不带 vault_id、不经 ``resolve_vault_scope``；也不含
-    ``:131/:140`` 那两条在 Pydantic / 入参校验就返回的用例）。桩的形态与理由同 ``test_sync_batch_auth.py:81-84,98``
+    请求**的 200 断言都会变成 409, 淹没真正要测的信号。按用例名排除三类（行号会随本文件
+    docstring 增减漂移, 故以名字为准）:
+      - 三条 ``test_rag_enrich_hook_*`` —— 打 ``/rag/enrich-hook``, 不带 vault_id,
+        不经 ``resolve_vault_scope``;
+      - ``test_enrich_context_max_hops_validation`` / ``test_enrich_context_rejects_invalid_mode``
+        —— Pydantic 校验就 422, 到不了 resolver;
+      - ``test_enrich_context_empty_node_path_rejected`` —— 进了端点函数体但在入参检查处
+        提前返回 400。桩的形态与理由同 ``test_sync_batch_auth.py:81-84,98``
     的先例。
 
     ⚠️ 本桩**不证明**「请求 vault 与 active vault 不一致时会被拒」——它恰恰把这个前提

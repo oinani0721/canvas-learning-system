@@ -34,8 +34,8 @@ def client(authed_client: TestClient) -> TestClient:
     ``tests/conftest.py:494-517`` 那个配了 key 的共享 client。``security.py``
     自 ``c9bb6c9a`` fail-closed 后 (:110-142), 裸 client 的请求恒 503 —— 本文件
     **使用 client 的那些 HTTP 用例**都停在 router 级依赖 (``chat.py:48``), 一次都没走到
-    业务层（``:173`` 的 ``test_concurrent_two_vaults_dont_share_context_var`` 不请求
-    client、不走 HTTP, 开工就是绿的; 范围按 Codex round-2 LOW-2 收窄）。
+    业务层。唯一例外是 ``test_concurrent_two_vaults_dont_share_context_var`` —— 它不请求
+    client、不走 HTTP, 开工就是绿的（范围按 Codex round-2 LOW-2 收窄; 以用例名为准）。
     """
     return authed_client
 
