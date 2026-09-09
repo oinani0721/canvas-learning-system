@@ -174,25 +174,64 @@ def _open_is_write(node: ast.Call) -> bool:
 
 # os.open 的写 flags 位 (O_RDONLY=0 只读; 其余打开/创建形态都算写)
 _OS_OPEN_WRITE_FLAGS = frozenset({"O_WRONLY", "O_RDWR", "O_APPEND", "O_CREAT", "O_TRUNC", "O_TEMPORARY"})
+# os.open 全部已知 flags 名 (含只读/附加位)。名单外的名字 = 未知来源 ⇒
+# fail-closed 按写 (r4 MEDIUM-1)。平台相关位尽量列全; 真遇到落单的平台
+# flag 被误报时, 把它加进名单即可 —— 方向是「宁可误报写」, 不放行未知。
+_OS_OPEN_KNOWN_FLAGS = _OS_OPEN_WRITE_FLAGS | frozenset(
+    {
+        "O_RDONLY",
+        "O_EXCL",
+        "O_NONBLOCK",
+        "O_NDELAY",
+        "O_SYNC",
+        "O_DSYNC",
+        "O_RSYNC",
+        "O_NOFOLLOW",
+        "O_CLOEXEC",
+        "O_BINARY",
+        "O_TEXT",
+        "O_INHERIT",
+        "O_NOINHERIT",
+        "O_SHORT_LIVED",
+        "O_RANDOM",
+        "O_SEQUENTIAL",
+        "O_LARGEFILE",
+        "O_ASYNC",
+    }
+)
 
 
 def _os_open_is_write(node: ast.Call) -> bool:
-    """`os.open(path, flags)` 按整数位掩码 flags 判写 (Codex r3 MEDIUM-1)。
+    """`os.open(path, flags)` 按整数位掩码 flags 判写 (Codex r3 MEDIUM-1,
+    r4 MEDIUM-1 修正 fail-closed 方向)。
 
     flags 出现在第二位置参数或 `flags=` 关键字。位或表达式 `os.O_WRONLY |
-    os.O_CREAT` 逐段抽名字/常量检查。flags 缺省 (=O_RDONLY) 放行; flags
-    存在但静态解不出来 (变量/函数返回) 按**写**处理 —— 与文本 open 的
-    fail-closed 同向。
+    os.O_CREAT` 逐段抽名字检查。判定:
+      · 命中任一**写** flag → 写;
+      · 每个片段都是已知 flag 名且无写位 (纯 O_RDONLY 族) → 只读放行;
+      · 出现名单外的名字 (变量等) 或解析不出名字 (调用/常量等非名字形态)
+        → **写** (fail-closed)。r4 版用 `not names` 兜底, 于是 `flags =
+        os.O_WRONLY; os.open(p, flags)` 的 names={"flags"} 非空却全未知,
+        被误放行 —— 与本函数声明的 fail-closed 相反; 本版只有「全部已知
+        且无写位」才放行。
+    flags 是 os.open 的**必填**参数 (Codex r4 LOW-3: 缺省是 TypeError,
+    不存在「缺省=只读」语义); 缺 flags 时本函数返回 False 仅表示「静态上
+    不报写」, 该调用本身无效, 矩阵注释已注明。
     """
     flags = node.args[1] if len(node.args) > 1 else None
     for kw in node.keywords:
         if kw.arg == "flags":
             flags = kw.value
     if flags is None:
-        return False  # os.open(path) → O_RDONLY, 只读
+        return False  # 无效调用 (flags 必填) —— 不报写, 见 docstring
     names: set[str] = set()
+    unparsed = False
 
     def _collect(n: ast.expr) -> None:
+        # r4 MEDIUM-1 第二反例: 必须保留「子表达式无法解析」的状态 ——
+        # `os.O_RDONLY | get_flags()` 若只把 O_RDONLY 收进 names 而丢弃
+        # 调用片段, 就会在「全部已知」的假象下放行。
+        nonlocal unparsed
         if isinstance(n, ast.Attribute):
             names.add(n.attr)
         elif isinstance(n, ast.Name):
@@ -200,13 +239,14 @@ def _os_open_is_write(node: ast.Call) -> bool:
         elif isinstance(n, ast.BinOp):
             _collect(n.left)
             _collect(n.right)
+        else:
+            unparsed = True  # 调用/常量/下标等 —— 解析不完整
 
     _collect(flags)
     if names & _OS_OPEN_WRITE_FLAGS:
         return True
-    # 解析不出任何已知 flag 名 ⇒ 要么是非常规来源的 flags, 要么是纯数字。
-    # names 为空说明 flags 是常量/调用等非名字形态 —— fail-closed 按写。
-    return not names
+    # 放行仅当: 无未解析片段 且 收到的名字全部已知 且 无写位。任一不满足 ⇒ 写
+    return not (not unparsed and names and names <= _OS_OPEN_KNOWN_FLAGS)
 
 
 def _receiver_is_filesystem(func: ast.Attribute) -> bool:
@@ -329,15 +369,17 @@ def _find_write_calls(source: str) -> list[str]:
         name = _call_name(node)
         if name is None:
             continue
+        if isinstance(node.func, ast.Name) and name in imported_writers:
+            # 导入表必须**最先**查 (r4 MEDIUM-2: r3 版把它放在 open 特判
+            # 之后, `from shutil import copyfile as open` 的 open('a','b')
+            # 被文本 open 逻辑抢先把第二路径当 mode 放行, 导入表记录了却
+            # 轮不到查询)。r3 MEDIUM-2 的别名 r/cp 漏报也在此修——调用名是
+            # **别名或原名**, 必须先查导入表再查原名单。
+            found.append(f"{name}(imported)@L{node.lineno}")
+            continue
         if name == "open":
             if _open_is_write(node):
                 found.append(f"open(write-mode)@L{node.lineno}")
-            continue
-        if isinstance(node.func, ast.Name) and name in imported_writers:
-            # from os import replace [as r] 的调用名是**别名或原名**——必须
-            # 先查导入表再查原名单 (r3 MEDIUM-2: 早前先查原名单, 别名 r 不在
-            # 名单里 ⇒ 记录了却永远查不到; 第一档的导入别名 copyfile→cp 同漏)
-            found.append(f"{name}(imported)@L{node.lineno}")
             continue
         if name in UNAMBIGUOUS_FS_WRITES:
             found.append(f"{name}@L{node.lineno}")
@@ -419,8 +461,19 @@ def test_write_call_checker_is_not_vacuous():
         ("io.open 变量路径写", "io.open(p, 'w')", True),
         ("builtins.open 常量路径写", "builtins.open('notes.md', 'w')", True),
         ("os.open flags 位掩码写", "os.open(p, flags=os.O_WRONLY | os.O_CREAT)", True),  # ← r3 版漏报
-        ("os.open 默认只读", "os.open(p)", False),
+        (
+            "os.open 缺 flags 无效调用",
+            "os.open(p)",
+            False,
+        ),  # flags 必填, 缺省 TypeError (r4 LOW-3); 本项仅证检查器不报写
         ("os.open O_RDONLY 只读", "os.open(p, os.O_RDONLY)", False),
+        ("os.open 未知变量 flags", "flags = os.O_WRONLY\n    os.open(p, flags)", True),  # ← r4 版 fail-closed 反向放行
+        ("os.open 混合未知调用", "os.open(p, os.O_RDONLY | get_flags())", True),  # ← r4 版丢弃未知调用后放行
+        (
+            "as open 导入劫持写",
+            "from shutil import copyfile as open\n    open('a.md', 'b.md')",
+            True,
+        ),  # ← r4 版 open 特判先于导入表
         ("字符串 replace", "s.replace('a', 'b')", False),  # ← r1 版误报
         ("字典 copy", "d.copy()", False),  # ← r1 版误报
         ("列表 remove", "items.remove(x)", False),  # ← r1 版误报
