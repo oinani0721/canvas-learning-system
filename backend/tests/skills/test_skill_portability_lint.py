@@ -392,10 +392,15 @@ def _fence_blocks(text: str) -> list[tuple[int, list[str], bool]]:
             #     配 6 空格 closing 要闭合(r14 MEDIUM-2)。
             #   两者都按 **tab 展开后的列数**算, 且要数**整个前缀**(含 `>`/`- `),
             #   只数 `>` 之前的缩进会让 `> \t\t```` 提前闭合(r15 HIGH-1 同根)。
+            # ⛔ CommonMark 的额度算法(r13→r17 五轮): closing 缩进 ≤ **容器内容基线** + 3。
+            #   · 无容器 ⇒ 基线 0(opening 自己的缩进不给额度, r15 HIGH-1);
+            #   · 有容器 ⇒ 基线 = **容器标记本身**的宽度, **不含**标记之后的内容缩进
+            #     —— `>   ~~~py` 的基线是 `> ` 的 2 列而不是 4 列, 否则 `>\t  ~~~`
+            #     会被 `6 <= 4+3` 提前闭合(r17 MEDIUM-3)。
             _open_m = _FENCE_OPEN_RE.match(lines[i])
             _prefix_raw = lines[i][: _open_m.start(1)]
-            _has_container = bool(_prefix_raw.strip())
-            open_indent = len(_prefix_raw.expandtabs(4)) if _has_container else 0
+            _marker_only = _CONTAINER_MARKER_RE.match(_prefix_raw)
+            open_indent = len(_marker_only.group(0).expandtabs(4)) if _marker_only else 0
             _prefix = lines[i][: _FENCE_OPEN_RE.match(lines[i]).start(1)]
             quote_depth = len(_prefix.strip()) and _prefix.count(">")
             container_depth = 1 if _prefix.strip() else 0
@@ -513,18 +518,23 @@ def _has_embedded_span_near_tmp(line: str) -> bool:
 #: bytes 字面量(含 `rb` / `bR` 等前缀) —— 预筛不能因为它不进 `_py_strings()` 就放行。
 _BYTES_LITERAL_RE = re.compile(r"\b[rRbB]{1,2}['\"]")
 #: ATX 标题(自成一块, 前后都是边界)。
-_ATX_HEADING_RE = re.compile(r"^ {0,3}#{1,6}(\s|$)")
+#: ⛔ r17 HIGH-2: `#` 后只接受**空格/tab 或行尾** —— `\s` 会把 `#<NBSP>x` 误认成标题。
+_ATX_HEADING_RE = re.compile(r"^ {0,3}#{1,6}([ \t]|$)")
 #: markdown 块边界(除空行外): ATX 标题、thematic break、setext 下划线。
 #: ⛔ r12 HIGH-3: **列表项**同样是块边界 —— 相邻两个列表项各有独立的 code span,
 #: 拼起来会让前一项的未闭合反引号夺走后一项的合法 opening。
 _BLOCK_BREAK_RE = re.compile(
-    r"^ {0,3}(#{1,6}(\s|$)|(\*\s*){3,}$|(-\s*){3,}$|(_\s*){3,}$|=+\s*$"
+    r"^ {0,3}(#{1,6}([ \t]|$)|(\*[ \t]*){3,}$|(-[ \t]*){3,}$|(_[ \t]*){3,}$|=+[ \t]*$"
     # ⛔ r16 HIGH-2: 有序列表**只有 `1.`/`1)` 能打断段落**(CommonMark) —— 把 `2. `
     # 一律当新块会切断合法的跨行 code span。
-    r"|[-*+][ \t]+|1[.)][ \t]+|<!--)"
+    # ⛔ r17 HIGH-2: 列表 marker 后**必须有内容**才算新块 —— 空列表项(`+ ` 后什么都没有)
+    # 在 CommonMark 里不能打断段落, 当成块边界会切断合法的跨行 code span。
+    r"|[-*+][ \t]+\S|1[.)][ \t]+\S|<!--)"
 )
 #: 列表项 marker(供 `_strip_quote_prefix` 迭代剥用)。
 _LIST_MARKER_RE = re.compile(r"[-*+][ \t]+|\d+[.)][ \t]+")
+#: 容器**标记本身**(不含标记之后的内容缩进) —— 用于算 closing 的额度基线。
+_CONTAINER_MARKER_RE = re.compile(r"^[ \t]{0,3}(?:(?:>[ \t]?)+|(?:[-*+][ \t]|\d+[.)][ \t]))+")
 #: 容器前缀(引用 / 列表, 任意嵌套顺序) —— 只用于 `_FENCE_OPEN_RE` 的深度判定。
 #: ⛔ r10 HIGH-2: `>` 后**只吃一个空格** —— CommonMark 规定 block quote marker 后至多
 #: 一个空格属于标记, 再多就是内容缩进。原先写 `>\s*` 会把 Python 的真实缩进一并删掉,
@@ -760,6 +770,24 @@ def _has_continuation_after(body: list[str], i: int, j: int, end: int) -> bool:
     return False
 
 
+def _next_continuation(body: list[str], i: int, j: int, end: int) -> int | None:
+    """`body[i:j+1]` 之后, 下一个「看起来像续接子句」的行号; 没有则 None。
+
+    跳过空行、注释, 以及仍在本语句体内(缩进更深)的行; 遇到同级非续接行即结束。
+    """
+    base = len(body[i]) - len(body[i].lstrip())
+    for k in range(j + 1, end + 1):
+        nxt = body[k]
+        if not nxt.strip() or nxt.lstrip().startswith("#"):
+            continue
+        if _PY_CONTINUATION_RE.match(nxt):
+            return k
+        if len(nxt) - len(nxt.lstrip()) > base:
+            continue
+        return None
+    return None
+
+
 def _parse_units(body: list[str]) -> list[tuple[int, str, list[str] | None]]:
     """`_parse_units_uncached` 的带缓存包装 —— 同一段 body 会被多条判据反复解析。"""
     cached = _parse_units_cached("\n".join(body))
@@ -778,68 +806,68 @@ def _parse_units_uncached(body: list[str]) -> list[tuple[int, str, list[str] | N
     r"""fence 体 → `[(块内偏移, 源码块, 解析出的字符串或 None)]` —— 按语法单元切。
 
     ⛔ **歧义点取并集**(r16 HIGH-3, 同一处被推翻三次之后的结论):
-    在一段混合 shell + python 的文本里, 一行 `else:` 到底是 **Python 续接子句** 还是
+    在混合 shell + python 的文本里, 一行 `else:` 到底是 **Python 续接子句** 还是
     **恰好长这样的 heredoc 终止符**(`python3 - <<'else:'` … `else:`), **静态区分不了**。
-    r13→r15 我三次改规则去猜:
-      · 「后面有非空白就算续接」⇒ heredoc 的 `else` 被当续接, 已解析的整段被丢弃;
-      · 「一律要求带冒号」⇒ 多行 `elif` 头被切断;
-      · 「else 要冒号、elif 要有内容」⇒ `else:` 形态的 heredoc 终止符又被当续接,
-        而合法的 `else \`␊`:` 显式续行反被拒(Codex 给了双向反例)。
-    猜不出来就**不猜**: 歧义点上把**短单元**(在此切断)与**长单元**(继续累加)的候选
-    **都收进来**。代价是候选变多(误报方向、且都要人登记), 收益是这一类不再漏。
+    r13→r15 三次改规则去猜, 三次被反例推翻(最后一次是双向反例)。猜不出来就**不猜**:
+    把「在此切断」的短单元与「继续累加」的长单元**都收**。
+
+    ⛔ 扩张必须**循环**(r17 HIGH-1): 连续多个 `elif` 时只扩一次的话, 第二个又会退给
+    `shlex`, 拼接关系照样丢。也不设固定窗口 —— 固定上限只是把缺口挪个位置。
+    ⛔ 长单元只贡献它**比上一版多出来的**候选(多重集差, r17 MEDIUM-1) —— 否则重叠
+    部分被计两次, 登记之后就成了可以抵消新增路径的额度。
     """
     out: list[tuple[int, str, list[str] | None]] = []
     i, n = 0, len(body)
     while i < n:
         end = n - 1
-        unit: tuple[int, str, list[str] | None] | None = None
-        for j in range(i, end + 1):
+        handled = False
+        for j in range(i, end + 1):  # ① Python 窗口
             chunk = textwrap.dedent("\n".join(body[i : j + 1]))
             values = _py_strings(chunk)
             if values is not None:
-                unit = (i, "\n".join(body[i : j + 1]), values)
-                # ⛔ 歧义: 后面若还跟着**看起来像**续接子句的行, 长单元也要试 ——
-                # 两种解释都可能, 两种的候选都收(见 docstring)。
-                base = len(body[i]) - len(body[i].lstrip())
-                for k in range(j + 1, min(end, j + 40) + 1):
-                    nxt = body[k]
-                    if not nxt.strip() or nxt.lstrip().startswith("#"):
-                        continue  # 空行/注释不结束复合语句
-                    if not _PY_CONTINUATION_RE.match(nxt):
-                        if len(nxt) - len(nxt.lstrip()) > base:
-                            continue  # 仍在本语句体内(`if x:` + 多个 `pass`), 继续往后找
-                        break  # 同级且非续接 ⇒ 本语句真的结束了
-                    # 续接子句头本身可以跨行(`elif (…` + 续行), 所以从这里**继续累加**
-                    # 直到解析成功, 而不是只试它那一行。
-                    for kk in range(k, min(end, k + 40) + 1):
+                out.append((i, "\n".join(body[i : j + 1]), values))
+                seen = Counter(values)
+                cur_j = j
+                while True:  # ② 循环扩张: 只要后面还有续接子句就继续
+                    nxt_k = _next_continuation(body, i, cur_j, end)
+                    if nxt_k is None:
+                        break
+                    grown: tuple[int, list[str]] | None = None
+                    for kk in range(nxt_k, end + 1):
                         merged = textwrap.dedent("\n".join(body[i : kk + 1]))
-                        longer = _py_strings(merged)
-                        if longer is not None:
-                            out.append((i, "\n".join(body[i : kk + 1]), longer))
-                            # ⛔ 收了长单元就**跳到它之后** —— 否则被它覆盖的那几行会再被
-                            # 当成独立单元走 shell 分词, `elif ("/tmp/cls-exam/" +` 会被
-                            # `shlex` 切出 `(/tmp/cls-exam/` 这种带括号的假候选(实测:
-                            # 四个安全对照因此全被越界判据误报)。
-                            j = kk
+                        got = _py_strings(merged)
+                        if got is not None:
+                            grown = (kk, got)
                             break
                         if not _py_needs_more(merged):
                             break
-                    break
-                i = j + 1
+                    if grown is None:
+                        break
+                    kk, got = grown
+                    delta = list((Counter(got) - seen).elements())
+                    if delta:
+                        out.append((i, "\n".join(body[i : kk + 1]), delta))
+                    seen = Counter(got)
+                    cur_j = kk
+                i = cur_j + 1
+                handled = True
                 break
             if not _py_needs_more(chunk):
                 break
-        if unit is None:
-            for j in range(i, end + 1):
-                chunk = "\n".join(body[i : j + 1])
-                words = _sh_words(chunk)
-                if words is not None:
-                    unit = (i, chunk, words)
-                    i = j + 1
-                    break
-                if not _sh_needs_more(chunk):
-                    break
-        if unit is None:
+        if handled:
+            continue
+
+        unit: tuple[int, str, list[str] | None] | None = None
+        for j in range(i, end + 1):  # ③ shell 窗口
+            chunk = "\n".join(body[i : j + 1])
+            words = _sh_words(chunk)
+            if words is not None:
+                unit = (i, chunk, words)
+                i = j + 1
+                break
+            if not _sh_needs_more(chunk):
+                break
+        if unit is None:  # ④ 两种都解析不了 ⇒ 单行退回
             unit = (i, body[i], None)
             i += 1
         out.append(unit)
@@ -1780,11 +1808,23 @@ def _url_override_hit(line: str) -> bool:
     # ⛔ r15/r16 MEDIUM-1: 要绑「变量被展开**在写死端口的那个串里**」——
     # `curl "${OTHER:-…:8011}/x"; : "${CLS_BACKEND_URL}"` 里名字确实展开了, 但没用于
     # curl; 放进注释同理。所以只看**含 8011 的那一段**(按 shell 词切)里有没有它。
-    for word in _shell_words(line):
-        if "8011" in word and not re.search(r"\$\{CLS_BACKEND_URL\b", word):
-            return True
-    # ⛔ r16 MEDIUM-1: `env -u CLS_BACKEND_URL …` 会确定性删除传入配置, 与赋值/unset 同根。
-    if re.search(r"\benv\b[^;&|\n]*\s-u[= ]\s*[\'\"]?CLS_BACKEND_URL\b", line):
+    # ⛔ r17 MEDIUM-2: 先按命令分隔符切段 —— `curl "…"; URL="${CLS_BACKEND_URL}"` 里
+    # 后半段的展开与前半段的地址无关, 不切段就会被当成「地址受该变量控制」。
+    for segment in re.split(r"[;&|\n]+", line):
+        for word in _shell_words(segment):
+            if word.startswith("#"):
+                break  # shell 注释: 这之后的都不是命令的一部分
+            if "8011" not in word:
+                continue
+            # ⛔ 只有 `${X:-…}`(缺省) 与 `${X}`(直接展开) 才真的控制地址;
+            # `${X:+}` 无论设没设都展开成空, 地址其实写死了(r17 MEDIUM-2)。
+            if not re.search(r"\$\{CLS_BACKEND_URL(:-|\}|:?[-=?]\s*[^+])", word):
+                return True
+    # ⛔ r16/r17 MEDIUM: `env -u CLS_BACKEND_URL …` 删除该变量, `env -i …` 清空整个环境,
+    # 两者都让缺省形态无条件生效, 与赋值/unset 同根。
+    if re.search(r"\benv\b[^;&|\n]*\s-u[= ]\s*['\"]?CLS_BACKEND_URL\b", line):
+        return True
+    if re.search(r"\benv\b[^;&|\n]*\s-i\b", line) and "8011" in line:
         return True
     for segment in re.split(r"[;&|\n]+", line):
         m = _URL_UNSET_RE.search(segment)
@@ -2212,6 +2252,16 @@ def test_continuation_ambiguity_is_resolved_by_union_not_by_guessing():
     # 并集的收益: 长单元里 `ast` 能折出越界路径, 而短单元的解释下它会降级到 shlex。
     assert any("/tmp/cls-exam/../x" in v for _o, _c, p in units if p for v in p), (
         f"长单元应折出 `/tmp/cls-exam/../x`(并集的全部意义所在), 实得: {units}"
+    )
+    # ⛔ r17 LOW-1: 还要钉住**短单元也在** —— 只保留长单元的话, 「heredoc 终止符」那种
+    # 解释就丢了, 而并集的定义就是两种都留。
+    assert any(c.count("\n") == 1 and "elif" not in c for _o, c, p in units if p is not None), (
+        f"短单元(在此切断的那种解释)也必须保留, 实得: {[c[:30] for _o, c, _p in units]}"
+    )
+    # ⛔ 并且要真的检验合法的 `else \`␊`:` 显式续行 —— 上一版只测了长单元的存在。
+    cont = _parse_units(["if False:", "    pass", "else \\", ":", '    P = "/tmp/cls-exam/" ".." "/x"'])
+    assert any(v == "/tmp/cls-exam/../x" for _o, _c, p in cont if p for v in p), (
+        f"`else \\`␊`:` 是合法 Python 显式续行, 必须能折出常量链, 实得: {cont}"
     )
 
 
