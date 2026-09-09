@@ -20,24 +20,25 @@
 
 **移交 U5-C = 0 的口径声明**：本卡 66 条**每一条都取到了依据 sha 并逐条机器复核**（`sha-proof-sweep-20260909T132543.txt`，不合格行数 = 0），故 (b) 的「依据栏空 ⇒ 只能移交」分支未被触发。这是**「66 条都拿得出演进依据」，不是「66 条都没有回归」**——本卡不做 bisect，见验收单「本卡未证明什么」①。
 
-## 一 判据结果（收工，**全部绑定 HEAD `4449e292`** = Codex round-2 整改后的代码树）
+## 一 判据结果（收工，**全部绑定 HEAD `e43db627`** = Codex round-3 整改后的代码树）
 
-> round-1 与 round-2 的 MEDIUM 连着两轮指出「证据未绑定审查 SHA」。本节所有裁判已在
-> `4449e292` 上**重跑**，三份证据文件首行都写死 `HEAD=4449e292`，并在 `gates-*` 首节给出
-> 与上一审查 SHA 的代码树差异（本轮确有代码改动 ⇒ 不等价，故必须重跑而不是声称等价）。
+> round-1 / 2 / 3 连着三轮指出「证据未绑定审查 SHA」。本节所有裁判已在 `e43db627` 上**重跑**，
+> 三份证据文件首行都写死 `HEAD=e43db627`；`gates-*` §〇 给出**实际输出**而不是声称——
+> 既有「与上一审查 SHA 的非空 diff」（本轮确有代码改动 ⇒ 必须重跑），也有「文档轮次之间
+> 代码树等价」的空 diff（round-3 LOW 要求补的那条）。
 
-| 判据 | 结果 | 存档（首行 `HEAD=4449e292`） |
+| 判据 | 结果 | 存档（首行 `HEAD=e43db627`） |
 |---|---|---|
-| §二.1 目录级 `tests/unit` diff `>` 行 | **零**（`grep '^>'` 无输出） | `red-diff-20260909T141449.txt` |
-| §二.1 本卡贡献 `comm -12` | **66**（= 66 − 移交 0） | `c2-contribution-20260909T141449.txt` |
+| §二.1 目录级 `tests/unit` diff `>` 行 | **零**（`grep '^>'` 无输出） | `red-diff-20260909T143922.txt` |
+| §二.1 本卡贡献 `comm -12` | **66**（= 66 − 移交 0） | `c2-contribution-20260909T143922.txt` |
 | §二.1 本卡 66 条里仍红的 | **0**（`comm -23` 空） | 同上 |
-| §二.1 U11-A 贡献 `comm -13` | 8（逐条列出，非本卡责任） | `u11a-contribution-20260909T141449.txt` |
-| §二.1 汇总行 / rc 行 | `99 failed, 4812 passed, 48 skipped, 17 xfailed, 29 errors in 420.21s` / 末行 `rc=1` | `unit-after-20260909T141449.txt` |
-| §二.3 23 文件 failed 集合 | **逐条 == 预声明 R 族外来红 4 条**（`diff` 无输出） | `files-failed-20260909T142327.txt` vs `expected-failed.txt` |
-| §二.3 汇总行 | `4 failed, 452 passed, 13 xfailed in 9.59s`，末行 `rc=1` | `files-23-20260909T142327.txt` |
+| §二.1 U11-A 贡献 `comm -13` | 8（逐条列出，非本卡责任） | `u11a-contribution-20260909T143922.txt` |
+| §二.1 汇总行 / rc 行 | `99 failed, 4812 passed, 48 skipped, 17 xfailed, 29 errors in 399.05s` / 末行 `rc=1` | `unit-after-20260909T143922.txt` |
+| §二.3 23 文件 failed 集合 | **逐条 == 预声明 R 族外来红 4 条**（`diff` 无输出） | `files-failed-20260909T144643.txt` vs `expected-failed.txt` |
+| §二.3 汇总行 | `4 failed, 452 passed, 13 xfailed in 2.41s`，末行 `rc=1` | `files-23-20260909T144643.txt` |
 | §二.3 `grep -c XPASS` | **0**（13 条 xfail 全 strict=True，无一 XPASS；其中 12 条本卡、1 条 U11-A） | 同上 |
 | §二.3 现网端口连接尝试 | **0**（blocked=0 / advisory=0 / unaccounted=0） | 同上 |
-| §二.6 判据强度门（四种弱化形态） | **无输出** | `gates-20260909T142452.txt` |
+| §二.6 判据强度门（四种弱化形态） | **无输出** | `gates-20260909T144721.txt` |
 | §二.7 fixture 门 `autouse=True` 新增 | **0**；精确读取面模式（排除 `os.environ` 假阳）亦无输出 | 同上 |
 | §二.8 地盘门 | 改动 **23** 个测试文件，全部 ⊆ 卡文点名清单；`backend/app` 与 `_archive` diff **均空** | 同上 |
 | 既有 `skip` 标记被删/改 | **0** | 同上 |
@@ -46,13 +47,13 @@
 | 依据 sha 去重个数 | **25**。⚠️ 计法两轮都被打回：round-1 自述「21 个」是错的；round-2 用的「全文去重 27 减去 2 个非依据 sha」也不成立（Codex round-2 LOW 指出，实测全文现已是 30 个——每加一轮审查/证据 SHA 就会漂）。**现行计法只数「契约演进依据」那一列**：取表格第 6 字段里的 `` `[0-9a-f]{8}` `` 去重 = **25**，与全文出现的其它 SHA 无关 | 同上 |
 | 66 条 nodeid 全在 202 基线内 | `comm -23 c2-nodeids.txt red-baseline-202.bare.txt` 无输出 | `c2-in-202.txt` |
 | 66 条失败身份逐条配上原文 | 66/66，无「未解析到」 | `c2-identities.md` |
-| compose 判据负控（两轮累积 7 个输入） | round-1 的复现、round-2 的两个 HIGH 复现（`other: # comment` / `"other":`）、round-2 的 MEDIUM 复现（挪进 `neo4j.command`）**全部由 PASS 变 FAIL**；现状 PASS；陌生用户路径与「只写进注释」均 FAIL | `negctl-compose-exemption-r2-20260909T141039.txt`（round-1 那份 `negctl-compose-exemption-20260909T134534.txt` 保留） |
-| 安全面占位符判据负控 | 运行期替换生产方法为两个变异体（纯内存 / `finally` 无条件还原 / 末尾断言已还原），round-2 给的两个输入**均由 PASS 变 FAIL**，基线 PASS | `negctl-security-placeholders-20260909T141210.txt` |
+| compose 判据负控（**三轮累积 9 个输入**） | 三轮 Codex 给的全部复现（复制到真 sibling service / `other: # comment` / `"other":` / 挪进 `neo4j.command` / 长格式 `source` 后代字段 / `<<:` 合并键让原文两次解析后一次）**全部 FAIL**；现状 PASS；正控与「只写进注释」FAIL。②④⑤ 另附 `yaml.safe_load` 结构自证，确认确实落在 `services.<name>.volumes` | `negctl-compose-exemption-r3-20260909T143735.txt`（前两份保留；r2 那份的 ④⑤ 标注不实已在 r3 份首部更正） |
+| 安全面判据负控（两轮） | 运行期替换生产方法为变异体（纯内存 / `finally` 无条件还原 / 末尾断言身份已还原）：round-2 的两个输入 + round-3 的两个输入（块注释藏占位符 / 先发不安全调用再发干净的）**全部由 PASS 变 FAIL**，基线 PASS | `negctl-security-placeholders-20260909T141210.txt` + `negctl-security-r3-20260909T143823.txt` |
 | §5.1 两条改名 nodeid 的等价覆盖 | 旧 nodeid `no tests collected`；新 nodeid 两条 **PASSED**；同文件反向锚 **PASSED** | `renamed-nodeids-proof-20260909T140504.txt` |
 | lefthook `python-lint` 绕开依据 | ruff lint 23 文件全绿；format 门基线 21 漂 / 2 净，改后仍 **21 / 2 且逐名相同** ⇒ 净新增漂移 0 | `ruff-format-drift-final-23files-20260909T133924.txt` |
 
 ⚠️ **两处「门自己报的假阳」已逐条查清、未静默算过**，详见 `gates-20260909T132820.txt` 尾部两节：
-① §二.7 的 `\.env` 正则里 `.` 是通配符，吃到了 `os.environ` 的 "s.env"（11 行全是 `patch.dict(os.environ, …)`）；换精确模式后无输出（本轮 `gates-20260909T142452.txt` 直接用的就是精确模式）。
+① §二.7 的 `\.env` 正则里 `.` 是通配符，吃到了 `os.environ` 的 "s.env"（11 行全是 `patch.dict(os.environ, …)`）；换精确模式后无输出（本轮 `gates-20260909T144721.txt` 直接用的就是精确模式）。
 ② (m) 的 `git ls-tree -r HEAD | grep -c stderr` = 1，命中的是 `CARD-G4-9` 于 2026-08-28 入库的 `census-stderr.txt`（`.txt` 结尾故不被 `.gitignore` 的 `*.stderr*` 覆盖），在本批基线 `da690bf8` 就已在库；本卡 diff 里 stderr 计数 = **0**。
 
 ## 二 逐条 66 行
@@ -234,3 +235,29 @@ Codex round-2 明确**未能**独立确认的面（如实转录，不代为背�
 上一卡的地盘（本卡自己的证据是 §一 的地盘门与 23 文件清单）。
 
 **本车道两轮均未驳回任何一条。**
+
+## 八 Codex round-3 处置记录
+
+**round-3 绑定 SHA `0909e935`，分级：BLOCKER 0 / HIGH 1 / MEDIUM 1 / LOW 4。**
+存档 `codex-review-CARD-RED-C2-r3.md`。D-15 未满足（HIGH ≠ 0）⇒ 再整改、再送一轮（本卡累计第 4 轮，上限 5）。
+
+| 级别 | Codex 的意见 | 本车道处置 | 复核方式 |
+|---|---|---|---|
+| HIGH | 只比 `path[:3]` 会把 volumes 元素的**后代字段**一并豁免：长格式挂载 `- {type: bind, source: <获准串>, target: /other}` 的 `source` 落在 `(services, neo4j, volumes, 0, "source")`，前三段相同就放行——而它实际挂到了另一个 target | **接受并修**：深度必须**精确等于 4** | 负控 `negctl-compose-exemption-r3-*.txt` 用例 ⑧ FAIL |
+| MEDIUM | `safe_load` 的**合并键覆盖**会消去原文路径，使位置与数量检查漏检 | **接受并修**：数量判据移到**文本层**——每条豁免值在全文至多出现一次 | 同一负控用例 ⑨ FAIL（`<<:` + 覆盖，原文两次、解析后一次） |
+| LOW | 占位符判据只剥 `//`，`LIMIT 5 /* $limit */` 能过 | **接受并修**：块注释也剥 | 负控 `negctl-security-r3-*.txt` 用例 ② FAIL |
+| LOW | 只审**最后一次** `run_query`，先发一条含恶意原串的查询再发干净的即可全绿（本轮新发现的**既有**盲区） | **接受并修**：逐条审 `call_args_list` 的全部调用 | 同一负控用例 ③ FAIL |
+| LOW | 上一份负控的 ④⑤ 标题写「移到另一 service」，实际失败位置是**顶层 `volumes.other.volumes`**，不在 `services.other.volumes` | **接受并重做负控**：改为插在 `services:` 行正下方；②④⑤ 另附**结构自证**（`yaml.safe_load` 后确认 service 名确实在 `services` 映射里） | 新负控 9 个用例，标题与实际失败位置一致 |
+| LOW | `c2-verdicts.md` 声称的空 diff 证明没在存档里；三份证据标的是 `4449e292` | **接受并补**：`gates-*` 首节补上 `git diff --stat <审SHA> HEAD -- . ':(exclude)_bmad-output'` 的**实际输出**。Codex 已独立核实 `4449e292 → 0909e935` 排除证据目录后确实为空 | 见 `gates-*` §〇 |
+
+Codex round-3 独立确认成立的部分：
+普通 anchor/alias 跨 service、合并继承跨 service、列表 alias 重复**均被拦截**；多文档抛 `ComposerError` 不会放行；
+普通双引号包裹豁免串被内容轴拒绝。两份负控**包含预期断言的失败信息**，未发现「无关异常被当作成功负控」。
+`5139428d → 0909e935` 排除证据目录后仅改 **23 个测试文件、`backend/app/**` 零改动**，本轮增量未改 skip、未删用例。
+
+Codex round-3 明确**未能**独立确认的面（如实转录）：
+① 安全负控「缺少运行脚本，无法独立确认 `finally` 与完整还原过程」——但也「没有依据认定存在残留」；
+② 「全卡累计 skip 状态及 U11-A／R 族逐用例归属，当前读取面不足以独立确认」；
+③ §七 的收窄措辞它判为足够，但「对应依据表不在许可读取面，未确认其同步情况」。
+
+**本车道三轮均未驳回任何一条。**
