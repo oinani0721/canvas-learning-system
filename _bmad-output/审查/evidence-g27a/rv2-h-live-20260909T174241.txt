@@ -1,0 +1,34 @@
+### 复验2 (h)② live 源（只读 live，写入 scratch）  HEAD=dcaaaef9
+  📦 部署 Canvas Learning System → /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27a-rv2-20260909T174241/probe-rv2-live
+     模板源: /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault
+     ✏️  生成 插件 data.json (backendUrl=http://127.0.0.1:8011; key 由 activate 步写入)
+     ✏️  生成 templater data.json (templates_folder)
+     ✏️  生成 .claude/settings.local.json (只批准 canvas-learning-mcp)
+  
+  🔍 自检:
+     ✅ 骨架目录 (含 wiki 两件)
+     ✅ skills ≥8 个 (含 SKILL.md)
+     ✅ decay_beta + fsrs_bridge
+     ✅ hooks 配置 settings.json
+     ✅ MCP 注册件 .mcp.json
+     ✅ 核心插件与模板源字节一致
+     ✅ 插件启用清单+快捷键
+     ✅ 后端鉴权 key 未从源复制
+     ✅ Dashboard + CLAUDE.md
+     ✅ vault 配置 yaml
+  
+  ═══ 结果: 10 项通过 / 0 项失败 ═══
+  📋 后续步骤:
+     1. Obsidian → 打开 vault → /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27a-rv2-20260909T174241/probe-rv2-live (插件与快捷键已随 vault 就位)
+     2. 激活: scripts/install-vault.sh 加 --activate, 或手改 .env ACTIVE_VAULT=probe-rv2-live 后 docker compose up -d backend
+     3. 首验: 在新 vault 建原白板 (Cmd+P 建/配置原白板) → 写内容 → /start-exam-board 应能出题
+  install-rc=0
+  verify rc=0
+  match                  : 34
+  missing                : 0
+  extra                  : 0
+  content-drift          : 0
+  optional-missing       : 1
+  unreadable             : 0
+  hotkey-orphan          : 0
+rc=0
