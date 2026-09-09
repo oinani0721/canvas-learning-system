@@ -47,8 +47,8 @@ unreadable, 并且**计入阻断** —— 「我看不见」不等于「一致�
 
 **optional** (item 级布尔, CARD-G2-7a): 声明了但**允许它不在**。缺失时进 optional-missing 段,
 **不计退出码**。两类用途: ① Obsidian 首次打开自建的配置; ② gitignored 因而模板源里本就没有、
-只在 `--source` 指 live 时才拿得到的件。它只放松「在不在」, **不放松「内容对不对」** ——
-项在位时照常参与 drift/match, 且始终留在 declared_paths 里(否则在位时会被反过来报成 extra)。
+只在 `--source` 指 live 时才拿得到的件。它只放松「在不在」: copy 项在位时照常比内容, **generate 项按定义不比内容**(每 vault 都不同,
+只查形态与可读性)。始终留在 declared_paths 里(否则在位时会被反过来报成 extra)。
 
 退出码 (CARD-RV-G2-6 分四档 —— 调用方要能区分「缺东西」与「多东西」):
   0  没有 missing / extra / content-drift / unreadable / hotkey-orphan
@@ -131,8 +131,9 @@ class Item:
     # optional (CARD-G2-7a): 声明了但**允许它不在**。缺失时进 optional-missing 段,
     # **不计退出码**。用于两类项: ① Obsidian 首次打开自建的配置 (app.json 等);
     # ② gitignored 因而模板源里本就没有、只在 --source 指 live 时才拿得到的件。
-    # ⚠️ 它只放松「在不在」, **不放松「内容对不对」** —— 项在位时照常参与 drift/match,
-    # 且始终留在 declared_paths 里 (否则它在位时会被反过来报成 extra)。
+    # ⚠️ 它只放松「在不在」: copy 项在位时照常比内容, **generate 项按定义不比内容**
+    # (每 vault 都不同, 只查形态与可读性)。始终留在 declared_paths 里
+    # (否则它在位时会被反过来报成 extra)。
     optional: bool = False
 
 
@@ -710,12 +711,39 @@ def _leaf_digest(path: Path) -> tuple[str, bool]:
     return "?:%06o" % stat.S_IFMT(st.st_mode), False
 
 
+def _probe_regular_readable(path: Path) -> tuple[bool, str]:
+    """generate 件的形态+可读性探测: 必须是**不经软链**的普通文件, 且真能读到第一个字节。
+
+    两处都不能省(Codex round-3 MEDIUM):
+      1. `is_file()` **跟随软链** —— 一条指向别处普通文件的链会判 True, 而 `_leaf_digest`
+         对链只读 `readlink` 原文、永远 bad=False ⇒ 「链到 chmod 000 文件」记 match、rc=0。
+         生成件按定义是脚本自己写出来的实体文件, 用 `lstat` + `S_ISREG` 判。
+      2. 可读性要**真开一次**。但只读 1 字节就够 —— 早先复用 `_leaf_digest` 会把整份文件
+         读进内存做哈希、结果又不使用(16 MiB 生成件 ⇒ 同量级分配峰值), 纯浪费。
+    """
+    try:
+        st = os.lstat(path)
+    except OSError as exc:
+        return False, f"读不到条目状态 ({exc.__class__.__name__})"
+    if stat.S_ISLNK(st.st_mode):
+        return False, "生成件是软链 (应为脚本写出的实体文件)"
+    if not stat.S_ISREG(st.st_mode):
+        return False, "生成件不是普通文件 (应为脚本生成的单文件)"
+    try:
+        with open(path, "rb") as fh:
+            fh.read(1)
+    except OSError as exc:
+        return False, f"生成件在位但读不动 ({exc.__class__.__name__})"
+    return True, ""
+
+
 def _digest_pairs(
     path: Path,
     excluder: ExcludeMatcher | None = None,
     base: Path | None = None,
     unreadable: list[str] | None = None,
     generated: ExcludeMatcher | None = None,
+    follow_root: bool = False,
 ) -> list[tuple[str, str]]:
     """产出 (相对 base 的路径, 叶子摘要) 对。非目录时只有一条。只读, 单次遍历。
 
@@ -736,6 +764,18 @@ def _digest_pairs(
     def _note(key: str) -> None:
         if unreadable is not None:
             unreadable.append(key)
+
+    if follow_root and path.is_symlink():
+        # 与 install-vault.sh 的 `cp -R -H` 对齐: 那条命令**跟随操作数软链**, 把内容复制
+        # 成实体目录。若这里仍按「链记 readlink 原文」摘要, 源侧是 L:、目标侧是内容摘要
+        # ⇒ **完全正确的复制也报 content-drift**(Codex round-3 MEDIUM)。只跟随**根**这一
+        # 层, 与 -H 的语义一致 —— 目录内部的链两侧都仍记原文(那是 _leaf_digest 的既有语义,
+        # 只证明「链接原文相同」, 不证明解引用后的内容相同)。
+        try:
+            path = Path(os.path.realpath(path, strict=True))
+        except OSError:
+            _note(root_key or path.name)
+            return [(root_key, "U:unreadable")]
 
     if path.is_symlink() or not path.is_dir():
         digest, bad = _leaf_digest(path)
@@ -1029,18 +1069,15 @@ def verify(
         # 这类形态错误就完全没有信号 —— 存在即 match, 父摘要又看不见它。
         # (Codex round-1 MEDIUM)
         if item.action == "generate":
-            # 形态与可读性都要查: is_file() 对 000 权限的普通文件仍返回 True, 那种
-            # 「在位但读不动」的生成件不该进 match —— 它是脚本写坏的产物。
-            # _leaf_digest 的读探测与摘要路径同源, bad=True 即读不动。
-            probe_digest, probe_bad = _leaf_digest(target)
-            if not target.is_file() or probe_bad:
+            ok, why = _probe_regular_readable(target)
+            if not ok:
                 report.unreadable.append(
                     Finding(
                         path=item.path,
                         category="unreadable",
                         action=item.action,
                         role=item.role,
-                        detail="生成件存在但不是可读的普通文件 (应为脚本生成的单文件)",
+                        detail=why,
                     )
                 )
                 continue
@@ -1062,7 +1099,7 @@ def verify(
                 continue
             src_unreadable: list[str] = []
             tgt_unreadable: list[str] = []
-            src_pairs = _digest_pairs(src, excluder, source, src_unreadable, generated)
+            src_pairs = _digest_pairs(src, excluder, source, src_unreadable, generated, follow_root=True)
             tgt_pairs = _digest_pairs(target, excluder, vault, tgt_unreadable, generated)
             unreadable_here = src_unreadable + tgt_unreadable
             # 把**任一侧**读不动的位置从两侧同时剔掉再比 —— 否则「两侧内容其实相同、

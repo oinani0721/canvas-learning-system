@@ -692,6 +692,11 @@ def test_verifier_write_calls_are_confined_to_write_report():
             name = node.func.id
         if name not in write_names:
             continue
+        if name == "open" and _is_readonly_open(node):
+            # `open(p, "rb")` 是只读探测, 不是落盘。**只按模式字面量放行** ——
+            # 缺省模式("r")也放行, 但任何含 w/a/x/+ 的模式、以及模式是变量算出来的,
+            # 都仍然算违规(宁可假红也不放宽这道门的主张)。
+            continue
         if _is_stdio_write(node):
             # 缺省报告去处。说明一句边界: 这里只按**语法形态**豁免
             # `sys.stdout` / `sys.stderr` 这两个名字，并**不验证运行时那个文件描述符
@@ -714,6 +719,23 @@ def test_verifier_write_calls_are_confined_to_write_report():
 
 
 # ── 零写门 (钉死点 5) ─────────────────────────────────────────────────
+
+
+def _is_readonly_open(node) -> bool:
+    """`open()` 调用是否**确定**只读: 模式缺省, 或模式是不含 w/a/x/+ 的字面量。"""
+    import ast
+
+    mode = None
+    if len(node.args) >= 2:
+        mode = node.args[1]
+    for kw in node.keywords:
+        if kw.arg == "mode":
+            mode = kw.value
+    if mode is None:
+        return True  # 缺省 "r"
+    if not (isinstance(mode, ast.Constant) and isinstance(mode.value, str)):
+        return False  # 算出来的模式无法证明只读
+    return not any(c in mode.value for c in "wax+")
 
 
 def _tree_digest(root: Path) -> str:
@@ -2455,7 +2477,12 @@ def test_key_self_check_is_reversed(tmp_path):
     check_def = [ln for ln in lines if ln.startswith("check() {")]
     key_line = [ln for ln in lines if ln.startswith("check ") and "cls-internal-key" in ln]
     assert len(check_def) == 1 and len(key_line) == 1, "check 定义 / key 自检行应各恰一条"
-    assert "! cmp -s" in key_line[0], "必须是反向判（! cmp）"
+    # ⚠️ 不锁 `! cmp -s` 字面量: 那样会把「按 cmp 返回码区分 不同(1) 与 读失败(2)」
+    # 的正确写法一起挡掉(Codex round-3 MEDIUM 实例 —— 门锁死了缺陷)。
+    # 这里只要求它**引用了两侧路径并用 cmp 比较**, 方向由下面三条行为门证明。
+    assert "cmp" in key_line[0] and "$SOURCE" in key_line[0] and "$TARGET" in key_line[0], (
+        f"key 自检必须用 cmp 比较源与目标: {key_line[0]!r}"
+    )
     snippet = "\n".join(check_def + key_line)
 
     def _probe(source, target):
@@ -2554,7 +2581,15 @@ def _sh_line(marker: str, *, prefix: bool = False) -> int:
     锚内容 + 实测行号 = 漂移自动跟随, 写错仍然红。
     """
     lines = INSTALL_SH.read_text(encoding="utf-8").splitlines()
-    hits = [i + 1 for i, ln in enumerate(lines) if (ln.startswith(marker) if prefix else marker in ln)]
+
+    def _match(ln: str) -> bool:
+        return ln.startswith(marker) if prefix else marker in ln
+
+    all_hits = [i + 1 for i, ln in enumerate(lines) if _match(ln)]
+    code_hits = [i + 1 for i, ln in enumerate(lines) if _match(ln) and not ln.lstrip().startswith("#")]
+    # 优先用可执行行: 注释里提到同样字样会把唯一命中变双命中 = 一句说明就让门假红
+    # (Codex round-3 LOW 实例)。锚本身就是注释时(如「生成件」段标题)才回退到全部命中。
+    hits = code_hits or all_hits
     assert len(hits) == 1, f"锚 {marker!r} 命中 {hits}（应恰好 1 处）"
     return hits[0]
 
@@ -2655,9 +2690,10 @@ def test_generate_item_wrong_shape_is_not_a_match(vault_pair, tmp_path, manifest
     probe.mkdir()  # 误建成目录
     (probe / "inner.txt").write_text("x", encoding="utf-8")
     result = _classify(target)
-    assert any(
-        f.path == str(probe.relative_to(target)) and "不是可读的普通文件" in f.detail for f in result.unreadable
-    ), f"形态错误必须登记 unreadable, 实得 {[(f.path, f.detail) for f in result.unreadable]}"
+    # 按**分类**判, 不锁 detail 措辞 —— 措辞是实现细节, 分类才是这条门的主张
+    assert any(f.path == str(probe.relative_to(target)) for f in result.unreadable), (
+        f"形态错误必须登记 unreadable, 实得 {[(f.path, f.detail) for f in result.unreadable]}"
+    )
     assert str(probe.relative_to(target)) not in [f.path for f in result.match]
     assert result.exit_code == vv.EXIT_MISMATCH == 2
 
@@ -2685,7 +2721,7 @@ def test_key_self_check_rejects_unreadable_key(tmp_path):
             capture_output=True,
             text=True,
         ).stdout
-        assert "❌" in out and "形态/可读性异常" in out, f"源不可读必须显式拒绝, 实得: {out!r}"
+        assert "❌" in out, f"源不可读必须显式拒绝(不锁措辞), 实得: {out!r}"
     finally:
         (src / ".obsidian" / "cls-internal-key.txt").chmod(0o644)
 
@@ -2698,16 +2734,24 @@ def test_generate_section_covers_exactly_the_generate_items():
     import re as _re3
 
     lines = INSTALL_SH.read_text(encoding="utf-8").splitlines()
-    start = next(i for i, ln in enumerate(lines) if "生成件 (CARD-G2-7a)" in ln)
+    start = next(i for i, ln in enumerate(lines) if "生成件 (CARD-G2-7a)" in ln)  # 段标题本身是注释行
     section = lines[start:]
-    # 生成段实际触碰的生成位: rm 行的 "$TARGET/<path>" 与 X="$TARGET/<path>" 赋值
-    touched = set()
+    # ⚠️ 只认**清理命令自己的操作数**。首版把 `X="$TARGET/…"` 变量赋值也并进来 ——
+    # 于是「删掉 templater 的 rm 操作数、保留 TEMPLATER_DATA=」这个变异照样通过
+    # (Codex round-3 LOW，它自己跑的变异实测存活)。赋值只说明脚本**提到**这个路径,
+    # 不说明它**清理**了这个路径, 而漏清正是要防的那件事。
+    cleaned = set()
+    in_rm = False
     for ln in section:
-        if ln.startswith("rm -f") or ln.startswith('      "$TARGET'):
-            touched.update(_re3.findall(r'\$TARGET/(\S+?)"', ln))
-        m = _re3.match(r'[A-Z_]+="\$TARGET/(.+)"$', ln.strip())
-        if m:
-            touched.add(m.group(1))
+        stripped = ln.strip()
+        if stripped.startswith("#"):
+            continue
+        if stripped.startswith("rm "):
+            in_rm = True
+        if in_rm:
+            cleaned.update(_re3.findall(r'\$TARGET/(\S+?)"', ln))
+            in_rm = stripped.endswith("\\")  # 反斜杠续行才继续算同一条 rm
+    touched = cleaned
     data = json.loads(MANIFEST.read_text(encoding="utf-8"))
     # 两个例外的归属（首版门就抓到了这个漂移——不是脚本漏，是归属不同）:
     #   .canvas-config.yaml      → 本脚本独立的 yaml 生成器(:116 附近)
@@ -2716,7 +2760,10 @@ def test_generate_section_covers_exactly_the_generate_items():
     OUTSOURCED = {".canvas-config.yaml", ".obsidian/cls-internal-key.txt"}
     expected = {i["path"] for i in data["items"] if i["action"] == "generate"} - OUTSOURCED
     # 验伪锚: 生成段确实被解析到了(否则空集==空集恒真)
-    assert len(touched) >= 3, f"生成段解析结果异常: {touched}"
+    # 验伪锚只证明「解析器没有空转」, 阈值要**远低于**主断言的期望值 ——
+    # 写成 >=3(恰等于期望集大小)会让「少清一条」先撞锚, 报出来的是解析异常而不是
+    # 「漏清了哪一条」, 定位信息全丢(变异实测: LOW-1 变异撞的是锚不是主断言)。
+    assert len(touched) >= 1, f"生成段清理集解析异常(解析器空转): {touched}"
     assert touched == expected, (
         f"脚本生成段与 manifest generate 集漂移:\n  脚本多清/多生成: {sorted(touched - expected)}\n  脚本漏了: {sorted(expected - touched)}"
     )
@@ -2732,13 +2779,33 @@ def test_every_recursive_copy_follows_operand_symlinks():
     共享源的链；随后生成段清理/写入就会**沿链改写模板源自己**。这是按性质写的门 ——
     将来新增任何递归复制点漏了 `-H`, 这里就红, 不必等有人踩到。
     """
-    # 只看可执行行: 注释里**讲**这条规则(以及讲裸 cp -R 的危害)不是违规 ——
-    # 按文本 grep 的判据两头都假, 这里先剥注释再判(不是剥掉再比对内容, 只是选行)。
-    bad = [
-        (i + 1, ln)
-        for i, ln in enumerate(INSTALL_SH.read_text(encoding="utf-8").splitlines())
-        if "cp -R" in ln and "cp -R -H" not in ln and not ln.lstrip().startswith("#")
-    ]
+    # 判据按 **token** 走, 不按整行子串 —— 两个实测存活的变异都是文本层的花招
+    # (Codex round-3 LOW): ① 去掉 `.claude` 的 `-H` 但行尾补 `# cp -R -H required`;
+    # ② 写成 `cp -PR` 这类参数重排。所以: 先剥行内注释, 再把 cp 的选项 token 摊平成
+    # 字母集合, 断言「有 R/r 就必须有 H」。
+    import shlex as _shlex
+
+    bad = []
+    for i, raw in enumerate(INSTALL_SH.read_text(encoding="utf-8").splitlines()):
+        code = raw.split("#", 1)[0]  # 剥行内注释（本脚本的命令行里不含带 # 的字面量）
+        code = code.rstrip().rstrip("\\")  # 剥行尾续行反斜杠: 否则 shlex 抛错整行被跳过
+        # (变异实测 `cp -PR` 因此存活)
+        if "cp " not in code:
+            continue
+        try:
+            tokens = _shlex.split(code)
+        except ValueError:  # 引号未闭合的续行片段, 交给别的行去判
+            continue
+        if "cp" not in tokens:
+            continue
+        flags = set()
+        for tok in tokens[tokens.index("cp") + 1 :]:
+            if tok.startswith("-") and not tok.startswith("--"):
+                flags.update(tok[1:])
+            elif not tok.startswith("-"):
+                break  # 到操作数为止
+        if ("R" in flags or "r" in flags) and "H" not in flags:
+            bad.append((i + 1, raw.strip()))
     assert bad == [], f"递归复制未带 -H（会沿目录软链写穿模板源）: {bad}"
 
 
@@ -2826,4 +2893,151 @@ def test_key_self_check_rejects_directory_shaped_key(tmp_path):
         capture_output=True,
         text=True,
     ).stdout
-    assert "❌" in out and "形态/可读性异常" in out, f"目录态源必须显式拒绝, 实得: {out!r}"
+    assert "❌" in out, f"目录态源必须显式拒绝(不锁措辞), 实得: {out!r}"
+
+
+def test_origin_points_at_the_array_that_actually_declares_each_item():
+    """LOW-3 回归：origin 必须落在该 item **自己所属**的那个数组行，区间 origin 的尾要精确。
+
+    审查者实测：把 `.claude/skills` 的 origin 从 CLAUDE_ITEMS 行改成 OBSIDIAN_FILES 行、
+    或把生成段区间缩成 `134-135`，原来的门**都照样通过**——它只验「落在数组区」和
+    「不越界」，不验「是不是**这一条**的来源」。判据取名面必须恰好等于它的主张。
+    """
+    import re as _re4
+
+    data = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    sh_lines = INSTALL_SH.read_text(encoding="utf-8").splitlines()
+    arrays = {
+        name: i + 1
+        for i, ln in enumerate(sh_lines)
+        for name in ("SKELETON_DIRS", "CLAUDE_ITEMS", "OBSIDIAN_FILES", "OBSIDIAN_PLUGINS", "ROOT_FILES")
+        if ln.startswith(name + "=")
+    }
+    assert len(arrays) == 5, f"五个数组必须各恰好一处定义: {arrays}"
+
+    def owner(path: str, action: str) -> str | None:
+        """这一条**应当**由哪个数组声明（None = 不由数组声明，如 exclude/generate）。"""
+        if action == "skeleton":
+            return "SKELETON_DIRS"
+        if action != "copy":
+            return None
+        parts = path.split("/")
+        if parts[0] == ".claude" and len(parts) == 2:
+            return "CLAUDE_ITEMS"
+        if parts[:2] == [".obsidian", "plugins"] and len(parts) == 3:
+            return "OBSIDIAN_PLUGINS"
+        if parts[0] == ".obsidian":
+            return "OBSIDIAN_FILES"
+        if len(parts) == 1:
+            return "ROOT_FILES"
+        return None
+
+    checked = 0
+    for item in data["items"]:
+        want = owner(item["path"], item["action"])
+        if want is None:
+            continue
+        m = _re4.match(r"install-vault\.sh:(\d+)(?:-(\d+))?$", item["origin"])
+        assert m, f"{item['path']} 的 origin 形态异常: {item['origin']!r}"
+        assert int(m.group(1)) == arrays[want], (
+            f"{item['path']} 应由 {want}(第 {arrays[want]} 行) 声明，origin 却指 {item['origin']}"
+        )
+        checked += 1
+    # 验伪锚：确实核过了 30 条声明件（8 skeleton + 22 copy）
+    assert checked == 30, f"应核 30 条数组声明件，实核 {checked}"
+
+    # 区间 origin 的**尾**要精确：yaml 段收在它的 heredoc 结束符，生成段收在 settings 块的 fi
+    yaml_start = _sh_line(YAML_HEREDOC_ANCHOR, prefix=True)
+    yaml_end = next(i + 1 for i, ln in enumerate(sh_lines) if ln.strip() == "EOF" and i + 1 > yaml_start)
+    gen_start = _sh_line("生成件 (CARD-G2-7a)")
+    localeof = [i + 1 for i, ln in enumerate(sh_lines) if ln.strip() == "LOCALEOF"][-1]
+    gen_end = next(i + 1 for i, ln in enumerate(sh_lines) if i + 1 > localeof and ln.strip() == "fi")
+    by_path = {i["path"]: i["origin"] for i in data["items"]}
+    assert by_path[".canvas-config.yaml"] == f"install-vault.sh:{yaml_start}-{yaml_end}"
+    for p in (
+        ".claude/settings.local.json",
+        ".obsidian/plugins/canvas-learning-system/data.json",
+        ".obsidian/plugins/templater-obsidian/data.json",
+    ):
+        assert by_path[p] == f"install-vault.sh:{gen_start}-{gen_end} (生成件段)", (
+            f"{p} 的生成段区间应为 {gen_start}-{gen_end}，实为 {by_path[p]}"
+        )
+
+
+def test_generate_symlink_to_unreadable_file_is_not_a_match(vault_pair):
+    """MEDIUM-2 回归：generate 件是**软链**时不得记 match，链到不可读文件更不行。
+
+    审查者复现：`is_file()` 跟随软链只看类型 ⇒ True；`_leaf_digest` 对链只读
+    `readlink` 原文 ⇒ 永远 `bad=False`。两个「查了」的动作叠起来仍是 `match`/`rc=0`。
+    生成件按定义是脚本写出的**实体**文件，判据必须用 `lstat` 不跟随。
+    """
+    _source, target = vault_pair
+    hidden = target.parent / "hidden-payload.json"
+    hidden.write_text('{"internalApiKey": "LEAKED"}', encoding="utf-8")
+    hidden.chmod(0o000)
+    probe = target / ".obsidian" / "plugins" / "canvas-learning-system" / "data.json"
+    probe.parent.mkdir(parents=True, exist_ok=True)
+    if probe.exists() or probe.is_symlink():
+        probe.unlink()
+    probe.symlink_to(hidden)
+    try:
+        result = _classify(target)
+        rel = str(probe.relative_to(target))
+        assert any(f.path == rel for f in result.unreadable), (
+            f"软链生成件必须登记 unreadable，实得 {[(f.path, f.detail) for f in result.unreadable]}"
+        )
+        assert rel not in [f.path for f in result.match]
+        assert result.exit_code == vv.EXIT_MISMATCH == 2
+    finally:
+        hidden.chmod(0o644)
+
+    # 第二种形态才真正锁住「不跟随」: 链指向一个**可读**的普通文件。
+    # 跟随式判据(os.stat)会说「普通文件且读得动」⇒ match；只有 lstat 不跟随才拦得下。
+    readable = target.parent / "readable-payload.json"
+    readable.write_text("{}", encoding="utf-8")
+    probe.unlink()
+    probe.symlink_to(readable)
+    result2 = _classify(target)
+    rel = str(probe.relative_to(target))
+    assert any(f.path == rel for f in result2.unreadable), (
+        f"链到可读文件的生成件同样必须拦下（生成件应为实体文件），实得 {[(f.path, f.detail) for f in result2.unreadable]}"
+    )
+    assert rel not in [f.path for f in result2.match]
+
+
+def test_symlinked_source_dir_copied_with_H_is_not_reported_as_drift(tmp_path, manifest_data):
+    """MEDIUM-1 回归：源侧目录软链 + `cp -R -H` 得到的实体目录，内容相同就不该报 drift。
+
+    这是 round-2 修法引入的**误报**：`cp -R -H` 把链实体化，而摘要侧对源仍按
+    「链记 readlink 原文」算 ⇒ 源是 `L:`、目标是内容摘要 ⇒ 完全正确的复制也 rc=2。
+    校验器的源侧根条目因此与 `-H` 对齐：只跟随**根**这一层。
+    """
+    shared = tmp_path / "shared"
+    (shared / "inner").mkdir(parents=True)
+    (shared / "inner" / "a.txt").write_text("same", encoding="utf-8")
+
+    source = tmp_path / "src"
+    (source / ".obsidian" / "plugins").mkdir(parents=True)
+    (source / ".obsidian" / "plugins" / "dataview").symlink_to(shared, target_is_directory=True)
+
+    target = tmp_path / "tgt"
+    (target / ".obsidian" / "plugins" / "dataview" / "inner").mkdir(parents=True)
+    (target / ".obsidian" / "plugins" / "dataview" / "inner" / "a.txt").write_text("same", encoding="utf-8")
+
+    manifest_data["items"] = [
+        {
+            "path": ".obsidian/plugins/dataview",
+            "role": "system-file",
+            "action": "copy",
+            "origin": "test-only",
+        }
+    ]
+    manifest_data["extra_allow"] = [".obsidian", ".obsidian/plugins"]
+    mpath = tmp_path / "m.json"
+    mpath.write_text(json.dumps(manifest_data, ensure_ascii=False), encoding="utf-8")
+    manifest = vv.load_manifest(mpath)
+    result = vv.verify(target, manifest, source_dir=source)
+    assert [f.path for f in result.content_drift] == [], (
+        f"源侧根软链 + -H 实体化后内容相同，不该报 drift：{[(f.path, f.detail) for f in result.content_drift]}"
+    )
+    assert ".obsidian/plugins/dataview" in [f.path for f in result.match]

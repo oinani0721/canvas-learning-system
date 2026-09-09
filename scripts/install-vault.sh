@@ -191,7 +191,7 @@ check "hooks 配置 settings.json" '[ -f "$TARGET/.claude/settings.json" ]'
 check "MCP 注册件 .mcp.json"      '[ -f "$TARGET/.mcp.json" ]'
 check "核心插件与模板源字节一致"  'if [ -e "$SOURCE/.obsidian/plugins/canvas-learning-system/main.js" ]; then cmp -s "$SOURCE/.obsidian/plugins/canvas-learning-system/main.js" "$TARGET/.obsidian/plugins/canvas-learning-system/main.js"; else echo "      ↳ 模板源没有 main.js — 先在 harness 树跑 npm run build (deploy-vault.sh preflight, CARD-G2-7b)"; false; fi'
 check "插件启用清单+快捷键"       '[ -f "$TARGET/.obsidian/community-plugins.json" ] && [ -f "$TARGET/.obsidian/hotkeys.json" ]'
-check "后端鉴权 key 未从源复制"   'K="$TARGET/.obsidian/cls-internal-key.txt"; S="$SOURCE/.obsidian/cls-internal-key.txt"; if [ ! -e "$K" ]; then true; elif [ -f "$K" ] && [ -r "$K" ] && [ -f "$S" ] && [ -r "$S" ]; then ! cmp -s "$S" "$K"; else echo "      ↳ key 形态/可读性异常, 无法证明未复制"; false; fi'
+check "后端鉴权 key 未从源复制"   'K="$TARGET/.obsidian/cls-internal-key.txt"; S="$SOURCE/.obsidian/cls-internal-key.txt"; if [ ! -e "$K" ]; then true; elif [ ! -f "$K" ] || [ ! -f "$S" ]; then echo "      ↳ key 形态异常(非普通文件), 无法证明未复制"; false; else cmp -s "$S" "$K"; rc=$?; if [ $rc -eq 1 ]; then true; elif [ $rc -eq 0 ]; then echo "      ↳ key 与模板源逐字节相同 = 被复制了"; false; else echo "      ↳ cmp 读取失败 (rc=$rc), 无法证明未复制"; false; fi; fi'
 check "Dashboard + CLAUDE.md"    '[ -f "$TARGET/Dashboard.md" ] && [ -f "$TARGET/CLAUDE.md" ]'
 check "vault 配置 yaml"          'grep -q "vault_id" "$TARGET/.canvas-config.yaml"'
 
