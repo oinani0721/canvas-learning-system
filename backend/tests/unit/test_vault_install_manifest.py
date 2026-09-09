@@ -3176,3 +3176,64 @@ def test_device_nodes_of_same_type_do_not_collide():
     db, _ = vv._leaf_digest(b)
     assert da != db, f"两个不同的字符设备摘要相同（丢了 st_rdev）：{da} == {db}"
     assert da.startswith("?:") and db.startswith("?:"), (da, db)
+
+
+def test_extra_scan_propagates_kind_unqueryable_instead_of_allowing(tmp_path, manifest_data):
+    """U3-A r6 HIGH（旧 M2 升级）：extra 消费端必须把「类型判不了」带出来。
+
+    `_collect_extra` 原先调 `is_under_exclusion(vault, rel)` **不传 unreadable**，于是
+    `_kind_ok` 的 `None` 被压成「没被 exclude 覆盖」⇒ 条目落进 allowed-extra、
+    阻断桶全空 ⇒ **rc=0 假绿**。exclude 遍历不跟随末级软链、没登记失败，而 extra
+    遍历跟随它——两侧口径不同正是这个缺口的来源。
+    """
+    target = tmp_path / "vault"
+    real = tmp_path / "real"
+    real.mkdir()
+    blocked = tmp_path / "blocked"  # ⚠️ 放在扫描面**之外**, 否则它自己会以 extra 身份进结果
+    blocked.mkdir()
+    (blocked / "inner.txt").write_text("payload", encoding="utf-8")
+    target.mkdir()
+    (target / "alias").symlink_to(real, target_is_directory=True)
+    (real / "f.json").symlink_to(blocked / "inner.txt")
+    blocked.chmod(0o000)  # 跟随 f.json 后 stat 失败 ⇒ _kind_ok 判不了类型
+    try:
+        manifest_data["items"] = [
+            {"path": "alias/*json", "role": "learning-data", "action": "exclude", "kind": "file", "origin": "test-only"}
+        ]
+        manifest_data["extra_allow"] = ["alias/f*"]
+        manifest_data["extra_scan"] = [{"dir": "alias", "match": "*"}]
+        mpath = tmp_path / "m.json"
+        mpath.write_text(json.dumps(manifest_data, ensure_ascii=False), encoding="utf-8")
+        result = vv.verify(target, vv.load_manifest(mpath))
+        assert result.unreadable != [], (
+            f"类型判不了必须登记 unreadable，实得 allowed-extra={[f.path for f in result.allowed_extra]} "
+            f"extra={[f.path for f in result.extra]}"
+        )
+        assert "alias/f.json" not in [f.path for f in result.allowed_extra], "判不了类型的条目不得放行进 allowed-extra"
+        assert result.exit_code == vv.EXIT_MISMATCH == 2, "判不了不得收敛成 rc=0"
+    finally:
+        blocked.chmod(0o755)
+
+
+def test_absent_exclude_with_kind_file_is_not_reported_unreadable(tmp_path, manifest_data):
+    """U3-A r6 MEDIUM（我上一轮修法引入的误报）：**不存在**是确定的否定答案。
+
+    `_resolved_kind` 只有四态、把 ENOENT/ENOTDIR 一律归 `unreadable`；上一轮给
+    `kind=file` 接上它之后，一条本就不在目标里的 exclude 被误报成读取失败、rc=2。
+    这是同一个错误第三次出现（round-4 修 `_entry_state` 的 ENOTDIR、round-5 新写
+    `_resolved_kind` 时重犯、round-6 消费它时再犯）。
+    """
+    target = tmp_path / "vault"
+    target.mkdir()
+    manifest_data["items"] = [
+        {"path": "x", "role": "learning-data", "action": "exclude", "kind": "file", "origin": "test-only"}
+    ]
+    manifest_data["extra_allow"] = []
+    manifest_data["extra_scan"] = []
+    mpath = tmp_path / "m.json"
+    mpath.write_text(json.dumps(manifest_data, ensure_ascii=False), encoding="utf-8")
+    result = vv.verify(target, vv.load_manifest(mpath))
+    assert result.unreadable == [], (
+        f"不存在的 exclude 项不得报成读取失败，实得 {[(f.path, f.detail) for f in result.unreadable]}"
+    )
+    assert result.exit_code == vv.EXIT_OK == 0, "一个本就不在目标里的 exclude 不该阻断"

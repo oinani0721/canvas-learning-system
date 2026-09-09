@@ -580,7 +580,8 @@ def _kind_ok(item: Item, path: Path) -> bool | None:
       :86 强制删除 `pending_archives*.jsonl`     → 删一切**非目录**条目
     kind 为空 = 不限类型 (`:68`/`:69` 那些按路径声明「不复制」的项本就没有类型条件)。
     """
-    if _entry_state(path) == "unreadable":
+    state = _entry_state(path)
+    if state == "unreadable":
         # **三态**: 问不出类型就返回 None(「判不了」), 既不宣称满足、也不宣称不满足。
         # round-4 曾一律返回 False —— 那既丢了失败原因(调用方无从登记 unreadable),
         # 又会把一个查不动的条目从「故意不复制」翻成「清单外的 extra」= 误报。
@@ -595,6 +596,11 @@ def _kind_ok(item: Item, path: Path) -> bool | None:
         # ⚠️ 这里**必须**走跟随后的三态: is_file() 跟随软链且吞 OSError, 链目标查不到时
         # 返回 False = 宣称「不是文件」。那既丢了失败原因, 又把一个查不动的条目从
         # 「故意不复制」翻成可放行 —— 其余检查干净时可得 rc=0(U3-A round-5 HIGH-1)。
+        if state == "absent":
+            # 但**不存在**是确定的否定答案, 不是「问不出来」: 不存在的东西不满足「是文件」。
+            # `_resolved_kind` 只有四态、把 ENOENT/ENOTDIR 一律归 unreadable, 直接拿它
+            # 判 absent 会把「这条 exclude 本就不在目标里」误报成读取失败(round-6 MEDIUM)。
+            return False
         kind = _resolved_kind(path)
         if kind == "unreadable":
             return None
@@ -1169,8 +1175,12 @@ def _collect_extra(vault: Path, manifest: Manifest, report: Report, excluder: Ex
     """
     declared = manifest.declared_paths
 
+    # 「判不了类型」必须带出来: 不传 unreadable 时 None 会被压成「没被 exclude 覆盖」,
+    # 条目于是落进 extra/allowed-extra, 阻断桶全空 ⇒ rc=0(round-6 HIGH, 旧 M2 升级)。
+    kind_unreadable: list[str] = []
+
     def is_excluded(rel: str) -> bool:
-        return excluder.is_under_exclusion(vault, rel)
+        return excluder.is_under_exclusion(vault, rel, kind_unreadable)
 
     seen: set[str] = set()
     for scan in manifest.extra_scan:
@@ -1223,6 +1233,19 @@ def _collect_extra(vault: Path, manifest: Manifest, report: Report, excluder: Ex
             if rel in declared or rel in seen or is_excluded(rel):
                 continue
             seen.add(rel)
+            if rel in kind_unreadable:
+                # 类型判不了 ⇒ 既不能说它被排除, 也不能放行进 allowed-extra, **更不能静默跳过**
+                # (只 continue 的话缺陷只是从「放行」变成「不作声」, 同样收敛到 rc=0)。
+                report.unreadable.append(
+                    Finding(
+                        path=rel,
+                        category="unreadable",
+                        action="exclude",
+                        role="-",
+                        detail="类型条件判不了 (跟随软链后查询失败), 无法证明它该被排除还是清单外",
+                    )
+                )
+                continue
             allowed_by = next((a for a in manifest.extra_allow if _pattern_covers(a, rel)), None)
             if allowed_by is not None:
                 report.allowed_extra.append(
