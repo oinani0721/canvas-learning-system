@@ -673,17 +673,31 @@ def _py_strings(src: str) -> list[str] | None:
         return None
     out: list[str] = []
     folded: set[int] = set()
+    # ⛔ r18 MEDIUM-1: 只收**最外层**可折的 `+` 链 —— `"/t" + "mp" + ""` 的内层
+    # `"/t" + "mp"` 也可折, 两个都收就贡献了两个 `/tmp` 候选, 登记后成了可抵消的额度。
+    nested: set[int] = set()
     for node in ast.walk(tree):
-        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add) and _fold_str(node) is not None:
+            for sub in ast.walk(node):
+                if sub is not node and isinstance(sub, ast.BinOp):
+                    nested.add(id(sub))
+    for node in ast.walk(tree):
+        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add) and id(node) not in nested:
             value = _fold_str(node)
             if value is not None:
                 out.append(value)
                 for sub in ast.walk(node):
-                    if isinstance(sub, ast.Constant) and isinstance(sub.value, str):
+                    if isinstance(sub, ast.Constant) and isinstance(sub.value, (str, bytes)):
                         folded.add(id(sub))
     for node in ast.walk(tree):
-        if isinstance(node, ast.Constant) and isinstance(node.value, str) and id(node) not in folded:
+        if id(node) in folded or not isinstance(node, ast.Constant):
+            continue
+        if isinstance(node.value, str):
             out.append(node.value)
+        elif isinstance(node.value, bytes):
+            # ⛔ r18 HIGH-2: bytes 字面量也是路径 —— `b"/t" b"mp/cls-exam/" b"." b"./x"`
+            # 被 `ast` 合成 `b"/tmp/cls-exam/../x"`, 只收 str 的话越界判据整类看不到。
+            out.append(node.value.decode("utf-8", "replace"))
     return out
 
 
@@ -844,9 +858,13 @@ def _parse_units_uncached(body: list[str]) -> list[tuple[int, str, list[str] | N
                     if grown is None:
                         break
                     kk, got = grown
+                    # ⛔ r18 HIGH-1: 长单元的**源码**必须保留, 即使 delta 为空 ——
+                    # `dynamic_tmp_join_lines` 看的是 chunk **文本**(它自己再 parse),
+                    # 不是候选列表。我 r17 写成 `if delta:` 时, bytes 拼接这类
+                    # 「候选为空但源码有料」的长单元整个不进 out, 而 `cur_j` 照样前进 ⇒
+                    # 那几行再也没人看 ⇒ 完整漏检(我修 MEDIUM-1 时引入的新回归)。
                     delta = list((Counter(got) - seen).elements())
-                    if delta:
-                        out.append((i, "\n".join(body[i : kk + 1]), delta))
+                    out.append((i, "\n".join(body[i : kk + 1]), delta))
                     seen = Counter(got)
                     cur_j = kk
                 i = cur_j + 1
@@ -1818,13 +1836,18 @@ def _url_override_hit(line: str) -> bool:
                 continue
             # ⛔ 只有 `${X:-…}`(缺省) 与 `${X}`(直接展开) 才真的控制地址;
             # `${X:+}` 无论设没设都展开成空, 地址其实写死了(r17 MEDIUM-2)。
-            if not re.search(r"\$\{CLS_BACKEND_URL(:-|\}|:?[-=?]\s*[^+])", word):
+            # ⛔ r18 MEDIUM-5: URL 的 `#fragment` 不参与寻址 —— `…:8011}/x#${CLS_BACKEND_URL}`
+            # 的主机端口仍由前半段决定。只看 `#` **之前**的部分。
+            addr = word.split("#", 1)[0]
+            if not re.search(r"\$\{CLS_BACKEND_URL(:-|\}|:?[-=?]\s*[^+])", addr):
                 return True
     # ⛔ r16/r17 MEDIUM: `env -u CLS_BACKEND_URL …` 删除该变量, `env -i …` 清空整个环境,
     # 两者都让缺省形态无条件生效, 与赋值/unset 同根。
-    if re.search(r"\benv\b[^;&|\n]*\s-u[= ]\s*['\"]?CLS_BACKEND_URL\b", line):
-        return True
-    if re.search(r"\benv\b[^;&|\n]*\s-i\b", line) and "8011" in line:
+    # ⛔ r18 MEDIUM-6: `env -i curl "${X:-…}"` 的 URL 由**外层 shell** 先展开, `env -i`
+    # 撤销不了已经在参数里的值 ⇒ 不算架空; 只有清环境后再由**子 shell**(`sh -c '…'`)
+    # 展开才可能。另外注释里的 `# env -i` / `# unset X` 也不算(先剥注释)。
+    code = re.split(r"(?<![\w$])#", line, maxsplit=1)[0]
+    if re.search(r"\benv\b[^;&|\n]*\s-[ui][= ]?[^;&|\n]*\bsh\b[^;&|\n]*-c\b", code):
         return True
     for segment in re.split(r"[;&|\n]+", line):
         m = _URL_UNSET_RE.search(segment)
@@ -2262,6 +2285,73 @@ def test_continuation_ambiguity_is_resolved_by_union_not_by_guessing():
     cont = _parse_units(["if False:", "    pass", "else \\", ":", '    P = "/tmp/cls-exam/" ".." "/x"'])
     assert any(v == "/tmp/cls-exam/../x" for _o, _c, p in cont if p for v in p), (
         f"`else \\`␊`:` 是合法 Python 显式续行, 必须能折出常量链, 实得: {cont}"
+    )
+
+
+def test_union_expansion_is_looped_unbounded_and_deduplicated():
+    r"""⛔ 局部回归断言: 并集扩张的**三处**关键性质各自可被单独证伪(r18 LOW-1)。
+
+    Codex 连续三轮指出「整改没有断言锁住」—— 内存回退掉修复后 78 项断言仍全过。
+    这条把三处性质分别钉死, 每条都能被对应的回退单独打红:
+
+    ① **候选取多重集差**: 重叠部分不能计两次 —— 计两次的话, 登记后就成了可以抵消
+       新增路径的额度(r17 MEDIUM-1);
+    ② **扩张是循环的**: 连续多个 `elif` 时每一段都要被覆盖(r17 HIGH-1);
+    ③ **不设固定窗口**: 跨几十行的续接链照样要提取(r17 HIGH-1)。
+    """
+    # ① 一处路径只该贡献一个候选(回退成"长短各计一次"时会变成两个)
+    one = _parse_units(["if True:", '    P = "/t" "mp/one.json"', "else:", "    pass"])
+    cands = [v for _o, _c, p_ in one if p_ for v in p_ if "/tmp" in v]
+    assert cands.count("/tmp/one.json") == 1, f"重叠部分的候选被计了多次 ⇒ 登记后可抵消新增路径, 实得: {cands}"
+
+    # ② 连续两个 elif: 第二个里的常量链也必须被折出(只扩张一次时它会退给 shlex)
+    two = _parse_units(
+        [
+            "if False:",
+            "    pass",
+            "elif False:",
+            "    pass",
+            'elif ("/tmp/cls-exam/" ".." "/x") == q:',
+            "    pass",
+        ]
+    )
+    assert any("/tmp/cls-exam/../x" in v for _o, _c, p_ in two if p_ for v in p_), (
+        f"第二个 `elif` 里的常量链没被折出 ⇒ 扩张只做了一次, 实得: {two}"
+    )
+
+    # ③ 续接链跨 60 行仍要提取(固定 40 行窗口时这里会漏)
+    long_body = (
+        ["if False:", "    pass"]
+        + ["    pass"] * 60
+        + [
+            'elif ("/tmp/cls-exam/" ".." "/y") == q:',
+            "    pass",
+        ]
+    )
+    assert any("/tmp/cls-exam/../y" in v for _o, _c, p_ in _parse_units(long_body) if p_ for v in p_), (
+        "跨 60 行的续接链没被提取 ⇒ 找续接词的固定窗口回来了"
+    )
+
+    # ③' 续接子句**头本身**跨 45 行(内层累加也不能有固定窗口)
+    wide_head = (
+        ["if False:", "    pass", "elif ("]
+        + ["    # c"] * 45
+        + [
+            '    "/tmp/cls-exam/" ".." "/z") == q:',
+            "    pass",
+        ]
+    )
+    assert any("/tmp/cls-exam/../z" in v for _o, _c, p_ in _parse_units(wide_head) if p_ for v in p_), (
+        "跨 45 行的续接子句头没被提取 ⇒ 内层累加的固定窗口回来了"
+    )
+
+    # ④ delta 为空的长单元, **源码**也要保留(r18 HIGH-1) —— `dynamic_tmp_join_lines`
+    # 看的是 chunk 文本而不是候选列表, 丢掉源码那几行就再也没人看。
+    # 用一个**候选确实为空**的长单元(没有任何字符串常量)来考「源码无条件保留」。
+    empty_delta = _parse_units(["if False:", "    pass", "else:", "    x += 1"])
+    assert any("else:" in c for _o, c, p_ in empty_delta if p_ is not None), (
+        f"候选为空的长单元被丢弃了, 而 `cur_j` 照样前进 ⇒ 那几行再也没人看(r18 HIGH-1): "
+        f"{[c[:28] for _o, c, _p in empty_delta]}"
     )
 
 
