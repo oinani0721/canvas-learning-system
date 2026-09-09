@@ -16,7 +16,11 @@
 | 3 | 校验器注释更新（**只改注释**） | `backend/scripts/validate_learning_events.py`（原 `:1639-1643`）—— `CHARSET_STRICT_FIELDS` 一字未动 |
 | 4 | **E-2** `harness_tree` 解析 | `SKILL.md` 新增 `_harness_tree(vault_dir)`，`REPO = os.path.dirname(VAULT)` → `REPO = _harness_tree(VAULT)` |
 
-外加：xfail(strict) 交接门**转正**（先证 XPASS 再去标）+ 58 个新增用例。
+外加：xfail(strict) 交接门**转正**（先证 XPASS 再去标）+ 新增用例（最终 **71** 个 `g33r2` 用例——实测 `--collect-only -k g33r2` = 71；五回归由 371 → **443 passed**）。
+
+> **最终态**：HEAD `61590b3b`（5 个 commit：`609ce455` 主实现 → `b060259b` R1 → `23b26e6e` R2 → `aa4a89fc` R3 → `61590b3b` R4）。
+> **Codex 五轮**全部 `gpt-6-astra` / `ultra` / read-only，**BLOCKER 与 HIGH 恒为 0**；末轮 round-5 绑最终 HEAD ⇒ **D-15 通过条件满足**。
+> 五轮共 12 条发现，9 条修复、3 条实证后登记（理由见 §七 round-5）。
 
 ---
 
@@ -209,6 +213,10 @@ canvas-vault/.claude/skills/quiz-answer/SKILL.md
 6. **未证明** `harness_tree` 在 `backend/scripts` 是 symlink、或指向另一棵**真实可用**代码树时的端到端行为（用例只造了目录结构，未跑跨树 import）。
 7. **未证明** 5 个 backend 调用点在形态门拒绝后的**下游行为**——它们均不检查 `append_event` 返回值，本卡未改。
 8. **未部署 live**（本批无部署卡）；`.canvas-config.yaml` 树内仍无 `harness_tree` 键，E-2 消费端已就位但**生产上尚无人写该键**。
+9. **未证明 `_harness_tree` 已无静默改写/回退路径**——round-5 实证仍有三条（`normpath` 与 symlink 分叉 / YAML 转义引号截短 / 三种合法键写法不识别），登记未修，理由与建议见 §七 round-5。
+10. **未证明新增 Unicode 断言能唯一绑定拒绝层**：它排除得掉「吞字符后只报截短路径」的假绿，但排除不掉「旧门错误回退后由其他层回显原配置并拒绝」这个条件性假绿（许可读取面不含全部 stderr 来源）。
+11. **未定义 `expanduser` 的展开契约**（无 `HOME` / 未知 `~user` / 空 `HOME` 三种情形），当前依赖 Python 默认行为。
+12. **未审计**完整写入链与测试辅助函数——五轮 Codex 每轮都声明其结论限于指定差分与片段，不构成对完整链路的重新认证。
 
 ---
 
@@ -228,6 +236,10 @@ canvas-vault/.claude/skills/quiz-answer/SKILL.md
     - **nodeid 前缀口径分叉**：基线保留 `FAILED `/`ERROR ` 前缀，抽取时 `sed` 掉 ⇒ 两边都是 202 条却全不等。「**数量相同 + 全不等**」是口径分叉的指纹，先怀疑判据再怀疑被测物。
     - **捕获面截断**：`tail -20` 把 pytest FAILURES 正文里的 `[XPASS(strict)]` 截掉 ⇒ `grep -c` = 0，一度把「门转正」读成「真失败」。判据没错，是**捕获面**太窄；承重存档必须收全量。
 12. **格式漂移归因口径**：用 `ruff format --diff` 在**基线版 vs 当前版**各跑一次比**增量**（内容口径），不用行号交集（改契约会让新错误落在没动过的行上）；基线侧必须带 `--stdin-filename`，漏了会假判定。修只用 `--range`，**禁**顺手 format 整文件（`test_learning_event_log.py` 有 4 行存量漂移，已保留）。
+13. **⛔ 第十四批必排：`_harness_tree` 解析整体重做**（设计级，非补丁级）。三条实证 MEDIUM（`normpath`/转义引号/键识别）+ 一条 LOW（TAB 行内注释措辞残留）。建议方向 A：优先 `yaml.safe_load`，PyYAML 不可用时的正则降级**只接受最规范一种写法、其余 fail-closed**。理由：四轮修的都是同一方法的局部症状，round-2 的缺陷正是 round-1 整改自己引入的。
+14. **⛔ 方法论（建议入 gotcha）：同一「静默改写」形态在一张卡内被打回四次**。每轮我都以为修好了：一律截 `#`（round-2 自引入）→ `\s+#` 含全角空格/NBSP（round-3）→ 只改注释判据漏了键值正则与 strip（round-4「修一半」）→ normpath/转义引号/键识别（round-5）。**教训**：修「口径」类缺陷时，正确动作不是修报告点名的那一处，而是先枚举**同一函数里所有同类判据**一次性统一；round-3 的 Codex 正文末尾其实已点出同源问题，我只做了被点名的那处。
+15. **争议去源头跑一条查询（本卡实例）**：round-5 的 M-b 我最初静态推导为「非贪婪+结尾锚会回溯到最后一个引号，Codex 判断有误」，**跑一遍实际正则**才看到捕获确实是截短的 `/A/repo'`。静态推导正则回溯很容易错，一条 `re.match` 就能定案。
+16. **轮次上限的价值**：D-15 的「上限 5」在本卡上正好起了作用——第 5 轮仍有三条同族 MEDIUM 时，停下比继续打第五个补丁更对（继续修就没有绑最终 HEAD 的复核轮次了，且历史显示每轮整改都有引入新变体的实绩）。
 
 ---
 
@@ -303,8 +315,49 @@ round-3 同时确认：断链 symlink 不会落 `read_bytes()`（先判 symlink�
 
 round-4 同时确认：三轮历史注释**没有被后一轮推翻**（`:403-412` 各自描述真实失败事实，保留合理），仅 `:413` 的「逐字对齐」应限定在注释分隔字符集合、不可推广到整个解析过程；TAB 三态设计**不会因配置层单独放宽而假绿**。
 
-### round-5（绑定 `<R4 整改 commit>`，须绑最终 HEAD）
+### round-5（绑定 `61590b3b` = **最终 HEAD**，末轮）
 
-（随结果补）
+- 存档：`_bmad-output/审查/codex-review-CARD-G3-3-R2-writer-boundary-r5.md`（首部按协议 §2.1）
+- prompt：`…-r5.md`（五分节；禁用措辞扫描 0 命中）
+- 模型 `gpt-6-astra` · `ultra` · `codex-cli 0.153.3` · read-only
+- **BLOCKER 0 / HIGH 0 / MEDIUM 3 / LOW 2**
+
+**⇒ D-15 通过条件满足**：本轮绑最终 HEAD，且 `BLOCKER = 0`、`HIGH = 0`。轮次上限 5 已用尽。
+
+**round-4 的四处空白收窄经 Codex 逐段核对确认闭合**（`:389-437` 全流程表在存档里）。
+
+#### 三条 MEDIUM —— 全部独立实证为真，**登记不修**（理由见下）
+
+| # | 内容 | 我的独立验证 | 判定 |
+|---|---|---|---|
+| M-a | `normpath` 按**字符串**消去 `..`，与 OS 的 symlink 逐段解析分叉 ⇒ 可能静默指向另一棵树 | **实测复现**：造 `/A/link → /B/child`，`/A/link/../repo` 的 `normpath` = `/A/repo`（存在且有 `backend/scripts` ⇒ 被采用），而 `realpath` = `/B/repo` | 真 |
+| M-b | 引号正则不识别 YAML 转义引号（`''` / `\"`）⇒ 截短路径 | **实测复现，且我最初的分析是错的**：我以为非贪婪+结尾锚会回溯到最后一个引号，跑一遍才看到实际捕获是 `/A/repo'`（YAML 真值 `/A/repo' #alt`）—— 争议去源头跑一条查询，Codex 对 | 真 |
+| M-c | 只认列首精确 `harness_tree:`；`harness_tree : /B`、`"harness_tree": /B`、`'harness_tree': /B` 三种**合法 YAML** 写法不识别 ⇒ 静默回退父目录 | **实测复现 + PyYAML 交叉验证**：`yaml.safe_load` 对四种写法给出**完全相同**的 `{'harness_tree': '/B'}`，而我们的正则只认第一种 | 真 |
+
+#### 为什么登记而不是继续修（工程判断，非回避）
+
+1. **协议**：§1「阻断级 = 0 即可合；其余 BLOCKER/HIGH/MEDIUM/LOW 登记不阻断」。这三条不属阻断级五类（非数据丢失 / 非 live vault 或 7691 写入 / 非安全 / 非指定裁判红 / 非负控假绿）。
+2. **轮次**：D-15 上限 5 已用尽。「审后再改代码 ⇒ 必再送一轮」——现在改就没有绑最终 HEAD 的复核轮次了，反而破坏已达成的通过条件。
+3. **同形态第五次**：这三条与前四轮是**同一族**（「静默把用户写的值改成/当成另一个东西」）。`_harness_tree` 已被打回四次同形态，第五轮又来三条 —— 按「同一失败形态出现第三次就要换方法不是换注意力」，继续逐条打补丁很可能产出第五个变体（round-2 的缺陷正是 round-1 整改自己引入的）。
+4. **当前零触达**：`harness_tree` 这个键**生产上还没有任何写入方**（U3-B 未落地，树内与 live 的 `.canvas-config.yaml` 都无此键）。三条的触发都需要用户主动写出罕见形态，当前触达面为 0。
+
+#### 建议的后续处置（交主 session 排卡）
+
+**这是设计级结论，不是补丁级**：「手写正则解析 YAML 子集」这个方法本身有系统性缺口——四轮修的都是它的局部症状。建议第十四批开一张卡做**整体重做**，方向二选一：
+
+- **A（推荐）**：优先用 `yaml.safe_load` 读该键，PyYAML 不可用时才退回正则，且**降级路径只接受最规范的一种写法、其余一律 fail-closed**（把「解析不了」变成「说话」而不是「猜」）；
+- **B**：保持纯正则，但把契约**收窄并写进报错**——只接受 `^harness_tree: <无引号、无 #、无 ..、无 symlink 中间段的绝对路径>$`，任何其他形态直接 fail-closed 报「请用规范写法」。
+
+两个方向都把「静默」这一族从根上消掉，而不是逐个字符类补。
+
+#### 两条 LOW（登记即可）
+
+- **L-a**：TAB 那条 docstring 正文已按 round-4 更正，但**参数旁的行内注释**仍留着「真 YAML plain scalar 禁 TAB」的泛化措辞，与正文不一致。⚠️ 我**没有改它** —— 改任何代码文件都会让 HEAD 脱离 round-5 的绑定，而轮次已到顶；随后续卡一并处理。
+- **L-b**：既有 L7（科学计数法 `1e-6 → 1e-06` 在 YAML 里读回字符串）继续登记，本轮未复验。
+
+#### round-5 另外确认的两点（如实记）
+
+- 新增的 Unicode 子串断言**有承重**（能排除「吞掉 Unicode 后只报截短路径」的假绿），但**不能唯一绑定拒绝层**——若旧门错误回退后由其他层回显原配置并拒绝，五个断言仍可同时成立。这个**条件性假绿尚未排除**（许可读取面不含全部 stderr 来源），如实登记。
+- `expanduser` 的展开契约（无 `HOME`、未知 `~user`、空 `HOME`）未明确定义，登记。
 
 **R2 整改后裁判（最终态，commit `23b26e6e`）**：最终五回归 **437 passed, 1 skipped, 0 failed, 0 xfailed**（`five-regression-final2-*.txt`）；`tests/skills` **369**；`tests/unit` nodeid diff **空**（202=202，SKIPPED 48=48，承重跑 `unit-close-20260908T120453.txt`）；三 harness ANCHOR-ERROR=0 且与开工逐字同；判据③④/验伪锚①②复核通过；`pyright` 0 错；`ruff check` 过；format 增量三文件 **0**（存量 4 行原样保留）。
