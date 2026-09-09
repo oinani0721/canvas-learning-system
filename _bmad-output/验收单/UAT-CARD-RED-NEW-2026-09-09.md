@@ -41,7 +41,7 @@
 | 失败身份原文 | `identity-open-20260909T215002.txt`（`8 failed, 135 passed`，rc=1） |
 | 改生产前的子集开工基线 | `subset-multimodal_service-open-20260909T220107.txt`（1 failed = 本卡 #8） |
 
-### DoD (b) 8 条三选一裁定 → **测试写错 7 / 防御深度不足 1 / 回归 0 / 契约演进 0**
+### DoD (b) 8 条三选一裁定 → **测试写错 7 / 契约演进 1 / 回归 0**
 
 完整表在 `evidence-red-new/new-verdicts.md`。摘要：
 
@@ -54,7 +54,7 @@
 | 5 | event_bus `test_tier2_retry_then_success` | 测试写错（patch 面过宽） | `assert 0 >= 2` 却在同一次运行的日志里看到 `attempt=1/3` ⇒ 那行日志是断言**之后**才产生的 |
 | 6 | event_bus `test_tier2_all_retries_exhausted_writes_outbox` | 测试写错（同因） | 同上 + 负控 |
 | 7 | fusion `test_no_correlation` | 测试写错（数据非正交） | `b = 1 - a` 是**完全负相关**，r = −1.0 是数学正确值；同文件 `test_perfect_negative_correlation` 绿 |
-| 8 | multimodal `test_path_traversal_windows_style` | **防御深度不足**（改生产判定行） | 单列一节，见下 |
+| 8 | multimodal `test_path_traversal_windows_style` | **契约演进**（处置 = 防御深度加强，改生产判定行） | 单列一节，见下 |
 
 ### 4-A 附：一处**方法学升级**（卡文给的判据不充分，已加强）
 
@@ -114,7 +114,9 @@ POSIX 上反斜杠是普通文件名字符，整串是**单个路径分量** ⇒
 | 合法路径不被误拒（同文件全量） | `sec-samefile-20260909T220215.txt` | `16 passed` · 0 failed |
 | 消费面窄口径 2 文件 | `sec-consumers-20260909T220215.txt` | `38 passed` · 0 failed · rc=0 |
 
-**改动**（`multimodal_service.py`，+10/−1，返回值 `return resolved_path` 未变，warning/raise/error_code 未变，无类型注解改动）。
+**改动**（`multimodal_service.py`，**+12/−1**，判定行 `:507-519`，返回行 `:530` 未变，两个调用方 `:576`/`:720`，warning/raise/error_code 未变，无类型注解改动）。
+
+> ⚠️ **这一条被 Codex 打回过一次，是本卡唯一的真缺陷**：初版把**归一化后的候选**与**未归一化的 `storage_root`** 相比，于是当 storage base 自身合法含反斜杠时，**每一次普通上传都会被误拒**（旧实现接受、初版拒绝），两个生产调用方都会撞上。我在设计阶段**预见过**这个风险，却只把它写进「本卡未证明什么」而没有修——预见不等于处置。已补 `normalized_root` 让比较两侧都归一化，逐场景实测（`codex-r1-HIGH1-repro.txt`）确认：误拒消除，且穿越用例**一格都没放宽**。
 
 ### 4-A 附：#5/#6 负控（(e) 要求，`negctl-eventbus-20260909T220559.txt`）
 
@@ -131,27 +133,38 @@ POSIX 上反斜杠是普通文件名字符，整串是**单个路径分量** ⇒
 
 | 判据 | 结果 |
 |---|---|
-| 命令 | `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest tests/unit -q -p no:cacheprovider`，存档 `unit-after-20260909T221328.txt` |
-| 汇总行 | `= 91 failed, 4820 passed, 48 skipped, 17 xfailed, 121 warnings, 29 errors in 247.51s (0:04:07) =` ✅ 在 |
+| 命令 | `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest tests/unit -q -p no:cacheprovider`，存档 **`unit-after-r1fix-20260909T223545.txt`**（绑 Codex r1 整改后代码；整改前那轮 `unit-after-20260909T221328.txt` 保留作对照） |
+| 汇总行 | `= 91 failed, 4820 passed, 48 skipped, 17 xfailed, 121 warnings, 29 errors in 255.67s (0:04:15) =` ✅ 在（与整改前那轮**逐项相同**） |
 | 末行 rc | `rc=1` ✅ 在 |
 | 红总数 | 开工 `99 failed + 29 errors = 128` → 收工 `91 + 29 = 120`，**正好少 8** |
-| `>` 行（新增红） | **零** ✅（`red-diff-20260909T221328.txt`） |
+| `>` 行（新增红） | **零** ✅（`red-diff-r1fix-20260909T223545.txt`） |
 | `comm -12`（本卡贡献） | **恰好 8 条**，与本卡 8 条 nodeid 逐条对上；转出数 0 ⇒ 8 − 0 = 8 ✅ |
 | `comm -13`（U11-A ∪ U11-B 贡献） | 74 条，与开工 `<` 行数一致 ✅ |
-| 子集 `multimodal_service` | `subset-multimodal_service-close-*.txt` — `38 passed`, rc=0；与**开工基线** `diff` 只有 1 个 `<`（本卡 #8 翻绿），`grep '^>'` 无输出 ✅ |
+| 子集 `multimodal_service` | `subset-multimodal_service-close-r1fix-*.txt` — `38 passed`, rc=0；与**开工基线** `diff` 只有 1 个 `<`（本卡 #8 翻绿），`grep '^>'` 无输出 ✅ |
 
-> ⚠️ 这一轮目录级是在 format 修正**之后**重跑的，绑定最终代码。format 修正前那次（`SUPERSEDED-unit-after-20260909T220734-pre-format-fix.txt`）已标记作废，不作判据。
+> ⚠️ 目录级共跑了三轮，判据以**最后一轮**为准：① format 修正前（`SUPERSEDED-…-pre-format-fix.txt`，已作废）；② format 修正后（`unit-after-20260909T221328.txt`）；③ **Codex r1 整改后（`unit-after-r1fix-20260909T223545.txt`，本判据所引）**。②③ 的失败集合逐条相同——r1 的整改只让 `_validate_safe_path` 在「base 含反斜杠」这一原本会误拒的情形上恢复放行，不影响任何既有用例。
 
 ### DoD (j) 文件级 + 生产文件对应子集
 
 | 判据 | 结果 |
 |---|---|
-| 六测试文件文件级 | `files-20260909T221302.txt` — **143 passed**, rc=0；`FAILED` 集合与 `transferred.txt`（空）`diff` 无输出 ✅ |
+| 六测试文件文件级 | `files-r1fix-*.txt` — **143 passed**, rc=0；`FAILED` 集合与 `transferred.txt`（空）`diff` 无输出 ✅ |
 | `grep -c XPASS` | **0** ✅ |
 | 转出清单 | **空**（无「判回归但改不动」的条目） |
 | `multimodal_service` 子集 | 见下 |
 
 **子集口径的一处实测更正**：卡文 §〇 担心宽口径 `grep -rln 'multimodal'` = 8 文件含 5 条外来红。本卡实测 **模块名口径 `grep -rln 'multimodal_service'` 与窄口径 `grep -rln 'upload_file\|_validate_safe_path'` 完全重合（同为 2 文件）**，且基线里只有本卡 #8 一条红 ⇒ **0 failed 可达**，(j) 与 (g)-B② 无口径冲突。
+
+### 4-A 附：新异步写法的稳定性（自查，非卡文要求）
+
+Codex r1 提到「现有材料不足以认定 `== 1` 新增脆性」——本卡另跑了连续多次验证：
+
+| 用例 | 次数 | 结果 |
+|---|---|---|
+| #3 `test_add_edge_triggers_memory_event` | 10 | **10 passed / 0 failed** |
+| #5/#6 所在 `TestTier2Important`（3 条） | 10 轮 × 3 条 | **30 passed / 0 failed** |
+
+存档 `flaky-check-*.txt`。这只证明本机空载下稳定，不证明 CI 负载下不 flaky（见 §8）。
 
 ### DoD (k) 地盘门 + 禁顺手修存量（`territory-gate.txt`）
 
@@ -169,11 +182,42 @@ POSIX 上反斜杠是普通文件名字符，整串是**单个路径分量** ⇒
 
 - ruff **lint** 段：本卡 6 个改动文件 **全绿**（`All checks passed!`）。
 - ruff **format** 段：5 个文件报 `Would reformat` —— 这是**存量**（`ruff.toml line-length = 120`，而这些文件按 black-88 排版）。跑一次 `ruff format` 会重排整个文件、产生数十处与本卡无关的改动 = D-16 明令禁止的「顺手修存量」。
-- **本卡新增 format 债 = 0**，判据用**多重集对照**（协议 §2.3 指定，⛔ 非行号交集）：把 `ruff format --diff` 的变更行内容剥前缀、trim、排序做多重集，`base` = `git show HEAD:<file>`，`mine` = 工作树版本。`comm -13` **为空**；文件级名单 `identical name sets = True`。存档 `format-multiset-compare-config120.txt` / `format-gate-bypass-evidence.txt`。
+- **本卡新增 format 债 = 0**，判据用**多重集对照**（协议 §2.3 指定，⛔ 非行号交集）。**v2 口径**（Codex r1 MEDIUM-3 打回后加强）：每条记为 `<文件名>|<方向±>|<内容>`，显式绑定基线 SHA `b17b710d`，两侧统一 `--config backend/ruff.toml`。`comm -13` **为空**；文件级名单 `identical name sets = True`。存档 `format-multiset-compare-v2.txt`（v1 口径 `format-multiset-compare-config120.txt` 保留但已被 v2 取代）。
+  - ⚠️ Codex 指出 v1 只比**内容**多重集，挡不住「消掉一处旧债、在另一处引入内容相同的新债」这种等长替换——与 pyright 那条同源的陷阱，v2 补了文件与方向两个维度。
 - ⚠️ **口径修正记录**：第一版对照把两侧副本都放在项目树外，ruff 找不到 `ruff.toml`、双双退回默认 `line-length=88` —— 判据自洽，但**测的不是 hook 实际执行的口径**。已重做，两侧统一 `--config backend/ruff.toml`，结论一致（早期存档 `format-multiset-compare.txt` 保留但以 `-config120` 那份为准）。
 - 本卡**自己写的行**曾引入 5 处 format 债（black-88 风格换行），已按 ruff 期望全部改为单行——这是修自己的代码，不是修存量。
 
 ---
+
+### 4-A 附：`python-typecheck`（pyright）也走了带存档跳过（D-16 甲过渡）
+
+改 `backend/app/**` 触发 `python-typecheck`，pyright 对 `multimodal_service.py` 报 **16 errors / 1 warning** —— 全是存量（`Import "logging" is not accessed`、`PIL.Image.LANCZOS`、`agentic_rag.*` 无法解析、若干 `reportCallIssue`），**没有一条落在本卡改的 `:507-517`**。
+
+判据同样用**多重集对照**（D-16 甲指定，⛔ 非行号交集），证据 `pyright-baseline-compare.txt`：
+
+| 项 | 结果 |
+|---|---|
+| 方法 | 在 EXIT trap 保护下把该文件临时换成 `git show HEAD:<file>` 版本、跑同一条 pyright、再还原 |
+| 对照口径 | 剥掉 `file:line:col` 前缀，只留**诊断消息内容**，排序做多重集 |
+| 本卡新增诊断（`comm -13`） | **空** ✅ |
+| 本卡消除诊断（`comm -23`） | 空 |
+| 计数 | 两侧均 `16 errors, 1 warning, 0 informations` |
+| 还原 | `shasum -a 256` 前后一致（`fcfbcb400b2a…`） |
+
+> ⚠️ **为什么不能用行号**：本卡改动使后续行整体位移 9 行（例：`1497 → 1504`），**任何基于行号的对照都会把 16 条存量全判成「新增」**。同理也不能只比计数——计数相同挡不住「消掉一条旧的、引入一条新的」这种等长替换，所以判据用的是内容多重集。
+
+存量清理归 U1 阶段 2（D-16 甲：该卡合入前允许带存档跳过；本卡禁顺手修存量）。
+
+### 4-A 附：`*.stderr*` 与提交面自检
+
+| 项 | 结果 |
+|---|---|
+| 本卡 commit 是否引入 stderr 文件 | **否** ✅（`git show --name-only 9a5bc79d \| grep -i stderr` 无命中） |
+| 仓库现存含 stderr 的入库文件 | 1 个历史遗留 `_bmad-output/审查/G4-9-evidence/census-stderr.txt`（G4-9 卡），**非本卡引入**，如实记录 |
+| Codex 存档的 `.stderr` | 被 `.gitignore:264` 的 `_bmad-output/审查/**/*.stderr*` 覆盖 ✅ |
+| `board_manifest_last_run.json` | 未改 ✅ |
+| commit header 长度 | 82 字符（≤100）✅ |
+| push | **未 push** ✅ |
 
 ## 4-B. 👤 你来验（3 分钟，不用打开任何工具）
 
@@ -214,16 +258,23 @@ POSIX 上反斜杠是普通文件名字符，整串是**单个路径分量** ⇒
 
 ### Codex 轮次记录
 
-<PLACEHOLDER-CODEX>
+**round-1** — 存档 `_bmad-output/审查/codex-review-CARD-RED-NEW.md`，绑定 `9a5bc79d`，模型 `gpt-6-astra` / `ultra` / `codex-cli 0.153.3`（首部六行 blockquote 齐）。
+结论：**BLOCKER 0 / HIGH 1 / MEDIUM 4 / LOW 1**。车道处置：**全部接受，无驳回**。
+- HIGH（#8 归一化只做了一侧 ⇒ storage base 含反斜杠时误拒每次普通上传）→ **改生产代码**（补 `normalized_root`）+ 逐场景实测。
+- MEDIUM×4 → 补更强证据（#1/#2 诞生 commit 直接验算）、收窄表述（#3 致红点归因）、加强判据（format 多重集补文件+方向维度）、归入三选一（#8 = 契约演进）。
+- LOW → 行号与 diff 实数复核更正。
+逐条整改记录见 `evidence-red-new/new-verdicts.md` §五。
+
+**round-2** — <PLACEHOLDER-R2>
 
 ---
 
 ## 8. ⛔ 本卡未证明什么（必填）
 
 1. **不证明 #8 在 Windows 部署下的行为**——本机 macOS，只能测 POSIX 语义；`os.name == "nt"` 下 `resolve()` 自身就会按反斜杠切分，本卡的归一化判定在那里是否冗余或产生额外拒绝，未验。
-2. **不证明 #8 的归一化在 storage base 自身含反斜杠时不误拒**——`str(file_path).replace("\\", "/")` 会把 base 前缀一起归一化。macOS/Linux 的 storage 路径不含反斜杠，但这是理论误拒面，未验。
+2. ~~不证明 #8 的归一化在 storage base 自身含反斜杠时不误拒~~ → **已被 Codex r1 HIGH 打回并修复**：初版确实会在该情形下误拒每一次普通上传（不是理论风险）。现两侧都归一化，逐场景实测通过。**仍未证明**的是：storage base 含反斜杠时的**穿越**判定在 Windows 上的行为（本机 macOS）。
 3. **不证明 POSIX 下文件名合法含反斜杠的所有形态都不被误拒**——只实测了 `x.a\b`（归一化后仍在 base 内 ⇒ 放行）这一类；形如 `a\..\b` 的名字会被新判定拒绝，这是**故意的**，但它在 POSIX 上确实是合法单文件名。
-4. **不证明 #3 的竞态在别的事件循环调度 / 机器负载下的复现率**——取证与反证各跑一次 / 5 次，均在本机空载。
+4. **不证明 #3「历史上某个时点该测试实际为绿」**（Codex r1 MEDIUM-2 打回后收窄）——反证只证明「在**当前** HEAD 的生产代码上，旧等待写法可通过」，即等待写法是致红的**充分**原因。Codex 另查出 `c01bd39c`（2026-02-08，晚于 `14f0412d`）也改过后台 task 包装（`create_task(wait_for(...))` → `create_task(_safe_write_memory_event(...))`），**致红点候选是两者或其交互，本卡未逐一分离**。裁定不依赖历史归因（生产当前行为已被取证证明正确）。另：竞态在别的调度 / 负载下的复现率也未证明——取证 1 次、反证 5 次、新断言稳定性 10 次，均在本机空载。
 5. **不证明 #5/#6 的新等待写法在所有 CI 负载下都不 flaky**——只在本机跑通并配了负控；`wait_condition` 默认 timeout 2.0s，极慢的机器上可能不足。
 6. **不证明 #4「空窗该不该告警」的产品语义**——本卡只对齐现行契约并拿消费方证据说明改生产不解决真实误报；产品裁定归 `CARD-DIFFMATCH-EMPTY-WINDOW`。
 7. **不证明 `mastery_config.json` 存在时 #1/#2 的新断言仍成立**——本树两处候选路径均不存在，故 `CALIBRATION_BIAS_THRESHOLD == 0.15`；新测试**单独断言了这个值**，配置覆盖会让它显形而不是静默漂移，但「漂移后正确行为是什么」未定义。
