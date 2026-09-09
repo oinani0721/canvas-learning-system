@@ -37,6 +37,7 @@ import os
 import pathlib
 import re
 import subprocess
+import traceback
 import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
@@ -53,6 +54,7 @@ from mutation_kill_identity import (  # noqa: E402  (必须在 sys.path 兜底�
     kill_identity,
     loc_token_for,
     matched_loc_tokens,
+    exactly_one_failed,
     parse_failed_nodeids,
     syntax_check,
     unparsed_failure_lines,
@@ -2505,6 +2507,25 @@ def _restore_active():
     _ACTIVE_SNAPSHOT.clear()
 
 
+def _restore_active_or_keep_exit_code() -> None:
+    """还原；若已在退出展开中，二次还原的异常**吞掉**以保住约定退出码。
+
+    ⛔ round-3 MEDIUM：`RestoreGuard._finish` 抛 `SystemExit(131)` 后，调用方栈展开
+    仍会进入 `finally` 再还原一次。若还原持续遇到同一个 I/O 错误（例如存证写入失败），
+    第二次异常会**替换掉** `SystemExit(131)`，进程按未捕获异常退出 —— 约定的
+    「还原失败=131」这个信号就丢了。还原尝试与诊断都保留，只是不让它改写退出码。
+    """
+    try:
+        _restore_active()
+    except BaseException:  # noqa: BLE001
+        if not _GUARD.exiting():
+            raise
+        try:
+            traceback.print_exc()
+        except BaseException:  # noqa: BLE001
+            pass
+
+
 #: ⛔ 四个信号（含 SIGQUIT —— 收口前 g32b/g32cb/g32ccr1 三套都漏了它，而它的默认
 #: 处置同样不做栈展开）+ 还原期不可打断。SIGKILL 挡不住，如实声明：被 `-9` 打断时
 #: 靠下一次启动的 `_self_heal_leftovers()` 与跑前跑后全文件 sha 对账兜底。
@@ -2713,7 +2734,7 @@ def main():
             # ⚠️ 与信号路径**同一个函数**: 信号先跑过它的话这里就是 no-op(表已清空),
             # 不会再伪造一条「被第三方改动」告警(见 `_ACTIVE_SNAPSHOT` 的注释 ①②)。
             with _GUARD.critical():
-                _restore_active()
+                _restore_active_or_keep_exit_code()
         _drift = [
             _p.name
             for _p in originals
@@ -2840,7 +2861,11 @@ def main():
                 break
             texts[_p] = texts[_p].replace(_o, _n, 1)
         if bad:
-            failures.append(f"{tag}: 空变异对照锚点异常")
+            # ⛔ round-3 MEDIUM: 对照根本没施加 ⇒ 阶段 1 的 KILLED 失去支撑, 必须撤销;
+            # 否则它照旧进六档统计, 逐条终裁说得比证据宽（与「对照未跑成」的降档不一致）。
+            failures.append(f"{tag}: 空变异对照锚点异常 —— 对照未施加, 撤销阶段 1 的 KILLED")
+            if _verdicts.get(tag) == "KILLED":
+                _verdicts[tag] = "HARNESS-ERROR"
             continue
         try:
             _arm_mutation(f"{tag}-layeronly", {_p: (originals[_p], _t.encode("utf-8")) for _p, _t in texts.items()})
@@ -2853,17 +2878,14 @@ def main():
             # `1 failed, 1 error` 都含 "1 failed"。改结构化：摘要区里目标门恰 1 条
             # FAILED 且无 ERROR，且没有解析不掉的失败行。
             _r0_out = r0.stdout + r0.stderr
-            _r0_fails = parse_failed_nodeids(_r0_out)
-            _r0_single_red = (
-                r0.returncode == 1
-                and len(_r0_fails) == 1
-                and gate_hit(nodeid_of(gate), _r0_fails)
-                and not unparsed_failure_lines(_r0_out)
-            )
+            # ⛔ round-3 MEDIUM: 用 `exactly_one_failed`(保留 status、不去重) ——
+            # `parse_failed_nodeids` 同收 FAILED/ERROR 又 `set` 去重, 同一 nodeid
+            # 各有一条 FAILED 与一条 ERROR 会被数成 1 条 ⇒ 「恰一条红」错判成立。
+            _r0_single_red = r0.returncode == 1 and exactly_one_failed(_r0_out, nodeid_of(gate))
             red0 = _r0_single_red
         finally:
             with _GUARD.critical():  # round-19: 还原期不可被第二个信号打断
-                _restore_active()
+                _restore_active_or_keep_exit_code()
         drift = [
             p.name
             for p in originals
@@ -2891,8 +2913,10 @@ def main():
             _bsnap = _bp.read_bytes()
             _btxt = _bsnap.decode("utf-8")
             if _btxt.count(_bo) != 1:
-                failures.append(f"{tag}: complete 对照的变异体锚点异常")
+                failures.append(f"{tag}: complete 对照的变异体锚点异常 —— 对照未施加, 撤销阶段 1 的 KILLED")
                 print(f"[{tag}] ✗ complete 对照锚点异常")
+                if _verdicts.get(tag) == "KILLED":
+                    _verdicts[tag] = "HARNESS-ERROR"
                 continue
             try:
                 _arm_mutation(f"{tag}-bodyonly", {_bp: (_bsnap, _btxt.replace(_bo, _bn, 1).encode("utf-8"))})
@@ -2900,16 +2924,10 @@ def main():
                 # 同上：complete 对照的「变异体单独不够」只认 rc=0 为绿。
                 _rb_green = rb.returncode == 0
                 _rb_out = rb.stdout + rb.stderr
-                _rb_fails = parse_failed_nodeids(_rb_out)
-                b_only = (
-                    rb.returncode == 1
-                    and len(_rb_fails) == 1
-                    and gate_hit(nodeid_of(gate), _rb_fails)
-                    and not unparsed_failure_lines(_rb_out)
-                )
+                b_only = rb.returncode == 1 and exactly_one_failed(_rb_out, nodeid_of(gate))
             finally:
                 with _GUARD.critical():  # round-19: 还原期不可被第二个信号打断
-                    _restore_active()
+                    _restore_active_or_keep_exit_code()
             if hashlib.sha256(_bp.read_bytes()).hexdigest() != hashlib.sha256(_bsnap).hexdigest():
                 print(f"[{tag}] ✗✗ complete 对照还原后字节不同 — 立即停 (rc=3 数据完整性)")
                 sys.exit(3)

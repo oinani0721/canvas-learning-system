@@ -36,9 +36,7 @@ async def main() -> int:
     provider = get_embedder_provider()
     print(f"EMBEDDER_PROVIDER = {provider}")
     if provider == "local":
-        print(
-            f"  base_url = {os.getenv('LOCAL_EMBEDDER_BASE_URL') or 'host.docker.internal:11434/v1 (默认)'}"
-        )
+        print(f"  base_url = {os.getenv('LOCAL_EMBEDDER_BASE_URL') or 'host.docker.internal:11434/v1 (默认)'}")
         print(f"  model    = {os.getenv('LOCAL_EMBEDDER_MODEL') or 'bge-m3 (默认)'}")
 
     google_key = os.getenv("GOOGLE_API_KEY") or getattr(settings, "GOOGLE_API_KEY", "")
@@ -75,9 +73,7 @@ async def main() -> int:
             print("   → 鉴权失败: 检查 api_key")
         return 1
 
-    print(
-        f"{GREEN}✅ embedder ({provider}) 可用 · {EXPECTED_DIM} 维 · 主链 D8 就绪{RESET}"
-    )
+    print(f"{GREEN}✅ embedder ({provider}) 可用 · {EXPECTED_DIM} 维 · 主链 D8 就绪{RESET}")
     return 0
 
 

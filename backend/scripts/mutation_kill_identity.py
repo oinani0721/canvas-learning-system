@@ -116,7 +116,9 @@ __all__ = [
     "check_expect_loc_unique",
     "check_expect_msg_unique",
     "failed_locations",
+    "exactly_one_failed",
     "failed_reasons",
+    "failure_records",
     "failures_region",
     "gate_hit",
     "judge_env",
@@ -180,7 +182,22 @@ PYEOF_RE = re.compile(r"<<'PYEOF'[ \t]*\r?\n(.*?)\r?\n^PYEOF[ \t]*\r?$", re.DOTA
 
 #: `-rf` 短摘要行。reason 可缺失(没有断言消息时 pytest 只打 `FAILED <nodeid>`)。
 #: ⛔ round-19：只在 `summary_region()` 里 findall，不再对整份输出扫（HIGH-2）。
-_FAILED_RE = re.compile(r"^(?:FAILED|ERROR) (\S+?)(?: - (.*))?$", re.M)
+_FAILED_RE = re.compile(r"^(?P<status>FAILED|ERROR) (?P<nodeid>\S+?)(?: - (?P<reason>.*))?$", re.M)
+
+
+def _boundary_ok(nodeid: str) -> bool:
+    r"""nodeid 的切分边界是否可判定。
+
+    ⛔ round-3 HIGH：`\S+?` 非贪婪 + `(?: - ...)` 让**参数 ID 里含 ` - `** 的行被切错：
+    `FAILED tests/x.py::test_x[case - EXPECT] - AssertionError: other`
+    解析成 nodeid=`tests/x.py::test_x[case`、reason=`EXPECT] - AssertionError: other`
+    —— 整行匹配成功所以不进 `unparsed_failure_lines`，`startswith(nodeid + "[")`
+    又接受这个截断值，于是**参数 ID 里的字样**就能满足消息判据。
+    判据：方括号必须成对闭合；不闭合 = 切早了 = 边界不可判定 ⇒ 调用方判 HARNESS-ERROR。
+    ⚠️ 不改成贪婪或 `rsplit` —— reason 本身也可能含 ` - `，那样只是把错误换个方向。
+    """
+    return nodeid.count("[") == nodeid.count("]")
+
 
 #: 摘要区起始分隔线：`==== short test summary info ====`。
 _SUMMARY_HEAD_RE = re.compile(r"^=+ short test summary info =+$", re.M)
@@ -202,6 +219,33 @@ _LOC_RE = re.compile(r"^(?P<path>\S+\.py):(?P<line>\d+): (?P<rest>\S+.*)$", re.M
 _FAILEDISH_RE = re.compile(r"^(FAILED|ERROR) .+$")
 
 
+def failure_records(out: str) -> list[tuple[str, str, str]]:
+    """摘要区里的 `(status, nodeid, reason)` —— **保留 status 且不去重**。
+
+    ⛔ round-3 MEDIUM：`parse_failed_nodeids` 用 `set` 去重且 FAILED/ERROR 同收，
+    「同一 nodeid 各有一条 FAILED 与一条 ERROR」会被数成 1 条 ⇒ 「恰一条红」成立。
+    要判「恰一条 FAILED 且零 ERROR」必须拿这个保留状态的列表。
+    """
+    region = summary_region(out)
+    if region is None:
+        return []
+    return [
+        (m.group("status"), m.group("nodeid"), m.group("reason") or "")
+        for m in _FAILED_RE.finditer(region)
+        if _boundary_ok(m.group("nodeid"))
+    ]
+
+
+def exactly_one_failed(out: str, nodeid: str) -> bool:
+    """摘要区里恰有 1 条 FAILED（属于目标门）、0 条 ERROR、且无未解析记录。"""
+    if unparsed_failure_lines(out):
+        return False
+    recs = failure_records(out)
+    fails = [r for r in recs if r[0] == "FAILED"]
+    errs = [r for r in recs if r[0] == "ERROR"]
+    return len(fails) == 1 and not errs and gate_hit(nodeid, {fails[0][1]})
+
+
 def unparsed_failure_lines(out: str) -> list[str]:
     """摘要区里以 `FAILED `/`ERROR ` 开头却解析不出 nodeid 的行。
 
@@ -209,7 +253,16 @@ def unparsed_failure_lines(out: str) -> list[str]:
     调用方应判 HARNESS-ERROR，⛔ 不得当作「没有别的失败」。
     """
     region = summary_region(out) or ""
-    return [ln for ln in region.splitlines() if _FAILEDISH_RE.match(ln) and not _FAILED_RE.match(ln)]
+    bad = []
+    for ln in region.splitlines():
+        if not _FAILEDISH_RE.match(ln):
+            continue
+        m = _FAILED_RE.match(ln)
+        # 匹配不上，或匹配上了但**切分边界不可判定**（方括号未闭合）—— 后者更危险：
+        # 它整行匹配成功，不报出来就会带着错误的 nodeid/reason 进判据（round-3 HIGH）。
+        if m is None or not _boundary_ok(m.group("nodeid")):
+            bad.append(ln)
+    return bad
 
 
 def judge_env() -> dict[str, str]:
@@ -309,7 +362,7 @@ def parse_failed_nodeids(out: str) -> set[str]:
     region = summary_region(out)
     if region is None:
         return set()
-    return {m[0] for m in _FAILED_RE.findall(region)}
+    return {m.group("nodeid") for m in _FAILED_RE.finditer(region) if _boundary_ok(m.group("nodeid"))}
 
 
 def failed_reasons(out: str) -> list[tuple[str, str]]:
@@ -317,7 +370,11 @@ def failed_reasons(out: str) -> list[tuple[str, str]]:
     region = summary_region(out)
     if region is None:
         return []
-    return [(m[0], m[1]) for m in _FAILED_RE.findall(region)]
+    return [
+        (m.group("nodeid"), m.group("reason") or "")
+        for m in _FAILED_RE.finditer(region)
+        if _boundary_ok(m.group("nodeid"))
+    ]
 
 
 def failed_locations(out: str) -> list[tuple[str, int, str]]:
@@ -785,6 +842,16 @@ class RestoreGuard:
         # 碰过的文件), 不是「全部目标文件」—— 完整性由跑后的全文件 sha 对账说了算。
         self._log(f"\n⚠️ 收到信号 {signum}，已还原全部登记过的目标文件后退出（完整性以全文件 sha 对账为准）")
         raise SystemExit(self._exit_code)
+
+    def exiting(self) -> bool:
+        """是否已进入退出展开（`_finish` 已选定退出码）。
+
+        ⛔ round-3 MEDIUM：`_finish` 抛 `SystemExit(131)` 后，调用方栈展开仍会进入
+        各自的 `finally` 再还原一次；若还原持续遇到**同一个 I/O 错误**，第二次异常会
+        **替换掉** `SystemExit(131)`，最终按未捕获异常退出 —— 约定的退出码丢了。
+        调用方的 finally 应据此把二次还原的异常吞掉（还原尝试与诊断都保留）。
+        """
+        return self._finishing
 
     @contextlib.contextmanager
     def critical(self):

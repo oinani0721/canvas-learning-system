@@ -35,6 +35,7 @@ import os
 import re
 import stat
 import subprocess
+import traceback
 import sys
 from pathlib import Path
 
@@ -432,6 +433,22 @@ def main() -> int:
     _guard = RestoreGuard(restore_all)
     _guard.install()
 
+    def restore_or_keep_exit_code() -> None:
+        """还原；已在退出展开中时吞掉二次异常，保住约定退出码（round-3 MEDIUM）。
+
+        `_finish` 抛 `SystemExit(131)` 后栈展开仍进 `finally` 再还原一次；还原若持续
+        遇到同一个 I/O 错误，第二次异常会替换掉 131 —— 约定的「还原失败」信号丢了。
+        """
+        try:
+            restore_all()
+        except BaseException:  # noqa: BLE001
+            if not _guard.exiting():
+                raise
+            try:
+                traceback.print_exc()
+            except BaseException:  # noqa: BLE001
+                pass
+
     results = []
     try:
         for mid, path, old, new, nodeid, why, expect_msg in MUTATIONS:
@@ -461,7 +478,7 @@ def main() -> int:
                 # 逐条立即还原: 下一条变异必须打在干净的树上。
                 # ⛔ round-19: 走 `restore_all()`（内含 `critical()`）而不是自己写循环 ——
                 # 循环中途收到信号时旧写法会停在还原了一半的状态。
-                restore_all()
+                restore_or_keep_exit_code()
             # ⛔ 先问「判据面在不在」再问「杀没杀死」: 缺 `-rf` 时短摘要不存在,
             # 判据会安静退化成恒假 ⇒ 全报 SURVIVED, 长得跟「门都不承重」一样。
             failed = parse_failed_nodeids(out)
@@ -505,7 +522,7 @@ def main() -> int:
                 f"failed={sorted(failed) or '∅'} expect_hit={expect_hit} loc={locs or '∅'} — {why_v}"
             )
     finally:
-        restore_all()
+        restore_or_keep_exit_code()
 
     # ⛔ round-19 修回归: 收口前「判据面不成立」是 `return 2`(负控自己坏了)，改走
     # `kill_identity` 判 HARNESS-ERROR 之后, 它会和 SURVIVED 一起压进 rc=1 ——

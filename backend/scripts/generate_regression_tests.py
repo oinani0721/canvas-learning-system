@@ -17,9 +17,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 DATA_DIR = Path(__file__).parent.parent / "data"
-OUTPUT_FILE = (
-    Path(__file__).parent.parent / "tests" / "regression" / "test_production_bugs.py"
-)
+OUTPUT_FILE = Path(__file__).parent.parent / "tests" / "regression" / "test_production_bugs.py"
 
 
 def read_jsonl(file_path: Path) -> List[Dict[str, Any]]:
@@ -155,11 +153,7 @@ def main() -> None:
     edge_failures = read_jsonl(DATA_DIR / "failed_edge_syncs.jsonl")
     dead_letters = read_jsonl(DATA_DIR / "dead_letter_episodes.jsonl")
 
-    print(
-        f"Found: {len(bugs)} bugs, "
-        f"{len(edge_failures)} edge failures, "
-        f"{len(dead_letters)} dead letters"
-    )
+    print(f"Found: {len(bugs)} bugs, {len(edge_failures)} edge failures, {len(dead_letters)} dead letters")
 
     # --- Build output --------------------------------------------------------
     parts: List[str] = []
@@ -240,20 +234,12 @@ def main() -> None:
         print(content[:3000])
         if len(content) > 3000:
             print(f"... ({len(content)} chars total)")
-        print(
-            f"\nTests: {total_tests} "
-            f"(bugs={bug_test_count}, edges={edge_test_count}, "
-            f"dead_letters={dl_test_count})"
-        )
+        print(f"\nTests: {total_tests} (bugs={bug_test_count}, edges={edge_test_count}, dead_letters={dl_test_count})")
     else:
         OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
         OUTPUT_FILE.write_text(content, encoding="utf-8")
         print(f"Generated: {OUTPUT_FILE}")
-        print(
-            f"Tests: {total_tests} "
-            f"(bugs={bug_test_count}, edges={edge_test_count}, "
-            f"dead_letters={dl_test_count})"
-        )
+        print(f"Tests: {total_tests} (bugs={bug_test_count}, edges={edge_test_count}, dead_letters={dl_test_count})")
 
 
 if __name__ == "__main__":

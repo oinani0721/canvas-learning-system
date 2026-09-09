@@ -60,6 +60,7 @@ from __future__ import annotations
 import hashlib
 import os
 import subprocess
+import traceback
 import sys
 from pathlib import Path
 
@@ -331,6 +332,25 @@ def _restore_active() -> None:
     for _p, _t in list(_ACTIVE_SNAPSHOT.items()):
         _p.write_text(_t, encoding="utf-8")
     _ACTIVE_SNAPSHOT.clear()
+
+
+def _restore_active_or_keep_exit_code() -> None:
+    """还原；若已在退出展开中，二次还原的异常**吞掉**以保住约定退出码。
+
+    ⛔ round-3 MEDIUM：`RestoreGuard._finish` 抛 `SystemExit(131)` 后，调用方栈展开
+    仍会进入 `finally` 再还原一次。若还原持续遇到同一个 I/O 错误（例如存证写入失败），
+    第二次异常会**替换掉** `SystemExit(131)`，进程按未捕获异常退出 —— 约定的
+    「还原失败=131」这个信号就丢了。还原尝试与诊断都保留，只是不让它改写退出码。
+    """
+    try:
+        _restore_active()
+    except BaseException:  # noqa: BLE001
+        if not _GUARD.exiting():
+            raise
+        try:
+            traceback.print_exc()
+        except BaseException:  # noqa: BLE001
+            pass
 
 
 #: ⛔ round-19 统一（CARD-DEBT-mutkill-R2 (h)）：四个信号（**补齐 SIGQUIT** ——
