@@ -1510,6 +1510,11 @@ def test_step4_mirror_files_pass_the_same_judge_before_sed(tmp_path: Path):
     #    故钉住整条语句的**形状**：它必须是 `if` 的直接条件，前面不许挂任何短路。
     line = next(ln for ln in src.splitlines() if call in ln)
     assert line.strip() == f"if {call}; then", f"镜像判据被就地失效或改写: {line.strip()!r}"
+    # ⛔ 内层形状对了，**外层**仍可被 `if false; then` 整块架空（Codex r6 MEDIUM-4）：
+    #    判据与写前复查一起跳过、sed 照跑，而上面那条断言毫无察觉。故把外层守卫也钉住。
+    guard = 'if [ "${#MIRROR_WRITES[@]}" -gt 0 ]; then'
+    assert guard in src, "镜像判据的外层守卫被改写或删除（整块可被架空）"
+    assert src.index(guard) < judge, "外层守卫必须包住判据调用"
     # 对象身份：清单必须从 $PORT_TEMPLATED_FILES 构建（与 sed 循环同一来源），
     # 而不是另抄一份 —— 两份手抄清单必然漂移（r4 HIGH-1 的原话）。
     build = src.index("MIRROR_WRITES+=(")
@@ -1519,25 +1524,138 @@ def test_step4_mirror_files_pass_the_same_judge_before_sed(tmp_path: Path):
     assert 'assert_writable_now "${mt#*:}"' in src, "镜像文件缺写前复查"
 
 
-def test_env_file_is_chmod_600_before_key_is_written(tmp_path: Path):
-    """⛔ r5 HIGH-3：`os.open(..., 0o600)` 对**已存在**文件不改权限。
+def test_env_key_write_chmods_only_after_nofollow_and_nlink(tmp_path: Path):
+    """⛔ r6 HIGH-1（我 r5 修 HIGH-3 时引入的第 5 次自伤）：收紧权限**不能用路径式 chmod**。
 
-    若 `.env.<vault>` 由脚本以外的来源预先存在且权限较宽，密钥会先 fsync 进 0644 文件、
-    随后那次 `chmod` 才收紧 —— 中间是真实的可读窗口。
+    r5 我在 bash 里写了 `[ -e "$ENV_FILE" ] && chmod 600 "$ENV_FILE"` 放在 python 块之前。
+    若目标在 A3 校验之后、B4 之前被换成指向保护文件的软链或硬链接，那次 chmod 会
+    **先改掉保护对象的权限**，之后才轮到 `O_NOFOLLOW` / nlink 把写拒掉 —— 旧版反而
+    没有这个越界写，而且它改的是元数据，内容 sha 与 `find -newermt` 都看不见。
 
-    ⚠️ **这条门只能验顺序，不能验窗口**（如实写明）：最终权限在整改前后**都是 0600**，
-    post-hoc 观察不到差别；有区别的是「密钥落盘时」文件是什么权限，而那一刻无法从外部
-    采样。故这里钉的是源码**顺序**：写前的 chmod 必须出现在 B4 的 python 写入之前，
-    且写后的那次必须**保留**（覆盖「文件是本次新建」的情形）。
+    ⇒ 正解是 `os.fchmod(fd)`：fd 由 `O_NOFOLLOW` 取得（末段是软链就根本打不开）、
+    且已过 nlink 检查，此时改权限只会落在那个已确认安全的 inode 上。
+
+    本门钉三件事：① 存在 `os.fchmod(fd, 0o600)`；② 它在 `fstat`/nlink 之后、
+    `ftruncate` 之前；③ 步 3 里**不再有任何路径式 `chmod ... "$ENV_FILE"`**。
     """
     src = _sh_src()
-    pre = src.index('if [ -e "$ENV_FILE" ]; then\n        chmod 600 "$ENV_FILE"')
-    write = src.index('if ! python3 - "$ENV_FILE" "$key"')
-    post = src.index('chmod 600 "$ENV_FILE" || { STEP_MSG="chmod 600 失败')
-    assert pre < write, "写前 chmod 必须在密钥写入之前"
-    assert write < post, "写后 chmod 必须保留（新建文件走这一条）"
+    blk_start = src.index('if ! python3 - "$ENV_FILE" "$key"')
+    blk = src[blk_start : src.index("\nPY", blk_start)]
+    for anchor in ("os.fstat(fd)", "st.st_nlink > 1", "os.fchmod(fd, 0o600)", "os.ftruncate(fd, 0)"):
+        assert anchor in blk, f"B4 写入块缺锚点 {anchor!r}"
+    assert blk.index("os.fstat(fd)") < blk.index("os.fchmod(fd, 0o600)"), (
+        "fchmod 必须在 fstat/nlink 检查之后 —— 否则又是「先改权限再拒绝」"
+    )
+    assert blk.index("os.fchmod(fd, 0o600)") < blk.index("os.ftruncate(fd, 0)"), "fchmod 必须在 ftruncate 之前"
+    # ③ 路径式 chmod 在步 3 里必须绝迹（seed_env_file 里的那次不在此范围）。
+    #    ⚠️ 必须先剥注释：说明为什么删掉它的那段注释里就写着这个字面量，
+    #    不剥的话这条门会被自己的文档打红（本门第一版就是这么红的）。
+    step3 = src[src.index("# B4 .env.<vault> 的 INTERNAL_API_KEY 同值") : src.index("# B5 key **文件**落盘")]
+    step3_code = "\n".join(ln for ln in step3.splitlines() if not ln.lstrip().startswith("#"))
+    assert 'chmod 600 "$ENV_FILE"' not in step3_code, (
+        "步 3 仍有路径式 chmod —— 目标被换掉时会改到保护对象的权限（r6 HIGH-1）"
+    )
     # seed 出来的那份从诞生就是 0600，走不到这个窗口。
     assert '(umask 077 && : > "$ENV_FILE.tmp")' in src, "seed 的临时文件缺 umask 077"
+
+
+def test_multi_segment_relative_vault_is_rejected_at_entry(tmp_path: Path):
+    """⛔ r6 MEDIUM-2：`relcourse` 那条 KILLED **证不了入口门承重**。
+
+    单段相对路径即使入口检查被删，也仍会被后面的 `case */*` 不变量断言拦成 rc 64、
+    消息同样含「绝对路径」——两条分支给出同样的结果，变异因此杀不掉。
+    **多段**相对输入 `parent/course` 才只有入口那一条能拦。
+    """
+    (tmp_path / "parent" / "course").mkdir(parents=True)
+    r = _preview(tmp_path, "parent/course", "8197", cwd=tmp_path)
+    assert r.returncode == 64, f"多段相对 --vault 未被入口拒: rc={r.returncode} {r.stdout}{r.stderr}"
+    assert "绝对路径" in r.stderr, f"消息未点明原因: {r.stderr!r}"
+
+
+# ═══ Codex r6 BLOCKER-2：保护目标解析成根时，`tk + os.sep` = "//" ⇒ 三处比较一起漏 ═══
+def test_forbidden_judge_handles_protected_target_at_root(tmp_path: Path):
+    """⛔ r6 BLOCKER-2：`.claude-cache -> /` 这类退化配置下，一切路径都该被拦。
+
+    原来三处各手写 `key == tk or key.startswith(tk + os.sep)`，`tk` 为 `/` 时后半段
+    变成 `"//"`，`/safe/out` 两边都不满足 ⇒ **全部漏拦**。三份手抄的比较必然一起错。
+    """
+    home = tmp_path / "home"
+    home.mkdir()
+    (home / ".claude-cache").symlink_to("/", target_is_directory=True)
+    live = tmp_path / "fake-live"
+    live.mkdir()
+    safe = tmp_path / "safe"
+    safe.mkdir()
+    r = _forbid_home(home, str(live), f"--env-dir:{safe / 'out'}")
+    assert r.returncode != 0, f"保护目标为根时漏拦: {r.stdout}{r.stderr}"
+
+
+# ═══ Codex r6 BLOCKER-1：第一跳可读 ≠ 整条链可解析 ════════════════════════════
+def test_forbidden_judge_fail_closed_when_second_hop_unsearchable(tmp_path: Path):
+    """⛔ r6 BLOCKER-1：`.claude-cache -> /opaque/hop -> /external/protected`。
+
+    `/opaque` 不可搜索时，**第一跳** `readlink` 成功（r5 只验到这里），
+    而 `realpath(strict=False)` 把 EACCES 吞掉、只登记到 `/opaque/hop`，
+    `enumerate_failed` 仍是 False ⇒ 直接写 `/external/protected/x` 被放行。
+    """
+    if os.geteuid() == 0:
+        pytest.skip("以 root 运行时权限位不生效，本条无从制造前提")
+    home = tmp_path / "home"
+    home.mkdir()
+    opaque = tmp_path / "opaque"
+    opaque.mkdir()
+    protected = tmp_path / "external" / "protected"
+    protected.mkdir(parents=True)
+    (opaque / "hop").symlink_to(protected, target_is_directory=True)
+    (home / ".claude-cache").symlink_to(opaque / "hop", target_is_directory=True)
+    live = tmp_path / "fake-live"
+    live.mkdir()
+    safe = tmp_path / "safe"
+    safe.mkdir()
+    os.chmod(opaque, 0o644)  # 可读不可搜索
+    try:
+        assert not os.access(opaque / "hop", os.F_OK), "前提不成立：中间跳仍可解析"
+        r = _forbid_home(home, str(live), f"--env-dir:{safe / 'x'}")
+    finally:
+        os.chmod(opaque, 0o755)
+    assert r.returncode != 0, f"第二跳不可搜索时未 fail-closed: {r.stdout}{r.stderr}"
+    assert "fail-closed" in r.stdout, f"未走 fail-closed 分支: {r.stdout!r}"
+
+
+# ═══ Codex r6 MEDIUM-1：上限计的应是软链跳数，不是处理过的段数 ════════════════
+def test_forbidden_judge_does_not_block_deep_but_linkless_path(tmp_path: Path):
+    """⛔ r6 MEDIUM-1：`"/" + "./"*300 + "safe/out"` 实际只是 `/safe/out`，没有任何软链。
+
+    r5 我把计数放在循环顶端（数的是**段**），于是这种合法浅路径也撞上限 ⇒ 误拦。
+    只有解链才可能不收敛（环），普通段只会让待处理队列变短、必然终止。
+    """
+    live = tmp_path / "fake-live"
+    live.mkdir()
+    safe = tmp_path / "safe"
+    safe.mkdir()
+    home = tmp_path / "home"
+    home.mkdir()  # 必须是**真实存在**的目录，否则 os.access 失败会走 _enumerate fail-closed
+    deep = "/" + "./" * 300 + str(safe).lstrip("/") + "/out"
+    r = _forbid_home(home, str(live), f"--env-dir:{deep}")
+    assert r.returncode == 0, f"无软链的深段路径被误拦: {r.stdout}{r.stderr}"
+
+
+def test_forbidden_judge_fail_closed_on_symlink_loop(tmp_path: Path):
+    """控制组（另一个方向）：真正的软链环必须仍然 fail-closed。
+
+    上限从「段数」改成「跳数」之后，它守住的是环 —— 这条证明那道保护还在。
+    """
+    live = tmp_path / "fake-live"
+    live.mkdir()
+    loop = tmp_path / "loop"
+    other = tmp_path / "other"
+    loop.symlink_to(other)
+    other.symlink_to(loop)
+    home = tmp_path / "home"
+    home.mkdir()  # 同上：HOME 必须真实存在，否则红的会是 _enumerate 而不是环
+    r = _forbid_home(home, str(live), f"--env-dir:{loop / 'x'}")
+    assert r.returncode != 0, f"软链环未 fail-closed: {r.stdout}{r.stderr}"
+    assert "fail-closed" in r.stdout, f"应因跳数超限 fail-closed，实际: {r.stdout!r}"
 
 
 def test_forbidden_judge_does_not_fail_closed_on_normal_home(tmp_path: Path):

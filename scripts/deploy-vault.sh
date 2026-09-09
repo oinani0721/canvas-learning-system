@@ -767,15 +767,15 @@ PY
     fi
 
     # B4 .env.<vault> 的 INTERNAL_API_KEY 同值
-    # ⛔ 写**之前**先收紧权限（Codex r5 HIGH-3）：`os.open(..., 0o600)` 的 mode 只对**新建**
-    #    文件生效, 对已存在文件内核直接忽略。若 `.env.<vault>` 由脚本以外的来源预先存在且
-    #    权限较宽（用户手建预置 NEO4J_PASSWORD 等键 / `--env-dir` 指向已有同名文件）,
-    #    密钥会先 fsync 进 0644 文件、下面那次 chmod 才收紧 —— 中间是真实的可读窗口。
-    #    ⚠️ 文件不存在时 chmod 必失败, 故条件执行; 写后那次 chmod **保留**（覆盖新建情形）。
-    #    本脚本自己 seed 出来的那份在 seed_env_file 末尾已 chmod 600, 走不到这个窗口。
-    if [ -e "$ENV_FILE" ]; then
-        chmod 600 "$ENV_FILE" || { STEP_MSG="写前 chmod 600 失败: $ENV_FILE"; return 1; }
-    fi
+    # ⛔ 收紧权限必须在 O_NOFOLLOW **打开并查过链接数之后**, 且作用在**同一个 fd** 上
+    #    （Codex r6 HIGH-1 —— 这是我 r5 修 HIGH-3 时引入的第 5 次自伤）：
+    #    r5 我在 bash 里写了 `[ -e ] && chmod 600 "$ENV_FILE"` 放在 python 块**之前**。
+    #    若 `.env.<vault>` 在 A3 校验之后、B4 之前被换成指向保护文件的**软链或硬链接**,
+    #    那次 chmod 会**先改掉保护对象的权限**, 之后才轮到 O_NOFOLLOW / nlink 把写拒掉 ——
+    #    旧版反而没有这个越界写。而且它改的是元数据, 内容 sha 与 `find -newermt` 都看不见。
+    #    ⇒ 正解：`os.fchmod(fd)`。fd 由 O_NOFOLLOW 取得（末段是软链就根本打不开）,
+    #      且已过 nlink 检查, 此时改权限只可能落在那个已确认安全的 inode 上。
+    #      bash 侧的写前 chmod 与写后 chmod 一并删除, 权限收紧只剩这一处。
     if ! python3 - "$ENV_FILE" "$key" << 'PY'; then
 import os, sys
 p, key = sys.argv[1], sys.argv[2]
@@ -797,6 +797,9 @@ st = os.fstat(fd)
 if st.st_nlink > 1:
     os.close(fd)
     raise SystemExit(f".env 有 {st.st_nlink} 个硬链接, 写入会改共享 inode: {p}")
+# ⛔ 唯一的权限收紧点（r6 HIGH-1）：在 O_NOFOLLOW + nlink 之后, 作用于同一 fd。
+#    `os.open` 的 mode 只对新建文件生效, 已存在的宽权限文件要靠这一行才收紧。
+os.fchmod(fd, 0o600)
 os.ftruncate(fd, 0)
 with os.fdopen(fd, "w", encoding="utf-8") as f:
     f.write("\n".join(out))
@@ -806,7 +809,8 @@ PY
         STEP_MSG="写 $ENV_FILE 的 INTERNAL_API_KEY 失败"
         return 1
     fi
-    chmod 600 "$ENV_FILE" || { STEP_MSG="chmod 600 失败: $ENV_FILE"; return 1; }
+    # （原写后 `chmod 600 "$ENV_FILE"` 已删 —— 权限收紧统一由上面的 `os.fchmod(fd)` 承担,
+    #   那一处在 O_NOFOLLOW + nlink 之后, 不会像路径式 chmod 那样改到被换掉的对象。r6 HIGH-1）
 
     # B5 key **文件**落盘 —— 最后一步。A4 已确定值; 已存在则不重写、只校正权限。
     # 为什么最后：「key 文件存在」是 A4 判「不重生」的锚点。若它先落盘而后续两处失败，

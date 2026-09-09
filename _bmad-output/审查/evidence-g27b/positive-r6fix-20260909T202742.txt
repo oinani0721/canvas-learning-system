@@ -1,0 +1,20 @@
+=== 正控 dry-run ===
+rc=0（期望 0）; 目标仍不存在: ✅
+=== 正控 apply ===
+rc=0（期望 0）
+[1/6] preflight: OK 树完整 / 禁写面过 / 名不动点 / port 8133 空闲 / skills 9 / main.js 在位
+[2/6] install: OK install-vault.sh rc 0, 输出 /private/tmp/claude-501/-Users-Heishing-Desktop-canv
+[3/6] postprocess: OK key 重生=yes(0600) 三处同值; :8011→:8133 ×4 已验残留 0; 绑定三件在位; .env 白名单跳过: NEO4J_HT
+[4/6] verify: OK 校验器 rc 0（含 content-drift 轴, 基准=源镜像(同 :8133 口径)）, 报告 /private/tmp/claude-501/-Us
+[5/6] activate: SKIP 未传 --activate（缺省只部署不激活）
+[6/6] evidence: OK /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system
+--- 断言 ---
+key 权限: 600（期望 600）
+.env 权限: 600（期望 600 —— 现在由 os.fchmod 承担）
+8011 残留: 0（期望 0）
+=== H-3 端到端：脚本外来源预置的宽权限 .env ===
+apply rc=0（期望 0）
+[3/6] postprocess: OK key 重生=yes(0600) 三处同值; :8011→:8135 ×4 已验残留 0; 绑定三件在位; .env 白名单跳过: 无
+权限 apply 前=644 → 后=600  （期望 644 → 600）
+密钥已写入行数: 1（期望 1）
+⇒ os.fchmod 确实收紧了**已存在**的宽权限文件, 且收紧发生在 O_NOFOLLOW + nlink 之后。

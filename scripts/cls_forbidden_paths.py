@@ -88,6 +88,40 @@ def k(p: str) -> str:
     return unicodedata.normalize("NFC", phys(p)).lower()
 
 
+def under(key: str, tk: str) -> bool:
+    """`key` 是否等于 `tk` 或位于其下 —— **三处比较的单一来源**。
+
+    ⛔ Codex r6 BLOCKER-2：原来三处各手写 `key == tk or key.startswith(tk + os.sep)`。
+    当保护目标解析结果是**根**（`.claude-cache -> /` 这类退化配置）时，
+    `tk + os.sep` 变成 `"//"`，于是 `/safe/out` 既不等于 `/` 也不以 `//` 开头 ⇒ **全部漏拦**。
+    三份手抄的比较必然一起错（本卡已登记过「两份手抄清单必然漂移」同型）。
+    """
+    if tk == os.sep:
+        return True  # 根之下 = 全部
+    return key == tk or key.startswith(tk + os.sep)
+
+
+def chain_resolvable(entry: str) -> bool:
+    """`entry` 的整条解析链是否**真的走得通**（Codex r6 BLOCKER-1）。
+
+    r5 我只对第一跳做了 `readlink`。但 `.claude-cache -> /opaque/hop -> /external/protected`
+    且 `/opaque` 不可搜索时：第一跳 `readlink` 成功，`realpath(strict=False)` 却把 EACCES
+    吞掉、只登记到 `/opaque/hop`，`enumerate_failed` 仍是 False ⇒ 直接写
+    `/external/protected/x` 被放行。**「第一跳可读」不等于「整条链可解析」。**
+
+    `os.stat` 会走完整条链，任何一段不可搜索都抛 EACCES。
+    ENOENT（悬空链 / 目标暂不存在）**不算失败** —— 那是合法状态，且此时也没有
+    可被写穿的真实对象；其余 OSError 一律按「问不出来」处理。
+    """
+    try:
+        os.stat(entry)
+    except FileNotFoundError:
+        return True
+    except OSError:
+        return False
+    return True
+
+
 def build_targets(live: str) -> tuple[list[tuple[str, str]], list[str], bool]:
     home = os.path.expanduser("~")
     raw = [live, os.path.join(home, "Library")]
@@ -106,9 +140,11 @@ def build_targets(live: str) -> tuple[list[tuple[str, str]], list[str], bool]:
     #    （x）时，`listdir` 照常返回名字，而解析子项需要**搜索**权限 ——
     #    `realpath(strict=False)` 会把 EACCES 吞掉、返回未解析的路径串，于是外部保护目标
     #    （`.claude-cache -> /external/cache`）整批漏登记，而 `enumerate_failed` 仍是 False。
-    #    这里两道一起上：先问权限位，再对每个软链条目**真的 readlink 一次**。
-    #    只问权限位不够（`os.access` 用实际 uid，root 恒真——r4 LOW-1 同型）；
-    #    只 readlink 也不够（还没走到条目就不可搜索时，islink 本身静默返回 False）。
+    #    ⚠️ **实测更正**（r6 变异：单独去掉本行，对应的门仍绿 ⇒ 它当前零承重）：
+    #    r5 我写的「两道都要」在加入 `chain_resolvable` 之后已不成立 —— 整链检查
+    #    覆盖了本行能覆盖的全部已测情形。保留它只作**早失败**的纵深（比逐条 stat 便宜），
+    #    **不宣称**它是第二道防线。承重的是下面对每个目标的 `chain_resolvable`。
+    #    （`os.access` 用实际 uid，root 下恒真 —— r4 LOW-1 同型，这也是它不能单独承重的原因。）
     if not os.access(home, os.R_OK | os.X_OK):
         enumerate_failed = True
     try:
@@ -116,16 +152,20 @@ def build_targets(live: str) -> tuple[list[tuple[str, str]], list[str], bool]:
             if name.lower().startswith(".claude"):
                 entry = os.path.join(home, name)
                 raw.append(entry)
-                try:
-                    if os.path.islink(entry):
-                        os.readlink(entry)
-                except OSError:
+                # ⛔ 不能只验第一跳（Codex r6 BLOCKER-1）：整条链都要走得通。
+                if not chain_resolvable(entry):
                     enumerate_failed = True
     except OSError:
         enumerate_failed = True
 
     targets = []
     for r in raw:
+        # ⛔ 整链可解析性要对**每一个**保护目标都验, 不只是 `.claude*`（r6 变异测量的结论）：
+        #    `k()` 内的 `realpath(strict=False)` 对所有目标都会吞掉 EACCES。若 `~/.codex`
+        #    本身是指向外部的软链而 HOME 不可搜索, 它就只会以**词法**路径入表 ——
+        #    指向那个外部真实目标的写入随即漏拦。原来只对 `.claude*` 验, 其余目标同病未治。
+        if not chain_resolvable(r):
+            enumerate_failed = True
         try:
             targets.append((k(r), r))
         except OSError:
@@ -149,7 +189,7 @@ def build_targets(live: str) -> tuple[list[tuple[str, str]], list[str], bool]:
     return targets, claude_prefixes, enumerate_failed
 
 
-def walk_visited(p: str, limit: int = 256) -> tuple[list[str], bool]:
+def walk_visited(p: str, limit: int = 64) -> tuple[list[str], bool]:
     """模拟内核 `namei`：**逐段**解析, 返回途中经过的每一个路径对象。
 
     ⛔ Codex r5 BLOCKER-2 —— 旧的 `resolve_chain` 把「路径」当成一个**原子对象**来解，
@@ -180,14 +220,10 @@ def walk_visited(p: str, limit: int = 256) -> tuple[list[str], bool]:
         path = os.path.join(os.getcwd(), path)
     pending = path.split(os.sep)
     cur = os.sep
-    visited: list[str] = []
-    steps = 0
+    # 根本身也要登记（Codex r6 BLOCKER-2 的第二半：目标解析成 `/` 时 walker 从不记录根）。
+    visited: list[str] = [os.sep]
+    hops = 0
     while pending:
-        steps += 1
-        if steps > limit:
-            # ⛔ 超限**不再静默 break**（原第 21 条「未证明 64 跳够用」的正面回应）：
-            #    静默停下等于对剩余部分宣称「安全」, 而我们并不知道。
-            return visited, True
         seg = pending.pop(0)
         if seg in ("", "."):
             continue
@@ -205,6 +241,15 @@ def walk_visited(p: str, limit: int = 256) -> tuple[list[str], bool]:
         if not is_link:
             cur = nxt
             continue
+        # ⛔ 上限计的是**软链跳数**, 不是处理过的段数（Codex r6 MEDIUM-1）：
+        #    r5 我把 `steps += 1` 放在循环顶端, 于是 `"/" + "./"*256 + "safe/out"`
+        #    这种**没有任何软链的合法浅路径**也会撞上限 ⇒ 误拦。
+        #    只有解链才可能不收敛（环），普通段只会让 pending 变短、必然终止,
+        #    所以把预算花在跳数上既够用又不误伤。上限对齐 POSIX SYMLOOP_MAX 量级。
+        hops += 1
+        if hops > limit:
+            # 超限**不静默 break**：静默停下等于对剩余部分宣称「安全」, 而我们并不知道。
+            return visited, True
         try:
             tgt = os.readlink(nxt)
         except OSError:
@@ -228,7 +273,7 @@ def chain_hits(p: str, targets: list[tuple[str, str]], claude_prefixes: list[str
         if ".git" in hop_key.split(os.sep):
             return f".git 目录内（遍历途中经过 {hop}）"
         for tk, orig in targets:
-            if hop_key == tk or hop_key.startswith(tk + os.sep):
+            if under(hop_key, tk):
                 return f"{orig}（遍历途中经过 {hop}）"
         for pfx in claude_prefixes:
             if hop_key.startswith(pfx):
@@ -241,14 +286,16 @@ def chain_hits(p: str, targets: list[tuple[str, str]], claude_prefixes: list[str
 def ancestor_symlink_hits(p: str, targets: list[tuple[str, str]], claude_prefixes: list[str]) -> str | None:
     """规则 5：路径中任何一段是软链且解开后落在保护目标里。
 
-    ⛔ **职责与 `chain_hits` 严格不重叠**（r5 整改时由变异测试逼出来的）：
-    第一版我让本函数**也**调 `chain_hits`, 结果变异测试显示「删掉 `hits()` 里的逐段判据」
-    那条门**仍绿** —— 因为本函数把它兜住了。两层互相兜底 = 谁都测不出承重，
-    正是 r4 批过的「留着让人以为有两道防线」。
-    ⇒ 现在分工是：
-       · `chain_hits`（在 `hits()` 里直接调）—— **逐段遍历**轴：途中经过的每个对象
-       · 本函数 —— **整体 realpath**轴：`k(cur)` 把祖先软链一次解到底后比保护目标
-      两者是不同的计算，各自有变异门证明承重；本函数**不再**转调 `chain_hits`。
+    ⛔ **如实声明：本函数在现有用例下零承重**（r6 探针实测 —— 停用它整份测试全绿）。
+
+    经过：r5 我让本函数也转调 `chain_hits`, 变异显示「删掉 `hits()` 的逐段判据」门仍绿；
+    我据此拆开职责（本函数只留 `k(cur)` 的整体 realpath 轴）并**宣称两轴各自承重**。
+    Codex r6 MEDIUM-5 指出那七条变异里没有一条失效过本函数, 该宣称无据。
+    r6 探针照做, 结论是**全绿** ⇒ 逐段 walker 已覆盖它能覆盖的全部已测情形。
+
+    保留它是纵深（`k(cur)` 一次解到底与逐段解析是两种计算, 遇 walker 跳数超限或
+    `readlink` 退化时理论上还能补一手），但**不得再宣称是第二道防线** ——
+    r4 已因「留着让人以为有两道防线」批过一次，这次用测量说话而不是用注释说话。
     """
     cur = os.path.expanduser(p)
     if not os.path.isabs(cur):
@@ -259,7 +306,7 @@ def ancestor_symlink_hits(p: str, targets: list[tuple[str, str]], claude_prefixe
         if os.path.islink(cur):
             resolved = k(cur)
             for tk, orig in targets:
-                if resolved == tk or resolved.startswith(tk + os.sep):
+                if under(resolved, tk):
                     return f"{orig}（经软链 {cur}）"
             for pfx in claude_prefixes:
                 if resolved.startswith(pfx):
@@ -328,7 +375,7 @@ def hits(
 
     # 规则 3 + 4：等于或位于保护目标之下
     for tk, orig in targets:
-        if key == tk or key.startswith(tk + os.sep):
+        if under(key, tk):
             return orig
     # 词法前缀要拿**词法 key** 比（同口径, 不解链）；物理 key 也比一次, 两轴都不漏。
     # 前缀现为**两条**（词法 HOME / 物理 HOME, 见 build_targets 的 r5 BLOCKER-1 注释）。
