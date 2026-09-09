@@ -755,70 +755,74 @@ class TestGuardLiveness:
             if saved is not None or "uvloop" not in sys.modules:
                 sys.modules["uvloop"] = saved
 
+    # ── 说谎 str 子类：**子类行为 × 真实值** 交叉覆盖（round-3 Codex MEDIUM-1）──
+    #
+    # 期望**只由真实值决定**，与子类的谎话无关：真实值是 uvloop / uvloop.* ⇒ 拦，
+    # 否则放行。所以判据必须跑满这个笛卡尔积 —— 上一版只有
+    # `_Denier × {uvloop, uvloop.loop}` 与 `_Affirmer × {json}` 三格，漏掉的
+    # `_Affirmer("uvloop.loop")` 让下面这个错误实现整条溜过去（Codex 给的反例）::
+    #
+    #     str.__eq__(name, "uvloop") is True or (
+    #         str.startswith(name, "uvloop.") and not (name == "uvloop")
+    #     )
+    #
+    # 它对 `_Denier` 两格与 `_Affirmer("json")` 都给出正确答案，却把
+    # `_Affirmer("uvloop.loop")`（重载相等恒真 ⇒ `not (name == "uvloop")` 为假）**放行**。
+
+    class _Denier(str):
+        """两个比较方法恒说「不是」。"""
+
+        __slots__ = ()
+
+        def __eq__(self, other):  # noqa: D105
+            return False
+
+        def __ne__(self, other):  # noqa: D105
+            return True
+
+        def startswith(self, *a, **k):  # noqa: D102
+            return False
+
+        __hash__ = str.__hash__
+
+    class _Affirmer(str):
+        """两个比较方法恒说「是」。"""
+
+        __slots__ = ()
+
+        def __eq__(self, other):  # noqa: D105
+            return True
+
+        def __ne__(self, other):  # noqa: D105
+            return False
+
+        def startswith(self, *a, **k):  # noqa: D102
+            return True
+
+        __hash__ = str.__hash__
+
+    @pytest.mark.parametrize("liar", ["denier", "affirmer"])
     @pytest.mark.parametrize("value", ["uvloop", "uvloop.loop"])
-    def test_denying_str_subclass_is_still_blocked(self, value):
-        """两个比较方法**恒说不是**的 ``str`` 子类，仍必须按真实值拦下。
-
-        ⛔ round-2 Codex MEDIUM：上一版用的是「取反」型说谎子类，对
-        ``_Liar("uvloop")`` 而言 ``startswith("uvloop.")`` 恰好返回 **True**（原串本来就
-        不以带点前缀开头，取反成真），于是**即使把判据错误地改回绑定调用**，正向那半仍绿。
-        Codex 给的静态反例是::
-
-            str.__eq__(name, "uvloop") is True or (
-                str.startswith(name, "uvloop.") and name.startswith("uvloop.")
-            )
-
-        它能满足普通子类用例、取反型 ``"uvloop"`` 与 ``"json"`` 用例，却**放行**
-        ``uvloop.loop``。改成「两个方法恒返回 False」的子类 + 参数化两个真实值之后，
-        那个反例在 ``uvloop.loop`` 这一参数上必红。
-        """
-
-        class _Denier(str):
-            __slots__ = ()
-
-            def __eq__(self, other):  # noqa: D105
-                return False
-
-            def __ne__(self, other):  # noqa: D105
-                return True
-
-            def startswith(self, *a, **k):  # noqa: D102
-                return False
-
-            __hash__ = str.__hash__
+    def test_lying_str_subclass_on_uvloop_value_is_still_blocked(self, liar, value):
+        """真实值是 uvloop / uvloop.* ⇒ **不管子类怎么说**都必须拦下。"""
+        cls = self._Denier if liar == "denier" else self._Affirmer
 
         import sys
 
         saved = sys.modules.pop("uvloop", None)
         try:
             with pytest.raises(RuntimeError, match="uvloop 的 import 被本门拦下"):
-                sys.audit("import", _Denier(value), None, None, None, None)
+                sys.audit("import", cls(value), None, None, None, None)
         finally:
             if saved is not None or "uvloop" not in sys.modules:
                 sys.modules["uvloop"] = saved
 
-    def test_affirming_str_subclass_is_not_mistakenly_blocked(self):
-        """两个比较方法**恒说是**的 ``str`` 子类，真实值无关时不得误拦（反方向）。
-
-        与上一条配对：上一条防「按子类的谎话放行」，这一条防「按子类的谎话误拦」。
-        判据只认未绑定 ``str.__eq__`` / ``str.startswith`` 读到的真实值。
-        """
-
-        class _Affirmer(str):
-            __slots__ = ()
-
-            def __eq__(self, other):  # noqa: D105
-                return True
-
-            def __ne__(self, other):  # noqa: D105
-                return False
-
-            def startswith(self, *a, **k):  # noqa: D102
-                return True
-
-            __hash__ = str.__hash__
-
-        assert guard._audit_hook("import", (_Affirmer("json"), None, None, None, None)) is None
+    @pytest.mark.parametrize("liar", ["denier", "affirmer"])
+    @pytest.mark.parametrize("value", ["json", "uvloopx"])
+    def test_lying_str_subclass_on_other_value_is_not_blocked(self, liar, value):
+        """真实值与 uvloop 无关 ⇒ **不管子类怎么说**都不得误拦（反方向）。"""
+        cls = self._Denier if liar == "denier" else self._Affirmer
+        assert guard._audit_hook("import", (cls(value), None, None, None, None)) is None
 
     @pytest.mark.parametrize("module_name", ["uvloopx", "uvloop_shim", "myuvloop", "uv"])
     def test_lookalike_module_names_are_not_blocked(self, module_name):
