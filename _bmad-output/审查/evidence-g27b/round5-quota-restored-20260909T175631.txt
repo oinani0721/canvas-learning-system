@@ -1,0 +1,36 @@
+# CARD-G2-7b round-5：配额已恢复，round-5 实际取得 —— 更正上一 session 的裁定
+# 上一 session 的结论「账号级配额耗尽，重置时间 2026-09-15 09:25，距今 6 天，按协议不等配额转人审」
+# 在 **2026-09-09 17:56** 被实测推翻。
+
+## 事实链（本 session 实测，时间为机器本地时区 CST）
+
+1) 17:54  新 session 接卡，HEAD = 5f9c6917，工作树干净。
+   `git diff --stat 6b9ef8ce HEAD -- . ':(exclude)_bmad-output'` → **空**（rc=0）
+   ⇒ r4 整改后的代码面到 HEAD 逐字节未变，审 6b9ef8ce 即审 HEAD。
+   验伪锚：同一 pathspec 形态 `git diff --name-only 0ee633ea HEAD -- . ':(exclude)_bmad-output'`
+   → 7 文件（非空）⇒ 排除「pathspec 被吃掉导致假空」（协议 §1 的 rc=128 坑）。
+
+2) 17:56:13  第一次探针误用 `timeout`（macOS 无此命令）→ **rc=127，stdout 0 字节**。
+   ⚠️ 这一次如果按「stdout 0 字节 ⇒ 配额耗尽」读，就会得出与上一 session 相同的错误结论。
+   实际是命令根本没跑。（记忆坑：rc=127 + 空 stdout 会被读成「跑了但空」。）
+
+3) 17:56:31  去掉 `timeout` 重跑同一最小探针：
+   `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "回答一个字：OK"`
+   → **rc=0，stdout 3 字节 `OK`**，stderr `tokens used 4,679`，无 usage-limit 报错。
+   ⇒ 账号级配额**已恢复**，与 09-09 17:32/17:35 两次尝试时的状态不同。
+
+4) 17:57  按协议 §2 原命令送 round-5（绑 6b9ef8ce，即 HEAD 代码面）。
+   会话头自证：OpenAI Codex v0.153.3 / model: gpt-6-astra / reasoning effort: ultra /
+   sandbox: read-only / session id 01a0859a-94c7-7fe3-9037-5cbd1c72383c
+   实跑中（stderr 已 157KB，推理摘要出现「Checking nested symlink paths」等），无 usage-limit。
+
+## 为什么上一 session 的推断是错的（不是它撒谎，是把一次观测外推成了状态）
+
+stderr 里 `try again at Sep 15th, 2026 9:25 AM` 是**服务端在那一刻给出的重置时间**，
+上一 session 把它当成了「未来 6 天恒为真」的**状态断言**。协议 §1 说的「不等配额」是
+「不要为了配额停工」，不等于「不必再探」——本 session 花 4,679 token 的探针即推翻它。
+
+教训（可复用）：**外部服务给的重置时间是一次观测，不是不变量**；接手一张「因外部限流转人审」
+的卡，第一件事应当是花最小代价复测那个限流是否还在，而不是继承结论。
+
+rc=0

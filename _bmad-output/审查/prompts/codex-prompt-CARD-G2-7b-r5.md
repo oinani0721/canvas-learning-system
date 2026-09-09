@@ -6,6 +6,8 @@
 
 1. `git diff 8f525887 6b9ef8ce -- . ':(exclude)_bmad-output'` —— **本轮（r4 整改）改了什么**
    本卡代码面**全量**（若要从头核）：`git diff 0ee633ea 6b9ef8ce -- . ':(exclude)_bmad-output'`
+   ⚠️ `6b9ef8ce` 之后到当前 HEAD 只有 `_bmad-output` 文档提交，代码面逐字节相同
+   （`git diff --stat 6b9ef8ce HEAD -- . ':(exclude)_bmad-output'` 为空）⇒ 审 `6b9ef8ce` 即审 HEAD。
 2. `scripts/deploy-vault.sh` 全文 + **`scripts/cls_forbidden_paths.py` 全文（本轮新增：禁写面判据本体）**
 3. `docker-compose.yml` 全文（本卡只改 5 处 `container_name`）
 4. `scripts/install-vault.sh`（本卡只改头注 2 行 + activate 分支加 1 行警告）
@@ -134,7 +136,7 @@ rc：0 成功 / 64 用法错 / 7N 第 N 步失败。
 - **H-3**：两处 python 写入改 `with` + `flush` + `os.fsync`。
 - **H-4**：A3 补读取 rc、**缺键也拒**、比较范围加 `VAULTS_ROOT`。
 - **M-1（我上一轮引入的回归）**：`{ printf … || exit 1; }` 的大括号在当前 shell 执行，
-  `exit 1` 绕过 `run_step` 的 7N 映射 ⇒ 改逐条判 rc 后 `return 1`。
+  `exit 1` 跳过了 `run_step` 的 7N 映射 ⇒ 改逐条判 rc 后 `return 1`。
 - **M-2**：`shasum` 判 rc（非空≠成功）；失败时写 `rc=76` 而非先写 `rc=0`。
 - **M-3**：`find | wc | tr` 用 pipefail 子 shell 取 find 的 rc。
 - **M-4**：剥离门改成**真的走 `_run`**（加 `script=`）+ **反向锚**（不经 `_run` 时宿主值必须可见）。
