@@ -210,7 +210,8 @@ class TestSpecialCharacterGroupId:
             # **掩护**同一序列里的坏调用。实测漏过的两条：
             #   · 先发一条无 kwargs 的 `MATCH (n) RETURN n LIMIT 5`（完全无作用域过滤）；
             #   · 先发一条内联 `LIMIT 5` 且删掉 limit kwarg 的查询。
-            # 两条在 round-4 版本下都会红，round-3→round-4 之间被我改弱了。
+            # 这两条在 round-3 版本下会红、在 round-4 版本下**变成了 PASS（漏过）**——
+            # 即 round-3→round-4 之间被我改弱了（与 c2-verdicts.md §十 的表一致）。
             # 现把「作用域必带」「物理化正确」「LIMIT 必须绑参」三条放回**每次调用**上，
             # 同时保留 round-4 修掉的误报面（合法分步 count 查询本就不需要 limit）。
             assert {"group_id", "group_prefix"} <= set(all_kwargs), (
@@ -238,6 +239,23 @@ class TestSpecialCharacterGroupId:
                         f"参数 {_k} 的值被拼进了查询文本，应作为绑定参数传递"
                     )
 
+            # ⚠️ 上面那条只覆盖**还留在 kwargs 里**的值，于是「把值内联进文本 + 同时把该参数
+            # 从 kwargs 删掉」能整个绕开它（检查集合跟着缩小）。round-2 我用「钉死期望参数集」
+            # 挡了 limit 这一个，round-5 又给 limit 单写了一条规则——都是**按参数逐个打补丁**，
+            # 于是 round-6 换成 userId 又漏了一次。
+            # 根因是判据依赖「攻击者能缩小的那个集合」。改为依赖**本用例自己喂进去的输入值**：
+            # 无论 kwargs 怎么变，这些值都不该出现在任何查询文本里。
+            for _label, _value in (
+                ("user_id", "test_user"),
+                ("group_id(原始)", malicious_group_id),
+                ("group_id(物理化)", expected_physical),
+                ("group_prefix", expected_physical + "__"),
+            ):
+                assert _value not in query_str, (
+                    f"本用例喂进去的 {_label} 值被拼进了查询文本，应作为绑定参数传递。"
+                    f"value={_value!r} query={query_str!r}"
+                )
+
             # 正面形式：这次调用**实际绑定**的每个参数，都要在查询文本里有 `$name` 占位符。
             # 值一旦被内联，对应占位符就会消失。
             # ⚠️ 注释剥除是**启发式**，如实声明它的两面（Codex round-4 LOW）：
@@ -261,9 +279,14 @@ class TestSpecialCharacterGroupId:
             # 「把值内联进文本**同时**把该参数从 kwargs 里删掉」——两边都没了反而通过。
             # 对本用例真正要守的那个量（limit）用正面形式表达：**凡是带 LIMIT 的查询，
             # 就必须绑 $limit**。合法的分步 count 查询没有 LIMIT，不受此条约束。
-            if "LIMIT" in _query_no_comments.upper():
+            # 分页整数没法用上面那条（"5" 这种子串在查询里到处都可能正当出现），故单列一条，
+            # 但触发条件收成「LIMIT 后面**直接跟数字**」——那正是「整数被内联」的形态。
+            # ⚠️ round-6 MEDIUM：先前写成 `"LIMIT" in query` 会把标识符与字符串里的 LIMIT
+            # 也当成分页子句（`AS unlimited_count` / `'LIMIT' AS marker` 都会误报）。
+            # `LIMIT $limit`、`LIMIT toInteger($limit)`、`'LIMIT'` 都不匹配下面这个模式。
+            if re.search(r"\bLIMIT\s+\d", _query_no_comments, flags=re.I):
                 assert "limit" in all_kwargs and "$limit" in _query_no_comments, (
-                    "查询里有 LIMIT 却没有绑定的 $limit 参数，值可能被内联进了文本。"
+                    "查询里出现 `LIMIT <数字>`，说明分页值被内联进了文本而不是绑定参数。"
                     f"kwargs={sorted(all_kwargs)} query={query_str!r}"
                 )
 
