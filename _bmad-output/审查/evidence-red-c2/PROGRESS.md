@@ -143,3 +143,36 @@ session fixture 进入/teardown 时，**不是进程起止时点**，两者差�
 11 个单条文件（wave5 参数化 / verification_service_injection / subject_isolation / story_38_8_fallback_sync /
 story_1_7_env_config / s02_search_upgrade / s02_entity_types / neo4j_health / intelligent_parallel_endpoints /
 degraded_flag_propagation / agent_memory_trigger）
+
+## 族D 前四簇完成（2026-09-09，累计 50/66）
+
+| 簇 | 条数 | 依据 sha | 处置 | 验证 |
+|---|---|---|---|---|
+| grouping/test_analyze_canvas | 2 | **`4104020d`** 2026-05-12 "backend p0 multi-vault leak 修复"：`build_group_id(subject, canvas)` → `build_vault_group_id`，格式 `<subject>:<canvas>` → D16 `vault:<vault_id>:<subject_id>` | 改断言 + **新增防退化锚** `test_group_id_uses_vault_scoped_format_not_legacy`（锁格式属性本身：`startswith("vault:")` + `is_vault_group_id()` + `count(":")>=2`，与具体 subject 无关） | 8 passed |
+| test_agent_service_comparison | 6 | **`9d3326ee`** 2026-03-10：`call_explanation` 末尾调 `call_agent` 时增传 `canvas_name`/`node_id`（同 commit 给 `call_agent` 加了这两个形参，`agent_service.py:3763-3769`） | 6 个内联测试替身补形参，**断言原文一字不动**。⛔ 显式默认参数而非 `**kwargs`——后者会把未来签名漂移静默吞掉 | 15 passed |
+| test_agent_service_neo4j_memory | 4 | **`9d3326ee`** 同上（commit 内自述 "Fix G1: removed non-existent fields"、"m.relevance doesn't exist on EntityNode"）：Cypher 由虚构 `LearningMemory` 标签改绑 graphiti `EntityNode` 真实属性面 | 改断言。**判据强度不降反升**：Cypher 结构断言 4→5 条（新增 `WHERE m.group_id = $group_id` 的 R1 vault 隔离锚点）；排序用例加负锚 `assert "m.relevance" not in query`；两条格式化用例从若干子串包含升级为**整串 `==` 精确相等** | 22 passed（+1 外来红） |
+| test_rag_multimodal_integration | 4 | 3 条 **`76d10cea`**(2026-03-16 建 `nodes/` 包目录遮蔽 `nodes.py`) → **`c0ac2b47`**(2026-03-18 re-export shim 收口)；1 条 **`3b96e492`**(2026-04-07 A9 L1 LLM router，`fan_out_retrieval` 改 async) | 3 条改导入路径 `agentic_rag.nodes` → `agentic_rag._nodes_impl`；1 条改 async + **patch `llm_router.llm_route`**（不 patch 会真发 LLM 请求） | 25 passed |
+
+**关键判断（rag 簇）**：符号**并未被删除**（`nodes.py:723/:983` 现存），只是 `nodes/__init__.py` 用
+`from agentic_rag._nodes_impl import *` 而 `nodes.py` 无 `__all__` ⇒ `import *` **不带下划线前缀名**。
+旁证：同文件 `DEFAULT_SOURCE_WEIGHTS`（无下划线）经同一路径导入的两条用例**至今是绿的、不在本卡 66 条内**
+——这正是「只有下划线名不可达」的反面对照。故处置是改导入路径而非 xfail 退役。
+
+10 文件集合：**201 passed / 10 xfailed / XPASS 0 / tmp 污染 0**，
+唯一 FAILED = `test_neo4j_query_error_returns_empty`（预声明 R 族外来红，归 U5-C，本卡禁碰；
+实测：在 `c2-nodeids.txt` 命中 0、在外来红清单命中 1）。
+§二.6 判据强度门无输出 ✅；§二.7 fixture 门 autouse=0、无 .env/ACTIVE_VAULT ✅。
+
+### 本批补丁防线（又两次拦下、零误写）
+- rag 簇第一次：脚本里残留了失效的中间变量导致断言误报，**零写入**；逐块单独验证锚点后确认三处全命中。
+- rag 簇第二次：后置断言 `"from agentic_rag.nodes import" not in s` **比主张宽** ——
+  文件里还有两处 `DEFAULT_SOURCE_WEIGHTS` 导入属**当前绿的非本卡用例**，不该被要求改。
+  收窄为「下划线前缀符号不再走该路径」+「`DEFAULT_SOURCE_WEIGHTS` 两处必须原样保留」双向断言。
+  ⇒ 同源记忆 `reference_judge_scope_must_equal_its_claim`：判据取名面必须**恰好等于**其主张。
+
+### 剩余 16 条 / 11 文件（族D 尾部，全部单条或双条）
+`test_story_38_4_dual_write_default` 3（`app.main` 缺 `set_session_validator`）·
+`test_story_38_1_review_fixes` 2（`'MagicMock' object can't be awaited`）·
+其余 11 个单条文件：wave5 参数化 / verification_service_injection / subject_isolation /
+story_38_8_fallback_sync / story_1_7_env_config / s02_search_upgrade / s02_entity_types /
+neo4j_health / intelligent_parallel_endpoints / degraded_flag_propagation / agent_memory_trigger

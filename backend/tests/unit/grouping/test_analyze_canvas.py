@@ -120,7 +120,12 @@ class TestSubjectIsolation:
                 result = await service.analyze_canvas("数学/离散数学.canvas")
 
         assert result.subject == "数学"
-        assert result.subject_group_id == "数学:离散数学"
+        # 契约演进（4104020d, 2026-05-12 "backend p0 multi-vault leak 修复"）：
+        # build_group_id(subject, canvas_name) → build_vault_group_id(vault, subject_id, canvas_path)，
+        # 格式由 "<subject>:<canvas>" 变为 D16 的 "vault:<vault_id>:<subject_id>"。
+        # 旧格式在多 vault 下会碰撞（不同 vault 的同名学科拿到同一 group_id）——这正是该
+        # commit 要修的泄漏面，故本条不是退化而是隔离性加强。[CARD-RED-C2]
+        assert result.subject_group_id == "vault:default:数学"
 
     @pytest.mark.asyncio
     async def test_group_id_with_skip_directories(
@@ -138,7 +143,40 @@ class TestSubjectIsolation:
                 result = await service.analyze_canvas("笔记库/物理/力学.canvas")
 
         assert result.subject == "物理"
-        assert result.subject_group_id == "物理:力学"
+        # 同上 4104020d：D16 格式 vault:<vault_id>:<subject_id>
+        assert result.subject_group_id == "vault:default:物理"
+
+
+    @pytest.mark.asyncio
+    async def test_group_id_uses_vault_scoped_format_not_legacy(
+        self, service: IntelligentGroupingService, mock_clustering_result: Dict
+    ):
+        """防退化锚：subject_group_id 必须是 vault 作用域格式，不得退回旧的裸格式。
+
+        4104020d(2026-05-12) 把 build_group_id(subject, canvas_name) 换成
+        build_vault_group_id —— 旧格式 "<subject>:<canvas>" 不含 vault 维度，
+        不同 vault 的同名学科会拿到同一个 group_id（跨 vault 数据互相看见）。
+        上面两条只锁具体字面量，若有人改回旧构造且恰好路径也变了，仍可能同时改绿；
+        本条锁**格式属性本身**（必须被 is_vault_group_id 认可、必须以 "vault:" 起头），
+        与具体 subject 无关。[CARD-RED-C2]
+        """
+        from app.core.subject_config import is_vault_group_id
+
+        with patch.object(service, "_resolve_canvas_path") as mock_resolve:
+            mock_path = MagicMock()
+            mock_path.exists.return_value = True
+            mock_resolve.return_value = mock_path
+
+            with patch.object(
+                service, "_perform_clustering", return_value=mock_clustering_result
+            ):
+                result = await service.analyze_canvas("数学/离散数学.canvas")
+
+        gid = result.subject_group_id
+        assert gid.startswith("vault:"), f"group_id 退回裸格式: {gid!r}"
+        assert is_vault_group_id(gid), f"group_id 不被 vault 格式校验器认可: {gid!r}"
+        # 旧格式的特征：只有一个冒号且不以 vault: 起头
+        assert gid.count(":") >= 2, f"group_id 缺少 vault 维度: {gid!r}"
 
     @pytest.mark.asyncio
     async def test_group_id_single_file(

@@ -191,10 +191,16 @@ class TestAC2Neo4jQuery:
         call_args = mock_neo4j_client.run_query.call_args
         query = call_args[0][0]  # First positional argument is the query
 
-        # Verify query structure
-        assert "MATCH (m:LearningMemory)" in query
-        assert "WHERE m.content CONTAINS $query_text" in query
-        assert "ORDER BY m.relevance DESC" in query
+        # 契约演进（9d3326ee, 2026-03-10 "Fix G1: removed non-existent fields"）：
+        # 记忆查询从虚构的 LearningMemory 标签/字段整体改绑到 graphiti 的 EntityNode
+        # 真实属性面（agent_service.py:2148-2167）。m.content / m.relevance 在
+        # EntityNode 上并不存在，commit 内自述 "m.relevance doesn't exist on EntityNode"。
+        # 期望值逐字抄自生产源码，不 import 生产常量。[CARD-RED-C2]
+        assert "MATCH (m:EntityNode)" in query
+        # R1 vault 隔离锚点：group_id 过滤必须在，缺了就是跨 vault 泄漏
+        assert "WHERE m.group_id = $group_id" in query
+        assert "toLower(m.text) CONTAINS toLower($query_text)" in query
+        assert "ORDER BY m.updated_at DESC" in query
         assert "LIMIT 5" in query
 
     @pytest.mark.asyncio
@@ -237,7 +243,11 @@ class TestAC3RelevanceSorting:
         await agent_service_with_neo4j._query_neo4j_memories("test", None)
 
         query = mock_neo4j_client.run_query.call_args[0][0]
-        assert "ORDER BY m.relevance DESC" in query
+        # 9d3326ee 起排序键改为 updated_at（EntityNode 无 relevance 属性）
+        assert "ORDER BY m.updated_at DESC" in query
+        # 负锚：防回退到不存在的属性——若有人改回 m.relevance，Neo4j 会静默返回
+        # 无序结果（不报错），只有这条断言能发现
+        assert "m.relevance" not in query
 
     @pytest.mark.asyncio
     async def test_cypher_query_has_limit_5(
@@ -425,36 +435,40 @@ class TestMemoryFormatting:
 
     def test_format_single_memory(self, agent_service_with_neo4j):
         """Test formatting single memory item"""
+        # 9d3326ee 起 formatter 的输入面改为 EntityNode 字段（entity_type /
+        # user_understanding），relevance / score 已不在 RETURN 列也不参与渲染。
+        # 输出行模板见 agent_service.py:2247。[CARD-RED-C2]
         memories = [
             {
                 "concept": "测试概念",
                 "timestamp": "2026-01-15T10:30:00Z",
-                "relevance": 0.85,
-                "score": 90,
+                "entity_type": "Concept",
+                "user_understanding": "导数是变化率",
             }
         ]
 
         result = agent_service_with_neo4j._format_learning_memories(memories)
 
-        assert "## 历史学习记忆" in result
-        assert "测试概念" in result
-        assert "85%" in result  # relevance formatted as percentage
-        assert "90" in result  # score
+        # 整串精确相等（比原来的若干子串包含更强）：模板一旦改动即红
+        assert result == "## 历史学习记忆\n- [2026-01-15] [Concept] 测试概念: 导数是变化率"
 
     def test_format_memory_with_none_score(self, agent_service_with_neo4j):
         """Test formatting memory with None score"""
+        # 9d3326ee 后 "N/A" 绑的是 **timestamp 缺失**（agent_service.py:2234），
+        # 不再是 score——score 字段本身已从 RETURN 列移除。本条改为验证现行的
+        # N/A 分支：给一条无 timestamp 的记忆。[CARD-RED-C2]
         memories = [
             {
                 "concept": "未评分概念",
-                "timestamp": "2026-01-15T10:30:00Z",
-                "relevance": 0.75,
-                "score": None,
+                "timestamp": "",
+                "entity_type": "",
+                "user_understanding": "",
             }
         ]
 
         result = agent_service_with_neo4j._format_learning_memories(memories)
 
-        assert "N/A" in result  # None score shows as N/A
+        assert "N/A" in result  # 缺失 timestamp 渲染为 N/A
 
     def test_format_multiple_memories(
         self, agent_service_with_neo4j, sample_neo4j_results
