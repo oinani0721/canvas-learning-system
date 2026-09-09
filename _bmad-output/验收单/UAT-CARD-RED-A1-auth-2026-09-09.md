@@ -231,7 +231,21 @@ git diff --stat --no-color 7004a365 -- backend/app  → 空 + rc=0   ✅ 零生�
 | r1 | `codex-review-CARD-RED-A1-auth-r1.md` | `7004a365..工作区` | **0** | **0** | 2 | 3 | 5 条**全部采纳整改**，故必再送一轮 |
 | r2 | `codex-review-CARD-RED-A1-auth-r2.md` | `7004a365..faeda37f` | **0** | **0** | 2 | 2 | 4 条**全部采纳整改**，故必再送一轮 |
 | r3 | `codex-review-CARD-RED-A1-auth-r3.md` | `7004a365..bcbe2741` | **0** | **0** | **0** | 2 | 两条 MEDIUM 确认已落实；2 LOW 采纳整改，故必再送一轮 |
-| r4 | `codex-review-CARD-RED-A1-auth-r4.md` | 待填 | 待填 | 待填 | 待填 | 待填 | 待填 |
+| r4 | `codex-review-CARD-RED-A1-auth-r4.md` | `7004a365..1e326860` | **0** | **0** | **0** | 1 | 已达停轮条件；那条 LOW 采纳整改，故再送末轮 |
+| r5 | `codex-review-CARD-RED-A1-auth-r5.md` | 待填 | 待填 | 待填 | 待填 | 待填 | 待填 |
+
+**r4 一条 LOW 整改落点**：台账 §9.6 仍写 `test_sync_exception_classification.py:48-58 _dev_settings`
+——那是本卡文件的行号，与 r3 立下的「本卡位置一律用名称」自相矛盾（且 `:48-58` 只覆盖函数头与部分
+docstring，函数实际延伸到 `:69`，带 key 的赋值在 `:68`）。已改为
+`test_sync_exception_classification.py::_dev_settings`。
+改后全面复查：验收单、`second-layer`、三处 fixture docstring、`authed_client.py` 里
+**指向本卡五个文件的行号引用已清零**（`grep` rc=1）。
+
+**r4 逐项确认无误**：chat 校验计数 3 条用例 / 4 次 POST；三处 docstring 与 second-layer 已用名称；
+「两次存档均通过」措辞成立且三份文档无相互矛盾；外部引用 `test_vault_scope_409.py:333-343`/`:345-373`、
+`tests/unit/conftest.py:395-418`（含 `:412-413` no-op）、`tests/conftest.py:441-452`/`:490`/`:494-517`、
+`test_sync_batch_auth.py:81-84`/`:98-99`、`security.py:110-142` 全部准确（作者亦独立实测 15 处，一致）。
+r4 还核了三个 commit 之间五个 Python 文件**去掉 docstring 后的可执行 AST 一致**。
 
 **r3 两条 LOW 整改落点**（两条恰是作者在 r3 运行期间自查发现的同一批问题，已一并处理）：
 - LOW-1（chat 校验用例少算一条）→ fixture docstring 补上 `test_enrich_context_rejects_invalid_mode`，
@@ -308,7 +322,7 @@ git diff --stat --no-color 7004a365 -- backend/app  → 空 + rc=0   ✅ 零生�
 4. **`chat.py:39-47` 旧矩阵注释过期**：尤其 `:43`「DEBUG=True + key 未配置 → allow + warning log」，
    在 `c9bb6c9a` 后失效。登记不改。
 5. **REST / WS 鉴权不一致**：`security.py:228-234` 的 WS 分支仍 dev 放行。登记不改。
-6. **`test_sync_exception_classification.py:48-58 _dev_settings` 的失效前提已处置**：本卡**保留**该 helper
+6. **`test_sync_exception_classification.py::_dev_settings` 的失效前提已处置**：本卡**保留**该 helper
    但把 `INTERNAL_API_KEY=""` 改为带 key，并更正 docstring 说明「c9bb6c9a 后空 key 恒 503」。
    选择保留而非删除的理由：六条用例各自第一行都装这份 override，删 helper 要改 6 处用例代码；
    保留后用例一行未动，且 helper 名实重新一致。
