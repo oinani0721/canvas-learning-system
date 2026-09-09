@@ -274,11 +274,17 @@ _rest="$HOSTS"
 while [ -n "$_rest" ]; do
     _h="${_rest%%,*}"
     if [ "$_h" = "$_rest" ]; then _rest=""; else _rest="${_rest#*,}"; fi
-    # 去空白也不用 `tr`（那会 fork 一个子进程；这里用 bash 内建的 extglob-free 循环）
-    while [ "${_h# }" != "$_h" ]; do _h="${_h# }"; done
-    while [ "${_h% }" != "$_h" ]; do _h="${_h% }"; done
-    while [ "${_h#	}" != "$_h" ]; do _h="${_h#	}"; done
-    while [ "${_h%	}" != "$_h" ]; do _h="${_h%	}"; done
+    # 去空白不用 `tr`（那会 fork 子进程）。⛔ 必须循环到**不动点**（Codex r10 LOW-1）：
+    #    我 r9 写的是「空格轮 → tab 轮」四段串行, 于是 `$'\t claude \t'` 剥完 tab 后
+    #    留下的空格**不会再处理** ⇒ 旧版接受、新版拒绝, 是一条行为回归。
+    #    改成「有任一前后缀是空白就再剥一轮」, 混合顺序也收敛。
+    while :; do
+        case "$_h" in
+            ' '* | *' ' | "	"* | *"	")
+                _h="${_h# }"; _h="${_h% }"; _h="${_h#	}"; _h="${_h%	}" ;;
+            *) break ;;
+        esac
+    done
     [ -n "$_h" ] || continue
     if [ "$_h" != "claude" ]; then
         printf '❌ 用法错: --hosts 含未实现的宿主 %s。\n' "$_h" >&2
@@ -342,6 +348,11 @@ case "$VAULT" in
 esac
 [ -n "$VAULT_NAME" ] || die64 "--vault 解析不出 vault 名: $VAULT"
 [ -n "$SUBJECT" ] || SUBJECT="$VAULT_NAME"
+# ⛔ 基准固定（Codex r10 HIGH-1 后半）：相对的 `--evidence-dir` 会让**创建**与**使用**
+#    分裂 —— npm 段先在调用 cwd 下 `mkdir -p`, 随后 `cd` 进插件目录再把**同一个相对串**
+#    交给 npm ⇒ 两者落点不同。这里只做**词法**绝对化（不 realpath, 免得改变语义）。
+case "$EVIDENCE_DIR" in ""|/*) ;; *) EVIDENCE_DIR="$PWD/$EVIDENCE_DIR" ;; esac
+case "$ENV_DIR" in ""|/*) ;; *) ENV_DIR="$PWD/$ENV_DIR" ;; esac
 [ -n "$EVIDENCE_DIR" ] || EVIDENCE_DIR="$HARNESS/_bmad-output/审查/evidence-deploy-$VAULT_NAME"
 [ -n "$ENV_DIR" ] || ENV_DIR="$HARNESS"
 ENV_FILE="$ENV_DIR/.env.$VAULT_NAME"
@@ -402,6 +413,19 @@ step1_preflight() {
         "ev-compose-config:$EVIDENCE_DIR/compose-config-$TS.txt"
         "ev-deploy-report:$EVIDENCE_DIR/deploy-$TS.txt"
         "ev-deploy-report-tmp:$EVIDENCE_DIR/deploy-$TS.txt.tmp"
+        # ⛔ npm 缓存/日志目录（Codex r10 HIGH-1）：我 r9 为「约束 npm 写入面」新加的
+        #    `mkdir -p "$EVIDENCE_DIR/npm-$TS/{cache,logs}"` **本身就是未过判据的写入面** ——
+        #    evidence 下预置 `npm-$TS -> 保护目录` 时, 那个 mkdir 直接写进去,
+        #    无需竞争窗口。为堵写入面而新开的写入面, 必须进同一份清单。
+        "ev-npm-cache:$EVIDENCE_DIR/npm-$TS/cache"
+        "ev-npm-logs:$EVIDENCE_DIR/npm-$TS/logs"
+        # ⛔ TMPDIR（Codex r10 HIGH-2）：Bash 3.2 对 **here-document**（`<< '\''PY'\''`）
+        #    同样在 `$TMPDIR` 建临时文件 —— 步 2 的 `pinned_chmod600`、步 3 两处 python 块
+        #    都会触发。原来唯一的 TMPDIR 检查在步 4, **太晚**且缺省端口 8011 完全跳过。
+        #    我 r9 删掉 `<<<` 只修好了 preflight **之前**那一条, 没闭合这一类。
+        #    放进 preflight 清单 ⇒ 任何 heredoc 执行之前就判过（preflight 自身只用
+        #    `python3 -c` 与带 argv 的调用, 无 heredoc）。
+        "tmpdir:${TMPDIR:-/tmp}"
     )
 
     # 三个路径参数 + **脚本真正会写的每个对象**（Codex r2 BLOCKER-4）

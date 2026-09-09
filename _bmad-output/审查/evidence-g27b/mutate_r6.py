@@ -207,6 +207,23 @@ MUTANTS = [
         "test_no_here_string_before_preflight",
         "here-string",
     ),
+    # ── r10 整改 ────────────────────────────────────────────────────────────
+    (
+        "H-2(r10) TMPDIR 退出待写清单（heredoc 临时写入不再受检）",
+        DEPLOY,
+        '        "tmpdir:${TMPDIR:-/tmp}"',
+        '        "tmpdir-removed:/dev/null"',
+        "test_tmpdir_and_npm_dirs_are_in_pending_writes",
+        "待写清单缺 tmpdir:",
+    ),
+    (
+        "H-1(r10) npm 子路径退出待写清单",
+        DEPLOY,
+        '        "ev-npm-cache:$EVIDENCE_DIR/npm-$TS/cache"',
+        '        "ev-npm-removed:/dev/null"',
+        "test_tmpdir_and_npm_dirs_are_in_pending_writes",
+        "待写清单缺 ev-npm-cache:",
+    ),
 ]
 
 # MEDIUM-5 探针：不是「必须 KILLED」，而是**如实测量** ancestor_symlink_hits 是否独立承重。

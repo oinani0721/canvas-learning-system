@@ -1822,6 +1822,38 @@ def test_chmod_pinned_allows_write_only_file(tmp_path: Path):
     assert f.stat().st_mode & 0o777 == 0o600, "0200 文件未被收紧（EACCES 回退不可达）"
 
 
+def test_tmpdir_and_npm_dirs_are_in_pending_writes():
+    """⛔ r10 HIGH-1 + HIGH-2：两处**我自己新开的写入面**必须进同一份待写清单。
+
+    · HIGH-1：我 r9 为「约束 npm 写入面」加的 `mkdir -p "$EVIDENCE_DIR/npm-$TS/{cache,logs}"`
+      **本身就是未过判据的写入面** —— evidence 下预置 `npm-<TS> -> 保护目录` 时那个
+      mkdir 直接写进去。**为堵写入面而新开的写入面。**
+    · HIGH-2：Bash 3.2 对 **here-document** 同样在 `$TMPDIR` 建临时文件（步 2 的
+      `pinned_chmod600`、步 3 两处 python 块都会触发）。r9 删掉 `<<<` 只修好了
+      preflight **之前**那一条；原唯一的 TMPDIR 检查在步 4，太晚且缺省端口完全跳过。
+    """
+    src = _sh_src()
+    i = src.index("local -a PENDING_WRITES=(")
+    block = src[i : src.index("\n    )", i)]
+    for key in ("ev-npm-cache:", "ev-npm-logs:", "tmpdir:"):
+        assert key in block, f"待写清单缺 {key}（该写入面未过判据）"
+    # 基准固定：相对 --evidence-dir/--env-dir 必须在解析期就绝对化
+    assert 'EVIDENCE_DIR="$PWD/$EVIDENCE_DIR"' in src, "相对 --evidence-dir 未做词法绝对化"
+    assert 'ENV_DIR="$PWD/$ENV_DIR"' in src, "相对 --env-dir 未做词法绝对化"
+
+
+def test_hosts_whitespace_stripping_reaches_fixpoint():
+    """⛔ r10 LOW-1：混合空白必须剥到不动点。
+
+    我 r9 写的是「空格轮 → tab 轮」四段串行，`\t claude \t` 剥完 tab 后留下的空格
+    不会再处理 ⇒ 旧版接受、新版拒绝，是一条行为回归。
+    """
+    src = _sh_src()
+    seg = src[src.index('_rest="$HOSTS"') : src.index("done", src.index('_rest="$HOSTS"'))]
+    assert "while :; do" in seg, "去空白必须循环到不动点，不能是几段串行"
+    assert seg.count('_h="${_h# }"') == 1, "不动点循环里每种剥法各一次即可"
+
+
 def test_no_here_string_before_preflight():
     """⛔ r9 HIGH-1：`<<<` 在 Bash 3.2 下会在 `$TMPDIR` **建临时文件**。
 
