@@ -1,0 +1,41 @@
+# CARD-G6-6 收官核对
+
+## 本卡 commit 链（8 个）
+  204d8cbb  fix(review): Codex round-5 LOW-1 — 换 snoozeKey 键编码, 与完成键值域不相交 [BATCH-2026-09-07-第十三批 / CARD-G6-6]
+  894f6ec0  docs(review): round-5 prompt + 同步自述数 5→6 [BATCH-2026-09-07-第十三批 / CARD-G6-6]
+  b74c85ca  docs(review): Codex round-4 两条 LOW — 更正键碰撞理由 + 补漏改注释 [BATCH-2026-09-07-第十三批 / CARD-G6-6]
+  2d99eded  docs(review): 「本轮只改注释」的四版判据证明 [BATCH-2026-09-07-第十三批 / CARD-G6-6]
+  dc6cfb17  docs(review): Codex round-3 两条 LOW — 更正 Nuuk 注释 + 登记键碰撞边界 [BATCH-2026-09-07-第十三批 / CARD-G6-6]
+  1ccc9711  fix(review): 自查两条 + Codex round-2 三条 LOW 整改 [BATCH-2026-09-07-第十三批 / CARD-G6-6]
+  39d6c93c  fix(review): Codex round-1 整改 — 四条健壮性缺陷 + busy 键 [BATCH-2026-09-07-第十三批 / CARD-G6-6]
+  8e3a1306  feat(review): 板级 snooze 两档「今晚/明天」端到端切片 [BATCH-2026-09-07-第十三批 / CARD-G6-6]
+
+## (n) live 只读核（开工 vs 收工）
+  5d6e2d2db2a34e7254026b545cffc9d139b6eeee43cb18081ea963f1234f4100  /Users/Heishing/Desktop/canvas/canvas-learning-system/backups/daily-review.canvas-vault.state.json
+  00989816afefaf0d4ea514b065725b10225d069d42ab23072a1e7e6812a6b3a9  /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/outputs/今日复习.json
+  开工: 5d6e2d2db2a34e7254026b545cffc9d139b6eeee43cb18081ea963f1234f4100 (state)
+        00989816afefaf0d4ea514b065725b10225d069d42ab23072a1e7e6812a6b3a9 (今日复习)
+  state.lock 计数（开工=1，非卡文预期的 0，属既有）: 1
+  git status canvas-vault/ backups/: 0
+
+## (p) 改动面（全部须在 §三 允许面内）
+ backend/app/api/v1/endpoints/review_app.py         | 236 ++++++++-
+ backend/app/api/v1/endpoints/review_overview.py    | 544 ++++++++++++++++++-
+ backend/openapi.json                               | 152 +++++-
+ backend/tests/regression/test_daily_review_pick.py | 150 ++++++
+ backend/tests/regression/test_daily_review_run.py  | 307 ++++++++++-
+ backend/tests/unit/test_review_app.py              | 398 +++++++++++++-
+ backend/tests/unit/test_review_overview.py         | 589 ++++++++++++++++++++-
+ scripts/daily_review_pick.py                       |  76 ++-
+ scripts/daily_review_run.py                        |  94 +++-
+ 9 files changed, 2486 insertions(+), 60 deletions(-)
+
+## 禁改面零改动自检
+  （以上为空 = 禁改面与他车道面全部零改动）
+
+## 不 push
+  upstream: （无 upstream，未 push）
+
+## *.stderr* 入库自检
+  本卡 commit 里含 .stderr 的文件: 0
+0
