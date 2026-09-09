@@ -66,6 +66,7 @@ from __future__ import annotations
 
 import os
 import sys
+import unicodedata
 
 
 def phys(p: str) -> str:
@@ -77,11 +78,17 @@ def phys(p: str) -> str:
 
 
 def k(p: str) -> str:
-    """比较用的键：物理路径 + 大小写归一。"""
-    return phys(p).lower()
+    """比较用的键：物理路径 + Unicode NFC 归一 + 大小写归一。
+
+    Codex r3 HIGH-2：`realpath().lower()` 不统一 NFC/NFD —— APFS 把两种拼写视为同一对象，
+    而 `课程-é`（NFC）与 `课程-e\u0301`（NFD）字符串不相等 ⇒ 保护根或其软链目标含可分解
+    字符时会漏拦。先 NFC 再 lower。
+    ⚠️ 如实声明：NFC + lower 仍不等于 APFS 的完整规范化规则，只是覆盖了最常见的一类。
+    """
+    return unicodedata.normalize("NFC", phys(p)).lower()
 
 
-def build_targets(live: str) -> tuple[list[tuple[str, str]], str]:
+def build_targets(live: str) -> tuple[list[tuple[str, str]], str, bool]:
     home = os.path.expanduser("~")
     raw = [live, os.path.join(home, "Library")]
     for d in (".codex", ".pi", ".gemini", ".deepcode", ".dsh"):
@@ -89,12 +96,18 @@ def build_targets(live: str) -> tuple[list[tuple[str, str]], str]:
     raw.append(os.path.join(home, ".config", "opencode"))
 
     # 规则 4①：已存在的 .claude* 条目 —— 登记它们的**解析结果**（含软链目标）
+    # Codex r3 HIGH-1 两处：
+    #   ① `listdir` 失败原本静默 pass —— HOME 可执行但不可读时，已知子路径仍可访问，
+    #      于是外部软链目标整批丢失、HOME 前缀补不上。改为**记录失败**，由调用方按
+    #      fail-closed 处理（enumerate_failed）。
+    #   ② `startswith(".claude")` 大小写敏感 —— `.CLAUDE-cache -> /external/cache` 漏登记。
+    enumerate_failed = False
     try:
         for name in sorted(os.listdir(home)):
-            if name.startswith(".claude"):
+            if name.lower().startswith(".claude"):
                 raw.append(os.path.join(home, name))
     except OSError:
-        pass
+        enumerate_failed = True
 
     targets = []
     for r in raw:
@@ -103,8 +116,8 @@ def build_targets(live: str) -> tuple[list[tuple[str, str]], str]:
         except OSError:
             continue
     # 规则 4②：词法前缀（覆盖尚不存在的 .claude*）
-    claude_prefix = os.path.join(phys(home), ".claude").lower()
-    return targets, claude_prefix
+    claude_prefix = k(os.path.join(phys(home), ".claude"))
+    return targets, claude_prefix, enumerate_failed
 
 
 def ancestor_symlink_hits(p: str, targets: list[tuple[str, str]], claude_prefix: str) -> str | None:
@@ -133,6 +146,33 @@ def ancestor_symlink_hits(p: str, targets: list[tuple[str, str]], claude_prefix:
     return None
 
 
+def mkdir_p_segments(raw_path: str) -> list[str]:
+    """`mkdir -p <p>` 会实际创建的每一个中间目录（按创建顺序）。
+
+    ⛔ Codex r3 BLOCKER-1：写入面不是**一个** inode 而是**一串**。
+        mkdir -p "$HOME/.codex/new/../../deploy_env"
+    最终落点是合法的 `$HOME/deploy_env`，但 mkdir 会**先创建 `$HOME/.codex/new`**——
+    只判最终 realpath 完全看不到这一步。`..` 之前的每一段都是真会落地的目录。
+
+    做法：按 `/` 逐段累积；遇到 `..` 时**不折叠**（因为前面的段已经被建出来了），
+    而是把它当成一个新的前缀继续（后续段由 realpath 负责算物理落点）。
+    返回的每个前缀都要单独过一遍判据。
+    """
+    p = os.path.expanduser(raw_path)
+    if not os.path.isabs(p):
+        p = os.path.join(os.getcwd(), p)
+    out: list[str] = []
+    cur = ""
+    for seg in p.split(os.sep):
+        if seg == "":
+            continue
+        cur = cur + os.sep + seg
+        if seg == ".":
+            continue
+        out.append(cur)
+    return out
+
+
 def hits(
     raw_path: str,
     targets: list[tuple[str, str]],
@@ -148,7 +188,11 @@ def hits(
     parts = key.split(os.sep)
 
     # 规则 1：任何一段名为 .git（大小写归一后 —— Codex r2 BLOCKER-2：原实现比的是原串）
-    if ".git" in parts:
+    # ⚠️ 必须**同时**在原始路径上查（Codex r3 BLOCKER-1 第二半）：若 `.git -> /external/meta`,
+    #    realpath 之后 `.git` 这个段就消失了, 只看 key 会放行 `<repo>/.git/x`。
+    raw_expanded = os.path.expanduser(raw_path)
+    raw_parts = [unicodedata.normalize("NFC", s).lower() for s in raw_expanded.split(os.sep)]
+    if ".git" in parts or ".git" in raw_parts:
         return ".git 目录内"
 
     # 规则 2：自身是 env 文件（同样大小写归一）。outputs 类跳过 —— 见文件头「两类对象」。
@@ -173,7 +217,7 @@ def main(argv: list[str]) -> int:
         print("用法: cls_forbidden_paths.py <live_vault> <label>:<path> [...]", file=sys.stderr)
         return 64
     live = argv[1]
-    targets, claude_prefix = build_targets(live)
+    targets, claude_prefix, enumerate_failed = build_targets(live)
 
     mode = "strict"
     items: list[tuple[str, str]] = []
@@ -192,12 +236,40 @@ def main(argv: list[str]) -> int:
         if not path:
             print(f"用法错: 参数应为 <label>:<path>，收到 {item!r}", file=sys.stderr)
             return 64
-        why = hits(path, targets, claude_prefix, skip_env_name=(mode_i == "outputs"))
+        # ⚠️ 规则 6（字面 ~）必须在**逐段之前**查原始串：`mkdir_p_segments` 会先
+        #    `expanduser`, 之后没有任何一段还以 `~` 开头 ⇒ 逐段判会让这条规则失效。
+        #    （新加一层让原有一条失效, 与 r2 BLOCKER-3「收紧丢掉一轴」同型, 故显式前置。）
+        why = None
+        if path.startswith("~"):
+            why = "字面 ~ 开头（判据会展开、shell 不会 ⇒ 落点分歧，请写绝对路径）"
+        # ⛔ 逐段判（Codex r3 BLOCKER-1）：`mkdir -p` 会创建的每个中间目录都要过判据,
+        #    只判最终落点会漏掉 `$HOME/.codex/new/../../deploy_env` 这类形态。
+        segs = mkdir_p_segments(path) if why is None else []
+        for seg_path in segs:
+            # 中间段按 outputs 口径判（它们是目录, 不该被 env 文件名规则拦）;
+            # 最终那一段仍按调用方给的口径判。
+            is_last = seg_path == segs[-1]
+            why = hits(
+                seg_path,
+                targets,
+                claude_prefix,
+                skip_env_name=(True if not is_last else (mode_i == "outputs")),
+            )
+            if why:
+                if not is_last:
+                    why = f"{why}（mkdir -p 会创建的中间段 {seg_path}）"
+                break
         if why:
             print(f"HIT {label} {why}")
             bad += 1
         else:
             print(f"OK {label}")
+
+    # ⛔ fail-closed（Codex r3 HIGH-1）：HOME 枚举失败时 .claude* 的外部软链目标整批
+    #    登记不上, 而 HOME 词法前缀补不了那一类。此时不敢声称「全部 OK」。
+    if enumerate_failed and bad == 0:
+        print("HIT _enumerate 无法枚举 HOME（.claude* 的外部目标可能未登记）, fail-closed")
+        bad += 1
     return 1 if bad else 0
 
 

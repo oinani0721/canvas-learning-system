@@ -33,19 +33,24 @@
 #   --evidence-dir <dir>  缺省 <harness>/_bmad-output/审查/evidence-deploy-<vault名>/
 #   --env-dir <dir>       缺省 <harness>/ 。`.env.<vault名>` 的落点目录。
 #
-# ═══ 禁写面（--vault / --evidence-dir / --env-dir 三者过同一份 realpath 判据）═══
-#   live vault（$CLS_LIVE_VAULT，缺省见下）/ $HOME/Library / $HOME/.claude* / $HOME/.codex /
-#   $HOME/.pi / $HOME/.gemini / $HOME/.deepcode / $HOME/.config/opencode / $HOME/.dsh /
-#   路径中任何名为 .git 的段 / 自身是 *.env|.env|.env.* 文件。
-#   判据对每个参数做**三种解释并列判定**，任一命中即拦（宁可多拦，不可漏拦）：
-#     ① resolve_abs — 解软链；对尚不存在的尾部取最近存在祖先的物理路径再拼回剩余段
-#        （不能因为 realpath 对缺失路径返回空就跳过检查 = 静默放行）
-#     ② norm_path   — 折叠 `.` 与 `..`；只靠 ① 会漏 `$HOME/missing/../.codex/x`（missing
-#        不存在 ⇒ `..` 一个字符都没动，而 mkdir -p 会解析它）
-#     ③ 大小写归一后比较 — macOS/APFS 缺省大小写不敏感，`$HOME/.CODEX/x` 与 `.codex/x`
-#        是同一个目录；在大小写敏感的文件系统上这会多拦，方向可接受
-#   `$HOME/.claude*` 用**前缀规则**而不是 glob 枚举 —— 枚举只登记当下已存在的条目，
-#   而要防的恰恰是「现在不存在、脚本正要去建」的那一类。
+# ═══ 禁写面 ═══
+#   判据本体在 **scripts/cls_forbidden_paths.py**（该文件头有完整规则与依据）。
+#   ⚠️ 判定**不在 bash 里做**（Codex r2 BLOCKER-1）：`cd -L`+`pwd -P`、字符串折叠 `..`、
+#   大小写归一这三种解释全在词法/逻辑层面，没有一种能回答「mkdir -p 最终写到哪个 inode」——
+#   `/safe/link/../probe`（link → $HOME/.codex/sub）的物理落点是 `.codex/probe`，
+#   而三条解释一致地得出 `/safe/probe`。改用 os.path.realpath（**先解链再折叠**）。
+#
+#   保护目标：live vault（$CLS_LIVE_VAULT）/ $HOME/Library / $HOME/.codex / .pi / .gemini
+#   / .deepcode / .dsh / $HOME/.config/opencode；路径中任何名为 .git 的段；
+#   `$HOME/.claude*` = **已存在条目的解析结果（含软链目标）+ HOME 下词法前缀，两条并存**。
+#   全部在「物理路径 + 大小写归一」后的键上比较。
+#
+#   两类对象（Codex r2 BLOCKER-4）：
+#     · strict  — 三个路径参数 --vault / --evidence-dir / --env-dir，含「自身是 *.env」规则
+#     · outputs — 脚本自己的产出（.env.<vault> 与 .tmp / key 与 .tmp / 插件 data.json /
+#                 build 落点），**跳过 env 文件名规则**（否则脚本会永远拦下自己的正常产出），
+#                 其余规则一分不放
+#   另：已存在的产出对象若本身是**软链**，直接拒（写入会沿链穿到别处）。
 #
 # ═══ 环境开关 ═══
 #   CLS_MIN_SKILLS            preflight 要求的「含 SKILL.md 的 skill 目录数」下限，缺省 9。
@@ -241,7 +246,12 @@ print(r[0].get("ConfigFiles","") if len(r)==1 else "")' 2>/dev/null || printf ''
     fi
 fi
 
-VAULT_NAME="$(basename "$VAULT")"
+# ⛔ 不用 $(basename)/$(dirname)（Codex r3 BLOCKER-4）：命令替换会**剥掉末尾换行**,
+#    于是判据检查的是含 LF 的目录、而 installer 收到的是另一个目录 —— 若后者是指向
+#    保护区的软链, 检查与实参就分裂了。bash 参数展开不经命令替换, 保真。
+VAULT_NAME="${VAULT##*/}"
+VAULT_PARENT="${VAULT%/*}"
+[ -n "$VAULT_PARENT" ] || VAULT_PARENT="/"
 [ -n "$SUBJECT" ] || SUBJECT="$VAULT_NAME"
 [ -n "$EVIDENCE_DIR" ] || EVIDENCE_DIR="$HARNESS/_bmad-output/审查/evidence-deploy-$VAULT_NAME"
 [ -n "$ENV_DIR" ] || ENV_DIR="$HARNESS"
@@ -299,15 +309,30 @@ step1_preflight() {
         "key-file-tmp:$VAULT/.obsidian/cls-internal-key.txt.tmp" \
         "plugin-data:$VAULT/.obsidian/plugins/canvas-learning-system/data.json" \
         "harness-mainjs:$HARNESS/canvas-vault/.obsidian/plugins/canvas-learning-system/main.js" \
-        "harness-build-out:$HARNESS/frontend/obsidian-plugin/main.js"; then
+        "harness-build-out:$HARNESS/frontend/obsidian-plugin/main.js" \
+        "ev-install-log:$EVIDENCE_DIR/install-$TS.txt" \
+        "ev-verify-report:$EVIDENCE_DIR/verify-$TS.txt" \
+        "ev-compose-config:$EVIDENCE_DIR/compose-config-$TS.txt" \
+        "ev-deploy-report:$EVIDENCE_DIR/deploy-$TS.txt" \
+        "ev-deploy-report-tmp:$EVIDENCE_DIR/deploy-$TS.txt.tmp"; then
         STEP_MSG="禁写面: $FORBIDDEN_HIT"
         return 1
     fi
     # 已存在的 .env / key 若是**软链**, 写入会沿链穿到别处 —— 直接拒（判据脚本只看路径,
     # 这里补一条对「已存在对象本身是链」的显式拒绝）。
+    # ⛔ 列表必须含 **.tmp**（Codex r3 BLOCKER-3）：`ENV_FILE.tmp -> /safe/existing.env`
+    #    被 outputs 放行, 而旧列表没有 tmp ⇒ `: >` 会沿链截断那个文件, 之后还会把软链本身
+    #    发布成 ENV_FILE。evidence 的日志文件同理（Codex r3 BLOCKER-2）。
     local lnk
-    for lnk in "$ENV_FILE" "$VAULT/.obsidian/cls-internal-key.txt" \
-        "$VAULT/.obsidian/plugins/canvas-learning-system/data.json"; do
+    for lnk in "$ENV_FILE" "$ENV_FILE.tmp" \
+        "$VAULT/.obsidian/cls-internal-key.txt" \
+        "$VAULT/.obsidian/cls-internal-key.txt.tmp" \
+        "$VAULT/.obsidian/plugins/canvas-learning-system/data.json" \
+        "$EVIDENCE_DIR/install-$TS.txt" \
+        "$EVIDENCE_DIR/verify-$TS.txt" \
+        "$EVIDENCE_DIR/compose-config-$TS.txt" \
+        "$EVIDENCE_DIR/deploy-$TS.txt" \
+        "$EVIDENCE_DIR/deploy-$TS.txt.tmp"; do
         if [ -L "$lnk" ]; then
             STEP_MSG="待写对象是软链, 写入会沿链穿到别处: $lnk -> $(readlink "$lnk")"
             return 1
@@ -369,8 +394,15 @@ if s != n or v != n:
     fi
 
     # skills 数（零余量, 见头注 CLS_MIN_SKILLS）
-    local nskills
-    nskills="$(find "$HARNESS/canvas-vault/.claude/skills" -mindepth 2 -maxdepth 2 -type f -name SKILL.md 2> /dev/null | wc -l | tr -d ' ')"
+    # Codex r3 MEDIUM-3：`find | wc | tr` 的 rc 被忽略 ⇒ find 部分读取失败但计数够大时
+    # 仍报「树完整」。用 pipefail 子 shell 取 find 的 rc。
+    local nskills frc=0
+    nskills="$(set -o pipefail; find "$HARNESS/canvas-vault/.claude/skills" \
+        -mindepth 2 -maxdepth 2 -type f -name SKILL.md 2> /dev/null | wc -l | tr -d ' ')" || frc=$?
+    if [ "$frc" != 0 ]; then
+        STEP_MSG="枚举 skills 出错(rc=${frc}), 无从断言数量"
+        return 1
+    fi
     if [ "$nskills" -lt "$CLS_MIN_SKILLS" ]; then
         STEP_MSG="skills 含 SKILL.md 的目录数 $nskills < $CLS_MIN_SKILLS"
         return 1
@@ -431,14 +463,21 @@ seed_env_file() {
         fi
         ENV_KEYS_SKIPPED="$ENV_KEYS_SKIPPED $k"
     done
-    {
-        printf 'ACTIVE_VAULT=%s\n' "$VAULT_NAME" || exit 1
-        printf 'VAULTS_ROOT=%s\n' "$(dirname "$VAULT")" || exit 1
-        printf 'API_PORT=%s\n' "$PORT" || exit 1
-        printf 'CLS_BACKEND_CONTAINER=cls-%s-backend\n' "$VAULT_NAME" || exit 1
-        printf 'INTERNAL_API_KEY=\n' || exit 1
-        printf 'DAILY_REVIEW_VAULTS=\n' || exit 1
-    } >> "$ENV_FILE.tmp" || { SEED_ERR="写 .env 固定字段失败"; return 1; }
+    # ⛔ 不用 `{ …; || exit 1; }`（Codex r3 MEDIUM-1，我上一轮引入的回归）：
+    #    大括号在**当前 shell** 执行, 里面的 `exit 1` 会直接结束整个部署 ——
+    #    绕过 run_step 的 7N 映射, 用户只看到进程 rc=1、没有任何 [N/6] FAIL 行。
+    #    改为逐条判 rc 后 `return 1`, 让 run_step 正常映射成 72/73。
+    local _fk
+    for _fk in \
+        "ACTIVE_VAULT=$VAULT_NAME" \
+        "VAULTS_ROOT=$VAULT_PARENT" \
+        "API_PORT=$PORT" \
+        "CLS_BACKEND_CONTAINER=cls-$VAULT_NAME-backend" \
+        "INTERNAL_API_KEY=" \
+        "DAILY_REVIEW_VAULTS="; do
+        printf '%s\n' "$_fk" >> "$ENV_FILE.tmp" \
+            || { SEED_ERR="写 .env 固定字段失败: ${_fk%%=*}"; return 1; }
+    done
     # 回读校验：确认六个必填键都真的落进去了（追加成功 ≠ 内容完整）
     local kk
     for kk in ACTIVE_VAULT VAULTS_ROOT API_PORT CLS_BACKEND_CONTAINER INTERNAL_API_KEY DAILY_REVIEW_VAULTS; do
@@ -467,10 +506,16 @@ step2_install() {
     #    install **根本没跑**, 而旧消息会把它说成「install-vault.sh 非零退出」（误导）。
     mkdir -p "$EVIDENCE_DIR" || { STEP_MSG="建 evidence 目录失败: $EVIDENCE_DIR"; return 1; }
     local ilog="$EVIDENCE_DIR/install-$TS.txt"
+    # ⛔ 截断前再查一次（Codex r3 BLOCKER-2）：preflight 到此刻之间文件可能被换成软链,
+    #    而 `: >` 会沿链把目标文件清空。这一步是**写之前的最后一道**。
+    if [ -L "$ilog" ]; then
+        STEP_MSG="install 日志是软链, 截断会穿到别处: $ilog -> $(readlink "$ilog")"
+        return 1
+    fi
     : > "$ilog" || { STEP_MSG="无法写 install 日志(重定向失败, install 未执行): $ilog"; return 1; }
     local irc=0
     CLS_REPO="$HARNESS" "$HARNESS/scripts/install-vault.sh" "$VAULT_NAME" \
-        --subject "$SUBJECT" --vaults-root "$(dirname "$VAULT")" \
+        --subject "$SUBJECT" --vaults-root "$VAULT_PARENT" \
         --source "$HARNESS/canvas-vault" --env-file "$ENV_FILE" \
         --harness-tree "$HARNESS" --backend-url "http://127.0.0.1:$PORT" \
         >> "$ilog" 2>&1 || irc=$?
@@ -514,13 +559,26 @@ step3_postprocess() {
     #    config 断言才会撞上。这里提前 fail-closed，且**不静默覆盖**用户已有的 .env。
     #    （.env 不存在时由 B1 的 seed 按参数写出，天然一致，无需断言。）
     if [ -f "$ENV_FILE" ]; then
-        local want_pairs="API_PORT=$PORT ACTIVE_VAULT=$VAULT_NAME CLS_BACKEND_CONTAINER=cls-$VAULT_NAME-backend"
-        local kv k v have
+        # Codex r3 HIGH-4 三处收紧：① 读取管道判 rc（原版读失败 ⇒ have 空 ⇒ 放行）
+        #   ② 缺键也要拒（原版只在 have 非空时比较, 缺 API_PORT/ACTIVE_VAULT 直接通过）
+        #   ③ 比较范围补上 VAULTS_ROOT（它决定容器看不看得见这个 vault）
+        local want_pairs="API_PORT=$PORT ACTIVE_VAULT=$VAULT_NAME CLS_BACKEND_CONTAINER=cls-$VAULT_NAME-backend VAULTS_ROOT=$VAULT_PARENT"
+        local kv k v have grc line
         for kv in $want_pairs; do
             k="${kv%%=*}"
             v="${kv#*=}"
-            have="$(grep -E "^${k}=" "$ENV_FILE" 2> /dev/null | tail -1 | cut -d= -f2- | tr -d '"'"'" | tr -d '\r')"
-            if [ -n "$have" ] && [ "$have" != "$v" ]; then
+            grc=0
+            line="$(grep -E "^${k}=" "$ENV_FILE" 2> /dev/null | tail -1)" || grc=$?
+            if [ "$grc" -gt 1 ]; then
+                STEP_MSG="读 $(basename "$ENV_FILE") 的 ${k} 出错(rc=${grc}), 无从断言一致"
+                return 1
+            fi
+            if [ -z "$line" ]; then
+                STEP_MSG="已有 $(basename "$ENV_FILE") 缺键 ${k}（无法确认与本次参数一致；删掉该 .env 重来）"
+                return 1
+            fi
+            have="$(printf '%s' "$line" | cut -d= -f2- | tr -d '"'"'" | tr -d '\r')"
+            if [ "$have" != "$v" ]; then
                 STEP_MSG="已有 $(basename "$ENV_FILE") 的 ${k}=${have} 与本次参数 ${v} 矛盾（拒绝静默覆盖；改 --port/--vault 或删掉该 .env 重来）"
                 return 1
             fi
@@ -597,12 +655,18 @@ step3_postprocess() {
 
     # B3 插件 data.json internalApiKey 同值（只改这一键）
     if ! python3 - "$datajson" "$key" << 'PY'; then
-import json, sys
+import json, os, sys
 p, key = sys.argv[1], sys.argv[2]
-d = json.load(open(p, encoding="utf-8"))
+# ⛔ 必须显式关闭并 flush+fsync（Codex r3 HIGH-3）：`json.dump(..., open(...))` 把关闭
+#    留给析构, 析构时的写错误会被忽略而进程仍返回 0 ⇒ 外层判 rc 也证明不了写成功。
+with open(p, encoding="utf-8") as f:
+    d = json.load(f)
 d["internalApiKey"] = key
-json.dump(d, open(p, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
-open(p, "a", encoding="utf-8").write("\n")
+with open(p, "w", encoding="utf-8") as f:
+    json.dump(d, f, ensure_ascii=False, indent=2)
+    f.write("\n")
+    f.flush()
+    os.fsync(f.fileno())
 PY
         STEP_MSG="写 data.json internalApiKey 失败"
         return 1
@@ -610,9 +674,11 @@ PY
 
     # B4 .env.<vault> 的 INTERNAL_API_KEY 同值
     if ! python3 - "$ENV_FILE" "$key" << 'PY'; then
-import sys
+import os, sys
 p, key = sys.argv[1], sys.argv[2]
-lines = open(p, encoding="utf-8").read().split("\n")
+# 同 H-3：显式关闭 + flush + fsync
+with open(p, encoding="utf-8") as f:
+    lines = f.read().split("\n")
 out, done = [], False
 for l in lines:
     if l.startswith("INTERNAL_API_KEY="):
@@ -622,7 +688,10 @@ for l in lines:
         out.append(l)
 if not done:
     out.append(f"INTERNAL_API_KEY={key}")
-open(p, "w", encoding="utf-8").write("\n".join(out))
+with open(p, "w", encoding="utf-8") as f:
+    f.write("\n".join(out))
+    f.flush()
+    os.fsync(f.fileno())
 PY
         STEP_MSG="写 $ENV_FILE 的 INTERNAL_API_KEY 失败"
         return 1
@@ -846,7 +915,7 @@ step6_evidence() {
         return 2
     fi
     mkdir -p "$EVIDENCE_DIR" || { STEP_MSG="建 evidence 目录失败: $EVIDENCE_DIR"; return 1; }
-    local out="$EVIDENCE_DIR/deploy-$TS.txt" t _sha _sha_fail=0
+    local out="$EVIDENCE_DIR/deploy-$TS.txt" t _sha _sha_fail=0 _src=0
     {
         printf '# CARD-G2-7b deploy-vault.sh — %s\n' "$TS"
         printf '## 参数\n'
@@ -864,8 +933,10 @@ step6_evidence() {
             "$VAULT/.obsidian/cls-internal-key.txt" "$ENV_FILE"; do
             if [ -f "$t" ]; then
                 # ⛔ shasum 失败会被外层 printf 的成功掩盖（Codex r2 HIGH-2）⇒ 先算再判。
-                _sha="$(shasum -a 256 "$t" 2> /dev/null | cut -d' ' -f1)"
-                if [ -z "$_sha" ]; then
+                # Codex r3 MEDIUM-2：非空输出 + 非零退出仍算成功 ⇒ 必须判 rc。
+                _src=0
+                _sha="$(shasum -a 256 "$t" 2> /dev/null | cut -d' ' -f1)" || _src=$?
+                if [ "$_src" != 0 ] || [ -z "$_sha" ]; then
                     printf '  %-64s %s (SHASUM-FAILED)\n' '-' "${t#"$VAULT"/}"
                     _sha_fail=1
                 else
@@ -876,13 +947,17 @@ step6_evidence() {
             fi
         done
     } > "$out.tmp" 2>&1 || { STEP_MSG="写 evidence 临时文件失败: $out.tmp"; return 1; }
+    # ⛔ 先判失败再写 rc 行（Codex r3 MEDIUM-2）：原版先写 `rc=0` 再 return 76,
+    #    落盘的证据与进程返回码自相矛盾。
+    if [ "$_sha_fail" = 1 ]; then
+        printf 'rc=76\n' >> "$out.tmp" || true
+        mv "$out.tmp" "$out" || true
+        STEP_MSG="有文件 shasum 失败（见 SHASUM-FAILED 行）, 证据已标 rc=76: $out"
+        return 1
+    fi
     printf 'rc=0\n' >> "$out.tmp" || { STEP_MSG="追加 rc 行失败: $out.tmp"; return 1; }
     mv "$out.tmp" "$out" || { STEP_MSG="mv evidence 失败: $out"; return 1; }
     [ -s "$out" ] || { STEP_MSG="evidence 落盘后为空: $out"; return 1; }
-    if [ "$_sha_fail" = 1 ]; then
-        STEP_MSG="evidence 已写但有文件 shasum 失败（见 SHASUM-FAILED 行）: $out"
-        return 1
-    fi
     STEP_MSG="$out"
     return 0
 }

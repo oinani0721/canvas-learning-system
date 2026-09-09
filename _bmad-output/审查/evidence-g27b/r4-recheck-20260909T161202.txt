@@ -1,0 +1,13 @@
+########## 两套 e2e 复验 ##########
+
+=== 直接验 key 格式校验分支（绕过 install 防覆盖：用全新目标 + 预置 key）===
+  OK   正控：全新目标 apply rc 0                     0
+  OK   key 长度 64                                        64
+  OK   key 权限 600                                       600
+  OK   无 .tmp 残留                                      0
+
+=== 汇总: PASS=20 FAIL=0 ===
+
+  OK   不存在:  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27b/r2neg-20260909T161206/x
+
+=== 汇总: PASS=10 FAIL=0 ===

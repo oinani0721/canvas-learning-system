@@ -61,7 +61,12 @@ ALL_PROFILES = ["--profile", "test", "--profile", "windows", "--profile", "dev"]
 _STRIP_ENV = ("CLS_DEPLOY_ALLOW_DOCKER_UP", "CLS_MIN_SKILLS", "CLS_LIVE_VAULT")
 
 
-def _run(*args: str, env: dict[str, str] | None = None, timeout: int = 120):
+def _run(
+    *args: str,
+    env: dict[str, str] | None = None,
+    timeout: int = 120,
+    script: Path | None = None,
+):
     """跑 deploy-vault.sh，返回 CompletedProcess（不 check）。"""
     full_env = dict(os.environ)
     for _k in _STRIP_ENV:
@@ -69,7 +74,7 @@ def _run(*args: str, env: dict[str, str] | None = None, timeout: int = 120):
     if env:
         full_env.update(env)
     return subprocess.run(
-        [str(DEPLOY_SH), *args],
+        [str(script or DEPLOY_SH), *args],
         capture_output=True,
         text=True,
         env=full_env,
@@ -866,13 +871,15 @@ def test_run_helper_strips_host_authorization_switch(monkeypatch, tmp_path: Path
         encoding="utf-8",
     )
     probe.chmod(0o755)
-    full_env = dict(os.environ)
-    for _k in _STRIP_ENV:
-        full_env.pop(_k, None)
-    r = subprocess.run([str(probe)], capture_output=True, text=True, env=full_env)
+    # ⛔ 必须**真的走 _run**（Codex r3 MEDIUM-4）：原版自己重新构造并剥离环境再执行探针，
+    #    于是删掉 _run 里的剥离两行、这条门的结果完全不变 —— 它锁不住被测行为。
+    #    现在把探针脚本交给 _run 去跑（script= 参数），剥离逻辑由 _run 自己执行。
+    r = _run(script=probe)
     assert r.returncode == 0, r.stderr
-    assert "ALLOW=<unset>" in r.stdout, f"_STRIP_ENV 没有剥掉 CLS_DEPLOY_ALLOW_DOCKER_UP: {r.stdout!r}"
-    assert "CLS_DEPLOY_ALLOW_DOCKER_UP" in _STRIP_ENV
+    assert "ALLOW=<unset>" in r.stdout, f"_run 没有剥掉 CLS_DEPLOY_ALLOW_DOCKER_UP: {r.stdout!r}"
+    # 反向锚：不经 _run 时宿主值确实可见 —— 证明上面那条不是因为环境里本来就没有
+    raw = subprocess.run([str(probe)], capture_output=True, text=True, env=dict(os.environ))
+    assert "ALLOW=1" in raw.stdout, f"控制组不成立：宿主环境里本来就没有该变量，上面那条断言不承重: {raw.stdout!r}"
 
 
 def test_yaml_module_is_available_for_step5_assertion():
@@ -1140,17 +1147,26 @@ def test_forbidden_judge_covers_actual_output_objects_not_just_params():
     """
     src = DEPLOY_SH.read_text(encoding="utf-8")
     seg = src[src.index("check_forbidden_paths \\") : src.index('STEP_MSG="禁写面')]
-    for label in (
-        "--vault:",
-        "--evidence-dir:",
-        "--env-dir:",
-        "env-file:",
-        "env-file-tmp:",
-        "key-file:",
-        "plugin-data:",
-    ):
+    # ⛔ 不能只验标签（Codex r3 MEDIUM-5）：保留 `plugin-data:` 标签却传一个安全父目录，
+    #    只验标签的门照样绿。这里把**实际传的路径表达式**一起钉。
+    expected = {
+        "--vault:": '"--vault:$VAULT"',
+        "--evidence-dir:": '"--evidence-dir:$EVIDENCE_DIR"',
+        "--env-dir:": '"--env-dir:$ENV_DIR"',
+        "env-file:": '"env-file:$ENV_FILE"',
+        "env-file-tmp:": '"env-file-tmp:$ENV_FILE.tmp"',
+        "key-file:": '"key-file:$VAULT/.obsidian/cls-internal-key.txt"',
+        "plugin-data:": '"plugin-data:$VAULT/.obsidian/plugins/canvas-learning-system/data.json"',
+    }
+    for label, expr in expected.items():
         assert label in seg, f"判据调用缺对象 {label}"
+        assert expr in seg, f"{label} 传的不是预期路径表达式，应为 {expr}"
     assert "--outputs" in seg, "产出对象未划入 --outputs 组（会被 env 文件名规则误拦）"
+    for expr in (
+        '"ev-install-log:$EVIDENCE_DIR/install-$TS.txt"',
+        '"ev-deploy-report-tmp:$EVIDENCE_DIR/deploy-$TS.txt.tmp"',
+    ):
+        assert expr in seg, f"缺 evidence 对象 {expr}（r3 BLOCKER-2）"
 
 
 # ═══ 行为门：替代不承重的源码门（Codex r2 MEDIUM）══════════════════════════════
@@ -1199,3 +1215,119 @@ def test_step4_leaves_no_source_mirror_behind(tmp_path: Path):
     assert r.returncode == 0, f"rc={r.returncode}: {r.stdout}"
     after = set(Path(os.environ.get("TMPDIR", "/tmp")).glob("cls-srcmirror-*"))
     assert after <= before, f"步 4 留下了源镜像: {sorted(after - before)}"
+
+
+def test_preflight_treats_lsof_error_as_unknown_not_free(tmp_path: Path):
+    """`lsof` 出错（rc 既非 0 也非 1）时不得当成「端口空闲」（Codex r2 M14 的 NOGATE 补门）。
+
+    r2 变异 M14 把 lsof 的三态退回两态（出错当空闲），当时**没有门能抓**，如实标了 NOGATE。
+    这条门用一个假 lsof（恒 rc=2）放进 PATH 最前，验证 preflight 会拒而不是放行。
+    """
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_lsof = fake_bin / "lsof"
+    fake_lsof.write_text("#!/usr/bin/env bash\nexit 2\n", encoding="utf-8")
+    fake_lsof.chmod(0o755)
+
+    r = _run(
+        "--vault",
+        str(tmp_path / "vaults" / "ok_name"),
+        "--harness",
+        str(REPO_ROOT),
+        "--port",
+        "8187",
+        "--env-dir",
+        str(tmp_path / "env"),
+        "--evidence-dir",
+        str(tmp_path / "ev"),
+        env={
+            "PATH": f"{fake_bin}:{os.environ.get('PATH', '')}",
+            "CLS_LIVE_VAULT": str(_fake_live(tmp_path)),
+        },
+    )
+    assert r.returncode == 71, f"lsof rc=2 时应拒（无从断言空闲），实为 rc={r.returncode}: {r.stdout}"
+    assert "lsof" in r.stdout and "无从断言" in r.stdout, r.stdout
+
+
+def test_preflight_still_passes_when_lsof_says_free(tmp_path: Path):
+    """控制组：假 lsof 恒 rc=1（无命中 = 空闲）时必须**放行** —— 否则上一条门退化成永远拦。"""
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_lsof = fake_bin / "lsof"
+    fake_lsof.write_text("#!/usr/bin/env bash\nexit 1\n", encoding="utf-8")
+    fake_lsof.chmod(0o755)
+
+    r = _run(
+        "--vault",
+        str(tmp_path / "vaults" / "ok_name"),
+        "--harness",
+        str(REPO_ROOT),
+        "--port",
+        "8186",
+        "--env-dir",
+        str(tmp_path / "env"),
+        "--evidence-dir",
+        str(tmp_path / "ev"),
+        env={
+            "PATH": f"{fake_bin}:{os.environ.get('PATH', '')}",
+            "CLS_LIVE_VAULT": str(_fake_live(tmp_path)),
+        },
+    )
+    assert r.returncode == 0, f"lsof 说空闲时被误拒: rc={r.returncode} {r.stdout}"
+
+
+def test_forbidden_judge_claude_prefix_rule_covers_nonexistent(tmp_path: Path):
+    """`.claude*` 的**前缀规则**（覆盖尚不存在的条目）要有定向输入（Codex r3 MEDIUM-5）。
+
+    现有软链样本最终都落在 prot，在这条规则之前就命中了 —— 删掉它样本仍全绿。
+    这条门直接打一个 HOME 下**不存在**的 `.claude-*` 目录。
+    """
+    prot = tmp_path / "prot"
+    prot.mkdir()
+    target = str(Path.home() / ".claude-nonexistent-gate-probe" / "sub")
+    r = _forbid(str(prot), f"p:{target}")
+    assert r.returncode == 1, f"前缀规则没拦住尚不存在的 .claude*: {r.stdout}"
+    assert ".claude" in r.stdout, r.stdout
+    assert not Path(target).exists(), "判据不该创建任何东西"
+
+
+def test_forbidden_judge_claude_enumeration_rule_is_case_insensitive():
+    """`.claude*` **枚举规则**必须大小写不敏感（Codex r3 HIGH-1 第二半）。
+
+    ⚠️ 如实声明局限：这条无法用 HOME 下的真实条目构造（不该往用户 HOME 建 `.CLAUDE-*`
+    做测试），故改用源码断言，并把这个局限写在这里 —— 它是**源码门**，对等价重写不敏感。
+    """
+    src = FORBID_PY.read_text(encoding="utf-8")
+    assert 'name.lower().startswith(".claude")' in src, (
+        "枚举规则不是大小写不敏感的（`.CLAUDE-cache -> /external/x` 会漏登记）"
+    )
+    assert "enumerate_failed" in src, "HOME 枚举失败未 fail-closed"
+
+
+def test_forbidden_judge_fails_closed_when_home_unenumerable(tmp_path: Path):
+    """HOME 不可枚举时必须 fail-closed（Codex r3 HIGH-1）。
+
+    把 HOME 指到一个**只有执行权限、没有读权限**的目录：已知子路径仍可访问，
+    但 `listdir` 会失败 —— 此时 `.claude*` 的外部软链目标整批登记不上，
+    判据不得声称「全部 OK」。
+    """
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
+    (fake_home / ".claude").mkdir()
+    prot = tmp_path / "prot"
+    prot.mkdir()
+    (tmp_path / "safe").mkdir()
+    fake_home.chmod(0o111)  # --x--x--x：可进入、不可列目录
+    try:
+        env = dict(os.environ)
+        env["HOME"] = str(fake_home)
+        r = subprocess.run(
+            [sys.executable, str(FORBID_PY), str(prot), f"p:{tmp_path}/safe/ok"],
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+        assert r.returncode == 1, f"HOME 不可枚举时仍报全 OK（应 fail-closed）: rc={r.returncode} {r.stdout}"
+        assert "fail-closed" in r.stdout or "_enumerate" in r.stdout, r.stdout
+    finally:
+        fake_home.chmod(0o755)
