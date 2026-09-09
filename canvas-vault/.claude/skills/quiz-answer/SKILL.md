@@ -388,7 +388,13 @@ def _harness_tree(vault_dir):
     try:
         with open(_cfg_p, encoding="utf-8") as _cf:
             for _cl in _cf:
-                _cm = re.match(r'^harness_tree:\s*(.*?)\s*$', _cl.rstrip("\r\n"))
+                #: ⛔ 键值两侧也只剥 **SP/TAB**, 不用 `\s`(round-3 同源缺口, R3 只修了
+                #: 下面的注释判据、漏了这一层 —— 「修一半」)。Python 的 `\s` 会连
+                #: 值**首**的全角空格 / NBSP 一起吃掉: `harness_tree: 　#alt` 在真 YAML
+                #: 里值是「　#alt」(全角空格是标量内容), 被吃掉后剩 `#alt` ⇒ 命中下面的
+                #: 「`#` 是首字符」⇒ **静默回退到 vault 父目录**, 把用户明明写了的值当没写。
+                #: 实测复现; 与注释判据同一个 s-white 口径才算真对齐。
+                _cm = re.match(r'^harness_tree:[ \t]*(.*?)[ \t]*$', _cl.rstrip("\r\n"))
                 if _cm:
                     _raw = _cm.group(1)
     except OSError:
@@ -413,13 +419,16 @@ def _harness_tree(vault_dir):
     #:     收窄到 `[ \t]+#` 才与 YAML 1.1/1.2 逐字对齐。
     #: 即: 无 SP/TAB 分隔的 `#` 属于路径(含全角空格/NBSP 隔开的); 路径里 `#` 前恰有
     #: SP/TAB 的形态罕见, 真遇上的用户加引号即可(引号内一切按字面)。
-    _qm = re.match(r'^([\'"])(.*?)\1\s*(?:#.*)?$', _raw)
+    #: ⛔ 剥完注释后用 `.strip(" \t")` 而不是裸 `.strip()`: 后者剥的是**全部 Unicode
+    #: 空白**(含 U+3000 / NBSP), 与上面两处的 s-white 口径不一致 —— 同一个函数里
+    #: 三处判据必须同口径, 否则「哪些字符算空白」会随代码路径而变。
+    _qm = re.match(r'^([\'"])(.*?)\1[ \t]*(?:#.*)?$', _raw)
     if _qm:
         _tree = _qm.group(2)
     elif _raw.startswith("#"):
         _tree = ""
     else:
-        _tree = re.sub(r'[ \t]+#.*$', '', _raw).strip()
+        _tree = re.sub(r'[ \t]+#.*$', '', _raw).strip(" \t")
     if not _tree:
         return os.path.dirname(vault_dir)
     _tree = os.path.expanduser(_tree)
