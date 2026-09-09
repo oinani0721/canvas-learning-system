@@ -205,6 +205,26 @@ class TestSpecialCharacterGroupId:
                 f"旧参数名 groupId 复活了（读侧应只用 group_id/group_prefix）。kwargs={sorted(all_kwargs)}"
             )
 
+            # ⚠️ 以下三条是 round-5 HIGH 的整改：round-4 把「完整参数集」整条挪进 B 层
+            # （只要求**至少一次**调用带齐四个参数）时，把 A 层削弱了——一次合法调用可以
+            # **掩护**同一序列里的坏调用。实测漏过的两条：
+            #   · 先发一条无 kwargs 的 `MATCH (n) RETURN n LIMIT 5`（完全无作用域过滤）；
+            #   · 先发一条内联 `LIMIT 5` 且删掉 limit kwarg 的查询。
+            # 两条在 round-4 版本下都会红，round-3→round-4 之间被我改弱了。
+            # 现把「作用域必带」「物理化正确」「LIMIT 必须绑参」三条放回**每次调用**上，
+            # 同时保留 round-4 修掉的误报面（合法分步 count 查询本就不需要 limit）。
+            assert {"group_id", "group_prefix"} <= set(all_kwargs), (
+                "本次 run_query 没带 group 作用域参数——R1 读契约要求每条业务读都带 "
+                f"group 过滤。kwargs={sorted(all_kwargs)} query={query_str!r}"
+            )
+            assert all_kwargs["group_id"] == expected_physical, (
+                f"group_id 未物理化或绑错组。got={all_kwargs['group_id']!r} "
+                f"want={expected_physical!r}"
+            )
+            assert all_kwargs["group_prefix"] == expected_physical + "__", (
+                f"group_prefix 应为物理组 + '__' 定界符。got={all_kwargs['group_prefix']!r}"
+            )
+
             # ── 安全内核（本条用例的真正意义，不得删除或放宽）────────────────
             assert malicious_group_id not in query_str, (
                 "Malicious input found in query string — possible Cypher injection!"
@@ -237,6 +257,16 @@ class TestSpecialCharacterGroupId:
                     f"说明它的值可能被内联进了查询文本。query={query_str!r}"
                 )
 
+            # round-5 HIGH 的第三条：只查「已绑定参数有没有占位符」挡不住
+            # 「把值内联进文本**同时**把该参数从 kwargs 里删掉」——两边都没了反而通过。
+            # 对本用例真正要守的那个量（limit）用正面形式表达：**凡是带 LIMIT 的查询，
+            # 就必须绑 $limit**。合法的分步 count 查询没有 LIMIT，不受此条约束。
+            if "LIMIT" in _query_no_comments.upper():
+                assert "limit" in all_kwargs and "$limit" in _query_no_comments, (
+                    "查询里有 LIMIT 却没有绑定的 $limit 参数，值可能被内联进了文本。"
+                    f"kwargs={sorted(all_kwargs)} query={query_str!r}"
+                )
+
         # ── B 层：至少一次调用带完整作用域参数集，并在那一次上验物理化 ──────
         scoped_calls = [
             c
@@ -249,18 +279,10 @@ class TestSpecialCharacterGroupId:
             f"{[sorted(c.kwargs or {}) for c in client.run_query.call_args_list]}；"
             "缺参数通常意味着该值被内联进了查询文本"
         )
-        for call_args in scoped_calls:
-            k = call_args.kwargs
-            # 期望值现算而非硬编码结果串：硬编码会在物理化规则变化时**静默通过**。
-            # ⚠️ 同源盲区（Codex round-1 MEDIUM，已登记不修）：期望值与生产走**同一个**
-            # to_physical_group_id，若该 helper 恒返回同一个串，两边同步变化、本条发现不了。
-            # 独立重实现物理化规则 = 在测试里复制一份生产逻辑，且本卡禁改 backend/app。
-            assert k["group_id"] == expected_physical, (
-                f"group_id 未物理化。got={k['group_id']!r} want={expected_physical!r}"
-            )
-            assert k["group_prefix"] == expected_physical + "__", (
-                f"group_prefix 应为物理组 + '__' 定界符。got={k['group_prefix']!r}"
-            )
+        # 物理化的逐条校验已放回 A 层（round-5 HIGH 整改），B 层只保留「主查询仍绑齐四参数」。
+        # ⚠️ 同源盲区（Codex round-1 MEDIUM，已登记不修）：expected_physical 与生产走**同一个**
+        # to_physical_group_id，若该 helper 恒返回同一个串，两边同步变化、本条发现不了。
+        # 独立重实现物理化规则 = 在测试里复制一份生产逻辑，且本卡禁改 backend/app。
 
 # ============================================================================
 # AC-30.24.5: Unicode concept name test
