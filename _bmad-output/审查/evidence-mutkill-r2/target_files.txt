@@ -1,0 +1,8 @@
+backend/app/services/learning_event_log.py
+backend/scripts/validate_learning_events.py
+backend/tests/regression/test_g3_2_review_ledger.py
+canvas-vault/.claude/scripts/decay_beta.py
+canvas-vault/.claude/scripts/fsrs_bridge.py
+canvas-vault/.claude/skills/quiz-answer/SKILL.md
+canvas-vault/.claude/skills/start-exam-board/SKILL.md
+docs/learning-events-schema-v1.md

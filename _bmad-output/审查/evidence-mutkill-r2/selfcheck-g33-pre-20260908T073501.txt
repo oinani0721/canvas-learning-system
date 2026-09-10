@@ -1,0 +1,6 @@
+SKILL.md sha (跑前): 63b51029ea96a78abd757902023f378697688c28db1b8dc0aaee8969e9ee48e8
+① 旧 M15 (两行/缩进错位): SYNTAX-INVALID — IndentationError: expected an indented block after 'if' statement on line 2697 (<SKILL.md#PYEOF1>, line 2698)
+② 新 M15 (单行短路): 通过 (验伪锚一成立)
+③ 未变异原文: 通过 (验伪锚二成立)
+SKILL.md sha (跑后): 63b51029ea96a78abd757902023f378697688c28db1b8dc0aaee8969e9ee48e8
+未落盘 (跑前跑后 sha 逐字节相同): 是

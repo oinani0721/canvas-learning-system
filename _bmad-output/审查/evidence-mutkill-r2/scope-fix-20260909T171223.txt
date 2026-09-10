@@ -1,0 +1,44 @@
+== CARD-DEBT-mutkill-R2 · 地盘越界修正证据 ==
+时刻: 2026-09-09 17:12:23 CST
+HEAD: 38cd3ce9  基线: 3f073a1a
+
+── 1. 地盘门（卡完成条件 o）──
+ backend/scripts/g32b_mutation_gates.py       | 772 ++++++++++++++++++----
+ backend/scripts/g32cb_mutation_gates.py      | 163 +++--
+ backend/scripts/g32ccr1_negative_controls.py | 169 +++--
+ backend/scripts/g33_mutation_gates.py        | 184 ++++--
+ backend/scripts/mutation_kill_identity.py    | 934 +++++++++++++++++++++++++--
+ 5 files changed, 1923 insertions(+), 299 deletions(-)
+
+── 2. 本卡 5 个文件独立过 ruff（绕过 hook 时覆盖面不丢）──
+E902 No such file or directory (os error 2)
+--> backend/scripts/mutation_kill_identity.py backend/scripts/g32b_mutation_gates.py backend/scripts/g32cb_mutation_gates.py backend/scripts/g32ccr1_negative_controls.py backend/scripts/g33_mutation_gates.py:1:1
+
+Found 1 error.
+ruff check rc=1
+error: Failed to format backend/scripts/mutation_kill_identity.py backend/scripts/g32b_mutation_gates.py backend/scripts/g32cb_mutation_gates.py backend/scripts/g32ccr1_negative_controls.py backend/scripts/g33_mutation_gates.py: No such file or directory (os error 2)
+ruff format --check rc=2
+
+── 3. 15 个还原文件：基线内容 ruff format --check（证明脏是既有的，不是本卡引入）──
+Would reformat: backend/scripts/verify_graphiti_native_chain.py
+Would reformat: backend/scripts/verify_targeted_exam_chain.py
+15 files would be reformatted
+
+── 4. 八个被变异目标文件 sha（应与跑前一致，harness 未在跑）──
+a766fbcc28e3ff917e740843c633e800aa8a75e949295f83efc90f55105f90f0  canvas-vault/.claude/scripts/fsrs_bridge.py
+3bf4ed9402a4c8edfde16630a79094a5d4518fd181fa60810319fe46d37abb90  canvas-vault/.claude/scripts/decay_beta.py
+63b51029ea96a78abd757902023f378697688c28db1b8dc0aaee8969e9ee48e8  canvas-vault/.claude/skills/quiz-answer/SKILL.md
+1ec5dd95ad8a634fcdd395a3468fdb534ef9936cf90f6c6d2326ffe2f518ad2a  canvas-vault/.claude/skills/start-exam-board/SKILL.md
+a52c77317b799a1aa1c2d5abf23a5bbb5af78ff988179941c4e865b39ee207f8  backend/tests/regression/test_g3_2_review_ledger.py
+563b0f3b725b7a447335c515b05d4940940a18fc421d1f04835ac3f8b313d0a3  backend/scripts/lifespan_isolation_negative_control.py
+ed3efb27ecf13378b80248bce676f532268b9867c1d4143f26fc103222d30c0e  backend/scripts/lifespan_isolation_guard_probes.py
+f3489cdcca8f39f004016a9a3003d7736eafbfac84a754653ee456abcd69e4ea  backend/tests/unit/conftest.py
+
+rc=0
+
+⛔ 本份作废说明（不删，保留误调用痕迹）：
+第 2 段用 zsh 变量 $MINE 传五个文件名，zsh 不做词分割 → ruff 收到一个
+拼接成的单一"文件名"，报 E902 No such file or directory。rc=1 / rc=2
+是"文件不存在"，**不是**格式或 lint 不过。
+正确结果见同目录 scope-fix-20260909T171246.txt（ruff check rc=0 /
+ruff format --check rc=0 / 5 files already formatted）。

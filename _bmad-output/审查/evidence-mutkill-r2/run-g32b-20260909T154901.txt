@@ -1,0 +1,201 @@
+── 基线（跑前）──
+   a766fbcc28e3ff91  fsrs_bridge.py
+   63b51029ea96a78a  SKILL.md
+   43ac9e618d10d2ff  learning-events-schema-v1.md
+[M1-R1-candidate-spread] test_r1_unknown_durable_payload_key_conflicts → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M2b-R2-drop-utc-offset-check] test_r2_non_whole_second_durable_review_time_fail_closed → KILLED (红在声称的那一条断言上（绑定维度: 位置）)  [还原字节相同 63b51029ea96]
+[M3-R3-attempt-uses-tip] test_r3_historical_event_replay_is_noop_not_conflict → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M4-R4-normal-path-uses-payload-ts] test_r4_recovery_byte_identical_with_idle_and_a3_bump → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M5-R5-drop-rating-consistency] test_r5_inconsistent_scored_rating_rejected_before_apply → KILLED (红在声称的那一条断言上（绑定维度: 位置）)  [还原字节相同 a766fbcc28e3]
+[M7-R6-schema-drops-owner-clause] test_r6_schema_declares_identity_key_integrity_owner → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 43ac9e618d10]
+[M8-6cell-cell4-allow-recovery] test_six_cell_state_machine_closed → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M9-6cell-cell2-drop-orphan-noop] test_six_cell_state_machine_closed → KILLED (红在声称的那一条断言上（绑定维度: 位置）)  [还原字节相同 63b51029ea96]
+[M10-R2-value-not-literal] test_r2_non_whole_second_durable_review_time_fail_closed → KILLED (红在声称的那一条断言上（绑定维度: 位置）)  [还原字节相同 63b51029ea96]
+[M11-N1-drop-out-of-order-semantic-gate] test_round1_followups_n1_to_n5 → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M12-N1-drop-out-of-order-shape-gate] test_round1_followups_n1_to_n5 → KILLED (红在声称的那一条断言上（绑定维度: 位置）)  [还原字节相同 63b51029ea96]
+[M14-N3-drop-duplicate-key-hook] test_round1_followups_n1_to_n5 → KILLED (红在声称的那一条断言上（绑定维度: 位置）)  [还原字节相同 63b51029ea96]
+[M16-N5-hard-compute-attempt-across-pending] test_round1_followups_n1_to_n5 → KILLED (红在声称的那一条断言上（绑定维度: 位置）)  [还原字节相同 63b51029ea96]
+[M17-N1-schema-drops-writer-side-clause] test_r6_schema_declares_identity_key_integrity_owner → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 43ac9e618d10]
+[M19-B1-drop-rating-completeness] test_internal_audit_findings → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M20-B1-drop-gradenorm-completeness] test_internal_audit_findings → KILLED (红在声称的那一条断言上（绑定维度: 位置）)  [还原字节相同 63b51029ea96]
+[M21-B2-drop-attempt-sync-on-replay] test_internal_audit_findings → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M23-C1-drop-event-type-gate] test_round11b_c1_event_type_narrow → KILLED (红在声称的那一条断言上（绑定维度: 位置）)  [还原字节相同 63b51029ea96]
+[M24-C1-drop-concept-id-gate] test_round11b_c1_concept_id_narrow → KILLED (红在声称的那一条断言上（绑定维度: 位置）)  [还原字节相同 63b51029ea96]
+[M25-C1-drop-vault-id-gate] test_round11b_c1_vault_id_narrow → KILLED (红在声称的那一条断言上（绑定维度: 位置）)  [还原字节相同 63b51029ea96]
+[M26-C2-drop-eid-whitespace-gate] test_internal_audit_findings → KILLED (红在声称的那一条断言上（绑定维度: 位置）)  [还原字节相同 63b51029ea96]
+[M28-C4-mastery-uses-unrounded-gn] test_internal_audit_findings → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M6b-R7-tail-ignores-lf-state] test_r7_corrupt_tail_line_with_lf_is_not_truncation → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M13b-N2-text-mode-read] test_round1_followups_n1_to_n5 → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M15b-N4-decode-with-replace] test_round1_followups_n1_to_n5 → KILLED (红在声称的那一条断言上（绑定维度: 位置）)  [还原字节相同 63b51029ea96]
+[M18b-R7blank-judge-file-end-not-last-line] test_round2_lead_followups → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M29-R3-drop-event-version-gate] test_round3_findings → KILLED (红在声称的那一条断言上（绑定维度: 位置）)  [还原字节相同 63b51029ea96]
+[M30-R3-drop-two-instant-consistency] test_round3_findings → KILLED (红在声称的那一条断言上（绑定维度: 位置）)  [还原字节相同 63b51029ea96]
+[M31-R3-drop-attempt-required] test_round3_findings → KILLED (红在声称的那一条断言上（绑定维度: 位置）)  [还原字节相同 63b51029ea96]
+[M32-R3-drop-payload-object-gate] test_round3_findings → KILLED (红在声称的那一条断言上（绑定维度: 位置）)  [还原字节相同 63b51029ea96]
+[M33-R3-merge-recovery-and-append] test_round3_findings → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M34-R3-drop-routing-envelope-gate] test_round2_lead_followups → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M35-R3-effective-at-over-strict] test_round3_findings → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M38b-attempt-expectation-masked-by-max] test_round3_findings → KILLED (红在声称的那一条断言上（绑定维度: 位置）)  [还原字节相同 63b51029ea96]
+[M43-f1-evaluated-after-calibration-replay] test_round3_findings → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M44-drop-looks-like-review-ext] test_round3_findings → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M45-allow-dup-and-foreign-same-round] test_round3_findings → KILLED (红在声称的那一条断言上（绑定维度: 位置）)  [还原字节相同 63b51029ea96]
+[M46-yaml-single-quote-escape] test_round3_findings → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M39-attempt-regex-rejects-single-quote] test_round3_findings → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M42-late-unmarked-row-silently-skipped] test_round2_lead_followups → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M36b-replay-drops-mastery] test_round3_findings → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M37c-replay-includes-dup-double-eats-ema] test_degraded_legacy_retry_restores_fsrs_without_double_ema → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M47-skip-validator-record-check] test_round4_writer_validator_verdict_parity → KILLED (红在声称的那一条断言上（绑定维度: 位置）)  [还原字节相同 63b51029ea96]
+[M48-attribution-check-after-payload-skip] test_round4_writer_validator_verdict_parity → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M49-event-version-accepts-bool] test_round11b_parity_event_version_bool_narrow → KILLED (红在声称的那一条断言上（绑定维度: 位置）)  [还原字节相同 63b51029ea96]
+[M50-non-object-line-silently-skipped] test_round11b_parity_toplevel_non_object_narrow → KILLED (红在声称的那一条断言上（绑定维度: 位置）)  [还原字节相同 63b51029ea96]
+[M51-line-strip-washes-nonjson-whitespace] test_round4_writer_validator_verdict_parity → KILLED (红在声称的那一条断言上（绑定维度: 位置）)  [还原字节相同 63b51029ea96]
+[M52-calibration-strips-quiz-prefix] test_round5_calibration_key_prefix_collision → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M53-f1-query-strips-prefix-only] test_round5_calibration_key_prefix_collision → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M54-f1-uses-bare-eid] test_round5_calibration_key_prefix_collision → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M56-full-validation-after-branching] test_round5_routing_order_and_input_literal → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M57-validate-without-golden-manifest] test_round5_routing_order_and_input_literal → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M58-input-ts-not-literally-checked] test_round5_routing_order_and_input_literal → KILLED (红在声称的那一条断言上（绑定维度: 位置）)  [还原字节相同 63b51029ea96]
+[M59-ordinal-ignores-legacy-scored-rows] test_round5_legacy_scored_rows_break_ordinal_proof → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M60-normal-path-stores-bare-eid] test_round6_findings → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M61-durable-eid-whitespace-not-scanned] test_round6_findings → KILLED (红在声称的那一条断言上（绑定维度: 位置）)  [还原字节相同 63b51029ea96]
+[M62-node-id-type-only] test_round6_findings → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M63-ts-match-not-fullmatch] test_round6_findings → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M64-dumps-allows-nan] test_round6_findings → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M65-loads-allows-nan] test_round6_findings → KILLED (红在声称的那一条断言上（绑定维度: 位置）)  [还原字节相同 63b51029ea96]
+[M66-legacy-same-id-rejected] test_round6_findings → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M67-inline-calibration-not-normalized] test_round6_findings → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M68-blank-lines-tolerated] test_round6_findings → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M69-bom-tolerated] test_round6_findings → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M70-ordinal-w-only-not-calibration] test_round6_ordinal_evidence → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M71-ignore-provable-legacy-ordinal] test_round6_ordinal_evidence → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M73-late-scan-after-early-exit] test_round7_findings → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M74-candidate-copies-durable-rt] test_round7_findings → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M75-w-fallback-restored] test_round11b_no_w_fallback_narrow → KILLED (红在声称的那一条断言上（绑定维度: 位置）)  [还原字节相同 63b51029ea96]
+[M76-self-node-id-gate-dropped] test_round7_ordinal_gap_and_self_node_id → KILLED (红在声称的那一条断言上（绑定维度: 位置）)  [还原字节相同 63b51029ea96]
+[M77-ordinal-fixed-minus-one] test_round7_ordinal_gap_and_self_node_id → KILLED (红在声称的那一条断言上（绑定维度: 位置）)  [还原字节相同 63b51029ea96]
+[M78-first-write-uses-run-ts] test_round11b_fsrs_uses_stable_business_time → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M79-missing-scored-at-falls-back] test_round8_stable_scored_at → KILLED (红在声称的那一条断言上（绑定维度: 位置）)  [还原字节相同 63b51029ea96]
+[M80-envelope-compares-adopted-rt] test_round8_stable_scored_at → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M81-legacy-out-of-order-honored] test_round8_high_findings → KILLED (红在声称的那一条断言上（绑定维度: 位置）)  [还原字节相同 63b51029ea96]
+[M82-calibration-header-no-comment] test_round8_high_findings → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M83-whitespace-id-gate-global] test_round8_high_findings → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M84-cross-node-id-collision-ignored] test_round9_identity_and_self_check → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M85-no-producer-self-check] test_round9_identity_and_self_check → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M86-f1-regex-not-yaml] test_round9_yaml_calibration_forms → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M88-degraded-uses-run-ts] test_round8_stable_scored_at → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M89-receipt-drops-scored-at] test_round9_structured_receipt → KILLED-UNBOUND 未绑断言身份, 判据退化成旧口径 (门红了，但未绑断言身份（判据退化成旧口径「指定门红了」）)  [还原字节相同 63b51029ea96]
+[M90-receipt-drops-attempt] test_round9_structured_receipt → KILLED-UNBOUND 未绑断言身份, 判据退化成旧口径 (门红了，但未绑断言身份（判据退化成旧口径「指定门红了」）)  [还原字节相同 63b51029ea96]
+[M91-f1-only-unconditional-noop] test_round9_structured_receipt → KILLED (红在声称的那一条断言上（绑定维度: 位置）)  [还原字节相同 63b51029ea96]
+[M94-routing-raw-compare] test_round10_findings → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M95-receipt-skips-abandoned] test_round12_abandoned_isolated_from_grade → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M96-adopted-time-unbound] test_round10_findings → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M97-writeback-regex-only] test_round10_findings → KILLED-UNBOUND 未绑断言身份, 判据退化成旧口径 (门红了，但未绑断言身份（判据退化成旧口径「指定门红了」）)  [还原字节相同 63b51029ea96]
+[M98-no-pre-append-dry-run] test_round10_findings → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M99-f1only-skips-fact-check] test_round11_unified_resolver → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M100-no-tri-instant-binding] test_round17_tri_instant_binding_narrow → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M102-receipt-attempt-type-only] test_round11_unified_resolver → KILLED (红在声称的那一条断言上（绑定维度: 位置）)  [还原字节相同 63b51029ea96]
+[M103-receipt-ts-no-literal-gate] test_round11_unified_resolver → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M104-writeback-guess-by-text] test_round11_writeback_by_parse_result → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M110-reinline-duplicate-lookup] test_round11b_single_source_lookup → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M111-shared-impl-not-reused] test_round11b_single_source_lookup → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M112-compat-empty-source-rejects] test_round11b_both_paths_still_behave → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M113-facts-list-not-frozen] test_round12_facts_list_is_frozen → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M114-f1only-drops-exam-board] test_round12_b2_exam_board_in_facts → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M115-late-scan-presence-only] test_round12_b3_late_scan_checks_facts → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M116-receipt-no-provenance] test_round12_b1_receipt_provenance → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M117-empty-source-skips-provenance] test_round12_b1_receipt_provenance → KILLED (红在声称的那一条断言上（绑定维度: 位置）)  [还原字节相同 63b51029ea96]
+[M118-empty-eid-allowed] test_round12_empty_eid_rejected_at_entry → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M119-crash-window-adopted-time-unproven] test_round12_high2_adopted_time_in_crash_window → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M120-legacy-row-generic-reason] test_round12_high3_legacy_row_missing_scored_at_is_actionable → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M121-consumer-rounds-grade] test_round13_consumer_must_not_reshape_values → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M122-consumer-coerces-board] test_round13_consumer_must_not_reshape_values → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M123-adopted-time-literal-compare] test_round13_adopted_time_recomputed_not_compared_literally → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M124-crash-window-only-when-w-empty] test_round13_adopted_time_recomputed_not_compared_literally → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M125-id-form-authorizes-bare-fallback] test_round13_id_form_only_proves_exact_hit → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M126-f1only-no-successor-discount] test_round13_f1only_ordinal_discounts_successors → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M127-facts-python-equality] test_round14_facts_compare_is_type_sensitive → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M128-id-form-not-at-candidate-stage] test_round14_id_form_checked_at_candidate_stage → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M129-missing-scored-at-warn-only] test_round14_missing_scored_at_is_fail_closed → KILLED (红在声称的那一条断言上（绑定维度: 位置）)  [还原字节相同 63b51029ea96]
+[M130-pending-adopted-time-unproven] test_round14_every_pending_proves_adopted_time → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M132-candidate-always-rounded] test_round14_legacy_precision_identity → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M135-scored-at-not-in-ext-detection] test_round15_scored_at_in_ext_detection → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M136-w-coverage-as-applied-proof] test_round15_event_level_fsrs_applied → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M137-receipt-no-applied-flag] test_round15_event_level_fsrs_applied → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M138-board-string-only] test_round15_board_no_self_produced_rejection → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M139-source-lookup-both-ways] test_round15_source_lookup_respects_candidate_kind → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M140-bare-collision-no-own-judge] test_round15_bare_collision_has_own_judge → KILLED (红在声称的那一条断言上（绑定维度: 位置）)  [还原字节相同 63b51029ea96]
+[M142-dup-uses-global-w] test_round16_fsrs_applied_across_all_branches → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M143-missing-applied-flag-tolerated] test_round16_fsrs_applied_across_all_branches → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M144-false-plus-w-not-contradiction] test_round16_fsrs_applied_across_all_branches → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M145-recovery-does-not-promote-flag] test_round16_fsrs_applied_across_all_branches → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M146-canon-num-precision-loss] test_round16_canonical_tree_type_faithful → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M148-unmarked-exact-single-source] test_round16_unmarked_exact_enumerates_both_sources → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M149-adopted-two-values] test_round16_same_instant_rows_rejected_per_a3 → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M150-all-ledger-ids-coerce-str] test_round16_foreign_nonstr_event_id_does_not_block → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M151-exam-board-bare-json-in-yaml] test_round16_exam_board_roundtrips_through_yaml → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M152-f1-ignores-write-order-anchor] test_round16_f1_only_uses_persisted_write_order_anchor → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M153-legacy-cursor-skips-ambiguity-proof] test_round16_legacy_receipt_without_anchor_says_unprovable → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M155-board-form-ignored] test_round17_legacy_receipt_without_board_form_still_read → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M156-anchor-miss-is-hard-error] test_round17_anchor_is_preferred_not_sole_evidence → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M157-anchor-direction-unchecked] test_round17_anchor_direction_is_verified → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M158-fsrs-applied-truthiness] test_round17_fsrs_applied_must_be_strict_bool → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M161-foreign-no-credential-promotion] test_round17_foreign_degraded_recovery_converges → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+
+── 空变异对照 (27 条带同层) ──
+[M5-R5-drop-rating-consistency] ✓ 对照绿 (rc=0) ⇒ 击杀干净归因于变异体
+[M10-R2-value-not-literal] ✗ 假杀 — 两次同一失败点 ['stmt:c8e430b5ce69']: test_g3_2_review_ledger.py:1086: AssertionError: [quiz-answer] 账本第 1 行(quiz:板A#q
+[M12-N1-drop-out-of-order-shape-gate] ✓ 对照绿 (rc=0) ⇒ 击杀干净归因于变异体
+[M19-B1-drop-rating-completeness] ✓ 对照红但失败**位置**不同 ⇒ 变异体有可观测效果 (门较粗, 隔离不干净)
+       只加层  : ['stmt:44b385eca4a0'] test_g3_2_review_ledger.py:1919: AssertionError: [非评分事件类型] 不得被当成本节点的一次
+       +变异体: ['stmt:eb278d473046'] test_g3_2_review_ledger.py:1835: AssertionError: [rating 是 float] 评分事实
+[M20-B1-drop-gradenorm-completeness] ✓ 对照红但失败**位置**不同 ⇒ 变异体有可观测效果 (门较粗, 隔离不干净)
+       只加层  : ['stmt:44b385eca4a0'] test_g3_2_review_ledger.py:1919: AssertionError: [非评分事件类型] 不得被当成本节点的一次
+       +变异体: ['stmt:029dbd458414'] test_g3_2_review_ledger.py:1845: AssertionError: [quiz-answer] 事件已落日志(
+[M23-C1-drop-event-type-gate] ✓ 对照红但失败**位置**不同 ⇒ 变异体有可观测效果 (门较粗, 隔离不干净)
+       只加层  : ['stmt:66cddc740b86'] test_g3_2_review_ledger.py:3703: AssertionError: [非评分事件类型] 不得被当成本节点的一次
+       +变异体: ['stmt:8b4fc14dc10c'] test_g3_2_review_ledger.py:3705: AssertionError: [非评分事件类型] 零写（节点 + 账本，
+[M24-C1-drop-concept-id-gate] ✓ 对照绿 (rc=0) ⇒ 击杀干净归因于变异体
+[M25-C1-drop-vault-id-gate] ✓ 对照绿 (rc=0) ⇒ 击杀干净归因于变异体
+[M18b-R7blank-judge-file-end-not-last-line] ✗ 假杀 — 两次同一失败点 ['stmt:4f4c009720a9']: test_g3_2_review_ledger.py:1628: AssertionError: [坏行前有空白行 —— round-6 起空行门先拦] 应 f
+[M30-R3-drop-two-instant-consistency] ✓ 对照绿 (rc=0) ⇒ 击杀干净归因于变异体
+[M44-drop-looks-like-review-ext] ✓ 对照绿 (rc=0) ⇒ 击杀干净归因于变异体
+[M46-yaml-single-quote-escape] ✓ 对照绿 (rc=0) ⇒ 击杀干净归因于变异体
+[M49-event-version-accepts-bool] ✓ 对照绿 (rc=0) ⇒ 击杀干净归因于变异体
+[M50-non-object-line-silently-skipped] ✓ 对照绿 (rc=0) ⇒ 击杀干净归因于变异体
+[M54-f1-uses-bare-eid] ✓ complete: 变异体单独不够(门绿 rc=0), 补齐站点后才红 ⇒ 层必要
+[M58-input-ts-not-literally-checked] ✓ 对照绿 (rc=0) ⇒ 击杀干净归因于变异体
+[M67-inline-calibration-not-normalized] ✓ 对照绿 (rc=0) ⇒ 击杀干净归因于变异体
+[M75-w-fallback-restored] ✓ 对照绿 (rc=0) ⇒ 击杀干净归因于变异体
+[M82-calibration-header-no-comment] ✓ 对照绿 (rc=0) ⇒ 击杀干净归因于变异体
+[M100-no-tri-instant-binding] ✗ complete 但变异体单独即可杀 ⇒ 撤层
+[M119-crash-window-adopted-time-unproven] ✓ 对照绿 (rc=0) ⇒ 击杀干净归因于变异体
+[M120-legacy-row-generic-reason] ✗ 假杀 — 两次同一失败点 ['stmt:c02294a5bd2d']: test_g3_2_review_ledger.py:4102: AssertionError: 拒因必须点名旧行缺字段: [quiz-answer] 账本 q
+[M124-crash-window-only-when-w-empty] ✓ 对照绿 (rc=0) ⇒ 击杀干净归因于变异体
+[M125-id-form-authorizes-bare-fallback] ✗ 假杀 — 两次同一失败点 ['stmt:572a3ee726bc']: test_g3_2_review_ledger.py:4277: AssertionError: 另一个完整 id 的评分应当入账: [quiz-answer]
+[M149-adopted-two-values] ✓ 对照绿 (rc=0) ⇒ 击杀干净归因于变异体
+[M151-exam-board-bare-json-in-yaml] ✗ complete 但变异体单独即可杀 ⇒ 撤层
+[M157-anchor-direction-unchecked] ✓ complete: 变异体单独不够(门绿 rc=0), 补齐站点后才红 ⇒ 层必要
+── 基线复核（跑后）──
+   ✓ a766fbcc28e3ff91  fsrs_bridge.py
+   ✓ 63b51029ea96a78a  SKILL.md
+   ✓ 43ac9e618d10d2ff  learning-events-schema-v1.md
+
+── 汇总 ──
+KILLED (绑定断言身份: 位置 [+ 消息]): 131/138
+KILLED-UNBOUND (仅证明指定门红了, 位置与消息都没绑): 3
+KILLED 合计 (两者之和, **不等于**「全部被指定断言杀死」): 134/138
+SURVIVED: 0
+HARNESS-ERROR: 4 (负控自己坏了, 不是关于被测物的结论)
+ANCHOR-ERROR: 0 (变异未施加, 不是结论)
+SYNTAX-INVALID: 0 (>0 说明负控自己坏了) 
+六档之和: 138 (应 = 138) ✓
+（跑前只读锚点自检: 异常锚点 0 条; 主循环记下 ANCHOR-ERROR 0 条 ⇒ 一致 ✓）
+
+⛔ HARNESS-ERROR 4 条 —— 负控自己坏了, 不是关于被测物的结论 (rc=2)
+  - M10-R2-value-not-literal: 只加层与层+变异体败在同一条断言 ⇒ 击杀由层贡献 (假杀): ['stmt:c8e430b5ce69'] test_g3_2_review_ledger.py:1086: AssertionError: [quiz-answer] 账本第 1 行
+  - M18b-R7blank-judge-file-end-not-last-line: 只加层与层+变异体败在同一条断言 ⇒ 击杀由层贡献 (假杀): ['stmt:4f4c009720a9'] test_g3_2_review_ledger.py:1628: AssertionError: [坏行前有空白行 —— round-6 起
+  - M100-no-tri-instant-binding: 声明为 complete 但变异体单独即可杀 ⇒ 层是多余的
+  - M120-legacy-row-generic-reason: 只加层与层+变异体败在同一条断言 ⇒ 击杀由层贡献 (假杀): ['stmt:c02294a5bd2d'] test_g3_2_review_ledger.py:4102: AssertionError: 拒因必须点名旧行缺字段: [quiz-an
+  - M125-id-form-authorizes-bare-fallback: 只加层与层+变异体败在同一条断言 ⇒ 击杀由层贡献 (假杀): ['stmt:572a3ee726bc'] test_g3_2_review_ledger.py:4277: AssertionError: 另一个完整 id 的评分应当入账: [qu
+  - M151-exam-board-bare-json-in-yaml: 声明为 complete 但变异体单独即可杀 ⇒ 层是多余的
+rc=2

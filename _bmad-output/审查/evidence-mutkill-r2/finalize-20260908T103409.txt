@@ -1,0 +1,91 @@
+═══ (k) 跑后 sha（对 sha-targets-pre-20260908T073501.txt 逐字节）═══
+8dc761f88378b2fb1eeae4ab8d5ccfb66b368535e792521d01722889cd269015  backend/app/services/learning_event_log.py
+45c77229169c5c388332f785449aaaf284942cbdc023447598f9fc051f3828a2  backend/scripts/validate_learning_events.py
+a52c77317b799a1aa1c2d5abf23a5bbb5af78ff988179941c4e865b39ee207f8  backend/tests/regression/test_g3_2_review_ledger.py
+3bf4ed9402a4c8edfde16630a79094a5d4518fd181fa60810319fe46d37abb90  canvas-vault/.claude/scripts/decay_beta.py
+a766fbcc28e3ff917e740843c633e800aa8a75e949295f83efc90f55105f90f0  canvas-vault/.claude/scripts/fsrs_bridge.py
+63b51029ea96a78abd757902023f378697688c28db1b8dc0aaee8969e9ee48e8  canvas-vault/.claude/skills/quiz-answer/SKILL.md
+1ec5dd95ad8a634fcdd395a3468fdb534ef9936cf90f6c6d2326ffe2f518ad2a  canvas-vault/.claude/skills/start-exam-board/SKILL.md
+43ac9e618d10d2ff2e851d10db3f5c0ed5632a93d10f00fcbb34d533302f0603  docs/learning-events-schema-v1.md
+--- diff（空 = 逐字节还原）---
+✓ 无差异
+
+═══ (k) 标记残留（文件清单必须仍是那 5 项）═══
+backend/scripts/g32b_mutation_gates.py
+backend/scripts/g32cb_mutation_gates.py
+backend/scripts/g32ccr1_negative_controls.py
+backend/scripts/openapi_drift_negative_control.py
+backend/tests/regression/recap_domain_negverify.py
+--- 逐项计数 ---
+backend/scripts/g32b_mutation_gates.py 151
+backend/scripts/g32cb_mutation_gates.py 11
+backend/scripts/g32ccr1_negative_controls.py 11
+backend/scripts/openapi_drift_negative_control.py 2
+backend/tests/regression/recap_domain_negverify.py 13
+--- 与开工基线对比（差额只允许出现在本卡地盘的 backend/scripts/*.py 上，且须能逐行解释）---
+1c1
+< backend/scripts/g32b_mutation_gates.py 153
+---
+> backend/scripts/g32b_mutation_gates.py 151
+
+═══ (k) git status 里不得出现 canvas-vault/** ═══
+✓ 无
+
+═══ (o) 地盘：<U8-A 末 commit>..HEAD 只许 5 个 backend/scripts/*.py ═══
+ backend/scripts/g32b_mutation_gates.py       | 500 ++++++++++++++++----
+ backend/scripts/g32cb_mutation_gates.py      | 112 +++--
+ backend/scripts/g32ccr1_negative_controls.py |  98 ++--
+ backend/scripts/g33_mutation_gates.py        | 109 +++--
+ backend/scripts/mutation_kill_identity.py    | 670 ++++++++++++++++++++++++---
+ 5 files changed, 1227 insertions(+), 262 deletions(-)
+--- 工作树未提交的改动（同一口径）---
+ M backend/scripts/g32b_mutation_gates.py
+ M backend/scripts/g32cb_mutation_gates.py
+ M backend/scripts/g32ccr1_negative_controls.py
+ M backend/scripts/g33_mutation_gates.py
+ M backend/scripts/mutation_kill_identity.py
+
+═══ 卫生：仓库里不得有 *.stderr* ═══
+已跟踪: 1
+工作树未跟踪: 0
+
+═══ (l) tests/unit 对主干基线 diff（只许 '<' 行）═══
+基线: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/审查/evidence-b13/unit-red-baseline-da690bf8.txt
+本卡 after 存档: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u8-mutgates/_bmad-output/审查/evidence-mutkill-r2/unit-after-20260908T095407.txt
+--- diff 基线 → 本卡 ---
+diff-rc=0
+--- 只看 '>' 行（新增红，必须为空）---
+✓ 无新增红
+--- 汇总行 ---
+ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPartialFailureRecovery::test_neo4j_unavailable_fallback
+= 173 failed, 4749 passed, 48 skipped, 121 warnings, 29 errors in 148.07s (0:02:28) =
+rc=1
+
+═══ (l) tests/regression 开工 / 收工 对比 ═══
+before=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u8-mutgates/_bmad-output/审查/evidence-mutkill-r2/regression-before-20260908T085956.txt
+after=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u8-mutgates/_bmad-output/审查/evidence-mutkill-r2/regression-after-20260908T095643.txt
+✓ 无差异
+--- 汇总行 ---
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+==== 1464 passed, 6 skipped, 10 xfailed, 556 warnings in 306.40s (0:05:06) =====
+rc=0
+---
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+==== 1464 passed, 6 skipped, 10 xfailed, 557 warnings in 1381.78s (0:23:01) ====
+rc=0
+
+═══ 四套全跑的汇总行原文（六档并列，供逐字核字段名）═══
+───── run-g32b-20260908T090513.txt
+[M158-fsrs-applied-truthiness] test_round17_fsrs_applied_must_be_strict_bool → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+[M161-foreign-no-credential-promotion] test_round17_foreign_degraded_recovery_converges → KILLED (红在声称的那一条断言上（绑定维度: 位置+消息）)  [还原字节相同 63b51029ea96]
+KILLED (绑定断言身份: 位置 [+ 消息]): 137/138
+KILLED-UNBOUND (仅证明指定门红了, 位置与消息都没绑): 1
+KILLED 合计 (两者之和, **不等于**「全部被指定断言杀死」): 138/138
+SURVIVED: 0
+HARNESS-ERROR: 0 (负控自己坏了, 不是关于被测物的结论)
+ANCHOR-ERROR: 0 (变异未施加, 不是结论)
+SYNTAX-INVALID: 0 (>0 说明负控自己坏了) 
+六档之和: 138 (应 = 138) ✓
+（跑前只读锚点自检另算: 异常锚点 0 条 —— 与上面 ANCHOR-ERROR 应一致）
+rc=1
+───── run-g32cb-20260908T094038.txt

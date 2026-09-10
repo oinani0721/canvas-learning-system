@@ -1,0 +1,41 @@
+== 按协议 §2.3：LEFTHOOK_EXCLUDE=python-lint 的绕过存档 ==
+时刻: 2026-09-09 17:13:49 CST  HEAD: 38cd3ce9
+
+── 被跳过 hook 的原始输出（复现 lefthook.yml::python-lint 的两条命令）──
+$ ruff check <15 个待提交文件>
+All checks passed!
+rc=0
+
+$ ruff format --check <15 个待提交文件>
+Would reformat: backend/scripts/backfill_candidate_callouts.py
+Would reformat: backend/scripts/backfill_graphiti_structured.py
+Would reformat: backend/scripts/compare_l1_router_strategies.py
+Would reformat: backend/scripts/g41a_mutation_negative_controls.py
+Would reformat: backend/scripts/g41b_mutation_negative_controls.py
+Would reformat: backend/scripts/generate_regression_tests.py
+Would reformat: backend/scripts/graphiti_schema_canary.py
+Would reformat: backend/scripts/impact_map.py
+Would reformat: backend/scripts/migrate_group_ids.py
+Would reformat: backend/scripts/migrate_neo4j_data.py
+Would reformat: backend/scripts/quarantine_test_pollution.py
+Would reformat: backend/scripts/run_prompt_regression.py
+Would reformat: backend/scripts/verify_embedder.py
+Would reformat: backend/scripts/verify_graphiti_native_chain.py
+Would reformat: backend/scripts/verify_targeted_exam_chain.py
+15 files would be reformatted
+rc=1
+
+── 「报错不在本卡改动行」的证明 ──
+本次提交里这 15 个文件的内容 = git show 3f073a1a:<path> 逐字节，本卡改动行数 = 0：
+（上面无输出 = 15 个文件对基线 0 增 0 删）
+
+本卡自己的 5 个脚本不在本次提交里（已于 f395d900..38cd3ce9 提交并过门），
+其独立 ruff 结果见 scope-fix-20260909T171246.txt 第 2 段：check rc=0 / format --check rc=0。
+⇒ 本次绕过损失的覆盖面 = 0。
+
+── 根因 ──
+commit 01ac27d0 里我跑了 `ruff format backend/scripts/*.py`（通配全目录）而非点名 5 个，
+把 15 个本卡地盘外脚本一并格式化，违反卡完成条件 (o)。本次提交把它们还原回基线。
+还原后它们回到「基线既有的不合格式」状态 —— 该债由 python-lint 的 staged-only 语义长期掩盖
+（glob 只查本次 staged 文件，这 15 个在历史 commit 里从未被 stage 过）。清债 = 另一张卡。
+rc=0

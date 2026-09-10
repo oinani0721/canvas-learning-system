@@ -1,0 +1,23 @@
+OK  g32b      MUTATIONS=138 EXPECT_MSG=99 EXEMPT=39  (卡文声称 (138, 99, 39))
+     target in_lane=True  in_live=False exists=True  canvas-vault/.claude/scripts/fsrs_bridge.py
+     target in_lane=True  in_live=False exists=True  canvas-vault/.claude/skills/quiz-answer/SKILL.md
+     target in_lane=True  in_live=False exists=True  docs/learning-events-schema-v1.md
+OK  g32cb     MUTATIONS=9 EXPECT_MSG=9 EXEMPT=0  (卡文声称 (9, 9, 0))
+     target in_lane=True  in_live=False exists=True  backend/scripts/validate_learning_events.py
+     target in_lane=True  in_live=False exists=True  canvas-vault/.claude/skills/quiz-answer/SKILL.md
+OK  g32ccr1   MUTATIONS=11 EXPECT_MSG=11 EXEMPT=0  (卡文声称 (11, 11, 0))
+     target in_lane=True  in_live=False exists=True  backend/scripts/validate_learning_events.py
+     target in_lane=True  in_live=False exists=True  canvas-vault/.claude/skills/quiz-answer/SKILL.md
+OK  g33       MUTATIONS=18 EXPECT_MSG=None EXEMPT=None  (卡文声称 (18, None, None))
+     target in_lane=True  in_live=False exists=True  backend/app/services/learning_event_log.py
+     target in_lane=True  in_live=False exists=True  canvas-vault/.claude/scripts/fsrs_bridge.py
+     target in_lane=True  in_live=False exists=True  canvas-vault/.claude/skills/quiz-answer/SKILL.md
+     target in_lane=True  in_live=False exists=True  canvas-vault/.claude/skills/start-exam-board/SKILL.md
+=== 去重后的全部变异写入面 ===
+backend/app/services/learning_event_log.py
+backend/scripts/validate_learning_events.py
+canvas-vault/.claude/scripts/fsrs_bridge.py
+canvas-vault/.claude/skills/quiz-answer/SKILL.md
+canvas-vault/.claude/skills/start-exam-board/SKILL.md
+docs/learning-events-schema-v1.md
+VERDICT: PASS
