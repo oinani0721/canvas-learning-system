@@ -269,7 +269,15 @@ class TestCallExplanationComparisonFormat:
         # Capture the JSON prompt sent to call_agent
         captured_json = {}
 
-        async def mock_call_agent(agent_type, prompt, context=None):
+        # 契约演进（9d3326ee, 2026-03-10）：call_explanation 末尾调用 call_agent 时
+        # 增传 canvas_name / node_id（同 commit 给 call_agent 加了这两个形参，
+        # agent_service.py:3763-3769）。替身停在三参签名 ⇒ 调用即 TypeError，
+        # 断言体一行都跑不到。此处只补形参对齐 arity，断言原文不动。
+        # ⛔ 不用 **kwargs 兜底：那会把未来的签名漂移静默吞掉，
+        #    显式默认参数才能在生产下次改签名时如实再红。[CARD-RED-C2]
+        async def mock_call_agent(
+            agent_type, prompt, context=None, canvas_name=None, node_id=None
+        ):
             captured_json["prompt"] = prompt
             captured_json["type"] = str(agent_type)
             return MagicMock(content="mock response", success=True)
@@ -310,7 +318,15 @@ class TestCallExplanationComparisonFormat:
         content = "逆否命题的定义..."
         captured_json = {}
 
-        async def mock_call_agent(agent_type, prompt, context=None):
+        # 契约演进（9d3326ee, 2026-03-10）：call_explanation 末尾调用 call_agent 时
+        # 增传 canvas_name / node_id（同 commit 给 call_agent 加了这两个形参，
+        # agent_service.py:3763-3769）。替身停在三参签名 ⇒ 调用即 TypeError，
+        # 断言体一行都跑不到。此处只补形参对齐 arity，断言原文不动。
+        # ⛔ 不用 **kwargs 兜底：那会把未来的签名漂移静默吞掉，
+        #    显式默认参数才能在生产下次改签名时如实再红。[CARD-RED-C2]
+        async def mock_call_agent(
+            agent_type, prompt, context=None, canvas_name=None, node_id=None
+        ):
             captured_json["prompt"] = prompt
             return MagicMock(content="mock response", success=True)
 
@@ -342,7 +358,15 @@ class TestCallExplanationComparisonFormat:
         content = "测试内容"
         captured_json = {}
 
-        async def mock_call_agent(agent_type, prompt, context=None):
+        # 契约演进（9d3326ee, 2026-03-10）：call_explanation 末尾调用 call_agent 时
+        # 增传 canvas_name / node_id（同 commit 给 call_agent 加了这两个形参，
+        # agent_service.py:3763-3769）。替身停在三参签名 ⇒ 调用即 TypeError，
+        # 断言体一行都跑不到。此处只补形参对齐 arity，断言原文不动。
+        # ⛔ 不用 **kwargs 兜底：那会把未来的签名漂移静默吞掉，
+        #    显式默认参数才能在生产下次改签名时如实再红。[CARD-RED-C2]
+        async def mock_call_agent(
+            agent_type, prompt, context=None, canvas_name=None, node_id=None
+        ):
             captured_json["prompt"] = prompt
             return MagicMock(content="mock response", success=True)
 
@@ -367,7 +391,15 @@ class TestCallExplanationComparisonFormat:
         content = "测试内容"
         captured_json = {}
 
-        async def mock_call_agent(agent_type, prompt, context=None):
+        # 契约演进（9d3326ee, 2026-03-10）：call_explanation 末尾调用 call_agent 时
+        # 增传 canvas_name / node_id（同 commit 给 call_agent 加了这两个形参，
+        # agent_service.py:3763-3769）。替身停在三参签名 ⇒ 调用即 TypeError，
+        # 断言体一行都跑不到。此处只补形参对齐 arity，断言原文不动。
+        # ⛔ 不用 **kwargs 兜底：那会把未来的签名漂移静默吞掉，
+        #    显式默认参数才能在生产下次改签名时如实再红。[CARD-RED-C2]
+        async def mock_call_agent(
+            agent_type, prompt, context=None, canvas_name=None, node_id=None
+        ):
             captured_json["prompt"] = prompt
             return MagicMock(content="mock response", success=True)
 
@@ -392,7 +424,15 @@ class TestCallExplanationComparisonFormat:
         content = "测试内容"
         captured_json = {}
 
-        async def mock_call_agent(agent_type, prompt, context=None):
+        # 契约演进（9d3326ee, 2026-03-10）：call_explanation 末尾调用 call_agent 时
+        # 增传 canvas_name / node_id（同 commit 给 call_agent 加了这两个形参，
+        # agent_service.py:3763-3769）。替身停在三参签名 ⇒ 调用即 TypeError，
+        # 断言体一行都跑不到。此处只补形参对齐 arity，断言原文不动。
+        # ⛔ 不用 **kwargs 兜底：那会把未来的签名漂移静默吞掉，
+        #    显式默认参数才能在生产下次改签名时如实再红。[CARD-RED-C2]
+        async def mock_call_agent(
+            agent_type, prompt, context=None, canvas_name=None, node_id=None
+        ):
             captured_json["prompt"] = prompt
             return MagicMock(content="mock response", success=True)
 
@@ -417,7 +457,15 @@ class TestCallExplanationComparisonFormat:
         content = "测试内容"
         captured_json = {}
 
-        async def mock_call_agent(agent_type, prompt, context=None):
+        # 契约演进（9d3326ee, 2026-03-10）：call_explanation 末尾调用 call_agent 时
+        # 增传 canvas_name / node_id（同 commit 给 call_agent 加了这两个形参，
+        # agent_service.py:3763-3769）。替身停在三参签名 ⇒ 调用即 TypeError，
+        # 断言体一行都跑不到。此处只补形参对齐 arity，断言原文不动。
+        # ⛔ 不用 **kwargs 兜底：那会把未来的签名漂移静默吞掉，
+        #    显式默认参数才能在生产下次改签名时如实再红。[CARD-RED-C2]
+        async def mock_call_agent(
+            agent_type, prompt, context=None, canvas_name=None, node_id=None
+        ):
             captured_json["prompt"] = prompt
             return MagicMock(content="mock response", success=True)
 

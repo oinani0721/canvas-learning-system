@@ -575,7 +575,7 @@ class TestEnrichWithAdjacentNodes2Hop:
             canvas_name="test-canvas",
             node_id="C",
             hop_depth=2,
-            include_graphiti=False,
+            include_learning_memory=False,
         )
 
         # Assert
@@ -601,7 +601,7 @@ class TestEnrichWithAdjacentNodes2Hop:
             canvas_name="test-canvas",
             node_id="C",
             hop_depth=2,
-            include_graphiti=False,
+            include_learning_memory=False,
         )
 
         # Assert - check that 2-hop is indicated in the context

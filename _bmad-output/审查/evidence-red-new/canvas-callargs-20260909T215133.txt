@@ -1,0 +1,5 @@
+    assert call_args.kwargs["event_type"] == "edge_created"
+E   AssertionError: assert 'node_created' == 'edge_created'
+FAILED tests/unit/test_canvas_memory_trigger.py::TestAddEdgeMemoryTrigger::test_add_edge_triggers_memory_event
+======================== 1 failed, 10 warnings in 0.68s ========================
+rc=1

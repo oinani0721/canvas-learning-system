@@ -1,0 +1,43 @@
+# 负控 r3：三轮 Codex 给的全部复现输入，整改后必须全部变红
+# 方法：把真实 test 模块的 PROJECT_ROOT 指到临时目录，喂多种 docker-compose.yml；跑测试本体。
+# ⚠️ 本份取代 negctl-compose-exemption-r2-*.txt 的 ④⑤ 两例——那两例的标题写「另一个 service」，
+#    实际把片段追加到了文件末尾、落进**顶层 volumes: 段**（Codex round-3 LOW 抓到）。
+#    本份改为插在 services: 行正下方，确保是真正的 sibling service。
+HEAD=0909e935  跑于 2026-09-09 14:37:36
+
+OK  ① 现状（未改动的真实 compose）
+     期望=PASS 实测=PASS  
+OK  ② r1 复现：复制到另一个**真正的 sibling service**
+     期望=FAIL 实测=FAIL  Exempted mount values appear more than once in the file text: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/data:/data']
+     结构自证: services 下新增的 service = ['malicious-service', 'neo4j-test', 'ollama', 'backend', 'claude-dev']
+OK  ③ 正控：新增一条陌生的硬编码用户路径
+     期望=FAIL 实测=FAIL  Hardcoded user paths outside the 8a80595f neo4j exemption: ['- /Users/Someone/secret/data:/data']
+OK  ④ r2-HIGH：sibling service 写成 `other: # comment`
+     期望=FAIL 实测=FAIL  Hardcoded user paths outside services.neo4j.volumes[<i>]: [(('services', 'other', 'volumes', '0'), '/Users/Heishing/Desktop/canvas/canvas-learning-sys
+     结构自证: services 下新增的 service = ['other', 'neo4j-test', 'ollama', 'backend', 'claude-dev']
+OK  ⑤ r2-HIGH 变体：sibling service 写成带引号的 `"other":`
+     期望=FAIL 实测=FAIL  Hardcoded user paths outside services.neo4j.volumes[<i>]: [(('services', 'other', 'volumes', '0'), '/Users/Heishing/Desktop/canvas/canvas-learning-sys
+     结构自证: services 下新增的 service = ['other', 'neo4j-test', 'ollama', 'backend', 'claude-dev']
+OK  ⑥ r2-MEDIUM：留在 neo4j 但挪进 command（不在 volumes）
+     期望=FAIL 实测=FAIL  Hardcoded user paths outside services.neo4j.volumes[<i>]: [(('services', 'neo4j', 'command', '0'), '/Users/Heishing/Desktop/canvas/canvas-learning-sys
+OK  ⑦ 只写进注释（内容轴应拦下）
+     期望=FAIL 实测=FAIL  Hardcoded user paths outside the 8a80595f neo4j exemption: ['# 备注: /Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/data:/data']
+OK  ⑧ r3-HIGH：neo4j.volumes 用长格式，获准串落在 source 后代字段
+     期望=FAIL 实测=FAIL  Hardcoded user paths outside the 8a80595f neo4j exemption: ['source: /Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/data:/data']
+OK  ⑨ r3-MEDIUM：`<<:` 合并键让原文出现两次、解析后只剩一次
+     期望=FAIL 实测=FAIL  Exempted mount values appear more than once in the file text: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/data:/data']
+
+判据：①=PASS；②③④⑤⑥⑦⑧⑨ 全部 FAIL（②④⑤ 另附结构自证，确认确实在 services.<name>.volumes 下）。
+
+## 两条如实补注
+
+1. **⑧ 实际是被「内容轴」拦下的，不是深度判据**：长格式写法产生的行是
+   `source: /Users/.../data:/data`，整行文本不在豁免名单里 ⇒ 轴一先红。
+   深度判据（`len(path) != 4`）是该面的**结构性后备**：即便有人把长格式写成
+   轴一识别不出的形态，`(services, neo4j, volumes, 0, "source")` 长度为 5 也会红。
+   两轴各自独立成立，此处只是轴一先触发。
+
+2. **②⑨ 都是被「文本数量轴」拦下的**：② 复制后同一串在全文出现两次；
+   ⑨ 的 `<<:` 合并键让解析结果里只剩一次、原文仍是两次。
+   这正是 Codex round-3 MEDIUM 要求的——数量必须在**文本层**数，
+   只数 YAML 解析后的值会被 safe_load 的合并/覆盖悄悄吃掉。

@@ -1,0 +1,12 @@
+=== 复核 Codex HIGH-1：base 含反斜杠时正常上传被误拒 ===
+场景                                   旧(accept)    当前(accept)    修后(accept)
+base 含反斜杠 + 正常服务端文件名                      True         False          True
+正常 base + 正常文件名                           True          True          True
+正常 base + 本卡用例(win 穿越)                    True         False         False
+正常 base + unix 穿越                        False         False         False
+base 含反斜杠 + win 穿越                        True         False         False
+正常 base + 合法含反斜杠文件名                       True          True          True
+
+判据：
+  行1 旧=True 当前=False ⇒ Codex HIGH-1 成立（当前版本误拒）；修后=True ⇒ 已消除
+  行3/4/5 旧或当前为 False 且修后仍 False ⇒ 拒绝面未被放宽

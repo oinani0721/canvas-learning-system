@@ -1,0 +1,30 @@
+# 负控 r5（安全面）：round-5 HIGH 的三条**组合序列** + 前几轮防线回归 + 误报正控
+# 背景：round-4 我把「完整参数集」整条挪进 B 层，结果一次合法调用可以**掩护**坏调用。
+#       这是本卡唯一一次**我自己把判据改弱**，round-5 抓到，本份是整改后的验证。
+# 方法：运行期替换生产方法（纯内存），跑测试本体，finally 无条件还原。
+# ⚠️ 本份的前一次运行（negctl-security-r5-20260909T151650.txt）**七条全是 ERROR**——
+#    变异体签名写成位置参数 u，而被测代码用 user_id= 关键字调用，变异根本没生效。
+#    「不是 PASS」不等于「FAIL」：若判据写成「只要不 PASS 就算拦住了」，那次会被读成全绿。
+#    本份判据是逐条比对期望值，故当场暴露。那份保留作记录。
+HEAD=2b911c62  跑于 2026-09-09 15:17:31
+
+[92m15:17:35 - LiteLLM:WARNING[0m: get_model_cost_map.py:271 - LiteLLM: Failed to fetch remote model cost map from https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json: Server disconnected without sending a response.. Falling back to local backup.
+OK  ① 基线（单条全参数化）
+     期望=PASS 实测=PASS  
+OK  ② 正控：合法分步查询（count 无 LIMIT、无需 limit）不得误报
+     期望=PASS 实测=PASS  
+OK  ③ r5-HIGH：无 kwargs 的裸查询 + 合法调用
+     期望=FAIL 实测=FAIL  本次 run_query 没带 group 作用域参数——R1 读契约要求每条业务读都带 group 过滤。kwargs=[] query='MATCH (n) RETURN n LIMIT 5'
+OK  ④ r5-HIGH：绑错物理组的 count + 合法调用
+     期望=FAIL 实测=FAIL  group_id 未物理化或绑错组。got='vault__WRONG' want='vault__script_drop_table_users'
+OK  ⑤ r5-HIGH：内联 LIMIT 删 limit + 合法调用
+     期望=FAIL 实测=FAIL  查询里有 LIMIT 却没有绑定的 $limit 参数，值可能被内联进了文本。kwargs=['group_id', 'group_prefix', 'userId'] query='MATCH (u:User {id: $use
+OK  ⑥ r3 回归：先发含恶意原串的查询 + 合法调用
+     期望=FAIL 实测=FAIL  本次 run_query 没带 group 作用域参数——R1 读契约要求每条业务读都带 group 过滤。kwargs=[] query="MATCH (c:Concept) WHERE c.group_id = '<scrip
+OK  ⑦ r3 回归：LIMIT 5 /* $limit */
+     期望=FAIL 实测=FAIL  参数 limit 传进了 kwargs 却没有对应的 $limit 占位符（已排除注释），说明它的值可能被内联进了查询文本。query='MATCH (u:User {id: $userId})-[r:LEARNED]->(c:C
+
+还原校验: get_review_suggestions is ORIG = True
+
+判据：①② PASS（② 是 round-4 修掉的误报面，不得回退）；③④⑤⑥⑦ FAIL。
+③⑤ 在本轮整改前实测是 PASS（漏过）——那正是 round-5 HIGH 的内容。

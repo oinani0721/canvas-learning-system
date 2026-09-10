@@ -1,0 +1,43 @@
+=== 协议 §2.3 存档：被跳过 hook 的原始输出 ===
+hook: python-lint (lefthook pre-commit)  卡: CARD-RED-C1  时间: 20260908T072435
+
+--- 原始输出（逐字抄自 git commit 的 hook 段）---
+[Python] Running ruff lint...
+All checks passed!
+[Python] Lint OK.
+[Python] Checking format...
+Would reformat: backend/tests/unit/test_cache_configuration.py
+Would reformat: backend/tests/unit/test_qa_38_4_dual_write_extra.py
+Would reformat: backend/tests/unit/test_story_38_4_dual_write_default.py
+3 files would be reformatted, 1 file already formatted
+[Python] Format check FAILED! Fix: ruff format backend/tests/unit/test_cache_configuration.py backend/tests/unit/test_qa_38_4_dual_write_extra.py backend/tests/unit/test_story_38_4_dual_write_default.py backend/tests/unit/test_story_38_6_scoring_reliability.py
+exit status 1
+
+注：ruff lint 段 All checks passed；失败的只有 format 段。
+
+=== 证明一：报错是存量，不是本卡引入（开工基线，HEAD=da690bf8，改动前）===
+=== ruff format 存量漂移基线（开工，HEAD=da690bf8）===
+Would reformat: tests/unit/test_cache_configuration.py
+Would reformat: tests/unit/test_qa_38_4_dual_write_extra.py
+Would reformat: tests/unit/test_story_38_4_dual_write_default.py
+3 files would be reformatted, 2 files already formatted
+
+  ⇒ 同样这 3 个文件在本卡一行未改时就已 Would reformat；
+    本卡另改的第 4 个文件 test_story_38_6_scoring_reliability.py 开工/收工均 already formatted。
+
+=== 证明二：内容口径——本卡零新增漂移（不靠「两边都红」这种弱判据）===
+命令：对 HEAD 版与本卡版分别跑 ruff format --diff，取其 ± 内容行做多重集对照
+  HEAD 版: git show HEAD:<file> 落到临时目录后 ruff format --diff
+  本卡版:  工作树原地 ruff format --diff
+  多重集 diff rc=0  （0 = 两版重排面逐条相同 ⇒ 本卡未引入任何新的格式漂移）
+
+=== 证明三：本卡加入的行未出现在 ruff 要求重排的面里 ===
+  grep 'CARD-RED-C1|xfail|daa9fd37|canvas_service.py' ruff-diff-after.txt 命中数: 0
+  （0 = 本卡新增的装饰器/reason/注释行 ruff 一行都不要求重排）
+
+=== 处置 ===
+按 D-16 甲『禁顺手修存量』，本卡不对这 3 个文件跑 ruff format
+（顺手 format 会改掉与本卡无关的存量行，越界且污染 diff 面）。
+按协议 §2.3 带存档跳过 python-lint 提交；本卡零 backend/app 改动，
+python-typecheck 不适用（hook 自报 'no files for inspection'）。
+存量格式漂移归 lint/format 专项清理卡（登记）。

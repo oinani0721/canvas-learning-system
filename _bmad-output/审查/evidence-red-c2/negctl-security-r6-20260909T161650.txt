@@ -1,0 +1,42 @@
+# 负控 r6（安全面）：六轮全部复现 + 误报正控 + 逐条隔离
+# ⚠️ 本份在**提交态**跑（r6 MEDIUM 指出上一份的 HEAD 是 2b911c62、非提交态）。
+# ⚠️ ⑥ 已重做：上一份的 ⑥ 实际命中的是「缺 group 参数」，没有隔离它声称回归的
+#    「恶意原串不得入 query 文本」那条（r6 LOW）。本份给它配齐 scope 与占位符，
+#    使它只可能死在安全内核那一条上。
+HEAD=82c285db  工作树改动数=3（全是未跟踪的 _bmad-output 存档：r6 prompt / r6 review / 本文件；**代码树已提交**，见下方 git 判据）  跑于 2026-09-09 16:16:50
+
+OK  ① 基线（单条全参数化）
+     期望=PASS 实测=PASS  
+OK  ② 正控 r4：合法分步 count（无 LIMIT、无需 limit）
+     期望=PASS 实测=PASS  
+OK  ③ 正控 r6：count 里有标识符 `AS unlimited_count`
+     期望=PASS 实测=PASS  
+OK  ④ 正控 r6：count 里有字符串 `'LIMIT' AS marker`
+     期望=PASS 实测=PASS  
+OK  ⑤ r5 序列：无 kwargs 的裸查询 + 合法调用
+     期望=FAIL 实测=FAIL  本次 run_query 没带 group 作用域参数——R1 读契约要求每条业务读都带 group 过滤。kwargs=[] query='MATCH (n) RETURN n LIMIT 5'
+OK  ⑥ r5 序列：绑错物理组 + 合法调用
+     期望=FAIL 实测=FAIL  group_id 未物理化或绑错组。got='vault__WRONG' want='vault__script_drop_table_users'
+OK  ⑦ r5 序列：内联 LIMIT 删 limit + 合法调用
+     期望=FAIL 实测=FAIL  查询里出现 `LIMIT <数字>`，说明分页值被内联进了文本而不是绑定参数。kwargs=['group_id', 'group_prefix', 'userId'] query='MATCH (u:User {id:
+OK  ⑧ r6-HIGH：内联 userId 删 kwarg + 合法调用
+     期望=FAIL 实测=FAIL  本用例喂进去的 user_id 值被拼进了查询文本，应作为绑定参数传递。value='test_user' query="MATCH (u:User {id: 'test_user'})-[r:LEARNED]->(c:
+OK  ⑨ r3 回归（**已隔离**）：恶意原串入文本，scope/占位符齐全
+     期望=FAIL 实测=FAIL  Malicious input found in query string — possible Cypher injection!
+OK  ⑩ r3 回归：LIMIT 5 /* $limit */
+     期望=FAIL 实测=FAIL  参数 limit 传进了 kwargs 却没有对应的 $limit 占位符（已排除注释），说明它的值可能被内联进了查询文本。query='MATCH (u:User {id: $userId})-[r:LEARNED]-
+
+还原校验: get_review_suggestions is ORIG = True
+
+判据：①②③④ PASS（②③④ 是误报正控，不得红）；⑤⑥⑦⑧⑨⑩ FAIL。
+⑧ 在本轮整改前实测 PASS（漏过）= r6-HIGH；③④ 在整改前实测 FAIL（误报）= r6-MEDIUM。
+
+## 代码树提交态自证（r6 MEDIUM 要求「证据要能绑到提交态」）
+
+本文件跑于 HEAD=82c285db。当时 `git status --porcelain` 的 3 处改动**全部**是未跟踪的
+`_bmad-output/` 存档文件，代码面（`backend/`）零未提交改动：
+
+    $ git status --porcelain -- backend
+    （无输出）
+
+⇒ 本负控跑的就是 `82c285db` 的代码树本身。

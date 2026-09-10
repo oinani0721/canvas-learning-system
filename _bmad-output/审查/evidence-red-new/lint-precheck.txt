@@ -1,0 +1,12 @@
+=== ruff check（本卡 6 个改动文件）===
+All checks passed!
+ruff-check-rc=0
+
+=== ruff format --check ===
+Would reformat: backend/app/services/multimodal_service.py
+Would reformat: backend/tests/unit/test_calibration_tracker.py
+Would reformat: backend/tests/unit/test_canvas_memory_trigger.py
+Would reformat: backend/tests/unit/test_event_bus.py
+Would reformat: backend/tests/unit/test_mastery_fusion.py
+5 files would be reformatted, 1 file already formatted
+ruff-format-rc=0

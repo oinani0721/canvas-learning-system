@@ -1,0 +1,18 @@
+# 负控 r4（安全面）：A/B 分层后，既要保住 round-3 的防线，也要不再误伤合法分步查询
+# 方法：运行期替换生产方法（纯内存），跑测试本体，finally 无条件还原。
+HEAD=5e3c7998  跑于 2026-09-09 15:01:08
+
+OK  ① 基线（单条全参数化）
+     期望=PASS 实测=PASS  
+OK  ② r4-LOW 正控：**合法分步查询**（先 count 后取结果）不得误报
+     期望=PASS 实测=PASS  
+OK  ③ r3-LOW 回归：先发含恶意原串的查询再发干净的
+     期望=FAIL 实测=FAIL  Malicious input found in query string — possible Cypher injection!
+OK  ④ r3-LOW 回归：LIMIT 5 /* $limit */
+     期望=FAIL 实测=FAIL  参数 limit 传进了 kwargs 却没有对应的 $limit 占位符（已排除注释），说明它的值可能被内联进了查询文本。query='MATCH (u:User {id: $userId})-[r:LEARNED]->(c:Concept)\n      
+OK  ⑤ r2-LOW 回归：内联 LIMIT 且删掉 limit kwarg
+     期望=FAIL 实测=FAIL  没有任何一次 run_query 带完整的作用域参数集 ['group_id', 'group_prefix', 'limit', 'userId']；各次 kwargs=[['group_id', 'group_prefix', 'userId']]；缺参数
+
+还原校验: get_review_suggestions is ORIG = True
+
+判据：①② PASS（② 是 round-4 指出的误报面，A/B 分层后必须不再红）；③④⑤ FAIL（前几轮防线不得回退）。

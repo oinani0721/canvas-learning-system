@@ -1,0 +1,81 @@
+=== 我的版本：ruff format --diff（本卡 6 文件）===
+--- backend/app/services/multimodal_service.py
++++ backend/app/services/multimodal_service.py
+@@ -315,10 +315,7 @@
+             return str(thumb_path)
+ 
+         except ImportError:
+-            logger.warning(
+-                "Pillow not installed — thumbnail generation disabled. "
+-                "Install with: pip install Pillow"
+-            )
++            logger.warning("Pillow not installed — thumbnail generation disabled. Install with: pip install Pillow")
+             return None
+         except (OSError, ValueError) as e:
+             logger.warning("Thumbnail generation failed for %s: %s", content_id, e)
+@@ -334,9 +331,7 @@
+         logger.info("MultimodalService initialized successfully")
+         return True
+ 
+-    def _detect_media_type(
+-        self, filename: str, content_type: Optional[str] = None
+-    ) -> MultimodalMediaType:
++    def _detect_media_type(self, filename: str, content_type: Optional[str] = None) -> MultimodalMediaType:
+         """
+         Detect media type from filename and/or content type.
+ 
+@@ -363,9 +358,7 @@
+ 
+         raise FileValidationError(f"Unsupported file type: {ext or content_type}")
+ 
+-    def _validate_file(
+-        self, filename: str, content_type: Optional[str], file_size: int
+-    ) -> MultimodalMediaType:
++    def _validate_file(self, filename: str, content_type: Optional[str], file_size: int) -> MultimodalMediaType:
+         """
+         Validate uploaded file.
+ 
+@@ -382,9 +375,7 @@
+         """
+         # Validate file size
+         if file_size > MAX_FILE_SIZE:
+-            raise FileValidationError(
+-                f"File too large: {file_size / 1024 / 1024:.1f}MB (max: 50MB)"
+-            )
++            raise FileValidationError(f"File too large: {file_size / 1024 / 1024:.1f}MB (max: 50MB)")
+ 
+         # Validate and detect media type
+         media_type = self._detect_media_type(filename, content_type)
+@@ -393,9 +384,7 @@
+         if content_type:
+             expected_mimes = SUPPORTED_MIME_TYPES.get(media_type, set())
+             if content_type not in expected_mimes:
+-                logger.warning(
+-                    f"Content-Type mismatch: {content_type} vs expected {expected_mimes}"
+-                )
++                logger.warning(f"Content-Type mismatch: {content_type} vs expected {expected_mimes}")
+ 
+         return media_type
+ 
+@@ -437,23 +426,13 @@
+ 
+         # Audio: RIFF WAVE, ID3, sync bytes, OggS, fLaC
+         if media_type == MultimodalMediaType.AUDIO:
+-            if (
+-                file_bytes[:4] == b"RIFF"
+-                and len(file_bytes) >= 12
+-                and file_bytes[8:12] == b"WAVE"
+-            ):
++            if file_bytes[:4] == b"RIFF" and len(file_bytes) >= 12 and file_bytes[8:12] == b"WAVE":
+                 return
+-            if (
+-                file_bytes[:3] == b"ID3"
+-                or file_bytes[:4] == b"OggS"
+-                or file_bytes[:4] == b"fLaC"
+-            ):
++            if file_bytes[:3] == b"ID3" or file_bytes[:4] == b"OggS" or file_bytes[:4] == b"fLaC":
+                 return
+             if file_bytes[:2] in (b"\xff\xfb", b"\xff\xf3", b"\xff\xf2"):
+                 return
+-            logger.warning(
+-                "Unrecognized audio format for %s, allowing upload", filename

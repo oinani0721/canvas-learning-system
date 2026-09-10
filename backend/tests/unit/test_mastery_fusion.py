@@ -312,9 +312,17 @@ class TestPearsonCorrelation:
         assert r == pytest.approx(-1.0, abs=0.001)
 
     def test_no_correlation(self):
-        """Orthogonal signals → r near 0."""
-        a = [1.0, 0.0, 1.0, 0.0, 1.0]
-        b = [0.0, 1.0, 0.0, 1.0, 0.0]
+        """Orthogonal signals → r near 0.
+
+        The previous data was b = 1 - a, i.e. perfectly *negatively* correlated, so
+        r = -1.0 was the mathematically correct answer rather than a defect — the
+        data simply did not match this docstring.
+
+        With a = [1,0,1,0] and b = [1,1,0,0]: mean_a = mean_b = 0.5 and
+        cov = (.5)(.5) + (-.5)(.5) + (.5)(-.5) + (-.5)(-.5) = 0, so r = 0.0.
+        """
+        a = [1.0, 0.0, 1.0, 0.0]
+        b = [1.0, 1.0, 0.0, 0.0]
         r = compute_pearson_r(a, b)
         assert r is not None
         assert abs(r) < 0.5  # Not strongly correlated

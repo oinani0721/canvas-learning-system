@@ -1,0 +1,499 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u11-red-c/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 104 items
+
+tests/unit/test_story_38_4_dual_write_default.py ..F.FF.                 [  6%]
+tests/unit/test_story_38_1_review_fixes.py ......                        [ 12%]
+tests/unit/test_wave5_stageb_continued_vault_id_injection.py ........... [ 23%]
+.........................                                                [ 47%]
+tests/unit/test_story_1_7_env_config.py .............                    [ 59%]
+tests/unit/test_agent_memory_trigger.py ................................ [ 90%]
+..........                                                               [100%]
+
+=================================== FAILURES ===================================
+________ TestAC1SafeDefault.test_startup_log_dual_write_enabled_default ________
+tests/unit/test_story_38_4_dual_write_default.py:120: in test_startup_log_dual_write_enabled_default
+    assert any(
+E   AssertionError: Expected startup log 'Dual-write: enabled (default)' not found. Got logs: ['Starting test v0.0.0', 'Debug mode: False', 'Log level: INFO', 'CORS origins: []', 'API prefix: /api/v1', 'Resource monitoring started with 5s interval', 'Alert manager started with 0 rules (30s interval)', "{'event': '[PromptRegistry] Loaded autoscore v1 (hash=4459bdcc7188)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.191277Z'}", "{'event': '[PromptRegistry] Loaded context_extract v1 (hash=c648a7641ca5)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.191410Z'}", "{'event': '[PromptRegistry] Loaded crag_grading v1 (hash=94b624e7ed31)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.191502Z'}", "{'event': '[PromptRegistry] Loaded query_optimize v1 (hash=d74f28f3a3a9)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.191592Z'}", "{'event': '[PromptRegistry] Loaded query_rewrite v1 (hash=54abd977e7e2)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.191670Z'}", "{'event': '[PromptRegistry] Loaded question_gen v1 (hash=706f5ab04957)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.191747Z'}", "{'event': '[PromptRegistry] Loaded search_intent v1 (hash=3255b0c040d8)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.191815Z'}", "{'event': '[PromptRegistry] Loaded 7 templates across 7 prompt names', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.191847Z'}", '[Story 7.3] PromptRegistry loaded 7 templates', '[Story 7.2] CostTracker initialized: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u11-red-c/backend/data/llm_call_logs.db', '[Story 7.2] LLM Call Logger started', '[Story 7.2] Log rotation task started (daily cycle)', '[Story 7.2] LiteLLM CustomLogger callback registered via litellm.callbacks', '[Story 7.2] LLM logging infrastructure initialized', 'Pre-warming MemoryService singleton...', 'MemoryService pre-warmed successfully', '[Story 38.1] No pending LanceDB index operations', "{'event': '[Story 3.8] Archive scheduler started (interval=86400s)', 'logger': 'app.services.archive_scheduler', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.202044Z'}", '[Story 3.8] Archive scheduler started (24h interval)', "{'event': 'EventBus: global singleton created', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.203054Z'}", "{'event': 'EventBus: subscribed handle_score_submitted to score_submitted (subsystem=mastery_engine)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.203119Z'}", "{'event': 'EventBus: subscribed handle_bkt_updated to bkt_updated (subsystem=mastery_store)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.203156Z'}", "{'event': 'EventBus: subscribed handle_mastery_changed to mastery_changed (subsystem=mastery_pipeline)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.203184Z'}", "{'event': 'EventBus: subscribed handle_calibration_recorded to calibration_recorded (subsystem=calibration)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.203210Z'}", "{'event': 'EventBus: subscribed handle_memory_write_requested to memory_write_requested (subsystem=memory)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.203232Z'}", "{'event': 'EventBus: subscribed handle_fsrs_updated to fsrs_updated (subsystem=memory)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.203253Z'}", "{'event': 'EventBus: subscribed handle_rag_weight_adjust to rag_weight_adjust', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.203273Z'}", "{'event': 'EventBus: subscribed handle_ui_mastery_push to ui_mastery_push', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.203293Z'}", "{'event': 'EventBus: registered 8 production handlers (SCORE_SUBMITTED, BKT_UPDATED, FSRS_UPDATED, MASTERY_CHANGED, CALIBRATION_RECORDED, MEMORY_WRITE_REQUESTED, RAG_WEIGHT_ADJUST, UI_MASTERY_PUSH)', 'logger': 'app.services.event_handlers', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.203318Z'}", '[Story 5.7] EventBus handlers registered', "{'event': 'No mastery_config.json found, using defaults', 'logger': 'app.services.mastery_engine', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.205087Z'}", 'Initialized FSRS scheduler with retention=0.9', '{\'event\': "SignalRegistry: registered signal \'bkt_mastery\'", \'logger\': \'app.services.signal_registry\', \'level\': \'info\', \'timestamp\': \'2026-09-09T05:13:36.205227Z\'}', '{\'event\': "SignalRegistry: registered signal \'fsrs_retrievability\'", \'logger\': \'app.services.signal_registry\', \'level\': \'info\', \'timestamp\': \'2026-09-09T05:13:36.205263Z\'}', '{\'event\': "SignalRegistry: registered signal \'exam_score_avg\'", \'logger\': \'app.services.signal_registry\', \'level\': \'info\', \'timestamp\': \'2026-09-09T05:13:36.205289Z\'}', '{\'event\': "SignalRegistry: registered signal \'calibration_bias\'", \'logger\': \'app.services.signal_registry\', \'level\': \'info\', \'timestamp\': \'2026-09-09T05:13:36.205316Z\'}', '{\'event\': "SignalRegistry: registered signal \'self_confidence_avg\'", \'logger\': \'app.services.signal_registry\', \'level\': \'info\', \'timestamp\': \'2026-09-09T05:13:36.205338Z\'}', "{'event': 'MasteryEngine: fusion engine attached', 'logger': 'app.services.mastery_engine', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.205359Z'}", "{'event': 'MasteryEngine singleton set (fusion-enabled)', 'logger': 'app.services.mastery_engine', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.205381Z'}", '[Story 5.6] Signal registry initialized with 5 adapters, fusion engine attached', "[Phase 2] GraphitiEpisodeWorker init failed (non-fatal): '>' not supported between instances of 'MagicMock' and 'int'", "{'vault_key': 'general', 'hint': 'vault path could not be resolved from VAULTS_ROOT or settings.canvas_base_path — first request will return degraded=True; check VAULTS_ROOT config or sanitize_vault_id match', 'event': 'wikilink.lazy_build_skipped_unresolvable_vault_path', 'logger': 'app.services.wikilink_graph_service', 'level': 'warning', 'timestamp': '2026-09-09T05:13:36.216524Z'}", "{'vault_path': <MagicMock name='settings.canvas_base_path' id='5293603344'>, 'total_nodes': 0, 'total_edges': 0, 'graph_build_time_ms': 87.2, 'event': 'wikilink.graph_built', 'logger': 'app.services.wikilink_graph_service', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.303860Z'}", '[Story 2.1] Wikilink graph eager-built: 0 nodes, 0 edges, 87.2ms', '[Story 2.2 Phase A] LanceDB singleton background init dispatched', '{\'error\': "live Neo4j port connect attempted: (\'::1\', 7691, 0, 0). 受拦端口 [7687, 7691] 是现网 Neo4j；测试进程不得连接。若这是端点测试，请用 backend/tests/support/lifespan.py::no_lifespan 关掉 app.main 的 lifespan；若确需真库，用测试容器 NEO4J_TEST_URI", \'event\': \'canvas_schema_gate_verify_failed\', \'logger\': \'app.services.schema_gate\', \'level\': \'warning\', \'timestamp\': \'2026-09-09T05:13:36.524884Z\'}', 'Load pretrained SentenceTransformer: BAAI/bge-m3', "[Fix-E1] vault path 不存在, 跳过原因边同步: <MagicMock name='settings.canvas_base_path' id='5293603344'>", '[Fix-E1] 节点原因边同步: 0 nodes, 0 edges, 0 failed', '[Graphiti-native] 启动回填跳过 (graphiti 未就绪)', '[RAG-S1] orchestrator started: vault=/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault scan_interval=60s stale_after=300s', 'Shutting down test...', 'Alert manager stopped', 'Resource monitoring stopped', 'LanceDB index service cleaned up', 'Load pretrained SentenceTransformer: BAAI/bge-m3', '[RAG-S1] orchestrator shut down (pending flushed)', '[Story 7.2] LLM Call Logger stopped', '[Story 7.2] CostTracker stopped', '[Story 7.2] LLM logging infrastructure cleaned up', "{'event': '[Story 3.8] Archive scheduler stopped', 'logger': 'app.services.archive_scheduler', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.537029Z'}", '[Story 3.8] Archive scheduler stopped', '[Phase 2] GraphitiEpisodeWorker stopped', 'MemoryService cleaned up']
+E   assert False
+E    +  where False = any(<generator object TestAC1SafeDefault.test_startup_log_dual_write_enabled_default.<locals>.<genexpr> at 0x1493801e0>)
+
+live Neo4j port connect attempted —— 本用例期间有 1 次到现网 Neo4j 的连接尝试被拦下。
+（连接处抛出的异常被 app/main.py 的 lifespan try/except 吞掉了，
+  所以由本哨兵把它转成用例失败——否则这道门什么都证明不了。）
+  - ('::1', 7691, 0, 0) on thread MainThread (owner=tests/unit/test_story_38_4_dual_write_default.py::TestAC1SafeDefault::test_startup_log_dual_write_enabled_default)
+----------------------------- Captured stdout call -----------------------------
+{"event": "Starting test v0.0.0", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:36.128173Z"}
+{"event": "Debug mode: False", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:36.128256Z"}
+{"event": "Log level: INFO", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:36.128283Z"}
+{"event": "CORS origins: []", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:36.128304Z"}
+{"event": "API prefix: /api/v1", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:36.128322Z"}
+{"event": "Resource monitoring started with 5s interval", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:36.190585Z"}
+{"event": "Alert manager started with 0 rules (30s interval)", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:36.190850Z"}
+{"event": "[PromptRegistry] Loaded autoscore v1 (hash=4459bdcc7188)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-09T05:13:36.191277Z"}
+{"event": "[PromptRegistry] Loaded context_extract v1 (hash=c648a7641ca5)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-09T05:13:36.191410Z"}
+{"event": "[PromptRegistry] Loaded crag_grading v1 (hash=94b624e7ed31)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-09T05:13:36.191502Z"}
+{"event": "[PromptRegistry] Loaded query_optimize v1 (hash=d74f28f3a3a9)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-09T05:13:36.191592Z"}
+{"event": "[PromptRegistry] Loaded query_rewrite v1 (hash=54abd977e7e2)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-09T05:13:36.191670Z"}
+{"event": "[PromptRegistry] Loaded question_gen v1 (hash=706f5ab04957)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-09T05:13:36.191747Z"}
+{"event": "[PromptRegistry] Loaded search_intent v1 (hash=3255b0c040d8)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-09T05:13:36.191815Z"}
+{"event": "[PromptRegistry] Loaded 7 templates across 7 prompt names", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-09T05:13:36.191847Z"}
+{"event": "[Story 7.3] PromptRegistry loaded 7 templates", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:36.191880Z"}
+{"event": "[Story 7.2] CostTracker initialized: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u11-red-c/backend/data/llm_call_logs.db", "logger": "app.middleware.cost_tracker", "level": "info", "timestamp": "2026-09-09T05:13:36.197400Z"}
+{"event": "[Story 7.2] LLM Call Logger started", "logger": "app.middleware.llm_call_logger", "level": "info", "timestamp": "2026-09-09T05:13:36.197478Z"}
+{"event": "[Story 7.2] Log rotation task started (daily cycle)", "logger": "app.middleware.cost_tracker", "level": "info", "timestamp": "2026-09-09T05:13:36.197511Z"}
+{"event": "[Story 7.2] LiteLLM CustomLogger callback registered via litellm.callbacks", "logger": "app.core.litellm_config", "level": "info", "timestamp": "2026-09-09T05:13:36.197538Z"}
+{"event": "[Story 7.2] LLM logging infrastructure initialized", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:36.197557Z"}
+{"event": "Pre-warming MemoryService singleton...", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:36.197575Z"}
+{"event": "MemoryService pre-warmed successfully", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:36.197707Z"}
+{"event": "[Story 38.1] No pending LanceDB index operations", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:36.201316Z"}
+{"event": "[Story 3.8] Archive scheduler started (interval=86400s)", "logger": "app.services.archive_scheduler", "level": "info", "timestamp": "2026-09-09T05:13:36.202044Z"}
+{"event": "[Story 3.8] Archive scheduler started (24h interval)", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:36.202108Z"}
+{"event": "EventBus: global singleton created", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T05:13:36.203054Z"}
+{"event": "EventBus: subscribed handle_score_submitted to score_submitted (subsystem=mastery_engine)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T05:13:36.203119Z"}
+{"event": "EventBus: subscribed handle_bkt_updated to bkt_updated (subsystem=mastery_store)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T05:13:36.203156Z"}
+{"event": "EventBus: subscribed handle_mastery_changed to mastery_changed (subsystem=mastery_pipeline)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T05:13:36.203184Z"}
+{"event": "EventBus: subscribed handle_calibration_recorded to calibration_recorded (subsystem=calibration)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T05:13:36.203210Z"}
+{"event": "EventBus: subscribed handle_memory_write_requested to memory_write_requested (subsystem=memory)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T05:13:36.203232Z"}
+{"event": "EventBus: subscribed handle_fsrs_updated to fsrs_updated (subsystem=memory)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T05:13:36.203253Z"}
+{"event": "EventBus: subscribed handle_rag_weight_adjust to rag_weight_adjust", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T05:13:36.203273Z"}
+{"event": "EventBus: subscribed handle_ui_mastery_push to ui_mastery_push", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T05:13:36.203293Z"}
+{"event": "EventBus: registered 8 production handlers (SCORE_SUBMITTED, BKT_UPDATED, FSRS_UPDATED, MASTERY_CHANGED, CALIBRATION_RECORDED, MEMORY_WRITE_REQUESTED, RAG_WEIGHT_ADJUST, UI_MASTERY_PUSH)", "logger": "app.services.event_handlers", "level": "info", "timestamp": "2026-09-09T05:13:36.203318Z"}
+{"event": "[Story 5.7] EventBus handlers registered", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:36.203362Z"}
+{"event": "No mastery_config.json found, using defaults", "logger": "app.services.mastery_engine", "level": "info", "timestamp": "2026-09-09T05:13:36.205087Z"}
+{"event": "Initialized FSRS scheduler with retention=0.9", "logger": "memory.temporal.fsrs_manager", "level": "info", "timestamp": "2026-09-09T05:13:36.205197Z"}
+{"event": "SignalRegistry: registered signal 'bkt_mastery'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T05:13:36.205227Z"}
+{"event": "SignalRegistry: registered signal 'fsrs_retrievability'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T05:13:36.205263Z"}
+{"event": "SignalRegistry: registered signal 'exam_score_avg'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T05:13:36.205289Z"}
+{"event": "SignalRegistry: registered signal 'calibration_bias'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T05:13:36.205316Z"}
+{"event": "SignalRegistry: registered signal 'self_confidence_avg'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T05:13:36.205338Z"}
+{"event": "MasteryEngine: fusion engine attached", "logger": "app.services.mastery_engine", "level": "info", "timestamp": "2026-09-09T05:13:36.205359Z"}
+{"event": "MasteryEngine singleton set (fusion-enabled)", "logger": "app.services.mastery_engine", "level": "info", "timestamp": "2026-09-09T05:13:36.205381Z"}
+{"event": "[Story 5.6] Signal registry initialized with 5 adapters, fusion engine attached", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:36.205417Z"}
+{"event": "[Phase 2] GraphitiEpisodeWorker init failed (non-fatal): '>' not supported between instances of 'MagicMock' and 'int'", "logger": "app.main", "level": "warning", "timestamp": "2026-09-09T05:13:36.216007Z"}
+{"vault_key": "general", "hint": "vault path could not be resolved from VAULTS_ROOT or settings.canvas_base_path \u2014 first request will return degraded=True; check VAULTS_ROOT config or sanitize_vault_id match", "event": "wikilink.lazy_build_skipped_unresolvable_vault_path", "logger": "app.services.wikilink_graph_service", "level": "warning", "timestamp": "2026-09-09T05:13:36.216524Z"}
+{"vault_path": "<MagicMock name='settings.canvas_base_path' id='5293603344'>", "total_nodes": 0, "total_edges": 0, "graph_build_time_ms": 87.2, "event": "wikilink.graph_built", "logger": "app.services.wikilink_graph_service", "level": "info", "timestamp": "2026-09-09T05:13:36.303860Z"}
+{"event": "[Story 2.1] Wikilink graph eager-built: 0 nodes, 0 edges, 87.2ms", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:36.304018Z"}
+{"event": "[Story 2.2 Phase A] LanceDB singleton background init dispatched", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:36.304057Z"}
+{"error": "live Neo4j port connect attempted: ('::1', 7691, 0, 0). \u53d7\u62e6\u7aef\u53e3 [7687, 7691] \u662f\u73b0\u7f51 Neo4j\uff1b\u6d4b\u8bd5\u8fdb\u7a0b\u4e0d\u5f97\u8fde\u63a5\u3002\u82e5\u8fd9\u662f\u7aef\u70b9\u6d4b\u8bd5\uff0c\u8bf7\u7528 backend/tests/support/lifespan.py::no_lifespan \u5173\u6389 app.main \u7684 lifespan\uff1b\u82e5\u786e\u9700\u771f\u5e93\uff0c\u7528\u6d4b\u8bd5\u5bb9\u5668 NEO4J_TEST_URI", "event": "canvas_schema_gate_verify_failed", "logger": "app.services.schema_gate", "level": "warning", "timestamp": "2026-09-09T05:13:36.524884Z"}
+{"event": "Load pretrained SentenceTransformer: BAAI/bge-m3", "logger": "sentence_transformers.SentenceTransformer", "level": "info", "timestamp": "2026-09-09T05:13:36.526995Z"}
+{"event": "[Fix-E1] vault path \u4e0d\u5b58\u5728, \u8df3\u8fc7\u539f\u56e0\u8fb9\u540c\u6b65: <MagicMock name='settings.canvas_base_path' id='5293603344'>", "logger": "app.services.canvas_projection_sync", "level": "warning", "timestamp": "2026-09-09T05:13:36.528416Z"}
+{"event": "[Fix-E1] \u8282\u70b9\u539f\u56e0\u8fb9\u540c\u6b65: 0 nodes, 0 edges, 0 failed", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:36.528514Z"}
+{"event": "[Graphiti-native] \u542f\u52a8\u56de\u586b\u8df3\u8fc7 (graphiti \u672a\u5c31\u7eea)", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:36.529903Z"}
+{"event": "[RAG-S1] orchestrator started: vault=/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault scan_interval=60s stale_after=300s", "logger": "app.services.vault_index_orchestrator", "level": "info", "timestamp": "2026-09-09T05:13:36.534103Z"}
+{"event": "Shutting down test...", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:36.534170Z"}
+{"event": "Alert manager stopped", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:36.534434Z"}
+{"event": "Resource monitoring stopped", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:36.534581Z"}
+{"event": "LanceDB index service cleaned up", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:36.534614Z"}
+{"event": "Load pretrained SentenceTransformer: BAAI/bge-m3", "logger": "sentence_transformers.SentenceTransformer", "level": "info", "timestamp": "2026-09-09T05:13:36.536529Z"}
+{"event": "[RAG-S1] orchestrator shut down (pending flushed)", "logger": "app.services.vault_index_orchestrator", "level": "info", "timestamp": "2026-09-09T05:13:36.536647Z"}
+{"event": "[Story 7.2] LLM Call Logger stopped", "logger": "app.middleware.llm_call_logger", "level": "info", "timestamp": "2026-09-09T05:13:36.536821Z"}
+{"event": "[Story 7.2] CostTracker stopped", "logger": "app.middleware.cost_tracker", "level": "info", "timestamp": "2026-09-09T05:13:36.536936Z"}
+{"event": "[Story 7.2] LLM logging infrastructure cleaned up", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:36.536968Z"}
+{"event": "[Story 3.8] Archive scheduler stopped", "logger": "app.services.archive_scheduler", "level": "info", "timestamp": "2026-09-09T05:13:36.537029Z"}
+{"event": "[Story 3.8] Archive scheduler stopped", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:36.537075Z"}
+{"event": "[Phase 2] GraphitiEpisodeWorker stopped", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:36.537123Z"}
+{"event": "MemoryService cleaned up", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:36.537233Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.main:main.py:108 Starting test v0.0.0
+INFO     app.main:main.py:109 Debug mode: False
+INFO     app.main:main.py:110 Log level: INFO
+INFO     app.main:main.py:111 CORS origins: []
+INFO     app.main:main.py:112 API prefix: /api/v1
+INFO     app.main:main.py:118 Resource monitoring started with 5s interval
+INFO     app.main:main.py:131 Alert manager started with 0 rules (30s interval)
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded autoscore v1 (hash=4459bdcc7188)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.191277Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded context_extract v1 (hash=c648a7641ca5)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.191410Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded crag_grading v1 (hash=94b624e7ed31)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.191502Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded query_optimize v1 (hash=d74f28f3a3a9)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.191592Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded query_rewrite v1 (hash=54abd977e7e2)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.191670Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded question_gen v1 (hash=706f5ab04957)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.191747Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded search_intent v1 (hash=3255b0c040d8)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.191815Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:150 {'event': '[PromptRegistry] Loaded 7 templates across 7 prompt names', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.191847Z'}
+INFO     app.main:main.py:144 [Story 7.3] PromptRegistry loaded 7 templates
+INFO     app.middleware.cost_tracker:cost_tracker.py:230 [Story 7.2] CostTracker initialized: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u11-red-c/backend/data/llm_call_logs.db
+INFO     app.middleware.llm_call_logger:llm_call_logger.py:306 [Story 7.2] LLM Call Logger started
+INFO     app.middleware.cost_tracker:cost_tracker.py:238 [Story 7.2] Log rotation task started (daily cycle)
+INFO     app.core.litellm_config:litellm_config.py:227 [Story 7.2] LiteLLM CustomLogger callback registered via litellm.callbacks
+INFO     app.main:main.py:155 [Story 7.2] LLM logging infrastructure initialized
+INFO     app.main:main.py:162 Pre-warming MemoryService singleton...
+INFO     app.main:main.py:164 MemoryService pre-warmed successfully
+INFO     app.main:main.py:189 [Story 38.1] No pending LanceDB index operations
+INFO     app.services.archive_scheduler:archive_scheduler.py:56 {'event': '[Story 3.8] Archive scheduler started (interval=86400s)', 'logger': 'app.services.archive_scheduler', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.202044Z'}
+INFO     app.main:main.py:201 [Story 3.8] Archive scheduler started (24h interval)
+INFO     app.services.event_bus:event_bus.py:476 {'event': 'EventBus: global singleton created', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.203054Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_score_submitted to score_submitted (subsystem=mastery_engine)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.203119Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_bkt_updated to bkt_updated (subsystem=mastery_store)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.203156Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_mastery_changed to mastery_changed (subsystem=mastery_pipeline)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.203184Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_calibration_recorded to calibration_recorded (subsystem=calibration)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.203210Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_memory_write_requested to memory_write_requested (subsystem=memory)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.203232Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_fsrs_updated to fsrs_updated (subsystem=memory)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.203253Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_rag_weight_adjust to rag_weight_adjust', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.203273Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_ui_mastery_push to ui_mastery_push', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.203293Z'}
+INFO     app.services.event_handlers:event_handlers.py:467 {'event': 'EventBus: registered 8 production handlers (SCORE_SUBMITTED, BKT_UPDATED, FSRS_UPDATED, MASTERY_CHANGED, CALIBRATION_RECORDED, MEMORY_WRITE_REQUESTED, RAG_WEIGHT_ADJUST, UI_MASTERY_PUSH)', 'logger': 'app.services.event_handlers', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.203318Z'}
+INFO     app.main:main.py:219 [Story 5.7] EventBus handlers registered
+INFO     app.services.mastery_engine:mastery_engine.py:95 {'event': 'No mastery_config.json found, using defaults', 'logger': 'app.services.mastery_engine', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.205087Z'}
+INFO     memory.temporal.fsrs_manager:fsrs_manager.py:127 Initialized FSRS scheduler with retention=0.9
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'bkt_mastery'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.205227Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'fsrs_retrievability'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.205263Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'exam_score_avg'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.205289Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'calibration_bias'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.205316Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'self_confidence_avg'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.205338Z'}
+INFO     app.services.mastery_engine:mastery_engine.py:129 {'event': 'MasteryEngine: fusion engine attached', 'logger': 'app.services.mastery_engine', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.205359Z'}
+INFO     app.services.mastery_engine:mastery_engine.py:793 {'event': 'MasteryEngine singleton set (fusion-enabled)', 'logger': 'app.services.mastery_engine', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.205381Z'}
+INFO     app.main:main.py:255 [Story 5.6] Signal registry initialized with 5 adapters, fusion engine attached
+WARNING  app.main:main.py:291 [Phase 2] GraphitiEpisodeWorker init failed (non-fatal): '>' not supported between instances of 'MagicMock' and 'int'
+WARNING  app.services.wikilink_graph_service:wikilink_graph_service.py:525 {'vault_key': 'general', 'hint': 'vault path could not be resolved from VAULTS_ROOT or settings.canvas_base_path — first request will return degraded=True; check VAULTS_ROOT config or sanitize_vault_id match', 'event': 'wikilink.lazy_build_skipped_unresolvable_vault_path', 'logger': 'app.services.wikilink_graph_service', 'level': 'warning', 'timestamp': '2026-09-09T05:13:36.216524Z'}
+INFO     app.services.wikilink_graph_service:wikilink_graph_service.py:90 {'vault_path': <MagicMock name='settings.canvas_base_path' id='5293603344'>, 'total_nodes': 0, 'total_edges': 0, 'graph_build_time_ms': 87.2, 'event': 'wikilink.graph_built', 'logger': 'app.services.wikilink_graph_service', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.303860Z'}
+INFO     app.main:main.py:304 [Story 2.1] Wikilink graph eager-built: 0 nodes, 0 edges, 87.2ms
+INFO     app.main:main.py:335 [Story 2.2 Phase A] LanceDB singleton background init dispatched
+WARNING  app.services.schema_gate:schema_gate.py:92 {'error': "live Neo4j port connect attempted: ('::1', 7691, 0, 0). 受拦端口 [7687, 7691] 是现网 Neo4j；测试进程不得连接。若这是端点测试，请用 backend/tests/support/lifespan.py::no_lifespan 关掉 app.main 的 lifespan；若确需真库，用测试容器 NEO4J_TEST_URI", 'event': 'canvas_schema_gate_verify_failed', 'logger': 'app.services.schema_gate', 'level': 'warning', 'timestamp': '2026-09-09T05:13:36.524884Z'}
+INFO     sentence_transformers.SentenceTransformer:SentenceTransformer.py:227 Load pretrained SentenceTransformer: BAAI/bge-m3
+WARNING  app.services.canvas_projection_sync:canvas_projection_sync.py:75 [Fix-E1] vault path 不存在, 跳过原因边同步: <MagicMock name='settings.canvas_base_path' id='5293603344'>
+INFO     app.main:main.py:368 [Fix-E1] 节点原因边同步: 0 nodes, 0 edges, 0 failed
+INFO     app.main:main.py:404 [Graphiti-native] 启动回填跳过 (graphiti 未就绪)
+INFO     app.services.vault_index_orchestrator:vault_index_orchestrator.py:848 [RAG-S1] orchestrator started: vault=/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault scan_interval=60s stale_after=300s
+INFO     app.main:main.py:448 Shutting down test...
+INFO     app.main:main.py:452 Alert manager stopped
+INFO     app.main:main.py:456 Resource monitoring stopped
+INFO     app.main:main.py:465 LanceDB index service cleaned up
+INFO     sentence_transformers.SentenceTransformer:SentenceTransformer.py:227 Load pretrained SentenceTransformer: BAAI/bge-m3
+INFO     app.services.vault_index_orchestrator:vault_index_orchestrator.py:867 [RAG-S1] orchestrator shut down (pending flushed)
+INFO     app.middleware.llm_call_logger:llm_call_logger.py:319 [Story 7.2] LLM Call Logger stopped
+INFO     app.middleware.cost_tracker:cost_tracker.py:249 [Story 7.2] CostTracker stopped
+INFO     app.main:main.py:482 [Story 7.2] LLM logging infrastructure cleaned up
+INFO     app.services.archive_scheduler:archive_scheduler.py:74 {'event': '[Story 3.8] Archive scheduler stopped', 'logger': 'app.services.archive_scheduler', 'level': 'info', 'timestamp': '2026-09-09T05:13:36.537029Z'}
+INFO     app.main:main.py:490 [Story 3.8] Archive scheduler stopped
+INFO     app.main:main.py:499 [Phase 2] GraphitiEpisodeWorker stopped
+INFO     app.main:main.py:513 MemoryService cleaned up
+--------------------------- Captured stderr teardown ---------------------------
+Loading weights:   0%|          | 0/391 [00:00<?, ?it/s]Loading weights: 100%|██████████| 391/391 [00:00<00:00, 45463.87it/s]
+Loading weights:   0%|          | 0/391 [00:00<?, ?it/s]Loading weights: 100%|██████████| 391/391 [00:00<00:00, 54901.84it/s]
+_____ TestAC2ExplicitDisable.test_startup_log_dual_write_disabled_explicit _____
+tests/unit/test_story_38_4_dual_write_default.py:192: in test_startup_log_dual_write_disabled_explicit
+    assert any(
+E   AssertionError: Expected startup log 'Dual-write: disabled (explicit configuration)' not found. Got logs: ['Starting test v0.0.0', 'Debug mode: False', 'Log level: INFO', 'CORS origins: []', 'API prefix: /api/v1', 'Resource monitoring started with 5s interval', 'Alert manager started with 0 rules (30s interval)', "{'event': '[PromptRegistry] Loaded autoscore v1 (hash=4459bdcc7188)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.539732Z'}", "{'event': '[PromptRegistry] Loaded context_extract v1 (hash=c648a7641ca5)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.539849Z'}", "{'event': '[PromptRegistry] Loaded crag_grading v1 (hash=94b624e7ed31)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.539929Z'}", "{'event': '[PromptRegistry] Loaded query_optimize v1 (hash=d74f28f3a3a9)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.540007Z'}", "{'event': '[PromptRegistry] Loaded query_rewrite v1 (hash=54abd977e7e2)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.540081Z'}", "{'event': '[PromptRegistry] Loaded question_gen v1 (hash=706f5ab04957)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.540154Z'}", "{'event': '[PromptRegistry] Loaded search_intent v1 (hash=3255b0c040d8)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.540222Z'}", "{'event': '[PromptRegistry] Loaded 7 templates across 7 prompt names', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.540252Z'}", '[Story 7.3] PromptRegistry loaded 7 templates', '[Story 7.2] CostTracker initialized: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u11-red-c/backend/data/llm_call_logs.db', '[Story 7.2] LLM Call Logger started', '[Story 7.2] Log rotation task started (daily cycle)', '[Story 7.2] LiteLLM CustomLogger callback registered via litellm.callbacks', '[Story 7.2] LLM logging infrastructure initialized', 'Pre-warming MemoryService singleton...', 'MemoryService pre-warmed successfully', '[Story 38.1] No pending LanceDB index operations', "{'event': '[Story 3.8] Archive scheduler started (interval=86400s)', 'logger': 'app.services.archive_scheduler', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.541835Z'}", '[Story 3.8] Archive scheduler started (24h interval)', "{'event': 'EventBus: subscribed handle_score_submitted to score_submitted (subsystem=mastery_engine)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.541945Z'}", "{'event': 'EventBus: subscribed handle_bkt_updated to bkt_updated (subsystem=mastery_store)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.541989Z'}", "{'event': 'EventBus: subscribed handle_mastery_changed to mastery_changed (subsystem=mastery_pipeline)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.542018Z'}", "{'event': 'EventBus: subscribed handle_calibration_recorded to calibration_recorded (subsystem=calibration)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.542042Z'}", "{'event': 'EventBus: subscribed handle_memory_write_requested to memory_write_requested (subsystem=memory)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.542071Z'}", "{'event': 'EventBus: subscribed handle_fsrs_updated to fsrs_updated (subsystem=memory)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.542097Z'}", "{'event': 'EventBus: subscribed handle_rag_weight_adjust to rag_weight_adjust', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.542120Z'}", "{'event': 'EventBus: subscribed handle_ui_mastery_push to ui_mastery_push', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.542141Z'}", "{'event': 'EventBus: registered 8 production handlers (SCORE_SUBMITTED, BKT_UPDATED, FSRS_UPDATED, MASTERY_CHANGED, CALIBRATION_RECORDED, MEMORY_WRITE_REQUESTED, RAG_WEIGHT_ADJUST, UI_MASTERY_PUSH)', 'logger': 'app.services.event_handlers', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.542160Z'}", '[Story 5.7] EventBus handlers registered', "{'event': 'No mastery_config.json found, using defaults', 'logger': 'app.services.mastery_engine', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.542267Z'}", 'Initialized FSRS scheduler with retention=0.9', '{\'event\': "SignalRegistry: registered signal \'bkt_mastery\'", \'logger\': \'app.services.signal_registry\', \'level\': \'info\', \'timestamp\': \'2026-09-09T05:13:46.542372Z\'}', '{\'event\': "SignalRegistry: registered signal \'fsrs_retrievability\'", \'logger\': \'app.services.signal_registry\', \'level\': \'info\', \'timestamp\': \'2026-09-09T05:13:46.542399Z\'}', '{\'event\': "SignalRegistry: registered signal \'exam_score_avg\'", \'logger\': \'app.services.signal_registry\', \'level\': \'info\', \'timestamp\': \'2026-09-09T05:13:46.542421Z\'}', '{\'event\': "SignalRegistry: registered signal \'calibration_bias\'", \'logger\': \'app.services.signal_registry\', \'level\': \'info\', \'timestamp\': \'2026-09-09T05:13:46.542444Z\'}', '{\'event\': "SignalRegistry: registered signal \'self_confidence_avg\'", \'logger\': \'app.services.signal_registry\', \'level\': \'info\', \'timestamp\': \'2026-09-09T05:13:46.542464Z\'}', "{'event': 'MasteryEngine: fusion engine attached', 'logger': 'app.services.mastery_engine', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.542490Z'}", "{'event': 'MasteryEngine singleton set (fusion-enabled)', 'logger': 'app.services.mastery_engine', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.542511Z'}", '[Story 5.6] Signal registry initialized with 5 adapters, fusion engine attached', "[Phase 2] GraphitiEpisodeWorker init failed (non-fatal): '>' not supported between instances of 'MagicMock' and 'int'", "{'vault_path': <MagicMock name='settings.canvas_base_path' id='5696250480'>, 'total_nodes': 0, 'total_edges': 0, 'graph_build_time_ms': 0.8, 'event': 'wikilink.graph_built', 'logger': 'app.services.wikilink_graph_service', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.553298Z'}", '[Story 2.1] Wikilink graph eager-built: 0 nodes, 0 edges, 0.8ms', '[Story 2.2 Phase A] LanceDB singleton background init dispatched', '{\'error\': "live Neo4j port connect attempted: (\'::1\', 7691, 0, 0). 受拦端口 [7687, 7691] 是现网 Neo4j；测试进程不得连接。若这是端点测试，请用 backend/tests/support/lifespan.py::no_lifespan 关掉 app.main 的 lifespan；若确需真库，用测试容器 NEO4J_TEST_URI", \'event\': \'canvas_schema_gate_verify_failed\', \'logger\': \'app.services.schema_gate\', \'level\': \'warning\', \'timestamp\': \'2026-09-09T05:13:46.554890Z\'}', "[Fix-E1] vault path 不存在, 跳过原因边同步: <MagicMock name='settings.canvas_base_path' id='5696250480'>", '[Fix-E1] 节点原因边同步: 0 nodes, 0 edges, 0 failed', '[Graphiti-native] 启动回填跳过 (graphiti 未就绪)', 'Load pretrained SentenceTransformer: BAAI/bge-m3', '[RAG-S1] orchestrator started: vault=/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault scan_interval=60s stale_after=300s', 'Shutting down test...', 'Alert manager stopped', 'Resource monitoring stopped', 'LanceDB index service cleaned up', 'Load pretrained SentenceTransformer: BAAI/bge-m3', '[RAG-S1] orchestrator shut down (pending flushed)', '[Story 7.2] LLM Call Logger stopped', '[Story 7.2] CostTracker stopped', '[Story 7.2] LLM logging infrastructure cleaned up', "{'event': '[Story 3.8] Archive scheduler stopped', 'logger': 'app.services.archive_scheduler', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.560082Z'}", '[Story 3.8] Archive scheduler stopped', '[Phase 2] GraphitiEpisodeWorker stopped', 'MemoryService cleaned up']
+E   assert False
+E    +  where False = any(<generator object TestAC2ExplicitDisable.test_startup_log_dual_write_disabled_explicit.<locals>.<genexpr> at 0x153825630>)
+
+live Neo4j port connect attempted —— 本用例期间有 1 次到现网 Neo4j 的连接尝试被拦下。
+（连接处抛出的异常被 app/main.py 的 lifespan try/except 吞掉了，
+  所以由本哨兵把它转成用例失败——否则这道门什么都证明不了。）
+  - ('::1', 7691, 0, 0) on thread MainThread (owner=tests/unit/test_story_38_4_dual_write_default.py::TestAC2ExplicitDisable::test_startup_log_dual_write_disabled_explicit)
+----------------------------- Captured stdout call -----------------------------
+{"event": "Starting test v0.0.0", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:46.538832Z"}
+{"event": "Debug mode: False", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:46.538920Z"}
+{"event": "Log level: INFO", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:46.538948Z"}
+{"event": "CORS origins: []", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:46.538969Z"}
+{"event": "API prefix: /api/v1", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:46.538987Z"}
+{"event": "Resource monitoring started with 5s interval", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:46.539223Z"}
+{"event": "Alert manager started with 0 rules (30s interval)", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:46.539421Z"}
+{"event": "[PromptRegistry] Loaded autoscore v1 (hash=4459bdcc7188)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-09T05:13:46.539732Z"}
+{"event": "[PromptRegistry] Loaded context_extract v1 (hash=c648a7641ca5)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-09T05:13:46.539849Z"}
+{"event": "[PromptRegistry] Loaded crag_grading v1 (hash=94b624e7ed31)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-09T05:13:46.539929Z"}
+{"event": "[PromptRegistry] Loaded query_optimize v1 (hash=d74f28f3a3a9)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-09T05:13:46.540007Z"}
+{"event": "[PromptRegistry] Loaded query_rewrite v1 (hash=54abd977e7e2)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-09T05:13:46.540081Z"}
+{"event": "[PromptRegistry] Loaded question_gen v1 (hash=706f5ab04957)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-09T05:13:46.540154Z"}
+{"event": "[PromptRegistry] Loaded search_intent v1 (hash=3255b0c040d8)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-09T05:13:46.540222Z"}
+{"event": "[PromptRegistry] Loaded 7 templates across 7 prompt names", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-09T05:13:46.540252Z"}
+{"event": "[Story 7.3] PromptRegistry loaded 7 templates", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:46.540285Z"}
+{"event": "[Story 7.2] CostTracker initialized: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u11-red-c/backend/data/llm_call_logs.db", "logger": "app.middleware.cost_tracker", "level": "info", "timestamp": "2026-09-09T05:13:46.541165Z"}
+{"event": "[Story 7.2] LLM Call Logger started", "logger": "app.middleware.llm_call_logger", "level": "info", "timestamp": "2026-09-09T05:13:46.541250Z"}
+{"event": "[Story 7.2] Log rotation task started (daily cycle)", "logger": "app.middleware.cost_tracker", "level": "info", "timestamp": "2026-09-09T05:13:46.541281Z"}
+{"event": "[Story 7.2] LiteLLM CustomLogger callback registered via litellm.callbacks", "logger": "app.core.litellm_config", "level": "info", "timestamp": "2026-09-09T05:13:46.541312Z"}
+{"event": "[Story 7.2] LLM logging infrastructure initialized", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:46.541332Z"}
+{"event": "Pre-warming MemoryService singleton...", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:46.541350Z"}
+{"event": "MemoryService pre-warmed successfully", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:46.541470Z"}
+{"event": "[Story 38.1] No pending LanceDB index operations", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:46.541788Z"}
+{"event": "[Story 3.8] Archive scheduler started (interval=86400s)", "logger": "app.services.archive_scheduler", "level": "info", "timestamp": "2026-09-09T05:13:46.541835Z"}
+{"event": "[Story 3.8] Archive scheduler started (24h interval)", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:46.541894Z"}
+{"event": "EventBus: subscribed handle_score_submitted to score_submitted (subsystem=mastery_engine)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T05:13:46.541945Z"}
+{"event": "EventBus: subscribed handle_bkt_updated to bkt_updated (subsystem=mastery_store)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T05:13:46.541989Z"}
+{"event": "EventBus: subscribed handle_mastery_changed to mastery_changed (subsystem=mastery_pipeline)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T05:13:46.542018Z"}
+{"event": "EventBus: subscribed handle_calibration_recorded to calibration_recorded (subsystem=calibration)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T05:13:46.542042Z"}
+{"event": "EventBus: subscribed handle_memory_write_requested to memory_write_requested (subsystem=memory)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T05:13:46.542071Z"}
+{"event": "EventBus: subscribed handle_fsrs_updated to fsrs_updated (subsystem=memory)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T05:13:46.542097Z"}
+{"event": "EventBus: subscribed handle_rag_weight_adjust to rag_weight_adjust", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T05:13:46.542120Z"}
+{"event": "EventBus: subscribed handle_ui_mastery_push to ui_mastery_push", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T05:13:46.542141Z"}
+{"event": "EventBus: registered 8 production handlers (SCORE_SUBMITTED, BKT_UPDATED, FSRS_UPDATED, MASTERY_CHANGED, CALIBRATION_RECORDED, MEMORY_WRITE_REQUESTED, RAG_WEIGHT_ADJUST, UI_MASTERY_PUSH)", "logger": "app.services.event_handlers", "level": "info", "timestamp": "2026-09-09T05:13:46.542160Z"}
+{"event": "[Story 5.7] EventBus handlers registered", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:46.542203Z"}
+{"event": "No mastery_config.json found, using defaults", "logger": "app.services.mastery_engine", "level": "info", "timestamp": "2026-09-09T05:13:46.542267Z"}
+{"event": "Initialized FSRS scheduler with retention=0.9", "logger": "memory.temporal.fsrs_manager", "level": "info", "timestamp": "2026-09-09T05:13:46.542344Z"}
+{"event": "SignalRegistry: registered signal 'bkt_mastery'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T05:13:46.542372Z"}
+{"event": "SignalRegistry: registered signal 'fsrs_retrievability'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T05:13:46.542399Z"}
+{"event": "SignalRegistry: registered signal 'exam_score_avg'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T05:13:46.542421Z"}
+{"event": "SignalRegistry: registered signal 'calibration_bias'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T05:13:46.542444Z"}
+{"event": "SignalRegistry: registered signal 'self_confidence_avg'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T05:13:46.542464Z"}
+{"event": "MasteryEngine: fusion engine attached", "logger": "app.services.mastery_engine", "level": "info", "timestamp": "2026-09-09T05:13:46.542490Z"}
+{"event": "MasteryEngine singleton set (fusion-enabled)", "logger": "app.services.mastery_engine", "level": "info", "timestamp": "2026-09-09T05:13:46.542511Z"}
+{"event": "[Story 5.6] Signal registry initialized with 5 adapters, fusion engine attached", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:46.542543Z"}
+{"event": "[Phase 2] GraphitiEpisodeWorker init failed (non-fatal): '>' not supported between instances of 'MagicMock' and 'int'", "logger": "app.main", "level": "warning", "timestamp": "2026-09-09T05:13:46.552332Z"}
+{"vault_path": "<MagicMock name='settings.canvas_base_path' id='5696250480'>", "total_nodes": 0, "total_edges": 0, "graph_build_time_ms": 0.8, "event": "wikilink.graph_built", "logger": "app.services.wikilink_graph_service", "level": "info", "timestamp": "2026-09-09T05:13:46.553298Z"}
+{"event": "[Story 2.1] Wikilink graph eager-built: 0 nodes, 0 edges, 0.8ms", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:46.553415Z"}
+{"event": "[Story 2.2 Phase A] LanceDB singleton background init dispatched", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:46.553447Z"}
+{"error": "live Neo4j port connect attempted: ('::1', 7691, 0, 0). \u53d7\u62e6\u7aef\u53e3 [7687, 7691] \u662f\u73b0\u7f51 Neo4j\uff1b\u6d4b\u8bd5\u8fdb\u7a0b\u4e0d\u5f97\u8fde\u63a5\u3002\u82e5\u8fd9\u662f\u7aef\u70b9\u6d4b\u8bd5\uff0c\u8bf7\u7528 backend/tests/support/lifespan.py::no_lifespan \u5173\u6389 app.main \u7684 lifespan\uff1b\u82e5\u786e\u9700\u771f\u5e93\uff0c\u7528\u6d4b\u8bd5\u5bb9\u5668 NEO4J_TEST_URI", "event": "canvas_schema_gate_verify_failed", "logger": "app.services.schema_gate", "level": "warning", "timestamp": "2026-09-09T05:13:46.554890Z"}
+{"event": "[Fix-E1] vault path \u4e0d\u5b58\u5728, \u8df3\u8fc7\u539f\u56e0\u8fb9\u540c\u6b65: <MagicMock name='settings.canvas_base_path' id='5696250480'>", "logger": "app.services.canvas_projection_sync", "level": "warning", "timestamp": "2026-09-09T05:13:46.556104Z"}
+{"event": "[Fix-E1] \u8282\u70b9\u539f\u56e0\u8fb9\u540c\u6b65: 0 nodes, 0 edges, 0 failed", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:46.556205Z"}
+{"event": "[Graphiti-native] \u542f\u52a8\u56de\u586b\u8df3\u8fc7 (graphiti \u672a\u5c31\u7eea)", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:46.556245Z"}
+{"event": "Load pretrained SentenceTransformer: BAAI/bge-m3", "logger": "sentence_transformers.SentenceTransformer", "level": "info", "timestamp": "2026-09-09T05:13:46.556776Z"}
+{"event": "[RAG-S1] orchestrator started: vault=/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault scan_interval=60s stale_after=300s", "logger": "app.services.vault_index_orchestrator", "level": "info", "timestamp": "2026-09-09T05:13:46.557262Z"}
+{"event": "Shutting down test...", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:46.557495Z"}
+{"event": "Alert manager stopped", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:46.557823Z"}
+{"event": "Resource monitoring stopped", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:46.558037Z"}
+{"event": "LanceDB index service cleaned up", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:46.558082Z"}
+{"event": "Load pretrained SentenceTransformer: BAAI/bge-m3", "logger": "sentence_transformers.SentenceTransformer", "level": "info", "timestamp": "2026-09-09T05:13:46.559507Z"}
+{"event": "[RAG-S1] orchestrator shut down (pending flushed)", "logger": "app.services.vault_index_orchestrator", "level": "info", "timestamp": "2026-09-09T05:13:46.559620Z"}
+{"event": "[Story 7.2] LLM Call Logger stopped", "logger": "app.middleware.llm_call_logger", "level": "info", "timestamp": "2026-09-09T05:13:46.559824Z"}
+{"event": "[Story 7.2] CostTracker stopped", "logger": "app.middleware.cost_tracker", "level": "info", "timestamp": "2026-09-09T05:13:46.559931Z"}
+{"event": "[Story 7.2] LLM logging infrastructure cleaned up", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:46.559967Z"}
+{"event": "[Story 3.8] Archive scheduler stopped", "logger": "app.services.archive_scheduler", "level": "info", "timestamp": "2026-09-09T05:13:46.560082Z"}
+{"event": "[Story 3.8] Archive scheduler stopped", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:46.560136Z"}
+{"event": "[Phase 2] GraphitiEpisodeWorker stopped", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:46.560175Z"}
+{"event": "MemoryService cleaned up", "logger": "app.main", "level": "info", "timestamp": "2026-09-09T05:13:46.560341Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.main:main.py:108 Starting test v0.0.0
+INFO     app.main:main.py:109 Debug mode: False
+INFO     app.main:main.py:110 Log level: INFO
+INFO     app.main:main.py:111 CORS origins: []
+INFO     app.main:main.py:112 API prefix: /api/v1
+INFO     app.main:main.py:118 Resource monitoring started with 5s interval
+INFO     app.main:main.py:131 Alert manager started with 0 rules (30s interval)
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded autoscore v1 (hash=4459bdcc7188)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.539732Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded context_extract v1 (hash=c648a7641ca5)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.539849Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded crag_grading v1 (hash=94b624e7ed31)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.539929Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded query_optimize v1 (hash=d74f28f3a3a9)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.540007Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded query_rewrite v1 (hash=54abd977e7e2)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.540081Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded question_gen v1 (hash=706f5ab04957)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.540154Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded search_intent v1 (hash=3255b0c040d8)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.540222Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:150 {'event': '[PromptRegistry] Loaded 7 templates across 7 prompt names', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.540252Z'}
+INFO     app.main:main.py:144 [Story 7.3] PromptRegistry loaded 7 templates
+INFO     app.middleware.cost_tracker:cost_tracker.py:230 [Story 7.2] CostTracker initialized: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u11-red-c/backend/data/llm_call_logs.db
+INFO     app.middleware.llm_call_logger:llm_call_logger.py:306 [Story 7.2] LLM Call Logger started
+INFO     app.middleware.cost_tracker:cost_tracker.py:238 [Story 7.2] Log rotation task started (daily cycle)
+INFO     app.core.litellm_config:litellm_config.py:227 [Story 7.2] LiteLLM CustomLogger callback registered via litellm.callbacks
+INFO     app.main:main.py:155 [Story 7.2] LLM logging infrastructure initialized
+INFO     app.main:main.py:162 Pre-warming MemoryService singleton...
+INFO     app.main:main.py:164 MemoryService pre-warmed successfully
+INFO     app.main:main.py:189 [Story 38.1] No pending LanceDB index operations
+INFO     app.services.archive_scheduler:archive_scheduler.py:56 {'event': '[Story 3.8] Archive scheduler started (interval=86400s)', 'logger': 'app.services.archive_scheduler', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.541835Z'}
+INFO     app.main:main.py:201 [Story 3.8] Archive scheduler started (24h interval)
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_score_submitted to score_submitted (subsystem=mastery_engine)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.541945Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_bkt_updated to bkt_updated (subsystem=mastery_store)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.541989Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_mastery_changed to mastery_changed (subsystem=mastery_pipeline)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.542018Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_calibration_recorded to calibration_recorded (subsystem=calibration)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.542042Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_memory_write_requested to memory_write_requested (subsystem=memory)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.542071Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_fsrs_updated to fsrs_updated (subsystem=memory)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.542097Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_rag_weight_adjust to rag_weight_adjust', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.542120Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_ui_mastery_push to ui_mastery_push', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.542141Z'}
+INFO     app.services.event_handlers:event_handlers.py:467 {'event': 'EventBus: registered 8 production handlers (SCORE_SUBMITTED, BKT_UPDATED, FSRS_UPDATED, MASTERY_CHANGED, CALIBRATION_RECORDED, MEMORY_WRITE_REQUESTED, RAG_WEIGHT_ADJUST, UI_MASTERY_PUSH)', 'logger': 'app.services.event_handlers', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.542160Z'}
+INFO     app.main:main.py:219 [Story 5.7] EventBus handlers registered
+INFO     app.services.mastery_engine:mastery_engine.py:95 {'event': 'No mastery_config.json found, using defaults', 'logger': 'app.services.mastery_engine', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.542267Z'}
+INFO     memory.temporal.fsrs_manager:fsrs_manager.py:127 Initialized FSRS scheduler with retention=0.9
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'bkt_mastery'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.542372Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'fsrs_retrievability'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.542399Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'exam_score_avg'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.542421Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'calibration_bias'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.542444Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'self_confidence_avg'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.542464Z'}
+INFO     app.services.mastery_engine:mastery_engine.py:129 {'event': 'MasteryEngine: fusion engine attached', 'logger': 'app.services.mastery_engine', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.542490Z'}
+INFO     app.services.mastery_engine:mastery_engine.py:793 {'event': 'MasteryEngine singleton set (fusion-enabled)', 'logger': 'app.services.mastery_engine', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.542511Z'}
+INFO     app.main:main.py:255 [Story 5.6] Signal registry initialized with 5 adapters, fusion engine attached
+WARNING  app.main:main.py:291 [Phase 2] GraphitiEpisodeWorker init failed (non-fatal): '>' not supported between instances of 'MagicMock' and 'int'
+INFO     app.services.wikilink_graph_service:wikilink_graph_service.py:90 {'vault_path': <MagicMock name='settings.canvas_base_path' id='5696250480'>, 'total_nodes': 0, 'total_edges': 0, 'graph_build_time_ms': 0.8, 'event': 'wikilink.graph_built', 'logger': 'app.services.wikilink_graph_service', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.553298Z'}
+INFO     app.main:main.py:304 [Story 2.1] Wikilink graph eager-built: 0 nodes, 0 edges, 0.8ms
+INFO     app.main:main.py:335 [Story 2.2 Phase A] LanceDB singleton background init dispatched
+WARNING  app.services.schema_gate:schema_gate.py:92 {'error': "live Neo4j port connect attempted: ('::1', 7691, 0, 0). 受拦端口 [7687, 7691] 是现网 Neo4j；测试进程不得连接。若这是端点测试，请用 backend/tests/support/lifespan.py::no_lifespan 关掉 app.main 的 lifespan；若确需真库，用测试容器 NEO4J_TEST_URI", 'event': 'canvas_schema_gate_verify_failed', 'logger': 'app.services.schema_gate', 'level': 'warning', 'timestamp': '2026-09-09T05:13:46.554890Z'}
+WARNING  app.services.canvas_projection_sync:canvas_projection_sync.py:75 [Fix-E1] vault path 不存在, 跳过原因边同步: <MagicMock name='settings.canvas_base_path' id='5696250480'>
+INFO     app.main:main.py:368 [Fix-E1] 节点原因边同步: 0 nodes, 0 edges, 0 failed
+INFO     app.main:main.py:404 [Graphiti-native] 启动回填跳过 (graphiti 未就绪)
+INFO     sentence_transformers.SentenceTransformer:SentenceTransformer.py:227 Load pretrained SentenceTransformer: BAAI/bge-m3
+INFO     app.services.vault_index_orchestrator:vault_index_orchestrator.py:848 [RAG-S1] orchestrator started: vault=/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault scan_interval=60s stale_after=300s
+INFO     app.main:main.py:448 Shutting down test...
+INFO     app.main:main.py:452 Alert manager stopped
+INFO     app.main:main.py:456 Resource monitoring stopped
+INFO     app.main:main.py:465 LanceDB index service cleaned up
+INFO     sentence_transformers.SentenceTransformer:SentenceTransformer.py:227 Load pretrained SentenceTransformer: BAAI/bge-m3
+INFO     app.services.vault_index_orchestrator:vault_index_orchestrator.py:867 [RAG-S1] orchestrator shut down (pending flushed)
+INFO     app.middleware.llm_call_logger:llm_call_logger.py:319 [Story 7.2] LLM Call Logger stopped
+INFO     app.middleware.cost_tracker:cost_tracker.py:249 [Story 7.2] CostTracker stopped
+INFO     app.main:main.py:482 [Story 7.2] LLM logging infrastructure cleaned up
+INFO     app.services.archive_scheduler:archive_scheduler.py:74 {'event': '[Story 3.8] Archive scheduler stopped', 'logger': 'app.services.archive_scheduler', 'level': 'info', 'timestamp': '2026-09-09T05:13:46.560082Z'}
+INFO     app.main:main.py:490 [Story 3.8] Archive scheduler stopped
+INFO     app.main:main.py:499 [Phase 2] GraphitiEpisodeWorker stopped
+INFO     app.main:main.py:513 MemoryService cleaned up
+--------------------------- Captured stderr teardown ---------------------------
+Loading weights:   0%|          | 0/391 [00:00<?, ?it/s]Loading weights: 100%|██████████| 391/391 [00:00<00:00, 36903.91it/s]
+Loading weights:   0%|          | 0/391 [00:00<?, ?it/s]Loading weights: 100%|██████████| 391/391 [00:00<00:00, 56217.36it/s]
+_____ TestAC2ExplicitDisable.test_warning_log_data_loss_risk_when_disabled _____
+tests/unit/test_story_38_4_dual_write_default.py:247: in test_warning_log_data_loss_risk_when_disabled
+    assert any(
+E   AssertionError: Expected WARNING 'JSON fallback is disabled. Neo4j outage will cause data loss.' not found. Got warnings: ["[Phase 2] GraphitiEpisodeWorker init failed (non-fatal): '>' not supported between instances of 'MagicMock' and 'int'", '{\'error\': "live Neo4j port connect attempted: (\'::1\', 7691, 0, 0). 受拦端口 [7687, 7691] 是现网 Neo4j；测试进程不得连接。若这是端点测试，请用 backend/tests/support/lifespan.py::no_lifespan 关掉 app.main 的 lifespan；若确需真库，用测试容器 NEO4J_TEST_URI", \'event\': \'canvas_schema_gate_verify_failed\', \'logger\': \'app.services.schema_gate\', \'level\': \'warning\', \'timestamp\': \'2026-09-09T05:13:57.046090Z\'}', "[Fix-E1] vault path 不存在, 跳过原因边同步: <MagicMock name='settings.canvas_base_path' id='5526357392'>"]
+E   assert False
+E    +  where False = any(<generator object TestAC2ExplicitDisable.test_warning_log_data_loss_risk_when_disabled.<locals>.<genexpr> at 0x153827ac0>)
+
+live Neo4j port connect attempted —— 本用例期间有 1 次到现网 Neo4j 的连接尝试被拦下。
+（连接处抛出的异常被 app/main.py 的 lifespan try/except 吞掉了，
+  所以由本哨兵把它转成用例失败——否则这道门什么都证明不了。）
+  - ('::1', 7691, 0, 0) on thread MainThread (owner=tests/unit/test_story_38_4_dual_write_default.py::TestAC2ExplicitDisable::test_warning_log_data_loss_risk_when_disabled)
+----------------------------- Captured stdout call -----------------------------
+{"event": "[PromptRegistry] Loaded autoscore v1 (hash=4459bdcc7188)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-09T05:13:57.033265Z"}
+{"event": "[PromptRegistry] Loaded context_extract v1 (hash=c648a7641ca5)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-09T05:13:57.033436Z"}
+{"event": "[PromptRegistry] Loaded crag_grading v1 (hash=94b624e7ed31)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-09T05:13:57.033530Z"}
+{"event": "[PromptRegistry] Loaded query_optimize v1 (hash=d74f28f3a3a9)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-09T05:13:57.033607Z"}
+{"event": "[PromptRegistry] Loaded query_rewrite v1 (hash=54abd977e7e2)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-09T05:13:57.033680Z"}
+{"event": "[PromptRegistry] Loaded question_gen v1 (hash=706f5ab04957)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-09T05:13:57.033752Z"}
+{"event": "[PromptRegistry] Loaded search_intent v1 (hash=3255b0c040d8)", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-09T05:13:57.033819Z"}
+{"event": "[PromptRegistry] Loaded 7 templates across 7 prompt names", "logger": "app.services.prompt_registry", "level": "info", "timestamp": "2026-09-09T05:13:57.033844Z"}
+{"event": "[Story 7.2] CostTracker initialized: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u11-red-c/backend/data/llm_call_logs.db", "logger": "app.middleware.cost_tracker", "level": "info", "timestamp": "2026-09-09T05:13:57.034495Z"}
+{"event": "[Story 7.2] LLM Call Logger started", "logger": "app.middleware.llm_call_logger", "level": "info", "timestamp": "2026-09-09T05:13:57.034559Z"}
+{"event": "[Story 7.2] Log rotation task started (daily cycle)", "logger": "app.middleware.cost_tracker", "level": "info", "timestamp": "2026-09-09T05:13:57.034588Z"}
+{"event": "[Story 7.2] LiteLLM CustomLogger callback registered via litellm.callbacks", "logger": "app.core.litellm_config", "level": "info", "timestamp": "2026-09-09T05:13:57.034612Z"}
+{"event": "[Story 3.8] Archive scheduler started (interval=86400s)", "logger": "app.services.archive_scheduler", "level": "info", "timestamp": "2026-09-09T05:13:57.034939Z"}
+{"event": "EventBus: subscribed handle_score_submitted to score_submitted (subsystem=mastery_engine)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T05:13:57.034987Z"}
+{"event": "EventBus: subscribed handle_bkt_updated to bkt_updated (subsystem=mastery_store)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T05:13:57.035015Z"}
+{"event": "EventBus: subscribed handle_mastery_changed to mastery_changed (subsystem=mastery_pipeline)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T05:13:57.035038Z"}
+{"event": "EventBus: subscribed handle_calibration_recorded to calibration_recorded (subsystem=calibration)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T05:13:57.035059Z"}
+{"event": "EventBus: subscribed handle_memory_write_requested to memory_write_requested (subsystem=memory)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T05:13:57.035079Z"}
+{"event": "EventBus: subscribed handle_fsrs_updated to fsrs_updated (subsystem=memory)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T05:13:57.035097Z"}
+{"event": "EventBus: subscribed handle_rag_weight_adjust to rag_weight_adjust", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T05:13:57.035117Z"}
+{"event": "EventBus: subscribed handle_ui_mastery_push to ui_mastery_push", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T05:13:57.035137Z"}
+{"event": "EventBus: registered 8 production handlers (SCORE_SUBMITTED, BKT_UPDATED, FSRS_UPDATED, MASTERY_CHANGED, CALIBRATION_RECORDED, MEMORY_WRITE_REQUESTED, RAG_WEIGHT_ADJUST, UI_MASTERY_PUSH)", "logger": "app.services.event_handlers", "level": "info", "timestamp": "2026-09-09T05:13:57.035156Z"}
+{"event": "No mastery_config.json found, using defaults", "logger": "app.services.mastery_engine", "level": "info", "timestamp": "2026-09-09T05:13:57.035215Z"}
+{"event": "Initialized FSRS scheduler with retention=0.9", "logger": "memory.temporal.fsrs_manager", "level": "info", "timestamp": "2026-09-09T05:13:57.035260Z"}
+{"event": "SignalRegistry: registered signal 'bkt_mastery'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T05:13:57.035276Z"}
+{"event": "SignalRegistry: registered signal 'fsrs_retrievability'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T05:13:57.035299Z"}
+{"event": "SignalRegistry: registered signal 'exam_score_avg'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T05:13:57.035413Z"}
+{"event": "SignalRegistry: registered signal 'calibration_bias'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T05:13:57.035473Z"}
+{"event": "SignalRegistry: registered signal 'self_confidence_avg'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T05:13:57.035513Z"}
+{"event": "MasteryEngine: fusion engine attached", "logger": "app.services.mastery_engine", "level": "info", "timestamp": "2026-09-09T05:13:57.035538Z"}
+{"event": "MasteryEngine singleton set (fusion-enabled)", "logger": "app.services.mastery_engine", "level": "info", "timestamp": "2026-09-09T05:13:57.035561Z"}
+{"event": "[Phase 2] GraphitiEpisodeWorker init failed (non-fatal): '>' not supported between instances of 'MagicMock' and 'int'", "logger": "app.main", "level": "warning", "timestamp": "2026-09-09T05:13:57.044573Z"}
+{"vault_path": "<MagicMock name='settings.canvas_base_path' id='5526357392'>", "total_nodes": 0, "total_edges": 0, "graph_build_time_ms": 0.6, "event": "wikilink.graph_built", "logger": "app.services.wikilink_graph_service", "level": "info", "timestamp": "2026-09-09T05:13:57.045196Z"}
+{"error": "live Neo4j port connect attempted: ('::1', 7691, 0, 0). \u53d7\u62e6\u7aef\u53e3 [7687, 7691] \u662f\u73b0\u7f51 Neo4j\uff1b\u6d4b\u8bd5\u8fdb\u7a0b\u4e0d\u5f97\u8fde\u63a5\u3002\u82e5\u8fd9\u662f\u7aef\u70b9\u6d4b\u8bd5\uff0c\u8bf7\u7528 backend/tests/support/lifespan.py::no_lifespan \u5173\u6389 app.main \u7684 lifespan\uff1b\u82e5\u786e\u9700\u771f\u5e93\uff0c\u7528\u6d4b\u8bd5\u5bb9\u5668 NEO4J_TEST_URI", "event": "canvas_schema_gate_verify_failed", "logger": "app.services.schema_gate", "level": "warning", "timestamp": "2026-09-09T05:13:57.046090Z"}
+{"event": "[Fix-E1] vault path \u4e0d\u5b58\u5728, \u8df3\u8fc7\u539f\u56e0\u8fb9\u540c\u6b65: <MagicMock name='settings.canvas_base_path' id='5526357392'>", "logger": "app.services.canvas_projection_sync", "level": "warning", "timestamp": "2026-09-09T05:13:57.046893Z"}
+{"event": "Load pretrained SentenceTransformer: BAAI/bge-m3", "logger": "sentence_transformers.SentenceTransformer", "level": "info", "timestamp": "2026-09-09T05:13:57.047659Z"}
+{"event": "[RAG-S1] orchestrator started: vault=/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault scan_interval=60s stale_after=300s", "logger": "app.services.vault_index_orchestrator", "level": "info", "timestamp": "2026-09-09T05:13:57.048008Z"}
+{"event": "Load pretrained SentenceTransformer: BAAI/bge-m3", "logger": "sentence_transformers.SentenceTransformer", "level": "info", "timestamp": "2026-09-09T05:13:57.049438Z"}
+{"event": "[RAG-S1] orchestrator shut down (pending flushed)", "logger": "app.services.vault_index_orchestrator", "level": "info", "timestamp": "2026-09-09T05:13:57.049626Z"}
+{"event": "[Story 7.2] LLM Call Logger stopped", "logger": "app.middleware.llm_call_logger", "level": "info", "timestamp": "2026-09-09T05:13:57.049736Z"}
+{"event": "[Story 7.2] CostTracker stopped", "logger": "app.middleware.cost_tracker", "level": "info", "timestamp": "2026-09-09T05:13:57.049850Z"}
+{"event": "[Story 3.8] Archive scheduler stopped", "logger": "app.services.archive_scheduler", "level": "info", "timestamp": "2026-09-09T05:13:57.049901Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded autoscore v1 (hash=4459bdcc7188)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:57.033265Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded context_extract v1 (hash=c648a7641ca5)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:57.033436Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded crag_grading v1 (hash=94b624e7ed31)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:57.033530Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded query_optimize v1 (hash=d74f28f3a3a9)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:57.033607Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded query_rewrite v1 (hash=54abd977e7e2)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:57.033680Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded question_gen v1 (hash=706f5ab04957)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:57.033752Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:134 {'event': '[PromptRegistry] Loaded search_intent v1 (hash=3255b0c040d8)', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:57.033819Z'}
+INFO     app.services.prompt_registry:prompt_registry.py:150 {'event': '[PromptRegistry] Loaded 7 templates across 7 prompt names', 'logger': 'app.services.prompt_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:57.033844Z'}
+INFO     app.middleware.cost_tracker:cost_tracker.py:230 [Story 7.2] CostTracker initialized: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u11-red-c/backend/data/llm_call_logs.db
+INFO     app.middleware.llm_call_logger:llm_call_logger.py:306 [Story 7.2] LLM Call Logger started
+INFO     app.middleware.cost_tracker:cost_tracker.py:238 [Story 7.2] Log rotation task started (daily cycle)
+INFO     app.core.litellm_config:litellm_config.py:227 [Story 7.2] LiteLLM CustomLogger callback registered via litellm.callbacks
+INFO     app.services.archive_scheduler:archive_scheduler.py:56 {'event': '[Story 3.8] Archive scheduler started (interval=86400s)', 'logger': 'app.services.archive_scheduler', 'level': 'info', 'timestamp': '2026-09-09T05:13:57.034939Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_score_submitted to score_submitted (subsystem=mastery_engine)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T05:13:57.034987Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_bkt_updated to bkt_updated (subsystem=mastery_store)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T05:13:57.035015Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_mastery_changed to mastery_changed (subsystem=mastery_pipeline)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T05:13:57.035038Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_calibration_recorded to calibration_recorded (subsystem=calibration)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T05:13:57.035059Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_memory_write_requested to memory_write_requested (subsystem=memory)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T05:13:57.035079Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_fsrs_updated to fsrs_updated (subsystem=memory)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T05:13:57.035097Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_rag_weight_adjust to rag_weight_adjust', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T05:13:57.035117Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handle_ui_mastery_push to ui_mastery_push', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T05:13:57.035137Z'}
+INFO     app.services.event_handlers:event_handlers.py:467 {'event': 'EventBus: registered 8 production handlers (SCORE_SUBMITTED, BKT_UPDATED, FSRS_UPDATED, MASTERY_CHANGED, CALIBRATION_RECORDED, MEMORY_WRITE_REQUESTED, RAG_WEIGHT_ADJUST, UI_MASTERY_PUSH)', 'logger': 'app.services.event_handlers', 'level': 'info', 'timestamp': '2026-09-09T05:13:57.035156Z'}
+INFO     app.services.mastery_engine:mastery_engine.py:95 {'event': 'No mastery_config.json found, using defaults', 'logger': 'app.services.mastery_engine', 'level': 'info', 'timestamp': '2026-09-09T05:13:57.035215Z'}
+INFO     memory.temporal.fsrs_manager:fsrs_manager.py:127 Initialized FSRS scheduler with retention=0.9
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'bkt_mastery'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:57.035276Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'fsrs_retrievability'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:57.035299Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'exam_score_avg'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:57.035413Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'calibration_bias'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:57.035473Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'self_confidence_avg'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T05:13:57.035513Z'}
+INFO     app.services.mastery_engine:mastery_engine.py:129 {'event': 'MasteryEngine: fusion engine attached', 'logger': 'app.services.mastery_engine', 'level': 'info', 'timestamp': '2026-09-09T05:13:57.035538Z'}
+INFO     app.services.mastery_engine:mastery_engine.py:793 {'event': 'MasteryEngine singleton set (fusion-enabled)', 'logger': 'app.services.mastery_engine', 'level': 'info', 'timestamp': '2026-09-09T05:13:57.035561Z'}
+WARNING  app.main:main.py:291 [Phase 2] GraphitiEpisodeWorker init failed (non-fatal): '>' not supported between instances of 'MagicMock' and 'int'
+INFO     app.services.wikilink_graph_service:wikilink_graph_service.py:90 {'vault_path': <MagicMock name='settings.canvas_base_path' id='5526357392'>, 'total_nodes': 0, 'total_edges': 0, 'graph_build_time_ms': 0.6, 'event': 'wikilink.graph_built', 'logger': 'app.services.wikilink_graph_service', 'level': 'info', 'timestamp': '2026-09-09T05:13:57.045196Z'}
+WARNING  app.services.schema_gate:schema_gate.py:92 {'error': "live Neo4j port connect attempted: ('::1', 7691, 0, 0). 受拦端口 [7687, 7691] 是现网 Neo4j；测试进程不得连接。若这是端点测试，请用 backend/tests/support/lifespan.py::no_lifespan 关掉 app.main 的 lifespan；若确需真库，用测试容器 NEO4J_TEST_URI", 'event': 'canvas_schema_gate_verify_failed', 'logger': 'app.services.schema_gate', 'level': 'warning', 'timestamp': '2026-09-09T05:13:57.046090Z'}
+WARNING  app.services.canvas_projection_sync:canvas_projection_sync.py:75 [Fix-E1] vault path 不存在, 跳过原因边同步: <MagicMock name='settings.canvas_base_path' id='5526357392'>
+INFO     sentence_transformers.SentenceTransformer:SentenceTransformer.py:227 Load pretrained SentenceTransformer: BAAI/bge-m3
+INFO     app.services.vault_index_orchestrator:vault_index_orchestrator.py:848 [RAG-S1] orchestrator started: vault=/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault scan_interval=60s stale_after=300s
+INFO     sentence_transformers.SentenceTransformer:SentenceTransformer.py:227 Load pretrained SentenceTransformer: BAAI/bge-m3
+INFO     app.services.vault_index_orchestrator:vault_index_orchestrator.py:867 [RAG-S1] orchestrator shut down (pending flushed)
+INFO     app.middleware.llm_call_logger:llm_call_logger.py:319 [Story 7.2] LLM Call Logger stopped
+INFO     app.middleware.cost_tracker:cost_tracker.py:249 [Story 7.2] CostTracker stopped
+INFO     app.services.archive_scheduler:archive_scheduler.py:74 {'event': '[Story 3.8] Archive scheduler stopped', 'logger': 'app.services.archive_scheduler', 'level': 'info', 'timestamp': '2026-09-09T05:13:57.049901Z'}
+--------------------------- Captured stderr teardown ---------------------------
+Loading weights:   0%|          | 0/391 [00:00<?, ?it/s]
+Loading weights:   0%|          | 0/391 [00:00<?, ?it/s][ALoading weights: 100%|██████████| 391/391 [00:00<00:00, 37341.70it/s]
+Loading weights: 100%|██████████| 391/391 [00:00<00:00, 18636.69it/s]
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:805
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u11-red-c/backend/app/api/v1/endpoints/chat.py:805: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:105
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u11-red-c/backend/app/api/v1/endpoints/metadata.py:105: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:179
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u11-red-c/backend/app/api/v1/endpoints/metadata.py:179: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+tests/unit/test_story_38_4_dual_write_default.py::TestAC1SafeDefault::test_startup_log_dual_write_enabled_default
+tests/unit/test_story_38_4_dual_write_default.py::TestAC1SafeDefault::test_startup_log_dual_write_enabled_default
+tests/unit/test_story_38_4_dual_write_default.py::TestAC2ExplicitDisable::test_startup_log_dual_write_disabled_explicit
+tests/unit/test_story_38_4_dual_write_default.py::TestAC2ExplicitDisable::test_startup_log_dual_write_disabled_explicit
+tests/unit/test_story_38_4_dual_write_default.py::TestAC2ExplicitDisable::test_warning_log_data_loss_risk_when_disabled
+tests/unit/test_story_38_4_dual_write_default.py::TestAC2ExplicitDisable::test_warning_log_data_loss_risk_when_disabled
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u11-red-c/backend/lib/agentic_rag/clients/lancedb_client.py:955: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    table_names = self._db.table_names()
+
+tests/unit/test_story_38_4_dual_write_default.py::TestAC1SafeDefault::test_startup_log_dual_write_enabled_default
+tests/unit/test_story_38_4_dual_write_default.py::TestAC1SafeDefault::test_startup_log_dual_write_enabled_default
+tests/unit/test_story_38_4_dual_write_default.py::TestAC2ExplicitDisable::test_startup_log_dual_write_disabled_explicit
+tests/unit/test_story_38_4_dual_write_default.py::TestAC2ExplicitDisable::test_startup_log_dual_write_disabled_explicit
+tests/unit/test_story_38_4_dual_write_default.py::TestAC2ExplicitDisable::test_warning_log_data_loss_risk_when_disabled
+tests/unit/test_story_38_4_dual_write_default.py::TestAC2ExplicitDisable::test_warning_log_data_loss_risk_when_disabled
+  /opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/asyncio/events.py:94: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    self._context.run(self._callback, *self._args)
+
+tests/unit/test_wave5_stageb_continued_vault_id_injection.py::TestSyncBatchRequestVaultId::test_sync_batch_has_deprecated_group_id
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u11-red-c/backend/tests/unit/test_wave5_stageb_continued_vault_id_injection.py:218: DeprecationWarning: deprecated
+    assert req.group_id == "cs188"
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=3 (blocked=3, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_story_38_4_dual_write_default.py::TestAC1SafeDefault::test_startup_log_dual_write_enabled_default
+FAILED tests/unit/test_story_38_4_dual_write_default.py::TestAC2ExplicitDisable::test_startup_log_dual_write_disabled_explicit
+FAILED tests/unit/test_story_38_4_dual_write_default.py::TestAC2ExplicitDisable::test_warning_log_data_loss_risk_when_disabled
+================= 3 failed, 101 passed, 23 warnings in 30.59s ==================
+rc=1

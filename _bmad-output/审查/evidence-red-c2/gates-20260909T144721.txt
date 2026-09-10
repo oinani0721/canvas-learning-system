@@ -1,0 +1,38 @@
+# 收工门 §二.6 / §二.7 / §二.8 + SHA 绑定证明 — CARD-RED-C2（Codex round-3 整改后重跑）
+HEAD=e43db627   U11-A 末 commit=5139428d   跑于 2026-09-09 14:47:21
+
+## 〇 SHA 绑定（round-1/2/3 连着三轮要求，本节给**实际输出**而不是声称）
+上一轮审查 SHA = 0909e935。本轮确有代码改动 ⇒ 与它**不等价**，故全部裁判在新 HEAD 重跑：
+$ git diff --stat --no-color 0909e935 HEAD -- . ':(exclude)_bmad-output'
+ backend/tests/unit/test_story_1_7_env_config.py |  32 ++++--
+ backend/tests/unit/test_story_30_24_boundary.py | 137 +++++++++++++-----------
+ 2 files changed, 95 insertions(+), 74 deletions(-)
+
+而**文档轮次**之间的代码树等价，是这样证明的（round-3 LOW 要求补的那条实际输出）：
+$ git diff --stat --no-color 4449e292 0909e935 -- . ':(exclude)_bmad-output'
+  ↑ **无输出 = 空** ⇒ 4449e292 与 0909e935 的代码树逐字节相同（0909e935 只改了 _bmad-output）
+
+本轮三份证据的 HEAD 行（写死文件名，不用 ls -t）：
+  unit-after-20260909T143922.txt     -> HEAD=e43db627
+  files-23-20260909T144643.txt       -> HEAD=e43db627
+  gates-20260909T144721.txt          -> HEAD=e43db627
+
+## §二.6 判据强度门
+  ↑ 无输出 = 通过
+
+## §二.7 fixture 门
+autouse=True 新增数: 0
+精确读取面模式:
+  ↑ 无输出 = 通过
+
+## §二.8 地盘门
+改动文件数: 23
+backend/app diff（必须空）:
+  ↑ 空
+_archive diff（必须空）:
+  ↑ 空
+全部 ⊆ 23 文件清单（comm -23 必须空）:
+  ↑ 空
+
+既有 skip 标记被删/改的行数（全卡累计）: 0
+本卡 diff 里 stderr 文件数: 0

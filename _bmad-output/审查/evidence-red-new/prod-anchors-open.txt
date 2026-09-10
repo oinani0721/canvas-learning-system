@@ -1,0 +1,135 @@
+=== §二.7 现行判定行锚 ===
+--- calibration_tracker.py :36-44 ---
+       1	STAGE_2_MIN_RECORDS = 10
+       2	STAGE_3_MIN_RECORDS = 20
+       3	
+       4	# Calibration rating threshold
+       5	CALIBRATION_BIAS_THRESHOLD = 0.15
+       6	
+       7	
+       8	def _load_calibration_thresholds() -> None:
+       9	    """Load calibration thresholds from mastery_config.json if present.
+--- calibration_tracker.py :185,196 ---
+185	    """
+186	    if record_count < STAGE_2_MIN_RECORDS:
+187	        return CalibrationRating.INSUFFICIENT_DATA
+188	
+189	    if abs(signed_bias) < CALIBRATION_BIAS_THRESHOLD:
+190	        return CalibrationRating.WELL_CALIBRATED
+191	    elif signed_bias > 0:
+192	        return CalibrationRating.OVER_CONFIDENT
+193	    else:
+194	        return CalibrationRating.UNDER_CONFIDENT
+195	
+196	
+--- difficulty_matcher.py :370-384 ---
+370	
+371	        [Source: Story 7.4 AC-2 — sliding window of 50 questions, 70% threshold]
+372	        """
+373	        total = len(self._window)
+374	        matched = sum(1 for m in self._window if m)
+375	        rate = matched / total if total > 0 else 0.0
+376	
+377	        return DifficultyMatchStats(
+378	            window_size=WINDOW_SIZE,
+379	            total_in_window=total,
+380	            matched_count=matched,
+381	            match_rate=round(rate, 4),
+382	            is_healthy=rate >= MATCH_THRESHOLD,
+383	        )
+384	
+--- event_bus.py :296-305 ---
+296	                    if cb:
+297	                        cb.record_failure()
+298	
+299	                if attempt < TIER2_MAX_RETRIES:
+300	                    await asyncio.sleep(delay)
+301	
+302	        # All retries exhausted — write to JSONL outbox
+303	        self._stats["handled_failed"] += 1
+304	        self._write_outbox(event, handler.__name__, "retries_exhausted")
+305	
+--- canvas_service.py :888-902 ---
+888	
+889	        if "edges" not in canvas_data:
+890	            canvas_data["edges"] = []
+891	        canvas_data["edges"].append(new_edge)
+892	
+893	        await self.write_canvas(canvas_name, canvas_data)
+894	
+895	        # Story 30.5 AC-30.5.2: Trigger edge_created memory event (fire-and-forget)
+896	        await self._trigger_memory_event(
+897	            event_type=CanvasEventType.EDGE_CREATED,
+898	            canvas_name=canvas_name,
+899	            edge_id=new_edge["id"],
+900	            edge_data=new_edge,
+901	        )
+902	
+--- mastery_fusion.py :145-170 ---
+145	
+146	    Returns:
+147	        Pearson r in [-1.0, 1.0], or None if computation is impossible
+148	        (e.g., fewer than 3 data points or zero variance).
+149	    """
+150	    n = min(len(values_a), len(values_b))
+151	    if n < 3:
+152	        return None
+153	
+154	    a = values_a[:n]
+155	    b = values_b[:n]
+156	
+157	    mean_a = sum(a) / n
+158	    mean_b = sum(b) / n
+159	
+160	    cov = sum((a[i] - mean_a) * (b[i] - mean_b) for i in range(n))
+161	    var_a = sum((a[i] - mean_a) ** 2 for i in range(n))
+162	    var_b = sum((b[i] - mean_b) ** 2 for i in range(n))
+163	
+164	    denominator = math.sqrt(var_a * var_b)
+165	    if denominator == 0:
+166	        return None
+167	
+168	    return round(cov / denominator, 3)
+169	
+170	
+--- multimodal_service.py :490-522 ---
+490	        unique_id = uuid.uuid4().hex[:16]
+491	        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+492	        return f"{timestamp}_{unique_id}{ext}"
+493	
+494	    def _validate_safe_path(self, file_path: Path) -> Path:
+495	        """
+496	        Validate that file_path is within storage_base_path (path traversal defense).
+497	
+498	        Args:
+499	            file_path: The candidate file path to validate
+500	
+501	        Returns:
+502	            The resolved (canonical) path if safe
+503	
+504	        Raises:
+505	            MultimodalServiceError: If path traversal is detected
+506	        """
+507	        resolved_path = file_path.resolve()
+508	        if not resolved_path.is_relative_to(self.storage_base_path.resolve()):
+509	            # Use repr() to prevent log injection via newlines in crafted paths
+510	            logger.warning(
+511	                "Path traversal attempt detected: %s -> %s",
+512	                repr(str(file_path)),
+513	                repr(str(resolved_path)),
+514	            )
+515	            raise MultimodalServiceError(
+516	                "Invalid file path: path traversal detected",
+517	                "PATH_TRAVERSAL_ERROR",
+518	            )
+519	        return resolved_path
+520	
+521	    async def upload_file(
+522	        self,
+--- ls mastery_config.json（(c) 隐藏可变量，预期两处均不存在）---
+ls: backend/mastery_config.json: No such file or directory
+ls: mastery_config.json: No such file or directory
+--- _validate_safe_path 生产调用方 ---
+backend/app/services/multimodal_service.py:494:    def _validate_safe_path(self, file_path: Path) -> Path:
+backend/app/services/multimodal_service.py:565:        file_path = self._validate_safe_path(file_path)
+backend/app/services/multimodal_service.py:709:        file_path = self._validate_safe_path(file_path)

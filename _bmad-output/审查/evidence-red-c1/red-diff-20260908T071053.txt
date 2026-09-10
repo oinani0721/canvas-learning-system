@@ -1,0 +1,14 @@
+29a30
+> ERROR tests/unit/test_wikilink_parser.py::TestExtractAllWikilinks::test_empty_text
+63d63
+< FAILED tests/unit/test_cache_configuration.py::TestMemoryRetryDelayFromSettings::test_retry_delay_reads_settings
+123d122
+< FAILED tests/unit/test_qa_38_4_dual_write_extra.py::TestQAGetAttrDefenseInDepth::test_memory_service_getattr_fallback_is_false
+155,156d153
+< FAILED tests/unit/test_story_38_4_dual_write_default.py::TestAC1SafeDefault::test_lowercase_alias_returns_true_by_default
+< FAILED tests/unit/test_story_38_4_dual_write_default.py::TestAC1SafeDefault::test_settings_field_default_is_true
+160,163d156
+< FAILED tests/unit/test_story_38_4_dual_write_default.py::TestAC3MissingEnvVar::test_missing_env_var_defaults_to_true
+< FAILED tests/unit/test_story_38_6_scoring_reliability.py::TestAC1TimeoutRetryAlignment::test_backoff_progression
+< FAILED tests/unit/test_story_38_6_scoring_reliability.py::TestAC1TimeoutRetryAlignment::test_inner_per_attempt_timeout_increased
+< FAILED tests/unit/test_story_38_6_scoring_reliability.py::TestAC1TimeoutRetryAlignment::test_retry_backoff_base_is_1_second

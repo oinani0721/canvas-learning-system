@@ -1,0 +1,2 @@
+tests/unit/test_qa_38_6_scoring_reliability_extra.py::TestStartupIntegration::test_fallback_sync_called_in_lifespan
+tests/unit/test_qa_38_6_scoring_reliability_extra.py::TestStartupIntegration::test_main_imports_fallback_sync

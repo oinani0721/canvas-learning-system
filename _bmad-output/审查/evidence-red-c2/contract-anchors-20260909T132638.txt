@@ -1,0 +1,88 @@
+# 现行契约锚点原文（sed -n / grep -n 实测，2026-09-09）
+
+## config.py 安全校验器（锚①）
+       1	        is_local = self.DEBUG and ("localhost" in self.CORS_ORIGINS or "127.0.0.1" in self.CORS_ORIGINS)
+       2	
+       3	        if self.NEO4J_ENABLED and not self.NEO4J_PASSWORD:
+       4	            if not is_local:
+       5	                raise ValueError(
+       6	                    "NEO4J_PASSWORD must be set explicitly outside local dev. Set env var or disable NEO4J_ENABLED."
+       7	                )
+       8	            logger.warning("NEO4J_PASSWORD empty in DEBUG mode. Set before deploying.")
+       9	
+      10	        if not is_local and not self.INTERNAL_API_KEY:
+      11	            raise ValueError(
+      12	                "INTERNAL_API_KEY required outside local dev. Set env var or enable DEBUG with localhost CORS."
+      13	            )
+
+## supplementary_reranker 权重表（锚②）
+       1	    # "concept"; doc_type=concept 笔记的 source_type 由路径启发独立决定
+       2	    # (note 或 video_transcript), 与 doc_type 无关。聚合面 get_filter_threshold()
+       3	    # 消费全表 values() (chat.py 生产调用), concept=1.0 非最小值故当前不影响
+       4	    # 阈值。保守保键防误删, 删键裁定列 follow-up。
+       5	    "concept": 1.0,
+       6	    "note": 1.0,  # 普通 vault 笔记 → 用户手写, 最高
+       7	    "video_transcript": 0.75,  # 视频 transcript → 素材层, 低于手写
+       8	    "image_ocr": 0.6,  # OCR 出来的图片文字 → 同 raw_notes 低档 (准确度有限)
+       9	}
+      10	
+      11	# Unknown / None / empty source_type fallback. Below all canonical (min 0.6) so
+      12	# unknown data surfaces visibly in trace.included.type_weight rather than
+      13	# silently being treated as a canonical category.
+      14	DEFAULT_TYPE_WEIGHT: float = 0.5
+      15	
+
+## verify-vault.mjs 仓内唯一副本（锚③）
+./_archive/canvas-progress-tracker/obsidian-plugin/scripts/verify-vault.mjs
+
+## read_scope_params 返回键（锚④）
+613-
+614-    Raises:
+615-        VaultScopeUnresolved: 作用域解析失败 (见 :func:`require_read_group`)。
+616-    """
+617-    from app.graphiti.group_id_compat import to_physical_group_id
+618-
+619-    physical = to_physical_group_id(require_read_group(group_id, context=context))
+620-    return {"group_id": physical, "group_prefix": physical + _PHYSICAL_SEPARATOR}
+
+## 其余族的现行契约锚
+backend/app/services/context_enrichment_service.py :: async def _search_learning_relations
+    1011:    async def _search_learning_relations(
+
+backend/app/core/agent_memory_mapping.py :: hint-generation
+    53:    "hint-generation": AgentMemoryType.EXPLANATION_GENERATED,  # Story 30.12 fix: was missing, trigger in verification_service.py
+
+backend/app/services/intelligent_parallel_service.py :: is_terminal
+    492:        if session.status.is_terminal:
+
+backend/app/services/lancedb_index_service.py :: await client.initialize
+    453:                await client.initialize()
+
+backend/app/api/v1/endpoints/agents.py :: from app.core.vault_scope import resolve_vault_scope
+    33:from app.core.vault_scope import resolve_vault_scope
+
+backend/app/core/subject_config.py :: DEFAULT_SUBJECT_ID = 
+    27:DEFAULT_SUBJECT_ID = "general"
+
+backend/app/services/episode_worker.py :: semantic_group_id
+    595:            semantic_group_id,
+    601:            "group_id": semantic_group_id(sanitize_group_id_for_graphiti(task.group_id)),
+
+backend/app/services/memory_service.py :: _mmr
+    1773:                    "combined_mmr": COMBINED_HYBRID_SEARCH_MMR,
+    1776:                    "edge_mmr": EDGE_HYBRID_SEARCH_MMR,
+    1778:                    "node_mmr": NODE_HYBRID_SEARCH_MMR,
+
+backend/app/services/verification_service.py :: return "unknown", 0.0
+    1677:        return "unknown", 0.0
+
+backend/app/services/intelligent_grouping_service.py :: build_vault_group_id(
+    212:            subject_group_id = build_vault_group_id(
+
+backend/app/api/v1/endpoints/health.py :: Connection timeout
+    797:                                    "error": "Connection timeout (>500ms)",
+    900:                error="Connection timeout (>30000ms)",
+    1503:            error="Connection timeout (>10000ms)",
+
+backend/app/main.py :: Dual-write
+

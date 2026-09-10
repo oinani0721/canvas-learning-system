@@ -1,0 +1,38 @@
+# 收工门 + SHA 绑定证明 — CARD-RED-C2（Codex round-4 整改后重跑）
+HEAD=3a6f51ea   U11-A 末 commit=5139428d   跑于 2026-09-09 15:07:18
+
+## 〇 SHA 绑定（四轮连着要求，本节给实际输出）
+$ git diff --stat --no-color 5e3c7998 HEAD -- . ':(exclude)_bmad-output'   # 上一审查 SHA → 本 HEAD
+ backend/tests/unit/test_story_1_7_env_config.py |  33 +++++---
+ backend/tests/unit/test_story_30_24_boundary.py | 106 ++++++++++++------------
+ 2 files changed, 78 insertions(+), 61 deletions(-)
+  ↑ 非空 = 本轮确有代码改动 ⇒ 必须重跑全部裁判（已重跑）
+
+$ git diff --stat --no-color e43db627 5e3c7998 -- . ':(exclude)_bmad-output'   # 上一轮证据 HEAD → 上一轮送审 SHA
+  ↑ **空** ⇒ round-4 送审时，证据标的 e43db627 与送审 SHA 5e3c7998 代码树逐字节相同
+     （round-4 LOW 指出上一份存档缺这条，本节补上实际输出）
+
+本轮三份证据的 HEAD 行（写死文件名）：
+  unit-after-20260909T150204.txt     -> HEAD=3a6f51ea
+  files-23-20260909T150641.txt       -> HEAD=3a6f51ea
+  gates-20260909T150718.txt          -> HEAD=3a6f51ea
+
+## §二.6 判据强度门
+  ↑ 无输出 = 通过
+
+## §二.7 fixture 门
+autouse=True 新增数: 0
+精确读取面模式:
+  ↑ 无输出 = 通过
+
+## §二.8 地盘门
+改动文件数: 23
+backend/app diff（必须空）:
+  ↑ 空
+_archive diff（必须空）:
+  ↑ 空
+全部 ⊆ 23 文件清单:
+  ↑ 空
+
+既有 skip 标记被删/改（全卡累计）: 0
+本卡 diff 里 stderr 文件数: 0

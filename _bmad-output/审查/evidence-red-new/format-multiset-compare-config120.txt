@@ -1,0 +1,23 @@
+=== 口径自检：ruff 对树外副本会不会吃到项目配置 ===
+--- 不指定 --config（树外副本）---
+1 file already formatted
+--- 显式 --config backend/ruff.toml ---
+1 file already formatted
+
+=== 重做多重集对照：两侧统一 --config backend/ruff.toml（= hook 的 120 口径）===
+--- 仅在 mine（= 本卡新增 format 债，判据要求为空）---
+[END-NEW]
+
+--- 仅在 base（= 本卡改写掉的行，允许非空）---
+            compute_calibration_rating(-0.15, 20) == CalibrationRating.WELL_CALIBRATED
+        )
+        assert (
+        assert compute_calibration_rating(-0.15, 20) == CalibrationRating.WELL_CALIBRATED
+[END-GONE]
+
+--- 交叉验证：文件级名单两侧是否相同 ---
+only-in-baseline:
+[END]
+only-in-current:
+[END]
+identical name sets = True

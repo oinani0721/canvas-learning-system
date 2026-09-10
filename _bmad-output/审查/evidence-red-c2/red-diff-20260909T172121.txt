@@ -1,0 +1,93 @@
+30,35d29
+< FAILED tests/unit/grouping/test_analyze_canvas.py::TestSubjectIsolation::test_group_id_extraction_chinese
+< FAILED tests/unit/grouping/test_analyze_canvas.py::TestSubjectIsolation::test_group_id_with_skip_directories
+< FAILED tests/unit/test_agent_context_injection.py::TestGraphitiSearchDelegation::test_search_calls_graphiti_service
+< FAILED tests/unit/test_agent_context_injection.py::TestGraphitiSearchDelegation::test_search_returns_empty_without_graphiti_service
+< FAILED tests/unit/test_agent_context_injection.py::TestRelevanceSorting::test_search_graceful_on_exception
+< FAILED tests/unit/test_agent_context_injection.py::TestRelevanceSorting::test_search_limits_to_top_5
+37,43d30
+< FAILED tests/unit/test_agent_memory_trigger.py::TestAgentMemoryMapping::test_all_14_agents_are_mapped
+< FAILED tests/unit/test_agent_service_comparison.py::TestCallExplanationComparisonFormat::test_clarification_agent_receives_concept_string
+< FAILED tests/unit/test_agent_service_comparison.py::TestCallExplanationComparisonFormat::test_comparison_table_receives_concepts_array
+< FAILED tests/unit/test_agent_service_comparison.py::TestCallExplanationComparisonFormat::test_example_agent_receives_concept_string
+< FAILED tests/unit/test_agent_service_comparison.py::TestCallExplanationComparisonFormat::test_four_level_agent_receives_concept_string
+< FAILED tests/unit/test_agent_service_comparison.py::TestCallExplanationComparisonFormat::test_memory_agent_receives_concept_string
+< FAILED tests/unit/test_agent_service_comparison.py::TestCallExplanationComparisonFormat::test_oral_agent_receives_concept_string
+45,46d31
+< FAILED tests/unit/test_agent_service_neo4j_memory.py::TestAC2Neo4jQuery::test_cypher_query_structure
+< FAILED tests/unit/test_agent_service_neo4j_memory.py::TestAC3RelevanceSorting::test_cypher_query_has_order_by_relevance
+48,49d32
+< FAILED tests/unit/test_agent_service_neo4j_memory.py::TestMemoryFormatting::test_format_memory_with_none_score
+< FAILED tests/unit/test_agent_service_neo4j_memory.py::TestMemoryFormatting::test_format_single_memory
+59,63d41
+< FAILED tests/unit/test_cache_configuration.py::TestDefaultValuesBackwardCompatible::test_enrichment_extreme_maxsize_1
+< FAILED tests/unit/test_cache_configuration.py::TestDIPathPropagation::test_enrichment_service_di_passes_cache_config
+< FAILED tests/unit/test_cache_configuration.py::TestEnrichmentCacheFromSettings::test_cache_default_maxsize
+< FAILED tests/unit/test_cache_configuration.py::TestEnrichmentCacheFromSettings::test_cache_uses_custom_maxsize
+< FAILED tests/unit/test_cache_configuration.py::TestMemoryRetryDelayFromSettings::test_retry_delay_reads_settings
+65a44
+> FAILED tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422
+83,94d61
+< FAILED tests/unit/test_config_neo4j.py::TestNeo4jSettingsDefaults::test_neo4j_database_default
+< FAILED tests/unit/test_config_neo4j.py::TestNeo4jSettingsDefaults::test_neo4j_enabled_default_true
+< FAILED tests/unit/test_config_neo4j.py::TestNeo4jSettingsDefaults::test_neo4j_password_empty_default
+< FAILED tests/unit/test_config_neo4j.py::TestNeo4jSettingsDefaults::test_neo4j_uri_default
+< FAILED tests/unit/test_config_neo4j.py::TestNeo4jSettingsDefaults::test_neo4j_user_default
+< FAILED tests/unit/test_config_neo4j.py::TestNeo4jSettingsFromEnv::test_neo4j_enabled_case_insensitive
+< FAILED tests/unit/test_config_neo4j.py::TestNeo4jSettingsFromEnv::test_neo4j_enabled_false_from_env
+< FAILED tests/unit/test_config_neo4j.py::TestNeo4jSettingsFromEnv::test_neo4j_settings_from_env
+< FAILED tests/unit/test_config_neo4j.py::TestNeo4jSettingsFromEnv::test_neo4j_uri_with_different_port
+< FAILED tests/unit/test_context_enrichment_2hop.py::TestEnrichWithAdjacentNodes2Hop::test_enrich_with_2hop_adjacent_nodes
+< FAILED tests/unit/test_context_enrichment_2hop.py::TestEnrichWithAdjacentNodes2Hop::test_enriched_context_contains_2hop_labels
+< FAILED tests/unit/test_degraded_flag_propagation.py::TestDegradedResponseFormat::test_degraded_score_is_reasonable
+114d80
+< FAILED tests/unit/test_intelligent_parallel_endpoints.py::TestCancelEndpoint::test_cancel_running_session
+119d84
+< FAILED tests/unit/test_mock_degradation_transparency.py::TestMockScoringWarningLogs::test_mock_mode_logs_warning
+122,123d86
+< FAILED tests/unit/test_neo4j_health.py::TestNeo4jHealthEndpoint::test_neo4j_connection_timeout
+< FAILED tests/unit/test_qa_38_4_dual_write_extra.py::TestQAGetAttrDefenseInDepth::test_memory_service_getattr_fallback_is_false
+127,130d89
+< FAILED tests/unit/test_rag_multimodal_integration.py::TestRRFMultimodalFusion::test_rrf_fusion_with_multimodal_results
+< FAILED tests/unit/test_rag_multimodal_integration.py::TestRRFMultimodalFusion::test_rrf_multimodal_score_contribution
+< FAILED tests/unit/test_rag_multimodal_integration.py::TestRRFMultimodalFusion::test_weighted_fusion_with_multimodal
+< FAILED tests/unit/test_rag_multimodal_integration.py::TestStateGraphMultimodalIntegration::test_fan_out_retrieval_includes_multimodal
+133,134d91
+< FAILED tests/unit/test_s02_entity_types.py::TestProcessEpisodeForwarding::test_forwards_entity_and_edge_types
+< FAILED tests/unit/test_s02_search_upgrade.py::test_search_recipes_all_5_mapped
+141d97
+< FAILED tests/unit/test_story_1_7_env_config.py::TestDockerComposeVariableization::test_no_hardcoded_user_paths
+147,163d102
+< FAILED tests/unit/test_story_30_24_boundary.py::TestSpecialCharacterGroupId::test_neo4j_parameterized_query_with_special_chars
+< FAILED tests/unit/test_story_30_24_boundary.py::TestVaultVerifyExitCode::test_package_json_verify_command_correct
+< FAILED tests/unit/test_story_30_24_boundary.py::TestVaultVerifyExitCode::test_verify_script_exists
+< FAILED tests/unit/test_story_30_24_boundary.py::TestVaultVerifyExitCode::test_verify_script_exits_nonzero_when_file_not_found
+< FAILED tests/unit/test_story_30_24_boundary.py::TestVaultVerifyExitCode::test_verify_script_exits_nonzero_when_stale
+< FAILED tests/unit/test_story_30_24_boundary.py::TestVaultVerifyExitCode::test_verify_script_exits_zero_when_fresh
+< FAILED tests/unit/test_story_38_1_review_fixes.py::TestDoIndexCoverage::test_do_index_raises_file_not_found
+< FAILED tests/unit/test_story_38_1_review_fixes.py::TestDoIndexCoverage::test_do_index_reads_canvas_and_calls_index
+< FAILED tests/unit/test_story_38_4_dual_write_default.py::TestAC1SafeDefault::test_lowercase_alias_returns_true_by_default
+< FAILED tests/unit/test_story_38_4_dual_write_default.py::TestAC1SafeDefault::test_settings_field_default_is_true
+< FAILED tests/unit/test_story_38_4_dual_write_default.py::TestAC1SafeDefault::test_startup_log_dual_write_enabled_default
+< FAILED tests/unit/test_story_38_4_dual_write_default.py::TestAC2ExplicitDisable::test_startup_log_dual_write_disabled_explicit
+< FAILED tests/unit/test_story_38_4_dual_write_default.py::TestAC2ExplicitDisable::test_warning_log_data_loss_risk_when_disabled
+< FAILED tests/unit/test_story_38_4_dual_write_default.py::TestAC3MissingEnvVar::test_missing_env_var_defaults_to_true
+< FAILED tests/unit/test_story_38_6_scoring_reliability.py::TestAC1TimeoutRetryAlignment::test_backoff_progression
+< FAILED tests/unit/test_story_38_6_scoring_reliability.py::TestAC1TimeoutRetryAlignment::test_inner_per_attempt_timeout_increased
+< FAILED tests/unit/test_story_38_6_scoring_reliability.py::TestAC1TimeoutRetryAlignment::test_retry_backoff_base_is_1_second
+165d103
+< FAILED tests/unit/test_story_38_8_fallback_sync.py::TestAC5FileRotation::test_pending_entries_rewritten
+174,183d111
+< FAILED tests/unit/test_subject_isolation.py::TestExtractSubjectFromCanvasPath::test_extract_subject_empty_path
+< FAILED tests/unit/test_supplementary_reranker.py::TestFilterFloor::test_floor_still_respects_top_k
+< FAILED tests/unit/test_supplementary_reranker.py::TestFilterFloor::test_floor_triggered_marks_first_material
+< FAILED tests/unit/test_supplementary_reranker.py::TestFilterFloor::test_floor_triggered_when_kill_ratio_high
+< FAILED tests/unit/test_supplementary_reranker.py::TestFilterFloor::test_min_keep_zero_disables_floor
+< FAILED tests/unit/test_supplementary_reranker.py::TestFilterFloorTaintExclusion::test_floor_all_review_returns_empty_list
+< FAILED tests/unit/test_supplementary_reranker.py::TestFilterFloorTaintExclusion::test_floor_no_taint_field_treated_as_clean
+< FAILED tests/unit/test_supplementary_reranker.py::TestFilterFloorTaintExclusion::test_min_keep_floor_excludes_review_taint
+< FAILED tests/unit/test_supplementary_reranker.py::TestTypeWeightsIndexerTransition::test_indexer_note_mapped_to_canonical
+< FAILED tests/unit/test_supplementary_reranker.py::TestTypeWeightsIndexerTransition::test_indexer_video_transcript_mapped_to_canonical
+200,201d127
+< FAILED tests/unit/test_verification_service_injection.py::TestDependenciesInjection::test_get_verification_service_injects_graphiti_client
+< FAILED tests/unit/test_wave5_stageb_continued_vault_id_injection.py::TestSharedResolverImportedByEndpoints::test_endpoint_imports_shared_resolver[app.api.v1.endpoints.agents]
