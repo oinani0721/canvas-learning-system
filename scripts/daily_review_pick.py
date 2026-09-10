@@ -39,10 +39,10 @@ S1 桶位划分律与优先级 (无重叠 · 无遗漏)
     1 new            due_reason=="new" — 无 fsrs_due 且非 fail-open 的真新卡
     2 learning_queue 已到期 且 fsrs_state ∈ {0, 1, 3}
     3 due_now        其余已到期 (含 fsrs_state==2 Review 与 malformed fail-open)
-    4 due_today      未到期 且 fsrs_due 落在与 now 同一个 Asia/Shanghai 日
+    4 due_today      未到期 且 fsrs_due 落在与 now 同一个显示时区本地日
     5 future         其余未到期
   完备性: 域内每节点的 due_now 布尔恒二分 — True 侧被 1/2/3 穷尽 (3 = 1
-  的否定 ∧ 2 的否定), False 侧被 4/5 穷尽 (同上海日与否)。互斥由级联保证。
+  的否定 ∧ 2 的否定), False 侧被 4/5 穷尽 (同显示时区日与否)。互斥由级联保证。
   合计恒等 (构造保证 + 契约测试):
     |new| + |learning_queue| + |due_now| == stats.due_nodes
     |due_today| + |future|              == stats.future_nodes
@@ -67,7 +67,7 @@ S2 加标签不搬移 (R2 高风险面 — 本卡明令禁止搬移)
 S3 why_due 取值枚举与生成规则
   why_due 是恒非空人话串 (桶位是机器枚举, why_due 是给人看的那一句), 由
   下列 6 个确定性模板生成, 槽位只填投影内已有的真实数据 — fsrs_due /
-  fsrs_state / last_examined 派生的闲置天数 / Asia/Shanghai 本地时刻,
+  fsrs_state / last_examined 派生的闲置天数 / 显示时区本地时刻,
   一律不虚构、不估算:
     new            "新卡未排期，视同即刻到期 · <闲置片段>"
     learning_queue "<学习中|重学中> · <到期片段> · <闲置片段>"
@@ -89,10 +89,10 @@ S3 why_due 取值枚举与生成规则
     到期片段兜底  "到期时刻超出可显示范围"
     future 兜底   "到期时刻超出可显示范围，按未来排期处理"
   —— 如实说"算不出", 不猜、不静默丢节点。同一情形下判桶的"今天"基准退化
-  为 UTC 日 (见 _today_sh)。
+  为 UTC 日 (见 _today_local)。
   非到期两桶 (due_today/future) 的 why_due 读作「何时到期」— 同一字段名
   承载「为什么今天不用做」的诚实说明, 绝不给未到期节点编造到期理由。
-  时区: 人话一律 Asia/Shanghai (与 CARD-D1 总览页同一口径); 落盘的
+  时区: 人话一律走 local_tz 单一来源 (与总览页同一口径); 落盘的
   fsrs_due / next_due 仍是 UTC-Z 原样, 不动。
 
 ═══════════════════════════════════════════════════════════════════════
@@ -217,6 +217,12 @@ import uuid
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
+# 显式把脚本自身目录挂上 sys.path (与 daily_review_run.py:29 同形): 四条调用
+# 路径 (CLI 直跑 / review_overview._run_pick 子进程 / runner import / pytest)
+# 此刻都恰好让 sys.path[0] = 本目录, 但那是各调用方的巧合而非本模块的保证。
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import local_tz  # noqa: E402  — 单一时区来源 (CARD-G6-9c, 与 app/core/display_tz.py 同源)
+
 #: 与 start-exam-board SKILL Step 3 完全同一条占位符规则 (终审 A3)
 PLACEHOLDER = "你的 1-2 句精准定义"
 
@@ -233,15 +239,15 @@ TEST_MARKERS = ("TestConcept", "UAT-2.5", "m3-e2e")
 #: Bark 通知标题上限 (方案规范: ≤20 全角字符)
 TITLE_LIMIT = 20
 
-#: CARD-G3-6a 人话时区: 统一 Asia/Shanghai (与 CARD-D1 总览页同一口径 —
-#: launchd/容器跑 UTC 时 astimezone() 的"本地日"会跨午夜误判)。缺 tzdata
-#: 时退化为固定 +8 (Asia/Shanghai 自 1991 年起无夏令时, 语义等价)。
-try:
-    from zoneinfo import ZoneInfo
-
-    _TZ_SHANGHAI = ZoneInfo("Asia/Shanghai")
-except Exception:  # noqa: BLE001 — ZoneInfoNotFoundError / ImportError 同一退化
-    _TZ_SHANGHAI = timezone(timedelta(hours=8))
+#: CARD-G6-9c / D-18 (2026-09-07): 人话与桶位时区取**单一来源** local_tz —
+#: 缺省 = 机器本地的 IANA 名, CANVAS_TZ 显式覆盖。此前这里写死 Asia/Shanghai,
+#: 与 runner 的机器本地日构成两套时钟 (矩阵 8 组分叉的一半根因)。
+#: ⚠ 本模块用**模块级常量**(与显示侧 review_overview 的"每次调用现取"不同):
+#: pick 是 launchd 一次性进程 / 子进程, 生命周期内时区不会变; 而测试里
+#: machine_tz 夹具改 TZ 后不 reload 模块 ⇒ 需 monkeypatch 本常量
+#: (test_g6_9_boundary_matrix.py 三条非时区用例已按此处置)。改成每次现调
+#: 会与 U6-B / U6-C 卡文已引用的形态分裂 —— 要改先报主 session。
+_DISPLAY_TZ = local_tz.display_tz()
 
 #: CARD-G3-6a S1 五桶 — 级联优先级顺序即本元组顺序 (落盘 buckets 键序亦同)
 BUCKET_NEW = "new"
@@ -366,21 +372,21 @@ def _fm_int(fm: str, key: str):
     return int(v)
 
 
-def _sh_local(ts: str):
-    """UTC-Z 定长时间串 → Asia/Shanghai aware datetime; 不可表示时 None。
+def _display_local(ts: str):
+    """UTC-Z 定长时间串 → 显示时区 aware datetime; 不可表示时 None。
 
     ts 已由 scan_nodes 的 fsrs_due 门禁保证形态 (非规范值早被 fail-open
     清空)。年份极值 (9999-12-31T23:59:59Z + 8h) astimezone 会 OverflowError
     — 人话层绝不崩全轮, 交由调用方走兜底文案 / 归 future。
     """
     try:
-        return datetime.strptime(ts, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).astimezone(_TZ_SHANGHAI)
+        return datetime.strptime(ts, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).astimezone(_DISPLAY_TZ)
     except (ValueError, OverflowError, OSError):
         return None
 
 
-def _today_sh(now: datetime):
-    """判桶的「今天」基准 (Asia/Shanghai 日)。
+def _today_local(now: datetime):
+    """判桶的「今天」基准 (显示时区本地日; CARD-G6-9c 起同 runner / 总览页)。
 
     极值 now (年份边界) 换算会 OverflowError —— 此处退化为 UTC 日而非崩掉
     整轮 (S3 极值兜底同款诚实降级)。注意: HEAD 起 build_payload 的
@@ -391,7 +397,7 @@ def _today_sh(now: datetime):
     换算要减 14 小时 → 年份下溢), 故最后再退一档到 now 自身表示的日期 ——
     该值恒可得, 三档保证本函数永不抛。
     """
-    for tz in (_TZ_SHANGHAI, timezone.utc):
+    for tz in (_DISPLAY_TZ, timezone.utc):
         try:
             return now.astimezone(tz).date()
         except (OverflowError, OSError):
@@ -409,17 +415,17 @@ def _idle_cn(idle_days) -> str:
     return "从未考察" if idle_days is None else f"已闲置 {int(idle_days)} 天"
 
 
-def _overdue_cn(n: dict, today_sh) -> str:
+def _overdue_cn(n: dict, today_local) -> str:
     """S3 到期片段 (仅已到期节点)。脏日期如实点名原值摘录, 不装能解析。"""
     if n["due_fail_open"]:
         return f"到期时间无法解析({_safe_raw(n['fsrs_due_raw'])})，保守视同到期"
-    due_sh = _sh_local(n["fsrs_due"])
-    if due_sh is None:
+    due_local = _display_local(n["fsrs_due"])
+    if due_local is None:
         return "到期时刻超出可显示范围"
-    delta = (due_sh.date() - today_sh).days
+    delta = (due_local.date() - today_local).days
     if delta < 0:
-        return f"已逾期 {-delta} 天（{due_sh.month}月{due_sh.day}日到期）"
-    return f"今天 {due_sh:%H:%M} 到期"
+        return f"已逾期 {-delta} 天（{due_local.month}月{due_local.day}日到期）"
+    return f"今天 {due_local:%H:%M} 到期"
 
 
 def assign_bucket(n: dict, now: datetime) -> tuple[str, str]:
@@ -429,25 +435,25 @@ def assign_bucket(n: dict, now: datetime) -> tuple[str, str]:
     因此每个域内节点恰好落一桶 (互斥), 且 due_now 布尔二分被五桶穷尽
     (完备)。why_due 恒非空。
     """
-    today_sh = _today_sh(now)
+    today_local = _today_local(now)
     idle = _idle_cn(n["idle_days"])
     if n["due_now"]:
         if not n["fsrs_due"] and not n["due_fail_open"]:
             return BUCKET_NEW, f"新卡未排期，视同即刻到期 · {idle}"
         if n["fsrs_state"] in LEARNING_STATES:
             phase = "重学中" if n["fsrs_state"] == 3 else "学习中"
-            return BUCKET_LEARNING, f"{phase} · {_overdue_cn(n, today_sh)} · {idle}"
-        return BUCKET_DUE_NOW, f"到期待复习 · {_overdue_cn(n, today_sh)} · {idle}"
+            return BUCKET_LEARNING, f"{phase} · {_overdue_cn(n, today_local)} · {idle}"
+        return BUCKET_DUE_NOW, f"到期待复习 · {_overdue_cn(n, today_local)} · {idle}"
     # 未到期两桶: fsrs_due 恒为规范非空串 (空串必定 due_now)
-    due_sh = _sh_local(n["fsrs_due"])
-    if due_sh is None:
+    due_local = _display_local(n["fsrs_due"])
+    if due_local is None:
         # 不可表示 = 年份极值远期, 定义上不可能是"今天" → future 兜底
         return BUCKET_FUTURE, "到期时刻超出可显示范围，按未来排期处理"
-    delta = (due_sh.date() - today_sh).days
+    delta = (due_local.date() - today_local).days
     if delta == 0:
-        return BUCKET_DUE_TODAY, f"今天 {due_sh:%H:%M} 到期（尚未到点）"
+        return BUCKET_DUE_TODAY, f"今天 {due_local:%H:%M} 到期（尚未到点）"
     when = "明天" if delta == 1 else f"{delta} 天后"
-    return BUCKET_FUTURE, f"{when} {due_sh.month}月{due_sh.day}日 {due_sh:%H:%M} 到期"
+    return BUCKET_FUTURE, f"{when} {due_local.month}月{due_local.day}日 {due_local:%H:%M} 到期"
 
 
 def scan_nodes(vault: Path, now: datetime, decay):
@@ -765,7 +771,7 @@ def build_rank_manifest(decay, version, minutes: dict, recorded: dict, decay_pat
     return {"version": version, "sha256": hashlib.sha256(blob.encode("utf-8")).hexdigest()}
 
 
-def _board_factors(board: str, due: list, top: dict, today_sh, board_last_recommended: dict) -> dict:
+def _board_factors(board: str, due: list, top: dict, today_local, board_last_recommended: dict) -> dict:
     """S4 因子提取: 全部是投影内已有数据的确定性派生 —— 不虚构、不估算。
 
     overdue_days 只看板内"已排期且已到期"的最早 fsrs_due (与 rollup 的
@@ -775,11 +781,11 @@ def _board_factors(board: str, due: list, top: dict, today_sh, board_last_recomm
     scheduled = [n["fsrs_due"] for n in due if n["fsrs_due"]]
     overdue_days = None
     if scheduled:
-        earliest_sh = _sh_local(min(scheduled))
-        if earliest_sh is not None:
+        earliest_local = _display_local(min(scheduled))
+        if earliest_local is not None:
             # delta > 0 不可达 (到期判定是 UTC 词法 <= now, 上海日差不会为正);
             # 仍夹到 0 —— 真出现时按"今天到期"说, 不吐负数天。
-            overdue_days = max(0, (today_sh - earliest_sh.date()).days)
+            overdue_days = max(0, (today_local - earliest_local.date()).days)
 
     rec = board_last_recommended.get(board, "")
     gap = None
@@ -788,7 +794,7 @@ def _board_factors(board: str, due: list, top: dict, today_sh, board_last_recomm
             # 不夹负值 (Codex round-1 MEDIUM): 记录晚于今天属异常状态, 如实
             # 上抛负数让模板走诚实分支 —— clamp 成 0 会把「记录异常」伪装成
             # 「今天刚推荐过」, 违反 S4 不虚构。
-            gap = (today_sh - date.fromisoformat(rec)).days
+            gap = (today_local - date.fromisoformat(rec)).days
         except (ValueError, TypeError):
             # state 里的日期串损坏: 如实说"算不出", 不当作从未推荐 (那会让
             # 一块刚推过的板伪装成冷板, 拿到不该有的解释)
@@ -860,7 +866,7 @@ def rank_boards(nodes, board_last_recommended: dict, now: datetime, minutes: dic
     冷却天数换算 (此前本函数不需要时间), 后者是 manifest 生效的分钟常量。
     """
     minutes = minutes or DEFAULT_MINUTES
-    today_sh = _today_sh(now)
+    today_local = _today_local(now)
     boards: dict[str, list] = {}
     unassigned = []
     for n in nodes:
@@ -878,7 +884,7 @@ def rank_boards(nodes, board_last_recommended: dict, now: datetime, minutes: dic
             upcoming.append({"board": board, "next_due": nxt["fsrs_due"], "node": nxt["node"]})
             continue
         top = min(due, key=lambda n: n["pick"])  # WHAT: 到期集合内衰减 Beta 排序
-        factors = _board_factors(board, due, top, today_sh, board_last_recommended)
+        factors = _board_factors(board, due, top, today_local, board_last_recommended)
         # 排序键由 TIE_FACTOR_KEYS 逐键派生 (单一真相源, 见常量处裁定) ——
         # 各键取值与 HEAD 的字面 _tie 元组逐位相同, 初始顺序下排序行为零变化
         tie_parts = {
@@ -945,12 +951,12 @@ def build_payload(vault: Path, now: datetime, board_last_recommended: dict, deca
     # 与 buckets/boards rollup 的口径不受影响)。
     # 全部板都已完成时分区退化为恒等 (undone 为空 → ranked 原样): 没有
     # "下一块"可让, 强行清空只会让当天通知凭空消失。
-    # ⚠ 日历口径如实登记: 这里的 today 取 now.astimezone() = **机器本地日**
-    # (与 runner:215-216 同源, 也与 payload["date"] 同源); 而 Web 写入 board_done
-    # 时用的是 Asia/Shanghai 日。生产机两者恒等 (launchd 跑在宿主 macOS,
-    # 时区就是上海), 但这不是代码不变量 —— 分叉取证归 Y3-B。
+    # 日历口径 (CARD-G6-9c 收口): 桶位 / 完成账 / payload["date"] 三处自本卡起
+    # 同一来源 local_tz.display_tz() —— 与 runner:295-296 和 Web 写入 board_done
+    # 的显示时区日**恒同一天**, 不再依赖"生产机恰好在上海"这个非不变量。
+    # (Y3-B 登记的 8 组分叉即由此消除; 旧注释引的 runner 行号早已过期, 见 :295-296。)
     if isinstance(board_done, dict) and board_done:
-        _today_key = now.astimezone().date().isoformat()
+        _today_key = now.astimezone(_DISPLAY_TZ).date().isoformat()
         _undone = [r for r in ranked if board_done.get(r["board"]) != _today_key]
         if _undone:
             ranked = _undone + [r for r in ranked if board_done.get(r["board"]) == _today_key]
@@ -1039,8 +1045,15 @@ def build_payload(vault: Path, now: datetime, board_last_recommended: dict, deca
         # CARD-C1a: 顶层加性新增 — send 侧据此组合 per-vault 有效通知 id,
         # C2 总览页据此标卡片; notification.id 值与其余字段零改动 (A2 冻结)
         "vault_id": Path(vault).resolve().name,
-        "date": now.astimezone().date().isoformat(),
-        "generated_at": now.astimezone().isoformat(timespec="seconds"),
+        # CARD-G6-9c 加性顶层键: 生产器**自报**它归日用的时区 IANA 名。
+        # 消费侧 (review_overview._gate_buckets) 复算桶位时必须用同一个时区规则 ——
+        # 只有 generated_at 的**偏移**是不够的: 同一偏移可能来自规则不同的时区
+        # (Bogota 恒 -05:00 vs New_York 的 EST), DST 边界上就会把合法投影判成
+        # corrupt、或反过来放行错误归桶的投影 (Codex r3 HIGH-2 两个方向都实测过)。
+        # 末档固定偏移无 .key ⇒ None, 消费侧退回自己的显示时区。
+        "display_tz": getattr(_DISPLAY_TZ, "key", None),
+        "date": now.astimezone(_DISPLAY_TZ).date().isoformat(),
+        "generated_at": now.astimezone(_DISPLAY_TZ).isoformat(timespec="seconds"),
         # CARD-G3-6b: 字面量 3 换成具名常量 —— 值恒等 (行为零变化), 但让
         # truncated 的判据与截断本身同源, 不给"上限改了一处漏一处"留缝
         "top_boards": ranked[:TOP_BOARDS_LIMIT],
@@ -1189,11 +1202,22 @@ def load_decay(vault: Path):
     return decay_beta
 
 
+def _str_pairs(raw) -> dict:
+    """把 state 里的账本收成 {str: str} —— 非 dict / 键值错型一律丢弃。
+
+    生产器对上游脏数据一贯的纪律: 一个坏掉的 state 不该让整轮生成换个结果,
+    更不该让它崩。这里丢弃而不是修正 —— 我们无从知道 7 本来想写哪一天。
+    """
+    if not isinstance(raw, dict):
+        return {}
+    return {k: v for k, v in raw.items() if isinstance(k, str) and isinstance(v, str)}
+
+
 def main():
     # allow_abbrev=False 与 runner/push.sh 同源 (Codex-C1a F1)
     ap = argparse.ArgumentParser(description="每日复习选板", allow_abbrev=False)
     ap.add_argument("--vault", required=True)
-    ap.add_argument("--state", help="daily-review.state.json (只读, 取 board_last_recommended)")
+    ap.add_argument("--state", help="daily-review.state.json (只读, 取 board_last_recommended 与 board_done)")
     ap.add_argument("--now", help="ISO 时间覆盖 (测试用)")
     ap.add_argument("--write", action="store_true", help="写 outputs/今日复习.md+json")
     args = ap.parse_args()
@@ -1210,19 +1234,40 @@ def main():
         # (不改任何冻结字段的计算)。
         try:
             now.astimezone()
-            now.astimezone(_TZ_SHANGHAI)
+            now.astimezone(_DISPLAY_TZ)
         except (OverflowError, OSError):
-            ap.error(f"--now 超出可换算范围 (本地/上海时区换算溢出): {args.now}")
+            ap.error(f"--now 超出可换算范围 (本地/显示时区换算溢出): {args.now}")
     else:
         now = datetime.now(timezone.utc)
     blr = {}
+    bd = {}
     if args.state and Path(args.state).exists():
         try:
-            blr = json.loads(Path(args.state).read_text(encoding="utf-8")).get("board_last_recommended", {})
-        except (json.JSONDecodeError, OSError):
+            # CARD-G6-7-R: 两个键取自**同一次**解析 —— 再读一遍文件会在两次读
+            # 之间开一个新的撕裂窗 (runner/Web 都可能正在换它), 于是 tie-break
+            # 记录与完成账可能来自两个不同版本的 state。
+            _st = json.loads(Path(args.state).read_text(encoding="utf-8"))
+        # ⚠ Codex round-1 M2: 捕 ValueError 而不是只捕 JSONDecodeError ——
+        # 非法字节 (如 0xff) 让 read_text 抛 UnicodeDecodeError, 它同是
+        # ValueError 的子类但不是 JSONDecodeError, 漏网就是整轮生成崩掉。
+        # 自本卡起 Web 手动刷新也走这条路, 一个坏字节能打死刷新按钮。
+        except (ValueError, OSError):
             pass  # state 损坏由 runner 处置, 选点侧降级为无记录
+        else:
+            # 顶层非 dict (如 "[]") 从前会在 .get 上抛 AttributeError 逃逸成
+            # traceback —— 那不是"降级为无记录", 是整轮生成崩掉。逐键判型:
+            # 一个键坏掉不该连累另一个。
+            if isinstance(_st, dict):
+                # ⚠ Codex round-3 M3: 逐**值**过滤, 不只看外层是不是 dict。
+                # {"board_last_recommended": {"A": 7}} 会让 rank_boards 的排序键
+                # 拿 7 去和另一块板的 "" 比大小 → TypeError → 整轮生成崩掉 →
+                # 手动刷新拿到 503。这是既有排序缺陷的**新暴露路径**: BASE 的
+                # refresh 不传 state, 本卡把它接上了, 就得为这条新输入面负责。
+                # 与读侧 _read_board_done 同一条纪律: 读不出/形状不对 = 没有记录。
+                blr = _str_pairs(_st.get("board_last_recommended"))
+                bd = _str_pairs(_st.get("board_done"))
 
-    payload, ranked = build_payload(vault, now, blr, load_decay(vault))
+    payload, ranked = build_payload(vault, now, blr, load_decay(vault), board_done=bd)
     if args.write:
         out = vault / "outputs"
         out.mkdir(parents=True, exist_ok=True)

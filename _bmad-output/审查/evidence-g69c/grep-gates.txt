@@ -1,0 +1,36 @@
+# CARD-G6-9c grep 门总表 · Codex r2 整改后重采
+# 采集: 2026-09-08T09:11:58  树: d858c357 + 工作区
+## (c)(d) review_overview.py
+  ✅    _TZ_SHANGHAI|_sh_day|_sh_today|"Asia/Shanghai"|env["TZ"] 实得=0 期望=0
+  ✅    ^_DISPLAY_TZ(_NAME)? *= (模块级常量归零)                      实得=0 期望=0
+  ✅    def _display_tz / _display_tz_name                     实得=2 期望=2
+  ✅    "TZ", "CANVAS_TZ" 透传                                   实得=1 期望=1
+## (e) review_app.py
+  ✅    Asia/Shanghai                                          实得=0 期望=0
+  ✅    shDay 残留                                               实得=0 期望=0
+## (c2) vault_lint.py
+  ✅    Asia/Shanghai|_TZ_SHANGHAI                             实得=0 期望=0
+  ✅    import local_tz                                        实得=1 期望=1
+  ✅    ^from app\.|^import app\.                              实得=0 期望=0
+  ✅    def _display_tz                                        实得=1 期望=1
+  ✅    ^_DISPLAY_TZ                                           实得=0 期望=0
+## (c2) test_vault_lint.py
+  ✅    _TZ_SHANGHAI                                           实得=0 期望=0
+  ✅    setattr(vl, "_display_tz"                              实得=1 期望=1
+  ✅    host_tz fixture (r2 LOW)                               实得=1 期望=1
+  ✅    接线证明门 (r2 MEDIUM)                                      实得=1 期望=1
+## (f)(g) pick / runner
+  ✅    pick 旧名/字面量/过期行号                                       实得=0 期望=0
+  ✅    pick import local_tz                                   实得=1 期望=1
+  ✅    run import local_tz                                    实得=1 期望=1
+## (b) 两份同源副本
+  ✅    display_tz.py D-18                                     实得=1 期望=1
+  ✅    local_tz.py D-18                                       实得=1 期望=1
+  ✅    class _SystemLocalTZ 两份都有                              实得=2 期望=2
+  ✅    CANVAS_TZ environ 只在两份副本                               实得=0 期望=0
+## (i2) 矩阵 / 新门
+  ✅    矩阵 _DISPLAY_TZ_NAME|_TZ_SHANGHAI                       实得=0 期望=0
+  ✅    矩阵 门自指形态                                               实得=0 期望=0
+  ✅    矩阵 KNOWN_DIVERGENT 条目                                  实得=0 期望=0
+  ✅    新门 走真实 _gate_buckets (非复刻)                             实得=2 期望=2
+  ✅    新门 C 库基准 (非固定偏移 oracle)                                实得=1 期望=1

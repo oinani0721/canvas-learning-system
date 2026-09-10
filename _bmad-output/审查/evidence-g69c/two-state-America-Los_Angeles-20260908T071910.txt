@@ -1,0 +1,207 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 415 items
+
+tests/regression/test_g6_9_boundary_matrix.py ........................   [  5%]
+tests/regression/test_g6_9c_single_tz_source.py .........                [  7%]
+tests/unit/test_review_overview.py .............F....................... [ 16%]
+............................................                             [ 27%]
+tests/unit/test_review_app.py .......................................... [ 37%]
+.......................F...........................                      [ 49%]
+tests/unit/test_vault_lint.py .......................................... [ 60%]
+................................................                         [ 71%]
+tests/regression/test_daily_review_pick.py .................F........F.. [ 78%]
+.F...........................................F....                       [ 90%]
+tests/regression/test_daily_review_run.py ............F............F..FF [ 97%]
+.........                                                                [100%]
+
+=================================== FAILURES ===================================
+_______________ test_buckets_gate_accepts_real_producer_payload ________________
+tests/unit/test_review_overview.py:1116: in test_buckets_gate_accepts_real_producer_payload
+    assert entry["status"] == "ok", entry.get("error")
+E   AssertionError: ValueError: buckets.future[0] fsrs_due=2026-09-08T15:00:00Z 仍在上海日 2026-09-08 内, 应属 due_today
+E   assert 'corrupt' == 'ok'
+E     
+E     - ok
+E     + corrupt
+----------------------------- Captured stdout call -----------------------------
+{"method": "GET", "path": "/api/v1/review/overview", "endpoint": "/api/v1/review/overview", "status": 200, "duration_ms": 0.79, "event": "request.completed", "request_id": "5249961488", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:19:20.129286Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/review/overview', 'endpoint': '/api/v1/review/overview', 'status': 200, 'duration_ms': 0.79, 'event': 'request.completed', 'request_id': '5249961488', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:19:20.129286Z'}
+________________ test_js_rest_day_empty_state_matches_pick_copy ________________
+tests/unit/test_review_app.py:1022: in test_js_rest_day_empty_state_matches_pick_copy
+    _assert_node_green(proc)
+tests/unit/test_review_app.py:888: in _assert_node_green
+    assert proc.returncode == 0, f"node --test 失败:\n{proc.stdout}\n{proc.stderr}"
+E   AssertionError: node --test 失败:
+E     ✖ ok + due_count=0 → 休息日文案, 不显示到期 0 的大数字 (10.321541ms)
+E     ✔ 有到期时不走休息日分支 (0.902459ms)
+E     ✔ stale 且 due_count=0 也不算休息日 (数据是旧的, 不许说今天没到期) (0.115333ms)
+E     ℹ tests 3
+E     ℹ suites 0
+E     ℹ pass 2
+E     ℹ fail 1
+E     ℹ cancelled 0
+E     ℹ skipped 0
+E     ℹ todo 0
+E     ℹ duration_ms 52.749875
+E     
+E     ✖ failing tests:
+E     
+E     test at case.test.mjs:41:1
+E     ✖ ok + due_count=0 → 休息日文案, 不显示到期 0 的大数字 (10.321541ms)
+E       AssertionError [ERR_ASSERTION]: The input did not match the regular expression /按计划推进 · 最近到期 线性代数 · 2026-09-03/. Input:
+E       
+E       '<div class="card"><div class="card-head"><b>数学</b><span class="badge" style="background:#16a34a">今日投影</span></div><div class="restday">✅ 今日无到期节点，休息一天。<div style="color:#6b7280;font-size:13px;margin-top:4px">按计划推进 · 最近到期 线性代数 · 2026-09-02</div></div><div class="gen">生成于 2026-08-29T09:06:00+08:00</div><a href="obsidian://open?vault=%E6%95%B0%E5%AD%A6">在 Obsidian 中打开 ↗</a><div class="actions"><button class="btn" data-refresh-vault="数学">🔄 刷新投影</button><span class="rnote" data-note-for="数学"></span></div></div>'
+E       
+E           at TestContext.<anonymous> (file:///private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19264/test_js_rest_day_empty_state_m0/case.test.mjs:44:10)
+E           at Test.runInAsyncScope (node:async_hooks:227:14)
+E           at Test.run (node:internal/test_runner/test:1306:25)
+E           at Test.start (node:internal/test_runner/test:1177:17)
+E           at startSubtestAfterBootstrap (node:internal/test_runner/harness:385:17) {
+E         generatedMessage: true,
+E         code: 'ERR_ASSERTION',
+E         actual: '<div class="card"><div class="card-head"><b>数学</b><span class="badge" style="background:#16a34a">今日投影</span></div><div class="restday">✅ 今日无到期节点，休息一天。<div style="color:#6b7280;font-size:13px;margin-top:4px">按计划推进 · 最近到期 线性代数 · 2026-09-02</div></div><div class="gen">生成于 2026-08-29T09:06:00+08:00</div><a href="obsidian://open?vault=%E6%95%B0%E5%AD%A6">在 Obsidian 中打开 ↗</a><div class="actions"><button class="btn" data-refresh-vault="数学">🔄 刷新投影</button><span class="rnote" data-note-for="数学"></span></div></div>',
+E         expected: /按计划推进 · 最近到期 线性代数 · 2026-09-03/,
+E         operator: 'match',
+E         diff: 'simple'
+E       }
+E     
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/Users/Heishing/.nvm/versions/node/v24.16.0/bin/node', '--test', 'case.test.mjs'], returncode=...',\n    expected: /按计划推进 · 最近到期 线性代数 · 2026-09-03/,\n    operator: \'match\',\n    diff: \'simple\'\n  }\n', stderr='').returncode
+---------------------------- Captured stdout setup -----------------------------
+{"method": "GET", "path": "/api/v1/review/overview/app", "endpoint": "/api/v1/review/overview/app", "status": 200, "duration_ms": 1.14, "event": "request.completed", "request_id": "5269610480", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:19:25.327687Z"}
+------------------------------ Captured log setup ------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/review/overview/app', 'endpoint': '/api/v1/review/overview/app', 'status': 200, 'duration_ms': 1.14, 'event': 'request.completed', 'request_id': '5269610480', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:19:25.327687Z'}
+_________________ test_boards_rollup_golden_old_fields_frozen __________________
+tests/regression/test_daily_review_pick.py:497: in test_boards_rollup_golden_old_fields_frozen
+    assert payload == golden, "旧字段深度全等被打破 — P1 不再是纯加性"
+E   AssertionError: 旧字段深度全等被打破 — P1 不再是纯加性
+E   assert {'date': '202...ed': []}, ...} == {'date': '202...ed': []}, ...}
+E     
+E     Omitting 9 identical items, use -vv to show
+E     Differing items:
+E     {'generated_at': '2026-07-30T09:00:00+08:00'} != {'generated_at': '2026-07-29T18:00:00-07:00'}
+E     {'date': '2026-07-30'} != {'date': '2026-07-29'}
+E     Use -v to get more diff
+__________________ test_buckets_golden_pre_g36a_fields_frozen __________________
+tests/regression/test_daily_review_pick.py:816: in test_buckets_golden_pre_g36a_fields_frozen
+    assert payload == golden, "G3-6a 引入前的字段深度全等被打破 — 不再是纯加性"
+E   AssertionError: G3-6a 引入前的字段深度全等被打破 — 不再是纯加性
+E   assert {'boards': [{...0+08:00', ...} == {'boards': [{...0-07:00', ...}
+E     
+E     Omitting 10 identical items, use -vv to show
+E     Differing items:
+E     {'generated_at': '2026-07-30T09:00:00+08:00'} != {'generated_at': '2026-07-29T18:00:00-07:00'}
+E     {'date': '2026-07-30'} != {'date': '2026-07-29'}
+E     Use -v to get more diff
+_____________ test_cli_rejects_unconvertible_now_with_clear_error ______________
+tests/regression/test_daily_review_pick.py:931: in test_cli_rejects_unconvertible_now_with_clear_error
+    assert bad.returncode != 0
+E   assert 0 != 0
+E    +  where 0 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...48ed184ee148e3fc676f2e34a18f73c1938024cffe49db"}, "truncated": {"top_boards": false, "upcoming": false}}\n', stderr='').returncode
+__________ test_g67_done_board_yields_top_slot_but_stays_on_the_list ___________
+tests/regression/test_daily_review_pick.py:2156: in test_g67_done_board_yields_top_slot_but_stays_on_the_list
+    assert ranked[0]["board"] == second, "已完成板必须让出榜首"
+E   AssertionError: 已完成板必须让出榜首
+E   assert '乙板' == '甲板'
+E     
+E     - 甲板
+E     + 乙板
+_______________ test_two_vaults_same_day_push_and_state_isolated _______________
+tests/regression/test_daily_review_run.py:427: in test_two_vaults_same_day_push_and_state_isolated
+    assert all(nid == "canvas-review-2026-07-30" for nid, _ in sent)
+E   assert False
+E    +  where False = all(<generator object test_two_vaults_same_day_push_and_state_isolated.<locals>.<genexpr> at 0x139ec0d60>)
+_________________ test_rest_to_due_reversal_pushes_second_time _________________
+tests/regression/test_daily_review_run.py:742: in test_rest_to_due_reversal_pushes_second_time
+    out3 = _run_main(monkeypatch, capsys, vault, "2026-07-30T15:05:00+08:00")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/regression/test_daily_review_run.py:717: in _run_main
+    assert runner.main() == 0
+           ^^^^^^^^^^^^^
+../scripts/daily_review_run.py:329: in main
+    rc = send_bark.send(noti, payload.get("vault_id") or VAULT.resolve().name)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/regression/test_daily_review_run.py:708: in _send
+    return rcs[len(calls) - 1]
+           ^^^^^^^^^^^^^^^^^^^
+E   IndexError: list index out of range
+__________________ test_second_push_failure_retries_next_hour __________________
+tests/regression/test_daily_review_run.py:814: in test_second_push_failure_retries_next_hour
+    assert "push:failed" in out3 and "fallback:-" in out3, "同日本地兜底只弹一次"
+E   AssertionError: 同日本地兜底只弹一次
+E   assert ('push:failed' in '[runner] generate:new push:failed fallback:ok\n' and 'fallback:-' in '[runner] generate:new push:failed fallback:ok\n')
+_______________ test_rest_due_rest_due_oscillation_capped_at_two _______________
+tests/regression/test_daily_review_run.py:856: in test_rest_due_rest_due_oscillation_capped_at_two
+    out3 = _run_main(monkeypatch, capsys, vault, "2026-07-30T15:05:00+08:00")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/regression/test_daily_review_run.py:717: in _run_main
+    assert runner.main() == 0
+           ^^^^^^^^^^^^^
+../scripts/daily_review_run.py:329: in main
+    rc = send_bark.send(noti, payload.get("vault_id") or VAULT.resolve().name)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/regression/test_daily_review_run.py:708: in _send
+    return rcs[len(calls) - 1]
+           ^^^^^^^^^^^^^^^^^^^
+E   IndexError: list index out of range
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:805
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/app/api/v1/endpoints/chat.py:805: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:105
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/app/api/v1/endpoints/metadata.py:105: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:179
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/app/api/v1/endpoints/metadata.py:179: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_review_overview.py::test_buckets_gate_accepts_real_producer_payload
+FAILED tests/unit/test_review_app.py::test_js_rest_day_empty_state_matches_pick_copy
+FAILED tests/regression/test_daily_review_pick.py::test_boards_rollup_golden_old_fields_frozen
+FAILED tests/regression/test_daily_review_pick.py::test_buckets_golden_pre_g36a_fields_frozen
+FAILED tests/regression/test_daily_review_pick.py::test_cli_rejects_unconvertible_now_with_clear_error
+FAILED tests/regression/test_daily_review_pick.py::test_g67_done_board_yields_top_slot_but_stays_on_the_list
+FAILED tests/regression/test_daily_review_run.py::test_two_vaults_same_day_push_and_state_isolated
+FAILED tests/regression/test_daily_review_run.py::test_rest_to_due_reversal_pushes_second_time
+FAILED tests/regression/test_daily_review_run.py::test_second_push_failure_retries_next_hour
+FAILED tests/regression/test_daily_review_run.py::test_rest_due_rest_due_oscillation_capped_at_two
+================= 10 failed, 405 passed, 10 warnings in 13.29s =================
+rc=1

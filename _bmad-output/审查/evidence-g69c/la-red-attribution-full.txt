@@ -1,0 +1,52 @@
+# CARD-G6-9c — LA 态红的完整归因（产品+测试一起切换）
+
+## 处理端：当前树（本卡改动后）· TZ=America/Los_Angeles
+  rc=1  ================= 6 failed, 376 passed, 10 warnings in 12.37s ==================
+  FAILED 6 条:
+    tests/regression/test_daily_review_pick.py::test_boards_rollup_golden_old_fields_frozen
+    tests/regression/test_daily_review_pick.py::test_buckets_golden_pre_g36a_fields_frozen
+    tests/regression/test_daily_review_run.py::test_rest_due_rest_due_oscillation_capped_at_two
+    tests/regression/test_daily_review_run.py::test_rest_to_due_reversal_pushes_second_time
+    tests/regression/test_daily_review_run.py::test_second_push_failure_retries_next_hour
+    tests/regression/test_daily_review_run.py::test_two_vaults_same_day_push_and_state_isolated
+
+## 基线端：da690bf8 版的 9 个文件（blob sha 逐个已核）· TZ=America/Los_Angeles
+  rc=1  ================= 6 failed, 376 passed, 10 warnings in 12.36s ==================
+  FAILED 6 条:
+    tests/regression/test_daily_review_pick.py::test_boards_rollup_golden_old_fields_frozen
+    tests/regression/test_daily_review_pick.py::test_buckets_golden_pre_g36a_fields_frozen
+    tests/regression/test_daily_review_run.py::test_rest_due_rest_due_oscillation_capped_at_two
+    tests/regression/test_daily_review_run.py::test_rest_to_due_reversal_pushes_second_time
+    tests/regression/test_daily_review_run.py::test_second_push_failure_retries_next_hour
+    tests/regression/test_daily_review_run.py::test_two_vaults_same_day_push_and_state_isolated
+
+## 还原自证（须与跑前逐字节相同）
+  ✅ scripts/daily_review_pick.py
+  ✅ scripts/daily_review_run.py
+  ✅ backend/app/api/v1/endpoints/review_overview.py
+  ✅ backend/app/api/v1/endpoints/review_app.py
+  ✅ backend/scripts/vault_lint.py
+  ✅ backend/tests/unit/test_review_overview.py
+  ✅ backend/tests/unit/test_review_app.py
+  ✅ backend/tests/unit/test_vault_lint.py
+  ✅ backend/tests/regression/test_daily_review_pick.py
+
+## 归因（基线端 nodeid 已按本卡改名表折算）
+  两端同红（既有状态，非本卡引入）: 6 条
+  只在当前树红（**本卡引入**）    : 0 条
+  只在基线红（本卡**修好**了）    : 0 条
+  还原逐字节相同: True
+
+## 改名对应表（归因时用）
+  tests/regression/test_daily_review_pick.py::test_buckets_due_today_uses_shanghai_day_not_utc_day
+    → tests/regression/test_daily_review_pick.py::test_buckets_due_today_uses_display_tz_day_not_utc_day
+  tests/regression/test_daily_review_pick.py::test_today_sh_three_tier_fallback_never_raises
+    → tests/regression/test_daily_review_pick.py::test_today_local_three_tier_fallback_never_raises
+  tests/unit/test_review_overview.py::test_child_tz_is_forced_so_container_utc_cannot_produce_yesterday
+    → tests/unit/test_review_overview.py::test_child_tz_is_passed_through_so_parent_and_child_share_one_view
+  tests/unit/test_review_app.py::test_js_restday_next_due_uses_shanghai_date
+    → tests/unit/test_review_app.py::test_js_restday_next_due_uses_display_tz_date
+  tests/unit/test_vault_lint.py::test_resolve_today_default_is_shanghai_not_host_local
+    → tests/unit/test_vault_lint.py::test_resolve_today_default_is_display_tz_not_host_local
+  tests/unit/test_vault_lint.py::test_today_resolution_is_shanghai_not_host_local
+    → tests/unit/test_vault_lint.py::test_today_resolution_is_display_tz_not_host_local

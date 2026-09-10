@@ -12,7 +12,7 @@ mtime (mtime 被 runner 刻意回拨到扫描起点, 见 daily_review_run.ensure
 CARD-D1 三级视图: vault 卡片 (名+四态徽标+汇总行) → 板表格 (白板名|到期|
 新卡|待剖析|最早到期)。板级到期数由 due_nodes group-by 派生 (行级门禁,
 脏行按既有 corrupt 语义降级); 行序 = 有到期板按 top_boards 优先级 → 零到期
-板按 next_due。时间统一转 Asia/Shanghai 人话化 (修现网容器 UTC 缺陷);
+板按 next_due。时间统一转显示时区人话化 (CARD-G6-9c: 单一来源, 缺省机器本地);
 obsidian:// 深链按 原白板/<板名>.md 约定, 无投影 vault 降级文案不做假链接。
 
 CARD-G3-6a (BATCH-2026-08-29-第六批) 消费端最小接线: 投影加性新增顶层
@@ -81,7 +81,11 @@ import structlog
 from fastapi import APIRouter, Form, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
+from zoneinfo import ZoneInfo
+
 from app.config import get_settings
+from app.core.display_tz import display_tz as _resolve_display_tz
+from app.core.display_tz import parse_posix_tz as _parse_posix_tz
 
 logger = structlog.get_logger(__name__)
 
@@ -90,19 +94,32 @@ review_overview_router = APIRouter()
 #: 每库投影相对路径 (A2: 全系统到期口径唯一裁判)
 _PROJECTION_REL = ("outputs", "今日复习.json")
 
-#: 展示时区: 统一 Asia/Shanghai (CARD-D1 — live 容器跑 UTC, astimezone()
-#: 会显示 UTC 裸串差 8 小时)。容器缺 tzdata 时退化为固定 +8 (Asia/Shanghai
-#: 自 1991 年起无夏令时, 固定偏移语义等价)。
-#: 显示时区的名字 —— 读侧的 _TZ_SHANGHAI 与写侧子进程的 TZ 共用这一个字面量,
-#: 二者永不漂移 (CARD-G6-1 收官审计)
-_DISPLAY_TZ_NAME = "Asia/Shanghai"
+#: 显示时区 (CARD-G6-9c / D-18 2026-09-07): 单一来源 app.core.display_tz ——
+#: 缺省 = 机器本地的 IANA 名 (TZ 环境变量 → /etc/localtime 软链), CANVAS_TZ
+#: 显式覆盖。D-18 推翻了此前"恒 Asia/Shanghai"的口径:「今天」= 用户**当前
+#: 所在地**, 出门换个时区, 页面、早间 runner、清单三处的「今天」仍是同一天。
+#: 读侧的 _display_tz() 与写侧子进程 (_child_env 透传 TZ/CANVAS_TZ) 同一来源,
+#: 二者永不漂移 —— CARD-G6-1 收官审计的那条承诺不变, 只是换了个更宽的锚。
+#:
+#: ⛔ **每次调用现取**, 禁止绑成模块级常量 / functools.lru_cache / 默认参数:
+#: 进程运行期 TZ 可被改 (测试夹具 TZ + time.tzset() 正是这么做的, 且它**不
+#: reload 模块**)。求值时机一旦固化在 import 那一刻, 后续改时区对显示侧完全
+#: 无效 —— 门恒绿而缺陷照旧 (test_g6_9c_single_tz_source.py 门 ⑤ 锁这条)。
 
-try:
-    from zoneinfo import ZoneInfo
 
-    _TZ_SHANGHAI = ZoneInfo(_DISPLAY_TZ_NAME)
-except Exception:  # noqa: BLE001 — ZoneInfoNotFoundError / ImportError 同一退化
-    _TZ_SHANGHAI = timezone(timedelta(hours=8))
+def _display_tz():
+    """显示/归日用时区 —— 每次调用现取 (见上方 ⛔ 段)。"""
+    return _resolve_display_tz()
+
+
+def _display_tz_name() -> str | None:
+    """显示时区的 IANA 名; 三档都取不到名而落到固定偏移时无 .key ⇒ None。"""
+    return getattr(_display_tz(), "key", None)
+
+
+# 启动校验: 无效 CANVAS_TZ ⇒ 应用启动即 ValueError (配置断裂当场可见, 不拖到
+# 第一次请求)。刻意丢弃返回值 —— 不缓存、不赋给任何被后续读取的名字。
+_resolve_display_tz()
 
 #: A2 生产器 fsrs_due/next_due 形态: UTC 秒级 Z 后缀 (daily_review_pick 的
 #: 落盘正则)。空串 = 新卡/fail-open 即刻到期。其余形态不是生产器产物 —
@@ -361,23 +378,32 @@ _BUCKET_CN = {
 }
 
 
-def _sh_day(ts: str):
-    """UTC-Z 定长串 → Asia/Shanghai 日期; 不可表示时 None (年份极值)。"""
+def _display_day(ts: str, tz=None):
+    """UTC-Z 定长串 → 显示时区(或显式指定 tz)的日期; 不可表示时 None (年份极值)。
+
+    `tz` 显式传入的唯一用途见 _gate_buckets: 校验一份**已落盘**的投影时, 参照系
+    必须是它**生成时**的时区 (由 generated_at 自带偏移给出), 不是此刻的显示时区。
+    """
     try:
-        return datetime.strptime(ts, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).astimezone(_TZ_SHANGHAI).date()
+        return (
+            datetime.strptime(ts, "%Y-%m-%dT%H:%M:%SZ")
+            .replace(tzinfo=timezone.utc)
+            .astimezone(tz if tz is not None else _display_tz())
+            .date()
+        )
     except (ValueError, OverflowError, OSError):
         return None
 
 
-def _sh_today(now_utc: datetime | None = None) -> str:
-    """现在的上海本地日 "YYYY-MM-DD" (CARD-G6-7 完成账的日历键)。
+def _display_today(now_utc: datetime | None = None) -> str:
+    """现在的显示时区本地日 "YYYY-MM-DD" (CARD-G6-7 完成账的日历键)。
 
-    刻意绕道 _sh_day: 完成状态的「今天」必须与页面上到期人话的「今天」
-    严格同一条换算 —— 直接写 datetime.now(_TZ_SHANGHAI).date() 数值上等价,
-    但那是第二个时区入口, 将来 _sh_day 的换算一改就分叉 (本文件已经为
+    刻意绕道 _display_day: 完成状态的「今天」必须与页面上到期人话的「今天」
+    严格同一条换算 —— 直接写 datetime.now(_display_tz()).date() 数值上等价,
+    但那是第二个时区入口, 将来 _display_day 的换算一改就分叉 (本文件已经为
     「容器 UTC 当本地日」这条缺陷付过一次代价)。
     """
-    d = _sh_day((now_utc or datetime.now(timezone.utc)).astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
+    d = _display_day((now_utc or datetime.now(timezone.utc)).astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
     return d.isoformat() if d is not None else ""
 
 
@@ -388,6 +414,7 @@ def _gate_buckets(
     generated_at: str,
     future_map: dict[str, tuple[int, str]],
     up_gated: list[dict],
+    producer_tz: str | None = None,
 ) -> tuple[dict[str, int], dict[str, list[dict]]]:
     """G3-6a 加性 buckets 门禁 (可选顶层键: 旧投影缺省走 None 路径)。
 
@@ -426,7 +453,8 @@ def _gate_buckets(
        远期 FAKE-* 身份仍能拿到 ok):
        (a) 以投影自带的 generated_at 为参照时钟**重算桶判据** —— 每行
            fsrs_due 必须严格晚于 generated_at (未到期), 且 due_today 与
-           generated_at 同一 Asia/Shanghai 日、future 必须晚于该日;
+           generated_at 同一本地日 (按 generated_at 自带偏移, 见 ref_tz)、
+           future 必须晚于该日;
            时刻不可表示 (年份极值) 只允许出现在 future (与生产器兜底同口径);
        (b) 与 boards rollup 逐板对账 —— 板级非到期行数 == rollup.future,
            板内最早 fsrs_due == rollup.next_due;
@@ -466,9 +494,55 @@ def _gate_buckets(
     try:
         ref = datetime.fromisoformat(generated_at.replace("Z", "+00:00"))
         ref_z = ref.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        ref_day = ref.astimezone(_TZ_SHANGHAI).date()
+        # 参照系 = 生产器**自报**的时区 (payload 顶层 display_tz)。三轮收敛的结论:
+        #   · 恒用此刻的显示时区 ⇒ 用户一改时区, 盘上合法投影被判 corrupt (r1);
+        #   · 恒用 generated_at 自带的固定偏移 ⇒ DST 边界误拒, 反过来放行错误归桶 (r2);
+        #   · 靠"偏移是否匹配"在两者间猜 ⇒ 同偏移不同规则的时区对 (Bogota 恒 -05:00
+        #     vs New_York 的 EST) 仍会选错, 而且两个方向都错 (r3)。
+        # 偏移**不能**决定时区规则, 只有生产器自己知道它用了哪个 —— 所以让它自报。
+        # 自报值必须与 generated_at 的偏移自洽 (否则 payload 自相矛盾, 拒收);
+        # 缺席 (旧投影 / 末档无名时区) 则退回此刻的显示时区 —— 那是 r2 之前的形态,
+        # 它会误判 corrupt 但**不会放行错误归桶**, 是两害相权的那一侧。
+        # 「投影是不是今天的」由 _vault_entry 的 stale 判定负责, 那里恒用此刻时区。
     except (ValueError, OverflowError, OSError) as e:
         raise ValueError(f"generated_at 无法换算为参照时钟: {generated_at!r} ({e})")
+    # ⛔ display_tz 的校验放在上面那个 try **之外**: 它抛的 ValueError 语义是
+    #    「payload 自相矛盾」, 落进 except 会被重包成「generated_at 无法换算」——
+    #    两个完全不同的拒因混成一条, 排障时看不出是哪种。
+    ref_tz = None
+    if producer_tz is not None:
+        # 静态签名是 str|None, 该 isinstance 看似恒真; 但运行时该值来自盘上
+        # JSON(payload.get), 12/{} 这类非串真实存在(Codex r4 反例), 必须防。
+        if not isinstance(producer_tz, str) or not producer_tz.strip():  # pyright: ignore[reportUnnecessaryIsInstance]
+            raise ValueError(f"display_tz 非法: {producer_tz!r} — 应为 IANA 名或 POSIX TZ 串")
+        candidate = None
+        try:
+            candidate = ZoneInfo(producer_tz)  # IANA 名 / tzfile 简名
+        except Exception:  # noqa: BLE001
+            candidate = _parse_posix_tz(producer_tz)  # POSIX 串: 用与生产者同源的解析器重建完整规则
+        if candidate is None:
+            raise ValueError(f"display_tz 不是可解析的时区名: {producer_tz!r}")
+        try:
+            same_offset = ref.astimezone(candidate).utcoffset() == ref.utcoffset()
+        except (OverflowError, OSError) as e:
+            raise ValueError(f"display_tz={producer_tz!r} 在 generated_at 处换算溢出 ({type(e).__name__})")
+        if not same_offset:
+            raise ValueError(
+                f"display_tz={producer_tz!r} 与 generated_at={generated_at} 的偏移不自洽 "
+                f"(该时区在那一刻是 {ref.astimezone(candidate).utcoffset()}, "
+                f"generated_at 自带 {ref.utcoffset()}) — payload 自相矛盾"
+            )
+        ref_tz = candidate
+    if ref_tz is None:
+        # 旧投影（键缺失/None）⇒ 回退到 generated_at **自带的固定偏移**, 不是此刻的
+        # 显示时区 (Codex r4 HIGH-2): 它忠于生产者写盘那一刻的偏移 —— Bogota 生成的
+        # due_today 在 NY 显示下仍被放行; DST 边界可能误判 corrupt(两害相权的一侧),
+        # 但不会放行错误归桶。生产者跑在 POSIX TZ 下时 payload 会自报规格串, 走不到这里。
+        ref_tz = ref.tzinfo
+    try:
+        ref_day = ref.astimezone(ref_tz).date()
+    except (OverflowError, OSError) as e:
+        raise ValueError(f"generated_at 无法换算为参照日: {generated_at!r} ({type(e).__name__})")
     nondue_by_board: dict[str, list[str]] = {}
     nondue_ids: dict[tuple[str, str], str] = {}
     # Codex round-5 HIGH: 节点身份全局唯一 (生产器 = 文件 stem) —— 用
@@ -502,15 +576,17 @@ def _gate_buckets(
                 raise ValueError(f"buckets.{name}[{i}] 未到期桶的 fsrs_due 不得为空: {key[0]!r}/{key[1]!r}")
             if ts <= ref_z:
                 raise ValueError(f"buckets.{name}[{i}] fsrs_due={ts} 不晚于 generated_at, 应属到期侧")
-            day = _sh_day(ts)
+            day = _display_day(ts, ref_tz)
             if day is None:
                 # 时刻不可表示: 生产器兜底恒归 future, 不可能是"今天"
                 if name != "future":
                     raise ValueError(f"buckets.{name}[{i}] fsrs_due={ts} 不可换算, 只允许出现在 future 桶")
             elif name == "due_today" and day != ref_day:
-                raise ValueError(f"buckets.due_today[{i}] fsrs_due={ts} 非 generated_at 的同一上海日 {ref_day}")
+                raise ValueError(f"buckets.due_today[{i}] fsrs_due={ts} 非 generated_at 的同一本地日 {ref_day}")
             elif name == "future" and day <= ref_day:
-                raise ValueError(f"buckets.future[{i}] fsrs_due={ts} 仍在上海日 {ref_day} 内, 应属 due_today")
+                raise ValueError(
+                    f"buckets.future[{i}] fsrs_due={ts} 仍在 generated_at 的本地日 {ref_day} 内, 应属 due_today"
+                )
             nondue_by_board.setdefault(r["board"], []).append(ts)
             nondue_ids[key] = ts
         counts[name] = len(rows)
@@ -600,8 +676,8 @@ def _gate_buckets(
     return counts, passed_rows
 
 
-def _humanize_due(ts: str | None, now_sh: datetime) -> tuple[str, str]:
-    """到期时刻 → (人话, 颜色)。跨午夜用上海本地日判定 (CARD-D1)。
+def _humanize_due(ts: str | None, now_local: datetime) -> tuple[str, str]:
+    """到期时刻 → (人话, 颜色)。跨午夜用显示时区本地日判定 (CARD-G6-9c)。
 
     None = 无数据 (P0 下板级待剖析等无归属信息) → "—"; "" = 即刻到期。
     渲染层防御: 门禁已保证形态, 这里仍容错返回 "—" 而非异常 (绝不 500)。
@@ -614,8 +690,8 @@ def _humanize_due(ts: str | None, now_sh: datetime) -> tuple[str, str]:
         due = datetime.strptime(ts, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
         # astimezone 也在 try 内: 日历合法极值 (9999-12-31T23:59:59Z) +8h
         # 会年份溢出 OverflowError — 门禁挡不住的极值不许 500
-        due_sh = due.astimezone(_TZ_SHANGHAI)
-        delta = (due_sh.date() - now_sh.astimezone(_TZ_SHANGHAI).date()).days
+        due_local = due.astimezone(_display_tz())
+        delta = (due_local.date() - now_local.astimezone(_display_tz()).date()).days
     except (ValueError, OverflowError, OSError):
         return "—", "#6b7280"
     if delta < 0:
@@ -626,17 +702,25 @@ def _humanize_due(ts: str | None, now_sh: datetime) -> tuple[str, str]:
         return "明天", "#374151"
     if delta <= 7:
         return f"{delta}天后", "#374151"
-    if due_sh.year == now_sh.astimezone(_TZ_SHANGHAI).year:
-        return f"{due_sh.month}月{due_sh.day}日", "#6b7280"
-    return f"{due_sh.year}年{due_sh.month}月{due_sh.day}日", "#6b7280"
+    if due_local.year == now_local.astimezone(_display_tz()).year:
+        return f"{due_local.month}月{due_local.day}日", "#6b7280"
+    return f"{due_local.year}年{due_local.month}月{due_local.day}日", "#6b7280"
 
 
 def _fmt_local_dt(dt: datetime) -> str:
-    """tz-aware 时刻 → 上海本地 "YYYY-MM-DD HH:MM (UTC+N)"。"""
-    local = dt.astimezone(_TZ_SHANGHAI)
+    """tz-aware 时刻 → 显示时区本地 "YYYY-MM-DD HH:MM (UTC+N)"。"""
+    local = dt.astimezone(_display_tz())
     off = local.utcoffset() or timedelta(0)
-    hours = int(off.total_seconds() // 3600)
-    return local.strftime("%Y-%m-%d %H:%M") + f" (UTC{'+' if hours >= 0 else ''}{hours})"
+    # ⛔ 不能只取整小时（Codex r1 LOW-2）：本卡之前显示时区恒是整小时偏移的
+    #    Asia/Shanghai，取整看不出问题；收敛到「跟随用户所在地」之后，半小时/
+    #    三刻钟时区变得可达 —— Kolkata 的 +05:30 会被显示成 UTC+5、
+    #    St. John's 的 -02:30 显示成 UTC-3，都是错的。
+    #    整小时偏移的输出与本卡之前逐字相同（+08:00 仍是 "UTC+8"）。
+    total_min = int(off.total_seconds()) // 60
+    sign = "-" if total_min < 0 else "+"
+    hh, mm = divmod(abs(total_min), 60)
+    off_txt = f"UTC{sign}{hh}" + (f":{mm:02d}" if mm else "")
+    return local.strftime("%Y-%m-%d %H:%M") + f" ({off_txt})"
 
 
 def _fmt_projection_time(generated_at: str) -> str:
@@ -773,7 +857,13 @@ def _summarize(payload: dict) -> dict:
         if future_map is None:
             raise ValueError("buckets 在场但 boards 缺席 — 非生产器产物 (二者同版一起落盘)")
         bucket_counts, bucket_rows = _gate_buckets(
-            payload["buckets"], groups, stats, generated_at, future_map, up_gated
+            payload["buckets"],
+            groups,
+            stats,
+            generated_at,
+            future_map,
+            up_gated,
+            producer_tz=payload.get("display_tz"),
         )
         # CARD-G6-5-R 边界不变量 = **逐桶行数漂移守卫**, 不是来源/身份守卫
         # (Codex round-1 LOW 收窄措辞): 它只能发现"行数与计数对不上"; 等长的
@@ -957,9 +1047,9 @@ def _vault_entry(vault_dir: Path, today: date, done_boards: "list[str] | tuple[s
     try:
         if _GENERATED_AT_RE.fullmatch(summary["generated_at"]):
             gen = datetime.fromisoformat(summary["generated_at"].replace("Z", "+00:00"))
-            # CARD-D1: 本地日统一 Asia/Shanghai (容器 UTC 下 astimezone()
-            # 会用错误的"本地日"跨午夜误判)
-            stale = gen.astimezone(_TZ_SHANGHAI).date() != today
+            # CARD-G6-9c / D-18: 本地日走单一显示时区来源 (裸 astimezone()
+            # 会让容器 UTC 与页面口径分叉, 跨午夜误判)
+            stale = gen.astimezone(_display_tz()).date() != today
     except Exception:  # noqa: BLE001 — 畸形时间按 stale, 不装新鲜也不炸
         stale = True
 
@@ -987,7 +1077,7 @@ def _collect() -> dict:
                 "message": f"VAULTS_ROOT not a directory: {vaults_root}",
             },
         )
-    now = datetime.now(_TZ_SHANGHAI)  # CARD-D1: 全链路上海本地时区
+    now = datetime.now(_display_tz())  # CARD-G6-9c: 全链路单一显示时区
     try:
         vault_dirs = _list_vault_dirs(vaults_root)
     except OSError as e:
@@ -996,11 +1086,11 @@ def _collect() -> dict:
             detail={"error": "vaults_root_scan_failed", "message": str(e)},
         )
     # CARD-G6-7: 完成账的「今天」与页面其余时间人话共用同一次时钟读数
-    today_sh = _sh_today(now)
+    today_local = _display_today(now)
     vaults = []
     for v in vault_dirs:
         try:
-            vaults.append(_vault_entry(v, now.date(), _board_done_today(v, vaults_root, today_sh)))
+            vaults.append(_vault_entry(v, now.date(), _board_done_today(v, vaults_root, today_local)))
         except Exception as e:  # noqa: BLE001 — 终极防线 (Codex-C2 B1):
             # 单库任何未预期异常都不许把全局打成 500, 以 corrupt 条目呈现;
             # traceback 落服务端日志 (兜底不等于不可观测)
@@ -1017,6 +1107,10 @@ def _collect() -> dict:
             )
     return {
         "generated_at": now.isoformat(timespec="seconds"),
+        # CARD-G6-9c 加性: 服务端显示时区的 IANA 名, 供前端 Intl.DateTimeFormat
+        # 用同一口径归日 (此前 JS 里写死了一个固定时区名, 那是第五套时钟)。
+        # 每次请求现算; 三档都取不到名 (末档固定偏移) 时为 null, 前端退浏览器本地。
+        "display_tz": _display_tz_name(),
         "vaults_root": str(vaults_root),
         "active_vault": s.ACTIVE_VAULT,
         "vaults": vaults,
@@ -1049,7 +1143,7 @@ _NODE_TAG = (
 )
 
 
-def _node_detail_html(vault_id: str, nodes: list[dict], now_sh: datetime) -> str:
+def _node_detail_html(vault_id: str, nodes: list[dict], now_local: datetime) -> str:
     """板行下的节点级明细 (CARD-G6-4): 名称 + 桶位 + 到期人话 + why_due + 深链。
 
     纯 `<details>/<summary>` 折叠, 零 JS。每个节点名是一条 obsidian:// 深链,
@@ -1063,7 +1157,7 @@ def _node_detail_html(vault_id: str, nodes: list[dict], now_sh: datetime) -> str
     for n in nodes:
         name = html.escape(n["node"])
         link = html.escape(_node_link(vault_id, n["node"]))
-        eta, eta_color = _humanize_due(n["fsrs_due"], now_sh)
+        eta, eta_color = _humanize_due(n["fsrs_due"], now_local)
         tag = (
             ""
             if n.get("bucket") is None
@@ -1088,7 +1182,7 @@ def _node_detail_html(vault_id: str, nodes: list[dict], now_sh: datetime) -> str
     )
 
 
-def _queue_layers_html(vault_id: str, bucket_rows: dict | None, now_sh: datetime) -> str:
+def _queue_layers_html(vault_id: str, bucket_rows: dict | None, now_local: datetime) -> str:
     """CARD-G6-5-R 队列分层区块 (零 JS): 五桶各自成区, 区内逐节点点名。
 
     与板表格 (_board_table_html) 是同一批节点的**另一种切法**, 不是它的替代:
@@ -1122,7 +1216,7 @@ def _queue_layers_html(vault_id: str, bucket_rows: dict | None, now_sh: datetime
             items = []
             for r in rows:
                 link = html.escape(_node_link(vault_id, r["node"]))
-                eta, eta_color = _humanize_due(r["fsrs_due"], now_sh)
+                eta, eta_color = _humanize_due(r["fsrs_due"], now_local)
                 items.append(
                     f'<li style="{_NODE_LI}">'
                     f'<a href="{link}" style="color:#2563eb;text-decoration:none">{html.escape(r["node"])}</a>'
@@ -1142,7 +1236,13 @@ def _queue_layers_html(vault_id: str, bucket_rows: dict | None, now_sh: datetime
     )
 
 
-def _board_table_html(vault_id: str, boards: list[dict], now_sh: datetime, done_action: str | None = None) -> str:
+def _board_table_html(
+    vault_id: str,
+    boards: list[dict],
+    now_local: datetime,
+    done_action: str | None = None,
+    undo_action: str | None = None,
+) -> str:
     """三级视图第二/三级: 板表格 白板名|到期|新卡|待剖析|最早到期。
 
     CARD-G6-4: 有到期节点的板在数据行之下多一行 `colspan=5` 的折叠区
@@ -1154,6 +1254,9 @@ def _board_table_html(vault_id: str, boards: list[dict], now_sh: datetime, done_
     CARD-G6-7: done_action 在场时每块板尾再加一行「这板做完了」表单按钮
     (零 JS, 沿 _refresh_form_html 形态)。缺省 None = 不出按钮 —— 已完成区
     里复用本函数渲染时就走这条 (做完了的板不该再给一个"再做完一次"的钮)。
+    CARD-G6-7-R: undo_action 同理, 只在**已完成区**在场 —— 那里才有东西可撤。
+    两个参数互斥地用: 待做区给 done_action, 已完成区给 undo_action; 同时给
+    会让同一块板既能"再做完一次"又能撤销, 两个钮说的是矛盾的话。
     """
     if not boards:
         return '<div style="color:#6b7280;margin:10px 0;font-size:13px">该库暂无到期或已排期的白板</div>'
@@ -1164,7 +1267,7 @@ def _board_table_html(vault_id: str, boards: list[dict], now_sh: datetime, done_
         link = html.escape(_board_link(vault_id, r["board"]))
         due_disp = f"<b>{int(r['due'])}</b>" if r["due"] else '<span style="color:#9ca3af">0</span>'
         ph = "—" if r.get("placeholder") is None else str(int(r["placeholder"]))
-        eta, eta_color = _humanize_due(r["earliest"], now_sh)
+        eta, eta_color = _humanize_due(r["earliest"], now_local)
         rows_html.append(
             f"<tr>"
             f'<td style="{_TD}"><a href="{link}" style="color:#2563eb;text-decoration:none">{name}</a></td>'
@@ -1185,13 +1288,18 @@ def _board_table_html(vault_id: str, boards: list[dict], now_sh: datetime, done_
                 f'<tr><td colspan="5" style="{_TD};padding-top:0;color:#6b7280;font-size:12px">'
                 f"为什么是这块板 · {text}</td></tr>"
             )
-        detail = _node_detail_html(vault_id, r.get("nodes") or [], now_sh)
+        detail = _node_detail_html(vault_id, r.get("nodes") or [], now_local)
         if detail:
             rows_html.append(f'<tr><td colspan="5" style="{_TD};padding-top:0">{detail}</td></tr>')
         if done_action:
             rows_html.append(
                 f'<tr><td colspan="5" style="{_TD};padding-top:0">'
                 f"{_board_done_form_html(vault_id, r['board'], done_action)}</td></tr>"
+            )
+        if undo_action:
+            rows_html.append(
+                f'<tr><td colspan="5" style="{_TD};padding-top:0">'
+                f"{_board_undone_form_html(vault_id, r['board'], undo_action)}</td></tr>"
             )
     return (
         '<div style="overflow-x:auto;margin:10px 0 4px">'
@@ -1233,8 +1341,27 @@ _DONE_BTN = (
 #: 按钮旁边而不是藏在帮助里: 它是"这个钮到底动了什么"的全部答案。
 _DONE_NOTE = (
     "✅「这板做完了」只把它折进下面的「已完成」区，并把今天的推荐让给下一块板 ——"
-    " 不影响 FSRS 记忆曲线（不写节点、不记学习事件），明天自动回来。"
+    " 不影响 FSRS 记忆曲线（不写节点、不记学习事件），明天自动回来，点错了可以撤销。"
 )
+
+
+#: 「撤销」按钮样式 (CARD-G6-7-R) — 灰系, 与绿色的完成钮拉开: 完成是推进,
+#: 撤销是**收回一个误操作**, 长得一样会让人在已完成区里又点一次以为在确认
+_UNDO_BTN = (
+    "font-size:12px;color:#4b5563;background:#f9fafb;border:1px solid #d1d5db;"
+    "border-radius:6px;padding:2px 9px;cursor:pointer;font-family:inherit"
+)
+
+
+def _board_undone_form_html(vault_id: str, board: str, action: str) -> str:
+    """「撤销」表单按钮 — 纯 HTML form POST, 零 JS (沿 _board_done_form_html)。"""
+    return (
+        f'<form method="post" action="{html.escape(action)}" style="display:inline;margin:0">'
+        f'<input type="hidden" name="vault_id" value="{html.escape(vault_id)}">'
+        f'<input type="hidden" name="board" value="{html.escape(board)}">'
+        '<input type="hidden" name="redirect" value="page">'
+        f'<button type="submit" style="{_UNDO_BTN}">↩︎ 撤销</button></form>'
+    )
 
 
 def _board_done_form_html(vault_id: str, board: str, action: str) -> str:
@@ -1251,7 +1378,14 @@ def _board_done_form_html(vault_id: str, board: str, action: str) -> str:
     )
 
 
-def _boards_split_html(vault_id: str, boards: list[dict], now_sh: datetime, done: set, done_action: str) -> str:
+def _boards_split_html(
+    vault_id: str,
+    boards: list[dict],
+    now_local: datetime,
+    done: set,
+    done_action: str,
+    undo_action: str | None = None,
+) -> str:
     """CARD-G6-7: 板表格分成「待做」与「已完成」两区。
 
     ⛔ 折叠不是隐藏, 也不是从投影里剔除 —— 已完成的板行原样还在页面上,
@@ -1261,24 +1395,26 @@ def _boards_split_html(vault_id: str, boards: list[dict], now_sh: datetime, done
     todo = [r for r in boards if r["board"] not in done]
     finished = [r for r in boards if r["board"] in done]
     if todo:
-        head = _board_table_html(vault_id, todo, now_sh, done_action)
+        head = _board_table_html(vault_id, todo, now_local, done_action)
     elif finished:
         # 全做完了: 不复用 _board_table_html 的空态文案 (那句说的是"没有板",
         # 与"板都做完了"是两回事 —— 一字之差就把成就说成了空库)
         head = '<div style="color:#16a34a;margin:10px 0 4px;font-size:14px">🎉 今天列出的白板都标完成了</div>'
     else:
-        head = _board_table_html(vault_id, todo, now_sh, done_action)
+        head = _board_table_html(vault_id, todo, now_local, done_action)
     if not finished:
         return head
     return (
         head + f'<details style="margin:6px 0 2px"><summary style="cursor:pointer;color:#6b7280;font-size:12px">'
         f"已完成（{len(finished)}）· 明天自动回来</summary>"
-        + _board_table_html(vault_id, finished, now_sh)
-        + "</details>"
+        # 已完成区: 不带完成钮 (done_action 缺省), 带撤销钮 —— 误点的唯一出口
+         + _board_table_html(vault_id, finished, now_local, None, undo_action) + "</details>"
     )
 
 
-def _card_html(entry: dict, now_sh: datetime, refresh_action: str, done_action: str) -> str:
+def _card_html(
+    entry: dict, now_local: datetime, refresh_action: str, done_action: str, undo_action: str | None = None
+) -> str:
     """三级视图第一级: vault 卡片 (名+四态徽标+汇总行) → 板表格 → 操作行。"""
     vid = html.escape(entry["vault_id"])
     label, color = _STATUS_META[entry["status"]]
@@ -1326,10 +1462,15 @@ def _card_html(entry: dict, now_sh: datetime, refresh_action: str, done_action: 
             summary
             + layers
             # CARD-G6-5-R: 分层计数行紧跟着它的节点级明细 (缺省整块不出现)
-            + _queue_layers_html(entry["vault_id"], proj.get("bucket_rows"), now_sh)
+            + _queue_layers_html(entry["vault_id"], proj.get("bucket_rows"), now_local)
             # CARD-G6-7: 待做 / 已完成两区 + 写侧动作的诚实说明
             + _boards_split_html(
-                entry["vault_id"], proj["boards"], now_sh, set(entry.get("board_done") or ()), done_action
+                entry["vault_id"],
+                proj["boards"],
+                now_local,
+                set(entry.get("board_done") or ()),
+                done_action,
+                undo_action,
             )
             + f'<div style="color:#6b7280;font-size:12px;margin:2px 0 6px">{html.escape(_DONE_NOTE)}</div>'
             + f'<div style="color:#6b7280;font-size:12px;margin:4px 0 6px">生成于 {gen_disp}</div>'
@@ -1370,15 +1511,16 @@ def _card_html(entry: dict, now_sh: datetime, refresh_action: str, done_action: 
 async def review_overview_page(request: Request) -> HTMLResponse:
     data = _collect()
     # 同一次时钟读数贯穿页面 (generated_at 是 _collect 的上海本地 iso)
-    now_sh = datetime.fromisoformat(data["generated_at"])
+    now_local = datetime.fromisoformat(data["generated_at"])
     # 表单 action 用 url_for 的 **path**: 前缀改了不会漂 (硬编码 /api/v1/…
     # 会), 取 .path 而非绝对 URL 则不受反代改 host/scheme 影响
     refresh_action = request.url_for("review_overview_refresh").path
     done_action = request.url_for("review_overview_board_done").path
-    cards = "".join(_card_html(e, now_sh, refresh_action, done_action) for e in data["vaults"]) or (
+    undo_action = request.url_for("review_overview_board_undone").path
+    cards = "".join(_card_html(e, now_local, refresh_action, done_action, undo_action) for e in data["vaults"]) or (
         '<div style="color:#6b7280">VAULTS_ROOT 下未发现任何 vault (需含 .obsidian/ 目录)</div>'
     )
-    generated = html.escape(_fmt_local_dt(now_sh))
+    generated = html.escape(_fmt_local_dt(now_local))
     page = (
         '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width, initial-scale=1">'
@@ -1484,9 +1626,10 @@ def _resolve_pick_script(vaults_root: Path) -> Path:
 
 
 #: 子进程环境白名单 —— 只透传这些, 其余一律不带 (见 _child_env)。
-#: ⛔ TZ **不在**白名单里: 它由 _child_env 强制设成 _DISPLAY_TZ_NAME, 不接受
-#: 父进程的值 (容器里父进程的 TZ 是空的, 空 = UTC = 错日期)
-_ENV_PASSTHROUGH = ("PATH", "HOME", "TMPDIR", "LANG", "LC_ALL", "LC_CTYPE", "SYSTEMROOT")
+#: CARD-G6-9c / D-18: TZ 与 CANVAS_TZ **在**白名单里 —— 生产器与后端进程必须
+#: 看到同一个时区视图。此前它们由 _child_env 强制设成固定的 Asia/Shanghai,
+#: 那让「用户所在地」这条口径在 refresh 路径上被硬编码顶掉 (见 _child_env)。
+_ENV_PASSTHROUGH = ("PATH", "HOME", "TMPDIR", "LANG", "LC_ALL", "LC_CTYPE", "SYSTEMROOT", "TZ", "CANVAS_TZ")
 
 
 def _child_env() -> dict[str, str]:
@@ -1502,20 +1645,25 @@ def _child_env() -> dict[str, str]:
     白名单只保留跑一个 stdlib 脚本真正需要的: 解释器路径查找 (PATH)、
     临时目录、locale。
 
-    ⛔ TZ 是**强制**设成显示时区, 不是"有就透传": 生产器的
-    `payload["date"] = now.astimezone().date().isoformat()` 与由它派生的
-    md 标题 `# 今日复习 · <date>`、Bark 通知 id `canvas-review-<date>` 全都
-    走**进程本地时区**。而后端容器 `TZ` 为空、`/etc/localtime -> Etc/UTC`
-    (现网实测), 于是上海 00:00-08:00 这 8 小时里 refresh 产出的是**昨天**的
-    日期 —— 端点照样返回 rebuilt=true / status=ok, 页面上没有任何异常信号,
-    正是"静默产出错日期"。宿主 launchd runner 跑在 Asia/Shanghai 下产出的
-    是正确日期, 于是同一个库的两条生成路径会给出不同的 date, 取决于谁最后写。
+    TZ / CANVAS_TZ **透传**(CARD-G6-9c / D-18 2026-09-07)。要解决的问题没变:
+    生产器的 `payload["date"] = now.astimezone(...).date().isoformat()` 与由它
+    派生的 md 标题 `# 今日复习 · <date>`、Bark 通知 id `canvas-review-<date>`
+    全都走**子进程自己看到的时区**; 后端容器 `TZ` 为空、`/etc/localtime ->
+    Etc/UTC`(现网实测), 一旦父子两侧看到的时区不同, 同一个库的两条生成路径
+    就会给出不同的 date, 取决于谁最后写 —— 而端点照样返回 rebuilt=true /
+    status=ok, 页面上没有任何异常信号, 正是"静默产出错日期"。
+    (CARD-G6-1 收官审计实测: TZ=Asia/Shanghai → date=2026-08-31,
+     TZ=UTC → date=2026-08-30, 同一时刻同一个库。)
 
-    这条坑本文件读侧早已点名并修掉 (stale 判定用 `astimezone(_TZ_SHANGHAI)`,
-    见 _vault_entry 的注释), 本卡新开的**写侧**必须同口径, 否则等于把它原样
-    搬了回来。用同一个 _DISPLAY_TZ_NAME 字面量, 读写两侧永不漂移。
-    (收官审计实测: TZ=Asia/Shanghai → date=2026-08-31, TZ=UTC → date=2026-08-30,
-     同一时刻同一个库。)
+    ⛔ **历史记录 + D-18 反转**: 此前这里把子进程的 TZ 强制赋成一个固定的
+    显示时区名, 不接受父进程的值。那在"显示口径恒为该固定时区"的
+    前提下是对的, 但 D-18 (2026-09-07 用户裁定) 推翻了该前提:「今天」= 用户
+    **当前所在地**。硬编码的强制值会让 refresh 路径成为第五套时钟 —— 用户
+    出门换时区后, 页面按机器本地归日, refresh 重生成的 payload 却仍是上海日。
+    改为透传后, 父子进程读的是同一个 `app.core.display_tz` / `scripts.local_tz`
+    来源 (CANVAS_TZ 优先, 否则 TZ, 否则 /etc/localtime), 分叉面消失。
+    父进程 TZ 为空时子进程也读不到, 双方一起落到 `/etc/localtime` 那一档 ——
+    仍是同一个答案, 这正是"同一视图"要的。
 
     PYTHONDONTWRITEBYTECODE=1 不是可选项: 生产器的 load_decay() 会
     `import decay_beta`, 该模块在 **vault 内** (<vault>/.claude/scripts/),
@@ -1526,20 +1674,27 @@ def _child_env() -> dict[str, str]:
     env = {k: v for k in _ENV_PASSTHROUGH if (v := os.environ.get(k)) is not None}
     env["PYTHONDONTWRITEBYTECODE"] = "1"
     env["PYTHONNOUSERSITE"] = "1"
-    # 强制, 不是透传 —— 见上面 docstring。父进程的 TZ 不参与决定 (容器里它是空的,
-    # 空就等于 UTC; 而"读侧显示用 Shanghai、写侧落盘用 UTC"是不能存在的组合)
-    env["TZ"] = _DISPLAY_TZ_NAME
+    # CARD-G6-9c: TZ / CANVAS_TZ 走 _ENV_PASSTHROUGH 透传, 这里**不再强制赋值**
+    # —— 见上面 docstring 的「历史记录 + D-18 反转」段。
     return env
 
 
-def _run_pick(script: Path, vault_dir: Path) -> subprocess.CompletedProcess:
-    """跑 `python <script> --vault <vault> --write` (写面只有 outputs/今日复习.*)。"""
+def _run_pick(script: Path, vault_dir: Path, state_file: Path | None = None) -> subprocess.CompletedProcess:
+    """跑 `python <script> --vault <vault> --write` (写面只有 outputs/今日复习.*)。
+
+    CARD-G6-7-R: state_file 非 None 时追加 `--state <它>` —— 生产器对 state
+    **只读** (取 board_last_recommended 与 board_done), 从不写它。缺省 None
+    保留"不传"这条路: runner 不可达时刷新照常跑, 只是拿不到那两笔账。
+    """
     # stdout 丢弃 (Codex round-3): 生产器会把整份 payload 打到 stdout —— 大库
     # 里那是几 MB 的无用副本, 我们只从盘上读产物。errors="replace": 子进程
     # 若吐出非法字节, 严格解码会抛 UnicodeDecodeError 逃逸成 500, 而这里的
     # 全部错误路径都该是 503。
+    argv = [sys.executable, str(script), "--vault", str(vault_dir), "--write"]
+    if state_file is not None:
+        argv += ["--state", str(state_file)]
     return subprocess.run(  # noqa: S603 — argv 列表 + 服务端自解析路径, 无 shell
-        [sys.executable, str(script), "--vault", str(vault_dir), "--write"],
+        argv,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.PIPE,
         text=True,
@@ -1649,7 +1804,7 @@ def _publish_fingerprint(path: Path) -> tuple[int, int, str] | None:
 def _read_entry(vault_dir: Path) -> dict:
     """读回该库的聚合条目 —— 与 _collect 同一条终极防线, 绝不逃逸成 500。"""
     try:
-        return _vault_entry(vault_dir, datetime.now(_TZ_SHANGHAI).date())
+        return _vault_entry(vault_dir, datetime.now(_display_tz()).date())
     except Exception as e:  # noqa: BLE001
         logger.exception("review_overview refresh 读回异常", vault=vault_dir.name)
         return {
@@ -1661,19 +1816,20 @@ def _read_entry(vault_dir: Path) -> dict:
         }
 
 
-def _rebuild_projection(vault_dir: Path, script: Path) -> tuple[dict, dict | None]:
+def _rebuild_projection(vault_dir: Path, script: Path, state_file: Path | None = None) -> tuple[dict, dict | None]:
     """per-vault 串行 + TTL 去抖地重建一次投影 (同步; 由 FastAPI 线程池承载)。
 
     ── 写侧安全 (本函数的全部承诺) ──
     ① 只写 outputs/今日复习.md + .json: 生产器 --write 的写面就是这两个文件
        (加 outputs/ 目录本身的 mkdir), 配 PYTHONDONTWRITEBYTECODE 堵掉
        vault 内 __pycache__ 这条隐藏写面;
-    ② 不走 runner、不写 runner state: 不传 --state (生产器对 state 本就
-       只读), 更不碰 backups/daily-review.*.state.json —— 结构性保证, 不
-       靠约定。**代价如实登记**: runner 的 board_last_recommended 记录不
-       参与本次 tie-break, 故同分并列的板在 refresh 与 launchd 跑批之间
-       可能排序不同 (取 board_last_recommended 需要 send_bark.vault_key
-       的命名规则, 那是本卡硬边界外的文件, 不为一个排序细节去耦合它);
+    ② 不走 runner、**不写** runner state: CARD-G6-7-R 起传 `--state` (生产器
+       对 state 只读, 从不写它), 但本函数自己一个字节都不往
+       backups/daily-review.*.state.json 里写 —— 只读地把它交给子进程。
+       board_last_recommended 与 board_done 自本卡起参与本次 tie-break /
+       让位: 从前不传的代价是"页面上把板折进已完成区了, 榜首却纹丝不动",
+       用户看到的是标了完成也没用。state 不可达 (runner 缺席) 时退回不传,
+       响应里 state_passed=false 如实说出走了哪条路;
     ③ 落盘撕裂: 生产器侧 atomic_write 已改 tmp 唯一化 + os.replace, 与
        宿主 launchd 跑批并发时最坏结果是「后写者覆盖先写者」而非拼接损坏;
     ④ 去抖: 同一库 TTL 窗口内只有第一次真起子进程, 其余直接读盘返回。
@@ -1697,6 +1853,9 @@ def _rebuild_projection(vault_dir: Path, script: Path) -> tuple[dict, dict | Non
         return {
             "rebuilt": False,
             "reason": "in_progress",
+            # ⚠ Codex round-2 L3: 没起子进程 ⇒ 这一次**没有**把账交给生产器。
+            # 报 true 会让调用方以为让位已经算过了 (它其实只是"路径可用")。
+            "state_passed": False,
             "duration_ms": None,
             "retry_after_seconds": round(_REFRESH_TTL_SECONDS, 3),
             "rebuild_count": _refresh_counts.get(key, 0),
@@ -1708,6 +1867,7 @@ def _rebuild_projection(vault_dir: Path, script: Path) -> tuple[dict, dict | Non
             return {
                 "rebuilt": False,
                 "reason": "debounced",
+                "state_passed": False,  # 同 in_progress: 本次没起子进程, 账没交出去
                 "duration_ms": None,
                 "retry_after_seconds": round(_REFRESH_TTL_SECONDS - (now - last), 3),
                 "rebuild_count": _refresh_counts.get(key, 0),
@@ -1717,7 +1877,7 @@ def _rebuild_projection(vault_dir: Path, script: Path) -> tuple[dict, dict | Non
         md_path = vault_dir.joinpath(*_PROJECTION_MD_REL)
         before_fp = _publish_fingerprint(json_path)
         try:
-            proc = _run_pick(script, vault_dir)
+            proc = _run_pick(script, vault_dir, state_file)
         except subprocess.TimeoutExpired:
             raise HTTPException(
                 status_code=503,
@@ -1808,6 +1968,8 @@ def _rebuild_projection(vault_dir: Path, script: Path) -> tuple[dict, dict | Non
         return {
             "rebuilt": True,
             "reason": "rebuilt",
+            # 本次真起了子进程 —— argv 里到底带没带 --state
+            "state_passed": state_file is not None,
             "duration_ms": elapsed_ms,
             "retry_after_seconds": 0.0,
             "rebuild_count": _refresh_counts[key],
@@ -1913,16 +2075,33 @@ def _refresh_target(vault_id: str) -> tuple[Path, Path]:
 #: 不给"生产器找得到、runner 找不到"这种半可用状态留缝。
 _RUNNER_BASENAME = "daily_review_run.py"
 
+
+def _refresh_state_file(vault_dir: Path) -> Path | None:
+    """刷新要传给生产器的 state 路径; 拿不到就 None (读松, 不 503)。
+
+    与 _board_done_today 同一条读侧纪律: runner 缺席 / 路径派生失败, 代价
+    只是这一轮少两笔账, 不该把刷新本身打死。
+    """
+    runner = _runner_or_none(Path(get_settings().VAULTS_ROOT).resolve())
+    if runner is None:
+        return None
+    try:
+        return runner.state_path(vault_dir)
+    except Exception:  # noqa: BLE001 — 派生失败按"没有 state", 不拖垮刷新
+        logger.warning("review_overview 无法为刷新派生 state 路径", vault=vault_dir.name)
+        return None
+
+
 #: 已加载的 runner 模块 (进程内单例)。state 文件名规则 (vault_key)、
 #: BACKUPS 位置、损坏隔离与原子写全部住在它里面 —— 本端点一行都不复制。
 _RUNNER_MODULE_NAME = "daily_review_run"
 _runner_load_lock = threading.Lock()
 
 #: per-state-file 写锁: 同一库的两次点击串行化 (read-modify-write)。
-#: ⚠ 只覆盖**本进程内**的并发。runner 每小时 :05 档是另一个进程, 它的
-#: load→save 与本端点的 load→save 之间仍是窄竞态窗 (后写覆盖先写)。
-#: 如实登记, 不在本卡解 —— 真解要么进程间文件锁, 要么把 state 拆成
-#: 两个文件, 两条都超出"第一个写侧动作"该背的重量。
+#: 这是**第二层** —— CARD-G6-7-R 起真正跨进程的那把在 runner 侧
+#: (state_locked, fcntl 文件锁), 本表只省掉同进程内取文件锁的开销并保持
+#: 既有语义。runner 每小时 :05 档与本端点之间的窄竞态窗已由那把锁 + 锁内
+#: 三方合并收口 (合并律见 daily_review_run._merge_state_with_disk)。
 _board_done_locks: dict[str, threading.Lock] = {}
 _board_done_locks_guard = threading.Lock()
 
@@ -2077,40 +2256,48 @@ def _write_board_done(vault_dir: Path, vaults_root: Path, board: str, day: str) 
       · 不写 vault 内任何路径 (BACKUPS 在仓库下, 不在库内)。
     读改写全程复用 runner.load_state / save_state: 损坏隔离与 os.replace
     原子写都是它们的既有行为, 这里不另写一套。
+
+    ⚠ CARD-G6-7-R: load→改→save **三步在同一把跨进程锁内** (runner.state_locked)。
+    只锁"写"那一下没有意义 —— load 与 save 之间正是 runner 的 :05 档能插进来
+    的那段窗口。内层的 save_state 会检测到本线程已持锁而复用它。
     """
     runner = _require_runner(vaults_root)
     state_file = runner.state_path(vault_dir)
     with _board_done_locks_guard:
         lock = _board_done_locks.setdefault(str(state_file), threading.Lock())
-    with lock:
-        st = runner.load_state(vault_dir)
-        done = st.setdefault("board_done", {})
-        done[board] = day
-        # 形态已含 v2 键 → 声明版本同步前进 (load_state 的同一条单调规则)
-        declared = st.get("schema_version")
-        if not isinstance(declared, int) or declared < runner.STATE_SCHEMA_VERSION:
-            st["schema_version"] = runner.STATE_SCHEMA_VERSION
-        try:
+    try:
+        # ⚠ Codex round-1 M1: 取锁本身也在 try 里 —— mkdir/open 失败 (backups 被
+        # 文件占位、锁文件不可写、锁路径是软链被 O_NOFOLLOW 拒) 都是 OSError,
+        # 它们发生在 save_state 之前, 漏在 try 外就成了 500 裸 traceback,
+        # 表单路径连动作专属错误页都拿不到。BASE 上这些情形返回的是 503。
+        with lock, runner.state_locked(vault_dir):
+            st = runner.load_state(vault_dir)
+            done = st.setdefault("board_done", {})
+            done[board] = day
+            # 形态已含 v2 键 → 声明版本同步前进 (load_state 的同一条单调规则)
+            declared = st.get("schema_version")
+            if not isinstance(declared, int) or declared < runner.STATE_SCHEMA_VERSION:
+                st["schema_version"] = runner.STATE_SCHEMA_VERSION
             runner.save_state(st, vault_dir)
-        except OSError as e:
-            # CARD-G6-7: save_state 的 mkdir / open / write / os.replace **四段任一**
-            # 失败都落到这里 —— 那是**拒绝写出去**, 是本端点的正常失败态, 不该逃逸成
-            # 500 裸 traceback。
-            # ⚠ round-2 整改: 原文案把因果写死成「临时件路径异常」, 于是磁盘写满 /
-            # backups 只读 / 超配额 (ENOSPC/EROFS/EDQUOT, 全是裸 OSError) 都被指向
-            # "去查软链"这个错方向; 且 FileExistsError 在「backups 被文件占位」与
-            # 「tmp 被抢先建成软链」两个不相干根因下报文逐字节相同。改回本文件其余
-            # 6 处 OSError 一贯的 `类名: 详情` 形态 —— errno 与出错路径都在 str(e) 里。
-            # 「未写出任何内容」这半句是承重的且全分支为真: 写失败即 unlink tmp,
-            # os.replace 原子, state 与节点 md 逐字节不动。
-            logger.warning("board-done 落账失败", vault=vault_dir.name, error=repr(e))
-            raise HTTPException(
-                status_code=503,
-                detail={
-                    "error": "state_write_refused",
-                    "message": f"完成账落盘被拒绝 ({type(e).__name__}: {str(e)[:200]}) —— 未写出任何内容",
-                },
-            )
+    except OSError as e:
+        # CARD-G6-7: save_state 的 mkdir / open / write / os.replace **四段任一**
+        # 失败都落到这里 —— 那是**拒绝写出去**, 是本端点的正常失败态, 不该逃逸成
+        # 500 裸 traceback。CARD-G6-7-R 起取锁的 mkdir/open 失败同样落这里。
+        # ⚠ round-2 整改: 原文案把因果写死成「临时件路径异常」, 于是磁盘写满 /
+        # backups 只读 / 超配额 (ENOSPC/EROFS/EDQUOT, 全是裸 OSError) 都被指向
+        # "去查软链"这个错方向; 且 FileExistsError 在「backups 被文件占位」与
+        # 「tmp 被抢先建成软链」两个不相干根因下报文逐字节相同。改回本文件其余
+        # 6 处 OSError 一贯的 `类名: 详情` 形态 —— errno 与出错路径都在 str(e) 里。
+        # 「未写出任何内容」这半句是承重的且全分支为真: 写失败即 unlink tmp,
+        # os.replace 原子, state 与节点 md 逐字节不动。
+        logger.warning("board-done 落账失败", vault=vault_dir.name, error=repr(e))
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "state_write_refused",
+                "message": f"完成账落盘被拒绝 ({type(e).__name__}: {str(e)[:200]}) —— 未写出任何内容",
+            },
+        )
     return state_file
 
 
@@ -2140,6 +2327,75 @@ def _extra_allowed_hosts() -> frozenset[str]:
         if h:
             out.add(h)
     return frozenset(out)
+
+
+def _assert_board_name(board: str) -> None:
+    """板名长度门 —— 两个写侧端点共用这一个实现。
+
+    ⚠ CARD-G6-7-R (Codex round-1 第 5 问): 此前两处各写一份判断与错误体, 只共享
+    _BOARD_NAME_MAX 一个常量, 自述里却称"三道门都是复用"。两份 422 报文会漂移,
+    自述也就名实不符 (DD-13)。
+    """
+    if not board or len(board) > _BOARD_NAME_MAX:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": "board_invalid",
+                "message": f"board 必须是 1..{_BOARD_NAME_MAX} 字符的白板名 (实为 {len(board)} 字符)",
+            },
+        )
+
+
+def _write_board_undone(vault_dir: Path, vaults_root: Path, board: str) -> tuple[Path, bool]:
+    """把「这块板的完成记录」撤掉, 返回 (被写的 state 文件, 本来就没有)。
+
+    与 _write_board_done 同一条纪律 (同一把锁、同一个写面、零 FSRS):
+      · 写面恰是那一个 state 文件 (加 backups/ 下那把锁);
+      · 不碰任何节点 md, 不追加 learning_events 账本;
+      · 「撤销」撤的只是**人的判断**, 调度面本来就没被动过, 所以也没有
+        任何东西需要"恢复"。
+
+    键不存在 = **幂等**: 返回 already_undone=True 让调用方 200, 不 404。
+    用户要的结果 (这块板现在没被标完成) 已经成立了; 把"已经是目标状态"
+    报成失败, 是用状态码描述过程而不是结果。代价如实登记: 板名拼错也会
+    答成功 —— 所以 already_undone 单独出现在响应里, 调用方分得出
+    "撤掉了一条"与"本来就没有"。
+
+    ⚠ 本来就没有时**不改写 state**: 一次无事可做的撤销不该动 state 的字节与
+    mtime, 否则每点一次都在跟 runner 的 :05 档抢一次发布。
+    说"不落盘"要收窄到 state 本身 (Codex round-1 第 5 问): 这条路仍会创建那把
+    锁文件, 且若 state 当时是损坏的, load_state 照旧把它改名隔离 —— 两者都不是
+    完成账的内容写入, 但确实动了盘。
+    """
+    runner = _require_runner(vaults_root)
+    state_file = runner.state_path(vault_dir)
+    with _board_done_locks_guard:
+        lock = _board_done_locks.setdefault(str(state_file), threading.Lock())
+    try:
+        # 取锁也在 try 内 (Codex round-1 M1, 与 _write_board_done 同款)
+        with lock, runner.state_locked(vault_dir):
+            st = runner.load_state(vault_dir)
+            done = st.setdefault("board_done", {})
+            if board not in done:
+                return state_file, True
+            done.pop(board, None)
+            declared = st.get("schema_version")
+            if not isinstance(declared, int) or declared < runner.STATE_SCHEMA_VERSION:
+                st["schema_version"] = runner.STATE_SCHEMA_VERSION
+            runner.save_state(st, vault_dir)
+    except OSError as e:
+        # 与 board-done 同款: 取锁的 mkdir/open 与 save_state 的四段任一失败
+        # 都是**拒绝写出去**, 是正常失败态而不是 500 裸 traceback。
+        # 「未写出任何内容」全分支为真: 写失败即 unlink tmp, os.replace 原子。
+        logger.warning("board-undone 落账失败", vault=vault_dir.name, error=repr(e))
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "state_write_refused",
+                "message": f"撤销落盘被拒绝 ({type(e).__name__}: {str(e)[:200]}) —— 未写出任何内容",
+            },
+        )
+    return state_file, False
 
 
 def _assert_same_origin(request: Request) -> None:
@@ -2309,10 +2565,16 @@ def review_overview_refresh(
     原样的 4xx/5xx** —— 失败时跳回总览页会让人以为刷新成功了 (页面上什么
     都没变), 那正是"静默假成功"的浏览器版本。
     """
+    state_file = None
     try:
         _assert_same_origin(request)
         vault_dir, script = _refresh_target(vault_id)
-        result, entry = _rebuild_projection(vault_dir, script)
+        # CARD-G6-7-R: 把 runner 的 state 只读地交给生产器 —— 完成账要参与
+        # 让位, 否则页面折了、榜首没动。**读松**: 刷新是读侧重算, runner 不
+        # 可达时退回不传而不是 503 (写侧的完成账才 fail-closed) —— Y2 之前
+        # 这条路本来就不传 state, 为一个 tie-break 把整个刷新打死不划算。
+        state_file = _refresh_state_file(vault_dir)
+        result, entry = _rebuild_projection(vault_dir, script, state_file)
         if entry is None:  # debounced / in_progress 分支没读回, 这里补一次
             entry = _read_entry(vault_dir)
     except HTTPException as e:
@@ -2352,6 +2614,10 @@ def review_overview_refresh(
             "vault_path": str(vault_dir),
             "pick_script": str(script),
             "debounce_ttl_seconds": _REFRESH_TTL_SECONDS,
+            # state_passed 由 _rebuild_projection 放进 result —— 只有它知道这一次
+            # 到底有没有起子进程 (⚠ Codex round-2 L3: 在这里按"路径可用"算, 会让
+            # debounced / in_progress 也报 true, 而那两条路根本没把账交出去)。
+            # 语义: 本次有没有把完成账 / tie-break 记录交给生产器。false 不是失败。
             **result,
             "entry": entry,
         }
@@ -2384,7 +2650,7 @@ def review_overview_board_done(
         标记完成**不影响 FSRS**, 页面上也这么写着 (_DONE_NOTE)。
       · 允许一道题都没答就标完成 (用户裁决) —— 因为"做完了"记的是人的
         判断, 不是系统对掌握度的判断; 后者归 FSRS, 本动作碰不到它。
-      · 「今天」是 Asia/Shanghai 日 (_sh_today, 与页面到期人话同源)。隔日
+      · 「今天」是显示时区本地日 (_display_today, 与页面到期人话同源)。隔日
         自然失效: 不删旧键、不起定时清理 —— 值不等于今天就是没完成。
 
     两道写侧门与 refresh 完全同源 (复制一份 = 两份会漂移):
@@ -2392,26 +2658,19 @@ def review_overview_board_done(
       _assert_write_target_contained  (在 _refresh_target 内) 软链逃逸。
     失败一律回原样 4xx/5xx —— 表单路径渲染人话错误页, 状态码不粉饰。
 
-    ⚠ 未做 (如实登记): 没有"取消完成"入口 —— 误点后的恢复途径是等明天
-    自动回来。撤销与 snooze 一并归后续卡 (D-8 不排本批)。
+    撤销 (CARD-G6-7-R 已做): 误点后有 POST /overview/board-undone 当场取回,
+    零 JS 页与交互壳各有一个入口。推迟 (snooze) 仍未做, 归后续卡 (D-8)。
     """
     try:
         _assert_same_origin(request)
-        if not board or len(board) > _BOARD_NAME_MAX:
-            raise HTTPException(
-                status_code=422,
-                detail={
-                    "error": "board_invalid",
-                    "message": f"board 必须是 1..{_BOARD_NAME_MAX} 字符的白板名 (实为 {len(board)} 字符)",
-                },
-            )
-        day = _sh_today()
+        _assert_board_name(board)
+        day = _display_today()
         if not day:
-            # _sh_day 在年份极值下返回 None —— 拿不到"今天"就没有可写的账,
+            # _display_day 在年份极值下返回 None —— 拿不到"今天"就没有可写的账,
             # 宁可 503 也不写一个空日期 (那会让"今天完成"永久为假)
             raise HTTPException(
                 status_code=503,
-                detail={"error": "today_unresolvable", "message": "无法解析当前的 Asia/Shanghai 日期"},
+                detail={"error": "today_unresolvable", "message": "无法解析当前显示时区的日期"},
             )
         vault_dir, _script = _refresh_target(vault_id)
         s = get_settings()
@@ -2436,6 +2695,67 @@ def review_overview_board_done(
             "vault_id": vault_dir.name,
             "board": board,
             "done_date": day,
+            "state_path": str(state_file),
+            "fsrs_touched": False,  # 契约字面化: 本动作永不改调度面
+        }
+    )
+
+
+@review_overview_router.post(
+    "/overview/board-undone",
+    summary="撤销「这板今天做完了」(CARD-G6-7-R; 显式用户触发, 零 FSRS 写入)",
+)
+def review_overview_board_undone(
+    request: Request,
+    vault_id: str = Form(..., description="板所属的 vault 目录名 (须命中 VAULTS_ROOT 下的真实库)"),
+    board: str = Form(..., description="白板名 (与投影 boards[].board 逐字节同形)"),
+    redirect: str | None = Form(None, description="传 page 则 303 回总览页 (纯 HTML 表单用, 零 JS)"),
+) -> Response:
+    """把「这块板今天做完了」这条记录撤掉。
+
+    为什么要有它: 完成动作从前没有回头路 —— 误点之后板折进已完成区、榜首
+    让给了别人, 而唯一的恢复途径是**等到明天**。一天太久了, 何况手滑是最
+    常见的那种错。
+
+    三道写侧门与 board-done 是**同一个函数**, 不是各写一份 (两份必然漂移):
+      _assert_same_origin              跨站表单 CSRF;
+      _assert_write_target_contained   (在 _refresh_target 内) 软链逃逸;
+      _assert_board_name               空 / 超长板名 422。
+    失败一律回原样 4xx/5xx —— 表单路径渲染人话错误页, 状态码不粉饰。
+
+    本动作**不需要**「今天」: 完成账按 {board: 日期} 存, 撤销是按板名摘键。
+    少一个可失败的依赖 (board-done 那边拿不到今天要 503) 就少一条失败路径。
+
+    与 board-done 唯一形态差异: 键本来就不在账里 ⇒ 幂等 200 + already_undone,
+    不 404 (理由与代价见 _write_board_undone)。
+    """
+    try:
+        _assert_same_origin(request)
+        _assert_board_name(board)
+        vault_dir, _script = _refresh_target(vault_id)
+        s = get_settings()
+        vaults_root = Path(s.VAULTS_ROOT).resolve()
+        state_file, already_undone = _write_board_undone(vault_dir, vaults_root, board)
+    except HTTPException as e:
+        if redirect != "page":
+            raise
+        return HTMLResponse(
+            content=_error_page_html(
+                e.status_code, vault_id, e.detail, request.url_for("review_overview_page").path, "取消完成"
+            ),
+            status_code=e.status_code,
+        )
+    if redirect == "page":
+        # PRG: 303 回 GET —— 与 board-done 同款, 走到这一行就是账已经处理完了
+        # (失败已在上面的 except 里渲染成错误页)。
+        return RedirectResponse(url=request.url_for("review_overview_page").path, status_code=303)
+    return JSONResponse(
+        {
+            "vault_id": vault_dir.name,
+            "board": board,
+            "undone": True,
+            # 分开说: 调用方要区分得出"我撤掉了一条"和"本来就没有"
+            "already_undone": already_undone,
             "state_path": str(state_file),
             "fsrs_touched": False,  # 契约字面化: 本动作永不改调度面
         }
