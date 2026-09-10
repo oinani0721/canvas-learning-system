@@ -1885,6 +1885,7 @@ def test_relative_harness_still_yields_absolute_default_dirs(tmp_path: Path):
             str(tmp_path / "env"),
         ],
         capture_output=True,
+        timeout=600,
         text=True,
         cwd=REPO_ROOT,
         env={
