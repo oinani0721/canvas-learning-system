@@ -1,0 +1,26 @@
+=== 裁判 6 manifest 计数 ===
+2 harness-canvas-vault 52 5 12 5
+generate: ['.canvas-config.yaml', '.claude/settings.local.json', '.obsidian/cls-internal-key.txt', '.obsidian/plugins/canvas-learning-system/data.json', '.obsidian/plugins/templater-obsidian/data.json']
+exclude: ['.claude/**/__pycache__', '.claude/hooks/pending_archives*.jsonl', '.claude/mcp.json', '.claudian/**', '.obsidian/plugins/claudian', '.obsidian/workspace.json', '.quarantine/**', '.trash/**', 'learning_events.jsonl', 'outputs/**', 'raw/**', 'templates/**', 'wiki/canvases/**', 'wiki/concepts/**', '原白板/**', '检验白板/**', '节点/**']
+rc6=0
+
+=== 裁判 7 树自洽 ===
+报告已写入 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy/_bmad-output/审查/evidence-g27a/g27a-revalidate-verify-self-20260909T131849.txt
+rc7=0
+
+=== 裁判 5 bash -n ===
+bash-n-ok
+rc5=0
+
+=== 裁判 10 ruff ===
+All checks passed!
+ruff-check-rc=0
+2 files already formatted
+ruff-format-rc=0
+
+=== 裁判 11 地盘门（G2-7a 面：086771d3..e8322b85）===
+backend/tests/unit/test_vault_install_manifest.py
+scripts/install-vault.sh
+scripts/vault-install-manifest.json
+scripts/verify_vault_install.py
+rc11=0

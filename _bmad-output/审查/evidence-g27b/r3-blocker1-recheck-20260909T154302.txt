@@ -1,0 +1,8 @@
+     改判「别名下的 probe 子目录有没有被创建」。
+  OK   不存在:  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27b/r2neg-20260909T154305/fakelive/probe
+  OK   不存在:  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27b/r2neg-20260909T154305/fakelive/sub
+  OK   不存在:  /Users/Heishing/.claude-nonexistent-probe
+  OK   不存在:  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27b/r2neg-20260909T154305/missing
+  OK   不存在:  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27b/r2neg-20260909T154305/x
+
+=== 汇总: PASS=10 FAIL=0 ===

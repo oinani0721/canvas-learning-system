@@ -1,0 +1,9 @@
+跑前 sha: {'install-vault.sh': '7d0cfa66ff', 'verify_vault_install.py': 'a4dac32177', 'vault-install-manifest.json': '5f5acc8bcf'}
+还原后 sha 全部一致 ✅
+KILLED         M-r3-LOW1  E   AssertionError: 脚本生成段与 manifest generate 集漂移:
+KILLED         M-r3-LOW2a  E   AssertionError: 递归复制未带 -H（会沿目录软链写穿模板源）: [(89, 'cp -R "$SOURCE/.claude/$item"  # cp -R -H
+KILLED         M-r3-LOW2b  E   AssertionError: 递归复制未带 -H（会沿目录软链写穿模板源）: [(108, '[ -d "$SOURCE/.obsidian/plugins/$p" ] &&
+KILLED         M-r3-LOW3a  E   AssertionError: .claude/skills 应由 CLAUDE_ITEMS(第 72 行) 声明，origin 却指 install-vault.sh:73
+KILLED         M-r3-LOW3b  E   AssertionError: .claude/settings.local.json 的生成段区间应为 134-180，实为 install-vault.sh:134-135
+KILLED         M-r3-M2  E   AssertionError: 链到可读文件的生成件同样必须拦下（生成件应为实体文件），实得 []
+KILLED         M-r3-M1  E   AssertionError: 源侧根软链 + -H 实体化后内容相同，不该报 drift：[('.obsidian/plugins/dataview', '与模板源字节不一致

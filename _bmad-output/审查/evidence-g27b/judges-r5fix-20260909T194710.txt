@@ -1,0 +1,11 @@
+=== bash -n ===
+bash-n-ok
+=== ruff（新测试 + 判据 + 变异脚本）===
+All checks passed!
+Would reformat: scripts/cls_forbidden_paths.py
+1 file would be reformatted, 2 files already formatted
+=== 文件级三文件 ===
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+====================== 311 passed, 10 warnings in 21.06s =======================
+rc=0

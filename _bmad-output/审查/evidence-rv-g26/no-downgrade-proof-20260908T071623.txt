@@ -1,0 +1,18 @@
+枚举组合数: 128   违规: 0
+
+关键行（旧 → 新）:
+  (全空)                                          0 → 0
+  intentionally_excluded                        0 → 0
+  allowed_extra                                 0 → 0
+  hotkey_orphan                                 0 → 2
+  unreadable                                    1 → 2
+  content_drift                                 1 → 2
+  extra                                         1 → 2
+  missing                                       1 → 1
+  missing,extra                                 1 → 2
+
+验伪锚: 若把新版判据错写成「missing 也进 mismatch」, 下面这条应变 2 而不是 1
+  只有 missing: 新版实测 = 1 (必须是 1)
+  只有 allowed_extra: 新版实测 = 0 (必须是 0)
+  只有 intentionally_excluded: 新版实测 = 0 (必须是 0)
+rc=0

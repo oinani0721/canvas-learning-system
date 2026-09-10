@@ -1,0 +1,42 @@
+=== (d) 负控（每条存档 evidence-g27b/neg-<name>-20260909T135131.txt）===
+  live-vault                 rc=71  ✅
+  home-codex                 rc=71  ✅
+  inside-dotgit              rc=71  ✅
+  is-env-file                rc=71  ✅
+  port-7691                  rc=71  ✅
+  name-not-fixpoint          rc=71  ✅
+  missing-vault              rc=64  ✅
+  hosts-codex                rc=64  ✅
+  activate-no-apply          rc=64  ✅
+  evdir-forbidden            rc=71  ✅
+  envdir-forbidden           rc=71  ✅
+
+=== 禁写面对账 A：find -newer 哨兵（观察值）===
+    ⚠️ ~/.codex 有**外部写者**（codex CLI 自己的 logs_*/thread_history_*/memories_* sqlite WAL），
+       该目录的 -newer 计数含外部噪音，不能单独作为「我们写了」的判据 —— 见对账 B。
+  live           -newer = 0    ✅
+  codex          -newer = 94   ⚠️(见 B)
+      /Users/Heishing/.codex
+      /Users/Heishing/.codex/logs_2.sqlite-wal
+      /Users/Heishing/.codex/thread_history_1.sqlite-wal
+      /Users/Heishing/.codex/memories_1.sqlite-wal
+  dsh            -newer = 0    ✅
+  opencode       -newer = 0    ✅
+  launchagents   -newer = 0    ✅
+
+=== 禁写面对账 B：我们负控里点名的那些路径一个都没被创建（精确判据）===
+  ✅ 不存在: /Users/Heishing/.codex/x
+  ✅ 不存在: /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/evidence
+  ✅ 不存在: /Users/Heishing/.codex/.env.v5
+  ✅ 不存在: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27b/tmpgit/.git/v
+  ✅ 不存在: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27b/a.env
+  ✅ live vault 内无 evidence*: 0 命中
+  $WT/.env(backend/.env) sha: e8189de5971f89b7…
+  git status canvas-vault: 0
+  禁写目标 $SC/vaults 是否被创建了任何 v*: 0
+
+=== 7691 连接数（脚本零 Neo4j 面）===
+  ESTABLISHED to 7691: 0
+0
+
+=== 负控汇总: PASS=11 FAIL=0 ===

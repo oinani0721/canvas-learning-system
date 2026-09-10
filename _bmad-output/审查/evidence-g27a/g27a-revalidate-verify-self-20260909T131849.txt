@@ -1,0 +1,53 @@
+# vault-install verification report (CARD-G2-6, read-only)
+# manifest : scripts/vault-install-manifest.json (version 2, source harness-canvas-vault)
+# vault    : /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy/canvas-vault
+# source   : /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy/canvas-vault
+# 语义     : exclude 项按各自模式的静态前缀子树扫描; extra 只看 manifest
+#            extra_scan 声明的覆盖面 (根级文档不在覆盖面内, 故不报 extra);
+#            读不进去的条目记 unreadable 并计入退出码 —— 看不见不等于一致;
+#            extra_allow 放行的项进 allowed-extra, 只报告不计退出码;
+#            声明为 optional 的项缺失进 optional-missing, 同样不计退出码;
+#            退出码 0 ok / 1 只缺 / 2 多出·漂移·读不动·快捷键孤儿 / 3 用法错。
+------------------------------------------------------------------
+match                  : 23
+missing                : 0
+extra                  : 0
+content-drift          : 0
+intentionally-excluded : 10
+allowed-extra          : 2
+optional-missing       : 12
+unreadable             : 0
+hotkeys                : not evaluated (.obsidian/plugins/canvas-learning-system/main.js 缺 — gitignored 构建产物)
+hotkey-orphan          : 0
+
+## intentionally-excluded
+  .claude/mcp.json [retired]  — 目标里存在: .claude/mcp.json
+  原白板/** [learning-data]  — 目标里存在: 原白板/CS 61B.md, 原白板/特征值与特征向量.md, 原白板/线性代数.md (共 4 项)
+  检验白板/** [learning-data]  — 目标里存在: 检验白板/特征值与特征向量-2026-07-05-1815.md
+  节点/** [learning-data]  — 目标里存在: 节点/Characteristic-Equation-for-Eigenvalues.md, 节点/Eigenvalues-are-special-vectors-that-sat.md, 节点/Fundamentals.md (共 10 项)
+  outputs/** [build-artifact]  — 目标里存在: outputs/exam_boards, outputs/exam_boards/.gitkeep
+  raw/** [learning-data]  — 目标里存在: raw/.gitkeep, raw/my-recursion-notes.md
+  templates/** [learning-data]  — 目标里存在: templates/concept.md, templates/exam-board.md
+  wiki/concepts/** [learning-data]  — 目标里存在: wiki/concepts/.gitkeep
+  wiki/canvases/** [learning-data]  — 目标里存在: wiki/canvases/.gitkeep
+  .claudian/** [retired]  — 目标里存在: .claudian/claudian-settings.json, .claudian/sessions, .claudian/sessions/conv-1776676336319-sl0k3arzs.meta.json (共 9 项)
+
+## allowed-extra
+  .obsidian/graph.json  — 由 extra_allow 的 '.obsidian/graph.json' 放行 (只报告, 不计退出码)
+  .obsidian/types.json  — 由 extra_allow 的 '.obsidian/types.json' 放行 (只报告, 不计退出码)
+
+## optional-missing
+  .claude/agents [claude-system]  — 模板源也没有这一项 (install-vault.sh 会打 ⚠️ 跳过)
+  .claude/commands [claude-system]  — 模板源也没有这一项 (install-vault.sh 会打 ⚠️ 跳过)
+  .claude/settings.local.json [secret-or-local]  — 声明为 optional, 允许缺失 (不计退出码)
+  .obsidian/app.json [obsidian-config]  — 模板源也没有这一项 (install-vault.sh 会打 ⚠️ 跳过)
+  .obsidian/appearance.json [obsidian-config]  — 模板源也没有这一项 (install-vault.sh 会打 ⚠️ 跳过)
+  .obsidian/core-plugins.json [obsidian-config]  — 模板源也没有这一项 (install-vault.sh 会打 ⚠️ 跳过)
+  .obsidian/cls-internal-key.txt [secret-or-local]  — 声明为 optional, 允许缺失 (不计退出码)
+  .obsidian/plugins/dataview [obsidian-plugin]  — 模板源也没有这一项 (install-vault.sh 会打 ⚠️ 跳过)
+  .obsidian/plugins/breadcrumbs [obsidian-plugin]  — 模板源也没有这一项 (install-vault.sh 会打 ⚠️ 跳过)
+  .obsidian/plugins/templater-obsidian [obsidian-plugin]  — 模板源也没有这一项 (install-vault.sh 会打 ⚠️ 跳过)
+  .obsidian/plugins/canvas-learning-system/data.json [plugin-config]  — 声明为 optional, 允许缺失 (不计退出码)
+  .obsidian/plugins/templater-obsidian/data.json [plugin-config]  — 声明为 optional, 允许缺失 (不计退出码)
+
+exit=0

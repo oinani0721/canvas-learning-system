@@ -1,0 +1,41 @@
+跑前基线 sha:
+  51f7140c0ef9eae00fe02646f99b40d86367f09951ef79c75a246394b4df7934  verify_vault_install.py
+  8934e680660fb72067dc820f4fd441713d71494f5f2bb72bc19cc9b45080dda4  vault-install-manifest.json
+
+跑后 sha（必须与跑前逐个相同）:
+  SAME  51f7140c0ef9eae00fe02646f99b40d86367f09951ef79c75a246394b4df7934  verify_vault_install.py
+  SAME  8934e680660fb72067dc820f4fd441713d71494f5f2bb72bc19cc9b45080dda4  vault-install-manifest.json
+还原对账: OK
+
+====================================================================================================
+nodeid                                                         判定               变异
+----------------------------------------------------------------------------------------------------
+test_case_insensitive_alias_is_refused                         KILLED           M1  _fs_identity 恒 None（拆身份比较）
+test_exclusive_create_failure_does_not_delete_someone_elses_file KILLED           M2  O_EXCL 失败后无条件 unlink
+test_two_hop_symlink_target_is_refused                         KILLED           M3  禁写根不再递归展开软链
+test_incomplete_safety_scan_refuses_to_write                   KILLED           M4  忽略「扫描没跑完」
+test_both_sides_unreadable_plain_files_still_block             SURVIVED         M5  叶子读不动时 bad=False
+                                                               ↳ 点名门仍绿 ⇒ 该门不锁这条整改
+test_short_write_is_detected                                   KILLED           M6  单次 os.write（忽略短写）
+test_unencodable_string_in_manifest_exits_2[source]            KILLED           M7  取消可编码性校验
+test_unencodable_string_in_manifest_exits_2[role]              KILLED           M7  取消可编码性校验
+test_unencodable_string_in_manifest_exits_2[origin]            KILLED           M7  取消可编码性校验
+test_unencodable_string_in_manifest_exits_2[note]              KILLED           M7  取消可编码性校验
+test_extra_scan_dot_is_normalized_to_root[.]                   KILLED           M8  取消 `.` 归一为根
+test_extra_scan_dot_is_normalized_to_root[./]                  KILLED           M8  取消 `.` 归一为根
+test_extra_scan_dot_is_normalized_to_root[.//]                 KILLED           M8  取消 `.` 归一为根
+test_dangling_symlink_exclude_is_registered                    KILLED           M9  精确 exclude 用 exists()（丢悬空软链）
+test_skeleton_content_excludes_are_pinned                      KILLED           M10 清单删掉 raw/** 与 templates/**
+test_bracket_exclude_declaration_works_end_to_end              KILLED           M11 精确 exclude 一律不命中
+test_unreadable_leaf_inside_directory_is_registered            KILLED           M12 目录摘要循环内不再登记 unreadable
+----------------------------------------------------------------------------------------------------
+合计 17 条门: KILLED 16 / 其他 1
+
+[exited with code 0]
+
+### M5 重打（首轮锚点打中的是 lstat 失败点，而该门走 read_bytes 失败点 ⇒ 假 SURVIVED）
+跑前 sha: 51f7140c0ef9eae00fe02646f99b40d86367f09951ef79c75a246394b4df7934
+  M5a lstat 失败点 bad=False            SURVIVED  (无 ^E 行)
+  M5b readlink 失败点 bad=False         SURVIVED  (无 ^E 行)
+  M5c read_bytes 失败点 bad=False       KILLED    E   AssertionError: 读不动的普通文件必须被登记
+跑后 sha: 51f7140c0ef9eae00fe02646f99b40d86367f09951ef79c75a246394b4df7934  还原=OK

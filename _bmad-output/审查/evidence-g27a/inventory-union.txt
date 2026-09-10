@@ -1,0 +1,73 @@
+### (b) 分母重算：git 树 ∪ live 的并集，逐项对照裁定表
+--- git 追踪（.obsidian + .claude，quotepath=false 防中文八进制转义）---
+.claude/hooks/session-end-archive.py
+.claude/mcp.json
+.claude/scripts/decay_beta.py
+.claude/scripts/fsrs_bridge.py
+.claude/scripts/sync_board_concepts.py
+.claude/settings.json
+.claude/skills/ai-linked-doc/SKILL.md
+.claude/skills/board-recap/scripts/recap_exam_build.py
+.claude/skills/board-recap/scripts/recap_scan.py
+.claude/skills/board-recap/SKILL.md
+.claude/skills/board-split/scripts/split_preview.py
+.claude/skills/chat-with-context/SKILL.md
+.claude/skills/clear-inbox/scripts/inbox_preview.py
+.claude/skills/configure-whiteboard/SKILL.md
+.claude/skills/configure-whiteboard/templates/whiteboard.md.template
+.claude/skills/exam-quick/SKILL.md
+.claude/skills/node-chat/SKILL.md
+.claude/skills/quiz-answer/SKILL.md
+.claude/skills/start-exam-board/SKILL.md
+.claude/skills/study-question/SKILL.md
+.obsidian/community-plugins.json
+.obsidian/graph.json
+.obsidian/hotkeys.json
+.obsidian/plugins/canvas-learning-system/manifest.json
+.obsidian/templates/concept.md
+.obsidian/templates/exam-board.md
+.obsidian/themes/Underwater/manifest.json
+.obsidian/themes/Underwater/theme.css
+.obsidian/types.json
+--- git 追踪：canvas-vault 根级点文件 ---
+.canvas-config.yaml
+.mcp.json
+--- live .obsidian 顶层 ---
+app.json
+appearance.json
+cls-internal-key.txt
+community-plugins.json
+core-plugins.json
+graph.json
+hotkeys.json
+plugins
+templates
+themes
+types.json
+workspace.json
+--- live .obsidian/plugins ---
+breadcrumbs
+canvas-learning-system
+claudian
+dataview
+excalibrain
+obsidian-excalidraw-plugin
+templater-obsidian
+--- live .claude 顶层 ---
+agents
+cache
+commands
+hooks
+mcp.json
+scripts
+settings.json
+settings.local.json
+skills
+--- live 根级点文件 ---
+.canvas-config.yaml
+.claude
+.claudian
+.mcp.json
+.obsidian
+.quarantine
+.trash

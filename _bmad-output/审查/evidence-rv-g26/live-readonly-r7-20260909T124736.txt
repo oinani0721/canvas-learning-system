@@ -1,0 +1,11 @@
+### live 只读 verify（r6 整改后）ts=20260909T124736
+rc=0
+match                  : 35
+missing                : 0
+extra                  : 0
+allowed-extra          : 5
+unreadable             : 0
+hotkeys                : 3 绑定 / 10 命令 / 0 orphan
+四重禁写: find-newer=0  git=0
+  密钥 sha 同 ✅
+rc=0

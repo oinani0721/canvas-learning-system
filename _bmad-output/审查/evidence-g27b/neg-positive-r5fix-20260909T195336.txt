@@ -1,0 +1,35 @@
+# CARD-G2-7b r5 整改后的负控与正控复跑（本 session，全部落 scratch，零写禁写面）
+# 路径中的 /private/tmp/... 已折叠为 <SCRATCH>
+
+## 负控（rc 与期望）
+neg-live(--vault=live)     rc=71 ✅
+neg-hosts-codex            rc=64 ✅
+neg-port-7691              rc=71 ✅
+neg-activate-no-apply      rc=64 ✅
+neg-evidence-dir→live      rc=71 ✅（消息点名 --evidence-dir）
+neg-env-dir→~/.codex       rc=71 ✅（消息点名 --env-dir）
+neg-relative-vault[新]      rc=64 ✅（r5 HIGH-2）
+neg-step3-env-mismatch     rc=73 ✅（预置 API_PORT=9999 与 --port 8124 矛盾）
+neg-step4-mirror[新]        rc=74 ✅（r5 BLOCKER-4 端到端，见下）
+
+## r5 BLOCKER-4 端到端负控（**不是源码门**）
+📦 deploy-vault [apply] vault=b4probe port=8125 hosts=claude
+   harness=<SCRATCH>/g27b-r5/harness-b4
+[1/6] preflight: OK 树完整 / 禁写面过 / 名不动点 / port 8125 空闲 / skills 9 / main.js 在位
+[2/6] install: OK install-vault.sh rc 0, 输出 <SCRATCH>/g27b-r5/evb4/install-20260909T195248.txt
+[3/6] postprocess: OK key 重生=yes(0600) 三处同值; :8011→:8125 ×4 已验残留 0; 绑定三件在位; .env 白名单跳过: NEO4J_HTTP_PORT NEO4J_BOLT_PORT OLLAMA_HOST VAULT_MOUNT_MODE LOCAL_EMBED
+[4/6] verify: FAIL 禁写面: 源镜像内待模板化文件 mirror-.claude/hooks/session-end-archive.py <SCRATCH>/g27b-r5/fakelive（mkdir -p 会创建的中间段 /var/folders/vq/gssw8vy54671lh9nlqc_f
+保护目录写入数（find -newermt 跑前时刻）: 0  ✅
+
+## 同一 harness 的控制组（hooks 还原为真目录）
+[4/6] verify: OK 校验器 rc 0（含 content-drift 轴, 基准=源镜像(同 :8126 口径)）, 报告 <SCRATCH>/g27b-r5/evb4/verify-20260909T195310.txt
+控制组 rc=0 ✅ —— 证明新判据不是「永远拦」（r2 曾把所有正控打成 71）
+
+## 正控 apply（真 harness, --port 8123）
+六步全 OK/SKIP, rc=0; key 0600; .env.course 0600; 8011 残留 0; 三处密钥同值 ✅
+
+## 幂等（既有已裁定语义 §3.3，非本次回归）
+二次 apply rc=72（install-vault.sh 对已存在目标 exit 66）+ diff -r 空 + .env sha 不变 ✅
+与上一 session 存档 idempotent-20260909T135912.txt 的结论一致。
+
+rc=0

@@ -1,0 +1,24 @@
+### live 只读 run round-4 (ts=20260908T082714) 哨兵 2026-09-08T08:27:14+0800
+报告已写入 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy/_bmad-output/审查/evidence-rv-g26/live-diff-r4-20260908T082714.txt
+live-rc=2
+match                  : 28
+missing                : 0
+extra                  : 5
+content-drift          : not evaluated (无 --source)
+intentionally-excluded : 10
+allowed-extra          : 0
+unreadable             : 0
+hotkeys                : 3 绑定 / 10 命令 / 0 orphan
+hotkey-orphan          : 0
+
+## extra
+末行: exit=2
+禁写1 find -newer=0
+禁写2 sha diff 空 ✅
+禁写3 git status -- canvas-vault/=0
+--- :117 三态 ---
+  t8: 目录=8 文件SKILL.md=7 不分类型=7     ❌ skills ≥8 个 (含 SKILL.md)
+  t9: 目录=9 文件SKILL.md=9 不分类型=9     ✅ skills ≥8 个 (含 SKILL.md)
+  tD: 目录=8 文件SKILL.md=7 不分类型=8     ❌ skills ≥8 个 (含 SKILL.md)
+  bash -n OK
+     157 scripts/install-vault.sh

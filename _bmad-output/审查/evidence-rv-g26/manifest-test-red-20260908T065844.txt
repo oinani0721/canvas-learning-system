@@ -1,0 +1,523 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 109 items
+
+tests/unit/test_vault_install_manifest.py ...............FF......FFFFF.. [ 27%]
+FFFF........FFF..FFFFFFF...FFFF......FF.FF..FFFF.......FFFFFFFFFFFFFFFFF [ 93%]
+.FFFFFF                                                                  [100%]
+
+=================================== FAILURES ===================================
+_________________________ test_extra_is_detected_alone _________________________
+tests/unit/test_vault_install_manifest.py:295: in test_extra_is_detected_alone
+    assert _run(target, source=source) == 2
+E   AssertionError: assert 1 == 2
+E    +  where 1 = _run(PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_extra_is_detected_alone0/target-vault'), source=PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_extra_is_detected_alone0/source-vault'))
+----------------------------- Captured stdout call -----------------------------
+# vault-install verification report (CARD-G2-6, read-only)
+# manifest : /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy/scripts/vault-install-manifest.json (version 1, source live-vault)
+# vault    : /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_extra_is_detected_alone0/target-vault
+# source   : /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_extra_is_detected_alone0/source-vault
+# 语义     : exclude 项按各自模式的静态前缀子树扫描; extra 只看 manifest
+#            extra_scan 声明的覆盖面 (根级文档不在覆盖面内, 故不报 extra);
+#            读不进去的条目记 unreadable 并计入退出码 —— 看不见不等于一致。
+------------------------------------------------------------------
+match                  : 28
+missing                : 0
+extra                  : 1
+content-drift          : 0
+intentionally-excluded : 0
+unreadable             : 0
+
+## extra
+  .claude/cache  — 位于覆盖面 .claude/* 内但不在 manifest
+
+exit=1
+_____________________ test_content_drift_is_detected_alone _____________________
+tests/unit/test_vault_install_manifest.py:302: in test_content_drift_is_detected_alone
+    assert _run(target, source=source) == 2
+E   AssertionError: assert 1 == 2
+E    +  where 1 = _run(PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_content_drift_is_detected0/target-vault'), source=PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_content_drift_is_detected0/source-vault'))
+----------------------------- Captured stdout call -----------------------------
+# vault-install verification report (CARD-G2-6, read-only)
+# manifest : /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy/scripts/vault-install-manifest.json (version 1, source live-vault)
+# vault    : /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_content_drift_is_detected0/target-vault
+# source   : /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_content_drift_is_detected0/source-vault
+# 语义     : exclude 项按各自模式的静态前缀子树扫描; extra 只看 manifest
+#            extra_scan 声明的覆盖面 (根级文档不在覆盖面内, 故不报 extra);
+#            读不进去的条目记 unreadable 并计入退出码 —— 看不见不等于一致。
+------------------------------------------------------------------
+match                  : 27
+missing                : 0
+extra                  : 0
+content-drift          : 1
+intentionally-excluded : 0
+unreadable             : 0
+
+## content-drift
+  Dashboard.md [vault-doc]  — 与模板源字节不一致
+
+exit=1
+____________________ test_absolute_path_in_manifest_exits_2 ____________________
+tests/unit/test_vault_install_manifest.py:379: in test_absolute_path_in_manifest_exits_2
+    assert rc == 3
+E   assert 2 == 3
+----------------------------- Captured stderr call -----------------------------
+❌ manifest 不可用: item 的 path 必须相对 vault 根, 不得是绝对路径: '/Users/x'
+________________________ test_missing_vault_dir_exits_2 ________________________
+tests/unit/test_vault_install_manifest.py:384: in test_missing_vault_dir_exits_2
+    assert rc == 3
+E   assert 2 == 3
+----------------------------- Captured stderr call -----------------------------
+❌ --vault 不是存在的目录: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_missing_vault_dir_exits_20/nope
+_______________________ test_report_inside_vault_exits_2 _______________________
+tests/unit/test_vault_install_manifest.py:390: in test_report_inside_vault_exits_2
+    assert rc == 3
+E   assert 2 == 3
+----------------------------- Captured stderr call -----------------------------
+❌ --report 落点位于 --vault 树内 (按文件系统身份判定, 不是按路径字符串): /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_report_inside_vault_exits0/target-vault/report.txt 的 /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_report_inside_vault_exits0/target-vault 与被审树是同一个对象
+______________________ test_report_inside_source_exits_2 _______________________
+tests/unit/test_vault_install_manifest.py:397: in test_report_inside_source_exits_2
+    assert rc == 3
+E   assert 2 == 3
+----------------------------- Captured stderr call -----------------------------
+❌ --report 落点位于 --source 树内 (按文件系统身份判定, 不是按路径字符串): /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_report_inside_source_exit0/source-vault/report.txt 的 /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_report_inside_source_exit0/source-vault 与被审树是同一个对象
+_________________ test_report_hardlinked_into_vault_is_refused _________________
+tests/unit/test_vault_install_manifest.py:421: in test_report_hardlinked_into_vault_is_refused
+    assert rc == 3
+E   assert 2 == 3
+----------------------------- Captured stderr call -----------------------------
+❌ --report 指向的文件有 2 个硬链接, 写它可能改到被查树里的同 inode 文件, 拒绝: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_report_hardlinked_into_va0/outside-report.txt
+______________ test_non_string_action_still_exits_2[bad_action0] _______________
+tests/unit/test_vault_install_manifest.py:465: in test_non_string_action_still_exits_2
+    assert vv.main(["--vault", str(target), "--manifest", str(bad), "--source", str(source)]) == 3
+E   AssertionError: assert 2 == 3
+E    +  where 2 = <function main at 0x1368ecca0>(['--vault', '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_non_string_...ders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_non_string_action_still_e0/source-vault'])
+E    +    where <function main at 0x1368ecca0> = vv.main
+----------------------------- Captured stderr call -----------------------------
+❌ manifest 不可用: items[0] 的 action 必须是字符串, 实为 list
+______________ test_non_string_action_still_exits_2[bad_action1] _______________
+tests/unit/test_vault_install_manifest.py:465: in test_non_string_action_still_exits_2
+    assert vv.main(["--vault", str(target), "--manifest", str(bad), "--source", str(source)]) == 3
+E   AssertionError: assert 2 == 3
+E    +  where 2 = <function main at 0x1368ecca0>(['--vault', '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_non_string_...ders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_non_string_action_still_e1/source-vault'])
+E    +    where <function main at 0x1368ecca0> = vv.main
+----------------------------- Captured stderr call -----------------------------
+❌ manifest 不可用: items[0] 的 action 必须是字符串, 实为 dict
+__________________ test_non_string_action_still_exits_2[123] ___________________
+tests/unit/test_vault_install_manifest.py:465: in test_non_string_action_still_exits_2
+    assert vv.main(["--vault", str(target), "--manifest", str(bad), "--source", str(source)]) == 3
+E   AssertionError: assert 2 == 3
+E    +  where 2 = <function main at 0x1368ecca0>(['--vault', '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_non_string_...ders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_non_string_action_still_e2/source-vault'])
+E    +    where <function main at 0x1368ecca0> = vv.main
+----------------------------- Captured stderr call -----------------------------
+❌ manifest 不可用: items[0] 的 action 必须是字符串, 实为 int
+__________________ test_non_string_action_still_exits_2[None] __________________
+tests/unit/test_vault_install_manifest.py:465: in test_non_string_action_still_exits_2
+    assert vv.main(["--vault", str(target), "--manifest", str(bad), "--source", str(source)]) == 3
+E   AssertionError: assert 2 == 3
+E    +  where 2 = <function main at 0x1368ecca0>(['--vault', '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_non_string_...ders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_non_string_action_still_e3/source-vault'])
+E    +    where <function main at 0x1368ecca0> = vv.main
+----------------------------- Captured stderr call -----------------------------
+❌ manifest 不可用: items[0] 的 action 必须是字符串, 实为 NoneType
+______________ test_verifier_writes_nothing_into_vault_or_source _______________
+tests/unit/test_vault_install_manifest.py:643: in test_verifier_writes_nothing_into_vault_or_source
+    assert _run(target, source=source, report=report) == 2
+E   AssertionError: assert 1 == 2
+E    +  where 1 = _run(PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_verifier_writes_nothing_i0/target-vault'), source=PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_verifier_writes_nothing_i0/source-vault'), report=PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_verifier_writes_nothing_i0/zero-write-report.txt'))
+----------------------------- Captured stdout call -----------------------------
+报告已写入 /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_verifier_writes_nothing_i0/zero-write-report.txt
+___________________ test_report_via_dev_fd_alias_is_refused ____________________
+tests/unit/test_vault_install_manifest.py:670: in test_report_via_dev_fd_alias_is_refused
+    assert rc == 3
+E   assert 2 == 3
+----------------------------- Captured stderr call -----------------------------
+❌ 报告落盘失败: /dev/fd/14 — [Errno 2] No such file or directory: '/dev/fd/.14.tmp-41557-7d9bd4fc'
+_________________ test_report_behind_vault_symlink_is_refused __________________
+tests/unit/test_vault_install_manifest.py:692: in test_report_behind_vault_symlink_is_refused
+    assert rc == 3
+E   assert 2 == 3
+----------------------------- Captured stderr call -----------------------------
+❌ --report 落点位于 --vault 树内 (按文件系统身份判定, 不是按路径字符串): /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_report_behind_vault_symli0/outside-claude/settings.json 的 /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_report_behind_vault_symli0/outside-claude 与被审树是同一个对象
+__________________ test_invalid_extra_scan_exits_2[bad_scan0] __________________
+tests/unit/test_vault_install_manifest.py:768: in test_invalid_extra_scan_exits_2
+    assert vv.main(["--vault", str(target), "--manifest", str(bad), "--source", str(source)]) == 3
+E   AssertionError: assert 2 == 3
+E    +  where 2 = <function main at 0x1368ecca0>(['--vault', '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_invalid_ext...ders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_invalid_extra_scan_exits_0/source-vault'])
+E    +    where <function main at 0x1368ecca0> = vv.main
+----------------------------- Captured stderr call -----------------------------
+❌ manifest 不可用: extra_scan[0] 的 dir 必须是字符串, 实为 int
+__________________ test_invalid_extra_scan_exits_2[bad_scan1] __________________
+tests/unit/test_vault_install_manifest.py:768: in test_invalid_extra_scan_exits_2
+    assert vv.main(["--vault", str(target), "--manifest", str(bad), "--source", str(source)]) == 3
+E   AssertionError: assert 2 == 3
+E    +  where 2 = <function main at 0x1368ecca0>(['--vault', '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_invalid_ext...ders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_invalid_extra_scan_exits_1/source-vault'])
+E    +    where <function main at 0x1368ecca0> = vv.main
+----------------------------- Captured stderr call -----------------------------
+❌ manifest 不可用: extra_scan[0] 的 dir 必须是字符串, 实为 list
+__________________ test_invalid_extra_scan_exits_2[bad_scan2] __________________
+tests/unit/test_vault_install_manifest.py:768: in test_invalid_extra_scan_exits_2
+    assert vv.main(["--vault", str(target), "--manifest", str(bad), "--source", str(source)]) == 3
+E   AssertionError: assert 2 == 3
+E    +  where 2 = <function main at 0x1368ecca0>(['--vault', '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_invalid_ext...ders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_invalid_extra_scan_exits_2/source-vault'])
+E    +    where <function main at 0x1368ecca0> = vv.main
+----------------------------- Captured stderr call -----------------------------
+❌ manifest 不可用: extra_scan[0] 的 match 必须是非空字符串
+__________________ test_invalid_extra_scan_exits_2[bad_scan3] __________________
+tests/unit/test_vault_install_manifest.py:768: in test_invalid_extra_scan_exits_2
+    assert vv.main(["--vault", str(target), "--manifest", str(bad), "--source", str(source)]) == 3
+E   AssertionError: assert 2 == 3
+E    +  where 2 = <function main at 0x1368ecca0>(['--vault', '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_invalid_ext...ders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_invalid_extra_scan_exits_3/source-vault'])
+E    +    where <function main at 0x1368ecca0> = vv.main
+----------------------------- Captured stderr call -----------------------------
+❌ manifest 不可用: extra_scan[0] 的 match 必须是非空字符串
+__________________ test_invalid_extra_scan_exits_2[bad_scan4] __________________
+tests/unit/test_vault_install_manifest.py:768: in test_invalid_extra_scan_exits_2
+    assert vv.main(["--vault", str(target), "--manifest", str(bad), "--source", str(source)]) == 3
+E   AssertionError: assert 2 == 3
+E    +  where 2 = <function main at 0x1368ecca0>(['--vault', '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_invalid_ext...ders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_invalid_extra_scan_exits_4/source-vault'])
+E    +    where <function main at 0x1368ecca0> = vv.main
+----------------------------- Captured stderr call -----------------------------
+❌ manifest 不可用: extra_scan[0] 的 match 必须是非空字符串
+__________________ test_invalid_extra_scan_exits_2[bad_scan5] __________________
+tests/unit/test_vault_install_manifest.py:768: in test_invalid_extra_scan_exits_2
+    assert vv.main(["--vault", str(target), "--manifest", str(bad), "--source", str(source)]) == 3
+E   AssertionError: assert 2 == 3
+E    +  where 2 = <function main at 0x1368ecca0>(['--vault', '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_invalid_ext...ders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_invalid_extra_scan_exits_5/source-vault'])
+E    +    where <function main at 0x1368ecca0> = vv.main
+----------------------------- Captured stderr call -----------------------------
+❌ manifest 不可用: extra_scan[0] 的 dir 必须相对 vault 根, 不得是绝对路径: '/absolute'
+__________________ test_invalid_extra_scan_exits_2[bad_scan6] __________________
+tests/unit/test_vault_install_manifest.py:768: in test_invalid_extra_scan_exits_2
+    assert vv.main(["--vault", str(target), "--manifest", str(bad), "--source", str(source)]) == 3
+E   AssertionError: assert 2 == 3
+E    +  where 2 = <function main at 0x1368ecca0>(['--vault', '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_invalid_ext...ders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_invalid_extra_scan_exits_6/source-vault'])
+E    +    where <function main at 0x1368ecca0> = vv.main
+----------------------------- Captured stderr call -----------------------------
+❌ manifest 不可用: extra_scan[0] 的 dir 不得含 .. 逃逸段: '../outside'
+______ test_unreadable_or_malformed_manifest_exits_2[\xff\xfe not utf-8] _______
+tests/unit/test_vault_install_manifest.py:799: in test_unreadable_or_malformed_manifest_exits_2
+    assert vv.main(["--vault", str(target), "--manifest", str(bad), "--source", str(source)]) == 3
+E   AssertionError: assert 2 == 3
+E    +  where 2 = <function main at 0x1368ecca0>(['--vault', '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_unreadable_...ders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_unreadable_or_malformed_m0/source-vault'])
+E    +    where <function main at 0x1368ecca0> = vv.main
+----------------------------- Captured stderr call -----------------------------
+❌ manifest 不可用: manifest 不是 UTF-8 文本: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_unreadable_or_malformed_m0/bad.json — 'utf-8' codec can't decode byte 0xff in position 0: invalid start byte
+__________ test_unreadable_or_malformed_manifest_exits_2[{ not json] ___________
+tests/unit/test_vault_install_manifest.py:799: in test_unreadable_or_malformed_manifest_exits_2
+    assert vv.main(["--vault", str(target), "--manifest", str(bad), "--source", str(source)]) == 3
+E   AssertionError: assert 2 == 3
+E    +  where 2 = <function main at 0x1368ecca0>(['--vault', '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_unreadable_...ders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_unreadable_or_malformed_m1/source-vault'])
+E    +    where <function main at 0x1368ecca0> = vv.main
+----------------------------- Captured stderr call -----------------------------
+❌ manifest 不可用: manifest 不是合法 JSON: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_unreadable_or_malformed_m1/bad.json — Expecting property name enclosed in double quotes: line 1 column 3 (char 2)
+_________ test_unreadable_or_malformed_manifest_exits_2[{"version": 1] _________
+tests/unit/test_vault_install_manifest.py:799: in test_unreadable_or_malformed_manifest_exits_2
+    assert vv.main(["--vault", str(target), "--manifest", str(bad), "--source", str(source)]) == 3
+E   AssertionError: assert 2 == 3
+E    +  where 2 = <function main at 0x1368ecca0>(['--vault', '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_unreadable_...ders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_unreadable_or_malformed_m2/source-vault'])
+E    +    where <function main at 0x1368ecca0> = vv.main
+----------------------------- Captured stderr call -----------------------------
+❌ manifest 不可用: manifest 不是合法 JSON: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_unreadable_or_malformed_m2/bad.json — Expecting ',' delimiter: line 1 column 14 (char 13)
+________________ test_manifest_pointing_at_a_directory_exits_2 _________________
+tests/unit/test_vault_install_manifest.py:805: in test_manifest_pointing_at_a_directory_exits_2
+    assert vv.main(["--vault", str(target), "--manifest", str(tmp_path), "--source", str(source)]) == 3
+E   AssertionError: assert 2 == 3
+E    +  where 2 = <function main at 0x1368ecca0>(['--vault', '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_manifest_po...ders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_manifest_pointing_at_a_di0/source-vault'])
+E    +    where <function main at 0x1368ecca0> = vv.main
+----------------------------- Captured stderr call -----------------------------
+❌ manifest 不可用: manifest 不可读: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_manifest_pointing_at_a_di0 — [Errno 21] Is a directory: '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_manifest_pointing_at_a_di0'
+______________________ test_unreadable_alone_still_blocks ______________________
+tests/unit/test_vault_install_manifest.py:916: in test_unreadable_alone_still_blocks
+    assert _run(target, source=source) == 2
+E   AssertionError: assert 1 == 2
+E    +  where 1 = _run(PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_unreadable_alone_still_bl0/target-vault'), source=PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_unreadable_alone_still_bl0/source-vault'))
+----------------------------- Captured stdout call -----------------------------
+# vault-install verification report (CARD-G2-6, read-only)
+# manifest : /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy/scripts/vault-install-manifest.json (version 1, source live-vault)
+# vault    : /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_unreadable_alone_still_bl0/target-vault
+# source   : /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_unreadable_alone_still_bl0/source-vault
+# 语义     : exclude 项按各自模式的静态前缀子树扫描; extra 只看 manifest
+#            extra_scan 声明的覆盖面 (根级文档不在覆盖面内, 故不报 extra);
+#            读不进去的条目记 unreadable 并计入退出码 —— 看不见不等于一致。
+------------------------------------------------------------------
+match                  : 28
+missing                : 0
+extra                  : 0
+content-drift          : 0
+intentionally-excluded : 0
+unreadable             : 2
+
+## unreadable
+  .claude/hooks/locked [claude-system]  — 读不进去, 无法证明两侧一致
+  .claude/hooks/locked [claude-system]  — 读不进去, 无法证明两侧一致
+
+exit=1
+____________________ test_case_insensitive_alias_is_refused ____________________
+tests/unit/test_vault_install_manifest.py:939: in test_case_insensitive_alias_is_refused
+    assert rc == 3
+E   assert 2 == 3
+----------------------------- Captured stderr call -----------------------------
+❌ --report 落点位于 --vault 树内 (按文件系统身份判定, 不是按路径字符串): /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_case_insensitive_alias_is0/TARGET-VAULT/report.txt 的 /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_case_insensitive_alias_is0/TARGET-VAULT 与被审树是同一个对象
+____________________ test_two_hop_symlink_target_is_refused ____________________
+tests/unit/test_vault_install_manifest.py:983: in test_two_hop_symlink_target_is_refused
+    assert rc == 3
+E   assert 2 == 3
+----------------------------- Captured stderr call -----------------------------
+❌ --report 落点位于 --vault 树内 (按文件系统身份判定, 不是按路径字符串): /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_two_hop_symlink_target_is0/outB/report.txt 的 /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_two_hop_symlink_target_is0/outB 与被审树是同一个对象
+_________________ test_incomplete_safety_scan_refuses_to_write _________________
+tests/unit/test_vault_install_manifest.py:1002: in test_incomplete_safety_scan_refuses_to_write
+    assert rc == 3
+E   assert 2 == 3
+----------------------------- Captured stderr call -----------------------------
+❌ 安全性扫描没跑完, 无法确认 --report 落点在被审树之外, 拒绝落盘: --vault: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_incomplete_safety_scan_re0/target-vault/locked
+_____________ test_unencodable_string_in_manifest_exits_2[source] ______________
+tests/unit/test_vault_install_manifest.py:1067: in test_unencodable_string_in_manifest_exits_2
+    assert vv.main(["--vault", str(target), "--manifest", str(bad), "--report", str(out / "r.txt")]) == 3
+E   AssertionError: assert 2 == 3
+E    +  where 2 = <function main at 0x1368ecca0>(['--vault', '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_unencodable...folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_unencodable_string_in_man0/out/r.txt'])
+E    +    where <function main at 0x1368ecca0> = vv.main
+----------------------------- Captured stderr call -----------------------------
+❌ manifest 不可用: manifest 的 source 含无法编码为 UTF-8 的字符: 'utf-8' codec can't encode character '\ud800' in position 0: surrogates not allowed
+______________ test_unencodable_string_in_manifest_exits_2[role] _______________
+tests/unit/test_vault_install_manifest.py:1067: in test_unencodable_string_in_manifest_exits_2
+    assert vv.main(["--vault", str(target), "--manifest", str(bad), "--report", str(out / "r.txt")]) == 3
+E   AssertionError: assert 2 == 3
+E    +  where 2 = <function main at 0x1368ecca0>(['--vault', '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_unencodable...folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_unencodable_string_in_man1/out/r.txt'])
+E    +    where <function main at 0x1368ecca0> = vv.main
+----------------------------- Captured stderr call -----------------------------
+❌ manifest 不可用: items[0] 的 role 含无法编码为 UTF-8 的字符: 'utf-8' codec can't encode character '\ud800' in position 0: surrogates not allowed
+_____________ test_unencodable_string_in_manifest_exits_2[origin] ______________
+tests/unit/test_vault_install_manifest.py:1067: in test_unencodable_string_in_manifest_exits_2
+    assert vv.main(["--vault", str(target), "--manifest", str(bad), "--report", str(out / "r.txt")]) == 3
+E   AssertionError: assert 2 == 3
+E    +  where 2 = <function main at 0x1368ecca0>(['--vault', '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_unencodable...folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_unencodable_string_in_man2/out/r.txt'])
+E    +    where <function main at 0x1368ecca0> = vv.main
+----------------------------- Captured stderr call -----------------------------
+❌ manifest 不可用: items[0] 的 origin 含无法编码为 UTF-8 的字符: 'utf-8' codec can't encode character '\ud800' in position 0: surrogates not allowed
+______________ test_unencodable_string_in_manifest_exits_2[note] _______________
+tests/unit/test_vault_install_manifest.py:1067: in test_unencodable_string_in_manifest_exits_2
+    assert vv.main(["--vault", str(target), "--manifest", str(bad), "--report", str(out / "r.txt")]) == 3
+E   AssertionError: assert 2 == 3
+E    +  where 2 = <function main at 0x1368ecca0>(['--vault', '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_unencodable...folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19210/test_unencodable_string_in_man3/out/r.txt'])
+E    +    where <function main at 0x1368ecca0> = vv.main
+----------------------------- Captured stderr call -----------------------------
+❌ manifest 不可用: items[0] 的 note 含无法编码为 UTF-8 的字符: 'utf-8' codec can't encode character '\ud800' in position 0: surrogates not allowed
+_______________________ test_exit_codes_are_four_tiered ________________________
+tests/unit/test_vault_install_manifest.py:1190: in test_exit_codes_are_four_tiered
+    assert (vv.EXIT_OK, vv.EXIT_MISSING, vv.EXIT_MISMATCH, vv.EXIT_USAGE) == (0, 1, 2, 3)
+                        ^^^^^^^^^^^^^^^
+E   AttributeError: module '_verify_vault_install' has no attribute 'EXIT_MISSING'
+_______________ test_missing_and_mismatch_together_take_mismatch _______________
+tests/unit/test_vault_install_manifest.py:1199: in test_missing_and_mismatch_together_take_mismatch
+    assert only_missing.exit_code == vv.EXIT_MISSING == 1
+                                     ^^^^^^^^^^^^^^^
+E   AttributeError: module '_verify_vault_install' has no attribute 'EXIT_MISSING'
+__________________ test_extra_allow_moves_entry_out_of_extra ___________________
+tests/unit/test_vault_install_manifest.py:1215: in test_extra_allow_moves_entry_out_of_extra
+    assert before.exit_code == vv.EXIT_MISMATCH == 2
+                               ^^^^^^^^^^^^^^^^
+E   AttributeError: module '_verify_vault_install' has no attribute 'EXIT_MISMATCH'
+______________________ test_extra_allow_glob_is_supported ______________________
+tests/unit/test_vault_install_manifest.py:1237: in test_extra_allow_glob_is_supported
+    assert [f.path for f in result.allowed_extra] == [".claude/cache"]
+                            ^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'Report' object has no attribute 'allowed_extra'
+____________________ test_manifest_ships_empty_extra_allow _____________________
+tests/unit/test_vault_install_manifest.py:1244: in test_manifest_ships_empty_extra_allow
+    assert data["extra_allow"] == [], "extra_allow 初值必须为 [] (live 5 项归 U3-B 裁定)"
+           ^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'extra_allow'
+_________________ test_extra_allow_must_be_a_list[not-a-list] __________________
+tests/unit/test_vault_install_manifest.py:1253: in test_extra_allow_must_be_a_list
+    with pytest.raises(vv.ManifestError) as exc:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE <class '_verify_vault_install.ManifestError'>
+____________________ test_extra_allow_must_be_a_list[bad1] _____________________
+tests/unit/test_vault_install_manifest.py:1253: in test_extra_allow_must_be_a_list
+    with pytest.raises(vv.ManifestError) as exc:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE <class '_verify_vault_install.ManifestError'>
+______________________ test_extra_allow_must_be_a_list[5] ______________________
+tests/unit/test_vault_install_manifest.py:1253: in test_extra_allow_must_be_a_list
+    with pytest.raises(vv.ManifestError) as exc:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE <class '_verify_vault_install.ManifestError'>
+____________________ test_extra_allow_must_be_a_list[None] _____________________
+tests/unit/test_vault_install_manifest.py:1253: in test_extra_allow_must_be_a_list
+    with pytest.raises(vv.ManifestError) as exc:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE <class '_verify_vault_install.ManifestError'>
+_ test_extra_allow_path_field_uses_same_checks_as_item_path[/etc/passwd-\u7edd\u5bf9\u8def\u5f84] _
+tests/unit/test_vault_install_manifest.py:1271: in test_extra_allow_path_field_uses_same_checks_as_item_path
+    with pytest.raises(vv.ManifestError) as exc:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE <class '_verify_vault_install.ManifestError'>
+___ test_extra_allow_path_field_uses_same_checks_as_item_path[../outside-..] ___
+tests/unit/test_vault_install_manifest.py:1271: in test_extra_allow_path_field_uses_same_checks_as_item_path
+    with pytest.raises(vv.ManifestError) as exc:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE <class '_verify_vault_install.ManifestError'>
+_ test_extra_allow_path_field_uses_same_checks_as_item_path[-\u4e0d\u5f97\u4e3a\u7a7a] _
+tests/unit/test_vault_install_manifest.py:1271: in test_extra_allow_path_field_uses_same_checks_as_item_path
+    with pytest.raises(vv.ManifestError) as exc:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE <class '_verify_vault_install.ManifestError'>
+_____________________ test_extra_allow_rejects_duplicates ______________________
+tests/unit/test_vault_install_manifest.py:1280: in test_extra_allow_rejects_duplicates
+    with pytest.raises(vv.ManifestError) as exc:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE <class '_verify_vault_install.ManifestError'>
+_ test_extra_allow_overlapping_declared_or_exclude_is_refused[.obsidian/hotkeys.json-\u4e0e declared \u7cbe\u786e\u91cd\u53e0] _
+tests/unit/test_vault_install_manifest.py:1299: in test_extra_allow_overlapping_declared_or_exclude_is_refused
+    with pytest.raises(vv.ManifestError) as exc:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE <class '_verify_vault_install.ManifestError'>
+_ test_extra_allow_overlapping_declared_or_exclude_is_refused[outputs/**-\u4e0e exclude \u6a21\u5f0f\u7cbe\u786e\u91cd\u53e0] _
+tests/unit/test_vault_install_manifest.py:1299: in test_extra_allow_overlapping_declared_or_exclude_is_refused
+    with pytest.raises(vv.ManifestError) as exc:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE <class '_verify_vault_install.ManifestError'>
+_ test_extra_allow_overlapping_declared_or_exclude_is_refused[.obsidian/*.json-allow \u7684 glob \u8986\u76d6\u4e86\u5df2\u58f0\u660e\u7684 .obsidian/app.json] _
+tests/unit/test_vault_install_manifest.py:1299: in test_extra_allow_overlapping_declared_or_exclude_is_refused
+    with pytest.raises(vv.ManifestError) as exc:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE <class '_verify_vault_install.ManifestError'>
+_ test_extra_allow_overlapping_declared_or_exclude_is_refused[.claude/**/__pycache__-\u4e0e exclude \u7684 glob \u7cbe\u786e\u91cd\u53e0] _
+tests/unit/test_vault_install_manifest.py:1299: in test_extra_allow_overlapping_declared_or_exclude_is_refused
+    with pytest.raises(vv.ManifestError) as exc:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE <class '_verify_vault_install.ManifestError'>
+__________________ test_hotkey_orphan_is_counted_as_mismatch ___________________
+tests/unit/test_vault_install_manifest.py:1325: in test_hotkey_orphan_is_counted_as_mismatch
+    assert [f.path for f in result.hotkey_orphan] == [PLUGIN_ID_PREFIX + "canvas:does-not-exist"]
+                            ^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'Report' object has no attribute 'hotkey_orphan'
+_________________________ test_hotkey_real_id_is_clean _________________________
+tests/unit/test_vault_install_manifest.py:1337: in test_hotkey_real_id_is_clean
+    assert result.hotkey_orphan == []
+           ^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'Report' object has no attribute 'hotkey_orphan'
+_______________ test_hotkeys_not_evaluated_when_main_js_missing ________________
+tests/unit/test_vault_install_manifest.py:1347: in test_hotkeys_not_evaluated_when_main_js_missing
+    assert result.hotkey_orphan == []
+           ^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'Report' object has no attribute 'hotkey_orphan'
+___________________ test_foreign_plugin_hotkeys_are_ignored ____________________
+tests/unit/test_vault_install_manifest.py:1359: in test_foreign_plugin_hotkeys_are_ignored
+    assert result.hotkey_orphan == []
+           ^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'Report' object has no attribute 'hotkey_orphan'
+___________________ test_invalid_hotkeys_json_is_unreadable ____________________
+tests/unit/test_vault_install_manifest.py:1369: in test_invalid_hotkeys_json_is_unreadable
+    assert any(f.path == ".obsidian/hotkeys.json" for f in result.unreadable)
+E   assert False
+E    +  where False = any(<generator object test_invalid_hotkeys_json_is_unreadable.<locals>.<genexpr> at 0x136bbf2a0>)
+______________ test_install_sh_skills_check_counts_skill_md_dirs _______________
+tests/unit/test_vault_install_manifest.py:1380: in test_install_sh_skills_check_counts_skill_md_dirs
+    assert "find" in line and "-name SKILL.md" in line, f":117 仍是旧判据: {line}"
+E   AssertionError: :117 仍是旧判据: check "skills ≥8 个"             '[ "$(ls "$TARGET/.claude/skills" 2>/dev/null | wc -l)" -ge 8 ]'
+E   assert ('find' in 'check "skills ≥8 个"             \'[ "$(ls "$TARGET/.claude/skills" 2>/dev/null | wc -l)" -ge 8 ]\'')
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:805
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy/backend/app/api/v1/endpoints/chat.py:805: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:105
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy/backend/app/api/v1/endpoints/metadata.py:105: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:179
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy/backend/app/api/v1/endpoints/metadata.py:179: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_vault_install_manifest.py::test_extra_is_detected_alone
+FAILED tests/unit/test_vault_install_manifest.py::test_content_drift_is_detected_alone
+FAILED tests/unit/test_vault_install_manifest.py::test_absolute_path_in_manifest_exits_2
+FAILED tests/unit/test_vault_install_manifest.py::test_missing_vault_dir_exits_2
+FAILED tests/unit/test_vault_install_manifest.py::test_report_inside_vault_exits_2
+FAILED tests/unit/test_vault_install_manifest.py::test_report_inside_source_exits_2
+FAILED tests/unit/test_vault_install_manifest.py::test_report_hardlinked_into_vault_is_refused
+FAILED tests/unit/test_vault_install_manifest.py::test_non_string_action_still_exits_2[bad_action0]
+FAILED tests/unit/test_vault_install_manifest.py::test_non_string_action_still_exits_2[bad_action1]
+FAILED tests/unit/test_vault_install_manifest.py::test_non_string_action_still_exits_2[123]
+FAILED tests/unit/test_vault_install_manifest.py::test_non_string_action_still_exits_2[None]
+FAILED tests/unit/test_vault_install_manifest.py::test_verifier_writes_nothing_into_vault_or_source
+FAILED tests/unit/test_vault_install_manifest.py::test_report_via_dev_fd_alias_is_refused
+FAILED tests/unit/test_vault_install_manifest.py::test_report_behind_vault_symlink_is_refused
+FAILED tests/unit/test_vault_install_manifest.py::test_invalid_extra_scan_exits_2[bad_scan0]
+FAILED tests/unit/test_vault_install_manifest.py::test_invalid_extra_scan_exits_2[bad_scan1]
+FAILED tests/unit/test_vault_install_manifest.py::test_invalid_extra_scan_exits_2[bad_scan2]
+FAILED tests/unit/test_vault_install_manifest.py::test_invalid_extra_scan_exits_2[bad_scan3]
+FAILED tests/unit/test_vault_install_manifest.py::test_invalid_extra_scan_exits_2[bad_scan4]
+FAILED tests/unit/test_vault_install_manifest.py::test_invalid_extra_scan_exits_2[bad_scan5]
+FAILED tests/unit/test_vault_install_manifest.py::test_invalid_extra_scan_exits_2[bad_scan6]
+FAILED tests/unit/test_vault_install_manifest.py::test_unreadable_or_malformed_manifest_exits_2[\xff\xfe not utf-8]
+FAILED tests/unit/test_vault_install_manifest.py::test_unreadable_or_malformed_manifest_exits_2[{ not json]
+FAILED tests/unit/test_vault_install_manifest.py::test_unreadable_or_malformed_manifest_exits_2[{"version": 1]
+FAILED tests/unit/test_vault_install_manifest.py::test_manifest_pointing_at_a_directory_exits_2
+FAILED tests/unit/test_vault_install_manifest.py::test_unreadable_alone_still_blocks
+FAILED tests/unit/test_vault_install_manifest.py::test_case_insensitive_alias_is_refused
+FAILED tests/unit/test_vault_install_manifest.py::test_two_hop_symlink_target_is_refused
+FAILED tests/unit/test_vault_install_manifest.py::test_incomplete_safety_scan_refuses_to_write
+FAILED tests/unit/test_vault_install_manifest.py::test_unencodable_string_in_manifest_exits_2[source]
+FAILED tests/unit/test_vault_install_manifest.py::test_unencodable_string_in_manifest_exits_2[role]
+FAILED tests/unit/test_vault_install_manifest.py::test_unencodable_string_in_manifest_exits_2[origin]
+FAILED tests/unit/test_vault_install_manifest.py::test_unencodable_string_in_manifest_exits_2[note]
+FAILED tests/unit/test_vault_install_manifest.py::test_exit_codes_are_four_tiered
+FAILED tests/unit/test_vault_install_manifest.py::test_missing_and_mismatch_together_take_mismatch
+FAILED tests/unit/test_vault_install_manifest.py::test_extra_allow_moves_entry_out_of_extra
+FAILED tests/unit/test_vault_install_manifest.py::test_extra_allow_glob_is_supported
+FAILED tests/unit/test_vault_install_manifest.py::test_manifest_ships_empty_extra_allow
+FAILED tests/unit/test_vault_install_manifest.py::test_extra_allow_must_be_a_list[not-a-list]
+FAILED tests/unit/test_vault_install_manifest.py::test_extra_allow_must_be_a_list[bad1]
+FAILED tests/unit/test_vault_install_manifest.py::test_extra_allow_must_be_a_list[5]
+FAILED tests/unit/test_vault_install_manifest.py::test_extra_allow_must_be_a_list[None]
+FAILED tests/unit/test_vault_install_manifest.py::test_extra_allow_path_field_uses_same_checks_as_item_path[/etc/passwd-\u7edd\u5bf9\u8def\u5f84]
+FAILED tests/unit/test_vault_install_manifest.py::test_extra_allow_path_field_uses_same_checks_as_item_path[../outside-..]
+FAILED tests/unit/test_vault_install_manifest.py::test_extra_allow_path_field_uses_same_checks_as_item_path[-\u4e0d\u5f97\u4e3a\u7a7a]
+FAILED tests/unit/test_vault_install_manifest.py::test_extra_allow_rejects_duplicates
+FAILED tests/unit/test_vault_install_manifest.py::test_extra_allow_overlapping_declared_or_exclude_is_refused[.obsidian/hotkeys.json-\u4e0e declared \u7cbe\u786e\u91cd\u53e0]
+FAILED tests/unit/test_vault_install_manifest.py::test_extra_allow_overlapping_declared_or_exclude_is_refused[outputs/**-\u4e0e exclude \u6a21\u5f0f\u7cbe\u786e\u91cd\u53e0]
+FAILED tests/unit/test_vault_install_manifest.py::test_extra_allow_overlapping_declared_or_exclude_is_refused[.obsidian/*.json-allow \u7684 glob \u8986\u76d6\u4e86\u5df2\u58f0\u660e\u7684 .obsidian/app.json]
+FAILED tests/unit/test_vault_install_manifest.py::test_extra_allow_overlapping_declared_or_exclude_is_refused[.claude/**/__pycache__-\u4e0e exclude \u7684 glob \u7cbe\u786e\u91cd\u53e0]
+FAILED tests/unit/test_vault_install_manifest.py::test_hotkey_orphan_is_counted_as_mismatch
+FAILED tests/unit/test_vault_install_manifest.py::test_hotkey_real_id_is_clean
+FAILED tests/unit/test_vault_install_manifest.py::test_hotkeys_not_evaluated_when_main_js_missing
+FAILED tests/unit/test_vault_install_manifest.py::test_foreign_plugin_hotkeys_are_ignored
+FAILED tests/unit/test_vault_install_manifest.py::test_invalid_hotkeys_json_is_unreadable
+FAILED tests/unit/test_vault_install_manifest.py::test_install_sh_skills_check_counts_skill_md_dirs
+================== 56 failed, 53 passed, 10 warnings in 1.58s ==================
+rc=1

@@ -1,0 +1,22 @@
+### H2 缺省源验证: 不传 --source, 模板源应为 $REPO/canvas-vault(harness 树) ts=20260908T172317
+   模板源: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy/canvas-vault
+   ✅ 骨架目录 (含 wiki 两件)
+   ✅ skills ≥8 个 (含 SKILL.md)
+   ✅ decay_beta + fsrs_bridge
+   ✅ hooks 配置 settings.json
+   ✅ MCP 注册件 .mcp.json
+      ↳ 模板源没有 main.js — 先在 harness 树跑 npm run build (deploy-vault.sh preflight, CARD-G2-7b)
+   ❌ 核心插件与模板源字节一致
+   ✅ 插件启用清单+快捷键
+   ✅ 后端鉴权 key 未从源复制
+   ✅ Dashboard + CLAUDE.md
+   ✅ vault 配置 yaml
+═══ 结果: 9 项通过 / 1 项失败 ═══
+install-tail-rc 见上
+--- 校验器(期望同 (h)①: rc 0, optional-missing 10, main.js ❌) ---
+报告已写入 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy/_bmad-output/审查/evidence-g27a/verify-default-r2-20260908T172317.txt
+rc=0
+missing                : 0
+extra                  : 0
+content-drift          : not evaluated (无 --source)
+optional-missing       : 10

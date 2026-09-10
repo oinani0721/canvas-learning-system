@@ -1,0 +1,7 @@
+📦 deploy-vault [apply] vault=probe_b13 port=8123 hosts=claude
+   harness=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy
+[1/6] preflight: OK 树完整 / 禁写面过 / 名不动点 / port 8123 空闲 / skills 9; main.js 已 build 并就位
+[2/6] install: OK install-vault.sh rc 0, 输出 /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27b/apply/ev/install-20260909T135423.txt
+[3/6] postprocess: OK key 重生=yes(0600) 三处同值; :8011→:8123 ×4 已验残留 0; 绑定三件在位; .env 白名单跳过: NEO4J_HTTP_PORT NEO4J_BOLT_PORT OLLAMA_HOST VAULT_MOUNT_MODE LOCAL_EMBEDDER_BASE_URL
+[4/6] verify: FAIL verify_vault_install.py rc=2（1 missing / 2 mismatch / 3 usage）, 报告 /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27b/apply/ev/verify-20260909T135423.txt
+TS=20260909T135423

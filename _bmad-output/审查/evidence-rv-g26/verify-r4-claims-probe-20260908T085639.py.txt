@@ -1,0 +1,81 @@
+#!/usr/bin/env python3
+"""独立复验 Codex round-4 的四条 HIGH 与三条 MEDIUM。"""
+from __future__ import annotations
+import importlib.util, os, socket, stat, subprocess, sys, tempfile
+from pathlib import Path
+WT = Path("/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy")
+V = WT / "scripts" / "verify_vault_install.py"
+spec = importlib.util.spec_from_file_location("_vv_c4", V)
+vv = importlib.util.module_from_spec(spec); sys.modules["_vv_c4"] = vv
+sys.dont_write_bytecode = True; spec.loader.exec_module(vv)
+
+print("H1: Path 规范化让不同软链目标判等")
+with tempfile.TemporaryDirectory() as td:
+    td = Path(td)
+    a, b = td / "a", td / "b"; a.mkdir(); b.mkdir()
+    os.symlink("payload", a / "link")
+    os.symlink("payload/", b / "link")     # 尾斜杠语义不同(要求目标是目录)
+    print(f"   readlink 原始: {os.readlink(a/'link')!r} vs {os.readlink(b/'link')!r}")
+    print(f"   str(Path.readlink()): {str((a/'link').readlink())!r} vs {str((b/'link').readlink())!r}")
+    print(f"   ⇒ 摘要判等: {vv._digest(a) == vv._digest(b)}   ← True 即为假绿")
+    c, d = td / "c", td / "d"; c.mkdir(); d.mkdir()
+    os.symlink("x//y", c / "link"); os.symlink("x/./y", d / "link")
+    print(f"   a//b vs a/./b 判等: {vv._digest(c) == vv._digest(d)}")
+
+print("\nH2: FIFO 与 socket 都记 ?:unknown 且 bad=False")
+with tempfile.TemporaryDirectory() as td:
+    td = Path(td)
+    a, b = td / "a", td / "b"; a.mkdir(); b.mkdir()
+    os.mkfifo(a / "node")
+    s = socket.socket(socket.AF_UNIX); s.bind(str(b / "node")); s.close()
+    da, bad_a = vv._leaf_digest(a / "node")
+    db, bad_b = vv._leaf_digest(b / "node")
+    print(f"   FIFO   -> ({da!r}, bad={bad_a})")
+    print(f"   socket -> ({db!r}, bad={bad_b})")
+    print(f"   ⇒ 摘要判等: {vv._digest(a) == vv._digest(b)}   ← True 即为假绿")
+
+print("\nH3: _kind_ok 一律 False ⇒ 误报 extra / 丢失失败原因")
+with tempfile.TemporaryDirectory() as td:
+    td = Path(td)
+    g = td / "g"; g.mkdir(); (g / "x").write_text("x", encoding="utf-8")
+    os.chmod(g, 0o444)
+    try:
+        item = vv.Item(path="g/*", role="t", action="exclude", kind="")
+        m = vv.ExcludeMatcher((item,))
+        ur: list[str] = []
+        hits = m.hits_for(td, item, ur)
+        print(f"   hits={hits}  unreadable={ur}   ← hits 空且 unreadable 空 = 静默漏报")
+    finally:
+        os.chmod(g, 0o755)
+
+print("\nH4: lstat 成功但跟随软链的类型查询失败")
+with tempfile.TemporaryDirectory() as td:
+    td = Path(td)
+    hidden = td / "hidden"; hidden.mkdir(); (hidden / "real").mkdir()
+    link = td / "link"; os.symlink(hidden / "real", link)
+    os.chmod(hidden, 0o000)
+    try:
+        print(f"   _entry_state(link) = {vv._entry_state(link)!r}  (lstat 成功)")
+        print(f"   link.is_dir() = {link.is_dir()}   ← False 而实际是「问不出来」")
+    finally:
+        os.chmod(hidden, 0o755)
+
+print("\nM1: 两侧内容相同、只一侧不可读 ⇒ 误报 content-drift")
+with tempfile.TemporaryDirectory() as td:
+    td = Path(td)
+    a, b = td / "a", td / "b"; a.mkdir(); b.mkdir()
+    for r in (a, b): (r / "f.txt").write_text("SAME", encoding="utf-8")
+    (b / "f.txt").chmod(0o000)
+    try:
+        ur: list[str] = []
+        da = vv._digest(a, unreadable=ur); db = vv._digest(b, unreadable=ur)
+        print(f"   两侧内容相同但一侧不可读 ⇒ 摘要不同: {da != db}   ← True 即会被报成 drift")
+    finally:
+        (b / "f.txt").chmod(0o644)
+
+print("\nM3: stderr 断管 + 参数错误")
+r = subprocess.run([sys.executable, "-B", str(V), "--bogus"], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+print(f"   stderr 正常时参数错误 rc={r.returncode} (期望 3)")
+p = subprocess.Popen([sys.executable, "-B", str(V), "--bogus"], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+p.stderr.close(); p.wait()
+print(f"   stderr 断管时参数错误 rc={p.returncode} (期望 3, 实测?)")

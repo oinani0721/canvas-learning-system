@@ -1,0 +1,22 @@
+### Codex round-5 的 2 HIGH + 我新引入的 MEDIUM —— 本机独立复现（只读，不改代码）
+脚本: verify-r5-claims-probe-20260908T091401.py.txt
+
+HIGH-1: kind=file 的 is_file() 跟随软链, 目标查不到时返回 False 而不是 None
+   _entry_state(x) = 'present'   (lstat 成功 ⇒ 不进 None 分支)
+   _resolved_kind(x) = 'unreadable'
+   _kind_ok(kind=file) = False   ← 期望 None, 实得?
+   hits=[]  unreadable=[]   ← 两者皆空 = 静默漏报
+
+HIGH-2: 同类型设备节点丢失设备号 (只读 /dev, 不创建)
+   /dev/null: 摘要='?:020000' st_rdev=50331650
+   /dev/zero: 摘要='?:020000' st_rdev=50331651
+   ⇒ 两个不同设备判等: True   ← True 即为假绿
+
+MEDIUM-1【我这轮新引入】: extra 扫描根**确实不存在**时被误报 unreadable
+   _entry_state(不存在) = 'absent'  (absent)
+   _resolved_kind(不存在) = 'unreadable'  ← 期望能与 unreadable 区分
+   _resolved_kind(普通文件/child) = 'unreadable'  ← ENOTDIR
+
+MEDIUM-3【本轮修复不完整】: 目录不可列举时 skip 只跳目录 key, 对侧子孙仍参与摘要
+   a 侧 unreadable=[]  b 侧 unreadable=['pkg/d']  skip=['pkg/d']
+   两侧内容其实相同, _fold 后判等: False   ← False 即仍会误报 drift

@@ -1,0 +1,40 @@
+# CARD-G2-7b r5 整改后目录级对账（tests/unit）
+#
+# 前置判据（§四.10 教训）：raw 必须含 pytest 汇总行才允许对账，否则「红集 0」可能是
+# 「跑到一半被截断」而不是「真的没有红」。
+汇总行: 173 failed, 4963 passed, 48 skipped, 121 warnings, 29 errors in 266.38s (0:04:26)
+原始输出: dir-tests-unit-r5fix-20260909T195400.raw
+
+# nodeid 口径（与 da690bf8 批级基线**逐字同**）：
+#   grep -E '^(FAILED|ERROR) tests/' | sed -E 's/ - .*$//' | sort -u
+#   ⚠️ 保留 FAILED/ERROR 前缀 —— 批级基线就是这个格式。
+#   车道 r4 的 dir-red-nodeids-r4fix.txt 是**剥了前缀**的另一种写法；
+#   我第一次直接 diff 两者得到「202 行全不同」，那是**口径不一致造成的假信号**，
+#   不是回归。两份手抄清单必然漂移（本卡 §十二 已登记过同型）。
+
+## 数据点 A — 对第十三批**批级基线**（权威）
+基线: feature-obsidian-hybrid-dev/_bmad-output/审查/evidence-b13/unit-red-baseline-da690bf8.txt
+      （202 nodeid，主干 da690bf8）
+本次: dir-red-nodeids-r5fix.txt（202 nodeid）
+diff  : **空** ⇒ ✅ 逐 nodeid 完全相等，本卡引入 0 / 修复 0
+
+## 数据点 B — 对车道 r4 权威集（剥前缀口径，独立第二数据点）
+基线: dir-red-nodeids-r4fix.txt（202，无前缀）
+本次: dir-red-nodeids-r5fix.txt 剥前缀后（202）
+diff  : **空** ⇒ ✅ 与 r4 整改后的状态也逐条相等
+
+## 结论
+两个独立口径同时给出「202 == 202、差集为空」。
+r5 整改（B-1/B-2/B-3/B-4/H-2/H-3 + 12 条新门 + 1 条门替换为 2 条）
+**未在 tests/unit 目录级引入任何新红，也未修复任何既有红**。
+
+⚠️ `4963 passed` 比 r4 时的 `4952` 多 11 —— 这个数**实测核过**，不是估算：
+  git diff -U0 -- backend/tests/unit/test_deploy_vault_sh.py | grep -cE '^\+def test_'  → 12
+  git diff -U0 -- backend/tests/unit/test_deploy_vault_sh.py | grep -cE '^-def test_'   → 1
+  净增 = 12 - 1 = **11**
+三处增量逐数吻合：净增 11 == 文件级 300→311 == 目录级 4952→4963。
+⇒ 没有用例被 skip 掉、也没有别处的红变绿（若有，三个数就对不上）。
+被删的那 1 条是 `test_single_segment_relative_vault_gets_dot_as_parent`
+（它钉的是 r4 行为，而 r5 判定该行为本身是缺陷 —— 替换理由见验收单 §十三）。
+
+rc=0

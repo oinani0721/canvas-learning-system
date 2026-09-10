@@ -1,0 +1,3 @@
+d1f64c3fd70a5ac12dbe0595667b58b7a9908a5215acdc052ae8ae4cf9fb3acf  .canvas-config.yaml
+b6cf27d0b9ca3aeb27d64299f1adee18a6299cc0739a4f02a78c256b72851513  .mcp.json
+65b54e56b97ea1098e84419bc73871ca7c6774dbdab1aed4ce2cc744b5e202e0  .obsidian/cls-internal-key.txt

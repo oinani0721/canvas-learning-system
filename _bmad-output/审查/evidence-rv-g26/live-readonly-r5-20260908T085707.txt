@@ -1,0 +1,18 @@
+### live 只读 run round-5 (ts=20260908T085707) 哨兵 2026-09-08T08:57:07+0800
+报告已写入 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy/_bmad-output/审查/evidence-rv-g26/live-diff-r5-20260908T085707.txt
+live-rc=2
+match                  : 28
+missing                : 0
+extra                  : 5
+content-drift          : not evaluated (无 --source)
+intentionally-excluded : 10
+allowed-extra          : 0
+unreadable             : 0
+hotkeys                : 3 绑定 / 10 命令 / 0 orphan
+hotkey-orphan          : 0
+
+## extra
+末行: exit=2
+禁写1 find -newer=0
+禁写2 sha diff 空 ✅
+禁写3 git status -- canvas-vault/=0

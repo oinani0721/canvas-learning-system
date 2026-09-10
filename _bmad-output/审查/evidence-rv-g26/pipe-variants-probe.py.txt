@@ -1,0 +1,40 @@
+#!/usr/bin/env python3
+"""断管收尾的三种写法, 看哪种既能给出 3、又不需要任何可写调用。"""
+import os, subprocess, sys, tempfile, textwrap
+
+BODY = '''
+import os, sys
+EXIT_USAGE = 3
+def main():
+    sys.stdout.write("x" * 100000 + "\\n")
+    return 0
+if __name__ == "__main__":
+    try:
+        _rc = main()
+    except SystemExit as e:
+        _rc = e.code if isinstance(e.code, int) else EXIT_USAGE
+    try:
+        sys.stdout.flush()
+    except (BrokenPipeError, OSError):
+        __TAIL__
+        _rc = EXIT_USAGE
+    sys.exit(_rc)
+'''
+
+VARIANTS = {
+    "A dup2(os.open(devnull))  [含可写调用 open]":
+        'try:\n            os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())\n        except OSError:\n            pass',
+    "B os.close(fd)            [无可写调用]":
+        'try:\n            os.close(sys.stdout.fileno())\n        except OSError:\n            pass',
+    "C sys.stdout = 哑对象      [无可写调用]":
+        'class _Sink:\n            def write(self, _d):\n                return 0\n            def flush(self):\n                return None\n        sys.stdout = _Sink()',
+}
+for tag, tail in VARIANTS.items():
+    with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False) as f:
+        f.write(BODY.replace("__TAIL__", tail))
+        path = f.name
+    p = subprocess.Popen([sys.executable, "-B", path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    p.stdout.close()
+    _, err = p.communicate()
+    noisy = b"Exception ignored" in err
+    print(f"  {tag:<45} rc={p.returncode:<4} 退出期噪音={noisy}")

@@ -1,0 +1,33 @@
+=== (d) 负控（每条存档 evidence-g27b/neg-<name>-20260909T134937.txt）===
+  live-vault                 rc=71  ✅
+  home-codex                 rc=71  ✅
+  inside-dotgit              rc=1   BADRC(got 1 want 71) NOMSG[禁写面]
+  is-env-file                rc=1   BADRC(got 1 want 71) NOMSG[禁写面]
+  port-7691                  rc=71  ✅
+  name-not-fixpoint          rc=71  ✅
+  missing-vault              rc=64  ✅
+  hosts-codex                rc=64  ✅
+  activate-no-apply          rc=64  ✅
+  evdir-forbidden            rc=71  ✅
+  envdir-forbidden           rc=71  ✅
+
+=== 禁写面对账（每条负控跑完后 find -newer 哨兵 = 0）===
+  live           -newer = 0    ✅
+  codex          -newer = 99   ❌
+      /Users/Heishing/.codex
+      /Users/Heishing/.codex/logs_2.sqlite-wal
+      /Users/Heishing/.codex/thread_history_1.sqlite-wal
+      /Users/Heishing/.codex/memories_1.sqlite-wal
+      /Users/Heishing/.codex/cache/codex_apps_tools
+  dsh            -newer = 0    ✅
+  opencode       -newer = 0    ✅
+  launchagents   -newer = 0    ✅
+  $WT/.env(backend/.env) sha: e8189de5971f89b7…
+  git status canvas-vault: 0
+  禁写目标 $SC/vaults 是否被创建了任何 v*: 0
+
+=== 7691 连接数（脚本零 Neo4j 面）===
+  ESTABLISHED to 7691: 0
+0
+
+=== 负控汇总: PASS=9 FAIL=2 ===

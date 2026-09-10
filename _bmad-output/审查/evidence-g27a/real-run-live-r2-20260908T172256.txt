@@ -1,0 +1,22 @@
+### (h)② 重跑（r1 整改后）源=live ts=20260908T172256
+10
+--- 关键: 目标 data.json 现在是生成的还是 live 的? ---
+  backendUrl = http://127.0.0.1:8011   (生成的应为 http://127.0.0.1:8011)
+  internalApiKey 为空: True (0 字符)
+  activeVaultName = ''
+--- settings.local.json ---
+   {'enabledMcpjsonServers': ['canvas-learning-mcp']}
+--- 校验器 ---
+报告已写入 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy/_bmad-output/审查/evidence-g27a/verify-live-r2-20260908T172256.txt
+rc=0
+match                  : 34
+missing                : 0
+extra                  : 0
+content-drift          : 0
+optional-missing       : 1
+unreadable             : 0
+hotkeys                : 3 绑定 / 10 命令 / 0 orphan
+--- 禁写 ---
+  find -newer = 0
+  sha diff 空 ✅
+  git status canvas-vault = 0
