@@ -1,0 +1,20 @@
+== negctl-6-no-pagination-fix-unreaches-page-outer ==
+变异: 拆掉分页收口 → page-outer 的重叠表回到「碰不到」⇒ 门⑤[page-outer] 应 XPASS(strict) 报红
+跑前 sha: 5235c00d99f343a57924855193cfc5d4f8ffb5d72e4687438aac707287d312ff
+变异体 sha: 5ad4cec3036aee7a5461b8b87772c50cfa23a8271d91bfba92ec71862c6c6c62  (ast.parse OK)
+变异体 diff（1 删 / 1 增，hunk 1 个）:
+    --- baseline
+    +++ mutant[negctl-6-no-pagination-fix-unreaches-page-outer]
+    @@ -1023,3 +1023,3 @@
+                 # >10 张表的库只有前 10 张进启动自愈（与 _is_table_absent:816 同口径）。
+    -            table_names = self._all_table_names()
+    +            table_names = self._db.table_names()
+                 for name in table_names:
+
+-- tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_prefix_overlap_not_touched_by_cache_tables
+   rc=1  ================== 1 failed, 1 xfailed, 34 warnings in 0.49s ===================
+   期望红的 nodeid 命中: True   不该红的 nodeid 保持不红: True
+   判定: KILLED（红在声称的那条断言）
+
+跑后 sha: 5235c00d99f343a57924855193cfc5d4f8ffb5d72e4687438aac707287d312ff
+还原逐字节相同: YES ✓

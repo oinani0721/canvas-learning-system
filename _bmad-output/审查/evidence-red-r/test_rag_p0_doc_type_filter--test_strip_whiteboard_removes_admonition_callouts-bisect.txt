@@ -1,0 +1,174 @@
+### CARD-RED-R bisect archive
+slug: test_rag_p0_doc_type_filter--test_strip_whiteboard_removes_admonition_callouts
+nodeid: tests/unit/test_rag_p0_doc_type_filter.py::test_strip_whiteboard_removes_admonition_callouts
+interval: good=c0172693 (c0172693)  bad=89d51dc9 (89d51dc9)
+started: 2026-09-09T11:49:47+0800
+runner-judge: pytest 摘要行 (⛔ 非退出码 —— 老 commit addopts 含 --cov-fail-under=85, passed 也 rc=1)
+sparse-checkout: 排除 /backend/.canvas-learning/ (该目录含非法字节序列路径, macOS 无法 checkout)
+
+Preparing worktree (detached HEAD 89d51dc9)
+== 端点验证 1/2: BAD=89d51dc9 (期望 VERDICT=BAD) ==
+--- HEAD=89d51dc9 nodeid=tests/unit/test_rag_p0_doc_type_filter.py::test_strip_whiteboard_removes_admonition_callouts
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-test_rag_p0_doc_type_filter--test_strip_whiteboard_removes_admonition_callouts/backend/app/api/v1/endpoints/chat.py:784: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+======================== 1 failed, 10 warnings in 1.52s ========================
+--- pytest_raw_rc=1 (仅记录, 不作判据)
+VERDICT=BAD
+bad_end_rc=1
+
+== 端点验证 2/2: GOOD=c0172693 (期望 VERDICT=GOOD) ==
+--- HEAD=c0172693 nodeid=tests/unit/test_rag_p0_doc_type_filter.py::test_strip_whiteboard_removes_admonition_callouts
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-test_rag_p0_doc_type_filter--test_strip_whiteboard_removes_admonition_callouts/backend/app/api/v1/endpoints/chat.py:581: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+======================== 1 passed, 11 warnings in 1.23s ========================
+--- pytest_raw_rc=0 (仅记录, 不作判据)
+VERDICT=GOOD
+good_end_rc=0
+
+ENDPOINT_STATUS=INTERVAL_OK
+
+== git bisect run ==
+Bisecting: 100 revisions left to test after this (roughly 7 steps)
+[085d1d2b555a52919388cbe02649e4cbd2428e50] feat(kg): 可切换 embedder (gemini/openai/local bge-m3) — 摆脱 Gemini 地理封锁
+running 'sh' '/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-runner.sh'
+--- HEAD=085d1d2b nodeid=tests/unit/test_rag_p0_doc_type_filter.py::test_strip_whiteboard_removes_admonition_callouts
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-test_rag_p0_doc_type_filter--test_strip_whiteboard_removes_admonition_callouts/backend/app/api/v1/endpoints/chat.py:764: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+======================== 1 passed, 11 warnings in 1.32s ========================
+--- pytest_raw_rc=0 (仅记录, 不作判据)
+VERDICT=GOOD
+Bisecting: 50 revisions left to test after this (roughly 6 steps)
+[da273af1383e69b6bc940dcc17e21c36f32b83ce] docs(mem-flywheel): 记忆检索效果对抗审查 — 活体12query实测55.8%+两CRITICAL+三浪费 (MEM-FLYWHEEL-2026-07-22)
+running 'sh' '/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-runner.sh'
+--- HEAD=da273af1 nodeid=tests/unit/test_rag_p0_doc_type_filter.py::test_strip_whiteboard_removes_admonition_callouts
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-test_rag_p0_doc_type_filter--test_strip_whiteboard_removes_admonition_callouts/backend/app/api/v1/endpoints/chat.py:788: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+======================== 1 passed, 11 warnings in 1.23s ========================
+--- pytest_raw_rc=0 (仅记录, 不作判据)
+VERDICT=GOOD
+Bisecting: 25 revisions left to test after this (roughly 5 steps)
+[0a077ed854745cb13fe7a825b6c0d53f69debd97] fix(mem-flywheel): 回执模板补选点排序表+第N次考察 — UAT②展示层缺口 (MEM-FLYWHEEL-2026-07-22)
+running 'sh' '/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-runner.sh'
+--- HEAD=0a077ed8 nodeid=tests/unit/test_rag_p0_doc_type_filter.py::test_strip_whiteboard_removes_admonition_callouts
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-test_rag_p0_doc_type_filter--test_strip_whiteboard_removes_admonition_callouts/backend/app/api/v1/endpoints/chat.py:789: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+======================== 1 passed, 11 warnings in 1.24s ========================
+--- pytest_raw_rc=0 (仅记录, 不作判据)
+VERDICT=GOOD
+Bisecting: 12 revisions left to test after this (roughly 4 steps)
+[92e72c26d1b352bc856381476548689169ef5269] docs(security): P0 落地进度表 + P0-6 恢复演练结果记录 (P0-SEC-2026-07-31)
+running 'sh' '/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-runner.sh'
+--- HEAD=92e72c26 nodeid=tests/unit/test_rag_p0_doc_type_filter.py::test_strip_whiteboard_removes_admonition_callouts
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-test_rag_p0_doc_type_filter--test_strip_whiteboard_removes_admonition_callouts/backend/app/api/v1/endpoints/chat.py:784: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+======================== 1 passed, 11 warnings in 1.26s ========================
+--- pytest_raw_rc=0 (仅记录, 不作判据)
+VERDICT=GOOD
+Bisecting: 6 revisions left to test after this (roughly 3 steps)
+[ebd95003affb7c4ae81f4331bc59bb80eaf054be] feat(rag): 阶段 1 索引重写 — 统一原语 + durable pending + 双机制触发 (RAG-S1-2026-08-02)
+running 'sh' '/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-runner.sh'
+--- HEAD=ebd95003 nodeid=tests/unit/test_rag_p0_doc_type_filter.py::test_strip_whiteboard_removes_admonition_callouts
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-test_rag_p0_doc_type_filter--test_strip_whiteboard_removes_admonition_callouts/backend/app/api/v1/endpoints/chat.py:784: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+======================== 1 passed, 11 warnings in 1.13s ========================
+--- pytest_raw_rc=0 (仅记录, 不作判据)
+VERDICT=GOOD
+Bisecting: 3 revisions left to test after this (roughly 2 steps)
+[d93631ac2790edb7a6db7372037b35ca3350f536] fix(mcp): SSE→streamable HTTP 迁移根治全线 -32602 (MCP-32602-2026-08-09)
+running 'sh' '/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-runner.sh'
+--- HEAD=d93631ac nodeid=tests/unit/test_rag_p0_doc_type_filter.py::test_strip_whiteboard_removes_admonition_callouts
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-test_rag_p0_doc_type_filter--test_strip_whiteboard_removes_admonition_callouts/backend/app/api/v1/endpoints/chat.py:784: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+======================== 1 passed, 10 warnings in 1.06s ========================
+--- pytest_raw_rc=0 (仅记录, 不作判据)
+VERDICT=GOOD
+Bisecting: 1 revision left to test after this (roughly 1 step)
+[25dc54a2ca0afd8034f7cdd5b20abe0c819ddb12] feat(rag): 阶段 2 T1 — 60 条 vault 检索金集 + 三层评测门禁 + 开工基线 (RAG-S2-2026-08-09)
+running 'sh' '/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-runner.sh'
+--- HEAD=25dc54a2 nodeid=tests/unit/test_rag_p0_doc_type_filter.py::test_strip_whiteboard_removes_admonition_callouts
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-test_rag_p0_doc_type_filter--test_strip_whiteboard_removes_admonition_callouts/backend/app/api/v1/endpoints/chat.py:784: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+======================== 1 passed, 10 warnings in 0.45s ========================
+--- pytest_raw_rc=0 (仅记录, 不作判据)
+VERDICT=GOOD
+Bisecting: 0 revisions left to test after this (roughly 0 steps)
+[fcd34953876627dbacc0abe28f71fff02128944f] feat(rag): 阶段 2 T2 快修批 — 权重方向翻转 + confidence 地基 + 隔离收口 (RAG-S2-2026-08-09)
+running 'sh' '/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-runner.sh'
+--- HEAD=fcd34953 nodeid=tests/unit/test_rag_p0_doc_type_filter.py::test_strip_whiteboard_removes_admonition_callouts
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-test_rag_p0_doc_type_filter--test_strip_whiteboard_removes_admonition_callouts/backend/app/api/v1/endpoints/chat.py:784: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+======================== 1 passed, 10 warnings in 0.42s ========================
+--- pytest_raw_rc=0 (仅记录, 不作判据)
+VERDICT=GOOD
+89d51dc94363ee8ec12b5487bb6fb16f3d53469a is the first bad commit
+commit 89d51dc94363ee8ec12b5487bb6fb16f3d53469a
+Author: oinani0721 <2272104243@qq.com>
+Date:   Sun Aug 9 23:22:46 2026 +0800
+
+    feat(rag): 阶段 2 T3 chunk 改造 — 段落级切分+callout 分级+题面泄漏根治 (RAG-S2-2026-08-09)
+    
+    T3 五步全落地 (lancedb_client.py 单文件):
+    - Step1 doc_type 推断: 考察文件 exam_question_id→exam_board (无 type: 字段
+      的题面文件曾以 note 最高权重入索引 = 信息隔离旁路, 现被两条检索链排除)
+    - Step2 _chunk_text 段落优先三级切分 (段落→句子→子句) + overlap 段落化
+      (只取完整段落 ≤50tok, 杜绝半截上下文)
+    - Step3 callout 三级分级 _process_callouts (EXTRACT question/error/
+      error-candidate 独立成块 / STRIP info/video/note+脚手架模板标记 / KEEP
+      其余) + 模板样板 section 零 chunk (_is_boilerplate_section)
+    - Step4 面包屑条件化: 短块 (<150tok) 只留文件名 (实测 +0.091)
+    - Step5 line_start/line_end 补 frontmatter 占行偏移 (bug②)
+    
+    金集 delta (vs T2 基线, 容器内 60 query):
+    - recall@10 89.09→90.91% | 假阳性率 58→42% | 近重复 0.33→0.25%
+    - vq-a02 咖啡追加 rank 7→4, vq-a03 rank1 交付 9 条; 考察题面从检索消失
+    - nDCG 0.6579→0.6415 / MRR 0.7243→0.7082 (容差 0.02 内); 交付 81.82% 持平
+    - 基线已锁 (旧基线归档 history jsonl)
+    
+    [Code-Review] 独立对抗审查 0C/1H/2M/5L, 本批全修 4 条:
+    - HIGH-1 YAML 解析失败 (exam-quick.ts 裸标量) 绕过 exam_board 推断 → 原文嗅探兜底
+    - MEDIUM-1 无空行紧贴 callout 整块误分级吞用户批注 → 头行断块
+    - MEDIUM-2 占位判据误杀用户真实内容 → 签名词+整行锚定收紧
+    - LOW-4 tiktoken 冷启动失败炸穿索引 → 字符估算降级
+    backlog: LOW-1 超长 EXTRACT 丢标记 / LOW-3 [!note] 误伤面 census 复核 /
+    LOW-5 exam-quick.ts frontmatter 加引号 (前端另批)
+    
+    契约测试 21 条 (组 A-F 含 4 红线回归); tests/regression 全绿; ruff 通过
+    
+    PLAN-006 RAG-S2-2026-08-09 T3
+    
+    Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+
+ CURRENT_TASK.md                                    |   9 +-
+ backend/lib/agentic_rag/clients/lancedb_client.py  | 391 ++++++++++++++++-----
+ .../vault_retrieval_baseline.json                  | 179 +++++-----
+ .../vault_retrieval_baseline_history.jsonl         |   2 +
+ .../regression/test_rag_stage2_chunk_contracts.py  | 340 ++++++++++++++++++
+ 5 files changed, 734 insertions(+), 187 deletions(-)
+ create mode 100644 backend/tests/regression/test_rag_stage2_chunk_contracts.py
+bisect found first bad commit
+-- bisect log --
+# bad: [89d51dc94363ee8ec12b5487bb6fb16f3d53469a] feat(rag): 阶段 2 T3 chunk 改造 — 段落级切分+callout 分级+题面泄漏根治 (RAG-S2-2026-08-09)
+# good: [c01726935d26f0c7923ae44846a8e436470c99b1] chore(auto-sync): 6 files, metadata.py
+git bisect start '89d51dc9' 'c0172693'
+# good: [085d1d2b555a52919388cbe02649e4cbd2428e50] feat(kg): 可切换 embedder (gemini/openai/local bge-m3) — 摆脱 Gemini 地理封锁
+git bisect good 085d1d2b555a52919388cbe02649e4cbd2428e50
+# good: [da273af1383e69b6bc940dcc17e21c36f32b83ce] docs(mem-flywheel): 记忆检索效果对抗审查 — 活体12query实测55.8%+两CRITICAL+三浪费 (MEM-FLYWHEEL-2026-07-22)
+git bisect good da273af1383e69b6bc940dcc17e21c36f32b83ce
+# good: [0a077ed854745cb13fe7a825b6c0d53f69debd97] fix(mem-flywheel): 回执模板补选点排序表+第N次考察 — UAT②展示层缺口 (MEM-FLYWHEEL-2026-07-22)
+git bisect good 0a077ed854745cb13fe7a825b6c0d53f69debd97
+# good: [92e72c26d1b352bc856381476548689169ef5269] docs(security): P0 落地进度表 + P0-6 恢复演练结果记录 (P0-SEC-2026-07-31)
+git bisect good 92e72c26d1b352bc856381476548689169ef5269
+# good: [ebd95003affb7c4ae81f4331bc59bb80eaf054be] feat(rag): 阶段 1 索引重写 — 统一原语 + durable pending + 双机制触发 (RAG-S1-2026-08-02)
+git bisect good ebd95003affb7c4ae81f4331bc59bb80eaf054be
+# good: [d93631ac2790edb7a6db7372037b35ca3350f536] fix(mcp): SSE→streamable HTTP 迁移根治全线 -32602 (MCP-32602-2026-08-09)
+git bisect good d93631ac2790edb7a6db7372037b35ca3350f536
+# good: [25dc54a2ca0afd8034f7cdd5b20abe0c819ddb12] feat(rag): 阶段 2 T1 — 60 条 vault 检索金集 + 三层评测门禁 + 开工基线 (RAG-S2-2026-08-09)
+git bisect good 25dc54a2ca0afd8034f7cdd5b20abe0c819ddb12
+# good: [fcd34953876627dbacc0abe28f71fff02128944f] feat(rag): 阶段 2 T2 快修批 — 权重方向翻转 + confidence 地基 + 隔离收口 (RAG-S2-2026-08-09)
+git bisect good fcd34953876627dbacc0abe28f71fff02128944f
+# first bad commit: [89d51dc94363ee8ec12b5487bb6fb16f3d53469a] feat(rag): 阶段 2 T3 chunk 改造 — 段落级切分+callout 分级+题面泄漏根治 (RAG-S2-2026-08-09)
+
+# first bad commit: [89d51dc94363ee8ec12b5487bb6fb16f3d53469a] feat(rag): 阶段 2 T3 chunk 改造 — 段落级切分+callout 分级+题面泄漏根治 (RAG-S2-2026-08-09)
+worktree_removed_rc=0
+finished: 2026-09-09T11:55:34+0800
+rc=0

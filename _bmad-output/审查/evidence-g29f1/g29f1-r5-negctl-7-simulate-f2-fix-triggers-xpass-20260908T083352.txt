@@ -1,0 +1,38 @@
+== negctl-7-simulate-f2-fix-triggers-xpass ==
+变异: 模拟 CARD-G2-9-F2 把归属修好（让 a_b_* 不再归 a）⇒ 前提门必须红 + 四条缺陷锁全 XPASS
+跑前 sha: 5235c00d99f343a57924855193cfc5d4f8ffb5d72e4687438aac707287d312ff
+变异体 sha: 4509ac616bb95f4dc1fe655c61f824542d07b35af98df3ee1a80e7f4be08785b  (ast.parse OK)
+变异体 diff（1 删 / 1 增，hunk 1 个）:
+    --- baseline
+    +++ mutant[negctl-7-simulate-f2-fix-triggers-xpass]
+    @@ -899,3 +899,3 @@
+                 return "_" not in name or name == self.FINGERPRINT_TABLE
+    -        return name.startswith(f"{vid}_")
+    +        return name.startswith(f"{vid}_") and not name.startswith(f"{vid}_b_")
+     
+
+-- tests/unit/test_lancedb_cross_vault_drop_g29f1.py
+   rc=1  ================== 10 failed, 4 passed, 54 warnings in 0.66s ===================
+   E   AssertionError: 前提失效：a_b_canvas_nodes 已经不归 vault a 了 —— 前缀口径可能已被修好，此时应删掉门⑤ 族的 xfail 标记而不是保留它
+   E   assert False
+   E    +  where False = _owns_table('a_b_canvas_nodes', 'a')
+   E    +    where _owns_table = <agentic_rag.clients.lancedb_client.LanceDBClient object at 0x13a5e15b0>._owns_table
+   E   AssertionError: 前提失效：a_b_canvas_nodes 已经不归 vault a 了 —— 前缀口径可能已被修好，此时应删掉门⑤ 族的 xfail 标记而不是保留它
+   E   assert False
+   E    +  where False = _owns_table('a_b_canvas_nodes', 'a')
+   E    +    where _owns_table = <agentic_rag.clients.lancedb_client.LanceDBClient object at 0x139e39d90>._owns_table
+   E   AssertionError: 前提失效：a_b_canvas_nodes 已经不归 vault a 了 —— 前缀口径可能已被修好，此时应删掉门⑤ 族的 xfail 标记而不是保留它
+   E   assert False
+   E    +  where False = _owns_table('a_b_canvas_nodes', 'a')
+   E    +    where _owns_table = <agentic_rag.clients.lancedb_client.LanceDBClient object at 0x139f189e0>._owns_table
+   E   AssertionError: 前提失效：a_b_canvas_nodes 已经不归 vault a 了 —— 前缀口径可能已被修好，此时应删掉门⑤ 族的 xfail 标记而不是保留它
+   E   assert False
+   E    +  where False = _owns_table('a_b_canvas_nodes', 'a')
+   E    +    where _owns_table = <agentic_rag.clients.lancedb_client.LanceDBClient object at 0x139f19f20>._owns_table
+   期望红的 nodeid 命中: True   不该红的 nodeid 保持不红: True   附加期望全部命中: True
+     · test_prefix_overlap_not_touched_by_cache_tables → 2 条红
+     · test_prefix_overlap_not_touched_by_drop_vault_tables → 4 条红
+   判定: KILLED（红在声称的那条断言）
+
+跑后 sha: 5235c00d99f343a57924855193cfc5d4f8ffb5d72e4687438aac707287d312ff
+还原逐字节相同: YES ✓

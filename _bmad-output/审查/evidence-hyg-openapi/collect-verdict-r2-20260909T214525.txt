@@ -1,0 +1,36 @@
+=== R2 整改后 collect 复核（追加排除 3 条请求期写盘的 GET） ===
+T_BEFORE=206  G=93  EXTRA=4  T_AFTER=89  N=117
+正控-1 T_AFTER == G - EXTRA ? (89 == 89) -> PASS
+正控-2 T_AFTER > 0 ?                                     -> PASS
+正控-3 T_BEFORE == T_AFTER + N ? (206 == 206) -> PASS
+正控-4 点名 GET nodeid 仍在 -> 1
+判据1 setup-wizard 计数(须0) -> 0
+判据2 非 GET/HEAD 行(须空):
+  empty_rc=1
+判据3 四条写盘 GET 均已不在:
+  health/lancedb -> 0
+  review/fsrs-state -> 0
+  health/storage -> 0
+  multimodal/health -> 0
+被排除清单 method 分布:
+  96 POST
+   9 DELETE
+   6 PUT
+   4 GET
+   2 PATCH
+被排除的 GET（应恰 4 条）:
+tests/contract/test_openapi_contract.py::test_api_contract[GET /api/v1/health/lancedb]
+tests/contract/test_openapi_contract.py::test_api_contract[GET /api/v1/health/storage]
+tests/contract/test_openapi_contract.py::test_api_contract[GET /api/v1/multimodal/health]
+tests/contract/test_openapi_contract.py::test_api_contract[GET /api/v1/review/fsrs-state/{concept_id}]
+--- collect-after 是 R1 版的真子集？（移除操作只应减少） ---
+  R2 中新增而 R1 没有的行数（须 0）= 0
+  R1 有而 R2 移除: tests/contract/test_openapi_contract.py::test_api_contract[GET /api/v1/health/storage]
+  R1 有而 R2 移除: tests/contract/test_openapi_contract.py::test_api_contract[GET /api/v1/multimodal/health]
+  R1 有而 R2 移除: tests/contract/test_openapi_contract.py::test_api_contract[GET /api/v1/review/fsrs-state/{concept_id}]
+--- ruff ---
+All checks passed!
+  check_rc=0
+2 files already formatted
+  format_rc=0
+rc=0

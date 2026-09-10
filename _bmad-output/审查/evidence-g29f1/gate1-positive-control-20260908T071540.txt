@@ -1,0 +1,11 @@
+# 门① 正向对照的对照组实验（回答 Codex prompt 问题 4）
+# 唯一变量 = a_canvas_nodes 的维度；其余夹具一字不动。
+# 2026-09-07T23:15:40Z
+
+对照组 a_canvas_nodes = 8 维 + doc_type（非 drift）
+   a_canvas_nodes 仍在? True   消失的表 = []
+实验组 a_canvas_nodes = 16 维（drift，门① 的形态）
+   a_canvas_nodes 仍在? False   消失的表 = ['a_canvas_nodes']
+
+结论: a_canvas_nodes 被 drop 的原因是 drift（唯一变量），不是别的原因 ⇒ 门① 的正向对照成立。
+附带: 对照组「消失的表 = []」同时证明 b 的两张表在两种情况下都没被碰。

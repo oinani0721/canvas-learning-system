@@ -1,0 +1,4 @@
+4.14.3
+(self, func: 'MatcherFunc | None' = None, *, name: 'FilterValue | None' = None, name_regex: 'str | None' = None, method: 'FilterValue | None' = None, method_regex: 'str | None' = None, path: 'FilterValue | None' = None, path_regex: 'str | None' = None, tag: 'FilterValue | None' = None, tag_regex: 'RegexValue | None' = None, operation_id: 'FilterValue | None' = None, operation_id_regex: 'RegexValue | None' = None) -> 'BaseSchema'
+(self, func: 'MatcherFunc | None' = None, *, name: 'FilterValue | None' = None, name_regex: 'str | None' = None, method: 'FilterValue | None' = None, method_regex: 'str | None' = None, path: 'FilterValue | None' = None, path_regex: 'str | None' = None, tag: 'FilterValue | None' = None, tag_regex: 'RegexValue | None' = None, operation_id: 'FilterValue | None' = None, operation_id_regex: 'RegexValue | None' = None, deprecated: 'bool' = False) -> 'BaseSchema'
+rc=0

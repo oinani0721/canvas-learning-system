@@ -1,0 +1,32 @@
+# _check_and_fix_dimension_mismatch 的**生产**调用点全清单（回应 Codex r2 MEDIUM）
+# 2026-09-07T23:49:48Z
+
+## 全仓命中（排除 .venv）
+backend/app/api/v1/endpoints/metadata.py:543:            _check_and_fix_dimension_mismatch path will auto-drop the table
+backend/tests/unit/test_lancedb_cross_vault_drop_g29f1.py:6:``_check_and_fix_dimension_mismatch``, 于是 vault A 的启动自愈会 drop 掉
+backend/tests/unit/test_lancedb_cross_vault_drop_g29f1.py:69:#: 制造维度漂移用的维度 (``_check_and_fix_dimension_mismatch`` 的第一个 drop 条件)。
+backend/tests/unit/test_lancedb_cross_vault_drop_g29f1.py:100:    只断言「表在」不够: 门锁的是 ``_check_and_fix_dimension_mismatch`` 的两个 drop
+backend/tests/unit/test_lancedb_cross_vault_drop_g29f1.py:131:    B 的两张表各覆盖一个 drop 条件 (``_check_and_fix_dimension_mismatch``
+backend/tests/unit/test_g24_lance_legacy_table_removal.py:44:        # 自动 drop+recreate (_check_and_fix_dimension_mismatch), 那是另一条
+backend/tests/unit/test_archive_legacy_lance_tables_g24.py:587:    ``_check_and_fix_dimension_mismatch()``, **缺 doc_type 列或向量维度不符就
+backend/scripts/g29_dual_vault_canary.py:727:                    # doc_type 必填：缺列会被 _check_and_fix_dimension_mismatch
+backend/scripts/g29_dual_vault_canary.py:1237:#    ``_check_and_fix_dimension_mismatch``，而那个集合含**别的 vault 前缀**
+backend/scripts/g29_dual_vault_canary.py:1290:        "(_cache_tables 对 db.table_names() 全表跑 _check_and_fix_dimension_mismatch)",
+backend/scripts/archive_legacy_lance_tables_g24.py:23:``_check_and_fix_dimension_mismatch()``, 后者发现**缺 doc_type 列或向量维度不符**
+backend/lib/agentic_rag/clients/lancedb_client.py:847:        的全部表跑 ``_check_and_fix_dimension_mismatch``, 于是 vault A 的
+backend/lib/agentic_rag/clients/lancedb_client.py:954:        _check_and_fix_dimension_mismatch which can DROP an in-construction
+backend/lib/agentic_rag/clients/lancedb_client.py:1048:                self._check_and_fix_dimension_mismatch(tname, self.embedding_dim)
+backend/lib/agentic_rag/clients/lancedb_client.py:3709:    def _check_and_fix_dimension_mismatch(self, table_name: str, new_vector_dim: int) -> bool:
+backend/lib/agentic_rag/clients/lancedb_client.py:3856:                    self._check_and_fix_dimension_mismatch(table_name, len(sample_vector))
+
+## 分类
+  真实调用（self.<name>( 形态）: 2
+backend/lib/agentic_rag/clients/lancedb_client.py:1048:                self._check_and_fix_dimension_mismatch(tname, self.embedding_dim)
+backend/lib/agentic_rag/clients/lancedb_client.py:3856:                    self._check_and_fix_dimension_mismatch(table_name, len(sample_vector))
+
+  其余命中全部是注释 / docstring / 测试文本（非调用）。
+
+## AST 口径复核（不受注释与字符串影响）
+  调用 @ :1048  所在函数 = _cache_tables
+  调用 @ :3856  所在函数 = add_documents
+  AST 口径调用点总数 = 2

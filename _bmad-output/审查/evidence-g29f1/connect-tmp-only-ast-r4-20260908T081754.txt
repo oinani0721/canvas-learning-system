@@ -1,0 +1,28 @@
+## 路径来源（最左根口径）
+  : 135  db_path ← 最左根 'tmp_path'  ✓
+  : 194  db_path ← 最左根 'tmp_path'  ✓
+  : 247  db_path ← 最左根 'tmp_path'  ✓
+  : 300  db_path ← 最左根 'tmp_path'  ✓
+  : 390  path ← 最左根 'tmp_path_factory'  ✓
+
+## lancedb.connect 调用 9 处
+  : 119  实参最左根 'str'  ⛔
+  : 136  实参最左根 'str'  ⛔
+  : 195  实参最左根 'str'  ⛔
+  : 248  实参最左根 'str'  ⛔
+  : 301  实参最左根 'str'  ⛔
+  : 157  实参最左根 'str'  ⛔
+  : 216  实参最左根 'str'  ⛔
+  : 269  实参最左根 'str'  ⛔
+  : 391  实参最左根 'str'  ⛔
+
+## _client(...) 调用 5 处，越界 0 
+## 可疑路径/环境字面量 = 0
+
+判定: ⛔ [(119, 'str'), (136, 'str'), (195, 'str'), (248, 'str'), (301, 'str'), (157, 'str'), (216, 'str'), (269, 'str'), (391, 'str')]
+
+## 验伪锚：从安全集逐个移除，看谁在承重
+  移除 'db_path'          → connect 越界 9 处 ← 承重
+  移除 'path'             → connect 越界 9 处 ← 承重
+  移除 'tmp_path'         → connect 越界 9 处 ← 承重
+  移除 'tmp_path_factory' → connect 越界 9 处 ← 承重

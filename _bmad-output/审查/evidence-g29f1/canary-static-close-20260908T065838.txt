@@ -1,0 +1,8 @@
+# §二.7 区段计数收工 2026-09-07T22:58:38Z  (开工基线 0 / 0 / 2)
+① probe 区段 verdict = 2
+② _amain 区段 verdict = 1
+③ 全文 verdict = 5
+④a report["side_effect_probe"] 下标形态 = 2
+④b report.get("side_effect_probe") = 1
+⑤ AST report.get 调用数 = 2
+ast.parse: ast ok

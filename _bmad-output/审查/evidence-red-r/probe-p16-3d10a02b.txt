@@ -1,0 +1,77 @@
+### CARD-RED-R 单点探针 (取失败身份, 非 bisect)
+tag: p16-3d10a02b
+rev: 3d10a02b -> 3d10a02b   (2026-05-14 feat(story-2.4): callout 自动同步 — p0 三件套 + plan-b phase 1-4)
+nodeid: tests/unit/test_story_2_3_error_reminders.py::test_search_memories_node_id_filter_post_merge
+started: 2026-09-09T12:26:37+0800
+
+Preparing worktree (detached HEAD 3d10a02b)
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-probe-p16-3d10a02b/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 1 item
+tests/unit/test_story_2_3_error_reminders.py F                           [100%]
+=================================== FAILURES ===================================
+________________ test_search_memories_node_id_filter_post_merge ________________
+    @pytest.mark.asyncio
+    async def test_search_memories_node_id_filter_post_merge():
+        """search_memories(node_id='X') → 只保留 episode.node_id == 'X' 的记录."""
+        svc = MemoryService()
+        svc._initialized = True
+        tier1 = [_make_episode("a", node_id="admissibility")]
+        tier2 = [_make_episode("b", node_id="consistent")]
+        with patch.object(svc, "_search_graphiti", new=AsyncMock(return_value=tier1)):
+            with patch.object(
+                svc,
+                "_search_neo4j_fulltext",
+                new=AsyncMock(return_value=tier2),
+            ):
+                with patch.object(svc, "_inject_fsrs_r_values", new=MagicMock()):
+                    # Without filter: both pass through
+                    all_results = await svc.search_memories(query="test", max_results=10)
+                    assert len(all_results) == 2
+                    # With node_id filter: only admissibility
+>                   filtered = await svc.search_memories(
+                        query="test", max_results=10, node_id="admissibility"
+                    )
+E                   TypeError: MemoryService.search_memories() got an unexpected keyword argument 'node_id'
+tests/unit/test_story_2_3_error_reminders.py:465: TypeError
+----------------------------- Captured stdout call -----------------------------
+{"event": "Neo4jClient initialized: mode=JSON_FALLBACK, uri=N/A, pool_size=50", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-09T04:26:45.486624Z"}
+{"event": "[search_memories] Tier 1: 1 results, Tier 2: 1 results, Tier 3: 0 results (total merged: 2, sorted by relevance)", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-09T04:26:45.487074Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.clients.neo4j_client:neo4j_client.py:141 Neo4jClient initialized: mode=JSON_FALLBACK, uri=N/A, pool_size=50
+INFO     app.services.memory_service:memory_service.py:1767 {'event': '[search_memories] Tier 1: 1 results, Tier 2: 1 results, Tier 3: 0 results (total merged: 2, sorted by relevance)', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-09T04:26:45.487074Z'}
+=============================== warnings summary ===============================
+../../../../../../../../Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+../../../../../../../../Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+../../../../../../../../Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+../../../../../../../../Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+    import pkg_resources
+<frozen importlib._bootstrap>:491
+<frozen importlib._bootstrap>:491
+app/api/v1/endpoints/chat.py:764
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-probe-p16-3d10a02b/backend/app/api/v1/endpoints/chat.py:764: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+app/api/v1/endpoints/metadata.py:140
+    canvas_path: str = Query(
+app/api/v1/endpoints/metadata.py:213
+    canvas_path: str = Query(
+../../../../../../../../Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+app/mcp/server.py:135
+    mcp.mount()
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/unit/test_story_2_3_error_reminders.py::test_search_memories_node_id_filter_post_merge
+======================== 1 failed, 11 warnings in 0.53s ========================
+pytest_raw_rc=0 (⛔ 非判据: 老 commit addopts 含 --cov-fail-under=85)
+worktree_removed_rc=0
+rc=0

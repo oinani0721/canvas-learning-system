@@ -1,0 +1,24 @@
+=== R1 整改后复核（LOW-1: 93/113 → 92/114 纯注释修正） ===
+--- 改后注释段 ---
+# 代价(如实): 契约覆盖面从 206 个 operation 收窄到 **92** 条 —— 93 个 GET(HEAD 面为 0)
+# 再减去下方追加排除的 1 条只读端点。被排除的共 **114** 条(POST 96 / DELETE 9 / PUT 6 /
+# PATCH 2 / GET 1), 清单见 `_bmad-output/审查/evidence-hyg-openapi/excluded-operations.txt`
+# (`comm -23 collect-before.txt collect-after.txt` 实测)。合约测试本就
+# **不在 CI 白名单**(`.github/workflows/test.yml`), 只在本机以 importorskip 形式跑,
+
+--- ruff check ---
+All checks passed!
+  check_rc=0
+--- ruff format --check ---
+2 files already formatted
+  format_rc=0
+--- 行为未变证明：collect-after 逐行对比（纯注释改动不应影响收集面） ---
+  collect-after-r1fix.txt 行数 = 93
+  test_api_contract[ 条数 = 92
+  与 collect-after.txt IDENTICAL ✅
+  setup-wizard 命中 = 0
+
+--- 零写复核 ---
+  (无 POLLUTED 行即通过)
+  git status 排除本卡两文件行数 = 0
+rc=0

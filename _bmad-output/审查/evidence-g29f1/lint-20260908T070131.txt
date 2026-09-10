@@ -1,0 +1,15 @@
+### ruff check（三改动文件）
+All checks passed!
+rc=0
+### ruff format --check（三改动文件）
+Would reformat: backend/tests/unit/test_lancedb_cross_vault_drop_g29f1.py
+1 file would be reformatted, 2 files already formatted
+rc=1
+### HEAD 基线：改前这两个文件的 format 状态（判漂移归属）
+lancedb_client HEAD rc=0
+canary HEAD rc=0
+### format 后复查（三改动文件）
+3 files already formatted
+rc=0
+All checks passed!
+check rc=0

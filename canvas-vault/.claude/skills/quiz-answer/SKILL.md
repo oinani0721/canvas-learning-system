@@ -314,6 +314,44 @@ etype = "answer_abandoned" if p.get("abandoned") else "answer_scored"
 if not (isinstance(eid, str) and eid.strip()):
     raise SystemExit(f"[quiz-answer] event_id 为空 ({eid!r}) — 空的本地 id 会让幂等判定永远认不出这次评分(首跑写入、重跑报缺校准记录), 且同一节点上不同测验会撞成同一个事件, fail-closed 拒写 — 请上游给出非空 event_id")
 evid = "quiz:" + eid
+#: ⛔ CARD-G3-3-R2 写点边界 (Z6-A/RV-D Codex round-1 HIGH 实测复现):
+#: `self_confidence_norm` 从 payload 一路裸奔到 receipt YAML —— 读 :1436 时不过 `q_()`,
+#: 拼 :1524 时是**裸 f-string 插值** `{scn_}`, 而它与 `event_id` 同处一个 YAML 条目。
+#: 于是一个带换行的自评值 (`'0.5\n    event_id: "quiz:injected"'`) 就能在条目里再开
+#: 一行, 把这条 receipt 的身份改写成别人的。实测后果不是「写错一条」而是**节点砖化**:
+#: 首写 rc=0, 其后每一次评分都 rc=1「FSRS 已应用但缺校准记录」, 该节点再也评不了分。
+#: ⛔ 收在**这一处入口**、在任何写入之前, 而不是去 14 个插值点各补一道 ——
+#: 后者是「修一半」的形状(漏一个就等于没修), 前者让下游只可能拿到 None 或 float。
+#: 所以 :1436 / :1524 一字不改, 本门是它们唯一的上游。
+#: ⛔ 不接受数字串 (2026-09-08 只读普查裁定, 证据 evidence-g33r2/event-id-shapes-*.txt):
+#: live 账本 22 行 payload **零**含此键(它是 receipt-only), live receipt 仅 `0`×4 / `0.4`×1;
+#: 而 `self_confidence_raw: "2" → norm: 0.4` 正是规范 :175「数字 0-5 → 除以 5」的除法产物
+#: (float), :218 示例 payload 也写作裸数字 `0.5`。理由是**类型契约**: 上游给字符串
+#: 说明归一化那一步没做完, 报给它比替它猜更对。
+#: ⚠️ 理由更正 (Codex round-1 MEDIUM, 如实记): 上一版写「接受字符串就必须先 strip(),
+#: 那等于重开一个吃字符的口子」—— 这个因果**不成立**。若 strip 之后转成有限且在范围内的
+#: float 且**只使用那个 float**, 被剥掉的字符根本不会进 YAML。真正会出事的是
+#: 「只 strip 却继续裸插值那个字符串」。把一个站不住的理由写成硬规则, 下一个人照抄就
+#: 会在别处推出错的结论, 所以这里换成真实理由。
+#: ⚠️ `bool` 必须**先**判: 它是 `int` 的子类, `isinstance(True, (int, float))` 为真,
+#: 不先拦就会被 `float(True)` 静默写成 `1.0` —— 把「没填」伪装成「完全懂」。
+#: ⚠️ `float()` 必须在 `isfinite` **之前** (Codex round-1 LOW 实测): JSON 能携带任意
+#: 精度整数, 而 `math.isfinite(10**400)` 抛的是 `OverflowError` 而不是返回 False ——
+#: 那会绕过下面这句受控拒因, 上游收到一句看不懂的 traceback 而不是「须为 0..1 的数」。
+#: 先转 float 就把它变成 `inf`, 由 `isfinite` 正常判掉; 转不动的(超大 int)在
+#: except 里走同一句拒因, 两条路给同一个答案。
+import math
+_scn = p.get("self_confidence_norm")
+try:
+    _scn_f = float(_scn) if isinstance(_scn, (int, float)) and not isinstance(_scn, bool) else None
+except (OverflowError, ValueError):
+    _scn_f = float("inf")
+if _scn is None:
+    pass
+elif _scn_f is None or not math.isfinite(_scn_f) or not (0.0 <= _scn_f <= 1.0):
+    raise SystemExit(f"[quiz-answer] self_confidence_norm 非法 ({_scn!r}; 须为 null 或 0..1 的数) — 它与 receipt 身份键同段落, 非法值会改写条目 event_id, fail-closed 拒写 — 请上游修正后重跑")
+else:
+    p["self_confidence_norm"] = _scn_f
 node_id = os.path.splitext(os.path.basename(NODE))[0]
 # ⛔ 归属比较**一律**走这个 key (Codex round-10 BLOCKER): round-9 我只在
 # dup owner 检查里做了 NFC 归一化, **适用集路由仍是 raw compare** ——
@@ -329,8 +367,79 @@ _NODE_KEY = _nkey(node_id)
 # 判据与账本侧逐字同款: 非空字符串且无首尾空白。
 if not isinstance(node_id, str) or not node_id.strip() or node_id != node_id.strip():
     raise SystemExit(f"[quiz-answer] 从节点路径派生出的 node_id 不可用 ({node_id!r}; 须为非空且无首尾空白) — 写出去的事件将永远路由不到任何节点, 崩溃后无法自动恢复; fail-closed 拒写 — 请修正节点文件名 {NODE}")
+def _harness_tree(vault_dir):
+    """解析 `REPO` —— 那棵装着 `backend/scripts/validate_learning_events.py` 的 harness 树。
+
+    ⛔ E-2 (用户 2026-09-07 裁定): 缺省仍是 `dirname(VAULT)` —— vault 是代码树直接
+    子目录的老布局, 现有全部门都跑在这条路径上。vault 若在 `.canvas-config.yaml` 里
+    显式写了 `harness_tree`, 以它为准: 一键部署形态下 vault 是用户自己的 Obsidian
+    vault, 可以放在代码树之外的任何地方, 那时 `dirname(VAULT)` 指到的是用户的文稿
+    目录而不是 harness。键名与 U3-B 写入端逐字同 (`harness_tree`)。
+    ⛔ 逐行正则而不是 PyYAML: 本文件 :1075 已经声明「PyYAML 不可用 → F1 判定退回
+    正则扫描」。这里若依赖 PyYAML, 缺库的机器上 harness_tree 会被**静默忽略**、
+    回退到错的树, 然后在下面的 import 处抛一句看不懂的 ImportError —— 降级口径
+    必须与 :1075 同款, 否则「PyYAML 装没装」会改变身份绑定。
+    ⛔ 有值但树不存在时**不回退**: 回退等于把「配置写错了」翻译成「按老布局跑」,
+    而老布局下 import 往往**会成功**(另一棵树的 validator), 于是写出去的东西静静地
+    绑到错的 harness 上 —— 配置断裂必须说话, 不能被兜底吃掉。
+    """
+    _cfg_p = os.path.join(vault_dir, ".canvas-config.yaml")
+    _raw = ""
+    try:
+        with open(_cfg_p, encoding="utf-8") as _cf:
+            for _cl in _cf:
+                #: ⛔ 键值两侧也只剥 **SP/TAB**, 不用 `\s`(round-3 同源缺口, R3 只修了
+                #: 下面的注释判据、漏了这一层 —— 「修一半」)。Python 的 `\s` 会连
+                #: 值**首**的全角空格 / NBSP 一起吃掉: `harness_tree: 　#alt` 在真 YAML
+                #: 里值是「　#alt」(全角空格是标量内容), 被吃掉后剩 `#alt` ⇒ 命中下面的
+                #: 「`#` 是首字符」⇒ **静默回退到 vault 父目录**, 把用户明明写了的值当没写。
+                #: 实测复现; 与注释判据同一个 s-white 口径才算真对齐。
+                _cm = re.match(r'^harness_tree:[ \t]*(.*?)[ \t]*$', _cl.rstrip("\r\n"))
+                if _cm:
+                    _raw = _cm.group(1)
+    except OSError:
+        _raw = ""
+    #: 带引号的值先按引号取内容(引号**内**的 `#` 是路径的一部分, 不是注释);
+    #: 裸值才剥尾注释 —— 反过来先剥注释会把 `"a # b"` 截成 `"a`。
+    #: ⛔ 引号内容用**非贪婪** `(.*?)` + 结尾锚(Codex round-1 MEDIUM-1 实测):
+    #: 贪婪版 `(.*)\1\s*(?:#.*)?$` 对 `"/valid/repo" # use "main"` 会让 `.*` 一路吃到
+    #: 最后一个引号, 解析出 `/valid/repo" # use "main` —— 一个**写对了**的配置被判成坏路径,
+    #: 于是整条评分链 fail-closed 停摆。非贪婪让 `\1` 优先匹配**第一个**闭合引号。
+    #: ⛔ 裸值的注释判据 = 「`#` 前有 SP/TAB, 或 `#` 就是值的第一个字符」(三轮实测演化, 别再动):
+    #:   · 只用 `\s+#`(最初版): `harness_tree: # reset` 是「空值+紧跟注释」, `#` 前在
+    #:     值区里没有空白 ⇒ 不匹配 ⇒ 整个 `# reset` 被当成相对路径, 「把键注释掉」
+    #:     变成砖化操作 (round-1 MEDIUM-1);
+    #:   · 一律截 `#`(round-1 整改版): `harness_tree: /repo#alt` 的 `#` 前无空白,
+    #:     在 YAML 里是标量**内容**不是注释 —— 截掉它会让写错的路径**静默变成另一棵
+    #:     存在的树**(实测 `/repo#alt`→`/repo`), 恰是本函数「树不对必须说话」要防的
+    #:     形态 (round-2 MEDIUM-1);
+    #:   · 注释分隔用 `\s+`(round-2 整改版): Python 的 `\s` 把**全角空格 U+3000 /
+    #:     NBSP U+00A0** 也当分隔符, 而 YAML 的 s-white 只有 SP/TAB ——
+    #:     `/repo　#alt` 被截成 `/repo`, 静默换树形态**又回来了一次**(round-3 MEDIUM)。
+    #:     收窄到 `[ \t]+#` 才与 YAML 1.1/1.2 逐字对齐。
+    #: 即: 无 SP/TAB 分隔的 `#` 属于路径(含全角空格/NBSP 隔开的); 路径里 `#` 前恰有
+    #: SP/TAB 的形态罕见, 真遇上的用户加引号即可(引号内一切按字面)。
+    #: ⛔ 剥完注释后用 `.strip(" \t")` 而不是裸 `.strip()`: 后者剥的是**全部 Unicode
+    #: 空白**(含 U+3000 / NBSP), 与上面两处的 s-white 口径不一致 —— 同一个函数里
+    #: 三处判据必须同口径, 否则「哪些字符算空白」会随代码路径而变。
+    _qm = re.match(r'^([\'"])(.*?)\1[ \t]*(?:#.*)?$', _raw)
+    if _qm:
+        _tree = _qm.group(2)
+    elif _raw.startswith("#"):
+        _tree = ""
+    else:
+        _tree = re.sub(r'[ \t]+#.*$', '', _raw).strip(" \t")
+    if not _tree:
+        return os.path.dirname(vault_dir)
+    _tree = os.path.expanduser(_tree)
+    if not os.path.isabs(_tree):
+        _tree = os.path.join(vault_dir, _tree)
+    _tree = os.path.normpath(_tree)
+    if not os.path.isdir(os.path.join(_tree, "backend", "scripts")):
+        raise SystemExit(f"[quiz-answer] harness_tree 指向不存在的树 ({_tree}) — G3-2 依赖不可达, fail-closed 拒写 — 请修正 .canvas-config.yaml 或删掉该键回退到 vault 父目录")
+    return _tree
 VAULT = os.path.dirname(os.path.dirname(os.path.abspath(NODE)))
-REPO = os.path.dirname(VAULT)
+REPO = _harness_tree(VAULT)
 EV = os.path.join(VAULT, "learning_events.jsonl")
 
 # ── G3-2 复用单一实现 (禁第三套, DD-03/DD-13): 三态判别用校验器本体,

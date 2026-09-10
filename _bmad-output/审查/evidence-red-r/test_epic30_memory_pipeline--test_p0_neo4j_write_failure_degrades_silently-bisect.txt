@@ -1,0 +1,141 @@
+### CARD-RED-R bisect archive
+slug: test_epic30_memory_pipeline--test_p0_neo4j_write_failure_degrades_silently
+nodeid: tests/unit/test_epic30_memory_pipeline.py::TestRecordTemporalEventLifecycle::test_p0_neo4j_write_failure_degrades_silently
+interval: good=9b8ed904 (9b8ed904)  bad=1f19e002 (a9304c69^)
+started: 2026-09-09T12:16:33+0800
+runner-judge: pytest 摘要行 (⛔ 非退出码 —— 老 commit addopts 含 --cov-fail-under=85, passed 也 rc=1)
+sparse-checkout: 根级 ASCII 首字符类 + backend 精确包含(含仓库根 /src/, conftest 链式 import 需要) —— 仓库根与 backend/ 根有非法字节序列文件名(macOS 无法创建), 树内切换会中止
+配置注入: 环境变量 env.exports (NEO4J_URI=bolt://127.0.0.1:1 / NEO4J_ENABLED=false / VAULTS_ROOT 指临时目录); ⛔ 不写 backend/.env
+
+Preparing worktree (detached HEAD 1f19e002)
+== 端点验证 1/2: BAD=1f19e002 (期望 VERDICT=BAD) ==
+--- HEAD=1f19e002 nodeid=tests/unit/test_epic30_memory_pipeline.py::TestRecordTemporalEventLifecycle::test_p0_neo4j_write_failure_degrades_silently
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+======================== 1 failed, 10 warnings in 0.40s ========================
+--- pytest_raw_rc=1 (仅记录, 不作判据)
+VERDICT=BAD
+bad_end_rc=1
+
+== 端点验证 2/2: GOOD=9b8ed904 (期望 VERDICT=GOOD) ==
+Previous HEAD position was 1f19e002 fix(S34): G-PIPE-006 — Verification评分结果回写memory闭合反馈环
+HEAD is now at 9b8ed904 test: add EPIC 30 memory pipeline test automation (63 tests)
+checkout_good_head=9b8ed904 (期望 9b8ed904)
+--- HEAD=9b8ed904 nodeid=tests/unit/test_epic30_memory_pipeline.py::TestRecordTemporalEventLifecycle::test_p0_neo4j_write_failure_degrades_silently
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+======================== 1 passed, 5 warnings in 0.18s =========================
+--- pytest_raw_rc=0 (仅记录, 不作判据)
+VERDICT=GOOD
+good_end_rc=0
+
+ENDPOINT_STATUS=INTERVAL_OK
+
+== git bisect run ==
+Bisecting: 117 revisions left to test after this (roughly 7 steps)
+[ef090c4baf91059bb14e83db8d3ba0b6bfc41b98] feat: add 3 missing functional components (ExamSummary + InlineAnnotation + ContextMenu)
+running 'sh' '/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-runner.sh'
+--- HEAD=ef090c4b nodeid=tests/unit/test_epic30_memory_pipeline.py::TestRecordTemporalEventLifecycle::test_p0_neo4j_write_failure_degrades_silently
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+======================== 1 passed, 9 warnings in 0.34s =========================
+--- pytest_raw_rc=0 (仅记录, 不作判据)
+VERDICT=GOOD
+Bisecting: 58 revisions left to test after this (roughly 6 steps)
+[2f23087b7c091c2110f908fecf72de2b9575fe29] feat: GDR complete — 4 P0 decisions confirmed + final report
+running 'sh' '/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-runner.sh'
+--- HEAD=2f23087b nodeid=tests/unit/test_epic30_memory_pipeline.py::TestRecordTemporalEventLifecycle::test_p0_neo4j_write_failure_degrades_silently
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+======================== 1 passed, 9 warnings in 0.34s =========================
+--- pytest_raw_rc=0 (仅记录, 不作判据)
+VERDICT=GOOD
+Bisecting: 29 revisions left to test after this (roughly 5 steps)
+[fc274ab64fa249f3f824fe7e91114b91b9d9d771] fix(phase2): SEMAPHORE_LIMIT=3 + max_coroutines=3 + gemini-2.5-flash + fix fulltext index name
+running 'sh' '/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-runner.sh'
+--- HEAD=fc274ab6 nodeid=tests/unit/test_epic30_memory_pipeline.py::TestRecordTemporalEventLifecycle::test_p0_neo4j_write_failure_degrades_silently
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+======================== 1 failed, 9 warnings in 0.38s =========================
+--- pytest_raw_rc=1 (仅记录, 不作判据)
+VERDICT=BAD
+Bisecting: 14 revisions left to test after this (roughly 4 steps)
+[f20c2256fdd0388321857bd2fe6d10af5ce07a8c] fix: Neo4j port 7688→7691 (docker container) + verify CSP dev config
+running 'sh' '/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-runner.sh'
+--- HEAD=f20c2256 nodeid=tests/unit/test_epic30_memory_pipeline.py::TestRecordTemporalEventLifecycle::test_p0_neo4j_write_failure_degrades_silently
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+======================== 1 passed, 9 warnings in 0.37s =========================
+--- pytest_raw_rc=0 (仅记录, 不作判据)
+VERDICT=GOOD
+Bisecting: 7 revisions left to test after this (roughly 3 steps)
+[4631ad88327fcba926227d68eaea0fbccd3da279] feat(phase2): add GET /monitoring/episode-worker health endpoint
+running 'sh' '/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-runner.sh'
+--- HEAD=4631ad88 nodeid=tests/unit/test_epic30_memory_pipeline.py::TestRecordTemporalEventLifecycle::test_p0_neo4j_write_failure_degrades_silently
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+======================== 1 passed, 9 warnings in 0.40s =========================
+--- pytest_raw_rc=0 (仅记录, 不作判据)
+VERDICT=GOOD
+Bisecting: 3 revisions left to test after this (roughly 2 steps)
+[3a636af9c93f9b30b8edc36a7048b7e5e9fbaf3b] feat(phase2): upgrade search_memories to 3-tier layered search (Graphiti+Neo4j+memory)
+running 'sh' '/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-runner.sh'
+--- HEAD=3a636af9 nodeid=tests/unit/test_epic30_memory_pipeline.py::TestRecordTemporalEventLifecycle::test_p0_neo4j_write_failure_degrades_silently
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+======================== 1 failed, 9 warnings in 0.34s =========================
+--- pytest_raw_rc=1 (仅记录, 不作判据)
+VERDICT=BAD
+Bisecting: 1 revision left to test after this (roughly 1 step)
+[f4838b3067f4e646a1ea0ff7cbdd5d9a8867eafe] feat(phase2): add _enqueue_episode adapter + swap fire-and-forget with worker enqueue
+running 'sh' '/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-runner.sh'
+--- HEAD=f4838b30 nodeid=tests/unit/test_epic30_memory_pipeline.py::TestRecordTemporalEventLifecycle::test_p0_neo4j_write_failure_degrades_silently
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+======================== 1 passed, 9 warnings in 0.34s =========================
+--- pytest_raw_rc=0 (仅记录, 不作判据)
+VERDICT=GOOD
+Bisecting: 0 revisions left to test after this (roughly 0 steps)
+[59586af12e434139888cf6d290801a1d2afc602e] refactor(phase2): delete fake bridge/JSON dual-write code, replaced by GraphitiEpisodeWorker
+running 'sh' '/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-runner.sh'
+--- HEAD=59586af1 nodeid=tests/unit/test_epic30_memory_pipeline.py::TestRecordTemporalEventLifecycle::test_p0_neo4j_write_failure_degrades_silently
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+======================== 1 failed, 9 warnings in 0.38s =========================
+--- pytest_raw_rc=1 (仅记录, 不作判据)
+VERDICT=BAD
+59586af12e434139888cf6d290801a1d2afc602e is the first bad commit
+commit 59586af12e434139888cf6d290801a1d2afc602e
+Author: oinani0721 <oinani0721@users.noreply.github.com>
+Date:   Thu Mar 26 09:30:14 2026 -0400
+
+    refactor(phase2): delete fake bridge/JSON dual-write code, replaced by GraphitiEpisodeWorker
+    
+    Remove _write_to_graphiti_json, _write_to_graphiti_json_with_retry, _bridge_to_claude_graphiti
+    from MemoryService; delete graphiti_bridge_service.py; remove Story 38.4/38.8 dual-write blocks
+    from main.py. All remaining fire-and-forget paths now route through _enqueue_episode().
+    
+    Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
+
+ backend/app/main.py                             |  43 +--
+ backend/app/services/graphiti_bridge_service.py | 409 ------------------------
+ backend/app/services/memory_service.py          | 370 +++------------------
+ 3 files changed, 46 insertions(+), 776 deletions(-)
+ delete mode 100644 backend/app/services/graphiti_bridge_service.py
+bisect found first bad commit
+-- bisect log --
+# bad: [1f19e002df030b135156b2b6ea5cc77d7d8c57c4] fix(S34): G-PIPE-006 — Verification评分结果回写memory闭合反馈环
+# good: [9b8ed9042e5ef8c16c2879ec43e19941057765fc] test: add EPIC 30 memory pipeline test automation (63 tests)
+git bisect start '1f19e002' '9b8ed904'
+# good: [ef090c4baf91059bb14e83db8d3ba0b6bfc41b98] feat: add 3 missing functional components (ExamSummary + InlineAnnotation + ContextMenu)
+git bisect good ef090c4baf91059bb14e83db8d3ba0b6bfc41b98
+# good: [2f23087b7c091c2110f908fecf72de2b9575fe29] feat: GDR complete — 4 P0 decisions confirmed + final report
+git bisect good 2f23087b7c091c2110f908fecf72de2b9575fe29
+# bad: [fc274ab64fa249f3f824fe7e91114b91b9d9d771] fix(phase2): SEMAPHORE_LIMIT=3 + max_coroutines=3 + gemini-2.5-flash + fix fulltext index name
+git bisect bad fc274ab64fa249f3f824fe7e91114b91b9d9d771
+# good: [f20c2256fdd0388321857bd2fe6d10af5ce07a8c] fix: Neo4j port 7688→7691 (docker container) + verify CSP dev config
+git bisect good f20c2256fdd0388321857bd2fe6d10af5ce07a8c
+# good: [4631ad88327fcba926227d68eaea0fbccd3da279] feat(phase2): add GET /monitoring/episode-worker health endpoint
+git bisect good 4631ad88327fcba926227d68eaea0fbccd3da279
+# bad: [3a636af9c93f9b30b8edc36a7048b7e5e9fbaf3b] feat(phase2): upgrade search_memories to 3-tier layered search (Graphiti+Neo4j+memory)
+git bisect bad 3a636af9c93f9b30b8edc36a7048b7e5e9fbaf3b
+# good: [f4838b3067f4e646a1ea0ff7cbdd5d9a8867eafe] feat(phase2): add _enqueue_episode adapter + swap fire-and-forget with worker enqueue
+git bisect good f4838b3067f4e646a1ea0ff7cbdd5d9a8867eafe
+# bad: [59586af12e434139888cf6d290801a1d2afc602e] refactor(phase2): delete fake bridge/JSON dual-write code, replaced by GraphitiEpisodeWorker
+git bisect bad 59586af12e434139888cf6d290801a1d2afc602e
+# first bad commit: [59586af12e434139888cf6d290801a1d2afc602e] refactor(phase2): delete fake bridge/JSON dual-write code, replaced by GraphitiEpisodeWorker
+
+# first bad commit: [59586af12e434139888cf6d290801a1d2afc602e] refactor(phase2): delete fake bridge/JSON dual-write code, replaced by GraphitiEpisodeWorker
+worktree_removed_rc=0
+finished: 2026-09-09T12:18:05+0800
+rc=0

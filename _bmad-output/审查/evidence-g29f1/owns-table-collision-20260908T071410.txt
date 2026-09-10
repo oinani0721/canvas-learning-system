@@ -1,0 +1,20 @@
+# _owns_table 与 da690bf8 原 list_vault_tables:839/845/846 的口径对撞
+# 旧版逻辑从 da690bf8 原文按行号切出并逐字校验后 exec，不手抄；含验伪锚。
+# 2026-09-07T23:14:10Z
+
+从 da690bf8 原文切出的三行（逐字）:
+   prefix = f"{vault_id}_" if vault_id and vault_id != "default" else ""
+   return [t for t in all_tables if "_" not in t or t == self.FINGERPRINT_TABLE]
+   return [t for t in all_tables if t.startswith(prefix)]
+OK  vault_id=None             旧=['a', 'file_fingerprints', 'notes']
+OK  vault_id=''               旧=['a', 'file_fingerprints', 'notes']
+OK  vault_id='default'        旧=['a', 'file_fingerprints', 'notes']
+OK  vault_id='a'              旧=['a_', 'a_b_c', 'a_canvas_nodes', 'a_file_fingerprints']
+OK  vault_id='ab'             旧=['ab_canvas_nodes']
+OK  vault_id='b'              旧=['b_zz']
+OK  vault_id='canvas_vault'   旧=['canvas_vault_notes']
+OK  vault_id='xn--fiq228c'    旧=['xn--fiq228c_notes']
+
+对撞组合数 = 8 vault × 16 表名 = 128
+口径分歧数 = 0  →  逐字同语义 ✓
+验伪锚（把 default 口径换成「无 vault 前缀」的错误读法）分歧 vault 数 = 3 → 对撞有鉴别力 ✓

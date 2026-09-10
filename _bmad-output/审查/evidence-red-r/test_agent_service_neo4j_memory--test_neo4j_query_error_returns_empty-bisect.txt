@@ -1,0 +1,222 @@
+### CARD-RED-R bisect archive
+slug: test_agent_service_neo4j_memory--test_neo4j_query_error_returns_empty
+nodeid: tests/unit/test_agent_service_neo4j_memory.py::TestEdgeCases::test_neo4j_query_error_returns_empty
+interval: good=1f19e002 (a9304c69^)  bad=a9304c69 (a9304c69)
+started: 2026-09-09T11:49:36+0800
+runner-judge: pytest 摘要行 (⛔ 非退出码 —— 老 commit addopts 含 --cov-fail-under=85, passed 也 rc=1)
+sparse-checkout: 排除 /backend/.canvas-learning/ (该目录含非法字节序列路径, macOS 无法 checkout)
+
+Preparing worktree (detached HEAD a9304c69)
+== 端点验证 1/2: BAD=a9304c69 (期望 VERDICT=BAD) ==
+--- HEAD=a9304c69 nodeid=tests/unit/test_agent_service_neo4j_memory.py::TestEdgeCases::test_neo4j_query_error_returns_empty
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-test_agent_service_neo4j_memory--test_neo4j_query_error_returns_empty/backend/app/api/v1/endpoints/metadata.py:150: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-test_agent_service_neo4j_memory--test_neo4j_query_error_returns_empty/backend/app/mcp/server.py:132: DeprecationWarning: mount() is deprecated and will be removed in a future version. Use mount_http() for HTTP transport (recommended) or mount_sse() for SSE transport instead.
+FAILED tests/unit/test_agent_service_neo4j_memory.py::TestEdgeCases::test_neo4j_query_error_returns_empty
+======================== 1 failed, 10 warnings in 1.40s ========================
+--- pytest_raw_rc=1 (仅记录, 不作判据)
+VERDICT=BAD
+bad_end_rc=1
+
+== 端点验证 2/2: GOOD=1f19e002 (期望 VERDICT=GOOD) ==
+--- HEAD=1f19e002 nodeid=tests/unit/test_agent_service_neo4j_memory.py::TestEdgeCases::test_neo4j_query_error_returns_empty
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-test_agent_service_neo4j_memory--test_neo4j_query_error_returns_empty/backend/app/api/v1/endpoints/metadata.py:97: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-test_agent_service_neo4j_memory--test_neo4j_query_error_returns_empty/backend/app/api/v1/endpoints/metadata.py:150: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-test_agent_service_neo4j_memory--test_neo4j_query_error_returns_empty/backend/app/mcp/server.py:132: DeprecationWarning: mount() is deprecated and will be removed in a future version. Use mount_http() for HTTP transport (recommended) or mount_sse() for SSE transport instead.
+======================== 1 passed, 10 warnings in 1.19s ========================
+--- pytest_raw_rc=0 (仅记录, 不作判据)
+VERDICT=GOOD
+good_end_rc=0
+
+ENDPOINT_STATUS=INTERVAL_OK
+
+== git bisect run ==
+a9304c692f05c5c3ef4ce3681aa4c07df215321c is the first bad commit
+commit a9304c692f05c5c3ef4ce3681aa4c07df215321c
+Author: oinani0721 <oinani0721@users.noreply.github.com>
+Date:   Sun Mar 29 03:38:48 2026 -0700
+
+    refactor(S35): Phase 3 Step 2 — except Exception 精确化（251处/65文件）
+    
+    将 ~521 处宽泛的 except Exception 中的 251 处替换为精确异常类型，
+    覆盖 services/(49文件)、API endpoints(24文件)、clients/(6文件)、
+    middleware/(3文件)、mcp/(3文件)、core/(5文件)、root(2文件)。
+    
+    保留 270 处合理的 except Exception：API顶层兜底、健康检查降级、
+    生命周期管理、LLM调用（异常类型不稳定）、事件循环保护。
+    
+    32 real integration tests 全部通过，0 新 lint 错误引入。
+    
+    Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
+
+ backend/app/api/v1/endpoints/agents.py             |  6 +--
+ backend/app/api/v1/endpoints/canvas.py             |  4 +-
+ backend/app/api/v1/endpoints/edges.py              |  4 +-
+ backend/app/api/v1/endpoints/health.py             |  2 +-
+ backend/app/api/v1/endpoints/mastery.py            |  4 +-
+ backend/app/api/v1/endpoints/mastery_ws.py         |  4 +-
+ backend/app/api/v1/endpoints/metadata.py           |  4 +-
+ backend/app/api/v1/endpoints/monitoring.py         |  2 +-
+ backend/app/api/v1/endpoints/review.py             | 22 +++++-----
+ backend/app/api/v1/endpoints/websocket.py          |  6 +--
+ backend/app/clients/neo4j_client.py                |  8 ++--
+ backend/app/clients/neo4j_edge_client.py           | 16 +++----
+ backend/app/clients/provider_factory.py            |  6 +--
+ backend/app/core/bug_tracker.py                    |  8 ++--
+ backend/app/core/failure_counters.py               |  2 +-
+ backend/app/core/litellm_config.py                 |  2 +-
+ backend/app/core/reference_config.py               |  2 +-
+ backend/app/core/subject_config.py                 |  2 +-
+ backend/app/dependencies.py                        |  4 +-
+ backend/app/main.py                                |  4 +-
+ backend/app/mcp/tools/conversation_tools.py        |  4 +-
+ backend/app/mcp/tools/error_tools.py               |  4 +-
+ backend/app/mcp/tools/exam_tools.py                | 22 +++++-----
+ backend/app/middleware/cost_tracker.py             | 11 ++---
+ backend/app/middleware/llm_call_logger.py          |  9 ++--
+ backend/app/middleware/prompt_injection_guard.py   |  6 +--
+ backend/app/services/agent_service.py              | 50 +++++++++++-----------
+ backend/app/services/alert_manager.py              |  2 +-
+ backend/app/services/autoscore.py                  |  2 +-
+ backend/app/services/batch_orchestrator.py         |  5 ++-
+ backend/app/services/canvas_service.py             | 14 +++---
+ backend/app/services/context_enrichment_service.py | 18 ++++----
+ backend/app/services/conversation_archive.py       |  9 ++--
+ backend/app/services/conversation_inheritance.py   |  5 ++-
+ backend/app/services/cross_canvas_service.py       | 14 +++---
+ backend/app/services/cross_subject_bridge.py       |  5 ++-
+ backend/app/services/difficulty_matcher.py         |  6 +--
+ backend/app/services/error_aggregator.py           |  2 +-
+ backend/app/services/event_bus.py                  |  2 +-
+ backend/app/services/exam_service.py               | 11 ++---
+ backend/app/services/exam_service_ext.py           | 29 +++++++------
+ backend/app/services/fallback_sync_service.py      | 39 +++++++++--------
+ .../app/services/intelligent_parallel_service.py   | 13 +++---
+ backend/app/services/lancedb_index_service.py      | 10 ++---
+ backend/app/services/learning_context_service.py   | 15 ++++---
+ backend/app/services/mastery_store.py              | 19 ++++----
+ backend/app/services/memory_service.py             | 34 +++++++--------
+ backend/app/services/metrics_collector.py          |  6 +--
+ backend/app/services/multimodal_service.py         | 20 ++++-----
+ backend/app/services/notification_channels.py      |  6 +--
+ backend/app/services/prompt_registry.py            |  2 +-
+ backend/app/services/question_generator.py         | 16 +++----
+ backend/app/services/rag_service.py                |  2 +-
+ backend/app/services/react_agent.py                | 14 +++---
+ backend/app/services/recommendation_service.py     |  6 +--
+ backend/app/services/resource_monitor.py           |  2 +-
+ backend/app/services/review_service.py             |  2 +-
+ backend/app/services/rollback_service.py           |  4 +-
+ backend/app/services/scoring_faithfulness.py       |  4 +-
+ backend/app/services/skill_registry.py             |  2 +-
+ backend/app/services/subject_resolver.py           |  4 +-
+ backend/app/services/sync_service.py               |  2 +-
+ backend/app/services/textbook_context_service.py   |  8 ++--
+ backend/app/services/tool_executor.py              | 12 ++++--
+ backend/app/services/verification_service.py       | 30 ++++++-------
+ 65 files changed, 318 insertions(+), 296 deletions(-)
+running 'sh' '/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-runner.sh'
+--- HEAD=a9304c69 nodeid=tests/unit/test_agent_service_neo4j_memory.py::TestEdgeCases::test_neo4j_query_error_returns_empty
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-test_agent_service_neo4j_memory--test_neo4j_query_error_returns_empty/backend/app/api/v1/endpoints/metadata.py:150: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-test_agent_service_neo4j_memory--test_neo4j_query_error_returns_empty/backend/app/mcp/server.py:132: DeprecationWarning: mount() is deprecated and will be removed in a future version. Use mount_http() for HTTP transport (recommended) or mount_sse() for SSE transport instead.
+FAILED tests/unit/test_agent_service_neo4j_memory.py::TestEdgeCases::test_neo4j_query_error_returns_empty
+======================== 1 failed, 10 warnings in 0.86s ========================
+--- pytest_raw_rc=1 (仅记录, 不作判据)
+VERDICT=BAD
+a9304c692f05c5c3ef4ce3681aa4c07df215321c is the first bad commit
+commit a9304c692f05c5c3ef4ce3681aa4c07df215321c
+Author: oinani0721 <oinani0721@users.noreply.github.com>
+Date:   Sun Mar 29 03:38:48 2026 -0700
+
+    refactor(S35): Phase 3 Step 2 — except Exception 精确化（251处/65文件）
+    
+    将 ~521 处宽泛的 except Exception 中的 251 处替换为精确异常类型，
+    覆盖 services/(49文件)、API endpoints(24文件)、clients/(6文件)、
+    middleware/(3文件)、mcp/(3文件)、core/(5文件)、root(2文件)。
+    
+    保留 270 处合理的 except Exception：API顶层兜底、健康检查降级、
+    生命周期管理、LLM调用（异常类型不稳定）、事件循环保护。
+    
+    32 real integration tests 全部通过，0 新 lint 错误引入。
+    
+    Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
+
+ backend/app/api/v1/endpoints/agents.py             |  6 +--
+ backend/app/api/v1/endpoints/canvas.py             |  4 +-
+ backend/app/api/v1/endpoints/edges.py              |  4 +-
+ backend/app/api/v1/endpoints/health.py             |  2 +-
+ backend/app/api/v1/endpoints/mastery.py            |  4 +-
+ backend/app/api/v1/endpoints/mastery_ws.py         |  4 +-
+ backend/app/api/v1/endpoints/metadata.py           |  4 +-
+ backend/app/api/v1/endpoints/monitoring.py         |  2 +-
+ backend/app/api/v1/endpoints/review.py             | 22 +++++-----
+ backend/app/api/v1/endpoints/websocket.py          |  6 +--
+ backend/app/clients/neo4j_client.py                |  8 ++--
+ backend/app/clients/neo4j_edge_client.py           | 16 +++----
+ backend/app/clients/provider_factory.py            |  6 +--
+ backend/app/core/bug_tracker.py                    |  8 ++--
+ backend/app/core/failure_counters.py               |  2 +-
+ backend/app/core/litellm_config.py                 |  2 +-
+ backend/app/core/reference_config.py               |  2 +-
+ backend/app/core/subject_config.py                 |  2 +-
+ backend/app/dependencies.py                        |  4 +-
+ backend/app/main.py                                |  4 +-
+ backend/app/mcp/tools/conversation_tools.py        |  4 +-
+ backend/app/mcp/tools/error_tools.py               |  4 +-
+ backend/app/mcp/tools/exam_tools.py                | 22 +++++-----
+ backend/app/middleware/cost_tracker.py             | 11 ++---
+ backend/app/middleware/llm_call_logger.py          |  9 ++--
+ backend/app/middleware/prompt_injection_guard.py   |  6 +--
+ backend/app/services/agent_service.py              | 50 +++++++++++-----------
+ backend/app/services/alert_manager.py              |  2 +-
+ backend/app/services/autoscore.py                  |  2 +-
+ backend/app/services/batch_orchestrator.py         |  5 ++-
+ backend/app/services/canvas_service.py             | 14 +++---
+ backend/app/services/context_enrichment_service.py | 18 ++++----
+ backend/app/services/conversation_archive.py       |  9 ++--
+ backend/app/services/conversation_inheritance.py   |  5 ++-
+ backend/app/services/cross_canvas_service.py       | 14 +++---
+ backend/app/services/cross_subject_bridge.py       |  5 ++-
+ backend/app/services/difficulty_matcher.py         |  6 +--
+ backend/app/services/error_aggregator.py           |  2 +-
+ backend/app/services/event_bus.py                  |  2 +-
+ backend/app/services/exam_service.py               | 11 ++---
+ backend/app/services/exam_service_ext.py           | 29 +++++++------
+ backend/app/services/fallback_sync_service.py      | 39 +++++++++--------
+ .../app/services/intelligent_parallel_service.py   | 13 +++---
+ backend/app/services/lancedb_index_service.py      | 10 ++---
+ backend/app/services/learning_context_service.py   | 15 ++++---
+ backend/app/services/mastery_store.py              | 19 ++++----
+ backend/app/services/memory_service.py             | 34 +++++++--------
+ backend/app/services/metrics_collector.py          |  6 +--
+ backend/app/services/multimodal_service.py         | 20 ++++-----
+ backend/app/services/notification_channels.py      |  6 +--
+ backend/app/services/prompt_registry.py            |  2 +-
+ backend/app/services/question_generator.py         | 16 +++----
+ backend/app/services/rag_service.py                |  2 +-
+ backend/app/services/react_agent.py                | 14 +++---
+ backend/app/services/recommendation_service.py     |  6 +--
+ backend/app/services/resource_monitor.py           |  2 +-
+ backend/app/services/review_service.py             |  2 +-
+ backend/app/services/rollback_service.py           |  4 +-
+ backend/app/services/scoring_faithfulness.py       |  4 +-
+ backend/app/services/skill_registry.py             |  2 +-
+ backend/app/services/subject_resolver.py           |  4 +-
+ backend/app/services/sync_service.py               |  2 +-
+ backend/app/services/textbook_context_service.py   |  8 ++--
+ backend/app/services/tool_executor.py              | 12 ++++--
+ backend/app/services/verification_service.py       | 30 ++++++-------
+ 65 files changed, 318 insertions(+), 296 deletions(-)
+bisect found first bad commit
+-- bisect log --
+# bad: [a9304c692f05c5c3ef4ce3681aa4c07df215321c] refactor(S35): Phase 3 Step 2 — except Exception 精确化（251处/65文件）
+# good: [1f19e002df030b135156b2b6ea5cc77d7d8c57c4] fix(S34): G-PIPE-006 — Verification评分结果回写memory闭合反馈环
+git bisect start 'a9304c69' '1f19e002'
+# first bad commit: [a9304c692f05c5c3ef4ce3681aa4c07df215321c] refactor(S35): Phase 3 Step 2 — except Exception 精确化（251处/65文件）
+# bad: [a9304c692f05c5c3ef4ce3681aa4c07df215321c] refactor(S35): Phase 3 Step 2 — except Exception 精确化（251处/65文件）
+git bisect bad a9304c692f05c5c3ef4ce3681aa4c07df215321c
+# first bad commit: [a9304c692f05c5c3ef4ce3681aa4c07df215321c] refactor(S35): Phase 3 Step 2 — except Exception 精确化（251处/65文件）
+
+# first bad commit: [a9304c692f05c5c3ef4ce3681aa4c07df215321c] refactor(S35): Phase 3 Step 2 — except Exception 精确化（251处/65文件）
+worktree_removed_rc=0
+finished: 2026-09-09T11:51:24+0800
+rc=0

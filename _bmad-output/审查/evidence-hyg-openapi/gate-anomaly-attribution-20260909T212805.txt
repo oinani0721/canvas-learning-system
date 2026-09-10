@@ -1,0 +1,30 @@
+=== 疑点 1：验伪锚为何 0 —— git 对中文路径做了 quote 转义 ===
+--- 默认（quotepath=on）前 3 行 ---
+"_bmad-output/\345\256\241\346\237\245/evidence-hyg-openapi/_e_ts.txt"
+"_bmad-output/\345\256\241\346\237\245/evidence-hyg-openapi/api-signature-20260909T155853.txt"
+"_bmad-output/\345\256\241\346\237\245/evidence-hyg-openapi/collect-after-raw-20260909T161531.txt"
+--- core.quotepath=false 后的 _bmad-output 计数 ---
+42
+  ⇒ 验伪锚成立：去掉 exclude 确实多出上述数量的 _bmad-output/ 条目
+--- 加 exclude 后（quotepath=false，与主判据同口径） ---
+backend/tests/contract/conftest.py
+backend/tests/contract/test_openapi_contract.py
+
+=== 疑点 2：.hypothesis 入库 202 —— 是本卡引入还是历史遗留？ ===
+--- 本卡 commit 3c064c9d 是否碰过 .hypothesis ---
+0
+--- 这些文件最早何时入库（取样 1 个） ---
+  样本: backend/.hypothesis/constants/018ccf2f5b66334f
+992a2d5a 2025-12-15 chore: backup before Epic optimization
+--- 与 U5-C 末 commit ce1e085b 对比：数量是否变化 ---
+  ce1e085b 时: 202
+  HEAD 时:     202
+
+=== 疑点 3：stderr 入库 2 —— 是哪两个、是否本卡引入？ ===
+"_bmad-output/\345\256\241\346\237\245/G4-9-evidence/census-stderr.txt"
+"_bmad-output/\345\256\241\346\237\245/evidence-g29f1/stderr-not-tracked-20260908T090430.txt"
+--- 本卡 commit 是否碰过 ---
+0
+--- ce1e085b 时已存在？ ---
+2
+rc=0

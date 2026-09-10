@@ -1,0 +1,246 @@
+### CARD-RED-R 单点探针 (取失败身份, 非 bisect)
+tag: p02-a9304c69
+rev: a9304c69 -> a9304c69   (2026-03-29 refactor(S35): Phase 3 Step 2 — except Exception 精确化（251处/65文件）)
+nodeid: tests/unit/test_agent_service_neo4j_memory.py::TestEdgeCases::test_neo4j_query_error_returns_empty
+started: 2026-09-09T12:25:21+0800
+
+Preparing worktree (detached HEAD a9304c69)
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-probe-p02-a9304c69/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 1 item
+tests/unit/test_agent_service_neo4j_memory.py F                          [100%]
+=================================== FAILURES ===================================
+______________ TestEdgeCases.test_neo4j_query_error_returns_empty ______________
+self = <tests.unit.test_agent_service_neo4j_memory.TestEdgeCases object at 0x13a4d9590>
+agent_service_with_neo4j = <app.services.agent_service.AgentService object at 0x13a470830>
+mock_neo4j_client = <MagicMock id='5272703328'>
+    @pytest.mark.asyncio
+    async def test_neo4j_query_error_returns_empty(
+        self,
+        agent_service_with_neo4j,
+        mock_neo4j_client
+    ):
+        """Test that Neo4j query error returns empty string"""
+        mock_neo4j_client.run_query.side_effect = Exception("Neo4j connection failed")
+>       result = await agent_service_with_neo4j._get_learning_memories(
+            content="error test"
+        )
+tests/unit/test_agent_service_neo4j_memory.py:533: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+self = <app.services.agent_service.AgentService object at 0x13a470830>
+content = 'error test', canvas_name = None, node_id = None
+    async def _get_learning_memories(
+        self,
+        content: str,
+        canvas_name: Optional[str] = None,
+        node_id: Optional[str] = None
+    ) -> str:
+        """
+        Get learning history with cache and timeout support.
+        Story 36.7: Neo4j-based memory queries with fallback to JSON storage.
+        - AC1: Uses Neo4jClient via dependency injection
+        - AC2: Real Neo4j Cypher queries
+        - AC3: Relevance-sorted, top 5 results
+        - AC4: 30-second cache to reduce redundant queries
+        - AC5: 500ms timeout to ensure responsiveness
+        - AC6: Fallback to memory_client when Neo4j unavailable
+        Args:
+            content: The concept/content to search memories for
+            canvas_name: Optional Canvas name to filter memories
+            node_id: Optional node ID for context
+        Returns:
+            Formatted memory context string, or empty string on failure/timeout
+        [Source: docs/stories/story-12.A.4-memory-injection.md#Task-4-5-6]
+        [Source: docs/stories/36.7.story.md - AC1-AC6]
+        [Source: ADR-0003 Graphiti Memory - 3-layer architecture]
+        """
+        if not content:
+            return ""
+        # Story 36.7 AC4: Build cache key
+        cache_key = f"{canvas_name}:{node_id}:{content[:50]}"
+        # NFR-P0: Check cache (TTLCache auto-evicts expired entries)
+        cached_data = self._memory_cache.get(cache_key)
+        if cached_data is not None:
+            logger.debug(f"[Story 36.7] Memory cache HIT for key: {cache_key[:30]}...")
+            if isinstance(cached_data, str):
+                return cached_data
+            return self._format_learning_memories(cached_data)
+        # NFR-P0: Double-check locking for cache stampede protection
+        async with self._memory_cache_lock:
+            cached_data = self._memory_cache.get(cache_key)
+            if cached_data is not None:
+                logger.debug(f"[Story 36.7] Memory cache HIT (after lock) for key: {cache_key[:30]}...")
+                if isinstance(cached_data, str):
+                    return cached_data
+                return self._format_learning_memories(cached_data)
+        # Story 36.7: Determine which data source to use
+        use_neo4j = self._neo4j_client and not getattr(self._neo4j_client, '_use_json_fallback', True)
+        # Story 36.7 AC5: Query with 500ms timeout
+        try:
+            if use_neo4j:
+                # Story 36.7 AC2: Real Neo4j query path
+>               result = await asyncio.wait_for(
+                    self._query_neo4j_memories(content, canvas_name),
+                    timeout=0.5  # 500ms timeout
+                )
+app/services/agent_service.py:1933: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+fut = <coroutine object AgentService._query_neo4j_memories at 0x13a542df0>
+timeout = 0.5
+    async def wait_for(fut, timeout):
+        """Wait for the single Future or coroutine to complete, with timeout.
+        Coroutine will be wrapped in Task.
+        Returns result of the Future or coroutine.  When a timeout occurs,
+        it cancels the task and raises TimeoutError.  To avoid the task
+        cancellation, wrap it in shield().
+        If the wait is cancelled, the task is also cancelled.
+        If the task suppresses the cancellation and returns a value instead,
+        that value is returned.
+        This function is a coroutine.
+        """
+        # The special case for timeout <= 0 is for the following case:
+        #
+        # async def test_waitfor():
+        #     func_started = False
+        #
+        #     async def func():
+        #         nonlocal func_started
+        #         func_started = True
+        #
+        #     try:
+        #         await asyncio.wait_for(func(), 0)
+        #     except asyncio.TimeoutError:
+        #         assert not func_started
+        #     else:
+        #         assert False
+        #
+        # asyncio.run(test_waitfor())
+        if timeout is not None and timeout <= 0:
+            fut = ensure_future(fut)
+            if fut.done():
+                return fut.result()
+            await _cancel_and_wait(fut)
+            try:
+                return fut.result()
+            except exceptions.CancelledError as exc:
+                raise TimeoutError from exc
+        async with timeouts.timeout(timeout):
+>           return await fut
+                   ^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/asyncio/tasks.py:488: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+self = <app.services.agent_service.AgentService object at 0x13a470830>
+content = 'error test', canvas_name = None
+    async def _query_neo4j_memories(
+        self,
+        content: str,
+        canvas_name: Optional[str] = None
+    ) -> str:
+        """
+        Query learning memories from Neo4j.
+        Story 36.7 AC2/AC3: Executes Cypher query with relevance sorting.
+        Args:
+            content: Query text to search for
+            canvas_name: Optional Canvas name filter
+        Returns:
+            Formatted memory context string
+        [Source: docs/stories/36.7.story.md - Task 2]
+        """
+        if not self._neo4j_client:
+            return ""
+        # Story 36.7: Cypher query aligned to actual EntityNode properties
+        # Fix G1: removed non-existent fields (m.content, m.relevance, m.concept, m.timestamp, m.user_understanding)
+        # Fix B3: Use toLower() for case-insensitive matching
+        cypher_query = """
+        MATCH (m:EntityNode)
+        WHERE m.group_id = $group_id
+          AND (toLower(m.text) CONTAINS toLower($query_text)
+               OR toLower(m.episode_body) CONTAINS toLower($query_text)
+               OR toLower(m.name) CONTAINS toLower($query_text))
+        """
+        # Add canvas filter if provided
+        if canvas_name:
+            cypher_query += " AND (m.canvas_name = $canvas_name OR m.canvas_path CONTAINS $canvas_name)"
+        # Fix G1: ORDER BY updated_at only (m.relevance doesn't exist on EntityNode)
+        cypher_query += """
+        RETURN m.name AS concept,
+               m.created_at AS timestamp,
+               m.entity_type AS entity_type,
+               m.source_description AS source_description,
+               m.episode_body AS user_understanding
+        ORDER BY m.updated_at DESC
+        LIMIT 5
+        """
+        # Execute query
+        params = {"query_text": content[:100], "group_id": DEFAULT_GROUP_ID}
+        if canvas_name:
+            params["canvas_name"] = canvas_name
+        try:
+>           results = await self._neo4j_client.run_query(cypher_query, **params)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app/services/agent_service.py:2024: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+self = <AsyncMock name='mock.run_query' id='5272704336'>
+args = ('\n        MATCH (m:EntityNode)\n        WHERE m.group_id = $group_id\n          AND (toLower(m.text) CONTAINS toLowe...\n               m.episode_body AS user_understanding\n        ORDER BY m.updated_at DESC\n        LIMIT 5\n        ',)
+kwargs = {'group_id': 'cs188', 'query_text': 'error test'}
+_call = call('\n        MATCH (m:EntityNode)\n        WHERE m.group_id = $group_id\n          AND (toLower(m.text) CONTAINS to...derstanding\n        ORDER BY m.updated_at DESC\n        LIMIT 5\n        ', query_text='error test', group_id='cs188')
+effect = Exception('Neo4j connection failed')
+    async def _execute_mock_call(self, /, *args, **kwargs):
+        # This is nearly just like super(), except for special handling
+        # of coroutines
+        _call = _Call((args, kwargs), two=True)
+        self.await_count += 1
+        self.await_args = _call
+        self.await_args_list.append(_call)
+        effect = self.side_effect
+        if effect is not None:
+            if _is_exception(effect):
+>               raise effect
+E               Exception: Neo4j connection failed
+/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/unittest/mock.py:2333: Exception
+---------------------------- Captured stdout setup -----------------------------
+2026-09-09 12:25:28,442 | WARNING  | app.services.agent_service:1353 | AgentService initialized without configured AI client - API calls will fail
+2026-09-09 12:25:28,442 | WARNING  | app.services.agent_service:1358 | AgentService initialized without LearningMemoryClient - historical context fallback unavailable when Neo4j is down
+2026-09-09 12:25:28,442 | INFO     | app.services.agent_service:1365 | AgentService will use Neo4jClient for learning memory queries
+2026-09-09 12:25:28,442 | WARNING  | app.services.agent_service:1372 | AgentService initialized without CanvasService - nodes will not be written to Canvas
+2026-09-09 12:25:28,442 | INFO     | app.services.agent_service:1381 | AgentService Phase 2: Tool calling disabled (ENABLE_TOOL_CALLING=false)
+2026-09-09 12:25:28,442 | INFO     | app.services.agent_service:1386 | AgentService Phase 4: React Agent ENABLED (ENABLE_REACT_AGENT=true)
+------------------------------ Captured log setup ------------------------------
+WARNING  app.services.agent_service:agent_service.py:1353 AgentService initialized without configured AI client - API calls will fail
+WARNING  app.services.agent_service:agent_service.py:1358 AgentService initialized without LearningMemoryClient - historical context fallback unavailable when Neo4j is down
+INFO     app.services.agent_service:agent_service.py:1365 AgentService will use Neo4jClient for learning memory queries
+WARNING  app.services.agent_service:agent_service.py:1372 AgentService initialized without CanvasService - nodes will not be written to Canvas
+INFO     app.services.agent_service:agent_service.py:1381 AgentService Phase 2: Tool calling disabled (ENABLE_TOOL_CALLING=false)
+INFO     app.services.agent_service:agent_service.py:1386 AgentService Phase 4: React Agent ENABLED (ENABLE_REACT_AGENT=true)
+=============================== warnings summary ===============================
+../../../../../../../../Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+../../../../../../../../Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+../../../../../../../../Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+../../../../../../../../Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+    import pkg_resources
+<frozen importlib._bootstrap>:491
+<frozen importlib._bootstrap>:491
+app/api/v1/endpoints/metadata.py:97
+    canvas_path: str = Query(
+app/api/v1/endpoints/metadata.py:150
+    canvas_path: str = Query(
+../../../../../../../../Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+app/mcp/server.py:132
+    mcp.mount()
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/unit/test_agent_service_neo4j_memory.py::TestEdgeCases::test_neo4j_query_error_returns_empty
+======================== 1 failed, 10 warnings in 0.49s ========================
+pytest_raw_rc=0 (⛔ 非判据: 老 commit addopts 含 --cov-fail-under=85)
+worktree_removed_rc=0
+rc=0

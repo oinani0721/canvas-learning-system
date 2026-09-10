@@ -1,0 +1,16 @@
+### r5 本卡门
+================== 10 passed, 6 xfailed, 62 warnings in 0.66s ==================
+rc=0
+### r5 邻近六套件
+====================== 118 passed, 284 warnings in 1.31s =======================
+rc=0
+### r5 ruff + 源码门 + 现网只读
+All checks passed!
+3 files already formatted
+源码门 = True
+  现网 data/lancedb → 0
+  现网 data/lancedb → 0
+  现网 data/lancedb → 0
+backend/lib/agentic_rag/clients/lancedb_client.py
+backend/scripts/g29_dual_vault_canary.py
+backend/tests/unit/test_lancedb_cross_vault_drop_g29f1.py

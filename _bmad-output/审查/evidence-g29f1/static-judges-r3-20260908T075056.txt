@@ -1,0 +1,29 @@
+### r3 现网只读复检（sentinel 建于开工，覆盖 r1+r2+r3 全部跑）
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/data/lancedb → 0
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/data/lancedb → 0
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u5-lance/data/lancedb → 0
+### r3 connect 溯源（含门⑤ 族的新夹具）
+  db_path 赋值行数 = 4
+  其中 tmp_path 派生 = 7
+119:    client._db = lancedb.connect(str(db_path))
+136:    db = lancedb.connect(str(db_path))
+157:    after = _all_names(lancedb.connect(str(db_path)))
+195:    db = lancedb.connect(str(db_path))
+216:    after = _all_names(lancedb.connect(str(db_path)))
+248:    db = lancedb.connect(str(db_path))
+269:    after = _all_names(lancedb.connect(str(db_path)))
+301:    db = lancedb.connect(str(db_path))
+353:    db = lancedb.connect(str(db_path))
+425:    after = _all_names(lancedb.connect(str(tmp_path / "db")))
+### r3 硬边界
+backend/scripts/g29_dual_vault_canary.py:0
+backend/tests/unit/test_lancedb_cross_vault_drop_g29f1.py:0
+backend/lib/agentic_rag/clients/lancedb_client.py:0
+### r3 canary 静态核（本轮未改 canary，应与 r2 相同）
+  ① probe verdict = 1
+  ③ 全文 verdict = 4
+  ④b report.get = 1
+### r3 地盘门
+backend/lib/agentic_rag/clients/lancedb_client.py
+backend/scripts/g29_dual_vault_canary.py
+backend/tests/unit/test_lancedb_cross_vault_drop_g29f1.py

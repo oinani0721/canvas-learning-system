@@ -1,0 +1,19 @@
+# 门⑤ 的假 xfail 路径 —— 最小复现（自查，Codex r2 prompt 问题 (c) 同问）
+# 2026-09-07T23:33:30Z
+# 复现文件在 scratchpad（不入库）：test_xfail_swallows_premise.py
+
+xxF                                                                      [100%]
+=================================== FAILURES ===================================
+______________________________ test_defect_fixed _______________________________
+[XPASS(strict)] 已知缺陷
+=========================== short test summary info ============================
+XFAIL test_xfail_swallows_premise.py::test_premise_ok_defect_present - 已知缺陷
+XFAIL test_xfail_swallows_premise.py::test_premise_broken - 已知缺陷
+1 failed, 2 xfailed in 0.08s
+
+结论:
+  - 前提成立+缺陷仍在  → XFAIL
+  - 夹具就坏了          → XFAIL   ← 与上一条**不可区分** = 假 xfail 路径成立
+  - 缺陷被修好          → XPASS(strict) 报红  ← 交接机制本身有效
+⇒ xfail 的「修好检测」有效，但它会吞掉前提断言的失败。
+⇒ 修法: 前提检查拆到**不带 xfail** 的独立用例，主断言留在 xfail 用例里。

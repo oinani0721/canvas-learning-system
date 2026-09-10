@@ -1,0 +1,84 @@
+### CARD-RED-R bisect archive
+slug: test_verification_dedup--test_no_history_generates_standard_question
+nodeid: tests/unit/test_verification_dedup.py::TestVerificationDedup::test_no_history_generates_standard_question
+interval: good=2ebe21aa (1768c19d^)  bad=1768c19d (1768c19d)
+started: 2026-09-09T11:53:07+0800
+runner-judge: pytest 摘要行 (⛔ 非退出码 —— 老 commit addopts 含 --cov-fail-under=85, passed 也 rc=1)
+sparse-checkout: 排除 /backend/.canvas-learning/ (该目录含非法字节序列路径, macOS 无法 checkout)
+
+Preparing worktree (detached HEAD 1768c19d)
+== 端点验证 1/2: BAD=1768c19d (期望 VERDICT=BAD) ==
+--- HEAD=1768c19d nodeid=tests/unit/test_verification_dedup.py::TestVerificationDedup::test_no_history_generates_standard_question
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+======================== 1 failed, 9 warnings in 1.35s =========================
+--- pytest_raw_rc=1 (仅记录, 不作判据)
+VERDICT=BAD
+bad_end_rc=1
+
+== 端点验证 2/2: GOOD=2ebe21aa (期望 VERDICT=GOOD) ==
+--- HEAD=2ebe21aa nodeid=tests/unit/test_verification_dedup.py::TestVerificationDedup::test_no_history_generates_standard_question
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+======================== 1 passed, 9 warnings in 1.11s =========================
+--- pytest_raw_rc=0 (仅记录, 不作判据)
+VERDICT=GOOD
+good_end_rc=0
+
+ENDPOINT_STATUS=INTERVAL_OK
+
+== git bisect run ==
+1768c19d3151f8a2ef2b425983785eb44b96a2ff is the first bad commit
+commit 1768c19d3151f8a2ef2b425983785eb44b96a2ff
+Author: oinani0721 <oinani0721@users.noreply.github.com>
+Date:   Thu Mar 26 09:12:29 2026 -0400
+
+    fix(phase2): remove dead code calling non-existent GraphitiEdgeClient methods (C5/C6)
+    
+    Deleted _get_question_history_from_graphiti() and _store_question_to_graphiti()
+    which called .search_verification_questions() and .add_verification_question()
+    that do not exist on GraphitiEdgeClient. Replaced callers with graceful
+    degradation placeholders and removed all tests referencing the deleted methods.
+    
+    Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
+
+ backend/app/services/verification_service.py       | 130 +------------
+ backend/tests/unit/test_verification_dedup.py      | 207 ---------------------
+ .../unit/test_verification_service_injection.py    | 204 +-------------------
+ 3 files changed, 3 insertions(+), 538 deletions(-)
+running 'sh' '/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-runner.sh'
+--- HEAD=1768c19d nodeid=tests/unit/test_verification_dedup.py::TestVerificationDedup::test_no_history_generates_standard_question
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+======================== 1 failed, 9 warnings in 0.90s =========================
+--- pytest_raw_rc=1 (仅记录, 不作判据)
+VERDICT=BAD
+1768c19d3151f8a2ef2b425983785eb44b96a2ff is the first bad commit
+commit 1768c19d3151f8a2ef2b425983785eb44b96a2ff
+Author: oinani0721 <oinani0721@users.noreply.github.com>
+Date:   Thu Mar 26 09:12:29 2026 -0400
+
+    fix(phase2): remove dead code calling non-existent GraphitiEdgeClient methods (C5/C6)
+    
+    Deleted _get_question_history_from_graphiti() and _store_question_to_graphiti()
+    which called .search_verification_questions() and .add_verification_question()
+    that do not exist on GraphitiEdgeClient. Replaced callers with graceful
+    degradation placeholders and removed all tests referencing the deleted methods.
+    
+    Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
+
+ backend/app/services/verification_service.py       | 130 +------------
+ backend/tests/unit/test_verification_dedup.py      | 207 ---------------------
+ .../unit/test_verification_service_injection.py    | 204 +-------------------
+ 3 files changed, 3 insertions(+), 538 deletions(-)
+bisect found first bad commit
+-- bisect log --
+# bad: [1768c19d3151f8a2ef2b425983785eb44b96a2ff] fix(phase2): remove dead code calling non-existent GraphitiEdgeClient methods (C5/C6)
+# good: [2ebe21aa645dd103c98ee80939c9677be3e030f3] feat(phase2): add GOOGLE_API_KEY for graphiti-core Gemini integration
+git bisect start '1768c19d' '2ebe21aa'
+# first bad commit: [1768c19d3151f8a2ef2b425983785eb44b96a2ff] fix(phase2): remove dead code calling non-existent GraphitiEdgeClient methods (C5/C6)
+# bad: [1768c19d3151f8a2ef2b425983785eb44b96a2ff] fix(phase2): remove dead code calling non-existent GraphitiEdgeClient methods (C5/C6)
+git bisect bad 1768c19d3151f8a2ef2b425983785eb44b96a2ff
+# first bad commit: [1768c19d3151f8a2ef2b425983785eb44b96a2ff] fix(phase2): remove dead code calling non-existent GraphitiEdgeClient methods (C5/C6)
+
+# first bad commit: [1768c19d3151f8a2ef2b425983785eb44b96a2ff] fix(phase2): remove dead code calling non-existent GraphitiEdgeClient methods (C5/C6)
+worktree_removed_rc=0
+finished: 2026-09-09T11:54:50+0800
+rc=0
