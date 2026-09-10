@@ -1,0 +1,5 @@
+=== r7 LOW-1 变异: 删掉 `_fence_blocks` 的**同字符**判断 ===
+Traceback (most recent call last):
+  File "<stdin>", line 8, in <module>
+AssertionError: 变异未生效
+rc=0

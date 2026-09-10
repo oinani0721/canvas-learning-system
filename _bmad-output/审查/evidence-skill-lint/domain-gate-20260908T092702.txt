@@ -1,0 +1,2 @@
+ M canvas-vault/.claude/skills/start-exam-board/SKILL.md
+?? backend/tests/skills/test_skill_portability_lint.py

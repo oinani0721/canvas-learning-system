@@ -1,0 +1,61 @@
+# P3 dsh workspace-write 写 vault 是否弹审批  @ 2026-09-08T07:12:27+08:00
+
+=== 结论：运行期 NOT-RUN；配置面 REFUTED 卡文期望 ===
+
+--- (1) 运行期 NOT-RUN 的原因（可复核）---
+  D-24 裁定形态 = dsh --profile web。实测 'dsh --profile web --help'：
+    web app 自身 flags 仅 --host / --no-open / --port / --trusted-host
+    ⇒ web profile 只 serve 浏览器 UI，【无一问一答通道】，无法让 agent 执行 shell 命令
+  'dsh --help' 示例中的一问一答形态是  dsh --profile headless "..."
+    但实测 ls ~/.dsh/profiles 仅有 node_modules/ 与 web/ ⇒ headless profile 不存在
+    新建 ~/.dsh/profiles/headless/ = 写用户级配置面(D-26 (i))，本卡禁 ⇒ 不做
+  ⇒ P3 运行期三态 = NOT-RUN(dsh web profile 无问答通道；headless profile 需写用户级配置)
+  证据：evidence-host-probe/helpcheck-dsh-web-20260908T064500.txt
+
+--- (2) 配置面证据：workspace-write 下 approval 是 'ask' 而非 'never' ---
+  来源 dsh --profile web --dump-config（cwd=$PV），逐行摘录：
+    88:- id: sandbox-policy
+    89-  name: '@deepseek-ai/dsh-sandbox-policy'
+    90-  config:
+    91-    mode: !!js process.env.DSH_PERMISSION_MODE ?? 'workspace-write'
+    92-    workspaceRoot: !!js process.cwd()
+
+    101:- id: approval
+    102-  name: '@deepseek-ai/dsh-user-approval'
+    103-  config:
+    104-    policy: !!js >-
+    105-      (process.env.DSH_PERMISSION_MODE ?? 'workspace-write') ===
+    106-      'danger-full-access' ? 'never' : 'ask'
+    107-- id: permission
+
+    107:- id: permission
+    108-  name: '@deepseek-ai/dsh-permission-presets'
+    109-  config:
+    110-    presets:
+    111-      read-only:
+    112-        sandbox: read-only
+    113-        approval: ask
+    114-      workspace-write:
+    115-        sandbox: workspace-write
+    116-        approval: ask
+    117-      danger-full-access:
+    118-        sandbox: danger-full-access
+    119-        approval: never
+    120-- id: shell-env
+    121-  name: '@deepseek-ai/dsh-shell-env'
+
+--- (3) 判据 ---
+  approval.policy 表达式：
+    (process.env.DSH_PERMISSION_MODE ?? 'workspace-write') === 'danger-full-access' ? 'never' : 'ask'
+  代入 DSH_PERMISSION_MODE=workspace-write（D-24 裁定值）⇒ 'workspace-write' !== 'danger-full-access' ⇒ approval='ask'
+  permission-presets 亦写死 workspace-write -> {sandbox: workspace-write, approval: ask}
+  ⇒ REFUTED：卡文 P3 期望的「workspace-write 写 vault 不弹审批」在配置面不成立。
+     只有 danger-full-access 才 approval='never'。
+  ⚠️ 该 REFUTED 基于配置面表达式，非运行期观测；运行期是否确实弹审批 = 未证明。
+
+--- (4) 卡文 §一(c) 要求的 read-only 对照 ---
+  同样受 (1) 阻断，运行期 NOT-RUN。
+  沙箱模式 vs 路径规则的两层区分，已由 Codex 侧 P6-a/b/c/d 的 2x2 矩阵独立完成
+  （见 P6c/P6d evidence）——但那是 Codex 的沙箱，不能外推到 dsh。
+  ⇒ 「dsh 的 read-only 与 workspace-write 拒因是否可区分」= 本卡未证明。
+rc=0

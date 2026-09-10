@@ -1,0 +1,23 @@
+# P2-e MCP 工具可见性（tools/list 只列举，不 tools/call）  @ 2026-09-08T06:58:50+08:00
+# 白名单外零调用；本步只发 tools/list
+=== tools/list 状态码 ===
+http_code=200
+curl_rc=0
+=== 工具 rawName 清单 ===
+工具总数 = 6
+  rawName = search_memories
+  rawName = search_notes
+  rawName = get_neighbors
+  rawName = read_note
+  rawName = check_backend_health
+  rawName = get_board_manifest
+
+白名单工具 check_backend_health 是否在列 = True
+按 dsh-mcp-client/README.md:5,:55 规则 mcp__<serverName>__<rawName> 推导 dsh 侧公开名：
+  mcp__canvas-learning-mcp__search_memories
+  mcp__canvas-learning-mcp__search_notes
+  mcp__canvas-learning-mcp__get_neighbors
+  mcp__canvas-learning-mcp__read_note
+  mcp__canvas-learning-mcp__check_backend_health
+  mcp__canvas-learning-mcp__get_board_manifest
+rc=0

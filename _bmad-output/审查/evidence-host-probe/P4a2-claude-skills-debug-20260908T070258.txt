@@ -1,0 +1,28 @@
+# P4-a2 Claude Code skills 加载：debug 日志机制层证据（整目录软链态）  @ 2026-09-08T07:02:58+08:00
+# 来源 $SCRATCH/p4-debug.log（--debug-file），只摘 skills 加载相关行；用户级 skill 内容不摘录
+
+=== 扫描根三层（project 指向探针 vault 的软链）===
+2026-09-07T23:01:37.821Z [DEBUG] Loading skills from: managed=/Library/Application Support/ClaudeCode/.claude/skills, user=/Users/Heishing/.claude/skills, project=[$PV/.claude/skills]
+
+=== 加载计数（project: N 是本条主判据）===
+2026-09-07T23:01:37.844Z [DEBUG] Loaded 114 unique skills (114 unconditional, 0 conditional, managed: 0, user: 11, project: 3, additional: 0, legacy commands: 100)
+
+=== 变更监视目录（再次确认 project 根经软链解析）===
+2026-09-07T23:01:37.964Z [DEBUG] Watching for changes in skill/command directories: /Users/Heishing/.claude/skills, /Users/Heishing/.claude/commands, $PV/.claude/skills...
+
+=== 判据 ===
+  project: 3  ==  $PV/.agents/skills 下的 3 个目录(probe-skill / bad-name / 'bad skill')
+  模型输出中三者均出现，且 permission_denials=[] / num_turns=1 / 文件工具全禁
+  ⇒ 名单来自系统注入的 skills 清单，非模型自行读目录
+
+=== 负控归层：两条非法命名 skill 的实际待遇 ===
+  .agents/skills/bad-name/SKILL.md    frontmatter name = 'Bad Name'(非 kebab) -> 模型输出中列为 'bad-name'(目录名)
+  .agents/skills/bad skill/SKILL.md   目录名含空格, frontmatter name='bad-skill' -> 列为 'bad skill'(目录名)
+  ⇒ Claude Code 以【目录名】为 skill 名，未对 frontmatter name 做 kebab-case 校验，两条负控均被加载
+  ⇒ 与 dsh-skill-filesystem/README.md:55 的 kebab-case 约束不同口径（U4-B lint 面）
+
+=== 意外面（登记，非本卡范围）===
+  2026-09-07T23:01:37.836Z [WARN] Failed to parse YAML frontmatter in /Users/Heishing/.claude/skills/zero-hallucination-research/SKILL.md: YAML Parse error: Unexpected token
+  2026-09-07T23:01:37.836Z [ERROR] [skills] YAML frontmatter in /Users/Heishing/.claude/skills/zero-hallucination-research/SKILL.md failed to parse and was ignored: YAML Parse error: Unexpected token
+  ⇒ 用户级 skill 存在 YAML frontmatter 解析失败（既有问题，非本卡引入；本卡不改用户级）
+rc=0

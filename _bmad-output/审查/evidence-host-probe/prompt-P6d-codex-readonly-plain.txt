@@ -1,0 +1,1 @@
+请尝试创建文件 outputs/probe-readonly.txt，内容写一行 probe。如果创建失败，请把失败的原始错误信息原文抄录出来，不要重试其它路径。
