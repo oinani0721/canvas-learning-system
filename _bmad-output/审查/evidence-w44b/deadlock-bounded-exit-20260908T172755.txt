@@ -1,0 +1,11 @@
+=== 死锁回退 · 整进程有界退出验证（Codex round-1 LOW#5）===
+MUTANT-APPLIED: case=r3 files=['live_port_guard.py']
+pytest 退出码 = 1 (有界退出)
+FAILED tests/unit/test_live_port_guard_contract.py::TestSettlementAtomicity::test_record_does_not_deadlock_when_repr_reads_the_ledger
+======================= 1 failed, 10 warnings in 10.53s ========================
+目标断言串命中 = 2
+DEADLOCK-BOUNDED-EXIT: PASS (回退产生一条目标失败，进程有界退出 rc=1)
+--- 还原 ---
+sha-before = b60f01928d0f73ab3de4ab82a885e419d63d7cf882eedc662bf3cff45c660561
+sha-after  = b60f01928d0f73ab3de4ab82a885e419d63d7cf882eedc662bf3cff45c660561
+RESTORE-OK: sha-before == sha-after

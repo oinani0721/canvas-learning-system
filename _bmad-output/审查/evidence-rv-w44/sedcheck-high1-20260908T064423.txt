@@ -1,0 +1,92 @@
+########## wc -l 五文件 + negative_control ##########
+    1344 backend/tests/support/live_port_guard.py
+      55 backend/tests/support/guard_plugin.py
+    1034 backend/tests/conftest.py
+    1904 backend/scripts/lifespan_isolation_guard_probes.py
+     906 backend/tests/unit/test_live_port_guard_contract.py
+    3472 backend/scripts/lifespan_isolation_negative_control.py
+    8715 total
+########## HIGH-1: seam try 块 :654-657 / record :660 ##########
+640:        address = args[1] if len(args) > 1 else None
+641:        port = extract_port(address)
+642:        # 端口对象不可信（有状态 __index__）⇒ 按受拦处理，见 port_is_trustworthy
+643:        if port in BLOCKED_PORTS or not port_is_trustworthy(address):
+644:            # 自证探针：走完整的「取端口 → 判受拦 → 抛」路径，只跳过记账。
+645:            # 判定在**端口判断之后**，所以把 extract_port 改坏、把受拦集合清空、
+646:            # 或把 hook 摘掉，自证都会失败（这正是 R1 Codex HIGH-3 要求的）。
+647:            if _is_selftest_address(address):
+648:                raise _SelfTestBlocked("selftest reached the blocking path")
+649:            # 注入点：默认 no-op，返回值不参与任何判据（见 _finalize_race_seam）。
+650:            # ⛔ 必须包在 try 里（Codex round-1 HIGH-1 实测）：seam 若抛异常，连接确实被
+651:            #    阻断了，但 `STATE.record()` 根本没跑到 ⇒ 账本零、进程 exit 0。也就是说
+652:            #    这个「只为测试存在」的缝会变成一条**跳过记账**的旁路。吞掉它之后，seam
+653:            #    对控制流的影响面收敛到 0：它只能延迟，不能改变任何判定。
+654:            try:
+655:                _finalize_race_seam_hook()
+656:            except BaseException:  # noqa: BLE001 —— 见上：注入点不得影响控制流
+657:                pass
+658:            # ⛔ 「是不是迟到」由 record() **在账本那把锁里**判定，不在这里锁外读标志
+659:            #    （CARD-W4-4：锁外读 + 另一把锁记账之间的夹缝会整条丢掉记录）。
+660:            outcome = STATE.record(address)
+661:            if outcome == RECORD_LATE:
+662:                # 最终结算之后的迟到连接：已无人能改 rc，只能就地把进程打成非零。
+663:                # ⛔ 落盘与打印全部包住（Codex round-1 HIGH-3 实测）：原来 print 在 try
+664:                #    之外，stderr 若已关闭，`ValueError` 会**越过** os._exit —— 于是
+665:                #    「判迟到就必然就地退出 3」这句在那种状态下不成立。强制退出是承重
+666:                #    的那一层，任何可观测性动作都不得挡在它前面。
+667:                try:
+668:                    # 退出前把**含这条记录**的账本重写一次 —— 否则文件里是结算那一刻的
+669:                    # 空账而进程 rc=3，父进程复核与子进程裁定互相打脸。
+670:                    _rewrite_ledger_after_late_record()
+671:                    print(
+672:                        f"\n*** {BLOCK_REASON}（最终结算之后）: {address!r} —— "
+673:                        f"进程被强制以退出码 {FINAL_EXIT_CODE} 结束 ***",
+674:                        file=sys.stderr,
+675:                    )
+676:                    sys.stdout.flush()
+677:                    sys.stderr.flush()
+678:                except BaseException:  # noqa: BLE001 —— 见上：绝不阻断 os._exit
+679:                    pass
+680:                os._exit(FINAL_EXIT_CODE)
+681:            if outcome == RECORD_BLOCK:
+682:                raise RuntimeError(_block_message(address))
+683:    elif event == "import" and args and args[0] == "uvloop":
+684:        raise RuntimeError(
+685:            "uvloop 的 import 被本门拦下：uvloop 走 libuv，不触发 socket.connect "
+686:            "审计事件，门会静默失效。若确需 uvloop，必须连本门一起重新设计。"
+687:        )
+688:
+689:
+690:#: audit hook 只能装一次（CPython 无 removeaudithook）；重复装会导致双计。
+691:_AUDIT_INSTALLED = False
+692:
+693:#: 进程级单例锚点。本模块若被以**两个不同的模块名**导入（``tests.support.
+694:#: live_port_guard`` 与 ``support.live_port_guard``，取决于 sys.path 怎么摆），
+695:#: 会出现两份 ``STATE`` 与两个 audit hook —— 连接尝试被记进其中一份账，另一份
+696:#: 汇报「零尝试」，而汇总行只打印其中一份。这是**账本分裂型假绿**，必须让它当场
+697:#: 炸掉而不是安静地少算。
+698:_SINGLETON_ATTR = "_w4_live_port_guard_module"
+699:
+700:
+########## HIGH-1 docstring :587-591 (取 580-600) ##########
+580:      以及「自己结束进程」这种任何同进程代码都能做的事；
+581:    * 位置在 ``STATE.record()`` **之前**。修好之后 hook 里已经没有「先读结算标志、
+582:      再记账」这个间隙了（判定进了 ``record`` 的锁内），所以要证明「间隙关上了」，
+583:      必须能让 hook 在**即将记账**那一点停住、让主线程完成结算、再放行 ——
+584:      这件事在进程外没法做，只能留这个 seam。探针
+585:      ``guard-finalize-race-loses-record`` 就是这么用的；
+586:    * :func:`assert_guard_live` 会复核 ``_finalize_race_seam_hook`` 仍是本函数
+587:      （与 belt 身份漂移、受拦集合被缩小同型的纵深）。⚠️ 如实声明：这道复核
+588:      **只在被显式调用时发生**（``install()``、每个用例边界、session 自证），
+589:      所以「独立脚本里替换了它」「在下一个用例边界之前又换回去」这两种情形它抓不到
+590:      （Codex round-1 HIGH-1）。承重的不是这道复核，而是上一条的 ``try/except``。
+591:    """
+592:
+593:
+594:#: 可替换的注入点引用（测试/探针替换它；生产恒为 :func:`_finalize_race_seam`）。
+595:_finalize_race_seam_hook = _finalize_race_seam
+596:
+597:
+598:def _is_selftest_address(address) -> bool:
+599:    """这条地址是不是**本模块自己合成的**自证探针地址。
+600:

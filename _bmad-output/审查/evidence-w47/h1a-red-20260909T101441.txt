@@ -1,0 +1,11 @@
+E   ValueError: __index__ 故意抛出 —— 取端口必须 fail-closed
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u7-w4guard/backend/tests/unit/test_live_port_guard_contract.py:92: ValueError: __index__ 故意抛出 —— 取端口必须 fail-closed
+E   RuntimeError: __index__ 故意抛出 —— 取端口必须 fail-closed
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u7-w4guard/backend/tests/unit/test_live_port_guard_contract.py:92: RuntimeError: __index__ 故意抛出 —— 取端口必须 fail-closed
+E   ValueError: __index__ 故意抛出 —— 不得跳过记账
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u7-w4guard/backend/tests/unit/test_live_port_guard_contract.py:112: ValueError: __index__ 故意抛出 —— 不得跳过记账
+FAILED tests/unit/test_live_port_guard_contract.py::TestExtractPort::test_index_raising_non_typeerror_is_fail_closed[ValueError]
+FAILED tests/unit/test_live_port_guard_contract.py::TestExtractPort::test_index_raising_non_typeerror_is_fail_closed[RuntimeError]
+FAILED tests/unit/test_live_port_guard_contract.py::TestExtractPort::test_audit_hook_still_accounts_when_index_raises
+=================== 3 failed, 7 passed, 10 warnings in 0.57s ===================
+rc=1

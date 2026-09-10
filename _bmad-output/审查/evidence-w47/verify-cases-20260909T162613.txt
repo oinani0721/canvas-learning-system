@@ -1,0 +1,91 @@
+=== (b) H-1a：非 TypeError 的 __index__ 异常 + 记账行为用例 ===
+52:        """CPython socket 接受任何实现 ``__index__`` 的端口对象（2026-09-03 实测连接成功）。
+58:            def __index__(self) -> int:
+77:    def test_index_raising_non_typeerror_is_fail_closed(self, exc_type):
+78:        """``__index__`` 抛 ``TypeError`` 之外的异常 ⇒ 取端口必须**返回 None，不得抛**。
+82:        函数里两半口径不一致。``__index__`` 是**调用方给的任意用户代码**，抛
+95:            def __index__(self):
+96:                raise exc_type("__index__ 故意抛出 —— 取端口必须 fail-closed")
+101:    def test_index_raising_baseexception_is_also_fail_closed(self, exc_type):
+102:        """``__index__`` 抛 ``BaseException`` 子类时同样必须返回 None（round-1 HIGH-1）。
+120:            def __index__(self):
+121:                raise exc_type("__index__ 抛 BaseException —— 取端口仍必须 fail-closed")
+135:    def test_audit_hook_still_accounts_when_index_raises(self, isolated_state):
+--- 生产侧修法（:562 附近）---
+        if tuple.__len__(address) < 2:
+            return None
+        raw = tuple.__getitem__(address, 1)
+    except Exception:  # noqa: BLE001 —— 连底层槽位都读不到 ⇒ 取不到端口
+        return None
+    try:
+        return operator.index(raw)
+    except BaseException:  # noqa: BLE001 —— 见下：这里只能 fail-closed，不能让异常逸出
+        # ⛔ 必须与上面读槽位那半**同口径**（RV-C H-1a）。原来只捕 ``TypeError``：
+        #    ``__index__`` 是调用方给的任意用户代码，它抛 ``ValueError`` /
+        #    ``RuntimeError`` 时异常会从这里逸出 —— 而本函数的唯一调用点
+        #    :func:`_audit_hook` 是在 ``STATE.record()`` **之前**调它的，于是那次尝试
+        #    连接确实被阻断了（异常传给调用方），账本却是零。与 round-1 HIGH-1
+        #    「seam 抛异常跳过记账」同型：**任何在记账之前执行用户代码的地方都得
+        #    fail-closed**。取不到端口 ⇒ 返回 None ⇒ ``port_is_trustworthy`` 随后判
+        #    不可信 ⇒ 照样走受拦分支、照样进账，没有放宽任何东西。
+        #
+
+=== (c) H-2：哨兵三条独立断言（精确 str / NUL 转义 / 不等于普通主机名）===
+567:    def test_selftest_host_is_an_unconnectable_sentinel(self):
+    def test_selftest_host_is_an_unconnectable_sentinel(self):
+        """``_SELFTEST_HOST`` 必须是**连不上任何东西**的哨兵，而不是普通主机名。
+
+        ⛔ RV-C H-2：本类原有 6 条用例**没有一条**能拦住「把哨兵常量改成
+        ``"localhost"``」—— 4 条以该常量为输入或期望值（跟着常量一起变），另 2 条
+        （非 tuple / 普通安全地址）本就不看它。于是「自证地址不进账」这条豁免的**前提**
+        （这个主机名不可能是真实 connect 的目标）从来没有被判据钉住：常量一改，
+        任何连 ``localhost`` 的真实拦截都会被分类成自证 ⇒ 不记账 ⇒ 结账无从拒绝 rc=0。
+
+        判据分两层，缺一不可：
+
+        * **行为层**（``ord`` / ``len``）—— 常量的**值**必须首字符是 NUL。这一层
+          grep 证不了；
+        * **拼写层**（裁判 7 的 ``grep '\\x00'``）—— 源码里必须写转义，不许敲
+          不可见字符（否则工具链会静默把它换掉，且 code review 看不出来）。
+
+        ``len == 28`` 是本树实测值（1 个 NUL + 27 个字符），改常量长度会顶红 ——
+        这是刻意的：改它就该有人重新想一遍这条豁免的前提。
+        """
+        host = guard._SELFTEST_HOST
+        assert type(host) is str, "哨兵必须是精确 str（_is_selftest_address 用 type(...) is str 判）"
+        assert ord(host[0]) == 0, "哨兵首字符必须是 NUL —— 那才是它连不上任何东西的理由"
+        assert len(host) == 28, f"哨兵长度变了（实测 {len(host)}）—— 改它请重新论证这条豁免的前提"
+        # ⚠️ 下面三条是**说明性**的，不算三份独立检出能力（round-1 Codex LOW）：
+        #    前两条断言（精确 str + 首字符 NUL）已经蕴含它们，没有哪种输入能只让这三条红。
+        #    留着是给读代码的人一眼看出「哨兵不能是普通主机名」这个意图。
+        assert host != "localhost"
+        assert host != "127.0.0.1"
+        assert "\x00" in host
+
+    # ── RV-C M-1：普通 tuple + 真实主机 + 受拦端口的直判负例 ──────────────
+    #
+
+=== (d) M-1：三条受拦端口负例 ===
+607:    def test_plain_ipv4_on_blocked_port_is_not_selftest(self):
+610:    def test_plain_hostname_on_blocked_port_is_not_selftest(self):
+613:    def test_plain_ipv6_four_tuple_on_blocked_port_is_not_selftest(self):
+608:        assert guard._is_selftest_address(("127.0.0.1", 7691)) is False
+611:        assert guard._is_selftest_address(("localhost", 7687)) is False
+614:        assert guard._is_selftest_address(("::1", 7691, 0, 0)) is False
+
+=== (e) M-3：行为探针是否在 guard_probes 且进了 main() results ===
+377:def probe_precheck_runs_through_the_real_entrypoint() -> dict:
+415:def probe_precheck_entrypoint_negative_control() -> dict:
+2142:        probe_precheck_runs_through_the_real_entrypoint(),
+2143:        probe_precheck_entrypoint_negative_control(),
+
+=== (f) M-4：uvloop 子模块判据 + 契约门 ===
+692:def _is_uvloop_module(name) -> bool:
+699:    def test_uvloop_submodule_import_is_blocked_by_audit(self, module_name):
+901:    def test_lookalike_module_names_are_not_blocked(self, module_name):
+
+=== (g) L-2：去重与保留 ===
+LEGITIMATE_CONTAINER_URIS 中 7692 出现次数 => 0
+保留的 test_test_uri_on_container_port_is_fine => 1
+--- UNSUPPORTED_SCHEME_URIS 的 ftp/http/https 保留 + 注释 ---
+rc=0
