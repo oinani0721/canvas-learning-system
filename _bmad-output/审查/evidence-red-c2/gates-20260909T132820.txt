@@ -1,0 +1,89 @@
+# 收工门 §二.6 / §二.7 / §二.8 — CARD-RED-C2  (2026-09-09 13:28:20)
+# U11-A 末 commit = 5139428d ; HEAD = 9b131f2f
+
+## §二.6 判据强度门（新增行里不得出现四种弱化形态）
+$ git diff --no-color <U11A> HEAD -- backend/tests | grep -E "^\+" | grep -nE "assert True|assert .* is not None\$|pytest\.skip\(|xfail\(strict=False"
+  ↑ 无输出 = 通过（上面这行之后若无内容即为空）
+
+## §二.7 fixture 门
+$ ... | grep -c "autouse=True"
+0
+$ ... | grep -nE "ACTIVE_VAULT|load_dotenv|\.env"
+291:+        with patch.dict(os.environ, _LOCAL_DEV_ENV, clear=True):
+292:+        with patch.dict(os.environ, _LOCAL_DEV_ENV, clear=True):
+293:+        with patch.dict(os.environ, _LOCAL_DEV_ENV, clear=True):
+294:+        with patch.dict(os.environ, _LOCAL_DEV_ENV, clear=True):
+295:+        with patch.dict(os.environ, _LOCAL_DEV_ENV, clear=True):
+297:+        with patch.dict(os.environ, {**_LOCAL_DEV_ENV, "NEO4J_ENABLED": "false"}, clear=True):
+298:+        with patch.dict(os.environ, {**_LOCAL_DEV_ENV, "NEO4J_ENABLED": "False"}, clear=True):
+300:+            os.environ,
+324:+        with patch.dict(os.environ, {}, clear=True):
+335:+        with patch.dict(os.environ, {"NEO4J_PASSWORD": "x"}, clear=True):
+345:+        with patch.dict(os.environ, _LOCAL_DEV_ENV, clear=True):
+  ↑ 无输出 = 通过
+
+## §二.8 地盘门
+$ git diff --name-only --no-color <U11A> HEAD -- . ":(exclude)_bmad-output"
+backend/tests/unit/grouping/test_analyze_canvas.py
+backend/tests/unit/test_agent_context_injection.py
+backend/tests/unit/test_agent_memory_trigger.py
+backend/tests/unit/test_agent_service_comparison.py
+backend/tests/unit/test_agent_service_neo4j_memory.py
+backend/tests/unit/test_cache_configuration.py
+backend/tests/unit/test_config_neo4j.py
+backend/tests/unit/test_context_enrichment_2hop.py
+backend/tests/unit/test_degraded_flag_propagation.py
+backend/tests/unit/test_intelligent_parallel_endpoints.py
+backend/tests/unit/test_neo4j_health.py
+backend/tests/unit/test_rag_multimodal_integration.py
+backend/tests/unit/test_s02_entity_types.py
+backend/tests/unit/test_s02_search_upgrade.py
+backend/tests/unit/test_story_1_7_env_config.py
+backend/tests/unit/test_story_30_24_boundary.py
+backend/tests/unit/test_story_38_1_review_fixes.py
+backend/tests/unit/test_story_38_4_dual_write_default.py
+backend/tests/unit/test_story_38_8_fallback_sync.py
+backend/tests/unit/test_subject_isolation.py
+backend/tests/unit/test_supplementary_reranker.py
+backend/tests/unit/test_verification_service_injection.py
+backend/tests/unit/test_wave5_stageb_continued_vault_id_injection.py
+
+$ git diff --stat --no-color <U11A> HEAD -- backend/app   (必须空)
+  ↑ 无输出 = 空
+
+$ git diff --stat --no-color <U11A> HEAD -- _archive     (必须空)
+  ↑ 无输出 = 空
+
+## 附加门：本卡改过的文件是否都在 23 文件清单内
+  ↑ 无输出 = 全部 ⊆ 23 文件
+
+## 附加门：既有 skip 标记未被改动
+$ git diff --no-color <U11A> HEAD -- backend/tests | grep -cE "^-.*mark\.skip"
+0
+
+## 附加门：*.stderr* 未入库
+1
+
+## 两处「门自己报的假阳」逐条查清（不静默算过）
+
+### ① §二.7 的 grep 模式 '\.env' 命中 11 行 —— 是模式自身的假阳
+命中的全部是 `patch.dict(os.environ, ...)`：正则里的 `.` 匹配任意字符，`.env` 于是吃到 `os.environ` 的 "s.env"。
+换成只认真实读取面的精确模式后无输出：
+$ git diff --no-color 5139428d HEAD -- backend/tests | grep -E "^\+" | grep -nE "ACTIVE_VAULT|load_dotenv|_env_file *= *[^N]|[\"']\.env|/\.env"
+（无输出）
+
+本卡唯一的环境注入是 test_config_neo4j.py:38 `_LOCAL_DEV_ENV = {"DEBUG": "true"}` —— 纯字面量，
+不读 .env、不读 ACTIVE_VAULT；且全部 Settings 实例化都带 `_env_file=None`（上面第三个分支为空即证）。
+vault fixture 硬约束 (h)：本卡未新建/改写任何 vault 相关 fixture，vault id 无出现面。
+
+### ② (m) 的 `git ls-tree -r HEAD --name-only | grep -c stderr` = 1 —— 是既有文件，非本卡入库
+命中文件 = _bmad-output/审查/G4-9-evidence/census-stderr.txt
+$ git log --oneline --date=short --format="%h %ad %s" -- <该文件>
+4c125f19 2026-08-28 fix(census): G4-9 Codex round-5 findings 整改 [BATCH-2026-08-28-第五批 / CARD-G4-9]
+67ccebe1 2026-08-28 docs(census): G4-9 DLQ真实挂载census分诊 92条台账+挂载真相+三态裁定 [BATCH-2026-08-28-第五批 / CARD-G4-9]
+它在本批基线 da690bf8 就已入库（git ls-tree -r da690bf8 | grep -c stderr = 1），
+文件名以 .txt 结尾故不被 .gitignore 的 *.stderr* 覆盖；(m) 的判据是子串匹配，被这个既有文件名撞上。
+本卡自己的口径判据（本卡 diff 里有没有 stderr 文件）：
+$ git diff --name-only --no-color 5139428d HEAD | grep -c stderr
+0
+= 0 ⇒ 本卡零 stderr 入库，(m) 满足；既有那个属 CARD-G4-9 遗留，登记台账不代修（D-16 甲禁顺手修存量）。

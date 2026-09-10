@@ -1,0 +1,86 @@
+### (g) 翻转总表 ①~⑨ — 新旧两版同场对撞 (ts=20260908T070943)
+旧版 = git show da690bf8:scripts/verify_vault_install.py  sha256=7ede237cf144bd9c50e0b3ba4071d4d8a6b36fc9ef79bd061b5ed3af6ebce62a
+     （与 c4e6b165 版逐字节同，见 minute0-head-proof）
+新版 = 工作树 scripts/verify_vault_install.py  sha256=0b44a869172c24a6f1454a12cb216fb0a568858bf0555bc16a3432f84a0ff845
+⑩ (install-vault.sh:117) 见 install-sh-117-before/after-*.txt
+
+============================================================================
+①  extra_allow 含 .obsidian/graph.json 且夹具有它
+============================================================================
+  旧版(da690bf8): rc=1  buckets={'match': 28, 'extra': 1}
+  新版(本卡)    : rc=0  buckets={'match': 28, 'allowed_extra': 1}
+  ▸ 旧版对 extra_allow 顶层键静默忽略 ⇒ 仍报 extra rc=1；新版进 allowed-extra、rc=0
+
+============================================================================
+②  未列 extra (.claude/cache) — 既有门 test_extra_is_detected_alone 的语义迁移
+============================================================================
+  旧版(da690bf8): rc=1  buckets={'match': 28, 'extra': 1}
+  新版(本卡)    : rc=2  buckets={'match': 28, 'extra': 1}
+  ▸ 旧 1 → 新 2 (extra 进 mismatch 档)
+
+============================================================================
+③  只 missing — 既有门 test_missing_is_detected_alone, 期望值不变
+============================================================================
+  旧版(da690bf8): rc=1  buckets={'match': 27, 'missing': 1}
+  新版(本卡)    : rc=1  buckets={'match': 27, 'missing': 1}
+  ▸ 旧 1 → 新 1 (missing 语义没被 mismatch 吞掉)
+
+============================================================================
+④  只 content-drift — 既有门 test_content_drift_is_detected_alone 的语义迁移
+============================================================================
+  旧版(da690bf8): rc=1  buckets={'match': 27, 'content_drift': 1}
+  新版(本卡)    : rc=2  buckets={'match': 27, 'content_drift': 1}
+  ▸ 旧 1 → 新 2
+
+============================================================================
+④'  四类混合 (missing+extra+drift+excluded) — 既有零写门的语义迁移
+============================================================================
+  旧版(da690bf8): rc=1  buckets={'match': 26, 'missing': 1, 'extra': 1, 'content_drift': 1, 'intentionally_excluded': 1}
+  新版(本卡)    : rc=2  buckets={'match': 26, 'missing': 1, 'extra': 1, 'content_drift': 1, 'intentionally_excluded': 1}
+  ▸ 旧 1 → 新 2 (多桶并存取 mismatch)
+
+============================================================================
+④''  unreadable 单独 — 既有门 test_unreadable_alone_still_blocks 的语义迁移
+============================================================================
+  旧版(da690bf8): rc=1  buckets={'match': 28, 'unreadable': 2}
+  新版(本卡)    : rc=2  buckets={'match': 28, 'unreadable': 2}
+  ▸ 旧 1 → 新 2
+
+============================================================================
+⑤  用法错 (manifest 含绝对 path)
+============================================================================
+  旧版(da690bf8): rc=2  ❌ manifest 不可用: item 的 path 必须相对 vault 根, 不得是绝对路径: '/etc/passwd'
+  新版(本卡)    : rc=3  ❌ manifest 不可用: item 的 path 必须相对 vault 根, 不得是绝对路径: '/etc/passwd'
+  ▸ 旧 2 → 新 3
+
+============================================================================
+⑥  extra_allow 与 declared 重叠
+============================================================================
+  旧版(da690bf8): rc=0  # vault-install verification report (CARD-G2-6, read-only)
+  新版(本卡)    : rc=3  ❌ manifest 不可用: extra_allow[0] '.obsidian/hotkeys.json' 与 已声明项 '.obsidian/hotkeys.json' 重叠 —— 同一路径不得既「该在这里」/「故意不复制」又「允许多出来」
+  ▸ 旧不识别(按普通 run 出 rc) → 新 3 拒绝加载
+
+============================================================================
+⑦  hotkeys 绑了不存在的命令 id
+============================================================================
+  旧版(da690bf8): rc=0  buckets={'match': 28}
+  新版(本卡)    : rc=2  buckets={'match': 28, 'hotkey_orphan': 1}
+  ▸ 旧 0 (完全不查) → 新 2
+
+============================================================================
+⑧  hotkeys 绑真 id (⑦ 的对照, 证不是恒红)
+============================================================================
+  旧版(da690bf8): rc=0  buckets={'match': 28}
+  新版(本卡)    : rc=0  buckets={'match': 28}
+  ▸ 旧 0 → 新 0
+
+============================================================================
+⑨  main.js 缺 (gitignored 构建产物)
+============================================================================
+  旧版(da690bf8): rc=0  buckets={'match': 28}
+  新版(本卡)    : rc=0  buckets={'match': 28}
+  ▸ 新版报告行: hotkeys                : not evaluated (.obsidian/plugins/canvas-learning-system/main.js 缺 — gitignored 构建产物)
+  旧版报告行: (无 hotkeys 行)
+
+flip-table-rc=0
+rc=0

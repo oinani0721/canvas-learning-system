@@ -1,0 +1,86 @@
+# status_conformance_probe v3 —— Codex r2 LOW 整改：还原自证改为完整指纹比对 + 负控 B 绑键集
+# 树态: e74757c5（代码未变，仅 _bmad-output 内的探针加固）
+{"method": "POST", "path": "/api/v1/system/config", "endpoint": "/api/v1/system/config", "status": 403, "duration_ms": 4.83, "event": "request.completed", "request_id": "5228346208", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T10:55:10.093784Z"}
+{"method": "GET", "path": "/api/v1/system/config-check", "endpoint": "/api/v1/system/config-check", "status": 403, "duration_ms": 3.8, "event": "request.completed", "request_id": "5227150560", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T10:55:10.098167Z"}
+{"method": "GET", "path": "/api/v1/system/error-aggregation", "endpoint": "/api/v1/system/error-aggregation", "status": 403, "duration_ms": 3.57, "event": "request.completed", "request_id": "5221013424", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T10:55:10.102212Z"}
+{"method": "GET", "path": "/api/v1/system/extraction-records", "endpoint": "/api/v1/system/extraction-records", "status": 403, "duration_ms": 3.64, "event": "request.completed", "request_id": "5224541520", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T10:55:10.106359Z"}
+{"method": "PATCH", "path": "/api/v1/system/extraction-records/probe-placeholder", "endpoint": "/api/v1/system/extraction-records/probe-placeholder", "status": 403, "duration_ms": 4.04, "event": "request.completed", "request_id": "5226373968", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T10:55:10.110860Z"}
+{"method": "DELETE", "path": "/api/v1/system/extraction-records/probe-placeholder", "endpoint": "/api/v1/system/extraction-records/probe-placeholder", "status": 403, "duration_ms": 3.62, "event": "request.completed", "request_id": "5223838160", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T10:55:10.114974Z"}
+{"method": "POST", "path": "/api/v1/system/extraction-records/probe-placeholder/annotate", "endpoint": "/api/v1/system/extraction-records/probe-placeholder/annotate", "status": 403, "duration_ms": 3.76, "event": "request.completed", "request_id": "5223829520", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T10:55:10.119143Z"}
+{"method": "DELETE", "path": "/api/v1/system/extraction-records/probe-placeholder/annotation", "endpoint": "/api/v1/system/extraction-records/probe-placeholder/annotation", "status": 403, "duration_ms": 3.48, "event": "request.completed", "request_id": "5223840656", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T10:55:10.123015Z"}
+{"method": "GET", "path": "/api/v1/system/health", "endpoint": "/api/v1/system/health", "status": 403, "duration_ms": 3.5, "event": "request.completed", "request_id": "5223841040", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T10:55:10.126906Z"}
+{"method": "GET", "path": "/api/v1/system/health/detailed", "endpoint": "/api/v1/system/health/detailed", "status": 403, "duration_ms": 3.54, "event": "request.completed", "request_id": "5223841424", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T10:55:10.130881Z"}
+{"method": "GET", "path": "/api/v1/system/llm-stats", "endpoint": "/api/v1/system/llm-stats", "status": 403, "duration_ms": 3.69, "event": "request.completed", "request_id": "5230674000", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T10:55:10.135017Z"}
+{"method": "GET", "path": "/api/v1/system/pipeline-health", "endpoint": "/api/v1/system/pipeline-health", "status": 403, "duration_ms": 3.52, "event": "request.completed", "request_id": "5230674768", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T10:55:10.138977Z"}
+{"method": "GET", "path": "/api/v1/system/qa-metrics", "endpoint": "/api/v1/system/qa-metrics", "status": 403, "duration_ms": 3.48, "event": "request.completed", "request_id": "5230674960", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T10:55:10.142858Z"}
+{"method": "POST", "path": "/api/v1/system/setup-wizard", "endpoint": "/api/v1/system/setup-wizard", "status": 403, "duration_ms": 3.84, "event": "request.completed", "request_id": "5230675728", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T10:55:10.147124Z"}
+{"method": "GET", "path": "/api/v1/system/startup-check", "endpoint": "/api/v1/system/startup-check", "status": 403, "duration_ms": 3.51, "event": "request.completed", "request_id": "5230679376", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T10:55:10.150995Z"}
+{"method": "POST", "path": "/api/v1/system/test-llm", "endpoint": "/api/v1/system/test-llm", "status": 403, "duration_ms": 3.77, "event": "request.completed", "request_id": "5230680912", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T10:55:10.155200Z"}
+{"method": "POST", "path": "/api/v1/system/config", "endpoint": "/api/v1/system/config", "status": 403, "duration_ms": 3.98, "event": "request.completed", "request_id": "5208648464", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T10:55:10.559762Z"}
+{"method": "GET", "path": "/api/v1/system/config-check", "endpoint": "/api/v1/system/config-check", "status": 403, "duration_ms": 3.35, "event": "request.completed", "request_id": "5223837584", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T10:55:10.563581Z"}
+{"method": "GET", "path": "/api/v1/system/error-aggregation", "endpoint": "/api/v1/system/error-aggregation", "status": 403, "duration_ms": 3.46, "event": "request.completed", "request_id": "5223838352", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T10:55:10.567407Z"}
+{"method": "GET", "path": "/api/v1/system/extraction-records", "endpoint": "/api/v1/system/extraction-records", "status": 403, "duration_ms": 3.32, "event": "request.completed", "request_id": "5223836048", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T10:55:10.571102Z"}
+{"method": "PATCH", "path": "/api/v1/system/extraction-records/probe-placeholder", "endpoint": "/api/v1/system/extraction-records/probe-placeholder", "status": 403, "duration_ms": 3.65, "event": "request.completed", "request_id": "5223836432", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T10:55:10.575133Z"}
+{"method": "DELETE", "path": "/api/v1/system/extraction-records/probe-placeholder", "endpoint": "/api/v1/system/extraction-records/probe-placeholder", "status": 403, "duration_ms": 3.33, "event": "request.completed", "request_id": "5223841232", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T10:55:10.578807Z"}
+{"method": "POST", "path": "/api/v1/system/extraction-records/probe-placeholder/annotate", "endpoint": "/api/v1/system/extraction-records/probe-placeholder/annotate", "status": 403, "duration_ms": 3.61, "event": "request.completed", "request_id": "5223839312", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T10:55:10.582763Z"}
+{"method": "DELETE", "path": "/api/v1/system/extraction-records/probe-placeholder/annotation", "endpoint": "/api/v1/system/extraction-records/probe-placeholder/annotation", "status": 403, "duration_ms": 3.47, "event": "request.completed", "request_id": "5182441040", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T10:55:10.586687Z"}
+{"method": "GET", "path": "/api/v1/system/health", "endpoint": "/api/v1/system/health", "status": 403, "duration_ms": 3.36, "event": "request.completed", "request_id": "5182442000", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T10:55:10.590417Z"}
+{"method": "GET", "path": "/api/v1/system/health/detailed", "endpoint": "/api/v1/system/health/detailed", "status": 403, "duration_ms": 3.32, "event": "request.completed", "request_id": "5182442576", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T10:55:10.594094Z"}
+{"method": "GET", "path": "/api/v1/system/llm-stats", "endpoint": "/api/v1/system/llm-stats", "status": 403, "duration_ms": 3.28, "event": "request.completed", "request_id": "5174387216", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T10:55:10.597750Z"}
+{"method": "GET", "path": "/api/v1/system/pipeline-health", "endpoint": "/api/v1/system/pipeline-health", "status": 403, "duration_ms": 3.36, "event": "request.completed", "request_id": "5174389712", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T10:55:10.601456Z"}
+{"method": "GET", "path": "/api/v1/system/qa-metrics", "endpoint": "/api/v1/system/qa-metrics", "status": 403, "duration_ms": 3.39, "event": "request.completed", "request_id": "5230684560", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T10:55:10.605223Z"}
+{"method": "POST", "path": "/api/v1/system/setup-wizard", "endpoint": "/api/v1/system/setup-wizard", "status": 403, "duration_ms": 3.69, "event": "request.completed", "request_id": "5230684176", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T10:55:10.609358Z"}
+{"method": "GET", "path": "/api/v1/system/startup-check", "endpoint": "/api/v1/system/startup-check", "status": 403, "duration_ms": 3.37, "event": "request.completed", "request_id": "5230678416", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T10:55:10.613080Z"}
+{"method": "POST", "path": "/api/v1/system/test-llm", "endpoint": "/api/v1/system/test-llm", "status": 403, "duration_ms": 3.56, "event": "request.completed", "request_id": "5230682064", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T10:55:10.616987Z"}
+{"method": "POST", "path": "/api/v1/system/config", "endpoint": "/api/v1/system/config", "status": 403, "duration_ms": 4.07, "event": "request.completed", "request_id": "5230676112", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T10:55:10.938579Z"}
+{"method": "GET", "path": "/api/v1/system/config-check", "endpoint": "/api/v1/system/config-check", "status": 403, "duration_ms": 3.56, "event": "request.completed", "request_id": "5230674192", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T10:55:10.942624Z"}
+{"method": "GET", "path": "/api/v1/system/error-aggregation", "endpoint": "/api/v1/system/error-aggregation", "status": 403, "duration_ms": 3.41, "event": "request.completed", "request_id": "5230683408", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T10:55:10.946444Z"}
+{"method": "GET", "path": "/api/v1/system/extraction-records", "endpoint": "/api/v1/system/extraction-records", "status": 403, "duration_ms": 3.38, "event": "request.completed", "request_id": "5230684752", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T10:55:10.950201Z"}
+{"method": "PATCH", "path": "/api/v1/system/extraction-records/probe-placeholder", "endpoint": "/api/v1/system/extraction-records/probe-placeholder", "status": 403, "duration_ms": 3.67, "event": "request.completed", "request_id": "5230685328", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T10:55:10.954256Z"}
+{"method": "DELETE", "path": "/api/v1/system/extraction-records/probe-placeholder", "endpoint": "/api/v1/system/extraction-records/probe-placeholder", "status": 403, "duration_ms": 3.55, "event": "request.completed", "request_id": "5230687632", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T10:55:10.958240Z"}
+{"method": "POST", "path": "/api/v1/system/extraction-records/probe-placeholder/annotate", "endpoint": "/api/v1/system/extraction-records/probe-placeholder/annotate", "status": 403, "duration_ms": 3.67, "event": "request.completed", "request_id": "5230688208", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T10:55:10.962283Z"}
+{"method": "DELETE", "path": "/api/v1/system/extraction-records/probe-placeholder/annotation", "endpoint": "/api/v1/system/extraction-records/probe-placeholder/annotation", "status": 403, "duration_ms": 3.38, "event": "request.completed", "request_id": "5223301584", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T10:55:10.966017Z"}
+{"method": "GET", "path": "/api/v1/system/health", "endpoint": "/api/v1/system/health", "status": 403, "duration_ms": 3.41, "event": "request.completed", "request_id": "5223301200", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T10:55:10.969814Z"}
+{"method": "GET", "path": "/api/v1/system/health/detailed", "endpoint": "/api/v1/system/health/detailed", "status": 403, "duration_ms": 3.34, "event": "request.completed", "request_id": "5223301776", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T10:55:10.973544Z"}
+{"method": "GET", "path": "/api/v1/system/llm-stats", "endpoint": "/api/v1/system/llm-stats", "status": 403, "duration_ms": 3.31, "event": "request.completed", "request_id": "5223302352", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T10:55:10.977205Z"}
+{"method": "GET", "path": "/api/v1/system/pipeline-health", "endpoint": "/api/v1/system/pipeline-health", "status": 403, "duration_ms": 3.48, "event": "request.completed", "request_id": "5223302736", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T10:55:10.981027Z"}
+{"method": "GET", "path": "/api/v1/system/qa-metrics", "endpoint": "/api/v1/system/qa-metrics", "status": 403, "duration_ms": 3.46, "event": "request.completed", "request_id": "5223303312", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T10:55:10.984911Z"}
+{"method": "POST", "path": "/api/v1/system/setup-wizard", "endpoint": "/api/v1/system/setup-wizard", "status": 403, "duration_ms": 3.75, "event": "request.completed", "request_id": "5223303888", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T10:55:10.989060Z"}
+{"method": "GET", "path": "/api/v1/system/startup-check", "endpoint": "/api/v1/system/startup-check", "status": 403, "duration_ms": 3.4, "event": "request.completed", "request_id": "5223306384", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T10:55:10.992849Z"}
+{"method": "POST", "path": "/api/v1/system/test-llm", "endpoint": "/api/v1/system/test-llm", "status": 403, "duration_ms": 3.61, "event": "request.completed", "request_id": "5223306960", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T10:55:10.996796Z"}
+# 观测到 16 个 /api/v1/system/* operation（不带 key 各发一次请求）
+
+## 正判：实际返回码必须在该 operation 的 responses 里有声明
+  PASS  POST   /api/v1/system/config                                -> 403  declared=['200', '403', '422', '500', '503']
+  PASS  GET    /api/v1/system/config-check                          -> 403  declared=['200', '403', '500', '503']
+  PASS  GET    /api/v1/system/error-aggregation                     -> 403  declared=['200', '403', '500', '503']
+  PASS  GET    /api/v1/system/extraction-records                    -> 403  declared=['200', '403', '422', '500', '503']
+  PASS  PATCH  /api/v1/system/extraction-records/{record_id}        -> 403  declared=['200', '403', '422', '500', '503']
+  PASS  DELETE /api/v1/system/extraction-records/{record_id}        -> 403  declared=['200', '403', '422', '500', '503']
+  PASS  POST   /api/v1/system/extraction-records/{record_id}/annotate -> 403  declared=['200', '403', '422', '500', '503']
+  PASS  DELETE /api/v1/system/extraction-records/{record_id}/annotation -> 403  declared=['200', '403', '422', '500', '503']
+  PASS  GET    /api/v1/system/health                                -> 403  declared=['200', '403', '500', '503']
+  PASS  GET    /api/v1/system/health/detailed                       -> 403  declared=['200', '403', '500', '503']
+  PASS  GET    /api/v1/system/llm-stats                             -> 403  declared=['200', '403', '422', '500', '503']
+  PASS  GET    /api/v1/system/pipeline-health                       -> 403  declared=['200', '403', '500', '503']
+  PASS  GET    /api/v1/system/qa-metrics                            -> 403  declared=['200', '403', '500', '503']
+  PASS  POST   /api/v1/system/setup-wizard                          -> 403  declared=['200', '403', '422', '500', '503']
+  PASS  GET    /api/v1/system/startup-check                         -> 403  declared=['200', '403', '500', '503']
+  PASS  POST   /api/v1/system/test-llm                              -> 403  declared=['200', '403', '422', '500', '503']
+  => 正判 PASS：未声明的返回码 0 个 []
+
+## 负控：把 spec 副本里每个 /system/* operation 的 403 声明摘掉，同一批观测必须全部 FAIL
+  => 摘掉 403 的 operation 16 个；其中仍判 PASS 的 0 个 []
+  => 负控 A 成立（判定函数确实在读 403 声明）
+
+## 负控 B（更强）：在真实 app.routes 上删掉 403 声明 + 清 schema 缓存，**原样重跑观测**
+  变异后观测到 16 个 operation；其中判 FAIL（未声明）16 个
+  仍判 PASS 的 0 个 []
+  键集与正判**逐条相同** = True
+  => 负控 B 成立（真的缺声明时这套探针会红）
+  => 还原自证：观测到 16 个 operation（正判时 16 个）
+     缺失 0 个 []；指纹变化 0 个 []
+     指纹逐条相同 = True
+
+VERDICT=PASS
+rc=0

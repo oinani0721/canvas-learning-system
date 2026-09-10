@@ -1,0 +1,346 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u11-red-c/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 64 items
+
+tests/unit/test_cache_configuration.py .F....FF...F.F.                   [ 23%]
+tests/unit/test_qa_38_4_dual_write_extra.py ........F.                   [ 39%]
+tests/unit/test_qa_38_6_scoring_reliability_extra.py ........F.ssFF      [ 60%]
+tests/unit/test_story_38_4_dual_write_default.py FFF.FFF                 [ 71%]
+tests/unit/test_story_38_6_scoring_reliability.py .FF.F...ssss..F...     [100%]
+
+=================================== FAILURES ===================================
+_______ TestMemoryRetryDelayFromSettings.test_retry_delay_reads_settings _______
+tests/unit/test_cache_configuration.py:61: in test_retry_delay_reads_settings
+    assert svc._retry_base_delay == 2.5
+           ^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'MemoryService' object has no attribute '_retry_base_delay'
+________ TestEnrichmentCacheFromSettings.test_cache_uses_custom_maxsize ________
+tests/unit/test_cache_configuration.py:143: in test_cache_uses_custom_maxsize
+    svc = ContextEnrichmentService(
+E   TypeError: ContextEnrichmentService.__init__() got an unexpected keyword argument 'association_cache_maxsize'
+__________ TestEnrichmentCacheFromSettings.test_cache_default_maxsize __________
+tests/unit/test_cache_configuration.py:155: in test_cache_default_maxsize
+    assert svc._association_cache.maxsize == 1000
+           ^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'ContextEnrichmentService' object has no attribute '_association_cache'
+____ TestDefaultValuesBackwardCompatible.test_enrichment_extreme_maxsize_1 _____
+tests/unit/test_cache_configuration.py:208: in test_enrichment_extreme_maxsize_1
+    svc = ContextEnrichmentService(
+E   TypeError: ContextEnrichmentService.__init__() got an unexpected keyword argument 'association_cache_maxsize'
+_____ TestDIPathPropagation.test_enrichment_service_di_passes_cache_config _____
+tests/unit/test_cache_configuration.py:242: in test_enrichment_service_di_passes_cache_config
+    assert "ENRICHMENT_CACHE_MAXSIZE" in source, (
+E   AssertionError: dependencies.py must pass ENRICHMENT_CACHE_MAXSIZE to ContextEnrichmentService
+E   assert 'ENRICHMENT_CACHE_MAXSIZE' in 'async def get_context_enrichment_service(\n    canvas_service: CanvasServiceDep, settings: SettingsDep\n) -> AsyncGen...n\n    try:\n        yield service\n    finally:\n        logger.debug("ContextEnrichmentService cleanup completed")\n'
+__ TestQAGetAttrDefenseInDepth.test_memory_service_getattr_fallback_is_false ___
+tests/unit/test_qa_38_4_dual_write_extra.py:63: in test_memory_service_getattr_fallback_is_false
+    assert fresh_settings.ENABLE_GRAPHITI_JSON_DUAL_WRITE is True
+E   AssertionError: assert False is True
+E    +  where False = Settings(PROJECT_NAME='Canvas Learning System API', PROJECT_DESCRIPTION='Multi-agent learning system backend using Fey...OLD=0.85, FAITHFULNESS_THRESHOLD_LOW=0.5, FAITHFULNESS_MODEL='', INJECTION_GUARD_ENABLED=True, INJECTION_THRESHOLD=0.7).ENABLE_GRAPHITI_JSON_DUAL_WRITE
+__________ TestMergedViewEdgeCases.test_merged_view_sort_newest_first __________
+tests/unit/test_qa_38_6_scoring_reliability_extra.py:293: in test_merged_view_sort_newest_first
+    assert len(items) == 3
+E   AssertionError: assert 1 == 3
+E    +  where 1 = len([{'concept': 'concept_mid', 'node_id': 'node_mid', 'score': 50.0, 'timestamp': '2026-02-06T10:00:00'}])
+____________ TestStartupIntegration.test_main_imports_fallback_sync ____________
+tests/unit/test_qa_38_6_scoring_reliability_extra.py:446: in test_main_imports_fallback_sync
+    assert "get_fallback_sync_service" in source
+E   assert 'get_fallback_sync_service' in '# Canvas Learning System - FastAPI Application Entry Point\n# ✅ Verified from Context7:/websites/fastapi_tiangolo (to...    "docs": "/docs" if settings.DEBUG else "disabled",\n        "health": f"{settings.API_V1_PREFIX}/health",\n    }\n'
+_________ TestStartupIntegration.test_fallback_sync_called_in_lifespan _________
+tests/unit/test_qa_38_6_scoring_reliability_extra.py:453: in test_fallback_sync_called_in_lifespan
+    assert "sync_all_fallbacks" in source
+E   assert 'sync_all_fallbacks' in '# Canvas Learning System - FastAPI Application Entry Point\n# ✅ Verified from Context7:/websites/fastapi_tiangolo (to...    "docs": "/docs" if settings.DEBUG else "disabled",\n        "health": f"{settings.API_V1_PREFIX}/health",\n    }\n'
+____________ TestAC1SafeDefault.test_settings_field_default_is_true ____________
+tests/unit/test_story_38_4_dual_write_default.py:39: in test_settings_field_default_is_true
+    assert field_info.default is True, (
+E   AssertionError: Expected default=True for safe default, got default=False. Story 38.4 Task 1.1: Change default=False -> default=True in config.py
+E   assert False is True
+E    +  where False = FieldInfo(annotation=bool, required=False, default=False, description='[DEPRECATED] Legacy JSON dual-write. Replaced by GraphitiEpisodeWorker.').default
+_______ TestAC1SafeDefault.test_lowercase_alias_returns_true_by_default ________
+tests/unit/test_story_38_4_dual_write_default.py:57: in test_lowercase_alias_returns_true_by_default
+    assert settings.enable_graphiti_json_dual_write is True, (
+E   AssertionError: Lowercase property alias should return True by default
+E   assert False is True
+E    +  where False = Settings(PROJECT_NAME='Canvas Learning System API', PROJECT_DESCRIPTION='Multi-agent learning system backend using Fey...OLD=0.85, FAITHFULNESS_THRESHOLD_LOW=0.5, FAITHFULNESS_MODEL='', INJECTION_GUARD_ENABLED=True, INJECTION_THRESHOLD=0.7).enable_graphiti_json_dual_write
+________ TestAC1SafeDefault.test_startup_log_dual_write_enabled_default ________
+tests/unit/test_story_38_4_dual_write_default.py:86: in test_startup_log_dual_write_enabled_default
+    patch("app.main.set_session_validator"),
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/unittest/mock.py:1510: in __enter__
+    original, local = self.get_original()
+                      ^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/unittest/mock.py:1480: in get_original
+    raise AttributeError(
+E   AttributeError: <module 'app.main' from '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u11-red-c/backend/app/main.py'> does not have the attribute 'set_session_validator'
+_____ TestAC2ExplicitDisable.test_startup_log_dual_write_disabled_explicit _____
+tests/unit/test_story_38_4_dual_write_default.py:153: in test_startup_log_dual_write_disabled_explicit
+    patch("app.main.set_session_validator"),
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/unittest/mock.py:1510: in __enter__
+    original, local = self.get_original()
+                      ^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/unittest/mock.py:1480: in get_original
+    raise AttributeError(
+E   AttributeError: <module 'app.main' from '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u11-red-c/backend/app/main.py'> does not have the attribute 'set_session_validator'
+_____ TestAC2ExplicitDisable.test_warning_log_data_loss_risk_when_disabled _____
+tests/unit/test_story_38_4_dual_write_default.py:201: in test_warning_log_data_loss_risk_when_disabled
+    patch("app.main.set_session_validator"),
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/unittest/mock.py:1510: in __enter__
+    original, local = self.get_original()
+                      ^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/unittest/mock.py:1480: in get_original
+    raise AttributeError(
+E   AttributeError: <module 'app.main' from '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u11-red-c/backend/app/main.py'> does not have the attribute 'set_session_validator'
+__________ TestAC3MissingEnvVar.test_missing_env_var_defaults_to_true __________
+tests/unit/test_story_38_4_dual_write_default.py:254: in test_missing_env_var_defaults_to_true
+    assert settings.ENABLE_GRAPHITI_JSON_DUAL_WRITE is True, (
+E   AssertionError: Expected True when env var missing, got False. Story 38.4 AC-3: Missing env var should default to True (safe default)
+E   assert False is True
+E    +  where False = Settings(PROJECT_NAME='Canvas Learning System API', PROJECT_DESCRIPTION='Multi-agent learning system backend using Fey...OLD=0.85, FAITHFULNESS_THRESHOLD_LOW=0.5, FAITHFULNESS_MODEL='', INJECTION_GUARD_ENABLED=True, INJECTION_THRESHOLD=0.7).ENABLE_GRAPHITI_JSON_DUAL_WRITE
+____ TestAC1TimeoutRetryAlignment.test_inner_per_attempt_timeout_increased _____
+tests/unit/test_story_38_6_scoring_reliability.py:39: in test_inner_per_attempt_timeout_increased
+    assert GRAPHITI_JSON_WRITE_TIMEOUT >= 2.0
+E   assert 0.5 >= 2.0
+_______ TestAC1TimeoutRetryAlignment.test_retry_backoff_base_is_1_second _______
+tests/unit/test_story_38_6_scoring_reliability.py:43: in test_retry_backoff_base_is_1_second
+    assert GRAPHITI_RETRY_BACKOFF_BASE == 1.0
+E   assert 0.1 == 1.0
+____________ TestAC1TimeoutRetryAlignment.test_backoff_progression _____________
+tests/unit/test_story_38_6_scoring_reliability.py:65: in test_backoff_progression
+    assert delay == expected, f"Attempt {attempt}: expected {expected}s, got {delay}s"
+E   AssertionError: Attempt 0: expected 1.0s, got 0.1s
+E   assert 0.1 == 1.0
+_______ TestAC4MergedView.test_get_learning_history_merges_failed_scores _______
+tests/unit/test_story_38_6_scoring_reliability.py:344: in test_get_learning_history_merges_failed_scores
+    assert result["total"] == 2
+E   assert 1 == 2
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:805
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u11-red-c/backend/app/api/v1/endpoints/chat.py:805: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:105
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u11-red-c/backend/app/api/v1/endpoints/metadata.py:105: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:179
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u11-red-c/backend/app/api/v1/endpoints/metadata.py:179: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+___ TestAgentServiceCacheFromSettings.test_cache_uses_custom_maxsize_and_ttl ___
+----------------------------- Captured stdout call -----------------------------
+{"event": "AgentService initialized without configured AI client - API calls will fail", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-07T22:54:56.329497Z"}
+{"event": "AgentService initialized without LearningMemoryClient - historical context fallback unavailable when Neo4j is down", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-07T22:54:56.329616Z"}
+{"event": "AgentService initialized without CanvasService - nodes will not be written to Canvas", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-07T22:54:56.329661Z"}
+{"event": "AgentService Phase 2: Tool calling disabled (ENABLE_TOOL_CALLING=false)", "logger": "app.services.agent_service", "level": "info", "timestamp": "2026-09-07T22:54:56.329691Z"}
+{"event": "AgentService Phase 4: React Agent ENABLED (ENABLE_REACT_AGENT=true)", "logger": "app.services.agent_service", "level": "info", "timestamp": "2026-09-07T22:54:56.329719Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.agent_service:agent_service.py:1401 {'event': 'AgentService initialized without configured AI client - API calls will fail', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-07T22:54:56.329497Z'}
+WARNING  app.services.agent_service:agent_service.py:1410 {'event': 'AgentService initialized without LearningMemoryClient - historical context fallback unavailable when Neo4j is down', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-07T22:54:56.329616Z'}
+WARNING  app.services.agent_service:agent_service.py:1428 {'event': 'AgentService initialized without CanvasService - nodes will not be written to Canvas', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-07T22:54:56.329661Z'}
+INFO     app.services.agent_service:agent_service.py:1445 {'event': 'AgentService Phase 2: Tool calling disabled (ENABLE_TOOL_CALLING=false)', 'logger': 'app.services.agent_service', 'level': 'info', 'timestamp': '2026-09-07T22:54:56.329691Z'}
+INFO     app.services.agent_service:agent_service.py:1450 {'event': 'AgentService Phase 4: React Agent ENABLED (ENABLE_REACT_AGENT=true)', 'logger': 'app.services.agent_service', 'level': 'info', 'timestamp': '2026-09-07T22:54:56.329719Z'}
+_________ TestAgentServiceCacheFromSettings.test_cache_default_values __________
+----------------------------- Captured stdout call -----------------------------
+{"event": "AgentService initialized without configured AI client - API calls will fail", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-07T22:54:56.330218Z"}
+{"event": "AgentService initialized without LearningMemoryClient - historical context fallback unavailable when Neo4j is down", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-07T22:54:56.330263Z"}
+{"event": "AgentService initialized without CanvasService - nodes will not be written to Canvas", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-07T22:54:56.330295Z"}
+{"event": "AgentService Phase 2: Tool calling disabled (ENABLE_TOOL_CALLING=false)", "logger": "app.services.agent_service", "level": "info", "timestamp": "2026-09-07T22:54:56.330320Z"}
+{"event": "AgentService Phase 4: React Agent ENABLED (ENABLE_REACT_AGENT=true)", "logger": "app.services.agent_service", "level": "info", "timestamp": "2026-09-07T22:54:56.330343Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.agent_service:agent_service.py:1401 {'event': 'AgentService initialized without configured AI client - API calls will fail', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-07T22:54:56.330218Z'}
+WARNING  app.services.agent_service:agent_service.py:1410 {'event': 'AgentService initialized without LearningMemoryClient - historical context fallback unavailable when Neo4j is down', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-07T22:54:56.330263Z'}
+WARNING  app.services.agent_service:agent_service.py:1428 {'event': 'AgentService initialized without CanvasService - nodes will not be written to Canvas', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-07T22:54:56.330295Z'}
+INFO     app.services.agent_service:agent_service.py:1445 {'event': 'AgentService Phase 2: Tool calling disabled (ENABLE_TOOL_CALLING=false)', 'logger': 'app.services.agent_service', 'level': 'info', 'timestamp': '2026-09-07T22:54:56.330320Z'}
+INFO     app.services.agent_service:agent_service.py:1450 {'event': 'AgentService Phase 4: React Agent ENABLED (ENABLE_REACT_AGENT=true)', 'logger': 'app.services.agent_service', 'level': 'info', 'timestamp': '2026-09-07T22:54:56.330343Z'}
+_____ TestDefaultValuesBackwardCompatible.test_extreme_maxsize_1_no_crash ______
+----------------------------- Captured stdout call -----------------------------
+{"event": "AgentService initialized without configured AI client - API calls will fail", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-07T22:54:56.338898Z"}
+{"event": "AgentService initialized without LearningMemoryClient - historical context fallback unavailable when Neo4j is down", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-07T22:54:56.339011Z"}
+{"event": "AgentService initialized without CanvasService - nodes will not be written to Canvas", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-07T22:54:56.339055Z"}
+{"event": "AgentService Phase 2: Tool calling disabled (ENABLE_TOOL_CALLING=false)", "logger": "app.services.agent_service", "level": "info", "timestamp": "2026-09-07T22:54:56.339085Z"}
+{"event": "AgentService Phase 4: React Agent ENABLED (ENABLE_REACT_AGENT=true)", "logger": "app.services.agent_service", "level": "info", "timestamp": "2026-09-07T22:54:56.339113Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.agent_service:agent_service.py:1401 {'event': 'AgentService initialized without configured AI client - API calls will fail', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-07T22:54:56.338898Z'}
+WARNING  app.services.agent_service:agent_service.py:1410 {'event': 'AgentService initialized without LearningMemoryClient - historical context fallback unavailable when Neo4j is down', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-07T22:54:56.339011Z'}
+WARNING  app.services.agent_service:agent_service.py:1428 {'event': 'AgentService initialized without CanvasService - nodes will not be written to Canvas', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-07T22:54:56.339055Z'}
+INFO     app.services.agent_service:agent_service.py:1445 {'event': 'AgentService Phase 2: Tool calling disabled (ENABLE_TOOL_CALLING=false)', 'logger': 'app.services.agent_service', 'level': 'info', 'timestamp': '2026-09-07T22:54:56.339085Z'}
+INFO     app.services.agent_service:agent_service.py:1450 {'event': 'AgentService Phase 4: React Agent ENABLED (ENABLE_REACT_AGENT=true)', 'logger': 'app.services.agent_service', 'level': 'info', 'timestamp': '2026-09-07T22:54:56.339113Z'}
+_______ TestDefaultValuesBackwardCompatible.test_extreme_ttl_0_no_crash ________
+----------------------------- Captured stdout call -----------------------------
+{"event": "AgentService initialized without configured AI client - API calls will fail", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-07T22:54:56.339686Z"}
+{"event": "AgentService initialized without LearningMemoryClient - historical context fallback unavailable when Neo4j is down", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-07T22:54:56.339741Z"}
+{"event": "AgentService initialized without CanvasService - nodes will not be written to Canvas", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-07T22:54:56.339774Z"}
+{"event": "AgentService Phase 2: Tool calling disabled (ENABLE_TOOL_CALLING=false)", "logger": "app.services.agent_service", "level": "info", "timestamp": "2026-09-07T22:54:56.339800Z"}
+{"event": "AgentService Phase 4: React Agent ENABLED (ENABLE_REACT_AGENT=true)", "logger": "app.services.agent_service", "level": "info", "timestamp": "2026-09-07T22:54:56.339824Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.agent_service:agent_service.py:1401 {'event': 'AgentService initialized without configured AI client - API calls will fail', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-07T22:54:56.339686Z'}
+WARNING  app.services.agent_service:agent_service.py:1410 {'event': 'AgentService initialized without LearningMemoryClient - historical context fallback unavailable when Neo4j is down', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-07T22:54:56.339741Z'}
+WARNING  app.services.agent_service:agent_service.py:1428 {'event': 'AgentService initialized without CanvasService - nodes will not be written to Canvas', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-07T22:54:56.339774Z'}
+INFO     app.services.agent_service:agent_service.py:1445 {'event': 'AgentService Phase 2: Tool calling disabled (ENABLE_TOOL_CALLING=false)', 'logger': 'app.services.agent_service', 'level': 'info', 'timestamp': '2026-09-07T22:54:56.339800Z'}
+INFO     app.services.agent_service:agent_service.py:1450 {'event': 'AgentService Phase 4: React Agent ENABLED (ENABLE_REACT_AGENT=true)', 'logger': 'app.services.agent_service', 'level': 'info', 'timestamp': '2026-09-07T22:54:56.339824Z'}
+__ TestWriteWithTimeoutIntegration.test_timeout_triggers_record_failed_write ___
+----------------------------- Captured stdout call -----------------------------
+{"event": "[Story 38.6] Score write failed after retries, saved to fallback: node_timeout", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-07T22:54:56.410652Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.agent_service:agent_service.py:133 {'event': '[Story 38.6] Score write failed after retries, saved to fallback: node_timeout', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-07T22:54:56.410652Z'}
+_ TestWriteWithTimeoutIntegration.test_exception_triggers_record_failed_write __
+----------------------------- Captured stdout call -----------------------------
+{"event": "[Story 38.6] Score write failed after retries, saved to fallback: node_exc", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-07T22:54:56.412544Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.agent_service:agent_service.py:133 {'event': '[Story 38.6] Score write failed after retries, saved to fallback: node_exc', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-07T22:54:56.412544Z'}
+________ TestConcurrentFailedWrites.test_concurrent_writes_all_recorded ________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[Story 38.6] Score write failed after retries, saved to fallback: node_0", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-07T22:54:56.413902Z"}
+{"event": "[Story 38.6] Score write failed after retries, saved to fallback: node_1", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-07T22:54:56.414023Z"}
+{"event": "[Story 38.6] Score write failed after retries, saved to fallback: node_2", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-07T22:54:56.414093Z"}
+{"event": "[Story 38.6] Score write failed after retries, saved to fallback: node_3", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-07T22:54:56.414153Z"}
+{"event": "[Story 38.6] Score write failed after retries, saved to fallback: node_4", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-07T22:54:56.414209Z"}
+{"event": "[Story 38.6] Score write failed after retries, saved to fallback: node_5", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-07T22:54:56.414264Z"}
+{"event": "[Story 38.6] Score write failed after retries, saved to fallback: node_6", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-07T22:54:56.414319Z"}
+{"event": "[Story 38.6] Score write failed after retries, saved to fallback: node_7", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-07T22:54:56.414372Z"}
+{"event": "[Story 38.6] Score write failed after retries, saved to fallback: node_8", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-07T22:54:56.414423Z"}
+{"event": "[Story 38.6] Score write failed after retries, saved to fallback: node_9", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-07T22:54:56.414491Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.agent_service:agent_service.py:133 {'event': '[Story 38.6] Score write failed after retries, saved to fallback: node_0', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-07T22:54:56.413902Z'}
+WARNING  app.services.agent_service:agent_service.py:133 {'event': '[Story 38.6] Score write failed after retries, saved to fallback: node_1', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-07T22:54:56.414023Z'}
+WARNING  app.services.agent_service:agent_service.py:133 {'event': '[Story 38.6] Score write failed after retries, saved to fallback: node_2', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-07T22:54:56.414093Z'}
+WARNING  app.services.agent_service:agent_service.py:133 {'event': '[Story 38.6] Score write failed after retries, saved to fallback: node_3', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-07T22:54:56.414153Z'}
+WARNING  app.services.agent_service:agent_service.py:133 {'event': '[Story 38.6] Score write failed after retries, saved to fallback: node_4', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-07T22:54:56.414209Z'}
+WARNING  app.services.agent_service:agent_service.py:133 {'event': '[Story 38.6] Score write failed after retries, saved to fallback: node_5', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-07T22:54:56.414264Z'}
+WARNING  app.services.agent_service:agent_service.py:133 {'event': '[Story 38.6] Score write failed after retries, saved to fallback: node_6', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-07T22:54:56.414319Z'}
+WARNING  app.services.agent_service:agent_service.py:133 {'event': '[Story 38.6] Score write failed after retries, saved to fallback: node_7', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-07T22:54:56.414372Z'}
+WARNING  app.services.agent_service:agent_service.py:133 {'event': '[Story 38.6] Score write failed after retries, saved to fallback: node_8', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-07T22:54:56.414423Z'}
+WARNING  app.services.agent_service:agent_service.py:133 {'event': '[Story 38.6] Score write failed after retries, saved to fallback: node_9', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-07T22:54:56.414491Z'}
+_______ TestConcurrentFailedWrites.test_record_creates_parent_directory ________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[Story 38.6] Score write failed after retries, saved to fallback: n1", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-07T22:54:56.415617Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.agent_service:agent_service.py:133 {'event': '[Story 38.6] Score write failed after retries, saved to fallback: n1', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-07T22:54:56.415617Z'}
+_______________ TestRecoveryEdgeCases.test_recover_all_malformed _______________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[Story 38.6] Skipping malformed fallback entry", "logger": "app.services.memory_service", "level": "warning", "timestamp": "2026-09-07T22:54:56.419879Z"}
+{"event": "[Story 38.6] Skipping malformed fallback entry", "logger": "app.services.memory_service", "level": "warning", "timestamp": "2026-09-07T22:54:56.419963Z"}
+{"event": "[Story 38.6] Recovered 0 failed writes, 2 still pending", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-07T22:54:56.420181Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.memory_service:memory_service.py:2719 {'event': '[Story 38.6] Skipping malformed fallback entry', 'logger': 'app.services.memory_service', 'level': 'warning', 'timestamp': '2026-09-07T22:54:56.419879Z'}
+WARNING  app.services.memory_service:memory_service.py:2719 {'event': '[Story 38.6] Skipping malformed fallback entry', 'logger': 'app.services.memory_service', 'level': 'warning', 'timestamp': '2026-09-07T22:54:56.419963Z'}
+INFO     app.services.memory_service:memory_service.py:2782 {'event': '[Story 38.6] Recovered 0 failed writes, 2 still pending', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-07T22:54:56.420181Z'}
+_______ TestAC2FailedWriteTracking.test_record_failed_write_creates_file _______
+----------------------------- Captured stdout call -----------------------------
+{"event": "[Story 38.6] Score write failed after retries, saved to fallback: node_abc", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-07T22:54:56.533243Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.agent_service:agent_service.py:133 {'event': '[Story 38.6] Score write failed after retries, saved to fallback: node_abc', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-07T22:54:56.533243Z'}
+_________ TestAC2FailedWriteTracking.test_record_failed_write_appends __________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[Story 38.6] Score write failed after retries, saved to fallback: n1", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-07T22:54:56.534371Z"}
+{"event": "[Story 38.6] Score write failed after retries, saved to fallback: n2", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-07T22:54:56.534479Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.agent_service:agent_service.py:133 {'event': '[Story 38.6] Score write failed after retries, saved to fallback: n1', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-07T22:54:56.534371Z'}
+WARNING  app.services.agent_service:agent_service.py:133 {'event': '[Story 38.6] Score write failed after retries, saved to fallback: n2', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-07T22:54:56.534479Z'}
+_____ TestAC2FailedWriteTracking.test_record_failed_write_with_none_score ______
+----------------------------- Captured stdout call -----------------------------
+{"event": "[Story 38.6] Score write failed after retries, saved to fallback: n1", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-07T22:54:56.535341Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.agent_service:agent_service.py:133 {'event': '[Story 38.6] Score write failed after retries, saved to fallback: n1', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-07T22:54:56.535341Z'}
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+PASSED tests/unit/test_cache_configuration.py::TestDeleteSimulateWorkSleep::test_no_simulate_work_sleep_in_generate
+PASSED tests/unit/test_cache_configuration.py::TestMemoryRetryDelayFromSettings::test_retry_delay_defaults_match_original
+PASSED tests/unit/test_cache_configuration.py::TestAgentServiceCacheFromSettings::test_cache_uses_custom_maxsize_and_ttl
+PASSED tests/unit/test_cache_configuration.py::TestAgentServiceCacheFromSettings::test_cache_default_values
+PASSED tests/unit/test_cache_configuration.py::TestMemoryServiceCacheFromSettings::test_cache_uses_custom_maxsize
+PASSED tests/unit/test_cache_configuration.py::TestDefaultValuesBackwardCompatible::test_settings_defaults_match_original
+PASSED tests/unit/test_cache_configuration.py::TestDefaultValuesBackwardCompatible::test_extreme_maxsize_1_no_crash
+PASSED tests/unit/test_cache_configuration.py::TestDefaultValuesBackwardCompatible::test_extreme_ttl_0_no_crash
+PASSED tests/unit/test_cache_configuration.py::TestDIPathPropagation::test_agent_service_di_passes_cache_config
+PASSED tests/unit/test_cache_configuration.py::TestDIPathPropagation::test_env_example_documents_all_new_settings
+PASSED tests/unit/test_qa_38_4_dual_write_extra.py::TestQAEnvVarParsing::test_pydantic_bool_parsing_variants[true-True]
+PASSED tests/unit/test_qa_38_4_dual_write_extra.py::TestQAEnvVarParsing::test_pydantic_bool_parsing_variants[True-True]
+PASSED tests/unit/test_qa_38_4_dual_write_extra.py::TestQAEnvVarParsing::test_pydantic_bool_parsing_variants[TRUE-True]
+PASSED tests/unit/test_qa_38_4_dual_write_extra.py::TestQAEnvVarParsing::test_pydantic_bool_parsing_variants[1-True]
+PASSED tests/unit/test_qa_38_4_dual_write_extra.py::TestQAEnvVarParsing::test_pydantic_bool_parsing_variants[false-False]
+PASSED tests/unit/test_qa_38_4_dual_write_extra.py::TestQAEnvVarParsing::test_pydantic_bool_parsing_variants[False-False]
+PASSED tests/unit/test_qa_38_4_dual_write_extra.py::TestQAEnvVarParsing::test_pydantic_bool_parsing_variants[FALSE-False]
+PASSED tests/unit/test_qa_38_4_dual_write_extra.py::TestQAEnvVarParsing::test_pydantic_bool_parsing_variants[0-False]
+PASSED tests/unit/test_qa_38_4_dual_write_extra.py::TestQAGetAttrDefenseInDepth::test_env_example_documents_true_default
+PASSED tests/unit/test_qa_38_6_scoring_reliability_extra.py::TestWriteWithTimeoutIntegration::test_timeout_triggers_record_failed_write
+PASSED tests/unit/test_qa_38_6_scoring_reliability_extra.py::TestWriteWithTimeoutIntegration::test_exception_triggers_record_failed_write
+PASSED tests/unit/test_qa_38_6_scoring_reliability_extra.py::TestConcurrentFailedWrites::test_concurrent_writes_all_recorded
+PASSED tests/unit/test_qa_38_6_scoring_reliability_extra.py::TestConcurrentFailedWrites::test_record_creates_parent_directory
+PASSED tests/unit/test_qa_38_6_scoring_reliability_extra.py::TestRecoveryEdgeCases::test_recover_empty_file
+PASSED tests/unit/test_qa_38_6_scoring_reliability_extra.py::TestRecoveryEdgeCases::test_recover_whitespace_only_file
+PASSED tests/unit/test_qa_38_6_scoring_reliability_extra.py::TestRecoveryEdgeCases::test_recover_all_malformed
+PASSED tests/unit/test_qa_38_6_scoring_reliability_extra.py::TestMergedViewEdgeCases::test_load_failed_scores_skips_malformed
+PASSED tests/unit/test_qa_38_6_scoring_reliability_extra.py::TestMergedViewEdgeCases::test_load_failed_scores_empty_file
+PASSED tests/unit/test_story_38_4_dual_write_default.py::TestAC2ExplicitDisable::test_explicit_env_false_disables_dual_write
+PASSED tests/unit/test_story_38_6_scoring_reliability.py::TestAC1TimeoutRetryAlignment::test_outer_timeout_is_at_least_10_seconds
+PASSED tests/unit/test_story_38_6_scoring_reliability.py::TestAC1TimeoutRetryAlignment::test_outer_timeout_covers_inner_total
+PASSED tests/unit/test_story_38_6_scoring_reliability.py::TestAC2FailedWriteTracking::test_record_failed_write_creates_file
+PASSED tests/unit/test_story_38_6_scoring_reliability.py::TestAC2FailedWriteTracking::test_record_failed_write_appends
+PASSED tests/unit/test_story_38_6_scoring_reliability.py::TestAC2FailedWriteTracking::test_record_failed_write_with_none_score
+PASSED tests/unit/test_story_38_6_scoring_reliability.py::TestAC4MergedView::test_load_failed_scores_empty
+PASSED tests/unit/test_story_38_6_scoring_reliability.py::TestAC4MergedView::test_load_failed_scores_with_entries
+PASSED tests/unit/test_story_38_6_scoring_reliability.py::TestAC4MergedView::test_get_learning_history_deduplicates
+PASSED tests/unit/test_story_38_6_scoring_reliability.py::TestRegressionSafety::test_failed_writes_file_path_in_data_dir
+PASSED tests/unit/test_story_38_6_scoring_reliability.py::TestRegressionSafety::test_constants_are_consistent
+SKIPPED [1] tests/unit/test_qa_38_6_scoring_reliability_extra.py:333: Monkeypatches deleted MemoryService._write_to_graphiti_json_with_retry; recovery contract under EpisodeWorker pipeline needs separate test design
+SKIPPED [1] tests/unit/test_qa_38_6_scoring_reliability_extra.py:378: Monkeypatches deleted MemoryService._write_to_graphiti_json_with_retry; recovery contract under EpisodeWorker pipeline needs separate test design
+SKIPPED [1] tests/unit/test_story_38_6_scoring_reliability.py:154: Monkeypatches deleted MemoryService._write_to_graphiti_json_with_retry; startup recovery contract under EpisodeWorker pipeline needs separate test
+SKIPPED [1] tests/unit/test_story_38_6_scoring_reliability.py:165: Monkeypatches deleted MemoryService._write_to_graphiti_json_with_retry; startup recovery contract under EpisodeWorker pipeline needs separate test
+SKIPPED [1] tests/unit/test_story_38_6_scoring_reliability.py:190: Monkeypatches deleted MemoryService._write_to_graphiti_json_with_retry; startup recovery contract under EpisodeWorker pipeline needs separate test
+SKIPPED [1] tests/unit/test_story_38_6_scoring_reliability.py:236: Monkeypatches deleted MemoryService._write_to_graphiti_json_with_retry; startup recovery contract under EpisodeWorker pipeline needs separate test
+FAILED tests/unit/test_cache_configuration.py::TestMemoryRetryDelayFromSettings::test_retry_delay_reads_settings
+FAILED tests/unit/test_cache_configuration.py::TestEnrichmentCacheFromSettings::test_cache_uses_custom_maxsize
+FAILED tests/unit/test_cache_configuration.py::TestEnrichmentCacheFromSettings::test_cache_default_maxsize
+FAILED tests/unit/test_cache_configuration.py::TestDefaultValuesBackwardCompatible::test_enrichment_extreme_maxsize_1
+FAILED tests/unit/test_cache_configuration.py::TestDIPathPropagation::test_enrichment_service_di_passes_cache_config
+FAILED tests/unit/test_qa_38_4_dual_write_extra.py::TestQAGetAttrDefenseInDepth::test_memory_service_getattr_fallback_is_false
+FAILED tests/unit/test_qa_38_6_scoring_reliability_extra.py::TestMergedViewEdgeCases::test_merged_view_sort_newest_first
+FAILED tests/unit/test_qa_38_6_scoring_reliability_extra.py::TestStartupIntegration::test_main_imports_fallback_sync
+FAILED tests/unit/test_qa_38_6_scoring_reliability_extra.py::TestStartupIntegration::test_fallback_sync_called_in_lifespan
+FAILED tests/unit/test_story_38_4_dual_write_default.py::TestAC1SafeDefault::test_settings_field_default_is_true
+FAILED tests/unit/test_story_38_4_dual_write_default.py::TestAC1SafeDefault::test_lowercase_alias_returns_true_by_default
+FAILED tests/unit/test_story_38_4_dual_write_default.py::TestAC1SafeDefault::test_startup_log_dual_write_enabled_default
+FAILED tests/unit/test_story_38_4_dual_write_default.py::TestAC2ExplicitDisable::test_startup_log_dual_write_disabled_explicit
+FAILED tests/unit/test_story_38_4_dual_write_default.py::TestAC2ExplicitDisable::test_warning_log_data_loss_risk_when_disabled
+FAILED tests/unit/test_story_38_4_dual_write_default.py::TestAC3MissingEnvVar::test_missing_env_var_defaults_to_true
+FAILED tests/unit/test_story_38_6_scoring_reliability.py::TestAC1TimeoutRetryAlignment::test_inner_per_attempt_timeout_increased
+FAILED tests/unit/test_story_38_6_scoring_reliability.py::TestAC1TimeoutRetryAlignment::test_retry_backoff_base_is_1_second
+FAILED tests/unit/test_story_38_6_scoring_reliability.py::TestAC1TimeoutRetryAlignment::test_backoff_progression
+FAILED tests/unit/test_story_38_6_scoring_reliability.py::TestAC4MergedView::test_get_learning_history_merges_failed_scores
+============ 19 failed, 39 passed, 6 skipped, 10 warnings in 0.85s =============
+rc=1

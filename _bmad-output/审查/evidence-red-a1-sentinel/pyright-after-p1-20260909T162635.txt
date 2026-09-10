@@ -1,0 +1,32 @@
+# pyright 多重集 AFTER — 阶段一 (未 merge 候选树)
+# BASE_SHA = 0acea4e3a6a62501319c8144a83b9f58cbf310a2  (U10-C 末 commit; 阶段0/1 口径)
+# BASE 多重集文件 = pyright-base-multiset-20260909T161545.txt
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/api/v1/system.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/api/v1/system.py:353:20 - error: Argument of type "str" cannot be assigned to parameter "status" of type "Literal['ready', 'degraded', 'unavailable']" in function "__init__"
+    Type "str" is not assignable to type "Literal['ready', 'degraded', 'unavailable']"
+      "str" is not assignable to type "Literal['ready']"
+      "str" is not assignable to type "Literal['degraded']"
+      "str" is not assignable to type "Literal['unavailable']" (reportArgumentType)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/api/v1/system.py:418:12 - error: Type "JSONResponse" is not assignable to return type "dict[Unknown, Unknown]"
+    "JSONResponse" is not assignable to "dict[Unknown, Unknown]" (reportReturnType)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/api/v1/system.py:585:25 - error: Argument of type "type[LLMStatsSummary]" cannot be assigned to parameter "default_factory" of type "(() -> _T@Field) | ((dict[str, Any]) -> _T@Field)" in function "Field"
+    Type "type[LLMStatsSummary]" is not assignable to type "(() -> _T@Field) | ((dict[str, Any]) -> _T@Field)"
+      Type "type[LLMStatsSummary]" is not assignable to type "(dict[str, Any]) -> _T@Field"
+        Function accepts too few positional parameters; expected 1 but received 0
+          Extra parameter "total_calls"
+          Extra parameter "total_tokens"
+          Extra parameter "total_input_tokens"
+          Extra parameter "total_output_tokens"
+          Extra parameter "total_cost_usd"
+    ... (reportArgumentType)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/api/v1/system.py:594:25 - error: Argument of type "type[ErrorStats]" cannot be assigned to parameter "default_factory" of type "(() -> _T@Field) | ((dict[str, Any]) -> _T@Field)" in function "Field"
+    Type "type[ErrorStats]" is not assignable to type "(() -> _T@Field) | ((dict[str, Any]) -> _T@Field)"
+      Type "type[ErrorStats]" is not assignable to type "(dict[str, Any]) -> _T@Field"
+        Function accepts too few positional parameters; expected 1 but received 0
+          Extra parameter "total"
+      Type "type[ErrorStats]" is not assignable to type "() -> _T@Field"
+        Extra parameter "total" (reportArgumentType)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/api/v1/system.py:992:23 - error: Arguments missing for parameters "window_size", "total_in_window", "matched_count", "match_rate", "is_healthy" (reportCallIssue)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/api/v1/system.py:1001:28 - error: Arguments missing for parameters "total_records", "annotated_count", "accuracy" (reportCallIssue)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/api/v1/system.py:1090:18 - error: Arguments missing for parameters "total", "page", "page_size" (reportCallIssue)
+7 errors, 0 warnings, 0 informations

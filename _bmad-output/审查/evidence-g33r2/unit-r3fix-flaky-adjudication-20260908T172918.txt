@@ -1,0 +1,12 @@
+# unit diff 一过一 flaky 判定 — R3 收工跑
+# 时间: 2026-09-08T17:29:18+08:00 / 跑: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u5-lance/_bmad-output/审查/evidence-g33r2/unit-close-20260908T172301.txt
+
+## 新红 test_accept_candidate_already_accepted_returns_422
+- 目录级 r3fix 跑: 红；单跑 3 次: 全 passed (0.4s)
+- 历史目录级跑: open=0 / r1fix=0 / r2fix=0（三跑皆绿）；基线=0
+⇒ 本卡从未改动 candidate 链路; 该测试在三次本卡目录级跑中均绿, 仅 r3fix 偶红
+⇒ 判定: flaky (目录级并发偶发), 非本卡引入
+
+## 消失红 TestMockScoringWarningLogs::test_mock_mode_logs_warning
+- 基线=1(红) / open=1 / r1fix=1 / r2fix=1; r3fix 那跑=0(偶然绿); 单跑=failed(仍红)
+⇒ 判定: flaky 红(基线内既有, 偶尔绿), 非本卡修复

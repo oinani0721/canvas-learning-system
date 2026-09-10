@@ -1,0 +1,78 @@
+=== 自查 A（r3 问题 3）：round-2 之后的增量是否只含 docstring 与文档 ===
+--- 9848c2c1..HEAD 的代码面改动 ---
+backend/tests/unit/test_difficulty_matcher.py
+--- 完整 diff ---
+diff --git a/backend/tests/unit/test_difficulty_matcher.py b/backend/tests/unit/test_difficulty_matcher.py
+index a263468e..5238c2d1 100644
+--- a/backend/tests/unit/test_difficulty_matcher.py
++++ b/backend/tests/unit/test_difficulty_matcher.py
+@@ -109,11 +109,12 @@ class TestSlidingWindowStats:
+ 
+         is_healthy is defined as ``rate >= MATCH_THRESHOLD`` — the qa_models field
+         description says "True if match_rate >= 0.7" — so an empty window is not
+-        healthy. "No data should not alert" is handled one level up: the only
+-        alerting consumer, health_monitor._check_difficulty_match_rate, branches on
+-        ``total_in_window == 0`` and returns "no data" before it ever reads
+-        is_healthy. Whether the flag itself should special-case the empty window is
+-        a product question, tracked as CARD-DIFFMATCH-EMPTY-WINDOW.
++        healthy. The empty window is handled one level up rather than by this flag:
++        the only alerting consumer, health_monitor._check_difficulty_match_rate,
++        branches on ``total_in_window == 0`` and returns its own "no data" warning
++        without ever reading is_healthy — so changing this flag would not change
++        that alert either way. Whether the flag itself should special-case an empty
++        window is a product question, tracked as CARD-DIFFMATCH-EMPTY-WINDOW.
+         """
+         matcher = self._make_matcher(str(tmp_path))
+         stats = matcher.get_stats()
+
+--- 判据：所有 +/- 行是否都在三引号 docstring 内 ---
+  改动行区间：
+@@ -112,5 +112,6 @@ class TestSlidingWindowStats:
+  该函数 docstring 边界（当前文件）：
+107	    def test_empty_window_stats(self, tmp_path):
+108	        """Empty window reports rate 0.0 and is_healthy False (current contract).
+109	
+110	        is_healthy is defined as ``rate >= MATCH_THRESHOLD`` — the qa_models field
+111	        description says "True if match_rate >= 0.7" — so an empty window is not
+112	        healthy. The empty window is handled one level up rather than by this flag:
+113	        the only alerting consumer, health_monitor._check_difficulty_match_rate,
+114	        branches on ``total_in_window == 0`` and returns its own "no data" warning
+115	        without ever reading is_healthy — so changing this flag would not change
+116	        that alert either way. Whether the flag itself should special-case an empty
+117	        window is a product question, tracked as CARD-DIFFMATCH-EMPTY-WINDOW.
+118	        """
+
+=== 自查 B（r3 问题 4）：前两轮已核验通过的项是否被破坏 ===
+--- 全卡 diff 中，#5/#6/#7/#8 的断言行是否出现在增删里（应为空）---
++        await wait_condition(lambda: call_count >= 2, description="flaky_handler retried")
++            lambda: bus._stats["outbox_written"] >= 1,
+
+--- 类型注解门（全卡）---
+  [空]
+
+--- conftest / tests/support 是否被动 ---
+  [空 = 未动]
+
+--- 全卡改动文件清单（终态）---
+backend/app/services/multimodal_service.py
+backend/tests/unit/test_calibration_tracker.py
+backend/tests/unit/test_canvas_memory_trigger.py
+backend/tests/unit/test_difficulty_matcher.py
+backend/tests/unit/test_event_bus.py
+backend/tests/unit/test_mastery_fusion.py
+=== 自查 B 精确版：四条「不得改」的断言行是否出现在全卡 diff 的增删里 ===
+口径：只看以 assert 开头（去缩进后）的 +/- 行；⛔ 上一版 grep 过宽，命中了 wait_condition 的 lambda
+
+  ✅ 未出现在增删里（= 一字未改）: assert call_count >= 2
+  ✅ 未出现在增删里（= 一字未改）: assert bus\._stats\["outbox_written"\] >= 1
+  ✅ 未出现在增删里（= 一字未改）: assert abs(r) < 0.5
+  ✅ 未出现在增删里（= 一字未改）: pytest.raises(MultimodalServiceError, match="path traversal")
+
+=== 这四条在当前文件里确实存在（防「删掉了所以 diff 里没有」）===
+166:        assert call_count >= 2
+184:        assert bus._stats["outbox_written"] >= 1
+328:        assert abs(r) < 0.5  # Not strongly correlated
+58:        with pytest.raises(MultimodalServiceError, match="path traversal"):
+64:        with pytest.raises(MultimodalServiceError, match="path traversal"):
+70:        with pytest.raises(MultimodalServiceError, match="path traversal"):
+76:        with pytest.raises(MultimodalServiceError, match="path traversal"):

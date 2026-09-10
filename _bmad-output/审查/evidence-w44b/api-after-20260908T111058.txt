@@ -1,0 +1,101 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u7-w4guard/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 268 items
+
+tests/api/v1/endpoints/test_agents_dedup.py ...............              [  5%]
+tests/api/v1/endpoints/test_agents_encoding.py ................          [ 11%]
+tests/api/v1/endpoints/test_agents_health.py ............                [ 16%]
+tests/api/v1/endpoints/test_agents_learning_event.py ................... [ 23%]
+                                                                         [ 23%]
+tests/api/v1/endpoints/test_fsrs_state_api.py ..............             [ 28%]
+tests/api/v1/endpoints/test_memory_four_state_api.py ................... [ 35%]
+..............................                                           [ 46%]
+tests/api/v1/endpoints/test_metadata_subject_mapping.py ................ [ 52%]
+...                                                                      [ 53%]
+tests/api/v1/endpoints/test_multimodal.py .............                  [ 58%]
+tests/api/v1/endpoints/test_nothrow_logging_api.py ..................... [ 66%]
+                                                                         [ 66%]
+tests/api/v1/endpoints/test_ping.py ..                                   [ 67%]
+tests/api/v1/endpoints/test_rag_four_state_api.py ...................... [ 75%]
+........                                                                 [ 78%]
+tests/api/v1/endpoints/test_rag_vault_scope_api.py ..................    [ 85%]
+tests/api/v1/endpoints/test_recommend_action.py ........................ [ 94%]
+................                                                         [100%]
+
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:805
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u7-w4guard/backend/app/api/v1/endpoints/chat.py:805: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:105
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u7-w4guard/backend/app/api/v1/endpoints/metadata.py:105: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:179
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u7-w4guard/backend/app/api/v1/endpoints/metadata.py:179: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+tests/api/v1/endpoints/test_agents_dedup.py::TestDedupEndpointResponses::test_duplicate_request_returns_409
+tests/api/v1/endpoints/test_agents_dedup.py::TestDedupEndpointResponses::test_409_response_detail_format
+tests/api/v1/endpoints/test_agents_learning_event.py::TestEndpointIntegration::test_explain_oral_triggers_recording
+tests/api/v1/endpoints/test_agents_learning_event.py::TestAllExplainEndpointsRecording::test_explain_endpoint_records_event[explain_oral-explain_oral]
+tests/api/v1/endpoints/test_agents_learning_event.py::TestAllExplainEndpointsRecording::test_explain_endpoint_records_event[explain_clarification-explain_clarification]
+tests/api/v1/endpoints/test_agents_learning_event.py::TestAllExplainEndpointsRecording::test_explain_endpoint_records_event[explain_comparison-explain_comparison]
+tests/api/v1/endpoints/test_agents_learning_event.py::TestAllExplainEndpointsRecording::test_explain_endpoint_records_event[explain_memory-explain_memory]
+tests/api/v1/endpoints/test_agents_learning_event.py::TestAllExplainEndpointsRecording::test_explain_endpoint_records_event[explain_four_level-explain_four-level]
+tests/api/v1/endpoints/test_agents_learning_event.py::TestAllExplainEndpointsRecording::test_explain_endpoint_records_event[explain_example-explain_example]
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u7-w4guard/backend/app/api/v1/endpoints/agents.py:1183: DeprecationWarning: deprecated
+    legacy_group_id=request.group_id,
+
+tests/api/v1/endpoints/test_agents_learning_event.py::TestEndpointIntegration::test_decompose_basic_triggers_recording
+tests/api/v1/endpoints/test_agents_learning_event.py::TestEndpointIntegration::test_learning_event_failure_does_not_block_response
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u7-w4guard/backend/app/api/v1/endpoints/agents.py:793: DeprecationWarning: deprecated
+    legacy_group_id=request.group_id,
+
+tests/api/v1/endpoints/test_agents_learning_event.py::TestEndpointIntegration::test_decompose_deep_triggers_recording
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u7-w4guard/backend/app/api/v1/endpoints/agents.py:911: DeprecationWarning: deprecated
+    legacy_group_id=request.group_id,
+
+tests/api/v1/endpoints/test_agents_learning_event.py::TestEndpointIntegration::test_score_understanding_triggers_recording
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u7-w4guard/backend/app/api/v1/endpoints/agents.py:1032: DeprecationWarning: deprecated
+    legacy_group_id=request.group_id,
+
+tests/api/v1/endpoints/test_rag_vault_scope_api.py: 4 warnings
+tests/api/v1/endpoints/test_recommend_action.py: 13 warnings
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u7-w4guard/backend/app/api/v1/endpoints/agents.py:2081: DeprecationWarning: deprecated
+    legacy_group_id=request.group_id,
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================= 268 passed, 40 warnings in 1.55s =======================
+rc=0

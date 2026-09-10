@@ -1,0 +1,7 @@
+=== 注入载荷走哪条分支 ===
+returncode = 1 (≠0 ⇒ 走【拒写】分支)
+账本行数   = 0 (须 0)
+stderr 拒因 = [quiz-answer] self_confidence_norm 非法 ('0.5\n    event_id: "quiz:injected"'; 须为 null 或 0..1 的数) — 它与 receipt 身份键同段落, 非法值会改写条目 event_id, fail-closed 拒写 — 请上游修正后重跑
+拒因来自本卡新门 = True
+节点未被改动 = True
+rc=0

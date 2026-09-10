@@ -1,0 +1,57 @@
+> 批次: BATCH-2026-09-07-第十三批 · 车道 U3 · 卡 CARD-G2-7a round-4
+> 模型: `gpt-6-astra` · reasoning_effort: `ultra` · codex: `codex-cli 0.153.3`
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat _bmad-output/审查/prompts/codex-prompt-CARD-G2-7a-r4.md)"`
+> 审查绑定: `5a0257fc`（审查者自证四文件与该提交逐字节一致）
+> 会话头自证（抄 .stderr 含 model 行的三行，stderr 本身不入库）:
+> `OpenAI Codex v0.153.3` / `model: gpt-6-astra` / `reasoning effort: ultra`
+
+> **连续第二轮 0 BLOCKER / 0 HIGH**（r3 亦然）。1 MEDIUM / 6 LOW 已全数整改，见 round-5 送审。
+
+---
+
+本轮结论：**0 BLOCKER / 0 HIGH / 1 MEDIUM / 6 LOW**。四个工作文件均与 `5a0257fc` 对应对象逐字节一致。
+
+变异验证使用原门函数、内存副本及自动清理的合成目录；未运行完整 pytest、安装脚本，也未访问 live vault。下述“存活”仅指明确列出的门。
+
+**BLOCKER / HIGH：核对结果：无问题。** 限于本次读取面及验证程度，未发现新的 B/H。
+
+1. **MEDIUM-1：hotkeys 顶层不是对象时，两层检查可以同时放行。**  
+   位置：[verify_vault_install.py:1268](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy/scripts/verify_vault_install.py:1268)、[test_vault_install_manifest.py:1467](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy/backend/tests/unit/test_vault_install_manifest.py:1467)。生产校验在 `main.js` 缺失或为目录时提前返回，尚未验证 hotkeys JSON；源码门则未断言 `dict`。  
+   **复现：**把 hotkeys 改成仅包含一个合法 CLS 命令键的 JSON 数组；合成实测生产校验 `rc=0、unreadable=[]`，源码门和树自洽门均 PASS；补入普通文件形态的 `main.js` 后才报结构错误、`rc=2`。应先独立验证 hotkeys，再决定能否交叉核对产物。
+
+2. **LOW-1：新增只读 `open` 豁免混淆调用签名，重新放过了截断写入。**  
+   位置：[test_vault_install_manifest.py:695](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy/backend/tests/unit/test_vault_install_manifest.py:695)、[同文件:724](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy/backend/tests/unit/test_vault_install_manifest.py:724)。`Path.open` 的第一个位置参数就是模式，当前函数却统一检查第二个参数。  
+   **变异：**将 `with open(path, "rb")` 改成 `with path.open("wb+")`，原结构零写门仍 PASS；仅执行了 AST 检查，没有执行该写调用。
+
+3. **LOW-2：递归复制门只认裸 `cp` token，遗漏相同命令的绝对路径写法。**  
+   位置：[test_vault_install_manifest.py:2799](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy/backend/tests/unit/test_vault_install_manifest.py:2799)。  
+   **变异：**将安装脚本第 89 行的 `cp -R -H` 改成 `/bin/cp -R`，七个结构／origin 门全部 PASS；现有软链行为门覆盖插件复制点，没有覆盖这个 `.claude` 复制点。
+
+4. **LOW-3：清理门仍把 rm 行内注释中的路径当成操作数。**  
+   位置：[test_vault_install_manifest.py:2752](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy/backend/tests/unit/test_vault_install_manifest.py:2752)。  
+   **变异：**保留第一条 rm 行，把后两行改成下面这样，templater 已不再被清理，七门仍全部 PASS，语法检查也通过：
+
+   ```sh
+         "$TARGET/.claude/settings.local.json" # "$TARGET/.obsidian/plugins/templater-obsidian/data.json"
+   # 保持原行数
+   ```
+
+5. **LOW-4：origin 门证明了数组名和起始行，却没有完整证明唯一声明及成员归属。**  
+   位置：[test_vault_install_manifest.py:2910](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy/backend/tests/unit/test_vault_install_manifest.py:2910)、[同文件:2940](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy/backend/tests/unit/test_vault_install_manifest.py:2940)。字典会吞掉重复定义，数组 origin 的区间尾也未检查。  
+   **变异：**仅把 skills 的 origin 改成 `install-vault.sh:72-180`，七门仍 PASS；另在空白第 81 行加入 `CLAUDE_ITEMS=(skills) # override`，把六个相关 origin 同步指向 81，七门也 PASS，但实际最终数组只剩 skills。
+
+6. **LOW-5：`_sh_line` 的回退仍能把失效注释当来源，“可执行行”也包含行内注释。**  
+   位置：[test_vault_install_manifest.py:2588](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy/backend/tests/unit/test_vault_install_manifest.py:2588)。  
+   **变异：**注释掉安装脚本第 96 行的 pending-archives 清理命令，七门仍 PASS；反过来，仅给第 80 行 echo 添加 `# pending_archives`，便误报两个锚。添加 `# 生成件 (CARD-G2-7a)` 还会把标题锚从 134 抢到 80。命令锚与注释标题锚需要明确区分。
+
+7. **LOW-6：生成件探测的说明仍比实际证据宽。**  
+   位置：[verify_vault_install.py:714](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy/scripts/verify_vault_install.py:714)。实际只证明末级目录项为普通文件，以及 `open/read(1)` 未报错；不证明完整可读，也不排除祖先目录软链。  
+   **复现：**空文件、经父目录软链访问的普通文件均实测 `match、rc=0`；注入“首次读成功、后续读抛 OSError”的流，探测仍返回 True。作为轻量探测可以接受，但应说明“允许 EOF、未验证后续读取”；若承诺整件可读，可以分块读至 EOF，无须整文件入内存。
+
+另外三项重点核对：
+
+- **`follow_root`：核对结果：内容比对语义无问题。** [verify_vault_install.py:768](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy/scripts/verify_vault_install.py:768) 会跟随根条目指向源 vault 外或另一 vault 的实体，保留逻辑路径参与比较。合成实测：外部实体与目标同内容→`rc=0`；目标内容改变→`rc=2`；目标仍是软链→`rc=2`。报告确实不显示解析后的来源，因此它证明的是**按复制语义比较内容一致**，没有证明来源留在某个 vault 内。内部链仍只比较链接原文。
+
+- **`owner()`：核对结果：当前真实 item 无遗漏。** [test_vault_install_manifest.py:2918](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy/backend/tests/unit/test_vault_install_manifest.py:2918) 的实际分类为 `8 / 6 / 9 / 4 / 3 = 30`，返回 `None` 的现有项全是 exclude/generate。你描述的一点需要纠正：嵌套插件 copy 路径会落入 `OBSIDIAN_FILES`，并非 `None`。`checked == 30` 能核当前数量，不能替代 LOW-4 所缺的唯一性和成员关系检查。
+
+- **树自洽门：核对结果：按当前明确断言无问题，证明范围有限。** [test_vault_install_manifest.py:2556](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy/backend/tests/unit/test_vault_install_manifest.py:2556) 实际还检查四个阻断桶为空。直接删除校验器全部 `report.match.append` 后，合成实测 `match=0、rc=0`，该门仍 PASS，说明它不证明分类完整；此外它读取工作目录并做 self/self 比较，没有独立绑定 Git HEAD 或证明内容正确。已有“同形字面量可能假放行”的 hotkeys 边界，本轮未重复计为新增问题。

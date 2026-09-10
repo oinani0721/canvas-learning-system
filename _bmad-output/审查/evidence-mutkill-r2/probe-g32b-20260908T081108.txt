@@ -1,0 +1,63 @@
+── 基线（跑前）──
+   a766fbcc28e3ff91  fsrs_bridge.py
+   63b51029ea96a78a  SKILL.md
+   43ac9e618d10d2ff  learning-events-schema-v1.md
+[M1-R1-candidate-spread] test_r1_unknown_durable_payload_key_conflicts → OBSERVED rc=1 loc='stmt:43c8df19d82d' reason='AssertionError: 合法乱序形态的 out_of_order 键仍须 envelope 冲突'
+[M2b-R2-drop-utc-offset-check] test_r2_non_whole_second_durable_review_time_fail_closed → OBSERVED rc=1 loc='stmt:e5b2af079e5d' reason='AssertionError: [quiz-answer] envelope 冲突: 账本 quiz:板A#q1 与本次评分事实不一致 (canonical envelope), fail-closed 拒写'
+[M3-R3-attempt-uses-tip] test_r3_historical_event_replay_is_noop_not_conflict → OBSERVED rc=1 loc='stmt:1eb890fa0c44' reason='AssertionError: 历史事件原样重跑必须 no-op, 不得报冲突: [quiz-answer] envelope 冲突: 账本 quiz:测试检验-2026-08-01-1000#q1 与本次评分事实不一致 (canonical envelope), fail-closed 拒写'
+[M4-R4-normal-path-uses-payload-ts] test_r4_recovery_byte_identical_with_idle_and_a3_bump → OBSERVED rc=1 loc='stmt:369bd480e4a2' reason='AssertionError: 含 idle 状态 + A3 bump 时, 恢复产物必须与直接应用逐字节相同'
+[M5-R5-drop-rating-consistency] test_r5_inconsistent_scored_rating_rejected_before_apply → OBSERVED rc=1 loc='stmt:61ec921df6b5' reason='AssertionError: [quiz-answer] 恢复已落定, 本次评分未写入 — 请重跑 /quiz-answer 续跑 (检验白板保持 scored_pending_node_update)'
+[M7-R6-schema-drops-owner-clause] test_r6_schema_declares_identity_key_integrity_owner → OBSERVED rc=1 loc='stmt:b28ff6305d73' reason='AssertionError: §6.2 duplicate 门段落缺「**golden manifest 绑定门**承担」— 契约未同步实现裁决'
+[M8-6cell-cell4-allow-recovery] test_six_cell_state_machine_closed → OBSERVED rc=1 loc='stmt:792b5baeef1c' reason='AssertionError: 格4: 顺序错乱无机械判据, 必须 fail-closed'
+[M9-6cell-cell2-drop-orphan-noop] test_six_cell_state_machine_closed → OBSERVED rc=1 loc='stmt:3fed89adfebb' reason='AssertionError: '
+[M10-R2-value-not-literal] test_r2_non_whole_second_durable_review_time_fail_closed → OBSERVED rc=1 loc='stmt:e5b2af079e5d' reason="AssertionError: [quiz-answer] 账本行 quiz:板A#q1 没有校准记录(崩溃窗), 于是由 scored_at='2026-08-01T10:00:00.500Z' 与当时的水位线 W=None **复算**采用时刻 = '2026-08-01T10:00:00Z', 但账本记的是 review_time='2026-08-01T10:00:00.500Z' / effective_at='2026-08-01T10:00:00.500Z' — 对不上说明采用时刻被改过; 放行会把水位线恢复成篡改值, 让此前所有真实复习被当成已过线, fail-closed 拒写 — 请人工核对账本"
+[M11-N1-drop-out-of-order-semantic-gate] test_round1_followups_n1_to_n5 → OBSERVED rc=1 loc='stmt:e050127ecd4a' reason='AssertionError: 标 out_of_order 但晚于水位线的行必须 fail-closed（否则静默丢一次评分）'
+[M12-N1-drop-out-of-order-shape-gate] test_round1_followups_n1_to_n5 → OBSERVED rc=1 loc='stmt:0934434d5ff5' reason="AssertionError: [quiz-answer] 账本第 1 行(quiz:板A#q1) 标了 out_of_order 但 review_time='2026-08-01T10:00:00Z' 晚于水位线 W=(无, 新卡) — 乱序的定义是 review_time ≤ W, 该行是被伪装成乱序的真实后继, fail-closed 拒写"
+[M14-N3-drop-duplicate-key-hook] test_round1_followups_n1_to_n5 → OBSERVED rc=1 loc='stmt:6be17fa0f3ac' reason='AssertionError: [quiz-answer] envelope 冲突: 账本 quiz:测试检验-2026-08-01-1000#q1 与本次评分事实不一致 (canonical envelope), fail-closed 拒写'
+[M16-N5-hard-compute-attempt-across-pending] test_round1_followups_n1_to_n5 → OBSERVED rc=1 loc='stmt:fe6970062935' reason='AssertionError: [quiz-answer] envelope 冲突: 账本 quiz:测试检验-2026-08-01-1000#q1 与本次评分事实不一致 (canonical envelope), fail-closed 拒写'
+[M17-N1-schema-drops-writer-side-clause] test_r6_schema_declares_identity_key_integrity_owner → OBSERVED rc=1 loc='stmt:fdf08ba33bf5' reason='AssertionError: §6.2 三态语义段缺「写点（在线 A2）侧同款语义门」— 写点侧口径未回写契约'
+[M19-B1-drop-rating-completeness] test_internal_audit_findings → OBSERVED rc=1 loc='stmt:dd27e06bb0d7' reason='AssertionError: [rating 是 float] 评分事实不完整的行不得被重放'
+[M20-B1-drop-gradenorm-completeness] test_internal_audit_findings → OBSERVED rc=1 loc='stmt:d0a92c10f67a' reason='AssertionError: [quiz-answer] 事件已落日志(write-ahead): answer_scored @ 2026-08-02T10:00:00Z'
+[M21-B2-drop-attempt-sync-on-replay] test_internal_audit_findings → OBSERVED rc=1 loc='stmt:ad55233f0a4d' reason='AssertionError: A2 重放必须把 attempt 推到 durable 值，否则下一个事件会复用同一序数'
+[M23-C1-drop-event-type-gate] test_round11b_c1_event_type_narrow → OBSERVED rc=1 loc='stmt:8c346fac9d45' reason='AssertionError: [非评分事件类型] 零写（节点 + 账本，尤其不得推进 W）'
+[M24-C1-drop-concept-id-gate] test_round11b_c1_concept_id_narrow → OBSERVED rc=1 loc='stmt:8c346fac9d45' reason='AssertionError: [concept_id 错位] 零写（节点 + 账本，尤其不得推进 W）'
+[M25-C1-drop-vault-id-gate] test_round11b_c1_vault_id_narrow → OBSERVED rc=1 loc='stmt:8c346fac9d45' reason='AssertionError: [vault_id 错位] 零写（节点 + 账本，尤其不得推进 W）'
+[M26-C2-drop-eid-whitespace-gate] test_internal_audit_findings → OBSERVED rc=1 loc='stmt:63dfe76f0d4a' reason='AssertionError: '
+[M28-C4-mastery-uses-unrounded-gn] test_internal_audit_findings → OBSERVED rc=1 loc='stmt:43067aba80c8' reason='AssertionError: 同一 durable 事件（GN2 相同）在两次不同的未舍入输入下必须产出相同的 mastery'
+[M6b-R7-tail-ignores-lf-state] test_r7_corrupt_tail_line_with_lf_is_not_truncation → OBSERVED rc=1 loc='stmt:25e66f80cdb0' reason='AssertionError: 带终止 LF 的坏末行必须 fail-closed (旧实现 rc=0 当截断容忍)'
+[M13b-N2-text-mode-read] test_round1_followups_n1_to_n5 → OBSERVED rc=1 loc='stmt:97018e9b0fd2' reason='AssertionError: 裸 \\r 结尾在字节上无 LF ⇒ 应按截断隔离: [quiz-answer] 账本第 2 行损坏 (非 JSON; 该行有终止 LF ⇒ 完整写入的损坏行, 非截断), fail-closed 拒写 — 请人工修复 learning_events.jsonl'
+[M15b-N4-decode-with-replace] test_round1_followups_n1_to_n5 → OBSERVED rc=1 loc='stmt:ab7f6fae28bf' reason='AssertionError: [quiz-answer] 账本第 2 行损坏 (非 JSON; 该行有终止 LF ⇒ 完整写入的损坏行, 非截断), fail-closed 拒写 — 请人工修复 learning_events.jsonl'
+[M18b-R7blank-judge-file-end-not-last-line] test_round2_lead_followups → OBSERVED rc=1 loc='stmt:2c6f264316aa' reason='AssertionError: [坏行带 LF + 末尾空白行 —— 空行门先拦（round-6 口径）] 应 fail-closed（该行是完整落盘后损坏）'
+[M29-R3-drop-event-version-gate] test_round3_findings → OBSERVED rc=1 loc='stmt:e2790ef041e9' reason='AssertionError: [quiz-answer] 恢复已落定, 本次评分未写入 — 请重跑 /quiz-answer 续跑 (检验白板保持 scored_pending_node_update)'
+[M30-R3-drop-two-instant-consistency] test_round3_findings → OBSERVED rc=1 loc='stmt:bc78792733ef' reason="AssertionError: [quiz-answer] 账本第 1 行(quiz:板A#q1) 没有校准记录, 于是由 scored_at='2026-08-01T10:00:00Z' 与当时的水位线复算采用时刻 = '2026-08-01T10:00:00Z', 但账本记的是 review_time='2026-08-01T10:00:00Z' / effective_at='2026-08-01T11:00:00Z' — 对不上说明采用时刻被改过; 复放它会把水位线推到篡改值, 让此前所有真实复习被当成已过线而漏算, fail-closed 拒写 — 请人工核对账本"
+[M31-R3-drop-attempt-required] test_round3_findings → OBSERVED rc=1 loc='stmt:dbbb29bc7b85' reason='AssertionError: [quiz-answer] 恢复已落定, 本次评分未写入 — 请重跑 /quiz-answer 续跑 (检验白板保持 scored_pending_node_update)'
+[M32-R3-drop-payload-object-gate] test_round3_findings → OBSERVED rc=1 loc='stmt:362fdc9f0a0b' reason='AssertionError: [quiz-answer] 账本第 1 行(quiz:板A#q1) 未通过校验器的 v1 记录校验: payload 必须为 JSON object — 消费侧与校验器同口径 fail-closed 拒写'
+[M33-R3-merge-recovery-and-append] test_round3_findings → OBSERVED rc=1 loc='stmt:3d7e3d9e84ce' reason='AssertionError: 两条 pending 时不得在同一次运行里既恢复又追加'
+[M34-R3-drop-routing-envelope-gate] test_round2_lead_followups → OBSERVED rc=1 loc='stmt:0d1fb3f98ec9' reason='AssertionError: [node_id 缺失] 不可路由的行必须 fail-closed（§一 路由信封读方义务）'
+[M35-R3-effective-at-over-strict] test_round3_findings → OBSERVED rc=1 loc='stmt:d8daeb520ec7' reason="AssertionError: effective_at='2026-08-01T18:00:00+08:00' 写点结论应为 True: [quiz-answer] 账本第 1 行(quiz:板A#q1) 的 effective_at 的 review_time 非 UTC ('2026-08-01T18:00:00+08:00'; §6.2 A6 要求 tz-aware UTC 时刻), fail-closed 拒写"
+[M38b-attempt-expectation-masked-by-max] test_round3_findings → OBSERVED rc=1 loc='stmt:eb99166ebb59' reason='AssertionError: [quiz-answer] 恢复已落定, 本次评分未写入 — 请重跑 /quiz-answer 续跑 (检验白板保持 scored_pending_node_update)'
+[M43-f1-evaluated-after-calibration-replay] test_round3_findings → OBSERVED rc=1 loc='stmt:d8daeb520ec7' reason="AssertionError: effective_at='2026-08-01T10:00:00Z' 写点结论应为 True: Traceback (most recent call last):"
+[M44-drop-looks-like-review-ext] test_round3_findings → OBSERVED rc=1 loc='stmt:ff0424a945f8' reason='AssertionError: 抹掉 marker 但留扩展键 = 把完整评分伪装成历史行，必须拒'
+[M45-allow-dup-and-foreign-same-round] test_round3_findings → OBSERVED rc=1 loc='stmt:95c7f8678eac' reason='AssertionError: [quiz-answer] 恢复已落定, 本次评分未写入 — 请重跑 /quiz-answer 续跑 (检验白板保持 scored_pending_node_update)'
+[M46-yaml-single-quote-escape] test_round3_findings → OBSERVED rc=1 loc='stmt:239c18cceaf7' reason="AssertionError: YAML 单引号 '' 转义形态下 F1 必须命中，否则副作用被算第二遍: [quiz-answer] ⚠️ PyYAML 不可用 — F1 判定退回正则扫描, 只认 block list + `- event_id:` 开头的条目; 尾注释/inline/键顺序变体会假阴性"
+[M39-attempt-regex-rejects-single-quote] test_round3_findings → OBSERVED rc=1 loc='stmt:57eb3c8afd98' reason="AssertionError: attempt_count: '7' 应承接为 8，实为 1"
+[M42-late-unmarked-row-silently-skipped] test_round2_lead_followups → OBSERVED rc=1 loc='stmt:b46b7bfaea21' reason='AssertionError: [同秒] 未标 out_of_order 的迟到行不得被静默放过'
+[M36b-replay-drops-mastery] test_round3_findings → OBSERVED rc=1 loc='stmt:d8daeb520ec7' reason="AssertionError: effective_at='2026-08-01T10:00:00Z' 写点结论应为 True: [quiz-answer] 恢复已落定, 本次评分未写入 — 请重跑 /quiz-answer 续跑 (检验白板保持 scored_pending_node_update)"
+[M37c-replay-includes-dup-double-eats-ema] test_degraded_legacy_retry_restores_fsrs_without_double_ema → OBSERVED rc=1 loc='stmt:82701a2c71f6' reason='AssertionError: mastery_score 不得二次吸收成绩 (EMA 双吃)'
+[M47-skip-validator-record-check] test_round4_writer_validator_verdict_parity → OBSERVED rc=1 loc='stmt:c1fbedef1870' reason='AssertionError: [未知顶层字段] 写点 ok=True 校验器 ok=False — 口径分叉: [quiz-answer] 恢复已落定, 本次评分未写入 — 请重跑 /quiz-answer 续跑 (检验白板保持 scored_pending_node_update)'
+[M48-attribution-check-after-payload-skip] test_round4_writer_validator_verdict_parity → OBSERVED rc=1 loc='stmt:6b6b0b56e529' reason='AssertionError: 别节点的坏行不得越权阻塞本节点写入: [quiz-answer] 账本第 1 行 (本节点) 缺 payload 或其类型不是 object — 无法判定它是不是一次评分, 静默跳过等于漏算, fail-closed 拒写'
+[M49-event-version-accepts-bool] test_round11b_parity_event_version_bool_narrow → OBSERVED rc=1 loc='stmt:c1fbedef1870' reason='AssertionError: [event_version 为 true] 写点 ok=True 校验器 ok=False — 口径分叉: [quiz-answer] 恢复已落定, 本次评分未写入 — 请重跑 /quiz-answer 续跑 (检验白板保持 scored_pending_node_update)'
+[M50-non-object-line-silently-skipped] test_round11b_parity_toplevel_non_object_narrow → OBSERVED rc=1 loc='stmt:c1fbedef1870' reason='AssertionError: [顶层是 JSON 数组] 写点 ok=True 校验器 ok=False — 口径分叉: '
+[M51-line-strip-washes-nonjson-whitespace] test_round4_writer_validator_verdict_parity → OBSERVED rc=1 loc='stmt:c1fbedef1870' reason='AssertionError: [行尾裸换页 \\x0c] 写点 ok=True 校验器 ok=False — 口径分叉: [quiz-answer] 恢复已落定, 本次评分未写入 — 请重跑 /quiz-answer 续跑 (检验白板保持 scored_pending_node_update)'
+[M52-calibration-strips-quiz-prefix] test_round5_calibration_key_prefix_collision → OBSERVED rc=1 loc='stmt:5e41ab4abd34' reason='AssertionError: 正常场景回归: [\'"甲"\', \'"乙"\'] 2'
+[M53-f1-query-strips-prefix-only] test_round5_calibration_key_prefix_collision → OBSERVED rc=1 loc='stmt:5e41ab4abd34' reason='AssertionError: 正常场景回归: [\'"quiz:甲"\', \'"quiz:乙"\'] 2'
+[M54-f1-uses-bare-eid] test_round5_calibration_key_prefix_collision → OBSERVED rc=1 loc='stmt:381349320aa5' reason='AssertionError: 裸形态相同的两个 event_id 并存时必须 fail-closed: [\'"quiz:K"\', \'"K"\', \'"quiz:板B#q1"\']'
+[M56-full-validation-after-branching] test_round5_routing_order_and_input_literal → OBSERVED rc=1 loc='stmt:257fcd6ee521' reason='AssertionError: 标了 out_of_order 但时刻带空白的行必须在分流前被校验拦下'
+[M57-validate-without-golden-manifest] test_round5_routing_order_and_input_literal → OBSERVED rc=1 loc='stmt:b5a03914b582' reason='AssertionError: 伪造的 fsrs 身份键必须被 manifest 绑定门拦下'
+[M58-input-ts-not-literally-checked] test_round5_routing_order_and_input_literal → OBSERVED rc=1 loc='stmt:b1cca32b7835' reason='AssertionError: 输入 ts 首尾空白 必须拒: '
+[M59-ordinal-ignores-legacy-scored-rows] test_round5_legacy_scored_rows_break_ordinal_proof → OBSERVED rc=1 loc='stmt:2e514b88e983' reason='AssertionError: 拒因必须点名真因，而不是 envelope 冲突: [quiz-answer] envelope 冲突: 账本 quiz:E1#q1 与本次评分事实不一致 (canonical envelope), fail-closed 拒写'
+[M60-normal-path-stores-bare-eid] test_round6_findings → OBSERVED rc=1 loc='stmt:ee6f1263c0a1' reason='AssertionError: 正常路径必须存完整账本 id: ---'
+[M61-durable-eid-whitespace-not-scanned] test_round6_findings → OBSERVED rc=1 loc='stmt:975ca47b4e23' reason='AssertionError: [quiz-answer] 恢复已落定, 本次评分未写入 — 请重跑 /quiz-answer 续跑 (检验白板保持 scored_pending_node_update)'
+
+⚠️ 收到信号 15，已无条件还原全部目标文件后退出
+[M62-node-id-type-only] ⚠️ 变异窗口内 SKILL.md 被第三方改动 — 其内容已存证到 /private/tmp/g32b-mutation-thirdparty-M62-node-id-type-only-SKILL.md.bak; 仍按快照还原(变异体不得留在生产文件里), 请人工核对是否需要合并回去

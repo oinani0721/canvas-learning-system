@@ -27,7 +27,16 @@ logger = structlog.get_logger(__name__)
 
 
 class MasteryStore:
-    """Read/write ConceptState to/from Neo4j EntityNode properties."""
+    """Read/write ConceptState to/from Neo4j EntityNode properties.
+
+    CARD-G3-7-R2: 本类持有的 ``concept.fsrs_*`` 是**非 FSRS 调度真相源** ——
+    它是 mastery 域在 Neo4j EntityNode 上的**投影**, 与 review_service 的
+    ``fsrs_card_states.json`` 是两份彼此独立推进的状态, 三者之上真正的调度
+    真相源只有一个: 节点 ``.md`` 的 frontmatter ``fsrs_due``
+    (docs/fsrs-truth-source-d0-revision.md §一 铁律 1)。本类**不写**
+    frontmatter、**不写** ``fsrs_card_states.json``, 只写 Neo4j。
+    写边界由 tests/unit/test_mastery_fsrs_projection_boundary.py 锁住。
+    """
 
     def __init__(self, neo4j_client):
         """
@@ -79,6 +88,12 @@ class MasteryStore:
         Save (upsert) concept mastery state to Neo4j EntityNode.
 
         Uses MERGE on mastery_concept_id to create or update.
+
+        CARD-G3-7-R2: 写入的 ``fsrs_*`` 属性是**非 FSRS 调度真相源**的投影。
+        本方法只写 Neo4j —— 不写节点 ``.md`` 的 frontmatter, 也不写
+        ``fsrs_card_states.json``。调用方不得把这里写成功当作"该节点的复习
+        排期已更新"; 那要靠 vault 侧的 quiz-answer × fsrs_bridge 链写
+        frontmatter。
         """
         # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式（MERGE 键 + props 属性同源）
         group_id = to_physical_group_id(group_id)

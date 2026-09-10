@@ -1,0 +1,8 @@
+前提门 test_prefix_overlap_premises_hold @ :459
+  实时库查询调用 = 无 ✓
+  会查库的 helper 调用 = 无 ✓
+  体内全部方法调用 = ['_owns_table', 'parametrize']
+
+判定: ✓ 前提门不依赖库当前状态 ⇒ 不受执行顺序影响
+验伪锚 test_prefix_overlap_not_touched_by_cache_table… → _all_names 调用 1 次 ← 缺陷锁确实查库，判据能区分 ✓
+验伪锚 test_prefix_overlap_not_touched_by_drop_vault_… → _all_names 调用 1 次 ← 缺陷锁确实查库，判据能区分 ✓

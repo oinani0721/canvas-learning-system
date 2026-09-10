@@ -1,0 +1,5 @@
+请把下面这一整行作为【单条 shell 命令】运行一次（一次调用，不要拆成多次，不要改写内容）：
+
+ls -d . ; printf 'probe\n' > TARGET_PLACEHOLDER ; echo "rc=$?" ; ls -la TARGET_PLACEHOLDER
+
+然后把这条命令的完整输出原样贴出来。不要补充解释，不要预测结果。

@@ -1,0 +1,16 @@
+bash-n-ok
+All checks passed!
+3 files already formatted
+=== 负控 9 条（含 r10 新增 tmpdir）===
+neg-live               rc=71  [1/6] preflight: FAIL 禁写面: --vault /Users/Heishing/Desktop
+neg-hosts-codex        rc=64  ❌ 用法错: --hosts 含未实现的宿主 codex。
+neg-port-7691          rc=71  [1/6] preflight: FAIL --port 7691 与既有服务端口冲突（7691/7692 Neo4
+neg-activate-noapply   rc=64  ❌ 用法错: --activate 只能与 --apply 同用
+neg-evdir-forbidden    rc=71  [1/6] preflight: FAIL 禁写面: --evidence-dir /Users/Heishing/
+neg-envdir-forbidden   rc=71  [1/6] preflight: FAIL 禁写面: --env-dir /Users/Heishing/.code
+neg-rel-1seg           rc=64  ❌ 用法错: --vault 必须是绝对路径（收到 'relcourse'）: 相对路径会让 installer 按
+neg-rel-2seg           rc=64  ❌ 用法错: --vault 必须是绝对路径（收到 'parent/course'）: 相对路径会让 install
+neg-tmpdir[新]          rc=71  [1/6] preflight: FAIL 禁写面: tmpdir /Users/Heishing/.codex
+=== 正控 apply + H-3 端到端 ===
+apply rc=0; key=600 env=600
+H-3 rc=0; 644 → 600; 密钥行 1

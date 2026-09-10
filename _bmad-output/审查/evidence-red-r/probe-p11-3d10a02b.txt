@@ -1,0 +1,87 @@
+### CARD-RED-R 单点探针 (取失败身份, 非 bisect)
+tag: p11-3d10a02b
+rev: 3d10a02b -> 3d10a02b   (2026-05-14 feat(story-2.4): callout 自动同步 — p0 三件套 + plan-b phase 1-4)
+nodeid: tests/unit/test_neo4j_fulltext_index.py::TestEnsureFulltextIndex::test_ensure_fulltext_index_idempotent
+started: 2026-09-09T12:25:37+0800
+
+Preparing worktree (detached HEAD 3d10a02b)
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-probe-p11-3d10a02b/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 1 item
+tests/unit/test_neo4j_fulltext_index.py F                                [100%]
+=================================== FAILURES ===================================
+________ TestEnsureFulltextIndex.test_ensure_fulltext_index_idempotent _________
+self = <tests.unit.test_neo4j_fulltext_index.TestEnsureFulltextIndex object at 0x138421220>
+memory_service = <app.services.memory_service.MemoryService object at 0x1387e12b0>
+mock_neo4j_client = <AsyncMock id='5242757408'>
+    @pytest.mark.asyncio
+    async def test_ensure_fulltext_index_idempotent(
+        self, memory_service, mock_neo4j_client
+    ):
+        """Feature 4.1 + Round-23 Patch 3: IF NOT EXISTS means calling twice is safe.
+        After Round-23 Story 7.3 Patch 3, ensure_fulltext_index creates 2 indexes:
+        - episode_content (EpisodicNode.content)
+        - node_search_unified (Node|EntityNode multi-field)
+        So 2 calls × 2 indexes = 4 CREATE statements.
+        """
+        await memory_service.initialize()
+        await memory_service.ensure_fulltext_index()
+        await memory_service.ensure_fulltext_index()
+        # Both calls should succeed without error
+        create_count = 0
+        for call in mock_neo4j_client.run_query.call_args_list:
+            cypher = call.args[0] if call.args else call.kwargs.get("query", "")
+            if "CREATE FULLTEXT INDEX" in cypher:
+                create_count += 1
+>       assert create_count == 4, (
+            "Should execute CREATE FULLTEXT INDEX each time × 2 indexes "
+            "(IF NOT EXISTS handles idempotency, Round-23 Patch 3 added node_search_unified)"
+        )
+E       AssertionError: Should execute CREATE FULLTEXT INDEX each time × 2 indexes (IF NOT EXISTS handles idempotency, Round-23 Patch 3 added node_search_unified)
+E       assert 2 == 4
+tests/unit/test_neo4j_fulltext_index.py:129: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{"event": "MemoryService: recovered 0 episodes from Neo4j (0 returned, 0 deduped)", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-09T04:25:48.115019Z"}
+{"event": "MemoryService initialized successfully", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-09T04:25:48.115157Z"}
+{"event": "[Epic 4] Fulltext index 'episode_content' ensured on EpisodicNode.content", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-09T04:25:48.115212Z"}
+{"event": "[Epic 4] Fulltext index 'episode_content' ensured on EpisodicNode.content", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-09T04:25:48.115252Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.memory_service:memory_service.py:300 {'event': 'MemoryService: recovered 0 episodes from Neo4j (0 returned, 0 deduped)', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-09T04:25:48.115019Z'}
+INFO     app.services.memory_service:memory_service.py:208 {'event': 'MemoryService initialized successfully', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-09T04:25:48.115157Z'}
+INFO     app.services.memory_service:memory_service.py:235 {'event': "[Epic 4] Fulltext index 'episode_content' ensured on EpisodicNode.content", 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-09T04:25:48.115212Z'}
+INFO     app.services.memory_service:memory_service.py:235 {'event': "[Epic 4] Fulltext index 'episode_content' ensured on EpisodicNode.content", 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-09T04:25:48.115252Z'}
+=============================== warnings summary ===============================
+../../../../../../../../Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+../../../../../../../../Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+../../../../../../../../Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+../../../../../../../../Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+    import pkg_resources
+<frozen importlib._bootstrap>:491
+<frozen importlib._bootstrap>:491
+app/api/v1/endpoints/chat.py:764
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-probe-p11-3d10a02b/backend/app/api/v1/endpoints/chat.py:764: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+app/api/v1/endpoints/metadata.py:140
+    canvas_path: str = Query(
+app/api/v1/endpoints/metadata.py:213
+    canvas_path: str = Query(
+../../../../../../../../Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+app/mcp/server.py:135
+    mcp.mount()
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/unit/test_neo4j_fulltext_index.py::TestEnsureFulltextIndex::test_ensure_fulltext_index_idempotent
+======================== 1 failed, 11 warnings in 0.49s ========================
+pytest_raw_rc=0 (⛔ 非判据: 老 commit addopts 含 --cov-fail-under=85)
+worktree_removed_rc=0
+rc=0

@@ -1,0 +1,11 @@
+=== 跑后必红 · 失败正文 ===
+本次合约测试把 vault 骨架写进了 backend/: ['raw']
+(root=/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-22548/test_reddens_when_skeleton_app0/backend_mirror; 跑前这些项都不存在)
+  - /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-22548/test_reddens_when_skeleton_app0/backend_mirror/raw (mtime=2026-09-09T16:25:41.660293)
+.=== 跑前已脏必红 · 失败正文 ===
+污染现场已存在: ['outputs'] 先清理再跑
+(root=/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-22548/test_reddens_when_dirty_before0/backend_mirror2; 这些项在合约测试开始之前就在了, 跑后断言无法归因)
+  - /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-22548/test_reddens_when_dirty_before0/backend_mirror2/outputs (mtime=2026-09-09T16:25:41.661165)
+.=== 控制组：干净镜像全程绿 ===
+.
+rc=0

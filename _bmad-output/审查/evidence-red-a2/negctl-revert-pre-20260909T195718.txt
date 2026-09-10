@@ -1,0 +1,3 @@
+===== 改前 sha =====
+146b828f595efe10660eda97575f97ca60d5bec5195fe4dffdf54472f77ca0bd  backend/tests/unit/test_sync_batch_auth.py
+ecf95d29fb45f843dd461acd014d10baa22cc81d0ef563bc721305b67ee3ecbe  backend/tests/unit/test_system_endpoint_auth.py

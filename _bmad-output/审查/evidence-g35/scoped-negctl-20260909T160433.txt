@@ -1,0 +1,37 @@
+SHA_BEFORE = 8de42247eacb5b69a492e9fb184d4862a39a2b74cf8d30db3ef6c393a969d100
+BACKUP     = /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.61zDiCaRtZ
+N1 mutation applied
+
+=================== N1 (单 vault 语义回退) ===================
+MUTANT SHA = 460b45f29f551f6e6f6ec7673c961e958cc339e25053ffcd9fb92d386c9c1456
+E   AssertionError: vault_a 的投影被 vault_b 的同名 concept 覆盖了 —— 这正是 G3-5 要修的撞键缺陷 (读回 '{"stability": 9.9, "vault": "B"}')
+E   assert '{"stability"..."vault": "B"}' == '{"stability"..."vault": "A"}'
+E     
+E     - {"stability": 1.5, "vault": "A"}
+E     ?               ^ ^            ^
+E     + {"stability": 9.9, "vault": "B"}
+E     ?               ^ ^            ^
+FAILED tests/regression/test_g3_5_vault_keyed_card_states.py::TestTwoVaultsSameConceptId::test_second_vault_write_does_not_clobber_first
+======================== 1 failed, 10 warnings in 0.40s ========================
+N1 (单 vault 语义回退) rc = 1  (期望 1 = 被点名断言变红)
+N2 mutation applied
+
+=================== N2 (拆 fail-closed 守卫) ===================
+MUTANT SHA = a5db82995c12c1d3b5df5e12caf188c0ad9c874663a3f1be87e0f50bc9b7a2a6
+E   AssertionError: 作用域解析不出来时必须 fail-closed 返回 False —— 静默落进某个缺省桶等于把配置断裂伪装成写入成功
+E   assert True is False
+{"event": "CARD-G3-5 vault scope unresolved [context: review_service._card_states.get]: read scope unresolved [context: review_service._card_states.get]: no explicit group_id and active vault derivation failed (RuntimeError: probe: active vault derivation broken). \u62d2\u7edd\u65e0\u4f5c\u7528\u57df\u8bfb\u53d6 (\u4f1a\u8de8 vault \u5168\u5e93\u626b\u63cf)\u3002 \u2014 \u62d2\u7edd\u63a8\u8fdb FSRS \u6295\u5f71 (\u4e0d\u843d\u8fdb\u7f3a\u7701\u6876: \u90a3\u4f1a\u628a\u914d\u7f6e\u65ad\u88c2\u4f2a\u88c5\u6210\u5199\u5165\u6210\u529f)", "logger": "app.services.review_service", "level": "error", "timestamp": "2026-09-09T08:04:51.605399Z"}
+{"event": "CARD-G3-5 vault scope unresolved [context: review_service._dirty_key]: read scope unresolved [context: review_service._dirty_key]: no explicit group_id and active vault derivation failed (RuntimeError: probe: active vault derivation broken). \u62d2\u7edd\u65e0\u4f5c\u7528\u57df\u8bfb\u53d6 (\u4f1a\u8de8 vault \u5168\u5e93\u626b\u63cf)\u3002 \u2014 \u62d2\u7edd\u63a8\u8fdb FSRS \u6295\u5f71 (\u4e0d\u843d\u8fdb\u7f3a\u7701\u6876: \u90a3\u4f1a\u628a\u914d\u7f6e\u65ad\u88c2\u4f2a\u88c5\u6210\u5199\u5165\u6210\u529f)", "logger": "app.services.review_service", "level": "error", "timestamp": "2026-09-09T08:04:51.605578Z"}
+{"event": "CARD-G3-5 vault scope unresolved [context: review_service._save_card_states]: read scope unresolved [context: review_service._save_card_states]: no explicit group_id and active vault derivation failed (RuntimeError: probe: active vault derivation broken). \u62d2\u7edd\u65e0\u4f5c\u7528\u57df\u8bfb\u53d6 (\u4f1a\u8de8 vault \u5168\u5e93\u626b\u63cf)\u3002 \u2014 \u62d2\u7edd\u63a8\u8fdb FSRS \u6295\u5f71 (\u4e0d\u843d\u8fdb\u7f3a\u7701\u6876: \u90a3\u4f1a\u628a\u914d\u7f6e\u65ad\u88c2\u4f2a\u88c5\u6210\u5199\u5165\u6210\u529f)", "logger": "app.services.review_service", "level": "error", "timestamp": "2026-09-09T08:04:51.605635Z"}
+ERROR    app.services.review_service:review_service.py:401 {'event': 'CARD-G3-5 vault scope unresolved [context: review_service._card_states.get]: read scope unresolved [context: review_service._card_states.get]: no explicit group_id and active vault derivation failed (RuntimeError: probe: active vault derivation broken). 拒绝无作用域读取 (会跨 vault 全库扫描)。 — 拒绝推进 FSRS 投影 (不落进缺省桶: 那会把配置断裂伪装成写入成功)', 'logger': 'app.services.review_service', 'level': 'error', 'timestamp': '2026-09-09T08:04:51.605399Z'}
+ERROR    app.services.review_service:review_service.py:401 {'event': 'CARD-G3-5 vault scope unresolved [context: review_service._dirty_key]: read scope unresolved [context: review_service._dirty_key]: no explicit group_id and active vault derivation failed (RuntimeError: probe: active vault derivation broken). 拒绝无作用域读取 (会跨 vault 全库扫描)。 — 拒绝推进 FSRS 投影 (不落进缺省桶: 那会把配置断裂伪装成写入成功)', 'logger': 'app.services.review_service', 'level': 'error', 'timestamp': '2026-09-09T08:04:51.605578Z'}
+ERROR    app.services.review_service:review_service.py:401 {'event': 'CARD-G3-5 vault scope unresolved [context: review_service._save_card_states]: read scope unresolved [context: review_service._save_card_states]: no explicit group_id and active vault derivation failed (RuntimeError: probe: active vault derivation broken). 拒绝无作用域读取 (会跨 vault 全库扫描)。 — 拒绝推进 FSRS 投影 (不落进缺省桶: 那会把配置断裂伪装成写入成功)', 'logger': 'app.services.review_service', 'level': 'error', 'timestamp': '2026-09-09T08:04:51.605635Z'}
+FAILED tests/regression/test_g3_5_vault_keyed_card_states.py::TestFailClosedWhenScopeUnresolved::test_write_is_not_advanced_when_scope_unresolved
+======================== 1 failed, 10 warnings in 0.43s ========================
+N2 (拆 fail-closed 守卫) rc = 1  (期望 1 = 被点名断言变红)
+
+=================== 判据汇总 ===================
+N1 rc = 1 (期望 1 = KILLED)
+N2 rc = 1 (期望 1 = KILLED; 若 0 = SURVIVED ⇒ fail-closed 是死分支, 必须停下改取值口)
+SHA_AFTER  = 8de42247eacb5b69a492e9fb184d4862a39a2b74cf8d30db3ef6c393a969d100
+RESTORE: OK (逐字节相同)

@@ -1,0 +1,48 @@
+== 变异前基线 sha256（还原以此为准，不是 HEAD）==
+  973c2b333ebc6d3c32e3a977443a06d6b880836ad6c4dfed4fc46c36a4c58381  scripts/cls_forbidden_paths.py
+  519dfd8bd22899850800c03b49a24189afdbc8216ac5dd82b815111df9806371  scripts/deploy-vault.sh
+
+[KILLED]  B-1 前缀退回只留词法 HOME
+           → test_forbidden_judge_covers_physical_home_claude_prefix 变红，断言消息含「物理 HOME 下的 .claude-new 未被拦」
+[KILLED]  B-2 去掉 hits() 里的逐段遍历判据
+           → test_forbidden_judge_catches_git_in_ancestor_of_link_target 变红，断言消息含「未拦住链目标祖先里的 .git」
+[KILLED]  B-2 让 walker 重新词法折叠 ..
+           → test_forbidden_judge_does_not_fold_dotdot_before_resolving 变红，断言消息含「被提前折叠」
+[KILLED]  B-4 镜像判据就地失效（内层）
+           → test_step4_mirror_files_pass_the_same_judge_before_sed 变红，断言消息含「被就地失效或改写」
+[KILLED]  B-4 外层守卫被架空（r6 MEDIUM-4）
+           → test_step4_mirror_files_pass_the_same_judge_before_sed 变红，断言消息含「外层守卫」
+[KILLED]  H-1(r6) fchmod 挪到 nlink 拒绝分支之前
+           → test_env_key_write_chmods_only_after_nofollow_and_nlink 变红，断言消息含「fchmod 必须在 nlink」
+[KILLED]  B-2(r6) 根处理**整体**移除（under 特例 + walker 登记根）
+           → test_forbidden_judge_handles_protected_target_at_root 变红，断言消息含「保护目标为根时漏拦」
+[KILLED]  B-1(r6) chain_resolvable 恒真
+           → test_forbidden_judge_fail_closed_when_second_hop_unsearchable 变红，断言消息含「第二跳不可搜索时未 fail-closed」
+[KILLED]  M-1(r6) 上限退回数段数
+           → test_forbidden_judge_does_not_block_deep_but_linkless_path 变红，断言消息含「无软链的深段路径被误拦」
+[KILLED]  H-2 去掉 --vault 绝对路径强制（r6 MEDIUM-2 修正：合法 bash + 多段输入）
+           → test_multi_segment_relative_vault_is_rejected_at_entry 变红，断言消息含「多段相对 --vault 未被入口拒」
+[SURVIVED] H-1(r7) open_pinned 去掉「解析后当场过判据」这一步: test_open_pinned_rejects_ancestor_symlink_into_protected 仍绿 ⇒ 该门不承重
+[KILLED]  H-1(r7) 叶子打开不再强制 O_NOFOLLOW
+           → test_every_bash_write_site_has_a_prewrite_recheck 变红，断言消息含「叶子打开必须强制带 O_NOFOLLOW」
+[KILLED]  M-2(r7) 根路径入口退回空逐段列表
+           → test_forbidden_judge_checks_root_path_input 变红，断言消息含「未被判据检查」
+[KILLED]  M-3(r7) 镜像清单恒空 ⇒ 守卫为假、整块跳过（源码门看不见，端到端才抓得到）
+           → test_step4_mirror_symlink_is_blocked_end_to_end 变红，断言消息含「镜像内软链未被步 4 拦下」
+[KILLED]  H-1(r8) open_pinned 只判 parent（丢掉沿链 .git 保护）
+           → test_every_bash_write_site_has_a_prewrite_recheck 变红，断言消息含「原路径**必须过判据」
+[KILLED]  H-3(r8) chmod_pinned 去掉 nlink 拒绝
+           → test_chmod_pinned_rejects_hardlink_and_nonregular 变红，断言消息含「硬链接」
+[SETUP-FAIL] H-4(r8) 裸 os.write 短写当成功: 原文片段没找到 ⇒ 变异体本身写错了，不计 KILLED
+[KILLED]  H-2(r8) 去掉 PYTHONDONTWRITEBYTECODE
+           → test_script_disables_bytecode_cache_before_importing_primitives 变红，断言消息含「禁字节码缓存必须在任何 import 之前」
+
+[PROBE] MEDIUM-5 探针：停用 ancestor_symlink_hits → **全绿**
+        ⇒ 该函数在现有用例下**零承重**。如实登记为冗余，
+          不得再宣称「两轴各自承重」（Codex r6 MEDIUM-5 原话）。
+
+== 还原逐字节核对 ==
+  同  973c2b333ebc6d3c32e3a977443a06d6b880836ad6c4dfed4fc46c36a4c58381  scripts/cls_forbidden_paths.py
+  同  519dfd8bd22899850800c03b49a24189afdbc8216ac5dd82b815111df9806371  scripts/deploy-vault.sh
+
+结论: 16/18 KILLED, 2 有问题

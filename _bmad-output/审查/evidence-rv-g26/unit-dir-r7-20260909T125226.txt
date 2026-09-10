@@ -1,0 +1,7 @@
+### tests/unit 目录级（U3-A r6 整改后） vs 红基线 da690bf8 —— 两维对账
+汇总: = 173 failed, 4839 passed, 48 skipped, 121 warnings, 29 errors in 239.41s (0:03:59) =
+哨兵: NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=12 (blocked=12, advisory=0, unaccounted=0)
+基线 nodeid: 202  本次: 202
+--- 差异及是否哨兵归属 ---
+集合相等: 是
+rc=0

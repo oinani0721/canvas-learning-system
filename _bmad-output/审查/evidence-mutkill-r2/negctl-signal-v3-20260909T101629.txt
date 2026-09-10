@@ -1,0 +1,18 @@
+── naive（收口前写法：handler 抛异常让 finally 跑）——**必须**留下残留
+   子进程 rc=130
+   | naive: 收到信号 15 —— 异常从 finally 里逃出去了
+   未还原的文件: ['target_2.txt', 'target_3.txt', 'target_4.txt']  ⇒ PASS（负控承重）
+
+── guarded（RestoreGuard.critical：还原期不可打断）——**必须**零残留 + rc=130
+   子进程 rc=130
+   | ⚠️ 还原进行中，收到信号 15 —— 记下待办，还原完再退出
+   | 
+   | ⚠️ 收到信号 15，已还原全部登记过的目标文件后退出（完整性以全文件 sha 对账为准）
+   未还原的文件: ∅   rc=130（期望 130）
+   ⇒ PASS
+
+── 覆盖面自证：RestoreGuard 挂了哪些信号（SIGQUIT 是收口前三套漏掉的那个）
+   ['SIGTERM', 'SIGINT', 'SIGHUP', 'SIGQUIT']
+   ⇒ PASS
+
+VERDICT: PASS

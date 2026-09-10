@@ -1,0 +1,21 @@
+=== format 债对照 v2（按 Codex r1 MEDIUM-3 加强：补文件名 + 增删方向 + 基线 SHA）===
+基线 SHA: b17b710d (b17b710d10224273f06a4e277def3f9368dfed1e)  ← U11-B 末 commit，本卡代码改动的起点
+口径: ruff format --diff --config backend/ruff.toml，每条记为 <文件名>|<方向+/-> |<内容>
+⛔ 旧口径（仅内容多重集）会被「消一处旧债 + 引一处同文本新债」骗过 —— Codex r1 MEDIUM-3 指出，已修
+
+--- 仅在【本卡版本】（= 本卡新增 format 债，判据要求为空）---
+[END-NEW]
+
+--- 仅在【基线版本】（= 本卡改写掉的行）---
+test_calibration_tracker.py|-|            compute_calibration_rating(-0.15, 20) == CalibrationRating.WELL_CALIBRATED
+test_calibration_tracker.py|-|        )
+test_calibration_tracker.py|-|        assert (
+test_calibration_tracker.py|+|        assert compute_calibration_rating(-0.15, 20) == CalibrationRating.WELL_CALIBRATED
+[END-GONE]
+
+--- 逐文件 would-reformat 名单两侧对照 ---
+only-in-baseline:
+[END]
+only-in-current:
+[END]
+identical name sets = True

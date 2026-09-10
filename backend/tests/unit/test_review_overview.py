@@ -33,6 +33,24 @@ except Exception:  # noqa: BLE001
     _SH = timezone(timedelta(hours=8))
 
 
+@pytest.fixture(autouse=True)
+def _pin_display_tz(monkeypatch):
+    """把显示时区钉在 Asia/Shanghai —— 本文件大量期望值用 `_SH` 算 (CARD-G6-9c)。
+
+    本卡把显示侧从硬编码 Asia/Shanghai 收敛到 `display_tz()`(缺省 = 机器本地)。
+    而本文件的期望值仍按 `_SH`(= 上海) 算 —— 那是**刻意保留**的: 期望值若改成
+    按显示时区现算, 就与被测量同源、缺陷会让两边一起退化 (memory「期望值与被
+    测量同源」)。故用 CANVAS_TZ 把被测侧钉到与 `_SH` 同一个时区。
+
+    透传链: `_child_env()` 的白名单含 CANVAS_TZ ⇒ refresh 起的**生产器子进程**
+    也拿到同一个值, 父子两侧不分叉。
+
+    ⚠ 测时区行为本身的两条用例 (`test_child_env_*` / `test_child_tz_*`) 会显式
+    `delenv("CANVAS_TZ")` 把本夹具让开 —— 它们要看的正是缺省档。
+    """
+    monkeypatch.setenv("CANVAS_TZ", "Asia/Shanghai")
+
+
 def _now_local() -> datetime:
     return datetime.now().astimezone()
 
@@ -1039,7 +1057,7 @@ def test_buckets_layer_counts_and_cross_source_gate(overview_env):
     assert page.text.count("分层 · ") == 1, "无 buckets 的旧投影卡片不出现分层行"
 
 
-def test_buckets_gate_accepts_real_producer_payload(tmp_path, overview_env):
+def test_buckets_gate_accepts_real_producer_payload(tmp_path, overview_env, monkeypatch):
     """假阳性防线 (Codex round-2 C/D): 不用手搓 fixture —— 直接跑真生产器
     daily_review_pick.build_payload 产出投影, 落成真文件后过总览端点, 必须
     ok 且分层计数与生产器 buckets 逐字相等。门禁若把生产器真实产出判成
@@ -1051,6 +1069,18 @@ def test_buckets_gate_accepts_real_producer_payload(tmp_path, overview_env):
     wt = Path(__file__).resolve().parents[3]
     sys.path.insert(0, str(wt / "scripts"))
     import daily_review_pick as picker  # pyright: ignore[reportMissingImports]
+
+    # ⛔ 把**生产器侧**的时区也钉在 _SH (CARD-G6-9c)。本用例是两侧同场比对:
+    #    picker 产出 buckets、总览端点的 _gate_buckets 复算它。两侧的时区来源
+    #    形态不同 —— 端点每次现调 display_tz() (读 CANVAS_TZ, 由 _pin_display_tz
+    #    夹具钉住), 而 picker 用**模块级常量** `_DISPLAY_TZ`, 在 `import
+    #    daily_review_pick` 那一刻就固化了。
+    #    单跑本文件时这里恰好是首次 import (夹具已生效, 两侧同为上海, 绿);
+    #    与别的文件合跑时 picker 早在 collection 期就被 import 过 —— 那时还没有
+    #    CANVAS_TZ, 常量固化成机器本地 ⇒ 非上海宿主上两侧分叉, 生产器把
+    #    「上海今天 23:00」判成 future 而门说它该是 due_today, 端点返回 corrupt。
+    #    钉住它, 门比的才是"桶位逻辑", 不是"两侧时区碰巧一样吗"。
+    monkeypatch.setattr(picker, "_DISPLAY_TZ", _SH)
 
     root, client = overview_env
     vault = root / "vault-real"
@@ -1755,7 +1785,11 @@ def test_child_env_is_allowlisted_not_inherited(refresh_env, monkeypatch):
     assert "PYTHONPATH" not in env and "PYTHONSTARTUP" not in env
     assert "SOME_SECRET_TOKEN" not in env, "后端进程的密钥不该顺手进子进程"
     assert env["PYTHONDONTWRITEBYTECODE"] == "1" and env["PYTHONNOUSERSITE"] == "1"
-    assert env.get("TZ") == "Asia/Shanghai", "时区要透传 — 本地日语义得与宿主一致"
+    assert env.get("TZ") == "Asia/Shanghai", (
+        "TZ 必须**透传**(CARD-G6-9c / D-18): 父子两侧看同一个时区视图。"
+        "本卡之前这里是被强制赋成一个固定名的, 恰好等于 setenv 的值 —— 那时这条"
+        "断言过得去但证不到透传。现在白名单里有 TZ, 它才真的在测透传。"
+    )
 
     # 端到端: 带着注入 env 跑真 refresh 仍要正常出投影 (白名单没砍掉必需项)
     root, client = refresh_env
@@ -2656,46 +2690,64 @@ def test_publish_fingerprint_uses_three_independent_signals(refresh_env, tmp_pat
     assert mod._publish_fingerprint(tmp_path / "根本不存在.json") is None
 
 
-def test_child_tz_is_forced_so_container_utc_cannot_produce_yesterday(refresh_env, monkeypatch):
-    """⛔ 收官审计抓到的真缺陷: 容器 TZ 为空 + /etc/localtime→Etc/UTC（现网实测），
-    而生产器的 `payload["date"]` / md 标题 / 通知 id 全走**进程本地时区**。
-    不强制 TZ 的话，上海 00:00-08:00 这 8 小时里 refresh 产出的是**昨天**的日期，
-    而端点照样 rebuilt=true / status=ok —— 页面上没有任何异常信号。
+def test_child_tz_is_passed_through_so_parent_and_child_share_one_view(refresh_env, monkeypatch):
+    """⛔ 收官审计抓到的真缺陷（CARD-G6-9c / D-18 反转后的形态）: 生产器的
+    `payload["date"]` / md 标题 / 通知 id 全走**子进程看到的时区**。父子两侧只要
+    看到的时区不同，同一个库的两条生成路径就会给出不同的 date，取决于谁最后写 ——
+    而端点照样 rebuilt=true / status=ok，页面上没有任何异常信号。
 
-    这条坑读侧早修掉了（stale 判定 astimezone(_TZ_SHANGHAI)），写侧不能搬回来。
+    G6-9a 时这里是**强制**钉死一个固定显示时区名。D-18 裁定「今天 = 用户当前
+    所在地」后，硬编码的强制值本身成了分叉源（用户换时区 ⇒ 页面按机器本地归日、
+    refresh 重生成的 payload 仍是旧时区日），故改为**透传**。
 
-    ⚠ 本用例**端到端**验：把父进程 TZ 设成 UTC 再跑真 subprocess，产出的 date
-    必须仍是上海日。只断言 `_child_env()["TZ"] == "Asia/Shanghai"` 是不够的 ——
-    那只证明字典里有这个键，证不了子进程真的按它算日期。
+    ⚠ 本用例**端到端**验：父进程 TZ 设成什么，真 subprocess 产出的 date 就必须
+    按什么算。只断言 `_child_env()` 字典里有那个键是不够的 —— 那证不了子进程
+    真按它算日期。
     """
     import app.api.v1.endpoints.review_overview as mod
 
-    # 父进程冒充容器：TZ=UTC
+    root, client = refresh_env
+
+    # ── ① 父进程冒充容器（TZ=UTC，无 CANVAS_TZ）：子进程必须也按 UTC 归日 ──
+    monkeypatch.delenv("CANVAS_TZ", raising=False)  # 让开 _pin_display_tz 夹具
     monkeypatch.setenv("TZ", "UTC")
     env = mod._child_env()
-    assert env["TZ"] == mod._DISPLAY_TZ_NAME == "Asia/Shanghai", "父进程的 TZ 不许影响子进程"
+    assert env["TZ"] == "UTC", "父进程的 TZ 必须透传给子进程（不再强制覆盖）"
+    assert "CANVAS_TZ" not in env, "父进程没设 CANVAS_TZ 时不该凭空出现"
 
-    root, client = refresh_env
     vault = _mk_node_vault(root, "vault-tz", {"甲": _node_md()})
     assert client.post(_REFRESH_URL, data={"vault_id": "vault-tz"}).status_code == 200
-
     payload = json.loads((vault / "outputs" / "今日复习.json").read_text(encoding="utf-8"))
-    sh_today = datetime.now(_SH).date().isoformat()
-    assert payload["date"] == sh_today, (
-        f"父进程 TZ=UTC 时产出的 date={payload['date']!r} 应仍是上海日 {sh_today!r} —— "
-        f"否则上海 00:00-08:00 会静默产出昨天的复习清单"
+    utc_today = datetime.now(timezone.utc).date().isoformat()
+    assert payload["date"] == utc_today, (
+        f"父进程 TZ=UTC 时 date={payload['date']!r} 应为 UTC 日 {utc_today!r} —— 父子两侧必须是同一个时区视图"
     )
-    assert payload["generated_at"].endswith("+08:00"), (
-        f"generated_at 应带 +08:00 偏移, 实为 {payload['generated_at']!r}"
+    assert payload["generated_at"].endswith("+00:00"), (
+        f"generated_at 应带 +00:00 偏移, 实为 {payload['generated_at']!r}"
     )
     md_head = (vault / "outputs" / "今日复习.md").read_text(encoding="utf-8").splitlines()[0]
-    assert sh_today in md_head, f"md 标题也必须是上海日, 实为 {md_head!r}"
+    assert utc_today in md_head, f"md 标题也必须同源, 实为 {md_head!r}"
     noti = payload.get("notification")
-    if noti:  # 空 vault 时无通知; 有则 id 必须是上海日 (否则会覆盖昨天那条推送)
-        assert noti["id"] == f"canvas-review-{sh_today}"
+    if noti:  # 有通知则 id 必须同日（否则会覆盖别一天那条推送）
+        assert noti["id"] == f"canvas-review-{utc_today}"
 
-    # 读写两侧共用同一个字面量, 永不漂移
-    assert getattr(mod._TZ_SHANGHAI, "key", "Asia/Shanghai") == mod._DISPLAY_TZ_NAME
+    # ── ② CANVAS_TZ 显式覆盖：压过父进程 TZ，子进程按东京归日 ──
+    #    这一段是 ① 的对照：没有它，① 的"UTC 日"分不清是"透传起作用"还是
+    #    "这条路径恒用 UTC"。
+    monkeypatch.setenv("CANVAS_TZ", "Asia/Tokyo")
+    env2 = mod._child_env()
+    assert env2["CANVAS_TZ"] == "Asia/Tokyo" and env2["TZ"] == "UTC", (
+        f"CANVAS_TZ 与 TZ 都该透传, 实得 {env2.get('CANVAS_TZ')!r} / {env2.get('TZ')!r}"
+    )
+    vault2 = _mk_node_vault(root, "vault-tz2", {"甲": _node_md()})
+    assert client.post(_REFRESH_URL, data={"vault_id": "vault-tz2"}).status_code == 200
+    payload2 = json.loads((vault2 / "outputs" / "今日复习.json").read_text(encoding="utf-8"))
+    assert payload2["generated_at"].endswith("+09:00"), (
+        f"CANVAS_TZ=Asia/Tokyo 应压过 TZ=UTC, 实得 {payload2['generated_at']!r}"
+    )
+
+    # 读侧与写侧同一个来源: 端点自己算出来的名字, 就是它透传给子进程的那个
+    assert mod._display_tz_name() == "Asia/Tokyo", f"读侧显示时区名与透传给子进程的值漂移了: {mod._display_tz_name()!r}"
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -2860,19 +2912,34 @@ def test_g67_board_done_writes_only_state_and_never_touches_fsrs(board_done_env,
 
     body = resp.json()
     assert body["board"] == "CS 61B" and body["fsrs_touched"] is False
-    assert body["done_date"] == mod._sh_today()
+    assert body["done_date"] == mod._display_today()
     state_file = runner.state_path(vault)
     assert Path(body["state_path"]) == state_file
     assert not state_file.is_relative_to(vault), "完成账不许落在库内 (BACKUPS 在仓库下)"
 
     st = _state_of(runner, Path(root), "vault-fsrs")
-    assert st["board_done"] == {"CS 61B": mod._sh_today()}
+    assert st["board_done"] == {"CS 61B": mod._display_today()}
     assert st["schema_version"] == runner.STATE_SCHEMA_VERSION
 
     after_tree = _tree(root)
+    lock_file = runner.state_lock_path(vault)
     changed = {k for k in set(before_tree) | set(after_tree) if before_tree.get(k) != after_tree.get(k)}
-    assert changed == {"backups", f"backups/{state_file.name}"}, (
-        f"写面必须恰是 backups 目录 + 那一个 state 文件, 实为 {sorted(changed)}"
+    # CARD-G6-7-R: 允许集由两项扩为三项 —— save_state 现在先取一把跨进程
+    # 文件锁, 那个锁文件必然落在 backups/ 里。这不是放宽 (集合仍是**恰好
+    # 等于**), 新增的那一项由下面两条断言钉死: 它必须是空的, 且必须在库外。
+    # 往锁 fd 里写内容、或把锁挪进 vault, 都会当场红。
+    assert changed == {"backups", f"backups/{state_file.name}", f"backups/{lock_file.name}"}, (
+        f"写面必须恰是 backups 目录 + 那一个 state 文件 + 那一把锁, 实为 {sorted(changed)}"
+    )
+    assert lock_file.stat().st_size == 0, "锁文件只做锁, 不许承载任何数据"
+    assert not lock_file.is_relative_to(vault), "锁不许落在库内 (与完成账同一条纪律)"
+    # 形态落进 -rA 存档: 验收单只引用这几行, 不自述数字
+    backups = state_file.parent
+    print(f"[g67r-writeface] backups={backups}")
+    for entry in sorted(backups.iterdir()):
+        print(f"[g67r-writeface]   {entry.name}  size={entry.stat().st_size}")
+    assert sorted(p.name for p in backups.iterdir()) == sorted([state_file.name, lock_file.name]), (
+        f"backups/ 里恰是 state + 锁两个文件, 实为 {sorted(p.name for p in backups.iterdir())}"
     )
 
 
@@ -2889,7 +2956,7 @@ def test_g67_fsrs_gate_reddens_under_contaminating_write_point(board_done_env, m
     before = _fsrs_fingerprint(vault)
     resp = client.post(_BOARD_DONE_URL, data={"vault_id": "vault-neg", "board": "CS 61B"})
     assert resp.status_code == 200, "对照写点只污染 FSRS, 不许把请求本身弄坏 (否则红的是别的东西)"
-    assert _state_of(runner, Path(root), "vault-neg")["board_done"] == {"CS 61B": mod._sh_today()}, (
+    assert _state_of(runner, Path(root), "vault-neg")["board_done"] == {"CS 61B": mod._display_today()}, (
         "对照写点必须仍然把完成账写对 —— 拆的只是那一条守卫"
     )
     with pytest.raises(AssertionError) as ei:
@@ -3030,7 +3097,13 @@ def test_g67_page_folds_done_board_without_dropping_it(board_done_env):
     head, fold = page2[:i], page2[i:]
     assert "数学" in head and "CS 61B" not in head, "已完成板应从待做区移出"
     assert "CS 61B" in fold, "已完成板必须仍在页面上 (折叠区内), 不许被剔除"
-    assert page2.count('name="board"') == 1, "已完成板不该再带完成钮"
+    # CARD-G6-7-R: 原判据是 page2.count('name="board"') == 1。加了「取消完成」
+    # 表单之后, 两个动作的 hidden input 同名, 计数不再表达"已完成板不该再带
+    # **完成**钮"这个意图。换成按 action 归属判定 —— 更强 (两个动作各自可被
+    # 违反), 不是放宽。撤销钮本身的位置由
+    # test_g67r_page_offers_undo_only_in_the_done_section 单独守。
+    assert fold.count(f'action="{_BOARD_DONE_URL}"') == 0, "已完成板不该再带完成钮"
+    assert head.count(f'action="{_BOARD_DONE_URL}"') == 1, "未完成板仍要带完成钮"
     # JSON 侧同源: entry.board_done 与页面折叠的是同一份判定
     entry = next(v for v in client.get("/api/v1/review/overview").json()["vaults"] if v["vault_id"] == "vault-page")
     assert entry["board_done"] == ["CS 61B"]
@@ -3059,7 +3132,7 @@ def test_g67_done_expires_next_day_and_is_per_vault(board_done_env):
     # 把日期改成昨天 = 时间往前走了一天
     sf = runner.state_path(root / "vault-x")
     st = json.loads(sf.read_text(encoding="utf-8"))
-    yesterday = (datetime.fromisoformat(mod._sh_today()) - timedelta(days=1)).date().isoformat()
+    yesterday = (datetime.fromisoformat(mod._display_today()) - timedelta(days=1)).date().isoformat()
     st["board_done"]["CS 61B"] = yesterday
     sf.write_text(json.dumps(st, ensure_ascii=False), encoding="utf-8")
 
@@ -3105,7 +3178,7 @@ def test_g67_write_path_quarantines_corrupt_state_and_rebuilds(board_done_env):
     assert resp.status_code == 200, resp.text
     assert list(sf.parent.glob("*.corrupt-*")), "错型 state 必须被隔离 (复用 runner 的既有行为)"
     st = json.loads(sf.read_text(encoding="utf-8"))
-    assert st["board_done"] == {"CS 61B": mod._sh_today()}
+    assert st["board_done"] == {"CS 61B": mod._display_today()}
     assert st["schema_version"] == runner.STATE_SCHEMA_VERSION
 
 
@@ -3147,7 +3220,7 @@ def test_g67_old_state_without_board_done_reads_as_empty(board_done_env):
     assert client.post(_BOARD_DONE_URL, data={"vault_id": "vault-old", "board": "CS 61B"}).status_code == 200
     st = json.loads(sf.read_text(encoding="utf-8"))
     assert st["board_last_recommended"] == {"CS 61B": "2026-08-01"}, "既有键的值一个都不许动"
-    assert st["board_done"] == {"CS 61B": mod._sh_today()}
+    assert st["board_done"] == {"CS 61B": mod._display_today()}
     assert st["schema_version"] == runner.STATE_SCHEMA_VERSION
 
 
@@ -3232,7 +3305,7 @@ def test_g67_stale_tmp_residue_neither_blocks_nor_gets_clobbered(board_done_env)
 
     resp = client.post(_BOARD_DONE_URL, data={"vault_id": "vault-stale", "board": "CS 61B"})
     assert resp.status_code == 200, f"残骸不该挡住保存: {resp.text[:200]}"
-    assert json.loads(state.read_text(encoding="utf-8"))["board_done"]["CS 61B"] == mod._sh_today()
+    assert json.loads(state.read_text(encoding="utf-8"))["board_done"]["CS 61B"] == mod._display_today()
     assert hashlib.sha256(stale.read_bytes()).hexdigest() == stale_sha, "别人的残骸不许被顺手删改"
     # 本次自己的临时件必须已经被 os.replace 消费掉, 不留新残渣
     ours = [p.name for p in state.parent.glob(f"{state.name}.*.tmp") if p.name != stale.name]
@@ -3270,7 +3343,7 @@ def test_g67_state_write_abandons_both_legacy_fixed_tmp_names(board_done_env):
 
     resp = client.post(_BOARD_DONE_URL, data={"vault_id": "vault-legacy-tmp", "board": "CS 61B"})
     assert resp.status_code == 200, f"实现还在用历史固定名 tmp: {resp.text[:300]}"
-    assert json.loads(state.read_text(encoding="utf-8"))["board_done"]["CS 61B"] == mod._sh_today()
+    assert json.loads(state.read_text(encoding="utf-8"))["board_done"]["CS 61B"] == mod._display_today()
     for p in legacy:
         assert p.is_dir(), f"历史固定名 {p.name} 不该被碰"
     leftovers = [q.name for q in state.parent.glob("*.tmp") if q.name not in {p.name for p in legacy}]
@@ -3356,3 +3429,455 @@ def test_g67_fsrs_fingerprint_catches_boundary_and_crlf(board_done_env):
 
     node.write_bytes(original)
     _assert_fsrs_untouched(base, _fsrs_fingerprint(vault))  # 还原后必须回到相等 (防"恒不等"的假门)
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# CARD-G6-7-R: 手动刷新带 board_done · 锁内三方合并 · 「取消完成」入口
+# ══════════════════════════════════════════════════════════════════════════
+
+_BOARD_UNDONE_URL = "/api/v1/review/overview/board-undone"
+
+
+def _install_contaminating_undo_write_point(monkeypatch, mod, vault: Path):
+    """对照实现: 照常撤销, 但**顺手**改一个节点的 fsrs_due。
+
+    与 _install_contaminating_write_point 同纪律, 只是包的是撤销那个写点 ——
+    ⛔ 不能复用那一个: 它包的是 _write_board_done, 装上之后跑撤销路径什么
+    都不会发生, 于是"负控没红"会被读成"门有牙"(实测踩到过, 本门当场
+    DID NOT RAISE)。变异必须打在**被验的那条路径**上。
+    """
+    real = mod._write_board_undone
+
+    def contaminated(vault_dir, vaults_root, board):
+        state_file, already = real(vault_dir, vaults_root, board)
+        target = sorted((vault / "节点").glob("*.md"))[0]
+        text = target.read_text(encoding="utf-8")
+        target.write_text(text.replace("fsrs_due:", "fsrs_due: # 顺手改\nfsrs_due_shadow:"), encoding="utf-8")
+        return state_file, already
+
+    monkeypatch.setattr(mod, "_write_board_undone", contaminated)
+
+
+#: 甲板两张 / 乙板一张 —— 无干扰时榜首恒是甲板 (先证明这一点再谈"让位")
+_YIELD_NODES = {
+    "甲一": _node_md(board="甲板"),
+    "甲二": _node_md(board="甲板"),
+    "乙一": _node_md(board="乙板"),
+}
+
+
+def _spy_subprocess_run(monkeypatch, mod) -> list:
+    """记下每次子进程 argv 后照常跑真的 —— 判据要"生产器实际收到了什么"。"""
+    seen: list[list[str]] = []
+    real_run = mod.subprocess.run
+
+    def _spy(argv, **kw):
+        seen.append(list(argv))
+        return real_run(argv, **kw)
+
+    monkeypatch.setattr(mod.subprocess, "run", _spy)
+    return seen
+
+
+def _proj_of(vault: Path) -> dict:
+    return json.loads((vault / "outputs" / "今日复习.json").read_text(encoding="utf-8"))
+
+
+def _write_v2_state(runner, vault: Path, **keys) -> Path:
+    """预置一个**已是 v2 形态**的 state (含 board_done 键), 与现网实测同形。
+
+    ⛔ 初版这里写着「v1 文件下补出的空账会**正当地**压过磁盘 —— 那是升版语义
+    不是缺陷」。那句话是错的, 而且它描述的正是 Codex round-1 H1 抓到的丢账:
+    setdefault 补出来的空账把 Web 刚写成功的完成记录覆盖掉了。现在 base 记在
+    归一化之后, 补出来的默认值不算"我改过"; v1 那条路由 runner 侧的
+    test_g67r_upgrade_default_account_does_not_clobber_window_write 专门守着。
+    这里预置 v2 只是为了让本文件的门贴近现网形态, 不是因为 v1 可以覆盖。
+    """
+    state_file = runner.state_path(vault)
+    state_file.parent.mkdir(parents=True, exist_ok=True)
+    payload = {"schema_version": 2, "board_last_recommended": {}, "board_done": {}}
+    payload.update(keys)
+    state_file.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    return state_file
+
+
+def test_g67r_refresh_passes_state_and_done_board_yields_top(board_done_env, monkeypatch):
+    """(b) Web 手动刷新走 CLI 时必须带上完成账 (Codex M-1 的另一半)。
+
+    从前 _run_pick 的 argv 里没有 --state, 于是浏览器点「重新算一遍」时
+    board_done 根本流不进生产器 —— 页面把板折进已完成区了, 榜首却纹丝不动,
+    用户看到的是"标了完成也没用"。
+
+    四条判据缺一不可:
+      ① 对照: 无账时榜首确实是甲板 (否则"让位"可能恒真);
+      ② 让位后甲板**仍在** boards 且 stats 不变 (折叠不是剔除);
+      ③ 子进程 argv 里真的带了 --state <runner 的那个文件> (不是别处的);
+      ④ state 文件在 refresh 前后**字节相同** —— 生产器对它只读, 这是
+         _rebuild_projection 写侧承诺②的前提。
+    """
+    root, client, runner, mod = board_done_env
+    vault = _mk_node_vault(root, "vault-yield", _YIELD_NODES)
+
+    assert client.post(_REFRESH_URL, data={"vault_id": "vault-yield"}).status_code == 200
+    base_proj = _proj_of(vault)
+    # ⛔ 榜首实测取, 不写死板名 (rank_boards 的排序律是本卡硬边界: 门里复刻
+    # 一份排序律, 排序律一动门就红在与本卡无关的地方)
+    top = base_proj["top_boards"][0]["board"]
+    assert len(base_proj["top_boards"]) >= 2, "夹具前提: 至少两块板才谈得上'让给下一块'"
+
+    state_file = _write_v2_state(runner, vault, board_done={top: mod._display_today()})
+    before_bytes = state_file.read_bytes()
+    seen = _spy_subprocess_run(monkeypatch, mod)
+
+    resp = client.post(_REFRESH_URL, data={"vault_id": "vault-yield"})
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["state_passed"] is True
+
+    proj = _proj_of(vault)
+    assert proj["top_boards"][0]["board"] != top, "已完成的板必须让出榜首"
+    assert top in [b["board"] for b in proj["boards"]], "让位不是剔除"
+    assert proj["stats"] == base_proj["stats"], "让位只换顺序, 不动任何计数"
+
+    assert seen, "没有起过子进程 —— 本门验的是 argv, 前提不成立"
+    argv = seen[-1]
+    assert "--state" in argv, f"子进程 argv 里没有 --state: {argv}"
+    assert argv[argv.index("--state") + 1] == str(state_file), f"--state 指向了别处: {argv}"
+    assert state_file.read_bytes() == before_bytes, "生产器写动了 state —— 只读承诺破了"
+
+
+def test_g67r_refresh_without_runner_degrades_to_no_state_not_503(board_done_env, monkeypatch):
+    """(b) 读松: runner 不可达时不传 --state, 但刷新本身照常成功。
+
+    写侧 (完成账) 拿不到 runner 一律 503 fail-closed; 刷新是**读侧重算**,
+    为一个排序细节把整个刷新打死是拿可用性换一个 tie-break, 不划算 ——
+    Y2 之前它本来就不传 --state, 那条路必须留着。
+    响应用加性字段 state_passed 如实说出走了哪条路, 不静默降级。
+    """
+    root, client, runner, mod = board_done_env
+    vault = _mk_node_vault(root, "vault-nostate", _YIELD_NODES)
+    assert client.post(_REFRESH_URL, data={"vault_id": "vault-nostate"}).status_code == 200
+    top = _proj_of(vault)["top_boards"][0]["board"]
+    _write_v2_state(runner, vault, board_done={top: mod._display_today()})
+    monkeypatch.setattr(mod, "_runner_script", lambda vaults_root: None)
+    seen = _spy_subprocess_run(monkeypatch, mod)
+
+    resp = client.post(_REFRESH_URL, data={"vault_id": "vault-nostate"})
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["state_passed"] is False
+    assert seen and "--state" not in seen[-1], f"runner 缺席时不该传 --state: {seen[-1:]}"
+    # 拿不到账 ⇒ 让位不发生, 这是如实的降级而不是崩
+    assert _proj_of(vault)["top_boards"][0]["board"] == top
+
+
+def test_g67r_state_passed_is_false_when_no_subprocess_ran(board_done_env, monkeypatch):
+    """(b) Codex round-2 L3: state_passed 说的是「本次有没有把账交给生产器」。
+
+    去抖 / 已有重建在飞这两条路根本没起子进程 —— 按"runner 路径可用"去算,
+    它们会报 true, 调用方就以为让位已经算过了。字段名说的是这一次做了什么,
+    不是环境有没有这个能力。
+    """
+    import app.api.v1.endpoints.review_overview as mod
+
+    root, client, runner, _mod = board_done_env
+    vault = _mk_node_vault(root, "vault-passed", _YIELD_NODES)
+    _write_v2_state(runner, vault)
+
+    first = client.post(_REFRESH_URL, data={"vault_id": "vault-passed"})
+    assert first.status_code == 200 and first.json()["rebuilt"] is True
+    assert first.json()["state_passed"] is True, "真重建且 runner 可达 ⇒ 账交出去了"
+
+    # 去抖窗口拉开 (refresh_env 把它归零了), 第二次必然 debounced
+    monkeypatch.setattr(mod, "_REFRESH_TTL_SECONDS", 600.0)
+    second = client.post(_REFRESH_URL, data={"vault_id": "vault-passed"})
+    assert second.status_code == 200
+    body = second.json()
+    assert body["rebuilt"] is False and body["reason"] == "debounced"
+    assert body["state_passed"] is False, "没起子进程就没把账交出去 —— 不许报 true"
+
+    # ⛔ in_progress 也是"没起子进程"的一种 —— 两条分支各写各的 state_passed,
+    # 只守 debounced 那一处的话, 把 in_progress 那处改回 true 本门照样绿
+    # (Codex round-3 实测: 上一轮负控确实漏了这一半)。
+    monkeypatch.setattr(mod, "_REFRESH_TTL_SECONDS", 0.0)
+    key = str(Path(root).resolve() / "vault-passed")  # 端点侧的 key 是 resolve 过的
+    inflight = threading.Lock()
+    with mod._refresh_guard:
+        mod._refresh_locks[key] = inflight
+    assert inflight.acquire(blocking=False), "夹具前提: 得先真的把该库的锁占住"
+    try:
+        third = client.post(_REFRESH_URL, data={"vault_id": "vault-passed"})
+    finally:
+        inflight.release()
+    body3 = third.json()
+    assert body3["rebuilt"] is False and body3["reason"] == "in_progress"
+    assert body3["state_passed"] is False, "在飞时本次也没起子进程 —— 不许报 true"
+
+
+def test_g67r_web_write_keeps_keys_runner_wrote_in_the_window(board_done_env, monkeypatch):
+    """(c) 门②  Web 向: Web 落账不许吃掉窗口内 runner 写的推送账。
+
+    反向的那半条窄窗: Web 在 :2086 load、:2094 save, 中间 runner 的 :05 档
+    把 last_push_accepted_date 落了盘 —— 整写 mine 会让那条推送账消失,
+    于是同一天会再推一次 (幂等门的依据没了)。
+
+    直写发生在**真 load_state 返回之后**, 所以 base 快照里没有那个键 ——
+    合并律判定"我没改过它" ⇒ 以磁盘为准。
+    """
+    root, client, runner, mod = board_done_env
+    vault = _mk_node_vault(root, "vault-merge", {"甲": _node_md()})
+    state_file = _write_v2_state(runner, vault)
+    real_load = runner.load_state
+
+    def _load_then_runner_writes(v=None):
+        st = real_load(v)
+        cur = json.loads(state_file.read_text(encoding="utf-8"))
+        cur["last_push_accepted_date"] = "2026-07-30"
+        cur["last_push_kind"] = "due"
+        state_file.write_text(json.dumps(cur, ensure_ascii=False), encoding="utf-8")
+        return st
+
+    monkeypatch.setattr(runner, "load_state", _load_then_runner_writes)
+
+    resp = client.post(_BOARD_DONE_URL, data={"vault_id": "vault-merge", "board": "CS 61B"})
+    assert resp.status_code == 200, resp.text
+
+    st = json.loads(state_file.read_text(encoding="utf-8"))
+    assert st["board_done"] == {"CS 61B": mod._display_today()}, "Web 自己改的键必须以 Web 为准"
+    assert st["last_push_accepted_date"] == "2026-07-30", "窗口内 runner 落盘的推送账被 Web 整写覆盖了"
+    assert st["last_push_kind"] == "due"
+
+
+def test_g67r_board_undone_round_trips_and_never_touches_fsrs(board_done_env, monkeypatch):
+    """(d) 「取消完成」: 点错了当场能回来, 且与「标记完成」同一条零 FSRS 纪律。
+
+    从前这里写着「未做 (如实登记): 没有『取消完成』入口 —— 误点后的恢复
+    途径是等明天自动回来」。一天太久了: 板在已完成区折着, 榜首已经让给别人,
+    而用户只是手滑。
+
+    写面判据与完成动作同款 (含本卡把允许集扩到三项之后的两条钉住断言) ——
+    撤销是第二个写点, 它同样只许动那一个 state 文件加那把锁。
+    """
+    root, client, runner, mod = board_done_env
+    vault = _mk_node_vault(root, "vault-undo", {"定义甲": _node_md(fsrs_due='"2099-01-01T00:00:00Z"')})
+    (vault / "learning_events.jsonl").write_text(
+        '{"event":"quiz","node":"定义甲","at":"2026-09-01T00:00:00Z"}\n', encoding="utf-8"
+    )
+    if os.environ.get("G67_FSRS_CONTAMINATE") == "1":
+        _install_contaminating_undo_write_point(monkeypatch, mod, vault)
+
+    assert client.post(_BOARD_DONE_URL, data={"vault_id": "vault-undo", "board": "CS 61B"}).status_code == 200
+    entry = next(v for v in client.get("/api/v1/review/overview").json()["vaults"] if v["vault_id"] == "vault-undo")
+    assert entry["board_done"] == ["CS 61B"], "前提: 得先真的标上, 撤销才有东西可撤"
+
+    before_fsrs = _fsrs_fingerprint(vault)
+    assert any(x.startswith("fsrs_") for x in before_fsrs[0]["定义甲.md"]), "夹具前提: 节点必须真带 fsrs_* 行"
+    assert before_fsrs[1] is not None, "夹具前提: 事件账必须真的存在"
+    before_tree = _tree(root)
+
+    resp = client.post(_BOARD_UNDONE_URL, data={"vault_id": "vault-undo", "board": "CS 61B"})
+    assert resp.status_code == 200, resp.text
+
+    # ⛔ 承重断言排第一 (对照写点要让它先红, 不是被别的断言抢先)
+    _assert_fsrs_untouched(before_fsrs, _fsrs_fingerprint(vault))
+
+    body = resp.json()
+    assert body["board"] == "CS 61B" and body["undone"] is True
+    assert body["already_undone"] is False
+    assert body["fsrs_touched"] is False
+    state_file = runner.state_path(vault)
+    assert Path(body["state_path"]) == state_file
+    assert not state_file.is_relative_to(vault), "完成账不许落在库内"
+
+    after = next(v for v in client.get("/api/v1/review/overview").json()["vaults"] if v["vault_id"] == "vault-undo")
+    assert after["board_done"] == [], "撤销后该板必须从完成账里出来"
+    assert _state_of(runner, Path(root), "vault-undo")["board_done"] == {}, "键要真的被摘掉, 不是留个空值"
+
+    lock_file = runner.state_lock_path(vault)
+    after_tree = _tree(root)
+    changed = {k for k in set(before_tree) | set(after_tree) if before_tree.get(k) != after_tree.get(k)}
+    assert changed <= {"backups", f"backups/{state_file.name}", f"backups/{lock_file.name}"}, (
+        f"撤销的写面必须在 backups 目录 + state + 锁三项之内, 实为 {sorted(changed)}"
+    )
+    assert lock_file.stat().st_size == 0, "锁文件只做锁, 不许承载任何数据"
+    assert not lock_file.is_relative_to(vault), "锁不许落在库内"
+
+
+def test_g67r_board_undone_is_idempotent_200_not_404(board_done_env):
+    """(d) 幂等: 板本来就不在账里 → 200 already_undone, 不是 404。
+
+    404 会让零 JS 表单路径给出一页「取消完成失败」—— 而用户想要的结果
+    (这块板现在没被标完成) 明明已经成立了。把"已经是目标状态"报成失败,
+    是用状态码描述过程而不是结果。
+
+    ⚠ 代价如实登记 (Codex 该问的那条): 幂等 200 会把"板名根本拼错了"也
+    答成成功。所以 JSON 里 already_undone 如实分开 —— 调用方要区分得出
+    "我撤掉了一条"和"本来就没有"。
+    """
+    root, client, runner, _mod = board_done_env
+    vault = _mk_node_vault(root, "vault-idem", {"甲": _node_md()})
+    assert client.post(_BOARD_DONE_URL, data={"vault_id": "vault-idem", "board": "CS 61B"}).status_code == 200
+
+    first = client.post(_BOARD_UNDONE_URL, data={"vault_id": "vault-idem", "board": "CS 61B"})
+    assert first.status_code == 200 and first.json()["already_undone"] is False
+
+    state_file = runner.state_path(vault)
+    settled = state_file.read_bytes()
+    second = client.post(_BOARD_UNDONE_URL, data={"vault_id": "vault-idem", "board": "CS 61B"})
+    assert second.status_code == 200, second.text
+    assert second.json()["already_undone"] is True, "重复撤销必须如实说'本来就没有'"
+    assert second.json()["undone"] is True
+    assert state_file.read_bytes() == settled, "无事可做的撤销不该改写 state"
+
+    never = client.post(_BOARD_UNDONE_URL, data={"vault_id": "vault-idem", "board": "从来没标过的板"})
+    assert never.status_code == 200 and never.json()["already_undone"] is True
+    assert state_file.read_bytes() == settled
+
+
+def test_g67r_board_undone_reuses_the_same_three_write_gates(board_done_env, tmp_path_factory):
+    """(d) 三道写侧门是**复用**不是复制: 同源 403 / 未知库 404 / 库外软链 503 / 板名 422。
+
+    行为面判据 —— 每一条都验"完成账没被动过"。复用的证据在 grep 门那边
+    (两个 _assert_* 各仍只定义一次), 这里验的是它们真的挡在撤销这条路上。
+    """
+    root, client, runner, mod = board_done_env
+    vault = _mk_node_vault(root, "vault-ugate", {"甲": _node_md()})
+    assert client.post(_BOARD_DONE_URL, data={"vault_id": "vault-ugate", "board": "CS 61B"}).status_code == 200
+    state_file = runner.state_path(vault)
+    settled = state_file.read_bytes()
+
+    cross = client.post(
+        _BOARD_UNDONE_URL,
+        data={"vault_id": "vault-ugate", "board": "CS 61B"},
+        headers={"origin": "http://evil.example", "sec-fetch-site": "cross-site"},
+    )
+    assert cross.status_code == 403 and cross.json()["detail"]["error"] == "cross_site_blocked"
+    assert state_file.read_bytes() == settled, "被同源门拒的请求不许动账"
+
+    assert client.post(_BOARD_UNDONE_URL, data={"vault_id": "不存在的库", "board": "b"}).status_code == 404
+
+    outside = tmp_path_factory.mktemp("g67r-outside")
+    (outside / ".obsidian").mkdir()
+    (root / "vault-ulink").symlink_to(outside, target_is_directory=True)
+    link = client.post(_BOARD_UNDONE_URL, data={"vault_id": "vault-ulink", "board": "CS 61B"})
+    assert link.status_code == 503 and link.json()["detail"]["error"] == "vault_outside_root"
+    assert not runner.state_path(root / "vault-ulink").exists()
+
+    for board in ("", "板" * (mod._BOARD_NAME_MAX + 1)):
+        bad = client.post(_BOARD_UNDONE_URL, data={"vault_id": "vault-ugate", "board": board})
+        assert bad.status_code == 422, (board[:10], bad.text)
+    assert state_file.read_bytes() == settled
+
+
+def test_g67r_lock_acquisition_failure_is_503_not_500(board_done_env, monkeypatch):
+    """(d) Codex round-1 M1: 取锁阶段的 OSError 也要翻成 503, 不能逃逸成 500。
+
+    取锁的 mkdir / open 发生在 save_state **之前**。初版把 state_locked 放在
+    try 之外, 于是 backups 被普通文件占位、锁不可写、锁路径是软链被 O_NOFOLLOW
+    拒 —— 这几种都从 503 state_write_refused 退化成 500 裸 traceback,
+    零 JS 表单路径连动作专属错误页都拿不到。BASE 上这些情形返回的是 503。
+    """
+    root, client, runner, _mod = board_done_env
+    _mk_node_vault(root, "vault-lockfail", {"甲": _node_md()})
+    # backups 被一个**普通文件**占位 ⇒ mkdir(parents=True) 抛 FileExistsError
+    blocked = Path(root) / "backups-占位"
+    blocked.write_text("我不是目录", encoding="utf-8")
+    monkeypatch.setattr(runner, "BACKUPS", blocked / "sub")
+
+    for url, label in ((_BOARD_DONE_URL, "标记完成"), (_BOARD_UNDONE_URL, "取消完成")):
+        resp = client.post(url, data={"vault_id": "vault-lockfail", "board": "CS 61B"})
+        assert resp.status_code == 503, f"{label}: 取锁失败必须 503 而不是 500, 实为 {resp.status_code}"
+        assert resp.json()["detail"]["error"] == "state_write_refused"
+        form = client.post(
+            url, data={"vault_id": "vault-lockfail", "board": "CS 61B", "redirect": "page"}, follow_redirects=False
+        )
+        assert form.status_code == 503
+        assert f"{label}失败" in form.text, f"错误页说的必须是{label}这个动作"
+
+
+def test_g67r_board_undone_zero_js_form_path(board_done_env):
+    """(d) 零 JS 表单路径: 成功 303 回本页; 失败渲染的错误页说的是**这个**动作。
+
+    用户刚点「撤销」, 页面写着「标记完成失败」会把他引到完全错的方向。
+    """
+    root, client, _runner, _mod = board_done_env
+    _mk_node_vault(root, "vault-uform", {"甲": _node_md()})
+    assert client.post(_BOARD_DONE_URL, data={"vault_id": "vault-uform", "board": "CS 61B"}).status_code == 200
+
+    ok = client.post(
+        _BOARD_UNDONE_URL,
+        data={"vault_id": "vault-uform", "board": "CS 61B", "redirect": "page"},
+        follow_redirects=False,
+    )
+    assert ok.status_code == 303 and ok.headers["location"] == _PAGE_URL
+
+    bad = client.post(
+        _BOARD_UNDONE_URL,
+        data={"vault_id": "不存在的库", "board": "CS 61B", "redirect": "page"},
+        follow_redirects=False,
+    )
+    assert bad.status_code == 404, "失败不许伪装成 303 成功"
+    assert "取消完成失败" in bad.text
+    assert "标记完成失败" not in bad.text and "刷新失败" not in bad.text
+    assert "vault_not_found" in bad.text
+
+
+def test_g67r_undone_fsrs_gate_reddens_under_contaminating_write_point(board_done_env, monkeypatch):
+    """(d) 常驻负控: 换上「顺手写 fsrs_due」的写点, 撤销那道门必须红。
+
+    判据绑到**具体那一条**断言 (_FSRS_GATE_MSG) —— 变异体若因别的原因先红,
+    本门同样不放行 (沿 test_g67_fsrs_gate_reddens_under_contaminating_write_point)。
+    """
+    root, client, runner, mod = board_done_env
+    vault = _mk_node_vault(root, "vault-uneg", {"定义甲": _node_md(fsrs_due='"2099-01-01T00:00:00Z"')})
+    assert client.post(_BOARD_DONE_URL, data={"vault_id": "vault-uneg", "board": "CS 61B"}).status_code == 200
+
+    _install_contaminating_undo_write_point(monkeypatch, mod, vault)
+    before = _fsrs_fingerprint(vault)
+    resp = client.post(_BOARD_UNDONE_URL, data={"vault_id": "vault-uneg", "board": "CS 61B"})
+    assert resp.status_code == 200, "对照写点只污染 FSRS, 不许把请求本身弄坏 (否则红的是别的东西)"
+    assert _state_of(runner, Path(root), "vault-uneg")["board_done"] == {}, (
+        "对照写点必须仍然把撤销做对 —— 拆的只是那一条守卫"
+    )
+    with pytest.raises(AssertionError) as ei:
+        _assert_fsrs_untouched(before, _fsrs_fingerprint(vault))
+    assert _FSRS_GATE_MSG in str(ei.value), f"红的不是 FSRS 那条断言: {ei.value}"
+
+
+def test_g67r_page_offers_undo_only_in_the_done_section(board_done_env):
+    """(d) 零 JS 页: 撤销钮只出现在已完成区; 未完成板不带撤销钮。
+
+    ⚠ 本门替代了原先「已完成板不该再带完成钮」那条按 name="board" **计数**
+    的判据 —— 加了撤销表单之后, 计数不再表达那个意图 (两个动作的 hidden
+    input 同名)。换成按 action 归属判定: 更强, 且两个动作各自可被违反。
+    """
+    root, client, _runner, _mod = board_done_env
+    vault = _mk_vault(
+        root, "vault-undopage", _two_board_projection("vault-undopage", _now_local().isoformat(timespec="seconds"))
+    )
+    (vault / "节点").mkdir(exist_ok=True)
+
+    page = client.get(_PAGE_URL).text
+    assert _BOARD_UNDONE_URL not in page, "还没有完成记录就不该有撤销钮"
+
+    assert client.post(_BOARD_DONE_URL, data={"vault_id": "vault-undopage", "board": "CS 61B"}).status_code == 200
+    page2 = client.get(_PAGE_URL).text
+    i = page2.index("已完成（1）")
+    head, fold = page2[:i], page2[i:]
+
+    assert head.count(f'action="{_BOARD_DONE_URL}"') == 1, "未完成板 (数学) 仍带完成钮"
+    assert head.count(f'action="{_BOARD_UNDONE_URL}"') == 0, "未完成板不该带撤销钮"
+    assert fold.count(f'action="{_BOARD_UNDONE_URL}"') == 1, "已完成板必须带撤销钮"
+    assert fold.count(f'action="{_BOARD_DONE_URL}"') == 0, "已完成板不该再带完成钮"
+    assert "点错了可以撤销" in page2, "钮旁边要说清误点有救"
+
+    # 点一次撤销 → 折叠区消失, 板回到主表格 (端到端, 不只是渲染)
+    assert (
+        client.post(
+            _BOARD_UNDONE_URL,
+            data={"vault_id": "vault-undopage", "board": "CS 61B", "redirect": "page"},
+            follow_redirects=False,
+        ).status_code
+        == 303
+    )
+    page3 = client.get(_PAGE_URL).text
+    assert "已完成（" not in page3
+    assert page3.count(f'action="{_BOARD_DONE_URL}"') == 2, "两块板都回到待做区, 各带一个完成钮"

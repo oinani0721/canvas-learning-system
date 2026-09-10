@@ -1,0 +1,124 @@
+### 复验 (h)① 树源  ts=20260909T132344  (HEAD = 651c5bca)
+  📦 部署 Canvas Learning System → /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27a-20260909T132344/probe-rv-tree
+     模板源: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy/canvas-vault
+     ⚠️ 模板缺 .claude/agents — 跳过
+     ⚠️ 模板缺 .claude/commands — 跳过
+     ⚠️ 模板缺 .obsidian/app.json — 跳过
+     ⚠️ 模板缺 .obsidian/appearance.json — 跳过
+     ⚠️ 模板缺 .obsidian/core-plugins.json — 跳过
+     ⚠️ 模板缺插件 dataview — 跳过
+     ⚠️ 模板缺插件 breadcrumbs — 跳过
+     ⚠️ 模板缺插件 templater-obsidian — 跳过
+     ✏️  生成 插件 data.json (backendUrl=http://127.0.0.1:8011; key 由 activate 步写入)
+     ✏️  生成 .claude/settings.local.json (只批准 canvas-learning-mcp)
+  
+  🔍 自检:
+     ✅ 骨架目录 (含 wiki 两件)
+     ✅ skills ≥8 个 (含 SKILL.md)
+     ✅ decay_beta + fsrs_bridge
+     ✅ hooks 配置 settings.json
+     ✅ MCP 注册件 .mcp.json
+        ↳ 模板源没有 main.js — 先在 harness 树跑 npm run build (deploy-vault.sh preflight, CARD-G2-7b)
+     ❌ 核心插件与模板源字节一致
+     ✅ 插件启用清单+快捷键
+     ✅ 后端鉴权 key 未从源复制
+     ✅ Dashboard + CLAUDE.md
+     ✅ vault 配置 yaml
+  
+  ═══ 结果: 9 项通过 / 1 项失败 ═══
+  📋 后续步骤:
+     1. Obsidian → 打开 vault → /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27a-20260909T132344/probe-rv-tree (插件与快捷键已随 vault 就位)
+     2. 激活: scripts/install-vault.sh 加 --activate, 或手改 .env ACTIVE_VAULT=probe-rv-tree 后 docker compose up -d backend
+     3. 首验: 在新 vault 建原白板 (Cmd+P 建/配置原白板) → 写内容 → /start-exam-board 应能出题
+  install-rc=1
+  verify rc=0
+  match                  : 25
+  missing                : 0
+  extra                  : 0
+  content-drift          : 0
+  intentionally-excluded : 0
+  allowed-extra          : 0
+  optional-missing       : 10
+  unreadable             : 0
+  hotkeys                : not evaluated (.obsidian/plugins/canvas-learning-system/main.js 缺 — gitignored 构建产物)
+  hotkey-orphan          : 0
+
+### 复验 (h)② live 源（只读）  ts=20260909T132344
+  📦 部署 Canvas Learning System → /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27a-20260909T132344/probe-rv-live
+     模板源: /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault
+     ✏️  生成 插件 data.json (backendUrl=http://127.0.0.1:8011; key 由 activate 步写入)
+     ✏️  生成 templater data.json (templates_folder)
+     ✏️  生成 .claude/settings.local.json (只批准 canvas-learning-mcp)
+  
+  🔍 自检:
+     ✅ 骨架目录 (含 wiki 两件)
+     ✅ skills ≥8 个 (含 SKILL.md)
+     ✅ decay_beta + fsrs_bridge
+     ✅ hooks 配置 settings.json
+     ✅ MCP 注册件 .mcp.json
+     ✅ 核心插件与模板源字节一致
+     ✅ 插件启用清单+快捷键
+     ✅ 后端鉴权 key 未从源复制
+     ✅ Dashboard + CLAUDE.md
+     ✅ vault 配置 yaml
+  
+  ═══ 结果: 10 项通过 / 0 项失败 ═══
+  📋 后续步骤:
+     1. Obsidian → 打开 vault → /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27a-20260909T132344/probe-rv-live (插件与快捷键已随 vault 就位)
+     2. 激活: scripts/install-vault.sh 加 --activate, 或手改 .env ACTIVE_VAULT=probe-rv-live 后 docker compose up -d backend
+     3. 首验: 在新 vault 建原白板 (Cmd+P 建/配置原白板) → 写内容 → /start-exam-board 应能出题
+  install-rc=0
+  verify rc=0
+  match                  : 34
+  missing                : 0
+  extra                  : 0
+  content-drift          : 0
+  intentionally-excluded : 0
+  allowed-extra          : 0
+  optional-missing       : 1
+  unreadable             : 0
+  hotkeys                : 3 绑定 / 10 命令 / 0 orphan
+  hotkey-orphan          : 0
+
+### 目标件五判（两个目标各判）
+  [probe-rv-tree]
+    key 不存在          ✅
+    .claude/mcp.json 无  ✅
+    根 .mcp.json 在      ✅
+    yaml 六键 superset   : OK
+    schema 2.1- prefix   : OK
+    plugin data.json 4key: OK
+    internalApiKey empty : OK
+    backendUrl           : http://127.0.0.1:8011
+  [probe-rv-live]
+    key 不存在          ✅
+    .claude/mcp.json 无  ✅
+    根 .mcp.json 在      ✅
+    yaml 六键 superset   : OK
+    schema 2.1- prefix   : OK
+    plugin data.json 4key: OK
+    internalApiKey empty : OK
+    backendUrl           : http://127.0.0.1:8011
+
+### 禁写面四判
+  find -newer            = 0  ✅
+  live sha diff 空       ✅
+  git status canvas-vault= 0  ✅
+  backend/.env sha 同    ✅
+
+### 复验 (f) 裁判 9 yaml 门（抽生成器行 118-132 eval，不真跑脚本）
+  gen-rc=0
+  keys        : ['backend_url', 'harness_tree', 'push_enabled', 'schema_version', 'subject', 'vault_id']
+  backend_url : http://127.0.0.1:8123
+  harness_tree: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy
+  push_enabled: False
+  schema      : 2.1-vault-harness-2026-09-07
+  yaml-rc=0
+
+### 后端兼容门（Settings 单键 .get，证 2.1 新键不被拒）
+  Settings.vault_id = probe | expect probe | OK
+  backend-rc=0
+
+SENTINEL=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy/_bmad-output/审查/evidence-g27a/g27a-revalidate-live-sentinel-20260909T132344
+SCRATCH=/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27a-20260909T132344
+rc=0

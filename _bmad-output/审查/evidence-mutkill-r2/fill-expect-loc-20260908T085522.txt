@@ -1,0 +1,15 @@
+抽到候选 138 条
+可绑 137 条 / 豁免 1 条
+⚠️ 有 8 个位置被多条变异共用（合法，但登记一下）: {'stmt:c8e430b5ce69': 2, 'stmt:8b4fc14dc10c': 3, 'stmt:d86d7cf272eb': 3, 'stmt:4833e323c049': 2, 'stmt:54141b83b77e': 2, 'stmt:66f84ab960c6': 2, 'stmt:f2650d485101': 2, 'stmt:f4a6fae948f0': 2}
+  豁免 M97-writeback-regex-only: ⓐ 该变异让门在**门文件之外**失败(实见 file:parser.py), 只能绑到文件级弱身份; 按 check_expect_loc_unique 的纪律必须登记而不是当成
+已写回 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u8-mutgates/backend/scripts/g32b_mutation_gates.py
+共用位置的组数=8
+  stmt:4833e323c049: ['M47-skip-validator-record-check', 'M51-line-strip-washes-nonjson-whitespace']  其中无 expect_msg 的=['M47-skip-validator-record-check', 'M51-line-strip-washes-nonjson-whitespace']  ⛔ 这些条目位置与消息都区分不开
+  stmt:54141b83b77e: ['M49-event-version-accepts-bool', 'M50-non-object-line-silently-skipped']  其中无 expect_msg 的=['M49-event-version-accepts-bool', 'M50-non-object-line-silently-skipped']  ⛔ 这些条目位置与消息都区分不开
+  stmt:66f84ab960c6: ['M52-calibration-strips-quiz-prefix', 'M53-f1-query-strips-prefix-only']  其中无 expect_msg 的=[]
+  stmt:8b4fc14dc10c: ['M23-C1-drop-event-type-gate', 'M24-C1-drop-concept-id-gate', 'M25-C1-drop-vault-id-gate']  其中无 expect_msg 的=['M23-C1-drop-event-type-gate', 'M24-C1-drop-concept-id-gate', 'M25-C1-drop-vault-id-gate']  ⛔ 这些条目位置与消息都区分不开
+  stmt:c8e430b5ce69: ['M10-R2-value-not-literal', 'M2b-R2-drop-utc-offset-check']  其中无 expect_msg 的=['M10-R2-value-not-literal', 'M2b-R2-drop-utc-offset-check']  ⛔ 这些条目位置与消息都区分不开
+  stmt:d86d7cf272eb: ['M35-R3-effective-at-over-strict', 'M36b-replay-drops-mastery', 'M43-f1-evaluated-after-calibration-replay']  其中无 expect_msg 的=[]
+  stmt:f2650d485101: ['M68-blank-lines-tolerated', 'M69-bom-tolerated']  其中无 expect_msg 的=[]
+  stmt:f4a6fae948f0: ['M89-receipt-drops-scored-at', 'M90-receipt-drops-attempt']  其中无 expect_msg 的=['M89-receipt-drops-scored-at', 'M90-receipt-drops-attempt']  ⛔ 这些条目位置与消息都区分不开
+⇒ 位置+消息都分不开的组数=5（>0 需在验收单登记）

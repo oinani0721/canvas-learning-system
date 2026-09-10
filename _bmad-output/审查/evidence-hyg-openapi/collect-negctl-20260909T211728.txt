@@ -1,0 +1,24 @@
+=== (f) 第一负控：去掉过滤后 collect-only 应重现 setup-wizard ===
+--- 跑前 shasum ---
+e2206057c7a770153ba9a32f93914cdfc68d43e5c87560ed859614f4536caeb2  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u5-lance/backend/tests/contract/test_openapi_contract.py
+--- 临时去掉 .include/.exclude（只改这一处链式调用） ---
+已去掉过滤（替换 1 处）
+--- 去掉过滤后的 from_asgi 行 ---
+25:# ✅ Verified from Context7:/schemathesis/schemathesis (topic: from_asgi)
+58:schema = schemathesis.openapi.from_asgi("/api/v1/openapi.json", app)
+--- collect-only（去过滤态） ---
+  collect-negctl.txt 行数 = 207
+  setup-wizard 命中数（须 >=1，负控成立）= 1
+tests/contract/test_openapi_contract.py::test_api_contract[POST /api/v1/system/setup-wizard]
+  test_api_contract[ 条数 = 206
+  health/lancedb 命中数 = 1
+--- 显式还原（trap 亦兜底） ---
+--- 还原后 shasum（须与跑前同） ---
+e2206057c7a770153ba9a32f93914cdfc68d43e5c87560ed859614f4536caeb2  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u5-lance/backend/tests/contract/test_openapi_contract.py
+--- 还原后再 collect-only：setup-wizard 应消失 ---
+  collect-negctl-restored.txt 行数 = 93
+  setup-wizard 命中数（须 0）= 0
+  test_api_contract[ 条数（须回到 92）= 92
+  与 collect-after.txt 逐行相同？
+  IDENTICAL ✅
+rc=0

@@ -1,0 +1,15 @@
+=== (b)③ 冻结污染现场只读核对 card-z4-redbase @ c8611a89 ===
+--- worktree list 命中 ---
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-z4-redbase                                                                                                                       c8611a89 [card/z4-redbase]
+--- ls <该树>/backend/ | grep -E '^(CLAUDE.md|outputs|raw|wiki)$' ---
+CLAUDE.md
+outputs
+raw
+wiki
+ls_grep_rc=0
+--- 细节：各项 stat ---
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-z4-redbase/backend/CLAUDE.md type=Regular File mtime=2026-09-05T10:13:14
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-z4-redbase/backend/outputs type=Directory mtime=2026-09-05T10:13:14
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-z4-redbase/backend/raw type=Directory mtime=2026-09-05T10:13:14
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-z4-redbase/backend/wiki type=Directory mtime=2026-09-05T10:13:14
+rc=0

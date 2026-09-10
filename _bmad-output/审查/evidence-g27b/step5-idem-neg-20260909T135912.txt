@@ -1,0 +1,62 @@
+=== 步 5 config 断言（CLS_DEPLOY_NO_DOCKER_UP=1 ⇒ 不 up -d）===
+    📦 deploy-vault [apply] vault=probe_act port=8124 hosts=claude
+       harness=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy
+    [1/6] preflight: OK 树完整 / 禁写面过 / 名不动点 / port 8124 空闲 / skills 9 / main.js 在位
+    [2/6] install: OK install-vault.sh rc 0, 输出 /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27b/act-20260909T135912/ev/install-20260909T135912.txt
+    [3/6] postprocess: OK key 重生=yes(0600) 三处同值; :8011→:8124 ×4 已验残留 0; 绑定三件在位; .env 白名单跳过: NEO4J_HTTP_PORT NEO4J_BOLT_PORT OLLAMA_HOST VAULT_MOUNT_MODE LOCAL_EMBEDDER_BASE_URL
+    [4/6] verify: OK 校验器 rc 0（含 content-drift 轴, 基准=源镜像(同 :8124 口径)）, 报告 /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27b/act-20260909T135912/ev/verify-20260909T135912.txt
+    [5/6] activate: FAIL config 断言不成立: container_name 命中 1（期望 1）, 端口映射命中 0（期望 1）
+  ❌ 步 5 rc                                       got=75 want=0
+  ❌ 步 5 是 SKIP 不是 OK                       got=0 want=1
+  ❌ 步 5 提到 config 断言过                  got=0 want=1
+  ❌ 步 5 提到需主 session 授权              got=0 want=1
+  ✅ config 里 container_name cls-probe_act-backend 1
+  ❌ config 里端口映射 127.0.0.1:8124:8001     got=0 want=1
+  ✅ 零容器：cls-probe_act 未出现在 docker ps 0
+
+=== 幂等（同参数 --apply 再跑）===
+    📦 deploy-vault [apply] vault=probe_act port=8124 hosts=claude
+       harness=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy
+    [1/6] preflight: OK 树完整 / 禁写面过 / 名不动点 / port 8124 空闲 / skills 9 / main.js 在位
+    [2/6] install: FAIL install-vault.sh 非零退出, 见 /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27b/act-20260909T135912/ev/install-20260909T135914.txt
+  ✅ 第二次 rc（install 防覆盖闸门 ⇒ 72） 72
+  ✅ 目标 vault diff -r 为空（零变化）     0
+  ✅ .env 字节不变                              same
+
+=== 负控：步 1 build 面（scratch harness 副本删 main.js → dry-run 含 will build）===
+  ✅ 步1 build 负控 rc                           0
+  ✅ 步1 dry-run 含 will build                    1
+
+=== 负控：步 2 桩 install（exit 3）→ 72 且步 3 未执行 ===
+    📦 deploy-vault [apply] vault=stub_t port=8126 hosts=claude
+       harness=/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27b/harness-stub-20260909T135912
+    [1/6] preflight: OK 树完整 / 禁写面过 / 名不动点 / port 8126 空闲 / skills 9; main.js 已 build 并就位
+    [2/6] install: FAIL install-vault.sh 非零退出, 见 /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27b/act-20260909T135912/ev/install-20260909T135917.txt
+  ✅ 步2 桩 rc                                    72
+  ✅ 步2 FAIL 行存在                            1
+  ✅ 步3 未执行（无 [3/6] 行）              0
+  ✅ 步3 未执行的实证：无 key 文件       absent
+
+=== 负控：步 3 目标 .mcp.json 被删 → 73 ===
+    📦 deploy-vault [apply] vault=nomcp_t port=8127 hosts=claude
+       harness=/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27b/harness-nomcp-20260909T135912
+    [1/6] preflight: OK 树完整 / 禁写面过 / 名不动点 / port 8127 空闲 / skills 9; main.js 已 build 并就位
+    [2/6] install: OK install-vault.sh rc 0, 输出 /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27b/act-20260909T135912/ev/install-20260909T135919.txt
+    [3/6] postprocess: FAIL 端口模板化目标缺失: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27b/vaults/nomcp_t/.mcp.json
+  ✅ 步3 缺 .mcp.json rc                          73
+  ✅ 步3 FAIL 行存在                            1
+  ✅ 步4 未执行                                 0
+
+=== 负控：步 4 目标多放 .claude/unexpected.txt → 校验器 rc 2 → 74 ===
+    📦 deploy-vault [apply] vault=extra_t port=8128 hosts=claude
+       harness=/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27b/harness-extra-20260909T135912
+    [1/6] preflight: OK 树完整 / 禁写面过 / 名不动点 / port 8128 空闲 / skills 9; main.js 已 build 并就位
+    [2/6] install: OK install-vault.sh rc 0, 输出 /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27b/act-20260909T135912/ev/install-20260909T135922.txt
+    [3/6] postprocess: OK key 重生=yes(0600) 三处同值; :8011→:8128 ×4 已验残留 0; 绑定三件在位; .env 白名单跳过: NEO4J_HTTP_PORT NEO4J_BOLT_PORT OLLAMA_HOST VAULT_MOUNT_MODE LOCAL_EMBEDDER_BASE_URL
+    [4/6] verify: FAIL verify_vault_install.py rc=2（1 missing / 2 mismatch / 3 usage）, 基准=源镜像(同 :8128 口径), 报告 /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27b/act-20260909T135912/ev/verify-20260909T135922.txt
+  ✅ 步4 extra rc                                  74
+  ✅ 步4 FAIL 行存在                            1
+  ✅ 步5 未执行（.env 未被步 5 触碰）    0
+
+=== 汇总: PASS=17 FAIL=5 ===
+A5=/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27b/act-20260909T135912

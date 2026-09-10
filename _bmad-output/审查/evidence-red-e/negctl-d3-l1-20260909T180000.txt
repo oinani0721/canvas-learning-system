@@ -1,0 +1,13 @@
+########## D-3: match/case 重绑定（MatchAs.name，不是 ast.Name(Store)）##########
+injected match/case at :5726-5728
+FAILED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_health_probe_output_matches_the_table_this_gate_reads
+================== 1 failed, 48 passed, 10 warnings in 1.44s ===================
+restored, diff_rc=0
+
+########## L-1 噪声红核查：无关作用域的同名局部变量 ##########
+整改前（r1 版门）：全模块 ast.walk ⇒ 报 bound 2 time(s) = 噪声红。
+整改后：作用域限定到 AgentService.health_check ⇒ 应保持全绿。
+appended unrelated module-level function with same local name
+======================= 49 passed, 10 warnings in 2.05s ========================
+restored, diff_rc=0
+final sha: 329a42cbe879e752396c9fbfc6e939033f6734027a1a09f7a80bf8522afb35af

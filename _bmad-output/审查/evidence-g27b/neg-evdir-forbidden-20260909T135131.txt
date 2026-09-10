@@ -1,0 +1,8 @@
+### 负控 evdir-forbidden
+命令: scripts/deploy-vault.sh --vault /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27b/vaults/v4 --harness /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy --port 8123 --evidence-dir /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/evidence --env-dir /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27b/env
+期望: rc=71 且消息含 --evidence-dir
+
+📦 deploy-vault [dry-run] vault=v4 port=8123 hosts=claude
+   harness=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy
+[1/6] preflight: FAIL 禁写面: --evidence-dir 指向 /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault
+rc=71

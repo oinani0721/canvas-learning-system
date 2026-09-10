@@ -1,0 +1,51 @@
+# P8 OpenCode：MCP 项目级绑定 + 双位置 skills 去重 + 命名口径  @ 2026-09-08T07:11:57+08:00
+cwd=$PV   骨架：.opencode/skills/probe-skill 与 .claude/skills(->../.agents/skills)/probe-skill 同名并存
+# 注：本条只用 'opencode mcp list' 与 'opencode debug skill' 两条本地枚举命令，零工具调用。
+
+=== (a) opencode mcp list —— 项目级 opencode.json 是否被读且是否真去连 ===
+
+┌  MCP Servers
+│
+●  ✓ canvas-learning-mcp connected
+│      http://127.0.0.1:8011/mcp
+│
+●  ✗ probe-dead-mcp failed
+│      SSE error: Unable to connect. Is the computer able to access the url?
+│      http://127.0.0.1:8999/mcp
+│
+└  2 server(s)
+
+  判据：canvas-learning-mcp = connected（真连上 8011 的 streamable-http /mcp）
+        probe-dead-mcp(8999 死端口) = failed
+        ⇒ 两条状态不同 ⇒ mcp list 是【真去连】而非回显配置（负控生效）
+        ⇒ 且只列出这 2 条（= $PV/opencode.json 的条目数），无用户级条目
+           （~/.config/opencode/opencode.json 开工快照为 ABSENT，与此一致）
+
+=== (b) opencode debug skill —— 机制层枚举（不经模型，无需 provider 凭据）===
+  skill 条目总数 = 14  (built-in 1 + 文件系统 13 )
+
+  来自探针 vault 的条目：
+    name='bad-skill'      location='$PV/.agents/skills/bad skill/SKILL.md'
+    name='probe-skill'    location='$PV/.agents/skills/probe-skill/SKILL.md'
+    name='Bad Name'       location='$PV/.claude/skills/bad-name/SKILL.md'
+
+  来自用户级 ~/.claude/skills 的条目数 = 10
+  （只记路径面，不摘录任何 skill 内容）
+
+  === 去重判据 ===
+    probe-skill 出现次数 = 1  (两处同名并存，仍只出现 1 次 ⇒ 不重复)
+
+=== (c) 命名口径：OpenCode 用 frontmatter 的 name，Claude Code 用目录名 ===
+  同一批文件，两家给出的名字不同：
+    目录 .agents/skills/'bad skill'/  frontmatter name: bad-skill
+      -> OpenCode 列为 'bad-skill'（frontmatter）   / Claude Code 列为 'bad skill'（目录名）
+    目录 .agents/skills/bad-name/     frontmatter name: Bad Name
+      -> OpenCode 列为 'Bad Name'（frontmatter）    / Claude Code 列为 'bad-name'（目录名）
+  ⇒ 同一份 SKILL.md 在两家宿主下【名字不同】——U4-B SKILL-PORT-LINT 的直接输入
+  ⇒ 两家都未对 kebab-case 做校验（'Bad Name' / 'bad skill' 均被加载）
+
+=== (d) opencode run 模型侧 NOT-RUN ===
+  opencode run rc=1：AI_LoadAPIKeyError: Google Generative AI API key is missing
+  ⇒ 本机 OpenCode 未配置 provider 凭据；配置它 = 写用户级配置面(D-26 (i))，本卡禁
+  ⇒ 「模型能否使用 skill」NOT-RUN；但「宿主是否发现 skill」已由 (b) 机制层枚举证明
+rc=0

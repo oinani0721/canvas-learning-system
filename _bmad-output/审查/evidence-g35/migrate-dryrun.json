@@ -1,0 +1,9 @@
+{
+  "mode": "dry-run",
+  "file": "/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.kZDwbwcMgP/copy.json",
+  "vault_id": null,
+  "n_old": 1,
+  "n_new": 0,
+  "conflicts": [],
+  "top_level_keys": 1
+}

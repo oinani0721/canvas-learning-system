@@ -1,0 +1,1598 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u4-hosts/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 1480 items
+
+<Dir backend>
+  <Package tests>
+    <Package regression>
+      <Module test_all_index_entrypoints_hostile_env.py>
+        <Function test_entrypoint_lancedb_blocks_all_security_surfaces[\u68c0\u9a8c\u767d\u677f/exam.md]>
+        <Function test_entrypoint_lancedb_blocks_all_security_surfaces[\u9a8c\u6536\u5355/uat.md]>
+        <Function test_entrypoint_lancedb_blocks_all_security_surfaces[_\u5f85\u5904\u7406/inbox.md]>
+        <Function test_entrypoint_lancedb_blocks_all_security_surfaces[_archive/old.md]>
+        <Function test_entrypoint_lancedb_blocks_all_security_surfaces[.trash/deleted.md]>
+        <Function test_entrypoint_lancedb_blocks_all_security_surfaces[.quarantine/held.md]>
+        <Function test_entrypoint_lancedb_blocks_all_security_surfaces[.claude/private.md]>
+        <Function test_entrypoint_lancedb_still_admits_learning_content[\u8282\u70b9/recursion.md]>
+        <Function test_entrypoint_lancedb_still_admits_learning_content[\u539f\u767d\u677f/CS 61B.md]>
+        <Function test_entrypoint_orchestrator_should_index_blocks[\u68c0\u9a8c\u767d\u677f/exam.md]>
+        <Function test_entrypoint_orchestrator_should_index_blocks[\u9a8c\u6536\u5355/uat.md]>
+        <Function test_entrypoint_orchestrator_should_index_blocks[_\u5f85\u5904\u7406/inbox.md]>
+        <Function test_entrypoint_orchestrator_should_index_blocks[_archive/old.md]>
+        <Function test_entrypoint_orchestrator_should_index_blocks[.trash/deleted.md]>
+        <Function test_entrypoint_orchestrator_should_index_blocks[.quarantine/held.md]>
+        <Function test_entrypoint_orchestrator_should_index_blocks[.claude/private.md]>
+        <Coroutine test_entrypoint_graphiti_backfill_blocks_all_security_surfaces>
+        <Coroutine test_backfill_uses_the_single_policy_source>
+        <Coroutine test_backfill_blocks_blacklisted_filenames_in_subdirs>
+        <Function test_orchestrator_rejects_dotdot_traversal>
+        <Function test_lancedb_single_file_judges_before_read>
+        <Function test_hard_floor_covers_p105_additions[.trash]>
+        <Function test_hard_floor_covers_p105_additions[.quarantine]>
+        <Function test_hard_floor_covers_p105_additions[.claude]>
+        <Function test_all_entrypoints_agree_under_hostile_env>
+        <Coroutine test_entrypoint_projection_sync_blocks_all_security_surfaces>
+        <Coroutine test_projection_sync_dry_run_never_touches_neo4j>
+        <Function test_main_startup_projection_sync_declares_execute_true>
+        <Coroutine test_entrypoint_relationship_vault_scan_blocks>
+        <Coroutine test_entrypoint_by_node_rejects_hostile_paths>
+        <Coroutine test_entrypoint_by_node_admits_legit_note>
+        <Function test_entrypoint_error_rebuild_scan_respects_admission>
+        <Function test_entrypoint_error_rebuild_root_fallback_rejected>
+        <Coroutine test_ancestor_dotdir_vault_not_zeroed_out>
+      <Module test_autoscore_regression.py>
+        <Class TestAutoScoreRegression>
+          <Function test_prompt_loads_successfully>
+          <Function test_prompt_metadata_valid>
+          <Function test_prompt_contains_four_dimensions>
+          <Function test_prompt_contains_two_stages>
+          <Function test_prompt_solo_anchoring>
+          <Function test_replay_scoring_consistency>
+          <Function test_replay_full_score_scenario>
+          <Function test_replay_zero_score_scenario>
+          <Function test_generate_report>
+      <Module test_board_manifest_contracts.py>
+        <Function test_membership_grouping_and_wikilink_normalization>
+        <Function test_empty_board_returns_empty_members_not_error>
+        <Function test_list_mode_returns_board_summaries>
+        <Function test_orphans_reported_with_reasons>
+        <Function test_orphan_channel_no_unbounded_content_echo>
+        <Function test_parse_error_messages_bounded_and_content_free>
+        <Function test_resolve_node_id_variants>
+        <Function test_mastery_four_state_normalization>
+        <Function test_mastery_level_maps_to_legacy_v2>
+        <Function test_role_and_relation_extraction>
+        <Function test_derived_reason_hard_truncated_500>
+        <Function test_is_stub_placeholder_detection>
+        <Function test_exam_history_and_question_digests>
+        <Function test_pick_rank_orders_by_pick_score_and_excludes_stubs>
+        <Function test_pick_rank_does_not_reorder_nodes_and_ties_break_by_node_id>
+        <Function test_pick_rank_survives_degraded_snapshot_path>
+        <Function test_score_scale_passthrough_when_vault_declares_it>
+        <Function test_score_scale_missing_is_marked_as_inferred>
+        <Function test_score_scale_shape_whitelist_blocks_free_text_channel>
+        <Function test_score_scale_prefix_bypass_blocked[1-4 \u53cd\u4f8b diag(-1,-1) \u884c\u5217\u5f0f\u4e3a\u6b63\u4f46\u975e\u6b63\u5b9a]>
+        <Function test_score_scale_prefix_bypass_blocked[1-4 (1=\u6700\u4f4e) \u7b54\u6848:\u7279\u5f81\u65b9\u7a0bdet(A-\u03bbI)=0]>
+        <Function test_score_scale_prefix_bypass_blocked[1\u81f34 misconception: \u4ee5\u4e3a\u662f\u7a33\u5b9a\u6392\u5e8f]>
+        <Function test_score_scale_prefix_bypass_blocked[1-4 [\u63a8\u5b9a] \u53cd\u4f8bdiag(-1,-1)\u8d1f\u5b9a]>
+        <Function test_score_scale_prefix_bypass_blocked[1-4\r\n> [!note] \u53c2\u8003\u7b54\u6848]>
+        <Function test_score_scale_prefix_bypass_blocked[1-4 |rank=1|pick=0.000|\u4f2a\u9020\u884c]>
+        <Function test_score_scale_prefix_bypass_blocked[1-4 \u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4\u6cc4]>
+        <Function test_non_finite_mastery_cannot_hijack_pick_rank[.inf]>
+        <Function test_non_finite_mastery_cannot_hijack_pick_rank[-.inf]>
+        <Function test_non_finite_mastery_cannot_hijack_pick_rank[.nan]>
+        <Function test_non_finite_mastery_cannot_hijack_pick_rank[1e400]>
+        <Function test_exam_payload_is_strict_json>
+        <Function test_include_exam_history_false_skips_scan>
+        <Function test_dual_source_gap_both_directions>
+        <Function test_symmetric_board_has_empty_gap>
+        <Function test_path_traversal_rejected[../x]>
+        <Function test_path_traversal_rejected[a/b]>
+        <Function test_path_traversal_rejected[a\\b]>
+        <Function test_path_traversal_rejected[..]>
+        <Function test_path_traversal_rejected[x\x00y]>
+        <Function test_path_traversal_rejected[]>
+        <Function test_unknown_board_raises_keyerror>
+        <Function test_single_broken_node_does_not_kill_run>
+        <Function test_negative_beta_params_reported_not_silent>
+        <Function test_pathological_last_examined_does_not_crash>
+        <Function test_generation_changes_on_member_touch>
+        <Function test_pick_hint_numerically_locked_to_decay_beta>
+        <Function test_exam_entry_forbidden_keys_structurally_absent>
+        <Function test_exam_projection_drops_poisoned_fields_at_any_depth>
+        <Function test_study_projection_keeps_learning_fields>
+        <Function test_digest_and_reason_hard_limits_enforced_by_model>
+        <Function test_project_manifest_both_views_from_live>
+        <Function test_serve_live_writes_snapshot_once_per_generation>
+        <Function test_fallback_to_snapshot_when_vault_structure_gone>
+        <Function test_snapshot_stale_marked_after_threshold>
+        <Function test_error_state_when_no_snapshot_honest_empty>
+        <Function test_corrupt_snapshot_falls_to_error_state>
+        <Function test_single_node_parse_failure_stays_live_not_fallback>
+        <Function test_snapshot_roundtrip_projection_identical_shape>
+        <Function test_board_not_found_raises_in_snapshot_mode_too>
+        <Function test_passthrough_datetime_fields_json_safe>
+        <Function test_digest_stops_at_adjacent_callout_boundary>
+        <Function test_untrusted_scalars_do_not_crash_projection>
+        <Function test_wikilink_anchor_and_case_insensitive_board_match>
+        <Function test_include_exam_history_false_strips_digests_from_snapshot>
+      <Module test_callout_direct.py>
+        <Coroutine test_low_value_type_rejected>
+        <Coroutine test_duplicate_callout_id_idempotent>
+        <Coroutine test_question_enqueues_narrative_episode_with_original_time>
+        <Coroutine test_error_schedules_candidate_nomination>
+        <Coroutine test_missing_added_at_rejected_422>
+      <Module test_census_dead_letter_readonly_contract.py>
+        <Function test_no_truncation_calls_in_source>
+        <Function test_imports_are_stdlib_only>
+        <Function test_no_apply_flag>
+        <Function test_out_equal_to_dlq_refused>
+        <Function test_out_hardlink_to_dlq_refused>
+        <Function test_out_inside_transcripts_root_refused>
+        <Function test_out_symlink_inside_root_refused>
+        <Function test_out_fifo_refused>
+        <Function test_out_hardlink_to_transcript_does_not_damage_source>
+        <Function test_missing_transcripts_root_refused>
+        <Function test_scan_blocked_refuses_even_without_out>
+        <Function test_unreadable_candidate_not_treated_as_source>
+        <Function test_anomaly_not_promoted_by_full_body>
+        <Function test_bool_length_rejected>
+        <Function test_bad_json_line_does_not_kill_census>
+        <Function test_invalid_utf8_line_is_unparseable>
+        <Function test_lone_lf_counts_as_one_line>
+        <Function test_output_is_private_and_no_tmp_left>
+        <Function test_inputs_unchanged_after_run>
+        <Function test_malformed_qa_db_does_not_abort_census>
+      <Module test_context_extract_regression.py>
+        <Class TestContextExtractRegression>
+          <Function test_prompt_loads_successfully>
+          <Function test_prompt_contains_error_types>
+          <Function test_prompt_contains_extraction_categories>
+          <Function test_prompt_evidence_requirement>
+          <Function test_replay_extraction_recall>
+          <Function test_replay_classification_accuracy>
+          <Function test_replay_evidence_present>
+          <Function test_generate_report>
+      <Module test_crag_grading_regression.py>
+        <Class TestCragGradingRegression>
+          <Function test_prompt_loads_successfully>
+          <Function test_prompt_metadata_valid>
+          <Function test_prompt_grading_criteria>
+          <Function test_prompt_json_output_format>
+          <Function test_replay_format_compliance>
+          <Function test_replay_classification_consistency>
+          <Function test_replay_crag_trigger_rate>
+          <Function test_replay_relevant_count_in_range>
+          <Function test_generate_report>
+      <Module test_daily_review_pick.py>
+        <Function test_pathological_last_examined_does_not_kill_run>
+        <Function test_wikilink_board_normalization>
+        <Function test_placeholder_node_skipped_empty_notification>
+        <Function test_tiebreak_prefers_least_recently_recommended>
+        <Function test_negative_mastery_counted_corrupt_not_silent>
+        <Function test_bom_frontmatter_tolerated>
+        <Function test_future_due_board_gets_rest_notification>
+        <Function test_due_filter_beats_pick_within_board>
+        <Function test_no_fsrs_field_means_new_card_due_now>
+        <Function test_unassigned_nodes_named_in_md>
+        <Function test_projection_v3_due_nodes_and_ineligible_buckets>
+        <Function test_projection_v3_purely_additive_keeps_v2_contract>
+        <Function test_nonfinite_pick_goes_corrupt_not_nan_json>
+        <Function test_due_boundary_survives_local_timezone_now>
+        <Function test_projection_v3_empty_vault_keeps_contract_keys>
+        <Function test_boards_rollup_full_coverage>
+        <Function test_boards_rollup_additive_old_fields_untouched>
+        <Function test_boards_rollup_golden_old_fields_frozen>
+        <Function test_buckets_five_way_partition_each_bucket_covered>
+        <Function test_buckets_due_today_uses_shanghai_day_not_utc_day>
+        <Function test_buckets_malformed_fail_open_and_new_card_edges>
+        <Function test_buckets_learning_states_and_unknown_state_fallback>
+        <Function test_buckets_same_day_overdue_reads_as_clock_time>
+        <Function test_buckets_domain_excludes_unassigned_and_ineligible>
+        <Function test_buckets_empty_vault_keys_always_present>
+        <Function test_buckets_due_rows_mirror_bucket_grouping>
+        <Function test_buckets_golden_pre_g36a_fields_frozen>
+        <Function test_render_md_appends_bucket_section>
+        <Function test_dirty_fsrs_due_raw_is_sanitized_in_why_due>
+        <Function test_extreme_now_falls_back_instead_of_crashing>
+        <Function test_cli_rejects_unconvertible_now_with_clear_error>
+        <Function test_today_sh_three_tier_fallback_never_raises>
+        <Function test_atomic_write_abandons_legacy_fixed_tmp_name>
+        <Function test_atomic_write_refuses_to_reuse_an_existing_tmp>
+        <Function test_atomic_write_does_not_follow_a_symlinked_tmp>
+        <Function test_atomic_write_publishes_and_leaves_no_residue>
+        <Function test_atomic_write_cleans_tmp_when_publish_fails>
+        <Function test_g36b_why_this_board_recomputes_from_factors>
+        <Function test_g36b_why_this_board_char_whitelist_holds>
+        <Function test_g36b_factors_three_way_split_is_exhaustive_and_matches_rollup>
+        <Function test_g36b_factors_share_source_with_existing_row_fields>
+        <Function test_g36b_template_covers_every_branch>
+        <Function test_g36b_corrupt_recommend_date_is_not_mistaken_for_never>
+        <Function test_g36b_estimated_minutes_weights_new_cards_higher>
+        <Function test_g36b_rank_manifest_version_and_sha_in_payload>
+        <Function test_g36b_sha_changes_for_every_single_coefficient>
+        <Function test_g36b_sha_digests_effective_values_not_file_bytes>
+        <Function test_g36b_r2_decay_body_change_moves_sha>
+        <Function test_g36b_r2_decay_path_is_required_no_silent_fallback>
+        <Function test_g36b_r2_decay_sha_digests_bytes_not_identity>
+        <Function test_g36b_r2_payload_sha_follows_vault_decay_file>
+        <Function test_g36b_r2_manifest_version_bumped_and_old_snapshot_registered>
+        <Function test_g36b_recorded_decay_snapshot_matches_real_module>
+        <Function test_g36b_recorded_ranking_and_limits_match_code>
+        <Function test_g36b_authoritative_minutes_actually_take_effect>
+        <Function test_g36b_missing_or_corrupt_manifest_degrades_honestly>
+        <Function test_g36b_degraded_manifest_still_produces_usable_payload>
+        <Function test_g36b_recorded_drift_warns_but_actual_value_wins>
+        <Function test_g36b_unassigned_nodes_never_enter_any_board_surface>
+        <Function test_g36b_yaml_array_source_board_lands_unassigned>
+        <Function test_g36b_comma_multi_board_lands_on_last_segment>
+        <Function test_g36b_same_name_boards_from_different_paths_merge>
+        <Function test_g36b_truncated_flags>
+        <Function test_g36b_no_board_appears_in_both_ranked_and_upcoming>
+        <Function test_g36b_golden_new_fields_frozen>
+        <Function test_g36b_top_boards_order_matches_head_baseline>
+        <Function test_g36b_future_recommend_date_is_not_disguised_as_today>
+        <Function test_g36b_tie_keys_are_single_source>
+        <Function test_g36b_tie_removing_min_last_level_flips_order>
+        <Function test_g36b_tie_pick_level_decides>
+        <Function test_g36b_tie_precision_is_versioned>
+        <Function test_g36b_tie_keys_unique_and_anchored>
+        <Function test_g36b_implementation_sha_is_registered_and_self_consistent>
+        <Function test_g36b_parent_section_missing_warns_not_silent>
+        <Function test_g67_done_board_yields_top_slot_but_stays_on_the_list>
+        <Function test_g67_yesterday_done_does_not_yield>
+        <Function test_g67_all_boards_done_keeps_ranking_and_notification>
+        <Function test_g67_board_done_is_purely_additive_when_absent_or_garbage>
+        <Function test_g67_four_positional_call_form_still_works>
+      <Module test_daily_review_run.py>
+        <Function test_node_change_invalidates_same_day_cache>
+        <Function test_unchanged_pool_still_cached>
+        <Function test_rescan_keeps_same_day_push_skip_done>
+        <Function test_infile_update_alone_triggers_rescan>
+        <Function test_deletion_via_dir_mtime_triggers_rescan>
+        <Function test_write_during_scan_window_not_lost>
+        <Function test_time_crossing_future_due_invalidates_cache>
+        <Function test_plist_hourly_slots_inside_push_window>
+        <Function test_rescan_does_not_touch_board_last_recommended>
+        <Function test_rest_day_first_nonempty_top_gets_credit>
+        <Function test_legacy_state_credited_today_without_marker_not_double_credited>
+        <Function test_empty_vault_first_scan_then_new_node_gets_credit>
+        <Function test_two_vaults_same_day_push_and_state_isolated>
+        <Function test_payload_carries_top_level_vault_id>
+        <Function test_send_bark_composes_vault_scoped_id_and_group>
+        <Function test_send_bark_without_vault_id_keeps_legacy_shape>
+        <Function test_vault_key_slug_rules>
+        <Function test_migrate_dry_run_writes_nothing>
+        <Function test_migrate_apply_keeps_bak_and_refuses_overwrite>
+        <Function test_migrate_symlink_vault_arg_matches_runner_key>
+        <Function test_migrate_crlf_state_byte_identical_and_idempotent>
+        <Function test_migrate_refuses_non_dict_state>
+        <Function test_migrate_refuses_overwriting_existing_bak>
+        <Function test_migrate_interrupted_states_have_explicit_exits>
+        <Function test_migrate_preplanted_symlink_target_not_overwritten>
+        <Function test_rest_to_due_reversal_pushes_second_time>
+        <Function test_due_to_due_rescan_stays_skip_done>
+        <Function test_rest_to_rest_rescan_stays_skip_done>
+        <Function test_second_push_failure_retries_next_hour>
+        <Function test_rest_due_rest_due_oscillation_capped_at_two>
+        <Function test_structurally_corrupt_state_quarantined_not_crash>
+        <Function test_legacy_cached_payload_without_top_boards_records_due>
+        <Function test_g67_legacy_state_reads_board_done_as_empty_and_bumps_schema>
+        <Function test_g67_wrong_typed_board_done_quarantined_not_crash>
+        <Function test_g67_state_path_takes_explicit_vault_without_touching_global>
+        <Function test_g67_runner_hands_board_done_to_picker>
+        <Function test_g67_two_vaults_board_done_isolated>
+        <Function test_g67_marking_done_invalidates_same_day_cache>
+        <Function test_g67_upgrade_day_missing_signature_with_nonempty_account_still_rescans>
+      <Module test_debt8_fsrs_fallback_honest.py>
+        <Function test_fallback_record_review_result_reports_honest_algorithm>
+        <Function test_fallback_record_review_result_keeps_persistence_signal>
+        <Function test_fallback_schedule_review_reports_honest_algorithm>
+        <Function test_fallback_get_fsrs_state_reports_honest_algorithm>
+        <Function test_real_library_responses_unchanged>
+      <Module test_decay_beta_convergence.py>
+        <Function test_sigma_decreases_with_observations_3_10_100>
+        <Function test_sigma_converges_but_never_zero>
+        <Function test_mastery_recovers_after_state_jump>
+        <Function test_pure_beta_would_lag_decay_beta_catches_up>
+        <Function test_from_legacy_preserves_mean_low_confidence>
+        <Function test_pick_score_breaks_p3_deadlock>
+        <Function test_update_clamps_grade>
+        <Function test_effective_preserves_mu[0]>
+        <Function test_effective_preserves_mu[30]>
+        <Function test_effective_preserves_mu[69]>
+        <Function test_effective_preserves_mu[365]>
+        <Function test_effective_preserves_mu[3650]>
+        <Function test_effective_sigma_monotonic_with_idle>
+        <Function test_effective_future_timestamp_clamps>
+        <Function test_effective_rejects_corrupt_state>
+        <Function test_effective_evidence_half_life_69_days>
+        <Function test_update_after_idle_kills_confidence_revival>
+        <Function test_update_after_idle_zero_days_equals_update>
+        <Function test_effective_underflow_guard>
+      <Module test_edge_dialog_prompt.py>
+        <Function test_ei_strategy_header_present>
+        <Function test_ei_why_how_questions>
+        <Function test_ei_counterexample_probing>
+        <Function test_se_strategy_header_present>
+        <Function test_se_own_words_instruction>
+        <Function test_se_conditional_trigger>
+        <Function test_active_recall_excluded>
+        <Function test_no_teaching_jargon_instruction>
+        <Function test_conversation_style_not_exam>
+        <Function test_depth_assessment_table>
+        <Function test_density_control_max_rounds>
+        <Function test_source_concept_placeholder>
+        <Function test_target_concept_placeholder>
+        <Function test_existing_tips_placeholder>
+        <Function test_existing_errors_placeholder>
+        <Function test_existing_rationale_placeholder>
+        <Function test_prompt_not_empty>
+        <Function test_prompt_has_record_edge_rationale_tool>
+      <Module test_fsrs_bridge.py>
+        <Function test_rating_mapping_boundaries>
+        <Function test_new_card_first_good_enters_learning_minutes>
+        <Function test_graduation_then_interval_expands_f2>
+        <Function test_again_relearning_same_day_f3>
+        <Function test_easy_due_later_than_good_f5>
+        <Function test_fields_from_frontmatter_roundtrip>
+        <Function test_legacy_state_zero_frontmatter_defensive_mapping>
+        <Function test_cli_legacy_state_zero_full_frontmatter_via_stdin>
+        <Function test_cli_via_system_python_reexec_success>
+        <Function test_cli_degradation_exit3_when_reexec_blocked>
+      <Module test_fsrs_fallback_datetime_serialize.py>
+        <Function test_fallback_create_serialize_deserialize_roundtrip_in_isolated_process>
+        <Function test_fallback_reviewed_card_and_card_to_state_serializable_in_isolated_process>
+      <Module test_fsrs_golden_vectors.py>
+        <Function test_real_library_present_not_fallback>
+        <Function test_installed_version_matches_frozen_manifest>
+        <Function test_requirements_pin_exact_version>
+        <Function test_library_default_parameters_unchanged>
+        <Function test_rating_and_state_value_surface_frozen>
+        <Function test_params_hash_integrity>
+        <Function test_manifest_metadata_frozen>
+        <Function test_manifest_key_set_and_provenance_frozen>
+        <Function test_scheduler_config_non_parameter_fields_frozen>
+        <Function test_tolerance_ceiling_locked>
+        <Function test_matrix_structure_frozen>
+        <Function test_all_golden_vectors_replay_exact>
+        <Function test_retrievability_curve_matches_golden>
+        <Function test_duplicate_keys_in_golden_json_are_rejected>
+        <Function test_enum_bool_drift_is_rejected[rating_values-again]>
+        <Function test_enum_bool_drift_is_rejected[state_values-Learning]>
+        <Function test_non_standard_json_constants_are_rejected[NaN]>
+        <Function test_non_standard_json_constants_are_rejected[Infinity]>
+        <Function test_non_standard_json_constants_are_rejected[-Infinity]>
+      <Module test_fsrs_legacy_state_zero.py>
+        <Function test_real_fsrs_library_is_installed>
+        <Function test_canonical_legacy_new_deserialize_review_serialize_full_chain>
+        <Function test_legacy_zero_contradictory_shape_preserves_params_and_warns>
+        <Function test_deserialize_valid_states_unchanged>
+        <Function test_legacy_zero_roundtrip_rewrites_as_learning>
+        <Function test_serialize_card_fallback_never_writes_state_zero>
+        <Function test_card_to_state_fallback_never_writes_state_zero>
+        <Function test_real_new_card_serializes_state_one>
+        <Function test_cardstate_dataclass_never_defaults_or_reads_zero>
+        <Function test_fallback_branch_never_produces_state_zero_in_isolated_process>
+        <Function test_bridge_legacy_state_zero_does_not_raise_and_outputs_valid_state>
+        <Function test_bridge_legacy_state_zero_behaves_like_learning>
+        <Function test_bridge_legacy_full_frontmatter_zero_and_null_params>
+        <Function test_bridge_legacy_zero_state_with_positive_params_kept>
+      <Module test_fsrs_new_card_none_serialization.py>
+        <Function test_real_fsrs_library_is_installed>
+        <Function test_new_card_semantics_precondition>
+        <Function test_serialize_card_new_card_roundtrip>
+        <Function test_serialize_card_reviewed_card_keeps_real_values>
+        <Function test_card_to_state_new_card_no_exception>
+        <Coroutine test_schedule_review_new_card_uses_fsrs_not_ebbinghaus>
+        <Coroutine test_get_fsrs_state_new_concept_found_true>
+      <Module test_g29_dual_vault_fsrs_isolation.py>
+        <Function test_two_vaults_fsrs_and_notification_chain_isolated>
+        <Function test_vault_a_push_does_not_consume_vault_b_same_day_slot>
+      <Module test_g3_2_review_ledger.py>
+        <Function test_same_event_id_replay_no_double_advance>
+        <Function test_crash_window_ledger_without_frontmatter_recovers>
+        <Function test_fail_before_append_keeps_ledger_and_node_consistent>
+        <Function test_equal_timestamp_advances_w_plus_one_second>
+        <Function test_fractional_second_input_truncated_to_whole_second>
+        <Function test_degraded_card_fail_closed_zero_write>
+        <Function test_truncated_tail_line_without_lf_guard>
+        <Function test_envelope_conflict_rejected_and_same_envelope_noop>
+        <Function test_ledger_passes_validator_with_golden_binding>
+        <Function test_node_body_byte_identical>
+        <Function test_write_point_survey_no_third_implementation>
+        <Function test_fsrs_unavailable_degraded_sentinels_pair_and_w_frozen>
+        <Function test_durable_sequence_and_write_ahead_order>
+        <Function test_legacy_rows_never_replayed>
+        <Function test_pending_foreign_event_replayed_before_new_write>
+        <Function test_substring_dedup_trap>
+        <Function test_pending_replay_failure_blocks_everything>
+        <Function test_degraded_a3_bump_respects_a7_bound>
+        <Function test_f1_detection_survives_obsidian_renormalization>
+        <Function test_append_event_lf_guard_isolates_torn_tail>
+        <Function test_degraded_legacy_retry_restores_fsrs_without_double_ema>
+        <Function test_conflicting_facts_after_full_apply_rejected>
+        <Function test_duplicate_event_id_in_ledger_fail_closed>
+        <Function test_f1_detection_handles_escaped_quotes>
+        <Function test_identity_tampering_caught_by_validator_not_envelope>
+        <Function test_r1_unknown_durable_payload_key_conflicts>
+        <Function test_r2_non_whole_second_durable_review_time_fail_closed>
+        <Function test_r3_historical_event_replay_is_noop_not_conflict>
+        <Function test_r4_recovery_byte_identical_with_idle_and_a3_bump>
+        <Function test_r5_inconsistent_scored_rating_rejected_before_apply>
+        <Function test_r7_corrupt_tail_line_with_lf_is_not_truncation>
+        <Function test_r6_schema_declares_identity_key_integrity_owner>
+        <Function test_six_cell_state_machine_closed>
+        <Function test_round1_followups_n1_to_n5>
+        <Function test_self_audit_coverage_gaps>
+        <Function test_round2_lead_followups>
+        <Function test_internal_audit_findings>
+        <Function test_round3_findings>
+        <Function test_round4_writer_validator_verdict_parity>
+        <Function test_round5_calibration_key_prefix_collision>
+        <Function test_round5_routing_order_and_input_literal>
+        <Function test_round5_legacy_scored_rows_break_ordinal_proof>
+        <Function test_round6_findings>
+        <Function test_round6_ordinal_evidence>
+        <Function test_round7_findings>
+        <Function test_round7_ordinal_gap_and_self_node_id>
+        <Function test_round8_stable_scored_at>
+        <Function test_round8_high_findings>
+        <Function test_round9_identity_and_self_check>
+        <Function test_round9_yaml_calibration_forms>
+        <Function test_round9_structured_receipt>
+        <Function test_round10_findings>
+        <Function test_round11_unified_resolver>
+        <Function test_round11_writeback_by_parse_result>
+        <Function test_round11b_single_source_lookup>
+        <Function test_round11b_both_paths_still_behave>
+        <Function test_round11b_c1_event_type_narrow>
+        <Function test_round11b_c1_concept_id_narrow>
+        <Function test_round11b_c1_vault_id_narrow>
+        <Function test_round11b_parity_event_version_bool_narrow>
+        <Function test_round11b_parity_toplevel_non_object_narrow>
+        <Function test_round11b_fsrs_uses_stable_business_time>
+        <Function test_round11b_no_w_fallback_narrow>
+        <Function test_round11b_foreign_replay_checks_facts_narrow>
+        <Function test_round12_facts_list_is_frozen>
+        <Function test_round12_b2_exam_board_in_facts>
+        <Function test_round12_b3_late_scan_checks_facts>
+        <Function test_round12_b1_receipt_provenance>
+        <Function test_round12_empty_eid_rejected_at_entry>
+        <Function test_round12_seventh_state_ledger_missing_f1_w_uncovered>
+        <Function test_round12_high2_adopted_time_in_crash_window>
+        <Function test_round12_high3_legacy_row_missing_scored_at_is_actionable>
+        <Function test_round12_abandoned_isolated_from_grade>
+        <Function test_round13_consumer_must_not_reshape_values>
+        <Function test_round13_adopted_time_recomputed_not_compared_literally>
+        <Function test_round13_id_form_only_proves_exact_hit>
+        <Function test_round13_f1only_ordinal_discounts_successors>
+        <Function test_round14_facts_compare_is_type_sensitive>
+        <Function test_round14_id_form_checked_at_candidate_stage>
+        <Function test_round14_missing_scored_at_is_fail_closed>
+        <Function test_round14_every_pending_proves_adopted_time>
+        <Function test_round14_legacy_precision_identity>
+        <Function test_round15_numeric_semantics_not_json_spelling>
+        <Function test_round15_scored_at_in_ext_detection>
+        <Function test_round15_event_level_fsrs_applied>
+        <Function test_round15_board_no_self_produced_rejection>
+        <Function test_round15_source_lookup_respects_candidate_kind>
+        <Function test_round15_bare_collision_has_own_judge>
+        <Function test_round16_same_instant_rows_rejected_per_a3>
+        <Function test_round16_fsrs_applied_across_all_branches>
+        <Function test_round16_canonical_tree_type_faithful>
+        <Function test_round16_unmarked_exact_enumerates_both_sources>
+        <Function test_round16_foreign_nonstr_event_id_does_not_block>
+        <Function test_round16_exam_board_roundtrips_through_yaml>
+        <Function test_round16_f1_only_uses_persisted_write_order_anchor>
+        <Function test_round16_legacy_receipt_without_anchor_says_unprovable>
+        <Function test_round17_hostile_chars_now_rejected_not_survived>
+        <Function test_round17_legacy_receipt_without_board_form_still_read>
+        <Function test_round17_anchor_is_preferred_not_sole_evidence>
+        <Function test_round17_anchor_direction_is_verified>
+        <Function test_round17_fsrs_applied_must_be_strict_bool>
+        <Function test_round17_rebuild_hostile_carrier_is_unreachable_now>
+        <Function test_round17_deep_json_recovers_after_crash_window>
+        <Function test_round17_foreign_degraded_recovery_converges>
+        <Function test_round17_tri_instant_binding_narrow>
+        <Function test_g32cb_depth_over_limit_rejected_before_first_append>
+        <Function test_g32cb_depth_at_limit_still_accepted>
+        <Function test_g32cb_node_budget_over_limit_rejected_before_first_append>
+        <Function test_g32cb_validator_rejects_oversize_ledger_line>
+        <Function test_g32cb_self_referential_receipt_reports_real_cause>
+        <Function test_g32cb_six_cell_triplets_probe>
+        <Function test_g32cb_anchor_without_direction_evidence_falls_back>
+        <Function test_g32cb_limits_are_pinned_to_exact_values>
+        <Function test_g32cb_shape_check_memory_is_bounded_by_depth_not_fanout>
+        <Function test_g32cc_charaxis_nonconforming_codepoints_rejected>
+        <Function test_g32cc_charaxis_normal_text_still_accepted>
+        <Function test_g32cc_forbidden_set_matches_expected_exactly>
+        <Function test_g32cc_every_forbidden_codepoint_actually_rejected>
+        <Function test_g32cc_boundary_neighbours_all_allowed>
+        <Function test_g32cc_charset_traverses_all_container_shapes>
+        <Function test_g32cc_charset_only_applies_to_identity_and_receipt_fields>
+        <Function test_g32ccr1_charset_scope_is_bounded_by_ledger_record_reality>
+        <Function test_g32ccr1_receipt_only_fields_roundtrip_under_hostile_codepoints>
+        <Function test_g32ccr1_timestamp_axis_rejects_hostile_codepoints_before_any_write>
+        <Function test_g32ccr1_nondict_branch_unreachable_from_validate_record_full>
+        <Function test_g32ccr1_self_confidence_norm_must_not_forge_receipt_identity>
+        <Function test_g32ce_q_ascii_escape_fallback_is_load_bearing>
+        <Function test_g32cc_depth_two_sides_agree_across_levels>
+        <Function test_g32cc_markerless_legacy_bare_exponent_agrees>
+        <Function test_g32cc_emitter_rebuild_never_mutates_existing_entries>
+        <Function test_g32cc_noncharacters_rejected_and_bmp_plus_still_ok>
+      <Module test_g3_3_cas.py>
+        <Function test_concurrent_same_node_no_lost_update[1]>
+        <Function test_concurrent_same_node_no_lost_update[2]>
+        <Function test_concurrent_ledger_append_stays_wellformed>
+        <Function test_concurrent_ledger_append_same_id_writes_once>
+        <Function test_concurrent_cross_node_ledger_stays_wellformed>
+        <Function test_writer_waits_for_held_ledger_lock>
+        <Function test_thread_critical_sections_do_not_overlap>
+        <Function test_dedup_scan_splits_only_on_physical_lf>
+        <Function test_short_write_is_not_reported_as_success>
+        <Function test_out_of_order_is_caller_declared_not_auto_guessed>
+        <Function test_illegal_out_of_order_form_does_not_hide_baseline>
+        <Function test_cas_conflict_refuses_and_rerun_converges>
+        <Function test_cas_token_and_conflict_semantics>
+        <Function test_cas_body_only_change_is_a_conflict>
+        <Function test_out_of_order_marker_is_additive>
+        <Function test_later_and_foreign_events_are_not_marked>
+        <Function test_marked_event_does_not_regress_frontmatter>
+        <Function test_rerun_is_idempotent>
+        <Function test_lock_exclusive_times_out_instead_of_writing>
+        <Function test_append_event_refuses_when_ledger_locked>
+        <Function test_posix_record_lock_is_released_by_any_unrelated_close>
+        <Function test_read_all_does_not_drop_the_lock>
+        <Function test_append_event_still_holds_lock_at_the_moment_of_write>
+        <Function test_skill_ledger_section_opens_no_second_fd>
+        <Function test_incremental_block_waits_for_node_lock>
+        <Function test_incremental_block_cas_preserves_racing_edit>
+        <Function test_writer_refuses_when_other_writer_took_the_event_id>
+        <Function test_exam_board_waits_for_held_ledger_lock>
+        <Function test_incremental_block_is_content_idempotent>
+        <Function test_a2_foreign_recovery_publish_respects_cas>
+        <Function test_dup_recovery_publish_respects_cas>
+      <Module test_g3_7_truth_source.py>
+        <Function test_production_reader_reads_seeded_frontmatter>
+        <Coroutine test_get_fsrs_state_frontmatter_wins_on_divergence>
+        <Coroutine test_get_fsrs_state_agreement_is_not_reported_as_divergence>
+        <Coroutine test_get_fsrs_state_without_truth_source_is_labeled_projection>
+        <Coroutine test_gate_blocks_write_when_truth_source_exists>
+        <Coroutine test_gate_allows_write_when_no_truth_source>
+        <Coroutine test_gate_blocks_write_on_malformed_fsrs_due>
+        <Coroutine test_body_line_is_not_mistaken_for_truth_source>
+        <Coroutine test_unreadable_node_file_fails_closed>
+        <Coroutine test_unreadable_node_dir_fails_closed>
+        <Function test_unencodable_concept_id_is_absent_not_blinded>
+        <Function test_missing_node_is_still_reported_as_absent>
+        <Coroutine test_node_without_fsrs_due_is_treated_as_no_truth_source>
+        <Function test_http_get_forwards_truth_source_and_degraded>
+        <Function test_http_get_without_truth_source_reports_projection>
+        <Function test_record_review_labels_write_as_projection_cache>
+        <Coroutine test_record_review_service_keys_stay_frozen>
+        <Coroutine test_record_review_flags_divergence_but_keeps_computed_schedule>
+        <Coroutine test_record_review_degraded_reasons_are_additive>
+        <Coroutine test_record_review_reports_unparsable_truth_source>
+        <Coroutine test_record_review_reports_unreadable_truth_source>
+      <Module test_g6_9_boundary_matrix.py>
+        <Function test_tz_fixture_actually_moves_the_local_clock>
+        <Function test_known_divergent_table_is_current>
+        <Function test_runner_today_agrees_with_display_day[summer-utc0330-Asia/Shanghai]>
+        <Function test_runner_today_agrees_with_display_day[summer-utc0330-UTC]>
+        <Function test_runner_today_agrees_with_display_day[summer-utc0330-America/New_York]>
+        <Function test_runner_today_agrees_with_display_day[summer-utc0330-Europe/London]>
+        <Function test_runner_today_agrees_with_display_day[summer-utc1630-Asia/Shanghai]>
+        <Function test_runner_today_agrees_with_display_day[summer-utc1630-UTC]>
+        <Function test_runner_today_agrees_with_display_day[summer-utc1630-America/New_York]>
+        <Function test_runner_today_agrees_with_display_day[summer-utc1630-Europe/London]>
+        <Function test_runner_today_agrees_with_display_day[winter-utc0330-Asia/Shanghai]>
+        <Function test_runner_today_agrees_with_display_day[winter-utc0330-UTC]>
+        <Function test_runner_today_agrees_with_display_day[winter-utc0330-America/New_York]>
+        <Function test_runner_today_agrees_with_display_day[winter-utc0330-Europe/London]>
+        <Function test_runner_today_agrees_with_display_day[winter-utc1630-Asia/Shanghai]>
+        <Function test_runner_today_agrees_with_display_day[winter-utc1630-UTC]>
+        <Function test_runner_today_agrees_with_display_day[winter-utc1630-America/New_York]>
+        <Function test_runner_today_agrees_with_display_day[winter-utc1630-Europe/London]>
+        <Function test_launchd_path_does_not_force_display_tz>
+        <Function test_midnight_crossing_bucket_attribution[moment0-\u4e0a\u6d77 2026-07-31 23:59-future]>
+        <Function test_midnight_crossing_bucket_attribution[moment1-\u4e0a\u6d77 2026-08-01 00:01-due_today]>
+        <Function test_wakeup_catchup_sequence>
+        <Function test_bark_failure_lands_state_and_projection_written_before_push>
+        <Function test_push_failure_is_invisible_to_backend_app>
+      <Module test_immutable_skip_dirs_contract.py>
+        <Function test_env_override_cannot_remove_isolation_boundaries[.git]>
+        <Function test_env_override_cannot_remove_isolation_boundaries[]>
+        <Function test_env_override_cannot_remove_isolation_boundaries[node_modules,templates]>
+        <Function test_env_override_still_allows_additions>
+        <Function test_learning_content_still_indexable_under_hard_floor>
+        <Function test_hard_floor_covers_all_isolation_surfaces>
+        <Function test_lib_and_app_hard_floors_stay_identical>
+        <Function test_hard_floor_is_subset_of_default_config>
+        <Function test_lib_union_holds_even_when_caller_passes_hostile_list>
+        <Function test_lib_union_is_idempotent>
+      <Module test_learning_event_log.py>
+        <Function test_append_writes_full_schema>
+        <Function test_idempotent_by_event_id>
+        <Function test_unknown_event_type_rejected>
+        <Function test_empty_event_id_rejected>
+        <Function test_effective_at_can_backfill>
+        <Function test_io_failure_never_raises>
+      <Module test_learning_events_schema_contract.py>
+        <Function test_event_version_frozen_at_1>
+        <Function test_event_types_frozen_nine>
+        <Function test_append_event_record_shape_frozen>
+        <Function test_validator_whitelist_matches_truth_source>
+        <Function test_validator_version_matches_truth_source>
+        <Function test_fixture_valid_passes>
+        <Function test_fixture_missing_field_fails>
+        <Function test_fixture_duplicate_event_id_fails>
+        <Function test_torn_line_detected>
+        <Function test_unknown_top_level_field_rejected>
+        <Function test_naive_timestamp_rejected>
+        <Function test_nan_constant_rejected>
+        <Function test_duplicate_key_within_line_rejected>
+        <Function test_unknown_event_version_warns_not_fails>
+        <Function test_unknown_version_new_shape_truly_skipped>
+        <Function test_main_validator_enforces_routing_envelope[{"event_id": "future:1", "event_version": 2, "payload_v2": {}}-node_id]>
+        <Function test_main_validator_enforces_routing_envelope[{"event_version": 2, "node_id": "n", "payload_v2": {}}-event_id]>
+        <Function test_main_validator_enforces_routing_envelope[{"event_id": "", "event_version": 2, "node_id": "n", "payload_v2": {}}-event_id]>
+        <Function test_main_validator_enforces_routing_envelope[{"event_id": 123, "event_version": 2, "node_id": "n", "payload_v2": {}}-event_id]>
+        <Function test_main_validator_enforces_routing_envelope[{"event_id": "future:x", "event_version": 2, "node_id": 1.5, "payload_v2": {}}-node_id]>
+        <Function test_main_validator_enforces_routing_envelope[{"event_id": "future:x", "event_version": 2, "node_id": null, "payload_v2": {}}-node_id]>
+        <Function test_main_validator_enforces_routing_envelope[{"event_id": "future:x", "event_version": 2, "node_id": true, "payload_v2": {}}-node_id]>
+        <Function test_main_validator_enforces_routing_envelope[{"event_id": "future:x", "event_version": 99, "payload_v2": {}}-node_id]>
+        <Function test_main_validator_enforces_routing_envelope[{"event_id": "future:x", "event_version": -1, "payload_v2": {}}-node_id]>
+        <Function test_invalid_utf8_line_reported_not_crash>
+        <Function test_q_separator_rejected>
+        <Function test_review_ext_complete_row_passes>
+        <Function test_review_ext_bad_rating_fails>
+        <Function test_control_char_wrapped_line_rejected>
+        <Function test_timestamp_lexicon_variants_rejected>
+        <Function test_oversized_int_literal_not_crash>
+        <Function test_review_ext_cross_field_bindings>
+        <Function test_review_time_must_be_whole_second>
+        <Function test_review_ext_marker_downgrade_blocked>
+        <Function test_review_ext_semantic_bindings>
+        <Function test_review_ext_valid_variants_pass>
+        <Function test_out_of_order_marker_shape_frozen>
+        <Function test_review_time_must_carry_seconds>
+        <Function test_manifest_corrupt_forms_degrade_not_crash>
+        <Function test_vault_id_bound_to_vault_config>
+        <Function test_watermark_comparison_must_be_instant_based>
+        <Function test_classify_card_state_matrix>
+        <Function test_stability_has_no_maximum_interval_ceiling>
+        <Function test_review_domain_closure>
+        <Function test_watermark_must_be_whole_second>
+        <Function test_stability_semantic_ceiling>
+        <Function test_oversized_numeric_field_fails_closed>
+        <Function test_watermark_must_leave_room_for_successor>
+        <Function test_oversized_int_field_degrades_not_crash>
+        <Function test_integer_fields_use_int_lexeme>
+        <Function test_a7_bounds_are_tiered>
+        <Function test_schedulable_time_upper_bound>
+        <Function test_vault_id_never_misbinds_against_real_backend>
+        <Function test_vault_config_parse_errors_degrade_not_crash>
+        <Function test_vault_id_degrades_without_pyyaml_and_warns>
+        <Function test_rating_from_grade_parity_with_bridge>
+        <Function test_offset_minute_range_enforced>
+        <Function test_deep_nesting_not_crash>
+        <Function test_review_ext_marker_absent_means_legacy_untouched>
+        <Function test_real_producer_backend_append_event>
+        <Function test_real_producer_ai_linked_doc_writer>
+        <Function test_real_producer_start_exam_board_writer>
+        <Function test_real_producer_quiz_answer_writer>
+        <Function test_real_write_point_shapes_zero_false_positives>
+        <Function test_repo_vault_ledger_schema_v1>
+        <Function test_normal_two_layer_chain_is_provable>
+        <Function test_layered_split_cannot_bypass_monotonicity>
+        <Function test_top_level_must_cover_ledger_tail>
+        <Function test_intra_layer_monotonicity_gate>
+        <Function test_snapshot_three_equalities_each_enforced[<lambda>-\u7b49\u5f0f1 \u5931\u8d25]>
+        <Function test_snapshot_three_equalities_each_enforced[<lambda>-\u7b49\u5f0f2 \u5931\u8d25]>
+        <Function test_snapshot_three_equalities_each_enforced[<lambda>-\u7b49\u5f0f3 \u5931\u8d25]>
+        <Function test_equality3_compares_instants_not_strings>
+        <Function test_chain_cursor_line_must_strictly_decrease>
+        <Function test_canonical_state_shape_is_unique[state0-\u952e\u96c6\u5fc5\u987b\u6070\u4e3a]>
+        <Function test_canonical_state_shape_is_unique[state1-\u952e\u96c6\u5fc5\u987b\u6070\u4e3a]>
+        <Function test_canonical_state_shape_is_unique[state2-\u5fc5\u987b\u662f JSON float]>
+        <Function test_canonical_state_shape_is_unique[state3-\u5fc5\u987b\u662f number 1/2/3]>
+        <Function test_canonical_state_shape_is_unique[state4-UTC \u6574\u79d2]>
+        <Function test_canonical_state_shape_is_unique[state5-\u53d6\u503c\u975e\u6cd5]>
+        <Function test_canonical_state_shape_is_unique[state6-UTC \u6574\u79d2]>
+        <Function test_canonical_state_hash_matches_independent_oracle>
+        <Function test_canonical_state_hash_is_order_independent>
+        <Function test_every_schema_required_field_is_gated[cursor_line]>
+        <Function test_every_schema_required_field_is_gated[event_id]>
+        <Function test_every_schema_required_field_is_gated[fsrs_library_version]>
+        <Function test_every_schema_required_field_is_gated[fsrs_params_hash]>
+        <Function test_every_schema_required_field_is_gated[ledger_prefix_sha256]>
+        <Function test_every_schema_required_field_is_gated[node_id]>
+        <Function test_every_schema_required_field_is_gated[origin]>
+        <Function test_every_schema_required_field_is_gated[reducer]>
+        <Function test_every_schema_required_field_is_gated[result_hash]>
+        <Function test_every_schema_required_field_is_gated[review_time]>
+        <Function test_every_schema_required_field_is_gated[scheduler_config]>
+        <Function test_every_schema_required_field_is_gated[vault_id]>
+        <Function test_genesis_anchor_is_really_anchored[<lambda>-64 \u4f4d\u5341\u516d\u8fdb\u5236]>
+        <Function test_genesis_anchor_is_really_anchored[<lambda>-\u539f\u6587\u542b FSRS]>
+        <Function test_genesis_anchor_is_really_anchored[<lambda>-\u4e0d\u662f\u8be5\u8282\u70b9\u6700\u65e9\u7684\u4e8b\u4ef6\u884c]>
+        <Function test_event_id_must_bind_to_cursor_event>
+        <Function test_degraded_sentinel_cannot_enter_proof_chain>
+        <Function test_duplicate_line_numbers_fail_closed>
+        <Function test_ledger_mode_extracts_events_itself>
+        <Function test_ledger_mode_recomputes_prefix_hash>
+        <Function test_ledger_mode_enforces_prefix_ends_without_lf>
+        <Function test_ledger_mode_skips_out_of_order_events>
+        <Function test_deep_chain_reports_violation_not_crash[130]>
+        <Function test_deep_chain_reports_violation_not_crash[900]>
+        <Function test_deep_chain_reports_violation_not_crash[5000]>
+        <Function test_self_referencing_proof_does_not_crash>
+        <Function test_line_numbering_agrees_with_prefix_on_bare_cr>
+        <Function test_algorithm_identity_binds_to_golden_manifest[fsrs_library_version-garbage-\u4e0d\u540c\u6e90]>
+        <Function test_algorithm_identity_binds_to_golden_manifest[fsrs_library_version-degraded:fsrs-missing-\u54e8\u5175]>
+        <Function test_algorithm_identity_binds_to_golden_manifest[fsrs_params_hash-degraded:x-\u54e8\u5175]>
+        <Function test_algorithm_identity_binds_to_golden_manifest[fsrs_params_hash-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-\u4e0d\u540c\u6e90]>
+        <Function test_algorithm_identity_binds_to_golden_manifest[scheduler_config-value4-\u975e\u7a7a]>
+        <Function test_algorithm_identity_binds_to_golden_manifest[scheduler_config-value5-\u4e0d\u540c\u6e90]>
+        <Function test_algorithm_identity_binds_to_golden_manifest[reducer-value6-reducer.id]>
+        <Function test_algorithm_identity_binds_to_golden_manifest[reducer-value7-reducer.precision]>
+        <Function test_genesis_fsrs_detection_is_yaml_semantic["fsrs_state": 2\n-True]>
+        <Function test_genesis_fsrs_detection_is_yaml_semantic['fsrs_stability': 1.0\n-True]>
+        <Function test_genesis_fsrs_detection_is_yaml_semantic[fsrs_state: 2\n-True]>
+        <Function test_genesis_fsrs_detection_is_yaml_semantic[description: |\n  fsrs_state: documentation only\n-False]>
+        <Function test_genesis_fsrs_detection_is_yaml_semantic[-False]>
+        <Function test_genesis_fsrs_detection_is_yaml_semantic[title: n\nnote: mentions fsrs_state inline\n-False]>
+        <Function test_new_card_rejected_when_node_has_unextended_history>
+        <Function test_first_event_line_counts_all_node_events>
+        <Function test_ledger_mode_uses_single_byte_snapshot>
+        <Function test_vault_id_must_match_ledger_events>
+        <Function test_unparseable_ledger_line_fails_closed>
+        <Function test_proof_review_time_is_strictly_validated[2026-01-02T10:00:00-\u4e0d\u5408\u6cd5]>
+        <Function test_proof_review_time_is_strictly_validated[9999-12-31T23:59:59Z-A7]>
+        <Function test_proof_review_time_is_strictly_validated[2026-01-02T10:00Z-\u6574\u79d2]>
+        <Function test_mixed_naive_aware_does_not_raise>
+        <Function test_snapshot_state_numeric_domain_is_checked[fsrs_stability--1.0]>
+        <Function test_snapshot_state_numeric_domain_is_checked[fsrs_stability-0.0]>
+        <Function test_snapshot_state_numeric_domain_is_checked[fsrs_difficulty-99.0]>
+        <Function test_snapshot_state_numeric_domain_is_checked[fsrs_difficulty-0.5]>
+        <Function test_degraded_sentinel_event_in_interval_is_rejected>
+        <Function test_legacy_two_tuple_applicable_fails_closed>
+        <Function test_first_event_line_must_equal_earliest_node_event>
+        <Function test_scheduler_config_compared_by_canonical_json[config0-enable_fuzzing]>
+        <Function test_scheduler_config_compared_by_canonical_json[config1-learning_steps_minutes]>
+        <Function test_manifest_unreachable_fails_closed>
+        <Function test_out_of_order_false_cannot_hide_tail_event>
+        <Function test_missing_pyyaml_fails_closed>
+        <Function test_mixed_vault_ids_are_rejected>
+        <Function test_non_review_events_do_not_block_new_card>
+        <Function test_blank_line_matches_main_validator_verdict>
+        <Function test_survivor_earliest_uses_all_node_events>
+        <Function test_survivor_single_read_is_behavioral>
+        <Function test_survivor_recursion_reuses_single_snapshot>
+        <Function test_survivor_stability_upper_bound_is_enforced>
+        <Function test_survivor_params_hash_sentinel_in_interval>
+        <Function test_partially_corrupt_manifest_fails_closed>
+        <Function test_out_of_order_true_cannot_disguise_a_real_successor>
+        <Function test_genuine_out_of_order_event_is_not_misrejected>
+        <Function test_vault_identity_without_evidence_fails_closed[none]>
+        <Function test_vault_identity_without_evidence_fails_closed[partial]>
+        <Function test_non_string_vault_id_reports_instead_of_crashing[bad0]>
+        <Function test_non_string_vault_id_reports_instead_of_crashing[42]>
+        <Function test_non_string_vault_id_reports_instead_of_crashing[None]>
+        <Function test_non_string_vault_id_reports_instead_of_crashing[bad3]>
+        <Function test_survivor_recursion_shares_ledger_facts>
+        <Function test_missing_pyyaml_rejects_even_clean_frontmatter>
+        <Function test_degraded_lines_are_deduplicated>
+        <Function test_genuine_out_of_order_cannot_hide_another_vault>
+        <Function test_scanner_collects_vault_from_out_of_order_rows>
+        <Function test_out_of_order_at_exactly_watermark_is_not_misrejected>
+        <Function test_scheduler_config_key_set_matches_literal>
+        <Function test_manifest_missing_any_required_config_key_fails_closed[parameters]>
+        <Function test_manifest_missing_any_required_config_key_fails_closed[desired_retention]>
+        <Function test_manifest_missing_any_required_config_key_fails_closed[learning_steps_minutes]>
+        <Function test_manifest_missing_any_required_config_key_fails_closed[relearning_steps_minutes]>
+        <Function test_manifest_missing_any_required_config_key_fails_closed[maximum_interval]>
+        <Function test_manifest_missing_any_required_config_key_fails_closed[enable_fuzzing]>
+        <Function test_scheduler_config_mismatch_has_its_own_gate>
+        <Function test_recursion_shares_ledger_vault_id>
+        <Function test_scope_declaration_is_identical_in_three_places>
+        <Function test_unknown_event_version_is_not_interpreted_as_v1>
+        <Function test_vault_coverage_denominator_counts_out_of_order_rows>
+        <Function test_scope_normalizer_detects_internal_whitespace_change>
+        <Function test_v2_without_node_id_is_unroutable_not_silently_skipped>
+        <Function test_v2_of_another_node_does_not_false_reject>
+        <Function test_routing_envelope_is_frozen_in_schema>
+        <Function test_non_string_node_id_is_unroutable[123]>
+        <Function test_non_string_node_id_is_unroutable[None]>
+        <Function test_non_string_node_id_is_unroutable[bad_node2]>
+        <Function test_non_string_node_id_is_unroutable[bad_node3]>
+        <Function test_non_string_node_id_is_unroutable[True]>
+        <Function test_routing_envelope_does_not_over_reject[{"event_id": "x", "event_version": 2, "node_id": "n"}]>
+        <Function test_routing_envelope_does_not_over_reject[{"event_id": "future:x", "event_version": 2, "node_id": ""}]>
+        <Function test_routing_envelope_does_not_over_reject[{"event_id": "future:x", "event_version": 2, "node_id": "n", "brand_new": [1, 2]}]>
+        <Function test_float_node_id_is_unroutable[1.5]>
+        <Function test_float_node_id_is_unroutable[0.0]>
+        <Function test_scope_extra_note_is_present_in_three_places>
+      <Module test_mcp_quarantine.py>
+        <Function test_quarantine_list_covers_14_tools>
+        <Function test_quarantined_tool_returns_410[query_mastery]>
+        <Function test_quarantined_tool_returns_410[update_fsrs]>
+        <Function test_quarantined_tool_returns_410[update_bkt]>
+        <Function test_quarantined_tool_returns_410[generate_question]>
+        <Function test_quarantined_tool_returns_410[score_answer]>
+        <Function test_quarantined_tool_returns_410[assemble_acp]>
+        <Function test_quarantined_tool_returns_410[record_calibration]>
+        <Function test_quarantined_tool_returns_410[record_learning_memory]>
+        <Function test_quarantined_tool_returns_410[archive_conversation]>
+        <Function test_quarantined_tool_returns_410[create_exam_node]>
+        <Function test_quarantined_tool_returns_410[record_error]>
+        <Function test_quarantined_tool_returns_410[request_hint]>
+        <Function test_quarantined_tool_returns_410[skip_question]>
+        <Function test_quarantined_tool_returns_410[switch_vault]>
+        <Function test_quarantined_tool_absent_from_openapi[query_mastery]>
+        <Function test_quarantined_tool_absent_from_openapi[update_fsrs]>
+        <Function test_quarantined_tool_absent_from_openapi[update_bkt]>
+        <Function test_quarantined_tool_absent_from_openapi[generate_question]>
+        <Function test_quarantined_tool_absent_from_openapi[score_answer]>
+        <Function test_quarantined_tool_absent_from_openapi[assemble_acp]>
+        <Function test_quarantined_tool_absent_from_openapi[record_calibration]>
+        <Function test_quarantined_tool_absent_from_openapi[record_learning_memory]>
+        <Function test_quarantined_tool_absent_from_openapi[archive_conversation]>
+        <Function test_quarantined_tool_absent_from_openapi[create_exam_node]>
+        <Function test_quarantined_tool_absent_from_openapi[record_error]>
+        <Function test_quarantined_tool_absent_from_openapi[request_hint]>
+        <Function test_quarantined_tool_absent_from_openapi[skip_question]>
+        <Function test_quarantined_tool_absent_from_openapi[switch_vault]>
+        <Function test_exactly_five_readonly_tools_tagged_for_mcp>
+        <Function test_fastapi_mcp_tools_list_exposes_exactly_five>
+        <Function test_get_board_manifest_input_schema_exposes_params>
+      <Module test_p03_vault_isolation.py>
+        <Class TestHookCwdVaultDerivation>
+          <Function test_host_cwd_matches_vault_by_segment_name>
+          <Function test_subdirectory_of_vault_matches>
+          <Function test_cjk_vault_name>
+          <Function test_none_and_empty_cwd>
+          <Function test_unknown_cwd_falls_through>
+          <Function test_non_vault_dir_name_not_matched>
+          <Function test_multiple_vault_segments_fall_back>
+          <Function test_nfd_cwd_matches_nfc_vault_dir>
+        <Class TestEnrichHookEndpointSmoke>
+          <Function test_hook_with_cwd_does_not_500>
+        <Class TestTipsVaultIdRequired>
+          <Function test_empty_vault_id_rejected>
+          <Function test_missing_vault_id_rejected>
+      <Module test_production_bugs.py>
+        <Function test_bug_bug_1cbf9ae9>
+        <Function test_bug_bug_84f00404>
+        <Function test_bug_bug_6b8d0e19>
+        <Function test_bug_bug_33d715c2>
+        <Function test_bug_bug_5f4bdf2e>
+        <Function test_bug_bug_85cef22c>
+        <Function test_bug_bug_d9da1d77>
+        <Function test_edge_sync_edge_2>
+        <Function test_edge_sync_edge_fail>
+        <Function test_edge_sync_edge_001>
+        <Function test_edge_sync_edge_log_test>
+        <Function test_dead_letter_batch_learning_unknown_groupidvalidationerror>
+      <Module test_projection_sync_ghost_edges.py>
+        <Coroutine test_broken_frontmatter_protects_old_edges>
+        <Coroutine test_missing_relationships_field_not_protected>
+        <Coroutine test_merge_failure_edge_still_alive>
+      <Module test_query_optimize_regression.py>
+        <Class TestQueryOptimizeRegression>
+          <Function test_prompt_loads_successfully>
+          <Function test_prompt_metadata_valid>
+          <Function test_prompt_optimization_strategies>
+          <Function test_prompt_output_schema>
+          <Function test_prompt_has_placeholders>
+          <Function test_replay_format_compliance>
+          <Function test_replay_query_diversity>
+          <Function test_replay_count_compliance>
+          <Function test_generate_report>
+      <Module test_query_rewrite_regression.py>
+        <Class TestQueryRewriteRegression>
+          <Function test_prompt_loads_successfully>
+          <Function test_prompt_metadata_valid>
+          <Function test_prompt_two_strategies>
+          <Function test_prompt_quality_requirements>
+          <Function test_replay_format_compliance>
+          <Function test_replay_rewrite_diversity>
+          <Function test_replay_count_compliance>
+          <Function test_generate_report>
+      <Module test_question_gen_regression.py>
+        <Class TestQuestionGenRegression>
+          <Function test_prompt_loads_successfully>
+          <Function test_prompt_five_layer_structure>
+          <Function test_prompt_error_type_mapping>
+          <Function test_prompt_bloom_taxonomy>
+          <Function test_replay_format_compliance>
+          <Function test_replay_difficulty_matching>
+          <Function test_replay_addresses_weakness>
+          <Function test_generate_report>
+      <Module test_rag_stage0_contracts.py>
+        <Coroutine test_search_notes_defaults_to_fast_path>
+        <Coroutine test_response_declares_execution_mode>
+        <Coroutine test_healthy_empty_is_distinct_from_error>
+        <Function test_compose_and_agentic_config_use_same_lancedb_path>
+        <Function test_conflicting_lancedb_env_fails_startup>
+        <Function test_requirements_pins_langgraph_exact>
+        <Coroutine test_failed_init_is_not_cached_and_retries>
+        <Coroutine test_extended_pipeline_failure_reports_fallback>
+        <Coroutine test_fallback_failure_attributed_to_fallback_not_pipeline>
+      <Module test_rag_stage1_index_contracts.py>
+        <Coroutine test_a1_same_path_coalesces_to_one_entry>
+        <Coroutine test_a2_different_paths_never_cancel_each_other>
+        <Coroutine test_a3_event_during_inflight_marks_dirty_and_replays>
+        <Coroutine test_a4_pending_survives_restart>
+        <Function test_a5_chunk_params_single_source>
+        <Function test_a6_filename_blacklist_applies>
+        <Function test_a7_subject_matches_full_scan_derivation>
+        <Coroutine test_a8_delete_op_clears_chunks_and_fingerprint>
+        <Coroutine test_a9_rename_leaves_no_ghost_chunks>
+        <Function test_a10_blacklist_copies_stay_identical>
+        <Function test_a11_chunks_and_quarantine_excluded>
+        <Coroutine test_a13_empty_output_files_do_not_loop_forever>
+        <Function test_a12_fingerprint_table_is_vault_scoped>
+        <Coroutine test_b1_disabled_reports_disabled_not_scheduled>
+        <Coroutine test_b2_b3_structured_per_path_status>
+        <Function test_b5_freshness_fields_present>
+        <Function test_b6_stale_when_lag_exceeds_threshold>
+        <Coroutine test_c1_new_file_searchable_after_one_reconcile>
+        <Coroutine test_c2_modified_file_content_updates>
+        <Coroutine test_c3_deleted_file_not_searchable>
+        <Coroutine test_c4_startup_reconciliation_catches_offline_changes>
+        <Coroutine test_d1_batch_write_rebuilds_fts_once>
+        <Coroutine test_d2_refresh_changed_reaches_lancedb>
+        <Function test_d3_pending_keyed_by_rel_path>
+        <Coroutine test_d4_resolve_prefers_prefixed_table>
+        <Coroutine test_d6_orphan_sweep_purges_rows_blacklisted_after_indexing>
+        <Coroutine test_d5_incremental_endpoint_enforces_blacklist>
+        <Coroutine test_e1_embed_outage_is_loud_not_silent_success>
+        <Coroutine test_e2_short_write_never_commits_fingerprint>
+        <Function test_e3_default_vault_listing_excludes_prefixed_fingerprints>
+        <Coroutine test_e4_backoff_survives_reconcile_but_user_event_resets>
+        <Function test_e5_path_traversal_excluded>
+        <Function test_g1_freshness_reports_relative_ages_and_task_states>
+        <Function test_g2_dead_scan_loop_flags_stale_despite_empty_pending>
+        <Function test_g3_blacklist_exclusion_observability_hooks_exist>
+      <Module test_rag_stage2_chain_unify_contracts.py>
+        <Function test_mcp_fast_path_ce_gate_and_weighted_score>
+        <Function test_mcp_fast_path_dedup_by_source>
+        <Function test_mcp_fast_path_taint_redaction>
+        <Function test_mcp_fast_path_exam_board_excluded_at_query>
+        <Function test_mcp_infra_degraded_is_error_not_empty>
+        <Function test_mcp_real_path_infra_failure_is_error>
+        <Function test_mcp_embedding_down_is_error>
+        <Function test_mcp_review_taint_redacts_all_fields>
+        <Function test_mcp_full_content_is_taint_scanned>
+        <Function test_mcp_output_model_carries_confidence>
+        <Function test_confidence_high_needs_gate_fts_and_strong_ce>
+        <Function test_confidence_medium_when_gated_without_fts>
+        <Function test_confidence_low_when_ce_fallback>
+        <Function test_confidence_none_on_gate_kill_all_and_degraded>
+        <Function test_confidence_xml_renders_discrete_level_only>
+        <Function test_hook_empty_delivery_injects_annotated_xml>
+        <Function test_hook_timeout_and_exception_inject_degraded_marker>
+        <Function test_hook_intentional_skips_stay_silent>
+        <Function test_m6_incremental_endpoint_is_410_gone>
+        <Function test_vector_fallback_excludes_exam_board>
+        <Function test_fts_confirmed_does_not_bypass_ce_gate>
+        <Function test_dedup_inherits_fts_confirmed_file_level>
+      <Module test_rag_stage2_chunk_contracts.py>
+        <Function test_exam_file_without_type_infers_exam_board>
+        <Function test_explicit_type_beats_exam_inference>
+        <Function test_plain_note_still_defaults_note>
+        <Function test_paragraphs_stay_intact_across_chunks>
+        <Function test_oversized_paragraph_degrades_to_sentences>
+        <Function test_paragraph_overlap_only_complete_and_within_budget>
+        <Function test_atomic_code_block_still_protected>
+        <Function test_question_and_error_callouts_extracted_standalone>
+        <Function test_template_callouts_stripped>
+        <Function test_semantic_callouts_kept_in_body>
+        <Function test_scaffold_tip_template_stripped_but_quote_kept>
+        <Function test_placeholder_sections_produce_no_chunks>
+        <Function test_user_filled_placeholder_section_kept>
+        <Function test_short_chunk_breadcrumb_filename_only>
+        <Function test_long_chunk_breadcrumb_full_path>
+        <Function test_line_numbers_include_frontmatter_offset>
+        <Function test_line_numbers_without_frontmatter_unchanged>
+        <Function test_yaml_parse_failure_still_infers_exam_board>
+        <Function test_adjacent_callouts_without_blank_line_classified_separately>
+        <Function test_boilerplate_detection_no_false_kill>
+        <Function test_pure_placeholder_still_skipped_after_tightening>
+      <Module test_rag_stage2_rerank_contracts.py>
+        <Function test_scores_aligned_by_index_and_sigmoid>
+        <Function test_maxp_windows_and_query_truncation_in_payload>
+        <Function test_maxp_takes_max_window_score>
+        <Function test_empty_document_scores_zero_without_request>
+        <Function test_http_500_returns_none_not_raise>
+        <Function test_connect_error_returns_none>
+        <Function test_incomplete_results_returns_none>
+        <Function test_circuit_breaker_opens_after_three_failures>
+        <Function test_success_resets_breaker_streak>
+        <Function test_empty_documents_short_circuit>
+        <Function test_dedup_keeps_first_highest_and_order>
+        <Function test_dedup_merges_taint_fail_closed>
+        <Function test_dedup_no_source_path_not_merged>
+        <Function test_ce_gate_kills_junk_keeps_weighted_order>
+        <Function test_ce_rescues_low_raw_score_hit>
+        <Function test_ce_failure_falls_back_to_legacy_behavior>
+        <Function test_env_off_is_legacy_behavior>
+        <Function test_tier_r_compat_no_gate_no_ce_call>
+        <Function test_dedup_active_in_both_paths>
+        <Function test_ce_never_reorders_weighted_ranking>
+        <Function test_breaker_half_open_recovery_and_reopen>
+        <Function test_gate_kill_all_reports_distinct_reason>
+        <Function test_ce_score_not_rendered_in_xml>
+        <Function test_relaxed_pool_does_not_evict_high_raw_hits>
+        <Function test_dedup_merges_ce_text_evidence>
+        <Function test_legacy_elbow_still_cuts_after_gate>
+      <Module test_rag_stage2_t6_verification_contracts.py>
+        <Function test_gate_thinning_elbow_is_deliberate_t4_behavior>
+        <Function test_dedup_collapsed_sequence_true_cliff_still_cuts>
+        <Function test_true_cliff_in_full_sequence_still_cuts>
+        <Function test_elbow_score_floor_unit>
+        <Function test_rrf_fuse_marks_fts_channel_membership>
+        <Function test_fts_confirmed_semantics_at_normalize_layer>
+        <Function test_fts_hit_passes_convert_whitelist>
+        <Function test_open_table_failure_raises_with_fallback_off>
+        <Function test_open_table_failure_swallowed_with_fallback_on>
+        <Function test_hook_singleton_disables_fallback_and_rejects_bad_init>
+        <Function test_hook_empty_note_does_not_assert_retrieval_healthy>
+        <Function test_vault_notes_retriever_default_excludes_exam_board>
+        <Function test_react_agent_search_excludes_exam_board>
+        <Function test_tool_executor_search_excludes_exam_board>
+        <Function test_agent_graph_retrieve_excludes_exam_board>
+        <Function test_cliff_beyond_topk_does_not_evict_pool>
+      <Module test_real_entrypoint_admission.py>
+        <Coroutine test_real_single_file_entry_rejects_outside_symlink>
+        <Coroutine test_real_full_scan_entry_rejects_symlink_and_case_variant>
+        <Function test_real_orchestrator_scan_excludes_before_hash>
+        <Function test_real_orchestrator_should_index_rejects_symlink_escape>
+        <Coroutine test_by_node_missing_maps_to_not_found_signal>
+      <Module test_recap_scan_signals.py>
+        <Function test_v1_keys_regression_and_signals_shape>
+        <Function test_zero_threshold_no_judgement_keys>
+        <Function test_age_signal_values_and_percentiles>
+        <Function test_age_signal_nodata_when_no_dated_tips>
+        <Function test_age_future_added_at_clamped_zero>
+        <Function test_coverage_and_unsourced_fallback>
+        <Function test_coverage_and_unsourced_manifest_measured>
+        <Function test_cross_mode_signal_consistency_real_manifest>
+        <Function test_role_and_anchor_accept_both_spellings[derived-from]>
+        <Function test_role_and_anchor_accept_both_spellings[derived_from]>
+        <Function test_empty_key_does_not_fabricate_anchor>
+        <Function test_role_not_flipped_by_frontmatter_text_mention>
+        <Function test_role_matches_backend_node_role_exactly[derived-from: null\n]>
+        <Function test_role_matches_backend_node_role_exactly[derived-from:\n]>
+        <Function test_role_matches_backend_node_role_exactly[derived-from: ""\n]>
+        <Function test_role_matches_backend_node_role_exactly[created_from: ai_linked_doc # \u6d3e\u751f\u81ea\u63d2\u4ef6\n]>
+        <Function test_role_matches_backend_node_role_exactly[created_from: manual\n]>
+        <Function test_manifest_note_normalization_is_idempotent>
+        <Function test_strip_note_ref_idempotent_on_wikilinked_null_name>
+        <Function test_null_literal_provenance_not_counted>
+        <Function test_unsourced_nodata_when_no_derived>
+        <Function test_empty_board_all_signals_nodata>
+        <Function test_duplicate_accumulation_normalized_groups>
+        <Function test_duplicate_zero_with_unique_tips_is_measured_zero>
+        <Function test_duplicate_nodata_when_no_tips>
+        <Function test_collect_readonly_no_write_side>
+        <Function test_verify_pass_fallback_wording_survives>
+        <Function test_verify_pass_manifest_wording>
+        <Function test_verify_tamper_signal_number_fails[\u672a\u7b54\u95ee\u9898\u5e74\u9f84]>
+        <Function test_verify_tamper_signal_number_fails[\u6765\u6e90\u8986\u76d6\u7387]>
+        <Function test_verify_tamper_signal_number_fails[\u65e0\u6765\u6e90\u7ed3\u8bba]>
+        <Function test_verify_tamper_signal_number_fails[\u91cd\u590d\u5806\u79ef]>
+        <Function test_verify_missing_signal_line_fails>
+        <Function test_verify_availability_tag_tamper_fails>
+        <Function test_verify_nodata_mismatch_fails_both_ways>
+        <Function test_verify_nodata_lines_pass>
+        <Function test_verify_old_scan_json_without_signals_compat>
+        <Function test_verify_unclosed_html_comment_fails>
+        <Function test_verify_nodata_line_with_numbers_fails>
+        <Function test_verify_nodata_line_number_variants_fail[> - \u91cd\u590d\u5806\u79ef\uff1a\u65e0\u636e\uff08\u6700\u8001 999 \u5929\uff09]>
+        <Function test_verify_nodata_line_number_variants_fail[> - \u91cd\u590d\u5806\u79ef\uff1a\u65e0\u636e\uff08\u5171\u6709 99 \u6761\uff09]>
+        <Function test_verify_nodata_line_number_variants_fail[> - \u91cd\u590d\u5806\u79ef\uff1a\u65e0\u636e\uff083\uff0f7 \u6761\uff09]>
+        <Function test_verify_nodata_line_number_variants_fail[> - \u91cd\u590d\u5806\u79ef\uff1a\u65e0\u636e\uff08\u7ea6\u4e03\u5341\u4e03\u6761\uff09]>
+        <Function test_verify_nodata_line_number_variants_fail[> - \u91cd\u590d\u5806\u79ef\uff1a\u65e0\u636e\uff08\u5171\u6709\u4e24\u6761\uff09]>
+        <Function test_verify_nodata_line_number_variants_fail[> - \u91cd\u590d\u5806\u79ef\uff1a\u65e0\u636e\uff08\u4fe9\u6761\uff09]>
+        <Function test_verify_nodata_line_number_variants_fail[> - \u91cd\u590d\u5806\u79ef\uff1a\u65e0\u636e\uff08\u5171\u6709\u58f9\u6761\uff09]>
+        <Function test_verify_nodata_line_number_variants_fail[> - \u91cd\u590d\u5806\u79ef\uff1a\u65e0\u636e\uff08\u5171\u6709\u0669\u6761\uff09]>
+        <Function test_verify_nodata_line_number_variants_fail[> - \u91cd\u590d\u5806\u79ef\uff1a\u65e0\u636e\uff08\u5171\u6709\u2079\u6761\uff09]>
+        <Function test_verify_nodata_line_number_variants_fail[> - \u91cd\u590d\u5806\u79ef\uff1a\u65e0\u636e\uff08\u5171\u6709\u2166\u6761\uff09]>
+        <Function test_verify_nodata_line_number_variants_fail[> - \u91cd\u590d\u5806\u79ef\uff1a\u65e0\u636e\uff08\u5171\u6709\xbd\u6761\uff09]>
+        <Function test_verify_merged_signal_line_fails>
+        <Function test_verify_signal_lines_outside_section3_fail>
+        <Function test_verify_signal_subobject_schema_fail_closed[\u4ec5\u5269availability]>
+        <Function test_verify_signal_subobject_schema_fail_closed[availability\u975e\u6cd5\u679a\u4e3e]>
+        <Function test_verify_signal_subobject_schema_fail_closed[\u6807\u65e0\u636e\u5374\u5e26\u6570\u503c]>
+        <Function test_verify_signal_subobject_schema_fail_closed[\u7f3adenominator]>
+        <Function test_verify_trailing_second_number_group_fails>
+        <Function test_verify_trailing_number_in_tail_text_fails>
+        <Function test_verify_trailing_unicode_numerals_fail[\u4e5d\u4e5d/\u4e5d\u4e5d]>
+        <Function test_verify_trailing_unicode_numerals_fail[\u0669\u0669/\u0669\u0669]>
+        <Function test_verify_trailing_unicode_numerals_fail[\u2079\u2079/\u2079\u2079]>
+        <Function test_verify_trailing_unicode_numerals_fail[\u53e6\u6709\u58f9\u5904]>
+        <Function test_verify_seed_section_template_whitelist[- SeedA \u2014 \u6279\u6ce8 2 \u6761\uff0c\u540e\u4ee3\u8282\u70b9\u6570\u91cf\u4e3a\u96f6\u3002]>
+        <Function test_verify_seed_section_template_whitelist[- SeedA \u2014 \u6279\u6ce8 2 \u6761\uff08\u5c1a\u672a\u957f\u51fa\u4e0b\u4e00\u5c42\uff09]>
+        <Function test_verify_seed_section_template_whitelist[SeedA \u8fd9\u4e2a\u79cd\u5b50\u8fd8\u5f88\u7a7a\u3002]>
+        <Function test_verify_section3_boundary_variants[##]>
+        <Function test_verify_section3_boundary_variants[##\t\u9644\u5f55]>
+        <Function test_verify_section3_boundary_variants[## \u9644\u5f55]>
+        <Function test_verify_signal_lines_in_code_block_fail>
+        <Function test_verify_percentile_ref_null_rejected>
+        <Function test_falsy_derived_from_matches_backend[false]>
+        <Function test_falsy_derived_from_matches_backend[0]>
+        <Function test_falsy_derived_from_matches_backend[""]>
+        <Function test_falsy_derived_from_matches_backend[{}]>
+        <Function test_falsy_derived_from_matches_backend[[]]>
+        <Function test_falsy_derived_from_matches_backend[Null]>
+        <Function test_verify_nodata_reason_whitelist[> - \u91cd\u590d\u5806\u79ef\uff1a\u65e0\u636e\uff08\u5171\u6709\u4ee8\u6761\uff09]>
+        <Function test_verify_nodata_reason_whitelist[> - \u91cd\u590d\u5806\u79ef\uff1a\u65e0\u636e\uff08\u5171\u6709\u7695\u6761\uff09]>
+        <Function test_verify_nodata_reason_whitelist[> - \u91cd\u590d\u5806\u79ef\uff1a\u65e0\u636e\uff08\u5171\u6709\u96f6\u6761\uff09]>
+        <Function test_verify_nodata_reason_whitelist[> - \u91cd\u590d\u5806\u79ef\uff1a\u65e0\u636e\uff08\u6211\u7f16\u7684\u539f\u56e0\uff09]>
+        <Function test_verify_nodata_reason_whitelist[> - \u91cd\u590d\u5806\u79ef\uff1a\u65e0\u636e]>
+        <Function test_verify_trailing_slash_pair_fails[\u4ee8/\u4ee8]>
+        <Function test_verify_trailing_slash_pair_fails[\u7695/\u7695]>
+        <Function test_verify_trailing_slash_pair_fails[\u96f6/\u96f6]>
+        <Function test_verify_derivation_assertion_outside_seed_section[### \u6d3e\u751f-- DerivedB \u2014 \u5360\u4f4d \xb7 mastery \u672a\u8bb0\u5f55 \xb7 tips \u672a\u95ed\u73af 2 \u6761\uff0c\u5b83\u6ca1\u6709\u6d3e\u751f\u51fa\u4e1c\u897f\u3002]>
+        <Function test_verify_derivation_assertion_outside_seed_section[### \u2460 \u6709\u6ca1\u6709\u6f0f\u6389\u7684-\u6279\u6ce8\u4e3a\u96f6\u7684\u6210\u5458\u5171 1 \u4e2a\u3002SeedA \u4e00\u4e2a\u6d3e\u751f\u4e5f\u6ca1\u6709\u3002]>
+        <Function test_verify_blockquote_fence_hides_nothing>
+        <Function test_verify_legitimate_nested_list_not_stripped>
+        <Function test_verify_zero_width_chars_fail>
+        <Function test_relationships_truthiness_matches_backend[relationships:\n-False]>
+        <Function test_relationships_truthiness_matches_backend[relationships: null\n-False]>
+        <Function test_relationships_truthiness_matches_backend[relationships: []\n-False]>
+        <Function test_relationships_truthiness_matches_backend[relationships:\n  - type: extends\n    target: "[[\u8282\u70b9/S]]"\n-True]>
+        <Function test_verify_tab_heading_section3_boundary>
+        <Function test_verify_bool_value_rejected>
+        <Function test_verify_fallback_seed_section_derivation_words_fail>
+        <Function test_verify_fallback_no_derivation_synonym_fails>
+        <Function test_verify_signals_key_wrong_shape_fails>
+        <Function test_verify_section_heading_suffix_cannot_disable_bindings[x]>
+        <Function test_verify_section_heading_suffix_cannot_disable_bindings[.]>
+        <Function test_verify_section_heading_suffix_cannot_disable_bindings[\uff1a]>
+        <Function test_verify_section_heading_suffix_cannot_disable_bindings[ \xb7]>
+        <Function test_verify_section_heading_suffix_cannot_disable_bindings[ \u672c\u8f6e]>
+        <Function test_verify_actions_heading_suffix_still_checked>
+        <Function test_verify_scale_decoy_line_rejected>
+        <Function test_m7_unsafe_name_chars_boundaries[\x1f-True-U+001F \u662f C0 \u672b\u4f4d \u2014 \u539f\u5224\u636e ord<0x20 \u7684\u4e0a\u8fb9\u754c\u5185]>
+        <Function test_m7_unsafe_name_chars_boundaries[ -False-U+0020 \u7a7a\u683c \u2014 \u8fb9\u754c\u5916, \u5408\u6cd5\u677f\u540d\u5e38\u6709]>
+        <Function test_m7_unsafe_name_chars_boundaries[~-False-U+007E \u2014 DEL \u7684\u524d\u4e00\u4f4d, \u5fc5\u987b\u653e\u884c]>
+        <Function test_m7_unsafe_name_chars_boundaries[\x7f-True-U+007F DEL \u2014 \u5b9e\u6d4b\u81f4 PyYAML ReaderError]>
+        <Function test_m7_unsafe_name_chars_boundaries[\x80-True-U+0080 \u2014 C1 \u9996\u4f4d]>
+        <Function test_m7_unsafe_name_chars_boundaries[\x85-True-U+0085 NEL \u2014 \u5b9e\u6d4b\u81f4 exam_history.board_id=null]>
+        <Function test_m7_unsafe_name_chars_boundaries[\x9f-True-U+009F \u2014 C1 \u672b\u4f4d]>
+        <Function test_m7_unsafe_name_chars_boundaries[\xa0-False-U+00A0 NBSP \u2014 C1 \u7684\u540e\u4e00\u4f4d, \u662f\u5408\u6cd5\u53ef\u6253\u5370\u7a7a\u767d\u5fc5\u987b\u653e\u884c]>
+        <Function test_m7_unsafe_name_chars_boundaries[\u2028-True-U+2028 \u884c\u5206\u9694\u7b26 \u2014 splitlines \u4f1a\u5728\u6b64\u65ad\u884c]>
+        <Function test_m7_unsafe_name_chars_boundaries[\u2029-True-U+2029 \u6bb5\u5206\u9694\u7b26]>
+        <Function test_m7_unsafe_name_chars_boundaries[\u200b-False-U+200B \u96f6\u5bbd\u7a7a\u683c \u2014 \u4e0d\u5c5e\u672c\u5224\u636e\uff08verifier \u53e6\u6709\u6b63\u6587\u96f6\u5bbd\u68c0\u67e5\uff09]>
+        <Function test_m7_unsafe_name_chars_boundaries[\u4e2d-False-CJK]>
+        <Function test_m7_unsafe_name_chars_boundaries[\u2460-False-\u5e26\u5708\u6570\u5b57]>
+        <Function test_m7_unsafe_name_chars_boundaries[\xe9-False-\u5e26\u97f3\u6807\u62c9\u4e01\u5b57\u6bcd]>
+        <Function test_m7_unsafe_name_chars_boundaries[\U0001f3af-False-emoji\uff08\u661f\u5e73\u9762\u5b57\u7b26\uff09]>
+        <Function test_m7_unsafe_name_chars_reports_all_codepoints_deduped>
+        <Function test_m7_containment_rejects_control_char_names>
+        <Function test_m7_collect_refuses_control_char_board>
+        <Function test_m7_collect_path_traversal_still_says_path>
+        <Function test_m7_collect_normal_board_still_works>
+        <Function test_domain_block_four_fence_short_close>
+        <Function test_domain_block_blockquote_indented_code>
+        <Function test_domain_block_scale_line_tail_append>
+        <Function test_domain_block_seed_ledger_fake_count>
+        <Function test_domain_block_signal_tail_append>
+        <Function test_domain_block_bare_count_in_prose>
+        <Function test_domain_allow_legit_prose[shifen]>
+        <Function test_domain_allow_legit_prose[yizhi]>
+        <Function test_domain_allow_legit_prose[date]>
+        <Function test_domain_allow_legit_prose[wikilink]>
+        <Function test_domain_allow_skill_hotkey_action_line>
+        <Function test_domain_allow_legit_nested_list>
+        <Function test_domain_allow_live_real_reports[recursion]>
+        <Function test_domain_allow_live_real_reports[eigen]>
+        <Function test_domain_allow_live_real_reports[cs61b]>
+        <Function test_domain_allow_live_real_reports[cs188]>
+        <Function test_live_fixtures_match_recorded_snapshot>
+        <Function test_domain_block_bare_count_in_each_d2_section[actions]>
+        <Function test_domain_block_bare_count_in_each_d2_section[review3]>
+        <Function test_domain_block_survives_section_title_suffix[exact]>
+        <Function test_domain_block_survives_section_title_suffix[with_suffix]>
+        <Function test_domain_block_seed_count_tamper_on_real_manifest_line>
+        <Function test_domain_block_fence_close_needs_trailing_blank_only>
+        <Function test_domain_allow_range_expression[tilde]>
+        <Function test_domain_allow_range_expression[hyphen]>
+        <Function test_domain_allow_range_expression[cjk]>
+        <Function test_domain_number_pool_excludes_string_derived_digits>
+        <Function test_domain_default_deny_covers_every_section[ledger_derived]>
+        <Function test_domain_default_deny_covers_every_section[ai_recon]>
+        <Function test_domain_default_deny_covers_every_section[new_section]>
+        <Function test_domain_default_deny_covers_every_section[appendix]>
+        <Function test_domain_exempt_section_is_explicit_not_accidental>
+        <Function test_domain_covers_scale_callout_preamble>
+        <Function test_audit_code_span_html_comment_cannot_hide_content>
+        <Function test_audit_exempt_section_match_is_prefix_anchored[h3_heading]>
+        <Function test_audit_exempt_section_match_is_prefix_anchored[suffix_in_title]>
+        <Function test_audit_exempt_section_match_is_prefix_anchored[fake_heading_in_fence]>
+        <Function test_audit_number_pool_excludes_scale_gate_constants>
+        <Function test_audit_visible_number_forms_are_counted[\n- \u672c\u677f\u5171\u6709 `987654` \u4e2a\u5b50\u8282\u70b9\u3002\u3010\u5b9e\u6d4b\u3011\n-inline_code]>
+        <Function test_audit_visible_number_forms_are_counted[\n- \u8be6\u89c1 [[\u8282\u70b9/x|\u672c\u677f\u5171\u6709 987654 \u4e2a\u5b50\u8282\u70b9]]\u3002\n-wikilink_alias]>
+        <Function test_audit_visible_number_forms_are_counted[\n- \u672c\u677f\u5171\u6709 **987654** \u4e2a\u5b50\u8282\u70b9\u3002\u3010\u5b9e\u6d4b\u3011\n-bold]>
+        <Function test_audit_visible_number_forms_are_counted[\n- \u672c\u677f\u5171\u6709 <span>987654</span> \u4e2a\u5b50\u8282\u70b9\u3002\n-html_span]>
+        <Function test_audit_visible_number_forms_are_counted[\n- \u672c\u677f\u5171\u6709 987654&nbsp;\u4e2a\u5b50\u8282\u70b9\u3002\n-nbsp]>
+        <Function test_audit_visible_number_forms_are_counted[\n- \u672c\u677f\u5171\u6709 0.987654 \u4e2a\u5b50\u8282\u70b9\u3002\u3010\u5b9e\u6d4b\u3011\n-decimal_prefix]>
+        <Function test_audit_legit_forms_still_pass_on_live_report[\n```\n\u672c\u677f\u5171\u6709 987654 \u4e2a\u5b50\u8282\u70b9\n```\n-fenced_code]>
+        <Function test_audit_legit_forms_still_pass_on_live_report[\n- \u7528 `/node-chat \u8282\u70b9/cs-61b-csm` \u7ee7\u7eed\u5256\u6790\u3002\n-cmd_inline_code]>
+        <Function test_audit_legit_forms_still_pass_on_live_report[\n- \u8003\u5206\u91cf\u8868 `1-4 (1=\u6700\u4f4e)` \u4e3a\u6570\u636e\u5b57\u6bb5\u81ea\u5e26\u7684\u63a8\u5b9a\u503c\u3002\n-scale_inline_code]>
+        <Function test_audit_legit_forms_still_pass_on_live_report[\n- \u8be6\u89c1 [[\u8282\u70b9/Lecture 14]] \u7684\u8bb0\u5f55\u3002\n-wikilink_target]>
+        <Function test_audit_verdict_is_board_independent[quote]>
+        <Function test_audit_verdict_is_board_independent[ordinal]>
+        <Function test_audit_verdict_is_board_independent[self_ref]>
+        <Function test_audit_verdict_is_board_independent[range_alt]>
+        <Function test_audit_verdict_is_board_independent[synonym_quant]>
+        <Function test_audit_verdict_is_board_independent[md_link]>
+        <Function test_audit_scale_claims_blocked_on_every_board[ben_ban]>
+        <Function test_audit_scale_claims_blocked_on_every_board[zhe_kuai_ban]>
+        <Function test_audit_scale_claims_blocked_on_every_board[quan_ban]>
+        <Function test_audit_number_form_bypasses_are_closed[\u672c\u677f\u5171\u6709 \uff19\uff18\uff17\uff16\uff15\uff14 \u4e2a\u5b50\u8282\u70b9\u3002-fullwidth]>
+        <Function test_audit_number_form_bypasses_are_closed[\u672c\u677f\u5171\u6709\u4e5d\u5341\u516b\u4e07\u4e2a\u5b50\u8282\u70b9\u3002-cjk_numeral]>
+        <Function test_audit_number_form_bypasses_are_closed[\u672c\u677f\u5171\u6709 987654 \u540d\u6210\u5458\u3002-quant_outside_table]>
+        <Function test_audit_number_form_bypasses_are_closed[\u672c\u677f\u5171\u6709 987654 \u7ec4\u5173\u7cfb\u3002-quant_zu]>
+        <Function test_audit_number_form_bypasses_are_closed[\u672c\u677f\u5171\u6709 987654 \u591a\u4e2a\u5b50\u8282\u70b9\u3002-modifier_duo]>
+        <Function test_audit_number_form_bypasses_are_closed[\u672c\u677f\u5171\u6709 987654 \u4f59\u6761\u6279\u6ce8\u3002-modifier_yu]>
+        <Function test_audit_number_form_bypasses_are_closed[\u672c\u677f\u5171\u6709 1-987654 \u4e2a\u5b50\u8282\u70b9\u3002-range_laundering]>
+        <Function test_audit_number_form_bypasses_are_closed[\u672c\u677f\u5171\u6709 987654 `\u6761` \u6279\u6ce8\u3002-quant_in_code_span]>
+        <Function test_audit_number_form_bypasses_are_closed[\u672c\u677f\u5171\u6709 999,016 \u4e2a\u5b50\u8282\u70b9\u3002-thousands_sep]>
+        <Function test_audit_number_form_fixes_do_not_overreach[\u5efa\u8bae\u8986\u76d6 2~3 \u4e2a\u8282\u70b9\u3002-legit_range]>
+        <Function test_audit_number_form_fixes_do_not_overreach[\u8986\u76d6 4 \u4e2a\u5230 5 \u4e2a\u8282\u70b9\u3002-legit_range_cjk]>
+        <Function test_audit_number_form_fixes_do_not_overreach[\u91cf\u8868 `1-4 (1=\u6700\u4f4e)` \u4e3a\u6570\u636e\u5b57\u6bb5\u81ea\u5e26\u7684\u63a8\u5b9a\u503c\u3002-legit_scale_code]>
+        <Function test_audit_number_form_fixes_do_not_overreach[\u7edf\u8ba1\u53e3\u5f84\u5c1a\u672a\u4e00\u81f4\u3002-cjk_yi_in_prose]>
+        <Function test_audit_number_form_fixes_do_not_overreach[\u8bf4\u660e\u5341\u5206\u6e05\u695a\u3002-cjk_shi_in_prose]>
+        <Function test_domain_skill_sync_nodata_reasons_table>
+        <Function test_domain_block_nodata_reason_outside_table[renyi]>
+        <Function test_domain_block_nodata_reason_outside_table[qita]>
+        <Function test_domain_block_nodata_reason_outside_table[lve]>
+        <Function test_domain_block_nodata_reason_outside_table[jianshangwen]>
+        <Function test_domain_block_nodata_reason_outside_table[fenmu_suffix]>
+        <Function test_domain_block_multilevel_blockquote_fence[depth2]>
+        <Function test_domain_block_multilevel_blockquote_fence[depth3]>
+        <Function test_domain_block_multilevel_blockquote_fence[no_space]>
+        <Function test_domain_block_list_item_fence_hides_signals>
+        <Function test_domain_strip_code_blocks_unit_contract>
+        <Function test_domain_block_fence_close_must_be_same_char>
+        <Function test_domain_block_freeform_derivation_note[beizhu]>
+        <Function test_domain_block_freeform_derivation_note[zhu]>
+        <Function test_domain_block_freeform_derivation_note[shuoming]>
+        <Function test_domain_block_freeform_derivation_note[buchong]>
+        <Function test_domain_block_freeform_derivation_note[ps]>
+        <Function test_domain_block_freeform_derivation_note[quote_beizhu]>
+        <Function test_domain_block_freeform_derivation_note[list_beizhu]>
+        <Function test_domain_block_freeform_derivation_note[bare]>
+        <Function test_domain_derive_allow_entries_are_grounded>
+        <Function test_domain_derive_allow_covers_every_skill_positive>
+        <Function test_domain_block_derive_clause_free_tail[free_tail]>
+        <Function test_domain_block_derive_clause_free_tail[leading_count_free_tail]>
+        <Function test_domain_block_derive_clause_free_tail[jizhong_free_tail]>
+        <Function test_domain_allow_signal_tail_note[coverage_adjacent]>
+        <Function test_domain_allow_signal_tail_note[coverage_middot]>
+        <Function test_domain_allow_signal_tail_note[unsourced_adjacent]>
+        <Function test_domain_block_signal_tail_note_outside_table[note_then_smuggle]>
+        <Function test_domain_block_signal_tail_note_outside_table[smuggle_then_note]>
+        <Function test_domain_block_signal_tail_note_outside_table[note_then_pair]>
+        <Function test_domain_block_signal_tail_note_outside_table[note_then_slash]>
+        <Function test_domain_block_signal_tail_note_outside_table[note_twice]>
+        <Function test_domain_block_signal_tail_note_outside_table[not_in_table]>
+        <Function test_domain_block_nodata_line_takes_no_tail_note>
+        <Function test_domain_skill_sync_signal_tail_notes_table>
+        <Function test_domain_allow_note_as_independent_line>
+        <Function test_synthetic_signals_report_passes>
+        <Function test_synthetic_signals_tamper_fails[age_value]>
+        <Function test_synthetic_signals_tamper_fails[age_denom]>
+        <Function test_synthetic_signals_tamper_fails[percentile]>
+        <Function test_synthetic_signals_tamper_fails[coverage_value]>
+        <Function test_synthetic_signals_tamper_fails[duplicate_value]>
+        <Function test_synthetic_signals_tamper_fails[nodata_to_measured]>
+        <Function test_domain_r3_eof_unclosed_fence_signal_caught>
+        <Function test_domain_r3_nodata_signal_line_only_in_section3>
+        <Function test_domain_r3_derive_clause_numbers_bound[fullwidth_tail]>
+        <Function test_domain_r3_derive_clause_numbers_bound[cjk_tail]>
+        <Function test_domain_r3_derive_clause_numbers_bound[arbitrary_prefix]>
+        <Function test_domain_r3_derive_allow_numbers_in_pool>
+        <Function test_domain_r4_leading_space_blockquote_list_fence>
+        <Function test_domain_r4_manifest_appendix_signal_in_section3_only>
+        <Function test_domain_r4_derive_allow_cjk_numbers_in_pool>
+        <Function test_domain_r5_cjk_single_char_only_unit_contract>
+        <Function test_domain_r5_derive_allow_single_char_value_enters_pool>
+        <Function test_domain_r5_derive_allow_cjk_pool_collision_cli>
+        <Function test_domain_r5_prose_cjk_multichar_fail_closed_cli>
+        <Function test_domain_r5_noise_split_number_run_cli>
+        <Function test_domain_r5_prose_single_char_value_enters_pool>
+        <Function test_domain_r6_cross_class_and_offtable_numeral_cli>
+        <Function test_domain_r7_range_endpoints_and_fallback_seps_cli>
+        <Function test_domain_r8_entities_ranges_and_table_gaps_cli>
+        <Function test_domain_r9_visible_text_and_round5_closures_cli>
+        <Function test_domain_r10_ordering_and_render_closure_cli>
+        <Function test_domain_r11_fulltext_gate_and_visible_numerals_cli>
+        <Function test_domain_r12_no_silent_table_copies>
+        <Function test_domain_r13_shortcut_link_and_crash_classifier>
+        <Function test_domain_r14_range_left_edge_and_codespan_order_cli>
+        <Function test_domain_r15_signal_line_selection_is_visible_text_cli>
+        <Function test_domain_r16_clause7_n_binding_is_visible_text_cli>
+        <Function test_domain_r17_freeze_v2_bounded_highs_cli>
+        <Function test_domain_r18_crash_judge_indent_and_child_stderr>
+        <Function test_domain_r19_child_stderr_transport_is_real>
+        <Function test_domain_r20_seed_ledger_visible_in_manifest_cli>
+        <Function test_domain_r21_seed_node_identity_same_space>
+        <Function test_domain_r22_fence_indent_and_seed_scope_cli>
+        <Function test_domain_r23_seed_scope_fence_and_tail_render>
+        <Function test_domain_r24_fence_closer_atx_and_tail_prefix>
+        <Function test_domain_r25_section_criterion_unified_cli>
+        <Function test_domain_r26_zero_seed_board_not_false_positive>
+        <Function test_domain_r27_seedish_h3_and_corrupt_seeds>
+        <Function test_domain_r28_tips_binding_visible_space_cli>
+        <Function test_domain_r31_tail_fields_bound_to_scan>
+        <Function test_domain_r32_indent_h3_and_zero_token_claim>
+        <Function test_domain_r30_obsidian_comment_hidden_break_cli>
+        <Function test_domain_r29_separator_third_state_cli>
+        <Function test_r4_render_doc_invariants>
+        <Function test_r4_unknown_forms_fail_closed[control]>
+        <Function test_r4_unknown_forms_fail_closed[known_tag]>
+        <Function test_r4_unknown_forms_fail_closed[unknown_tag]>
+        <Function test_r4_unknown_forms_fail_closed[unknown_tag_nonum]>
+        <Function test_r4_unknown_forms_fail_closed[math]>
+        <Function test_r4_unknown_forms_fail_closed[footnote]>
+        <Function test_r4_unknown_forms_fail_closed[image]>
+        <Function test_r4_unknown_forms_fail_closed[in_fence]>
+        <Function test_r4_derived_ledger_binding_closes_blocker2>
+        <Function test_r4_audit_span_not_narrower_than_legacy[h1]>
+        <Function test_r4_audit_span_not_narrower_than_legacy[indent_h2]>
+        <Function test_r4_audit_span_not_narrower_than_legacy[indent_h3]>
+        <Function test_r4_audit_span_not_narrower_than_legacy[h4]>
+        <Function test_r4_flat_ledger_shape_does_not_false_reject>
+        <Function test_r4_codex2_high1_audit_span_terminators[bare_h3]>
+        <Function test_r4_codex2_high1_audit_span_terminators[bare_h2]>
+        <Function test_r4_codex2_high1_audit_span_terminators[highlight_fake_h2]>
+        <Function test_r4_codex2_high1_audit_span_terminators[highlight_fake_seed]>
+        <Function test_r4_codex2_high2_resolver_no_silent_skip>
+        <Function test_r4_codex2_high3_derived_rows_must_be_listed>
+        <Function test_r4_codex2_high4_int_field_accepts_legacy_string[int]>
+        <Function test_r4_codex2_high4_int_field_accepts_legacy_string[str]>
+        <Function test_r4_codex2_high4_int_field_accepts_legacy_string[str_spaced]>
+        <Function test_r4_codex2_high4_int_field_accepts_legacy_string[float_str]>
+        <Function test_r4_codex2_high4_int_field_accepts_legacy_string[bool]>
+        <Function test_r4_codex2_high4_int_field_accepts_legacy_string[none]>
+        <Function test_r4_codex2_med2_unknown_forms_respect_code_spans[generic]>
+        <Function test_r4_codex2_med2_unknown_forms_respect_code_spans[math]>
+        <Function test_r4_codex2_med2_unknown_forms_respect_code_spans[image]>
+        <Function test_r4_codex2_med2_unknown_forms_respect_code_spans[footnote]>
+      <Module test_reference_config_fallback_contract.py>
+        <Function test_reads_real_config_when_present>
+        <Function test_missing_file_degrades_to_neutral_not_legacy_weights>
+        <Function test_missing_file_logs_error_not_silence>
+        <Function test_corrupt_json_degrades_to_neutral>
+        <Function test_fallback_never_ranks_videos_above_handwritten>
+        <Function test_no_legacy_weight_literals_remain_in_module>
+        <Function test_malformed_schema_degrades_neutrally_without_crashing[\u6839\u4e3a\u6570\u7ec4-[]]>
+        <Function test_malformed_schema_degrades_neutrally_without_crashing[\u6839\u4e3a null-null]>
+        <Function test_malformed_schema_degrades_neutrally_without_crashing[\u6839\u4e3a\u5b57\u7b26\u4e32-"hello"]>
+        <Function test_malformed_schema_degrades_neutrally_without_crashing[\u7a7a\u5bf9\u8c61-{}]>
+        <Function test_malformed_schema_degrades_neutrally_without_crashing[source_priorities \u975e\u6570\u7ec4-{"source_priorities": {}}]>
+        <Function test_malformed_schema_degrades_neutrally_without_crashing[\u89c4\u5219\u975e\u5bf9\u8c61-{"source_priorities": ["x"]}]>
+        <Function test_malformed_schema_degrades_neutrally_without_crashing[\u89c4\u5219\u7f3a pattern-{"source_priorities": [{"weight": 1.0}]}]>
+        <Function test_malformed_schema_degrades_neutrally_without_crashing[\u89c4\u5219\u7f3a weight-{"source_priorities": [{"pattern": "a/**"}]}]>
+        <Function test_malformed_schema_degrades_neutrally_without_crashing[pattern \u975e\u5b57\u7b26\u4e32-{"source_priorities": [{"pattern": 1, "weight": 1.0}]}]>
+        <Function test_malformed_schema_degrades_neutrally_without_crashing[weight \u975e\u6570\u503c-{"source_priorities": [{"pattern": "a/**", "weight": "x"}]}]>
+        <Function test_malformed_schema_degrades_neutrally_without_crashing[weight \u4e3a inf-{"source_priorities": [{"pattern": "a/**", "weight": 1e999}]}]>
+        <Function test_malformed_schema_degrades_neutrally_without_crashing[weight \u4e3a bool-{"source_priorities": [{"pattern": "a/**", "weight": true}]}]>
+        <Function test_malformed_schema_degrades_neutrally_without_crashing[max_references \u4e3a 0-{"source_priorities": [], "max_references": 0}]>
+        <Function test_malformed_schema_degrades_neutrally_without_crashing[max_references \u975e\u6574\u6570-{"source_priorities": [], "max_references": "many"}]>
+        <Function test_get_max_references_never_falls_back_to_legacy_five>
+        <Function test_valid_config_still_accepted_after_validator>
+        <Function test_apply_source_priority_is_identity_under_neutral_fallback>
+      <Module test_search_dedupe_floor.py>
+        <Function test_dedupe_exact_duplicates>
+        <Function test_dedupe_near_duplicates_whitespace_case>
+        <Function test_dedupe_keeps_distinct_facts>
+        <Function test_dedupe_empty_text_passthrough>
+        <Function test_mmr_recipes_registered>
+      <Module test_search_error_memories.py>
+        <Coroutine test_filters_to_error_signals_only>
+        <Coroutine test_error_record_schema_complete>
+        <Coroutine test_limit_respected>
+        <Coroutine test_empty_hits_returns_empty_list>
+      <Module test_search_intent_regression.py>
+        <Class TestSearchIntentRegression>
+          <Function test_prompt_loads_successfully>
+          <Function test_prompt_metadata_valid>
+          <Function test_prompt_analysis_dimensions>
+          <Function test_prompt_output_schema>
+          <Function test_replay_format_compliance>
+          <Function test_replay_search_decision_accuracy>
+          <Function test_replay_query_count_compliance>
+          <Function test_replay_no_search_empty_queries>
+          <Function test_generate_report>
+      <Module test_snapshot_schema_migration_contract.py>
+        <Function test_same_generation_v1_snapshot_is_force_rewritten>
+        <Function test_same_generation_current_snapshot_is_not_rewritten>
+        <Function test_load_snapshot_rejects_v1>
+        <Function test_load_snapshot_rejects_v2_denylist_era>
+        <Function test_load_snapshot_accepts_current_v3>
+        <Function test_degraded_serve_does_not_leak_from_v1>
+        <Function test_new_snapshot_carries_version_stamp>
+        <Function test_projection_stamps_version_without_touching_live>
+      <Module test_snapshot_v3_contract.py>
+        <Function test_snapshot_on_disk_is_v3_allowlist>
+        <Function test_tampered_snapshot_is_cache_miss[forged-extra-field]>
+        <Function test_tampered_snapshot_is_cache_miss[version-999]>
+        <Function test_tampered_snapshot_is_cache_miss[version-str-3]>
+        <Function test_tampered_snapshot_is_cache_miss[freshness-wrong-type]>
+        <Function test_non_dict_root_snapshot_is_cache_miss[list]>
+        <Function test_non_dict_root_snapshot_is_cache_miss[null]>
+        <Function test_non_dict_root_snapshot_is_cache_miss[str]>
+        <Function test_non_dict_root_snapshot_is_cache_miss[int]>
+        <Function test_corrupt_snapshot_never_affects_live>
+        <Function test_non_finite_mastery_stays_dead_after_v3_roundtrip>
+        <Function test_degraded_days_idle_tracks_request_now_not_snapshot_time>
+        <Function test_degraded_both_views_project_without_validation_error>
+        <Function test_same_generation_forged_snapshot_self_heals>
+        <Function test_non_dict_root_snapshot_never_breaks_live_write_path[list]>
+        <Function test_non_dict_root_snapshot_never_breaks_live_write_path[null]>
+        <Function test_non_dict_root_snapshot_never_breaks_live_write_path[str]>
+        <Function test_strict_contract_rejects_lax_and_malformed>
+        <Function test_write_side_filters_overlong_ids_instead_of_truncating>
+        <Function test_empty_pick_hint_dict_not_treated_as_eligible>
+        <Function test_nested_bad_freshness_snapshot_self_heals>
+        <Function test_dirty_last_examined_does_not_kill_snapshot>
+        <Function test_overlong_ascii_stem_drops_member_not_snapshot>
+        <Function test_no_id_slicing_and_no_nan_lag>
+      <Module test_sync_board_concepts.py>
+        <Function test_h1_user_handwritten_content_survives_sync>
+        <Function test_h1b_text_appended_to_sentinel_line_survives[end_sentinel]>
+        <Function test_h1b_text_appended_to_sentinel_line_survives[begin_note_line]>
+        <Function test_h1_horizontal_rule_and_prose_outside_block_survive>
+        <Function test_a1_non_member_wikilink_preserved_and_check_red[- [[\u6559\u6750\u7b2c\u4e09\u7ae0]] \u8fd9\u672c\u4e66\u7b2c\u4e09\u7ae0\u8981\u91cd\u770b]>
+        <Function test_a1_non_member_wikilink_preserved_and_check_red[- [[\u539f\u767d\u677f/\u7ebf\u6027\u4ee3\u6570]]]>
+        <Function test_a1_non_member_wikilink_preserved_and_check_red[- [[\u8282\u70b9/\u8fd8\u6ca1\u5efa\u7684\u6982\u5ff5]]]>
+        <Function test_a1_non_member_wikilink_preserved_and_check_red[  - [[\u6559\u6750\u7b2c\u4e09\u7ae0]]]>
+        <Function test_a1_non_member_wikilink_preserved_and_check_red[\t- [[\u6559\u6750\u7b2c\u4e09\u7ae0]]]>
+        <Function test_a1_non_member_wikilink_preserved_and_check_red[-[[\u6559\u6750\u7b2c\u4e09\u7ae0]]]>
+        <Function test_a2_member_annotation_preserved_in_steady_state>
+        <Function test_a3_deletion_is_echoed>
+        <Function test_b1_fenced_content_never_touched[```markdown]>
+        <Function test_b1_fenced_content_never_touched[~~~text]>
+        <Function test_b2_block_never_inserted_inside_fence>
+        <Function test_b3_unclosed_comment_does_not_swallow_section>
+        <Function test_c1_split_never_touches_content_outside_section>
+        <Function test_c2_duplicate_sentinel_self_heals>
+        <Function test_e1_three_locks_parity[]>
+        <Function test_e1_three_locks_parity[- [[\u6559\u6750\u7b2c\u4e09\u7ae0]] \u6211\u7684\u53c2\u8003]>
+        <Function test_e1_three_locks_parity[> [!note]+ \u6211\u7684\u5907\u5fd8\n> \u7b2c\u4e8c\u884c]>
+        <Function test_e1_three_locks_parity[```md\n- [[\u8282\u70b9/\u793a\u4f8b]]\n```]>
+        <Function test_h2_missing_concepts_section_is_not_silently_green>
+        <Function test_h3_frontmatter_freetext_never_reaches_board[fm_lines0-\u6211\u4e00\u76f4\u641e\u4e0d\u61c2]>
+        <Function test_h3_frontmatter_freetext_never_reaches_board[fm_lines1-\u8001\u5e08\u8bf4\u6211\u8fd9\u5757\u57fa\u7840\u5dee]>
+        <Function test_h3_frontmatter_freetext_never_reaches_board[fm_lines2-\u8001\u5e08\u6279\u8bc4\u6211\u8fd9\u5757]>
+        <Function test_h3_real_wikilink_target_still_shown>
+        <Function test_h4_mastery_matches_backend_semantics[fm_lines0-\u638c\u63e1\u5ea6 \u2014]>
+        <Function test_h4_mastery_matches_backend_semantics[fm_lines1-\u638c\u63e1\u5ea6 0.75]>
+        <Function test_h4_mastery_matches_backend_semantics[fm_lines2-\u638c\u63e1\u5ea6 0.20]>
+        <Function test_h4_empty_relationships_is_seed_not_derived[rel_block0]>
+        <Function test_h4_empty_relationships_is_seed_not_derived[rel_block1]>
+        <Function test_m6_file_mode_preserved>
+        <Function test_m9_crlf_line_endings_preserved>
+        <Function test_m10_duplicate_doc_count_all_replaced>
+        <Function test_m14_backup_not_overwritten_on_second_run>
+        <Function test_m12_orphan_node_warned_and_check_red>
+        <Function test_m11_hostile_node_name_warned>
+        <Function test_m13_broken_sentinel_structure_warned>
+        <Function test_idempotent_and_dual_lock_green>
+      <Module test_targeting_material_isolation.py>
+        <Function test_errors_without_group_id_rejected>
+        <Function test_errors_with_matching_group_id_accepted>
+        <Function test_errors_with_foreign_group_id_rejected>
+        <Function test_tips_error_channel_still_works>
+        <Function test_misconception_preferred_over_description>
+        <Coroutine test_cypher_is_fail_closed_and_ordered>
+        <Coroutine test_degraded_node_not_found>
+        <Coroutine test_degraded_no_neighbors>
+        <Coroutine test_degraded_no_neighbor_errors>
+        <Coroutine test_degraded_neo4j_unavailable>
+        <Coroutine test_happy_path_not_degraded>
+        <Function test_disputed_candidate_text_excluded>
+        <Function test_non_disputed_candidate_does_not_block>
+        <Function test_disputed_fuzzy_variant_excluded>
+        <Function test_unrelated_text_not_fuzzy_excluded>
+      <Module test_term_aliases.py>
+        <Function test_zh_query_gains_en_terms>
+        <Function test_en_query_gains_zh_terms>
+        <Function test_longest_match_wins>
+        <Function test_no_hit_returns_unchanged>
+        <Function test_already_present_terms_not_duplicated>
+        <Function test_empty_query_safe>
+      <Module test_tombstone_read_side_contract.py>
+        <Function test_canvas_edge_read_queries_filter_tombstones[question_generator]>
+        <Function test_canvas_edge_read_queries_filter_tombstones[verification_service]>
+        <Function test_canvas_edge_read_queries_filter_tombstones[recommendation_service]>
+        <Function test_canvas_edge_read_queries_filter_tombstones[targeting_material_service]>
+        <Coroutine test_reader_drops_edges_from_other_groups>
+        <Coroutine test_reader_still_filters_invalid_at>
+        <Coroutine test_conversation_summary_caller_passes_vault_group>
+        <Coroutine test_ensure_entity_node_rejects_quarantined_identity>
+        <Coroutine test_ensure_entity_node_same_group_still_reuses>
+      <Module test_vault_skip_files_scope_contract.py>
+        <Function test_root_level_plugin_file_is_skipped>
+        <Function test_deep_same_name_note_is_not_skipped[\u8282\u70b9/excalibrain.md]>
+        <Function test_deep_same_name_note_is_not_skipped[\u539f\u767d\u677f/excalibrain.md]>
+        <Function test_deep_same_name_note_is_not_skipped[raw/notes/excalibrain.md]>
+        <Function test_root_level_case_variants_are_skipped[ExcaliBrain.md]>
+        <Function test_root_level_case_variants_are_skipped[EXCALIBRAIN.md]>
+        <Function test_root_level_case_variants_are_skipped[Excalibrain.md]>
+        <Function test_deep_case_variants_still_not_skipped>
+        <Function test_similar_names_are_not_over_matched>
+        <Function test_anywhere_level_blacklist_still_applies_at_any_depth[CLAUDE.md]>
+        <Function test_anywhere_level_blacklist_still_applies_at_any_depth[\u8282\u70b9/CLAUDE.md]>
+        <Function test_anywhere_level_blacklist_still_applies_at_any_depth[raw/deep/UAT-1.md]>
+        <Function test_anywhere_level_blacklist_still_applies_at_any_depth[\u539f\u767d\u677f/\u672a\u547d\u540d.md]>
+        <Function test_anywhere_level_blacklist_still_applies_at_any_depth[a/b/c/foo.excalidraw.md]>
+        <Function test_normal_learning_content_passes>
+        <Function test_windows_style_separator_normalized>
+        <Function test_leading_slash_does_not_break_root_detection>
+        <Function test_orchestrator_should_index_uses_same_rule>
+        <Function test_full_scan_and_single_file_agree>
+        <Function test_root_table_has_no_glob_patterns>
+        <Function test_excalibrain_moved_out_of_anywhere_table>
+      <Module test_write_side_group_guard.py>
+        <Function test_missing_vault_and_group_derives_current_vault>
+        <Function test_explicit_vault_id_still_wins>
+        <Function test_explicit_foreign_vault_id_raises_409>
+        <Function test_legacy_group_id_still_honored>
+        <Function test_no_default_group_id_fallback_in_write_paths>
+
+=============================== warnings summary ===============================
+../card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+backend/app/api/v1/endpoints/chat.py:805
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u4-hosts/backend/app/api/v1/endpoints/chat.py:805: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+backend/app/api/v1/endpoints/metadata.py:105
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u4-hosts/backend/app/api/v1/endpoints/metadata.py:105: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+backend/app/api/v1/endpoints/metadata.py:179
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u4-hosts/backend/app/api/v1/endpoints/metadata.py:179: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================== 1480 tests collected in 0.28s =========================
+<sys>:0: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
+rc=0

@@ -1,0 +1,31 @@
+### live 只读 run round-3 (ts=20260908T075429) 哨兵 2026-09-08T07:54:29+0800
+65b54e56b97ea1098e84419bc73871ca7c6774dbdab1aed4ce2cc744b5e202e0  .obsidian/cls-internal-key.txt
+188b9a48cd4ffc0a74e0ec7be5bd392fbab0b7749eeb0d854e527abb1938f22c  .claude/settings.local.json
+报告已写入 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy/_bmad-output/审查/evidence-rv-g26/live-diff-r3-20260908T075429.txt
+live-rc=2
+------------------------------------------------------------------
+match                  : 28
+missing                : 0
+extra                  : 5
+content-drift          : not evaluated (无 --source)
+intentionally-excluded : 10
+allowed-extra          : 0
+unreadable             : 0
+hotkeys                : 3 绑定 / 10 命令 / 0 orphan
+hotkey-orphan          : 0
+
+## extra
+末行: exit=2
+禁写1 find -newer count=0
+禁写2:
+  sha diff 空 ✅
+禁写3 git status -- canvas-vault/ count=0
+--- :117 三态复跑 ---
+--- tmp8: 目录=8 普通文件SKILL.md=7 不分类型=7
+   ❌ skills ≥8 个 (含 SKILL.md)
+--- tmp9: 目录=9 普通文件SKILL.md=9 不分类型=9
+   ✅ skills ≥8 个 (含 SKILL.md)
+--- tmpD: 目录=8 普通文件SKILL.md=7 不分类型=8
+   ❌ skills ≥8 个 (含 SKILL.md)
+bash -n OK
+     157 scripts/install-vault.sh

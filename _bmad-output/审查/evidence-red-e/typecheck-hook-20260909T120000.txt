@@ -1,0 +1,70 @@
+### lefthook python-typecheck 预演 — 模拟 hook 对本卡 staged 文件跑 pyright
+-- lefthook.yml python-typecheck 块 --
+    python-typecheck:
+      glob: "backend/app/*.py"
+      run: |
+        # Activate backend venv for pyright
+        if [ -f "backend/.venv/bin/activate" ]; then source backend/.venv/bin/activate; fi
+        # Resolve the binary explicitly: venv first, then PATH. Empty == not installed.
+        if [ -x "backend/.venv/bin/pyright" ]; then
+          PYRIGHT_BIN="backend/.venv/bin/pyright"
+        elif command -v pyright >/dev/null 2>&1; then
+          PYRIGHT_BIN="$(command -v pyright)"
+        else
+          PYRIGHT_BIN=""
+        fi
+        if [ -z "$PYRIGHT_BIN" ]; then
+          echo "[Python] SKIP: pyright not installed (looked for backend/.venv/bin/pyright, then PATH)."
+          echo "[Python] SKIP: typecheck did NOT run -- this is NOT a pass. See pyrightconfig.json."
+          exit 0
+        fi
+        echo "[Python] Running pyright type check ($PYRIGHT_BIN)..."
+        "$PYRIGHT_BIN" {staged_files} 2>&1
+        PYRIGHT_EXIT=$?
+        if [ $PYRIGHT_EXIT -ne 0 ]; then
+          echo "[Python] Type errors found! Review and fix before committing."
+          echo "[Python] Hint: Some errors may be pre-existing. Focus on YOUR changes."
+        fi
+        echo "[Python] Typecheck done (exit: $PYRIGHT_EXIT)."
+        exit $PYRIGHT_EXIT
+
+-- 本卡会被该 glob 命中的文件 --
+backend/app/services/agent_service.py  (glob: backend/app/*.py，lefthook 2.1.6 单星跨层级)
+backend/tests/unit/test_agent_templates_smoke.py  → 不在 backend/app/ 下，不命中
+
+-- pyright 对 agent_service.py 的原始输出 --
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/services/agent_service.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/services/agent_service.py:18:8 - error: Import "logging" is not accessed (reportUnusedImport)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/services/agent_service.py:64:28 - warning: Unnecessary "# type: ignore" comment (reportUnnecessaryTypeIgnoreComment)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/services/agent_service.py:257:24 - warning: Unnecessary isinstance call; "str" is always an instance of "str" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/services/agent_service.py:1486:18 - error: Import "agentic_rag.clients.graphiti_client" could not be resolved (reportMissingImports)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/services/agent_service.py:1487:18 - error: Import "agentic_rag.clients.lancedb_client" could not be resolved (reportMissingImports)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/services/agent_service.py:1498:66 - warning: Unnecessary "# type: ignore" comment (reportUnnecessaryTypeIgnoreComment)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/services/agent_service.py:1502:68 - warning: Unnecessary "# type: ignore" comment (reportUnnecessaryTypeIgnoreComment)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/services/agent_service.py:1540:18 - error: Import "agentic_rag.clients.graphiti_client" could not be resolved (reportMissingImports)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/services/agent_service.py:1541:18 - error: Import "agentic_rag.clients.lancedb_client" could not be resolved (reportMissingImports)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/services/agent_service.py:1564:68 - warning: Unnecessary "# type: ignore" comment (reportUnnecessaryTypeIgnoreComment)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/services/agent_service.py:1846:52 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/services/agent_service.py:1890:52 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/services/agent_service.py:2219:13 - error: Variable "source_desc" is not accessed (reportUnusedVariable)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/services/agent_service.py:2499:28 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/services/agent_service.py:2503:28 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/services/agent_service.py:2780:49 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/services/agent_service.py:3042:18 - error: Import "agentic_rag.agent_graph" could not be resolved (reportMissingImports)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/services/agent_service.py:3071:66 - warning: Unnecessary "# type: ignore" comment (reportUnnecessaryTypeIgnoreComment)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/services/agent_service.py:3190:28 - warning: Unnecessary isinstance call; "AgentType" is always an instance of "AgentType" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/services/agent_service.py:3212:57 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/services/agent_service.py:3678:33 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/services/agent_service.py:3681:55 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/services/agent_service.py:3701:64 - warning: Unnecessary "# type: ignore" comment (reportUnnecessaryTypeIgnoreComment)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/services/agent_service.py:4181:22 - error: Import "memory.temporal.fsrs_manager" could not be resolved (reportMissingImports)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/services/agent_service.py:4596:32 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+8 errors, 17 warnings, 0 informations
+pyright_rc=1
+
+-- 本卡在该文件的改动行 --
+@@ -5723,0 +5724 @@ class AgentService:
+（唯一改动 = :5724 新增一行 "hint-generation",）
+
+-- 判据：D-16 甲用基线树多重集对照，不用行号交集 --
+见 multiset-20260909T120000.txt 首行：base=421 work=421 NEW=0 GONE=0

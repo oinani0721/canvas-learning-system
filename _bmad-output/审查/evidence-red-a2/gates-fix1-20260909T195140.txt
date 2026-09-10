@@ -1,0 +1,27 @@
+===== ruff check =====
+All checks passed!
+check-rc=0
+===== ruff format --check (HEAD 版本先对照是否已漂移) =====
+2 files already formatted
+head-format-rc=0
+===== ruff format --check (当前版本) =====
+Would reformat: backend/tests/unit/test_system_endpoint_auth.py
+1 file would be reformatted, 1 file already formatted
+format-rc=1
+
+===== 裁判6 判据存在性门 =====
+--- 精确等值断言三处 ---
+backend/tests/unit/test_system_endpoint_auth.py:155:        assert response.json()["detail"] == "Internal API key not configured"
+backend/tests/unit/test_system_endpoint_auth.py:211:        assert response.json()["detail"] == "Internal API key not configured"
+backend/tests/unit/test_sync_batch_auth.py:167:        assert response.json()["detail"] == "Internal API key not configured"
+backend/tests/unit/test_sync_batch_auth.py:222:        assert "Internal API key not configured" in response.json().get("detail", "")
+--- auth_fail_closed 逐文件计数 ---
+sync   (期望 1): 2
+system (期望 2): 4
+合计   (期望 3): 6
+--- 原 503 断言保留（禁删弱）---
+backend/tests/unit/test_system_endpoint_auth.py:4
+backend/tests/unit/test_sync_batch_auth.py:2
+--- 无 skip/xfail ---
+backend/tests/unit/test_sync_batch_auth.py:0
+backend/tests/unit/test_system_endpoint_auth.py:0

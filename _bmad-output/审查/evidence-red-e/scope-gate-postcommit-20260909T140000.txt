@@ -1,0 +1,38 @@
+### 地盘门（提交后口径）BASE=0465a35c HEAD=eed7a44c
+
+-- 改动文件（排除 _bmad-output）：须只含 7 份 agents + agent_service.py + smoke --
+.claude/agents/canvas-orchestrator.md
+.claude/agents/graphiti-memory-agent.md
+.claude/agents/hint-generation.md
+.claude/agents/iteration-validator.md
+.claude/agents/parallel-dev-orchestrator.md
+.claude/agents/planning-orchestrator.md
+.claude/agents/review-board-agent-selector.md
+backend/app/services/agent_service.py
+backend/tests/unit/test_agent_templates_smoke.py
+count=9
+
+-- 禁改文件 diff（须空 + rc=0）--
+forbidden_rc=0
+
+-- agent_service.py 改动 hunk（须恰一处 +1 行）--
+@@ -5723,0 +5724 @@ class AgentService:
++            "hint-generation",
+
+-- stderr 入库自查（须空）--
+"_bmad-output/\345\256\241\346\237\245/G4-9-evidence/census-stderr.txt"
+stderr_rc=0
+
+-- git ls-files .claude/agents（须 18）--
+      18
+-- 更正：上一条 stderr 自查用了 ls-tree 全树口径，命中的是历史已入库文件 --
+-- 正确口径 = 本卡引入的文件里有无 stderr --
+card_stderr_rc=1  (rc=1 = 本卡未引入 stderr)
+
+-- 命中的那条的来源（非本卡）--
+4c125f19 fix(census): G4-9 Codex round-5 findings 整改 [BATCH-2026-08-28-第五批 / CARD-G4-9]
+
+-- 本卡 codex stderr 是否 untracked（应是，且工作树须干净）--
+untracked_stderr_rc=1
+.gitignore:264:_bmad-output/审查/**/*.stderr*	"_bmad-output/\345\256\241\346\237\245/codex-review-CARD-RED-E-r1.stderr"
+ignored_rc=0

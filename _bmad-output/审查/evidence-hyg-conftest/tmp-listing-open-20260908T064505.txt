@@ -1,0 +1,17 @@
+=== U10-A (a) 开工 /tmp/test-vault* 清单 Tue Sep  8 06:45:05 CST 2026 ===
+--- ls -ld /tmp/test-vault* ---
+drwxr-xr-x@ 7 Heishing  wheel  224 Sep  6 02:58 /tmp/test-vault
+drwxr-xr-x@ 7 Heishing  wheel  224 Sep  6 02:58 /tmp/test-vault-wizard
+drwxr-xr-x@ 7 Heishing  wheel  224 Sep  5 16:51 /tmp/test-vault-wizard.h1-1788630772
+drwxr-xr-x@ 7 Heishing  wheel  224 Sep  6 02:25 /tmp/test-vault-wizard.h2after-1788633028
+drwxr-xr-x@ 7 Heishing  wheel  224 Sep  6 01:55 /tmp/test-vault-wizard.h2d-1788632106
+drwxr-xr-x@ 7 Heishing  wheel  224 Sep  6 01:53 /tmp/test-vault-wizard.n2-1788630845
+drwxr-xr-x@ 6 Heishing  wheel  192 Sep  8 00:00 /tmp/test-vault-wizard.pre-1788598134
+drwxr-xr-x@ 7 Heishing  wheel  224 Sep  5 16:51 /tmp/test-vault.h1-1788630772
+drwxr-xr-x@ 7 Heishing  wheel  224 Sep  6 02:24 /tmp/test-vault.h2after-1788633028
+drwxr-xr-x@ 7 Heishing  wheel  224 Sep  6 01:55 /tmp/test-vault.h2d-1788632106
+drwxr-xr-x@ 7 Heishing  wheel  224 Sep  6 01:53 /tmp/test-vault.n1-1788630804
+drwxr-xr-x@ 6 Heishing  wheel  192 Sep  8 00:00 /tmp/test-vault.pre-1788598134
+rc_ls=0
+--- find 交叉验证 ---
+rc=0

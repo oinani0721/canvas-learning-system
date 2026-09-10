@@ -1,0 +1,46 @@
+# U10-A 负控辅助插件源码存档（.txt 以免被当成可收集的测试文件）
+# 它只在 N1/N1' 单文件负控里用 -p 加载；(n) 的 N2/N2' 双树并发承重判据**未用**它。
+# sha256=e86f9a36380106dfb7f4e19e9b7a0e7a8472542756c2da194f7d9171998a8ecc
+# ---
+"""U10-A 负控辅助插件 —— **只把 session 窗口拉宽，不碰任何被测逻辑**。
+
+为什么需要它（实测，不是推演）:
+    `tests/unit/test_vault_init_service.py` 单文件跑总耗时 ~11.5s, 其中 pytest
+    内部只有 0.45s —— 约 11s 全在 Python 启动 + conftest import + collection。
+    session 级 autouse fixture 的两次 `/tmp` 快照之间因此只有 **~0.5s** 的洞。
+    负控要求「新目录在 before 之后、after 之前出现」, 靠外部 `sleep N` 去命中
+    0.5s 窗口, 成败取决于当时机器负载 ⇒ 负控本身不可复现, 会随机给出假 SURVIVED。
+
+它做什么:
+    在**第一个用例的 call 阶段**（此时 session fixture 的 setup 已经跑完、
+    before 快照已经拍下）睡 WIDEN_SECONDS 秒, 把窗口从 0.45s 拉到 ~12s,
+    使外部进程的 mkdir 时序可断言。
+
+它**不**做什么:
+    不 import 被测模块、不碰 conftest、不改任何 fixture、不建/删任何文件、
+    不影响用例的通过与否、不影响门的判据。唯一的可观测副作用是「慢了 12 秒」。
+
+用法:
+    PYTHONPATH=<本目录> pytest -p widen_window ...
+"""
+
+import os
+import time
+
+import pytest
+
+WIDEN_SECONDS = float(os.environ.get("U10A_WIDEN_SECONDS", "12"))
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_call(item):
+    session = item.session
+    if not getattr(session, "_u10a_widened", False):
+        session._u10a_widened = True
+        print(
+            "\n[U10A-WIDEN] session 窗口已展开 %.1fs @ %s (before 快照此前已拍)"
+            % (WIDEN_SECONDS, time.strftime("%Y-%m-%dT%H:%M:%S"))
+        )
+        time.sleep(WIDEN_SECONDS)
+        print("[U10A-WIDEN] 展开结束 @ %s" % time.strftime("%Y-%m-%dT%H:%M:%S"))
+    yield

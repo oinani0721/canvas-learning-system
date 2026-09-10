@@ -1,0 +1,36 @@
+58,73d57
+< FAILED tests/unit/test_chat_endpoint.py::test_enrich_context_accepts_user_question_and_mode_answer
+< FAILED tests/unit/test_chat_endpoint.py::test_enrich_context_answer_mode_uses_lazy_init_path
+< FAILED tests/unit/test_chat_endpoint.py::test_enrich_context_assembler_budget_field
+< FAILED tests/unit/test_chat_endpoint.py::test_enrich_context_default_frontmatter
+< FAILED tests/unit/test_chat_endpoint.py::test_enrich_context_degraded_appends_notice
+< FAILED tests/unit/test_chat_endpoint.py::test_enrich_context_empty_node_path_rejected
+< FAILED tests/unit/test_chat_endpoint.py::test_enrich_context_happy_path
+< FAILED tests/unit/test_chat_endpoint.py::test_enrich_context_max_hops_validation
+< FAILED tests/unit/test_chat_endpoint.py::test_enrich_context_preload_mode_skips_supplementary
+< FAILED tests/unit/test_chat_endpoint.py::test_enrich_context_rejects_invalid_mode
+< FAILED tests/unit/test_chat_endpoint.py::test_enrich_context_response_includes_elapsed_ms
+< FAILED tests/unit/test_chat_endpoint.py::test_enrich_context_returns_retrieval_trace
+< FAILED tests/unit/test_chat_endpoint.py::test_enrich_context_trace_includes_degradation_when_graph_unbuilt
+< FAILED tests/unit/test_chat_endpoint.py::test_rag_enrich_hook_lazy_init_returns_none_injects_degraded_marker
+< FAILED tests/unit/test_chat_endpoint.py::test_rag_enrich_hook_short_prompt_skips_lazy_init
+< FAILED tests/unit/test_chat_endpoint.py::test_rag_enrich_hook_uses_lazy_init
+93,94d76
+< FAILED tests/unit/test_enrich_context_vault_isolation.py::test_vault_id_empty_string_rejected_422
+< FAILED tests/unit/test_enrich_context_vault_isolation.py::test_vault_id_missing_rejected_422
+157,164d138
+< FAILED tests/unit/test_study_question_deep_mode.py::test_mode_answer_keeps_top_k_20_and_hard_cap_15
+< FAILED tests/unit/test_study_question_deep_mode.py::test_mode_deep_accepted_by_request_model
+< FAILED tests/unit/test_study_question_deep_mode.py::test_mode_deep_empty_user_question_skips_search
+< FAILED tests/unit/test_study_question_deep_mode.py::test_mode_deep_uses_top_k_30_and_hard_cap_20
+< FAILED tests/unit/test_study_question_deep_mode.py::test_mode_deep_without_user_question_skips_search
+< FAILED tests/unit/test_study_question_deep_mode.py::test_mode_default_is_preload
+< FAILED tests/unit/test_study_question_deep_mode.py::test_mode_invalid_rejected_by_pydantic
+< FAILED tests/unit/test_study_question_deep_mode.py::test_mode_preload_with_user_question_still_skips_search
+176,181d149
+< FAILED tests/unit/test_sync_exception_classification.py::TestInfrastructureErrors::test_auth_error_returns_503
+< FAILED tests/unit/test_sync_exception_classification.py::TestInfrastructureErrors::test_connection_error_returns_503
+< FAILED tests/unit/test_sync_exception_classification.py::TestInfrastructureErrors::test_service_unavailable_returns_503
+< FAILED tests/unit/test_sync_exception_classification.py::TestLogicErrors::test_generic_exception_returns_500
+< FAILED tests/unit/test_sync_exception_classification.py::TestLogicErrors::test_type_error_returns_500
+< FAILED tests/unit/test_sync_exception_classification.py::TestLogicErrors::test_value_error_returns_500

@@ -1,0 +1,25 @@
+# 负控 r5（安全面）：round-5 HIGH 的三条**组合序列** + 前几轮防线回归 + 误报正控
+# 背景：round-4 我把「完整参数集」整条挪进 B 层，结果一次合法调用可以**掩护**坏调用。
+#       这是本卡唯一一次**我自己把判据改弱**，round-5 抓到，本份是整改后的验证。
+# 方法：运行期替换生产方法（纯内存），跑测试本体，finally 无条件还原。
+HEAD=2b911c62  跑于 2026-09-09 15:16:50
+
+!!  ① 基线（单条全参数化）
+     期望=PASS 实测=ERROR:TypeError  baseline() got an unexpected keyword argument 'user_id'
+!!  ② 正控：合法分步查询（count 无 LIMIT、无需 limit）不得误报
+     期望=PASS 实测=ERROR:TypeError  staged_legit() got an unexpected keyword argument 'user_id'
+!!  ③ r5-HIGH：无 kwargs 的裸查询 + 合法调用
+     期望=FAIL 实测=ERROR:TypeError  seq_no_kwargs() got an unexpected keyword argument 'user_id'
+!!  ④ r5-HIGH：绑错物理组的 count + 合法调用
+     期望=FAIL 实测=ERROR:TypeError  seq_wrong_group() got an unexpected keyword argument 'user_id'
+!!  ⑤ r5-HIGH：内联 LIMIT 删 limit + 合法调用
+     期望=FAIL 实测=ERROR:TypeError  seq_inline_then_good() got an unexpected keyword argument 'user_id'
+!!  ⑥ r3 回归：先发含恶意原串的查询 + 合法调用
+     期望=FAIL 实测=ERROR:TypeError  seq_malicious_then_good() got an unexpected keyword argument 'user_id'
+!!  ⑦ r3 回归：LIMIT 5 /* $limit */
+     期望=FAIL 实测=ERROR:TypeError  mut_block_comment() got an unexpected keyword argument 'user_id'
+
+还原校验: get_review_suggestions is ORIG = True
+
+判据：①② PASS（② 是 round-4 修掉的误报面，不得回退）；③④⑤⑥⑦ FAIL。
+③⑤ 在整改前实测是 PASS（漏过），见验收单 round-5 段。

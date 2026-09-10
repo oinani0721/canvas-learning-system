@@ -1,0 +1,40 @@
+# vault-install verification report (CARD-G2-6, read-only)
+# manifest : scripts/vault-install-manifest.json (version 1, source live-vault)
+# vault    : /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault
+# source   : (未提供 — content-drift 未评估)
+# 语义     : exclude 项按各自模式的静态前缀子树扫描; extra 只看 manifest
+#            extra_scan 声明的覆盖面 (根级文档不在覆盖面内, 故不报 extra);
+#            读不进去的条目记 unreadable 并计入退出码 —— 看不见不等于一致;
+#            extra_allow 放行的项进 allowed-extra, 只报告不计退出码;
+#            退出码 0 ok / 1 只缺 / 2 多出·漂移·读不动·快捷键孤儿 / 3 用法错。
+------------------------------------------------------------------
+match                  : 28
+missing                : 0
+extra                  : 5
+content-drift          : not evaluated (无 --source)
+intentionally-excluded : 10
+allowed-extra          : 0
+unreadable             : 0
+hotkeys                : 3 绑定 / 10 命令 / 0 orphan
+hotkey-orphan          : 0
+
+## extra
+  .claude/cache  — 位于覆盖面 .claude/* 内但不在 manifest
+  .obsidian/graph.json  — 位于覆盖面 .obsidian/*.json 内但不在 manifest
+  .obsidian/types.json  — 位于覆盖面 .obsidian/*.json 内但不在 manifest
+  .obsidian/plugins/excalibrain  — 位于覆盖面 .obsidian/plugins/* 内但不在 manifest
+  .obsidian/plugins/obsidian-excalidraw-plugin  — 位于覆盖面 .obsidian/plugins/* 内但不在 manifest
+
+## intentionally-excluded
+  原白板/** [learning-data]  — 目标里存在: 原白板/CS 61B.md, 原白板/CS.md, 原白板/CS188 lecture 2.md (共 6 项)
+  检验白板/** [learning-data]  — 目标里存在: 检验白板/CS 61B-2026-08-11-1349.md, 检验白板/CS 61B-2026-08-11-1538.md, 检验白板/特征值与特征向量-2026-07-05-1815.md (共 10 项)
+  节点/** [learning-data]  — 目标里存在: 节点/Characteristic-Equation-for-Eigenvalues.md, 节点/Eigenvalues-are-special-vectors-that-sat.md, 节点/Fundamentals.md (共 14 项)
+  learning_events.jsonl [learning-data]  — 目标里存在: learning_events.jsonl
+  outputs/** [build-artifact]  — 目标里存在: outputs/.recap-manifest-CS 61B.json, outputs/.recap-manifest-CS188 lecture 2.json, outputs/.recap-manifest-特征值与特征向量.json (共 19 项)
+  raw/** [learning-data]  — 目标里存在: raw/.gitkeep, raw/CS188, raw/CS188/.obsidian (共 260 项)
+  templates/** [learning-data]  — 目标里存在: templates/concept.md, templates/exam-board.md
+  .obsidian/workspace.json [session-state]  — 目标里存在: .obsidian/workspace.json
+  .claude/**/__pycache__ [build-artifact]  — 目标里存在: .claude/hooks/__pycache__, .claude/scripts/__pycache__
+  .claude/hooks/pending_archives*.jsonl [session-state]  — 目标里存在: .claude/hooks/pending_archives.jsonl
+
+exit=2

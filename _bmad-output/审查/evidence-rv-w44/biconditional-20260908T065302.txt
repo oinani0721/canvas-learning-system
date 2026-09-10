@@ -1,0 +1,32 @@
+########## (f) 「⇔」三处双向声明（本卡不改，仅登记）##########
+77:把含迟到记录的账本**重写**一次，保证「``rc=3`` ⇔ 账本 ``unaccounted>0``」双向成立。
+293:        体现为 ``unaccounted`` —— 迟到路径重写账本后，「``rc=3`` ⇔ 账本
+1243:    「``rc=3`` ⇔ 账本 ``unaccounted>0``」两个方向都成立（探针
+count = 3
+
+########## 反证：:1288 退出条件第二分支 ##########
+1282:    unaccounted = ledger["unaccounted"]
+1283:    blocked = ledger["blocked"]
+1284:    status = ledger["reported_status"]
+1285:    # status is None ⇒ 不是 pytest 跑的（脚本/探针直接 import 本模块）：按 0 处理，
+1286:    # 也就是「有非豁免拦截却打算正常退出」同样算失败。
+1287:    effective_status = 0 if status is None else status
+1288:    if unaccounted > 0 or (blocked > 0 and effective_status == 0):
+
+########## 探针 :1655-1660 钉的是两个特例，不是双向等价 ##########
+1655:def probe_ledger_matches_verdict() -> dict:
+1656:    """账本文件与进程 rc 必须互相印证，**两个方向都要**。
+1657:
+1658:    * 结算之后落地一条 blocked ⇒ rc=3 且账本 ``unaccounted>0``、``blocked>0``；
+1659:    * 一次连接都没有 ⇒ rc=0 且账本 ``unaccounted==0``、``blocked==0``。
+1660:
+1661:    只测一个方向会被「恒判 unaccounted=1」这类实现骗过。改前第一种形态可以出现
+1662:    **账本 unaccounted=1 而 rc=0**（裁定读 ``_final_accounting`` 的快照、落盘读
+1663:    ``write_ledger`` 自己再取的那一份）—— 实测证据见 ``before-2``。
+
+########## LOW-10 残留 :119-120 与 HIGH-3 迟到路径 :661-680 的张力 ##########
+119:* 「最终总账」之后（解释器 finalization 期间）发起的连接仍会被 audit hook 拦下，
+120:  但已无人能把它变成非零 rc —— 这段窗口无法在进程内闭合，如实登记。
+            if outcome == RECORD_LATE:
+                # 最终结算之后的迟到连接：已无人能改 rc，只能就地把进程打成非零。
+                os._exit(FINAL_EXIT_CODE)

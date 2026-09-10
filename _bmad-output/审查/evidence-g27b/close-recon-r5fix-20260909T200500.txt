@@ -1,0 +1,77 @@
+# CARD-G2-7b r5 整改后收工对账（禁写面 / 地盘 / 入库）
+# 哨兵基准 = round5-quota-exhausted-20260909T173700.txt（mtime 2026-09-09 18:16:24）
+
+## A 观察层（find -newer 计数，**如实记数，不写 0**）
+
+  live vault (canvas-vault)      -> 1   ⚠️ 见 B.1
+  ~/.dsh                         -> 6   ⚠️ 见 B.2
+  ~/.config/opencode             -> 0   ✅
+  ~/Library/LaunchAgents         -> 0   ✅
+  ~/.codex                       -> 115 ⚠️ 见 B.3
+
+  $WT/.env sha256 = c84c859683b6b0bd1f8e6915e7d4afa17652f8001753063294aa4d40914c7712
+                  == evidence-g27b/pre-wt-env-sha.txt 基线，**逐字相同** ✅
+  git status --porcelain -- canvas-vault/   -> 0 行 ✅
+  待入库 `*.stderr` 结尾文件                -> 0 ✅
+
+## B 精确层：三处非零逐条归属（结论：**均不可归因于本卡**，但不据此写 0）
+
+### B.1 live vault 的那 1 个 = `canvas-vault/multimodal`（**目录本身**，非文件）
+
+$ stat -f 'mtime=%Sm ctime=%Sc type=%HT' -t '%Y-%m-%d %H:%M:%S' <live>/multimodal
+  mtime=2026-09-09 19:10:14  ctime=2026-09-09 19:10:14  type=Directory
+$ ls -la <live>/multimodal
+  audio / image / pdf / thumbnails / video —— **5 个子目录全是 Aug 15 11:20**，无新条目
+$ git status --porcelain -- canvas-vault/   -> 0 行（内容零改动）
+
+⇒ 只有目录 mtime/ctime 变（有条目被建了又删或重命名），**内容一个字节没变**。
+
+不可归因于本卡的四条依据：
+ ① **时间不匹配**：19:10:14 早于本 session 的**任何一次写操作** ——
+    首次 `--apply` 是 19:50:35；在那之前本 session 只跑过 dry-run（零写）与 pytest。
+ ② **代码面无关**：`grep -c multimodal` 于 deploy-vault.sh / cls_forbidden_paths.py /
+    test_deploy_vault_sh.py **全 0**；仓内该路径的写者是 `backend/app/api/v1/endpoints/multimodal.py`。
+ ③ **该写者没在跑**：`docker ps | grep canvas` 为空 —— 没有 canvas backend 容器。
+ ④ **机器上有其它写者**：Obsidian 自 10:22 起开着这个 vault（`ps` 实测 3 个进程）；
+    同时有 **21 个并发 claude 进程**（本批其它车道，`ps` 实测）。
+    Obsidian 对 vault 目录做扫描/临时条目是已知噪音源（本对账的 find 本来就排除了
+    `.obsidian/workspace*.json`，同族）。
+
+⚠️ 如实声明：以上是**排除性论证**，不是正面证明「是 Obsidian 干的」。
+   我无法从这台机器上确证 19:10:14 那一刻的写者身份。能确证的是：内容零改动、
+   时间早于本 session 全部写操作、本卡代码面与该路径无任何引用。
+
+### B.2 ~/.dsh 的 6 个
+
+  ~/.dsh/storages/{workspace.json,session_projcache.json}
+  ~/.dsh/sessions/--Users-Heishing-Documents--/session-0c5f358e-…/session.jsonl.zstd
+
+⇒ 全部是 `dsh` 工具**自身的会话状态**，且落在 `--Users-Heishing-Documents--` 这个
+   **另一个工作目录**的分区下（不是本仓、不是本车道）。本卡不实现 dsh 宿主（E-1），
+   代码面零引用。
+
+### B.3 ~/.codex 的 115 个
+
+  `sessions/2026/09/09/rollout-*.jsonl` + `*.sqlite-wal` —— codex CLI 自身的会话/状态产物。
+  来源：本 session 的 r5（session 01a0859a-…）与**并发车道**（`ps` 实测 U4 跑
+  CARD-SKILL-PORT-LINT r23、U6 跑 CARD-G6-6 r3）。协议要求用 codex 送审，
+  这些是该动作的必然副产物，不是 `deploy-vault.sh` 的写入。
+
+## C 地盘门
+
+$ git diff --name-only 0ee633ea HEAD -- . ':(exclude)_bmad-output'   -> 7 文件（未变）
+$ 本轮改动的代码文件 -> 3 个，全部在既有 7 文件之内：
+    scripts/deploy-vault.sh / scripts/cls_forbidden_paths.py / backend/tests/unit/test_deploy_vault_sh.py
+
+硬边界自检（全部 ✅ 未动）：
+  scripts/verify_vault_install.py · scripts/vault-install-manifest.json · lefthook.yml
+  · canvas-vault/** · backend/app/** · frontend/** · scripts/launchd/**
+
+## D 本 session 跑过的部署脚本调用（写入面只在 scratch）
+
+  dry-run ×3（含 H-2 可达性探针 2 次）
+  --apply ×6：course(8123) ×2[幂等] / mm2(8124, rc73) / b4probe(8125, rc74) /
+             b4ctrl(8126) —— 全部落 $SCRATCH/g27b-r5/，`git status` 恒空
+  B-4 端到端负控跑后 `find <fakelive> -newermt <跑前>` = **0**（拦在写之前）
+
+rc=0

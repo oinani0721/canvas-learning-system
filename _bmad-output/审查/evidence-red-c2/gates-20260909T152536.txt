@@ -1,0 +1,68 @@
+# 收尾门 + 完整 SHA 绑定链 — CARD-RED-C2（Codex round-5 整改后）
+HEAD=49b15c77   U11-A 末 commit=5139428d   跑于 2026-09-09 15:25:36
+
+## 〇 完整 SHA 绑定链（round-5 MEDIUM：缺 3a6f51ea → 2b911c62 那一段）
+
+⚠️ **本节初次生成时是一次假绿，如实保留纠错**：循环写成 `for pair in "a b" ...; set -- $pair`，
+   而 zsh **默认不对未加引号的参数做词分割**，`$1` 拿到的是整个 "a b" 字符串 ⇒ 每行 git 都
+   `fatal: bad revision`、计数落 0 ⇒ 十行**全部**印成「空 = 代码树等价」。
+   这正是本卡反复记的那条：**没跑成与跑过了，在计数判据下长得一模一样**。
+   现改为逐对显式取值，并把 git 的 rc 一并打出来 —— rc≠0 就不可能被读成等价。
+
+逐段实际输出（代码面 = 排除 _bmad-output）：
+
+  9b131f2f  -> c0d61a12   git rc=0  改动代码文件数=0   空 = 代码树等价（该轮只改 _bmad-output）
+  c0d61a12  -> c6278d6e   git rc=0  改动代码文件数=5   改了 5 个代码文件
+        backend/tests/unit/test_agent_service_neo4j_memory.py
+        backend/tests/unit/test_config_neo4j.py
+        backend/tests/unit/test_story_1_7_env_config.py
+        backend/tests/unit/test_story_30_24_boundary.py
+        backend/tests/unit/test_story_38_1_review_fixes.py
+  c6278d6e  -> cfd299f3   git rc=0  改动代码文件数=0   空 = 代码树等价（该轮只改 _bmad-output）
+  cfd299f3  -> 4449e292   git rc=0  改动代码文件数=2   改了 2 个代码文件
+        backend/tests/unit/test_story_1_7_env_config.py
+        backend/tests/unit/test_story_30_24_boundary.py
+  4449e292  -> 0909e935   git rc=0  改动代码文件数=0   空 = 代码树等价（该轮只改 _bmad-output）
+  0909e935  -> e43db627   git rc=0  改动代码文件数=2   改了 2 个代码文件
+        backend/tests/unit/test_story_1_7_env_config.py
+        backend/tests/unit/test_story_30_24_boundary.py
+  e43db627  -> 5e3c7998   git rc=0  改动代码文件数=0   空 = 代码树等价（该轮只改 _bmad-output）
+  5e3c7998  -> 3a6f51ea   git rc=0  改动代码文件数=2   改了 2 个代码文件
+        backend/tests/unit/test_story_1_7_env_config.py
+        backend/tests/unit/test_story_30_24_boundary.py
+  3a6f51ea  -> 2b911c62   git rc=0  改动代码文件数=0   空 = 代码树等价（该轮只改 _bmad-output）
+  2b911c62  -> 49b15c77   git rc=0  改动代码文件数=1   改了 1 个代码文件
+        backend/tests/unit/test_story_30_24_boundary.py
+
+  ⇒ 送审 SHA 与其证据 HEAD 的对应（每对之间必须是「空」才算证据绑得住）：
+     r1 送审 c0d61a12 ← 证据 9b131f2f
+     r2 送审 cfd299f3 ← 证据 c6278d6e
+     r3 送审 0909e935 ← 证据 4449e292
+     r4 送审 5e3c7998 ← 证据 e43db627
+     r5 送审 2b911c62 ← 证据 3a6f51ea   ← round-5 MEDIUM 点名要补的那段
+     收尾 HEAD 49b15c77 ← 本轮三份证据（见下）
+
+本轮三份证据的 HEAD 行（写死文件名）：
+  unit-after-20260909T151936.txt     -> HEAD=49b15c77
+  files-23-20260909T152453.txt       -> HEAD=49b15c77
+  gates-20260909T152536.txt          -> HEAD=49b15c77
+
+## §二.6 判据强度门
+  ↑ 无输出 = 通过
+
+## §二.7 fixture 门
+autouse=True 新增数: 0
+精确读取面模式:
+  ↑ 无输出 = 通过
+
+## §二.8 地盘门
+改动文件数: 23
+backend/app diff（必须空）:
+  ↑ 空
+_archive diff（必须空）:
+  ↑ 空
+全部 ⊆ 23 文件清单:
+  ↑ 空
+
+既有 skip 标记被删/改（全卡累计）: 0
+本卡 diff 里 stderr 文件数: 0

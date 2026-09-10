@@ -1,0 +1,343 @@
+# 先红存档 (榜首判据改动态后重跑)  BASE=709beb0b  产品代码未改, 只落测试
+# 命令: pytest -q -p no:cacheprovider -rfE -k g67r <四文件>
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 311 items / 292 deselected / 19 selected
+
+tests/unit/test_review_overview.py FFFFFFFFF                             [ 47%]
+tests/unit/test_review_app.py FF                                         [ 57%]
+tests/regression/test_daily_review_run.py FFF...                         [ 89%]
+tests/regression/test_daily_review_pick.py FF                            [100%]
+
+=================================== FAILURES ===================================
+___________ test_g67r_refresh_passes_state_and_done_board_yields_top ___________
+tests/unit/test_review_overview.py:3502: in test_g67r_refresh_passes_state_and_done_board_yields_top
+    assert resp.json()["state_passed"] is True
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'state_passed'
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/review/overview/refresh", "endpoint": "/api/v1/review/overview/refresh", "status": 200, "duration_ms": 65.06, "event": "request.completed", "request_id": "6359931536", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T04:07:53.388994Z"}
+{"method": "POST", "path": "/api/v1/review/overview/refresh", "endpoint": "/api/v1/review/overview/refresh", "status": 200, "duration_ms": 56.02, "event": "request.completed", "request_id": "6371651840", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T04:07:53.447881Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/review/overview/refresh', 'endpoint': '/api/v1/review/overview/refresh', 'status': 200, 'duration_ms': 65.06, 'event': 'request.completed', 'request_id': '6359931536', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T04:07:53.388994Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/review/overview/refresh', 'endpoint': '/api/v1/review/overview/refresh', 'status': 200, 'duration_ms': 56.02, 'event': 'request.completed', 'request_id': '6371651840', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T04:07:53.447881Z'}
+________ test_g67r_refresh_without_runner_degrades_to_no_state_not_503 _________
+tests/unit/test_review_overview.py:3534: in test_g67r_refresh_without_runner_degrades_to_no_state_not_503
+    assert resp.json()["state_passed"] is False
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'state_passed'
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/review/overview/refresh", "endpoint": "/api/v1/review/overview/refresh", "status": 200, "duration_ms": 66.36, "event": "request.completed", "request_id": "6343552784", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T04:07:53.647896Z"}
+{"method": "POST", "path": "/api/v1/review/overview/refresh", "endpoint": "/api/v1/review/overview/refresh", "status": 200, "duration_ms": 60.55, "event": "request.completed", "request_id": "6345651024", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T04:07:53.710714Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/review/overview/refresh', 'endpoint': '/api/v1/review/overview/refresh', 'status': 200, 'duration_ms': 66.36, 'event': 'request.completed', 'request_id': '6343552784', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T04:07:53.647896Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/review/overview/refresh', 'endpoint': '/api/v1/review/overview/refresh', 'status': 200, 'duration_ms': 60.55, 'event': 'request.completed', 'request_id': '6345651024', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T04:07:53.710714Z'}
+__________ test_g67r_web_write_keeps_keys_runner_wrote_in_the_window ___________
+tests/unit/test_review_overview.py:3570: in test_g67r_web_write_keeps_keys_runner_wrote_in_the_window
+    assert st["last_push_accepted_date"] == "2026-07-30", "窗口内 runner 落盘的推送账被 Web 整写覆盖了"
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'last_push_accepted_date'
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/review/overview/board-done", "endpoint": "/api/v1/review/overview/board-done", "status": 200, "duration_ms": 2.07, "event": "request.completed", "request_id": "6349593904", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T04:07:53.750165Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/review/overview/board-done', 'endpoint': '/api/v1/review/overview/board-done', 'status': 200, 'duration_ms': 2.07, 'event': 'request.completed', 'request_id': '6349593904', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T04:07:53.750165Z'}
+__________ test_g67r_board_undone_round_trips_and_never_touches_fsrs ___________
+tests/unit/test_review_overview.py:3602: in test_g67r_board_undone_round_trips_and_never_touches_fsrs
+    assert resp.status_code == 200, resp.text
+E   AssertionError: {"detail":"Not Found"}
+E   assert 404 == 200
+E    +  where 404 = <Response [404 Not Found]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/review/overview/board-done", "endpoint": "/api/v1/review/overview/board-done", "status": 200, "duration_ms": 1.36, "event": "request.completed", "request_id": "6345435152", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T04:07:53.782313Z"}
+{"method": "GET", "path": "/api/v1/review/overview", "endpoint": "/api/v1/review/overview", "status": 200, "duration_ms": 0.63, "event": "request.completed", "request_id": "6345369472", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T04:07:53.783766Z"}
+{"method": "POST", "path": "/api/v1/review/overview/board-undone", "endpoint": "/api/v1/review/overview/board-undone", "status": 404, "duration_ms": 0.49, "event": "request.completed", "request_id": "6345366480", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T04:07:53.785550Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/review/overview/board-done', 'endpoint': '/api/v1/review/overview/board-done', 'status': 200, 'duration_ms': 1.36, 'event': 'request.completed', 'request_id': '6345435152', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T04:07:53.782313Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/review/overview', 'endpoint': '/api/v1/review/overview', 'status': 200, 'duration_ms': 0.63, 'event': 'request.completed', 'request_id': '6345369472', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T04:07:53.783766Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/review/overview/board-undone', 'endpoint': '/api/v1/review/overview/board-undone', 'status': 404, 'duration_ms': 0.49, 'event': 'request.completed', 'request_id': '6345366480', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T04:07:53.785550Z'}
+_______________ test_g67r_board_undone_is_idempotent_200_not_404 _______________
+tests/unit/test_review_overview.py:3645: in test_g67r_board_undone_is_idempotent_200_not_404
+    assert first.status_code == 200 and first.json()["already_undone"] is False
+E   assert (404 == 200)
+E    +  where 404 = <Response [404 Not Found]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/review/overview/board-done", "endpoint": "/api/v1/review/overview/board-done", "status": 200, "duration_ms": 1.17, "event": "request.completed", "request_id": "6345372288", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T04:07:53.816405Z"}
+{"method": "POST", "path": "/api/v1/review/overview/board-undone", "endpoint": "/api/v1/review/overview/board-undone", "status": 404, "duration_ms": 0.44, "event": "request.completed", "request_id": "6343581856", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T04:07:53.817641Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/review/overview/board-done', 'endpoint': '/api/v1/review/overview/board-done', 'status': 200, 'duration_ms': 1.17, 'event': 'request.completed', 'request_id': '6345372288', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T04:07:53.816405Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/review/overview/board-undone', 'endpoint': '/api/v1/review/overview/board-undone', 'status': 404, 'duration_ms': 0.44, 'event': 'request.completed', 'request_id': '6343581856', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T04:07:53.817641Z'}
+___________ test_g67r_board_undone_reuses_the_same_three_write_gates ___________
+tests/unit/test_review_overview.py:3677: in test_g67r_board_undone_reuses_the_same_three_write_gates
+    assert cross.status_code == 403 and cross.json()["detail"]["error"] == "cross_site_blocked"
+E   assert (404 == 403)
+E    +  where 404 = <Response [404 Not Found]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/review/overview/board-done", "endpoint": "/api/v1/review/overview/board-done", "status": 200, "duration_ms": 1.23, "event": "request.completed", "request_id": "6343589072", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T04:07:53.848766Z"}
+{"method": "POST", "path": "/api/v1/review/overview/board-undone", "endpoint": "/api/v1/review/overview/board-undone", "status": 404, "duration_ms": 0.4, "event": "request.completed", "request_id": "6343594016", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T04:07:53.850020Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/review/overview/board-done', 'endpoint': '/api/v1/review/overview/board-done', 'status': 200, 'duration_ms': 1.23, 'event': 'request.completed', 'request_id': '6343589072', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T04:07:53.848766Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/review/overview/board-undone', 'endpoint': '/api/v1/review/overview/board-undone', 'status': 404, 'duration_ms': 0.4, 'event': 'request.completed', 'request_id': '6343594016', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T04:07:53.850020Z'}
+___________________ test_g67r_board_undone_zero_js_form_path ___________________
+tests/unit/test_review_overview.py:3709: in test_g67r_board_undone_zero_js_form_path
+    assert ok.status_code == 303 and ok.headers["location"] == _PAGE_URL
+E   assert (404 == 303)
+E    +  where 404 = <Response [404 Not Found]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/review/overview/board-done", "endpoint": "/api/v1/review/overview/board-done", "status": 200, "duration_ms": 1.18, "event": "request.completed", "request_id": "6343490592", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T04:07:53.881332Z"}
+{"method": "POST", "path": "/api/v1/review/overview/board-undone", "endpoint": "/api/v1/review/overview/board-undone", "status": 404, "duration_ms": 0.35, "event": "request.completed", "request_id": "6343486368", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T04:07:53.882448Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/review/overview/board-done', 'endpoint': '/api/v1/review/overview/board-done', 'status': 200, 'duration_ms': 1.18, 'event': 'request.completed', 'request_id': '6343490592', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T04:07:53.881332Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/review/overview/board-undone', 'endpoint': '/api/v1/review/overview/board-undone', 'status': 404, 'duration_ms': 0.35, 'event': 'request.completed', 'request_id': '6343486368', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T04:07:53.882448Z'}
+______ test_g67r_undone_fsrs_gate_reddens_under_contaminating_write_point ______
+tests/unit/test_review_overview.py:3735: in test_g67r_undone_fsrs_gate_reddens_under_contaminating_write_point
+    assert resp.status_code == 200, "对照写点只污染 FSRS, 不许把请求本身弄坏 (否则红的是别的东西)"
+E   AssertionError: 对照写点只污染 FSRS, 不许把请求本身弄坏 (否则红的是别的东西)
+E   assert 404 == 200
+E    +  where 404 = <Response [404 Not Found]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/review/overview/board-done", "endpoint": "/api/v1/review/overview/board-done", "status": 200, "duration_ms": 1.65, "event": "request.completed", "request_id": "6346780960", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T04:07:53.913550Z"}
+{"method": "POST", "path": "/api/v1/review/overview/board-undone", "endpoint": "/api/v1/review/overview/board-undone", "status": 404, "duration_ms": 0.38, "event": "request.completed", "request_id": "6360653984", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T04:07:53.914911Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/review/overview/board-done', 'endpoint': '/api/v1/review/overview/board-done', 'status': 200, 'duration_ms': 1.65, 'event': 'request.completed', 'request_id': '6346780960', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T04:07:53.913550Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/review/overview/board-undone', 'endpoint': '/api/v1/review/overview/board-undone', 'status': 404, 'duration_ms': 0.38, 'event': 'request.completed', 'request_id': '6360653984', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T04:07:53.914911Z'}
+_____________ test_g67r_page_offers_undo_only_in_the_done_section ______________
+tests/unit/test_review_overview.py:3767: in test_g67r_page_offers_undo_only_in_the_done_section
+    assert fold.count(f'action="{_BOARD_UNDONE_URL}"') == 1, "已完成板必须带撤销钮"
+E   AssertionError: 已完成板必须带撤销钮
+E   assert 0 == 1
+E    +  where 0 = <built-in method count of str object at 0x87dbdc000>('action="/api/v1/review/overview/board-undone"')
+E    +    where <built-in method count of str object at 0x87dbdc000> = '已完成（1）· 明天自动回来</summary><div style="overflow-x:auto;margin:10px 0 4px"><table style="border-collapse:collapse;width:1...;margin-top:24px">⚠ obsidian:// 跳转需在 Obsidian 打开过该库（未注册的库点击无响应）；存在同名库时可能跳到先注册的那个，以 Obsidian 侧库列表为准</div></body></html>'.count
+----------------------------- Captured stdout call -----------------------------
+{"method": "GET", "path": "/api/v1/review/overview/page", "endpoint": "/api/v1/review/overview/page", "status": 200, "duration_ms": 0.96, "event": "request.completed", "request_id": "6360654336", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T04:07:53.944968Z"}
+{"method": "POST", "path": "/api/v1/review/overview/board-done", "endpoint": "/api/v1/review/overview/board-done", "status": 200, "duration_ms": 1.15, "event": "request.completed", "request_id": "6348161104", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T04:07:53.946948Z"}
+{"method": "GET", "path": "/api/v1/review/overview/page", "endpoint": "/api/v1/review/overview/page", "status": 200, "duration_ms": 0.67, "event": "request.completed", "request_id": "6348163920", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T04:07:53.948377Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/review/overview/page', 'endpoint': '/api/v1/review/overview/page', 'status': 200, 'duration_ms': 0.96, 'event': 'request.completed', 'request_id': '6360654336', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T04:07:53.944968Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/review/overview/board-done', 'endpoint': '/api/v1/review/overview/board-done', 'status': 200, 'duration_ms': 1.15, 'event': 'request.completed', 'request_id': '6348161104', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T04:07:53.946948Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/review/overview/page', 'endpoint': '/api/v1/review/overview/page', 'status': 200, 'duration_ms': 0.67, 'event': 'request.completed', 'request_id': '6348163920', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T04:07:53.948377Z'}
+___________ test_js_g67r_undo_button_lives_only_in_the_done_section ____________
+tests/unit/test_review_app.py:2775: in test_js_g67r_undo_button_lives_only_in_the_done_section
+    _assert_node_green(proc)
+tests/unit/test_review_app.py:895: in _assert_node_green
+    assert proc.returncode == 0, f"node --test 失败:\n{proc.stdout}\n{proc.stderr}"
+E   AssertionError: node --test 失败:
+E     ✖ 撤销钮恰在折叠区那一块板上 (9.633ms)
+E     ✔ 没有完成记录 → 一个撤销钮都不出现 (0.700041ms)
+E     ℹ tests 2
+E     ℹ suites 0
+E     ℹ pass 1
+E     ℹ fail 1
+E     ℹ cancelled 0
+E     ℹ skipped 0
+E     ℹ todo 0
+E     ℹ duration_ms 40.523
+E     
+E     ✖ failing tests:
+E     
+E     test at case.test.mjs:21:1
+E     ✖ 撤销钮恰在折叠区那一块板上 (9.633ms)
+E       AssertionError [ERR_ASSERTION]: 已完成板必须带撤销钮
+E       + actual - expected
+E       
+E       + []
+E       - [
+E       -   'data-undo-board="图论基础"'
+E       - ]
+E       
+E           at TestContext.<anonymous> (file:///private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-21392/test_js_g67r_undo_button_lives0/case.test.mjs:28:10)
+E           at Test.runInAsyncScope (node:async_hooks:227:14)
+E           at Test.run (node:internal/test_runner/test:1306:25)
+E           at Test.start (node:internal/test_runner/test:1177:17)
+E           at startSubtestAfterBootstrap (node:internal/test_runner/harness:385:17) {
+E         generatedMessage: false,
+E         code: 'ERR_ASSERTION',
+E         actual: [],
+E         expected: [ 'data-undo-board="图论基础"' ],
+E         operator: 'deepStrictEqual',
+E         diff: 'simple'
+E       }
+E     
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/Users/Heishing/.nvm/versions/node/v24.16.0/bin/node', '--test', 'case.test.mjs'], returncode=...expected: [ \'data-undo-board="图论基础"\' ],\n    operator: \'deepStrictEqual\',\n    diff: \'simple\'\n  }\n', stderr='').returncode
+---------------------------- Captured stdout setup -----------------------------
+{"method": "GET", "path": "/api/v1/review/overview/app", "endpoint": "/api/v1/review/overview/app", "status": 200, "duration_ms": 0.82, "event": "request.completed", "request_id": "6348166384", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T04:07:53.975422Z"}
+------------------------------ Captured log setup ------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/review/overview/app', 'endpoint': '/api/v1/review/overview/app', 'status': 200, 'duration_ms': 0.82, 'event': 'request.completed', 'request_id': '6348166384', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T04:07:53.975422Z'}
+____________ test_js_g67r_undo_click_posts_once_and_never_from_poll ____________
+tests/unit/test_review_app.py:2872: in test_js_g67r_undo_click_posts_once_and_never_from_poll
+    _assert_node_green(proc)
+tests/unit/test_review_app.py:895: in _assert_node_green
+    assert proc.returncode == 0, f"node --test 失败:\n{proc.stdout}\n{proc.stderr}"
+E   AssertionError: node --test 失败:
+E     ✖ 点一次 → 恰一个 POST, 打到 board-undone 且带 vault_id + board (13.5595ms)
+E     ✖ 同板在飞时的第二次点击不发第二个 POST (3.068292ms)
+E     ✖ 失败结局不许长得像成功 (3.28425ms)
+E     ✔ 自动轮询与可见性切换路径上 POST 恒为 0 (8.644583ms)
+E     ℹ tests 4
+E     ℹ suites 0
+E     ℹ pass 1
+E     ℹ fail 3
+E     ℹ cancelled 0
+E     ℹ skipped 0
+E     ℹ todo 0
+E     ℹ duration_ms 58.276583
+E     
+E     ✖ failing tests:
+E     
+E     test at case.test.mjs:27:1
+E     ✖ 点一次 → 恰一个 POST, 打到 board-undone 且带 vault_id + board (13.5595ms)
+E       AssertionError [ERR_ASSERTION]: 点一次只发一个 POST
+E       
+E       0 !== 1
+E       
+E           at TestContext.<anonymous> (file:///private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-21392/test_js_g67r_undo_click_posts_0/case.test.mjs:41:10)
+E           at async Test.run (node:internal/test_runner/test:1313:7)
+E           at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3) {
+E         generatedMessage: false,
+E         code: 'ERR_ASSERTION',
+E         actual: 0,
+E         expected: 1,
+E         operator: 'strictEqual',
+E         diff: 'simple'
+E       }
+E     
+E     test at case.test.mjs:48:1
+E     ✖ 同板在飞时的第二次点击不发第二个 POST (3.068292ms)
+E       AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+E       
+E       0 !== 1
+E       
+E           at TestContext.<anonymous> (file:///private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-21392/test_js_g67r_undo_click_posts_0/case.test.mjs:59:10)
+E           at async Test.run (node:internal/test_runner/test:1313:7)
+E           at async Test.processPendingSubtests (node:internal/test_runner/test:897:7) {
+E         generatedMessage: true,
+E         code: 'ERR_ASSERTION',
+E         actual: 0,
+E         expected: 1,
+E         operator: 'strictEqual',
+E         diff: 'simple'
+E       }
+E     
+E     test at case.test.mjs:69:1
+E     ✖ 失败结局不许长得像成功 (3.28425ms)
+E       AssertionError [ERR_ASSERTION]: The input did not match the regular expression /撤销失败/. Input:
+E       
+E       ''
+E       
+E           at TestContext.<anonymous> (file:///private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-21392/test_js_g67r_undo_click_posts_0/case.test.mjs:80:10)
+E           at async Test.run (node:internal/test_runner/test:1313:7)
+E           at async Test.processPendingSubtests (node:internal/test_runner/test:897:7) {
+E         generatedMessage: true,
+E         code: 'ERR_ASSERTION',
+E         actual: '',
+E         expected: /撤销失败/,
+E         operator: 'match',
+E         diff: 'simple'
+E       }
+E     
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/Users/Heishing/.nvm/versions/node/v24.16.0/bin/node', '--test', 'case.test.mjs'], returncode=...ERR_ASSERTION',\n    actual: '',\n    expected: /撤销失败/,\n    operator: 'match',\n    diff: 'simple'\n  }\n", stderr='').returncode
+---------------------------- Captured stdout setup -----------------------------
+{"method": "GET", "path": "/api/v1/review/overview/app", "endpoint": "/api/v1/review/overview/app", "status": 200, "duration_ms": 0.88, "event": "request.completed", "request_id": "6352416880", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T04:07:54.064967Z"}
+------------------------------ Captured log setup ------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/review/overview/app', 'endpoint': '/api/v1/review/overview/app', 'status': 200, 'duration_ms': 0.88, 'event': 'request.completed', 'request_id': '6352416880', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T04:07:54.064967Z'}
+________ test_g67r_runner_save_does_not_clobber_web_written_board_done _________
+tests/regression/test_daily_review_run.py:1264: in test_g67r_runner_save_does_not_clobber_web_written_board_done
+    assert st["board_done"] == {"A板": TODAY}, f"窗口内 Web 落盘的完成账被 runner 整写覆盖了, 实为 {st.get('board_done')!r}"
+E   AssertionError: 窗口内 Web 落盘的完成账被 runner 整写覆盖了, 实为 {}
+E   assert {} == {'A板': '2026-07-30'}
+E     
+E     Right contains 1 more item:
+E     {'A板': '2026-07-30'}
+E     Use -v to get more diff
+___________ test_g67r_state_lock_blocks_other_process_until_released ___________
+tests/regression/test_daily_review_run.py:1281: in test_g67r_state_lock_blocks_other_process_until_released
+    lock_path = runner.state_lock_path(vault)
+                ^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: module 'daily_review_run' has no attribute 'state_lock_path'
+____________ test_g67r_state_lock_survives_inner_save_state_reentry ____________
+tests/regression/test_daily_review_run.py:1326: in test_g67r_state_lock_survives_inner_save_state_reentry
+    lock_path = runner.state_lock_path(vault)
+                ^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: module 'daily_review_run' has no attribute 'state_lock_path'
+____________ test_g67r_main_reads_both_keys_from_state_in_one_parse ____________
+tests/regression/test_daily_review_pick.py:2305: in test_g67r_main_reads_both_keys_from_state_in_one_parse
+    assert out["top_boards"][0]["board"] != top, "已完成的板必须让出榜首"
+E   AssertionError: 已完成的板必须让出榜首
+E   assert '乙板' != '乙板'
+_____________ test_g67r_main_state_corrupt_degrades_like_no_state ______________
+tests/regression/test_daily_review_pick.py:2325: in test_g67r_main_state_corrupt_degrades_like_no_state
+    out = _run_cli(monkeypatch, capsys, vault, state)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/regression/test_daily_review_pick.py:2253: in _run_cli
+    picker.main()
+../scripts/daily_review_pick.py:1234: in main
+    blr = json.loads(Path(args.state).read_text(encoding="utf-8")).get("board_last_recommended", {})
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'list' object has no attribute 'get'
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:805
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/app/api/v1/endpoints/chat.py:805: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:105
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/app/api/v1/endpoints/metadata.py:105: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:179
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/app/api/v1/endpoints/metadata.py:179: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_review_overview.py::test_g67r_refresh_passes_state_and_done_board_yields_top
+FAILED tests/unit/test_review_overview.py::test_g67r_refresh_without_runner_degrades_to_no_state_not_503
+FAILED tests/unit/test_review_overview.py::test_g67r_web_write_keeps_keys_runner_wrote_in_the_window
+FAILED tests/unit/test_review_overview.py::test_g67r_board_undone_round_trips_and_never_touches_fsrs
+FAILED tests/unit/test_review_overview.py::test_g67r_board_undone_is_idempotent_200_not_404
+FAILED tests/unit/test_review_overview.py::test_g67r_board_undone_reuses_the_same_three_write_gates
+FAILED tests/unit/test_review_overview.py::test_g67r_board_undone_zero_js_form_path
+FAILED tests/unit/test_review_overview.py::test_g67r_undone_fsrs_gate_reddens_under_contaminating_write_point
+FAILED tests/unit/test_review_overview.py::test_g67r_page_offers_undo_only_in_the_done_section
+FAILED tests/unit/test_review_app.py::test_js_g67r_undo_button_lives_only_in_the_done_section
+FAILED tests/unit/test_review_app.py::test_js_g67r_undo_click_posts_once_and_never_from_poll
+FAILED tests/regression/test_daily_review_run.py::test_g67r_runner_save_does_not_clobber_web_written_board_done
+FAILED tests/regression/test_daily_review_run.py::test_g67r_state_lock_blocks_other_process_until_released
+FAILED tests/regression/test_daily_review_run.py::test_g67r_state_lock_survives_inner_save_state_reentry
+FAILED tests/regression/test_daily_review_pick.py::test_g67r_main_reads_both_keys_from_state_in_one_parse
+FAILED tests/regression/test_daily_review_pick.py::test_g67r_main_state_corrupt_degrades_like_no_state
+========== 16 failed, 3 passed, 292 deselected, 10 warnings in 1.62s ===========
+rc=1

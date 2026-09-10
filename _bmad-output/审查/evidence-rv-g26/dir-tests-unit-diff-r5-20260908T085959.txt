@@ -1,0 +1,11 @@
+### tests/unit 目录级 收工(round-5) diff  ts=20260908T085959
+汇总: = 173 failed, 4803 passed, 48 skipped, 121 warnings, 29 errors in 229.78s (0:03:49) =
+开工=     202  收工r5=     202
+65a66
+> FAILED tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422
+119d119
+< FAILED tests/unit/test_mock_degradation_transparency.py::TestMockScoringWarningLogs::test_mock_mode_logs_warning
+diff-rc=1
+  <=1  >=1
+skipped 开工 48 / 收工 48 skipped
+passed 开工 4749 / 收工 4803  (+54 = 本文件 85→139)

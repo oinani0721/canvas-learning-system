@@ -1,0 +1,12 @@
+# §二.7 区段计数开工基线 @ da690bf8 2026-09-07T22:45:34Z
+① probe 区段 verdict 计数 = 0
+② _amain 区段 verdict 计数 = 0
+③ 全文 verdict 计数 = 2
+④ side_effect_probe 行:
+1416:        report["side_effect_probe"] = await probe_schema_drift_side_effect(lancedb_path)
+1428:    if "side_effect_probe" in report:
+1429:        p = report["side_effect_probe"]
+④a report["side_effect_probe"] 下标形态命中数 = 2
+④b report.get("side_effect_probe") 命中数 = 0
+⑤ AST report.get 调用数 = 1
+ast.parse: ast ok

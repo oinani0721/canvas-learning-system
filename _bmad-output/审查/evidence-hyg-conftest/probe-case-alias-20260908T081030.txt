@@ -1,0 +1,20 @@
+=== Codex 报的形态（大小写别名）===
+  alias.samefile(orig)          = True  <- 同一个文件
+  alias.resolve()               = /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/tests/UNIT/conftest.py
+  字面 is_relative_to(scan_root)= False  <- False = round-2 前的假红来源
+  新 _hygiene_within_root()     = True  <- 期望 True（不再假红）
+
+=== 验伪锚一：树外文件必须仍判 False（否则修法把门弄松了）===
+  /etc/hosts -> False  <- 期望 False
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/tests/api -> False  <- 期望 False
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app -> False  <- 期望 False
+
+=== 验伪锚二：正常树内文件仍判 True ===
+  test_vault_init_service.py -> True  <- 期望 True
+  test_startup_health_check.py -> True  <- 期望 True
+
+=== 验伪锚三：不存在的路径 -> 走不到 samefile，应判 False 而不是崩 ===
+  ghost -> None  <- 在根内的字面包含 = True 属预期
+  树外 ghost -> None  <- 期望 False 或 None，不得 True
+
+ALL_CASE_ALIAS_ASSERTIONS_PASSED

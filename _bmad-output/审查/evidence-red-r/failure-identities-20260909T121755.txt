@@ -1,0 +1,305 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u5-lance/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 26 items
+
+tests/unit/test_agent_memory_injection.py F                              [  3%]
+tests/unit/test_agent_service_neo4j_memory.py F                          [  7%]
+tests/unit/test_difficulty_canvas_integration.py FFF                     [ 19%]
+tests/unit/test_epic30_memory_pipeline.py F                              [ 23%]
+tests/unit/test_epic36_gap_coverage.py F                                 [ 26%]
+tests/unit/test_intelligent_parallel_endpoints.py FFF                    [ 38%]
+tests/unit/test_neo4j_fulltext_index.py F                                [ 42%]
+tests/unit/test_qa_38_6_scoring_reliability_extra.py F                   [ 46%]
+tests/unit/test_rag_p0_doc_type_filter.py F                              [ 50%]
+tests/unit/test_story_2_3_error_reminders.py FFFFF                       [ 69%]
+tests/unit/test_story_38_6_scoring_reliability.py F                      [ 73%]
+tests/unit/test_vault_notes_group_filter.py FFFF                         [ 88%]
+tests/unit/test_verification_dedup.py FF                                 [ 96%]
+tests/unit/test_websocket_endpoints.py F                                 [100%]
+
+=================================== FAILURES ===================================
+E   Exception: Mock search failure
+---------------------------- Captured stdout setup -----------------------------
+{"event": "AgentService initialized without configured AI client - API calls will fail", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-09T04:18:02.788144Z"}
+{"event": "AgentService will use LearningMemoryClient for historical context", "logger": "app.services.agent_service", "level": "info", "timestamp": "2026-09-09T04:18:02.788261Z"}
+{"event": "AgentService initialized without CanvasService - nodes will not be written to Canvas", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-09T04:18:02.788357Z"}
+{"event": "AgentService Phase 2: Tool calling disabled (ENABLE_TOOL_CALLING=false)", "logger": "app.services.agent_service", "level": "info", "timestamp": "2026-09-09T04:18:02.788399Z"}
+{"event": "AgentService Phase 4: React Agent ENABLED (ENABLE_REACT_AGENT=true)", "logger": "app.services.agent_service", "level": "info", "timestamp": "2026-09-09T04:18:02.788428Z"}
+------------------------------ Captured log setup ------------------------------
+WARNING  app.services.agent_service:agent_service.py:1401 {'event': 'AgentService initialized without configured AI client - API calls will fail', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-09T04:18:02.788144Z'}
+INFO     app.services.agent_service:agent_service.py:1406 {'event': 'AgentService will use LearningMemoryClient for historical context', 'logger': 'app.services.agent_service', 'level': 'info', 'timestamp': '2026-09-09T04:18:02.788261Z'}
+WARNING  app.services.agent_service:agent_service.py:1428 {'event': 'AgentService initialized without CanvasService - nodes will not be written to Canvas', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-09T04:18:02.788357Z'}
+INFO     app.services.agent_service:agent_service.py:1445 {'event': 'AgentService Phase 2: Tool calling disabled (ENABLE_TOOL_CALLING=false)', 'logger': 'app.services.agent_service', 'level': 'info', 'timestamp': '2026-09-09T04:18:02.788399Z'}
+INFO     app.services.agent_service:agent_service.py:1450 {'event': 'AgentService Phase 4: React Agent ENABLED (ENABLE_REACT_AGENT=true)', 'logger': 'app.services.agent_service', 'level': 'info', 'timestamp': '2026-09-09T04:18:02.788428Z'}
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u5-lance/backend/tests/unit/test_agent_memory_injection.py:63: Exception: Mock search failure
+E   Exception: Neo4j connection failed
+---------------------------- Captured stdout setup -----------------------------
+{"event": "AgentService initialized without configured AI client - API calls will fail", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-09T04:18:03.104945Z"}
+{"event": "AgentService initialized without LearningMemoryClient - historical context fallback unavailable when Neo4j is down", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-09T04:18:03.105060Z"}
+{"event": "AgentService will use Neo4jClient for learning memory queries", "logger": "app.services.agent_service", "level": "info", "timestamp": "2026-09-09T04:18:03.105157Z"}
+{"event": "AgentService initialized without CanvasService - nodes will not be written to Canvas", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-09T04:18:03.105192Z"}
+{"event": "AgentService Phase 2: Tool calling disabled (ENABLE_TOOL_CALLING=false)", "logger": "app.services.agent_service", "level": "info", "timestamp": "2026-09-09T04:18:03.105220Z"}
+{"event": "AgentService Phase 4: React Agent ENABLED (ENABLE_REACT_AGENT=true)", "logger": "app.services.agent_service", "level": "info", "timestamp": "2026-09-09T04:18:03.105244Z"}
+------------------------------ Captured log setup ------------------------------
+WARNING  app.services.agent_service:agent_service.py:1401 {'event': 'AgentService initialized without configured AI client - API calls will fail', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-09T04:18:03.104945Z'}
+WARNING  app.services.agent_service:agent_service.py:1410 {'event': 'AgentService initialized without LearningMemoryClient - historical context fallback unavailable when Neo4j is down', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-09T04:18:03.105060Z'}
+INFO     app.services.agent_service:agent_service.py:1417 {'event': 'AgentService will use Neo4jClient for learning memory queries', 'logger': 'app.services.agent_service', 'level': 'info', 'timestamp': '2026-09-09T04:18:03.105157Z'}
+WARNING  app.services.agent_service:agent_service.py:1428 {'event': 'AgentService initialized without CanvasService - nodes will not be written to Canvas', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-09T04:18:03.105192Z'}
+INFO     app.services.agent_service:agent_service.py:1445 {'event': 'AgentService Phase 2: Tool calling disabled (ENABLE_TOOL_CALLING=false)', 'logger': 'app.services.agent_service', 'level': 'info', 'timestamp': '2026-09-09T04:18:03.105220Z'}
+INFO     app.services.agent_service:agent_service.py:1450 {'event': 'AgentService Phase 4: React Agent ENABLED (ENABLE_REACT_AGENT=true)', 'logger': 'app.services.agent_service', 'level': 'info', 'timestamp': '2026-09-09T04:18:03.105244Z'}
+/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/unittest/mock.py:2333: Exception: Neo4j connection failed
+E   NameError: name 'AgentType' is not defined
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u5-lance/backend/app/api/v1/endpoints/review.py:448: NameError: name 'AgentType' is not defined
+E   NameError: name 'AgentType' is not defined
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u5-lance/backend/app/api/v1/endpoints/review.py:448: NameError: name 'AgentType' is not defined
+E   Exception: MemoryService unavailable
+/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/unittest/mock.py:2333: Exception: MemoryService unavailable
+E   Exception: Connection refused
+----------------------------- Captured stdout call -----------------------------
+{"event": "MemoryService: recovered 0 episodes from Neo4j (0 returned, 0 deduped)", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-09T04:18:03.175839Z"}
+{"event": "MemoryService initialized successfully", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-09T04:18:03.175920Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.memory_service:memory_service.py:428 {'event': 'MemoryService: recovered 0 episodes from Neo4j (0 returned, 0 deduped)', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-09T04:18:03.175839Z'}
+INFO     app.services.memory_service:memory_service.py:284 {'event': 'MemoryService initialized successfully', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-09T04:18:03.175920Z'}
+/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/unittest/mock.py:2333: Exception: Connection refused
+E   Exception: Connection lost
+----------------------------- Captured stdout call -----------------------------
+{"event": "Neo4jEdgeClient initialized: neo4j_mode=BOLT", "logger": "app.clients.neo4j_learning_base", "level": "info", "timestamp": "2026-09-09T04:18:03.178008Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.clients.neo4j_learning_base:neo4j_learning_base.py:189 Neo4jEdgeClient initialized: neo4j_mode=BOLT
+/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/unittest/mock.py:2333: Exception: Connection lost
+E   assert 500 == 404
+     +  where 500 = <Response [500 Internal Server Error]>.status_code
+     +  and   404 = status.HTTP_404_NOT_FOUND
+---------------------------- Captured stdout setup -----------------------------
+{"event": "ConnectionManager initialized", "logger": "app.services.websocket_manager", "level": "info", "timestamp": "2026-09-09T04:18:03.181722Z"}
+{"event": "IntelligentParallelService: batch_orchestrator not injected \u2014 batch execution will fail", "logger": "app.services.intelligent_parallel_service", "level": "warning", "timestamp": "2026-09-09T04:18:03.181817Z"}
+{"event": "IntelligentParallelService initialized with real service dependencies", "logger": "app.services.intelligent_parallel_service", "level": "info", "timestamp": "2026-09-09T04:18:03.181863Z"}
+------------------------------ Captured log setup ------------------------------
+INFO     app.services.websocket_manager:websocket_manager.py:65 {'event': 'ConnectionManager initialized', 'logger': 'app.services.websocket_manager', 'level': 'info', 'timestamp': '2026-09-09T04:18:03.181722Z'}
+WARNING  app.services.intelligent_parallel_service:intelligent_parallel_service.py:107 {'event': 'IntelligentParallelService: batch_orchestrator not injected — batch execution will fail', 'logger': 'app.services.intelligent_parallel_service', 'level': 'warning', 'timestamp': '2026-09-09T04:18:03.181817Z'}
+INFO     app.services.intelligent_parallel_service:intelligent_parallel_service.py:122 {'event': 'IntelligentParallelService initialized with real service dependencies', 'logger': 'app.services.intelligent_parallel_service', 'level': 'info', 'timestamp': '2026-09-09T04:18:03.181863Z'}
+----------------------------- Captured stdout call -----------------------------
+{"event": "cancel_session called: session_id=nonexistent-session", "request_id": "5217236848", "logger": "app.services.intelligent_parallel_service", "level": "info", "timestamp": "2026-09-09T04:18:03.183637Z"}
+{"method": "POST", "path": "/api/v1/canvas/intelligent-parallel/cancel/nonexistent-session", "endpoint": "/api/v1/canvas/intelligent-parallel/cancel/nonexistent-session", "status": 500, "duration_ms": 1.22, "event": "request.completed", "request_id": "5217236848", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T04:18:03.183929Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.intelligent_parallel_service:intelligent_parallel_service.py:479 {'event': 'cancel_session called: session_id=nonexistent-session', 'request_id': '5217236848', 'logger': 'app.services.intelligent_parallel_service', 'level': 'info', 'timestamp': '2026-09-09T04:18:03.183637Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/canvas/intelligent-parallel/cancel/nonexistent-session', 'endpoint': '/api/v1/canvas/intelligent-parallel/cancel/nonexistent-session', 'status': 500, 'duration_ms': 1.22, 'event': 'request.completed', 'request_id': '5217236848', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T04:18:03.183929Z'}
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u5-lance/backend/tests/unit/test_intelligent_parallel_endpoints.py:479: assert 500 == 404
+E   assert 500 == 404
+     +  where 500 = <Response [500 Internal Server Error]>.status_code
+     +  and   404 = status.HTTP_404_NOT_FOUND
+---------------------------- Captured stdout setup -----------------------------
+{"event": "IntelligentParallelService: batch_orchestrator not injected \u2014 batch execution will fail", "logger": "app.services.intelligent_parallel_service", "level": "warning", "timestamp": "2026-09-09T04:18:03.185837Z"}
+{"event": "IntelligentParallelService initialized with real service dependencies", "logger": "app.services.intelligent_parallel_service", "level": "info", "timestamp": "2026-09-09T04:18:03.185911Z"}
+------------------------------ Captured log setup ------------------------------
+WARNING  app.services.intelligent_parallel_service:intelligent_parallel_service.py:107 {'event': 'IntelligentParallelService: batch_orchestrator not injected — batch execution will fail', 'logger': 'app.services.intelligent_parallel_service', 'level': 'warning', 'timestamp': '2026-09-09T04:18:03.185837Z'}
+INFO     app.services.intelligent_parallel_service:intelligent_parallel_service.py:122 {'event': 'IntelligentParallelService initialized with real service dependencies', 'logger': 'app.services.intelligent_parallel_service', 'level': 'info', 'timestamp': '2026-09-09T04:18:03.185911Z'}
+----------------------------- Captured stdout call -----------------------------
+{"event": "get_session_status called: session_id=nonexistent-session", "request_id": "5221858832", "logger": "app.services.intelligent_parallel_service", "level": "info", "timestamp": "2026-09-09T04:18:03.186791Z"}
+{"method": "GET", "path": "/api/v1/canvas/intelligent-parallel/nonexistent-session", "endpoint": "/api/v1/canvas/intelligent-parallel/nonexistent-session", "status": 500, "duration_ms": 0.63, "event": "request.completed", "request_id": "5221858832", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T04:18:03.187032Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.intelligent_parallel_service:intelligent_parallel_service.py:324 {'event': 'get_session_status called: session_id=nonexistent-session', 'request_id': '5221858832', 'logger': 'app.services.intelligent_parallel_service', 'level': 'info', 'timestamp': '2026-09-09T04:18:03.186791Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/canvas/intelligent-parallel/nonexistent-session', 'endpoint': '/api/v1/canvas/intelligent-parallel/nonexistent-session', 'status': 500, 'duration_ms': 0.63, 'event': 'request.completed', 'request_id': '5221858832', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T04:18:03.187032Z'}
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u5-lance/backend/tests/unit/test_intelligent_parallel_endpoints.py:581: assert 500 == 404
+E   assert 500 == 404
+     +  where 500 = <Response [500 Internal Server Error]>.status_code
+     +  and   404 = status.HTTP_404_NOT_FOUND
+---------------------------- Captured stdout setup -----------------------------
+{"event": "IntelligentParallelService: batch_orchestrator not injected \u2014 batch execution will fail", "logger": "app.services.intelligent_parallel_service", "level": "warning", "timestamp": "2026-09-09T04:18:03.188836Z"}
+{"event": "IntelligentParallelService initialized with real service dependencies", "logger": "app.services.intelligent_parallel_service", "level": "info", "timestamp": "2026-09-09T04:18:03.188919Z"}
+------------------------------ Captured log setup ------------------------------
+WARNING  app.services.intelligent_parallel_service:intelligent_parallel_service.py:107 {'event': 'IntelligentParallelService: batch_orchestrator not injected — batch execution will fail', 'logger': 'app.services.intelligent_parallel_service', 'level': 'warning', 'timestamp': '2026-09-09T04:18:03.188836Z'}
+INFO     app.services.intelligent_parallel_service:intelligent_parallel_service.py:122 {'event': 'IntelligentParallelService initialized with real service dependencies', 'logger': 'app.services.intelligent_parallel_service', 'level': 'info', 'timestamp': '2026-09-09T04:18:03.188919Z'}
+----------------------------- Captured stdout call -----------------------------
+{"event": "get_session_status called: session_id=nonexistent-session", "request_id": "5217721328", "logger": "app.services.intelligent_parallel_service", "level": "info", "timestamp": "2026-09-09T04:18:03.189697Z"}
+{"method": "GET", "path": "/api/v1/canvas/intelligent-parallel/nonexistent-session", "endpoint": "/api/v1/canvas/intelligent-parallel/nonexistent-session", "status": 500, "duration_ms": 0.48, "event": "request.completed", "request_id": "5217721328", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T04:18:03.189910Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.intelligent_parallel_service:intelligent_parallel_service.py:324 {'event': 'get_session_status called: session_id=nonexistent-session', 'request_id': '5217721328', 'logger': 'app.services.intelligent_parallel_service', 'level': 'info', 'timestamp': '2026-09-09T04:18:03.189697Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/canvas/intelligent-parallel/nonexistent-session', 'endpoint': '/api/v1/canvas/intelligent-parallel/nonexistent-session', 'status': 500, 'duration_ms': 0.48, 'event': 'request.completed', 'request_id': '5217721328', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T04:18:03.189910Z'}
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u5-lance/backend/tests/unit/test_intelligent_parallel_endpoints.py:437: assert 500 == 404
+E   AssertionError: Should execute CREATE FULLTEXT INDEX each time × 2 indexes (IF NOT EXISTS handles idempotency, Round-23 Patch 3 added node_search_unified)
+    assert 2 == 4
+----------------------------- Captured stdout call -----------------------------
+{"event": "MemoryService: recovered 0 episodes from Neo4j (0 returned, 0 deduped)", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-09T04:18:03.191929Z"}
+{"event": "MemoryService initialized successfully", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-09T04:18:03.191993Z"}
+{"event": "[Epic 4] Fulltext index 'episode_content' ensured on EpisodicNode.content", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-09T04:18:03.192033Z"}
+{"event": "[Epic 4] Fulltext index 'episode_content' ensured on EpisodicNode.content", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-09T04:18:03.192068Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.memory_service:memory_service.py:428 {'event': 'MemoryService: recovered 0 episodes from Neo4j (0 returned, 0 deduped)', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-09T04:18:03.191929Z'}
+INFO     app.services.memory_service:memory_service.py:284 {'event': 'MemoryService initialized successfully', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-09T04:18:03.191993Z'}
+INFO     app.services.memory_service:memory_service.py:313 {'event': "[Epic 4] Fulltext index 'episode_content' ensured on EpisodicNode.content", 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-09T04:18:03.192033Z'}
+INFO     app.services.memory_service:memory_service.py:313 {'event': "[Epic 4] Fulltext index 'episode_content' ensured on EpisodicNode.content", 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-09T04:18:03.192068Z'}
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u5-lance/backend/tests/unit/test_neo4j_fulltext_index.py:129: AssertionError: Should execute CREATE FULLTEXT INDEX each time × 2 indexes (IF NOT EXISTS handles idempotency, Round-23 Patch 3 added node_search_unified)
+E   AssertionError: assert 1 == 3
+     +  where 1 = len([{'concept': 'concept_mid', 'node_id': 'node_mid', 'score': 50.0, 'timestamp': '2026-02-06T10:00:00'}])
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u5-lance/backend/tests/unit/test_qa_38_6_scoring_reliability_extra.py:293: AssertionError: assert 1 == 3
+E   assert '原白板说明' not in '\n> [!info]...= 节点关系**\n\n'
+      
+      '原白板说明' is contained here:
+        
+        > [!info]+ 原白板说明（扁平架构 · round-11）
+      ?            +++++
+        > 这是学习主题"线性代数"的原白板。
+        >...
+      
+      ...Full output truncated (15 lines hidden), use '-vv' to show
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u5-lance/backend/tests/unit/test_rag_p0_doc_type_filter.py:169: assert '原白板说明' not in '\n> [!info]...= 节点关系**\n\n'
+E   AssertionError: assert '2026-04-15T12:34:56' == '2026-04-16T09:00:00'
+      
+      - 2026-04-16T09:00:00
+      + 2026-04-15T12:34:56
+----------------------------- Captured stdout call -----------------------------
+{"event": "Neo4jClient initialized: mode=NEO4J, uri=bolt://localhost:7691, pool_size=50", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-09T04:18:03.196937Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.clients.neo4j_client:neo4j_client.py:317 Neo4jClient initialized: mode=NEO4J, uri=bolt://localhost:7691, pool_size=50
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u5-lance/backend/tests/unit/test_story_2_3_error_reminders.py:403: AssertionError: assert '2026-04-15T12:34:56' == '2026-04-16T09:00:00'
+E   AttributeError: 'list' object has no attribute 'items'
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u5-lance/backend/app/services/memory_service.py:2501: AttributeError: 'list' object has no attribute 'items'
+E   AssertionError: assert ['old', 'newest', 'middle'] == ['newest', 'middle', 'old']
+      
+      At index 0 diff: 'old' != 'newest'
+      Use -v to get more diff
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u5-lance/backend/tests/unit/test_story_2_3_error_reminders.py:345: AssertionError: assert ['old', 'newest', 'middle'] == ['newest', 'middle', 'old']
+E   AssertionError: assert 1 == 2
+     +  where 1 = len([{'content': 'b', 'episode_id': 'ep-9257', 'episode_type': 'error', 'group_id': 'vault:cs_61b', ...}])
+----------------------------- Captured stdout call -----------------------------
+{"event": "[search_memories] Tier 1: 1 results, Tier 2: 1 results, Tier 3: 0 results (deduped 1, floor=0.05, returned 1)", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-09T04:18:03.201250Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.memory_service:memory_service.py:2421 {'event': '[search_memories] Tier 1: 1 results, Tier 2: 1 results, Tier 3: 0 results (deduped 1, floor=0.05, returned 1)', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-09T04:18:03.201250Z'}
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u5-lance/backend/tests/unit/test_story_2_3_error_reminders.py:470: AssertionError: assert 1 == 2
+E   assert 0 == 3
+     +  where 0 = len([])
+----------------------------- Captured stdout call -----------------------------
+{"event": "[search_memories] Tier 1: 3 results, Tier 2: 0 results, Tier 3: 0 results (deduped 3, floor=0.05, returned 0)", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-09T04:18:03.202791Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.memory_service:memory_service.py:2421 {'event': '[search_memories] Tier 1: 3 results, Tier 2: 0 results, Tier 3: 0 results (deduped 3, floor=0.05, returned 0)', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-09T04:18:03.202791Z'}
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u5-lance/backend/tests/unit/test_story_2_3_error_reminders.py:498: assert 0 == 3
+E   assert 1 == 2
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u5-lance/backend/tests/unit/test_story_38_6_scoring_reliability.py:344: assert 1 == 2
+E   AssertionError: assert 2 == 1
+     +  where 2 = len([{'id': 'r_nested', 'metadata': {'file_path': 'r_nested.md', 'heading': None, 'line_end': None, 'line_start': None, .....etadata': {'file_path': 'r_math_nested.md', 'heading': None, 'line_end': None, 'line_start': None, ...}, 'score': 0.8}])
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u5-lance/backend/tests/unit/test_vault_notes_group_filter.py:185: AssertionError: assert 2 == 1
+E   AssertionError: assert 2 == 1
+     +  where 2 = len([{'id': 'r_phys', 'metadata': {'source': 'vault_note', 'subject_id': 'physics'}, 'score': 0.8}, {'id': 'r_math', 'metadata': {'source': 'vault_note', 'subject_id': 'math'}, 'score': 0.8}])
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u5-lance/backend/tests/unit/test_vault_notes_group_filter.py:97: AssertionError: assert 2 == 1
+E   AssertionError: assert [{'id': 'r1',...'score': 0.8}] == []
+      
+      Left contains 2 more items, first extra item: {'id': 'r1', 'metadata': {'source': 'vault_note', 'subject_id': 'physics'}, 'score': 0.8}
+      Use -v to get more diff
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u5-lance/backend/tests/unit/test_vault_notes_group_filter.py:139: AssertionError: assert [{'id': 'r1',...'score': 0.8}] == []
+E   AssertionError: assert {'r1', 'r2', 'r_common'} == {'r_common'}
+      
+      Extra items in the left set:
+      'r2'
+      'r1'
+      Use -v to get more diff
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u5-lance/backend/tests/unit/test_vault_notes_group_filter.py:124: AssertionError: assert {'r1', 'r2', 'r_common'} == {'r_common'}
+E   AssertionError: Expected 'search_verification_questions' to have been called once. Called 0 times.
+---------------------------- Captured stdout setup -----------------------------
+{"event": "VerificationService initialized (RAG: False, Canvas: False, Agent: True, Graphiti: True, Memory: False, MockMode: False)", "logger": "app.services.verification_service", "level": "info", "timestamp": "2026-09-09T04:18:03.210390Z"}
+{"event": "VerificationService using IN-MEMORY TTLCache for session storage (maxsize=500, ttl=3600s). Sessions will be LOST on service restart. This is a known limitation \u2014 see Story 31.A.7.", "logger": "app.services.verification_service", "level": "warning", "timestamp": "2026-09-09T04:18:03.210467Z"}
+------------------------------ Captured log setup ------------------------------
+INFO     app.services.verification_service:verification_service.py:614 {'event': 'VerificationService initialized (RAG: False, Canvas: False, Agent: True, Graphiti: True, Memory: False, MockMode: False)', 'logger': 'app.services.verification_service', 'level': 'info', 'timestamp': '2026-09-09T04:18:03.210390Z'}
+WARNING  app.services.verification_service:verification_service.py:625 {'event': 'VerificationService using IN-MEMORY TTLCache for session storage (maxsize=500, ttl=3600s). Sessions will be LOST on service restart. This is a known limitation — see Story 31.A.7.', 'logger': 'app.services.verification_service', 'level': 'warning', 'timestamp': '2026-09-09T04:18:03.210467Z'}
+----------------------------- Captured stdout call -----------------------------
+{"event": "Deprecated group_id 'general' detected \u2014 auto-canonicalized to 'vault:default'. Update callers to use vault: prefix directly.", "logger": "app.core.subject_config", "level": "warning", "timestamp": "2026-09-09T04:18:03.210890Z"}
+{"event": "No agent service available, using fallback question for \u9006\u5426\u547d\u9898", "logger": "app.services.verification_service", "level": "warning", "timestamp": "2026-09-09T04:18:03.211295Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.core.subject_config:subject_config.py:341 Deprecated group_id 'general' detected — auto-canonicalized to 'vault:default'. Update callers to use vault: prefix directly.
+WARNING  app.services.verification_service:verification_service.py:2962 {'event': 'No agent service available, using fallback question for 逆否命题', 'logger': 'app.services.verification_service', 'level': 'warning', 'timestamp': '2026-09-09T04:18:03.211295Z'}
+/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/unittest/mock.py:965: AssertionError: Expected 'search_verification_questions' to have been called once. Called 0 times.
+E   AssertionError: assert False
+     +  where False = <AsyncMock name='mock.search_verification_questions' id='5218251648'>.called
+     +    where <AsyncMock name='mock.search_verification_questions' id='5218251648'> = <MagicMock id='5218249296'>.search_verification_questions
+---------------------------- Captured stdout setup -----------------------------
+{"event": "VerificationService initialized (RAG: False, Canvas: False, Agent: True, Graphiti: True, Memory: False, MockMode: False)", "logger": "app.services.verification_service", "level": "info", "timestamp": "2026-09-09T04:18:03.212530Z"}
+{"event": "VerificationService using IN-MEMORY TTLCache for session storage (maxsize=500, ttl=3600s). Sessions will be LOST on service restart. This is a known limitation \u2014 see Story 31.A.7.", "logger": "app.services.verification_service", "level": "warning", "timestamp": "2026-09-09T04:18:03.212581Z"}
+------------------------------ Captured log setup ------------------------------
+INFO     app.services.verification_service:verification_service.py:614 {'event': 'VerificationService initialized (RAG: False, Canvas: False, Agent: True, Graphiti: True, Memory: False, MockMode: False)', 'logger': 'app.services.verification_service', 'level': 'info', 'timestamp': '2026-09-09T04:18:03.212530Z'}
+WARNING  app.services.verification_service:verification_service.py:625 {'event': 'VerificationService using IN-MEMORY TTLCache for session storage (maxsize=500, ttl=3600s). Sessions will be LOST on service restart. This is a known limitation — see Story 31.A.7.', 'logger': 'app.services.verification_service', 'level': 'warning', 'timestamp': '2026-09-09T04:18:03.212581Z'}
+----------------------------- Captured stdout call -----------------------------
+{"event": "No agent service available, using fallback question for \u9006\u5426\u547d\u9898", "logger": "app.services.verification_service", "level": "warning", "timestamp": "2026-09-09T04:18:03.213291Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.verification_service:verification_service.py:2962 {'event': 'No agent service available, using fallback question for 逆否命题', 'logger': 'app.services.verification_service', 'level': 'warning', 'timestamp': '2026-09-09T04:18:03.213291Z'}
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u5-lance/backend/tests/unit/test_verification_dedup.py:82: AssertionError: assert False
+E   Exception: Validator error
+----------------------------- Captured stdout call -----------------------------
+{"event": "Session validator set for WebSocket endpoint", "logger": "app.api.v1.endpoints.websocket", "level": "info", "timestamp": "2026-09-09T04:18:03.214257Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.api.v1.endpoints.websocket:websocket.py:58 Session validator set for WebSocket endpoint
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u5-lance/backend/tests/unit/test_websocket_endpoints.py:533: Exception: Validator error
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:805
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u5-lance/backend/app/api/v1/endpoints/chat.py:805: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:105
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u5-lance/backend/app/api/v1/endpoints/metadata.py:105: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:179
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u5-lance/backend/app/api/v1/endpoints/metadata.py:179: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_agent_memory_injection.py::TestMemoryInjection::test_graceful_degradation_on_exception
+FAILED tests/unit/test_agent_service_neo4j_memory.py::TestEdgeCases::test_neo4j_query_error_returns_empty
+FAILED tests/unit/test_difficulty_canvas_integration.py::TestAIQuestionDifficultyInjection::test_difficulty_context_in_prompt
+FAILED tests/unit/test_difficulty_canvas_integration.py::TestAIQuestionDifficultyInjection::test_no_difficulty_map_no_extra_fields
+FAILED tests/unit/test_difficulty_canvas_integration.py::TestGetDifficultyData::test_memory_service_unavailable_returns_none
+FAILED tests/unit/test_epic30_memory_pipeline.py::TestRecordTemporalEventLifecycle::test_p0_neo4j_write_failure_degrades_silently
+FAILED tests/unit/test_epic36_gap_coverage.py::TestGetRelatedMemoriesReturnStructure::test_query_exception_returns_empty
+FAILED tests/unit/test_intelligent_parallel_endpoints.py::TestCancelEndpoint::test_cancel_nonexistent_session_404
+FAILED tests/unit/test_intelligent_parallel_endpoints.py::TestErrorResponses::test_404_error_format
+FAILED tests/unit/test_intelligent_parallel_endpoints.py::TestProgressEndpoint::test_progress_invalid_session_404
+FAILED tests/unit/test_neo4j_fulltext_index.py::TestEnsureFulltextIndex::test_ensure_fulltext_index_idempotent
+FAILED tests/unit/test_qa_38_6_scoring_reliability_extra.py::TestMergedViewEdgeCases::test_merged_view_sort_newest_first
+FAILED tests/unit/test_rag_p0_doc_type_filter.py::test_strip_whiteboard_removes_admonition_callouts
+FAILED tests/unit/test_story_2_3_error_reminders.py::test_search_error_memories_normalizes_schema
+FAILED tests/unit/test_story_2_3_error_reminders.py::test_search_error_memories_passes_node_id_filter_to_search_memories
+FAILED tests/unit/test_story_2_3_error_reminders.py::test_search_error_memories_sorts_by_timestamp_desc
+FAILED tests/unit/test_story_2_3_error_reminders.py::test_search_memories_node_id_filter_post_merge
+FAILED tests/unit/test_story_2_3_error_reminders.py::test_search_memories_node_id_none_is_no_filter
+FAILED tests/unit/test_story_38_6_scoring_reliability.py::TestAC4MergedView::test_get_learning_history_merges_failed_scores
+FAILED tests/unit/test_vault_notes_group_filter.py::test_group_id_honors_nested_metadata_json_subject
+FAILED tests/unit/test_vault_notes_group_filter.py::test_group_id_physics_filters_to_physics_only
+FAILED tests/unit/test_vault_notes_group_filter.py::test_group_id_with_no_common_and_no_match_returns_empty
+FAILED tests/unit/test_vault_notes_group_filter.py::test_group_id_with_no_explicit_match_returns_only_common_notes
+FAILED tests/unit/test_verification_dedup.py::TestVerificationDedup::test_no_history_generates_standard_question
+FAILED tests/unit/test_verification_dedup.py::TestVerificationDedup::test_with_history_generates_alternative_question
+FAILED tests/unit/test_websocket_endpoints.py::TestWebSocketEndpoint::test_validate_session_handles_validator_error
+======================= 26 failed, 10 warnings in 0.66s ========================
+rc=1

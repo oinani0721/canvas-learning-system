@@ -1,0 +1,13 @@
+== negctl-5-existence-check-back-to-paged ==
+变异: 把 _check_and_fix_dimension_mismatch 的存在性判断改回默认分页（拆 (d) 的内层 = A1）
+跑前 sha: 5235c00d99f343a57924855193cfc5d4f8ffb5d72e4687438aac707287d312ff
+变异体 sha: de858ec7e526c68759a8b4601af482b6d8148101cc2cd7882db730c24eca67a4  (ast.parse OK)
+
+-- tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_cache_tables_scans_beyond_default_page
+   rc=1  ======================== 1 failed, 40 warnings in 0.47s ========================
+   E   AssertionError: 分页盲区未收口: 本 vault 的 drift 表 a_t11 排在 table_names() 默认 limit=10 之外, 启动自愈没扫到它 (应改用 _all_table_names())
+   E   assert 'a_t11' not in {'a_t01', 'a_t02', 'a_t03', 'a_t04', 'a_t05', 'a_t06', ...}
+   判定: KILLED（红在声称的那条断言）
+
+跑后 sha: 5235c00d99f343a57924855193cfc5d4f8ffb5d72e4687438aac707287d312ff
+还原逐字节相同: YES ✓

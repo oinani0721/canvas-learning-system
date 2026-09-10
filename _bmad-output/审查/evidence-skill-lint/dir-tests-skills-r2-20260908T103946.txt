@@ -1,0 +1,3 @@
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+====================== 394 passed, 22 warnings in 39.96s =======================
+rc=0

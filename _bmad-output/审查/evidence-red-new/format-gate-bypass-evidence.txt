@@ -1,0 +1,31 @@
+=== 被跳过 hook 的原始输出（lefthook python-lint 的 format 分支）===
+--- ruff check（通过，非绕过原因）---
+All checks passed!
+
+--- ruff format --check（失败 = 绕过原因）---
+Would reformat: backend/app/services/multimodal_service.py
+Would reformat: backend/tests/unit/test_calibration_tracker.py
+Would reformat: backend/tests/unit/test_canvas_memory_trigger.py
+Would reformat: backend/tests/unit/test_event_bus.py
+Would reformat: backend/tests/unit/test_mastery_fusion.py
+5 files would be reformatted, 1 file already formatted
+
+=== 报错不在本卡改动行的证明：format 债多重集对照（协议 §2.3；⛔ 非行号交集）===
+口径：ruff format --diff 的变更行内容（剥 ± 前缀、trim 行尾），排序做多重集
+  base = git show HEAD:<file>（不含本卡改动）
+  mine = 本卡工作树版本
+
+--- 仅在 mine 的条目（= 本卡新增 format 债，判据要求为空）---
+[END-NEW: 空 = 0 新增]
+
+--- 仅在 base 的条目（= 本卡改写掉的那几行，允许非空）---
+            compute_calibration_rating(-0.15, 20) == CalibrationRating.WELL_CALIBRATED
+        )
+        assert (
+        assert compute_calibration_rating(-0.15, 20) == CalibrationRating.WELL_CALIBRATED
+[END-GONE]
+
+=== 存量性质说明 ===
+ruff.toml line-length = 120；这 5 个文件的存量按 black-88 排版，ruff 要求折回长行。
+跑 ruff format 会重排整个文件（数十处与本卡无关的改动）= D-16 禁止的「顺手修存量」。
+本卡自己写的行已全部按 ruff 期望改为单行，新增债 = 0（见上）。

@@ -50,8 +50,111 @@ class TestDockerComposeVariableization:
     def test_no_hardcoded_user_paths(self):
         dc = PROJECT_ROOT / "docker-compose.yml"
         content = dc.read_text()
-        matches = re.findall(r"/Users/\w+/", content)
-        assert not matches, f"Hardcoded user paths found: {matches}"
+        # 契约演进 8a80595f (2026-07-12 "neo4j 挂载迁主仓")：Story 1.7 的「compose 里
+        # 不得有硬编码用户路径」被该 commit 就 neo4j 三条 bind-mount **有意推翻**——
+        # 相对路径 ./docker/neo4j/* 随启动目录漂移，519MB 学习记忆图谱（唯一不可再生
+        # 数据）因此寄居在一个随时会被清理的 worktree 里；commit body 原文「worktree
+        # 清理 = 记忆蒸发」，并留了 backend/data/backups/ 的全量导出。⇒ 有据演进。
+        #
+        # 豁免面 = 「**恰好 services.neo4j.volumes 里的这三条，各至多一次**」。
+        # 判据分两轴，缺一不可：
+        #   轴一（内容，逐行文本）：任何含硬编码用户路径的**行**，其内容必须在豁免名单里。
+        #       用原始文本扫描而非 YAML 值，是为了不放过写在**注释**里的路径——
+        #       原断言的正则是对全文跑的，换成只看 YAML 值会在这一面变弱。
+        #   轴二（位置，YAML 结构）：任何含硬编码用户路径的**值**，其结构路径必须恰为
+        #       services → neo4j → volumes → <序号>，且每条至多出现一次。
+        #
+        # ⚠️ 轴二为什么不能用「按缩进认 service」的行扫描（Codex round-1 HIGH + round-2
+        #    HIGH 连续两轮打回本条）：`other: # comment` / `"other":` 都是合法 YAML 但
+        #    不匹配 `^  name:$`，于是那一行会**沿用上一个**被认出的名字；实测把一条挪到
+        #    `other: # comment` 的 volumes 下，行扫描把它算成了 `neo4j-test-data`
+        #    （顶层 volumes 段的一个卷名，根本不是 service）而三段判据全过。
+        #    结构问题要用结构化解析回答，不能用缩进启发式。
+        # ⛔ 三条判据都用「子集/上界」而不是「相等」：日后真把这三条改回变量化时，
+        #    本用例应当继续绿，而不是被这份名单钉死在今天这个中间状态。
+        # ⛔ 不改 docker-compose.yml（本卡零生产改动）、不放宽正则。[CARD-RED-C2]
+        GRANDFATHERED_MOUNT_VALUES = {
+            "/Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/data:/data",
+            "/Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/logs:/logs",
+            "/Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/plugins:/plugins",
+        }
+        EXEMPT_VOLUMES_PATH = ("services", "neo4j", "volumes")
+        HARDCODED = re.compile(r"/Users/\w+/")
+
+        # ── 轴一：内容（含注释行）────────────────────────────────────────────
+        offending_lines = [
+            line.strip() for line in content.splitlines() if HARDCODED.search(line)
+        ]
+        wrong_content = [
+            line
+            for line in offending_lines
+            if line.lstrip("- ").strip() not in GRANDFATHERED_MOUNT_VALUES
+        ]
+        assert not wrong_content, (
+            f"Hardcoded user paths outside the 8a80595f neo4j exemption: {wrong_content}"
+        )
+
+        # 轴一.b（数量，也走原始文本）：每条豁免值在**全文**至多出现一次。
+        # ⚠️ 数量判据必须在文本层做，不能只数 YAML 解析后的值（Codex round-3 MEDIUM）：
+        # `<<:` 合并键 + 显式覆盖会让原文里出现两次的路径在解析结果里只剩一次甚至归零，
+        # 只数解析值时重复就被 safe_load 悄悄吃掉了。
+
+        # ── 轴二：位置（YAML 结构）──────────────────────────────────────────
+        import yaml
+
+        compose = yaml.safe_load(content)
+        located: list[tuple[tuple, str]] = []
+
+        def _walk(node, path: tuple):
+            if isinstance(node, dict):
+                for k, v in node.items():
+                    if isinstance(k, str) and HARDCODED.search(k):
+                        located.append((path + (k,), k))
+                    _walk(v, path + (str(k),))
+            elif isinstance(node, list):
+                for idx, v in enumerate(node):
+                    _walk(v, path + (str(idx),))
+            elif isinstance(node, (str, bytes)):
+                # ⚠️ bytes 分支是 Codex round-4 HIGH：`- !!binary L1VzZXJz...` 被 PyYAML
+                # 解码成 bytes，只判 `isinstance(node, str)` 会整个跳过结构扫描，
+                # 而 Compose 照样把它当成一条新的主机路径挂载。
+                text = node.decode("utf-8", "replace") if isinstance(node, bytes) else node
+                if HARDCODED.search(text):
+                    located.append((path, text))
+
+        _walk(compose, ())
+
+        # ⚠️ 深度必须**精确**是 4（services / neo4j / volumes / <序号>），不能只比前三段
+        # （Codex round-3 HIGH）：`path[:3]` 会把 volumes 元素的**后代字段**一并豁免，
+        # 于是长格式挂载 `- {type: bind, source: <获准串>, target: /other}` 的 source
+        # 落在 (services, neo4j, volumes, 0, "source")，前三段相同就放行了——
+        # 而它实际挂到了另一个 target，是一条**新的**主机路径挂载。
+        misplaced = [
+            (path, value)
+            for path, value in located
+            if len(path) != 4
+            or path[:3] != EXEMPT_VOLUMES_PATH
+            or value not in GRANDFATHERED_MOUNT_VALUES
+        ]
+        assert not misplaced, (
+            f"Hardcoded user paths outside services.neo4j.volumes[<i>]: {misplaced}"
+        )
+
+        # ── 轴三：数量（文本轴与解析轴取**较大值**）────────────────────────
+        # 两个方向各有盲区，必须都数（前者是 Codex round-3 MEDIUM，后者是 round-4 LOW）：
+        #   · 只数解析值：`<<:` 合并键 + 显式覆盖能让原文两次的路径在解析结果里只剩一次；
+        #   · 只数文本行：YAML alias（`- &mount <值>` 再 `- *mount`）文本只出现一次、
+        #     解析后是两条。
+        # 取 max 即「任一轴看到重复就红」。
+        duplicated = []
+        for value in GRANDFATHERED_MOUNT_VALUES:
+            n_text = sum(1 for line in offending_lines if line.lstrip("- ").strip() == value)
+            n_parsed = sum(1 for _p, v in located if v == value)
+            if max(n_text, n_parsed) > 1:
+                duplicated.append((value, {"text": n_text, "parsed": n_parsed}))
+        assert not duplicated, (
+            f"Exempted mount values used more than once (text/parsed counts): {duplicated}"
+        )
 
     def test_neo4j_ports_use_variables(self):
         dc = PROJECT_ROOT / "docker-compose.yml"

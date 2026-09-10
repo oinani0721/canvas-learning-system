@@ -1,0 +1,59 @@
+# CARD-RED-A1-sentinel — 12 条逐条处置表（(e) / §二.5）
+# 格式: nodeid | 真连点(file:line) | 处置 | 依据(存档 file:锚)
+# 阶段: 阶段一（未收到 W4-7 通告，未 merge 候选树）。判据存档见同目录。
+#
+# ⛔ 处置一律在**测试侧**：未放宽 W4 哨兵、未把 7691 加进 ALLOWED_TEST_PORTS、
+#    未改 tests/conftest.py / live_port_guard.py / guard_plugin.py（U7 地盘），
+#    未改任何生产降级逻辑（system.py 只动 :28 router 构造，端点函数体零改动；
+#    kg_health.py / neo4j_client.py / mastery_store.py / review_service.py /
+#    verification_service.py 一字未改）。
+#
+# 三族真连点（开工实测，按 longrepr 里的 logger + 行号分族）：
+#   族 A 端点族·system  → app/api/v1/system.py:53-59 `_check_neo4j` 内
+#                          AsyncGraphDatabase.driver(...) + session.run("RETURN 1")
+#                          吞点 :72-74 except → logger `app.api.v1.system` @ system.py:73
+#                          特征：**每请求新建 driver**，不经单例 ⇒ 不漂移
+#   族 B 端点族·kg      → app/api/v1/endpoints/kg_health.py:39-44 端点函数体内
+#                          `from neo4j import AsyncGraphDatabase` + .driver(...)
+#                          吞点 :72-77 except → logger `app.api.v1.endpoints.kg_health` @ kg_health.py:73
+#                          特征：同上，每请求新建
+#   族 C 服务级·单例    → app/clients/neo4j_client.py:523 `health_check()` 的
+#                          `await self._driver.verify_connectivity()`
+#                          吞点 :529-535 except → logger `app.clients.neo4j_client` @ neo4j_client.py:532
+#                          特征：**进程级单例** _client_instance ⇒ 谁先跑谁付账 ⇒ 归属漂移
+#
+# 打桩层的选择依据（(e)「打桩必须打在会真连的那一层」）：
+#   族 A/B 每请求新建 ⇒ 在探针层打桩不转移债务。
+#   族 C 若 patch 单例 accessor（get_neo4j_client / get_mastery_store），本用例期间
+#   单例根本不被建出 ⇒ 那唯一一次真连被推给进程里下一个调用方，哨兵换个 nodeid 照报。
+#   改 patch `Neo4jClient.health_check` → 返 False：单例照建、`_initialize_neo4j_driver`
+#   照走 `_fallback_to_json()` ⇒ `_use_json_fallback=True` + `_initialized=True`
+#   （neo4j_client.py:467），进程终态与今天逐项相同，只少那一次 socket ⇒ 债**付清**不转移。
+#
+# ── 逐条 ──────────────────────────────────────────────────────────────────────
+
+tests/unit/test_startup_health_check.py::TestStartupCheck::test_endpoint_exists | 族A system.py:53-59（经 startup_health_check :258-260 `_timed_check("neo4j", _check_neo4j(settings), …)`） | 测试侧打桩：test_startup_health_check.py 模块级 autouse `stub_neo4j_probe` patch `app.api.v1.system._check_neo4j` → 返 ComponentStatus(name="neo4j", status="unhealthy") | five-open-order-a-20260909T160624.txt（哨兵 owner 行 + `WARNING app.api.v1.system:system.py:73`）→ five-after-order-a-*.txt 哨兵计数 0
+tests/unit/test_startup_health_check.py::TestStartupCheck::test_returns_structured_response | 同上 | 同上 | 同上
+tests/unit/test_startup_health_check.py::TestStartupCheck::test_each_check_has_required_fields | 同上 | 同上 | 同上
+tests/unit/test_startup_health_check.py::TestStartupCheck::test_checks_neo4j_ollama_fastapi_mcp | 同上 | 同上 | 同上
+tests/unit/test_startup_health_check.py::TestSetupWizard::test_endpoint_exists | 族A system.py:53-59（经 setup_wizard :478 `await startup_health_check(settings)` → :258-260） | 同上（同一个模块级 autouse fixture 覆盖） | 同上
+tests/unit/test_startup_health_check.py::TestSetupWizard::test_returns_structured_report | 同上 | 同上 | 同上
+tests/unit/test_health_detailed.py::TestDetailedHealthEndpoint::test_returns_components | 族A system.py:53-59（经 detailed_health_check :381 `_probe_with_timeout("neo4j", _check_neo4j(settings), …)`） | 测试侧打桩：test_health_detailed.py 模块级 autouse `stub_neo4j_probe`，同形；返 "unhealthy" 以复刻今天的产物（`_probe_with_timeout` :328-333 映射 unhealthy→unavailable，保住 test_unavailable_core_returns_503 的 503 分支不变成死分支） | 同上
+tests/unit/test_health_detailed.py::TestDetailedHealthEndpoint::test_component_has_required_fields | 同上 | 同上 | 同上
+tests/unit/test_health_detailed.py::TestDetailedHealthEndpoint::test_unavailable_core_returns_503 | 同上 | 同上 | 同上
+tests/unit/test_kg_health.py::TestKGHealthEndpoint::test_endpoint_returns_200 | 族B kg_health.py:39-44 + session.run（端点函数体内 local import，模块全局无此名） | 测试侧打桩：TestKGHealthEndpoint 类级 autouse `stub_neo4j_driver` patch `neo4j.AsyncGraphDatabase.driver` → side_effect=RuntimeError；落端点 :72-77 except，产物与今天逐字同形（neo4j_available=False + "Neo4j 未连接: …"）。⛔ 生产 kg_health.py 一字未改（裁决(甲)），端点仍无鉴权、真连点仍在 | five-open-order-a-*.txt（`WARNING app.api.v1.endpoints.kg_health:kg_health.py:73`）→ five-after-* 计数 0
+tests/unit/test_mock_degradation_transparency.py::TestMockScoringWarningLogs::test_mock_mode_logs_warning | 族C neo4j_client.py:523（经 verification_service.py:1927-1931 `get_mastery_store()` → mastery_store.py:548 `get_neo4j_client()` → 首个 run_query → :554 initialize()） | 测试侧打桩：模块级 autouse `stub_neo4j_singleton_health_check` patch `Neo4jClient.health_check` → AsyncMock(return_value=False)。⛔ 不 patch 单例 accessor（会移债，见抬头） | five-open-order-a-*.txt（`WARNING app.clients.neo4j_client:neo4j_client.py:532`，thread=MainThread）→ five-after-* 计数 0
+tests/unit/test_review_mode_support.py::TestReviewModeSupport::test_fresh_mode_parameter_accepted | 族C neo4j_client.py:523（经 review_service.py:887-892 `MasteryStore(get_neo4j_client())` → 首个 run_query） | 同上（本文件同名 autouse fixture）。两文件共用同一进程级单例，谁先跑谁付账 ⇒ **必须两边都打，只打一边等于没打** | five-open-order-b-*.txt（order-b 把本文件放最前，红的就换成它；order-a 时本文件全绿）→ five-after-* 两序计数均 0
+
+# ── 归属漂移的直接证据（(e) 抬头「不按 nodeid 逐条修」的实证）─────────────────
+# 同一份代码、同一台机器，仅换五文件的收集顺序：
+#   order-a（mock_degradation 在 review_mode 之前）→ 红 test_mock_degradation_transparency::test_mock_mode_logs_warning，
+#                                                     test_review_mode_support.py 全绿
+#   order-b（review_mode 放最前）                  → 红 test_review_mode_support::test_fresh_mode_parameter_accepted，
+#                                                     test_mock_degradation_transparency.py 全绿
+#   两序的族 A/B 十条**都红且相同**（每请求新建 driver，不受顺序影响）。
+# 存档: five-open-order-a-20260909T160624.txt / five-open-order-b-*.txt（各自 FAILED 集合）
+#
+# ⚠️ 与全量跑的差异（如实登记，本卡未解释）：全量 `pytest tests/unit` 里族 C **两条都红**，
+#    而五文件单跑只红一条 ⇒ 全量跑中该单例在两者之间被重置过至少一次，重置者本卡未定位。
+#    本卡对两个文件都打了桩，与重置次数无关；但「重置者是谁」未证明，见验收单 (l)。

@@ -1,0 +1,20 @@
+# 指纹表在两条路径上的豁免差别（自查，Codex r4 疑似同题）
+# 2026-09-08T00:27:35Z
+
+page-inner  / cache → vault a_b 的指纹表仍在? True
+page-inner  / drop  → vault a_b 的指纹表仍在? False
+page-outer  / cache → vault a_b 的指纹表仍在? True
+page-outer  / drop  → vault a_b 的指纹表仍在? False
+
+结论:
+  _cache_tables 有 :966 的 endswith(FINGERPRINT_TABLE) 豁免 ⇒ 指纹表不被它碰（两形态皆然）。
+  drop_vault_tables **没有**该豁免 —— 它直接删 list_vault_tables 的全部结果。
+  ⇒ 重叠 vault 的指纹表 a_b_file_fingerprints 在 drop 路径上会被删掉。
+
+  归属:
+    page-inner/drop  改前也删（在默认分页内）→ **既有**缺陷，本卡未改变
+    page-outer/drop  改前碰不到（页外）→ **本卡分页收口新打开**
+
+  严重度: RAG-S1 Code-Review H3 的原话是「一次抹掉所有 vault 的变更检测」——
+  指纹表没了，那个 vault 的增量索引基线就没了，比丢一张数据表更重。
+  ⇒ 建议 r5 在 drop 路径的缺陷锁上参数化表名（canvas_nodes / file_fingerprints）。

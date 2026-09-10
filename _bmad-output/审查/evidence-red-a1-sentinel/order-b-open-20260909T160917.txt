@@ -1,0 +1,11 @@
+FAILED tests/unit/test_health_detailed.py::TestDetailedHealthEndpoint::test_component_has_required_fields
+FAILED tests/unit/test_health_detailed.py::TestDetailedHealthEndpoint::test_returns_components
+FAILED tests/unit/test_health_detailed.py::TestDetailedHealthEndpoint::test_unavailable_core_returns_503
+FAILED tests/unit/test_kg_health.py::TestKGHealthEndpoint::test_endpoint_returns_200
+FAILED tests/unit/test_review_mode_support.py::TestReviewModeSupport::test_fresh_mode_parameter_accepted
+FAILED tests/unit/test_startup_health_check.py::TestSetupWizard::test_endpoint_exists
+FAILED tests/unit/test_startup_health_check.py::TestSetupWizard::test_returns_structured_report
+FAILED tests/unit/test_startup_health_check.py::TestStartupCheck::test_checks_neo4j_ollama_fastapi_mcp
+FAILED tests/unit/test_startup_health_check.py::TestStartupCheck::test_each_check_has_required_fields
+FAILED tests/unit/test_startup_health_check.py::TestStartupCheck::test_endpoint_exists
+FAILED tests/unit/test_startup_health_check.py::TestStartupCheck::test_returns_structured_response

@@ -1,0 +1,9 @@
+扫描文件数 = 263
+`<任意名>.get(...)` 装饰的 handler 总数 = 93
+装饰器基名分布 = {'router': 28, 'exam_router': 6, 'multimodal_router': 5, 'review_router': 5, 'rollback_router': 5, 'mastery_router': 4, 'memory_router': 4, 'metadata_router': 4, 'profile_router': 4, 'errors_router': 3, 'rag_router': 3, 'archive_router': 2, 'review_overview_router': 2, 'skills_router': 2, 'vault_router': 2, 'wikilink_router': 2, 'agents_router': 1, 'canvas_router': 1, 'config_router': 1, 'context_router': 1, 'exam_sessions_router': 1, 'index_router': 1, 'intelligent_parallel_router': 1, 'kg_health_router': 1, 'review_app_router': 1, 'subjects_router': 1, 'tips_router': 1, 'app': 1}
+写原语命中数 = 1
+正则 = mkdir|write_text|write_bytes|os.replace|save_state|add_documents|drop_table|append_event|subprocess
+--- 命中明细 ---
+app/api/v1/endpoints/health.py:1139 handler=check_lancedb_health 原语=mkdir
+    db_path.mkdir(parents=True, exist_ok=True)
+rc=0

@@ -1,0 +1,8 @@
+扫描文件数 = 48
+@router.get / @app.get handler 总数 = 28
+写原语命中数 = 1
+正则 = mkdir|write_text|write_bytes|os.replace|save_state|add_documents|drop_table|append_event|subprocess
+--- 命中明细 ---
+app/api/v1/endpoints/health.py:1139 handler=check_lancedb_health 原语=mkdir
+    db_path.mkdir(parents=True, exist_ok=True)
+rc=0

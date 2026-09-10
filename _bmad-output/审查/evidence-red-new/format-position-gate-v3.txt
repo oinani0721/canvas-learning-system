@@ -1,0 +1,16 @@
+=== format 位置判据 v3（绑 r4 整改后代码，本次务必落盘）===
+口径：A = 本卡改动行（git diff -U0 的 +hunk）；B = ruff 真正要替换的行（--diff 里带 '-' 前缀的行）
+⚠️ 前一版存档记录的 A∩B=3 是**修 format 债之前**的快照，重跑后未落盘 —— Codex r4 LOW 指出，本次修正
+
+  multimodal_service.py              A=  22 B=  79 A∩B=0 ✅
+  test_calibration_tracker.py        A=  28 B=  13 A∩B=0 ✅
+  test_canvas_memory_trigger.py      A=  17 B=  27 A∩B=0 ✅
+  test_difficulty_matcher.py         A=  12 B=   0 A∩B=0 ✅
+  test_event_bus.py                  A=  21 B=   9 A∩B=0 ✅
+  test_mastery_fusion.py             A=  11 B=   3 A∩B=0 ✅
+
+  合计 A∩B = 0   ← 判据要求 0
+
+=== 判据局限（如实，Codex r2/r3 指出）===
+  v3 漏掉「本卡的纯删除」与「formatter 的纯插入」；v2（内容+文件+方向多重集）漏掉同文件跨位置迁移。
+  ⇒ 结论表述为「两个独立判据均未发现新增」，不是「证明新增为零」。

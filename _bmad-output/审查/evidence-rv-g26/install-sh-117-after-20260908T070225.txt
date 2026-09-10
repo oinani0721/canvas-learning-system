@@ -1,0 +1,15 @@
+### (f) :117 翻转 — 改后 (ts=20260908T070225)
+--- 抽出的两行 ---
+check() { if eval "$2"; then echo "   ✅ $1"; PASS=$((PASS+1)); else echo "   ❌ $1"; FAIL=$((FAIL+1)); fi; }
+check "skills ≥8 个 (含 SKILL.md)" '[ "$(find "$TARGET/.claude/skills" -mindepth 2 -maxdepth 2 -name SKILL.md 2>/dev/null | wc -l)" -ge 8 ]'
+--- TARGET=tmp8 (8 目录但只 7 含 SKILL.md ⇒ 预期 ❌) ---
+   ❌ skills ≥8 个 (含 SKILL.md)
+  rc=0
+--- TARGET=tmp9 (9 全含 ⇒ 预期 ✅) ---
+   ✅ skills ≥8 个 (含 SKILL.md)
+  rc=0
+--- bash -n + wc -l (必须仍 157) ---
+bash -n OK
+     157 scripts/install-vault.sh
+--- 树内真实 vault 上的两口径对照 (只读) ---
+  ls|wc -l = 11   含SKILL.md = 9

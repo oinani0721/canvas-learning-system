@@ -1,0 +1,19 @@
+=== 比 grep 更硬的六档判据：四套是否都从共用模块取 VERDICTS 并据此汇总 ===
+g32b_mutation_gates              import VERDICTS=1  用它算汇总=1
+g32cb_mutation_gates             import VERDICTS=1  用它算汇总=1
+g32ccr1_negative_controls        import VERDICTS=1  用它算汇总=1
+g33_mutation_gates               import VERDICTS=1  用它算汇总=1
+
+=== 四套 pytest 命令行是否统一走 judge_flags() ===
+backend/scripts/g32cb_mutation_gates.py:364:            [_pytest_bin(), *judge_flags(), _nodeid(test_name)],
+backend/scripts/g32b_mutation_gates.py:577:        [_PYTEST_BIN(), nodeid_of(name), *judge_flags()],
+backend/scripts/g32ccr1_negative_controls.py:266:        [str(PYTEST), *judge_flags(), _nodeid(test_name)],
+backend/scripts/g33_mutation_gates.py:372:        [sys.executable, "-m", "pytest", *judge_flags(), "--no-header", nodeid],
+--- 残留的手写 pytest 开关（应为 0 行）---
+0 行 ✓
+
+=== 四套信号处置是否统一走 RestoreGuard ===
+g32b_mutation_gates              RestoreGuard=1  critical()=3  自写 signal.signal=0
+g32cb_mutation_gates             RestoreGuard=1  critical()=1  自写 signal.signal=0
+g32ccr1_negative_controls        RestoreGuard=1  critical()=1  自写 signal.signal=0
+g33_mutation_gates               RestoreGuard=1  critical()=1  自写 signal.signal=0

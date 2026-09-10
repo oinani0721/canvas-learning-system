@@ -1,0 +1,32 @@
+✅ KILLED          M1-per-node-lock: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_concurrent_same_node_no_lost_update[1]', 'tests/regression/test_g3_3_cas.py::test_concurrent_same_node_no_lost_update[2]'] expect_hit=True loc=[('test_g3_3_cas.py', 210), ('test_g3_3_cas.py', 210)] — 红在含期望消息的断言上(仅消息维, 分不开同函数里的其它断言)（绑定维度: 仅消息(位置未绑)）
+✅ KILLED          M2-cas-guard: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_cas_conflict_refuses_and_rerun_converges'] expect_hit=True loc=[('test_g3_3_cas.py', 641)] — 红在含期望消息的断言上(仅消息维, 分不开同函数里的其它断言)（绑定维度: 仅消息(位置未绑)）
+✅ KILLED          M3-ledger-lock-backend: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_append_event_refuses_when_ledger_locked'] expect_hit=True loc=[('test_g3_3_cas.py', 876)] — 红在含期望消息的断言上(仅消息维, 分不开同函数里的其它断言)（绑定维度: 仅消息(位置未绑)）
+✅ KILLED          M5-cas-revision-only: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_cas_body_only_change_is_a_conflict'] expect_hit=True loc=[('test_g3_3_cas.py', 695)] — 红在含期望消息的断言上(仅消息维, 分不开同函数里的其它断言)（绑定维度: 仅消息(位置未绑)）
+✅ KILLED          M6-ledger-lock-skill: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_writer_waits_for_held_ledger_lock'] expect_hit=True loc=[('test_g3_3_cas.py', 384)] — 红在含期望消息的断言上(仅消息维, 分不开同函数里的其它断言)（绑定维度: 仅消息(位置未绑)）
+✅ KILLED          M8-thread-lock-lifetime: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_thread_critical_sections_do_not_overlap'] expect_hit=True loc=[('test_g3_3_cas.py', 449)] — 红在含期望消息的断言上(仅消息维, 分不开同函数里的其它断言)（绑定维度: 仅消息(位置未绑)）
+✅ KILLED          M9-splitlines-instead-of-lf: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_dedup_scan_splits_only_on_physical_lf'] expect_hit=True loc=[('test_g3_3_cas.py', 472)] — 红在含期望消息的断言上(仅消息维, 分不开同函数里的其它断言)（绑定维度: 仅消息(位置未绑)）
+✅ KILLED          M10-short-write-unchecked: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_short_write_is_not_reported_as_success'] expect_hit=True loc=[('test_g3_3_cas.py', 493)] — 红在含期望消息的断言上(仅消息维, 分不开同函数里的其它断言)（绑定维度: 仅消息(位置未绑)）
+✅ KILLED          M11-out-of-order-auto-guess: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_out_of_order_is_caller_declared_not_auto_guessed'] expect_hit=True loc=[('test_g3_3_cas.py', 517)] — 红在含期望消息的断言上(仅消息维, 分不开同函数里的其它断言)（绑定维度: 仅消息(位置未绑)）
+✅ KILLED          M12-a3-node-lock: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_incremental_block_waits_for_node_lock'] expect_hit=True loc=[('test_g3_3_cas.py', 1111)] — 红在含期望消息的断言上(仅消息维, 分不开同函数里的其它断言)（绑定维度: 仅消息(位置未绑)）
+✅ KILLED          M13-a3-cas: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_incremental_block_cas_preserves_racing_edit'] expect_hit=True loc=[('test_g3_3_cas.py', 1154)] — 红在含期望消息的断言上(仅消息维, 分不开同函数里的其它断言)（绑定维度: 仅消息(位置未绑)）
+✅ KILLED          M14-exam-board-ledger-lock: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_exam_board_waits_for_held_ledger_lock'] expect_hit=True loc=[('test_g3_3_cas.py', 1227)] — 红在含期望消息的断言上(仅消息维, 分不开同函数里的其它断言)（绑定维度: 仅消息(位置未绑)）
+✅ KILLED          M15-post-lock-redup: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_writer_refuses_when_other_writer_took_the_event_id'] expect_hit=True loc=[('test_g3_3_cas.py', 1197)] — 红在含期望消息的断言上(仅消息维, 分不开同函数里的其它断言)（绑定维度: 仅消息(位置未绑)）
+✅ KILLED          M16-a2-foreign-cas: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_a2_foreign_recovery_publish_respects_cas'] expect_hit=True loc=[('test_g3_3_cas.py', 1309)] — 红在含期望消息的断言上(仅消息维, 分不开同函数里的其它断言)（绑定维度: 仅消息(位置未绑)）
+✅ KILLED          M17-dup-recovery-cas: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_dup_recovery_publish_respects_cas'] expect_hit=True loc=[('test_g3_3_cas.py', 1340)] — 红在含期望消息的断言上(仅消息维, 分不开同函数里的其它断言)（绑定维度: 仅消息(位置未绑)）
+✅ KILLED          M4a-payload-in-place: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_out_of_order_marker_is_additive'] expect_hit=True loc=[('test_g3_3_cas.py', 764)] — 红在含期望消息的断言上(仅消息维, 分不开同函数里的其它断言)（绑定维度: 仅消息(位置未绑)）
+✅ KILLED          M4b-marker-not-additive: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_out_of_order_marker_is_additive'] expect_hit=True loc=[('test_g3_3_cas.py', 760)] — 红在含期望消息的断言上(仅消息维, 分不开同函数里的其它断言)（绑定维度: 仅消息(位置未绑)）
+✅ KILLED          M7-lock-dropped-by-second-fd: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_append_event_still_holds_lock_at_the_moment_of_write'] expect_hit=True loc=[('test_g3_3_cas.py', 1019)] — 红在含期望消息的断言上(仅消息维, 分不开同函数里的其它断言)（绑定维度: 仅消息(位置未绑)）
+
+── 汇总 ──
+KILLED (绑定: 消息 + 失败位置在门文件内; ⚠️ 未绑到具体断言, expect_loc 按 D-28 移交十四批): 18/18
+KILLED-UNBOUND: 0 (仅证明指定门红了)
+SURVIVED: 0
+HARNESS-ERROR: 0 (负控自己坏了, 不是关于被测物的结论)
+ANCHOR-ERROR: 0 (变异未施加, 不是结论)
+SYNTAX-INVALID: 0 (>0 说明负控自己坏了, 不是被测物坏了)
+六档之和: 18 (应 = 选中的变异条数 18) ✓
+还原逐字节相同: 是
+MUTANT 扫描: 完成
+MUTANT 新增残留 (基线之外): 无
+MUTANT 基线缺失 (基线里有而实测没有): 无
+rc=0

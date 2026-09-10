@@ -1,0 +1,23 @@
+# LOW-7 实测: 科学计数法值是否触发本卡要消灭的「砖化」形态
+# 判据 = 原样重跑 rc / 之后另一次正常评分 rc / validator rc
+
+  值 1e-06
+    首写 rc=0 / receipt=['self_confidence_norm: 1e-06']
+    原样重跑 rc=0 / 之后正常评分 rc=0 / validator rc=0
+    ⇒ ✓ 未砖化
+
+  值 1e-05
+    首写 rc=0 / receipt=['self_confidence_norm: 1e-05']
+    原样重跑 rc=0 / 之后正常评分 rc=0 / validator rc=0
+    ⇒ ✓ 未砖化
+
+  值 0.0001
+    首写 rc=0 / receipt=['self_confidence_norm: 0.0001']
+    原样重跑 rc=0 / 之后正常评分 rc=0 / validator rc=0
+    ⇒ ✓ 未砖化
+
+  值 0.5
+    首写 rc=0 / receipt=['self_confidence_norm: 0.5']
+    原样重跑 rc=0 / 之后正常评分 rc=0 / validator rc=0
+    ⇒ ✓ 未砖化
+rc=0

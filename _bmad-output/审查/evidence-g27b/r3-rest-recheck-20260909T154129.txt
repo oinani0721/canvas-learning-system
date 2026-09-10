@@ -1,0 +1,30 @@
+  OK   rc                                                   71
+  OK   禁写目录未被创建                             absent
+  OK   目标 vault 未被创建                            absent
+
+=== HIGH-1: 目标**已存在**时的 dry-run 也必须零写 ===
+  BAD  预置：apply 建出目标                          got=71 want=0
+  BAD  dry-run rc                                           got=71 want=0
+  BAD  步 4 是 SKIP                                       got=0 want=1
+  BAD  步 6 是 SKIP                                       got=0 want=1
+  OK   dry-run 未写 evidence 文件                       0
+  OK   dry-run 未动目标 vault                           0
+  OK   dry-run 未留源镜像                              0
+
+=== HIGH-2: --apply --activate **不设任何开关**时缺省不得 up -d ===
+  BAD  rc                                                   got=71 want=0
+  BAD  步 5 是 SKIP（缺省不 up）                     got=0 want=1
+  BAD  消息说明缺省即不做                          got=0 want=1
+  OK   确无容器起来                                   0
+
+=== HIGH-4: key 形态非法（残缺前缀）必须拒同步，而不是把残值写进另两处 ===
+  BAD  rc 落在 72/73（未继续同步）                 got=no(71) want=yes
+  BAD  残缺 key 未被写进 .env                         got= want=0
+
+=== 直接验 key 格式校验分支（绕过 install 防覆盖：用全新目标 + 预置 key）===
+  BAD  正控：全新目标 apply rc 0                     got=71 want=0
+  BAD  key 长度 64                                        got= want=64
+  BAD  key 权限 600                                       got= want=600
+  OK   无 .tmp 残留                                      0
+
+=== 汇总: PASS=8 FAIL=12 ===

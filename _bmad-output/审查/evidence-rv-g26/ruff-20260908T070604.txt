@@ -1,0 +1,9 @@
+### ruff 门 (ts=20260908T070604)
+--- 基线判定: HEAD 版本两文件 format --check ---
+  base-verify-rc=0 / base-test-rc=0 ⇒ 漂移全部由本卡引入, 非存量
+2 files reformatted
+--- 格式化后复核 ---
+All checks passed!
+check-rc=0
+2 files already formatted
+format-rc=0

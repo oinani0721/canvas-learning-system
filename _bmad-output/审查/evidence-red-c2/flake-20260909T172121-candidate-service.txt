@@ -1,0 +1,43 @@
+# 目录级第 8 轮出现 1 条 '>' 行（阻断级判据）—— 复跑未复现，如实记录
+记于 2026-09-09 17:32:28  HEAD=7dbd2526
+
+## 一 现象
+unit-after-20260909T172121（HEAD=7dbd2526）同一轮里出现**两个方向的翻转**：
+  · 基线绿 → 红：tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422
+  · 基线红 → 绿：tests/unit/test_mock_degradation_transparency.py::TestMockScoringWarningLogs::test_mock_mode_logs_warning
+
+## 二 归属核查（两条都不是本卡的）
+  tests/unit/test_candidate_service.py                 本卡改动=0  在23文件清单=0
+  tests/unit/test_mock_degradation_transparency.py     本卡改动=0  在23文件清单=0
+  ⇒ 两条都在本卡**从未碰过**、且不在 23 文件清单里的文件中。
+  ⇒ 本卡本轮的代码改动只在 test_story_30_24_boundary.py 的一个函数体内，
+     不可能单向解释「一条转红 + 另一条转绿」这种成对翻转。
+
+## 三 隔离复跑
+  $ pytest tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422  → 1 passed
+  $ pytest tests/unit/test_candidate_service.py                                                    → 14 passed
+
+## 四 目录级可复现性（同一 HEAD 7dbd2526 复跑一次）
+  unit-after-20260909T172714: '>' 行 = 0、本卡贡献 = 66、仍红 = 0、U11-A 贡献 = 8
+  两条漂移用例各自回到基线态 ⇒ **未复现**。
+
+## 五 全部目录级轮次的画像（8 轮 + 复跑，同一基线）
+  20260909T132109  '>'=0  本卡=66  U11-A=8
+  20260909T135407  '>'=0  本卡=66  U11-A=8
+  20260909T141449  '>'=0  本卡=66  U11-A=8
+  20260909T143922  '>'=0  本卡=66  U11-A=8
+  20260909T150204  '>'=0  本卡=66  U11-A=8
+  20260909T151936  '>'=0  本卡=66  U11-A=8
+  20260909T161927  '>'=0  本卡=66  U11-A=8
+  20260909T172121  '>'=1  本卡=66  U11-A=9
+  20260909T172714  '>'=0  本卡=66  U11-A=8
+
+## 六 结论与**未证明**的部分
+结论：这 1 条 '>' 行**不归因于本卡改动**——归属、隔离复跑、目录级复跑三项都指向
+      套件自身的顺序/状态相关抖动（本仓已知有跨用例污染面）。
+
+⛔ 但本卡**不声称**「已排除」：
+   · 只复跑了 1 次，是「这次没再撞上」，不是「不会再撞上」；
+   · 未做根因定位（哪个前置用例污染了它），那需要 -p no:randomly / --lf 等定序实验，超出本卡范围；
+   · 9 轮里 8 轮干净、1 轮撞上 ⇒ 观测到的撞上率约 1/9，这是**采样值**不是概率保证。
+⇒ 登记进台账，建议另立卡做定序复现与根因定位。

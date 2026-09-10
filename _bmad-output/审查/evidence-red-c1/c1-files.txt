@@ -1,0 +1,5 @@
+tests/unit/test_cache_configuration.py
+tests/unit/test_qa_38_4_dual_write_extra.py
+tests/unit/test_qa_38_6_scoring_reliability_extra.py
+tests/unit/test_story_38_4_dual_write_default.py
+tests/unit/test_story_38_6_scoring_reliability.py

@@ -1,0 +1,132 @@
+########## HIGH-2: install() :750 + 顺序 :771/:778-784 ##########
+748:
+749:
+750:def install() -> None:
+751:    """装门（audit hook 承重 + belt 身份锚点 + uvloop 毒化 + 最终总账）。
+752:
+753:    幂等，且**每次调用都复核身份**：第八批 Codex HIGH 实测「装门 → 把
+754:    ``connect`` 恢复成原函数 → 再 ``install()``」得到 ``installed=True`` 而
+755:    ``connect_guarded=False``——只信布尔值的 install 会把已被拆掉的门当成在位。
+756:    这里改成：已装过就走 :func:`assert_guard_live`，漂移即抛 :class:`GuardDrift`。
+757:
+758:    ⚠️ 装=不卸：本门**只装不卸**。audit hook 本身就不可摘（CPython 无
+759:    ``sys.removeaudithook``）；belt 的 :func:`uninstall` 仅为 API 完整保留，
+760:    生产代码路径不调用。CLI 测试进程的迟到线程在 ``pytest_unconfigure`` 之后
+761:    仍可能发起连接，先恢复 socket 会留下无账窗口——门随进程存活到退出。
+762:    """
+763:    uvloop_mod = sys.modules.get("uvloop")
+764:    if uvloop_mod is not None:
+765:        # install 前就被人 import 了：collection/import 窗口已经不受保护，
+766:        # 宁可立刻 fail 也不装一道已知失效的门（Codex round-2 HIGH）。
+767:        raise RuntimeError(
+768:            "uvloop 在 install() 之前已被导入 —— 本门会静默失效，拒绝装门。"
+769:            "请在任何业务 import 之前先装门（根 conftest 已保证），并排查是谁提前导入了 uvloop。"
+770:        )
+771:    poison_uvloop()
+772:    # ⛔ 承重 hook 必须装在**任何预检之前**（T-14，CARD-W4-4）。
+773:    #    ``assert_neo4j_target_blocked()`` 会走 ``canonical_target_ports``，后者在
+774:    #    函数体内 ``from neo4j import Address`` —— 那段 import 期（以及预检本身可能
+775:    #    触发的任何连接）原来跑在门装上**之前**，完全不受保护也不进账。
+776:    #    2026-09-05 实测（``evidence-w4-4/before-3``）：在预检内发起一次到受拦端口的
+777:    #    连接，旧顺序下结果是 ``connected`` 且 ``STATE.blocked=0``。
+778:    #    ``register_final_accounting()`` 的相对位置不变（仍在预检之后）：预检抛出时
+779:    #    本来就拒绝装门，此时不该留下一个会 os._exit 的 atexit 处理器。
+780:    _install_audit_hook()
+781:    if os.environ.get(ENV_REQUIRE_BLOCKED_TARGET) == "1":
+782:        assert_neo4j_target_blocked()
+783:    register_final_accounting()
+784:    if STATE.installed:
+785:        assert_guard_live("install(已装过，复核身份)")
+786:        return
+787:    base = _socket_mod.socket
+788:    STATE._orig_connect = base.connect
+789:    STATE._orig_connect_ex = base.connect_ex
+790:    base.connect = _guarded_connect  # type: ignore[method-assign]
+########## HIGH-2 常量 :212 / ENV / :218 FINAL_EXIT_CODE ##########
+210:#: 7691/7687 之外的库，摘掉 no_lifespan 后会**真实连接**那个库，而门只拦
+211:#: 7691/7687 —— 脚本只会事后因 blocked=0 失败，实害已经发生。
+212:ENV_REQUIRE_BLOCKED_TARGET = "W4_GUARD_REQUIRE_BLOCKED_TARGET"
+213:
+214:#: 最终总账落盘路径（父进程独立复核用）。
+215:ENV_LEDGER = "W4_GUARD_LEDGER"
+216:
+217:#: 最终总账判定「有未结账拦截」时强制的退出码（与 session 总账同码）。
+218:FINAL_EXIT_CODE = 3
+219:
+220:#: :meth:`_GuardState.record` 的三种归宿。**在同一把锁内**判定，调用方按此分流 ——
+########## assert_neo4j_target_blocked :1134 ##########
+1132:
+1133:
+1134:def assert_neo4j_target_blocked() -> None:
+1135:    """要求 ``NEO4J_URI`` 指向**受拦端口**，否则拒绝装门（负控专用，默认关闭）。
+1136:
+1137:    第八批 Codex BLOCKER 的结构性收口：本门只按端口判定，射程之外的库它拦不住。
+1138:    负控要做的事是「摘掉隔离，看门拦不拦」——如果此时 ``NEO4J_URI`` 指向的是
+########## M5 _mark_precheck_done :1116-1131 ##########
+1114:
+1115:
+1116:def _mark_precheck_done() -> None:
+1117:    """标记「``NEO4J_TEST_URI`` 白名单预检已通过」——只在**成功返回的路径**上调。
+1118:
+1119:    ``begin_item`` 读它决定要不要发豁免票（T-10 的闩，见那里的说明）。
+1120:
+1121:    ⚠️ **语义严格说是「曾经成功过一次」，不是「当前配置合规」**（Codex round-1
+1122:    MEDIUM-5 更正了这里原先过宽的措辞）：单向置位，一旦为真就不再回落。因此
+1123:    「先成功 → 配置被改 → 再次预检失败但调用方吞掉异常 → 继续跑」这条序列里，
+1124:    豁免票仍然会发。它成立的前提是**预检的输入在会话期内不变**——正常路径确实如此
+1125:    （``pytest_configure`` 期跑一次，失败就终止会话），但这是前提，不是本函数保证的。
+1126:    刻意不做「入口先清零、成功再置位」：契约测试里有十余处**期望抛出**的调用，
+1127:    清零后异常路径会把真 ``STATE`` 的闩永久留在 False，反而让后续 integration 用例
+1128:    集体失去 advisory 豁免——那是拿一个假想风险换一个真实回归。
+1129:    """
+1130:    with STATE._lock:
+1131:        STATE.precheck_done = True
+1132:
+########## M8 record :282 / lock :302 / repr :310 / total :315 ##########
+280:
+281:    # ── 记账 ────────────────────────────────────────────────────────────
+282:    def record(self, address) -> str:
+283:        """记一次到受拦端口的连接尝试。返回 :data:`RECORD_ADVISORY` /
+284:        :data:`RECORD_BLOCK` / :data:`RECORD_LATE` 之一。
+285:
+286:        ⛔ **结算判定必须在这把锁里**（CARD-W4-4）。旧实现由 audit hook 在锁外先读
+287:        一次模块级 ``_FINALIZING``、再调本方法进锁记账；两次之间主线程可以完成
+288:        「置位 + 取快照」，于是这条记录既不在快照里、又没被判成迟到 ⇒ 进程 exit 0。
+289:        现在结算标志与账本在同一把锁下，一条记录只有两种归宿：在快照里，或者被判
+290:        :data:`RECORD_LATE`。没有第三种。
+291:
+292:        迟到记录**照常进账**（``total`` / ``blocked`` / ``pending`` 都加），所以它必然
+293:        体现为 ``unaccounted`` —— 迟到路径重写账本后，「``rc=3`` ⇔ 账本
+294:        ``unaccounted>0``」两个方向都成立，父进程复核不会与子进程 rc 打架。
+295:        迟到路径**不看豁免**：结算之后已经没有任何一层能把 advisory 变成非零 rc，
+296:        「只记不拦」在这一刻等于「什么都没做」（旧实现的 ``if _FINALIZING`` 同样
+297:        不看豁免，语义未变）。
+298:        """
+299:        owner = _OWNER_CV.get()
+300:        exempt = _EXEMPT_CV.get()
+301:        gen = _GEN_CV.get()
+302:        with self._lock:
+303:            stale = gen != self.current_gen
+304:            if stale or self.finalizing:
+305:                # 过期 context 副本（用例已结束/豁免已被撤销）—— fail-closed；
+306:                # 结算之后同理：归属早已复位，豁免也不再有意义。
+307:                owner = _UNKNOWN_OWNER
+308:                exempt = False
+309:            rec = {
+310:                "address": repr(address),
+311:                "thread": threading.current_thread().name,
+312:                "owner": owner,
+313:                "exempt": exempt,
+314:            }
+315:            self.total += 1
+316:            self.records.append(rec)
+317:            if self.finalizing:
+318:                self.late += 1
+319:                self.blocked += 1
+320:                self.pending.setdefault(owner, []).append(rec)
+########## _lock :253 ##########
+251:
+252:    def __init__(self) -> None:
+253:        self._lock = threading.Lock()
+254:        self.installed = False
+255:        self.total = 0

@@ -1,0 +1,70 @@
+### CARD-RED-R 单点探针 (取失败身份, 非 bisect)
+tag: p15-3d10a02b
+rev: 3d10a02b -> 3d10a02b   (2026-05-14 feat(story-2.4): callout 自动同步 — p0 三件套 + plan-b phase 1-4)
+nodeid: tests/unit/test_story_2_3_error_reminders.py::test_search_error_memories_sorts_by_timestamp_desc
+started: 2026-09-09T12:26:26+0800
+
+Preparing worktree (detached HEAD 3d10a02b)
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-probe-p15-3d10a02b/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 1 item
+tests/unit/test_story_2_3_error_reminders.py F                           [100%]
+=================================== FAILURES ===================================
+______________ test_search_error_memories_sorts_by_timestamp_desc ______________
+    @pytest.mark.asyncio
+    async def test_search_error_memories_sorts_by_timestamp_desc():
+        """AC #1: 按 timestamp/created_at 倒序排列."""
+        svc = MemoryService()
+        raw_episodes = [
+            _make_episode("old", episode_type="error", timestamp="2026-04-10T08:00:00"),
+            _make_episode("newest", episode_type="error", timestamp="2026-04-20T08:00:00"),
+            _make_episode("middle", episode_type="error", timestamp="2026-04-15T08:00:00"),
+        ]
+        with patch.object(
+            svc,
+            "search_memories",
+            new=AsyncMock(return_value=raw_episodes),
+        ):
+>           result = await svc.search_error_memories(node_id="admissibility", limit=10)
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'MemoryService' object has no attribute 'search_error_memories'. Did you mean: 'search_memories'?
+tests/unit/test_story_2_3_error_reminders.py:337: AttributeError
+----------------------------- Captured stdout call -----------------------------
+{"event": "Neo4jClient initialized: mode=JSON_FALLBACK, uri=N/A, pool_size=50", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-09T04:26:34.545396Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.clients.neo4j_client:neo4j_client.py:141 Neo4jClient initialized: mode=JSON_FALLBACK, uri=N/A, pool_size=50
+=============================== warnings summary ===============================
+../../../../../../../../Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+../../../../../../../../Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+../../../../../../../../Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+../../../../../../../../Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+    import pkg_resources
+<frozen importlib._bootstrap>:491
+<frozen importlib._bootstrap>:491
+app/api/v1/endpoints/chat.py:764
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-probe-p15-3d10a02b/backend/app/api/v1/endpoints/chat.py:764: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+app/api/v1/endpoints/metadata.py:140
+    canvas_path: str = Query(
+app/api/v1/endpoints/metadata.py:213
+    canvas_path: str = Query(
+../../../../../../../../Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+app/mcp/server.py:135
+    mcp.mount()
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/unit/test_story_2_3_error_reminders.py::test_search_error_memories_sorts_by_timestamp_desc
+======================== 1 failed, 11 warnings in 0.52s ========================
+pytest_raw_rc=0 (⛔ 非判据: 老 commit addopts 含 --cov-fail-under=85)
+worktree_removed_rc=0
+rc=0

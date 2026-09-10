@@ -1,0 +1,17 @@
+### r2 现网只读复检（sentinel 建于开工，覆盖 r1+r2 全部跑）
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/data/lancedb → 0
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/data/lancedb → 0
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u5-lance/data/lancedb → 0
+### r2 新测试的 connect 溯源（含门⑤）
+5
+5
+### r2 硬边界: fsrs_bridge / decay_beta
+backend/tests/unit/test_lancedb_cross_vault_drop_g29f1.py:0
+backend/scripts/g29_dual_vault_canary.py:0
+backend/lib/agentic_rag/clients/lancedb_client.py:0
+### r2 canary 静态核（应与 r1 相同，canary 本轮未改）
+  ① probe verdict = 1
+  ② _amain verdict = 1
+  ③ 全文 verdict = 4
+  ④b report.get(side_effect_probe) = 1
+  ast ok

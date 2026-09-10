@@ -1,0 +1,11 @@
+===== 还原（git show HEAD:<path> > <path>，禁 stash/checkout）=====
+===== 还原后 sha（须与改前一致）=====
+146b828f595efe10660eda97575f97ca60d5bec5195fe4dffdf54472f77ca0bd  backend/tests/unit/test_sync_batch_auth.py
+ecf95d29fb45f843dd461acd014d10baa22cc81d0ef563bc721305b67ee3ecbe  backend/tests/unit/test_system_endpoint_auth.py
+改前 sha 对照:
+146b828f595efe10660eda97575f97ca60d5bec5195fe4dffdf54472f77ca0bd  backend/tests/unit/test_sync_batch_auth.py
+ecf95d29fb45f843dd461acd014d10baa22cc81d0ef563bc721305b67ee3ecbe  backend/tests/unit/test_system_endpoint_auth.py
+===== git diff --quiet 对账 =====
+diff-quiet-rc=0  (0 = 与 HEAD 逐字节一致)
+===== 变异档 override 已复原 =====
+debug=False,key="" 计数: sync=1 system=2

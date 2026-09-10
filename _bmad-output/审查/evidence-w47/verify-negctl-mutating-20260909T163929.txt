@@ -1,0 +1,53 @@
+=== 变异型负控复核（裁判 3/4/5 + 轮次负控）串行，最终 HEAD 7278f156 ===
+--- 跑前三文件 sha256 ---
+01f8f9e459cf303e99963cabb068802e5e55aaf873db9579acec18d0dc6ed362  backend/tests/support/live_port_guard.py
+04d28e6aff6d9a9739d6abfe9c4209eac0f82337cf3d042c2fb902e7b446bbce  backend/tests/unit/test_live_port_guard_contract.py
+5edae9e5661d86c7860831cf4b2f55ec49afd8305a5490dde170550b23bb9d7b  backend/scripts/lifespan_isolation_guard_probes.py
+
+########## h2-negctl.sh ##########
+  tests/unit/test_live_port_guard_contract.py::TestSelftestAddressClassification::test_genuine_selftest_address_is_classified PASSED [100%]
+  tests/unit/test_live_port_guard_contract.py::TestSelftestAddressClassification::test_tuple_subclass_disguise_is_not_selftest PASSED [100%]
+  tests/unit/test_live_port_guard_contract.py::TestSelftestAddressClassification::test_str_subclass_eq_disguise_is_not_selftest PASSED [100%]
+  tests/unit/test_live_port_guard_contract.py::TestSelftestAddressClassification::test_non_tuple_is_not_selftest PASSED [100%]
+  tests/unit/test_live_port_guard_contract.py::TestSelftestAddressClassification::test_audit_hook_does_not_block_plain_safe_address PASSED [100%]
+  tests/unit/test_live_port_guard_contract.py::TestSelftestAddressClassification::test_genuine_selftest_address_reaches_blocking_path PASSED [100%]
+旧 6 条 PASSED 计数 = 6 / 6
+FAILED tests/unit/test_live_port_guard_contract.py::TestSelftestAddressClassification::test_selftest_host_is_an_unconnectable_sentinel
+H2-NEGCTL: PASS（旧 6 条全绿 / 新断言以指定理由拦下）
+sha-before = 01f8f9e459cf303e99963cabb068802e5e55aaf873db9579acec18d0dc6ed362
+sha-after  = 01f8f9e459cf303e99963cabb068802e5e55aaf873db9579acec18d0dc6ed362
+RESTORE-OK: sha-before == sha-after
+script_rc=0
+
+########## m1-negctl.sh ##########
+  tests/unit/test_live_port_guard_contract.py::TestSelftestAddressClassification::test_non_tuple_is_not_selftest PASSED [100%]
+  tests/unit/test_live_port_guard_contract.py::TestSelftestAddressClassification::test_audit_hook_does_not_block_plain_safe_address PASSED [100%]
+  tests/unit/test_live_port_guard_contract.py::TestSelftestAddressClassification::test_genuine_selftest_address_reaches_blocking_path PASSED [100%]
+旧 6 条 PASSED 计数 = 6 / 6
+  tests/unit/test_live_port_guard_contract.py::TestSelftestAddressClassification::test_plain_ipv4_on_blocked_port_is_not_selftest FAILED [100%]
+  tests/unit/test_live_port_guard_contract.py::TestSelftestAddressClassification::test_plain_hostname_on_blocked_port_is_not_selftest FAILED [100%]
+  tests/unit/test_live_port_guard_contract.py::TestSelftestAddressClassification::test_plain_ipv6_four_tuple_on_blocked_port_is_not_selftest FAILED [100%]
+新 3 条 FAILED 计数 = 3 / 3
+M1-NEGCTL: PASS（旧 6 条全绿 / 新 3 条全红）
+sha-before = 01f8f9e459cf303e99963cabb068802e5e55aaf873db9579acec18d0dc6ed362
+sha-after  = 01f8f9e459cf303e99963cabb068802e5e55aaf873db9579acec18d0dc6ed362
+RESTORE-OK: sha-before == sha-after
+script_rc=0
+
+########## m3-negctl.sh ##########
+sha-before = 918a5c4abe76c3dfce875e6ff07b7dc04d82c2d1249c580d0c0144560c096e9d
+M3-NEGCTL: PASS（A 因预检 fail-closed / B 摘掉后不再 fail-closed ⇒ 拦它的确实是入口里那一行）
+sha-before = 918a5c4abe76c3dfce875e6ff07b7dc04d82c2d1249c580d0c0144560c096e9d
+sha-after  = 918a5c4abe76c3dfce875e6ff07b7dc04d82c2d1249c580d0c0144560c096e9d
+RESTORE-OK: sha-before == sha-after
+script_rc=0
+
+--- 跑后三文件 sha256（须与跑前逐字节相同）---
+01f8f9e459cf303e99963cabb068802e5e55aaf873db9579acec18d0dc6ed362  backend/tests/support/live_port_guard.py
+04d28e6aff6d9a9739d6abfe9c4209eac0f82337cf3d042c2fb902e7b446bbce  backend/tests/unit/test_live_port_guard_contract.py
+5edae9e5661d86c7860831cf4b2f55ec49afd8305a5490dde170550b23bb9d7b  backend/scripts/lifespan_isolation_guard_probes.py
+
+--- 工作树是否干净 ---
+0
+  ↑ 0 = 代码树未残留变异
+rc=0

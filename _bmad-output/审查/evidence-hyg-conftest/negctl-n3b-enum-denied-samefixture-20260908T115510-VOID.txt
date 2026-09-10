@@ -1,0 +1,38 @@
+# U10-A N3b（同根对撞版）— Codex round-1 HIGH #1 整改的承重验证
+# 上一版 negctl-n3b-enum-denied-20260908T073843.txt 的缺陷（如实登记）:
+#   两版各从所在目录加载, 扫描根 = Path(__file__).parent ⇒ 旧版扫到 scratchpad
+#   (11 命中)、新版扫 tests/unit (0 命中), baseline 不可比 ⇒ 对照不严格。
+#   本版把两版放进**内容逐字节相同**的两个扫描根再对撞。
+# 扫描根各含: sample_hit.py（顶层命中样本）+ sub/nested_hit.py（子目录命中样本）
+# 旧版 = 13a138c9 (Path.rglob)   新版 = 工作区 (os.walk + onerror)
+shasum: /tmp/u10a-r6-work/enumcmp/old/conftest.py: No such file or directory
+# 旧版 sha256=
+# 新版 sha256=6f8f29f052921906a92beb691226e47e088771d24759c2eaf7c15e24b989fb76
+# t0=2026-09-08T11:55:10
+
+=== 前提: 两个扫描根的样本文件逐字节相同 ===
+scanroot_identical_rc=0  (0 = 相同)
+
+=== 旧版（预期 baseline 有命中, denied 时 SILENT_PASS = 假绿）===
+Traceback (most recent call last):
+  File "/tmp/u10a-r6-work/enum_runner.py", line 65, in <module>
+    raise SystemExit(main())
+                     ~~~~^^
+  File "/tmp/u10a-r6-work/enum_runner.py", line 25, in main
+    spec.loader.exec_module(mod)
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "<frozen importlib._bootstrap_external>", line 755, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 892, in get_code
+  File "<frozen importlib._bootstrap_external>", line 950, in get_data
+FileNotFoundError: [Errno 2] No such file or directory: '/tmp/u10a-r6-work/enumcmp/old/conftest.py'
+
+=== 新版（预期 baseline 同样有命中, denied 时 RECORDED_UNCHECKED）===
+label=NEW baseline_hits=2 baseline_unchecked=0
+label=NEW denied_hits=0 denied_unchecked=1
+label=NEW RESULT=RECORDED_UNCHECKED  ✅ 枚举失败进了 unchecked
+label=NEW   unchecked[0..2]: <未知路径> (目录枚举失败: PermissionError: [Errno 13] Permission denied (audit hook, 模拟目录枚举被拒))
+
+⛔ 本存档作废：脚本从旧 scratchpad 搬到 /tmp/u10a-r6-work 时漏拷 conftest_r1_old.py，
+   cp 失败 ⇒ 旧版侧 FileNotFoundError 没跑成（新版侧正常）。
+   「旧版 SILENT_PASS=0」是没跑, 不是旧版行为变了 —— 判据(期望1)正确拦下。
+   重跑见下一份 samefixture 存档。

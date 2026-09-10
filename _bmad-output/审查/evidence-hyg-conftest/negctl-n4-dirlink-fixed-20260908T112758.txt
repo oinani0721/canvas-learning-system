@@ -1,0 +1,34 @@
+# U10-A N4 —— 目录符号链接静默放行：修复承重验证
+# 缺陷来源: 本卡最终状态的多视角对抗自审（Codex 五轮均未抓到）
+# 缺陷: os.walk(followlinks=False) 对目录符号链接是**静默跳过** —— 既不进 hits 也不进
+#       unchecked, 而 docstring 与验收单声称「越界一律进 unchecked / 不静默跳过」。
+#       我只处理了**文件**符号链接（Codex round-1 MEDIUM 提的那一半）。
+# 修前 sha256 = 2dcad68cdbc72c08374ca15770381b234ce322b30544ef5672295ff83cc8498a
+# 修后 sha256 = 6f8f29f052921906a92beb691226e47e088771d24759c2eaf7c15e24b989fb76  ← 先确认它变了再跑，否则拒绝写本存档
+# ⚠️ 上一份 negctl-n4-dirlink-*-VOID.txt 是补丁 ANCHOR_FAIL 未生效时误写的「修后」，已作废留档
+# t0=2026-09-08T11:27:58
+
+=== 修后：同一探针重跑（正控 + 被测 + 树内对照）===
+=== 正控：同样内容放在普通目录里，门必须抓到 ===
+  hits(plaindir) = ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/tests/unit/_u10a_plaindir/plain_writer.py:1']
+
+=== 被测：同样内容放在指向【树外】的目录符号链接后面 ===
+  探针: _u10a_dirlink -> /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u10-red-a/aaba4fcb-e16d-4d25-bdd4-d1bab280e8a8/scratchpad/dirlink_probe/outside
+  目标内容: _HIDDEN = "/tmp/" "test-vault-hidden-in-dirlink"
+
+  门抓到了吗   hits     = （无）
+  门记账了吗   unchecked= ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/tests/unit/_u10a_dirlink (目录符号链接未跟随, 目标不在扫描根内或无法判定 -> /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u10-red-a/aaba4fcb-e16d-4d25-bdd4-d1bab280e8a8/scratchpad/dirlink_probe/outside)']
+
+  ⇒ 【静默放行】(既不抓、也不记账)? False
+
+=== 对照：指向【树内】另一目录的符号链接呢 ===
+  树内 dirlink -> tests/api:
+    unchecked 中提到 dirlink 的: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/tests/unit/_u10a_dirlink (目录符号链接未跟随, 目标不在扫描根内或无法判定 -> /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/tests/api)']
+
+=== 结论判据 ===
+  docstring/验收单的主张: 越界一律进 unchecked（'既不当普通树内源码读，也不静默跳过'）
+  实测: 主张成立
+
+cleanup: dirlink 已删
+conftest sha 未变: True
+probe_rc=0

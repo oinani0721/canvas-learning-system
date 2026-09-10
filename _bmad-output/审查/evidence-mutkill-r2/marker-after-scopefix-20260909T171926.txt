@@ -1,0 +1,12 @@
+=== MARKER AFTER (地盘还原后 88ccb8ed) marker=MUTANT ===
+backend/scripts/g32b_mutation_gates.py
+backend/scripts/g32cb_mutation_gates.py
+backend/scripts/g32ccr1_negative_controls.py
+backend/scripts/openapi_drift_negative_control.py
+backend/tests/regression/recap_domain_negverify.py
+--- counts ---
+backend/scripts/g32b_mutation_gates.py 151
+backend/scripts/g32cb_mutation_gates.py 11
+backend/scripts/g32ccr1_negative_controls.py 11
+backend/scripts/openapi_drift_negative_control.py 2
+backend/tests/regression/recap_domain_negverify.py 13

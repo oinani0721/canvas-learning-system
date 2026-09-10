@@ -1,0 +1,28 @@
+=== 裁判 13 地盘门 (commit 后, pathspec 写法必须是 ':(exclude)…') ===
+ backend/app/services/review_service.py             | 441 +++++++++++++++-
+ .../migrate_fsrs_card_states_vault_key_g35.py      | 570 +++++++++++++++++++++
+ .../test_g3_5_vault_keyed_card_states.py           | 483 +++++++++++++++++
+ backend/tests/regression/test_g3_7_truth_source.py |  13 +-
+ backend/tests/unit/test_review_service_fsrs.py     |  22 +-
+ 5 files changed, 1512 insertions(+), 17 deletions(-)
+rc=0
+
+=== 白名单核对 ===
+白名单: review_service.py / mastery_store.py / mastery_engine.py / migrate_...g35.py / test_g3_5_...py / openapi.json
+超白名单(用户 2026-09-09 裁定扩): test_review_service_fsrs.py / test_g3_7_truth_source.py
+
+=== 工作区剩余 (应只有 _bmad-output) ===
+?? "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-G3-5-r1.md"
+?? "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-G3-5-r2.md"
+?? "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-G3-5-r3.md"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-g35/"
+?? "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-G3-5-r2.md"
+?? "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-G3-5-r3.md"
+?? "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-G3-5.md"
+?? "_bmad-output/\351\252\214\346\224\266\345\215\225/UAT-CARD-G3-5-2026-09-09.md"
+
+=== *.stderr* 入库数 (应 0) ===
+0
+0
+=== board_manifest_last_run.json 是否入 commit (应 0) ===
+       0

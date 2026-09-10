@@ -1,0 +1,17 @@
+=== #8 路径别名极端场景自查（真实文件系统）===
+风险假设：base 含反斜杠时，normalized_root 可能指向一个**另外存在**的真实目录
+  两个真实目录都存在: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmpfcg7vkqh/a\b  和  /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmpfcg7vkqh/a/b
+
+  base = /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmpfcg7vkqh/a\b（名字里真的有反斜杠，且 a/b 也存在）
+    正常服务端文件名           旧=True  新=True 
+    win 穿越             旧=True  新=False
+    unix 穿越            旧=False 新=False
+    合法含反斜杠名            旧=True  新=True 
+
+  判据：正常文件名两版都放行；两种穿越新版都拒绝；无「旧拒新放」
+
+  base = /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmpfcg7vkqh/linked -> /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmpfcg7vkqh/a\b（符号链接指向含反斜杠目录）
+    正常服务端文件名           旧=True  新=True 
+    win 穿越             旧=True  新=False
+    unix 穿越            旧=False 新=False
+    合法含反斜杠名            旧=True  新=True 

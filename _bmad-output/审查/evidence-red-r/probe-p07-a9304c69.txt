@@ -1,0 +1,122 @@
+### CARD-RED-R 单点探针 (取失败身份, 非 bisect)
+tag: p07-a9304c69
+rev: a9304c69 -> a9304c69   (2026-03-29 refactor(S35): Phase 3 Step 2 — except Exception 精确化（251处/65文件）)
+nodeid: tests/unit/test_epic36_gap_coverage.py::TestGetRelatedMemoriesReturnStructure::test_query_exception_returns_empty
+started: 2026-09-09T12:26:16+0800
+
+Preparing worktree (detached HEAD a9304c69)
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-probe-p07-a9304c69/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 1 item
+tests/unit/test_epic36_gap_coverage.py F                                 [100%]
+=================================== FAILURES ===================================
+___ TestGetRelatedMemoriesReturnStructure.test_query_exception_returns_empty ___
+self = <tests.unit.test_epic36_gap_coverage.TestGetRelatedMemoriesReturnStructure object at 0x13a793e30>
+graphiti_client = <app.clients.neo4j_edge_client.Neo4jEdgeClient object at 0x13a744830>
+mock_neo4j_client = <MagicMock spec='Neo4jClient' id='5275669840'>
+    @pytest.mark.asyncio
+    async def test_query_exception_returns_empty(self, graphiti_client, mock_neo4j_client):
+        """Verify Neo4j query exception is caught and returns empty list."""
+        mock_neo4j_client.run_query.side_effect = Exception("Connection lost")
+>       results = await graphiti_client.get_related_memories(node_id="node-1")
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/unit/test_epic36_gap_coverage.py:150: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+self = <app.clients.neo4j_edge_client.Neo4jEdgeClient object at 0x13a744830>
+node_id = 'node-1', canvas_path = None, limit = 10
+    async def get_related_memories(
+        self,
+        node_id: str,
+        canvas_path: Optional[str] = None,
+        limit: int = 10
+    ) -> List[Dict[str, Any]]:
+        """
+        Get memories related to a specific node.
+        Story 36.1 AC-36.1.1: Abstract interface implementation
+        Args:
+            node_id: Node ID to find related memories for
+            canvas_path: Optional Canvas file path context
+            limit: Maximum number of results
+        Returns:
+            List of related memory records
+        [Source: docs/stories/36.1.story.md#AC-36.1.1]
+        """
+        if not self._initialized:
+            await self.initialize()
+        try:
+            # Query for connected nodes via edges
+            params: Dict[str, Any] = {"nodeId": node_id, "limit": limit}
+            if canvas_path:
+                cypher_query = """
+                MATCH (n:Node {id: $nodeId})-[r:CONNECTS_TO]-(related:Node)
+                WHERE n.canvas_path = $canvasPath OR related.canvas_path = $canvasPath
+                RETURN related.id as node_id, related.text as content,
+                       r.label as relationship, related.canvas_path as canvas_path
+                LIMIT $limit
+                """
+                params["canvasPath"] = canvas_path
+            else:
+                cypher_query = """
+                MATCH (n:Node {id: $nodeId})-[r:CONNECTS_TO]-(related:Node)
+                RETURN related.id as node_id, related.text as content,
+                       r.label as relationship, related.canvas_path as canvas_path
+                LIMIT $limit
+                """
+>           results = await self._neo4j.run_query(cypher_query, **params)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app/clients/neo4j_edge_client.py:329: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+self = <AsyncMock name='mock.run_query' id='5275672528'>
+args = ('\n                MATCH (n:Node {id: $nodeId})-[r:CONNECTS_TO]-(related:Node)\n                RETURN related.id as ...         r.label as relationship, related.canvas_path as canvas_path\n                LIMIT $limit\n                ',)
+kwargs = {'limit': 10, 'nodeId': 'node-1'}
+_call = call('\n                MATCH (n:Node {id: $nodeId})-[r:CONNECTS_TO]-(related:Node)\n                RETURN related.id...onship, related.canvas_path as canvas_path\n                LIMIT $limit\n                ', nodeId='node-1', limit=10)
+effect = Exception('Connection lost')
+    async def _execute_mock_call(self, /, *args, **kwargs):
+        # This is nearly just like super(), except for special handling
+        # of coroutines
+        _call = _Call((args, kwargs), two=True)
+        self.await_count += 1
+        self.await_args = _call
+        self.await_args_list.append(_call)
+        effect = self.side_effect
+        if effect is not None:
+            if _is_exception(effect):
+>               raise effect
+E               Exception: Connection lost
+/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/unittest/mock.py:2333: Exception
+----------------------------- Captured stdout call -----------------------------
+2026-09-09 12:26:24,443 | INFO     | app.clients.neo4j_learning_base:188 | Neo4jEdgeClient initialized: neo4j_mode=BOLT
+------------------------------ Captured log call -------------------------------
+INFO     app.clients.neo4j_learning_base:neo4j_learning_base.py:188 Neo4jEdgeClient initialized: neo4j_mode=BOLT
+=============================== warnings summary ===============================
+../../../../../../../../Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+../../../../../../../../Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+../../../../../../../../Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+../../../../../../../../Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+    import pkg_resources
+<frozen importlib._bootstrap>:491
+<frozen importlib._bootstrap>:491
+app/api/v1/endpoints/metadata.py:97
+    canvas_path: str = Query(
+app/api/v1/endpoints/metadata.py:150
+    canvas_path: str = Query(
+../../../../../../../../Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+app/mcp/server.py:132
+    mcp.mount()
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/unit/test_epic36_gap_coverage.py::TestGetRelatedMemoriesReturnStructure::test_query_exception_returns_empty
+======================== 1 failed, 10 warnings in 0.51s ========================
+pytest_raw_rc=0 (⛔ 非判据: 老 commit addopts 含 --cov-fail-under=85)
+worktree_removed_rc=0
+rc=0

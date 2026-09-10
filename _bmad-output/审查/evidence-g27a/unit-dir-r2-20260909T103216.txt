@@ -1,0 +1,7 @@
+### tests/unit 目录级收工 vs 第十三批红基线（CODE_BASE da690bf8）
+汇总行: = 173 failed, 4830 passed, 48 skipped, 122 warnings, 29 errors in 335.11s (0:05:35) =
+基线 nodeid: 202  本次 nodeid: 202
+--- 本卡新引入(> 号, 必须为空) ---
+--- 本卡修复(< 号, 允许) ---
+集合相等: 是
+rc=0

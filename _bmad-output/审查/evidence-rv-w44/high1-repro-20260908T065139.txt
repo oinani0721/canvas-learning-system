@@ -1,0 +1,38 @@
+=== CARD-RV-W4-4 (d)③ HIGH-1 整改复现（三跑对照）===
+    repo      : /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u7-w4guard
+    guard     : /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u7-w4guard/backend/tests/support/live_port_guard.py
+    sha(before): 1b95586496c58a8e
+
+[变异自证] try 块起于 HEAD :654；变异体裸调用在 :654；sha 1b95586496c58a8e → 0fe4aab49d4d9af4
+[父树事实] 93d47028: _finalize_race_seam 出现 0 次 / RECORD_LATE 0 次 / 1093 行
+
+--- mode=head ---
+    rc            = 3
+    stage         = done
+    caught        = RuntimeError: live Neo4j port connect attempted: ('127.0.0.1', 7691). 受拦端口 [7687, 7691] 是现网 Neo4j；测试进程不得连接。若这是端点测试，请用 backend/tests/su
+    blocked       = 1  unaccounted = 1  total = 1
+    ledger_file   = {'total': 1, 'blocked': 1, 'unaccounted': 1}
+    stderr_tail   = *** live Neo4j port connect attempted —— 最终总账：blocked=1 unaccounted=1 reported_status=None；进程被强制以退出码 3 结束（迟到连接不得以 0 收场）***
+    - ('127.0.0.1', 7691) on thread MainThread (owner=<unknown>)
+--- mode=mutant ---
+    rc            = 0
+    stage         = done
+    caught        = RuntimeError: seam 故意抛出（CARD-RV-W4-4 (d)③ 复现 Codex HIGH-1 第二步）
+    blocked       = 0  unaccounted = 0  total = 0
+    ledger_file   = {'total': 0, 'blocked': 0, 'unaccounted': 0}
+--- mode=parent ---
+    rc            = 92
+    stage         = replace-seam
+    error         = NO_SEAM: 本树没有 _finalize_race_seam_hook —— 卡文的对照口径在此树不可执行
+    ledger_file   = {'total': 0, 'blocked': 0, 'unaccounted': 0}
+
+  [PASS] head 记账未被跳过（blocked≥1 且 unaccounted≥1）  (blocked=1 unaccounted=1)
+  [PASS] head 不再是 Codex 原话的 (0, 0, rc=0)  ((blocked=1, unaccounted=1, rc=3))
+  [PASS] head 仍对调用方抛出（拦截语义未被 try 吞掉）  (caught=RuntimeError: live Neo4j port connect attempted: ('127.0.0.1', 7691). 受拦端口 [7687, 7691] 是现网 Neo4j；测试进程不得连接。若这是端点测试，请用 backend/tests/su)
+  [PASS] mutant 复现 Codex 原话 blocked=0, unaccounted=0, rc=0  ((blocked=0, unaccounted=0, rc=0))
+  [PASS] 两跑结论确实翻转（对照有效，不是两边都绿）  (head.blocked=1 vs mutant.blocked=0)
+  [PASS] parent 93d47028 无此注入点 ⇒ 卡文对照口径不可执行  (error=NO_SEAM: 本树没有 _finalize_race_seam_hook —— 卡文的对照口径在此树不可执行)
+  [PASS] 代码树未被本脚本改动（sha 逐字节一致）  (1b95586496c58a8e vs 1b95586496c58a8e)
+
+HIGH1-REPRO: PASS — 7/7 条判据成立
+rc=0

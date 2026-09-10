@@ -1,0 +1,14 @@
+total    = 13
+available= 0
+missing len = 13
+missing  = ['basic-decomposition', 'deep-decomposition', 'question-decomposition', 'oral-explanation', 'four-level-explanation', 'clarification-path', 'comparison-table', 'example-teaching', 'memory-anchor', 'scoring-agent', 'verification-question-agent', 'canvas-orchestrator', 'hint-generation']
+restored = /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/.claude/agents
+2026-09-09 11:46:07 [warning  ] AgentService initialized without configured AI client - API calls will fail
+2026-09-09 11:46:07 [warning  ] AgentService initialized without LearningMemoryClient - historical context fallback unavailable when Neo4j is down
+2026-09-09 11:46:07 [debug    ] AgentService initialized without Neo4jClient - will fallback to memory_client
+2026-09-09 11:46:07 [warning  ] AgentService initialized without CanvasService - nodes will not be written to Canvas
+2026-09-09 11:46:07 [info     ] AgentService Phase 2: Tool calling disabled (ENABLE_TOOL_CALLING=false)
+2026-09-09 11:46:07 [info     ] AgentService Phase 4: React Agent ENABLED (ENABLE_REACT_AGENT=true)
+2026-09-09 11:46:07 [debug    ] AgentService max_concurrent=10
+after restore missing = []
+rc=0

@@ -1,0 +1,51 @@
+#!/usr/bin/env python3
+"""M5 重打：_leaf_digest 有三个 OSError 返回点，上一版锚点打中的是 lstat 那个，
+而 test_both_sides_unreadable_plain_files_still_block 走的是 read_bytes 那个 ⇒ 假 SURVIVED。
+这一版逐个返回点各打一次，并对每个变异体断言「它到底改了哪一处」。"""
+from __future__ import annotations
+import ast, hashlib, os, re, subprocess, sys
+from pathlib import Path
+WT = Path("/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy")
+V = WT / "scripts" / "verify_vault_install.py"
+T = "tests/unit/test_vault_install_manifest.py"
+PYTEST = WT / "backend" / ".venv" / "bin" / "pytest"
+BASE = V.read_bytes(); BASE_SHA = hashlib.sha256(BASE).hexdigest()
+print(f"跑前 sha: {BASE_SHA}")
+def restore(): V.write_bytes(BASE)
+def run(node):
+    r = subprocess.run([str(PYTEST), "-q", "-p", "no:cacheprovider", f"{T}::{node}"],
+                       cwd=str(WT/"backend"), capture_output=True, text=True,
+                       env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
+    out = r.stdout + r.stderr
+    return r.returncode, "\n".join(l for l in out.splitlines() if re.match(r"^E\s+", l))
+
+VARIANTS = {
+    "M5a lstat 失败点 bad=False": ('    except OSError:\n        return "U:unreadable", True',
+                                   '    except OSError:\n        return "U:unreadable", False  # MUTANT'),
+    "M5b readlink 失败点 bad=False": ('            target = os.readlink(path)\n        except OSError:\n            return "U:unreadable", True',
+                                      '            target = os.readlink(path)\n        except OSError:\n            return "U:unreadable", False  # MUTANT'),
+    "M5c read_bytes 失败点 bad=False": ('            data = path.read_bytes()\n        except OSError:\n            return "U:unreadable", True',
+                                        '            data = path.read_bytes()\n        except OSError:\n            return "U:unreadable", False  # MUTANT'),
+}
+NODE = "test_both_sides_unreadable_plain_files_still_block"
+try:
+    rc0, _ = run(NODE)
+    assert rc0 == 0, "前置: 变异前该门必须是绿的"
+    for tag, (old, new) in VARIANTS.items():
+        restore()
+        s = V.read_text(encoding="utf-8")
+        n = s.count(old)
+        if n != 1:
+            print(f"  {tag:<34} 锚点命中 {n} 次 ⇒ 跳过（锚点不唯一）"); continue
+        V.write_text(s.replace(old, new, 1), encoding="utf-8")
+        ast.parse(V.read_text(encoding="utf-8"))
+        # 自证: 变异确实落盘, 且落在预期的那一处
+        assert "MUTANT" in V.read_text(encoding="utf-8")
+        rc, el = run(NODE)
+        verdict = "SURVIVED" if rc == 0 else "KILLED"
+        first = el.splitlines()[0].strip() if el else "(无 ^E 行)"
+        print(f"  {tag:<34} {verdict:<9} {first[:78]}")
+finally:
+    restore()
+now = hashlib.sha256(V.read_bytes()).hexdigest()
+print(f"跑后 sha: {now}  还原={'OK' if now == BASE_SHA else '❌残留'}")

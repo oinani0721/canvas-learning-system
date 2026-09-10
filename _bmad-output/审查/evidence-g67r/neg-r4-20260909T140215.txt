@@ -1,0 +1,30 @@
+== 变异前 sha:
+687a661dabf0ea9d837e8c1b422319673a447538632bf5aff818a69b86e50c51  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/scripts/daily_review_run.py
+39fcbe21df45bd8c29c502008653ec2fbe7cc7ada54678a4e6b9bdeb23bd1ed3  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/tests/regression/test_daily_review_run.py
+
+════════ 变异 FLOCK (期望: test_g67r_lock_survives_an_extra_open_close_on_the_same_inode) ════════
+[mutate] FLOCK -> daily_review_run.py
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/scripts/daily_review_run.py:310:                fcntl.lockf(fd, fcntl.LOCK_EX)  # [MUTANT-FLOCK] 退回记录锁
+FAILED tests/regression/test_daily_review_run.py::test_g67r_lock_survives_an_extra_open_close_on_the_same_inode
+=========== 1 failed, 15 passed, 39 deselected, 10 warnings in 2.50s ===========
+
+════════ 变异 SLEEP (期望: test_g67r_state_lock_blocks_other_process_until_released (acquire_after_release 判据)) ════════
+[mutate] SLEEP -> daily_review_run.py
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/scripts/daily_review_run.py:310:                import time as _t; _t.sleep(2.0)  # [MUTANT-SLEEP] 假等待, 不真取锁
+FAILED tests/regression/test_daily_review_run.py::test_g67r_state_lock_blocks_other_process_until_released
+FAILED tests/regression/test_daily_review_run.py::test_g67r_state_lock_survives_inner_save_state_reentry
+FAILED tests/regression/test_daily_review_run.py::test_g67r_lock_survives_an_extra_open_close_on_the_same_inode
+===== 3 failed, 13 passed, 39 deselected, 10 warnings in 75.13s (0:01:15) ======
+
+════════ 变异 M2WAIT (期望: (与撤外锁合用才有意义, 单独跑登记覆盖面)) ════════
+[mutate] M2WAIT -> test_daily_review_run.py
+[mutate] M2WAIT 附带撤外层锁
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/scripts/daily_review_run.py:95:    return _load_state_locked(vault)  # [MUTANT-M2WAIT] 同时撤掉外层锁
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/tests/regression/test_daily_review_run.py:1742:                time.sleep(0.6)  # [MUTANT-M2WAIT] 退回固定等待
+FAILED tests/regression/test_daily_review_run.py::test_g67r_quarantine_lock_blocks_a_lock_abiding_writer
+=========== 1 failed, 15 passed, 39 deselected, 10 warnings in 3.07s ===========
+
+== 还原后 sha:
+687a661dabf0ea9d837e8c1b422319673a447538632bf5aff818a69b86e50c51  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/scripts/daily_review_run.py
+39fcbe21df45bd8c29c502008653ec2fbe7cc7ada54678a4e6b9bdeb23bd1ed3  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/tests/regression/test_daily_review_run.py
+[restore] 已还原

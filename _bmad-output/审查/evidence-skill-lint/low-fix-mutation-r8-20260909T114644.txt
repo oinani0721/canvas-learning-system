@@ -1,0 +1,6 @@
+=== r7 LOW-1 变异: 删掉 `_fence_blocks` 的**同字符**判断 ===
+Traceback (most recent call last):
+  File "<stdin>", line 11, in <module>
+  File "<mutant>", line 169, in <module>
+NameError: name '__file__' is not defined. Did you mean: '__name__'?
+rc=1

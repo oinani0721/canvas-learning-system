@@ -1,0 +1,26 @@
+# CARD-G2-7b r4 整改后目录级对账（tests/unit），三个数据点
+# 基线: dir-red-nodeids-r3fix.txt（202 nodeid）
+#
+# A  dir-red-raw-r4fix-20260909T170949.txt        （r4 主体整改后）
+#      = 173 failed, 4950 passed, 48 skipped, 29 errors =   202 nodeid  → 与基线**逐 nodeid 相等**
+# B  dir-red-raw-r4fix-final-20260909T171851.txt  （+ nlink 三态收紧，最终树）
+#      = 173 failed, 4952 passed, 48 skipped, 29 errors =   202 nodeid  → 与基线差 **一对互换**
+# C  dir-red-raw-r4fix-final2-20260909T172453.txt （同最终树，第三个数据点）
+#      = 173 failed, 4952 passed, 48 skipped, 29 errors =   202 nodeid  → 与基线**逐 nodeid 相等**
+#
+# 权威 nodeid 集合 = C（dir-red-nodeids-r4fix.txt）
+# 结论: 本卡引入 0 / 修复 0
+#
+# ⚠️ B 的那一对互换是 **W4 哨兵归属漂移**，不是回归。三步判别：
+#   ① 哨兵总量三次全同：`live Neo4j port connect attempted` 36 行、
+#      末行 NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=12 ⇒ 越界连接次数没变，只是记到了别的用例头上；
+#   ② B 里新增那条(test_candidate_service::test_accept_candidate_already_accepted_returns_422)
+#      的失败正文**只有哨兵行、没有任何断言失败**；
+#   ③ 两条隔离重跑 3/3 稳定复现基线状态（mock_warn 红 / candidate422 绿），
+#      且 `grep -l` 确认这两个测试文件不引用本卡改过的任何文件。
+#   这一对正是 2026-09-06 Y6-A 记录过的同一对（已知 flaky 面，非本卡）。
+#
+# ⚠️ 另有一份 dir-red-raw-r4fix-20260909T170437.txt：那次**我漏传 PYTHONDONTWRITEBYTECODE=1**，
+#    test_vault_lint.py::test_bytecode_guard_is_armed 因此单独变红（该门断言的正是这个变量）。
+#    不是代码回归，是我的调用与基线不同条件。留档如实记录，不用于对账。
+rc=0

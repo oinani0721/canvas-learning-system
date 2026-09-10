@@ -1,0 +1,13 @@
+# _all_table_names() 两条分支等价性（回答 Codex prompt 问题 2 后半）
+# 2026-09-07T23:16:54Z
+
+  print(f"验伪锚 db.table_names() 默认       : {len(db.table_names())} 张（须 10，否则夹具无鉴别力）")
+分支 A list_tables(limit=None)      : 12 张
+  包装器 hasattr(list_tables) = False（须 False 才算走到回落）
+分支 B table_names(limit=10_000)   : 12 张
+两分支结果相同: True
+两分支都拿到全部 12 张: True
+验伪锚 db.table_names() 默认       : 10 张（须 10，否则夹具无鉴别力）
+
+结论: 本树走分支 A（list_tables 存在）；用只藏 list_tables 的转发包装器逼出分支 B，
+      两分支结果逐项相同且都拿到全部 12 张。验伪锚证明该夹具能区分默认分页(10)与全量(12)。

@@ -1,0 +1,7 @@
+# CARD-G6-9c 开工基线 nodeid diff (FAILED 侧严格比对)
+# 存档: _bmad-output/审查/evidence-g69c/unit-open-20260908T064405.txt  | 基线: evidence-b13/unit-red-baseline-da690bf8.txt
+# 开工汇总行: = 173 failed, 4749 passed, 48 skipped, 122 warnings, 29 errors in 267.23s (0:04:27) =
+# 基线汇总(文件头记录): 173 failed / 4749 passed / 48 skipped / 29 errors
+# FAILED: 开工      173 vs 基线      173 — diff 如下(空=逐条相同):
+# ERROR 侧: 开工命令用了 -rf(覆盖 pytest 默认 -rfE), short summary 不含 ERROR nodeid;
+#          计数 29 与基线相同, nodeid 级对照见 error-nodeid-open-*.txt (补跑那 4 个文件)

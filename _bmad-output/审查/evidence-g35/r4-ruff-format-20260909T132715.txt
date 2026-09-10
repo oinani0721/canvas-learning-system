@@ -1,0 +1,21 @@
+=== format 前 sha ===
+67081502c4c4dda26e723c9c0e435add750fc9024aa94a79383e68b52819360c  scripts/migrate_fsrs_card_states_vault_key_g35.py
+8b17d5f4d7216c8b7dad8017edab0b79f6dec0c1c0f3681007574d2a21e25959  tests/regression/test_g3_5_vault_keyed_card_states.py
+ec17db1517c96878988a6c1fd86506876cfb5ab2c843b68e34f7c126ae541253  tests/regression/test_g3_7_truth_source.py
+
+=== 只 format 这三个 (两个新文件 + HEAD 上本为 clean 的 test_g3_7) ===
+不 format review_service.py / test_review_service_fsrs.py — 它们在 HEAD(155d3361) 上就非 clean,
+整体 format 会引入大量与本卡无关的改动 (基线实测见 ruff-format-baseline-*.txt)
+3 files reformatted
+format rc=0
+
+=== format 后 sha ===
+1bd1600e99d4c301ed6dd4d3feaadde6ae41c365299c603d54fbd29b240c1b37  scripts/migrate_fsrs_card_states_vault_key_g35.py
+4275a8bd8b699df5122619c681055fa8435ab9676bd8e8433a84ea46d03baf16  tests/regression/test_g3_5_vault_keyed_card_states.py
+96c7ddde63d1594e329fcf9e35c892e08fb8359a586315d3bfcea17c54ec355c  tests/regression/test_g3_7_truth_source.py
+
+=== 复查 ===
+3 files already formatted
+format-check rc=0
+All checks passed!
+lint rc=0

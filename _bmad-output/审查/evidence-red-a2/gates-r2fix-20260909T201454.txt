@@ -1,0 +1,20 @@
+===== ruff =====
+All checks passed!
+check-rc=0
+2 files already formatted
+format-rc=0
+
+===== 判据存在性门（卡文写死期望 sync=1 / system=2 / 合计3）=====
+auth_fail_closed  sync   (期望 1): 1
+auth_fail_closed  system (期望 2): 2
+auth_fail_closed  合计   (期望 3): 3
+detail 精确等值    sync=1 system=2
+funcName 绑定      sync=1 system=2
+caplog.clear()     sync=1 system=2
+503 断言保留       backend/tests/unit/test_sync_batch_auth.py:2 backend/tests/unit/test_system_endpoint_auth.py:4 
+裸 caplog.text 判据残留（须 0）: backend/tests/unit/test_system_endpoint_auth.py:0 backend/tests/unit/test_sync_batch_auth.py:0 
+===== 两文件级 =====
+======================= 17 passed, 12 warnings in 0.82s ========================
+FAILED 数: 0
+PASSED 数: 17
+末行: rc=0

@@ -1,0 +1,27 @@
+### 5 个未裁项的性质核实
+--- 1. wiki/ 有没有消费者（谁会读它）---
+canvas-vault/.claude/skills/ai-linked-doc/SKILL.md:343:| `wiki/concepts/` | `节点/` |
+canvas-vault/.claude/skills/configure-whiteboard/SKILL.md:322:| `wiki/concepts/*.md` | `节点/*.md` |
+backend/app/mcp/tools/wikilink_tools.py:18:        description="Note filename or path (e.g., 'decision-tree' or 'wiki/concepts/decision-tree.md')",
+backend/app/mcp/tools/wikilink_tools.py:39:        description="Relative path to the .md file within the vault (e.g., 'wiki/concepts/decision-tree.md')",
+backend/app/api/v1/system.py:439:        (raw/ wiki/ outputs/ CLAUDE.md) 建进了代码目录里。已有一个冻结的污染
+backend/app/services/vault_init_service.py:20:    "wiki/concepts",
+backend/app/services/vault_init_service.py:21:    "wiki/canvases",
+backend/app/services/vault_init_service.py:48:| `wiki/concepts/` | 概念笔记（Templater 模板生成） |
+  (空 = 无消费者)
+--- 2. wiki/ 在 live 上存在吗 ---
+/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/wiki
+canvases
+concepts
+--- 3. 三个根级 .md 的大小与首行 ---
+  2111.md        266 字节  首行: # Linear Algebra Fundamentals  Eigenvalues are special vecto
+  Untitled.md    538 字节  首行: --- title: "Untitled" type: concept mastery_score: 0 bkt_p_m
+  未命名.md         29313 字节  首行: # 加州社区大学转UC计算机专业深度规划报告  
+--- 4. 它们在 live 上存在吗 ---
+  2111.md: live 有
+  Untitled.md: live 有
+  未命名.md: live 有
+--- 5. ROOT_FILES 只复制这两个 ⇒ 它们本就不会被部署 ---
+77:ROOT_FILES=(CLAUDE.md Dashboard.md)
+--- 6. vault 根级 .md 有没有被任何 manifest 条目管到 ---
+  根级(无斜杠)的 manifest 条目: ['.canvas-config.yaml', 'CLAUDE.md', 'Dashboard.md', 'learning_events.jsonl', 'outputs', 'raw', 'templates', '原白板', '检验白板', '节点']

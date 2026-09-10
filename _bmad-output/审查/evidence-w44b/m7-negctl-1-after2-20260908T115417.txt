@@ -1,0 +1,25 @@
+=== NEGCTL case=1 ===
+被测门: TestSettlementAtomicity::test_finalize_and_snapshot_sets_the_flag_and_snapshots_under_one_lock
+期望新门失败正文含: 结算的临界区锁的不是 self._lock
+
+--- 打变异 ---
+MUTANT-APPLIED: case=1 files=['live_port_guard.py']
+
+--- 旧门（HEAD 那一版）在同一个变异体上 ---
+======================== 1 passed, 10 warnings in 0.50s ========================
+OLD-GATE: pass
+
+--- 新门（本卡收紧后）在同一个变异体上 ---
+FAILED tests/unit/test_live_port_guard_contract.py::TestSettlementAtomicity::test_finalize_and_snapshot_sets_the_flag_and_snapshots_under_one_lock
+======================== 1 failed, 10 warnings in 0.54s ========================
+NEW-GATE: fail
+新门失败正文命中期望串: 2 处
+            "结算的临界区锁的不是 self._lock —— 换成别的锁，夹缝原样存在"
+E       AssertionError: 结算的临界区锁的不是 self._lock —— 换成别的锁，夹缝原样存在
+
+NEGCTL-1: PASS（旧门放行 / 新门以指定理由拦下）
+--- 还原 ---
+sha-before = b60f01928d0f73ab3de4ab82a885e419d63d7cf882eedc662bf3cff45c660561
+sha-after  = b60f01928d0f73ab3de4ab82a885e419d63d7cf882eedc662bf3cff45c660561
+RESTORE-OK: sha-before == sha-after
+rc=0

@@ -1,0 +1,31 @@
+# CARD-G2-7b 收官对账（r12 达标：0 BLOCKER / 0 HIGH，本卡可收敛）
+绑定: afd7e5fc = 最终 HEAD 代码面（其后 commit 只动 _bmad-output）
+  git diff --stat afd7e5fc HEAD -- . ':(exclude)_bmad-output' → **0 行**
+  验伪锚 git diff --name-only 0ee633ea HEAD 同形态 → **7 文件**（非空 ⇒ 排除 pathspec 假空）
+
+## Codex 12 轮
+  r1 2B/4H · r2 4B/2H · r3 4B/4H · r4 4B/2H · r5 4B/3H
+  r6 2B/1H · r7 0B/1H · r8 0B/4H · r9 0B/1H · r10 0B/2H · r11 0B/1H · **r12 0B/0H ⭐**
+  BLOCKER 连续六轮 0（r7–r12）；r12 明确「本卡可收敛」。
+
+## 最终裁判
+  文件级三文件      : 145 passed（本文件）
+  变异              : **26/26 KILLED**（含**绿基线自检**，r12 LOW-3 修后）+ 1 探针；还原逐字节
+  负控              : **9/9**（live 71 / hosts 64 / port 71 / activate 64 / evdir 71 / envdir 71 / rel×2 64 / tmpdir 71）
+  正控 apply        : rc 0；key 600、.env 600、8011 残留 0、三处密钥同值
+  H-3 端到端        : 预置 0644 → 600 + 密钥写入 1 行
+  B-4 端到端        : 镜像内软链 → rc 74 且保护目录零写入；还原真目录 → rc 0
+  E-4 build 真跑    : npm-*/{cache,logs} 落 evidence；~/.npm 我方写入 0；main.js 同尺寸重建
+  目录级红集        : 对 da690bf8 基线**逐 nodeid 相等 202==202** ⇒ 本卡引入 0
+  裸 chmod/os.write/非注释 here-string: **0 / 0 / 0**
+
+## 禁写面（哨兵 = dir-red-close-r11fix.txt）
+  ~/Desktop/canvas/canvas-learning-system/canvas-vault 0
+  ~/.dsh                                     0
+  ~/.config/opencode                         0
+  ~/Library/LaunchAgents                     0
+  $WT/.env sha == 基线: ✅
+  git status -- canvas-vault/: 0 行
+  地盘门: 7 文件
+  *.stderr 入库数: 0
+rc=0

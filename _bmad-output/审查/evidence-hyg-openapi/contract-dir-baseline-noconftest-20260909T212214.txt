@@ -1,0 +1,22 @@
+=== (g) 对照基线：移走本卡 conftest.py 后重跑同一组文件 ===
+--- 移走前 shasum ---
+ba8734acf9221c1be7caf9a46742c34fe92b6fff72964121317ef653da82f071  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u5-lance/backend/tests/contract/conftest.py
+--- conftest.py 已移出，确认不在 ---
+  已不在 ✅
+tests/contract/test_health_contract.py: 567 warnings
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/frontmatter/__init__.py:161: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with codecs.open(fd, "r", encoding) as f:
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=19 (blocked=19, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/contract/test_health_contract.py::test_health_contract[GET /api/v1/health]
+FAILED tests/contract/test_node_id_patterns.py::TestNodeIdPatternConsistency::test_pattern_matches_json_schema
+FAILED tests/contract/test_openapi_snapshot_drift.py::test_committed_snapshot_has_no_drift
+====== 3 failed, 99 passed, 2 skipped, 577 warnings in 142.07s (0:02:22) =======
+<sys>:0: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
+  (上面是无 conftest 基线的摘要)
+--- 还原 ---
+--- 还原后 shasum（须与移走前同） ---
+ba8734acf9221c1be7caf9a46742c34fe92b6fff72964121317ef653da82f071  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u5-lance/backend/tests/contract/conftest.py
+rc=0

@@ -1,0 +1,9 @@
+# U10-A P1-green r6（dirlink 修复后, 独立存档）
+# 所测 conftest sha256=6f8f29f052921906a92beb691226e47e088771d24759c2eaf7c15e24b989fb76
+# 前提: 上一条 P1-red 已还原（SHA_MATCH=YES 见 negctl-p1-red-2026*r6*.txt）
+# t0=2026-09-08T11:58:20
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================== 8 passed, 10 warnings in 0.78s ========================
+rc=0

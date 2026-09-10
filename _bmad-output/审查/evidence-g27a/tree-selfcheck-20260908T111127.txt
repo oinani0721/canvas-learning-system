@@ -1,0 +1,38 @@
+### (g)⑥ / 裁判 7 — E-4 树自洽门：树自身作 --vault 与 --source
+报告已写入 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy/_bmad-output/审查/evidence-g27a/verify-self-20260908T111127.txt
+rc=0
+--- 报告摘要 ---
+------------------------------------------------------------------
+match                  : 23
+missing                : 0
+extra                  : 0
+content-drift          : 0
+intentionally-excluded : 8
+allowed-extra          : 2
+optional-missing       : 12
+unreadable             : 0
+hotkeys                : not evaluated (.obsidian/plugins/canvas-learning-system/main.js 缺 — gitignored 构建产物)
+hotkey-orphan          : 0
+
+--- optional-missing 段逐条 ---
+## optional-missing
+  .claude/agents [claude-system]  — 模板源也没有这一项 (install-vault.sh 会打 ⚠️ 跳过)
+  .claude/commands [claude-system]  — 模板源也没有这一项 (install-vault.sh 会打 ⚠️ 跳过)
+  .claude/settings.local.json [secret-or-local]  — 声明为 optional, 允许缺失 (不计退出码)
+  .obsidian/app.json [obsidian-config]  — 模板源也没有这一项 (install-vault.sh 会打 ⚠️ 跳过)
+  .obsidian/appearance.json [obsidian-config]  — 模板源也没有这一项 (install-vault.sh 会打 ⚠️ 跳过)
+  .obsidian/core-plugins.json [obsidian-config]  — 模板源也没有这一项 (install-vault.sh 会打 ⚠️ 跳过)
+  .obsidian/cls-internal-key.txt [secret-or-local]  — 声明为 optional, 允许缺失 (不计退出码)
+  .obsidian/plugins/dataview [obsidian-plugin]  — 模板源也没有这一项 (install-vault.sh 会打 ⚠️ 跳过)
+  .obsidian/plugins/breadcrumbs [obsidian-plugin]  — 模板源也没有这一项 (install-vault.sh 会打 ⚠️ 跳过)
+  .obsidian/plugins/templater-obsidian [obsidian-plugin]  — 模板源也没有这一项 (install-vault.sh 会打 ⚠️ 跳过)
+  .obsidian/plugins/canvas-learning-system/data.json [plugin-config]  — 声明为 optional, 允许缺失 (不计退出码)
+  .obsidian/plugins/templater-obsidian/data.json [plugin-config]  — 声明为 optional, 允许缺失 (不计退出码)
+
+--- missing / extra 段（应当都没有）---
+0
+  无 missing 段 ✅
+0
+  无 extra 段 ✅
+--- 末行 ---
+exit=0

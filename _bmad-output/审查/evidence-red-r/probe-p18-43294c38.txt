@@ -1,0 +1,59 @@
+### CARD-RED-R 单点探针 (取失败身份, 非 bisect)
+tag: p18-43294c38
+rev: 43294c38 -> 43294c38   (2026-04-17 feat(epic-1): story 1.8 vault switch API + story 1.9 LanceDB vault_id isolation)
+nodeid: tests/unit/test_vault_notes_group_filter.py::test_group_id_honors_nested_metadata_json_subject
+started: 2026-09-09T12:25:25+0800
+
+Preparing worktree (detached HEAD 43294c38)
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-probe-p18-43294c38/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 1 item
+tests/unit/test_vault_notes_group_filter.py F                            [100%]
+=================================== FAILURES ===================================
+______________ test_group_id_honors_nested_metadata_json_subject _______________
+    async def test_group_id_honors_nested_metadata_json_subject():
+        """Some ingestion paths only write subject_id into the JSON blob.
+        The filter must peek into metadata_json after it's been parsed."""
+        rows = [
+            _make_row("r_nested", subject_id="physics", nested_json=True),
+            _make_row("r_math_nested", subject_id="math", nested_json=True),
+        ]
+        service = _make_service_with_results(rows)
+        await service.initialize()
+        out = await service.search(query="anything", num_results=10, group_id="physics")
+>       assert len(out) == 1
+E       AssertionError: assert 2 == 1
+E        +  where 2 = len([{'id': 'r_nested', 'metadata': {'file_path': 'r_nested.md', 'heading': None, 'line_end': None, 'line_start': None, .....etadata': {'file_path': 'r_math_nested.md', 'heading': None, 'line_end': None, 'line_start': None, ...}, 'score': 0.8}])
+tests/unit/test_vault_notes_group_filter.py:185: AssertionError
+=============================== warnings summary ===============================
+../../../../../../../../Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+../../../../../../../../Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+../../../../../../../../Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+../../../../../../../../Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+    import pkg_resources
+<frozen importlib._bootstrap>:491
+<frozen importlib._bootstrap>:491
+app/api/v1/endpoints/metadata.py:98
+    canvas_path: str = Query(
+app/api/v1/endpoints/metadata.py:152
+    canvas_path: str = Query(
+../../../../../../../../Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+app/mcp/server.py:132
+    mcp.mount()
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/unit/test_vault_notes_group_filter.py::test_group_id_honors_nested_metadata_json_subject
+======================== 1 failed, 10 warnings in 0.50s ========================
+pytest_raw_rc=0 (⛔ 非判据: 老 commit addopts 含 --cov-fail-under=85)
+worktree_removed_rc=0
+rc=0

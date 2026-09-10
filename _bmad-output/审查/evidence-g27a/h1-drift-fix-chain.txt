@@ -1,0 +1,7 @@
+### (h)① 首跑 rc=2 → 修复 → rc=0 的完整因果链（归档索引）
+- 首跑（修复前）: real-run-tree-*.txt 尾部 verify-rc=2, content-drift 1 = 插件目录
+  （生成件 data.json 在 copy 目录里, 与源摘要必然不同）
+- 修复: verify_vault_install.py _digest_pairs 增 generated 过滤（generate 路径不入父目录摘要）
+- 复跑: verify-tree-fixed-*.txt verify-rc=0
+- 门: test_generated_items_do_not_participate_in_parent_dir_digest（含非生成件仍要比的对照）
+- 首跑的 verify-tree-*.txt 与复跑的 verify-tree-fixed-*.txt 都保留, 漂移可逐字核

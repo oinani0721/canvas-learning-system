@@ -1,0 +1,35 @@
+!!! 本文件作废（SUPERSEDED）—— 它是**不带 --config** 跑出来的，用的是 ruff 默认 line-length=88，
+!!! 与项目 backend/ruff.toml 的 120 不同口径，结论（只 1 个文件漂）与 hook 实际口径不符。
+!!! 正确口径见同目录 ruff-format-drift-baseline-20260909T130601.txt（17/18 基线既有漂移）。
+!!! 保留本文件只为如实记录这次口径错误，勿引用其数字。
+
+# ruff format 漂移 = 本批基线既有，非本卡引入 — CARD-RED-C2
+
+本卡改过的测试文件（18）：
+backend/tests/unit/grouping/test_analyze_canvas.py
+backend/tests/unit/test_agent_context_injection.py
+backend/tests/unit/test_agent_service_comparison.py
+backend/tests/unit/test_agent_service_neo4j_memory.py
+backend/tests/unit/test_cache_configuration.py
+backend/tests/unit/test_config_neo4j.py
+backend/tests/unit/test_context_enrichment_2hop.py
+backend/tests/unit/test_degraded_flag_propagation.py
+backend/tests/unit/test_intelligent_parallel_endpoints.py
+backend/tests/unit/test_neo4j_health.py
+backend/tests/unit/test_rag_multimodal_integration.py
+backend/tests/unit/test_s02_entity_types.py
+backend/tests/unit/test_s02_search_upgrade.py
+backend/tests/unit/test_story_30_24_boundary.py
+backend/tests/unit/test_story_38_8_fallback_sync.py
+backend/tests/unit/test_subject_isolation.py
+backend/tests/unit/test_supplementary_reranker.py
+backend/tests/unit/test_verification_service_injection.py
+
+## 判据：把这 18 个文件在【本批基线 da690bf8】上的原样副本（未经本卡任何编辑）
+##       喂给同一个 ruff，看它是否同样 'would reformat'。
+
+$ git show da690bf8:<path> > $SP/<path>   # 18 个文件逐个取基线原样
+$ cd $SP && ruff format --check --color never backend/
+Would reformat: backend/tests/unit/test_s02_search_upgrade.py
+1 file would be reformatted, 17 files already formatted
+rc=1

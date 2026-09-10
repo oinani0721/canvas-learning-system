@@ -1,0 +1,86 @@
+--- /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u11-red-c/4a464adb-34b4-4d5b-a4d7-a737950e0443/scratchpad/basever/tests/unit/test_cache_configuration.py
++++ /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u11-red-c/4a464adb-34b4-4d5b-a4d7-a737950e0443/scratchpad/basever/tests/unit/test_cache_configuration.py
+@@ -230,9 +230,7 @@
+         assert "AGENT_MEMORY_CACHE_MAXSIZE" in source, (
+             "dependencies.py must pass AGENT_MEMORY_CACHE_MAXSIZE to AgentService"
+         )
+-        assert "AGENT_MEMORY_CACHE_TTL" in source, (
+-            "dependencies.py must pass AGENT_MEMORY_CACHE_TTL to AgentService"
+-        )
++        assert "AGENT_MEMORY_CACHE_TTL" in source, "dependencies.py must pass AGENT_MEMORY_CACHE_TTL to AgentService"
+ 
+     def test_enrichment_service_di_passes_cache_config(self):
+         """dependencies.py reads Settings and passes to ContextEnrichmentService."""
+
+--- /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u11-red-c/4a464adb-34b4-4d5b-a4d7-a737950e0443/scratchpad/basever/tests/unit/test_qa_38_4_dual_write_extra.py
++++ /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u11-red-c/4a464adb-34b4-4d5b-a4d7-a737950e0443/scratchpad/basever/tests/unit/test_qa_38_4_dual_write_extra.py
+@@ -64,9 +64,7 @@
+ 
+         # getattr with False fallback is a valid defense pattern
+         result = getattr(fresh_settings, "ENABLE_GRAPHITI_JSON_DUAL_WRITE", False)
+-        assert result is True, (
+-            "getattr should return the actual True value, not the False fallback"
+-        )
++        assert result is True, "getattr should return the actual True value, not the False fallback"
+ 
+     def test_env_example_documents_true_default(self):
+         """The .env.example file documents the safe default correctly."""
+
+--- /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u11-red-c/4a464adb-34b4-4d5b-a4d7-a737950e0443/scratchpad/basever/tests/unit/test_story_38_4_dual_write_default.py
++++ /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u11-red-c/4a464adb-34b4-4d5b-a4d7-a737950e0443/scratchpad/basever/tests/unit/test_story_38_4_dual_write_default.py
+@@ -69,11 +69,7 @@
+         from app.main import lifespan
+ 
+         # Remove env var to simulate fresh install (AC-1: no .env customization)
+-        env_without_dw = {
+-            k: v
+-            for k, v in os.environ.items()
+-            if k != "ENABLE_GRAPHITI_JSON_DUAL_WRITE"
+-        }
++        env_without_dw = {k: v for k, v in os.environ.items() if k != "ENABLE_GRAPHITI_JSON_DUAL_WRITE"}
+ 
+         with (
+             patch("app.main.get_default_monitor") as mock_monitor,
+@@ -105,11 +101,8 @@
+                     pass
+ 
+             log_messages = [r.message for r in caplog.records]
+-            assert any(
+-                "Dual-write: enabled (default)" in msg for msg in log_messages
+-            ), (
+-                f"Expected startup log 'Dual-write: enabled (default)' not found. "
+-                f"Got logs: {log_messages}"
++            assert any("Dual-write: enabled (default)" in msg for msg in log_messages), (
++                f"Expected startup log 'Dual-write: enabled (default)' not found. Got logs: {log_messages}"
+             )
+ 
+ 
+@@ -172,10 +165,7 @@
+                     pass
+ 
+             log_messages = [r.message for r in caplog.records]
+-            assert any(
+-                "Dual-write: disabled (explicit configuration)" in msg
+-                for msg in log_messages
+-            ), (
++            assert any("Dual-write: disabled (explicit configuration)" in msg for msg in log_messages), (
+                 f"Expected startup log 'Dual-write: disabled (explicit configuration)' not found. "
+                 f"Got logs: {log_messages}"
+             )
+@@ -219,12 +209,8 @@
+                 async with lifespan(app):
+                     pass
+ 
+-            warning_messages = [
+-                r.message for r in caplog.records if r.levelno >= logging.WARNING
+-            ]
+-            assert any(
+-                "JSON fallback is disabled" in msg for msg in warning_messages
+-            ), (
++            warning_messages = [r.message for r in caplog.records if r.levelno >= logging.WARNING]
++            assert any("JSON fallback is disabled" in msg for msg in warning_messages), (
+                 f"Expected WARNING 'JSON fallback is disabled. Neo4j outage will cause data loss.' "
+                 f"not found. Got warnings: {warning_messages}"
+             )
+
+3 files would be reformatted

@@ -1,0 +1,12 @@
+# P10-c Claude Code 认根：cwd 级 vs git 根级（cwd=车道树/canvas-vault）  @ 2026-09-08T07:14:20+08:00
+cwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u4-hosts/canvas-vault
+对照：P4 在 $PV(无 .git 祖先) 下 project=[$PV/.claude/skills]
+      此处 cwd=canvas-vault，git 根=车道树根，两处都有 .claude/skills
+      ⇒ 看 'Loading skills from: ... project=[...]' 列出几个根
+===== claude -p（极短提示，只为触发启动期 skills 加载）=====
+result = 'OK'
+is_error = False
+===== debug 日志：skills 加载根与计数 =====
+2026-09-07T23:14:20.281Z [DEBUG] Loading skills from: managed=/Library/Application Support/ClaudeCode/.claude/skills, user=/Users/Heishing/.claude/skills, project=[<车道树>/canvas-vault/.claude/skills, <车道树>/.claude/skills]
+2026-09-07T23:14:20.316Z [DEBUG] Loaded 151 unique skills (151 unconditional, 0 conditional, managed: 0, user: 11, project: 15, additional: 0, legacy commands: 125)
+rc=0

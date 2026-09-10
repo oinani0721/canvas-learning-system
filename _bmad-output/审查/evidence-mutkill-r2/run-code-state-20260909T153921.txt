@@ -1,0 +1,8 @@
+=== 本次全跑的代码状态 ===
+HEAD: 01ac27d08d6c78c5f44c49cf50b82d2376b4f0df
+工作树是否干净: NO
+37343d46d6f476e7f513ea99535005f9d77e8e19fbf9e68b61f58ff791b80018  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u8-mutgates/backend/scripts/mutation_kill_identity.py
+e583f5ad046a2188b1c66b8c2959cf7408294c16e164e2d46c88385a262feee0  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u8-mutgates/backend/scripts/g32b_mutation_gates.py
+2972963baf71f57fe093016af13d81234de44eab797f4deaef12244c6222d372  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u8-mutgates/backend/scripts/g32cb_mutation_gates.py
+607e1b47535fda9649955401d881fdc3f55c184660ae72efffb5e53de5a4cfe4  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u8-mutgates/backend/scripts/g32ccr1_negative_controls.py
+2201a8fcc0b8732186ffd4d60d8690b74c70ba2700a436fc27732dd007466c4b  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u8-mutgates/backend/scripts/g33_mutation_gates.py

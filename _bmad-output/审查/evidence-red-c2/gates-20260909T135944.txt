@@ -1,0 +1,53 @@
+# 收工门 §二.6 / §二.7 / §二.8 — CARD-RED-C2（Codex round-1 整改后重跑）
+HEAD=c6278d6e   U11-A 末 commit=5139428d   跑于 2026-09-09 13:59:44
+（round-1 MEDIUM 指出「证据未绑定审查 SHA」⇒ 本文件首行写死 HEAD，与 unit-after / files-23 同一 HEAD）
+
+## §二.6 判据强度门
+  ↑ 无输出 = 通过
+
+## §二.7 fixture 门
+autouse=True 新增数: 0
+精确读取面模式（排除 os.environ 假阳）:
+  ↑ 无输出 = 通过
+
+## §二.8 地盘门
+改动文件:
+backend/tests/unit/grouping/test_analyze_canvas.py
+backend/tests/unit/test_agent_context_injection.py
+backend/tests/unit/test_agent_memory_trigger.py
+backend/tests/unit/test_agent_service_comparison.py
+backend/tests/unit/test_agent_service_neo4j_memory.py
+backend/tests/unit/test_cache_configuration.py
+backend/tests/unit/test_config_neo4j.py
+backend/tests/unit/test_context_enrichment_2hop.py
+backend/tests/unit/test_degraded_flag_propagation.py
+backend/tests/unit/test_intelligent_parallel_endpoints.py
+backend/tests/unit/test_neo4j_health.py
+backend/tests/unit/test_rag_multimodal_integration.py
+backend/tests/unit/test_s02_entity_types.py
+backend/tests/unit/test_s02_search_upgrade.py
+backend/tests/unit/test_story_1_7_env_config.py
+backend/tests/unit/test_story_30_24_boundary.py
+backend/tests/unit/test_story_38_1_review_fixes.py
+backend/tests/unit/test_story_38_4_dual_write_default.py
+backend/tests/unit/test_story_38_8_fallback_sync.py
+backend/tests/unit/test_subject_isolation.py
+backend/tests/unit/test_supplementary_reranker.py
+backend/tests/unit/test_verification_service_injection.py
+backend/tests/unit/test_wave5_stageb_continued_vault_id_injection.py
+文件数: 23
+
+backend/app diff（必须空）:
+  ↑ 空
+_archive diff（必须空）:
+  ↑ 空
+
+全部 ⊆ 23 文件清单（comm -23 必须空）:
+  ↑ 空
+
+既有 skip 标记被删/改的行数:
+0
+
+本卡 diff 里 stderr 文件数（(m) 的正确口径）:
+0
+（仓库里那 1 个 census-stderr.txt 属 CARD-G4-9 2026-08-28 既有，见 gates-20260909T132820.txt 尾部）

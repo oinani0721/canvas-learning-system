@@ -1,0 +1,22 @@
+# ⚠️ 补注（收工时加）：本条所依据的两份 ~/.dsh 完整目录快照（dsh-home-before/after-P2.txt，各 ~111KB）
+#    为本卡自加的辅助项（非卡文 (a) 要求的 (ii) 状态面快照），含大量用户级目录路径，
+#    已移出库、留 session scratchpad；下方 diff 结果即其全部承重内容。
+# P2-d 宿主副作用：~/.dsh 跑前/跑后差集（(ii) 运行期状态面，登记不阻断）  @ 2026-09-08T06:56:58+08:00
+=== diff before → after ===
+3c3
+< drwxr-xr-x  116 Heishing  staff  3712 Sep  8 06:52 ..
+---
+> drwxr-xr-x  116 Heishing  staff  3712 Sep  8 06:56 ..
+726c726
+< -rw-r--r--@ 1 Heishing  staff   223 Sep  8 06:52 cordis.yml
+---
+> -rw-r--r--@ 1 Heishing  staff   223 Sep  8 06:55 cordis.yml
+diff_rc=1  (0=无差异, 1=有差异)
+
+=== 配置面(i) 即时复核：~/.dsh/profiles/web 两份配置件 sha 是否仍与开工相同 ===
+c300dcf2ebc5f02062d6591268d29d3db6fe45e0cb138f5467276fe2ba06076e  /Users/Heishing/.dsh/profiles/web/cordis.yml
+ef189a8c27db6d63930aa3046a3040482e952eafcb7487c644d508e8d461f027  /Users/Heishing/.dsh/profiles/web/cordis.patch.yml
+--- 开工基线 ---
+c300dcf2ebc5f02062d6591268d29d3db6fe45e0cb138f5467276fe2ba06076e  /Users/Heishing/.dsh/profiles/web/cordis.yml
+ef189a8c27db6d63930aa3046a3040482e952eafcb7487c644d508e8d461f027  /Users/Heishing/.dsh/profiles/web/cordis.patch.yml
+rc=0

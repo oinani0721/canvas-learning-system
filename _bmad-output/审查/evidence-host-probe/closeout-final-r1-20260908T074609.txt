@@ -1,0 +1,28 @@
+# 收工禁写面对账（r1 整改后·最终）  @ 2026-09-08T07:46:09+08:00
+# 说明：r1 整改期间又跑了 4 次 codex exec（P6-e ×2 / P6-f ×2），故重取收工 sha。
+
+=== (i) 配置面五行 diff ===
+3c3
+< 5636da377567323baae6a99b3b22b0aa59972317369221de9d00cd2ffdfc4063  /Users/Heishing/.codex/config.toml
+---
+> b221897cb36702c315f428b081bab7fec40700d9fb86e4991bf133c864421b30  /Users/Heishing/.codex/config.toml
+diff_rc=1
+
+=== 逐项 ===
+  1) cordis.yml        : sha 不变 ✅
+  2) cordis.patch.yml  : sha 不变 ✅
+  3) ~/.codex/config.toml : sha 变 ⛔（根因见 §三.7，宿主 trust 记录，非本卡编辑）
+  4) ~/.claude/settings.json : sha 不变 ✅
+  5) opencode.json     : 开工 ABSENT / 收工 ABSENT ✅
+     ⚠️ 但 OpenCode 实际创建的是 opencode.jsonc + .gitignore（D-26 (i) 覆盖面漏洞，§三.10）
+
+=== [projects] 段数变化（本卡留下的 trust 记录）===
+  当前 [projects.*] 段数 = 16
+  本卡相关条目数（probe-vault / causal-probe-*） = 2
+
+=== 硬判据 ===
+  live vault find -newer sentinel = 0
+  车道树 canvas-vault git status = 0
+  零代码门(vs da690bf8) = 0
+  Codex 绑定门(vs 434c77dc) = 0
+rc=0

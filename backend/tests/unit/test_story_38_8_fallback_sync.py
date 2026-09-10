@@ -853,7 +853,13 @@ class TestAC5FileRotation:
         async def run_query_side_effect(*args, **kwargs):
             call_count["n"] += 1
             if call_count["n"] == 2:
-                raise Exception("Neo4j connection lost")
+                # 契约对齐 a9304c69 (2026-03-29 "except Exception 精确化" 251处/65文件)：
+                # fallback_sync_service 的兜底自该 commit 起只吃
+                # (RuntimeError, ConnectionError, asyncio.TimeoutError) /
+                # (OSError, RuntimeError, ConnectionError)（:70/:82/:89/:96）。
+                # 裸 Exception 按设计穿透——本用例要验的是 AC-5「pending 条目重写」，
+                # 故注入契约内的连接类故障，而不是放宽生产的 except。[CARD-RED-C2]
+                raise ConnectionError("Neo4j connection lost")
             return [{"should_update": True}]
 
         mock_neo4j.run_query = AsyncMock(side_effect=run_query_side_effect)

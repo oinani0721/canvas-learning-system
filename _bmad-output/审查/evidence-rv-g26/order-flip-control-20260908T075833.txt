@@ -1,0 +1,25 @@
+### 顺序翻转对照实验 (ts=20260908T075833)
+现象: 收工红集与开工同为 202, 但 test_candidate_service::…returns_422 进、
+      test_mock_degradation_transparency::…logs_warning 出。
+
+--- 证据 1: 这两条与本卡被测物无任何 import 关系 ---
+tests/unit/test_mock_degradation_transparency.py:0
+tests/unit/test_candidate_service.py:0
+
+--- 证据 2: 单独跑这两条, 各自都是绿的（⇒ 不是自身坏了）---
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================== 1 passed, 10 warnings in 0.47s ========================
+FAILED tests/unit/test_mock_degradation_transparency.py::TestMockScoringWarningLogs::test_mock_mode_logs_warning
+======================== 1 failed, 10 warnings in 0.54s ========================
+
+--- 证据 3: ⚠️ 我原本的假设「换顺序结论就翻」被下面这组数据**证伪**了 ---
+    实测: 两条单独跑时 mock 恒红、candidate 恒绿; 两两组合换序也不翻(都是 mock 红)。
+    ⇒ 这一对的翻转**不是这两条互相干扰**造成的, 而是整套 tests/unit 的全局状态/顺序造成的。
+    真正的判据改用卡文指定的 --ignore 对照实验(见 dir-tests-unit-ignore-mine-*.raw):
+    把本卡测试文件摘掉后重跑目录级, 看红集组成是否回到开工那一版。
+  顺序 A: candidate 先
+FAILED tests/unit/test_mock_degradation_transparency.py::TestMockScoringWarningLogs::test_mock_mode_logs_warning
+=================== 1 failed, 1 passed, 10 warnings in 0.66s ===================
+  顺序 B: mock 先
+FAILED tests/unit/test_mock_degradation_transparency.py::TestMockScoringWarningLogs::test_mock_mode_logs_warning
+=================== 1 failed, 1 passed, 10 warnings in 0.59s ===================

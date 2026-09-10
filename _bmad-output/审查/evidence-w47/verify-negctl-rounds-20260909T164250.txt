@@ -1,0 +1,41 @@
+=== 七份轮次/结构负控复核（最终 HEAD 7278f156）===
+跑前 guard sha256: 01f8f9e459cf303e99963cabb068802e5e55aaf873db9579acec18d0dc6ed362
+
+########## case=r1-high1 ##########
+pytest 退出码 = 1（要求恰好 1 = failed；2=INTERRUPTED / 3=INTERNALERROR 一律不算）
+NEGCTL-r1-high1: PASS（逐参数预期全部对上；rc=1）
+RESTORE-OK: sha-before == sha-after
+
+########## case=r1-high2 ##########
+pytest 退出码 = 1（要求恰好 1 = failed；2=INTERRUPTED / 3=INTERNALERROR 一律不算）
+NEGCTL-r1-high2: PASS（逐参数预期全部对上；rc=1）
+RESTORE-OK: sha-before == sha-after
+
+########## case=r2-med1 ##########
+pytest 退出码 = 1（要求恰好 1 = failed；2=INTERRUPTED / 3=INTERNALERROR 一律不算）
+NEGCTL-r2-med1: PASS（逐参数预期全部对上；rc=1）
+RESTORE-OK: sha-before == sha-after
+
+########## case=r3-med1 ##########
+pytest 退出码 = 1（要求恰好 1 = failed；2=INTERRUPTED / 3=INTERNALERROR 一律不算）
+NEGCTL-r3-med1: PASS（逐参数预期全部对上；rc=1）
+RESTORE-OK: sha-before == sha-after
+
+########## case=struct-r2 ##########
+pytest 退出码 = 1（要求恰好 1 = failed；2=INTERRUPTED / 3=INTERNALERROR 一律不算）
+NEGCTL-struct-r2: PASS（逐参数预期全部对上；rc=1）
+RESTORE-OK: sha-before == sha-after
+
+########## case=struct-r3 ##########
+pytest 退出码 = 1（要求恰好 1 = failed；2=INTERRUPTED / 3=INTERNALERROR 一律不算）
+NEGCTL-struct-r3: PASS（逐参数预期全部对上；rc=1）
+RESTORE-OK: sha-before == sha-after
+
+########## case=struct-r4 ##########
+pytest 退出码 = 1（要求恰好 1 = failed；2=INTERRUPTED / 3=INTERNALERROR 一律不算）
+NEGCTL-struct-r4: PASS（逐参数预期全部对上；rc=1）
+RESTORE-OK: sha-before == sha-after
+
+跑后 guard sha256: 01f8f9e459cf303e99963cabb068802e5e55aaf873db9579acec18d0dc6ed362
+工作树 backend 改动行数: 0
+rc=0

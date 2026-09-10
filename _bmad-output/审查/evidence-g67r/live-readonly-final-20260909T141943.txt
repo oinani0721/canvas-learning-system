@@ -1,0 +1,28 @@
+# 裁判 10: live 只读核 (最终收工)
+== shasum ==
+5d6e2d2db2a34e7254026b545cffc9d139b6eeee43cb18081ea963f1234f4100  /Users/Heishing/Desktop/canvas/canvas-learning-system/backups/daily-review.canvas-vault.state.json
+00989816afefaf0d4ea514b065725b10225d069d42ab23072a1e7e6812a6b3a9  /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/outputs/今日复习.json
+-- 开工值 (evidence-g67r 无独立存档, 抄自开工那次命令输出) --
+5d6e2d2db2a34e7254026b545cffc9d139b6eeee43cb18081ea963f1234f4100  backups/daily-review.canvas-vault.state.json
+00989816afefaf0d4ea514b065725b10225d069d42ab23072a1e7e6812a6b3a9  canvas-vault/outputs/今日复习.json
+== live backups/ 里 state.lock 计数 (须 0) ==
+1
+== live backups/ ls -la (自证真跑) ==
+total 192
+drwxr-xr-x@ 15 Heishing  staff    480 Sep  9 14:06 .
+drwxr-xr-x@ 71 Heishing  staff   2272 Aug 31 06:03 ..
+-rw-r--r--@  1 Heishing  staff    916 Aug 25 03:43 com.canvas.daily-review.plist.pre-A3-20260825-034356
+-rwxr-xr-x@  1 Heishing  staff   2754 Aug 27 05:37 daily-review-wrapper.sh.pre-C1a-20260827-053723
+-rw-r--r--@  1 Heishing  staff    533 Sep  9 09:05 daily-review.canvas-vault.state.json
+-rw-r--r--@  1 Heishing  staff  16827 Sep  9 14:05 daily-review.log
+-rw-r--r--@  1 Heishing  staff    414 Aug 26 09:16 daily-review.state.json.bak
+-rw-r--r--@  1 Heishing  staff    144 Sep  9 14:06 daily-review.vault.state.json
+-rw-r--r--@  1 Heishing  staff      0 Sep  9 13:15 daily-review.vault.state.lock
+-rw-r--r--@  1 Heishing  staff  20567 Aug 25 02:02 Dashboard.md.pre-A2-20260825-020229
+-rw-r--r--@  1 Heishing  staff   5080 Aug 27 05:37 fsrs_bridge.py.pre-C3-20260827-053749
+-rw-r--r--@  1 Heishing  staff   7492 Aug 29 06:10 learning_events.jsonl.pre-s1-cleanup-20260829-061014
+-rw-r--r--@  1 Heishing  staff  10896 Sep  9 09:00 memory-health.log
+drwxr-xr-x@ 17 Heishing  staff    544 Sep  8 04:30 neo4j
+-rw-r--r--@  1 Heishing  staff   1930 Aug 29 06:10 neo4j-s1-polluted-nodes-20260829-061014.txt
+== git status canvas-vault/ backups/ (须 0) ==
+       0

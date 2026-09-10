@@ -1,0 +1,23 @@
+=== (h) 的现场检验（非计划内，如实记录）===
+过程：--probe 跑到一半时，我先误 kill 了 shell 包装进程（PID 20498），python（20501）继续跑，
+      此刻 SKILL.md sha = 1d070c2e…（带着变异体，属正常的变异窗口内状态）；
+      随后对 **python 进程本身** 发 SIGTERM，RestoreGuard 先还原再退出。
+--- SIGTERM python 之后的全目标 sha ---
+8dc761f88378b2fb1eeae4ab8d5ccfb66b368535e792521d01722889cd269015  backend/app/services/learning_event_log.py
+45c77229169c5c388332f785449aaaf284942cbdc023447598f9fc051f3828a2  backend/scripts/validate_learning_events.py
+a52c77317b799a1aa1c2d5abf23a5bbb5af78ff988179941c4e865b39ee207f8  backend/tests/regression/test_g3_2_review_ledger.py
+3bf4ed9402a4c8edfde16630a79094a5d4518fd181fa60810319fe46d37abb90  canvas-vault/.claude/scripts/decay_beta.py
+a766fbcc28e3ff917e740843c633e800aa8a75e949295f83efc90f55105f90f0  canvas-vault/.claude/scripts/fsrs_bridge.py
+63b51029ea96a78abd757902023f378697688c28db1b8dc0aaee8969e9ee48e8  canvas-vault/.claude/skills/quiz-answer/SKILL.md
+1ec5dd95ad8a634fcdd395a3468fdb534ef9936cf90f6c6d2326ffe2f518ad2a  canvas-vault/.claude/skills/start-exam-board/SKILL.md
+43ac9e618d10d2ff2e851d10db3f5c0ed5632a93d10f00fcbb34d533302f0603  docs/learning-events-schema-v1.md
+--- 与跑前基线 diff（空 = 逐字节还原）---
+✓ 无差异
+--- 标记残留（须仍是那 5 项 153/11/11/2/13）---
+backend/scripts/g32b_mutation_gates.py 151
+backend/scripts/g32cb_mutation_gates.py 11
+backend/scripts/g32ccr1_negative_controls.py 11
+backend/scripts/openapi_drift_negative_control.py 2
+backend/tests/regression/recap_domain_negverify.py 13
+--- git status（须无 canvas-vault/**）---
+✓ 无 canvas-vault 改动

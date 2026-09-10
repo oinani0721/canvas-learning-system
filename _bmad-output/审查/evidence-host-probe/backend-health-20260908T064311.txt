@@ -1,0 +1,7 @@
+# 后端 health 探测 @ 2026-09-08T06:43:28+08:00
+http_code=200
+curl_rc=0
+--- lsof -nP -iTCP:8011 ---
+COMMAND     PID     USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME
+com.docke 23657 Heishing  176u  IPv4 0x12607432b5d80304      0t0  TCP 127.0.0.1:8011 (LISTEN)
+lsof_rc=0

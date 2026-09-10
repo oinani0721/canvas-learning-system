@@ -1,0 +1,66 @@
+=== (a) §〇 行号在最终 HEAD 的实测（卡文行号必位移，逐条 grep -n）===
+HEAD=70341364
+def extract_port                              519:def extract_port(address) -> int | None:
+return operator.index(raw)                    562:        return operator.index(raw)
+except Exception (H-1a 修后口径)                  4:    except BaseException:  # noqa: BLE001 —— 见下：这里只能 fail-closed，不能让异常逸出
+_SELFTEST_HOST 定义                             659:_SELFTEST_HOST = "\x00w4-live-port-guard-selftest"
+def _is_selftest_address                      741:def _is_selftest_address(address) -> bool:
+def poison_uvloop                             879:def poison_uvloop() -> None:
+uvloop import 分支                              826:    elif event == "import" and args and _is_uvloop_module(args[0]):
+
+=== (h) M-2 只核：canonical_target_ports docstring 含「模块 import 期」===
+grep -c '模块 import 期' => 1
+1110:    时调用，而 ``guard_plugin`` 是在**模块 import 期**调 ``install()`` 的 ——
+
+=== (h) L-1 只核：最终总账段头 ===
+grep -c '最终总账（atexit；' => 1
+1355:# 最终总账（atexit；**不是**「所有 cleanup / atexit 之后」——见 register_final_accounting）
+L-1 残留（这段窗口无法在进程内闭合）=> 127:  但已无人能把它变成非零 rc —— 这段窗口无法在进程内闭合，如实登记。
+
+=== (i) 不放宽：guard 模块层不得新增 neo4j import ===
+grep -n '^import|^from' | grep -c neo4j => 0
+conftest 含 live_port_guard 字样 => 21
+
+=== (j) U8 交接：_AST_MUST_FLAG 形态在本卡 diff 中的出现数（期望 0）===
+git diff --no-color -U0 de6ea625 HEAD -- backend/tests | grep -cE '^\+.*(TestClient\(|ExitStack\(|no_lifespan)' => 0
+
+=== (m) 地盘门：de6ea625 -> HEAD 代码树文件清单（须 ⊆ 允许 5 文件）===
+ backend/scripts/lifespan_isolation_guard_probes.py | 136 ++++++++
+ backend/tests/support/live_port_guard.py           |  68 +++-
+ .../tests/unit/test_live_port_guard_contract.py    | 378 ++++++++++++++++++++-
+ 3 files changed, 578 insertions(+), 4 deletions(-)
+--- 仅文件名 ---
+backend/scripts/lifespan_isolation_guard_probes.py
+backend/tests/support/live_port_guard.py
+backend/tests/unit/test_live_port_guard_contract.py
+
+=== (m) 卫生：stderr 是否入库 ===
+git ls-tree -r HEAD --name-only | grep -c stderr => 1
+
+=== (l) Codex 末轮：审 SHA -> HEAD 代码树差 ===
+r5 审 SHA = b9ba828b
+ .../tests/unit/test_live_port_guard_contract.py    | 32 ++++++++++++++++------
+ 1 file changed, 23 insertions(+), 9 deletions(-)
+  ⇒ 非空：唯一差异 d07c4eca 纯 docstring（等价证据 r5-binding-equivalence-*.txt），协议 §1 由主 session 判
+
+=== (l) 存档首部六行（裁判 11）===
+--- codex-review-CARD-W4-7.md 前 7 行 ---
+> 批次: BATCH-2026-09-07-第十三批 · 车道 U7（`card-u7-w4guard`） · 卡 CARD-W4-7 round-1
+> 模型: `gpt-6-astra` · reasoning_effort: `ultra` · codex: `codex-cli 0.153.3`
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat _bmad-output/审查/codex-prompt-CARD-W4-7.md)"`
+> 审查绑定: `d172e7e4`（跑时 HEAD `d172e7e4` —— 同审 SHA）
+> 会话头自证（抄 `codex-review-CARD-W4-7.stderr` 会话头含 model 行的三行，stderr 本身不入库；该文件**字面前三行**为 `Reading additional input from stdin...` / 版本行 / `--------`，不含 model 行，故按规则「含 model 行」抄取三要素并标注实际行号）:
+> `:2 OpenAI Codex v0.153.3` / `:5 model: gpt-6-astra` / `:9 reasoning effort: ultra`
+
+--- codex-review-CARD-W4-7-r5.md 前 7 行 ---
+> 批次: BATCH-2026-09-07-第十三批 · 车道 U7（`card-u7-w4guard`） · 卡 CARD-W4-7 round-5
+> 模型: `gpt-6-astra` · reasoning_effort: `ultra` · codex: `codex-cli 0.153.3`
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat _bmad-output/审查/codex-prompt-CARD-W4-7-r5.md)"`
+> 审查绑定: `b9ba828b`（跑时 HEAD `e9a68b78` —— **不同**：跑时 HEAD 为 `e9a68b78`（只动 `_bmad-output` 的存档 commit），代码树与审 SHA 等价（实测 `git diff --stat b9ba828b e9a68b78 -- . ':(exclude)_bmad-output'` rc=0 且空））
+> 会话头自证（抄 `codex-review-CARD-W4-7-r5.stderr` 会话头含 model 行的三行；该文件**字面前三行**不含 model 行，故按 §2.1「含 model 行」抄三要素并标实际行号）:
+> `:2 OpenAI Codex v0.153.3` / `:5 model: gpt-6-astra` / `:9 reasoning effort: ultra`
+
+
+=== (l) 旧模型名检查（字面量放变量，不写进本命令）===
+grep -c "$OLD" 全部 W4-7 存档与 prompt => 0
+rc=1

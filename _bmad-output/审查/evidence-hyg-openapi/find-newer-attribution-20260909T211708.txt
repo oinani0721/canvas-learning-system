@@ -1,0 +1,37 @@
+=== (e) 判据 3-c 未通过：6 条逐条归因（如实，不放宽判据） ===
+--- backend/app/data/vault_index_pending__canvas_vault.jsonl
+    mtime: 2026-09-09T21:16:10
+    gitignore: .gitignore:253:backend/app/data/vault_index_pending*.jsonl	backend/app/data/vault_index_pending__canvas_vault.jsonl
+    git 跟踪: 否
+    是否在五项骨架内: 否
+--- backend/.ruff_cache/0.15.9/4768528704850757695
+    mtime: 2026-09-09T16:21:35
+    gitignore: backend/.ruff_cache/.gitignore:2:*	backend/.ruff_cache/0.15.9/4768528704850757695
+    git 跟踪: 否
+    是否在五项骨架内: 否
+--- backend/logs/memory-system-2026-09-09.log
+    mtime: 2026-09-09T16:43:06
+    gitignore: .gitignore:192:logs/	backend/logs/memory-system-2026-09-09.log
+    git 跟踪: 否
+    是否在五项骨架内: 否
+--- backend/data/llm_call_logs.db
+    mtime: 2026-09-09T16:21:24
+    gitignore: backend/data/.gitignore:7:*.db	backend/data/llm_call_logs.db
+    git 跟踪: 否
+    是否在五项骨架内: 否
+--- backend/data/qa_metrics.db
+    mtime: 2026-09-09T17:20:56
+    gitignore: backend/data/.gitignore:7:*.db	backend/data/qa_metrics.db
+    git 跟踪: 否
+    是否在五项骨架内: 否
+--- backend/data/fsrs_card_states.json
+    mtime: 2026-09-09T18:26:21
+    gitignore: backend/data/.gitignore:8:fsrs_card_states.json	backend/data/fsrs_card_states.json
+    git 跟踪: 否
+    是否在五项骨架内: 否
+
+=== 对照：sentinel 时刻 ===
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u5-lance/_bmad-output/审查/evidence-hyg-openapi/sentinel mtime=2026-09-09T16:20:42
+=== 全跑起止 ===
+起 16:20:42（sentinel）→ 止 用时 17714.94s = 4:55:14 ⇒ 约 21:16
+rc=0

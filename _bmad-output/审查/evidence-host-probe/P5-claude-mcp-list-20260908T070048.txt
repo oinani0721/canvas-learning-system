@@ -1,0 +1,38 @@
+# P5 Claude Code 项目级 .mcp.json（type:http）  @ 2026-09-08T07:00:48+08:00
+# ⚠️ 遮蔽规则（卡文 §三：evidence 不得含用户级配置内容）：
+#   本条 evidence 由 'claude mcp list' 原始输出经遮蔽而来。
+#   规则：非本卡自建的条目（= 来自用户级/其它作用域）只保留【名称 + 连接状态】，
+#         其 command / args / URL 一律替换为 <redacted-user-scope>。
+#   本卡自建的 canvas-learning-mcp 条目（来自 $PV/.mcp.json）保留原文。
+#   原始未遮蔽输出留在 session scratchpad，不入库。
+cwd=/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u4-hosts/3ead72c8-729b-41ea-b189-c51910c3e8a4/scratchpad/host-probe/probe-vault
+
+=== $PV/.mcp.json 内容（本卡自建）===
+{
+  "mcpServers": {
+    "canvas-learning-mcp": {
+      "type": "http",
+      "url": "http://127.0.0.1:8011/mcp"
+    }
+  }
+}
+=== claude mcp list（遮蔽版）===
+Checking MCP server health…
+claude.ai Google Drive: <redacted-user-scope> - ✔ Connected
+claude.ai Google Calendar: <redacted-user-scope> - ✔ Connected
+claude.ai Gmail: <redacted-user-scope> - ✔ Connected
+graphiti: <redacted-user-scope> - ✘ Failed to connect — CONNECTION_CLOSED: Connection closed
+sequential-thinking: <redacted-user-scope> - ✔ Connected
+context7: <redacted-user-scope> - ✘ Failed to connect — CONNECTION_CLOSED: Connection closed
+codebase-memory: <redacted-user-scope> - ✔ Connected
+canvas-learning-mcp: http://127.0.0.1:8011/mcp (HTTP) - ⏸ Pending approval (run `claude` to approve)
+list_rc=0
+rc=0
+
+=== 判据 ===
+  条目总数(含用户级) = 8
+  canvas-learning-mcp 是否出现 = 1
+  其状态字样 = ⏸ Pending approval (run `claude` to approve)
+  负控：未配置的假名 'probe-absent-mcp' 是否出现 = 0
+  list_rc=0（原始输出末行实测）
+rc=0

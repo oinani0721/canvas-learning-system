@@ -1,0 +1,15 @@
+backend/tests/unit/test_chat_endpoint.py:26:    return TestClient(app)
+backend/tests/unit/test_enrich_context_vault_isolation.py:30:    return TestClient(app)
+backend/tests/unit/test_fsrs_state_query.py:60:        with no_lifespan(app), TestClient(app) as c:
+backend/tests/unit/test_mastery_api.py:58:            with no_lifespan(app), TestClient(app) as client:
+backend/tests/unit/test_review_history_pagination.py:101:        client = TestClient(app)
+backend/tests/unit/test_review_history_pagination.py:117:        client = TestClient(app)
+backend/tests/unit/test_review_history_pagination.py:73:        client = TestClient(app)
+backend/tests/unit/test_review_history_pagination.py:87:        client = TestClient(app)
+backend/tests/unit/test_startup_health_check.py:18:    return TestClient(app)
+backend/tests/unit/test_study_question_deep_mode.py:26:    return TestClient(app)
+backend/tests/unit/test_subjects_group_isolation.py:270:        with no_lifespan(app), TestClient(app) as client:
+backend/tests/unit/test_sync_batch_auth.py:101:        with no_lifespan(app), TestClient(app) as test_client:
+backend/tests/unit/test_sync_exception_classification.py:64:    with no_lifespan(app), TestClient(app) as test_client:
+backend/tests/unit/test_sync_group_isolation.py:294:            with no_lifespan(app), TestClient(app) as client:
+backend/tests/unit/test_system_endpoint_auth.py:95:            with no_lifespan(app), TestClient(app) as test_client:

@@ -1,0 +1,429 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 17 items
+
+tests/unit/test_sync_batch_auth.py F......                               [ 41%]
+tests/unit/test_system_endpoint_auth.py F....F....                       [100%]
+
+=================================== FAILURES ===================================
+_______ TestProductionFailClosed.test_no_key_configured_fails_closed_503 _______
+tests/unit/test_sync_batch_auth.py:145: in test_no_key_configured_fails_closed_503
+    assert response.status_code == 503, (
+E   AssertionError: DEBUG=False with empty INTERNAL_API_KEY must fail closed (503), not silently allow
+E   assert 500 == 503
+E    +  where 500 = <Response [500 Internal Server Error]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"bug_id": "BUG-7F245B42", "endpoint": "/api/v1/sync/batch", "error_type": "ValidationError", "event": "bug_logged", "request_id": "5283094144", "logger": "app.core.bug_tracker", "level": "info", "timestamp": "2026-09-09T11:57:27.298589Z"}
+{"event": "Unhandled exception caught by CORSExceptionMiddleware: ValidationError: 1 validation error for Settings\n  Value error, INTERNAL_API_KEY required outside local dev. Set env var or enable DEBUG with localhost CORS. [type=value_error, input_value={'PROJECT_DESCRIPTION': '... [bug_id=BUG-7F245B42]", "exc_info": ["<class 'pydantic_core._pydantic_core.ValidationError'>", "1 validation error for Settings\n  Value error, INTERNAL_API_KEY required outside local dev. Set env var or enable DEBUG with localhost CORS. [type=value_error, input_value={'PROJECT_DESCRIPTION': '..._PATH': './test_canvas'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.12/v/value_error", "<traceback object at 0x13ada4cc0>"], "request_id": "5283094144", "logger": "app.main", "level": "error", "timestamp": "2026-09-09T11:57:27.298733Z"}
+{"method": "POST", "path": "/api/v1/sync/batch", "endpoint": "/api/v1/sync/batch", "status": 500, "duration_ms": 12.42, "event": "request.completed", "request_id": "5283094144", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T11:57:27.300058Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.core.bug_tracker:bug_tracker.py:158 {'bug_id': 'BUG-7F245B42', 'endpoint': '/api/v1/sync/batch', 'error_type': 'ValidationError', 'event': 'bug_logged', 'request_id': '5283094144', 'logger': 'app.core.bug_tracker', 'level': 'info', 'timestamp': '2026-09-09T11:57:27.298589Z'}
+ERROR    app.main:main.py:730 Unhandled exception caught by CORSExceptionMiddleware: ValidationError: 1 validation error for Settings
+  Value error, INTERNAL_API_KEY required outside local dev. Set env var or enable DEBUG with localhost CORS. [type=value_error, input_value={'PROJECT_DESCRIPTION': '... [bug_id=BUG-7F245B42]
+Traceback (most recent call last):
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/main.py", line 692, in dispatch
+    response = await call_next(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/starlette/middleware/base.py", line 168, in call_next
+    raise app_exc from app_exc.__cause__ or app_exc.__context__
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/starlette/middleware/base.py", line 144, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/starlette/routing.py", line 660, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/starlette/routing.py", line 680, in app
+    await route.handle(scope, receive, send)
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/starlette/routing.py", line 276, in handle
+    await self.app(scope, receive, send)
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/fastapi/routing.py", line 134, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/fastapi/routing.py", line 120, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/fastapi/routing.py", line 457, in app
+    solved_result = await solve_dependencies(
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<6 lines>...
+    )
+    ^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/fastapi/dependencies/utils.py", line 649, in solve_dependencies
+    solved_result = await solve_dependencies(
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<9 lines>...
+    )
+    ^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/fastapi/dependencies/utils.py", line 680, in solve_dependencies
+    solved = await run_in_threadpool(call, **solved_result.values)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/starlette/concurrency.py", line 32, in run_in_threadpool
+    return await anyio.to_thread.run_sync(func)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/anyio/to_thread.py", line 63, in run_sync
+    return await get_async_backend().run_sync_in_worker_thread(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        func, args, abandon_on_cancel=abandon_on_cancel, limiter=limiter
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/anyio/_backends/_asyncio.py", line 2518, in run_sync_in_worker_thread
+    return await future
+           ^^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/anyio/_backends/_asyncio.py", line 1002, in run
+    result = context.run(func, *args)
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/tests/unit/test_sync_batch_auth.py", line 97, in override
+    return Settings(**fields)
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic_settings/main.py", line 242, in __init__
+    super().__init__(**__pydantic_self__.__class__._settings_build_values(sources, init_kwargs))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/main.py", line 250, in __init__
+    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
+pydantic_core._pydantic_core.ValidationError: 1 validation error for Settings
+  Value error, INTERNAL_API_KEY required outside local dev. Set env var or enable DEBUG with localhost CORS. [type=value_error, input_value={'PROJECT_DESCRIPTION': '..._PATH': './test_canvas'}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.12/v/value_error
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/sync/batch', 'endpoint': '/api/v1/sync/batch', 'status': 500, 'duration_ms': 12.42, 'event': 'request.completed', 'request_id': '5283094144', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T11:57:27.300058Z'}
+_____________ TestSystemConfigAuth.test_prod_no_key_configured_503 _____________
+tests/unit/test_system_endpoint_auth.py:138: in test_prod_no_key_configured_503
+    assert response.status_code == 503
+E   assert 500 == 503
+E    +  where 500 = <Response [500 Internal Server Error]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"bug_id": "BUG-73C893B8", "endpoint": "/api/v1/system/config", "error_type": "ValidationError", "event": "bug_logged", "request_id": "5284473808", "logger": "app.core.bug_tracker", "level": "info", "timestamp": "2026-09-09T11:57:27.466298Z"}
+{"event": "Unhandled exception caught by CORSExceptionMiddleware: ValidationError: 1 validation error for Settings\n  Value error, INTERNAL_API_KEY required outside local dev. Set env var or enable DEBUG with localhost CORS. [type=value_error, input_value={'PROJECT_DESCRIPTION': '... [bug_id=BUG-73C893B8]", "exc_info": ["<class 'pydantic_core._pydantic_core.ValidationError'>", "1 validation error for Settings\n  Value error, INTERNAL_API_KEY required outside local dev. Set env var or enable DEBUG with localhost CORS. [type=value_error, input_value={'PROJECT_DESCRIPTION': '..._PATH': './test_canvas'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.12/v/value_error", "<traceback object at 0x13b251280>"], "request_id": "5284473808", "logger": "app.main", "level": "error", "timestamp": "2026-09-09T11:57:27.466411Z"}
+{"method": "POST", "path": "/api/v1/system/config", "endpoint": "/api/v1/system/config", "status": 500, "duration_ms": 7.48, "event": "request.completed", "request_id": "5284473808", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T11:57:27.467471Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.core.bug_tracker:bug_tracker.py:158 {'bug_id': 'BUG-73C893B8', 'endpoint': '/api/v1/system/config', 'error_type': 'ValidationError', 'event': 'bug_logged', 'request_id': '5284473808', 'logger': 'app.core.bug_tracker', 'level': 'info', 'timestamp': '2026-09-09T11:57:27.466298Z'}
+ERROR    app.main:main.py:730 Unhandled exception caught by CORSExceptionMiddleware: ValidationError: 1 validation error for Settings
+  Value error, INTERNAL_API_KEY required outside local dev. Set env var or enable DEBUG with localhost CORS. [type=value_error, input_value={'PROJECT_DESCRIPTION': '... [bug_id=BUG-73C893B8]
+Traceback (most recent call last):
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/main.py", line 692, in dispatch
+    response = await call_next(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/starlette/middleware/base.py", line 168, in call_next
+    raise app_exc from app_exc.__cause__ or app_exc.__context__
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/starlette/middleware/base.py", line 144, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/starlette/routing.py", line 660, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/starlette/routing.py", line 680, in app
+    await route.handle(scope, receive, send)
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/starlette/routing.py", line 276, in handle
+    await self.app(scope, receive, send)
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/fastapi/routing.py", line 134, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/fastapi/routing.py", line 120, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/fastapi/routing.py", line 457, in app
+    solved_result = await solve_dependencies(
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<6 lines>...
+    )
+    ^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/fastapi/dependencies/utils.py", line 649, in solve_dependencies
+    solved_result = await solve_dependencies(
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<9 lines>...
+    )
+    ^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/fastapi/dependencies/utils.py", line 680, in solve_dependencies
+    solved = await run_in_threadpool(call, **solved_result.values)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/starlette/concurrency.py", line 32, in run_in_threadpool
+    return await anyio.to_thread.run_sync(func)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/anyio/to_thread.py", line 63, in run_sync
+    return await get_async_backend().run_sync_in_worker_thread(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        func, args, abandon_on_cancel=abandon_on_cancel, limiter=limiter
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/anyio/_backends/_asyncio.py", line 2518, in run_sync_in_worker_thread
+    return await future
+           ^^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/anyio/_backends/_asyncio.py", line 1002, in run
+    result = context.run(func, *args)
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/tests/unit/test_system_endpoint_auth.py", line 90, in override
+    return Settings(**fields)
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic_settings/main.py", line 242, in __init__
+    super().__init__(**__pydantic_self__.__class__._settings_build_values(sources, init_kwargs))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/main.py", line 250, in __init__
+    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
+pydantic_core._pydantic_core.ValidationError: 1 validation error for Settings
+  Value error, INTERNAL_API_KEY required outside local dev. Set env var or enable DEBUG with localhost CORS. [type=value_error, input_value={'PROJECT_DESCRIPTION': '..._PATH': './test_canvas'}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.12/v/value_error
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/system/config', 'endpoint': '/api/v1/system/config', 'status': 500, 'duration_ms': 7.48, 'event': 'request.completed', 'request_id': '5284473808', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T11:57:27.467471Z'}
+____________ TestSystemTestLLMAuth.test_prod_no_key_configured_503 _____________
+tests/unit/test_system_endpoint_auth.py:194: in test_prod_no_key_configured_503
+    assert response.status_code == 503
+E   assert 500 == 503
+E    +  where 500 = <Response [500 Internal Server Error]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"bug_id": "BUG-DB648BB8", "endpoint": "/api/v1/system/test-llm", "error_type": "ValidationError", "event": "bug_logged", "request_id": "5289753104", "logger": "app.core.bug_tracker", "level": "info", "timestamp": "2026-09-09T11:57:27.505889Z"}
+{"event": "Unhandled exception caught by CORSExceptionMiddleware: ValidationError: 1 validation error for Settings\n  Value error, INTERNAL_API_KEY required outside local dev. Set env var or enable DEBUG with localhost CORS. [type=value_error, input_value={'PROJECT_DESCRIPTION': '... [bug_id=BUG-DB648BB8]", "exc_info": ["<class 'pydantic_core._pydantic_core.ValidationError'>", "1 validation error for Settings\n  Value error, INTERNAL_API_KEY required outside local dev. Set env var or enable DEBUG with localhost CORS. [type=value_error, input_value={'PROJECT_DESCRIPTION': '..._PATH': './test_canvas'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.12/v/value_error", "<traceback object at 0x13aedf100>"], "request_id": "5289753104", "logger": "app.main", "level": "error", "timestamp": "2026-09-09T11:57:27.506029Z"}
+{"method": "POST", "path": "/api/v1/system/test-llm", "endpoint": "/api/v1/system/test-llm", "status": 500, "duration_ms": 7.15, "event": "request.completed", "request_id": "5289753104", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T11:57:27.507188Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.core.bug_tracker:bug_tracker.py:158 {'bug_id': 'BUG-DB648BB8', 'endpoint': '/api/v1/system/test-llm', 'error_type': 'ValidationError', 'event': 'bug_logged', 'request_id': '5289753104', 'logger': 'app.core.bug_tracker', 'level': 'info', 'timestamp': '2026-09-09T11:57:27.505889Z'}
+ERROR    app.main:main.py:730 Unhandled exception caught by CORSExceptionMiddleware: ValidationError: 1 validation error for Settings
+  Value error, INTERNAL_API_KEY required outside local dev. Set env var or enable DEBUG with localhost CORS. [type=value_error, input_value={'PROJECT_DESCRIPTION': '... [bug_id=BUG-DB648BB8]
+Traceback (most recent call last):
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/main.py", line 692, in dispatch
+    response = await call_next(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/starlette/middleware/base.py", line 168, in call_next
+    raise app_exc from app_exc.__cause__ or app_exc.__context__
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/starlette/middleware/base.py", line 144, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/starlette/routing.py", line 660, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/starlette/routing.py", line 680, in app
+    await route.handle(scope, receive, send)
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/starlette/routing.py", line 276, in handle
+    await self.app(scope, receive, send)
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/fastapi/routing.py", line 134, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/fastapi/routing.py", line 120, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/fastapi/routing.py", line 457, in app
+    solved_result = await solve_dependencies(
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<6 lines>...
+    )
+    ^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/fastapi/dependencies/utils.py", line 649, in solve_dependencies
+    solved_result = await solve_dependencies(
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<9 lines>...
+    )
+    ^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/fastapi/dependencies/utils.py", line 680, in solve_dependencies
+    solved = await run_in_threadpool(call, **solved_result.values)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/starlette/concurrency.py", line 32, in run_in_threadpool
+    return await anyio.to_thread.run_sync(func)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/anyio/to_thread.py", line 63, in run_sync
+    return await get_async_backend().run_sync_in_worker_thread(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        func, args, abandon_on_cancel=abandon_on_cancel, limiter=limiter
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/anyio/_backends/_asyncio.py", line 2518, in run_sync_in_worker_thread
+    return await future
+           ^^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/anyio/_backends/_asyncio.py", line 1002, in run
+    result = context.run(func, *args)
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/tests/unit/test_system_endpoint_auth.py", line 90, in override
+    return Settings(**fields)
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic_settings/main.py", line 242, in __init__
+    super().__init__(**__pydantic_self__.__class__._settings_build_values(sources, init_kwargs))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/main.py", line 250, in __init__
+    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
+pydantic_core._pydantic_core.ValidationError: 1 validation error for Settings
+  Value error, INTERNAL_API_KEY required outside local dev. Set env var or enable DEBUG with localhost CORS. [type=value_error, input_value={'PROJECT_DESCRIPTION': '..._PATH': './test_canvas'}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.12/v/value_error
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/system/test-llm', 'endpoint': '/api/v1/system/test-llm', 'status': 500, 'duration_ms': 7.15, 'event': 'request.completed', 'request_id': '5289753104', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T11:57:27.507188Z'}
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:805
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/api/v1/endpoints/chat.py:805: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:105
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/api/v1/endpoints/metadata.py:105: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:179
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/api/v1/endpoints/metadata.py:179: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+tests/unit/test_sync_batch_auth.py::TestProductionFailClosed::test_correct_key_grants_access
+tests/unit/test_sync_batch_auth.py::TestHeaderParsing::test_canonical_header_name
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/api/v1/endpoints/sync.py:117: DeprecationWarning: deprecated
+    legacy_group_id=request.group_id,
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+___________ TestProductionFailClosed.test_missing_header_returns_403 ___________
+----------------------------- Captured stdout call -----------------------------
+{"event": "X-CLS-Internal-Key header missing (auth_reject); rejecting request", "request_id": "5288754704", "logger": "app.security", "level": "warning", "timestamp": "2026-09-09T11:57:27.413319Z"}
+{"method": "POST", "path": "/api/v1/sync/batch", "endpoint": "/api/v1/sync/batch", "status": 403, "duration_ms": 5.39, "event": "request.completed", "request_id": "5288754704", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T11:57:27.413642Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.security:security.py:146 X-CLS-Internal-Key header missing (auth_reject); rejecting request
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/sync/batch', 'endpoint': '/api/v1/sync/batch', 'status': 403, 'duration_ms': 5.39, 'event': 'request.completed', 'request_id': '5288754704', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T11:57:27.413642Z'}
+_____________ TestProductionFailClosed.test_wrong_key_returns_403 ______________
+----------------------------- Captured stdout call -----------------------------
+{"event": "Provided X-CLS-Internal-Key does not match configured key (auth_reject); rejecting request", "request_id": "5281977744", "logger": "app.security", "level": "warning", "timestamp": "2026-09-09T11:57:27.422189Z"}
+{"method": "POST", "path": "/api/v1/sync/batch", "endpoint": "/api/v1/sync/batch", "status": 403, "duration_ms": 5.32, "event": "request.completed", "request_id": "5281977744", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T11:57:27.422531Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.security:security.py:156 Provided X-CLS-Internal-Key does not match configured key (auth_reject); rejecting request
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/sync/batch', 'endpoint': '/api/v1/sync/batch', 'status': 403, 'duration_ms': 5.32, 'event': 'request.completed', 'request_id': '5281977744', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T11:57:27.422531Z'}
+___________ TestProductionFailClosed.test_correct_key_grants_access ____________
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/sync/batch", "endpoint": "/api/v1/sync/batch", "status": 200, "duration_ms": 5.44, "event": "request.completed", "request_id": "5286617168", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T11:57:27.431174Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/sync/batch', 'endpoint': '/api/v1/sync/batch', 'status': 200, 'duration_ms': 5.44, 'event': 'request.completed', 'request_id': '5286617168', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T11:57:27.431174Z'}
+__ TestDevelopmentConvenience.test_dev_mode_no_key_now_fails_closed_503_p0_2 ___
+----------------------------- Captured stdout call -----------------------------
+{"event": "INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.", "request_id": "5285236304", "logger": "app.security", "level": "error", "timestamp": "2026-09-09T11:57:27.439657Z"}
+{"method": "POST", "path": "/api/v1/sync/batch", "endpoint": "/api/v1/sync/batch", "status": 503, "duration_ms": 5.33, "event": "request.completed", "request_id": "5285236304", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T11:57:27.439960Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.security:security.py:126 INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/sync/batch', 'endpoint': '/api/v1/sync/batch', 'status': 503, 'duration_ms': 5.33, 'event': 'request.completed', 'request_id': '5285236304', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T11:57:27.439960Z'}
+_______ TestDevelopmentConvenience.test_dev_mode_with_key_still_enforces _______
+----------------------------- Captured stdout call -----------------------------
+{"event": "X-CLS-Internal-Key header missing (auth_reject); rejecting request", "request_id": "5284468048", "logger": "app.security", "level": "warning", "timestamp": "2026-09-09T11:57:27.448154Z"}
+{"method": "POST", "path": "/api/v1/sync/batch", "endpoint": "/api/v1/sync/batch", "status": 403, "duration_ms": 5.38, "event": "request.completed", "request_id": "5284468048", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T11:57:27.448483Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.security:security.py:146 X-CLS-Internal-Key header missing (auth_reject); rejecting request
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/sync/batch', 'endpoint': '/api/v1/sync/batch', 'status': 403, 'duration_ms': 5.38, 'event': 'request.completed', 'request_id': '5284468048', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T11:57:27.448483Z'}
+_________________ TestHeaderParsing.test_canonical_header_name _________________
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/sync/batch", "endpoint": "/api/v1/sync/batch", "status": 200, "duration_ms": 5.29, "event": "request.completed", "request_id": "5284472464", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T11:57:27.457078Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/sync/batch', 'endpoint': '/api/v1/sync/batch', 'status': 200, 'duration_ms': 5.29, 'event': 'request.completed', 'request_id': '5284472464', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T11:57:27.457078Z'}
+_________________ TestSystemConfigAuth.test_prod_wrong_key_403 _________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "Provided X-CLS-Internal-Key does not match configured key (auth_reject); rejecting request", "request_id": "5289740240", "logger": "app.security", "level": "warning", "timestamp": "2026-09-09T11:57:27.475946Z"}
+{"method": "POST", "path": "/api/v1/system/config", "endpoint": "/api/v1/system/config", "status": 403, "duration_ms": 4.73, "event": "request.completed", "request_id": "5289740240", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T11:57:27.476178Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.security:security.py:156 Provided X-CLS-Internal-Key does not match configured key (auth_reject); rejecting request
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/system/config', 'endpoint': '/api/v1/system/config', 'status': 403, 'duration_ms': 4.73, 'event': 'request.completed', 'request_id': '5289740240', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T11:57:27.476178Z'}
+______________ TestSystemConfigAuth.test_prod_missing_header_403 _______________
+----------------------------- Captured stdout call -----------------------------
+{"event": "X-CLS-Internal-Key header missing (auth_reject); rejecting request", "request_id": "5289745616", "logger": "app.security", "level": "warning", "timestamp": "2026-09-09T11:57:27.482603Z"}
+{"method": "POST", "path": "/api/v1/system/config", "endpoint": "/api/v1/system/config", "status": 403, "duration_ms": 4.5, "event": "request.completed", "request_id": "5289745616", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T11:57:27.482832Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.security:security.py:146 X-CLS-Internal-Key header missing (auth_reject); rejecting request
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/system/config', 'endpoint': '/api/v1/system/config', 'status': 403, 'duration_ms': 4.5, 'event': 'request.completed', 'request_id': '5289745616', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T11:57:27.482832Z'}
+________________ TestSystemConfigAuth.test_prod_correct_key_200 ________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[Story 1.3] Model config received \u2014 chat_provider=ollama, scoring_provider=none", "request_id": "5289748496", "logger": "app.api.v1.system", "level": "info", "timestamp": "2026-09-09T11:57:27.489996Z"}
+{"method": "POST", "path": "/api/v1/system/config", "endpoint": "/api/v1/system/config", "status": 200, "duration_ms": 4.93, "event": "request.completed", "request_id": "5289748496", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T11:57:27.490264Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.api.v1.system:system.py:848 [Story 1.3] Model config received — chat_provider=ollama, scoring_provider=none
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/system/config', 'endpoint': '/api/v1/system/config', 'status': 200, 'duration_ms': 4.93, 'event': 'request.completed', 'request_id': '5289748496', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T11:57:27.490264Z'}
+____ TestSystemConfigAuth.test_dev_mode_empty_key_now_fails_closed_503_p0_2 ____
+----------------------------- Captured stdout call -----------------------------
+{"event": "INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.", "request_id": "5289750800", "logger": "app.security", "level": "error", "timestamp": "2026-09-09T11:57:27.497062Z"}
+{"method": "POST", "path": "/api/v1/system/config", "endpoint": "/api/v1/system/config", "status": 503, "duration_ms": 4.74, "event": "request.completed", "request_id": "5289750800", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T11:57:27.497362Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.security:security.py:126 INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/system/config', 'endpoint': '/api/v1/system/config', 'status': 503, 'duration_ms': 4.74, 'event': 'request.completed', 'request_id': '5289750800', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T11:57:27.497362Z'}
+________________ TestSystemTestLLMAuth.test_prod_wrong_key_403 _________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "Provided X-CLS-Internal-Key does not match configured key (auth_reject); rejecting request", "request_id": "5290199760", "logger": "app.security", "level": "warning", "timestamp": "2026-09-09T11:57:27.516325Z"}
+{"method": "POST", "path": "/api/v1/system/test-llm", "endpoint": "/api/v1/system/test-llm", "status": 403, "duration_ms": 5.15, "event": "request.completed", "request_id": "5290199760", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T11:57:27.516679Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.security:security.py:156 Provided X-CLS-Internal-Key does not match configured key (auth_reject); rejecting request
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/system/test-llm', 'endpoint': '/api/v1/system/test-llm', 'status': 403, 'duration_ms': 5.15, 'event': 'request.completed', 'request_id': '5290199760', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T11:57:27.516679Z'}
+______________ TestSystemTestLLMAuth.test_prod_missing_header_403 ______________
+----------------------------- Captured stdout call -----------------------------
+{"event": "X-CLS-Internal-Key header missing (auth_reject); rejecting request", "request_id": "5290200912", "logger": "app.security", "level": "warning", "timestamp": "2026-09-09T11:57:27.524232Z"}
+{"method": "POST", "path": "/api/v1/system/test-llm", "endpoint": "/api/v1/system/test-llm", "status": 403, "duration_ms": 5.02, "event": "request.completed", "request_id": "5290200912", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T11:57:27.524640Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.security:security.py:146 X-CLS-Internal-Key header missing (auth_reject); rejecting request
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/system/test-llm', 'endpoint': '/api/v1/system/test-llm', 'status': 403, 'duration_ms': 5.02, 'event': 'request.completed', 'request_id': '5290200912', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T11:57:27.524640Z'}
+_______________ TestSystemTestLLMAuth.test_prod_correct_key_200 ________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[Story 1.3] LLM connection test passed \u2014 model=ollama/qwen2.5:7b", "request_id": "5290205328", "logger": "app.api.v1.system", "level": "info", "timestamp": "2026-09-09T11:57:27.532907Z"}
+{"method": "POST", "path": "/api/v1/system/test-llm", "endpoint": "/api/v1/system/test-llm", "status": 200, "duration_ms": 5.12, "event": "request.completed", "request_id": "5290205328", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T11:57:27.533221Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.api.v1.system:system.py:899 [Story 1.3] LLM connection test passed — model=ollama/qwen2.5:7b
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/system/test-llm', 'endpoint': '/api/v1/system/test-llm', 'status': 200, 'duration_ms': 5.12, 'event': 'request.completed', 'request_id': '5290205328', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T11:57:27.533221Z'}
+___ TestSystemTestLLMAuth.test_dev_mode_empty_key_now_fails_closed_503_p0_2 ____
+----------------------------- Captured stdout call -----------------------------
+{"event": "INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.", "request_id": "5290209744", "logger": "app.security", "level": "error", "timestamp": "2026-09-09T11:57:27.540534Z"}
+{"method": "POST", "path": "/api/v1/system/test-llm", "endpoint": "/api/v1/system/test-llm", "status": 503, "duration_ms": 4.78, "event": "request.completed", "request_id": "5290209744", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T11:57:27.540859Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.security:security.py:126 INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/system/test-llm', 'endpoint': '/api/v1/system/test-llm', 'status': 503, 'duration_ms': 4.78, 'event': 'request.completed', 'request_id': '5290209744', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T11:57:27.540859Z'}
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+PASSED tests/unit/test_sync_batch_auth.py::TestProductionFailClosed::test_missing_header_returns_403
+PASSED tests/unit/test_sync_batch_auth.py::TestProductionFailClosed::test_wrong_key_returns_403
+PASSED tests/unit/test_sync_batch_auth.py::TestProductionFailClosed::test_correct_key_grants_access
+PASSED tests/unit/test_sync_batch_auth.py::TestDevelopmentConvenience::test_dev_mode_no_key_now_fails_closed_503_p0_2
+PASSED tests/unit/test_sync_batch_auth.py::TestDevelopmentConvenience::test_dev_mode_with_key_still_enforces
+PASSED tests/unit/test_sync_batch_auth.py::TestHeaderParsing::test_canonical_header_name
+PASSED tests/unit/test_system_endpoint_auth.py::TestSystemConfigAuth::test_prod_wrong_key_403
+PASSED tests/unit/test_system_endpoint_auth.py::TestSystemConfigAuth::test_prod_missing_header_403
+PASSED tests/unit/test_system_endpoint_auth.py::TestSystemConfigAuth::test_prod_correct_key_200
+PASSED tests/unit/test_system_endpoint_auth.py::TestSystemConfigAuth::test_dev_mode_empty_key_now_fails_closed_503_p0_2
+PASSED tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuth::test_prod_wrong_key_403
+PASSED tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuth::test_prod_missing_header_403
+PASSED tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuth::test_prod_correct_key_200
+PASSED tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuth::test_dev_mode_empty_key_now_fails_closed_503_p0_2
+FAILED tests/unit/test_sync_batch_auth.py::TestProductionFailClosed::test_no_key_configured_fails_closed_503
+FAILED tests/unit/test_system_endpoint_auth.py::TestSystemConfigAuth::test_prod_no_key_configured_503
+FAILED tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuth::test_prod_no_key_configured_503
+================== 3 failed, 14 passed, 12 warnings in 1.25s ===================
+rc=1

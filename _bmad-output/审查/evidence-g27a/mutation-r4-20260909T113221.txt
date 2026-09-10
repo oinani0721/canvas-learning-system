@@ -1,0 +1,8 @@
+跑前 sha: {'install-vault.sh': '7d0cfa66ff', 'verify_vault_install.py': '45ddeb3537', 'vault-install-manifest.json': '5f5acc8bcf', 'test_vault_install_manifest.py': '5398708e5f'}
+还原后 sha 全部一致 ✅
+KILLED         M-r4-LOW1  E   AssertionError: 写调用出现在 _write_report 之外: [('open', 738)]
+KILLED         M-r4-LOW2  E   AssertionError: 递归复制未带 -H（会沿目录软链写穿模板源）: [(89, '/bin/cp -R "$SOURCE/.claude/$item" "$TA
+KILLED         M-r4-LOW3  E   AssertionError: 脚本生成段与 manifest generate 集漂移:
+KILLED         M-r4-LOW5  E   AssertionError: 锚 'pending_archives' 命中 []（应恰好 1 处）
+KILLED         M-r4-MED1  E   AssertionError: hotkeys 顶层非对象必须登记 unreadable，实得 []
+KILLED         M-r4-LOW4a  E   AssertionError: .claude/skills 由数组单行声明, origin 不该是区间: install-vault.sh:72-180

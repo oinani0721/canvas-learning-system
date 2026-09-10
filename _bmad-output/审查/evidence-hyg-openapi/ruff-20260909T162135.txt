@@ -1,0 +1,13 @@
+=== §二.6 lint：ruff check ===
+All checks passed!
+check_rc=0
+=== §二.6 lint：ruff format --check ===
+2 files already formatted
+format_rc=0
+=== ruff 版本 / line-length ===
+ruff 0.15.9
+99:[tool.ruff]
+101:line-length = 120
+105:[tool.ruff.lint]
+118:[tool.ruff.lint.isort]
+rc=0

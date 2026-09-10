@@ -1,0 +1,53 @@
+### 裁判 6 源码门字面量（endswith + FINGERPRINT_TABLE 必须保留）
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+  from pydantic.v1.fields import FieldInfo as FieldInfoV1
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  import pkg_resources
+Building prefix dict from the default dictionary ...
+Loading model from cache /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/jieba.cache
+Loading model cost 0.256 seconds.
+Prefix dict has been built successfully.
+True
+rc=0
+
+### 裁判 9 现网只读: find -newer sentinel（各候选现网 LanceDB 目录）
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/data/lancedb → newer-than-sentinel 文件数 = 0
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/data/lancedb → newer-than-sentinel 文件数 = 0
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u5-lance/backend/data/lancedb → 目录不存在（跳过）
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u5-lance/data/lancedb → newer-than-sentinel 文件数 = 0
+
+### 裁判 9 现网只读: 新测试的 lancedb.connect 全部走 tmp_path
+14:(``client._db = lancedb.connect(...)`` + ``asyncio.run(client._cache_tables())``,
+89:    client._db = lancedb.connect(str(db_path))
+106:    db = lancedb.connect(str(db_path))
+123:    after = _all_names(lancedb.connect(str(db_path)))
+161:    db = lancedb.connect(str(db_path))
+179:    after = _all_names(lancedb.connect(str(db_path)))
+211:    db = lancedb.connect(str(db_path))
+228:    after = _all_names(lancedb.connect(str(db_path)))
+260:    db = lancedb.connect(str(db_path))
+
+### 硬边界: 三改动文件不得提及 fsrs_bridge / decay_beta
+backend/lib/agentic_rag/clients/lancedb_client.py:0
+backend/scripts/g29_dual_vault_canary.py:0
+backend/tests/unit/test_lancedb_cross_vault_drop_g29f1.py:0
+
+### 地盘门（未 commit 前用工作树口径）
+ M backend/lib/agentic_rag/clients/lancedb_client.py
+ M backend/scripts/g29_dual_vault_canary.py
+?? "_bmad-output/\345\256\241\346\237\245/evidence-g29f1/"
+?? backend/tests/unit/test_lancedb_cross_vault_drop_g29f1.py
+
+### 裁判 9 补: connect 的 db_path 溯源（每个 db_path 都派生自 pytest tmp_path）
+12:的表"。所以这里全部走**真实** LanceDB (tmp_path) + 真实 ``_cache_tables()``,
+86:def _client(db_path: Path, *, vault_id: str | None, dim: int = _DIM) -> LanceDBClient:
+98:def test_cache_tables_never_touches_other_vault(tmp_path):
+105:    db_path = tmp_path / "db"
+145:def test_cache_tables_default_vault_only_touches_bare_tables(tmp_path):
+160:    db_path = tmp_path / "db"
+203:def test_cache_tables_scans_beyond_default_page(tmp_path):
+210:    db_path = tmp_path / "db"
+246:def test_list_vault_tables_explicit_none_keeps_bare_scope(tmp_path):
+259:    db_path = tmp_path / "db"
+  db_path 非 tmp_path 派生的赋值行数（须 0）= 4
+  其中 = tmp_path 派生的行数 = 4

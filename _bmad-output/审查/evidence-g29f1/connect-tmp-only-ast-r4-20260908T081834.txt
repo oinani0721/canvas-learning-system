@@ -1,0 +1,18 @@
+## 路径赋值来源
+  : 135  db_path ← ['tmp_path']  ✓
+  : 194  db_path ← ['tmp_path']  ✓
+  : 247  db_path ← ['tmp_path']  ✓
+  : 300  db_path ← ['tmp_path']  ✓
+  : 390  path ← ['tmp_path_factory']  ✓
+
+## lancedb.connect 9 处，越界 0 
+## _client(...) 5 处，越界 0
+## 可疑路径/环境字面量 = 0
+
+判定: ✓ 全部路径溯源到 pytest tmp_path / tmp_path_factory
+
+## 验伪锚：逐个从安全集移除，看它是否承重
+  移除 'db_path'          → connect 越界 8，赋值越界 0  ← 承重
+  移除 'path'             → connect 越界 1，赋值越界 0  ← 承重
+  移除 'tmp_path'         → connect 越界 0，赋值越界 4  ← 承重
+  移除 'tmp_path_factory' → connect 越界 0，赋值越界 1  ← 承重

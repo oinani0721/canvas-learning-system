@@ -1,0 +1,49 @@
+# 收尾门 + SHA 绑定链 — CARD-RED-C2（Codex round-7 整改后）
+HEAD=7dbd2526   U11-A 末 commit=5139428d   跑于 2026-09-09 17:33:31
+
+## 〇 SHA 绑定链（逐段实际输出 + git rc）
+  9b131f2f  -> c0d61a12   git rc=0  n=0   空 = 代码树等价
+  c0d61a12  -> c6278d6e   git rc=0  n=5   改了 5 个代码文件
+  c6278d6e  -> cfd299f3   git rc=0  n=0   空 = 代码树等价
+  cfd299f3  -> 4449e292   git rc=0  n=2   改了 2 个代码文件
+  4449e292  -> 0909e935   git rc=0  n=0   空 = 代码树等价
+  0909e935  -> e43db627   git rc=0  n=2   改了 2 个代码文件
+  e43db627  -> 5e3c7998   git rc=0  n=0   空 = 代码树等价
+  5e3c7998  -> 3a6f51ea   git rc=0  n=2   改了 2 个代码文件
+  3a6f51ea  -> 2b911c62   git rc=0  n=0   空 = 代码树等价
+  2b911c62  -> 49b15c77   git rc=0  n=1   改了 1 个代码文件
+  49b15c77  -> b5047b1d   git rc=0  n=0   空 = 代码树等价
+  b5047b1d  -> 82c285db   git rc=0  n=1   改了 1 个代码文件
+  82c285db  -> d0272927   git rc=0  n=0   空 = 代码树等价
+  d0272927  -> 7dbd2526   git rc=0  n=1   改了 1 个代码文件
+
+  ⇒ 送审 SHA ← 证据 HEAD（每对必须为空）：
+     r6 送审 b5047b1d ← 证据 49b15c77（空）
+     r7 送审 d0272927 ← 证据 82c285db（空）
+     收尾 HEAD 7dbd2526 ← 本轮三份证据
+
+本轮三份证据（写死文件名）：
+  unit-after-20260909T172714.txt     -> HEAD=7dbd2526  （复跑：上一轮出现 1 条 '>' 行 test_candidate_service，查可复现性）
+  files-23-20260909T173249.txt       -> HEAD=7dbd2526
+  gates-20260909T173331.txt          -> HEAD=7dbd2526
+  ⚠️ unit-after-20260909T172121 那一轮出现 1 条 '>' 行，复跑未复现，
+     归属与隔离核查见 flake-20260909T172121-candidate-service.txt（两条漂移用例均非本卡地盘）。
+
+## §二.6 判据强度门
+  ↑ 无输出 = 通过
+
+## §二.7 fixture 门
+autouse=True 新增数: 0
+精确读取面模式:
+  ↑ 无输出 = 通过
+
+## §二.8 地盘门
+改动文件数: 23
+backend/app 改动数: 0
+_archive 改动数: 0
+全部 ⊆ 23 文件清单:
+  ↑ 空
+
+既有 skip 标记被删/改（全卡累计）: 0
+本卡 diff 里 stderr 文件数: 0
+工作树代码面未提交改动（仓根 pathspec）: 0

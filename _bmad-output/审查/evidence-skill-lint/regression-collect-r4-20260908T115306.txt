@@ -1,0 +1,3 @@
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+========================= 226 tests collected in 0.29s =========================
+rc=0

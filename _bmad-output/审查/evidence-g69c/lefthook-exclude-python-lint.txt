@@ -1,0 +1,33 @@
+# CARD-G6-9c — python-lint hook 绕过存档（协议 §2.3）· Codex r1 整改后重采
+# 采集: 2026-09-08T08:35:02  BASE=da690bf8
+
+## 为什么绕过
+lefthook 的 python-lint 对 staged files 跑 ruff check + ruff format --check。
+本卡 14 个文件 ruff check 全过；format --check 只剩 1 处漂移，且该行在 da690bf8
+上逐字存在 = **存量**，不是本卡引入。卡文 (n) 明令「禁顺手修存量」，故绕过该 hook。
+
+## 1. ruff check（原始输出）
+All checks passed!
+
+## 2. ruff format --check（原始输出）
+Would reformat: backend/tests/regression/test_g6_9_boundary_matrix.py
+1 file would be reformatted, 13 files already formatted
+
+## 3. 唯一剩余漂移的具体内容
+@@ -397,7 +397,9 @@
+-    counts, _rows = _gate_buckets(payload["buckets"], groups, payload["stats"], payload["generated_at"], future_map, up_gated)
++    counts, _rows = _gate_buckets(
++        payload["buckets"], groups, payload["stats"], payload["generated_at"], future_map, up_gated
++    )
+
+## 4. 证明它是存量：该行在 da690bf8 逐字存在
+  grep -c = 1
+
+## 5. 基线态该文件本来就 format 不干净（独立佐证）
+  rc = 1   (非 0 = 基线本身就需要 reformat ⇒ 本卡未引入该漂移)
+  ⚠️ stdin 模式下 ruff 只以 rc 表态、不打印 'Would reformat'，故判据取 rc 而非输出文本。
+
+## 6. 本卡自己引入的 format 漂移都已修
+  · _DIVERGENCE_CARD 折行（首次 commit 前）—— 手动改写，未整文件 format
+  · Codex r1 整改时 review_overview.py 的一处 raise 折行 + 新门文件 —— 这两个文件
+    基线干净/属新增，已整文件 ruff format（不会碰到存量行）

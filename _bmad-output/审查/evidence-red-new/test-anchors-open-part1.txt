@@ -1,0 +1,159 @@
+--- calibration_tracker.py :34,44 + :183,190 ---
+34	
+35	# Three-stage data thresholds
+36	STAGE_2_MIN_RECORDS = 10
+37	STAGE_3_MIN_RECORDS = 20
+38	
+39	# Calibration rating threshold
+40	CALIBRATION_BIAS_THRESHOLD = 0.15
+41	
+42	
+43	def _load_calibration_thresholds() -> None:
+44	    """Load calibration thresholds from mastery_config.json if present.
+183	    Returns:
+184	        CalibrationRating enum value
+185	    """
+186	    if record_count < STAGE_2_MIN_RECORDS:
+187	        return CalibrationRating.INSUFFICIENT_DATA
+188	
+189	    if abs(signed_bias) < CALIBRATION_BIAS_THRESHOLD:
+190	        return CalibrationRating.WELL_CALIBRATED
+--- TEST test_calibration_tracker.py :250,282 ---
+250	        assert compute_calibration_rating(0.5, 9) == CalibrationRating.INSUFFICIENT_DATA
+251	        assert (
+252	            compute_calibration_rating(-0.5, 5) == CalibrationRating.INSUFFICIENT_DATA
+253	        )
+254	        assert compute_calibration_rating(0.0, 0) == CalibrationRating.INSUFFICIENT_DATA
+255	
+256	    def test_well_calibrated_boundary(self):
+257	        """|signed_bias| < 0.15 → WELL_CALIBRATED."""
+258	        assert compute_calibration_rating(0.14, 20) == CalibrationRating.WELL_CALIBRATED
+259	        assert (
+260	            compute_calibration_rating(-0.14, 20) == CalibrationRating.WELL_CALIBRATED
+261	        )
+262	        assert compute_calibration_rating(0.0, 10) == CalibrationRating.WELL_CALIBRATED
+263	
+264	    def test_over_confident_boundary(self):
+265	        """signed_bias >= 0.15 → OVER_CONFIDENT."""
+266	        assert compute_calibration_rating(0.15, 20) == CalibrationRating.WELL_CALIBRATED
+267	        assert compute_calibration_rating(0.16, 20) == CalibrationRating.OVER_CONFIDENT
+268	        assert compute_calibration_rating(0.5, 30) == CalibrationRating.OVER_CONFIDENT
+269	
+270	    def test_under_confident_boundary(self):
+271	        """signed_bias <= -0.15 → UNDER_CONFIDENT."""
+272	        assert (
+273	            compute_calibration_rating(-0.15, 20) == CalibrationRating.WELL_CALIBRATED
+274	        )
+275	        assert (
+276	            compute_calibration_rating(-0.16, 20) == CalibrationRating.UNDER_CONFIDENT
+277	        )
+278	        assert compute_calibration_rating(-0.5, 30) == CalibrationRating.UNDER_CONFIDENT
+279	
+280	
+281	# ═══════════════════════════════════════════════════════════════════════════════
+282	# AC-1: CalibrationRecord Creation
+--- TEST test_difficulty_matcher.py :100,118 ---
+100	class TestSlidingWindowStats:
+101	    """Test sliding window statistics and alerting."""
+102	
+103	    def _make_matcher(self, tmp_path: str) -> DifficultyMatcher:
+104	        db_path = os.path.join(tmp_path, "test_matcher.db")
+105	        return DifficultyMatcher(db_path)
+106	
+107	    def test_empty_window_stats(self, tmp_path):
+108	        matcher = self._make_matcher(str(tmp_path))
+109	        stats = matcher.get_stats()
+110	        assert stats.total_in_window == 0
+111	        assert stats.matched_count == 0
+112	        assert stats.match_rate == 0.0
+113	        assert stats.is_healthy is True  # No data -> no alert
+114	
+115	    def test_window_tracks_matches(self, tmp_path):
+116	        matcher = self._make_matcher(str(tmp_path))
+117	        # Manually populate window
+118	        for _ in range(7):
+--- TEST test_mastery_fusion.py :300,326 ---
+300	    def test_perfect_positive_correlation(self):
+301	        """Identical values → r = 1.0."""
+302	        a = [0.1, 0.2, 0.3, 0.4, 0.5]
+303	        b = [0.1, 0.2, 0.3, 0.4, 0.5]
+304	        r = compute_pearson_r(a, b)
+305	        assert r == pytest.approx(1.0, abs=0.001)
+306	
+307	    def test_perfect_negative_correlation(self):
+308	        """Inverse values → r = -1.0."""
+309	        a = [0.1, 0.2, 0.3, 0.4, 0.5]
+310	        b = [0.5, 0.4, 0.3, 0.2, 0.1]
+311	        r = compute_pearson_r(a, b)
+312	        assert r == pytest.approx(-1.0, abs=0.001)
+313	
+314	    def test_no_correlation(self):
+315	        """Orthogonal signals → r near 0."""
+316	        a = [1.0, 0.0, 1.0, 0.0, 1.0]
+317	        b = [0.0, 1.0, 0.0, 1.0, 0.0]
+318	        r = compute_pearson_r(a, b)
+319	        assert r is not None
+320	        assert abs(r) < 0.5  # Not strongly correlated
+321	
+322	    def test_insufficient_data(self):
+323	        """< 3 data points → None."""
+324	        assert compute_pearson_r([0.1], [0.2]) is None
+325	        assert compute_pearson_r([0.1, 0.2], [0.3, 0.4]) is None
+326	
+--- TEST test_multimodal_path_security.py :40,95 ---
+40	
+41	# =============================================================================
+42	# AC 35.10.1 + 35.10.2: _validate_safe_path unit tests
+43	# =============================================================================
+44	
+45	
+46	class TestValidateSafePath:
+47	    """Direct tests for _validate_safe_path method."""
+48	
+49	    def test_valid_path_within_storage(self, service, tmp_storage):
+50	        """Normal file path within storage should pass."""
+51	        file_path = Path(tmp_storage) / "image" / "20260209_abc123.png"
+52	        result = service._validate_safe_path(file_path)
+53	        assert result == file_path.resolve()
+54	
+55	    def test_path_traversal_unix_style(self, service, tmp_storage):
+56	        """Unix-style ../.. path traversal should be rejected."""
+57	        file_path = Path(tmp_storage) / "image" / "../../etc/passwd"
+58	        with pytest.raises(MultimodalServiceError, match="path traversal"):
+59	            service._validate_safe_path(file_path)
+60	
+61	    def test_path_traversal_windows_style(self, service, tmp_storage):
+62	        """Windows-style ..\\.. path traversal should be rejected."""
+63	        file_path = Path(tmp_storage) / "image" / "..\\..\\windows\\system32\\config"
+64	        with pytest.raises(MultimodalServiceError, match="path traversal"):
+65	            service._validate_safe_path(file_path)
+66	
+67	    def test_path_traversal_deep_nested(self, service, tmp_storage):
+68	        """Deep nested ../../../.. traversal should be rejected."""
+69	        file_path = Path(tmp_storage) / "image" / "../../../../../../../tmp/evil"
+70	        with pytest.raises(MultimodalServiceError, match="path traversal"):
+71	            service._validate_safe_path(file_path)
+72	
+73	    def test_path_traversal_mixed(self, service, tmp_storage):
+74	        """Mixed normal/../../../evil.txt should be rejected."""
+75	        file_path = Path(tmp_storage) / "image" / "normal/../../../evil.txt"
+76	        with pytest.raises(MultimodalServiceError, match="path traversal"):
+77	            service._validate_safe_path(file_path)
+78	
+79	    def test_path_within_subdirectory(self, service, tmp_storage):
+80	        """Path within a valid subdirectory should pass."""
+81	        file_path = Path(tmp_storage) / "pdf" / "20260209_doc.pdf"
+82	        result = service._validate_safe_path(file_path)
+83	        assert result == file_path.resolve()
+84	
+85	    def test_error_code_is_path_traversal(self, service, tmp_storage):
+86	        """Error should have PATH_TRAVERSAL_ERROR code."""
+87	        file_path = Path(tmp_storage) / "image" / "../../etc/passwd"
+88	        with pytest.raises(MultimodalServiceError) as exc_info:
+89	            service._validate_safe_path(file_path)
+90	        assert exc_info.value.error_code == "PATH_TRAVERSAL_ERROR"
+91	
+92	
+93	# =============================================================================
+94	# AC 35.10.1: upload_file path traversal integration
+95	# =============================================================================

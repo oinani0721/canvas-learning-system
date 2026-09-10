@@ -1,0 +1,16 @@
+=== NEGCTL case=m4 ===
+被测门: <M4 探针>
+期望新门失败正文含: <见探针 reason>
+
+--- 打变异 ---
+MUTANT-APPLIED: case=m4 files=['live_port_guard.py']
+
+--- M4 修前对照：结算路径退回直接 write_ledger ---
+  [FAIL] guard-late-ledger-survives-stale-final-write rc=3 (期望 3)
+         原因: 账本末态 blocked=0 unaccounted=0 —— 结算线程用陈旧快照把迟到记录盖掉了
+GUARD-PROBES: FAIL — 1/56 条未 fail-closed
+--- 还原 ---
+sha-before = b60f01928d0f73ab3de4ab82a885e419d63d7cf882eedc662bf3cff45c660561
+sha-after  = b60f01928d0f73ab3de4ab82a885e419d63d7cf882eedc662bf3cff45c660561
+RESTORE-OK: sha-before == sha-after
+rc=0

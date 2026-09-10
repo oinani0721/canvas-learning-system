@@ -11,7 +11,7 @@ Tests cover:
 """
 
 import asyncio
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 from app.models.canvas_events import (
@@ -142,7 +142,7 @@ class TestTier2Important:
         handler.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_tier2_retry_then_success(self):
+    async def test_tier2_retry_then_success(self, monkeypatch, wait_condition):
         bus = EventBus()
         call_count = 0
 
@@ -153,22 +153,34 @@ class TestTier2Important:
                 raise ConnectionError("Temporary failure")
 
         bus.subscribe(LearningEventType.BKT_UPDATED, flaky_handler)
-        with patch("app.services.event_bus.asyncio.sleep", new_callable=AsyncMock):
-            await bus.publish(_make_event(LearningEventType.BKT_UPDATED))
-            await asyncio.sleep(0.1)
+        # Shrink the production backoff rather than patching asyncio.sleep.
+        # app.services.event_bus.asyncio IS the global asyncio module, so patching
+        # its sleep also neutralises this test's own yield points (and the conftest
+        # wait helpers): the event loop never yields, the Tier 2 retry task is never
+        # scheduled, and the assertion runs against a handler that has not been
+        # called even once. Setting the delay to 0 keeps a real await, so the
+        # background task actually runs.
+        monkeypatch.setattr("app.services.event_bus.TIER2_BASE_DELAY_S", 0.0)
+        await bus.publish(_make_event(LearningEventType.BKT_UPDATED))
+        await wait_condition(lambda: call_count >= 2, description="flaky_handler retried")
         assert call_count >= 2
 
     @pytest.mark.asyncio
-    async def test_tier2_all_retries_exhausted_writes_outbox(self):
+    async def test_tier2_all_retries_exhausted_writes_outbox(self, monkeypatch, wait_condition):
         bus = EventBus()
 
         async def always_fail(event):
             raise ConnectionError("Persistent failure")
 
         bus.subscribe(LearningEventType.BKT_UPDATED, always_fail)
-        with patch("app.services.event_bus.asyncio.sleep", new_callable=AsyncMock):
-            await bus.publish(_make_event(LearningEventType.BKT_UPDATED))
-            await asyncio.sleep(0.2)
+        # See test_tier2_retry_then_success for why the backoff is shrunk instead
+        # of asyncio.sleep being patched.
+        monkeypatch.setattr("app.services.event_bus.TIER2_BASE_DELAY_S", 0.0)
+        await bus.publish(_make_event(LearningEventType.BKT_UPDATED))
+        await wait_condition(
+            lambda: bus._stats["outbox_written"] >= 1,
+            description="outbox written after retries exhausted",
+        )
         assert bus._stats["outbox_written"] >= 1
 
 

@@ -360,7 +360,16 @@ class TestRRFMultimodalFusion:
 
     def test_rrf_fusion_with_multimodal_results(self):
         """测试RRF融合正确处理multimodal结果"""
-        from agentic_rag.nodes import _fuse_rrf_multi_source
+        # 契约演进（76d10cea 2026-03-16 建出 agentic_rag/nodes/ 包目录遮蔽 nodes.py，
+        # c0ac2b47 2026-03-18 用 re-export shim 收口）：nodes/__init__.py 走
+        # `from agentic_rag._nodes_impl import *`，而 nodes.py 无 __all__，
+        # `import *` **不带下划线前缀名** ⇒ _fuse_* 两个 helper 并未被删除
+        # （现存 nodes.py:723 / :983），只是从 agentic_rag.nodes 这条路径不可达。
+        # 对照：同文件 DEFAULT_SOURCE_WEIGHTS 无下划线前缀，import * 带得出来，
+        # 故那两条用例至今是绿的、不在本卡范围——这正是「只有下划线名不可达」的旁证。
+        # 树内 test_fusion_strategy_override 等 5 个测试文件已改用 _nodes_impl。
+        # [CARD-RED-C2]
+        from agentic_rag._nodes_impl import _fuse_rrf_multi_source
 
         all_source_results = {
             "graphiti": [
@@ -405,7 +414,16 @@ class TestRRFMultimodalFusion:
         每个来源的第1个结果 RRF 分数 = 1/(60+1) ≈ 0.01639。
         multimodal 结果必须获得与其他来源相同的 RRF 分数（非零）。
         """
-        from agentic_rag.nodes import _fuse_rrf_multi_source
+        # 契约演进（76d10cea 2026-03-16 建出 agentic_rag/nodes/ 包目录遮蔽 nodes.py，
+        # c0ac2b47 2026-03-18 用 re-export shim 收口）：nodes/__init__.py 走
+        # `from agentic_rag._nodes_impl import *`，而 nodes.py 无 __all__，
+        # `import *` **不带下划线前缀名** ⇒ _fuse_* 两个 helper 并未被删除
+        # （现存 nodes.py:723 / :983），只是从 agentic_rag.nodes 这条路径不可达。
+        # 对照：同文件 DEFAULT_SOURCE_WEIGHTS 无下划线前缀，import * 带得出来，
+        # 故那两条用例至今是绿的、不在本卡范围——这正是「只有下划线名不可达」的旁证。
+        # 树内 test_fusion_strategy_override 等 5 个测试文件已改用 _nodes_impl。
+        # [CARD-RED-C2]
+        from agentic_rag._nodes_impl import _fuse_rrf_multi_source
 
         all_source_results = {
             "graphiti": [
@@ -444,7 +462,16 @@ class TestRRFMultimodalFusion:
 
     def test_weighted_fusion_with_multimodal(self):
         """测试Weighted融合正确处理multimodal结果"""
-        from agentic_rag.nodes import (
+        # 契约演进（76d10cea 2026-03-16 建出 agentic_rag/nodes/ 包目录遮蔽 nodes.py，
+        # c0ac2b47 2026-03-18 用 re-export shim 收口）：nodes/__init__.py 走
+        # `from agentic_rag._nodes_impl import *`，而 nodes.py 无 __all__，
+        # `import *` **不带下划线前缀名** ⇒ _fuse_* 两个 helper 并未被删除
+        # （现存 nodes.py:723 / :983），只是从 agentic_rag.nodes 这条路径不可达。
+        # 对照：同文件 DEFAULT_SOURCE_WEIGHTS 无下划线前缀，import * 带得出来，
+        # 故那两条用例至今是绿的、不在本卡范围——这正是「只有下划线名不可达」的旁证。
+        # 树内 test_fusion_strategy_override 等 5 个测试文件已改用 _nodes_impl。
+        # [CARD-RED-C2]
+        from agentic_rag._nodes_impl import (
             DEFAULT_SOURCE_WEIGHTS,
             _fuse_weighted_multi_source,
         )
@@ -501,11 +528,32 @@ class TestStateGraphMultimodalIntegration:
 
         assert "retrieve_multimodal" in nodes
 
-    def test_fan_out_retrieval_includes_multimodal(self, sample_rag_state):
+    @pytest.mark.asyncio
+    async def test_fan_out_retrieval_includes_multimodal(self, sample_rag_state):
         """测试fan_out_retrieval包含multimodal"""
+        # 契约演进（3b96e492, 2026-04-07 "A9 L1 LLM router"）：fan_out_retrieval 由同步
+        # 改为 async（内含 await 的 LLM 路由）。原测试同步调用只拿到 coroutine ⇒
+        # TypeError: object of type 'coroutine' has no len()。
+        # ⚠️ 必须 patch agentic_rag.llm_router.llm_route——不 patch 会在单元测试里
+        # 真发 LLM 请求（外发副作用）。patch 目标与树内已绿的
+        # test_state_graph_l1_routing.py:76-79 同一约定。[CARD-RED-C2]
+        from unittest.mock import AsyncMock
+
+        from agentic_rag.llm_router import LLMRouterResult
         from agentic_rag.state_graph import fan_out_retrieval
 
-        sends = fan_out_retrieval(sample_rag_state)
+        fake_result = LLMRouterResult(
+            intent="knowledge_point",
+            reason="unit-test stub",
+            latency_ms=1.0,
+            success=True,
+            error=None,
+        )
+        with patch(
+            "agentic_rag.llm_router.llm_route",
+            new=AsyncMock(return_value=fake_result),
+        ):
+            sends = await fan_out_retrieval(sample_rag_state)
 
         # Story 23.4: 现在是5路并行检索
         assert len(sends) == 5

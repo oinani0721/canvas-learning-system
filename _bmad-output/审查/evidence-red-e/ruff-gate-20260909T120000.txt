@@ -1,0 +1,25 @@
+### ruff 门处置记录（CARD-RED-E）
+
+-- lint（ruff check）：本卡两文件全通过 --
+All checks passed!
+lint_rc=0
+
+-- format 基线预检（HEAD 版）--
+app/services/agent_service.py                      DRIFT-AT-HEAD
+tests/unit/test_agent_templates_smoke.py           DRIFT-AT-HEAD
+
+-- format 现状（本卡处置后）--
+Would reformat: app/services/agent_service.py
+1 file would be reformatted, 1 file already formatted
+format_rc=1
+
+处置：
+  tests/unit/test_agent_templates_smoke.py — 已 ruff format。该文件 format 前的 2 处 diff
+    全部落在本卡改动区域内（test_minimum_template_count 的消息 = 本卡把 17 改 18 时重写的那一行，
+    HEAD 版实测同处 DRIFT；另一处是本卡新增的两条断言消息），故 format 不越界。现为 CLEAN。
+  app/services/agent_service.py — 保持 DRIFT-AT-HEAD 不动。其 format diff 全在 :43 / :130 /
+    :301 / :343 等既有代码，与本卡唯一改动行 :5724 无关；顺手 format 会把改动面炸到几十处，
+    违反「禁顺手修存量」。
+
+⇒ commit 需 LEFTHOOK_EXCLUDE=python-lint,python-typecheck（python-lint 同时含 ruff check 与
+  ruff format check，无法只跳过 format 一半；ruff check 本身实测通过，见上）。

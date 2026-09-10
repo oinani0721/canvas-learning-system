@@ -1,0 +1,24 @@
+### CARD-RED-R 零代码门 · round-2 重做（Codex r2 MEDIUM-2：原命令 base==HEAD 恒真，属假绿）
+时间: 2026-09-09T13:31:19+0800
+HEAD: 8f5f9efc  U5-B 末 commit: 8f5f9efc  （二者相同 ⇒ 原 diff 恒空，不构成判据）
+
+== 1. 工作区（含未提交改动）vs U5-B 末 commit，排除 _bmad-output ==
+$ git diff --stat --no-color 8f5f9efc -- . ':(exclude)_bmad-output'
+rc=0
+
+== 2. 全部未跟踪+已改文件（-uall），排除 _bmad-output ==
+$ git status --porcelain=v1 --untracked-files=all -- . ':(exclude)_bmad-output'
+rc=0
+
+== 3. 验伪锚：同命令不排除 _bmad-output（应列出本卡产物）==
+"_bmad-output
+rc=0
+
+== 4. scratch worktree 清零（完整 porcelain 输出）==
+$ git worktree list --porcelain | grep -c 'bisect-\|diag-\|probe-'
+0
+rc=1 （grep 无匹配时 rc=1，计数 0 即清零）
+
+== 5. 车道树 git bisect log（不接管道）==
+error: We are not bisecting.
+rc=1

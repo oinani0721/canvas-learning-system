@@ -1,0 +1,88 @@
+# 依据 sha 证明扫描 — CARD-RED-C2 (b) 表的机器判据
+# 每行三问：① sha 解析得到？② 该生产文件在 git show --stat 里？③ 该 sha 的 diff ± 行里有本条断言所指的符号？
+# ③ 若 0，脚本回退到整个 commit 全域搜索并打印真正命中的文件——不许静默算过。
+# 修订记录：首轮 3b96e492 写成 nodes.py（错），回退搜索把真身指到 state_graph.py；已改正后重跑本表。
+
+OK  4104020d 2026-05-12 fix(2.2+2.9 wave-5 stage-b): backend p0 multi-vault leak 修复
+     覆盖行: grouping/test_analyze_canvas 2
+     file=backend/app/services/intelligent_grouping_service.py  在--stat=True  diff±行含「build_vault_group_id」=2
+OK  5d2b95ba 2026-03-29 refactor(S34): G-FAKE-001 — 批量重命名假"graphiti"标识符为真实Neo4j名称
+     覆盖行: agent_context_injection 4 / context_enrichment_2hop 2 / verification_service_injection 1
+     file=backend/app/services/context_enrichment_service.py  在--stat=True  diff±行含「_search_learning_relations」=3
+OK  a9304c69 2026-03-29 refactor(S35): Phase 3 Step 2 — except Exception 精确化（251处/65文件）
+     覆盖行: agent_context_injection 第4条反向锚
+     file=backend/app/services/context_enrichment_service.py  在--stat=True  diff±行含「asyncio.TimeoutError」=6
+OK  1a4f42ae 2026-02-09 fix(36): TTLCache for agent memory, inject memory_client into VS AgentService
+     覆盖行: agent_memory_trigger 1
+     file=backend/app/core/agent_memory_mapping.py  在--stat=True  diff±行含「hint-generation」=1
+OK  9d3326ee 2026-03-10 feat: add mastery proficiency system + Gemini thinking config + UI enhancements
+     覆盖行: agent_service_comparison 6 / agent_service_neo4j_memory 4
+     file=backend/app/services/agent_service.py  在--stat=True  diff±行含「canvas_name」=16
+OK  836d0986 2026-03-31 feat(Epic2): architectural pruning — remove cross_canvas + textbook + fix vault_notes
+     覆盖行: cache_configuration 4 (xfail 交接)
+     file=backend/app/services/context_enrichment_service.py  在--stat=True  diff±行含「association_cache」=11
+OK  f718d040 2026-05-08 feat(round-23): stage 1 硬化 ship — 6 patches + uat PLAN-023
+     覆盖行: config_neo4j 9
+     file=backend/app/config.py  在--stat=True  diff±行含「validate_security_defaults」=1
+OK  d0824e90 2026-04-06 fix(verification): Phase 17.1 fail-closed degraded scoring
+     覆盖行: degraded_flag_propagation 1
+     file=backend/app/services/verification_service.py  在--stat=True  diff±行含「unknown」=4
+OK  3c00ad48 2026-02-11 fix(33): adversarial review fixes — cancel race guard, path validation, structlog migration
+     覆盖行: intelligent_parallel_endpoints 1
+     file=backend/app/services/intelligent_parallel_service.py  在--stat=True  diff±行含「is_terminal」=1
+OK  74337632 2026-02-04 fix: resolve LanceDB data isolation and memory system connection bugs
+     覆盖行: neo4j_health 1
+     file=backend/app/api/v1/endpoints/health.py  在--stat=True  diff±行含「timeout」=14
+OK  76d10cea 2026-03-16 feat(sprint-1): implement 5 stories - scaffold, cleanup, mastery, faithfulness, logging
+     覆盖行: rag_multimodal_integration 3 (建包遮蔽)
+     file=src/agentic_rag/nodes/__init__.py  在--stat=True  diff±行含「」=n/a
+OK  c0ac2b47 2026-03-18 fix: resolve nodes.py vs nodes/ import conflict for StateGraph
+     覆盖行: rag_multimodal_integration 3 (re-export 收口)
+     file=src/agentic_rag/nodes/__init__.py  在--stat=True  diff±行含「_nodes_impl」=3
+OK  3b96e492 2026-04-07 feat(agentic-rag): A9 L1 LLM router — replace rule-based classifier with Gemini Flash
+     覆盖行: rag_multimodal_integration 1
+     file=backend/lib/agentic_rag/state_graph.py  在--stat=True  diff±行含「fan_out_retrieval」=4
+OK  7a3d53bc 2026-07-13 feat(m1+m2): 本地 LLM 放行 — canary 50/50 基线 + 语义通道写侧落影子图 (EPIC1-BMAD-DEV-ASSESS-2026-04-17)
+     覆盖行: s02_entity_types 1
+     file=backend/app/services/episode_worker.py  在--stat=True  diff±行含「semantic_group_id」=2
+OK  4236b12e 2026-07-23 feat(mem-batch1): 批次1' 隔离守门五项 — fail-closed+去重+地板+子组+精排 (MEM-FLYWHEEL-2026-07-22)
+     覆盖行: s02_search_upgrade 1
+     file=backend/app/services/memory_service.py  在--stat=True  diff±行含「_mmr」=3
+OK  8a80595f 2026-07-12 fix(backend): P0 批次二 D2 回填黑名单 + neo4j 挂载迁主仓 + GEMINI_API_KEY (EPIC1-BMAD-DEV-ASSESS-2026-04-17)
+     覆盖行: story_1_7_env_config 1
+     file=docker-compose.yml  在--stat=True  diff±行含「/Users/Heishing」=3
+OK  146218b5 2026-03-24 chore: 上下文污染清理 — 归档legacy + 清除Obsidian引用 + rules去重
+     覆盖行: story_30_24_boundary 5 (xfail 交接)
+     file=_archive/canvas-progress-tracker/obsidian-plugin/scripts/verify-vault.mjs  在--stat=True  diff±行含「」=n/a
+OK  14f0412d 2026-02-07 chore: clean release — remove legacy docs/specs, consolidate code fixes
+     覆盖行: story_38_1_review_fixes 2 / verification_service_injection 1
+     file=backend/app/services/lancedb_index_service.py  在--stat=True  diff±行含「initialize」=4
+OK  59586af1 2026-03-26 refactor(phase2): delete fake bridge/JSON dual-write code, replaced by GraphitiEpisodeWorker
+     覆盖行: story_38_4_dual_write_default 3 (xfail 交接)
+     file=backend/app/main.py  在--stat=True  diff±行含「Dual-write」=3
+OK  836d0986 2026-03-31 feat(Epic2): architectural pruning — remove cross_canvas + textbook + fix vault_notes
+     覆盖行: story_38_4_dual_write_default 3 (断路器保留依据)
+     file=backend/app/main.py  在--stat=True  diff±行含「set_session_validator」=1
+OK  a9304c69 2026-03-29 refactor(S35): Phase 3 Step 2 — except Exception 精确化（251处/65文件）
+     覆盖行: story_38_8_fallback_sync 1
+     file=backend/app/services/fallback_sync_service.py  在--stat=True  diff±行含「ConnectionError」=11
+OK  b28133cc 2026-03-16 feat(sprint-3): implement 13 stories - sync, images, recommendations, CLI, MCP, profiles
+     覆盖行: subject_isolation 1
+     file=backend/app/core/subject_config.py  在--stat=True  diff±行含「DEFAULT_SUBJECT_ID」=4
+OK  fcd34953 2026-08-09 feat(rag): 阶段 2 T2 快修批 — 权重方向翻转 + confidence 地基 + 隔离收口 (RAG-S2-2026-08-09)
+     覆盖行: supplementary_reranker 9
+     file=backend/app/services/supplementary_reranker.py  在--stat=True  diff±行含「note」=3
+OK  4db8e94a 2026-08-30 fix(scope): 封堵读侧跨 vault 泄漏 + 保召回前缀语义 [BATCH-2026-08-29-第六批 / CARD-G4-1a]
+     覆盖行: story_30_24_boundary 1 (安全面)
+     file=backend/app/clients/neo4j_client.py  在--stat=True  diff±行含「read_scope_params」=12
+OK  88cb13a7 2026-08-31 fix(scope): neo4j client 层读收口 + get_concept_history 名实一致
+     覆盖行: story_30_24_boundary 1 (安全面)
+     file=backend/app/clients/neo4j_client.py  在--stat=True  diff±行含「read_scope_params」=12
+OK  32c8e325 2026-09-05 merge(squash): X4 W4 安全底座 Bark-R1 + lifespan-R1 终审收口 [BATCH-2026-09-04-第十批 / CARD-TEST-isolate-lifes
+     覆盖行: verification_service_injection 1 (哨兵)
+     file=backend/tests/support/live_port_guard.py  在--stat=True  diff±行含「」=n/a
+OK  d14b50ab 2026-09-05 merge(squash): X3-① G4-4a 显式 VaultScope 移植 7 commit + 收口 [BATCH-2026-09-04-第十批 / CARD-G4-4a]
+     覆盖行: wave5_stageb 1
+     file=backend/app/api/v1/endpoints/agents.py  在--stat=True  diff±行含「resolve_vault_scope」=8
+
+不合格行数 = 0

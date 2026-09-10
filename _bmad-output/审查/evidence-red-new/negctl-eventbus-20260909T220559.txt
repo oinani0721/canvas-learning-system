@@ -1,0 +1,17 @@
+=== 负控：event_bus.py 的 retries_exhausted outbox 写入改 no-op ===
+SHA_BEFORE=7072eead8977ec8f0f4733135cfb528c7a51e84eabce2cbd6f0bceee123a4062
+[mutated] retries_exhausted outbox write -> no-op
+
+--- 指定断言那条（#6）必须 FAILED ---
+    raise TimeoutError(msg)
+E   TimeoutError: outbox written after retries exhausted not met within 2.0s
+======================== 1 failed, 10 warnings in 2.47s ========================
+
+--- 负控特异性：#5 与同类 test_tier2_success 应仍绿 ---
+======================== 2 passed, 10 warnings in 0.55s ========================
+SHA_BEFORE=7072eead8977ec8f0f4733135cfb528c7a51e84eabce2cbd6f0bceee123a4062
+SHA_AFTER_RESTORE=7072eead8977ec8f0f4733135cfb528c7a51e84eabce2cbd6f0bceee123a4062
+SHA_BEFORE       =7072eead8977ec8f0f4733135cfb528c7a51e84eabce2cbd6f0bceee123a4062
+[OK] 逐字节还原
+--- git diff 确认 event_bus.py 生产文件未被本卡改动 ---
+[END: 空 = 未改]

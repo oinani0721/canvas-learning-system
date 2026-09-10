@@ -1,0 +1,4 @@
+65a66
+> FAILED tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422
+119d119
+< FAILED tests/unit/test_mock_degradation_transparency.py::TestMockScoringWarningLogs::test_mock_mode_logs_warning

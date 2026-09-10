@@ -1,0 +1,15 @@
+### (f) :117 翻转 — 改前 (ts=20260908T070206)
+夹具: tmp8 = 8 目录 / 7 含 SKILL.md (s8 只有 scripts/)；tmp9 = 9 目录 / 9 含 SKILL.md
+  tmp8: ls|wc -l = 8   含SKILL.md = 7
+  tmp9: ls|wc -l = 9   含SKILL.md = 9
+--- 抽出的两行 (sed -n '113p;117p') ---
+check() { if eval "$2"; then echo "   ✅ $1"; PASS=$((PASS+1)); else echo "   ❌ $1"; FAIL=$((FAIL+1)); fi; }
+check "skills ≥8 个"             '[ "$(ls "$TARGET/.claude/skills" 2>/dev/null | wc -l)" -ge 8 ]'
+--- TARGET=tmp8 (旧判据 ls|wc -l = 8 ⇒ 预期 ✅) ---
+   ✅ skills ≥8 个
+  rc=0
+--- TARGET=tmp9 (预期 ✅) ---
+   ✅ skills ≥8 个
+  rc=0
+--- wc -l ---
+     157 scripts/install-vault.sh

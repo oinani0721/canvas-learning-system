@@ -1,0 +1,11 @@
+=== r7 LOW-1 变异: 删掉 `_fence_blocks` 的**同字符**判断 ===
+  原版 fence 块数=1 body=['A', '```', 'P = "/tmp/cls-exam/../y"']
+  变异 fence 块数=2 body=['A']
+  ⇒ 断言(b) 原版通过=True 变异后失败=True ✅ 承重
+
+=== r7 LOW-2 变异: 候选在 ';' 处截断 ===
+  新载体(整改后)         整串→/x             越界=True | 截断→/tmp/cls-exam/a            越界=False
+  旧载体(整改前)         整串→/x             越界=True | 截断→/tmp/quiz-answer-incr.json 越界=True
+  ⇒ 旧载体截断后**仍越界** ⇒ 截断变异照样红 ⇒ 该行证明不了「尾巴没被截断」
+  ⇒ 新载体截断后**合规** ⇒ 只有不截断才红 ⇒ 该行真的承重
+rc=0

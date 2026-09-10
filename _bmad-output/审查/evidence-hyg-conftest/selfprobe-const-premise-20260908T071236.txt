@@ -1,0 +1,15 @@
+=== 前提①: 相邻字面量是否被 ast.parse 折叠成单个 Constant ===
+  node type = Constant
+  value     = '/tmp/test-vault'
+  FOLDED_TO_SINGLE_CONSTANT = True
+
+=== 前提②: 该形态若不排除自身, 门是否真的会命中（承重自证）===
+  用门的判据扫这段源码 -> hits = [1]
+  GATE_WOULD_HIT = True
+
+=== 对照: `+` 号形态（conftest 用的那种）不该被折叠 ===
+  node type = BinOp
+  hits = [] -> GATE_WOULD_HIT = False
+
+结论: 前提①②同时为真 ⇒ 7c② 的探针确实是门「该命中」的形态,
+      所以它跑出来仍绿, 唯一解释是 Path(__file__).resolve() 排除自身生效。

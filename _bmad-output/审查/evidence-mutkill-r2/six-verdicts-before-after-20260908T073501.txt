@@ -1,0 +1,14 @@
+=== 裁判 9 六档收口对照（收口前 = git show 3f073a1a，收口后 = 工作树）===
+--- 收口前（3f073a1a 版）---
+g32b_mutation_gates              ANCHOR-ERROR=3 SYNTAX-INVALID=6 ANCHOR-DRIFT=0 KILLED-UNBOUND=6 HARNESS-ERROR=10
+g32cb_mutation_gates             ANCHOR-ERROR=5 SYNTAX-INVALID=5 ANCHOR-DRIFT=0 KILLED-UNBOUND=3 HARNESS-ERROR=3
+g32ccr1_negative_controls        ANCHOR-ERROR=4 SYNTAX-INVALID=5 ANCHOR-DRIFT=0 KILLED-UNBOUND=3 HARNESS-ERROR=3
+g33_mutation_gates               ANCHOR-ERROR=0 SYNTAX-INVALID=12 ANCHOR-DRIFT=1 KILLED-UNBOUND=0 HARNESS-ERROR=0
+--- 收口后（工作树）---
+g32b_mutation_gates              ANCHOR-ERROR=7 SYNTAX-INVALID=7 ANCHOR-DRIFT=0 KILLED-UNBOUND=8 HARNESS-ERROR=8
+g32cb_mutation_gates             ANCHOR-ERROR=4 SYNTAX-INVALID=4 ANCHOR-DRIFT=0 KILLED-UNBOUND=1 HARNESS-ERROR=1
+g32ccr1_negative_controls        ANCHOR-ERROR=3 SYNTAX-INVALID=4 ANCHOR-DRIFT=0 KILLED-UNBOUND=1 HARNESS-ERROR=1
+g33_mutation_gates               ANCHOR-ERROR=3 SYNTAX-INVALID=13 ANCHOR-DRIFT=2 KILLED-UNBOUND=1 HARNESS-ERROR=2
+--- g33 里剩下的 ANCHOR-DRIFT 是什么（须为解释性文字，不是活的裁决值）---
+445:                # ⛔ round-19 改名: 收口前本套叫 `ANCHOR-DRIFT`, 另三套叫 `ANCHOR-ERROR`
+619:    # `ANCHOR-DRIFT` —— 同一个 `kill_identity` 在四套里被四种口径消费。

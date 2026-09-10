@@ -1,0 +1,25 @@
+### CARD-RED-R commit 后终审绑定验证
+时间: 2026-09-09T13:37:56+0800
+HEAD: a6433d57  审SHA(Codex r1/r2 绑定): 8f5f9efc  U5-B 末 commit: 8f5f9efc
+
+== 1. 终审绑定（协议 §1）：审SHA..HEAD 的代码树 diff 应为空 ==
+$ git diff --stat --no-color 8f5f9efc HEAD -- . ':(exclude)_bmad-output'
+rc=0
+
+== 2. 验伪锚：同区间不排除 _bmad-output（应有 90 个文件）==
+ 90 files changed, 19952 insertions(+)
+rc=0
+
+== 3. 工作树干净 ==
+       1
+
+== 4. scratch worktree 清零 ==
+0
+
+== 5. 车道树 git bisect log ==
+error: We are not bisecting.
+rc=1
+
+== 6. 本卡 commit ==
+a6433d57 docs(red-r): 27 条零代码定性分派表 [BATCH-2026-09-07-第十三批 / CARD-RED-R]
+未 push 自证: no-upstream

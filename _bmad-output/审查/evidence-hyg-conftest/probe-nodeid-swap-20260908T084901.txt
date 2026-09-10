@@ -1,0 +1,26 @@
+# U10-A r4：收工 diff 出现 1 增 1 减，总数仍 202 —— 判它是不是本卡引入的回归
+# 存档: unit-after-r4-20260908T084422.txt
+
+=== 1. 两条的失败正文分别是什么 ===
+--- test_accept_candidate_already_accepted_returns_422 ---
+  - ('::1', 7691, 0, 0) on thread MainThread (owner=tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422)
+{"event": "Neo4j health check failed: live Neo4j port connect attempted: ('::1', 7691, 0, 0). \u53d7\u62e6\u7aef\u53e3 [7687, 7691] \u662f\u73b0\u7f51 Neo4j\uff1b\u6d4b\u8bd5\u8fdb\u7a0b\u4e0d\u5f97\u8fde\u63a5\u3002\u82e5\u8fd9\u662f\u7aef\u70b9\u6d4b\u8bd5\uff0c\u8bf7\u7528 backend/tests/support/lifespan.py::no_lifespan \u5173\u6389 app.main \u7684 lifespan\uff1b\u82e5\u786e\u9700\u771f\u5e93\uff0c\u7528\u6d4b\u8bd5\u5bb9\u5668 NEO4J_TEST_URI(7692) \u5e76\u6253 integration/real_neo4j marker\u3002", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-08T00:44:36.664920Z"}
+--- test_mock_mode_logs_warning ---
+
+=== 2. W4 哨兵计数（记忆里的判据：改绑失败正文/连接次数，不绑 nodeid）===
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=12 (blocked=12, advisory=0, unaccounted=0)
+
+=== 3. 与开工基线那一跑对比同一指标 ===
+开工基线: NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=12 (blocked=12, advisory=0, unaccounted=0)
+
+=== 4. 这两条在历次存档里的出现情况（若历轮就在互换，即证 flaky 非本卡引入）===
+存档                                             candidate422 / mock_warning
+unit-open-20260908T064551.txt                  0 / 1
+unit-n2p-20260908T071312.txt                   0 / 1
+unit-n2p-20260908T074540.txt                   0 / 1
+unit-n2p-20260908T082024.txt                   0 / 1
+unit-after-r4-20260908T084422.txt              1 / 0
+
+=== 5. 基线文件里这两条哪个在 ===
+  candidate422 in baseline: 0
+  mock_warning in baseline: 1

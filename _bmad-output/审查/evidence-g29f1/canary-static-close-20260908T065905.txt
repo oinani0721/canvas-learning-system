@@ -1,0 +1,15 @@
+# §二.7 区段计数收工（终版） 2026-09-07T22:59:05Z
+# 开工基线: ① 0  ② 0  ③ 2  ④a 2  ④b 0  ⑤ 1
+① probe 区段 verdict = 1
+② _amain 区段 verdict = 1
+③ 全文 verdict = 4
+④a report["side_effect_probe"] 下标形态 (须 ≤ 开工 2) = 2
+④b report.get("side_effect_probe") (须 ≥ 1) = 1
+⑤ AST report.get 调用数 (开工已 1，故收紧为 ≥2) = 2
+ast.parse: ast ok
+--- 新增的 side_effect_probe 相关行 ---
+1424:        report["side_effect_probe"] = await probe_schema_drift_side_effect(lancedb_path)
+1436:    if "side_effect_probe" in report:
+1437:        p = report["side_effect_probe"]
+1448:    # ⛔ 必须用 .get() —— side_effect_probe 是**条件键**（只在
+1451:    probe = report.get("side_effect_probe")
