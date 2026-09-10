@@ -1,0 +1,3 @@
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+==== 1464 passed, 6 skipped, 10 xfailed, 546 warnings in 387.11s (0:06:27) =====
