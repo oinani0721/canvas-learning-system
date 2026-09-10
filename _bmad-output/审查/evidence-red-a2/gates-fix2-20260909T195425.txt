@@ -1,0 +1,37 @@
+===== ruff check =====
+All checks passed!
+check-rc=0
+===== ruff format --check =====
+2 files already formatted
+format-rc=0
+
+===== 裁判6 判据存在性门 =====
+--- 精确等值断言（本卡三处 == 形式）---
+backend/tests/unit/test_sync_batch_auth.py:170:        assert response.json()["detail"] == "Internal API key not configured"
+backend/tests/unit/test_system_endpoint_auth.py:154:        assert response.json()["detail"] == "Internal API key not configured"
+backend/tests/unit/test_system_endpoint_auth.py:209:        assert response.json()["detail"] == "Internal API key not configured"
+本卡 == 断言计数: sync=1 system=2
+--- auth_fail_closed 逐文件计数（卡文写死期望 sync=1 / system=2 / 合计3）---
+sync   (期望 1): 1
+system (期望 2): 2
+合计   (期望 3): 3
+--- 加强判据：只数断言行（不受注释影响）---
+sync   : 1
+system : 2
+--- 原 503 断言保留（禁删弱）---
+backend/tests/unit/test_sync_batch_auth.py:2
+backend/tests/unit/test_system_endpoint_auth.py:4
+--- 无 skip/xfail ---
+backend/tests/unit/test_system_endpoint_auth.py:0
+backend/tests/unit/test_sync_batch_auth.py:0
+--- model_construct 只出现在 debug=False+key="" 分支 ---
+backend/tests/unit/test_system_endpoint_auth.py:58:    ``model_construct``：
+backend/tests/unit/test_system_endpoint_auth.py:69:    ``model_construct`` 跳过 pydantic 校验（含 after-validator）与 ``.env``
+backend/tests/unit/test_system_endpoint_auth.py:90:        if not debug and not key:
+backend/tests/unit/test_system_endpoint_auth.py:91:            settings = Settings.model_construct(**fields)
+backend/tests/unit/test_system_endpoint_auth.py:92:            # 自检：model_construct 不过校验，必须确认它没把关键字段跳成别的值。
+backend/tests/unit/test_sync_batch_auth.py:65:    ``model_construct``：
+backend/tests/unit/test_sync_batch_auth.py:76:    ``model_construct`` 跳过 pydantic 校验（含 after-validator）与 ``.env``
+backend/tests/unit/test_sync_batch_auth.py:97:        if not debug and not key:
+backend/tests/unit/test_sync_batch_auth.py:98:            settings = Settings.model_construct(**fields)
+backend/tests/unit/test_sync_batch_auth.py:99:            # 自检：model_construct 不过校验，必须确认它没把关键字段跳成别的值。

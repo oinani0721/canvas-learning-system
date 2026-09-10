@@ -15747,7 +15747,7 @@
     "description": "Multi-agent learning system backend using Feynman method",
     "title": "Canvas Learning System API",
     "version": "1.0.0",
-    "x-generated-at": "2026-09-06T12:36:48.518440+00:00",
+    "x-generated-at": "2026-09-10T16:56:19.923899+00:00",
     "x-generator": "scripts/spec-tools/check-openapi-drift.py --write"
   },
   "openapi": "3.1.0",
@@ -26284,7 +26284,7 @@
     },
     "/api/v1/review/overview/board-done": {
       "post": {
-        "description": "把「这块板今天做完了」记进 runner 的 per-vault state。\n\n这是本端点第一个写侧**业务**动作 (refresh 写的是投影产物, 是重算的\n副产品; 本动作写的是用户的判断)。三条纪律见模块 docstring:\n\n  · 写面恰是 backups/daily-review.<key>.state.json 一个文件 —— 节点\n    frontmatter 的 fsrs_* 一个字节不动, learning_events.jsonl 不追加。\n    标记完成**不影响 FSRS**, 页面上也这么写着 (_DONE_NOTE)。\n  · 允许一道题都没答就标完成 (用户裁决) —— 因为\"做完了\"记的是人的\n    判断, 不是系统对掌握度的判断; 后者归 FSRS, 本动作碰不到它。\n  · 「今天」是 Asia/Shanghai 日 (_sh_today, 与页面到期人话同源)。隔日\n    自然失效: 不删旧键、不起定时清理 —— 值不等于今天就是没完成。\n\n两道写侧门与 refresh 完全同源 (复制一份 = 两份会漂移):\n  _assert_same_origin  跨站表单 CSRF;\n  _assert_write_target_contained  (在 _refresh_target 内) 软链逃逸。\n失败一律回原样 4xx/5xx —— 表单路径渲染人话错误页, 状态码不粉饰。\n\n⚠ 未做 (如实登记): 没有\"取消完成\"入口 —— 误点后的恢复途径是等明天\n自动回来。撤销与 snooze 一并归后续卡 (D-8 不排本批)。",
+        "description": "把「这块板今天做完了」记进 runner 的 per-vault state。\n\n这是本端点第一个写侧**业务**动作 (refresh 写的是投影产物, 是重算的\n副产品; 本动作写的是用户的判断)。三条纪律见模块 docstring:\n\n  · 写面恰是 backups/daily-review.<key>.state.json 一个文件 —— 节点\n    frontmatter 的 fsrs_* 一个字节不动, learning_events 账本不追加。\n    标记完成**不影响 FSRS**, 页面上也这么写着 (_DONE_NOTE)。\n  · 允许一道题都没答就标完成 (用户裁决) —— 因为\"做完了\"记的是人的\n    判断, 不是系统对掌握度的判断; 后者归 FSRS, 本动作碰不到它。\n  · 「今天」是 Asia/Shanghai 日 (_sh_today, 与页面到期人话同源)。隔日\n    自然失效: 不删旧键、不起定时清理 —— 值不等于今天就是没完成。\n\n两道写侧门与 refresh 完全同源 (复制一份 = 两份会漂移):\n  _assert_same_origin  跨站表单 CSRF;\n  _assert_write_target_contained  (在 _refresh_target 内) 软链逃逸。\n失败一律回原样 4xx/5xx —— 表单路径渲染人话错误页, 状态码不粉饰。\n\n⚠ 未做 (如实登记): 没有\"取消完成\"入口 —— 误点后的恢复途径是等明天\n自动回来。撤销与 snooze 一并归后续卡 (D-8 不排本批)。",
         "operationId": "review_overview_board_done_api_v1_review_overview_board_done_post",
         "requestBody": {
           "content": {
@@ -28160,10 +28160,21 @@
             },
             "description": "Successful Response"
           },
+          "403": {
+            "description": "Invalid internal API key"
+          },
           "500": {
             "description": "System health check error"
+          },
+          "503": {
+            "description": "Internal API key not configured (production fail-closed)"
           }
         },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
         "summary": "Config Drift Check",
         "tags": [
           "System"
@@ -28187,10 +28198,21 @@
             },
             "description": "Successful Response"
           },
+          "403": {
+            "description": "Invalid internal API key"
+          },
           "500": {
             "description": "System health check error"
+          },
+          "503": {
+            "description": "Internal API key not configured (production fail-closed)"
           }
         },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
         "summary": "Get error classification aggregation",
         "tags": [
           "System",
@@ -28280,6 +28302,9 @@
             },
             "description": "Successful Response"
           },
+          "403": {
+            "description": "Invalid internal API key"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -28292,8 +28317,16 @@
           },
           "500": {
             "description": "System health check error"
+          },
+          "503": {
+            "description": "Internal API key not configured (production fail-closed)"
           }
         },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
         "summary": "Query extraction records for human review",
         "tags": [
           "System",
@@ -28329,6 +28362,9 @@
             },
             "description": "Successful Response"
           },
+          "403": {
+            "description": "Invalid internal API key"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -28341,8 +28377,16 @@
           },
           "500": {
             "description": "System health check error"
+          },
+          "503": {
+            "description": "Internal API key not configured (production fail-closed)"
           }
         },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
         "summary": "Soft-delete an extraction record",
         "tags": [
           "System",
@@ -28386,6 +28430,9 @@
             },
             "description": "Successful Response"
           },
+          "403": {
+            "description": "Invalid internal API key"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -28398,8 +28445,16 @@
           },
           "500": {
             "description": "System health check error"
+          },
+          "503": {
+            "description": "Internal API key not configured (production fail-closed)"
           }
         },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
         "summary": "Update extraction record content",
         "tags": [
           "System",
@@ -28445,6 +28500,9 @@
             },
             "description": "Successful Response"
           },
+          "403": {
+            "description": "Invalid internal API key"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -28457,8 +28515,16 @@
           },
           "500": {
             "description": "System health check error"
+          },
+          "503": {
+            "description": "Internal API key not configured (production fail-closed)"
           }
         },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
         "summary": "Submit human annotation for extraction record",
         "tags": [
           "System",
@@ -28494,6 +28560,9 @@
             },
             "description": "Successful Response"
           },
+          "403": {
+            "description": "Invalid internal API key"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -28506,8 +28575,16 @@
           },
           "500": {
             "description": "System health check error"
+          },
+          "503": {
+            "description": "Internal API key not configured (production fail-closed)"
           }
         },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
         "summary": "Reset annotation for an extraction record",
         "tags": [
           "System",
@@ -28532,10 +28609,21 @@
             },
             "description": "Successful Response"
           },
+          "403": {
+            "description": "Invalid internal API key"
+          },
           "500": {
             "description": "System health check error"
+          },
+          "503": {
+            "description": "Internal API key not configured (production fail-closed)"
           }
         },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
         "summary": "System Health Check",
         "tags": [
           "System"
@@ -28559,10 +28647,21 @@
             },
             "description": "Successful Response"
           },
+          "403": {
+            "description": "Invalid internal API key"
+          },
           "500": {
             "description": "System health check error"
+          },
+          "503": {
+            "description": "Internal API key not configured (production fail-closed)"
           }
         },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
         "summary": "Detailed Health Check",
         "tags": [
           "System"
@@ -28654,6 +28753,9 @@
             },
             "description": "Successful Response"
           },
+          "403": {
+            "description": "Invalid internal API key"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -28666,8 +28768,16 @@
           },
           "500": {
             "description": "System health check error"
+          },
+          "503": {
+            "description": "Internal API key not configured (production fail-closed)"
           }
         },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
         "summary": "Get LLM usage statistics",
         "tags": [
           "System",
@@ -28692,10 +28802,21 @@
             },
             "description": "Successful Response"
           },
+          "403": {
+            "description": "Invalid internal API key"
+          },
           "500": {
             "description": "System health check error"
+          },
+          "503": {
+            "description": "Internal API key not configured (production fail-closed)"
           }
         },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
         "summary": "Get pipeline health indicators",
         "tags": [
           "System",
@@ -28720,10 +28841,21 @@
             },
             "description": "Successful Response"
           },
+          "403": {
+            "description": "Invalid internal API key"
+          },
           "500": {
             "description": "System health check error"
+          },
+          "503": {
+            "description": "Internal API key not configured (production fail-closed)"
           }
         },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
         "summary": "Get QA quality metrics",
         "tags": [
           "System",
@@ -28758,6 +28890,9 @@
             },
             "description": "Successful Response"
           },
+          "403": {
+            "description": "Invalid internal API key"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -28770,8 +28905,16 @@
           },
           "500": {
             "description": "System health check error"
+          },
+          "503": {
+            "description": "Internal API key not configured (production fail-closed)"
           }
         },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
         "summary": "Setup Wizard",
         "tags": [
           "System"
@@ -28795,10 +28938,21 @@
             },
             "description": "Successful Response"
           },
+          "403": {
+            "description": "Invalid internal API key"
+          },
           "500": {
             "description": "System health check error"
+          },
+          "503": {
+            "description": "Internal API key not configured (production fail-closed)"
           }
         },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
         "summary": "Startup Health Check",
         "tags": [
           "System"

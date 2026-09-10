@@ -1,0 +1,110 @@
+你是独立代码审查者。这是**第三轮**（round-3）。只读，不要修改任何文件。
+
+# 〇 本轮定位
+
+round-1: BLOCKER=0 HIGH=0 + 2 MEDIUM + 3 LOW，全部采纳整改。
+round-2（绑 `7004a365..faeda37f`）: BLOCKER=0 HIGH=0 + 2 MEDIUM + 2 LOW，也全部采纳整改。
+按批次协议，改了代码就必须再送一轮。**本轮绑定最终 HEAD `bcbe2741`**，
+审查面 = `git diff 7004a365 bcbe2741`。
+
+round-2 四条的整改落点（请核对是否落实，以及有没有引入新的失实说明）：
+
+1. **MEDIUM-2（最重要）**：round-1 整改时作者写下「全仓没有任何测试对 enrich-context
+   断言 409」。round-2 指出这个说法范围过宽。作者复核后认定它**在任何范围下都不成立**并
+   整段推翻——依据是 `backend/tests/unit/test_vault_scope_409.py:333-343`
+   `test_chat_enrich_context_mismatch_409`（异 vault payload → 断言 409），且该 nodeid 在
+   开工与收工红集里都不存在（一直绿）；同文件 `:345-373` 还用了与本卡相同的一组桩。
+   现在两处 fixture docstring、`second-layer` §A.3、验收单判据 6 与 §8.9 都改成
+   「这条性质另有覆盖且绿，这加强而非削弱移交决定」。
+   **请核对：这个新说法本身是否准确？** 特别是「一直绿」和「同一组桩」这两点。
+
+2. **MEDIUM-1**：清掉验收单里残留的「断言过期」「判契约演进」；把「必须改用例代码」
+   收窄为「按用例适配 active-vault 前提」，并明写 function-scope fixture 本可按用例配置前提，
+   本卡不做是地盘约定而非技术不可能。
+
+3. **LOW-1**：`second-layer` 把 `test_rag_enrich_hook_short_prompt_skips_lazy_init`
+   从第 (iii) 类改归第 (ii) 类「端点内提前返回」；POST 行号更新为 `:434/:463/:485`。
+
+4. **LOW-2**：三处 docstring 的范围限定——`test_chat_endpoint.py` 的常量注释与 fixture
+   docstring 限定为「enrich-context 请求」（排除三条 rag hook 与两条校验类用例）；
+   `test_study_question_deep_mode.py` 限定为「七条有效输入的正向用例」（排除 `:114` 非法 mode）；
+   `test_enrich_context_vault_isolation.py` 限定为「使用 client 的 HTTP 用例」（排除 `:173` 并发用例）。
+
+**请特别检查**：这些新的范围限定本身是否**又过窄或又数错了**（比如「七条」这个数、
+「三条 rag hook」这个数、被排除的用例行号）。作者这两轮改了很多计数与行号，
+逐个核实比重新论证结论更有价值。
+
+round-1 / round-2 已核过且未被整改动摇的结论（覆盖不泄漏、实例头覆盖请求路径、
+17 条 active-vault 桩合理、sync 两桩未替换异常分类路径、37=32+5 闭合、断言未变、
+未改生产代码与两个 conftest）**不必重复论证**。
+
+# 二 作者自述（round-1 版，供对照；后续整改见 §〇）
+
+1. `authed_client` 没有 `autouse`、没有触碰 `os.environ`、没有进任何 conftest；退出时
+   **只**还原它自己加的那个 `dependency_overrides` 键（不做无条件 `clear()`）。
+2. 开工 37 条红的去向逐条有账：32 条转绿，5 条仍红且已登记移交。
+3. 第二层红分类表里判为「移交」的 5 条，确实不是本卡能修的（理由见分类表 §A）。
+4. `sync.py:126` 的 `assert_identity` 不必补桩，依据是 `backend/tests/unit/conftest.py:395-418`
+   的 autouse fixture `_stub_vault_identity_registry` 已把 `get_vault_identity_registry()`
+   换成 no-op。
+5. 未改任何断言，未改 `security.py` / `sync.py` / 任何生产文件。
+
+# 三 请按重要性回答这些问题
+
+1. `authed_client` 对 `app.dependency_overrides[get_settings]` 的覆盖会不会泄漏到同一
+   pytest worker 里的其它测试？`backend/tests/conftest.py:441-452` 的 autouse
+   `isolate_dependency_overrides` 是否真的兜得住？本 fixture 的 `finally` 还原逻辑在
+   「用例自己又覆盖了同一个键」的情况下行为是否正确？
+2. 请求头挂在 `TestClient` 实例上（初始化参数 `headers=`），是否覆盖到全部用例路径——
+   包括用例自行发起的请求、以及带自定义 headers 的请求（会不会被逐请求 headers 覆盖掉）？
+3. 第二层红里被判「409 打桩即可」的条目（chat_endpoint 10 条 + study_question_deep_mode
+   7 条），这个桩是否掩盖了真的跨 vault 缺陷？判断依据是「这两个文件的 payload vault_id
+   恒为同一个常量，且它们测的不是 vault 语义」——这个依据成立吗？
+4. `test_sync_exception_classification.py` 新补的两个桩（`app.config.get_current_vault_id`
+   与 `app.services.schema_gate.get_canvas_schema_gate`）是否让「异常分类」这件被测的事
+   本身失真？该文件的六条断言验的是 `SyncService.process_sync_batch` 抛不同异常时端点
+   返回 503 还是 500——两个桩是否让本该被覆盖的路径不再被覆盖？
+5. 有没有哪条 nodeid 是靠「请求根本没走到业务层」才变绿的？特别请检查
+   `chat_endpoint` 里 patch 掉 `get_memory_service` 之后，是否有断言实际上已经不再验证
+   它原本想验证的东西。
+6. `authed_client.py` 与四个测试文件的 docstring 里有大量事实性声明（行号、机制、
+   「与生产降级行为逐字一致」之类）。请抽查这些声明是否与代码实际一致——写错的说明
+   会被后人当模板照抄。
+
+# 四 输出格式
+
+按 BLOCKER / HIGH / MEDIUM / LOW 分级列出。每条给出：
+- `file:line`
+- 你的判断依据（引用具体代码或存档内容，不要只给结论）
+- 建议的处置
+
+若某一级没有问题，明确写「无」。最后给一段总评，说明这套改动是否达成了它声称的目标
+（让 37 条业务断言真正跑到业务层），以及有没有把问题从一处挪到另一处。
+
+# 五 边界（这些不在本次审查范围）
+
+- 不评 W4 端口哨兵本身的设计（`backend/tests/support/live_port_guard.py` /
+  `guard_plugin.py`）——它是别的卡的地盘。
+- 不评 `backend/tests/unit/conftest.py` 的内容——那是同批另一张卡的地盘。
+- 不评仓库既有的 pyright 存量问题。
+- 不评 `_archive/` 下的任何内容。
+- 不评那 5 条被判「移交」的用例应该怎么重写——只需判断「移交」这个决定本身是否成立。
+
+# 六 最小读取面（请只读这些）
+
+- 本卡改动全文：`git diff 7004a365 bcbe2741`（两个 commit，含新文件）
+- round-2 存档：`_bmad-output/审查/codex-review-CARD-RED-A1-auth-r2.md`
+- `backend/tests/unit/test_vault_scope_409.py:325-375`（本轮 MEDIUM-2 核对所需）
+- 新文件全文：`backend/tests/support/authed_client.py`
+- `backend/app/security.py` 第 88-166 行
+- `backend/app/api/v1/endpoints/chat.py` 第 38-52 行、第 283-330 行
+- `backend/app/api/v1/endpoints/sync.py` 第 100-140 行
+- `backend/tests/conftest.py` 第 441-452 行、第 470-520 行
+- `backend/tests/unit/conftest.py` 第 393-420 行
+- `backend/tests/unit/test_sync_batch_auth.py` 第 55-125 行（本卡打桩的先例，只读不改）
+- `backend/app/core/vault_scope.py` 第 100-185 行
+- 证据目录：`_bmad-output/审查/evidence-red-a1-auth/*.txt`
+  其中 `second-layer-*.txt` 是第二层红三分类表，
+  `closure-37-*.txt` 是 37 条去向的闭合校验，
+  `gate-fixture-constraints-*.txt` 与 `gate-bare-testclient-*.txt` 是两道结构判据，
+  `ruff-format-drift-proof-*.txt` 是格式漂移归属的证明。

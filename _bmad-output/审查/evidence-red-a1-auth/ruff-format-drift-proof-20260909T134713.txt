@@ -1,0 +1,75 @@
+=== 把基线副本与工作树副本都 ruff format 后再比 ===
+--- format 基线副本 ---
+2 files reformatted
+rc=0
+--- format 工作树副本 ---
+2 files reformatted
+rc=0
+
+判据: formatted(基线) vs formatted(工作树) 的差异, 应当**只**含本卡的改动
+########## test_enrich_context_vault_isolation.py ##########
+@@ -23,11 +23,19 @@
++from tests.support.authed_client import authed_client  # noqa: F401
+-def client():
+-    from app.main import app
++def client(authed_client: TestClient) -> TestClient:
++    """带 ``X-CLS-Internal-Key`` 的 TestClient (tests/support/authed_client.py)。
+-    return TestClient(app)
++    CARD-RED-A1-auth: 原本是裸 ``TestClient(app)``, 按 pytest 就近覆盖规则遮蔽了
++    ``tests/conftest.py:494-517`` 那个配了 key 的共享 client。``security.py``
++    自 ``c9bb6c9a`` fail-closed 后 (:110-142), 裸 client 的请求恒 503 —— 本文件
++    每条断言都停在 router 级依赖 (``chat.py:48``), 一次都没走到业务层。
++    """
++    return authed_client
+  (hunk 数: 1)
+########## test_study_question_deep_mode.py ##########
+@@ -10,8 +10,8 @@
+-from typing import Any
+-from unittest.mock import AsyncMock, patch
++from typing import Any, Generator
++from unittest.mock import AsyncMock, MagicMock, patch
+@@ -19,17 +19,56 @@
++from tests.support.authed_client import authed_client  # noqa: F401
++#: 本文件所有请求携带的 vault_id。桩与 payload 共用这一个定义, 否则改了 payload
++#: 默认值却忘了改桩, 全文件会静默退回 409 (CARD-RED-A1-auth)。
++TEST_VAULT_ID = "test_vault"
+-def client():
+-    from app.main import app
++def client(authed_client: TestClient) -> Generator[TestClient, None, None]:
++    """带 ``X-CLS-Internal-Key`` 的 TestClient + active vault 桩。
+-    return TestClient(app)
++    CARD-RED-A1-auth: 原本是裸 ``TestClient(app)``, 按 pytest 就近覆盖规则遮蔽了
++    ``tests/conftest.py:494-517`` 那个配了 key 的共享 client。``security.py``
++    自 ``c9bb6c9a`` fail-closed 后 (:110-142), 裸 client 的请求恒 503 —— 本文件
++    每条断言都停在 router 级依赖 (``chat.py:48``), 一次都没走到业务层。
++    解开鉴权后请求会再撞 ``chat.py:287-293`` 的 ``resolve_vault_scope``:
++    「显式 vault_id ≠ 进程 active vault」→ 409 fail-closed
++    (``vault_scope.py:166-176``)。本文件测的是 **mode 参数如何影响 top_k / hard_cap
++    与是否触发检索**, 不是 vault 隔离; 不把 ``TEST_VAULT_ID`` 声明成 active vault,
++    每条断言都会变成 409, 淹没真正要测的信号。桩的形态与理由同
++    ``test_sync_batch_auth.py:81-84,98`` 的先例。vault 一致性判定本身由
++    ``test_enrich_context_vault_isolation.py`` 负责, 本文件不重复也不代它验。
++    再往后 ``chat.py:313`` ``await get_memory_service()`` 会**真的**建 MemoryService
++    单例 → Neo4jClient 连 ``bolt://localhost:7691``（现网），被 W4 哨兵拦下并把用例判红。
++    它是**进程级单例**：只有第一个跑到这里的用例会触发，于是「谁被判红」取决于测试
++    执行顺序 —— 单跑本文件红在这里，全量跑可能转嫁给别的文件。桩掉 accessor 让这条
++    连接根本不发生（不放宽哨兵、不关 W4）。返回空 list 与生产在 Neo4j 不可用时的降级
++    结果逐字一致（``chat.py:341`` 超时分支与 ``:354`` 服务不可用分支同样置
++    ``historical_errors=[]``），而空 list 会让 assembler **跳过**整个
++    ``<historical_errors>`` 段（``chat_context_assembler.py:473`` AC #5），
++    所以 enriched_context / sections_included 这些被断言的字段一字不变。
++    """
++    mem_svc = MagicMock()
++    mem_svc.search_error_memories = AsyncMock(return_value=[])
++    with (
++        patch("app.config.get_current_vault_id", return_value=TEST_VAULT_ID),
++        patch(
++            "app.api.v1.endpoints.chat.get_memory_service",
++            new=AsyncMock(return_value=mem_svc),
++        ),
++    ):
++        yield authed_client
+-    vault_id: str = "test_vault",
++    vault_id: str = TEST_VAULT_ID,
+  (hunk 数: 2)
+rc=0

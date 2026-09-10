@@ -19,6 +19,37 @@ from app.services.canvas_service import CanvasService
 from app.services.review_service import ReviewService
 
 
+@pytest.fixture(autouse=True)
+def stub_neo4j_singleton_health_check():
+    """让 ``Neo4jClient`` 的惰性初始化**不开 socket**, 且**连接控制状态**与今天相同。
+
+    真连点 (实测): ``review_service.py:887-892`` 的
+    ``MasteryStore(get_neo4j_client())`` → 首个 ``run_query`` →
+    ``neo4j_client.py:554 initialize()`` → ``_initialize_neo4j_driver()`` →
+    ``await self.health_check()`` :523 ``verify_connectivity()``。
+
+    ⛔ 为什么**不** patch ``get_neo4j_client``: 它是**进程级单例 accessor**, 摘掉
+    它只会让那唯一一次真连落到下一个调用方头上 (order-a/order-b 实测: 本文件与
+    ``test_mock_degradation_transparency.py`` 谁先跑谁红 —— 同一份代码, 换收集
+    顺序红的 nodeid 就换人)。patch ``health_check`` 则让单例照样落到
+    ``_fallback_to_json`` 的降级态 (``_use_json_fallback=True`` :431 +
+    ``_initialized=True`` :467), 债被付清而不是转移。
+
+    ⚠️ **不是「终态逐项相同」**(Codex round-1 LOW 更正): 真实失败路径在 :534 会写
+    ``_last_health_check`` 时间戳, ``AsyncMock`` 不会 —— 该字段不参与「是否再连」的
+    判定, 故不影响结论; 精确说法是**连接控制状态**相同。
+
+    与 ``test_mock_degradation_transparency.py`` 同名 fixture 逐条同义: 两文件都
+    经**同一个**单例, 谁先跑谁付账, 所以必须两边都打, 只打一边等于没打。
+
+    ⛔ 不放宽 W4 端口门、不改生产码。
+    """
+    from app.clients.neo4j_client import Neo4jClient
+
+    with patch.object(Neo4jClient, "health_check", AsyncMock(return_value=False)) as stub:
+        yield stub
+
+
 class TestReviewModeSupport:
     """Test suite for Story 24.1: Mode Support"""
 

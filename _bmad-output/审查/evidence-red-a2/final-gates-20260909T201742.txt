@@ -1,0 +1,28 @@
+===== 口径 A：vs 202 基线 =====
+diff-rc=1
+'>' 行（须无输出）:
+grep-rc=1
+===== 口径 B：vs 本卡开工快照（承重）=====
+diff-rc=1
+'>' 行（须无输出）:
+grep-rc=1
+'<' 行全文（须恰 3 条）:
+< FAILED tests/unit/test_sync_batch_auth.py::TestProductionFailClosed::test_no_key_configured_fails_closed_503
+< FAILED tests/unit/test_system_endpoint_auth.py::TestSystemConfigAuth::test_prod_no_key_configured_503
+< FAILED tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuth::test_prod_no_key_configured_503
+--- 逐条 grep -c ---
+net-diff=1  after-still-red=0  tests/unit/test_sync_batch_auth.py::TestProductionFailClosed::test_no_key_configured_fails_closed_503
+net-diff=1  after-still-red=0  tests/unit/test_system_endpoint_auth.py::TestSystemConfigAuth::test_prod_no_key_configured_503
+net-diff=1  after-still-red=0  tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuth::test_prod_no_key_configured_503
+
+===== 裁判7 地盘门（vs U10-D 末 commit）=====
+--- 非 _bmad-output 改动面 ---
+backend/tests/unit/test_sync_batch_auth.py
+backend/tests/unit/test_system_endpoint_auth.py
+rc=0
+--- backend/app（须空）---
+rc=0
+--- config.py/security.py/main.py（须空）---
+rc=0
+--- 其余禁改面（须空）---
+rc=0

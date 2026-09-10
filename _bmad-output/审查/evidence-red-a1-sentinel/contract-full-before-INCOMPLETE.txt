@@ -1,0 +1,14 @@
+# §二.8 tests/contract 全量 before —— **未跑完**，如实登记
+# 起跑 16:12:34；观测 16:41:58；进程 elapsed=29:24；%CPU 两次取样 0.6% / 75.3%（波动，不足以断定是纯 I/O 阻塞——如实写两次读数，不做机制归因）
+# 进度：collected 207 items；进度标记末行见下（约 8 条 / 207）
+# 速率：≈3.6 min/operation ⇒ 全量外推 ≈12 小时，超出本卡时间预算。
+# 慢因（观测到的，非唯一）：schemathesis @settings(max_examples=10, deadline=10000) ⇒ 每 operation 最多 10 次真实 ASGI 请求；
+#   test_openapi_contract.py:60-63 的既有注释亦记录过一次 'DeadlineExceeded: Test took 20857.69ms'。
+# ⇒ 替代判据：定向 before/after 对照（contract-sys-*），只覆盖本卡真正改到的 /system/* 面；
+#   ⛔ 全量面本卡**未证明**（写进验收单「本卡未证明什么」）。
+# 原始 stdout 尾部（跑不完的实证）：
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 207 items
+
+tests/contract/test_openapi_contract.py FFFFFFFF

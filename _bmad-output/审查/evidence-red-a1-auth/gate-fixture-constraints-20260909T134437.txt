@@ -1,0 +1,19 @@
+=== 判据 4 字面 grep（卡文原文口径）===
+grep -c 'autouse'    = 2
+grep -c 'os.environ' = 2
+
+--- 这 4 条命中逐行（证明全在 docstring 的禁令说明文字里）---
+23:``tests/support/__init__.py`` 既有约定同向。⛔ 不得加 ``autouse``, 不得写进
+26:为什么不用 os.environ
+28:``os.environ`` 是进程级的: 往里写 key (或写 ``ALLOW_UNSAFE_DEV_AUTH_BYPASS``)
+100:    别的 fixture / 用例装的 override。``tests/conftest.py:441-452`` 的 autouse
+
+=== 结构判据（AST，证明实质）===
+autouse= 关键字实参: 无
+os.environ 属性访问 : 无
+import os          : 无
+fixture 装饰器      : [(87, 'authed_client', 'pytest.fixture')]
+验伪锚(负控源码) autouse/os.environ/import os 命中: 1 1 1
+VERDICT: PASS
+ast_rc=0
+rc=0

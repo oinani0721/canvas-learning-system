@@ -1,0 +1,13 @@
+# U10-D 遗留未跟踪脚手架文件（内容仅为 $TS 时间戳），本卡开工前存证后移出工作树以满足 (a) 工作树干净
+# 移至: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u10-red-a/689a9749-523b-4ba2-9962-7a7fbf50b446/scratchpad/u10d-leftover
+# 记录时刻: 2026-09-09T19:38:55+08:00
+--- _bmad-output/审查/evidence-red-a1-sentinel/.ts-contract-before ---
+TS=20260909T165510
+--- _bmad-output/审查/evidence-red-a1-sentinel/.ts-five-open ---
+TS=20260909T160624
+--- _bmad-output/审查/evidence-red-a1-sentinel/.ts-open-revert ---
+TS=20260909T164338
+--- _bmad-output/审查/evidence-red-a1-sentinel/.ts-pyright-base ---
+TS=20260909T161545
+--- _bmad-output/审查/evidence-red-a1-sentinel/.ts-unit-open ---
+TS=20260909T160022

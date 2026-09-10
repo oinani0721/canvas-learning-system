@@ -1,0 +1,4 @@
+FAILED tests/contract/test_openapi_contract.py::test_api_contract[GET /api/v1/system/config-check]
+FAILED tests/contract/test_openapi_contract.py::test_api_contract[GET /api/v1/system/startup-check]
+FAILED tests/contract/test_openapi_contract.py::test_api_contract[POST /api/v1/system/config]
+FAILED tests/contract/test_openapi_contract.py::test_api_contract[POST /api/v1/system/setup-wizard]

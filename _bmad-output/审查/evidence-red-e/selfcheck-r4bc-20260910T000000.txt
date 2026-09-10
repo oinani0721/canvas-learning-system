@@ -1,0 +1,44 @@
+### 自查 r4-(b)：monkeypatch 全局 settings 的隔离性
+
+-- b1. 全仓还有谁读 AGENT_PROMPT_PATH（潜在冲突面）--
+app/config.py:361:    AGENT_PROMPT_PATH: str = Field(
+app/clients/claude_client.py:70:            prompt_path: Path to agent prompt templates (defaults to config AGENT_PROMPT_PATH)
+app/clients/claude_client.py:90:        self.prompt_path = Path(prompt_path or settings.AGENT_PROMPT_PATH)
+app/clients/gemini_client.py:98:            prompt_path: Path to agent prompt templates (defaults to config AGENT_PROMPT_PATH)
+app/clients/gemini_client.py:129:        self.prompt_path = Path(prompt_path or settings.AGENT_PROMPT_PATH)
+app/services/agent_service.py:5727:        prompt_path = Path(settings.AGENT_PROMPT_PATH)
+tests/unit/test_agent_templates_smoke.py:236:        Pointing AGENT_PROMPT_PATH at an empty directory makes every watched entry
+tests/unit/test_agent_templates_smoke.py:252:        monkeypatch.setattr(settings, "AGENT_PROMPT_PATH", str(tmp_path))
+tests/unit/test_agent_templates_smoke.py:253:        assert settings.AGENT_PROMPT_PATH == str(tmp_path), "AGENT_PROMPT_PATH override did not take effect"
+
+-- b2. 同文件内该用例前后，其他用例是否受影响（两种顺序各跑一次）--
+顺序 1（默认）:
+======================= 50 passed, 10 warnings in 0.78s ========================
+顺序 2（把身份用例排到最前）:
+======================= 50 passed, 10 warnings in 0.78s ========================
+
+-- b3. 与真正读该设置的另一测试文件同跑 --
+================== 6 failed, 57 passed, 10 warnings in 30.95s ==================
+
+### 自查 r4-(c)：「空目录 ⇒ missing 即完整名单」依赖哪些实现细节
+依赖 1: probe 用 exists() 分桶且把不存在项**原样按序**追加进 missing
+        for template_name in expected_templates:
+            template_file = prompt_path / f"{template_name}.md"
+            if template_file.exists():
+                available_templates.append(template_name)
+            else:
+                missing_templates.append(template_name)
+
+        prompt_template_check = {
+            "total": len(expected_templates),
+            "available": len(available_templates),
+            "missing": missing_templates,
+        }
+依赖 2: prompt_path 由 settings.AGENT_PROMPT_PATH 在**调用时**读取（非 import 时固化）
+5727:        prompt_path = Path(settings.AGENT_PROMPT_PATH)
+
+-- c1. 若 probe 改成对 missing 排序/去重，用例会红还是静默失效？--
+   逐项比较用的是 list == list（含顺序）⇒ 排序变化会红（好）。
+   若 probe 改成不再返回 missing 名单（只回计数）⇒ probe_names 变空/类型错 ⇒ 断言红（好）。
+   若 probe 改成在 prompt_path 不存在时提前 return ⇒ missing 可能为空 ⇒ 与 13 项名单比对红（好）。
+   ⇒ 三种实现变化都是红，非静默失效。

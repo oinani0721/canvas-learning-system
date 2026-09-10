@@ -1,0 +1,14 @@
+=== Codex 反例复现（目录目标 = 扫描根的大小写别名）===
+  alias.samefile(scan_root)               = True
+  alias.is_relative_to(scan_root)         = False （字面=False）
+  当前 _hygiene_within_root(alias, root)   = False  ← Codex 判 False = 保守假红, 复现一致
+  对照 _hygiene_within_root(root, root)    = True （True 正常）
+
+=== 修复思路验证（不改代码, 仅证明可行）===
+  fixed(alias, root) = True  ← 期望 True（假红消除）
+  fixed(/etc/hosts, root) = False  ← 期望 False（门未变松）
+  fixed(/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/tests/api, root) = False  ← 期望 False（门未变松）
+  fixed(root, root)  = True  ← True
+
+结论: 反例复现成立(方向=保守假红); 修复思路一行之差(自身起比)即可翻正且不放松树外判定;
+      触发条件窄(链接目标恰为扫描根本身的大小写别名)+树内符号链接数=0 ⇒ 按登记移交, 本卡不改。

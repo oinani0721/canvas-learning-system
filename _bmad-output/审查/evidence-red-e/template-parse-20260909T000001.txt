@@ -1,0 +1,24 @@
+Both GOOGLE_API_KEY and GEMINI_API_KEY are set. Using GOOGLE_API_KEY.
+prompt_path = /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/.claude/agents
+name = hint-generation
+model = sonnet
+description = Generates progressive hints for verification questions without revealing the answer
+input_format is None: False
+output_format is None: False
+--- output_format (raw) ---
+{
+  "hint_text": "你提到了「函数在这一点连续」，方向是对的；但连续和可导之间还差一步——想想这一步差在哪个极限上。",
+  "hint_level": "diagnostic",
+  "reasoning": "用户答案抓住了连续性，缺的是导数定义中的极限存在性，属于概念边界混淆"
+}
+--- output_format parses as JSON ---
+json keys = ['hint_level', 'hint_text', 'reasoning']
+hint_text present: True
+hint_level present: True
+--- input_format parses as JSON ---
+input keys = ['attempt_number', 'common_mistakes', 'concept', 'learning_history', 'question_text', 'related_concepts_graph', 'score_history', 'score_trend', 'user_answer']
+input key count = 9
+--- consumer contract (verification_service.py:3036/:3040) ---
+consumer reads result.data['hint_text'] -> declared: True
+consumer reads result.data['hint_level'] -> declared: True
+rc=0

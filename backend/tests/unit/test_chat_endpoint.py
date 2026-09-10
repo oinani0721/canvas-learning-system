@@ -7,8 +7,8 @@
 - max_hops 边界 (1/2/3 接受 / 0/4 拒绝)
 """
 
-from typing import Any
-from unittest.mock import patch
+from typing import Any, Generator
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -19,11 +19,69 @@ from app.services.wikilink_context_service import (
 )
 
 
-@pytest.fixture
-def client():
-    from app.main import app
+from tests.support.authed_client import authed_client  # noqa: F401
 
-    return TestClient(app)
+#: 本文件 **enrich-context** 请求携带的 vault_id。三条 ``test_rag_enrich_hook_*``
+#: 用例打的是 ``/api/v1/chat/rag/enrich-hook``, 走另一个 request model、不带这个字段。
+#: 桩与 payload 共用这一个定义, 否则改了 payload 默认值却忘了改桩, enrich-context 那些
+#: 请求会静默退回 409 (CARD-RED-A1-auth; 范围限定按 Codex round-2 LOW-2 收窄)。
+TEST_VAULT_ID = "test_vault"
+
+
+@pytest.fixture
+def client(authed_client: TestClient) -> Generator[TestClient, None, None]:
+    """带 ``X-CLS-Internal-Key`` 的 TestClient + active vault 桩。
+
+    CARD-RED-A1-auth: 原本是裸 ``TestClient(app)``, 按 pytest 就近覆盖规则遮蔽了
+    ``tests/conftest.py:494-517`` 那个配了 key 的共享 client。``security.py``
+    自 ``c9bb6c9a`` fail-closed 后 (:110-142), 裸 client 的请求恒 503 —— 本文件
+    每条断言都停在 router 级依赖 (``chat.py:48``), 一次都没走到业务层。
+
+    解开鉴权后请求会再撞 ``chat.py:287-293`` 的 ``resolve_vault_scope``:
+    「显式 vault_id ≠ 进程 active vault」→ 409 fail-closed
+    (``vault_scope.py:166-176``)。本文件测的是 **enrich-context 的组装与降级行为**,
+    不是 vault 隔离; 不把 ``TEST_VAULT_ID`` 声明成 active vault, **走到 resolver 的那些
+    请求**的 200 断言都会变成 409, 淹没真正要测的信号。按用例名排除三类（行号会随本文件
+    docstring 增减漂移, 故以名字为准）:
+      - 三条 ``test_rag_enrich_hook_*`` —— 打 ``/rag/enrich-hook``, 不带 vault_id,
+        不经 ``resolve_vault_scope``;
+      - ``test_enrich_context_max_hops_validation`` / ``test_enrich_context_rejects_invalid_mode``
+        —— Pydantic 校验就 422, 到不了 resolver;
+      - ``test_enrich_context_empty_node_path_rejected`` —— 进了端点函数体但在入参检查处
+        提前返回 400。桩的形态与理由同 ``test_sync_batch_auth.py:81-84,98``
+    的先例。
+
+    ⚠️ 本桩**不证明**「请求 vault 与 active vault 不一致时会被拒」——它恰恰把这个前提
+    设成一致。这条性质由**另一个文件**把关且当前是绿的：
+    ``tests/unit/test_vault_scope_409.py:333-343``
+    ``test_chat_enrich_context_mismatch_409``（异 vault payload → 断言 409）。
+    该文件 :345-373 的 ``test_chat_enrich_context_match_path_executes`` 还用了与本
+    fixture **同一组桩**（``app.config.get_current_vault_id`` +
+    ``app.api.v1.endpoints.chat.get_memory_service`` 的 ``AsyncMock``），是本卡打桩形态的
+    直接先例。
+    （Codex round-2 MEDIUM-2 指出本段原先声称「全仓没有 enrich-context 的 409 覆盖」；
+    复核后确认那句话是错的——覆盖一直存在，见上述行号。）
+
+    再往后 ``chat.py:313`` ``await get_memory_service()`` 会**真的**建 MemoryService
+    单例 → Neo4jClient 连 ``bolt://localhost:7691``（现网），被 W4 哨兵拦下并把用例判红。
+    它是**进程级单例**：只有第一个跑到这里的用例会触发，于是「谁被判红」取决于测试
+    执行顺序 —— 单跑本文件红在这里，全量跑可能转嫁给别的文件。桩掉 accessor 让这条
+    连接根本不发生（不放宽哨兵、不关 W4）。返回空 list 与生产在 Neo4j 不可用时的降级
+    结果逐字一致（``chat.py:341`` 超时分支与 ``:354`` 服务不可用分支同样置
+    ``historical_errors=[]``），而空 list 会让 assembler **跳过**整个
+    ``<historical_errors>`` 段（``chat_context_assembler.py:473`` AC #5），
+    所以 enriched_context / sections_included 这些被断言的字段一字不变。
+    """
+    mem_svc = MagicMock()
+    mem_svc.search_error_memories = AsyncMock(return_value=[])
+    with (
+        patch("app.config.get_current_vault_id", return_value=TEST_VAULT_ID),
+        patch(
+            "app.api.v1.endpoints.chat.get_memory_service",
+            new=AsyncMock(return_value=mem_svc),
+        ),
+    ):
+        yield authed_client
 
 
 def _enrich_payload(
@@ -31,7 +89,7 @@ def _enrich_payload(
     content: str = "特征值是核心概念。",
     fm: dict[str, Any] | None = None,
     max_hops: int = 2,
-    vault_id: str = "test_vault",
+    vault_id: str = TEST_VAULT_ID,
 ) -> dict[str, Any]:
     # Multi-vault P0-1: vault_id 必填（参考 PostTurnExtractRequest 契约）。
     # 测试默认 'test_vault' 让现有测试无需逐一改；测必填行为请显式 omit。
@@ -144,7 +202,7 @@ def test_enrich_context_default_frontmatter(client):
             json={
                 "node_path": "节点/X.md",
                 "current_note_content": "test",
-                "vault_id": "test_vault",  # Multi-vault P0-1: 必填
+                "vault_id": TEST_VAULT_ID,  # Multi-vault P0-1: 必填
             },
         )
     assert response.status_code == 200

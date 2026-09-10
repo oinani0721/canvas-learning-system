@@ -1,0 +1,193 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 17 items
+
+tests/unit/test_sync_batch_auth.py .......                               [ 41%]
+tests/unit/test_system_endpoint_auth.py ..........                       [100%]
+
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:805
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/api/v1/endpoints/chat.py:805: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:105
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/api/v1/endpoints/metadata.py:105: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:179
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/api/v1/endpoints/metadata.py:179: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+tests/unit/test_sync_batch_auth.py::TestProductionFailClosed::test_correct_key_grants_access
+tests/unit/test_sync_batch_auth.py::TestHeaderParsing::test_canonical_header_name
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/api/v1/endpoints/sync.py:117: DeprecationWarning: deprecated
+    legacy_group_id=request.group_id,
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+_______ TestProductionFailClosed.test_no_key_configured_fails_closed_503 _______
+----------------------------- Captured stdout call -----------------------------
+{"event": "INTERNAL_API_KEY env var is empty in production mode (auth_fail_closed); refusing request \u2014 header_present=False", "request_id": "6311485056", "logger": "app.security", "level": "error", "timestamp": "2026-09-09T11:55:00.419127Z"}
+{"method": "POST", "path": "/api/v1/sync/batch", "endpoint": "/api/v1/sync/batch", "status": 503, "duration_ms": 4.62, "event": "request.completed", "request_id": "6311485056", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T11:55:00.419409Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.security:security.py:97 INTERNAL_API_KEY env var is empty in production mode (auth_fail_closed); refusing request — header_present=False
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/sync/batch', 'endpoint': '/api/v1/sync/batch', 'status': 503, 'duration_ms': 4.62, 'event': 'request.completed', 'request_id': '6311485056', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T11:55:00.419409Z'}
+___________ TestProductionFailClosed.test_missing_header_returns_403 ___________
+----------------------------- Captured stdout call -----------------------------
+{"event": "X-CLS-Internal-Key header missing (auth_reject); rejecting request", "request_id": "6314371856", "logger": "app.security", "level": "warning", "timestamp": "2026-09-09T11:55:00.482494Z"}
+{"method": "POST", "path": "/api/v1/sync/batch", "endpoint": "/api/v1/sync/batch", "status": 403, "duration_ms": 60.88, "event": "request.completed", "request_id": "6314371856", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T11:55:00.482878Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.security:security.py:146 X-CLS-Internal-Key header missing (auth_reject); rejecting request
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/sync/batch', 'endpoint': '/api/v1/sync/batch', 'status': 403, 'duration_ms': 60.88, 'event': 'request.completed', 'request_id': '6314371856', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T11:55:00.482878Z'}
+_____________ TestProductionFailClosed.test_wrong_key_returns_403 ______________
+----------------------------- Captured stdout call -----------------------------
+{"event": "Provided X-CLS-Internal-Key does not match configured key (auth_reject); rejecting request", "request_id": "6312351120", "logger": "app.security", "level": "warning", "timestamp": "2026-09-09T11:55:00.489061Z"}
+{"method": "POST", "path": "/api/v1/sync/batch", "endpoint": "/api/v1/sync/batch", "status": 403, "duration_ms": 3.98, "event": "request.completed", "request_id": "6312351120", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T11:55:00.489269Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.security:security.py:156 Provided X-CLS-Internal-Key does not match configured key (auth_reject); rejecting request
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/sync/batch', 'endpoint': '/api/v1/sync/batch', 'status': 403, 'duration_ms': 3.98, 'event': 'request.completed', 'request_id': '6312351120', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T11:55:00.489269Z'}
+___________ TestProductionFailClosed.test_correct_key_grants_access ____________
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/sync/batch", "endpoint": "/api/v1/sync/batch", "status": 200, "duration_ms": 4.13, "event": "request.completed", "request_id": "6314020944", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T11:55:00.495557Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/sync/batch', 'endpoint': '/api/v1/sync/batch', 'status': 200, 'duration_ms': 4.13, 'event': 'request.completed', 'request_id': '6314020944', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T11:55:00.495557Z'}
+__ TestDevelopmentConvenience.test_dev_mode_no_key_now_fails_closed_503_p0_2 ___
+----------------------------- Captured stdout call -----------------------------
+{"event": "INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.", "request_id": "6312287984", "logger": "app.security", "level": "error", "timestamp": "2026-09-09T11:55:00.501376Z"}
+{"method": "POST", "path": "/api/v1/sync/batch", "endpoint": "/api/v1/sync/batch", "status": 503, "duration_ms": 3.94, "event": "request.completed", "request_id": "6312287984", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T11:55:00.501588Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.security:security.py:126 INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/sync/batch', 'endpoint': '/api/v1/sync/batch', 'status': 503, 'duration_ms': 3.94, 'event': 'request.completed', 'request_id': '6312287984', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T11:55:00.501588Z'}
+_______ TestDevelopmentConvenience.test_dev_mode_with_key_still_enforces _______
+----------------------------- Captured stdout call -----------------------------
+{"event": "X-CLS-Internal-Key header missing (auth_reject); rejecting request", "request_id": "6313363984", "logger": "app.security", "level": "warning", "timestamp": "2026-09-09T11:55:00.507457Z"}
+{"method": "POST", "path": "/api/v1/sync/batch", "endpoint": "/api/v1/sync/batch", "status": 403, "duration_ms": 4.17, "event": "request.completed", "request_id": "6313363984", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T11:55:00.507673Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.security:security.py:146 X-CLS-Internal-Key header missing (auth_reject); rejecting request
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/sync/batch', 'endpoint': '/api/v1/sync/batch', 'status': 403, 'duration_ms': 4.17, 'event': 'request.completed', 'request_id': '6313363984', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T11:55:00.507673Z'}
+_________________ TestHeaderParsing.test_canonical_header_name _________________
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/sync/batch", "endpoint": "/api/v1/sync/batch", "status": 200, "duration_ms": 4.13, "event": "request.completed", "request_id": "6314823888", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T11:55:00.513926Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/sync/batch', 'endpoint': '/api/v1/sync/batch', 'status': 200, 'duration_ms': 4.13, 'event': 'request.completed', 'request_id': '6314823888', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T11:55:00.513926Z'}
+_____________ TestSystemConfigAuth.test_prod_no_key_configured_503 _____________
+----------------------------- Captured stdout call -----------------------------
+{"event": "INTERNAL_API_KEY env var is empty in production mode (auth_fail_closed); refusing request \u2014 header_present=False", "request_id": "6314825424", "logger": "app.security", "level": "error", "timestamp": "2026-09-09T11:55:00.519886Z"}
+{"method": "POST", "path": "/api/v1/system/config", "endpoint": "/api/v1/system/config", "status": 503, "duration_ms": 3.86, "event": "request.completed", "request_id": "6314825424", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T11:55:00.520106Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.security:security.py:97 INTERNAL_API_KEY env var is empty in production mode (auth_fail_closed); refusing request — header_present=False
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/system/config', 'endpoint': '/api/v1/system/config', 'status': 503, 'duration_ms': 3.86, 'event': 'request.completed', 'request_id': '6314825424', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T11:55:00.520106Z'}
+_________________ TestSystemConfigAuth.test_prod_wrong_key_403 _________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "Provided X-CLS-Internal-Key does not match configured key (auth_reject); rejecting request", "request_id": "6314827344", "logger": "app.security", "level": "warning", "timestamp": "2026-09-09T11:55:00.525985Z"}
+{"method": "POST", "path": "/api/v1/system/config", "endpoint": "/api/v1/system/config", "status": 403, "duration_ms": 3.92, "event": "request.completed", "request_id": "6314827344", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T11:55:00.526197Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.security:security.py:156 Provided X-CLS-Internal-Key does not match configured key (auth_reject); rejecting request
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/system/config', 'endpoint': '/api/v1/system/config', 'status': 403, 'duration_ms': 3.92, 'event': 'request.completed', 'request_id': '6314827344', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T11:55:00.526197Z'}
+______________ TestSystemConfigAuth.test_prod_missing_header_403 _______________
+----------------------------- Captured stdout call -----------------------------
+{"event": "X-CLS-Internal-Key header missing (auth_reject); rejecting request", "request_id": "6314835216", "logger": "app.security", "level": "warning", "timestamp": "2026-09-09T11:55:00.531853Z"}
+{"method": "POST", "path": "/api/v1/system/config", "endpoint": "/api/v1/system/config", "status": 403, "duration_ms": 3.82, "event": "request.completed", "request_id": "6314835216", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T11:55:00.532065Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.security:security.py:146 X-CLS-Internal-Key header missing (auth_reject); rejecting request
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/system/config', 'endpoint': '/api/v1/system/config', 'status': 403, 'duration_ms': 3.82, 'event': 'request.completed', 'request_id': '6314835216', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T11:55:00.532065Z'}
+________________ TestSystemConfigAuth.test_prod_correct_key_200 ________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[Story 1.3] Model config received \u2014 chat_provider=ollama, scoring_provider=none", "request_id": "6317706128", "logger": "app.api.v1.system", "level": "info", "timestamp": "2026-09-09T11:55:00.537912Z"}
+{"method": "POST", "path": "/api/v1/system/config", "endpoint": "/api/v1/system/config", "status": 200, "duration_ms": 4.13, "event": "request.completed", "request_id": "6317706128", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T11:55:00.538132Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.api.v1.system:system.py:848 [Story 1.3] Model config received — chat_provider=ollama, scoring_provider=none
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/system/config', 'endpoint': '/api/v1/system/config', 'status': 200, 'duration_ms': 4.13, 'event': 'request.completed', 'request_id': '6317706128', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T11:55:00.538132Z'}
+____ TestSystemConfigAuth.test_dev_mode_empty_key_now_fails_closed_503_p0_2 ____
+----------------------------- Captured stdout call -----------------------------
+{"event": "INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.", "request_id": "6317708432", "logger": "app.security", "level": "error", "timestamp": "2026-09-09T11:55:00.543688Z"}
+{"method": "POST", "path": "/api/v1/system/config", "endpoint": "/api/v1/system/config", "status": 503, "duration_ms": 3.86, "event": "request.completed", "request_id": "6317708432", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T11:55:00.543888Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.security:security.py:126 INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/system/config', 'endpoint': '/api/v1/system/config', 'status': 503, 'duration_ms': 3.86, 'event': 'request.completed', 'request_id': '6317708432', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T11:55:00.543888Z'}
+____________ TestSystemTestLLMAuth.test_prod_no_key_configured_503 _____________
+----------------------------- Captured stdout call -----------------------------
+{"event": "INTERNAL_API_KEY env var is empty in production mode (auth_fail_closed); refusing request \u2014 header_present=False", "request_id": "6317710736", "logger": "app.security", "level": "error", "timestamp": "2026-09-09T11:55:00.546864Z"}
+{"method": "POST", "path": "/api/v1/system/test-llm", "endpoint": "/api/v1/system/test-llm", "status": 503, "duration_ms": 1.15, "event": "request.completed", "request_id": "6317710736", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T11:55:00.547070Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.security:security.py:97 INTERNAL_API_KEY env var is empty in production mode (auth_fail_closed); refusing request — header_present=False
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/system/test-llm', 'endpoint': '/api/v1/system/test-llm', 'status': 503, 'duration_ms': 1.15, 'event': 'request.completed', 'request_id': '6317710736', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T11:55:00.547070Z'}
+________________ TestSystemTestLLMAuth.test_prod_wrong_key_403 _________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "Provided X-CLS-Internal-Key does not match configured key (auth_reject); rejecting request", "request_id": "6317713040", "logger": "app.security", "level": "warning", "timestamp": "2026-09-09T11:55:00.552728Z"}
+{"method": "POST", "path": "/api/v1/system/test-llm", "endpoint": "/api/v1/system/test-llm", "status": 403, "duration_ms": 3.91, "event": "request.completed", "request_id": "6317713040", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T11:55:00.552934Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.security:security.py:156 Provided X-CLS-Internal-Key does not match configured key (auth_reject); rejecting request
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/system/test-llm', 'endpoint': '/api/v1/system/test-llm', 'status': 403, 'duration_ms': 3.91, 'event': 'request.completed', 'request_id': '6317713040', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T11:55:00.552934Z'}
+______________ TestSystemTestLLMAuth.test_prod_missing_header_403 ______________
+----------------------------- Captured stdout call -----------------------------
+{"event": "X-CLS-Internal-Key header missing (auth_reject); rejecting request", "request_id": "6317714192", "logger": "app.security", "level": "warning", "timestamp": "2026-09-09T11:55:00.558681Z"}
+{"method": "POST", "path": "/api/v1/system/test-llm", "endpoint": "/api/v1/system/test-llm", "status": 403, "duration_ms": 3.98, "event": "request.completed", "request_id": "6317714192", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T11:55:00.558905Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.security:security.py:146 X-CLS-Internal-Key header missing (auth_reject); rejecting request
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/system/test-llm', 'endpoint': '/api/v1/system/test-llm', 'status': 403, 'duration_ms': 3.98, 'event': 'request.completed', 'request_id': '6317714192', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T11:55:00.558905Z'}
+_______________ TestSystemTestLLMAuth.test_prod_correct_key_200 ________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[Story 1.3] LLM connection test passed \u2014 model=ollama/qwen2.5:7b", "request_id": "6317718800", "logger": "app.api.v1.system", "level": "info", "timestamp": "2026-09-09T11:55:00.564658Z"}
+{"method": "POST", "path": "/api/v1/system/test-llm", "endpoint": "/api/v1/system/test-llm", "status": 200, "duration_ms": 4.08, "event": "request.completed", "request_id": "6317718800", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T11:55:00.564871Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.api.v1.system:system.py:899 [Story 1.3] LLM connection test passed — model=ollama/qwen2.5:7b
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/system/test-llm', 'endpoint': '/api/v1/system/test-llm', 'status': 200, 'duration_ms': 4.08, 'event': 'request.completed', 'request_id': '6317718800', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T11:55:00.564871Z'}
+___ TestSystemTestLLMAuth.test_dev_mode_empty_key_now_fails_closed_503_p0_2 ____
+----------------------------- Captured stdout call -----------------------------
+{"event": "INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.", "request_id": "6317297488", "logger": "app.security", "level": "error", "timestamp": "2026-09-09T11:55:00.570414Z"}
+{"method": "POST", "path": "/api/v1/system/test-llm", "endpoint": "/api/v1/system/test-llm", "status": 503, "duration_ms": 3.86, "event": "request.completed", "request_id": "6317297488", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T11:55:00.570629Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.security:security.py:126 INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/system/test-llm', 'endpoint': '/api/v1/system/test-llm', 'status': 503, 'duration_ms': 3.86, 'event': 'request.completed', 'request_id': '6317297488', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T11:55:00.570629Z'}
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+PASSED tests/unit/test_sync_batch_auth.py::TestProductionFailClosed::test_no_key_configured_fails_closed_503
+PASSED tests/unit/test_sync_batch_auth.py::TestProductionFailClosed::test_missing_header_returns_403
+PASSED tests/unit/test_sync_batch_auth.py::TestProductionFailClosed::test_wrong_key_returns_403
+PASSED tests/unit/test_sync_batch_auth.py::TestProductionFailClosed::test_correct_key_grants_access
+PASSED tests/unit/test_sync_batch_auth.py::TestDevelopmentConvenience::test_dev_mode_no_key_now_fails_closed_503_p0_2
+PASSED tests/unit/test_sync_batch_auth.py::TestDevelopmentConvenience::test_dev_mode_with_key_still_enforces
+PASSED tests/unit/test_sync_batch_auth.py::TestHeaderParsing::test_canonical_header_name
+PASSED tests/unit/test_system_endpoint_auth.py::TestSystemConfigAuth::test_prod_no_key_configured_503
+PASSED tests/unit/test_system_endpoint_auth.py::TestSystemConfigAuth::test_prod_wrong_key_403
+PASSED tests/unit/test_system_endpoint_auth.py::TestSystemConfigAuth::test_prod_missing_header_403
+PASSED tests/unit/test_system_endpoint_auth.py::TestSystemConfigAuth::test_prod_correct_key_200
+PASSED tests/unit/test_system_endpoint_auth.py::TestSystemConfigAuth::test_dev_mode_empty_key_now_fails_closed_503_p0_2
+PASSED tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuth::test_prod_no_key_configured_503
+PASSED tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuth::test_prod_wrong_key_403
+PASSED tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuth::test_prod_missing_header_403
+PASSED tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuth::test_prod_correct_key_200
+PASSED tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuth::test_dev_mode_empty_key_now_fails_closed_503_p0_2
+======================= 17 passed, 12 warnings in 0.86s ========================
+rc=0

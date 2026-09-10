@@ -1,0 +1,8 @@
+# U10-A 扫描成本实测（补审 LOW：'0.535 秒' 在证据目录无来源 ⇒ 本存档补上 r6 实测）
+# 所测 conftest sha256=6f8f29f052921906a92beb691226e47e088771d24759c2eaf7c15e24b989fb76
+# 3 次取值（time.perf_counter, 含 dirlink 记账后的版本）:
+  run1: 0.357s  files_scanned_result hits=0 unchecked=0
+  run2: 0.304s  files_scanned_result hits=0 unchecked=0
+  run3: 0.309s  files_scanned_result hits=0 unchecked=0
+  文件数 = 252
+（round-1 期的 0.535s 是未存档手测, 验收单已降格标注）

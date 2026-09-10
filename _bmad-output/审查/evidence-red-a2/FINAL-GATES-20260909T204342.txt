@@ -1,0 +1,63 @@
+FINAL GATES @ HEAD=cc74b13092c991b945c87992643d9b14f8efe82b  2026-09-09T20:48:48+08:00
+
+===== 裁判1 统一裁判（目录级）=====
+开工: = 120 failed, 4810 passed, 48 skipped, 135 warnings, 29 errors in 264.89s (0:04:24) =
+开工末行: rc=1
+收工: = 117 failed, 4813 passed, 48 skipped, 135 warnings, 29 errors in 255.27s (0:04:15) =
+收工末行: rc=1
+
+--- 口径 A：vs 202 基线 ---
+diff-rc=1
+'>' 行:
+grep-rc=1 (1=无输出=合格)
+'<' 行逐文件:
+  16 tests/unit/test_chat_endpoint.py
+   9 tests/unit/test_agent_templates_smoke.py
+   8 tests/unit/test_study_question_deep_mode.py
+   6 tests/unit/test_sync_exception_classification.py
+   6 tests/unit/test_startup_health_check.py
+   3 tests/unit/test_health_detailed.py
+   2 tests/unit/test_system_endpoint_auth.py
+   2 tests/unit/test_enrich_context_vault_isolation.py
+   1 tests/unit/test_sync_batch_auth.py
+   1 tests/unit/test_review_mode_support.py
+   1 tests/unit/test_mock_degradation_transparency.py
+   1 tests/unit/test_kg_health.py
+
+--- 口径 B：vs 本卡开工快照（承重）---
+diff-rc=1
+'>' 行:
+grep-rc=1 (1=无输出=合格)
+'<' 行全文:
+< FAILED tests/unit/test_sync_batch_auth.py::TestProductionFailClosed::test_no_key_configured_fails_closed_503
+< FAILED tests/unit/test_system_endpoint_auth.py::TestSystemConfigAuth::test_prod_no_key_configured_503
+< FAILED tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuth::test_prod_no_key_configured_503
+  net-diff=1  still-red=0  tests/unit/test_sync_batch_auth.py::TestProductionFailClosed::test_no_key_configured_fails_closed_503
+  net-diff=1  still-red=0  tests/unit/test_system_endpoint_auth.py::TestSystemConfigAuth::test_prod_no_key_configured_503
+  net-diff=1  still-red=0  tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuth::test_prod_no_key_configured_503
+
+===== 裁判7 地盘门 =====
+backend/tests/unit/test_sync_batch_auth.py
+backend/tests/unit/test_system_endpoint_auth.py
+改动面 rc=0
+backend/app rc=0 (空=合格)
+三生产文件 rc=0
+其余禁改面 rc=0
+
+===== 裁判6 判据存在性门 =====
+auth_fail_closed  sync(期望1)=1  system(期望2)=2  合计(期望3)=3
+detail 精确等值   sync=1  system=2
+funcName 绑定     sync=1  system=2
+503 断言保留      backend/tests/unit/test_sync_batch_auth.py:2 backend/tests/unit/test_system_endpoint_auth.py:4 
+skip/xfail        backend/tests/unit/test_sync_batch_auth.py:0 backend/tests/unit/test_system_endpoint_auth.py:0 
+裸 in caplog.text backend/tests/unit/test_sync_batch_auth.py:0 backend/tests/unit/test_system_endpoint_auth.py:0 
+
+===== 裁判8 ruff =====
+All checks passed!
+check rc=0
+2 files already formatted
+format rc=0
+
+最终两文件 sha:
+2f7a687275c73efd6821a5e07dd169882795e3908ce78ea2602bf7ca9f363335  backend/tests/unit/test_sync_batch_auth.py
+0f3dd3aa7e046eb8f912a95097b227e4de306fda75dc1bc46a9c467f6e2c493a  backend/tests/unit/test_system_endpoint_auth.py

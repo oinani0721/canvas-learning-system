@@ -1,0 +1,511 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 38 items
+
+tests/unit/test_chat_endpoint.py FFFFFFFFFFFFFFFF                        [ 42%]
+tests/unit/test_enrich_context_vault_isolation.py FFFFF.FF               [ 63%]
+tests/unit/test_study_question_deep_mode.py FFFFFFFF                     [ 84%]
+tests/unit/test_sync_exception_classification.py FFFFFF                  [100%]
+
+=================================== FAILURES ===================================
+________________________ test_enrich_context_happy_path ________________________
+tests/unit/test_chat_endpoint.py:71: in test_enrich_context_happy_path
+    assert response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"event": "INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.", "request_id": "5269296128", "logger": "app.security", "level": "error", "timestamp": "2026-09-09T05:31:04.751535Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 503, "duration_ms": 2.28, "event": "request.completed", "request_id": "5269296128", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:31:04.751859Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.security:security.py:126 INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 503, 'duration_ms': 2.28, 'event': 'request.completed', 'request_id': '5269296128', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:31:04.751859Z'}
+_________________ test_enrich_context_degraded_appends_notice __________________
+tests/unit/test_chat_endpoint.py:101: in test_enrich_context_degraded_appends_notice
+    assert response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"event": "INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.", "request_id": "5275912960", "logger": "app.security", "level": "error", "timestamp": "2026-09-09T05:31:04.845513Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 503, "duration_ms": 1.12, "event": "request.completed", "request_id": "5275912960", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:31:04.845768Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.security:security.py:126 INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 503, 'duration_ms': 1.12, 'event': 'request.completed', 'request_id': '5275912960', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:31:04.845768Z'}
+_________________ test_enrich_context_empty_node_path_rejected _________________
+tests/unit/test_chat_endpoint.py:115: in test_enrich_context_empty_node_path_rejected
+    assert response.status_code == 400
+E   assert 503 == 400
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"event": "INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.", "request_id": "5269184560", "logger": "app.security", "level": "error", "timestamp": "2026-09-09T05:31:04.850022Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 503, "duration_ms": 0.87, "event": "request.completed", "request_id": "5269184560", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:31:04.850222Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.security:security.py:126 INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 503, 'duration_ms': 0.87, 'event': 'request.completed', 'request_id': '5269184560', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:31:04.850222Z'}
+___________________ test_enrich_context_max_hops_validation ____________________
+tests/unit/test_chat_endpoint.py:125: in test_enrich_context_max_hops_validation
+    assert response.status_code == 422
+E   assert 503 == 422
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"event": "INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.", "request_id": "5273115984", "logger": "app.security", "level": "error", "timestamp": "2026-09-09T05:31:04.854371Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 503, "duration_ms": 1.13, "event": "request.completed", "request_id": "5273115984", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:31:04.854581Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.security:security.py:126 INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 503, 'duration_ms': 1.13, 'event': 'request.completed', 'request_id': '5273115984', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:31:04.854581Z'}
+___________________ test_enrich_context_default_frontmatter ____________________
+tests/unit/test_chat_endpoint.py:150: in test_enrich_context_default_frontmatter
+    assert response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"event": "INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.", "request_id": "5267127472", "logger": "app.security", "level": "error", "timestamp": "2026-09-09T05:31:04.859446Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 503, "duration_ms": 1.26, "event": "request.completed", "request_id": "5267127472", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:31:04.859675Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.security:security.py:126 INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 503, 'duration_ms': 1.26, 'event': 'request.completed', 'request_id': '5267127472', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:31:04.859675Z'}
+_______________ test_enrich_context_response_includes_elapsed_ms _______________
+tests/unit/test_chat_endpoint.py:163: in test_enrich_context_response_includes_elapsed_ms
+    assert response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"event": "INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.", "request_id": "5270804368", "logger": "app.security", "level": "error", "timestamp": "2026-09-09T05:31:04.864350Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 503, "duration_ms": 0.97, "event": "request.completed", "request_id": "5270804368", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:31:04.864594Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.security:security.py:126 INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 503, 'duration_ms': 0.97, 'event': 'request.completed', 'request_id': '5270804368', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:31:04.864594Z'}
+_________________ test_enrich_context_returns_retrieval_trace __________________
+tests/unit/test_chat_endpoint.py:216: in test_enrich_context_returns_retrieval_trace
+    assert response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"event": "INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.", "request_id": "5270812816", "logger": "app.security", "level": "error", "timestamp": "2026-09-09T05:31:04.869637Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 503, "duration_ms": 0.85, "event": "request.completed", "request_id": "5270812816", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:31:04.869828Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.security:security.py:126 INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 503, 'duration_ms': 0.85, 'event': 'request.completed', 'request_id': '5270812816', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:31:04.869828Z'}
+______ test_enrich_context_trace_includes_degradation_when_graph_unbuilt _______
+tests/unit/test_chat_endpoint.py:257: in test_enrich_context_trace_includes_degradation_when_graph_unbuilt
+    assert body["degraded"] is True
+           ^^^^^^^^^^^^^^^^
+E   KeyError: 'degraded'
+----------------------------- Captured stdout call -----------------------------
+{"event": "INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.", "request_id": "5270799376", "logger": "app.security", "level": "error", "timestamp": "2026-09-09T05:31:04.874202Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 503, "duration_ms": 0.81, "event": "request.completed", "request_id": "5270799376", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:31:04.874371Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.security:security.py:126 INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 503, 'duration_ms': 0.81, 'event': 'request.completed', 'request_id': '5270799376', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:31:04.874371Z'}
+__________________ test_enrich_context_assembler_budget_field __________________
+tests/unit/test_chat_endpoint.py:274: in test_enrich_context_assembler_budget_field
+    assert body["budget"] == 8192
+           ^^^^^^^^^^^^^^
+E   KeyError: 'budget'
+----------------------------- Captured stdout call -----------------------------
+{"event": "INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.", "request_id": "5270027920", "logger": "app.security", "level": "error", "timestamp": "2026-09-09T05:31:04.878506Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 503, "duration_ms": 0.81, "event": "request.completed", "request_id": "5270027920", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:31:04.878691Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.security:security.py:126 INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 503, 'duration_ms': 0.81, 'event': 'request.completed', 'request_id': '5270027920', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:31:04.878691Z'}
+__________ test_enrich_context_accepts_user_question_and_mode_answer ___________
+tests/unit/test_chat_endpoint.py:294: in test_enrich_context_accepts_user_question_and_mode_answer
+    assert response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"event": "INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.", "request_id": "5270024272", "logger": "app.security", "level": "error", "timestamp": "2026-09-09T05:31:04.883162Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 503, "duration_ms": 0.89, "event": "request.completed", "request_id": "5270024272", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:31:04.883367Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.security:security.py:126 INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 503, 'duration_ms': 0.89, 'event': 'request.completed', 'request_id': '5270024272', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:31:04.883367Z'}
+___________________ test_enrich_context_rejects_invalid_mode ___________________
+tests/unit/test_chat_endpoint.py:303: in test_enrich_context_rejects_invalid_mode
+    assert response.status_code == 422
+E   assert 503 == 422
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"event": "INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.", "request_id": "5270019664", "logger": "app.security", "level": "error", "timestamp": "2026-09-09T05:31:04.887515Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 503, "duration_ms": 1.06, "event": "request.completed", "request_id": "5270019664", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:31:04.887718Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.security:security.py:126 INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 503, 'duration_ms': 1.06, 'event': 'request.completed', 'request_id': '5270019664', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:31:04.887718Z'}
+_____________ test_enrich_context_answer_mode_uses_lazy_init_path ______________
+tests/unit/test_chat_endpoint.py:338: in test_enrich_context_answer_mode_uses_lazy_init_path
+    assert response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"event": "INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.", "request_id": "5270018512", "logger": "app.security", "level": "error", "timestamp": "2026-09-09T05:31:04.892207Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 503, "duration_ms": 0.86, "event": "request.completed", "request_id": "5270018512", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:31:04.892402Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.security:security.py:126 INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 503, 'duration_ms': 0.86, 'event': 'request.completed', 'request_id': '5270018512', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:31:04.892402Z'}
+_____________ test_enrich_context_preload_mode_skips_supplementary _____________
+tests/unit/test_chat_endpoint.py:368: in test_enrich_context_preload_mode_skips_supplementary
+    assert response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"event": "INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.", "request_id": "5270016592", "logger": "app.security", "level": "error", "timestamp": "2026-09-09T05:31:04.896966Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 503, "duration_ms": 0.9, "event": "request.completed", "request_id": "5270016592", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:31:04.897198Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.security:security.py:126 INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 503, 'duration_ms': 0.9, 'event': 'request.completed', 'request_id': '5270016592', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:31:04.897198Z'}
+_____________________ test_rag_enrich_hook_uses_lazy_init ______________________
+tests/unit/test_chat_endpoint.py:398: in test_rag_enrich_hook_uses_lazy_init
+    assert response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"event": "INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.", "request_id": "5270013712", "logger": "app.security", "level": "error", "timestamp": "2026-09-09T05:31:04.902047Z"}
+{"method": "POST", "path": "/api/v1/chat/rag/enrich-hook", "endpoint": "/api/v1/chat/rag/enrich-hook", "status": 503, "duration_ms": 1.55, "event": "request.completed", "request_id": "5270013712", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:31:04.902281Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.security:security.py:126 INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/rag/enrich-hook', 'endpoint': '/api/v1/chat/rag/enrich-hook', 'status': 503, 'duration_ms': 1.55, 'event': 'request.completed', 'request_id': '5270013712', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:31:04.902281Z'}
+______________ test_rag_enrich_hook_short_prompt_skips_lazy_init _______________
+tests/unit/test_chat_endpoint.py:424: in test_rag_enrich_hook_short_prompt_skips_lazy_init
+    assert response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"event": "INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.", "request_id": "5270121232", "logger": "app.security", "level": "error", "timestamp": "2026-09-09T05:31:04.906556Z"}
+{"method": "POST", "path": "/api/v1/chat/rag/enrich-hook", "endpoint": "/api/v1/chat/rag/enrich-hook", "status": 503, "duration_ms": 0.78, "event": "request.completed", "request_id": "5270121232", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:31:04.906729Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.security:security.py:126 INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/rag/enrich-hook', 'endpoint': '/api/v1/chat/rag/enrich-hook', 'status': 503, 'duration_ms': 0.78, 'event': 'request.completed', 'request_id': '5270121232', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:31:04.906729Z'}
+_____ test_rag_enrich_hook_lazy_init_returns_none_injects_degraded_marker ______
+tests/unit/test_chat_endpoint.py:449: in test_rag_enrich_hook_lazy_init_returns_none_injects_degraded_marker
+    assert response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"event": "INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.", "request_id": "5270113552", "logger": "app.security", "level": "error", "timestamp": "2026-09-09T05:31:04.910563Z"}
+{"method": "POST", "path": "/api/v1/chat/rag/enrich-hook", "endpoint": "/api/v1/chat/rag/enrich-hook", "status": 503, "duration_ms": 0.83, "event": "request.completed", "request_id": "5270113552", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:31:04.910758Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.security:security.py:126 INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/rag/enrich-hook', 'endpoint': '/api/v1/chat/rag/enrich-hook', 'status': 503, 'duration_ms': 0.83, 'event': 'request.completed', 'request_id': '5270113552', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:31:04.910758Z'}
+______________________ test_vault_id_missing_rejected_422 ______________________
+tests/unit/test_enrich_context_vault_isolation.py:65: in test_vault_id_missing_rejected_422
+    assert resp.status_code == 422
+E   assert 503 == 422
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"event": "INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.", "request_id": "5270117968", "logger": "app.security", "level": "error", "timestamp": "2026-09-09T05:31:04.915777Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 503, "duration_ms": 0.91, "event": "request.completed", "request_id": "5270117968", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:31:04.916005Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.security:security.py:126 INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 503, 'duration_ms': 0.91, 'event': 'request.completed', 'request_id': '5270117968', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:31:04.916005Z'}
+___________________ test_vault_id_empty_string_rejected_422 ____________________
+tests/unit/test_enrich_context_vault_isolation.py:75: in test_vault_id_empty_string_rejected_422
+    assert resp.status_code == 422
+E   assert 503 == 422
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"event": "INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.", "request_id": "5269827856", "logger": "app.security", "level": "error", "timestamp": "2026-09-09T05:31:04.920067Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 503, "duration_ms": 1.49, "event": "request.completed", "request_id": "5269827856", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:31:04.920459Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.security:security.py:126 INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 503, 'duration_ms': 1.49, 'event': 'request.completed', 'request_id': '5269827856', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:31:04.920459Z'}
+____________ test_vault_id_provided_triggers_context_var_injection _____________
+tests/unit/test_enrich_context_vault_isolation.py:103: in test_vault_id_provided_triggers_context_var_injection
+    assert resp.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"event": "INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.", "request_id": "5269827472", "logger": "app.security", "level": "error", "timestamp": "2026-09-09T05:31:04.925734Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 503, "duration_ms": 1.49, "event": "request.completed", "request_id": "5269827472", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:31:04.926083Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.security:security.py:126 INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 503, 'duration_ms': 1.49, 'event': 'request.completed', 'request_id': '5269827472', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:31:04.926083Z'}
+________________ test_chinese_vault_id_not_collapsed_to_default ________________
+tests/unit/test_enrich_context_vault_isolation.py:132: in test_chinese_vault_id_not_collapsed_to_default
+    assert resp.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"event": "INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.", "request_id": "5269828816", "logger": "app.security", "level": "error", "timestamp": "2026-09-09T05:31:04.930274Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 503, "duration_ms": 0.91, "event": "request.completed", "request_id": "5269828816", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:31:04.930495Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.security:security.py:126 INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 503, 'duration_ms': 0.91, 'event': 'request.completed', 'request_id': '5269828816', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:31:04.930495Z'}
+___________________ test_subject_id_optional_backward_compat ___________________
+tests/unit/test_enrich_context_vault_isolation.py:156: in test_subject_id_optional_backward_compat
+    assert resp.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"event": "INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.", "request_id": "5269826128", "logger": "app.security", "level": "error", "timestamp": "2026-09-09T05:31:04.934072Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 503, "duration_ms": 1.03, "event": "request.completed", "request_id": "5269826128", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:31:04.934278Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.security:security.py:126 INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 503, 'duration_ms': 1.03, 'event': 'request.completed', 'request_id': '5269826128', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:31:04.934278Z'}
+__________________ test_vault_id_with_special_chars_sanitized __________________
+tests/unit/test_enrich_context_vault_isolation.py:223: in test_vault_id_with_special_chars_sanitized
+    assert resp.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"event": "INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.", "request_id": "5274121808", "logger": "app.security", "level": "error", "timestamp": "2026-09-09T05:31:04.950665Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 503, "duration_ms": 0.97, "event": "request.completed", "request_id": "5274121808", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:31:04.950918Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.security:security.py:126 INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 503, 'duration_ms': 0.97, 'event': 'request.completed', 'request_id': '5274121808', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:31:04.950918Z'}
+_________________________ test_vault_id_emoji_stripped _________________________
+tests/unit/test_enrich_context_vault_isolation.py:245: in test_vault_id_emoji_stripped
+    assert resp.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"event": "INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.", "request_id": "5274109136", "logger": "app.security", "level": "error", "timestamp": "2026-09-09T05:31:04.954722Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 503, "duration_ms": 0.95, "event": "request.completed", "request_id": "5274109136", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:31:04.954955Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.security:security.py:126 INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 503, 'duration_ms': 0.95, 'event': 'request.completed', 'request_id': '5274109136', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:31:04.954955Z'}
+___________________ test_mode_deep_accepted_by_request_model ___________________
+tests/unit/test_study_question_deep_mode.py:65: in test_mode_deep_accepted_by_request_model
+    assert resp.status_code == 200, (
+E   AssertionError: deep mode 应被接受，实际 503: {"detail":"Internal API key not configured. Set INTERNAL_API_KEY env for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true for loopback dev."}
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"event": "INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.", "request_id": "5274112976", "logger": "app.security", "level": "error", "timestamp": "2026-09-09T05:31:04.958651Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 503, "duration_ms": 0.86, "event": "request.completed", "request_id": "5274112976", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:31:04.958853Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.security:security.py:126 INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 503, 'duration_ms': 0.86, 'event': 'request.completed', 'request_id': '5274112976', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:31:04.958853Z'}
+____________________ test_mode_invalid_rejected_by_pydantic ____________________
+tests/unit/test_study_question_deep_mode.py:76: in test_mode_invalid_rejected_by_pydantic
+    assert resp.status_code == 422
+E   assert 503 == 422
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"event": "INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.", "request_id": "5274117968", "logger": "app.security", "level": "error", "timestamp": "2026-09-09T05:31:04.962406Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 503, "duration_ms": 0.95, "event": "request.completed", "request_id": "5274117968", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:31:04.962635Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.security:security.py:126 INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 503, 'duration_ms': 0.95, 'event': 'request.completed', 'request_id': '5274117968', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:31:04.962635Z'}
+_________________________ test_mode_default_is_preload _________________________
+tests/unit/test_study_question_deep_mode.py:93: in test_mode_default_is_preload
+    assert resp.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"event": "INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.", "request_id": "5274121424", "logger": "app.security", "level": "error", "timestamp": "2026-09-09T05:31:04.966037Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 503, "duration_ms": 0.8, "event": "request.completed", "request_id": "5274121424", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:31:04.966222Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.security:security.py:126 INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 503, 'duration_ms': 0.8, 'event': 'request.completed', 'request_id': '5274121424', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:31:04.966222Z'}
+_________________ test_mode_deep_uses_top_k_30_and_hard_cap_20 _________________
+tests/unit/test_study_question_deep_mode.py:131: in test_mode_deep_uses_top_k_30_and_hard_cap_20
+    assert resp.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"event": "INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.", "request_id": "5274838288", "logger": "app.security", "level": "error", "timestamp": "2026-09-09T05:31:04.969868Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 503, "duration_ms": 0.89, "event": "request.completed", "request_id": "5274838288", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:31:04.970091Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.security:security.py:126 INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 503, 'duration_ms': 0.89, 'event': 'request.completed', 'request_id': '5274838288', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:31:04.970091Z'}
+_______________ test_mode_answer_keeps_top_k_20_and_hard_cap_15 ________________
+tests/unit/test_study_question_deep_mode.py:161: in test_mode_answer_keeps_top_k_20_and_hard_cap_15
+    assert resp.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"event": "INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.", "request_id": "5274835024", "logger": "app.security", "level": "error", "timestamp": "2026-09-09T05:31:04.973922Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 503, "duration_ms": 1.05, "event": "request.completed", "request_id": "5274835024", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:31:04.974145Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.security:security.py:126 INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 503, 'duration_ms': 1.05, 'event': 'request.completed', 'request_id': '5274835024', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:31:04.974145Z'}
+______________ test_mode_deep_without_user_question_skips_search _______________
+tests/unit/test_study_question_deep_mode.py:195: in test_mode_deep_without_user_question_skips_search
+    assert resp.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"event": "INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.", "request_id": "5274841552", "logger": "app.security", "level": "error", "timestamp": "2026-09-09T05:31:04.977947Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 503, "duration_ms": 1.0, "event": "request.completed", "request_id": "5274841552", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:31:04.978177Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.security:security.py:126 INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 503, 'duration_ms': 1.0, 'event': 'request.completed', 'request_id': '5274841552', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:31:04.978177Z'}
+_______________ test_mode_deep_empty_user_question_skips_search ________________
+tests/unit/test_study_question_deep_mode.py:217: in test_mode_deep_empty_user_question_skips_search
+    assert resp.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"event": "INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.", "request_id": "5274830992", "logger": "app.security", "level": "error", "timestamp": "2026-09-09T05:31:04.981687Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 503, "duration_ms": 0.8, "event": "request.completed", "request_id": "5274830992", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:31:04.981889Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.security:security.py:126 INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 503, 'duration_ms': 0.8, 'event': 'request.completed', 'request_id': '5274830992', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:31:04.981889Z'}
+___________ test_mode_preload_with_user_question_still_skips_search ____________
+tests/unit/test_study_question_deep_mode.py:247: in test_mode_preload_with_user_question_still_skips_search
+    assert resp.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"event": "INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.", "request_id": "5274830608", "logger": "app.security", "level": "error", "timestamp": "2026-09-09T05:31:04.985329Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 503, "duration_ms": 0.94, "event": "request.completed", "request_id": "5274830608", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:31:04.985542Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.security:security.py:126 INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 503, 'duration_ms': 0.94, 'event': 'request.completed', 'request_id': '5274830608', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:31:04.985542Z'}
+________ TestInfrastructureErrors.test_service_unavailable_returns_503 _________
+tests/unit/test_sync_exception_classification.py:96: in test_service_unavailable_returns_503
+    assert body["detail"] == "Neo4j unavailable"
+E   AssertionError: assert 'Internal API...loopback dev.' == 'Neo4j unavailable'
+E     
+E     - Neo4j unavailable
+E     + Internal API key not configured. Set INTERNAL_API_KEY env for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true for loopback dev.
+----------------------------- Captured stdout call -----------------------------
+{"event": "INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.", "request_id": "5274831760", "logger": "app.security", "level": "error", "timestamp": "2026-09-09T05:31:04.995342Z"}
+{"method": "POST", "path": "/api/v1/sync/batch", "endpoint": "/api/v1/sync/batch", "status": 503, "duration_ms": 5.03, "event": "request.completed", "request_id": "5274831760", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:31:04.995622Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.security:security.py:126 INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/sync/batch', 'endpoint': '/api/v1/sync/batch', 'status': 503, 'duration_ms': 5.03, 'event': 'request.completed', 'request_id': '5274831760', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:31:04.995622Z'}
+_____________ TestInfrastructureErrors.test_auth_error_returns_503 _____________
+tests/unit/test_sync_exception_classification.py:105: in test_auth_error_returns_503
+    assert response.json()["detail"] == "Neo4j unavailable"
+E   AssertionError: assert 'Internal API...loopback dev.' == 'Neo4j unavailable'
+E     
+E     - Neo4j unavailable
+E     + Internal API key not configured. Set INTERNAL_API_KEY env for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true for loopback dev.
+----------------------------- Captured stdout call -----------------------------
+{"event": "INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.", "request_id": "5273484368", "logger": "app.security", "level": "error", "timestamp": "2026-09-09T05:31:05.003004Z"}
+{"method": "POST", "path": "/api/v1/sync/batch", "endpoint": "/api/v1/sync/batch", "status": 503, "duration_ms": 4.32, "event": "request.completed", "request_id": "5273484368", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:31:05.003315Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.security:security.py:126 INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/sync/batch', 'endpoint': '/api/v1/sync/batch', 'status': 503, 'duration_ms': 4.32, 'event': 'request.completed', 'request_id': '5273484368', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:31:05.003315Z'}
+__________ TestInfrastructureErrors.test_connection_error_returns_503 __________
+tests/unit/test_sync_exception_classification.py:112: in test_connection_error_returns_503
+    assert response.json()["detail"] == "Neo4j unavailable"
+E   AssertionError: assert 'Internal API...loopback dev.' == 'Neo4j unavailable'
+E     
+E     - Neo4j unavailable
+E     + Internal API key not configured. Set INTERNAL_API_KEY env for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true for loopback dev.
+----------------------------- Captured stdout call -----------------------------
+{"event": "INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.", "request_id": "5279320784", "logger": "app.security", "level": "error", "timestamp": "2026-09-09T05:31:05.010951Z"}
+{"method": "POST", "path": "/api/v1/sync/batch", "endpoint": "/api/v1/sync/batch", "status": 503, "duration_ms": 4.67, "event": "request.completed", "request_id": "5279320784", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:31:05.011163Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.security:security.py:126 INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/sync/batch', 'endpoint': '/api/v1/sync/batch', 'status': 503, 'duration_ms': 4.67, 'event': 'request.completed', 'request_id': '5279320784', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:31:05.011163Z'}
+_________________ TestLogicErrors.test_value_error_returns_500 _________________
+tests/unit/test_sync_exception_classification.py:127: in test_value_error_returns_500
+    assert response.status_code == 500
+E   assert 503 == 500
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"event": "INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.", "request_id": "5279323280", "logger": "app.security", "level": "error", "timestamp": "2026-09-09T05:31:05.018626Z"}
+{"method": "POST", "path": "/api/v1/sync/batch", "endpoint": "/api/v1/sync/batch", "status": 503, "duration_ms": 4.34, "event": "request.completed", "request_id": "5279323280", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:31:05.018933Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.security:security.py:126 INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/sync/batch', 'endpoint': '/api/v1/sync/batch', 'status': 503, 'duration_ms': 4.34, 'event': 'request.completed', 'request_id': '5279323280', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:31:05.018933Z'}
+_________________ TestLogicErrors.test_type_error_returns_500 __________________
+tests/unit/test_sync_exception_classification.py:137: in test_type_error_returns_500
+    assert response.status_code == 500
+E   assert 503 == 500
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"event": "INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.", "request_id": "5279324816", "logger": "app.security", "level": "error", "timestamp": "2026-09-09T05:31:05.026637Z"}
+{"method": "POST", "path": "/api/v1/sync/batch", "endpoint": "/api/v1/sync/batch", "status": 503, "duration_ms": 4.49, "event": "request.completed", "request_id": "5279324816", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:31:05.026840Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.security:security.py:126 INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/sync/batch', 'endpoint': '/api/v1/sync/batch', 'status': 503, 'duration_ms': 4.49, 'event': 'request.completed', 'request_id': '5279324816', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:31:05.026840Z'}
+______________ TestLogicErrors.test_generic_exception_returns_500 ______________
+tests/unit/test_sync_exception_classification.py:148: in test_generic_exception_returns_500
+    assert response.status_code == 500
+E   assert 503 == 500
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"event": "INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.", "request_id": "5279327120", "logger": "app.security", "level": "error", "timestamp": "2026-09-09T05:31:05.034406Z"}
+{"method": "POST", "path": "/api/v1/sync/batch", "endpoint": "/api/v1/sync/batch", "status": 503, "duration_ms": 4.43, "event": "request.completed", "request_id": "5279327120", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-09T05:31:05.034639Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.security:security.py:126 INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testclient, bypass_env=False, is_loopback=False); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/sync/batch', 'endpoint': '/api/v1/sync/batch', 'status': 503, 'duration_ms': 4.43, 'event': 'request.completed', 'request_id': '5279327120', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-09T05:31:05.034639Z'}
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:805
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/api/v1/endpoints/chat.py:805: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:105
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/api/v1/endpoints/metadata.py:105: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:179
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/api/v1/endpoints/metadata.py:179: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+PASSED tests/unit/test_enrich_context_vault_isolation.py::test_concurrent_two_vaults_dont_share_context_var
+FAILED tests/unit/test_chat_endpoint.py::test_enrich_context_happy_path - ass...
+FAILED tests/unit/test_chat_endpoint.py::test_enrich_context_degraded_appends_notice
+FAILED tests/unit/test_chat_endpoint.py::test_enrich_context_empty_node_path_rejected
+FAILED tests/unit/test_chat_endpoint.py::test_enrich_context_max_hops_validation
+FAILED tests/unit/test_chat_endpoint.py::test_enrich_context_default_frontmatter
+FAILED tests/unit/test_chat_endpoint.py::test_enrich_context_response_includes_elapsed_ms
+FAILED tests/unit/test_chat_endpoint.py::test_enrich_context_returns_retrieval_trace
+FAILED tests/unit/test_chat_endpoint.py::test_enrich_context_trace_includes_degradation_when_graph_unbuilt
+FAILED tests/unit/test_chat_endpoint.py::test_enrich_context_assembler_budget_field
+FAILED tests/unit/test_chat_endpoint.py::test_enrich_context_accepts_user_question_and_mode_answer
+FAILED tests/unit/test_chat_endpoint.py::test_enrich_context_rejects_invalid_mode
+FAILED tests/unit/test_chat_endpoint.py::test_enrich_context_answer_mode_uses_lazy_init_path
+FAILED tests/unit/test_chat_endpoint.py::test_enrich_context_preload_mode_skips_supplementary
+FAILED tests/unit/test_chat_endpoint.py::test_rag_enrich_hook_uses_lazy_init
+FAILED tests/unit/test_chat_endpoint.py::test_rag_enrich_hook_short_prompt_skips_lazy_init
+FAILED tests/unit/test_chat_endpoint.py::test_rag_enrich_hook_lazy_init_returns_none_injects_degraded_marker
+FAILED tests/unit/test_enrich_context_vault_isolation.py::test_vault_id_missing_rejected_422
+FAILED tests/unit/test_enrich_context_vault_isolation.py::test_vault_id_empty_string_rejected_422
+FAILED tests/unit/test_enrich_context_vault_isolation.py::test_vault_id_provided_triggers_context_var_injection
+FAILED tests/unit/test_enrich_context_vault_isolation.py::test_chinese_vault_id_not_collapsed_to_default
+FAILED tests/unit/test_enrich_context_vault_isolation.py::test_subject_id_optional_backward_compat
+FAILED tests/unit/test_enrich_context_vault_isolation.py::test_vault_id_with_special_chars_sanitized
+FAILED tests/unit/test_enrich_context_vault_isolation.py::test_vault_id_emoji_stripped
+FAILED tests/unit/test_study_question_deep_mode.py::test_mode_deep_accepted_by_request_model
+FAILED tests/unit/test_study_question_deep_mode.py::test_mode_invalid_rejected_by_pydantic
+FAILED tests/unit/test_study_question_deep_mode.py::test_mode_default_is_preload
+FAILED tests/unit/test_study_question_deep_mode.py::test_mode_deep_uses_top_k_30_and_hard_cap_20
+FAILED tests/unit/test_study_question_deep_mode.py::test_mode_answer_keeps_top_k_20_and_hard_cap_15
+FAILED tests/unit/test_study_question_deep_mode.py::test_mode_deep_without_user_question_skips_search
+FAILED tests/unit/test_study_question_deep_mode.py::test_mode_deep_empty_user_question_skips_search
+FAILED tests/unit/test_study_question_deep_mode.py::test_mode_preload_with_user_question_still_skips_search
+FAILED tests/unit/test_sync_exception_classification.py::TestInfrastructureErrors::test_service_unavailable_returns_503
+FAILED tests/unit/test_sync_exception_classification.py::TestInfrastructureErrors::test_auth_error_returns_503
+FAILED tests/unit/test_sync_exception_classification.py::TestInfrastructureErrors::test_connection_error_returns_503
+FAILED tests/unit/test_sync_exception_classification.py::TestLogicErrors::test_value_error_returns_500
+FAILED tests/unit/test_sync_exception_classification.py::TestLogicErrors::test_type_error_returns_500
+FAILED tests/unit/test_sync_exception_classification.py::TestLogicErrors::test_generic_exception_returns_500
+================== 37 failed, 1 passed, 10 warnings in 1.07s ===================
+rc=1

@@ -1,0 +1,2 @@
+29a30
+> ERROR tests/unit/test_wikilink_parser.py::TestExtractAllWikilinks::test_empty_text

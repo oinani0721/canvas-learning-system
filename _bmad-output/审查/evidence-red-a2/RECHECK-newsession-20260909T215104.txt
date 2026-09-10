@@ -1,0 +1,62 @@
+复核重跑（新 session，/clear 后按记忆铁律先查 git log 判定本卡已完成，故只复核不重做）
+时刻: 2026-09-09T21:51:04+08:00   HEAD=c1664c352ee723d4491a3a444f56514e8d0bde51
+
+===== 前提：工作树两文件 sha 与 FINAL-GATES-r5 存档最终 sha 逐字节一致（证明该存档绑当前树）=====
+7a630ed5593fd34a5db61fd9ef39bc4d1794b94da6e0ee547f7012b5d5afbf59  backend/tests/unit/test_sync_batch_auth.py
+e8c243b4a699dab413a66c099d6899361a75b4cd6f0efabd1d5f7daff94b46c2  backend/tests/unit/test_system_endpoint_auth.py
+FINAL-GATES-r5 记录: 7a630ed5593fd34a5db61fd9ef39bc4d1794b94da6e0ee547f7012b5d5afbf59 / e8c243b4a699dab413a66c099d6899361a75b4cd6f0efabd1d5f7daff94b46c2
+
+===== 裁判1 统一裁判（本次重跑）=====
+存档: verify-unit-20260909T214504.txt
+= 117 failed, 4813 passed, 48 skipped, 135 warnings, 29 errors in 288.43s (0:04:48) =
+末行: rc=1
+上一 session 末轮存档收工行: = 117 failed, 4813 passed, 48 skipped, 135 warnings, 29 errors =
+
+--- vs 202 基线：'>' 行（必须无输出）---
+grep-rc=1 (1=无输出=合格)
+--- 三条 nodeid：diff 中出现 1 次 且 收工红名单中 0 次（=已变绿）---
+  diff=1  still-red=0  test_sync_batch_auth.py::TestProductionFailClosed::test_no_key_configured_fails_closed_503
+  diff=1  still-red=0  test_system_endpoint_auth.py::TestSystemConfigAuth::test_prod_no_key_configured_503
+  diff=1  still-red=0  test_system_endpoint_auth.py::TestSystemTestLLMAuth::test_prod_no_key_configured_503
+
+===== 裁判2 两文件级（本次重跑）=====
+======================= 17 passed, 12 warnings in 1.05s ========================
+PASSED 计数: 17  FAILED 计数: 0
+Branch 1 日志实证（security.py:97 = auth_fail_closed）出现次数: 3
+Branch 2 日志（security.py:126）出现次数: 3
+真连现网 Neo4j 尝试: NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0
+
+===== 裁判6 判据门（本次重跑）=====
+auth_fail_closed sync=1 system=2 合计=3
+detail 精确等值 sync=1 system=2
+
+===== 裁判7/9 地盘门 + 末轮绑定门（本次重跑）=====
+-- 052a9289..HEAD 改动面（排除 _bmad-output）--
+backend/tests/unit/test_sync_batch_auth.py
+backend/tests/unit/test_system_endpoint_auth.py
+-- backend/app + conftest + support（须空）--
+rc=0
+-- 末轮 r5 审 SHA 87f75b19..HEAD（排除 _bmad-output，须空）--
+rc=0
+
+===== 裁判8 ruff（本次重跑）=====
+All checks passed!
+check rc=0
+2 files already formatted
+format rc=0
+
+===== 本次复核未做什么（如实）=====
+1. 未重跑五段负控（L1-L5）——它们跑在 0b9be419，此后 r2/r3/r4 三次整改按 Codex r5 独立核实为「剔除 docstring 后 AST 完全一致」，无执行逻辑变化；本次复核未自行做 AST 比对，采信 r5 的核实。
+2. 未重发 Codex（轮次已达上限 5 且末轮 BLOCKER/HIGH=0 并绑最终代码 HEAD）。
+3. 未跑 tests/integration / tests/e2e（同卡文边界）。
+rc=0
+
+===== 追加更正（写于上文之后，原话不抹）=====
+上文「未做什么」第 1 条写的是「采信 r5 的核实」。该条已被本方自证取代，不再是采信：
+  存档 ast-equiv-negctl-vs-head-<TS>.txt —— 用 ast.parse + 剔除 Module/Class/Function 三级 docstring
+  后的 ast.dump 逐字符比对 `0b9be419`（五段负控实跑的那版）与当前 HEAD 的两个测试文件，
+  两份均 True、rc=0。⇒ 五段负控（L1-L5）对最终 HEAD 仍然承重。
+判据边界（如实）：该比对证明的是「解析后的语法树在剔除 docstring 后相同」。它覆盖不到
+  ——① 若某处把 docstring 当运行时值读取（本两文件无此用法，__doc__ 无引用）；
+  ——② 注释与格式变化对 lint/format 门的影响（另由裁判 8 ruff 覆盖，本次 rc=0）。
+rc=0

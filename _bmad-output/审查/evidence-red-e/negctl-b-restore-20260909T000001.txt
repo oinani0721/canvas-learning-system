@@ -1,0 +1,20 @@
+### 负控 B 还原
+-- 还原后 sha（期望 76a67f32...）--
+76a67f32af0bbdaa8a29a42cbcd52ec744697f808c9dc40c1ef7f36feab55a36  .claude/agents/parallel-dev-orchestrator.md
+-- 期望 sha（f425d7b7^ 原值）--
+76a67f32af0bbdaa8a29a42cbcd52ec744697f808c9dc40c1ef7f36feab55a36  -
+-- wc -c（期望 13392）--
+   13392
+-- 目录（期望 18）--
+      18
+-- git diff --quiet --
+rc=0
+-- git status --porcelain .claude/agents --
+A  .claude/agents/canvas-orchestrator.md
+A  .claude/agents/graphiti-memory-agent.md
+A  .claude/agents/hint-generation.md
+A  .claude/agents/iteration-validator.md
+A  .claude/agents/parallel-dev-orchestrator.md
+A  .claude/agents/planning-orchestrator.md
+A  .claude/agents/review-board-agent-selector.md
+-- scratch 残留（须空）--

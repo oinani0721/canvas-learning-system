@@ -1,0 +1,41 @@
+=== A) HEAD 基线(7004a365)上同一组文件的 format 状态 ===
+Would reformat: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u10-red-a/359dbc16-d4e8-42fb-bdf0-4c1d3bb88c95/scratchpad/base/test_enrich_context_vault_isolation.py
+Would reformat: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u10-red-a/359dbc16-d4e8-42fb-bdf0-4c1d3bb88c95/scratchpad/base/test_study_question_deep_mode.py
+2 files would be reformatted, 1 file already formatted
+baseline_fmt_rc=1
+
+=== B) 基线上这两个文件待重排的行号（证明与本卡无关）===
+--- /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u10-red-a/359dbc16-d4e8-42fb-bdf0-4c1d3bb88c95/scratchpad/base/test_enrich_context_vault_isolation.py
++++ /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u10-red-a/359dbc16-d4e8-42fb-bdf0-4c1d3bb88c95/scratchpad/base/test_enrich_context_vault_isolation.py
+@@ -105,8 +105,7 @@
+@@ -131,12 +130,8 @@
+@@ -195,9 +190,7 @@
+--- /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u10-red-a/359dbc16-d4e8-42fb-bdf0-4c1d3bb88c95/scratchpad/base/test_study_question_deep_mode.py
++++ /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u10-red-a/359dbc16-d4e8-42fb-bdf0-4c1d3bb88c95/scratchpad/base/test_study_question_deep_mode.py
+@@ -62,9 +62,7 @@
+@@ -131,12 +129,8 @@
+@@ -164,9 +158,7 @@
+
+=== C) 当前工作树待重排的行号 ===
+--- backend/tests/unit/test_enrich_context_vault_isolation.py
++++ backend/tests/unit/test_enrich_context_vault_isolation.py
+@@ -113,8 +113,7 @@
+@@ -139,12 +138,8 @@
+@@ -203,9 +198,7 @@
+--- backend/tests/unit/test_study_question_deep_mode.py
++++ backend/tests/unit/test_study_question_deep_mode.py
+@@ -101,9 +101,7 @@
+@@ -170,12 +168,8 @@
+@@ -203,9 +197,7 @@
+
+=== D) 本卡在这两个文件的改动行范围（git diff 行号）===
++++ b/backend/tests/unit/test_enrich_context_vault_isolation.py
+@@ -26,3 +26,2 @@ from app.services.wikilink_context_service import EnrichmentResult
+@@ -30 +29,10 @@ def client():
++++ b/backend/tests/unit/test_study_question_deep_mode.py
+@@ -13,2 +13,2 @@ study-question Skill 通过 plugin Cmd+Shift+Q 触发，调 backend 同一 endpo
+@@ -21,0 +22,7 @@ from app.services.wikilink_context_service import EnrichmentResult
+@@ -23,2 +30,15 @@ from app.services.wikilink_context_service import EnrichmentResult
+@@ -26 +46,20 @@ def client():
+@@ -32 +71 @@ def _payload(
+rc=0

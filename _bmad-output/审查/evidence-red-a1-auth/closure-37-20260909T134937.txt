@@ -1,0 +1,39 @@
+=== 收工 diff 的 '<' 行总数（按 nodeid 去重）: 41 ===
+
+--- 其中属于 U10-B(CARD-RED-E) 前卡成果的（agent_templates_smoke）---
+  tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_exists[canvas-orchestrator.md]
+  tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_exists[graphiti-memory-agent.md]
+  tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_exists[hint-generation.md]
+  tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_exists[iteration-validator.md]
+  tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_exists[parallel-dev-orchestrator.md]
+  tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_exists[planning-orchestrator.md]
+  tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_exists[review-board-agent-selector.md]
+  tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_hint_generation_template_exists
+  tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_minimum_template_count
+  小计: 9
+
+--- 本卡消掉的: 32 条 ---
+
+=== 闭合校验 1: 本卡消掉的是否 ⊆ §〇 的 37 条 ===
+不在 37 条里的（必须为空）:
+  (空 = PASS)
+
+=== 闭合校验 2: 37 条里没消掉的是哪 5 条 ===
+tests/unit/test_enrich_context_vault_isolation.py::test_chinese_vault_id_not_collapsed_to_default
+tests/unit/test_enrich_context_vault_isolation.py::test_subject_id_optional_backward_compat
+tests/unit/test_enrich_context_vault_isolation.py::test_vault_id_emoji_stripped
+tests/unit/test_enrich_context_vault_isolation.py::test_vault_id_provided_triggers_context_var_injection
+tests/unit/test_enrich_context_vault_isolation.py::test_vault_id_with_special_chars_sanitized
+
+=== 闭合校验 3: 这 5 条现在确实仍在收工红集里（不是凭空消失）===
+  仍红 ✓  tests/unit/test_enrich_context_vault_isolation.py::test_chinese_vault_id_not_collapsed_to_default
+  仍红 ✓  tests/unit/test_enrich_context_vault_isolation.py::test_subject_id_optional_backward_compat
+  仍红 ✓  tests/unit/test_enrich_context_vault_isolation.py::test_vault_id_emoji_stripped
+  仍红 ✓  tests/unit/test_enrich_context_vault_isolation.py::test_vault_id_provided_triggers_context_var_injection
+  仍红 ✓  tests/unit/test_enrich_context_vault_isolation.py::test_vault_id_with_special_chars_sanitized
+
+=== 闭合校验 4: 算术闭合 ===
+  开工 37 = 本卡消掉 32 + 仍红 5
+  收工目录级 132 failed + 29 errors；开工 164 failed + 29 errors
+  基线 202 - U10-B 9 - 本卡 32 = 161  ⟷ 收工红集实数 161
+rc=0

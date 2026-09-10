@@ -1,0 +1,18 @@
+# CARD-RED-A2 各阶段时间戳映射（.ts-* 脚手架内容存证；脚手架本身收工前移出工作树）
+# 记录时刻: 2026-09-09T21:08:09+08:00
+.ts-after              TS=20260909T195805
+.ts-after2             TS=20260909T201742
+.ts-after3             TS=20260909T203131
+.ts-caplog             TS=20260909T200502
+.ts-final              TS=20260909T204342
+.ts-final5             TS=20260909T205710
+.ts-fix1               TS=20260909T195140
+.ts-fix2               TS=20260909T195425
+.ts-neg-r2             TS=20260909T201605
+.ts-negctl-layer       TS=20260909T195607
+.ts-negctl-revert      TS=20260909T195718
+.ts-open               TS=20260909T193855
+.ts-r2fix              TS=20260909T201454
+.ts-r3fix              TS=20260909T203045
+.ts-r4fix              TS=20260909T204302
+.ts-r5fix              TS=20260909T205621

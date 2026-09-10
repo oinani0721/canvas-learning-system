@@ -1,0 +1,98 @@
+# U10-A (n)⑤ 清理与归位 · 2026-09-08T08:25:07
+# 开工清单存档: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/_bmad-output/审查/evidence-hyg-conftest/tmp-listing-open-20260908T064505.txt
+
+=== 1. 清理前 /tmp/test-vault* 实况 ===
+drwxr-xr-x@ 7 Heishing  wheel  224 Sep  6 02:58 /tmp/test-vault
+drwxr-xr-x@ 2 Heishing  wheel   64 Sep  8 08:21 /tmp/test-vault-treeB-57658
+drwxr-xr-x@ 7 Heishing  wheel  224 Sep  6 02:58 /tmp/test-vault-wizard
+drwxr-xr-x@ 7 Heishing  wheel  224 Sep  5 16:51 /tmp/test-vault-wizard.h1-1788630772
+drwxr-xr-x@ 7 Heishing  wheel  224 Sep  6 02:25 /tmp/test-vault-wizard.h2after-1788633028
+drwxr-xr-x@ 7 Heishing  wheel  224 Sep  6 01:55 /tmp/test-vault-wizard.h2d-1788632106
+drwxr-xr-x@ 7 Heishing  wheel  224 Sep  6 01:53 /tmp/test-vault-wizard.n2-1788630845
+drwxr-xr-x@ 6 Heishing  wheel  192 Sep  8 00:00 /tmp/test-vault-wizard.pre-1788598134
+drwxr-xr-x@ 7 Heishing  wheel  224 Sep  5 16:51 /tmp/test-vault.h1-1788630772
+drwxr-xr-x@ 7 Heishing  wheel  224 Sep  6 02:24 /tmp/test-vault.h2after-1788633028
+drwxr-xr-x@ 7 Heishing  wheel  224 Sep  6 01:55 /tmp/test-vault.h2d-1788632106
+drwxr-xr-x@ 7 Heishing  wheel  224 Sep  6 01:53 /tmp/test-vault.n1-1788630804
+drwxr-xr-x@ 6 Heishing  wheel  192 Sep  8 00:00 /tmp/test-vault.pre-1788598134
+
+=== 2. 只删本控制建的（treeB/negctl 前缀，空目录，rmdir 非递归）===
+removed: /tmp/test-vault-treeB-57658
+
+=== 3. 拆临时 worktree ===
+worktree_remove_rc=0
+worktree_prune_rc=0
+
+=== 4. 收尾断言 ===
+--- git worktree list 里是否还有 treeB（期望 0）---
+treeB_residue=0
+--- 树 A git status --porcelain（期望空）---
+ M "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-HYGIENE-conftest.md"
+ M "_bmad-output/\351\252\214\346\224\266\345\215\225/UAT-CARD-HYGIENE-conftest-2026-09-08.md"
+ M backend/tests/unit/conftest.py
+?? "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-HYGIENE-conftest-r2.md"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-hyg-conftest/api-after-r3-20260908T081114.txt"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-hyg-conftest/negctl-n1-after-20260908T081952.txt"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-hyg-conftest/negctl-n3b-enum-denied-samefixture-20260908T081124.txt"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-hyg-conftest/negctl-n3c-enum-e2e-20260908T081124.txt"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-hyg-conftest/negctl-p1-red-20260908T081208.txt"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-hyg-conftest/negctl-p2-red-20260908T081220.txt"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-hyg-conftest/probe-case-alias-20260908T081030.txt"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-hyg-conftest/red-api-after-r3-20260908T081114.txt"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-hyg-conftest/red-api-diff-r3.txt"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-hyg-conftest/red-regression-after-r3-20260908T081114.txt"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-hyg-conftest/red-regression-diff-r3.txt"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-hyg-conftest/red-skills-after-r3-20260908T081114.txt"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-hyg-conftest/red-skills-diff-r3.txt"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-hyg-conftest/regression-after-r3-20260908T081114.txt"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-hyg-conftest/selfprobe-comment-20260908T081232.txt"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-hyg-conftest/selfprobe-const-20260908T081243.txt"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-hyg-conftest/skills-after-r3-20260908T081114.txt"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-hyg-conftest/treeB-cleanup-20260908T082507.txt"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-hyg-conftest/treeB-probe-n2p-20260908T082024.txt"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-hyg-conftest/unit-n2p-20260908T082024.txt"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-hyg-conftest/window-n1-after-20260908T081952.txt"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-hyg-conftest/window-n2p-20260908T082024.txt"
+?? "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-HYGIENE-conftest-r2.md"
+porcelain_lines=27
+--- 地盘门 ---
+backend/tests/unit/conftest.py
+
+=== 5. 清理后 /tmp/test-vault* 实况（应与开工清单逐条相同）===
+drwxr-xr-x@ 7 Heishing  wheel  224 Sep  6 02:58 /tmp/test-vault
+drwxr-xr-x@ 7 Heishing  wheel  224 Sep  6 02:58 /tmp/test-vault-wizard
+drwxr-xr-x@ 7 Heishing  wheel  224 Sep  5 16:51 /tmp/test-vault-wizard.h1-1788630772
+drwxr-xr-x@ 7 Heishing  wheel  224 Sep  6 02:25 /tmp/test-vault-wizard.h2after-1788633028
+drwxr-xr-x@ 7 Heishing  wheel  224 Sep  6 01:55 /tmp/test-vault-wizard.h2d-1788632106
+drwxr-xr-x@ 7 Heishing  wheel  224 Sep  6 01:53 /tmp/test-vault-wizard.n2-1788630845
+drwxr-xr-x@ 6 Heishing  wheel  192 Sep  8 00:00 /tmp/test-vault-wizard.pre-1788598134
+drwxr-xr-x@ 7 Heishing  wheel  224 Sep  5 16:51 /tmp/test-vault.h1-1788630772
+drwxr-xr-x@ 7 Heishing  wheel  224 Sep  6 02:24 /tmp/test-vault.h2after-1788633028
+drwxr-xr-x@ 7 Heishing  wheel  224 Sep  6 01:55 /tmp/test-vault.h2d-1788632106
+drwxr-xr-x@ 7 Heishing  wheel  224 Sep  6 01:53 /tmp/test-vault.n1-1788630804
+drwxr-xr-x@ 6 Heishing  wheel  192 Sep  8 00:00 /tmp/test-vault.pre-1788598134
+
+=== 6. 与开工清单逐条对照（只比目录名，diff 为空 = 归位）===
+13d12
+< /tmp/test-vault*
+tmp_listing_diff_rc=1
+
+=== 6b. 【Codex round-3 MEDIUM 补记】上面 §6 的 13d12 是**判据坏了**，不是没归位 ===
+原始失败记录保留在上方不删（协议：保留原档 + 追加正确结果）。
+坏在哪：grep -oE '/tmp/test-vault[^ ]*' 把开工存档的标题行与 ls 命令回显里的
+        通配符文本也抽成了目录条目，多算一条。
+⚠️ 这是同一判据错误第 **3** 次复发。前两次我只在存档里追加更正、**没修脚本本体**，
+   所以第三次原样复发 —— 登记为『写下教训 ≠ 变成判据』的又一实例。
+   本次已从根上修 cleanup.sh（awk '/^d/ {print $NF}'）。
+
+--- 更正判据 ---
+开工条数=12
+现在条数=12
+corrected_diff_rc=0  (0 且无输出 = 逐条归位)
+
+--- 验伪锚：这条更正后的判据真的会报差异吗 ---
+falsifier_rc=1  (非 0 = 判据活着，不是恒 0 死判据)
+
+--- worktree 与工作树 ---
+treeB_residue=0  (期望 0)
+porcelain_code=1

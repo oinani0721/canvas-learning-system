@@ -1,0 +1,18 @@
+### 地盘门（提交前口径：工作树 + index 全量改动面）
+-- git status --porcelain（排除 _bmad-output）--
+A  .claude/agents/canvas-orchestrator.md
+A  .claude/agents/graphiti-memory-agent.md
+A  .claude/agents/hint-generation.md
+A  .claude/agents/iteration-validator.md
+A  .claude/agents/parallel-dev-orchestrator.md
+A  .claude/agents/planning-orchestrator.md
+A  .claude/agents/review-board-agent-selector.md
+ M backend/app/services/agent_service.py
+ M backend/tests/unit/test_agent_templates_smoke.py
+-- 禁改文件核查：以下必须全空 --
+forbidden_rc=0  (输出须为空)
+-- EXPECTED_AGENT_TEMPLATES 18 项名单未被改（须为空 diff）--
+list_change_rc=1  (无输出=名单未动)
+-- 18 项计数 --
+count= 18
+['basic-decomposition.md', 'canvas-orchestrator.md', 'clarification-path.md', 'comparison-table.md', 'deep-decomposition.md', 'example-teaching.md', 'four-level-explanation.md', 'graphiti-memory-agent.md', 'hint-generation.md', 'iteration-validator.md', 'memory-anchor.md', 'oral-explanation.md', 'parallel-dev-orchestrator.md', 'planning-orchestrator.md', 'question-decomposition.md', 'review-board-agent-selector.md', 'scoring-agent.md', 'verification-question-agent.md']
