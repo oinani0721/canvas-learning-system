@@ -1,0 +1,21 @@
+### r3 处置后 rc 全量 (无管道) ###
+A dry-run                 rc=0  期望 0
+B apply                   rc=0  期望 0
+C 空输入 apply            rc=0  期望 0
+D live闸 --file           rc=2  期望 2
+E live闸 --out            rc=2  期望 2
+F --out 别名 --file       rc=2  期望 2
+G 缺 --vault-id           rc=2  期望 2
+H 互斥组 required         rc=2  期望 2
+I vault-id 含冒号         rc=2  期望 2
+J [新r3M2] --out=备份路径 rc=2  期望 2
+K [新r3M2] --out=时间戳备份面 rc=2  期望 2
+
+### [新r3H3] 多名字判据: 目标是别处文件的硬链接 ###
+L --out 是硬链接(nlink=2)  rc=2  期望 2
+   被链接的文件未被覆写 ok
+
+### 副作用核对 ###
+empty.json 无 .bak (应 0): 0
+m2.json 内容仍可读: {
+  "node123": "{\"due\": \"20

@@ -1,0 +1,15 @@
+### 裁判 1① save_card_state( 在 backend/app（须 0）
+rc=1 (1 = 0命中)
+### load_card_state( 仍在
+backend/app/services/review_service.py:2338:    async def load_card_state(
+backend/app/services/review_service.py:2445:                card_data = await self.load_card_state(concept_id)
+### 裁判 1② 裸名字，地盘面（backend/app 须 0；docs 三处历史句允许）
+backend_app_rc=1 (1 = 0命中)
+docs/fsrs-truth-source-d0-revision.md:1
+docs/known-gotchas.md:2
+### 裁判 2 锁未削弱
+get_learning_memory_client 命中数(改前1): 1
+仍 monkeypatch 为抛异常函数: 1
+_save_card_states 命中数(改前4, 须>=6): 10
+def test_ 总数(改前47): 47
+重名 def(须空): 

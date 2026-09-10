@@ -599,47 +599,71 @@ class TestAutoPersistCounterRemoved:
             "真接 Graphiti 须等 epic-5a C-1/C-2 契约"
         )
 
+    def test_retired_public_card_state_writer_is_gone(self, review_service_factory):
+        """CARD-G3-7-R2: 退役的公开卡状态写入口不得复活。
+
+        为什么单立一条: 下面那条 G-FAKE-007 锁覆盖的是**现存**路径
+        (_save_card_states / load_card_state)。如果有人把这个方法整个加回来,
+        那条锁碰不到它 —— 它不在用例的调用面里。退役此前只由人工 grep 守着,
+        本条把它变成会自己报警的门 (范式抄同类上一条)。
+        """
+        svc = review_service_factory()
+        assert not hasattr(svc, "save_card_state"), (
+            "save_card_state 已于 CARD-G3-7-R2 (第十三批) 退役: 它在 backend/app 内"
+            "零调用方, 唯一动作是转调 _save_card_states (唯一真实持久化通道), "
+            "属 DD-13 名实不符的死路径。要重新引入公开写入口须先立卡说明谁调用它、"
+            "以及它与 _save_card_states 的分工。"
+        )
+
     @pytest.mark.asyncio
     @pytest.mark.usefixtures("isolate_card_states_file")
-    async def test_save_and_load_card_state_touch_no_memory_client(
-        self, review_service_factory, monkeypatch
-    ):
-        """Codex MEDIUM-3 补强: save/load_card_state 真实入口零外部访问——
-        两处直接幻影路径若复活, 此锁必红。"""
+    async def test_card_state_persist_paths_touch_no_memory_client(self, review_service_factory, monkeypatch):
+        """Codex MEDIUM-3 补强: 卡状态的写/读真实入口零外部访问——
+        两处直接幻影路径若复活, 此锁必红。
+
+        CARD-G3-7-R2: 写侧从退役的公开包装改指其被包装者 `_save_card_states`
+        (唯一真实持久化通道)。覆盖面**未变窄**: 被退役的那层只是转调本方法,
+        所以原路径上仍存在的每一行都还在本用例的执行面内, 少掉的只是那层
+        已不存在的包装本身。读侧 `load_card_state` 两条断言原样保留。
+
+        CARD-G3-7-R2 (Codex r1 MEDIUM-3): 只让替身抛异常是锁不住的 —— 若复活的
+        幻影调用被它自己的 `except Exception` 吞掉, 业务返回值照样正常, 本用例
+        就什么也看不见。故除替身抛异常外, **独立记录 getter 被访问的次数并断言
+        为 0**: 异常吞不吞掉都不影响这条, 碰过一次就红。"""
         import app.clients.graphiti_client as gc_module
 
+        touched: list[str] = []
+
         def _forbidden(*args, **kwargs):
-            raise AssertionError(
-                "load/save_card_state 不得访问 LearningMemoryClient (G-FAKE-007)"
-            )
+            touched.append("get_learning_memory_client")
+            raise AssertionError("_save_card_states/load_card_state 不得访问 LearningMemoryClient (G-FAKE-007)")
 
         monkeypatch.setattr(gc_module, "get_learning_memory_client", _forbidden)
         svc = review_service_factory()
-        assert (
-            await svc.save_card_state("c4-lock", '{"state": 1}', "board.canvas", 3)
-            is True
-        )
+        assert await svc._save_card_states(pending=("c4-lock", '{"state": 1}')) is True
         assert await svc.load_card_state("c4-lock") == '{"state": 1}'
         assert await svc.load_card_state("missing-c4-lock") is None
+        assert touched == [], (
+            f"G-FAKE-007: LearningMemoryClient getter 被访问了 {len(touched)} 次 —— "
+            "幻影镜像路径已复活。本断言不依赖异常能否冒泡: 即便复活的调用把 "
+            "AssertionError 吞掉、业务返回值照常, 这里的计数仍会把它抓出来。"
+        )
 
     @pytest.mark.asyncio
-    async def test_save_card_state_returns_false_when_file_write_fails(
-        self, review_service_factory, monkeypatch
-    ):
+    async def test_save_card_states_returns_false_when_file_write_fails(self, review_service_factory, monkeypatch):
         """Codex HIGH-1 锁定: 唯一真实持久化通道 (文件) 失败时不得谎报 True
-        ('仅内存暂存、重启即丢' != '持久化成功')。"""
+        ('仅内存暂存、重启即丢' != '持久化成功')。
+
+        CARD-G3-7-R2: 原先经退役的公开包装断言, 现直接断言被包装者
+        `_save_card_states` —— 谎报 True 的能力本来就在它这一层, 改指后
+        锁的是同一层, 且不再依赖一个已不存在的入口。"""
         from pathlib import Path
 
         import app.services.review_service as rs_module
 
-        monkeypatch.setattr(
-            rs_module, "_CARD_STATES_FILE", Path("/dev/null/card-states.json")
-        )
+        monkeypatch.setattr(rs_module, "_CARD_STATES_FILE", Path("/dev/null/card-states.json"))
         svc = review_service_factory()
-        assert (
-            await svc.save_card_state("c4-fail", '{"state": 1}', "board.canvas", 3)
-            is False
-        )
+        assert await svc._save_card_states(pending=("c4-fail", '{"state": 1}')) is False
 
 
 class TestCardStatePersistHonestyD3:
@@ -751,12 +775,28 @@ class TestCardStatePersistHonestyD3:
         assert ok is True
         assert svc._card_states["d3-bind"] == '{"state": 1}'
         on_disk = _json.loads(rs_module._CARD_STATES_FILE.read_text("utf-8"))
-        assert on_disk["d3-bind"] == '{"state": 1}'
-        assert "d3-bind" not in svc._unpersisted_concepts
+        # CARD-G3-5: 落盘顶层键改成 vault_id (投影按 vault 分桶), concept_id 落
+        # 二层。本用例原意 (锁内 mutation 必进落盘快照) 一字不减。
+        #
+        # ⚠️ Codex r1 MEDIUM-2 整改: 断言要绑**正确身份 (vault, concept)**, 不能
+        # 只问"某处出现过这张卡"—— 那样"内存写对桶、落盘落进另一个 vault"也会
+        # 通过。这里向 svc 问它自己当前解析到的 vault, 再定点查那个桶: 既绑住了
+        # 身份, 又不把测试钉死在某个具体 vault 名上 (它随 active vault 配置变)。
+        current_vault = svc._dirty_key("d3-bind")[0]
+        assert current_vault is not None, "作用域应能解析出来, 否则前面的写不会成功"
+        assert isinstance(on_disk.get(current_vault), dict), (
+            f"落盘顶层应是 vault 桶 (dict), 实得 {on_disk!r}"
+        )
+        assert on_disk[current_vault]["d3-bind"] == '{"state": 1}', (
+            f"本次 pending 状态未进**本 vault** 的落盘桶: {on_disk!r}"
+        )
+        assert not svc._is_unpersisted("d3-bind")
 
         monkeypatch.setattr(
             rs_module, "_CARD_STATES_FILE", Path("/dev/null/card-states.json")
         )
         bad = await svc._save_card_states(pending=("d3-bind-fail", "{}"))
         assert bad is False
-        assert "d3-bind-fail" in svc._unpersisted_concepts
+        # CARD-G3-5: dirty 集的身份是 (vault, concept), 见 _dirty_key 的
+        # 跨 vault 误报理由。
+        assert svc._is_unpersisted("d3-bind-fail")

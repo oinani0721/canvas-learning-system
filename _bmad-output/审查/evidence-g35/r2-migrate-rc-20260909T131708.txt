@@ -1,0 +1,15 @@
+### rc 纯测量 (无管道, $? 直接取被测命令) ###
+A dry-run            rc=0  (期望 0)
+B apply              rc=0  (期望 0)
+C 空输入 apply       rc=0  (期望 0)
+D live闸 --file      rc=2  (期望 2)
+E live闸 --out       rc=2  (期望 2)
+F --out 别名 --file  rc=2  (期望 2)
+G 缺 --vault-id      rc=2  (期望 2)
+H 互斥组 required    rc=2  (期望 2)
+
+### 副作用核对 ###
+empty.json 无 .bak (应 0): 0
+e2.json 内容仍是 {} : {}
+copy.json 有 .bak (应 2): 2
+LIVE SHA UNCHANGED ok

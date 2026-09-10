@@ -1,0 +1,59 @@
+########## A. --apply 正常路径 (tmp 副本, vault-id=canvas_vault) ##########
+====================================================================
+CARD-G3-5 FSRS 投影 vault 键化迁移 — APPLY
+====================================================================
+目标文件 : /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.cb8nUrCMaT/copy.json
+目标桶   : canvas_vault
+n_old    : 1
+n_new    : 0 (迁移前已在桶内)
+备份     : /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.cb8nUrCMaT/copy.json.bak.20260909_124737
+备份     : /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.cb8nUrCMaT/copy.json.bak
+已写入   : /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.cb8nUrCMaT/copy.json
+重读校验 : SUCCESS
+--------------------------------------------------------------------
+迁移完成: 桶内条目 0 → 1 (净增 1)
+====================================================================
+报告已写: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u9-mastery/_bmad-output/审查/evidence-g35/migrate-apply.json
+rc_A=0
+--- 迁移后内容 ---
+{
+  "canvas_vault": {
+    "node123": "{\"due\": \"2026-04-07T11:52:24.200212+00:00\", \"stability\": 0.001, \"difficulty\": 9.977978460946307, \"state\": 1, \"reps\": 0, \"lapses\": 0, \"last_review\": \"2026-04-07T11:51:24.200212+00:00\"}"
+  }
+}--- .bak 是否存在 ---
+copy.json
+copy.json.bak
+copy.json.bak.20260909_124737
+empty.json
+
+########## B. 空输入 {} --apply (甲支判据: rc=0 + 无可迁移条目 + 无 .bak) ##########
+====================================================================
+CARD-G3-5 FSRS 投影 vault 键化迁移 — APPLY
+====================================================================
+目标文件 : /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.cb8nUrCMaT/empty.json
+目标桶   : canvas_vault
+n_old    : 0
+n_new    : 0 (迁移前已在桶内)
+--------------------------------------------------------------------
+无可迁移条目 (n_old = 0) — 未做任何写入, 未产生备份。
+====================================================================
+rc_B=0
+--- empty.json 的 .bak 是否存在 (应无) ---
+0
+0 (无 .bak) ok
+
+########## C. live 闸负验证: --apply 指向主仓现网文件 (应 rc=2 拒绝) ##########
+ERROR: 目标 /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/data/fsrs_card_states.json 是**主仓现网**投影文件 — 本卡硬边界禁改它。请 cp 到临时目录后用 --file 指向副本。
+rc_C=2
+
+########## D. --apply 缺 --vault-id (应 rc=2) ##########
+ERROR: --apply 必须显式给 --vault-id — 归属由人裁定, 不由脚本按进程 active vault 猜 (猜错就是把一个 vault 的卡写进另一个 vault 的桶)。
+rc_D=2
+
+########## E. 互斥组 required: 不给模式 (应 rc=2) ##########
+                                                 [--vault-id VAULT_ID]
+                                                 [--out OUT]
+migrate_fsrs_card_states_vault_key_g35.py: error: one of the arguments --dry-run --apply is required
+rc_E=0
+1c359244cf0d23a010b2760f524630c18fc9fc50733f470a69b47ebedaad40a0  /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/data/fsrs_card_states.json
+LIVE SHA UNCHANGED ok

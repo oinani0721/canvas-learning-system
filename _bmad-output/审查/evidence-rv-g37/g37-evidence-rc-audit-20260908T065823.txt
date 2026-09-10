@@ -1,0 +1,43 @@
+# CARD-RV-G3-7 (f) evidence-g37 rc 缺失审计 @ 2026-09-08T06:58:23+08:00
+## 文件总数 (全部, 含非 .txt):
+      29
+## 明细 (文件名 | 末行前 80 字符):
+data-after.txt | reference_priority.json
+data-before.txt | reference_priority.json
+dir-api-AFTER-postformat.txt | ======================= 268 passed, 40 warnings in 1.87s =======================
+dir-api-AFTER.txt | ======================= 268 passed, 40 warnings in 1.86s =======================
+dir-api-BEFORE.txt | ======================= 268 passed, 40 warnings in 3.02s =======================
+dir-api-FINAL.txt | ======================= 268 passed, 40 warnings in 1.76s =======================
+dir-regression-AFTER.txt | ===== 1394 passed, 6 skipped, 2 xfailed, 556 warnings in 337.92s (0:05:37) =====
+dir-regression-BEFORE.txt | ===== 1382 passed, 6 skipped, 2 xfailed, 556 warnings in 347.79s (0:05:47) =====
+dir-regression-FINAL.txt | ===== 1403 passed, 6 skipped, 2 xfailed, 556 warnings in 320.36s (0:05:20) =====
+dir-unit-AFTER.txt | = 209 failed, 4687 passed, 1 skipped, 121 warnings, 38 errors in 267.81s (0:04:2
+dir-unit-BEFORE.txt | = 209 failed, 4687 passed, 1 skipped, 121 warnings, 38 errors in 316.69s (0:05:1
+dir-unit-FINAL.txt | = 209 failed, 4687 passed, 1 skipped, 121 warnings, 38 errors in 259.74s (0:04:1
+format-drift-attribution.txt | 结论: ✅ 本卡零新增格式漂移
+g37-test-green-20260906T133856.txt | ======================= 11 passed, 10 warnings in 0.53s ========================
+g37-test-green-r1fix-20260906T141449.txt | ======================= 18 passed, 10 warnings in 0.64s ========================
+g37-test-green-r2fix.txt | ======================= 21 passed, 10 warnings in 0.60s ========================
+g37-test-red-20260906T133240.txt | rc=
+live-sha-after.txt | 2a18023e71a046db8a8c52e098cd48bd0b9898596e4ea3024e18695827796cb6  /Users/Heishin
+live-sha-before.txt | 2a18023e71a046db8a8c52e098cd48bd0b9898596e4ea3024e18695827796cb6  /Users/Heishin
+openapi-drift.txt | DRIFT: none (paths=193 schemas=353)
+pyright-baseline-vs-final.txt |       Codex r2 MEDIUM-3 指出「行号零交集证明不了零新增」, 此法是其整改。
+pyright.txt | 41 errors, 2 warnings, 0 informations
+six-suites-AFTER-postformat.txt | ====================== 101 passed, 10 warnings in 44.79s =======================
+six-suites-AFTER.txt | ====================== 101 passed, 10 warnings in 46.86s =======================
+six-suites-BEFORE.txt | rc=
+six-suites-FINAL.txt | ====================== 101 passed, 10 warnings in 42.79s =======================
+unit-newly-red.txt | 
+## .txt 计数:
+      27
+## 非 .txt:
+decision.md
+pyright.json
+## 末行含有效 rc=<数字> 的份数:
+0
+## 末行是空值 rc= 的份数与文件名:
+   EMPTY-RC: g37-test-red-20260906T133240.txt
+   EMPTY-RC: six-suites-BEFORE.txt
+   count=2
+rc=0

@@ -1,0 +1,7 @@
+### glob 自证:
+      12
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_mastery_fusion.py::TestPearsonCorrelation::test_no_correlation
+================== 1 failed, 226 passed, 10 warnings in 4.21s ==================
+rc=1
