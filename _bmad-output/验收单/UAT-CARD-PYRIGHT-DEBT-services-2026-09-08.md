@@ -727,6 +727,24 @@ Codex r4 的总判原文：
 | `pyright app` 本树 | 241 | **198** | `pyright-app-phase2-close-*.txt` |
 | 多重集 NEW / GONE（基线 `286178d8`） | — | **NEW=0** / **GONE=222** | **`multiset-286178d8-vs-ccd2a4d1-*.txt`**（`base=420 work=198`；旧存档 `-vs-0188c4e5-` 绑的是中间态 `work=200 GONE=220`，已被 Codex L-4 指出，此处以最终 HEAD 为准）|
 
+### 十三.0 全卡数字链（与 goal 第 4 条指定的卡级开工基准对账）
+
+指定基准：`…/feature-obsidian-hybrid-dev/_bmad-output/审查/evidence-b13/u1a-base/pyright-services-base-da690bf8.json`
+（190,650 bytes，**未用「已清零」存档当基准**）。本卡实读该 JSON 复算：
+
+```
+卡级开工基准(da690bf8) services 错误数 = 247   （summary.errorCount 亦 247）
+其中 共享 10 文件 = 60 / 非共享 = 187          ← 与卡文 §〇 的「187 + 60」逐字吻合
+```
+
+| 里程碑 | `pyright app/services` | 说明 |
+|---|---|---|
+| 卡级开工 `da690bf8` | **247** | = 187 非共享 + 60 共享 |
+| 阶段 1 末 `e57f9df1` | 78 | 非共享过滤后 = 0；共享 60 未动 |
+| 阶段 2 开工（合主干 `286178d8` 后）`568de82a` | **77** | 主干带入 −1 |
+| **阶段 2 末 `ccd2a4d1`** | **35** | 消掉 **42** 条（`NEW=0`）|
+| **+ 合 U2 阶段 0 `5638ac6c`** | **0 errors** ✅ | 本卡 services 面清干净 |
+
 ### 十三.1 本卡阶段 2 面：**42 条诊断**（来自 24 处编辑）—— 两个口径分开写
 
 ⚠️ v2 初稿把「编辑处数」当成「诊断条数」写成了 24，被 Codex L-4 指出（表内相加是 34，也不对）。
