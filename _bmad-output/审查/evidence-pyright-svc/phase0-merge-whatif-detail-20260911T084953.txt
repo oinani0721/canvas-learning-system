@@ -1,0 +1,18 @@
+### 何若明细: 合阶段0 后 services 残余 2 条的身份
+merge rc=1 (1=openapi.json 冲突, 源码 0 冲突)
+
+## pyright app/services 全文:
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/learning_context_service.py:199:26 - error: Argument missing for parameter "query" (reportCallIssue)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/multimodal_service.py:1423:18 - error: Import "agentic_rag.embedding.embedding_service" could not be resolved (reportMissingImports)
+## 汇总:
+2 errors, 47 warnings, 0 informations
+
+## 全量 rest 面 (交主 session 对账):
+{'rest': 134, 'services': 2}
+rest 按目录:
+   55 api
+   40 clients
+   20 mcp
+   11 core
+   7 middleware
+   1 domains

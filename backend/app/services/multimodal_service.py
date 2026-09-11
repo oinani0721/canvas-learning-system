@@ -1420,7 +1420,11 @@ class MultimodalService:
             768-dimensional embedding vector, or None if failed
         """
         try:
-            from agentic_rag.embedding.embedding_service import (
+            # ⛔ 真死 import(归 TAIL T-new): backend/lib/agentic_rag/ 下**没有** embedding
+            # 子包, 全仓 find -name 'embedding_service*' 为空 ⇒ U2 阶段 0 的 extraPaths
+            # 也解不了它。运行期恒走下方 except ImportError ⇒ 向量搜索**永久关闭**,
+            # 一直在降级跑文本搜索。是退役该分支还是补实现 = 产品裁定, 不在本卡。
+            from agentic_rag.embedding.embedding_service import (  # pyright: ignore[reportMissingImports]
                 get_embedding_service,
             )
         except ImportError:

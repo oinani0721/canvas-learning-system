@@ -1,0 +1,55 @@
+### 暂存的 services 文件
+app/services/agent_service.py
+app/services/calibration_tracker.py
+app/services/canvas_service.py
+app/services/difficulty_matcher.py
+app/services/event_bus.py
+app/services/mastery_engine.py
+app/services/mastery_fusion.py
+app/services/mastery_store.py
+app/services/multimodal_service.py
+app/services/review_service.py
+
+### python-lint 的 format 段（lefthook.yml:125 ruff format --check {staged_files}）
+Would reformat: app/services/agent_service.py
+Would reformat: app/services/calibration_tracker.py
+Would reformat: app/services/difficulty_matcher.py
+Would reformat: app/services/event_bus.py
+Would reformat: app/services/mastery_engine.py
+Would reformat: app/services/mastery_store.py
+Would reformat: app/services/multimodal_service.py
+7 files would be reformatted, 3 files already formatted
+ruff-format rc=1
+
+### python-typecheck（lefthook.yml:224 pyright {staged_files}）
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/agent_service.py:2779:49 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/agent_service.py:3041:18 - error: Import "agentic_rag.agent_graph" could not be resolved (reportMissingImports)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/agent_service.py:3070:66 - warning: Unnecessary "# type: ignore" comment (reportUnnecessaryTypeIgnoreComment)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/agent_service.py:3189:28 - warning: Unnecessary isinstance call; "AgentType" is always an instance of "AgentType" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/agent_service.py:3211:57 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/agent_service.py:3677:33 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/agent_service.py:3680:55 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/agent_service.py:3700:64 - warning: Unnecessary "# type: ignore" comment (reportUnnecessaryTypeIgnoreComment)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/agent_service.py:4180:22 - error: Import "memory.temporal.fsrs_manager" could not be resolved (reportMissingImports)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/agent_service.py:4595:32 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/mastery_engine.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/mastery_engine.py:54:10 - error: Import "memory.temporal.fsrs_manager" could not be resolved (reportMissingImports)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/multimodal_service.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/multimodal_service.py:299:48 - warning: Unnecessary "# type: ignore" comment (reportUnnecessaryTypeIgnoreComment)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/multimodal_service.py:603:20 - error: Arguments missing for parameters "width", "height", "duration", "page_count", "author", "title", "language" (reportCallIssue)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/multimodal_service.py:628:22 - error: Import "agentic_rag.models.multimodal_content" could not be resolved (reportMissingImports)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/multimodal_service.py:650:28 - error: Arguments missing for parameters "extracted_text", "source_location", "updated_at" (reportCallIssue)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/multimodal_service.py:747:20 - error: Arguments missing for parameters "width", "height", "duration", "page_count", "author", "title", "language" (reportCallIssue)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/multimodal_service.py:771:28 - error: Arguments missing for parameters "extracted_text", "source_location", "updated_at" (reportCallIssue)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/multimodal_service.py:843:34 - error: Arguments missing for parameters "author", "title", "language" (reportCallIssue)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/multimodal_service.py:1221:26 - error: Import "agentic_rag.models.multimodal_content" could not be resolved (reportMissingImports)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/multimodal_service.py:1337:30 - error: Import "agentic_rag.models.multimodal_content" could not be resolved (reportMissingImports)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/multimodal_service.py:1423:18 - error: Import "agentic_rag.embedding.embedding_service" could not be resolved (reportMissingImports)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/multimodal_service.py:1493:26 - error: Import "agentic_rag.models.multimodal_content" could not be resolved (reportMissingImports)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/multimodal_service.py:1517:26 - error: Import "agentic_rag.models.multimodal_content" could not be resolved (reportMissingImports)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/review_service.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/review_service.py:89:10 - error: Import "memory.temporal.fsrs_manager" could not be resolved (reportMissingImports)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/review_service.py:715:44 - warning: Unnecessary isinstance call; "ReviewStatus" is always an instance of "ReviewStatus" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/review_service.py:1932:24 - warning: Unnecessary isinstance call; "str" is always an instance of "str" (reportUnnecessaryIsInstance)
+19 errors, 20 warnings, 0 informations
+pyright rc=1

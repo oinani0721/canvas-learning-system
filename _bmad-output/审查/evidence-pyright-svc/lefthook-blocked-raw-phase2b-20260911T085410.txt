@@ -1,0 +1,23 @@
+### 暂存 services 文件
+app/services/learning_context_service.py
+app/services/multimodal_service.py
+
+### python-lint format 段
+Would reformat: app/services/learning_context_service.py
+Would reformat: app/services/multimodal_service.py
+2 files would be reformatted
+ruff-format rc=1
+
+### python-typecheck
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/multimodal_service.py:603:20 - error: Arguments missing for parameters "width", "height", "duration", "page_count", "author", "title", "language" (reportCallIssue)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/multimodal_service.py:628:22 - error: Import "agentic_rag.models.multimodal_content" could not be resolved (reportMissingImports)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/multimodal_service.py:650:28 - error: Arguments missing for parameters "extracted_text", "source_location", "updated_at" (reportCallIssue)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/multimodal_service.py:747:20 - error: Arguments missing for parameters "width", "height", "duration", "page_count", "author", "title", "language" (reportCallIssue)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/multimodal_service.py:771:28 - error: Arguments missing for parameters "extracted_text", "source_location", "updated_at" (reportCallIssue)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/multimodal_service.py:843:34 - error: Arguments missing for parameters "author", "title", "language" (reportCallIssue)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/multimodal_service.py:1221:26 - error: Import "agentic_rag.models.multimodal_content" could not be resolved (reportMissingImports)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/multimodal_service.py:1337:30 - error: Import "agentic_rag.models.multimodal_content" could not be resolved (reportMissingImports)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/multimodal_service.py:1497:26 - error: Import "agentic_rag.models.multimodal_content" could not be resolved (reportMissingImports)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/multimodal_service.py:1521:26 - error: Import "agentic_rag.models.multimodal_content" could not be resolved (reportMissingImports)
+10 errors, 2 warnings, 0 informations
+pyright rc=1

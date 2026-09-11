@@ -196,7 +196,13 @@ async def _fetch_tips_and_errors(
         from app.clients.graphiti_client import get_learning_memory_client
 
         lm_client = get_learning_memory_client()
-        memories = await lm_client.search_memories(node_id=node_id, limit=MAX_TIPS)
+        # ⛔ 真缺陷(未修, 归 TAIL T-new): search_memories 的签名是
+        # (query: str, canvas_name=None, node_id=None, limit=None)
+        # (neo4j_edge_client.py:864), query **必填**而此处没传 ⇒ 每次调用立刻 TypeError,
+        # 被下方 except 里的 TypeError 接住并只记 logger.debug(默认不可见) ⇒ 这个
+        # 「学习记忆第二数据源」从来没供出过一条数据。活路径(exam_quick.py:116 端点)。
+        # 补 query= 会让一个一直空转的数据源突然开始影响出题输入 = 行为变化, 须主 session 裁。
+        memories = await lm_client.search_memories(node_id=node_id, limit=MAX_TIPS)  # pyright: ignore[reportCallIssue]
         for mem in memories:
             # Avoid duplicates: skip if content already in tips
             existing_contents = {t["content"] for t in tips}
