@@ -1,0 +1,12 @@
+== 集成候选树预演：U2 tip 32b9fea2 + U1 services acc37470 ==
+（U1 改动面 63 文件全在 services/，与本卡交集仅 exam_service.py，三处 sha 同为 15a60d8e ⇒ squash 零冲突）
+
+分析文件数 = 264
+error = 0  warning = 81  information = 0
+
+⇒ 全量 pyright app = 0 errors
+
+== 验伪锚：往预演树注入一条已知类型错误，必须被报出（证明这不是空跑）==
+  注入后 rc=1
+  注入后 error = 1 (必须 > 0)
+  还原后 sha 与 HEAD 版一致? 是
