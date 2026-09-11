@@ -1,0 +1,11 @@
+⛔ SUPERSEDED — ⛔ 结论作废：该轮把索引版文件写进临时目录再测，ruff 在那里取不到仓库根 pyproject.toml，退回默认 line-length 88（仓库是 120），『改前』状态全部误判（review.py 被误判成 DIRTY，掩盖了它其实是 clean→被本卡弄脏的真回归）。后继 → ruff-judge-v2-*.txt
+====================================================================================================
+
+== ruff check（本卡3个改动文件）==
+All checks passed!
+rc=0
+
+== ruff format --check：改动前(索引态) vs 改动后(工作树) 逐文件对照 ==
+review.py                                      改前=DIRTY 改后=DIRTY
+system.py                                      改前=DIRTY 改后=DIRTY
+exam_service.py                                改前=clean 改后=DIRTY

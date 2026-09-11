@@ -1,0 +1,22 @@
+== 三轮对照 ==
+run1 基线代码/首轮                       = 36 failed, 5188 passed, 57 skipped, 23 xfailed, 171 warnings, 29 errors in 393.62s (0:06:33) =
+                                   NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+                                   owner: 
+
+run2 阶段2代码/次轮                      = 37 failed, 5187 passed, 57 skipped, 23 xfailed, 171 warnings, 29 errors in 449.24s (0:07:29) =
+                                   NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=1 (blocked=1, advisory=0, unaccounted=0)
+                                   owner: owner=tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422 
+
+run3 基线代码/第三轮(对照)                  = 36 failed, 5188 passed, 57 skipped, 23 xfailed, 171 warnings, 29 errors in 333.73s (0:05:33) =
+                                   NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+                                   owner: 
+
+== nodeid 数：run1=65  run2=66  run3=65 ==
+
+== run1 → run3（两边都是基线代码，只差'跑第几轮'）==
+diff-rc=0
+
+== run2 → run3（两边都是第2+轮，只差代码）==
+33d32
+< FAILED tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422
+diff-rc=1

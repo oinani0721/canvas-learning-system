@@ -1,0 +1,199 @@
+# U2-A 阶段2末 app/services 残余 197 条 — 原样交主 session 与 U1-A 成果对账
+# 源 JSON: pyright-app-phase2-20260911T084027.json   树: card/u2-pyright-rest merge 286178d8 后 + 阶段2修改（未提交）
+services/agent_routing_engine.py:31:8 [reportUnusedImport] Import "logging" is not accessed
+services/agent_routing_engine.py:290:9 [reportUnusedVariable] Variable "normalized_lower" is not accessed
+services/agent_routing_engine.py:474:20 [reportUnusedVariable] Variable "top_score" is not accessed
+services/agent_routing_engine.py:550:49 [reportAttributeAccessIssue] "get_litellm_config" is unknown import symbol
+services/agent_routing_engine.py:567:29 [reportAttributeAccessIssue] Cannot access attribute "choices" for class "CustomStreamWrapper"
+services/agent_routing_engine.py:567:56 [reportOptionalMemberAccess] "strip" is not a known attribute of "None"
+services/agent_selector.py:33:8 [reportUnusedImport] Import "logging" is not accessed
+services/agent_selector.py:100:34 [reportAssignmentType] Type "None" is not assignable to declared type "List[str]"
+services/agent_service.py:18:8 [reportUnusedImport] Import "logging" is not accessed
+services/agent_service.py:2219:13 [reportUnusedVariable] Variable "source_desc" is not accessed
+services/alert_manager.py:284:31 [reportOperatorIssue] Operator "-" not supported for types "datetime" and "datetime | None"
+services/archive_scheduler.py:12:8 [reportUnusedImport] Import "logging" is not accessed
+services/autoscore.py:18:8 [reportUnusedImport] Import "logging" is not accessed
+services/autoscore.py:303:32 [reportAttributeAccessIssue] Cannot access attribute "choices" for class "CustomStreamWrapper"
+services/autoscore.py:304:35 [reportArgumentType] Argument of type "str | Unknown | None" cannot be assigned to parameter "s" of type "str | bytes | bytearray" in function "loads"
+services/autoscore.py:382:32 [reportAttributeAccessIssue] Cannot access attribute "choices" for class "CustomStreamWrapper"
+services/autoscore.py:383:33 [reportArgumentType] Argument of type "str | Unknown | None" cannot be assigned to parameter "s" of type "str | bytes | bytearray" in function "loads"
+services/background_task_manager.py:15:8 [reportUnusedImport] Import "logging" is not accessed
+services/background_task_manager.py:346:50 [reportAttributeAccessIssue] Cannot access attribute "TASK_CLEANUP_INTERVAL_SECONDS" for class "Settings"
+services/batch_orchestrator.py:501:42 [reportArgumentType] Argument of type "GroupExecutionResult | BaseException" cannot be assigned to parameter "object" of type "GroupExecutionResult" in function "append"
+services/batch_orchestrator.py:562:37 [reportArgumentType] Argument of type "NodeExecutionResult | BaseException" cannot be assigned to parameter "object" of type "NodeExecutionResult" in function "append"
+services/batch_orchestrator.py:563:27 [reportAttributeAccessIssue] Cannot access attribute "success" for class "BaseException"
+services/calibration_tracker.py:15:8 [reportUnusedImport] Import "logging" is not accessed
+services/candidate_expiry_service.py:20:8 [reportUnusedImport] Import "yaml" is not accessed
+services/candidate_service.py:19:8 [reportUnusedImport] Import "uuid" is not accessed
+services/candidate_service.py:42:5 [reportUnusedImport] Import "validate_status_transition" is not accessed
+services/candidate_service.py:273:9 [reportUnusedVariable] Variable "idx" is not accessed
+services/candidate_service.py:494:9 [reportUnusedVariable] Variable "idx" is not accessed
+services/candidate_service.py:501:40 [reportArgumentType] Argument of type "str" cannot be assigned to parameter "target" of type "CandidateStatus" in function "apply_status_change"
+services/canvas_projection_sync.py:159:40 [reportOptionalMemberAccess] "run_query" is not a known attribute of "None"
+services/canvas_service.py:22:8 [reportUnusedImport] Import "logging" is not accessed
+services/canvas_service.py:70:33 [reportArgumentType] Expression of type "None" cannot be assigned to parameter of type "str"
+services/canvas_service.py:340:39 [reportOptionalMemberAccess] "record_temporal_event" is not a known attribute of "None"
+services/context_enrichment_service.py:21:8 [reportUnusedImport] Import "logging" is not accessed
+services/context_enrichment_service.py:204:9 [reportUnusedVariable] Variable "display" is not accessed
+services/context_enrichment_service.py:206:20 [reportUnusedVariable] Variable "display" is not accessed
+services/conversation_archive.py:19:8 [reportUnusedImport] Import "logging" is not accessed
+services/conversation_distiller.py:15:8 [reportUnusedImport] Import "logging" is not accessed
+services/conversation_distiller.py:312:28 [reportAttributeAccessIssue] Cannot access attribute "choices" for class "CustomStreamWrapper"
+services/conversation_distiller.py:312:55 [reportOptionalMemberAccess] "strip" is not a known attribute of "None"
+services/conversation_inheritance.py:17:8 [reportUnusedImport] Import "logging" is not accessed
+services/cross_subject_bridge.py:23:8 [reportUnusedImport] Import "logging" is not accessed
+services/cross_subject_bridge.py:163:33 [reportAttributeAccessIssue] Cannot access attribute "session" for class "object"
+services/cross_subject_bridge.py:225:33 [reportAttributeAccessIssue] Cannot access attribute "session" for class "object"
+services/difficulty_matcher.py:23:8 [reportUnusedImport] Import "logging" is not accessed
+services/difficulty_matcher.py:148:28 [reportCallIssue] No overloads for "__new__" match the provided arguments
+services/difficulty_matcher.py:148:37 [reportArgumentType] Argument of type "Iterable[Row]" cannot be assigned to parameter "sequence" of type "SupportsLenAndGetItem[_T@reversed]" in function "__new__"
+services/difficulty_matcher.py:222:28 [reportAttributeAccessIssue] Cannot access attribute "choices" for class "CustomStreamWrapper"
+services/difficulty_matcher.py:222:55 [reportOptionalMemberAccess] "strip" is not a known attribute of "None"
+services/episode_worker.py:22:8 [reportUnusedImport] Import "logging" is not accessed
+services/error_aggregator.py:23:8 [reportUnusedImport] Import "logging" is not accessed
+services/error_classifier.py:15:8 [reportUnusedImport] Import "logging" is not accessed
+services/error_classifier.py:191:13 [reportCallIssue] No parameter named "created_at"
+services/error_classifier.py:276:32 [reportAttributeAccessIssue] Cannot access attribute "choices" for class "CustomStreamWrapper"
+services/error_classifier.py:276:59 [reportOptionalMemberAccess] "strip" is not a known attribute of "None"
+services/error_classifier.py:342:32 [reportAttributeAccessIssue] Cannot access attribute "choices" for class "CustomStreamWrapper"
+services/error_classifier.py:342:59 [reportOptionalMemberAccess] "strip" is not a known attribute of "None"
+services/error_extractor.py:247:32 [reportAttributeAccessIssue] Cannot access attribute "choices" for class "CustomStreamWrapper"
+services/error_extractor.py:247:59 [reportOptionalMemberAccess] "strip" is not a known attribute of "None"
+services/error_rebuild_service.py:13:8 [reportUnusedImport] Import "asyncio" is not accessed
+services/event_bus.py:25:8 [reportUnusedImport] Import "logging" is not accessed
+services/event_handlers.py:14:8 [reportUnusedImport] Import "logging" is not accessed
+services/exam_service_ext.py:14:8 [reportUnusedImport] Import "logging" is not accessed
+services/exam_service_ext.py:376:30 [reportAttributeAccessIssue] Cannot access attribute "choices" for class "CustomStreamWrapper"
+services/exam_service_ext.py:376:57 [reportOptionalMemberAccess] "strip" is not a known attribute of "None"
+services/exam_service_ext.py:832:27 [reportArgumentType] Argument of type "List[Dict[str, Any]]" cannot be assigned to parameter "score_history" of type "List[NodeScoreRecord]" in function "__init__"
+services/exam_service_ext.py:833:30 [reportArgumentType] Argument of type "List[Dict[str, Any]]" cannot be assigned to parameter "discovered_nodes" of type "List[DiscoveredNode]" in function "__init__"
+services/exam_service_ext.py:834:27 [reportArgumentType] Argument of type "List[Dict[str, Any]]" cannot be assigned to parameter "skipped_nodes" of type "List[SkipRecord]" in function "__init__"
+services/exam_service_ext.py:835:30 [reportArgumentType] Argument of type "List[Dict[str, Any]]" cannot be assigned to parameter "conversation_log" of type "List[ConversationMessage]" in function "__init__"
+services/exam_service_ext.py:836:29 [reportArgumentType] Argument of type "List[Dict[str, Any]]" cannot be assigned to parameter "mastery_changes" of type "List[MasteryChange]" in function "__init__"
+services/extraction_validator.py:22:8 [reportUnusedImport] Import "logging" is not accessed
+services/extraction_validator.py:484:21 [reportOptionalSubscript] Object of type "None" is not subscriptable
+services/extraction_validator.py:487:25 [reportOptionalSubscript] Object of type "None" is not subscriptable
+services/extraction_validator.py:490:23 [reportOptionalSubscript] Object of type "None" is not subscriptable
+services/fallback_sync_service.py:13:8 [reportUnusedImport] Import "logging" is not accessed
+services/frontmatter_signals.py:64:15 [reportGeneralTypeIssues] "object" is not iterable
+services/frontmatter_signals.py:81:16 [reportGeneralTypeIssues] "object" is not iterable
+services/graphiti_belief_service.py:30:18 [reportUnusedImport] Import "NAMESPACE_DNS" is not accessed
+services/graphiti_belief_service.py:30:33 [reportUnusedImport] Import "uuid5" is not accessed
+services/graphiti_belief_service.py:34:33 [reportUnusedImport] Import "EntityNode" is not accessed
+services/graphiti_belief_service.py:206:19 [reportAssignmentType] Type "datetime | None" is not assignable to declared type "datetime"
+services/graphiti_belief_service.py:293:16 [reportReturnType] Type "datetime | None" is not assignable to return type "datetime"
+services/health_monitor.py:32:8 [reportUnusedImport] Import "logging" is not accessed
+services/health_monitor.py:255:33 [reportAttributeAccessIssue] Cannot access attribute "find_duplicates" for class "LanceDBIndexService"
+services/health_monitor.py:255:33 [reportOptionalMemberAccess] "find_duplicates" is not a known attribute of "None"
+services/intelligent_grouping_service.py:27:8 [reportUnusedImport] Import "logging" is not accessed
+services/intelligent_grouping_service.py:434:13 [reportUnusedVariable] Variable "cluster_id" is not accessed
+services/intelligent_parallel_service.py:17:8 [reportUnusedImport] Import "logging" is not accessed
+services/intelligent_parallel_service.py:291:44 [reportOptionalMemberAccess] "start_batch_session" is not a known attribute of "None"
+services/intelligent_parallel_service.py:367:17 [reportUnusedVariable] Variable "node_ids_set" is not accessed
+services/intelligent_parallel_service.py:647:28 [reportArgumentType] Argument of type "str" cannot be assigned to parameter "agent_type" of type "AgentType" in function "call_agent"
+services/intelligent_parallel_service.py:652:36 [reportAttributeAccessIssue] Cannot access attribute "file_path" for class "AgentResult"
+services/lancedb_index_service.py:19:8 [reportUnusedImport] Import "logging" is not accessed
+services/lancedb_index_service.py:371:13 [reportUnusedVariable] Variable "canvas_name" is not accessed
+services/learning_context_service.py:18:8 [reportUnusedImport] Import "logging" is not accessed
+services/learning_context_service.py:200:26 [reportCallIssue] Argument missing for parameter "query"
+services/mastery_engine.py:26:8 [reportUnusedImport] Import "logging" is not accessed
+services/mastery_engine.py:326:55 [reportArgumentType] Argument of type "None" cannot be assigned to parameter "default" of type "float" in function "_card_attr"
+services/mastery_engine.py:327:57 [reportArgumentType] Argument of type "None" cannot be assigned to parameter "default" of type "float" in function "_card_attr"
+services/mastery_engine.py:336:23 [reportAttributeAccessIssue] Cannot access attribute "value" for class "float"
+services/mastery_engine.py:684:47 [reportArgumentType] Argument of type "None" cannot be assigned to parameter "default" of type "float" in function "_card_attr"
+services/mastery_fusion.py:20:8 [reportUnusedImport] Import "logging" is not accessed
+services/mastery_store.py:15:8 [reportUnusedImport] Import "logging" is not accessed
+services/memory_service.py:39:8 [reportUnusedImport] Import "logging" is not accessed
+services/memory_service.py:48:8 [reportUnusedImport] Import "neo4j.exceptions" is not accessed
+services/memory_service.py:1261:13 [reportArgumentType] Argument of type "Literal[0]" cannot be assigned to parameter "value" of type "str" in function "__setitem__"
+services/memory_service.py:1837:60 [reportUnusedImport] Import "SearchConfig" is not accessed
+services/memory_service.py:2161:54 [reportUnusedImport] Import "ConceptState" is not accessed
+services/memory_service.py:2166:76 [reportAttributeAccessIssue] Cannot access attribute "_concept_cache" for class "MasteryEngine"
+services/memory_service.py:2167:44 [reportAttributeAccessIssue] Cannot access attribute "_concept_cache" for class "MasteryEngine"
+services/multimodal_service.py:21:8 [reportUnusedImport] Import "logging" is not accessed
+services/multimodal_service.py:311:49 [reportAttributeAccessIssue] "LANCZOS" is not a known attribute of module "PIL.Image"
+services/multimodal_service.py:1242:13 [reportUnusedVariable] Variable "cid" is not accessed
+services/multimodal_service.py:1378:13 [reportUnusedVariable] Variable "content_id" is not accessed
+services/multimodal_service.py:1424:18 [reportMissingImports] Import "agentic_rag.embedding.embedding_service" could not be resolved
+services/multimodal_service.py:1550:17 [reportUnusedVariable] Variable "content_id" is not accessed
+services/notification_channels.py:175:62 [reportArgumentType] Expression of type "None" cannot be assigned to parameter of type "SSEConnectionManager"
+services/notification_channels.py:339:43 [reportArgumentType] Expression of type "None" cannot be assigned to parameter of type "SSEConnectionManager"
+services/prompt_registry.py:22:8 [reportUnusedImport] Import "logging" is not accessed
+services/question_generator.py:22:8 [reportUnusedImport] Import "logging" is not accessed
+services/question_generator.py:645:39 [reportAttributeAccessIssue] Cannot access attribute "choices" for class "CustomStreamWrapper"
+services/question_generator.py:771:32 [reportAttributeAccessIssue] Cannot access attribute "choices" for class "CustomStreamWrapper"
+services/question_generator.py:772:38 [reportArgumentType] Argument of type "str | Unknown | None" cannot be assigned to parameter "s" of type "str | bytes | bytearray" in function "loads"
+services/rag_service.py:16:8 [reportUnusedImport] Import "logging" is not accessed
+services/rag_service.py:54:9 [reportUnusedImport] Import "CanvasRAGConfig" is not accessed
+services/rag_service.py:322:47 [reportOptionalMemberAccess] "ainvoke" is not a known attribute of "None"
+services/rag_service.py:323:39 [reportArgumentType] Argument of type "dict[str, Any]" cannot be assigned to parameter "config" of type "RunnableConfig | None" in function "ainvoke"
+services/react_agent.py:14:8 [reportUnusedImport] Import "logging" is not accessed
+services/recommendation_service.py:14:8 [reportUnusedImport] Import "logging" is not accessed
+services/recommendation_service.py:193:43 [reportAttributeAccessIssue] Cannot access attribute "run_query" for class "object"
+services/recommendation_service.py:213:40 [reportAttributeAccessIssue] Cannot access attribute "run_query" for class "object"
+services/recommendation_service.py:246:47 [reportAttributeAccessIssue] Cannot access attribute "run_query" for class "object"
+services/recommendation_service.py:278:47 [reportAttributeAccessIssue] Cannot access attribute "run_query" for class "object"
+services/recommendation_service.py:300:47 [reportAttributeAccessIssue] Cannot access attribute "run_query" for class "object"
+services/retrieval_reranker.py:232:13 [reportArgumentType] Argument of type "float | None" cannot be assigned to parameter "value" of type "float" in function "__setitem__"
+services/retrieval_reranker.py:232:13 [reportCallIssue] No overloads for "__setitem__" match the provided arguments
+services/review_service.py:64:8 [reportUnusedImport] Import "logging" is not accessed
+services/review_service.py:91:9 [reportUnusedImport] Import "CardState" is not accessed
+services/review_service.py:1240:49 [reportAttributeAccessIssue] Cannot access attribute "get_canvas" for class "CanvasService"
+services/review_service.py:1250:9 [reportUnusedVariable] Variable "mastery_lookup" is not accessed
+services/review_service.py:1274:13 [reportUnusedVariable] Variable "mastery_lookup" is not accessed
+services/review_service.py:1507:64 [reportAttributeAccessIssue] Cannot access attribute "value" for class "int"
+services/review_service.py:1630:31 [reportUnusedVariable] Variable "review_log" is not accessed
+services/review_service.py:1721:47 [reportAttributeAccessIssue] Cannot access attribute "value" for class "int"
+services/review_service.py:2122:28 [reportCallIssue] Arguments missing for parameters "canvas_path", "from_node_id", "to_node_id"
+services/review_service.py:2123:17 [reportCallIssue] No parameter named "canvas_name"
+services/review_service.py:2124:17 [reportCallIssue] No parameter named "from_node"
+services/review_service.py:2125:17 [reportCallIssue] No parameter named "to_node"
+services/review_service.py:2126:17 [reportCallIssue] No parameter named "label"
+services/review_service.py:2792:43 [reportAttributeAccessIssue] Cannot access attribute "value" for class "int"
+services/rollback_service.py:16:8 [reportUnusedImport] Import "logging" is not accessed
+services/rollback_service.py:122:14 [reportMissingImports] Import "src.rollback" could not be resolved
+services/rollback_service.py:185:40 [reportOptionalMemberAccess] "get_history" is not a known attribute of "None"
+services/rollback_service.py:202:40 [reportOptionalMemberAccess] "get_total_count" is not a known attribute of "None"
+services/rollback_service.py:217:40 [reportOptionalMemberAccess] "get_operation" is not a known attribute of "None"
+services/rollback_service.py:244:45 [reportOptionalMemberAccess] "list_snapshots" is not a known attribute of "None"
+services/rollback_service.py:261:45 [reportOptionalMemberAccess] "get_total_count" is not a known attribute of "None"
+services/rollback_service.py:283:14 [reportMissingImports] Import "src.rollback" could not be resolved
+services/rollback_service.py:286:45 [reportOptionalMemberAccess] "create_snapshot" is not a known attribute of "None"
+services/rollback_service.py:307:45 [reportOptionalMemberAccess] "get_snapshot" is not a known attribute of "None"
+services/rollback_service.py:339:14 [reportMissingImports] Import "src.rollback" could not be resolved
+services/rollback_service.py:345:44 [reportOptionalMemberAccess] "rollback" is not a known attribute of "None"
+services/rollback_service.py:381:49 [reportOptionalMemberAccess] "get_snapshot" is not a known attribute of "None"
+services/scoring_faithfulness.py:22:8 [reportUnusedImport] Import "logging" is not accessed
+services/scoring_faithfulness.py:262:32 [reportAttributeAccessIssue] Cannot access attribute "choices" for class "CustomStreamWrapper"
+services/scoring_faithfulness.py:263:43 [reportArgumentType] Argument of type "str | Unknown | None" cannot be assigned to parameter "text" of type "str" in function "_parse_json_response"
+services/scoring_faithfulness.py:343:32 [reportAttributeAccessIssue] Cannot access attribute "choices" for class "CustomStreamWrapper"
+services/scoring_faithfulness.py:344:43 [reportArgumentType] Argument of type "str | Unknown | None" cannot be assigned to parameter "text" of type "str" in function "_parse_json_response"
+services/signal_registry.py:17:8 [reportUnusedImport] Import "logging" is not accessed
+services/signal_registry.py:109:25 [reportOptionalOperand] Operator "/" not supported for "None"
+services/signal_registry.py:144:25 [reportOptionalOperand] Operator "/" not supported for "None"
+services/signal_registry.py:178:25 [reportOptionalOperand] Operator "/" not supported for "None"
+services/signal_registry.py:216:25 [reportOptionalOperand] Operator "/" not supported for "None"
+services/signal_registry.py:253:25 [reportOptionalOperand] Operator "/" not supported for "None"
+services/skill_registry.py:22:8 [reportUnusedImport] Import "logging" is not accessed
+services/subject_resolver.py:18:8 [reportUnusedImport] Import "logging" is not accessed
+services/sync_service.py:16:8 [reportUnusedImport] Import "logging" is not accessed
+services/targeting_material_service.py:88:17 [reportGeneralTypeIssues] "object" is not iterable
+services/targeting_material_service.py:96:16 [reportGeneralTypeIssues] "object" is not iterable
+services/targeting_material_service.py:118:16 [reportGeneralTypeIssues] "object" is not iterable
+services/tool_executor.py:11:8 [reportUnusedImport] Import "logging" is not accessed
+services/tool_executor.py:231:13 [reportUnusedVariable] Variable "source" is not accessed
+services/vault_index_orchestrator.py:24:8 [reportUnusedImport] Import "fnmatch" is not accessed
+services/vault_index_orchestrator.py:29:36 [reportUnusedImport] Import "field" is not accessed
+services/verification_service.py:42:8 [reportUnusedImport] Import "logging" is not accessed
+services/websocket_manager.py:22:8 [reportUnusedImport] Import "logging" is not accessed
+services/websocket_manager.py:346:25 [reportCallIssue] No overloads for "min" match the provided arguments
+services/websocket_manager.py:346:54 [reportArgumentType] Argument of type "Overload[(key: str, default: None = None, /) -> (datetime | None), (key: str, default: datetime, /) -> datetime, (key: str, default: _T@get, /) -> (datetime | _T@get)]" cannot be assigned to parameter "key" of type "(_T@min) -> SupportsRichComparison" in function "min"
+services/websocket_manager.py:347:25 [reportCallIssue] No overloads for "max" match the provided arguments
+services/websocket_manager.py:347:54 [reportArgumentType] Argument of type "Overload[(key: str, default: None = None, /) -> (datetime | None), (key: str, default: datetime, /) -> datetime, (key: str, default: _T@get, /) -> (datetime | _T@get)]" cannot be assigned to parameter "key" of type "(_T@max) -> SupportsRichComparison" in function "max"
+services/weight_calculator.py:12:8 [reportUnusedImport] Import "logging" is not accessed
+services/wikilink_graph_service.py:132:16 [reportOperatorIssue] Operator "not in" not supported for types "str" and "MultiDiGraph[Unknown, dict[str, Any], dict[str, Any]] | None"
+services/wikilink_graph_service.py:135:40 [reportOptionalMemberAccess] "successors" is not a known attribute of "None"
+services/wikilink_graph_service.py:137:40 [reportOptionalMemberAccess] "neighbors" is not a known attribute of "None"
+services/wikilink_graph_service.py:140:38 [reportOptionalMemberAccess] "predecessors" is not a known attribute of "None"
+services/wikilink_graph_service.py:150:48 [reportOptionalMemberAccess] "successors" is not a known attribute of "None"
+services/wikilink_graph_service.py:312:34 [reportAttributeAccessIssue] Cannot access attribute "get_source_path" for class "Vault"

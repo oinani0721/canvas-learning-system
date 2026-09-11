@@ -1,0 +1,285 @@
+diff --git a/backend/app/api/v1/endpoints/review.py b/backend/app/api/v1/endpoints/review.py
+index 8f56e52f..31d11e5f 100644
+--- a/backend/app/api/v1/endpoints/review.py
++++ b/backend/app/api/v1/endpoints/review.py
+@@ -181,7 +181,14 @@ async def _get_or_create_verification_service():
+         if settings.AI_API_KEY:
+             gemini_client = GeminiClient(
+                 api_key=settings.AI_API_KEY,
+-                model=settings.AI_MODEL_NAME,
++                # ⚠️ 真 bug 未修: GeminiClient.__init__ 无 model 形参也无 **kwargs ⇒ 本行抛 TypeError。
++                # 本函数 try 的 except 元组 (ImportError, RuntimeError, AttributeError) 接不住它,
++                # 而本块位于 `if settings.AI_API_KEY:` 内 ⇒ 该键非空时必进
++                # ⇒ 调用 _get_or_create_verification_service() 的 5 个 verification-session 端点全 500。
++                # 正解 = 删掉 model= 这一行 —— dependencies.py 的两处同形代码已经这么做了
++                # (留有 "model not passed — GeminiClient.model property reads Settings dynamically")。
++                # 但那是修 bug 不是类型清理, 归 review 语义卡。
++                model=settings.AI_MODEL_NAME,  # pyright: ignore[reportCallIssue]
+                 base_url=settings.AI_BASE_URL if settings.AI_BASE_URL else None,
+             )
+         neo4j_client = get_neo4j_client_dep()
+@@ -235,7 +242,17 @@ except ImportError:
+ # AI-enhanced question generation for verification canvas
+ try:
+     from app.clients.gemini_client import GeminiClient
+-    from app.core.config import get_settings
++
++    # ⛔ 死 import: app.core.config 不存在(真名 app.config) ⇒ 本 try 恒 ImportError
++    # ⇒ _ai_question_available = False ⇒ _generate_ai_questions 整个函数体是死码。
++    # ⛔ 单修本行会激活死码, 随即撞该函数里 GeminiClient(model=) 的 TypeError
++    # (它的 except 元组同样不含 TypeError, 调用点 generate_verification_canvas 外层也无 try)。
++    # ⚠️ 但触发是有条件的, 不是无条件: _generate_ai_questions 开头有
++    #    `if not _ai_question_available or not nodes_to_review: return None` 与
++    #    `if not settings.AI_API_KEY: return None` 两道早返回
++    #    ⇒ 只在「AI_API_KEY 非空且确有待复习节点」时 POST /review/generate 才 500。
++    # 要不要复活 AI 出题分支 = 产品裁定, 归 review 语义卡。
++    from app.core.config import get_settings  # pyright: ignore[reportMissingImports]
+     from app.services.agent_service import AgentService, AgentType
+ 
+     _ai_question_available = True
+@@ -405,7 +422,9 @@ async def _generate_ai_questions(
+ 
+         gemini_client = GeminiClient(
+             api_key=settings.AI_API_KEY,
+-            model=settings.AI_MODEL_NAME,
++            # 与 _get_or_create_verification_service 里那行同因(GeminiClient 无 model 形参);
++            # 区别在本函数整体位于死码内 —— 上面那道死 import 让 _ai_question_available 恒 False。
++            model=settings.AI_MODEL_NAME,  # pyright: ignore[reportCallIssue]
+             base_url=settings.AI_BASE_URL if settings.AI_BASE_URL else None,
+         )
+         agent_service = AgentService(gemini_client=gemini_client)
+@@ -846,7 +865,18 @@ async def generate_verification_canvas(
+         nodes_to_review = [
+             n
+             for n in nodes_to_review
+-            if not (n.get("id") in difficulty_map and difficulty_map[n.get("id")].is_mastered)
++            # 海象提取: 原式 `n.get("id") in difficulty_map and difficulty_map[n.get("id")].is_mastered`
++            # 两次调用 n.get("id"), pyright 看不见两次结果相同, 故第二次的键被判成 str | None。
++            # 等价性依据(三条都可证, 不是"大概"):
++            #   · dict.get 无副作用 ⇒ 求值 2→1 等价;
++            #   · 新增的 `is not None` 不改变分支 —— difficulty_map 的唯一键填充处在
++            #     _get_difficulty_data 里, 形如 `if nid and diff is not None: difficulty_map[nid] = diff`,
++            #     None 与空串都进不了键集, 故原式的 `None in dict` 恒 False, 与新式同落 False;
++            #   · 短路点逐条对应, 异常行为不变。
++            # ⚠️ 已知副作用(无害): 推导式里的海象会把 nid 绑到外层函数作用域;
++            #    generate_verification_canvas 内无同名局部变量(全文件 nid 只在本处与
++            #    _get_difficulty_data 内出现), 故不覆盖任何东西。
++            if not ((nid := n.get("id")) is not None and nid in difficulty_map and difficulty_map[nid].is_mastered)
+         ]
+         skipped_mastered_count = pre_filter_count - len(nodes_to_review)
+         if skipped_mastered_count > 0:
+@@ -1540,7 +1570,12 @@ async def get_session_progress(session_id: str) -> SessionProgressResponse:
+             )
+ 
+         # Convert VerificationProgress dataclass to Pydantic response
+-        progress_dict = progress.to_dict()
++        # ⚠️ 真 bug 未修: VerificationService.get_progress 的签名与实现都返回 Dict[str, Any]
++        # (函数体内已经 to_dict() 过), 端点却把它当 dataclass 用 ⇒ 运行期 AttributeError → 500。
++        # 正解是 `progress_dict = progress`, 但连带上面那个 `if progress is None` 的 404 分支
++        # (get_progress 找不到会话时抛异常、从不返回 None ⇒ 该分支在运行期也是死的)
++        # 与下面两行的 progress.<attr> 取值, 整体属语义面, 归 review 语义卡。
++        progress_dict = progress.to_dict()  # pyright: ignore[reportAttributeAccessIssue]
+         return SessionProgressResponse(
+             session_id=progress_dict["session_id"],
+             canvas_name=progress_dict["canvas_name"],
+@@ -1557,8 +1592,8 @@ async def get_session_progress(session_id: str) -> SessionProgressResponse:
+             mastery_percentage=progress_dict["mastery_percentage"],
+             hints_given=progress_dict["hints_given"],
+             max_hints=progress_dict["max_hints"],
+-            started_at=progress.started_at,
+-            updated_at=progress.updated_at,
++            started_at=progress.started_at,  # pyright: ignore[reportAttributeAccessIssue]  # 同 :1543
++            updated_at=progress.updated_at,  # pyright: ignore[reportAttributeAccessIssue]  # 同 :1543
+         )
+ 
+     except HTTPException:
+diff --git a/backend/app/api/v1/system.py b/backend/app/api/v1/system.py
+index db3810a2..019631ea 100644
+--- a/backend/app/api/v1/system.py
++++ b/backend/app/api/v1/system.py
+@@ -344,7 +344,9 @@ async def _probe_with_timeout(
+     try:
+         result = await asyncio.wait_for(coro, timeout=timeout)
+         elapsed = (time.monotonic() - start) * 1000
+-        status_map = {
++        # 标注 Literal: dict 字面量默认推 dict[str, str], 而 ComponentHealth.status
++        # 要 Literal["ready","degraded","unavailable"]。取值逐字不变。
++        status_map: dict[str, Literal["ready", "degraded", "unavailable"]] = {
+             "healthy": "ready",
+             "unknown": "degraded",
+             "unhealthy": "unavailable",
+@@ -417,7 +419,15 @@ async def detailed_health_check(
+ 
+     from fastapi.responses import JSONResponse
+ 
+-    return JSONResponse(
++    # detailed_health_check 注解为 -> dict, 而函数体只有这一个 return, 返回的是 JSONResponse。
++    # ⛔ 不把注解改成 -> JSONResponse(那才是名实一致的写法), 因为它有两处外溢影响:
++    #   · FastAPI 用返回注解推 response_model —— 实测 openapi.json 里
++    #     /api/v1/system/health/detailed 的 200 响应现在是
++    #     {"type": "object", "additionalProperties": true}, 换成 Response 子类该 schema 会消失;
++    #   · mcp/tools/infra_tools.py 的调用点正是靠"注解是 dict"才保住它那条
++    #     hasattr(resp, "body") 防御分支与随行的 ignore(它自己的注释已写明该前提)。
++    # 两处都属语义/契约面, 不在本类型清理卡内。与阶段 1 health.py / index.py 的处置同形。
++    return JSONResponse(  # pyright: ignore[reportReturnType]
+         content={"data": resp.model_dump(), "meta": {"timestamp": now}},
+         status_code=status_code,
+     )
+@@ -538,13 +548,13 @@ class LLMStatsSummary(BaseModel):
+     [Source: Story 7.2 Task 3.3]
+     """
+ 
+-    total_calls: int = Field(0, description="Total number of LLM calls")
+-    total_tokens: int = Field(0, description="Total tokens consumed")
+-    total_input_tokens: int = Field(0, description="Total input/prompt tokens")
+-    total_output_tokens: int = Field(0, description="Total output/completion tokens")
+-    total_cost_usd: float = Field(0.0, description="Total estimated cost in USD")
+-    avg_latency_ms: float = Field(0.0, description="Average response latency in ms")
+-    success_rate: float = Field(1.0, description="Success rate (0.0 to 1.0)")
++    total_calls: int = Field(default=0, description="Total number of LLM calls")
++    total_tokens: int = Field(default=0, description="Total tokens consumed")
++    total_input_tokens: int = Field(default=0, description="Total input/prompt tokens")
++    total_output_tokens: int = Field(default=0, description="Total output/completion tokens")
++    total_cost_usd: float = Field(default=0.0, description="Total estimated cost in USD")
++    avg_latency_ms: float = Field(default=0.0, description="Average response latency in ms")
++    success_rate: float = Field(default=1.0, description="Success rate (0.0 to 1.0)")
+ 
+ 
+ class TaskTypeStats(BaseModel):
+@@ -554,18 +564,18 @@ class TaskTypeStats(BaseModel):
+     """
+ 
+     task_type: str = Field(..., description="Task type identifier")
+-    calls: int = Field(0, description="Number of calls")
+-    tokens: int = Field(0, description="Total tokens consumed")
+-    cost_usd: float = Field(0.0, description="Estimated cost in USD")
++    calls: int = Field(default=0, description="Number of calls")
++    tokens: int = Field(default=0, description="Total tokens consumed")
++    cost_usd: float = Field(default=0.0, description="Estimated cost in USD")
+ 
+ 
+ class DayStats(BaseModel):
+     """Per-day statistics."""
+ 
+     date: str = Field(..., description="Date (YYYY-MM-DD)")
+-    calls: int = Field(0, description="Number of calls")
+-    tokens: int = Field(0, description="Total tokens consumed")
+-    cost_usd: float = Field(0.0, description="Estimated cost in USD")
++    calls: int = Field(default=0, description="Number of calls")
++    tokens: int = Field(default=0, description="Total tokens consumed")
++    cost_usd: float = Field(default=0.0, description="Estimated cost in USD")
+ 
+ 
+ class ErrorStats(BaseModel):
+@@ -574,7 +584,7 @@ class ErrorStats(BaseModel):
+     [Source: Story 7.2 Task 3.5]
+     """
+ 
+-    total: int = Field(0, description="Total error count")
++    total: int = Field(default=0, description="Total error count")
+     by_type: Dict[str, int] = Field(
+         default_factory=dict, description="Error count by category"
+     )
+diff --git a/backend/app/services/exam_service.py b/backend/app/services/exam_service.py
+index 4f5fa8bc..7bef58be 100644
+--- a/backend/app/services/exam_service.py
++++ b/backend/app/services/exam_service.py
+@@ -18,12 +18,11 @@ Story 6.8: complete_exam, get_exam_records — exam record persistence
+ 
+ import asyncio
+ import json
+-import logging
+ from datetime import datetime, timezone
+ 
+ import structlog
+ from pathlib import Path
+-from typing import Any, Dict, List, Optional
++from typing import TYPE_CHECKING, Any, Dict, List, Optional
+ from uuid import uuid4
+ 
+ from app.config import DEFAULT_GROUP_ID
+@@ -40,6 +39,23 @@ from app.models.exam_models import (
+     ExamStatusUpdate,
+ )
+ 
++if TYPE_CHECKING:
++    # 仅供下面 `class ExamService` 体内的 TYPE_CHECKING 方法声明使用。
++    # 运行期不执行 → 不改变本模块的 import 图与命名空间。
++    from app.models.exam_models import (
++        ExamCompleteRequest,
++        ExamCompleteResponse,
++        ExamNodeSyncRequest,
++        ExamNodeSyncResponse,
++        ExamRecordDetail,
++        ExamRecordListResponse,
++        ExamStatusUpdateResponse,
++        HintRequest,
++        HintResponse,
++        SkipRequest,
++        SkipResponse,
++    )
++
+ # Path to hint prompt templates
+ _PROMPTS_DIR = Path(__file__).parent.parent / "prompts" / "exam"
+ 
+@@ -60,6 +76,51 @@ class ExamService:
+     Story 6.4 AC-1: Topic-level scoring trigger detection.
+     """
+ 
++    if TYPE_CHECKING:
++        # ⛔ 这 11 个方法在运行期由 exam_service_ext.py 模块顶层的猴子补丁挂载
++        # (`ExamService.<name> = <fn>`, 由本文件末尾的 `import app.services.exam_service_ext`
++        # 触发)。此处只做类型声明: `if TYPE_CHECKING` 块在运行期不执行, 零行为变化;
++        # 目的是让 pyright 看见它们, 消掉 api/v1/endpoints/exam.py 的
++        # attribute-unknown 与 exam_service_ext.py 的 cannot-assign。
++        # ⛔ 签名必须与 exam_service_ext.py 的 def 逐字一致 — 改一侧必须同步改另一侧。
++
++        async def sync_node_to_source_canvas(
++            self, request: ExamNodeSyncRequest, group_id: str = DEFAULT_GROUP_ID
++        ) -> ExamNodeSyncResponse: ...
++
++        async def generate_hint(self, request: HintRequest) -> HintResponse: ...
++
++        async def skip_question(self, request: SkipRequest) -> SkipResponse: ...
++
++        async def pause_exam(self, exam_id: str) -> ExamStatusUpdateResponse: ...
++
++        async def resume_exam(self, exam_id: str) -> ExamStatusUpdateResponse: ...
++
++        async def _update_exam_lifecycle_status(
++            self, exam_id: str, new_status: ExamStatus
++        ) -> ExamStatusUpdateResponse: ...
++
++        def get_cognitive_load_message(self, elapsed_minutes: int) -> Optional[str]: ...
++
++        async def complete_exam(
++            self, request: ExamCompleteRequest, group_id: str = DEFAULT_GROUP_ID
++        ) -> ExamCompleteResponse: ...
++
++        async def get_exam_records(
++            self,
++            page: int = 1,
++            limit: int = 20,
++            group_id: str = DEFAULT_GROUP_ID,
++        ) -> ExamRecordListResponse: ...
++
++        async def get_exam_record(
++            self, exam_id: str, group_id: str = DEFAULT_GROUP_ID
++        ) -> Optional[ExamRecordDetail]: ...
++
++        async def get_records_by_canvas(
++            self, canvas_id: str, group_id: str = DEFAULT_GROUP_ID
++        ) -> ExamRecordListResponse: ...
++
+     def __init__(self) -> None:
+         self._sessions = _exam_sessions
+ 
+@@ -489,4 +550,7 @@ def get_exam_service() -> ExamService:
+ 
+ 
+ # Import extension to attach Story 6.5-6.8 methods to ExamService
+-import app.services.exam_service_ext  # noqa: E402, F401
++# pyright ignore 理由: 这是副作用 import — 作用是执行 exam_service_ext 模块顶层的
++# `ExamService.<name> = <fn>` 猴子补丁挂载 (11 个方法), 模块名本身不被引用。
++# 删除它会让 Story 6.5-6.8 的 11 个方法在运行期从 ExamService 上消失。
++import app.services.exam_service_ext  # noqa: E402, F401  # pyright: ignore[reportUnusedImport]

@@ -1,0 +1,28 @@
+源: pyright-app-phase2-final2-20260911T091636.json   总 error=197  总 warning=80
+
+包清单由文件系统推导(不手抄): 子包 15 个 = api audit clients core data db domains exceptions graphiti mcp middleware models prompts services utils
+app 根 .py 5 个 = __init__.py config.py dependencies.py main.py security.py
+
+包                  error   warning
+api                    0         9
+audit                  0         0
+clients                0         3
+core                   0         3
+data                   0         0
+db                     0         0
+domains                0         0
+exceptions             0         0
+graphiti               0         0
+mcp                    0         9
+middleware             0         3
+models                 0         2
+prompts                0         0
+services             197        47
+utils                  0         1
+(app 根 .py)            0         3
+
+完整性锚① 诊断里出现但不在文件系统清单的包: 无  (必须为空)
+完整性锚② 分包计数求和 197 == 总 error 197 → True  (False 则有包被漏统计)
+
+⇒ rest 面: error=0  warning=33
+⇒ services 面: error=197  warning=47

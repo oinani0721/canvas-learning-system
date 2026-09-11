@@ -1,0 +1,41 @@
+########## A. 地盘判据 v2（锚换成独立机制：逐文件 sha 比对，不用 git diff 自证）##########
+
+-- A1. git diff 口径：工作树相对索引(合并态)改动的代码文件 --
+     backend/app/api/v1/endpoints/review.py
+     backend/app/api/v1/system.py
+     backend/app/services/exam_service.py
+     计数 = 3
+
+-- A2. 独立口径：遍历 backend/app 每个 .py，把工作树 sha 与索引 blob sha 逐一对比 --
+     backend/app/api/v1/endpoints/review.py
+     backend/app/api/v1/system.py
+     backend/app/services/exam_service.py
+     计数 = 3  (扫描面 = git ls-files 的 backend/app + scripts + src + pyrightconfig.json + lefthook.yml + backend/lib)
+
+-- A3. 两个独立口径必须一致（锚：机制不同，同时错的概率极低）--
+     一致 ✓
+
+-- A4. 真验伪锚：临时动一个本卡没碰过的文件，两个口径都必须报出它 --
+     变异后 git diff 报出 backend/app/config.py ? 是   sha 口径报出? 是   (两个都必须是「是」)
+     还原校验: 与索引逐字节相同 ✓
+
+-- A5. 禁写面 / D-29 授权面 --
+     lefthook.yml + backend/lib + pyrightconfig.json 改动数 = 0  (须为 0)
+     backend/app/services 改动数 = 1  (D-29 授权上限 1)
+       backend/app/services/exam_service.py
+     代码树未跟踪文件: 0 个 (须为 0，防 .orig/.rej 被 git add -A 带入)
+
+########## B. lefthook 两门基线判据 v2（这次跑在阶段2补丁生效之后）##########
+
+-- B1. 面 = 暂存(merge) ∪ 工作树改动，共 95 个 .py --
+-- B2. ruff check --
+All checks passed!
+
+-- B3. format --check 分类 --
+   dirty=39  clean=56  (两类都非空 ⇒ 判据能分辨)
+
+-- B4. 同一批 dirty 在纯净主干 286178d8 上复测 --
+   主干同样 dirty = 39
+
+-- B5. 主判据：本卡引入的格式问题 = 工作树 dirty \ 主干 dirty --
+   本卡引入 = 0 条
