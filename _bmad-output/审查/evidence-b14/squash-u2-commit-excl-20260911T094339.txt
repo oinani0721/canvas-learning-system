@@ -1,0 +1,6 @@
+# R-14 过渡条款提交 LEFTHOOK_EXCLUDE=python-lint,python-typecheck；被跳过门原始输出见 squash-u2-commit-20260911T094339.txt
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-PYRIGHT-DEBT-rest-r3.md"
+ create mode 100644 "_bmad-output/\351\252\214\346\224\266\345\215\225/UAT-CARD-PYRIGHT-DEBT-rest-2026-09-08.md"
+ create mode 100644 "_bmad-output/\351\252\214\346\224\266\345\215\225/UAT-CARD-PYRIGHT-DEBT-rest-2026-09-11-v2.md"
+ create mode 100644 backend/tests/unit/test_exam_models_rubric_required_u2a.py
+rc=0

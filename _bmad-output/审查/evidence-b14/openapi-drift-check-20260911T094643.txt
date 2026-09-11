@@ -1,0 +1,10 @@
+# check 模式: backend/.venv/bin/python scripts/spec-tools/check-openapi-drift.py --snapshot backend/openapi.json  HEAD=b4705dde
+Prefix dict has been built successfully.
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/api/v1/endpoints/metadata.py:103: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+  canvas_path: str = Query(
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/api/v1/endpoints/metadata.py:177: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+  canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+DRIFT: none (paths=197 schemas=357)
+rc=0
+-- git status (all) --
+(empty = 树干净)

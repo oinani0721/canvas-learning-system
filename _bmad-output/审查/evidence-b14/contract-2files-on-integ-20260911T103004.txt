@@ -1,0 +1,32 @@
+# 候选树 08100483 两文件 --tb=short
+INFO     app.services.memory_service:memory_service.py:2946 {'event': 'MemoryService singleton cleaned up', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-11T02:33:41.269406Z'}
+INFO     app.main:main.py:513 MemoryService cleaned up
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+
+<frozen importlib._bootstrap>:491
+
+<frozen importlib._bootstrap>:491
+
+app/api/v1/endpoints/chat.py:807
+
+app/api/v1/endpoints/metadata.py:103
+
+app/api/v1/endpoints/metadata.py:177
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+
+tests/contract/test_health_contract.py: 567 warnings
+
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=19 (blocked=19, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/contract/test_node_id_patterns.py::TestNodeIdPatternConsistency::test_pattern_matches_json_schema
+FAILED tests/contract/test_health_contract.py::test_health_contract[GET /api/v1/health]
+============ 2 failed, 49 passed, 577 warnings in 218.16s (0:03:38) ============
+rc=1

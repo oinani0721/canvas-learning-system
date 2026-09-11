@@ -1,0 +1,8 @@
+# R-14 过渡条款提交 LEFTHOOK_EXCLUDE=python-lint,python-typecheck；被跳过门原始输出见 squash-u1-commit-2026*.txt
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-PYRIGHT-DEBT-services-r1.md"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-PYRIGHT-DEBT-services-r2.md"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-PYRIGHT-DEBT-services-r3.md"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-PYRIGHT-DEBT-services-r4.md"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-PYRIGHT-DEBT-services-r5.md"
+ create mode 100644 "_bmad-output/\351\252\214\346\224\266\345\215\225/UAT-CARD-PYRIGHT-DEBT-services-2026-09-08.md"
+rc=0

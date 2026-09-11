@@ -1,0 +1,6 @@
+# check 模式（不写）: backend/.venv/bin/python scripts/spec-tools/check-openapi-drift.py backend/openapi.json  HEAD=b4705dde
+usage: check-openapi-drift.py [-h] (--snapshot PATH | --write PATH)
+check-openapi-drift.py: error: one of the arguments --snapshot --write is required
+rc=2
+-- git status backend/ --
+(empty = 树干净)

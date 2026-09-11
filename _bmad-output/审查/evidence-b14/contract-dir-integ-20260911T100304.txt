@@ -1,0 +1,4 @@
+# tests/contract 目录级在候选树 08100483 前一 HEAD 上挂起 >10 分钟（第十三批 contract-integ-20260910T125846.txt 0 行同症；pact provider 面需真服务），主 session TaskStop 中止。
+# -k setup-wizard 定向在 U5-D 写端点 exclude 后恒零收集（194 deselected，rc=5）；第十三批 contract-targeted 的 pytest_rc=0 取的是 tail 的 rc = 假绿。
+# 有效裁判改为 4 个非 pact 文件 -v：见 contract-subset-*.txt
+rc=stopped

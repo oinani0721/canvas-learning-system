@@ -1,0 +1,10 @@
+# tests/contract 三个非 schemathesis 文件 -q --hypothesis-seed=0  HEAD=08100483
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=19 (blocked=19, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/contract/test_node_id_patterns.py::TestNodeIdPatternConsistency::test_pattern_matches_json_schema
+FAILED tests/contract/test_health_contract.py::test_health_contract[GET /api/v1/health]
+============ 2 failed, 75 passed, 577 warnings in 207.35s (0:03:27) ============
+<sys>:0: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
+rc=1
+-- git status backend/ after (must be empty) --
+(end)

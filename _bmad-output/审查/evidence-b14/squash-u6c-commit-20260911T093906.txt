@@ -1,0 +1,213 @@
+╭──────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: pre-commit │
+╰──────────────────────────────────────╯
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+│  cypher-vault-filter-lint (skip) no matching staged files
+┃  ghost-files ❯ 
+
+[Ghost Files] No untracked docs found.
+
+┃  mutant-residue-scan ❯ 
+
+[Mutant-Scan] OK (staged additions carry no mutation marker).
+
+┃  python-lint ❯ 
+
+[Python] Running ruff lint...
+All checks passed!
+[Python] Lint OK.
+[Python] Checking format...
+8 files already formatted
+[Python] Format OK.
+
+┃  python-typecheck ❯ 
+
+[Python] Running pyright type check (backend/.venv/bin/pyright)...
+0 errors, 0 warnings, 0 informations
+WARNING: there is a new pyright version available (v1.1.411 -> v1.1.414).
+Please install the new version or set PYRIGHT_PYTHON_FORCE_VERSION to `latest`
+
+[Python] Typecheck done (exit: 0).
+
+│  readme-claims-lint (skip) no matching staged files
+┃  spec-sync-flat ❯ 
+
+[Spec Sync] API changes detected, regenerating backend/openapi.json (via backend/.venv/bin/python)...
+[92m09:39:10 - LiteLLM:WARNING[0m: get_model_cost_map.py:271 - LiteLLM: Failed to fetch remote model cost map from https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json: socket connect blocked during OpenAPI export (target=('127.0.0.1', 1082)) — check-openapi-drift.py 只允许 import, 不允许 lifespan/网络行为. Falling back to local backup.
+{"event": "LiteLLM: Failed to fetch remote model cost map from https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json: socket connect blocked during OpenAPI export (target=('127.0.0.1', 1082)) \u2014 check-openapi-drift.py \u53ea\u5141\u8bb8 import, \u4e0d\u5141\u8bb8 lifespan/\u7f51\u7edc\u884c\u4e3a. Falling back to local backup.", "logger": "LiteLLM", "level": "warning", "timestamp": "2026-09-11T01:39:10.930096Z"}
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+  from pydantic.v1.fields import FieldInfo as FieldInfoV1
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  import pkg_resources
+Building prefix dict from the default dictionary ...
+Loading model from cache /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/jieba.cache
+Loading model cost 0.294 seconds.
+Prefix dict has been built successfully.
+{"event": "cohere not installed. Cohere API reranking unavailable.", "logger": "agentic_rag.reranking", "level": "info", "timestamp": "2026-09-11T01:39:16.424957Z"}
+{"event": "Agentic RAG module loaded successfully. AGENTIC_RAG_AVAILABLE=True", "logger": "agentic_rag", "level": "info", "timestamp": "2026-09-11T01:39:16.467421Z"}
+{"event": "RAGService: LangGraph/Agentic RAG available. LANGGRAPH_AVAILABLE=True", "logger": "app.services.rag_service", "level": "info", "timestamp": "2026-09-11T01:39:16.467475Z"}
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/api/v1/endpoints/metadata.py:105: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+  canvas_path: str = Query(
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/api/v1/endpoints/metadata.py:179: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+  canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+{"event": "AgentService not available, canvas uses template questions only", "logger": "app.api.v1.endpoints.review", "level": "info", "timestamp": "2026-09-11T01:39:16.806540Z"}
+{"event": "src.rollback not available \u2014 rollback endpoints will return 503", "logger": "app.api.v1.endpoints.rollback", "level": "warning", "timestamp": "2026-09-11T01:39:16.844775Z"}
+{"event": "[MCP] Patched fastapi-mcp anyOf+type schema conflict (v0.4.0 bug)", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-09-11T01:39:17.127536Z"}
+{"event": "[P0-2] Registered 6 read-only MCP tool routes + 14 quarantined (410) stubs", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-09-11T01:39:17.142879Z"}
+{"event": "[MCP] Stripped spurious 'type' from 325 anyOf properties across 208 tools", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-09-11T01:39:17.626058Z"}
+{"event": "No auth config provided, skipping auth setup", "logger": "fastapi_mcp.server", "level": "info", "timestamp": "2026-09-11T01:39:17.627145Z"}
+{"event": "MCP HTTP server listening at /mcp", "logger": "fastapi_mcp.server", "level": "info", "timestamp": "2026-09-11T01:39:17.627184Z"}
+{"event": "[Story 3.2] MCP server mounted at /mcp (streamable HTTP) with canvas-learning tools", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-09-11T01:39:17.627209Z"}
+WROTE: backend/openapi.json (paths=197 schemas=357, x-generated-at=2026-09-11T01:39:18.203361+00:00)
+[Spec Sync] + backend/openapi.json staged
+
+│  spec-sync-root (skip) no matching staged files
+                                      
+  ────────────────────────────────────
+summary: (done in 12.27 seconds)      
+✔️ ghost-files (0.02 seconds)
+✔️ mutant-residue-scan (0.11 seconds)
+✔️ python-lint (0.04 seconds)
+✔️ python-typecheck (3.19 seconds)
+✔️ spec-sync-flat (8.91 seconds)
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+╭──────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: commit-msg │
+╰──────────────────────────────────────╯
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+┃  commitlint ❯ 
+
+
+┃  spec-reference ❯ 
+
+[Spec Ref] OK.
+
+                                      
+  ────────────────────────────────────
+summary: (done in 0.35 seconds)       
+✔️ commitlint (0.32 seconds)
+✔️ spec-reference (0.03 seconds)
+╭───────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: post-commit │
+╰───────────────────────────────────────╯
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+[batch14/integ c3912b42] chore(u6-reviewtime-c): 车道级 squash CARD-G6-6 [BATCH-2026-09-07-第十三批]
+ 98 files changed, 40316 insertions(+), 60 deletions(-)
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-G6-6-r2-p2.md"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-G6-6-r2.md"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-G6-6-r3.md"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-G6-6-r4.md"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-G6-6-r5.md"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-G6-6-r6.md"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-G6-6-r7.md"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-G6-6.md"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/comment-only-proof-20260909T182531.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/comment-only-proof-20260909T182626.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/comment-only-proof-20260909T182724.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/comment-only-proof-final-20260909T182818.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/comment-only-proof-r4-20260909T183936.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/dst-gate-capability-20260909T173846.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/final-close-20260909T190715.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/final-close-u6c-20260911T090603.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/final-surface-20260909T174056.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/four-files-20260909T164946.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/four-files-u6c-20260911T084257.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/four-files-u6c-r6-20260911T085345.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/fsrs-negctl-20260909T165100.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/g66-green-20260909T164946.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/g66-red-20260909T160837.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/g66-red-20260909T160929.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/g66-red-20260909T161029.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/gate-6b-precise-20260909T165334.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/gates-6b-7-20260909T165303.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/grep-gates-20260909T165223.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/grep-gates-final-20260909T180617.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/grep-gates-r2-20260909T172657.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/judges-final-20260909T180715.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/judges-r2-20260909T172301.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/judges-r2-tests-20260909T172322.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/judges-r3-20260909T182156.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/judges-r4-20260909T183804.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/judges-r5-20260909T185706.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/key-collision-exhaustive-20260909T185220.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/lint-typecheck-20260909T165405.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/lint-typecheck-u6c-20260911T083545.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/lint-typecheck-u6c-20260911T083601.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/lint-typecheck-u6c-r6-20260911T085324.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/live-readonly-close-20260909T165641.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/live-shasum-open-20260909T160230.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/mutation-r1-fixes-20260909T172215.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/mutation-r2-fixes.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/mutation-r5-keyfix-20260909T185521.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/mutation-u6c-timebomb-20260911T083028.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/mutation-u6c-timebomb-20260911T083236.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/mutation-u6c-timebomb-final-20260911T083817.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/mutation-u6c-timebomb-percase-20260911T090337.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/mutation-u6c-timebomb-r6-20260911T085133.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/openapi-20260909T165730.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/prior-gates-20260909T165100.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/pyright-20260909T165619.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/tests-api-20260909T165705.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/tests-api-u6c-20260911T084901.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/timebomb-class-sweep-20260911T083447.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/unit-baseline-diff-open-20260909T160648.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/unit-baseline-diff-open-20260909T160706.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/unit-baseline-open-20260909T160147.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/unit-closing-20260909T165357.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/unit-closing-diff-20260909T165928.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/unit-closing-diff-final-20260909T174944.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/unit-closing-diff-final2-20260909T190036.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/unit-closing-diff-r2-20260909T172744.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/unit-closing-diff-r4-20260909T180654.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/unit-closing-diff-u6c-20260911T084851.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/unit-closing-diff-u6c-r6-20260911T090102.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/unit-closing-final-20260909T174320.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/unit-closing-final2-20260909T185605.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/unit-closing-final3-20260909T190151.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/unit-closing-r2-20260909T172255.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/unit-closing-r3-20260909T173836.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/unit-closing-r4-20260909T180220.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/unit-closing-u6c-20260911T083539.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/unit-closing-u6c-final-20260911T084335.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/unit-closing-u6c-r6-20260911T085318.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/unit-flaky-attribution-20260909T190608.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/verify_comment_only.py"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/verify_docstring_only.py"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g66/write-point-survey-20260909T165100.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-G6-6-r2.md"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-G6-6-r3.md"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-G6-6-r4.md"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-G6-6-r5.md"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-G6-6-r6.md"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-G6-6-r7.md"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-G6-6.md"
+ create mode 100644 "_bmad-output/\351\252\214\346\224\266\345\215\225/UAT-CARD-G6-6-2026-09-09.md"
+rc=0

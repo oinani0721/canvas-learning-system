@@ -1,0 +1,15 @@
+integ HEAD=c3912b42  u1 tip=acc37470  merge-base=286178d8
+Automatic merge went well; stopped before committing as requested
+Squash commit -- not updating HEAD
+merge rc=0
+openapi pinned to HEAD
+-- unmerged --
+-- stderr staged --
+1
+-- staged code files --
+      63
+-- exam_service blob (index) --
+7bef58bef24109d27d6ce38775828ca1ab68d642
+-- tree equiv vs u1 tip (code, excl openapi) --
+ 8 files changed, 2459 insertions(+), 59 deletions(-)
+(empty above = 等价)

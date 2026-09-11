@@ -1,0 +1,144 @@
+╭──────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: pre-commit │
+╰──────────────────────────────────────╯
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+│  cypher-vault-filter-lint (skip) no matching staged files
+┃  ghost-files ❯ 
+
+[Ghost Files] No untracked docs found.
+
+┃  mutant-residue-scan ❯ 
+
+[Mutant-Scan] OK (staged additions carry no mutation marker).
+
+┃  python-lint ❯ 
+
+[Python] Running ruff lint...
+All checks passed!
+[Python] Lint OK.
+[Python] Checking format...
+Would reformat: backend/app/api/v1/endpoints/canvas.py
+Would reformat: backend/app/api/v1/endpoints/config.py
+Would reformat: backend/app/api/v1/endpoints/exam_grade.py
+Would reformat: backend/app/api/v1/endpoints/health.py
+Would reformat: backend/app/api/v1/endpoints/inheritance.py
+Would reformat: backend/app/api/v1/endpoints/memory.py
+Would reformat: backend/app/api/v1/endpoints/monitoring.py
+Would reformat: backend/app/api/v1/endpoints/multimodal.py
+Would reformat: backend/app/api/v1/endpoints/profile.py
+Would reformat: backend/app/api/v1/endpoints/rag.py
+Would reformat: backend/app/api/v1/endpoints/rollback.py
+Would reformat: backend/app/api/v1/endpoints/suggestions.py
+Would reformat: backend/app/api/v1/endpoints/websocket.py
+Would reformat: backend/app/api/v1/endpoints/wikilink.py
+Would reformat: backend/app/api/v1/system.py
+Would reformat: backend/app/clients/claude_client.py
+Would reformat: backend/app/clients/neo4j_client.py
+Would reformat: backend/app/clients/provider_factory.py
+Would reformat: backend/app/core/bug_tracker.py
+Would reformat: backend/app/core/memory_system_logger.py
+Would reformat: backend/app/dependencies.py
+Would reformat: backend/app/mcp/tools/conversation_tools.py
+Would reformat: backend/app/mcp/tools/exam_tools.py
+Would reformat: backend/app/mcp/tools/mastery_tools.py
+Would reformat: backend/app/middleware/llm_call_logger.py
+Would reformat: backend/app/middleware/metrics.py
+Would reformat: backend/app/models/agent_routing_models.py
+Would reformat: backend/app/models/edge_rationale.py
+Would reformat: backend/app/models/exam_models.py
+Would reformat: backend/app/models/intelligent_parallel_models.py
+Would reformat: backend/app/models/memory_schemas.py
+Would reformat: backend/app/models/metadata_models.py
+Would reformat: backend/app/models/multimodal_schemas.py
+Would reformat: backend/app/models/qa_models.py
+Would reformat: backend/app/models/review_models.py
+Would reformat: backend/app/models/rollback.py
+Would reformat: backend/app/models/schemas.py
+Would reformat: backend/app/models/subject_models.py
+38 files would be reformatted, 23 files already formatted
+[Python] Format check FAILED! Fix: ruff format backend/app/api/v1/endpoints/boards.py backend/app/api/v1/endpoints/canvas.py backend/app/api/v1/endpoints/chat.py backend/app/api/v1/endpoints/config.py backend/app/api/v1/endpoints/edges.py backend/app/api/v1/endpoints/exam_grade.py backend/app/api/v1/endpoints/health.py backend/app/api/v1/endpoints/index.py backend/app/api/v1/endpoints/index_image.py backend/app/api/v1/endpoints/inheritance.py backend/app/api/v1/endpoints/intelligent_parallel.py backend/app/api/v1/endpoints/memory.py backend/app/api/v1/endpoints/metadata.py backend/app/api/v1/endpoints/monitoring.py backend/app/api/v1/endpoints/multimodal.py backend/app/api/v1/endpoints/profile.py backend/app/api/v1/endpoints/rag.py backend/app/api/v1/endpoints/review.py backend/app/api/v1/endpoints/rollback.py backend/app/api/v1/endpoints/suggestions.py backend/app/api/v1/endpoints/sync.py backend/app/api/v1/endpoints/tips.py backend/app/api/v1/endpoints/websocket.py backend/app/api/v1/endpoints/wikilink.py backend/app/api/v1/system.py backend/app/clients/claude_client.py backend/app/clients/neo4j_client.py backend/app/clients/provider_factory.py backend/app/core/bug_tracker.py backend/app/core/exception_handlers.py backend/app/core/exceptions.py backend/app/core/memory_system_logger.py backend/app/core/vault_state_paths.py backend/app/dependencies.py backend/app/domains/agent/gateway.py backend/app/mcp/tools/board_manifest_tools.py backend/app/mcp/tools/conversation_tools.py backend/app/mcp/tools/exam_tools.py backend/app/mcp/tools/infra_tools.py backend/app/mcp/tools/mastery_tools.py backend/app/mcp/tools/memory_tools.py backend/app/mcp/tools/note_search_tools.py backend/app/mcp/tools/wikilink_tools.py backend/app/middleware/agent_metrics.py backend/app/middleware/error_handler.py backend/app/middleware/llm_call_logger.py backend/app/middleware/logging_middleware.py backend/app/middleware/metrics.py backend/app/models/agent_routing_models.py backend/app/models/edge_rationale.py backend/app/models/exam_models.py backend/app/models/intelligent_parallel_models.py backend/app/models/memory_schemas.py backend/app/models/metadata_models.py backend/app/models/multimodal_schemas.py backend/app/models/qa_models.py backend/app/models/review_models.py backend/app/models/rollback.py backend/app/models/schemas.py backend/app/models/subject_models.py backend/tests/unit/test_exam_models_rubric_required_u2a.py
+
+exit status 1┃  python-typecheck ❯ 
+
+[Python] Running pyright type check (backend/.venv/bin/pyright)...
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/api/v1/endpoints/profile.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/api/v1/endpoints/profile.py:245:30 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/api/v1/endpoints/profile.py:317:30 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/api/v1/endpoints/profile.py:379:30 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/api/v1/endpoints/tips.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/api/v1/endpoints/tips.py:334:59 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/api/v1/endpoints/tips.py:384:59 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/api/v1/endpoints/tips.py:502:20 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/clients/neo4j_client.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/clients/neo4j_client.py:106:42 - warning: Unnecessary isinstance call; "str" is always an instance of "str" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/clients/neo4j_client.py:1228:16 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/clients/neo4j_client.py:1323:16 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/dependencies.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/dependencies.py:448:5 - warning: Function "_get_rollback_service_dep" is not accessed (reportUnusedFunction)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/dependencies.py:1035:63 - warning: Unnecessary "# pyright: ignore" rule: "reportArgumentType" (reportUnnecessaryTypeIgnoreComment)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/mcp/tools/infra_tools.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/mcp/tools/infra_tools.py:48:38 - warning: Unnecessary isinstance call; "dict[Unknown, Unknown]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/mcp/tools/memory_tools.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/mcp/tools/memory_tools.py:198:40 - warning: Unnecessary isinstance call; "List[Dict[str, Any]]" is always an instance of "list[Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/mcp/tools/memory_tools.py:201:16 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/middleware/agent_metrics.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/middleware/agent_metrics.py:216:36 - warning: Unnecessary "# type: ignore" comment (reportUnnecessaryTypeIgnoreComment)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/middleware/llm_call_logger.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/middleware/llm_call_logger.py:190:5 - warning: Function "_sanitize_kwargs" is not accessed (reportUnusedFunction)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/middleware/logging_middleware.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/middleware/logging_middleware.py:237:11 - warning: Function "_record_classified_error" is not accessed (reportUnusedFunction)
+0 errors, 17 warnings, 0 informations
+WARNING: there is a new pyright version available (v1.1.411 -> v1.1.414).
+Please install the new version or set PYRIGHT_PYTHON_FORCE_VERSION to `latest`
+
+[Python] Typecheck done (exit: 0).
+
+│  readme-claims-lint (skip) no matching staged files
+┃  spec-sync-flat ❯ 
+
+[Spec Sync] API changes detected, regenerating backend/openapi.json (via backend/.venv/bin/python)...
+[92m09:43:46 - LiteLLM:WARNING[0m: get_model_cost_map.py:271 - LiteLLM: Failed to fetch remote model cost map from https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json: socket connect blocked during OpenAPI export (target=('127.0.0.1', 1082)) — check-openapi-drift.py 只允许 import, 不允许 lifespan/网络行为. Falling back to local backup.
+{"event": "LiteLLM: Failed to fetch remote model cost map from https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json: socket connect blocked during OpenAPI export (target=('127.0.0.1', 1082)) \u2014 check-openapi-drift.py \u53ea\u5141\u8bb8 import, \u4e0d\u5141\u8bb8 lifespan/\u7f51\u7edc\u884c\u4e3a. Falling back to local backup.", "logger": "LiteLLM", "level": "warning", "timestamp": "2026-09-11T01:43:46.687512Z"}
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+  from pydantic.v1.fields import FieldInfo as FieldInfoV1
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  import pkg_resources
+Building prefix dict from the default dictionary ...
+Loading model from cache /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/jieba.cache
+Loading model cost 0.291 seconds.
+Prefix dict has been built successfully.
+{"event": "cohere not installed. Cohere API reranking unavailable.", "logger": "agentic_rag.reranking", "level": "info", "timestamp": "2026-09-11T01:43:52.136367Z"}
+{"event": "Agentic RAG module loaded successfully. AGENTIC_RAG_AVAILABLE=True", "logger": "agentic_rag", "level": "info", "timestamp": "2026-09-11T01:43:52.173144Z"}
+{"event": "RAGService: LangGraph/Agentic RAG available. LANGGRAPH_AVAILABLE=True", "logger": "app.services.rag_service", "level": "info", "timestamp": "2026-09-11T01:43:52.173195Z"}
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/api/v1/endpoints/metadata.py:103: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+  canvas_path: str = Query(
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/api/v1/endpoints/metadata.py:177: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+  canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+{"event": "AgentService not available, canvas uses template questions only", "logger": "app.api.v1.endpoints.review", "level": "info", "timestamp": "2026-09-11T01:43:52.460027Z"}
+{"event": "src.rollback not available \u2014 rollback endpoints will return 503", "logger": "app.api.v1.endpoints.rollback", "level": "warning", "timestamp": "2026-09-11T01:43:52.476428Z"}
+{"event": "[MCP] Patched fastapi-mcp anyOf+type schema conflict (v0.4.0 bug)", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-09-11T01:43:52.759055Z"}
+{"event": "[P0-2] Registered 6 read-only MCP tool routes + 14 quarantined (410) stubs", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-09-11T01:43:52.775459Z"}
+{"event": "[MCP] Stripped spurious 'type' from 325 anyOf properties across 208 tools", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-09-11T01:43:53.261181Z"}
+{"event": "No auth config provided, skipping auth setup", "logger": "fastapi_mcp.server", "level": "info", "timestamp": "2026-09-11T01:43:53.262157Z"}
+{"event": "MCP HTTP server listening at /mcp", "logger": "fastapi_mcp.server", "level": "info", "timestamp": "2026-09-11T01:43:53.262196Z"}
+{"event": "[Story 3.2] MCP server mounted at /mcp (streamable HTTP) with canvas-learning tools", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-09-11T01:43:53.262220Z"}
+WROTE: backend/openapi.json (paths=197 schemas=357, x-generated-at=2026-09-11T01:43:53.838810+00:00)
+[Spec Sync] + backend/openapi.json staged
+
+│  spec-sync-root (skip) no matching staged files
+                                      
+  ────────────────────────────────────
+summary: (done in 15.39 seconds)      
+✔️ ghost-files (0.02 seconds)
+✔️ mutant-residue-scan (0.64 seconds)
+✔️ python-typecheck (5.84 seconds)
+✔️ spec-sync-flat (8.85 seconds)
+🥊 python-lint (0.04 seconds)
+rc=1

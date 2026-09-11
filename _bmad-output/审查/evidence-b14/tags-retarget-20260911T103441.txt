@@ -1,0 +1,16 @@
+# 三个误导 tag 重指（旧目标 → 新目标）；guard 禁 tag -d，用 tag -f 重指，不删
+merged-squash/card-u1-pyright-svc: 539ea88d -> acc37470
+merged-squash/card-u2-pyright-rest: 725a3239 -> 699cad96
+merged-squash/card-u6-reviewtime: 8e517721 -> af6a62c2
+-- all 12 merged-squash/card-u* tags --
+merged-squash/card-u1-pyright-svc -> acc37470  tip=acc37470
+merged-squash/card-u10-red-a -> 7e387954  tip=7e387954
+merged-squash/card-u11-red-c -> 420f8447  tip=420f8447
+merged-squash/card-u2-pyright-rest -> 699cad96  tip=699cad96
+merged-squash/card-u3-deploy -> 0e266eb3  tip=0e266eb3
+merged-squash/card-u4-hosts -> eb087b72  tip=eb087b72
+merged-squash/card-u5-lance -> 2ead7641  tip=2ead7641
+merged-squash/card-u6-reviewtime -> af6a62c2  tip=af6a62c2
+merged-squash/card-u7-w4guard -> 25ea2008  tip=25ea2008
+merged-squash/card-u8-mutgates -> 27e9a313  tip=27e9a313
+merged-squash/card-u9-mastery -> 19d92643  tip=19d92643

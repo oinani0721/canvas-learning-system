@@ -1,0 +1,19 @@
+integ HEAD=622f3a5d  u2 tip=7e32413d  merge-base=286178d8
+Auto-merging backend/openapi.json
+CONFLICT (content): Merge conflict in backend/openapi.json
+Recorded preimage for 'backend/openapi.json'
+Squash commit -- not updating HEAD
+Automatic merge failed; fix conflicts and then commit the result.
+merge rc=1
+-- unmerged before pin --
+backend/openapi.json
+openapi pinned to HEAD
+-- unmerged after pin --
+-- .stderr staged --
+0
+-- staged code files --
+      62
+-- exam_service blob (index) must be 7bef58be --
+7bef58bef24109d27d6ce38775828ca1ab68d642
+-- equiv restricted to U2 files (excl openapi) --
+(empty above = 等价)

@@ -1,0 +1,11 @@
+before: 286178d8 worktree-feature-obsidian-hybrid-dev
+ create mode 100644 "_bmad-output/\351\252\214\346\224\266\345\215\225/UAT-CARD-PYRIGHT-DEBT-rest-2026-09-11-v2.md"
+ create mode 100644 "_bmad-output/\351\252\214\346\224\266\345\215\225/UAT-CARD-PYRIGHT-DEBT-services-2026-09-08.md"
+ create mode 100644 backend/tests/unit/test_exam_models_rubric_required_u2a.py
+rc=0
+after: 081004834e37b1b0253cf81dc7b44e784646c934
+08100483 docs(u1-pyright-svc): 集成期存档卫生——剔 2 份失败运行产物 + 验收单 glob 写全名 [BATCH-2026-09-07-第十三批]
+b11829b1 docs(u2-pyright-rest): 车道收尾证据尾巴 7e32413d..699cad96 [BATCH-2026-09-07-第十三批]
+b4705dde chore(u2-pyright-rest): 车道级 squash CARD-PYRIGHT-DEBT-rest 阶段 0+1+2 [BATCH-2026-09-07-第十三批]
+622f3a5d chore(u1-pyright-svc): 车道级 squash CARD-PYRIGHT-DEBT-services 阶段 1+2 [BATCH-2026-09-07-第十三批]
+c3912b42 chore(u6-reviewtime-c): 车道级 squash CARD-G6-6 [BATCH-2026-09-07-第十三批]

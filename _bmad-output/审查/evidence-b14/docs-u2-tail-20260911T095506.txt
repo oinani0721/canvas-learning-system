@@ -1,0 +1,12 @@
+-- code diff 7e32413d..699cad96 (must be empty) --
+-- files --
+_bmad-output/审查/evidence-pyright-rest/crosslane-dependency-check-20260911T094433.txt
+_bmad-output/审查/evidence-pyright-rest/u1-half-independent-check-20260911T094323.txt
+apply OK
+-- .stderr staged --
+0
+ 2 files changed, 24 insertions(+)
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/crosslane-dependency-check-20260911T094433.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/u1-half-independent-check-20260911T094323.txt"
+rc=0
+b11829b1 docs(u2-pyright-rest): 车道收尾证据尾巴 7e32413d..699cad96 [BATCH-2026-09-07-第十三批]

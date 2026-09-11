@@ -1,0 +1,196 @@
+╭──────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: pre-commit │
+╰──────────────────────────────────────╯
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+│  cypher-vault-filter-lint (skip) no matching staged files
+┃  ghost-files ❯ 
+
+[Ghost Files] No untracked docs found.
+
+┃  mutant-residue-scan ❯ 
+
+[Mutant-Scan] OK (staged additions carry no mutation marker).
+
+┃  python-lint ❯ 
+
+[Python] Running ruff lint...
+All checks passed!
+[Python] Lint OK.
+[Python] Checking format...
+Would reformat: backend/app/services/agent_routing_engine.py
+Would reformat: backend/app/services/agent_selector.py
+Would reformat: backend/app/services/agent_service.py
+Would reformat: backend/app/services/alert_manager.py
+Would reformat: backend/app/services/archive_scheduler.py
+Would reformat: backend/app/services/autoscore.py
+Would reformat: backend/app/services/background_task_manager.py
+Would reformat: backend/app/services/batch_orchestrator.py
+Would reformat: backend/app/services/calibration_tracker.py
+Would reformat: backend/app/services/candidate_expiry_service.py
+Would reformat: backend/app/services/candidate_service.py
+Would reformat: backend/app/services/context_enrichment_service.py
+Would reformat: backend/app/services/conversation_archive.py
+Would reformat: backend/app/services/conversation_distiller.py
+Would reformat: backend/app/services/conversation_inheritance.py
+Would reformat: backend/app/services/difficulty_matcher.py
+Would reformat: backend/app/services/error_aggregator.py
+Would reformat: backend/app/services/error_classifier.py
+Would reformat: backend/app/services/error_extractor.py
+Would reformat: backend/app/services/event_bus.py
+Would reformat: backend/app/services/event_handlers.py
+Would reformat: backend/app/services/exam_service.py
+Would reformat: backend/app/services/extraction_validator.py
+Would reformat: backend/app/services/graphiti_belief_service.py
+Would reformat: backend/app/services/health_monitor.py
+Would reformat: backend/app/services/intelligent_grouping_service.py
+Would reformat: backend/app/services/intelligent_parallel_service.py
+Would reformat: backend/app/services/learning_context_service.py
+Would reformat: backend/app/services/mastery_engine.py
+Would reformat: backend/app/services/mastery_store.py
+Would reformat: backend/app/services/memory_service.py
+Would reformat: backend/app/services/multimodal_service.py
+Would reformat: backend/app/services/prompt_registry.py
+Would reformat: backend/app/services/rag_service.py
+Would reformat: backend/app/services/rollback_service.py
+Would reformat: backend/app/services/scoring_faithfulness.py
+Would reformat: backend/app/services/signal_registry.py
+Would reformat: backend/app/services/skill_registry.py
+Would reformat: backend/app/services/subject_resolver.py
+Would reformat: backend/app/services/websocket_manager.py
+Would reformat: backend/app/services/weight_calculator.py
+Would reformat: backend/app/services/wikilink_graph_service.py
+42 files would be reformatted, 21 files already formatted
+[Python] Format check FAILED! Fix: ruff format backend/app/services/agent_routing_engine.py backend/app/services/agent_selector.py backend/app/services/agent_service.py backend/app/services/alert_manager.py backend/app/services/archive_scheduler.py backend/app/services/autoscore.py backend/app/services/background_task_manager.py backend/app/services/batch_orchestrator.py backend/app/services/calibration_tracker.py backend/app/services/candidate_expiry_service.py backend/app/services/candidate_service.py backend/app/services/canvas_projection_sync.py backend/app/services/canvas_service.py backend/app/services/context_enrichment_service.py backend/app/services/conversation_archive.py backend/app/services/conversation_distiller.py backend/app/services/conversation_inheritance.py backend/app/services/cross_subject_bridge.py backend/app/services/difficulty_matcher.py backend/app/services/episode_worker.py backend/app/services/error_aggregator.py backend/app/services/error_classifier.py backend/app/services/error_extractor.py backend/app/services/error_rebuild_service.py backend/app/services/event_bus.py backend/app/services/event_handlers.py backend/app/services/exam_service.py backend/app/services/exam_service_ext.py backend/app/services/extraction_validator.py backend/app/services/fallback_sync_service.py backend/app/services/frontmatter_signals.py backend/app/services/graphiti_belief_service.py backend/app/services/health_monitor.py backend/app/services/intelligent_grouping_service.py backend/app/services/intelligent_parallel_service.py backend/app/services/lancedb_index_service.py backend/app/services/learning_context_service.py backend/app/services/mastery_engine.py backend/app/services/mastery_fusion.py backend/app/services/mastery_store.py backend/app/services/memory_service.py backend/app/services/multimodal_service.py backend/app/services/notification_channels.py backend/app/services/prompt_registry.py backend/app/services/question_generator.py backend/app/services/rag_service.py backend/app/services/react_agent.py backend/app/services/recommendation_service.py backend/app/services/retrieval_reranker.py backend/app/services/review_service.py backend/app/services/rollback_service.py backend/app/services/scoring_faithfulness.py backend/app/services/signal_registry.py backend/app/services/skill_registry.py backend/app/services/subject_resolver.py backend/app/services/sync_service.py backend/app/services/targeting_material_service.py backend/app/services/tool_executor.py backend/app/services/vault_index_orchestrator.py backend/app/services/verification_service.py backend/app/services/websocket_manager.py backend/app/services/weight_calculator.py backend/app/services/wikilink_graph_service.py
+
+exit status 1┃  python-typecheck ❯ 
+
+[Python] Running pyright type check (backend/.venv/bin/pyright)...
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/agent_service.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/agent_service.py:63:28 - warning: Unnecessary "# type: ignore" comment (reportUnnecessaryTypeIgnoreComment)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/agent_service.py:256:24 - warning: Unnecessary isinstance call; "str" is always an instance of "str" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/agent_service.py:1485:18 - error: Import "agentic_rag.clients.graphiti_client" could not be resolved (reportMissingImports)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/agent_service.py:1486:18 - error: Import "agentic_rag.clients.lancedb_client" could not be resolved (reportMissingImports)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/agent_service.py:1497:66 - warning: Unnecessary "# type: ignore" comment (reportUnnecessaryTypeIgnoreComment)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/agent_service.py:1501:68 - warning: Unnecessary "# type: ignore" comment (reportUnnecessaryTypeIgnoreComment)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/agent_service.py:1539:18 - error: Import "agentic_rag.clients.graphiti_client" could not be resolved (reportMissingImports)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/agent_service.py:1540:18 - error: Import "agentic_rag.clients.lancedb_client" could not be resolved (reportMissingImports)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/agent_service.py:1563:68 - warning: Unnecessary "# type: ignore" comment (reportUnnecessaryTypeIgnoreComment)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/agent_service.py:1845:52 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/agent_service.py:1889:52 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/agent_service.py:2498:28 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/agent_service.py:2502:28 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/agent_service.py:2779:49 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/agent_service.py:3041:18 - error: Import "agentic_rag.agent_graph" could not be resolved (reportMissingImports)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/agent_service.py:3070:66 - warning: Unnecessary "# type: ignore" comment (reportUnnecessaryTypeIgnoreComment)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/agent_service.py:3189:28 - warning: Unnecessary isinstance call; "AgentType" is always an instance of "AgentType" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/agent_service.py:3211:57 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/agent_service.py:3677:33 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/agent_service.py:3680:55 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/agent_service.py:3700:64 - warning: Unnecessary "# type: ignore" comment (reportUnnecessaryTypeIgnoreComment)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/agent_service.py:4180:22 - error: Import "memory.temporal.fsrs_manager" could not be resolved (reportMissingImports)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/agent_service.py:4595:32 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/archive_scheduler.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/archive_scheduler.py:191:12 - warning: Unnecessary isinstance call; "List[Dict[str, Any]]" is always an instance of "list[Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/archive_scheduler.py:193:20 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/candidate_service.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/candidate_service.py:148:12 - warning: Unnecessary isinstance call; "dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/context_enrichment_service.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/context_enrichment_service.py:38:31 - warning: Unnecessary "# type: ignore" comment (reportUnnecessaryTypeIgnoreComment)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/conversation_archive.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/conversation_archive.py:108:20 - warning: Unnecessary isinstance call; "List[Dict[str, Any]]" is always an instance of "list[Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/conversation_archive.py:111:24 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/conversation_archive.py:504:12 - warning: Unnecessary isinstance call; "List[Dict[str, Any]]" is always an instance of "list[Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/conversation_archive.py:506:24 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/episode_worker.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/episode_worker.py:191:12 - warning: Unnecessary isinstance call; "str" is always an instance of "str" (reportUnnecessaryIsInstance)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/error_aggregator.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/error_aggregator.py:269:18 - error: Arguments missing for parameters "llm_errors", "network_errors", "algorithm_errors", "data_errors", "uncategorized" (reportCallIssue)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/exam_service.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/exam_service.py:371:38 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/exam_service_ext.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/exam_service_ext.py:204:48 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/exam_service_ext.py:315:16 - error: Arguments missing for parameters "hint_available", "max_allowed_level" (reportCallIssue)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/exam_service_ext.py:495:34 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/exam_service_ext.py:693:34 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/exam_service_ext.py:698:16 - error: Argument missing for parameter "record_id" (reportCallIssue)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/exam_service_ext.py:784:40 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/exam_service_ext.py:791:30 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/exam_service_ext.py:829:30 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/exam_service_ext.py:891:30 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/extraction_validator.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/extraction_validator.py:238:16 - error: Argument missing for parameter "updated_at" (reportCallIssue)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/health_monitor.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/health_monitor.py:227:20 - error: Argument missing for parameter "message" (reportCallIssue)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/health_monitor.py:270:20 - error: Argument missing for parameter "message" (reportCallIssue)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/intelligent_parallel_service.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/intelligent_parallel_service.py:383:33 - error: Argument missing for parameter "file_size" (reportCallIssue)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/lancedb_index_service.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/lancedb_index_service.py:491:18 - error: Import "agentic_rag.clients.lancedb_client" could not be resolved (reportMissingImports)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/learning_context_service.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/learning_context_service.py:51:5 - warning: Function "_empty_context" is not accessed (reportUnusedFunction)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/mastery_engine.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/mastery_engine.py:54:10 - error: Import "memory.temporal.fsrs_manager" could not be resolved (reportMissingImports)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/memory_service.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/memory_service.py:1739:34 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/memory_service.py:2060:35 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/multimodal_service.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/multimodal_service.py:299:48 - warning: Unnecessary "# type: ignore" comment (reportUnnecessaryTypeIgnoreComment)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/multimodal_service.py:603:20 - error: Arguments missing for parameters "width", "height", "duration", "page_count", "author", "title", "language" (reportCallIssue)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/multimodal_service.py:628:22 - error: Import "agentic_rag.models.multimodal_content" could not be resolved (reportMissingImports)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/multimodal_service.py:650:28 - error: Arguments missing for parameters "extracted_text", "source_location", "updated_at" (reportCallIssue)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/multimodal_service.py:747:20 - error: Arguments missing for parameters "width", "height", "duration", "page_count", "author", "title", "language" (reportCallIssue)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/multimodal_service.py:771:28 - error: Arguments missing for parameters "extracted_text", "source_location", "updated_at" (reportCallIssue)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/multimodal_service.py:843:34 - error: Arguments missing for parameters "author", "title", "language" (reportCallIssue)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/multimodal_service.py:1221:26 - error: Import "agentic_rag.models.multimodal_content" could not be resolved (reportMissingImports)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/multimodal_service.py:1337:30 - error: Import "agentic_rag.models.multimodal_content" could not be resolved (reportMissingImports)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/multimodal_service.py:1497:26 - error: Import "agentic_rag.models.multimodal_content" could not be resolved (reportMissingImports)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/multimodal_service.py:1521:26 - error: Import "agentic_rag.models.multimodal_content" could not be resolved (reportMissingImports)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/question_generator.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/question_generator.py:1002:38 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/rag_service.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/rag_service.py:51:10 - error: Import "agentic_rag" could not be resolved (reportMissingImports)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/review_service.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/review_service.py:89:10 - error: Import "memory.temporal.fsrs_manager" could not be resolved (reportMissingImports)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/review_service.py:715:44 - warning: Unnecessary isinstance call; "ReviewStatus" is always an instance of "ReviewStatus" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/review_service.py:1932:24 - warning: Unnecessary isinstance call; "str" is always an instance of "str" (reportUnnecessaryIsInstance)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/scoring_faithfulness.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/scoring_faithfulness.py:43:31 - warning: Unnecessary "# type: ignore" comment (reportUnnecessaryTypeIgnoreComment)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/targeting_material_service.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/targeting_material_service.py:192:52 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/vault_index_orchestrator.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/vault_index_orchestrator.py:169:22 - error: Import "agentic_rag.clients" could not be resolved (reportMissingImports)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/vault_index_orchestrator.py:170:22 - error: Import "agentic_rag.config" could not be resolved (reportMissingImports)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/vault_index_orchestrator.py:207:14 - error: Import "agentic_rag.clients.lancedb_client" could not be resolved (reportMissingImports)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/vault_index_orchestrator.py:227:18 - error: Import "agentic_rag.clients.lancedb_client" could not be resolved (reportMissingImports)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/vault_index_orchestrator.py:531:14 - error: Import "agentic_rag.clients.lancedb_client" could not be resolved (reportMissingImports)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/vault_index_orchestrator.py:542:18 - error: Import "agentic_rag.clients.lancedb_client" could not be resolved (reportMissingImports)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/verification_service.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/verification_service.py:120:24 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/wikilink_graph_service.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ/backend/app/services/wikilink_graph_service.py:409:27 - warning: Unnecessary isinstance call; "str" is always an instance of "str" (reportUnnecessaryIsInstance)
+33 errors, 45 warnings, 0 informations
+WARNING: there is a new pyright version available (v1.1.411 -> v1.1.414).
+Please install the new version or set PYRIGHT_PYTHON_FORCE_VERSION to `latest`
+
+[Python] Type errors found! Review and fix before committing.
+[Python] Hint: Some errors may be pre-existing. Focus on YOUR changes.
+[Python] Typecheck done (exit: 1).
+
+exit status 1│  readme-claims-lint (skip) no matching staged files
+│  spec-sync-flat (skip) no matching staged files
+│  spec-sync-root (skip) no matching staged files
+                                      
+  ────────────────────────────────────
+summary: (done in 6.74 seconds)       
+✔️ ghost-files (0.02 seconds)
+✔️ mutant-residue-scan (0.70 seconds)
+🥊 python-lint (0.05 seconds)
+🥊 python-typecheck (5.97 seconds)
+rc=1

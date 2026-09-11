@@ -2,7 +2,9 @@
 
 > 队列 1~3 全部 squash 进候选树并 ff 主干后本文件生效。**生效候选树 sha = 主干 HEAD（见下）**。
 
-## 阶段 2 开工：候选树 `<本文件提交时的主干 HEAD，见 git log>`
+> **2026-09-11 波 0 收口回填**：本文件生效候选树 sha = **`286178d8`**（第十三批第一阶段合入 commit）。**阶段 2 已按甲于波 0 收口**：U6-C `c3912b42`（终审 `64d18ecf`）→ U1-A `622f3a5d`（终审 `ccd2a4d1`，tip `acc37470`）→ U2-A `b4705dde`（终审 `9c2ee90b`，tip `699cad96`）→ U2 文档尾巴 `b11829b1` → U1 存档卫生 `08100483`；候选树 `pyright app` = 0 errors / 81 warnings；U2-B GATE → 第十四批 T8-G。以下正文为 2026-09-10 原通告，保留作历史。
+
+## 阶段 2 开工：候选树 `286178d8`
 
 ### U1（card-u1-pyright-svc）与 U2（card-u2-pyright-rest）都照此执行
 1. `git merge --no-edit <主干 HEAD>`（主干 ff 后候选树 sha = 主干 HEAD；禁 rebase；冲突停下报主 session）。

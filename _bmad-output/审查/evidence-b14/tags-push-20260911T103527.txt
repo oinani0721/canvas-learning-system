@@ -1,0 +1,12 @@
+# 12 个 merged-squash/card-u* tag 逐个推 origin 与 backup（不强推；origin 上 u6 旧目标 8e517721 的非 ff 更新留给用户）
+origin merged-squash/card-u1-pyright-svc ::  * [new tag]           merged-squash/card-u1-pyright-svc -> merged-squash/card-u1-pyright-svc
+backup merged-squash/card-u1-pyright-svc ::  * [new tag]           merged-squash/card-u1-pyright-svc -> merged-squash/card-u1-pyright-svc
+origin merged-squash/card-u10-red-a :: Everything up-to-date
+backup merged-squash/card-u10-red-a ::  * [new tag]           merged-squash/card-u10-red-a -> merged-squash/card-u10-red-a
+origin merged-squash/card-u11-red-c :: Everything up-to-date
+backup merged-squash/card-u11-red-c ::  * [new tag]           merged-squash/card-u11-red-c -> merged-squash/card-u11-red-c
+origin merged-squash/card-u2-pyright-rest ::  * [new tag]           merged-squash/card-u2-pyright-rest -> merged-squash/card-u2-pyright-rest
+backup merged-squash/card-u2-pyright-rest :: Everything up-to-date
+origin merged-squash/card-u3-deploy :: fatal: unable to access 'https://github.com/oinani0721/canvas-learning-system.git/': Could not resolve host: github.com
+backup merged-squash/card-u3-deploy :: fatal: unable to access 'https://github.com/oinani0721/canvas-learning-system-backup.git/': Could not resolve host: github.com
+origin merged-squash/card-u4-hosts :: fatal: unable to access 'https://github.com/oinani0721/canvas-learning-system.git/': Could not resolve host: github.com

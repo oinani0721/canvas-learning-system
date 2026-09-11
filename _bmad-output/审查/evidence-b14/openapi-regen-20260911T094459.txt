@@ -1,0 +1,15 @@
+# 仓根执行: backend/.venv/bin/python scripts/spec-tools/check-openapi-drift.py --write backend/openapi.json  (HEAD=b4705dde)
+{"event": "src.rollback not available \u2014 rollback endpoints will return 503", "logger": "app.api.v1.endpoints.rollback", "level": "warning", "timestamp": "2026-09-11T01:45:05.570931Z"}
+{"event": "[MCP] Patched fastapi-mcp anyOf+type schema conflict (v0.4.0 bug)", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-09-11T01:45:05.832712Z"}
+{"event": "[P0-2] Registered 6 read-only MCP tool routes + 14 quarantined (410) stubs", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-09-11T01:45:05.843028Z"}
+{"event": "[MCP] Stripped spurious 'type' from 325 anyOf properties across 208 tools", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-09-11T01:45:06.324919Z"}
+{"event": "No auth config provided, skipping auth setup", "logger": "fastapi_mcp.server", "level": "info", "timestamp": "2026-09-11T01:45:06.325892Z"}
+{"event": "MCP HTTP server listening at /mcp", "logger": "fastapi_mcp.server", "level": "info", "timestamp": "2026-09-11T01:45:06.325931Z"}
+{"event": "[Story 3.2] MCP server mounted at /mcp (streamable HTTP) with canvas-learning tools", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-09-11T01:45:06.325957Z"}
+WROTE: backend/openapi.json (paths=197 schemas=357, x-generated-at=2026-09-11T01:45:06.905412+00:00)
+rc=0
+-- diff stat --
+ backend/openapi.json | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+-- new paths vs HEAD --
+paths old/new: 197 197

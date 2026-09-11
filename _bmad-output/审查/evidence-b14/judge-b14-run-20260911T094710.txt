@@ -1,0 +1,28 @@
+== judge_b14 start 20260911T094710 HEAD=b4705dde (工作树含未提交 openapi 再生) ==
+== 1. tests/skills 目录级（A-8 复跑）==
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+====================== 546 passed, 22 warnings in 55.17s =======================
+rc=0
+== 2. tests/unit 目录级（W4 门下；R-15 文件级 --ignore test_deploy_vault_sh.py）==
+ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPartialFailureRecovery::test_neo4j_unavailable_fallback
+= 35 failed, 5077 passed, 48 skipped, 23 xfailed, 171 warnings, 29 errors in 312.91s (0:05:12) =
+rc=1
+基线 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/审查/evidence-b13-integ/unit-integ5-20260911T010612.nodeids (65 条) vs 本次 64 条
+only_greater(本次新增)=0 only_less(本次消失)=1
+-- 新增 --
+-- 消失 --
+FAILED tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422
+== 3. tests/api 目录级 ==
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================= 268 passed, 40 warnings in 1.74s =======================
+rc=0
+== 4. tests/regression 目录级 ==
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+===== 1674 passed, 6 skipped, 1 xfailed, 547 warnings in 395.14s (0:06:35) =====
+rc=0
+== 5. tests/contract 定向 -k setup-wizard --hypothesis-seed=0 ==
+==================== 194 deselected, 10 warnings in 28.03s =====================
+<sys>:0: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
+rc=5
+== 6. 裁判后 backend/ 工作树状态（应只有 openapi.json）==
+== judge_b14 done 20260911T100127 TS=20260911T094710 ==

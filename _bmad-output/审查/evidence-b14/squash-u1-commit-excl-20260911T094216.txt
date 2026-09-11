@@ -1,0 +1,10 @@
+# R-14 过渡条款提交：LEFTHOOK_EXCLUDE=python-lint,python-typecheck（被跳过门原始输出见 squash-u1-commit-*.txt：ruff format 63 services 文件 = 主干既有 462 基线漂移；pyright 33 errors = U2 阶段 0 面残余，U2 合入后复跑归零见 pyright-app-after-u2-*.txt）
+
+[Spec Ref] OK.
+
+                                      
+  ────────────────────────────────────
+summary: (done in 0.36 seconds)       
+✔️ spec-reference (0.03 seconds)
+🥊 commitlint (0.33 seconds)
+rc=1

@@ -1,0 +1,5 @@
+基线 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/审查/evidence-b13-integ/unit-integ5-20260911T010612.nodeids (65 条) vs 本次 64 条
+only_greater(本次新增)=0 only_less(本次消失)=1
+-- 新增 --
+-- 消失 --
+FAILED tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422
