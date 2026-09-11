@@ -1,0 +1,82 @@
+# Codex round-7 第 5 点: 补逐例定位 (原存档只有摘要, 无法排除「三例因别的异常红、一例命中」)
+# 判据加严: 不只看「目标断言出现过」, 而是**每一条红**都必须落在指定断言上
+=== pre-mutation sha ===
+3aaa222879c932b0e63c831f27f8b678e70fe71bf4035470d16f1348bdc0d6c0  backend/tests/unit/test_review_overview.py
+7578976884ffbe787accaccff8666cf1e134f92149dc2e8299dc994f44698e1e  scripts/daily_review_pick.py
+
+=== 对照: 未变异基线 ===
+====================== 4 passed, 108 deselected in 1.66s =======================
+rc=0
+
+=== MUT-1 前提门: _pin_child_now 不再追加 --now (退回单侧钉钟) ===
+变异点 count=1 (必须 == 1)
+====================== 4 failed, 108 deselected in 1.59s =======================
+-- 逐例失败点 (--tb=line) --
+   /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/tests/unit/test_review_overview.py:4024: AssertionError: 第 1 次子进程 argv 里没有 --now (钉子没落上): ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/scripts/daily_review_pick.py', '--vault', '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23516/test_g66_end_to_end_snooze_yie0/vault-e2e', '--write', '--state', '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23516/test_g66_end_to_end_snooze_yie0/backups/daily-review.vault-e2e.state.json']
+   /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/tests/unit/test_review_overview.py:4024: AssertionError: 第 1 次子进程 argv 里没有 --now (钉子没落上): ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/scripts/daily_review_pick.py', '--vault', '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23516/test_g66_e2e_snooze_verdict_is0/vault-clockfree', '--write', '--state', '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23516/test_g66_e2e_snooze_verdict_is0/backups/daily-review.vault-clockfree.state.json']
+   /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/tests/unit/test_review_overview.py:4024: AssertionError: 第 1 次子进程 argv 里没有 --now (钉子没落上): ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/scripts/daily_review_pick.py', '--vault', '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23516/test_g66_e2e_snooze_verdict_is1/vault-clockfree', '--write', '--state', '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23516/test_g66_e2e_snooze_verdict_is1/backups/daily-review.vault-clockfree.state.json']
+   /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/tests/unit/test_review_overview.py:4024: AssertionError: 第 1 次子进程 argv 里没有 --now (钉子没落上): ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/scripts/daily_review_pick.py', '--vault', '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23516/test_g66_e2e_snooze_verdict_is2/vault-clockfree', '--write', '--state', '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23516/test_g66_e2e_snooze_verdict_is2/backups/daily-review.vault-clockfree.state.json']
+-- 逐例 nodeid --
+   FAILED tests/unit/test_review_overview.py::test_g66_end_to_end_snooze_yields_top_slot_in_the_real_projection
+   FAILED tests/unit/test_review_overview.py::test_g66_e2e_snooze_verdict_is_clock_independent[2020-01-02T10:00:00]
+   FAILED tests/unit/test_review_overview.py::test_g66_e2e_snooze_verdict_is_clock_independent[2026-09-09T10:00:00]
+   FAILED tests/unit/test_review_overview.py::test_g66_e2e_snooze_verdict_is_clock_independent[2099-12-30T10:00:00]
+判据断言 '子进程 argv 里没有 --now (钉子没落上)': 出现=True; 逐例命中 4/4 条红
+判定: KILLED (全部红在指定断言上)
+rc=1
+
+=== MUT-2 结论门(生产侧): active_snoozed 恒返回空 ===
+变异点 count=1 (必须 == 1)
+====================== 4 failed, 108 deselected in 1.62s =======================
+-- 逐例失败点 (--tb=line) --
+   /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/tests/unit/test_review_overview.py:4451: AssertionError: 被推迟的板必须让出榜首
+   /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/tests/unit/test_review_overview.py:4505: AssertionError: pinned=2020-01-02T10:00:00: 被推迟的板必须让出榜首
+   /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/tests/unit/test_review_overview.py:4505: AssertionError: pinned=2026-09-09T10:00:00: 被推迟的板必须让出榜首
+   /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/tests/unit/test_review_overview.py:4505: AssertionError: pinned=2099-12-30T10:00:00: 被推迟的板必须让出榜首
+-- 逐例 nodeid --
+   FAILED tests/unit/test_review_overview.py::test_g66_end_to_end_snooze_yields_top_slot_in_the_real_projection
+   FAILED tests/unit/test_review_overview.py::test_g66_e2e_snooze_verdict_is_clock_independent[2020-01-02T10:00:00]
+   FAILED tests/unit/test_review_overview.py::test_g66_e2e_snooze_verdict_is_clock_independent[2026-09-09T10:00:00]
+   FAILED tests/unit/test_review_overview.py::test_g66_e2e_snooze_verdict_is_clock_independent[2099-12-30T10:00:00]
+判据断言 '被推迟的板必须让出榜首': 出现=True; 逐例命中 4/4 条红
+判定: KILLED (全部红在指定断言上)
+rc=1
+
+=== MUT-3 参数化承重: active_snoozed 只在 2026 年判活跃 ===
+变异点 count=1 (必须 == 1)
+================= 2 failed, 2 passed, 108 deselected in 1.50s ==================
+-- 逐例失败点 (--tb=line) --
+   /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/tests/unit/test_review_overview.py:4505: AssertionError: pinned=2020-01-02T10:00:00: 被推迟的板必须让出榜首
+   /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/tests/unit/test_review_overview.py:4505: AssertionError: pinned=2099-12-30T10:00:00: 被推迟的板必须让出榜首
+-- 逐例 nodeid --
+   FAILED tests/unit/test_review_overview.py::test_g66_e2e_snooze_verdict_is_clock_independent[2020-01-02T10:00:00]
+   FAILED tests/unit/test_review_overview.py::test_g66_e2e_snooze_verdict_is_clock_independent[2099-12-30T10:00:00]
+判据断言 '被推迟的板必须让出榜首': 出现=True; 逐例命中 2/2 条红
+判定: KILLED (全部红在指定断言上)
+rc=1
+
+=== MUT-4 逐条检查(Codex r6 第2点): _pin_child_now 只钉第一次调用 ===
+变异点 count=1 (必须 == 1)
+====================== 4 failed, 108 deselected in 1.58s =======================
+-- 逐例失败点 (--tb=line) --
+   /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/tests/unit/test_review_overview.py:4024: AssertionError: 第 2 次子进程 argv 里没有 --now (钉子没落上): ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/scripts/daily_review_pick.py', '--vault', '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23519/test_g66_end_to_end_snooze_yie0/vault-e2e', '--write', '--state', '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23519/test_g66_end_to_end_snooze_yie0/backups/daily-review.vault-e2e.state.json']
+   /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/tests/unit/test_review_overview.py:4024: AssertionError: 第 2 次子进程 argv 里没有 --now (钉子没落上): ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/scripts/daily_review_pick.py', '--vault', '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23519/test_g66_e2e_snooze_verdict_is0/vault-clockfree', '--write', '--state', '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23519/test_g66_e2e_snooze_verdict_is0/backups/daily-review.vault-clockfree.state.json']
+   /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/tests/unit/test_review_overview.py:4024: AssertionError: 第 2 次子进程 argv 里没有 --now (钉子没落上): ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/scripts/daily_review_pick.py', '--vault', '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23519/test_g66_e2e_snooze_verdict_is1/vault-clockfree', '--write', '--state', '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23519/test_g66_e2e_snooze_verdict_is1/backups/daily-review.vault-clockfree.state.json']
+   /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/tests/unit/test_review_overview.py:4024: AssertionError: 第 2 次子进程 argv 里没有 --now (钉子没落上): ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/scripts/daily_review_pick.py', '--vault', '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23519/test_g66_e2e_snooze_verdict_is2/vault-clockfree', '--write', '--state', '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23519/test_g66_e2e_snooze_verdict_is2/backups/daily-review.vault-clockfree.state.json']
+-- 逐例 nodeid --
+   FAILED tests/unit/test_review_overview.py::test_g66_end_to_end_snooze_yields_top_slot_in_the_real_projection
+   FAILED tests/unit/test_review_overview.py::test_g66_e2e_snooze_verdict_is_clock_independent[2020-01-02T10:00:00]
+   FAILED tests/unit/test_review_overview.py::test_g66_e2e_snooze_verdict_is_clock_independent[2026-09-09T10:00:00]
+   FAILED tests/unit/test_review_overview.py::test_g66_e2e_snooze_verdict_is_clock_independent[2099-12-30T10:00:00]
+判据断言 '第 2 次子进程 argv 里没有 --now (钉子没落上)': 出现=True; 逐例命中 4/4 条红
+判定: KILLED (全部红在指定断言上)
+rc=1
+
+=== post-mutation sha (必须与 pre 逐字节相同) ===
+3aaa222879c932b0e63c831f27f8b678e70fe71bf4035470d16f1348bdc0d6c0  backend/tests/unit/test_review_overview.py
+7578976884ffbe787accaccff8666cf1e134f92149dc2e8299dc994f44698e1e  scripts/daily_review_pick.py
+
+=== 还原后复跑基线 ===
+====================== 4 passed, 108 deselected in 1.59s =======================
+rc=0
+rc=0

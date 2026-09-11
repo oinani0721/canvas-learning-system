@@ -1,0 +1,37 @@
+# U6-C 收尾核对 @ 2026-09-11T09:06:03+0800
+## 代码终审 SHA
+64d18ecfa9d20c1109e4071ca9745077dfa4a408
+## HEAD
+de40c5c300bc62c95c3c95cfe5fc0291684279b1
+## 绑定: git diff --stat 64d18ecf HEAD -- . ':(exclude)_bmad-output'  (空=仍绑)
+rc=0
+## 反例自检(同命令对 8e517721, 必须有输出 = pathspec 没被吃掉)
+ backend/tests/unit/test_review_overview.py | 126 ++++++++++++++++++++++++++++-
+ 1 file changed, 125 insertions(+), 1 deletion(-)
+## 本卡续修改动面(8e517721..HEAD, 排除 _bmad-output)
+backend/tests/unit/test_review_overview.py
+## 禁改面: canvas-vault/ 与 backups/ 改动数
+       0
+## 本次四个 commit 里的 .stderr 数
+0
+## 工作树未提交(代码面)
+       0
+## 现网两文件 mtime
+2026-09-11T09:05:07  /Users/Heishing/Desktop/canvas/canvas-learning-system/backups/daily-review.canvas-vault.state.json
+2026-09-11T09:05:05  /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/outputs/今日复习.json
+## canvas-vault 内 __pycache__ 数
+       2
+
+## 收尾核对后的两处自我更正 (查实过程)
+### ① live vault 的 __pycache__ 是历史残渣, 非本次
+2026-07-22T11:56:01  /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/.claude/hooks/__pycache__/session-end-archive.cpython-314.pyc
+2026-08-11T23:59:09  /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/.claude/scripts/__pycache__/sync_board_concepts.cpython-314.pyc
+2026-07-30T01:14:52  /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/.claude/scripts/__pycache__/decay_beta.cpython-314.pyc
+2026-08-10T23:59:08  /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/.claude/scripts/__pycache__/decay_beta.cpython-311.pyc
+(最新一个 2026-08-11, 早于本次作业一个月)
+### ② wrapper 日志在 backups/daily-review.log —— 链路健康, 09-11 首档 09:05
+[2026-09-10 19:05:05] vault=canvas-vault generate:cached push:skip-done fallback:-
+[2026-09-10 20:14:30] vault=canvas-vault generate:cached push:skip-done fallback:-
+[2026-09-11 09:05:07] vault=canvas-vault generate:new push:accepted fallback:-
+09-10 档数: 12 / 09-11 档数: 1
+rc=0

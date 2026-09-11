@@ -1,0 +1,64 @@
+# 变异验证 — Codex round-1 五条整改的门是否有牙
+# 判据 = **指定的那一条断言**必须红, 不是"某处失败了"。逐条串行, 每条跑后立即还原。
+# 跑前 / 跑后三文件 sha 逐字节相同 (见末尾)。
+
+跑前 sha:
+b6ff2ca3a69f89ef70917687dff9c7090ef89480d1fa134f9fd7e29fd3a5b53e  scripts/daily_review_run.py
+379d9a2b606ef7ee358b6eb92dd785490f17b8c8c701162ce4bbbf7b11d1b1ee  backend/app/api/v1/endpoints/review_overview.py
+f757644b549ff09ce926e4a6ea02f80f1767c8930bfa3683764be7bc78d29ca3  backend/app/api/v1/endpoints/review_app.py
+
+────────────────────────────────────────────────────────────────────
+## M-3 极值 until 转 UTC 溢出
+变异: `wakes` 的逐条 try 换回列表推导
+门:   test_g66_extreme_until_does_not_abort_the_runner
+结果: FAILED — `E   OverflowError: date value out of range`
+判定: KILLED (红在换算那一步, 正是修复点)
+
+## M-4 snooze_wake_utc 错型
+变异: 撤掉 isinstance(_wake, str) 判型
+门:   test_g66_wrong_typed_wake_marker_does_not_abort_the_cache_gate
+结果: FAILED — `E   TypeError: '<=' not supported between instances of 'int' and 'str'`
+判定: KILLED (红在比较那一步, 正是修复点)
+
+## LOW-1 只读 GET 走到惰性 import 时写 .pyc
+变异: 撤掉 dont_write_bytecode 的置位/恢复
+门(初版): test_g66_active_snoozed_leaves_no_bytecode_behind
+结果(初版): **1 passed** ⇒ ⛔ **门是空的** —— 那个 .pyc 早被同一轮里别的用例
+            写出来了, 于是 `after == before` 恒真, 撤掉修复照样绿。
+处置:   判据换成直接观察 **import 发生的那一刻** sys.dont_write_bytecode 的值
+        (spy 掉 builtins.__import__), 并验事后无条件恢复。
+门(现):   test_g66_active_snoozed_suppresses_bytecode_writes
+结果(现): FAILED — `E   AssertionError: import 那一刻必须禁写字节码, 实为 [False]`
+判定: KILLED (换判据后才有牙; 初版的"外部状态前后对比"被前序污染架空)
+
+## M-2 孤立 surrogate 板名把整个总览打成 500
+变异: 撤掉 _read_snoozed 的 (k+v).encode("utf-8") 过滤
+门:   test_g66_unencodable_snoozed_key_does_not_500_the_whole_overview
+结果: FAILED — `E   AssertionError: 一个坏板名不许把整个总览打成 500:
+      {"code":500,...,"message":"Error serializing to JSON: UnicodeEncodeError:
+      'utf-8' codec can't encode character '\ud800' in position 0: surrogates not allowed"}`
+判定: KILLED (Codex 描述的失败场景实测复现)
+
+## M-1 前端重判活跃, 推翻服务端结论
+变异: activeSnoozed 换回 `Date.parse(...) > nowMs` 的二次筛选
+门:   test_js_g66_snoozed_board_folds_into_its_own_section 的 ④b / ④c
+结果: FAILED ×2 —
+      `✖ ④b … AssertionError: 服务端投影了它, 前端不许自己判它过期`
+      `✖ ④c … AssertionError: 解析不出 ≠ 没被推迟 —— 服务端说它活着`
+判定: KILLED (钟差与秒级 offset 两条路各一条断言)
+
+## 自审发现 (非 Codex): busy 键两侧不一致
+变异: 渲染层把 snoozeKey(...) 换回裸 doneKey(...)
+      ⚠ 子串陷阱如实记录: `snoozeBusy[snoozeKey(…)]` 这个串在文件里 count=2,
+      因为 `unsnoozeBusy[snoozeKey(…)]` 把它整个包含在内。全替换恰好同时变异
+      两处渲染层, 正是本条要拆的面 (初版脚本按 count==1 断言, 当场没置入成功)。
+门:   test_js_g66_snooze_click_posts_once_and_never_from_poll 的
+      「在飞期间的重绘不许把钮解锁 (busy 键两侧必须是同一个)」
+结果: FAILED — `AssertionError [ERR_ASSERTION]: 在飞的那块板, 重绘出来的钮必须仍是禁用的`
+判定: KILLED
+
+────────────────────────────────────────────────────────────────────
+跑后 sha (与跑前逐字节相同):
+b6ff2ca3a69f89ef70917687dff9c7090ef89480d1fa134f9fd7e29fd3a5b53e  scripts/daily_review_run.py
+379d9a2b606ef7ee358b6eb92dd785490f17b8c8c701162ce4bbbf7b11d1b1ee  backend/app/api/v1/endpoints/review_overview.py
+f757644b549ff09ce926e4a6ea02f80f1767c8930bfa3683764be7bc78d29ca3  backend/app/api/v1/endpoints/review_app.py

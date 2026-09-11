@@ -1,0 +1,53 @@
+=== pre-mutation sha ===
+e3ec7638eafd53808ed5d2561d62fe61c35e928761c1df9ee942706d3c1eaa8e  backend/tests/unit/test_review_overview.py
+7578976884ffbe787accaccff8666cf1e134f92149dc2e8299dc994f44698e1e  scripts/daily_review_pick.py
+
+=== 对照: 未变异基线 ===
+====================== 4 passed, 108 deselected in 1.24s =======================
+rc=0
+
+=== MUT-1 前提门: _pin_child_now 不再追加 --now (退回单侧钉钟) ===
+变异点 count=1 (必须 == 1)
+FAILED tests/unit/test_review_overview.py::test_g66_end_to_end_snooze_yields_top_slot_in_the_real_projection
+FAILED tests/unit/test_review_overview.py::test_g66_e2e_snooze_verdict_is_clock_independent[2020-01-02T10:00:00]
+FAILED tests/unit/test_review_overview.py::test_g66_e2e_snooze_verdict_is_clock_independent[2026-09-09T10:00:00]
+FAILED tests/unit/test_review_overview.py::test_g66_e2e_snooze_verdict_is_clock_independent[2099-12-30T10:00:00]
+====================== 4 failed, 108 deselected in 1.80s =======================
+判据断言 '子进程 argv 里没有 --now (钉子没落上)' 出现: True
+判定: KILLED
+rc=1
+
+=== MUT-2 结论门(生产侧): active_snoozed 恒返回空 ===
+变异点 count=1 (必须 == 1)
+FAILED tests/unit/test_review_overview.py::test_g66_end_to_end_snooze_yields_top_slot_in_the_real_projection
+FAILED tests/unit/test_review_overview.py::test_g66_e2e_snooze_verdict_is_clock_independent[2020-01-02T10:00:00]
+FAILED tests/unit/test_review_overview.py::test_g66_e2e_snooze_verdict_is_clock_independent[2026-09-09T10:00:00]
+FAILED tests/unit/test_review_overview.py::test_g66_e2e_snooze_verdict_is_clock_independent[2099-12-30T10:00:00]
+====================== 4 failed, 108 deselected in 1.76s =======================
+判据断言 '被推迟的板必须让出榜首' 出现: True
+判定: KILLED
+rc=1
+
+=== MUT-3 参数化承重: active_snoozed 只在 2026 年判活跃 ===
+变异点 count=1 (必须 == 1)
+FAILED tests/unit/test_review_overview.py::test_g66_e2e_snooze_verdict_is_clock_independent[2020-01-02T10:00:00]
+FAILED tests/unit/test_review_overview.py::test_g66_e2e_snooze_verdict_is_clock_independent[2099-12-30T10:00:00]
+================= 2 failed, 2 passed, 108 deselected in 1.72s ==================
+判据断言 '被推迟的板必须让出榜首' 出现: True
+判定: KILLED
+rc=1
+
+=== post-mutation sha (必须与 pre 逐字节相同) ===
+e3ec7638eafd53808ed5d2561d62fe61c35e928761c1df9ee942706d3c1eaa8e  backend/tests/unit/test_review_overview.py
+7578976884ffbe787accaccff8666cf1e134f92149dc2e8299dc994f44698e1e  scripts/daily_review_pick.py
+
+=== 还原后复跑基线 ===
+====================== 4 passed, 108 deselected in 1.53s =======================
+rc=0
+# ⚠ 本次运行的 rc **没有被捕获**: 收尾写的是 zsh 下的 ${PIPESTATUS[0]}, 它不展开
+#   (zsh 用 $pipestatus[1]), 于是落成一行空壳 `rc=`。曾在此补过一行 rc=0 —— 那是
+#   推断不是实测, 已撤回。同一脚本、同一变异集的**实测** rc 见
+#   mutation-u6c-timebomb-20260911T083236.txt 末行 (rc=0)。本文件的三条 KILLED
+#   判定各自绑在上面打印出的 `判据断言 ... 出现: True` 与 pytest 的 FAILED 行上,
+#   不依赖这个未捕获的 rc。
+rc=<未捕获>

@@ -1,0 +1,42 @@
+# 6b 精核: 两条 <details> 断言与 AST 白名单本体是否被动过
+--- ① 两条 count("<details") 断言的**删除**行 (须 0) ---
+  0
+--- ② AST 白名单两张表的删除行 (须 0) ---
+  _ALLOWED_IMPORTS / _BANNED_REBINDS 段的 diff:
+     "app.api.v1.endpoints.review_overview._DONE_NOTE",
++    # CARD-G6-6: 推迟那句诚实说明同上 (登记一项 = 正向合约, 不是放宽)
++    "app.api.v1.endpoints.review_overview._SNOOZE_NOTE",
+ }
+ _ALLOWED_CALL_NAMES = {"APIRouter", "list", "_js_json", "HTMLResponse"}
+         "_DONE_NOTE",  # CARD-G6-7: 重绑它 = 页面上那句 FSRS 声明可以被换掉
++        "_SNOOZE_NOTE",  # CARD-G6-6: 同上 —— 推迟那句「不影响 FSRS」也不许被换掉
+         "review_overview_router",
+         # `Request` 本身不是调用名也不是接收者, 却是 request 形参豁免**所依赖的**名字:
+--- ③ 检查器本体 / 探针矩阵 / 另两张白名单 逐字节不动 (须全 0) ---
+  _ALLOWED_CALL_NAMES : 0
+  _ALLOWED_CALL_ATTRS : 0
+  _ALLOWED_RECEIVERS : 0
+  _root_name : 0
+  _assert_module_closed : 0
+  _flag_rebind : 0
+  _flag_targets : 0
+  test_ast_gate_rejects_shadowing_forms : 0
+--- ④ 那 5 行删除的归属 (全部在枚举合约门, 不在 AST 门) ---
+    @@ -50,0 +51,2 @@ BOARD_UNDONE_PATH = "/api/v1/review/overview/board-undone"  # CARD-G6-7-R
+    @@ -139,0 +142,3 @@ def test_api_paths_injected_from_url_for_not_hardcoded(client, page_html):
+    @@ -144,0 +150,2 @@ def test_api_paths_injected_from_url_for_not_hardcoded(client, page_html):
+    @@ -175,0 +183,2 @@ def test_api_paths_follow_mount_prefix_not_hardcoded():
+    @@ -185,0 +195 @@ def test_js_fetches_only_the_two_same_origin_endpoints(page_html):
+    @@ -189 +199,8 @@ def test_js_fetches_only_the_two_same_origin_endpoints(page_html):
+    -    assert set(targets) == {"URLS.overview", "URLS.refresh", "URLS.boardDone", "URLS.boardUndone"}
+    @@ -200,3 +217,3 @@ def test_auto_poll_never_posts_only_manual_button_does(page_html):
+    -    (新增「撤销」)。⚠ 这不是放宽: 名单从"唯一那个 handler"变成"这三个
+    -    handler", 每一处仍要被点名归属; 出现第四处 POST 而没有对应的点击处理器,
+    -    本门照样红。
+    @@ -204 +221,7 @@ def test_auto_poll_never_posts_only_manual_button_does(page_html):
+    -    handlers = ("onRefreshClick", "onBoardDoneClick", "onBoardUndoneClick")
+    @@ -210,0 +234 @@ def test_auto_poll_never_posts_only_manual_button_does(page_html):
+    @@ -277,0 +302,2 @@ _ALLOWED_IMPORTS = {
+    @@ -292,0 +319 @@ _BANNED_REBINDS = (
+    @@ -773,0 +801,3 @@ export function matches(node, sel) {
+    @@ -2873,0 +2904,273 @@ test("自动轮询与可见性切换路径上 POST 恒为 0", async () => {

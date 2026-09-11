@@ -1,0 +1,30 @@
+# round-3 处置轮（1ccc9711 → dc6cfb17）是否真的只改注释 —— 两版判据
+
+## 判据 v1（Python tokenize 代码 token 流）—— 报「有代码改动」
+   test_review_app.py ✗ ：那些 JS 门写在 Python 的 r-string 里, 我改的 JS // 注释
+   对 tokenize 而言是 **STRING token 的内容变了**。判据没错, 是粒度看不进字符串内部。
+   ⚠ 如实记下这一步: 第一次跑出 ✗ 时如果直接改口说「确实只有注释」, 那就是拿眼睛盖过判据。
+
+## 判据 v2（先剥 JS // 注释, 再比 Python 代码 token 流）
+本轮改动文件（排除 _bmad-output）: 2
+Traceback (most recent call last):
+  File "/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u6-reviewtime/82b2cc83-2877-4d2f-af59-662fd1acfb1e/scratchpad/verify_comment_only2.py", line 72, in <module>
+    ta = py_code_tokens(strip_js_comments(a))
+  File "/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u6-reviewtime/82b2cc83-2877-4d2f-af59-662fd1acfb1e/scratchpad/verify_comment_only2.py", line 43, in py_code_tokens
+    for tok in tokenize.generate_tokens(io.StringIO(src).readline):
+               ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/tokenize.py", line 594, in _generate_tokens_from_c_tokenizer
+    raise TokenError(msg, (e.lineno, e.offset)) from None
+tokenize.TokenError: ('unterminated string literal (detected at line 73)', (73, 34))
+
+## 反例自检（证明 v2 不是恒真）: 拿 BASE→HEAD 跑同一判据应报有改动
+本轮改动文件（排除 _bmad-output）: 9
+  ✗ backend/app/api/v1/endpoints/review_app.py
+      首处差异 @token 29: (1, '_BUCKET_CN') vs (55, '(')
+Traceback (most recent call last):
+  File "<stdin>", line 3, in <module>
+  File "<string>", line 72, in <module>
+  File "<string>", line 43, in py_code_tokens
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/tokenize.py", line 594, in _generate_tokens_from_c_tokenizer
+    raise TokenError(msg, (e.lineno, e.offset)) from None
+tokenize.TokenError: ('unterminated string literal (detected at line 1392)', (1392, 45))

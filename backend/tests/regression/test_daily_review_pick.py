@@ -2383,3 +2383,153 @@ def test_g67r_main_state_with_wrongly_typed_values_does_not_crash(tmp_path, monk
     )
     good = _run_cli(monkeypatch, capsys, vault, ok)
     assert good["top_boards"][0]["board"] != top, "合法账没被消费 —— 上面那批全绿证明不了什么"
+
+
+# ══ CARD-G6-6 (BATCH-2026-09-07-第十三批): 板级 snooze 两档让位 ══════════
+
+
+def _build_with_snooze(tmp_path, nodes: dict, snoozed, now: datetime = NOW):
+    """与 _build_with_done 同形, 只把新的那个可选参数换成 snoozed。"""
+    vault = tmp_path / f"vault{next(_seq)}"
+    scripts = vault / ".claude" / "scripts"
+    scripts.mkdir(parents=True)
+    (vault / "节点").mkdir()
+    shutil.copy(WT / "canvas-vault" / ".claude" / "scripts" / "decay_beta.py", scripts)
+    for name, content in nodes.items():
+        (vault / "节点" / f"{name}.md").write_text(content, encoding="utf-8")
+    return picker.build_payload(vault, now, {}, picker.load_decay(vault), snoozed=snoozed)
+
+
+def _snooze_on(vault: Path, snoozed, now: datetime = NOW):
+    """在**同一个 vault** 上换不同的 snoozed 再算一次。
+
+    ⛔ 逐字节对比必须复用同一个 vault —— payload 里有 vault_id, 每次新建目录
+    会让"逐字节相同"这个判据永远为假, 于是只能退回逐键对比 (那就漏掉了顶层
+    新键这一类回归)。
+    """
+    return picker.build_payload(vault, now, {}, picker.load_decay(vault), snoozed=snoozed)
+
+
+#: 写侧端点落盘的那种形态: aware ISO-8601 带 offset、秒精度。活跃 = 晚于 now。
+_ACTIVE_UNTIL = (NOW + timedelta(hours=1)).astimezone(_FIXED_TZ).isoformat(timespec="seconds")
+#: 已过期 = 早于 now 一秒 —— 到期即回队, 不需要谁去删那个键
+_EXPIRED_UNTIL = (NOW - timedelta(seconds=1)).astimezone(_FIXED_TZ).isoformat(timespec="seconds")
+
+
+def test_g66_snoozed_board_yields_top_slot_but_stays_on_the_list(tmp_path):
+    """(c)① 活跃 snooze **只换序**: 让出榜首, 但行 / 桶 / 统计一个字节不动。
+
+    与 board_done 让位同一条律 (稳定分区, 不删行不改分), 三条一起才说明得了:
+      ① 前提: 无干扰时榜首是 first、次席是 second (榜首**实测得来**, 不猜);
+      ② 把 first 推迟到一小时后 → 榜首换成 second, 通知跟着换;
+      ③ first 仍在 top_boards 里, boards / buckets / stats 与无 snooze 逐字节相同。
+    """
+    base_payload, base_ranked = _build_with_snooze(tmp_path, _TWO_BOARDS, None)
+    assert len(base_ranked) >= 2, "前提: 榜上要有两块板才谈得上让位"
+    first, second = base_ranked[0]["board"], base_ranked[1]["board"]
+    assert base_payload["notification"]["title"].endswith(first)
+
+    payload, ranked = _build_with_snooze(tmp_path, _TWO_BOARDS, {first: _ACTIVE_UNTIL})
+    assert ranked[0]["board"] == second, "被推迟的板必须让出榜首"
+    assert payload["notification"]["title"].endswith(second), "通知取 ranked[0], 必须跟着让位"
+    assert [r["board"] for r in payload["top_boards"]] == [second, first], "让位不是除名 —— 它仍在榜上"
+    assert payload["stats"] == base_payload["stats"], "推迟不许动任何统计口径"
+    assert payload["boards"] == base_payload["boards"], "板级 rollup 与推迟无关"
+    assert payload["buckets"] == base_payload["buckets"], "五桶划分与推迟无关"
+
+
+def test_g66_expired_snooze_is_identical_to_no_snooze(tmp_path):
+    """(c)② 已过期的推迟 = 没记过 —— 到期回队不需要谁去删那个键。
+
+    这条同时是「不删过期键」那个设计的行为依据: state 里留着旧键完全无害,
+    因为活跃判定是现算的 (值 <= now 即不算)。
+    """
+    vault = _mk_two_board_vault(tmp_path)
+    base_payload, base_ranked = _snooze_on(vault, None)
+    first = base_ranked[0]["board"]
+    payload, ranked = _snooze_on(vault, {first: _EXPIRED_UNTIL})
+    assert payload == base_payload, "过期推迟必须与无推迟逐字节相同"
+    assert [r["board"] for r in ranked] == [r["board"] for r in base_ranked]
+
+
+def test_g66_snoozed_is_purely_additive_when_absent_or_garbage(tmp_path):
+    """(c)③ 缺省 / 垃圾值一律退化为「无推迟」—— 且**不抛异常**。
+
+    生产器对上游脏数据一贯的纪律 (沿 board_done 的同名门): 一个坏掉的 state
+    不该让整轮生成换个结果, 更不该让它崩。naive 串单列一条 —— 它是最像"能用"
+    的那种坏值: 解析得出 datetime, 但没有偏移量, 拿去和 now 比大小会给出
+    随宿主时区而变的答案。
+    """
+    vault = _mk_two_board_vault(tmp_path)
+    base_payload, base_ranked = _snooze_on(vault, None)
+    first = base_ranked[0]["board"]
+    naive = (NOW + timedelta(hours=1)).astimezone(_FIXED_TZ).replace(tzinfo=None).isoformat(timespec="seconds")
+    for garbage in (
+        [],  # 非 dict
+        "",  # 非 dict
+        {first: 5},  # 值非 str
+        {first: "not-a-time"},  # 值解析不出
+        {first: naive},  # 值 naive (没有绝对时刻)
+        {5: _ACTIVE_UNTIL},  # 键非 str
+    ):
+        payload, _ = _snooze_on(vault, garbage)
+        assert payload == base_payload, f"垃圾值 {garbage!r} 必须与无推迟逐字节相同"
+
+
+def test_g66_all_boards_snoozed_degenerates_to_identity(tmp_path):
+    """(c)④ 全部板都被推迟 → 分区退化为恒等 (与 board_done 同律)。
+
+    没有"下一块"可让, 强行清空只会让当天的通知凭空消失 —— 一块被推迟的板
+    仍然比"今天什么都不推荐"有用。代价如实登记 (卡文 (x)②): 推送仍会推荐
+    一块被推迟的板。
+    """
+    vault = _mk_two_board_vault(tmp_path)
+    base_payload, base_ranked = _snooze_on(vault, None)
+    everything = {r["board"]: _ACTIVE_UNTIL for r in base_ranked}
+    assert len(everything) >= 2, "前提: 榜上要有两块板"
+    payload, ranked = _snooze_on(vault, everything)
+    assert payload == base_payload, "全部推迟时必须退化为恒等"
+    assert [r["board"] for r in ranked] == [r["board"] for r in base_ranked]
+
+
+def test_g66_snooze_never_adds_a_top_level_payload_key(tmp_path):
+    """(c) payload 顶层零新键 —— 与两条金样门同一条契约的行为面复述。
+
+    金样门 (test_boards_rollup_golden_old_fields_frozen 等) 守的是**缺省调用**
+    下的顶层键序; 本门守的是**传了推迟账**那一支 —— 让位只换序, 不给投影加
+    任何字段 (「已推迟」是 Web 读 state 投影出来的, 不进 A2 的产物)。
+    """
+    vault = _mk_two_board_vault(tmp_path)
+    base_payload, base_ranked = _snooze_on(vault, None)
+    first = base_ranked[0]["board"]
+    payload, _ = _snooze_on(vault, {first: _ACTIVE_UNTIL})
+    assert list(payload) == list(base_payload), "顶层键序漂移 —— 推迟不许给 payload 加字段"
+    assert payload["schema_version"] == base_payload["schema_version"], "投影 schema 与 state schema 无关"
+
+
+def test_g66_main_reads_snoozed_from_state_file(tmp_path, monkeypatch, capsys):
+    """(c) CLI 接线: --state 里的 snoozed 被真的读进来并生效。
+
+    与 board_done 同一次解析取出 —— 再读一遍文件会在两次读之间开一个新的
+    撕裂窗 (runner / Web 都可能正在换它)。
+    """
+    vault = tmp_path / f"vault{next(_seq)}"
+    scripts = vault / ".claude" / "scripts"
+    scripts.mkdir(parents=True)
+    (vault / "节点").mkdir()
+    shutil.copy(WT / "canvas-vault" / ".claude" / "scripts" / "decay_beta.py", scripts)
+    for name, content in _TWO_BOARDS.items():
+        (vault / "节点" / f"{name}.md").write_text(content, encoding="utf-8")
+
+    state = tmp_path / f"state{next(_seq)}.json"
+    state.write_text(json.dumps({"schema_version": 3, "board_last_recommended": {}}), encoding="utf-8")
+    base = _run_cli(monkeypatch, capsys, vault, state)
+    first = base["top_boards"][0]["board"]
+
+    state.write_text(
+        json.dumps({"schema_version": 3, "board_last_recommended": {}, "snoozed": {first: _ACTIVE_UNTIL}}),
+        encoding="utf-8",
+    )
+    after = _run_cli(monkeypatch, capsys, vault, state)
+    assert after["top_boards"][0]["board"] != first, "--state 里的推迟账没被消费"
+    assert first in [r["board"] for r in after["top_boards"]], "让位不是除名"

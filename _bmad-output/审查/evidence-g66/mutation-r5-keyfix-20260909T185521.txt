@@ -1,0 +1,20 @@
+# 变异验证 — round-5 LOW-1 的键编码修复是否有牙
+# 跑前 sha: 1b612f474a647ca4
+
+=== 变异 colon: 把 snoozeKey 换回被打回的那一版 ===
+  变异已置入 (colon)
+E     ✖ 推迟键与完成键**不同族**: 输出恒不含 NUL (Codex round-2 / round-5 LOW-1) (0.299334ms)
+E     ✖ failing tests:
+E     ✖ 推迟键与完成键**不同族**: 输出恒不含 NUL (Codex round-2 / round-5 LOW-1) (0.299334ms)
+E       AssertionError [ERR_ASSERTION]: snoozeKey("math", "A") 的输出含 NUL — 值域与 doneKey 相交了
+  已还原
+
+=== 变异 nulprefix: 把 snoozeKey 换回被打回的那一版 ===
+  变异已置入 (nulprefix)
+E     ✖ 推迟键与完成键**不同族**: 输出恒不含 NUL (Codex round-2 / round-5 LOW-1) (0.282208ms)
+E     ✖ failing tests:
+E     ✖ 推迟键与完成键**不同族**: 输出恒不含 NUL (Codex round-2 / round-5 LOW-1) (0.282208ms)
+E       AssertionError [ERR_ASSERTION]: snoozeKey("math", "A") 的输出含 NUL — 值域与 doneKey 相交了
+  已还原
+
+跑后 sha: 1b612f474a647ca4  （须与跑前相同）

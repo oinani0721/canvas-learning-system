@@ -1,0 +1,10 @@
+# round-6 整改后 @ HEAD 64d18ecf: tests/unit nodeid diff
+# 开工基线 = 09-09 unit-baseline-open-20260909T160147.txt 的 202 条
+# 收工 = unit-closing-u6c-r6-20260911T085318.txt
+开工 202 / 收工      202
+--- diff (须无 '>') ---
+rc_diff=0
+--- 验伪锚: 同一管道对「漏 PYTHONDONTWRITEBYTECODE 那次跑」应恰好多 1 条 ---
+193a194
+> tests/unit/test_vault_lint.py::test_bytecode_guard_is_armed
+rc_anchor=1

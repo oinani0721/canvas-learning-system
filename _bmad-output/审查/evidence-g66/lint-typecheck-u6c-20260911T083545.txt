@@ -1,0 +1,15 @@
+# U6-C: ruff + pyright (改动面: backend/tests/unit/test_review_overview.py)
+## ruff check
+All checks passed!
+rc_ruff_check=0
+## ruff format --check
+Would reformat: backend/tests/unit/test_review_overview.py
+1 file would be reformatted
+rc_ruff_format=1
+## pyright
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/tests/unit/test_review_overview.py:4284:19 - error: Variable "runner" is not accessed (reportUnusedVariable)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/tests/unit/test_review_overview.py:4344:19 - error: Variable "runner" is not accessed (reportUnusedVariable)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/tests/unit/test_review_overview.py:4399:19 - error: Variable "runner" is not accessed (reportUnusedVariable)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/tests/unit/test_review_overview.py:4457:19 - error: Variable "runner" is not accessed (reportUnusedVariable)
+10 errors, 1 warning, 0 informations
+rc_pyright=1

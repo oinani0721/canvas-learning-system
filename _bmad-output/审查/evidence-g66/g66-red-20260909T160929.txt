@@ -1,0 +1,41 @@
+# 先红存档 · BASE=72ab01ed9954d4ea7fb56288c2b9828abb46160b · 只落测试未改产品代码
+# cmd: PYTHONDONTWRITEBYTECODE=1 backend/.venv/bin/pytest -q -p no:cacheprovider -k g66 <三文件>
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 232 items / 229 deselected / 3 selected
+tests/regression/test_daily_review_pick.py F                             [ 33%]
+tests/regression/test_daily_review_run.py F                              [ 66%]
+tests/unit/test_review_overview.py F                                     [100%]
+=================================== FAILURES ===================================
+_________ test_g66_snoozed_board_yields_top_slot_but_stays_on_the_list _________
+tests/regression/test_daily_review_pick.py:2417: in test_g66_snoozed_board_yields_top_slot_but_stays_on_the_list
+tests/regression/test_daily_review_pick.py:2400: in _build_with_snooze
+E   TypeError: build_payload() got an unexpected keyword argument 'snoozed'
+__________________ test_g66_snooze_invalidates_same_day_cache __________________
+tests/regression/test_daily_review_run.py:2042: in test_g66_snooze_invalidates_same_day_cache
+E   AssertionError: 推迟后必须重扫, 否则「让出榜首」整天不生效
+E   assert 'cached' == 'new'
+E     
+E     - new
+E     + cached
+________ test_g66_board_snooze_writes_only_state_and_never_touches_fsrs ________
+tests/unit/test_review_overview.py:3905: in test_g66_board_snooze_writes_only_state_and_never_touches_fsrs
+E   AssertionError: 夹具前提: 事件账必须真的存在, 否则那一半判据是空的
+E   assert None is not None
+<frozen importlib._bootstrap>:491
+<frozen importlib._bootstrap>:491
+app/api/v1/endpoints/chat.py:805
+app/api/v1/endpoints/metadata.py:105
+app/api/v1/endpoints/metadata.py:179
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/regression/test_daily_review_pick.py::test_g66_snoozed_board_yields_top_slot_but_stays_on_the_list
+FAILED tests/regression/test_daily_review_run.py::test_g66_snooze_invalidates_same_day_cache
+FAILED tests/unit/test_review_overview.py::test_g66_board_snooze_writes_only_state_and_never_touches_fsrs
+================ 3 failed, 229 deselected, 10 warnings in 0.91s ================
+rc=1

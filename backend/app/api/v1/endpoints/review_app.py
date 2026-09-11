@@ -57,7 +57,13 @@ import json
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 
-from app.api.v1.endpoints.review_overview import _BUCKET_CN, _BUCKET_ORDER, _DONE_NOTE, _STATUS_META
+from app.api.v1.endpoints.review_overview import (
+    _BUCKET_CN,
+    _BUCKET_ORDER,
+    _DONE_NOTE,
+    _SNOOZE_NOTE,  # CARD-G6-6: 与 _DONE_NOTE 同纪律 (共享不复制)
+    _STATUS_META,
+)
 
 review_app_router = APIRouter()
 
@@ -133,6 +139,10 @@ _PAGE_TEMPLATE = r"""<!DOCTYPE html>
   .donenote { color: #6b7280; font-size: 12px; margin: 2px 0 6px; }
   .alldone { color: #16a34a; font-size: 14px; margin: 10px 0 4px; }
   .donewrap { margin: 6px 0 2px; }
+  /* CARD-G6-6 推迟: 琥珀系 — 与绿色的完成钮、灰色的撤销钮都拉开 */
+  .btn.snooze { font-size: 12px; color: #b45309; background: #fffbeb;
+                border-color: #fde68a; padding: 2px 9px; margin-right: 6px; }
+  .snoozewrap { margin: 6px 0 2px; }
   .rnote { font-size: 12px; color: #6b7280; }
   .rnote.ok { color: #16a34a; }
   .rnote.warn { color: #d97706; }
@@ -177,6 +187,8 @@ const BUCKET_ORDER = __BUCKET_ORDER_JSON__;
 // CARD-G6-7: 「不影响 FSRS」这句话由 review_overview._DONE_NOTE 注入 ——
 // 两页说的是同一个动作, 措辞只能有一处 (抄一份就会有一天只改了一边)
 const DONE_NOTE = __DONE_NOTE_JSON__;
+// CARD-G6-6: 同上 —— 推迟那句话也只有一处出处 (review_overview._SNOOZE_NOTE)
+const SNOOZE_NOTE = __SNOOZE_NOTE_JSON__;
 const POLL_MIN_MS = 5000;   // 轮询下限 (默认裁决②: clamp 5s)
 const POLL_MAX_MS = 60000;  // 轮询上限 (默认裁决②: clamp 60s)
 const RETRY_DELAY_MS = 10000;  // unavailable 态的固定重试间隔 (在 clamp 区间内)
@@ -193,6 +205,28 @@ function doneKey(vaultId, board) {
   // 选它是因为板名可含任何可见字符 —— 用 "|" 之类会让 ("a|b","c") 与
   // ("a","b|c") 撞成同一个键, 在飞禁用就会串到别的板上。
   return String(vaultId) + "\u0000" + String(board);
+}
+function snoozeKey(vaultId, board) {
+  // CARD-G6-6: 推迟 / 取回共用 doneInflight 这一格, 但键要与完成侧**不同族** ——
+  // 裸用 doneKey 会让「推迟在飞」把完成钮也一起禁掉, 那是另一件事。
+  // ⛔ 渲染层与 handler 必须调**同一个**函数取键 (初版渲染层查裸键、handler 写
+  // 前缀键, 于是在飞期间一次重绘就把禁用的钮解锁, 而 doneInflight 的存在意义
+  // 正是"重绘不解锁")。
+  //
+  // ⚠ 前缀式编码试过两版, 都被 Codex 打回 (round-2 LOW-1 / round-5 LOW-1):
+  //   · "snooze:" + doneKey(v,b)  ⇒ 撞 doneKey("snooze:"+v, b)
+  //   · "snooze" + NUL + doneKey(v,b) ⇒ 撞 doneKey("snooze", v+NUL+b)
+  // 根因: doneKey(v,b) = v + NUL + b, 两个分量都无约束 ⇒ 它的值域是**任意含至少
+  // 一个 NUL 的字符串**。只要 snoozeKey 的输出里有 NUL, 就总能在某个 NUL 处劈开、
+  // 反构造出一个合法的 doneKey 调用。收窄板名值域也挡不住 —— round-5 的场景里
+  // 那个含 NUL 的板名在**完成侧**, 根本不经过推迟端点。
+  //
+  // 现在的做法: 让输出**恒不含 NUL** ⇒ 与 doneKey 的值域不相交 ⇒ 碰撞在原理上消除,
+  // 且不必碰 doneKey 本身。分隔符用 "|", 把 % | NUL 三者都百分号转义 (转义表自身
+  // 不含分隔符 ⇒ 劈分唯一 ⇒ 单射)。四条性质有穷举 + 2000 组模糊测试:
+  // evidence-g66/key-collision-exhaustive-*.txt。
+  const esc = s => String(s).replace(/%/g, "%25").replace(/\|/g, "%7C").replace(/\u0000/g, "%00");
+  return "snooze|" + esc(vaultId) + "|" + esc(board);
 }
 function tzOpts() {
   // CARD-G6-9c / D-18: 显示时区取**服务端下发**的 display_tz (GET /overview 顶层键,
@@ -322,22 +356,68 @@ function boardUndoneBtnHtml(vaultId, board, busy) {
   return '<button class="btn undo"' + (busy ? " disabled" : "") +
     ' data-undo-vault="' + esc(vaultId) + '" data-undo-board="' + esc(board) + '">↩︎ 撤销</button>';
 }
-function boardsSplitHtml(vaultId, boards, nowMs, doneList, doneBusy) {
+function boardSnoozeBtnHtml(vaultId, board, busy, tonightAvailable) {
+  // CARD-G6-6: 两档「再说」—— 与零 JS 页 _board_snooze_form_html 同一动作、
+  // 同一端点。⛔ tonightAvailable 是**服务端下发的结论**(GET 的 tonight_available),
+  // 不是这里算出来的: 让 JS 自己按小时数判一遍就有了第二个时钟, display_tz
+  // 为 null 时它退回浏览器本地, 异地访问会渲染出一个必然 422 的钮。
+  const tonight = tonightAvailable ?
+    '<button class="btn snooze"' + (busy ? " disabled" : "") +
+    ' data-snooze-vault="' + esc(vaultId) + '" data-snooze-board="' + esc(board) +
+    '" data-snooze-until="tonight">🌙 今晚再说</button>' : "";
+  return tonight + '<button class="btn snooze"' + (busy ? " disabled" : "") +
+    ' data-snooze-vault="' + esc(vaultId) + '" data-snooze-board="' + esc(board) +
+    '" data-snooze-until="tomorrow">📅 明天再说</button>';
+}
+function boardUnsnoozeBtnHtml(vaultId, board, busy) {
+  // CARD-G6-6: 「取回」—— 属性名与另外两个动作各自分开 (data-unsnooze-*),
+  // 事件委托各认各的, 一块板不可能同时落进两个 handler。
+  return '<button class="btn undo"' + (busy ? " disabled" : "") +
+    ' data-unsnooze-vault="' + esc(vaultId) + '" data-unsnooze-board="' + esc(board) + '">↩︎ 取回</button>';
+}
+function activeSnoozed(snoozedMap) {
+  // CARD-G6-6: ⛔ **只做形状归一, 不重判活跃** —— entry.snoozed 是服务端已经
+  // 筛过的活跃集 (GET 的 _snoozed_active), 前端再判一遍就成了第二个裁判。
+  //
+  // ⚠ Codex round-1 MEDIUM-1 整改: 初版在这里用 `Date.parse(...) > nowMs` 又筛
+  // 一道, 两条路都会**推翻服务端的结论**:
+  //   ① 浏览器钟快两分钟 ⇒ 服务端说 19:59 还活着、页面已经把它放回待做区,
+  //      连「取回」的入口都没了;
+  //   ② 显示时区带秒级 offset 时 (`+08:00:30`), Python 解析得出而 `Date.parse`
+  //      给 NaN ⇒ 推迟成功了, 页面却当它没被推迟。
+  // 「页面开着不动、until 刚过」那段窗口本来就由 poll (5-60s 一轮) 收敛, 不需要
+  // 前端自己算 —— 而它算错的代价比多显示几十秒大得多。
+  const out = Object.create(null);   // 外部字符串做键: null-prototype (round-2 M1 同纪律)
+  if (!snoozedMap || typeof snoozedMap !== "object") return out;
+  for (const k of Object.keys(snoozedMap)) {
+    if (typeof snoozedMap[k] === "string") out[k] = snoozedMap[k];
+  }
+  return out;
+}
+function boardsSplitHtml(vaultId, boards, nowMs, doneList, doneBusy, snoozedMap, tonightAvailable) {
   // CARD-G6-7: 待做 / 已完成两区 — 与零 JS 页 _boards_split_html 同形。
   // ⛔ 折叠不是隐藏: 已完成的板行原样还在页面上 (收进 details), 计数与
   // 分层数字一个都不动 —— 服务端投影是唯一裁判, 前端不做任何压制。
+  // CARD-G6-6 第三区「已推迟」同一条律; 活跃集为空时**一个字节都不输出**
+  // (与已完成区的 `if (!fin.length)` 同形)。同板既完成又被推迟只进已完成区。
   const rows = Array.isArray(boards) ? boards : [];
   const done = Object.create(null);   // 外部字符串做键: null-prototype (round-2 M1 同纪律)
   for (const b of (Array.isArray(doneList) ? doneList : [])) done[b] = true;
-  const todo = rows.filter(r => r && !done[r.board]);
+  const snoozed = activeSnoozed(snoozedMap);
+  const todo = rows.filter(r => r && !done[r.board] && !snoozed[r.board]);
   const fin = rows.filter(r => r && done[r.board]);
-  let out = todo.length ? boardTableHtml(vaultId, todo, nowMs, doneBusy)
-    : (fin.length ? '<div class="alldone">🎉 今天列出的白板都标完成了</div>' : "");
-  if (!fin.length) return out;
-  return out + '<details class="donewrap"><summary class="qsum">已完成（' + fin.length +
+  const pending = rows.filter(r => r && snoozed[r.board] && !done[r.board]);
+  let out = todo.length ? boardTableHtml(vaultId, todo, nowMs, doneBusy, null, doneBusy, null, tonightAvailable)
+    : (fin.length && !pending.length ? '<div class="alldone">🎉 今天列出的白板都标完成了</div>'
+      : (pending.length ? '<div class="alldone">😴 今天列出的白板都推开了 · 到点自己回来</div>' : ""));
+  if (fin.length) out += '<details class="donewrap"><summary class="qsum">已完成（' + fin.length +
     "）· 明天自动回来</summary>" + boardTableHtml(vaultId, fin, nowMs, null, doneBusy) + "</details>";
+  if (pending.length) out += '<details class="snoozewrap"><summary class="qsum">已推迟（' + pending.length +
+    "）· 到点自动回来</summary>" +
+    boardTableHtml(vaultId, pending, nowMs, null, null, null, doneBusy) + "</details>";
+  return out;
 }
-function boardTableHtml(vaultId, boards, nowMs, doneBusy, undoBusy) {
+function boardTableHtml(vaultId, boards, nowMs, doneBusy, undoBusy, snoozeBusy, unsnoozeBusy, tonightAvailable) {
   if (!Array.isArray(boards) || !boards.length) return "";
   const head = ["白板名", "到期", "新卡", "待剖析", "最早到期"].map(c => "<th>" + c + "</th>").join("");
   const rows = boards.map(r => {
@@ -355,12 +435,26 @@ function boardTableHtml(vaultId, boards, nowMs, doneBusy, undoBusy) {
       out += '<tr><td colspan="5" class="why">💡 ' + esc(r.why_this_board) + "</td></tr>";
     const detail = nodeDetailHtml(vaultId, r.nodes, nowMs);
     if (detail) out += '<tr><td colspan="5" style="padding-top:0">' + detail + "</td></tr>";
-    if (doneBusy) out += '<tr><td colspan="5" style="padding-top:0">' +
-      boardDoneBtnHtml(vaultId, r.board, doneBusy[doneKey(vaultId, r.board)]) + "</td></tr>";
+    // CARD-G6-6: 推迟与完成是待做区并列的两个出口, 同一格里挨着放。
+    // snoozeBusy 缺省时这一格与本参数出现之前逐字节相同 (只剩完成钮那一份)。
+    if (doneBusy || snoozeBusy) {
+      let btns = "";
+      // 键必须与 onBoardSnoozeClick 写进 doneInflight 的那个**逐字相同**(含
+      // "snooze:" 前缀)。初版这里查的是裸 doneKey —— 于是在飞期间一次重绘就把
+      // 禁用的钮解锁成可点, 破坏了 doneInflight 那条「它是渲染态的一部分」的
+      // 不变量 (第二个 POST 仍被 handler 挡下, 但用户看到的是一个点了没反应的钮)。
+      if (snoozeBusy) btns += boardSnoozeBtnHtml(vaultId, r.board,
+        snoozeBusy[snoozeKey(vaultId, r.board)], tonightAvailable !== false);
+      if (doneBusy) btns += boardDoneBtnHtml(vaultId, r.board, doneBusy[doneKey(vaultId, r.board)]);
+      out += '<tr><td colspan="5" style="padding-top:0">' + btns + "</td></tr>";
+    }
     // CARD-G6-7-R: 撤销钮只在已完成区 (调用方传 undoBusy 而不传 doneBusy) ——
     // 两者同时在场会让一块板既能"再做完一次"又能撤销, 两个钮说的是矛盾的话。
     if (undoBusy) out += '<tr><td colspan="5" style="padding-top:0">' +
       boardUndoneBtnHtml(vaultId, r.board, undoBusy[doneKey(vaultId, r.board)]) + "</td></tr>";
+    // CARD-G6-6: 「取回」只在已推迟区 (调用方传 unsnoozeBusy 而不传另外两个)
+    if (unsnoozeBusy) out += '<tr><td colspan="5" style="padding-top:0">' +
+      boardUnsnoozeBtnHtml(vaultId, r.board, unsnoozeBusy[snoozeKey(vaultId, r.board)]) + "</td></tr>";
     return out;
   }).join("");
   return '<div class="tblwrap"><table><thead><tr>' + head + "</tr></thead><tbody>" + rows + "</tbody></table></div>";
@@ -379,7 +473,7 @@ function restDayHtml(proj, nowMs) {
     esc(nu.board) + " · " + esc(day) + "</div>" : "";
   return '<div class="restday">✅ 今日无到期节点，休息一天。' + tail + "</div>";
 }
-function renderVaultCard(entry, nowMs, noteHtml, isInflight, doneBusy) {
+function renderVaultCard(entry, nowMs, noteHtml, isInflight, doneBusy, tonightAvailable) {
   // 未知 status 防御: 原字面灰徽标 (未来第五态不白屏)。
   // own-key 访问 (round-3 LOW-3): "constructor"/"__proto__" 会命中继承属性,
   // 必须显式判自有键才落灰兜底
@@ -399,8 +493,11 @@ function renderVaultCard(entry, nowMs, noteHtml, isInflight, doneBusy) {
         " · 待剖析 " + proj.placeholder_backlog + "</small></div>" + layers +
         // CARD-G6-7: 待做 / 已完成两区 (doneBusy 缺省时不出完成钮 —— 纯渲染
         // 断言直接调本函数时的既有形态不变)
-        boardsSplitHtml(vid, proj.boards, nowMs, entry.board_done, doneBusy || null) +
-        (doneBusy ? '<div class="donenote">' + esc(DONE_NOTE) + "</div>" : "");
+        boardsSplitHtml(vid, proj.boards, nowMs, entry.board_done, doneBusy || null,
+          entry.snoozed, tonightAvailable) +
+        (doneBusy ? '<div class="donenote">' + esc(DONE_NOTE) + "</div>" : "") +
+        // CARD-G6-6: 推迟那句诚实说明与完成那句同一条纪律 (钮在场才出)
+        (doneBusy ? '<div class="donenote">' + esc(SNOOZE_NOTE) + "</div>" : "");
     }
     // CARD-G6-5-R: 队列分层区块两条分支都出 —— 休息日 (due_count===0) 恰恰
     // 是最需要它的一天: 今天没有到期的, 但「以后」那一桶里排着什么, 只有这里说得出
@@ -426,8 +523,11 @@ function renderVaultCard(entry, nowMs, noteHtml, isInflight, doneBusy) {
 function renderPage(data, nowMs, notes, inflight, doneBusy) {
   const vaults = data && Array.isArray(data.vaults) ? data.vaults : [];
   if (!vaults.length) return '<div class="empty">VAULTS_ROOT 下未发现任何 vault (需含 .obsidian/ 目录)</div>';
+  // CARD-G6-6: 「今晚」还给不给点 —— 直接用**这一份 data** 里服务端下发的结论。
+  // 字段缺席时保守按 true (与旧后端并存也不炸: 真过了 20:00 端点会 422 兜底)。
+  const tonightAvailable = !(data && data.tonight_available === false);
   return vaults.map(e => renderVaultCard(e, nowMs, (notes && notes[e.vault_id]) || "",
-    !!(inflight && inflight[e.vault_id]), doneBusy)).join("");
+    !!(inflight && inflight[e.vault_id]), doneBusy, tonightAvailable)).join("");
 }
 function renderUnavailableBanner(detail, lastOkText) {
   const keep = lastOkText ? "页面保留 " + esc(lastOkText) + " 的最后一次成功数据。" : "尚未成功获取过数据。";
@@ -483,6 +583,36 @@ function renderBoardUndoneResult(status, board, payload) {
     detail = typeof payload.detail === "string" ? payload.detail : (payload.detail.message || JSON.stringify(payload.detail));
   if (status === 0) return '<span class="rnote err">❌ 撤销失败（网络错误）：' + esc(detail || "连接失败") + "</span>";
   return '<span class="rnote err">❌ 撤销失败（HTTP ' + esc(status) + "）" + (detail ? "：" + esc(detail) : "") + "</span>";
+}
+
+function renderBoardSnoozeResult(status, board, until, payload) {
+  // CARD-G6-6。与上面两个同纪律: 结局各有其形, 失败绝不长得像成功。
+  // 成功文案说的是**服务端回来的那个时刻**, 不是前端猜的 —— snoozed_until
+  // 是端点按显示时区算好的, 前端复述它而不是自己再换算一遍。
+  if (status === 200) {
+    const when = payload && typeof payload.snoozed_until === "string" ? payload.snoozed_until : "";
+    const label = until === "tonight" ? "今晚" : "明天";
+    return '<span class="rnote ok">⏰ 已把「' + esc(board) + '」推到' + esc(label) +
+      (when ? "（" + esc(when) + "）" : "") + " · 不影响 FSRS</span>";
+  }
+  let detail = "";
+  if (payload && payload.detail)
+    detail = typeof payload.detail === "string" ? payload.detail : (payload.detail.message || JSON.stringify(payload.detail));
+  if (status === 0) return '<span class="rnote err">❌ 推迟失败（网络错误）：' + esc(detail || "连接失败") + "</span>";
+  return '<span class="rnote err">❌ 推迟失败（HTTP ' + esc(status) + "）" + (detail ? "：" + esc(detail) : "") + "</span>";
+}
+
+function renderBoardUnsnoozeResult(status, board, payload) {
+  // already_unsnoozed 单独说 (与 already_undone 同一条理由): 「撤掉了一条」
+  // 与「本来就没有」在服务端是两个结果, 说成同一句话, 板名打错就无从察觉。
+  if (status === 200 && payload && payload.already_unsnoozed === true)
+    return '<span class="rnote ok">「' + esc(board) + '」本来就没有被推迟</span>';
+  if (status === 200) return '<span class="rnote ok">↩︎ 已把「' + esc(board) + '」取回待做区</span>';
+  let detail = "";
+  if (payload && payload.detail)
+    detail = typeof payload.detail === "string" ? payload.detail : (payload.detail.message || JSON.stringify(payload.detail));
+  if (status === 0) return '<span class="rnote err">❌ 取回失败（网络错误）：' + esc(detail || "连接失败") + "</span>";
+  return '<span class="rnote err">❌ 取回失败（HTTP ' + esc(status) + "）" + (detail ? "：" + esc(detail) : "") + "</span>";
 }
 
 // ═══ 副作用壳: 只消费上面纯函数的返回值 ═══
@@ -765,9 +895,84 @@ async function onBoardUndoneClick(ev) {
     for (const b of undoButtons(vid, board)) b.disabled = false;
   }
 }
+function snoozeButtons(vid, board) {
+  // 同 doneButtons 的纪律: getAttribute 比对而非把外部字符串插进选择器
+  return Array.from(el("cards").querySelectorAll("[data-snooze-board]"))
+    .filter(b => b.getAttribute("data-snooze-vault") === vid && b.getAttribute("data-snooze-board") === board);
+}
+async function onBoardSnoozeClick(ev) {
+  const btn = ev.target.closest("[data-snooze-board]");
+  if (!btn) return;
+  const vid = btn.getAttribute("data-snooze-vault");
+  const board = btn.getAttribute("data-snooze-board");
+  const until = btn.getAttribute("data-snooze-until");
+  // 复用 doneInflight (前缀分开): 同一块板的完成 / 推迟不会同时在飞, 共享
+  // 一格顺带保证"推迟还没落定就点完成"发不出去。前缀不能省 —— 两个动作
+  // 共用裸键会让推迟在飞时连完成钮一起禁掉, 那是另一件事。
+  const key = snoozeKey(vid, board);
+  if (state.doneInflight[key]) return;
+  // 与 onBoardDoneClick 同一条纪律 (Z1-A HIGH-1): 上一次重建挂下的 pending
+  // 不许再改写本次动作的反馈。覆盖面的如实声明见 onBoardDoneClick 那段。
+  delete state.pendingSync[vid];
+  state.doneInflight[key] = true;
+  for (const b of snoozeButtons(vid, board)) b.disabled = true;
+  try {
+    // 第四条 POST 路径 —— 与另外三个钮同纪律: **只由显式点击触发**, 不接进
+    // timer / visibilitychange (默认裁决②: 自动轮询绝不 POST)
+    const resp = await fetch(URLS.boardSnooze, {method: "POST",
+      body: new URLSearchParams({vault_id: vid, board: board, until: until})});
+    let payload = null;
+    try { payload = await resp.json(); } catch (_e) { payload = null; }
+    state.notes[vid] = {html: renderBoardSnoozeResult(resp.status, board, until, payload), atMs: Date.now()};
+    if (!applyNote(vid) && state.lastData) renderCards(Date.now());
+    // 板挪不挪去已推迟区等服务端说 (前端不自作主张改数据); 隐藏时不起网络活动
+    if (resp.ok && !document.hidden) poll();
+  } catch (e) {
+    state.notes[vid] = {html: renderBoardSnoozeResult(0, board, until, {detail: String((e && e.message) || e)}),
+      atMs: Date.now()};
+    if (!applyNote(vid) && state.lastData) renderCards(Date.now());
+  } finally {
+    delete state.doneInflight[key];
+    for (const b of snoozeButtons(vid, board)) b.disabled = false;
+  }
+}
+function unsnoozeButtons(vid, board) {
+  return Array.from(el("cards").querySelectorAll("[data-unsnooze-board]"))
+    .filter(b => b.getAttribute("data-unsnooze-vault") === vid && b.getAttribute("data-unsnooze-board") === board);
+}
+async function onBoardUnsnoozeClick(ev) {
+  const btn = ev.target.closest("[data-unsnooze-board]");
+  if (!btn) return;
+  const vid = btn.getAttribute("data-unsnooze-vault");
+  const board = btn.getAttribute("data-unsnooze-board");
+  const key = snoozeKey(vid, board);
+  if (state.doneInflight[key]) return;
+  delete state.pendingSync[vid];
+  state.doneInflight[key] = true;
+  for (const b of unsnoozeButtons(vid, board)) b.disabled = true;
+  try {
+    // 第五条 POST 路径 —— 同纪律: **只由显式点击触发**
+    const resp = await fetch(URLS.boardUnsnooze, {method: "POST",
+      body: new URLSearchParams({vault_id: vid, board: board})});
+    let payload = null;
+    try { payload = await resp.json(); } catch (_e) { payload = null; }
+    state.notes[vid] = {html: renderBoardUnsnoozeResult(resp.status, board, payload), atMs: Date.now()};
+    if (!applyNote(vid) && state.lastData) renderCards(Date.now());
+    if (resp.ok && !document.hidden) poll();
+  } catch (e) {
+    state.notes[vid] = {html: renderBoardUnsnoozeResult(0, board, {detail: String((e && e.message) || e)}),
+      atMs: Date.now()};
+    if (!applyNote(vid) && state.lastData) renderCards(Date.now());
+  } finally {
+    delete state.doneInflight[key];
+    for (const b of unsnoozeButtons(vid, board)) b.disabled = false;
+  }
+}
 el("cards").addEventListener("click", onRefreshClick);
 el("cards").addEventListener("click", onBoardDoneClick);
 el("cards").addEventListener("click", onBoardUndoneClick);
+el("cards").addEventListener("click", onBoardSnoozeClick);
+el("cards").addEventListener("click", onBoardUnsnoozeClick);
 poll();
 </script>
 </body>
@@ -791,6 +996,8 @@ async def review_overview_app(request: Request) -> HTMLResponse:
         "refresh": request.url_for("review_overview_refresh").path,
         "boardDone": request.url_for("review_overview_board_done").path,
         "boardUndone": request.url_for("review_overview_board_undone").path,
+        "boardSnooze": request.url_for("review_overview_board_snooze").path,
+        "boardUnsnooze": request.url_for("review_overview_board_unsnooze").path,
     }
     page = (
         _PAGE_TEMPLATE.replace("__URLS_JSON__", _js_json(urls))
@@ -798,5 +1005,6 @@ async def review_overview_app(request: Request) -> HTMLResponse:
         .replace("__BUCKET_CN_JSON__", _js_json(_BUCKET_CN))
         .replace("__BUCKET_ORDER_JSON__", _js_json(list(_BUCKET_ORDER)))
         .replace("__DONE_NOTE_JSON__", _js_json(_DONE_NOTE))
+        .replace("__SNOOZE_NOTE_JSON__", _js_json(_SNOOZE_NOTE))
     )
     return HTMLResponse(content=page)

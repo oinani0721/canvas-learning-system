@@ -1,0 +1,13 @@
+判据: _pin_now(端点钉钟) ∧ _REFRESH_URL(起子进程) ∧ ¬_pin_child_now(子进程未钉)
+
+违规 (= 哑弹) 共 0 条:
+
+两侧都钉住的 共 2 条:
+  ✅ tests/unit/test_review_overview.py:4389 test_g66_end_to_end_snooze_yields_top_slot_in_the_real_projection
+  ✅ tests/unit/test_review_overview.py:4444 test_g66_e2e_snooze_verdict_is_clock_independent
+
+验伪锚 (松掉子进程那一项): 2 条命中 —— 判据不是恒空扫描
+  · test_g66_end_to_end_snooze_yields_top_slot_in_the_real_projection
+  · test_g66_e2e_snooze_verdict_is_clock_independent
+
+结论: 哑弹 0 条

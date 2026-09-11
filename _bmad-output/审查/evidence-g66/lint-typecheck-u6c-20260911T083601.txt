@@ -1,0 +1,32 @@
+# U6-C: ruff + pyright (改动面: backend/tests/unit/test_review_overview.py)
+## ruff check
+All checks passed!
+rc_ruff_check=0
+## ruff format --check
+Would reformat: backend/tests/unit/test_review_overview.py
+1 file would be reformatted
+rc_ruff_format=1
+## ruff format 修正后复跑 (初版新增那一处 client.post 折行被 ruff 收成单行; HEAD 原文 format --check rc=0, 故该 reformat 归本次改动)
+All checks passed!
+rc_ruff_check=0
+1 file already formatted
+rc_ruff_format=0
+## pyright
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/tests/unit/test_review_overview.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/tests/unit/test_review_overview.py:37:5 - warning: Function "_pin_display_tz" is not accessed (reportUnusedFunction)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/tests/unit/test_review_overview.py:3903:27 - error: Variable "mod" is not accessed (reportUnusedVariable)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/tests/unit/test_review_overview.py:4026:19 - error: Variable "runner" is not accessed (reportUnusedVariable)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/tests/unit/test_review_overview.py:4065:19 - error: Variable "runner" is not accessed (reportUnusedVariable)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/tests/unit/test_review_overview.py:4183:44 - error: Argument of type "Literal['error']" cannot be assigned to parameter "key" of type "SupportsIndex | slice[SupportsIndex | None, SupportsIndex | None, SupportsIndex | None]" in function "__getitem__"
+    Type "Literal['error']" is not assignable to type "SupportsIndex | slice[SupportsIndex | None, SupportsIndex | None, SupportsIndex | None]"
+      "Literal['error']" is incompatible with protocol "SupportsIndex"
+        "__index__" is not present
+      "Literal['error']" is not assignable to "slice[SupportsIndex | None, SupportsIndex | None, SupportsIndex | None]" (reportArgumentType)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/tests/unit/test_review_overview.py:4229:5 - error: Variable "vault" is not accessed (reportUnusedVariable)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/tests/unit/test_review_overview.py:4258:19 - error: Variable "runner" is not accessed (reportUnusedVariable)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/tests/unit/test_review_overview.py:4284:19 - error: Variable "runner" is not accessed (reportUnusedVariable)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/tests/unit/test_review_overview.py:4344:19 - error: Variable "runner" is not accessed (reportUnusedVariable)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/tests/unit/test_review_overview.py:4399:19 - error: Variable "runner" is not accessed (reportUnusedVariable)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/tests/unit/test_review_overview.py:4457:19 - error: Variable "runner" is not accessed (reportUnusedVariable)
+10 errors, 1 warning, 0 informations
+rc_pyright=1

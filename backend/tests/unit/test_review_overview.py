@@ -3086,9 +3086,14 @@ def test_g67_page_folds_done_board_without_dropping_it(board_done_env):
     (vault / "节点").mkdir(exist_ok=True)
 
     page = client.get(_PAGE_URL).text
-    assert page.count('name="board"') == 2, "两块板各一个完成钮"
+    # CARD-G6-6: 与本用例下半段 (G6-7-R) 同一条迁移 —— 原判据 count('name="board"')
+    # 在推迟表单也带同名 hidden 之后不再表达"两块板各一个**完成**钮"。按 action
+    # 归属判定更强 (每个动作各自可被违反), 不是放宽。
+    assert page.count(f'action="{_BOARD_DONE_URL}"') == 2, "两块板各一个完成钮"
+    assert page.count(f'action="{_BOARD_SNOOZE_URL}"') == 2, "两块板各一个推迟表单"
     assert "不影响 FSRS" in page
     assert "已完成（" not in page, "还没标完成就不该有已完成区"
+    assert "已推迟（" not in page, "还没推迟就不该有已推迟区"
 
     assert client.post(_BOARD_DONE_URL, data={"vault_id": "vault-page", "board": "CS 61B"}).status_code == 200
 
@@ -3881,3 +3886,709 @@ def test_g67r_page_offers_undo_only_in_the_done_section(board_done_env):
     page3 = client.get(_PAGE_URL).text
     assert "已完成（" not in page3
     assert page3.count(f'action="{_BOARD_DONE_URL}"') == 2, "两块板都回到待做区, 各带一个完成钮"
+
+
+# ══ CARD-G6-6 (BATCH-2026-09-07-第十三批): 板级 snooze 两档「今晚 / 明天」══
+
+_BOARD_SNOOZE_URL = "/api/v1/review/overview/board-snooze"
+
+
+def test_g66_board_snooze_writes_only_state_and_never_touches_fsrs(board_done_env):
+    """(g)①⑤ 推迟的写面恰是 backups + state + 锁, FSRS 调度面一个字节不动。
+
+    写面允许集与 board-done 那条是**同一个集合** —— snooze 走的是同一条
+    load→改→save (同一把锁、同一个 state 文件), 写面不该多出任何东西。
+    多出来的任何一项都是本卡引入的写面泄漏。
+    """
+    root, client, runner, mod = board_done_env
+    vault = _mk_node_vault(root, "vault-snooze", {"定义甲": _node_md(fsrs_due='"2099-01-01T00:00:00Z"')})
+    (vault / "learning_events.jsonl").write_text(
+        '{"event":"quiz","node":"定义甲","at":"2026-09-01T00:00:00Z"}\n', encoding="utf-8"
+    )
+
+    before_fsrs = _fsrs_fingerprint(vault)
+    assert any(x.startswith("fsrs_") for x in before_fsrs[0]["定义甲.md"]), (
+        "夹具前提: 节点必须真的带 fsrs_* frontmatter 行, 否则门是空的"
+    )
+    assert before_fsrs[1] is not None, "夹具前提: 事件账必须真的存在, 否则那一半判据是空的"
+    before_tree = _tree(root)
+
+    resp = client.post(_BOARD_SNOOZE_URL, data={"vault_id": "vault-snooze", "board": "CS 61B", "until": "tomorrow"})
+    assert resp.status_code == 200, resp.text
+
+    # ⛔ 承重断言排第一: 对照写点让它先红, 而不是被别的断言抢先 (假杀)
+    _assert_fsrs_untouched(before_fsrs, _fsrs_fingerprint(vault))
+
+    body = resp.json()
+    assert body["board"] == "CS 61B" and body["fsrs_touched"] is False
+    state_file = runner.state_path(vault)
+    assert Path(body["state_path"]) == state_file
+    assert not state_file.is_relative_to(vault), "推迟账不许落在库内 (BACKUPS 在仓库下)"
+
+    st = _state_of(runner, Path(root), "vault-snooze")
+    assert set(st["snoozed"]) == {"CS 61B"}, f"推迟账必须落进 snoozed, 实为 {st.get('snoozed')!r}"
+    assert st["snoozed"]["CS 61B"] == body["snoozed_until"]
+
+    after_tree = _tree(root)
+    lock_file = runner.state_lock_path(vault)
+    changed = {k for k in set(before_tree) | set(after_tree) if before_tree.get(k) != after_tree.get(k)}
+    assert changed == {"backups", f"backups/{state_file.name}", f"backups/{lock_file.name}"}, (
+        f"写面必须恰是 backups 目录 + 那一个 state 文件 + 那一把锁, 实为 {sorted(changed)}"
+    )
+
+
+_BOARD_UNSNOOZE_URL = "/api/v1/review/overview/board-unsnooze"
+
+
+def _pin_now(monkeypatch, mod, when: str, tz_name: str = "Asia/Shanghai"):
+    """把端点侧的「此刻」钉在一个具体钟点上 (显示时区本地)。
+
+    ⛔ 打的是 mod._display_now 这个**模块级入口**, 不是 datetime.now —— 后者
+    是解释器全局, 打上去会连累同进程里任何别的调用方 (本仓实测: 会把
+    bug_tracker 的 id 生成一起弄坏)。这也是本卡把那次读数收成单一入口的理由。
+    """
+    monkeypatch.setenv("CANVAS_TZ", tz_name)
+    pinned = datetime.fromisoformat(when).replace(tzinfo=ZoneInfo(tz_name))
+    monkeypatch.setattr(mod, "_display_now", lambda: pinned)
+    return pinned
+
+
+def _pin_child_now(monkeypatch, mod, pinned) -> list:
+    """把**生产器子进程**的「此刻」也钉到 pinned 上 (走它既有的只读旗标 --now)。
+
+    ⛔ 只钉端点 (_pin_now) 不够: refresh 是 subprocess 起 daily_review_pick.py,
+    子进程用 datetime.now(timezone.utc) 自己读钟。端点被钉在一个**绝对**钟点上
+    时, 它写出的 until 是一个会随真实时间流逝而过期的时刻 —— 墙钟一旦越过它,
+    子进程就判它不活跃, 让位不发生。于是门的真值随墙钟翻转: 钉在
+    2026-09-09T10:00 的端到端门写出 until=2026-09-09T20:00+08:00, 到 2026-09-11
+    自己红成 `assert 'CS 61B' != 'CS 61B'`, 而**代码一个字没改**。
+
+    ⚠ 「刚过期的 snooze」这个状态在生产里**是可达的**, 而且那时**不让位才是对的**
+    (Codex round-6 LOW-1 更正了本注释的初版, 那版说它"生产不可达", 错了: 端点在
+    19:59:59.999 算出 until=20:00:00 过了 `until > now_local` 的检查, 写盘落在
+    20:00:00.001 就已过期; 何况推迟与刷新本来就是**两个独立请求**, 之间没有任何
+    时间上界)。所以这条门要验的不是"过期还让位", 而是"**活跃**的 snooze 让位" ——
+    那就必须保证判定发生时 until 确实还活着。两侧钉到同一刻做到了这一点。
+
+    钉住两侧之后判据与真实墙钟无关 —— 同一条性质在相距 79 年的三个 pinned
+    值上同绿, 见 test_g66_e2e_snooze_verdict_is_clock_independent。
+
+    ⚠ 这是**测试侧**的修法, 刻意不给生产加旗标。理由 (round-6 已按 Codex 的核对
+    收窄, 初版两条都说过了头):
+      · payload 的 generated_at 会从**子进程扫描前**的采样变成**父进程请求时**的
+        采样。差的是一次 spawn, 不是"生成完成时刻"——初版那么写是夸大;
+      · 真正决定性的一条: 接 --now **也统一不了什么**。写推迟账那次请求、刷新那次
+        请求、之后 GET 那次渲染, 本来就是三次独立的读钟; 只在 _run_pick 里补一次
+        父侧采样只合上其中一道缝。
+      · ⛔ 初版还写过「与 launchd runner 那条不传 --now 的调用路分叉」——**事实错误**:
+        runner 根本不起 picker 子进程, 它 `import daily_review_pick as picker` 后
+        在进程内直调 `picker.build_payload(VAULT, now, ...)`(daily_review_run.py
+        :604/:613), 已经在传自己的参照时刻。拿它当"另一条不传旗标的路"是我没读代码
+        就写下的类比。
+    (父子各读一次钟、当地午夜前后可能分到不同日期这件事是 G6-7/G6-7-R 面的既有
+    形态, 非本卡引入, 登记为移交项。)
+
+    脚本名锚在生产常量 mod._PICK_REL 上, 不手抄字面量: 生产改名时本 helper
+    跟着失效, 比"改完还静默放行"强。返回 seen, 与 _spy_subprocess_run 同形。
+    """
+    seen: list[list[str]] = []
+    real_run = mod.subprocess.run
+    pinned_iso = pinned.isoformat()
+    basename = mod._PICK_REL[-1]
+
+    def _run(argv, **kw):
+        argv = list(argv)
+        if any(str(a).endswith(basename) for a in argv):
+            argv += ["--now", pinned_iso]
+        seen.append(argv)
+        return real_run(argv, **kw)
+
+    monkeypatch.setattr(mod.subprocess, "run", _run)
+    return seen
+
+
+def _assert_child_now_pinned(seen, pinned, *, expected_runs: int) -> None:
+    """钉子有没有真的落到**每一次**子进程调用上 —— 要断言, 不能靠相信。
+
+    少了这条, `_pin_child_now` 哪天匹配不上脚本名 (改名 / 换调用形态) 就会
+    静默退回单侧钉钟, 而门照样绿到下一次墙钟越线为止。
+
+    ⛔ expected_runs 与「逐条检查」都是 Codex round-6 第 2 点补上的:
+    初版只看 `seen[-1]`, 那只证明**最后一次被记下的调用**钉住了。若将来只有第二次
+    refresh 绕过这层包装 (直接 Popen / call / 提前绑定的 run 别名 —— stdlib 里
+    check_output 走 run 会被包到, 这几个不会), `seen[-1]` 仍是第一次那条合法记录,
+    断言照样绿。钉住条数 + 逐条检查之后, 少一次或漏一次都会红。
+    """
+    assert len(seen) == expected_runs, f"起子进程的次数不是 {expected_runs} 次 (实为 {len(seen)}): {seen}"
+    for i, argv in enumerate(seen):
+        assert "--now" in argv, f"第 {i + 1} 次子进程 argv 里没有 --now (钉子没落上): {argv}"
+        assert argv[argv.index("--now") + 1] == pinned.isoformat(), f"第 {i + 1} 次 --now 钉的不是那一刻: {argv}"
+
+
+def test_g66_snooze_tonight_lands_on_todays_20_00_display_tz(board_done_env, monkeypatch):
+    """(e)(g)① 「今晚」= **当日 20:00 显示时区**, offset 取那一天的实际值。"""
+    root, client, runner, mod = board_done_env
+    _mk_node_vault(root, "vault-t", {"定义甲": _node_md()})
+    pinned = _pin_now(monkeypatch, mod, "2026-09-09T10:00:00")
+
+    resp = client.post(_BOARD_SNOOZE_URL, data={"vault_id": "vault-t", "board": "CS 61B", "until": "tonight"})
+    assert resp.status_code == 200, resp.text
+    until = datetime.fromisoformat(resp.json()["snoozed_until"])
+    assert (until.year, until.month, until.day) == (2026, 9, 9), "「今晚」必须落在当日"
+    assert (until.hour, until.minute, until.second) == (20, 0, 0)
+    assert until.utcoffset() == pinned.utcoffset(), "offset 必须是显示时区当日的实际值"
+    st = _state_of(runner, Path(root), "vault-t")
+    assert st["snoozed"]["CS 61B"] == resp.json()["snoozed_until"], "落盘值与响应值必须是同一个串"
+
+
+def test_g66_snooze_tomorrow_lands_on_next_midnight_display_tz(board_done_env, monkeypatch):
+    """(e)(g)③ 「明天」= 次日 00:00 显示时区。"""
+    root, client, runner, mod = board_done_env
+    _mk_node_vault(root, "vault-m", {"定义甲": _node_md()})
+    _pin_now(monkeypatch, mod, "2026-09-09T22:30:00")
+
+    resp = client.post(_BOARD_SNOOZE_URL, data={"vault_id": "vault-m", "board": "CS 61B", "until": "tomorrow"})
+    assert resp.status_code == 200, resp.text
+    until = datetime.fromisoformat(resp.json()["snoozed_until"])
+    assert (until.year, until.month, until.day) == (2026, 9, 10), "「明天」必须落在次日"
+    assert (until.hour, until.minute, until.second) == (0, 0, 0), "必须是次日零点整"
+
+
+def test_g66_tomorrow_survives_dst_transitions(board_done_env, monkeypatch):
+    """(g)③ DST 切换日「明天」仍是次日 **00:00**, 不是 01:00 / 23:00。
+
+    ⛔ 这条是 `datetime.combine(date + 1天, 00:00, tz)` 与
+    `now + timedelta(hours=24)` 的分水岭: 切换日那一天不是 24 小时, 加满
+    24 小时会落到 23:00 或次日 01:00 —— 而用户看到的文案还写着"明天零点"。
+    两个方向各一条 (spring forward / fall back)。
+
+    两类 case, 各自守不同的性质:
+      · **America/New_York 两组** 守 `hour == 0` —— 它抓得住裸
+        `now + timedelta(hours=24)`(实测这三个日期上都给 hour=10)。
+        ⚠ 但这两组的 **offset 断言无区分力**: 美国 DST 在**凌晨 02:00** 切换,
+        于是「今天白天的 offset」与「次日 00:00 的 offset」恒相同 —— 连"把今天的
+        固定偏移硬搬到明天"(`tzinfo=timezone(now.utcoffset())`) 也给出逐字节相同
+        的结果。
+      · **America/Nuuk 两组** 才是 offset 那条的承重面 (Codex round-2 LOW-2)。
+        格陵兰的切换发生在**当地午夜**(2026 春季 = `2026-03-29 01:00Z` → 当地
+        `00:00 -01:00`; 秋季 = `2026-10-25 01:00Z`), 于是「今天白天」与「次日
+        00:00」分处切换两侧 —— 3/28 10:00 是 -02:00 而次日零点是 **-01:00**,
+        10/24 反向。硬搬今天偏移的实现会**晚/早一小时唤醒**, 本组当场红。
+        ⚠ Codex round-3 LOW-2 更正: 本卡初版注释写「切换在 UTC 22:00」是**错的**
+        —— 22:00Z 时当地才 20:00 -02:00, 尚未切换。照那个数复建 UTC 边界夹具
+        会提前三小时、测到还没切换的偏移。期望值与夹具前提断言本身没错, 错的是
+        注释里那个 UTC 时刻。
+    ⛔ 本卡初版 docstring 断言过「IANA 现行库里没有这样的时区」——**那是错的**,
+    Codex round-2 给出了 Nuuk 这个反例, 实测成立。教训: "找不到"不等于"不存在",
+    没穷举就不该把它写成事实。
+    """
+    root, client, runner, mod = board_done_env
+    _mk_node_vault(root, "vault-dst", {"定义甲": _node_md()})
+    cases = [
+        # (时区, 钉住的此刻, 期望的次日, 次日零点那一刻的 UTC 偏移小时数)
+        # ── 守 hour == 0 (offset 在这两组上恒真, 见 docstring) ──
+        ("America/New_York", "2026-03-08T10:00:00", (2026, 3, 9), -4),  # spring forward 当天
+        ("America/New_York", "2026-11-01T10:00:00", (2026, 11, 2), -5),  # fall back 当天
+        # ── 守 offset 取**次日**那天的值 (切换在当地午夜, 今天与次日零点不同组) ──
+        ("America/Nuuk", "2026-03-28T10:00:00", (2026, 3, 29), -1),  # 切换 2026-03-29T01:00Z
+        ("America/Nuuk", "2026-10-24T10:00:00", (2026, 10, 25), -2),  # 切换 2026-10-25T01:00Z
+    ]
+    for tz_name, when, expect_date, expect_offset_h in cases:
+        pinned = _pin_now(monkeypatch, mod, when, tz_name=tz_name)
+        resp = client.post(_BOARD_SNOOZE_URL, data={"vault_id": "vault-dst", "board": "CS 61B", "until": "tomorrow"})
+        assert resp.status_code == 200, resp.text
+        until = datetime.fromisoformat(resp.json()["snoozed_until"])
+        assert (until.year, until.month, until.day) == expect_date, f"{when}: 明天不是次日"
+        assert (until.hour, until.minute) == (0, 0), (
+            f"{when}: DST 切换日的「明天」落到了 {until.hour}:{until.minute:02d} 而不是零点"
+        )
+        assert until.utcoffset() == timedelta(hours=expect_offset_h), (
+            f"{tz_name} {when}: offset 用的不是**次日**那天的值 (把今天的偏移硬搬过去了)"
+        )
+        if tz_name == "America/Nuuk":
+            # 夹具前提: 这一组的今天与次日零点**确实不同组**, 否则本组也是空的
+            assert pinned.utcoffset() != until.utcoffset(), (
+                f"{tz_name} {when}: 夹具前提不成立 —— 今天与次日零点同 offset, 这组守不住任何东西"
+            )
+
+
+def test_g66_tonight_after_2000_is_422_and_writes_nothing(board_done_env, monkeypatch):
+    """(e)(g)④ 20:00 之后点「今晚」→ 422 snooze_until_in_past, state 字节不变。
+
+    ⛔ **不静默夹到下一档**: 用户点的是「今晚」, 悄悄改成「明天」等于替他做了
+    一个他没做的决定, 而他看到的反馈还写着"今晚"。
+    """
+    root, client, runner, mod = board_done_env
+    vault = _mk_node_vault(root, "vault-late", {"定义甲": _node_md()})
+    _pin_now(monkeypatch, mod, "2026-09-09T20:05:00")
+    state_file = runner.state_path(vault)
+
+    before = state_file.read_bytes() if state_file.exists() else None
+    resp = client.post(_BOARD_SNOOZE_URL, data={"vault_id": "vault-late", "board": "CS 61B", "until": "tonight"})
+    assert resp.status_code == 422, resp.text
+    assert resp.json()["detail"]["error"] == "snooze_until_in_past"
+    after = state_file.read_bytes() if state_file.exists() else None
+    assert after == before, "被拒的请求不许写出任何内容"
+
+    # 同一时刻「明天」仍然合法 —— 拒的是那一档, 不是整个动作
+    ok = client.post(_BOARD_SNOOZE_URL, data={"vault_id": "vault-late", "board": "CS 61B", "until": "tomorrow"})
+    assert ok.status_code == 200, ok.text
+
+
+def test_g66_until_outside_the_two_choices_is_422(board_done_env, monkeypatch):
+    """(e)(i) 两档枚举之外一律 422 —— 禁自定义天数 / 自由时间 (D-8 甲)。"""
+    root, client, runner, mod = board_done_env
+    vault = _mk_node_vault(root, "vault-enum", {"定义甲": _node_md()})
+    _pin_now(monkeypatch, mod, "2026-09-09T10:00:00")
+    state_file = runner.state_path(vault)
+
+    # 自定义天数 / 自由时间 / 大小写与空白变体 —— 全部走本端点自己的枚举门
+    for bad in ("nextweek", "3d", "2026-09-20T00:00:00+08:00", "TONIGHT", "tonight ", "0"):
+        before = state_file.read_bytes() if state_file.exists() else None
+        resp = client.post(_BOARD_SNOOZE_URL, data={"vault_id": "vault-enum", "board": "CS 61B", "until": bad})
+        assert resp.status_code == 422, f"until={bad!r} 应被拒: {resp.text}"
+        assert resp.json()["detail"]["error"] == "snooze_until_invalid", bad
+        after = state_file.read_bytes() if state_file.exists() else None
+        assert after == before, f"until={bad!r} 被拒后不许写出任何内容"
+
+    # 空串 / 缺字段在 **表单层**就被拒 (Form(...) 是必填) —— 请求根本到不了
+    # 端点体内。如实分开写: 拿它去断言 snooze_until_invalid 是在给框架的
+    # 校验记本端点的功。两条都是 422 且零写入, 这才是本门要的性质。
+    for missing in (
+        {"vault_id": "vault-enum", "board": "CS 61B", "until": ""},
+        {"vault_id": "vault-enum", "board": "CS 61B"},
+    ):
+        before = state_file.read_bytes() if state_file.exists() else None
+        resp = client.post(_BOARD_SNOOZE_URL, data=missing)
+        assert resp.status_code == 422, f"{missing!r} 应被拒: {resp.text}"
+        after = state_file.read_bytes() if state_file.exists() else None
+        assert after == before, f"{missing!r} 被拒后不许写出任何内容"
+
+
+def test_g66_snooze_reuses_all_three_write_gates_and_writes_nothing_on_refusal(board_done_env, tmp_path_factory):
+    """(g)⑥ 三道写侧门是**复用**不是复制, 且被拒时零写入 (沿 board-done 同名门)。
+
+    行为面而非文本面 —— 跨站表单 403 / 未知 vault 404 / 库外软链 503 /
+    空板名与超长板名 422, 每条都验"state 文件没被创建"。
+    """
+    root, client, runner, mod = board_done_env
+    _mk_node_vault(root, "vault-sgate", {"甲": _node_md()})
+    state_file = runner.state_path(Path(root) / "vault-sgate")
+    ok = {"vault_id": "vault-sgate", "board": "CS 61B", "until": "tomorrow"}
+
+    cross = client.post(
+        _BOARD_SNOOZE_URL, data=ok, headers={"origin": "http://evil.example", "sec-fetch-site": "cross-site"}
+    )
+    assert cross.status_code == 403, cross.text
+    assert cross.json()["detail"]["error"] == "cross_site_blocked"
+    assert not state_file.exists(), "被同源门拒的请求不许留下任何推迟账"
+
+    assert client.post(_BOARD_SNOOZE_URL, data={**ok, "vault_id": "不存在的库"}).status_code == 404
+    assert not state_file.exists()
+
+    # 超长板名走本端点自己的 _assert_board_name (与另外两个写端点同一个函数)
+    long_board = "板" * (mod._BOARD_NAME_MAX + 1)
+    resp = client.post(_BOARD_SNOOZE_URL, data={**ok, "board": long_board})
+    assert resp.status_code == 422, resp.text
+    assert resp.json()["detail"]["error"] == "board_invalid"
+    assert not state_file.exists()
+    # 空板名在**表单层**就被拒 (Form(...) 必填, 空串等同缺席) —— 到不了端点体内。
+    # 那一半判据只能在函数级验: 门守的是"空名不许过", 不是"HTTP 层回哪种 422"。
+    empty = client.post(_BOARD_SNOOZE_URL, data={**ok, "board": ""})
+    assert empty.status_code == 422 and not state_file.exists()
+    from fastapi import HTTPException
+
+    with pytest.raises(HTTPException) as ei:
+        mod._assert_board_name("")
+    assert ei.value.status_code == 422 and ei.value.detail["error"] == "board_invalid"
+
+    outside = tmp_path_factory.mktemp("g66-outside")
+    (outside / ".obsidian").mkdir()
+    (root / "vault-slink").symlink_to(outside, target_is_directory=True)
+    link = client.post(_BOARD_SNOOZE_URL, data={**ok, "vault_id": "vault-slink"})
+    assert link.status_code == 503, link.text
+    assert link.json()["detail"]["error"] == "vault_outside_root"
+    assert not runner.state_path(root / "vault-slink").exists()
+
+
+def test_g66_zero_js_form_path_redirects_and_failure_keeps_status(board_done_env):
+    """(g)⑦ 零 JS 表单路径: redirect=page → 303 回本页; 失败渲染**本动作**的错误页。
+
+    用户刚点「明天再说」, 页面写着「刷新失败」比没有错误页更糟。
+    """
+    root, client, runner, _mod = board_done_env
+    _mk_node_vault(root, "vault-sform", {"甲": _node_md()})
+
+    ok = client.post(
+        _BOARD_SNOOZE_URL,
+        data={"vault_id": "vault-sform", "board": "CS 61B", "until": "tomorrow", "redirect": "page"},
+        follow_redirects=False,
+    )
+    assert ok.status_code == 303
+    assert ok.headers["location"] == _PAGE_URL
+    assert runner.state_path(Path(root) / "vault-sform").exists()
+
+    bad = client.post(
+        _BOARD_SNOOZE_URL,
+        data={"vault_id": "不存在的库", "board": "CS 61B", "until": "tomorrow", "redirect": "page"},
+        follow_redirects=False,
+    )
+    assert bad.status_code == 404, "失败不许伪装成 303 成功"
+    assert "推迟失败" in bad.text and "刷新失败" not in bad.text and "标记完成失败" not in bad.text
+    assert "vault_not_found" in bad.text
+
+
+def test_g66_get_projects_only_active_snoozes(board_done_env, monkeypatch):
+    """(f)(g)② GET 只投影**仍在生效**的推迟 —— 到期的条目对页面已经不存在。
+
+    「到期回队」在读侧的全部依据。⛔ 同时验**不删过期键**: state 里那条记录
+    还在 (加性纪律), 只是不再活跃 —— 两件事一起才说明得了"靠现算而不是靠
+    清理器"。
+    """
+    root, client, runner, mod = board_done_env
+    vault = _mk_node_vault(root, "vault-exp", {"甲": _node_md()})
+    _pin_now(monkeypatch, mod, "2026-09-09T10:00:00")
+
+    assert (
+        client.post(
+            _BOARD_SNOOZE_URL, data={"vault_id": "vault-exp", "board": "CS 61B", "until": "tonight"}
+        ).status_code
+        == 200
+    )
+    entry = next(v for v in client.get("/api/v1/review/overview").json()["vaults"] if v["vault_id"] == "vault-exp")
+    assert set(entry["snoozed"]) == {"CS 61B"}, "活跃推迟必须投影出来"
+
+    # 时钟拨过 20:00 —— 没有任何人去改 state
+    _pin_now(monkeypatch, mod, "2026-09-09T20:01:00")
+    entry2 = next(v for v in client.get("/api/v1/review/overview").json()["vaults"] if v["vault_id"] == "vault-exp")
+    assert entry2["snoozed"] == {}, "过了 until 就不该再投影出来"
+    st = _state_of(runner, Path(root), "vault-exp")
+    assert "CS 61B" in st["snoozed"], "过期键**不删** —— 活跃是现算的, 不靠清理器"
+
+
+def test_g66_tonight_available_is_decided_server_side_once(board_done_env, monkeypatch):
+    """(e)(g)⑧ 20:00 的判定只在服务端做一次, 以布尔下发; 页面照结论渲染。
+
+    三件事一起钉:
+      ① GET 顶层带 tonight_available, 与服务端那一次 now 读数一致;
+      ② 未到 20:00: 零 JS 页有「今晚再说」钮;
+      ③ 过了 20:00: 页面**不再渲染**那个钮 (留着它只会让人点出一个必然 422
+         的请求), 但「明天再说」仍在 —— 关掉的是那一档不是整个动作。
+    """
+    root, client, runner, mod = board_done_env
+    _mk_vault(root, "vault-tz", _two_board_projection("vault-tz", _now_local().isoformat(timespec="seconds")))
+
+    _pin_now(monkeypatch, mod, "2026-09-09T10:00:00")
+    data = client.get("/api/v1/review/overview").json()
+    assert data["tonight_available"] is True
+    page = client.get(_PAGE_URL).text
+    assert page.count('value="tonight"') == 2, "未到 20:00, 两块板各一个「今晚」钮"
+    assert page.count('value="tomorrow"') == 2
+
+    _pin_now(monkeypatch, mod, "2026-09-09T20:00:00")
+    data2 = client.get("/api/v1/review/overview").json()
+    assert data2["tonight_available"] is False, "20:00 整点起就不该再给「今晚」"
+    page2 = client.get(_PAGE_URL).text
+    assert page2.count('value="tonight"') == 0, "过了 20:00 页面不许再渲染「今晚」钮"
+    assert page2.count('value="tomorrow"') == 2, "关掉的是那一档, 不是整个动作"
+
+
+def test_g66_page_folds_snoozed_board_without_dropping_it(board_done_env, monkeypatch):
+    """(f)(g)⑧ 零 JS 页: 推迟的板折进「已推迟」区 —— **折叠不是删除**。
+
+    ⛔ 同时钉住 `<details>` 的**条件渲染**: 没有活跃推迟时页面上的折叠区个数
+    与推迟之前**完全相同** (无条件输出一个空的第三区会当场打红 g64 那两条
+    「恰好等于」的计数断言, 而那两条不该为了本卡被放宽); 推迟一块板之后
+    恰好 +1。
+    """
+    root, client, runner, mod = board_done_env
+    _mk_vault(root, "vault-sp", _two_board_projection("vault-sp", _now_local().isoformat(timespec="seconds")))
+    _pin_now(monkeypatch, mod, "2026-09-09T10:00:00")
+
+    page = client.get(_PAGE_URL).text
+    folds_before = page.count("<details")
+    assert "已推迟（" not in page, "还没推迟就不该有已推迟区"
+
+    assert (
+        client.post(_BOARD_SNOOZE_URL, data={"vault_id": "vault-sp", "board": "CS 61B", "until": "tonight"}).status_code
+        == 200
+    )
+
+    page2 = client.get(_PAGE_URL).text
+    assert page2.count("<details") == folds_before + 1, "「已推迟」区恰好多出一个折叠区, 不多不少"
+    i = page2.index("已推迟（1）")
+    head, fold = page2[:i], page2[i:]
+    assert "数学" in head and "CS 61B" not in head, "被推迟的板应从待做区移出"
+    assert "CS 61B" in fold, "被推迟的板必须仍在页面上 (折叠区内), 不许被剔除"
+    assert fold.count(f'action="{_BOARD_SNOOZE_URL}"') == 0, "已推迟的板不该再带推迟钮"
+    assert head.count(f'action="{_BOARD_SNOOZE_URL}"') == 1, "未推迟的板仍要带推迟钮"
+    assert fold.count(f'action="{_BOARD_UNSNOOZE_URL}"') == 1, "已推迟区必须给一个取回的出口"
+    # 投影本体一个数都没动 (硬边界: 禁在投影层压制)
+    entry = next(v for v in client.get("/api/v1/review/overview").json()["vaults"] if v["vault_id"] == "vault-sp")
+    assert entry["projection"]["due_count"] == 2
+    assert sorted(r["board"] for r in entry["projection"]["boards"]) == ["CS 61B", "数学"]
+
+
+def test_g66_unsnooze_is_idempotent_and_brings_the_board_back(board_done_env, monkeypatch):
+    """(h) 取回: 同 board-undone 形态 —— 幂等 200 + already_unsnoozed, 不 404。
+
+    误点之后唯一的恢复途径不该是"等到点"。本来就没有时**不改写 state**:
+    一次无事可做的撤销不该动 state 的字节与 mtime。
+    """
+    root, client, runner, mod = board_done_env
+    vault = _mk_node_vault(root, "vault-un", {"甲": _node_md()})
+    _pin_now(monkeypatch, mod, "2026-09-09T10:00:00")
+    state_file = runner.state_path(vault)
+
+    # 本来就没有 → 幂等 200, 且 state 不被改写
+    before = state_file.read_bytes() if state_file.exists() else None
+    first = client.post(_BOARD_UNSNOOZE_URL, data={"vault_id": "vault-un", "board": "CS 61B"})
+    assert first.status_code == 200, first.text
+    assert first.json()["already_unsnoozed"] is True and first.json()["fsrs_touched"] is False
+    after = state_file.read_bytes() if state_file.exists() else None
+    assert after == before, "无事可做的取回不许动 state 的字节"
+
+    assert (
+        client.post(_BOARD_SNOOZE_URL, data={"vault_id": "vault-un", "board": "CS 61B", "until": "tonight"}).status_code
+        == 200
+    )
+    real = client.post(_BOARD_UNSNOOZE_URL, data={"vault_id": "vault-un", "board": "CS 61B"})
+    assert real.status_code == 200 and real.json()["already_unsnoozed"] is False
+    assert _state_of(runner, Path(root), "vault-un")["snoozed"] == {}, "取回必须真的摘掉那个键"
+    entry = next(v for v in client.get("/api/v1/review/overview").json()["vaults"] if v["vault_id"] == "vault-un")
+    assert entry["snoozed"] == {}
+
+
+def test_g66_snooze_is_per_vault(board_done_env, monkeypatch):
+    """(g)⑨ 双库互不影响 (沿 test_g67_done_expires_next_day_and_is_per_vault)。"""
+    root, client, runner, mod = board_done_env
+    _mk_node_vault(root, "vault-a", {"甲": _node_md()})
+    _mk_node_vault(root, "vault-b", {"乙": _node_md()})
+    _pin_now(monkeypatch, mod, "2026-09-09T10:00:00")
+
+    assert (
+        client.post(_BOARD_SNOOZE_URL, data={"vault_id": "vault-a", "board": "CS 61B", "until": "tonight"}).status_code
+        == 200
+    )
+    vaults = {v["vault_id"]: v for v in client.get("/api/v1/review/overview").json()["vaults"]}
+    assert set(vaults["vault-a"]["snoozed"]) == {"CS 61B"}
+    assert vaults["vault-b"]["snoozed"] == {}, "另一个库的推迟账必须完全独立"
+
+
+def test_g66_fsrs_gate_reddens_under_contaminating_snooze_write_point(board_done_env, monkeypatch):
+    """(g)⑤ 常驻负控: 换上「顺手写 fsrs_due」的推迟写点, 上面那道门必须红。
+
+    判据绑定到**具体那一条**断言 (_FSRS_GATE_MSG), 不是"某处失败了" ——
+    变异体若因语法 / 路径坏掉而让别的断言先红, 本门同样不放行。
+    """
+    root, client, runner, mod = board_done_env
+    vault = _mk_node_vault(root, "vault-sneg", {"定义甲": _node_md(fsrs_due='"2099-01-01T00:00:00Z"')})
+
+    real = mod._write_board_snooze
+
+    def contaminated(vault_dir, vaults_root, board, until_iso):
+        state_file = real(vault_dir, vaults_root, board, until_iso)
+        target = sorted((vault / "节点").glob("*.md"))[0]
+        text = target.read_text(encoding="utf-8")
+        target.write_text(text.replace("fsrs_due:", "fsrs_due: # 顺手改\nfsrs_due_shadow:"), encoding="utf-8")
+        return state_file
+
+    monkeypatch.setattr(mod, "_write_board_snooze", contaminated)
+
+    before = _fsrs_fingerprint(vault)
+    resp = client.post(_BOARD_SNOOZE_URL, data={"vault_id": "vault-sneg", "board": "CS 61B", "until": "tomorrow"})
+    assert resp.status_code == 200, "对照写点只污染 FSRS, 不许把请求本身弄坏 (否则红的是别的东西)"
+    assert set(_state_of(runner, Path(root), "vault-sneg")["snoozed"]) == {"CS 61B"}, (
+        "对照写点必须仍然把推迟账写对 —— 拆的只是那一条守卫"
+    )
+    with pytest.raises(AssertionError) as ei:
+        _assert_fsrs_untouched(before, _fsrs_fingerprint(vault))
+    assert _FSRS_GATE_MSG in str(ei.value), f"红的不是 FSRS 那条断言: {ei.value}"
+
+
+def test_g66_end_to_end_snooze_yields_top_slot_in_the_real_projection(board_done_env, monkeypatch):
+    """(g)① 端到端: 推迟 → refresh → 真投影里让出榜首, 但**行、桶、合计一个不动**。
+
+    这条把 Web 写侧、runner state、生产器让位、页面读侧串成一条 —— 单元门
+    各自绿着但接线断了 (M-1 那次: runner 修了、CLI 没修, 于是浏览器上点
+    「重新算一遍」榜首不让位) 正是这条要抓的形态。
+
+    ⛔ 硬边界一起验: 让位不许从 boards / stats 里剔行改数 (投影层压制会当场
+    撞 _gate_buckets 的「到期三桶合计恒等 stats.due_nodes」)。
+    """
+    root, client, runner, mod = board_done_env
+    monkeypatch.setattr(mod, "_REFRESH_TTL_SECONDS", 0.0)
+    vault = _mk_node_vault(
+        root,
+        "vault-e2e",
+        {
+            "定义甲": _node_md(board="CS 61B", fsrs_due='"2020-01-01T00:00:00Z"'),
+            "定义乙": _node_md(board="CS 61B", fsrs_due='"2020-01-01T00:00:00Z"'),
+            "定义丙": _node_md(board="数学", fsrs_due='"2020-01-01T00:00:00Z"'),
+        },
+    )
+    proj_path = vault / "outputs" / "今日复习.json"
+    # ⛔ 端点与生产器子进程**两侧一起钉**。初版只钉端点那一侧, 于是写出的
+    #    until=2026-09-09T20:00+08:00 在子进程的真实墙钟下 09-11 起已过期 ——
+    #    本门 2026-09-11 自己红成 `assert 'CS 61B' != 'CS 61B'`, 代码一字未改。
+    #    理由与"为什么不给生产加旗标"见 _pin_child_now 的 docstring。
+    pinned = _pin_now(monkeypatch, mod, "2026-09-09T10:00:00")
+    seen = _pin_child_now(monkeypatch, mod, pinned)
+
+    assert client.post(_REFRESH_URL, data={"vault_id": "vault-e2e"}).status_code == 200
+    before = json.loads(proj_path.read_text(encoding="utf-8"))
+    first = before["top_boards"][0]["board"]
+    assert len(before["top_boards"]) >= 2, "前提: 榜上要有两块板才谈得上让位"
+
+    assert (
+        client.post(_BOARD_SNOOZE_URL, data={"vault_id": "vault-e2e", "board": first, "until": "tonight"}).status_code
+        == 200
+    )
+    assert client.post(_REFRESH_URL, data={"vault_id": "vault-e2e"}).status_code == 200
+    _assert_child_now_pinned(seen, pinned, expected_runs=2)
+
+    after = json.loads(proj_path.read_text(encoding="utf-8"))
+    assert after["top_boards"][0]["board"] != first, "被推迟的板必须让出榜首"
+    assert first in [r["board"] for r in after["top_boards"]], "让位不是除名 —— 它仍在榜上"
+    assert after["stats"] == before["stats"], "推迟不许动任何统计口径"
+    assert sorted(r["board"] for r in after["boards"]) == sorted(r["board"] for r in before["boards"])
+    assert after["buckets"] == before["buckets"], "五桶划分与推迟无关"
+    # GET 侧: _gate_buckets 仍 PASS (它是 status ok 的前提), 且数字与盘上同源
+    entry = next(v for v in client.get("/api/v1/review/overview").json()["vaults"] if v["vault_id"] == "vault-e2e")
+    assert entry["status"] == "ok", f"投影必须仍能通过合计恒等门: {entry.get('error')}"
+    assert entry["projection"]["due_count"] == after["stats"]["due_nodes"] == 3
+    assert set(entry["snoozed"]) == {first}
+
+
+@pytest.mark.parametrize("when", ["2020-01-02T10:00:00", "2026-09-09T10:00:00", "2099-12-30T10:00:00"])
+def test_g66_e2e_snooze_verdict_is_clock_independent(board_done_env, monkeypatch, when):
+    """(g)① 的判定必须与**真实墙钟**无关 —— 这是上面那条门自己红过一次之后的修法证据。
+
+    上面那条端到端门曾经只钉端点一侧: 写出 until=2026-09-09T20:00+08:00, 而
+    生产器子进程按真实墙钟判活跃。它 2026-09-09 白天绿、2026-09-11 自己红,
+    代码一个字没改 —— 一颗定时哑弹。本门把同一条核心性质放在**相距 79 年**
+    的三个 pinned 值上跑: 全绿 ⇒ 判定不依赖"今天是哪天", 那类哑弹装不回来。
+
+    ⚠ 只验让位这一条 (行/桶/合计/GET 侧由上面那条端到端门负责) —— 同一组断言
+    写两遍早晚漂移成两份, 代价见 daily_review_run.save_state 的注释。
+    ⚠ 夹具 fsrs_due 取 2019: 三个 pinned 值里最早的是 2020, 节点必须在**每**一个
+      参照时刻上都已到期, 否则某一参数下"榜上没有两块板"会让本门红在别处。
+    """
+    # runner 槽本门用不上 —— 下划线前缀是本文件既有写法 (沿 test_g67r_state_passed_*
+    # 的 `_mod`), 免得给 pyright 添一条与本门无关的 reportUnusedVariable。
+    root, client, _runner, mod = board_done_env
+    monkeypatch.setattr(mod, "_REFRESH_TTL_SECONDS", 0.0)
+    vault = _mk_node_vault(
+        root,
+        "vault-clockfree",
+        {
+            "定义甲": _node_md(board="CS 61B", fsrs_due='"2019-01-01T00:00:00Z"'),
+            "定义乙": _node_md(board="CS 61B", fsrs_due='"2019-01-01T00:00:00Z"'),
+            "定义丙": _node_md(board="数学", fsrs_due='"2019-01-01T00:00:00Z"'),
+        },
+    )
+    proj_path = vault / "outputs" / "今日复习.json"
+    pinned = _pin_now(monkeypatch, mod, when)
+    seen = _pin_child_now(monkeypatch, mod, pinned)
+
+    assert client.post(_REFRESH_URL, data={"vault_id": "vault-clockfree"}).status_code == 200
+    before = json.loads(proj_path.read_text(encoding="utf-8"))
+    first = before["top_boards"][0]["board"]
+    assert len(before["top_boards"]) >= 2, f"pinned={when} 前提: 榜上要有两块板才谈得上让位"
+
+    resp = client.post(_BOARD_SNOOZE_URL, data={"vault_id": "vault-clockfree", "board": first, "until": "tonight"})
+    assert resp.status_code == 200, resp.text
+    assert client.post(_REFRESH_URL, data={"vault_id": "vault-clockfree"}).status_code == 200
+    _assert_child_now_pinned(seen, pinned, expected_runs=2)
+
+    after = json.loads(proj_path.read_text(encoding="utf-8"))
+    assert after["top_boards"][0]["board"] != first, f"pinned={when}: 被推迟的板必须让出榜首"
+    assert first in [r["board"] for r in after["top_boards"]], f"pinned={when}: 让位不是除名"
+
+
+def test_g66_unencodable_snoozed_key_does_not_500_the_whole_overview(board_done_env, monkeypatch):
+    """(Codex round-1 MEDIUM-2) 不可编码的推迟板名不许把**整个**总览 GET 打成 500。
+
+    JSON 的 `\\ud800` 转义解出的是孤立 surrogate —— 它是合格的 `str`, 过得了
+    `isinstance` 的门, 却在响应做 UTF-8 序列化时才抛 UnicodeEncodeError。那一刻
+    已经出了 `_collect` 的单库兜底（`except Exception` 包的是 `_vault_entry`
+    那一层），于是**别的库也一起看不成**。projection 那一侧早有同款门。
+
+    两条一起才说明得了问题:
+      ① 请求仍是 200，且**另一个健康的库照常出现**（不是整页降级）;
+      ② 坏条目被丢弃，好条目留下（不是把整个 snoozed 清空了事）。
+    """
+    root, client, runner, mod = board_done_env
+    vault = _mk_node_vault(root, "vault-sur", {"甲": _node_md()})
+    _mk_node_vault(root, "vault-ok", {"乙": _node_md()})
+    _pin_now(monkeypatch, mod, "2026-09-09T10:00:00")
+
+    state_file = runner.state_path(vault)
+    state_file.parent.mkdir(parents=True, exist_ok=True)
+    state_file.write_text(
+        '{"schema_version": 3, "board_last_recommended": {}, "board_done": {}, '
+        '"snoozed": {"\\ud800": "2099-09-09T20:00:00+08:00", "CS 61B": "2099-09-09T20:00:00+08:00"}}',
+        encoding="utf-8",
+    )
+    # 夹具前提: 那个键真的是解得出、却编不出 UTF-8 的孤立 surrogate
+    raw = json.loads(state_file.read_text(encoding="utf-8"))
+    assert any(isinstance(k, str) and not _utf8_encodable(k) for k in raw["snoozed"]), (
+        "夹具前提: state 里必须真的有一个编不出 UTF-8 的键, 否则本门是空的"
+    )
+
+    resp = client.get("/api/v1/review/overview")
+    assert resp.status_code == 200, f"一个坏板名不许把整个总览打成 500: {resp.text[:200]}"
+    vaults = {v["vault_id"]: v for v in resp.json()["vaults"]}
+    assert "vault-ok" in vaults, "别的库必须照常出现"
+    assert set(vaults["vault-sur"]["snoozed"]) == {"CS 61B"}, "坏条目丢弃、好条目留下"
+
+    # 页面路径同样不许 500
+    assert client.get(_PAGE_URL).status_code == 200
+
+
+def _utf8_encodable(s: str) -> bool:
+    try:
+        s.encode("utf-8")
+    except UnicodeEncodeError:
+        return False
+    return True
+
+
+def test_g66_encodable_filter_does_not_harm_cjk_or_emoji_board_names(board_done_env, monkeypatch):
+    """(Codex round-1 MEDIUM-2 的配套) 那道编码过滤**不许误伤合法的非 ASCII 板名**。
+
+    ⛔ 这条是修复本身的负控。本项目的板名主流就是中文（「图论基础」「数学」），
+    修 surrogate 时顺手把非 ASCII 一起挡掉，会是一个**本卡引入的功能性缺陷**，
+    而且只在真实数据上才看得见 —— 上面那条门用的是 "CS 61B"（纯 ASCII），
+    它绿着证明不了这件事。
+
+    三类各一条: 中文 / emoji / 带重音符的拉丁字母。
+    """
+    root, client, runner, mod = board_done_env
+    vault = _mk_node_vault(root, "vault-cjk", {"甲": _node_md()})
+    _pin_now(monkeypatch, mod, "2026-09-09T10:00:00")
+
+    names = ["图论基础", "数学 📐", "Café 复习"]
+    until = "2099-09-09T20:00:00+08:00"
+    state_file = runner.state_path(vault)
+    state_file.parent.mkdir(parents=True, exist_ok=True)
+    state_file.write_text(
+        json.dumps(
+            {
+                "schema_version": runner.STATE_SCHEMA_VERSION,
+                "board_last_recommended": {},
+                "board_done": {},
+                "snoozed": {n: until for n in names},
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    assert set(mod._read_snoozed(state_file)) == set(names), "编码过滤误伤了合法的非 ASCII 板名"
+    entry = next(v for v in client.get("/api/v1/review/overview").json()["vaults"] if v["vault_id"] == "vault-cjk")
+    assert set(entry["snoozed"]) == set(names), "三类非 ASCII 板名都必须原样投影出来"
+    # 页面不在本门的作用面内: 「已推迟」区只渲染**投影 boards 里存在**的板, 而本夹具的
+    # 投影里没有这三块 —— 那时不渲染是正确行为, 与编码过滤无关。页面侧的板名渲染由
+    # test_g66_page_folds_snoozed_board_without_dropping_it 覆盖。
+    assert client.get(_PAGE_URL).status_code == 200, "非 ASCII 板名不许把页面打成 500"

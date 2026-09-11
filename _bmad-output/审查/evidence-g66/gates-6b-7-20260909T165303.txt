@@ -1,0 +1,35 @@
+# 裁判 6b① <details> 计数断言零改动 + AST 白名单只增不删 + 裁判 7 面判据
+--- 6b① 两条 <details> 计数断言零改动 (须 0) ---
+count("<details") 在本卡 diff 中的出现次数: 0
+  (HEAD 未 commit ⇒ 用工作区 diff:)
+  工作区: 2
+  两条断言原文仍在:
+    2012:    assert page.count("<details") == 2, "两个有到期节点的板各一个折叠区"
+    2115:    assert page.count("<details") == 1, "只有甲板一个折叠区"
+    4215:    assert page2.count("<details") == folds_before + 1, "「已推迟」区恰好多出一个折叠区, 不多不少"
+--- 6b② AST 白名单只准新增, 零删除行 (须 0) ---
+test_review_app.py 删除行数: 5
+    -    assert set(targets) == {"URLS.overview", "URLS.refresh", "URLS.boardDone", "URLS.boardUndone"}
+    -    (新增「撤销」)。⚠ 这不是放宽: 名单从"唯一那个 handler"变成"这三个
+    -    handler", 每一处仍要被点名归属; 出现第四处 POST 而没有对应的点击处理器,
+    -    本门照样红。
+    -    handlers = ("onRefreshClick", "onBoardDoneClick", "onBoardUndoneClick")
+--- 裁判 7: daily_review_run.py hunk 旧行区间 (与 163-183 / 251-263 无交集) ---
+@@ -61,7 +61,10 @@ def _now(arg: str | None) -> datetime:
+@@ -97,7 +100,13 @@ def load_state(vault: Path | None = None) -> dict:
+@@ -117,6 +126,10 @@ def _parse_state_file(state: Path) -> dict | None:
+@@ -127,6 +140,9 @@ def _normalize_state(st: dict) -> dict:
+@@ -472,6 +488,20 @@ def save_state(st: dict, vault: Path | None = None):
+@@ -527,15 +557,28 @@ def ensure_payload(st: dict, now: datetime, today: str) -> tuple[dict | None, st
+@@ -546,8 +589,16 @@ def ensure_payload(st: dict, now: datetime, today: str) -> tuple[dict | None, st
+@@ -560,6 +611,7 @@ def ensure_payload(st: dict, now: datetime, today: str) -> tuple[dict | None, st
+@@ -568,6 +620,14 @@ def ensure_payload(st: dict, now: datetime, today: str) -> tuple[dict | None, st
+--- daily_review_pick.py 删除行数 (<= 3) ---
+  3
+    -def build_payload(vault: Path, now: datetime, board_last_recommended: dict, decay, manifest_path=None, board_done=None):
+    -    ap.add_argument("--state", help="daily-review.state.json (只读, 取 board_last_recommended 与 board_done)")
+    -    payload, ranked = build_payload(vault, now, blr, load_decay(vault), board_done=bd)
+--- canvas-vault/ 零改动 (须 0) ---
+  0
+--- fsrs_bridge / decay_beta 零触碰 ---
+  0

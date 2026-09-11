@@ -1,0 +1,36 @@
+# tests/unit 收工 diff 里那两条的归因（卡文 (k) 要求「只 <」，final2 出现了一个 >）
+
+## 第二次跑（final3，同一形态、同一命令）
+= 173 failed, 4784 passed, 48 skipped, 122 warnings, 29 errors in 221.52s (0:03:41) =
+  条数:      202
+
+## diff 开工 → final3
+rc=0
+
+## 两次收工跑之间的 diff（final2 vs final3，同一代码）
+39d38
+< tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422
+98a98
+> tests/unit/test_mock_degradation_transparency.py::TestMockScoringWarningLogs::test_mock_mode_logs_warning
+rc=1
+
+## 那两条在历次 tests/unit 跑里的表现
+  跑次                                 candidate422红 / mock_warning红
+  unit-baseline-open-20260909T1601   0 / 3
+  unit-closing-20260909T165357       0 / 3
+  unit-closing-r2-20260909T172255    0 / 3
+  unit-closing-r3-20260909T173836    0 / 3
+  unit-closing-r4-20260909T180220    0 / 3
+  unit-closing-final-20260909T1743   0 / 3
+  unit-closing-final2-20260909T185   3 / 0
+
+## 单独跑（隔离执行）
+  test_accept_candidate_already_accepted_returns_422 : 1 passed（绿）
+  test_mock_mode_logs_warning                        : 1 failed（红，与开工基线一致）
+
+## 归因
+  · 两文件与本卡改动面**零交集**：不含 snooze；对 review_overview / review_app /
+    daily_review_* 的引用计数均为 0。
+  · 本卡**未新增测试文件** ⇒ pytest 的文件级收集顺序不变。
+  · mock 那条依赖 caplog + patch.dict(os.environ) —— 典型的顺序 / 全局状态敏感型。
+  · 前六次跑：candidate 恒绿、mock 恒红；final2 两条**同时翻转** ⇒ 形态是测试间干扰。

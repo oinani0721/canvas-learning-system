@@ -12,6 +12,7 @@ ensure_payload 缓存失效三场景锁定: 当天已生成后, 节点池比 pay
 import errno
 import fcntl
 import hashlib
+import builtins
 import json
 import os
 import plistlib
@@ -20,7 +21,7 @@ import shutil
 import subprocess
 import sys
 import time
-from datetime import datetime, time as dtime, timezone
+from datetime import datetime, time as dtime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -1030,7 +1031,10 @@ def test_g67_legacy_state_reads_board_done_as_empty_and_bumps_schema(tmp_path, m
     assert st["board_done"] == {}, "旧文件缺 board_done 必须视同空账"
     assert st["board_last_recommended"] == {"A板": "2026-07-29"}
     assert st["last_push_accepted_date"] == "2026-07-29"
-    assert st["schema_version"] == runner.STATE_SCHEMA_VERSION == 2
+    # CARD-G6-6: 形态断言 (跟随常量) —— "实值是几"由 test_g66_state_schema_version_is_three
+    # 单独钉住。两件事写在一条断言里, 每次加性升版都要来改这里, 而改的那一刻
+    # 就分不清"是不是把该跟随的地方也一起改松了"。
+    assert st["schema_version"] == runner.STATE_SCHEMA_VERSION
 
     # 单调: 已经比当前版本新的声明不许被降级
     state.write_text(json.dumps({"schema_version": 99, "board_last_recommended": {}}), encoding="utf-8")
@@ -1858,8 +1862,8 @@ def test_g67r_upgrade_default_account_does_not_clobber_window_write(tmp_path, mo
         encoding="utf-8",
     )
 
-    st = runner.load_state(vault)  # 补出 board_done={} 并把声明推到 2
-    assert st["board_done"] == {} and st["schema_version"] == 2
+    st = runner.load_state(vault)  # 补出 board_done={} 并把声明推到当前版本
+    assert st["board_done"] == {} and st["schema_version"] == runner.STATE_SCHEMA_VERSION
     # 窗口内 Web 落账 (它自己也会把文件升成 v2)
     state.write_text(
         json.dumps(
@@ -1873,7 +1877,7 @@ def test_g67r_upgrade_default_account_does_not_clobber_window_write(tmp_path, mo
 
     on_disk = json.loads(state.read_text(encoding="utf-8"))
     assert on_disk["board_done"] == {"A板": TODAY}, "升版补出的空账覆盖了窗口内写成功的完成记录"
-    assert on_disk["schema_version"] == 2, "声明版本仍须前进 (单调取大)"
+    assert on_disk["schema_version"] == runner.STATE_SCHEMA_VERSION, "声明版本仍须前进 (单调取大)"
     assert on_disk["last_generate_date"] == TODAY
 
 
@@ -1907,14 +1911,14 @@ def test_g67r_schema_version_never_goes_backwards_on_merge(tmp_path, monkeypatch
         encoding="utf-8",
     )
     st2 = runner.load_state(vault)
-    assert st2["schema_version"] == 2
+    assert st2["schema_version"] == runner.STATE_SCHEMA_VERSION
     state.write_text(
         json.dumps({"schema_version": 1, "board_last_recommended": {}, "board_done": {}}, ensure_ascii=False),
         encoding="utf-8",
     )
     st2["last_generate_date"] = TODAY
     runner.save_state(st2, vault)
-    assert json.loads(state.read_text(encoding="utf-8"))["schema_version"] == 2, (
+    assert json.loads(state.read_text(encoding="utf-8"))["schema_version"] == runner.STATE_SCHEMA_VERSION, (
         "磁盘上更旧的声明把已经前进的版本拉回去了 —— 单调取大没生效"
     )
 
@@ -1944,16 +1948,19 @@ def test_g67r_v1_state_load_save_lands_as_v2_with_values_intact(tmp_path, monkey
     runner.save_state(runner.load_state())
 
     on_disk = json.loads(state.read_text(encoding="utf-8"))
-    assert on_disk["schema_version"] == runner.STATE_SCHEMA_VERSION == 2
+    assert on_disk["schema_version"] == runner.STATE_SCHEMA_VERSION
     assert on_disk["board_done"] == {}
     assert on_disk["board_last_recommended"] == {"A板": "2026-07-29"}, "既有键的值一个都不许动"
     assert on_disk["last_push_accepted_date"] == "2026-07-29"
+    # CARD-G6-6: 键集从四项变五项 —— 本卡的加性升版补了 snoozed。这条断言仍是
+    # **恰好等于**(不是放宽): 升版只准加这一个键, 多出别的照样红。
     assert set(on_disk) == {
         "schema_version",
         "board_last_recommended",
         "last_push_accepted_date",
         "board_done",
-    }, f"升版只加 board_done 一个键, 实为 {sorted(on_disk)}"
+        "snoozed",
+    }, f"升版只加 board_done / snoozed 两个键, 实为 {sorted(on_disk)}"
 
 
 def test_g67r_v2_load_save_is_byte_idempotent(tmp_path, monkeypatch):
@@ -2003,3 +2010,285 @@ def test_g67r_quarantine_keeps_original_bytes(tmp_path, monkeypatch, capsys):
     assert len(quarantined) == 1, f"错型必须隔离留档恰一份, 实为 {[p.name for p in quarantined]}"
     assert quarantined[0].read_bytes() == original, "隔离留档被改写了 —— 事后无从查证当时坏成什么样"
     assert not state.exists(), "原文件应已被改名走 (下次 save 才重建)"
+
+
+# ══ CARD-G6-6 (BATCH-2026-09-07-第十三批): 板级 snooze 两档 ═══════════════
+
+#: 端点落盘的那种形态 (aware ISO-8601 带 offset、秒精度)。本文件的钟被
+#: _pin_display_tz 钉在 Asia/Shanghai, 这里跟着用同一个字面量 —— 用机器
+#: 本地会在非上海宿主上与 NOW 差出时区, "活跃"判定当场失真。
+_ACTIVE_UNTIL = (NOW + timedelta(hours=1)).astimezone(ZoneInfo(_FIXED_TZ_NAME)).isoformat(timespec="seconds")
+
+
+def test_g66_snooze_invalidates_same_day_cache(tmp_path, monkeypatch, capsys):
+    """(d)② 推迟必须让当日缓存失效 —— 否则「让出榜首」整天不生效。
+
+    与 board_done 那条同一个真实时序: 早上跑过一轮 (payload 已缓存) → 白天
+    在网页上点「今晚再说」→ 节点没动、也没跨到期点。少了 snoozed_sig 这道门,
+    ensure_payload 直接走缓存分支返回旧榜。
+
+    榜首是哪块板**实测得来**, 不由夹具作者猜。
+    """
+    vault = _vault(tmp_path, {"甲一": _node(board="甲板"), "甲二": _node(board="甲板"), "乙一": _node(board="乙板")})
+    _patch_runner(monkeypatch, vault, tmp_path)
+
+    st = runner.load_state()
+    p1, how1 = runner.ensure_payload(st, NOW, TODAY)
+    assert how1 == "new"
+    first = p1["top_boards"][0]["board"]
+
+    # 无变化 → 仍然复用缓存 (防"永远重扫"的过度失效: 那会让本门恒绿而无意义)
+    _pin_pool_older_than_payload(vault, BASE)
+    _, how_same = runner.ensure_payload(runner.load_state(), NOW, TODAY)
+    assert how_same == "cached", "没有任何变化时必须仍然复用缓存"
+
+    st2 = runner.load_state()
+    st2["snoozed"] = {first: _ACTIVE_UNTIL}
+    runner.save_state(st2)
+    p2, how2 = runner.ensure_payload(runner.load_state(), NOW, TODAY)
+    assert how2 == "new", "推迟后必须重扫, 否则「让出榜首」整天不生效"
+    assert p2["top_boards"][0]["board"] != first, "重扫后榜首必须换人"
+
+    # 再跑一次: 推迟账没再变 → 回到缓存 (签名门只对**变化**生效)
+    _pin_pool_older_than_payload(vault, BASE)
+    _, how3 = runner.ensure_payload(runner.load_state(), NOW, TODAY)
+    assert how3 == "cached", "推迟账没再变就不该反复重扫"
+
+
+def test_g66_state_schema_version_is_three():
+    """(b) 把「实值是几」单独钉住。
+
+    其余 schema_version 断言本卡已改成 `== runner.STATE_SCHEMA_VERSION`(跟随
+    常量)。只有形态断言的话, 常量被谁改成 7 也全绿 —— 形态断言会退化成恒真的
+    自证。实值归这一条守: 它红了就说明版本动过, 那必须是一次有意的加性升版。
+    """
+    assert runner.STATE_SCHEMA_VERSION == 3
+
+
+def test_g66_legacy_state_reads_snoozed_as_empty(tmp_path, monkeypatch):
+    """(b) 旧文件缺 snoozed → 视同 {}; 既有键的值一个都不许动 (沿 board_done)。"""
+    vault = _vault(tmp_path, {"甲": _node(board="A板")})
+    _patch_runner(monkeypatch, vault, tmp_path)
+    state = runner.state_path()
+    state.parent.mkdir(parents=True, exist_ok=True)
+    state.write_text(
+        json.dumps(
+            {"schema_version": 2, "board_last_recommended": {"A板": "2026-07-29"}, "board_done": {"A板": "2026-07-29"}},
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    st = runner.load_state()
+    assert st["snoozed"] == {}, "旧文件缺 snoozed 必须视同空账"
+    assert st["board_done"] == {"A板": "2026-07-29"}, "既有键的值一个都不许动"
+    assert st["board_last_recommended"] == {"A板": "2026-07-29"}
+    assert st["schema_version"] == runner.STATE_SCHEMA_VERSION
+
+
+def test_g66_wrong_typed_snoozed_quarantined_not_crash(tmp_path, monkeypatch, capsys):
+    """(b) snoozed 错型与另外两个账同等对待: 隔离重建, 不半路炸成 500。"""
+    vault = _vault(tmp_path, {"甲": _node(board="A板")})
+    calls = _push_harness(monkeypatch, tmp_path, vault, rcs=[0])
+    state = runner.state_path()
+    state.parent.mkdir(parents=True, exist_ok=True)
+    state.write_text(
+        json.dumps({"schema_version": 3, "board_last_recommended": {}, "board_done": {}, "snoozed": "x"}),
+        encoding="utf-8",
+    )
+
+    out = _run_main(monkeypatch, capsys, vault, "2026-07-30T10:00:00+08:00")
+    assert "generate:new" in out and "push:accepted" in out and len(calls) == 1
+    assert list(state.parent.glob(state.name + ".corrupt-*")), "错型 snoozed 必须隔离留档"
+    assert runner.load_state()["snoozed"] == {}
+
+
+def test_g66_runner_hands_snoozed_to_picker(tmp_path, monkeypatch, capsys):
+    """(d)① 接线: runner 把 state 的 snoozed **原样**交给生产器。
+
+    判据不是"源码里有那个词", 而是生产器实际收到了什么 —— 拿真调用的实参
+    对账, 打桩换名 / 改写法都骗不过 (沿 test_g67_runner_hands_board_done_to_picker)。
+    """
+    import daily_review_pick as picker  # pyright: ignore[reportMissingImports]
+
+    vault = _vault(tmp_path, {"甲": _node(board="A板")})
+    _push_harness(monkeypatch, tmp_path, vault, rcs=[0, 0])
+    seen = []
+    real = picker.build_payload
+    monkeypatch.setattr(
+        picker,
+        "build_payload",
+        lambda *a, **kw: (seen.append(kw.get("snoozed", "缺省")), real(*a, **kw))[1],
+    )
+
+    _run_main(monkeypatch, capsys, vault, "2026-07-30T10:00:00+08:00")
+    assert seen == [{}], f"新 state 的空账应原样下传, 实为 {seen!r}"
+
+    st = runner.load_state()
+    st["snoozed"] = {"A板": _ACTIVE_UNTIL}
+    del st["last_generate_date"]  # 逼它重新生成 (不走缓存复用分支)
+    runner.save_state(st)
+    _run_main(monkeypatch, capsys, vault, "2026-07-30T11:05:00+08:00")
+    assert seen[-1] == {"A板": _ACTIVE_UNTIL}, f"推迟账必须原样下传, 实为 {seen[-1]!r}"
+
+
+def test_g66_crossing_the_wake_point_rescans_and_returns_the_board(tmp_path, monkeypatch, capsys):
+    """(d)③ 越过 snooze_wake_utc 必重扫、板回榜首; 没越过则仍走缓存。
+
+    这条是「到点自己回来」在 runner 侧的**全部**依据: 推迟账没再变
+    (snoozed_sig 不动)、节点也没动, 少了 wake_crossed 就会一路 cached 到
+    明天 —— until 形同虚设, 而页面上还写着"到点自动回来"。
+    """
+    vault = _vault(tmp_path, {"甲一": _node(board="甲板"), "甲二": _node(board="甲板"), "乙一": _node(board="乙板")})
+    _patch_runner(monkeypatch, vault, tmp_path)
+
+    st = runner.load_state()
+    p1, _ = runner.ensure_payload(st, NOW, TODAY)
+    first = p1["top_boards"][0]["board"]
+
+    # 推到一小时后 → 重扫 + 让位 + 唤醒点落盘
+    st2 = runner.load_state()
+    st2["snoozed"] = {first: _ACTIVE_UNTIL}
+    runner.save_state(st2)
+    p2, how2 = runner.ensure_payload(runner.load_state(), NOW, TODAY)
+    assert how2 == "new" and p2["top_boards"][0]["board"] != first
+    wake = runner.load_state()["snooze_wake_utc"]
+    assert wake, "活跃推迟必须落下唤醒点, 否则缓存门无从判断"
+
+    # 还没到点: 仍走缓存 (防"永远重扫"的过度失效 —— 那会让本门恒绿而无意义)
+    _pin_pool_older_than_payload(vault, BASE)
+    _, how_before = runner.ensure_payload(runner.load_state(), NOW, TODAY)
+    assert how_before == "cached", "没到唤醒点就不该重扫"
+
+    # 越过唤醒点: 必重扫, 且让位不再发生
+    # ⚠ 判据不是"榜首回到 first" —— 首次生成已给榜首落过 board_last_recommended,
+    # tie-break 的天级轮转本来就会换人, 那与推迟无关。要证的是**让位这件事停了**:
+    # 与同一时刻、同一份 blr 下「根本没有这条推迟记录」逐项同序。
+    import daily_review_pick as picker  # pyright: ignore[reportMissingImports]
+
+    _pin_pool_older_than_payload(vault, BASE)
+    later = NOW + timedelta(hours=2)
+    blr_before = dict(runner.load_state()["board_last_recommended"])
+    p3, how3 = runner.ensure_payload(runner.load_state(), later, TODAY)
+    assert how3 == "new", "越过唤醒点必须重扫, 否则被推迟的板整天回不来"
+    clean, _ = picker.build_payload(vault, later, blr_before, picker.load_decay(vault), snoozed={})
+    assert [r["board"] for r in p3["top_boards"]] == [r["board"] for r in clean["top_boards"]], (
+        "到点后的板序必须与「根本没有这条推迟记录」时相同 —— 让位已经不再发生"
+    )
+    assert runner.load_state()["snooze_wake_utc"] == "", "推迟已到期 ⇒ 唤醒点清空 (没有活跃项)"
+
+
+def test_g66_two_vaults_snoozed_isolated(tmp_path, monkeypatch, capsys):
+    """(d)④ 双库互不影响 (沿 test_g67_two_vaults_board_done_isolated)。"""
+    v1 = _vault(tmp_path, {"甲": _node(board="A板")}, name="vault-一")
+    v2 = _vault(tmp_path, {"乙": _node(board="B板")}, name="vault-二")
+    _push_harness(monkeypatch, tmp_path, v1, rcs=[0, 0])
+
+    st1 = runner.load_state(v1)
+    st1["snoozed"] = {"A板": _ACTIVE_UNTIL}
+    runner.save_state(st1, v1)
+
+    assert runner.load_state(v2)["snoozed"] == {}, "另一个库的推迟账必须完全独立"
+    _run_main(monkeypatch, capsys, v2, "2026-07-30T10:00:00+08:00")
+    assert runner.load_state(v2)["snoozed"] == {}
+    assert runner.load_state(v1)["snoozed"] == {"A板": _ACTIVE_UNTIL}, "跑另一个库不许动这个库的账"
+
+
+def test_g66_upgrade_day_v2_state_is_not_falsely_invalidated(tmp_path, monkeypatch):
+    """(d) 升级当天既有 v2 state 不该被误判「账变了」而白重扫一轮。
+
+    snoozed_sig **缺席** ≠ 变化 —— 本卡之前落盘的 state 都没有这个键。
+    一律当"变了"会把「当天已缓存的 payload 照常复用」这条既有契约打掉。
+    (与 board_done_sig 的同款收紧逐条同形; 这也是为什么本卡另立一个键而
+    不是把 snoozed 掺进 done_sig。)
+    """
+    vault = _vault(tmp_path, {"甲": _node(board="A板")})
+    _patch_runner(monkeypatch, vault, tmp_path)
+
+    st = runner.load_state()
+    runner.ensure_payload(st, NOW, TODAY)
+
+    # 模拟升级当天: 手工抹掉本卡新增的签名键 (v2 落盘的形态)
+    st2 = runner.load_state()
+    st2.pop("snoozed_sig", None)
+    assert not st2.get("snoozed"), "前提: 账是空的 —— 缺签名 + 空账 = 没变过"
+    runner.save_state(st2)
+
+    _pin_pool_older_than_payload(vault, BASE)
+    _, how = runner.ensure_payload(runner.load_state(), NOW, TODAY)
+    assert how == "cached", "缺签名且账为空 = 没对过账也没变过, 必须照常复用缓存"
+
+
+def test_g66_extreme_until_does_not_abort_the_runner(tmp_path, monkeypatch):
+    """(Codex round-1 MEDIUM-3) 极值 until 转 UTC 溢出不许终止本轮。
+
+    `9999-12-31T23:59:59-01:00` 解析得出、也判得出活跃, 但转 UTC 越到 10000 年
+    抛 OverflowError。那一刻 payload 已经写出去了、state 还没保存 —— 于是整轮
+    runner 带着 traceback 退出, **连推送都不跑**。换不出 UTC 串的条目跳过 =
+    它进不了唤醒点, 与"读不出"同等对待。
+    """
+    vault = _vault(tmp_path, {"甲": _node(board="A板")})
+    _patch_runner(monkeypatch, vault, tmp_path)
+
+    st = runner.load_state()
+    st["snoozed"] = {"A板": "9999-12-31T23:59:59-01:00"}
+    runner.save_state(st)
+
+    payload, how = runner.ensure_payload(runner.load_state(), NOW, TODAY)
+    assert how == "new", "推迟账变了必须重扫 —— 而不是在算唤醒点时崩掉"
+    assert payload["top_boards"], "payload 必须真的生成出来"
+    assert runner.load_state()["snooze_wake_utc"] == "", "换不出 UTC 的条目不进唤醒点"
+
+
+def test_g66_wrong_typed_wake_marker_does_not_abort_the_cache_gate(tmp_path, monkeypatch):
+    """(Codex round-1 MEDIUM-4) `snooze_wake_utc` 错型不许让整轮 runner 崩。
+
+    state 是外部文件。一个 `"snooze_wake_utc": 1` 会让 `1 <= "…Z"` 抛 TypeError,
+    而缓存分支的 except 只接 JSONDecodeError / OSError —— 于是本轮 runner 退出。
+    正确行为: 当作"没有唤醒点", 照常按其余判据决定复用还是重扫。
+    """
+    vault = _vault(tmp_path, {"甲": _node(board="A板")})
+    _patch_runner(monkeypatch, vault, tmp_path)
+
+    runner.ensure_payload(runner.load_state(), NOW, TODAY)  # 先造出当日缓存
+    _pin_pool_older_than_payload(vault, BASE)
+
+    st = runner.load_state()
+    st["snooze_wake_utc"] = 1  # 错型
+    runner.save_state(st)
+
+    _, how = runner.ensure_payload(runner.load_state(), NOW, TODAY)
+    assert how == "cached", "错型唤醒点当作没有, 照常复用缓存 (而不是 TypeError 崩掉)"
+
+
+def test_g66_active_snoozed_suppresses_bytecode_writes(monkeypatch):
+    """(Codex round-1 LOW-1) 只读路径转调生产器时, import 那一刻必须禁写字节码。
+
+    Web 的 GET 经 `_snoozed_active` 走到本模块的 `active_snoozed`, 那里的惰性
+    import 会让 SourceFileLoader 往 `scripts/__pycache__/` 写字节码 —— 一个 GET
+    写文件, 哪怕写的是 gitignored 的东西, 也已经破坏了 review_overview 那条
+    「两个 GET 端点只读」的不变量。review_overview._load_runner 对**它自己那次**
+    加载做了同样的保护, 但盖不到这一层 (picker 是在本模块里才被 import 的)。
+
+    ⛔ 判据**不是**"目录里前后有没有多出 .pyc"。初版就是那么写的, 变异验证当场
+    抓到它是空的: 那个 .pyc 早被同一轮里别的用例写出来了, 于是 `after == before`
+    恒真, 撤掉修复照样绿。现在直接观察 **import 发生的那一刻**解释器的标志位,
+    并验它事后无条件恢复 —— 判据绑在修复点上, 而不是绑在一个易被前序污染的
+    外部状态上。
+    """
+    seen = []
+    real_import = builtins.__import__
+
+    def spy(name, *a, **kw):
+        if name == "daily_review_pick":
+            seen.append(sys.dont_write_bytecode)
+        return real_import(name, *a, **kw)
+
+    monkeypatch.delitem(sys.modules, "daily_review_pick", raising=False)
+    monkeypatch.setattr(sys, "dont_write_bytecode", False)
+    monkeypatch.setattr(builtins, "__import__", spy)
+
+    runner.active_snoozed({}, NOW)
+
+    assert seen == [True], f"import 那一刻必须禁写字节码, 实为 {seen!r}"
+    assert sys.dont_write_bytecode is False, "标志必须无条件恢复 (它是解释器级全局)"

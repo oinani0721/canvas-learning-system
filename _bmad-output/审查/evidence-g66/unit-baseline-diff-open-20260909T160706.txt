@@ -1,0 +1,4 @@
+# 开工 unit 目录级 nodeid diff (BASE=72ab01ed) vs evidence-b13/unit-red-baseline-da690bf8.txt
+# 汇总行: 173 failed, 4763 passed, 48 skipped, 122 warnings, 29 errors
+# 基线      202 条 / 本次      202 条
+rc=0

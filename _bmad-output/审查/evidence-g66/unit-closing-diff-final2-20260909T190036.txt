@@ -1,0 +1,10 @@
+# 裁判 9（最终形态：round-5 键编码修复后）: tests/unit 收工 nodeid diff
+# 开工 202 条（= evidence-b13 红基线 da690bf8, diff 空）
+= 173 failed, 4784 passed, 48 skipped, 122 warnings, 29 errors in 238.28s (0:03:58) =
+# 收工      202 条
+--- diff 开工 → 收工（须无 '>'）---
+38a39
+> tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422
+98d98
+< tests/unit/test_mock_degradation_transparency.py::TestMockScoringWarningLogs::test_mock_mode_logs_warning
+rc=1

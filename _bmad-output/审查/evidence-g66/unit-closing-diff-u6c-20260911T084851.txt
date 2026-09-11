@@ -1,0 +1,10 @@
+# U6-C 收工: tests/unit nodeid diff @ HEAD 9fb119b9
+# 开工基线 = 本卡 09-09 开工跑 unit-baseline-open-20260909T160147.txt 的 202 条 (口径: short summary 段的 FAILED/ERROR nodeid, sort -u)
+# 收工 = unit-closing-u6c-final-20260911T084335.txt
+开工      202 条 / 收工      202 条
+--- diff (须无 '>') ---
+rc_diff=0
+--- 验伪锚: 同一口径对比首轮漏 PYTHONDONTWRITEBYTECODE 的那次跑 (应恰好多 1 条) ---
+193a194
+> tests/unit/test_vault_lint.py::test_bytecode_guard_is_armed
+rc_anchor=1

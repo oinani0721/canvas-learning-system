@@ -1,0 +1,10 @@
+# 四文件 0 failed 且数 > 基数 324 (92+95+55+82)
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+====================== 357 passed, 10 warnings in 12.15s =======================
+rc=0
+--- TZ=America/Los_Angeles ---
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+====================== 357 passed, 10 warnings in 12.40s =======================
+rc=0
