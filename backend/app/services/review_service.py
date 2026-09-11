@@ -1238,7 +1238,7 @@ class ReviewService:
         # (canvas_service.py:616); 全仓无动态挂载 → 真跑到这行必 AttributeError, 且本行
         # 不在任何 try 内(本函数首个 try 在 :1249 之后)。但 generate_verification_canvas
         # 生产零调用方 —— 全仓唯一 `.generate_verification_canvas(` 在 dependencies.py:301
-        # 的 docstring 示例块内, 端点 review.py:759 是同名但自建实现 —— 仅 17 处 mock 测试
+        # 的 docstring 示例块内, 端点 review.py:759 是同名但自建实现 —— 仅 15 处 mock 测试
         # 覆盖。改方法名 = 行为变化(从恒崩变可用), 须主 session 裁 ⇒ 本卡只做类型层标注。
         canvas_data = await self.canvas_service.get_canvas(source_canvas_name)  # pyright: ignore[reportAttributeAccessIssue]
         all_nodes = canvas_data.get("nodes", [])
