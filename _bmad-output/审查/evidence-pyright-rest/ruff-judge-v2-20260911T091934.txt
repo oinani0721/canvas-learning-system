@@ -1,0 +1,23 @@
+grep: backend/pyproject.toml: No such file or directory
+== ruff ruff 0.15.9 ; 仓库 line-length =  ==
+
+-- 1. ruff check（真 lint 规则）on 本卡 3 文件 --
+All checks passed!
+rc=0
+
+-- 2. format 状态：索引态(改动前) vs 工作树(改动后)，--stdin-filename 保证按真实路径取配置 --
+文件                     改动前        改动后       
+review.py              clean      clean     
+system.py              DIRTY      DIRTY     
+exam_service.py        DIRTY      DIRTY     
+
+-- 3. hunk 级：改后 ruff 想改的内容 减去 改前想改的内容（= 本卡新增的格式偏差），3 文件全覆盖 --
+  review.py              改前行    0  改后行    0  改后独有 0
+  system.py              改前行   97  改后行   97  改后独有 0
+  exam_service.py        改前行   32  改后行   32  改后独有 0
+
+-- 4. 验伪锚：往 review.py 副本里塞一条超长行，判据必须报出改后独有 --
+  锚：变异体的『改后独有』= 3 行  (必须 > 0，否则该判据抓不到新增格式偏差)
+       -        pre_filter_count = len(nodes_to_review) ; _probe_anchor_variable_with_a_very_long_name = { "k": 1, "kk": 2, "kkk": 3, "kkkk": 4, "kkkkk": 5, "kkkkkk": 6 }
+       +        _probe_anchor_variable_with_a_very_long_name = {"k": 1, "kk": 2, "kkk": 3, "kkkk": 4, "kkkkk": 5, "kkkkkk": 6}
+       +        pre_filter_count = len(nodes_to_review)

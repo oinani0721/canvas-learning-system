@@ -1,0 +1,132 @@
+改动文件数 =       58
+app/api/v1/endpoints/boards.py
+app/api/v1/endpoints/canvas.py
+app/api/v1/endpoints/chat.py
+app/api/v1/endpoints/config.py
+app/api/v1/endpoints/edges.py
+app/api/v1/endpoints/exam_grade.py
+app/api/v1/endpoints/health.py
+app/api/v1/endpoints/index.py
+app/api/v1/endpoints/index_image.py
+app/api/v1/endpoints/inheritance.py
+app/api/v1/endpoints/intelligent_parallel.py
+app/api/v1/endpoints/memory.py
+app/api/v1/endpoints/metadata.py
+app/api/v1/endpoints/monitoring.py
+app/api/v1/endpoints/multimodal.py
+app/api/v1/endpoints/profile.py
+app/api/v1/endpoints/rag.py
+app/api/v1/endpoints/rollback.py
+app/api/v1/endpoints/suggestions.py
+app/api/v1/endpoints/sync.py
+app/api/v1/endpoints/tips.py
+app/api/v1/endpoints/websocket.py
+app/api/v1/endpoints/wikilink.py
+app/clients/claude_client.py
+app/clients/neo4j_client.py
+app/clients/provider_factory.py
+app/core/bug_tracker.py
+app/core/exception_handlers.py
+app/core/exceptions.py
+app/core/memory_system_logger.py
+app/core/vault_state_paths.py
+app/dependencies.py
+app/domains/agent/gateway.py
+app/mcp/tools/board_manifest_tools.py
+app/mcp/tools/conversation_tools.py
+app/mcp/tools/exam_tools.py
+app/mcp/tools/infra_tools.py
+app/mcp/tools/mastery_tools.py
+app/mcp/tools/memory_tools.py
+app/mcp/tools/note_search_tools.py
+app/mcp/tools/wikilink_tools.py
+app/middleware/agent_metrics.py
+app/middleware/error_handler.py
+app/middleware/llm_call_logger.py
+app/middleware/logging_middleware.py
+app/middleware/metrics.py
+app/models/agent_routing_models.py
+app/models/edge_rationale.py
+app/models/exam_models.py
+app/models/intelligent_parallel_models.py
+app/models/memory_schemas.py
+app/models/metadata_models.py
+app/models/multimodal_schemas.py
+app/models/qa_models.py
+app/models/review_models.py
+app/models/rollback.py
+app/models/schemas.py
+app/models/subject_models.py
+─── ruff check --select F401,F821
+All checks passed!
+check rc=0
+─── HEAD 漂移预检（基线 = da690bf8）
+DRIFT-AT-BASE app/api/v1/endpoints/canvas.py
+DRIFT-AT-BASE app/api/v1/endpoints/config.py
+DRIFT-AT-BASE app/api/v1/endpoints/exam_grade.py
+DRIFT-AT-BASE app/api/v1/endpoints/health.py
+DRIFT-AT-BASE app/api/v1/endpoints/inheritance.py
+DRIFT-AT-BASE app/api/v1/endpoints/memory.py
+DRIFT-AT-BASE app/api/v1/endpoints/monitoring.py
+DRIFT-AT-BASE app/api/v1/endpoints/multimodal.py
+DRIFT-AT-BASE app/api/v1/endpoints/profile.py
+DRIFT-AT-BASE app/api/v1/endpoints/rag.py
+DRIFT-AT-BASE app/api/v1/endpoints/rollback.py
+DRIFT-AT-BASE app/api/v1/endpoints/suggestions.py
+DRIFT-AT-BASE app/api/v1/endpoints/websocket.py
+DRIFT-AT-BASE app/api/v1/endpoints/wikilink.py
+DRIFT-AT-BASE app/clients/claude_client.py
+DRIFT-AT-BASE app/clients/neo4j_client.py
+DRIFT-AT-BASE app/clients/provider_factory.py
+DRIFT-AT-BASE app/core/bug_tracker.py
+DRIFT-AT-BASE app/core/memory_system_logger.py
+DRIFT-AT-BASE app/dependencies.py
+DRIFT-AT-BASE app/mcp/tools/conversation_tools.py
+DRIFT-AT-BASE app/mcp/tools/exam_tools.py
+DRIFT-AT-BASE app/mcp/tools/mastery_tools.py
+DRIFT-AT-BASE app/middleware/llm_call_logger.py
+DRIFT-AT-BASE app/middleware/metrics.py
+DRIFT-AT-BASE app/models/agent_routing_models.py
+DRIFT-AT-BASE app/models/edge_rationale.py
+DRIFT-AT-BASE app/models/exam_models.py
+DRIFT-AT-BASE app/models/intelligent_parallel_models.py
+DRIFT-AT-BASE app/models/memory_schemas.py
+DRIFT-AT-BASE app/models/metadata_models.py
+DRIFT-AT-BASE app/models/multimodal_schemas.py
+DRIFT-AT-BASE app/models/qa_models.py
+DRIFT-AT-BASE app/models/review_models.py
+DRIFT-AT-BASE app/models/rollback.py
+DRIFT-AT-BASE app/models/schemas.py
+DRIFT-AT-BASE app/models/subject_models.py
+─── 当前 ruff format --check
+Would reformat: app/api/v1/endpoints/rag.py
+Would reformat: app/api/v1/endpoints/rollback.py
+Would reformat: app/api/v1/endpoints/suggestions.py
+Would reformat: app/api/v1/endpoints/websocket.py
+Would reformat: app/api/v1/endpoints/wikilink.py
+Would reformat: app/clients/claude_client.py
+Would reformat: app/clients/neo4j_client.py
+Would reformat: app/clients/provider_factory.py
+Would reformat: app/core/bug_tracker.py
+Would reformat: app/core/exception_handlers.py
+Would reformat: app/core/memory_system_logger.py
+Would reformat: app/dependencies.py
+Would reformat: app/mcp/tools/conversation_tools.py
+Would reformat: app/mcp/tools/exam_tools.py
+Would reformat: app/mcp/tools/mastery_tools.py
+Would reformat: app/middleware/llm_call_logger.py
+Would reformat: app/middleware/metrics.py
+Would reformat: app/models/agent_routing_models.py
+Would reformat: app/models/edge_rationale.py
+Would reformat: app/models/exam_models.py
+Would reformat: app/models/intelligent_parallel_models.py
+Would reformat: app/models/memory_schemas.py
+Would reformat: app/models/metadata_models.py
+Would reformat: app/models/multimodal_schemas.py
+Would reformat: app/models/qa_models.py
+Would reformat: app/models/review_models.py
+Would reformat: app/models/rollback.py
+Would reformat: app/models/schemas.py
+Would reformat: app/models/subject_models.py
+38 files would be reformatted, 20 files already formatted
+format rc=0

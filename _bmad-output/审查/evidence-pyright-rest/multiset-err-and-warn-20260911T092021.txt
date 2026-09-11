@@ -1,0 +1,8 @@
+== error(已有判据, 复核) ==
+   基线(merge点)=231  阶段2末=197  NEW=0  GONE=34
+== warning(本次新增判据, 原为盲区) ==
+   基线(merge点)=80  阶段2末=80  NEW=0  GONE=0
+   GONE 按文件:
+
+== 验伪锚：两个 severity 的键集必须不同（否则说明 severity 过滤没生效）==
+   error 键数=194  warning 键数=56  交集=0  (交集应为 0)

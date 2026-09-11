@@ -26,18 +26,18 @@ class SearchMemoriesInput(BaseModel):
     """Input schema for search_memories tool."""
 
     query: str = Field(..., description="Natural language search query.")
-    node_id: Optional[str] = Field(None, description="Filter by canvas node ID (optional).")
-    group_id: Optional[str] = Field(None, description="Graphiti group_id for memory isolation (optional).")
-    max_results: int = Field(10, ge=1, le=50, description="Maximum number of results to return.")
+    node_id: Optional[str] = Field(default=None, description="Filter by canvas node ID (optional).")
+    group_id: Optional[str] = Field(default=None, description="Graphiti group_id for memory isolation (optional).")
+    max_results: int = Field(default=10, ge=1, le=50, description="Maximum number of results to return.")
 
 
 class MemoryItem(BaseModel):
     """A single memory search result."""
 
     fact: str = Field(..., description="The memory fact content")
-    source: Optional[str] = Field(None, description="Source of the memory")
-    timestamp: Optional[str] = Field(None, description="When the memory was created")
-    relevance_score: Optional[float] = Field(None, description="Search relevance score")
+    source: Optional[str] = Field(default=None, description="Source of the memory")
+    timestamp: Optional[str] = Field(default=None, description="When the memory was created")
+    relevance_score: Optional[float] = Field(default=None, description="Search relevance score")
 
 
 class SearchMemoriesOutput(BaseModel):
@@ -67,8 +67,8 @@ class RecordCalibrationInput(BaseModel):
         le=1.0,
         description="The actual score after answering.",
     )
-    question_type: Optional[str] = Field(None, description="Type of question that was asked.")
-    difficulty: Optional[str] = Field(None, description="Difficulty level of the question.")
+    question_type: Optional[str] = Field(default=None, description="Type of question that was asked.")
+    difficulty: Optional[str] = Field(default=None, description="Difficulty level of the question.")
 
 
 class RecordCalibrationOutput(BaseModel):
@@ -112,13 +112,15 @@ class RecordLearningMemoryInput(BaseModel):
     )
     details: str = Field(..., description="What the student got wrong and what is correct. Be specific.")
     severity: Optional[str] = Field(
-        None,
+        default=None,
         description="'critical' | 'moderate' | 'minor'. Judge by depth of misunderstanding.",
     )
-    source_session_id: Optional[str] = Field(None, description="Session ID where this learning event was detected.")
-    source_canvas_id: Optional[str] = Field(None, description="Canvas/board ID where the event occurred.")
+    source_session_id: Optional[str] = Field(
+        default=None, description="Session ID where this learning event was detected."
+    )
+    source_canvas_id: Optional[str] = Field(default=None, description="Canvas/board ID where the event occurred.")
     group_id: Optional[str] = Field(
-        None,
+        default=None,
         description=(
             "Graphiti group_id for memory isolation (D16 format, e.g. "
             "'vault:canvas_vault'). Falls back to the global default when omitted."

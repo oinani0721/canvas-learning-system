@@ -1,0 +1,21 @@
+基线(merge点 231) = 231   阶段2末 = 197   NEW = 0   GONE = 34
+
+--- GONE 逐条（按文件计数）---
+  - 11  services/exam_service_ext.py
+  - 10  api/v1/endpoints/exam.py
+  -  7  api/v1/endpoints/review.py
+  -  4  api/v1/system.py
+  -  2  services/exam_service.py
+
+services 残余 197 条 已写入 _bmad-output/审查/evidence-pyright-rest/services-residual-20260911T084046.txt
+按文件:
+    14  services/review_service.py
+    13  services/rollback_service.py
+     8  services/exam_service_ext.py
+     7  services/memory_service.py
+     6  services/agent_routing_engine.py
+     6  services/error_classifier.py
+     6  services/multimodal_service.py
+     6  services/recommendation_service.py
+     6  services/signal_registry.py
+     6  services/wikilink_graph_service.py

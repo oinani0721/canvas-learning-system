@@ -1,0 +1,25 @@
+=== 负控 1: 把 metadata_models.py 的 Field(default=None,…) 写回 Field(None,…) ===
+fdb9031e19d8a98a22ca6e1708d42a3a716fd6282429ee446a347d951f57c9d0  app/models/metadata_models.py
+--- 变异前: metadata.py 的 CanvasIndexRequest 调用点应无 Arguments missing
+0
+0 (期望 0)
+MUTATED metadata_models.py subject -> 位置默认
+--- 变异后: 期望重新命中 'missing for parameter'
+app/api/v1/endpoints/metadata.py:465:34 - error: Argument missing for parameter "subject" (reportCallIssue)
+命中数 = 1 (必须 >= 1, 否则负控失效=判据不承重)
+--- 还原（git show + cp，禁 git checkout）
+fdb9031e19d8a98a22ca6e1708d42a3a716fd6282429ee446a347d951f57c9d0  app/models/metadata_models.py
+RESTORE-BYTEWISE-OK
+0 errors, 0 warnings, 0 informations
+
+=== 负控 2: claude_client.py 还原一处 isinstance -> hasattr ===
+ad54c7ab4ea05339670ca880d9bca1b482d0d61d43deb6d4afcc5159597483fb  app/clients/claude_client.py
+--- 变异前 'Cannot access attribute "text"' 计数
+0
+0
+MUTATED 第一处 isinstance -> hasattr
+--- 变异后计数（期望 11 = 除 TextBlock 外的 11 个块类型）
+11
+--- 还原
+⚠️ HEAD 版是阶段0态(还没改), 需重放本卡对该文件的改动 —— 见下
+ad54c7ab4ea05339670ca880d9bca1b482d0d61d43deb6d4afcc5159597483fb  app/clients/claude_client.py

@@ -1,0 +1,16 @@
+== 四轮对照表 ==
+轮次(代码态/第几轮)                      末行                                                         连接尝试
+run1 基线/1st                      = 36 failed, 5188 passed, 57 skipped, 23 xfailed, 171 wa   NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0
+run2 阶段2/2nd                     = 37 failed, 5187 passed, 57 skipped, 23 xfailed, 171 wa   NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=1
+run3 基线/3rd                      = 36 failed, 5188 passed, 57 skipped, 23 xfailed, 171 wa   NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0
+run4 阶段2/4th                     = 36 failed, 5188 passed, 57 skipped, 23 xfailed, 171 wa   NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0
+
+nodeid 数: run1=65 run2=66 run3=65 run4=65
+
+== run1(基线) → run4(阶段2代码) 差集 —— 这是本卡的真判据 ==
+diff-rc=0  (0=逐条相同)
+
+== run2 → run4（同为阶段2代码，只差跑第几轮/负载）==
+33d32
+< FAILED tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422
+diff-rc=1

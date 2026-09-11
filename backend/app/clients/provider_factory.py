@@ -253,12 +253,16 @@ class ProviderFactory:
                     )
                 )
 
-        if hasattr(settings, "OPENAI_API_KEY") and settings.OPENAI_API_KEY:
+        # ⚠️ TAIL T14: Settings 没有 OPENAI_API_KEY 字段(config.py 实测 grep=0),
+        # 且 model_config 是 extra="ignore" ⇒ hasattr 恒 False, openai provider
+        # 分支恒不激活。给 Settings 加字段 = 运行期行为变化(任何设了该环境变量的
+        # 部署会多注册一个 provider), 属产品裁定, 本卡只关类型不改 config.py。
+        if hasattr(settings, "OPENAI_API_KEY") and settings.OPENAI_API_KEY:  # pyright: ignore[reportAttributeAccessIssue]
             if not any(c.name.lower() == "openai" for c in configs):
                 configs.append(
                     ProviderConfig(
                         name="openai",
-                        api_key=settings.OPENAI_API_KEY,
+                        api_key=settings.OPENAI_API_KEY,  # pyright: ignore[reportAttributeAccessIssue]  # 见上 T14
                         model="gpt-4o",
                         priority=20,
                     )

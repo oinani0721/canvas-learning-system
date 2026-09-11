@@ -1,0 +1,7 @@
+== 阶段2末 openapi vs 索引态快照（剔 x-generated-at）==
+diff-rc=0
+
+== required 差集（逐 schema 比对，含验伪锚）==
+schema 数: 前=355 后=355
+required 差异 schema 数 = 0
+验伪锚: 本卡改过的 system.py 响应模型在 schema 里可见 = []

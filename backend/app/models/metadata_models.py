@@ -90,9 +90,9 @@ class CanvasIndexStatusResponse(BaseModel):
     indexed: bool = Field(..., description="Whether the Canvas is indexed")
     node_count: int = Field(default=0, description="Number of indexed nodes", ge=0)
     last_indexed: Optional[datetime] = Field(
-        None, description="Last indexing timestamp"
+        default=None, description="Last indexing timestamp"
     )
-    subject: Optional[str] = Field(None, description="Subject used during indexing")
+    subject: Optional[str] = Field(default=None, description="Subject used during indexing")
     table_name: str = Field(default="canvas_nodes", description="LanceDB table name")
 
     model_config = ConfigDict(
@@ -119,8 +119,8 @@ class CanvasIndexRequest(BaseModel):
     """
 
     canvas_path: str = Field(..., description="Canvas file path")
-    subject: Optional[str] = Field(None, description="Override subject (optional)")
-    category: Optional[str] = Field(None, description="Override category (optional)")
+    subject: Optional[str] = Field(default=None, description="Override subject (optional)")
+    category: Optional[str] = Field(default=None, description="Override category (optional)")
     force: bool = Field(
         default=False, description="Force re-index even if already indexed"
     )
@@ -169,7 +169,7 @@ class CanvasIndexResponse(BaseModel):
         default=0.0, description="Indexing duration in milliseconds", ge=0
     )
     message: Optional[str] = Field(
-        None, description="Additional message or error details"
+        default=None, description="Additional message or error details"
     )
 
     model_config = ConfigDict(

@@ -43,27 +43,27 @@ class GenerateQuestionInput(BaseModel):
     node_id: str = Field(..., description="The canvas node to generate a question for.")
     session_id: str = Field(..., description="The dialogue session identifier.")
     difficulty: Optional[str] = Field(
-        None,
+        default=None,
         description="Target difficulty level: 'easy', 'medium', 'hard'. "
         "If not provided, auto-selects based on mastery level.",
     )
     question_type: Optional[str] = Field(
-        None,
+        default=None,
         description="Question type: 'recall', 'comprehension', 'application', 'analysis'. "
         "If not provided, auto-selects based on learning stage.",
     )
     # Story 6.3: Exam context for full ACP pipeline
     exam_id: Optional[str] = Field(
-        None,
+        default=None,
         description="Exam session ID. When provided, uses the full Story 6.3 FSRS+BKT+KG "
         "selection + ACP + 5-layer prompt pipeline instead of template-based generation.",
     )
     exam_mode: Optional[str] = Field(
-        None,
+        default=None,
         description="Exam mode: 'point_to_point', 'comprehensive', 'mixed'. Only used when exam_id is provided.",
     )
     source_canvas_id: Optional[str] = Field(
-        None,
+        default=None,
         description="Source canvas board ID for target node selection. Only used when exam_id is provided.",
     )
 
@@ -76,7 +76,7 @@ class GenerateQuestionOutput(BaseModel):
     question_type: str = Field(..., description="Question type")
     difficulty: str = Field(..., description="Question difficulty level")
     reference_answer: Optional[str] = Field(
-        None, description="Reference answer for scoring"
+        default=None, description="Reference answer for scoring"
     )
     pipeline_token: str = Field(
         ..., description="Pipeline token for the next step (score_answer)"
@@ -124,7 +124,7 @@ class AssembleAcpInput(BaseModel):
 
     node_id: str = Field(..., description="The canvas node identifier.")
     include_related: bool = Field(
-        True, description="Whether to include related nodes' context."
+        default=True, description="Whether to include related nodes' context."
     )
 
 
@@ -138,10 +138,10 @@ class AssembleAcpOutput(BaseModel):
         default_factory=list, description="Related concept names"
     )
     mastery_level: Optional[float] = Field(
-        None, description="Current mastery level (0.0 - 1.0)"
+        default=None, description="Current mastery level (0.0 - 1.0)"
     )
     learning_history_summary: Optional[str] = Field(
-        None, description="Brief summary of learning history"
+        default=None, description="Brief summary of learning history"
     )
     status: str = "ok"
     message: str = ""
@@ -248,7 +248,7 @@ async def generate_question(
         from app.services.canvas_service import CanvasService
 
         canvas_svc = CanvasService(canvas_base_path=settings.canvas_base_path)
-        canvas_name, node_data = await canvas_svc.find_node_across_canvases(node_id)
+        _canvas_name, node_data = await canvas_svc.find_node_across_canvases(node_id)
 
         if node_data is None:
             return GenerateQuestionOutput(

@@ -38,10 +38,10 @@ class DistillRequest(BaseModel):
     # CARD-G2-2 (2026-08-28): 加 vault_id (推荐); raw group_id 降级为
     # deprecated legacy 输入, 不再直通持久化链 (Codex round-1 HIGH-8)。
     vault_id: Optional[str] = Field(
-        None, description="Vault 身份 (推荐必填; 与 active vault 不一致时 409)"
+        default=None, description="Vault 身份 (推荐必填; 与 active vault 不一致时 409)"
     )
     group_id: Optional[str] = Field(
-        None, deprecated=True, description="Deprecated — 改用 vault_id"
+        default=None, deprecated=True, description="Deprecated — 改用 vault_id"
     )
 
 

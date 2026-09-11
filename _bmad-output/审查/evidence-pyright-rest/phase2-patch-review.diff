@@ -1,0 +1,81 @@
+--- /dev/fd/11	2026-09-09 10:18:52
++++ app/api/v1/endpoints/review.py	2026-09-09 10:17:28
+@@ -181,7 +181,13 @@
+         if settings.AI_API_KEY:
+             gemini_client = GeminiClient(
+                 api_key=settings.AI_API_KEY,
+-                model=settings.AI_MODEL_NAME,
++                # ⚠️ 真 bug 未修(运行期实测): GeminiClient.__init__ 无 model 形参、无 **kwargs,
++                # 本行抛 TypeError; 上面 try 的 except 元组
++                # (ImportError, RuntimeError, AttributeError) 接不住(issubclass 实测 False),
++                # 且 AI_API_KEY 非空时 :181 恒进 ⇒ 5 个 verification-session 端点全 500。
++                # 正解 = 删本行(dependencies.py:204/:535 同形代码已删并留注释), 但那是修 bug
++                # 不是类型清理, 归 review 语义卡。
++                model=settings.AI_MODEL_NAME,  # pyright: ignore[reportCallIssue]
+                 base_url=settings.AI_BASE_URL if settings.AI_BASE_URL else None,
+             )
+         neo4j_client = get_neo4j_client_dep()
+@@ -235,7 +241,12 @@
+ # AI-enhanced question generation for verification canvas
+ try:
+     from app.clients.gemini_client import GeminiClient
+-    from app.core.config import get_settings
++    # ⛔ 死 import(app.core.config 不存在, 正确路径 app.config)。恒 ImportError
++    # ⇒ _ai_question_available=False ⇒ AI 出题整段(:399-495)是死码。
++    # ⛔ 单修本行会激活死码: 随即撞 :408 的 GeminiClient(model=) TypeError,
++    # 该函数 except 元组同样不含 TypeError, 调用点 :881 外层无 try
++    # ⇒ POST /review/generate 从「当前正常」变「无条件 500」。归 review 语义卡。
++    from app.core.config import get_settings  # pyright: ignore[reportMissingImports]
+     from app.services.agent_service import AgentService, AgentType
+ 
+     _ai_question_available = True
+@@ -405,7 +416,8 @@
+ 
+         gemini_client = GeminiClient(
+             api_key=settings.AI_API_KEY,
+-            model=settings.AI_MODEL_NAME,
++            # 同 :184 之因; 区别在本行位于死码内(_ai_question_available 实测 False)。
++            model=settings.AI_MODEL_NAME,  # pyright: ignore[reportCallIssue]
+             base_url=settings.AI_BASE_URL if settings.AI_BASE_URL else None,
+         )
+         agent_service = AgentService(gemini_client=gemini_client)
+@@ -846,7 +858,14 @@
+         nodes_to_review = [
+             n
+             for n in nodes_to_review
+-            if not (n.get("id") in difficulty_map and difficulty_map[n.get("id")].is_mastered)
++            # 海象提取: 原式两次调用 n.get("id"), pyright 看不见两次结果相同。
++            # dict.get 无副作用, 求值 2→1 等价; is not None 与原式 `None in dict`
++            # 同落 False 分支, 短路点逐条对应。
++            if not (
++                (nid := n.get("id")) is not None
++                and nid in difficulty_map
++                and difficulty_map[nid].is_mastered
++            )
+         ]
+         skipped_mastered_count = pre_filter_count - len(nodes_to_review)
+         if skipped_mastered_count > 0:
+@@ -1540,7 +1559,11 @@
+             )
+ 
+         # Convert VerificationProgress dataclass to Pydantic response
+-        progress_dict = progress.to_dict()
++        # ⚠️ 真 bug 未修: verification_service.get_progress(:1013) 返回 Dict[str,Any]
++        # (函数体 :1026 已 to_dict()), 端点却当 dataclass 用 ⇒ 运行期 AttributeError → 500。
++        # 正解 progress_dict = progress; 但连带 :1545 死 404 分支与下两行取值, 属语义面。
++        # 归 review 语义卡。
++        progress_dict = progress.to_dict()  # pyright: ignore[reportAttributeAccessIssue]
+         return SessionProgressResponse(
+             session_id=progress_dict["session_id"],
+             canvas_name=progress_dict["canvas_name"],
+@@ -1557,8 +1580,8 @@
+             mastery_percentage=progress_dict["mastery_percentage"],
+             hints_given=progress_dict["hints_given"],
+             max_hints=progress_dict["max_hints"],
+-            started_at=progress.started_at,
+-            updated_at=progress.updated_at,
++            started_at=progress.started_at,  # pyright: ignore[reportAttributeAccessIssue]  # 同 :1543
++            updated_at=progress.updated_at,  # pyright: ignore[reportAttributeAccessIssue]  # 同 :1543
+         )
+ 
+     except HTTPException:

@@ -1,0 +1,52 @@
+# 内容口径格式证据(不动点版): format(rewrite(format(HEAD版))) vs format(当前版)
+# 为何要再 format 一次: 「插入 default=」与 format 在 120 列边界上不可交换,
+# 单次 format 会把换行决策差异误报成内容差异。落到不动点后两边同口径。
+# 验伪锚: exam_models.py 必须 DIFFERS(真 bug ① 的 hunk), 其余 11 个必须 IDENTICAL。
+IDENTICAL  app/models/agent_routing_models.py
+IDENTICAL  app/models/edge_rationale.py
+DIFFERS    app/models/exam_models.py  (diff 行数=23)
+--- /tmp/u2-fmt-head2.py	2026-09-08 06:52:13
++++ /tmp/u2-fmt-now.py	2026-09-08 06:52:13
+@@ -135,10 +135,16 @@
+     exam_id: str
+     question_id: str = ""
+     evidence_points: List[str] = Field(default_factory=list)
+-    concept_accuracy: RubricDimension = Field(default_factory=RubricDimension)
+-    reasoning_quality: RubricDimension = Field(default_factory=RubricDimension)
+-    knowledge_coverage: RubricDimension = Field(default_factory=RubricDimension)
+-    knowledge_integration: RubricDimension = Field(default_factory=RubricDimension)
++    # CARD-PYRIGHT-DEBT-rest [BATCH-2026-09-07-第十三批] 真 bug ①: 四维原为
++    # `Field(default_factory=RubricDimension)`, 而 RubricDimension.score 无默认
++    # ⇒ 该 default 一旦被用到就抛 ValidationError, 且消息报的是内层 `score`,
++    # 把「外层漏传了哪个维度」吃掉。两个实例化点(services/autoscore.py:141/:197)
++    # 都显式传四维, 成功路径从不依赖它 ⇒ 改必填, 错误更早更准。
++    # ⛔ 不给 score 加默认 0: 「评分缺失静默为 0」是语义变化, 用户未裁。
++    concept_accuracy: RubricDimension = Field(..., description="Concept accuracy dimension")
++    reasoning_quality: RubricDimension = Field(..., description="Reasoning quality dimension")
++    knowledge_coverage: RubricDimension = Field(..., description="Knowledge coverage dimension")
++    knowledge_integration: RubricDimension = Field(..., description="Knowledge integration dimension")
+     overall_score: int = Field(ge=0, le=12)
+     grade: int = Field(ge=1, le=4, description="1=Again, 2=Hard, 3=Good, 4=Easy")
+     confidence: str = Field(default="high", description="high | medium | low")
+IDENTICAL  app/models/intelligent_parallel_models.py
+IDENTICAL  app/models/memory_schemas.py
+IDENTICAL  app/models/metadata_models.py
+IDENTICAL  app/models/multimodal_schemas.py
+IDENTICAL  app/models/qa_models.py
+IDENTICAL  app/models/review_models.py
+IDENTICAL  app/models/rollback.py
+IDENTICAL  app/models/schemas.py
+IDENTICAL  app/models/subject_models.py
+--- 直接判据: 当前 12 文件里 >120 字符的行数 vs HEAD
+app/models/agent_routing_models.py                      was=0    now=0    OK
+app/models/edge_rationale.py                            was=4    now=4    OK
+app/models/exam_models.py                               was=16   now=16   OK
+app/models/intelligent_parallel_models.py               was=10   now=10   OK
+app/models/memory_schemas.py                            was=2    now=2    OK
+app/models/metadata_models.py                           was=0    now=0    OK
+app/models/multimodal_schemas.py                        was=10   now=10   OK
+app/models/qa_models.py                                 was=8    now=8    OK
+app/models/review_models.py                             was=16   now=16   OK
+app/models/rollback.py                                  was=6    now=6    OK
+app/models/schemas.py                                   was=18   now=18   OK
+app/models/subject_models.py                            was=0    now=0    OK

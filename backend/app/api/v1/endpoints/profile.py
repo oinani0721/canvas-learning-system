@@ -79,10 +79,10 @@ class TipItem(BaseModel):
     annotated_at: str
     context_messages: list[str] = Field(default_factory=list)
     source_canvas_id: Optional[str] = Field(
-        None, description="Canvas board where this tip originated"
+        default=None, description="Canvas board where this tip originated"
     )
     source_node_id: Optional[str] = Field(
-        None, description="Node ID where this tip originated"
+        default=None, description="Node ID where this tip originated"
     )
 
 
@@ -94,10 +94,10 @@ class WeaknessItem(BaseModel):
     last_seen: Optional[str] = None
     related_exam_summaries: list[str] = Field(default_factory=list)
     source_canvas_id: Optional[str] = Field(
-        None, description="Canvas board where this weakness was identified"
+        default=None, description="Canvas board where this weakness was identified"
     )
     source_node_id: Optional[str] = Field(
-        None, description="Node ID where this weakness was identified"
+        default=None, description="Node ID where this weakness was identified"
     )
 
 

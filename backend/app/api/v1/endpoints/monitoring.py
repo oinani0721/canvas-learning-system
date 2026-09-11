@@ -47,8 +47,8 @@ class AlertResponse(BaseModel):
     severity: str = Field(..., description="Alert severity: critical, warning, info")
     message: str = Field(..., description="Human-readable alert message")
     triggered_at: datetime = Field(..., description="When alert was triggered")
-    value: Optional[float] = Field(None, description="Current metric value")
-    threshold: Optional[float] = Field(None, description="Alert threshold")
+    value: Optional[float] = Field(default=None, description="Current metric value")
+    threshold: Optional[float] = Field(default=None, description="Alert threshold")
     labels: Dict[str, str] = Field(
         default_factory=dict, description="Additional labels"
     )
@@ -154,7 +154,7 @@ class AlertsSummary(BaseModel):
     active_count: int = Field(..., description="Total active alerts")
     critical_count: int = Field(..., description="Critical alerts count")
     warning_count: int = Field(..., description="Warning alerts count")
-    info_count: int = Field(0, description="Info alerts count")
+    info_count: int = Field(default=0, description="Info alerts count")
 
 
 class MetricsSummaryResponse(BaseModel):

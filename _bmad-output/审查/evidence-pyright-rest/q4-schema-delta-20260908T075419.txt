@@ -1,0 +1,20 @@
+=== Codex r1 Q4 量化: AutoScoreResult 的 model_json_schema() 基线 vs 当前 逐键差 ===
+now ok
+base ok
+逐键差异条数 = 5
+  ADDED    /properties/concept_accuracy/description
+           now =Concept accuracy dimension
+  ADDED    /properties/knowledge_coverage/description
+           now =Knowledge coverage dimension
+  ADDED    /properties/knowledge_integration/description
+           now =Knowledge integration dimension
+  ADDED    /properties/reasoning_quality/description
+           now =Reasoning quality dimension
+  LIST     /required
+           base=['node_id', 'exam_id', 'overall_score', 'grade']
+           now =['node_id', 'exam_id', 'concept_accuracy', 'reasoning_quality', 'knowledge_coverage', 'knowledge_integration', 'overall_score', 'grade']
+
+=== 该模型是否出现在 backend/openapi.json 的 components.schemas ===
+  AutoScoreResult: in openapi.json = False
+  RubricDimension: in openapi.json = False
+  openapi.json schemas 总数 = 354

@@ -15,7 +15,7 @@ import logging
 from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException, Query, Response, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from app.api.v1.endpoints._vault_id_resolver import resolve_vault_group_id
 from app.core.exceptions import CanvasNotFoundException, NodeNotFoundException

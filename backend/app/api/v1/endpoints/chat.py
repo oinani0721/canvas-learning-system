@@ -661,7 +661,9 @@ async def post_turn_extract(
     # → 一致性检查生效; 注意原实现连 sanitize 都没做, 一并修正)。
     from app.core.vault_scope import resolve_vault_scope
 
-    derived_group_id = resolve_vault_scope(
+    # 返回值本身不用, 但这次调用是**必须发生**的: 它注入 ContextVar 并跑
+    # vault 一致性检查(异 vault 写在此处 409)。故保留调用、只给绑定加 _ 前缀。
+    _derived_group_id = resolve_vault_scope(
         req.vault_id, subject_id=req.subject_id, canvas_path=req.canvas_path
     ).group_id
 

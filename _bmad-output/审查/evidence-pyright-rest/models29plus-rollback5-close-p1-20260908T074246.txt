@@ -1,0 +1,1052 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 745 items
+
+tests/api/v1/endpoints/test_memory_four_state_api.py ................... [  2%]
+..............................                                           [  6%]
+tests/api/v1/endpoints/test_multimodal.py .............                  [  8%]
+tests/contract/test_node_id_patterns.py ................................ [ 12%]
+.................F                                                       [ 15%]
+tests/contract/test_pact_provider.py ss                                  [ 15%]
+tests/unit/grouping/test_analyze_canvas.py ....FF.                       [ 16%]
+tests/unit/grouping/test_helpers.py .............                        [ 17%]
+tests/unit/test_acp_prompt_externalization.py ...........                [ 19%]
+tests/unit/test_agent_routing_engine.py ................................ [ 23%]
+..........................                                               [ 27%]
+tests/unit/test_archive_legacy_lance_tables_g24.py ..................... [ 30%]
+.                                                                        [ 30%]
+tests/unit/test_difficulty_canvas_integration.py .F...............FF.... [ 33%]
+                                                                         [ 33%]
+tests/unit/test_edge_rationale_fallback.py ............                  [ 34%]
+tests/unit/test_exam_sync_node_group_isolation.py .....                  [ 35%]
+tests/unit/test_fsrs_state_query.py ................                     [ 37%]
+tests/unit/test_intelligent_parallel_endpoints.py .........FFF...F...... [ 40%]
+......                                                                   [ 41%]
+tests/unit/test_kg_relevance_weighted.py ........................        [ 44%]
+tests/unit/test_multimodal_fixes.py ......................               [ 47%]
+tests/unit/test_multimodal_path_security.py ..F.............             [ 49%]
+tests/unit/test_pydantic_contracts.py ....................               [ 52%]
+tests/unit/test_remediation_strategy.py ......................           [ 55%]
+tests/unit/test_review_enrichment_signal.py ....                         [ 55%]
+tests/unit/test_review_history_pagination.py ...F.............           [ 58%]
+tests/unit/test_story_30_24_boundary.py ................F..............F [ 62%]
+FFFF                                                                     [ 63%]
+tests/unit/test_story_33_10_runtime_defects.py ..............            [ 64%]
+tests/unit/test_story_38_3_fsrs_init_guarantee.py .....................  [ 67%]
+tests/unit/test_subject_resolver.py .................................... [ 72%]
+...                                                                      [ 73%]
+tests/unit/test_subjects_group_isolation.py ........                     [ 74%]
+tests/unit/test_wave5_stageb_continued_vault_id_injection.py ........... [ 75%]
+....................F....                                                [ 78%]
+tests/unit/test_wave5_stageb_vault_id_injection.py ..................... [ 81%]
+.......                                                                  [ 82%]
+tests/unit/test_websocket_endpoints.py .............................F... [ 87%]
+....                                                                     [ 87%]
+tests/test_rollback_diff.py FFFFF.FFFFF...                               [ 89%]
+tests/test_rollback_e2e.py ......FFFFFFFFFFFF.F.FFFF..FFFFF              [ 93%]
+tests/test_rollback_execute.py FFFFFFF......                             [ 95%]
+tests/test_rollback_history.py FFFF.FFF.FFFFFF..                         [ 97%]
+tests/test_rollback_snapshots.py FFFFFFFF.FFF.F.F                        [100%]
+
+=================================== FAILURES ===================================
+________ TestNodeIdPatternConsistency.test_pattern_matches_json_schema _________
+tests/contract/test_node_id_patterns.py:157: in test_pattern_matches_json_schema
+    with open(schema_path, "r", encoding="utf-8") as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   FileNotFoundError: [Errno 2] No such file or directory: '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/specs/data/canvas-node.schema.json'
+____________ TestSubjectIsolation.test_group_id_extraction_chinese _____________
+tests/unit/grouping/test_analyze_canvas.py:123: in test_group_id_extraction_chinese
+    assert result.subject_group_id == "数学:离散数学"
+E   AssertionError: assert 'vault:default:数学' == '数学:离散数学'
+E     
+E     - 数学:离散数学
+E     + vault:default:数学
+---------------------------- Captured stdout setup -----------------------------
+{"event": "IntelligentGroupingService initialized with base_path: /test/path", "logger": "app.services.intelligent_grouping_service", "level": "info", "timestamp": "2026-09-07T23:42:55.703369Z"}
+------------------------------ Captured log setup ------------------------------
+INFO     app.services.intelligent_grouping_service:intelligent_grouping_service.py:158 {'event': 'IntelligentGroupingService initialized with base_path: /test/path', 'logger': 'app.services.intelligent_grouping_service', 'level': 'info', 'timestamp': '2026-09-07T23:42:55.703369Z'}
+----------------------------- Captured stdout call -----------------------------
+{"event": "analyze_canvas called: path=\u6570\u5b66/\u79bb\u6563\u6570\u5b66.canvas, color=3, max_groups=None, min_nodes=2", "logger": "app.services.intelligent_grouping_service", "level": "info", "timestamp": "2026-09-07T23:42:55.704197Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.intelligent_grouping_service:intelligent_grouping_service.py:193 {'event': 'analyze_canvas called: path=数学/离散数学.canvas, color=3, max_groups=None, min_nodes=2', 'logger': 'app.services.intelligent_grouping_service', 'level': 'info', 'timestamp': '2026-09-07T23:42:55.704197Z'}
+___________ TestSubjectIsolation.test_group_id_with_skip_directories ___________
+tests/unit/grouping/test_analyze_canvas.py:141: in test_group_id_with_skip_directories
+    assert result.subject_group_id == "物理:力学"
+E   AssertionError: assert 'vault:default:物理' == '物理:力学'
+E     
+E     - 物理:力学
+E     + vault:default:物理
+---------------------------- Captured stdout setup -----------------------------
+{"event": "IntelligentGroupingService initialized with base_path: /test/path", "logger": "app.services.intelligent_grouping_service", "level": "info", "timestamp": "2026-09-07T23:42:55.707093Z"}
+------------------------------ Captured log setup ------------------------------
+INFO     app.services.intelligent_grouping_service:intelligent_grouping_service.py:158 {'event': 'IntelligentGroupingService initialized with base_path: /test/path', 'logger': 'app.services.intelligent_grouping_service', 'level': 'info', 'timestamp': '2026-09-07T23:42:55.707093Z'}
+----------------------------- Captured stdout call -----------------------------
+{"event": "analyze_canvas called: path=\u7b14\u8bb0\u5e93/\u7269\u7406/\u529b\u5b66.canvas, color=3, max_groups=None, min_nodes=2", "logger": "app.services.intelligent_grouping_service", "level": "info", "timestamp": "2026-09-07T23:42:55.707583Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.intelligent_grouping_service:intelligent_grouping_service.py:193 {'event': 'analyze_canvas called: path=笔记库/物理/力学.canvas, color=3, max_groups=None, min_nodes=2', 'logger': 'app.services.intelligent_grouping_service', 'level': 'info', 'timestamp': '2026-09-07T23:42:55.707583Z'}
+______ TestGetDifficultyData.test_memory_service_unavailable_returns_none ______
+tests/unit/test_difficulty_canvas_integration.py:156: in test_memory_service_unavailable_returns_none
+    result = await _get_difficulty_data(sample_nodes, "test_canvas")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app/api/v1/endpoints/review.py:281: in _get_difficulty_data
+    memory_service = await get_memory_service()
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/unittest/mock.py:2333: in _execute_mock_call
+    raise effect
+E   Exception: MemoryService unavailable
+_____ TestAIQuestionDifficultyInjection.test_difficulty_context_in_prompt ______
+tests/unit/test_difficulty_canvas_integration.py:432: in test_difficulty_context_in_prompt
+    await review_mod._generate_ai_questions(sample_nodes, difficulty_map_mixed)
+app/api/v1/endpoints/review.py:448: in _generate_ai_questions
+    agent_service.call_agent(AgentType.VERIFICATION_QUESTION, prompt),
+                             ^^^^^^^^^
+E   NameError: name 'AgentType' is not defined
+___ TestAIQuestionDifficultyInjection.test_no_difficulty_map_no_extra_fields ___
+tests/unit/test_difficulty_canvas_integration.py:476: in test_no_difficulty_map_no_extra_fields
+    await review_mod._generate_ai_questions(sample_nodes, None)
+app/api/v1/endpoints/review.py:448: in _generate_ai_questions
+    agent_service.call_agent(AgentType.VERIFICATION_QUESTION, prompt),
+                             ^^^^^^^^^
+E   NameError: name 'AgentType' is not defined
+____________ TestProgressEndpoint.test_progress_invalid_session_404 ____________
+tests/unit/test_intelligent_parallel_endpoints.py:437: in test_progress_invalid_session_404
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+E   assert 500 == 404
+E    +  where 500 = <Response [500 Internal Server Error]>.status_code
+E    +  and   404 = status.HTTP_404_NOT_FOUND
+---------------------------- Captured stdout setup -----------------------------
+{"event": "IntelligentParallelService: batch_orchestrator not injected \u2014 batch execution will fail", "logger": "app.services.intelligent_parallel_service", "level": "warning", "timestamp": "2026-09-07T23:43:01.739061Z"}
+{"event": "IntelligentParallelService initialized with real service dependencies", "logger": "app.services.intelligent_parallel_service", "level": "info", "timestamp": "2026-09-07T23:43:01.739142Z"}
+------------------------------ Captured log setup ------------------------------
+WARNING  app.services.intelligent_parallel_service:intelligent_parallel_service.py:107 {'event': 'IntelligentParallelService: batch_orchestrator not injected — batch execution will fail', 'logger': 'app.services.intelligent_parallel_service', 'level': 'warning', 'timestamp': '2026-09-07T23:43:01.739061Z'}
+INFO     app.services.intelligent_parallel_service:intelligent_parallel_service.py:122 {'event': 'IntelligentParallelService initialized with real service dependencies', 'logger': 'app.services.intelligent_parallel_service', 'level': 'info', 'timestamp': '2026-09-07T23:43:01.739142Z'}
+----------------------------- Captured stdout call -----------------------------
+{"event": "get_session_status called: session_id=nonexistent-session", "request_id": "5215965200", "logger": "app.services.intelligent_parallel_service", "level": "info", "timestamp": "2026-09-07T23:43:01.740093Z"}
+{"method": "GET", "path": "/api/v1/canvas/intelligent-parallel/nonexistent-session", "endpoint": "/api/v1/canvas/intelligent-parallel/nonexistent-session", "status": 500, "duration_ms": 0.59, "event": "request.completed", "request_id": "5215965200", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:01.740354Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.intelligent_parallel_service:intelligent_parallel_service.py:324 {'event': 'get_session_status called: session_id=nonexistent-session', 'request_id': '5215965200', 'logger': 'app.services.intelligent_parallel_service', 'level': 'info', 'timestamp': '2026-09-07T23:43:01.740093Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/canvas/intelligent-parallel/nonexistent-session', 'endpoint': '/api/v1/canvas/intelligent-parallel/nonexistent-session', 'status': 500, 'duration_ms': 0.59, 'event': 'request.completed', 'request_id': '5215965200', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:01.740354Z'}
+________________ TestCancelEndpoint.test_cancel_running_session ________________
+tests/unit/test_intelligent_parallel_endpoints.py:458: in test_cancel_running_session
+    assert response.status_code == status.HTTP_200_OK
+E   assert 409 == 200
+E    +  where 409 = <Response [409 Conflict]>.status_code
+E    +  and   200 = status.HTTP_200_OK
+---------------------------- Captured stdout setup -----------------------------
+{"event": "IntelligentParallelService: batch_orchestrator not injected \u2014 batch execution will fail", "logger": "app.services.intelligent_parallel_service", "level": "warning", "timestamp": "2026-09-07T23:43:01.744910Z"}
+{"event": "IntelligentParallelService initialized with real service dependencies", "logger": "app.services.intelligent_parallel_service", "level": "info", "timestamp": "2026-09-07T23:43:01.744990Z"}
+------------------------------ Captured log setup ------------------------------
+WARNING  app.services.intelligent_parallel_service:intelligent_parallel_service.py:107 {'event': 'IntelligentParallelService: batch_orchestrator not injected — batch execution will fail', 'logger': 'app.services.intelligent_parallel_service', 'level': 'warning', 'timestamp': '2026-09-07T23:43:01.744910Z'}
+INFO     app.services.intelligent_parallel_service:intelligent_parallel_service.py:122 {'event': 'IntelligentParallelService initialized with real service dependencies', 'logger': 'app.services.intelligent_parallel_service', 'level': 'info', 'timestamp': '2026-09-07T23:43:01.744990Z'}
+----------------------------- Captured stdout call -----------------------------
+{"event": "cancel_session called: session_id=parallel-20260209-abc123", "request_id": "5215964048", "logger": "app.services.intelligent_parallel_service", "level": "info", "timestamp": "2026-09-07T23:43:01.745964Z"}
+{"method": "POST", "path": "/api/v1/canvas/intelligent-parallel/cancel/parallel-20260209-abc123", "endpoint": "/api/v1/canvas/intelligent-parallel/cancel/parallel-20260209-abc123", "status": 409, "duration_ms": 0.8, "event": "request.completed", "request_id": "5215964048", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:01.746341Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.intelligent_parallel_service:intelligent_parallel_service.py:479 {'event': 'cancel_session called: session_id=parallel-20260209-abc123', 'request_id': '5215964048', 'logger': 'app.services.intelligent_parallel_service', 'level': 'info', 'timestamp': '2026-09-07T23:43:01.745964Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/canvas/intelligent-parallel/cancel/parallel-20260209-abc123', 'endpoint': '/api/v1/canvas/intelligent-parallel/cancel/parallel-20260209-abc123', 'status': 409, 'duration_ms': 0.8, 'event': 'request.completed', 'request_id': '5215964048', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:01.746341Z'}
+____________ TestCancelEndpoint.test_cancel_nonexistent_session_404 ____________
+tests/unit/test_intelligent_parallel_endpoints.py:479: in test_cancel_nonexistent_session_404
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+E   assert 500 == 404
+E    +  where 500 = <Response [500 Internal Server Error]>.status_code
+E    +  and   404 = status.HTTP_404_NOT_FOUND
+---------------------------- Captured stdout setup -----------------------------
+{"event": "IntelligentParallelService: batch_orchestrator not injected \u2014 batch execution will fail", "logger": "app.services.intelligent_parallel_service", "level": "warning", "timestamp": "2026-09-07T23:43:01.751647Z"}
+{"event": "IntelligentParallelService initialized with real service dependencies", "logger": "app.services.intelligent_parallel_service", "level": "info", "timestamp": "2026-09-07T23:43:01.751778Z"}
+------------------------------ Captured log setup ------------------------------
+WARNING  app.services.intelligent_parallel_service:intelligent_parallel_service.py:107 {'event': 'IntelligentParallelService: batch_orchestrator not injected — batch execution will fail', 'logger': 'app.services.intelligent_parallel_service', 'level': 'warning', 'timestamp': '2026-09-07T23:43:01.751647Z'}
+INFO     app.services.intelligent_parallel_service:intelligent_parallel_service.py:122 {'event': 'IntelligentParallelService initialized with real service dependencies', 'logger': 'app.services.intelligent_parallel_service', 'level': 'info', 'timestamp': '2026-09-07T23:43:01.751778Z'}
+----------------------------- Captured stdout call -----------------------------
+{"event": "cancel_session called: session_id=nonexistent-session", "request_id": "5215961744", "logger": "app.services.intelligent_parallel_service", "level": "info", "timestamp": "2026-09-07T23:43:01.752790Z"}
+{"method": "POST", "path": "/api/v1/canvas/intelligent-parallel/cancel/nonexistent-session", "endpoint": "/api/v1/canvas/intelligent-parallel/cancel/nonexistent-session", "status": 500, "duration_ms": 0.62, "event": "request.completed", "request_id": "5215961744", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:01.753096Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.intelligent_parallel_service:intelligent_parallel_service.py:479 {'event': 'cancel_session called: session_id=nonexistent-session', 'request_id': '5215961744', 'logger': 'app.services.intelligent_parallel_service', 'level': 'info', 'timestamp': '2026-09-07T23:43:01.752790Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/canvas/intelligent-parallel/cancel/nonexistent-session', 'endpoint': '/api/v1/canvas/intelligent-parallel/cancel/nonexistent-session', 'status': 500, 'duration_ms': 0.62, 'event': 'request.completed', 'request_id': '5215961744', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:01.753096Z'}
+___________________ TestErrorResponses.test_404_error_format ___________________
+tests/unit/test_intelligent_parallel_endpoints.py:581: in test_404_error_format
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+E   assert 500 == 404
+E    +  where 500 = <Response [500 Internal Server Error]>.status_code
+E    +  and   404 = status.HTTP_404_NOT_FOUND
+---------------------------- Captured stdout setup -----------------------------
+{"event": "IntelligentParallelService: batch_orchestrator not injected \u2014 batch execution will fail", "logger": "app.services.intelligent_parallel_service", "level": "warning", "timestamp": "2026-09-07T23:43:01.768029Z"}
+{"event": "IntelligentParallelService initialized with real service dependencies", "logger": "app.services.intelligent_parallel_service", "level": "info", "timestamp": "2026-09-07T23:43:01.768088Z"}
+------------------------------ Captured log setup ------------------------------
+WARNING  app.services.intelligent_parallel_service:intelligent_parallel_service.py:107 {'event': 'IntelligentParallelService: batch_orchestrator not injected — batch execution will fail', 'logger': 'app.services.intelligent_parallel_service', 'level': 'warning', 'timestamp': '2026-09-07T23:43:01.768029Z'}
+INFO     app.services.intelligent_parallel_service:intelligent_parallel_service.py:122 {'event': 'IntelligentParallelService initialized with real service dependencies', 'logger': 'app.services.intelligent_parallel_service', 'level': 'info', 'timestamp': '2026-09-07T23:43:01.768088Z'}
+----------------------------- Captured stdout call -----------------------------
+{"event": "get_session_status called: session_id=nonexistent-session", "request_id": "5215637904", "logger": "app.services.intelligent_parallel_service", "level": "info", "timestamp": "2026-09-07T23:43:01.768827Z"}
+{"method": "GET", "path": "/api/v1/canvas/intelligent-parallel/nonexistent-session", "endpoint": "/api/v1/canvas/intelligent-parallel/nonexistent-session", "status": 500, "duration_ms": 0.46, "event": "request.completed", "request_id": "5215637904", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:01.769040Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.intelligent_parallel_service:intelligent_parallel_service.py:324 {'event': 'get_session_status called: session_id=nonexistent-session', 'request_id': '5215637904', 'logger': 'app.services.intelligent_parallel_service', 'level': 'info', 'timestamp': '2026-09-07T23:43:01.768827Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/canvas/intelligent-parallel/nonexistent-session', 'endpoint': '/api/v1/canvas/intelligent-parallel/nonexistent-session', 'status': 500, 'duration_ms': 0.46, 'event': 'request.completed', 'request_id': '5215637904', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:01.769040Z'}
+____________ TestValidateSafePath.test_path_traversal_windows_style ____________
+tests/unit/test_multimodal_path_security.py:64: in test_path_traversal_windows_style
+    with pytest.raises(MultimodalServiceError, match="path traversal"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE <class 'app.services.multimodal_service.MultimodalServiceError'>
+---------------------------- Captured stdout setup -----------------------------
+{"event": "MultimodalStore not available \u2014 using JSON file persistence at /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19344/test_path_traversal_windows_st0/content_index.json. Data will survive restarts but advanced features (vector search) are disabled.", "logger": "app.services.multimodal_service", "level": "warning", "timestamp": "2026-09-07T23:43:01.873408Z"}
+------------------------------ Captured log setup ------------------------------
+WARNING  app.services.multimodal_service:multimodal_service.py:198 {'event': 'MultimodalStore not available — using JSON file persistence at /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19344/test_path_traversal_windows_st0/content_index.json. Data will survive restarts but advanced features (vector search) are disabled.', 'logger': 'app.services.multimodal_service', 'level': 'warning', 'timestamp': '2026-09-07T23:43:01.873408Z'}
+_________ TestHistoryAPIEndpoint.test_endpoint_accepts_limit_parameter _________
+live Neo4j port connect attempted —— 本用例期间有 1 次到现网 Neo4j 的连接尝试被拦下。
+（连接处抛出的异常被 app/main.py 的 lifespan try/except 吞掉了，
+  所以由本哨兵把它转成用例失败——否则这道门什么都证明不了。）
+  - ('::1', 7691, 0, 0) on thread asyncio-portal-137aed7f0 (owner=tests/unit/test_review_history_pagination.py::TestHistoryAPIEndpoint::test_endpoint_accepts_limit_parameter)
+----------------------------- Captured stdout call -----------------------------
+{"event": "Wave-5 Stage B: review endpoint both vault_id and group_id missing, falling back to DEFAULT_GROUP_ID", "request_id": "5214946704", "logger": "app.api.v1.endpoints.review", "level": "warning", "timestamp": "2026-09-07T23:43:01.922226Z"}
+{"event": "GET /review/history days=7 limit=5 show_all=False concept=None", "request_id": "5214946704", "logger": "app.api.v1.endpoints.review", "level": "info", "timestamp": "2026-09-07T23:43:01.922310Z"}
+{"event": "Creating MemoryService singleton instance", "request_id": "5214946704", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-07T23:43:01.922361Z"}
+{"event": "Neo4jClient initialized: mode=NEO4J, uri=bolt://localhost:7691, pool_size=50", "request_id": "5214946704", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-07T23:43:01.922434Z"}
+{"event": "Neo4j health check failed: live Neo4j port connect attempted: ('::1', 7691, 0, 0). \u53d7\u62e6\u7aef\u53e3 [7687, 7691] \u662f\u73b0\u7f51 Neo4j\uff1b\u6d4b\u8bd5\u8fdb\u7a0b\u4e0d\u5f97\u8fde\u63a5\u3002\u82e5\u8fd9\u662f\u7aef\u70b9\u6d4b\u8bd5\uff0c\u8bf7\u7528 backend/tests/support/lifespan.py::no_lifespan \u5173\u6389 app.main \u7684 lifespan\uff1b\u82e5\u786e\u9700\u771f\u5e93\uff0c\u7528\u6d4b\u8bd5\u5bb9\u5668 NEO4J_TEST_URI(7692) \u5e76\u6253 integration/real_neo4j marker\u3002", "request_id": "5214946704", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-07T23:43:01.923662Z"}
+{"event": "Neo4j health check failed during initialization", "request_id": "5214946704", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-07T23:43:01.923736Z"}
+{"event": "Falling back to JSON storage mode", "request_id": "5214946704", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-07T23:43:01.923768Z"}
+{"event": "Neo4j driver closed", "request_id": "5214946704", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-07T23:43:01.923801Z"}
+{"event": "Loaded 0 relationships from /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/data/neo4j_memory.json", "request_id": "5214946704", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-07T23:43:01.923923Z"}
+{"event": "MemoryService: recovered 0 episodes from Neo4j (0 returned, 0 deduped)", "request_id": "5214946704", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-07T23:43:01.924479Z"}
+{"event": "MemoryService initialized successfully", "request_id": "5214946704", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-07T23:43:01.924556Z"}
+{"event": "MemoryService singleton initialized", "request_id": "5214946704", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-07T23:43:01.924589Z"}
+{"event": "BackgroundTaskManager initialized", "request_id": "5214946704", "logger": "app.services.background_task_manager", "level": "info", "timestamp": "2026-09-07T23:43:01.924698Z"}
+{"event": "Initialized FSRS scheduler with retention=0.9", "request_id": "5214946704", "logger": "memory.temporal.fsrs_manager", "level": "info", "timestamp": "2026-09-07T23:43:01.924754Z"}
+{"event": "FSRSManager created (desired_retention=0.9)", "request_id": "5214946704", "logger": "app.services.review_service", "level": "info", "timestamp": "2026-09-07T23:43:01.924773Z"}
+{"event": "GraphitiTemporalClient singleton initialized with Neo4jClient (mode=JSON_FALLBACK)", "request_id": "5214946704", "logger": "app.dependencies", "level": "info", "timestamp": "2026-09-07T23:43:01.924836Z"}
+{"event": "FSRS manager initialized successfully", "request_id": "5214946704", "logger": "app.services.review_service", "level": "info", "timestamp": "2026-09-07T23:43:01.924854Z"}
+{"event": "ReviewService singleton created via services layer factory", "request_id": "5214946704", "logger": "app.services.review_service", "level": "info", "timestamp": "2026-09-07T23:43:01.924893Z"}
+{"event": "Loaded 0 learning memories", "request_id": "5214946704", "logger": "app.clients.neo4j_edge_client", "level": "info", "timestamp": "2026-09-07T23:43:01.925011Z"}
+{"event": "Found 0 history records from Graphiti", "request_id": "5214946704", "logger": "app.services.review_service", "level": "info", "timestamp": "2026-09-07T23:43:01.925040Z"}
+{"method": "GET", "path": "/api/v1/review/history", "endpoint": "/api/v1/review/history", "status": 200, "duration_ms": 3.75, "event": "request.completed", "request_id": "5214946704", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:01.925309Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.api.v1.endpoints.review:review.py:55 Wave-5 Stage B: review endpoint both vault_id and group_id missing, falling back to DEFAULT_GROUP_ID
+INFO     app.api.v1.endpoints.review:review.py:660 GET /review/history days=7 limit=5 show_all=False concept=None
+INFO     app.services.memory_service:memory_service.py:2910 {'event': 'Creating MemoryService singleton instance', 'request_id': '5214946704', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-07T23:43:01.922361Z'}
+INFO     app.clients.neo4j_client:neo4j_client.py:316 Neo4jClient initialized: mode=NEO4J, uri=bolt://localhost:7691, pool_size=50
+WARNING  app.clients.neo4j_client:neo4j_client.py:531 Neo4j health check failed: live Neo4j port connect attempted: ('::1', 7691, 0, 0). 受拦端口 [7687, 7691] 是现网 Neo4j；测试进程不得连接。若这是端点测试，请用 backend/tests/support/lifespan.py::no_lifespan 关掉 app.main 的 lifespan；若确需真库，用测试容器 NEO4J_TEST_URI(7692) 并打 integration/real_neo4j marker。
+WARNING  app.clients.neo4j_client:neo4j_client.py:407 Neo4j health check failed during initialization
+WARNING  app.clients.neo4j_client:neo4j_client.py:429 Falling back to JSON storage mode
+INFO     app.clients.neo4j_client:neo4j_client.py:496 Neo4j driver closed
+INFO     app.clients.neo4j_client:neo4j_client.py:450 Loaded 0 relationships from /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/data/neo4j_memory.json
+INFO     app.services.memory_service:memory_service.py:428 {'event': 'MemoryService: recovered 0 episodes from Neo4j (0 returned, 0 deduped)', 'request_id': '5214946704', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-07T23:43:01.924479Z'}
+INFO     app.services.memory_service:memory_service.py:284 {'event': 'MemoryService initialized successfully', 'request_id': '5214946704', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-07T23:43:01.924556Z'}
+INFO     app.services.memory_service:memory_service.py:2915 {'event': 'MemoryService singleton initialized', 'request_id': '5214946704', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-07T23:43:01.924589Z'}
+INFO     app.services.background_task_manager:background_task_manager.py:109 {'event': 'BackgroundTaskManager initialized', 'request_id': '5214946704', 'logger': 'app.services.background_task_manager', 'level': 'info', 'timestamp': '2026-09-07T23:43:01.924698Z'}
+INFO     memory.temporal.fsrs_manager:fsrs_manager.py:127 Initialized FSRS scheduler with retention=0.9
+INFO     app.services.review_service:review_service.py:442 {'event': 'FSRSManager created (desired_retention=0.9)', 'request_id': '5214946704', 'logger': 'app.services.review_service', 'level': 'info', 'timestamp': '2026-09-07T23:43:01.924773Z'}
+INFO     app.dependencies:dependencies.py:792 GraphitiTemporalClient singleton initialized with Neo4jClient (mode=JSON_FALLBACK)
+INFO     app.services.review_service:review_service.py:504 {'event': 'FSRS manager initialized successfully', 'request_id': '5214946704', 'logger': 'app.services.review_service', 'level': 'info', 'timestamp': '2026-09-07T23:43:01.924854Z'}
+INFO     app.services.review_service:review_service.py:2732 {'event': 'ReviewService singleton created via services layer factory', 'request_id': '5214946704', 'logger': 'app.services.review_service', 'level': 'info', 'timestamp': '2026-09-07T23:43:01.924893Z'}
+INFO     app.clients.neo4j_edge_client:neo4j_edge_client.py:797 Loaded 0 learning memories
+INFO     app.services.review_service:review_service.py:1581 {'event': 'Found 0 history records from Graphiti', 'request_id': '5214946704', 'logger': 'app.services.review_service', 'level': 'info', 'timestamp': '2026-09-07T23:43:01.925040Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/review/history', 'endpoint': '/api/v1/review/history', 'status': 200, 'duration_ms': 3.75, 'event': 'request.completed', 'request_id': '5214946704', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:01.925309Z'}
+_ TestSpecialCharacterGroupId.test_neo4j_parameterized_query_with_special_chars _
+tests/unit/test_story_30_24_boundary.py:187: in test_neo4j_parameterized_query_with_special_chars
+    assert all_kwargs.get("groupId") == malicious_group_id, (
+E   AssertionError: groupId not passed as keyword param. kwargs={'userId': 'test_user', 'limit': 5, 'group_id': 'vault__script_drop_table_users', 'group_prefix': 'vault__script_drop_table_users__'}
+E   assert None == "<script>'; DROP TABLE users;--"
+E    +  where None = <built-in method get of dict object at 0x13974d100>('groupId')
+E    +    where <built-in method get of dict object at 0x13974d100> = {'group_id': 'vault__script_drop_table_users', 'group_prefix': 'vault__script_drop_table_users__', 'limit': 5, 'userId': 'test_user'}.get
+----------------------------- Captured stdout call -----------------------------
+{"event": "Neo4jClient initialized: mode=NEO4J, uri=bolt://localhost:7687, pool_size=50", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-07T23:43:01.946274Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.clients.neo4j_client:neo4j_client.py:316 Neo4jClient initialized: mode=NEO4J, uri=bolt://localhost:7687, pool_size=50
+______________ TestVaultVerifyExitCode.test_verify_script_exists _______________
+tests/unit/test_story_30_24_boundary.py:473: in test_verify_script_exists
+    assert self.VERIFY_SCRIPT.exists(), (
+E   AssertionError: verify script not found: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/canvas-progress-tracker/obsidian-plugin/scripts/verify-vault.mjs
+E   assert False
+E    +  where False = exists()
+E    +    where exists = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/canvas-progress-tracker/obsidian-plugin/scripts/verify-vault.mjs').exists
+E    +      where PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/canvas-progress-tracker/obsidian-plugin/scripts/verify-vault.mjs') = <tests.unit.test_story_30_24_boundary.TestVaultVerifyExitCode object at 0x1376fb890>.VERIFY_SCRIPT
+_ TestVaultVerifyExitCode.test_verify_script_exits_nonzero_when_file_not_found _
+tests/unit/test_story_30_24_boundary.py:497: in test_verify_script_exits_nonzero_when_file_not_found
+    assert "NOT FOUND" in output
+E   assert 'NOT FOUND' in "node:internal/modules/cjs/loader:1503\n  throw err;\n  ^\n\nError: Cannot find module '/Users/Heishing/Desktop/canvas...t node:internal/main/run_main_module:33:47 {\n  code: 'MODULE_NOT_FOUND',\n  requireStack: []\n}\n\nNode.js v24.16.0\n"
+_____ TestVaultVerifyExitCode.test_verify_script_exits_nonzero_when_stale ______
+tests/unit/test_story_30_24_boundary.py:511: in test_verify_script_exits_nonzero_when_stale
+    assert "STALE" in (result.stdout or "")
+E   assert 'STALE' in (('' or ''))
+E    +  where '' = CompletedProcess(args=['node', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyrigh... node:internal/main/run_main_module:33:47 {\n  code: 'MODULE_NOT_FOUND',\n  requireStack: []\n}\n\nNode.js v24.16.0\n").stdout
+_______ TestVaultVerifyExitCode.test_verify_script_exits_zero_when_fresh _______
+tests/unit/test_story_30_24_boundary.py:522: in test_verify_script_exits_zero_when_fresh
+    assert result.returncode == 0
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['node', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyrigh... node:internal/main/run_main_module:33:47 {\n  code: 'MODULE_NOT_FOUND',\n  requireStack: []\n}\n\nNode.js v24.16.0\n").returncode
+_______ TestVaultVerifyExitCode.test_package_json_verify_command_correct _______
+tests/unit/test_story_30_24_boundary.py:528: in test_package_json_verify_command_correct
+    assert pkg_json_path.exists()
+E   AssertionError: assert False
+E    +  where False = exists()
+E    +    where exists = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/canvas-progress-tracker/obsidian-plugin/package.json').exists
+_ TestSharedResolverImportedByEndpoints.test_endpoint_imports_shared_resolver[app.api.v1.endpoints.agents] _
+tests/unit/test_wave5_stageb_continued_vault_id_injection.py:437: in test_endpoint_imports_shared_resolver
+    assert hasattr(module, "resolve_vault_group_id"), (
+E   AssertionError: app.api.v1.endpoints.agents did not import resolve_vault_group_id from _vault_id_resolver
+E   assert False
+E    +  where False = hasattr(<module 'app.api.v1.endpoints.agents' from '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/api/v1/endpoints/agents.py'>, 'resolve_vault_group_id')
+_____ TestWebSocketEndpoint.test_validate_session_handles_validator_error ______
+tests/unit/test_websocket_endpoints.py:538: in test_validate_session_handles_validator_error
+    result = await validate_session("any-session")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app/api/v1/endpoints/websocket.py:80: in validate_session
+    return await _session_validator(session_id)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/unit/test_websocket_endpoints.py:533: in failing_validator
+    raise Exception("Validator error")
+E   Exception: Validator error
+----------------------------- Captured stdout call -----------------------------
+{"event": "Session validator set for WebSocket endpoint", "logger": "app.api.v1.endpoints.websocket", "level": "info", "timestamp": "2026-09-07T23:43:02.314861Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.api.v1.endpoints.websocket:websocket.py:59 Session validator set for WebSocket endpoint
+__________________ TestDiffEndpoint.test_get_diff_returns_200 __________________
+tests/test_rollback_diff.py:82: in test_get_diff_returns_200
+    assert response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "GET", "path": "/api/v1/rollback/diff/snap-001", "endpoint": "/api/v1/rollback/diff/snap-001", "status": 503, "duration_ms": 0.82, "event": "request.completed", "request_id": "5214527632", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.385805Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/rollback/diff/snap-001', 'endpoint': '/api/v1/rollback/diff/snap-001', 'status': 503, 'duration_ms': 0.82, 'event': 'request.completed', 'request_id': '5214527632', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.385805Z'}
+______________ TestDiffEndpoint.test_get_diff_response_structure _______________
+tests/test_rollback_diff.py:112: in test_get_diff_response_structure
+    assert "snapshot_id" in data
+E   AssertionError: assert 'snapshot_id' in {'detail': 'Rollback service unavailable: src.rollback module not installed'}
+----------------------------- Captured stdout call -----------------------------
+{"method": "GET", "path": "/api/v1/rollback/diff/snap-001", "endpoint": "/api/v1/rollback/diff/snap-001", "status": 503, "duration_ms": 0.4, "event": "request.completed", "request_id": "5214522832", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.391449Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/rollback/diff/snap-001', 'endpoint': '/api/v1/rollback/diff/snap-001', 'status': 503, 'duration_ms': 0.4, 'event': 'request.completed', 'request_id': '5214522832', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.391449Z'}
+_____________ TestDiffEndpoint.test_get_diff_nodes_diff_structure ______________
+tests/test_rollback_diff.py:140: in test_get_diff_nodes_diff_structure
+    nodes_diff = data["nodes_diff"]
+                 ^^^^^^^^^^^^^^^^^^
+E   KeyError: 'nodes_diff'
+----------------------------- Captured stdout call -----------------------------
+{"method": "GET", "path": "/api/v1/rollback/diff/snap-001", "endpoint": "/api/v1/rollback/diff/snap-001", "status": 503, "duration_ms": 0.41, "event": "request.completed", "request_id": "5214520528", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.396692Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/rollback/diff/snap-001', 'endpoint': '/api/v1/rollback/diff/snap-001', 'status': 503, 'duration_ms': 0.41, 'event': 'request.completed', 'request_id': '5214520528', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.396692Z'}
+_____________ TestDiffEndpoint.test_get_diff_edges_diff_structure ______________
+tests/test_rollback_diff.py:167: in test_get_diff_edges_diff_structure
+    edges_diff = data["edges_diff"]
+                 ^^^^^^^^^^^^^^^^^^
+E   KeyError: 'edges_diff'
+----------------------------- Captured stdout call -----------------------------
+{"method": "GET", "path": "/api/v1/rollback/diff/snap-001", "endpoint": "/api/v1/rollback/diff/snap-001", "status": 503, "duration_ms": 0.47, "event": "request.completed", "request_id": "5214533968", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.402510Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/rollback/diff/snap-001', 'endpoint': '/api/v1/rollback/diff/snap-001', 'status': 503, 'duration_ms': 0.47, 'event': 'request.completed', 'request_id': '5214533968', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.402510Z'}
+______________ TestDiffEndpoint.test_get_diff_snapshot_not_found _______________
+tests/test_rollback_diff.py:187: in test_get_diff_snapshot_not_found
+    assert response.status_code == 404
+E   assert 503 == 404
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "GET", "path": "/api/v1/rollback/diff/nonexistent-snap", "endpoint": "/api/v1/rollback/diff/nonexistent-snap", "status": 503, "duration_ms": 0.4, "event": "request.completed", "request_id": "5214528784", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.407646Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/rollback/diff/nonexistent-snap', 'endpoint': '/api/v1/rollback/diff/nonexistent-snap', 'status': 503, 'duration_ms': 0.4, 'event': 'request.completed', 'request_id': '5214528784', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.407646Z'}
+_____________ TestDiffEndpoint.test_get_diff_detects_removed_nodes _____________
+tests/test_rollback_diff.py:218: in test_get_diff_detects_removed_nodes
+    assert len(data["nodes_diff"]["removed"]) == 2
+               ^^^^^^^^^^^^^^^^^^
+E   KeyError: 'nodes_diff'
+----------------------------- Captured stdout call -----------------------------
+{"method": "GET", "path": "/api/v1/rollback/diff/snap-001", "endpoint": "/api/v1/rollback/diff/snap-001", "status": 503, "duration_ms": 0.4, "event": "request.completed", "request_id": "5214528208", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.415676Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/rollback/diff/snap-001', 'endpoint': '/api/v1/rollback/diff/snap-001', 'status': 503, 'duration_ms': 0.4, 'event': 'request.completed', 'request_id': '5214528208', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.415676Z'}
+______________ TestDiffEndpoint.test_get_diff_detects_added_nodes ______________
+tests/test_rollback_diff.py:257: in test_get_diff_detects_added_nodes
+    assert len(data["nodes_diff"]["added"]) == 2
+               ^^^^^^^^^^^^^^^^^^
+E   KeyError: 'nodes_diff'
+----------------------------- Captured stdout call -----------------------------
+{"method": "GET", "path": "/api/v1/rollback/diff/snap-empty", "endpoint": "/api/v1/rollback/diff/snap-empty", "status": 503, "duration_ms": 0.5, "event": "request.completed", "request_id": "5214520336", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.421790Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/rollback/diff/snap-empty', 'endpoint': '/api/v1/rollback/diff/snap-empty', 'status': 503, 'duration_ms': 0.5, 'event': 'request.completed', 'request_id': '5214520336', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.421790Z'}
+____________ TestDiffEndpoint.test_get_diff_detects_modified_nodes _____________
+tests/test_rollback_diff.py:290: in test_get_diff_detects_modified_nodes
+    modified = data["nodes_diff"]["modified"]
+               ^^^^^^^^^^^^^^^^^^
+E   KeyError: 'nodes_diff'
+----------------------------- Captured stdout call -----------------------------
+{"method": "GET", "path": "/api/v1/rollback/diff/snap-001", "endpoint": "/api/v1/rollback/diff/snap-001", "status": 503, "duration_ms": 0.37, "event": "request.completed", "request_id": "5214529168", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.427092Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/rollback/diff/snap-001', 'endpoint': '/api/v1/rollback/diff/snap-001', 'status': 503, 'duration_ms': 0.37, 'event': 'request.completed', 'request_id': '5214529168', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.427092Z'}
+_____________ TestDiffEndpoint.test_get_diff_detects_removed_edges _____________
+tests/test_rollback_diff.py:325: in test_get_diff_detects_removed_edges
+    assert len(data["edges_diff"]["removed"]) == 1
+               ^^^^^^^^^^^^^^^^^^
+E   KeyError: 'edges_diff'
+----------------------------- Captured stdout call -----------------------------
+{"method": "GET", "path": "/api/v1/rollback/diff/snap-001", "endpoint": "/api/v1/rollback/diff/snap-001", "status": 503, "duration_ms": 0.41, "event": "request.completed", "request_id": "5214273168", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.432903Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/rollback/diff/snap-001', 'endpoint': '/api/v1/rollback/diff/snap-001', 'status': 503, 'duration_ms': 0.41, 'event': 'request.completed', 'request_id': '5214273168', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.432903Z'}
+______________ TestDiffEndpoint.test_get_diff_detects_added_edges ______________
+tests/test_rollback_diff.py:365: in test_get_diff_detects_added_edges
+    assert len(data["edges_diff"]["added"]) == 1
+               ^^^^^^^^^^^^^^^^^^
+E   KeyError: 'edges_diff'
+----------------------------- Captured stdout call -----------------------------
+{"method": "GET", "path": "/api/v1/rollback/diff/snap-no-edges", "endpoint": "/api/v1/rollback/diff/snap-no-edges", "status": 503, "duration_ms": 0.38, "event": "request.completed", "request_id": "5214271824", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.438211Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/rollback/diff/snap-no-edges', 'endpoint': '/api/v1/rollback/diff/snap-no-edges', 'status': 503, 'duration_ms': 0.38, 'event': 'request.completed', 'request_id': '5214271824', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.438211Z'}
+_________ TestOperationHistoryE2E.test_get_operation_history_api_flow __________
+tests/test_rollback_e2e.py:215: in test_get_operation_history_api_flow
+    assert response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "GET", "path": "/api/v1/rollback/history/test.canvas", "endpoint": "/api/v1/rollback/history/test.canvas", "status": 503, "duration_ms": 0.52, "event": "request.completed", "request_id": "5214268944", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.453222Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/rollback/history/test.canvas', 'endpoint': '/api/v1/rollback/history/test.canvas', 'status': 503, 'duration_ms': 0.52, 'event': 'request.completed', 'request_id': '5214268944', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.453222Z'}
+________ TestOperationHistoryE2E.test_get_operation_history_pagination _________
+tests/test_rollback_e2e.py:230: in test_get_operation_history_pagination
+    assert response1.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "GET", "path": "/api/v1/rollback/history/test.canvas", "endpoint": "/api/v1/rollback/history/test.canvas", "status": 503, "duration_ms": 0.39, "event": "request.completed", "request_id": "5214266832", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.458053Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/rollback/history/test.canvas', 'endpoint': '/api/v1/rollback/history/test.canvas', 'status': 503, 'duration_ms': 0.39, 'event': 'request.completed', 'request_id': '5214266832', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.458053Z'}
+_________ TestOperationHistoryE2E.test_get_single_operation_not_found __________
+tests/test_rollback_e2e.py:251: in test_get_single_operation_not_found
+    assert response.status_code == 404
+E   assert 503 == 404
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "GET", "path": "/api/v1/rollback/operation/nonexistent-operation-id", "endpoint": "/api/v1/rollback/operation/nonexistent-operation-id", "status": 503, "duration_ms": 0.45, "event": "request.completed", "request_id": "5214267216", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.462788Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/rollback/operation/nonexistent-operation-id', 'endpoint': '/api/v1/rollback/operation/nonexistent-operation-id', 'status': 503, 'duration_ms': 0.45, 'event': 'request.completed', 'request_id': '5214267216', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.462788Z'}
+____________ TestSnapshotManagementE2E.test_list_snapshots_api_flow ____________
+tests/test_rollback_e2e.py:269: in test_list_snapshots_api_flow
+    assert response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "GET", "path": "/api/v1/rollback/snapshots/test.canvas", "endpoint": "/api/v1/rollback/snapshots/test.canvas", "status": 503, "duration_ms": 0.52, "event": "request.completed", "request_id": "5214266256", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.467818Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/rollback/snapshots/test.canvas', 'endpoint': '/api/v1/rollback/snapshots/test.canvas', 'status': 503, 'duration_ms': 0.52, 'event': 'request.completed', 'request_id': '5214266256', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.467818Z'}
+___________ TestSnapshotManagementE2E.test_create_snapshot_api_flow ____________
+tests/test_rollback_e2e.py:286: in test_create_snapshot_api_flow
+    assert response.status_code == 201
+E   assert 503 == 201
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/rollback/snapshot", "endpoint": "/api/v1/rollback/snapshot", "status": 503, "duration_ms": 0.98, "event": "request.completed", "request_id": "5214266064", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.473575Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/rollback/snapshot', 'endpoint': '/api/v1/rollback/snapshot', 'status': 503, 'duration_ms': 0.98, 'event': 'request.completed', 'request_id': '5214266064', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.473575Z'}
+___________ TestSnapshotManagementE2E.test_create_snapshot_with_tags ___________
+tests/test_rollback_e2e.py:304: in test_create_snapshot_with_tags
+    assert response.status_code == 201
+E   assert 503 == 201
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/rollback/snapshot", "endpoint": "/api/v1/rollback/snapshot", "status": 503, "duration_ms": 0.7, "event": "request.completed", "request_id": "5214262224", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.478745Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/rollback/snapshot', 'endpoint': '/api/v1/rollback/snapshot', 'status': 503, 'duration_ms': 0.7, 'event': 'request.completed', 'request_id': '5214262224', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.478745Z'}
+____________ TestSnapshotManagementE2E.test_get_snapshot_not_found _____________
+tests/test_rollback_e2e.py:313: in test_get_snapshot_not_found
+    assert response.status_code == 404
+E   assert 503 == 404
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "GET", "path": "/api/v1/rollback/snapshot/nonexistent-snapshot-id", "endpoint": "/api/v1/rollback/snapshot/nonexistent-snapshot-id", "status": 503, "duration_ms": 0.77, "event": "request.completed", "request_id": "5214259728", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.484079Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/rollback/snapshot/nonexistent-snapshot-id', 'endpoint': '/api/v1/rollback/snapshot/nonexistent-snapshot-id', 'status': 503, 'duration_ms': 0.77, 'event': 'request.completed', 'request_id': '5214259728', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.484079Z'}
+____________ TestRollbackExecutionE2E.test_rollback_operation_type _____________
+tests/test_rollback_e2e.py:336: in test_rollback_operation_type
+    assert response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/rollback/rollback", "endpoint": "/api/v1/rollback/rollback", "status": 503, "duration_ms": 0.95, "event": "request.completed", "request_id": "5214259152", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.489775Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/rollback/rollback', 'endpoint': '/api/v1/rollback/rollback', 'status': 503, 'duration_ms': 0.95, 'event': 'request.completed', 'request_id': '5214259152', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.489775Z'}
+_____________ TestRollbackExecutionE2E.test_rollback_snapshot_type _____________
+tests/test_rollback_e2e.py:354: in test_rollback_snapshot_type
+    assert response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/rollback/rollback", "endpoint": "/api/v1/rollback/rollback", "status": 503, "duration_ms": 0.63, "event": "request.completed", "request_id": "5213796880", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.494764Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/rollback/rollback', 'endpoint': '/api/v1/rollback/rollback', 'status': 503, 'duration_ms': 0.63, 'event': 'request.completed', 'request_id': '5213796880', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.494764Z'}
+____________ TestRollbackExecutionE2E.test_rollback_timepoint_type _____________
+tests/test_rollback_e2e.py:370: in test_rollback_timepoint_type
+    assert response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/rollback/rollback", "endpoint": "/api/v1/rollback/rollback", "status": 503, "duration_ms": 0.76, "event": "request.completed", "request_id": "5213796112", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.500117Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/rollback/rollback', 'endpoint': '/api/v1/rollback/rollback', 'status': 503, 'duration_ms': 0.76, 'event': 'request.completed', 'request_id': '5213796112', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.500117Z'}
+____________ TestRollbackExecutionE2E.test_rollback_without_backup _____________
+tests/test_rollback_e2e.py:386: in test_rollback_without_backup
+    assert response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/rollback/rollback", "endpoint": "/api/v1/rollback/rollback", "status": 503, "duration_ms": 0.69, "event": "request.completed", "request_id": "5213792656", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.504958Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/rollback/rollback', 'endpoint': '/api/v1/rollback/rollback', 'status': 503, 'duration_ms': 0.69, 'event': 'request.completed', 'request_id': '5213792656', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.504958Z'}
+____________ TestRollbackExecutionE2E.test_rollback_preserve_graph _____________
+tests/test_rollback_e2e.py:400: in test_rollback_preserve_graph
+    assert response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/rollback/rollback", "endpoint": "/api/v1/rollback/rollback", "status": 503, "duration_ms": 0.59, "event": "request.completed", "request_id": "5213796496", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.509936Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/rollback/rollback', 'endpoint': '/api/v1/rollback/rollback', 'status': 503, 'duration_ms': 0.59, 'event': 'request.completed', 'request_id': '5213796496', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.509936Z'}
+________________ TestDiffComputationE2E.test_get_diff_api_flow _________________
+tests/test_rollback_e2e.py:433: in test_get_diff_api_flow
+    assert response.status_code in [200, 404]
+E   assert 503 in [200, 404]
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "GET", "path": "/api/v1/rollback/diff/snapshot-123", "endpoint": "/api/v1/rollback/diff/snapshot-123", "status": 503, "duration_ms": 0.36, "event": "request.completed", "request_id": "5213784400", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.516742Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/rollback/diff/snapshot-123', 'endpoint': '/api/v1/rollback/diff/snapshot-123', 'status': 503, 'duration_ms': 0.36, 'event': 'request.completed', 'request_id': '5213784400', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.516742Z'}
+_____ TestCompleteWorkflowE2E.test_workflow_create_snapshot_then_rollback ______
+tests/test_rollback_e2e.py:466: in test_workflow_create_snapshot_then_rollback
+    assert create_response.status_code == 201
+E   assert 503 == 201
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/rollback/snapshot", "endpoint": "/api/v1/rollback/snapshot", "status": 503, "duration_ms": 0.62, "event": "request.completed", "request_id": "5213782864", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.523393Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/rollback/snapshot', 'endpoint': '/api/v1/rollback/snapshot', 'status': 503, 'duration_ms': 0.62, 'event': 'request.completed', 'request_id': '5213782864', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.523393Z'}
+_______ TestCompleteWorkflowE2E.test_workflow_operation_history_tracking _______
+tests/test_rollback_e2e.py:500: in test_workflow_operation_history_tracking
+    assert history_response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "GET", "path": "/api/v1/rollback/history/history_test.canvas", "endpoint": "/api/v1/rollback/history/history_test.canvas", "status": 503, "duration_ms": 0.37, "event": "request.completed", "request_id": "5213535312", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.527915Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/rollback/history/history_test.canvas', 'endpoint': '/api/v1/rollback/history/history_test.canvas', 'status': 503, 'duration_ms': 0.37, 'event': 'request.completed', 'request_id': '5213535312', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.527915Z'}
+___________ TestErrorHandlingE2E.test_invalid_canvas_path_characters ___________
+tests/test_rollback_e2e.py:521: in test_invalid_canvas_path_characters
+    assert response.status_code in [200, 400, 404]
+E   assert 503 in [200, 400, 404]
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "GET", "path": "/api/v1/rollback/history/test canvas.canvas", "endpoint": "/api/v1/rollback/history/test canvas.canvas", "status": 503, "duration_ms": 0.37, "event": "request.completed", "request_id": "5213535120", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.532602Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/rollback/history/test canvas.canvas', 'endpoint': '/api/v1/rollback/history/test canvas.canvas', 'status': 503, 'duration_ms': 0.37, 'event': 'request.completed', 'request_id': '5213535120', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.532602Z'}
+_________________ TestErrorHandlingE2E.test_empty_canvas_path __________________
+tests/test_rollback_e2e.py:537: in test_empty_canvas_path
+    assert response.status_code in [201, 400, 422, 500]
+E   assert 503 in [201, 400, 422, 500]
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/rollback/snapshot", "endpoint": "/api/v1/rollback/snapshot", "status": 503, "duration_ms": 1.08, "event": "request.completed", "request_id": "5213534928", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.537836Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/rollback/snapshot', 'endpoint': '/api/v1/rollback/snapshot', 'status': 503, 'duration_ms': 1.08, 'event': 'request.completed', 'request_id': '5213534928', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.537836Z'}
+___________ TestAPIContractValidation.test_operation_response_schema ___________
+tests/test_rollback_e2e.py:588: in test_operation_response_schema
+    assert response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "GET", "path": "/api/v1/rollback/history/test.canvas", "endpoint": "/api/v1/rollback/history/test.canvas", "status": 503, "duration_ms": 0.53, "event": "request.completed", "request_id": "5213523408", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.551187Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/rollback/history/test.canvas', 'endpoint': '/api/v1/rollback/history/test.canvas', 'status': 503, 'duration_ms': 0.53, 'event': 'request.completed', 'request_id': '5213523408', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.551187Z'}
+___________ TestAPIContractValidation.test_snapshot_response_schema ____________
+tests/test_rollback_e2e.py:605: in test_snapshot_response_schema
+    assert response.status_code == 201
+E   assert 503 == 201
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/rollback/snapshot", "endpoint": "/api/v1/rollback/snapshot", "status": 503, "duration_ms": 1.04, "event": "request.completed", "request_id": "5213525328", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.556840Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/rollback/snapshot', 'endpoint': '/api/v1/rollback/snapshot', 'status': 503, 'duration_ms': 1.04, 'event': 'request.completed', 'request_id': '5213525328', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.556840Z'}
+____________ TestAPIContractValidation.test_rollback_result_schema _____________
+tests/test_rollback_e2e.py:623: in test_rollback_result_schema
+    assert response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/rollback/rollback", "endpoint": "/api/v1/rollback/rollback", "status": 503, "duration_ms": 0.61, "event": "request.completed", "request_id": "5213521872", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.561998Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/rollback/rollback', 'endpoint': '/api/v1/rollback/rollback', 'status': 503, 'duration_ms': 0.61, 'event': 'request.completed', 'request_id': '5213521872', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.561998Z'}
+_________ TestPerformanceBaseline.test_history_endpoint_response_time __________
+tests/test_rollback_e2e.py:653: in test_history_endpoint_response_time
+    assert response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "GET", "path": "/api/v1/rollback/history/perf_test.canvas", "endpoint": "/api/v1/rollback/history/perf_test.canvas", "status": 503, "duration_ms": 0.41, "event": "request.completed", "request_id": "5213298832", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.566881Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/rollback/history/perf_test.canvas', 'endpoint': '/api/v1/rollback/history/perf_test.canvas', 'status': 503, 'duration_ms': 0.41, 'event': 'request.completed', 'request_id': '5213298832', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.566881Z'}
+______ TestPerformanceBaseline.test_snapshot_list_endpoint_response_time _______
+tests/test_rollback_e2e.py:664: in test_snapshot_list_endpoint_response_time
+    assert response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "GET", "path": "/api/v1/rollback/snapshots/perf_test.canvas", "endpoint": "/api/v1/rollback/snapshots/perf_test.canvas", "status": 503, "duration_ms": 0.52, "event": "request.completed", "request_id": "5213298640", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.572064Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/rollback/snapshots/perf_test.canvas', 'endpoint': '/api/v1/rollback/snapshots/perf_test.canvas', 'status': 503, 'duration_ms': 0.52, 'event': 'request.completed', 'request_id': '5213298640', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.572064Z'}
+___________ TestRollbackEndpoint.test_rollback_operation_returns_200 ___________
+tests/test_rollback_execute.py:68: in test_rollback_operation_returns_200
+    assert response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/rollback/rollback", "endpoint": "/api/v1/rollback/rollback", "status": 503, "duration_ms": 0.94, "event": "request.completed", "request_id": "5213299216", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.578184Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/rollback/rollback', 'endpoint': '/api/v1/rollback/rollback', 'status': 503, 'duration_ms': 0.94, 'event': 'request.completed', 'request_id': '5213299216', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.578184Z'}
+____________ TestRollbackEndpoint.test_rollback_response_structure _____________
+tests/test_rollback_execute.py:92: in test_rollback_response_structure
+    assert "success" in data
+E   AssertionError: assert 'success' in {'detail': 'Rollback service unavailable: src.rollback module not installed'}
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/rollback/rollback", "endpoint": "/api/v1/rollback/rollback", "status": 503, "duration_ms": 0.86, "event": "request.completed", "request_id": "5213302096", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.583407Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/rollback/rollback', 'endpoint': '/api/v1/rollback/rollback', 'status': 503, 'duration_ms': 0.86, 'event': 'request.completed', 'request_id': '5213302096', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.583407Z'}
+______________ TestRollbackEndpoint.test_rollback_operation_type _______________
+tests/test_rollback_execute.py:113: in test_rollback_operation_type
+    assert response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/rollback/rollback", "endpoint": "/api/v1/rollback/rollback", "status": 503, "duration_ms": 0.7, "event": "request.completed", "request_id": "5213296720", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.588013Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/rollback/rollback', 'endpoint': '/api/v1/rollback/rollback', 'status': 503, 'duration_ms': 0.7, 'event': 'request.completed', 'request_id': '5213296720', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.588013Z'}
+_______________ TestRollbackEndpoint.test_rollback_snapshot_type _______________
+tests/test_rollback_execute.py:137: in test_rollback_snapshot_type
+    assert response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/rollback/rollback", "endpoint": "/api/v1/rollback/rollback", "status": 503, "duration_ms": 0.65, "event": "request.completed", "request_id": "5213299792", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.593152Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/rollback/rollback', 'endpoint': '/api/v1/rollback/rollback', 'status': 503, 'duration_ms': 0.65, 'event': 'request.completed', 'request_id': '5213299792', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.593152Z'}
+______________ TestRollbackEndpoint.test_rollback_timepoint_type _______________
+tests/test_rollback_execute.py:157: in test_rollback_timepoint_type
+    assert response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/rollback/rollback", "endpoint": "/api/v1/rollback/rollback", "status": 503, "duration_ms": 0.86, "event": "request.completed", "request_id": "5213299024", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.597978Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/rollback/rollback', 'endpoint': '/api/v1/rollback/rollback', 'status': 503, 'duration_ms': 0.86, 'event': 'request.completed', 'request_id': '5213299024', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.597978Z'}
+_________ TestRollbackEndpoint.test_rollback_with_create_backup_false __________
+tests/test_rollback_execute.py:177: in test_rollback_with_create_backup_false
+    assert response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/rollback/rollback", "endpoint": "/api/v1/rollback/rollback", "status": 503, "duration_ms": 0.66, "event": "request.completed", "request_id": "5213296336", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.602735Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/rollback/rollback', 'endpoint': '/api/v1/rollback/rollback', 'status': 503, 'duration_ms': 0.66, 'event': 'request.completed', 'request_id': '5213296336', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.602735Z'}
+____________ TestRollbackEndpoint.test_rollback_with_preserve_graph ____________
+tests/test_rollback_execute.py:199: in test_rollback_with_preserve_graph
+    assert response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/rollback/rollback", "endpoint": "/api/v1/rollback/rollback", "status": 503, "duration_ms": 0.72, "event": "request.completed", "request_id": "5213043216", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.607544Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/rollback/rollback', 'endpoint': '/api/v1/rollback/rollback', 'status': 503, 'duration_ms': 0.72, 'event': 'request.completed', 'request_id': '5213043216', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.607544Z'}
+_____ TestOperationHistoryEndpoint.test_get_operation_history_returns_200 ______
+tests/test_rollback_history.py:69: in test_get_operation_history_returns_200
+    assert response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "GET", "path": "/api/v1/rollback/history/test.canvas", "endpoint": "/api/v1/rollback/history/test.canvas", "status": 503, "duration_ms": 0.36, "event": "request.completed", "request_id": "5213030544", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.629644Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/rollback/history/test.canvas', 'endpoint': '/api/v1/rollback/history/test.canvas', 'status': 503, 'duration_ms': 0.36, 'event': 'request.completed', 'request_id': '5213030544', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.629644Z'}
+__ TestOperationHistoryEndpoint.test_get_operation_history_response_structure __
+tests/test_rollback_history.py:88: in test_get_operation_history_response_structure
+    assert "canvas_path" in data
+E   AssertionError: assert 'canvas_path' in {'detail': 'Rollback service unavailable: src.rollback module not installed'}
+----------------------------- Captured stdout call -----------------------------
+{"method": "GET", "path": "/api/v1/rollback/history/test.canvas", "endpoint": "/api/v1/rollback/history/test.canvas", "status": 503, "duration_ms": 0.37, "event": "request.completed", "request_id": "5213030160", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.634846Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/rollback/history/test.canvas', 'endpoint': '/api/v1/rollback/history/test.canvas', 'status': 503, 'duration_ms': 0.37, 'event': 'request.completed', 'request_id': '5213030160', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.634846Z'}
+__ TestOperationHistoryEndpoint.test_get_operation_history_pagination_params ___
+tests/test_rollback_history.py:111: in test_get_operation_history_pagination_params
+    assert data["limit"] == 10
+           ^^^^^^^^^^^^^
+E   KeyError: 'limit'
+----------------------------- Captured stdout call -----------------------------
+{"method": "GET", "path": "/api/v1/rollback/history/test.canvas", "endpoint": "/api/v1/rollback/history/test.canvas", "status": 503, "duration_ms": 0.38, "event": "request.completed", "request_id": "5213028432", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.639371Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/rollback/history/test.canvas', 'endpoint': '/api/v1/rollback/history/test.canvas', 'status': 503, 'duration_ms': 0.38, 'event': 'request.completed', 'request_id': '5213028432', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.639371Z'}
+__ TestOperationHistoryEndpoint.test_get_operation_history_default_pagination __
+tests/test_rollback_history.py:133: in test_get_operation_history_default_pagination
+    assert data["limit"] == 50
+           ^^^^^^^^^^^^^
+E   KeyError: 'limit'
+----------------------------- Captured stdout call -----------------------------
+{"method": "GET", "path": "/api/v1/rollback/history/test.canvas", "endpoint": "/api/v1/rollback/history/test.canvas", "status": 503, "duration_ms": 0.35, "event": "request.completed", "request_id": "5213029584", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.643657Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/rollback/history/test.canvas', 'endpoint': '/api/v1/rollback/history/test.canvas', 'status': 503, 'duration_ms': 0.35, 'event': 'request.completed', 'request_id': '5213029584', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.643657Z'}
+_ TestOperationHistoryEndpoint.test_get_operation_history_operations_structure _
+tests/test_rollback_history.py:171: in test_get_operation_history_operations_structure
+    assert len(data["operations"]) > 0
+               ^^^^^^^^^^^^^^^^^^
+E   KeyError: 'operations'
+----------------------------- Captured stdout call -----------------------------
+{"method": "GET", "path": "/api/v1/rollback/history/test.canvas", "endpoint": "/api/v1/rollback/history/test.canvas", "status": 503, "duration_ms": 0.36, "event": "request.completed", "request_id": "5212736016", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.652351Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/rollback/history/test.canvas', 'endpoint': '/api/v1/rollback/history/test.canvas', 'status': 503, 'duration_ms': 0.36, 'event': 'request.completed', 'request_id': '5212736016', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.652351Z'}
+_____ TestOperationHistoryEndpoint.test_get_operation_history_empty_canvas _____
+tests/test_rollback_history.py:197: in test_get_operation_history_empty_canvas
+    assert data["total"] == 0
+           ^^^^^^^^^^^^^
+E   KeyError: 'total'
+----------------------------- Captured stdout call -----------------------------
+{"method": "GET", "path": "/api/v1/rollback/history/empty.canvas", "endpoint": "/api/v1/rollback/history/empty.canvas", "status": 503, "duration_ms": 0.41, "event": "request.completed", "request_id": "5212735248", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.656863Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/rollback/history/empty.canvas', 'endpoint': '/api/v1/rollback/history/empty.canvas', 'status': 503, 'duration_ms': 0.41, 'event': 'request.completed', 'request_id': '5212735248', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.656863Z'}
+_ TestOperationHistoryEndpoint.test_get_operation_history_canvas_path_with_subdirectory _
+tests/test_rollback_history.py:214: in test_get_operation_history_canvas_path_with_subdirectory
+    assert response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "GET", "path": "/api/v1/rollback/history/\u8bfe\u7a0b/\u79bb\u6563\u6570\u5b66.canvas", "endpoint": "/api/v1/rollback/history/\u8bfe\u7a0b/\u79bb\u6563\u6570\u5b66.canvas", "status": 503, "duration_ms": 0.38, "event": "request.completed", "request_id": "5212733520", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.661572Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/rollback/history/课程/离散数学.canvas', 'endpoint': '/api/v1/rollback/history/课程/离散数学.canvas', 'status': 503, 'duration_ms': 0.38, 'event': 'request.completed', 'request_id': '5212733520', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.661572Z'}
+__________ TestSingleOperationEndpoint.test_get_operation_returns_200 __________
+tests/test_rollback_history.py:242: in test_get_operation_returns_200
+    assert response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "GET", "path": "/api/v1/rollback/operation/op-001", "endpoint": "/api/v1/rollback/operation/op-001", "status": 503, "duration_ms": 0.32, "event": "request.completed", "request_id": "5212745040", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.668804Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/rollback/operation/op-001', 'endpoint': '/api/v1/rollback/operation/op-001', 'status': 503, 'duration_ms': 0.32, 'event': 'request.completed', 'request_id': '5212745040', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.668804Z'}
+______ TestSingleOperationEndpoint.test_get_operation_response_structure _______
+tests/test_rollback_history.py:260: in test_get_operation_response_structure
+    assert "id" in data
+E   AssertionError: assert 'id' in {'detail': 'Rollback service unavailable: src.rollback module not installed'}
+----------------------------- Captured stdout call -----------------------------
+{"method": "GET", "path": "/api/v1/rollback/operation/op-001", "endpoint": "/api/v1/rollback/operation/op-001", "status": 503, "duration_ms": 0.35, "event": "request.completed", "request_id": "5212742928", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.673862Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/rollback/operation/op-001', 'endpoint': '/api/v1/rollback/operation/op-001', 'status': 503, 'duration_ms': 0.35, 'event': 'request.completed', 'request_id': '5212742928', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.673862Z'}
+_____ TestSingleOperationEndpoint.test_get_operation_not_found_returns_404 _____
+tests/test_rollback_history.py:283: in test_get_operation_not_found_returns_404
+    assert response.status_code == 404
+E   assert 503 == 404
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "GET", "path": "/api/v1/rollback/operation/nonexistent", "endpoint": "/api/v1/rollback/operation/nonexistent", "status": 503, "duration_ms": 0.32, "event": "request.completed", "request_id": "5212744080", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.678143Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/rollback/operation/nonexistent', 'endpoint': '/api/v1/rollback/operation/nonexistent', 'status': 503, 'duration_ms': 0.32, 'event': 'request.completed', 'request_id': '5212744080', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.678143Z'}
+________ TestSingleOperationEndpoint.test_get_operation_data_structure _________
+tests/test_rollback_history.py:298: in test_get_operation_data_structure
+    op_data = data["data"]
+              ^^^^^^^^^^^^
+E   KeyError: 'data'
+----------------------------- Captured stdout call -----------------------------
+{"method": "GET", "path": "/api/v1/rollback/operation/op-001", "endpoint": "/api/v1/rollback/operation/op-001", "status": 503, "duration_ms": 0.38, "event": "request.completed", "request_id": "5212749072", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.682968Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/rollback/operation/op-001', 'endpoint': '/api/v1/rollback/operation/op-001', 'status': 503, 'duration_ms': 0.38, 'event': 'request.completed', 'request_id': '5212749072', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.682968Z'}
+______ TestSingleOperationEndpoint.test_get_operation_metadata_structure _______
+tests/test_rollback_history.py:315: in test_get_operation_metadata_structure
+    metadata = data["metadata"]
+               ^^^^^^^^^^^^^^^^
+E   KeyError: 'metadata'
+----------------------------- Captured stdout call -----------------------------
+{"method": "GET", "path": "/api/v1/rollback/operation/op-001", "endpoint": "/api/v1/rollback/operation/op-001", "status": 503, "duration_ms": 0.33, "event": "request.completed", "request_id": "5212745232", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.687667Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/rollback/operation/op-001', 'endpoint': '/api/v1/rollback/operation/op-001', 'status': 503, 'duration_ms': 0.33, 'event': 'request.completed', 'request_id': '5212745232', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.687667Z'}
+__________ TestSingleOperationEndpoint.test_get_operation_type_values __________
+tests/test_rollback_history.py:346: in test_get_operation_type_values
+    assert data["type"] in valid_types
+           ^^^^^^^^^^^^
+E   KeyError: 'type'
+----------------------------- Captured stdout call -----------------------------
+{"method": "GET", "path": "/api/v1/rollback/operation/op-001", "endpoint": "/api/v1/rollback/operation/op-001", "status": 503, "duration_ms": 0.38, "event": "request.completed", "request_id": "5212747152", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.692272Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/rollback/operation/op-001', 'endpoint': '/api/v1/rollback/operation/op-001', 'status': 503, 'duration_ms': 0.38, 'event': 'request.completed', 'request_id': '5212747152', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.692272Z'}
+___________ TestSnapshotListEndpoint.test_list_snapshots_returns_200 ___________
+tests/test_rollback_snapshots.py:86: in test_list_snapshots_returns_200
+    assert response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "GET", "path": "/api/v1/rollback/snapshots/test.canvas", "endpoint": "/api/v1/rollback/snapshots/test.canvas", "status": 503, "duration_ms": 0.35, "event": "request.completed", "request_id": "5212740048", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.702176Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/rollback/snapshots/test.canvas', 'endpoint': '/api/v1/rollback/snapshots/test.canvas', 'status': 503, 'duration_ms': 0.35, 'event': 'request.completed', 'request_id': '5212740048', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.702176Z'}
+_______ TestSnapshotListEndpoint.test_list_snapshots_response_structure ________
+tests/test_rollback_snapshots.py:104: in test_list_snapshots_response_structure
+    assert "canvas_path" in data
+E   AssertionError: assert 'canvas_path' in {'detail': 'Rollback service unavailable: src.rollback module not installed'}
+----------------------------- Captured stdout call -----------------------------
+{"method": "GET", "path": "/api/v1/rollback/snapshots/test.canvas", "endpoint": "/api/v1/rollback/snapshots/test.canvas", "status": 503, "duration_ms": 0.35, "event": "request.completed", "request_id": "5212322896", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.706933Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/rollback/snapshots/test.canvas', 'endpoint': '/api/v1/rollback/snapshots/test.canvas', 'status': 503, 'duration_ms': 0.35, 'event': 'request.completed', 'request_id': '5212322896', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.706933Z'}
+________ TestSnapshotListEndpoint.test_list_snapshots_pagination_params ________
+tests/test_rollback_snapshots.py:119: in test_list_snapshots_pagination_params
+    assert response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "GET", "path": "/api/v1/rollback/snapshots/test.canvas", "endpoint": "/api/v1/rollback/snapshots/test.canvas", "status": 503, "duration_ms": 0.39, "event": "request.completed", "request_id": "5212321552", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.711389Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/rollback/snapshots/test.canvas', 'endpoint': '/api/v1/rollback/snapshots/test.canvas', 'status': 503, 'duration_ms': 0.39, 'event': 'request.completed', 'request_id': '5212321552', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.711389Z'}
+_______ TestSnapshotListEndpoint.test_list_snapshots_default_pagination ________
+tests/test_rollback_snapshots.py:133: in test_list_snapshots_default_pagination
+    mock_snapshot_manager.list_snapshots.assert_called_with(
+/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/unittest/mock.py:977: in assert_called_with
+    raise AssertionError(error_message)
+E   AssertionError: expected call not found.
+E   Expected: list_snapshots('test.canvas', limit=20, offset=0)
+E     Actual: not called.
+----------------------------- Captured stdout call -----------------------------
+{"method": "GET", "path": "/api/v1/rollback/snapshots/test.canvas", "endpoint": "/api/v1/rollback/snapshots/test.canvas", "status": 503, "duration_ms": 0.4, "event": "request.completed", "request_id": "5212319248", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.716014Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/rollback/snapshots/test.canvas', 'endpoint': '/api/v1/rollback/snapshots/test.canvas', 'status': 503, 'duration_ms': 0.4, 'event': 'request.completed', 'request_id': '5212319248', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.716014Z'}
+_______ TestSnapshotListEndpoint.test_list_snapshots_snapshot_structure ________
+tests/test_rollback_snapshots.py:148: in test_list_snapshots_snapshot_structure
+    assert len(data["snapshots"]) > 0
+               ^^^^^^^^^^^^^^^^^
+E   KeyError: 'snapshots'
+----------------------------- Captured stdout call -----------------------------
+{"method": "GET", "path": "/api/v1/rollback/snapshots/test.canvas", "endpoint": "/api/v1/rollback/snapshots/test.canvas", "status": 503, "duration_ms": 0.48, "event": "request.completed", "request_id": "5212319632", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.736046Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/rollback/snapshots/test.canvas', 'endpoint': '/api/v1/rollback/snapshots/test.canvas', 'status': 503, 'duration_ms': 0.48, 'event': 'request.completed', 'request_id': '5212319632', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.736046Z'}
+_________ TestCreateSnapshotEndpoint.test_create_snapshot_returns_201 __________
+tests/test_rollback_snapshots.py:177: in test_create_snapshot_returns_201
+    assert response.status_code == 201
+E   assert 503 == 201
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/rollback/snapshot", "endpoint": "/api/v1/rollback/snapshot", "status": 503, "duration_ms": 0.71, "event": "request.completed", "request_id": "5212318480", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.742314Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/rollback/snapshot', 'endpoint': '/api/v1/rollback/snapshot', 'status': 503, 'duration_ms': 0.71, 'event': 'request.completed', 'request_id': '5212318480', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.742314Z'}
+______ TestCreateSnapshotEndpoint.test_create_snapshot_response_structure ______
+tests/test_rollback_snapshots.py:198: in test_create_snapshot_response_structure
+    assert "id" in data
+E   AssertionError: assert 'id' in {'detail': 'Rollback service unavailable: src.rollback module not installed'}
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/rollback/snapshot", "endpoint": "/api/v1/rollback/snapshot", "status": 503, "duration_ms": 1.05, "event": "request.completed", "request_id": "5212316176", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.748307Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/rollback/snapshot', 'endpoint': '/api/v1/rollback/snapshot', 'status': 503, 'duration_ms': 1.05, 'event': 'request.completed', 'request_id': '5212316176', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.748307Z'}
+_______ TestCreateSnapshotEndpoint.test_create_snapshot_with_description _______
+tests/test_rollback_snapshots.py:220: in test_create_snapshot_with_description
+    assert response.status_code == 201
+E   assert 503 == 201
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/rollback/snapshot", "endpoint": "/api/v1/rollback/snapshot", "status": 503, "duration_ms": 0.85, "event": "request.completed", "request_id": "5212314064", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.754792Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/rollback/snapshot', 'endpoint': '/api/v1/rollback/snapshot', 'status': 503, 'duration_ms': 0.85, 'event': 'request.completed', 'request_id': '5212314064', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.754792Z'}
+____________ TestGetSnapshotEndpoint.test_get_snapshot_returns_200 _____________
+tests/test_rollback_snapshots.py:249: in test_get_snapshot_returns_200
+    assert response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "GET", "path": "/api/v1/rollback/snapshot/snap-001", "endpoint": "/api/v1/rollback/snapshot/snap-001", "status": 503, "duration_ms": 0.37, "event": "request.completed", "request_id": "5212309072", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.763604Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/rollback/snapshot/snap-001', 'endpoint': '/api/v1/rollback/snapshot/snap-001', 'status': 503, 'duration_ms': 0.37, 'event': 'request.completed', 'request_id': '5212309072', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.763604Z'}
+_________ TestGetSnapshotEndpoint.test_get_snapshot_response_structure _________
+tests/test_rollback_snapshots.py:265: in test_get_snapshot_response_structure
+    assert "id" in data
+E   AssertionError: assert 'id' in {'detail': 'Rollback service unavailable: src.rollback module not installed'}
+----------------------------- Captured stdout call -----------------------------
+{"method": "GET", "path": "/api/v1/rollback/snapshot/snap-001", "endpoint": "/api/v1/rollback/snapshot/snap-001", "status": 503, "duration_ms": 0.35, "event": "request.completed", "request_id": "5212307728", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.768360Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/rollback/snapshot/snap-001', 'endpoint': '/api/v1/rollback/snapshot/snap-001', 'status': 503, 'duration_ms': 0.35, 'event': 'request.completed', 'request_id': '5212307728', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.768360Z'}
+_______ TestGetSnapshotEndpoint.test_get_snapshot_not_found_returns_404 ________
+tests/test_rollback_snapshots.py:288: in test_get_snapshot_not_found_returns_404
+    assert response.status_code == 404
+E   assert 503 == 404
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "GET", "path": "/api/v1/rollback/snapshot/nonexistent", "endpoint": "/api/v1/rollback/snapshot/nonexistent", "status": 503, "duration_ms": 0.42, "event": "request.completed", "request_id": "5212309456", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.772974Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/rollback/snapshot/nonexistent', 'endpoint': '/api/v1/rollback/snapshot/nonexistent', 'status': 503, 'duration_ms': 0.42, 'event': 'request.completed', 'request_id': '5212309456', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.772974Z'}
+_________ TestGetSnapshotEndpoint.test_get_snapshot_metadata_structure _________
+tests/test_rollback_snapshots.py:316: in test_get_snapshot_metadata_structure
+    metadata = data["metadata"]
+               ^^^^^^^^^^^^^^^^
+E   KeyError: 'metadata'
+----------------------------- Captured stdout call -----------------------------
+{"method": "GET", "path": "/api/v1/rollback/snapshot/snap-001", "endpoint": "/api/v1/rollback/snapshot/snap-001", "status": 503, "duration_ms": 0.34, "event": "request.completed", "request_id": "5212103184", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.780337Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/rollback/snapshot/snap-001', 'endpoint': '/api/v1/rollback/snapshot/snap-001', 'status': 503, 'duration_ms': 0.34, 'event': 'request.completed', 'request_id': '5212103184', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.780337Z'}
+_______ TestSnapshotEndpointsRegistration.test_snapshot_type_enum_values _______
+tests/test_rollback_snapshots.py:362: in test_snapshot_type_enum_values
+    assert data["type"] in valid_types
+           ^^^^^^^^^^^^
+E   KeyError: 'type'
+----------------------------- Captured stdout call -----------------------------
+{"method": "GET", "path": "/api/v1/rollback/snapshot/snap-001", "endpoint": "/api/v1/rollback/snapshot/snap-001", "status": 503, "duration_ms": 0.58, "event": "request.completed", "request_id": "5212097616", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-07T23:43:02.787224Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/rollback/snapshot/snap-001', 'endpoint': '/api/v1/rollback/snapshot/snap-001', 'status': 503, 'duration_ms': 0.58, 'event': 'request.completed', 'request_id': '5212097616', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-07T23:43:02.787224Z'}
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:807
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/api/v1/endpoints/chat.py:807: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:103
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/api/v1/endpoints/metadata.py:103: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:177
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/api/v1/endpoints/metadata.py:177: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+tests/unit/test_archive_legacy_lance_tables_g24.py::test_archive_survives_client_schema_repair
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/lib/agentic_rag/clients/lancedb_client.py:955: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    table_names = self._db.table_names()
+
+tests/unit/test_archive_legacy_lance_tables_g24.py::test_archive_survives_client_schema_repair
+tests/unit/test_archive_legacy_lance_tables_g24.py::test_archive_survives_client_schema_repair
+tests/unit/test_archive_legacy_lance_tables_g24.py::test_archive_survives_client_schema_repair
+  /opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/asyncio/events.py:94: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    self._context.run(self._callback, *self._args)
+
+tests/unit/test_archive_legacy_lance_tables_g24.py::test_archive_survives_client_schema_repair
+tests/unit/test_archive_legacy_lance_tables_g24.py::test_archive_survives_client_schema_repair
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/lib/agentic_rag/clients/lancedb_client.py:3650: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    if table_name not in self._db.table_names():
+
+tests/unit/test_edge_rationale_fallback.py::test_both_writes_succeed_returns_200
+tests/unit/test_edge_rationale_fallback.py::test_graphiti_ok_lancedb_fail_returns_207
+tests/unit/test_edge_rationale_fallback.py::test_lancedb_ok_graphiti_fail_returns_207
+tests/unit/test_edge_rationale_fallback.py::test_both_writes_fail_returns_500
+tests/unit/test_edge_rationale_fallback.py::test_graphiti_exception_does_not_block_lancedb
+tests/unit/test_edge_rationale_fallback.py::test_lancedb_exception_does_not_block_graphiti
+tests/unit/test_edge_rationale_fallback.py::test_partial_failure_includes_error_details
+tests/unit/test_edge_rationale_fallback.py::test_strategy_fields_accepted
+tests/unit/test_edge_rationale_fallback.py::test_strategy_fields_defaults
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/api/v1/endpoints/edges.py:311: DeprecationWarning: deprecated
+    legacy_group_id=rationale.group_id,
+
+tests/unit/test_edge_rationale_fallback.py: 12 warnings
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/models/edge_rationale.py:115: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    default_factory=lambda: datetime.utcnow().isoformat(),
+
+tests/unit/test_intelligent_parallel_endpoints.py::TestAnalyzeEndpoint::test_analyze_invalid_color
+tests/unit/test_intelligent_parallel_endpoints.py::TestConfirmEndpoint::test_confirm_timeout_validation
+  /opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/asyncio/events.py:94: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY' is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.
+    self._context.run(self._callback, *self._args)
+
+tests/unit/test_wave5_stageb_continued_vault_id_injection.py::TestSyncBatchRequestVaultId::test_sync_batch_has_deprecated_group_id
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/tests/unit/test_wave5_stageb_continued_vault_id_injection.py:218: DeprecationWarning: deprecated
+    assert req.group_id == "cs188"
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=1 (blocked=1, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/contract/test_node_id_patterns.py::TestNodeIdPatternConsistency::test_pattern_matches_json_schema
+FAILED tests/unit/grouping/test_analyze_canvas.py::TestSubjectIsolation::test_group_id_extraction_chinese
+FAILED tests/unit/grouping/test_analyze_canvas.py::TestSubjectIsolation::test_group_id_with_skip_directories
+FAILED tests/unit/test_difficulty_canvas_integration.py::TestGetDifficultyData::test_memory_service_unavailable_returns_none
+FAILED tests/unit/test_difficulty_canvas_integration.py::TestAIQuestionDifficultyInjection::test_difficulty_context_in_prompt
+FAILED tests/unit/test_difficulty_canvas_integration.py::TestAIQuestionDifficultyInjection::test_no_difficulty_map_no_extra_fields
+FAILED tests/unit/test_intelligent_parallel_endpoints.py::TestProgressEndpoint::test_progress_invalid_session_404
+FAILED tests/unit/test_intelligent_parallel_endpoints.py::TestCancelEndpoint::test_cancel_running_session
+FAILED tests/unit/test_intelligent_parallel_endpoints.py::TestCancelEndpoint::test_cancel_nonexistent_session_404
+FAILED tests/unit/test_intelligent_parallel_endpoints.py::TestErrorResponses::test_404_error_format
+FAILED tests/unit/test_multimodal_path_security.py::TestValidateSafePath::test_path_traversal_windows_style
+FAILED tests/unit/test_review_history_pagination.py::TestHistoryAPIEndpoint::test_endpoint_accepts_limit_parameter
+FAILED tests/unit/test_story_30_24_boundary.py::TestSpecialCharacterGroupId::test_neo4j_parameterized_query_with_special_chars
+FAILED tests/unit/test_story_30_24_boundary.py::TestVaultVerifyExitCode::test_verify_script_exists
+FAILED tests/unit/test_story_30_24_boundary.py::TestVaultVerifyExitCode::test_verify_script_exits_nonzero_when_file_not_found
+FAILED tests/unit/test_story_30_24_boundary.py::TestVaultVerifyExitCode::test_verify_script_exits_nonzero_when_stale
+FAILED tests/unit/test_story_30_24_boundary.py::TestVaultVerifyExitCode::test_verify_script_exits_zero_when_fresh
+FAILED tests/unit/test_story_30_24_boundary.py::TestVaultVerifyExitCode::test_package_json_verify_command_correct
+FAILED tests/unit/test_wave5_stageb_continued_vault_id_injection.py::TestSharedResolverImportedByEndpoints::test_endpoint_imports_shared_resolver[app.api.v1.endpoints.agents]
+FAILED tests/unit/test_websocket_endpoints.py::TestWebSocketEndpoint::test_validate_session_handles_validator_error
+FAILED tests/test_rollback_diff.py::TestDiffEndpoint::test_get_diff_returns_200
+FAILED tests/test_rollback_diff.py::TestDiffEndpoint::test_get_diff_response_structure
+FAILED tests/test_rollback_diff.py::TestDiffEndpoint::test_get_diff_nodes_diff_structure
+FAILED tests/test_rollback_diff.py::TestDiffEndpoint::test_get_diff_edges_diff_structure
+FAILED tests/test_rollback_diff.py::TestDiffEndpoint::test_get_diff_snapshot_not_found
+FAILED tests/test_rollback_diff.py::TestDiffEndpoint::test_get_diff_detects_removed_nodes
+FAILED tests/test_rollback_diff.py::TestDiffEndpoint::test_get_diff_detects_added_nodes
+FAILED tests/test_rollback_diff.py::TestDiffEndpoint::test_get_diff_detects_modified_nodes
+FAILED tests/test_rollback_diff.py::TestDiffEndpoint::test_get_diff_detects_removed_edges
+FAILED tests/test_rollback_diff.py::TestDiffEndpoint::test_get_diff_detects_added_edges
+FAILED tests/test_rollback_e2e.py::TestOperationHistoryE2E::test_get_operation_history_api_flow
+FAILED tests/test_rollback_e2e.py::TestOperationHistoryE2E::test_get_operation_history_pagination
+FAILED tests/test_rollback_e2e.py::TestOperationHistoryE2E::test_get_single_operation_not_found
+FAILED tests/test_rollback_e2e.py::TestSnapshotManagementE2E::test_list_snapshots_api_flow
+FAILED tests/test_rollback_e2e.py::TestSnapshotManagementE2E::test_create_snapshot_api_flow
+FAILED tests/test_rollback_e2e.py::TestSnapshotManagementE2E::test_create_snapshot_with_tags
+FAILED tests/test_rollback_e2e.py::TestSnapshotManagementE2E::test_get_snapshot_not_found
+FAILED tests/test_rollback_e2e.py::TestRollbackExecutionE2E::test_rollback_operation_type
+FAILED tests/test_rollback_e2e.py::TestRollbackExecutionE2E::test_rollback_snapshot_type
+FAILED tests/test_rollback_e2e.py::TestRollbackExecutionE2E::test_rollback_timepoint_type
+FAILED tests/test_rollback_e2e.py::TestRollbackExecutionE2E::test_rollback_without_backup
+FAILED tests/test_rollback_e2e.py::TestRollbackExecutionE2E::test_rollback_preserve_graph
+FAILED tests/test_rollback_e2e.py::TestDiffComputationE2E::test_get_diff_api_flow
+FAILED tests/test_rollback_e2e.py::TestCompleteWorkflowE2E::test_workflow_create_snapshot_then_rollback
+FAILED tests/test_rollback_e2e.py::TestCompleteWorkflowE2E::test_workflow_operation_history_tracking
+FAILED tests/test_rollback_e2e.py::TestErrorHandlingE2E::test_invalid_canvas_path_characters
+FAILED tests/test_rollback_e2e.py::TestErrorHandlingE2E::test_empty_canvas_path
+FAILED tests/test_rollback_e2e.py::TestAPIContractValidation::test_operation_response_schema
+FAILED tests/test_rollback_e2e.py::TestAPIContractValidation::test_snapshot_response_schema
+FAILED tests/test_rollback_e2e.py::TestAPIContractValidation::test_rollback_result_schema
+FAILED tests/test_rollback_e2e.py::TestPerformanceBaseline::test_history_endpoint_response_time
+FAILED tests/test_rollback_e2e.py::TestPerformanceBaseline::test_snapshot_list_endpoint_response_time
+FAILED tests/test_rollback_execute.py::TestRollbackEndpoint::test_rollback_operation_returns_200
+FAILED tests/test_rollback_execute.py::TestRollbackEndpoint::test_rollback_response_structure
+FAILED tests/test_rollback_execute.py::TestRollbackEndpoint::test_rollback_operation_type
+FAILED tests/test_rollback_execute.py::TestRollbackEndpoint::test_rollback_snapshot_type
+FAILED tests/test_rollback_execute.py::TestRollbackEndpoint::test_rollback_timepoint_type
+FAILED tests/test_rollback_execute.py::TestRollbackEndpoint::test_rollback_with_create_backup_false
+FAILED tests/test_rollback_execute.py::TestRollbackEndpoint::test_rollback_with_preserve_graph
+FAILED tests/test_rollback_history.py::TestOperationHistoryEndpoint::test_get_operation_history_returns_200
+FAILED tests/test_rollback_history.py::TestOperationHistoryEndpoint::test_get_operation_history_response_structure
+FAILED tests/test_rollback_history.py::TestOperationHistoryEndpoint::test_get_operation_history_pagination_params
+FAILED tests/test_rollback_history.py::TestOperationHistoryEndpoint::test_get_operation_history_default_pagination
+FAILED tests/test_rollback_history.py::TestOperationHistoryEndpoint::test_get_operation_history_operations_structure
+FAILED tests/test_rollback_history.py::TestOperationHistoryEndpoint::test_get_operation_history_empty_canvas
+FAILED tests/test_rollback_history.py::TestOperationHistoryEndpoint::test_get_operation_history_canvas_path_with_subdirectory
+FAILED tests/test_rollback_history.py::TestSingleOperationEndpoint::test_get_operation_returns_200
+FAILED tests/test_rollback_history.py::TestSingleOperationEndpoint::test_get_operation_response_structure
+FAILED tests/test_rollback_history.py::TestSingleOperationEndpoint::test_get_operation_not_found_returns_404
+FAILED tests/test_rollback_history.py::TestSingleOperationEndpoint::test_get_operation_data_structure
+FAILED tests/test_rollback_history.py::TestSingleOperationEndpoint::test_get_operation_metadata_structure
+FAILED tests/test_rollback_history.py::TestSingleOperationEndpoint::test_get_operation_type_values
+FAILED tests/test_rollback_snapshots.py::TestSnapshotListEndpoint::test_list_snapshots_returns_200
+FAILED tests/test_rollback_snapshots.py::TestSnapshotListEndpoint::test_list_snapshots_response_structure
+FAILED tests/test_rollback_snapshots.py::TestSnapshotListEndpoint::test_list_snapshots_pagination_params
+FAILED tests/test_rollback_snapshots.py::TestSnapshotListEndpoint::test_list_snapshots_default_pagination
+FAILED tests/test_rollback_snapshots.py::TestSnapshotListEndpoint::test_list_snapshots_snapshot_structure
+FAILED tests/test_rollback_snapshots.py::TestCreateSnapshotEndpoint::test_create_snapshot_returns_201
+FAILED tests/test_rollback_snapshots.py::TestCreateSnapshotEndpoint::test_create_snapshot_response_structure
+FAILED tests/test_rollback_snapshots.py::TestCreateSnapshotEndpoint::test_create_snapshot_with_description
+FAILED tests/test_rollback_snapshots.py::TestGetSnapshotEndpoint::test_get_snapshot_returns_200
+FAILED tests/test_rollback_snapshots.py::TestGetSnapshotEndpoint::test_get_snapshot_response_structure
+FAILED tests/test_rollback_snapshots.py::TestGetSnapshotEndpoint::test_get_snapshot_not_found_returns_404
+FAILED tests/test_rollback_snapshots.py::TestGetSnapshotEndpoint::test_get_snapshot_metadata_structure
+FAILED tests/test_rollback_snapshots.py::TestSnapshotEndpointsRegistration::test_snapshot_type_enum_values
+============ 85 failed, 658 passed, 2 skipped, 40 warnings in 8.85s ============

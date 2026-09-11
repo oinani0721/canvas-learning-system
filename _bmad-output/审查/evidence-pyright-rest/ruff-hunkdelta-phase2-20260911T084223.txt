@@ -1,0 +1,19 @@
+⛔ SUPERSEDED — 已过时：只覆盖 system.py / exam_service.py 两个文件，恰好跳过唯一发生 clean→DIRTY 翻转的 review.py；且无变异锚。后继 → ruff-judge-v2-*.txt（三文件全覆盖 + 超长行变异锚）
+====================================================================================================
+
+######## backend/app/api/v1/system.py ########
+索引态(改前) ruff 想改的 hunk 数 = 18
+工作树(改后) ruff 想改的 hunk 数 = 18
+--- 改后独有的 hunk 内容（= 本卡新增的格式偏差）---
+104c104
+<      total: int = Field(0, description="Total error count")
+---
+>      total: int = Field(default=0, description="Total error count")
+(空 = 无新增)
+
+######## backend/app/services/exam_service.py ########
+索引态(改前) ruff 想改的 hunk 数 = 8
+工作树(改后) ruff 想改的 hunk 数 = 8
+--- 改后独有的 hunk 内容（= 本卡新增的格式偏差）---
+(空 = 无新增)
+

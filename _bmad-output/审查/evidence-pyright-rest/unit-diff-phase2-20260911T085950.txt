@@ -1,0 +1,15 @@
+== tests/unit 末行对照 ==
+开工(基线): = 36 failed, 5188 passed, 57 skipped, 23 xfailed, 171 warnings, 29 errors in 393.62s (0:06:33) =
+收工(阶段2): = 37 failed, 5187 passed, 57 skipped, 23 xfailed, 171 warnings, 29 errors in 449.24s (0:07:29) =
+
+基线 nodeid 数 = 65
+收工 nodeid 数 = 66
+
+== 差集（判据：只允许 '<'，出现 '>' = 本卡引入新红）==
+32a33
+> FAILED tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422
+diff-rc=1  (0=完全相同)
+
+== 验伪锚：该 nodeid 提取脚本能从这两份存档里抓到东西（非恒空）==
+ERROR tests/unit/test_agent_service_extraction.py::TestDebugAgentResponseLogging::test_extract_with_debug_logging_enabled
+ERROR tests/unit/test_agent_service_extraction.py::TestDebugAgentResponseLogging::test_extract_without_debug_logging

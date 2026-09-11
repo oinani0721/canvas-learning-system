@@ -1,0 +1,14 @@
+  SAME LLMStatsSummary  (7 字段, json_schema 与 field defaults 全同)
+  SAME TaskTypeStats  (4 字段, json_schema 与 field defaults 全同)
+  SAME DayStats  (4 字段, json_schema 与 field defaults 全同)
+  SAME ErrorStats  (2 字段, json_schema 与 field defaults 全同)
+  DIFF LLMStatsData: json_schema_equal=True field_defaults_equal=False
+      summary: 前=('PydanticUndefined', "<class 'sys_base_probe.LLMStatsSummary'>", False) 后=('PydanticUndefined', "<class 'sys_work_probe.LLMStatsSummary'>", False)
+      errors: 前=('PydanticUndefined', "<class 'sys_base_probe.ErrorStats'>", False) 后=('PydanticUndefined', "<class 'sys_work_probe.ErrorStats'>", False)
+  SAME LLMStatsMeta  (4 字段, json_schema 与 field defaults 全同)
+  SAME LLMStatsResponse  (2 字段, json_schema 与 field defaults 全同)
+  SAME ComponentHealth  (5 字段, json_schema 与 field defaults 全同)
+
+有差异的模型数 = 1
+验伪锚 Field(0) vs Field(default=1) 判为相同? False  (必须 False)
+对照   Field(0) vs Field(default=0) 判为相同? False  (pydantic 语义等价 ⇒ True)

@@ -201,7 +201,10 @@ async def _llm_suggest_relation(
 
         response = await litellm.acompletion(**kwargs)
 
-        content = response.choices[0].message.content.strip()
+        # acompletion 的返回是 ModelResponse | CustomStreamWrapper; 本调用未传
+        # stream=True(全文件 grep 无 stream) ⇒ 运行期恒为 ModelResponse。
+        # content 为 None 时 .strip() 原本就 AttributeError, 本卡不改这个行为。
+        content = response.choices[0].message.content.strip()  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
 
         # Strip markdown code fences if present (e.g. ```json ... ```)
         fence_match = re.search(r"```(?:json)?\s*(.*?)\s*```", content, re.DOTALL)

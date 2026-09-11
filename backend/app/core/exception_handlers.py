@@ -16,12 +16,13 @@ Exception Handler Registry:
 [Source: docs/architecture/EPIC-11-BACKEND-ARCHITECTURE.md - Error handling design]
 """
 
-from typing import Any, Dict
+from typing import Any, Dict, cast
 
 import structlog
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from starlette.types import ExceptionHandler
 
 from app.core.bug_tracker import bug_tracker
 from app.exceptions import CanvasException
@@ -302,9 +303,12 @@ def register_exception_handlers(app: FastAPI) -> None:
     [Source: docs/architecture/EPIC-11-BACKEND-ARCHITECTURE.md]
     """
     # Register handlers from most specific to least specific
-    app.add_exception_handler(CanvasException, canvas_exception_handler)
-    app.add_exception_handler(HTTPException, http_exception_handler)
-    app.add_exception_handler(RequestValidationError, validation_exception_handler)
+    # starlette 的 stub 把 handler 形参声明成基类 Exception(逆变), 于是任何
+    # 只接受具体异常子类的 handler 都不合签名 —— 这是 stub 与 FastAPI 实际
+    # 用法的口径差, 不是本仓代码的错。只做类型层 cast, 三行行为逐字不变(TAIL T6)。
+    app.add_exception_handler(CanvasException, cast(ExceptionHandler, canvas_exception_handler))
+    app.add_exception_handler(HTTPException, cast(ExceptionHandler, http_exception_handler))
+    app.add_exception_handler(RequestValidationError, cast(ExceptionHandler, validation_exception_handler))
     app.add_exception_handler(Exception, generic_exception_handler)
 
     logger.info("exception_handlers_registered")

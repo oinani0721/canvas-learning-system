@@ -35,8 +35,8 @@ class EdgeRationaleCreate(BaseModel):
     edge_id: str = Field(..., description="Canvas edge identifier")
     source_node_id: str = Field(..., description="Source node identifier")
     target_node_id: str = Field(..., description="Target node identifier")
-    source_concept: str = Field("", description="Source concept name (display label)")
-    target_concept: str = Field("", description="Target concept name (display label)")
+    source_concept: str = Field(default="", description="Source concept name (display label)")
+    target_concept: str = Field(default="", description="Target concept name (display label)")
     relation_type: str = Field(
         ...,
         description="Extracted relationship type (e.g. '是前提条件', '是特殊情况', '相互对比')",

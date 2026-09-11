@@ -1,0 +1,6 @@
+baseline tree = /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.KKWZwVXlhd/baseline-p1r2-vs-base
+base rc=1
+work rc=1
+base=421 work=232 NEW=1 GONE=190
+NEW 1 ('backend/app/services/rag_service.py', 'reportArgumentType', 'Argument of type "dict[str, Any]" cannot be assigned to parameter "config" of type "RunnableConfig | None" in function "ainvoke"\n\xa0\xa0Type "dict[str, Any]" is not assignable to type "RunnableConfig | None"\n\xa0\xa0\xa0\xa0"dict[str, Any]" is not assignable to "RunnableConfig"\n\xa0\xa0\xa0\xa0"dict[str, Any]" is not assignable to "None"')
+rc=1

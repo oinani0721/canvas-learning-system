@@ -25,7 +25,7 @@ class SubjectCreate(BaseModel):
         description="Human-readable subject name (e.g. '离散数学', 'Physics 7A')",
     )
     color: Optional[str] = Field(
-        None,
+        default=None,
         max_length=20,
         description="Optional display color (e.g. '#4A90D9')",
     )
@@ -39,13 +39,13 @@ class SubjectUpdate(BaseModel):
     """Request body for updating a subject."""
 
     name: Optional[str] = Field(
-        None,
+        default=None,
         min_length=1,
         max_length=200,
         description="New subject name",
     )
     color: Optional[str] = Field(
-        None,
+        default=None,
         max_length=20,
         description="New display color",
     )
@@ -60,10 +60,10 @@ class SubjectResponse(BaseModel):
 
     id: str = Field(..., description="Subject unique identifier")
     name: str = Field(..., description="Human-readable subject name")
-    color: Optional[str] = Field(None, description="Display color")
+    color: Optional[str] = Field(default=None, description="Display color")
     created_at: str = Field(..., description="ISO-8601 creation timestamp")
     node_count: int = Field(
-        0, description="Number of CanvasNode entries in this subject"
+        default=0, description="Number of CanvasNode entries in this subject"
     )
 
     model_config = ConfigDict(
@@ -85,4 +85,4 @@ class SubjectListResponse(BaseModel):
     subjects: list[SubjectResponse] = Field(
         default_factory=list, description="All subjects"
     )
-    total: int = Field(0, description="Total number of subjects")
+    total: int = Field(default=0, description="Total number of subjects")

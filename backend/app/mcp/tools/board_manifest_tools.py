@@ -64,7 +64,10 @@ async def get_board_manifest(input: GetBoardManifestInput) -> dict:
     except KeyError as e:
         detail = str(e.args[0]) if e.args else str(e)
         return GetBoardManifestOutput(ok=False, error=detail).model_dump()
-    except pydantic.ValidationError as e:
+    # ⚠️ 死分支(TAIL): pydantic.ValidationError 是 ValueError 的子类
+    # (pydantic 2.12.5 实测 MRO), 已被上面的 except ValueError 先接走。
+    # 调整顺序 = 改行为(该异常会从当前分支的语义换到本分支), 本卡不改。
+    except pydantic.ValidationError as e:  # pyright: ignore[reportUnusedExcept]
         # 纵深兜底 (Code-Review H3): schema 契约被破 → 结构化错误, 不裸抛
         logger.error("[manifest] MCP 投影 schema 异常: %s", e)
         return GetBoardManifestOutput(ok=False, error="manifest 投影 schema 异常, 已记录日志").model_dump()

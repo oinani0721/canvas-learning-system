@@ -1,0 +1,40 @@
+=== 把 review.py:184 从「机制推断」变成「观测到的失败」 ===
+--- ① 被调方签名（原文）
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        prompt_path: Optional[str] = None,
+        base_url: Optional[str] = None,
+    ):
+
+--- ② 调用点原文
+        if settings.AI_API_KEY:
+            gemini_client = GeminiClient(
+                api_key=settings.AI_API_KEY,
+                model=settings.AI_MODEL_NAME,
+                base_url=settings.AI_BASE_URL if settings.AI_BASE_URL else None,
+            )
+        neo4j_client = get_neo4j_client_dep()
+        agent_service = AgentService(gemini_client=gemini_client, neo4j_client=neo4j_client)
+    except (ImportError, RuntimeError, AttributeError) as e:
+
+--- ③ 包住它的 except 元组（决定异常是被吞还是逃出去）
+    except (ImportError, RuntimeError, AttributeError) as e:
+
+--- ④ 运行期实证：真的构造一次（socket 已封死，纯内存）
+[92m10:51:54 - LiteLLM:WARNING[0m: get_model_cost_map.py:271 - LiteLLM: Failed to fetch remote model cost map from https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json: socket blocked by probe. Falling back to local backup.
+   实测签名: (self, api_key: str | None = None, prompt_path: str | None = None, base_url: str | None = None)
+   有 model 形参: False
+   有 **kwargs : False
+   ✅ 观测到 TypeError: GeminiClient.__init__() got an unexpected keyword argument 'model'
+   TypeError 在不在 except 元组 (ImportError, RuntimeError, AttributeError) 里: False
+
+--- ⑤ 触发门：settings.AI_API_KEY 在本环境是否非空
+   AI_API_KEY 非空: True | 长度: 39
+   ⇒ review.py:181 的 if 分支 恒进
+
+--- ⑥ 同形正例：dependencies.py 三处已删 model= 并留注释
+204:                # model not passed — GeminiClient.model property reads Settings dynamically
+535:                # model not passed — GeminiClient.model property reads Settings dynamically
+--- ⑦ 全仓还有几处 GeminiClient(...model=
+3

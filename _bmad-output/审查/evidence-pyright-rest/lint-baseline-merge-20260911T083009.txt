@@ -1,0 +1,29 @@
+⛔ SUPERSEDED — 作废：验伪锚选的 3 个文件恰好两边都 DIRTY，没能证明判据可分辨。主判据数字与后继版一致，但不得单独引用。后继 → lint-baseline-merge-20260911T083035.txt → scope-lint-judge-v2-*.txt
+====================================================================================================
+
+== 背景：merge commit 被 lefthook python-lint 拦下（ruff format --check），本文件证明失败项全部是主干 286178d8 既有基线 ==
+
+-- 1. ruff check（真 lint）在 staged 面：--
+staged .py 文件数 =       93
+All checks passed!
+ruff-check-rc=
+
+-- 2. 工作树 format --check 失败清单（staged 面）--
+工作树 dirty 数 =       38
+
+-- 3. 同一批文件在纯净主干 286178d8 上的 format --check --
+主干 dirty 数 =       38
+
+-- 4. 判据：工作树 dirty 减去 主干 dirty（本卡引入的格式问题）--
+本卡引入 =        0 条
+
+-- 5. 验伪锚：本卡阶段 0/1 改过的文件必须被判为 format-clean（证明该判据能分辨）--
+backend/app/models/schemas.py                    trunk=DIRTY work=DIRTY
+backend/app/models/qa_models.py                  trunk=DIRTY work=DIRTY
+backend/app/api/v1/endpoints/rag.py              trunk=DIRTY work=DIRTY
+
+-- 6. 反向验伪锚：已知主干 dirty 的 system.py 必须两边都 DIRTY --
+backend/app/api/v1/system.py                     trunk=DIRTY work=DIRTY
+
+-- 7. 全仓基线规模（纯净主干）--
+462 files would be reformatted, 363 files already formatted

@@ -35,6 +35,20 @@
   "pythonPlatform": "All",
   "venvPath": "backend",
   "venv": ".venv",
+  // CARD-PYRIGHT-DEBT-rest [BATCH-2026-09-07-第十三批]: 解析器搜索路径。
+  // backend/lib 靠 sys.path.insert 在运行期挂载(实测 7 个真调用点:
+  // dependencies.py:742 / mcp/tools/note_search_tools.py:42 /
+  // services/{rag_service:39,mastery_engine:51,review_service:88,
+  // vault_index_orchestrator:41}.py; rollback.py:21 插的是仓根),
+  // 这里只是把同一事实告诉解析器 —— 它决定"从哪些根解析 import",
+  // 不决定"检查哪些文件"(那是 include), 因此**不是关闭规则**,
+  // D-21「禁改 pyrightconfig 关规则」仍成立。
+  // ⚠️ 副作用如实记: 解析成功后原本因 Unknown 而被放行的属性访问会
+  // 开始报错(本卡实测新冒 6 条, 逐条见验收单), 那是能力增强不是回归。
+  // ⚠️ include 里的 "src" 是死枝(git ls-files src = 0), 本卡只登记不改。
+  "extraPaths": [
+    "backend/lib"
+  ],
   "typeCheckingMode": "basic",
   "reportMissingImports": true,
   "reportMissingTypeStubs": false,

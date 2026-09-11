@@ -129,7 +129,10 @@ def track_agent_execution(
             log = logger.bind(agent_type=agent_type, func=func.__name__)
 
             try:
-                result = await func(*args, **kwargs)
+                # R 是**同时**给 async_wrapper 与 sync_wrapper 用的同一个类型变量,
+                # 所以在这里它不带 Awaitable。运行期只有 iscoroutinefunction(func)
+                # 为真时本包装器才被返回(见本函数尾部分派), 故 await 恒合法。
+                result = await func(*args, **kwargs)  # pyright: ignore[reportGeneralTypeIssues]
 
                 # ✅ Verified from Context7:/prometheus/client_python (Counter.labels().inc())
                 AGENT_INVOCATIONS.labels(agent_type=agent_type, status="success").inc()

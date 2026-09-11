@@ -1,0 +1,25 @@
+except pydantic.ValidationError as e:  # pyright: ignore[reportUnusedExcept]
+await neo4j.execute_query(  # pyright: ignore[reportAttributeAccessIssue]
+client.delete,  # pyright: ignore[reportAttributeAccessIssue]
+client.upsert,  # pyright: ignore[reportAttributeAccessIssue]  # 见上: 死分支
+client.get_db()  # pyright: ignore[reportAttributeAccessIssue]
+raw_content = response.choices[0].message.content or ""  # pyright: ignore[reportAttributeAccessIssue]  # 未传 stream=True ⇒ 运行期恒为 ModelResponse
+return JSONResponse(status_code=503, content=result)  # pyright: ignore[reportReturnType]
+table_count=len(tables),  # pyright: ignore[reportArgumentType]
+return JSONResponse(status_code=503, content=resp.model_dump())  # pyright: ignore[reportReturnType]
+raw_content = response.choices[0].message.content  # pyright: ignore[reportAttributeAccessIssue]  # 未传 stream=True ⇒ 运行期恒为 ModelResponse
+lancedb_client._db.drop_table(stale_table, ignore_missing=True)  # pyright: ignore[reportCallIssue]
+request: MultimodalUpdateRequest = ...,  # pyright: ignore[reportArgumentType]
+from src.rollback import (  # pyright: ignore[reportMissingImports]  # 见上: src/ 不存在
+content = response.choices[0].message.content.strip()  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
+tips=tips,  # pyright: ignore[reportArgumentType]
+if hasattr(settings, "OPENAI_API_KEY") and settings.OPENAI_API_KEY:  # pyright: ignore[reportAttributeAccessIssue]
+api_key=settings.OPENAI_API_KEY,  # pyright: ignore[reportAttributeAccessIssue]  # 见上 T14
+canvas_base_path=canvas_base_path,  # pyright: ignore[reportArgumentType]
+except pydantic.ValidationError as e:  # pyright: ignore[reportUnusedExcept]
+return json.loads(resp.body)["data"]  # pyright: ignore[reportAttributeAccessIssue]
+vault_name=result.vault_name,  # pyright: ignore[reportAttributeAccessIssue]
+vault_id=result.vault_id,  # pyright: ignore[reportAttributeAccessIssue]
+result = await func(*args, **kwargs)  # pyright: ignore[reportGeneralTypeIssues]
+return int((end_time.timestamp() - start_time.timestamp()) * 1000)  # pyright: ignore[reportAttributeAccessIssue]
+middleware = MetricsMiddleware(app=None)  # pyright: ignore[reportArgumentType]

@@ -1,0 +1,17 @@
+=== Codex r2 (c) 收口：基线树 vs 当前树 **各自经应用入口重新生成** openapi, 逐键比 ===
+--- 基线树自证：models/exam_models.py 里 default_factory=RubricDimension 应存在（=未改版）
+4
+base write rc=2
+now write rc=127
+ls: /tmp/u2-openapi-BASE.json: No such file or directory
+ls: /tmp/u2-openapi-NOW.json: No such file or directory
+Traceback (most recent call last):
+  File "<stdin>", line 3, in <module>
+FileNotFoundError: [Errno 2] No such file or directory: '/tmp/u2-openapi-BASE.json'
+
+=== Codex r2 (d) 收口：lancedb.connect() 运行期到底返回哪个类 ===
+(eval):45: no such file or directory: .venv/bin/python
+--- 生产侧 LanceDBClient._db 由什么赋值（读源码, 不连库）
+665:        self._db = None
+900:            self._db = lancedb.connect(self.db_path)
+928:            self._db = lancedb.connect(self.db_path)

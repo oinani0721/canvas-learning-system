@@ -1,0 +1,4 @@
+== merge 后代码重生成 vs 主干快照（剔 x-generated-at）==
+diff-rc=0
+== 验伪锚：含 x-generated-at 时必有差异 ==
+含时间戳-diff-rc=1 (1=有差异,符合预期)

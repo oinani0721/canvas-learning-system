@@ -73,8 +73,6 @@ def get_lancedb_client():
     ✅ Story 38.1 Fix: 使用实际存储数据的路径
     """
     try:
-        import os
-
         from agentic_rag.clients.lancedb_client import LanceDBClient
 
         # 直接使用默认相对路径 - LanceDBClient 默认使用 'backend/data/lancedb'
@@ -568,7 +566,14 @@ async def index_vault_notes(
             # 检索命中)。先删本 vault 的前缀表再重建。
             try:
                 stale_table = lancedb_client.resolve_table_name("vault_notes")
-                lancedb_client._db.drop_table(stale_table, ignore_missing=True)
+                # _db 为 None 时原本就 AttributeError, 与 assert 同落下方 except。
+                # 带消息(Codex r1 Q2): 裸 assert 的 AssertionError 无正文, 日志会
+                # 比原来的 AttributeError 信息更少。
+                assert lancedb_client._db is not None, "LanceDB 连接未初始化(force_rebuild)"
+                # pyright 读的是抽象基类 DBConnection.drop_table(name, namespace),
+                # 而运行期实现 LanceDBConnection.drop_table 确有 ignore_missing
+                # (lancedb 0.30.2 实测 inspect.signature) ⇒ 假阳, 只关这一行。
+                lancedb_client._db.drop_table(stale_table, ignore_missing=True)  # pyright: ignore[reportCallIssue]
                 # ⛔ 必须同步失效表句柄缓存(照抄 rebuild_index/drop_vault_tables 姿势)——
                 # 只 drop 不清缓存会让后续写入落在已删表的幽灵句柄上,产出损坏 manifest
                 # (2026-07-10 实测: count_rows=50 但数据文件 Not found)。
@@ -673,6 +678,9 @@ async def vault_index_status(
         resolved_table = lancedb_client.resolve_table_name("vault_notes")
         existing_tables = lancedb_client._db.table_names() if lancedb_client._db is not None else []
         if resolved_table in existing_tables:
+            # existing_tables 非空 ⇒ 上一行走的是 db 非 None 分支; _db 为 None 时
+            # 该列表恒为 [], 本分支进不来 ⇒ assert 在原本也会崩的位置上。
+            assert lancedb_client._db is not None, "LanceDB 连接未初始化(index status)"
             table = lancedb_client._db.open_table(resolved_table)
             count = table.count_rows()
             return {

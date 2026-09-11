@@ -103,7 +103,13 @@ async def _write_neo4j_triplet(
         RETURN er.record_id AS record_id
         """
 
-        await neo4j.execute_query(
+        # ⚠️ 真缺陷, 本卡只让类型过门不修(TAIL): Neo4jClient 没有 execute_query,
+        # 只有 run_query(query, **params)(运行期 hasattr 实证)。且本函数的 except
+        # 元组 (RuntimeError, ConnectionError, TimeoutError, OSError) 不含
+        # AttributeError ⇒ 这一行会把整个双写端点打成 500, 不是记成半成功。
+        # 不改名的理由: run_query 收 **params 而这里传的是位置 dict, 改名等于
+        # 立刻换成另一个错; 且把「从不连库」变成「真写 Neo4j」是行为变更, 另立卡。
+        await neo4j.execute_query(  # pyright: ignore[reportAttributeAccessIssue]
             query,
             {
                 "record_id": record_id,
@@ -184,9 +190,12 @@ async def _write_lancedb(
 
         # Delete existing rationale for this edge (delete-before-insert dedup)
         try:
+            # extraPaths 让 LanceDBClient 可解析后才看得见: 它只有 add_documents,
+            # 没有 delete/upsert/get_db ⇒ 本分支与下面两条 elif/else 都是运行期
+            # 恒不进的死分支(TAIL T10)。本卡不删分支(删=改行为), 只关类型。
             if hasattr(client, "delete"):
                 await asyncio.to_thread(
-                    client.delete,
+                    client.delete,  # pyright: ignore[reportAttributeAccessIssue]
                     table_name="edge_rationales",
                     filter_expr=f'edge_id = "{rationale.edge_id}"',
                 )
@@ -204,13 +213,18 @@ async def _write_lancedb(
             )
         elif hasattr(client, "upsert"):
             await asyncio.to_thread(
-                client.upsert,
+                client.upsert,  # pyright: ignore[reportAttributeAccessIssue]  # 见上: 死分支
                 table_name="edge_rationales",
                 data=[{"text": doc_text, **metadata}],
             )
         else:
             # Fallback: try direct table API
-            db_conn = client.get_db() if hasattr(client, "get_db") else None
+            # 见上: 死分支(LanceDBClient 无 get_db)
+            db_conn = (
+                client.get_db()  # pyright: ignore[reportAttributeAccessIssue]
+                if hasattr(client, "get_db")
+                else None
+            )
             if db_conn is not None:
                 try:
                     table = db_conn.open_table("edge_rationales")

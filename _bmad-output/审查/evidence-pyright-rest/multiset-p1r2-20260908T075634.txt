@@ -1,0 +1,5 @@
+baseline tree = /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.T9KUj03xn2/baseline-p1r2-vs-p1
+base rc=1
+work rc=1
+base=232 work=232 NEW=0 GONE=0
+rc=0

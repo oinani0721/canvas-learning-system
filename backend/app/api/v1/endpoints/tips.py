@@ -259,8 +259,10 @@ async def get_tips(
                     ).model_dump()
                 )
 
+        # tips 的元素来自 TipItem(...).model_dump(), pydantic 会在校验期把 dict
+        # 还原成 TipItem; 保留更精确的局部注解, 只关这一行。
         return GetTipsResponse(
-            tips=tips,
+            tips=tips,  # pyright: ignore[reportArgumentType]
             total=len(tips),
         ).model_dump()
 

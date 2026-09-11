@@ -1,0 +1,203 @@
+# 内容口径格式证据: ruff format(HEAD版) vs ruff format(当前版) 的差异
+# 目的: 存量漂移被 format 抹平后, 剩下的差异 = 本卡真正写入的内容
+IDENTICAL-AFTER-REWRITE  app/models/agent_routing_models.py
+IDENTICAL-AFTER-REWRITE  app/models/edge_rationale.py
+DIFFERS  app/models/exam_models.py
+--- /tmp/u2-fmt-head.py	2026-09-08 06:51:29
++++ /tmp/u2-fmt-now.py	2026-09-08 06:51:29
+@@ -135,10 +135,16 @@
+     exam_id: str
+     question_id: str = ""
+     evidence_points: List[str] = Field(default_factory=list)
+-    concept_accuracy: RubricDimension = Field(default_factory=RubricDimension)
+-    reasoning_quality: RubricDimension = Field(default_factory=RubricDimension)
+-    knowledge_coverage: RubricDimension = Field(default_factory=RubricDimension)
+-    knowledge_integration: RubricDimension = Field(default_factory=RubricDimension)
++    # CARD-PYRIGHT-DEBT-rest [BATCH-2026-09-07-第十三批] 真 bug ①: 四维原为
++    # `Field(default_factory=RubricDimension)`, 而 RubricDimension.score 无默认
++    # ⇒ 该 default 一旦被用到就抛 ValidationError, 且消息报的是内层 `score`,
++    # 把「外层漏传了哪个维度」吃掉。两个实例化点(services/autoscore.py:141/:197)
++    # 都显式传四维, 成功路径从不依赖它 ⇒ 改必填, 错误更早更准。
++    # ⛔ 不给 score 加默认 0: 「评分缺失静默为 0」是语义变化, 用户未裁。
++    concept_accuracy: RubricDimension = Field(..., description="Concept accuracy dimension")
++    reasoning_quality: RubricDimension = Field(..., description="Reasoning quality dimension")
++    knowledge_coverage: RubricDimension = Field(..., description="Knowledge coverage dimension")
++    knowledge_integration: RubricDimension = Field(..., description="Knowledge integration dimension")
+     overall_score: int = Field(ge=0, le=12)
+     grade: int = Field(ge=1, le=4, description="1=Again, 2=Hard, 3=Good, 4=Easy")
+     confidence: str = Field(default="high", description="high | medium | low")
+DIFFERS  app/models/intelligent_parallel_models.py
+--- /tmp/u2-fmt-head.py	2026-09-08 06:51:29
++++ /tmp/u2-fmt-now.py	2026-09-08 06:51:29
+@@ -274,7 +274,9 @@
+         description="Clustering quality (Silhouette Score). Recommend re-clustering if < 0.3",
+         examples=[0.72],
+     )
+-    recommended_k: Optional[int] = Field(default=None, description="Auto-determined optimal number of clusters", examples=[4])
++    recommended_k: Optional[int] = Field(
++        default=None, description="Auto-determined optimal number of clusters", examples=[4]
++    )
+ 
+ 
+ class SessionResponse(BaseModel):
+@@ -312,7 +314,9 @@
+     """
+ 
+     node_id: str = Field(..., description="Node ID", examples=["node-001"])
+-    file_path: Optional[str] = Field(default=None, description="Generated file path", examples=["逆否命题 vs 否命题.md"])
++    file_path: Optional[str] = Field(
++        default=None, description="Generated file path", examples=["逆否命题 vs 否命题.md"]
++    )
+     file_size: Optional[str] = Field(default=None, description="File size", examples=["3.2KB"])
+ 
+ 
+@@ -350,7 +354,9 @@
+     [Source: specs/api/parallel-api.openapi.yml#/components/schemas/ParallelTaskStatus/performance_metrics]
+     """
+ 
+-    total_duration_seconds: Optional[float] = Field(default=None, description="Total duration in seconds", examples=[135])
++    total_duration_seconds: Optional[float] = Field(
++        default=None, description="Total duration in seconds", examples=[135]
++    )
+     average_duration_per_node: Optional[float] = Field(
+         default=None, description="Average time per node in seconds", examples=[11.25]
+     )
+DIFFERS  app/models/memory_schemas.py
+--- /tmp/u2-fmt-head.py	2026-09-08 06:51:29
++++ /tmp/u2-fmt-now.py	2026-09-08 06:51:29
+@@ -242,7 +242,9 @@
+     # ── CARD-G4-3 加性四态字段 ────────────────────────────────────────
+     # 本端点是四态最"值钱"的地方: 空 timeline 此前既可能是「这个概念真没学
+     # 过」也可能是「Neo4j 挂了」, 两者在 HTTP 面上完全同形。
+-    retrieval_status: Optional[ServiceStatus] = Field(default=None, description="检索四态 (G4-2 统一枚举); null=本次未产出状态")
++    retrieval_status: Optional[ServiceStatus] = Field(
++        default=None, description="检索四态 (G4-2 统一枚举); null=本次未产出状态"
++    )
+     retrieval_status_reason: Optional[str] = Field(default=None, description="故障说明 — degraded/unavailable 时非空")
+ 
+     model_config = ConfigDict(
+IDENTICAL-AFTER-REWRITE  app/models/metadata_models.py
+DIFFERS  app/models/multimodal_schemas.py
+--- /tmp/u2-fmt-head.py	2026-09-08 06:51:30
++++ /tmp/u2-fmt-now.py	2026-09-08 06:51:30
+@@ -74,7 +74,9 @@
+     url: str = Field(..., min_length=1, description="URL to fetch content from (must be http/https)")
+     related_concept_id: str = Field(..., min_length=1, description="Canvas node ID to associate this content with")
+     canvas_path: Optional[str] = Field(default=None, description="Canvas file path for context")
+-    description: Optional[str] = Field(default=None, max_length=1000, description="Optional description for the content")
++    description: Optional[str] = Field(
++        default=None, max_length=1000, description="Optional description for the content"
++    )
+ 
+     @field_validator("url")
+     @classmethod
+@@ -235,7 +237,9 @@
+     title: Optional[str] = Field(default=None, max_length=50, description="Title (truncated to 50 chars)")
+     relevanceScore: float = Field(..., ge=0.0, le=1.0, description="Relevance score (0-1)")
+     conceptId: Optional[str] = Field(default=None, description="Related concept node ID")
+-    metadata: Optional[dict[str, Any]] = Field(default=None, description="Additional metadata (dimensions, duration, etc.)")
++    metadata: Optional[dict[str, Any]] = Field(
++        default=None, description="Additional metadata (dimensions, duration, etc.)"
++    )
+     thumbnail: Optional[str] = Field(default=None, description="Base64 encoded thumbnail image")
+ 
+     model_config = ConfigDict(from_attributes=True)
+DIFFERS  app/models/qa_models.py
+--- /tmp/u2-fmt-head.py	2026-09-08 06:51:30
++++ /tmp/u2-fmt-now.py	2026-09-08 06:51:30
+@@ -76,7 +76,9 @@
+         description="Error subtype: 'breakthrough' | 'reasoning' | 'knowledge_gap' | 'pseudo_understanding'",
+     )
+     created_at: str = Field(..., description="ISO 8601 creation timestamp")
+-    annotation: Optional[str] = Field(default=None, description="Annotation: 'correct' | 'incorrect' | 'partial' | None")
++    annotation: Optional[str] = Field(
++        default=None, description="Annotation: 'correct' | 'incorrect' | 'partial' | None"
++    )
+     annotated_at: Optional[str] = Field(default=None, description="ISO 8601 annotation timestamp")
+     updated_at: Optional[str] = Field(default=None, description="ISO 8601 last update timestamp")
+ 
+DIFFERS  app/models/review_models.py
+--- /tmp/u2-fmt-head.py	2026-09-08 06:51:30
++++ /tmp/u2-fmt-now.py	2026-09-08 06:51:30
+@@ -309,7 +309,9 @@
+         json_schema_extra={"example": 5},
+     )
+     items: List[VerificationHistoryItem] = Field(..., description="List of verification history records")
+-    pagination: Optional[PaginationInfo] = Field(default=None, description="Pagination metadata (included when paginated)")
++    pagination: Optional[PaginationInfo] = Field(
++        default=None, description="Pagination metadata (included when paginated)"
++    )
+ 
+ 
+ # ═══════════════════════════════════════════════════════════════════════════════
+@@ -373,7 +375,9 @@
+     [Source: specs/api/review-api.openapi.yml#L707-728]
+     """
+ 
+-    average_rating: Optional[float] = Field(default=None, description="Average FSRS rating", json_schema_extra={"example": 3.2})
++    average_rating: Optional[float] = Field(
++        default=None, description="Average FSRS rating", json_schema_extra={"example": 3.2}
++    )
+     retention_rate: Optional[float] = Field(
+         default=None,
+         ge=0.0,
+IDENTICAL-AFTER-REWRITE  app/models/rollback.py
+DIFFERS  app/models/schemas.py
+--- /tmp/u2-fmt-head.py	2026-09-08 06:51:30
++++ /tmp/u2-fmt-now.py	2026-09-08 06:51:30
+@@ -482,7 +482,9 @@
+     total: float = Field(..., ge=0, le=100, description="Total score (0-100)")
+     new_color: str = Field(..., description="New node color: 2=green(>=80), 3=purple(60-79), 4=red(<60)")
+     feedback: Optional[str] = Field(default=None, description="Specific improvement suggestions (100-200 chars)")
+-    color_action: Optional[str] = Field(default=None, description="Color action: change_to_green/change_to_purple/keep_red")
++    color_action: Optional[str] = Field(
++        default=None, description="Color action: change_to_green/change_to_purple/keep_red"
++    )
+ 
+ 
+ class ScoreResponse(BaseModel):
+@@ -676,7 +678,9 @@
+     """
+ 
+     source_canvas: str = Field(..., description="Source Canvas file name")
+-    node_ids: Optional[List[str]] = Field(default=None, description="Specific node IDs (optional, defaults to all green nodes)")
++    node_ids: Optional[List[str]] = Field(
++        default=None, description="Specific node IDs (optional, defaults to all green nodes)"
++    )
+     # ✅ Verified from Story 24.1 Dev Notes (lines 167-178)
+     mode: Literal["fresh", "targeted"] = Field(
+         default="fresh",
+@@ -752,7 +756,9 @@
+     weak_concepts: List["WeakConceptData"] = Field(
+         default_factory=list, description="Weak concepts identified in targeted mode"
+     )
+-    weight_config: Optional["WeightConfig"] = Field(default=None, description="Weight configuration used in targeted mode")
++    weight_config: Optional["WeightConfig"] = Field(
++        default=None, description="Weight configuration used in targeted mode"
++    )
+     # Story 31.2+31.5: Difficulty adaptation metadata
+     skipped_mastered_count: int = Field(default=0, description="跳过的已掌握概念数量")
+     difficulty_adapted: bool = Field(default=False, description="是否应用了难度自适应")
+@@ -824,7 +830,9 @@
+     reps: int = Field(default=0, description="Successful review count")
+     lapses: int = Field(default=0, description="Failed review count (rating=1)")
+     # Story 32.3: Additional fields for plugin priority calculation
+-    retrievability: Optional[float] = Field(default=None, ge=0, le=1, description="Current retrievability probability (0-1)")
++    retrievability: Optional[float] = Field(
++        default=None, ge=0, le=1, description="Current retrievability probability (0-1)"
++    )
+     due: Optional[datetime] = Field(default=None, description="Next due date/time for review")
+     last_review: Optional[datetime] = Field(default=None, description="Last review date/time")
+ 
+@@ -840,7 +848,9 @@
+     """
+ 
+     concept_id: str = Field(..., description="Concept identifier")
+-    fsrs_state: Optional[FSRSStateResponse] = Field(default=None, description="FSRS algorithm state (None if no card exists)")
++    fsrs_state: Optional[FSRSStateResponse] = Field(
++        default=None, description="FSRS algorithm state (None if no card exists)"
++    )
+     card_state: Optional[str] = Field(default=None, description="Serialized FSRS card JSON for plugin to deserialize")
+     found: bool = Field(default=True, description="Whether a card was found for this concept")
+     reason: Optional[str] = Field(
+IDENTICAL-AFTER-REWRITE  app/models/subject_models.py

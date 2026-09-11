@@ -71,22 +71,22 @@ class RAGQueryRequest(BaseModel):
             raise ValueError("vault_id 不能为空白")
         return v
     canvas_file: Optional[str] = Field(
-        None, description="Canvas 文件路径 (用于上下文过滤)"
+        default=None, description="Canvas 文件路径 (用于上下文过滤)"
     )
     subject_id: Optional[str] = Field(
-        None,
+        default=None,
         description="学科 ID, 用于多学科知识图谱隔离 (Story 1.9). 当提供时, 检索范围限定在该学科内.",
     )
     cross_subject: bool = Field(
-        False,
+        default=False,
         description="是否启用跨学科检索 (Story 1.9 AC-5). 启用后通过 Tag Jaccard 桥接扩展到相似学科.",
     )
-    is_review_canvas: bool = Field(False, description="是否为检验白板场景")
+    is_review_canvas: bool = Field(default=False, description="是否为检验白板场景")
     fusion_strategy: Optional[Literal["rrf", "weighted", "cascade"]] = Field(
-        None, description="融合策略 (默认: rrf, 检验白板: weighted)"
+        default=None, description="融合策略 (默认: rrf, 检验白板: weighted)"
     )
     reranking_strategy: Optional[Literal["local", "cohere", "hybrid_auto"]] = Field(
-        None, description="Reranking 策略 (默认: hybrid_auto)"
+        default=None, description="Reranking 策略 (默认: hybrid_auto)"
     )
 
     model_config = ConfigDict(
@@ -124,7 +124,7 @@ class MultimodalResultItem(BaseModel):
         ..., description="媒体类型"
     )
     path: str = Field(..., description="文件路径")
-    thumbnail: Optional[str] = Field(None, description="缩略图Base64或URL")
+    thumbnail: Optional[str] = Field(default=None, description="缩略图Base64或URL")
     relevance_score: float = Field(..., ge=0.0, le=1.0, description="相关度分数 (0-1)")
     metadata: dict = Field(default_factory=dict, description="额外元数据")
 
@@ -132,20 +132,20 @@ class MultimodalResultItem(BaseModel):
 class LatencyInfo(BaseModel):
     """延迟信息"""
 
-    graphiti: Optional[float] = Field(None, description="Graphiti 检索延迟 (ms)")
-    lancedb: Optional[float] = Field(None, description="LanceDB 检索延迟 (ms)")
-    multimodal: Optional[float] = Field(None, description="多模态检索延迟 (ms)")
-    fusion: Optional[float] = Field(None, description="融合延迟 (ms)")
-    reranking: Optional[float] = Field(None, description="Reranking 延迟 (ms)")
+    graphiti: Optional[float] = Field(default=None, description="Graphiti 检索延迟 (ms)")
+    lancedb: Optional[float] = Field(default=None, description="LanceDB 检索延迟 (ms)")
+    multimodal: Optional[float] = Field(default=None, description="多模态检索延迟 (ms)")
+    fusion: Optional[float] = Field(default=None, description="融合延迟 (ms)")
+    reranking: Optional[float] = Field(default=None, description="Reranking 延迟 (ms)")
 
 
 class RAGQueryMetadata(BaseModel):
     """RAG 查询元数据"""
 
-    query_rewritten: bool = Field(False, description="Query 是否被重写")
-    rewrite_count: int = Field(0, description="重写次数")
-    fusion_strategy: Optional[str] = Field(None, description="使用的融合策略")
-    reranking_strategy: Optional[str] = Field(None, description="使用的 Reranking 策略")
+    query_rewritten: bool = Field(default=False, description="Query 是否被重写")
+    rewrite_count: int = Field(default=0, description="重写次数")
+    fusion_strategy: Optional[str] = Field(default=None, description="使用的融合策略")
+    reranking_strategy: Optional[str] = Field(default=None, description="使用的 Reranking 策略")
 
 
 class RAGQueryResponse(BaseModel):
@@ -161,10 +161,10 @@ class RAGQueryResponse(BaseModel):
     multimodal_results: List[MultimodalResultItem] = Field(
         default_factory=list, description="多模态检索结果 (Story 35.8 AC-35.8.1)"
     )
-    quality_grade: str = Field("low", description="质量评级 (high/medium/low)")
-    result_count: int = Field(0, description="结果数量")
+    quality_grade: str = Field(default="low", description="质量评级 (high/medium/low)")
+    result_count: int = Field(default=0, description="结果数量")
     latency_ms: LatencyInfo = Field(default_factory=LatencyInfo, description="延迟信息")
-    total_latency_ms: float = Field(0.0, description="总延迟 (ms)")
+    total_latency_ms: float = Field(default=0.0, description="总延迟 (ms)")
     metadata: RAGQueryMetadata = Field(
         default_factory=RAGQueryMetadata, description="元数据"
     )
@@ -175,7 +175,7 @@ class RAGQueryResponse(BaseModel):
     # null 的语义是「本次未产出状态」(state 初值即 None, 图早退时如此),
     # 与 empty 严格区分 —— 把 null 归一成 ok/empty 正是本卡要消灭的伪装。
     retrieval_status: Optional[ServiceStatus] = Field(
-        None,
+        default=None,
         description=(
             "检索四态 (G4-2 统一枚举): ok / empty / degraded / unavailable。"
             "null=本次未产出状态。注意与 HTTP 503 的分工: 503 表示 RAG 服务"
@@ -183,7 +183,7 @@ class RAGQueryResponse(BaseModel):
         ),
     )
     retrieval_status_reason: Optional[str] = Field(
-        None, description="故障说明 — degraded/unavailable 时非空"
+        default=None, description="故障说明 — degraded/unavailable 时非空"
     )
 
     model_config = ConfigDict(
@@ -233,8 +233,8 @@ class WeakConceptItem(BaseModel):
 
     concept: str = Field(..., description="概念名称")
     stability: float = Field(..., description="稳定性分数 (0-1)")
-    last_review: Optional[str] = Field(None, description="上次复习时间")
-    review_count: int = Field(0, description="复习次数")
+    last_review: Optional[str] = Field(default=None, description="上次复习时间")
+    review_count: int = Field(default=0, description="复习次数")
 
 
 class WeakConceptsResponse(BaseModel):
@@ -243,7 +243,7 @@ class WeakConceptsResponse(BaseModel):
     concepts: List[WeakConceptItem] = Field(
         default_factory=list, description="薄弱概念列表"
     )
-    total_count: int = Field(0, description="总数量")
+    total_count: int = Field(default=0, description="总数量")
     canvas_file: str = Field(..., description="Canvas 文件")
 
 
@@ -253,7 +253,7 @@ class RAGStatusResponse(BaseModel):
     available: bool = Field(..., description="服务是否可用")
     initialized: bool = Field(..., description="是否已初始化")
     langgraph_available: bool = Field(..., description="LangGraph 是否可用")
-    import_error: Optional[str] = Field(None, description="导入错误信息")
+    import_error: Optional[str] = Field(default=None, description="导入错误信息")
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 

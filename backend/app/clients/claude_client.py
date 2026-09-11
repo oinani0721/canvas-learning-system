@@ -19,7 +19,7 @@ from typing import Any, Dict, List, Optional
 # ✅ Verified from Context7:/anthropics/anthropic-sdk-python
 # Pattern: "from anthropic import AsyncAnthropic"
 from anthropic import AsyncAnthropic
-from anthropic.types import Message
+from anthropic.types import ContentBlockParam, Message, MessageParam
 
 from app.config import settings
 from app.middleware.prompt_injection_guard import check_input, check_output
@@ -257,7 +257,7 @@ class ClaudeClient:
             system_prompt = f"{system_prompt}\n\n## Additional Context\n{context}"
 
         # Build messages
-        messages = [
+        messages: List[MessageParam] = [
             {
                 "role": "user",
                 "content": user_prompt,
@@ -279,8 +279,16 @@ class ClaudeClient:
         # Extract text content from response
         response_text = ""
         for block in response.content:
+            # ⚠️ 保留 hasattr, **不要**换成 isinstance(block, TextBlock)。
+            # 曾按「12 个 ContentBlock 成员里只有 TextBlock 声明 text 字段」
+            # 判两者等价 —— 该结论只在「已声明字段」这一个轴上成立。实测
+            # anthropic 0.88.0 的 12 个块类型**全部** model_config.extra="allow":
+            #   ThinkingBlock.model_validate({..., "text": "x"})
+            #   -> hasattr(text)=True 而 isinstance(TextBlock)=False
+            # 即服务端若在非 TextBlock 上多回一个 text 字段, 换 isinstance 会
+            # 静默漏掉这段文本 = 运行期行为变化。故只关类型, 不改判断。
             if hasattr(block, "text"):
-                response_text += block.text
+                response_text += block.text  # pyright: ignore[reportAttributeAccessIssue]
 
         logger.info(
             f"Claude API call successful: {response.usage.input_tokens} in, {response.usage.output_tokens} out"
@@ -367,7 +375,7 @@ class ClaudeClient:
 
         # ✅ Verified from Context7:/anthropics/anthropic-cookbook (multimodal/best_practices_for_vision.ipynb)
         # Build content blocks with images first, then text
-        content_blocks: List[Dict[str, Any]] = []
+        content_blocks: List[ContentBlockParam] = []
 
         # Add image blocks
         if images:
@@ -393,7 +401,7 @@ class ClaudeClient:
         )
 
         # Build messages with content blocks
-        messages = [
+        messages: List[MessageParam] = [
             {
                 "role": "user",
                 "content": content_blocks,
@@ -416,8 +424,16 @@ class ClaudeClient:
         # Extract text content from response
         response_text = ""
         for block in response.content:
+            # ⚠️ 保留 hasattr, **不要**换成 isinstance(block, TextBlock)。
+            # 曾按「12 个 ContentBlock 成员里只有 TextBlock 声明 text 字段」
+            # 判两者等价 —— 该结论只在「已声明字段」这一个轴上成立。实测
+            # anthropic 0.88.0 的 12 个块类型**全部** model_config.extra="allow":
+            #   ThinkingBlock.model_validate({..., "text": "x"})
+            #   -> hasattr(text)=True 而 isinstance(TextBlock)=False
+            # 即服务端若在非 TextBlock 上多回一个 text 字段, 换 isinstance 会
+            # 静默漏掉这段文本 = 运行期行为变化。故只关类型, 不改判断。
             if hasattr(block, "text"):
-                response_text += block.text
+                response_text += block.text  # pyright: ignore[reportAttributeAccessIssue]
 
         logger.info(
             f"Claude API call successful: {response.usage.input_tokens} in, {response.usage.output_tokens} out"
@@ -480,8 +496,16 @@ class ClaudeClient:
 
         response_text = ""
         for block in response.content:
+            # ⚠️ 保留 hasattr, **不要**换成 isinstance(block, TextBlock)。
+            # 曾按「12 个 ContentBlock 成员里只有 TextBlock 声明 text 字段」
+            # 判两者等价 —— 该结论只在「已声明字段」这一个轴上成立。实测
+            # anthropic 0.88.0 的 12 个块类型**全部** model_config.extra="allow":
+            #   ThinkingBlock.model_validate({..., "text": "x"})
+            #   -> hasattr(text)=True 而 isinstance(TextBlock)=False
+            # 即服务端若在非 TextBlock 上多回一个 text 字段, 换 isinstance 会
+            # 静默漏掉这段文本 = 运行期行为变化。故只关类型, 不改判断。
             if hasattr(block, "text"):
-                response_text += block.text
+                response_text += block.text  # pyright: ignore[reportAttributeAccessIssue]
 
         # Story 3-13 FIX: Output safety check for raw call path
         output_result = check_output(response_text, system_prompt=system_prompt)

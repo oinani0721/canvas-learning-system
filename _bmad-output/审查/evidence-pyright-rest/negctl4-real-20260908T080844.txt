@@ -1,0 +1,20 @@
+=== 真·负控 4（Codex r2 LOW-1 整改）: 把 driver 挪回闭包外, 重演 r1 MEDIUM ===
+问题: 有没有**任何**自动门能抓住这个回归? 这是本条要回答的。
+变异前 sha = 2f5bdc2f47c1f83f7f920a67007119c2406b5d0a73e3f2d0ee873f4ecd9348f4
+--- 变异前 pyright
+0 errors, 3 warnings, 0 informations
+MUTATED: driver 已挪回闭包外（重演 r1 MEDIUM 缺陷）
+  变异体语法合法 ✓（排除「因语法错而红」的假杀）
+--- 变异后 pyright（关键问题：它会不会红？）
+0 errors, 3 warnings, 0 informations
+--- 变异后 结构判据（闭包内该赋值应为 0 = 唯一能看见它的判据）
+0
+--- 变异后 跑 neo4j 相关单测
+ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPartialFailureRecovery::test_neo4j_unavailable_fallback
+= 19 failed, 255 passed, 1 skipped, 4727 deselected, 10 warnings, 5 errors in 16.97s =
+--- 还原（scratchpad 副本）
+还原后 sha = 2f5bdc2f47c1f83f7f920a67007119c2406b5d0a73e3f2d0ee873f4ecd9348f4
+RESTORE-BYTEWISE-OK
+0 errors, 3 warnings, 0 informations
+1
+  ↑ 还原后闭包内应为 1

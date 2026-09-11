@@ -1,0 +1,81 @@
+--- /dev/fd/11	2026-09-09 10:18:52
++++ app/api/v1/system.py	2026-09-09 10:16:04
+@@ -325,7 +325,9 @@
+     try:
+         result = await asyncio.wait_for(coro, timeout=timeout)
+         elapsed = (time.monotonic() - start) * 1000
+-        status_map = {
++        # 标注 Literal: dict 字面量默认推 dict[str, str], 而 ComponentHealth.status
++        # 要 Literal["ready","degraded","unavailable"]。取值逐字不变。
++        status_map: dict[str, Literal["ready", "degraded", "unavailable"]] = {
+             "healthy": "ready",
+             "unknown": "degraded",
+             "unhealthy": "unavailable",
+@@ -398,7 +400,11 @@
+ 
+     from fastapi.responses import JSONResponse
+ 
+-    return JSONResponse(
++    # FastAPI 允许路由函数直接返回 Response 子类(本路由无 response_model)。
++    # ⛔ 不把注解改成 -> JSONResponse: 另一个返回点返回的是 dict, 改了反而更不准,
++    # 且会动 openapi 生成面, 并让 mcp/tools/infra_tools.py 那条 ignore 的理由失效。
++    # 与阶段 1 health.py / index.py 的处置同形。
++    return JSONResponse(  # pyright: ignore[reportReturnType]
+         content={"data": resp.model_dump(), "meta": {"timestamp": now}},
+         status_code=status_code,
+     )
+@@ -519,13 +525,13 @@
+     [Source: Story 7.2 Task 3.3]
+     """
+ 
+-    total_calls: int = Field(0, description="Total number of LLM calls")
+-    total_tokens: int = Field(0, description="Total tokens consumed")
+-    total_input_tokens: int = Field(0, description="Total input/prompt tokens")
+-    total_output_tokens: int = Field(0, description="Total output/completion tokens")
+-    total_cost_usd: float = Field(0.0, description="Total estimated cost in USD")
+-    avg_latency_ms: float = Field(0.0, description="Average response latency in ms")
+-    success_rate: float = Field(1.0, description="Success rate (0.0 to 1.0)")
++    total_calls: int = Field(default=0, description="Total number of LLM calls")
++    total_tokens: int = Field(default=0, description="Total tokens consumed")
++    total_input_tokens: int = Field(default=0, description="Total input/prompt tokens")
++    total_output_tokens: int = Field(default=0, description="Total output/completion tokens")
++    total_cost_usd: float = Field(default=0.0, description="Total estimated cost in USD")
++    avg_latency_ms: float = Field(default=0.0, description="Average response latency in ms")
++    success_rate: float = Field(default=1.0, description="Success rate (0.0 to 1.0)")
+ 
+ 
+ class TaskTypeStats(BaseModel):
+@@ -535,18 +541,18 @@
+     """
+ 
+     task_type: str = Field(..., description="Task type identifier")
+-    calls: int = Field(0, description="Number of calls")
+-    tokens: int = Field(0, description="Total tokens consumed")
+-    cost_usd: float = Field(0.0, description="Estimated cost in USD")
++    calls: int = Field(default=0, description="Number of calls")
++    tokens: int = Field(default=0, description="Total tokens consumed")
++    cost_usd: float = Field(default=0.0, description="Estimated cost in USD")
+ 
+ 
+ class DayStats(BaseModel):
+     """Per-day statistics."""
+ 
+     date: str = Field(..., description="Date (YYYY-MM-DD)")
+-    calls: int = Field(0, description="Number of calls")
+-    tokens: int = Field(0, description="Total tokens consumed")
+-    cost_usd: float = Field(0.0, description="Estimated cost in USD")
++    calls: int = Field(default=0, description="Number of calls")
++    tokens: int = Field(default=0, description="Total tokens consumed")
++    cost_usd: float = Field(default=0.0, description="Estimated cost in USD")
+ 
+ 
+ class ErrorStats(BaseModel):
+@@ -555,7 +561,7 @@
+     [Source: Story 7.2 Task 3.5]
+     """
+ 
+-    total: int = Field(0, description="Total error count")
++    total: int = Field(default=0, description="Total error count")
+     by_type: Dict[str, int] = Field(
+         default_factory=dict, description="Error count by category"
+     )

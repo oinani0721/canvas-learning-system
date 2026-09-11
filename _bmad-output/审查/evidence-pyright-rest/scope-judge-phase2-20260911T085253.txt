@@ -1,0 +1,22 @@
+⛔ SUPERSEDED — 已过时：④ 的验伪锚是同义反复（探针取自判据自己刚打印的清单）。后继 → scope-lint-judge-v2-*.txt（§A，两套独立机制互证 + 改一个未碰过的文件做真锚）
+====================================================================================================
+
+== 地盘判据（阶段2口径：BASE=候选树 286178d8；本卡改动=索引+工作树未提交改动）==
+
+-- ① 本卡工作树改动面（应全在允许清单内）--
+ backend/app/api/v1/endpoints/review.py | 34 +++++++++++++----
+ backend/app/api/v1/system.py           | 38 ++++++++++--------
+ backend/app/services/exam_service.py   | 70 ++++++++++++++++++++++++++++++++--
+ 3 files changed, 116 insertions(+), 26 deletions(-)
+
+-- ② 禁写面：lefthook.yml / backend/lib / pyrightconfig.json（阶段2不应再动）--
+(空 = 未动)
+
+-- ③ services 面：D-29 只授权 exam_service.py 单文件，其余必须为空 --
+backend/app/services/exam_service.py
+services 改动文件数 = 1（D-29 授权上限 1）
+  → 唯一那个正是 D-29 点名的 exam_service.py ✓
+
+-- ④ 验伪锚：该判据必须能看见改动（用一个已知改过的文件反查）--
+  命中: backend/app/api/v1/system.py
+(若上一行为空则判据本身失效)

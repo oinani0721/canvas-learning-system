@@ -50,13 +50,13 @@ class BugRecord(BaseModel):
     error_type: str = Field(..., description="Exception class name")
     error_message: str = Field(..., description="Error message")
     request_params: dict = Field(default_factory=dict, description="Request parameters")
-    stack_trace: Optional[str] = Field(None, description="Full stack trace")
-    user_action: Optional[str] = Field(None, description="User action description")
+    stack_trace: Optional[str] = Field(default=None, description="Full stack trace")
+    user_action: Optional[str] = Field(default=None, description="User action description")
     request_id: Optional[str] = Field(
-        None, description="Correlation request ID from middleware"
+        default=None, description="Correlation request ID from middleware"
     )
     story_id: Optional[str] = Field(
-        None, description="BMAD Story ID for traceability (e.g., '30.23')"
+        default=None, description="BMAD Story ID for traceability (e.g., '30.23')"
     )
 
 

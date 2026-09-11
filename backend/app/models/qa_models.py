@@ -42,7 +42,7 @@ class DifficultyMatchRecord(BaseModel):
         ..., ge=0.0, le=1.0, description="Upper bound of acceptable range"
     )
     question_preview: str = Field(
-        "", description="First 100 chars of the question text"
+        default="", description="First 100 chars of the question text"
     )
     timestamp: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat(),
@@ -56,11 +56,11 @@ class DifficultyMatchStats(BaseModel):
     [Source: Story 7.4 AC-2 — sliding window of 50 questions]
     """
 
-    window_size: int = Field(50, description="Sliding window size")
-    total_in_window: int = Field(0, description="Number of records in current window")
-    matched_count: int = Field(0, description="Number of matched records in window")
-    match_rate: float = Field(0.0, ge=0.0, le=1.0, description="matched / total ratio")
-    is_healthy: bool = Field(True, description="True if match_rate >= 0.7")
+    window_size: int = Field(default=50, description="Sliding window size")
+    total_in_window: int = Field(default=0, description="Number of records in current window")
+    matched_count: int = Field(default=0, description="Number of matched records in window")
+    match_rate: float = Field(default=0.0, ge=0.0, le=1.0, description="matched / total ratio")
+    is_healthy: bool = Field(default=True, description="True if match_rate >= 0.7")
     recent_records: List[DifficultyMatchRecord] = Field(
         default_factory=list, description="Recent match records (last 10)"
     )
@@ -88,18 +88,18 @@ class ExtractionRecord(BaseModel):
         ..., description="Extraction type: 'error' | 'tip' | 'key_qa'"
     )
     extraction_subtype: Optional[str] = Field(
-        None,
+        default=None,
         description="Error subtype: 'breakthrough' | 'reasoning' | 'knowledge_gap' | 'pseudo_understanding'",
     )
     created_at: str = Field(..., description="ISO 8601 creation timestamp")
     annotation: Optional[str] = Field(
-        None, description="Annotation: 'correct' | 'incorrect' | 'partial' | None"
+        default=None, description="Annotation: 'correct' | 'incorrect' | 'partial' | None"
     )
     annotated_at: Optional[str] = Field(
-        None, description="ISO 8601 annotation timestamp"
+        default=None, description="ISO 8601 annotation timestamp"
     )
     updated_at: Optional[str] = Field(
-        None, description="ISO 8601 last update timestamp"
+        default=None, description="ISO 8601 last update timestamp"
     )
 
 
@@ -128,9 +128,9 @@ class UpdateExtractionRequest(BaseModel):
 class TypeStats(BaseModel):
     """Per-type extraction accuracy statistics."""
 
-    total: int = Field(0, description="Total annotated records of this type")
-    correct: int = Field(0, description="Correctly extracted count")
-    accuracy: float = Field(0.0, description="Accuracy ratio")
+    total: int = Field(default=0, description="Total annotated records of this type")
+    correct: int = Field(default=0, description="Correctly extracted count")
+    accuracy: float = Field(default=0.0, description="Accuracy ratio")
 
 
 class ExtractionStats(BaseModel):
@@ -139,9 +139,9 @@ class ExtractionStats(BaseModel):
     [Source: Story 7.4 AC-4 — extraction quality statistics]
     """
 
-    total_records: int = Field(0, description="Total extraction records")
-    annotated_count: int = Field(0, description="Number of annotated records")
-    accuracy: float = Field(0.0, description="Overall accuracy (correct / annotated)")
+    total_records: int = Field(default=0, description="Total extraction records")
+    annotated_count: int = Field(default=0, description="Number of annotated records")
+    accuracy: float = Field(default=0.0, description="Overall accuracy (correct / annotated)")
     by_type: Dict[str, TypeStats] = Field(
         default_factory=dict, description="Per-type accuracy breakdown"
     )
@@ -151,9 +151,9 @@ class ExtractionRecordPage(BaseModel):
     """Paginated extraction records response."""
 
     records: List[ExtractionRecord] = Field(default_factory=list)
-    total: int = Field(0, description="Total matching records")
-    page: int = Field(1, description="Current page number")
-    page_size: int = Field(20, description="Records per page")
+    total: int = Field(default=0, description="Total matching records")
+    page: int = Field(default=1, description="Current page number")
+    page_size: int = Field(default=20, description="Records per page")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -169,23 +169,23 @@ class HealthMetric(BaseModel):
 
     name: str = Field(..., description="Metric identifier")
     status: str = Field(
-        "healthy", description="Status: 'healthy' | 'warning' | 'critical'"
+        default="healthy", description="Status: 'healthy' | 'warning' | 'critical'"
     )
-    value: str = Field("", description="Current metric value (stringified)")
-    threshold: str = Field("", description="Health threshold description")
+    value: str = Field(default="", description="Current metric value (stringified)")
+    threshold: str = Field(default="", description="Health threshold description")
     message: Optional[str] = Field(
-        None, description="Warning/error message when unhealthy"
+        default=None, description="Warning/error message when unhealthy"
     )
 
 
 class ErrorCategoryCounts(BaseModel):
     """Error counts for a single time window."""
 
-    llm_errors: int = Field(0)
-    network_errors: int = Field(0)
-    algorithm_errors: int = Field(0)
-    data_errors: int = Field(0)
-    uncategorized: int = Field(0)
+    llm_errors: int = Field(default=0)
+    network_errors: int = Field(default=0)
+    algorithm_errors: int = Field(default=0)
+    data_errors: int = Field(default=0)
+    uncategorized: int = Field(default=0)
 
 
 class ErrorAggregation(BaseModel):
@@ -206,7 +206,7 @@ class PipelineHealthStatus(BaseModel):
     """
 
     overall: str = Field(
-        "healthy", description="Overall: 'healthy' | 'degraded' | 'critical'"
+        default="healthy", description="Overall: 'healthy' | 'degraded' | 'critical'"
     )
     metrics: List[HealthMetric] = Field(
         default_factory=list, description="Individual metrics"

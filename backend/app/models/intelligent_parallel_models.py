@@ -112,7 +112,7 @@ class IntelligentParallelRequest(BaseModel):
         pattern="^[1-6]$",
     )
     max_groups: Optional[int] = Field(
-        None,
+        default=None,
         ge=1,
         le=20,
         description="Maximum number of groups (optional, auto-determined if not specified)",
@@ -147,15 +147,15 @@ class NodeGroup(BaseModel):
     group_name: str = Field(
         ..., description="Auto-generated group name", examples=["对比类概念"]
     )
-    group_emoji: Optional[str] = Field(None, description="Group icon", examples=["📊"])
+    group_emoji: Optional[str] = Field(default=None, description="Group icon", examples=["📊"])
     nodes: List[NodeInGroup] = Field(..., description="Nodes in this group")
     recommended_agent: str = Field(
         ..., description="Recommended agent type", examples=["comparison-table"]
     )
     confidence: Optional[float] = Field(
-        None, ge=0, le=1, description="Recommendation confidence score", examples=[0.85]
+        default=None, ge=0, le=1, description="Recommendation confidence score", examples=[0.85]
     )
-    priority: Optional[GroupPriority] = Field(None, description="Group priority")
+    priority: Optional[GroupPriority] = Field(default=None, description="Group priority")
 
 
 class GroupExecuteConfig(BaseModel):
@@ -204,7 +204,7 @@ class ConfirmRequest(BaseModel):
         description="Group configurations with agent assignments (can override recommendations)",
     )
     max_concurrent: Optional[int] = Field(
-        None,
+        default=None,
         ge=1,
         le=50,
         description="Maximum concurrent executions (optional, scheduler decides if not specified)",
@@ -268,21 +268,21 @@ class IntelligentParallelResponse(BaseModel):
         ..., description="Grouped nodes with recommendations"
     )
     estimated_duration: Optional[str] = Field(
-        None, description="Estimated execution time", examples=["2分钟"]
+        default=None, description="Estimated execution time", examples=["2分钟"]
     )
     resource_warning: Optional[str] = Field(
-        None,
+        default=None,
         description="Resource warning if applicable",
         examples=["CPU使用率较高，建议减少并发数"],
     )
     # Story 33.4 AC-33.4.5: Subject isolation fields (依赖30.8)
     subject: Optional[str] = Field(
-        None,
+        default=None,
         description="Subject extracted from canvas_path using extract_subject_from_canvas_path()",
         examples=["数学"],
     )
     subject_group_id: Optional[str] = Field(
-        None,
+        default=None,
         description=(
             "Subject isolation group_id, D16 vault: 格式。段数随作用域而变: 有请求作用域时"
             "原样透传 ContextVar (vault:<vault_id> 或 vault:<vault_id>:<subject>:<canvas>), "
@@ -292,14 +292,14 @@ class IntelligentParallelResponse(BaseModel):
     )
     # Story 33.4 AC-33.4.3: Clustering quality metrics
     silhouette_score: Optional[float] = Field(
-        None,
+        default=None,
         ge=0,
         le=1,
         description="Clustering quality (Silhouette Score). Recommend re-clustering if < 0.3",
         examples=[0.72],
     )
     recommended_k: Optional[int] = Field(
-        None, description="Auto-determined optimal number of clusters", examples=[4]
+        default=None, description="Auto-determined optimal number of clusters", examples=[4]
     )
 
 
@@ -321,14 +321,14 @@ class SessionResponse(BaseModel):
     )
     total_groups: int = Field(..., description="Total number of groups", examples=[4])
     total_nodes: Optional[int] = Field(
-        None, description="Total number of nodes", examples=[12]
+        default=None, description="Total number of nodes", examples=[12]
     )
     created_at: datetime = Field(..., description="Creation timestamp")
     estimated_completion: Optional[datetime] = Field(
-        None, description="Estimated completion time"
+        default=None, description="Estimated completion time"
     )
     websocket_url: Optional[str] = Field(
-        None,
+        default=None,
         description="WebSocket URL for progress subscription",
         examples=["ws://localhost:8000/ws/intelligent-parallel/parallel-20250118-001"],
     )
@@ -345,9 +345,9 @@ class NodeResult(BaseModel):
 
     node_id: str = Field(..., description="Node ID", examples=["node-001"])
     file_path: Optional[str] = Field(
-        None, description="Generated file path", examples=["逆否命题 vs 否命题.md"]
+        default=None, description="Generated file path", examples=["逆否命题 vs 否命题.md"]
     )
-    file_size: Optional[str] = Field(None, description="File size", examples=["3.2KB"])
+    file_size: Optional[str] = Field(default=None, description="File size", examples=["3.2KB"])
 
 
 class NodeError(BaseModel):
@@ -389,16 +389,16 @@ class PerformanceMetrics(BaseModel):
     """
 
     total_duration_seconds: Optional[float] = Field(
-        None, description="Total duration in seconds", examples=[135]
+        default=None, description="Total duration in seconds", examples=[135]
     )
     average_duration_per_node: Optional[float] = Field(
-        None, description="Average time per node in seconds", examples=[11.25]
+        default=None, description="Average time per node in seconds", examples=[11.25]
     )
     parallel_efficiency: Optional[float] = Field(
-        None, description="Parallel efficiency (speedup ratio)", examples=[7.2]
+        default=None, description="Parallel efficiency (speedup ratio)", examples=[7.2]
     )
     peak_concurrent: Optional[int] = Field(
-        None, description="Peak concurrent executions", examples=[8]
+        default=None, description="Peak concurrent executions", examples=[8]
     )
 
 
@@ -425,13 +425,13 @@ class ProgressResponse(BaseModel):
         default=0, ge=0, le=100, description="Progress percentage"
     )
     created_at: datetime = Field(..., description="Creation timestamp")
-    started_at: Optional[datetime] = Field(None, description="Start timestamp")
-    completed_at: Optional[datetime] = Field(None, description="Completion timestamp")
+    started_at: Optional[datetime] = Field(default=None, description="Start timestamp")
+    completed_at: Optional[datetime] = Field(default=None, description="Completion timestamp")
     groups: List[GroupProgress] = Field(
         default_factory=list, description="Group progress details"
     )
     performance_metrics: Optional[PerformanceMetrics] = Field(
-        None, description="Performance metrics (available after completion)"
+        default=None, description="Performance metrics (available after completion)"
     )
 
     model_config = ConfigDict(populate_by_name=True)
@@ -462,12 +462,12 @@ class SingleAgentResponse(BaseModel):
 
     node_id: str = Field(..., description="Processed node ID", examples=["node-005"])
     file_path: Optional[str] = Field(
-        None,
+        default=None,
         description="Generated file path",
         examples=["离散数学/逻辑表达式-explanation.md"],
     )
     status: SingleAgentStatus = Field(..., description="Execution status")
-    error_message: Optional[str] = Field(None, description="Error message if failed")
+    error_message: Optional[str] = Field(default=None, description="Error message if failed")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -490,7 +490,7 @@ class ParallelErrorResponse(BaseModel):
         examples=["Canvas file '离散数学.canvas' not found"],
     )
     details: Optional[Dict[str, Any]] = Field(
-        None, description="Additional error details"
+        default=None, description="Additional error details"
     )
 
 
@@ -554,9 +554,9 @@ class WSNodeCompleteData(BaseModel):
     """
 
     node_id: str = Field(..., description="Completed node ID", examples=["node-001"])
-    file_path: Optional[str] = Field(None, description="Generated file path")
-    file_size: Optional[str] = Field(None, description="File size", examples=["3.2KB"])
-    group_id: Optional[str] = Field(None, description="Parent group ID")
+    file_path: Optional[str] = Field(default=None, description="Generated file path")
+    file_size: Optional[str] = Field(default=None, description="File size", examples=["3.2KB"])
+    group_id: Optional[str] = Field(default=None, description="Parent group ID")
 
 
 class WSErrorData(BaseModel):
@@ -567,13 +567,13 @@ class WSErrorData(BaseModel):
     [Source: docs/stories/33.2.story.md - AC2, AC5]
     """
 
-    node_id: Optional[str] = Field(None, description="Failed node ID if applicable")
+    node_id: Optional[str] = Field(default=None, description="Failed node ID if applicable")
     error_message: str = Field(..., description="Error message")
-    group_id: Optional[str] = Field(None, description="Parent group ID")
-    error_type: Optional[str] = Field(None, description="Error type classification")
+    group_id: Optional[str] = Field(default=None, description="Parent group ID")
+    error_type: Optional[str] = Field(default=None, description="Error type classification")
     recoverable: bool = Field(default=True, description="Whether error is recoverable")
     retry_after: Optional[int] = Field(
-        None,
+        default=None,
         description="Seconds to wait before retry (for reconnection guidance)",
         examples=[5],
     )
@@ -610,7 +610,7 @@ class WebSocketMessage(BaseModel):
     )
     timestamp: datetime = Field(..., description="Event timestamp")
     data: Optional[Dict[str, Any]] = Field(
-        None, description="Event-specific data payload"
+        default=None, description="Event-specific data payload"
     )
 
     # Note: In Pydantic V2, datetime is automatically serialized to ISO format

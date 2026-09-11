@@ -1,0 +1,23 @@
+=== T14 前提的运行期交叉验证（阶段 1 只有 grep 证据，这次补运行期）===
+  Settings.model_fields 含 OPENAI_API_KEY : False
+  hasattr(settings,"OPENAI_API_KEY")      : False
+  model_config.extra                       : ignore
+  ⇒ provider_factory.py:256 的 `hasattr(settings,"OPENAI_API_KEY") and ...` 恒 False
+  ⇒ openai provider 分支恒不激活 —— T14 前提**运行期坐实**(阶段 1 只有 grep -c=0)
+  验伪锚: 同法测一个真存在的字段 AI_API_KEY -> True (必须 True, 证明判据不是恒 False)
+
+=== 附带发现：conftest.py:667 给不存在的字段赋值 ===
+  真 Settings 上实测: ValueError: "Settings" object has no field "OPENAI_API_KEY"
+  ⇒ 该 fixture 用的不是真 Settings(否则早炸)。这条与本卡无关, 属 U7(tests/conftest.py) 面, 只登记不动。
+
+=== review.py:184 的测试覆盖面 ===
+  提到 _get_or_create_verification_service 的测试文件:
+    tests/integration/test_verification_interactive_e2e.py
+  ⇒ 唯一命中在 tests/integration/(本卡禁跑, 协议 §3 也禁在无 W4 门的树上跑)
+  ⇒ 这解释了为什么一条活的 500 能长期不被发现: 覆盖它的测试不在常跑面内
+
+  tests/unit + tests/api 里有没有碰这 5 个端点的:
+    tests/unit/test_nfr_cache_bounds.py
+    tests/unit/test_verification_service_activation.py
+    tests/unit/test_mock_degradation_transparency.py
+    tests/unit/test_degraded_flag_propagation.py

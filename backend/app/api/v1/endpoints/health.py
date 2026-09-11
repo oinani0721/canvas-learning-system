@@ -44,7 +44,7 @@ from app.models.common import (
     MetricsSummary,
     ResourceMetricsSummary,
 )
-from app.models.schemas import HealthCheckResponse
+from app.models.schemas import HealthCheckResponse, HealthStatus
 from app.services.resource_monitor import get_resource_metrics_snapshot
 from app.utils.cypher_helpers import allow_cross_vault
 
@@ -175,7 +175,10 @@ async def health_check(
         components["neo4j"] = "unavailable"
 
     return HealthCheckResponse(
-        status="healthy",
+        # HealthStatus 是 str Enum, pydantic 对字面量 "healthy" 与枚举成员的
+        # 校验结果逐字相同(都得到 HealthStatus.healthy); 改成枚举只是让静态
+        # 类型对上, 运行期产物不变。
+        status=HealthStatus.healthy,
         app_name=settings.PROJECT_NAME,
         version=settings.VERSION,
         timestamp=datetime.now(timezone.utc),
@@ -612,7 +615,9 @@ async def full_health_check(
     if overall_status == "degraded":
         from fastapi.responses import JSONResponse
 
-        return JSONResponse(status_code=503, content=result)
+        # FastAPI 允许路由函数直接返回 Response 子类(绕过 response_model
+        # 序列化); 本路由无 response_model, 改注解会改 openapi 生成面。
+        return JSONResponse(status_code=503, content=result)  # pyright: ignore[reportReturnType]
 
     return result
 
@@ -670,7 +675,9 @@ class Neo4jHealthResponse(BaseModel):
 
 # Module-level cached Neo4j driver for health checks
 # ✅ Story 30.3 Fix: Reuse driver across health checks to avoid 21s initialization per call
-_cached_neo4j_driver = None
+# 不写注解时 pyright 从 `= None` 推出类型 None, 于是下面 close() 前的
+# 非空守卫把它窄化成 Never。标 Any 保持惰性 import(neo4j 只在函数内导入)。
+_cached_neo4j_driver: Any = None
 _neo4j_driver_uri = None
 
 
@@ -1157,7 +1164,9 @@ async def check_lancedb_health(
 
         return LanceDBHealthResponse(
             status="ok",
-            table_count=len(tables),
+            # lancedb 0.30.2 的 table_names() 运行期返回 list(实测 type 与
+            # __len__ 均在), 声明面写的是 Iterable[str]。只关这一行。
+            table_count=len(tables),  # pyright: ignore[reportArgumentType]
             total_vectors=total_vectors,
             embedding_model=embedding_model,
         )

@@ -1,0 +1,4 @@
+=== 负控 4 的对照组：未变异态跑同一选择面 -k neo4j ===
+闭包内 driver 赋值数（应为 1 = 未变异态自证）: 1
+ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPartialFailureRecovery::test_neo4j_unavailable_fallback
+= 19 failed, 255 passed, 1 skipped, 4727 deselected, 10 warnings, 5 errors in 16.79s =

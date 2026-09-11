@@ -1,0 +1,194 @@
+╭──────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: pre-commit │
+╰──────────────────────────────────────╯
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+│  cypher-vault-filter-lint (skip) no matching staged files
+┃  ghost-files ❯ 
+
+[Ghost Files] No untracked docs found.
+
+┃  mutant-residue-scan ❯ 
+
+[Mutant-Scan] OK (staged additions carry no mutation marker).
+
+│  python-lint (skip) name
+┃  python-typecheck ❯ 
+
+[Python] Running pyright type check (backend/.venv/bin/pyright)...
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/api/v1/endpoints/profile.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/api/v1/endpoints/profile.py:245:30 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/api/v1/endpoints/profile.py:317:30 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/api/v1/endpoints/profile.py:379:30 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/api/v1/endpoints/tips.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/api/v1/endpoints/tips.py:334:59 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/api/v1/endpoints/tips.py:384:59 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/api/v1/endpoints/tips.py:502:20 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/clients/neo4j_client.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/clients/neo4j_client.py:106:42 - warning: Unnecessary isinstance call; "str" is always an instance of "str" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/clients/neo4j_client.py:1225:16 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/clients/neo4j_client.py:1320:16 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/dependencies.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/dependencies.py:448:5 - warning: Function "_get_rollback_service_dep" is not accessed (reportUnusedFunction)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/mcp/tools/infra_tools.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/mcp/tools/infra_tools.py:48:38 - warning: Unnecessary isinstance call; "dict[Unknown, Unknown]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/mcp/tools/memory_tools.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/mcp/tools/memory_tools.py:198:40 - warning: Unnecessary isinstance call; "List[Dict[str, Any]]" is always an instance of "list[Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/mcp/tools/memory_tools.py:201:16 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/middleware/agent_metrics.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/middleware/agent_metrics.py:216:36 - warning: Unnecessary "# type: ignore" comment (reportUnnecessaryTypeIgnoreComment)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/middleware/llm_call_logger.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/middleware/llm_call_logger.py:190:5 - warning: Function "_sanitize_kwargs" is not accessed (reportUnusedFunction)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/middleware/logging_middleware.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/middleware/logging_middleware.py:237:11 - warning: Function "_record_classified_error" is not accessed (reportUnusedFunction)
+0 errors, 16 warnings, 0 informations
+[Python] Typecheck done (exit: 0).
+
+│  readme-claims-lint (skip) no matching staged files
+┃  spec-sync-flat ❯ 
+
+[Spec Sync] API changes detected, regenerating backend/openapi.json (via backend/.venv/bin/python)...
+[92m07:44:55 - LiteLLM:WARNING[0m: get_model_cost_map.py:271 - LiteLLM: Failed to fetch remote model cost map from https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json: socket connect blocked during OpenAPI export (target=('127.0.0.1', 1082)) — check-openapi-drift.py 只允许 import, 不允许 lifespan/网络行为. Falling back to local backup.
+{"event": "LiteLLM: Failed to fetch remote model cost map from https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json: socket connect blocked during OpenAPI export (target=('127.0.0.1', 1082)) \u2014 check-openapi-drift.py \u53ea\u5141\u8bb8 import, \u4e0d\u5141\u8bb8 lifespan/\u7f51\u7edc\u884c\u4e3a. Falling back to local backup.", "logger": "LiteLLM", "level": "warning", "timestamp": "2026-09-07T23:44:55.473080Z"}
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+  from pydantic.v1.fields import FieldInfo as FieldInfoV1
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  import pkg_resources
+Building prefix dict from the default dictionary ...
+Loading model from cache /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/jieba.cache
+Loading model cost 0.252 seconds.
+Prefix dict has been built successfully.
+{"event": "cohere not installed. Cohere API reranking unavailable.", "logger": "agentic_rag.reranking", "level": "info", "timestamp": "2026-09-07T23:44:59.773188Z"}
+{"event": "Agentic RAG module loaded successfully. AGENTIC_RAG_AVAILABLE=True", "logger": "agentic_rag", "level": "info", "timestamp": "2026-09-07T23:44:59.799543Z"}
+{"event": "RAGService: LangGraph/Agentic RAG available. LANGGRAPH_AVAILABLE=True", "logger": "app.services.rag_service", "level": "info", "timestamp": "2026-09-07T23:44:59.799586Z"}
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/api/v1/endpoints/metadata.py:103: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+  canvas_path: str = Query(
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/api/v1/endpoints/metadata.py:177: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+  canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+{"event": "AgentService not available, canvas uses template questions only", "logger": "app.api.v1.endpoints.review", "level": "info", "timestamp": "2026-09-07T23:44:59.925416Z"}
+{"event": "src.rollback not available \u2014 rollback endpoints will return 503", "logger": "app.api.v1.endpoints.rollback", "level": "warning", "timestamp": "2026-09-07T23:44:59.933728Z"}
+{"event": "[MCP] Patched fastapi-mcp anyOf+type schema conflict (v0.4.0 bug)", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-09-07T23:45:00.112334Z"}
+{"event": "[P0-2] Registered 6 read-only MCP tool routes + 14 quarantined (410) stubs", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-09-07T23:45:00.119977Z"}
+{"event": "[MCP] Stripped spurious 'type' from 322 anyOf properties across 205 tools", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-09-07T23:45:00.458374Z"}
+{"event": "No auth config provided, skipping auth setup", "logger": "fastapi_mcp.server", "level": "info", "timestamp": "2026-09-07T23:45:00.459215Z"}
+{"event": "MCP HTTP server listening at /mcp", "logger": "fastapi_mcp.server", "level": "info", "timestamp": "2026-09-07T23:45:00.459244Z"}
+{"event": "[Story 3.2] MCP server mounted at /mcp (streamable HTTP) with canvas-learning tools", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-09-07T23:45:00.459263Z"}
+WROTE: backend/openapi.json (paths=194 schemas=354, x-generated-at=2026-09-07T23:45:00.898564+00:00)
+[Spec Sync] + backend/openapi.json staged
+
+│  spec-sync-root (skip) no matching staged files
+                                      
+  ────────────────────────────────────
+summary: (done in 12.13 seconds)      
+✔️ ghost-files (0.02 seconds)
+✔️ mutant-residue-scan (0.49 seconds)
+✔️ python-typecheck (4.53 seconds)
+✔️ spec-sync-flat (7.09 seconds)
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+╭──────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: commit-msg │
+╰──────────────────────────────────────╯
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+┃  commitlint ❯ 
+
+
+┃  spec-reference ❯ 
+
+[Spec Ref] OK.
+
+                                      
+  ────────────────────────────────────
+summary: (done in 0.29 seconds)       
+✔️ commitlint (0.26 seconds)
+✔️ spec-reference (0.03 seconds)
+╭───────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: post-commit │
+╰───────────────────────────────────────╯
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+[card/u2-pyright-rest 41cc849c] fix(pyright): 阶段1 非共享 45 文件类型层清零 [BATCH-2026-09-07-第十三批 / CARD-PYRIGHT-DEBT-rest]
+ 105 files changed, 50112 insertions(+), 168 deletions(-)
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/ABORTED-models29plus-contract-p1-20260908T072123.txt.partial"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/api-close-p0-20260908T065012.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/api-close-p1-20260908T072123.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/api-open-20260908T064311.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/contract-base-da690bf8-20260908T073100.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/field-positional-after-p1-mech-20260908T065708.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/field-positional-base-20260908T064233.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/field-positional-p1-20260908T072136.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/field-rewrite-models-20260908T064446.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/field-rewrite-phase1-20260908T065642.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/field-rewrite-phase1-20260908T065708.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/field_positional_rewrite.py"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/format-content-proof-20260908T065129.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/format-content-proof-fixpoint-20260908T065213.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/group-p0-20260908T065106.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/group-p1-20260908T072233.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/ignore-list-p1-added.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/ignore-list-p1.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/ignore-table-p1.md"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/lefthook-precommit-raw-20260908T065322.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/models-referencing-tests.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/models29-close-p0-20260908T065012.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/models29-close-p0-nodeids.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/models29-open-20260908T064311.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/models29-open-nodeids.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/models29plus-baseline-nodeids.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/models29plus-close-p1-nodeids.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/models29plus-rollback5-close-p1-20260908T074246.txt"
+ create mode 100755 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/multiset-compare.sh"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/multiset-p0-state1-20260908T065028.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/multiset-p1-state2-20260908T072209.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/negctl-20260908T071928.txt"
+ create mode 100755 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/nodeids.sh"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/openapi-required-diff-p0-20260908T065355.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/openapi-snapshot-precommit-20260908T065240.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/phase1-worklist-20260908T065600.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/pyright-app-base-da690bf8.json"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/pyright-app-base-text-20260908T064228.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/pyright-base-p0-state1.json"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/pyright-base-p1-state2.json"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/pyright-per-pkg-base-20260908T064228.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/pyright-per-pkg-p1-20260908T071828.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/pyright-work-p0-state1.json"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/pyright-work-p1-state2.json"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/rollback5-base-da690bf8-20260908T072925.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/rollback5-base-nodeids.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/rubric-regression-GREEN-20260908T064823.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/rubric-regression-RED-20260908T064734.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/ruff-p1-20260908T072028.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/unit-close-p0-20260908T065012.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/unit-close-p0-nodeids.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/unit-close-p1-20260908T072123.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/unit-close-p1-nodeids.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/unit-open-20260908T064311.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/unit-open-nodeids.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-pyright-rest/unit-red-baseline-nodeids.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-PYRIGHT-DEBT-rest-r1.md"
+ create mode 100644 "_bmad-output/\351\252\214\346\224\266\345\215\225/UAT-CARD-PYRIGHT-DEBT-rest-2026-09-08.md"

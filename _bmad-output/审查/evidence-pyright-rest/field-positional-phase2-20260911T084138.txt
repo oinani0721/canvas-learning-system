@@ -1,0 +1,12 @@
+== 阶段2末 AST 位置默认计数（期望 total 0）==
+DRYRUN total 0 files 0
+
+== 验伪锚：同一脚本在纯净主干树上必须非 0（证明它不是恒 0）==
+DRYRUN total 366 files 27
+  62 /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.mqppFocNbl/backend/app/models/schemas.py
+  34 /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.mqppFocNbl/backend/app/models/intelligent_parallel_models.py
+  32 /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.mqppFocNbl/backend/app/models/exam_models.py
+  31 /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.mqppFocNbl/backend/app/models/memory_schemas.py
+  29 /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.mqppFocNbl/backend/app/models/qa_models.py
+  28 /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.mqppFocNbl/backend/app/models/multimodal_schemas.py
+  25 /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.mqppFocNbl/backend/app/api/v1/endpoints/rag.py

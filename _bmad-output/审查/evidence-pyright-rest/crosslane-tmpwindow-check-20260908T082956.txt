@@ -1,0 +1,29 @@
+=== 跨车道污染核对：U10-A 三个 /tmp 负控窗口 vs 本卡 tests/unit 存档 ===
+窗口一 06:59:14–07:18:58 / 窗口二 07:44:00–07:50:26 / 窗口三 08:19:52–08:24:5x（窗口三未通告本车道）
+
+--- 真信号口径（U10-A 通告的 teardown ERROR 正文）: '新出现 … test-vault'
+  unit-close-p0-nodeids.txt:0
+  unit-close-p1-nodeids.txt:0
+  unit-close-p1r2-nodeids.txt:0
+  unit-open-nodeids.txt:0
+  unit-close-p1-20260908T072123.txt:0
+  unit-close-p0-20260908T065012.txt:0
+  unit-red-baseline-nodeids.txt:0
+  unit-close-p1r2-20260908T075444.txt:0
+  unit-open-20260908T064311.txt:0
+
+--- 验伪锚：该判据看得见吗
+  探针命中数 = 1（必须 1）
+
+--- 决定性判据：四组 nodeid 与红基线的新红('>')数
+  unit-open-nodeids          202 条 | 新红 0
+  unit-close-p0-nodeids      202 条 | 新红 0
+  unit-close-p1-nodeids      202 条 | 新红 0
+  unit-close-p1r2-nodeids    202 条 | 新红 0
+
+--- ⚠️ 宽判据的假阳（记录下来防后人重犯）
+  宽 grep 'test-vault' 命中 4 份存档 × 各 4 行, 全部是 pytest 自身 tmp_path:
+{"path": "/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19157/test_endpoint_exists0/test-vault/CLAUDE.md", "event
+  ↑ 路径根是 /private/var/folders/.../pytest-of-Heishing/, 不是 /tmp/test-vault*
+
+结论: 本卡三个窗口全部未受影响, 无需重跑。

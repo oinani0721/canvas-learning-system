@@ -12,8 +12,6 @@ Strangler Fig Pattern: 所有外部调用（endpoint, dependencies.py）
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 # ── 核心 Agent 服务 ──
 from app.services.agent_service import AgentService, AgentType, AgentResult
 

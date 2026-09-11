@@ -1,0 +1,19 @@
+pwd 自证: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest
+=== (c) 基线树 vs 当前树 各自经应用入口重新生成 openapi, 逐键比 ===
+--- 基线树自证 default_factory=RubricDimension 计数（应 4）: 4
+--- 当前树同计数（应 0）: 1
+base write rc=0
+now write rc=0
+   903318 /tmp/u2-openapi-BASE.json
+   903318 /tmp/u2-openapi-NOW.json
+逐键差异条数（已剔 volatile）= 0
+paths: 194 -> 194 | schemas: 354 -> 354
+
+=== (d) lancedb.connect() 运行期返回类 ===
+  connect() -> lancedb.db.LanceDBConnection
+  isinstance(LanceDBConnection) = True
+  该实例 drop_table 签名: (self, name: 'str', namespace: 'Optional[List[str]]' = None, ignore_missing: 'bool' = False)
+  含 ignore_missing = True
+--- 生产侧绑定点: LanceDBClient._db = lancedb.connect(...)
+900:            self._db = lancedb.connect(self.db_path)
+928:            self._db = lancedb.connect(self.db_path)

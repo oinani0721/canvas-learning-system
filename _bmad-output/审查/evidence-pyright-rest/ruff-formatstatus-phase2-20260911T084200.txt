@@ -1,0 +1,16 @@
+⛔ SUPERSEDED — 已过时：只有 format 状态、无 hunk 级对照；且记录的是 review.py 被弄脏的中间态（其后已 ruff format 修回 clean，见 ruff-judge-v2-*.txt）。后继 → ruff-judge-v2-*.txt
+====================================================================================================
+
+== ruff 配置来源 ==
+99:[tool.ruff]
+101:line-length = 120
+105:[tool.ruff.lint]
+118:[tool.ruff.lint.isort]
+
+== ruff format --check：索引态(改前) vs 工作树(改后)，用 --stdin-filename 保证按真实路径取配置 ==
+review.py                改前=clean 改后=DIRTY
+system.py                改前=DIRTY 改后=DIRTY
+exam_service.py          改前=DIRTY 改后=DIRTY
+
+== 验伪锚：已知主干 dirty 的 system.py 与已知 clean 的 review.py（纯净主干实测）==
+  前面 lint-baseline 实测：system.py=DIRTY, review.py=clean

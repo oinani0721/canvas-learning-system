@@ -20,7 +20,7 @@ Key Features:
 
 import asyncio
 import logging
-from typing import Optional
+from typing import Any, Callable, Optional
 
 from fastapi import WebSocket, WebSocketDisconnect
 
@@ -39,10 +39,11 @@ WEBSOCKET_CLOSE_SESSION_NOT_FOUND = 4004
 
 # Session validator function - to be injected from intelligent_parallel_service
 # This allows checking if a session exists before accepting connection
-_session_validator: Optional[callable] = None
+# ⚠️ 原写 Optional[callable] —— `callable` 是内建**函数**不是类型。
+_session_validator: Optional[Callable[..., Any]] = None
 
 
-def set_session_validator(validator: callable) -> None:
+def set_session_validator(validator: Callable[..., Any]) -> None:
     """
     Set the session validator function.
 

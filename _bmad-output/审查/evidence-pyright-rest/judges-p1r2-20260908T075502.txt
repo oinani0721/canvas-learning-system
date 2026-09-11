@@ -1,0 +1,32 @@
+═══ 分包主判据（r1 整改后）
+== api
+21 errors, 9 warnings, 0 informations
+== clients
+0 errors, 3 warnings, 0 informations
+== mcp
+0 errors, 9 warnings, 0 informations
+== core
+0 errors, 3 warnings, 0 informations
+== models
+0 errors, 2 warnings, 0 informations
+== middleware
+0 errors, 3 warnings, 0 informations
+== root
+0 errors, 3 warnings, 0 informations
+═══ api 过滤
+api 总错 21
+    10 api/v1/endpoints/exam.py
+    7 api/v1/endpoints/review.py
+    4 api/v1/system.py
+剔共享+exam 后 = 0
+═══ ruff
+改动文件数 =       58
+All checks passed!
+check rc=0
+base 漂移       37 | now 漂移       37
+本卡新引入（应空）:
+═══ AST
+positional-default total 14 files 1
+  14 app/api/v1/system.py
+═══ openapi
+DRIFT: none (paths=194 schemas=354)

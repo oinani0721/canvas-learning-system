@@ -445,7 +445,9 @@ async def update_content(
         pattern=r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
         description="Content UUID",
     ),
-    request: MultimodalUpdateRequest = ...,
+    # FastAPI 惯用法: `= ...` 表示「必填 body」(前面有带默认值的参数, 不能省略默认)。
+    # 换成 Body(...) 语义相同但会动 openapi 生成面, 故只关这一行。
+    request: MultimodalUpdateRequest = ...,  # pyright: ignore[reportArgumentType]
 ) -> MultimodalResponse:
     """
     Update multimodal content metadata.

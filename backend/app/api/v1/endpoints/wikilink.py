@@ -25,7 +25,7 @@ wikilink_router = APIRouter()
 
 class BuildRequest(BaseModel):
     vault_path: Optional[str] = Field(
-        None, description="Vault path override (defaults to CANVAS_BASE_PATH)"
+        default=None, description="Vault path override (defaults to CANVAS_BASE_PATH)"
     )
     # Wave-5 Stage B 续 — vault_id 注入 ContextVar 防多 vault 串库
     vault_id: Optional[str] = Field(
@@ -48,7 +48,7 @@ class BuildRequest(BaseModel):
 
 class RefreshRequest(BaseModel):
     changed_files: Optional[list[str]] = Field(
-        None, description="Files changed (None = full rebuild)"
+        default=None, description="Files changed (None = full rebuild)"
     )
     vault_id: Optional[str] = Field(
         default=None,

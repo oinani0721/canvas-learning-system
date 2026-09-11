@@ -1,0 +1,4 @@
+⛔ SUPERSEDED — 0 字节废件：该次调用把 heredoc 误绑到 `tee` 而非 `python`（`python3 - <<'PY' | tee f` 的
+重定向绑在管道最后一个命令上），python 空等 stdin 永不返回，任务于 09:2x 被 TaskStop 停止，`tee` 只留下空文件。
+后继（有效） → per-pkg-complete-20260911T091920.txt
+教训同族：ast-identity-commentfix-20260911T091407.txt。要落盘就写脚本文件，别用 `cmd - <<HEREDOC | tee`。

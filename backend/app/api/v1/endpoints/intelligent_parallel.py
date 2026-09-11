@@ -18,7 +18,7 @@ Provides 5 endpoints:
 
 import asyncio
 import logging
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 # ✅ Verified from Context7:/fastapi/fastapi (topic: APIRouter, HTTPException)
 from fastapi import APIRouter, HTTPException, Path, status
@@ -68,13 +68,19 @@ single_agent_router = APIRouter(
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # Lazy-init singleton with async dep injection (Story 33.9 P0 Fix)
-_service: Optional["IntelligentParallelService"] = None  # type: ignore  # noqa: F821 — 字符串注解, 运行时不求值
+if TYPE_CHECKING:  # pragma: no cover - 仅类型检查期求值
+    from app.services.intelligent_parallel_service import IntelligentParallelService
+
+# 前向引用原本解析不了(该类只在函数内 import, 为的是避开循环 import), 于是
+# 注解退化成 Optional[Unknown], 全部调用点都被判「可能是 None」。改走
+# TYPE_CHECKING: 运行期这一段一行不执行, 循环 import 的顾虑原样保留。
+_service: Optional["IntelligentParallelService"] = None
 _validator_set: bool = False
 _deps_initialized: bool = False
 _deps_lock: asyncio.Lock = asyncio.Lock()  # EPIC-33 P0 Fix #3: prevent race condition
 
 
-def get_service():
+def get_service() -> "IntelligentParallelService":
     """
     Get IntelligentParallelService singleton (sync skeleton).
 
@@ -119,6 +125,8 @@ def get_service():
             except ImportError:
                 pass  # WebSocket module not available
 
+    # 上面的分支要么复用已有单例, 要么刚构造完 —— 两条路都非 None。
+    assert _service is not None, "IntelligentParallelService 单例未构造"
     return _service
 
 

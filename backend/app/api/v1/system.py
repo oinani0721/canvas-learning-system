@@ -344,7 +344,9 @@ async def _probe_with_timeout(
     try:
         result = await asyncio.wait_for(coro, timeout=timeout)
         elapsed = (time.monotonic() - start) * 1000
-        status_map = {
+        # 标注 Literal: dict 字面量默认推 dict[str, str], 而 ComponentHealth.status
+        # 要 Literal["ready","degraded","unavailable"]。取值逐字不变。
+        status_map: dict[str, Literal["ready", "degraded", "unavailable"]] = {
             "healthy": "ready",
             "unknown": "degraded",
             "unhealthy": "unavailable",
@@ -417,7 +419,15 @@ async def detailed_health_check(
 
     from fastapi.responses import JSONResponse
 
-    return JSONResponse(
+    # detailed_health_check 注解为 -> dict, 而函数体只有这一个 return, 返回的是 JSONResponse。
+    # ⛔ 不把注解改成 -> JSONResponse(那才是名实一致的写法), 因为它有两处外溢影响:
+    #   · FastAPI 用返回注解推 response_model —— 实测 openapi.json 里
+    #     /api/v1/system/health/detailed 的 200 响应现在是
+    #     {"type": "object", "additionalProperties": true}, 换成 Response 子类该 schema 会消失;
+    #   · mcp/tools/infra_tools.py 的调用点正是靠"注解是 dict"才保住它那条
+    #     hasattr(resp, "body") 防御分支与随行的 ignore(它自己的注释已写明该前提)。
+    # 两处都属语义/契约面, 不在本类型清理卡内。与阶段 1 health.py / index.py 的处置同形。
+    return JSONResponse(  # pyright: ignore[reportReturnType]
         content={"data": resp.model_dump(), "meta": {"timestamp": now}},
         status_code=status_code,
     )
@@ -538,13 +548,13 @@ class LLMStatsSummary(BaseModel):
     [Source: Story 7.2 Task 3.3]
     """
 
-    total_calls: int = Field(0, description="Total number of LLM calls")
-    total_tokens: int = Field(0, description="Total tokens consumed")
-    total_input_tokens: int = Field(0, description="Total input/prompt tokens")
-    total_output_tokens: int = Field(0, description="Total output/completion tokens")
-    total_cost_usd: float = Field(0.0, description="Total estimated cost in USD")
-    avg_latency_ms: float = Field(0.0, description="Average response latency in ms")
-    success_rate: float = Field(1.0, description="Success rate (0.0 to 1.0)")
+    total_calls: int = Field(default=0, description="Total number of LLM calls")
+    total_tokens: int = Field(default=0, description="Total tokens consumed")
+    total_input_tokens: int = Field(default=0, description="Total input/prompt tokens")
+    total_output_tokens: int = Field(default=0, description="Total output/completion tokens")
+    total_cost_usd: float = Field(default=0.0, description="Total estimated cost in USD")
+    avg_latency_ms: float = Field(default=0.0, description="Average response latency in ms")
+    success_rate: float = Field(default=1.0, description="Success rate (0.0 to 1.0)")
 
 
 class TaskTypeStats(BaseModel):
@@ -554,18 +564,18 @@ class TaskTypeStats(BaseModel):
     """
 
     task_type: str = Field(..., description="Task type identifier")
-    calls: int = Field(0, description="Number of calls")
-    tokens: int = Field(0, description="Total tokens consumed")
-    cost_usd: float = Field(0.0, description="Estimated cost in USD")
+    calls: int = Field(default=0, description="Number of calls")
+    tokens: int = Field(default=0, description="Total tokens consumed")
+    cost_usd: float = Field(default=0.0, description="Estimated cost in USD")
 
 
 class DayStats(BaseModel):
     """Per-day statistics."""
 
     date: str = Field(..., description="Date (YYYY-MM-DD)")
-    calls: int = Field(0, description="Number of calls")
-    tokens: int = Field(0, description="Total tokens consumed")
-    cost_usd: float = Field(0.0, description="Estimated cost in USD")
+    calls: int = Field(default=0, description="Number of calls")
+    tokens: int = Field(default=0, description="Total tokens consumed")
+    cost_usd: float = Field(default=0.0, description="Estimated cost in USD")
 
 
 class ErrorStats(BaseModel):
@@ -574,7 +584,7 @@ class ErrorStats(BaseModel):
     [Source: Story 7.2 Task 3.5]
     """
 
-    total: int = Field(0, description="Total error count")
+    total: int = Field(default=0, description="Total error count")
     by_type: Dict[str, int] = Field(
         default_factory=dict, description="Error count by category"
     )

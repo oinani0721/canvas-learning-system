@@ -1,0 +1,35 @@
+⛔ SUPERSEDED — 已过时：跑在阶段 2 补丁生效之前，面里不含本卡 3 个改动文件。后继 → scope-lint-judge-v2-*.txt（§B，补丁后重跑，39 dirty 全部主干既有）
+====================================================================================================
+
+== merge commit 被 lefthook python-lint(ruff format --check) 拦下 ==
+== 主张：失败项 100% 是主干 286178d8 既有基线，本卡引入 0 条 ==
+工作树: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest   纯净主干树: /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.mqppFocNbl(git archive 286178d8)
+ruff: ruff 0.15.9
+
+-- 1. ruff check（真 lint 规则，非格式）在全部 staged .py 上 --
+staged .py 文件数 = 93
+All checks passed!
+ruff-check-rc=0
+
+-- 2. 工作树 ruff format --check 分类 --
+dirty = 38   clean = 55
+（两类都非空 ⇒ 该判据在本数据上确实能分辨，不是恒真/恒假）
+
+-- 3. 同一批 dirty 文件在纯净主干上复测 --
+主干同样 dirty = 38
+
+-- 4. 主判据：工作树 dirty \ 主干 dirty = 本卡引入的格式问题 --
+本卡引入 = 0 条
+
+-- 5. 真负控：把一个 clean 的 staged 文件人为弄脏，主判据必须抓到它 --
+负控样本 = backend/app/api/v1/endpoints/review_app.py
+跑前 sha256 = 098f37b4193e3a0ad8ab049eecfd6434440b685e25cb27c2ee0c7b991b6f7eb6
+变异后 sha256 = 1a2aca2cdfa936679274fc2e017b0b6f19ef17343a9d01ba6fef9a28aa1be45f
+负控态下『本卡引入』= 1 条:
+backend/app/api/v1/endpoints/review_app.py
+负控结论 = KILLED（判据抓到了人为新增，非恒 0）
+还原后 sha256 = 098f37b4193e3a0ad8ab049eecfd6434440b685e25cb27c2ee0c7b991b6f7eb6
+还原校验 = 逐字节相同 OK
+
+-- 6. 主干全仓基线规模 --
+462 files would be reformatted, 363 files already formatted

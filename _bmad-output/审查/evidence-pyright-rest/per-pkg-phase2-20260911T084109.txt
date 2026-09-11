@@ -1,0 +1,11 @@
+⛔ SUPERSEDED — 已过时：包清单是手抄的 8 个面，漏掉 audit/data/db/exceptions/graphiti/prompts/utils 共 7 个包与 app/security.py，且无完整性锚。后继 → per-pkg-complete-*.txt（包清单由 find 推导 + 两条完整性锚）
+====================================================================================================
+
+== app/api          0 errors, 9 warnings, 0 informations
+== app/clients      0 errors, 3 warnings, 0 informations
+== app/mcp          0 errors, 9 warnings, 0 informations
+== app/core         0 errors, 3 warnings, 0 informations
+== app/models       0 errors, 2 warnings, 0 informations
+== app/middleware   0 errors, 3 warnings, 0 informations
+== app/domains      0 errors, 0 warnings, 0 informations
+== root files    0 errors, 3 warnings, 0 informations

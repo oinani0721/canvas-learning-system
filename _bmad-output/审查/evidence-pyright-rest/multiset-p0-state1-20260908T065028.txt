@@ -1,0 +1,11 @@
+baseline tree = /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.umX5TF2jyj/baseline-p0-state1
+base rc=1
+work rc=1
+base=421 work=356 NEW=6 GONE=71
+NEW 1 ('backend/app/api/v1/endpoints/edges.py', 'reportAttributeAccessIssue', 'Cannot access attribute "delete" for class "LanceDBClient"\n\xa0\xa0Attribute "delete" is unknown')
+NEW 1 ('backend/app/api/v1/endpoints/edges.py', 'reportAttributeAccessIssue', 'Cannot access attribute "get_db" for class "LanceDBClient"\n\xa0\xa0Attribute "get_db" is unknown')
+NEW 1 ('backend/app/api/v1/endpoints/edges.py', 'reportAttributeAccessIssue', 'Cannot access attribute "upsert" for class "LanceDBClient"\n\xa0\xa0Attribute "upsert" is unknown')
+NEW 1 ('backend/app/api/v1/endpoints/metadata.py', 'reportCallIssue', 'No parameter named "ignore_missing"')
+NEW 1 ('backend/app/api/v1/endpoints/metadata.py', 'reportOptionalMemberAccess', '"drop_table" is not a known attribute of "None"')
+NEW 1 ('backend/app/services/rag_service.py', 'reportArgumentType', 'Argument of type "dict[str, Any]" cannot be assigned to parameter "config" of type "RunnableConfig | None" in function "ainvoke"\n\xa0\xa0Type "dict[str, Any]" is not assignable to type "RunnableConfig | None"\n\xa0\xa0\xa0\xa0"dict[str, Any]" is not assignable to "RunnableConfig"\n\xa0\xa0\xa0\xa0"dict[str, Any]" is not assignable to "None"')
+rc=1

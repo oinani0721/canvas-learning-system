@@ -1,0 +1,12 @@
+  SAME LLMStatsSummary  (7 字段)
+  SAME TaskTypeStats  (4 字段)
+  SAME DayStats  (4 字段)
+  SAME ErrorStats  (2 字段)
+  SAME LLMStatsData  (4 字段)
+  SAME LLMStatsMeta  (4 字段)
+  SAME LLMStatsResponse  (2 字段)
+  SAME ComponentHealth  (5 字段)
+
+有差异的模型数 = 0
+验伪锚A  Field(0) vs Field(default=1) 判相同? False   (必须 False，否则本比较抓不到默认值变化)
+对照B    Field(0) vs Field(default=0) 判相同? True   (必须 True，= 本卡机械改写的语义等价性)

@@ -1,0 +1,198 @@
+╭──────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: pre-commit │
+╰──────────────────────────────────────╯
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+│  cypher-vault-filter-lint (skip) no matching staged files
+┃  ghost-files ❯ 
+
+[Ghost Files] No untracked docs found.
+
+┃  mutant-residue-scan ❯ 
+
+[Mutant-Scan] OK (staged additions carry no mutation marker).
+
+┃  python-lint ❯ 
+
+[Python] Running ruff lint...
+All checks passed!
+[Python] Lint OK.
+[Python] Checking format...
+Would reformat: backend/app/api/v1/system.py
+Would reformat: backend/app/services/agent_service.py
+Would reformat: backend/app/services/mastery_engine.py
+Would reformat: backend/app/services/mastery_store.py
+Would reformat: backend/app/services/multimodal_service.py
+Would reformat: backend/scripts/migrate_fsrs_card_states_vault_key_g35.py
+Would reformat: backend/tests/regression/test_learning_event_log.py
+Would reformat: backend/tests/unit/grouping/test_analyze_canvas.py
+Would reformat: backend/tests/unit/test_agent_context_injection.py
+Would reformat: backend/tests/unit/test_agent_memory_trigger.py
+Would reformat: backend/tests/unit/test_agent_service_comparison.py
+Would reformat: backend/tests/unit/test_agent_service_neo4j_memory.py
+Would reformat: backend/tests/unit/test_cache_configuration.py
+Would reformat: backend/tests/unit/test_calibration_tracker.py
+Would reformat: backend/tests/unit/test_canvas_memory_trigger.py
+Would reformat: backend/tests/unit/test_context_enrichment_2hop.py
+Would reformat: backend/tests/unit/test_degraded_flag_propagation.py
+Would reformat: backend/tests/unit/test_enrich_context_vault_isolation.py
+Would reformat: backend/tests/unit/test_event_bus.py
+Would reformat: backend/tests/unit/test_intelligent_parallel_endpoints.py
+Would reformat: backend/tests/unit/test_mastery_fusion.py
+Would reformat: backend/tests/unit/test_mock_degradation_transparency.py
+Would reformat: backend/tests/unit/test_neo4j_health.py
+Would reformat: backend/tests/unit/test_qa_38_4_dual_write_extra.py
+Would reformat: backend/tests/unit/test_rag_multimodal_integration.py
+Would reformat: backend/tests/unit/test_review_mode_support.py
+Would reformat: backend/tests/unit/test_review_service_fsrs.py
+Would reformat: backend/tests/unit/test_s02_entity_types.py
+Would reformat: backend/tests/unit/test_s02_search_upgrade.py
+Would reformat: backend/tests/unit/test_story_1_7_env_config.py
+Would reformat: backend/tests/unit/test_story_30_24_boundary.py
+Would reformat: backend/tests/unit/test_story_38_1_review_fixes.py
+Would reformat: backend/tests/unit/test_story_38_4_dual_write_default.py
+Would reformat: backend/tests/unit/test_story_38_8_fallback_sync.py
+Would reformat: backend/tests/unit/test_study_question_deep_mode.py
+Would reformat: backend/tests/unit/test_subject_isolation.py
+Would reformat: backend/tests/unit/test_supplementary_reranker.py
+Would reformat: backend/tests/unit/test_verification_service_injection.py
+38 files would be reformatted, 55 files already formatted
+[Python] Format check FAILED! Fix: ruff format backend/app/api/v1/endpoints/review_app.py backend/app/api/v1/endpoints/review_overview.py backend/app/api/v1/system.py backend/app/core/display_tz.py backend/app/services/agent_service.py backend/app/services/learning_event_log.py backend/app/services/mastery_engine.py backend/app/services/mastery_store.py backend/app/services/multimodal_service.py backend/app/services/review_service.py backend/lib/agentic_rag/clients/lancedb_client.py backend/scripts/g29_dual_vault_canary.py backend/scripts/g32b_mutation_gates.py backend/scripts/g32cb_mutation_gates.py backend/scripts/g32ccr1_negative_controls.py backend/scripts/g33_mutation_gates.py backend/scripts/lifespan_isolation_guard_probes.py backend/scripts/migrate_fsrs_card_states_vault_key_g35.py backend/scripts/mutation_kill_identity.py backend/scripts/validate_learning_events.py backend/scripts/vault_lint.py backend/tests/contract/conftest.py backend/tests/contract/test_openapi_contract.py backend/tests/regression/test_daily_review_pick.py backend/tests/regression/test_daily_review_run.py backend/tests/regression/test_g3_2_review_ledger.py backend/tests/regression/test_g3_5_vault_keyed_card_states.py backend/tests/regression/test_g3_7_truth_source.py backend/tests/regression/test_g6_9_boundary_matrix.py backend/tests/regression/test_g6_9c_single_tz_source.py backend/tests/regression/test_learning_event_log.py backend/tests/skills/test_skill_portability_lint.py backend/tests/support/authed_client.py backend/tests/support/live_port_guard.py backend/tests/unit/conftest.py backend/tests/unit/grouping/test_analyze_canvas.py backend/tests/unit/test_agent_context_injection.py backend/tests/unit/test_agent_memory_trigger.py backend/tests/unit/test_agent_service_comparison.py backend/tests/unit/test_agent_service_neo4j_memory.py backend/tests/unit/test_agent_templates_smoke.py backend/tests/unit/test_cache_configuration.py backend/tests/unit/test_calibration_tracker.py backend/tests/unit/test_canvas_memory_trigger.py backend/tests/unit/test_chat_endpoint.py backend/tests/unit/test_config_drift.py backend/tests/unit/test_config_neo4j.py backend/tests/unit/test_context_enrichment_2hop.py backend/tests/unit/test_degraded_flag_propagation.py backend/tests/unit/test_deploy_vault_sh.py backend/tests/unit/test_difficulty_matcher.py backend/tests/unit/test_docker_compose_config.py backend/tests/unit/test_enrich_context_vault_isolation.py backend/tests/unit/test_event_bus.py backend/tests/unit/test_health_detailed.py backend/tests/unit/test_intelligent_parallel_endpoints.py backend/tests/unit/test_kg_health.py backend/tests/unit/test_lancedb_cross_vault_drop_g29f1.py backend/tests/unit/test_live_port_guard_contract.py backend/tests/unit/test_mastery_fsrs_projection_boundary.py backend/tests/unit/test_mastery_fusion.py backend/tests/unit/test_mock_degradation_transparency.py backend/tests/unit/test_neo4j_health.py backend/tests/unit/test_qa_38_4_dual_write_extra.py backend/tests/unit/test_rag_multimodal_integration.py backend/tests/unit/test_review_app.py backend/tests/unit/test_review_mode_support.py backend/tests/unit/test_review_overview.py backend/tests/unit/test_review_service_fsrs.py backend/tests/unit/test_s02_entity_types.py backend/tests/unit/test_s02_search_upgrade.py backend/tests/unit/test_startup_health_check.py backend/tests/unit/test_story_1_7_env_config.py backend/tests/unit/test_story_30_24_boundary.py backend/tests/unit/test_story_38_1_review_fixes.py backend/tests/unit/test_story_38_4_dual_write_default.py backend/tests/unit/test_story_38_6_scoring_reliability.py backend/tests/unit/test_story_38_8_fallback_sync.py backend/tests/unit/test_study_question_deep_mode.py backend/tests/unit/test_subject_isolation.py backend/tests/unit/test_supplementary_reranker.py backend/tests/unit/test_sync_batch_auth.py backend/tests/unit/test_sync_exception_classification.py backend/tests/unit/test_system_endpoint_auth.py backend/tests/unit/test_vault_install_manifest.py backend/tests/unit/test_vault_lint.py backend/tests/unit/test_verification_service_injection.py backend/tests/unit/test_wave5_stageb_continued_vault_id_injection.py scripts/cls_forbidden_paths.py scripts/daily_review_pick.py scripts/daily_review_run.py scripts/local_tz.py scripts/verify_vault_install.py
+
+exit status 1┃  python-typecheck ❯ 
+
+[Python] Running pyright type check (backend/.venv/bin/pyright)...
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/api/v1/system.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/api/v1/system.py:355:20 - error: Argument of type "str" cannot be assigned to parameter "status" of type "Literal['ready', 'degraded', 'unavailable']" in function "__init__"
+    Type "str" is not assignable to type "Literal['ready', 'degraded', 'unavailable']"
+      "str" is not assignable to type "Literal['ready']"
+      "str" is not assignable to type "Literal['degraded']"
+      "str" is not assignable to type "Literal['unavailable']" (reportArgumentType)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/api/v1/system.py:420:12 - error: Type "JSONResponse" is not assignable to return type "dict[Unknown, Unknown]"
+    "JSONResponse" is not assignable to "dict[Unknown, Unknown]" (reportReturnType)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/api/v1/system.py:587:25 - error: Argument of type "type[LLMStatsSummary]" cannot be assigned to parameter "default_factory" of type "(() -> _T@Field) | ((dict[str, Any]) -> _T@Field)" in function "Field"
+    Type "type[LLMStatsSummary]" is not assignable to type "(() -> _T@Field) | ((dict[str, Any]) -> _T@Field)"
+      Type "type[LLMStatsSummary]" is not assignable to type "(dict[str, Any]) -> _T@Field"
+        Function accepts too few positional parameters; expected 1 but received 0
+          Extra parameter "total_calls"
+          Extra parameter "total_tokens"
+          Extra parameter "total_input_tokens"
+          Extra parameter "total_output_tokens"
+          Extra parameter "total_cost_usd"
+    ... (reportArgumentType)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/api/v1/system.py:596:25 - error: Argument of type "type[ErrorStats]" cannot be assigned to parameter "default_factory" of type "(() -> _T@Field) | ((dict[str, Any]) -> _T@Field)" in function "Field"
+    Type "type[ErrorStats]" is not assignable to type "(() -> _T@Field) | ((dict[str, Any]) -> _T@Field)"
+      Type "type[ErrorStats]" is not assignable to type "(dict[str, Any]) -> _T@Field"
+        Function accepts too few positional parameters; expected 1 but received 0
+          Extra parameter "total"
+      Type "type[ErrorStats]" is not assignable to type "() -> _T@Field"
+        Extra parameter "total" (reportArgumentType)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/services/agent_service.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/services/agent_service.py:18:8 - error: Import "logging" is not accessed (reportUnusedImport)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/services/agent_service.py:64:28 - warning: Unnecessary "# type: ignore" comment (reportUnnecessaryTypeIgnoreComment)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/services/agent_service.py:257:24 - warning: Unnecessary isinstance call; "str" is always an instance of "str" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/services/agent_service.py:1846:52 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/services/agent_service.py:1890:52 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/services/agent_service.py:2219:13 - error: Variable "source_desc" is not accessed (reportUnusedVariable)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/services/agent_service.py:2499:28 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/services/agent_service.py:2503:28 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/services/agent_service.py:2780:49 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/services/agent_service.py:3190:28 - warning: Unnecessary isinstance call; "AgentType" is always an instance of "AgentType" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/services/agent_service.py:3212:57 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/services/agent_service.py:3678:33 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/services/agent_service.py:3681:55 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/services/agent_service.py:3701:64 - warning: Unnecessary "# type: ignore" comment (reportUnnecessaryTypeIgnoreComment)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/services/agent_service.py:4596:32 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/services/mastery_engine.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/services/mastery_engine.py:26:8 - error: Import "logging" is not accessed (reportUnusedImport)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/services/mastery_engine.py:326:55 - error: Argument of type "None" cannot be assigned to parameter "default" of type "float" in function "_card_attr"
+    "None" is not assignable to "float" (reportArgumentType)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/services/mastery_engine.py:327:57 - error: Argument of type "None" cannot be assigned to parameter "default" of type "float" in function "_card_attr"
+    "None" is not assignable to "float" (reportArgumentType)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/services/mastery_engine.py:336:23 - error: Cannot access attribute "value" for class "float"
+    Attribute "value" is unknown (reportAttributeAccessIssue)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/services/mastery_engine.py:684:47 - error: Argument of type "None" cannot be assigned to parameter "default" of type "float" in function "_card_attr"
+    "None" is not assignable to "float" (reportArgumentType)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/services/mastery_store.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/services/mastery_store.py:15:8 - error: Import "logging" is not accessed (reportUnusedImport)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/services/multimodal_service.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/services/multimodal_service.py:21:8 - error: Import "logging" is not accessed (reportUnusedImport)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/services/multimodal_service.py:300:48 - warning: Unnecessary "# type: ignore" comment (reportUnnecessaryTypeIgnoreComment)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/services/multimodal_service.py:311:49 - error: "LANCZOS" is not a known attribute of module "PIL.Image" (reportAttributeAccessIssue)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/services/multimodal_service.py:1242:13 - error: Variable "cid" is not accessed (reportUnusedVariable)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/services/multimodal_service.py:1378:13 - error: Variable "content_id" is not accessed (reportUnusedVariable)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/services/multimodal_service.py:1424:18 - error: Import "agentic_rag.embedding.embedding_service" could not be resolved (reportMissingImports)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/services/multimodal_service.py:1550:17 - error: Variable "content_id" is not accessed (reportUnusedVariable)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/services/review_service.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/services/review_service.py:64:8 - error: Import "logging" is not accessed (reportUnusedImport)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/services/review_service.py:91:9 - error: Import "CardState" is not accessed (reportUnusedImport)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/services/review_service.py:718:44 - warning: Unnecessary isinstance call; "ReviewStatus" is always an instance of "ReviewStatus" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/services/review_service.py:1240:49 - error: Cannot access attribute "get_canvas" for class "CanvasService"
+    Attribute "get_canvas" is unknown (reportAttributeAccessIssue)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/services/review_service.py:1250:9 - error: Variable "mastery_lookup" is not accessed (reportUnusedVariable)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/services/review_service.py:1274:13 - error: Variable "mastery_lookup" is not accessed (reportUnusedVariable)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/services/review_service.py:1507:64 - error: Cannot access attribute "value" for class "int"
+    Attribute "value" is unknown (reportAttributeAccessIssue)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/services/review_service.py:1630:31 - error: Variable "review_log" is not accessed (reportUnusedVariable)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/services/review_service.py:1721:47 - error: Cannot access attribute "value" for class "int"
+    Attribute "value" is unknown (reportAttributeAccessIssue)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/services/review_service.py:1924:24 - warning: Unnecessary isinstance call; "str" is always an instance of "str" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/services/review_service.py:2122:28 - error: Arguments missing for parameters "canvas_path", "from_node_id", "to_node_id" (reportCallIssue)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/services/review_service.py:2123:17 - error: No parameter named "canvas_name" (reportCallIssue)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/services/review_service.py:2124:17 - error: No parameter named "from_node" (reportCallIssue)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/services/review_service.py:2125:17 - error: No parameter named "to_node" (reportCallIssue)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/services/review_service.py:2126:17 - error: No parameter named "label" (reportCallIssue)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/services/review_service.py:2792:43 - error: Cannot access attribute "value" for class "int"
+    Attribute "value" is unknown (reportAttributeAccessIssue)
+32 errors, 16 warnings, 0 informations
+[Python] Type errors found! Review and fix before committing.
+[Python] Hint: Some errors may be pre-existing. Focus on YOUR changes.
+[Python] Typecheck done (exit: 1).
+
+exit status 1│  readme-claims-lint (skip) no matching staged files
+┃  spec-sync-flat ❯ 
+
+[Spec Sync] API changes detected, regenerating backend/openapi.json (via backend/.venv/bin/python)...
+[92m08:28:47 - LiteLLM:WARNING[0m: get_model_cost_map.py:271 - LiteLLM: Failed to fetch remote model cost map from https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json: socket connect blocked during OpenAPI export (target=('127.0.0.1', 1082)) — check-openapi-drift.py 只允许 import, 不允许 lifespan/网络行为. Falling back to local backup.
+{"event": "LiteLLM: Failed to fetch remote model cost map from https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json: socket connect blocked during OpenAPI export (target=('127.0.0.1', 1082)) \u2014 check-openapi-drift.py \u53ea\u5141\u8bb8 import, \u4e0d\u5141\u8bb8 lifespan/\u7f51\u7edc\u884c\u4e3a. Falling back to local backup.", "logger": "LiteLLM", "level": "warning", "timestamp": "2026-09-11T00:28:47.993867Z"}
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+  from pydantic.v1.fields import FieldInfo as FieldInfoV1
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  import pkg_resources
+Building prefix dict from the default dictionary ...
+Loading model from cache /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/jieba.cache
+Loading model cost 0.370 seconds.
+Prefix dict has been built successfully.
+{"event": "cohere not installed. Cohere API reranking unavailable.", "logger": "agentic_rag.reranking", "level": "info", "timestamp": "2026-09-11T00:28:54.608529Z"}
+{"event": "Agentic RAG module loaded successfully. AGENTIC_RAG_AVAILABLE=True", "logger": "agentic_rag", "level": "info", "timestamp": "2026-09-11T00:28:54.655032Z"}
+{"event": "RAGService: LangGraph/Agentic RAG available. LANGGRAPH_AVAILABLE=True", "logger": "app.services.rag_service", "level": "info", "timestamp": "2026-09-11T00:28:54.655119Z"}
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/api/v1/endpoints/metadata.py:103: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+  canvas_path: str = Query(
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u2-pyright-rest/backend/app/api/v1/endpoints/metadata.py:177: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+  canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+{"event": "AgentService not available, canvas uses template questions only", "logger": "app.api.v1.endpoints.review", "level": "info", "timestamp": "2026-09-11T00:28:54.931801Z"}
+{"event": "src.rollback not available \u2014 rollback endpoints will return 503", "logger": "app.api.v1.endpoints.rollback", "level": "warning", "timestamp": "2026-09-11T00:28:54.950377Z"}
+{"event": "[MCP] Patched fastapi-mcp anyOf+type schema conflict (v0.4.0 bug)", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-09-11T00:28:55.387359Z"}
+{"event": "[P0-2] Registered 6 read-only MCP tool routes + 14 quarantined (410) stubs", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-09-11T00:28:55.404372Z"}
+{"event": "[MCP] Stripped spurious 'type' from 323 anyOf properties across 206 tools", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-09-11T00:28:56.169847Z"}
+{"event": "No auth config provided, skipping auth setup", "logger": "fastapi_mcp.server", "level": "info", "timestamp": "2026-09-11T00:28:56.171405Z"}
+{"event": "MCP HTTP server listening at /mcp", "logger": "fastapi_mcp.server", "level": "info", "timestamp": "2026-09-11T00:28:56.171470Z"}
+{"event": "[Story 3.2] MCP server mounted at /mcp (streamable HTTP) with canvas-learning tools", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-09-11T00:28:56.171501Z"}
+WROTE: backend/openapi.json (paths=195 schemas=355, x-generated-at=2026-09-11T00:28:56.991623+00:00)
+[Spec Sync] + backend/openapi.json staged
+
+│  spec-sync-root (skip) no matching staged files
+                                      
+  ────────────────────────────────────
+summary: (done in 17.13 seconds)      
+✔️ ghost-files (0.03 seconds)
+✔️ mutant-residue-scan (1.93 seconds)
+✔️ spec-sync-flat (11.18 seconds)
+🥊 python-lint (0.05 seconds)
+🥊 python-typecheck (3.93 seconds)

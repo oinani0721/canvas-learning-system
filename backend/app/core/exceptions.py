@@ -4,6 +4,8 @@ Custom exceptions for Canvas Learning System.
 [Source: docs/architecture/EPIC-11-BACKEND-ARCHITECTURE.md#异常层次结构]
 """
 
+from typing import Optional
+
 
 class CanvasException(Exception):
     """Canvas操作基础异常"""
@@ -22,7 +24,7 @@ class CanvasNotFoundException(CanvasException):
 class NodeNotFoundException(CanvasException):
     """节点未找到"""
 
-    def __init__(self, node_id: str, canvas_name: str = None):
+    def __init__(self, node_id: str, canvas_name: Optional[str] = None):
         self.node_id = node_id
         self.canvas_name = canvas_name
         msg = f"Node '{node_id}' not found"
@@ -34,7 +36,7 @@ class NodeNotFoundException(CanvasException):
 class ValidationError(CanvasException):
     """数据验证错误"""
 
-    def __init__(self, message: str, field: str = None):
+    def __init__(self, message: str, field: Optional[str] = None):
         self.field = field
         self.message = message
         super().__init__(message)
