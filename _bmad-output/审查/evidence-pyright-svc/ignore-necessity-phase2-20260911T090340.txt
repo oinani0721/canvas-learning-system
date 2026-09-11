@@ -1,0 +1,12 @@
+BEARING app/services/review_service.py:1243 [reportAttributeAccessIssue] —— 摘掉后该行该 rule 重新报出
+BEARING app/services/review_service.py:1613 [reportArgumentType] —— 摘掉后该行该 rule 重新报出
+REDUNDANT app/services/review_service.py:2137 [reportCallIssue] —— 摘掉后该行该 rule **没有**重新报出
+BEARING app/services/review_service.py:2138 [reportCallIssue] —— 摘掉后该行该 rule 重新报出
+BEARING app/services/review_service.py:2139 [reportCallIssue] —— 摘掉后该行该 rule 重新报出
+BEARING app/services/review_service.py:2140 [reportCallIssue] —— 摘掉后该行该 rule 重新报出
+BEARING app/services/review_service.py:2141 [reportCallIssue] —— 摘掉后该行该 rule 重新报出
+BEARING app/services/multimodal_service.py:1427 [reportMissingImports] —— 摘掉后该行该 rule 重新报出
+BEARING app/services/learning_context_service.py:205 [reportCallIssue] —— 摘掉后该行该 rule 重新报出
+
+合计: 承重 8 / 9，不承重或异常 1
+rc=1

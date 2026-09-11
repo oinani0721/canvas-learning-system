@@ -1,0 +1,15 @@
+### 权威差集：收工(81c57528，对 ccd2a4d1 已 AST 等价自证) vs 干净基线(568de82a，独立 worktree)
+基线存档: _bmad-output/审查/evidence-pyright-svc/unit-clean-baseline-568de82a-20260911T091229.txt
+收工存档: _bmad-output/审查/evidence-pyright-svc/unit-phase2-close-81c57528-20260911T090558.txt
+
+基线 nodeid: 64
+收工 nodeid: 64
+
+## diff（'<' = 转绿，允许；'>' = 本卡新引入，必须 0）
+diff rc=0
+
+## '>' 行计数（判据：必须 0）
+0
+
+## 验伪锚：证明 diff 确实在比对内容（故意与污染基线比，应看到 2 条差异）
+1

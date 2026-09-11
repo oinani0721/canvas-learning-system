@@ -1,0 +1,18 @@
+### 开工基线污染的独立旁证
+### 对照源: 主 session 候选树裁判存档 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/审查/evidence-b13-integ/unit-integ5-20260911T010612.nodeids
+### ⚠️ 该存档跑在 worktree batch13-integ5（branch tip f198ac25），与本卡 merge base 286178d8
+###    有 110 个文件差异 ⇒ 只作旁证，不作本卡基线。
+
+## 两者 nodeid 集合 diff（'<' = 只在 integ5，'>' = 只在我的污染基线）
+33d32
+< FAILED tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422
+42a42
+> FAILED tests/unit/test_epic32_p0_fixes.py::TestP01FSRSManagerDI::test_dependencies_injects_fsrs_manager
+diff rc=1
+
+## 解读
+  '<' test_candidate_service::test_accept_candidate_already_accepted_returns_422
+      = PHASE2-READY.md 末节明文登记的『flaky 两处』之一，按噪声。
+  '>' test_epic32_p0_fixes::TestP01FSRSManagerDI::test_dependencies_injects_fsrs_manager
+      = 本卡开工基线的污染产物。主 session 在干净候选树上该条为**绿**，
+        独立证实『它在干净树上本来就过』，与本卡 §十四.4 的 inspect.getsource 行号漂移诊断一致。

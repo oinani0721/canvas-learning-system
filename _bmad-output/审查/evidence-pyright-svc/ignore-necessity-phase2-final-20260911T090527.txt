@@ -1,0 +1,13 @@
+### ignore 承重门（阶段 2，HEAD=81c57528）
+### 判据 = 摘掉某条后，pyright 必须在**同一行**重报**同一条 rule**
+BEARING app/services/review_service.py:1243 [reportAttributeAccessIssue] —— 摘掉后该行该 rule 重新报出
+BEARING app/services/review_service.py:1613 [reportArgumentType] —— 摘掉后该行该 rule 重新报出
+BEARING app/services/review_service.py:2141 [reportCallIssue] —— 摘掉后该行该 rule 重新报出
+BEARING app/services/review_service.py:2142 [reportCallIssue] —— 摘掉后该行该 rule 重新报出
+BEARING app/services/review_service.py:2143 [reportCallIssue] —— 摘掉后该行该 rule 重新报出
+BEARING app/services/review_service.py:2144 [reportCallIssue] —— 摘掉后该行该 rule 重新报出
+BEARING app/services/multimodal_service.py:1427 [reportMissingImports] —— 摘掉后该行该 rule 重新报出
+BEARING app/services/learning_context_service.py:205 [reportCallIssue] —— 摘掉后该行该 rule 重新报出
+
+合计: 承重 8 / 8，不承重或异常 0
+rc=0

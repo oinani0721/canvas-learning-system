@@ -1,0 +1,15 @@
+### 纯注释改动的等价自证（17 处 -> 15 处）
+### 目的：证明 tests/unit 在 81c57528 上那次跑对新 HEAD 仍有效
+文本相同      : False   (False = 确有改动)
+行数相同      : True   (True = 零行号漂移)
+AST dump 相同 : True   (True = 语法树等价)
+
+### git diff -U0 全文
+diff --git a/backend/app/services/review_service.py b/backend/app/services/review_service.py
+index 00e7b860..645cdfc0 100644
+--- a/backend/app/services/review_service.py
++++ b/backend/app/services/review_service.py
+@@ -1241 +1241 @@ class ReviewService:
+-        # 的 docstring 示例块内, 端点 review.py:759 是同名但自建实现 —— 仅 17 处 mock 测试
++        # 的 docstring 示例块内, 端点 review.py:759 是同名但自建实现 —— 仅 15 处 mock 测试
+

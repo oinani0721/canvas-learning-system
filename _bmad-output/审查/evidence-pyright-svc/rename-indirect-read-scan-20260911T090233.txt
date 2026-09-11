@@ -1,0 +1,29 @@
+### 7 处 _ 前缀重命名：间接读取面扫描
+### 目的: 证明 locals()/eval/globals()/vars() 不会把这些名字读回去
+
+--- agent_service.py ---
+  locals(): 0
+  globals(): 0
+  vars(): 0
+  eval(: 0
+  exec(: 0
+--- multimodal_service.py ---
+  locals(): 0
+  globals(): 0
+  vars(): 0
+  eval(: 0
+  exec(: 0
+--- review_service.py ---
+  locals(): 0
+  globals(): 0
+  vars(): 0
+  eval(: 0
+  exec(: 0
+
+### 验伪锚: 证明 grep 能命中已知正例（difficulty_matcher 里有 dir()）
+239:                f"[Story 7.4] Failed to parse difficulty estimate: {e}, raw='{raw if 'raw' in dir() else 'N/A'}'"
+
+### 旧名在各自文件里的剩余出现（应为 0，除注释）
+  source_desc: backend/app/services/agent_service.py:2 backend/app/services/react_agent.py:2 
+  mastery_lookup: 
+  review_log: 

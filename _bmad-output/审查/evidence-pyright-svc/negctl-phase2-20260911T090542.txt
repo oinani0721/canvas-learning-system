@@ -1,0 +1,17 @@
+### 负控（阶段 2，HEAD=81c57528）三种修复手法各一条
+### 判据 = 那条**原消息逐字重现**，不是「有失败」
+REPRODUCED [删死 import] app/services/agent_service.py
+    期望消息片段: Import "logging" is not accessed
+    命中条数: 1
+    sha 跑前=e943423f10d3f502 变异后=39f33d69f66a71ad 还原后=e943423f10d3f502 （跑前==还原后: True）
+REPRODUCED [Optional 注解] app/services/canvas_service.py
+    期望消息片段: Expression of type "None" cannot be assigned to parameter of type "str"
+    命中条数: 1
+    sha 跑前=0e9897aef3220a42 变异后=091969aba8cdd277 还原后=0e9897aef3220a42 （跑前==还原后: True）
+REPRODUCED [常量迁移] app/services/multimodal_service.py
+    期望消息片段: "LANCZOS" is not a known attribute of module "PIL.Image"
+    命中条数: 1
+    sha 跑前=65c1a32d0ca92aa7 变异后=0e369d4816bf4850 还原后=65c1a32d0ca92aa7 （跑前==还原后: True）
+
+合计: 3/3 条负控重现原消息
+rc=0
