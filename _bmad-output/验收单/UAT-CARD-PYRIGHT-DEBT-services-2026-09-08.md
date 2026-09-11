@@ -748,7 +748,7 @@ Codex r4 的总判原文：
 ### 十三.1 本卡阶段 2 面：**42 条诊断**（来自 24 处编辑）—— 两个口径分开写
 
 ⚠️ v2 初稿把「编辑处数」当成「诊断条数」写成了 24，被 Codex L-4 指出（表内相加是 34，也不对）。
-现按**诊断身份**重算（`phase2-cleared-breakdown-*.txt`，base 77 → final 35）：
+现按**诊断身份**重算（`phase2-cleared-breakdown-20260911T093318.txt`，base 77 → final 35）：
 
 ```
 CLEARED = 42   NEW = 0
@@ -772,7 +772,7 @@ CLEARED = 42   NEW = 0
 | litellm 联合类型 `cast` | 2 | 2 | 照抄阶段 1 先例，**不用 assert** |
 | `getattr` 动态取属性标注 `Any` | 3 | 3 | — |
 | **真缺陷：行级 ignore + TAIL** | **7** | **9** | get_canvas(1) / EdgeRelationship(5：4 kwarg + 1 连带的缺必填参数) / search_memories(1) / embedding 死 import(1)；另 1 处是 `int(rating)` 防御性转换（非缺陷） |
-| 计 | **24 处编辑** | **42 条诊断** | 与 `phase2-cleared-breakdown-*.txt` 逐条一致 |
+| 计 | **24 处编辑** | **42 条诊断** | 与 `phase2-cleared-breakdown-20260911T093318.txt` 逐条一致 |
 
 ### 十三.2 残余 35 条的构成（实算，不自述）
 
@@ -1057,10 +1057,10 @@ File or directory ".../agent_service.py%20app/services/..." does not exist
 | commit | 内容 | hook 跳过 | 存档 |
 |---|---|---|---|
 | `568de82a` | merge 主干 `286178d8` | — | — |
-| `0188c4e5` | 共享 10 文件 22 条 | `python-lint`(格式段) + `python-typecheck` | `lefthook-blocked-raw-phase2-20260911T084608.txt` ⚠️**已截断**（`tail -30`），完整版见 `lefthook-blocked-raw-FULL-ccd2a4d1-*.txt` |
+| `0188c4e5` | 共享 10 文件 22 条 | `python-lint`(格式段) + `python-typecheck` | `lefthook-blocked-raw-phase2-20260911T084608.txt` ⚠️**已截断**（`tail -30`），完整版见 `lefthook-blocked-raw-FULL-ccd2a4d1-20260911T093347.txt` |
 | `9a6c82e6` | 补 2 条误归真缺陷 | 同上 | `lefthook-blocked-raw-phase2b-20260911T085410.txt` ⚠️**已截断**，同上 |
 | `81c57528` | 删 1 条冗余 ignore | 同上 | 同上 |
-| `ccd2a4d1` | 注释数字 17→15 | 同上 | `lefthook-blocked-raw-FULL-ccd2a4d1-*.txt`（**完整未截断**：11 文件、可见 18 error 行 = 汇总行 18、不属 U2 面的 error = 0） |
+| `ccd2a4d1` | 注释数字 17→15 | 同上 | `lefthook-blocked-raw-FULL-ccd2a4d1-20260911T093347.txt`（**完整未截断**：11 文件、可见 18 error 行 = 汇总行 18、不属 U2 面的 error = 0） |
 | `d7790f4b` 起 | 仅 `_bmad-output` 文档 | 无（文档不触发 python hook） | — |
 
 **跳过理由（两条都须成立）**：
@@ -1187,11 +1187,11 @@ File or directory ".../agent_service.py%20app/services/..." does not exist
 |---|---|---|---|---|
 | M-1 | MEDIUM | `difficulty_matcher.py:234` 的 `cast(str, …)` 隐藏了可空内容的类型债，不能称为已证明安全的窄化 | **部分成立**。实测该 try 有**两个** handler：`except (ValueError,TypeError,IndexError)` 和 `except Exception as e: logger.error(...)` ⇒ `content is None` 时的 `AttributeError` 被**第二个**接住、记 error 日志、回落 `0.5`。所以我注释里「except 把 `{e}` 写进日志，AssertionError 空消息会丢原因」的**结论成立**，只是指的是第二个 handler。Codex 真正的点是「cast 不证明安全」—— 我从未声称安全，只声称**行为不变**。 | **采信为 caveat**：类型债仍在（content 可为 None），已写进 §十八「本卡未证明什么」。代码不改（改需一轮预算，已无） |
 | M-2 | MEDIUM | 「生产零调用方／传递性零曝光」超出证据；应说「未发现直接生产调用，动态可达性未证」 | **成立**。我的依据是 `grep -F '.generate_verification_canvas('` + AST，覆盖不到别名取用、回调注册、字符串反射、路由表注入。 | **采信**。本验收单全文的措辞已按此改（§十五 / §十六.1 / §十九）。⚠️ 代码注释里仍是旧措辞 —— 改注释 = 改代码 = 需再一轮，已无预算，**列为主 session 授权后的待改项**（§二十.2） |
-| M-3 | MEDIUM | hook 存档不支持「完整原始输出、报错全部 PEND0」：可见 15 errors / 11 warnings 而汇总说 19 / 20；且含已登记为真缺陷的 `embedding_service` | **成立，根因是我用了 `tail -30` 截断**。 | **已修**：补一份未截断的 `lefthook-blocked-raw-FULL-ccd2a4d1-*.txt`（11 文件、可见 18 error 行 = 汇总行 18、不属 U2 面的 error = 0）。原两份保留并标注「已截断，见 FULL 版」 |
+| M-3 | MEDIUM | hook 存档不支持「完整原始输出、报错全部 PEND0」：可见 15 errors / 11 warnings 而汇总说 19 / 20；且含已登记为真缺陷的 `embedding_service` | **成立，根因是我用了 `tail -30` 截断**。 | **已修**：补一份未截断的 `lefthook-blocked-raw-FULL-ccd2a4d1-20260911T093347.txt`（11 文件、可见 18 error 行 = 汇总行 18、不属 U2 面的 error = 0）。原两份保留并标注「已截断，见 FULL 版」 |
 | L-1 | LOW | `canvas_service.py:341` 的「同被 except 捕获所以逐字不变」不成立：None 到达时日志原因会从 AttributeError 文本变成空字符串 | **成立**。`assert` 无消息 ⇒ `f"...: {e}"` 渲染成空。 | **采信**。注释措辞待改（同 M-2，列 §二十.2）。实质影响：仅日志文本，且调用链 `:264` 已守卫 ⇒ 生产不可达 |
 | L-2 | LOW | 删 `CardState` 含运行期模块接口变化，不能叫纯注解改动 | **成立**。删除 import + except 兜底赋值会移除模块属性 `review_service.CardState`。 | **采信**。§十三.1 的分类已从「纯注解」拆出「死符号（含模块属性移除）」 |
 | L-3 | LOW | Pillow **9.4 已撤销** `Image.LANCZOS` 的弃用；这是等值替换而非弃用迁移 | **成立，已本机实测**：Pillow 12.3.0 访问 `Image.LANCZOS` 产生 **0 个 warning**，值为裸 int `1`。 | **采信**。本验收单与 commit 里「官方弃用信号」的说法**更正为**：运行期常量未弃用，但 **type stub 不声明它**、`thumbnail()` 签名要求 `Resampling` ⇒ 这是为对齐类型声明做的**等值替换**（`==` 为 True 已实测） |
-| L-4 | LOW | 数量混用：表内相加是 34 而非 24；「8 条中 6 条」实为 7 条对应 4 类；`GONE=220` 对应旧的 `420→200`，若最终是 `420→198` 则应为 **222** | **全部成立**。 | **已修**：① 按**诊断身份**重算，阶段 2 实际消掉 **42 条**（`phase2-cleared-breakdown-*.txt`），原表是「编辑处数」，已分列两栏；② ignore 里带 ⛔ 的是 **7 条**、对应 **4 类**缺陷；③ 在最终 HEAD 重跑多重集：**`base=420 work=198 NEW=0 GONE=222`**（`multiset-286178d8-vs-ccd2a4d1-*.txt`），Codex 的 222 推算正确 |
+| L-4 | LOW | 数量混用：表内相加是 34 而非 24；「8 条中 6 条」实为 7 条对应 4 类；`GONE=220` 对应旧的 `420→200`，若最终是 `420→198` 则应为 **222** | **全部成立**。 | **已修**：① 按**诊断身份**重算，阶段 2 实际消掉 **42 条**（`phase2-cleared-breakdown-20260911T093318.txt`），原表是「编辑处数」，已分列两栏；② ignore 里带 ⛔ 的是 **7 条**、对应 **4 类**缺陷；③ 在最终 HEAD 重跑多重集：**`base=420 work=198 NEW=0 GONE=222`**（`multiset-286178d8-vs-ccd2a4d1-*.txt`），Codex 的 222 推算正确 |
 
 ### 二十.2 待主 session 授权后才改的注释（改动即需再送一轮，本卡族已无预算）
 
