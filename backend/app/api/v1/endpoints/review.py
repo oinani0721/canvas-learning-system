@@ -181,7 +181,14 @@ async def _get_or_create_verification_service():
         if settings.AI_API_KEY:
             gemini_client = GeminiClient(
                 api_key=settings.AI_API_KEY,
-                model=settings.AI_MODEL_NAME,
+                # ⚠️ 真 bug 未修: GeminiClient.__init__ 无 model 形参也无 **kwargs ⇒ 本行抛 TypeError。
+                # 本函数 try 的 except 元组 (ImportError, RuntimeError, AttributeError) 接不住它,
+                # 而本块位于 `if settings.AI_API_KEY:` 内 ⇒ 该键非空时必进
+                # ⇒ 调用 _get_or_create_verification_service() 的 5 个 verification-session 端点全 500。
+                # 正解 = 删掉 model= 这一行 —— dependencies.py 的两处同形代码已经这么做了
+                # (留有 "model not passed — GeminiClient.model property reads Settings dynamically")。
+                # 但那是修 bug 不是类型清理, 归 review 语义卡。
+                model=settings.AI_MODEL_NAME,  # pyright: ignore[reportCallIssue]
                 base_url=settings.AI_BASE_URL if settings.AI_BASE_URL else None,
             )
         neo4j_client = get_neo4j_client_dep()
@@ -235,7 +242,17 @@ except ImportError:
 # AI-enhanced question generation for verification canvas
 try:
     from app.clients.gemini_client import GeminiClient
-    from app.core.config import get_settings
+
+    # ⛔ 死 import: app.core.config 不存在(真名 app.config) ⇒ 本 try 恒 ImportError
+    # ⇒ _ai_question_available = False ⇒ _generate_ai_questions 整个函数体是死码。
+    # ⛔ 单修本行会激活死码, 随即撞该函数里 GeminiClient(model=) 的 TypeError
+    # (它的 except 元组同样不含 TypeError, 调用点 generate_verification_canvas 外层也无 try)。
+    # ⚠️ 但触发是有条件的, 不是无条件: _generate_ai_questions 开头有
+    #    `if not _ai_question_available or not nodes_to_review: return None` 与
+    #    `if not settings.AI_API_KEY: return None` 两道早返回
+    #    ⇒ 只在「AI_API_KEY 非空且确有待复习节点」时 POST /review/generate 才 500。
+    # 要不要复活 AI 出题分支 = 产品裁定, 归 review 语义卡。
+    from app.core.config import get_settings  # pyright: ignore[reportMissingImports]
     from app.services.agent_service import AgentService, AgentType
 
     _ai_question_available = True
@@ -405,7 +422,9 @@ async def _generate_ai_questions(
 
         gemini_client = GeminiClient(
             api_key=settings.AI_API_KEY,
-            model=settings.AI_MODEL_NAME,
+            # 与 _get_or_create_verification_service 里那行同因(GeminiClient 无 model 形参);
+            # 区别在本函数整体位于死码内 —— 上面那道死 import 让 _ai_question_available 恒 False。
+            model=settings.AI_MODEL_NAME,  # pyright: ignore[reportCallIssue]
             base_url=settings.AI_BASE_URL if settings.AI_BASE_URL else None,
         )
         agent_service = AgentService(gemini_client=gemini_client)
@@ -846,7 +865,18 @@ async def generate_verification_canvas(
         nodes_to_review = [
             n
             for n in nodes_to_review
-            if not (n.get("id") in difficulty_map and difficulty_map[n.get("id")].is_mastered)
+            # 海象提取: 原式 `n.get("id") in difficulty_map and difficulty_map[n.get("id")].is_mastered`
+            # 两次调用 n.get("id"), pyright 看不见两次结果相同, 故第二次的键被判成 str | None。
+            # 等价性依据(三条都可证, 不是"大概"):
+            #   · dict.get 无副作用 ⇒ 求值 2→1 等价;
+            #   · 新增的 `is not None` 不改变分支 —— difficulty_map 的唯一键填充处在
+            #     _get_difficulty_data 里, 形如 `if nid and diff is not None: difficulty_map[nid] = diff`,
+            #     None 与空串都进不了键集, 故原式的 `None in dict` 恒 False, 与新式同落 False;
+            #   · 短路点逐条对应, 异常行为不变。
+            # ⚠️ 已知副作用(无害): 推导式里的海象会把 nid 绑到外层函数作用域;
+            #    generate_verification_canvas 内无同名局部变量(全文件 nid 只在本处与
+            #    _get_difficulty_data 内出现), 故不覆盖任何东西。
+            if not ((nid := n.get("id")) is not None and nid in difficulty_map and difficulty_map[nid].is_mastered)
         ]
         skipped_mastered_count = pre_filter_count - len(nodes_to_review)
         if skipped_mastered_count > 0:
@@ -1540,7 +1570,12 @@ async def get_session_progress(session_id: str) -> SessionProgressResponse:
             )
 
         # Convert VerificationProgress dataclass to Pydantic response
-        progress_dict = progress.to_dict()
+        # ⚠️ 真 bug 未修: VerificationService.get_progress 的签名与实现都返回 Dict[str, Any]
+        # (函数体内已经 to_dict() 过), 端点却把它当 dataclass 用 ⇒ 运行期 AttributeError → 500。
+        # 正解是 `progress_dict = progress`, 但连带上面那个 `if progress is None` 的 404 分支
+        # (get_progress 找不到会话时抛异常、从不返回 None ⇒ 该分支在运行期也是死的)
+        # 与下面两行的 progress.<attr> 取值, 整体属语义面, 归 review 语义卡。
+        progress_dict = progress.to_dict()  # pyright: ignore[reportAttributeAccessIssue]
         return SessionProgressResponse(
             session_id=progress_dict["session_id"],
             canvas_name=progress_dict["canvas_name"],
@@ -1557,8 +1592,8 @@ async def get_session_progress(session_id: str) -> SessionProgressResponse:
             mastery_percentage=progress_dict["mastery_percentage"],
             hints_given=progress_dict["hints_given"],
             max_hints=progress_dict["max_hints"],
-            started_at=progress.started_at,
-            updated_at=progress.updated_at,
+            started_at=progress.started_at,  # pyright: ignore[reportAttributeAccessIssue]  # 同 :1543
+            updated_at=progress.updated_at,  # pyright: ignore[reportAttributeAccessIssue]  # 同 :1543
         )
 
     except HTTPException:
