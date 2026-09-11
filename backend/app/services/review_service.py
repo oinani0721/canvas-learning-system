@@ -2134,7 +2134,10 @@ class ReviewService:
             # 复习关系从来没存进去过, 只留一条 warning(静默降级)。本方法唯一调用方是
             # generate_verification_canvas(:1371), 后者生产零调用方(见 :1237 注释) ⇒
             # 传递性零曝光。改 kwarg 名 = 行为变化, 须主 session/U9 裁 ⇒ 本卡只做类型层标注。
-            relationship = EdgeRelationship(  # pyright: ignore[reportCallIssue]
+            # ignore 只挂 4 个 kwarg 行: "Arguments missing" 那条诊断的 range 跨整个调用
+            # 表达式, 实测任一行内的 ignore 都会连带压住它 ⇒ 本行再挂一条是多余的
+            # (ignore 承重门实测: 只留 2138 或只留 2141, 本行那条都不再报)。
+            relationship = EdgeRelationship(
                 canvas_name=original_canvas,  # pyright: ignore[reportCallIssue]
                 from_node=review_canvas,  # pyright: ignore[reportCallIssue]
                 to_node=original_canvas,  # pyright: ignore[reportCallIssue]
