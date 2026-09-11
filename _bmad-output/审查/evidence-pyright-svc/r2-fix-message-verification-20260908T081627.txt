@@ -1,0 +1,8 @@
+### 整改验证（Codex round-2 MEDIUM-1）：异常**消息**是否逐字恢复
+### 场景：autoscore 的 except 把 f'Evidence extraction failed: {e}' 写进返回值的 6 个字段
+
+  基线               → 用户看到: "Evidence extraction failed: the JSON object must be str, bytes or bytearray, not NoneType"
+  round-1 assert   → 用户看到: "Evidence extraction failed: "
+  round-2 cast     → 用户看到: "Evidence extraction failed: the JSON object must be str, bytes or bytearray, not NoneType"
+
+### 判据：`round-2 cast` 那行必须与 `基线` 逐字相同。

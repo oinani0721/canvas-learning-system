@@ -1,0 +1,60 @@
+agent_service.py:18:8 [MINE] reportUnusedImport :: Import "logging" is not accessed
+agent_service.py:1486:18 [PEND0] reportMissingImports :: Import "agentic_rag.clients.graphiti_client" could not be resolved
+agent_service.py:1487:18 [PEND0] reportMissingImports :: Import "agentic_rag.clients.lancedb_client" could not be resolved
+agent_service.py:1540:18 [PEND0] reportMissingImports :: Import "agentic_rag.clients.graphiti_client" could not be resolved
+agent_service.py:1541:18 [PEND0] reportMissingImports :: Import "agentic_rag.clients.lancedb_client" could not be resolved
+agent_service.py:2219:13 [MINE] reportUnusedVariable :: Variable "source_desc" is not accessed
+agent_service.py:3042:18 [PEND0] reportMissingImports :: Import "agentic_rag.agent_graph" could not be resolved
+agent_service.py:4181:22 [PEND0] reportMissingImports :: Import "memory.temporal.fsrs_manager" could not be resolved
+calibration_tracker.py:15:8 [MINE] reportUnusedImport :: Import "logging" is not accessed
+canvas_service.py:22:8 [MINE] reportUnusedImport :: Import "logging" is not accessed
+canvas_service.py:70:33 [MINE] reportArgumentType :: Expression of type "None" cannot be assigned to parameter of type "str" |   "None" is not assignable to "str"
+canvas_service.py:340:39 [MINE] reportOptionalMemberAccess :: "record_temporal_event" is not a known attribute of "None"
+difficulty_matcher.py:23:8 [MINE] reportUnusedImport :: Import "logging" is not accessed
+difficulty_matcher.py:148:28 [MINE] reportCallIssue :: No overloads for "__new__" match the provided arguments
+difficulty_matcher.py:148:37 [MINE] reportArgumentType :: Argument of type "Iterable[Row]" cannot be assigned to parameter "sequence" of type "SupportsLenAndGetItem[_T@reversed]" in function "__new__" |   "It
+difficulty_matcher.py:222:28 [MINE] reportAttributeAccessIssue :: Cannot access attribute "choices" for class "CustomStreamWrapper" |   Attribute "choices" is unknown
+difficulty_matcher.py:222:55 [MINE] reportOptionalMemberAccess :: "strip" is not a known attribute of "None"
+event_bus.py:25:8 [MINE] reportUnusedImport :: Import "logging" is not accessed
+mastery_engine.py:26:8 [MINE] reportUnusedImport :: Import "logging" is not accessed
+mastery_engine.py:55:10 [PEND0] reportMissingImports :: Import "memory.temporal.fsrs_manager" could not be resolved
+mastery_engine.py:326:55 [MINE] reportArgumentType :: Argument of type "None" cannot be assigned to parameter "default" of type "float" in function "_card_attr" |   "None" is not assignable to "float"
+mastery_engine.py:327:57 [MINE] reportArgumentType :: Argument of type "None" cannot be assigned to parameter "default" of type "float" in function "_card_attr" |   "None" is not assignable to "float"
+mastery_engine.py:336:23 [MINE] reportAttributeAccessIssue :: Cannot access attribute "value" for class "float" |   Attribute "value" is unknown
+mastery_engine.py:684:47 [MINE] reportArgumentType :: Argument of type "None" cannot be assigned to parameter "default" of type "float" in function "_card_attr" |   "None" is not assignable to "float"
+mastery_fusion.py:20:8 [MINE] reportUnusedImport :: Import "logging" is not accessed
+mastery_store.py:15:8 [MINE] reportUnusedImport :: Import "logging" is not accessed
+multimodal_service.py:21:8 [MINE] reportUnusedImport :: Import "logging" is not accessed
+multimodal_service.py:311:49 [MINE] reportAttributeAccessIssue :: "LANCZOS" is not a known attribute of module "PIL.Image"
+multimodal_service.py:604:20 [PEND0] reportCallIssue :: Arguments missing for parameters "width", "height", "duration", "page_count", "author", "title", "language"
+multimodal_service.py:629:22 [PEND0] reportMissingImports :: Import "agentic_rag.models.multimodal_content" could not be resolved
+multimodal_service.py:651:28 [PEND0] reportCallIssue :: Arguments missing for parameters "extracted_text", "source_location", "updated_at"
+multimodal_service.py:748:20 [PEND0] reportCallIssue :: Arguments missing for parameters "width", "height", "duration", "page_count", "author", "title", "language"
+multimodal_service.py:772:28 [PEND0] reportCallIssue :: Arguments missing for parameters "extracted_text", "source_location", "updated_at"
+multimodal_service.py:844:34 [PEND0] reportCallIssue :: Arguments missing for parameters "author", "title", "language"
+multimodal_service.py:1222:26 [PEND0] reportMissingImports :: Import "agentic_rag.models.multimodal_content" could not be resolved
+multimodal_service.py:1242:13 [MINE] reportUnusedVariable :: Variable "cid" is not accessed
+multimodal_service.py:1338:30 [PEND0] reportMissingImports :: Import "agentic_rag.models.multimodal_content" could not be resolved
+multimodal_service.py:1378:13 [MINE] reportUnusedVariable :: Variable "content_id" is not accessed
+multimodal_service.py:1424:18 [PEND0] reportMissingImports :: Import "agentic_rag.embedding.embedding_service" could not be resolved
+multimodal_service.py:1494:26 [PEND0] reportMissingImports :: Import "agentic_rag.models.multimodal_content" could not be resolved
+multimodal_service.py:1518:26 [PEND0] reportMissingImports :: Import "agentic_rag.models.multimodal_content" could not be resolved
+multimodal_service.py:1550:17 [MINE] reportUnusedVariable :: Variable "content_id" is not accessed
+review_service.py:64:8 [MINE] reportUnusedImport :: Import "logging" is not accessed
+review_service.py:90:10 [PEND0] reportMissingImports :: Import "memory.temporal.fsrs_manager" could not be resolved
+review_service.py:91:9 [MINE] reportUnusedImport :: Import "CardState" is not accessed
+review_service.py:1240:49 [MINE] reportAttributeAccessIssue :: Cannot access attribute "get_canvas" for class "CanvasService" |   Attribute "get_canvas" is unknown
+review_service.py:1250:9 [MINE] reportUnusedVariable :: Variable "mastery_lookup" is not accessed
+review_service.py:1274:13 [MINE] reportUnusedVariable :: Variable "mastery_lookup" is not accessed
+review_service.py:1507:64 [MINE] reportAttributeAccessIssue :: Cannot access attribute "value" for class "int" |   Attribute "value" is unknown
+review_service.py:1605:26 [MINE] reportArgumentType :: Argument of type "Unknown | int | None" cannot be assigned to parameter "x" of type "ConvertibleToInt" in function "__new__" |   Type "Unknown | int |
+review_service.py:1605:26 [MINE] reportArgumentType :: Argument of type "Unknown | int | None" cannot be assigned to parameter "x" of type "ConvertibleToInt" in function "__new__" |   Type "Unknown | int |
+review_service.py:1630:31 [MINE] reportUnusedVariable :: Variable "review_log" is not accessed
+review_service.py:1721:47 [MINE] reportAttributeAccessIssue :: Cannot access attribute "value" for class "int" |   Attribute "value" is unknown
+review_service.py:2122:28 [PEND0] reportCallIssue :: Arguments missing for parameters "canvas_path", "from_node_id", "to_node_id"
+review_service.py:2123:17 [MINE] reportCallIssue :: No parameter named "canvas_name"
+review_service.py:2124:17 [MINE] reportCallIssue :: No parameter named "from_node"
+review_service.py:2125:17 [MINE] reportCallIssue :: No parameter named "to_node"
+review_service.py:2126:17 [MINE] reportCallIssue :: No parameter named "label"
+review_service.py:2792:43 [MINE] reportAttributeAccessIssue :: Cannot access attribute "value" for class "int" |   Attribute "value" is unknown
+TOTAL 59 MINE 39 PEND0 20

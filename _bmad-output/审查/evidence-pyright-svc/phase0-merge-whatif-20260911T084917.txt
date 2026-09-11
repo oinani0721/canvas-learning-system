@@ -1,0 +1,17 @@
+### 何若实测: 若合入 U2 阶段0 5638ac6c, services 会是多少
+### 方法: 重演 merge(源码全部自动合并成功, 唯一冲突在生成文件 openapi.json,
+###       pyright 不读该文件) -> 在冲突态量 pyright -> 立即 abort, 不留痕。
+
+merge rc=1 (1=有冲突, 预期)
+冲突文件: backend/openapi.json 
+源码冲突数: 0
+
+## extraPaths 就位:
+  "extraPaths": [
+    "backend/lib"
+  ],
+
+## pyright app/services:
+2 errors, 47 warnings, 0 informations
+## pyright app (全量):
+136 errors, 81 warnings, 0 informations

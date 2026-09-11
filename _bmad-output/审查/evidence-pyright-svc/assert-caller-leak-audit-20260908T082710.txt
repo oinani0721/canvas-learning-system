@@ -1,0 +1,18 @@
+### 扩展审计（Codex r3 指出我上一版作用域太窄）
+### 上一版只查 assert 所在函数的 try；本版把作用域扩到**调用方**
+### 判据：不在 try 内的 assert → 找其所在函数 → 找该函数的调用点 → 调用点是否在 try 内且 handler 格式化异常
+
+不在 try 内的新增 assert = 25
+
+⚠️ 调用方 handler 会格式化异常的组合 = 8
+
+  services/alert_manager.py:286  (函数 _evaluate_all_rules)  ← 调用方 services/alert_manager.py 的 handler :234 格式化异常
+  services/conversation_distiller.py:319  (函数 _llm_distill)  ← 调用方 services/conversation_distiller.py 的 handler :165 格式化异常
+  services/extraction_validator.py:485  (函数 get_stats)  ← 调用方 api/v1/endpoints/metadata.py 的 handler :278 格式化异常
+  services/extraction_validator.py:485  (函数 get_stats)  ← 调用方 api/v1/system.py 的 handler :980 格式化异常
+  services/extraction_validator.py:490  (函数 get_stats)  ← 调用方 api/v1/endpoints/metadata.py 的 handler :278 格式化异常
+  services/extraction_validator.py:490  (函数 get_stats)  ← 调用方 api/v1/system.py 的 handler :980 格式化异常
+  services/extraction_validator.py:495  (函数 get_stats)  ← 调用方 api/v1/endpoints/metadata.py 的 handler :278 格式化异常
+  services/extraction_validator.py:495  (函数 get_stats)  ← 调用方 api/v1/system.py 的 handler :980 格式化异常
+
+### 这些位置的 assert 同样会改变可观察文本（日志/返回），应与上一批同法改 cast。

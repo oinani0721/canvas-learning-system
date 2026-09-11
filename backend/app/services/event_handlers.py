@@ -11,7 +11,6 @@ Registers concrete event handlers that connect the mastery pipeline:
 [Source: _bmad-output/implementation-artifacts/5-7-eventbus-triconnect.md]
 """
 
-import logging
 from typing import TYPE_CHECKING
 
 import structlog

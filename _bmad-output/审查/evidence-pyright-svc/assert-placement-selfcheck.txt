@@ -1,0 +1,13 @@
+### 自查：每个新增 `assert x is not None` 的**下一条语句**是否真的会在 x 为 None 时崩
+### 判据：下一条语句必须对 x 做 属性访问 / 下标 / 调用 / 算术 —— 否则 assert 就是多余或改了语义
+
+新增 assert 总数 = 38
+下一条语句确实会对该值崩 = 35
+需人工确认 = 3
+
+  services/graphiti_belief_service.py:207  assert _normalized is not None
+      下一条: occurred_at = _normalized
+  services/graphiti_belief_service.py:298  assert _normalized is not None
+      下一条: return _normalized
+  services/wikilink_graph_service.py:135  assert self._graph is not None
+      下一条: if node not in self._graph:

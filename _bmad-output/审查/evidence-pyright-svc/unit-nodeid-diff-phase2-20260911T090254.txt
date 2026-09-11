@@ -1,0 +1,18 @@
+基线(开工 568de82a): _bmad-output/审查/evidence-pyright-svc/unit-nodeid-phase2-base-568de82a.txt
+收工(9a6c82e6):      _bmad-output/审查/evidence-pyright-svc/unit-phase2-close-9a6c82e6-20260911T085430.txt
+
+## 断言两份文件都存在
+  base: 7337 bytes
+  close: 111190 bytes
+
+## nodeid 计数
+  基线: 65
+  收工: 64
+
+## diff（'<' = 基线有而收工无 = 转绿，允许；'>' = 本卡新引入 = 红）
+42d41
+< FAILED tests/unit/test_epic32_p0_fixes.py::TestP01FSRSManagerDI::test_dependencies_injects_fsrs_manager
+diff rc=1
+
+## 只数 '>' 行（必须为 0）
+0

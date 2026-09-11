@@ -60,7 +60,10 @@ def read_node_frontmatter_signals(node_id: str) -> dict[str, Any]:
         logger.debug("[P1] frontmatter 读取失败 %s: %s", node_id, e)
         return result
 
-    fm = post.metadata or {}
+    # 注解层: python-frontmatter 的 metadata 是 YAML 映射, 值为任意 YAML 标量/容器。
+    # 不加注解时 pyright 推成 dict[str, object], 下面所有 `for x in fm.get(...) or []`
+    # 都判不可迭代。这里只声明类型, 不改取值与分支。
+    fm: dict[str, Any] = post.metadata or {}
     for ft in fm.get("tips") or []:
         if not isinstance(ft, dict):
             continue

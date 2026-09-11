@@ -1,0 +1,3 @@
+BASE=286178d8 (候选树/主干 HEAD)  WORK=ccd2a4d1 (阶段2 最终代码 HEAD)
+base=420 work=198 NEW=0 GONE=222
+rc=0

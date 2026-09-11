@@ -1,0 +1,12 @@
+### 判据改绑：W4 哨兵的**越界连接次数**（记忆库「W4 哨兵归属随时序漂移」指示的正确口径）
+### 理由：越界连接来自异步任务，同一次连接在不同轮次会记到不同 nodeid ⇒ nodeid diff 自带 flaky
+
+  unit-baselinetree      （无该行） | 哨兵触发行数=0 | nodeid=203
+  unit-baselinetree2     （无该行） | 哨兵触发行数=0 | nodeid=202
+  unit-open              （无该行） | 哨兵触发行数=0 | nodeid=202
+  unit-close             （无该行） | 哨兵触发行数=0 | nodeid=202
+  unit-close2            （无该行） | 哨兵触发行数=0 | nodeid=202
+  unit-final             （无该行） | 哨兵触发行数=0 | nodeid=202
+  unit-r1fix             NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=12 (blocked=12, advisory=0, unaccounted=0) | 哨兵触发行数=36 | nodeid=202
+
+### 结论判据：ATTEMPTS 与 blocked 数在基线与本卡之间必须相同；nodeid 归属可漂

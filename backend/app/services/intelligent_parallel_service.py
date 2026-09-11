@@ -14,12 +14,11 @@ Connects REST endpoints to real backend services:
 
 import asyncio
 import json
-import logging
 from datetime import datetime, timedelta
 
 import structlog
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, List, Optional
+from typing import Any, List, Optional, TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     from app.services.agent_routing_engine import AgentRoutingEngine
@@ -288,7 +287,10 @@ class IntelligentParallelService:
             timeout: Timeout in seconds
         """
         try:
-            await self._batch_orchestrator.start_batch_session(
+            # ⛔ 此处**不能**用 assert: 本 try 只捕获 (ConnectionError, RuntimeError,
+            # ValueError, asyncio.TimeoutError), AssertionError 会逃逸 = 改控制流。
+            # cast 是运行期 no-op: 为 None 时仍抛 AttributeError, 与原代码逐字相同。
+            await cast("BatchOrchestrator", self._batch_orchestrator).start_batch_session(
                 session_id=session_id,
                 canvas_path=canvas_path,
                 groups=groups,
@@ -364,7 +366,6 @@ class IntelligentParallelService:
                 group_id = g_meta.get("group_id", "unknown")
                 agent_type = g_meta.get("agent_type", "unknown")
                 node_ids = g_meta.get("node_ids", [])
-                node_ids_set = set(node_ids)
 
                 # Count completed/failed from actual results
                 group_completed = 0
@@ -643,13 +644,22 @@ class IntelligentParallelService:
                 prompt = f"Process node {node_id} from canvas {canvas_path}"
 
             # Call real agent
+            # ⛔ 既有类型不一致(Codex round-1 MEDIUM): 本方法形参是 agent_type: str, 而
+            # call_agent 要 AgentType(str, Enum)。此处**不做** cast —— 「AgentType 继承 str」
+            # 不能反向证明任意字符串就是 AgentType 实例, cast 只会掩盖。加转换/校验 = 运行期
+            # 语义改动, 不在本卡范围 → 只标注并 TAIL 登记。
             result = await self._agent_service.call_agent(
-                agent_type=agent_type,
+                agent_type=agent_type,  # pyright: ignore[reportArgumentType]
                 prompt=prompt,
             )
 
             if result.success:
-                file_path = result.file_path if hasattr(result, "file_path") else None
+                # AgentResult 未声明 file_path; 原代码已用 hasattr 守卫, 运行期安全。
+                file_path = (
+                    result.file_path  # pyright: ignore[reportAttributeAccessIssue]
+                    if hasattr(result, "file_path")
+                    else None
+                )
                 if not file_path:
                     file_path = f"{canvas_path.replace('.canvas', '')}/{node_id}-{agent_type}.md"
 

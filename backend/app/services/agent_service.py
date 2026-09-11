@@ -15,7 +15,6 @@ wrapping the Gemini API functionality with async support.
 import asyncio
 import contextvars
 import json
-import logging
 import os
 import re
 
@@ -2216,7 +2215,7 @@ class AgentService:
             concept = m.get("concept", "Unknown")
             timestamp = m.get("timestamp", "")
             entity_type = m.get("entity_type", "")
-            source_desc = m.get("source_description", "")
+            _source_desc = m.get("source_description", "")  # 取出但未接入输出串，归 TAIL
 
             # Format timestamp if present
             if timestamp:

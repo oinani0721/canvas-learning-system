@@ -1,0 +1,12 @@
+### 决定性对照：同一对测试文件组合，在基线代码 vs 本卡代码上跑
+### （已确认这是确定性复现，不是随机 flaky）
+
+===== 基线代码 da690bf8 =====
+=========================== short test summary info ============================
+FAILED tests/unit/test_mock_degradation_transparency.py::TestMockScoringWarningLogs::test_mock_mode_logs_warning
+================== 1 failed, 43 passed, 10 warnings in 0.60s ===================
+
+===== 本卡代码 =====
+=========================== short test summary info ============================
+FAILED tests/unit/test_mock_degradation_transparency.py::TestMockScoringWarningLogs::test_mock_mode_logs_warning
+================== 1 failed, 43 passed, 10 warnings in 0.59s ===================

@@ -1,0 +1,12 @@
+### 内容口径 format 判据 v3（不依赖行号）
+### 主张: 本卡新增的行都是 format-clean 的
+### 判据: format(基线)→format(工作树) 的新增行集合  ==  基线→工作树 的新增行集合
+### （若我加的某行 format 后会变形，两个集合必不同）
+
+DIFFER app/services/health_monitor.py: raw+=3 fmt+=7
+   仅出现在 fmt: +            duplicates = (
+   仅出现在 fmt: +                if hasattr(index_svc, "find_duplicates")
+   仅出现在 fmt: +                else []
+
+=== 检查 53 个文件, 其中 34 个有新增行(验伪锚: 必须 > 0) ===
+=== 集合不一致的文件数 = 1 （期望 0）===

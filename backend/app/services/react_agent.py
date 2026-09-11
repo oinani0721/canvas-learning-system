@@ -11,7 +11,6 @@ Uses LangChain's create_react_agent with 4 tools:
 4. record_learning_memory - Record misconceptions/traps to knowledge graph
 """
 
-import logging
 from datetime import datetime
 
 import structlog

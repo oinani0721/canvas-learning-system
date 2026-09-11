@@ -1,0 +1,61 @@
+文件                                           开工    现在   其中PEND0  状态
+--------------------------------------------------------------------------------
+agent_routing_engine.py                       6     0         0  ✅ 归零
+agent_selector.py                             2     0         0  ✅ 归零
+alert_manager.py                              1     0         0  ✅ 归零
+archive_scheduler.py                          1     0         0  ✅ 归零
+autoscore.py                                  5     0         0  ✅ 归零
+background_task_manager.py                    2     0         0  ✅ 归零
+batch_orchestrator.py                         3     0         0  ✅ 归零
+candidate_expiry_service.py                   1     0         0  ✅ 归零
+candidate_service.py                          5     0         0  ✅ 归零
+canvas_projection_sync.py                     1     0         0  ✅ 归零
+context_enrichment_service.py                 3     0         0  ✅ 归零
+conversation_archive.py                       1     0         0  ✅ 归零
+conversation_distiller.py                     3     0         0  ✅ 归零
+conversation_inheritance.py                   1     0         0  ✅ 归零
+cross_subject_bridge.py                       3     0         0  ✅ 归零
+episode_worker.py                             1     0         0  ✅ 归零
+error_aggregator.py                           2     1         1  ⏳ 等阶段0
+error_classifier.py                           6     0         0  ✅ 归零
+error_extractor.py                            2     0         0  ✅ 归零
+error_rebuild_service.py                      1     0         0  ✅ 归零
+event_handlers.py                             1     0         0  ✅ 归零
+exam_service.py                               2     0         0  ✅ 归零
+exam_service_ext.py                          21     2         2  ⏳ 等阶段0
+extraction_validator.py                       5     1         1  ⏳ 等阶段0
+fallback_sync_service.py                      1     0         0  ✅ 归零
+frontmatter_signals.py                        2     0         0  ✅ 归零
+graphiti_belief_service.py                    5     0         0  ✅ 归零
+health_monitor.py                             5     2         2  ⏳ 等阶段0
+intelligent_grouping_service.py               2     0         0  ✅ 归零
+intelligent_parallel_service.py               6     1         1  ⏳ 等阶段0
+lancedb_index_service.py                      3     1         1  ⏳ 等阶段0
+learning_context_service.py                   2     1         1  ⏳ 等阶段0
+memory_service.py                             7     0         0  ✅ 归零
+notification_channels.py                      2     0         0  ✅ 归零
+prompt_registry.py                            1     0         0  ✅ 归零
+question_generator.py                         4     0         0  ✅ 归零
+rag_service.py                                4     1         1  ⏳ 等阶段0
+react_agent.py                                1     0         0  ✅ 归零
+recommendation_service.py                     6     0         0  ✅ 归零
+retrieval_reranker.py                         2     0         0  ✅ 归零
+rollback_service.py                          13     0         0  ✅ 归零
+scoring_faithfulness.py                       5     0         0  ✅ 归零
+signal_registry.py                            6     0         0  ✅ 归零
+skill_registry.py                             1     0         0  ✅ 归零
+subject_resolver.py                           1     0         0  ✅ 归零
+supplementary_search_service.py               2     2         2  ⏳ 等阶段0
+sync_service.py                               1     0         0  ✅ 归零
+targeting_material_service.py                 3     0         0  ✅ 归零
+tool_executor.py                              2     0         0  ✅ 归零
+vault_index_orchestrator.py                   8     6         6  ⏳ 等阶段0
+verification_service.py                       1     0         0  ✅ 归零
+websocket_manager.py                          5     0         0  ✅ 归零
+weight_calculator.py                          1     0         0  ✅ 归零
+wikilink_graph_service.py                     6     0         0  ✅ 归零
+--------------------------------------------------------------------------------
+非共享合计                                       187    18        18   过滤后 P1 = 0
+
+共享 10 文件（阶段 1 禁改）: 开工 60 → 现在 60
+services 总计: 247 → 78

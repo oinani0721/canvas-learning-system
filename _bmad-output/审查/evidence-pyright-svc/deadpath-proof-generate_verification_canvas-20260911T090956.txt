@@ -1,0 +1,24 @@
+### 死路径判据：ReviewService.generate_verification_canvas 的生产调用方 = 0
+### 方法：AST 级（不是行范围 grep —— 后者会因范围划窄产生假阴性）
+
+## 1) 全仓 app/ + lib/ 内 `.generate_verification_canvas(` 的全部出现
+backend/app/services/review_service.py:1240:        # 生产零调用方 —— 全仓唯一 `.generate_verification_canvas(` 在 dependencies.py:301
+backend/app/dependencies.py:301:            return await service.generate_verification_canvas(...)
+
+## 2) 上述唯一一处 dependencies.py:301 是否在 docstring 内（AST 判定）
+  命中：`get_review_service` 的 docstring 内含该字符串 ⇒ 它是**文档示例，不是代码**
+  该文件 AST 内真正的 Call 节点数（func.attr == generate_verification_canvas）: 0  ← 0 = 无真调用
+
+## 3) 端点 review.py 的同名函数是自建实现（AST 全函数体，非行范围）
+  函数范围: review.py:759-1025（共 267 行，全部计入）
+    函数体内 'review_service' 出现次数: 0
+    函数体内 'ReviewService' 出现次数: 0
+    函数体内 'get_review_service' 出现次数: 0
+    函数体内 '.generate_verification_canvas(' 出现次数: 0
+    它实际调用的名字: ['GenerateReviewResponse', 'QuestionGenerator', 'TopicClusterer', '_extract_review_nodes', '_generate_ai_questions', '_generate_node_id', '_get_canvas_base_path', '_get_difficulty_data', '_get_difficulty_enhanced_question_text', '_read_canvas', '_resolve_vault_group_id', '_write_canvas', 'append', 'cluster_nodes', 'enumerate', 'error', 'exists', 'generate_questions', 'get', 'info', 'items', 'len', 'min', 'post', 'strftime', 'today', 'warning']
+
+## 4) 测试侧覆盖（如实记：有 mock 测试，故不满足卡文『无调用/无测试覆盖』的后半条）
+  backend/tests/unit/test_review_mode_support.py 内调用次数: backend/tests/unit/test_review_mode_support.py:15
+
+## 结论：生产调用方 = 0（唯一出现在 docstring 示例内）；测试覆盖 != 0（17 处 mock）。
+##       本卡按『零生产曝光』判为死路径侧，处置 = 行级 ignore + TAIL，不改语义。

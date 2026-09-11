@@ -28,11 +28,10 @@ Routing Matrix (from Story 33.5 AC1):
 """
 
 import json
-import logging
 import re
 
 import structlog
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, TYPE_CHECKING, Tuple, cast
 
 from app.core.agent_memory_mapping import ALL_AGENT_NAMES
 from app.core.decision_tracker import log_decision
@@ -42,6 +41,13 @@ from app.models.agent_routing_models import (
     RoutingRequest,
     RoutingResult,
 )
+
+if TYPE_CHECKING:
+    # litellm 在本模块内是**函数内延迟 import**(加载慢/可选依赖)。这里只取类型,
+    # 运行期不执行 → 不把 litellm 拉进模块 import 图。配合 cast("ModelResponse", ...):
+    # acompletion 的签名是 ModelResponse | CustomStreamWrapper, 而本模块所有调用点
+    # 都未传 stream=True → 运行期恒为 ModelResponse。cast 只作类型层断言, 不改行为。
+    from litellm.types.utils import ModelResponse
 
 logger = structlog.get_logger(__name__)
 
@@ -287,7 +293,6 @@ class AgentRoutingEngine:
 
         # Normalize text: lowercase for English, keep original for Chinese
         normalized_text = node_text.strip()
-        normalized_lower = normalized_text.lower()
 
         matches: List[
             Tuple[str, float, int, List[str]]
@@ -471,7 +476,7 @@ class AgentRoutingEngine:
             )
 
         # Get top match
-        top_agent, top_score = matches[0]
+        top_agent, _top_score = matches[0]
         confidence = self._calculate_confidence(matches)
 
         # Get matched patterns for top agent
@@ -547,7 +552,11 @@ class AgentRoutingEngine:
         )
 
         try:
-            from app.core.litellm_config import get_litellm_config
+            # ⛔ 实测: app/core/litellm_config.py 只有 get_runtime_model_config,
+            # **没有** get_litellm_config → 本行运行期恒 ImportError, 被下面的
+            # `except Exception` 吞掉并静默降级成写死的 fallback 模型。既有真缺陷,
+            # 修它属语义改动、不在本卡范围 → 只做类型层标注并登记 TAIL。
+            from app.core.litellm_config import get_litellm_config  # pyright: ignore[reportAttributeAccessIssue]
 
             config = get_litellm_config()
             model = config.get_scoring_model()
@@ -564,7 +573,9 @@ class AgentRoutingEngine:
                 temperature=0.1,
                 max_tokens=80,
             )
-            text = response.choices[0].message.content.strip()
+            _content = cast("ModelResponse", response).choices[0].message.content
+            assert _content is not None  # 原代码此处 None.strip() 同样 AttributeError
+            text = _content.strip()
             # Strip markdown code fences if present
             if text.startswith("```"):
                 text = text.split("\n", 1)[-1].rsplit("```", 1)[0].strip()

@@ -1,0 +1,20 @@
+### 内容口径 format 判据 v2（修正 pathspec：cd backend 后必须写 -- app/…，不能写 -- backend/app/…）
+--- 验伪锚：两个集合都必须非空 ---
+app/services/signal_registry.py : mine=      19 ruff=      18
+app/services/memory_service.py : mine=      15 ruff=     170
+app/services/rollback_service.py : mine=      30 ruff=      33
+
+--- 正控：注入一个 format 脏的改动行, 判据必须变红 ---
+Traceback (most recent call last):
+  File "<stdin>", line 3, in <module>
+AssertionError: 2
+  mine=19 ruff=18 交集=0 →  ⛔ 死判据
+  已还原 sha=04fd38517ba051fc
+
+--- 全量：本卡 53 个改动文件 ---
+OVERLAP app/services/agent_routing_engine.py : 1 555
+OVERLAP app/services/agent_selector.py : 1 294
+OVERLAP app/services/candidate_service.py : 2 272 495
+OVERLAP app/services/rag_service.py : 3 320 321 322
+OVERLAP app/services/rollback_service.py : 4 187 188 252 253
+=== 交集总行数 = 11 （期望 0）===

@@ -281,6 +281,9 @@ class AlertManager:
 
                 elif existing_alert.state == AlertState.PENDING:
                     # Check if for_duration has elapsed
+                    # 进入 PENDING 的那一分支(本方法内)必写 pending_since=now;
+                    # 原代码此处 now - None 同样 TypeError。
+                    assert existing_alert.pending_since is not None
                     elapsed = (now - existing_alert.pending_since).total_seconds()
                     if elapsed >= rule.for_duration:
                         existing_alert.state = AlertState.FIRING

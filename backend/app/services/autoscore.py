@@ -15,15 +15,21 @@ Majority vote + low-confidence detection per dimension.
 """
 
 import json
-import logging
 import statistics
 
 import structlog
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TYPE_CHECKING, cast
 
 from app.middleware.prompt_injection_guard import check_input
 from app.models.exam_models import AutoScoreResult, RubricDimension
 from app.services.prompt_registry import get_prompt_registry
+
+if TYPE_CHECKING:
+    # litellm 在本模块内是**函数内延迟 import**(加载慢/可选依赖)。这里只取类型,
+    # 运行期不执行 → 不把 litellm 拉进模块 import 图。配合 cast("ModelResponse", ...):
+    # acompletion 的签名是 ModelResponse | CustomStreamWrapper, 而本模块所有调用点
+    # 都未传 stream=True → 运行期恒为 ModelResponse。cast 只作类型层断言, 不改行为。
+    from litellm.types.utils import ModelResponse
 
 logger = structlog.get_logger(__name__)
 
@@ -300,8 +306,11 @@ class AutoScorer:
                 response_format={"type": "json_object"},
             )
 
-            content = response.choices[0].message.content
-            evidence = json.loads(content)
+            # ⛔ 这里**不能**用 assert(Codex round-2 MEDIUM-1): 下面的 except 把异常消息
+            # 写进返回值, AssertionError 的空消息会让用户看到残缺文本。cast 是运行期
+            # no-op —— 为 None 时仍抛原本的异常、消息逐字不变。
+            content = cast("ModelResponse", response).choices[0].message.content
+            evidence = json.loads(cast(str, content))
 
             # Flatten evidence for storage
             all_evidence = list()
@@ -379,8 +388,12 @@ class AutoScorer:
                 response_format={"type": "json_object"},
             )
 
-            content = response.choices[0].message.content
-            result = json.loads(content)
+            # ⛔ 这里**不能**用 assert(Codex round-2 MEDIUM-1 / round-3 LOW-2 校正):
+            # 下面的 except 把异常消息写进**日志**(返回值是固定的回退结果, 不含消息)。
+            # AssertionError 的空消息会让日志丢掉原因。cast 是运行期 no-op —— 为 None
+            # 时仍抛原本的异常、消息逐字不变。
+            content = cast("ModelResponse", response).choices[0].message.content
+            result = json.loads(cast(str, content))
 
             # Extract scores from potentially nested structure
             scores_data = result.get("scores", result)

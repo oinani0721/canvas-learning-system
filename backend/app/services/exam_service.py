@@ -18,12 +18,11 @@ Story 6.8: complete_exam, get_exam_records — exam record persistence
 
 import asyncio
 import json
-import logging
 from datetime import datetime, timezone
 
 import structlog
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 from uuid import uuid4
 
 from app.config import DEFAULT_GROUP_ID
@@ -39,6 +38,23 @@ from app.models.exam_models import (
     ExamStatus,
     ExamStatusUpdate,
 )
+
+if TYPE_CHECKING:
+    # 仅供下面 `class ExamService` 体内的 TYPE_CHECKING 方法声明使用。
+    # 运行期不执行 → 不改变本模块的 import 图与命名空间。
+    from app.models.exam_models import (
+        ExamCompleteRequest,
+        ExamCompleteResponse,
+        ExamNodeSyncRequest,
+        ExamNodeSyncResponse,
+        ExamRecordDetail,
+        ExamRecordListResponse,
+        ExamStatusUpdateResponse,
+        HintRequest,
+        HintResponse,
+        SkipRequest,
+        SkipResponse,
+    )
 
 # Path to hint prompt templates
 _PROMPTS_DIR = Path(__file__).parent.parent / "prompts" / "exam"
@@ -59,6 +75,51 @@ class ExamService:
     Story 6.2 AC-2: Content analysis and mode recommendation.
     Story 6.4 AC-1: Topic-level scoring trigger detection.
     """
+
+    if TYPE_CHECKING:
+        # ⛔ 这 11 个方法在运行期由 exam_service_ext.py 模块顶层的猴子补丁挂载
+        # (`ExamService.<name> = <fn>`, 由本文件末尾的 `import app.services.exam_service_ext`
+        # 触发)。此处只做类型声明: `if TYPE_CHECKING` 块在运行期不执行, 零行为变化;
+        # 目的是让 pyright 看见它们, 消掉 api/v1/endpoints/exam.py 的
+        # attribute-unknown 与 exam_service_ext.py 的 cannot-assign。
+        # ⛔ 签名必须与 exam_service_ext.py 的 def 逐字一致 — 改一侧必须同步改另一侧。
+
+        async def sync_node_to_source_canvas(
+            self, request: ExamNodeSyncRequest, group_id: str = DEFAULT_GROUP_ID
+        ) -> ExamNodeSyncResponse: ...
+
+        async def generate_hint(self, request: HintRequest) -> HintResponse: ...
+
+        async def skip_question(self, request: SkipRequest) -> SkipResponse: ...
+
+        async def pause_exam(self, exam_id: str) -> ExamStatusUpdateResponse: ...
+
+        async def resume_exam(self, exam_id: str) -> ExamStatusUpdateResponse: ...
+
+        async def _update_exam_lifecycle_status(
+            self, exam_id: str, new_status: ExamStatus
+        ) -> ExamStatusUpdateResponse: ...
+
+        def get_cognitive_load_message(self, elapsed_minutes: int) -> Optional[str]: ...
+
+        async def complete_exam(
+            self, request: ExamCompleteRequest, group_id: str = DEFAULT_GROUP_ID
+        ) -> ExamCompleteResponse: ...
+
+        async def get_exam_records(
+            self,
+            page: int = 1,
+            limit: int = 20,
+            group_id: str = DEFAULT_GROUP_ID,
+        ) -> ExamRecordListResponse: ...
+
+        async def get_exam_record(
+            self, exam_id: str, group_id: str = DEFAULT_GROUP_ID
+        ) -> Optional[ExamRecordDetail]: ...
+
+        async def get_records_by_canvas(
+            self, canvas_id: str, group_id: str = DEFAULT_GROUP_ID
+        ) -> ExamRecordListResponse: ...
 
     def __init__(self) -> None:
         self._sessions = _exam_sessions
@@ -489,4 +550,7 @@ def get_exam_service() -> ExamService:
 
 
 # Import extension to attach Story 6.5-6.8 methods to ExamService
-import app.services.exam_service_ext  # noqa: E402, F401
+# pyright ignore 理由: 这是副作用 import — 作用是执行 exam_service_ext 模块顶层的
+# `ExamService.<name> = <fn>` 猴子补丁挂载 (11 个方法), 模块名本身不被引用。
+# 删除它会让 Story 6.5-6.8 的 11 个方法在运行期从 ExamService 上消失。
+import app.services.exam_service_ext  # noqa: E402, F401  # pyright: ignore[reportUnusedImport]

@@ -76,7 +76,10 @@ def _read_neighbor_errors(node_id: str, group_id: str = "") -> list[str]:
     except (OSError, ValueError, UnicodeDecodeError) as e:
         logger.debug("[T4] frontmatter 读取失败 %s: %s", node_id, e)
         return []
-    fm = post.metadata or {}
+    # 注解层: python-frontmatter 的 metadata 是 YAML 映射, 值为任意 YAML 标量/容器。
+    # 不加注解时 pyright 推成 dict[str, object], 下面所有 `for x in fm.get(...) or []`
+    # 都判不可迭代。这里只声明类型, 不改取值与分支。
+    fm: dict[str, Any] = post.metadata or {}
     out: list[str] = []
     # 批次3' dispute 三件套第二件「出题排除」(MEM-FLYWHEEL): 用户 dispute 过的
     # 候选文本不得再进出题素材 — 不再拿你否认过的点考你。disputed 候选留在

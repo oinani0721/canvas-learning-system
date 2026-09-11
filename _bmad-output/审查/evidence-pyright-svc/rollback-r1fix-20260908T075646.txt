@@ -1,0 +1,2 @@
+FAILED tests/test_rollback_snapshots.py::TestSnapshotEndpointsRegistration::test_snapshot_type_enum_values
+================== 65 failed, 27 passed, 10 warnings in 0.98s ==================

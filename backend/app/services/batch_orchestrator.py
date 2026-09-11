@@ -498,7 +498,12 @@ class BatchOrchestrator:
                     )
                 )
             else:
-                processed_results.append(result)
+                # ⛔ 既有缺陷(Codex round-1 HIGH, 已实证 Python 3.14.4):
+                # asyncio.CancelledError 继承 BaseException 而非 Exception, 上一分支的
+                # isinstance(result, Exception) 筛不掉它, 而 gather(return_exceptions=True)
+                # 会把它放进 results ⇒ 取消异常会被当成业务结果 append 进来。
+                # 修它要改 isinstance 的捕获面 = 运行期语义改动, 不在本卡范围 → TAIL 登记。
+                processed_results.append(result)  # pyright: ignore[reportArgumentType]
 
         return processed_results
 
@@ -559,8 +564,10 @@ class BatchOrchestrator:
                 )
                 failed_count += 1
             else:
-                node_results.append(result)
-                if result.success:
+                # ⛔ 同上(Codex round-1 HIGH): CancelledError 会走到这里, 随后的
+                # result.success 会抛 AttributeError。既有缺陷, 本卡只标注 → TAIL 登记。
+                node_results.append(result)  # pyright: ignore[reportArgumentType]
+                if result.success:  # pyright: ignore[reportAttributeAccessIssue]
                     completed_count += 1
                 else:
                     failed_count += 1

@@ -1,0 +1,24 @@
+### 对照组：把本卡改过的文件临时还原成 da690bf8 版，跑同样的测试
+### 目的：区分「既有红」与「本卡引入」
+
+--- 跑前 sha ---
+d8732cc8c413e960631eaf055d50e93cdbd98e8f079b91b9e034cf4e86ac203e  app/services/rollback_service.py
+c61b64a458837400ba360df3d5253038e346feb5397de56dd112d848c9e10993  app/services/candidate_service.py
+
+=== [基线版] tests/test_rollback_*.py ===
+FAILED tests/test_rollback_snapshots.py::TestSnapshotEndpointsRegistration::test_snapshot_type_enum_values
+================== 65 failed, 27 passed, 10 warnings in 0.98s ==================
+=== [基线版] tests/unit/test_candidate_service.py ===
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================= 14 passed, 10 warnings in 0.60s ========================
+
+--- 还原后 sha（必须与跑前逐字相同）---
+d8732cc8c413e960631eaf055d50e93cdbd98e8f079b91b9e034cf4e86ac203e  app/services/rollback_service.py
+c61b64a458837400ba360df3d5253038e346feb5397de56dd112d848c9e10993  app/services/candidate_service.py
+
+=== [本卡版] tests/test_rollback_*.py ===
+FAILED tests/test_rollback_snapshots.py::TestSnapshotEndpointsRegistration::test_snapshot_type_enum_values
+================== 65 failed, 27 passed, 10 warnings in 0.94s ==================
+=== [本卡版] tests/unit/test_candidate_service.py ===
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================= 14 passed, 10 warnings in 0.55s ========================

@@ -19,7 +19,6 @@ Author: Canvas Learning System
 import asyncio
 import hashlib
 import json
-import logging
 import os
 import re
 

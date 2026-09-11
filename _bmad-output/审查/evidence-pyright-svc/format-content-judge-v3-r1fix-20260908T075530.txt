@@ -1,0 +1,8 @@
+### 整改后重跑内容口径 format 判据 v3
+DIFFER app/services/health_monitor.py: raw+=3 fmt+=7
+   仅 fmt: +            duplicates = (
+   仅 fmt: +                if hasattr(index_svc, "find_duplicates")
+   仅 fmt: +                else []
+
+检查 53 文件, 34 个有新增行(验伪锚>0)
+=== 不一致 = 1 （round-1 时是 1，health_monitor 的 ignore 注释超 120 列）===

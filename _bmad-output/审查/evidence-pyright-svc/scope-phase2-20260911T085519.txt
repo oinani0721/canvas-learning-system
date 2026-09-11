@@ -1,0 +1,18 @@
+BASE=286178d8 HEAD=9a6c82e6
+
+## ① 全改动面（排除 _bmad-output）
+ backend/app/services/verification_service.py       |  1 -
+ backend/app/services/websocket_manager.py          |  7 ++-
+ backend/app/services/weight_calculator.py          |  1 -
+ backend/app/services/wikilink_graph_service.py     | 15 ++++-
+ 63 files changed, 479 insertions(+), 178 deletions(-)
+
+## ①b 非 backend/app/services/ 的文件数（应为 0）
+       0
+   内容:
+
+## ② 禁改面 diff（应为空）
+   行数: 0
+
+## ③ 验伪锚：证明 ':(exclude)' 语法真生效（不加排除时 _bmad-output 应出现）
+134

@@ -12,7 +12,6 @@ Features:
 
 import asyncio
 import contextvars
-import logging
 import uuid
 
 import structlog
@@ -343,7 +342,13 @@ class BackgroundTaskManager:
         async def cleanup_loop():
             while True:
                 try:
-                    await asyncio.sleep(settings.TASK_CLEANUP_INTERVAL_SECONDS)
+                    # ⛔ 实测: Settings 没有 TASK_CLEANUP_INTERVAL_SECONDS → 本行运行期恒
+                    # AttributeError, 被本 while 循环的 `except Exception` 捕获后立即重试
+                    # (无退避) ⇒ 清理调度退化为忙循环。既有真缺陷, 修它要选定间隔值 =
+                    # 语义决策, 不在本卡范围 → 只做类型层标注并登记 TAIL。
+                    await asyncio.sleep(
+                        settings.TASK_CLEANUP_INTERVAL_SECONDS  # pyright: ignore[reportAttributeAccessIssue]
+                    )
                     await self.cleanup_old_tasks()
                 except asyncio.CancelledError:
                     break

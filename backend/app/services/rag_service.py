@@ -13,10 +13,9 @@ Story 23.1 Implementation:
 [Source: docs/architecture/ADR-003-AGENTIC-RAG-ARCHITECTURE.md]
 """
 
-import logging
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional, cast
 
 import structlog
 
@@ -51,7 +50,6 @@ try:
     # ✅ Verified from agentic_rag/__init__.py
     from agentic_rag import (
         AGENTIC_RAG_AVAILABLE,
-        CanvasRAGConfig,
         canvas_agentic_rag,
         get_import_error,
     )
@@ -319,9 +317,11 @@ class RAGService:
 
         try:
             # ✅ Verified from LangGraph Skill: ainvoke for async execution
-            result = await canvas_agentic_rag.ainvoke(
-                initial_state, config=runtime_config
-            )
+            # ImportError 分支会把 canvas_agentic_rag 置 None(:76/:84)。用 cast 而非
+            # assert(Codex round-2 MEDIUM-1 / round-3 LOW-2 校正): 下面的 except 把异常消息
+            # 写进**日志**并**带 cause 重抛**成 RAGServiceError(消息内嵌 {e})——不是写返回值。
+            # cast 是运行期 no-op —— 为 None 时仍抛原本的 AttributeError、消息不变。
+            result = await cast(Any, canvas_agentic_rag).ainvoke(initial_state, config=runtime_config)
 
             # ✅ Epic 12.K.2: None value protection - ainvoke may return None
             if result is None:

@@ -129,6 +129,10 @@ class WikilinkGraphService:
 
         def _node_adj(node: str) -> list[str]:
             """取节点的"出边 + 入边"邻居（去重，outgoing 优先排序）"""
+            # 外层方法开头已 `if self._graph is None: return []`, 但 pyright 不把外层窄化
+            # 带进嵌套函数 (闭包可能在 self._graph 变回 None 后被调用)。此处只补断言,
+            # 不改控制流; 原代码 None 时下一行 `node not in None` 同样 TypeError。
+            assert self._graph is not None
             if node not in self._graph:
                 return []
             if hasattr(self._graph, "successors"):
@@ -145,6 +149,11 @@ class WikilinkGraphService:
 
         def _is_backlink_edge(src: str, dst: str) -> bool:
             """判断 dst 是 src 的 backlink（入边）而非 outgoing（出边）"""
+            # 同 _node_adj: 闭包不继承外层 `self._graph is None` 窄化。
+            # ⚠️ 与 _node_adj 不同: 这里若为 None, hasattr(None, "successors") 返回 False
+            # ⇒ 原代码走 `return False` 而**不崩**。本断言之所以安全, 是因为外层方法开头
+            # 已 `if self._graph is None: return []`, 本闭包只在该守卫之后被调用 ⇒ None 分支不可达。
+            assert self._graph is not None
             if not hasattr(self._graph, "successors"):
                 return False
             return dst not in list(self._graph.successors(src))
@@ -309,7 +318,11 @@ class WikilinkGraphService:
         if self._vault is None:
             return f"{note_key}.md"
         try:
-            source = self._vault.get_source_path(note_key)
+            # ⛔ 实测 (obsidiantools 随包): Vault 只有 get_source_text, **没有**
+            # get_source_path → 本行运行期恒 AttributeError, 被下面的 except Exception
+            # 吞掉并静默降级成 f"{note_key}.md"。这是既有真缺陷, 修它属语义改动、
+            # 不在 CARD-PYRIGHT-DEBT-services 范围内 → 只做类型层标注并登记 TAIL。
+            source = self._vault.get_source_path(note_key)  # pyright: ignore[reportAttributeAccessIssue]
             return str(source) if source else f"{note_key}.md"
         except Exception:
             return f"{note_key}.md"

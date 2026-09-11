@@ -1,0 +1,2046 @@
+{
+    "version": "1.1.411",
+    "time": "1789086525435",
+    "generalDiagnostics": [
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/agent_service.py",
+            "severity": "error",
+            "message": "Import \"logging\" is not accessed",
+            "range": {
+                "start": {
+                    "line": 17,
+                    "character": 7
+                },
+                "end": {
+                    "line": 17,
+                    "character": 14
+                }
+            },
+            "rule": "reportUnusedImport"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/agent_service.py",
+            "severity": "warning",
+            "message": "Unnecessary \"# type: ignore\" comment",
+            "range": {
+                "start": {
+                    "line": 63,
+                    "character": 27
+                },
+                "end": {
+                    "line": 63,
+                    "character": 57
+                }
+            },
+            "rule": "reportUnnecessaryTypeIgnoreComment"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/agent_service.py",
+            "severity": "warning",
+            "message": "Unnecessary isinstance call; \"str\" is always an instance of \"str\"",
+            "range": {
+                "start": {
+                    "line": 256,
+                    "character": 23
+                },
+                "end": {
+                    "line": 256,
+                    "character": 44
+                }
+            },
+            "rule": "reportUnnecessaryIsInstance"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/agent_service.py",
+            "severity": "error",
+            "message": "Import \"agentic_rag.clients.graphiti_client\" could not be resolved",
+            "range": {
+                "start": {
+                    "line": 1485,
+                    "character": 17
+                },
+                "end": {
+                    "line": 1485,
+                    "character": 52
+                }
+            },
+            "rule": "reportMissingImports"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/agent_service.py",
+            "severity": "error",
+            "message": "Import \"agentic_rag.clients.lancedb_client\" could not be resolved",
+            "range": {
+                "start": {
+                    "line": 1486,
+                    "character": 17
+                },
+                "end": {
+                    "line": 1486,
+                    "character": 51
+                }
+            },
+            "rule": "reportMissingImports"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/agent_service.py",
+            "severity": "warning",
+            "message": "Unnecessary \"# type: ignore\" comment",
+            "range": {
+                "start": {
+                    "line": 1497,
+                    "character": 65
+                },
+                "end": {
+                    "line": 1497,
+                    "character": 91
+                }
+            },
+            "rule": "reportUnnecessaryTypeIgnoreComment"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/agent_service.py",
+            "severity": "warning",
+            "message": "Unnecessary \"# type: ignore\" comment",
+            "range": {
+                "start": {
+                    "line": 1501,
+                    "character": 67
+                },
+                "end": {
+                    "line": 1501,
+                    "character": 93
+                }
+            },
+            "rule": "reportUnnecessaryTypeIgnoreComment"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/agent_service.py",
+            "severity": "error",
+            "message": "Import \"agentic_rag.clients.graphiti_client\" could not be resolved",
+            "range": {
+                "start": {
+                    "line": 1539,
+                    "character": 17
+                },
+                "end": {
+                    "line": 1539,
+                    "character": 52
+                }
+            },
+            "rule": "reportMissingImports"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/agent_service.py",
+            "severity": "error",
+            "message": "Import \"agentic_rag.clients.lancedb_client\" could not be resolved",
+            "range": {
+                "start": {
+                    "line": 1540,
+                    "character": 17
+                },
+                "end": {
+                    "line": 1540,
+                    "character": 51
+                }
+            },
+            "rule": "reportMissingImports"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/agent_service.py",
+            "severity": "warning",
+            "message": "Unnecessary \"# type: ignore\" comment",
+            "range": {
+                "start": {
+                    "line": 1563,
+                    "character": 67
+                },
+                "end": {
+                    "line": 1563,
+                    "character": 93
+                }
+            },
+            "rule": "reportUnnecessaryTypeIgnoreComment"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/agent_service.py",
+            "severity": "warning",
+            "message": "Unnecessary isinstance call; \"Dict[str, Any]\" is always an instance of \"dict[Unknown, Unknown]\"",
+            "range": {
+                "start": {
+                    "line": 1845,
+                    "character": 51
+                },
+                "end": {
+                    "line": 1845,
+                    "character": 72
+                }
+            },
+            "rule": "reportUnnecessaryIsInstance"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/agent_service.py",
+            "severity": "warning",
+            "message": "Unnecessary isinstance call; \"Dict[str, Any]\" is always an instance of \"dict[Unknown, Unknown]\"",
+            "range": {
+                "start": {
+                    "line": 1889,
+                    "character": 51
+                },
+                "end": {
+                    "line": 1889,
+                    "character": 73
+                }
+            },
+            "rule": "reportUnnecessaryIsInstance"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/agent_service.py",
+            "severity": "error",
+            "message": "Variable \"source_desc\" is not accessed",
+            "range": {
+                "start": {
+                    "line": 2218,
+                    "character": 12
+                },
+                "end": {
+                    "line": 2218,
+                    "character": 23
+                }
+            },
+            "rule": "reportUnusedVariable"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/agent_service.py",
+            "severity": "warning",
+            "message": "Unnecessary isinstance call; \"Dict[str, Any]\" is always an instance of \"dict[Unknown, Unknown]\"",
+            "range": {
+                "start": {
+                    "line": 2498,
+                    "character": 27
+                },
+                "end": {
+                    "line": 2498,
+                    "character": 51
+                }
+            },
+            "rule": "reportUnnecessaryIsInstance"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/agent_service.py",
+            "severity": "warning",
+            "message": "Unnecessary isinstance call; \"Dict[str, Any]\" is always an instance of \"dict[Unknown, Unknown]\"",
+            "range": {
+                "start": {
+                    "line": 2502,
+                    "character": 27
+                },
+                "end": {
+                    "line": 2502,
+                    "character": 51
+                }
+            },
+            "rule": "reportUnnecessaryIsInstance"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/agent_service.py",
+            "severity": "warning",
+            "message": "Unnecessary isinstance call; \"Dict[str, Any]\" is always an instance of \"dict[Unknown, Unknown]\"",
+            "range": {
+                "start": {
+                    "line": 2779,
+                    "character": 48
+                },
+                "end": {
+                    "line": 2779,
+                    "character": 70
+                }
+            },
+            "rule": "reportUnnecessaryIsInstance"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/agent_service.py",
+            "severity": "error",
+            "message": "Import \"agentic_rag.agent_graph\" could not be resolved",
+            "range": {
+                "start": {
+                    "line": 3041,
+                    "character": 17
+                },
+                "end": {
+                    "line": 3041,
+                    "character": 40
+                }
+            },
+            "rule": "reportMissingImports"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/agent_service.py",
+            "severity": "warning",
+            "message": "Unnecessary \"# type: ignore\" comment",
+            "range": {
+                "start": {
+                    "line": 3070,
+                    "character": 65
+                },
+                "end": {
+                    "line": 3070,
+                    "character": 91
+                }
+            },
+            "rule": "reportUnnecessaryTypeIgnoreComment"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/agent_service.py",
+            "severity": "warning",
+            "message": "Unnecessary isinstance call; \"AgentType\" is always an instance of \"AgentType\"",
+            "range": {
+                "start": {
+                    "line": 3189,
+                    "character": 27
+                },
+                "end": {
+                    "line": 3189,
+                    "character": 60
+                }
+            },
+            "rule": "reportUnnecessaryIsInstance"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/agent_service.py",
+            "severity": "warning",
+            "message": "Unnecessary isinstance call; \"Dict[str, Any]\" is always an instance of \"dict[Unknown, Unknown]\"",
+            "range": {
+                "start": {
+                    "line": 3211,
+                    "character": 56
+                },
+                "end": {
+                    "line": 3211,
+                    "character": 78
+                }
+            },
+            "rule": "reportUnnecessaryIsInstance"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/agent_service.py",
+            "severity": "warning",
+            "message": "Unnecessary isinstance call; \"Dict[str, Any]\" is always an instance of \"dict[Unknown, Unknown]\"",
+            "range": {
+                "start": {
+                    "line": 3677,
+                    "character": 32
+                },
+                "end": {
+                    "line": 3677,
+                    "character": 67
+                }
+            },
+            "rule": "reportUnnecessaryIsInstance"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/agent_service.py",
+            "severity": "warning",
+            "message": "Unnecessary isinstance call; \"Dict[str, Any]\" is always an instance of \"dict[Unknown, Unknown]\"",
+            "range": {
+                "start": {
+                    "line": 3680,
+                    "character": 54
+                },
+                "end": {
+                    "line": 3682,
+                    "character": 29
+                }
+            },
+            "rule": "reportUnnecessaryIsInstance"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/agent_service.py",
+            "severity": "warning",
+            "message": "Unnecessary \"# type: ignore\" comment",
+            "range": {
+                "start": {
+                    "line": 3700,
+                    "character": 63
+                },
+                "end": {
+                    "line": 3700,
+                    "character": 89
+                }
+            },
+            "rule": "reportUnnecessaryTypeIgnoreComment"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/agent_service.py",
+            "severity": "error",
+            "message": "Import \"memory.temporal.fsrs_manager\" could not be resolved",
+            "range": {
+                "start": {
+                    "line": 4180,
+                    "character": 21
+                },
+                "end": {
+                    "line": 4180,
+                    "character": 49
+                }
+            },
+            "rule": "reportMissingImports"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/agent_service.py",
+            "severity": "warning",
+            "message": "Unnecessary isinstance call; \"Dict[str, Any]\" is always an instance of \"dict[Unknown, Unknown]\"",
+            "range": {
+                "start": {
+                    "line": 4595,
+                    "character": 31
+                },
+                "end": {
+                    "line": 4595,
+                    "character": 60
+                }
+            },
+            "rule": "reportUnnecessaryIsInstance"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/archive_scheduler.py",
+            "severity": "warning",
+            "message": "Unnecessary isinstance call; \"List[Dict[str, Any]]\" is always an instance of \"list[Unknown]\"",
+            "range": {
+                "start": {
+                    "line": 190,
+                    "character": 11
+                },
+                "end": {
+                    "line": 190,
+                    "character": 36
+                }
+            },
+            "rule": "reportUnnecessaryIsInstance"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/archive_scheduler.py",
+            "severity": "warning",
+            "message": "Unnecessary isinstance call; \"Dict[str, Any]\" is always an instance of \"dict[Unknown, Unknown]\"",
+            "range": {
+                "start": {
+                    "line": 192,
+                    "character": 19
+                },
+                "end": {
+                    "line": 192,
+                    "character": 41
+                }
+            },
+            "rule": "reportUnnecessaryIsInstance"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/calibration_tracker.py",
+            "severity": "error",
+            "message": "Import \"logging\" is not accessed",
+            "range": {
+                "start": {
+                    "line": 14,
+                    "character": 7
+                },
+                "end": {
+                    "line": 14,
+                    "character": 14
+                }
+            },
+            "rule": "reportUnusedImport"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/candidate_service.py",
+            "severity": "warning",
+            "message": "Unnecessary isinstance call; \"dict[str, Any]\" is always an instance of \"dict[Unknown, Unknown]\"",
+            "range": {
+                "start": {
+                    "line": 147,
+                    "character": 11
+                },
+                "end": {
+                    "line": 147,
+                    "character": 33
+                }
+            },
+            "rule": "reportUnnecessaryIsInstance"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/canvas_service.py",
+            "severity": "error",
+            "message": "Import \"logging\" is not accessed",
+            "range": {
+                "start": {
+                    "line": 21,
+                    "character": 7
+                },
+                "end": {
+                    "line": 21,
+                    "character": 14
+                }
+            },
+            "rule": "reportUnusedImport"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/canvas_service.py",
+            "severity": "error",
+            "message": "Expression of type \"None\" cannot be assigned to parameter of type \"str\"\n  \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 69,
+                    "character": 32
+                },
+                "end": {
+                    "line": 69,
+                    "character": 36
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/canvas_service.py",
+            "severity": "error",
+            "message": "\"record_temporal_event\" is not a known attribute of \"None\"",
+            "range": {
+                "start": {
+                    "line": 339,
+                    "character": 38
+                },
+                "end": {
+                    "line": 339,
+                    "character": 59
+                }
+            },
+            "rule": "reportOptionalMemberAccess"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/chat_context_assembler.py",
+            "severity": "warning",
+            "message": "Unnecessary isinstance call; \"str\" is always an instance of \"str\"",
+            "range": {
+                "start": {
+                    "line": 126,
+                    "character": 11
+                },
+                "end": {
+                    "line": 126,
+                    "character": 33
+                }
+            },
+            "rule": "reportUnnecessaryIsInstance"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/context_enrichment_service.py",
+            "severity": "warning",
+            "message": "Unnecessary \"# type: ignore\" comment",
+            "range": {
+                "start": {
+                    "line": 37,
+                    "character": 30
+                },
+                "end": {
+                    "line": 37,
+                    "character": 54
+                }
+            },
+            "rule": "reportUnnecessaryTypeIgnoreComment"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/conversation_archive.py",
+            "severity": "warning",
+            "message": "Unnecessary isinstance call; \"List[Dict[str, Any]]\" is always an instance of \"list[Unknown]\"",
+            "range": {
+                "start": {
+                    "line": 107,
+                    "character": 19
+                },
+                "end": {
+                    "line": 107,
+                    "character": 44
+                }
+            },
+            "rule": "reportUnnecessaryIsInstance"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/conversation_archive.py",
+            "severity": "warning",
+            "message": "Unnecessary isinstance call; \"Dict[str, Any]\" is always an instance of \"dict[Unknown, Unknown]\"",
+            "range": {
+                "start": {
+                    "line": 110,
+                    "character": 23
+                },
+                "end": {
+                    "line": 110,
+                    "character": 45
+                }
+            },
+            "rule": "reportUnnecessaryIsInstance"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/conversation_archive.py",
+            "severity": "warning",
+            "message": "Unnecessary isinstance call; \"List[Dict[str, Any]]\" is always an instance of \"list[Unknown]\"",
+            "range": {
+                "start": {
+                    "line": 503,
+                    "character": 11
+                },
+                "end": {
+                    "line": 503,
+                    "character": 36
+                }
+            },
+            "rule": "reportUnnecessaryIsInstance"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/conversation_archive.py",
+            "severity": "warning",
+            "message": "Unnecessary isinstance call; \"Dict[str, Any]\" is always an instance of \"dict[Unknown, Unknown]\"",
+            "range": {
+                "start": {
+                    "line": 505,
+                    "character": 23
+                },
+                "end": {
+                    "line": 505,
+                    "character": 45
+                }
+            },
+            "rule": "reportUnnecessaryIsInstance"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/difficulty_matcher.py",
+            "severity": "error",
+            "message": "Import \"logging\" is not accessed",
+            "range": {
+                "start": {
+                    "line": 22,
+                    "character": 7
+                },
+                "end": {
+                    "line": 22,
+                    "character": 14
+                }
+            },
+            "rule": "reportUnusedImport"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/difficulty_matcher.py",
+            "severity": "error",
+            "message": "No overloads for \"__new__\" match the provided arguments",
+            "range": {
+                "start": {
+                    "line": 147,
+                    "character": 27
+                },
+                "end": {
+                    "line": 147,
+                    "character": 41
+                }
+            },
+            "rule": "reportCallIssue"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/difficulty_matcher.py",
+            "severity": "error",
+            "message": "Argument of type \"Iterable[Row]\" cannot be assigned to parameter \"sequence\" of type \"SupportsLenAndGetItem[_T@reversed]\" in function \"__new__\"\n  \"Iterable[Row]\" is incompatible with protocol \"SupportsLenAndGetItem[_T@reversed]\"\n    \"__len__\" is not present\n    \"__getitem__\" is not present",
+            "range": {
+                "start": {
+                    "line": 147,
+                    "character": 36
+                },
+                "end": {
+                    "line": 147,
+                    "character": 40
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/difficulty_matcher.py",
+            "severity": "error",
+            "message": "Cannot access attribute \"choices\" for class \"CustomStreamWrapper\"\n  Attribute \"choices\" is unknown",
+            "range": {
+                "start": {
+                    "line": 221,
+                    "character": 27
+                },
+                "end": {
+                    "line": 221,
+                    "character": 34
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/difficulty_matcher.py",
+            "severity": "error",
+            "message": "\"strip\" is not a known attribute of \"None\"",
+            "range": {
+                "start": {
+                    "line": 221,
+                    "character": 54
+                },
+                "end": {
+                    "line": 221,
+                    "character": 59
+                }
+            },
+            "rule": "reportOptionalMemberAccess"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/episode_worker.py",
+            "severity": "warning",
+            "message": "Unnecessary isinstance call; \"str\" is always an instance of \"str\"",
+            "range": {
+                "start": {
+                    "line": 190,
+                    "character": 11
+                },
+                "end": {
+                    "line": 190,
+                    "character": 32
+                }
+            },
+            "rule": "reportUnnecessaryIsInstance"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/error_aggregator.py",
+            "severity": "error",
+            "message": "Arguments missing for parameters \"llm_errors\", \"network_errors\", \"algorithm_errors\", \"data_errors\", \"uncategorized\"",
+            "range": {
+                "start": {
+                    "line": 268,
+                    "character": 17
+                },
+                "end": {
+                    "line": 268,
+                    "character": 38
+                }
+            },
+            "rule": "reportCallIssue"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/event_bus.py",
+            "severity": "error",
+            "message": "Import \"logging\" is not accessed",
+            "range": {
+                "start": {
+                    "line": 24,
+                    "character": 7
+                },
+                "end": {
+                    "line": 24,
+                    "character": 14
+                }
+            },
+            "rule": "reportUnusedImport"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/exam_service.py",
+            "severity": "warning",
+            "message": "Unnecessary isinstance call; \"Dict[str, Any]\" is always an instance of \"dict[Unknown, Unknown]\"",
+            "range": {
+                "start": {
+                    "line": 370,
+                    "character": 37
+                },
+                "end": {
+                    "line": 370,
+                    "character": 65
+                }
+            },
+            "rule": "reportUnnecessaryIsInstance"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/exam_service_ext.py",
+            "severity": "warning",
+            "message": "Unnecessary isinstance call; \"Dict[str, Any]\" is always an instance of \"dict[Unknown, Unknown]\"",
+            "range": {
+                "start": {
+                    "line": 203,
+                    "character": 47
+                },
+                "end": {
+                    "line": 203,
+                    "character": 81
+                }
+            },
+            "rule": "reportUnnecessaryIsInstance"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/exam_service_ext.py",
+            "severity": "error",
+            "message": "Arguments missing for parameters \"hint_available\", \"max_allowed_level\"",
+            "range": {
+                "start": {
+                    "line": 314,
+                    "character": 15
+                },
+                "end": {
+                    "line": 320,
+                    "character": 9
+                }
+            },
+            "rule": "reportCallIssue"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/exam_service_ext.py",
+            "severity": "warning",
+            "message": "Unnecessary isinstance call; \"Dict[str, Any]\" is always an instance of \"dict[Unknown, Unknown]\"",
+            "range": {
+                "start": {
+                    "line": 494,
+                    "character": 33
+                },
+                "end": {
+                    "line": 494,
+                    "character": 61
+                }
+            },
+            "rule": "reportUnnecessaryIsInstance"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/exam_service_ext.py",
+            "severity": "warning",
+            "message": "Unnecessary isinstance call; \"Dict[str, Any]\" is always an instance of \"dict[Unknown, Unknown]\"",
+            "range": {
+                "start": {
+                    "line": 692,
+                    "character": 33
+                },
+                "end": {
+                    "line": 692,
+                    "character": 61
+                }
+            },
+            "rule": "reportUnnecessaryIsInstance"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/exam_service_ext.py",
+            "severity": "error",
+            "message": "Argument missing for parameter \"record_id\"",
+            "range": {
+                "start": {
+                    "line": 697,
+                    "character": 15
+                },
+                "end": {
+                    "line": 702,
+                    "character": 9
+                }
+            },
+            "rule": "reportCallIssue"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/exam_service_ext.py",
+            "severity": "warning",
+            "message": "Unnecessary isinstance call; \"Dict[str, Any]\" is always an instance of \"dict[Unknown, Unknown]\"",
+            "range": {
+                "start": {
+                    "line": 783,
+                    "character": 39
+                },
+                "end": {
+                    "line": 783,
+                    "character": 73
+                }
+            },
+            "rule": "reportUnnecessaryIsInstance"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/exam_service_ext.py",
+            "severity": "warning",
+            "message": "Unnecessary isinstance call; \"Dict[str, Any]\" is always an instance of \"dict[Unknown, Unknown]\"",
+            "range": {
+                "start": {
+                    "line": 790,
+                    "character": 29
+                },
+                "end": {
+                    "line": 790,
+                    "character": 53
+                }
+            },
+            "rule": "reportUnnecessaryIsInstance"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/exam_service_ext.py",
+            "severity": "warning",
+            "message": "Unnecessary isinstance call; \"Dict[str, Any]\" is always an instance of \"dict[Unknown, Unknown]\"",
+            "range": {
+                "start": {
+                    "line": 828,
+                    "character": 29
+                },
+                "end": {
+                    "line": 828,
+                    "character": 57
+                }
+            },
+            "rule": "reportUnnecessaryIsInstance"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/exam_service_ext.py",
+            "severity": "warning",
+            "message": "Unnecessary isinstance call; \"Dict[str, Any]\" is always an instance of \"dict[Unknown, Unknown]\"",
+            "range": {
+                "start": {
+                    "line": 890,
+                    "character": 29
+                },
+                "end": {
+                    "line": 890,
+                    "character": 53
+                }
+            },
+            "rule": "reportUnnecessaryIsInstance"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/extraction_validator.py",
+            "severity": "error",
+            "message": "Argument missing for parameter \"updated_at\"",
+            "range": {
+                "start": {
+                    "line": 237,
+                    "character": 15
+                },
+                "end": {
+                    "line": 248,
+                    "character": 9
+                }
+            },
+            "rule": "reportCallIssue"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/health_monitor.py",
+            "severity": "error",
+            "message": "Argument missing for parameter \"message\"",
+            "range": {
+                "start": {
+                    "line": 226,
+                    "character": 19
+                },
+                "end": {
+                    "line": 231,
+                    "character": 13
+                }
+            },
+            "rule": "reportCallIssue"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/health_monitor.py",
+            "severity": "error",
+            "message": "Argument missing for parameter \"message\"",
+            "range": {
+                "start": {
+                    "line": 269,
+                    "character": 19
+                },
+                "end": {
+                    "line": 274,
+                    "character": 13
+                }
+            },
+            "rule": "reportCallIssue"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/intelligent_parallel_service.py",
+            "severity": "error",
+            "message": "Argument missing for parameter \"file_size\"",
+            "range": {
+                "start": {
+                    "line": 382,
+                    "character": 32
+                },
+                "end": {
+                    "line": 385,
+                    "character": 33
+                }
+            },
+            "rule": "reportCallIssue"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/lancedb_index_service.py",
+            "severity": "error",
+            "message": "Import \"agentic_rag.clients.lancedb_client\" could not be resolved",
+            "range": {
+                "start": {
+                    "line": 490,
+                    "character": 17
+                },
+                "end": {
+                    "line": 490,
+                    "character": 51
+                }
+            },
+            "rule": "reportMissingImports"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/learning_context_service.py",
+            "severity": "warning",
+            "message": "Function \"_empty_context\" is not accessed",
+            "range": {
+                "start": {
+                    "line": 50,
+                    "character": 4
+                },
+                "end": {
+                    "line": 50,
+                    "character": 18
+                }
+            },
+            "rule": "reportUnusedFunction"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/learning_context_service.py",
+            "severity": "error",
+            "message": "Argument missing for parameter \"query\"",
+            "range": {
+                "start": {
+                    "line": 198,
+                    "character": 25
+                },
+                "end": {
+                    "line": 198,
+                    "character": 83
+                }
+            },
+            "rule": "reportCallIssue"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/mastery_engine.py",
+            "severity": "error",
+            "message": "Import \"logging\" is not accessed",
+            "range": {
+                "start": {
+                    "line": 25,
+                    "character": 7
+                },
+                "end": {
+                    "line": 25,
+                    "character": 14
+                }
+            },
+            "rule": "reportUnusedImport"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/mastery_engine.py",
+            "severity": "error",
+            "message": "Import \"memory.temporal.fsrs_manager\" could not be resolved",
+            "range": {
+                "start": {
+                    "line": 54,
+                    "character": 9
+                },
+                "end": {
+                    "line": 54,
+                    "character": 37
+                }
+            },
+            "rule": "reportMissingImports"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/mastery_engine.py",
+            "severity": "error",
+            "message": "Argument of type \"None\" cannot be assigned to parameter \"default\" of type \"float\" in function \"_card_attr\"\n  \"None\" is not assignable to \"float\"",
+            "range": {
+                "start": {
+                    "line": 325,
+                    "character": 54
+                },
+                "end": {
+                    "line": 325,
+                    "character": 58
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/mastery_engine.py",
+            "severity": "error",
+            "message": "Argument of type \"None\" cannot be assigned to parameter \"default\" of type \"float\" in function \"_card_attr\"\n  \"None\" is not assignable to \"float\"",
+            "range": {
+                "start": {
+                    "line": 326,
+                    "character": 56
+                },
+                "end": {
+                    "line": 326,
+                    "character": 60
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/mastery_engine.py",
+            "severity": "error",
+            "message": "Cannot access attribute \"value\" for class \"float\"\n  Attribute \"value\" is unknown",
+            "range": {
+                "start": {
+                    "line": 335,
+                    "character": 22
+                },
+                "end": {
+                    "line": 335,
+                    "character": 27
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/mastery_engine.py",
+            "severity": "error",
+            "message": "Argument of type \"None\" cannot be assigned to parameter \"default\" of type \"float\" in function \"_card_attr\"\n  \"None\" is not assignable to \"float\"",
+            "range": {
+                "start": {
+                    "line": 683,
+                    "character": 46
+                },
+                "end": {
+                    "line": 683,
+                    "character": 50
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/mastery_fusion.py",
+            "severity": "error",
+            "message": "Import \"logging\" is not accessed",
+            "range": {
+                "start": {
+                    "line": 19,
+                    "character": 7
+                },
+                "end": {
+                    "line": 19,
+                    "character": 14
+                }
+            },
+            "rule": "reportUnusedImport"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/mastery_store.py",
+            "severity": "error",
+            "message": "Import \"logging\" is not accessed",
+            "range": {
+                "start": {
+                    "line": 14,
+                    "character": 7
+                },
+                "end": {
+                    "line": 14,
+                    "character": 14
+                }
+            },
+            "rule": "reportUnusedImport"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/memory_service.py",
+            "severity": "warning",
+            "message": "Unnecessary isinstance call; \"Dict[str, Any]\" is always an instance of \"dict[Unknown, Unknown]\"",
+            "range": {
+                "start": {
+                    "line": 1738,
+                    "character": 33
+                },
+                "end": {
+                    "line": 1738,
+                    "character": 57
+                }
+            },
+            "rule": "reportUnnecessaryIsInstance"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/memory_service.py",
+            "severity": "warning",
+            "message": "Unnecessary isinstance call; \"Dict[str, Any]\" is always an instance of \"dict[Unknown, Unknown]\"",
+            "range": {
+                "start": {
+                    "line": 2059,
+                    "character": 34
+                },
+                "end": {
+                    "line": 2059,
+                    "character": 55
+                }
+            },
+            "rule": "reportUnnecessaryIsInstance"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/multimodal_service.py",
+            "severity": "error",
+            "message": "Import \"logging\" is not accessed",
+            "range": {
+                "start": {
+                    "line": 20,
+                    "character": 7
+                },
+                "end": {
+                    "line": 20,
+                    "character": 14
+                }
+            },
+            "rule": "reportUnusedImport"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/multimodal_service.py",
+            "severity": "warning",
+            "message": "Unnecessary \"# type: ignore\" comment",
+            "range": {
+                "start": {
+                    "line": 299,
+                    "character": 47
+                },
+                "end": {
+                    "line": 299,
+                    "character": 75
+                }
+            },
+            "rule": "reportUnnecessaryTypeIgnoreComment"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/multimodal_service.py",
+            "severity": "error",
+            "message": "\"LANCZOS\" is not a known attribute of module \"PIL.Image\"",
+            "range": {
+                "start": {
+                    "line": 310,
+                    "character": 48
+                },
+                "end": {
+                    "line": 310,
+                    "character": 55
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/multimodal_service.py",
+            "severity": "error",
+            "message": "Arguments missing for parameters \"width\", \"height\", \"duration\", \"page_count\", \"author\", \"title\", \"language\"",
+            "range": {
+                "start": {
+                    "line": 603,
+                    "character": 19
+                },
+                "end": {
+                    "line": 606,
+                    "character": 9
+                }
+            },
+            "rule": "reportCallIssue"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/multimodal_service.py",
+            "severity": "error",
+            "message": "Import \"agentic_rag.models.multimodal_content\" could not be resolved",
+            "range": {
+                "start": {
+                    "line": 628,
+                    "character": 21
+                },
+                "end": {
+                    "line": 628,
+                    "character": 58
+                }
+            },
+            "rule": "reportMissingImports"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/multimodal_service.py",
+            "severity": "error",
+            "message": "Arguments missing for parameters \"extracted_text\", \"source_location\", \"updated_at\"",
+            "range": {
+                "start": {
+                    "line": 650,
+                    "character": 27
+                },
+                "end": {
+                    "line": 659,
+                    "character": 9
+                }
+            },
+            "rule": "reportCallIssue"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/multimodal_service.py",
+            "severity": "error",
+            "message": "Arguments missing for parameters \"width\", \"height\", \"duration\", \"page_count\", \"author\", \"title\", \"language\"",
+            "range": {
+                "start": {
+                    "line": 747,
+                    "character": 19
+                },
+                "end": {
+                    "line": 750,
+                    "character": 9
+                }
+            },
+            "rule": "reportCallIssue"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/multimodal_service.py",
+            "severity": "error",
+            "message": "Arguments missing for parameters \"extracted_text\", \"source_location\", \"updated_at\"",
+            "range": {
+                "start": {
+                    "line": 771,
+                    "character": 27
+                },
+                "end": {
+                    "line": 780,
+                    "character": 9
+                }
+            },
+            "rule": "reportCallIssue"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/multimodal_service.py",
+            "severity": "error",
+            "message": "Arguments missing for parameters \"author\", \"title\", \"language\"",
+            "range": {
+                "start": {
+                    "line": 843,
+                    "character": 33
+                },
+                "end": {
+                    "line": 850,
+                    "character": 25
+                }
+            },
+            "rule": "reportCallIssue"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/multimodal_service.py",
+            "severity": "error",
+            "message": "Import \"agentic_rag.models.multimodal_content\" could not be resolved",
+            "range": {
+                "start": {
+                    "line": 1221,
+                    "character": 25
+                },
+                "end": {
+                    "line": 1221,
+                    "character": 62
+                }
+            },
+            "rule": "reportMissingImports"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/multimodal_service.py",
+            "severity": "error",
+            "message": "Variable \"cid\" is not accessed",
+            "range": {
+                "start": {
+                    "line": 1241,
+                    "character": 12
+                },
+                "end": {
+                    "line": 1241,
+                    "character": 15
+                }
+            },
+            "rule": "reportUnusedVariable"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/multimodal_service.py",
+            "severity": "error",
+            "message": "Import \"agentic_rag.models.multimodal_content\" could not be resolved",
+            "range": {
+                "start": {
+                    "line": 1337,
+                    "character": 29
+                },
+                "end": {
+                    "line": 1337,
+                    "character": 66
+                }
+            },
+            "rule": "reportMissingImports"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/multimodal_service.py",
+            "severity": "error",
+            "message": "Variable \"content_id\" is not accessed",
+            "range": {
+                "start": {
+                    "line": 1377,
+                    "character": 12
+                },
+                "end": {
+                    "line": 1377,
+                    "character": 22
+                }
+            },
+            "rule": "reportUnusedVariable"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/multimodal_service.py",
+            "severity": "error",
+            "message": "Import \"agentic_rag.embedding.embedding_service\" could not be resolved",
+            "range": {
+                "start": {
+                    "line": 1423,
+                    "character": 17
+                },
+                "end": {
+                    "line": 1423,
+                    "character": 56
+                }
+            },
+            "rule": "reportMissingImports"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/multimodal_service.py",
+            "severity": "error",
+            "message": "Import \"agentic_rag.models.multimodal_content\" could not be resolved",
+            "range": {
+                "start": {
+                    "line": 1493,
+                    "character": 25
+                },
+                "end": {
+                    "line": 1493,
+                    "character": 62
+                }
+            },
+            "rule": "reportMissingImports"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/multimodal_service.py",
+            "severity": "error",
+            "message": "Import \"agentic_rag.models.multimodal_content\" could not be resolved",
+            "range": {
+                "start": {
+                    "line": 1517,
+                    "character": 25
+                },
+                "end": {
+                    "line": 1517,
+                    "character": 62
+                }
+            },
+            "rule": "reportMissingImports"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/multimodal_service.py",
+            "severity": "error",
+            "message": "Variable \"content_id\" is not accessed",
+            "range": {
+                "start": {
+                    "line": 1549,
+                    "character": 16
+                },
+                "end": {
+                    "line": 1549,
+                    "character": 26
+                }
+            },
+            "rule": "reportUnusedVariable"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/question_generator.py",
+            "severity": "warning",
+            "message": "Unnecessary isinstance call; \"Dict[str, Any]\" is always an instance of \"dict[Unknown, Unknown]\"",
+            "range": {
+                "start": {
+                    "line": 1001,
+                    "character": 37
+                },
+                "end": {
+                    "line": 1001,
+                    "character": 65
+                }
+            },
+            "rule": "reportUnnecessaryIsInstance"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/rag_service.py",
+            "severity": "error",
+            "message": "Import \"agentic_rag\" could not be resolved",
+            "range": {
+                "start": {
+                    "line": 50,
+                    "character": 9
+                },
+                "end": {
+                    "line": 50,
+                    "character": 20
+                }
+            },
+            "rule": "reportMissingImports"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/relationship_sync_service.py",
+            "severity": "warning",
+            "message": "Unnecessary isinstance call; \"str\" is always an instance of \"str\"",
+            "range": {
+                "start": {
+                    "line": 55,
+                    "character": 11
+                },
+                "end": {
+                    "line": 55,
+                    "character": 38
+                }
+            },
+            "rule": "reportUnnecessaryIsInstance"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/relationship_sync_service.py",
+            "severity": "warning",
+            "message": "Unnecessary isinstance call; \"dict[str, Any]\" is always an instance of \"dict[Unknown, Unknown]\"",
+            "range": {
+                "start": {
+                    "line": 254,
+                    "character": 19
+                },
+                "end": {
+                    "line": 254,
+                    "character": 38
+                }
+            },
+            "rule": "reportUnnecessaryIsInstance"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/review_service.py",
+            "severity": "error",
+            "message": "Import \"logging\" is not accessed",
+            "range": {
+                "start": {
+                    "line": 63,
+                    "character": 7
+                },
+                "end": {
+                    "line": 63,
+                    "character": 14
+                }
+            },
+            "rule": "reportUnusedImport"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/review_service.py",
+            "severity": "error",
+            "message": "Import \"memory.temporal.fsrs_manager\" could not be resolved",
+            "range": {
+                "start": {
+                    "line": 89,
+                    "character": 9
+                },
+                "end": {
+                    "line": 89,
+                    "character": 37
+                }
+            },
+            "rule": "reportMissingImports"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/review_service.py",
+            "severity": "error",
+            "message": "Import \"CardState\" is not accessed",
+            "range": {
+                "start": {
+                    "line": 90,
+                    "character": 8
+                },
+                "end": {
+                    "line": 90,
+                    "character": 17
+                }
+            },
+            "rule": "reportUnusedImport"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/review_service.py",
+            "severity": "warning",
+            "message": "Unnecessary isinstance call; \"ReviewStatus\" is always an instance of \"ReviewStatus\"",
+            "range": {
+                "start": {
+                    "line": 717,
+                    "character": 43
+                },
+                "end": {
+                    "line": 717,
+                    "character": 80
+                }
+            },
+            "rule": "reportUnnecessaryIsInstance"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/review_service.py",
+            "severity": "error",
+            "message": "Cannot access attribute \"get_canvas\" for class \"CanvasService\"\n  Attribute \"get_canvas\" is unknown",
+            "range": {
+                "start": {
+                    "line": 1239,
+                    "character": 48
+                },
+                "end": {
+                    "line": 1239,
+                    "character": 58
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/review_service.py",
+            "severity": "error",
+            "message": "Variable \"mastery_lookup\" is not accessed",
+            "range": {
+                "start": {
+                    "line": 1249,
+                    "character": 8
+                },
+                "end": {
+                    "line": 1249,
+                    "character": 22
+                }
+            },
+            "rule": "reportUnusedVariable"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/review_service.py",
+            "severity": "error",
+            "message": "Variable \"mastery_lookup\" is not accessed",
+            "range": {
+                "start": {
+                    "line": 1273,
+                    "character": 12
+                },
+                "end": {
+                    "line": 1273,
+                    "character": 26
+                }
+            },
+            "rule": "reportUnusedVariable"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/review_service.py",
+            "severity": "error",
+            "message": "Cannot access attribute \"value\" for class \"int\"\n  Attribute \"value\" is unknown",
+            "range": {
+                "start": {
+                    "line": 1506,
+                    "character": 63
+                },
+                "end": {
+                    "line": 1506,
+                    "character": 68
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/review_service.py",
+            "severity": "error",
+            "message": "Argument of type \"Unknown | int | None\" cannot be assigned to parameter \"x\" of type \"ConvertibleToInt\" in function \"__new__\"\n  Type \"Unknown | int | None\" is not assignable to type \"ConvertibleToInt\"\n    Type \"None\" is not assignable to type \"ConvertibleToInt\"\n      \"None\" is not assignable to \"str\"\n      \"None\" is incompatible with protocol \"Buffer\"\n        \"__buffer__\" is not present\n      \"None\" is incompatible with protocol \"SupportsInt\"\n        \"__int__\" is not present\n      \"None\" is incompatible with protocol \"SupportsIndex\"\n  ...",
+            "range": {
+                "start": {
+                    "line": 1604,
+                    "character": 25
+                },
+                "end": {
+                    "line": 1604,
+                    "character": 31
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/review_service.py",
+            "severity": "error",
+            "message": "Argument of type \"Unknown | int | None\" cannot be assigned to parameter \"x\" of type \"ConvertibleToInt\" in function \"__new__\"\n  Type \"Unknown | int | None\" is not assignable to type \"ConvertibleToInt\"\n    Type \"None\" is not assignable to type \"ConvertibleToInt\"\n      \"None\" is not assignable to \"str\"\n      \"None\" is incompatible with protocol \"Buffer\"\n        \"__buffer__\" is not present\n      \"None\" is incompatible with protocol \"SupportsInt\"\n        \"__int__\" is not present\n      \"None\" is incompatible with protocol \"SupportsIndex\"",
+            "range": {
+                "start": {
+                    "line": 1604,
+                    "character": 25
+                },
+                "end": {
+                    "line": 1604,
+                    "character": 31
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/review_service.py",
+            "severity": "error",
+            "message": "Variable \"review_log\" is not accessed",
+            "range": {
+                "start": {
+                    "line": 1629,
+                    "character": 30
+                },
+                "end": {
+                    "line": 1629,
+                    "character": 40
+                }
+            },
+            "rule": "reportUnusedVariable"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/review_service.py",
+            "severity": "error",
+            "message": "Cannot access attribute \"value\" for class \"int\"\n  Attribute \"value\" is unknown",
+            "range": {
+                "start": {
+                    "line": 1720,
+                    "character": 46
+                },
+                "end": {
+                    "line": 1720,
+                    "character": 51
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/review_service.py",
+            "severity": "warning",
+            "message": "Unnecessary isinstance call; \"str\" is always an instance of \"str\"",
+            "range": {
+                "start": {
+                    "line": 1923,
+                    "character": 23
+                },
+                "end": {
+                    "line": 1923,
+                    "character": 49
+                }
+            },
+            "rule": "reportUnnecessaryIsInstance"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/review_service.py",
+            "severity": "error",
+            "message": "Arguments missing for parameters \"canvas_path\", \"from_node_id\", \"to_node_id\"",
+            "range": {
+                "start": {
+                    "line": 2121,
+                    "character": 27
+                },
+                "end": {
+                    "line": 2127,
+                    "character": 13
+                }
+            },
+            "rule": "reportCallIssue"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/review_service.py",
+            "severity": "error",
+            "message": "No parameter named \"canvas_name\"",
+            "range": {
+                "start": {
+                    "line": 2122,
+                    "character": 16
+                },
+                "end": {
+                    "line": 2122,
+                    "character": 27
+                }
+            },
+            "rule": "reportCallIssue"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/review_service.py",
+            "severity": "error",
+            "message": "No parameter named \"from_node\"",
+            "range": {
+                "start": {
+                    "line": 2123,
+                    "character": 16
+                },
+                "end": {
+                    "line": 2123,
+                    "character": 25
+                }
+            },
+            "rule": "reportCallIssue"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/review_service.py",
+            "severity": "error",
+            "message": "No parameter named \"to_node\"",
+            "range": {
+                "start": {
+                    "line": 2124,
+                    "character": 16
+                },
+                "end": {
+                    "line": 2124,
+                    "character": 23
+                }
+            },
+            "rule": "reportCallIssue"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/review_service.py",
+            "severity": "error",
+            "message": "No parameter named \"label\"",
+            "range": {
+                "start": {
+                    "line": 2125,
+                    "character": 16
+                },
+                "end": {
+                    "line": 2125,
+                    "character": 21
+                }
+            },
+            "rule": "reportCallIssue"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/review_service.py",
+            "severity": "error",
+            "message": "Cannot access attribute \"value\" for class \"int\"\n  Attribute \"value\" is unknown",
+            "range": {
+                "start": {
+                    "line": 2791,
+                    "character": 42
+                },
+                "end": {
+                    "line": 2791,
+                    "character": 47
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/scoring_faithfulness.py",
+            "severity": "warning",
+            "message": "Unnecessary \"# type: ignore\" comment",
+            "range": {
+                "start": {
+                    "line": 42,
+                    "character": 30
+                },
+                "end": {
+                    "line": 42,
+                    "character": 54
+                }
+            },
+            "rule": "reportUnnecessaryTypeIgnoreComment"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/supplementary_search_service.py",
+            "severity": "error",
+            "message": "Import \"agentic_rag.clients.lancedb_client\" could not be resolved",
+            "range": {
+                "start": {
+                    "line": 138,
+                    "character": 9
+                },
+                "end": {
+                    "line": 138,
+                    "character": 43
+                }
+            },
+            "rule": "reportMissingImports"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/supplementary_search_service.py",
+            "severity": "error",
+            "message": "Import \"agentic_rag.clients.lancedb_client\" could not be resolved",
+            "range": {
+                "start": {
+                    "line": 854,
+                    "character": 9
+                },
+                "end": {
+                    "line": 854,
+                    "character": 43
+                }
+            },
+            "rule": "reportMissingImports"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/supplementary_search_service.py",
+            "severity": "warning",
+            "message": "Unnecessary isinstance call; \"str\" is always an instance of \"str\"",
+            "range": {
+                "start": {
+                    "line": 1004,
+                    "character": 11
+                },
+                "end": {
+                    "line": 1004,
+                    "character": 32
+                }
+            },
+            "rule": "reportUnnecessaryIsInstance"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/targeting_material_service.py",
+            "severity": "warning",
+            "message": "Unnecessary isinstance call; \"Dict[str, Any]\" is always an instance of \"dict[Unknown, Unknown]\"",
+            "range": {
+                "start": {
+                    "line": 191,
+                    "character": 51
+                },
+                "end": {
+                    "line": 191,
+                    "character": 72
+                }
+            },
+            "rule": "reportUnnecessaryIsInstance"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/vault_index_orchestrator.py",
+            "severity": "error",
+            "message": "Import \"agentic_rag.clients\" could not be resolved",
+            "range": {
+                "start": {
+                    "line": 168,
+                    "character": 21
+                },
+                "end": {
+                    "line": 168,
+                    "character": 40
+                }
+            },
+            "rule": "reportMissingImports"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/vault_index_orchestrator.py",
+            "severity": "error",
+            "message": "Import \"agentic_rag.config\" could not be resolved",
+            "range": {
+                "start": {
+                    "line": 169,
+                    "character": 21
+                },
+                "end": {
+                    "line": 169,
+                    "character": 39
+                }
+            },
+            "rule": "reportMissingImports"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/vault_index_orchestrator.py",
+            "severity": "error",
+            "message": "Import \"agentic_rag.clients.lancedb_client\" could not be resolved",
+            "range": {
+                "start": {
+                    "line": 206,
+                    "character": 13
+                },
+                "end": {
+                    "line": 206,
+                    "character": 47
+                }
+            },
+            "rule": "reportMissingImports"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/vault_index_orchestrator.py",
+            "severity": "error",
+            "message": "Import \"agentic_rag.clients.lancedb_client\" could not be resolved",
+            "range": {
+                "start": {
+                    "line": 226,
+                    "character": 17
+                },
+                "end": {
+                    "line": 226,
+                    "character": 51
+                }
+            },
+            "rule": "reportMissingImports"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/vault_index_orchestrator.py",
+            "severity": "error",
+            "message": "Import \"agentic_rag.clients.lancedb_client\" could not be resolved",
+            "range": {
+                "start": {
+                    "line": 530,
+                    "character": 13
+                },
+                "end": {
+                    "line": 530,
+                    "character": 47
+                }
+            },
+            "rule": "reportMissingImports"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/vault_index_orchestrator.py",
+            "severity": "error",
+            "message": "Import \"agentic_rag.clients.lancedb_client\" could not be resolved",
+            "range": {
+                "start": {
+                    "line": 541,
+                    "character": 17
+                },
+                "end": {
+                    "line": 541,
+                    "character": 51
+                }
+            },
+            "rule": "reportMissingImports"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/verification_service.py",
+            "severity": "warning",
+            "message": "Unnecessary isinstance call; \"Dict[str, Any]\" is always an instance of \"dict[Unknown, Unknown]\"",
+            "range": {
+                "start": {
+                    "line": 119,
+                    "character": 23
+                },
+                "end": {
+                    "line": 119,
+                    "character": 45
+                }
+            },
+            "rule": "reportUnnecessaryIsInstance"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/wikilink_context_service.py",
+            "severity": "warning",
+            "message": "Function \"_extract_relationship_type\" is not accessed",
+            "range": {
+                "start": {
+                    "line": 125,
+                    "character": 4
+                },
+                "end": {
+                    "line": 125,
+                    "character": 30
+                }
+            },
+            "rule": "reportUnusedFunction"
+        },
+        {
+            "file": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/wikilink_graph_service.py",
+            "severity": "warning",
+            "message": "Unnecessary isinstance call; \"str\" is always an instance of \"str\"",
+            "range": {
+                "start": {
+                    "line": 408,
+                    "character": 26
+                },
+                "end": {
+                    "line": 408,
+                    "character": 46
+                }
+            },
+            "rule": "reportUnnecessaryIsInstance"
+        }
+    ],
+    "summary": {
+        "filesAnalyzed": 93,
+        "errorCount": 77,
+        "warningCount": 50,
+        "informationCount": 0,
+        "timeInSec": 5.169
+    }
+}
+

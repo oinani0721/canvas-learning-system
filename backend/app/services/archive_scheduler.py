@@ -9,7 +9,6 @@
 # [Source: _bmad-output/implementation-artifacts/3-8-dialog-archive-async-generation.md#Task 3]
 
 import asyncio
-import logging
 from datetime import datetime, timezone
 
 import structlog

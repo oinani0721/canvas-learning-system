@@ -1,0 +1,91 @@
+### 尝试: git merge --no-edit 5638ac6c (U2 阶段0) 于 HEAD=0188c4e5
+### 依据: 卡文 §一(c) 的阶段 0 merge 程序 + 5638ac6c 正文自述「U1-A 需 merge 本 sha」
+
+## merge 输出
+Auto-merging backend/openapi.json
+CONFLICT (content): Merge conflict in backend/openapi.json
+Recorded preimage for 'backend/openapi.json'
+Automatic merge failed; fix conflicts and then commit the result.
+
+## 冲突文件（U 状态）
+backend/openapi.json
+
+## 冲突块数量
+2
+
+## 冲突块首 20 行
+15782:<<<<<<< HEAD
+15783-    "x-generated-at": "2026-09-10T17:21:44.705477+00:00",
+15784-=======
+15785-    "x-generated-at": "2026-09-07T22:55:07.221916+00:00",
+15786->>>>>>> 5638ac6c
+15787-    "x-generator": "scripts/spec-tools/check-openapi-drift.py --write"
+15788-  },
+15789-  "openapi": "3.1.0",
+15790-  "paths": {
+15791-    "/": {
+15792-      "get": {
+15793-        "description": "Root endpoint providing API information.\n\nReturns basic API metadata including name, version, and documentation URL.\n\nReturns:\n    dict: API information.",
+15794-        "operationId": "root__get",
+
+## 本次 merge 会带入的文件（非冲突部分）
+backend/app/models/agent_routing_models.py
+backend/app/models/edge_rationale.py
+backend/app/models/exam_models.py
+backend/app/models/intelligent_parallel_models.py
+backend/app/models/memory_schemas.py
+backend/app/models/metadata_models.py
+backend/app/models/multimodal_schemas.py
+backend/app/models/qa_models.py
+backend/app/models/review_models.py
+backend/app/models/rollback.py
+backend/app/models/schemas.py
+backend/app/models/subject_models.py
+backend/openapi.json
+backend/tests/unit/test_exam_models_rubric_required_u2a.py
+pyrightconfig.json
+
+## 裁定: 卡文 §一(c) + goal 第1条均写「冲突 = 停下报主 session，不得 checkout --theirs/--ours」
+## 动作: git merge --abort, 树回到 0188c4e5, 残余 37 条原样交主 session
+
+## 冲突块 2 全文
+<<<<<<< HEAD
+        "description": "把「这块板今天做完了」记进 runner 的 per-vault state。\n\n这是本端点第一个写侧**业务**动作 (refresh 写的是投影产物, 是重算的\n副产品; 本动作写的是用户的判断)。三条纪律见模块 docstring:\n\n  · 写面恰是 backups/daily-review.<key>.state.json 一个文件 —— 节点\n    frontmatter 的 fsrs_* 一个字节不动, learning_events 账本不追加。\n    标记完成**不影响 FSRS**, 页面上也这么写着 (_DONE_NOTE)。\n  · 允许一道题都没答就标完成 (用户裁决) —— 因为\"做完了\"记的是人的\n    判断, 不是系统对掌握度的判断; 后者归 FSRS, 本动作碰不到它。\n  · 「今天」是显示时区本地日 (_display_today, 与页面到期人话同源)。隔日\n    自然失效: 不删旧键、不起定时清理 —— 值不等于今天就是没完成。\n\n两道写侧门与 refresh 完全同源 (复制一份 = 两份会漂移):\n  _assert_same_origin  跨站表单 CSRF;\n  _assert_write_target_contained  (在 _refresh_target 内) 软链逃逸。\n失败一律回原样 4xx/5xx —— 表单路径渲染人话错误页, 状态码不粉饰。\n\n撤销 (CARD-G6-7-R 已做): 误点后有 POST /overview/board-undone 当场取回,\n零 JS 页与交互壳各有一个入口。推迟 (snooze) 仍未做, 归后续卡 (D-8)。",
+=======
+        "description": "把「这块板今天做完了」记进 runner 的 per-vault state。\n\n这是本端点第一个写侧**业务**动作 (refresh 写的是投影产物, 是重算的\n副产品; 本动作写的是用户的判断)。三条纪律见模块 docstring:\n\n  · 写面恰是 backups/daily-review.<key>.state.json 一个文件 —— 节点\n    frontmatter 的 fsrs_* 一个字节不动, learning_events 账本不追加。\n    标记完成**不影响 FSRS**, 页面上也这么写着 (_DONE_NOTE)。\n  · 允许一道题都没答就标完成 (用户裁决) —— 因为\"做完了\"记的是人的\n    判断, 不是系统对掌握度的判断; 后者归 FSRS, 本动作碰不到它。\n  · 「今天」是 Asia/Shanghai 日 (_sh_today, 与页面到期人话同源)。隔日\n    自然失效: 不删旧键、不起定时清理 —— 值不等于今天就是没完成。\n\n两道写侧门与 refresh 完全同源 (复制一份 = 两份会漂移):\n  _assert_same_origin  跨站表单 CSRF;\n  _assert_write_target_contained  (在 _refresh_target 内) 软链逃逸。\n失败一律回原样 4xx/5xx —— 表单路径渲染人话错误页, 状态码不粉饰。\n\n⚠ 未做 (如实登记): 没有\"取消完成\"入口 —— 误点后的恢复途径是等明天\n自动回来。撤销与 snooze 一并归后续卡 (D-8 不排本批)。",
+>>>>>>> 5638ac6c
+        "operationId": "review_overview_board_done_api_v1_review_overview_board_done_post",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_review_overview_board_done_api_v1_review_overview_board_done_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+
+## 冲突性质判定（主 session 参考）
+两块冲突均在生成文件 backend/openapi.json，无一在源码：
+  块1 = x-generated-at 时间戳（HEAD 2026-09-10T17:21 vs 5638ac6c 2026-09-07T22:55）
+  块2 = /review/overview/board-done 的 description —— 即 review_overview.py docstring 的
+        陈旧副本。HEAD 侧含 U6 已合入的 _display_today + 「撤销 CARD-G6-7-R 已做」；
+        5638ac6c 侧仍是旧的 Asia/Shanghai / _sh_today + 「未做：没有取消完成入口」。
+        ⇒ HEAD 侧严格更新，5638ac6c 侧是 U6 合入前的快照。
+  源码冲突数 = 0（backend/app/** 与 pyrightconfig.json 均自动合并成功）
+goal 第 7 条本就安排「主 session squash 后 openapi 再生第二次」⇒ 该文件由主 session 统一处置。

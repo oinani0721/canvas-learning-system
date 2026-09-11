@@ -1,0 +1,44 @@
+### 全量 pyright app（树根 cd backend 口径）
+200 errors, 84 warnings, 0 informations
+
+### services vs rest 分组
+{'rest': 163, 'services': 37}
+
+--- services 残余逐条（应全为 PEND0 = U2 阶段0 面）---
+  services/agent_service.py:1485 reportMissingImports :: Import "agentic_rag.clients.graphiti_client" could not be resolved
+  services/agent_service.py:1486 reportMissingImports :: Import "agentic_rag.clients.lancedb_client" could not be resolved
+  services/agent_service.py:1539 reportMissingImports :: Import "agentic_rag.clients.graphiti_client" could not be resolved
+  services/agent_service.py:1540 reportMissingImports :: Import "agentic_rag.clients.lancedb_client" could not be resolved
+  services/agent_service.py:3041 reportMissingImports :: Import "agentic_rag.agent_graph" could not be resolved
+  services/agent_service.py:4180 reportMissingImports :: Import "memory.temporal.fsrs_manager" could not be resolved
+  services/error_aggregator.py:269 reportCallIssue :: Arguments missing for parameters "llm_errors", "network_errors", "algorithm_erro
+  services/exam_service_ext.py:315 reportCallIssue :: Arguments missing for parameters "hint_available", "max_allowed_level"
+  services/exam_service_ext.py:698 reportCallIssue :: Argument missing for parameter "record_id"
+  services/extraction_validator.py:238 reportCallIssue :: Argument missing for parameter "updated_at"
+  services/health_monitor.py:227 reportCallIssue :: Argument missing for parameter "message"
+  services/health_monitor.py:270 reportCallIssue :: Argument missing for parameter "message"
+  services/intelligent_parallel_service.py:383 reportCallIssue :: Argument missing for parameter "file_size"
+  services/lancedb_index_service.py:491 reportMissingImports :: Import "agentic_rag.clients.lancedb_client" could not be resolved
+  services/learning_context_service.py:199 reportCallIssue :: Argument missing for parameter "query"
+  services/mastery_engine.py:54 reportMissingImports :: Import "memory.temporal.fsrs_manager" could not be resolved
+  services/multimodal_service.py:603 reportCallIssue :: Arguments missing for parameters "width", "height", "duration", "page_count", "a
+  services/multimodal_service.py:628 reportMissingImports :: Import "agentic_rag.models.multimodal_content" could not be resolved
+  services/multimodal_service.py:650 reportCallIssue :: Arguments missing for parameters "extracted_text", "source_location", "updated_a
+  services/multimodal_service.py:747 reportCallIssue :: Arguments missing for parameters "width", "height", "duration", "page_count", "a
+  services/multimodal_service.py:771 reportCallIssue :: Arguments missing for parameters "extracted_text", "source_location", "updated_a
+  services/multimodal_service.py:843 reportCallIssue :: Arguments missing for parameters "author", "title", "language"
+  services/multimodal_service.py:1221 reportMissingImports :: Import "agentic_rag.models.multimodal_content" could not be resolved
+  services/multimodal_service.py:1337 reportMissingImports :: Import "agentic_rag.models.multimodal_content" could not be resolved
+  services/multimodal_service.py:1423 reportMissingImports :: Import "agentic_rag.embedding.embedding_service" could not be resolved
+  services/multimodal_service.py:1493 reportMissingImports :: Import "agentic_rag.models.multimodal_content" could not be resolved
+  services/multimodal_service.py:1517 reportMissingImports :: Import "agentic_rag.models.multimodal_content" could not be resolved
+  services/rag_service.py:51 reportMissingImports :: Import "agentic_rag" could not be resolved
+  services/review_service.py:89 reportMissingImports :: Import "memory.temporal.fsrs_manager" could not be resolved
+  services/supplementary_search_service.py:139 reportMissingImports :: Import "agentic_rag.clients.lancedb_client" could not be resolved
+  services/supplementary_search_service.py:855 reportMissingImports :: Import "agentic_rag.clients.lancedb_client" could not be resolved
+  services/vault_index_orchestrator.py:169 reportMissingImports :: Import "agentic_rag.clients" could not be resolved
+  services/vault_index_orchestrator.py:170 reportMissingImports :: Import "agentic_rag.config" could not be resolved
+  services/vault_index_orchestrator.py:207 reportMissingImports :: Import "agentic_rag.clients.lancedb_client" could not be resolved
+  services/vault_index_orchestrator.py:227 reportMissingImports :: Import "agentic_rag.clients.lancedb_client" could not be resolved
+  services/vault_index_orchestrator.py:531 reportMissingImports :: Import "agentic_rag.clients.lancedb_client" could not be resolved
+  services/vault_index_orchestrator.py:542 reportMissingImports :: Import "agentic_rag.clients.lancedb_client" could not be resolved

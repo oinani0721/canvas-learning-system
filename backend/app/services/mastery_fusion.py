@@ -17,7 +17,6 @@ Phase 2+: Beta-Bayesian fusion (architecture reserved, not implemented here).
 [Source: _bmad-output/planning-artifacts/architecture.md#能力域5]
 """
 
-import logging
 import math
 
 import structlog

@@ -14,8 +14,7 @@ Signals:
 [Source: _bmad-output/planning-artifacts/architecture.md#能力域5]
 """
 
-import logging
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, cast
 
 import structlog
 
@@ -106,7 +105,14 @@ class BKTMasterySignal:
 
     def get_reliability(self, node_id: str) -> float:
         """Reliability increases with interaction count."""
-        return min(1.0, self._cache.get(f"{node_id}_interactions", 0) / 10.0)
+        count = self._cache.get(f"{node_id}_interactions", 0)
+        # 类型层: _cache 声明为 Dict[str, Optional[float]], 所以 .get(k, 0) 的类型含 None。
+        # 本类(BKTMasterySignal)的写入路径是 preload(): 只在 `interaction_count > 0` 分支写
+        # `_interactions` 键, 且 ConceptState.interaction_count 是 `int = 0`(非 Optional)
+        # ⇒ 运行期该键要么缺席(取默认 0)、要么是正整数, **不会**是 None。
+        # 用 cast 而非 assert 是全卡统一手法: cast 是运行期 no-op, 万一为 None 仍抛原本
+        # 带消息的 TypeError, 不会把它换成空消息的 AssertionError。
+        return min(1.0, cast(float, count) / 10.0)
 
     def preload(self, concept) -> None:
         """Preload signal value from a ConceptState object (avoids async in get_value)."""
@@ -141,7 +147,14 @@ class FSRSRetrievabilitySignal:
 
     def get_reliability(self, node_id: str) -> float:
         """Reliability depends on FSRS reps count."""
-        return min(1.0, self._cache.get(f"{node_id}_reps", 0) / 5.0)
+        count = self._cache.get(f"{node_id}_reps", 0)
+        # 类型层: _cache 声明为 Dict[str, Optional[float]], 所以 .get(k, 0) 的类型含 None。
+        # 本类(FSRSRetrievabilitySignal)的写入路径是 preload(): 只在
+        # `fsrs_card_data or last_interaction_ts` 分支写 `_reps` 键, 写的是
+        # ConceptState.fsrs_reps(`int = 0`, 非 Optional) ⇒ 运行期不会是 None。
+        # 用 cast 而非 assert 是全卡统一手法: cast 是运行期 no-op, 万一为 None 仍抛原本
+        # 带消息的 TypeError, 不会把它换成空消息的 AssertionError。
+        return min(1.0, cast(float, count) / 5.0)
 
     def preload(self, concept) -> None:
         """Preload R value from a ConceptState using mastery_engine.get_retrievability."""
@@ -175,7 +188,11 @@ class ExamScoreSignal:
 
     def get_reliability(self, node_id: str) -> float:
         count = self._cache.get(f"{node_id}_count", 0)
-        return min(1.0, count / 5.0)
+        # ⛔ Codex round-3 实证(本卡已复现): 本类的 preload_from_calibration_records()
+        # 会把 `_count` 键写成 None, 所以「计数键恒写 int」不成立。用 cast 而非 assert ——
+        # cast 是运行期 no-op, count 为 None 时仍抛原本带消息的 TypeError
+        # (调用方会把它记进日志/返回), 而 AssertionError 的空消息会让原因丢失。
+        return min(1.0, cast(float, count) / 5.0)
 
     def preload_from_calibration_records(self, node_id: str, records) -> None:
         """Preload from calibration records (actual_performance values)."""
@@ -213,7 +230,11 @@ class CalibrationBiasSignal:
 
     def get_reliability(self, node_id: str) -> float:
         count = self._cache.get(f"{node_id}_count", 0)
-        return min(1.0, count / 10.0)
+        # ⛔ Codex round-3 实证(本卡已复现): 本类的 preload_from_calibration_records()
+        # 会把 `_count` 键写成 None, 所以「计数键恒写 int」不成立。用 cast 而非 assert ——
+        # cast 是运行期 no-op, count 为 None 时仍抛原本带消息的 TypeError
+        # (调用方会把它记进日志/返回), 而 AssertionError 的空消息会让原因丢失。
+        return min(1.0, cast(float, count) / 10.0)
 
     def preload_from_calibration_records(self, node_id: str, records) -> None:
         """Preload from calibration records (compute signed_bias, invert to signal)."""
@@ -250,7 +271,11 @@ class SelfConfidenceSignal:
 
     def get_reliability(self, node_id: str) -> float:
         count = self._cache.get(f"{node_id}_count", 0)
-        return min(1.0, count / 5.0)
+        # ⛔ Codex round-3 实证(本卡已复现): 本类的 preload_from_calibration_records()
+        # 会把 `_count` 键写成 None, 所以「计数键恒写 int」不成立。用 cast 而非 assert ——
+        # cast 是运行期 no-op, count 为 None 时仍抛原本带消息的 TypeError
+        # (调用方会把它记进日志/返回), 而 AssertionError 的空消息会让原因丢失。
+        return min(1.0, cast(float, count) / 5.0)
 
     def preload_from_calibration_records(self, node_id: str, records) -> None:
         """Preload from calibration records (self_confidence values)."""

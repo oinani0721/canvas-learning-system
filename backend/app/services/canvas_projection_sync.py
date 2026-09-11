@@ -23,7 +23,7 @@ from __future__ import annotations
 import logging
 import re
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 import frontmatter
 
@@ -156,7 +156,10 @@ class CanvasProjectionSync:
         invalidated = 0
         if execute:
             try:
-                records = await client.run_query(
+                # client 由本方法上文 `self._client() if execute else None` 赋值,
+                # 本分支 execute 为真 ⇒ 恒非 None。用 cast 而非 assert: 下面的 except
+                # 把异常消息写进日志, cast 是运行期 no-op、保持原异常类型与消息。
+                records = await cast(Any, client).run_query(
                     """
                     MATCH ()-[e:CANVAS_EDGE]-()
                     WHERE e.group_id = $group_id AND e.synced_from = 'frontmatter'

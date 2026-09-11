@@ -11,8 +11,7 @@ Returns top-5 recommendations per canvas, filtered by dismissed pairs.
 """
 
 import asyncio
-import logging
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, TYPE_CHECKING
 
 import structlog
 from uuid import uuid4
@@ -23,6 +22,10 @@ from app.models.recommendation_models import (
     RecommendationCandidate,
     RecommendationResponse,
 )
+
+if TYPE_CHECKING:
+    # 只取类型: 运行期不 import, 避免 services→clients 的模块级循环。
+    from app.clients.neo4j_client import Neo4jClient
 
 logger = structlog.get_logger(__name__)
 
@@ -43,7 +46,7 @@ DEFAULT_LABEL_CANDIDATES = [
 class RecommendationService:
     """Generates concept-relation recommendations for a canvas board."""
 
-    def __init__(self, neo4j_client: object):
+    def __init__(self, neo4j_client: "Neo4jClient"):
         """
         Args:
             neo4j_client: Neo4jClient instance with run_query() method.

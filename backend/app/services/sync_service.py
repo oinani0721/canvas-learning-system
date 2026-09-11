@@ -13,7 +13,6 @@ Neo4j state without duplicating data.
 [Source: Architecture — Outbox pattern, last-write-wins]
 """
 
-import logging
 from datetime import datetime, timezone
 
 import structlog

@@ -1,0 +1,110 @@
+### evidence-pyright-svc 索引 · CARD-PYRIGHT-DEBT-services 阶段 1
+生成: 2026-09-08 08:49  HEAD: e57f9df1
+Codex: r1(HIGH=1) → r2(B0H0) → r3(B0H0) → r4(B0H0M0, 判「可条件收尾」)
+
+### 主判据 / 最终自检
+  - pyright-app-base-20260908T064241.txt
+  - pyright-services-base-20260908T064241.txt
+  - final-judges-20260908T074343.txt
+  - phase1-final-judges.txt
+  - final-dod-selfcheck.txt
+  - phase1-checklist-20260908T081245.txt
+  - per-file-table-phase1.txt
+  - rule-dist-base-20260908T064241.txt
+  - checklist-base-20260908T064241.txt
+
+### 多重集(NEW=0)
+  - multiset-compare.sh
+  - multiset-da690bf8-vs-work-20260908T071546.txt
+  - multiset-r1fix-da690bf8-20260908T075337.txt
+  - multiset-r2fix-da690bf8-20260908T081717.txt
+  - multiset-r3fix-20260908T083317.txt
+
+### tests(判据4) / flaky 根因
+  - unit-baselinetree-20260908T074612.txt
+  - unit-baselinetree-nodeids.txt
+  - unit-baselinetree2-20260908T075109.txt
+  - unit-baselinetree2-nodeids.txt
+  - unit-close-20260908T072401.txt
+  - unit-close-nodeids.txt
+  - unit-close2-20260908T073123.txt
+  - unit-close2-nodeids.txt
+  - unit-final-20260908T074031.txt
+  - unit-final-nodeids.txt
+  - unit-final2-20260908T082243.txt
+  - unit-final2-nodeids.txt
+  - unit-nodeid-diff-close.txt
+  - unit-open-20260908T064241.txt
+  - unit-open-nodeids.txt
+  - unit-r1fix-20260908T075646.txt
+  - unit-r1fix-nodeids.txt
+  - unit-r2fix-20260908T081652.txt
+  - unit-r2fix-nodeids.txt
+  - unit-r3fix-20260908T083317.txt
+  - unit-r3fix-nodeids.txt
+  - unit-r4fix-20260908T084614.txt
+  - api-close-20260908T072401.txt
+  - api-final-20260908T074031.txt
+  - api-final2-20260908T082243.txt
+  - api-open-20260908T064241.txt
+  - api-r1fix-20260908T075646.txt
+  - api-r2fix-20260908T081652.txt
+  - api-r3fix-20260908T083317.txt
+  - rollback-close-20260908T072401.txt
+  - rollback-final2-20260908T082243.txt
+  - rollback-r1fix-20260908T075646.txt
+  - baseline-202-nodeids.txt
+  - flaky-root-cause-control-20260908T075733.txt
+  - flaky-sampling-20260908T075820.txt
+  - w4-sentinel-count-judge-20260908T080350.txt
+
+### ruff / format
+  - ruff-phase1-20260908T071623.txt
+  - format-content-judge-20260908T071729.txt
+  - format-content-judge-v2-20260908T071832.txt
+  - format-content-judge-v3-20260908T071932.txt
+  - format-content-judge-v3-r1fix-20260908T075530.txt
+  - format-judge-falsifier-20260908T071757.txt
+  - drift-at-base-da690bf8.txt
+  - drift-at-work-phase1.txt
+
+### 负控 / 对照组 / 三态实证
+  - negctl-20260908T072134.txt
+  - regression-control-20260908T073007.txt
+  - runtime-selfproof-20260908T072218.txt
+  - runtime-selfproof-control-20260908T072249.txt
+  - runtime-selfproof-control-v2-20260908T072321.txt
+  - r1-fix-verification-20260908T075315.txt
+  - r2-fix-message-verification-20260908T081627.txt
+  - r3-fix-verification-20260908T083807.txt
+
+### 本卡自发起的审计（三层作用域）
+  - assert-caller-leak-audit-20260908T082710.txt
+  - assert-except-audit-20260908T075003.txt
+  - assert-exception-type-risk-20260908T080941.txt
+  - assert-exception-type-risk-20260908T081010.txt
+  - assert-message-leak-audit-20260908T081412.txt
+  - assert-placement-selfcheck.txt
+  - ignore-list-phase1.txt
+  - ignore-necessity-20260908T074804.txt
+  - ignore-necessity-20260908T074826.txt
+  - ignore-necessity-r1fix-20260908T080742.txt
+  - typecheck-sig-parity-20260908T074500.txt
+  - counts-ast-20260908T080122.txt
+  - uat-reference-check.txt
+  - r4-binding-ast-proof.txt
+
+### 地盘 / hook / 合规 / 移交
+  - scope-phase1-20260908T072419.txt
+  - scope-postcommit-20260908T074150.txt
+  - lefthook-skip-archive-20260908T073738.txt
+  - lefthook-skip-archive-groupb-20260908T073905.txt
+  - lefthook-skip-archive-r1fix-20260908T075421.txt
+  - lefthook-skip-archive-r2fix-20260908T082031.txt
+  - lefthook-skip-archive-r3fix-20260908T083350.txt
+  - stderr-gate-20260908T074213.txt
+  - evidence-secret-scan-20260908T081122.txt
+  - TAIL-handover.txt
+
+## 合规（扩展名口径，非文件名子串）
+  .stderr 转储: 0（须 0）· .log: 0（须 0）· 文件数: 95 · 体积: 6.6M

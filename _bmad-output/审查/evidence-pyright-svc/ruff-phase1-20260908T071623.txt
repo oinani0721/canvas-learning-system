@@ -1,0 +1,51 @@
+### 卡文 §二.5 ruff（⛔ 修正：zsh 不做 word splitting，$F 必须取数组，否则整串当单文件名 → ruff 空跑仍打印 All checks passed）
+文件数 = 53
+--- ruff check --select F401,F821 ---
+All checks passed!
+ruff-check rc=0
+--- DRIFT-AT-HEAD 预检（HEAD 版本本身就 format 不干净的文件）---
+DRIFT-AT-HEAD app/services/agent_routing_engine.py
+DRIFT-AT-HEAD app/services/agent_selector.py
+DRIFT-AT-HEAD app/services/alert_manager.py
+DRIFT-AT-HEAD app/services/archive_scheduler.py
+DRIFT-AT-HEAD app/services/autoscore.py
+DRIFT-AT-HEAD app/services/background_task_manager.py
+DRIFT-AT-HEAD app/services/batch_orchestrator.py
+DRIFT-AT-HEAD app/services/candidate_expiry_service.py
+DRIFT-AT-HEAD app/services/candidate_service.py
+DRIFT-AT-HEAD app/services/context_enrichment_service.py
+DRIFT-AT-HEAD app/services/conversation_archive.py
+DRIFT-AT-HEAD app/services/conversation_distiller.py
+DRIFT-AT-HEAD app/services/conversation_inheritance.py
+DRIFT-AT-HEAD app/services/error_aggregator.py
+DRIFT-AT-HEAD app/services/error_classifier.py
+DRIFT-AT-HEAD app/services/error_extractor.py
+DRIFT-AT-HEAD app/services/event_handlers.py
+DRIFT-AT-HEAD app/services/exam_service.py
+DRIFT-AT-HEAD app/services/extraction_validator.py
+DRIFT-AT-HEAD app/services/graphiti_belief_service.py
+DRIFT-AT-HEAD app/services/health_monitor.py
+DRIFT-AT-HEAD app/services/intelligent_grouping_service.py
+DRIFT-AT-HEAD app/services/intelligent_parallel_service.py
+DRIFT-AT-HEAD app/services/learning_context_service.py
+DRIFT-AT-HEAD app/services/memory_service.py
+DRIFT-AT-HEAD app/services/prompt_registry.py
+DRIFT-AT-HEAD app/services/rag_service.py
+DRIFT-AT-HEAD app/services/rollback_service.py
+DRIFT-AT-HEAD app/services/scoring_faithfulness.py
+DRIFT-AT-HEAD app/services/signal_registry.py
+DRIFT-AT-HEAD app/services/skill_registry.py
+DRIFT-AT-HEAD app/services/subject_resolver.py
+DRIFT-AT-HEAD app/services/websocket_manager.py
+DRIFT-AT-HEAD app/services/weight_calculator.py
+DRIFT-AT-HEAD app/services/wikilink_graph_service.py
+--- ruff format --check（当前工作树）---
+Would reformat: app/services/scoring_faithfulness.py
+Would reformat: app/services/signal_registry.py
+Would reformat: app/services/skill_registry.py
+Would reformat: app/services/subject_resolver.py
+Would reformat: app/services/websocket_manager.py
+Would reformat: app/services/weight_calculator.py
+Would reformat: app/services/wikilink_graph_service.py
+35 files would be reformatted, 18 files already formatted
+ruff-format rc=1

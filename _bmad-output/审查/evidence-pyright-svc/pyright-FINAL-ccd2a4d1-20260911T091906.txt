@@ -1,0 +1,15 @@
+### 最终态 pyright（HEAD=ccd2a4d1）判据用结构锚定 grep -E '^[0-9]+ errors?, '
+
+## A. 本树（无 extraPaths）
+   app/services: 35 errors, 50 warnings, 0 informations
+   app 全量    : 198 errors, 84 warnings, 0 informations
+   残余构成(实算): {'reportMissingImports': 23, 'reportCallIssue': 12}
+   missing 全为 agentic_rag/memory.temporal: True 23
+   callIssue 全为 Argument(s) missing      : True 12
+
+## B. 合 U2 阶段0 (5638ac6c) 后
+   merge rc=1 | 源码冲突 0 个 | 冲突文件 backend/openapi.json 
+   app/services: 0 errors, 47 warnings, 0 informations
+   app 全量    : 134 errors, 81 warnings, 0 informations
+   services/rest 分组: {'rest': 134}
+   rest 按目录: {'api': 55, 'clients': 40, 'core': 11, 'domains': 1, 'mcp': 20, 'middleware': 7}

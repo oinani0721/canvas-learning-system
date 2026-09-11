@@ -19,12 +19,18 @@ Low-confidence detection: 3x sampling spread > 1 per dimension
 """
 
 import json
-import logging
 import time
 from pathlib import Path
 
 import structlog
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TYPE_CHECKING, cast
+
+if TYPE_CHECKING:
+    # litellm 在本模块内是**函数内延迟 import**(加载慢/可选依赖)。这里只取类型,
+    # 运行期不执行 → 不把 litellm 拉进模块 import 图。配合 cast("ModelResponse", ...):
+    # acompletion 的签名是 ModelResponse | CustomStreamWrapper, 而本模块所有调用点
+    # 都未传 stream=True → 运行期恒为 ModelResponse。cast 只作类型层断言, 不改行为。
+    from litellm.types.utils import ModelResponse
 
 logger = structlog.get_logger(__name__)
 
@@ -259,8 +265,11 @@ class ScoringFaithfulnessChecker:
                 response_format={"type": "json_object"},
             )
 
-            content = response.choices[0].message.content
-            parsed = _parse_json_response(content)
+            # ⛔ 这里**不能**用 assert(Codex round-2 MEDIUM-1): 下面的 except 把异常消息
+            # 写进返回值, AssertionError 的空消息会让用户看到残缺文本。cast 是运行期
+            # no-op —— 为 None 时仍抛原本的异常、消息逐字不变。
+            content = cast("ModelResponse", response).choices[0].message.content
+            parsed = _parse_json_response(cast(str, content))
             verifications = parsed.get("verifications", list())
 
             grounded = sum(
@@ -340,8 +349,11 @@ class ScoringFaithfulnessChecker:
                 response_format={"type": "json_object"},
             )
 
-            content = response.choices[0].message.content
-            parsed = _parse_json_response(content)
+            # ⛔ 这里**不能**用 assert(Codex round-2 MEDIUM-1): 下面的 except 把异常消息
+            # 写进返回值, AssertionError 的空消息会让用户看到残缺文本。cast 是运行期
+            # no-op —— 为 None 时仍抛原本的异常、消息逐字不变。
+            content = cast("ModelResponse", response).choices[0].message.content
+            parsed = _parse_json_response(cast(str, content))
             checks = parsed.get("consistency_checks", list())
 
             consistent = sum(

@@ -29,7 +29,6 @@ Overall status:
 """
 
 import asyncio
-import logging
 import time
 
 import structlog
@@ -251,8 +250,10 @@ class PipelineHealthMonitor:
             from app.services.lancedb_index_service import get_lancedb_index_service
 
             index_svc = get_lancedb_index_service()
+            # LanceDBIndexService 未声明 find_duplicates(且工厂返回 Optional);
+            # 原代码已用 hasattr 守卫 + 短路, 运行期安全。此处只标注类型层。
             duplicates = (
-                await index_svc.find_duplicates()
+                await index_svc.find_duplicates()  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
                 if hasattr(index_svc, "find_duplicates")
                 else []
             )

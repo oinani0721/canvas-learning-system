@@ -1,0 +1,17 @@
+### 卡文 §一(g) 阶段 1 收尾清单 —— 逐条自检
+
+① pyright 过滤后非共享 = 0        : 0  ✅
+② 全量多重集 NEW = 0             : 0  ✅
+③ tests/unit nodeid diff 只 <     : 完全为空 ✅
+   tests/api                     : 268 passed  ✅
+   tests/test_rollback_*         : 65 failed, 27 passed  = 基线版逐字相同 ✅
+④ ruff F401,F821 = 0             : All checks passed ✅
+⑤ 负控 ×3                        : 3 条 ✅
+⑥ commit（含批次标记）           : 4 个 ✅
+⑦ Codex round-1                  : 已完成，6 条全采信并整改；round-2 进行中
+⑧ 验收单 v1.1                    : UAT-CARD-PYRIGHT-DEBT-services-2026-09-08.md  ✅
+   ├ ignore 清单                 : 20 行 ✅
+   ├ 本卡未证明什么              : 40 条 ✅
+   └ 台账待登记条目              : 23 条 ✅
+⑨ 地盘：非 services 文件数        : 0  ✅
+⑩ *.stderr 未入库                 : 0  ✅

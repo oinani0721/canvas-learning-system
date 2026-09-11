@@ -23,14 +23,13 @@ Architecture:
 
 import asyncio
 import json
-import logging
 import math
 
 import structlog
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from app.core.decision_tracker import log_decision
 from app.models.mastery_state import (
@@ -96,7 +95,7 @@ def load_mastery_config() -> MasteryConfig:
     return MasteryConfig()
 
 
-def _card_attr(card, attr: str, default=0.0):
+def _card_attr(card: Any, attr: str, default: Any = 0.0) -> Any:
     """Extract attribute from FSRS Card (object or dict fallback)."""
     if isinstance(card, dict):
         return card.get(attr, default)

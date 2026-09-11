@@ -1,0 +1,22 @@
+
+--- conversation_distiller: content=None 时的 .strip() ---
+  基线             → [Story 3.8] Distillation failed: 'NoneType' object has no attribute 'strip'
+  r2 的 assert    → [Story 3.8] Distillation failed: 
+  r3 的 cast      → [Story 3.8] Distillation failed: 'NoneType' object has no attribute 'strip'
+
+--- 复现 Codex r3 的 count=None 实证（真实类方法）---
+2026-09-08 08:38:10 [debug    ] RAGService: Added /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/lib to sys.path
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+  from pydantic.v1.fields import FieldInfo as FieldInfoV1
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  import pkg_resources
+Building prefix dict from the default dictionary ...
+Loading model from cache /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/jieba.cache
+Loading model cost 0.227 seconds.
+Prefix dict has been built successfully.
+2026-09-08 08:38:13 [info     ] RAGService: LangGraph/Agentic RAG available. LANGGRAPH_AVAILABLE=True
+  CalibrationBiasSignal    preload 后 _cache['x_count'] = None
+  ExamScoreSignal          preload 后 _cache['x_count'] = None
+  SelfConfidenceSignal     preload 后 _cache['x_count'] = None
+
+### 判据：r3 那行必须与基线逐字相同。

@@ -1,0 +1,20 @@
+### 多次采样：同一对测试文件，基线代码 vs 本卡代码 各跑 6 次
+### 判据：若两边的『红的是哪一条』分布相同，且总是恰好 1 条红 ⇒ 与本卡改动无关
+
+=== 基线代码 da690bf8 ===
+    第1次: 红1条 -> test_mock_degradation_transparency.py::TestMockScoringWarningLogs::test_mock_mode_logs_warning 
+    第2次: 红1条 -> test_mock_degradation_transparency.py::TestMockScoringWarningLogs::test_mock_mode_logs_warning 
+    第3次: 红1条 -> test_mock_degradation_transparency.py::TestMockScoringWarningLogs::test_mock_mode_logs_warning 
+    第4次: 红1条 -> test_mock_degradation_transparency.py::TestMockScoringWarningLogs::test_mock_mode_logs_warning 
+    第5次: 红1条 -> test_mock_degradation_transparency.py::TestMockScoringWarningLogs::test_mock_mode_logs_warning 
+    第6次: 红1条 -> test_mock_degradation_transparency.py::TestMockScoringWarningLogs::test_mock_mode_logs_warning 
+  基线 统计: candidate红=0  mock_degr红=6  其他=0
+
+=== 本卡代码 958f20a3 ===
+    第1次: 红1条 -> test_mock_degradation_transparency.py::TestMockScoringWarningLogs::test_mock_mode_logs_warning 
+    第2次: 红1条 -> test_candidate_service.py::test_accept_candidate_already_accepted_returns_422 
+    第3次: 红1条 -> test_candidate_service.py::test_accept_candidate_already_accepted_returns_422 
+    第4次: 红1条 -> test_mock_degradation_transparency.py::TestMockScoringWarningLogs::test_mock_mode_logs_warning 
+    第5次: 红1条 -> test_mock_degradation_transparency.py::TestMockScoringWarningLogs::test_mock_mode_logs_warning 
+    第6次: 红1条 -> test_mock_degradation_transparency.py::TestMockScoringWarningLogs::test_mock_mode_logs_warning 
+  本卡 统计: candidate红=2  mock_degr红=4  其他=0

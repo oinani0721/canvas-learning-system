@@ -12,7 +12,6 @@ Story 5.5: CalibrationRecord persistence (mastery_calibration_records JSON prope
 
 import asyncio
 import json
-import logging
 from datetime import datetime, timezone
 
 import structlog

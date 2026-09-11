@@ -19,7 +19,6 @@ Key Features:
 """
 
 import asyncio
-import logging
 from datetime import datetime
 
 import structlog
@@ -343,8 +342,10 @@ class ConnectionManager:
         newest_session = None
 
         if self._last_activity:
-            oldest_id = min(self._last_activity, key=self._last_activity.get)
-            newest_id = max(self._last_activity, key=self._last_activity.get)
+            # key 原用 dict.get → 返回 Optional[datetime], min/max 无法比较。遍历的
+            # 就是 self._last_activity 自身的键, 下标访问恒命中, 语义完全等价。
+            oldest_id = min(self._last_activity, key=lambda k: self._last_activity[k])
+            newest_id = max(self._last_activity, key=lambda k: self._last_activity[k])
 
             oldest_session = {
                 "session_id": oldest_id,

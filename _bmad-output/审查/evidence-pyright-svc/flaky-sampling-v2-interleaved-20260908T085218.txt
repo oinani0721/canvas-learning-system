@@ -1,0 +1,31 @@
+### 干净采样 v2（重做 —— U10-A 指出 v1 有混杂因素，核实成立）
+### v1 的缺陷：整个采样跑在 unit-r1fix 后台 tests 的负载下（07:56:46-08:00:46），
+###   且「先 6 次基线、后 6 次本卡」⇒ 两组负载条件不一致。对时序敏感的现象，这毁掉可比性。
+### v2 改进：① 本 session 无后台负载（pytest 进程数 = 0）② **交错**跑 base/work
+###   ③ 记录每次耗时作为负载指标 ④ 样本量 10×2
+
+跑前确认: 本树 pytest 进程数 = 0
+
+   1 base  mock_degr  10.80s
+   1 work  mock_degr  11.47s
+   2 base  mock_degr  11.58s
+   2 work  mock_degr  11.82s
+   3 base  mock_degr  11.25s
+   3 work  mock_degr  10.83s
+   4 base  mock_degr  11.46s
+   4 work  mock_degr  10.05s
+   5 base  mock_degr  10.34s
+   5 work  mock_degr  10.14s
+   6 base  mock_degr  10.51s
+   6 work  mock_degr  10.70s
+   7 base  mock_degr  10.85s
+   7 work  mock_degr  10.70s
+   8 base  mock_degr  10.67s
+   8 work  mock_degr  10.32s
+   9 base  mock_degr  10.47s
+   9 work  mock_degr  10.38s
+  10 base  mock_degr  10.91s
+  10 work  mock_degr  11.03s
+
+  基线 da690bf8 : candidate=0  mock_degr=10  (n=10)
+  本卡 a0ba9594 : candidate=0  mock_degr=10  (n=10)

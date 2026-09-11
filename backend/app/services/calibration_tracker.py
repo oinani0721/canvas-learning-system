@@ -12,7 +12,6 @@ Architecture Reference:
 [Source: _bmad-output/planning-artifacts/architecture.md#能力域5]
 """
 
-import logging
 from datetime import datetime, timezone
 
 import structlog

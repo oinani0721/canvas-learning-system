@@ -1,0 +1,13 @@
+### 完整重捕（修正 M3：原两份存档用了 tail -30/-25，被截断）
+### HEAD=ccd2a4d1，文件面 = 阶段 2 改过的全部 11 个 services 文件
+
+## python-lint 的 format 段
+error: Failed to format app/services/agent_service.py app/services/calibration_tracker.py app/services/canvas_service.py app/services/difficulty_matcher.py app/services/event_bus.py app/services/mastery_engine.py app/services/mastery_fusion.py app/services/mastery_store.py app/services/multimodal_service.py app/services/review_service.py app/services/learning_context_service.py: No such file or directory (os error 2)
+ruff-format rc=2
+
+## python-typecheck —— 全文不截断
+File or directory "file:///Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/agent_service.py%20app/services/calibration_tracker.py%20app/services/canvas_service.py%20app/services/difficulty_matcher.py%20app/services/event_bus.py%20app/services/mastery_engine.py%20app/services/mastery_fusion.py%20app/services/mastery_store.py%20app/services/multimodal_service.py%20app/services/review_service.py%20app/services/learning_context_service.py" does not exist
+WARNING: there is a new pyright version available (v1.1.411 -> v1.1.414).
+Please install the new version or set PYRIGHT_PYTHON_FORCE_VERSION to `latest`
+
+pyright rc=4

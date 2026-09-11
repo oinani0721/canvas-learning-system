@@ -18,7 +18,6 @@ Story 35.1 Implementation:
 import asyncio
 import base64
 import json
-import logging
 import math
 
 import structlog
@@ -308,7 +307,7 @@ class MultimodalService:
                 if img.mode in ("RGBA", "P", "LA"):
                     img = img.convert("RGB")
                 # Resize maintaining aspect ratio then crop to 100x100
-                img.thumbnail((100, 100), Image.LANCZOS)
+                img.thumbnail((100, 100), Image.Resampling.LANCZOS)
                 img.save(thumb_path, "JPEG", quality=80)
 
             logger.debug("Thumbnail generated: %s", thumb_path)
@@ -1239,7 +1238,7 @@ class MultimodalService:
 
         # Also check in-memory/JSON store for items not in MultimodalStore
         # (handles items added when MultimodalStore was unavailable)
-        for cid, data in self._content_store.items():
+        for _cid, data in self._content_store.items():
             if data["id"] in seen_ids:
                 continue
             if data["related_concept_id"] != concept_id:
@@ -1375,7 +1374,7 @@ class MultimodalService:
         query_lower = request.query.lower()
         scored_items: List[Tuple[dict, float]] = []
 
-        for content_id, data in self._content_store.items():
+        for _content_id, data in self._content_store.items():
             # Apply media type filter
             if request.media_types:
                 if data["media_type"] not in request.media_types:
@@ -1421,7 +1420,11 @@ class MultimodalService:
             768-dimensional embedding vector, or None if failed
         """
         try:
-            from agentic_rag.embedding.embedding_service import (
+            # ⛔ 真死 import(归 TAIL T-new): backend/lib/agentic_rag/ 下**没有** embedding
+            # 子包, 全仓 find -name 'embedding_service*' 为空 ⇒ U2 阶段 0 的 extraPaths
+            # 也解不了它。运行期恒走下方 except ImportError ⇒ 向量搜索**永久关闭**,
+            # 一直在降级跑文本搜索。是退役该分支还是补实现 = 产品裁定, 不在本卡。
+            from agentic_rag.embedding.embedding_service import (  # pyright: ignore[reportMissingImports]
                 get_embedding_service,
             )
         except ImportError:
@@ -1547,7 +1550,7 @@ class MultimodalService:
 
         # Fallback to in-memory store
         if not all_items:
-            for content_id, data in self._content_store.items():
+            for _content_id, data in self._content_store.items():
                 if media_type and data["media_type"] != media_type:
                     continue
                 all_items.append(data)

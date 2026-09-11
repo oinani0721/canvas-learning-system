@@ -1,0 +1,11 @@
+### 判据：e57f9df1 相对 Codex r4 审查绑定的 8dcfac8e 是否**纯注释**
+### 方法：对两版做 AST 解析后 ast.dump 逐字比较 —— 注释不进 AST，若相同即证明代码逻辑零变化
+
+8dcfac8e → HEAD 改动的代码文件: ['backend/app/services/signal_registry.py']
+
+  services/signal_registry.py: AST 相同 = True  ✅ 纯注释
+
+=== AST 不同的文件数 = 0 （0 = 该 commit 是纯注释，Codex r4 的结论仍适用于当前 HEAD）===
+
+### 验伪锚：拿一个真有代码改动的区间对比，确认比较器是活的
+  82d15aac..HEAD 的 signal_registry.py: AST 相同 = False (期望 False)

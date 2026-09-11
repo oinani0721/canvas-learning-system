@@ -1,0 +1,29 @@
+total 77 shared 59 non-shared 18 non-shared-excluding-phase0-pending 0
+shared-phase0-pending 20 non-shared-phase0-pending 18
+rule 24 reportMissingImports
+rule 19 reportCallIssue
+rule 11 reportUnusedImport
+rule 7 reportUnusedVariable
+rule 7 reportArgumentType
+rule 7 reportAttributeAccessIssue
+rule 2 reportOptionalMemberAccess
+file 17 services/review_service.py
+file 16 services/multimodal_service.py
+file 8 services/agent_service.py
+file 6 services/mastery_engine.py
+file 6 services/vault_index_orchestrator.py
+file 5 services/difficulty_matcher.py
+file 3 services/canvas_service.py
+file 2 services/exam_service_ext.py
+file 2 services/health_monitor.py
+file 2 services/supplementary_search_service.py
+file 1 services/calibration_tracker.py
+file 1 services/error_aggregator.py
+file 1 services/event_bus.py
+file 1 services/extraction_validator.py
+file 1 services/intelligent_parallel_service.py
+file 1 services/lancedb_index_service.py
+file 1 services/learning_context_service.py
+file 1 services/mastery_fusion.py
+file 1 services/mastery_store.py
+file 1 services/rag_service.py

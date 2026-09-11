@@ -11,12 +11,11 @@
 
 import asyncio
 import json
-import logging
 from datetime import datetime, timezone
 
 import structlog
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional, TYPE_CHECKING, cast
 
 from app.config import DEFAULT_GROUP_ID
 from app.graphiti.group_id_compat import to_physical_group_id
@@ -38,6 +37,13 @@ from app.models.exam_models import (
     SkipRequest,
     SkipResponse,
 )
+
+if TYPE_CHECKING:
+    # litellm 在本模块内是**函数内延迟 import**(加载慢/可选依赖)。这里只取类型,
+    # 运行期不执行 → 不把 litellm 拉进模块 import 图。配合 cast("ModelResponse", ...):
+    # acompletion 的签名是 ModelResponse | CustomStreamWrapper, 而本模块所有调用点
+    # 都未传 stream=True → 运行期恒为 ModelResponse。cast 只作类型层断言, 不改行为。
+    from litellm.types.utils import ModelResponse
 
 logger = structlog.get_logger(__name__)
 
@@ -373,7 +379,10 @@ async def generate_hint(self, request: HintRequest) -> HintResponse:
             temperature=0.7,
             max_tokens=500,
         )
-        hint_text = response.choices[0].message.content.strip()
+        # ⛔ 同 Codex round-2 MEDIUM-1（round-3 LOW-2 校正）: 下面的 except 把异常消息写进
+        # **日志**; 回退文案 _get_fallback_hint(level) 只由 level 决定、不含消息。
+        # cast 是运行期 no-op, 保持原异常类型与消息, 日志原因不丢。
+        hint_text = cast(str, cast("ModelResponse", response).choices[0].message.content).strip()
     except Exception as e:
         logger.error(f"[Story 6.6] Hint generation LLM call failed: {e}")
         hint_text = _get_fallback_hint(level)
@@ -898,7 +907,7 @@ async def get_records_by_canvas(self, canvas_id: str, group_id: str = DEFAULT_GR
 # ======================================================================
 
 
-def _safe_json_to_list(json_str: Optional[str]) -> List[Dict[str, Any]]:
+def _safe_json_to_list(json_str: Optional[str]) -> List[Any]:
     """Parse a JSON string into a list of dicts.
 
     Returns empty list on None/invalid input. This is correct behavior

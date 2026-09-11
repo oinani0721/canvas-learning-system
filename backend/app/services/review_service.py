@@ -61,7 +61,6 @@ Story 32.2: Migrated from Ebbinghaus fixed intervals to FSRS-4.5 dynamic schedul
 
 import asyncio
 import json
-import logging
 import random
 import re
 
@@ -70,7 +69,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from pathlib import Path as _Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, cast
 
 from app.core.decision_tracker import log_decision
 from app.core.exceptions import CanvasNotFoundException, TaskNotFoundError
@@ -88,7 +87,6 @@ try:
         sys.path.insert(0, str(_src_path))
 
     from memory.temporal.fsrs_manager import (
-        CardState,
         FSRSManager,
         get_rating_from_score,
     )
@@ -98,7 +96,6 @@ except ImportError:
     FSRS_AVAILABLE = False
     FSRSManager = None
     get_rating_from_score = None
-    CardState = None
 
 # Story 38.3 AC-3 Code Review M2 Fix: Module-level runtime FSRS status.
 # FSRS_AVAILABLE = library importable (compile-time).
@@ -1237,7 +1234,13 @@ class ReviewService:
             include_colors = ["3", "4"]  # Default fallback: purple and red
 
         # Load canvas data to get nodes
-        canvas_data = await self.canvas_service.get_canvas(source_canvas_name)
+        # ⛔ 真缺陷(未修, 归 TAIL T-new): CanvasService 无 get_canvas, 真名是 read_canvas
+        # (canvas_service.py:616); 全仓无动态挂载 → 真跑到这行必 AttributeError, 且本行
+        # 不在任何 try 内(本函数首个 try 在 :1249 之后)。但 generate_verification_canvas
+        # 生产零调用方 —— 全仓唯一 `.generate_verification_canvas(` 在 dependencies.py:301
+        # 的 docstring 示例块内, 端点 review.py:759 是同名但自建实现 —— 仅 15 处 mock 测试
+        # 覆盖。改方法名 = 行为变化(从恒崩变可用), 须主 session 裁 ⇒ 本卡只做类型层标注。
+        canvas_data = await self.canvas_service.get_canvas(source_canvas_name)  # pyright: ignore[reportAttributeAccessIssue]
         all_nodes = canvas_data.get("nodes", [])
 
         # Filter by colors (baseline)
@@ -1247,7 +1250,7 @@ class ReviewService:
 
         # === Mastery enrichment (Phase 1.5) ===
         # Expand eligible_nodes with mastery-weak concepts not caught by color filter
-        mastery_lookup: dict = {}  # node_text[:50] -> effective_proficiency
+        _mastery_lookup: dict = {}  # node_text[:50] -> effective_proficiency（构建后未被读，归 TAIL）
         enrichment_available = False  # G-SILENT-001: signal whether enrichment succeeded
         try:
             from app.clients.neo4j_client import get_neo4j_client
@@ -1271,7 +1274,7 @@ class ReviewService:
             review_candidates = m_engine.get_review_candidates(all_mastery)
 
             # Build name -> proficiency lookup for question_generator
-            mastery_lookup = {c.name: m_engine.effective_proficiency(c) for c in all_mastery}
+            _mastery_lookup = {c.name: m_engine.effective_proficiency(c) for c in all_mastery}
 
             # Add mastery-weak concepts that aren't already in eligible_nodes
             eligible_ids = {n.get("id") for n in eligible_nodes}
@@ -1504,7 +1507,9 @@ class ReviewService:
                         "difficulty": getattr(card, "difficulty", None)
                         if getattr(card, "difficulty", None) is not None
                         else 5.0,
-                        "state": int(getattr(card, "state", 0).value)
+                        # cast 是运行期 no-op: getattr 动态取属性实际返回 Any, 被默认值 0
+                        # 推成 int 才报错; 下行 hasattr 守卫保证只在有 .value 时取。
+                        "state": int(cast(Any, getattr(card, "state", 0)).value)
                         if hasattr(getattr(card, "state", 0), "value")
                         else int(getattr(card, "state", 0)),
                         "reps": getattr(card, "reps", 0),
@@ -1602,7 +1607,10 @@ class ReviewService:
 
         # P0-3: Validate rating - handle non-integer types (e.g. "abc", 5.7)
         try:
-            rating = int(rating)
+            # 刻意的防御性转换: rating 可能是 None/"abc"/5.7, 转换失败由本 try 的
+            # except (TypeError, ValueError) 接住并回落 3。这是功能而非缺陷, 故用行级
+            # ignore 而不是 cast —— cast 会把"这里本来就允许非法值"这个事实抹掉。
+            rating = int(rating)  # pyright: ignore[reportArgumentType]
         except (TypeError, ValueError):
             logger.warning(f"Invalid rating value '{rating}', defaulting to 3")
             rating = 3
@@ -1627,7 +1635,7 @@ class ReviewService:
                         logger.info(f"Created new FSRS card for {concept_id} (migration from Ebbinghaus)")
 
                 # Story 32.2 AC-32.2.3: Review card with FSRS algorithm
-                updated_card, review_log = self._fsrs_manager.review_card(card, rating)
+                updated_card, _review_log = self._fsrs_manager.review_card(card, rating)
 
                 # Get next due date (dynamically calculated by FSRS)
                 due_date = self._fsrs_manager.get_due_date(updated_card)
@@ -1716,7 +1724,7 @@ class ReviewService:
                     )
 
                 # Extract state value safely
-                state_val = getattr(updated_card, "state", 0)
+                state_val: Any = getattr(updated_card, "state", 0)  # getattr 动态取属性实际返回 Any
                 if hasattr(state_val, "value"):
                     state_int = int(state_val.value)
                 elif hasattr(state_val, "__int__"):
@@ -2119,11 +2127,21 @@ class ReviewService:
         try:
             from app.clients.graphiti_client import EdgeRelationship
 
+            # ⛔ 真缺陷(未修, 归 TAIL T-new): EdgeRelationship 是 @dataclass
+            # (app/clients/neo4j_learning_base.py:44), 真字段 = canvas_path / from_node_id /
+            # to_node_id / edge_label / edge_id / group_id。此处 4 个 kwarg 名全不存在、
+            # 3 个必填未传 → 运行期 TypeError, 且被下方 except 元组里的 TypeError 接住 ⇒
+            # 复习关系从来没存进去过, 只留一条 warning(静默降级)。本方法唯一调用方是
+            # generate_verification_canvas(:1371), 后者生产零调用方(见 :1237 注释) ⇒
+            # 传递性零曝光。改 kwarg 名 = 行为变化, 须主 session/U9 裁 ⇒ 本卡只做类型层标注。
+            # ignore 只挂 4 个 kwarg 行: "Arguments missing" 那条诊断的 range 跨整个调用
+            # 表达式, 实测任一行内的 ignore 都会连带压住它 ⇒ 本行再挂一条是多余的
+            # (ignore 承重门实测: 只留 2138 或只留 2141, 本行那条都不再报)。
             relationship = EdgeRelationship(
-                canvas_name=original_canvas,
-                from_node=review_canvas,
-                to_node=original_canvas,
-                label=f"GENERATED_FROM_{mode.upper()}",
+                canvas_name=original_canvas,  # pyright: ignore[reportCallIssue]
+                from_node=review_canvas,  # pyright: ignore[reportCallIssue]
+                to_node=original_canvas,  # pyright: ignore[reportCallIssue]
+                label=f"GENERATED_FROM_{mode.upper()}",  # pyright: ignore[reportCallIssue]
                 edge_id=None,
             )
 
@@ -2787,7 +2805,7 @@ class ReviewService:
             due_date = self._fsrs_manager.get_due_date(card)
 
             # Extract state value safely
-            state_val = getattr(card, "state", 0)
+            state_val: Any = getattr(card, "state", 0)  # getattr 动态取属性实际返回 Any
             if hasattr(state_val, "value"):
                 state_int = int(state_val.value)
             elif hasattr(state_val, "__int__"):

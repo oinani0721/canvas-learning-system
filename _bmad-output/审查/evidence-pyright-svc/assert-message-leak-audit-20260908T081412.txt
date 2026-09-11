@@ -1,0 +1,20 @@
+### 审计（Codex r2 MEDIUM-1 触发）：新增 assert 所在 try 的 handler 是否把异常**消息**
+### 写进返回值 / 日志 —— 那样异常类型改变 ⇒ 用户可见文本改变
+### 判据：handler 体内出现 `{e}` / str(e) / %s % e 等对异常对象的格式化
+
+受影响的 (文件, assert 行, handler) 组合 = 12
+
+  services/autoscore.py: assert@[310] → handler@:331 (except ... as e) 引用异常 7 次 [返回值+日志]
+  services/autoscore.py: assert@[390] → handler@:412 (except ... as e) 引用异常 1 次 [返回值+日志]
+  services/canvas_projection_sync.py: assert@[161] → handler@:178 (except ... as e) 引用异常 1 次 [仅日志]
+  services/error_classifier.py: assert@[288] → handler@:304 (except ... as e) 引用异常 1 次 [返回值+日志]
+  services/error_classifier.py: assert@[288] → handler@:310 (except ... as e) 引用异常 1 次 [返回值+日志]
+  services/error_classifier.py: assert@[356] → handler@:378 (except ... as e) 引用异常 1 次 [返回值+日志]
+  services/error_classifier.py: assert@[356] → handler@:381 (except ... as e) 引用异常 1 次 [返回值+日志]
+  services/exam_service_ext.py: assert@[383] → handler@:385 (except ... as e) 引用异常 1 次 [返回值+日志]
+  services/question_generator.py: assert@[778] → handler@:789 (except ... as e) 引用异常 2 次 [返回值+日志]
+  services/rag_service.py: assert@[322] → handler@:341 (except ... as e) 引用异常 2 次 [返回值+日志]
+  services/scoring_faithfulness.py: assert@[269] → handler@:283 (except ... as e) 引用异常 2 次 [返回值+日志]
+  services/scoring_faithfulness.py: assert@[351] → handler@:365 (except ... as e) 引用异常 2 次 [返回值+日志]
+
+⚠️ 这些位置的 assert 会把 handler 里格式化出的异常消息从原文本换成空的 AssertionError 文本。

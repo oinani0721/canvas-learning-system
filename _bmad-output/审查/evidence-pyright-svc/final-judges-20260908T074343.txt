@@ -1,0 +1,10 @@
+### 最终主判据（定稿 commit 2fa89589 之后复跑）
+--- 裁判 2: pyright app/services ---
+78 errors, 51 warnings, 0 informations
+--- 裁判 3: pyright app 全量 ---
+242 errors, 85 warnings, 0 informations
+--- 裁判 4: 过滤脚本 ---
+pyright rc=1
+total 78 shared 60 non-shared 18 non-shared-excluding-phase0-pending 0
+--- 全量分组：services 贡献（卡文 §二.3）---
+  {'rest': 164, 'services': 78}

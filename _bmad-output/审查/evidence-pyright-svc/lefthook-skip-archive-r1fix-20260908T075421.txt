@@ -1,0 +1,42 @@
+### Codex round-1 整改 commit 的 hook 存档（协议 §2.3）
+### 跳过: python-lint（存量 format 漂移，同前两个 commit）+ python-typecheck
+### python-typecheck 跳过依据：4 个文件中 3 个 0 errors，仅 intelligent_parallel_service.py
+###   剩 1 条 PEND0（Argument missing for parameter "file_size"），逐条证明如下。
+
+===== 逐文件 pyright =====
+  batch_orchestrator               0 errors, 0 warnings, 0 informations
+  error_extractor                  0 errors, 0 warnings, 0 informations
+  intelligent_parallel_service     1 error, 0 warnings, 0 informations
+  graphiti_belief_service          0 errors, 0 warnings, 0 informations
+
+===== intelligent_parallel_service 剩余错误逐条（须全是 PEND0） =====
+  PEND0 383 reportCallIssue | Argument missing for parameter "file_size"
+  === 1 条, 非 PEND0 = 0 （期望 0）===
+
+===== lefthook run pre-commit 原始输出（尾 25 行）=====
+Would reformat: backend/app/services/graphiti_belief_service.py
+Would reformat: backend/app/services/intelligent_parallel_service.py
+4 files would be reformatted
+[Python] Format check FAILED! Fix: ruff format backend/app/services/batch_orchestrator.py backend/app/services/error_extractor.py backend/app/services/graphiti_belief_service.py backend/app/services/intelligent_parallel_service.py
+
+exit status 1┃  python-typecheck ❯ 
+
+[Python] Running pyright type check (backend/.venv/bin/pyright)...
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/intelligent_parallel_service.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/intelligent_parallel_service.py:383:33 - error: Argument missing for parameter "file_size" (reportCallIssue)
+1 error, 0 warnings, 0 informations
+[Python] Type errors found! Review and fix before committing.
+[Python] Hint: Some errors may be pre-existing. Focus on YOUR changes.
+[Python] Typecheck done (exit: 1).
+
+exit status 1│  readme-claims-lint (skip) no matching staged files
+│  spec-sync-flat (skip) no matching staged files
+│  spec-sync-root (skip) no matching staged files
+                                      
+  ────────────────────────────────────
+summary: (done in 3.03 seconds)       
+✔️ ghost-files (0.03 seconds)
+✔️ mutant-residue-scan (0.08 seconds)
+🥊 python-lint (0.03 seconds)
+🥊 python-typecheck (2.89 seconds)
+lefthook rc=1

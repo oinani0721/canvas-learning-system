@@ -19,7 +19,6 @@ Usage:
 """
 
 import hashlib
-import logging
 import re
 
 import structlog

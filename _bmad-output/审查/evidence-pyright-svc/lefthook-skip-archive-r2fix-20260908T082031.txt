@@ -1,0 +1,37 @@
+### Codex round-2 MEDIUM-1 整改 commit 的 hook 存档（协议 §2.3）
+### 跳过: python-lint（存量 format 漂移）+ python-typecheck（剩余全 PEND0，逐条证明如下）
+
+===== 逐文件 pyright =====
+  autoscore                    0 errors, 0 warnings, 0 informations
+  question_generator           0 errors, 1 warning, 0 informations
+  error_classifier             0 errors, 0 warnings, 0 informations
+  exam_service_ext             2 errors, 7 warnings, 0 informations
+  scoring_faithfulness         0 errors, 1 warning, 0 informations
+  canvas_projection_sync       0 errors, 0 warnings, 0 informations
+  rag_service                  1 error, 0 warnings, 0 informations
+
+===== 这 7 个文件的剩余错误逐条（须全是 PEND0）=====
+  PEND0 services/exam_service_ext.py:315 reportCallIssue
+  PEND0 services/exam_service_ext.py:697 reportCallIssue
+  PEND0 services/rag_service.py:51 reportMissingImports
+  === 3 条, 非 PEND0 = 0 （期望 0）===
+
+===== lefthook run pre-commit（尾 18 行）=====
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/rag_service.py:51:10 - error: Import "agentic_rag" could not be resolved (reportMissingImports)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/scoring_faithfulness.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u1-pyright-svc/backend/app/services/scoring_faithfulness.py:43:31 - warning: Unnecessary "# type: ignore" comment (reportUnnecessaryTypeIgnoreComment)
+3 errors, 9 warnings, 0 informations
+[Python] Type errors found! Review and fix before committing.
+[Python] Hint: Some errors may be pre-existing. Focus on YOUR changes.
+[Python] Typecheck done (exit: 1).
+
+exit status 1│  readme-claims-lint (skip) no matching staged files
+│  spec-sync-flat (skip) no matching staged files
+│  spec-sync-root (skip) no matching staged files
+                                      
+  ────────────────────────────────────
+summary: (done in 3.32 seconds)       
+✔️ ghost-files (0.03 seconds)
+✔️ mutant-residue-scan (0.13 seconds)
+🥊 python-lint (0.03 seconds)
+🥊 python-typecheck (3.14 seconds)

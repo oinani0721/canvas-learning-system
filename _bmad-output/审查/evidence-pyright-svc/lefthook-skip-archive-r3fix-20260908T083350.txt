@@ -1,0 +1,29 @@
+### Codex round-3 整改 commit 的 hook 存档（协议 §2.3）
+### 跳过 python-lint（存量 format 漂移）+ python-typecheck（剩余全 PEND0）
+
+  signal_registry            0 errors, 0 warnings, 0 informations
+  conversation_distiller     0 errors, 0 warnings, 0 informations
+  autoscore                  0 errors, 0 warnings, 0 informations
+  error_classifier           0 errors, 0 warnings, 0 informations
+  exam_service_ext           2 errors, 7 warnings, 0 informations
+  rag_service                1 error, 0 warnings, 0 informations
+
+===== 剩余错误逐条（须全 PEND0）=====
+  PEND0 services/exam_service_ext.py:315 reportCallIssue
+  PEND0 services/exam_service_ext.py:698 reportCallIssue
+  PEND0 services/rag_service.py:51 reportMissingImports
+  === 3 条, 非 PEND0 = 0 ===
+
+===== lefthook（尾 12 行）=====
+[Python] Typecheck done (exit: 1).
+
+exit status 1│  readme-claims-lint (skip) no matching staged files
+│  spec-sync-flat (skip) no matching staged files
+│  spec-sync-root (skip) no matching staged files
+                                      
+  ────────────────────────────────────
+summary: (done in 3.22 seconds)       
+✔️ ghost-files (0.03 seconds)
+✔️ mutant-residue-scan (0.11 seconds)
+🥊 python-lint (0.03 seconds)
+🥊 python-typecheck (3.05 seconds)

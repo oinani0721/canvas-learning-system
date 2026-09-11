@@ -39,7 +39,6 @@ Updated: 2026-01-20 (Story 31.1 - Real AI Activation)
 
 import asyncio
 import json
-import logging
 import os
 import re
 import uuid

@@ -1,0 +1,80 @@
+### 地盘判据（卡文 §二.9，阶段 1：BASE=da690bf8，尚未 commit ⇒ 用工作树 diff）
+⛔ 注意 pathspec 写 ':(exclude)…' 不写 ':!…'（zsh 会吃掉 ! ⇒ rc=128 + stdout 空 = 假绿）
+--- ① 全部改动（排除 _bmad-output）---
+ backend/app/services/agent_routing_engine.py       | 23 +++++--
+ backend/app/services/agent_selector.py             |  6 +-
+ backend/app/services/alert_manager.py              |  3 +
+ backend/app/services/archive_scheduler.py          |  1 -
+ backend/app/services/autoscore.py                  | 16 +++--
+ backend/app/services/background_task_manager.py    |  9 ++-
+ backend/app/services/batch_orchestrator.py         |  8 ++-
+ backend/app/services/candidate_expiry_service.py   |  1 -
+ backend/app/services/candidate_service.py          | 11 ++--
+ backend/app/services/canvas_projection_sync.py     |  3 +
+ backend/app/services/context_enrichment_service.py |  4 +-
+ backend/app/services/conversation_archive.py       |  1 -
+ backend/app/services/conversation_distiller.py     | 14 ++++-
+ backend/app/services/conversation_inheritance.py   |  1 -
+ backend/app/services/cross_subject_bridge.py       | 12 ++--
+ backend/app/services/episode_worker.py             |  1 -
+ backend/app/services/error_aggregator.py           |  1 -
+ backend/app/services/error_classifier.py           | 25 ++++++--
+ backend/app/services/error_extractor.py            | 13 +++-
+ backend/app/services/error_rebuild_service.py      |  1 -
+ backend/app/services/event_handlers.py             |  1 -
+ backend/app/services/exam_service.py               | 70 +++++++++++++++++++++-
+ backend/app/services/exam_service_ext.py           | 16 +++--
+ backend/app/services/extraction_validator.py       | 14 +++--
+ backend/app/services/fallback_sync_service.py      |  1 -
+ backend/app/services/frontmatter_signals.py        |  5 +-
+ backend/app/services/graphiti_belief_service.py    | 14 +++--
+ backend/app/services/health_monitor.py             |  5 +-
+ .../app/services/intelligent_grouping_service.py   |  2 -
+ .../app/services/intelligent_parallel_service.py   | 19 ++++--
+ backend/app/services/lancedb_index_service.py      |  3 +-
+ backend/app/services/learning_context_service.py   |  1 -
+ backend/app/services/memory_service.py             | 22 ++++---
+ backend/app/services/notification_channels.py      |  6 +-
+ backend/app/services/prompt_registry.py            |  1 -
+ backend/app/services/question_generator.py         | 15 +++--
+ backend/app/services/rag_service.py                |  5 +-
+ backend/app/services/react_agent.py                |  1 -
+ backend/app/services/recommendation_service.py     |  9 ++-
+ backend/app/services/retrieval_reranker.py         |  4 +-
+ backend/app/services/rollback_service.py           | 34 +++++++++--
+ backend/app/services/scoring_faithfulness.py       | 16 +++--
+ backend/app/services/signal_registry.py            | 22 ++++++-
+ backend/app/services/skill_registry.py             |  1 -
+ backend/app/services/subject_resolver.py           |  1 -
+ backend/app/services/sync_service.py               |  1 -
+ backend/app/services/targeting_material_service.py |  5 +-
+ backend/app/services/tool_executor.py              |  2 -
+ backend/app/services/vault_index_orchestrator.py   |  3 +-
+ backend/app/services/verification_service.py       |  1 -
+ backend/app/services/websocket_manager.py          |  7 ++-
+ backend/app/services/weight_calculator.py          |  1 -
+ backend/app/services/wikilink_graph_service.py     | 12 +++-
+ 53 files changed, 351 insertions(+), 123 deletions(-)
+
+--- ①-判据：是否全部落在 backend/app/services/** ---
+  改动文件总数=53  非 services/ 的=0 （期望 0）
+
+--- ② 禁改面必须为空 ---
+  (以上为空 = 通过)
+
+--- ③ 卡文 §三 逐条禁改面复核 ---
+  ✓ 未碰 pyrightconfig.json
+  ✓ 未碰 backend/app/models
+  ✓ 未碰 backend/app/api
+  ✓ 未碰 backend/app/clients
+  ✓ 未碰 backend/app/mcp
+  ✓ 未碰 backend/app/core
+  ✓ 未碰 backend/app/middleware
+  ✓ 未碰 backend/app/dependencies.py
+  ✓ 未碰 backend/app/main.py
+  ✓ 未碰 backend/app/config.py
+  ✓ 未碰 backend/app/domains
+  ✓ 未碰 lefthook.yml
+  ✓ 未碰 backend/lib
+  ✓ 未碰 backend/app/services/learning_event_log.py
+  ✓ 未碰 canvas-vault

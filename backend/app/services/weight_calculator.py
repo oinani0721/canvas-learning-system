@@ -9,7 +9,6 @@ PRD Reference: v1.1.8 - calculate_targeted_review_weights tool
 Story: 24.3 - Intelligent Weight Algorithm for Targeted Review
 """
 
-import logging
 from dataclasses import dataclass
 
 import structlog

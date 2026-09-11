@@ -228,7 +228,9 @@ async def score_documents(query: str, documents: list[str]) -> list[float] | Non
 
     for j, ws in enumerate(window_scores):
         i = owner[j]
-        if ws > scores[i]:  # type: ignore[operator]
+        # window_scores 元素类型是 Optional[float]; 原代码 None > float 同样 TypeError。
+        assert ws is not None
+        if ws > scores[i]:
             scores[i] = ws  # MaxP: 文档分 = 窗口最大分
 
     _record_success()

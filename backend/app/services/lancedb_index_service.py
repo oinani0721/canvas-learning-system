@@ -16,7 +16,6 @@ from __future__ import annotations
 import asyncio
 import contextvars
 import json
-import logging
 import os
 import threading
 
@@ -368,7 +367,7 @@ class LanceDBIndexService:
 
     async def cleanup(self) -> None:
         """Cancel all pending debounce tasks. Called during shutdown."""
-        for canvas_name, task in self._pending_tasks.items():
+        for _canvas_name, task in self._pending_tasks.items():
             if not task.done():
                 task.cancel()
         self._pending_tasks.clear()

@@ -1,0 +1,7 @@
+### 验收单引用的 evidence 文件是否都真实存在（防「声明比证据宽」）
+### 正则含通配符 * ——上一版漏了 `negctl-*.txt` 这类引用
+
+引用总数 29 | evidence 内命中 28 | 外部/文档 1 | 未命中 0
+
+验伪锚: glob('negctl-*.txt') -> ['negctl-20260908T072134.txt']
+        glob('nonexistent-*.txt') -> [] (空 = 活的)

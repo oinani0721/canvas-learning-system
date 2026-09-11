@@ -1,0 +1,36 @@
+== 阶段2改动文件 ==
+app/services/agent_service.py
+app/services/calibration_tracker.py
+app/services/canvas_service.py
+app/services/difficulty_matcher.py
+app/services/event_bus.py
+app/services/mastery_engine.py
+app/services/mastery_fusion.py
+app/services/mastery_store.py
+app/services/multimodal_service.py
+app/services/review_service.py
+
+== A: DRIFT-AT-HEAD(568de82a) 集合 ==
+app/services/agent_service.py
+app/services/calibration_tracker.py
+app/services/difficulty_matcher.py
+app/services/event_bus.py
+app/services/mastery_engine.py
+app/services/mastery_store.py
+app/services/multimodal_service.py
+
+== B: 工作树 would-reformat 集合 ==
+app/services/agent_service.py
+app/services/calibration_tracker.py
+app/services/difficulty_matcher.py
+app/services/event_bus.py
+app/services/mastery_engine.py
+app/services/mastery_store.py
+app/services/multimodal_service.py
+
+== 双向差集(身份口径, 空=零新增漂移) ==
+-- 只在 A 不在 B (本卡顺手修好了漂移? 不应有) --
+-- 只在 B 不在 A (本卡新引入漂移 = 红) --
+-- 差集行数 --
+       0
+rc=0

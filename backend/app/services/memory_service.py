@@ -36,7 +36,6 @@ Story 36.9 Implementation:
 import asyncio
 import hashlib
 import json
-import logging
 import time
 import unicodedata
 import uuid
@@ -45,7 +44,11 @@ import uuid
 # neo4j.exceptions.* 但模块从未 import — Tier2 任意异常时 except 求值先抛
 # NameError, 异常处理器自己炸掉整条检索链 (「Lucene ParseException 修复」
 # 自 MVP-α 起从未真正工作过)。全库 F821 扫描抓到。
-import neo4j.exceptions  # noqa: E402
+# 该修复补的 `import neo4j.exceptions` 已随 HIGH-6 (依赖边界统一归一为
+# `except Exception`, 见 _search_graphiti 一族) 失去全部引用点, 由
+# CARD-PYRIGHT-DEBT-services 作为死 import 删除。⛔ 日后若重新写出
+# `except neo4j.exceptions.*`, 必须连该 import 一起加回, 否则重演本注释
+# 描述的 NameError 自炸。
 
 import structlog
 from dataclasses import dataclass
@@ -1223,7 +1226,7 @@ class MemoryService:
         if not self._initialized:
             await self.initialize()
 
-        layers = {
+        layers: Dict[str, Dict[str, Any]] = {
             "temporal": {"status": "ok", "backend": "sqlite"},
             "graphiti": {"status": "ok", "backend": "neo4j"},
             "semantic": {"status": "ok", "backend": "lancedb"},
@@ -1834,7 +1837,6 @@ class MemoryService:
 
         try:
             # Override the limit in config
-            from graphiti_core.search.search_config import SearchConfig
 
             # Create a copy with updated limit
             config_with_limit = config_obj.model_copy(update={"limit": limit})
@@ -2158,13 +2160,19 @@ class MemoryService:
                 # Build a minimal ConceptState for retrievability lookup.
                 # MasteryEngine.get_retrievability needs a ConceptState with fsrs_card_data.
                 # Without persisted card data, we skip — no crash.
-                from app.models.mastery_state import ConceptState
 
                 # Attempt to find existing concept state via engine's known concepts
                 # This is best-effort — engine may not have this concept loaded
                 concept_state = None
-                if hasattr(engine, "_concept_cache") and isinstance(engine._concept_cache, dict):
-                    concept_state = engine._concept_cache.get(concept_name)
+                # MasteryEngine 未把 _concept_cache 声明为类属性(运行期动态建);
+                # 原代码已用 hasattr + isinstance 双守卫, 这里只标注类型层。
+                if hasattr(engine, "_concept_cache") and isinstance(
+                    engine._concept_cache,  # pyright: ignore[reportAttributeAccessIssue]
+                    dict,
+                ):
+                    concept_state = engine._concept_cache.get(  # pyright: ignore[reportAttributeAccessIssue]
+                        concept_name
+                    )
 
                 if concept_state is not None:
                     r_value = engine.get_retrievability(concept_state)

@@ -12,15 +12,21 @@
 # [Source: _bmad-output/implementation-artifacts/3-8-dialog-archive-async-generation.md#Task 2]
 
 import json
-import logging
 import os
 
 import structlog
 import uuid
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, TYPE_CHECKING, cast
 
 from pydantic import BaseModel, Field
+
+if TYPE_CHECKING:
+    # litellm 在本模块内是**函数内延迟 import**(加载慢/可选依赖)。这里只取类型,
+    # 运行期不执行 → 不把 litellm 拉进模块 import 图。配合 cast("ModelResponse", ...):
+    # acompletion 的签名是 ModelResponse | CustomStreamWrapper, 而本模块所有调用点
+    # 都未传 stream=True → 运行期恒为 ModelResponse。cast 只作类型层断言, 不改行为。
+    from litellm.types.utils import ModelResponse
 
 logger = structlog.get_logger(__name__)
 
@@ -309,7 +315,11 @@ class ConversationDistiller:
                         api_key=api_key,
                     )
 
-        content = response.choices[0].message.content.strip()
+        # ⛔ 这里不能用 assert(Codex round-3 MEDIUM-1 已证实): 本函数的调用方 :164-166 用
+        # `except Exception as e: logger.warning(f"...: {e}")` 把异常消息记进日志,
+        # AssertionError 的空消息会让日志从「'NoneType' object has no attribute 'strip'」
+        # 变成空。cast 是运行期 no-op, 保持原 AttributeError 与其消息。
+        content = cast(str, cast("ModelResponse", response).choices[0].message.content).strip()
 
         # Strip markdown code fences if present (LLMs often wrap JSON)
         if content.startswith("```"):

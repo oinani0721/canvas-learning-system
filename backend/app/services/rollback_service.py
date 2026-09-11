@@ -13,7 +13,6 @@ Version: 1.0.0
 Created: 2025-12-04
 """
 
-import logging
 from datetime import datetime
 
 import structlog
@@ -119,7 +118,10 @@ class RollbackService:
             return
 
         # Import rollback module components
-        from src.rollback import (
+        # ⛔ src.rollback 在本仓不存在 (`git ls-files src` = 0): 该 import 在运行期必 ImportError。
+        # 本卡 (CARD-PYRIGHT-DEBT-services) 只做类型层处置, 禁删任何 rollback 功能代码;
+        # 退役 / 搬入的产品裁定归 G-PIPE，已登记 TAIL T1。
+        from src.rollback import (  # pyright: ignore[reportMissingImports]
             GraphSyncService,
             OperationTracker,
             RollbackEngine,
@@ -182,6 +184,8 @@ class RollbackService:
             List of Operation objects
         """
         self._ensure_initialized()
+        # 本方法已调用 self._ensure_initialized() 装配该组件; 原代码此处遇 None 同样 AttributeError
+        assert self._operation_tracker is not None
         return self._operation_tracker.get_history(
             canvas_path, limit=limit, offset=offset
         )
@@ -199,6 +203,8 @@ class RollbackService:
             Total operation count
         """
         self._ensure_initialized()
+        # 本方法已调用 self._ensure_initialized() 装配该组件; 原代码此处遇 None 同样 AttributeError
+        assert self._operation_tracker is not None
         return self._operation_tracker.get_total_count(canvas_path)
 
     def get_operation(self, operation_id: str) -> Optional[Any]:
@@ -214,6 +220,8 @@ class RollbackService:
             Operation object or None
         """
         self._ensure_initialized()
+        # 本方法已调用 self._ensure_initialized() 装配该组件; 原代码此处遇 None 同样 AttributeError
+        assert self._operation_tracker is not None
         return self._operation_tracker.get_operation(operation_id)
 
     # ═══════════════════════════════════════════════════════════════════════════
@@ -241,6 +249,8 @@ class RollbackService:
             List of snapshot metadata dicts
         """
         self._ensure_initialized()
+        # 本方法已调用 self._ensure_initialized() 装配该组件; 原代码此处遇 None 同样 AttributeError
+        assert self._snapshot_manager is not None
         return await self._snapshot_manager.list_snapshots(
             canvas_path, limit=limit, offset=offset
         )
@@ -258,6 +268,8 @@ class RollbackService:
             Total snapshot count
         """
         self._ensure_initialized()
+        # 本方法已调用 self._ensure_initialized() 装配该组件; 原代码此处遇 None 同样 AttributeError
+        assert self._snapshot_manager is not None
         return await self._snapshot_manager.get_total_count(canvas_path)
 
     async def create_snapshot(
@@ -280,9 +292,14 @@ class RollbackService:
         Returns:
             Created Snapshot object
         """
-        from src.rollback import SnapshotType
+        # ⛔ src.rollback 在本仓不存在 (`git ls-files src` = 0): 该 import 在运行期必 ImportError。
+        # 本卡 (CARD-PYRIGHT-DEBT-services) 只做类型层处置, 禁删任何 rollback 功能代码;
+        # 退役 / 搬入的产品裁定归 G-PIPE，已登记 TAIL T1。
+        from src.rollback import SnapshotType  # pyright: ignore[reportMissingImports]
 
         self._ensure_initialized()
+        # 本方法已调用 self._ensure_initialized() 装配该组件; 原代码此处遇 None 同样 AttributeError
+        assert self._snapshot_manager is not None
         return await self._snapshot_manager.create_snapshot(
             canvas_path=canvas_path,
             snapshot_type=SnapshotType.MANUAL,
@@ -304,6 +321,8 @@ class RollbackService:
             Snapshot object or None
         """
         self._ensure_initialized()
+        # 本方法已调用 self._ensure_initialized() 装配该组件; 原代码此处遇 None 同样 AttributeError
+        assert self._snapshot_manager is not None
         return await self._snapshot_manager.get_snapshot(canvas_path, snapshot_id)
 
     # ═══════════════════════════════════════════════════════════════════════════
@@ -336,12 +355,17 @@ class RollbackService:
         Returns:
             RollbackResult object
         """
-        from src.rollback import RollbackType
+        # ⛔ src.rollback 在本仓不存在 (`git ls-files src` = 0): 该 import 在运行期必 ImportError。
+        # 本卡 (CARD-PYRIGHT-DEBT-services) 只做类型层处置, 禁删任何 rollback 功能代码;
+        # 退役 / 搬入的产品裁定归 G-PIPE，已登记 TAIL T1。
+        from src.rollback import RollbackType  # pyright: ignore[reportMissingImports]
 
         self._ensure_initialized()
 
         rb_type = RollbackType(rollback_type)
 
+        # 本方法已调用 self._ensure_initialized() 装配该组件; 原代码此处遇 None 同样 AttributeError
+        assert self._rollback_engine is not None
         return await self._rollback_engine.rollback(
             canvas_path=canvas_path,
             rollback_type=rb_type,
@@ -378,6 +402,8 @@ class RollbackService:
         self._ensure_initialized()
 
         # Get snapshot
+        # 本方法已调用 self._ensure_initialized() 装配该组件; 原代码此处遇 None 同样 AttributeError
+        assert self._snapshot_manager is not None
         snapshot = await self._snapshot_manager.get_snapshot(canvas_path, snapshot_id)
         if snapshot is None:
             raise ValueError(f"Snapshot {snapshot_id} not found")

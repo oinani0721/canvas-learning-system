@@ -1,0 +1,23 @@
+### 整改后重跑：全部 pyright ignore 的承重验证（含整改新增的 4 条）
+### 方法：副本上逐条删掉 ignore，pyright 必须在**同一行**重新报出**同一 rule**
+
+发现 16 条
+
+  ✓ rollback_service.py:124 [reportMissingImports] — 重报 1 条
+  ✓ rollback_service.py:298 [reportMissingImports] — 重报 1 条
+  ✓ rollback_service.py:361 [reportMissingImports] — 重报 1 条
+  ✓ exam_service.py:556 [reportUnusedImport] — 重报 1 条
+  ✓ wikilink_graph_service.py:325 [reportAttributeAccessIssue] — 重报 1 条
+  ✓ error_classifier.py:202 [reportCallIssue] — 重报 1 条
+  ✓ health_monitor.py:256 [reportAttributeAccessIssue, reportOptionalMemberAccess] — 重报 2 条
+  ✓ intelligent_parallel_service.py:652 [reportArgumentType] — 重报 1 条
+  ✓ intelligent_parallel_service.py:659 [reportAttributeAccessIssue] — 重报 1 条
+  ✓ background_task_manager.py:350 [reportAttributeAccessIssue] — 重报 1 条
+  ✓ agent_routing_engine.py:559 [reportAttributeAccessIssue] — 重报 1 条
+  ✓ batch_orchestrator.py:506 [reportArgumentType] — 重报 1 条
+  ✓ batch_orchestrator.py:569 [reportArgumentType] — 重报 1 条
+  ✓ batch_orchestrator.py:570 [reportAttributeAccessIssue] — 重报 1 条
+  ✓ memory_service.py:2170 [reportAttributeAccessIssue] — 重报 1 条
+  ✓ memory_service.py:2173 [reportAttributeAccessIssue] — 重报 1 条
+
+=== 承重 16/16，多余 0 （期望 0）===
