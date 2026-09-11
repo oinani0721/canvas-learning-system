@@ -1,0 +1,13 @@
+== 跨车道依赖核实：U1 的 services 归 0 是否依赖 U2 阶段 0 的 pyrightconfig.json ==
+被测 services 内容固定 = U1 分支 acc37470；只换 pyrightconfig.json
+
+-- A. 用 U2 的 pyrightconfig（含 extraPaths）--
+     49:  "extraPaths": [
+     error=0  文件=93
+
+-- B. 换成主干 286178d8 的 pyrightconfig（无 extraPaths）--
+     extraPaths 命中数: 0
+     error=23  文件=93
+
+-- 还原校验 --
+     与 U2 tip 版逐字节相同? 是
