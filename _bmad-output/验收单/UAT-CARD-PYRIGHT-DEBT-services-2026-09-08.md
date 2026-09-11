@@ -725,26 +725,36 @@ Codex r4 的总判原文：
 | **合 U2 阶段 0 后 `pyright app/services`** | — | **0 errors** ✅ | **`pyright-FINAL-ccd2a4d1-*.txt`** §B / `phase0-merge-whatif-final-*.txt` |
 | 合 U2 阶段 0 后 `pyright app` 全量 | — | 134，分组实测 `{'rest': 134}` —— **`services` 键不存在**（卡文 (h)③ 要求的证明）；rest 按目录 api 55 / clients 40 / mcp 20 / core 11 / middleware 7 / domains 1 | 同上 |
 | `pyright app` 本树 | 241 | **198** | `pyright-app-phase2-close-*.txt` |
-| 多重集 NEW / GONE（基线 `286178d8`） | — | **NEW=0** / GONE=220 | `multiset-286178d8-vs-0188c4e5-*.txt` |
+| 多重集 NEW / GONE（基线 `286178d8`） | — | **NEW=0** / **GONE=222** | **`multiset-286178d8-vs-ccd2a4d1-*.txt`**（`base=420 work=198`；旧存档 `-vs-0188c4e5-` 绑的是中间态 `work=200 GONE=220`，已被 Codex L-4 指出，此处以最终 HEAD 为准）|
 
-### 十三.1 本卡阶段 2 面 = 24 条（不是卡文说的 60）
+### 十三.1 本卡阶段 2 面：**42 条诊断**（来自 24 处编辑）—— 两个口径分开写
 
-卡文 §〇 写「共享 10 文件 60 条」，但那 60 条里有 **36 条是 PEND0**（等 U2 阶段 0 的
-`extraPaths` 与 pydantic 位置默认），本卡按 §一(d)② 明令不得处置。真正属本卡的是 24 条：
+⚠️ v2 初稿把「编辑处数」当成「诊断条数」写成了 24，被 Codex L-4 指出（表内相加是 34，也不对）。
+现按**诊断身份**重算（`phase2-cleared-breakdown-*.txt`，base 77 → final 35）：
 
-| 类 | 条数 | 手法 |
-|---|---|---|
-| 死 import `import logging` | 10 | 直接删（10 个共享文件**全部**中招，structlog 迁移残留） |
-| 未使用变量 | 7 | 统一 `_` 前缀重命名，**不删除**（理由见 §十四.1） |
-| 死符号 `CardState` | 1 | import 与 except 兜底两侧一并移除 |
-| 纯注解 / 常量 | 4 | `Optional[str]`、`_card_attr` 的 `Any`、`Image.Resampling.LANCZOS`、`cast` 到 `Sequence` |
-| Optional 守卫 | 1 | `assert`（真不变量，调用链已守卫） |
-| litellm 联合类型窄化 | 2 | `cast`（照抄阶段 1 先例，**不用 assert**） |
-| `getattr` 动态取属性 | 3 | 标注/cast 为 `Any` |
-| **真缺陷（不改语义）** | **6** | 行级 ignore 带理由 + 登记 TAIL T-new |
-| 计 | **24** | |
+```
+CLEARED = 42   NEW = 0
+按 rule: 11 reportUnusedImport / 7 reportUnusedVariable / 7 reportArgumentType /
+         7 reportCallIssue / 7 reportAttributeAccessIssue / 2 reportOptionalMemberAccess /
+         1 reportMissingImports
+按文件: review_service 16 / multimodal 6 / difficulty_matcher 5 / mastery_engine 5 /
+         canvas_service 3 / agent_service 2 / calibration_tracker 1 / event_bus 1 /
+         learning_context_service 1 / mastery_fusion 1 / mastery_store 1
+```
 
-> 24 = 21（`MINE`）+ 3（被 §二.4 过滤器误归为 PEND0 的真缺陷，见 §十四.2）。
+卡文 §〇 写「共享 10 文件 60 条」，但那 60 条里有 36 条是 PEND0（等 U2 阶段 0），本卡按 §一(d)② 不得处置。
+
+| 手法 | 编辑处数 | 消掉的诊断条数 | 说明 |
+|---|---|---|---|
+| 删死 import `import logging` | 10 | 10 | 10 个共享文件**全部**中招（structlog 迁移残留） |
+| 未使用变量加 `_` 前缀 | 7 | 7 | 不删除，理由见 §十四.1 |
+| 删死符号 `CardState` | 1 | 1 | import + except 兜底两侧；⚠️ 这**不是纯注解改动** —— 它移除了模块属性 `review_service.CardState`（Codex L-2） |
+| 纯注解 / 常量替换 | 4 | 9 | `Optional[str]`(1) / `_card_attr` 的 `Any`(4：3 条 argtype + 1 条 attr) / `Image.Resampling.LANCZOS`(1) / `cast` 到 `Sequence`(2，同一行两条) |
+| Optional 守卫 `assert` | 1 | 1 | 真不变量，调用链 `:264` 已守卫 |
+| litellm 联合类型 `cast` | 2 | 2 | 照抄阶段 1 先例，**不用 assert** |
+| `getattr` 动态取属性标注 `Any` | 3 | 3 | — |
+| **真缺陷：行级 ignore + TAIL** | **7** | **9** | get_canvas(1) / EdgeRelationship(5：4 kwarg + 1 连带的缺必填参数) / search_memories(1) / embedding 死 import(1)；另 1 处是 `int(rating)` 防御性转换（非缺陷） |
+| 计 | **24 处编辑** | **42 条诊断** | 与 `phase2-cleared-breakdown-*.txt` 逐条一致 |
 
 ### 十三.2 残余 35 条的构成（实算，不自述）
 
@@ -918,6 +928,59 @@ callIssue 全部是 "Argument(s) missing for parameter" : True  (12)
 - `dependencies.py:301` 由 `ast.get_docstring()` 判定确在 `get_review_service` 的 docstring 内；
   该文件 AST 里 `func.attr == "generate_verification_canvas"` 的 **Call 节点数 = 0**。
 
+### 十四.11 ⛔ 第三个判据坑：git 的中文路径转义让排除式 grep 全部落空
+
+提交文档时我写了「是否误带代码」的判据：
+
+```bash
+git diff --cached --name-only | grep -v '^_bmad-output/' | wc -l   # 期望 0
+```
+
+它报 **19** —— 也就是说「19 个文件不在 `_bmad-output/` 下」。但那 19 个恰恰全是 `_bmad-output/` 下的文档。
+原因：git 默认 `core.quotepath=true`，含非 ASCII 的路径会被输出成
+`"_bmad-output/\345\256\241\346\237\245/..."` —— **带引号且中文被转义**，
+于是 `^_bmad-output/` 一个都匹配不到。
+
+修正：`git -c core.quotepath=false ...`，复核结果 **0**，并带验伪锚（不加排除时命中 19）。
+
+**这已经是本卡的第三个同型坑**，三个都是「判据的实际作用面 ≠ 它自称的作用面」：
+
+| # | 判据 | 实际发生了什么 |
+|---|---|---|
+| §十四.2 | `PHASE0_PENDING` 按消息文本豁免 | 把真缺陷也豁免掉，分母虚低 |
+| §十四.3 | `pyright \| tail -1` | 工具多打一行警告就取到警告，不是汇总行 |
+| §十四.11 | `grep -v '^_bmad-output/'` | 中文路径被 git 转义加引号，锚点永不命中 |
+
+共同解法：**每条判据旁边跑一个验伪锚** —— 先证明它能命中一条已知正例，再信它给出的「0」。
+本卡此后所有 grep 类判据都带了验伪锚（`':(exclude)'` 语法、nodeid diff、pyright 汇总行、本条）。
+
+### 十四.12 ⛔ 第四个判据坑：zsh 不做词分割，11 个文件被当成 1 个文件名（差点假绿）
+
+为闭合 Codex M-3 我重捕完整 hook 存档时写了：
+
+```bash
+SF="app/services/a.py app/services/b.py ... "      # 11 个文件
+.venv/bin/ruff format --check $SF
+.venv/bin/pyright $SF
+```
+
+zsh **不对未加引号的变量做词分割**（这点与 bash 相反），于是 `$SF` 作为**一个**参数传入：
+
+```
+error: Failed to format app/services/a.py app/services/b.py ...: No such file or directory
+File or directory ".../agent_service.py%20app/services/..." does not exist
+```
+
+而我的自校验是 `grep -c ' - error'` → **0**，若不看正文就会读成「一条错都没有，全清」。
+**假绿成立的条件齐了**：命令失败、判据返回 0、0 被解释为「好」。
+
+修正：`SF=(a.py b.py …)` 数组 + `"${SF[@]}"`，并在存档里**逐行打印传入的文件列表**当验伪锚
+（`文件数=11（必须 11，不是 1）`）。重捕后可见 18 error 行 = 汇总行 18，自洽。
+
+> 这与验收单 §五.2（阶段 1 的 `ruff check $F` 假绿）是**同一个坑**。阶段 1 已经把它写进
+> §九 第 10 条「建议回写协议」，我这轮还是踩了 —— 说明**写进文档不等于改掉习惯**，
+> 真正的修法是让这种写法不可能出现：凡多文件参数一律用数组 + 打印文件数当锚。
+
 ## 十五 阶段 2 ignore 清单（8 条，全部行级 + 具体 rule + 带理由，**经承重门实测 8/8 承重**）
 
 > 阶段 1 的 12 条见 §六。裸 `# type: ignore` 新增 = **0**；文件级 ignore 新增 = **0**。
@@ -935,7 +998,9 @@ callIssue 全部是 "Argument(s) missing for parameter" : True  (12)
 **承重门**：`ignore-necessity-phase2-final-20260911T090527.txt` —— 逐条摘掉后 pyright 必须在**同一行**
 重报**同一条 rule**，实测 **8/8 承重、0 冗余**；每条跑后以 `git show HEAD:<path>` 还原并 sha256 比对复原。
 
-> ⚠️ 8 条里有 **6 条**（#1、#3-6、#7、#8）不是「pyright 误报」而是**真缺陷被标注掩住**。
+> ⚠️ 8 条里有 **7 条**（#1、#3-6、#7、#8）不是「pyright 误报」而是**真缺陷被标注掩住**，
+> 对应 **4 类**缺陷（get_canvas / EdgeRelationship / search_memories / embedding 死 import）。
+> （原写「6 条」，Codex L-4 指出计数口径混了「条」与「类」。）
 > 它们在代码里都带 `⛔ 真缺陷(未修, 归 TAIL T-new)` 开头的注释，在本验收单 §十六.1 有条目，
 > 在 commit message 里有段落 —— 三处冗余登记，防止 TAIL 若无人处理时缺陷对工具彻底隐形。
 > **若主 session 认为这类缺陷不应被 ignore 掩住，请直接驳回，我改成留红。**
@@ -949,8 +1014,8 @@ callIssue 全部是 "Argument(s) missing for parameter" : True  (12)
 
 | ID | 位置 | 缺陷 | 曝光面 | 建议 |
 |---|---|---|---|---|
-| T-new-5 | `review_service.py:1243` | `canvas_service.get_canvas` 不存在（真名 `read_canvas`） | `generate_verification_canvas` **生产零调用方**（全仓唯一 `.generate_verification_canvas(` 在 `dependencies.py:301` 的 docstring 示例块内；端点 `review.py:759` 是同名但自建实现），仅 15 处 mock 测试覆盖 | 与 T-new-6 一并裁：整个方法是退役还是接线 |
-| T-new-6 | `review_service.py:2141-2144` | `EdgeRelationship` 4 个 kwarg 名全错 + 3 个必填缺 | 同上（只被 `:1371` 调用，传递性零曝光）；即便到达也被 `except TypeError` 静默降级 | 同上 |
+| T-new-5 | `review_service.py:1243` | `canvas_service.get_canvas` 不存在（真名 `read_canvas`） | `generate_verification_canvas` **未发现直接生产调用**（grep + AST；全仓唯一 `.generate_verification_canvas(` 在 `dependencies.py:301` 的 docstring 示例块内；端点 `review.py:759` 是同名但自建实现），仅 15 处 mock 测试覆盖 | 与 T-new-6 一并裁：整个方法是退役还是接线 |
+| T-new-6 | `review_service.py:2141-2144` | `EdgeRelationship` 4 个 kwarg 名全错 + 3 个必填缺 | 同上（只被 `:1371` 调用）⚠️「传递性零曝光」按 Codex M-2 收敛为「未发现直接生产调用，动态可达性未证」；即便到达也被 `except TypeError` 静默降级 | 同上 |
 | T-new-7 | `learning_context_service.py:205` | `search_memories` 缺必填 `query` | **活路径**（`exam_quick.py:116` 端点），但恒 TypeError 被吃，只记 debug 日志 | 补 `query=` 会改变出题输入 ⇒ 需产品裁定传什么 query |
 | T-new-8 | `multimodal_service.py:1427` | `agentic_rag.embedding.embedding_service` 全仓不存在 | 向量搜索永久关闭，恒降级文本搜索 | 退役该分支 or 补实现（G-PIPE 同族） |
 | T-new-9 | `agent_service.py:2218` | `source_description` 取出后从未进入输出串 | 历史记忆格式化少一个字段 | 接线 or 删字段 |
@@ -974,8 +1039,11 @@ callIssue 全部是 "Argument(s) missing for parameter" : True  (12)
 | commit | 内容 | hook 跳过 | 存档 |
 |---|---|---|---|
 | `568de82a` | merge 主干 `286178d8` | — | — |
-| `0188c4e5` | 共享 10 文件 22 条 | `python-lint`(格式段) + `python-typecheck` | `lefthook-blocked-raw-phase2-20260911T084608.txt` |
-| `9a6c82e6` | 补 2 条误归真缺陷 | 同上 | `lefthook-blocked-raw-phase2b-20260911T085410.txt` |
+| `0188c4e5` | 共享 10 文件 22 条 | `python-lint`(格式段) + `python-typecheck` | `lefthook-blocked-raw-phase2-20260911T084608.txt` ⚠️**已截断**（`tail -30`），完整版见 `lefthook-blocked-raw-FULL-ccd2a4d1-*.txt` |
+| `9a6c82e6` | 补 2 条误归真缺陷 | 同上 | `lefthook-blocked-raw-phase2b-20260911T085410.txt` ⚠️**已截断**，同上 |
+| `81c57528` | 删 1 条冗余 ignore | 同上 | 同上 |
+| `ccd2a4d1` | 注释数字 17→15 | 同上 | `lefthook-blocked-raw-FULL-ccd2a4d1-*.txt`（**完整未截断**：11 文件、可见 18 error 行 = 汇总行 18、不属 U2 面的 error = 0） |
+| `d7790f4b` 起 | 仅 `_bmad-output` 文档 | 无（文档不触发 python hook） | — |
 
 **跳过理由（两条都须成立）**：
 - `python-lint` 格式段：暂存文件在**合并态 `568de82a` 就已 ruff format 漂移**（10 个里 7 个 / 2 个里 2 个），
@@ -1038,7 +1106,13 @@ callIssue 全部是 "Argument(s) missing for parameter" : True  (12)
    T-new-1/2 的生产调用方为 0（依据是 `grep` 全仓 `.generate_verification_canvas(`，
    若存在动态派发/反射到达方式则此结论不成立，已在 Codex prompt §三.4 请求独立核对）。
 8. `_` 前缀重命名的 7 处**未证明**没有 `locals()` / `eval` 级的间接读取（只做了 AST 级 grep）。
-9. **未证明阶段 1 的「过滤后 0」在修正过滤器后仍成立** —— §十四.2 指出该过滤器过度豁免，
+9. **`difficulty_matcher.py:234` 的 `cast(str, …)` 不证明内容非空**（Codex M-1）：litellm 的
+   `Message.content` 允许 `None`，此处无内容守卫；运行期若为 `None` 仍抛 `AttributeError`，
+   被该 try 的**第二个** handler（`except Exception`）接住、记 error 日志、回落 `0.5`。
+   本卡只证「行为与改前逐字相同」，**不证**这条路径安全 —— 类型债仍在，登记 TAIL 候选。
+10. **6 条真缺陷的「未发现直接生产调用」不等于不可达**（Codex M-2）：依据是
+   `grep -F '.X('` + AST，覆盖不到别名取用、回调注册、字符串反射、路由表注入。
+11. **未证明阶段 1 的「过滤后 0」在修正过滤器后仍成立** —— §十四.2 指出该过滤器过度豁免，
    至少 2 条真缺陷在阶段 1 就已存在于非共享面却被豁免掉；本卡已把它们清掉，
    但**没有回溯重算阶段 1 当时的正确分母**。
 
@@ -1074,23 +1148,49 @@ callIssue 全部是 "Argument(s) missing for parameter" : True  (12)
 
 这些都登记在 §十六.1，等你或主 session 决定是修、是退役、还是先放着。
 
-## 二十 Codex（阶段 2 末轮）
+## 二十 Codex（阶段 2 末轮 r5）
 
 > D-15：多轮直到绑最终 HEAD 的一轮 BLOCKER/HIGH = 0；**上限 5 轮，本卡族阶段 1 已用 r1~r4**
-> ⇒ 阶段 2 只剩 **1 轮预算**。若 r5 出 HIGH，按协议 §1 停轮交主 session 人审，不自判通过。
+> ⇒ 阶段 2 只有 **1 轮预算**。
 
 ### 二十.0 轮次结果
 
-| 轮 | 绑定 SHA | 是否绑最终 HEAD | B | H | M | L | 存档 |
+| 轮 | 绑定 SHA | 绑最终 HEAD | B | H | M | L | 存档 |
 |---|---|---|---|---|---|---|---|
-| r5 | `<FINAL>` | ✅ | ? | ? | ? | ? | `codex-review-CARD-PYRIGHT-DEBT-services-r5.md` |
+| r5 | `d7790f4b`（Codex 自证「其 services 树与 `ccd2a4d1` 完全相同，工作区 services 无修改」） | ✅ | **0** | **0** | 3 | 4 | `codex-review-CARD-PYRIGHT-DEBT-services-r5.md` |
 
-### 二十.1 绑定自证
+**D-15 达成**：末轮绑最终 HEAD 且 BLOCKER = 0 / HIGH = 0。MEDIUM/LOW 按协议 §1「登记不阻断」。
 
-```
-git diff --stat <审SHA> HEAD -- . ':(exclude)_bmad-output'
-```
-→ 空即仍绑定。
+绑定自证：`git diff --stat ccd2a4d1 HEAD -- . ':(exclude)_bmad-output'` → 空。
+
+### 二十.1 七条发现的逐条处置（⛔ 全部先查证再定，不照单全收也不照单驳回）
+
+| # | 级别 | 发现 | 我的查证 | 处置 |
+|---|---|---|---|---|
+| M-1 | MEDIUM | `difficulty_matcher.py:234` 的 `cast(str, …)` 隐藏了可空内容的类型债，不能称为已证明安全的窄化 | **部分成立**。实测该 try 有**两个** handler：`except (ValueError,TypeError,IndexError)` 和 `except Exception as e: logger.error(...)` ⇒ `content is None` 时的 `AttributeError` 被**第二个**接住、记 error 日志、回落 `0.5`。所以我注释里「except 把 `{e}` 写进日志，AssertionError 空消息会丢原因」的**结论成立**，只是指的是第二个 handler。Codex 真正的点是「cast 不证明安全」—— 我从未声称安全，只声称**行为不变**。 | **采信为 caveat**：类型债仍在（content 可为 None），已写进 §十八「本卡未证明什么」。代码不改（改需一轮预算，已无） |
+| M-2 | MEDIUM | 「生产零调用方／传递性零曝光」超出证据；应说「未发现直接生产调用，动态可达性未证」 | **成立**。我的依据是 `grep -F '.generate_verification_canvas('` + AST，覆盖不到别名取用、回调注册、字符串反射、路由表注入。 | **采信**。本验收单全文的措辞已按此改（§十五 / §十六.1 / §十九）。⚠️ 代码注释里仍是旧措辞 —— 改注释 = 改代码 = 需再一轮，已无预算，**列为主 session 授权后的待改项**（§二十.2） |
+| M-3 | MEDIUM | hook 存档不支持「完整原始输出、报错全部 PEND0」：可见 15 errors / 11 warnings 而汇总说 19 / 20；且含已登记为真缺陷的 `embedding_service` | **成立，根因是我用了 `tail -30` 截断**。 | **已修**：补一份未截断的 `lefthook-blocked-raw-FULL-ccd2a4d1-*.txt`（11 文件、可见 18 error 行 = 汇总行 18、不属 U2 面的 error = 0）。原两份保留并标注「已截断，见 FULL 版」 |
+| L-1 | LOW | `canvas_service.py:341` 的「同被 except 捕获所以逐字不变」不成立：None 到达时日志原因会从 AttributeError 文本变成空字符串 | **成立**。`assert` 无消息 ⇒ `f"...: {e}"` 渲染成空。 | **采信**。注释措辞待改（同 M-2，列 §二十.2）。实质影响：仅日志文本，且调用链 `:264` 已守卫 ⇒ 生产不可达 |
+| L-2 | LOW | 删 `CardState` 含运行期模块接口变化，不能叫纯注解改动 | **成立**。删除 import + except 兜底赋值会移除模块属性 `review_service.CardState`。 | **采信**。§十三.1 的分类已从「纯注解」拆出「死符号（含模块属性移除）」 |
+| L-3 | LOW | Pillow **9.4 已撤销** `Image.LANCZOS` 的弃用；这是等值替换而非弃用迁移 | **成立，已本机实测**：Pillow 12.3.0 访问 `Image.LANCZOS` 产生 **0 个 warning**，值为裸 int `1`。 | **采信**。本验收单与 commit 里「官方弃用信号」的说法**更正为**：运行期常量未弃用，但 **type stub 不声明它**、`thumbnail()` 签名要求 `Resampling` ⇒ 这是为对齐类型声明做的**等值替换**（`==` 为 True 已实测） |
+| L-4 | LOW | 数量混用：表内相加是 34 而非 24；「8 条中 6 条」实为 7 条对应 4 类；`GONE=220` 对应旧的 `420→200`，若最终是 `420→198` 则应为 **222** | **全部成立**。 | **已修**：① 按**诊断身份**重算，阶段 2 实际消掉 **42 条**（`phase2-cleared-breakdown-*.txt`），原表是「编辑处数」，已分列两栏；② ignore 里带 ⛔ 的是 **7 条**、对应 **4 类**缺陷；③ 在最终 HEAD 重跑多重集：**`base=420 work=198 NEW=0 GONE=222`**（`multiset-286178d8-vs-ccd2a4d1-*.txt`），Codex 的 222 推算正确 |
+
+### 二十.2 待主 session 授权后才改的注释（改动即需再送一轮，本卡族已无预算）
+
+若主 session 批准追加一轮（或判为「纯注释可判等价」），以下三处注释措辞应改：
+
+1. `review_service.py:1240` / `:2136`：「生产零调用方」→「未发现直接生产调用（grep + AST），动态可达性未证」
+2. `canvas_service.py:341`：删掉「落地路径逐字不变」——应写「异常类型由 AttributeError 变 AssertionError，
+   同被 `except Exception` 接住走同一 fallback 分支；**但日志里的原因文本会变空**」
+3. `multimodal_service.py:310` 无注释，但 commit message 里「Pillow 9.1 起弃用」的说法应更正（见 L-3）
+
+### 二十.3 Codex 未列为发现但值得记的两句
+
+- 「承重 8/8 只能证明**抑制有效**，不能证明**抑制理由正确**」—— 说得对。承重门测的是必要性，不是正当性；
+  正当性靠的是每条 ignore 旁边那段可被独立核对的理由，而那正是 Codex 本轮逐条核过的（8/8 结论见其表格）。
+- 关于删掉调用行 ignore 的机制，Codex 给出了 pyright **1.1.411 与 1.1.414 的源码位置**佐证
+  （诊断 range 覆盖的各行都会被遍历匹配），并提醒「未来诊断范围若收窄到调用首行，需升级时复验」——
+  已记入 §十六.2 回写建议。
 
 ---
 
@@ -1106,13 +1206,22 @@ git diff --stat <审SHA> HEAD -- . ':(exclude)_bmad-output'
 > - 全量 `pyright app`：本树 198；合阶段 0 后 134，且 **services 贡献 = 0**，
 >   残余按目录 = api 55 / clients 40 / mcp 20 / core 11 / middleware 7 / domains 1，**全在 U2 面**。
 >
-> **门**：多重集 NEW=0 / GONE=220；地盘 63 文件全在 `backend/app/services/`、禁改面 diff 0 行
+> **门**：多重集 **NEW=0 / GONE=222**（绑最终 HEAD `ccd2a4d1`，`base=420 work=198`）；
+> 地盘 63 文件全在 `backend/app/services/`、禁改面 diff 0 行
 > （含 `':(exclude)'` 语法验伪锚）；ruff F401/F821 全绿（63 文件真跑，空集会报 `EMPTY-FILE-LIST`）；
 > ruff format 零新增漂移（身份口径双向差集 = 0）；ignore 承重 **8/8**、冗余 **0**；负控 **3/3 逐字重现**
 > 且跑前/还原后 sha256 相同。
 >
-> **交主 session 的三个决策点**：
+> **Codex r5（末轮，绑最终 HEAD）：BLOCKER = 0 / HIGH = 0 / MEDIUM = 3 / LOW = 4 ⇒ D-15 达成。**
+> 7 条 MEDIUM/LOW 全部逐条查证（M-1 部分成立、其余 6 条成立），处置见 §二十.1：
+> M-3 与 L-4 **已当场闭合**（补未截断存档 + 按诊断身份重算 42 条 + 最终 HEAD 重跑多重集 GONE=222）；
+> M-1/M-2/L-1/L-2/L-3 为措辞与 caveat 类，已写进 §十八「本卡未证明什么」，
+> 其中 3 处**代码注释**的措辞更正列在 §二十.2 —— 改注释即需再送一轮，本卡族 5 轮预算已用尽，
+> 故**未改**，等主 session 裁（这是第 4 个决策点）。
+>
+> **交主 session 的四个决策点**：
 > 1. **阶段 0 merge 冲突**（§十七）—— 源码冲突 0，唯一冲突在生成文件 `backend/openapi.json`（2 块，
 >    HEAD 侧严格更新）。请裁：主 session 在集成候选树上合，还是授权本车道解冲突后重合并。
 > 2. **6 条真缺陷被 ignore 掩住是否可接受**（§十五 末尾）—— 若不接受，我改成留红。
 > 3. **TAIL T-new-5 ~ T-new-10 六条**（§十六.1）—— 建议与 G-PIPE 断裂管道并卡处置。
+> 4. **§二十.2 的 3 处注释措辞更正**是否授权追加一轮（或判为纯注释可等价）。

@@ -1,0 +1,24 @@
+### 阶段 2 services 面：按诊断身份对照（不是编辑处数）
+base(568de82a)=77  final(ccd2a4d1)=35  CLEARED=42  NEW=0
+
+## 被消掉的 42 条 按 rule
+    11  reportUnusedImport
+     7  reportUnusedVariable
+     7  reportArgumentType
+     7  reportCallIssue
+     7  reportAttributeAccessIssue
+     2  reportOptionalMemberAccess
+     1  reportMissingImports
+## 被消掉的 按文件
+    16  review_service.py
+     6  multimodal_service.py
+     5  difficulty_matcher.py
+     5  mastery_engine.py
+     3  canvas_service.py
+     2  agent_service.py
+     1  calibration_tracker.py
+     1  event_bus.py
+     1  learning_context_service.py
+     1  mastery_fusion.py
+     1  mastery_store.py
+## NEW = 0 ✅
