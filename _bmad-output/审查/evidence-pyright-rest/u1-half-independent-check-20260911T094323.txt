@@ -1,0 +1,11 @@
+== 独立复核 U1 一半的判据（判据5：U1 阶段2末 pyright app/services = 0 errors）==
+被测内容 = U1 分支 acc37470 的 backend/app/services，铺在 U2 tip 的树上
+
+-- pyright backend/app/services --
+rc=0
+  分析文件数=93  error=0  warning=47
+
+-- 验伪锚：往 U1 的某个 services 文件注入一条类型错误，必须被报出 --
+  注入后 rc=1
+  注入后 error=1  (必须 > 0)
+  还原校验: 与 U1 分支版逐字节相同 ✓
