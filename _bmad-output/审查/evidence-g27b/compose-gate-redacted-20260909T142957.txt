@@ -1,0 +1,22 @@
+隔离旧证据 4 个: ['compose-config-after-20260909T134057.txt', 'compose-config-allprofiles-after-20260909T134057.txt', 'compose-config-allprofiles-baseline-20260909T133816.txt', 'compose-config-baseline-20260909T133816.txt']
+基线源 = 0ee633ea:docker-compose.yml（已确认不含 CLS_BACKEND_CONTAINER）
+
+[default] 逐字节相同: ✅
+  渲染出的 container_name（2 个）: ['canvas-learning-system-backend', 'canvas-learning-system-neo4j']
+  baseline -> compose-config-default-baseline-20260909T142957.txt
+  after    -> compose-config-default-after-20260909T142957.txt
+
+[allprofiles] 逐字节相同: ✅
+  渲染出的 container_name（5 个）: ['canvas-learning-system-backend', 'canvas-learning-system-neo4j', 'canvas-learning-system-neo4j-test', 'canvas-learning-system-ollama', 'claude-dev']
+  baseline -> compose-config-allprofiles-baseline-20260909T142957.txt
+  after    -> compose-config-allprofiles-after-20260909T142957.txt
+
+验伪锚 allprofiles container_name 数 = 5（必须 5，否则门取名面 < 主张）
+
+=== evidence 目录泄漏复扫 ===
+  AIzaSy: 0 ✅
+  INTERNAL_API_KEY 明文: 0 ✅
+  NEO4J 明文密码: 0 ✅
+  sk-/ghp_/xox: 0 ✅
+
+结论: ✅ 全部通过

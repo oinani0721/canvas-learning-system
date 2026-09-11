@@ -1,0 +1,13 @@
+### (d) 行为变化: _tables_cache 装载集合扩大（12 表夹具，全 tmp）
+--- 改前（HEAD:da690bf8 版源码，临时换入，跑完无条件还原）---
+库内实有表数           = 12
+get_stats()["tables"] 长度 = 10
+get_stats()["tables"]      = ['a_t01', 'a_t02', 'a_t03', 'a_t04', 'a_t05', 'a_t06', 'a_t07', 'a_t08', 'a_t09', 'a_t10']
+initialize 日志同源 (:938 读的也是 _tables_cache.keys()) 长度 = 10
+--- 改后（本卡版）---
+库内实有表数           = 12
+get_stats()["tables"] 长度 = 12
+get_stats()["tables"]      = ['a_t01', 'a_t02', 'a_t03', 'a_t04', 'a_t05', 'a_t06', 'a_t07', 'a_t08', 'a_t09', 'a_t10', 'a_t11', 'b_zz']
+initialize 日志同源 (:938 读的也是 _tables_cache.keys()) 长度 = 12
+--- 还原核对 ---
+71a5bd780d24a6f579ef625de016436d5b10b8e4dd45fb306474c4fe44c5ec3d  backend/lib/agentic_rag/clients/lancedb_client.py

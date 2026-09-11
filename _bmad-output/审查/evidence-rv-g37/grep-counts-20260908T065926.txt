@@ -1,0 +1,16 @@
+# CARD-RV-G3-7 裁判 5: grep 计数 @ 2026-09-08T06:59:26+08:00  HEAD=da690bf8
+## 1) git grep -n '_card_states\[' -- backend/app | wc -l  (期望 3)
+       3
+backend/app/services/review_service.py:598:                self._card_states[pending[0]] = pending[1]
+backend/app/services/review_service.py:620:                        self._card_states[pending[0]] = prev
+backend/app/services/review_service.py:2360:            return self._card_states[concept_id]
+## 2) grep -c 'fsrs_card_states' backend/app/services/review_service.py  (期望 1)
+1
+## 3) grep -c '非 FSRS 调度真相源' backend/app/services/review_service.py  (期望 6)
+6
+   锚点行号:
+110 524 549 570 1306 2401 
+## 4) git grep -n 'save_card_state(' -- backend/app  (期望只 :2364 def + :2398 注释)
+backend/app/services/review_service.py:2364:    async def save_card_state(
+backend/app/services/review_service.py:2398:        # (`git grep 'save_card_state(' backend/app` 只命中定义), 但既有回归测试
+rc=0

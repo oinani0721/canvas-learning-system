@@ -1,0 +1,80 @@
+### 开工核查（卡文点名的现场项）
+--- 1. live 插件 data.json 键集（只读键名，值不抄）---
+  canvas-learning-system/data.json → ['activeVaultName', 'backendUrl', 'internalApiKey', 'nodePathPrefixes']
+  templater-obsidian/data.json → ['auto_jump_to_cursor', 'command_timeout', 'enable_file_templates', 'enable_folder_templates', 'enable_system_commands', 'enabled_templates_hotkeys', 'file_templates', 'folder_templates', 'intellisense_render', 'shell_path', 'startup_templates', 'syntax_highlighting', 'syntax_highlighting_mobile', 'templates_folder', 'templates_pairs', 'trigger_on_file_creation', 'user_scripts_folder']
+--- 2. Settings 入参名（config.py:176-195）---
+    VAULTS_ROOT: str = Field(
+        default=_PROJECT_ROOT,
+        description="Parent directory containing all vault subdirectories",
+    )
+    ACTIVE_VAULT: str = Field(
+        default="canvas-vault",
+        description="Currently active vault subdirectory name",
+    )
+
+    # FIX-4.0: Use absolute path to avoid encoding issues with Chinese characters
+    # The relative path "../笔记库" was causing 404 errors due to path resolution issues
+    CANVAS_BASE_PATH: str = Field(
+        default=os.path.join(_PROJECT_ROOT, "笔记库"),
+        description="Absolute path to Canvas files directory",
+    )
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # API Settings
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    API_V1_PREFIX: str = Field(default="/api/v1", description="API version prefix path")
+--- 3. Settings.vault_id 真读点（卡文说 :765-795，本树实测）---
+765:    def vault_id(self) -> str:
+766-        """Story 1.9 + Phase B0.4 (Round-5 路径 A): Derive vault_id.
+767-
+768-        Priority order (Round-5 A2):
+769-        1. .canvas-config.yaml `vault_id` field (explicit, schema_version >= 2.0)
+769:        1. .canvas-config.yaml `vault_id` field (explicit, schema_version >= 2.0)
+782:            yaml_path = Path(self.CANVAS_BASE_PATH) / ".canvas-config.yaml"
+--- 4. lefthook 有没有 shell hook ---
+310:    # 刻意不设 glob: 残留可以落在 .md / .yml / .sh, 不只是 .py。
+463:    # the invocation goes through scripts/run_cmd_capture.sh so a non-zero
+482:          ./scripts/run_cmd_capture.sh --cwd frontend/obsidian-plugin --tail 120 -- npm test || exit $?
+  (空 = 无 shell hook)
+--- 5. install-vault.sh 复制循环（含 / 的条目能否建父目录）---
+    else
+        echo "   ⚠️ 模板缺 .claude/$item — 跳过"
+    fi
+done
+find "$TARGET/.claude" -type d -name __pycache__ -prune -exec rm -rf {} + 2>/dev/null || true
+# 审查 L4: hooks 目录会连带旧 vault 的归档队列文件 — 新 vault 不得重放
+rm -f "$TARGET/.claude/hooks/pending_archives"*.jsonl 2>/dev/null || true
+
+for f in "${OBSIDIAN_FILES[@]}"; do
+    [ -e "$SOURCE/.obsidian/$f" ] && cp "$SOURCE/.obsidian/$f" "$TARGET/.obsidian/$f" \
+        || echo "   ⚠️ 模板缺 .obsidian/$f — 跳过"
+done
+for p in "${OBSIDIAN_PLUGINS[@]}"; do
+    [ -d "$SOURCE/.obsidian/plugins/$p" ] && cp -R "$SOURCE/.obsidian/plugins/$p" "$TARGET/.obsidian/plugins/$p" \
+        || echo "   ⚠️ 模板缺插件 $p — 跳过"
+done
+
+for f in "${ROOT_FILES[@]}"; do
+    [ -e "$SOURCE/$f" ] && cp "$SOURCE/$f" "$TARGET/$f" || echo "   ⚠️ 模板缺 $f — 跳过"
+done
+
+--- 6. yaml 生成器当前形态 ---
+cat > "$TARGET/.canvas-config.yaml" <<EOF
+# Canvas Learning System · Vault 级配置 (install-vault.sh 生成)
+# 本 vault 只学一个学科 (subject), 不跨学科。
+vault_id: "$VAULT_NAME"
+subject: "$SUBJECT"
+schema_version: "2.0-multi-vault-2026-05-10"
+EOF
+
+--- 7. 自检块 :117-125 当前形态 ---
+check "skills ≥8 个 (含 SKILL.md)" '[ "$(find "$TARGET/.claude/skills" -mindepth 2 -maxdepth 2 -type f -name SKILL.md 2>/dev/null | wc -l)" -ge 8 ]'
+check "decay_beta + fsrs_bridge" '[ -f "$TARGET/.claude/scripts/decay_beta.py" ] && [ -f "$TARGET/.claude/scripts/fsrs_bridge.py" ]'
+check "hooks 配置 settings.json" '[ -f "$TARGET/.claude/settings.json" ]'
+check "mcp.json"                 '[ -f "$TARGET/.claude/mcp.json" ]'
+check "核心插件与模板源字节一致"  'cmp -s "$SOURCE/.obsidian/plugins/canvas-learning-system/main.js" "$TARGET/.obsidian/plugins/canvas-learning-system/main.js"'
+check "插件启用清单+快捷键"       '[ -f "$TARGET/.obsidian/community-plugins.json" ] && [ -f "$TARGET/.obsidian/hotkeys.json" ]'
+check "后端鉴权 key"             '[ -f "$TARGET/.obsidian/cls-internal-key.txt" ]'
+check "Dashboard + CLAUDE.md"    '[ -f "$TARGET/Dashboard.md" ] && [ -f "$TARGET/CLAUDE.md" ]'
+check "vault 配置 yaml"          'grep -q "vault_id" "$TARGET/.canvas-config.yaml"'

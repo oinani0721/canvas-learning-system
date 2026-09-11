@@ -1,0 +1,13 @@
+# P2-f 白名单工具调用：check_backend_health（唯一允许，只读健康查询）  @ 2026-09-08T06:59:13+08:00
+# 卡文 §三：白名单恰 = mcp__canvas-learning-mcp__check_backend_health；本步是全卡唯一一次 tools/call
+=== tools/call check_backend_health ===
+http_code=200
+curl_rc=0
+=== 返回内容（前 800 字符）===
+{"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"{\n  \"overall_status\": \"degraded\",\n  \"components\": [\n    {\n      \"name\": \"neo4j\",\n      \"status\": \"ready\",\n      \"latency_ms\": 143.6,\n      \"detail\": \"Bolt connection OK\",\n      \"fix_hint\": \"\"\n    },\n    {\n      \"name\": \"ollama\",\n      \"status\": \"unavailable\",\n      \"latency_ms\": 22.9,\n      \"detail\": \"All connection attempts failed\",\n      \"fix_hint\": \"确保 Ollama 正在运行: ollama serve && ollama pull bge-m3\"\n    },\n    {\n      \"name\": \"lancedb\",\n      \"status\": \"ready\",\n      \"latency_ms\": 14.9,\n      \"detail\": \"Data directory exists: /lancedb\",\n      \"fix_hint\": \"\"\n    },\n    {\n      \"name\": \"fastapi\",\n      \"status\": \"read
+
+=== 判据：isError 与 content 是否存在 ===
+有 result = True
+isError  = False
+content 块数 = 1
+rc=0

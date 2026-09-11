@@ -1,0 +1,16 @@
+{
+  "mode": "apply",
+  "file": "/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.cb8nUrCMaT/copy.json",
+  "vault_id": "canvas_vault",
+  "n_old": 1,
+  "n_new_before": 0,
+  "n_new_after": 1,
+  "migrated": 1,
+  "clobbered": [],
+  "conflicts": [],
+  "result": "ok",
+  "backups": [
+    "/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.cb8nUrCMaT/copy.json.bak.20260909_124737",
+    "/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.cb8nUrCMaT/copy.json.bak"
+  ]
+}

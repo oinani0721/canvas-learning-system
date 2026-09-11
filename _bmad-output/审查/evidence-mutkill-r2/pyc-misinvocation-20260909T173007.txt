@@ -1,0 +1,40 @@
+== 误调用 tests/unit（漏设 PYTHONDONTWRITEBYTECODE=1）及其处置 ==
+
+【发生】
+地盘还原后复验 tests/unit 时，我跑的是
+  .venv/bin/python -m pytest -q -p no:cacheprovider -rfE tests/unit
+漏掉了卡文裁判命令要求的前缀 PYTHONDONTWRITEBYTECODE=1。
+存档: unit-after-scopefix-20260909T171859.txt（174 failed，比还原前多 1 条）
+
+【多出的那条红 = 元门自己】
+FAILED tests/unit/test_vault_lint.py::test_bytecode_guard_is_armed
+断言原文: assert os.environ.get("PYTHONDONTWRITEBYTECODE") == "1"
+实测报错: AssertionError: ... assert None == '1'
+⇒ 它断的是**跑测试那个进程自己**的环境变量，不是「事后有没有 .pyc」。
+
+【两侧实测（钉死是调用方式而非地盘还原）】
+不带 PYTHONDONTWRITEBYTECODE : 1 failed
+带    PYTHONDONTWRITEBYTECODE=1: 1 passed
+
+【正确口径重跑】
+存档: unit-after-scopefix-v2-20260909T172442.txt
+  = 173 failed, 4749 passed, 48 skipped, 29 errors  rc=1
+红集口径: 只取 ^(FAILED|ERROR) tests/...:: 的行（⛔ 不用 failed 计数当分母,
+          裸 grep '^ERROR ' 会把 structlog 的 "ERROR app.main:main.py:730" 计进来,
+          本次实测该噪音使红集从 202 虚涨到 244）
+  A. vs 还原前同口径跑(164204): 202 vs 202，diff 空 ⇒ 地盘还原对 tests/unit 零影响
+  B. vs 主干红基线 03ac8bf8   : '>' 0 条 / '<' 45 条 ⇒ 满足卡「只许 '<' 行」
+
+【副作用与清理】
+该次误调用在 backend/ 下写出 .pyc：
+  17:00 之后新写 481 / 总数 481  ⇒ 此前为 0，481 个全是它写的
+  canvas-vault/ 零容忍面: 0（未污染）
+  .gitignore 覆盖 __pycache__/ ⇒ 不会入库
+已用 Python 删除 27 个 __pycache__ 目录 / 481 个 .pyc，复查残留 0，回到 17:00 前状态。
+
+【为什么必须清而不是「反正 gitignore」】
+.pyc 的失效判据是 (mtime 秒级, size)。变异 harness 的形态正是「同一秒内写入变异体
+→ 跑 → 还原」，而变异常常不改变文件大小（换比较符/换常量）。两者相撞时解释器会复用
+旧字节码 ⇒ 变异未生效却被判 SURVIVED。这正是卡文把 PYTHONDONTWRITEBYTECODE=1 写进
+裁判命令、以及 test_bytecode_guard_is_armed 这条元门存在的原因。
+rc=0

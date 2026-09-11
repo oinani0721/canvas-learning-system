@@ -1,0 +1,58 @@
+### (b) 裁定表完整性审计（确定性集合运算，非启发式）
+
+脚本五数组: {'SKELETON_DIRS': 6, 'CLAUDE_ITEMS': 8, 'OBSIDIAN_FILES': 6, 'OBSIDIAN_PLUGINS': 5, 'ROOT_FILES': 2} 合计 27
+manifest: declared 28 | exclude 10 | 合计 38
+git 追踪 vault 文件: 70
+
+--- A. git 追踪但既不在 manifest、也不在脚本数组的文件 ---
+  [已裁] .claudian: 8 个文件
+  [已裁] .mcp.json: 1 个文件
+  [已裁] .obsidian/graph.json: 1 个文件
+  [已裁] .obsidian/templates/concept.md: 1 个文件
+  [已裁] .obsidian/templates/exam-board.md: 1 个文件
+  [已裁] .obsidian/themes/Underwater/manifest.json: 1 个文件
+  [已裁] .obsidian/themes/Underwater/theme.css: 1 个文件
+  [已裁] .obsidian/types.json: 1 个文件
+  [⛔ 未裁] ⛔未裁: 9 个文件
+       
+       
+       
+       2111.md
+       Untitled.md
+       r).md
+       wiki/canvases/.gitkeep
+       wiki/concepts/.gitkeep
+       未命名.md
+
+--- B. live 有、树没有的顶层条目（是否已裁）---
+  ⛔ 未裁: .obsidian/plugins   (可见性: **校验器看不见**)
+  ⛔ 未裁: .obsidian/templates   (可见性: **校验器看不见**)
+  ⛔ 未裁: .obsidian/themes   (可见性: **校验器看不见**)
+
+--- C. 结构盲区：清单里声明了、但 extra_scan 看不见的路径深度 ---
+  声明项里 extra_scan 看不见的: 1 条（正常——覆盖面只管「多出来的东西」）
+  ⚠️ 真正的风险是**未声明且看不见**的：
+         裁定: ⛔ 未裁
+      .claudian/claudian-settings.json   裁定: .claudian
+      .claudian/sessions/conv-1776676336319-sl0k3arzs.meta.json   裁定: .claudian
+      .claudian/sessions/conv-1776729466815-gzzd936ir.meta.json   裁定: .claudian
+      .claudian/sessions/conv-1777538503276-uhmk7u8ol.meta.json   裁定: .claudian
+      .claudian/sessions/conv-1777539396556-9t8uipa1q.meta.json   裁定: .claudian
+      .claudian/sessions/conv-1777544824333-47ssohh5w.meta.json   裁定: .claudian
+      .claudian/sessions/conv-1777612864902-v0pz027xr.meta.json   裁定: .claudian
+      .claudian/sessions/conv-1777615685409-37vsm7od4.meta.json   裁定: .claudian
+      .mcp.json   裁定: .mcp.json
+      .obsidian/templates/concept.md   裁定: .obsidian/templates/concept.md
+      .obsidian/templates/exam-board.md   裁定: .obsidian/templates/exam-board.md
+      .obsidian/themes/Underwater/manifest.json   裁定: .obsidian/themes/Underwater/manifest.json
+      .obsidian/themes/Underwater/theme.css   裁定: .obsidian/themes/Underwater/theme.css
+      2111.md   裁定: ⛔ 未裁
+      Untitled.md   裁定: ⛔ 未裁
+      r).md   裁定: ⛔ 未裁
+      wiki/canvases/.gitkeep   裁定: ⛔ 未裁
+      wiki/concepts/.gitkeep   裁定: ⛔ 未裁
+      未命名.md   裁定: ⛔ 未裁
+
+--- D. 脚本数组 vs manifest 双向差集 ---
+  脚本有、manifest declared 没有: （空）
+  manifest copy/skeleton 有、脚本没有: （空）

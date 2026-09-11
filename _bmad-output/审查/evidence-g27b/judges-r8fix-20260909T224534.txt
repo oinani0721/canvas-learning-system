@@ -1,0 +1,23 @@
+bash-n-ok
+All checks passed!
+3 files already formatted
+=== 负控 8 条 ===
+neg-live               rc=71  [1/6] preflight: FAIL 禁写面: --vault /Users/Heishing/Desktop/canvas/canv
+neg-hosts-codex        rc=64  ❌ 用法错: --hosts 含未实现的宿主 codex。
+neg-port-7691          rc=71  [1/6] preflight: FAIL --port 7691 与既有服务端口冲突（7691/7692 Neo4j, 7478 Brow
+neg-activate-noapply   rc=64  ❌ 用法错: --activate 只能与 --apply 同用
+neg-evdir-forbidden    rc=71  [1/6] preflight: FAIL 禁写面: --evidence-dir /Users/Heishing/Desktop/canv
+neg-envdir-forbidden   rc=71  [1/6] preflight: FAIL 禁写面: --env-dir /Users/Heishing/.codex
+neg-rel-1seg           rc=64  ❌ 用法错: --vault 必须是绝对路径（收到 'relcourse'）: 相对路径会让 installer 按调用 cwd、compo
+neg-rel-2seg           rc=64  ❌ 用法错: --vault 必须是绝对路径（收到 'parent/course'）: 相对路径会让 installer 按调用 cwd、c
+=== 正控 apply ===
+rc=0（期望 0）
+[1/6] preflight: OK 树完整 / 禁写面过 / 名不动点 / port 8151 空闲 / skills 9 / main
+[2/6] install: OK install-vault.sh rc 0, 输出 /private/tmp/claude-501/-U
+[3/6] postprocess: OK key 重生=yes(0600) 三处同值; :8011→:8151 ×4 已验残留 0; 绑定
+[4/6] verify: OK 校验器 rc 0（含 content-drift 轴, 基准=源镜像(同 :8151 口径)）, 报告 /
+[5/6] activate: SKIP 未传 --activate（缺省只部署不激活）
+[6/6] evidence: OK /private/tmp/claude-501/-Users-Heishing-Desktop-can
+key=600 env=600（均期望 600）
+=== H-3 端到端（预置 0644）===
+rc=0（期望 0）; 644 → 600; 密钥行 1

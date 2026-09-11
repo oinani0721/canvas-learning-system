@@ -1,0 +1,8 @@
+### validate --strict (全局基线, HEAD=8f7440ef)
+Nothing to validate. Try one of:
+  openspec validate --all
+  openspec validate --changes
+  openspec validate --specs
+  openspec validate <item-name>
+Or run in an interactive terminal.
+rc=1

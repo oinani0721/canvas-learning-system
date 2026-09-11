@@ -36,6 +36,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 import unicodedata
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -48,6 +49,8 @@ sys.dont_write_bytecode = True
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 _SCRIPTS_DIR = BACKEND_DIR / "scripts"
+#: 仓根 scripts/ —— CARD-G6-9c 的单一时区来源 local_tz.py 在这里
+_REPO_SCRIPTS_DIR = BACKEND_DIR.parent / "scripts"
 for _p in (str(_SCRIPTS_DIR), str(BACKEND_DIR)):
     if _p not in sys.path:
         sys.path.insert(0, _p)
@@ -77,6 +80,65 @@ def _oracle():
         assert hasattr(mod, "_vault_entry"), "oracle 模块里没有 _vault_entry"
         _ORACLE = mod
     return _ORACLE
+
+
+# ---------------------------------------------------------------------------
+# 显示时区夹具 (CARD-G6-9c / D-18 2026-09-07)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def host_tz():
+    """临时改**宿主**时区并无条件还原 —— 还原后必须再 tzset() 一次。
+
+    ⛔ 只靠 monkeypatch 还原环境变量是不够的（Codex r2 LOW）：`time` 模块把
+    tzname / timezone / altzone 缓存在 C 层，不重新 `tzset()` 就还留着上一个
+    时区，污染后续用例（实测环境还原成 LA 后 `time.tzname` 仍是上海）。
+    形态与矩阵的 `machine_tz` 一致。
+    """
+    saved = os.environ.get("TZ")
+
+    def _set(tz_name: str) -> None:
+        os.environ["TZ"] = tz_name
+        time.tzset()
+
+    try:
+        yield _set
+    finally:
+        if saved is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = saved
+        time.tzset()
+
+
+@pytest.fixture(autouse=True)
+def _pin_display_tz(monkeypatch):
+    """把显示时区钉在 Asia/Shanghai —— **两侧同时钉住**, 期望值一字不动。
+
+    为什么必须有: 本卡把 vault_lint 与 review_overview 的时区都收敛到
+    `local_tz.display_tz()`(缺省 = 机器本地)。而本文件的全部 fixture 数据都是
+    按上海日写死的 —— `generated_at` 带 `+08:00`、`TODAY = date(2026, 8, 31)`、
+    FRESHNESS_MATRIX 17 组的 ok/stale 期望。不钉时区, 在非上海宿主上
+    (§二.3 的 `TZ=America/Los_Angeles` 态) `2026-08-31T09:05:05+08:00` 会落到
+    08-30 ⇒ 一堆本该 ok 的用例翻成 stale, 那条红看起来像"被测物坏了"。
+
+    为什么钉的是 `CANVAS_TZ` 而不是 `TZ`: 主断言
+    `status == entry["status"] == expected` 是 vault_lint 与**活 oracle**
+    (`_oracle()` 直载真实 review_overview.py) 两侧同场比对; 两侧的时区都来自
+    同一个 `display_tz()`, 其第一档就是 `CANVAS_TZ` —— 一个 setenv 同时钉住
+    两侧, 不存在"钉了一半"的口径分叉。`_run_cli` 的子进程走
+    `env = dict(os.environ)`, 同样继承。
+
+    ⛔ 明确**不**改成"按显示时区现算期望": 那让期望值与被测量同源, 缺陷会让
+    两边一起退化、断言假通过 (memory「期望值与被测量同源」); 且
+    REGEX_REJECT / ASTIMEZONE_RAISE / SUMMARIZE_TYPE_REJECT 三类机制的期望
+    本来就与时区无关, 现算等于把它们也一起松掉。
+
+    ⚠ 对 `test_resolve_today_default_is_display_tz_not_host_local` 无效也无害:
+    那条用 `_display_tz` 替身直接压过本夹具 (判别锚 = 时区对象本身)。
+    """
+    monkeypatch.setenv("CANVAS_TZ", "Asia/Shanghai")
 
 
 # ---------------------------------------------------------------------------
@@ -573,12 +635,12 @@ def test_orphan_quoted_null_is_string_not_yaml_null(tmp_path):
     assert res.findings == [], f'带引号的 "null" 是有效字符串值, 应豁免 (被误判成 YAML null 才会报): {res.findings}'
 
 
-def test_resolve_today_default_is_shanghai_not_host_local(monkeypatch):
+def test_resolve_today_default_is_display_tz_not_host_local(monkeypatch, host_tz):
     """Codex round-1 MEDIUM-2 + round-2 MEDIUM-2: 环境无关地锁死默认分支的时区语义。
 
     手法: 把 vl 命名空间的 datetime 类整个换成固定钟 (不读系统钟), 并把
-    _TZ_SHANGHAI 换成 New York (UTC-5) —— 判别锚 = **时区对象本身**, 与宿主
-    TZ/当前日期无关:
+    _display_tz 换成返回 New York (UTC-5) 的替身 —— 判别锚 = **时区对象本身**,
+    与宿主 TZ / CANVAS_TZ / 当前日期无关 (替身压过 _pin_display_tz 夹具):
       - `astimezone(宿主本地)` mutant → NY 语义丢失 → 得 UTC 日 → 红;
       - `_utcnow().date()` mutant → 完全绕过时区 → 得 UTC 日 → 红;
       - `date.today()` mutant → 读系统真实钟 (宿主 +08 的今天) ≠ NY 日 → 红。
@@ -589,14 +651,57 @@ def test_resolve_today_default_is_shanghai_not_host_local(monkeypatch):
     class _FrozenDT(real_datetime):
         @classmethod
         def now(cls, tz=None):  # noqa: ARG003
-            return cls(2026, 8, 31, 23, 0, tzinfo=timezone.utc)  # UTC 23:00 → NY 18:00 同日
+            # ⛔ 时刻的选择就是本门的判别力（Codex r1 MEDIUM-4）：初版用 UTC 23:00，
+            #    那一刻 NY 是同日 18:00 —— 于是「直接取 UTC 日」这条变异算出的也是
+            #    08-31，与期望相同、杀不掉。改用 UTC 09-01 02:00：NY 是前一天 22:00，
+            #    UTC 日与 NY 日**不同**，三条变异这才都能被区分开。
+            return cls(2026, 9, 1, 2, 0, tzinfo=timezone.utc)  # UTC 09-01 02:00 → NY 08-31 22:00
 
     ny = ZoneInfo("America/New_York")
+    # 把**宿主**时区也钉住：否则 `astimezone(宿主本地)` 那条变异的可杀性取决于
+    # 跑在哪台机器上（洛杉矶宿主下 LA 日恰与 NY 日相同 ⇒ 杀不掉）。钉成上海后
+    # 宿主日 = 09-01，与期望的 NY 日 08-31 不同，判别力不再依赖运行环境。
+    host_tz("Asia/Shanghai")  # 走 fixture：teardown 会重新 tzset()，不留状态污染
     monkeypatch.setattr(vl, "datetime", _FrozenDT)
-    monkeypatch.setattr(vl, "_TZ_SHANGHAI", ny)
+    monkeypatch.setattr(vl, "_display_tz", lambda: ny)
     assert vl.resolve_today(None) == date(2026, 8, 31), (
-        "默认分支必须按 _TZ_SHANGHAI (此处=NY) 换算: UTC 23:00 = NY 18:00 = 08-31; "
-        "宿主本地/UTC 直取/date.today() 等变异会给出不同结果"
+        "默认分支必须按 _display_tz() (此处替身返回 NY) 换算: UTC 09-01 02:00 = NY 08-31 22:00; "
+        "宿主本地(上海=09-01)/UTC 直取(09-01)/date.today()(真实今天) 三条变异各给出不同结果"
+    )
+
+
+def test_vault_lint_today_actually_reads_the_shared_tz_source(monkeypatch):
+    """证明 lint 的「今天」真的来自共享来源 `local_tz`，而不是它自己内部的硬编码。
+
+    ⛔ 为什么单靠 `test_resolve_today_default_is_display_tz_not_host_local` 不够
+    （Codex r2 MEDIUM）：那条把 `vl._display_tz` 整个替换成替身，于是
+    「`_display_tz()` 内部硬编码回某个固定时区」这种**接线错误**它压根碰不到——
+    替身把被测的接线短路了。本文件其余用例又都被 `_pin_display_tz` 钉在上海，
+    硬编码回上海同样逃得掉。
+
+    这条**不替换任何东西**，只动 `CANVAS_TZ` —— 那是 `local_tz.display_tz()` 的
+    第一档，只有真的走到它才会生效。两个偏移差 5 小时的时区必须给出不同的「今天」。
+    """
+    from datetime import datetime as real_datetime
+
+    class _FrozenDT(real_datetime):
+        @classmethod
+        def now(cls, tz=None):  # noqa: ARG003
+            # UTC 12:00 → 东京(+9) 当日 21:00；Kiritimati(+14) 次日 02:00
+            return cls(2026, 8, 31, 12, 0, tzinfo=timezone.utc)
+
+    monkeypatch.setattr(vl, "datetime", _FrozenDT)
+
+    monkeypatch.setenv("CANVAS_TZ", "Asia/Tokyo")
+    tokyo = vl.resolve_today(None)
+    monkeypatch.setenv("CANVAS_TZ", "Pacific/Kiritimati")
+    kiritimati = vl.resolve_today(None)
+
+    assert (tokyo, kiritimati) == (date(2026, 8, 31), date(2026, 9, 1)), (
+        f"CANVAS_TZ 没有真正驱动 lint 的「今天」：东京={tokyo} 基里巴斯={kiritimati}，"
+        f"期望 2026-08-31 / 2026-09-01。"
+        "若两者相同，说明 _display_tz() 没走到 local_tz 的 CANVAS_TZ 那一档"
+        "（内部硬编码了某个固定时区，或根本没接上共享来源）。"
     )
 
 
@@ -604,12 +709,15 @@ def test_cli_help_writes_no_pyc_without_env(tmp_path):
     """Codex round-1 BLOCKER-1 的行为门 + round-2 MEDIUM-4:
     无 PYTHONDONTWRITEBYTECODE 时 CLI 直跑 --help 也不得写任何 .pyc
     (隔离副本上实测, 生产 guard 行被删时本门必红)。
-    副本三件套 (vault_lint + cvr + yaml) 同目录 —— vault_lint 以自身所在目录
-    为 import 根, 拆开复制会 ModuleNotFoundError。"""
+    副本**四件套** (vault_lint + cvr + yaml + local_tz) 同目录 —— vault_lint 以
+    自身所在目录为 import 根, 拆开复制会 ModuleNotFoundError。
+    CARD-G6-9c 起 local_tz 是第四件: 生产代码从仓根 scripts/ 取它, 而隔离副本
+    没有那个仓根, 只能靠 _SCRIPTS_DIR 那一档解析 —— 不复制它 --help 就 rc≠0。"""
     import shutil
 
     for name in ("vault_lint.py", "check_vault_doc_roles.py", "vault_doc_roles.yaml"):
         shutil.copyfile(_SCRIPTS_DIR / name, tmp_path / name)
+    shutil.copyfile(_REPO_SCRIPTS_DIR / "local_tz.py", tmp_path / "local_tz.py")
     env = {k: v for k, v in os.environ.items() if k not in ("PYTHONDONTWRITEBYTECODE", "PYTHONPYCACHEPREFIX")}
     proc = subprocess.run(
         [sys.executable, str(tmp_path / "vault_lint.py"), "--help"],
@@ -684,10 +792,15 @@ def test_freshness_corrupt_report_content_differs_but_status_locks(tmp_path):
     assert error  # vault_lint 侧必须给出台账可读的原因
 
 
-def test_today_resolution_is_shanghai_not_host_local():
-    # UTC 2026-08-31T23:00Z = 上海 2026-09-01 07:00 —— 上海日已翻篇
+def test_today_resolution_is_display_tz_not_host_local():
+    """默认 = 单一显示时区来源, 不是 UTC、不是 date.today()、不是宿主本地。
+
+    三条期望值靠 `_pin_display_tz` 夹具 (CANVAS_TZ=Asia/Shanghai) **原值保留** —
+    不按显示时区现算, 那会让期望与被测量同源。
+    """
+    # UTC 2026-08-31T23:00Z = 显示时区 (夹具=上海) 2026-09-01 07:00 —— 日已翻篇
     assert vl.resolve_today("2026-08-31T23:00:00Z") == date(2026, 9, 1)
-    # 无时区输入按上海解释 (不引入第二种默认)
+    # 无时区输入按显示时区解释 (不引入第二种默认)
     assert vl.resolve_today("2026-08-31") == date(2026, 8, 31)
     assert vl.resolve_today("2026-08-31T12:00:00+08:00") == date(2026, 8, 31)
     with pytest.raises(vl.LintConfigError):

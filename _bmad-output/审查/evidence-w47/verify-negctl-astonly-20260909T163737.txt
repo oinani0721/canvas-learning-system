@@ -1,0 +1,3 @@
+### 裁判 8d：--ast-only
+AST-GATE: PASS (0 violations in 391 files)
+rc=0

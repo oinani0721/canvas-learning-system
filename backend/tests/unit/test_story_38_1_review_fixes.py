@@ -68,6 +68,14 @@ class TestDoIndexCoverage:
                 # Mock client
                 mock_client = MagicMock()
                 mock_client.index_canvas = AsyncMock(return_value=2)
+                # 契约演进 14f0412d (2026-02-07)：_do_index 在取到 client 后新增
+                # `if hasattr(client, "initialize"): await client.initialize()`
+                # (lancedb_index_service.py:451-453)；a9304c69 (2026-03-29 except 精确化)
+                # 又把兜底收窄成 (RuntimeError, OSError, ConnectionError)，于是
+                # `await MagicMock()` 抛的 TypeError 不再被吞、直接穿透 ⇒ 本用例必红。
+                # 裸 MagicMock 是替身形态过期，不是生产回归 ⇒ 把 initialize 换成可等待替身。
+                # [CARD-RED-C2]
+                mock_client.initialize = AsyncMock()
                 svc._get_or_init_client = MagicMock(return_value=mock_client)
 
                 # Mock subject resolver (lazy import inside _do_index)
@@ -84,6 +92,17 @@ class TestDoIndexCoverage:
 
                 assert result == 2
                 mock_client.index_canvas.assert_called_once()
+                # 判据强度提升：14f0412d 引入的「索引前先 initialize」新契约本身要有锚，
+                # 否则本次修改只是让替身跟上、把新契约的覆盖留成空白。
+                mock_client.initialize.assert_awaited_once()
+                # Codex round-1 LOW：只断次数不证明**顺序**（把 initialize 挪到索引之后
+                # 次数仍是 1）。两者都是同一个 mock_client 的子调用，mock_calls 按真实
+                # 发生顺序记录 ⇒ 直接比对下标即可锁住「先 initialize 再 index」。
+                _names = [c[0] for c in mock_client.mock_calls]
+                assert "initialize" in _names and "index_canvas" in _names, _names
+                assert _names.index("initialize") < _names.index("index_canvas"), (
+                    f"initialize 必须在 index_canvas 之前发生，实际顺序={_names}"
+                )
                 call_kwargs = mock_client.index_canvas.call_args
                 assert (
                     call_kwargs.kwargs.get("canvas_path") == "my_canvas.canvas"
@@ -110,6 +129,14 @@ class TestDoIndexCoverage:
                 svc = LanceDBIndexService()
 
                 mock_client = MagicMock()
+                # 契约演进 14f0412d (2026-02-07)：_do_index 在取到 client 后新增
+                # `if hasattr(client, "initialize"): await client.initialize()`
+                # (lancedb_index_service.py:451-453)；a9304c69 (2026-03-29 except 精确化)
+                # 又把兜底收窄成 (RuntimeError, OSError, ConnectionError)，于是
+                # `await MagicMock()` 抛的 TypeError 不再被吞、直接穿透 ⇒ 本用例必红。
+                # 裸 MagicMock 是替身形态过期，不是生产回归 ⇒ 把 initialize 换成可等待替身。
+                # [CARD-RED-C2]
+                mock_client.initialize = AsyncMock()
                 svc._get_or_init_client = MagicMock(return_value=mock_client)
 
                 mock_resolver = MagicMock()
@@ -120,6 +147,12 @@ class TestDoIndexCoverage:
                 ):
                     with pytest.raises(FileNotFoundError):
                         await svc._do_index("nonexistent_canvas", tmpdir)
+
+                # Codex round-1 LOW：本条原先没有 initialize 的锚，于是「取消初始化」
+                # 这个改动不会让它翻红。initialize 发生在文件存在性检查之前
+                # （lancedb_index_service.py:451-453 → :462 才解析 canvas_path），
+                # 故即便本条以 FileNotFoundError 收场，initialize 也必须已被等待。
+                mock_client.initialize.assert_awaited_once()
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

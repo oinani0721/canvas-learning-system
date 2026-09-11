@@ -1,0 +1,21 @@
+=== MEDIUM-1 补证：诞生 commit 43d291d8 上阈值的全部可写入点 ===
+Codex 要求排除：其他赋值 / 导入副作用 / 测试初始化 / 后续运行配置
+
+--- [1] 该模块内对 CALIBRATION_BIAS_THRESHOLD 的全部出现（诞生版）---
+37:CALIBRATION_BIAS_THRESHOLD = 0.15
+130:    if abs(signed_bias) < CALIBRATION_BIAS_THRESHOLD:
+
+--- [2] 该模块内是否有 global / 模块级副作用调用（诞生版）---
+  [无 global、无模块级函数调用、无环境变量读取]
+
+--- [3] 全仓（诞生版 commit 树）内对该常量的外部改写 ---
+  [除定义模块外，全树 0 处引用 ⇒ 无外部改写点]
+
+--- [4] 测试文件在诞生版是否 monkeypatch 该常量 ---
+  [无 monkeypatch、无 setattr、测试当时甚至不引用该常量]
+
+=== 判据边界（如实）===
+  以上是**诞生 commit 的静态代码**证据：该 commit 上不存在配置加载器、无 global 改写、
+  无环境变量读取、全树无外部引用、测试不 monkeypatch ⇒ 该 commit 运行期阈值恒为 0.15。
+  ⛔ 未证明：诞生之后到今天之间的任意中间 commit 上阈值恒定（那需要逐 commit 重放，本卡未做）。
+  但这不影响裁定——裁定只需要「诞生那一刻即红」，而它已被本节证明。

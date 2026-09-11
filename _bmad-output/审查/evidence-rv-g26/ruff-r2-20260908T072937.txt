@@ -1,0 +1,5 @@
+All checks passed!
+check-rc=0
+1 file reformatted, 1 file left unchanged
+2 files already formatted
+format-rc=0

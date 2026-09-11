@@ -1,0 +1,49 @@
+=== 地盘门 1：改动文件清单（排除 _bmad-output）===
+backend/app/services/multimodal_service.py
+backend/tests/unit/test_calibration_tracker.py
+backend/tests/unit/test_canvas_memory_trigger.py
+backend/tests/unit/test_difficulty_matcher.py
+backend/tests/unit/test_event_bus.py
+backend/tests/unit/test_mastery_fusion.py
+[END]
+
+=== 地盘门 2：backend/app 改动统计 ===
+ backend/app/services/multimodal_service.py | 11 ++++++++++-
+ 1 file changed, 10 insertions(+), 1 deletion(-)
+[END]
+
+=== 地盘门 3：类型注解门（新增行命中类型正则的每一行都要能对上判定行改写）===
+[END: 空 = 无类型注解改动]
+
+=== 地盘门 4：两个 conftest 必须未动 ===
+[END: 空 = 未动]
+
+=== 地盘门 5：tests/support 未动 ===
+[END: 空 = 未动]
+
+=== 地盘门 6：禁碰文件 ===
+[空 = 未碰]
+
+=== 地盘门 7：backend/app 完整 diff ===
+diff --git a/backend/app/services/multimodal_service.py b/backend/app/services/multimodal_service.py
+index 28c19fef..5e5af4ca 100644
+--- a/backend/app/services/multimodal_service.py
++++ b/backend/app/services/multimodal_service.py
+@@ -505,7 +505,16 @@ class MultimodalService:
+             MultimodalServiceError: If path traversal is detected
+         """
+         resolved_path = file_path.resolve()
+-        if not resolved_path.is_relative_to(self.storage_base_path.resolve()):
++        storage_root = self.storage_base_path.resolve()
++        # On POSIX a backslash is an ordinary filename character, so a component such
++        # as "..\..\etc" stays inside storage here, yet the same string escapes once
++        # it is read with '\' as the separator. Reject when either reading escapes.
++        # The returned value is still the plain resolve(), so callers write where they
++        # did before; this only widens what is refused, never what is allowed through.
++        backslash_normalized = Path(str(file_path).replace("\\", "/")).resolve()
++        if not resolved_path.is_relative_to(
++            storage_root
++        ) or not backslash_normalized.is_relative_to(storage_root):
+             # Use repr() to prevent log injection via newlines in crafted paths
+             logger.warning(
+                 "Path traversal attempt detected: %s -> %s",

@@ -1,0 +1,4 @@
+### 断管收尾三种写法对比（选不需要放宽零写门的那种）
+  A dup2(os.open(devnull))  [含可写调用 open]        rc=3    退出期噪音=False
+  B os.close(fd)            [无可写调用]             rc=120  退出期噪音=True
+  C sys.stdout = 哑对象      [无可写调用]               rc=3    退出期噪音=False

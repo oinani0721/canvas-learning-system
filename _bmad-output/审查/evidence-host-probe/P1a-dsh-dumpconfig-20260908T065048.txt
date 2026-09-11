@@ -1,0 +1,16 @@
+# P1-a dsh 配置面三态对照  @ 2026-09-08T06:50:48+08:00
+cwd=/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u4-hosts/3ead72c8-729b-41ea-b189-c51910c3e8a4/scratchpad/host-probe/probe-vault
+
+--- dump-config-nopatch : rc=0 行数=     508 sha=514881d4a64bab1a ---
+    mcp-cls 命中数 = 0
+    8011 url 命中数 = 0
+    serverName 命中数 = 0
+--- dump-config-withpatch : rc=0 行数=     509 sha=29898b2660b2cdd7 ---
+    mcp-cls 命中数 = 0
+    8011 url 命中数 = 0
+    serverName 命中数 = 0
+--- dump-default-withpatch : rc=1 行数=       1 sha=4c5f25f0d30e0fce ---
+    mcp-cls 命中数 = 0
+    8011 url 命中数 = 0
+    serverName 命中数 = 0
+rc=0

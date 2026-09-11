@@ -1,0 +1,9 @@
+===== 层负控前置：_settings_factory(debug=False, key="") 出现位置（必须恰 3 处 = 本卡三条）=====
+backend/tests/unit/test_sync_batch_auth.py:152:        app.dependency_overrides[get_settings] = _settings_factory(debug=False, key="")
+backend/tests/unit/test_system_endpoint_auth.py:145:        app.dependency_overrides[get_settings] = _settings_factory(debug=False, key="")
+backend/tests/unit/test_system_endpoint_auth.py:201:        app.dependency_overrides[get_settings] = _settings_factory(debug=False, key="")
+sync=1 system=2
+
+===== 改前 sha =====
+146b828f595efe10660eda97575f97ca60d5bec5195fe4dffdf54472f77ca0bd  backend/tests/unit/test_sync_batch_auth.py
+ecf95d29fb45f843dd461acd014d10baa22cc81d0ef563bc721305b67ee3ecbe  backend/tests/unit/test_system_endpoint_auth.py

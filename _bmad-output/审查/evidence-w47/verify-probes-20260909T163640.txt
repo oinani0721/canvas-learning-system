@@ -1,0 +1,5 @@
+### 裁判 8a：探针
+  [PASS] shell-shellopts-errexit-does-not-false-red rc=0 (期望 0)
+  [PASS] shell-probe-roster-matches-declared-count rc=-1 (期望 —（静态比对，不起子进程）)
+GUARD-PROBES: PASS — 59/59 条全部 fail-closed
+rc=0

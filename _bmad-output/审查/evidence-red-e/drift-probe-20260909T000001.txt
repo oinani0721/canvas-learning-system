@@ -1,0 +1,17 @@
+########## RUN 1 ##########
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=1 (blocked=1, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_mock_degradation_transparency.py::TestMockScoringWarningLogs::test_mock_mode_logs_warning
+================== 1 failed, 43 passed, 10 warnings in 1.33s ===================
+rc=1
+########## RUN 2 ##########
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=1 (blocked=1, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_mock_degradation_transparency.py::TestMockScoringWarningLogs::test_mock_mode_logs_warning
+================== 1 failed, 43 passed, 10 warnings in 1.18s ===================
+rc=1
+rc=0

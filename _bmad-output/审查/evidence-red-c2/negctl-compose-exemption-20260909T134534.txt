@@ -1,0 +1,12 @@
+# 负控：Codex round-1 HIGH 的复现输入，整改后必须变红
+# 方法：把真实 test 模块的 PROJECT_ROOT 指到临时目录，喂三种 docker-compose.yml
+#       —— 跑的是**测试本体**，不是我另写一份等价逻辑（等价逻辑会和被测代码漂移）
+
+OK ① 现状（未改动的真实 compose）
+     期望=PASS 实测=PASS   
+OK ② Codex 的 HIGH 复现：把一条获准 mount 复制到另一个 service
+     期望=FAIL 实测=FAIL   Exempted mount lines appearing outside service 'neo4j': [('malicious-service', '- /Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/data:/data'
+OK ③ 对照：另加一条全新的硬编码用户路径
+     期望=FAIL 实测=FAIL   Hardcoded user paths outside the 8a80595f neo4j exemption: [('other-service', '- /Users/Someone/secret/data:/data')]
+
+判据：② 必须由 PASS 变 FAIL —— 整改前实测是 PASS（漏过），见验收单 Codex 轮次记录。

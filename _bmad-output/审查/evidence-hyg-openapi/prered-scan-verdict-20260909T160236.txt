@@ -1,0 +1,12 @@
+=== (b)⓪ 步骤4 完整扫描（不截断）行数 ===
+    1918 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u5-lance/_bmad-output/审查/evidence-hyg-openapi/prered-scan-full-tmpdir-20260909T160236.txt
+      90 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u5-lance/_bmad-output/审查/evidence-hyg-openapi/prered-scan-full-home-20260909T160236.txt
+      10 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u5-lance/_bmad-output/审查/evidence-hyg-openapi/prered-scan-full-scratch-20260909T160236.txt
+    2018 total
+
+=== 骨架名针对性过滤：basename ∈ {CLAUDE.md, raw, wiki, outputs, test_canvas, .gitkeep} ===
+骨架命中行数: 0
+
+⚠️ 扫描面如实声明：只覆盖 $TMPDIR / $HOME / <scratch> 三处 maxdepth 3；全盘 find / 不可行，不做。
+⚠️ 噪音声明：本机同时有多条并行车道 session 在跑，$TMPDIR/$HOME 命中含大量与本卡无关的条目（其它 pytest、codex sqlite、macOS 系统文件）。
+rc=0

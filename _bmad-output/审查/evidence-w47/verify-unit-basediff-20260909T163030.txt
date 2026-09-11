@@ -1,0 +1,20 @@
+=== (k) tests/unit 与主干红基线 nodeid diff（最终 HEAD 7278f156）===
+本次输出 : _bmad-output/审查/evidence-w47/verify-unit-20260909T162419.txt
+主干基线 : /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/审查/evidence-b13/unit-red-baseline-da690bf8.txt
+⚠️ 基线只存在于主干树 feature-obsidian-hybrid-dev；本树 evidence-b13/ 不存在 ——
+   若按卡文字面路径在本树取，会得到空基线，把 202 条全判成 '>'（假阻断）。此处用实际路径。
+
+--- 本次汇总行 ---
+= 173 failed, 4789 passed, 48 skipped, 122 warnings, 29 errors in 250.37s (0:04:10) =
+--- 本次 rc ---
+rc=1
+
+基线 nodeid 数 = 202
+本次 nodeid 数 = 202
+
+--- diff 基线 -> 本次（'<' 允许=修复；'>' 阻断=新增红）---
+diff_rc=0
+
+--- '>' 行（必须 0 行）---
+'>' 行数 = 0
+'<' 行数 = 0

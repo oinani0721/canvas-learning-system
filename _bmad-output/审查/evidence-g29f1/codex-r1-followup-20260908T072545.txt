@@ -1,0 +1,39 @@
+# Codex round-1 三条发现的独立复核（都是实跑，不采信外审断言）
+# 2026-09-07T23:25:45Z
+
+## HIGH-1 前缀重叠 —— 复核结论: 成立，且在本仓可达
+  before = set(db.table_names(limit=10_000))
+  after = set(lancedb.connect(tmp).table_names(limit=10_000))
+=== 1. 纯归属判断（不建库）===
+  _owns_table('a_b_canvas_nodes', 'a') = True
+  _owns_table('a_canvas_nodes', 'a') = True
+  _owns_table('ab_canvas_nodes', 'a') = False
+=== 2. 端到端：vault 'a' 初始化，vault 'a_b' 的漂移表还在吗 ===
+  before = ['a_b_canvas_nodes', 'a_canvas_nodes', 'b_canvas_nodes']
+  after  = ['b_canvas_nodes']
+  消失的表 = ['a_b_canvas_nodes', 'a_canvas_nodes']
+  ⇒ vault 'a_b' 的表被 vault 'a' 删掉了? True
+  ⇒ 不重叠的 b_canvas_nodes 仍在?      True
+=== 3. 本仓可达性：vault id 会不会含下划线 ===
+  sanitize_vault_id('canvas-vault') = 'canvas_vault'
+  sanitize_vault_id('cs 61b') = 'cs_61b'
+  sanitize_vault_id('math_54') = 'math_54'
+  sanitize_vault_id('CS61B') = 'cs61b'
+  sanitize_vault_id('数学') = '数学'
+
+## MEDIUM-2 A1 对 add_documents 链的影响 —— 复核结论: 无行为变化（守卫更严，内层不可达）
+  print(f":3825 守卫口径 'a_t11' in table_names() 默认 = {'a_t11' in c._db.table_names()}  ← 守卫先挡住")
+resolve_table_name('t11')       = 'a_t11'  ← 恒本 vault
+:3825 守卫口径 'a_t11' in table_names() 默认 = False  ← 守卫先挡住
+A1 改后内层口径 'a_t11' in _all_table_names() = True
+add_documents 返回 = 0
+a_t11 仍在? True   消失的表 = []
+结论: 守卫为 False ⇒ 不会进入 _check_and_fix_dimension_mismatch ⇒ A1 的改动
+      在这条链上不可达; 页外表未被 drop。(:3834 走 create_table 是既有面, 非本卡引入)
+
+## R2-1 性能修复验证 —— 数实际调用次数，不看代码
+  print(f"库内表数 = {len(db.table_names(limit=10_000))}")
+库内表数 = 12
+_cache_tables 内 active_vault_id 求值次数 = 1
+  修好的期望 = 1（提到循环外）；没修好会是 12（每张表一次）
+  判定: ✓ 已提到循环外

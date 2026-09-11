@@ -446,8 +446,21 @@ class TestCancelEndpoint:
     """Tests for cancel session endpoint."""
 
     @pytest.mark.asyncio
-    async def test_cancel_running_session(self, patched_service):
+    async def test_cancel_running_session(self, patched_service, mock_session_manager):
         """Test cancel endpoint successfully cancels running session."""
+        # 契约演进 3c00ad48 (2026-02-11 "fix(33): adversarial review fixes")：
+        # cancel 守卫由 `session.status.value in ("completed","cancelled","failed")`
+        # 改为 `session.status.is_terminal`（intelligent_parallel_service.py:492）。
+        # 共享 fixture 的 session_info.status 是裸 MagicMock，未配置的 .is_terminal
+        # 返回**真值子 mock** ⇒ 非终态会话被误判为终态 ⇒ ValueError ⇒ 409。
+        # 修法：喂真枚举成员，让 is_terminal 走生产真实实现（session_models.py:43）。
+        # ⛔ 不用 `status.is_terminal = False` 硬塞——那是锁 mock 自身返回值的自证，
+        #    真枚举才能在 is_terminal 的终态集合被改动时如实报红。[CARD-RED-C2]
+        from app.models.session_models import SessionStatus
+
+        session_info = mock_session_manager.get_session.return_value
+        session_info.status = SessionStatus.RUNNING
+
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as ac:

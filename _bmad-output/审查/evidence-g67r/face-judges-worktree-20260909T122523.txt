@@ -1,0 +1,36 @@
+# 裁判 7: 面判据 (工作树态, commit 前)  BASE=709beb0bfa63348394f49f2b7fc6fa829c40b947
+# ⚠ 上一版误用 'git diff BASE HEAD' —— 此刻 HEAD==BASE, diff 恒空,
+#   于是「无交集/计数 0」全是没跑成的假绿。commit 后会再跑一次 BASE..HEAD 版。
+== 改动文件清单 (工作树) ==
+ backend/app/api/v1/endpoints/review_app.py         |  69 +++-
+ backend/app/api/v1/endpoints/review_overview.py    | 256 +++++++++++--
+ backend/tests/regression/test_daily_review_pick.py | 102 ++++++
+ backend/tests/regression/test_daily_review_run.py  | 273 ++++++++++++++
+ backend/tests/unit/test_review_app.py              | 159 +++++++-
+ backend/tests/unit/test_review_overview.py         | 402 ++++++++++++++++++++-
+ scripts/daily_review_pick.py                       |  23 +-
+ scripts/daily_review_run.py                        | 186 ++++++++++
+ 8 files changed, 1429 insertions(+), 41 deletions(-)
+
+== daily_review_run.py hunk 旧行区间 (须与 164-183 / 252-264 无交集) ==
+@@ -16,11 +16,15 @@
+@@ -54,6 +58,8 @@ def _now(arg: str | None) -> datetime:
+@@ -78,6 +84,7 @@ def state_path(vault: Path | None = None) -> Path:
+@@ -90,6 +97,10 @@ def load_state(vault: Path | None = None) -> dict:
+@@ -105,9 +116,170 @@ def load_state(vault: Path | None = None) -> dict:
+@@ -136,9 +308,23 @@ def save_state(st: dict, vault: Path | None = None):
+== 删行含 O_EXCL (须 0) ==
+0
+== 删行含 os.replace(tmp, state) (须 0) ==
+0
+== daily_review_pick.py 删除行数 ==
+3
+-    ap.add_argument("--state", help="daily-review.state.json (只读, 取 board_last_recommended)")
+-            blr = json.loads(Path(args.state).read_text(encoding="utf-8")).get("board_last_recommended", {})
+-    payload, ranked = build_payload(vault, now, blr, load_decay(vault))
+== canvas-vault 零改动 (须 0) ==
+       0
+== test_review_overview.py 删除行 (须只落在获准的两处) ==
+-    assert changed == {"backups", f"backups/{state_file.name}"}, (
+-        f"写面必须恰是 backups 目录 + 那一个 state 文件, 实为 {sorted(changed)}"
+-    assert page2.count('name="board"') == 1, "已完成板不该再带完成钮"

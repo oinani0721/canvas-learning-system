@@ -1,0 +1,14 @@
+=== 门 1: 缺省 config 前后逐字节 diff（覆盖 neo4j + backend 2 处）===
+after-rc=0
+diff-rc=0  (0 且无输出 = 逐字节同)
+
+=== 门 2（本卡补齐）: all-profiles config 前后逐字节 diff（覆盖全 5 处）===
+after-rc=0
+diff-rc=0  (0 且无输出 = 逐字节同)
+
+=== 门 3: 验伪锚 ×5（每个变量单独覆盖 → 恰 1 行变，其余 4 行不动）===
+  CLS_NEO4J_CONTAINER          -> probe-neo 命中 1 行 | 相对基线变了 2 行 ✅
+  CLS_NEO4J_TEST_CONTAINER     -> probe-neotest 命中 1 行 | 相对基线变了 2 行 ✅
+  CLS_OLLAMA_CONTAINER         -> probe-oll 命中 1 行 | 相对基线变了 2 行 ✅
+  CLS_BACKEND_CONTAINER        -> probe-be 命中 1 行 | 相对基线变了 2 行 ✅
+  CLS_DEV_CONTAINER            -> probe-dev 命中 1 行 | 相对基线变了 2 行 ✅

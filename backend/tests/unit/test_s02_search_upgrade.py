@@ -175,13 +175,22 @@ async def test_search_graphiti_timeout_degrades():
 def test_search_recipes_all_5_mapped():
     """All 5 recipe names resolve to distinct SearchConfig objects."""
     recipes = MemoryService._get_search_recipes()
+    # 契约演进 4236b12e (2026-07-23 "feat(mem-batch1): 批次1' 隔离守门五项")：
+    # _get_search_recipes() 补注册了 Graphiti 白送但一直闲置的三个 MMR 去重配方
+    # combined_mmr / edge_mmr / node_mmr，键集 5 → 8（memory_service.py:1770-1779）。
+    # 期望值抄写字面量，不 import 生产注册表（import 当期望值恒真）。[CARD-RED-C2]
     expected_keys = {
         "combined_rrf",
         "combined_cross_encoder",
+        "combined_mmr",
         "edge_cross_encoder",
         "edge_rrf",
+        "edge_mmr",
         "node_rrf",
+        "node_mmr",
     }
+    # 字面量完整性守卫：防重复串把集合悄悄缩小
+    assert len(expected_keys) == 8
     assert set(recipes.keys()) == expected_keys
 
     # Each recipe should be a distinct object

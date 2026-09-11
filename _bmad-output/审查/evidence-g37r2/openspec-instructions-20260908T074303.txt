@@ -1,0 +1,107 @@
+########## artifact=proposal ##########
+- Generating instructions...
+{
+  "changeName": "retire-fsrs-legacy-bucket-spec",
+  "artifactId": "proposal",
+  "schemaName": "spec-driven",
+  "changeDir": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u9-mastery/openspec/changes/retire-fsrs-legacy-bucket-spec",
+  "outputPath": "proposal.md",
+  "description": "Initial proposal document outlining the change",
+  "instruction": "Create the proposal document that establishes WHY this change is needed.\n\nSections:\n- **Why**: 1-2 sentences on the problem or opportunity. What problem does this solve? Why now?\n- **What Changes**: Bullet list of changes. Be specific about new capabilities, modifications, or removals. Mark breaking changes with **BREAKING**.\n- **Capabilities**: Identify which specs will be created or modified:\n  - **New Capabilities**: List capabilities being introduced. Each becomes a new `specs/<name>/spec.md`. Use kebab-case names (e.g., `user-auth`, `data-export`).\n  - **Modified Capabilities**: List existing capabilities whose REQUIREMENTS are changing. Only include if spec-level behavior changes (not just implementation details). Each needs a delta spec file. Check `openspec/specs/` for existing spec names. Leave empty if no requirement changes.\n- **Impact**: Affected code, APIs, dependencies, or systems.\n\nIMPORTANT: The Capabilities section is critical. It creates the contract between\nproposal and specs phases. Research existing specs before filling this in.\nEach capability listed here will need a corresponding spec file.\n\nKeep it concise (1-2 pages). Focus on the \"why\" not the \"how\" -\nimplementation details belong in design.md.\n\nThis is the foundation - specs, design, and tasks all build on this.\n",
+  "context": "Tech stack: Python 3.14 FastAPI + TypeScript React + Rust Tauri 2\nBackend: backend/app/ (FastAPI + Neo4j 7691 + LanceDB + Graphiti)\nFrontend: frontend/src/ (React + ReactFlow + Zustand + shadcn/ui)\nSidecar: frontend/sidecar/ (Node.js Agent SDK)\n\n命名规范:\n- Python: snake_case (函数/变量), PascalCase (类)\n- TypeScript: camelCase (变量/函数), PascalCase (组件/类型)\n- API payload: snake_case\n\n禁止:\n- any 类型 (TypeScript)\n- stub 函数 (只有 pass/NotImplementedError)\n- mock 替代 Neo4j/LanceDB 真实调用\n- 函数名与实际行为不匹配 (DD-13)\n\n已知问题:\n- 42 处 graphiti 假命名 (函数名含 graphiti 实际调 Neo4j)\n- ruff.toml 禁用了 lint (2000+ 预存违规)\n- Tauri 桌面应用未编译，前端功能无法验证",
+  "rules": [
+    "先读相关文件确认现有模式，不要发明新模式",
+    "说明影响哪些文件",
+    "说明如何验证修复成功",
+    "包含回滚方式"
+  ],
+  "template": "## Why\n\n<!-- Explain the motivation for this change. What problem does this solve? Why now? -->\n\n## What Changes\n\n<!-- Describe what will change. Be specific about new capabilities, modifications, or removals. -->\n\n## Capabilities\n\n### New Capabilities\n<!-- Capabilities being introduced. Replace <name> with kebab-case identifier (e.g., user-auth, data-export, api-rate-limiting). Each creates specs/<name>/spec.md -->\n- `<name>`: <brief description of what this capability covers>\n\n### Modified Capabilities\n<!-- Existing capabilities whose REQUIREMENTS are changing (not just implementation).\n     Only list here if spec-level behavior changes. Each needs a delta spec file.\n     Use existing spec names from openspec/specs/. Leave empty if no requirement changes. -->\n- `<existing-name>`: <what requirement is changing>\n\n## Impact\n\n<!-- Affected code, APIs, dependencies, systems -->\n",
+  "dependencies": [],
+  "unlocks": [
+    "design",
+    "specs"
+  ]
+}
+
+########## artifact=design ##########
+- Generating instructions...
+{
+  "changeName": "retire-fsrs-legacy-bucket-spec",
+  "artifactId": "design",
+  "schemaName": "spec-driven",
+  "changeDir": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u9-mastery/openspec/changes/retire-fsrs-legacy-bucket-spec",
+  "outputPath": "design.md",
+  "description": "Technical design document with implementation details",
+  "instruction": "Create the design document that explains HOW to implement the change.\n\nWhen to include design.md (create only if any apply):\n- Cross-cutting change (multiple services/modules) or new architectural pattern\n- New external dependency or significant data model changes\n- Security, performance, or migration complexity\n- Ambiguity that benefits from technical decisions before coding\n\nSections:\n- **Context**: Background, current state, constraints, stakeholders\n- **Goals / Non-Goals**: What this design achieves and explicitly excludes\n- **Decisions**: Key technical choices with rationale (why X over Y?). Include alternatives considered for each decision.\n- **Risks / Trade-offs**: Known limitations, things that could go wrong. Format: [Risk] → Mitigation\n- **Migration Plan**: Steps to deploy, rollback strategy (if applicable)\n- **Open Questions**: Outstanding decisions or unknowns to resolve\n\nFocus on architecture and approach, not line-by-line implementation.\nReference the proposal for motivation and specs for requirements.\n\nGood design docs explain the \"why\" behind technical decisions.\n",
+  "context": "Tech stack: Python 3.14 FastAPI + TypeScript React + Rust Tauri 2\nBackend: backend/app/ (FastAPI + Neo4j 7691 + LanceDB + Graphiti)\nFrontend: frontend/src/ (React + ReactFlow + Zustand + shadcn/ui)\nSidecar: frontend/sidecar/ (Node.js Agent SDK)\n\n命名规范:\n- Python: snake_case (函数/变量), PascalCase (类)\n- TypeScript: camelCase (变量/函数), PascalCase (组件/类型)\n- API payload: snake_case\n\n禁止:\n- any 类型 (TypeScript)\n- stub 函数 (只有 pass/NotImplementedError)\n- mock 替代 Neo4j/LanceDB 真实调用\n- 函数名与实际行为不匹配 (DD-13)\n\n已知问题:\n- 42 处 graphiti 假命名 (函数名含 graphiti 实际调 Neo4j)\n- ruff.toml 禁用了 lint (2000+ 预存违规)\n- Tauri 桌面应用未编译，前端功能无法验证",
+  "template": "## Context\n\n<!-- Background and current state -->\n\n## Goals / Non-Goals\n\n**Goals:**\n<!-- What this design aims to achieve -->\n\n**Non-Goals:**\n<!-- What is explicitly out of scope -->\n\n## Decisions\n\n<!-- Key design decisions and rationale -->\n\n## Risks / Trade-offs\n\n<!-- Known risks and trade-offs -->\n",
+  "dependencies": [
+    {
+      "id": "proposal",
+      "done": false,
+      "path": "proposal.md",
+      "description": "Initial proposal document outlining the change"
+    }
+  ],
+  "unlocks": [
+    "tasks"
+  ]
+}
+
+########## artifact=specs ##########
+- Generating instructions...
+{
+  "changeName": "retire-fsrs-legacy-bucket-spec",
+  "artifactId": "specs",
+  "schemaName": "spec-driven",
+  "changeDir": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u9-mastery/openspec/changes/retire-fsrs-legacy-bucket-spec",
+  "outputPath": "specs/**/*.md",
+  "description": "Detailed specifications for the change",
+  "instruction": "Create specification files that define WHAT the system should do.\n\nCreate one spec file per capability listed in the proposal's Capabilities section.\n- New capabilities: use the exact kebab-case name from the proposal (specs/<capability>/spec.md).\n- Modified capabilities: use the existing spec folder name from openspec/specs/<capability>/ when creating the delta spec at specs/<capability>/spec.md.\n\nDelta operations (use ## headers):\n- **ADDED Requirements**: New capabilities\n- **MODIFIED Requirements**: Changed behavior - MUST include full updated content\n- **REMOVED Requirements**: Deprecated features - MUST include **Reason** and **Migration**\n- **RENAMED Requirements**: Name changes only - use FROM:/TO: format\n\nFormat requirements:\n- Each requirement: `### Requirement: <name>` followed by description\n- Use SHALL/MUST for normative requirements (avoid should/may)\n- Each scenario: `#### Scenario: <name>` with WHEN/THEN format\n- **CRITICAL**: Scenarios MUST use exactly 4 hashtags (`####`). Using 3 hashtags or bullets will fail silently.\n- Every requirement MUST have at least one scenario.\n\nMODIFIED requirements workflow:\n1. Locate the existing requirement in openspec/specs/<capability>/spec.md\n2. Copy the ENTIRE requirement block (from `### Requirement:` through all scenarios)\n3. Paste under `## MODIFIED Requirements` and edit to reflect new behavior\n4. Ensure header text matches exactly (whitespace-insensitive)\n\nCommon pitfall: Using MODIFIED with partial content loses detail at archive time.\nIf adding new concerns without changing existing behavior, use ADDED instead.\n\nExample:\n```\n## ADDED Requirements\n\n### Requirement: User can export data\nThe system SHALL allow users to export their data in CSV format.\n\n#### Scenario: Successful export\n- **WHEN** user clicks \"Export\" button\n- **THEN** system downloads a CSV file with all user data\n\n## REMOVED Requirements\n\n### Requirement: Legacy export\n**Reason**: Replaced by new export system\n**Migration**: Use new export endpoint at /api/v2/export\n```\n\nSpecs should be testable - each scenario is a potential test case.\n",
+  "context": "Tech stack: Python 3.14 FastAPI + TypeScript React + Rust Tauri 2\nBackend: backend/app/ (FastAPI + Neo4j 7691 + LanceDB + Graphiti)\nFrontend: frontend/src/ (React + ReactFlow + Zustand + shadcn/ui)\nSidecar: frontend/sidecar/ (Node.js Agent SDK)\n\n命名规范:\n- Python: snake_case (函数/变量), PascalCase (类)\n- TypeScript: camelCase (变量/函数), PascalCase (组件/类型)\n- API payload: snake_case\n\n禁止:\n- any 类型 (TypeScript)\n- stub 函数 (只有 pass/NotImplementedError)\n- mock 替代 Neo4j/LanceDB 真实调用\n- 函数名与实际行为不匹配 (DD-13)\n\n已知问题:\n- 42 处 graphiti 假命名 (函数名含 graphiti 实际调 Neo4j)\n- ruff.toml 禁用了 lint (2000+ 预存违规)\n- Tauri 桌面应用未编译，前端功能无法验证",
+  "rules": [
+    "用 Given/When/Then 格式写验收标准"
+  ],
+  "template": "## ADDED Requirements\n\n### Requirement: <!-- requirement name -->\n<!-- requirement text -->\n\n#### Scenario: <!-- scenario name -->\n- **WHEN** <!-- condition -->\n- **THEN** <!-- expected outcome -->\n",
+  "dependencies": [
+    {
+      "id": "proposal",
+      "done": false,
+      "path": "proposal.md",
+      "description": "Initial proposal document outlining the change"
+    }
+  ],
+  "unlocks": [
+    "tasks"
+  ]
+}
+
+########## artifact=tasks ##########
+- Generating instructions...
+{
+  "changeName": "retire-fsrs-legacy-bucket-spec",
+  "artifactId": "tasks",
+  "schemaName": "spec-driven",
+  "changeDir": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u9-mastery/openspec/changes/retire-fsrs-legacy-bucket-spec",
+  "outputPath": "tasks.md",
+  "description": "Implementation checklist with trackable tasks",
+  "instruction": "Create the task list that breaks down the implementation work.\n\n**IMPORTANT: Follow the template below exactly.** The apply phase parses\ncheckbox format to track progress. Tasks not using `- [ ]` won't be tracked.\n\nGuidelines:\n- Group related tasks under ## numbered headings\n- Each task MUST be a checkbox: `- [ ] X.Y Task description`\n- Tasks should be small enough to complete in one session\n- Order tasks by dependency (what must be done first?)\n\nExample:\n```\n## 1. Setup\n\n- [ ] 1.1 Create new module structure\n- [ ] 1.2 Add dependencies to package.json\n\n## 2. Core Implementation\n\n- [ ] 2.1 Implement data export function\n- [ ] 2.2 Add CSV formatting utilities\n```\n\nReference specs for what needs to be built, design for how to build it.\nEach task should be verifiable - you know when it's done.\n",
+  "context": "Tech stack: Python 3.14 FastAPI + TypeScript React + Rust Tauri 2\nBackend: backend/app/ (FastAPI + Neo4j 7691 + LanceDB + Graphiti)\nFrontend: frontend/src/ (React + ReactFlow + Zustand + shadcn/ui)\nSidecar: frontend/sidecar/ (Node.js Agent SDK)\n\n命名规范:\n- Python: snake_case (函数/变量), PascalCase (类)\n- TypeScript: camelCase (变量/函数), PascalCase (组件/类型)\n- API payload: snake_case\n\n禁止:\n- any 类型 (TypeScript)\n- stub 函数 (只有 pass/NotImplementedError)\n- mock 替代 Neo4j/LanceDB 真实调用\n- 函数名与实际行为不匹配 (DD-13)\n\n已知问题:\n- 42 处 graphiti 假命名 (函数名含 graphiti 实际调 Neo4j)\n- ruff.toml 禁用了 lint (2000+ 预存违规)\n- Tauri 桌面应用未编译，前端功能无法验证",
+  "template": "## 1. <!-- Task Group Name -->\n\n- [ ] 1.1 <!-- Task description -->\n- [ ] 1.2 <!-- Task description -->\n\n## 2. <!-- Task Group Name -->\n\n- [ ] 2.1 <!-- Task description -->\n- [ ] 2.2 <!-- Task description -->\n",
+  "dependencies": [
+    {
+      "id": "specs",
+      "done": false,
+      "path": "specs/**/*.md",
+      "description": "Detailed specifications for the change"
+    },
+    {
+      "id": "design",
+      "done": false,
+      "path": "design.md",
+      "description": "Technical design document with implementation details"
+    }
+  ],
+  "unlocks": []
+}
+

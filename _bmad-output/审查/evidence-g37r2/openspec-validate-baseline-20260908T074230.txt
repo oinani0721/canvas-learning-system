@@ -1,0 +1,38 @@
+### HEAD=8f7440ef
+### validate --specs --strict
+- Validating...
+✓ spec/agentic-rag
+✓ spec/algo-fusion
+✓ spec/algo-fusion-ablation
+✓ spec/algo-memory
+✓ spec/algo-question
+✓ spec/algo-rag
+✓ spec/algo-scoring
+✓ spec/backend-logging
+✓ spec/canvas-recommendations
+✓ spec/canvas-sync
+✓ spec/concept-identity
+✓ spec/llm-safety
+✓ spec/repo-compliance
+✓ spec/verification-service
+Totals: 14 passed, 0 failed (14 items)
+SPECS_RC=0
+### validate --all --strict
+- Validating...
+✓ spec/agentic-rag
+✓ spec/algo-fusion
+✓ spec/algo-fusion-ablation
+✓ spec/algo-memory
+✓ spec/algo-question
+✓ spec/algo-rag
+✓ spec/algo-scoring
+✓ spec/backend-logging
+✓ spec/canvas-recommendations
+✓ spec/canvas-sync
+✓ spec/concept-identity
+✓ spec/llm-safety
+✓ spec/repo-compliance
+✓ spec/verification-service
+Totals: 14 passed, 0 failed (14 items)
+ALL_RC=0
+rc=0

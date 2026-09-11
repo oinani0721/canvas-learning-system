@@ -1,0 +1,17 @@
+### 对照输入 E — Codex r3 M-1 的等长替换（r2 版门对此照绿）
+跑前 sha: 329a42cbe879e752396c9fbfc6e939033f6734027a1a09f7a80bf8522afb35af
+
+########## E-1: expected_templates[-1] = "graphiti-memory-agent" ##########
+injected: expected_templates[-1] = "graphiti-memory-agent"
+FAILED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_health_probe_watches_exactly_the_names_this_gate_reads
+================== 1 failed, 49 passed, 10 warnings in 2.12s ===================
+-- 还原 sha: 329a42cbe879e752396c9fbfc6e939033f6734027a1a09f7a80bf8522afb35af diff_rc=0
+
+########## E-2: expected_templates[-1] = "scoring-agent" ##########
+injected: expected_templates[-1] = "scoring-agent"
+FAILED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_health_probe_watches_exactly_the_names_this_gate_reads
+================== 1 failed, 49 passed, 10 warnings in 2.31s ===================
+-- 还原 sha: 329a42cbe879e752396c9fbfc6e939033f6734027a1a09f7a80bf8522afb35af diff_rc=0
+
+最终 sha: 329a42cbe879e752396c9fbfc6e939033f6734027a1a09f7a80bf8522afb35af
+HEAD  sha: 329a42cbe879e752396c9fbfc6e939033f6734027a1a09f7a80bf8522afb35af

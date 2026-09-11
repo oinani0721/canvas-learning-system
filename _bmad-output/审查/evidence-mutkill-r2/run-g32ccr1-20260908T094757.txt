@@ -1,0 +1,79 @@
+═══ 锚点自检（先于一切慢步骤）═══
+  [E1] 锚命中 1 次 @ canvas-vault/.claude/skills/quiz-answer/SKILL.md → test_g32cc_emitter_rebuild_never_mutates_existing_entries
+  [E2] 锚命中 1 次 @ canvas-vault/.claude/skills/quiz-answer/SKILL.md → test_g32cc_emitter_rebuild_never_mutates_existing_entries
+  [E3] 锚命中 1 次 @ backend/scripts/validate_learning_events.py → test_g32ccr1_charset_scope_is_bounded_by_ledger_record_reality
+  [E4] 锚命中 1 次 @ canvas-vault/.claude/skills/quiz-answer/SKILL.md → test_g32ccr1_receipt_only_fields_roundtrip_under_hostile_codepoints
+  [E6] 锚命中 1 次 @ canvas-vault/.claude/skills/quiz-answer/SKILL.md → test_g32cc_emitter_rebuild_never_mutates_existing_entries
+  [E7] 锚命中 1 次 @ canvas-vault/.claude/skills/quiz-answer/SKILL.md → test_g32cc_emitter_rebuild_never_mutates_existing_entries
+  [E8] 锚命中 1 次 @ canvas-vault/.claude/skills/quiz-answer/SKILL.md → test_g32ccr1_timestamp_axis_rejects_hostile_codepoints_before_any_write
+  [E9] 锚命中 1 次 @ backend/scripts/validate_learning_events.py → test_g32ccr1_charset_scope_is_bounded_by_ledger_record_reality
+  [E10] 锚命中 1 次 @ backend/scripts/validate_learning_events.py → test_g32ccr1_nondict_branch_unreachable_from_validate_record_full
+  [E11] 锚命中 1 次 @ backend/scripts/validate_learning_events.py → test_g32cc_charset_traverses_all_container_shapes
+  [E5] 锚命中 1 次 @ backend/scripts/validate_learning_events.py → test_g32ccr1_nondict_branch_unreachable_from_validate_record_full
+
+═══ 变异前 sha 基线 ═══
+  45c77229169c5c388332f785449aaaf284942cbdc023447598f9fc051f3828a2  backend/scripts/validate_learning_events.py
+  63b51029ea96a78abd757902023f378697688c28db1b8dc0aaee8969e9ee48e8  canvas-vault/.claude/skills/quiz-answer/SKILL.md
+
+═══ 绿态前提（变异前每道门必须绿）═══
+  [E1] test_g32cc_emitter_rebuild_never_mutates_existing_entries → rc=0 ✅
+  [E2] test_g32cc_emitter_rebuild_never_mutates_existing_entries → rc=0 ✅
+  [E3] test_g32ccr1_charset_scope_is_bounded_by_ledger_record_reality → rc=0 ✅
+  [E4] test_g32ccr1_receipt_only_fields_roundtrip_under_hostile_codepoints → rc=0 ✅
+  [E6] test_g32cc_emitter_rebuild_never_mutates_existing_entries → rc=0 ✅
+  [E7] test_g32cc_emitter_rebuild_never_mutates_existing_entries → rc=0 ✅
+  [E8] test_g32ccr1_timestamp_axis_rejects_hostile_codepoints_before_any_write → rc=0 ✅
+  [E9] test_g32ccr1_charset_scope_is_bounded_by_ledger_record_reality → rc=0 ✅
+  [E10] test_g32ccr1_nondict_branch_unreachable_from_validate_record_full → rc=0 ✅
+  [E11] test_g32cc_charset_traverses_all_container_shapes → rc=0 ✅
+  [E5] test_g32ccr1_nondict_branch_unreachable_from_validate_record_full → rc=0 ✅
+
+═══ 变异（串行）═══
+  [E1] A 行被**复制**成两行（重复键，PyYAML 取最后一个 ⇒ 生产自检察觉不到）
+        test_g32cc_emitter_rebuild_never_mutates_existing_entries → rc=1 ⇒ KILLED (红在声称的那一条断言上（绑定维度: 消息）)
+  [E2] A 行**位移**（键序重排，行文本逐字节不变 ⇒ 子串包含判据看不见）
+        test_g32cc_emitter_rebuild_never_mutates_existing_entries → rc=1 ⇒ KILLED (红在声称的那一条断言上（绑定维度: 消息）)
+  [E3] 把 receipt-only 字段**扩进**严格字段表（本卡裁定说这是空操作 ⇒ 一致性门必须当场认出死条目）
+        test_g32ccr1_charset_scope_is_bounded_by_ledger_record_reality → rc=1 ⇒ KILLED (红在声称的那一条断言上（绑定维度: 消息）)
+  [E4] 拆掉 `q_()` 的正面往返自证（非 ASCII 一律裸嵌 ⇒ receipt 里 U+0085 被 YAML 折成空格）
+        test_g32ccr1_receipt_only_fields_roundtrip_under_hostile_codepoints → rc=1 ⇒ KILLED (红在声称的那一条断言上（绑定维度: 消息）)
+  [E6] A 条目**末尾追加**一个同值重复键（Codex round-1 MEDIUM：子串包含没有结束边界）
+        test_g32cc_emitter_rebuild_never_mutates_existing_entries → rc=1 ⇒ KILLED (红在声称的那一条断言上（绑定维度: 消息）)
+  [E7] 把 F1-only 的**成功出口**改成异常（Codex round-1 MEDIUM：只比 attempt 不增，拒绝也满足）
+        test_g32cc_emitter_rebuild_never_mutates_existing_entries → rc=1 ⇒ KILLED (红在声称的那一条断言上（绑定维度: 消息）)
+  [E8] 删掉**本次输入 ts** 的词法判据（Codex round-1 MEDIUM：门同时污染两字段，被 review_time 那道喂饱）
+        test_g32ccr1_timestamp_axis_rejects_hostile_codepoints_before_any_write → rc=1 ⇒ KILLED (红在声称的那一条断言上（绑定维度: 消息）)
+  [E9] 把严格字段表**清空**（Codex round-1 MEDIUM：上一版一致性门在空表上是空真）
+        test_g32ccr1_charset_scope_is_bounded_by_ledger_record_reality → rc=1 ⇒ KILLED (红在声称的那一条断言上（绑定维度: 消息）)
+  [E10] 用**海象**重绑 record（Codex round-1 MEDIUM：上一版 AST 扫描漏掉 NamedExpr）
+        test_g32ccr1_nondict_branch_unreachable_from_validate_record_full → rc=1 ⇒ KILLED (红在声称的那一条断言上（绑定维度: 消息）)
+  [E11] 删掉字符遍历的 **tuple** 支持（Codex round-1 LOW：容器门声称覆盖 tuple 却没有 tuple 样本）
+        test_g32cc_charset_traverses_all_container_shapes → rc=1 ⇒ KILLED (红在声称的那一条断言上（绑定维度: 消息）)
+  [E5] 在 `validate_record_full` 里**重绑** `record`（(c) 门的不可达性推理前提失效）
+        test_g32ccr1_nondict_branch_unreachable_from_validate_record_full → rc=1 ⇒ KILLED (红在声称的那一条断言上（绑定维度: 消息）)
+
+═══ 变异后 sha 复核 ═══
+  ✅ backend/scripts/validate_learning_events.py  45c77229169c5c388332f785449aaaf284942cbdc023447598f9fc051f3828a2
+  ✅ canvas-vault/.claude/skills/quiz-answer/SKILL.md  63b51029ea96a78abd757902023f378697688c28db1b8dc0aaee8969e9ee48e8
+
+═══ 汇总 ═══
+  E1   KILLED                 test_g32cc_emitter_rebuild_never_mutates_existing_entries
+  E2   KILLED                 test_g32cc_emitter_rebuild_never_mutates_existing_entries
+  E3   KILLED                 test_g32ccr1_charset_scope_is_bounded_by_ledger_record_reality
+  E4   KILLED                 test_g32ccr1_receipt_only_fields_roundtrip_under_hostile_codepoints
+  E6   KILLED                 test_g32cc_emitter_rebuild_never_mutates_existing_entries
+  E7   KILLED                 test_g32cc_emitter_rebuild_never_mutates_existing_entries
+  E8   KILLED                 test_g32ccr1_timestamp_axis_rejects_hostile_codepoints_before_any_write
+  E9   KILLED                 test_g32ccr1_charset_scope_is_bounded_by_ledger_record_reality
+  E10  KILLED                 test_g32ccr1_nondict_branch_unreachable_from_validate_record_full
+  E11  KILLED                 test_g32cc_charset_traverses_all_container_shapes
+  E5   KILLED                 test_g32ccr1_nondict_branch_unreachable_from_validate_record_full
+
+  11/11 KILLED (绑定断言身份: 消息 + 门文件位置)
+  KILLED-UNBOUND: 0 (仅证明指定门红了)
+  SURVIVED: 0
+  HARNESS-ERROR: 0 (负控自己坏了, 不是关于被测物的结论)
+  ANCHOR-ERROR: 0 (变异未施加)
+  SYNTAX-INVALID: 0 (>0 说明负控自己坏了)
+  六档之和: 11 (应 = 11) ✓
+rc=0

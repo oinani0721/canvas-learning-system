@@ -505,7 +505,28 @@ class MultimodalService:
             MultimodalServiceError: If path traversal is detected
         """
         resolved_path = file_path.resolve()
-        if not resolved_path.is_relative_to(self.storage_base_path.resolve()):
+        storage_root = self.storage_base_path.resolve()
+        # On POSIX a backslash is an ordinary filename character, so a component such
+        # as "..\..\etc" stays inside storage here, yet the same string escapes once
+        # it is read with '\' as the separator. Reject when either reading escapes.
+        #
+        # Only the part *below* the storage root is re-read that way. Normalising the
+        # root itself would reject ordinary uploads whenever the storage base legitimately
+        # contains a backslash, or whenever the normalised spelling of the base happens to
+        # resolve into a different subtree (e.g. via a symlink on that other path).
+        #
+        # Both sides are taken *after* resolve(), so how the base happens to be spelled
+        # (relative vs absolute, with or without "..") cannot change the outcome.
+        #
+        # The returned value is still the plain resolve(), so callers write where they
+        # did before; this only widens what is refused, never what is allowed through.
+        below_root = (
+            str(resolved_path.relative_to(storage_root)) if resolved_path.is_relative_to(storage_root) else None
+        )
+        reinterpreted = (
+            (storage_root / below_root.replace("\\", "/")).resolve() if below_root is not None else resolved_path
+        )
+        if not resolved_path.is_relative_to(storage_root) or not reinterpreted.is_relative_to(storage_root):
             # Use repr() to prevent log injection via newlines in crafted paths
             logger.warning(
                 "Path traversal attempt detected: %s -> %s",

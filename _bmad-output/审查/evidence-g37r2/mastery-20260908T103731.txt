@@ -1,0 +1,8 @@
+### glob 自证:
+      12
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_mastery_fusion.py::TestPearsonCorrelation::test_no_correlation
+================== 1 failed, 226 passed, 10 warnings in 4.10s ==================
+rc=1

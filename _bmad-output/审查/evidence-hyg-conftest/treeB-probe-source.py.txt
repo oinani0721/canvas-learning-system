@@ -1,0 +1,38 @@
+# U10-A (n) 树 B 探针源码存档（.txt 以免被当成可收集的测试文件）
+#
+# 它只存在于临时 worktree `../u10a-treeB-negctl` 的
+# backend/tests/unit/test_zzz_treeb_probe.py，随该树 `git worktree remove` 一起消失，
+# 从未进入本车道树、从未 commit。存这一份是为了让 N2 / N2' 的输入可复核。
+#
+# 树 B = `git worktree add --detach ../u10a-treeB-negctl da690bf8`
+#        + 目录级 venv symlink → card-v5-lance/backend/.venv
+#        + cp backend/.env
+# 跑法（树 A 的 session 窗口内并发）：
+#   cd ../u10a-treeB-negctl/backend && PYTHONDONTWRITEBYTECODE=1 \
+#     .venv/bin/python -m pytest tests/unit/test_zzz_treeb_probe.py -q -p no:cacheprovider -s
+# 实测两轮：N2 建出 /tmp/test-vault-treeB-49484（07:01:45）、N2' 建出 …-88464（07:14:25）；
+# 两轮树 B 自己都是 `1 passed, 1 error`（它用的是 da690bf8 版 conftest，被自己的旧门判红，预期）。
+# ---
+"""U10-A (n) 树 B 探针 —— 只存在于临时 worktree `u10a-treeB-negctl`，不入库、不 commit。
+
+模拟「**别的** worktree 在树 A 的 session 窗口内往全机共享 `/tmp` 建出匹配目录」这一
+真实并发形态（Codex Y6-A HIGH #1 描述的假红成因）。
+
+⚠️ 只建**空目录**（`rmdir` 可清），不建 vault 骨架 —— 卡文 §三 禁递归删除，
+用 `15653787^` 的真骨架写者虽然更忠实，但会在 /tmp 留下清不干净的目录树。
+取舍已登记在验收单。
+
+⚠️ 目录名不写成整段字面量（`"/tmp"` 与 `"test-vault-treeB-"` 分开），
+以免这个探针文件本身成为「硬编码 /tmp 路径」的样本 —— 树 B 用的是 `da690bf8` 版
+conftest（还没有源码字面量门），但形态上保持一致。
+"""
+
+import os
+from pathlib import Path
+
+
+def test_treeb_creates_shared_tmp_dir():
+    target = Path("/tmp") / ("test-vault-treeB-" + str(os.getpid()))
+    target.mkdir(exist_ok=True)
+    assert target.is_dir()
+    print("TREEB_CREATED=" + str(target))

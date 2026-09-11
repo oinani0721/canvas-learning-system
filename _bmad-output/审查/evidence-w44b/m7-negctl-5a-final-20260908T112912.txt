@@ -1,0 +1,24 @@
+=== NEGCTL case=5a ===
+被测门: TestFinalizeRaceSeam::test_seam_is_called_unconditionally_not_inside_a_condition
+期望新门失败正文含: 注入点落在恒假分支里
+
+--- 打变异 ---
+MUTANT-APPLIED: case=5a files=['live_port_guard.py']
+
+--- 旧门（HEAD 那一版）在同一个变异体上 ---
+======================== 1 passed, 10 warnings in 0.50s ========================
+OLD-GATE: pass
+
+--- 新门（本卡收紧后）在同一个变异体上 ---
+FAILED tests/unit/test_live_port_guard_contract.py::TestFinalizeRaceSeam::test_seam_is_called_unconditionally_not_inside_a_condition
+======================== 1 failed, 10 warnings in 0.55s ========================
+NEW-GATE: fail
+新门失败正文命中期望串: 2 处
+                "注入点落在恒假分支里 —— 等于被摘掉，而『存在一条含它的 Expr』照样成立"
+E           AssertionError: 注入点落在恒假分支里 —— 等于被摘掉，而『存在一条含它的 Expr』照样成立
+
+NEGCTL-5a: PASS（旧门放行 / 新门以指定理由拦下）
+--- 还原 ---
+sha-before = fc0c6b0bf61edb8c3a3745b0f632c4097896bc239a3c0e1007c3d9f0e8a96e2c
+sha-after  = fc0c6b0bf61edb8c3a3745b0f632c4097896bc239a3c0e1007c3d9f0e8a96e2c
+RESTORE-OK: sha-before == sha-after

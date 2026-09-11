@@ -1,0 +1,37 @@
+# U10-A r5 静态门存档（Codex round-5 MEDIUM: 允许目录里只有 r4 版 ruff 存档）
+# 运行时 HEAD        = bbdf19ea122a57e4efa8809878bb45b15c78daf0
+# 所测 conftest sha  = 2dcad68cdbc72c08374ca15770381b234ce322b30544ef5672295ff83cc8498a
+# HEAD 里该文件对象  = 2dcad68cdbc72c08374ca15770381b234ce322b30544ef5672295ff83cc8498a
+# ^ 两者相同 = 所测内容与最终提交一致
+# t0=2026-09-08T09:32:59
+
+=== ruff format --check ===
+1 file already formatted
+ruff_format_check_rc=0
+=== ruff check ===
+All checks passed!
+ruff_check_rc=0
+=== 7a / 7d ===
+7a_value=0 （期望 0）
+7a_falsifier(da690bf8 版)=1 （期望 1 = 判据活着）
+AST_OK
+7d_rc=0
+=== 越界措辞清零复查 ===
+  '即本次运行确实写了东西' = 0 （期望 0）
+  '将来会往全机共享' = 0 （期望 0）
+  '既没通过也没违规' = 0 （期望 0）
+  '最可能的写者' = 0 （期望 0）
+ugrep: error: error at position 4
+(?m)**最常见**
+    \___empty (sub)expression
+
+
+  '**最常见**' =  （期望 0）
+
+=== 更正：上面最后一条判据自己坏了（第 11 处「判据坏了」实例）===
+写成 grep -c '**最常见**' ⇒ '*' 被当成正则量词，ugrep 报 'empty (sub)expression' 并输出空值。
+空值被排版成「= （期望 0）」，看起来像通过 —— 又是「失败时静默产出空、而输出像通过」。
+正解：固定串比较用 grep -F。
+grep -cF '**最常见**' = 0 （期望 0）
+grep -cF '可先排查的情形' = 1 （期望 >=1 = 新措辞在位）
+验伪锚：grep -cF '不指认写者' = 2 （期望 >=1，证明 -F 能命中）

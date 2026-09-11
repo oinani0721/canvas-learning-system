@@ -11,7 +11,10 @@ ReviewService factory/instance fixtures used by:
 - test_card_state_concurrent_write.py (indirectly)
 """
 
+import ast
 import hashlib
+import os
+import warnings
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -50,6 +53,15 @@ _HYGIENE_TRACKED_FILES = (".gitignore", "config/subject_mapping.yaml")
 
 _HYGIENE_TMP_GLOB = "test-vault*"
 
+# CARD-HYGIENE-conftest [BATCH-2026-09-07-第十三批]
+# ⛔ 拼接而不是整段字面量。本文件会被下面 `_hygiene_scan_tmp_literals()` 自身排除,
+# 但只要整段路径还以任何形式留在本文件里 (字符串、docstring、**注释**都算),
+# 验收单 §二.7a 那条 `grep -c` 验伪锚就恒 >= 1 ——「门写对了」与「门漏了
+# 自身排除」两种情况再也分不开。所以本文件全篇不写整段路径, 只写拼接。
+# ⚠️ 必须用 `+`: 相邻字面量 ("/tmp/" "test-vault") 在词法期就被折叠成一个
+# ast.Constant, 拆了等于没拆 (实测)。
+_TMP_LITERAL = "/tmp/" + "test-vault"
+
 
 def _hygiene_backend_root() -> Path:
     """backend/ 的绝对路径。
@@ -86,50 +98,296 @@ def _hygiene_snapshot() -> dict:
     return {"exists": exists, "sha": sha, "tmp": tmp}
 
 
+def _hygiene_within_root(target: Path, root: Path) -> bool | None:
+    """target 是否位于 root 之内。返回 True / False / None(无法判定)。
+
+    为什么不能只用 `is_relative_to` (Codex round-2 MEDIUM, 实测):
+        它做的是**字面**路径包含判断。本机文件系统大小写不敏感, 于是
+        `tests/UNIT/conftest.py` 与 `tests/unit/conftest.py` 是同一个文件
+        (`samefile` 为 True), 但 `resolve()` 保留调用方给的拼写, 字面比较
+        得出 False ⇒ 合法的树内文件被判成越界 = 假红。
+
+    做法: 先试字面包含 (快, 覆盖绝大多数情况); 不成立再逐级向上用
+    `samefile` 做**文件系统身份**比对 (inode 级, 不受拼写影响)。
+    比对本身失败 (权限 / 竞态换链 / 中间目录消失) 一律返回 None ——
+    「问不出来」不能压成「在根外」, 也不能压成「在根内」。
+    ⚠️ 精确边界 (Codex round-3 自述 #7): **目标文件本身消失不一定走到这里** ——
+    只要它的父目录仍在且字面包含成立, 本函数就返回 True, 由后续 read_bytes()
+    的 OSError 负责把它收进 unchecked。本函数只回答「在不在根内」。
+    """
+    try:
+        if target.is_relative_to(root):
+            return True
+    except (OSError, ValueError):
+        return None
+
+    try:
+        current = target.parent
+        while True:
+            if current.samefile(root):
+                return True
+            parent = current.parent
+            if parent == current:  # 走到文件系统根仍未命中
+                return False
+            current = parent
+    except OSError:
+        return None
+
+
+def _hygiene_scan_tmp_literals() -> tuple[list[str], list[str]]:
+    """扫 tests/unit/**/*.py 里硬编码的 `/tmp/` + `test-vault` 字符串常量。
+
+    **只读**: 只 scandir + read_bytes + ast.parse。不创建 / 不删除 / 不写入任何
+    文件, 不 import 被扫文件, 不依赖 cwd (扫描根走 __file__, 与门盯 backend/ 同理)。
+
+    为什么必须走 AST 而不是 grep 全文:
+    - `test_startup_health_check.py:56-66` 有三条 `#` 注释记录 Y6-A 改前的旧
+      硬编码值 —— grep 会把这些注释判成回归 (假红);
+    - 本文件自己的告警文案也含同一段路径 —— grep 形态的门必然自指。
+    AST 只看 `ast.Constant` 字符串, 两个假红面同时消失。
+
+    为什么用 `os.walk(onerror=...)` 而不是 `Path.rglob`
+    (Codex round-1 HIGH #1, 实测):
+        `Path.rglob` 在**遍历期**抑制 `PermissionError` —— 目录枚举被拒时它
+        安静地少产出文件, 于是本函数返回 `([], [])` = 「无命中、无检查失败」,
+        正是这道门自己声称要杜绝的假绿。外层再包 `try` 也够不着, 因为异常
+        在 `rglob` 内部就被吞了。`os.walk` 的 `onerror` 回调是唯一能把这类
+        失败报出来的钩子。
+
+    ⚠️ `followlinks=False` (默认) 只是**不跟随**目录符号链接 —— 它**静默跳过**,
+    并不等于「检查过」。所以本函数在每层 walk 里**显式**给目录符号链接记账:
+    目标在扫描根内 ⇒ 跳过 (walk 会独立走到真实目录, 不漏);
+    目标在根外或无法判定 ⇒ 进 unchecked。
+    (自审实测: 不这么做时, 放在指向树外的目录符号链接后面的硬编码常量
+     既不进 hits 也不进 unchecked = 静默放行。)
+
+    ⚠️ **本门证明的是「源码里没有这种硬编码常量」, 不是「本树没有 /tmp 写者」。**
+    判据只是「某个 `str` 类型的 `ast.Constant` 含连续子串 `_TMP_LITERAL`」,
+    以下形态**一律漏检** (Codex round-1 HIGH #2 逐条实测, 不是穷举):
+      - 路径运算分段:      `Path("/tmp") / ("test-vault-" + x)`
+      - 运行期拼接:        `"/tmp/" + name`、`os.path.join("/tmp", "test-vault…")`
+      - 前缀被**拆开**的 f-string (⚠️ 前缀完整的 f-string 反而**会**命中, 不是漏检)
+      - 等价但不同写法的路径: `"/tmp//test-vault-x"`、`"/tmp/./test-vault-x"`
+        (`/tmp/` 后面不紧跟 `t`, 连续子串就不成立)
+      - `bytes` 字面量 (同一段路径但带 `b` 前缀): 被 `isinstance(..., str)` 排除
+      - API 分参数:        `tempfile.mkdtemp(prefix="test-vault-", dir="/tmp")`
+      - cwd 恰为 `/tmp` 时的相对路径 `"test-vault-x"`
+      - 值来自环境变量 / 配置 / 扫描面之外的模块
+    另: 本文件**整体**被排除 (见下), 故本文件其他 fixture 里将来出现的完整
+    硬编码路径同样漏检。要覆盖这些需要数据流分析, 明确不在本卡范围。
+
+    返回 (hits, unchecked):
+      hits      —— "<file>:<lineno>", 源码里可归属到**本 worktree** 的硬编码常量;
+      unchecked —— 目录枚举失败 / 读不了 / 解析不了 / 符号链接越界的条目。
+                   **不算通过**:「没命中」与「没检查」必须分开, 否则一个权限
+                   坏掉的子目录就能让门静默放行。
+    """
+    self_path = Path(__file__).resolve()
+    scan_root = self_path.parent
+
+    hits: list[str] = []
+    unchecked: list[str] = []
+
+    def _on_walk_error(exc: OSError) -> None:
+        target = getattr(exc, "filename", None) or "<未知路径>"
+        unchecked.append(f"{target} (目录枚举失败: {type(exc).__name__}: {exc})")
+
+    for dirpath, dirnames, filenames in os.walk(scan_root, onerror=_on_walk_error):
+        dirnames.sort()
+
+        # ⛔ os.walk(followlinks=False) 对目录符号链接是**静默跳过**, 不是「检查过」。
+        # 链接目标里的源码既不进 hits 也不进 unchecked —— 那正是本门声称杜绝的假绿
+        # (自审实测: 同一份含硬编码常量的文件, 放普通目录会被抓到, 放指向树外的
+        #  目录符号链接后面就既不抓也不记账)。这里显式给它记账。
+        for dirname in list(dirnames):
+            link = Path(dirpath) / dirname
+            if not link.is_symlink():
+                continue
+            try:
+                link_target = link.resolve()
+            except OSError as exc:
+                unchecked.append(f"{link} (目录符号链接: 目标解析失败 {type(exc).__name__}: {exc})")
+                continue
+            if _hygiene_within_root(link_target, scan_root) is True:
+                # 目标就在扫描根内 ⇒ os.walk 会独立走到那个真实目录, 不漏, 无需记账。
+                continue
+            unchecked.append(f"{link} (目录符号链接未跟随, 目标不在扫描根内或无法判定 -> {link_target})")
+        for name in sorted(filenames):
+            if not name.endswith(".py"):
+                continue
+            py = Path(dirpath) / name
+
+            try:
+                resolved = py.resolve()
+            except OSError as exc:
+                unchecked.append(f"{py} (路径解析失败: {type(exc).__name__}: {exc})")
+                continue
+
+            if resolved == self_path:
+                continue
+
+            # 符号链接越界 (Codex round-1 MEDIUM): 树内的 *.py 若链到扫描根之外,
+            # read_bytes() 会读到扫描根外的内容,「信号都在本 worktree 内」这句
+            # 声明就不成立了。报边界不符, 不当普通树内源码读, 也不静默跳过。
+            within = _hygiene_within_root(resolved, scan_root)
+            if within is False:
+                unchecked.append(f"{py} (链接目标在扫描根之外: {resolved}; 扫描根 = {scan_root})")
+                continue
+            if within is None:
+                unchecked.append(f"{py} (无法判定链接目标是否在扫描根内: {resolved})")
+                continue
+
+            try:
+                source = py.read_bytes()
+            except OSError as exc:
+                unchecked.append(f"{py} (读取失败: {type(exc).__name__}: {exc})")
+                continue
+
+            try:
+                tree = ast.parse(source, filename=str(py))
+            except (SyntaxError, ValueError) as exc:
+                unchecked.append(f"{py} (解析失败: {type(exc).__name__}: {exc})")
+                continue
+
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Constant) and isinstance(node.value, str) and _TMP_LITERAL in node.value:
+                    hits.append(f"{py}:{node.lineno}")
+
+    return hits, unchecked
+
+
 @pytest.fixture(scope="session", autouse=True)
 def _no_vault_skeleton_left_behind():
     """CARD-TEST-hygiene-vaultinit (c): 跑完 tests/unit 不得往仓库里撒 vault 骨架。
 
     失败发生在 session teardown, 表现为末尾一条 ERROR 且 pytest rc != 0。
+
+    CARD-HYGIENE-conftest [BATCH-2026-09-07-第十三批] 按**能不能归属**分流
+    (手册 §四.5 D-27 裁定 (乙)):
+    - **可归属**信号 → 硬 fail 不变: 树内 vault 骨架路径、树内 tracked 文件
+      sha、以及新增的树内源码字面量门 —— 三者都在本 worktree 内, 天然唯一;
+    - **不可归属**信号 → 降为「环境受干扰」告警: `/tmp` 是**全机共享**的,
+      任何别的 worktree 在本 session 首尾两次快照之间建出匹配目录, 都会让
+      本车道 teardown 变红。Codex Y6-A HIGH #1 实证 mtime / ps / lsof 都不能
+      单独证明历史写入归属 ⇒ 把它判成「本卡新增回归」是错误归因。
+
+    ⚠️ 降级只发生在**不可归属**这一侧, 不是「放松要求」: 本树源码里
+    **硬编码**的 test-vault* 路径常量仍然硬红 —— 那是新增源码字面量门的职责。
+    ⚠️ 但它是**源码规则门**, 不是写入归属证明: 它只看字符串常量, 对路径运算 /
+    bytes / tempfile 参数 / 相对路径等形态看不见 (Codex round-1 HIGH #2)。
+    所以告警文案只说「归属未知, 请核查或重跑」, **不**说「不是本次新增的回归」。
+    (这段说明刻意不写成整段路径: docstring 也是 ast.Constant, 写全了
+     就成了门自己要抓的形态 —— 本卡打补丁时被自校验当场拦下过一次。)
+    ⚠️ 也不是静默吞掉: 告警文案里的固定串「环境受干扰」是可 grep 的判据。
+    ⚠️ 可见性的**边界**(Codex round-1/round-4): 本仓 pytest.ini 本身没有配置
+    filterwarnings / -W error / --disable-warnings, 本卡各轮存档里告警也确实可见且 rc 不受影响;
+    但这**不能**保证所有调用方式 —— 外部启动参数与运行期过滤器仍可能升级或隐藏它。
+    升级成 error 时它仍然是红 (只是可能提前遮蔽同轮的其他诊断), 不构成新的假绿。
     """
+    # setup 段扫源码: 扫的是 session 开跑那一刻的树内状态, 不受运行期改动影响。
+    literal_hits, literal_unchecked = _hygiene_scan_tmp_literals()
+
     before = _hygiene_snapshot()
     yield
     after = _hygiene_snapshot()
 
     root = _hygiene_backend_root()
-    violations: list[str] = []
+
+    # 三类信号分开收集 (Codex round-2 HIGH #1)。它们的**语义不同**, 不能共用
+    # 一句「运行污染了工作树」和同一份写者推定:
+    #   pollution   —— 首尾快照之间发生了变化; 差异**不指认写者**, 也不单独证明
+    #                  写入内容 (sha 侧读取失败记 None, None <-> hash 未必是内容改变);
+    #   source_rule —— 源码里有被禁止的硬编码常量, 是**静态**规则: 既不表示本次跑
+    #                  写了什么, 也不预言将来一定会写 (P1 正控用的就是从不执行的常量);
+    #   cannot_check—— **是否违规尚不能判定**, 门拒绝把「没检查」当「没问题」。
+    pollution: list[str] = []
+    source_rule: list[str] = []
+    cannot_check: list[str] = []
 
     for rel in _HYGIENE_SKELETON_PATHS:
         if after["exists"][rel] and not before["exists"][rel]:
-            violations.append(f"  新出现 vault 骨架: {root / rel}")
+            pollution.append(f"  新出现 vault 骨架: {root / rel}")
 
     for rel in _HYGIENE_TRACKED_FILES:
         if after["sha"][rel] != before["sha"][rel]:
-            violations.append(
+            pollution.append(
                 f"  已入库文件被改写: {root / rel}\n"
                 f"    before sha256={before['sha'][rel]}\n"
                 f"    after  sha256={after['sha'][rel]}"
             )
 
+    if literal_hits:
+        source_rule.extend(f"  {h}" for h in literal_hits)
+
+    if literal_unchecked:
+        cannot_check.extend(f"  {u}" for u in literal_unchecked)
+
+    # /tmp 是全机共享的 ⇒ 不可归属 ⇒ 告警而不是 fail (手册 §四.5 D-27 (乙))。
+    # ⛔ 禁再降成静默: 固定串「环境受干扰」是本卡的判据锚点。
     if before["tmp"] is not None and after["tmp"] is not None:
         new_tmp = sorted(after["tmp"] - before["tmp"])
         if new_tmp:
-            violations.append(
-                "  新出现 /tmp/test-vault* 目录: "
-                + ", ".join(f"/tmp/{n}" for n in new_tmp)
-                + "\n    ⚠️ /tmp 是全机共享的: 本仓多 worktree 并行跑测试时, 别的车道"
-                "\n       跑 tests/unit 同样会产出这些目录 (本卡 2026-09-06 01:55 实测"
-                "\n       card-y9-maingoal 车道即如此)。判定归属请核对 `stat -f '%Sm' <路径>`"
-                "\n       与 `ps -ww -p <pid>` / `lsof -a -p <pid> -d cwd`, 而不是只看存在性。"
+            warnings.warn(
+                pytest.PytestWarning(
+                    "[hygiene] 环境受干扰: 新出现 "
+                    + _TMP_LITERAL
+                    + "* 目录: "
+                    + ", ".join(f"/tmp/{n}" for n in new_tmp)
+                    + "\n    ⚠️ /tmp 是全机共享的: 本仓多 worktree 并行跑测试时, 别的车道"
+                    "\n       跑 tests/unit 同样会产出这些目录 (本卡 2026-09-06 01:55 实测"
+                    "\n       card-y9-maingoal 车道即如此)。判定归属请核对 `stat -f '%Sm' <路径>`"
+                    "\n       与 `ps -ww -p <pid>` / `lsof -a -p <pid> -d cwd`, 而不是只看存在性。"
+                    "\n    /tmp 全机共享 ⇒ **归属未知**: 可能来自本 session, 也可能来自任何"
+                    "\n    别的进程 (Codex Y6-A HIGH #1: mtime / ps / lsof 都不能单独证明历史"
+                    "\n    写入归属)。⇒ 本 session **不判红**, 但**请核查或重跑**, 不要直接"
+                    "\n    当成「别人弄的」。"
+                    "\n    本树源码里的硬编码写者另有源码字面量门守 (硬 fail), 但那道门只看"
+                    "\n    字符串常量 —— 路径运算 / bytes / tempfile 参数 / 相对路径 等形态它"
+                    "\n    看不见, 所以它不能证明本树没有写者。盲区清单见 _hygiene_scan_tmp_literals 的 docstring。"
+                ),
+                stacklevel=1,
             )
 
-    if violations:
+    sections: list[str] = []
+
+    if pollution:
+        sections.append(
+            "【快照差异】以下目标在本次 session 首尾两次快照之间发生了变化;\n"
+            "  ⚠️ 差异本身**不指认写者**, 也不单独证明写入内容 —— 例如 sha 侧读取\n"
+            "  失败会记 None, None <-> hash 的差异未必是内容改变 (既有边界, 已移交)。\n"
+            "  写入与归属请结合下列具体条目核查:\n"
+            + "\n".join(pollution)
+            + "\n  **可先排查的情形** (是排查起点, 不是结论, 也不主张它最高发): 某个用例往"
+            "\n  setup-wizard 端点传了相对路径或空串的 vault_path (system.py 会 resolve()"
+            "\n  成 cwd), 或直接给 VaultInitService 传了非 tmp_path 的路径。修法: 一律用 tmp_path。"
+        )
+
+    if source_rule:
+        sections.append(
+            "【源码规则命中】tests/unit 源码里有硬编码的 "
+            + _TMP_LITERAL
+            + " 路径常量:\n"
+            + "\n".join(source_rule)
+            + "\n  ⚠️ 这是**静态**规则: 它只说明源码里出现了被禁止的硬编码常量,"
+            "\n  **既不表示本次运行写了什么, 也不预言将来一定会写** (常量可能从不执行 ——"
+            "\n  本卡 P1 正控用的就是这种)。禁它的理由是 Y6-A 已把这类路径统一改成"
+            "\n  tmp_path, 重新出现即偏离约定。修法: 用 tmp_path fixture。"
+        )
+
+    if cannot_check:
+        sections.append(
+            "【检查无法完成】以下目标**是否违规尚不能判定** —— 门拒绝把「没检查」"
+            "当成「没问题」:\n"
+            + "\n".join(cannot_check)
+            + "\n  ⚠️ 这**既不是**已经发生写入的证据, **也不表示这些目标没有问题** ——"
+            "\n  只是这道门这次没能看全。多半是权限 / 符号链接 / 语法错误。"
+            "\n  恢复可见性后重跑。"
+        )
+
+    if sections:
         pytest.fail(
-            "tests/unit 运行污染了工作树 (CARD-TEST-hygiene-vaultinit 不变量门):\n"
-            + "\n".join(violations)
-            + "\n\n最可能的写者: 某个用例往 setup-wizard 端点传了**相对路径或空串**的"
-            "\nvault_path (system.py 会 resolve() 成 cwd), 或直接给 VaultInitService"
-            "\n传了非 tmp_path 的路径。修法: 测试一律用 tmp_path fixture。",
+            "tests/unit 卫生门未通过 "
+            "(CARD-TEST-hygiene-vaultinit + CARD-HYGIENE-conftest):\n\n" + "\n\n".join(sections),
             pytrace=False,
         )
 

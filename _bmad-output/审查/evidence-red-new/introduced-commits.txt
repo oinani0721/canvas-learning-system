@@ -1,0 +1,23 @@
+=== §二.6 引入 commit 核对（生产侧 git log -S）===
+--- calibration_tracker: -S'abs(signed_bias) <' ---
+43d291d8 2026-03-16 feat(sprint-4): implement 14 stories - CRAG, fingerprint, chat UI, context, skills, annotations, archive, defense, calibration, fusion, eventbus
+--- difficulty_matcher: -S'is_healthy=rate' ---
+e90dbf93 2026-03-16 feat(sprint-2): implement 7 stories - wizard, config, canvas, search, mastery-viz, prompt, qa
+--- event_bus: -S'context=ctx' ---
+4104020d 2026-05-12 fix(2.2+2.9 wave-5 stage-b): backend p0 multi-vault leak 修复
+--- event_bus: -S'_write_outbox' ---
+43d291d8 2026-03-16 feat(sprint-4): implement 14 stories - CRAG, fingerprint, chat UI, context, skills, annotations, archive, defense, calibration, fusion, eventbus
+--- canvas_service: -S'CanvasEventType.EDGE_CREATED' ---
+abf1d585 2026-02-04 chore: Clean repository and rewrite README
+--- multimodal_service: -S'is_relative_to' ---
+e626bef6 2026-02-09 fix(35): multimodal service improvements, pact provider states, RAG fusion
+--- mastery_fusion: -S'def compute_pearson_r' ---
+43d291d8 2026-03-16 feat(sprint-4): implement 14 stories - CRAG, fingerprint, chat UI, context, skills, annotations, archive, defense, calibration, fusion, eventbus
+
+=== 测试侧 --diff-filter=A（文件首次加入）===
+test_calibration_tracker           43d291d8 2026-03-16
+test_event_bus                     43d291d8 2026-03-16
+test_mastery_fusion                43d291d8 2026-03-16
+test_difficulty_matcher            e90dbf93 2026-03-16
+test_multimodal_path_security      d12856dd 2026-02-09
+test_canvas_memory_trigger         abf1d585 2026-02-04

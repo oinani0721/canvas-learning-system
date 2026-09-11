@@ -1,0 +1,21 @@
+### 对照输入 D — Codex r2 M-1 列举的三种「改内容不改绑定」场景
+整改前（r1 版门）：三者均 EXTRACT_PASS extracted=13 runtime=12 ⇒ 断言输入不变 ⇒ 照绿。
+整改后：运行期 total 与静态名单长度不符 ⇒ 必红。
+跑前 sha: 329a42cbe879e752396c9fbfc6e939033f6734027a1a09f7a80bf8522afb35af
+
+########## D-1: expected_templates.remove("hint-generation") ##########
+injected at :5726 -> expected_templates.remove("hint-generation")
+FAILED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_health_probe_output_matches_the_table_this_gate_reads
+================== 1 failed, 48 passed, 10 warnings in 1.22s ===================
+-- 还原 --
+restored sha: 329a42cbe879e752396c9fbfc6e939033f6734027a1a09f7a80bf8522afb35af
+diff_rc=0
+
+########## D-2: expected_templates[:] = expected_templates[:-1] ##########
+injected at :5726 -> expected_templates[:] = expected_templates[:-1]
+FAILED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_health_probe_output_matches_the_table_this_gate_reads
+================== 1 failed, 48 passed, 10 warnings in 1.12s ===================
+-- 还原 --
+restored sha: 329a42cbe879e752396c9fbfc6e939033f6734027a1a09f7a80bf8522afb35af
+diff_rc=0
+

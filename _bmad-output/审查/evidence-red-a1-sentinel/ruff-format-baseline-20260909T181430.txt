@@ -1,0 +1,20 @@
+# ruff format 存量对照（协议 §2.3 跳过 python-lint 的依据）
+# 判据: **format-dirty 文件集合**在 U0 与本卡收工时逐条相同 ⇒ 本卡未新增违规。
+# ⛔ 不跑 ruff format 全文件: 那会重排 system.py 的 :74/:93/:101/:112… 等存量行
+#    与 test_mock_degradation_transparency.py 的 129 行 = 顺手修存量（卡文明令禁止）。
+
+## U0 (0acea4e3) 版本 —— 七个文件在 line-length=120 下
+Would reformat: app_api_v1_system.py
+Would reformat: tests_unit_test_mock_degradation_transparency.py
+Would reformat: tests_unit_test_review_mode_support.py
+3 files would be reformatted, 4 files already formatted
+
+## 本卡收工 —— 同七个文件
+Would reformat: app/api/v1/system.py
+Would reformat: tests/unit/test_mock_degradation_transparency.py
+Would reformat: tests/unit/test_review_mode_support.py
+3 files would be reformatted, 4 files already formatted
+
+## ruff check (lint) —— 本卡改动文件
+All checks passed!
+rc=0

@@ -1,0 +1,39 @@
+=== (e) 重跑后 find -newer 剩余 2 条的归因（R2） ===
+时间轴: sentinel-r2 = 2026-09-09T21:46:42 → 全跑 18392.87s (5:06:32) → 结束 ≈ 2026-09-10T02:53
+
+--- 本轮命中 2 条 ---
+* backend/app/data/vault_index_pending__canvas_vault.jsonl
+    mtime: 2026-09-10T02:53:30
+    gitignore: .gitignore:253:backend/app/data/vault_index_pending*.jsonl	backend/app/data/vault_index_pending__canvas_vault.jsonl
+    在五项骨架内: 否
+* backend/logs/memory-system-2026-09-09.log
+    mtime: 2026-09-09T22:06:45
+    gitignore: .gitignore:192:logs/	backend/logs/memory-system-2026-09-09.log
+    在五项骨架内: 否
+
+--- 归因 ---
+1) logs/memory-system-2026-09-09.log  mtime 22:06:45 = 全跑**中途**(开跑后约 20 分钟)
+   ⇒ 被保留的 health 系 GET 在请求处理中经 app/core/memory_system_logger.memory_logger
+     写的**日志**(调用点 endpoints/health.py:849/853/865/883/909，Codex round-2 指认，作者已核)。
+   处置: **登记不排除**。理由: 它是可观测性输出、被 .gitignore:192 logs/ 覆盖、非 vault 骨架;
+   为它排除整个 health GET 面会让契约覆盖损失远大于收益(health 是 GET 面主体)。
+
+2) app/data/vault_index_pending__canvas_vault.jsonl  mtime 2026-09-10T02:53:30
+   = 全跑**结束时刻**(21:46:42 + 5:06:32 ≈ 02:53) ⇒ app **关闭时**持久化，
+     非任何单个 GET 请求触发(Codex round-2 指 vault_index_orchestrator 的 shutdown 持久化路径)。
+   处置: **登记不排除**。理由: 排除任何 GET 都消不掉它; 被 .gitignore:253 覆盖; 非 vault 骨架。
+
+--- 首轮 6 条 → 本轮 2 条：消失的 4 条现在的 mtime（全部停留在首轮时间，本轮未再写） ---
+  backend/data/fsrs_card_states.json  mtime=2026-09-09T18:26:21  (< sentinel-r2 21:46:42)
+  backend/data/llm_call_logs.db  mtime=2026-09-09T16:21:24  (< sentinel-r2 21:46:42)
+  backend/data/qa_metrics.db  mtime=2026-09-09T17:20:56  (< sentinel-r2 21:46:42)
+  backend/.ruff_cache/... : 首轮那条是作者自己跑 ruff 造成的，非合约测试
+
+⇒ **实测确认 Codex round-2 HIGH-1**: 排除 GET /api/v1/review/fsrs-state/{concept_id} 后，
+  data/fsrs_card_states.json 的 mtime 停在 18:26(首轮)，本轮全程未被写。
+  这不是推理，是两轮全跑的对照实测。
+
+--- 判据结论（如实） ---
+判据 3-c 仍**未通过**(命中 2 条)。但两条均: 被 gitignore 覆盖 / 非 vault 骨架 /
+非「被保留的 GET 在请求期写业务状态」。本卡不为日志与 shutdown 持久化继续扩大排除面。
+rc=0

@@ -1,0 +1,86 @@
+# 负控 r9：逐条记录 query / kwargs / **首个失败断言**（round-8 LOW 要求）
+HEAD=7edbc0c1  代码面未提交改动=0（仓根 pathspec）  跑于 2026-09-09 17:58:28
+⚠️ round-8 LOW 指出：只报 5 PASS / 12 FAIL 不足以认定「变异生效」与「归因正确」。
+   本份对每条打印实际 query、kwargs 与首个失败断言的原文。
+
+OK  正控①基线   期望=PASS 实测=PASS
+      调用1 kwargs=['group_id', 'group_prefix', 'limit', 'userId']
+      调用1 query =MATCH (u:User {id: $userId})-[r:LEARNED]->(c:Concept) WHERE (c.group_id = $group_id OR c.group_id STARTS WITH $group_prefix) AND (r.group_id = $group_
+
+OK  正控②LIMIT 换行 $limit   期望=PASS 实测=PASS
+      调用1 kwargs=['group_id', 'group_prefix', 'limit', 'userId']
+      调用1 query =MATCH (u:User {id: $userId})-[r:LEARNED]->(c:Concept) WHERE (c.group_id = $group_id OR c.group_id STARTS WITH $group_prefix) AND (r.group_id = $group_
+
+OK  正控③反引号属性名 c.`limit`   期望=PASS 实测=PASS
+      调用1 kwargs=['group_id', 'group_prefix', 'limit', 'userId']
+      调用1 query =MATCH (u:User {id: $userId})-[r:LEARNED]->(c:Concept) WHERE (c.group_id = $group_id OR c.group_id STARTS WITH $group_prefix) AND (r.group_id = $group_
+
+OK  正控④LIMIT toInteger($limit)   期望=PASS 实测=PASS
+      调用1 kwargs=['group_id', 'group_prefix', 'limit', 'userId']
+      调用1 query =MATCH (u:User {id: $userId})-[r:LEARNED]->(c:Concept) WHERE (c.group_id = $group_id OR c.group_id STARTS WITH $group_prefix) AND (r.group_id = $group_
+
+OK  正控⑤SKIP $skip   期望=PASS 实测=PASS
+      调用1 kwargs=['group_id', 'group_prefix', 'limit', 'skip', 'userId']
+      调用1 query =MATCH (u:User {id: $userId})-[r:LEARNED]->(c:Concept) WHERE (c.group_id = $group_id OR c.group_id STARTS WITH $group_prefix) AND (r.group_id = $group_
+
+OK  坏①内联 LIMIT 5 删 limit   期望=FAIL 实测=FAIL
+      调用1 kwargs=['group_id', 'group_prefix', 'userId']
+      调用1 query =MATCH (u:User {id: $userId})-[r:LEARNED]->(c:Concept) WHERE (c.group_id = $group_id OR c.group_id STARTS WITH $group_prefix) AND (r.group_id = $group_
+      调用2 kwargs=['group_id', 'group_prefix', 'limit', 'userId']
+      调用2 query =MATCH (u:User {id: $userId})-[r:LEARNED]->(c:Concept) WHERE (c.group_id = $group_id OR c.group_id STARTS WITH $group_prefix) AND (r.group_id = $group_
+      首失败断言: LIMIT 子句里没有 `$` 参数引用，说明分页值被内联进了文本。expr=' 5' query='MATCH (u:User {id: $userId})-[r:LEARNED]->(c:Concept) WHERE (c.group_id = $group_id OR c.group_id S
+
+OK  坏②CALL{…LIMIT 5} UNWIND [$limit]   期望=FAIL 实测=FAIL
+      调用1 kwargs=['group_id', 'group_prefix', 'limit', 'userId']
+      调用1 query =CALL { MATCH (e:Entity) WHERE e.userId = $userId AND (e.group_id = $group_id OR e.group_id STARTS WITH $group_prefix) RETURN e LIMIT 5 } UNWIND [$limi
+      首失败断言: LIMIT 子句里没有 `$` 参数引用，说明分页值被内联进了文本。expr=' 5 ' query='CALL { MATCH (e:Entity) WHERE e.userId = $userId AND (e.group_id = $group_id OR e.group_id STARTS 
+
+OK  坏③SKIP 5 内联   期望=FAIL 实测=FAIL
+      调用1 kwargs=['group_id', 'group_prefix', 'limit', 'userId']
+      调用1 query =MATCH (u:User {id: $userId})-[r:LEARNED]->(c:Concept) WHERE (c.group_id = $group_id OR c.group_id STARTS WITH $group_prefix) AND (r.group_id = $group_
+      调用2 kwargs=['group_id', 'group_prefix', 'limit', 'userId']
+      调用2 query =MATCH (u:User {id: $userId})-[r:LEARNED]->(c:Concept) WHERE (c.group_id = $group_id OR c.group_id STARTS WITH $group_prefix) AND (r.group_id = $group_
+      首失败断言: SKIP 子句里没有 `$` 参数引用，说明分页值被内联进了文本。expr=' 5' query='MATCH (u:User {id: $userId})-[r:LEARNED]->(c:Concept) WHERE (c.group_id = $group_id OR c.group_id ST
+
+OK  坏④单引号拆半拼 userId   期望=FAIL 实测=FAIL
+      调用1 kwargs=['group_id', 'group_prefix']
+      调用1 query =MATCH (u:User) WHERE (u.group_id = $group_id OR u.group_id STARTS WITH $group_prefix) AND u.id = ('test_' + 'user') RETURN u
+      调用2 kwargs=['group_id', 'group_prefix', 'limit', 'userId']
+      调用2 query =MATCH (u:User {id: $userId})-[r:LEARNED]->(c:Concept) WHERE (c.group_id = $group_id OR c.group_id STARTS WITH $group_prefix) AND (r.group_id = $group_
+      首失败断言: 查询文本里出现内联字符串字面量。⚠️ 本条是**启发式**不是全参数化的证明（round-8 已给出无引号构造字符串的原生反例），但它能挡住带引号的内联形态。literals=["'test_'", "'user'"] query="MATCH (u:User) WHERE (u.group_id 
+
+OK  坏⑤双引号拆半拼恶意串   期望=FAIL 实测=FAIL
+      调用1 kwargs=['group_id', 'group_prefix']
+      调用1 query =MATCH (c:Concept) WHERE (c.group_id = $group_id OR c.group_id STARTS WITH $group_prefix) AND c.raw = ("<script>" + "'; DROP TABLE users;--") RETURN c
+      调用2 kwargs=['group_id', 'group_prefix', 'limit', 'userId']
+      调用2 query =MATCH (u:User {id: $userId})-[r:LEARNED]->(c:Concept) WHERE (c.group_id = $group_id OR c.group_id STARTS WITH $group_prefix) AND (r.group_id = $group_
+      首失败断言: 查询文本里出现内联字符串字面量。⚠️ 本条是**启发式**不是全参数化的证明（round-8 已给出无引号构造字符串的原生反例），但它能挡住带引号的内联形态。literals=['"<script>"', '"\'; DROP TABLE users;--"'] query='MATCH (c:Co
+
+OK  坏⑥内联 userId 删 kwarg   期望=FAIL 实测=FAIL
+      调用1 kwargs=['group_id', 'group_prefix']
+      调用1 query =MATCH (u:User {id: 'test_user'}) WHERE (u.group_id = $group_id OR u.group_id STARTS WITH $group_prefix) RETURN u
+      调用2 kwargs=['group_id', 'group_prefix', 'limit', 'userId']
+      调用2 query =MATCH (u:User {id: $userId})-[r:LEARNED]->(c:Concept) WHERE (c.group_id = $group_id OR c.group_id STARTS WITH $group_prefix) AND (r.group_id = $group_
+      首失败断言: 本用例喂进去的 user_id 值被拼进了查询文本，应作为绑定参数传递。value='test_user' query="MATCH (u:User {id: 'test_user'}) WHERE (u.group_id = $group_id OR u.group_id STARTS WITH 
+
+OK  坏⑦无 kwargs 裸查询   期望=FAIL 实测=FAIL
+      调用1 kwargs=[]
+      调用1 query =MATCH (n) RETURN n LIMIT 5
+      调用2 kwargs=['group_id', 'group_prefix', 'limit', 'userId']
+      调用2 query =MATCH (u:User {id: $userId})-[r:LEARNED]->(c:Concept) WHERE (c.group_id = $group_id OR c.group_id STARTS WITH $group_prefix) AND (r.group_id = $group_
+      首失败断言: 本次 run_query 没带 group 作用域参数——R1 读契约要求每条业务读都带 group 过滤。kwargs=[] query='MATCH (n) RETURN n LIMIT 5'
+
+OK  坏⑧绑错物理组   期望=FAIL 实测=FAIL
+      调用1 kwargs=['group_id', 'group_prefix', 'userId']
+      调用1 query =MATCH (u:User {id: $userId})-[r:LEARNED]->(c:Concept) WHERE (c.group_id = $group_id OR c.group_id STARTS WITH $group_prefix) AND (r.group_id = $group_
+      调用2 kwargs=['group_id', 'group_prefix', 'limit', 'userId']
+      调用2 query =MATCH (u:User {id: $userId})-[r:LEARNED]->(c:Concept) WHERE (c.group_id = $group_id OR c.group_id STARTS WITH $group_prefix) AND (r.group_id = $group_
+      首失败断言: group_id 未物理化或绑错组。got='vault__WRONG' want='vault__script_drop_table_users'
+
+OK  ⚠️已知漏过：keys() 无引号拼串   期望=PASS 实测=PASS
+      调用1 kwargs=['group_id', 'group_prefix']
+      调用1 query =MATCH (e:Entity) WHERE (e.group_id = $group_id OR e.group_id STARTS WITH $group_prefix) AND e.userId = head(keys({test_:0})) + head(keys({user:0})) RE
+      调用2 kwargs=['group_id', 'group_prefix', 'limit', 'userId']
+      调用2 query =MATCH (u:User {id: $userId})-[r:LEARNED]->(c:Concept) WHERE (c.group_id = $group_id OR c.group_id STARTS WITH $group_prefix) AND (r.group_id = $group_
+
+还原校验 is ORIG = True | 14 条全部符合期望 = True

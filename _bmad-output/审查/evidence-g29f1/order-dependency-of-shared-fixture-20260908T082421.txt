@@ -1,0 +1,18 @@
+# r4 引入的新脆弱性：module-scope 共享库的**顺序依赖**（自查，Codex r4 prompt 问题 4 同问）
+# 2026-09-08T00:24:21Z  （复现文件在 scratchpad，不入库）
+
+结构与生产门⑤ 族相同，但把缺陷锁**定义在前提门之前**（等价于 -k 过滤或随机化插件打乱顺序）：
+E       ValueError: Table 'a_b_canvas_nodes' was not found
+XFAIL test_order_dependency.py::test_defect_lock_runs_first - 已知未闭合面
+1 failed, 1 xfailed, 9 warnings in 5.90s
+
+结论:
+  缺陷锁先跑 → _cache_tables() 删掉重叠表 → 前提门里那次**实时** open_table 抛
+  ValueError: Table 'a_b_canvas_nodes' was not found ⇒ 前提门**假红**。
+  生产目前不触发（pytest 默认按定义顺序，前提门在前），但这是**顺序依赖**，
+  一旦 -k 过滤 / 随机化插件改变顺序即成立 ⇒ 属 r4 引入的新脆弱性，r5 修。
+
+修法（r5）：把**依赖库状态**的前提检查全部搬进 fixture（此时库尚未被任何用例改过），
+  前提门只留两样：① fixture 自检通过的标记（fixture 内断言失败 → setup 错误 →
+  前提门 ERROR，信号仍到达）；② 归属关系（纯函数，不依赖库状态，且它正是 F2 的翻转信号）。
+  这样前提门**不受执行顺序影响**。

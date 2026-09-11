@@ -1,0 +1,31 @@
+### 补充事实：.claudian 追踪面 + 各覆盖面统计
+--- .claudian 追踪文件数 ---
+       8
+--- .claudian 内容分布 ---
+   1 claudian-settings.json
+   7 sessions
+--- canvas-vault 全部追踪文件数 ---
+      66
+--- install-vault.sh 五数组当前值 ---
+SKELETON_DIRS=(原白板 检验白板 节点 outputs raw templates)
+CLAUDE_ITEMS=(skills scripts hooks agents commands settings.json settings.local.json mcp.json)
+OBSIDIAN_FILES=(app.json appearance.json core-plugins.json community-plugins.json hotkeys.json cls-internal-key.txt)
+OBSIDIAN_PLUGINS=(canvas-learning-system claudian dataview breadcrumbs templater-obsidian)
+ROOT_FILES=(CLAUDE.md Dashboard.md)
+--- manifest items 数与分布 ---
+ items: 38 {'skeleton': 6, 'copy': 21, 'exclude': 10, 'generate': 1}
+ extra_allow: []
+ version: 1 source: live-vault
+--- 树上 declared 但 ABSENT 的项（卡文说 da690bf8 上是 11）---
+ 共 11 项:
+    .claude/agents
+    .claude/commands
+    .claude/settings.local.json
+    .obsidian/app.json
+    .obsidian/appearance.json
+    .obsidian/core-plugins.json
+    .obsidian/cls-internal-key.txt
+    .obsidian/plugins/claudian
+    .obsidian/plugins/dataview
+    .obsidian/plugins/breadcrumbs
+    .obsidian/plugins/templater-obsidian

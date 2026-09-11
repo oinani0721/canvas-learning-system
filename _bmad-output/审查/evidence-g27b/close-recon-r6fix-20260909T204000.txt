@@ -1,0 +1,50 @@
+# CARD-G2-7b r6 整改后收工对账
+# 哨兵基准 = close-recon-r5fix-20260909T200500.txt（mtime 2026-09-09 20:03:43）
+# 本窗口内跑过：负控 8 条、正控 dry-run+apply、H-3 端到端、B-4 端到端、变异 ×3 轮、目录级 ×2
+
+## A 禁写面（find -newer 计数）
+
+  live vault (canvas-vault)      -> 0   ✅
+  ~/.dsh                         -> 0   ✅
+  ~/.config/opencode             -> 0   ✅
+  ~/Library/LaunchAgents         -> 0   ✅
+  ~/.codex                       -> 74  ⚠️ codex CLI 自身会话产物（本 session r6 + 并发车道）
+
+  $WT/.env sha256 = c84c859683b6b0bd1f8e6915e7d4afa17652f8001753063294aa4d40914c7712
+                  == pre-wt-env-sha.txt 基线，**逐字相同** ✅
+  git status --porcelain -- canvas-vault/ -> 0 行 ✅
+
+## B ⚠️ 顺带印证了 r5 收工那条「live vault 计数 1」的归属
+
+r5 收工时 live vault 计数为 **1**（`canvas-vault/multimodal` 目录 mtime 19:10:14），
+当时我给的是**排除性论证**（内容零改动 / 时间早于本 session 全部写操作 / 代码面零引用 /
+canvas backend 容器未运行 / Obsidian 开着该 vault + 21 个并发 claude 进程），
+并明确写了「无法正面证明是谁写的」。
+
+本窗口（20:03 → 20:40）我跑了**更多**写操作 —— 6 次 `--apply`（含两次端到端负控）、
+3 轮变异、2 次目录级 —— live vault 计数**仍然是 0**。
+⇒ 「本卡的写操作不触碰 live vault」这一点，现在有了**正面的行为证据**，
+   而不只是排除法。r5 那次的 1 更确定地归属于本 session 之外。
+⚠️ 仍不声称已查明 19:10:14 那一刻的写者身份 —— 那件事本卡证不了，也不需要证。
+
+## C 地盘门
+
+$ git diff --name-only 0ee633ea HEAD -- . ':(exclude)_bmad-output'   -> 7 文件（未变）
+本轮改动的代码文件 -> **3 个**，全部在既有 7 文件之内：
+  scripts/deploy-vault.sh · scripts/cls_forbidden_paths.py · backend/tests/unit/test_deploy_vault_sh.py
+
+硬边界自检：verify_vault_install.py / vault-install-manifest.json / lefthook.yml /
+canvas-vault/** / backend/app/** / frontend/** / scripts/launchd/** —— **全部零触碰**。
+
+## D ⚠️ 我自己造的一次并发风险（如实记，已处置）
+
+20:27:06 起跑目录级 pytest，20:28:42 又起了变异脚本 —— 而变异脚本会**改写**
+`cls_forbidden_paths.py` / `deploy-vault.sh`，目录级里的 `test_deploy_vault_sh.py`
+恰好读这两个文件。**两个任务的读写面相交**，那一次目录级结果原则上不可信。
+
+时间线显示 `test_deploy_vault_sh.py` 在 raw 的 21% 处、全是点无 F/E，
+早于首次变异写入约 35 秒 —— 但 35 秒的余量不足以当证据。
+⇒ 处置：**无并发重跑一次目录级**，以那一次为准（`dir-tests-unit-r6fix-clean-*.raw`）。
+   「大概率没被污染」与「证明没被污染」是两回事。
+
+rc=0

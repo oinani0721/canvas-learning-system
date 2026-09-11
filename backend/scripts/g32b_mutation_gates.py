@@ -6,16 +6,29 @@
   - 每个变异把生产代码**精确退回旧实现形态** (同构复现审查者的绕过, 非弱变异);
   - **指定的那道门**必须变红 (不是「某处有失败」);
   - 变异体必须**先编译得过** —— 编译期就死的变异体制造的是假杀, 判 SYNTAX-INVALID;
-  - 击杀必须落在**声称的那一条断言**上 (`EXPECT_MSG`), 不是「这个门里随便哪条红了」;
+  - 击杀必须落在**声称的那一条断言**上 —— round-19 起判据是**断言源位置**
+    (`EXPECT_LOC`) **与** 消息片段 (`EXPECT_MSG`) 的 AND, 不是「这个门里随便哪条红了」,
+    也不是「消息或位置二选一」;
   - 还原后必须与变异前**逐字节相同**, 否则立即停。
 
 后两条由 CARD-DEBT-mutation-kill-identity 抽进共用模块 `mutation_kill_identity`,
 四套 harness (g32b / g32cb / g32ccr1 / g33) 同一份实现。
 
+⛔ round-19 (CARD-DEBT-mutkill-R2) 改了什么:
+  · 判据从「消息子串出现过就算」改成「pytest 报的失败**位置**就是它指名的那条语句」
+    —— Y1-B 外审 HIGH-1 实测: 前提断言把子进程 stderr 插进消息首行时, 目标断言
+    根本没执行而消息判据照样成立。位置是唯一能分开这两者的面;
+  · 解析面限定在 `=== short test summary info ===` 区内 (Y1-B HIGH-2);
+  · 39 条 `KILLED-UNBOUND` 全部改绑 `EXPECT_LOC` (消息绑不出来的那些, 位置绑得出来);
+  · 裁决统一成共用模块的六档 `VERDICTS`, `ANCHOR-ERROR` / `SYNTAX-INVALID` 一并进
+    `_verdicts` 参与计数 (原先走旁路, 六档之和对不上 `len(MUTATIONS)`);
+  · 信号处置统一成 `RestoreGuard`: 四个信号 (补齐 SIGQUIT) + **还原期不可打断**。
+
 用法:
   `python3 backend/scripts/g32b_mutation_gates.py`          跑全部 (约 36 min)
   `python3 backend/scripts/g32b_mutation_gates.py --list`   只列变异与锚点命中数(不改任何文件)
   `python3 backend/scripts/g32b_mutation_gates.py --probe`  只观察每条实际红在哪条断言上
+                                                            (并打印可直接回填的 `EXPECT_LOC`)
 """
 
 import collections
@@ -23,19 +36,28 @@ import hashlib
 import os
 import pathlib
 import re
-import signal
 import subprocess
+import traceback
 import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from mutation_kill_identity import (  # noqa: E402  (必须在 sys.path 兜底之后)
+    VERDICTS,
+    RestoreGuard,
+    check_expect_loc_unique,
     check_expect_msg_unique,
+    failed_locations,
     failed_reasons,
     gate_hit,
     judge_env,
-    judge_surface_missing,
-    kill_identity_ok,
+    judge_flags,
+    kill_identity,
+    loc_token_for,
+    matched_loc_tokens,
+    exactly_one_failed,
+    parse_failed_nodeids,
     syntax_check,
+    unparsed_failure_lines,
 )
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -43,6 +65,8 @@ SKILL = ROOT / "canvas-vault/.claude/skills/quiz-answer/SKILL.md"
 BRIDGE = ROOT / "canvas-vault/.claude/scripts/fsrs_bridge.py"
 SCHEMA = ROOT / "docs/learning-events-schema-v1.md"
 TESTF = "tests/regression/test_g3_2_review_ledger.py"
+#: 门文件的绝对路径 —— `expect_loc` 的语句指纹从这份源码算，位置行也要与它比对。
+GATE_FILE = ROOT / "backend" / TESTF
 
 # 第二层防线: 消费前复用校验器本体。与写点手写的 8 条准入判据**完全重合**
 # (2026-09-02 逐形态实测: rating 自洽 / 整秒字面 / rating 与 grade_norm 完整性 /
@@ -552,10 +576,10 @@ def nodeid_of(gate):
 
 def run_gate(name):
     return subprocess.run(
-        # ⛔ `-rf` 不可省: 击杀身份判据取的是短摘要行 `FAILED <nodeid> - <reason>`,
-        # 没有它 `parse_failed_nodeids()` 恒返空集 ⇒ 全部报 SURVIVED(harness 坏了却
-        # 长得像「门都不承重」)。`judge_surface_missing()` 会当场把这种情况报出来。
-        [_PYTEST_BIN(), nodeid_of(name), "-q", "-p", "no:cacheprovider", "--tb=line", "-rf"],
+        # ⛔ 命令行开关统一从 `judge_flags()` 取, 四套一份 —— 各写各的时, 有人漏了
+        # `--tb=line` 就会让 `expect_loc` 恒不命中, 报告长得跟「门都不承重」一样。
+        # 少哪一条会怎么坏, 见该函数的 docstring 与 `judge_surface_missing()`。
+        [_PYTEST_BIN(), nodeid_of(name), *judge_flags()],
         cwd=str(ROOT / "backend"),
         capture_output=True,
         text=True,
@@ -564,7 +588,7 @@ def run_gate(name):
     )
 
 
-def is_killed(proc, gate, expect_msg):
+def is_killed(proc, gate, expect_msg, expect_loc=None, *, require_gate_file=True):
     """KILLED = **指定的那道门**红了 **且** 红在**声称的那一条断言**上。
 
     pytest 的退出码里只有 1 表示「测试失败」：4 = 用法错误（门名打错、nodeid
@@ -577,28 +601,32 @@ def is_killed(proc, gate, expect_msg):
     (Z2) 正是这个形态: 变异体编译期就死, 目标断言反而通过, 红落在另一条上。
     现在必须 `EXPECT_MSG[tag]` 出现在**该 nodeid 自己的**短摘要 reason 里。
 
-    ⚠️ 返回 `(verdict, why)`，`verdict` ∈ {KILLED, KILLED-UNBOUND, SURVIVED, HARNESS-ERROR}：
-      · `KILLED`          —— 红在 `EXPECT_MSG[tag]` 声称的那一条断言上；
-      · `KILLED-UNBOUND`  —— 该条在 `EXPECT_MSG_EXEMPT` 里（绑不出断言身份），
-        判据退化成旧口径「指定门红了」。⛔ Codex round-1 HIGH-3 整改：这类**不得**
-        与「指定断言击杀」并进同一个数，否则「138 条全部被指定断言杀死」就说宽了；
-      · `HARNESS-ERROR`   —— rc 不是 1（2 中断 / 3 内部错 / 4 用法错 / 5 零收集）或
-        判据面缺失。⛔ Codex round-1 MEDIUM-4 整改：原先这些也打印「SURVIVED ⇒ 假门」，
-        把**负控自己坏了**说成**门不承重**，诊断指错方向。
+    ⛔ round-19 收紧的另一半（CARD-DEBT-mutkill-R2 / Y1-B HIGH-1）：消息判据**分不开**
+    「前提断言红了」与「目标断言红了」—— 前提断言的消息里内嵌了被测子进程的输出，
+    子进程只要在运行期把期望片段拼出来，短摘要的 reason 就含它。现在再加一维
+    `EXPECT_LOC[tag]`：pytest 自己算出来的失败**语句位置**必须就是它指名的那条。
+    两维是 **AND**，⛔ 不是二选一。
+
+    ⚠️ 返回 `(verdict, why)`，`verdict` ∈ 共用模块的 `VERDICTS` 前四档：
+      · `KILLED`          —— 红在声称的那一条断言上（位置 [+ 消息] 都对上）；
+      · `KILLED-UNBOUND`  —— 位置与消息**都**没绑。⚠️ 本树实测**为 1**（`M97`：该变异
+        让门死在 yaml 库里，不落在门文件的任何一条断言上，位置与消息都绑不出来），
+        ⛔ 不是 0 —— 别把「目标 0」写成「已经是 0」。档位保留是因为「绑不出来」这件事
+        将来还可能发生，静默并进 KILLED 就是把结论说宽；
+      · `SURVIVED`        —— 门没红，或红在别的断言 / 别的位置上；
+      · `HARNESS-ERROR`   —— rc 不是 1（2 中断 / 3 内部错 / 4 用法错 / 5 零收集）、
+        判据面缺失、或 `expect_loc` 的锚在门文件里已找不到（门被别的卡改写）。
+        ⛔ 最后一种尤其不能记成 SURVIVED —— 那会把「门被改了」说成「防线失效」。
     """
-    out = proc.stdout + proc.stderr
-    nodeid = nodeid_of(gate)
-    if surface := judge_surface_missing(proc.returncode, out):
-        return "HARNESS-ERROR", f"⛔ 判据面不成立: {surface}"
-    if proc.returncode != 1:
-        return "HARNESS-ERROR", f"rc={proc.returncode}（非 1 = 不是测试失败；4=门名/用法错误 5=零收集）"
-    if kill_identity_ok(proc.returncode, out, nodeid, expect_msg):
-        verdict = "KILLED" if expect_msg is not None else "KILLED-UNBOUND"
-        return verdict, (observed_reason(out, gate) or "")[:110]
-    obs = observed_reason(out, gate)
-    if obs is None:
-        return "SURVIVED", "rc=1 但失败的不是指定的那道门（别的门红了）"
-    return "SURVIVED", f"红在别的断言上: expect={expect_msg!r} 实见 {obs[:110]!r}"
+    return kill_identity(
+        proc.returncode,
+        proc.stdout + proc.stderr,
+        nodeid_of(gate),
+        expect_msg,
+        gate_file=GATE_FILE,
+        expect_loc=expect_loc,
+        require_gate_file=require_gate_file,
+    )
 
 
 def observed_reason(out, gate):
@@ -606,6 +634,24 @@ def observed_reason(out, gate):
     nodeid = nodeid_of(gate)
     hits = [r for nid, r in failed_reasons(out) if gate_hit(nodeid, {nid})]
     return hits[0] if hits else None
+
+
+def observed_loc(out):
+    """本次失败的**位置** token（`--probe` 回填 `EXPECT_LOC` 用；没有则 None）。
+
+    ⛔ 回填这件事如实说：它是「跑一次看它红在哪」再写回表里，**判据与被测量同源** ——
+    今天证不出「这条变异确实打红了它声称的那条断言」。它的价值在**从今往后**：门或
+    生产代码一漂移、击杀落到别的语句上，就会当场报 SURVIVED / HARNESS-ERROR，
+    而不是像过去那样静默记成 KILLED。这一条写进了验收单「本卡未证明什么」。
+    """
+    locs = failed_locations(out)
+    if not locs:
+        return None, None
+    path, lineno, _ = locs[0]
+    # ⛔ 原始 `<路径>:<行号>` 也一并返回并落进 probe 存档：`expect_loc` 的取值方式
+    # 将来若再变（本卡就把它从「全局语句指纹」改成「作用域内语句指纹」改过一次），
+    # 有了原始位置就能**离线重算**，不必再跑一趟两小时的 probe。
+    return loc_token_for(GATE_FILE, path, lineno), f"{path}:{lineno}"
 
 
 # ── round-4 HIGH/MEDIUM 修复的承重变异（消费前复用校验器本体）
@@ -2073,6 +2119,186 @@ EXPECT_MSG_EXEMPT: dict[str, str] = {
     "M140-bare-collision-no-own-judge": "⑥ 该门实际打红的那条断言, 其消息首行的字面片段在门文件里不唯一(出现 >1 次), 绑上去就不能证明红在哪一条; 门本体不在本卡范围, 无法给它加更具身份的消息",
 }
 
+#: 每条变异**声称**会打红的那一条断言的**源位置**（`stmt:<12 位十六进制>` =
+#: 门文件里那条语句的 AST 规范化指纹，见 `mutation_kill_identity.stmt_fingerprints`）。
+#:
+#: ⛔ 它解决 `EXPECT_MSG` 解决不了的那一半（Y1-B Codex HIGH-1）：消息判据分不开
+#: 「前提断言红了」与「目标断言红了」—— 前提断言 `assert X, r.stderr[:250]` 的消息
+#: **就是被测子进程的输出**，子进程运行期拼出期望片段即可喂饱它，而目标断言根本没
+#: 执行。位置是唯一能把两者分开的面（本树实测：前提在第 12 行、目标在第 14 行）。
+#:
+#: ⚠️ **这张表是怎么来的，如实说**：全部 138 条由 `--probe` 跑一遍观察实际失败位置
+#: 后回填 —— **判据与被测量同源**，所以它今天证不出「每条变异确实红在它声称的那条
+#: 断言上」。价值在**从今往后**：门文件或生产代码一漂移、击杀落到别的语句上，就会
+#: 当场报 SURVIVED；语句本身被改写则报 HARNESS-ERROR（锚失效），而不是静默记 KILLED。
+#: 这一条写进了验收单「本卡未证明什么」。
+#:
+#: ⚠️ 与 `EXPECT_MSG` 的关系是 **AND**：两张表都填的条目要**同时**满足。
+#: `EXPECT_MSG_EXEMPT` 里那 39 条消息绑不出来的，**位置照样绑得出来** —— 这正是
+#: 本卡收掉 `KILLED-UNBOUND` 的路径（消息层面「门文件里没有可绑的字面片段」这个
+#: 障碍，在位置层面根本不存在）。
+EXPECT_LOC: dict[str, str] = {
+    "M1-R1-candidate-spread": "stmt:4c1212185e58",
+    "M10-R2-value-not-literal": "stmt:c8e430b5ce69",
+    "M100-no-tri-instant-binding": "stmt:39865442dbff",
+    "M102-receipt-attempt-type-only": "stmt:4a06447ea2ed",
+    "M103-receipt-ts-no-literal-gate": "stmt:21b2c1271f1e",
+    "M104-writeback-guess-by-text": "stmt:f1292729490d",
+    "M11-N1-drop-out-of-order-semantic-gate": "stmt:ca81a81d7804",
+    "M110-reinline-duplicate-lookup": "stmt:dde87dd27a48",
+    "M111-shared-impl-not-reused": "stmt:2f4d388556cd",
+    "M112-compat-empty-source-rejects": "stmt:94abf1ed0d40",
+    "M113-facts-list-not-frozen": "stmt:c35112d8953f",
+    "M114-f1only-drops-exam-board": "stmt:b0c9ce36d2d6",
+    "M115-late-scan-presence-only": "stmt:3e5396d26747",
+    "M116-receipt-no-provenance": "stmt:e30d9b3ac723",
+    "M117-empty-source-skips-provenance": "stmt:9ca250d2cb86",
+    "M118-empty-eid-allowed": "stmt:317e2c449747",
+    "M119-crash-window-adopted-time-unproven": "stmt:145eea442feb",
+    "M12-N1-drop-out-of-order-shape-gate": "stmt:35b14b243932",
+    "M120-legacy-row-generic-reason": "stmt:c02294a5bd2d",
+    "M121-consumer-rounds-grade": "stmt:9d5fb257e061",
+    "M122-consumer-coerces-board": "stmt:ab54b8dff138",
+    "M123-adopted-time-literal-compare": "stmt:d88acbf51056",
+    "M124-crash-window-only-when-w-empty": "stmt:77ae00af992d",
+    "M125-id-form-authorizes-bare-fallback": "stmt:572a3ee726bc",
+    "M126-f1only-no-successor-discount": "stmt:18e32036cadb",
+    "M127-facts-python-equality": "stmt:523fa0f8056b",
+    "M128-id-form-not-at-candidate-stage": "stmt:9f9a85d5fc7b",
+    "M129-missing-scored-at-warn-only": "stmt:6493eeda8b37",
+    "M130-pending-adopted-time-unproven": "stmt:6db14305c84b",
+    "M132-candidate-always-rounded": "stmt:365965dc1868",
+    "M135-scored-at-not-in-ext-detection": "stmt:d2ef99c632e0",
+    "M136-w-coverage-as-applied-proof": "stmt:7c583471ae35",
+    "M137-receipt-no-applied-flag": "stmt:d9799c0407f2",
+    "M138-board-string-only": "stmt:ddb1ac7b825b",
+    "M139-source-lookup-both-ways": "stmt:2a658b5996f6",
+    "M13b-N2-text-mode-read": "stmt:ccadd817ee44",
+    "M14-N3-drop-duplicate-key-hook": "stmt:c36b63813880",
+    "M140-bare-collision-no-own-judge": "stmt:a6f9e6ddb8bb",
+    "M142-dup-uses-global-w": "stmt:0684e01177a1",
+    "M143-missing-applied-flag-tolerated": "stmt:29b292760220",
+    "M144-false-plus-w-not-contradiction": "stmt:cee527a2355b",
+    "M145-recovery-does-not-promote-flag": "stmt:d991bfed7c72",
+    "M146-canon-num-precision-loss": "stmt:2c929478afb9",
+    "M148-unmarked-exact-single-source": "stmt:af1aac28fd2b",
+    "M149-adopted-two-values": "stmt:00aa4d0e6852",
+    "M150-all-ledger-ids-coerce-str": "stmt:7d86ad8ec66d",
+    "M151-exam-board-bare-json-in-yaml": "stmt:02bd83e0408f",
+    "M152-f1-ignores-write-order-anchor": "stmt:2fb6988c11c0",
+    "M153-legacy-cursor-skips-ambiguity-proof": "stmt:bae0b20e342c",
+    "M155-board-form-ignored": "stmt:198937f8b0e9",
+    "M156-anchor-miss-is-hard-error": "stmt:fc5865fc8e8f",
+    "M157-anchor-direction-unchecked": "stmt:e9e9942976c8",
+    "M158-fsrs-applied-truthiness": "stmt:03581c229ae0",
+    "M15b-N4-decode-with-replace": "stmt:839c95da5e9d",
+    "M16-N5-hard-compute-attempt-across-pending": "stmt:6105a6838306",
+    "M161-foreign-no-credential-promotion": "stmt:b4eeeb249561",
+    "M17-N1-schema-drops-writer-side-clause": "stmt:25f0c301c8ba",
+    "M18b-R7blank-judge-file-end-not-last-line": "stmt:4f4c009720a9",
+    "M19-B1-drop-rating-completeness": "stmt:eb278d473046",
+    "M20-B1-drop-gradenorm-completeness": "stmt:029dbd458414",
+    "M21-B2-drop-attempt-sync-on-replay": "stmt:0a23ffe8bc92",
+    "M23-C1-drop-event-type-gate": "stmt:8b4fc14dc10c",
+    "M24-C1-drop-concept-id-gate": "stmt:8b4fc14dc10c",
+    "M25-C1-drop-vault-id-gate": "stmt:8b4fc14dc10c",
+    "M26-C2-drop-eid-whitespace-gate": "stmt:fbbc07945c4f",
+    "M28-C4-mastery-uses-unrounded-gn": "stmt:387b0acac7b8",
+    "M29-R3-drop-event-version-gate": "stmt:060ef934e40c",
+    "M2b-R2-drop-utc-offset-check": "stmt:c8e430b5ce69",
+    "M3-R3-attempt-uses-tip": "stmt:5f57d5a17a10",
+    "M30-R3-drop-two-instant-consistency": "stmt:29076bdbfb99",
+    "M31-R3-drop-attempt-required": "stmt:3a5f92ec3335",
+    "M32-R3-drop-payload-object-gate": "stmt:018880e4697d",
+    "M33-R3-merge-recovery-and-append": "stmt:70a1d6f0227f",
+    "M34-R3-drop-routing-envelope-gate": "stmt:a97f7048ae36",
+    "M35-R3-effective-at-over-strict": "stmt:d86d7cf272eb",
+    "M36b-replay-drops-mastery": "stmt:d86d7cf272eb",
+    "M37c-replay-includes-dup-double-eats-ema": "stmt:d044551b54ae",
+    "M38b-attempt-expectation-masked-by-max": "stmt:cca8c7fef0f3",
+    "M39-attempt-regex-rejects-single-quote": "stmt:2798bffda0b5",
+    "M4-R4-normal-path-uses-payload-ts": "stmt:57424559200c",
+    "M42-late-unmarked-row-silently-skipped": "stmt:b15598c59d0d",
+    "M43-f1-evaluated-after-calibration-replay": "stmt:d86d7cf272eb",
+    "M44-drop-looks-like-review-ext": "stmt:408708753b17",
+    "M45-allow-dup-and-foreign-same-round": "stmt:fbde4102f5f1",
+    "M46-yaml-single-quote-escape": "stmt:69c6585e235e",
+    "M47-skip-validator-record-check": "stmt:4833e323c049",
+    "M48-attribution-check-after-payload-skip": "stmt:f570beec970a",
+    "M49-event-version-accepts-bool": "stmt:54141b83b77e",
+    "M5-R5-drop-rating-consistency": "stmt:5a01df2235e9",
+    "M50-non-object-line-silently-skipped": "stmt:54141b83b77e",
+    "M51-line-strip-washes-nonjson-whitespace": "stmt:4833e323c049",
+    "M52-calibration-strips-quiz-prefix": "stmt:66f84ab960c6",
+    "M53-f1-query-strips-prefix-only": "stmt:66f84ab960c6",
+    "M54-f1-uses-bare-eid": "stmt:f37fd0cfdafe",
+    "M56-full-validation-after-branching": "stmt:698d987de6fb",
+    "M57-validate-without-golden-manifest": "stmt:fce7260b7bf2",
+    "M58-input-ts-not-literally-checked": "stmt:6be363a3f232",
+    "M59-ordinal-ignores-legacy-scored-rows": "stmt:60314e1a7217",
+    "M60-normal-path-stores-bare-eid": "stmt:1422b2c7228a",
+    "M61-durable-eid-whitespace-not-scanned": "stmt:6cee3c61a23a",
+    "M62-node-id-type-only": "stmt:b6c5326fc2b1",
+    "M63-ts-match-not-fullmatch": "stmt:07cb0040ddda",
+    "M64-dumps-allows-nan": "stmt:ddb8eacf26a8",
+    "M65-loads-allows-nan": "stmt:4d0254dfdb35",
+    "M66-legacy-same-id-rejected": "stmt:95e147e1f7fe",
+    "M67-inline-calibration-not-normalized": "stmt:e8fa7624b738",
+    "M68-blank-lines-tolerated": "stmt:f2650d485101",
+    "M69-bom-tolerated": "stmt:f2650d485101",
+    "M6b-R7-tail-ignores-lf-state": "stmt:9c28ca435681",
+    "M7-R6-schema-drops-owner-clause": "stmt:067444db3590",
+    "M70-ordinal-w-only-not-calibration": "stmt:1bd6f16f888f",
+    "M71-ignore-provable-legacy-ordinal": "stmt:5fa1e33caf3b",
+    "M73-late-scan-after-early-exit": "stmt:a5a836844898",
+    "M74-candidate-copies-durable-rt": "stmt:ba1b0beed806",
+    "M75-w-fallback-restored": "stmt:66f7e7eef6ad",
+    "M76-self-node-id-gate-dropped": "stmt:cca6ed1276e8",
+    "M77-ordinal-fixed-minus-one": "stmt:df0f8fdcce4a",
+    "M78-first-write-uses-run-ts": "stmt:587ae367008e",
+    "M79-missing-scored-at-falls-back": "stmt:4b52b515653f",
+    "M8-6cell-cell4-allow-recovery": "stmt:4b7707fc8e3d",
+    "M80-envelope-compares-adopted-rt": "stmt:0c25208a7faa",
+    "M81-legacy-out-of-order-honored": "stmt:7841011453a9",
+    "M82-calibration-header-no-comment": "stmt:ec8befbec429",
+    "M83-whitespace-id-gate-global": "stmt:2d0cbb42e886",
+    "M84-cross-node-id-collision-ignored": "stmt:1408ac1b01d8",
+    "M85-no-producer-self-check": "stmt:d795daad875c",
+    "M86-f1-regex-not-yaml": "stmt:fff10e01e48e",
+    "M88-degraded-uses-run-ts": "stmt:174ad960ddfc",
+    "M9-6cell-cell2-drop-orphan-noop": "stmt:5ad5a11505d6",
+    "M91-f1-only-unconditional-noop": "stmt:1f2e99d5342c",
+    "M94-routing-raw-compare": "stmt:5febef1f1d44",
+    "M95-receipt-skips-abandoned": "stmt:ce507603ae0e",
+    "M96-adopted-time-unbound": "stmt:bf9ba7e022de",
+    "M98-no-pre-append-dry-run": "stmt:c817310a444c",
+    "M99-f1only-skips-fact-check": "stmt:bc76ff9bc959",
+}
+
+#: `EXPECT_LOC` 的显式豁免表 `{tag: 理由}` —— 与 `EXPECT_MSG_EXEMPT` 同一纪律：
+#: 不是「先欠着」，每条都要写清楚为什么连位置都绑不出来。已知的两种形态：
+#:   ⓐ 失败落在**门文件之外**（变异让门以未捕获异常死在第三方库里）⇒ 只能绑到
+#:      文件级 `file:<名>`，身份比 `stmt:` 弱，必须登记；
+#:   ⓑ pytest 报的行不属于任何语句（极少见，如落在装饰器/续行上）。
+#: `expect_loc` 的指纹落在**共享 helper**（不是 nodeid 指名的测试函数）里的已登记条目。
+#: ⛔ 为什么必须显式登记：helper 被多道门共用时，指纹本身证不了「红在**哪道门**的调用上」
+#: —— 判据仍成立（每条变异只跑自己那道门，(nodeid, loc) 组合唯一），但身份比「测试函数内
+#: 的断言」弱一档。不登记的话，新增一条时没人知道它落进了 helper（独立复核 2026-09-08）。
+#: 实测共 5 条：`_c1_reject_once` ← M23/M24/M25（三道 narrow 门共用）；`_parity_once` ← M49/M50。
+EXPECT_LOC_HELPER: dict[str, str] = {
+    "M23-C1-drop-event-type-gate": "位置落在共享 helper `_c1_reject_once` 的断言上 —— 该 helper 被 test_round11b_c1_event_type_narrow 等 3 道门共用, 指纹证不了红在哪道门的调用; (nodeid, loc) 组合在本表登记的门内仍唯一",
+    "M24-C1-drop-concept-id-gate": "位置落在共享 helper `_c1_reject_once` 的断言上 —— 同上, (nodeid, loc) 在本门内唯一",
+    "M25-C1-drop-vault-id-gate": "位置落在共享 helper `_c1_reject_once` 的断言上 —— 同上, (nodeid, loc) 在本门内唯一",
+    "M49-event-version-accepts-bool": "位置落在共享 helper `_parity_once` 的断言上 —— 该 helper 被 2 道门共用, 指纹证不了红在哪道门的调用; (nodeid, loc) 在本门内唯一",
+    "M50-non-object-line-silently-skipped": "位置落在共享 helper `_parity_once` 的断言上 —— 同上, (nodeid, loc) 在本门内唯一",
+}
+
+EXPECT_LOC_EXEMPT: dict[str, str] = {
+    "M89-receipt-drops-scored-at": "ⓒ 实测位置落在门 `test_round9_structured_receipt` 的**第 1/14 条 assert**(`assert _run_writer_settled(...).returncode == 0`)——那是**构造前提**(先写进一条正常 receipt), 不是「receipt 缺字段」这条被测性质; 该断言无消息、且期望子进程**成功**, 变异一让写点失败它必然先红而目标断言从不执行 = Z2-M15 假杀同型。⛔ 绑上去会把假杀记成 KILLED, 故收回 KILLED-UNBOUND。筛出它的可复跑判据见 evidence-mutkill-r2/premise_anchor_screen.py",
+    "M90-receipt-drops-attempt": "ⓒ 实测位置落在门 `test_round9_structured_receipt` 的**第 1/14 条 assert**(`assert _run_writer_settled(...).returncode == 0`)——那是**构造前提**(先写进一条正常 receipt), 不是「receipt 缺字段」这条被测性质; 该断言无消息、且期望子进程**成功**, 变异一让写点失败它必然先红而目标断言从不执行 = Z2-M15 假杀同型。⛔ 绑上去会把假杀记成 KILLED, 故收回 KILLED-UNBOUND。筛出它的可复跑判据见 evidence-mutkill-r2/premise_anchor_screen.py",
+    "M97-writeback-regex-only": "ⓐ 该变异让门在**门文件之外**失败(实见 file:parser.py), 只能绑到文件级弱身份; 按 check_expect_loc_unique 的纪律必须登记而不是当成与 stmt: 同等强度",
+}
+
 #: 本卡（CARD-DEBT-mutation-kill-identity）退役的变异，逐条写「为什么」。
 #: 早于本卡的退役写在各自 `MUTATIONS +=` 块的行内注释里（M154 / M159 / M160）。
 RETIRED_MUTATIONS: dict[str, str] = {}
@@ -2149,22 +2375,166 @@ def _check_expect_msg():
     return problems
 
 
-class _Terminated(Exception):
-    """把信号转成异常，好让 finally 里的还原跑得到。"""
+def _check_expect_loc():
+    """`EXPECT_LOC` 完整性 + 唯一性自检（round-19 新增）。返回违规说明列表。"""
+    gate_file = str(GATE_FILE)
+    problems = check_expect_loc_unique(
+        [(m[0], gate_file, EXPECT_LOC.get(m[0])) for m in MUTATIONS],
+        exempt=EXPECT_LOC_EXEMPT,
+    )
+    stale = sorted((set(EXPECT_LOC) | set(EXPECT_LOC_EXEMPT)) - {m[0] for m in MUTATIONS})
+    if stale:
+        problems.append(f"EXPECT_LOC/EXEMPT 里有已不存在的 tag: {stale}")
+    stale_h = sorted(set(EXPECT_LOC_HELPER) - {m[0] for m in MUTATIONS})
+    if stale_h:
+        problems.append(f"EXPECT_LOC_HELPER 里有已不存在的 tag: {stale_h}")
+    # ⛔ 指纹所在作用域必须就是 nodeid 指名的测试函数; 落在共享 helper 里的必须显式
+    # 登记 EXPECT_LOC_HELPER(理由: 指纹证不了红在哪道门的调用, 身份弱一档)。
+    from mutation_kill_identity import _stmts_with_scope, _fp  # 局部导入: 避免顶部再挂一层
+
+    _scopes = {}
+    for _node, _sc in _stmts_with_scope(GATE_FILE):
+        _scopes.setdefault(_fp(_node, _sc), _sc)
+    for _m in MUTATIONS:
+        _loc = EXPECT_LOC.get(_m[0])
+        if not _loc or not _loc.startswith("stmt:"):
+            continue
+        _sc = _scopes.get(_loc[5:])
+        if _sc is None:
+            continue  # 「指纹已找不到」由共用自检报, 这里不重复
+        if _sc != _m[4] and _m[0] not in EXPECT_LOC_HELPER:
+            problems.append(
+                f"{_m[0]}: expect_loc 的指纹落在作用域 `{_sc}`（≠ 门 {_m[4]}）—— 共享 helper "
+                f"身份弱一档, 须登记 EXPECT_LOC_HELPER 并写理由"
+            )
+    # ⛔ 收口后的不变量：既没有 `expect_msg` 又没有 `expect_loc` = `KILLED-UNBOUND`，
+    # 本卡目标 0 条。留一条**必须在两张豁免表里都写了理由** —— 那是「显式登记的残留」，
+    # 放行；两张表里没写全的才是「静默欠着」，当场报出来（而不是等跑完两小时在汇总里
+    # 看见一个数）。
+    # ⚠️ 判据这样分是有来由的：把「已登记的残留」也判成失败会让全跑在自检阶段
+    # sys.exit(2)，于是「其余 137 条还好着」这个信息一起丢掉。
+    silently_unbound = sorted(
+        m[0]
+        for m in MUTATIONS
+        if EXPECT_MSG.get(m[0]) is None
+        and EXPECT_LOC.get(m[0]) is None
+        and not (m[0] in EXPECT_MSG_EXEMPT and m[0] in EXPECT_LOC_EXEMPT)
+    )
+    if silently_unbound:
+        problems.append(
+            "这些条目消息与位置都没绑，且没有在**两张**豁免表里都写理由"
+            f"（= 静默欠着，不是显式登记的残留）: {silently_unbound}"
+        )
+    return problems
 
 
-def _install_signal_handlers():
-    """⛔ SIGTERM/SIGINT/SIGHUP 的默认处置**不做栈展开** ⇒ `finally` 不执行 ⇒
-    变异体留在生产文件里。g32cb / g32ccr1 早就装了，g32b 一直没有（Z6-C 登记）。
-    SIGKILL 挡不住，如实声明：被 `-9` 打断时靠下一次启动的 `_self_heal_leftovers()`
-    兜底。
+#: 当前**已落盘**的变异 `{路径: (原始字节, 我们写进去的字节)}`，外加当前变异 tag。
+#: 信号到达时按它无条件还原 —— ⛔ 为什么不能只靠 `finally`（round-19 收紧，见
+#: `RestoreGuard` 的 docstring）：旧写法把信号转成异常让 `finally` 跑，可信号若正好落在
+#: **还原循环内部**，异常从 finally 里逃出去 ⇒ 剩下的文件还留着变异体（负控
+#: `negctl_signal.py` 实测：5 个目标里 3 个没还原）。
+#:
+#: ⛔⛔ 为什么要记「写进去的字节」而不只是原文（round-19 的**回归修复**，独立复核抓到）：
+#: 第一版把「第三方改动存证」留在 `finally` 里的 `_restore_one()`，而信号路径上
+#: `RestoreGuard` **先**还原了文件 —— 等 `finally` 跑到时读到的 `now` 已经是原文，
+#: 与「我们写进去的变异体」必然不等 ⇒ 那道判据在信号路径上**恒真**。两个后果都很坏：
+#:   ① 没有第三方改动时，每次 Ctrl-C 都为每个目标文件打一条「被第三方改动」并写一份
+#:      **其实是脚本自己快照**的 `.bak`（本卡自己的 probe 存档里已复现两次：
+#:      `probe-g32b-20260908T080307.txt:36` 与 `…081108.txt:63`，两份新 `.bak` 里
+#:      `grep -c` 变异标记 = 0，而 09-04 那批真·跨车道污染的 `.bak` 计数 = 2）；
+#:   ② **有**第三方改动 T 时，guard 先用原文覆盖了 T ⇒ T 既没被存证也没被保留，
+#:      而打印文案还宣称「其内容已存证…请人工核对是否需要合并回去」—— 恰好是这段
+#:      注释本来要防的那件事，且属「声明比证据宽」。
+#: 修法：把比对**前移进第一个碰文件的人**（`_restore_active`），两条路径共用同一份
+#: 「读时快照 vs 现盘内容」比对；还原后清表，于是 `finally` 再调一次是干净的 no-op。
+_ACTIVE_SNAPSHOT: dict[pathlib.Path, tuple[bytes, bytes]] = {}
+_ACTIVE_TAG = [""]
+
+
+def _arm_mutation(tag, edits):
+    """把变异写盘并登记快照。`edits` = `{path: (原始字节, 变异后字节)}`。
+
+    ⛔ 顺序不能反：先登记再落盘。信号可能落在两次 `write_bytes` 之间，那时 `finally`
+    还没进，只有 `_ACTIVE_SNAPSHOT` 能告诉 handler 该还原哪些文件。
     """
+    _ACTIVE_TAG[0] = tag
+    _ACTIVE_SNAPSHOT.update(edits)
+    for _p, (_orig, _new) in edits.items():
+        _p.write_bytes(_new)
 
-    def _handler(signum, _frame):
-        raise _Terminated(f"收到信号 {signum}")
 
-    for _sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
-        signal.signal(_sig, _handler)
+def _restore_active():
+    """把登记过的文件逐字节写回，并在写回**之前**做第三方改动存证。幂等。
+
+    并发编辑防护: 还原写的是**读时快照**, 若变异窗口内有人改了这个文件, 无条件写回
+    会**静默丢掉他的改动**, 而「还原后字节相同」自检比的是自己的快照, 恒相同、看不见
+    这件事。窗口最长 900s × 多条变异, 不是理论风险。
+    ⚠️ 并行下这道自检**是自证** —— 2026-09-02 三个变异进程交错跑, 每条各自都显示
+    「还原成功」, 却在生产文件里留下了别人的变异体。外部锚点 (grep 标记 + 与已知良好
+    sha 比对) 才是证据。见 MEMORY: reference_mutation_script_module_level_side_effects。
+
+    ⚠️ **幂等的含义要写清**: 表被清空后再调一次是 no-op —— 它**不会**再打一条
+    「被第三方改动」。这正是上面 ①② 两个后果的封堵点: 信号路径先跑到这里、做完比对
+    与还原、清表; `finally` 里那一次于是什么也不做, 不再伪造告警、也不再覆盖任何东西。
+    """
+    for _p, (_orig, _written) in list(_ACTIVE_SNAPSHOT.items()):
+        now = _p.read_bytes()
+        if now == _orig:
+            # 两种窗口都长这样: ①登记了快照但变异体**还没写**(_arm_mutation 的写盘循环
+            # 被信号打断, 该文件仍是原文); ②已经被还原过(guard 先跑、finally 再跑)。
+            # 两种都不是第三方改动 —— 不跳过的话 ① 会被误报成「被第三方改动」并存证
+            # 一份**其实是原文**的伪 .bak(独立复核 2026-09-08 LOW; 与 N3 那个 HIGH 同族)。
+            continue
+        if now != _written:
+            # ⛔ 首版这里 sys.exit(3) 且**不还原** —— 那是致命的方向错误: 变异体会被
+            # 留在生产文件里。实测代价: 一次触发后 `if False:` 那个变异体在 SKILL.md
+            # 里活了整整一轮, 差点被 commit。正确顺序是「先把第三方内容存证, 再无条件
+            # 还原」—— 变异体绝不能留, 而第三方改动也不能无声蒸发。
+            stash = pathlib.Path(f"/private/tmp/g32b-mutation-thirdparty-{_ACTIVE_TAG[0]}-{_p.name}.bak")
+            stash.write_bytes(now)
+            # ⛔ 日志**不得挡住还原**（round-2 HIGH）：顺序是 存证 → print → 写回原文，
+            # print 一抛异常，当前文件与后续文件都还原不了；`RestoreGuard._safe_log`
+            # 包不到这个回调（它在 g32b 里）。诊断失败绝不能升级成数据完整性事故。
+            try:
+                print(
+                    f"[{_ACTIVE_TAG[0]}] ⚠️ 变异窗口内 {_p.name} 被第三方改动 — 其内容已存证到 {stash}; "
+                    f"仍按快照还原(变异体不得留在生产文件里), 请人工核对是否需要合并回去",
+                    flush=True,
+                )
+            except BaseException:  # noqa: BLE001  日志失败不改变控制流
+                pass
+        _p.write_bytes(_orig)  # 逐字节还原 (无条件 = EXIT trap 等价)
+    _ACTIVE_SNAPSHOT.clear()
+
+
+def _restore_active_or_keep_exit_code() -> None:
+    """还原；若已在退出展开中，二次还原的异常**吞掉**以保住约定退出码。
+
+    ⛔ round-3 MEDIUM：`RestoreGuard._finish` 抛 `SystemExit(131)` 后，调用方栈展开
+    仍会进入 `finally` 再还原一次。若还原持续遇到同一个 I/O 错误（例如存证写入失败），
+    第二次异常会**替换掉** `SystemExit(131)`，进程按未捕获异常退出 —— 约定的
+    「还原失败=131」这个信号就丢了。还原尝试与诊断都保留，只是不让它改写退出码。
+    """
+    # ⛔ round-4 HIGH：判据必须绑**进入包装时**的状态。`exiting()` 在 `_finish` 抛出
+    # **之前**就已置位，所以「捕获到异常时 exiting() 为 True」既可能是二次异常，也可能
+    # 是**本次还原自己触发的首次 SystemExit(130)** —— 后者被吞掉就等于信号退出失效，
+    # 进程继续跑下一条变异。只抑制「进来前就已在退出展开」的那种。
+    _was_exiting = _GUARD.exiting()
+    try:
+        _restore_active()
+    except BaseException:
+        if not _was_exiting:
+            raise
+        try:
+            traceback.print_exc()
+        except BaseException:  # noqa: BLE001
+            pass
+
+
+#: ⛔ 四个信号（含 SIGQUIT —— 收口前 g32b/g32cb/g32ccr1 三套都漏了它，而它的默认
+#: 处置同样不做栈展开）+ 还原期不可打断。SIGKILL 挡不住，如实声明：被 `-9` 打断时
+#: 靠下一次启动的 `_self_heal_leftovers()` 与跑前跑后全文件 sha 对账兜底。
+_GUARD = RestoreGuard(_restore_active)
 
 
 def _syntax_errors(texts):
@@ -2192,7 +2562,17 @@ def main():
         _bad_msg = _check_expect_msg()
         for _p in _bad_msg:
             print(f"  ⛔ EXPECT_MSG 自检: {_p}")
-        return 0 if (_ok and not _bad_msg) else 4
+        # ⛔ round-19：位置判据同样要进只读入口的退出码 —— 否则「`--list` 通过」
+        # 只覆盖了两维里的一维，说得比证据宽。
+        _bad_loc = _check_expect_loc()
+        for _p in _bad_loc:
+            print(f"  ⛔ EXPECT_LOC 自检: {_p}")
+        print(
+            f"  绑定覆盖：EXPECT_MSG {len(EXPECT_MSG)} 条 / EXPECT_LOC {len(EXPECT_LOC)} 条 "
+            f"/ 消息豁免 {len(EXPECT_MSG_EXEMPT)} / 位置豁免 {len(EXPECT_LOC_EXEMPT)} "
+            f"（共 {len(MUTATIONS)} 条变异）"
+        )
+        return 0 if (_ok and not _bad_msg and not _bad_loc) else 4
 
     _probe = "--probe" in _argv
     # `--only <前缀>[,<前缀>…]`：按 tag 前缀挑变异。⛔ 判据落在**实际用来选择的那个键**
@@ -2217,8 +2597,12 @@ def main():
     _syntax_invalid = []
     _observed = {}
     _verdicts = {}
-    _install_signal_handlers()
-    _healed = _self_heal_leftovers()
+    _GUARD.install()
+    # ⛔ 自愈也在写盘，而且发生在 `install()` **之后** —— 它是唯一「已落盘但快照未登记」
+    # 的窗口（独立复核 2026-09-08）。放进 `critical()`：这段期间收到的信号只记待办、
+    # 不打断，免得自愈自己被截断成「还原了一半」。
+    with _GUARD.critical():
+        _healed = _self_heal_leftovers()
     if _healed:
         print(f"⚠️ 自愈：还原了上一次残留的变异体 {_healed}", flush=True)
     # ⛔ 全文件基线核对（round-11b 新增，起因是一次真实污染）:
@@ -2255,6 +2639,10 @@ def main():
         if _bad := _check_expect_msg():
             for _b in _bad:
                 print(f"✗✗ EXPECT_MSG 自检失败 — {_b}")
+            sys.exit(2)
+        if _bad := _check_expect_loc():
+            for _b in _bad:
+                print(f"✗✗ EXPECT_LOC 自检失败 — {_b}")
             sys.exit(2)
     # ⛔ 锚点自检提到慢步骤之前（本卡新增；原先要等 36 分钟逐条冒出来）。
     # 这里**不中止**：锚漂的条目在下面的循环里照样记 failures 并跳过，
@@ -2297,11 +2685,15 @@ def main():
             if c != 1:
                 which = "变异" if (_p, _o, _n) == edits[0] else "同层"
                 failures.append(f"{tag}: {which}锚点在 {_p.name} 命中 {c} 次 (须恰 1) — 未变异, 跳过")
-                print(f"[{tag}] ✗ {which}锚点在 {_p.name} 命中 {c} 次, 跳过")
+                print(f"[{tag}] ✗ ANCHOR-ERROR {which}锚点在 {_p.name} 命中 {c} 次, 跳过")
                 _anchor_bad = True
                 break
             texts[_p] = texts[_p].replace(_o, _n, 1)
         if _anchor_bad:
+            # ⛔ round-19：进 `_verdicts` 参与六档计数。原先它只进 failures、
+            # 汇总里由 `_rows_anchor` 另算一个旁路数 ⇒ 六档之和对不上
+            # `len(MUTATIONS)`，「哪一条去哪儿了」不可核。
+            _verdicts[tag] = "ANCHOR-ERROR"
             continue
         mutated = {p: t.encode("utf-8") for p, t in texts.items()}
         # ⛔ round-17 MEDIUM: 变异体必须先**语法有效**。实测 138 条里有 2 条是
@@ -2313,15 +2705,25 @@ def main():
             failures.append(f"{tag}: SYNTAX-INVALID 变异体编译不过（假杀面）—— {_syn}")
             print(f"[{tag}] ⛔ SYNTAX-INVALID 变异体编译不过, 不计 KILLED: {_syn}")
             _syntax_invalid.append(tag)
+            _verdicts[tag] = "SYNTAX-INVALID"  # round-19: 进六档计数, 不走旁路
             continue
         try:
-            for _p, _b in mutated.items():
-                _p.write_bytes(_b)
+            _arm_mutation(tag, {_p: (originals[_p], _b) for _p, _b in mutated.items()})
             r = run_gate(gate)
             if _probe:
-                verdict, why = "OBSERVED", f"reason={observed_reason(r.stdout + r.stderr, gate)!r}"
+                _out = r.stdout + r.stderr
+                verdict, why = "OBSERVED", (f"reason={observed_reason(_out, gate)!r} loc={observed_loc(_out)!r}")
             else:
-                verdict, why = is_killed(r, gate, EXPECT_MSG.get(tag))
+                # ⛔ `require_gate_file` 对**位置豁免**条目关掉：它们登记的理由之一
+                # (ⓐ) 就是「失败落在门文件之外」。不关的话那条弱位置判据会把一条已
+                # 登记的合法条目永远判成 SURVIVED —— 收紧收掉一整个轴的形态。
+                verdict, why = is_killed(
+                    r,
+                    gate,
+                    EXPECT_MSG.get(tag),
+                    EXPECT_LOC.get(tag),
+                    require_gate_file=tag not in EXPECT_LOC_EXEMPT,
+                )
             killed = verdict.startswith("KILLED")
         finally:
             # 并发编辑防护: 还原写的是**读时快照**, 若变异窗口内有人改了这个文件,
@@ -2331,35 +2733,46 @@ def main():
             # 都显示「还原成功」, 却在生产文件里留下了别人的变异体。外部锚点
             # (grep MUTANT + 与已知良好 sha 比对) 才是证据。见 MEMORY:
             # reference_mutation_script_module_level_side_effects。
-            for _p, _b in mutated.items():
-                now = _p.read_bytes()
-                if now != _b:
-                    # ⛔ 首版这里 sys.exit(3) 且**不还原** —— 那是致命的方向错误: 变异体
-                    # 会被留在生产文件里。实测代价: 一次触发后 `if False:  # MUTANT` 在
-                    # SKILL.md 里活了整整一轮, 差点被 commit(靠 grep MUTANT 才抓到)。
-                    # 正确顺序是「先把第三方内容存证, 再无条件还原」—— 变异体绝不能留,
-                    # 而第三方改动也不能无声蒸发。
-                    stash = pathlib.Path(f"/private/tmp/g32b-mutation-thirdparty-{tag}-{_p.name}.bak")
-                    stash.write_bytes(now)
-                    print(
-                        f"[{tag}] ⚠️ 变异窗口内 {_p.name} 被第三方改动 — 其内容已存证到 {stash}; "
-                        f"仍按快照还原(变异体不得留在生产文件里), 请人工核对是否需要合并回去"
-                    )
-                _p.write_bytes(originals[_p])  # 逐字节还原 (finally 无条件 = EXIT trap 等价)
+            # ⛔ round-19: 整个还原循环放进 `critical()` —— 循环中途收到信号时只记
+            # 待办、不打断, 跑完再兑现。旧写法(信号转异常)会让异常从这个 finally
+            # 里逃出去, 剩下的文件留着变异体(负控实测 5 个目标里 3 个没还原)。
+            # ⚠️ 与信号路径**同一个函数**: 信号先跑过它的话这里就是 no-op(表已清空),
+            # 不会再伪造一条「被第三方改动」告警(见 `_ACTIVE_SNAPSHOT` 的注释 ①②)。
+            with _GUARD.critical():
+                _restore_active_or_keep_exit_code()
         _drift = [
             _p.name
             for _p in originals
             if hashlib.sha256(_p.read_bytes()).hexdigest() != hashlib.sha256(originals[_p]).hexdigest()
         ]
         if _drift:
-            print(f"[{tag}] ✗✗ 还原后字节不同: {', '.join(_drift)} — 立即停")
-            sys.exit(2)
+            print(f"[{tag}] ✗✗ 还原后字节不同: {', '.join(_drift)} — 立即停 (rc=3 数据完整性)")
+            sys.exit(3)
         sha_after = sha(path)
         if killed:
-            kill_fail[tag] = first_fail(r.stdout)
+            # ⛔ round-19: 记**位置身份**而不是 `first_fail` 的文本。空变异对照要回答的是
+            # 「只加层与层+变异体是不是败在**同一条断言**上」——`first_fail` 取的是
+            # `<file>:<line>: <Exc>: <msg>` 截断到 220 字符的**文本**，其中 `<msg>` 可能
+            # 内嵌被测子进程的输出（正是 Y1-B HIGH-1 的喂饱面）。两次跑只要子进程输出
+            # 有一点不同，同一条断言也会被判成「不同失败点」⇒ 层贡献的假杀被放行
+            # （独立复核 2026-09-08 实测已放行两条）。位置 token 不含任何子进程可控字节。
+            # ⛔ 记**全部**位置 token 而不是 locs[0]（Codex round-1 HIGH）：判据侧
+            # 用「任一命中」，对照侧却固定取第一条 ⇒ 「别的位置, 目标位置」这种序列
+            # 会让两边比的不是同一次失败，假杀被放行。
+            kill_fail[tag] = (
+                [t for t in matched_loc_tokens(r.stdout + r.stderr, GATE_FILE) if t],
+                first_fail(r.stdout),
+            )
         if _probe:
-            _observed[tag] = observed_reason(r.stdout + r.stderr, gate)
-            print(f"[{tag}] {gate} → OBSERVED rc={r.returncode} reason={_observed[tag]!r}")
+            _out = r.stdout + r.stderr
+            # ⛔ round-19: 位置**也要**记下来 —— `EXPECT_LOC` 就是从这里回填的。
+            # 首版只记了 reason, 于是跑完 36 分钟拿不到位置, 整趟白跑（实测踩过）。
+            _tok, _raw = observed_loc(_out)
+            _observed[tag] = (observed_reason(_out, gate), _tok, r.returncode, _raw)
+            print(
+                f"[{tag}] {gate} → OBSERVED rc={r.returncode} loc={_tok!r} at={_raw!r} reason={_observed[tag][0]!r}",
+                flush=True,
+            )
             continue
         _verdicts[tag] = verdict
         # ⛔ 三种非 KILLED 各说各的话（Codex round-1 MEDIUM-4）：
@@ -2396,6 +2809,11 @@ def main():
             for _f in failures:
                 print("  -", _f)
         if not _probe:
+            # ⛔ 部分跑的 rc=4 **让位**于更硬的结论(独立复核: 四套原先在「部分跑 +
+            # HARNESS-ERROR」上各给各的码)。优先级与全量一致: 还原(3) > 负控坏(2) > 部分跑(4)。
+            if any(v == "HARNESS-ERROR" for v in _verdicts.values()):
+                print("⛔ 其中有 HARNESS-ERROR —— 负控自己坏了, rc=2 盖过「部分跑 rc=4」")
+                return 2
             return 4
 
     if _probe:
@@ -2404,9 +2822,17 @@ def main():
         # 实际红在哪条断言上；候选是否**就是这条变异声称的那条**，要人去对
         # 变异意图与门源码，不是拿这份输出直接回填(那就成了「期望值与被测量同源」)。
         print("\n── PROBE 观察表（不是裁决）──")
-        for _t, _r in _observed.items():
-            print(f"  {_t}\t{_r!r}")
-        print(f"\n⚠️ --probe 不做击杀判定，rc 恒为 4。观察 {len(_observed)} 条。")
+        for _t, (_reason, _loc, _rc, _raw) in _observed.items():
+            print(f"  {_t}\trc={_rc}\tloc={_loc!r}\tat={_raw!r}\treason={_reason!r}")
+        # ⛔ 可直接回填 `EXPECT_LOC` 的形态：单独打一段, 免得人从上面那张混排表里手抄。
+        # ⚠️ 它是**观察结果**, 不是「已验证的期望值」—— 判据与被测量同源, 见
+        # `EXPECT_LOC` 的表头注释与验收单「本卡未证明什么」。
+        print("\n── 可回填的 EXPECT_LOC（观察值, 不是已验证的期望值）──")
+        for _t, (_reason, _loc, _rc, _raw) in sorted(_observed.items()):
+            print(f"EXPECT_LOC_CANDIDATE\t{_t}\t{_loc or ''}\t{_rc}\t{_raw or ''}")
+        _no_loc = sorted(t for t, (_, l, _rc, _raw) in _observed.items() if not l)
+        print(f"\n⚠️ 观察不到位置的条目 {len(_no_loc)} 条: {_no_loc}")
+        print(f"⚠️ --probe 不做击杀判定，rc 恒为 4。观察 {len(_observed)} 条。")
         return 4
 
     # ── 阶段 2: 空变异对照 (只施加同层, 不打变异体)
@@ -2440,31 +2866,51 @@ def main():
                 break
             texts[_p] = texts[_p].replace(_o, _n, 1)
         if bad:
-            failures.append(f"{tag}: 空变异对照锚点异常")
+            # ⛔ round-3 MEDIUM: 对照根本没施加 ⇒ 阶段 1 的 KILLED 失去支撑, 必须撤销;
+            # 否则它照旧进六档统计, 逐条终裁说得比证据宽（与「对照未跑成」的降档不一致）。
+            failures.append(f"{tag}: 空变异对照锚点异常 —— 对照未施加, 撤销阶段 1 的 KILLED")
+            if _verdicts.get(tag) == "KILLED":
+                _verdicts[tag] = "HARNESS-ERROR"
             continue
         try:
-            for _p, _t in texts.items():
-                _p.write_bytes(_t.encode("utf-8"))
+            _arm_mutation(f"{tag}-layeronly", {_p: (originals[_p], _t.encode("utf-8")) for _p, _t in texts.items()})
             r0 = run_gate(gate)
-            red0 = r0.returncode == 1 and "1 failed" in r0.stdout
+            # ⛔ 「对照绿」只认 rc=0（Codex round-1 HIGH）：旧写法 `rc==1 and "1 failed"`
+            # 把 rc=4/5（用法错、零收集）与 rc=1 但「2 failed」全都落进 else 的
+            # 「✓ 对照绿 ⇒ 击杀干净归因于变异体」—— 负控没跑成被读成结论。
+            _r0_green = r0.returncode == 0
+            # ⛔ 「恰一条失败」不能用全文子串（round-2 MEDIUM）：`11 failed`、
+            # `1 failed, 1 error` 都含 "1 failed"。改结构化：摘要区里目标门恰 1 条
+            # FAILED 且无 ERROR，且没有解析不掉的失败行。
+            _r0_out = r0.stdout + r0.stderr
+            # ⛔ round-3 MEDIUM: 用 `exactly_one_failed`(保留 status、不去重) ——
+            # `parse_failed_nodeids` 同收 FAILED/ERROR 又 `set` 去重, 同一 nodeid
+            # 各有一条 FAILED 与一条 ERROR 会被数成 1 条 ⇒ 「恰一条红」错判成立。
+            _r0_single_red = r0.returncode == 1 and exactly_one_failed(_r0_out, nodeid_of(gate))
+            red0 = _r0_single_red
         finally:
-            for _p, _b in originals.items():
-                _p.write_bytes(_b)  # 无条件还原
+            with _GUARD.critical():  # round-19: 还原期不可被第二个信号打断
+                _restore_active_or_keep_exit_code()
         drift = [
             p.name
             for p in originals
             if hashlib.sha256(p.read_bytes()).hexdigest() != hashlib.sha256(originals[p]).hexdigest()
         ]
         if drift:
-            print(f"[{tag}] ✗✗ 对照还原后字节不同: {drift} — 立即停")
-            sys.exit(2)
+            print(f"[{tag}] ✗✗ 对照还原后字节不同: {drift} — 立即停 (rc=3 数据完整性)")
+            sys.exit(3)
         # ⛔ 判据不是「对照红就算假杀」—— 那条判据**太粗**, 而且是我 2026-09-02 在
         # 这道对照里亲手犯的同一个错(与 `rc != 0` 混进续跑信号同型)。粗门(如
         # test_internal_audit_findings)捆了多个子场景, 层可能弄红**另一个**子场景。
         # 实测 M23: 只加层败在「不得被当成一次复习重放」, 层+变异体败在「零写」——
         # **不同断言** ⇒ 变异体确实改变了行为, 不是假杀。
         # 正确判据: 只有两次败在**同一条**断言上, 才说明变异体毫无贡献。
-        fa = first_fail(r0.stdout) if red0 else None
+        # `(位置 token, 文本)` 两元组：位置是承重判据，文本只用于打印诊断。
+        fa = (
+            ([t for t in matched_loc_tokens(r0.stdout + r0.stderr, GATE_FILE) if t], first_fail(r0.stdout))
+            if red0
+            else None
+        )
         fb = kill_fail.get(tag)
         if kind == "complete":
             # 这类层的合格判据不是「只加层要绿」, 而是「变异体单独不够」。
@@ -2472,32 +2918,73 @@ def main():
             _bsnap = _bp.read_bytes()
             _btxt = _bsnap.decode("utf-8")
             if _btxt.count(_bo) != 1:
-                failures.append(f"{tag}: complete 对照的变异体锚点异常")
+                failures.append(f"{tag}: complete 对照的变异体锚点异常 —— 对照未施加, 撤销阶段 1 的 KILLED")
                 print(f"[{tag}] ✗ complete 对照锚点异常")
+                if _verdicts.get(tag) == "KILLED":
+                    _verdicts[tag] = "HARNESS-ERROR"
                 continue
             try:
-                _bp.write_bytes(_btxt.replace(_bo, _bn, 1).encode("utf-8"))
+                _arm_mutation(f"{tag}-bodyonly", {_bp: (_bsnap, _btxt.replace(_bo, _bn, 1).encode("utf-8"))})
                 rb = run_gate(gate)
-                b_only = rb.returncode == 1 and "1 failed" in rb.stdout
+                # 同上：complete 对照的「变异体单独不够」只认 rc=0 为绿。
+                _rb_green = rb.returncode == 0
+                _rb_out = rb.stdout + rb.stderr
+                b_only = rb.returncode == 1 and exactly_one_failed(_rb_out, nodeid_of(gate))
             finally:
-                _bp.write_bytes(_bsnap)  # 无条件还原 (EXIT trap 等价)
+                with _GUARD.critical():  # round-19: 还原期不可被第二个信号打断
+                    _restore_active_or_keep_exit_code()
             if hashlib.sha256(_bp.read_bytes()).hexdigest() != hashlib.sha256(_bsnap).hexdigest():
-                print(f"[{tag}] ✗✗ complete 对照还原后字节不同 — 立即停")
-                sys.exit(2)
+                print(f"[{tag}] ✗✗ complete 对照还原后字节不同 — 立即停 (rc=3 数据完整性)")
+                sys.exit(3)
             if b_only:
                 failures.append(f"{tag}: 声明为 complete 但变异体单独即可杀 ⇒ 层是多余的")
                 print(f"[{tag}] ✗ complete 但变异体单独即可杀 ⇒ 撤层")
+            elif _rb_green:
+                print(f"[{tag}] ✓ complete: 变异体单独不够(门绿 rc=0), 补齐站点后才红 ⇒ 层必要")
             else:
-                print(f"[{tag}] ✓ complete: 变异体单独不够(门绿), 补齐站点后才红 ⇒ 层必要")
+                failures.append(f"{tag}: complete 对照 rc={rb.returncode} 既非绿也非单条红 — 判据面不成立")
+                print(f"[{tag}] ⛔ complete 对照 rc={rb.returncode}（非 0/1 或多例失败）—— 不构成结论")
+                if _verdicts.get(tag) == "KILLED":
+                    _verdicts[tag] = "HARNESS-ERROR"
+        elif _r0_green:
+            print(f"[{tag}] ✓ 对照绿 (rc=0) ⇒ 击杀干净归因于变异体")
         elif not red0:
-            print(f"[{tag}] ✓ 对照绿 (rc={r0.returncode}) ⇒ 击杀干净归因于变异体")
-        elif fb is not None and fa == fb:
-            failures.append(f"{tag}: 只加层与层+变异体败在同一条断言 ⇒ 击杀由层贡献 (假杀): {(fa or '')[:90]}")
-            print(f"[{tag}] ✗ 假杀 — 两次同一失败点: {(fa or '')[:90]}")
+            # rc 既不是 0 也不是「恰一条红」⇒ 对照本身没跑成，不能当成「绿」。
+            failures.append(f"{tag}: 空变异对照 rc={r0.returncode} 既非绿也非单条红 — 判据面不成立")
+            print(f"[{tag}] ⛔ 空变异对照 rc={r0.returncode}（非 0/1 或多例失败）—— 不构成结论")
+            if _verdicts.get(tag) == "KILLED":
+                _verdicts[tag] = "HARNESS-ERROR"
+        elif (
+            fb is not None
+            and fa is not None
+            and fa[0]
+            and fb[0]
+            and (
+                # ⛔ 有目标位置绑定时，只有**目标位置**同时出现在两趟里才算假杀
+                # （round-2 MEDIUM）：泛交集会因「别的失败位置恰好重合」把有效击杀
+                # 误降档 —— 主变异 {目标 T, 其它 U}、空对照 {U} 时 T 只在变异后才红。
+                EXPECT_LOC.get(tag) in set(fa[0]) & set(fb[0]) if EXPECT_LOC.get(tag) else set(fa[0]) & set(fb[0])
+            )
+        ):
+            _tgt = EXPECT_LOC.get(tag)
+            _same = [_tgt] if _tgt else sorted(set(fa[0]) & set(fb[0]))
+            failures.append(f"{tag}: 只加层与层+变异体败在同一条断言 ⇒ 击杀由层贡献 (假杀): {_same} {fa[1][:70]}")
+            print(f"[{tag}] ✗ 假杀 — 两次同一失败点 {_same}: {fa[1][:80]}")
+            # ⛔ 还要**降档**：独立复核指出, 首版只 append failures 不回写 _verdicts,
+            # 于是主循环记下的 KILLED 原样进汇总 —— 「137/138 KILLED」里混着已判假杀
+            # 的条目, 出口文案说得比证据宽。假杀 = 负控自己的变异没有鉴别力 ⇒ HARNESS-ERROR。
+            if _verdicts.get(tag) == "KILLED":
+                _verdicts[tag] = "HARNESS-ERROR"
+        elif fb is not None and fa is not None and (not fa[0] or not fb[0]):
+            # 位置取不到就**不敢下结论**：报 harness 面的问题，而不是替它猜一个。
+            failures.append(f"{tag}: 空变异对照拿不到位置 token (只加层={fa[0]} 层+变异体={fb[0]}) — 判据面不成立")
+            print(f"[{tag}] ⛔ 空变异对照的位置判据面不成立: 只加层={fa[0]!r} 层+变异体={fb[0]!r}")
+            if _verdicts.get(tag) == "KILLED":
+                _verdicts[tag] = "HARNESS-ERROR"
         else:
-            print(f"[{tag}] ✓ 对照红但失败点不同 ⇒ 变异体有可观测效果 (门较粗, 隔离不干净)")
-            print(f"       只加层: {(fa or '')[:88]}")
-            print(f"       +变异体: {(fb or '')[:88]}")
+            print(f"[{tag}] ✓ 对照红但失败**位置**不同 ⇒ 变异体有可观测效果 (门较粗, 隔离不干净)")
+            print(f"       只加层  : {fa[0] if fa else None} {(fa[1] if fa else '')[:70]}")
+            print(f"       +变异体: {fb[0] if fb else None} {(fb[1] if fb else '')[:70]}")
 
     # ── 收尾: 全文件基线复核（与「每条变异各自的快照」无关 —— 那是自证）
     print("── 基线复核（跑后）──")
@@ -2509,37 +2996,98 @@ def main():
         if not ok:
             _drifted.append(f"{p.name}: {h0[:16]} → {h1[:16]}")
     if _drifted:
-        failures.append("全文件基线漂移（有变异体没还原）: " + "; ".join(_drifted))
-        print("   ⛔ 基线漂移 —— 生产文件里可能残留变异体, 立即人工核对")
+        # ⛔ 还原失败是**数据完整性**问题，优先级高于一切结论（Codex round-1 MEDIUM：
+        # 验收单声明了 rc=3 契约而代码没实现）。这里直接 rc=3 退出，不与 SURVIVED/
+        # HARNESS-ERROR 混在同一个码上。
+        print("   ⛔ 基线漂移 —— 生产文件里可能残留变异体, 立即人工核对 (rc=3)")
+        for _d in _drifted:
+            print("   -", _d)
+        return 3
 
-    # ── 汇总: 三态计数（KILLED / SURVIVED / SYNTAX-INVALID）+ 锚点异常
+    # ── 汇总: 六档计数（四套统一口径, 见 mutation_kill_identity.VERDICTS）
     # ⛔ ANCHOR-ERROR 与 SYNTAX-INVALID 都**不是**关于被测物的结论 —— 前者是变异
     # 没打进去, 后者是负控自己坏了。单列出来, 不许并进 KILLED / SURVIVED 任何一边。
-    _n_anchor_err = len({r[0] for r in _rows_anchor if r[2] != 1})
-    _n_bound = sum(1 for v in _verdicts.values() if v == "KILLED")
-    _n_unbound = sum(1 for v in _verdicts.values() if v == "KILLED-UNBOUND")
-    _n_survived = sum(1 for v in _verdicts.values() if v == "SURVIVED")
-    _n_harness = sum(1 for v in _verdicts.values() if v == "HARNESS-ERROR")
+    # ⛔ round-19: 这两档改为一并进 `_verdicts`, 于是「六档之和 = len(MUTATIONS)」
+    # 成为可核的不变量（原先它们走旁路计数, 加起来对不上, 「哪一条去哪儿了」无从查）。
+    _n = {v: sum(1 for x in _verdicts.values() if x == v) for v in VERDICTS}
+    _n_anchor_pre = len({r[0] for r in _rows_anchor if r[2] != 1})
     print()
     print("── 汇总 ──")
     # ⛔ Codex round-1 HIGH-3 整改: 「绑了断言身份的击杀」与「只证明了指定门红了」
     # **分开报**。合起来说成「N 条全部被指定断言杀死」是把结论说得比证据宽 ——
     # 豁免条目的判据仍是旧口径, 它们不在「红在声称的那条断言上」这个结论里。
-    print(f"KILLED (绑定断言身份): {_n_bound}/{len(MUTATIONS)}")
-    print(f"KILLED-UNBOUND (仅证明指定门红了, 见 EXPECT_MSG_EXEMPT): {_n_unbound}")
-    print(f"KILLED 合计 (两者之和, **不等于**「全部被指定断言杀死」): {_n_bound + _n_unbound}/{len(MUTATIONS)}")
-    print(f"SURVIVED: {_n_survived}")
-    print(f"HARNESS-ERROR: {_n_harness} (负控自己坏了, 不是关于被测物的结论)")
-    print(f"ANCHOR-ERROR: {_n_anchor_err} (变异未施加, 不是结论)")
-    print(f"SYNTAX-INVALID: {len(_syntax_invalid)} (>0 说明负控自己坏了) {_syntax_invalid or ''}")
+    print(f"KILLED (绑定断言身份: 位置 [+ 消息]): {_n['KILLED']}/{len(MUTATIONS)}")
+    print(f"KILLED-UNBOUND (仅证明指定门红了, 位置与消息都没绑): {_n['KILLED-UNBOUND']}")
+    print(
+        f"KILLED 合计 (两者之和, **不等于**「全部被指定断言杀死」): "
+        f"{_n['KILLED'] + _n['KILLED-UNBOUND']}/{len(MUTATIONS)}"
+    )
+    print(f"SURVIVED: {_n['SURVIVED']}")
+    print(f"HARNESS-ERROR: {_n['HARNESS-ERROR']} (负控自己坏了, 不是关于被测物的结论)")
+    print(f"ANCHOR-ERROR: {_n['ANCHOR-ERROR']} (变异未施加, 不是结论)")
+    print(f"SYNTAX-INVALID: {_n['SYNTAX-INVALID']} (>0 说明负控自己坏了) {_syntax_invalid or ''}")
+    _total = sum(_n.values())
+    # ⛔ 这里**一定**是全量：`--only` 与 `--probe` 都在到达汇总段之前 `return 4`
+    # （两个出口分别在「部分跑提示」与「PROBE 观察表」两段里, 具体行不写死 —— 行号
+    # 必须实测不能推算, 上一版把行号写进注释, 后续编辑一漂移就指错地方）。
+    # 首版写成 `len(MUTATIONS) if _only is None else …`, 那个 else 分支**永不求值** ——
+    # 死分支会让下一个人以为 `--only` 走过汇总, 从而按错误前提改出口逻辑（独立复核指出）。
+    # ⚠️ **不**把汇总段前移来「让它活起来」: 阶段 2 的 `layered` 不受 `_only` 过滤,
+    # 前移会让定点复核把全部带层变异写进生产文件; 且汇总段末尾的 `return 1` 会打破
+    # 「部分跑 rc 恒为 4、绝不落到 PASS 那条路」这条纪律。⇒ 如实声明:
+    # **`--only` 不产出六档聚合表**（逐条标签仍打, 缺的是计数与「六档之和」不变量）。
+    _expect_total = len(MUTATIONS)
+    _sum_ok = _total == _expect_total
+    print(f"六档之和: {_total} (应 = {_expect_total}) {'✓' if _sum_ok else '⛔ 对不上, 有条目没落进任何一档'}")
+    # ⛔ 「应一致」这句原先从没被比较过 —— 声明比证据宽。做成真判据：跑前的只读锚点
+    # 自检与主循环里实际记下的 ANCHOR-ERROR 条数必须相等；不等说明两者看到的树不同
+    # （例如变异窗口内锚文本被改了），那本身就是要报出来的事。
+    _anchor_agree = _n_anchor_pre == _n["ANCHOR-ERROR"]
+    print(
+        f"（跑前只读锚点自检: 异常锚点 {_n_anchor_pre} 条; 主循环记下 ANCHOR-ERROR "
+        f"{_n['ANCHOR-ERROR']} 条 ⇒ {'一致 ✓' if _anchor_agree else '⛔ 不一致'}）"
+    )
+    if not _anchor_agree:
+        failures.append(
+            f"跑前锚点自检 {_n_anchor_pre} 条 != 主循环 ANCHOR-ERROR {_n['ANCHOR-ERROR']} 条"
+            " —— 两者看到的树不同（变异窗口内锚文本被改？）"
+        )
+    if not _sum_ok:
+        # ⛔ 计数口径坏了 = 负控自己坏了 ⇒ rc=2（与另三套同契约）。
+        print(f"⛔ 六档之和 {_total} != {_expect_total} —— 有条目没落进任何一档, 计数口径坏了 (rc=2)")
+        return 2
     print()
+    # ⛔ 退出码语义四套统一（独立复核 2026-09-08：原先 HARNESS-ERROR 与 SURVIVED 压成
+    # 同一个 rc=1 —— 「pytest 没跑成」与「门不承重」两个方向完全相反的结论共用一个码）：
+    #   rc=2  有 HARNESS-ERROR（负控自己坏了，先去修 harness，别去改门）
+    #   rc=1  有 SURVIVED 或别的 failures（关于被测物的结论）
+    #   rc=4  部分跑（--only / --probe / --list 自检不过）—— 不构成全量结论
+    #   rc=0  全部 KILLED；⚠️ **已登记**的 KILLED-UNBOUND 残留只报不判失败 ——
+    #         未登记的那种在跑之前就被 `_check_expect_loc()` / `_check_expect_msg()`
+    #         挡在 rc=2 上了，走不到这里。
+    if _n["HARNESS-ERROR"]:
+        print(f"⛔ HARNESS-ERROR {_n['HARNESS-ERROR']} 条 —— 负控自己坏了, 不是关于被测物的结论 (rc=2)")
+        for f in failures:
+            print("  -", f)
+        return 2
     if failures:
         print("变异验证 FAIL:")
         for f in failures:
             print("  -", f)
         return 1
+    # ⛔ 收尾文案必须与**新的**分档口径一致（跨车道交叉通报 2026-09-08 的同型教训：
+    # 扩展了裁决集合却沿用旧出口文案 ⇒ 结论比证据宽）。旧文案写死「138/138 全部被
+    # 指定门的指定断言杀死」—— 而 `KILLED-UNBOUND` 只证明了「指定门红了」，把它算进
+    # 那句话就是把两种强度不同的结论并成一句。
+    if _n["KILLED-UNBOUND"]:
+        print(
+            f"⚠️ 其中 {_n['KILLED-UNBOUND']} 条只证明了「指定门红了」(KILLED-UNBOUND)，"
+            f"**不在**「红在声称的那条断言上」这个结论里；逐条理由见 EXPECT_MSG_EXEMPT "
+            f"与 EXPECT_LOC_EXEMPT。"
+        )
     print(
-        f"变异验证 PASS: {len(MUTATIONS)}/{len(MUTATIONS)} 全部被**指定门的指定断言**杀死; "
+        f"变异验证 PASS: {_n['KILLED']}/{len(MUTATIONS)} 红在**声称的那一条断言**上"
+        f"（绑定维度: 断言源位置 [+ 消息]）; 另有 {_n['KILLED-UNBOUND']} 条 KILLED-UNBOUND; "
         f"{len(layered)} 条带层变异全部通过空变异对照(击杀非层贡献); 全部逐字节还原。"
     )
     return 0

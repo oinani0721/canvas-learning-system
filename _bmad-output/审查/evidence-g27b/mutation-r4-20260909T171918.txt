@@ -1,0 +1,23 @@
+# CARD-G2-7b r4 整改的验伪：把每处修复**变异回 r4 之前的写法**，看指定的那条门是否变红
+# 规矩：串行 / 先落盘备份 / restore 无条件（finally + atexit）/ 每条先证明变异生效（文件真的变了）
+# 脚本：scratchpad/mutate_r4.py（+ 第 9 条单独跑，见末尾）
+# 目标文件：scripts/cls_forbidden_paths.py · scripts/deploy-vault.sh
+
+✅ B-1 前缀物理化（claude_prefix 换回 k()）        : 指定门 变红 / 控制组 仍绿
+✅ B-1 裸 startswith 误拦兄弟（去掉词法 key）      : 指定门 变红
+✅ B-2 只比首尾（祖先层去掉逐跳 chain_hits）      : 指定门 变红 / 控制组 仍绿
+✅ B-4 去掉硬链接检查（loop 里删 assert_writable_now）: 指定门 变红 / 控制组 仍绿
+✅ H-2 退回按空格拆词（want_pairs 字符串）        : 指定门 变红
+✅ M-3 退回裸参数展开（去掉尾斜杠/单段分支）      : 指定门 变红
+✅ H-1 去掉写前复查（删 assert_writable_now "$ilog"）: 指定门 变红
+✅ H-1 python 去掉 O_NOFOLLOW（+ nlink 阈值改 99） : 指定门 变红
+✅ nlink 三态退回两态（case 换回 -z + `-gt` 加 2>/dev/null）: 指定门 变红 / 控制组 仍绿
+
+全部还原: True（逐字节与变异前比对，非与 HEAD 比对 —— 文件有未提交改动）
+
+# 一条存活并因此删掉了代码（不是门的问题，是代码的问题）
+# 我在 hits() 与 ancestor_symlink_hits() 两层都加了 chain_hits。
+# 变异 hits() 那一层 ⇒ 两跳 .git 用例**仍然红** ⇒ 该层不承重（ancestor 的游标从路径自身
+# 起步，自身是链时同样会走 chain_hits）。已删除并在注释里写明依据。
+# 留着会让人以为有两道防线，实际只有一道被验证过。
+rc=0

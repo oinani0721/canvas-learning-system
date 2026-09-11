@@ -1,0 +1,26 @@
+### CARD-RED-R 接收卡命名冲突核验（Codex round-1 MEDIUM）
+时间: 2026-09-09T13:20:57+0800
+台账路径: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/implementation-artifacts/goal-cards/未合卡追踪台账.md
+test -f 台账: 
+rc=0
+
+== grep -c 'CARD-RED-R-FIX' 台账 ==
+0
+rc=1
+
+== 台账中已有的 CARD-RED-* 卡名（去重）==
+CARD-RED-A1-sentinel
+CARD-RED-TRIAGE
+rc=0
+
+== 台账中 U11-B / RED-C2 的登记行 ==
+82:| **Y6-C RED-TRIAGE**（`af9ce380`） | 5 条归属分诊表/草案不一致；「新」12 条无接收卡；裁判 2 字面跑不出；B 类 41 条整类证伪（真因 `MagicMock` await）；A1 拆 auth 31 + sentinel 10 | 第十三批 RED 卡开工先对齐（基线改 202） ｜ **【第十三批承接 2026-09-07】** → **U10-B RED-E / U10-C RED-A1-auth / U10-D RED-A1-sentinel / U10-E RED-A2 / U11-A RED-C1 / U11-B RED-C2 / U11-C RED-NEW / U5-C RED-R**；分母 202 对齐 = `evidence-b13/red-align-da690bf8.md`；MOCKFIX 38 + ENVDEP 3 → 第十四批 |
+rc=0
+
+== U11-B 车道是否存在且未合入主干 ==
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u11-red-c                                                                                                                        9b131f2f [card/u11-red-c]
+rc=0
+主干 main HEAD: a55db2ab
+U11-B 分支 HEAD: 9b131f2f
+U11-B 是否已被 main 包含: 
+rc=1 (0=已合入, 1=未合入)

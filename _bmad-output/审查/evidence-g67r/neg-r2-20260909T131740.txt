@@ -1,0 +1,44 @@
+== 变异前 sha:
+afe054ac3ca1fc0e61e8b2e60fe9e993cc6e075a56d5faab87cceec2f3c5b2a1  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/scripts/daily_review_run.py
+f79a4b83047ffb29058f86c0d3cc209ae6a054ac70266a070d7822d25a9965d9  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/app/api/v1/endpoints/review_overview.py
+
+════════ 变异 R2H1 (期望打红: test_g67r_corrupt_quarantine_happens_under_the_lock) ════════
+[mutate] R2H1 已退回 -> daily_review_run.py
+[mutate] R2H1b 已退回 -> daily_review_run.py
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/scripts/daily_review_run.py:95:    return _load_state_locked(vault)  # [MUTANT-R2H1] 退出锁
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/scripts/daily_review_run.py:153:        pass  # [MUTANT-R2H1] 去掉隔离前重读
+FAILED tests/regression/test_daily_review_run.py::test_g67r_corrupt_quarantine_happens_under_the_lock
+========== 1 failed, 22 passed, 120 deselected, 10 warnings in 3.06s ===========
+
+════════ 变异 R2H2 (期望打红: test_g67r_hardlinked_lock_is_refused) ════════
+[mutate] R2H2 已退回 -> daily_review_run.py
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/scripts/daily_review_run.py:276:                if False:  # [MUTANT-R2H2] 去掉硬链接校验
+FAILED tests/regression/test_daily_review_run.py::test_g67r_hardlinked_lock_is_refused
+========== 1 failed, 22 passed, 120 deselected, 10 warnings in 3.03s ===========
+
+════════ 变异 MAX (期望打红: test_g67r_schema_version_never_goes_backwards_on_merge) ════════
+[mutate] MAX 已退回 -> daily_review_run.py
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/scripts/daily_review_run.py:365:    # [MUTANT-MAX] 去掉单调取大特判
+FAILED tests/regression/test_daily_review_run.py::test_g67r_schema_version_never_goes_backwards_on_merge
+FAILED tests/regression/test_daily_review_run.py::test_g67r_v1_state_load_save_lands_as_v2_with_values_intact
+========== 2 failed, 21 passed, 120 deselected, 10 warnings in 3.04s ===========
+
+════════ 变异 M1 (期望打红: test_g67r_lock_acquisition_failure_is_503_not_500) ════════
+[mutate] M1 已退回 -> review_overview.py
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/app/api/v1/endpoints/review_overview.py:2268:    with lock, runner.state_locked(vault_dir):  # [MUTANT-M1] 取锁移出 try
+FAILED tests/unit/test_review_overview.py::test_g67r_lock_acquisition_failure_is_503_not_500
+========== 1 failed, 22 passed, 120 deselected, 10 warnings in 3.24s ===========
+
+════════ 变异 L3 (期望打红: test_g67r_state_passed_is_false_when_no_subprocess_ran) ════════
+[mutate] L3 已退回 -> review_overview.py
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/app/api/v1/endpoints/review_overview.py:1870:                "state_passed": True,  # [MUTANT-L3] 退回"路径可用" 
+____________ test_g67r_state_passed_is_false_when_no_subprocess_ran ____________
+tests/unit/test_review_overview.py:3592: in test_g67r_state_passed_is_false_when_no_subprocess_ran
+    assert body["state_passed"] is False, "没起子进程就没把账交出去 —— 不许报 true"
+FAILED tests/unit/test_review_overview.py::test_g67r_state_passed_is_false_when_no_subprocess_ran
+========== 1 failed, 22 passed, 120 deselected, 10 warnings in 3.51s ===========
+
+== 还原后 sha:
+afe054ac3ca1fc0e61e8b2e60fe9e993cc6e075a56d5faab87cceec2f3c5b2a1  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/scripts/daily_review_run.py
+f79a4b83047ffb29058f86c0d3cc209ae6a054ac70266a070d7822d25a9965d9  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/app/api/v1/endpoints/review_overview.py
+[restore] 两个文件已还原

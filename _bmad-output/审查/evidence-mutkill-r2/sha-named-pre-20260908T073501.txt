@@ -1,0 +1,9 @@
+=== NAMED TARGETS SHA (pre) ===
+63b51029ea96a78abd757902023f378697688c28db1b8dc0aaee8969e9ee48e8  canvas-vault/.claude/skills/quiz-answer/SKILL.md
+a766fbcc28e3ff917e740843c633e800aa8a75e949295f83efc90f55105f90f0  canvas-vault/.claude/scripts/fsrs_bridge.py
+3bf4ed9402a4c8edfde16630a79094a5d4518fd181fa60810319fe46d37abb90  canvas-vault/.claude/scripts/decay_beta.py
+a52c77317b799a1aa1c2d5abf23a5bbb5af78ff988179941c4e865b39ee207f8  backend/tests/regression/test_g3_2_review_ledger.py
+=== expected ===
+fsrs_bridge.py  a766fbcc28e3ff917e740843c633e800aa8a75e949295f83efc90f55105f90f0
+decay_beta.py   3bf4ed9402a4c8edfde16630a79094a5d4518fd181fa60810319fe46d37abb90
+SKILL.md        63b51029ea96a78abd757902023f378697688c28db1b8dc0aaee8969e9ee48e8

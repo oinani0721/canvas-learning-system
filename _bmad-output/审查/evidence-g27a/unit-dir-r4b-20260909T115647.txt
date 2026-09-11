@@ -1,0 +1,12 @@
+### tests/unit 目录级**独占**重跑（round-4 整改后） vs 红基线 da690bf8
+汇总: = 173 failed, 4835 passed, 48 skipped, 121 warnings, 29 errors in 472.55s (0:07:52) =
+基线 nodeid: 202  本次: 202
+--- 本卡新引入(必须空) ---
+FAILED tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422
+--- 本卡修复(允许) ---
+FAILED tests/unit/test_mock_degradation_transparency.py::TestMockScoringWarningLogs::test_mock_mode_logs_warning
+集合相等: 否
+--- 对照: 上一次(与 (h) 两跑并发, 665s)的两条漂移 ---
+  test_accept_candidate_already_accepted_returns_422 本次是否红: 1
+  test_mock_mode_logs_warning 本次是否红: 0
+rc=0

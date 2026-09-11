@@ -1,0 +1,22 @@
+# 因果验证：codex exec 是否会写 ~/.codex/config.toml 的 [projects] 表  @ 2026-09-08T07:16:21+08:00
+设计：换一个【全新目录】跑一次 codex exec，跑前跑后各取 sha 与 [projects] 段数。
+      若段数 +1 且新增段恰为该新目录 ⇒ 因果成立（非单次巧合）。
+
+=== 跑前 ===
+  config.toml sha = 7e233a8694bc998677498514bb4ee06e
+  [projects.*] 段数 = 15
+  新目录是否已在表中 = 0
+
+=== 跑 codex exec（read-only，最小任务）===
+OK
+tokens used
+8,147
+OK
+codex_rc=0
+
+=== 跑后 ===
+  config.toml sha = 7e233a8694bc998677498514bb4ee06e
+  [projects.*] 段数 = 15
+  新目录是否已在表中 = 0
+  [mcp_servers.*] 段数（应仍为 8，证明变的不是 MCP 配置）= 8
+rc=0

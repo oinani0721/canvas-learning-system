@@ -1,0 +1,5 @@
+📦 deploy-vault [apply] vault=probe_act port=8124 hosts=claude
+   harness=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy
+[1/6] preflight: OK 树完整 / 禁写面过 / 名不动点 / port 8124 空闲 / skills 9 / main.js 在位
+[2/6] install: FAIL install-vault.sh 非零退出, 见 /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27b/act-20260909T135912/ev/install-20260909T135914.txt
+rc=72

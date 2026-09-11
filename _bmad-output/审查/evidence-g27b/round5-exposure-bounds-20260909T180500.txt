@@ -1,0 +1,97 @@
+# CARD-G2-7b round-5：四条 BLOCKER / 三条 HIGH 的**现实暴露面**实测（只读，零写）
+# 目的：判据的理论漏面 ≠ 本机此刻可被穿。给主 session 人审框定优先级。
+# ⚠️ 本文件只回答「当前拓扑下能不能踩到」，**不**降低任何一条的成立性——
+#    Codex 五条都在代码层成立，车道无一驳回。
+
+## 实测命令与输出（2026-09-09 18:05 CST，机器本地时区）
+
+### B-1（HOME 本身是软链 ⇒ 物理别名轴丢失）
+$ python3 -c 'import os;h=os.path.expanduser("~");print(os.path.islink(h), os.path.realpath(h))'
+  False /Users/Heishing
+=> **本机 $HOME 不是软链** ⇒ B-1 描述的拓扑当前不存在。
+   但它是**有前后版本对照的真回归**：同一内存拓扑下 8f525887 判 HIT、6b9ef8ce 判 OK
+   （r4 的 B-1 修复把 claude_prefix 从 k() 改成词法 join，换轴时丢了物理轴）。
+   ⇒ 现实风险低、**判据正确性缺陷成立**。
+
+### B-3（HOME 可枚举但子项不可搜索 ⇒ 外部保护目标漏登记）
+$ ls -ld "$HOME"/.claude*
+  drwxr-xr-x  /Users/Heishing/.claude          <- 普通目录，可读可搜索
+  -rw-r--r--  /Users/Heishing/.claude.json     <- 其余 7 项均为普通文件
+  （无任何软链，无任何不可搜索项）
+=> 触发 B-3 需要 `.claude-cache -> /external/cache` 且 HOME 子项不可搜索；**当前均不成立**。
+
+### B-4（cp -R 保留源树软链 ⇒ sed -i 穿过镜像里的软链写到保护区）
+$ find canvas-vault -type l | wc -l
+  0
+=> harness 源树 `canvas-vault/` **零软链** ⇒ 镜像里不会出现指向保护区的软链。
+   ⚠️ 但这是**当下快照，不是不变量**：源树将来任何一处软链化即复活此路径，
+   且判据只查了镜像根（TMPDIR），没查镜像内被 sed -i 写的那三个文件的实际落点。
+
+### B-2（多跳软链藏住途中的 .git / normpath 提前折叠 ..）
+无法用「本机有没有」界定——它需要专门搭的两跳拓扑，日常部署不会自然形成。
+=> 与 B-1/B-3/B-4 同类：**判据缺陷成立，现实触发需刻意构造的目录布局**。
+
+### H-3（.env.<vault> 的密钥写入早于 chmod 600）
+⚠️ 更正：我最初写成「每次 apply 都命中」，**错了**。逐行实测后的准确条件如下。
+
+$ grep -n 'seed_env_file\|chmod' scripts/deploy-vault.sh
+  :546  mv "$ENV_FILE.tmp" "$ENV_FILE"
+  :547  chmod 600 "$ENV_FILE"        <- seed **自己就收紧了**
+  :564 / :688  `if [ ! -f "$ENV_FILE" ]; then seed_env_file; fi`   <- seed 只在文件**不存在**时跑
+  :769  os.open(p, ... O_CREAT, 0o600)   <- 文件已存在时 mode 参数被内核忽略
+  :783  chmod 600 "$ENV_FILE"        <- 步 3 到这一行才收紧
+
+=> 首次 apply：seed 建文件并在 :547 chmod 600 ⇒ 步 3 写入时**已是 0600，无窗口**。
+   二次 apply：文件是首次留下的 0600 ⇒ **同样无窗口**。
+   **命中条件 = `.env.<vault>` 由脚本以外的来源预先存在且权限较宽**（典型：用户想预置
+   NEO4J_PASSWORD 等键而手建，缺省 umask 落 0644；或 `--env-dir` 指向已有同名文件的目录）。
+   此时 seed 被跳过 ⇒ :547 不执行 ⇒ 密钥在 :769-778 写进 0644 文件、:783 才收紧。
+   单用户 macOS 风险低；多用户/共享机器上是真实的密钥可读窗口。
+   修法方向（留给人审裁定，本卡不改）：B4 写入**之前**先 chmod，或 seed 用 `(umask 077; …)`。
+$ ls -l .env.* → 只有 .env.example（5244B）；车道树内无任何 .env.<vault> 残留。
+
+### H-2（单段相对 --vault ⇒ VAULTS_ROOT 解析基准分裂）⚠️ **平常调用即可达，已实测**
+$ bash scripts/deploy-vault.sh --vault course --harness "$(pwd)" --port 8123 --hosts claude
+  rc=0
+  [1/6] preflight: OK 树完整 / 禁写面过 / 名不动点 / port 8123 空闲 / skills 9 / main.js 在位
+  [2/6] install: SKIP will run: … install-vault.sh course --subject course --vaults-root . …
+=> 入口**不拒**单段相对 `--vault`（头注 :22 写「必填绝对路径」，但 :235 只判非空）。
+   `--vaults-root .` 由 installer 按**调用 cwd** 解释；生成的 `.env.course` 里 `VAULTS_ROOT=.`
+   却由 compose 按 `--project-directory "$HARNESS"` 解释（compose :218
+   `"${VAULTS_ROOT:-.}:/vaults:…"`）。从非 harness 目录部署 ⇒ 库建在 cwd、compose 挂 harness。
+   步 5 的 config 断言只验容器名与端口，抓不到这处错配。
+   （本次探针 dry-run 零写：`git status --porcelain -- . ':(exclude)_bmad-output'` = 0 行。）
+
+### H-1 / M-1~M-5
+H-1（O_NOFOLLOW 只挡末段、祖先软链仍跟随；fstat↔ftruncate 之间仍可新增硬链接）：成立。
+     它主要不是新漏洞，而是**已有声明过强**——源码注释 :733-735 写「让内核在打开那一刻
+     拒绝软链 —— 原子, 不依赖前面的复查」，而 O_NOFOLLOW 只对**末段**成立，祖先段照跟。
+     ⇒ 需按 H-1 收窄该注释与验收单「两处 python 写入是真原子」的说法。
+M-1（nlink 判据不查 python 的 rc；纯数字检查未覆盖 0 与 bash 整数溢出 ⇒ `-gt` rc=2 落 fail-open）
+M-2（三条源码门允许关键退化存活：ftruncate 前置、清单元素被替换、数组丢引号）
+M-3（`tr -d` 删值内所有引号 ⇒ 含 `O'Brien` 的合法父路径在 A3 比较时误拒 rc 73）
+M-4（变异存档只有摘要，无变异 diff / nodeid / 失败正文 / 代码哈希，不能独立复核）
+M-5（红集总量相同不证明事件来源相同；隔离重跑移除了用例间交互）
+=> 五条均成立，属门的取名面与存档可复核性，非运行时安全面。
+
+## 结论（车道给人审的排序建议，不是裁定）
+
+| 条 | 成立 | 现实可达性（本机当前，实测） | 建议优先级 |
+|---|---|---|---|
+| H-2 | ✅ | **平常调用即命中**（相对 `--vault` + 异 cwd），已跑出 rc=0 | 最高 —— 库会装到错地方 |
+| H-3 | ✅ | 需 `.env.<vault>` **由脚本外来源**预先存在且宽权限 | 高 —— 密钥可读窗口 |
+| H-1 | ✅ | 需并发替换父目录 | 中 —— 主要是**声明过强**要改 |
+| B-1 | ✅ | 需 `$HOME` 为软链（本机否） | 中 —— 真回归，判据正确性 |
+| B-4 | ✅ | 需源树有软链（本机 0 条，非不变量） | 中 |
+| B-2 | ✅ | 需刻意两跳拓扑 | 中低 |
+| B-3 | ✅ | 需 HOME 子项不可搜索（本机否） | 中低 |
+| M-1~M-5 | ✅ | — | 低（门与存档质量） |
+
+⚠️ 本表**修正过一次**：H-3 初稿写成「每次 apply 都命中」，逐行读 `:547` 后确认 seed 自己就
+   chmod 600，命中条件其实窄得多；H-2 才是平常调用可达的那条。原判据没实测就下了结论，
+   这正是本卡四轮都在踩的同一个坑（把代码机制外推成观测结论），故保留更正痕迹不抹去。
+
+⛔ 车道**不据此自判通过**。协议 D-15：第 5 轮仍有 BLOCKER/HIGH ⇒ 停下交主 session 人审。
+   本文件只是把「哪几条现在就会咬人」和「哪几条要特制拓扑」分开，供人审排序。
+
+rc=0

@@ -306,6 +306,137 @@ def probe_uvloop_reimport_blocked() -> dict:
     return _run("uvloop-reimport", body, expect_rc=0)
 
 
+def probe_uvloop_importlib_reimport_blocked() -> dict:
+    """RV-C M-4：``importlib.import_module`` 这条路也必须被 audit 拦下。
+
+    ⛔ 2026-09-08 实测（``evidence-w47/m4-importlib-*.txt``）：``import`` 审计事件由
+    ``__import__``（``import`` **语句**）抛出，``importlib.import_module(name)`` 走
+    ``_bootstrap._gcd_import``，**不为顶层名抛事件**。所以修前这条路把两层防御都越过了：
+    ``del sys.modules["uvloop"]`` 摘掉非承重的毒化层之后，uvloop 真的被导入成功
+    （上面 ``probe_uvloop_reimport_blocked`` 用的是 ``import`` 语句，覆盖不到这条）。
+
+    现在判据覆盖子模块（uvloop 的 ``__init__.py`` 自己 import ``uvloop.loop`` 等，
+    那些**是**走 ``import`` 语句的），于是同一层就能关上这条路。
+
+    与上一条并列而不是替换它：两条各自钉一种 import 形态，删任一条都会让对应形态失去用例。
+    """
+    body = """
+    import importlib
+    from tests.support import live_port_guard as g
+    g.install()
+    del sys.modules["uvloop"]                  # 把毒化条目摘掉，只剩承重的 audit 层
+    try:
+        importlib.import_module("uvloop")
+        verdict(False, "uvloop-importlib-reimport", "importlib 路径成功导入 uvloop —— 两层防御都被越过")
+    except RuntimeError as e:
+        if "uvloop 的 import 被本门拦下" in str(e):
+            verdict(True, "uvloop-importlib-reimport")
+        else:
+            verdict(False, "uvloop-importlib-reimport", "抛了但不是本门的原因: " + repr(e)[:120])
+    except ImportError as e:
+        verdict(False, "uvloop-importlib-reimport", "落到 ImportError —— 拦的是「装没装」而不是「不许装」: " + repr(e)[:80])
+    """
+    return _run("uvloop-importlib-reimport", body, expect_rc=0)
+
+
+#: M-3 的最小会话：一个真实 pytest 入口能收集到的、什么都不做的用例。
+_MINIMAL_SESSION_TEST = "def test_smoke():\n    assert True\n"
+
+#: 预检拒因里**只属于这条判据**的串（`assert_test_uri_not_blocked` 的白名单分支）。
+_PRECHECK_REJECT_MARK = "不在允许的测试端口白名单"
+
+
+def _run_minimal_pytest_session(*, extra_env: dict) -> subprocess.CompletedProcess:
+    """在临时目录里跑一次**真实 pytest 入口**的最小会话（不收集 backend/tests）。
+
+    刻意把测试文件放在 ``backend/tests`` **之外**：那里的 ``conftest.py`` 也做同一条
+    预检，留着它会让「把预检从 guard_plugin 摘掉」的对照跑不出翻转（判据被另一层喂饱）。
+    插件用 ``-p tests.support.guard_plugin`` 显式加载 —— 这正是要证明的那个真实入口。
+    """
+    tmp = Path(tempfile.mkdtemp(prefix="w4-m3-session-"))
+    (tmp / "test_smoke.py").write_text(_MINIMAL_SESSION_TEST, encoding="utf-8")
+    env = os.environ.copy()
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    env["PYTHONPATH"] = str(BACKEND_DIR) + os.pathsep + env.get("PYTHONPATH", "")
+    for key in [k for k in env if k.upper().startswith("NEO4J")]:
+        env.pop(key, None)
+    env.update(extra_env)
+    try:
+        return subprocess.run(
+            [PY, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-p", "tests.support.guard_plugin", str(tmp)],
+            cwd=BACKEND_DIR,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=180,
+        )
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def probe_precheck_runs_through_the_real_entrypoint() -> dict:
+    """``NEO4J_TEST_URI`` 预检必须**经真实 pytest 入口**跑到（RV-C M-3）。
+
+    既有证据只有两种，都不覆盖这件事：
+
+    * 契约 ``test_precheck_lives_in_pytest_configure_not_in_a_session_fixture`` 是
+      **静态**的 —— 它遍历模块级 ``FunctionDef``，只锁「这行代码写在 pytest_configure 里」，
+      不证明真实入口跑过它；
+    * 探针 ``guard-allowed-test-ports-cannot-admit-live`` **直调** ``assert_test_uri_not_blocked()``，
+      同样绕开了入口。
+
+    这条起一个真实 pytest 会话（``-p tests.support.guard_plugin`` + 临时目录里的一个空
+    用例），把 ``NEO4J_TEST_URI`` 指向受拦端口，要求会话 **fail-closed**：非零 rc 且输出
+    里出现预检自己的拒因串。判据绑定那个串而不是只看 rc —— 只看 rc 会被「用例失败」
+    「插件 import 失败」这类别的原因喂饱。
+
+    ⛔ 只做 URI 字符串判定，**不连任何端口**（``assert_test_uri_not_blocked`` 走的是
+    驱动的地址解析，不建连接）。
+    """
+    name = "guard-precheck-runs-through-real-entrypoint"
+    proc = _run_minimal_pytest_session(extra_env={"NEO4J_TEST_URI": "bolt://127.0.0.1:7691"})
+    blob = proc.stdout + proc.stderr
+    problems = []
+    if proc.returncode == 0:
+        problems.append(f"会话没有 fail-closed（rc={proc.returncode}）—— 预检没在真实入口跑到")
+    if _PRECHECK_REJECT_MARK not in blob:
+        problems.append("输出里没有预检的拒因串 —— 非零 rc 可能来自别的原因")
+    return {
+        "name": name,
+        "ok": not problems,
+        "rc": proc.returncode,
+        "expect_rc": "非 0 且输出含预检拒因",
+        "verdict": f"PROBE-RESULT: {'PASS' if not problems else 'FAIL'} {name}",
+        "reason": "; ".join(problems),
+        "stderr_tail": blob[-400:],
+    }
+
+
+def probe_precheck_entrypoint_negative_control() -> dict:
+    """验伪锚：同一个最小会话，URI 指向**允许的** 7692 时必须正常跑完。
+
+    没有这一条，「无论如何都让会话非零退出」也能让上一条绿 —— 那时判据证明的是
+    「这个会话跑不起来」，不是「预检拦下了它」。
+    """
+    name = "guard-precheck-entrypoint-negative-control"
+    proc = _run_minimal_pytest_session(extra_env={"NEO4J_TEST_URI": "bolt://127.0.0.1:7692"})
+    blob = proc.stdout + proc.stderr
+    problems = []
+    if proc.returncode != 0:
+        problems.append(f"合法 URI 下会话也没跑通（rc={proc.returncode}）—— 上一条的非零 rc 不能归因给预检")
+    if _PRECHECK_REJECT_MARK in blob:
+        problems.append("合法 URI 却出现了预检拒因串")
+    return {
+        "name": name,
+        "ok": not problems,
+        "rc": proc.returncode,
+        "expect_rc": 0,
+        "verdict": f"PROBE-RESULT: {'PASS' if not problems else 'FAIL'} {name}",
+        "reason": "; ".join(problems),
+        "stderr_tail": blob[-400:],
+    }
+
+
 def probe_late_after_finalizing() -> dict:
     """R1 Codex HIGH-2：在 import 本门**之前**注册的 atexit 回调里发起连接。
 
@@ -1653,12 +1784,18 @@ def probe_finalize_race_loses_record() -> dict:
 
 
 def probe_ledger_matches_verdict() -> dict:
-    """账本文件与进程 rc 必须互相印证，**两个方向都要**。
+    """账本文件与进程 rc 必须互相印证 —— 本探针钉的是**两个特例**，不是等价。
 
     * 结算之后落地一条 blocked ⇒ rc=3 且账本 ``unaccounted>0``、``blocked>0``；
     * 一次连接都没有 ⇒ rc=0 且账本 ``unaccounted==0``、``blocked==0``。
 
-    只测一个方向会被「恒判 unaccounted=1」这类实现骗过。改前第一种形态可以出现
+    ⚠️ 措辞更正（2026-09-08）：这两跑**不构成**「rc=3 与 ``unaccounted>0`` 等价」这个
+    双向命题的证明。``_final_accounting`` 的退出判据还有第二个分支（``blocked>0`` 且原
+    ``reported_status`` 为 0）能在 ``unaccounted==0`` 时给出 rc=3 —— 那个形态不在
+    这两跑的覆盖面里。**判据一字未改**，改的只是这段对它证明了什么的描述。
+
+    两跑合起来仍然承重：只测一个方向会被「恒判 unaccounted=1」这类实现骗过。
+    改前第一种形态可以出现
     **账本 unaccounted=1 而 rc=0**（裁定读 ``_final_accounting`` 的快照、落盘读
     ``write_ledger`` 自己再取的那一份）—— 实测证据见 ``before-2``。
     """
@@ -1705,6 +1842,108 @@ def probe_ledger_matches_verdict() -> dict:
     }
 
 
+def probe_late_ledger_survives_stale_final_write() -> dict:
+    """迟到线程发布的账本，**不得**被结算线程手上的陈旧快照盖回去（round-1 MEDIUM-4）。
+
+    两条写盘路径原来各自「先取快照、后 ``open(path,"w")`` 整写」，没有发布顺序控制。
+    本探针把那个交错做成**确定性**的：
+
+    1. 迟到线程在注入点停住（``_finalize_race_seam_hook``）；
+    2. 主线程调 ``_final_accounting()``，包过的 ``finalize_and_snapshot`` 取到**零账**
+       快照后放行迟到线程，并等它把账本写出去；
+    3. 迟到线程 ``record()`` 判 LATE → 包过的 ``_rewrite_ledger_after_late_record``
+       写出 ``unaccounted=1`` 后**停住**（这是关键：不停住的话它随即 ``os._exit(3)``，
+       主线程那次陈旧回写落不落地就成了竞态，探针结论会飘）；
+    4. 主线程拿着第 2 步那份旧快照继续写盘 —— 修好后这一次必须是 no-op；
+    5. 主线程落裁定行，放行迟到线程 → ``os._exit(3)``。
+
+    判据是**文件末态** ``unaccounted==1`` 且 rc=3。修前第 4 步会把文件盖回零账，
+    于是 rc=3 而文件说「什么都没发生」。
+
+    探针体里不出现 ``_publish_ledger`` 字样 —— 同一份探针在修前修后都跑得动，红绿差异
+    只来自生产代码。``atexit.unregister`` 同 ``_FINALIZE_RACE_BODY``：不摘掉的话解释器
+    退出时会再结算一遍并 ``os._exit(3)``，rc=3 就被更晚的一层喂饱了。
+    """
+    name = "guard-late-ledger-survives-stale-final-write"
+    tmp = Path(tempfile.mkdtemp(prefix="w4-stale-"))
+    ledger = tmp / "ledger.json"
+    body = """
+    from tests.support import live_port_guard as g
+    srv, port = listener()
+    g.BLOCKED_PORTS = frozenset(g.BLOCKED_PORTS | {port})   # 只加不减：门的不变量
+    g.install()
+    g.STATE.reported_status = 0
+
+    reached = threading.Event()
+    released = threading.Event()
+    late_published = threading.Event()
+    final_wrote = threading.Event()
+    armed = [True]
+
+    def seam():
+        if not armed[0]:
+            return
+        armed[0] = False
+        reached.set()
+        released.wait(30)
+    g._finalize_race_seam_hook = seam
+
+    real_rewrite = g._rewrite_ledger_after_late_record
+    def rewrite_then_park():
+        real_rewrite()             # 迟到线程发布含迟到记录的账本
+        late_published.set()
+        final_wrote.wait(30)       # 停住，让主线程的陈旧回写先跑完
+    g._rewrite_ledger_after_late_record = rewrite_then_park
+
+    def late_connect():
+        s = socket.socket()
+        try:
+            s.connect(("127.0.0.1", port))
+        except BaseException:
+            pass
+        finally:
+            s.close()
+
+    t = threading.Thread(target=late_connect, name="w4-late", daemon=True)
+    t.start()
+    if not reached.wait(30):
+        verdict(False, %r, "迟到线程没走到注入点")
+        sys.exit(0)
+
+    real_finalize = g.STATE.finalize_and_snapshot
+    def finalize_then_let_late_run():
+        snap = real_finalize()     # 结算取到零账快照，尚未写盘
+        released.set()
+        if not late_published.wait(30):
+            raise RuntimeError("迟到线程没把账本写出去")
+        return snap                # 结算线程带着**旧**快照继续去写盘
+    g.STATE.finalize_and_snapshot = finalize_then_let_late_run
+
+    atexit.unregister(g._final_accounting)   # rc=3 只能来自迟到路径本身
+    g._final_accounting()
+    verdict(True, %r)                        # 裁定行必须在放行 os._exit 之前落地
+    final_wrote.set()
+    t.join(30)
+    srv.close()
+    sys.exit(0)
+    """
+    res = _run(name, body % (name, name), expect_rc=3, env_extra={"W4_GUARD_LEDGER": str(ledger)})
+    if res["ok"]:
+        if not ledger.exists():
+            res["ok"] = False
+            res["reason"] = "账本未落盘"
+        else:
+            led = json.loads(ledger.read_text(encoding="utf-8"))
+            if led.get("unaccounted") != 1 or led.get("blocked") != 1:
+                res["ok"] = False
+                res["reason"] = (
+                    f"账本末态 blocked={led.get('blocked')} unaccounted={led.get('unaccounted')}"
+                    " —— 结算线程用陈旧快照把迟到记录盖掉了"
+                )
+    shutil.rmtree(tmp, ignore_errors=True)
+    return res
+
+
 def probe_install_order_precheck_is_guarded() -> dict:
     """``install()`` 的目标预检必须跑在**门内**（T-14）。
 
@@ -1749,6 +1988,53 @@ def probe_install_order_precheck_is_guarded() -> dict:
     return _run(
         name,
         body % name,
+        expect_rc=3,
+        env_extra={"W4_GUARD_REQUIRE_BLOCKED_TARGET": "1"},
+    )
+
+
+def probe_partial_install_settles_late_connection() -> dict:
+    """**部分安装态**也必须有人结账（Codex round-1 HIGH-2）。
+
+    ``W4_GUARD_REQUIRE_BLOCKED_TARGET=1`` 而 ``NEO4J_URI`` 未设置 ⇒ 预检抛
+    ``RuntimeError``。此刻 ``_install_audit_hook()`` 已经跑过且**摘不掉**：hook 在位、
+    照常拦照常记账，而 ``STATE.installed`` 还是 ``False``。旧顺序把
+    ``register_final_accounting()`` 排在预检之后 —— 于是这段「门半装」的时间里被拦下的
+    连接**无人结账**，进程 ``exit 0``（Codex 实测 ``audit_installed=True /
+    final_registered=False / unaccounted=1 / rc=0``）。
+
+    本探针让调用方**吞掉**预检异常（真实调用方完全可能这么写），再手发一条到受拦端口的
+    审计事件（**不建立任何真实连接、不碰 7691 的真库**），要求进程以 3 收场。
+    判据同时钉住 ``STATE.installed is False``，把「部分安装态」这个前提写死 —— 否则
+    「其实装门成功了」的形态也能给出 rc=3，判据就不绑定它声称的那一层了。
+    """
+    name = "guard-partial-install-settles-late-connection"
+    body = """
+    from tests.support import live_port_guard as g
+    try:
+        g.install()
+        verdict(False, %r, "预检没抛 —— 前提不成立")
+        sys.exit(0)
+    except RuntimeError as e:
+        if "未设置" not in str(e):
+            verdict(False, %r, "抛了但原因不对: " + str(e)[:120])
+            sys.exit(0)
+    # 调用方吞掉预检异常 —— audit hook 已不可撤销地生效，门处于「半装」状态
+    try:
+        sys.audit("socket.connect", None, ("127.0.0.1", 7691))
+        verdict(False, %r, "受拦端口的审计事件没被拦下 —— hook 不在位，前提不成立")
+        sys.exit(0)
+    except RuntimeError as e:
+        if g.BLOCK_REASON not in str(e):
+            verdict(False, %r, "抛了但不是本门的原因: " + repr(e)[:120])
+            sys.exit(0)
+    ok = g.STATE.blocked == 1 and g.STATE.installed is False
+    verdict(ok, %r, "" if ok else ("blocked=" + str(g.STATE.blocked) + " installed=" + str(g.STATE.installed)))
+    sys.exit(0)
+    """
+    return _run(
+        name,
+        body % (name, name, name, name, name),
         expect_rc=3,
         env_extra={"W4_GUARD_REQUIRE_BLOCKED_TARGET": "1"},
     )
@@ -1850,6 +2136,11 @@ def main() -> int:
         probe_drift_reinstall(),
         probe_extract_port_mutation_detected(),
         probe_uvloop_reimport_blocked(),
+        # RV-C M-4：importlib 路径（修前两层防御都被越过，实测见 evidence-w47）。
+        probe_uvloop_importlib_reimport_blocked(),
+        # RV-C M-3：预检必须经**真实 pytest 入口**跑到（正探针 + 验伪锚）。
+        probe_precheck_runs_through_the_real_entrypoint(),
+        probe_precheck_entrypoint_negative_control(),
         probe_late_after_finalizing(),
         probe_plugin_import_installs(),
         probe_audit_liveness_control(),
@@ -1880,6 +2171,10 @@ def main() -> int:
         probe_finalize_seam_inert_when_unset(),
         # Codex round-1 HIGH-3 的处置门：打印失败不得挡住迟到路径的强制退出。
         probe_late_exit_survives_broken_stderr(),
+        # Codex round-1 HIGH-2 的处置门：预检抛出后的部分安装态也必须有人结账。
+        probe_partial_install_settles_late_connection(),
+        # Codex round-1 MEDIUM-4 的处置门：陈旧快照不得盖掉迟到线程发布的账本。
+        probe_late_ledger_survives_stale_final_write(),
     ]
     results.extend(probe_shell_injections())
 

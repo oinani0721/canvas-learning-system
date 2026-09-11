@@ -1,0 +1,37 @@
+# CARD-G2-7b r7 整改后目录级对账 + 收工对账
+汇总行: 173 failed, 4973 passed, 48 skipped, 121 warnings, 29 errors in 262.94s
+原始: dir-tests-unit-r7fix-20260909T214844.raw
+
+## 红集（口径与 da690bf8 批级基线逐字同：^(FAILED|ERROR) tests/ + 剥消息 + sort -u）
+基线 202 == 本次 202，diff **空** ⇒ 本卡引入 0 / 修复 0  ✅
+
+## passed 增量三处吻合
+  r6 后 4968 → r7 后 4973，差 +5
+  git diff -U0 fd2972e6 -- <测试文件> | grep -cE '^\+def test_' → 5
+  删除 → 0
+  r7 新增 5 条门：mirror 端到端 ×2（拒 + 控制组）/ open_pinned ×2（拒 + 合法软链控制组）/ 根路径输入 ×1
+
+## 禁写面（哨兵 = close-recon-r6fix，mtime 20:32:40）
+  ~/Desktop/canvas/canvas-learning-system/canvas-vault 0
+  ~/.dsh                                         10
+  ~/.config/opencode                             0
+  ~/Library/LaunchAgents                         0
+  ~/.codex 83（codex CLI 自身产物 + 并发车道）
+  $WT/.env sha == 基线: ✅
+  git status -- canvas-vault/: 0 行
+  裸 chmod 残留（非注释）: 0
+
+## 地盘门
+  0ee633ea..HEAD 代码文件: 7（应 7）
+  本轮改动: 3 个文件
+rc=0
+
+## ~/.dsh 的 10 个逐条归属（非本脚本所写）
+  ~/.dsh/{settings.yaml,.credentials.yaml,storages/*}          —— dsh 工具自身配置/状态
+  ~/.dsh/sessions/--Users-Heishing-Documents--/session-*/...    —— **另一个工作目录**的会话态
+  $ find ~/.dsh -newer <哨兵> | grep -ci 'card-u3-deploy|canvas-learning' → **0**
+  ⇒ 与 r5/r6 两轮同源（本卡不实现 dsh 宿主 E-1，代码面零引用）。如实记数不写 0。
+
+## r7 与前两轮同结论的一项
+  本窗口又跑了多次 --apply（含 H-3 端到端、镜像端到端 ×2），live vault 计数仍 **0**。
+  这是第三个独立窗口给出同一结果 ⇒「本卡写操作不触碰 live vault」的行为证据进一步加固。

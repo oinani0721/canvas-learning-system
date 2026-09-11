@@ -1,0 +1,10 @@
+# tests/unit 目录级红基线对账 · CARD-G2-7a 复验 @ HEAD 651c5bca（U3-A 末 commit）
+# 基线：feature 主干 evidence-b13/unit-red-baseline-da690bf8.txt（202 nodeid）
+# 当前：_bmad-output/审查/evidence-g27a/g27a-revalidate-dir-unit-20260909T132000.raw（汇总 173 failed / 4839 passed / 48 skipped / 29 errors）
+# 口径：与基线头注逐字同口径 —— 只收 ^FAILED|^ERROR 起头且指向 tests/ 的 nodeid 行，
+#       剥离 ' - <消息>' 尾巴，grep -E '^tests/.*::' 排除日志噪音行，sort -u。
+# 结果：基线 202 == 当前 202，diff 空（0 新引入 '>' / 0 修复 '<'）。
+# ⚠️ 与验收单 §十四 条 2 的差异：那次实测出「一对假的新引入+修复」（W4 哨兵归属随时序漂移）；
+#    本次复验 diff 完全为空。两次口径同源，差异归因于 U3-A r6/r7 又新增 4 个测试函数改变了时序 ——
+#    这**不证明**漂移问题已修，只说明本次采样恰好落在归属一致的那一侧。哨兵两维对账仍是待办（§十四 条 2）。
+rc=0

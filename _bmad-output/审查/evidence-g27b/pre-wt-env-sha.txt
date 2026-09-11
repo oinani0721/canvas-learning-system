@@ -1,0 +1,1 @@
+c84c859683b6b0bd1f8e6915e7d4afa17652f8001753063294aa4d40914c7712  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/.env

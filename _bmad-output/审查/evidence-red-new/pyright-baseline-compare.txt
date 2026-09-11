@@ -1,0 +1,25 @@
+=== pyright 基线多重集对照（D-16 甲；判据 = 错误消息多重集 0 新增，⛔ 非行号交集）===
+SHA_MINE=fcfbcb400b2a1bf0e356f923591cc0e6023c32db64f439fa5076d68f721c1a90
+
+--- [A] 本卡版本 pyright ---
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u11-red-c/backend/app/services/multimodal_service.py:1504:26 - error: Import "agentic_rag.models.multimodal_content" could not be resolved (reportMissingImports)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u11-red-c/backend/app/services/multimodal_service.py:1536:17 - error: Variable "content_id" is not accessed (reportUnusedVariable)
+16 errors, 1 warning, 0 informations
+
+--- 换成 HEAD 版本（含 EXIT trap 还原）---
+SHA_HEAD_VERSION=0de36be9bb23f7a1314e7ff732ee4ed8a51bfdac902032629c9c15c7ee5b8517
+--- [B] HEAD 版本 pyright ---
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u11-red-c/backend/app/services/multimodal_service.py:1497:26 - error: Import "agentic_rag.models.multimodal_content" could not be resolved (reportMissingImports)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u11-red-c/backend/app/services/multimodal_service.py:1529:17 - error: Variable "content_id" is not accessed (reportUnusedVariable)
+16 errors, 1 warning, 0 informations
+
+=== 多重集对照（剥掉 file:line: 前缀，只留错误消息内容）===
+--- 仅在【本卡版本】的诊断（= 本卡新增，判据要求为空）---
+[END-NEW]
+
+--- 仅在【HEAD 版本】的诊断（= 本卡消除的）---
+[END-GONE]
+
+--- 计数对照 ---
+mine: 16 errors, 1 warning, 0 informations
+base: 16 errors, 1 warning, 0 informations

@@ -1,0 +1,8 @@
+### 负控 home-codex
+命令: scripts/deploy-vault.sh --vault /Users/Heishing/.codex/x --harness /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy --env-dir /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27b/env --evidence-dir /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27b/ev
+期望: rc=71 且消息含 禁写面
+
+📦 deploy-vault [dry-run] vault=x port=8011 hosts=claude
+   harness=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy
+[1/6] preflight: FAIL 禁写面: --vault 指向 /Users/Heishing/.codex
+rc=71

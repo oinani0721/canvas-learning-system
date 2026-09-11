@@ -1,0 +1,34 @@
+=== Codex r1 BLOCKER-1 点名的别名形态 —— 整改后复验 ===
+    CLS_LIVE_VAULT = $T/fakelive；下列每条都应命中 rc 71
+  1 大小写别名(APFS 不敏感)  rc=71   OK
+         禁写面: --vault 指向 /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-
+  2 .. 且前段不存在            rc=71   OK
+         禁写面: --vault 指向 /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-
+  3 .claude* 尚不存在            rc=71   OK
+         禁写面: --vault 指向 /Users/Heishing/.claude*（前缀规则）
+  4 目录软链(r1 已命中,回归) rc=71   OK
+         禁写面: --vault 指向 /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-
+  5 多重软链                     rc=71   OK
+         禁写面: --vault 指向 /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-
+  6 混合 大小写 + ..            rc=71   OK
+         禁写面: --vault 指向 /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-
+  7 .. 指回 live 自身            rc=71   OK
+         禁写面: --vault 指向 /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-
+  8 尾部多余斜杠               rc=71   OK
+         禁写面: --vault 指向 /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-
+  9 大小写 + 软链               rc=71   OK
+         禁写面: --vault 指向 /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-
+
+=== 控制组：合法路径必须**放行**（否则判据变成「永远拦」）===
+  合法 tmp 路径应过 preflight  rc=0    OK
+
+=== 零写自证 ===
+  ⚠️ 不能判 $T/FAKELIVE 是否存在 —— APFS 大小写不敏感, 它与已建的 fakelive 是同一 inode。
+     改判「别名下的 probe 子目录有没有被创建」。
+  OK   不存在:  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27b/r2neg-20260909T150708/fakelive/probe
+  OK   不存在:  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27b/r2neg-20260909T150708/fakelive/sub
+  OK   不存在:  /Users/Heishing/.claude-nonexistent-probe
+  OK   不存在:  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27b/r2neg-20260909T150708/missing
+  OK   不存在:  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27b/r2neg-20260909T150708/x
+
+=== 汇总: PASS=10 FAIL=0 ===

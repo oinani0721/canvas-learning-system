@@ -1,0 +1,18 @@
+=== M-3 翻转对照：预检在 / 不在 pytest_configure ===
+sha-before = 918a5c4abe76c3dfce875e6ff07b7dc04d82c2d1249c580d0c0144560c096e9d
+
+--- 跑法 A（现状：预检在 pytest_configure 里）URI -> 受拦端口 7691 ---
+rc=3 ; 拒因串命中=1
+INTERNALERROR> RuntimeError: NEO4J_TEST_URI='bolt://127.0.0.1:7691' 按驱动口径的初始目标端口是 [7691]，其中 [7691] 不在允许的测试端口白名单 [7692] 内。（驱动 canonical：netloc='127.0.0.1:7691' → Address.parse（direct scheme） → [IPv4Address(('127.0.0.1', 7691))]；驱动对缺省/0 端口的默认值是 7687，而 7687 正是现网默认端口。）测试容器请写全，例如 bolt://127.0.0.1:7692。
+
+--- 摘掉预检（只删 guard_plugin 里那一行调用）---
+MUTANT-APPLIED: 预检已从 pytest_configure 摘走
+
+--- 跑法 B（对照：预检不在入口里）同一个 URI -> 受拦端口 7691 ---
+rc=0 ; 拒因串命中=0
+
+M3-NEGCTL: PASS（A 因预检 fail-closed / B 摘掉后不再 fail-closed ⇒ 拦它的确实是入口里那一行）
+--- 还原 ---
+sha-before = 918a5c4abe76c3dfce875e6ff07b7dc04d82c2d1249c580d0c0144560c096e9d
+sha-after  = 918a5c4abe76c3dfce875e6ff07b7dc04d82c2d1249c580d0c0144560c096e9d
+RESTORE-OK: sha-before == sha-after

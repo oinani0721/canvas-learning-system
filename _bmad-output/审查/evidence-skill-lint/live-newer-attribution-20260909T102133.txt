@@ -1,0 +1,18 @@
+=== live find -newer 归因（本卡硬边界=禁写 live vault）===
+命中 2 项，均为 launchd 每日复习链 09:05 档产物，非本卡写入：
+-rw-r--r--@ 1 Heishing  staff  2679 Sep  9 09:05 /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/outputs/今日复习.md
+-rw-r--r--@ 1 Heishing  staff  7563 Sep  9 09:05 /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/outputs/今日复习.json
+
+--- 佐证 1: 本卡改动面是 skills/，与 outputs/ 无交集 ---
+       0
+  ^ live 的 .claude/skills 下 newer 文件数（应为 0）
+--- 佐证 2: live 9 份 SKILL.md shasum 与开工对照 ---
+ai-linked-doc            77807e2a8e3b6d3f
+board-recap              aa6eede2371a1309
+chat-with-context        cdd0472591e75860
+configure-whiteboard     9eb21ecc6ac044a9
+exam-quick               eb30e407a1414547
+node-chat                3b15bc91dabea7e7
+quiz-answer              9652e1e1c1d2ef2a
+start-exam-board         c605c3821f966761
+study-question           0142b7833ff3ab54

@@ -1,0 +1,64 @@
+基线 sha: deploy=6361bca292777ab2 compose=2a25c1771eaacc03
+
+── M1 全角括号紧跟变量（本卡踩过三次的坑）
+    变异已落盘 6361bca292777ab2 → 13ce1d67172a5ba3
+    [restore] deploy-vault.sh 已还原 sha=6361bca292777ab2
+    该门 变异后 = FAILED  ⇒ KILLED ✅
+    （不拦住的后果：set -u 下 rc=1 而不是 71；bash -n / --help / 正控全都过）
+
+── M2 禁写面只查 --vault（另两个参数零覆盖）
+    变异已落盘 6361bca292777ab2 → 6467d8ab58ada292
+    [restore] deploy-vault.sh 已还原 sha=6361bca292777ab2
+    该门 变异后 = FAILED  ⇒ KILLED ✅
+    （不拦住的后果：evidence 会真写进禁写目录）
+
+── M3 步 4 不传 --source（丢掉 content-drift 整个轴）
+    SKIP（此变异需改动结构而非单点替换，另由手工对照覆盖）
+
+── M4 缺省改成 --apply（不可逆的默认值）
+    变异已落盘 6361bca292777ab2 → 9fa869f59ea6f90d
+    [restore] deploy-vault.sh 已还原 sha=6361bca292777ab2
+    该门 变异后 = FAILED  ⇒ KILLED ✅
+    （不拦住的后果：不传 --apply 也会真写）
+
+── M5 compose 缺省值改掉（缺省等价被破）
+    变异已落盘 2a25c1771eaacc03 → ff56f8eb08463b00
+    [restore] docker-compose.yml 已还原 sha=2a25c1771eaacc03
+    该门 变异后 = FAILED  ⇒ KILLED ✅
+    （不拦住的后果：现网 up -d 会重建容器）
+
+── M6 Phase A/B 顺序还原（key 先写）
+    SKIP（此变异需改动结构而非单点替换，另由手工对照覆盖）
+
+── M7 vault 名不动点判据删掉
+    变异已落盘 6361bca292777ab2 → 6f25a8b88f55c90e
+    [restore] deploy-vault.sh 已还原 sha=6361bca292777ab2
+    该门 变异后 = FAILED  ⇒ KILLED ✅
+    （不拦住的后果：两套命名口径分裂（G4）不再被拦）
+
+── M8 步 6 在 dry-run 也落盘
+    变异已落盘 6361bca292777ab2 → dbbc9f5741673a8a
+    [restore] deploy-vault.sh 已还原 sha=6361bca292777ab2
+    该门 变异后 = FAILED  ⇒ KILLED ✅
+    （不拦住的后果：dry-run 探一下就在 harness 树留未追踪文件）
+
+═══ 汇总 ═══
+  KILLED ✅                 M1 全角括号紧跟变量（本卡踩过三次的坑）
+       门: test_no_var_ref_followed_by_non_ascii[deploy-vault.sh]
+  KILLED ✅                 M2 禁写面只查 --vault（另两个参数零覆盖）
+       门: test_forbidden_surface_covers_evidence_dir_param
+  MANUAL                   M3 步 4 不传 --source（丢掉 content-drift 整个轴）
+       门: test_step4_uses_mirrored_source_when_port_differs
+  KILLED ✅                 M4 缺省改成 --apply（不可逆的默认值）
+       门: test_dry_run_is_the_default_not_apply
+  KILLED ✅                 M5 compose 缺省值改掉（缺省等价被破）
+       门: test_compose_defaults_render_byte_identical_to_pre_parameterization
+  MANUAL                   M6 Phase A/B 顺序还原（key 先写）
+  KILLED ✅                 M7 vault 名不动点判据删掉
+       门: test_vault_name_must_be_fixpoint_of_both_naming_functions[probe-b13]
+  KILLED ✅                 M8 步 6 在 dry-run 也落盘
+       门: test_dry_run_step6_is_skip_not_ok
+
+KILLED=6  MANUAL=2  问题=0
+还原逐字节校验: ✅ 全部回到基线
+rc=0

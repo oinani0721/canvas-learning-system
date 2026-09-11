@@ -1,0 +1,38 @@
+# P0 探针 vault 骨架 + 无 .git 祖先判据  @ 2026-09-08T06:50:21+08:00
+PV=/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u4-hosts/3ead72c8-729b-41ea-b189-c51910c3e8a4/scratchpad/host-probe/probe-vault
+=== 判据：git -C $PV rev-parse --show-toplevel ===
+fatal: not a git repository (or any of the parent directories): .git
+rc=128
+=== 对照(正控)：车道树同命令应 rc=0 ===
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u4-hosts
+rc=0
+=== 车道树 .git 形态（P10 用：worktree 是 .git 文件而非目录）===
+-rw-r--r--@ 1 Heishing  staff  91 Sep  7 12:37 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u4-hosts/.git
+=== pv-tree ===
+$PV
+$PV/.agents
+$PV/.agents/skills
+$PV/.agents/skills/bad skill
+$PV/.agents/skills/bad skill/SKILL.md
+$PV/.agents/skills/bad-name
+$PV/.agents/skills/bad-name/SKILL.md
+$PV/.agents/skills/probe-skill
+$PV/.agents/skills/probe-skill/SKILL.md
+$PV/.claude
+$PV/.claude/skills
+$PV/.codex
+$PV/.codex/config.toml
+$PV/.dsh
+$PV/.dsh/cls-mcp-8999.yml
+$PV/.dsh/cls-mcp-skills.yml
+$PV/.dsh/cls-mcp.yml
+$PV/.mcp.json
+$PV/.opencode
+$PV/.opencode/skills
+$PV/.opencode/skills/probe-skill
+$PV/.opencode/skills/probe-skill/SKILL.md
+$PV/AGENTS.md
+$PV/CLAUDE.md
+$PV/opencode.json
+$PV/outputs
+rc=0

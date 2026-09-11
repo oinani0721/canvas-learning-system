@@ -1,0 +1,9 @@
+### 裁判 7：契约全量
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================= 151 passed, 10 warnings in 0.62s =======================
+rc=0
+--- 裁判 7 的两条 grep ---
+grep -cE 'x00|u0000' 契约 => 2
+grep -c '_is_selftest_address((' 契约 => 7

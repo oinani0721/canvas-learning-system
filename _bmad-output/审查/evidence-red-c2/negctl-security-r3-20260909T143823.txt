@@ -1,0 +1,15 @@
+# 负控 r3（安全面）：Codex round-3 给的两个漏过输入，整改后必须变红
+# 方法：运行期替换 Neo4jClient.get_review_suggestions 为变异实现（纯内存），跑测试本体，
+#       finally 无条件还原，末尾断言身份已还原。
+HEAD=0909e935  跑于 2026-09-09 14:38:23
+
+OK  ① 基线形态（等价现行生产）
+     期望=PASS 实测=PASS  
+OK  ② r3-LOW：LIMIT 5 /* $limit */（占位符藏在块注释里）
+     期望=FAIL 实测=FAIL  参数 limit 没有对应的 $limit 占位符（已排除 // 注释），说明它的值可能被内联进了查询文本。query='MATCH (u:User {id: $userId})-[r:LEARNED]->(c:Concept)\n        WHERE (c.group_i
+OK  ③ r3-LOW：先发一条含恶意原串的查询，再发干净的（旧版只审最后一次）
+     期望=FAIL 实测=FAIL  group scope 未以命名参数传入。kwargs=[]
+
+还原校验: get_review_suggestions is ORIG = True
+
+判据：② ③ 必须 FAIL（整改前均 PASS）；① 基线 PASS。

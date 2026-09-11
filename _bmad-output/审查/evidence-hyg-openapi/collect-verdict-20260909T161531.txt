@@ -1,0 +1,25 @@
+=== §二.2 判据 1：collect-after 的 setup-wizard 计数（须 0） ===
+0
+=== §二.2 判据 2：comm -23 差集 → excluded-operations.txt ===
+N=113
+--- 被排除清单 method 分布 ---
+  96 POST
+   9 DELETE
+   6 PUT
+   2 PATCH
+=== §二.2 判据 3：collect-after 里非 GET/HEAD 的 test_api_contract 行（须空） ===
+empty_rc=1
+
+=== ⛔ 正控（缺此三条判据在「全排掉」时同时假通过） ===
+T_BEFORE=206  G=93  T_AFTER=93  N=113
+正控-1  T_AFTER == G ?  -> PASS
+正控-2  T_AFTER > 0  ?  -> PASS
+正控-3  T_BEFORE == G + N ? (206 == 206) -> PASS
+正控-4  点名 GET nodeid 仍在 collect-after ? 命中数 = 1
+        nodeid = tests/contract/test_openapi_contract.py::test_api_contract[GET /]
+
+=== collect-after 非 test_api_contract 的行 ===
+tests/contract/test_openapi_contract.py::TestCanvasWorkflow::test_canvas_crud_workflow
+=== collect-after 总行数 ===
+      94
+rc=0

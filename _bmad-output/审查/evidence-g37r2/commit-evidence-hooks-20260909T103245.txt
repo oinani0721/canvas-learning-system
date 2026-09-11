@@ -1,0 +1,181 @@
+╭──────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: pre-commit │
+╰──────────────────────────────────────╯
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+│  cypher-vault-filter-lint (skip) no matching staged files
+┃  ghost-files ❯ 
+
+[Ghost Files] No untracked docs found.
+
+┃  mutant-residue-scan ❯ 
+
+[Mutant-Scan] OK (staged additions carry no mutation marker).
+
+│  python-lint (skip) no files for inspection
+│  python-typecheck (skip) no files for inspection
+│  readme-claims-lint (skip) no matching staged files
+│  spec-sync-flat (skip) no matching staged files
+│  spec-sync-root (skip) no matching staged files
+                                      
+  ────────────────────────────────────
+summary: (done in 0.04 seconds)       
+✔️ ghost-files (0.02 seconds)
+✔️ mutant-residue-scan (0.02 seconds)
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+╭──────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: commit-msg │
+╰──────────────────────────────────────╯
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+┃  commitlint ❯ 
+
+⧗   input: docs(uat): CARD-G3-7-R2 验收单 + census 定表 + 五轮 Codex 存档 [BATCH-2026-09-07-第十三批 / CARD-G3-7-R2]
+
+证据面 (只动 _bmad-output, 不破坏 r5 审查绑定 dc033ba4):
+- census 定表 evidence-g37r2/census-20260908T073936.md: 口径写死 §0 (在线消费方
+  定义 + 两条排除规则的对称验伪), 四面取数 (字面量/内存镜像/HTTP 路径/公开 API
+  调用), §0.5 三步法 (AST 枚举 9 方法 -> 逐方法调用点 -> 全仓 tracked 扫描),
+  结论 N=1 / M=22 / K=24 (单位=文件, 附「正确读法」限定), §七 8 条不可证边界。
+- 验收单 UAT-CARD-G3-7-R2-2026-09-08.md: DoD-3 双段 (4-B 禁词 0 / 5 条 checkbox
+  全 felt-sense), §7 三处判据自身的坑, §8 OpenSpec 分支乙依据, §9 五轮 Codex
+  全记录, §10 未证明 11 条, §11 台账待登记 18 条。
+- Codex 五轮存档 r1-r5 + 五份 prompt (首部按协议 §2.1; *.stderr 全被 gitignore
+  覆盖, 零入库)。
+- 裁判存档: 六套件/回归门/mastery/API/负控/全量/pyright 多重集/openapi drift/
+  零写门/openspec CLI 全流程。
+- OpenSpec 分支乙移交: 四件套草稿存 evidence-g37r2/openspec-draft-*/ 随本卡
+  入库 (openspec/ 本身零改动, 主 spec sha 与起点逐字节相同)。
+
+末轮 r5 绑定 dc033ba4: BLOCKER=0 HIGH=0 (D-15 达标)。剩余 1M/2L 登记不修,
+逐条列在验收单 §9 与 §10.9。
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+⚠   subject must be lower-case [subject-case]
+
+⚠   found 0 problems, 1 warnings
+ⓘ   Get help: https://github.com/conventional-changelog/commitlint/#what-is-commitlint
+
+
+┃  spec-reference ❯ 
+
+[Spec Ref] OK.
+
+                                      
+  ────────────────────────────────────
+summary: (done in 0.39 seconds)       
+✔️ commitlint (0.36 seconds)
+✔️ spec-reference (0.03 seconds)
+╭───────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: post-commit │
+╰───────────────────────────────────────╯
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+[card/u9-mastery 1a1a9174] docs(uat): CARD-G3-7-R2 验收单 + census 定表 + 五轮 Codex 存档 [BATCH-2026-09-07-第十三批 / CARD-G3-7-R2]
+ 80 files changed, 28918 insertions(+)
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-G3-7-R2-r1.md"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-G3-7-R2-r2.md"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-G3-7-R2-r3.md"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-G3-7-R2-r4.md"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-G3-7-R2-r5.md"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/api-fsrs-state-20260908T075433.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/census-20260908T073936.md"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/commit-attempt1-hooks-20260908T103451.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/commit-r2-hooks-20260908T114255.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/commit-r2b-hooks-20260908T114330.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/commit-r3-hooks-20260908T120903.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/commit-r3-hooks-20260908T121716.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/commit-r4-hooks-20260908T172327.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/commit-r4-hooks-20260908T172346.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/commit-r5-hooks-20260909T102428.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/commit-with-exclude-20260908T104806.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/data-before.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/g37-gate-20260908T075433.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/judges-1-2-final-20260908T104431.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/mastery-20260908T075837.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/mastery-20260908T103731.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/negctl-N1N2-20260908T080314.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/negctl-N1N2-20260908T103941.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/negctl-N1N2-20260908T114151.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/negctl-N1N2-20260908T115523.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/negctl-N1N2-20260908T115712.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/negctl-N1N2-20260908T171543.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/negctl-N1N2-20260909T101724.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/newgate-20260908T080028.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/newgate-20260908T080131.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/openapi-drift-20260908T080552.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/openspec-archive-20260908T074546.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/openspec-cli-probe-20260908T073623.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/openspec-cli-probe2-20260908T073636.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/openspec-draft-retire-fsrs-legacy-bucket-spec/design.md"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/openspec-draft-retire-fsrs-legacy-bucket-spec/proposal.md"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/openspec-draft-retire-fsrs-legacy-bucket-spec/specs/concept-identity/spec.md"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/openspec-draft-retire-fsrs-legacy-bucket-spec/tasks.md"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/openspec-instructions-20260908T074303.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/openspec-new-change-20260908T074243.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/openspec-validate-baseline-20260908T074223.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/openspec-validate-baseline-20260908T074230.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/openspec-validate-status-20260908T074527.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/pyright-multiset-20260908T080811.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/r2-fsrs-suite-20260908T112603.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/r2-mastery-20260908T112725.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/r2-newgate-20260908T112603.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/r2-six-suites-20260908T112725.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/r3-mastery-20260908T115425.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/r3-six-suites-20260908T115555.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/r4-gate-20260908T171514.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/r4-mastery-20260908T171446.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/r5-api-20260909T101436.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/r5-g37-gate-20260909T101436.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/r5-gate-20260908T173452.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/r5-gate-20260909T101436.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/r5-mastery-20260908T173452.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/r5-mastery-20260909T101436.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/r5-six-suites-20260909T101436.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/six-suites-20260908T075433.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/six-suites-20260908T103731.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/unit-after-20260908T080354.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/unit-after-20260908T103941.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/unit-after-20260908T112725.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/unit-after-20260908T115523.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/unit-after-20260908T171543.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/unit-after-20260909T101724.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/unit-after-ids.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/unit-after-skipped-ids.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/unit-before-20260908T073521.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/unit-before-ids.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/unit-before-skipped-20260908T074200.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/unit-before-skipped-ids.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g37r2/zero-write-20260908T080406.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-G3-7-R2-r1.md"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-G3-7-R2-r2.md"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-G3-7-R2-r3.md"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-G3-7-R2-r4.md"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-G3-7-R2-r5.md"
+ create mode 100644 "_bmad-output/\351\252\214\346\224\266\345\215\225/UAT-CARD-G3-7-R2-2026-09-08.md"
+commit_rc=0

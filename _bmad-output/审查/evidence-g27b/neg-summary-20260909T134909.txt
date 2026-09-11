@@ -1,0 +1,4 @@
+=== (d) 负控（每条存档 evidence-g27b/neg-<name>-20260909T134909.txt）===
+  live-vault                 rc=71  ✅
+  home-codex                 rc=71  ✅
+/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/neg_controls.sh: line 31: rc�: unbound variable

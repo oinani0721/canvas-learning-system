@@ -1,0 +1,36 @@
+### rc 断言两条判据 — 收工 (ts=20260908T070721, 格式化后行号)
+--- 判据① grep -nE '== 2([^0-9]|$)' ---
+337:    assert _run(target, source=source) == 2
+344:    assert _run(target, source=source) == 2
+685:    assert _run(target, source=source, report=report) == 2
+958:        assert _run(target, source=source) == 2
+1243:    assert both.exit_code == vv.EXIT_MISMATCH == 2
+1255:    assert before.exit_code == vv.EXIT_MISMATCH == 2
+1366:    assert result.exit_code == vv.EXIT_MISMATCH == 2
+1410:    assert result.exit_code == vv.EXIT_MISMATCH == 2
+1422:    assert line.count("'") == 2, f":117 不是「check \"标签\" '判据'」的形态: {line}"
+  命中数=9
+--- 判据② grep -nE '_run\(\[^)]*\) == 1' ---
+330:    assert _run(target, source=source) == 1
+  命中数=1
+--- 判据③ 原 15 个用法错点位现在是 3 ---
+  '== 3' 命中数=16
+421:    assert rc == 3
+426:    assert rc == 3
+432:    assert rc == 3
+439:    assert rc == 3
+463:    assert rc == 3
+507:    assert vv.main(["--vault", str(target), "--manifest", str(bad), "--source", str(source)]) == 3
+712:    assert rc == 3
+734:    assert rc == 3
+810:    assert vv.main(["--vault", str(target), "--manifest", str(bad), "--source", str(source)]) == 3
+841:    assert vv.main(["--vault", str(target), "--manifest", str(bad), "--source", str(source)]) == 3
+847:    assert vv.main(["--vault", str(target), "--manifest", str(tmp_path), "--source", str(source)]) == 3
+981:    assert rc == 3
+1025:    assert rc == 3
+1044:        assert rc == 3
+1109:    assert vv.main(["--vault", str(target), "--manifest", str(bad), "--report", str(out / "r.txt")]) == 3
+1342:    assert vv.main(["--vault", str(tmp_path), "--manifest", str(m)]) == 3
+--- 判据④ 禁弱化写法自证 (应 0 命中) ---
+  '!= 0' 命中数=0
+  '>= 1' 命中数=0

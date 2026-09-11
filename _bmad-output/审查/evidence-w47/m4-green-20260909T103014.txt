@@ -1,0 +1,15 @@
+=== M-4 修后：契约 ===
+=============== 12 passed, 125 deselected, 10 warnings in 0.65s ================
+=== M-4 修后：importlib 实测复跑（应 BLOCKED）===
+  [plain-import__with-poison]
+      结果          : RuntimeError: uvloop 的 import 被本门拦下：uvloop 走 libuv，不触发 socket.connect 审计事件，门会静默失效。若确需 uvloop，必
+  [importlib__with-poison]
+      结果          : ModuleNotFoundError: import of uvloop halted; None in sys.modules
+  [plain-import__poison-removed]
+      结果          : RuntimeError: uvloop 的 import 被本门拦下：uvloop 走 libuv，不触发 socket.connect 审计事件，门会静默失效。若确需 uvloop，必
+  [importlib__poison-removed]
+      结果          : RuntimeError: uvloop 的 import 被本门拦下：uvloop 走 libuv，不触发 socket.connect 审计事件，门会静默失效。若确需 uvloop，必
+承重层（毒化被绕过后仍被拦）: ['plain-import__poison-removed', 'importlib__poison-removed']
+两层都被越过（IMPORTED）    : []
+M4-VERDICT: BLOCKED —— 两条 import 路径都触发 audit `import` 事件，承重层单独成立
+rc=0

@@ -1,0 +1,51 @@
+FINAL GATES (末轮) @ HEAD=87f75b1971a44b9886e228a007ac2d45aa07fb21  2026-09-09T21:05:48+08:00
+
+===== 裁判1 统一裁判 =====
+开工: = 120 failed, 4810 passed, 48 skipped, 135 warnings, 29 errors in 264.89s (0:04:24) = | 末行 rc=1
+收工: = 117 failed, 4813 passed, 48 skipped, 135 warnings, 29 errors in 276.06s (0:04:36) = | 末行 rc=1
+
+--- 口径 A（vs 202 基线）---
+diff-rc=1
+'>' 行:
+grep-rc=1 (1=无输出=合格)
+
+--- 口径 B（vs 本卡开工快照 · 承重）---
+diff-rc=1
+'>' 行:
+grep-rc=1 (1=无输出=合格)
+'<' 行全文:
+< FAILED tests/unit/test_sync_batch_auth.py::TestProductionFailClosed::test_no_key_configured_fails_closed_503
+< FAILED tests/unit/test_system_endpoint_auth.py::TestSystemConfigAuth::test_prod_no_key_configured_503
+< FAILED tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuth::test_prod_no_key_configured_503
+  net-diff=1  still-red=0  tests/unit/test_sync_batch_auth.py::TestProductionFailClosed::test_no_key_configured_fails_closed_503
+  net-diff=1  still-red=0  tests/unit/test_system_endpoint_auth.py::TestSystemConfigAuth::test_prod_no_key_configured_503
+  net-diff=1  still-red=0  tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuth::test_prod_no_key_configured_503
+
+===== 裁判7 地盘门 =====
+backend/tests/unit/test_sync_batch_auth.py
+backend/tests/unit/test_system_endpoint_auth.py
+改动面 rc=0
+backend/app rc=0
+三生产文件 rc=0
+其余禁改面 rc=0
+
+===== 裁判9 Codex 后绑定门（末轮 r5 审 SHA = 87f75b19）=====
+rc=0 (空=仍绑定)
+存档旧模型名残留: _bmad-output/审查/codex-review-CARD-RED-A2-r1.md:0 _bmad-output/审查/codex-review-CARD-RED-A2-r3.md:0 _bmad-output/审查/codex-review-CARD-RED-A2-r4.md:0 _bmad-output/审查/codex-review-CARD-RED-A2-r2.md:0 _bmad-output/审查/codex-review-CARD-RED-A2-r5.md:0 
+
+===== 裁判6 判据门 =====
+auth_fail_closed sync(1)=1 system(2)=2 合计(3)=3
+detail 等值 sync=1 system=2
+503 断言 backend/tests/unit/test_sync_batch_auth.py:2 backend/tests/unit/test_system_endpoint_auth.py:4 
+skip/xfail backend/tests/unit/test_sync_batch_auth.py:0 backend/tests/unit/test_system_endpoint_auth.py:0 
+裸 in caplog.text backend/tests/unit/test_sync_batch_auth.py:0 backend/tests/unit/test_system_endpoint_auth.py:0 
+
+===== 裁判8 ruff =====
+All checks passed!
+check rc=0
+2 files already formatted
+format rc=0
+
+最终 sha:
+7a630ed5593fd34a5db61fd9ef39bc4d1794b94da6e0ee547f7012b5d5afbf59  backend/tests/unit/test_sync_batch_auth.py
+e8c243b4a699dab413a66c099d6899361a75b4cd6f0efabd1d5f7daff94b46c2  backend/tests/unit/test_system_endpoint_auth.py

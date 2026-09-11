@@ -1,0 +1,184 @@
+########## guard_plugin.py 全文 (55 行) ##########
+1:"""独立的 pytest 插件：尽早安装 7691 socket 门，不依赖根 conftest 的发现。
+2:
+3:[BATCH-2026-09-01-第九批 / CARD-TEST-isolate-lifespan-R1]
+4:
+5:为什么存在：负控脚本会在子进程里跑「摘掉 no_lifespan 的变异文件」——此时若只靠
+6:根 conftest 装门，``--rootdir``/``--confcutdir``/``PYTEST_ADDOPTS`` 之类都能让
+7:conftest 不被发现，门就静默缺席，变异运行会真连现网 7691（Codex round-1
+8:BLOCKER）。本插件由负控用 ``-p tests.support.guard_plugin`` **显式点名加载**，
+9:显式 ``-p`` 不受 rootdir/confcutdir 影响。
+10:
+11:根 conftest 也会调用本插件对应的函数（幂等），保证一次 pytest 会话只有一份门。
+12:
+13:**装门在 import 期，不在 ``pytest_configure``**（第八批 Codex MEDIUM）：
+14:``-p`` 指定的插件在 pytest 启动早期被 import，而 ``pytest_configure`` 要等
+15:autoload 插件、``PYTEST_PLUGINS`` 和 initial conftest 全部 import 完之后才跑 ——
+16:那段「门前窗口」里任何 import 副作用发起的连接都不受保护。把 ``install()`` 放到
+17:模块顶层，窗口收敛到「本模块被 import 的那一刻」。``pytest_configure`` 保留一次
+18:幂等复核，用来发现「import 之后门被人拆了」。
+19:
+20:本插件**只装门**，不做哨兵/汇总（那些留在根 conftest）——这样即使有人在绕过
+21:conftest 的场景下跑测试，也不会得到「门缺席但哨兵也缺席 = 一切照常绿」的假象：
+22:门在，connect 就会被拦。
+23:"""
+24:
+25:from __future__ import annotations
+26:
+27:import pytest
+28:
+29:from tests.support import live_port_guard
+30:
+31:# ⚠️ import 期装门：早于 pytest_configure，把门前窗口收敛到本模块被 import 那一刻。
+32:# ⚠️ 只装不卸：迟到线程在 unconfigure 后仍可能连库，先恢复 socket 会留下无账窗口
+33:#    （Codex round-2 HIGH）。门随测试进程存活到退出。
+34:live_port_guard.install()
+35:
+36:
+37:def pytest_configure(config):
+38:    # 幂等复核：install() 内部会走 assert_guard_live()，import 之后被拆掉的门在此暴露。
+39:    live_port_guard.install()
+40:    # ⛔ NEO4J_TEST_URI 白名单预检在这里，不在 session fixture（T-10，CARD-W4-4）——
+41:    #    session fixture 的 setup 跑在首个用例的 runtest_protocol 之内，也就是
+42:    #    begin_item(exempt=…) 之后；首个用例若在 integration/e2e，预检整段就落进
+43:    #    advisory 窗口。与根 conftest 同型同位置（tests/conftest.py 的 pytest_configure）。
+44:    live_port_guard.assert_test_uri_not_blocked()
+45:
+46:
+47:@pytest.fixture(scope="session", autouse=True)
+48:def _guard_plugin_session_asserts():
+49:    """门在位自证（与根 conftest 的同名 fixture 断言一致；幂等双保险）。
+50:
+51:    ⚠️ URI 预检**不在这里**（已上移到 ``pytest_configure``，见上）——放在 fixture 里
+52:    等于让它跑在首个用例的豁免作用域内。
+53:    """
+54:    live_port_guard.assert_guard_live("guard_plugin session fixture")
+55:    yield
+########## conftest.py :26-28 ##########
+20:import pytest
+21:import structlog
+22:
+23:# CARD-TEST-isolate-lifespan: 门必须先于 `from app.main import app` 安装——
+24:# 否则 conftest 自身的 import 阶段（比任何 fixture 都早）存在一段不受保护的
+25:# 连接窗口（Codex round-1 LOW）。install() 含 uvloop 毒化，幂等。
+26:from tests.support import live_port_guard
+27:
+28:live_port_guard.install()
+29:
+30:from app.config import Settings, get_settings  # noqa: E402
+31:from app.core.logging import configure_logging  # noqa: E402
+32:from app.main import app  # noqa: E402
+########## conftest.py :83-179 ##########
+83:def pytest_configure(config):
+84:    # 尽早装门（幂等——模块顶部已装过）。任何到 7691/7687 的 TCP connect 都在
+85:    # 建立前被拦（fail-closed，调用方拿到 RuntimeError）。
+86:    # ⚠️ 刻意**不**在 pytest_unconfigure 卸门：迟到线程在 unconfigure 之后、
+87:    # 进程退出之前仍可能连库，先恢复 socket 会留下无账窗口（Codex round-2
+88:    # HIGH 实测）。门随进程存活到退出——测试进程无需恢复现场。
+89:    live_port_guard.install()
+90:    # ⛔ NEO4J_TEST_URI 白名单预检**必须在这里**，不能留在 session fixture（T-10，
+91:    #    CARD-W4-4）。session fixture 的 setup 跑在**首个用例的** runtest_protocol
+92:    #    之内，也就是 begin_item(exempt=…) 之后；首个被收集的用例若在
+93:    #    tests/integration / tests/e2e（自动豁免），预检整段（含它的延迟
+94:    #    `import neo4j`）就落在 advisory 窗口里 —— 那段时间到现网端口的连接只记不拦，
+95:    #    而那恰恰是「测试容器 URI 有没有指向现网库」还没被证明的时候。
+96:    #    2026-09-05 实测（_bmad-output/审查/evidence-w4-4 的 before-4）：
+97:    #    session fixture 执行时 _EXEMPT_CV 确实是 True，configure 期则是 False。
+98:    #    pytest_configure 期没有任何用例作用域，预检因此在 fail-closed 归属下跑。
+99:    #    （延迟 import neo4j 在 configure 期可用性已实测，见 canonical_target_ports。）
+100:    live_port_guard.assert_test_uri_not_blocked()
+101:
+102:
+103:@pytest.fixture(scope="session", autouse=True)
+104:def _neo4j_live_port_guard(tmp_path_factory):
+105:    """session 级自证 + bug_tracker 别名替换（运行时文件重定向）。
+106:
+107:    - uvloop 复核：install() 已把 ``import uvloop`` 毒化成 ImportError，此处复核
+108:      毒化在位（被绕过即 fail，拒绝静默失效）；
+109:    - ⚠️ NEO4J_TEST_URI 预检**已上移到 pytest_configure**（T-10，CARD-W4-4）——
+110:      留在这里会让它跑在首个用例的 ``begin_item(exempt=True)`` 作用域内。
+111:      这里不再重复调用：重复调用不会更安全，只会让人以为「预检在用例期也跑了」；
+112:    - middleware 写 bug_log.jsonl 走的是 ``app.main`` 命名空间里的 ``bug_tracker``
+113:      别名（main.py:57 import、:721 使用）。把**别名**换成写到 session tmp 的临时
+114:      BugTracker 实例即可断掉这条真实写路径；不碰 ``app.core.bug_tracker`` 单例
+115:      本身——它的默认路径契约有自己的测试在锁（Codex round-1 MEDIUM：改单例的
+116:      ``log_path`` 会把那个测试打红）。
+117:    """
+118:    live_port_guard.assert_guard_live("session fixture")
+119:
+120:    import app.main as main_module
+121:    from app.core.bug_tracker import BugTracker
+122:
+123:    session_bug_dir = tmp_path_factory.mktemp("bug_log")
+124:    saved_tracker = main_module.bug_tracker
+125:    main_module.bug_tracker = BugTracker(log_path=str(session_bug_dir / "bug_log.jsonl"))
+126:
+127:    yield
+128:
+129:    main_module.bug_tracker = saved_tracker
+130:
+131:
+132:@pytest.hookimpl(wrapper=True)
+133:def pytest_runtest_protocol(item, nextitem):
+134:    """把连接尝试归属到用例；豁免用例（integration/e2e 路径与 marker）只记不拦。
+135:
+136:    归属写在 ContextVar 上（portal 线程带副本可见，裸线程默认 <unknown> 且永不
+137:    豁免 = fail-closed），见 tests/support/live_port_guard.py 的模块 docstring。
+138:
+139:    **每个用例边界都复核门的真实身份**（第八批 Codex HIGH：只信 ``STATE.installed``
+140:    会把被拆掉的门当成在位）。进入前与退出后各一次——退出侧的检查跑在 teardown
+141:    之后，所以用 monkeypatch 临时替换 socket 的用例不会误报，而**没还原**的会。
+142:    """
+143:    live_port_guard.assert_guard_live(f"用例进入前 {item.nodeid}")
+144:    exempt, _why = live_port_guard.is_exempt(item, Path(__file__).parent)
+145:    live_port_guard.begin_item(item.nodeid, exempt)
+146:    try:
+147:        return (yield)
+148:    finally:
+149:        live_port_guard.end_item()
+150:        live_port_guard.assert_guard_live(f"用例退出后 {item.nodeid}")
+151:
+152:
+153:@pytest.hookimpl(wrapper=True)
+154:def pytest_runtest_makereport(item, call):
+155:    """结账哨兵：把被 app/main.py 的 try/except 吞掉的拦截转成用例失败。
+156:
+157:    没有这一层，门拦住了连接却无人知晓——TestClient 照常进入、用例照常绿，
+158:    等于一门否定断言恒真的假门（2026-09-01 E3 机制实验实证）。
+159:    """
+160:    report = yield
+161:    if report.when in ("call", "teardown"):
+162:        records = live_port_guard.STATE.take(item.nodeid)
+163:        if records:
+164:            report.outcome = "failed"
+165:            # xfail 用例的 report 带 wasxfail：只改 outcome 时 pytest 不把它
+166:            # 计入失败，rc 仍为 0 —— 拦截记录就此从总账消失（Codex round-2
+167:            # HIGH 实测）。强制失败必须摘掉 wasxfail 标记。
+168:            if getattr(report, "wasxfail", None) is not None:
+169:                del report.wasxfail
+170:            detail = live_port_guard.format_sentinel(item.nodeid, records)
+171:            report.longrepr = f"{report.longrepr}\n\n{detail}" if report.longrepr else detail
+172:    return report
+173:
+174:
+175:def pytest_sessionfinish(session, exitstatus):
+176:    unaccounted = live_port_guard.STATE.unaccounted_blocked()
+177:    if unaccounted:
+178:        print(
+179:            f"\n*** {live_port_guard.BLOCK_REASON} —— {len(unaccounted)} 次拦截"
+########## grep -c live_port_guard conftest.py ##########
+21
+########## negative_control :3134-3140 ##########
+3130:    if "--ast-negative-control" in sys.argv:
+3131:        return run_ast_negative_control()
+3132:
+3133:    # -- 0a. 门必须被根 conftest 接线（否则哨兵缺席，负门失去被测对象）--------
+3134:    conftest_text = (BACKEND_DIR / "tests/conftest.py").read_text(encoding="utf-8")
+3135:    if "live_port_guard" not in conftest_text:
+3136:        print(
+3137:            "NEGATIVE-CONTROL: FAIL — 根 tests/conftest.py 未引用 live_port_guard："
+3138:            "结账哨兵不会在子进程里工作，负门失去被测对象。"
+3139:        )
+3140:        return 1
+3141:
+3142:    # -- 0b. AST 门（裁判 6）------------------------------------------------

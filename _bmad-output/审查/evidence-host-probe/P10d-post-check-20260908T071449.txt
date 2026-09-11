@@ -1,0 +1,18 @@
+# P10-d 跑后污染判据  @ 2026-09-08T07:14:49+08:00
+=== git status --porcelain -- canvas-vault/ ===
+行数 = 0
+
+=== 全树 git status（应只有 _bmad-output 新增）===
+  ?? "_bmad-output/\345\256\241\346\237\245/evidence-host-probe/"
+
+=== P10 认根对照汇总 ===
+  宿主             $PV(无 .git 祖先)                             车道树 canvas-vault(.git 文件祖先)
+  Claude Code    project=[$PV/.claude/skills] (1 根, 3 条)    project=[canvas-vault/.claude/skills, 车道树根/.claude/skills] (2 根, 15 条)
+  OpenCode       $PV/.agents + $PV/.claude (probe 侧 3 条)    canvas-vault/.claude + 车道树根/.claude (15 条)
+  Codex          无内建发现机制(模型自行 rg)                           无内建发现机制(模型自行 rg, 9 条)
+  dsh(web)       skill-filesystem disabled:true             同左, dump 逐字节相同
+
+  ⇒ Claude Code 与 OpenCode 均把 worktree 的 .git【文件】当作项目根边界，
+     向上遍历到该根并合并 cwd 级 + 根级两个 .claude/skills；两家条目数同为 15（交叉印证）。
+  ⇒ $PV 下无 .git 祖先 ⇒ 两家都只认 cwd 一层，未继续向上遍历到 /private/tmp/…
+rc=0

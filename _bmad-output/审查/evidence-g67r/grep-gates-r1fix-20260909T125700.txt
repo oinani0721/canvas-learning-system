@@ -1,0 +1,16 @@
+# grep 门 (round-1 整改后)
+method POST (须 3): 3
+657:    const resp = await fetch(URLS.refresh, {method: "POST", body: new URLSearchParams({vault_id: vid})});
+710:    const resp = await fetch(URLS.boardDone, {method: "POST",
+751:    const resp = await fetch(URLS.boardUndone, {method: "POST",
+三个 _assert_* 各恰 1:
+  def _assert_same_origin: 1   调用处: 3
+  def _assert_write_target_contained: 1   调用处: 1
+  def _assert_board_name: 1   调用处: 2
+learning_events.jsonl (三文件各 0):
+backend/app/api/v1/endpoints/review_app.py:0
+backend/app/api/v1/endpoints/review_overview.py:0
+scripts/daily_review_run.py:0
+snooze 与 BASE 相同 (见 grep-gates-base 存档): overview=1 app=0 pick=0 run=0
+「未做(如实登记):没有取消完成入口」须 0: 0
+openapi board-undone: 1

@@ -1,0 +1,19 @@
+=== r4 问题 1-3 自查（纯路径计算，不跑 pytest）===
+--- 问题 3：below_root is None 分支（relative_to 抛 ValueError）---
+    /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp06kcwinb/elsewhere/x.png relative_to -> ValueError(走 None 分支)
+      旧=False  新=False   ⇒ 两者一致，第一重已拒
+    /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp06kcwinb/lnk_in/y.png relative_to -> ValueError(走 None 分支)
+      旧=True  新=True   ⇒ 旧放行则新也放行（未收紧、也未放宽）
+
+--- 问题 1：below_root 含 .. 是否给出新放行面 ---
+    image/../../etc/passwd           旧=False 新=False
+    image/..\..\etc\passwd           旧=True  新=False
+    image/a/../b.png                 旧=True  新=True 
+    image/../image/c.png             旧=True  新=True 
+
+--- 问题 2：storage_base_path 是相对路径 ---
+    base='s' rel=image/x.png                  旧=True  新=True 
+    base='s' rel=image/..\..\etc\passwd       旧=True  新=False
+    base='s' rel=image/../../etc/passwd       旧=False 新=False
+
+  判据：任何一行出现「新放行而旧拒绝」即为安全回退 ⇒ 上面无此标记即通过

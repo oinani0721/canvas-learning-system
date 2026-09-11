@@ -1,0 +1,28 @@
+### 重建版行为等价复核（D/E/F 全组）
+⚠️ 还原源 = 变异前工作树副本（scratchpad），不是 git show HEAD:
+   理由：smoke 文件有未提交改动，HEAD 是 r2 版本；上一次用 HEAD 还原已导致 r3 改动丢失。
+smoke 变异前 sha: d2cb6492ab4ff062737cc1604b63546c29fbbec44c50e57c6e18c506842b05e9
+agent_service 变异前 sha: 329a42cbe879e752396c9fbfc6e939033f6734027a1a09f7a80bf8522afb35af
+
+--- 注入: expected_templates.remove("hint-generation") ---
+FAILED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_health_probe_watches_exactly_the_names_this_gate_reads
+================== 1 failed, 49 passed, 10 warnings in 0.92s ===================
+--- 注入: expected_templates[:] = expected_templates[:-1] ---
+FAILED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_health_probe_watches_exactly_the_names_this_gate_reads
+================== 1 failed, 49 passed, 10 warnings in 1.47s ===================
+--- 注入: expected_templates[-1] = "graphiti-memory-agent" ---
+FAILED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_health_probe_watches_exactly_the_names_this_gate_reads
+================== 1 failed, 49 passed, 10 warnings in 1.25s ===================
+--- 注入: expected_templates[-1] = "scoring-agent" ---
+FAILED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_health_probe_watches_exactly_the_names_this_gate_reads
+================== 1 failed, 49 passed, 10 warnings in 0.97s ===================
+
+--- F: 让 AGENT_PROMPT_PATH 覆盖失效 ---
+FAILED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_health_probe_watches_exactly_the_names_this_gate_reads
+================== 1 failed, 49 passed, 10 warnings in 0.96s ===================
+
+--- 全部还原后 ---
+smoke sha: d2cb6492ab4ff062737cc1604b63546c29fbbec44c50e57c6e18c506842b05e9
+agent_service sha: 329a42cbe879e752396c9fbfc6e939033f6734027a1a09f7a80bf8522afb35af
+agent_service diff vs HEAD rc=0
+======================= 50 passed, 10 warnings in 0.88s ========================

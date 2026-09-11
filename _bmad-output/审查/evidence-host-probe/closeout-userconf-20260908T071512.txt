@@ -1,0 +1,23 @@
+# 收工禁写面对账  @ 2026-09-08T07:15:12+08:00
+=== (i) 配置面五行 sha diff（阻断判据，必须为空）===
+3c3
+< 5636da377567323baae6a99b3b22b0aa59972317369221de9d00cd2ffdfc4063  /Users/Heishing/.codex/config.toml
+---
+> 7e233a8694bc998677498514bb4ee06e425173c9706795d81b189748aaf61702  /Users/Heishing/.codex/config.toml
+diff_rc=1  (0=无差异=通过)
+  开工/收工各 5 / 5 行
+
+  ⚠️ 附注（P2-d 实测）：~/.dsh/profiles/web/cordis.yml 的 mtime 在探针期间变过
+     （06:52 -> 06:55，dsh 每次启动含 --dump-config 都会原样重写它），但 sha 逐字节未变。
+     ⇒ 这正是卡文 §三 废弃「整目录 ls -laR」口径的实证：那个口径会把它判成配置被改（假阻断）。
+
+=== live vault find -newer sentinel（硬判据，必须为 0）===
+0
+
+=== 车道树 canvas-vault git status（P10 后，必须为 0）===
+0
+
+=== 零代码门 ===
+git diff --stat --no-color da690bf8 HEAD -- . ':(exclude)_bmad-output' => 0
+  (0 行 = 空 = 通过；⛔ 用 ':(exclude)…' 而非 ':!…'，后者在 zsh 下 rc=128 假绿)
+rc=0

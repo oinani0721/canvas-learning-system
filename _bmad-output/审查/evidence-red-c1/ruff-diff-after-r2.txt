@@ -1,0 +1,86 @@
+--- tests/unit/test_cache_configuration.py
++++ tests/unit/test_cache_configuration.py
+@@ -245,9 +245,7 @@
+         assert "AGENT_MEMORY_CACHE_MAXSIZE" in source, (
+             "dependencies.py must pass AGENT_MEMORY_CACHE_MAXSIZE to AgentService"
+         )
+-        assert "AGENT_MEMORY_CACHE_TTL" in source, (
+-            "dependencies.py must pass AGENT_MEMORY_CACHE_TTL to AgentService"
+-        )
++        assert "AGENT_MEMORY_CACHE_TTL" in source, "dependencies.py must pass AGENT_MEMORY_CACHE_TTL to AgentService"
+ 
+     def test_enrichment_service_di_passes_cache_config(self):
+         """dependencies.py reads Settings and passes to ContextEnrichmentService."""
+
+--- tests/unit/test_qa_38_4_dual_write_extra.py
++++ tests/unit/test_qa_38_4_dual_write_extra.py
+@@ -77,9 +77,7 @@
+ 
+         # getattr with False fallback is a valid defense pattern
+         result = getattr(fresh_settings, "ENABLE_GRAPHITI_JSON_DUAL_WRITE", False)
+-        assert result is True, (
+-            "getattr should return the actual True value, not the False fallback"
+-        )
++        assert result is True, "getattr should return the actual True value, not the False fallback"
+ 
+     def test_env_example_documents_true_default(self):
+         """The .env.example file documents the safe default correctly."""
+
+--- tests/unit/test_story_38_4_dual_write_default.py
++++ tests/unit/test_story_38_4_dual_write_default.py
+@@ -76,11 +76,7 @@
+         from app.main import lifespan
+ 
+         # Remove env var to simulate fresh install (AC-1: no .env customization)
+-        env_without_dw = {
+-            k: v
+-            for k, v in os.environ.items()
+-            if k != "ENABLE_GRAPHITI_JSON_DUAL_WRITE"
+-        }
++        env_without_dw = {k: v for k, v in os.environ.items() if k != "ENABLE_GRAPHITI_JSON_DUAL_WRITE"}
+ 
+         with (
+             patch("app.main.get_default_monitor") as mock_monitor,
+@@ -112,11 +108,8 @@
+                     pass
+ 
+             log_messages = [r.message for r in caplog.records]
+-            assert any(
+-                "Dual-write: enabled (default)" in msg for msg in log_messages
+-            ), (
+-                f"Expected startup log 'Dual-write: enabled (default)' not found. "
+-                f"Got logs: {log_messages}"
++            assert any("Dual-write: enabled (default)" in msg for msg in log_messages), (
++                f"Expected startup log 'Dual-write: enabled (default)' not found. Got logs: {log_messages}"
+             )
+ 
+ 
+@@ -179,10 +172,7 @@
+                     pass
+ 
+             log_messages = [r.message for r in caplog.records]
+-            assert any(
+-                "Dual-write: disabled (explicit configuration)" in msg
+-                for msg in log_messages
+-            ), (
++            assert any("Dual-write: disabled (explicit configuration)" in msg for msg in log_messages), (
+                 f"Expected startup log 'Dual-write: disabled (explicit configuration)' not found. "
+                 f"Got logs: {log_messages}"
+             )
+@@ -226,12 +216,8 @@
+                 async with lifespan(app):
+                     pass
+ 
+-            warning_messages = [
+-                r.message for r in caplog.records if r.levelno >= logging.WARNING
+-            ]
+-            assert any(
+-                "JSON fallback is disabled" in msg for msg in warning_messages
+-            ), (
++            warning_messages = [r.message for r in caplog.records if r.levelno >= logging.WARNING]
++            assert any("JSON fallback is disabled" in msg for msg in warning_messages), (
+                 f"Expected WARNING 'JSON fallback is disabled. Neo4j outage will cause data loss.' "
+                 f"not found. Got warnings: {warning_messages}"
+             )
+
+3 files would be reformatted

@@ -1,0 +1,32 @@
+=== ① tests/skills 目录级 ===
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+====================== 536 passed, 22 warnings in 36.90s =======================
+rc=0
+=== ② regression 收集 ===
+======================== 1480 tests collected in 0.23s =========================
+<sys>:0: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
+rc=0
+=== ③ 路由块门 ===
+合计: 66/66 通过
+[92mPASS — 9 份 skill 的检索平面协议全绿[0m
+rc=0
+=== ④ live vault 零写 ===
+✅ 前提: live 路径存在
+newer(.claude)       = 0
+newer(.claude/skills)= 0
+=== ⑤ 禁改三份 ===
+63b51029ea96a78abd757902023f378697688c28db1b8dc0aaee8969e9ee48e8  canvas-vault/.claude/skills/quiz-answer/SKILL.md
+a766fbcc28e3ff917e740843c633e800aa8a75e949295f83efc90f55105f90f0  canvas-vault/.claude/scripts/fsrs_bridge.py
+3bf4ed9402a4c8edfde16630a79094a5d4518fd181fa60810319fe46d37abb90  canvas-vault/.claude/scripts/decay_beta.py
+✅ 禁改三份与开工逐字节一致
+=== ⑥ 地盘门 ===
+backend/tests/skills/test_skill_portability_lint.py
+canvas-vault/.claude/skills/start-exam-board/SKILL.md
+ M backend/tests/skills/test_skill_portability_lint.py
+=== ⑦ ruff ===
+All checks passed!
+1 file already formatted
+rc=0
+=== ⑧ 成本 ===
+真实树 冷 363 ms
+真实树 暖 154 ms

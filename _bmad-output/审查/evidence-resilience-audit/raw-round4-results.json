@@ -1,0 +1,901 @@
+[
+ {
+  "key": "v2:2fe63739a4591aae9147745596fd121441eccc3a6f8a02a58b33bef823c866cd",
+  "cached_from_2026_09_08": true,
+  "result": {
+   "lens": "替代者本体 — GraphitiEpisodeWorker（backend/app/services/episode_worker.py）及其直接依赖（main.py lifespan 装配、memory_service/tips.py 入队方、DeadLetterStore 及其消费方）",
+   "paths": [
+    {
+     "name": "worker 队列本体（asyncio.Queue，纯内存）",
+     "file_line": "backend/app/services/episode_worker.py:310",
+     "role": "replacement",
+     "alive": "alive",
+     "evidence": "`self._queue: asyncio.Queue[EpisodeTask] = asyncio.Queue(maxsize=maxsize)`（构造函数 :305-312，maxsize 默认 100）。全文件 grep 无任何 enqueue 期落盘：`grep -n 'open(' episode_worker.py` 只命中 DeadLetterStore.store(:265) 与 count(:274) 两处，均在**失败之后**。⇒ 入队 = 只进 RAM，无 WAL、无 journal、无 offset。"
+    },
+    {
+     "name": "enqueue() 队满即丢",
+     "file_line": "backend/app/services/episode_worker.py:497-513",
+     "role": "replacement",
+     "alive": "alive",
+     "evidence": "`except asyncio.QueueFull:`(:510) → `self._metrics.episodes_dropped_queue_full += 1`(:511) + `logger.warning(...dropping...)` + `return False`。丢弃分支**不写死信**（store() 在此分支不被调用）——队满丢的 episode 在磁盘上不留任何痕迹，只有一行 WARNING。"
+    },
+    {
+     "name": "重试 + 指数退避",
+     "file_line": "backend/app/services/episode_worker.py:644-656",
+     "role": "replacement",
+     "alive": "alive",
+     "evidence": "`max_retries: int = 3`(:84)；`backoff_seconds = random.uniform(0, min(2**retry_count, 60))`(:99-102)，retry_count 先自增(:645)再取退避 ⇒ 三次退避分别抽自 U(0,2)/U(0,4)/U(0,8)，**总重试窗口上界 14 秒、期望约 7 秒**。`await asyncio.sleep(backoff)`(:650) 在**单条 worker 主循环内**执行（_run :541-560 是单任务串行），退避期间整条队列停摆（队头阻塞）。重排队用 `put_nowait`(:651)，队满即转死信(:653-656)。"
+    },
+    {
+     "name": "死信写入 DeadLetterStore",
+     "file_line": "backend/app/services/episode_worker.py:234-270",
+     "role": "writer",
+     "alive": "alive",
+     "evidence": "`store()` 追加 JSONL 到 `data/dead_letter_episodes.jsonl`(:225/:307，**相对路径**，随进程 CWD 漂移；Dockerfile:7 `WORKDIR /app`)。记录内容来自 `task.to_dict()`，其中 `\"episode_body\": self.episode_body[:200]`(:108) —— **正文只留前 200 字符**；全文 `episode_body_full` 仅当 `DEAD_LETTER_STORE_FULL_BODY` 显式打开才写(:231-232/:254)。默认部署下死信 = sha256 + 200 字符前缀 + 元数据。"
+    },
+    {
+     "name": "确定性错误免重试直接死信",
+     "file_line": "backend/app/services/episode_worker.py:638-643",
+     "role": "replacement",
+     "alive": "alive",
+     "evidence": "`isinstance(error, _PERMANENT_EPISODE_ERRORS)`（:56-64 = GroupIdValidationError / EntityTypeValidationError）→ 直接 store()。注意 Neo4j 的 ServiceUnavailable **不在**此元组内，所以离线走的是「重试 3 次后死信」那条。"
+    },
+    {
+     "name": "lifespan 装配：降级时根本不 start() worker",
+     "file_line": "backend/app/main.py:272-291",
+     "role": "trigger",
+     "alive": "alive",
+     "evidence": "`graphiti_ready = await episode_worker.initialize_graphiti(...)`(:276)；**只有** `if graphiti_ready:` 分支里才 `await episode_worker.start()`(:283)；else 分支只做 `app.state.episode_worker = episode_worker` + 一行 WARNING(:286-287)。而 initialize_graphiti 在 Neo4j 预检失败时 `self._graphiti = None; return False`(:370-378)。⇒ **Neo4j 启动时离线 = worker 主循环从未创建**，队列没有消费者。`grep -rn '\\.start()' backend/app/ | grep -i worker` 只有 main.py:283 与 docstring :294 两处，无第二个启动点；`initialize_graphiti` 全仓也只有 main.py:276 一个生产调用点，**无重连/重试装配**。"
+    },
+    {
+     "name": "episode_worker.py:433 的「degraded → 会被死信」docstring",
+     "file_line": "backend/app/services/episode_worker.py:430-436",
+     "role": "other",
+     "alive": "orphaned",
+     "evidence": "日志原文 `Worker will run in degraded mode (episodes will be dead-lettered).`。与 main.py:280-287 的实际装配矛盾：降级路径不调 start()，_run 不存在，_handle_failure 永不被调用 ⇒ 死信条数恒 0。该承诺在生产装配下**不成立**（仅当有人手动 start() 一个 _graphiti=None 的 worker 才成立，全仓无此调用）。"
+    },
+    {
+     "name": "memory_service._enqueue_episode 的 is_ready 闸",
+     "file_line": "backend/app/services/memory_service.py:442-476",
+     "role": "trigger",
+     "alive": "alive",
+     "evidence": "`if not worker.is_ready: logger.debug(...); return False`(:459-462)；`is_ready = self._started and self._graphiti is not None`(episode_worker.py:525-527)。Neo4j 启动离线 ⇒ _started=False ⇒ 全部 episode 在 **debug 级**日志下静默跳过，既不入队也不入盘。"
+    },
+    {
+     "name": "tips.py 批注直连绕过 is_ready 直接 enqueue",
+     "file_line": "backend/app/api/v1/endpoints/tips.py:617-639",
+     "role": "trigger",
+     "alive": "alive",
+     "evidence": "`enqueued = get_episode_worker().enqueue(task)`(:633) —— **不查 is_ready**。worker 未启动时 put_nowait 仍成功（队列只是没有消费者），返回 True ⇒ 接口回 `accepted=True, message=\"enqueued\"`(:635-638)。前 100 条批注被「成功受理」后永久滞留 RAM，第 101 条起才转 accepted=False。"
+    },
+    {
+     "name": "A7 outbox 写入（enqueue 失败时的唯一补偿）",
+     "file_line": "backend/app/services/memory_service.py:498-517 / 1655-1678",
+     "role": "writer",
+     "alive": "alive",
+     "evidence": "`_record_structured_outbox()` 追加 FAILED_WRITES_FILE；仅 :1647 那一处调用点在 `enqueued == False` 时触发(:1657-1676)。其余四个入队点 :632 / :1433 / :2663 / :2746 **丢弃返回值**（sed 实读：`self._enqueue_episode(` 裸调用，无 if），enqueue 失败无任何补偿。"
+    },
+    {
+     "name": "outbox 重放器 recover_failed_writes",
+     "file_line": "backend/app/services/memory_service.py:2679-2700",
+     "role": "replayer",
+     "alive": "orphaned",
+     "evidence": "`grep -rn 'recover_failed_writes' --include=*.py backend/ | grep -v tests/` 仅 3 行：常量文件注释(failed_writes_constants.py:6)、docstring 引用(memory_service.py:503)、定义本身(:2679)。**零生产调用方**；其自身 docstring 写 `.. deprecated:: Story 38.8 ... no longer called from the startup lifespan`。`grep -n 'fallback\\|sync_all' backend/app/main.py` 无输出 ⇒ 接棒者也没接上。"
+    },
+    {
+     "name": "recover_failed_writes 的「入队即销账」",
+     "file_line": "backend/app/services/memory_service.py:2746-2757",
+     "role": "replayer",
+     "alive": "orphaned",
+     "evidence": "`enqueued = self._enqueue_episode(...)`(:2746) → `if enqueued: recovered += 1 else: still_pending.append(line)`(:2753-2756)，随后只把 still_pending 重写回文件(:2760+)。即：**只要进了内存队列就把持久条目删掉**——此后死信或进程重启，durable 记录已不存在。（该方法本身已 orphaned，故属潜在缺陷而非现网活跃缺陷。）"
+    },
+    {
+     "name": "死信消费方 A：traces.py 只读检索",
+     "file_line": "backend/app/api/v1/endpoints/traces.py:23 / :29-47",
+     "role": "other",
+     "alive": "alive",
+     "evidence": "`\"dead_letter_episodes\": DATA_DIR / \"dead_letter_episodes.jsonl\"`(:23) 只被 `_search_jsonl()` 按 request_id 过滤读取，返回 timeline。纯查询端点，无写回、无重放。"
+    },
+    {
+     "name": "死信消费方 B：census 分诊脚本",
+     "file_line": "backend/scripts/census_dead_letter_episodes.py:1-60 / :462",
+     "role": "other",
+     "alive": "alive",
+     "evidence": "文件头自述「只读契约：无 --apply / 无任何写回、重放、删除路径」，并自称是「G4-10 replay 的交接台账生成器」。它产出可恢复性三态裁定，并如实声明 truncated_prefix 类**不可字节级恢复**。"
+    },
+    {
+     "name": "死信重放器 G4-10",
+     "file_line": "_bmad-output/implementation-artifacts/goal-cards/2026-08-28-主goal全量分goal总账-v2.md:66 / :479",
+     "role": "replayer",
+     "alive": "unknown",
+     "evidence": "总账里 `| G4-10 | DLQ 根因修复与 replay | 6h | 依赖 G4-9, G4-6 | 未来铺路 |`，第八批手册 :111 写「G4-5 / G4-6 / G4-10 → 第九批」。代码侧 `grep -rni 'replay' backend/app/ backend/scripts/` 在 dead_letter 面**零命中重放实现**（唯一含 replay 的 fallback_sync_service 重放的是另外三个文件）。⇒ 死信重放器**尚不存在**，仅为未开工卡。"
+    },
+    {
+     "name": "旧 JSON dual-write（被替代物）",
+     "file_line": "backend/app/services/memory_service.py（已删，见 git show 59586af1）",
+     "role": "removed",
+     "alive": "removed",
+     "evidence": "`git show 59586af1 --stat`：`refactor(phase2): delete fake bridge/JSON dual-write code, replaced by GraphitiEpisodeWorker`，memory_service.py −370 行、graphiti_bridge_service.py 整文件 −409 行。被删的 `_write_to_graphiti_json` 是**请求内 await**（`asyncio.wait_for(..., timeout=GRAPHITI_JSON_WRITE_TIMEOUT=0.5s)`）把完整结构化字段（canvas_name/node_id/concept/user_understanding/score/agent_feedback/timestamp）写进本地 `backend/data/learning_memories.json`，失败时 `increment_dual_write_failures()` + `write_dead_letter(DUAL_WRITE_DEAD_LETTER_PATH, ...)`。"
+    },
+    {
+     "name": "旧 dual-write 的重放器 FallbackSyncService",
+     "file_line": "backend/app/services/fallback_sync_service.py:256-300",
+     "role": "replayer",
+     "alive": "orphaned",
+     "evidence": "`_sync_learning_memories()` 读 LEARNING_MEMORIES_FILE、按 timestamp 排序、带 checkpoint 逐条 `_replay_learning_memory_to_neo4j`（MERGE 幂等）。但 `grep -rn 'fallback_sync\\|sync_all_pending\\|FallbackSync' backend/app/` 除定义外只剩 `domains/canvas/gateway.py:19/:27` 的 re-export；`grep -n 'fallback\\|sync_all' backend/app/main.py` **无输出** ⇒ 启动期不再调用，重放链断在装配层。"
+    },
+    {
+     "name": "成功路径落 __semantic 影子分组",
+     "file_line": "backend/app/services/episode_worker.py:585-597",
+     "role": "replacement",
+     "alive": "alive",
+     "evidence": "`\"group_id\": semantic_group_id(sanitize_group_id_for_graphiti(task.group_id))`，注释明写「add_episode 是 LLM 抽取通道，产物一律落语义影子分组(…__semantic)…主图只由 graphiti_structured_writer 直写」。⇒ 即使 worker 全程成功，它写入的也**不是** dual-write 当年写的那份结构化学习记录所在的位置。"
+    },
+    {
+     "name": "stop() 排空超时丢弃",
+     "file_line": "backend/app/services/episode_worker.py:455-493",
+     "role": "replacement",
+     "alive": "alive",
+     "evidence": "`await asyncio.wait_for(self._worker_task, timeout=timeout)`，超时分支 `logger.warning(f\"Worker drain timed out ({timeout}s), {remaining} events will be lost. Force cancelling...\")`(:485-487) → `self._worker_task.cancel()`。默认 timeout=30s（cleanup_episode_worker :679）。被取消时**不写死信**，队列内容随进程消失。"
+    },
+    {
+     "name": "GRAPHITI_QUEUE_MAXSIZE 配置未接线",
+     "file_line": "backend/app/config.py:485",
+     "role": "other",
+     "alive": "orphaned",
+     "evidence": "`grep -rn 'GRAPHITI_QUEUE_MAXSIZE' --include=*.py backend/` 只有 config.py:485 定义一处。`get_episode_worker()`(episode_worker.py:669-675) 构造 `GraphitiEpisodeWorker()` 不传参 ⇒ 恒用硬编码 maxsize=100，配置项调不动容量。"
+    }
+   ],
+   "gaps": [
+    {
+     "description": "Neo4j 启动时离线 ⇒ worker 主循环根本不存在，队列无消费者：memory_service 侧 episode 被 is_ready 闸静默跳过（debug 级日志），tips.py 侧则被 put_nowait 收下并回 accepted=true，前 100 条滞留 RAM 直到进程退出，第 101 条起静默丢弃。整条路径**零死信、零落盘**。",
+     "severity": "high",
+     "why": "这正是「Neo4j offline resilience」要保的那个场景，也是 dual-write 默认 True 的书面理由。替代者在该场景下的实际保证是 0：main.py:280-287 的 else 分支不调 start()，而 episode_worker.py:433 的日志却宣称「episodes will be dead-lettered」——文档承诺与装配事实相反，审计时最容易被这句话骗过去。"
+    },
+    {
+     "description": "队列是纯内存 asyncio.Queue(maxsize=100)，enqueue 不做任何持久化。进程重启 / 崩溃 / SIGKILL / 容器重建 ⇒ 队列内全部 episode 无声消失，无 offset、无 WAL、无 replay 起点。",
+     "severity": "high",
+     "why": "「不会丢失」的最低门槛是数据在确认前先落到进程外的持久介质。旧 dual-write 是请求内 await 落 learning_memories.json（进程外、可重放）；worker 把这一步换成了纯 RAM 排队，韧性方向是**下降**而非替代。"
+    },
+    {
+     "description": "死信文件没有任何重放器。traces.py 只做 request_id 查询，census 脚本自述「无 --apply、无任何写回/重放/删除路径」，真正的重放是未开工的 G4-10 卡。",
+     "severity": "high",
+     "why": "死信队列若无重放，就只是「有据可查的丢失」，不是「不丢失」。而旧 dual-write 那侧的重放器 FallbackSyncService 与 recover_failed_writes 双双 orphaned（main.py 零引用），意味着**新旧两条链的重放端此刻都是断的**。"
+    },
+    {
+     "description": "死信默认是有损的：EpisodeTask.to_dict() 把 episode_body 截到 200 字符（:108），全文只在 DEAD_LETTER_STORE_FULL_BODY 显式开启时才落盘（:231/:254）。",
+     "severity": "high",
+     "why": "即便将来 G4-10 落地，超过 200 字符的 episode 也无法字节级重放——census 脚本自己就把这类裁成 truncated_prefix 并声明该性质依赖生产 [:200] 不变量、sha 证不了前缀是全文前缀。「死信留证」被当成了「数据还在」，两者不等价。"
+    },
+    {
+     "description": "Neo4j 在运行期掉线（worker 已启动）时，重试窗口上界只有约 14 秒（U(0,2)+U(0,4)+U(0,8)），且退避 sleep 发生在单条 worker 主循环内造成队头阻塞。超过 14 秒的停机 ⇒ 每条 episode 走完 3 次重试后死信；停机期间新事件同时被队头阻塞推向队满丢弃。",
+     "severity": "medium",
+     "why": "Neo4j 的现实停机（重启、GC、迁移、宿主重启）通常远超 14 秒。这个窗口决定了「离线韧性」的实际有效期，而它没有任何配置项（max_retries 硬编码在 dataclass 默认值上），也没有断路器/暂停消费的机制。"
+    },
+    {
+     "description": "stop() 排空超时（默认 30s）后 force cancel，剩余队列与在途任务被丢弃且**不写死信**，只有一行 WARNING（:485-487）。",
+     "severity": "medium",
+     "why": "正常关机也是数据丢失面。add_episode 单条耗时按 docstring 自述 5-30s，队列积压时 30s 排空窗口极易超时，此时「不丢失」完全失效且事后无任何可重放记录。"
+    },
+    {
+     "description": "tips.py:633 绕过 is_ready 直接 enqueue，把「进了内存队列」当成「已受理」回给客户端（accepted=true / message=\"enqueued\"）。",
+     "severity": "medium",
+     "why": "假 ACK 比丢数据更难排查：插件侧据此认为批注已入管道，不会重发；而上游 append_event 的 callout_ingested 又以 callout_id 做幂等（tips.py:595-598），重试还会被判 duplicate。丢失被幂等键固化。"
+    },
+    {
+     "description": "recover_failed_writes 把 enqueue 返回 True 记为 recovered 并从 failed_writes.jsonl 删行（:2746-2757），即在数据仅存于内存队列时销毁持久条目。",
+     "severity": "medium",
+     "why": "典型的 ACK-before-durable-write。当前因该方法 orphaned 而未活跃，但 G4-6/G4-10 若直接复用这套骨架重新接线，缺陷会随之上线。"
+    },
+    {
+     "description": "worker 成功路径把 group_id 单点重定向到 __semantic 影子分组（:585-597），主图只由 graphiti_structured_writer 直写。",
+     "severity": "medium",
+     "why": "逐点对照的关键一条：旧 dual-write 落的是 learning_memories.json 里的结构化学习记录（concept/node_id/score/agent_feedback/user_understanding），且被 _replay_learning_memory_to_neo4j MERGE 回主图；worker 即使全程成功，产物也在影子图。「取代」在**写入目标**这一维上就不成立，谈不上覆盖。"
+    },
+    {
+     "description": "GRAPHITI_QUEUE_MAXSIZE（config.py:485，默认 100）无任何读取点，get_episode_worker() 不传参，容量恒为硬编码 100。",
+     "severity": "low",
+     "why": "运维在停机期唯一可用的缓解手段（临时调大队列）实际不生效，且从配置面看会误以为已可调。"
+    },
+    {
+     "description": "死信路径 \"data/dead_letter_episodes.jsonl\" 是相对路径（:225/:307），随进程 CWD 解析；traces.py 用 backend/data/，census 默认 data/，本 worktree 下该文件不存在。",
+     "severity": "low",
+     "why": "审计与重放要能找到同一份文件。G4-9 记录 live 有 92 行而本树无此文件，说明落点已随部署形态漂移过一次，未来重放器的输入源存在歧义。"
+    }
+   ],
+   "uncertain": "1) 本视角未跑任何测试、未连 7691/7687，全部结论来自源码与 git 历史的静态实测。worker 在**真实运行期** Neo4j 中途掉线的实际表现（退避实测时长、队满触发点、死信实际条数）未验证，只据代码路径推演。2) 现网 DLQ 的真实内容与条数无法在本树核实——backend/data/dead_letter_episodes.jsonl 在本 worktree 不存在（find 全仓零命中），G4-9 卡文所称「live 92 行、89 条 budget 超限」属他人快照，未复核，也无法判断其中多少条落在 200 字符截断面之内。3) initialize_graphiti 只在 lifespan 调一次、无重连装配，是 grep 得出的结论（生产调用点仅 main.py:276）；但不排除运维侧靠**重启进程**来恢复——若如此，重启前滞留 RAM 的队列内容是否曾经被 stop() 排空写出，取决于关机是 graceful 还是 SIGKILL，本视角无法从代码判定实际部署的信号形态。4) tips.py 上游 append_event(\\\"callout_ingested\\\") 写的 learning_events 账本是否在**别的**卡里被设计成重放源，我只确认了 backend/app 内无消费方（仅 validate_learning_events.py 校验脚本读它），未穷尽 canvas-vault/.claude/skills 侧——若那边存在重放，tips 路径的丢失面会比本报告所述更小。5) 「JSON dual-write 原本覆盖的场景」我以 59586af1 删除的代码为准（learning_memories.json + DUAL_WRITE_DEAD_LETTER_PATH + FallbackSyncService 重放）；canvas_service.py 里仍有 6 处同名 getattr 开关（fallback 默认 True），那部分属另一视角，本报告未评估它们是否仍构成一条活的兜底写入面。"
+  }
+ },
+ {
+  "key": "v2:e554a5eedb66b532a7952264bc24b8dea6053a76d45097392ab1b782132f5640",
+  "cached_from_2026_09_08": true,
+  "result": {
+   "lens": "启动期与运行期的恢复动作 —— 逐条通读 backend/app/main.py lifespan（L83-L516），把每个「恢复/回填/同步」动作与它实际读取的落盘文件对齐，再反向对账写侧产生的全部暂存文件，找出没有任何恢复动作对应的那一个。全程只读（grep / sed / git log / git show / cat / ls / wc），未跑测试、未启服务、未连 7691/7687。",
+   "paths": [
+    {
+     "name": "lifespan 恢复动作 ①：LanceDB pending 索引重放",
+     "file_line": "backend/app/main.py:183",
+     "role": "trigger",
+     "alive": "alive",
+     "evidence": "`idx_result = await lancedb_idx_svc.recover_pending(settings.canvas_base_path)`。恢复的数据源是 durable per-vault JSONL journal：`backend/app/services/lancedb_index_service.py:74-78` 的 `self._pending_file = namespaced_state_path(_data_dir, \"lancedb_pending_index\", vault_key=...)`（`_data_dir = app/data/`），replayer 本体在 `lancedb_index_service.py:210 recover_pending()`。恢复面 = 向量索引，不是学习数据本体。"
+    },
+    {
+     "name": "lifespan 恢复动作 ②：EventBus Tier-2 outbox 重放",
+     "file_line": "backend/app/main.py:216",
+     "role": "trigger",
+     "alive": "alive",
+     "evidence": "`recovered = await event_bus.recover_outbox()`。恢复的数据源是 `backend/app/services/event_bus.py:49-50` 的 `OUTBOX_DIR = backend/data/outbox` / `OUTBOX_FILE = .../events.jsonl`；写侧 `_write_outbox()` 在 `event_bus.py:343`（触发点 :264 circuit_open / :304 retries_exhausted），replayer 在 `event_bus.py:369`。实测该目录存在但为空：`ls -la backend/data/outbox/` → 仅 `.`/`..`。"
+    },
+    {
+     "name": "lifespan 恢复动作 ③：Neo4j fulltext 索引确保",
+     "file_line": "backend/app/main.py:173",
+     "role": "other",
+     "alive": "alive",
+     "evidence": "`await memory_svc.ensure_fulltext_index()` —— 建 schema 级索引（Tier 2 关键词检索用），不读任何暂存文件、不重放任何数据。列出以示区分：它出现在恢复动作段落里但不是恢复动作。"
+    },
+    {
+     "name": "lifespan 恢复动作 ④：Wikilink 图 eager-build",
+     "file_line": "backend/app/main.py:303",
+     "role": "trigger",
+     "alive": "alive",
+     "evidence": "`wl_result = await wikilink_svc.build(settings.canvas_base_path)`。数据源是 vault 里的 markdown（重新遍历 wikilink），产物是进程内索引，不落盘、不回写 Neo4j。消除的是「graph unbuilt」降级态，不是数据丢失。"
+    },
+    {
+     "name": "lifespan 恢复动作 ⑤：Canvas 约束 SchemaGate 校验",
+     "file_line": "backend/app/main.py:343",
+     "role": "other",
+     "alive": "alive",
+     "evidence": "`await get_canvas_schema_gate().verify()` —— SHOW CONSTRAINTS 巡检，缺失则 /sync/batch fail-closed 503。是防写坏的门，不恢复任何东西。"
+    },
+    {
+     "name": "lifespan 恢复动作 ⑥：Fix-E1 节点原因边投影同步",
+     "file_line": "backend/app/main.py:363",
+     "role": "trigger",
+     "alive": "alive",
+     "evidence": "`rel_result = await rel_svc.sync(settings.canvas_base_path, group_id=..., execute=True)`。恢复的数据源是 **vault markdown frontmatter** —— `backend/app/services/canvas_projection_sync.py:107 for md in base.rglob(\"*.md\")` + `:116 self._read_relationships(md)`，产物是 Neo4j `CANVAS_EDGE{label}`。源是 vault 文件，不是后端暂存文件。"
+    },
+    {
+     "name": "lifespan 恢复动作 ⑦：vault → Graphiti 结构化回填",
+     "file_line": "backend/app/main.py:392",
+     "role": "trigger",
+     "alive": "alive",
+     "evidence": "`bf = await backfill_vault(settings.canvas_base_path, ..., execute=True)`。数据源同样是 vault markdown：`backend/app/services/vault_backfill.py:195 for md in sorted(base.rglob(\"*.md\"))` + `:210 extract_callouts(text)` + `:211 CanvasProjectionSync._read_relationships(md)`，统计键为 callouts/errors/relations。⚠️ 被 `main.py:387 if _worker_graphiti is not None:` 门住，Neo4j/graphiti 启动时不就绪则整段跳过且进程内不再重试。⚠️ `grep -n \"score\" backend/app/services/vault_backfill.py` = 0 命中 —— 它不回填任何评分。"
+    },
+    {
+     "name": "lifespan 恢复动作 ⑧：vault 索引 orchestrator 启动（含首轮 anti-entropy）",
+     "file_line": "backend/app/main.py:434",
+     "role": "trigger",
+     "alive": "alive",
+     "evidence": "`vault_index_orch.start()`；main.py:423-425 注释自述「60s anti-entropy 扫描（首轮立即执行 = 启动 reconciliation, 补齐停机期间的 vault 变更）」。durable pending journal 在 `backend/app/services/vault_index_orchestrator.py:127-131`（`vault_index_pending` stem，app/data/ 下按 vault 命名空间），关机侧 flush 在 `main.py:474 await vault_index_orch.shutdown()`。恢复面 = 索引新鲜度。"
+    },
+    {
+     "name": "【被删】Story 38.8 三文件 fallback 同步（原本是唯一覆盖 failed_writes 的启动恢复动作）",
+     "file_line": "backend/app/main.py（已不存在；删除见 59586af1）",
+     "role": "replacement",
+     "alive": "removed",
+     "evidence": "`git log --oneline -S \"sync_all_fallbacks\" -- backend/app/main.py` → `59586af1 refactor(phase2): delete fake bridge/JSON dual-write code, replaced by GraphitiEpisodeWorker`（2026-03-26）。`git show 59586af1 -- backend/app/main.py` 显示删掉的正是 `from app.services.fallback_sync_service import get_fallback_sync_service` + `await asyncio.wait_for(sync_svc.sync_all_fallbacks(), timeout=60.0)` 整块，以及同批删掉的告警 `logger.warning(\"JSON fallback is disabled. Neo4j outage will cause data loss.\")`。当前 `grep -n \"recover|fallback|sync_all|backfill|replay\" backend/app/main.py` 全文无 `sync_all_fallbacks` / `get_fallback_sync_service`。"
+    },
+    {
+     "name": "写侧 A-1：评分/记忆写失败 → failed_writes.jsonl",
+     "file_line": "backend/app/services/agent_service.py:5085 与 :5101（def 在 :99）",
+     "role": "writer",
+     "alive": "alive",
+     "evidence": "`_record_failed_write(...)` 分别在 `except asyncio.TimeoutError`（:5079）与 `except Exception`（:5095）两个分支被调用，写入 `backend/app/core/failed_writes_constants.py:11-12` 的 `FAILED_WRITES_FILE = backend/data/failed_writes.jsonl`。这是生产评分链路，未被任何开关门住。"
+    },
+    {
+     "name": "写侧 A-2：A7 结构化 outbox → 同一个 failed_writes.jsonl",
+     "file_line": "backend/app/services/memory_service.py:1662（def 在 :499）",
+     "role": "writer",
+     "alive": "alive",
+     "evidence": "`record_knowledge_entity` 里 worker 未就绪 → `status = \"degraded\"` → `self._record_structured_outbox({\"kind\": \"knowledge_entity\", ...})`，落同一个 `FAILED_WRITES_FILE`。上游生产调用方 6 处：`app/mcp/tools/memory_tools.py:297,404`、`app/mcp/tools/conversation_tools.py:159,284`、`app/api/v1/endpoints/memory.py:727,740`、`app/api/v1/endpoints/tips.py:315`。"
+    },
+    {
+     "name": "写侧 A 的落盘实况（当前树）",
+     "file_line": "backend/data/failed_writes.jsonl",
+     "role": "other",
+     "alive": "alive",
+     "evidence": "`ls -la backend/data/` → 7765 字节，mtime `Sep 8 08:05`（今天）；`wc -l` = 28 行。首行 timestamp `2026-09-07T22:46:01Z`、尾行 `2026-09-08T00:05:41Z`。⚠️ 内容是 `test.canvas` / `node-001` 形态，属 TestClient lifespan 污染真 data 目录（已知 gotcha），故只能证明「写侧活着且文件在长」，不能证明当前有真实用户评分被搁浅。"
+    },
+    {
+     "name": "replayer A-1：memory_service.recover_failed_writes（已弃用，零生产调用）",
+     "file_line": "backend/app/services/memory_service.py:2679",
+     "role": "replayer",
+     "alive": "orphaned",
+     "evidence": "docstring `:2681-2685` 自述「.. deprecated:: Story 38.8 / Replaced by FallbackSyncService.sync_all_fallbacks() ... is no longer called from the startup lifespan」。`grep -rn \"recover_failed_writes\" backend/app backend/scripts` 的非注释非定义命中 = 0（仅 `failed_writes_constants.py:6` 注释、`memory_service.py:503` 注释、以及 :2679 定义本身）。"
+    },
+    {
+     "name": "replayer A-2：FallbackSyncService.sync_all_fallbacks（替代者，同样零生产调用）",
+     "file_line": "backend/app/services/fallback_sync_service.py:54",
+     "role": "replacement",
+     "alive": "orphaned",
+     "evidence": "`grep -rn \"sync_all_fallbacks\" backend/app backend/scripts` 仅命中 `:54` 定义与 `memory_service.py:2682` 的那句 docstring 转介。整个类唯一被 import 的地方是 re-export：`backend/app/domains/canvas/gateway.py:19`。API 侧也没有触发口：`grep -rn \"recover|replay|fallback_sync\" backend/app/api/v1/endpoints/*.py` 对 router/def 行 = 0 输出。仓库级闭合搜索：`grep -rln \"failed_writes\" --include=*.py --include=*.sh --include=*.js --include=*.ts --include=*.plist .` 只出 5 个 backend/app 文件 + 测试，**没有任何 launchd/shell/脚本旁路会去 drain 它**。"
+    },
+    {
+     "name": "replayer A-3/A-4/A-5：三条子同步（随 sync_all_fallbacks 一起死）",
+     "file_line": "backend/app/services/fallback_sync_service.py:114 / :194 / :256",
+     "role": "replayer",
+     "alive": "orphaned",
+     "evidence": "`_sync_failed_writes` / `_sync_canvas_events` / `_sync_learning_memories` 各自的唯一调用点分别是 `:81` / `:88` / `:95`，全在 `sync_all_fallbacks` 体内。附带一起死的还有轮转与保留策略：`_rotate_file`（:546）与 `_cleanup_old_synced_files`（:564）在全仓的调用点只有 `:183 :186 :242 :245`，同样都在这条死链里 —— 所以 failed_writes.jsonl 现在既不被排空也不被轮转。"
+    },
+    {
+     "name": "replayer A 的「假替身」：failed_scores 只读并入历史视图",
+     "file_line": "backend/app/services/memory_service.py:799（def load_failed_scores 在 :2785）",
+     "role": "other",
+     "alive": "alive",
+     "evidence": "`get_learning_history`（def 在 :650）里 `failed_scores = await asyncio.to_thread(self.load_failed_scores)`，按 Story 38.6 AC-4「so user never sees gaps」把 failed_writes 条目并进返回列表。这是**展示层合并，不写回图**：条目留在文件里，UI 却显示得像已入库。"
+    },
+    {
+     "name": "写侧 B：Canvas CRUD 事件 fallback（写侧已被默认值关死）",
+     "file_line": "backend/app/services/canvas_service.py:121（调用点 :268 :361 :441 :458 :987 :996）",
+     "role": "writer",
+     "alive": "removed",
+     "evidence": "六处 `self._write_canvas_event_fallback(...)` 全部裹在 `if getattr(settings, \"ENABLE_GRAPHITI_JSON_DUAL_WRITE\", True):` 里，而 `backend/app/config.py:477-480` 现在是 `default=False` + `[DEPRECATED]`。默认部署下走 else 分支，只 `logger.warning(\"... skipping event trigger\")` 就 return —— 事件在源头即丢，连暂存都没有。旁证：目标目录 `backend/app/data/`（`canvas_service.py:97` 的 `_fallback_file_path` 父目录）在本树**根本不存在**（`ls -la backend/app/data/` 无输出）。"
+    },
+    {
+     "name": "写侧 C：LearningMemoryClient 独立存储 learning_memories.json",
+     "file_line": "backend/app/clients/neo4j_edge_client.py:43-44（使用点 :775）",
+     "role": "writer",
+     "alive": "alive",
+     "evidence": "`LEARNING_MEMORY_PATH = backend/data/learning_memories.json`；生产注入点 `backend/app/dependencies.py:222`（AgentService）与 `:369`（ContextEnrichmentService）。对应 replayer 是 `fallback_sync_service.py:256 _sync_learning_memories`（读 `:35 LEARNING_MEMORIES_FILE`），已随死链孤立。文件实存：110 字节，mtime Sep 8 06:47。"
+    },
+    {
+     "name": "写侧 D：neo4j_client JSON 镜像（与 outbox 完全不同的机制，从来就没有回灌路径）",
+     "file_line": "backend/app/clients/neo4j_client.py:55（读写落点 :635 _run_query_json_fallback）",
+     "role": "writer",
+     "alive": "alive",
+     "evidence": "`DEFAULT_STORAGE_PATH = backend/data/neo4j_memory.json`，由 `_use_json_fallback` 开关（:297 :431 :434 `_initialize_json_fallback`）切换，Neo4j 不可用时它**代替 Neo4j 服务读写**。注意 `fallback_sync_service.py` 的三文件清单（:6-9）**不含**这个文件 —— 即便 Story 38.8 那条链还活着，也从未有人把镜像里的写回灌 Neo4j。文件实存：148 字节，mtime Sep 8 06:46。名字里同样有 fallback，但它是镜像不是 outbox，别与 A/B/C 混谈。"
+    },
+    {
+     "name": "写侧 E：Episode worker 死信队列（设计上终点，无 replayer）",
+     "file_line": "backend/app/services/episode_worker.py:642 / :656 / :659（DeadLetterStore def :225，路径默认 :307）",
+     "role": "writer",
+     "alive": "alive",
+     "evidence": "`self._dead_letter.store(task, error)` 写 `data/dead_letter_episodes.jsonl`；`:208` docstring 明写「permanently archived」。全仓消费方只有只读三处：`app/api/v1/endpoints/traces.py:23`（查看器）、`backend/scripts/census_dead_letter_episodes.py:462`、`backend/scripts/generate_regression_tests.py:156`。GraphitiEpisodeWorker 这条「替代方案」自己的失败沉淀池就是它，而它按设计不回放。"
+    },
+    {
+     "name": "写侧 F：边同步 / dual-write 死信计数文件（无 replayer）",
+     "file_line": "backend/app/core/failure_counters.py:25 与 :28（写入函数 :73，生产调用点 canvas_service.py:505）",
+     "role": "writer",
+     "alive": "alive",
+     "evidence": "`EDGE_SYNC_DEAD_LETTER_PATH = backend/data/failed_edge_syncs.jsonl` / `DUAL_WRITE_DEAD_LETTER_PATH = backend/data/failed_dual_writes.jsonl`。canvas_service.py:505 在「Edge sync to Neo4j failed after 3 retries」后 `write_dead_letter(EDGE_SYNC_DEAD_LETTER_PATH, \"edge_sync\", ...)` 然后 `return None  # Fire-and-forget`。全仓无任何重放方，只有 `traces.py:22` 只读展示。实存：failed_edge_syncs.jsonl 6867 字节 / 36 行，mtime Sep 8 08:01。"
+    },
+    {
+     "name": "写侧 G：vault 学习事件账本（同名易混，但不是 Neo4j 暂存）",
+     "file_line": "backend/app/services/learning_event_log.py:155",
+     "role": "other",
+     "alive": "alive",
+     "evidence": "`<vault>/learning_events.jsonl`，append_event 调用点在 `api/v1/endpoints/memory.py:888`、`tips.py:579`、`errors.py:161,222`、`services/conversation_distiller.py:418`。按 D0 修订它是 frontmatter（真相源）之外的审计/幂等账，不承担「Neo4j 离线暂存待回灌」职责 —— 列出仅为与 A/B/C/D 区分，不计入本次覆盖对账的缺口。"
+    },
+    {
+     "name": "配置默认值翻转本体",
+     "file_line": "backend/app/config.py:477-480",
+     "role": "other",
+     "alive": "alive",
+     "evidence": "`ENABLE_GRAPHITI_JSON_DUAL_WRITE: bool = Field(default=False, description=\"[DEPRECATED] Legacy JSON dual-write. Replaced by GraphitiEpisodeWorker.\")`。`git log -S \"safe default for Neo4j offline resilience\" -- backend/app/config.py` → 引入 `a29148ca`，被 `daa9fd37 refactor(phase2): rename misleading 'graphiti' functions...` 改掉。注意 `backend/.env.example:226` 至今仍写 `ENABLE_GRAPHITI_JSON_DUAL_WRITE=true`，而 `backend/.env:85` 是注释掉的 —— 实际生效值取代码默认 False。"
+    }
+   ],
+   "gaps": [
+    {
+     "description": "backend/data/failed_writes.jsonl 是唯一「写侧活着、恢复侧全灭」的暂存文件 —— 两个生产写入方仍在写，零个重放方在跑。",
+     "severity": "high",
+     "why": "写侧：agent_service.py:5085/:5101（评分与记忆写超时/异常后落盘）与 memory_service.py:1662（A7，worker 未就绪时的 knowledge_entity）都在未被任何开关门住的生产路径上。读侧：两个 replayer —— memory_service.py:2679 recover_failed_writes（自述 deprecated、no longer called from the startup lifespan）与 fallback_sync_service.py:114 _sync_failed_writes（唯一入口 sync_all_fallbacks :54）—— 生产调用方各为 0，API 无触发口，仓库级 --include=*.py/*.sh/*.js/*.ts/*.plist 搜索也无任何旁路 drain。lifespan 里活着的八个恢复动作各有各的面（LanceDB 索引 journal、EventBus events.jsonl、vault markdown 的 callout/relationship、vault 索引 pending），没有一个读这个文件。核心能力「Neo4j 离线或写入失败时学习数据不会丢失」在评分这条最主要的学习产出上被直接打断：数据确实落了盘，但永远出不去。"
+    },
+    {
+     "description": "删掉恢复动作的同一个 commit 也删掉了唯一会喊出这件事的告警。",
+     "severity": "high",
+     "why": "git show 59586af1 -- backend/app/main.py 显示，被删的整块里同时含 `logger.warning(\"JSON fallback is disabled. Neo4j outage will cause data loss.\")` 与 dual-write 配置状态日志（enabled/explicit/default 三态）。于是默认值从 True 翻成 False 之后，运行期不再有任何一行日志说明兜底已关。「safe default for Neo4j offline resilience」这条书面理由被撤销时，撤销动作本身也被静音了。"
+    },
+    {
+     "description": "Canvas CRUD 事件在 Neo4j 离线时是「源头丢弃」，比「暂存了没人捡」更靠前一层。",
+     "severity": "high",
+     "why": "canvas_service.py 六处 fallback 写入（:268 :361 :441 :458 :987 :996，含 edge_delete）全部裹在 `if ENABLE_GRAPHITI_JSON_DUAL_WRITE:` 下，而默认已是 False（config.py:477）。else 分支只 logger.warning(\"skipping\") 就 return —— 连暂存文件都不产生。旁证是 backend/app/data/ 目录在本树不存在。所以这一路不属于「有暂存无恢复」，属于「暂存被关掉」；两条断法要分开记，修法也不同（一个补 trigger，一个改 gate）。"
+    },
+    {
+     "description": "backend/data/neo4j_memory.json 这个 JSON 镜像从设计之初就没有回灌路径，且它和 outbox 是两套东西。",
+     "severity": "medium",
+     "why": "neo4j_client.py:55 定义存储路径，:635 _run_query_json_fallback 在降级期承担读写。fallback_sync_service.py:6-9 的三文件清单里没有它 —— 也就是说即使 Story 38.8 那条链还活着也不覆盖它。Neo4j 恢复后镜像里的写入永久停留在文件里，形成 split-brain。名字里都有 fallback，但它是「替 Neo4j 服务读写的镜像」，不是「等待回灌的 outbox」，把两者混谈会得出「已有 fallback 就等于不丢数据」的错误结论。"
+    },
+    {
+     "description": "活着的八个恢复动作，恢复面全部是索引/派生物或 vault-markdown 可再生内容，没有一个覆盖「只存在于那次失败写里」的学习结果。",
+     "severity": "medium",
+     "why": "main.py:183 恢复的是 LanceDB 索引 journal；:216 恢复的是 EventBus 事件；:303 重建内存 wikilink 图；:363 与 :392 都以 vault markdown 为源再生 CANVAS_EDGE 与 callout/relation；:434 补 vault 变更索引。这些都能从别处再生。而评分、掌握度、episode 一旦写 Neo4j 失败，其唯一副本就是 failed_writes.jsonl 或 dead_letter_episodes.jsonl。特别地 `grep -n \"score\" backend/app/services/vault_backfill.py` = 0 命中，回填明确不碰评分。「GraphitiEpisodeWorker 取代了 JSON dual-write」只在入队路径上成立；worker 自己的失败沉淀池 dead_letter_episodes.jsonl（episode_worker.py:208）按 docstring 是 permanently archived，本就不回放。"
+    },
+    {
+     "description": "vault 回填被 graphiti 就绪与否门住，且进程生命周期内不重试。",
+     "severity": "medium",
+     "why": "main.py:387 `if _worker_graphiti is not None:` 决定 :392 的 backfill_vault 跑不跑。若后端先于 Neo4j 起来（或 graphiti 初始化在 :275-289 那段失败），这个唯一覆盖 vault 侧内容的启动恢复整段跳过，只打一行 info「启动回填跳过 (graphiti 未就绪)」，之后再无重试点 —— 要等下次重启。这使得「Neo4j 短暂离线」这一最常见场景恰好落在恢复动作的盲区里。"
+    },
+    {
+     "description": "event_bus.recover_outbox 的重写逻辑会静默截断已恢复条目的审计记录。",
+     "severity": "low",
+     "why": "event_bus.py:388-390 对 `entry.get(\"recovered\")` 为真的行 `continue`，而 :406-410 用 `remaining_lines` 整体覆写 OUTBOX_FILE —— 被 continue 掉的行从未进入 remaining_lines，因此每次重放都会把上一轮标记为 recovered 的历史行从文件里抹掉。待重放的数据不丢，但这个文件不是它自称的那本账，事后追溯「哪些事件是靠 outbox 救回来的」会查不到。"
+    },
+    {
+     "description": "展示层合并 + 轮转失效，让这个缺口在 UI 上看不见且会无限增长。",
+     "severity": "medium",
+     "why": "memory_service.py:799 在 get_learning_history 里把 failed_writes 条目并进返回结果（Story 38.6 AC-4「user never sees gaps」）。在有 replayer 的世界里这是过渡期体面；在 replayer 已死的世界里，它变成把丢失伪装成正常。同时轮转函数 _rotate_file / _cleanup_old_synced_files（fallback_sync_service.py:546/:564）的调用点全在死链内，文件既不排空也不轮转 —— 条目会被每一次历史查询永久重复并入，文件单调增长。"
+    },
+    {
+     "description": "两条本应报红的守门测试确实在红基线里，说明这个缺口已被门抓到但一直只登记未处置。",
+     "severity": "medium",
+     "why": "backend/tests/unit/test_qa_38_6_scoring_reliability_extra.py:439-454 的 TestStartupIntegration 两条断言 `\"get_fallback_sync_service\" in source` 与 `\"sync_all_fallbacks\" in source` 直接对 main.py 源码做字面检查。`_bmad-output/审查/evidence-b12/unit-red-baseline-03ac8bf8.txt` 里 FAILED 明确含 `TestStartupIntegration::test_fallback_sync_called_in_lifespan` 与 `::test_main_imports_fallback_sync`，同族还有 test_story_38_6 的 TestAC3StartupRecovery 三条与 test_story_38_8 一条。也就是说门是有的、也一直在红，只是被吸收进「既有红基线」当噪音了。"
+    }
+   ],
+   "uncertain": "1) 我没跑测试、没连库：红基线那两条 TestStartupIntegration 失败是引用 `_bmad-output/审查/evidence-b12/unit-red-baseline-03ac8bf8.txt`（第十二批基线，主干已前进到 da690bf8），属二手证据、可能过期。但「main.py 里没有 sync_all_fallbacks / get_fallback_sync_service」这一条是我在当前树上直接 grep 的一手证据，结论不依赖红基线。\n\n2) backend/data/failed_writes.jsonl 当前 28 行内容全是 `test.canvas` / `node-001` / `\\\"error_reason\\\": \\\"Database connection failed\\\"` 形态，是 TestClient lifespan 污染真 data 目录（已知 gotcha）留下的，不是真实用户数据。所以我只能断言「生产写入点活着、文件在长、没有 drain」，**不能**断言「此刻有真实用户评分被搁浅在里面」。要证后者需要一次真实的 Neo4j 离线期 + 事后核对，超出只读范围。\n\n3) 我判定 sync_all_fallbacks / recover_failed_writes 为 orphaned，搜索面是 backend/app + backend/scripts，随后用仓库级 `grep -rln \\\"failed_writes\\\" --include={*.py,*.sh,*.js,*.ts,*.plist}` 做了闭合，结果只有那 5 个 backend/app 文件与测试。仍未覆盖的面：编译产物、容器 entrypoint 里的内联脚本、以及 live vault 侧我只按 learning_event_log 关键词扫过的 `canvas-vault/.claude/scripts/`。若存在一个以别的名字（不含字符串 failed_writes）读取该路径的脚本，我会漏掉 —— 这是本次结论已知的假阴性面。\n\n4) A7 那一路（memory_service:1662 落 outbox 的 knowledge_entity）的实际丢失严重度我判不准：`memory_service.py:503-507` 的 docstring 声称 callout/relation 的主要持久化是 frontmatter + 启动回填，vault md 才是真相源。若某条 outbox 条目的内容在 vault markdown 里有镜像，main.py:392 的 backfill_vault 确实能间接把它捞回来；但对没有 md 镜像的条目（对话材料、部分 tips 路径）就没有任何补救。我没有逐 event_type 核对哪些一定有 md 镜像，所以只能说这一路是**部分覆盖、边界未查清**，而 agent_service 那一路（评分）是**确定零覆盖**（vault_backfill.py 里 score 零命中）。\n\n5) canvas_events_fallback / learning_memories / neo4j_memory 三条我只核到「写侧形态 + replayer 孤立」，没有核它们在真实离线场景下各自实际承接多少数据量 —— 尤其 learning_memories.json 现仅 110 字节，可能本就是个近乎空转的通道，其缺口的实际权重我给不出。"
+  }
+ },
+ {
+  "key": "v2:39201d118df318b5bd67529211b62d148196204612f751a3e0805f18fbcd7c2d",
+  "cached_from_2026_09_08": true,
+  "result": {
+   "lens": "穷举读侧/重放侧 — 枚举生产代码里所有「把暂存数据重新写回 Neo4j / 重新入库」的路径，逐条判定触发点在生产里是否真的会被执行",
+   "paths": [
+    {
+     "name": "FallbackSyncService.sync_all_fallbacks（Story 38.8 三文件总重放器）",
+     "file_line": "backend/app/services/fallback_sync_service.py:54（子重放器 :115 _sync_failed_writes / :195 _sync_canvas_events / :257 _sync_learning_memories；单例 :657）",
+     "role": "replayer",
+     "alive": "orphaned",
+     "evidence": "`grep -rn \"sync_all_fallbacks|get_fallback_sync_service\" backend/app/ backend/scripts/ scripts/ canvas-vault/ frontend/` 只命中它自己的 def（:54/:657）与 memory_service.py:2682 的 docstring 提及，**零生产调用方**。`git show 59586af1 -- backend/app/main.py` 显示 Phase 2 重构把 main.py lifespan 里那段 `sync_svc.sync_all_fallbacks()`（含 60s timeout）整块删除。`grep -n \"fallback_sync|sync_all_fallbacks\" backend/app/main.py` → rc=1（无输出）。反向佐证：backend/tests/unit/test_qa_38_6_scoring_reliability_extra.py:444-453 两条 P0 测试仍断言 main.py 源码含 `get_fallback_sync_service` / `sync_all_fallbacks`，在当前树上必红。"
+    },
+    {
+     "name": "MemoryService.recover_failed_writes（Story 38.6 启动重放）",
+     "file_line": "backend/app/services/memory_service.py:2679",
+     "role": "replayer",
+     "alive": "orphaned",
+     "evidence": "`grep -rn \"recover_failed_writes\" backend/app/ backend/scripts/ scripts/ canvas-vault/ frontend/` 只命中 :2679 的 def、:503 与 core/failed_writes_constants.py:6 的注释提及，零调用方。其自身 docstring（:2680-2685）写明「.. deprecated:: Story 38.8 … is no longer called from the startup lifespan」。它同时是 `kind='knowledge_entity'` 结构化 outbox 条目（:2733 分支）的**唯一**重放器。"
+    },
+    {
+     "name": "EventBus.recover_outbox（Story 5.7 事件 outbox 重放）",
+     "file_line": "backend/app/services/event_bus.py:369；写侧 :343 _write_outbox；文件 backend/data/outbox/events.jsonl（:49-50）",
+     "role": "replayer",
+     "alive": "alive",
+     "evidence": "生产触发点 backend/app/main.py:216 `recovered = await event_bus.recover_outbox()`，在 lifespan 内、`register_all_handlers` 之后。这是**当前唯一活着的、把暂存数据重新写回图库的重放器**。两处实测缺陷：①`recover_outbox` 在 `await self.publish(event)` 之后**立刻**把 `entry[\"recovered\"]=True` 回写（:403-406），而 Tier-2 的 publish 是 `asyncio.create_task`（:249-250），即处理器还没跑就已标记已恢复；②main.py:216 早于 episode_worker 的 `initialize_graphiti`(:276)/`start()`(:283)，被重放的 MEMORY_WRITE_REQUESTED / FSRS_UPDATED 落到 `_enqueue_episode` 时 `is_ready` 恒 False。"
+    },
+    {
+     "name": "MemoryService.load_failed_scores（merged view 读回，不入库）",
+     "file_line": "backend/app/services/memory_service.py:2785，生产调用点 :799（get_learning_history 内 `await asyncio.to_thread(self.load_failed_scores)`）",
+     "role": "other",
+     "alive": "alive",
+     "evidence": "唯一活着的 failed_writes.jsonl 消费方，但它只把条目**合并进 API 返回的历史列表**（:800-830 过滤 user_id/日期/group 前缀），从不写 Neo4j。即「用户看得到分数」≠「数据回到图库」。"
+    },
+    {
+     "name": "DeadLetterStore（GraphitiEpisodeWorker 死信）",
+     "file_line": "backend/app/services/episode_worker.py:200（class）/:234（store）/:307（path data/dead_letter_episodes.jsonl）；落盘点 :642 / :656 / :659",
+     "role": "writer",
+     "alive": "alive",
+     "evidence": "写侧活着（`_handle_failure` 三个分支都 store）。**重放器不存在**：`grep -rn \"dead_letter|DeadLetter\" --include=*.py` 在非测试代码里只剩三个只读消费方 —— api/v1/endpoints/traces.py:23（按 request_id 查时间线）、backend/scripts/census_dead_letter_episodes.py（其 :4 自述「G4-10 replay 的交接台账生成器」、:8 声明「不 import neo4j / graphiti / app.*，不建立任何网络连接」）、backend/scripts/generate_regression_tests.py:156（生成回归测试代码）。项目自有台账 _bmad-output/implementation-artifacts/2026-08-28-G8-9-统一验收门底账.md:105 写死：「outbox/DLQ 可 replay | not_yet | none | … | owners G4-9, G4-10 | census 是分诊不是 replay」。"
+    },
+    {
+     "name": "Neo4jClient JSON 镜像（_fallback_to_json → backend/data/neo4j_memory.json）",
+     "file_line": "backend/app/clients/neo4j_client.py:422（_fallback_to_json）/:55（DEFAULT_STORAGE_PATH）/:476（_save_json_data）；触发于 :409/:414/:419（initialize 失败）与 :620/:628（运行期重试耗尽）",
+     "role": "writer",
+     "alive": "alive",
+     "evidence": "写侧活着且是**闩**：`self._use_json_fallback = True`（:431）后 `grep -rn \"_use_json_fallback = False\" backend/app/` 无任何命中，进程内不会自愈回 Neo4j。**该文件不在任何重放器的覆盖面内** —— FallbackSyncService 只覆盖 failed_writes.jsonl / canvas_events_fallback.json / learning_memories.json（fallback_sync_service.py:7-9、:34-35）。全仓唯一消费方 backend/scripts/migrate_neo4j_data.py:35 是 Unicode 乱码清洗脚本（`grep -n \"neo4j|driver|bolt|AsyncGraphDatabase\" 该文件` 只命中 usage 文本与路径常量，无任何驱动导入）。盘上实存：backend/data/neo4j_memory.json（148B, Sep 8 06:46）。"
+    },
+    {
+     "name": "canvas_events_fallback.json（Story 38.5 Canvas CRUD 降级暂存）",
+     "file_line": "写侧 backend/app/services/canvas_service.py:121（_write_canvas_event_fallback）、开关 :267/:360/:440/:457/:986/:995；路径 :97 = backend/app/data/canvas_events_fallback.json",
+     "role": "writer",
+     "alive": "alive",
+     "evidence": "六个开关点全是 `getattr(settings, \"ENABLE_GRAPHITI_JSON_DUAL_WRITE\", True)`，fallback 默认 **True**；config.py:477 的字段默认虽已翻成 False 并标 [DEPRECATED]，但 settings 上属性存在 ⇒ getattr 取到 False ⇒ 这六处**当前是关的**（走 else 分支「skipping event trigger」）。无论开关取值，其唯一重放器 fallback_sync_service.py:195 已 orphaned。即：开 = 写进没人读的文件；关 = 直接不写。两种取值都不构成「数据不丢」。"
+    },
+    {
+     "name": "learning_memories.json（LearningMemoryClient 本地学习记忆）",
+     "file_line": "写侧 backend/app/clients/neo4j_edge_client.py:828 add_learning_episode（路径常量 :43-45）← backend/app/services/agent_service.py:4999 ← :4955 record_learning_episode ← :5065 _trigger_memory_write（9 个 agent 调用点：3872/3992/4226/4932/5156/5169/5479/5653 + batch_orchestrator.py:307）",
+     "role": "writer",
+     "alive": "alive",
+     "evidence": "客户端在生产被注入：backend/app/dependencies.py:222（AgentService）与 :369（ContextEnrichmentService）。数据落 backend/data/learning_memories.json（盘上实存 110B, Sep 8 06:47），运行期被 `search_memories` 读回做上下文增强 —— 但**回灌 Neo4j 的路径 _sync_learning_memories（fallback_sync_service.py:257）已 orphaned**。fallback_sync_service.py:298 那句「NOT rotated - still needed by LearningMemoryClient for runtime queries」正说明这文件只服务本地读，不服务图库恢复。"
+    },
+    {
+     "name": "failed_writes.jsonl 写侧（Story 38.6 评分失败 + A7 结构化 outbox，同文件两种记录形态）",
+     "file_line": "agent_service.py:99 _record_failed_write（调用点 :5085 超时 / :5101 异常）；memory_service.py:499 _record_structured_outbox（调用点 :1665，kind='knowledge_entity'）；路径 core/failed_writes_constants.py:11",
+     "role": "writer",
+     "alive": "alive",
+     "evidence": "两个写侧都活着，盘上 backend/data/failed_writes.jsonl 28 行 / 7765B / Sep 8 08:05（内容为 test.canvas、\"Test concept\" 等测试污染，机制本身真实）。**这是「同名不同机制」的典型**：同一个文件承载 Story 38.6 的评分失败条目与 A7 的 kind=knowledge_entity 结构化条目，各自的重放器分别是 recover_failed_writes(:2679) 与 fallback_sync_service._sync_failed_writes(:115) —— **两个都 orphaned**。"
+    },
+    {
+     "name": "failed_edge_syncs.jsonl（Story 36.12 边同步死信）",
+     "file_line": "写侧 backend/app/core/failure_counters.py:73 write_dead_letter（路径 :24），调用点 backend/app/services/canvas_service.py:505",
+     "role": "writer",
+     "alive": "alive",
+     "evidence": "盘上实存 6867B / Sep 8 08:01。消费方只有 api/v1/endpoints/traces.py:22（只读时间线）与 backend/scripts/generate_regression_tests.py:155（生成测试代码）。无重放器。同族的 DUAL_WRITE_DEAD_LETTER_PATH（failure_counters.py:27, failed_dual_writes.jsonl）连消费方都没有。"
+    },
+    {
+     "name": "backfill_vault（启动期从 vault markdown 重建 Graphiti 结构图）",
+     "file_line": "backend/app/services/vault_backfill.py:140；生产触发 backend/app/main.py:392（execute=True）；手动触发 backend/scripts/backfill_graphiti_structured.py:61",
+     "role": "replacement",
+     "alive": "alive",
+     "evidence": "main.py:386 先取 `getattr(get_episode_worker(), \"_graphiti\", None)`，非 None 才跑。这是**真正在起作用的兜底**，但它的输入是 vault 里的 markdown（批注 callouts / errors / relationships），不是任何暂存文件 —— 只能恢复「已经写进 markdown 的东西」，恢复不了只存在于内存/队列里的 episode 与评分事件。且 Neo4j 离线时 `_graphiti` 为 None，这条路径自身也不跑（main.py:400 走 else「启动回填跳过」）。"
+    },
+    {
+     "name": "canvas_projection_sync.sync（启动期 frontmatter relationships → CANVAS_EDGE）",
+     "file_line": "backend/app/services/canvas_projection_sync.py:57；生产触发 backend/app/main.py:363（execute=True）",
+     "role": "replacement",
+     "alive": "alive",
+     "evidence": "main.py:358 `rel_svc = get_canvas_projection_sync()` 后 :363 调 sync(..., execute=True)。同 backfill_vault：来源是 markdown frontmatter，不是暂存队列，且失败被 :371 的 `except Exception` 吞成 warning。"
+    },
+    {
+     "name": "rebuild_graphiti_from_frontmatter（手动 API 从 errors[] 重建）",
+     "file_line": "backend/app/services/error_rebuild_service.py:135；端点 backend/app/api/v1/endpoints/errors.py:233 `@errors_router.post(\"/rebuild-graphiti\")`；挂载 backend/app/api/v1/router.py:441-442",
+     "role": "replacement",
+     "alive": "alive",
+     "evidence": "路由已挂载（prefix=\"/errors\"），docstring :139-141 明写用户场景「Graphiti 写入丢失: rebuild 兜底从本地 frontmatter 重新填充」。属**手动触发**，无任何自动调用方；覆盖面仅 frontmatter 的 errors[]，不含 episode / 评分 / canvas 事件。"
+    },
+    {
+     "name": "lancedb_index_service.recover_pending（Story 38.1 启动恢复）",
+     "file_line": "backend/app/services/lancedb_index_service.py:210；生产触发 backend/app/main.py:183",
+     "role": "replayer",
+     "alive": "alive",
+     "evidence": "lifespan 内实调。但恢复对象是 **LanceDB 索引意图**，与 Neo4j/学习数据无关 —— 列在这里是为了排除「main.py 里有 recover 字样就等于学习数据有兜底」的误读。"
+    },
+    {
+     "name": "vault_index_orchestrator.recover（RAG-S1 durable pending 意图恢复）",
+     "file_line": "backend/app/services/vault_index_orchestrator.py:361，被 :838 的 start() 调用；start() 由 backend/app/main.py 的 orchestrator 启动块触发",
+     "role": "replayer",
+     "alive": "alive",
+     "evidence": "`grep -rn \"\\.recover()\" backend/app/` 唯一命中 vault_index_orchestrator.py:838（在 start() 首行）。同上，恢复对象是向量索引 pending，非 Neo4j 学习数据。"
+    },
+    {
+     "name": "_enqueue_episode 的「无暂存丢弃」路径（重放侧的空洞本体）",
+     "file_line": "backend/app/services/memory_service.py:442（def）/:461（`logger.debug(\"Episode worker not ready, skipping enqueue\")` + return False）；忽略返回值的调用点 :632 record_learning_event、:1433 record_batch_learning_events、:2663 record_canvas_temporal_event",
+     "role": "other",
+     "alive": "alive",
+     "evidence": "`is_ready` = `self._started and self._graphiti is not None`（episode_worker.py:526）。Neo4j 启动期不可达 ⇒ initialize_graphiti 走 :430 的 except 返回 False ⇒ main.py:286-288 的 else 分支**不调 start()** ⇒ `_started` 恒 False ⇒ `_enqueue_episode` 在建 EpisodeTask 之前就 return False。三个调用点均为裸调用、不接返回值（:632 `self._enqueue_episode(` 无赋值），因此既不入队、不入死信、也不落任何暂存文件，只有一行 debug。全仓唯一检查返回值的是 record_knowledge_entity（:1647 `enqueued = ...`，False → :1666 `_record_structured_outbox`），而它写进的 failed_writes.jsonl 的重放器同样 orphaned。"
+    }
+   ],
+   "gaps": [
+    {
+     "description": "「Neo4j 启动期离线」这一最典型场景下，学习事件（record_learning_event / record_batch_learning_events / record_canvas_temporal_event）零暂存、零死信，只落一行 logger.debug 后丢弃。episode_worker.py:433 的错误日志承诺「Worker will run in degraded mode (episodes will be dead-lettered)」与实际代码路径相反：degraded 模式下 start() 根本没调（main.py:286-288），任务连队列都进不去，_handle_failure 与 DeadLetterStore 全程不参与。",
+     "severity": "high",
+     "why": "这直接证伪被审的核心能力。Story 38.4 把默认值定为 True 的书面理由「safe default for Neo4j offline resilience」正是针对这一场景；Phase 2 用 GraphitiEpisodeWorker 取代它，但 worker 的队列是纯内存 asyncio.Queue(maxsize=100)（episode_worker.py:310），本身无任何持久化，且在 Neo4j 离线时压根不启动。旧防线拆了，新防线在该场景下不存在。同时 episode_worker.py:433 属 DD-13 名实不符：日志断言的行为与代码可达路径矛盾，会让运维读日志时误判「数据已进死信、可事后恢复」。"
+    },
+    {
+     "description": "三个仍在被生产代码写入的暂存面（backend/data/failed_writes.jsonl、backend/app/data/canvas_events_fallback.json、backend/data/learning_memories.json）的 Neo4j 重放器全部 orphaned：FallbackSyncService.sync_all_fallbacks 与 MemoryService.recover_failed_writes 在 backend/app + scripts + canvas-vault + frontend 全域零调用方。",
+     "severity": "high",
+     "why": "暂存机制的价值等于「写 + 读回」的乘积，写侧独存等于把数据写进一个没人读的抽屉。更隐蔽的是：failed_writes.jsonl 有一条活着的读侧（load_failed_scores → get_learning_history，memory_service.py:799），它让 API 返回里能看到这些分数，从而在 UI 层制造「数据还在」的表象，掩盖了它从未回到图库、也不参与 FSRS/mastery 任何下游计算的事实。"
+    },
+    {
+     "description": "Neo4jClient 的 JSON 镜像（backend/data/neo4j_memory.json，neo4j_client.py:55/:422/:476）从来就不在任何重放器的覆盖面内 —— FallbackSyncService 的三文件清单（fallback_sync_service.py:7-9）根本没列它。且 _use_json_fallback 是单向闩：全仓无 `_use_json_fallback = False`，进程内一旦降级不再自愈。",
+     "severity": "high",
+     "why": "这是本次穷举中唯一一个「连设计意图上的重放器都没有过」的暂存面，比 orphaned 更靠前一步。运行期 Neo4j 中途失联时（:620/:628 重试耗尽 → _fallback_to_json），后续所有写都静默落进这个 JSON 且永不回流；由于是闩，即使 Neo4j 十分钟后恢复，本进程直到重启都不会再碰图库。"
+    },
+    {
+     "description": "DeadLetterStore 的 docstring（episode_worker.py:201）自称「for manual inspection and replay」，但默认配置下连人工重放都不可能：EpisodeTask.to_dict() 把 episode_body 截断到 200 字符（episode_worker.py:107），episode_body_full 仅在 DEAD_LETTER_STORE_FULL_BODY 开启时写入（:230-232/:254-255），默认关闭；留在盘上的只有 sha256 前缀。",
+     "severity": "high",
+     "why": "隐私改造（audit-2026-04-07/p1-1）与可恢复性直接冲突，而 docstring 未随之更正 —— 名实不符第二例。项目自身的 G4-9 验收单已实测到后果：live DLQ 92 条里 88 条只剩 200 字预览，只能靠翻 Claude transcript 近似重建。写下「可 replay」的那行字，是把一个未建成的能力（owner G4-10）当成既有能力在文档里流通。"
+    },
+    {
+     "description": "唯一活着的重放器 EventBus.recover_outbox 有两处会造成静默丢失：(a) event_bus.py:403-406 在 `await self.publish(event)` 后立刻标记 recovered=True，而 Tier-2 的 publish 只是 asyncio.create_task（:249-250），处理器尚未执行；(b) main.py:216 的调用早于 episode_worker.initialize_graphiti(:276) 与 start()(:283)，被重放的 MEMORY_WRITE_REQUESTED / FSRS_UPDATED 抵达 _enqueue_episode 时 is_ready 必为 False。",
+     "severity": "medium",
+     "why": "(a) 意味着「进程在重放后、retry 走完前退出」的条目已被标记恢复，下次启动不再重试；(b) 意味着 outbox 里凡是最终要落 Graphiti 的事件类型，在启动重放这一轮上恒定走空，只能靠 Tier-2 retry 耗尽后重新写一条新的 outbox 条目续命——而新条目 event_id 带 \"_recovery\" 后缀逐轮累加，文件只增不删（remaining_lines 保留全部已恢复条目，:404-411）。"
+    },
+    {
+     "description": "fallback_sync_service.py 在被 59586af1 摘掉调用方之后仍在持续接受维护性提交（`git log --since=2026-03-01 -- backend/app/services/fallback_sync_service.py` 显示 82764348 CARD-G2-3 加 group 写身份、fc0adb11 T1 格式统一、4104020d 多 vault 泄漏修复等 6 次），且 backend/app/domains/canvas/gateway.py:19 仍把 FallbackSyncService 作为门面导出。",
+     "severity": "medium",
+     "why": "孤儿代码持续被审查通过并「修复」，会让任何静态审视（含 code review、gateway 导出清单）都判定它是活的组件，掩盖「它一行都跑不到」的事实。这也解释了为何 dual-write 被删两年后仍无人发现兜底链断裂。"
+    },
+    {
+     "description": "config.py:477 把 ENABLE_GRAPHITI_JSON_DUAL_WRITE 默认翻成 False 并标 [DEPRECATED]，但 canvas_service.py 的六个消费点（:267/:360/:440/:457/:986/:995）写的是 `getattr(settings, ..., True)`，其 fallback 默认与字段默认相反；backend/.env.example:226 至今仍写 `ENABLE_GRAPHITI_JSON_DUAL_WRITE=true`。",
+     "severity": "medium",
+     "why": "三处口径互不一致，读代码的人按哪一处推断都会得出不同的运行时行为。实际因 settings 上属性存在，getattr 恒取到 False，六处 Canvas 降级写入当前全关；但 .env.example 会让任何照抄样例部署的实例把它打开 —— 打开后写进的是一个 orphaned 重放器管辖的文件，等于用配置换来一个只写不读的抽屉。"
+    },
+    {
+     "description": "backend/app/data/ 目录在当前树上不存在（`ls -la backend/app/data` → No such file or directory），而 canvas_events_fallback.json 的写侧路径正指向该目录（canvas_service.py:97），FallbackSyncService 的读侧常量同样指向它（fallback_sync_service.py:34）。",
+     "severity": "low",
+     "why": "写侧有 mkdir(parents=True)（canvas_service.py:170）所以不会崩，但目录不存在本身是一条独立旁证：这条降级链在当前部署里从未真正落过盘。与 backend/data/ 下 failed_writes.jsonl / failed_edge_syncs.jsonl 明确带今日 mtime 形成对照。"
+    },
+    {
+     "description": "canvas-vault 侧（learning_events.jsonl，backend/app/services/learning_event_log.py:158 append_event）只有 5 个写侧（memory.py:888 / tips.py:579 / errors.py:161,:222 / conversation_distiller.py:418），backend 生产代码里没有任何读侧。",
+     "severity": "low",
+     "why": "按 CLAUDE.md 的 FSRS D0 口径它本就定位为「审计/幂等账」而非真相源，因此不算缺陷；列出是为了把它从「可能的重放源」中明确排除——避免后续误以为 vault 账本能充当 Neo4j 恢复面。"
+    }
+   ],
+   "uncertain": "本视角证据不足、无法下结论的部分：\n\n1. **运行期真实行为未验证**。按任务约束全程只用 grep/sed/git/cat，未跑测试、未启服务、未连 7691/7687。上述所有 alive/orphaned 判定都是**静态调用图**结论（调用方 grep + git 历史 + 触发点行号），不是运行期观测。特别是「Neo4j 启动期离线 ⇒ episode 静默丢弃」这条，我证明的是**代码可达路径**（initialize_graphiti 返 False → main.py:286 else → 不调 start() → is_ready False → _enqueue_episode 提前 return），没有拿到一条真实日志里 `Episode worker not ready, skipping enqueue` 的出现记录来钉死「它就是这样失败的」。按 reference_code_mechanism_vs_observed_failure 的口径，这属于「机制成立、观测缺位」，下游若要据此定级应补一次真实离线复现或 grep 生产日志。\n\n2. **动态/间接调用未穷举**。我的 orphan 判定基于字面量 grep（函数名、单例名）。若存在 `getattr(svc, name)`、字符串反射、entry_points、或经 domains/canvas/gateway.py 门面再动态派发的调用，本次搜索面覆盖不到。已按 reference_narrowed_search_scope_becomes_false_negative 的教训扩过一次搜索面（backend/app + backend/scripts + scripts + canvas-vault + frontend + docker + config + launchd plist），但反射式调用仍是已知盲区。\n\n3. **failed_writes.jsonl 的 28 行实存内容全是测试污染**（test.canvas / \"Test concept\" / \"Database connection failed\"），因此无法从盘上数据反推真实生产流量是否真的走过 _record_failed_write。写侧调用点（agent_service.py:5085/:5101）在生产 agent 路径上是确定的，但「生产中实际触发过多少次」不可知。\n\n4. **canvas_events_fallback.json 六个开关的当前取值**是我按「settings 上属性存在 ⇒ getattr 取字段值 False」推断的，未实测 `settings.ENABLE_GRAPHITI_JSON_DUAL_WRITE` 的运行时求值（Settings 有小写别名 property config.py:928，且 backend/.env 是 gitignored、我未读其内容 —— 若 .env 里显式写了 true，六处就是**开着**的，结论反转为「写进无人读的文件」）。这一条对定级方向有影响，建议实测 backend/.env。\n\n5. **G4-6（持久 outbox 卡）/ G4-10（DLQ replay 卡）的当前状态**只从 _bmad-output 台账与代码注释（event_handlers.py:78 的「移交 G4-6」）读到，未核对这两张卡是否已在别的分支上落地。本树 HEAD (da690bf8) 上确无对应实现。"
+  }
+ },
+ {
+  "key": "v2:8bc7551db5ae17c8d164450ff05344d655dc30b2684286dc12fe28a22ec87aa6",
+  "cached_from_2026_09_08": false,
+  "result": {
+   "refuted": true,
+   "reason": "核心结论「唯一覆盖学习数据写侧的活恢复只有 event_bus.recover_outbox 一条；A/C/D/E/F 全是只写不读的孤儿」被推翻。它把审查面窄化成「main.py lifespan + backend/data/*.jsonl」，于是漏掉了三类活着的机制，并把两条判为 orphaned 的路径判错。\n\n1. failed_writes.jsonl 有活读侧，判 orphaned 错。`memory_service.load_failed_scores()`（memory_service.py:2785）被 `get_learning_history()`（:650）在 :799 实调：`failed_scores = await asyncio.to_thread(self.load_failed_scores)`，随后 :800-830 做 user_id/日期/group 前缀过滤后并入返回。docstring 原话「so the user never sees a \"missing score\" gap」（Story 38.6 AC-4）。结论只 grep 了 `recover_failed_writes|sync_all_fallbacks` —— 而它自己引用的 failed_writes_constants.py:6 那行就同时写着 `(recover_failed_writes, load_failed_scores)`，第二个名字被跳过了。所以「数据落了盘但永远回不来」不成立：不回 Neo4j，但每次历史查询都读得回来。它说的「两个活写侧」也少了一个：`_flush_pending_failed_writes`（:2846，由 `cleanup()` :2837 调，源 `self._pending_failed_writes` 在 :1419 追加，Story 30.24 AC-30.24.4 停机 flush）。\n\n2. neo4j_memory.json 不是「只写不读」，其证据是一次窄搜索假阴性。`_initialize_json_fallback`（neo4j_client.py:435-465）在每次进降级时 `open(self._storage_path)` 把整份文件读回 `self._data`（:448-452 并 log「Loaded N relationships」）；`_run_query_json_fallback`（:635-660）把 `_handle_merge_learning`/`_handle_query_reviews`/`_handle_query_history` 全部接在这份数据上。结论的判据「grep -rn \"neo4j_memory\" backend/app 只有 :55 一处」只搜了字面文件名，而所有读都走 `self._storage_path`。真正成立的只是更窄的一条：Neo4j 恢复后没有回灌器。\n\n3. 恢复动作不止 lifespan：存在活的按需重放器，且方向正是「图丢了、md 还在」。`POST /api/v1/errors/rebuild-graphiti`（endpoints/errors.py:233-280）→ `rebuild_graphiti_from_frontmatter`（error_rebuild_service.py:1-8），docstring 原话「兜底机制 (AC #6)…用户场景: 切设备 / Graphiti 失败丢失 / 主动重建索引」，带 dry_run。另有 CLI `backend/scripts/backfill_graphiti_structured.py`（Phase 4.5，幂等，边 uuid=内容 hash，--execute）。两者都在 `backend/app` 的 lifespan 之外，结论的搜索面看不到。\n\n4. 最大的漏项：耐久性是 local-first + 客户端驱动重试，而它被结论当作「同名易混淆项」排除了。`frontend/src/services/sync-engine.ts` 消费 IndexedDB 持久 outbox（dexie-db.ts:222/:234 `sync_outbox`）；后端 `sync_service._classify_error`（:147-154）把 Neo4jError/ConnectionError 一律归 `TRANSIENT_ERROR`；引擎据此做 full-jitter 指数退避（sync-engine.ts:296-328），注释点名的场景就是「many tabs/worktrees retry the same Neo4j outage」；条目只有在 `syncedAt` 置位后才被 `cleanupOldEntries`（:392-404）清理，故跨重启存活直到写成功。被审的能力是「Neo4j 离线/写失败时学习数据不丢」，不是「lifespan 里有 replayer」——canvas board/node/edge 这条面的该能力，实现就在这里，且活着。\n\n5. 同一处方向倒置也发生在写侧：vault markdown 是真相源，Neo4j 是投影。`error_writer.py:5`「AC #6: Graphiti 失败 → frontmatter 仍成功 (本地优先)」；`memory_service.py:506-508`「callout/relation 的主要持久化是 frontmatter + 启动回填 (vault md 是真相源, backfill_vault 重建边), outbox 是非结构化材料/边界场景的兜底」；`main.py:377-379` 明写回填兜底「后端不在线时打的批注」。结论把「回不到图里」直接等同于数据丢失，与架构声明的真相源方向相反（也与 CLAUDE.md D0「frontmatter=current state」相反）。\n\n6. 它自己的 gap #6 读反了语义：「唯一能替代 JSON 兜底的恢复动作恰好在需要它的那个故障场景里不执行」——重放器在目标恢复后才跑正是重放器的定义；停机期间的耐久由 vault 写提供，不由重放器提供。该条真正剩下的缺陷要窄得多：backfill 只覆盖落进 md 的东西。\n\n仍然成立的部分（如实保留）：dead_letter_episodes.jsonl 与 failed_edge_syncs.jsonl 在 app 代码内确实无重放（traces.py:22/23 只做诊断只读；census_dead_letter_episodes.py 自称是 G4-10 replay 的**待办**台账生成器，generate_regression_tests.py 只把它们变成测试桩，两者都不回灌）；episode 队列纯内存、QueueFull 只加计数；canvas_events_fallback.json 双向断裂（6 个写点全被 config.py:477 default=False 门住，backend/.env:85 那行 `ENABLE_GRAPHITI_JSON_DUAL_WRITE=true` 是注释掉的，未生效）；neo4j_memory.json 无回灌。这些点位缺陷站得住，但结论的总判断站不住。",
+   "overlooked": "1) `memory_service.load_failed_scores`（:2785）被 `get_learning_history`（:650）在 :799 实调并做过滤合并（:800-830）——failed_writes.jsonl 的活读侧。2) `_flush_pending_failed_writes`（memory_service.py:2846 ← cleanup :2837 ← `_pending_failed_writes` :270/:1419）——第三个活写侧，停机 flush。3) `_initialize_json_fallback`（neo4j_client.py:435-465）把 neo4j_memory.json 读回内存，`_run_query_json_fallback`（:635-660）+ `_handle_query_history`/`_handle_query_reviews`/`_handle_merge_learning` 在其上服务读——推翻「只写不读」。4) `POST /api/v1/errors/rebuild-graphiti`（endpoints/errors.py:233-280）→ `error_rebuild_service.rebuild_graphiti_from_frontmatter`：活的、按需的 frontmatter→图重放器，场景写明「Graphiti 失败丢失」。5) CLI 重放/回填：`backend/scripts/backfill_graphiti_structured.py`（幂等 --execute）、`backfill_candidate_callouts.py`、`migrate_neo4j_data.py`。6) 前端持久 outbox 全链：`frontend/src/services/dexie-db.ts:222/:234` + `sync-engine.ts:99-160/:296-332/:361/:392-404`，配 `sync_service._classify_error`（:147-154）Neo4j 异常→TRANSIENT_ERROR→跨重启退避重试直到写成功。7) local-first 写契约：`error_writer.py:5` 与 `write_error_dual`（:630）frontmatter 先成功、Graphiti fire-and-forget；`memory_service.py:506-508` 明确 frontmatter 是真相源、backfill_vault 重建边。8) `backend/scripts/census_dead_letter_episodes.py` 自述是「G4-10 replay 的交接台账生成器」——dead letter 是已登记待处置项，不是无人知晓的孤儿（但确实尚无重放器）。9) `backend/app/domains/canvas/gateway.py:19` 把 FallbackSyncService 列进 Strangler Fig 门面 __all__，而全仓无人 import 该 gateway——这是结论没提的、真正的死代码面。10) `backend/tests/unit/test_qa_38_6_scoring_reliability_extra.py:439-453` 用 `inspect.getsource(main)` 断言 lifespan 里必须出现 `get_fallback_sync_service`/`sync_all_fallbacks`——该测试仍在仓里，是 59586af1 删除动作留下的红契约锚（第十二批红基线 C1 类），可作为「删除未收口」的现成证据，结论未引用。"
+  }
+ },
+ {
+  "key": "v2:ffea6de66dcf36f1d3acff06ef4fdc5b190f6fd626a81836818cb9f16062072e",
+  "cached_from_2026_09_08": false,
+  "result": {
+   "reason": "核心结论未被推翻：我按依赖注入 / 事件订阅 / 装饰器注册 / 动态 import / 定时任务 / 外部脚本六个动态入口逐条追，没有任何一条能让被判 orphaned 的重放器活过来。\n\n【逐条否证（支持原结论）】\n1. DI/re-export：`backend/app/domains/canvas/gateway.py:19` 确实 re-export 了 `FallbackSyncService`（原结论那条 `grep -rln \"sync_all_fallbacks\"` 按方法名搜，漏掉了这个按类名的引用面）。但 `grep -rn \"app\\.domains|from \\.domains\" backend/app backend/scripts frontend`（排除 domains/ 自身）**零命中** —— 八个 gateway 无任何生产 importer，是死 re-export，救不活。\n2. 装饰器/事件订阅：`event_handlers.py:414-462` 的 8 个 `event_bus.subscribe` 全部是 mastery/calibration/memory/UI 处理器，无一触碰 failed_writes / canvas_events / learning_memories；注册点唯一在 `main.py:210-213`。\n3. 动态 import：全仓仅 3 处 `spec_from_file_location`（`review_overview.py:1964` 载 daily_review runner、`intelligent_grouping_service.py:336` 载 CanvasBusinessLogic），都不指向 fallback_sync。\n4. 定时任务：进程内唯一周期任务 `archive_scheduler.py`（24h 会话归档，`main.py:200` 启）与恢复无关；`~/Library/LaunchAgents` 三个 canvas 作业逐个看过 —— daily-review（复习推送）、memory-health（健康摘要）、neo4j-backup（dump 备份），无一调用重放器。\n5. 外部脚本：`backend/scripts/migrate_neo4j_data.py:35` 虽以 `neo4j_memory.json` 为 DEFAULT_SOURCE，但通篇无 driver/bolt/GraphDatabase，只做 Unicode 清洗后 `json.dump` 原地回写（:188），**不入库**。\n6. API：`backend/app/api/` 全文无任何 recover/replay 端点触及这些文件；`health.py:1431 _check_json_health` 只 touch 一个 `.health_check` 临时文件。\n7. 反而补强了原结论：`grep -rn \"_use_json_fallback = False\" backend/app` **零命中** —— `neo4j_client` 的 JSON 降级是**闩**，进程内永不回切，所以「Neo4j 恢复后自动回流」这条假想路径在代码上不存在。\n\n【但原结论有 3 处证据/口径要更正（不改变主结论，改变严重度与措辞）】\nA. `neo4j_memory.json`「全仓无任何读回」是**窄 grep 造出的假阴性**。该文件在 `neo4j_client.py:446-465 _load_json_data` 每次降级激活时都被读回（:452 日志 `Loaded N relationships from ...`，本仓 `_bmad-output/审查/evidence-red-c2/unit-after-*.txt:1145` 有实测行），全部 `if self._use_json_fallback:` 读分支（:1193/:1254/:1613/:1864/:2033…）由它供数。准确说法应是「只回灌进 JSON 镜像供降级期读，从不重放回 Neo4j，且降级标志永不复位」——不是「没人读」。\nB. 「dead_letter_episodes.jsonl 唯一消费方是 traces.py:23」不成立：另有 `backend/scripts/census_dead_letter_episodes.py:462`、`backend/scripts/generate_regression_tests.py:156`，以及**每日 9:00 的 launchd 作业** `com.canvas.memory-health` → `scripts/memory-health.sh:20` 统计死信条数入健康日志。`failed_edge_syncs.jsonl` 同样多一个 `generate_regression_tests.py:155`。都不是重放器，gap 成立，但「唯一消费方」是错的，且这正是本次要查的定时任务面。\nC. gap #6「唯一替代恢复只在下一次启动生效」对**关系投影那一半**不成立：`sync.py:236 sync_relationships_vault`（:264 import、:275 调 `relationship_sync_service.sync_relationships_in_vault`）与 `sync.py:175 /sync/relationships/by-node` 是**随时可 HTTP 触发**的 vault md → Neo4j 重建，带 dry_run，无需重启。`backfill_vault` 确实无 API 面（`grep -rn backfill backend/app/api` 零命中），那半句成立。",
+   "overlooked": "两条真正活着、且因为「只看 backend startup lifespan」而被结构性漏掉的持久化重试通道：\n\n1. **vault SessionEnd hook 的本地待发队列（hook 注册 = 动态入口，完全在后端进程之外）**\n   `canvas-vault/.claude/settings.json:14-22` 把 `session-end-archive.py` 注册为 SessionEnd hook。该脚本 `:32-35` 定义 `pending_archives.jsonl` / `pending_archives.dead.jsonl` / `MAX_DRAIN_PER_RUN=5` / `MAX_ATTEMPTS=30`，`:112 _enqueue`（按 session_id 幂等）在 POST `/api/v1/memory/archive/session` 失败时落队，`:122-142 _drain`（由 `:157` 在每次 hook 运行时调用）逐条补发、失败 attempts+1、超 30 次转 dead 文件。docstring 原话「停机窗口结束的学习会话不再永久丢失」。这是一条**有落盘、有重放、有死信、有幂等**的会话归档恢复链，原结论的清单里完全没有它。\n   ⚠️ 但边界必须说清：`archive_session` 端点（`memory.py:817-900`）无论 graphiti/worker 是否就绪都返 200（`enqueued` 只是响应体里的布尔），而 hook `_post`（:73-88）**以 HTTP 成功为准**即出队。所以这条链覆盖的是「后端不可达」，**不覆盖「后端在、Neo4j 挂」**——恰好不覆盖本次审的那个场景。原结论的主张在这条路径上依然成立，但它遗漏了这条链，导致「worker 三条失败出口全无落盘重放」的整体画像偏重。\n\n2. **前端 IndexedDB Outbox：被原结论当「同名易混淆项」排除，实际是直接服务本审能力的活重试队列**\n   `frontend/src/services/sync-engine.ts` 轮询 `db.sync_outbox`（`dexie-db.ts:68-72`，entityType = node/edge/board），失败按 `error_class` 分流：VALIDATION_ERROR 永久失败、DEPENDENCY_MISSING 提优先级、**TRANSIENT_ERROR 全抖动指数退避重试**（:313-327，cap 60s），代码注释 :306 逐字写着「many tabs/worktrees retry the same **Neo4j outage** simultaneously」；后端 `sync.py:58-72` 对 `ServiceUnavailable/AuthError/ConnectionError` 明确返 **503**，正好落进 TRANSIENT 重试分支。也就是说：Neo4j 离线期间**前端发起的画布节点/边/白板写入不会丢**，条目留在 IndexedDB，等 Neo4j 回来再幂等重放（`sync_batch` docstring 自称 idempotent）。\n   这直接下调 gap #3（canvas_events_fallback 关死 ⇒「打条 warning 就丢」）与 gap #5（failed_edge_syncs 只写不读）的实际影响面：**服务端那条 JSON 兜底断了，但前端这条durable 队列还在，且覆盖的是同一批画布写入**。原结论把它以「不是后端启动期恢复动作」为由排除，是把「审查视角的边界」当成了「系统的边界」——被审的能力是「Neo4j 离线时学习数据不丢」，而不是「lifespan 里有没有 recover_*」。\n\n3. 顺带一条原结论没列的孤儿常量（补强而非反驳）：`backend/app/core/failure_counters.py:27 DUAL_WRITE_DEAD_LETTER_PATH` 全仓**零写侧零读侧**，只有定义本身。\n\n综合：仍然没有救活的评分/记忆面 —— `failed_writes.jsonl`（agent_service.py:131 / memory_service.py:513 两个活写侧）与 `neo4j_memory.json`（MasteryStore 经 `neo4j_client` 在降级期写入的 BKT/FSRS/概念状态）确实无任何动态路径能把它们送回图里，gap #1/#2/#4 成立。",
+   "refuted": false
+  }
+ },
+ {
+  "key": "v2:ad56b1f53bb88f23ac896e83fd83158d4911265e9225a8709f8fc9d4fe091295",
+  "cached_from_2026_09_08": false,
+  "result": {
+   "lens": "穷举写侧 — 枚举生产代码中所有「写入失败/超时时把数据暂存到磁盘」的落盘点，逐条判定写者、上游触发、生产可达性，以及是否有重放器把它捞回 Neo4j。仓库根：/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u11-red-c（全程只读命令，未连 7691/7687，未跑测试）。",
+   "paths": [
+    {
+     "name": "failed_writes.jsonl ← agent_service._record_failed_write（评分/分解 agent 写超时或异常）",
+     "file_line": "backend/app/services/agent_service.py:99（写在 :131）；调用点 :5085 / :5101",
+     "role": "writer",
+     "alive": "alive",
+     "evidence": "grep -rn \"_record_failed_write\" --include=\"*.py\" backend/app/ → 定义 :99，生产调用点仅 agent_service.py:5085/:5101，均在 `_trigger_memory_write._write_with_timeout` 的 except asyncio.TimeoutError / except Exception 分支内。上游 `_trigger_memory_write` 生产可达：agent_service.py:3872(decompose_basic)/:3992(decompose_deep)/:4226(score_node)/:4932(generate_explanation)/:5479(generate_verification_questions)/:5653(decompose_question)，另有 batch_orchestrator.py:307/:735/:1013 与 verification_service.py:3045。落盘常量 backend/app/core/failed_writes_constants.py:12 → backend/data/failed_writes.jsonl，实测存在 78 行（wc -l < backend/data/failed_writes.jsonl）。⚠️ 触发条件与 Neo4j 可用性基本无关：它包住的 `AgentService.record_learning_episode`(:4955) 只写本地 JSON（LearningMemoryClient），且自身 catch 掉 (ImportError, RuntimeError, ConnectionError, TimeoutError) 后 return False，而 :5065 的 await 不检查返回值 → Neo4j 掉线不会走到这条落盘。"
+    },
+    {
+     "name": "failed_writes.jsonl ← memory_service._record_structured_outbox（A7：worker 未就绪时的结构化 outbox）",
+     "file_line": "backend/app/services/memory_service.py:499（写在 :513）；调用点 :1662",
+     "role": "writer",
+     "alive": "alive",
+     "evidence": "grep -rn \"_record_structured_outbox\" --include=\"*.py\" backend/app/ → 定义 :499，唯一调用点 :1662，位于 record_knowledge_entity 内 `if enqueued: status='enqueued' else: status='degraded' + 落盘`（memory_service.py:1647 是全仓唯一检查 `_enqueue_episode` 返回值的写点）。上游 record_knowledge_entity 生产可达面广：grep -rn \"record_knowledge_entity(\" --include=\"*.py\" backend/app/ → endpoints/memory.py:727/:740、endpoints/tips.py:315/:370/:481、mcp/tools/conversation_tools.py:159/:284、mcp/tools/memory_tools.py:297/:404、services/conversation_archive.py:564、conversation_distiller.py:380/:395/:461、error_writer.py:584、event_handlers.py:320、verification_service.py:833。实测该路径真的在落盘：grep -c '\"kind\": \"knowledge_entity\"' backend/data/failed_writes.jsonl → 4。这是 Neo4j/worker 掉线时**唯一真正会落盘**的学习数据路径。"
+    },
+    {
+     "name": "failed_writes.jsonl ← memory_service._flush_pending_failed_writes（批量 Neo4j 写失败，仅在 cleanup 时刷盘）",
+     "file_line": "backend/app/services/memory_service.py:2846（写在 :2864）；内存累积点 :1419；唯一调用点 :2838（cleanup）",
+     "role": "writer",
+     "alive": "alive",
+     "evidence": "grep -rn \"_pending_failed_writes\" --include=\"*.py\" backend/app/ → append 只在 :1419（record_batch_learning_events 的 Neo4j 并发写错误分支），flush 只在 :2838（`async def cleanup`）。即：进程被 kill -9 或崩溃 → 内存队列全丢。上游 record_batch_learning_events 由 endpoints/memory.py:554 调用，生产可达。"
+    },
+    {
+     "name": "failed_writes.jsonl 重放器 A —— MemoryService.recover_failed_writes",
+     "file_line": "backend/app/services/memory_service.py:2679",
+     "role": "replayer",
+     "alive": "orphaned",
+     "evidence": "grep -rn \"recover_failed_writes\" --include=\"*.py\" backend/ --exclude-dir=tests → 只有定义 :2679 与两处注释（failed_writes_constants.py:6、memory_service.py:503）。grep -c 'recover_failed_writes' backend/app/main.py → 0。其自身 docstring(:2682-2685) 写「no longer called from the startup lifespan，已被 FallbackSyncService.sync_all_fallbacks() 取代」，而后者同样零调用（见下条）。"
+    },
+    {
+     "name": "failed_writes.jsonl / canvas_events_fallback.json / learning_memories.json 三合一重放器 —— FallbackSyncService.sync_all_fallbacks",
+     "file_line": "backend/app/services/fallback_sync_service.py:54（单体 _sync_failed_writes :114 / _sync_canvas_events ~:191 / _sync_learning_memories ~:280）；单例入口 :657",
+     "role": "replayer",
+     "alive": "orphaned",
+     "evidence": "grep -rn \"sync_all_fallbacks()\" --include=\"*.py\" backend/app/ → 0 生产调用（唯一命中 memory_service.py:2682 是 docstring 文本）。grep -c 'get_fallback_sync_service' backend/app/main.py → 0；grep -c 'sync_all_fallbacks' backend/app/main.py → 0。整个模块在生产侧只被 backend/app/domains/canvas/gateway.py:19 重新导出，无人调用。删除证据：git log --oneline -S\"sync_all_fallbacks\" -- backend/app/main.py → 59586af1 'refactor(phase2): delete fake bridge/JSON dual-write code, replaced by GraphitiEpisodeWorker'（2026-03-26），git show 59586af1 -- backend/app/main.py 显示整段 `[Story 38.8] Sync all JSON fallback files to Neo4j on startup` 被删。"
+    },
+    {
+     "name": "failed_writes.jsonl 只读消费者 —— load_failed_scores（合并视图，不回灌 Neo4j）",
+     "file_line": "backend/app/services/memory_service.py:2785；调用点 :799（get_learning_history）",
+     "role": "other",
+     "alive": "alive",
+     "evidence": "grep -rn \"load_failed_scores\" --include=\"*.py\" backend/app/ → 定义 :2785，调用 :799 `failed_scores = await asyncio.to_thread(self.load_failed_scores)`。它把落盘条目以 source='fallback' 混进历史列表给前端看，**不删文件、不写 Neo4j** —— 因此文件只增不减是设计内的，但也意味着「用户看得见」≠「数据回到图里」。"
+    },
+    {
+     "name": "canvas_events_fallback.json ← canvas_service._write_canvas_event_fallback（Canvas CRUD 事件兜底）",
+     "file_line": "backend/app/services/canvas_service.py:121（写在 :172）；路径常量 :97；6 个调用点 :268 / :361 / :441 / :458 / :987 / :996",
+     "role": "writer",
+     "alive": "orphaned",
+     "evidence": "6 个调用点**全部**包在 `if getattr(settings, \"ENABLE_GRAPHITI_JSON_DUAL_WRITE\", True):` 里（sed -n '265,270p;358,362p;438,442p;455,459p;984,998p' backend/app/services/canvas_service.py）。getattr 的默认实参 True 是死值 —— 属性真实存在：backend/app/config.py:477-480 `ENABLE_GRAPHITI_JSON_DUAL_WRITE: bool = Field(default=False, description=\"[DEPRECATED]…\")`；backend/.env 第 85 行该项被注释掉（sed -n '80,90p' backend/.env），无任何 .env 覆盖为 true（grep -rln \"ENABLE_GRAPHITI_JSON_DUAL_WRITE\" --include=\".env*\" . → 仅 backend/.env.example）。⇒ 生产恒 False，6 个写点恒不执行。落盘路径解析：Path(canvas_service.py).parent.parent/'data' = backend/app/data/canvas_events_fallback.json（注意与其它 staging 文件不在同一目录），实测 ls -la backend/app/data/ 中不存在该文件。"
+    },
+    {
+     "name": "failed_edge_syncs.jsonl ← failure_counters.write_dead_letter（Canvas 边同步 3 次重试耗尽）",
+     "file_line": "backend/app/core/failure_counters.py:73（写在 :123）；路径常量 :25；唯一调用点 backend/app/services/canvas_service.py:505",
+     "role": "writer",
+     "alive": "alive",
+     "evidence": "grep -rn \"write_dead_letter\" --include=\"*.py\" backend/app/ → 定义 failure_counters.py:73，生产调用仅 canvas_service.py:505（在 `except Exception` / tenacity 3 次重试耗尽后）。上游 `_sync_edge_to_neo4j` 是 Canvas 加边的 fire-and-forget。实测落盘有效：wc -l < backend/data/failed_edge_syncs.jsonl → 80 行，最新一条 2026-09-09T10:08:26。**无任何重放器**：grep -rn \"failed_edge_syncs\" --include=\"*.py\" backend/app/ 只命中写侧常量与 api/v1/endpoints/traces.py:22（只读 trace 查询），backend/scripts/generate_regression_tests.py:4 也只是读来生成测试。"
+    },
+    {
+     "name": "failed_dual_writes.jsonl（+ increment_dual_write_failures 计数器）",
+     "file_line": "backend/app/core/failure_counters.py:27（路径）/:40（计数器）",
+     "role": "writer",
+     "alive": "removed",
+     "evidence": "grep -rn \"increment_dual_write_failures|DUAL_WRITE_DEAD_LETTER_PATH|failed_dual_writes\" -r --include=\"*.py\" --include=\"*.md\" backend/ docs/ → 生产代码零命中，只剩 failure_counters.py 自身定义 + backend/tests/**（unit/test_failure_observability.py、e2e/test_epic36_integration.py）+ docs/stories/36.12.story.md（第 130/158 行仍宣称「已实现：memory_service.py:_write_to_graphiti_json() 调用 increment_dual_write_failures() + write_dead_letter()」）。而 `_write_to_graphiti_json` 已不存在：grep -rn \"_write_to_graphiti_json\" --include=\"*.py\" backend/app/ → 0；删除于 git show --stat 59586af1（commit message 明写 'Remove _write_to_graphiti_json, _write_to_graphiti_json_with_retry, _bridge_to_claude_graphiti'）。⇒ 文件永不产生，健康端点的 dual_write_failures 恒 0。"
+    },
+    {
+     "name": "dead_letter_episodes.jsonl ← episode_worker.DeadLetterStore.store（Phase 2 替代品自己的死信）",
+     "file_line": "backend/app/services/episode_worker.py:235（写在 :259）；默认路径 :225 / :307 = 相对路径 \"data/dead_letter_episodes.jsonl\"；三处调用 :641 / :655 / :659",
+     "role": "writer",
+     "alive": "alive",
+     "evidence": "grep -rn \"GraphitiEpisodeWorker(|dead_letter_path\" --include=\"*.py\" backend/app/ → 唯一实例化 episode_worker.py:673 `_worker_instance = GraphitiEpisodeWorker()`，**不传 dead_letter_path**，用默认相对路径。⚠️ 触发前提是 worker 已启动并从队列取到任务：`is_ready` = `self._started and self._graphiti is not None`（:527）。Neo4j 离线时 main.py:276 的 initialize_graphiti 在 pre-flight 探测失败处 `self._graphiti = None; return False`（episode_worker.py:377-378），main.py:283 的 `await episode_worker.start()` 因此**不执行** → 队列永不消费 → 死信文件恒空。**无自动重放器**：find . -name \"dead_letter*\" → 磁盘上不存在该文件；grep 全仓只有 backend/scripts/census_dead_letter_episodes.py（只读普查，其 regression 测试文件名即 test_census_dead_letter_readonly_contract.py）与 generate_regression_tests.py:156（读来生成测试）。"
+    },
+    {
+     "name": "data/outbox/events.jsonl ← EventBus._write_outbox（Tier 2 事件重试耗尽 / 熔断器 OPEN）",
+     "file_line": "backend/app/services/event_bus.py:343（写在 :360）；路径常量 :49-50；触发点 :264（circuit_open）/ :304（retries_exhausted）",
+     "role": "writer",
+     "alive": "alive",
+     "evidence": "上游 `_tier2_retry_wrapper`（:252）由 `_dispatch_tier2`（:240）派生。Tier 2 事件类型见 backend/app/models/canvas_events.py:213-217（BKT_UPDATED / FSRS_UPDATED / MASTERY_CHANGED / CALIBRATION_RECORDED / MEMORY_WRITE_REQUESTED）。生产 publisher：backend/app/mcp/tools/exam_tools.py:531（SCORE_SUBMITTED，Tier 1）→ event_handlers.py:95/:110 再 publish BKT_UPDATED / FSRS_UPDATED（Tier 2）；difficulty_matcher.py:355（Tier 3，不进 outbox）。handler 注册于 main.py:214 `register_all_handlers(event_bus)`。实测目录存在但空：ls -la backend/data/outbox/ → 空目录。注意 CALIBRATION_RECORDED / MEMORY_WRITE_REQUESTED 有 handler 无 publisher（grep -rn \"MEMORY_WRITE_REQUESTED\" --include=\"*.py\" backend/app/ 只命中枚举/tier表/注册/注释）。"
+    },
+    {
+     "name": "data/outbox/events.jsonl 重放器 —— EventBus.recover_outbox",
+     "file_line": "backend/app/services/event_bus.py:369；调用点 backend/app/main.py:216",
+     "role": "replayer",
+     "alive": "alive",
+     "evidence": "sed -n '205,220p' backend/app/main.py 显示 lifespan 内 `recovered = await event_bus.recover_outbox()`。这是 Phase 2 之后**唯一还活着的、面向学习信号的启动重放器**（另一条 recover_pending 是向量索引，不含学习数据）。"
+    },
+    {
+     "name": "backend/data/neo4j_memory.json ← Neo4jClient JSON fallback（_save_json_data）",
+     "file_line": "backend/app/clients/neo4j_client.py:474（_save_json_data）；路径常量 :55；落盘触发点 :743(_handle_merge_learning) / :1770(record_score_history) / :1979 / :2194 / :2333（association 三兄弟）/ :464（初始化建档）",
+     "role": "writer",
+     "alive": "alive",
+     "evidence": "进入 fallback 的两条路：① 初始化失败 —— :409 / :414 / :419 三处 `await self._fallback_to_json()`（health_check 失败 / AuthError / 建 driver 异常）；② **中途降级** —— :619 / :627 `if not self._use_json_fallback: await self._fallback_to_json(); return await self._run_query_json_fallback(query, params)`（tenacity RetryError 或 RETRYABLE_EXCEPTIONS 耗尽）。派发见 :652-660 关键词路由，`MERGE + User + Concept` → `_handle_merge_learning`(:663) → :743 `await self._save_json_data()`。上游 `create_learning_relationship`(:977) ← `record_episode`(:1039) ← memory_service `_create_neo4j_learning_relationship`(:1174) ← `record_learning_event`(:576)，生产可达。实测文件存在但空：cat backend/data/neo4j_memory.json → users/concepts/relationships 三个空数组。"
+    },
+    {
+     "name": "backend/data/neo4j_memory.json 的重放 —— 仅手动脚本 migrate_neo4j_data.py",
+     "file_line": "backend/scripts/migrate_neo4j_data.py:35（DEFAULT_SOURCE = BACKEND_DIR/\"data\"/\"neo4j_memory.json\"）",
+     "role": "replayer",
+     "alive": "orphaned",
+     "evidence": "grep -rn \"neo4j_memory\" --include=\"*.py\" backend/ --exclude-dir=tests → 只有 neo4j_client.py:55（写侧常量）、migrate_neo4j_data.py:35、两个 lifespan 隔离探针脚本的注释。app/ 内无任何启动期调用 → JSON fallback 收下的学习关系没有自动回灌通道，须人工跑脚本。"
+    },
+    {
+     "name": "backend/data/learning_memories.json ← LearningMemoryClient.add_learning_episode / _save_data",
+     "file_line": "backend/app/clients/neo4j_edge_client.py:828（_save_data 在 :817，落盘 :854）；路径常量 :43-45；上游 backend/app/services/agent_service.py:4999",
+     "role": "writer",
+     "alive": "alive",
+     "evidence": "链路：`_trigger_memory_write`(agent_service.py:5013) → `record_learning_episode`(:4955) → :4999 `await self._memory_client.add_learning_episode(memory)`；`_memory_client` 由 backend/app/dependencies.py:222 / :1042 注入 `get_learning_memory_client()`。该 client **无条件走本地 JSON**（构造 :765-777 只有 storage_path，无 Neo4j 分支），所以它不是「失败兜底」而是「常态旁路存储」。实测 cat backend/data/learning_memories.json → memories 为空数组。"
+    },
+    {
+     "name": "backend/data/learning_memories.json 重放器 —— FallbackSyncService._sync_learning_memories",
+     "file_line": "backend/app/services/fallback_sync_service.py:35（LEARNING_MEMORIES_FILE）；重放体在 sync_all_fallbacks 第三优先级（:94-101）",
+     "role": "replayer",
+     "alive": "orphaned",
+     "evidence": "同 sync_all_fallbacks —— 零生产调用方（见上）。附带：它调用的 `Neo4jClient.record_score_history`(neo4j_client.py:1714) 因此也变成生产不可达：grep -rn \"record_score_history\" --include=\"*.py\" backend/app/ → 唯一调用点 fallback_sync_service.py:372。"
+    },
+    {
+     "name": "backend/data/sync_checkpoint.json ← FallbackSyncService._save_checkpoint",
+     "file_line": "backend/app/services/fallback_sync_service.py:36（常量）/ :517（写）",
+     "role": "other",
+     "alive": "orphaned",
+     "evidence": "grep -n \"SYNC_CHECKPOINT_FILE\" backend/app/services/fallback_sync_service.py → 全部读写点都在 _load/_save/_clear_checkpoint 内，只被那个零调用的重放器使用。磁盘上不存在（ls backend/data/ 无此文件）。"
+    },
+    {
+     "name": "backend/app/data/vault_index_pending__<vault>.jsonl ← LanceDBIndexService._persist_pending",
+     "file_line": "backend/app/services/lancedb_index_service.py:506（写在 :530）；路径 :78",
+     "role": "writer",
+     "alive": "alive",
+     "evidence": "落盘触发在索引失败分支；重放器 `recover_pending`(:210) 由 backend/app/main.py:183 在 lifespan 调用 —— 这是活着的 writer+replayer 闭环。实测文件存在：ls -la backend/app/data/ → vault_index_pending__canvas_vault.jsonl（0 字节）。⚠️ 载荷是**向量索引意图**（canvas_name / trigger_node_id / error），不含学习内容，救不回学习数据。"
+    },
+    {
+     "name": "vault_index_orchestrator 的 pending journal（RAG-S1）",
+     "file_line": "backend/app/services/vault_index_orchestrator.py:331（_persist_sync，写在 :339）；重放 :838（start() 内 `recovered = self.recover()`）",
+     "role": "writer",
+     "alive": "alive",
+     "evidence": "sed -n '835,845p' backend/app/services/vault_index_orchestrator.py 显示 start() 第一件事就是 self.recover()。同上：只承载索引意图，非学习数据。"
+    },
+    {
+     "name": "<vault>/learning_events.jsonl ← learning_event_log.append_event（号称「图可重建」的账本）",
+     "file_line": "backend/app/services/learning_event_log.py:158（路径解析 :151-155）；生产写点 endpoints/errors.py:163/:224、endpoints/memory.py:890、endpoints/tips.py:596、services/conversation_distiller.py:445",
+     "role": "writer",
+     "alive": "alive",
+     "evidence": "grep -rn \"append_event|learning_events.jsonl\" --include=\"*.py\" backend/app/ backend/scripts/ → 写点如上，读侧只有 backend/scripts/validate_learning_events.py（schema 校验器）与 g32b/g33 证据脚本。**无任何生产重放器把它灌回 Neo4j**：grep -rn \"learning_events\" --include=\"*.py\" backend/app/ 无重放调用；启动期回填走的是另一条 —— main.py:392 `backfill_vault(...)`，其数据源是 vault 的 .md frontmatter/callout（backend/app/services/vault_backfill.py:140-180 「扫 vault md → callout/error/relation 回填」），不读账本；且该回填被 `if _worker_graphiti is not None:`（main.py:386-388）挡住，Neo4j 离线时同样跳过。"
+    },
+    {
+     "name": "backend/data/fsrs_card_states.json ← ReviewService 卡片状态落盘",
+     "file_line": "backend/app/services/review_service.py:116（_CARD_STATES_FILE）/:600-605（tmp+replace 落盘）",
+     "role": "writer",
+     "alive": "alive",
+     "evidence": "grep -rn \"_CARD_STATES_FILE\" --include=\"*.py\" backend/ → 生产读写点 review_service.py:553/:554/:600/:603/:605。源码 :110-115 自我声明「非 FSRS 调度真相源 —— 本文件是投影/缓存，与 frontmatter 分歧时一律以 frontmatter 为准」。⇒ 它是学习数据的**副本**，不是失败暂存，也不构成 Neo4j 掉线的兜底。磁盘上当前不存在（ls backend/data/ 无）。"
+    },
+    {
+     "name": "前端 IndexedDB sync_outbox（Dexie）—— Canvas 结构增量的真·outbox",
+     "file_line": "frontend/src/services/dexie-db.ts:222/:234（表定义）；写入 frontend/src/stores/canvas-store.ts:83、frontend/src/services/indexing-service.ts:90；消费 frontend/src/services/sync-engine.ts:118/:265",
+     "role": "writer",
+     "alive": "alive",
+     "evidence": "引擎在 frontend/src/App.tsx:284-298 实例化并 `syncEngine.start()`，生产可达。sync_engine 只在后端 ACK 成功后 `db.sync_outbox.update(entry.id, { syncedAt })`（sync-engine.ts:265），失败留在 outbox 下轮重投；后端侧 backend/app/services/sync_service.py:307-315 明确「commit 成功后才生成 success ACK，假 ACK 会让前端清 outbox，已回滚的数据永久丢失」。⚠️ 载荷范围：writeOutbox 的 entityType 仅 'node' | 'edge' | 'board'（canvas-store.ts:77-78），**不含评分、agent episode、学习事件** —— 它保的是白板结构，不是学习数据。"
+    },
+    {
+     "name": "观测面 traces 端点（读侧，用来看这些暂存文件）",
+     "file_line": "backend/app/api/v1/endpoints/traces.py:17-24；注册于 backend/app/api/v1/router.py:56/:224",
+     "role": "other",
+     "alive": "alive",
+     "evidence": "路径实测错一层：python3 解析 traces.py 的 `Path(__file__).parent×4/'data'` → backend/app/data，而 failure_counters.py 的 `parent×3/'data'` → backend/data。两者不同目录（ls -la backend/app/data/ 只有 vault_index_pending__canvas_vault.jsonl；failed_edge_syncs.jsonl / failed_writes.jsonl 都在 backend/data/）。audit.jsonl 同理：traces LOGS_DIR=backend/app/logs，而 backend/app/audit/guardian.py:29 写 backend/logs/audit.jsonl。⇒ 4 个数据源中 3 个恒读不到。"
+    }
+   ],
+   "gaps": [
+    {
+     "description": "学习 episode 在 worker 未就绪时被静默丢弃，零落盘、零告警，且调用方仍拿到「成功」返回。`MemoryService._enqueue_episode`(memory_service.py:442-476) 在 `worker.is_ready` 为 False 时只 `logger.debug` 并 return False；5 个调用点里只有 :1647（record_knowledge_entity）检查返回值并落 outbox，另外三条 —— :632（record_learning_event，评分/学习事件主干）、:1433（record_batch_learning_events）、:2663（record_temporal_event）—— **完全忽略返回值**，且 record_learning_event 之后照常 `return episode_id`。",
+     "severity": "high",
+     "why": "这正是被审能力的正面场景。硬证据链：Neo4j 离线 → main.py:276 `initialize_graphiti` 的 pre-flight `verify_connectivity` 5s 超时/ServiceUnavailable → episode_worker.py:377-378 `self._graphiti = None; return False` → main.py:282-287 走 else 分支，**`await episode_worker.start()` 不执行** → `is_ready`(:527) = `self._started and self._graphiti is not None` = False → 每一条学习 episode 直接消失。而 `initialize_graphiti` 全仓只在 main.py:276 调用一次（grep -rn \"initialize_graphiti\" --include=\"*.py\" backend/app/ → main.py:276 + 定义 :318 + docstring :293），**没有任何运行期重连/重试**，Neo4j 中途恢复也不会自愈，只能重启进程。"
+    },
+    {
+     "description": "Phase 2 commit 59586af1 删掉的是「重放入口」，不是「写入路径」—— 写者全留着，读者全没了。failed_writes.jsonl / canvas_events_fallback.json / learning_memories.json 的两个重放器（memory_service.recover_failed_writes:2679、FallbackSyncService.sync_all_fallbacks:54）在生产侧都是零调用方，failed_edge_syncs.jsonl 与 dead_letter_episodes.jsonl 从来就没有重放器。",
+     "severity": "high",
+     "why": "实测证据：`git show 59586af1 -- backend/app/main.py` 显示整段 Story 38.8 启动同步被删；`grep -c 'get_fallback_sync_service' backend/app/main.py` = 0、`grep -c 'sync_all_fallbacks' backend/app/main.py` = 0。落盘仍在发生且只增不减：`wc -l < backend/data/failed_writes.jsonl` = 78（时间跨度 2026-09-07T22:46 → 2026-09-09T10:12），其中 `grep -c '\"kind\": \"knowledge_entity\"'` = 4 条是 A7 真实兜底；`wc -l < backend/data/failed_edge_syncs.jsonl` = 80。唯一还活着的启动重放是 event_bus.recover_outbox（main.py:216）与 lancedb recover_pending（main.py:183），前者只覆盖 EventBus Tier 2 五类事件、后者只覆盖向量索引意图。"
+    },
+    {
+     "description": "`ENABLE_GRAPHITI_JSON_DUAL_WRITE` 默认翻成 False，直接让 Canvas 事件兜底的 6 个写点全数失效；而 .env.example 仍写 true，与实现相反。",
+     "severity": "high",
+     "why": "config.py:477-480 default=False；backend/.env 第 85 行该项被注释掉；backend/.env.example:226 `ENABLE_GRAPHITI_JSON_DUAL_WRITE=true`、:230 还留着 `# DUAL_WRITE_DEAD_LETTER_PATH=backend/data/failed_dual_writes.jsonl`。canvas_service.py 六处 `getattr(settings, \"ENABLE_GRAPHITI_JSON_DUAL_WRITE\", True)` 的第三参数 True 是死值（属性存在），实际取 False。被删掉的旧 main.py 代码里恰好有一行 `logger.warning(\"JSON fallback is disabled. Neo4j outage will cause data loss.\")`（见 git show 59586af1 -- backend/app/main.py）—— 这句告警连同它描述的风险一起被删了，风险留下、提示没了。"
+    },
+    {
+     "description": "dead_letter_episodes.jsonl 的覆盖面与它要保的场景刚好互补：只在 worker **已就绪**、任务已入队后失败才写；Neo4j 离线（worker 不就绪）时它恒为空。且写的是相对路径，随进程 CWD 漂移。",
+     "severity": "high",
+     "why": "DeadLetterStore.store 三个调用点（episode_worker.py:641/:655/:659）全在 `_handle_failure`/`_process_task` 的队列消费循环内，而该循环由 `start()` 拉起，Neo4j 离线时 start() 不被调用。路径：`DeadLetterStore(file_path=\"data/dead_letter_episodes.jsonl\")`（:225/:307），`GraphitiEpisodeWorker()` 在 :673 实例化时不传参 → 相对 CWD。Docker 下 WORKDIR /app（backend/Dockerfile:7 + COPY . . :19）恰好落到 backend/data/；但 backend/start_server.py 全程无 chdir（grep -n \"cwd|chdir|os.getcwd\" backend/start_server.py → 只有 subprocess 无 cwd 参数），从仓库根启动就会落到 <repo>/data/。同一 CWD 依赖也影响 config.py:943 `SettingsConfigDict(env_file=\".env\")` —— 从非 backend/ 目录启动时 backend/.env 根本不加载。"
+    },
+    {
+     "description": "agent 侧 `_write_with_timeout` 吞掉 `record_learning_episode` 的 False 返回，把写失败当成写成功。",
+     "severity": "medium",
+     "why": "agent_service.py:5063-5073：`await asyncio.wait_for(self.record_learning_episode(...), timeout=...)` 后直接 `logger.debug(\"Memory write completed\")`，不判返回值；而 record_learning_episode(:4955) 内部 `except (ImportError, RuntimeError, ConnectionError, asyncio.TimeoutError)` → `return False`(:5003-5005)，`add_learning_episode` 自身 `except (OSError, IOError, TypeError, ValueError) → return False`（neo4j_edge_client.py:859-861）。⇒ 落盘失败也不会触发 :5085/:5101 的 `_record_failed_write`。这条链的 78 行现存记录几乎全来自超时分支与测试注入（error_reason 分布：34×\"Database connection failed\"、20×\"Database connection lost\"、20×\"Unexpected failure\"）。"
+    },
+    {
+     "description": "Story 36.12 声称已实现的 dual-write 死信与失败计数是空壳：failed_dual_writes.jsonl 零写者、increment_dual_write_failures() 零生产调用。",
+     "severity": "medium",
+     "why": "docs/stories/36.12.story.md:130/:158 明写「memory_service.py:_write_to_graphiti_json() 调用 increment_dual_write_failures() + write_dead_letter() ✅ 已实现」，但该函数已于 59586af1 删除（grep -rn \"_write_to_graphiti_json\" --include=\"*.py\" backend/app/ → 0）。后果：监控端 dual_write_failures 恒 0，一个「永远没有失败」的指标比没有指标更危险。"
+    },
+    {
+     "description": "traces 观测端点路径比实际写入目录深一层，4 个数据源里 3 个恒空。",
+     "severity": "medium",
+     "why": "traces.py:17-18 用 `Path(__file__).parent×4` → backend/app/data 与 backend/app/logs；实际写入在 backend/data（failure_counters.py:25 用 parent×3）与 backend/logs（guardian.py:29 用 parent×3）。python3 实测两组路径不同，且 ls -la backend/app/data/ 里没有 failed_edge_syncs.jsonl / dead_letter_episodes.jsonl。router.py:56/:224 确认该端点已注册对外，所以它会以 200 + 空 timeline 的形式**谎报「这个请求没有失败记录」**。"
+    },
+    {
+     "description": "learning_events.jsonl 在模块 docstring 里承诺「过程可回放、图可重建」，但生产侧没有任何重放器把它灌回 Neo4j。",
+     "severity": "medium",
+     "why": "learning_event_log.py:3-5 原文「日志提供『过程可回放、图可重建』兜底 — 会话记忆层从『丢图即永失』变为可重放」。实测读侧只有 backend/scripts/validate_learning_events.py（schema 校验）。启动期唯一的「重建」是 vault_backfill（main.py:392），数据源是 vault .md（vault_backfill.py:140 docstring「扫 vault md → callout/error/relation」），且被 `_worker_graphiti is not None`（main.py:386）挡住 —— Neo4j 离线时它也不跑。⇒ 「可重建」目前只是一句未兑现的能力声明。"
+    },
+    {
+     "description": "两个 P0 测试在断言一个已被删除的事实，属于「红基线」而非通过项。",
+     "severity": "medium",
+     "why": "backend/tests/unit/test_qa_38_6_scoring_reliability_extra.py:445-446 `assert \"get_fallback_sync_service\" in source`（source = main.py 全文）、:452-454 `assert \"sync_all_fallbacks\" in source`，类名 TestStartupIntegration，docstring「Verify main.py lifespan calls fallback sync」。实测 `grep -c 'get_fallback_sync_service' backend/app/main.py` = 0、`grep -c 'sync_all_fallbacks' backend/app/main.py` = 0 ⇒ 两条必红。这说明「重放器被删」在测试层是有牙齿的信号，只是没人把红转成结论。"
+    },
+    {
+     "description": "暂存文件散落三个目录，且各自用不同层数的 `Path(__file__).parent` 推导，任何一次文件移动都会静默改变落盘位置。",
+     "severity": "low",
+     "why": "实测四种口径并存：backend/data（failed_writes_constants.py:12、failure_counters.py:25、neo4j_client.py:55、neo4j_edge_client.py:43、event_bus.py:49、review_service.py:116，均 parent×3）、backend/app/data（canvas_service.py:97、lancedb_index_service.py:74、vault_index_orchestrator.py:127、fallback_sync_service.py:32，parent×2）、进程 CWD 相对路径（episode_worker.py:225、bug_tracker.py:89 \"data/bug_log.jsonl\"、notification_channels.py:119 \"logs/alerts.log\"）、vault 内（learning_event_log.py:155）。fallback_sync_service.py 自己就得同时维护 _BACKEND_DIR 与 _APP_DATA_DIR 两个基准（:31-36）才能兼容 —— 这本身是口径分裂的证据。"
+    },
+    {
+     "description": "EventBus 有两类 Tier 2 事件只有 handler、没有 publisher，outbox 对它们永远是空的。",
+     "severity": "low",
+     "why": "grep -rn \"MEMORY_WRITE_REQUESTED\" --include=\"*.py\" backend/app/ → 只命中 canvas_events.py:188/:216（枚举+tier 表）、event_handlers.py:251/:441/:443/:470/:9（handler+注册+注释），无 publish。CALIBRATION_RECORDED 同形。生产 publisher 只有 exam_tools.py:531（SCORE_SUBMITTED）与 difficulty_matcher.py:355（Tier 3），经 event_handlers.py:95/:110/:164/:204 二次派生 BKT_UPDATED / FSRS_UPDATED / MASTERY_CHANGED / UI_MASTERY_PUSH。⇒ outbox 的实际覆盖面比「Tier 2 五类」的账面窄。"
+    }
+   ],
+   "uncertain": "1) 未做运行期观测。全部结论来自只读 grep/sed/git（按卡文约束未跑测试、未启服务、未连 7691/7687）。「Neo4j 离线 → worker 不就绪 → episode 静默丢」这条链是代码机制推断（episode_worker.py:377 + main.py:282-287 + :527 三点串成），**没有实测过一次真实离线启动的日志**。要坐实需要一次断网启动 + 观察是否出现「[Phase 2] GraphitiEpisodeWorker in degraded mode」且 dead_letter/failed_writes 均无新增。\n\n2) backend/data/ 现存条目多为测试污染，不能当生产流量读。failed_edge_syncs.jsonl 首行 error 是 \\\"Exception: Simulated Neo4j failure for edge-2\\\"、canvas_name=\\\"partial.canvas\\\"，failed_writes.jsonl 的 error_reason 也是三类固定串 —— 与 MEMORY.md 记录的「TestClient lifespan 污染真 data」一致。所以 78/80 行证明的是「写者有效 + 无人消费」，**不是「生产已丢 78 条学习记录」**；真实生产丢失量本视角无法给出。\n\n3) 未覆盖 canvas-vault 侧（SKILL 静态 python：quiz-answer / fsrs_bridge / start-exam-board / ai-linked-doc）。learning_event_log.py:53-57 明写账本有「四方写者」，其中三方在 canvas-vault/.claude/scripts 下，不在 backend/app/ 的 grep 面内。这些写者若各自另有暂存/重试文件，本次枚举会漏。\n\n4) 未核 backend/app/mcp/ 之外的独立 MCP server 进程（若存在）与 frontend/sidecar 的落盘。前端只查到 Dexie sync_outbox 一处；Tauri 侧（frontend/src-tauri）本次 grep 无命中，但未做穷举。\n\n5) `_record_failed_write` 的实际触发概率未量化。它挂在 `_write_with_timeout` 的 TimeoutError/Exception 上，而被包住的调用几乎不会因 Neo4j 掉线而抛 —— 但 MEMORY_WRITE_TIMEOUT=15s 的超时分支在 Neo4j 慢但未断的场景下是否常触发，需要真实压测，本视角无法判定。\n\n6) 根目录 data/neo4j_memory.json（created_at 2026-03-18）与 backend/data/neo4j_memory.json（2026-09-08）并存。前者说明历史上确有进程以仓库根为 CWD 运行过，但无法从代码证明是哪个入口写的 —— 只作为「CWD 依赖是真实风险」的旁证，不作结论。"
+  }
+ },
+ {
+  "key": "v2:01be4e58d9cafd1a71c2fed72925ca37836db86bd09aa29282b78e7f711e706f",
+  "cached_from_2026_09_08": false,
+  "result": {
+   "refuted": true,
+   "reason": "分两层回答：**三条 orphaned 判定本身在动态可达性下站得住，但该视角的几条承重结论被它漏掉的活路径证伪，所以整体判 refuted=true。**\n\n**(1) orphaned 判定复核通过（未被推翻）** — 我按依赖注入 / 装饰器注册 / 动态 import / 定时任务 / 外部脚本五个面逐一闭合：\n- 动态 import 全仓只有两处（`intelligent_grouping_service.py:336` 载 CanvasBusinessLogic；`review_overview.py:1964` 载 `daily_review_run` runner），都不指向重放器；无 `getattr(module, name)` 式字符串派发（唯三命中是 `mastery_engine.py:103` / `scoring_faithfulness.py:417` / `main.py:38`，均无关）。\n- launchd 实测三个 canvas 任务（`~/Library/LaunchAgents/com.canvas.{daily-review,memory-health,neo4j-backup}.plist`）：daily-review → wrapper 只跑 vault 侧 push；memory-health.sh:20-22 确实只 `wc -l`；neo4j-backup 只做 dump。无一触发 `sync_all_fallbacks` / `recover_failed_writes`。\n- 门面 `backend/app/domains/canvas/gateway.py:19` 的 re-export **零 importer**（`grep -rn \"domains.canvas.gateway\" backend/app backend/scripts` 无输出），MCP 侧 `infra_tools.py` 只有 `check_backend_health` / `switch_vault`，`vault.py` 切库不重置任何 worker 单例。\n- 死信同样闭合：`dead_letter_episodes|DeadLetterStore` 全仓命中 8 个文件，写侧只有 worker，读侧 traces/census/generate_regression_tests/memory-health，且 `backend/tests/regression/test_census_dead_letter_readonly_contract.py` 用测试钉死 census 只读。\n- `set_graphiti_client` / `initialize_graphiti` 复核成立：`.start()` 的生产调用点只有 `main.py:283`，无自愈。\n\n**(2) 但下面这些承重句被证伪** — 该视角通篇未出现 \"EventBus\" 一词，也漏了 vault 侧的两条活链，导致三条 gap 的措辞不成立：\n- gap「两个 JSON 重放器全部 orphaned…没有任何东西在消费」→ **另有一个活着的跨进程 outbox 重放器**：`main.py:205-221` 每次启动 `register_all_handlers(event_bus)` + `await event_bus.recover_outbox()`，落盘面 `event_bus.py:49-50` = `backend/data/outbox/events.jsonl`，Tier-2 退避后 `_write_outbox`(:302-304)、熔断开也进 outbox(:262-264)，`recover_outbox`(:369-418) 重投。上游发布方是活的（`exam_tools.py:521-531` 发 SCORE_SUBMITTED → `event_handlers.py:98` 发 FSRS_UPDATED → `handle_fsrs_updated` 写 graphiti）。\n- gap「写侧活着、读侧死了 = 数据进了坟场」→ **failed_writes.jsonl 的读侧是活的**：`memory_service.py:799` 在 `get_learning_history` 里 `await asyncio.to_thread(self.load_failed_scores)`（定义 :2785），按 user/日期/group 过滤后并进结果（Story 38.6 AC-4「so the user never sees a missing score gap」）。死的只是「回图」，不是「无人读」。\n- gap「tips.py 幂等账把重投通道自己关死」→ **重投通道在另一条链上且是活的**：批注正文的真相源是 vault markdown，`main.py:377-400` 每次启动做**全量 rglob 重扫**回填（`vault_backfill.py:195-240`，边 uuid=内容 hash 幂等），其注释原文点名的正是「② 后端不在线时打的批注」；且 `backend/scripts/backfill_graphiti_structured.py:34-39,61` 自建 graphiti_core `Neo4jDriver` 调同一个 `backfill_vault`，**不依赖 worker、不需重启进程**——该视角把 backfill 说成「同样要求启动时 Neo4j 在线」，漏了这条 CLI 入口。\n- 「Neo4j 离线 ⇒ 学习数据丢失」这一框架本身也偏窄：`docs/fsrs-truth-source-d0-revision.md` 铁律 1 裁定 frontmatter 是 FSRS 唯一 current state，而每日复习链（launchd → `daily-review-wrapper.sh` → `canvas-vault/.claude/scripts/fsrs_bridge.py`，该文件 `grep -n \"neo4j|bolt|7691|graphiti\"` 零命中）整条不碰 Neo4j。\n\n**(3) 需同时登记的边界（这些反而支持该视角，但它没给出）**：EventBus 那条活重放器在关键面上是**空转**的——`memory_service.record_knowledge_entity` 失败即 fail-soft（`memory_service.py:1655-1677` 返回 status=\"degraded\" + 落 A7 outbox，**从不抛**），Tier-2 retry wrapper 看不到异常，所以 outbox 极少被写；本树 `backend/data/outbox/` 实测**空目录**。`recover_outbox` 还有一个真缺陷：Tier-2 的 `publish()` 立即返回，条目在处理结果未知时就被标 `recovered=True`（:404）——好在再失败会 append 一条新 outbox 行，不至于一次性丢。同理，vault 侧 hook 队列只挡「后端不可达」：`session-end-archive.py:73-87` 把任意 2xx 当成功，而 `memory.py:817+` 的 archive_session 在 episode 只进内存队列时也返 200。\n\n综上：视角的**事实颗粒**（三处 orphaned、无自愈、队列纯内存、死信不可重放）逐条复核为真，但它据此写出的**覆盖面结论**（\"没有任何重放器\"／\"读侧全死\"／\"重投通道关死\"／backfill 仅限启动）被四条活机制证伪，且这些机制恰好落在本次审的核心能力上，故判 refuted=true。",
+   "overlooked": "1. **EventBus 三层事件总线（完全缺席于该视角）** — `backend/app/main.py:205-221` 启动期 `register_all_handlers(event_bus)` + `await event_bus.recover_outbox()`；`backend/app/services/event_bus.py:49-50`（OUTBOX_FILE=`backend/data/outbox/events.jsonl`）、:252-304（Tier-2 退避 2s→4s→8s 后 `_write_outbox`，熔断 OPEN 也进 outbox）、:369-418（`recover_outbox` 重投）。这是一条**跨进程落盘缓冲 + 启动重放**，正是该视角断言「不存在」的性质。发布方活着：`backend/app/mcp/tools/exam_tools.py:521-531`（SCORE_SUBMITTED）→ `event_handlers.py:35-103`（Tier-1 handler 再发 BKT_UPDATED/FSRS_UPDATED）→ `event_handlers.py:296-340`（`handle_fsrs_updated` 写 graphiti）。**边界**：`memory_service.py:1655-1677` fail-soft 不抛异常，Tier-2 包装器接不到失败，故 outbox 实测空目录（`ls backend/data/outbox/` 空）。\n\n2. **failed_writes.jsonl 的活读侧** — `backend/app/services/memory_service.py:799`（`load_failed_scores` 定义 :2785）在 `get_learning_history` 中把落盘失败的评分并回用户可见的学习历史（Story 38.6 AC-4），带 user_id/日期/group 前缀过滤（:802-830）。该文件不是纯坟场。\n\n3. **backfill_vault 的第二个入口（外部脚本，不需重启、不依赖 worker）** — `backend/scripts/backfill_graphiti_structured.py:34-39` 自建 `graphiti_core.driver.neo4j_driver.Neo4jDriver`，:61 调 `backfill_vault(..., execute=True)`；启动侧 `main.py:377-400` 是**全量 rglob 重扫**（`vault_backfill.py:195-240`），注释原文「兜底两类离线写入：① 拉节点理由 ② 后端不在线时打的批注」，边 uuid=内容 hash 幂等且**不查 learning_events 账本** ⇒ tips.py 的「幂等账关死重投」不成立。\n\n4. **vault 侧 hook 的持久化重发队列（backend/ grep 永远看不到）** — `canvas-vault/.claude/hooks/session-end-archive.py:32-33`（`pending_archives.jsonl` + `pending_archives.dead.jsonl`）、:112-119（入队）、:120-141（`_drain` 补发，attempts/MAX_ATTEMPTS→dead）、:153-157（每次 SessionEnd hook 先补发）。由 Claude Code SessionEnd 事件驱动，`scripts/memory-health.sh:24-26` 也在计它的积压数。**边界**：`_post` 把任意 2xx 当成功（:73-87），而 `backend/app/api/v1/endpoints/memory.py:817+` 的 archive_session 在 episode 仅入内存队列时照样返 200 ⇒ 只挡后端不可达，不挡 Neo4j 挂。\n\n5. **FSRS 真相源不在 Neo4j** — `docs/fsrs-truth-source-d0-revision.md` 铁律 1/T1（frontmatter = 唯一 current state；事件账 = 审计/幂等/重放来源）；launchd `com.canvas.daily-review` → `~/Library/Application Support/CanvasReview/bin/daily-review-wrapper.sh` → vault 侧 `fsrs_bridge.py`（`grep -n \"neo4j|bolt|7691|graphiti\"` 零命中）。整条复习链在 Neo4j 离线时照常工作。\n\n6. **该视角漏掉的第四个只增不减的兜底文件（对它有利，但它没列）** — `backend/data/failed_edge_syncs.jsonl`（本树 15KB，mtime 今日 18:08），写侧 `backend/app/core/failure_counters.py:24-26`，消费方只有只读两处：`backend/app/api/v1/endpoints/traces.py:22`（展示）与 `backend/scripts/generate_regression_tests.py:155`（生成测试）。无任何重放器。\n\n7. **一个真实存在的周期性触发器（外部、repo grep 不可见）** — launchd `com.canvas.neo4j-backup` 每日 04:00 跑 `scripts/backup-neo4j.sh`，Community 版备份姿势是 `docker stop <neo4j> → dump → start`，即**每天制造一次计划内的 Neo4j 离线窗口**，正好落在该视角算出的 ~14s 重试预算之外。这条把「离线韧性」从假想场景变成日常事件。\n\n8. **两处措辞误差** — (a) `tips.py:633-639` 实际是 `accepted=enqueued`（队满/停机时会返 False），并非无条件 True，只是在「退化启动」下 put_nowait 成功才恒 True；(b) 该视角引用的现网 `dead_letter_episodes.jsonl` 685 条 / mtime 2026-04-07 在**本树无法核实**——该文件在此 worktree 不存在，`memory-health.sh:20-22` 指向的是 `feature-obsidian-hybrid-dev` 树，属二手快照。"
+  }
+ },
+ {
+  "key": "v2:0c4847113082a06fe2c963f3c2bd7f4b34e8f5cc6393a5b296f0b3747f7f1152",
+  "cached_from_2026_09_08": false,
+  "result": {
+   "reason": "核心结论被推翻。它的失败模式是**只审了一条托管链**（memory_service → episode_worker → dead_letter）外加两个早已知晓的孤儿 JSON 重放器，并据此宣布「全仓没有任何代码把失败的学习写回图」「跨进程存活这条性质不存在」。两条断言都被实测证伪。\n\n【决定性反证：EventBus Tier-2 持久 outbox + 已接线的启动重放器】\n- `/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u11-red-c/backend/app/services/event_bus.py:49-50` `OUTBOX_DIR/OUTBOX_FILE = backend/data/outbox/events.jsonl`；`_write_outbox`(:343-367) 落的是**完整 payload**（不是 200 字符残片），带 event_id/tier/handler_name/failure_reason/`recovered:false`。\n- `recover_outbox`(:369-419) docstring 逐字：「Read outbox and re-publish unrecovered events. **Called on startup to retry events that failed during previous run.**」重放后回写 `recovered:true`。\n- **生产接线实证**：`backend/app/main.py:216` `recovered = await event_bus.recover_outbox()`（Story 5.7 块，位于 worker 块 :272 之前）。这不是 orphaned，是 alive 且每次启动都跑。\n- 覆盖面正是本卡要审的学习数据：`backend/app/models/canvas_events.py:212-216` 的 `LEARNING_EVENT_TIER_MAP` 把 `BKT_UPDATED`/`FSRS_UPDATED`/`MASTERY_CHANGED`/`CALIBRATION_RECORDED`/`MEMORY_WRITE_REQUESTED` 全钉在 `TIER_2_IMPORTANT`；`event_handlers.py:296-340 handle_fsrs_updated` 正是调 `memory_svc.record_knowledge_entity()` 的入图写。生产 publisher 存在：`mcp/tools/exam_tools.py:531`、`event_handlers.py:95/110/164`、`difficulty_matcher.py:355`。\n- 结论 gap#3 断言「asyncio.Queue 没有跨进程存活这条性质，替代关系在这一点上不成立」——该性质在本仓存在，只是不在它审的那个子系统里：Tier-2 同样是 2→4→8s 三次重试，但**终点不是不可重放的死信，而是全 payload 的磁盘 outbox + 下次启动重放**。\n- 如实边界：`backend/data/outbox/` 当前为空（无 events.jsonl），无「已被行使过」的证据；且 recover_outbox 走同一 in-process publish，图仍挂则重新入 outbox。但「alive 未行使」≠ 它给的 \"removed / 不存在\"。\n\n【真相源被误判为「部分补偿」】\n- `memory_service.py:506-508` 系统自陈：「callout/relation 的**主要持久化是 frontmatter + 启动回填**（vault md 是真相源, backfill_vault 重建边）, outbox 是非结构化材料/边界场景的兜底」。所以 gap#6「写侧活着读侧死了 = 数据进了坟场」对 callout/relation 是错的：主副本在 vault，`main.py:383-400 backfill_vault(execute=True)` 每次健康启动幂等重建。\n- `review_service.py:110-116`：「节点当前调度状态的**唯一真相源**是该节点 .md 的 frontmatter (fsrs_due 等), 写侧为 vault 的 quiz-answer × fsrs_bridge 链」，后端 `fsrs_card_states.json` 明写是投影/缓存、分歧以 frontmatter 为准。`canvas-vault/.claude/scripts/fsrs_bridge.py` 是纯 stdlib 独立脚本，不连 Neo4j、不经后端。⇒「Neo4j 离线 ⇒ 学习数据丢失」对最高价值的复习调度状态根本不成立。\n- 它把「backfill 要求启动时 Neo4j 在线」记为缺陷，方向反了：这正是**恢复语义**——Neo4j 回来后重启，backfill + recover_outbox + LanceDB recover_pending 一起跑。「必须重启进程」为真，但「重启即足够」被漏掉了。\n\n【证据误归因：685 条死信】\n`episode_worker.py:60-64` `_PERMANENT_EPISODE_ERRORS=(GroupIdValidationError, EntityTypeValidationError)`，`_handle_failure`(:637-642) 对这两类**跳过重试直接死信**。而它自己的普查说 685 条 error_type 全是这两类 ⇒ 这是 group_id/entity-type 契约缺陷的堆积，**不含任何一条连通性故障产生的死信**。拿它当「Neo4j offline resilience 最后防线断裂」的实证是归因错误（作为「该文件无重放器」的证据仍成立）。\n\n【误判为 removed 的路径：canvas JSON 兜底】\n`backend/.env.example:226` 不是注释、是**生效赋值** `ENABLE_GRAPHITI_JSON_DUAL_WRITE=true`。按文档方式 `cp .env.example .env` 起的部署，canvas_service 六个兜底调用点**是活的**。「一律走只打日志分支」只是本机 `.env:85` 把该行注释掉的结果，是部署态属性不是代码属性；正确分类是 config-dependent，且出厂样例默认 ON。\n\n【结论中被我实测确认为真的部分】队列纯内存/硬编码 100、`GRAPHITI_QUEUE_MAXSIZE` 零读取方（仅 `config.py:485`）、退化启动不 start()、`set_graphiti_client` 零生产调用、重试窗 ≤14s、stop 超时丢弃不写死信、`_handle_failure` 抛异常会穿透 `_run` 的 while 且 `_started`/worker_running 仍为真、`sync_all_fallbacks`/`recover_failed_writes` 确为孤儿（我额外把 `_sync_canvas_events`/`_sync_learning_memories`/`_sync_failed_writes`/`_replay_*` 逐个搜过端点与脚本，无后门调用方）、failed_writes.jsonl 实测 78 条（74 scoring + 4 knowledge_entity，2026-09-07T22:46 → 09-09T17:22）。这些成立，但支撑不起「能力整体断裂」的总判。",
+   "overlooked": "1. **EventBus Tier-2 durable outbox + 启动重放器（最大遗漏，直接推翻 replayer=不存在）**：`backend/app/services/event_bus.py:49-50/343-367/369-419` + 接线点 `backend/app/main.py:216`；覆盖 FSRS/BKT/mastery/calibration/memory_write 五类 Tier-2 事件（`backend/app/models/canvas_events.py:212-216`），落全 payload、启动重放、标 recovered。结论的 paths 数组里完全没有这一行。\n\n2. **`learning_events.jsonl` append-only 账本 —— 明写的「图可重建」继任者**：`backend/app/services/learning_event_log.py:1-20`「frontmatter 仍是真相源, 日志提供『过程可回放、图可重建』兜底 — 会话记忆层从『丢图即永失』变为可重放」；fcntl 跨进程记录锁 + fail-closed（「⛔ 超时不静默降级为『没锁也写』」`:82-84`）；**四方写者含 vault 侧独立 python**（`canvas-vault/.claude/skills/{quiz-answer,start-exam-board,ai-linked-doc}/SKILL.md`），完全在 backend 进程与 Neo4j 故障域之外；配套校验器 `backend/scripts/validate_learning_events.py`。这是比被删的 JSON dual-write 更规范的替代（schema v1 + 幂等键 + 双时间戳）。\n\n3. **FSRS 真相源在 vault 侧，根本不经被审的托管链**：`backend/app/services/review_service.py:110-116` + `canvas-vault/.claude/scripts/fsrs_bridge.py`。审的能力是「学习数据不会丢失」，而调度状态的唯一真相源是本地 md frontmatter。\n\n4. **`vault_index_orchestrator` 的 durable pending journal + anti-entropy 重放**：`backend/app/services/vault_index_orchestrator.py:1-22`「durable per-path pending…入队即持久（意图日志, 非失败日志）」+ 60s 周期扫描「首轮立即执行 = 启动 reconciliation, 补齐停机期间的 vault 变更」+ `PendingPersistError`(:47-56) 明确禁止落盘失败还回 accepted。另有 `backend/app/main.py:183 lancedb_idx_svc.recover_pending()`。证伪「本仓后台写的唯一持久化原语就是那个有界内存队列」。\n\n5. **`backfill_vault` 覆盖面被少算**：不止「批注/派生关系」，还有**错题**（`write_callout` / `write_error` / `write_relation_reason` / `invalidate_missing_callouts`，`backend/app/services/vault_backfill.py:150-165`）。\n\n6. **第三条死信通道整条没被枚举**：`EDGE_SYNC_DEAD_LETTER_PATH` → `backend/data/failed_edge_syncs.jsonl`（`backend/app/core/failure_counters.py:24-25/73`，写点 `canvas_service.py:505`）。该文件在本树 15KB、mtime 2026-09-09 18:08，**仍在活跃累积**，且同样无重放器——是对结论有利的补强证据，但它漏了。\n\n7. **Story 30.24 shutdown flush 写侧**：`memory_service.py:270/1419/2837-2874 _flush_pending_failed_writes()`——批量 Neo4j 写失败在 cleanup 时落 failed_writes.jsonl。结论把 failed_writes.jsonl 的写侧只归给 A7 outbox，少了这一路（这解释了实测 78 条里那 74 条 scoring 形态的来源）。\n\n8. **`.env.example:226` 是生效赋值不是注释**（见 reason 第四节）——把 config-dependent 误判成 removed。\n\n9. **tips.py 的后果推断不成立**：幂等账先于 enqueue 写属实（`tips.py:596-602` → `:633`），但该端点自陈补偿在别处——`message=\"worker queue unavailable (蒸馏兜底)\"`(:637) 且 description 写「低价值类型直接拒绝 — raw lane (frontmatter) 已有数据, 蒸馏兜底」。批注原件在 vault frontmatter，下次健康启动由 backfill_vault 幂等入图，故「重投通道关死 ⇒ 批注永久丢失」不成立（「该 lane 关死」成立）。\n\n10. **退避语义细节**：`_handle_failure` 是 `await sleep` 后 `put_nowait` 到**队尾**，不是队头持有——「退避期间队头阻塞」措辞不准（单消费者被 sleep 占住成立，任务顺序性阻塞不成立）。",
+   "refuted": true
+  }
+ },
+ {
+  "key": "v2:ec8668357d4e146c236d53045fc6fed01325388651d033bcf6c4a2b433b2126b",
+  "cached_from_2026_09_08": false,
+  "result": {
+   "refuted": true,
+   "reason": "该视角把「能力」等同于「暂存文件 → Neo4j 的重放器」，在这条轴上枚举了 23 条路径，但**决定该能力成立与否的主链根本不在这条轴上**，且它在这条轴内部也有一处事实错误和一处结构性漏判。\n\n**一、漏掉了主持久化机制：vault 侧 write-ahead 学习事件账本（0/23 路径提及）**\n`backend/app/services/learning_event_log.py:151-155` → `Path(CANVAS_BASE_PATH)/\"learning_events.jsonl\"`，append-only、fcntl 跨进程记录锁、LF 守卫、短写校验、event_id 幂等、9 类白名单、超时不降级为无锁硬写（`:64-66`「⛔ 超时不静默降级为『没锁也写』: 那正是丢事件的路径」）。模块 docstring 第 3-4 行直陈用途：**「日志提供『过程可回放、图可重建』兜底 — 会话记忆层从『丢图即永失』变为可重放」**。活写侧（后端）：`api/v1/endpoints/memory.py:888`、`tips.py:579`、`errors.py:161` 与 `:222`、`services/conversation_distiller.py:418`；活写侧（vault）：quiz-answer 的 `answer_scored`/`answer_abandoned`、start-exam-board 的 `exam_created`、ai-linked-doc。**全部不经 Neo4j。**\n\n**二、漏掉了一个活着的、fail-closed 的重放器（该视角声称「唯一活着的 Neo4j 侧重放器是 recover_outbox」）**\nG3-2 A2「恢复先于新写」：`canvas-vault/.claude/skills/quiz-answer/SKILL.md:2466-2530` + `canvas-vault/.claude/scripts/fsrs_bridge.py:33,254`。每次评分**在追加本次事件之前**，把本节点 pending 账本行按 (业务时刻, 行序) 升序重放进 frontmatter FSRS，水位线按 bridge 实际输出逐行滚动；重放失败 → `raise SystemExit(...)` **零写 fail-closed**（`SKILL.md:2514-2517`）；采用时刻对不上 → 拒写（`:2504-2513`）。行为门锁死在 `backend/tests/regression/test_g3_2_review_ledger.py`（A1 write-ahead / A2 恢复先于新写 / A3 / A5 / A6 / degraded 哨兵 / 裁决③ 残缺卡零写）。这是**每次评分都跑**的生产重放器，不是 orphaned。\n\n**三、方向搞反了：Neo4j 是派生投影，vault 才是真相源**\n它自己引用的 `memory_service.py` A7 函数 docstring 原文（`:503-505`）：「callout/relation 的**主要**持久化是 frontmatter + 启动回填 (vault md 是真相源, backfill_vault 重建边), outbox 是非结构化材料/边界场景的**兜底**」。`main.py:378-379` 同调（回填「兜底两类离线写入」）。该视角把 `backfill_vault`/`CanvasProjectionSync` 判为 replacement 并警告「把它们当兜底会得出有兜底的错误结论」，把 JSON 暂存面当主网 —— 恰好是架构声明的反面。暂存面无重放是**副网缺陷**，不等于被审能力断裂。\n\n**四、事实错误：canvas_events fallback 不是「写侧读侧双向断裂」**\n它只据 `config.py:477 default=False` 判写侧死。但 `backend/.env.example:226` 是 **未注释的 `ENABLE_GRAPHITI_JSON_DUAL_WRITE=true`**（部署模板），本机 `backend/.env:85` 才是注释掉的。按模板部署的实例 = **写侧开、重放侧死 = 无消费者的无界静默堆积**，比「双向断裂」更糟且修复顺序不同。代码门还是 `getattr(settings, ..., True)`（6 处，`canvas_service.py:267/360/440/457/986/995`）—— 删掉配置字段会让写侧默认复活。\n\n**五、结构性漏判：那条「唯一活着」的重放器，Tier-1 与 Tier-3 根本进不了 outbox**\n`models/canvas_events.py:210-219`：`SCORE_SUBMITTED = TIER_1_CRITICAL`；`RAG_WEIGHT_ADJUST`/`UI_MASTERY_PUSH`/`DIFFICULTY_MISMATCH_ALERT` = TIER_3。`event_bus.py:216-236 _dispatch_tier1` 只 `raise`，**从不调 `_write_outbox`**；`_dispatch_tier3`/`_tier3_fire_wrapper` 同样。故 `recover_outbox` 结构上**只覆盖 Tier-2**，而全仓唯一的外部发布事件 `SCORE_SUBMITTED`（`mcp/tools/exam_tools.py:531`）永远不可能出现在 outbox 里。它却用另一条更弱的路（MEMORY_WRITE_REQUESTED 无发布方）论证「覆盖为空」，同时该论证本身也不成立：`FSRS_UPDATED` 是 Tier-2、**有**发布方（`event_handlers.py:110`）、其 handler **确实**写 Neo4j（`event_handlers.py:296→320 record_knowledge_entity`）。洞的位置被指错了。\n\n**六、反例：Neo4j 全程离线，每日复习闭环照常运行**\n`scripts/launchd/com.canvas.daily-review.plist`（9:05-20:05 每小时，RunAtLoad）→ `daily-review-wrapper.sh` → `scripts/daily_review_pick.py` / `daily_review_run.py`：两者 `grep -c \"neo4j|Neo4j|bolt\"` = **0**，import 仅 stdlib（`:207-218`），docstring 明写「依赖: 仅 stdlib + vault 内 decay_beta.py（launchd 环境无 pip 包可假设）」，读 vault 节点 frontmatter 出到期口径。评分/复习状态由 `fsrs_bridge.py` 写 6 个 frontmatter 字段，`review_service.py:2502` 明确「frontmatter 是真相源…跳过 auto-create 写盘」。学习主链在 Neo4j 离线时完整可用。\n\n结论：它列出的各条 orphaned 判定我独立复核基本属实（`get_fallback_sync_service` 生产调用方确为 0，仅 `domains/canvas/gateway.py:19` 一处 re-export 且无消费方；`recover_failed_writes` 全仓非测试命中仅定义+2 注释）。但**核心结论——被审能力因此断裂——不成立**：它漏掉了承载该能力的账本+A2 重放主链，弄反了真相源方向，并在自己的轴内有一处配置事实错误和一处 Tier 漏判。",
+   "overlooked": "1. **`<vault>/learning_events.jsonl` 账本**（`backend/app/services/learning_event_log.py:151-155`）：append-only + fcntl 跨进程记录锁 + LF 守卫 + 短写校验 + event_id 幂等 + 9 类白名单 + 锁超时不降级。活写侧 5 处后端（`memory.py:888`、`tips.py:579`、`errors.py:161`/`:222`、`conversation_distiller.py:418`）+ 3 处 vault skill。docstring 自陈「图可重建兜底」。校验器 `backend/scripts/validate_learning_events.py`（EVENT_VERSION/EVENT_TYPES 与模块锁死同步）。\n\n2. **G3-2 A2 pending 重放器（活）**：`canvas-vault/.claude/skills/quiz-answer/SKILL.md:2466-2530`，每次评分前把本节点 pending 账本行重放进 frontmatter，水位线按 bridge 实际输出滚动，失败 `SystemExit` 零写 fail-closed；`fsrs_bridge.py:33,254` 支持按事件已断言 rating 复算；行为门 `backend/tests/regression/test_g3_2_review_ledger.py`（A1 write-ahead 序列 spy 门）。\n\n3. **`backend/.env.example:226` 未注释的 `ENABLE_GRAPHITI_JSON_DUAL_WRITE=true`** vs `backend/.env:85` 注释态 —— 推翻「写侧读侧双向断裂」，实为模板部署下「只写不读」的无界堆积；`getattr(..., True)` 默认开门。\n\n4. **Tier-1/Tier-3 从不落 outbox**：`event_bus.py:216-236` / `:305-320` 无 `_write_outbox` 调用；`canvas_events.py:211` `SCORE_SUBMITTED=TIER_1_CRITICAL`。`recover_outbox` 覆盖面结构上限 = Tier-2。同时 `FSRS_UPDATED`（Tier-2、有发布方 `event_handlers.py:110`、handler 写 Neo4j `:320`）证明其「覆盖为空」的论证不成立。\n\n5. **每日复习 launchd 链**：`scripts/launchd/com.canvas.daily-review.plist` + `scripts/daily_review_pick.py`/`daily_review_run.py`（Neo4j/bolt 命中数 0，纯 stdlib），Neo4j 离线时学习闭环照常。\n\n6. **`backend/app/api/v1/endpoints/rollback.py`**（注册于 `api/v1/router.py:176`，prefix `/rollback`）：OperationTracker + SnapshotManager(max_snapshots=50) + RollbackEngine，含 `POST /snapshot`。一整套活的持久化/恢复子系统，23 条路径里零提及。另有 `scripts/backup-neo4j.sh`。\n\n7. **`backend/app/core/unified_learning_event.py` 非测试导入方 = 0**（自称「跨三条管道统一数据模型」的 Bloom 分类模型，实为死代码）—— 它在梳理「学习事件三个主入口」时未核对声明的规范模型是否接线。\n\n8. `_record_structured_outbox` docstring（`memory_service.py:503-505`）明写 callout/relation 的**主要**持久化是 frontmatter + 启动回填，outbox 只是边界兜底 —— 与该视角对 `backfill_vault` 的「不能当兜底」定性直接冲突。"
+  }
+ },
+ {
+  "key": "v2:468442de4e06901a7a4da060d1cb1952436cc662fdc643d0338abd3f18c31aa4",
+  "cached_from_2026_09_08": false,
+  "result": {
+   "refuted": true,
+   "reason": "核心结论（「Phase 2 只删了重放入口、写者全留读者全没 ⇒ Neo4j 离线时学习数据丢失」）被推翻，原因是**枚举面被划窄成 `backend/app/**/*.py` 的 JSONL 暂存文件**，把「学习数据」等同于「进 Neo4j 的那份拷贝」，因而漏掉了本项目自己声明的真相源层（vault markdown frontmatter）与它的活重放器。逐条：\n\n【A. 漏掉真相源层——三类主要学习数据的持久化根本不经 Neo4j】\n1) FSRS 调度/复习状态：`backend/app/services/review_service.py:111-112` 原文「节点当前调度状态的**唯一真相源**是该节点 .md 的 frontmatter (fsrs_due 等)，写侧为 vault fsrs_bridge」。写侧 `canvas-vault/.claude/scripts/fsrs_bridge.py`（纯 stdlib + CAS 令牌 `cas_token/cas_conflict`，:165/:183/:195）由 launchd `scripts/launchd/com.canvas.daily-review.plist` 驱动，**全程不 import 任何 neo4j 驱动、不经 backend**。结论把 `fsrs_card_states.json` 判成「投影/副本」是对的，却没往前一步问真相源在哪，于是对最大一类学习数据没有给出任何裁定。\n2) 错误/迷思（misconception）：`error_writer.write_error_dual`（:630）是 **frontmatter 先写、Graphiti 后写且 fire-and-forget**；frontmatter 失败则 `graphiti: \"skipped_frontmatter_failed\"` 直接返回，根本不写图。且**默认 mode = `candidate_only`**（:683-705），该分支 `graphiti: \"skipped_candidate_mode\"  # AC #1: candidate 阶段不进 Graphiti`——即 AI 检出的错误在默认路径上**完全不碰 Neo4j**。结论只把 `error_writer.py:584` 记作 `record_knowledge_entity` 的一个调用点，没看出那是第二份拷贝。\n3) 批注/关系（callout/relation）：结论自己引的那段 docstring 的下两行就写着答案——`memory_service.py:506-507`：「callout/relation 的**主要持久化是 frontmatter + 启动回填**（vault md 是真相源，backfill_vault 重建边），outbox 是非结构化材料/边界场景的兜底」。结论引了 :499/:513 却没引 :506-507，于是把「边界兜底」升格成了「唯一真正会落盘的学习数据路径」。\n\n【B. 把活重放器误判为死/无关】\n4) `learning_events.jsonl` **有生产重放器，就在 vault 侧**：`canvas-vault/.claude/skills/quiz-answer/SKILL.md:2466`「G3-2 **A2 恢复先于新写**：追加本次事件之前，把本节点 pending 集合按 (时刻, 行序) 升序**重放至空**」，:2515-2517 重放失败即 fail-closed 零写，:2549-2656 连 attempt_count / mastery / calibration_log 一并复算，:1746 拒重放跨 vault 事件，:1179-1202 幂等键唯一性硬校验。结论断言「无任何生产重放器」「『可重建』只是一句未兑现的能力声明」，是因为 grep 只加了 `--include=\"*.py\"` 且只扫 `backend/app/` + `backend/scripts/`——vault 侧 runtime 的 python 内嵌在 SKILL.md 里（本仓 `reference_narrowed_search_scope_becomes_false_negative.md` 记过这个坑）。另外「灌回 Neo4j」本来就不是该账本的契约：`docs/fsrs-truth-source-d0-revision.md` 定的是 frontmatter=current state、事件账=审计/幂等。\n5) `backfill_vault`（main.py:392）不是无关项，它正是 callout/relation 这一类的**活重放器**：`vault_backfill.py:1-8` 自述「本项目的历史记忆真相在 vault markdown…回填 = 重放 vault 经 structured_writer 写入」，幂等靠 `uuid5(类型:节点:group:内容hash)`。结论以「数据源是 vault .md、不读账本」「被 `_worker_graphiti is not None` 挡住」把它划掉——但离线时不写图恰是正确行为，数据留在盘上、Neo4j 恢复后重启即重建，这与「重放端此刻都是断的」正相反。\n\n【C. 结论内部自相矛盾，gap#1 的严重度不成立】\n6) gap#1 说 Neo4j 离线「每一条学习 episode 直接消失」，但同一份结论的 path#13 已经写明 `Neo4jClient` 有 JSON fallback。实测该链路成立：`memory_service.record_learning_event:576` → `_create_neo4j_learning_relationship:1198` → `neo4j_client.create_learning_relationship:1018` → `run_query` → 中途降级 `:619/:627 _fallback_to_json()` + `_run_query_json_fallback` 关键词路由（MERGE+User+Concept → `_handle_merge_learning`）→ `_save_json_data`。即评分事件的**结构化半边（user/concept/score/next_review）仍落 `backend/data/neo4j_memory.json`**，丢的只是语义 episode 那一份。两处发现从未对账，high 级「正面场景零覆盖」不成立。\n\n保留有效的部分：backend/data 下那批 JSONL（failed_writes / failed_edge_syncs / neo4j_memory / learning_memories / canvas_events）确实无活重放器；traces 端点路径深一层（实测 `traces.py:17` parent×4 → backend/app/data，`failure_counters.py:25` parent×3 → backend/data）；`ENABLE_GRAPHITI_JSON_DUAL_WRITE` 生产恒 False（config.py:478 default=False，backend/.env:85 注释掉，.env.example:226 仍写 true）；36.12 文档漂移。但这些针对的是**派生图**的补写通道，不等于「学习数据丢失」。",
+   "overlooked": "【结论漏掉的机制 / 误判】\n1. vault markdown frontmatter 写入面整层缺席：`error_writer.write_error_dual`(backend/app/services/error_writer.py:630)、`write_candidate_to_frontmatter_async`(:291)、`write_error_to_frontmatter_async`(:473)、`candidate_callout.py`、`frontmatter_signals.py`；默认 candidate_only 模式 `:704` 明确不进 Graphiti。\n2. vault 侧写者/重放者整层缺席：`canvas-vault/.claude/scripts/fsrs_bridge.py`（frontmatter + CAS，无 Neo4j 依赖）、`decay_beta.py`、`sync_board_concepts.py`；`canvas-vault/.claude/skills/quiz-answer/SKILL.md` 的 **A2「追加前重放至空」**(:2466/:2515/:2656) = learning_events.jsonl 的生产重放器；`start-exam-board/SKILL.md:437`、`ai-linked-doc/SKILL.md:189` 是账本的另两个写点（结论的写点清单只有 backend 侧 5 处）。\n3. `backfill_vault`(main.py:392 / vault_backfill.py:1-8) 被误判为「与学习数据无关」，实为 callout/relation/error 的幂等重建通道。\n4. **新的真丢失路径（结论未发现，与 Neo4j 是否在线无关）**：`neo4j_client.create_learning_relationship:1005-1015` 在 `_resolve_physical_group_id` 解析失败时 **fail-closed `return False`，发生在 `run_query` 之前**——因此连 JSON fallback 都进不去；而上游 `memory_service._create_neo4j_learning_relationship:1198` 只 `await` 不检查返回值，`record_learning_event` 照常 `return episode_id`。同形 fail-closed 还有 `record_score_history:1747`、`delete_edge_relationship`、`update_canvas_association`（见 `.claude/rules/cypher-write-contract.md`）。这是一条零落盘、零告警（仅 logger.error）、调用方拿到「成功」的丢失面，比结论列的任何一条都隐蔽。\n5. **`_use_json_fallback` 是单向闩**：`neo4j_client.py:431` 置 True，全仓无任何 `_use_json_fallback = False`（grep 实测只有 :297 构造参数与只读判断）。一旦中途降级，进程内**永不自愈**回 Neo4j，此后所有写入进一个无重放器的 JSON 文件——结论只提了「中途降级」入口，没提它是闩、也没提后果。\n6. **`migrate_neo4j_data.py` 被误标为 replayer**：实测 `backend/scripts/migrate_neo4j_data.py` 只 import argparse/json/shutil/ftfy，**没有任何 neo4j 驱动**，是 Unicode 修复脚本。所以 `neo4j_memory.json` 连「人工跑脚本回灌」这条路都不存在——结论写的「须人工跑脚本」是不成立的安慰。\n7. `_enqueue_episode` 的行为已复核属实（memory_service.py:459-462 `if not worker.is_ready: return False`；`worker.enqueue` 本身不检查 `_started`，队列在 worker 未启动时并不会被绕过），但它丢的是**语义 episode**，不是评分事实本身——结论把这两者混称为「学习 episode」，放大了结论强度。\n8. 未核而结论未声明的面：本次同样只做只读静态追踪，未验证 live vault 上 quiz-answer/fsrs_bridge 与开发树是否逐字节一致（`daily-review-wrapper.sh` 的 cmp 门覆盖 fsrs_bridge/decay_beta，不覆盖 SKILL.md），故 A2 重放器「在 live 上确实是这一版」未证。"
+  }
+ },
+ {
+  "key": "v2:fe059a936b1c00b74a0510a956d34e229db250b8279e5d9a197675000422c178",
+  "cached_from_2026_09_08": false,
+  "result": {
+   "refuted": false,
+   "reason": "从动态可达性逐条打，六个 orphaned/removed 判定全部站得住，没有任何一条被 DI / 事件订阅 / 装饰器注册 / 动态 import / 定时任务 / 外部脚本救活。逐个否证面（全部只读实测于 worktree card-u11-red-c）：\n\n【1】间接入口（re-export）：`backend/app/domains/canvas/gateway.py:19` 确实 re-export 了 `FallbackSyncService`，但 `grep -rn \"domains.canvas\" --include=*.py backend/ | grep -v ^backend/tests` = **0 命中** —— gateway 本身零 importer，不能充当活入口。`domains/memory` 同理零 importer。\n\n【2】DI / 依赖注入：`get_fallback_sync_service` 在 backend/app + backend/scripts + frontend/sidecar 的全部命中只有它自己的定义（fallback_sync_service.py:657/658/662）；`dependencies.py` 无任何 fallback_sync 供给函数；无 `Depends(get_fallback_sync_service)`。\n\n【3】HTTP / MCP 触发口：`grep -rn \"recover\\|replay\\|drain\" --include=*.py backend/app/api/` 只出 rollback.py 的 [Source: …rollback-recovery-architecture.md] docstring 与 websocket.py 的 `recoverable=True` 字段，无任何 router 挂载重放；`grep -rn \"recover\\|fallback_sync\\|sync_all\" --include=*.py backend/app/mcp/` = **0 输出**。\n\n【4】第二个 lifespan / 第二个 app：全仓生产侧只有一个 `FastAPI(` 实例（main.py:522）与一个 `@asynccontextmanager`（main.py:82），其余 FastAPI( 命中全在 middleware/exception_handlers 的 docstring 示例和 lifespan_isolation_negative_control.py 里。MCP 侧无独立 lifespan/startup。\n\n【5】定时任务：仓内唯一 plist 是 `scripts/launchd/com.canvas.daily-review.plist`（9:05–20:05 每小时），它 exec `daily-review-wrapper.sh` → `daily-review-push.sh`，全程只 cmp/调 `decay_beta.py` / `fsrs_bridge.py`，不碰任何暂存文件（`grep -rln \"failed_writes|dead_letter|fallback_sync|neo4j_memory\" --include=*.sh --include=*.plist --include=*.yml --include=*.json --include=*.ts --include=*.js --include=*.rs` 全仓只出 `backend/scripts/vault_doc_roles.yaml`）。进程内唯一周期任务是 `archive_scheduler`（main.py:199 启动，24h `_run_loop`），其 `_run_check` 只调 `conversation_archive.batch_check` + `memory_svc.search_memories`，不重放。无 apscheduler / celery / crontab（grep = 0），无 watchdog / inotify（grep = 0）。\n\n【6】反射式派发：`grep -rn \"\\\"sync_all_fallbacks\\\"|'…'|\\\"recover_failed_writes\\\"|'…'\" --include=*.py backend/app backend/scripts` = **0** —— 没有按方法名字符串调度的任务表/注册表（唯一 `_REGISTRY` 是 question_registry 的题面缓存）。\n\n【7】事件订阅：`register_all_handlers`（event_handlers.py:408）里是 8 条静态 `event_bus.subscribe(...)`，该文件对 `fallback|recover|failed_writes|jsonl` 的 grep = **0 命中**，订阅面不含任何重放器。\n\n【8】动态 import：backend/app 内只有两处 `spec_from_file_location + exec_module` —— `review_overview.py:1964`（加载 vault 的 `daily_review_run.py`）与 `intelligent_grouping_service.py:336`（加载 CanvasBusinessLogic）；两者目标都不是这几个模块，`importlib/__import__/eval/exec` 的全量 grep 无第三处。所以「静态 grep 漏掉动态 import」这条假设已被正面检验且为否。\n\n【9】外部脚本入口：`migrate_neo4j_data` 的全仓非文档命中只有脚本自身的 usage docstring 与 `backend/tests/unit/test_migrate_neo4j_data.py`；无 Makefile/justfile（不存在），根 package.json scripts 只有 lefthook/lint/plugin/verify-sync，frontend package.json 只有 vite/tauri/vitest，Tauri Rust 侧无 `Command::new`/`python3` 派生 —— 「人工跑脚本」的定性准确。\n\n【10】episode_worker 的「第二个 start 点」是假象也是真否证点：`episode_worker.py:293-294` 的 `await worker.initialize_graphiti(...)` / `await worker.start()` 我逐行读了 :282-302，**位于类 docstring 的 \"Usage in FastAPI lifespan\" 示例块内**，不是代码；生产实例化仍只有 :669 `get_episode_worker()`，启动仍只有 main.py:283。故「无运行期重连、Neo4j 中途恢复不自愈」成立。\n\n【11】配置开关这一条我还额外查了运行期翻转面：`config.py:1056-1068 reload_settings(overrides)` 确实是活的热重载机制（注入 os.environ → `get_settings.cache_clear()` → 重建并**重绑** module 级 `settings`），vault.py:69/77 有它的注释。但 `canvas_service.py:38` 是 `from app.config import settings`（import 期抓引用），reload 后它仍持有**旧对象** —— 即使运行期 override 也翻不动那 6 个门。这是加固而非推翻。",
+   "overlooked": "三条该视角没覆盖的（均不推翻结论，但改变覆盖面与两处措辞）：\n\n**(a) 真正活着的第三条离线持久化通道：vault frontmatter，由 launchd 外部进程写。** 该视角的路径表里只有 `backend/data/fsrs_card_states.json`，并把 frontmatter 仅当作「真相源」提了一句。实际写侧完全在后端进程之外：`com.canvas.daily-review.plist`（每小时一档）→ `scripts/launchd/daily-review-wrapper.sh:99-110` → `scripts/daily-review-push.sh` → vault 内 `canvas-vault/.claude/scripts/fsrs_bridge.py`（:5 声明写 `fsrs_due/state/step/stability/difficulty/last_review`，:168 写前做盘上版本比对）。后端 `review_service.py:217 _read_frontmatter_fsrs` 自述「本函数是 backend/app 内该真相源的**唯一**读入口（只读, 永不写）」。⇒ 复习调度这一类学习数据在 Neo4j 全程离线、后端进程根本没起时仍被稳妥落盘。审的核心能力「Neo4j 离线时学习数据不丢」因此不是全面 0 覆盖：FSRS 调度态有独立通道，丢的是 episode / 评分 / 概念关系这一侧。静态 grep 只扫 backend/app 必然看不见这条（写者在 vault 里，触发器在 launchd 里）。\n\n**(b) 路径表内部自相矛盾一处，方向是「更死」不是「更活」。** `neo4j_memory.json` 那条把 `record_score_history`(neo4j_client.py:1770) 列为活着的落盘触发点，而另一条又正确指出它唯一调用方是 `fallback_sync_service.py:372`。我全仓复核（排除 tests/docs/_bmad*）：`record_score_history` 的非定义、非 docstring 命中**仅** fallback_sync_service.py:372。⇒ 该触发点随重放器一起生产不可达，`neo4j_memory.json` 的实际活写点比表上少一个。\n\n**(c) 「canvas 兜底 orphaned」的性质要和另外五条分开：它是配置死，不是结构死。** `ENABLE_GRAPHITI_JSON_DUAL_WRITE` 是 pydantic 正常读取的 env 字段（`backend/.env` 里被注释掉 → 取 config.py:477 的 default=False），**进程启动前**在 backend/.env 写一行 `=true` 即可复活全部 6 个写点，无需改代码；而两个重放器要复活必须改代码。加上 (11) 的发现，复活只能发生在启动前、不能在运行期。而且这种复活是有害的：写点回来、重放器仍死，等于让 `backend/app/data/canvas_events_fallback.json` 变成第三个只增不减、永远没人读的文件。"
+  }
+ },
+ {
+  "key": "v2:cf45958d5a6745247768204ddcf38c7051acb4d8ca2efbb4c759022c074adea0",
+  "cached_from_2026_09_08": false,
+  "result": {
+   "refuted": true,
+   "reason": "分两半：**孤儿判定本身经动态扫查全部成立，但该视角对「写侧活否」的一条事实判断被 env 配置面推翻，且其核心能力结论（唯一活重放器覆盖为空 ⇒ 该能力破）建立在不完整的持久面枚举上。故判 refuted=true。**\n\n## 一、动态可达性穷举：未找到任何复活路径（该视角这部分成立）\n\n逐条按你点名的六种机制查（全仓、不限扩展名、不限 backend/，非仅 `--include='*.py'`）：\n\n1. **re-export ≠ 调用（唯一像样的线索，已排除）**：`_bmad-output/研究/2026-07-20-…体感地图.md:118` 称 `sync_all_fallbacks 仅被 domains/canvas/gateway.py:19 re-export`。实测 `backend/app/domains/canvas/gateway.py:19/:27` 确实 `from app.services.fallback_sync_service import FallbackSyncService` + 进 `__all__`，但 `grep -rn \"from app.domains\\|domains.canvas\" backend --include='*.py'`（排除 `app/domains/` 自身）**零命中**，`app/domains/__init__.py` 只有一行 docstring。gateway 自己就是孤儿，且 re-export 的是类符号、不是调用。\n2. **依赖注入**：`grep -rn \"Depends(\" app/api` 中与 fallback/recover 相关的只有 `sync.py:63/173/234` 的 `require_internal_api_key`；`app/dependencies.py` 全文不构造 `FallbackSyncService`。\n3. **事件订阅/装饰器注册**：`register_all_handlers`（`event_handlers.py:408-470`）显式 `subscribe` 6 个 handler，无一为重放器；无 `@subscribe` 自动扫描。补充核实你可能担心的反向路径：`event_bus.py:394-402` 的 `LearningEventType(entry[\"event_type\"])` + `await self.publish(event)` 是**从文件字符串动态重建任意事件类型**，理论上能绕过「grep 不到 publish」——但要进 outbox 必须先经 `_write_outbox`（:264/:304），仍需一次静态 publish，链路闭合，gaps 那条结论不受影响。\n4. **动态 import**：`app/` 内 importlib 仅 2 处——`review_overview.py:1964`（加载 vault 的 `daily_review_run.py`）、`intelligent_grouping_service.py:336`（加载 canvas utils），均不触及重放器。`getattr(..., \"sync…/recover…/replay…\")` 式派发全仓 **0 命中**。\n5. **定时任务**：全仓唯一 plist `scripts/launchd/com.canvas.daily-review.plist`（9:05–20:05 共 12 档）→ `daily-review-wrapper.sh` → vault `daily_review_run.py`，该链纯 markdown/frontmatter，不 curl backend、不连 Neo4j。进程内两个调度器 `archive_scheduler`（24h，main.py:200）与 `alert_manager._evaluation_loop`（main.py:130）也都不调重放器。\n6. **外部脚本/CLI**：两个服务均无 `if __name__ == \"__main__\"`；Makefile/compose/Dockerfile/lefthook 全无相关命令；容器启动是单一 `CMD [\"uvicorn\",\"app.main:app\",...]`（`backend/Dockerfile:28`），lifespan 是唯一启动面。MCP 侧 `app/mcp/server.py` 只注册只读工具（search_memories / search_notes / get_neighbors / read_note / check_health / get_board_manifest）+ quarantine 路由。\n\n行号抽验（防「引用的历史数字过期」）：`fallback_sync_service.py:54/:657`、`memory_service.py:2679`、`main.py:216/:363/:392`、`event_bus.py:369` 全部逐行核对与结论一致。\n\n## 二、被推翻的具体一条：`canvas_events_fallback` 的「写侧读侧双向断裂」是错的\n\n结论原文：「`config.py:477` 默认 False ⇒ 该暂存面写侧读侧**双向断裂**」。这是**只读代码默认值、跳过 env 覆盖面**的静态判断：\n\n- 装配实测：`app/config.py:943` `SettingsConfigDict(env_file=\".env\")`；`README.md:130-140` 文档化的后端安装步骤是 `cd canvas-learning-system/backend` → `cp .env.example .env`；而 **`backend/.env.example:226` 逐字写着 `ENABLE_GRAPHITI_JSON_DUAL_WRITE=true`**。只有本机 `backend/.env:85` 把它注释掉了（`# ENABLE_GRAPHITI_JSON_DUAL_WRITE=true`），才回落到 `config.py:477` 的 False。\n- 叠加：6 个门全是 `getattr(settings, \"ENABLE_GRAPHITI_JSON_DUAL_WRITE\", **True**)`——属性缺席时默认 **ON**。\n- 写点正是被审能力的那条路径：`canvas_service.py:358 _try_fallback_write` 在 memory write **timeout/异常**后触发（:349-356），`:440`/`:457` 在 `_memory_client is None` / `neo4j is None` 时触发。\n\n⇒ 按文档部署的实例上，写侧**是活的**，该面是「只进不出的坟墓」（活写者 + 孤儿重放器），不是无害的「双向断裂」。而在 flag 关闭的配置下比结论描述更糟：`canvas_service.py:450` 的 else 分支只打一行 warning，Neo4j 失败事件**连暂存都没有**、直接蒸发。两种配置下这条 path 的 `alive` 与 severity 都需改写。\n\n## 三、核心能力结论被削弱：两个活的持久面未进枚举\n\n结论的 gaps#1 断言「那条唯一活着的重放管道，对『Neo4j 离线时学习数据不丢』这项能力实际覆盖为空」。该推论只在「Neo4j 暂存文件是唯一持久面」的前提下成立，而实测存在两个活面（详见 overlooked 字段），其中 `learning_memories.json` 恰恰是 DI 装配、注释自陈 \"memory fallback when Neo4j unavailable\" 的活写活读面。真正断的是 **Neo4j 图投影的回灌**，不等于**学习数据的持久化**——这两件事结论未作区分。\n\n## 四、附带（来自本树自有证据，非我新查）\n\n`_bmad-output/审查/evidence-red-c2/familyD-tail-evidence.json:133` 记录：`fallback_sync_service` 三层兜底自 `a9304c69` 收窄为 `(RuntimeError, ConnectionError, asyncio.TimeoutError)` / `(OSError, RuntimeError, ConnectionError)`，**不覆盖** neo4j 驱动真抛的 `ServiceUnavailable`（→DriverError→GqlError→Exception）与 tenacity `RetryError`。即便把它挂回 lifespan，真实掉线仍会穿透三层、中止整轮 sync——这是「自然修法」除结论 gaps#4「先删后确认」之外的**第二个**不安全点，结论未提。",
+   "overlooked": "## A. `learning_memories.json` 的写侧是 DI 装配的活路径，且**不受** `ENABLE_GRAPHITI_JSON_DUAL_WRITE` 门控\n\n结论只把它列为孤儿重放器 `_sync_learning_memories` 的「覆盖面」，读作死胡同。实测是活写 + 活读：\n\n- **DI 装配**：`backend/app/dependencies.py:222`（AgentService）/ `:369`（ContextEnrichmentService）/ `:543`（VerificationService）/ `:1042`（batch AgentService）注入 `get_learning_memory_client()`，`:218` 注释逐字写着 \"Story 36.11: Inject LearningMemoryClient for **memory fallback when Neo4j unavailable**\"——正是被审能力本身。\n- **活写链（9 个生产触发点）**：`agent_service.py:3872 / :3992 / :4226 / :4932 / :5156 / :5169 / :5479 / :5653` + `batch_orchestrator.py:307 / :735 / :1013` → `_trigger_memory_write`（`agent_service.py:5013`，fire-and-forget + 15s timeout）→ `record_learning_episode`（`:4955`）→ `add_learning_episode`（`:4999`）→ `_save_data`（`neo4j_edge_client.py:817`）→ `backend/data/learning_memories.json`。全链**无 flag 门**、无 Neo4j 前置尝试（`neo4j_edge_client.py:42` 注释自陈 \"LearningMemoryClient - independent\"）。\n- **活读侧**：`review_service.py:1517 / :1742 / :1996 / :2097 / :2262` + `rag_service.py:381` 的 `memory_client.get_learning_history(...)`。\n\n⇒ 这是与结论 paths 里 `load_failed_scores` 同类但**规模大得多**的「读暂存不回写」面（结论把 `load_failed_scores` 单列为关键区分项，却没对 `learning_memories.json` 做同样处理）。分数 / user_understanding / agent_feedback 每次 agent 分析都落盘，Neo4j 在不在线都一样。\n\n## B. 整条 vault 侧持久层缺席于枚举：`<vault>/learning_events.jsonl` + frontmatter 真相源\n\n- `backend/app/services/learning_event_log.py:1-20` docstring：「append-only … 日志提供『过程可回放、图可重建』兜底 — 会话记忆层从『丢图即永失』变为可重放」。`docs/architecture.md:79` 与 `docs/fsrs-truth-source-d0-revision.md:11` 定为「**唯一**审计/幂等/重放来源」。\n- 写者**四方**，其中三方是 vault 侧 skill 自带的独立 `python3`，完全不经 backend、不经 Neo4j：`canvas-vault/.claude/skills/quiz-answer/SKILL.md:334`（answer_scored / answer_abandoned）、`start-exam-board/SKILL.md:437`（exam_created）、`ai-linked-doc/SKILL.md:189`（node_derived）；backend 侧写点 `memory.py:888`、`tips.py:579`、`errors.py:161/:222`、`conversation_distiller.py:418`。\n- 配套：`review_service.py:108-116` 明确把 `fsrs_card_states.json` 降级为**投影/缓存**，节点 frontmatter 才是 FSRS 唯一 current state，写侧是 vault 的 `quiz-answer × fsrs_bridge` 链。\n- ⚠️ 同名陷阱（`docs/learning-events-schema-v1.md:82` 自陈）：`MemoryService.record_learning_event()` 与本账本**无关**，不写这个文件——容易被误判为已覆盖。\n- 该账本目前**确实没有**回灌 Neo4j 的重放器（读侧只有 `validate_learning_events.py` 校验器、`g32b_build_fixture.py`、`g33_concurrency_evidence.py`、quiz-answer 的幂等去重读）——这本身是结论 gaps 里**该有而没有**的一条：一个被架构文档指定为「唯一重放来源」的账本，重放器不存在。\n\n## C. `POST /api/v1/errors/rebuild-graphiti` — 活的用户可触发重建路径，paths 未列\n\n`backend/app/api/v1/endpoints/errors.py:234 rebuild_graphiti_endpoint` → `rebuild_graphiti_from_frontmatter(vault_root, group_id, dry_run)`，docstring 自陈用户场景「切设备 / 重建索引（**Graphiti 数据丢失但 markdown 保留**）」。与 `backfill_vault` / `CanvasProjectionSync` 同属 markdown 源的 `replacement` 类，但结论 paths 只列了后两者（gaps#9 也只点名那两条），漏了这条**唯一带 dry_run、可按需触发**的重建入口。\n\n## D. 另外两条已核实为「不改变结论」的线索（登记以免后人重查）\n\n- `review_overview.py:1664 _rebuild_projection` + `:1946 _load_runner`：确有 `importlib` 动态加载 vault 外部脚本、且被 HTTP 端点触发，但写面被结构性限制在 `outputs/今日复习.md/.json`（docstring §写侧安全①②），不碰 Neo4j、不碰任何暂存面。\n- `event_bus.py:394-402` 的动态事件重建 + 泛化 `publish`：能对**任意** `LearningEventType` 生效（含 `MEMORY_WRITE_REQUESTED`），但入 outbox 仍需一次静态 publish（`_write_outbox` 只在 `:264`/`:304` 触发），故 gaps#1「零发布方 ⇒ 覆盖为空」在机制上仍成立。"
+  }
+ },
+ {
+  "key": "v2:6ab506abdfbd5eb99b813356709313b4c6afd9f47014bec69dbb3a66ec930cea",
+  "cached_from_2026_09_08": false,
+  "result": "# 合并裁定：Neo4j 离线/写失败时学习数据是否会丢\n\n> 复核方式：只读（grep / sed / cat / git show / ls / wc）于 `/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u11-red-c`。未跑测试、未启服务、未连 7691/7687。下文每条「实测」= 本次亲自跑过的只读命令；标「二手」= 引自四视角/反驳而本次未复验。\n\n---\n\n## 1. 完整链路（写入 → 暂存 → 重放 → 落库）\n\n学习数据不是一条链，是**五条互不相通的链**。Phase 2 的「取代」只发生在其中一条上。\n\n### 链 A —— 评分 / 学习事件（`record_learning_event`）：**两条分叉，一条断、一条堵**\n\n| 环 | 位置 | 状态 |\n|---|---|---|\n| 写入 A-1 结构化半边 | `backend/app/services/memory_service.py:576` → `:1198` → `backend/app/clients/neo4j_client.py:1005` | **活** |\n| ↳ 落库（在线） | `neo4j_client.py:1019` `MERGE (u:User)-[:LEARNED]->(c:Concept)` | **活** |\n| ↳ 降级暂存（离线） | `neo4j_client.py:409/414/419`（初始化失败）与 `:619-621 / :627-629`（中途降级）→ `_run_query_json_fallback` → `:743 _save_json_data` → `backend/data/neo4j_memory.json` | **活（写）** |\n| ↳ 该暂存的重放 | — | **从未存在**（见 §2.2） |\n| ↳ 前置 fail-closed | `neo4j_client.py:1005-1016`：group_id 解析失败 `return False`，**发生在 `run_query` 之前**，连 JSON 都不落；上游 `memory_service.py:1198` 不检查返回值 | **活（有争议，见 §4.9）** |\n| 写入 A-2 语义 episode | `memory_service.py:632` → `_enqueue_episode`（`:442`） | **活** |\n| ↳ 就绪闸 | `memory_service.py:459-461` `if not worker.is_ready: logger.debug(...); return False`；`is_ready = _started and _graphiti is not None`（`episode_worker.py:527`） | **活** |\n| ↳ 调用方处理 | `:632` **不接返回值**，随后照常 `return episode_id`（`:645`） | **断（零暂存、零告警）** |\n| ↳ 暂存 | 队列 `asyncio.Queue(maxsize=100)`（`episode_worker.py:310`），**纯内存、不落盘、启动不读盘** | **活但不耐久** |\n| ↳ 队满 / 停机 | `:510-512` 只加计数器；`:486` drain 超时「will be lost」 | **断（不落盘）** |\n| ↳ 死信 | `episode_worker.py:225 / 234-260` → 相对路径 `data/dead_letter_episodes.jsonl`；本树**该文件不存在**（实测 `ls`） | **活（写）** |\n| ↳ 死信重放 | — | **从未存在**；消费者只有 `traces.py:22-23`（只读）、`census_dead_letter_episodes.py`（自称只读）、`generate_regression_tests.py`（生成测试） |\n| ↳ 死信有损 | `episode_worker.py:107` `\"episode_body\": self.episode_body[:200]`；全文仅 `DEAD_LETTER_STORE_FULL_BODY` 开启才写（`:229-232 / :253-254`） | **默认残片** |\n\n### 链 B —— 结构化知识实体（`record_knowledge_entity`：callout / relation / error）\n\n| 环 | 位置 | 状态 |\n|---|---|---|\n| 写入 | `memory_service.py:1647` `enqueued = self._enqueue_episode(...)` —— **全仓唯一检查返回值的写点** | **活** |\n| 暂存 | `:1662 _record_structured_outbox`（定义 `:499`，落盘 `:513`）→ `backend/data/failed_writes.jsonl`，status 诚实标 `degraded`（`:1657-1677`） | **活** |\n| 重放 A | `memory_service.py:2679 recover_failed_writes` | **孤儿**（实测非测试命中仅：定义 + `failed_writes_constants.py:6` 注释 + `:2682` docstring） |\n| 重放 B | `fallback_sync_service.py:54 sync_all_fallbacks` / `:657` 工厂 | **孤儿**（实测非测试命中仅定义本身） |\n| 真相源旁路 | 同函数 docstring `memory_service.py:506-507` 原文：「callout/relation 的**主要持久化是 frontmatter + 启动回填**（vault md 是真相源, backfill_vault 重建边）, outbox 是非结构化材料/边界场景的兜底」 | **活** |\n| 启动回填 | `main.py:392 backfill_vault(..., execute=True)`，源是 vault markdown | **活，但被 `main.py:386` `if _worker_graphiti is not None:` 门住** —— Neo4j 离线时整段跳过（`:404` 只打「跳过」日志） |\n\n### 链 C —— Canvas 事件 / 边\n\n| 环 | 位置 | 状态 |\n|---|---|---|\n| 写入兜底 | `canvas_service.py:121-172`，6 个调用点 `:267 / :360 / :440 / :457 / :986 / :995`，全部包在 `if getattr(settings,\"ENABLE_GRAPHITI_JSON_DUAL_WRITE\", True):` | **配置依赖**（见 §4.3） |\n| ↳ 开关实况 | `config.py:477-480 default=False`；`backend/.env:85` = `# ENABLE_GRAPHITI_JSON_DUAL_WRITE=true`（注释态）；`backend/.env.example:226` = **未注释的生效赋值 `=true`**（实测三处） | 本机 **关**；按样例部署 **开** |\n| 重放 | `fallback_sync_service.py:194 _sync_canvas_events` | **孤儿** |\n| 边同步死信 | `failure_counters.py:24-26` → `canvas_service.py:505 write_dead_letter` → `backend/data/failed_edge_syncs.jsonl`（实测 80 行，mtime 2026-09-09 18:08，仍在增长） | **活（写）/ 无重放** |\n| 另一条活通道 | 前端 IndexedDB `sync_outbox`（`frontend/src/services/dexie-db.ts:222/:234` + `sync-engine.ts`），后端把 Neo4j 异常归 TRANSIENT → 503 → 前端指数退避重投，跨浏览器重启存活（二手，未复验） | **活**，但载荷只有 node/edge/board 结构，**不含评分/episode** |\n| 启动重建 | `main.py:363 canvas_projection_sync.sync(...)`，源是 vault markdown | **活**（不消费任何暂存文件） |\n\n### 链 D —— FSRS 复习调度状态（价值最高的一类）：**完整且不经 Neo4j**\n\n| 环 | 位置 | 状态 |\n|---|---|---|\n| 真相源 | 节点 `.md` frontmatter（`review_service.py:110-116` 自陈：`fsrs_card_states.json` 是投影/缓存，分歧以 frontmatter 为准） | **活** |\n| 写入 | `canvas-vault/.claude/scripts/fsrs_bridge.py`，实测 `grep -c \"neo4j\\|bolt\\|graphiti\"` = **0** | **活，与 Neo4j 无关** |\n| 账本 | `<vault>/learning_events.jsonl`（`learning_event_log.py:2-4`：「过程可回放、图可重建」） | **活** |\n| 重放 | quiz-answer 技能的 A2「追加前重放至空」不变量（`canvas-vault/.claude/skills/quiz-answer/SKILL.md:2327` 实测原文；不变量被破坏时 `SystemExit` fail-closed 拒写） | **活 —— 但方向是账本 → frontmatter，不是 → Neo4j** |\n| 触发 | launchd `com.canvas.daily-review`，不经后端 | **活** |\n\n### 链 E —— EventBus outbox：**唯一活着的「暂存 ↔ 启动重放」闭环**\n\n| 环 | 位置 | 状态 |\n|---|---|---|\n| 写 | `event_bus.py:343 → :360`，仅两个触发点 `:264`（熔断 OPEN）/ `:304`（重试耗尽） | **活** |\n| 读 | `event_bus.py:369 recover_outbox` ← `main.py:216` | **活** |\n| 覆盖上限 | 实测 `_write_outbox` 全文只出现在 `:264/:304/:343`；`_dispatch_tier1`（`:216-237`）只 `raise`，从不写 outbox。而 `SCORE_SUBMITTED` 是 `TIER_1_CRITICAL`（`canvas_events.py:211`） ⇒ **评分事件结构上永不进 outbox** | **覆盖 = 仅 Tier-2** |\n| 实况 | 实测 `backend/data/outbox/` 为**空目录** | 未见行使记录 |\n\n### 被删除的那一环（历史）\n\n实测 `git show 59586af1 -- backend/app/main.py`（2026-03-26，`refactor(phase2): delete fake bridge/JSON dual-write code, replaced by GraphitiEpisodeWorker`）删除行含：\n\n```\n-        logger.warning(\"JSON fallback is disabled. Neo4j outage will cause data loss.\")\n-    # ✅ Story 38.8: Sync all JSON fallback files to Neo4j on startup\n-        from app.services.fallback_sync_service import get_fallback_sync_service\n-            sync_svc.sync_all_fallbacks(), timeout=60.0\n```\n\n同日 `daa9fd37` 改 `config.py`（实测 diff）：`default=True` + `\"safe default for Neo4j offline resilience\"` → `default=False` + `\"[DEPRECATED] Legacy JSON dual-write.\"`\n\n⇒ **写侧关 + 重放摘 + 告警删，三件同一天**。\n\n---\n\n## 2. 「有人写、没人读」的暂存数据\n\n**有，六条。** 逐条给「丢什么 / 何时发生 / 精确到什么程度」：\n\n**2.1 `backend/data/failed_writes.jsonl`（实测 78 行）**\n- 写者三个（活）：`agent_service.py:131`（评分记忆写超时/异常）、`memory_service.py:513`（A7，worker 未就绪）、`memory_service.py:2864`（`cleanup()` 时刷 `_pending_failed_writes`，`:1419` 累积 ⇒ **进程被 kill 则内存队列全丢**）。\n- 回灌器两个，**都是孤儿**。\n- ⚠️ **但它有活读侧**：`load_failed_scores`（`:2785`）被 `get_learning_history` 在 `:799` 实调，把条目并进用户可见历史（`:797` 注释 \"so the user never sees a missing score gap\"）。\n- ⇒ 精确表述：**不是「没人读」，是「没人回灌」**。用户界面照常显示分数，而图里没有 —— 这正是断裂长期不被发现的机制。\n- 丢什么：这些评分/知识实体永远不进图 ⇒ 复习推荐、掌握度、检验白板选题拿不到它们。\n\n**2.2 `backend/data/neo4j_memory.json`（实测 8 行，当前近乎空）**\n- 写者活：Neo4j 掉线时**自动**接管（初始化失败 `:409/414/419`，或运行中重试耗尽 `:619/:627`），此后所有写落此文件。\n- 回灌器：**从未存在**。`fallback_sync_service.py` 覆盖的三文件清单里也不含它。\n- 且 `_use_json_fallback` 是**单向闩**：实测 `grep -rn \"_use_json_fallback = False\" backend/app` = **0 命中**，仅 `:431` 置 True。一旦中途降级，进程内永不切回 Neo4j。\n- 丢什么：Neo4j 离线期间的**全部** `User/Concept/LEARNED/score/next_review` 结构化事实。它们在盘上，但恢复后没有任何通道把它们送回图。\n\n**2.3 `backend/data/failed_edge_syncs.jsonl`（实测 80 行，仍在增长）** —— 白板边同步 3 次重试耗尽后落盘，零重放。实害较低（边可由 `main.py:363` 从 markdown 重建，且前端 outbox 另有一层），但重建靠的是别的路径，不是这个文件。\n\n**2.4 `data/dead_letter_episodes.jsonl`** —— 本树**不存在**（相对 CWD 路径）。写者活但只在 worker **已就绪**后才可能触发 ⇒ 恰好**不覆盖**「Neo4j 启动时离线」这个头号场景；零重放；默认只存 200 字符残片 ⇒ 即便将来补重放器，按当前代码写出的死信也**重放不出原始内容**。\n\n**2.5 `backend/app/data/canvas_events_fallback.json`** —— 本机配置下写侧也关（走 else 只打日志），**双向断**；按 `.env.example` 部署的实例则是**写活读死**的无界坟场。\n\n**2.6 `backend/data/learning_memories.json`（实测 6 行）** —— `LearningMemoryClient` 的常态旁路存储（不是失败兜底），DI 注入活、有活读侧（`review_service` / `rag_service`，二手），回灌器 `_sync_learning_memories` 孤儿。\n\n**附：`backend/data/failed_dual_writes.jsonl` —— 零写者**（`_write_to_graphiti_json` 已于 `59586af1` 删除），文件永不产生，而 `docs/stories/36.12.story.md` 仍宣称已实现 ⇒ 监控端 `dual_write_failures` **恒 0**，一个「永远没有失败」的指标。\n\n**发生场景（三个）**：\n\n- **S1 启动时 Neo4j 离线**（最贴题）：`initialize_graphiti` 预检失败 → `episode_worker.py:377-378` `self._graphiti = None; return False` → `main.py:283 start()` **不执行**（实测 `:282-288` else 分支只打 warning）→ `is_ready` 恒 False。此时：链 A-2 的语义 episode **零落盘、零告警、调用方拿到成功返回**；链 A-1 的结构化半边落 `neo4j_memory.json`（没丢盘、没人捡）；链 B 落 `failed_writes.jsonl`（没人回灌）；链 B 的回填被 `_worker_graphiti is None` 跳过。**且无自愈**：`initialize_graphiti` 全仓只在 `main.py:276` 调一次，`set_graphiti_client` 零生产调用 ⇒ Neo4j 中途恢复也不会自己接上，必须重启进程。\n- **S2 运行中掉线**：`neo4j_client` 中途降级并闩住；worker 若已就绪，重试窗 = 3 次退避 `U(0,2)/U(0,4)/U(0,8)`（`episode_worker.py:98-103`），**最坏合计约 14 秒**，之后进残片死信。\n- **S3 进程被 kill / drain 超时**：内存队列（≤100）全丢，不进死信；`_pending_failed_writes` 只在 `cleanup()` 刷盘，崩溃即丢。\n\n---\n\n## 3. 「已被 worker 取代」这个前提是否成立\n\n**不成立。** 分四条，每条独立可证：\n\n**(a) 覆盖面不成立。** worker 只接 `add_episode` 这一路语义 episode。Canvas 事件的 6 个写点、边同步死信、`LearningMemoryClient` 的 JSON 库、`neo4j_client` 的降级 JSON —— **四条通道从来不在 worker 的覆盖面内**，被翻掉的那个开关管的恰恰是其中一条（Canvas），两者根本不是同一个面。\n\n**(b) 耐久性不成立（决定性）。** 被取代者的性质是「落本地文件 + 启动重放」，即**跨进程存活**且**与 Neo4j 是独立故障域**。worker 的替代物是纯内存有界队列：不落盘、启动不读盘、队满只加计数、停机超时明示丢弃、失败进死信而死信无重放。更关键的是主路径与兜底路径**终点是同一个 Neo4j**（`memory_service.py:1626-1630` 主路径失败后转 `_enqueue_episode`，二手），Neo4j 一挂两条同时失效 —— 而 JSON 兜底的介质是本地磁盘。**在故障域这一维上，这是降级不是等价。**\n\n**(c) 时间窗不成立。** worker 的韧性窗 ≈ 14 秒；被取代者的窗是「直到下一次成功重放」。真实停机以分钟/小时计（本仓 MEMORY.md 记录过 2026-09-05 复习链停摆整天）。\n\n**(d) 替代承诺里的重放端被同一批改动一并删掉。** 见 §1 末的两个 commit：写侧关、重放摘、告警删，同日完成，且至今没有任何东西补上重放端。`backend/tests/unit/test_qa_38_6_scoring_reliability_extra.py:446/:453` 仍在 `assert \"get_fallback_sync_service\" in source` / `assert \"sync_all_fallbacks\" in source`（实测两行存在，而 `main.py` 内 grep = 0）⇒ **这两条测试必红**，是「删除未收口」的现成红契约锚，只是没人把红转成结论。\n\n**必须限定的一半（否则结论过强）**：前提在**另一种叙述下部分成立**。系统自己的架构声明是「vault markdown = 真相源，Neo4j = 派生投影」（`memory_service.py:506-507`、`review_service.py:110-116`，均实测原文）。在链 B 和链 D 上，这个替代是**兑现的**：FSRS 状态、批注、错误、原因边都有独立于 Neo4j 的持久层与重放器。所以准确的裁定是：\n\n> 「已被 **worker** 取代」→ **不成立**。\n> 「已被 **vault frontmatter + 启动回填** 取代」→ 对链 B / D **成立**，对链 A（评分 episode、概念关系）与链 C（Canvas 事件/边）**不成立**。\n> 而翻默认值时写在配置里的理由是前者，不是后者。\n\n---\n\n## 4. 有争议 / 分歧的点（如实并列，不强行统一）\n\n| # | 争议 | 甲方依据 | 乙方依据 | 本次裁定 |\n|---|---|---|---|---|\n| 4.1 | `failed_writes.jsonl` 是否「零读侧」 | writers/replayers/startup 三视角：只 grep 了两个重放器名 | 反驳：`load_failed_scores`（`:2785`）被 `:799` 实调 | **乙方成立（实测）**。「没人回灌」为真，「没人读」为假。差别是实质的：UI 看得见反而掩盖断裂 |\n| 4.2 | `neo4j_memory.json` 是否「只写不读」 | writers/startup：`grep \"neo4j_memory\"` 只命中路径常量 | 反驳：`_initialize_json_fallback`（`:436-465`）每次降级都把文件读回 `self._data` | **乙方成立（实测）**。原判是窄 grep 假阴性（读走 `self._storage_path`）。但「**回灌器**不存在」双方一致，仍成立 |\n| 4.3 | 开关生产实际取值 | 四视角均判「恒 False」（据 `config.py:477` + `.env:85` 注释） | 反驳：`.env.example:226` 是**未注释生效赋值 `=true`**，README 部署步骤是 `cp .env.example .env` | **有争议，且取决于部署**。实测三处文本均属实。取值不同结论方向不同：关 = 连暂存都没有；开 = 写活读死的无界坟场。**线上真实取值本次无法证**（见 §5.2） |\n| 4.4 | `learning_events.jsonl` 有无重放器 | writers/replayers：「无任何生产重放器」 | 反驳：quiz-answer 技能 A2「追加前重放至空」 | **各对一半（实测）**。A2 存在且活，但它重放进 **frontmatter**，不是 Neo4j。原判在 Neo4j 轴上成立；作为整体判断是搜索面只划到 `backend/**/*.py` 造成的假阴性（vault 侧 python 内嵌在 SKILL.md 里） |\n| 4.5 | `migrate_neo4j_data.py` 是否人工回灌通道 | writers：「须人工跑脚本回灌」 | 反驳 + replayers：该脚本无 driver/bolt/Cypher，是 JSON→JSON Unicode 清洗 | **乙方成立（二手，两个独立视角一致）**。「须人工跑脚本」是**不成立的安慰** |\n| 4.6 | 死信 685 条 / 2026-04-07 | replacement 视角引为实证 | 反驳：该数字来自另一棵树（`feature-obsidian-hybrid-dev`）的快照 | **本树无法核实**（实测该文件不存在）。不进结论数字，只作旁证 |\n| 4.7 | `backfill_vault` 该记缺陷还是记正常 | replacement/startup：「恰在需要它的场景里不执行」 | 反驳：「重放器在目标恢复后才跑正是重放器的定义」 | **各对一半**。作为**恢复器**它正常；作为**停机期兜底**它零覆盖 —— 而翻开关所需要的恰是后者。且覆盖面只到写进 md 的东西 |\n| 4.8 | 「Neo4j 离线 ⇒ 每一条学习 episode 直接消失」 | writers gap#1 | 反驳：评分的结构化半边仍落 `neo4j_memory.json` | **原判过强（实测确认反驳）**。准确表述：语义 episode 这一份消失（零落盘）；结构化半边落 JSON 但无回灌 |\n| 4.9 | `create_learning_relationship` 的 group_id fail-closed 是否算一条独立丢失面 | 反驳提出：`:1005-1016` 在 `run_query` 前 `return False`，连 JSON 都进不去，上游不检查返回值 | 无人反对，但也无人给出触发证据 | **机制成立（实测代码属实）**，但触发条件是 group_id 解析失败、**与 Neo4j 是否在线无关**；真实流量中是否发生过，**证据不足** |\n| 4.10 | 前端 IndexedDB outbox 算不算「该能力已有覆盖」 | startup/replayers：判为「同名易混淆项，非后端启动恢复」 | 两条反驳：它正是 Neo4j 掉线时白板写入不丢的实现 | **各对一半**。它确实活着且覆盖链 C 的白板结构写入；但载荷只有 node/edge/board，**不含评分、episode、学习事件** ⇒ 不能计入被审能力的主面 |\n\n---\n\n## 5. 证据不足（含「缺什么」）\n\n1. **无任何运行期观测。** 全部结论来自静态只读追踪。核心那条链（离线 → worker 不就绪 → episode 静默丢）是三点串成的**代码可达性**（`episode_worker.py:377-378` + `main.py:282-288` + `:527`），**没有一条真实离线启动的日志**。缺：一次断网启动 + 日志中 `[Phase 2] GraphitiEpisodeWorker in degraded mode` 与 `Episode worker not ready, skipping enqueue` 的实际出现记录，以及同期 `dead_letter` / `failed_writes` 是否新增。\n2. **线上 `backend/.env` 的开关实际取值未知**（gitignored，本次只读了本 worktree）。缺：线上部署树该行的实测。这直接决定 §4.3 的方向。\n3. **`backend/data` 现存 78 / 80 行的来源。** 与 MEMORY.md 记录的「TestClient lifespan 污染真 data」形态一致（`Simulated Neo4j failure`、`partial.canvas` 等）。⇒ 它们证明「写者有效 + 无人回灌」，**不证明生产已丢 78 条**。缺：生产日志的 `episodes_dropped_queue_full` / drain timeout 计数，才能给出真实丢失量。\n4. **死信实际落盘位置。** 相对 CWD（`episode_worker.py:225`）。Docker 下可从 `WORKDIR /app` 推出；宿主机直跑 uvicorn 时取决于启动目录，未实跑验证。同一 CWD 依赖也影响 `SettingsConfigDict(env_file=\".env\")` 的加载（二手）。\n5. **`DEAD_LETTER_STORE_FULL_BODY` 是否被外部注入。** 只能证明它不在 `.env` / `.env.example` / `docker-compose.yml`，无法证明 shell / launchd 层没有设。\n6. **canvas-vault 侧其余写者未穷举**（`start-exam-board` / `ai-linked-doc` 等技能是否各有独立暂存/重试文件）。\n7. **A2 重放器「线上就是这一版」未证。** `daily-review-wrapper.sh` 的逐字节 `cmp` 门只覆盖 `fsrs_bridge.py` / `decay_beta.py`，**不覆盖 SKILL.md**（二手）。\n8. **`FallbackSyncService` 三个 `_sync_*` 的正确性未验。** 它零调用，验它不影响本裁定；但若要把它挂回启动流程，必须先审两个已知坑：(i) `recover_failed_writes` 是**先删后确认** —— `memory_service.py:2746-2755` 里 `_enqueue_episode` 返 True（仅进内存队列）即从持久文件删除该行，`:2760-2778` 重写文件（二手，机制描述与我读到的 `:2746` 调用点一致）；(ii) 其兜底 `except` 只收 `(RuntimeError, ConnectionError, TimeoutError)`，不覆盖 neo4j 驱动真抛的 `ServiceUnavailable` 与 tenacity `RetryError`（**二手**，引自本树 `_bmad-output/审查/evidence-red-c2/familyD-tail-evidence.json:133`，本次未复验）。⇒ **「自然修法」本身不安全，不能直接接回。**\n\n---\n\n## 6. 给非技术负责人的白话结论\n\n有没有东西在悄悄丢：有，但不是全部。每天的复习进度、错题和批注写在笔记文件里，图数据库停了也照样能用，这部分是安全的。会丢的是「这次学习发生了什么」的那份摘要——图数据库一停，它连草稿都不留，系统还照常回报「已保存」。另外几份写在硬盘上的失败记录，眼下只进不出：写的人还在写，但当初负责把它们送回数据库的那个搬运工，今年三月连同一句「关掉兜底会丢数据」的提醒一起被删掉了，至今没人补。\n\n什么时候能被发现：几乎发现不了。查历史时，界面会把硬盘上那份失败记录一并显示出来，看着分数都在；只有依赖图谱的功能——复习推荐、掌握度、出题选材——会悄悄少料。硬盘上那两份记录现在各有七八十条，仍在增加，但里面不少是测试留下的，真实用户到底丢了多少，现在查不出来。\n\n建议你做两个决定：第一，把那个搬运工重新接回开机流程，但接之前必须先修它「还没送到就先把底稿删掉」的毛病，否则修完更糟。第二，先在测试机上断开图数据库启动一次，用日志把真实丢失量测出来，再决定要不要把那个默认开关改回去——现在两边都只有推理，没有实测。"
+ }
+]

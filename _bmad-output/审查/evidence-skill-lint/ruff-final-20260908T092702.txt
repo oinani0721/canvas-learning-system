@@ -1,0 +1,4 @@
+All checks passed!
+check rc=0
+1 file already formatted
+format rc=0

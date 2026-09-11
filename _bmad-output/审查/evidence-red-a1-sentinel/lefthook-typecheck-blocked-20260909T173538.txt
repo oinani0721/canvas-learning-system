@@ -1,0 +1,57 @@
+# 协议 §2.3 —— 被 python-typecheck 拦下的**原始输出**（跳过 hook 的依据）
+# lefthook glob 'backend/app/*.py' 确实匹配嵌套路径（第十一批 evidence-typecheck-glob/probe-HIT-backend_app_api_v1_endpoints_health.py.txt 实测）
+# 时间 20260909T173538
+╭───────────────────────────────────────╮
+│ 🥊 lefthook v1.13.6  hook: pre-commit │
+╰───────────────────────────────────────╯
+┃  python-typecheck ❯ 
+
+[Python] Running pyright type check (backend/.venv/bin/pyright)...
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/api/v1/system.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/api/v1/system.py:[33m353[39m:[33m20[39m - [31merror[39m: Argument of type "str" cannot be assigned to parameter "status" of type "Literal['ready', 'degraded', 'unavailable']" in function "__init__"
+    Type "str" is not assignable to type "Literal['ready', 'degraded', 'unavailable']"
+      "str" is not assignable to type "Literal['ready']"
+      "str" is not assignable to type "Literal['degraded']"
+      "str" is not assignable to type "Literal['unavailable']"[90m (reportArgumentType)[39m
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/api/v1/system.py:[33m418[39m:[33m12[39m - [31merror[39m: Type "JSONResponse" is not assignable to return type "dict[Unknown, Unknown]"
+    "JSONResponse" is not assignable to "dict[Unknown, Unknown]"[90m (reportReturnType)[39m
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/api/v1/system.py:[33m585[39m:[33m25[39m - [31merror[39m: Argument of type "type[LLMStatsSummary]" cannot be assigned to parameter "default_factory" of type "(() -> _T@Field) | ((dict[str, Any]) -> _T@Field)" in function "Field"
+    Type "type[LLMStatsSummary]" is not assignable to type "(() -> _T@Field) | ((dict[str, Any]) -> _T@Field)"
+      Type "type[LLMStatsSummary]" is not assignable to type "(dict[str, Any]) -> _T@Field"
+        Function accepts too few positional parameters; expected 1 but received 0
+          Extra parameter "total_calls"
+          Extra parameter "total_tokens"
+          Extra parameter "total_input_tokens"
+          Extra parameter "total_output_tokens"
+          Extra parameter "total_cost_usd"
+    ...[90m (reportArgumentType)[39m
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/api/v1/system.py:[33m594[39m:[33m25[39m - [31merror[39m: Argument of type "type[ErrorStats]" cannot be assigned to parameter "default_factory" of type "(() -> _T@Field) | ((dict[str, Any]) -> _T@Field)" in function "Field"
+    Type "type[ErrorStats]" is not assignable to type "(() -> _T@Field) | ((dict[str, Any]) -> _T@Field)"
+      Type "type[ErrorStats]" is not assignable to type "(dict[str, Any]) -> _T@Field"
+        Function accepts too few positional parameters; expected 1 but received 0
+          Extra parameter "total"
+      Type "type[ErrorStats]" is not assignable to type "() -> _T@Field"
+        Extra parameter "total"[90m (reportArgumentType)[39m
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/api/v1/system.py:[33m992[39m:[33m23[39m - [31merror[39m: Arguments missing for parameters "window_size", "total_in_window", "matched_count", "match_rate", "is_healthy"[90m (reportCallIssue)[39m
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/api/v1/system.py:[33m1001[39m:[33m28[39m - [31merror[39m: Arguments missing for parameters "total_records", "annotated_count", "accuracy"[90m (reportCallIssue)[39m
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/api/v1/system.py:[33m1090[39m:[33m18[39m - [31merror[39m: Arguments missing for parameters "total", "page", "page_size"[90m (reportCallIssue)[39m
+7 errors, 0 warnings, 0 informations
+[Python] Type errors found! Review and fix before committing.
+[Python] Hint: Some errors may be pre-existing. Focus on YOUR changes.
+[Python] Typecheck done (exit: 1).
+
+exit status 1                                      
+  ────────────────────────────────────
+summary: (done in 2.20 seconds)       
+🥊 python-typecheck (2.17 seconds)
+rc=1
+
+# ── 「报错不在本卡改动行」的证明 ──────────────────────────────────────
+# 本卡在 system.py 的改动 hunk（--unified=0）：
+@@ -28 +28,18 @@ logger = logging.getLogger(__name__)
+# ⇒ 本卡只改到 :28 起的 router 构造块（原 1 行 → 18 行）。
+# pyright 报错行：353 / 418 / 585 / 594 / 992 / 1001 / 1090 —— 与改动 hunk 无交集。
+#
+# ⛔ 行号交集不是充分判据（见工程坑索引「行号交集证明不了零新增」）⇒ 另有归一化多重集对照：
+#   pyright-multiset-diff-p1-*.txt 末行 NEW=0（去掉 :行:列 后逐条相同；7 条存量的行号平移 +17 正是本卡加的行数）。
+# 两条判据合起来才成立：多重集证明「没新增」，hunk 位置证明「不是我改坏的」。

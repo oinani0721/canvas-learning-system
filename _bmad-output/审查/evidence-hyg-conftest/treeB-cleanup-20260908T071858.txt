@@ -1,0 +1,63 @@
+# U10-A (n)⑤ 清理与归位 · 2026-09-08T07:18:58
+# 开工清单存档: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/_bmad-output/审查/evidence-hyg-conftest/tmp-listing-open-20260908T064505.txt
+
+=== 1. 清理前 /tmp/test-vault* 实况 ===
+drwxr-xr-x@ 7 Heishing  wheel  224 Sep  6 02:58 /tmp/test-vault
+drwxr-xr-x@ 2 Heishing  wheel   64 Sep  8 07:01 /tmp/test-vault-treeB-49484
+drwxr-xr-x@ 2 Heishing  wheel   64 Sep  8 07:14 /tmp/test-vault-treeB-88464
+drwxr-xr-x@ 7 Heishing  wheel  224 Sep  6 02:58 /tmp/test-vault-wizard
+drwxr-xr-x@ 7 Heishing  wheel  224 Sep  5 16:51 /tmp/test-vault-wizard.h1-1788630772
+drwxr-xr-x@ 7 Heishing  wheel  224 Sep  6 02:25 /tmp/test-vault-wizard.h2after-1788633028
+drwxr-xr-x@ 7 Heishing  wheel  224 Sep  6 01:55 /tmp/test-vault-wizard.h2d-1788632106
+drwxr-xr-x@ 7 Heishing  wheel  224 Sep  6 01:53 /tmp/test-vault-wizard.n2-1788630845
+drwxr-xr-x@ 6 Heishing  wheel  192 Sep  8 00:00 /tmp/test-vault-wizard.pre-1788598134
+drwxr-xr-x@ 7 Heishing  wheel  224 Sep  5 16:51 /tmp/test-vault.h1-1788630772
+drwxr-xr-x@ 7 Heishing  wheel  224 Sep  6 02:24 /tmp/test-vault.h2after-1788633028
+drwxr-xr-x@ 7 Heishing  wheel  224 Sep  6 01:55 /tmp/test-vault.h2d-1788632106
+drwxr-xr-x@ 7 Heishing  wheel  224 Sep  6 01:53 /tmp/test-vault.n1-1788630804
+drwxr-xr-x@ 6 Heishing  wheel  192 Sep  8 00:00 /tmp/test-vault.pre-1788598134
+
+=== 2. 只删本控制建的（treeB/negctl 前缀，空目录，rmdir 非递归）===
+removed: /tmp/test-vault-treeB-49484
+removed: /tmp/test-vault-treeB-88464
+
+=== 3. 拆临时 worktree ===
+worktree_remove_rc=0
+worktree_prune_rc=0
+
+=== 4. 收尾断言 ===
+--- git worktree list 里是否还有 treeB（期望 0）---
+treeB_residue=0
+--- 树 A git status --porcelain（期望空）---
+ M backend/tests/unit/conftest.py
+?? "_bmad-output/\345\256\241\346\237\245/evidence-hyg-conftest/"
+?? "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-HYGIENE-conftest.md"
+?? "_bmad-output/\351\252\214\346\224\266\345\215\225/UAT-CARD-HYGIENE-conftest-2026-09-08.md"
+porcelain_lines=4
+--- 地盘门 ---
+
+=== 5. 清理后 /tmp/test-vault* 实况（应与开工清单逐条相同）===
+drwxr-xr-x@ 7 Heishing  wheel  224 Sep  6 02:58 /tmp/test-vault
+drwxr-xr-x@ 7 Heishing  wheel  224 Sep  6 02:58 /tmp/test-vault-wizard
+drwxr-xr-x@ 7 Heishing  wheel  224 Sep  5 16:51 /tmp/test-vault-wizard.h1-1788630772
+drwxr-xr-x@ 7 Heishing  wheel  224 Sep  6 02:25 /tmp/test-vault-wizard.h2after-1788633028
+drwxr-xr-x@ 7 Heishing  wheel  224 Sep  6 01:55 /tmp/test-vault-wizard.h2d-1788632106
+drwxr-xr-x@ 7 Heishing  wheel  224 Sep  6 01:53 /tmp/test-vault-wizard.n2-1788630845
+drwxr-xr-x@ 6 Heishing  wheel  192 Sep  8 00:00 /tmp/test-vault-wizard.pre-1788598134
+drwxr-xr-x@ 7 Heishing  wheel  224 Sep  5 16:51 /tmp/test-vault.h1-1788630772
+drwxr-xr-x@ 7 Heishing  wheel  224 Sep  6 02:24 /tmp/test-vault.h2after-1788633028
+drwxr-xr-x@ 7 Heishing  wheel  224 Sep  6 01:55 /tmp/test-vault.h2d-1788632106
+drwxr-xr-x@ 7 Heishing  wheel  224 Sep  6 01:53 /tmp/test-vault.n1-1788630804
+drwxr-xr-x@ 6 Heishing  wheel  192 Sep  8 00:00 /tmp/test-vault.pre-1788598134
+
+=== 6. 与开工清单逐条对照（只比目录名，diff 为空 = 归位）===
+13d12
+< /tmp/test-vault*
+tmp_listing_diff_rc=1
+
+=== 6b. 对照判据更正（原 §6 的 grep 把开工存档里 `ls -ld /tmp/test-vault*` 的命令回显
+         当成了一个目录条目，多算一条 ⇒ 是判据坏了，不是没归位）===
+更正判据: awk '/^d/ {print $NF}' <开工存档> 与 ls -d /tmp/test-vault* 对照
+开工条数=12  清理后条数=12
+corrected_diff_rc=0
+验伪锚(喂入一个假条目应报差异): rc=1

@@ -1,0 +1,513 @@
+# CARD-RED-C2 — 66 条「契约演进依据」逐条表
+
+> 批次 `[BATCH-2026-09-07-第十三批 / CARD-RED-C2]` · 车道 `card-u11-red-c` · 分支 `card/u11-red-c`
+> 开工 HEAD `5139428d`（= U11-A 末 commit） · 本表定稿时 HEAD 见验收单
+> 条数来源：**只引** `red-align-da690bf8.md` §二 C2 节 `:134-199`（66 条）；⛔ 不引 `rows-final.json`（它仍是 71，HIGH-1 改判的 5 条未回写）
+
+## 〇 结论与计数
+
+> ⭐ **D-15 达成**：Codex round-9（绑 `7edbc0c1`）是本卡第一轮 **BLOCKER 0 且 HIGH 0**。
+> 协议上限 5 轮，r6/r7/r8/r9 四轮由用户显式授权破例；九轮共 40+ 条意见，**本车道一条未驳回**。
+> round-9 同时给出收口意见：可作为**明确限定能力的探针**合入、**不必等待 Cypher 解析器**，
+> 剩余缺口（`keys()` 类无引号拼串）推荐**拆独立卡**。其点名的「有限收尾」四条已全部完成（§十四）。
+
+| 处置 | 条数 |
+|---|---|
+| 改断言 / 改测试替身，对齐现行契约 | **54** |
+| `xfail(strict=True)` 交接（能力被有意撤除，留交接卡名） | **12** |
+| 移交 `CARD-RED-R`（U5-C，给不出依据） | **0** |
+| 合计 | **66** |
+
+**12 条 xfail 交接的去向**：
+- 4 条 → `CARD-CONFIG-CLEANUP`（`test_cache_configuration.py`，association cache 被 `836d0986` Epic2 裁撤；`ENRICHMENT_CACHE_MAXSIZE` 在 `backend/app` 内零消费方，与 U11-A 的 `MEMORY_RETRY_*` 同族）
+- 5 条 → `CARD-VAULT-FRESHNESS-COVERAGE`（`test_story_30_24_boundary.py`，legacy `canvas-progress-tracker` 被 `146218b5` 整树归档；Obsidian Hybrid 架构下 vault 新鲜度校验的等价覆盖缺口）
+- 3 条 → `CARD-STORY-38-4-DUALWRITE-RETIREMENT`（`test_story_38_4_dual_write_default.py`，JSON dual-write 启动播报被 `59586af1` 删除）
+
+**移交 U5-C = 0 的口径声明**：本卡 66 条**每一条都取到了依据 sha 并逐条机器复核**（`sha-proof-sweep-20260909T132543.txt`，不合格行数 = 0），故 (b) 的「依据栏空 ⇒ 只能移交」分支未被触发。这是**「66 条都拿得出演进依据」，不是「66 条都没有回归」**——本卡不做 bisect，见验收单「本卡未证明什么」①。
+
+## 一 判据结果（收工，**全部绑定 HEAD `32f392ef`** = Codex round-9 有限收尾后的代码树（**本卡终态**））
+
+> round-1 ~ 5 连着五轮指出「证据未绑定审查 SHA」。本节所有裁判已在 `49b15c77` 上**重跑**，
+> 三份证据文件首行都写死 `HEAD=49b15c77`；`gates-*` §〇 给出**完整 SHA 绑定链的逐段实际输出**
+> （10 段，含每段的 git rc 与改动文件清单）——每个「证据 HEAD → 送审 SHA」都是空 diff。
+>
+> ⚠️ 该节初次生成时是一次**假绿**（zsh 不对未加引号的参数做词分割，`set -- $pair` 让每行 git
+> `fatal: bad revision`、计数落 0，十行全印成「空 = 等价」）。已重做并把 rc 一并打出，纠错过程如实保留。
+
+| 判据 | 结果 | 存档（首行 `HEAD=32f392ef`，末行 `rc=` 自证跑完） |
+|---|---|---|
+| §二.1 目录级 `tests/unit` diff `>` 行 | **零**（`grep '^>'` 无输出）。⚠️ 九轮目录级里有**一轮**（`unit-after-20260909T172121`）出现 1 条 `>` 行，同轮另有一条基线红转绿；两条都在本卡**从未碰过**、且不在 23 文件清单里的文件中；隔离单跑与整文件跑均绿；同一 HEAD 复跑**未复现**。归属与「未证明什么」见 `flake-20260909T172121-candidate-service.txt` | `red-diff-20260909T180740.txt` |
+| §二.1 本卡贡献 `comm -12` | **66**（= 66 − 移交 0） | `c2-contribution-20260909T180740.txt` |
+| §二.1 本卡 66 条里仍红的 | **0**（`comm -23` 空） | 同上 |
+| §二.1 U11-A 贡献 `comm -13` | 8（逐条列出，非本卡责任） | `u11a-contribution-20260909T180740.txt` |
+| §二.1 汇总行 / rc 行 | `99 failed, 4812 passed, 48 skipped, 17 xfailed, 29 errors in 242.91s` / 末行 `rc=1` | `unit-after-20260909T180740.txt` |
+| §二.3 23 文件 failed 集合 | **逐条 == 预声明 R 族外来红 4 条**（`diff` 无输出） | `files-failed-20260909T181231.txt` vs `expected-failed.txt` |
+| §二.3 汇总行 | `4 failed, 452 passed, 13 xfailed in 2.23s`，末行 `rc=1` | `files-23-20260909T181231.txt` |
+| §二.3 `grep -c XPASS` | **0**（13 条 xfail 全 strict=True，无一 XPASS；其中 12 条本卡、1 条 U11-A） | 同上 |
+| §二.3 现网端口连接尝试 | **0**（blocked=0 / advisory=0 / unaccounted=0） | 同上 |
+| §二.6 判据强度门（四种弱化形态） | **无输出** | `gates-20260909T181312.txt` |
+| §二.7 fixture 门 `autouse=True` 新增 | **0**；精确读取面模式（排除 `os.environ` 假阳）亦无输出 | 同上 |
+| §二.8 地盘门 | 改动 **23** 个测试文件，全部 ⊆ 卡文点名清单；`backend/app` 与 `_archive` diff **均空** | 同上 |
+| 既有 `skip` 标记被删/改 | **0** | 同上 |
+| 本卡 diff 里 stderr 文件 | **0** | 同上 |
+| 依据 sha 机器复核 | **不合格行数 = 0**（27 行 sha×文件×符号三元组；⚠️ 它证明的是「该 sha 的 diff 里确有那个符号的改动」，**不是**逐条断言的语义复核——round-1 MEDIUM 指出后收窄的表述） | `sha-proof-sweep-20260909T132543.txt` |
+| 依据 sha 去重个数 | **25**。⚠️ 计法两轮都被打回：round-1 自述「21 个」是错的；round-2 用的「全文去重 27 减去 2 个非依据 sha」也不成立（Codex round-2 LOW 指出，实测全文现已是 30 个——每加一轮审查/证据 SHA 就会漂）。**现行计法只数「契约演进依据」那一列**：取表格第 6 字段里的 `` `[0-9a-f]{8}` `` 去重 = **25**，与全文出现的其它 SHA 无关 | 同上 |
+| 66 条 nodeid 全在 202 基线内 | `comm -23 c2-nodeids.txt red-baseline-202.bare.txt` 无输出 | `c2-in-202.txt` |
+| 66 条失败身份逐条配上原文 | 66/66，无「未解析到」 | `c2-identities.md` |
+| compose 判据负控（**四轮累积 13 输入 + ⑩ 隔离性补证**） | 四轮 Codex 给的全部复现**全部 FAIL**；现状 PASS。**三个隔离用例**证明每道新判据各自承重：⑩ 长格式折叠标量（内容轴放行、文本计数 1 ⇒ 只有**深度**能拦）、⑪ `!!binary`（附解码类型自证 = `bytes`）、⑬ 锚点单独一行的 alias（内容轴放行、文本计数 1、位置合法 ⇒ 只有**解析层计数**能拦） | `negctl-compose-exemption-r4-20260909T145953.txt`（前三份保留；r2 那份 ④⑤、r4 那份 ⑫ 的「没能隔离」已分别如实更正；文件末尾另附 round-5 要求的 ⑩ 隔离性补证：两档折叠标量的 YAML 原文 + 三轴逐项计算） |
+| 安全面判据负控（**九轮累积 14 输入，逐条含 query/kwargs/首失败断言**） | 运行期替换生产方法为变异体（纯内存 / `finally` 无条件还原 / 末尾断言身份已还原）。⑤⑥⑦ = round-5 的三条**组合序列**、⑧ = round-6 的 `userId` 内联序列，全部 FAIL；⑨⑩ = 前几轮防线回归（⑨ 已重做成**隔离**形态，只可能死在安全内核那一条上），仍 FAIL；②③④ = **三个误报正控**（合法分步 count、`AS unlimited_count`、`'LIMIT' AS marker`），必须 PASS。⚠️ 同目录另存一次**七条全 ERROR** 的运行（变异体签名写成位置参数、变异根本没生效）——「不是 PASS」不等于「FAIL」，逐条比对期望值才当场暴露 | `negctl-security-r9-20260909T175828.txt`（前几份保留，含那次七条全 ERROR 的轮次 `…151650.txt`） |
+| §5.1 两条改名 nodeid 的等价覆盖 | 旧 nodeid `no tests collected`；新 nodeid 两条 **PASSED**；同文件反向锚 **PASSED** | `renamed-nodeids-proof-20260909T140504.txt` |
+| lefthook `python-lint` 绕开依据 | ruff lint 23 文件全绿；format 门基线 21 漂 / 2 净，改后仍 **21 / 2 且逐名相同** ⇒ 净新增漂移 0 | `ruff-format-drift-final-23files-20260909T133924.txt` |
+
+⚠️ **两处「门自己报的假阳」已逐条查清、未静默算过**，详见 `gates-20260909T132820.txt` 尾部两节：
+① §二.7 的 `\.env` 正则里 `.` 是通配符，吃到了 `os.environ` 的 "s.env"（11 行全是 `patch.dict(os.environ, …)`）；换精确模式后无输出（本轮 `gates-20260909T181312.txt` 直接用的就是精确模式）。
+② (m) 的 `git ls-tree -r HEAD | grep -c stderr` = 1，命中的是 `CARD-G4-9` 于 2026-08-28 入库的 `census-stderr.txt`（`.txt` 结尾故不被 `.gitignore` 的 `*.stderr*` 覆盖），在本批基线 `da690bf8` 就已在库；本卡 diff 里 stderr 计数 = **0**。
+
+## 二 逐条 66 行
+
+| # | nodeid | 开工失败身份（`-rA --tb=short` 原文摘录） | 测试断言 file:line（AST 实测，本卡改后） | 现行契约 file:line 原文（`sed -n`/`grep -n` 实测） | 契约演进依据（sha + 日期 + 一句；该 sha 的 diff 里确有本条所指改动） | 处置 | 新断言在什么输入下会红 |
+|---|---|---|---|---|---|---|---|
+| 1 | `tests/unit/grouping/test_analyze_canvas.py::TestSubjectIsolation::test_group_id_extraction_chinese` | `AssertionError: assert 'vault:default:数学' == '数学:离散数学'` | `tests/unit/grouping/test_analyze_canvas.py:108-128` <br> `assert result.subject == "数学"` <br> `assert result.subject_group_id == "vault:default:数学"` | backend/app/services/intelligent_grouping_service.py:212 `subject_group_id = build_vault_group_id(` | `4104020d` 2026-05-12 「backend p0 multi-vault leak 修复」把 `build_group_id(subject, canvas)` 换成 `build_vault_group_id`，格式由 `<subject>:<canvas>` 变为 D16 `vault:<vault_id>:<subject_id>`——旧格式无 vault 维度，不同 vault 同名学科会碰撞，正是该 commit 要堵的泄漏面 | 改断言对齐现行契约（+ 新增防退化锚 `test_group_id_uses_vault_scoped_format_not_legacy`） | 把生产改回 `<subject>:<canvas>` 构造 ⇒ 本条与防退化锚同时红；防退化锚锁的是格式属性本身（`startswith("vault:")` + `is_vault_group_id()` + 冒号 ≥2），与具体 subject 无关，故「改路径同时把字面量断言也改绿」这条路被堵死 |
+| 2 | `tests/unit/grouping/test_analyze_canvas.py::TestSubjectIsolation::test_group_id_with_skip_directories` | `AssertionError: assert 'vault:default:物理' == '物理:力学'` | `tests/unit/grouping/test_analyze_canvas.py:131-147` <br> `assert result.subject == "物理"` <br> `assert result.subject_group_id == "vault:default:物理"` | backend/app/services/intelligent_grouping_service.py:212 `subject_group_id = build_vault_group_id(` | `4104020d` 2026-05-12 「backend p0 multi-vault leak 修复」把 `build_group_id(subject, canvas)` 换成 `build_vault_group_id`，格式由 `<subject>:<canvas>` 变为 D16 `vault:<vault_id>:<subject_id>`——旧格式无 vault 维度，不同 vault 同名学科会碰撞，正是该 commit 要堵的泄漏面 | 改断言对齐现行契约（+ 新增防退化锚 `test_group_id_uses_vault_scoped_format_not_legacy`） | 把生产改回 `<subject>:<canvas>` 构造 ⇒ 本条与防退化锚同时红；防退化锚锁的是格式属性本身（`startswith("vault:")` + `is_vault_group_id()` + 冒号 ≥2），与具体 subject 无关，故「改路径同时把字面量断言也改绿」这条路被堵死 |
+| 3 | `tests/unit/test_agent_context_injection.py::TestGraphitiSearchDelegation::test_search_calls_graphiti_service` | `AttributeError: 'ContextEnrichmentService' object has no attribute '_search_graphiti_relations'. Did you mean: '_search_learning_relations'?` | `tests/unit/test_agent_context_injection.py`（函数名已改，见 §五） <br> （本卡按 DD-13 同步改了函数名，见 §五） | backend/app/services/context_enrichment_service.py:1011 `async def _search_learning_relations(` | `5d2b95ba` 2026-03-29「S34 G-FAKE-001 批量重命名假 graphiti 标识符为真实 Neo4j 名称」：`_search_graphiti_relations` → `_search_learning_relations`，构造参数 `graphiti_service` → `learning_memory_service`。纯改名，能力仍在 | 改断言指向新名 | 把生产方法名改回 `_search_graphiti_relations`（或换成第三个名字）⇒ 本条 AttributeError 红 |
+| 4 | `tests/unit/test_agent_context_injection.py::TestGraphitiSearchDelegation::test_search_returns_empty_without_graphiti_service` | `AttributeError: 'ContextEnrichmentService' object has no attribute '_search_graphiti_relations'. Did you mean: '_search_learning_relations'?` | `tests/unit/test_agent_context_injection.py`（函数名已改，见 §五） <br> （本卡按 DD-13 同步改了函数名，见 §五） | backend/app/services/context_enrichment_service.py:1011 `async def _search_learning_relations(` | `5d2b95ba` 2026-03-29「S34 G-FAKE-001 批量重命名假 graphiti 标识符为真实 Neo4j 名称」：`_search_graphiti_relations` → `_search_learning_relations`，构造参数 `graphiti_service` → `learning_memory_service`。纯改名，能力仍在 | 改断言指向新名 | 把生产方法名改回 `_search_graphiti_relations`（或换成第三个名字）⇒ 本条 AttributeError 红 |
+| 5 | `tests/unit/test_agent_context_injection.py::TestRelevanceSorting::test_search_graceful_on_exception` | `AttributeError: 'ContextEnrichmentService' object has no attribute '_search_graphiti_relations'. Did you mean: '_search_learning_relations'?` | `tests/unit/test_agent_context_injection.py:110-129` <br> `assert results == []` | backend/app/services/context_enrichment_service.py:1011 `async def _search_learning_relations(` | `5d2b95ba` 2026-03-29 改名（同族）+ **`a9304c69`** 2026-03-29「S35 except Exception 精确化」——本条的 mock 抛裸 `Exception`，而生产 except 已收窄 | 改断言指向新名 + mock 抛的异常改成元组内的 `asyncio.TimeoutError` + **新增反向锚** `test_search_propagates_unexpected_exception` | 反向锚锁住 S35 的收窄：若有人把生产改回 `except Exception` ⇒ 反向锚红。⛔ 未放宽生产 except |
+| 6 | `tests/unit/test_agent_context_injection.py::TestRelevanceSorting::test_search_limits_to_top_5` | `AttributeError: 'ContextEnrichmentService' object has no attribute '_search_graphiti_relations'. Did you mean: '_search_learning_relations'?` | `tests/unit/test_agent_context_injection.py:97-107` <br> `assert call_kwargs["limit"] == 5` | backend/app/services/context_enrichment_service.py:1011 `async def _search_learning_relations(` | `5d2b95ba` 2026-03-29「S34 G-FAKE-001 批量重命名假 graphiti 标识符为真实 Neo4j 名称」：`_search_graphiti_relations` → `_search_learning_relations`，构造参数 `graphiti_service` → `learning_memory_service`。纯改名，能力仍在 | 改断言指向新名 | 把生产方法名改回 `_search_graphiti_relations`（或换成第三个名字）⇒ 本条 AttributeError 红 |
+| 7 | `tests/unit/test_agent_memory_trigger.py::TestAgentMemoryMapping::test_all_14_agents_are_mapped` | `AssertionError: assert 15 == 14` | `tests/unit/test_agent_memory_trigger.py:49-82` <br> `assert len(expected_agents) == 15, "字面量完整性守卫：重复串会让集合悄悄缩小"` <br> `assert set(AGENT_MEMORY_MAPPING.keys()) == expected_agents` | backend/app/core/agent_memory_mapping.py:53 `"hint-generation": AgentMemoryType.EXPLANATION_GENERATED,  # Story 30.12 fix: was missing` | `1a4f42ae` 2026-02-09「TTLCache for agent memory, inject memory_client into VS AgentService」补登记 `hint-generation`（生产行内注释自述 Story 30.12 漏登记、触发点在 verification_service.py）⇒ 补漏非扩面 | 改断言对齐现行契约（判据由「数个数」升级为「锁键集身份」） | 任何增/删/改名（含等长替换：删一个补一个）⇒ 键集 `==` 断言红。原断言 `len(...) == 14` 挡不住等长替换，新断言挡得住 ⇒ 强度上升 |
+| 8 | `tests/unit/test_agent_service_comparison.py::TestCallExplanationComparisonFormat::test_clarification_agent_receives_concept_string` | `TypeError: TestCallExplanationComparisonFormat.test_clarification_agent_receives_concept_string.<locals>.mock_call_agent() got an unexpected keyword argument 'canvas_name'` | `tests/unit/test_agent_service_comparison.py:350-382` <br> `assert "concept" in json_prompt` <br> `assert "concepts" not in json_prompt` | backend/app/services/agent_service.py:3763-3769 `call_agent(..., canvas_name=..., node_id=...)` | `9d3326ee` 2026-03-10：同一 commit 给 `call_agent` 加了 `canvas_name`/`node_id` 两个形参，并让 `call_explanation` 末尾调用时增传；6 个内联测试替身停在三参签名 | 改测试替身签名（断言原文一字不动） | 替身用**显式默认参数**而非 `**kwargs`：生产**增加**必传形参时 TypeError 立即红（`**kwargs` 会把这类漂移静默吞掉，故不采用）。⚠️ **两轮收窄（round-1 与 round-2 LOW，均采纳）**：替身能发现的只有「**调用点传入了替身不接受的参数**」这一面。它**不覆盖**：① 调用方不再传 `canvas_name`/`node_id`（替身取默认值，照旧通过）；② 只给**真实** `call_agent` 增加必传形参而调用点不变（真实函数已被替身取代，签名变化不进入本用例的观察面）。要覆盖 ② 需对真实函数做签名断言（`inspect.signature`），属另一张卡 |
+| 9 | `tests/unit/test_agent_service_comparison.py::TestCallExplanationComparisonFormat::test_comparison_table_receives_concepts_array` | `TypeError: TestCallExplanationComparisonFormat.test_comparison_table_receives_concepts_array.<locals>.mock_call_agent() got an unexpected keyword argument 'canvas_name'` | `tests/unit/test_agent_service_comparison.py:253-305` <br> `assert "concepts" in json_prompt, (` <br> `assert isinstance(json_prompt["concepts"], list), "concepts should be a list"` | backend/app/services/agent_service.py:3763-3769 `call_agent(..., canvas_name=..., node_id=...)` | `9d3326ee` 2026-03-10：同一 commit 给 `call_agent` 加了 `canvas_name`/`node_id` 两个形参，并让 `call_explanation` 末尾调用时增传；6 个内联测试替身停在三参签名 | 改测试替身签名（断言原文一字不动） | 替身用**显式默认参数**而非 `**kwargs`：生产**增加**必传形参时 TypeError 立即红（`**kwargs` 会把这类漂移静默吞掉，故不采用）。⚠️ **两轮收窄（round-1 与 round-2 LOW，均采纳）**：替身能发现的只有「**调用点传入了替身不接受的参数**」这一面。它**不覆盖**：① 调用方不再传 `canvas_name`/`node_id`（替身取默认值，照旧通过）；② 只给**真实** `call_agent` 增加必传形参而调用点不变（真实函数已被替身取代，签名变化不进入本用例的观察面）。要覆盖 ② 需对真实函数做签名断言（`inspect.signature`），属另一张卡 |
+| 10 | `tests/unit/test_agent_service_comparison.py::TestCallExplanationComparisonFormat::test_example_agent_receives_concept_string` | `TypeError: TestCallExplanationComparisonFormat.test_example_agent_receives_concept_string.<locals>.mock_call_agent() got an unexpected keyword argument 'canvas_name'` | `tests/unit/test_agent_service_comparison.py:451-481` <br> `assert "concept" in json_prompt` <br> `assert "concepts" not in json_prompt` | backend/app/services/agent_service.py:3763-3769 `call_agent(..., canvas_name=..., node_id=...)` | `9d3326ee` 2026-03-10：同一 commit 给 `call_agent` 加了 `canvas_name`/`node_id` 两个形参，并让 `call_explanation` 末尾调用时增传；6 个内联测试替身停在三参签名 | 改测试替身签名（断言原文一字不动） | 替身用**显式默认参数**而非 `**kwargs`：生产**增加**必传形参时 TypeError 立即红（`**kwargs` 会把这类漂移静默吞掉，故不采用）。⚠️ **两轮收窄（round-1 与 round-2 LOW，均采纳）**：替身能发现的只有「**调用点传入了替身不接受的参数**」这一面。它**不覆盖**：① 调用方不再传 `canvas_name`/`node_id`（替身取默认值，照旧通过）；② 只给**真实** `call_agent` 增加必传形参而调用点不变（真实函数已被替身取代，签名变化不进入本用例的观察面）。要覆盖 ② 需对真实函数做签名断言（`inspect.signature`），属另一张卡 |
+| 11 | `tests/unit/test_agent_service_comparison.py::TestCallExplanationComparisonFormat::test_four_level_agent_receives_concept_string` | `TypeError: TestCallExplanationComparisonFormat.test_four_level_agent_receives_concept_string.<locals>.mock_call_agent() got an unexpected keyword argument 'canvas_name'` | `tests/unit/test_agent_service_comparison.py:418-448` <br> `assert "concept" in json_prompt` <br> `assert "concepts" not in json_prompt` | backend/app/services/agent_service.py:3763-3769 `call_agent(..., canvas_name=..., node_id=...)` | `9d3326ee` 2026-03-10：同一 commit 给 `call_agent` 加了 `canvas_name`/`node_id` 两个形参，并让 `call_explanation` 末尾调用时增传；6 个内联测试替身停在三参签名 | 改测试替身签名（断言原文一字不动） | 替身用**显式默认参数**而非 `**kwargs`：生产**增加**必传形参时 TypeError 立即红（`**kwargs` 会把这类漂移静默吞掉，故不采用）。⚠️ **两轮收窄（round-1 与 round-2 LOW，均采纳）**：替身能发现的只有「**调用点传入了替身不接受的参数**」这一面。它**不覆盖**：① 调用方不再传 `canvas_name`/`node_id`（替身取默认值，照旧通过）；② 只给**真实** `call_agent` 增加必传形参而调用点不变（真实函数已被替身取代，签名变化不进入本用例的观察面）。要覆盖 ② 需对真实函数做签名断言（`inspect.signature`），属另一张卡 |
+| 12 | `tests/unit/test_agent_service_comparison.py::TestCallExplanationComparisonFormat::test_memory_agent_receives_concept_string` | `TypeError: TestCallExplanationComparisonFormat.test_memory_agent_receives_concept_string.<locals>.mock_call_agent() got an unexpected keyword argument 'canvas_name'` | `tests/unit/test_agent_service_comparison.py:385-415` <br> `assert "concept" in json_prompt` <br> `assert "concepts" not in json_prompt` | backend/app/services/agent_service.py:3763-3769 `call_agent(..., canvas_name=..., node_id=...)` | `9d3326ee` 2026-03-10：同一 commit 给 `call_agent` 加了 `canvas_name`/`node_id` 两个形参，并让 `call_explanation` 末尾调用时增传；6 个内联测试替身停在三参签名 | 改测试替身签名（断言原文一字不动） | 替身用**显式默认参数**而非 `**kwargs`：生产**增加**必传形参时 TypeError 立即红（`**kwargs` 会把这类漂移静默吞掉，故不采用）。⚠️ **两轮收窄（round-1 与 round-2 LOW，均采纳）**：替身能发现的只有「**调用点传入了替身不接受的参数**」这一面。它**不覆盖**：① 调用方不再传 `canvas_name`/`node_id`（替身取默认值，照旧通过）；② 只给**真实** `call_agent` 增加必传形参而调用点不变（真实函数已被替身取代，签名变化不进入本用例的观察面）。要覆盖 ② 需对真实函数做签名断言（`inspect.signature`），属另一张卡 |
+| 13 | `tests/unit/test_agent_service_comparison.py::TestCallExplanationComparisonFormat::test_oral_agent_receives_concept_string` | `TypeError: TestCallExplanationComparisonFormat.test_oral_agent_receives_concept_string.<locals>.mock_call_agent() got an unexpected keyword argument 'canvas_name'` | `tests/unit/test_agent_service_comparison.py:308-347` <br> `assert "concept" in json_prompt, "oral agent should receive 'concept' string"` <br> `assert isinstance(json_prompt["concept"], str)` | backend/app/services/agent_service.py:3763-3769 `call_agent(..., canvas_name=..., node_id=...)` | `9d3326ee` 2026-03-10：同一 commit 给 `call_agent` 加了 `canvas_name`/`node_id` 两个形参，并让 `call_explanation` 末尾调用时增传；6 个内联测试替身停在三参签名 | 改测试替身签名（断言原文一字不动） | 替身用**显式默认参数**而非 `**kwargs`：生产**增加**必传形参时 TypeError 立即红（`**kwargs` 会把这类漂移静默吞掉，故不采用）。⚠️ **两轮收窄（round-1 与 round-2 LOW，均采纳）**：替身能发现的只有「**调用点传入了替身不接受的参数**」这一面。它**不覆盖**：① 调用方不再传 `canvas_name`/`node_id`（替身取默认值，照旧通过）；② 只给**真实** `call_agent` 增加必传形参而调用点不变（真实函数已被替身取代，签名变化不进入本用例的观察面）。要覆盖 ② 需对真实函数做签名断言（`inspect.signature`），属另一张卡 |
+| 14 | `tests/unit/test_agent_service_neo4j_memory.py::TestAC2Neo4jQuery::test_cypher_query_structure` | `AssertionError: assert 'MATCH (m:LearningMemory)' in '\n        MATCH (m:EntityNode)\n        WHERE m.group_id = $group_id\n          AND (toLower(m.text) CONTAINS toLower...n,\n  ` | `tests/unit/test_agent_service_neo4j_memory.py:180-204` <br> `assert "MATCH (m:EntityNode)" in query` <br> `assert "WHERE m.group_id = $group_id" in query` | backend/app/services/agent_service.py（同 9d3326ee 内自述 "removed non-existent fields"、"m.relevance doesn't exist on EntityNode"） | `9d3326ee` 2026-03-10：Cypher 由虚构 `LearningMemory` 标签改绑 graphiti 真实 `EntityNode`，去掉不存在的 `m.relevance`；格式化输出同批去掉分数 | 改断言对齐现行契约（判据强度不降反升） | Cypher 结构断言 4→5 条（新增 `WHERE m.group_id = $group_id` 的 R1 vault 隔离锚）：去掉 group 过滤即红；排序用例加负锚 `assert "m.relevance" not in query`：把不存在的属性写回去即红。⚠️ 两条格式化用例「均升级为整串 `==`」这句在 round-1 送审时**只对一条成立**（`none_score` 那条仍是 `"N/A" in result`，Codex round-1 LOW 抓到）；**round-1 整改已把它也改成整串 `==`**，现两条均为精确相等，「只返回 N/A 三个字」的错误实现会红 |
+| 15 | `tests/unit/test_agent_service_neo4j_memory.py::TestAC3RelevanceSorting::test_cypher_query_has_order_by_relevance` | `AssertionError: assert 'ORDER BY m.relevance DESC' in '\n        MATCH (m:EntityNode)\n        WHERE m.group_id = $group_id\n          AND (toLower(m.text) CONTAINS toLower...n,\n ` | `tests/unit/test_agent_service_neo4j_memory.py:237-250` <br> `assert "ORDER BY m.updated_at DESC" in query` <br> `assert "m.relevance" not in query` | backend/app/services/agent_service.py（同 9d3326ee 内自述 "removed non-existent fields"、"m.relevance doesn't exist on EntityNode"） | `9d3326ee` 2026-03-10：Cypher 由虚构 `LearningMemory` 标签改绑 graphiti 真实 `EntityNode`，去掉不存在的 `m.relevance`；格式化输出同批去掉分数 | 改断言对齐现行契约（判据强度不降反升） | Cypher 结构断言 4→5 条（新增 `WHERE m.group_id = $group_id` 的 R1 vault 隔离锚）：去掉 group 过滤即红；排序用例加负锚 `assert "m.relevance" not in query`：把不存在的属性写回去即红。⚠️ 两条格式化用例「均升级为整串 `==`」这句在 round-1 送审时**只对一条成立**（`none_score` 那条仍是 `"N/A" in result`，Codex round-1 LOW 抓到）；**round-1 整改已把它也改成整串 `==`**，现两条均为精确相等，「只返回 N/A 三个字」的错误实现会红 |
+| 16 | `tests/unit/test_agent_service_neo4j_memory.py::TestMemoryFormatting::test_format_memory_with_none_score` | `AssertionError: assert 'N/A' in '## 历史学习记忆\n- [2026-01-15]  未评分概念: '` | `tests/unit/test_agent_service_neo4j_memory.py:455-471` <br> （断言在被调用的 helper 内） | backend/app/services/agent_service.py（同 9d3326ee 内自述 "removed non-existent fields"、"m.relevance doesn't exist on EntityNode"） | `9d3326ee` 2026-03-10：Cypher 由虚构 `LearningMemory` 标签改绑 graphiti 真实 `EntityNode`，去掉不存在的 `m.relevance`；格式化输出同批去掉分数 | 改断言对齐现行契约（判据强度不降反升） | Cypher 结构断言 4→5 条（新增 `WHERE m.group_id = $group_id` 的 R1 vault 隔离锚）：去掉 group 过滤即红；排序用例加负锚 `assert "m.relevance" not in query`：把不存在的属性写回去即红。⚠️ 两条格式化用例「均升级为整串 `==`」这句在 round-1 送审时**只对一条成立**（`none_score` 那条仍是 `"N/A" in result`，Codex round-1 LOW 抓到）；**round-1 整改已把它也改成整串 `==`**，现两条均为精确相等，「只返回 N/A 三个字」的错误实现会红 |
+| 17 | `tests/unit/test_agent_service_neo4j_memory.py::TestMemoryFormatting::test_format_single_memory` | `AssertionError: assert '85%' in '## 历史学习记忆\n- [2026-01-15]  测试概念: '` | `tests/unit/test_agent_service_neo4j_memory.py:436-453` <br> `assert result == "## 历史学习记忆\n- [2026-01-15] [Concept] 测试概念: 导数是变化率"` | backend/app/services/agent_service.py（同 9d3326ee 内自述 "removed non-existent fields"、"m.relevance doesn't exist on EntityNode"） | `9d3326ee` 2026-03-10：Cypher 由虚构 `LearningMemory` 标签改绑 graphiti 真实 `EntityNode`，去掉不存在的 `m.relevance`；格式化输出同批去掉分数 | 改断言对齐现行契约（判据强度不降反升） | Cypher 结构断言 4→5 条（新增 `WHERE m.group_id = $group_id` 的 R1 vault 隔离锚）：去掉 group 过滤即红；排序用例加负锚 `assert "m.relevance" not in query`：把不存在的属性写回去即红。⚠️ 两条格式化用例「均升级为整串 `==`」这句在 round-1 送审时**只对一条成立**（`none_score` 那条仍是 `"N/A" in result`，Codex round-1 LOW 抓到）；**round-1 整改已把它也改成整串 `==`**，现两条均为精确相等，「只返回 N/A 三个字」的错误实现会红 |
+| 18 | `tests/unit/test_cache_configuration.py::TestDefaultValuesBackwardCompatible::test_enrichment_extreme_maxsize_1` | `TypeError: ContextEnrichmentService.__init__() got an unexpected keyword argument 'association_cache_maxsize'` | `tests/unit/test_cache_configuration.py:254-265` <br> `assert len(svc._association_cache) <= 1` | backend/app/services/context_enrichment_service.py `__init__` 现只剩 `(self, canvas_service, learning_memory_service=None)`；`ENRICHMENT_CACHE_MAXSIZE` 在 backend/app 内零消费方（只有 config.py:678 定义） | `836d0986` 2026-03-31「Epic2 architectural pruning」对该文件 148 insertions / 700 deletions，删除行含 `association_cache_maxsize` / `self._association_cache` / `self._association_cache_lock` / `"association_cache_hit"` ⇒ 能力被**有意裁撤**，不是改名 | xfail(strict=True) 交接 **CARD-CONFIG-CLEANUP**（与 U11-A 的 `MEMORY_RETRY_*` 同族：配置项仍在、零消费方） | strict=True ⇒ 若该能力被恢复（cache 参数与命中日志回来），本条 XPASS 即红，强制回来重判；⛔ 未用 strict=False，也未删用例 |
+| 19 | `tests/unit/test_cache_configuration.py::TestDIPathPropagation::test_enrichment_service_di_passes_cache_config` | `AssertionError: dependencies.py must pass ENRICHMENT_CACHE_MAXSIZE to ContextEnrichmentService` | `tests/unit/test_cache_configuration.py:300-307` <br> `assert "ENRICHMENT_CACHE_MAXSIZE" in source, (` | backend/app/services/context_enrichment_service.py `__init__` 现只剩 `(self, canvas_service, learning_memory_service=None)`；`ENRICHMENT_CACHE_MAXSIZE` 在 backend/app 内零消费方（只有 config.py:678 定义） | `836d0986` 2026-03-31「Epic2 architectural pruning」对该文件 148 insertions / 700 deletions，删除行含 `association_cache_maxsize` / `self._association_cache` / `self._association_cache_lock` / `"association_cache_hit"` ⇒ 能力被**有意裁撤**，不是改名 | xfail(strict=True) 交接 **CARD-CONFIG-CLEANUP**（与 U11-A 的 `MEMORY_RETRY_*` 同族：配置项仍在、零消费方） | strict=True ⇒ 若该能力被恢复（cache 参数与命中日志回来），本条 XPASS 即红，强制回来重判；⛔ 未用 strict=False，也未删用例 |
+| 20 | `tests/unit/test_cache_configuration.py::TestEnrichmentCacheFromSettings::test_cache_default_maxsize` | `AttributeError: 'ContextEnrichmentService' object has no attribute '_association_cache'` | `tests/unit/test_cache_configuration.py:188-194` <br> `assert svc._association_cache.maxsize == 1000` | backend/app/services/context_enrichment_service.py `__init__` 现只剩 `(self, canvas_service, learning_memory_service=None)`；`ENRICHMENT_CACHE_MAXSIZE` 在 backend/app 内零消费方（只有 config.py:678 定义） | `836d0986` 2026-03-31「Epic2 architectural pruning」对该文件 148 insertions / 700 deletions，删除行含 `association_cache_maxsize` / `self._association_cache` / `self._association_cache_lock` / `"association_cache_hit"` ⇒ 能力被**有意裁撤**，不是改名 | xfail(strict=True) 交接 **CARD-CONFIG-CLEANUP**（与 U11-A 的 `MEMORY_RETRY_*` 同族：配置项仍在、零消费方） | strict=True ⇒ 若该能力被恢复（cache 参数与命中日志回来），本条 XPASS 即红，强制回来重判；⛔ 未用 strict=False，也未删用例 |
+| 21 | `tests/unit/test_cache_configuration.py::TestEnrichmentCacheFromSettings::test_cache_uses_custom_maxsize` | `TypeError: ContextEnrichmentService.__init__() got an unexpected keyword argument 'association_cache_maxsize'` | `tests/unit/test_cache_configuration.py:165-174` <br> `assert svc._association_cache.maxsize == 300` | backend/app/services/context_enrichment_service.py `__init__` 现只剩 `(self, canvas_service, learning_memory_service=None)`；`ENRICHMENT_CACHE_MAXSIZE` 在 backend/app 内零消费方（只有 config.py:678 定义） | `836d0986` 2026-03-31「Epic2 architectural pruning」对该文件 148 insertions / 700 deletions，删除行含 `association_cache_maxsize` / `self._association_cache` / `self._association_cache_lock` / `"association_cache_hit"` ⇒ 能力被**有意裁撤**，不是改名 | xfail(strict=True) 交接 **CARD-CONFIG-CLEANUP**（与 U11-A 的 `MEMORY_RETRY_*` 同族：配置项仍在、零消费方） | strict=True ⇒ 若该能力被恢复（cache 参数与命中日志回来），本条 XPASS 即红，强制回来重判；⛔ 未用 strict=False，也未删用例 |
+| 22 | `tests/unit/test_config_neo4j.py::TestNeo4jSettingsDefaults::test_neo4j_database_default` | `pydantic_core._pydantic_core.ValidationError: 1 validation error for Settings` | `tests/unit/test_config_neo4j.py:68-73` <br> `assert settings.NEO4J_DATABASE == "neo4j"` <br> `assert settings.neo4j_database == "neo4j"` | backend/app/config.py:286 `is_local = self.DEBUG and (...)`；:288-292 `raise ValueError("NEO4J_PASSWORD must be set explicitly outside local dev…")`；:295-298 `raise ValueError("INTERNAL_API_KEY required outside local dev…")` | `f718d040` 2026-05-08「round-23 stage 1 硬化 ship」引入 `validate_security_defaults`：`patch.dict(os.environ, {...}, clear=True)` + `Settings(_env_file=None)` ⇒ `is_local=False` ⇒ 实例化必抛，9 条全部死在 Settings 构造期而非各自的断言上 | 只在测试侧让 Settings 过校验：`_LOCAL_DEV_ENV = {"DEBUG": "true"}` 走 `is_local` 分支（默认 CORS 已含 localhost）+ **新增 fail-closed 反向锚 4 条**（含 round-1 整改补的第 4 条） | ⛔ 未改 `config.py:274-298`；⛔ 未对 `test_neo4j_password_empty_default` 塞 `NEO4J_PASSWORD`（那正是它要断言的量）。`DEBUG=True` 不改变任何被断言的量（各 NEO4J_* 默认值 / env 解析）。四条反向锚分别钉住：① `DEBUG` 缺省 + 空密码必抛；② `DEBUG` 缺省 + 有密码 + 空 `INTERNAL_API_KEY` 必抛；③ 对照组 `DEBUG=true` + 默认 CORS 不抛（没有它，①② 分不清「fail-closed 生效」与「Settings 根本构造不出来」）；④ **round-1 整改补**：`DEBUG=true` 但 CORS 不含 localhost/127.0.0.1 **仍须抛**——Codex round-1 MEDIUM 指出原三条只走了 `is_local` 合取的 `DEBUG` 半边，若有人把 `is_local` 简化成「只看 DEBUG」，那三条结果一条都不变，非本地 CORS 却被错误放行 |
+| 23 | `tests/unit/test_config_neo4j.py::TestNeo4jSettingsDefaults::test_neo4j_enabled_default_true` | `pydantic_core._pydantic_core.ValidationError: 1 validation error for Settings` | `tests/unit/test_config_neo4j.py:44-52` <br> `assert settings.NEO4J_ENABLED is True` <br> `assert settings.neo4j_enabled is True` | backend/app/config.py:286 `is_local = self.DEBUG and (...)`；:288-292 `raise ValueError("NEO4J_PASSWORD must be set explicitly outside local dev…")`；:295-298 `raise ValueError("INTERNAL_API_KEY required outside local dev…")` | `f718d040` 2026-05-08「round-23 stage 1 硬化 ship」引入 `validate_security_defaults`：`patch.dict(os.environ, {...}, clear=True)` + `Settings(_env_file=None)` ⇒ `is_local=False` ⇒ 实例化必抛，9 条全部死在 Settings 构造期而非各自的断言上 | 只在测试侧让 Settings 过校验：`_LOCAL_DEV_ENV = {"DEBUG": "true"}` 走 `is_local` 分支（默认 CORS 已含 localhost）+ **新增 fail-closed 反向锚 4 条**（含 round-1 整改补的第 4 条） | ⛔ 未改 `config.py:274-298`；⛔ 未对 `test_neo4j_password_empty_default` 塞 `NEO4J_PASSWORD`（那正是它要断言的量）。`DEBUG=True` 不改变任何被断言的量（各 NEO4J_* 默认值 / env 解析）。四条反向锚分别钉住：① `DEBUG` 缺省 + 空密码必抛；② `DEBUG` 缺省 + 有密码 + 空 `INTERNAL_API_KEY` 必抛；③ 对照组 `DEBUG=true` + 默认 CORS 不抛（没有它，①② 分不清「fail-closed 生效」与「Settings 根本构造不出来」）；④ **round-1 整改补**：`DEBUG=true` 但 CORS 不含 localhost/127.0.0.1 **仍须抛**——Codex round-1 MEDIUM 指出原三条只走了 `is_local` 合取的 `DEBUG` 半边，若有人把 `is_local` 简化成「只看 DEBUG」，那三条结果一条都不变，非本地 CORS 却被错误放行 |
+| 24 | `tests/unit/test_config_neo4j.py::TestNeo4jSettingsDefaults::test_neo4j_password_empty_default` | `pydantic_core._pydantic_core.ValidationError: 1 validation error for Settings` | `tests/unit/test_config_neo4j.py:75-80` <br> `assert settings.NEO4J_PASSWORD == ""` <br> `assert settings.neo4j_password == ""` | backend/app/config.py:286 `is_local = self.DEBUG and (...)`；:288-292 `raise ValueError("NEO4J_PASSWORD must be set explicitly outside local dev…")`；:295-298 `raise ValueError("INTERNAL_API_KEY required outside local dev…")` | `f718d040` 2026-05-08「round-23 stage 1 硬化 ship」引入 `validate_security_defaults`：`patch.dict(os.environ, {...}, clear=True)` + `Settings(_env_file=None)` ⇒ `is_local=False` ⇒ 实例化必抛，9 条全部死在 Settings 构造期而非各自的断言上 | 只在测试侧让 Settings 过校验：`_LOCAL_DEV_ENV = {"DEBUG": "true"}` 走 `is_local` 分支（默认 CORS 已含 localhost）+ **新增 fail-closed 反向锚 4 条**（含 round-1 整改补的第 4 条） | ⛔ 未改 `config.py:274-298`；⛔ 未对 `test_neo4j_password_empty_default` 塞 `NEO4J_PASSWORD`（那正是它要断言的量）。`DEBUG=True` 不改变任何被断言的量（各 NEO4J_* 默认值 / env 解析）。四条反向锚分别钉住：① `DEBUG` 缺省 + 空密码必抛；② `DEBUG` 缺省 + 有密码 + 空 `INTERNAL_API_KEY` 必抛；③ 对照组 `DEBUG=true` + 默认 CORS 不抛（没有它，①② 分不清「fail-closed 生效」与「Settings 根本构造不出来」）；④ **round-1 整改补**：`DEBUG=true` 但 CORS 不含 localhost/127.0.0.1 **仍须抛**——Codex round-1 MEDIUM 指出原三条只走了 `is_local` 合取的 `DEBUG` 半边，若有人把 `is_local` 简化成「只看 DEBUG」，那三条结果一条都不变，非本地 CORS 却被错误放行 |
+| 25 | `tests/unit/test_config_neo4j.py::TestNeo4jSettingsDefaults::test_neo4j_uri_default` | `pydantic_core._pydantic_core.ValidationError: 1 validation error for Settings` | `tests/unit/test_config_neo4j.py:54-59` <br> `assert settings.NEO4J_URI == "bolt://localhost:7687"` <br> `assert settings.neo4j_uri == "bolt://localhost:7687"` | backend/app/config.py:286 `is_local = self.DEBUG and (...)`；:288-292 `raise ValueError("NEO4J_PASSWORD must be set explicitly outside local dev…")`；:295-298 `raise ValueError("INTERNAL_API_KEY required outside local dev…")` | `f718d040` 2026-05-08「round-23 stage 1 硬化 ship」引入 `validate_security_defaults`：`patch.dict(os.environ, {...}, clear=True)` + `Settings(_env_file=None)` ⇒ `is_local=False` ⇒ 实例化必抛，9 条全部死在 Settings 构造期而非各自的断言上 | 只在测试侧让 Settings 过校验：`_LOCAL_DEV_ENV = {"DEBUG": "true"}` 走 `is_local` 分支（默认 CORS 已含 localhost）+ **新增 fail-closed 反向锚 4 条**（含 round-1 整改补的第 4 条） | ⛔ 未改 `config.py:274-298`；⛔ 未对 `test_neo4j_password_empty_default` 塞 `NEO4J_PASSWORD`（那正是它要断言的量）。`DEBUG=True` 不改变任何被断言的量（各 NEO4J_* 默认值 / env 解析）。四条反向锚分别钉住：① `DEBUG` 缺省 + 空密码必抛；② `DEBUG` 缺省 + 有密码 + 空 `INTERNAL_API_KEY` 必抛；③ 对照组 `DEBUG=true` + 默认 CORS 不抛（没有它，①② 分不清「fail-closed 生效」与「Settings 根本构造不出来」）；④ **round-1 整改补**：`DEBUG=true` 但 CORS 不含 localhost/127.0.0.1 **仍须抛**——Codex round-1 MEDIUM 指出原三条只走了 `is_local` 合取的 `DEBUG` 半边，若有人把 `is_local` 简化成「只看 DEBUG」，那三条结果一条都不变，非本地 CORS 却被错误放行 |
+| 26 | `tests/unit/test_config_neo4j.py::TestNeo4jSettingsDefaults::test_neo4j_user_default` | `pydantic_core._pydantic_core.ValidationError: 1 validation error for Settings` | `tests/unit/test_config_neo4j.py:61-66` <br> `assert settings.NEO4J_USER == "neo4j"` <br> `assert settings.neo4j_user == "neo4j"` | backend/app/config.py:286 `is_local = self.DEBUG and (...)`；:288-292 `raise ValueError("NEO4J_PASSWORD must be set explicitly outside local dev…")`；:295-298 `raise ValueError("INTERNAL_API_KEY required outside local dev…")` | `f718d040` 2026-05-08「round-23 stage 1 硬化 ship」引入 `validate_security_defaults`：`patch.dict(os.environ, {...}, clear=True)` + `Settings(_env_file=None)` ⇒ `is_local=False` ⇒ 实例化必抛，9 条全部死在 Settings 构造期而非各自的断言上 | 只在测试侧让 Settings 过校验：`_LOCAL_DEV_ENV = {"DEBUG": "true"}` 走 `is_local` 分支（默认 CORS 已含 localhost）+ **新增 fail-closed 反向锚 4 条**（含 round-1 整改补的第 4 条） | ⛔ 未改 `config.py:274-298`；⛔ 未对 `test_neo4j_password_empty_default` 塞 `NEO4J_PASSWORD`（那正是它要断言的量）。`DEBUG=True` 不改变任何被断言的量（各 NEO4J_* 默认值 / env 解析）。四条反向锚分别钉住：① `DEBUG` 缺省 + 空密码必抛；② `DEBUG` 缺省 + 有密码 + 空 `INTERNAL_API_KEY` 必抛；③ 对照组 `DEBUG=true` + 默认 CORS 不抛（没有它，①② 分不清「fail-closed 生效」与「Settings 根本构造不出来」）；④ **round-1 整改补**：`DEBUG=true` 但 CORS 不含 localhost/127.0.0.1 **仍须抛**——Codex round-1 MEDIUM 指出原三条只走了 `is_local` 合取的 `DEBUG` 半边，若有人把 `is_local` 简化成「只看 DEBUG」，那三条结果一条都不变，非本地 CORS 却被错误放行 |
+| 27 | `tests/unit/test_config_neo4j.py::TestNeo4jSettingsFromEnv::test_neo4j_enabled_case_insensitive` | `pydantic_core._pydantic_core.ValidationError: 1 validation error for Settings` | `tests/unit/test_config_neo4j.py:111-115` <br> `assert settings.neo4j_enabled is False` | backend/app/config.py:286 `is_local = self.DEBUG and (...)`；:288-292 `raise ValueError("NEO4J_PASSWORD must be set explicitly outside local dev…")`；:295-298 `raise ValueError("INTERNAL_API_KEY required outside local dev…")` | `f718d040` 2026-05-08「round-23 stage 1 硬化 ship」引入 `validate_security_defaults`：`patch.dict(os.environ, {...}, clear=True)` + `Settings(_env_file=None)` ⇒ `is_local=False` ⇒ 实例化必抛，9 条全部死在 Settings 构造期而非各自的断言上 | 只在测试侧让 Settings 过校验：`_LOCAL_DEV_ENV = {"DEBUG": "true"}` 走 `is_local` 分支（默认 CORS 已含 localhost）+ **新增 fail-closed 反向锚 4 条**（含 round-1 整改补的第 4 条） | ⛔ 未改 `config.py:274-298`；⛔ 未对 `test_neo4j_password_empty_default` 塞 `NEO4J_PASSWORD`（那正是它要断言的量）。`DEBUG=True` 不改变任何被断言的量（各 NEO4J_* 默认值 / env 解析）。四条反向锚分别钉住：① `DEBUG` 缺省 + 空密码必抛；② `DEBUG` 缺省 + 有密码 + 空 `INTERNAL_API_KEY` 必抛；③ 对照组 `DEBUG=true` + 默认 CORS 不抛（没有它，①② 分不清「fail-closed 生效」与「Settings 根本构造不出来」）；④ **round-1 整改补**：`DEBUG=true` 但 CORS 不含 localhost/127.0.0.1 **仍须抛**——Codex round-1 MEDIUM 指出原三条只走了 `is_local` 合取的 `DEBUG` 半边，若有人把 `is_local` 简化成「只看 DEBUG」，那三条结果一条都不变，非本地 CORS 却被错误放行 |
+| 28 | `tests/unit/test_config_neo4j.py::TestNeo4jSettingsFromEnv::test_neo4j_enabled_false_from_env` | `pydantic_core._pydantic_core.ValidationError: 1 validation error for Settings` | `tests/unit/test_config_neo4j.py:105-109` <br> `assert settings.neo4j_enabled is False` | backend/app/config.py:286 `is_local = self.DEBUG and (...)`；:288-292 `raise ValueError("NEO4J_PASSWORD must be set explicitly outside local dev…")`；:295-298 `raise ValueError("INTERNAL_API_KEY required outside local dev…")` | `f718d040` 2026-05-08「round-23 stage 1 硬化 ship」引入 `validate_security_defaults`：`patch.dict(os.environ, {...}, clear=True)` + `Settings(_env_file=None)` ⇒ `is_local=False` ⇒ 实例化必抛，9 条全部死在 Settings 构造期而非各自的断言上 | 只在测试侧让 Settings 过校验：`_LOCAL_DEV_ENV = {"DEBUG": "true"}` 走 `is_local` 分支（默认 CORS 已含 localhost）+ **新增 fail-closed 反向锚 4 条**（含 round-1 整改补的第 4 条） | ⛔ 未改 `config.py:274-298`；⛔ 未对 `test_neo4j_password_empty_default` 塞 `NEO4J_PASSWORD`（那正是它要断言的量）。`DEBUG=True` 不改变任何被断言的量（各 NEO4J_* 默认值 / env 解析）。四条反向锚分别钉住：① `DEBUG` 缺省 + 空密码必抛；② `DEBUG` 缺省 + 有密码 + 空 `INTERNAL_API_KEY` 必抛；③ 对照组 `DEBUG=true` + 默认 CORS 不抛（没有它，①② 分不清「fail-closed 生效」与「Settings 根本构造不出来」）；④ **round-1 整改补**：`DEBUG=true` 但 CORS 不含 localhost/127.0.0.1 **仍须抛**——Codex round-1 MEDIUM 指出原三条只走了 `is_local` 合取的 `DEBUG` 半边，若有人把 `is_local` 简化成「只看 DEBUG」，那三条结果一条都不变，非本地 CORS 却被错误放行 |
+| 29 | `tests/unit/test_config_neo4j.py::TestNeo4jSettingsFromEnv::test_neo4j_settings_from_env` | `pydantic_core._pydantic_core.ValidationError: 1 validation error for Settings` | `tests/unit/test_config_neo4j.py:86-103` <br> `assert settings.neo4j_enabled is True` <br> `assert settings.neo4j_uri == "bolt://custom-host:7688"` | backend/app/config.py:286 `is_local = self.DEBUG and (...)`；:288-292 `raise ValueError("NEO4J_PASSWORD must be set explicitly outside local dev…")`；:295-298 `raise ValueError("INTERNAL_API_KEY required outside local dev…")` | `f718d040` 2026-05-08「round-23 stage 1 硬化 ship」引入 `validate_security_defaults`：`patch.dict(os.environ, {...}, clear=True)` + `Settings(_env_file=None)` ⇒ `is_local=False` ⇒ 实例化必抛，9 条全部死在 Settings 构造期而非各自的断言上 | 只在测试侧让 Settings 过校验：`_LOCAL_DEV_ENV = {"DEBUG": "true"}` 走 `is_local` 分支（默认 CORS 已含 localhost）+ **新增 fail-closed 反向锚 4 条**（含 round-1 整改补的第 4 条） | ⛔ 未改 `config.py:274-298`；⛔ 未对 `test_neo4j_password_empty_default` 塞 `NEO4J_PASSWORD`（那正是它要断言的量）。`DEBUG=True` 不改变任何被断言的量（各 NEO4J_* 默认值 / env 解析）。四条反向锚分别钉住：① `DEBUG` 缺省 + 空密码必抛；② `DEBUG` 缺省 + 有密码 + 空 `INTERNAL_API_KEY` 必抛；③ 对照组 `DEBUG=true` + 默认 CORS 不抛（没有它，①② 分不清「fail-closed 生效」与「Settings 根本构造不出来」）；④ **round-1 整改补**：`DEBUG=true` 但 CORS 不含 localhost/127.0.0.1 **仍须抛**——Codex round-1 MEDIUM 指出原三条只走了 `is_local` 合取的 `DEBUG` 半边，若有人把 `is_local` 简化成「只看 DEBUG」，那三条结果一条都不变，非本地 CORS 却被错误放行 |
+| 30 | `tests/unit/test_config_neo4j.py::TestNeo4jSettingsFromEnv::test_neo4j_uri_with_different_port` | `pydantic_core._pydantic_core.ValidationError: 1 validation error for Settings` | `tests/unit/test_config_neo4j.py:117-125` <br> `assert settings.neo4j_uri == "bolt://localhost:7689"` | backend/app/config.py:286 `is_local = self.DEBUG and (...)`；:288-292 `raise ValueError("NEO4J_PASSWORD must be set explicitly outside local dev…")`；:295-298 `raise ValueError("INTERNAL_API_KEY required outside local dev…")` | `f718d040` 2026-05-08「round-23 stage 1 硬化 ship」引入 `validate_security_defaults`：`patch.dict(os.environ, {...}, clear=True)` + `Settings(_env_file=None)` ⇒ `is_local=False` ⇒ 实例化必抛，9 条全部死在 Settings 构造期而非各自的断言上 | 只在测试侧让 Settings 过校验：`_LOCAL_DEV_ENV = {"DEBUG": "true"}` 走 `is_local` 分支（默认 CORS 已含 localhost）+ **新增 fail-closed 反向锚 4 条**（含 round-1 整改补的第 4 条） | ⛔ 未改 `config.py:274-298`；⛔ 未对 `test_neo4j_password_empty_default` 塞 `NEO4J_PASSWORD`（那正是它要断言的量）。`DEBUG=True` 不改变任何被断言的量（各 NEO4J_* 默认值 / env 解析）。四条反向锚分别钉住：① `DEBUG` 缺省 + 空密码必抛；② `DEBUG` 缺省 + 有密码 + 空 `INTERNAL_API_KEY` 必抛；③ 对照组 `DEBUG=true` + 默认 CORS 不抛（没有它，①② 分不清「fail-closed 生效」与「Settings 根本构造不出来」）；④ **round-1 整改补**：`DEBUG=true` 但 CORS 不含 localhost/127.0.0.1 **仍须抛**——Codex round-1 MEDIUM 指出原三条只走了 `is_local` 合取的 `DEBUG` 半边，若有人把 `is_local` 简化成「只看 DEBUG」，那三条结果一条都不变，非本地 CORS 却被错误放行 |
+| 31 | `tests/unit/test_context_enrichment_2hop.py::TestEnrichWithAdjacentNodes2Hop::test_enrich_with_2hop_adjacent_nodes` | `TypeError: ContextEnrichmentService.enrich_with_adjacent_nodes() got an unexpected keyword argument 'include_graphiti'` | `tests/unit/test_context_enrichment_2hop.py:568-591` <br> `assert result is not None` <br> `assert len(result.adjacent_nodes) == 2  # B (1-hop) and A (2-hop)` | backend/app/services/context_enrichment_service.py `enrich_with_adjacent_nodes(self, canvas_name, node_id, hop_depth=1, include_learning_memory=True)` | `5d2b95ba` 2026-03-29 同一次 G-FAKE-001 改名：kwarg `include_graphiti` → `include_learning_memory` | 改 kwarg 名对齐现行签名 | 生产再改 kwarg 名 ⇒ `TypeError: unexpected keyword argument` 立即红 |
+| 32 | `tests/unit/test_context_enrichment_2hop.py::TestEnrichWithAdjacentNodes2Hop::test_enriched_context_contains_2hop_labels` | `TypeError: ContextEnrichmentService.enrich_with_adjacent_nodes() got an unexpected keyword argument 'include_graphiti'` | `tests/unit/test_context_enrichment_2hop.py:594-611` <br> `assert (` | backend/app/services/context_enrichment_service.py `enrich_with_adjacent_nodes(self, canvas_name, node_id, hop_depth=1, include_learning_memory=True)` | `5d2b95ba` 2026-03-29 同一次 G-FAKE-001 改名：kwarg `include_graphiti` → `include_learning_memory` | 改 kwarg 名对齐现行签名 | 生产再改 kwarg 名 ⇒ `TypeError: unexpected keyword argument` 立即红 |
+| 33 | `tests/unit/test_degraded_flag_propagation.py::TestDegradedResponseFormat::test_degraded_score_is_reasonable` | `assert 0.0 < 0.0` | `tests/unit/test_degraded_flag_propagation.py:217-260` <br> `assert result_short["degraded"] is True` <br> `assert result_long["degraded"] is True` | backend/app/services/verification_service.py:1677 `return "unknown", 0.0` | `d0824e90` 2026-04-06「Phase 17.1 fail-closed degraded scoring」：`_mock_evaluate_answer` 原按字符长度打分（≤20→20 / >20→50 / >50→70 / >100→90），101 字噪音能压过 19 字正确答案 ⇒ 整改为恒返 `("unknown", 0.0)` | 改断言：锁 fail-closed 契约本身（两种长度必须拿到同一中性分且为 0.0） | 原断言只要求「短分 < 长分」的偏序——任何非零打分只要单调就能过；新断言让**任何长度相关性**都翻红 ⇒ 强度上升。⛔ 未采用「把 `<` 改成 `<=`」那种放宽写法 |
+| 34 | `tests/unit/test_intelligent_parallel_endpoints.py::TestCancelEndpoint::test_cancel_running_session` | `assert 409 == 200` | `tests/unit/test_intelligent_parallel_endpoints.py:449-474` <br> `assert response.status_code == status.HTTP_200_OK` <br> `assert data["success"] is True` | backend/app/services/intelligent_parallel_service.py:492 `if session.status.is_terminal:` | `3c00ad48` 2026-02-11「adversarial review fixes — cancel race guard」把守卫由 `session.status.value in ("completed","cancelled","failed")` 改为 `session.status.is_terminal` | 改测试替身：喂真枚举 `SessionStatus.RUNNING`，让 `is_terminal` 走生产真实实现 | ⛔ 不用 `status.is_terminal = False` 硬塞（那是锁 mock 自身返回值的自证）。喂真枚举后，若生产把 RUNNING 划进终态集合，本条立即红；硬塞 False 则永远发现不了 |
+| 35 | `tests/unit/test_neo4j_health.py::TestNeo4jHealthEndpoint::test_neo4j_connection_timeout` | `AssertionError: assert 'Connection t...ut (>30000ms)' == 'Connection timeout (>500ms)'` | `tests/unit/test_neo4j_health.py:116-137` <br> `assert response.status == "unhealthy"` <br> `assert response.checks.neo4j_enabled is True` | backend/app/api/v1/endpoints/health.py:900 `error="Connection timeout (>30000ms)"` | `74337632` 2026-02-04「resolve LanceDB data isolation and memory system connection bugs」把 `wait_for` 的 timeout 由 2.0s 提到 30.0s，TimeoutError 分支文案随之由 `>500ms` 变 `>30000ms` | 改断言对齐现行文案 | ⚠️ 该裸串在测试文件里共 3 处，另两处属当前绿用例（自造响应模型）⇒ 锚点带 12 空格缩进定点、禁 replace_all；写入后断言 `500ms` 残留恰为 2。生产再改 timeout 档位 ⇒ 本条红 |
+| 36 | `tests/unit/test_rag_multimodal_integration.py::TestRRFMultimodalFusion::test_rrf_fusion_with_multimodal_results` | `ImportError: cannot import name '_fuse_rrf_multi_source' from 'agentic_rag.nodes' (/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u11-red-c/backend/li` | `tests/unit/test_rag_multimodal_integration.py:361-408` <br> `assert len(fused) == 3` <br> `assert "g1" in doc_ids` | `backend/lib/agentic_rag/nodes/__init__.py` 用 `from agentic_rag._nodes_impl import *`，而 `nodes.py` 无 `__all__` ⇒ `import *` 不带下划线前缀名；`backend/lib/agentic_rag/state_graph.py:232 async def fan_out_retrieval(` | 3 条：`76d10cea` 2026-03-16 建 `nodes/` 包目录遮蔽 `nodes.py` → `c0ac2b47` 2026-03-18 re-export shim 收口；1 条：`3b96e492` 2026-04-07「A9 L1 LLM router」把 `fan_out_retrieval` 改 async | 3 条改导入路径 `agentic_rag.nodes` → `agentic_rag._nodes_impl`；1 条改 async + patch `llm_router.llm_route`（不 patch 会真发 LLM 请求） | **关键判断**：符号并未被删除（`nodes.py:723/:983` 现存），只是 `import *` 不带下划线名 ⇒ 处置是改导入路径而非 xfail 退役。旁证：同文件 `DEFAULT_SOURCE_WEIGHTS`（无下划线）经同一路径导入的两条用例至今是绿的、不在 66 条内——这正是「只有下划线名不可达」的反面对照。若 shim 被删或真身被移走 ⇒ ImportError 立即红 |
+| 37 | `tests/unit/test_rag_multimodal_integration.py::TestRRFMultimodalFusion::test_rrf_multimodal_score_contribution` | `ImportError: cannot import name '_fuse_rrf_multi_source' from 'agentic_rag.nodes' (/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u11-red-c/backend/li` | `tests/unit/test_rag_multimodal_integration.py:410-461` <br> `assert m1_result["score"] == pytest.approx(expected_rrf_score, rel=1e-6)` <br> `assert m1_result["metadata"]["fusion_method"] == "rrf"` | `backend/lib/agentic_rag/nodes/__init__.py` 用 `from agentic_rag._nodes_impl import *`，而 `nodes.py` 无 `__all__` ⇒ `import *` 不带下划线前缀名；`backend/lib/agentic_rag/state_graph.py:232 async def fan_out_retrieval(` | 3 条：`76d10cea` 2026-03-16 建 `nodes/` 包目录遮蔽 `nodes.py` → `c0ac2b47` 2026-03-18 re-export shim 收口；1 条：`3b96e492` 2026-04-07「A9 L1 LLM router」把 `fan_out_retrieval` 改 async | 3 条改导入路径 `agentic_rag.nodes` → `agentic_rag._nodes_impl`；1 条改 async + patch `llm_router.llm_route`（不 patch 会真发 LLM 请求） | **关键判断**：符号并未被删除（`nodes.py:723/:983` 现存），只是 `import *` 不带下划线名 ⇒ 处置是改导入路径而非 xfail 退役。旁证：同文件 `DEFAULT_SOURCE_WEIGHTS`（无下划线）经同一路径导入的两条用例至今是绿的、不在 66 条内——这正是「只有下划线名不可达」的反面对照。若 shim 被删或真身被移走 ⇒ ImportError 立即红 |
+| 38 | `tests/unit/test_rag_multimodal_integration.py::TestRRFMultimodalFusion::test_weighted_fusion_with_multimodal` | `ImportError: cannot import name '_fuse_weighted_multi_source' from 'agentic_rag.nodes' (/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u11-red-c/backe` | `tests/unit/test_rag_multimodal_integration.py:463-511` <br> `assert len(fused) == 3` <br> `assert r["metadata"]["fusion_method"] == "weighted"` | `backend/lib/agentic_rag/nodes/__init__.py` 用 `from agentic_rag._nodes_impl import *`，而 `nodes.py` 无 `__all__` ⇒ `import *` 不带下划线前缀名；`backend/lib/agentic_rag/state_graph.py:232 async def fan_out_retrieval(` | 3 条：`76d10cea` 2026-03-16 建 `nodes/` 包目录遮蔽 `nodes.py` → `c0ac2b47` 2026-03-18 re-export shim 收口；1 条：`3b96e492` 2026-04-07「A9 L1 LLM router」把 `fan_out_retrieval` 改 async | 3 条改导入路径 `agentic_rag.nodes` → `agentic_rag._nodes_impl`；1 条改 async + patch `llm_router.llm_route`（不 patch 会真发 LLM 请求） | **关键判断**：符号并未被删除（`nodes.py:723/:983` 现存），只是 `import *` 不带下划线名 ⇒ 处置是改导入路径而非 xfail 退役。旁证：同文件 `DEFAULT_SOURCE_WEIGHTS`（无下划线）经同一路径导入的两条用例至今是绿的、不在 66 条内——这正是「只有下划线名不可达」的反面对照。若 shim 被删或真身被移走 ⇒ ImportError 立即红 |
+| 39 | `tests/unit/test_rag_multimodal_integration.py::TestStateGraphMultimodalIntegration::test_fan_out_retrieval_includes_multimodal` | `TypeError: object of type 'coroutine' has no len()` | `tests/unit/test_rag_multimodal_integration.py:532-561` <br> `assert len(sends) == 5` <br> `assert "retrieve_multimodal" in destinations` | `backend/lib/agentic_rag/nodes/__init__.py` 用 `from agentic_rag._nodes_impl import *`，而 `nodes.py` 无 `__all__` ⇒ `import *` 不带下划线前缀名；`backend/lib/agentic_rag/state_graph.py:232 async def fan_out_retrieval(` | 3 条：`76d10cea` 2026-03-16 建 `nodes/` 包目录遮蔽 `nodes.py` → `c0ac2b47` 2026-03-18 re-export shim 收口；1 条：`3b96e492` 2026-04-07「A9 L1 LLM router」把 `fan_out_retrieval` 改 async | 3 条改导入路径 `agentic_rag.nodes` → `agentic_rag._nodes_impl`；1 条改 async + patch `llm_router.llm_route`（不 patch 会真发 LLM 请求） | **关键判断**：符号并未被删除（`nodes.py:723/:983` 现存），只是 `import *` 不带下划线名 ⇒ 处置是改导入路径而非 xfail 退役。旁证：同文件 `DEFAULT_SOURCE_WEIGHTS`（无下划线）经同一路径导入的两条用例至今是绿的、不在 66 条内——这正是「只有下划线名不可达」的反面对照。若 shim 被删或真身被移走 ⇒ ImportError 立即红 |
+| 40 | `tests/unit/test_s02_entity_types.py::TestProcessEpisodeForwarding::test_forwards_entity_and_edge_types` | `AssertionError: assert 'math-group__semantic' == 'math-group'` | `tests/unit/test_s02_entity_types.py:240-273` <br> `mock_graphiti.add_episode.assert_called_once()` <br> `assert call_kwargs["name"] == "test-episode"` | backend/app/services/episode_worker.py:601 `"group_id": semantic_group_id(sanitize_group_id_for_graphiti(task.group_id))` | `7a3d53bc` 2026-07-13「M2 语义通道写侧落影子图」：`add_episode` 是 LLM 抽取通道，group 在 episode_worker 单点重定向到语义影子分组；`"math-group"` 无冒号、字符全合法 ⇒ sanitize 恒等，只追加 `__semantic` | 改断言对齐现行契约（+ 新增独立不变量） | 期望值抄字面量 `"math-group__semantic"` 而非调 `semantic_group_id()` 求值——同源求值会跟着实现一起退化恒真。新增独立不变量 `task.group_id == "math-group"`：影子分组只作用于 graphiti 调用面，若有人改成就地改写 task 自身归属 ⇒ 立即红 |
+| 41 | `tests/unit/test_s02_search_upgrade.py::test_search_recipes_all_5_mapped` | `Extra items in the left set:` | `tests/unit/test_s02_search_upgrade.py:175-199` <br> `assert len(expected_keys) == 8` <br> `assert set(recipes.keys()) == expected_keys` | backend/app/services/memory_service.py:1773/:1776/:1778 `combined_mmr` / `edge_mmr` / `node_mmr` | `4236b12e` 2026-07-23「批次1 隔离守门五项」：`_get_search_recipes()` 补注册 Graphiti 白送但一直闲置的三个 MMR 去重配方，键集 5 → 8 | 改断言对齐现行契约（+ 字面量完整性守卫） | 期望值抄字面量、不 import 生产注册表（import 当期望值恒真）。加 `len(expected_keys) == 8` 守卫：若有人往字面量里写重复串把集合悄悄缩小 ⇒ 守卫红。生产增/删配方 ⇒ `==` 断言红 |
+| 42 | `tests/unit/test_story_1_7_env_config.py::TestDockerComposeVariableization::test_no_hardcoded_user_paths` | `AssertionError: Hardcoded user paths found: ['/Users/Heishing/', '/Users/Heishing/', '/Users/Heishing/']` | `tests/unit/test_story_1_7_env_config.py:50-75` <br> （断言在被调用的 helper 内） | docker-compose.yml:43-45 三条 neo4j bind-mount 用绝对路径指向主仓 | `8a80595f` 2026-07-12「neo4j 挂载迁主仓」**有意推翻** Story 1.7 的「compose 不得有硬编码用户路径」：相对路径 `./docker/neo4j/*` 随启动目录漂移，519MB 学习记忆图谱（唯一不可再生数据）因此寄居在随时会被清理的 worktree；commit body 原文「worktree 清理 = 记忆蒸发」，并留了 `backend/data/backups/` 全量导出 | 改断言：三条做成**显式豁免名单**，并（round-1 整改）把豁免面收窄到「neo4j 这一个 service 内、每条至多一次」 | **如实声明这是本卡唯一一处判据在特定输入上变弱**：原断言对任何 `/Users/\w+/` 都红，新断言对这 3 条精确字符串放行。⚠️ **round-1 整改**：先前只按行内容做集合豁免，Codex round-1 HIGH 指出并经本车道复现——把任一获准 mount 行**复制到另一个 service** 时新断言仍通过（原断言会红），故「多一条都红」当时**不成立**。现改为三段判据：① 行内容在豁免名单里；② 该行所属顶层 service 恰为 `neo4j`；③ 每条豁免行至多出现一次。负控存档 `negctl-compose-exemption-20260909T134534.txt`：把测试模块的 `PROJECT_ROOT` 指到临时目录喂三种 compose，Codex 那条复现输入**由 PASS 变 FAIL**，正控（新增一条陌生用户路径）同样 FAIL，现状仍 PASS。⛔ 三段都用「子集/上界」而非「相等」：日后真把这三条改回变量化时本用例继续绿。⛔ 未改 docker-compose.yml、未放宽正则 |
+| 43 | `tests/unit/test_story_30_24_boundary.py::TestSpecialCharacterGroupId::test_neo4j_parameterized_query_with_special_chars` | `AssertionError: groupId not passed as keyword param. kwargs={'userId': 'test_user', 'limit': 5, 'group_id': 'vault__script_drop_table_users', 'group_prefix': 'vault__script_drop_ta` | `tests/unit/test_story_30_24_boundary.py:170-221` <br> `assert "groupId" not in all_kwargs, (` <br> `assert {"group_id", "group_prefix"} <= set(all_kwargs), (` | `find . -name "verify-vault*" -not -path "*/node_modules/*"` → 仓内唯一副本在 `_archive/`；仓根无 `canvas-progress-tracker/`。安全面：`backend/app/core/vault_scope.py:620 return {"group_id": physical, "group_prefix": physical + _PHYSICAL_SEPARATOR}` | `4db8e94a` 2026-08-30(G4-1a) / `88cb13a7` 2026-08-31：`get_review_suggestions` 读侧收口，参数名 `groupId` → `group_id`+`group_prefix`，值经 `to_physical_group_id()` 物理化 | 只改 `:186-189` 的参数名/值形态断言；**`:191-194`「原始恶意串不得出现在 query 文本」的断言原样保留并加固** | 探针实测（存档 `anchor4-security-probe.txt`）：恶意串被物理化净化而非仅改名；以 `$group_id`/`$group_prefix` 命名参数传入；原始串与两个 SQL 关键词均不在 query 文本；无 kwarg 值被拼进查询 ⇒ 卡文 (f) 的「判回归、停机」条件**不触发**，属演进。加固面两条：① 「任何**字符串** kwarg 值都不得出现在 query 文本」（比原断言只查那一个原始串更宽）；② **round-1 整改补**——Codex round-1 LOW 指出 ① 漏掉非字符串值（把 `limit=5` 写死成 `LIMIT 5` 却照旧传 kwargs 时发现不了），而对整数直接查 `str(v) in query` 会误报，故改用**正面**形式表达同一主张：每个 kwarg 都必须在查询文本里有对应的 `$name` 占位符——值一旦被内联，占位符就消失，立即红。⚠️ 仍存在的同源盲区（Codex round-1 MEDIUM，如实登记不代修）：期望值 `to_physical_group_id(...)` 与生产走**同一个 helper**，若该 helper 本身映射错误（例如恒返回同一个串），期望与实际会同步变化、本条发现不了 |
+| 44 | `tests/unit/test_story_30_24_boundary.py::TestVaultVerifyExitCode::test_package_json_verify_command_correct` | `AssertionError: assert False` | `tests/unit/test_story_30_24_boundary.py:612-618` <br> （断言在被调用的 helper 内） | `find . -name "verify-vault*" -not -path "*/node_modules/*"` → 仓内唯一副本在 `_archive/`；仓根无 `canvas-progress-tracker/`。安全面：`backend/app/core/vault_scope.py:620 return {"group_id": physical, "group_prefix": physical + _PHYSICAL_SEPARATOR}` | 5 条：`146218b5` 2026-03-24「上下文污染清理 — 归档 legacy」，旧路径的 `--diff-filter=D` 与 `_archive/` 的 `--diff-filter=A` 指向**同一个** commit ⇒ 整树归档非删除。1 条：`4db8e94a` 2026-08-30(G4-1a) / `88cb13a7` 2026-08-31 读侧收口，参数名 `groupId` → `group_id`+`group_prefix`，值经 `to_physical_group_id` 物理化 | 5 条 xfail(strict=True) 交接 **CARD-VAULT-FRESHNESS-COVERAGE**；1 条安全面改参数形态断言 | ⛔ 未把 `VERIFY_SCRIPT` 重指 `_archive/`（那等于把已退役物重新变成生产契约）；⛔ 未改成「脚本不存在就跳过」（那是把红换成静默绿）。⚠️ **更正（Codex round-1 MEDIUM，采纳）**：`xfail` 只改判定、**不改执行路径**，这 5 条里有 3 条（`:555`/`:582`/`:606`）仍会调 `_run_verify` → `subprocess.run(["node", ...])`，本机 `node v24.16.0` 在 PATH 上 ⇒ **确实每轮起 3 个 node 子进程**（失败原因正是 loader 报模块不存在）。卡文禁的是「**新增**子进程调用」，本卡一个也没新增；但先前「未在单测起子进程」的表述是错的，已改成这句。真正消除它属 `CARD-VAULT-FRESHNESS-COVERAGE`。安全面见下方 §四 单列一节 |
+| 45 | `tests/unit/test_story_30_24_boundary.py::TestVaultVerifyExitCode::test_verify_script_exists` | `AssertionError: verify script not found: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u11-red-c/canvas-progress-tracker/obsidian-plugin/scripts/veri` | `tests/unit/test_story_30_24_boundary.py:510-514` <br> `assert record["timestamp"] == "2026-02-10T12:00:00Z"` <br> `assert "Neo4j" in record["reason"]` | `find . -name "verify-vault*" -not -path "*/node_modules/*"` → 仓内唯一副本在 `_archive/`；仓根无 `canvas-progress-tracker/`。安全面：`backend/app/core/vault_scope.py:620 return {"group_id": physical, "group_prefix": physical + _PHYSICAL_SEPARATOR}` | 5 条：`146218b5` 2026-03-24「上下文污染清理 — 归档 legacy」，旧路径的 `--diff-filter=D` 与 `_archive/` 的 `--diff-filter=A` 指向**同一个** commit ⇒ 整树归档非删除。1 条：`4db8e94a` 2026-08-30(G4-1a) / `88cb13a7` 2026-08-31 读侧收口，参数名 `groupId` → `group_id`+`group_prefix`，值经 `to_physical_group_id` 物理化 | 5 条 xfail(strict=True) 交接 **CARD-VAULT-FRESHNESS-COVERAGE**；1 条安全面改参数形态断言 | ⛔ 未把 `VERIFY_SCRIPT` 重指 `_archive/`（那等于把已退役物重新变成生产契约）；⛔ 未改成「脚本不存在就跳过」（那是把红换成静默绿）。⚠️ **更正（Codex round-1 MEDIUM，采纳）**：`xfail` 只改判定、**不改执行路径**，这 5 条里有 3 条（`:555`/`:582`/`:606`）仍会调 `_run_verify` → `subprocess.run(["node", ...])`，本机 `node v24.16.0` 在 PATH 上 ⇒ **确实每轮起 3 个 node 子进程**（失败原因正是 loader 报模块不存在）。卡文禁的是「**新增**子进程调用」，本卡一个也没新增；但先前「未在单测起子进程」的表述是错的，已改成这句。真正消除它属 `CARD-VAULT-FRESHNESS-COVERAGE`。安全面见下方 §四 单列一节 |
+| 46 | `tests/unit/test_story_30_24_boundary.py::TestVaultVerifyExitCode::test_verify_script_exits_nonzero_when_file_not_found` | `assert 'NOT FOUND' in "node:internal/modules/cjs/loader:1503\n  throw err;\n  ^\n\nError: Cannot find module '/Users/Heishing/Desktop/canvas...t node:internal/main/run_main_module:` | `tests/unit/test_story_30_24_boundary.py:543-548` <br> （断言在被调用的 helper 内） | `find . -name "verify-vault*" -not -path "*/node_modules/*"` → 仓内唯一副本在 `_archive/`；仓根无 `canvas-progress-tracker/`。安全面：`backend/app/core/vault_scope.py:620 return {"group_id": physical, "group_prefix": physical + _PHYSICAL_SEPARATOR}` | 5 条：`146218b5` 2026-03-24「上下文污染清理 — 归档 legacy」，旧路径的 `--diff-filter=D` 与 `_archive/` 的 `--diff-filter=A` 指向**同一个** commit ⇒ 整树归档非删除。1 条：`4db8e94a` 2026-08-30(G4-1a) / `88cb13a7` 2026-08-31 读侧收口，参数名 `groupId` → `group_id`+`group_prefix`，值经 `to_physical_group_id` 物理化 | 5 条 xfail(strict=True) 交接 **CARD-VAULT-FRESHNESS-COVERAGE**；1 条安全面改参数形态断言 | ⛔ 未把 `VERIFY_SCRIPT` 重指 `_archive/`（那等于把已退役物重新变成生产契约）；⛔ 未改成「脚本不存在就跳过」（那是把红换成静默绿）。⚠️ **更正（Codex round-1 MEDIUM，采纳）**：`xfail` 只改判定、**不改执行路径**，这 5 条里有 3 条（`:555`/`:582`/`:606`）仍会调 `_run_verify` → `subprocess.run(["node", ...])`，本机 `node v24.16.0` 在 PATH 上 ⇒ **确实每轮起 3 个 node 子进程**（失败原因正是 loader 报模块不存在）。卡文禁的是「**新增**子进程调用」，本卡一个也没新增；但先前「未在单测起子进程」的表述是错的，已改成这句。真正消除它属 `CARD-VAULT-FRESHNESS-COVERAGE`。安全面见下方 §四 单列一节 |
+| 47 | `tests/unit/test_story_30_24_boundary.py::TestVaultVerifyExitCode::test_verify_script_exits_nonzero_when_stale` | `assert 'STALE' in (('' or ''))` | `tests/unit/test_story_30_24_boundary.py:562-574` <br> `assert result.returncode != 0` | `find . -name "verify-vault*" -not -path "*/node_modules/*"` → 仓内唯一副本在 `_archive/`；仓根无 `canvas-progress-tracker/`。安全面：`backend/app/core/vault_scope.py:620 return {"group_id": physical, "group_prefix": physical + _PHYSICAL_SEPARATOR}` | 5 条：`146218b5` 2026-03-24「上下文污染清理 — 归档 legacy」，旧路径的 `--diff-filter=D` 与 `_archive/` 的 `--diff-filter=A` 指向**同一个** commit ⇒ 整树归档非删除。1 条：`4db8e94a` 2026-08-30(G4-1a) / `88cb13a7` 2026-08-31 读侧收口，参数名 `groupId` → `group_id`+`group_prefix`，值经 `to_physical_group_id` 物理化 | 5 条 xfail(strict=True) 交接 **CARD-VAULT-FRESHNESS-COVERAGE**；1 条安全面改参数形态断言 | ⛔ 未把 `VERIFY_SCRIPT` 重指 `_archive/`（那等于把已退役物重新变成生产契约）；⛔ 未改成「脚本不存在就跳过」（那是把红换成静默绿）。⚠️ **更正（Codex round-1 MEDIUM，采纳）**：`xfail` 只改判定、**不改执行路径**，这 5 条里有 3 条（`:555`/`:582`/`:606`）仍会调 `_run_verify` → `subprocess.run(["node", ...])`，本机 `node v24.16.0` 在 PATH 上 ⇒ **确实每轮起 3 个 node 子进程**（失败原因正是 loader 报模块不存在）。卡文禁的是「**新增**子进程调用」，本卡一个也没新增；但先前「未在单测起子进程」的表述是错的，已改成这句。真正消除它属 `CARD-VAULT-FRESHNESS-COVERAGE`。安全面见下方 §四 单列一节 |
+| 48 | `tests/unit/test_story_30_24_boundary.py::TestVaultVerifyExitCode::test_verify_script_exits_zero_when_fresh` | `assert 1 == 0` | `tests/unit/test_story_30_24_boundary.py:588-598` <br> （断言在被调用的 helper 内） | `find . -name "verify-vault*" -not -path "*/node_modules/*"` → 仓内唯一副本在 `_archive/`；仓根无 `canvas-progress-tracker/`。安全面：`backend/app/core/vault_scope.py:620 return {"group_id": physical, "group_prefix": physical + _PHYSICAL_SEPARATOR}` | 5 条：`146218b5` 2026-03-24「上下文污染清理 — 归档 legacy」，旧路径的 `--diff-filter=D` 与 `_archive/` 的 `--diff-filter=A` 指向**同一个** commit ⇒ 整树归档非删除。1 条：`4db8e94a` 2026-08-30(G4-1a) / `88cb13a7` 2026-08-31 读侧收口，参数名 `groupId` → `group_id`+`group_prefix`，值经 `to_physical_group_id` 物理化 | 5 条 xfail(strict=True) 交接 **CARD-VAULT-FRESHNESS-COVERAGE**；1 条安全面改参数形态断言 | ⛔ 未把 `VERIFY_SCRIPT` 重指 `_archive/`（那等于把已退役物重新变成生产契约）；⛔ 未改成「脚本不存在就跳过」（那是把红换成静默绿）。⚠️ **更正（Codex round-1 MEDIUM，采纳）**：`xfail` 只改判定、**不改执行路径**，这 5 条里有 3 条（`:555`/`:582`/`:606`）仍会调 `_run_verify` → `subprocess.run(["node", ...])`，本机 `node v24.16.0` 在 PATH 上 ⇒ **确实每轮起 3 个 node 子进程**（失败原因正是 loader 报模块不存在）。卡文禁的是「**新增**子进程调用」，本卡一个也没新增；但先前「未在单测起子进程」的表述是错的，已改成这句。真正消除它属 `CARD-VAULT-FRESHNESS-COVERAGE`。安全面见下方 §四 单列一节 |
+| 49 | `tests/unit/test_story_38_1_review_fixes.py::TestDoIndexCoverage::test_do_index_raises_file_not_found` | `TypeError: 'MagicMock' object can't be awaited` | `tests/unit/test_story_38_1_review_fixes.py:109-141` <br> （断言在被调用的 helper 内） | backend/app/services/lancedb_index_service.py:451-453 `if hasattr(client, "initialize"): await client.initialize()`；:454 `except (RuntimeError, OSError, ConnectionError) as e:` | `14f0412d` 2026-02-07 给 `_do_index` 加了 `await client.initialize()`；`a9304c69` 2026-03-29 又把兜底收窄成 `(RuntimeError, OSError, ConnectionError)` ⇒ 裸 `MagicMock` 被 await 时抛的 TypeError 不再被吞、直接穿透 | 改测试替身（`initialize` 换 AsyncMock）+ 补 `assert_awaited_once` 给新契约上锚 | 替身形态过期不是生产回归 ⇒ 只换替身，并给新契约本身上锚。**round-1 整改后**：两条用例**各有** `initialize.assert_awaited_once()`（先前只有其中一条有，Codex round-1 LOW 抓到 ⇒ 「取消初始化」不会让另一条翻红）；并新增**顺序锚**——`mock_client.mock_calls` 按真实顺序记录子调用，断言 `index("initialize") < index("index_canvas")`，把 initialize 的**调用**挪到索引之后即红（先前只断次数，挪顺序次数仍是 1）。顺序判据已用独立探针验过会随顺序翻转。⚠️ **收窄声明（Codex round-2 LOW，采纳）**：`mock_calls` 记的是**调用发起**顺序，不是 await **完成**顺序——`pending = client.initialize(); await client.index_canvas(); await pending` 这种写法下次数与顺序断言都会通过，实际执行却是「索引先于初始化完成」。本卡未覆盖该形态 |
+| 50 | `tests/unit/test_story_38_1_review_fixes.py::TestDoIndexCoverage::test_do_index_reads_canvas_and_calls_index` | `TypeError: 'MagicMock' object can't be awaited` | `tests/unit/test_story_38_1_review_fixes.py:43-106` <br> `assert result == 2` <br> `mock_client.index_canvas.assert_called_once()` | backend/app/services/lancedb_index_service.py:451-453 `if hasattr(client, "initialize"): await client.initialize()`；:454 `except (RuntimeError, OSError, ConnectionError) as e:` | `14f0412d` 2026-02-07 给 `_do_index` 加了 `await client.initialize()`；`a9304c69` 2026-03-29 又把兜底收窄成 `(RuntimeError, OSError, ConnectionError)` ⇒ 裸 `MagicMock` 被 await 时抛的 TypeError 不再被吞、直接穿透 | 改测试替身（`initialize` 换 AsyncMock）+ 补 `assert_awaited_once` 给新契约上锚 | 替身形态过期不是生产回归 ⇒ 只换替身，并给新契约本身上锚。**round-1 整改后**：两条用例**各有** `initialize.assert_awaited_once()`（先前只有其中一条有，Codex round-1 LOW 抓到 ⇒ 「取消初始化」不会让另一条翻红）；并新增**顺序锚**——`mock_client.mock_calls` 按真实顺序记录子调用，断言 `index("initialize") < index("index_canvas")`，把 initialize 的**调用**挪到索引之后即红（先前只断次数，挪顺序次数仍是 1）。顺序判据已用独立探针验过会随顺序翻转。⚠️ **收窄声明（Codex round-2 LOW，采纳）**：`mock_calls` 记的是**调用发起**顺序，不是 await **完成**顺序——`pending = client.initialize(); await client.index_canvas(); await pending` 这种写法下次数与顺序断言都会通过，实际执行却是「索引先于初始化完成」。本卡未覆盖该形态 |
+| 51 | `tests/unit/test_story_38_4_dual_write_default.py::TestAC1SafeDefault::test_startup_log_dual_write_enabled_default` | `AttributeError: <module 'app.main' from '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u11-red-c/backend/app/main.py'> does not have the attribute 's` | `tests/unit/test_story_38_4_dual_write_default.py:70-127` <br> `assert any(` | `grep -n "Dual-write" backend/app/main.py` → **无输出**（全文已无该字样）；设置项本身仍在：backend/app/config.py:477 `ENABLE_GRAPHITI_JSON_DUAL_WRITE`，backend/app/services/canvas_service.py:267/:360 仍消费 | `59586af1` 2026-03-26「delete fake bridge/JSON dual-write code, replaced by GraphitiEpisodeWorker」删掉 main.py 里的 dual-write 启动日志；`836d0986` 2026-03-31 又从 main.py import 块删掉 `set_session_validator` | xfail(strict=True) 交接 **CARD-STORY-38-4-DUALWRITE-RETIREMENT** | **本卡中途改判，如实记录**：先按「符号没了就删掉那行 patch」改断言，实测发现那行 patch 正是**断路器**——删掉后三条单测跑起整个生产启动流程（加载 BGE-M3、扫 live vault、连 7691；实测 30.6s，每条 1 次现网端口连接尝试）。已还原该行并注明理由，处置由「改断言」改判为「xfail 交接」。strict=True ⇒ 若启动播报被恢复且符号回来，XPASS 即红，强制回来重判 |
+| 52 | `tests/unit/test_story_38_4_dual_write_default.py::TestAC2ExplicitDisable::test_startup_log_dual_write_disabled_explicit` | `AttributeError: <module 'app.main' from '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u11-red-c/backend/app/main.py'> does not have the attribute 's` | `tests/unit/test_story_38_4_dual_write_default.py:152-202` <br> `assert any(` | `grep -n "Dual-write" backend/app/main.py` → **无输出**（全文已无该字样）；设置项本身仍在：backend/app/config.py:477 `ENABLE_GRAPHITI_JSON_DUAL_WRITE`，backend/app/services/canvas_service.py:267/:360 仍消费 | `59586af1` 2026-03-26「delete fake bridge/JSON dual-write code, replaced by GraphitiEpisodeWorker」删掉 main.py 里的 dual-write 启动日志；`836d0986` 2026-03-31 又从 main.py import 块删掉 `set_session_validator` | xfail(strict=True) 交接 **CARD-STORY-38-4-DUALWRITE-RETIREMENT** | **本卡中途改判，如实记录**：先按「符号没了就删掉那行 patch」改断言，实测发现那行 patch 正是**断路器**——删掉后三条单测跑起整个生产启动流程（加载 BGE-M3、扫 live vault、连 7691；实测 30.6s，每条 1 次现网端口连接尝试）。已还原该行并注明理由，处置由「改断言」改判为「xfail 交接」。strict=True ⇒ 若启动播报被恢复且符号回来，XPASS 即红，强制回来重判 |
+| 53 | `tests/unit/test_story_38_4_dual_write_default.py::TestAC2ExplicitDisable::test_warning_log_data_loss_risk_when_disabled` | `AttributeError: <module 'app.main' from '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u11-red-c/backend/app/main.py'> does not have the attribute 's` | `tests/unit/test_story_38_4_dual_write_default.py:206-258` <br> `assert any(` | `grep -n "Dual-write" backend/app/main.py` → **无输出**（全文已无该字样）；设置项本身仍在：backend/app/config.py:477 `ENABLE_GRAPHITI_JSON_DUAL_WRITE`，backend/app/services/canvas_service.py:267/:360 仍消费 | `59586af1` 2026-03-26「delete fake bridge/JSON dual-write code, replaced by GraphitiEpisodeWorker」删掉 main.py 里的 dual-write 启动日志；`836d0986` 2026-03-31 又从 main.py import 块删掉 `set_session_validator` | xfail(strict=True) 交接 **CARD-STORY-38-4-DUALWRITE-RETIREMENT** | **本卡中途改判，如实记录**：先按「符号没了就删掉那行 patch」改断言，实测发现那行 patch 正是**断路器**——删掉后三条单测跑起整个生产启动流程（加载 BGE-M3、扫 live vault、连 7691；实测 30.6s，每条 1 次现网端口连接尝试）。已还原该行并注明理由，处置由「改断言」改判为「xfail 交接」。strict=True ⇒ 若启动播报被恢复且符号回来，XPASS 即红，强制回来重判 |
+| 54 | `tests/unit/test_story_38_8_fallback_sync.py::TestAC5FileRotation::test_pending_entries_rewritten` | `Exception: Neo4j connection lost` | `tests/unit/test_story_38_8_fallback_sync.py:817-884` <br> `assert result["failed_writes"]["recovered"] == 1` <br> `assert result["failed_writes"]["pending"] == 1` | backend/app/services/fallback_sync_service.py:70/:82/:89/:96 兜底只吃 `(RuntimeError, ConnectionError, asyncio.TimeoutError)` / `(OSError, RuntimeError, ConnectionError)` | `a9304c69` 2026-03-29「S35 Phase 3 Step 2 — except Exception 精确化（251 处 / 65 文件）」：fallback_sync 的兜底自该 commit 起不再吃裸 Exception | 改测试注入的异常类型（注入契约内的 `ConnectionError`） | 裸 `Exception` 按设计穿透 ⇒ 注入契约内的连接类故障，而**不是**放宽生产的 except。本用例要验的仍是 AC-5「pending 条目重写」：若生产把 ConnectionError 移出兜底元组 ⇒ 立即红 |
+| 55 | `tests/unit/test_subject_isolation.py::TestExtractSubjectFromCanvasPath::test_extract_subject_empty_path` | `AttributeError: 'str' object has no attribute 'value'` | `tests/unit/test_subject_isolation.py:85-92` <br> `assert extract_subject_from_canvas_path("") == "general"` <br> `assert extract_subject_from_canvas_path(None) == "general"` | backend/app/core/subject_config.py:27 `DEFAULT_SUBJECT_ID = "general"` | `b28133cc` 2026-03-16「sprint-3 13 stories」：`SubjectType` 枚举被删、`DEFAULT_SUBJECT_ID` 退化为纯 str，生产函数体同批由 `return DEFAULT_SUBJECT.value` 改为 `return DEFAULT_SUBJECT_ID`；测试仍写 `.value` ⇒ AttributeError | 改断言为抄写字面量 `"general"` | 不 import 常量（import 当期望值恒真）。生产改默认学科 id ⇒ 立即红。第 19 行 import 别名保留不动——它的唯一消费者是同文件当前绿的 `test_default_subject_is_general` |
+| 56 | `tests/unit/test_supplementary_reranker.py::TestFilterFloor::test_floor_still_respects_top_k` | `AssertionError: assert None is True` | `tests/unit/test_supplementary_reranker.py:720-730` <br> `assert len(result) == 5` <br> `assert result[0].get("filter_floor_triggered") is True` | backend/app/services/supplementary_reranker.py:65 `"note": 1.0,  # 普通 vault 笔记 → 用户手写, 最高`；:66 `"video_transcript": 0.75`；:67 `"image_ocr": 0.6`；:73 `DEFAULT_TYPE_WEIGHT: float = 0.5` | `fcd34953` 2026-08-09「RAG 阶段 2 T2 快修批 — 权重方向翻转」把 `note` 由过渡表的 0.7 翻成 1.0。⚠️ 生产注释 :195-203 **自认**「该算例是历史情形；floor 机制本身仍在生效；相关既有失败测试的重写归 FU-2」⇒ 依据存在且明确，但重写被生产作者划归 FU-2：本卡只改测试、禁改权重表 | 只改测试：2 条改期望值（抄写字面量非 import 常量）；7 条重造数据 `note`→`image_ocr` 使 floor 仍触发 | ⛔ 禁改 `TYPE_WEIGHTS` / `DEFAULT_TYPE_WEIGHT` / floor 逻辑（生产改动 = 另立卡）。重造数据后**测的仍是 floor 机制本身**而不是权重值：探针实测 `image_ocr`(0.5×0.6=0.30<0.42) 触发 floor、`min_keep=0` 正常关闭（存档 `anchor2-floor-probe.txt`）。⚠️ **收窄声明（Codex round-1 MEDIUM 指出，采纳）**：先前写的「摘掉 floor ⇒ 7 条立即红」**过宽**——其中若干条在无 floor 时返回空列表、断言仍成立；「独立证明了 kill_ratio 分支」同样过宽（存在同时满足 `n_post=0 < min_keep` 的用例，去掉 kill_ratio 分支也不红）。准确表述：**直接断言 `filter_floor_triggered is True` 的那几条**会红，其余几条只证明重造后的数据仍落在 floor 的触发区间 |
+| 57 | `tests/unit/test_supplementary_reranker.py::TestFilterFloor::test_floor_triggered_marks_first_material` | `AssertionError: assert None is True` | `tests/unit/test_supplementary_reranker.py:660-673` <br> `assert len(result) == 5` <br> `assert result[0].get("filter_floor_triggered") is True` | backend/app/services/supplementary_reranker.py:65 `"note": 1.0,  # 普通 vault 笔记 → 用户手写, 最高`；:66 `"video_transcript": 0.75`；:67 `"image_ocr": 0.6`；:73 `DEFAULT_TYPE_WEIGHT: float = 0.5` | `fcd34953` 2026-08-09「RAG 阶段 2 T2 快修批 — 权重方向翻转」把 `note` 由过渡表的 0.7 翻成 1.0。⚠️ 生产注释 :195-203 **自认**「该算例是历史情形；floor 机制本身仍在生效；相关既有失败测试的重写归 FU-2」⇒ 依据存在且明确，但重写被生产作者划归 FU-2：本卡只改测试、禁改权重表 | 只改测试：2 条改期望值（抄写字面量非 import 常量）；7 条重造数据 `note`→`image_ocr` 使 floor 仍触发 | ⛔ 禁改 `TYPE_WEIGHTS` / `DEFAULT_TYPE_WEIGHT` / floor 逻辑（生产改动 = 另立卡）。重造数据后**测的仍是 floor 机制本身**而不是权重值：探针实测 `image_ocr`(0.5×0.6=0.30<0.42) 触发 floor、`min_keep=0` 正常关闭（存档 `anchor2-floor-probe.txt`）。⚠️ **收窄声明（Codex round-1 MEDIUM 指出，采纳）**：先前写的「摘掉 floor ⇒ 7 条立即红」**过宽**——其中若干条在无 floor 时返回空列表、断言仍成立；「独立证明了 kill_ratio 分支」同样过宽（存在同时满足 `n_post=0 < min_keep` 的用例，去掉 kill_ratio 分支也不红）。准确表述：**直接断言 `filter_floor_triggered is True` 的那几条**会红，其余几条只证明重造后的数据仍落在 floor 的触发区间 |
+| 58 | `tests/unit/test_supplementary_reranker.py::TestFilterFloor::test_floor_triggered_when_kill_ratio_high` | `AssertionError: assert None is True` | `tests/unit/test_supplementary_reranker.py:706-718` <br> `assert len(result) == 20  # 全保留` <br> `assert result[0].get("filter_floor_triggered") is True` | backend/app/services/supplementary_reranker.py:65 `"note": 1.0,  # 普通 vault 笔记 → 用户手写, 最高`；:66 `"video_transcript": 0.75`；:67 `"image_ocr": 0.6`；:73 `DEFAULT_TYPE_WEIGHT: float = 0.5` | `fcd34953` 2026-08-09「RAG 阶段 2 T2 快修批 — 权重方向翻转」把 `note` 由过渡表的 0.7 翻成 1.0。⚠️ 生产注释 :195-203 **自认**「该算例是历史情形；floor 机制本身仍在生效；相关既有失败测试的重写归 FU-2」⇒ 依据存在且明确，但重写被生产作者划归 FU-2：本卡只改测试、禁改权重表 | 只改测试：2 条改期望值（抄写字面量非 import 常量）；7 条重造数据 `note`→`image_ocr` 使 floor 仍触发 | ⛔ 禁改 `TYPE_WEIGHTS` / `DEFAULT_TYPE_WEIGHT` / floor 逻辑（生产改动 = 另立卡）。重造数据后**测的仍是 floor 机制本身**而不是权重值：探针实测 `image_ocr`(0.5×0.6=0.30<0.42) 触发 floor、`min_keep=0` 正常关闭（存档 `anchor2-floor-probe.txt`）。⚠️ **收窄声明（Codex round-1 MEDIUM 指出，采纳）**：先前写的「摘掉 floor ⇒ 7 条立即红」**过宽**——其中若干条在无 floor 时返回空列表、断言仍成立；「独立证明了 kill_ratio 分支」同样过宽（存在同时满足 `n_post=0 < min_keep` 的用例，去掉 kill_ratio 分支也不红）。准确表述：**直接断言 `filter_floor_triggered is True` 的那几条**会红，其余几条只证明重造后的数据仍落在 floor 的触发区间 |
+| 59 | `tests/unit/test_supplementary_reranker.py::TestFilterFloor::test_min_keep_zero_disables_floor` | `AssertionError: assert 5 == 0` | `tests/unit/test_supplementary_reranker.py:695-704` <br> `assert len(result) == 0` | backend/app/services/supplementary_reranker.py:65 `"note": 1.0,  # 普通 vault 笔记 → 用户手写, 最高`；:66 `"video_transcript": 0.75`；:67 `"image_ocr": 0.6`；:73 `DEFAULT_TYPE_WEIGHT: float = 0.5` | `fcd34953` 2026-08-09「RAG 阶段 2 T2 快修批 — 权重方向翻转」把 `note` 由过渡表的 0.7 翻成 1.0。⚠️ 生产注释 :195-203 **自认**「该算例是历史情形；floor 机制本身仍在生效；相关既有失败测试的重写归 FU-2」⇒ 依据存在且明确，但重写被生产作者划归 FU-2：本卡只改测试、禁改权重表 | 只改测试：2 条改期望值（抄写字面量非 import 常量）；7 条重造数据 `note`→`image_ocr` 使 floor 仍触发 | ⛔ 禁改 `TYPE_WEIGHTS` / `DEFAULT_TYPE_WEIGHT` / floor 逻辑（生产改动 = 另立卡）。重造数据后**测的仍是 floor 机制本身**而不是权重值：探针实测 `image_ocr`(0.5×0.6=0.30<0.42) 触发 floor、`min_keep=0` 正常关闭（存档 `anchor2-floor-probe.txt`）。⚠️ **收窄声明（Codex round-1 MEDIUM 指出，采纳）**：先前写的「摘掉 floor ⇒ 7 条立即红」**过宽**——其中若干条在无 floor 时返回空列表、断言仍成立；「独立证明了 kill_ratio 分支」同样过宽（存在同时满足 `n_post=0 < min_keep` 的用例，去掉 kill_ratio 分支也不红）。准确表述：**直接断言 `filter_floor_triggered is True` 的那几条**会红，其余几条只证明重造后的数据仍落在 floor 的触发区间 |
+| 60 | `tests/unit/test_supplementary_reranker.py::TestFilterFloorTaintExclusion::test_floor_all_review_returns_empty_list` | `AssertionError: assert 5 == 0` | `tests/unit/test_supplementary_reranker.py:817-833` <br> `assert len(result) == 0` | backend/app/services/supplementary_reranker.py:65 `"note": 1.0,  # 普通 vault 笔记 → 用户手写, 最高`；:66 `"video_transcript": 0.75`；:67 `"image_ocr": 0.6`；:73 `DEFAULT_TYPE_WEIGHT: float = 0.5` | `fcd34953` 2026-08-09「RAG 阶段 2 T2 快修批 — 权重方向翻转」把 `note` 由过渡表的 0.7 翻成 1.0。⚠️ 生产注释 :195-203 **自认**「该算例是历史情形；floor 机制本身仍在生效；相关既有失败测试的重写归 FU-2」⇒ 依据存在且明确，但重写被生产作者划归 FU-2：本卡只改测试、禁改权重表 | 只改测试：2 条改期望值（抄写字面量非 import 常量）；7 条重造数据 `note`→`image_ocr` 使 floor 仍触发 | ⛔ 禁改 `TYPE_WEIGHTS` / `DEFAULT_TYPE_WEIGHT` / floor 逻辑（生产改动 = 另立卡）。重造数据后**测的仍是 floor 机制本身**而不是权重值：探针实测 `image_ocr`(0.5×0.6=0.30<0.42) 触发 floor、`min_keep=0` 正常关闭（存档 `anchor2-floor-probe.txt`）。⚠️ **收窄声明（Codex round-1 MEDIUM 指出，采纳）**：先前写的「摘掉 floor ⇒ 7 条立即红」**过宽**——其中若干条在无 floor 时返回空列表、断言仍成立；「独立证明了 kill_ratio 分支」同样过宽（存在同时满足 `n_post=0 < min_keep` 的用例，去掉 kill_ratio 分支也不红）。准确表述：**直接断言 `filter_floor_triggered is True` 的那几条**会红，其余几条只证明重造后的数据仍落在 floor 的触发区间 |
+| 61 | `tests/unit/test_supplementary_reranker.py::TestFilterFloorTaintExclusion::test_floor_no_taint_field_treated_as_clean` | `AssertionError: assert None is True` | `tests/unit/test_supplementary_reranker.py:805-815` <br> `assert len(result) == 5` <br> `assert result[0].get("filter_floor_triggered") is True` | backend/app/services/supplementary_reranker.py:65 `"note": 1.0,  # 普通 vault 笔记 → 用户手写, 最高`；:66 `"video_transcript": 0.75`；:67 `"image_ocr": 0.6`；:73 `DEFAULT_TYPE_WEIGHT: float = 0.5` | `fcd34953` 2026-08-09「RAG 阶段 2 T2 快修批 — 权重方向翻转」把 `note` 由过渡表的 0.7 翻成 1.0。⚠️ 生产注释 :195-203 **自认**「该算例是历史情形；floor 机制本身仍在生效；相关既有失败测试的重写归 FU-2」⇒ 依据存在且明确，但重写被生产作者划归 FU-2：本卡只改测试、禁改权重表 | 只改测试：2 条改期望值（抄写字面量非 import 常量）；7 条重造数据 `note`→`image_ocr` 使 floor 仍触发 | ⛔ 禁改 `TYPE_WEIGHTS` / `DEFAULT_TYPE_WEIGHT` / floor 逻辑（生产改动 = 另立卡）。重造数据后**测的仍是 floor 机制本身**而不是权重值：探针实测 `image_ocr`(0.5×0.6=0.30<0.42) 触发 floor、`min_keep=0` 正常关闭（存档 `anchor2-floor-probe.txt`）。⚠️ **收窄声明（Codex round-1 MEDIUM 指出，采纳）**：先前写的「摘掉 floor ⇒ 7 条立即红」**过宽**——其中若干条在无 floor 时返回空列表、断言仍成立；「独立证明了 kill_ratio 分支」同样过宽（存在同时满足 `n_post=0 < min_keep` 的用例，去掉 kill_ratio 分支也不红）。准确表述：**直接断言 `filter_floor_triggered is True` 的那几条**会红，其余几条只证明重造后的数据仍落在 floor 的触发区间 |
+| 62 | `tests/unit/test_supplementary_reranker.py::TestFilterFloorTaintExclusion::test_min_keep_floor_excludes_review_taint` | `AssertionError: assert 3 == 2` | `tests/unit/test_supplementary_reranker.py:743-778` <br> `assert len(result) == 2` <br> `assert "clean-1" in titles` | backend/app/services/supplementary_reranker.py:65 `"note": 1.0,  # 普通 vault 笔记 → 用户手写, 最高`；:66 `"video_transcript": 0.75`；:67 `"image_ocr": 0.6`；:73 `DEFAULT_TYPE_WEIGHT: float = 0.5` | `fcd34953` 2026-08-09「RAG 阶段 2 T2 快修批 — 权重方向翻转」把 `note` 由过渡表的 0.7 翻成 1.0。⚠️ 生产注释 :195-203 **自认**「该算例是历史情形；floor 机制本身仍在生效；相关既有失败测试的重写归 FU-2」⇒ 依据存在且明确，但重写被生产作者划归 FU-2：本卡只改测试、禁改权重表 | 只改测试：2 条改期望值（抄写字面量非 import 常量）；7 条重造数据 `note`→`image_ocr` 使 floor 仍触发 | ⛔ 禁改 `TYPE_WEIGHTS` / `DEFAULT_TYPE_WEIGHT` / floor 逻辑（生产改动 = 另立卡）。重造数据后**测的仍是 floor 机制本身**而不是权重值：探针实测 `image_ocr`(0.5×0.6=0.30<0.42) 触发 floor、`min_keep=0` 正常关闭（存档 `anchor2-floor-probe.txt`）。⚠️ **收窄声明（Codex round-1 MEDIUM 指出，采纳）**：先前写的「摘掉 floor ⇒ 7 条立即红」**过宽**——其中若干条在无 floor 时返回空列表、断言仍成立；「独立证明了 kill_ratio 分支」同样过宽（存在同时满足 `n_post=0 < min_keep` 的用例，去掉 kill_ratio 分支也不红）。准确表述：**直接断言 `filter_floor_triggered is True` 的那几条**会红，其余几条只证明重造后的数据仍落在 floor 的触发区间 |
+| 63 | `tests/unit/test_supplementary_reranker.py::TestTypeWeightsIndexerTransition::test_indexer_note_mapped_to_canonical` | `assert 1.0 == 0.7` | `tests/unit/test_supplementary_reranker.py:578-600` <br> `assert w == 1.0, "note 应为最高档 1.0（fcd34953 起用户手写优先于素材层）"` <br> `assert w > DEFAULT_TYPE_WEIGHT` | backend/app/services/supplementary_reranker.py:65 `"note": 1.0,  # 普通 vault 笔记 → 用户手写, 最高`；:66 `"video_transcript": 0.75`；:67 `"image_ocr": 0.6`；:73 `DEFAULT_TYPE_WEIGHT: float = 0.5` | `fcd34953` 2026-08-09「RAG 阶段 2 T2 快修批 — 权重方向翻转」把 `note` 由过渡表的 0.7 翻成 1.0。⚠️ 生产注释 :195-203 **自认**「该算例是历史情形；floor 机制本身仍在生效；相关既有失败测试的重写归 FU-2」⇒ 依据存在且明确，但重写被生产作者划归 FU-2：本卡只改测试、禁改权重表 | 只改测试：2 条改期望值（抄写字面量非 import 常量）；7 条重造数据 `note`→`image_ocr` 使 floor 仍触发 | ⛔ 禁改 `TYPE_WEIGHTS` / `DEFAULT_TYPE_WEIGHT` / floor 逻辑（生产改动 = 另立卡）。重造数据后**测的仍是 floor 机制本身**而不是权重值：探针实测 `image_ocr`(0.5×0.6=0.30<0.42) 触发 floor、`min_keep=0` 正常关闭（存档 `anchor2-floor-probe.txt`）。⚠️ **收窄声明（Codex round-1 MEDIUM 指出，采纳）**：先前写的「摘掉 floor ⇒ 7 条立即红」**过宽**——其中若干条在无 floor 时返回空列表、断言仍成立；「独立证明了 kill_ratio 分支」同样过宽（存在同时满足 `n_post=0 < min_keep` 的用例，去掉 kill_ratio 分支也不红）。准确表述：**直接断言 `filter_floor_triggered is True` 的那几条**会红，其余几条只证明重造后的数据仍落在 floor 的触发区间 |
+| 64 | `tests/unit/test_supplementary_reranker.py::TestTypeWeightsIndexerTransition::test_indexer_video_transcript_mapped_to_canonical` | `AssertionError: assert 0.75 == 0.9` | `tests/unit/test_supplementary_reranker.py:602-614` <br> `assert get_type_weight("video_transcript") == 0.75` <br> `assert get_type_weight("video_transcript") < get_type_weight("note")` | backend/app/services/supplementary_reranker.py:65 `"note": 1.0,  # 普通 vault 笔记 → 用户手写, 最高`；:66 `"video_transcript": 0.75`；:67 `"image_ocr": 0.6`；:73 `DEFAULT_TYPE_WEIGHT: float = 0.5` | `fcd34953` 2026-08-09「RAG 阶段 2 T2 快修批 — 权重方向翻转」把 `note` 由过渡表的 0.7 翻成 1.0。⚠️ 生产注释 :195-203 **自认**「该算例是历史情形；floor 机制本身仍在生效；相关既有失败测试的重写归 FU-2」⇒ 依据存在且明确，但重写被生产作者划归 FU-2：本卡只改测试、禁改权重表 | 只改测试：2 条改期望值（抄写字面量非 import 常量）；7 条重造数据 `note`→`image_ocr` 使 floor 仍触发 | ⛔ 禁改 `TYPE_WEIGHTS` / `DEFAULT_TYPE_WEIGHT` / floor 逻辑（生产改动 = 另立卡）。重造数据后**测的仍是 floor 机制本身**而不是权重值：探针实测 `image_ocr`(0.5×0.6=0.30<0.42) 触发 floor、`min_keep=0` 正常关闭（存档 `anchor2-floor-probe.txt`）。⚠️ **收窄声明（Codex round-1 MEDIUM 指出，采纳）**：先前写的「摘掉 floor ⇒ 7 条立即红」**过宽**——其中若干条在无 floor 时返回空列表、断言仍成立；「独立证明了 kill_ratio 分支」同样过宽（存在同时满足 `n_post=0 < min_keep` 的用例，去掉 kill_ratio 分支也不红）。准确表述：**直接断言 `filter_floor_triggered is True` 的那几条**会红，其余几条只证明重造后的数据仍落在 floor 的触发区间 |
+| 65 | `tests/unit/test_verification_service_injection.py::TestDependenciesInjection::test_get_verification_service_injects_graphiti_client` | `AssertionError: Expected 'get_graphiti_temporal_client' to have been called once. Called 0 times.` | `tests/unit/test_verification_service_injection.py:77-139` <br> `mock_get_graphiti.assert_called_once()` <br> `assert service._graphiti_client is mock_client` | backend/app/dependencies.py:508 `graphiti_client = get_neo4j_temporal_client()`；:819 旧名仅存为模块级别名 | ① `5d2b95ba` 2026-03-29 单例 getter 改名 `get_neo4j_temporal_client`，旧名只留别名——patch 打在别名上只是重绑第二个 module global，生产从不读它 ⇒ `assert_called_once` 恒 0 次。② `14f0412d` 2026-02-07 让同一工厂 `await _get_memory_svc()`，真 MemoryService.initialize() 对 7691 发健康检查；`32c8e325` 2026-09-05（W4 安全底座）把「测试进程碰现网端口」从静默转为用例失败 | 改 patch 目标为新名 + 按哨兵自身处方隔离 `get_memory_service`（两条原断言一字不动） | **双根因并存于基线**（identity 存档里 AttributeError 与哨兵段同时在），只修 ① 会把红从「断言错」变成「哨兵红」。探针实测更正机制推断：`get_neo4j_client_dep()` 只构造不健康检查、**不产生连接尝试**，故只需 patch 一处；实测 `NEO4J_LIVE_PORT_CONNECT_ATTEMPTS` 由 1 归 0。生产若改回调别名 ⇒ `assert_called_once` 立即红 |
+| 66 | `tests/unit/test_wave5_stageb_continued_vault_id_injection.py::TestSharedResolverImportedByEndpoints::test_endpoint_imports_shared_resolver[app.api.v1.endpoints.agents]` | `AssertionError: app.api.v1.endpoints.agents did not import resolve_vault_group_id from _vault_id_resolver` | `tests/unit/test_wave5_stageb_continued_vault_id_injection.py:432-459` <br> `assert hasattr(module, expected_symbol), (` <br> `assert getattr(module, expected_symbol) is getattr(shared, expected_symbol), (` | backend/app/api/v1/endpoints/agents.py:33 `from app.core.vault_scope import resolve_vault_scope`（7 个调用点）；生产注释 :907 自述「语义与旧 resolve_vault_group_id 完全一致」 | `d14b50ab` 2026-09-05「X3-① G4-4a 显式 VaultScope 移植」：agents.py 由 `_vault_id_resolver.resolve_vault_group_id` 换成 `vault_scope.resolve_vault_scope`，加性透出 `X-Vault-Scope-Source` 响应头；其余 11 个 endpoint 未迁移 | 按 module→符号 映射改期望（**不动 parametrize 的 id**）+ 判据强度提升为对象同一性 | ⛔ 不改 parametrize 的 id：改了 nodeid 就变成「这条红消失了」而不是「这条红转绿」。原断言只看 `hasattr`——模块自己定义一个同名本地函数照样能过，正是本测试类要防的那件事；新断言要求 `getattr(module, sym) is getattr(app.core.vault_scope, sym)`，本地伪造立即红 |
+
+## 三 移交 `CARD-RED-R`（U5-C）清单
+
+**空。** 66 条全部取到依据。本卡**未**碰 U5-C 的 R 族（那 4 条外来红在 §一 的 (j) 允许集合里，逐条对上、原样保留）。
+
+## 四 安全面单列（锚④ · `test_neo4j_parameterized_query_with_special_chars`）
+
+卡文 (f) 要求本条单列，并给了一条**停机条件**：若物理化后的值仍逐字含未转义的恶意片段、**且该值被拼进查询文本**（而不是作为参数传入）⇒ 判「回归」，停下报主 session。
+
+探针实测（存档 `anchor4-security-probe.txt`）：
+
+1. 恶意串 `<script>'; DROP TABLE users;--` 经 `to_physical_group_id()` 后为 `vault__script_drop_table_users` —— **被净化**，不是仅仅改了个名；
+2. 以 `$group_id` / `$group_prefix` **命名参数**传入，不进 query 文本；
+3. 原始串、以及那两个 SQL 关键词片段，均**不在** query 文本里；
+4. 逐个 kwarg 值比对，**无任何 kwarg 值被拼进查询文本**。
+
+⇒ **停机条件不触发**，属有据演进（`4db8e94a` G4-1a / `88cb13a7` 读侧收口）。
+
+处置边界：
+- ⛔ `:191-194`「原始恶意串不得出现在 query 字符串里」的断言**原样保留**，一字未动、未放宽；
+- 只改了 `:186-189` 的参数名/值形态断言：`call_args.kwargs` 含 `group_id` 与 `group_prefix`，值 `== to_physical_group_id(malicious_group_id)`（从 `app.graphiti.group_id_compat` 取函数求值，**不硬编码结果串**）；
+- **加固**（强度上升）：新增「任何 kwarg 值都不得出现在 query 文本」——比原断言只盯那一个原始串更宽，能发现「换个参数值被拼进去」这类新失效面。
+
+## 五 本表必须一起读的三条如实声明
+
+### 5.1 2 条 nodeid 是**改名离开红集合**，不是「转绿」
+
+`test_agent_context_injection.py` 的两条按 DD-13 同步改了函数名（名字里的 `graphiti_service` 指的是一个生产已不存在的符号，留着就是对 API 的持续误述）：
+
+| 基线 nodeid（在 66 条内） | 本卡改后 nodeid | 现状 |
+|---|---|---|
+| `…::TestGraphitiSearchDelegation::test_search_calls_graphiti_service` | `…::TestGraphitiSearchDelegation::test_search_calls_learning_memory_service` | PASSED |
+| `…::TestGraphitiSearchDelegation::test_search_returns_empty_without_graphiti_service` | `…::TestGraphitiSearchDelegation::test_search_returns_empty_without_learning_memory_service` | PASSED |
+
+§二.1 的 `comm -12` 判据**分辨不了**「转绿」与「改名消失」——两者都会让基线 nodeid 出现在 `gone` 里。这两条的等价覆盖在上表右列、当前 PASSED（`files-23-20260909T132712.txt`），但**判据本身没有证明这一点**，故在此单列。
+
+同一取舍在 `test_agent_memory_trigger.py::…::test_all_14_agents_are_mapped` 上走了**相反**的方向（名字里的 `14` 已经不对，但**保留不改**）。理由是两者性质不同：前者名字里嵌的是**生产已删除的符号名**，后者嵌的是**测试侧的期望数字**（docstring 已写明现为 15）。这是一次判断，不是规则——名实不一致已登记台账，留给专门的重命名卡统一处置。
+
+### 5.2 唯一一处「判据在特定输入上变弱」
+
+`test_story_1_7_env_config.py::…::test_no_hardcoded_user_paths`：原断言对**任何** `/Users/\w+/` 都红，
+新断言对 `8a80595f` 有意引入的 3 条 neo4j bind-mount 放行。全表其余 65 条的判据强度**不低于**原断言。
+
+⚠️ **本节 round-1 送审时的写法被 Codex 打回，如实保留纠错过程**：当时写的是「放行面 = 恰好那 3 行原文，
+多一条、改一个字都红」。Codex round-1 HIGH 指出并经本车道复现——豁免当时只按**行内容**做集合判断，
+把任一获准 mount 行**复制到另一个 service**，新断言照样通过（原断言会红），所以「多一条都红」**不成立**。
+
+整改后豁免面收窄为三段：① 行内容在名单里；② 该行所属顶层 service 恰为 `neo4j`；③ 每条至多出现一次。
+负控 `negctl-compose-exemption-<ts>.txt` 把**测试模块本体**的 `PROJECT_ROOT` 指到临时目录喂三种 compose
+（不是另写一份等价逻辑——那会和被测代码各自漂移），Codex 的复现输入**由 PASS 变 FAIL**。
+
+### 5.3 本表的「开工失败身份」是 2026-09-08 那次 `-rA` 的原文
+
+来源 `identity-open-20260908T080533.txt` → `c2-identities.md`（66/66 逐条配上，无「未解析到」）。本卡在作业期间发现**至少一条有第二根因**（`test_verification_service_injection`：AttributeError 与 W4 哨兵并存），说明「一条红 = 一个根因」不是安全假设；本表在该行的依据栏里写了两个 sha。其余 65 条未做同等强度的「是否还有第二根因」排查——**未证明它们只有一个根因**，只证明了处置后不再 failed。
+
+## 六 Codex round-1 处置记录
+
+**round-1 绑定 SHA `c0d61a12`（送审时的代码树），分级：BLOCKER 0 / HIGH 1 / MEDIUM 6 / LOW 4。**
+存档 `codex-review-CARD-RED-C2.md`（首部六行 blockquote 见该文件）。
+
+D-15 要求「有代码改动的卡多轮，直到绑最终 HEAD 的一轮 BLOCKER = 0 且 HIGH = 0」，故本轮整改后再送一轮。
+
+| 级别 | Codex 的意见 | 本车道处置 | 复核方式 |
+|---|---|---|---|
+| HIGH | compose 豁免降低判据强度，且「多一条都红」不成立（不限制豁免行的出现次数与所属 service） | **接受并修**：豁免收窄为「行内容 ∈ 名单 ∧ service == neo4j ∧ 每条 ≤ 1 次」 | 负控存档：Codex 的复现输入由 PASS 变 FAIL；正控（陌生用户路径）FAIL；现状 PASS |
+| MEDIUM | 物理化期望与生产用同一个 helper，存在同源盲区 | **接受，登记不修**：本卡禁改 `backend/app`，且独立重实现物理化规则等于在测试里复制一份生产逻辑；已写进依据表该行 | 依据表 #43 行末已如实写明这条盲区 |
+| MEDIUM | 归档 5 条仍调 `_run_verify`，`xfail` 不阻止执行，故「未起子进程」的自述不成立 | **接受，更正表述**：实测本机 `node v24.16.0` 在 PATH ⇒ 确实每轮起 3 个 node 子进程。卡文禁的是「**新增**」子进程调用，本卡零新增；先前表述错误已改 | `grep -n '_run_verify'` 实测 `:555`/`:582`/`:606` 三处调用；`which node` 确认在 PATH |
+| MEDIUM | sha 扫描的分组关键词命中不足以支撑「66 条逐断言语义复核」 | **接受，收窄声明**：扫描证明的是「sha×文件×符号」三元组成立，不是逐条断言语义 | §一 表格该行已改写 |
+| MEDIUM | 反向锚缺「DEBUG 开启但 CORS 非本地」的输入 | **接受并修**：新增第 4 条反向锚钉住 `is_local` 合取的 CORS 半边 | 该文件 57 passed |
+| MEDIUM | 「摘掉 floor 七条立即红」及「独立证明 kill_ratio 分支」过宽 | **接受，收窄声明**：只有直接断言 `filter_floor_triggered is True` 的那几条会红 | 依据表 ⑳ 族 red 列已改写 |
+| MEDIUM | 给定验收证据未绑定审查 SHA（门文件写 `9b131f2f`，审查 SHA 是 `c0d61a12`） | **接受并修**：全部裁判在整改后的 HEAD 上重跑，证据文件首行写入 `HEAD=` | 见 §一 表格的新时间戳与 HEAD 行 |
+| LOW | `none_score` 用例仍是子串断言，与「两条均升级整串相等」的自述不符 | **接受并修**：升级为整串 `==` | 该文件 22 passed（+1 预声明外来红） |
+| LOW | `initialize.assert_awaited_once` 只在一条上，且次数不证明顺序 | **接受并修**：两条各加次数锚 + 用 `mock_calls` 下标加顺序锚 | 独立探针验证顺序判据会随顺序翻转（正反两组） |
+| LOW | 「显式默认参数能发现所有签名增删改」过宽（调用方停传时替身取默认值仍绿） | **接受，收窄声明**：只覆盖「生产增加必传形参」一面 | 依据表 ④ 族 red 列已改写 |
+| LOW | 「任何 kwarg 值不得出现在查询文本」只检查非空字符串 | **接受并修**：改用正面形式——每个 kwarg 必须有对应 `$name` 占位符 | 该文件 5 xfailed / 其余 passed |
+
+另：Codex 独立核得**依据 sha 实际是 25 个**（本卡 round-1 自述 21 个，错）。本车道复核：
+`c2-verdicts.md` 里 8 位十六进制串去重共 27 个，减去 `5139428d`（U11-A 末 commit）与 `da690bf8`（本批基线）
+两个非依据 sha ⇒ **25 个**。Codex 正确，已更正。
+
+**本车道未驳回任何一条**（D-15：车道对 HIGH 的驳回要写理由但不能自判通过；本轮无驳回项）。
+
+## 七 Codex round-2 处置记录
+
+**round-2 绑定 SHA `cfd299f3`，分级：BLOCKER 0 / HIGH 1 / MEDIUM 2 / LOW 5。**
+存档 `codex-review-CARD-RED-C2-r2.md`。D-15 未满足（HIGH ≠ 0）⇒ 再整改、再送一轮。
+
+| 级别 | Codex 的意见 | 本车道处置 | 复核方式 |
+|---|---|---|---|
+| HIGH | compose 的 service 归属用「按缩进认名字」的行扫描，遇到 `other: # comment` / `"other":` 这类**合法 YAML** 时不更新归属，会沿用前一个名字 ⇒ 把获准 mount 挪过去仍 PASS | **接受并重写**：轴二改用 `yaml.safe_load` 做**结构化**判断——任何含硬编码用户路径的值，其结构路径必须恰为 `services → neo4j → volumes → <序号>` | 负控 `negctl-compose-exemption-r2-*.txt` 用例 ④⑤：两种写法均**由 PASS 变 FAIL** |
+| MEDIUM | 没有验证豁免行位于 `services.neo4j.volumes`；挪进 `neo4j.command` 仍 PASS | **同上一并修**：结构路径前三段必须精确匹配 | 同一负控用例 ⑥：**FAIL** |
+| MEDIUM | SHA 绑定仍未闭合（三份证据写 `c6278d6e`，审查 SHA 是 `cfd299f3`），且未给代码树等价证明 | **接受并修**：本轮全部裁判在最终 HEAD 上重跑；另用 `git diff --stat <审SHA> HEAD -- . ':(exclude)_bmad-output'` 为空显式证明代码树等价 | 见 §一 表格与 `gates-*` 首行 |
+| LOW | 占位符子串检查有两个漏过面：内联 `LIMIT 5` 同时删掉 kwarg（检查集合跟着缩小）；`LIMIT 5 // $limit`（注释里的占位符也算数） | **接受并修**：先钉死**期望参数集** `{userId, limit, group_id, group_prefix}`（不随实现缩小），再在**去掉 `//` 行注释**的文本里查占位符 | 负控 `negctl-security-placeholders-*.txt`：运行期替换生产方法为两个变异体（纯内存、`finally` 无条件还原），两条**均由 PASS 变 FAIL**，基线 PASS |
+| LOW | `mock_calls` 证明的是**调用发起**顺序，不是 await 完成顺序 | **接受，收窄声明**：`pending = init(); await index(); await pending` 这种写法本卡不覆盖，已写进依据表 ⑯ 族 | 依据表该行已改写 |
+| LOW | 「生产增加必传形参即红」仍过宽——真实函数已被替身取代，只给真实函数加参数不会被发现 | **接受，二次收窄**：替身只能发现「调用点传入了替身不接受的参数」这一面 | 依据表 ④ 族已改写；覆盖 ② 需 `inspect.signature` 断言，属另一张卡 |
+| LOW | 「全文 SHA 去重 27 减 2」的计法已过期（当前全文 30 个） | **接受并改计法**：只数「契约演进依据」那一列，去重 = **25** | §一 表格该行已改写 |
+| LOW | `test_story_30_24_boundary.py` 的注释仍反称「硬编码会静默通过」，与已登记的同源盲区矛盾 | **接受并修**：注释补上「两种写法各有盲区，此处选的是这一种」 | 该文件 39 passed / 5 xfailed |
+
+Codex round-2 独立确认成立的部分（第二来源，非本车道自述）：
+第 4 条反向锚**有效**（把校验器改成只看 DEBUG 后不再抛，新增的 `pytest.raises` 会红）；
+`none_score` 整串相等**有效**且无同源自证；两条初始化次数锚有效；三类新增断言**均非恒真**；
+指定 diff 仅涉 23 个测试文件，`backend/app/**` 与 `_archive/**` 零改动，未增删改 skip，
+新增 xfail 均 `strict=True`，未删用例，两条重命名已登记。
+
+Codex round-2 明确**未能**独立确认的面（如实转录，不代为背书）：
+「许可材料不足以独立确认 U11-A 全部用例的归属与零触碰」——即它没有独立验证本卡确实没碰到
+上一卡的地盘（本卡自己的证据是 §一 的地盘门与 23 文件清单）。
+
+**本车道两轮均未驳回任何一条。**
+
+## 八 Codex round-3 处置记录
+
+**round-3 绑定 SHA `0909e935`，分级：BLOCKER 0 / HIGH 1 / MEDIUM 1 / LOW 4。**
+存档 `codex-review-CARD-RED-C2-r3.md`。D-15 未满足（HIGH ≠ 0）⇒ 再整改、再送一轮（本卡累计第 4 轮，上限 5）。
+
+| 级别 | Codex 的意见 | 本车道处置 | 复核方式 |
+|---|---|---|---|
+| HIGH | 只比 `path[:3]` 会把 volumes 元素的**后代字段**一并豁免：长格式挂载 `- {type: bind, source: <获准串>, target: /other}` 的 `source` 落在 `(services, neo4j, volumes, 0, "source")`，前三段相同就放行——而它实际挂到了另一个 target | **接受并修**：深度必须**精确等于 4** | 负控 `negctl-compose-exemption-r3-*.txt` 用例 ⑧ FAIL |
+| MEDIUM | `safe_load` 的**合并键覆盖**会消去原文路径，使位置与数量检查漏检 | **接受并修**：数量判据移到**文本层**——每条豁免值在全文至多出现一次 | 同一负控用例 ⑨ FAIL（`<<:` + 覆盖，原文两次、解析后一次） |
+| LOW | 占位符判据只剥 `//`，`LIMIT 5 /* $limit */` 能过 | **接受并修**：块注释也剥 | 负控 `negctl-security-r3-*.txt` 用例 ② FAIL |
+| LOW | 只审**最后一次** `run_query`，先发一条含恶意原串的查询再发干净的即可全绿（本轮新发现的**既有**盲区） | **接受并修**：逐条审 `call_args_list` 的全部调用 | 同一负控用例 ③ FAIL |
+| LOW | 上一份负控的 ④⑤ 标题写「移到另一 service」，实际失败位置是**顶层 `volumes.other.volumes`**，不在 `services.other.volumes` | **接受并重做负控**：改为插在 `services:` 行正下方；②④⑤ 另附**结构自证**（`yaml.safe_load` 后确认 service 名确实在 `services` 映射里） | 新负控 9 个用例，标题与实际失败位置一致 |
+| LOW | `c2-verdicts.md` 声称的空 diff 证明没在存档里；三份证据标的是 `4449e292` | **接受并补**：`gates-*` 首节补上 `git diff --stat <审SHA> HEAD -- . ':(exclude)_bmad-output'` 的**实际输出**。Codex 已独立核实 `4449e292 → 0909e935` 排除证据目录后确实为空 | 见 `gates-*` §〇 |
+
+Codex round-3 独立确认成立的部分：
+普通 anchor/alias 跨 service、合并继承跨 service、列表 alias 重复**均被拦截**；多文档抛 `ComposerError` 不会放行；
+普通双引号包裹豁免串被内容轴拒绝。两份负控**包含预期断言的失败信息**，未发现「无关异常被当作成功负控」。
+`5139428d → 0909e935` 排除证据目录后仅改 **23 个测试文件、`backend/app/**` 零改动**，本轮增量未改 skip、未删用例。
+
+Codex round-3 明确**未能**独立确认的面（如实转录）：
+① 安全负控「缺少运行脚本，无法独立确认 `finally` 与完整还原过程」——但也「没有依据认定存在残留」；
+② 「全卡累计 skip 状态及 U11-A／R 族逐用例归属，当前读取面不足以独立确认」；
+③ §七 的收窄措辞它判为足够，但「对应依据表不在许可读取面，未确认其同步情况」。
+
+**本车道三轮均未驳回任何一条。**
+
+## 九 Codex round-4 处置记录
+
+**round-4 绑定 SHA `5e3c7998`，分级：BLOCKER 0 / HIGH 1 / MEDIUM 0 / LOW 5。**
+存档 `codex-review-CARD-RED-C2-r4.md`。D-15 未满足 ⇒ 再整改、再送一轮（**本卡第 5 轮 = 协议上限**）。
+
+| 级别 | Codex 的意见 | 本车道处置 | 复核方式 |
+|---|---|---|---|
+| HIGH | `!!binary` 被 PyYAML 解成 `bytes`，`isinstance(node, str)` 判不到 ⇒ 新增硬编码挂载两轴都过 | **接受并修**：walker 改判 `(str, bytes)`，bytes 解码后再查 | 负控 ⑪ FAIL，并附**解码类型自证**（`volumes[0]` 类型 = `bytes`） |
+| LOW | 文本层计数挡不住 YAML alias（`- &mount <值>` + `- *mount`：文本 1 次、解析 2 次） | **接受并修**：数量取**文本轴与解析轴的较大值**——两轴各有盲区（解析轴被 `<<:` 吃掉重复、文本轴被 alias 绕过） | 负控 ⑬ FAIL，并附三条自证（内容轴放行 / 文本计数 1 / 位置合法）⇒ **只有解析层计数能拦** |
+| LOW | 对**每次**调用强制同一完整参数集，会把合法分步查询（先 count 后取结果）误判成内联 | **接受并修**：判据拆成 A/B 两层——A 层是每次调用都成立的安全不变量，B 层只要求「至少一次带完整作用域参数集」 | 负控 ② 是**正控**：合法分步查询 PASS；③④⑤（前三轮防线）仍 FAIL |
+| LOW | 注释剥除不识别字符串与注释上下文，既会放过注释里的占位符，也会误删真实占位符 | **接受，收窄声明、登记不修**：它是启发式；现行生产查询里没有注释标记与字符串字面量，当前形态不误报；根治需 Cypher 解析器 | 代码注释与本表已写明两面 |
+| LOW | 负控 ⑧ 是被**未改动的内容轴**拦下的，不能用它证明新增的深度判据起了作用；§八 以它复核深度修复超出证据 | **接受并补隔离用例**：新增 ⑩（长格式折叠标量：内容轴放行、文本计数 1，**只有深度判据能拦**） | 负控 ⑩ FAIL + 内容轴自证「不在名单里的行 = 空」 |
+| LOW | `gates-*` 仍缺证据 HEAD → 送审 SHA 的完整等价证明 | **接受并补**：本轮 `gates-*` §〇 给出两段实际 diff 输出 | 见 `gates-*` §〇 |
+
+⚠️ **本轮自查又抓到一条同形态**：新负控里的 ⑫（alias 重复）实测是被**内容轴**拦下的
+（`- &mount /Users/...` 整行不等于任何豁免值），**没能隔离**计数轴——与 Codex 指出 ⑧ 的问题一模一样。
+已在负控存档里如实更正，并补了真正能隔离计数轴的 ⑬。
+⇒ 教训：**「这个输入红了」不等于「我新加的那道判据起了作用」**，隔离用例必须让旧判据先放行。
+
+**登记不修（如实，非驳回）**：Codex 另指出 Compose 变量插值默认值拆分
+（`${ROOT:-/Users}/${WHO:-Heishing}/other:/other`）在变量未设置时两轴都放行并解析出新挂载。
+这是「正则扫原始文本」的固有限制，**原断言同样漏**，非本卡引入，登记进台账。
+
+**本车道四轮均未驳回任何一条。**
+
+## 十 Codex round-5 处置记录（车道曾在此停下交主 session；用户随后授权破例加跑 round-6）
+
+**round-5 绑定 SHA `2b911c62`，分级：BLOCKER 0 / HIGH 1 / MEDIUM 1 / LOW 2。**
+存档 `codex-review-CARD-RED-C2-r5.md`。
+
+> ⛔ **D-15：round-5 是协议轮次上限，且这一轮仍有 HIGH ⇒ 本车道不自判通过，停下交主 session 人审。**
+> 本车道已把该 HIGH 复现、确认成立、并在 `49b15c77` 撤回；**但该整改未经 Codex 复核**
+> （再送即第 6 轮，超上限）。主 session 决定：追加一轮，或人审替代。
+
+### round-5 的 HIGH 是**我自己在 round-4 引入的判据弱化**
+
+round-4 为修「合法分步查询被误报」，把「完整参数集」整条挪进 B 层（只要求**至少一次**
+调用带齐四参数）。副作用：一次合法调用可以**掩护**同序列里的坏调用。本车道复现确认：
+
+| 序列 | round-4 版本 | 说明 |
+|---|---|---|
+| 无 kwargs 的 `MATCH (n) RETURN n LIMIT 5` + 合法调用 | **PASS（漏过）** | 完全无作用域过滤的裸查询被掩护 |
+| 内联 `LIMIT 5` 且删掉 `limit` kwarg + 合法调用 | **PASS（漏过）** | 「两边都没了反而通过」被掩护 |
+| 绑错物理组的 count + 合法调用 | 漏过（本车道复现时因探针自身缺 `$userId` 而偶然红，**不算拦住**） | 物理化校验当时只在 B 层做 |
+
+**整改（`49b15c77`）**：把三条放回**每次调用**上，同时保留 round-4 修掉的误报面——
+① 每条业务读必须带 group 作用域参数（R1 读契约）；② `group_id`/`group_prefix` 值必须等于
+物理化期望；③ **凡查询里有 `LIMIT`，就必须绑 `$limit`**（合法的分步 count 查询没有 `LIMIT`，不受约束）。
+B 层只保留「主查询仍绑齐四参数」。
+
+负控 `negctl-security-r5-20260909T151731`（7 输入）：③④⑤ 三条组合序列**全部 FAIL**；
+⑥⑦ 前几轮防线回归仍 FAIL；② 误报正控仍 PASS。
+
+⚠️ **同时保留前一次运行 `negctl-security-r5-20260909T151650`：七条全是 `ERROR`**——
+变异体签名写成位置参数、被测代码用关键字调用，**变异根本没生效**。
+「不是 PASS」不等于「FAIL」：判据若写成「只要不 PASS 就算拦住了」，那一次会被读成全绿。
+本卡判据是逐条比对期望值，故当场暴露。
+
+### 其余三条
+
+| 级别 | Codex 的意见 | 处置 |
+|---|---|---|
+| MEDIUM | `gates-*` 缺 `3a6f51ea → 2b911c62` 那一段绑定 diff，§九的完成声明过宽 | **接受并补**：收尾 `gates-*` §〇 给出完整 SHA 链的逐段实际输出 |
+| LOW | ⑩ 的存档没记清折叠标量用的是哪一档，不足以确认「只有深度判据能拦」 | **接受并补证**：负控文件末尾贴出两档的 YAML 原文与三轴逐项计算——strip 那一档轴一放行、计数 1、值仍在白名单内，唯一拒绝它的是深度 5≠4；不 strip 那一档确实会被白名单先拒（round-5 判断成立） |
+| LOW | 路径规范化绕过（`/Users/./Heishing/…` / `/Users//Heishing/…`）三轴均放行 | **登记不修**：正则扫原始文本的固有盲区，**原断言同样漏**，非本卡引入 |
+
+### Codex round-5 明确指出、本卡如实转录的两点表述纠正
+
+1. 「日志不能表述为全绿或从未尝试现网连接」——23 文件级是 `4 failed`（预声明外来红），
+   目录级是 `99 failed / 29 errors`（既有红基线），全量轮次里现网端口尝试被记录并**全部拦下**。
+   本卡从未声称「全绿」，但此处照 Codex 的措辞把数字再写一遍，避免读者误读。
+2. 「全卡累计零生产改动、累计 skip 状态及 U11-A／R 族逐用例零触碰，当前材料仍不足以
+   **独立**确认」——本卡自己的证据是 `gates-*` 的地盘门与 23 文件清单；
+   Codex 在其许可读取面内无法独立复核这一点，如实记录，不代为背书。
+
+**本车道五轮均未驳回任何一条。**
+
+## 十一 Codex round-6 处置记录（用户显式授权的破例轮）
+
+**round-6 绑定 SHA `b5047b1d`，分级：BLOCKER 0 / HIGH 1 / MEDIUM 2 / LOW 2。**
+存档 `codex-review-CARD-RED-C2-r6.md`。
+
+> 协议 D-15 的轮次上限是 5。round-5 仍有 HIGH，车道**已按 D-15 停下交主 session、未自判通过**；
+> **用户随后显式授权破例加跑这一轮**，只审那处撤回本身（此前没有任何一轮跑在修好后的树上）。
+
+### round-6 的 HIGH：我一直在**按参数逐个打补丁**
+
+| 轮 | 我当时的修法 | 下一轮的结果 |
+|---|---|---|
+| r2 | 钉死「期望参数集」，挡住 `limit` 的「内联 + 删参数」 | r5：一次合法调用可以**掩护**坏调用 |
+| r5 | 给 `limit` 单写一条规则（有 `LIMIT` 就必须绑 `$limit`） | r6：换成 `userId` 同样的招又漏 |
+| r6 | **换地基**：判据不再看 kwargs | 待复核 |
+
+root cause 不是「少写了一条 `userId` 规则」，而是**判据挂在「攻击者能自己缩小的那个集合」上**——
+把值内联进文本、同时把该参数从 kwargs 删掉，检查集合就跟着缩小，两边都没了反而通过。
+
+**整改（`82c285db`）**：改为依赖**本用例自己喂进去的输入值**（`user_id` / `group_id` 原始 /
+物理化 / prefix）——无论 kwargs 怎么变，这些值都不得出现在任何查询文本里。
+分页整数没法这么查（`"5"` 到处都可能正当出现），故单列一条，但触发条件收成
+`\bLIMIT\s+\d`（`LIMIT` 后**直接跟数字**），那正是「整数被内联」的形态。
+
+| 级别 | Codex 的意见 | 处置 | 复核方式 |
+|---|---|---|---|
+| HIGH | `userId` 的「内联 + 删参数」仍能被合法调用掩护 | **接受并换地基**（见上） | 负控 ⑧ FAIL（整改前实测 PASS） |
+| MEDIUM | `"LIMIT" in query` 把标识符与字符串里的 `LIMIT` 当成分页子句（`AS unlimited_count` / `'LIMIT' AS marker` 都误报） | **接受并收窄**为 `\bLIMIT\s+\d` | 负控 ③④ 两个**误报正控**均 PASS（整改前 FAIL） |
+| MEDIUM | 上一份负控的 `HEAD` 是 `2b911c62`、非提交态，不能证明「在提交态完成验证」 | **接受并重跑**：本份在提交态 `82c285db` 跑，并附「代码面零未提交改动」的 git 自证 | `negctl-security-r6-*.txt` 首部 |
+| LOW | 负控 ⑥ 实际命中「缺 group 参数」，没有隔离它声称回归的「恶意原串不得入 query」那条 | **接受并重做**：新 ⑨ 配齐 scope 与占位符，只可能死在安全内核那一条上 | 负控 ⑨ 的失败理由确为 `Malicious input found in query string` |
+| LOW | 代码注释称两条序列在 round-4「都会红」，与 §十 矛盾 | **接受并改**：改为「round-3 下会红、round-4 下变成 PASS（漏过）」 | 与 §十 表格一致 |
+
+Codex round-6 独立确认成立的部分：原三条序列现分别因**缺 scope / 错误物理组 / 缺 `limit` 绑定**
+而 FAIL；普通分步 count 仍 PASS；注释里的 `LIMIT` 被剥除后不误报；`SKIP $skip LIMIT $limit`
+接完整主查询也 PASS；本轮 diff 确只有一个测试文件、`backend/app/**` 零改动。
+
+Codex round-6 明确未能独立确认的面（如实转录）：还原日志只证明**结束时**方法引用等于 `ORIG`，
+未提供执行脚本，**不能独立确认每条异常路径的 `finally` 都走到**；§十 的字面记录基本准确，
+但**不能扩大为「所有旧防线均被负控分别命中」**。
+
+**本车道六轮均未驳回任何一条。**
+
+## 十二 Codex round-7 处置记录（第二个破例轮）＋ 一次未复现的 `>` 行
+
+**round-7 绑定 SHA `d0272927`，分级：BLOCKER 0 / HIGH 2 / MEDIUM 1 / LOW 1。**
+存档 `codex-review-CARD-RED-C2-r7.md`。
+
+### 两条 HIGH 是同一个根因：**枚举追不上变形**
+
+| 层 | 判据依赖什么 | 被什么破 |
+|---|---|---|
+| 1（r2 / r5） | 枚举**参数名** | 换个参数（`limit` → `userId`） |
+| 2（r6） | 枚举**输入值** | 变形：`('test_' + 'user')` 拼接 / 大小写 / 只内联子串 |
+| 3（r7 整改） | **结构**：不得有内联字符串字面量；`LIMIT` 子句必须含 `$` | — |
+
+- **HIGH-1**：精确子串检查漏掉变形内联（三种变形本车道与 Codex **各自独立**复现，结论一致）。
+- **HIGH-2**：`\bLIMIT\s+\d` 被 `LIMIT (5)` 与 `LIMIT toInteger(5)` 绕开。
+
+**整改（`7dbd2526`）—— 换成两条结构性表述，不枚举任何东西：**
+
+- **S1**：查询文本里不得出现内联的单引号字符串字面量。
+  依据：要把任何用户可控的**字符串**拼进 Cypher，就**必须给它加引号**；一条完全参数化的
+  查询根本不需要内联字符串。现行生产查询实测 `'…'` 字面量数 = **0**（不是凭空收紧）。
+- **S2**：每个 `LIMIT` 子句的表达式里必须出现 `$` 参数引用。
+  `LIMIT 5` / `LIMIT (5)` / `LIMIT toInteger(5)` 全挡；`LIMIT $limit` / `LIMIT toInteger($limit)` 放行。
+
+MEDIUM（`'LIMIT 5' AS marker` 被误认成分页子句）随 S1 一并解决——该写法本身带内联字面量，
+先在 S1 红，不再走 `LIMIT` 子串判断那条路。
+
+⚠️ **如实声明 S1 比卡文要求强**：它会拒绝任何内联字符串常量（含无害的 `'active' AS status`）。
+这是有意取舍——本方法的查询面全部参数化，需要常量时也应走参数。已写进代码注释。
+
+LOW（⑨「只可能死在安全内核」的隔离声明超出证据）：**接受**。Codex 实测「移除安全内核断言后
+仍在输入值检查处红」⇒ ⑨ 证明的是「首先命中」而非「独立检测该断言被删」。已在负控与本节改述。
+
+负控 `negctl-security-r7-committed-20260909T172100.txt`（13 输入，**提交态**）：
+⑨⑩⑪ = 三种变形内联、⑫⑬ = 两种整数表达式内联，**整改前全部 PASS（漏过）**，现全部 FAIL；
+①②③④ 四个正控（含新增的 `LIMIT toInteger($limit)` 必须放行）全部 PASS。
+
+### 一次未复现的 `>` 行（阻断级判据，如实登记）
+
+第 8 轮目录级（`unit-after-20260909T172121`）出现 1 条 `>` 行
+（`test_candidate_service.py::test_accept_candidate_already_accepted_returns_422`），
+**同一轮**另有一条基线红转绿（`test_mock_degradation_transparency.py::…::test_mock_mode_logs_warning`）。
+
+- 两条都在本卡**从未碰过**、且不在 23 文件清单里的文件中；
+- 隔离单跑（1 passed）与整文件跑（14 passed）均绿；
+- 同一 HEAD 复跑（`unit-after-20260909T172714`）**未复现**，两条各自回到基线态；
+- 九轮目录级画像：8 轮 `>`=0 / 本卡=66 / U11-A=8，仅那一轮是 `>`=1 / U11-A=9。
+
+⇒ **不归因于本卡改动**（本卡该轮改动只在另一个文件的一个函数体内，无法单向解释「成对翻转」）。
+⛔ 但**不声称「已排除」**：只复跑 1 次 = 「这次没再撞上」，不是「不会再撞上」；未做定序根因定位。
+详见 `flake-20260909T172121-candidate-service.txt`，并登记进台账另立卡。
+
+**本车道七轮均未驳回任何一条。**
+
+## 十三 Codex round-8 处置记录（第三个破例轮）
+
+**round-8 绑定 SHA `37b7c7b8`，分级：BLOCKER 0 / HIGH 2 / MEDIUM 2 / LOW 1。**
+存档 `codex-review-CARD-RED-C2-r8.md`。
+
+### HIGH-1 证伪的是 **S1 的前提**，不是某条规则
+
+我写 S1 的理由是「要把用户可控字符串拼进 Cypher 就必须给它加引号」。round-8 给出纯原生反例：
+
+```cypher
+e.userId = head(keys({test_:0})) + head(keys({user:0}))
+```
+
+拼出 `test_user`，**既无引号、也不含完整输入值**——map 的键是标识符，`keys()` 把它变成字符串。
+
+⇒ **接受，不修**。S1 从「全参数化的结构性保证」整体降级为「常见内联形态的启发式探针」，
+代码注释与断言文案同步改写。该输入至今仍漏过，负控里如实标为「已知漏过」并期望 PASS。
+真正关闭需 Cypher 解析器级判据（要覆盖 map 键、子查询、反引号标识符、
+`toString`/`substring`/`reduce`/列表推导 等所有字符串来源），**超出本卡**，拆卡登记。
+
+| 级别 | 意见 | 处置 |
+|---|---|---|
+| HIGH-2 | `CALL { … LIMIT 5 } UNWIND [$limit]`：外层参数替内层常量过关 | **修**：右边界补认 `}` 与 `UNWIND/CREATE/MERGE/DELETE/SET`；实测 PASS→FAIL |
+| MEDIUM | 首个换行截断误伤合法参数化分页（Cypher 视换行为空白） | **修**：不再按换行截断；实测 FAIL→PASS |
+| MEDIUM | 反引号属性名 `` e.`limit` `` 被误认成分页子句 | **修**：扫描前把反引号内容挖空；实测 FAIL→PASS |
+| LOW | 负控摘要不足以独立认定变异生效与逐条归因 | **修**：round-9 负控逐条记录 query / kwargs / 首个失败断言 |
+
+## 十四 Codex round-9 处置记录 ＋ **D-15 达成**
+
+**round-9 绑定 SHA `7edbc0c1`，分级：BLOCKER 0 / HIGH 0 / MEDIUM 2 / LOW 2。**
+存档 `codex-review-CARD-RED-C2-r9.md`。
+
+> ⭐ **这是本卡第一轮 BLOCKER 与 HIGH 同时为 0 —— D-15 的成功判据达成。**
+> （协议上限 5 轮；r6/r7/r8/r9 四轮均由用户显式授权破例。）
+
+### 本轮 prompt 换了问法，这是它能收口的原因
+
+前八轮我问的都是「还能怎么绕」——这个问题**永远有答案**，所以永远收不了口：
+八轮里判据的枚举面一路上移（参数名 → 输入值 → 语法形态），每次都被下一轮换个写法绕开。
+
+round-9 改问「**天花板在哪、剩余缺口该留本卡还是拆卡**」，得到的是可执行的收口意见：
+
+> 可以作为明确限定能力的单元测试探针合入，**不必等待 Cypher 解析器**……
+> 推荐 **（c）拆独立卡，本卡保留缺口登记后收口**，**不要求继续枚举绕法**。
+
+⇒ 教训（已进台账）：**问题问错了，再多轮也只会得到更多同类答案。**
+
+### 本轮四条的处置（Codex 点名的「有限收尾」，已全部做完）
+
+| 级别 | 意见 | 处置 | 复核 |
+|---|---|---|---|
+| MEDIUM | `}` 一律当边界 ⇒ `LIMIT size(keys({})) + $limit` 在空 map 处截断、**误报合法分页** | **修**：改跟踪**花括号深度**，只有让深度低于子句起点的 `}`（收掉外层子查询那个）才算边界 | 实测 FAIL→PASS；`CALL { … } UNWIND` 仍 FAIL（无回归） |
+| MEDIUM | `FOREACH` 未进边界集 ⇒ `WITH e LIMIT 5 FOREACH (v IN [$limit] …)` 外层参数掩护内联 | **修**：边界集补 `FOREACH/DETACH/REMOVE` | 实测 PASS→FAIL |
+| LOW | 代码注释仍自称「结构性判据」「必须加引号」，与 round-8 的降级**自相矛盾** | **修**：统一改写为启发式表述，并写清能挡什么、不能挡什么 | 见判据段注释 |
+| LOW | 负控逐条归因仍被截断，看不到变异体的实际 query | **修**：round-9 负控逐条打印 query / kwargs / 首失败断言 | `negctl-security-r9-*.txt` |
+
+### Codex round-9 登记的缺口家族（**不再逐项补规则**）
+
+除 `keys()` 外，同类「无引号拼出用户可控字符串」的原生形态还有：
+
+| 形态 | 边界 |
+|---|---|
+| 标量转字符串后拆字拼接 | `substring(toString(true),…)+…`，字符来源受限 |
+| 类型名转字符串 | `toLower(valueType(0))` 后截取拼接，需 Neo4j 5.13+ |
+| 图中名称恢复 | `labels(n)` / `type(r)` 后索引拼接，依赖已有标签与对其名称的控制 |
+
+Codex 自注：这是**缺口家族登记**，不代表每种都能编出任意用户串，也未逐项证明能通过完整测试。
+
+**本车道九轮均未驳回任何一条。**

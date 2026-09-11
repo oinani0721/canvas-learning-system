@@ -16,7 +16,7 @@ driver state, or stack traces leaked to the client).
 from __future__ import annotations
 
 from typing import Any, Generator
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -24,7 +24,7 @@ from neo4j.exceptions import AuthError, ServiceUnavailable
 
 from app.config import Settings, get_settings
 from app.main import app
-from tests.support.lifespan import no_lifespan
+from tests.support.authed_client import TEST_INTERNAL_API_KEY, authed_client  # noqa: F401
 
 
 SAMPLE_PAYLOAD = {
@@ -46,7 +46,18 @@ SAMPLE_PAYLOAD = {
 
 
 def _dev_settings() -> Settings:
-    """Dev-mode settings so the auth dependency lets the request through."""
+    """Dev-mode settings that let the auth dependency through.
+
+    CARD-RED-A1-auth: 本 helper 原先返回 ``INTERNAL_API_KEY=""``，依据的是
+    ``c9bb6c9a`` (2026-05-13) **之前**的「DEBUG=True + 空 key → 放行」矩阵。
+    该分支已被收紧为「还要 ``ALLOW_UNSAFE_DEV_AUTH_BYPASS=true`` 且 client.host
+    是 loopback」(``security.py:110-124``)，而 ``TestClient`` 的 host 恒为
+    ``"testclient"`` ⇒ 空 key 恒 503。所以「让请求过鉴权」现在只能靠**显式配 key**，
+    值取 ``authed_client`` 用的同一个 —— 用例仍在自己的第一行装这份 override。
+    两份 Settings 只在**鉴权相关字段**上一致（``DEBUG=True`` + 同一个 ``INTERNAL_API_KEY``）；
+    ``PROJECT_NAME`` / ``CORS_ORIGINS`` 等其余字段并不相同，不是整份逐字等价
+    （Codex round-1 LOW-3 实证）。鉴权路径只读这两个字段，所以断言路径不变。
+    """
     return Settings(
         PROJECT_NAME="Test",
         VERSION="1.0.0-test",
@@ -54,16 +65,42 @@ def _dev_settings() -> Settings:
         LOG_LEVEL="DEBUG",
         CORS_ORIGINS="http://localhost:3000",
         CANVAS_BASE_PATH="./test_canvas",
-        INTERNAL_API_KEY="",
+        INTERNAL_API_KEY=TEST_INTERNAL_API_KEY,
     )
 
 
 @pytest.fixture
-def client() -> Generator[TestClient, None, None]:
-    """TestClient that cleans overrides between tests."""
-    with no_lifespan(app), TestClient(app) as test_client:
-        yield test_client
-    app.dependency_overrides.clear()
+def client(authed_client: TestClient) -> Generator[TestClient, None, None]:
+    """带 key 的 TestClient + ``/sync/batch`` 在鉴权之后那两道墙的桩。
+
+    CARD-RED-A1-auth: 原本是裸 ``TestClient(app)`` + 零桩。解开鉴权后请求会往下
+    撞两处与「异常分类」无关的墙，两个桩都照 ``test_sync_batch_auth.py:98-99``
+    的先例：
+
+    - ``sync.py:107`` ``get_canvas_schema_gate().block_reason()`` 每次请求都真连
+      ``NEO4J_URI`` 做 SHOW CONSTRAINTS，关掉 lifespan 拦不住请求期这条连接。
+      桩的 ``block_reason`` 返回 ``None``，与「未知态放行」的实际行为逐字一致。
+    - ``sync.py:114`` ``resolve_vault_group_id`` 在「请求 vault ≠ 进程 active
+      vault」时 409 fail-closed。本文件测的是**异常分类矩阵**，不是 vault 隔离；
+      不把 ``SAMPLE_PAYLOAD["vault_id"]`` 声明成 active vault，六条断言会全变 409，
+      淹没真正要测的 503/500 分流信号。
+
+    ``sync.py:126`` 的 ``assert_identity`` **不必**再打桩：
+    ``tests/unit/conftest.py:395-418`` 的 autouse ``_stub_vault_identity_registry``
+    已把 ``get_vault_identity_registry()`` 换成 no-op（``_NoopRegistry.assert_identity``
+    在 :412-413）。
+
+    ⛔ 不做 ``app.dependency_overrides.clear()``：用例自己装的 override 由
+    ``tests/conftest.py:441-452`` 的 autouse ``isolate_dependency_overrides`` 在用例
+    边界整份恢复，``authed_client`` 只还原它自己加的那个键。
+    """
+    gate = MagicMock()
+    gate.block_reason = AsyncMock(return_value=None)
+    with (
+        patch("app.config.get_current_vault_id", return_value=SAMPLE_PAYLOAD["vault_id"]),
+        patch("app.services.schema_gate.get_canvas_schema_gate", return_value=gate),
+    ):
+        yield authed_client
 
 
 def _override_sync_service_raising(exc: BaseException) -> Any:

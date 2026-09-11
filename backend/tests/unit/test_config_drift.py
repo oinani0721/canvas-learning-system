@@ -4,6 +4,9 @@ import tempfile
 from pathlib import Path
 
 import pytest
+from fastapi.testclient import TestClient
+
+from tests.support.authed_client import authed_client  # noqa: F401 — 由 fixture 请求
 
 
 class TestParseEnvFile:
@@ -79,11 +82,14 @@ class TestDetectConfigDrift:
 
 class TestConfigCheckEndpoint:
     @pytest.fixture
-    def client(self):
-        from app.main import app
-        from fastapi.testclient import TestClient
+    def client(self, authed_client: TestClient) -> TestClient:  # noqa: F811
+        """带 ``X-CLS-Internal-Key`` 的 TestClient (``tests/support/authed_client.py``)。
 
-        return TestClient(app, raise_server_exceptions=False)
+        ``/api/v1/system/config-check`` 自本卡起走 ``system.py:28`` 的 router 级
+        ``require_internal_api_key``; 裸 ``TestClient(app)`` 会先吃 403。
+        本用例不打 Neo4j (它读的是 .env 文件), 所以不需要端口门打桩。
+        """
+        return authed_client
 
     def test_endpoint_returns_200(self, client):
         resp = client.get("/api/v1/system/config-check")

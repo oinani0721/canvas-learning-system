@@ -1,0 +1,78 @@
+# U10-A 补审（5 个 session-limit 失败视角的重跑）结果存档
+# 被审对象: dirlink 修复后的工作树最终态（conftest 6f8f29f0…, 即本卡最终代码）
+# 形态: 5 视角并行审计, 每条发现 3 角度反驳者（默认 refuted）, ≥2/3 判成立
+# ⚠️ 覆盖缺口如实登记: 18 个反驳者因 API 429（5 小时限额, 16:38 重置）未跑完 ——
+#   4 条发现因此 0/0 无票（经比对均为其他视角已确认根因的重复, 无独立未验根因）
+# t0=2026-09-08（workflow wf_3a6fb7ee-c38, 56 agents / 38 done / 18 error）
+
+totals: {'found': 17, 'confirmed': 10}
+
+## confirmed
+1. [HIGH][claimed-vs-delivered] 「该 5 视角已另行补跑，结果见 §三·九·补」— 承诺的结果章节不存在，补跑仍在进行中（先写『已交付』后交付）
+   位置: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/_bmad-output/验收单/UAT-CARD-HYGIENE-conftest-2026-09-08.md:720
+   票: 3/3
+   修法: round-6 提交前二选一：(a) 等 5 个补跑 agent 返回后把结果写入真实的 §三·九·补 小节（含每视角结论与证据指针），使句子为真；(b) 若先提交，把措辞改为「补跑进行中，结果将补记于 §三·九·补」并如实标注覆盖状态。禁止在章节不存在时保留「已另行补跑，结果见」的完成时表述。
+
+2. [MEDIUM][protocol-compliance] 悬空引用：验收单声称 5 个自审视角「已另行补跑，结果见 §三·九·补」，但该节不存在
+   位置: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/_bmad-output/验收单/UAT-CARD-HYGIENE-conftest-2026-09-08.md:720（未提交改动，HEAD 版无此行）
+   票: 3/3
+   修法: 最终 commit 前二选一：(1) 等 5 视角补跑产出后，把结果写成真实的「§三·九·补」章节再提交；(2) 若补跑结果尚未回收，把措辞从「已另行补跑，结果见 §三·九·补」改为「补跑中，结果将写入 §三·九·补」。这正是本卡 §六⑫ 第 9 处（把未交付的证据登记成已交付）的活跃变体，若按现文提交即成为第 15 处同型实例
+
+3. [LOW][protocol-compliance] 悬空引用：验收单称 r6 收工跑结果「见 §四 4-A r6 行」，但 §四 4-A 无 r6 行
+   位置: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/_bmad-output/验收单/UAT-CARD-HYGIENE-conftest-2026-09-08.md:757-758（未提交改动）
+   票: 3/3
+   修法: 在 §四 4-A 补一行 r6 结果（四目录级 + 202 基线 diff 为空 + rc 落盘），或把 :758 的引用改指实际存档文件名。工作已做、只是引用悬空，属文档层修补，只动 _bmad-output 不触发再送轮
+
+4. [LOW][protocol-compliance] commit 0491b12a header 缺卡号段 `/ CARD-HYGIENE-conftest`，偏离卡文 (l) 且未登记
+   位置: commit 0491b12a36e50575bd71c5f52711d80c93c5d409（已提交，da690bf8..HEAD 六个 commit 中的末个）
+   票: 3/3
+   修法: 已在册 commit 不必改写历史（改写反而违反不 push/独立 commit 纪律）；应在验收单 §六 台账待登记条目补一行「0491b12a header 省略卡号段（70→94 字符本可容纳），追溯由 body+验收单三处点名保住」交主 session 备案，避免合并 squash 时选错 msg 模板
+
+5. [LOW][number-consistency] 首部「全部 .txt，末行 rc=」对 78/136 个文件不成立
+   位置: _bmad-output/验收单/UAT-CARD-HYGIENE-conftest-2026-09-08.md:6（首部 evidence 行）
+   票: 2/2
+   修法: 把「全部 `.txt`，末行 `rc=`」改为「跑分类存档（unit-/api-/regression-/skills-/negctl-/selfprobe-）末行 `rc=`；red-*/window-*/probe-*/static-gates-* 为派生清单与探针存档，无 rc 行」，或补一句例外说明。
+
+6. [LOW][number-consistency] §一(e) 扫描成本「0.535 秒」在证据目录无任何存档来源
+   位置: _bmad-output/验收单/UAT-CARD-HYGIENE-conftest-2026-09-08.md:174（§一(e) 末行）
+   票: 2/2
+   修法: 要么补一份含计时的扫描存档（如 python -c 'import time,pathlib;…' 输出落 .txt），要么把「0.535 秒」降格为「约 0.5 秒（未存档的 round-1 手测）」并如实标注无存档。
+
+7. [LOW][number-consistency] §三·九 引用「§四 4-A r6 行」为悬空指针——§四 4-A 无任何 r6 行
+   位置: _bmad-output/验收单/UAT-CARD-HYGIENE-conftest-2026-09-08.md:758（§三·九「对 N2' 判据链的影响」段）
+   票: 3/3
+   修法: 把「（见 §四 4-A r6 行）」改为直接引用证据文件名（如「存档 `unit-after-r6-20260908T114233.txt` + `red-diff-r6.txt` 零行」），或在 §四 4-A 真补一行 r6 收工记录。
+
+8. [LOW][broken-judges] (j) 表第 3 行验伪锚的「输出为空」在送审态 HEAD 上已不成立（现为 123 行），未随 HEAD 演进更新
+   位置: _bmad-output/验收单/UAT-CARD-HYGIENE-conftest-2026-09-08.md:233（§一 (j) 表第 3 行）
+   票: 3/3
+   修法: 把该行改为时间限定表述（「round-1 期为空；最终 HEAD 复跑排除 backend 后为 _bmad-output 已提交件 123 行 + rc=0，同样证明 pathspec 生效」），或直接改锚为双向：':(exclude)backend' 含 _bmad-output 件且不含 backend 件 = 生效。
+
+9. [LOW][broken-judges] §三·七「现在」列引用的告警文案（「**最常见**的成因」）在最终源码里已是 0 命中——round-4 整改把措辞换成了「可先排查的情形」，验收单全文未记录这次更换
+   位置: _bmad-output/验收单/UAT-CARD-HYGIENE-conftest-2026-09-08.md:605（§三·七 表「现在」列）；对照 backend/tests/unit/conftest.py:360
+   票: 3/3
+   修法: §三·七 该行「现在」列补注「（round-4 LOW 整改后进一步改为『**可先排查的情形** (是排查起点, 不是结论, 也不主张它最高发)』，见 static-gates-r5:36）」，或在 §七 round-4 行补一条 item 级明细点出这次措辞更换。
+
+10. [LOW][broken-judges] §三·九 引用的「§四 4-A r6 行」不存在——4-A 是无行的 bullet 清单，指针落空
+   位置: _bmad-output/验收单/UAT-CARD-HYGIENE-conftest-2026-09-08.md:758（§三·九「对 N2' 判据链的影响」段）
+   票: 2/3
+   修法: 要么在 §四 4-A 补一条「r6（dirlink 修复后）收工四目录重跑：unit/api/regression/skills 见 {unit,api,regression,skills}-after-r6-20260908T114233.txt，红 nodeid 对基线 diff 均空」，要么把 :758 的指针改为直接指向 evidence 文件名。
+
+## rejected
+- [claims-vs-evidence] 验收单声称 5 个失败视角「已另行补跑」并指向 §三·九·补，但该章节在全文中不存在 (0/0)
+- [claims-vs-evidence] 「（见 §四 4-A r6 行）」是悬空引用——§四 4-A 没有任何 r6 行 (0/0)
+- [claims-vs-evidence] 「扫描成本实测：252 个文件 / 0.535 秒 / 零解析失败」三处引用的实测数字无任何存档 (0/0)
+- [claimed-vs-delivered] 「见 §四 4-A r6 行」— §四 4-A 没有任何 r6 行，交叉引用悬空 (1/2)
+- [claimed-vs-delivered] 首部「evidence: …（全部 .txt，末行 rc=）」与实况不符：136 个文件中 78 个末行不是 rc=，51 个全文无 rc (1/1)
+- [claimed-vs-delivered] 「扫描成本实测：252 个文件 / 0.535 秒 / 零解析失败（round-1 测得）」无任何存档承载 (0/0)
+- [number-consistency] §六.20 「本卡 5 次 tests/unit 目录级」与存档实数 9 次不符（仅在未写明的限定口径下才等于 5） (1/2)
+
+## 整改对照（7 根因 → 处置）
+  R1 §三·九·补 悬空(#1/#2)      → 本存档 + 验收单 §三·九·补 真实章节 + §六⑫ 第 15 次
+  R2 4-A r6 行悬空(#3/#7/#10)   → §四 4-A 补 r6 条目 + §三·九 改指实际存档
+  R3 0491b12a header 缺卡号(#4) → §六 台账第 21 条登记（不改写历史）
+  R4 首部「全部末行rc=」(#5)     → 首部行收窄为跑分类口径
+  R5 0.535s 无来源(#6)          → probe-scan-timing-r6-20260908T171551.txt + §一(e) 降格改引
+  R6 (j) 验伪锚未随 HEAD 演进(#8)→ 改时间限定 + 双向表述
+  R7 §三·七 漏记 round-4 措辞更换(#9) → 表行补注
+  R8 边缘驳回「5 次」(1/2)      → 复核存档实数 9 轮, §六.20 已改实测口径（复核后仍修）

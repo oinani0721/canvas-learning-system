@@ -1,0 +1,40 @@
+=== POSIX Path 语义实测（#8 定性依据，运行期证据）===
+platform: darwin os.sep: /
+
+input   : '..\\..\\windows\\system32\\config'
+  parts : ('/', 'tmp', 'store', 'image', '..\\..\\windows\\system32\\config')
+  resolve: /private/tmp/store/image/..\..\windows\system32\config
+  in base: True
+  norm-resolve: /private/tmp/windows/system32/config  in base: False
+
+input   : '../../etc/passwd'
+  parts : ('/', 'tmp', 'store', 'image', '..', '..', 'etc', 'passwd')
+  resolve: /private/tmp/etc/passwd
+  in base: False
+  norm-resolve: /private/tmp/etc/passwd  in base: False
+
+input   : 'x.a\\b'
+  parts : ('/', 'tmp', 'store', 'image', 'x.a\\b')
+  resolve: /private/tmp/store/image/x.a\b
+  in base: True
+  norm-resolve: /private/tmp/store/image/x.a/b  in base: True
+
+input   : 'x.png\\..\\..\\..\\evil'
+  parts : ('/', 'tmp', 'store', 'image', 'x.png\\..\\..\\..\\evil')
+  resolve: /private/tmp/store/image/x.png\..\..\..\evil
+  in base: True
+  norm-resolve: /private/tmp/evil  in base: False
+
+input   : '20260209_abc123.png'
+  parts : ('/', 'tmp', 'store', 'image', '20260209_abc123.png')
+  resolve: /private/tmp/store/image/20260209_abc123.png
+  in base: True
+  norm-resolve: /private/tmp/store/image/20260209_abc123.png  in base: True
+
+=== suffix 注入面（第一道门缺口能注入什么）===
+  filename='x.png\\..\\..\\evil'            -> Path(f).suffix='.\\evil'
+  filename='x.a\\b'                         -> Path(f).suffix='.a\\b'
+  filename='evil..\\..\\x'                  -> Path(f).suffix='.\\x'
+  filename='a.b.c\\..\\d'                   -> Path(f).suffix='.\\d'
+
+[结论] suffix 恒为 '.' + 不含点的串 => 无法经 ext 注入 '..'；但可注入反斜杠

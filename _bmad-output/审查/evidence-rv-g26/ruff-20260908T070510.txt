@@ -1,0 +1,6 @@
+All checks passed!
+check-rc=0
+Would reformat: tests/unit/test_vault_install_manifest.py
+Would reformat: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy/scripts/verify_vault_install.py
+2 files would be reformatted
+format-rc=1

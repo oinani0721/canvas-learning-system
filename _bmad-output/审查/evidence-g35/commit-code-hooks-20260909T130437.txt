@@ -1,0 +1,94 @@
+╭──────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: pre-commit │
+╰──────────────────────────────────────╯
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+│  cypher-vault-filter-lint (skip) no matching staged files
+┃  ghost-files ❯ 
+
+[Ghost Files] No untracked docs found.
+
+┃  mutant-residue-scan ❯ 
+
+[Mutant-Scan] OK (staged additions carry no mutation marker).
+
+┃  python-lint ❯ 
+
+[Python] Running ruff lint...
+All checks passed!
+[Python] Lint OK.
+[Python] Checking format...
+Would reformat: backend/app/services/review_service.py
+Would reformat: backend/scripts/migrate_fsrs_card_states_vault_key_g35.py
+Would reformat: backend/tests/regression/test_g3_5_vault_keyed_card_states.py
+Would reformat: backend/tests/regression/test_g3_7_truth_source.py
+Would reformat: backend/tests/unit/test_review_service_fsrs.py
+5 files would be reformatted
+[Python] Format check FAILED! Fix: ruff format backend/app/services/review_service.py backend/scripts/migrate_fsrs_card_states_vault_key_g35.py backend/tests/regression/test_g3_5_vault_keyed_card_states.py backend/tests/regression/test_g3_7_truth_source.py backend/tests/unit/test_review_service_fsrs.py
+
+exit status 1┃  python-typecheck ❯ 
+
+[Python] Running pyright type check (backend/.venv/bin/pyright)...
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u9-mastery/backend/app/services/review_service.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u9-mastery/backend/app/services/review_service.py:64:8 - error: Import "logging" is not accessed (reportUnusedImport)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u9-mastery/backend/app/services/review_service.py:90:10 - error: Import "memory.temporal.fsrs_manager" could not be resolved (reportMissingImports)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u9-mastery/backend/app/services/review_service.py:91:9 - error: Import "CardState" is not accessed (reportUnusedImport)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u9-mastery/backend/app/services/review_service.py:661:16 - warning: Unnecessary isinstance call; "ReviewStatus" is always an instance of "ReviewStatus" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u9-mastery/backend/app/services/review_service.py:1169:49 - error: Cannot access attribute "get_canvas" for class "CanvasService"
+    Attribute "get_canvas" is unknown (reportAttributeAccessIssue)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u9-mastery/backend/app/services/review_service.py:1181:9 - error: Variable "mastery_lookup" is not accessed (reportUnusedVariable)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u9-mastery/backend/app/services/review_service.py:1209:13 - error: Variable "mastery_lookup" is not accessed (reportUnusedVariable)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u9-mastery/backend/app/services/review_service.py:1460:64 - error: Cannot access attribute "value" for class "int"
+    Attribute "value" is unknown (reportAttributeAccessIssue)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u9-mastery/backend/app/services/review_service.py:1558:26 - error: Argument of type "Unknown | int | None" cannot be assigned to parameter "x" of type "ConvertibleToInt" in function "__new__"
+    Type "Unknown | int | None" is not assignable to type "ConvertibleToInt"
+      Type "None" is not assignable to type "ConvertibleToInt"
+        "None" is not assignable to "str"
+        "None" is incompatible with protocol "Buffer"
+          "__buffer__" is not present
+        "None" is incompatible with protocol "SupportsInt"
+          "__int__" is not present
+        "None" is incompatible with protocol "SupportsIndex"
+    ... (reportArgumentType)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u9-mastery/backend/app/services/review_service.py:1558:26 - error: Argument of type "Unknown | int | None" cannot be assigned to parameter "x" of type "ConvertibleToInt" in function "__new__"
+    Type "Unknown | int | None" is not assignable to type "ConvertibleToInt"
+      Type "None" is not assignable to type "ConvertibleToInt"
+        "None" is not assignable to "str"
+        "None" is incompatible with protocol "Buffer"
+          "__buffer__" is not present
+        "None" is incompatible with protocol "SupportsInt"
+          "__int__" is not present
+        "None" is incompatible with protocol "SupportsIndex" (reportArgumentType)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u9-mastery/backend/app/services/review_service.py:1585:31 - error: Variable "review_log" is not accessed (reportUnusedVariable)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u9-mastery/backend/app/services/review_service.py:1683:47 - error: Cannot access attribute "value" for class "int"
+    Attribute "value" is unknown (reportAttributeAccessIssue)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u9-mastery/backend/app/services/review_service.py:1898:24 - warning: Unnecessary isinstance call; "str" is always an instance of "str" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u9-mastery/backend/app/services/review_service.py:2108:28 - error: Arguments missing for parameters "canvas_path", "from_node_id", "to_node_id" (reportCallIssue)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u9-mastery/backend/app/services/review_service.py:2109:17 - error: No parameter named "canvas_name" (reportCallIssue)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u9-mastery/backend/app/services/review_service.py:2110:17 - error: No parameter named "from_node" (reportCallIssue)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u9-mastery/backend/app/services/review_service.py:2111:17 - error: No parameter named "to_node" (reportCallIssue)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u9-mastery/backend/app/services/review_service.py:2112:17 - error: No parameter named "label" (reportCallIssue)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u9-mastery/backend/app/services/review_service.py:2812:43 - error: Cannot access attribute "value" for class "int"
+    Attribute "value" is unknown (reportAttributeAccessIssue)
+17 errors, 2 warnings, 0 informations
+[Python] Type errors found! Review and fix before committing.
+[Python] Hint: Some errors may be pre-existing. Focus on YOUR changes.
+[Python] Typecheck done (exit: 1).
+
+exit status 1│  readme-claims-lint (skip) no matching staged files
+│  spec-sync-flat (skip) no matching staged files
+│  spec-sync-root (skip) no matching staged files
+                                      
+  ────────────────────────────────────
+summary: (done in 1.88 seconds)       
+✔️ ghost-files (0.01 seconds)
+✔️ mutant-residue-scan (0.05 seconds)
+🥊 python-lint (0.03 seconds)
+🥊 python-typecheck (1.78 seconds)
+commit rc=0

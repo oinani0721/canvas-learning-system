@@ -1,0 +1,82 @@
+### ruff format 基线漂移预检（HEAD 版本是否本就不符合 format）
+app/services/agent_service.py                      DRIFT-AT-HEAD
+tests/unit/test_agent_templates_smoke.py           DRIFT-AT-HEAD
+
+-- 工作树版本 --
+Would reformat: app/services/agent_service.py
+Would reformat: tests/unit/test_agent_templates_smoke.py
+2 files would be reformatted
+workdir_rc=1
+
+-- 我的改动行会不会被 format 改？逐文件 diff 预览 --
+=== app/services/agent_service.py ===
+--- app/services/agent_service.py
++++ app/services/agent_service.py
+@@ -43,9 +43,7 @@
+ # ✅ Story 12.C.1: 环境变量开关 - 上下文增强开关
+ # [Source: docs/plans/epic-12.C-agent-context-pollution-fix.md#Story-12.C.1]
+ # ✅ Fixed 2025-12-24: Default to False - enable context enrichment to fix hallucination
+-DISABLE_CONTEXT_ENRICHMENT = (
+-    os.getenv("DISABLE_CONTEXT_ENRICHMENT", "false").lower() == "true"
+-)
++DISABLE_CONTEXT_ENRICHMENT = os.getenv("DISABLE_CONTEXT_ENRICHMENT", "false").lower() == "true"
+ 
+ if TYPE_CHECKING:
+     from app.clients.gemini_client import GeminiClient
+@@ -130,9 +128,7 @@
+         with failed_writes_lock:
+             with open(FAILED_WRITES_FILE, "a", encoding="utf-8") as f:
+                 f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+-        logger.warning(
+-            f"[Story 38.6] Score write failed after retries, saved to fallback: {concept_id}"
+-        )
++        logger.warning(f"[Story 38.6] Score write failed after retries, saved to fallback: {concept_id}")
+     except (OSError, TypeError, ValueError) as e:
+         logger.error(f"[Story 38.6] Failed to write to fallback file: {e}")
+ 
+@@ -301,9 +297,7 @@
+     import re
+ 
+     # Find the "## 相关资料" section (or similar headings)
+-    ref_match = re.search(
+-        r"(##\s*(?:相关资料|参考资料|References|相关笔记).*)", text, re.DOTALL
+-    )
++    ref_match = re.search(r"(##\s*(?:相关资料|参考资料|References|相关笔记).*)", text, re.DOTALL)
+     if not ref_match:
+         return text
+ 
+@@ -343,9 +337,7 @@
+         else:
+             return m.group(0)  # Don't convert non-path brackets
+ 
+-    ref_section = re.sub(
+=== tests/unit/test_agent_templates_smoke.py ===
+--- tests/unit/test_agent_templates_smoke.py
++++ tests/unit/test_agent_templates_smoke.py
+@@ -155,8 +155,7 @@
+         """
+         actual_files = list(_AGENTS_DIR.glob("*.md"))
+         assert len(actual_files) >= 18, (
+-            f"Expected >= 18 agent templates, found {len(actual_files)}: "
+-            f"{[f.name for f in actual_files]}"
++            f"Expected >= 18 agent templates, found {len(actual_files)}: {[f.name for f in actual_files]}"
+         )
+ 
+     def test_health_expected_templates_equals_loadable_agent_types(self):
+@@ -188,12 +187,10 @@
+         smoke = {n.removesuffix(".md") for n in EXPECTED_AGENT_TEMPLATES}
+         health = set(_health_expected_templates())
+         assert smoke - health == TEMPLATES_NOT_IN_AGENT_TYPE, (
+-            f"unexpected smoke-only templates: "
+-            f"{sorted((smoke - health) ^ TEMPLATES_NOT_IN_AGENT_TYPE)}"
++            f"unexpected smoke-only templates: {sorted((smoke - health) ^ TEMPLATES_NOT_IN_AGENT_TYPE)}"
+         )
+         assert health - smoke == set(), (
+-            f"health probe watches templates this file does not guard: "
+-            f"{sorted(health - smoke)}"
++            f"health probe watches templates this file does not guard: {sorted(health - smoke)}"
+         )
+ 
+     def test_hint_generation_template_exists(self):
+
+1 file would be reformatted

@@ -1,0 +1,42 @@
+# 收工门 §二.6 / §二.7 / §二.8 + 代码树等价证明 — CARD-RED-C2（Codex round-2 整改后重跑）
+HEAD=4449e292   U11-A 末 commit=5139428d   跑于 2026-09-09 14:24:52
+
+## 〇 代码树等价证明（round-2 MEDIUM 要求：证据必须能绑到审查 SHA）
+round-2 审查 SHA = cfd299f3。本轮整改后 HEAD 已前进，两者代码树**不等价**（本轮确有代码改动），
+故本轮全部裁判在新 HEAD 上重跑；下一轮送审时会绑到本 HEAD。
+$ git diff --stat --no-color cfd299f3 HEAD -- . ":(exclude)_bmad-output"
+ backend/tests/unit/test_story_1_7_env_config.py | 92 +++++++++++++++++--------
+ backend/tests/unit/test_story_30_24_boundary.py | 26 +++++--
+ 2 files changed, 84 insertions(+), 34 deletions(-)
+
+本轮三份证据的 HEAD 行（必须一致）：
+  unit-after-20260909T141449.txt -> HEAD=4449e292
+  files-23-20260909T142327.txt  -> HEAD=4449e292
+  gates-20260909T142452.txt     -> HEAD=4449e292
+
+⚠️ 本节初次生成时用 `ls -t | head -1` 取「最新的 files-23」，结果取到的是
+   files-23-20260909T142241.txt —— 那是一次**没跑成**的轮次（路径写错、零收集、rc=4），
+   我刚给它加了作废头注，mtime 因此变成最新，`ls -t` 就选中了它。
+   ⇒ **按时间取最新** 在「刚编辑过旧文件」时会选错；已改为写死文件名。
+   那份作废文件保留在同目录并带头注（它的 FAILED 计数是 0，正是「判据只看有没有 FAILED
+   就会读成通过」的活样本；本卡判据是逐条 diff 预期集合，当场吐出 4 行差异）。
+
+## §二.6 判据强度门
+  ↑ 无输出 = 通过
+
+## §二.7 fixture 门
+autouse=True 新增数: 0
+精确读取面模式:
+  ↑ 无输出 = 通过
+
+## §二.8 地盘门
+改动文件数: 23
+backend/app diff（必须空）:
+  ↑ 空
+_archive diff（必须空）:
+  ↑ 空
+全部 ⊆ 23 文件清单（comm -23 必须空）:
+  ↑ 空
+
+既有 skip 标记被删/改的行数: 0
+本卡 diff 里 stderr 文件数: 0

@@ -1,0 +1,24 @@
+# 因果验证 r2：触发条件是 --sandbox workspace-write（不是「跑 codex」本身）  @ 2026-09-08T07:17:10+08:00
+r1 用 read-only 在全新目录跑 ⇒ sha 与 [projects] 段数都没变 ⇒ 「每次 codex exec 都写」被证伪。
+时间轴重看：mtime 07:06 = P6-b = 本卡第一次 workspace-write；
+            P6-a(07:05,ro) / P6-d(07:08,ro) / P10-b(07:13,ro) / r1(ro) 均未写。
+⇒ 新假设：只有 workspace-write 才写 [projects] trust 记录。本次用全新目录 + workspace-write 检验。
+
+=== 跑前 ===
+  sha = 7e233a8694bc998677498514bb4ee06e
+  [projects.*] 段数 = 15
+  causal-probe-ws 是否在表中 = 0
+
+=== 跑 codex exec --sandbox workspace-write（全新目录，最小任务，不写文件）===
+OK
+tokens used
+8,628
+OK
+codex_rc=0
+
+=== 跑后 ===
+  sha = b221897cb36702c315f428b081bab7fe
+  [projects.*] 段数 = 16
+  causal-probe-ws 是否在表中 = 1
+  [mcp_servers.*] 段数（对照，应恒为 8）= 8
+rc=0

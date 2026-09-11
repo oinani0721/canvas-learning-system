@@ -1,0 +1,7 @@
+### 负控 hosts-codex
+命令: scripts/deploy-vault.sh --vault /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27b/vaults/v2 --harness /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy --hosts codex --env-dir /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27b/env --evidence-dir /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27b/ev
+期望: rc=64 且消息含 E-1
+
+❌ 用法错: --hosts 含未实现的宿主 codex。
+   E-1 二线宿主（codex / opencode / dsh 等）等 HOST-PROBE 实测表（U4-A），本版不实现。
+rc=64

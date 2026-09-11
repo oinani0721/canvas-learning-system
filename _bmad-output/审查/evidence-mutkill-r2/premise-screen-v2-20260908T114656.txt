@@ -1,0 +1,13 @@
+位置来源: probe-g32b-20260908T082457.txt（138 条实测位置）
+已筛 136 条已绑位置的变异
+三条判据同时成立（可疑锚在构造前提上）: 2 条
+  ⚠️ M89-receipt-drops-scored-at
+     门 test_round9_structured_receipt
+     位置 test_round9_structured_receipt:3271 第 1/14 条 assert
+     assert _run_writer_settled(vault, _payload(event_id=eid, ts=ts, review_time=ts)).returncode == 0
+  ⚠️ M90-receipt-drops-attempt
+     门 test_round9_structured_receipt
+     位置 test_round9_structured_receipt:3271 第 1/14 条 assert
+     assert _run_writer_settled(vault, _payload(event_id=eid, ts=ts, review_time=ts)).returncode == 0
+其中已登记进 EXPECT_LOC_EXEMPT 的: 2/2  ['M89-receipt-drops-scored-at', 'M90-receipt-drops-attempt']
+VERDICT: PASS（全部已登记）

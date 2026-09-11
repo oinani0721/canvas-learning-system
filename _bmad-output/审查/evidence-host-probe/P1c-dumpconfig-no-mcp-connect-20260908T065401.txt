@@ -1,0 +1,32 @@
+# P1-c 「--dump-config 是否连 MCP」判据 + 验伪锚  @ 2026-09-08T06:54:01+08:00
+
+=== 负控前提自证：8999 确实无监听 ===
+lsof -nP -iTCP:8999 输出行数 =        0
+curl http_code=000
+curl_rc=7  (7 = Failed to connect)
+对照 8011 活端口 http_code = 200
+
+=== 粗判据(污染示范)：grep -ciE 'econnrefused|connect|error|fail' ===
+  r2-nopatch = 3
+  r2-withpatch-8011 = 4
+  r2-withpatch-8999 = 4
+  ⇒ 命中来源逐行核对（8999 版）：
+    211:      and data-flow changes; cover edge cases, failure modes, tests, acceptance
+    426:- id: connection
+    427:  name: '@deepseek-ai/dsh-client-connection'
+    516:    failOnStartupError: true
+  ⇒ 全部是配置文本(prompt 里的 'failure modes' / 插件名 'connection' / 我注入的 failOnStartupError)，无一条运行期连接错误
+
+=== 收紧判据 + 双向验伪锚 ===
+  r2-nopatch = 0
+  r2-withpatch-8011 = 1
+  r2-withpatch-8999 = 1
+  ⇒ 8011 与 8999 命中数相同(1，均为 'failOnStartupError: true' 自匹配 'Error:')、nopatch 为 0
+  ⇒ 命中与目标端口是否存活无关 ⇒ dump 阶段未发生 MCP 连接
+
+=== 结论 ===
+CONFIRMED: dsh --dump-config 不建立 MCP 连接。
+  依据三条：(1) 死端口 8999 + failOnStartupError:true 下 rc=0；
+           (2) 输出零运行期连接错误(经验伪锚排除自匹配)；
+           (3) 8999 无监听已由 curl rc=7 独立自证。
+rc=0

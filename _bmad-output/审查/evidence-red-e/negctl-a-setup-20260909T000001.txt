@@ -1,0 +1,5 @@
+### 负控 A — 清空 .claude/agents/graphiti-memory-agent.md，期望 test_agent_template_not_empty[graphiti-memory-agent.md] 变红
+-- 改前 sha --
+814c82899bb81b11ba51236c3af9a094fc51519d70d9eccf90c1b51d5dfd9db1  .claude/agents/graphiti-memory-agent.md
+-- 清空后 wc -c --
+       0

@@ -1,0 +1,7 @@
+① 实际收集到的测试函数 7 个: ['test_cache_tables_default_vault_only_touches_bare_tables', 'test_cache_tables_never_touches_other_vault', 'test_cache_tables_scans_beyond_default_page', 'test_list_vault_tables_explicit_none_keeps_bare_scope', 'test_prefix_overlap_not_touched_by_cache_tables', 'test_prefix_overlap_not_touched_by_drop_vault_tables', 'test_prefix_overlap_premises_hold']
+
+验收单: 存档缺失 无 / 通配无匹配 无 / 幽灵 nodeid 无 / 非真实 SHA 无
+裁定请求: 存档缺失 无 / 通配无匹配 无 / 幽灵 nodeid 无 / 非真实 SHA 无
+
+判定: ✓ 三项引用全部真实
+验伪锚（查一个不存在的函数名）→ False ⇒ 判据能发现幽灵 ✓

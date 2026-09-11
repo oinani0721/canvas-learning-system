@@ -1,0 +1,21 @@
+=== 复跑 1：正控 apply --activate（期望六步 rc 0，步 5 SKIP）===
+  rc=0
+    📦 deploy-vault [apply] vault=probe_ok port=8131 hosts=claude
+       harness=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy
+    [1/6] preflight: OK 树完整 / 禁写面过 / 名不动点 / port 8131 空闲 / skills 9 / main.js 在位
+    [2/6] install: OK install-vault.sh rc 0, 输出 /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27b/re1-20260909T140616/ev/install-20260909T140616.txt
+    [3/6] postprocess: OK key 重生=yes(0600) 三处同值; :8011→:8131 ×4 已验残留 0; 绑定三件在位; .env 白名单跳过: NEO4J_HTTP_PORT NEO4J_BOLT_PORT OLLAMA_HOST VAULT_MOUNT_MODE LOCAL_EMBEDDER_BASE_URL
+    [4/6] verify: OK 校验器 rc 0（含 content-drift 轴, 基准=源镜像(同 :8131 口径)）, 报告 /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27b/re1-20260909T140616/ev/verify-20260909T140616.txt
+    [5/6] activate: SKIP config 断言过（container_name/端口各 1）; CLS_DEPLOY_NO_DOCKER_UP=1 ⇒ 不执行 up -d, 主 session 授权后执行
+    [6/6] evidence: OK /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/ac753750-6168-404c-9802-c61eadbcbc2b/scratchpad/g27b/re1-20260909T140616/ev/deploy-20260909T140616.txt
+    ✅ rc=0（apply）
+  key 0600: 600
+  三处同值: ✅
+
+=== 复跑 2：零写半成品负控（预置矛盾 .env → 期望 73 且 key 文件不存在）===
+  rc=73  ✅
+    [3/6] postprocess: FAIL 已有 .env.probe_hp 的 API_PORT=9999 与本次参数 8132 矛盾（拒绝静默覆盖；改 --port/--vault 或删掉该 .env 重来）
+  ⛔ 半成品判据（修复前是「存在」）:
+     key 文件: ✅ 不存在 = Phase A 拦在任何写之前
+     data.json internalApiKey: ✅ 空
+     四处端口未被改（仍 8011）: 1

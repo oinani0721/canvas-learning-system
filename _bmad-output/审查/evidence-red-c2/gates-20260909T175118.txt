@@ -1,0 +1,65 @@
+# 收尾门 + SHA 绑定链 — CARD-RED-C2（送 round-8 时的代码树）
+HEAD=37b7c7b8   U11-A 末 commit=5139428d   跑于 2026-09-09 17:51:18
+
+## 〇 SHA 绑定链（**顺序由 git log --reverse 直接给出**，不用手维护的清单）
+
+⚠️ 本节上一版把 commit 顺序写死在脚本里，实际顺序是 7dbd2526 → 0add7868 → 3f26185a，
+   而我写成了 7dbd2526 → 3f26185a → 0add7868 ⇒ 中间两段 diff 的是 DAG 上不相邻的两点，
+   n 值没有意义。已改为逐对取自 git 自身的提交序（本卡第 6 次「手写清单与实际漂移」）。
+
+逐段实际输出（代码面 = 排除 _bmad-output）：
+
+  5139428d  -> 35dc6100   rc=0 n=0  空 = 纯文档轮        docs(audit): Neo4j 离线韧性缺口独立审计 + U11-A 移交证据升级 [
+  35dc6100  -> 93b67999   rc=0 n=3  改 3 个代码文件       test(red-c2): 四个根因锚 24/66 落盘（阶段提交，非终态）[BATCH-2
+  93b67999  -> f132b5c6   rc=0 n=0  空 = 纯文档轮        docs(audit): 补记第三跑结果与重测信度观察 [BATCH-2026-09-07-
+  f132b5c6  -> 00758874   rc=0 n=3  改 3 个代码文件       test(red-c2): 族A/B/C 10 条落盘，累计 34/66（阶段提交，非终态）
+  00758874  -> 9c1a15ef   rc=0 n=4  改 4 个代码文件       test(red-c2): 族D 前四簇 16 条落盘，累计 50/66（阶段提交，非终态）
+  9c1a15ef  -> 763d74e1   rc=0 n=3  改 3 个代码文件       test(red-c2): 族D 尾部 3 条落盘，累计 53/66（阶段提交，非终态）[B
+  763d74e1  -> cc676b8c   rc=0 n=6  改 6 个代码文件       test(red-c2): 族D 尾部 5 条落盘，累计 58/66（阶段提交，非终态）[B
+  cc676b8c  -> 9b131f2f   rc=0 n=5  改 5 个代码文件       test(red-c2): 族D 尾部 8 条落盘，66/66 处置完毕（待全量裁判）[BA
+  9b131f2f  -> c0d61a12   rc=0 n=0  空 = 纯文档轮        docs(red-c2): 66 行依据表 + 全量裁判存档（代码已定稿，待 Codex）[
+  c0d61a12  -> c6278d6e   rc=0 n=5  改 5 个代码文件       test(red-c2): Codex round-1 整改 — 1 HIGH + 4 处判
+  c6278d6e  -> cfd299f3   rc=0 n=0  空 = 纯文档轮        docs(red-c2): 依据表 §六 整改记录 + 全部裁判绑定 c6278d6e 重跑
+  cfd299f3  -> 4449e292   rc=0 n=2  改 2 个代码文件       test(red-c2): Codex round-2 整改 — compose 判据改结构
+  4449e292  -> 0909e935   rc=0 n=0  空 = 纯文档轮        docs(red-c2): §七 round-2 记录 + 全部裁判绑定 4449e292 
+  0909e935  -> e43db627   rc=0 n=2  改 2 个代码文件       test(red-c2): Codex round-3 整改 — 精确深度 + 文本层计数 
+  e43db627  -> 5e3c7998   rc=0 n=0  空 = 纯文档轮        docs(red-c2): §八 round-3 记录 + 裁判绑定 e43db627 + 
+  5e3c7998  -> 3a6f51ea   rc=0 n=2  改 2 个代码文件       test(red-c2): Codex round-4 整改 — bytes 标量 + 双轴
+  3a6f51ea  -> 2b911c62   rc=0 n=0  空 = 纯文档轮        docs(red-c2): §九 round-4 记录 + 裁判绑定 3a6f51ea + 
+  2b911c62  -> 49b15c77   rc=0 n=1  改 1 个代码文件       test(red-c2): Codex round-5 整改 — 撤回 r4 自造的判据弱化
+  49b15c77  -> b5047b1d   rc=0 n=0  空 = 纯文档轮        docs(red-c2): 验收单 + §十 round-5 记录 + 完整 SHA 绑定链
+  b5047b1d  -> 82c285db   rc=0 n=1  改 1 个代码文件       test(red-c2): Codex round-6 整改 — 内联判据从「按参数打补丁」
+  82c285db  -> d0272927   rc=0 n=0  空 = 纯文档轮        docs(red-c2): §十一 round-6 记录 + 裁判绑定 82c285db [
+  d0272927  -> 7dbd2526   rc=0 n=1  改 1 个代码文件       test(red-c2): Codex round-7 整改 — 判据由枚举式换成结构性 [
+  7dbd2526  -> 0add7868   rc=0 n=0  空 = 纯文档轮        docs(red-c2): §十二 round-7 记录 + 一次未复现的 > 行归属核查 
+  0add7868  -> 3f26185a   rc=0 n=1  改 1 个代码文件       test(red-c2): 送 round-8 前自测补两个缺口（双引号字面量 / SKIP
+  3f26185a  -> 37b7c7b8   rc=0 n=1  改 1 个代码文件       test(red-c2): 自测再补三处（子句右边界 / B 层用子集 / $limit 里
+
+  ⇒ 各轮送审 SHA ← 其证据 HEAD（两者之间必须是「空 = 纯文档轮」）：
+     r1 c0d61a12 ← 9b131f2f    r2 cfd299f3 ← c6278d6e    r3 0909e935 ← 4449e292
+     r4 5e3c7998 ← e43db627    r5 2b911c62 ← 3a6f51ea    r6 b5047b1d ← 49b15c77
+     r7 d0272927 ← 82c285db    r8 37b7c7b8 ← 本轮证据（见下）
+
+本轮三份证据（写死文件名）：
+  unit-after-20260909T174558.txt     -> HEAD=37b7c7b8
+  files-23-20260909T174516.txt       -> HEAD=37b7c7b8
+  gates-20260909T175118.txt          -> HEAD=37b7c7b8
+
+## §二.6 判据强度门
+  ↑ 无输出 = 通过
+
+## §二.7 fixture 门
+autouse=True 新增数: 0
+精确读取面模式:
+  ↑ 无输出 = 通过
+
+## §二.8 地盘门
+改动文件数: 23
+backend/app: 0
+_archive: 0
+全部 ⊆ 23 文件清单:
+  ↑ 空
+
+既有 skip 被删/改: 0
+本卡 diff 里 stderr: 0
+工作树代码面未提交（仓根 pathspec）: 0

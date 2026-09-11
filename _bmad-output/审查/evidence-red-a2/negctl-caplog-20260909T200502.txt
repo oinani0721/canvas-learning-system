@@ -1,0 +1,33 @@
+########## caplog 专项负控 ①：断言串换成不存在的串 ⇒ 必须红（证明不恒真）##########
+--- 改前 sha ---
+146b828f595efe10660eda97575f97ca60d5bec5195fe4dffdf54472f77ca0bd  backend/tests/unit/test_sync_batch_auth.py
+ecf95d29fb45f843dd461acd014d10baa22cc81d0ef563bc721305b67ee3ecbe  backend/tests/unit/test_system_endpoint_auth.py
+--- ① 结果 ---
+================== 3 failed, 14 passed, 12 warnings in 0.82s ===================
+FAILED tests/unit/test_sync_batch_auth.py::TestProductionFailClosed::test_no_key_configured_fails_closed_503
+FAILED tests/unit/test_system_endpoint_auth.py::TestSystemConfigAuth::test_prod_no_key_configured_503
+FAILED tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuth::test_prod_no_key_configured_503
+红在 caplog 断言上的条数: 6
+末行: rc=1
+--- ① 还原对账 ---
+diff-quiet-rc=0
+########## caplog 专项负控 ②：移除 detail 等值断言 + 换 Branch 2 档 ⇒ caplog 断言必须独立变红 ##########
+--- ② 结果 ---
+================== 3 failed, 14 passed, 12 warnings in 0.82s ===================
+FAILED tests/unit/test_sync_batch_auth.py::TestProductionFailClosed::test_no_key_configured_fails_closed_503
+FAILED tests/unit/test_system_endpoint_auth.py::TestSystemConfigAuth::test_prod_no_key_configured_503
+FAILED tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuth::test_prod_no_key_configured_503
+--- 红在哪 ---
+E   AssertionError: assert 'auth_fail_closed' in 'ERROR    app.security:security.py:126 INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testcl...e); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.\n'
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/tests/unit/test_sync_batch_auth.py:170: AssertionError: assert 'auth_fail_closed' in 'ERROR    app.security:security.py:126 INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testcl...e); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.\n'
+E   AssertionError: assert 'auth_fail_closed' in 'ERROR    app.security:security.py:126 INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testcl...e); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.\n'
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/tests/unit/test_system_endpoint_auth.py:154: AssertionError: assert 'auth_fail_closed' in 'ERROR    app.security:security.py:126 INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testcl...e); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.\n'
+E   AssertionError: assert 'auth_fail_closed' in 'ERROR    app.security:security.py:126 INTERNAL_API_KEY empty + DEBUG=True without explicit bypass (client_host=testcl...e); refusing request. Set INTERNAL_API_KEY for production, or ALLOW_UNSAFE_DEV_AUTH_BYPASS=true on loopback for dev.\n'
+末行: rc=1
+--- ② 还原对账 ---
+146b828f595efe10660eda97575f97ca60d5bec5195fe4dffdf54472f77ca0bd  backend/tests/unit/test_sync_batch_auth.py
+ecf95d29fb45f843dd461acd014d10baa22cc81d0ef563bc721305b67ee3ecbe  backend/tests/unit/test_system_endpoint_auth.py
+diff-quiet-rc=0
+全树 status:
+?? "_bmad-output/\345\256\241\346\237\245/evidence-red-a2/"
+?? "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-RED-A2.md"

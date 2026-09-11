@@ -1,0 +1,7 @@
+=== 假设检验：若 14f0412d 之前的 sleep(0.1) 写法为绿 ⇒ #3 是「14f0412d 引入的测试侧回归」而非「诞生即错」===
+  run-1: NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+  run-2: NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+  run-3: NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+  run-4: NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+  run-5: NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+rc-note=see per-run lines

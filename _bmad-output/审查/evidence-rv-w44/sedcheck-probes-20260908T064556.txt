@@ -1,0 +1,99 @@
+########## HIGH-3 探针 :1757 ##########
+1753:        env_extra={"W4_GUARD_REQUIRE_BLOCKED_TARGET": "1"},
+1754:    )
+1755:
+1756:
+1757:def probe_late_exit_survives_broken_stderr() -> dict:
+1758:    """迟到路径的强制退出**不得**被「打印失败」挡住（Codex round-1 HIGH-3）。
+1759:
+1760:    旧结构里 ``print(..., file=sys.stderr)`` 在异常保护之外，只有 ``flush()`` 被 try
+1761:    裹着。stderr 若已关闭，``ValueError`` 会越过 ``os._exit(3)`` —— 于是「判迟到就
+1762:    必然就地退出 3」这句在那种状态下不成立（Codex 独立实测：``finalizing=True,
+########## probe_ledger_matches_verdict :1655-1660 ##########
+1653:
+1654:
+1655:def probe_ledger_matches_verdict() -> dict:
+1656:    """账本文件与进程 rc 必须互相印证，**两个方向都要**。
+1657:
+1658:    * 结算之后落地一条 blocked ⇒ rc=3 且账本 ``unaccounted>0``、``blocked>0``；
+1659:    * 一次连接都没有 ⇒ rc=0 且账本 ``unaccounted==0``、``blocked==0``。
+1660:
+1661:    只测一个方向会被「恒判 unaccounted=1」这类实现骗过。改前第一种形态可以出现
+1662:    **账本 unaccounted=1 而 rc=0**（裁定读 ``_final_accounting`` 的快照、落盘读
+1663:    ``write_ledger`` 自己再取的那一份）—— 实测证据见 ``before-2``。
+1664:    """
+1665:    name = "guard-ledger-matches-verdict"
+1666:    tmp = Path(tempfile.mkdtemp(prefix="w4-verdict-"))
+1667:    late_path = tmp / "late.json"
+1668:    clean_path = tmp / "clean.json"
+########## main() 显式条目 :1842-1883 + extend :1884 + 报告 :1899 ##########
+1838:# ═══════════════════════════════════════════════════════════════════════════
+1839:
+1840:
+1841:def main() -> int:
+1842:    results: list[dict] = [
+1843:        probe_no_guard_control(),
+1844:        probe_lowlevel("raw", "lowlevel-_socket.socket"),
+1845:        probe_lowlevel("sockettype", "lowlevel-SocketType"),
+1846:        probe_lowlevel("connect_ex", "lowlevel-connect_ex"),
+1847:        probe_lowlevel("index", "lowlevel-__index__-port"),
+1848:        probe_real_blocked_port(),
+1849:        probe_toctou_index_port(),
+1850:        probe_drift_reinstall(),
+1851:        probe_extract_port_mutation_detected(),
+1852:        probe_uvloop_reimport_blocked(),
+1853:        probe_late_after_finalizing(),
+1854:        probe_plugin_import_installs(),
+1855:        probe_audit_liveness_control(),
+1856:        probe_ownership_model(),
+1857:        probe_drift_in_test_fails_the_session(),
+1858:        probe_require_blocked_target(),
+1859:        probe_require_blocked_target_positive(),
+1860:        probe_late_connection_forces_rc(),
+1861:        probe_late_connection_negative_control(),
+1862:        probe_ledger_written(),
+1863:        probe_isolated_copy_carries_no_data(),
+1864:        probe_shell_selftest_is_load_bearing(),
+1865:        probe_shell_can_report_changed(),
+1866:        # CARD-W4-3a：NEO4J_TEST_URI 的正面白名单不能被「往里加现网端口」拆掉。
+1867:        probe_allowed_test_ports_cannot_admit_live(),
+1868:        # M15 族：runtime 文件的 **glob 分支**（CARD-W4-3b）。前三条是
+1869:        # 「正探针 + 两条拆了要瞎的对照」，后两条钉住 M14 收窄的两个方向。
+1870:        probe_runtime_glob_absent_to_present(),
+1871:        probe_runtime_glob_cached_expansion_is_blind(),
+1872:        probe_runtime_glob_pattern_neutralized_is_blind(),
+1873:        probe_runtime_glob_sidecar_excluded(),
+1874:        probe_runtime_glob_expansion_sorted(),
+1875:        probe_runtime_legacy_journal_watched(),
+1876:        # CARD-W4-4：结算原子性（门自己的假绿）+ 账本/裁定一致 + install 顺序 + 注入点惰性。
+1877:        probe_finalize_race_loses_record(),
+1878:        probe_ledger_matches_verdict(),
+1879:        probe_install_order_precheck_is_guarded(),
+1880:        probe_finalize_seam_inert_when_unset(),
+1881:        # Codex round-1 HIGH-3 的处置门：打印失败不得挡住迟到路径的强制退出。
+1882:        probe_late_exit_survives_broken_stderr(),
+1883:    ]
+1884:    results.extend(probe_shell_injections())
+1885:
+1886:    print("=== lifespan isolation GUARD PROBES ===")
+1887:    print(f"    interpreter: {PY}")
+1888:    failed = [r for r in results if not r["ok"]]
+1889:    for r in results:
+1890:        mark = "PASS" if r["ok"] else "FAIL"
+1891:        print(f"  [{mark}] {r['name']:<34} rc={r['rc']} (期望 {r['expect_rc']})")
+1892:        if not r["ok"]:
+1893:            print(f"         原因: {r['reason']}")
+1894:            if r["stderr_tail"]:
+1895:                print(f"         stderr: {r['stderr_tail']}")
+1896:    if failed:
+1897:        print(f"GUARD-PROBES: FAIL — {len(failed)}/{len(results)} 条未 fail-closed")
+1898:        return 1
+1899:    print(f"GUARD-PROBES: PASS — {len(results)}/{len(results)} 条全部 fail-closed")
+1900:    return 0
+1901:
+1902:
+1903:if __name__ == "__main__":
+1904:    sys.exit(main())
+########## 三种计数 ##########
+def probe_ = 33
+显式条目(1842-1883 中 ^空白+probe_) = 35

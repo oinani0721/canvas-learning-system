@@ -1,0 +1,49 @@
+# lefthook python-lint 绕过依据 — CARD-RED-C2 [BATCH-2026-09-07-第十三批]
+
+协议 §2.3：凡用 LEFTHOOK_EXCLUDE 提交，必须贴被跳过 hook 的原始输出 + 「报错不在本卡改动行」的证明。
+
+## 〇 被跳过的是什么
+python-lint hook 由两段组成：ruff **lint**（必须绿，本卡不绕）+ ruff **format --check**（下面这段）。
+hook 无法只跳其中一段，故整条 python-lint 走 LEFTHOOK_EXCLUDE，lint 段单独跑并存档（§二）。
+
+## 一 ruff lint（本卡改过的 18 个文件，当前工作树态）——必须绿
+$ ruff check --config backend/ruff.toml <18 files>
+All checks passed!
+rc=0
+
+## 二 ruff format 漂移：18 个文件里 17 个在【本批基线 da690bf8】上就已漂移
+方法：git show da690bf8:<path> 取 18 个文件的基线原样副本（未经本卡任何编辑），
+      喂给同一个 ruff、同一份 --config backend/ruff.toml（line-length=120）。
+⚠️ 不带 --config 跑出的结论是错的：ruff 默认 line-length=88，与项目的 120 不同口径，
+   实测默认口径下只报 1 个文件、带项目配置报 17 个 —— 两次结果都真实，但只有后者是 hook 的口径。
+
+$ cd <baseline-copies> && ruff format --check --color never --config backend/ruff.toml backend/
+Would reformat: backend/tests/unit/grouping/test_analyze_canvas.py
+Would reformat: backend/tests/unit/test_agent_context_injection.py
+Would reformat: backend/tests/unit/test_agent_service_comparison.py
+Would reformat: backend/tests/unit/test_agent_service_neo4j_memory.py
+Would reformat: backend/tests/unit/test_cache_configuration.py
+Would reformat: backend/tests/unit/test_context_enrichment_2hop.py
+Would reformat: backend/tests/unit/test_degraded_flag_propagation.py
+Would reformat: backend/tests/unit/test_intelligent_parallel_endpoints.py
+Would reformat: backend/tests/unit/test_neo4j_health.py
+Would reformat: backend/tests/unit/test_rag_multimodal_integration.py
+Would reformat: backend/tests/unit/test_s02_entity_types.py
+Would reformat: backend/tests/unit/test_s02_search_upgrade.py
+Would reformat: backend/tests/unit/test_story_30_24_boundary.py
+Would reformat: backend/tests/unit/test_story_38_8_fallback_sync.py
+Would reformat: backend/tests/unit/test_subject_isolation.py
+Would reformat: backend/tests/unit/test_supplementary_reranker.py
+Would reformat: backend/tests/unit/test_verification_service_injection.py
+17 files would be reformatted, 1 file already formatted
+rc=1
+
+## 三 唯一一个「基线干净、本卡改后才漂」的文件已就地 format，不留新增漂移
+test_config_neo4j.py 在 §二 名单里**缺席** = 基线干净；本卡加 _LOCAL_DEV_ENV 后 with 行超 120 被拆行 ⇒ 新漂。
+已 ruff format 该文件（diff 实测只动本卡自己加的两处 with 行，无其它文件、无无关行）：
+1 file already formatted
+rc=0
+
+## 四 结论
+本卡对 format 门的**净新增漂移 = 0**：17 个是 da690bf8 既有存量（D-16 甲：禁顺手修存量），
+1 个本卡引入的已就地修掉。绕过的是既有存量那 17 个，不是本卡的问题。

@@ -1,0 +1,66 @@
+# P1-b dsh 沙箱缺省 + skills 插件状态 + 'dump 是否连 MCP' 推论  @ 2026-09-08T06:52:45+08:00
+# 来源：$SCRATCH/r2-nopatch.txt (dsh --profile web --dump-config, cwd=$PV)
+
+=== (1) sandbox-policy 条目（决策页 §三「workspace-write(默认)」的直接对照）===
+88:- id: sandbox-policy
+89-  name: '@deepseek-ai/dsh-sandbox-policy'
+90-  config:
+91-    mode: !!js process.env.DSH_PERMISSION_MODE ?? 'workspace-write'
+92-    workspaceRoot: !!js process.cwd()
+
+=== (2) user-approval policy 条目 ===
+101:- id: approval
+102-  name: '@deepseek-ai/dsh-user-approval'
+103-  config:
+104-    policy: !!js >-
+105-      (process.env.DSH_PERMISSION_MODE ?? 'workspace-write') ===
+106-      'danger-full-access' ? 'never' : 'ask'
+107-- id: permission
+108-  name: '@deepseek-ai/dsh-permission-presets'
+109-  config:
+110-    presets:
+111-      read-only:
+112-        sandbox: read-only
+113-        approval: ask
+114-      workspace-write:
+115-        sandbox: workspace-write
+
+=== (3) skills 三插件在 web profile 下的缺省状态 ===
+--- id: skill ---
+150:- id: skill
+151-  name: '@deepseek-ai/dsh-skill'
+152-# == @deepseek-ai/dsh-base, patched by @deepseek-ai/dsh-web-app
+153-- id: skill-filesystem
+--- id: skill-filesystem ---
+153:- id: skill-filesystem
+154-  name: '@deepseek-ai/dsh-skill-filesystem'
+155-  disabled: true
+156-# == @deepseek-ai/dsh-base
+--- id: skill-badge ---
+157:- id: skill-badge
+158-  name: '@deepseek-ai/dsh-skill-badge'
+159-  disabled: true
+160-# == @deepseek-ai/dsh-base, patched by @deepseek-ai/dsh-web-app
+--- id: tool-skill ---
+161:- id: tool-skill
+162-  name: '@deepseek-ai/dsh-tool-skill'
+163-  disabled: true
+164-# == @deepseek-ai/dsh-base
+
+=== (4) 包文档缺省（dsh-sandbox-policy/README.md）对照 ===
+5:The single owner of sandbox-policy resolution: the deployment's default [`SandboxMode`](../sandbox/README.md) and fallback root, plus each session's durable mode override and immutable workspace root. Every enforcing capability receives one resolved mode-and-root policy per call; before each request, the model receives the current policy without a separate capability inventory.
+13:- `mode` — the deployment default `SandboxMode` (`read-only` / `workspace-write` / `danger-full-access`), validated at load. Default `read-only` (fail-safe).
+14:- `workspaceRoot` — the fallback directory `workspace-write` may write under for agentless calls or sessions without a cwd. Default `process.cwd()`, resolved to its absolute filesystem identity either way. A normal agent call uses its session header's immutable `cwd` instead.
+18:- `ctx.sandboxPolicy.resolve({ session?, mode? })` — resolves one complete per-call policy. An explicit approved mode outranks the session's last `sandbox/mode` event, which outranks `defaultMode`; the session's immutable `cwd` is canonicalized with filesystem semantics before becoming `workspaceRoot`, otherwise the configured fallback applies. Canonicalization precedes lexical normalization so `symlink/..` agrees with process working-directory resolution.
+19:- `ctx.sandboxPolicy.defaultMode` / `ctx.sandboxPolicy.workspaceRoot` — the deployment default and fallback root used by `resolve()`.
+20:- `sandbox:policy` — a request-time cache-safe context contribution derived directly from `resolve({ session })`. It states the mode's capability-neutral file-effect contract and the canonical session workspace under `workspace-write`; tool owners retain operation-specific denial and escalation guidance.
+29:A runtime switch is one log-only `sandbox/mode` event on the session it applies to. `effective = explicit grant ?? fold(events) ?? deployment default`, so an override survives restart by replay and two sessions never see each other's state. Workspace identity does not need another event: the immutable `SessionHeader.cwd` recorded at creation is the root for every call in that session. The event stays log-only; before the next request, the owner contributes the current fact to the full runtime-context snapshot.
+42:Current DSH file policy: read-only. Any available operation enforced by the DSH file sandbox cannot modify files in the standing mode. Do not refuse a required modification from this policy alone: try an available tool normally and follow any denial and escalation guidance it returns.
+48:Current DSH file policy: workspace-write. Any available operation enforced by the DSH file sandbox may modify files under the session workspace: "<workspace root>". Some platform temporary areas may also be writable.
+59:One concise durable context message on the first request and each effective policy change; unchanged requests add nothing. `workspace-write` carries only the canonical session workspace path; platform-specific temporary paths are summarized without adding host-dependent bytes.
+
+=== (5) 推论判据：--dump-config 带死端口 8999 + failOnStartupError:true 仍 rc=0 且无连接错误
+    ⇒ --dump-config 不建立 MCP 连接（若建立，8999 无监听 + true 必报错）
+4
+    上行 = r2-withpatch-8999.txt 中 econnrefused/connect/error/fail 命中行数
+rc=0

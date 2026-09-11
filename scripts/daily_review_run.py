@@ -16,17 +16,23 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
+import copy
+import errno
+import fcntl
 import hashlib
 import json
 import os
 import subprocess
 import sys
+import threading
 import time
 import uuid
 from datetime import datetime, time as dtime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import local_tz  # noqa: E402  — 单一时区来源 (CARD-G6-9c)
 import send_bark  # noqa: E402
 
 REPO = Path(os.environ.get("CANVAS_REPO", "/Users/Heishing/Desktop/canvas/canvas-learning-system"))
@@ -53,6 +59,8 @@ def _now(arg: str | None) -> datetime:
 #: state 文件 schema 版本。v2 (CARD-G6-7): 加性新增 board_done —— 板级
 #: 「今天做完了」账 {board: "YYYY-MM-DD"}。加性升级不配迁移器: 旧文件缺该
 #: 键即视同 {} (load_state 兜底), 声明版本在下一次落盘时随形态一起前进。
+#: 升版行为门 (CARD-G6-7-R, 落盘面而非内存面):
+#: test_g67r_v1_state_load_save_lands_as_v2_with_values_intact 等三条。
 STATE_SCHEMA_VERSION = 2
 
 
@@ -75,36 +83,334 @@ def state_path(vault: Path | None = None) -> Path:
 
 
 def load_state(vault: Path | None = None) -> dict:
-    state = state_path(vault)
-    if not state.exists():
-        return {"schema_version": STATE_SCHEMA_VERSION, "board_last_recommended": {}, "board_done": {}}
+    """读回 state（缺文件给默认账，损坏则隔离留档后重建）。
+
+    ⚠ Codex round-2 H1: 读取 / 损坏判断 / 隔离改名必须在**同一把锁**内。
+    分开的话会拿过期的判断去移走文件: runner 读到坏 JSON、还没来得及隔离,
+    这时 Web 取到锁、把那个坏文件隔离掉、写进完成账并返回 200; runner 随后
+    按它那份早已过期的「坏」判断执行 os.replace, 把**此刻已经有效、含那笔
+    账**的文件移进 .corrupt-*, 再整写一份空账 —— 一次成功的点击就没了。
+    锁可重入, Web 侧在自己的 with 里调到这里时复用同一把, 不重复 open。
+    """
+    with state_locked(vault):
+        return _load_state_locked(vault)
+
+
+def _fresh_state() -> dict:
+    return {"schema_version": STATE_SCHEMA_VERSION, "board_last_recommended": {}, "board_done": {}}
+
+
+def _parse_state_file(state: Path) -> dict | None:
+    """读并校验 state; 读不出 / 语法坏 / 结构错型一律 None (不写盘、不隔离)。
+
+    Codex-D2b M1: 合法 JSON 但结构错型 (顶层非 dict / 账本非 dict) 与语法损坏
+    同等对待 —— 不让 setdefault/.values() 半路炸。
+    CARD-G6-7: board_done 与 board_last_recommended 同等对待。少这一条的话,
+    一个 "board_done": [] 会让写侧的 dict 下标炸成 500, 而不是像本文件其余
+    部分那样诚实地隔离重建。
+    """
     try:
         st = json.loads(state.read_text(encoding="utf-8"))
-        # Codex-D2b M1: 合法 JSON 但结构错型 (顶层非 dict / 账本非 dict) 与
-        # 语法损坏同等对待 — 隔离重建, 不让 setdefault/.values() 半路炸
-        if not isinstance(st, dict) or not isinstance(st.get("board_last_recommended", {}), dict):
-            raise ValueError("state 结构错型")
-        # CARD-G6-7: board_done 与 board_last_recommended 同等对待 —— 错型也走
-        # 隔离重建。少这一条的话, 一个 "board_done": [] 会让写侧的 dict 下标
-        # 在半路炸成 500, 而不是像本文件其余部分那样诚实地隔离重建。
-        if not isinstance(st.get("board_done", {}), dict):
-            raise ValueError("state 结构错型 (board_done)")
-        st.setdefault("board_last_recommended", {})
-        st.setdefault("board_done", {})
-        # 形态已是 v2 (上一行保证 board_done 恒在) → 声明版本随之前进, 单调
-        # 不回退。这不是迁移器: 没有独立的迁移入口, 也不改任何既有键的值。
-        declared = st.get("schema_version")
-        if not isinstance(declared, int) or declared < STATE_SCHEMA_VERSION:
-            st["schema_version"] = STATE_SCHEMA_VERSION
-        return st
     except (json.JSONDecodeError, OSError, ValueError):
-        quarantine = state.with_name(state.name + ".corrupt-" + datetime.now().strftime("%Y%m%dT%H%M%S"))
-        try:
-            os.replace(state, quarantine)
-        except OSError:
-            pass
-        print(f"[runner] state 损坏, 已隔离到 {quarantine.name}, 重建", file=sys.stderr)
-        return {"schema_version": STATE_SCHEMA_VERSION, "board_last_recommended": {}, "board_done": {}}
+        return None
+    if not isinstance(st, dict) or not isinstance(st.get("board_last_recommended", {}), dict):
+        return None
+    if not isinstance(st.get("board_done", {}), dict):
+        return None
+    return st
+
+
+def _normalize_state(st: dict) -> dict:
+    """补齐 v2 形态并把声明版本单调推到当前值 (就地改, 返回同一个 dict)。
+
+    这不是迁移器: 没有独立的迁移入口, 也不改任何既有键的值。
+    """
+    st.setdefault("board_last_recommended", {})
+    st.setdefault("board_done", {})
+    declared = st.get("schema_version")
+    if not isinstance(declared, int) or declared < STATE_SCHEMA_VERSION:
+        st["schema_version"] = STATE_SCHEMA_VERSION
+    return st
+
+
+def _load_state_locked(vault: Path | None = None) -> dict:
+    state = state_path(vault)
+    if not state.exists():
+        fresh = _fresh_state()
+        # ⚠ Codex round-1 H2: base 记这份**默认值本身**而不是 None。文件当时不
+        # 存在, 我手上这几个键全是构造出来的默认值 —— 不是我改的。窗口内别人
+        # 新建了文件并写进真账时, 那些账必须以磁盘为准; 记 None 会让 save_state
+        # 走整写分支, 把别人刚建的账连读都不读就抹掉。
+        _remember_base(state, fresh)
+        return fresh
+
+    st = _parse_state_file(state)
+    if st is None:
+        # ⚠ Codex round-2 H1 的残余: 隔离之前**再读一次**。整段已经在锁里, 走锁
+        # 的写者插不进来; 但不经锁的写者 (手工编辑、别的工具、还没接入这把锁的
+        # 未来调用点) 仍可能在"判断"与"改名"之间把文件换成好的 —— 那时按旧判断
+        # os.replace 就把一份**有效**的 state 移进 .corrupt-*, 随后整写空账,
+        # 里面的完成账一起没了。重读一次是纯收益: 好了就用, 没好就照常隔离。
+        st = _parse_state_file(state)
+
+    if st is not None:
+        _normalize_state(st)
+        # ⚠ Codex round-1 H1: 快照取在**归一化之后**。初版取在之前, 于是
+        # setdefault 补出来的空 board_done 算成"本进程改过", 一个 v1 文件下
+        # runner 的空账就有权覆盖窗口内 Web 刚写成功的完成记录 —— 加性升版
+        # 反倒删掉了一次用户操作。补出来的默认值不是"我的修改"。
+        # (schema_version 因此也成了"我没改过", 由合并末尾的单调取大兜住。)
+        _remember_base(state, st)
+        return st
+
+    quarantine = state.with_name(state.name + ".corrupt-" + datetime.now().strftime("%Y%m%dT%H%M%S"))
+    try:
+        os.replace(state, quarantine)
+    except OSError:
+        pass
+    print(f"[runner] state 损坏, 已隔离到 {quarantine.name}, 重建", file=sys.stderr)
+    fresh = _fresh_state()
+    _remember_base(state, fresh)  # 同缺文件分支 (round-1 H2): 重建出来的默认值不是"我改的"
+    return fresh
+
+
+#: state 的跨进程写锁 (CARD-G6-7-R)。**文件**锁, 与 push.sh 的 mkdir **目录**
+#: 锁 `.daily-review.<key>.lock` 既不同名也不同形 —— 那把锁覆盖 runner 整轮,
+#: 但浏览器点「这板做完了」的那个进程根本不经过 push.sh, 拿不到它。
+#:
+#: ⛔ 锁原语是 **flock 而不是 lockf**(Codex round-4 H1 根治)。POSIX 记录锁
+#: (fcntl/lockf) 按「进程 × inode」释放 —— 本进程对**同一个 inode** 的任何一次
+#: 额外 open+close 都会把整把锁丢掉, 而登记表毫无察觉。这条语义被前后四轮
+#: 审查用四种不同形态利用到: 锁路径是软链指向 state (round-1 H3)、锁是 state
+#: 的硬链接 (round-2 H2)、反向软链 state→lock (round-3 H1)、以及跨库的
+#: A.state.json → B.state.lock (round-4 H1)。逐条堵路径形态是堵不完的:
+#: 只要有**任何**别名能让某次读盘碰到锁 inode, 锁就没了。
+#: flock 的锁绑在**打开文件描述**上, 不绑 inode —— 关掉另一个 fd 不影响它,
+#: 这一整类问题在原语层面消失。代价如实登记: flock 在 NFS / 某些网络盘上
+#: 语义不同 (本机 APFS 实测为准), 且不支持字节范围 (本模块不需要)。
+#: 下面的 O_NOFOLLOW / nlink / inode 三条检查**保留**为防御深度: 它们挡的
+#: 是"锁被摆成指向别处"这种配置错误本身 (尤其是 O_CREAT 在库内造文件),
+#: 不再是失锁的唯一防线。
+#: 锁 fd 仍专用、由登记表持有, 重入只加计数不重复 open。
+_STATE_LOCK_GUARD = threading.Lock()
+#: resolve 后的锁路径 → per-path 可重入线程锁 (同线程嵌套不阻塞, 跨线程串行)
+_STATE_LOCK_TLOCKS: dict[str, threading.RLock] = {}
+#: resolve 后的锁路径 → [fd, depth]。depth 归零才 LOCK_UN + close。
+_STATE_LOCK_FDS: dict[str, list] = {}
+#: 本线程当前持有哪些锁 (键同上, 值 = 重入深度)。
+#: ⚠ 必须按**线程**记而不是只看 _STATE_LOCK_FDS 有没有那个键: 另一个线程
+#: 持锁时登记表里同样有键, 只查表会让本线程误以为"我已经持锁了"而无锁直写。
+_STATE_LOCK_LOCAL = threading.local()
+
+#: state 的「读到手时磁盘长什么样」快照 —— 三方合并的 base。
+#: 值 = **归一化之后**的 dict (Codex round-1 H1: setdefault 补出来的默认值不是
+#: 本进程的修改), 文件当时不存在或损坏隔离时则是那份默认账本身 (round-1 H2)。
+#: 深拷贝存: 浅拷贝与调用方共享嵌套 dict, mine 一改 base 跟着变,
+#: 「我到底改没改过这个键」就永远答 False。
+#: ⚠ 键是 **state 路径**, 不是"哪个 dict 对象" (Codex round-2 L2)。所以它记的
+#: 是「这条路径上一次被本进程读成什么样」, 而不是「这个 st 从哪来」—— 同一路径
+#: 读过之后再传进来一份**另外构造**的 dict, 也会走合并而不是整写。生产上够用
+#: (Web 侧同库 load→save 全程在锁内串行, runner 在另一个进程), 但契约就这么窄,
+#: 别按"绑定到返回对象"去理解。
+_STATE_BASE_SNAPSHOTS: dict[str, dict | None] = {}
+_NO_SNAPSHOT = object()
+
+
+def state_lock_path(vault: Path | None = None) -> Path:
+    """per-vault state 的写锁文件 (与 state_path 同目录同命名规则)。"""
+    return BACKUPS / f"daily-review.{_vault_key(vault)}.state.lock"
+
+
+def _state_lock_key(vault: Path | None = None) -> str:
+    """登记表的键 —— **resolve 之后**的路径。
+
+    同一个文件的两种写法 (软链 / 相对路径) 不 resolve 就会各拿一把锁,
+    于是"锁住了"只是因为两边在动不同的键。
+    """
+    return str(state_lock_path(vault).resolve())
+
+
+def _held_locks() -> dict:
+    d = getattr(_STATE_LOCK_LOCAL, "keys", None)
+    if d is None:
+        d = {}
+        _STATE_LOCK_LOCAL.keys = d
+    return d
+
+
+def _state_lock_held(vault: Path | None = None) -> bool:
+    """本线程此刻是否已经持有这个 vault 的 state 锁。"""
+    return _held_locks().get(_state_lock_key(vault), 0) > 0
+
+
+@contextlib.contextmanager
+def state_locked(vault: Path | None = None):
+    """持有该 vault 的 state 跨进程写锁; 可重入。
+
+    读改写要整段在锁内才有意义 —— 只锁"写"那一下, load 与 save 之间照样
+    是别人的窗口。Web 侧的完成账写点就是这么用的:
+        with runner.state_locked(vault):
+            st = runner.load_state(vault); ...; runner.save_state(st, vault)
+    内层的 save_state 会检测到本线程已持锁而**复用**它 (不 open 也不 close),
+    见 save_state 的第一段。
+    """
+    key = _state_lock_key(vault)
+    with _STATE_LOCK_GUARD:
+        tlock = _STATE_LOCK_TLOCKS.setdefault(key, threading.RLock())
+    tlock.acquire()
+    held = _held_locks()
+    try:
+        if held.get(key):
+            held[key] += 1
+            with _STATE_LOCK_GUARD:
+                _STATE_LOCK_FDS[key][1] += 1
+        else:
+            lock = state_lock_path(vault)
+            lock.parent.mkdir(parents=True, exist_ok=True)
+            # ⚠ Codex round-1 H3: O_NOFOLLOW 与 save_state 的 tmp 同款理由。
+            # 不加的话, 事先把 <state>.lock 摆成一条软链就能同时做到两件事:
+            # ① 指向 state.json 本身 ⇒ 锁 fd 与 state 同 inode, load_state 的
+            #    读盘 close 会把整个进程在该 inode 上的记录锁一起释放 (POSIX
+            #    记录锁按进程×文件), 而登记表还以为锁在;
+            # ② 指向库内一个尚不存在的节点路径 ⇒ O_CREAT 会在库里创建文件,
+            #    破掉"完成账不写 vault"这条写面承诺。
+            fd = os.open(lock, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o644)
+            try:
+                # ⚠ Codex round-2 H2: O_NOFOLLOW 只拒**符号**链接, 对硬链接无效。
+                # 事先把 <state>.lock 做成 <state>.json 的硬链接, 两者就是同一个
+                # inode: 取锁成功之后 load_state 的一次读盘 close 会释放本进程在
+                # 该 inode 上的全部记录锁 (POSIX 记录锁按进程 × 文件), 而登记表
+                # 还报告持锁 —— 互斥凭空消失且无人察觉。
+                # nlink != 1 一律拒: 锁文件由本模块自建自用, 正常永远只有一条
+                # 链接; 多出来的那条无论指向什么都不该信。
+                info = os.fstat(fd)
+                if info.st_nlink != 1:
+                    raise OSError(
+                        errno.EMLINK,
+                        f"锁文件有 {info.st_nlink} 条硬链接 —— 可能与 state 或库内文件共用 inode",
+                        str(lock),
+                    )
+                # 锁与 state 落到同一个 inode = 配置错了: 一个文件同时当"锁"和
+                # "数据"用, 读它、隔离它、os.replace 它都会碰到锁。
+                # ⚠ 这条与上面两条现在都是**防御深度**, 不是失锁的防线 —— 换成
+                # flock 之后 (见模块注释), 同 inode 的额外 open/close 不再释放锁;
+                # 逐条堵路径形态本来也堵不完 (跨库别名 A.state.json → B.state.lock
+                # 就不在本库的比对范围内, Codex round-4 H1)。留着是因为它们能在
+                # 早期给出准确报文, 且挡住 O_CREAT 在库内造文件那半条。
+                try:
+                    st_state = os.stat(state_path(vault))  # 跟随软链: 要的就是最终落点
+                except OSError:
+                    st_state = None
+                if st_state is not None and (st_state.st_dev, st_state.st_ino) == (info.st_dev, info.st_ino):
+                    raise OSError(
+                        errno.EMLINK,
+                        "锁与 state 落在同一个 inode —— 读 state 的一次 close 会把锁一起释放",
+                        str(lock),
+                    )
+                fcntl.flock(fd, fcntl.LOCK_EX)
+            except BaseException:
+                os.close(fd)
+                raise
+            with _STATE_LOCK_GUARD:
+                _STATE_LOCK_FDS[key] = [fd, 1]
+            held[key] = 1
+        yield
+    finally:
+        # ⛔ 递减必须在 finally: 异常路径不减的话, 这个键在本线程里永远"已持锁",
+        # 之后每一次 save_state 都会走无锁的复用分支。
+        release_fd = None
+        if held.get(key):
+            held[key] -= 1
+            if held[key] <= 0:
+                del held[key]
+                with _STATE_LOCK_GUARD:
+                    entry = _STATE_LOCK_FDS.pop(key, None)
+                if entry is not None:
+                    release_fd = entry[0]
+            else:
+                with _STATE_LOCK_GUARD:
+                    if key in _STATE_LOCK_FDS:
+                        _STATE_LOCK_FDS[key][1] -= 1
+        if release_fd is not None:
+            try:
+                fcntl.flock(release_fd, fcntl.LOCK_UN)
+            finally:
+                os.close(release_fd)
+        tlock.release()
+
+
+def _base_key(state: Path) -> str:
+    """base 快照的键 = **逻辑路径**, 刻意不 resolve。
+
+    ⚠ Codex round-3 H2: 用 resolve 的话, state 是软链时键落在链的目标 T 上;
+    而 save_state 的 os.replace 会把软链**换成一个普通文件** S —— 同一轮里
+    第二次保存按 S 查就查不到 base 了, 于是走整写分支, 把这中间别人守规矩
+    写进去的完成账整个覆盖掉 (所有写者都正确取了锁, 照样丢)。
+    state_path() 对同一个 vault 恒定, 逻辑路径因此是稳定的键;
+    「同一文件的两条不同写法」这件事归**锁**的登记表管 (那边必须 resolve),
+    快照记的本来就是"我这条路径上次读到什么"。
+    """
+    return str(state)
+
+
+def _remember_base(state: Path, raw: dict | None) -> None:
+    _STATE_BASE_SNAPSHOTS[_base_key(state)] = copy.deepcopy(raw) if raw is not None else None
+
+
+def _merge_state_with_disk(mine: dict, state: Path) -> dict:
+    """锁内三方合并: **我没改过的键, 不许被我覆盖**。
+
+    窄窗有两个方向 —— runner 的 load(main) → 扫描(秒级) → save 之间, 浏览器
+    可能把 board_done 落了盘; 反过来 Web 的 load → save 之间, runner 的 :05
+    档可能把推送账落了盘。谁整写谁就把对方那次写静默抹掉 (last-writer-wins)。
+
+    三方 = base (我读到手时的磁盘) / mine (我手上这份) / theirs (此刻的磁盘):
+      · mine[k] 与 base[k] 不同 (含**删掉了这个键**) ⇒ 这个键我动过, 写 mine;
+        ⚠ load_state 的归一化 (schema_version 升版、board_done setdefault)
+        **不算**"我动过" —— base 就记在归一化之后 (round-1 H1)。初版把它算
+        进来, 于是 v1 文件下补出的空账有权压过磁盘, 加性升版反倒删掉一次
+        用户操作。schema_version 因此另走单调取大, 见本函数末尾。
+      · 相同 ⇒ 我没动过, 以磁盘为准 (别人可能刚改过);
+      · theirs 里没有而 mine 里有 ⇒ 写 mine (不替别人接受"删除")。
+    base 缺席 (这条路径本进程从没 load 过) 或 theirs 读不出 (缺文件 / 损坏)
+    ⇒ **不合并, 整写 mine** = 本卡之前的行为, 既有的「改了就写」语义逐字节
+    不变。⚠ 「文件当时不存在」**不再**走这条 (round-1 H2): 那时 base 记的是
+    默认账本身, 窗口内别人新建并写进去的账因此保得住。
+
+    合并**不写死键归属** —— 运行期确实是 board_done 归 Web、其余归 runner,
+    但那是当下的分工不是不变量; 靶子始终是"我没改的键"。
+
+    ⚠ 键序按 mine 优先、theirs 补尾: 用 set 遍历会让落盘 JSON 的键序随机,
+    「二次 load→save 字节幂等」那道门就会随机红。
+    """
+    base = _STATE_BASE_SNAPSHOTS.get(_base_key(state), _NO_SNAPSHOT)
+    if base is _NO_SNAPSHOT or base is None:
+        return mine
+    try:
+        theirs = json.loads(state.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError, ValueError):
+        return mine
+    if not isinstance(theirs, dict):
+        return mine
+    merged: dict = {}
+    for k in list(mine) + [k for k in theirs if k not in mine]:
+        in_mine, in_base = k in mine, k in base
+        mine_changed = (in_mine != in_base) or (in_mine and mine[k] != base[k])
+        if mine_changed:
+            if in_mine:
+                merged[k] = mine[k]
+            continue  # 我把它删了 ⇒ 合并结果里也不该有
+        if k in theirs:
+            merged[k] = theirs[k]
+        elif in_mine:
+            merged[k] = mine[k]
+    # schema_version 单调不回退 (与 load_state 同一条规则)。它是**形态声明**不是
+    # 业务数据, "谁动过谁说了算"对它不适用: base 记的是归一化之后的值 (H1 修法),
+    # 于是升版本身成了"我没改过", 不特判就会被磁盘上更旧的声明拉回去。取两侧较大者。
+    versions = [v for v in (mine.get("schema_version"), theirs.get("schema_version")) if isinstance(v, int)]
+    if versions:
+        merged["schema_version"] = max(versions)
+    return merged
 
 
 def _state_tmp_path(state: Path) -> Path:
@@ -135,9 +441,23 @@ def save_state(st: dict, vault: Path | None = None):
     两处刻意与 atomic_write 同形而不是 import 它: 两个脚本在模块级互不依赖
     (runner 只在 ensure_payload 里惰性 import picker), 为一个 8 行原语建立
     模块级耦合不划算。同形处如实登记, 改一处要记得改另一处。
+
+    ⚠ CARD-G6-7-R: 落盘现在整段在 state_locked 内, 且先与磁盘做一次三方
+    合并 (见 _merge_state_with_disk)。未持锁时**先取锁再自调一次**, 而不是
+    把下面整段包进一个 with —— 上面那两行 (O_EXCL|O_NOFOLLOW 的 os.open 与
+    os.replace) 是 Y2-B Codex round-1 HIGH 的修复面, 卡文把它们钉成"逐字节
+    不动", 换个缩进就是动了。递归至多一层: state_locked 成功即登记, 登记后
+    _state_lock_held 恒真。
     """
+    if not _state_lock_held(vault):
+        with state_locked(vault):
+            return save_state(st, vault)
+    # 本线程已持锁 ⇒ 复用那把锁: 读盘 / 合并 / replace 直接跑, 对锁文件
+    # 既不 open 也不 close (POSIX 记录锁按进程×文件释放, 内层一次 close
+    # 会把外层的锁一起丢掉)。
     state = state_path(vault)
     state.parent.mkdir(parents=True, exist_ok=True)
+    st = _merge_state_with_disk(st, state)
     tmp = _state_tmp_path(state)
     fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644)
     try:
@@ -292,7 +612,10 @@ def main() -> int:
         VAULT = Path(args.vault)
 
     now = _now(args.now)
-    local = now.astimezone()
+    # CARD-G6-9c / D-18: 归日走单一来源。只要机器本地时 astimezone(机器本地
+    # tzinfo) ≡ astimezone(), 行为逐字节不变; 但本卡引入的 CANVAS_TZ 覆盖若
+    # 不在这里读, 它自己就成了第三套时钟 (显示侧/pick 读它而 runner 不读)。
+    local = now.astimezone(local_tz.display_tz())
     today = local.date().isoformat()
     st = load_state()
 

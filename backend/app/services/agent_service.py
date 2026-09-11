@@ -5721,6 +5721,7 @@ class AgentService:
             "scoring-agent",
             "verification-question-agent",
             "canvas-orchestrator",
+            "hint-generation",
         ]
 
         prompt_path = Path(settings.AGENT_PROMPT_PATH)

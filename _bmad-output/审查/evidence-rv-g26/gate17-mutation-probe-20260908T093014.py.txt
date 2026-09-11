@@ -1,0 +1,196 @@
+#!/usr/bin/env python3
+"""17 条新门逐条承重验证。
+
+判据不是「某处失败」，而是「**点名的那条门**因为**点名的那条断言**变红」。
+三态：KILLED（点名门红且理由对）/ SURVIVED（点名门仍绿）/ INVALID（变异体不合法）。
+跑前对全部会被变异的文件记 sha，`finally` 无条件还原，跑后逐个复核。
+"""
+from __future__ import annotations
+import ast, hashlib, json, os, re, subprocess, sys
+from pathlib import Path
+
+WT = Path("/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy")
+V = WT / "scripts" / "verify_vault_install.py"
+M = WT / "scripts" / "vault-install-manifest.json"
+T = "tests/unit/test_vault_install_manifest.py"
+PYTEST = WT / "backend" / ".venv" / "bin" / "pytest"
+TARGETS = [V, M]
+
+BASE = {p: p.read_bytes() for p in TARGETS}
+BASE_SHA = {p: hashlib.sha256(b).hexdigest() for p, b in BASE.items()}
+print("跑前基线 sha:")
+for p in TARGETS:
+    print(f"  {BASE_SHA[p]}  {p.name}")
+
+def restore() -> None:
+    for p, b in BASE.items():
+        p.write_bytes(b)
+
+def run(node: str) -> tuple[int, str]:
+    r = subprocess.run(
+        [str(PYTEST), "-q", "-p", "no:cacheprovider", f"{T}::{node}"],
+        cwd=str(WT / "backend"), capture_output=True, text=True,
+        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+    )
+    out = r.stdout + r.stderr
+    return r.returncode, "\n".join(l for l in out.splitlines() if re.match(r"^E\s+", l))
+
+def vsub(old: str, new: str) -> None:
+    s = V.read_text(encoding="utf-8")
+    assert s.count(old) == 1, f"锚点命中 {s.count(old)} 次: {old[:48]!r}"
+    V.write_text(s.replace(old, new, 1), encoding="utf-8")
+
+# ── 变异定义: (标签, 变异函数, 该变异应当打红的 nodeid 列表, 期望断言片段) ────
+def m_identity():
+    vsub('''    try:
+        st = path.stat()
+    except OSError:
+        return None
+    return (st.st_dev, st.st_ino)''',
+         '''    return None''')
+
+def m_unlink_unconditional():
+    vsub("        if created:  # 只清理本次真正创建的那一个", "        if True:  # MUTANT")
+
+def m_no_symlink_recursion():
+    vsub("            if target.is_dir():\n                queue.append((target, depth + 1))\n            else:\n                roots.append(target)",
+         "            roots.append(target)  # MUTANT: 不再递归展开")
+
+def m_ignore_scan_failures():
+    vsub("    if scan_failures:\n        head =", "    if False:  # MUTANT\n        head =")
+
+def m_leaf_not_bad():
+    s = V.read_text(encoding="utf-8")
+    assert s.count('    except OSError:\n        return "U:unreadable", True') == 1
+    V.write_text(s.replace('    except OSError:\n        return "U:unreadable", True',
+                           '    except OSError:\n        return "U:unreadable", False  # MUTANT', 1), encoding="utf-8")
+
+def m_single_write():
+    vsub('''        written = 0
+        while written < len(data):
+            chunk = os.write(fd, data[written:])
+            if chunk <= 0:  # pragma: no cover — 正常内核不会返回 0
+                raise OSError("os.write 返回 0, 无法写满报告")
+            written += chunk''',
+         '''        os.write(fd, data)  # MUTANT: 忽略短写''')
+
+def m_no_encodable_check():
+    vsub('''    try:
+        value.encode("utf-8")
+    except UnicodeEncodeError as exc:
+        raise ManifestError(f"{label} 含无法编码为 UTF-8 的字符: {exc}") from exc''',
+         '''    return  # MUTANT: 不校验可编码性''')
+
+def m_no_dot_normalize():
+    s = V.read_text(encoding="utf-8")
+    old = '    if normalized == ".":'
+    assert s.count(old) == 1
+    i = s.index(old)
+    j = s.index('    return normalized', i)
+    V.write_text(s[:i] + s[j:], encoding="utf-8")
+
+def m_dangling_not_present():
+    vsub('            return [item.path] if state == "present" and verdict else []',
+         '            return [item.path] if target.exists() and verdict else []  # MUTANT')
+
+def m_drop_raw_templates():
+    d = json.loads(M.read_text(encoding="utf-8"))
+    d["items"] = [i for i in d["items"] if i["path"] not in ("raw/**", "templates/**")]
+    M.write_text(json.dumps(d, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+def m_exact_exclude_dead():
+    vsub('''            state = _entry_state(target)
+            if state == "unreadable":''',
+         '''            return []  # MUTANT: 精确 exclude 一律不命中
+            state = _entry_state(target)
+            if state == "unreadable":''')
+
+def m_no_loop_note():
+    vsub('''        leaf, bad = _leaf_digest(child)
+        if bad:
+            _note(key)''',
+         '''        leaf, bad = _leaf_digest(child)  # MUTANT: 循环内不再登记''')
+
+CASES = [
+    ("M1  _fs_identity 恒 None（拆身份比较）", m_identity,
+     ["test_case_insensitive_alias_is_refused"], None),
+    ("M2  O_EXCL 失败后无条件 unlink", m_unlink_unconditional,
+     ["test_exclusive_create_failure_does_not_delete_someone_elses_file"], None),
+    ("M3  禁写根不再递归展开软链", m_no_symlink_recursion,
+     ["test_two_hop_symlink_target_is_refused"], None),
+    ("M4  忽略「扫描没跑完」", m_ignore_scan_failures,
+     ["test_incomplete_safety_scan_refuses_to_write"], None),
+    ("M5  叶子读不动时 bad=False", m_leaf_not_bad,
+     ["test_both_sides_unreadable_plain_files_still_block"], None),
+    ("M6  单次 os.write（忽略短写）", m_single_write,
+     ["test_short_write_is_detected"], None),
+    ("M7  取消可编码性校验", m_no_encodable_check,
+     [f"test_unencodable_string_in_manifest_exits_2[{f}]" for f in ("source", "role", "origin", "note")], None),
+    ("M8  取消 `.` 归一为根", m_no_dot_normalize,
+     [f"test_extra_scan_dot_is_normalized_to_root[{d}]" for d in (".", "./", ".//")], None),
+    ("M9  精确 exclude 用 exists()（丢悬空软链）", m_dangling_not_present,
+     ["test_dangling_symlink_exclude_is_registered"], None),
+    ("M10 清单删掉 raw/** 与 templates/**", m_drop_raw_templates,
+     ["test_skeleton_content_excludes_are_pinned"], "raw 下的遗留内容必须被登记"),
+    ("M11 精确 exclude 一律不命中", m_exact_exclude_dead,
+     ["test_bracket_exclude_declaration_works_end_to_end"], "字面方括号声明应当精确命中"),
+    ("M12 目录摘要循环内不再登记 unreadable", m_no_loop_note,
+     ["test_unreadable_leaf_inside_directory_is_registered"], None),
+]
+
+results: list[tuple[str, str, str, str]] = []
+try:
+    for label, mut, nodes, msg in CASES:
+        restore()
+        # 前置: 变异前这些门必须是绿的, 否则「击杀」没有信息量
+        pre_bad = [n for n in nodes if run(n)[0] != 0]
+        if pre_bad:
+            for n in nodes:
+                results.append((n, label, "PRE-RED", f"变异前就不是绿: {pre_bad}"))
+            continue
+        mut()
+        state = "OK"
+        for p in TARGETS:
+            txt = p.read_text(encoding="utf-8")
+            try:
+                ast.parse(txt) if p.suffix == ".py" else json.loads(txt)
+            except (SyntaxError, ValueError) as e:
+                state = f"INVALID {p.name}: {e}"
+        if state != "OK":
+            for n in nodes:
+                results.append((n, label, "INVALID", state))
+            restore()
+            continue
+        for n in nodes:
+            rc, el = run(n)
+            if rc == 0:
+                verdict, why = "SURVIVED", "点名门仍绿 ⇒ 该门不锁这条整改"
+            elif msg is not None and msg not in el:
+                verdict, why = "KILLED-理由不符", f"期望片段不在 ^E 行: {el.splitlines()[:1]}"
+            else:
+                verdict, why = "KILLED", (el.splitlines()[0].strip() if el else "(无 ^E 行)")
+            results.append((n, label, verdict, why))
+        restore()
+finally:
+    restore()
+
+print("\n跑后 sha（必须与跑前逐个相同）:")
+ok = True
+for p in TARGETS:
+    now = hashlib.sha256(p.read_bytes()).hexdigest()
+    same = now == BASE_SHA[p]
+    ok &= same
+    print(f"  {'SAME' if same else 'DRIFT'}  {now}  {p.name}")
+print(f"还原对账: {'OK' if ok else '❌ 有残留'}")
+
+print("\n" + "=" * 100)
+print(f"{'nodeid':<62} {'判定':<16} 变异")
+print("-" * 100)
+for node, label, verdict, why in results:
+    print(f"{node:<62} {verdict:<16} {label}")
+    if verdict != "KILLED":
+        print(f"{'':<62} ↳ {why[:110]}")
+print("-" * 100)
+killed = sum(1 for _, _, v, _ in results if v == "KILLED")
+print(f"合计 {len(results)} 条门: KILLED {killed} / 其他 {len(results) - killed}")
+sys.exit(0 if ok else 1)

@@ -23,11 +23,21 @@ from fastapi.testclient import TestClient
 from app.services.wikilink_context_service import EnrichmentResult
 
 
-@pytest.fixture
-def client():
-    from app.main import app
+from tests.support.authed_client import authed_client  # noqa: F401
 
-    return TestClient(app)
+
+@pytest.fixture
+def client(authed_client: TestClient) -> TestClient:
+    """带 ``X-CLS-Internal-Key`` 的 TestClient (tests/support/authed_client.py)。
+
+    CARD-RED-A1-auth: 原本是裸 ``TestClient(app)``, 按 pytest 就近覆盖规则遮蔽了
+    ``tests/conftest.py:494-517`` 那个配了 key 的共享 client。``security.py``
+    自 ``c9bb6c9a`` fail-closed 后 (:110-142), 裸 client 的请求恒 503 —— 本文件
+    **使用 client 的那些 HTTP 用例**都停在 router 级依赖 (``chat.py:48``), 一次都没走到
+    业务层。唯一例外是 ``test_concurrent_two_vaults_dont_share_context_var`` —— 它不请求
+    client、不走 HTTP, 开工就是绿的（范围按 Codex round-2 LOW-2 收窄; 以用例名为准）。
+    """
+    return authed_client
 
 
 def _payload(

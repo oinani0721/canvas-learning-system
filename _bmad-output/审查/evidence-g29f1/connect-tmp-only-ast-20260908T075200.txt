@@ -1,0 +1,20 @@
+步骤1  `db_path = ...` 赋值数 = 4
+  : 135  来源根 = ['tmp_path']  ✓
+  : 194  来源根 = ['tmp_path']  ✓
+  : 247  来源根 = ['tmp_path']  ✓
+  : 300  来源根 = ['tmp_path']  ✓
+
+步骤2  向 helper 传路径的调用数 = 7
+  : 154  _client 首参根 = ['db_path']  ✓
+  : 209  _client 首参根 = ['db_path']  ✓
+  : 267  _client 首参根 = ['db_path']  ✓
+  : 308  _client 首参根 = ['db_path']  ✓
+  : 358  _client 首参根 = ['db_path']  ✓
+  : 377  _overlap_fixture 首参根 = ['tmp_path']  ✓
+  : 423  _overlap_fixture 首参根 = ['tmp_path']  ✓
+
+步骤3  lancedb.connect 调用数 = 10  越界数 = 0
+步骤4  可疑路径/环境字面量 = 0
+
+判定: ✓ 10 处 connect 全部溯源到 pytest tmp_path，无现网路径、无环境变量读取
+验伪锚（不承认 db_path 时的越界数）= 9 ⇒ 判据确实在数东西 ✓

@@ -1,0 +1,161 @@
+--- TEST test_event_bus.py :100,180 ---
+100	        bus.subscribe(LearningEventType.SCORE_SUBMITTED, h2)
+101	        event = _make_event()
+102	        await bus.publish(event)
+103	        h1.assert_called_once()
+104	        h2.assert_called_once()
+105	
+106	
+107	class TestTier1Critical:
+108	    @pytest.mark.asyncio
+109	    async def test_tier1_await_execution(self):
+110	        bus = EventBus()
+111	        call_order = []
+112	
+113	        async def handler1(event):
+114	            call_order.append("h1_start")
+115	            await asyncio.sleep(0.01)
+116	            call_order.append("h1_end")
+117	
+118	        bus.subscribe(LearningEventType.SCORE_SUBMITTED, handler1)
+119	        await bus.publish(_make_event())
+120	        assert call_order == ["h1_start", "h1_end"]
+121	
+122	    @pytest.mark.asyncio
+123	    async def test_tier1_failure_propagates(self):
+124	        bus = EventBus()
+125	
+126	        async def failing_handler(event):
+127	            raise ValueError("Tier 1 failure")
+128	
+129	        bus.subscribe(LearningEventType.SCORE_SUBMITTED, failing_handler)
+130	        with pytest.raises(ValueError, match="Tier 1 failure"):
+131	            await bus.publish(_make_event())
+132	
+133	
+134	class TestTier2Important:
+135	    @pytest.mark.asyncio
+136	    async def test_tier2_success(self):
+137	        bus = EventBus()
+138	        handler = AsyncMock()
+139	        bus.subscribe(LearningEventType.BKT_UPDATED, handler)
+140	        await bus.publish(_make_event(LearningEventType.BKT_UPDATED))
+141	        await asyncio.sleep(0.1)
+142	        handler.assert_called_once()
+143	
+144	    @pytest.mark.asyncio
+145	    async def test_tier2_retry_then_success(self):
+146	        bus = EventBus()
+147	        call_count = 0
+148	
+149	        async def flaky_handler(event):
+150	            nonlocal call_count
+151	            call_count += 1
+152	            if call_count == 1:
+153	                raise ConnectionError("Temporary failure")
+154	
+155	        bus.subscribe(LearningEventType.BKT_UPDATED, flaky_handler)
+156	        with patch("app.services.event_bus.asyncio.sleep", new_callable=AsyncMock):
+157	            await bus.publish(_make_event(LearningEventType.BKT_UPDATED))
+158	            await asyncio.sleep(0.1)
+159	        assert call_count >= 2
+160	
+161	    @pytest.mark.asyncio
+162	    async def test_tier2_all_retries_exhausted_writes_outbox(self):
+163	        bus = EventBus()
+164	
+165	        async def always_fail(event):
+166	            raise ConnectionError("Persistent failure")
+167	
+168	        bus.subscribe(LearningEventType.BKT_UPDATED, always_fail)
+169	        with patch("app.services.event_bus.asyncio.sleep", new_callable=AsyncMock):
+170	            await bus.publish(_make_event(LearningEventType.BKT_UPDATED))
+171	            await asyncio.sleep(0.2)
+172	        assert bus._stats["outbox_written"] >= 1
+173	
+174	
+175	class TestTier3BestEffort:
+176	    @pytest.mark.asyncio
+177	    async def test_tier3_success(self):
+178	        bus = EventBus()
+179	        handler = AsyncMock()
+180	        bus.subscribe(LearningEventType.UI_MASTERY_PUSH, handler)
+--- event_bus.py :44,60 + :240,300 ---
+44	# Type alias for async event handlers
+45	EventHandler = Callable[[LearningEvent], Coroutine[Any, Any, None]]
+46	
+47	# JSONL outbox path
+48	_BACKEND_DIR = Path(__file__).parent.parent.parent  # backend/
+49	OUTBOX_DIR = _BACKEND_DIR / "data" / "outbox"
+50	OUTBOX_FILE = OUTBOX_DIR / "events.jsonl"
+51	
+52	# Tier 2 retry configuration
+53	TIER2_MAX_RETRIES = 3
+54	TIER2_BASE_DELAY_S = 2.0  # Exponential backoff: 2s → 4s → 8s
+55	
+56	# Idempotency dedup set capacity
+57	DEDUP_CAPACITY = 10000
+58	
+59	# CircuitBreaker defaults for EventBus
+60	CB_FAILURE_THRESHOLD = 5
+240	    ) -> None:
+241	        """Tier 2 IMPORTANT: fire with retry + JSONL outbox on final failure.
+242	
+243	        wave-5 Stage B P0 (2026-05-11): snapshot ContextVar (vault/subject_id) via
+244	        contextvars.copy_context() so background retry task inherits the originating
+245	        request's vault — prevents cross-vault leak when Tier 2 handlers run after
+246	        the parent request finishes. [ChatGPT v4 Agent C P0 fix]
+247	        """
+248	        for handler in handlers:
+249	            ctx = contextvars.copy_context()
+250	            asyncio.create_task(self._tier2_retry_wrapper(event, handler), context=ctx)
+251	
+252	    async def _tier2_retry_wrapper(
+253	        self, event: LearningEvent, handler: EventHandler
+254	    ) -> None:
+255	        """Retry wrapper for Tier 2: exponential backoff 2s→4s→8s, then outbox."""
+256	        # Check circuit breaker for the handler's subsystem
+257	        subsystem = self._find_handler_subsystem(handler)
+258	        if subsystem:
+259	            cb = self._circuit_breakers.get(subsystem)
+260	            if cb and not cb.allow_request():
+261	                logger.warning(
+262	                    f"EventBus[T2]: CircuitBreaker OPEN for {subsystem}, writing to outbox: {event.event_type.value}"
+263	                )
+264	                self._write_outbox(event, handler.__name__, "circuit_open")
+265	                return
+266	
+267	        for attempt in range(1, TIER2_MAX_RETRIES + 1):
+268	            start = time.monotonic()
+269	            try:
+270	                await handler(event)
+271	                duration_ms = (time.monotonic() - start) * 1000
+272	                self._stats["handled_success"] += 1
+273	                logger.info(
+274	                    f"EventBus[T2]: {handler.__name__} OK "
+275	                    f"(attempt={attempt}, {duration_ms:.1f}ms, "
+276	                    f"event={event.event_type.value})"
+277	                )
+278	                # Record success on circuit breaker
+279	                if subsystem:
+280	                    cb = self._circuit_breakers.get(subsystem)
+281	                    if cb:
+282	                        cb.record_success()
+283	                return
+284	            except Exception as exc:
+285	                duration_ms = (time.monotonic() - start) * 1000
+286	                self._stats["retried"] += 1
+287	                delay = TIER2_BASE_DELAY_S * (2 ** (attempt - 1))
+288	                logger.warning(
+289	                    f"EventBus[T2]: {handler.__name__} FAILED "
+290	                    f"(attempt={attempt}/{TIER2_MAX_RETRIES}, "
+291	                    f"{duration_ms:.1f}ms, retry in {delay}s): {exc}"
+292	                )
+293	                # Record failure on circuit breaker
+294	                if subsystem:
+295	                    cb = self._circuit_breakers.get(subsystem)
+296	                    if cb:
+297	                        cb.record_failure()
+298	
+299	                if attempt < TIER2_MAX_RETRIES:
+300	                    await asyncio.sleep(delay)

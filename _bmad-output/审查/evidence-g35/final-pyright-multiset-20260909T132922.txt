@@ -1,0 +1,26 @@
+SHA_CURRENT(本卡版) = 1dab05dcf472021ef4d7a1f19394623675b831ad56464dfafbaa32a91805d341
+
+=================== A. 本卡版 pyright ===================
+    Attribute "value" is unknown (reportAttributeAccessIssue)
+17 errors, 2 warnings, 0 informations
+after 归一化条数 = 19
+
+=================== B. 基线版 (155d3361) pyright ===================
+换入基线版 sha = 545fc226703355889ac05cb41c87d04d5b12cc8ae40ba865ef19b0740b03e4c6
+    Attribute "value" is unknown (reportAttributeAccessIssue)
+18 errors, 2 warnings, 0 informations
+before 归一化条数 = 20
+已换回本卡版
+
+=================== C. 多重集对照 (本卡新增必须 = 0) ===================
+--- 本卡新增 (必须为空) ---
+新增条数 = 0
+--- 本卡消除 (允许) ---
+1 /backend/app/services/review_service.py - error: Argument of type "str | object" cannot be assigned to parameter "value" of type "str" in function "__setitem__"
+消除条数 = 1
+
+=================== D. 原始 summary 行 ===================
+before: 18 errors, 2 warnings, 0 informations
+after : 17 errors, 2 warnings, 0 informations
+WORK=/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.vzVZuEodVj
+RESTORE: OK (逐字节回到本卡版)

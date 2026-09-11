@@ -1,0 +1,13 @@
+===== 还原（git show HEAD:<path> > <path>）=====
+===== 还原后 sha =====
+146b828f595efe10660eda97575f97ca60d5bec5195fe4dffdf54472f77ca0bd  backend/tests/unit/test_sync_batch_auth.py
+ecf95d29fb45f843dd461acd014d10baa22cc81d0ef563bc721305b67ee3ecbe  backend/tests/unit/test_system_endpoint_auth.py
+改前 sha 对照:
+146b828f595efe10660eda97575f97ca60d5bec5195fe4dffdf54472f77ca0bd  backend/tests/unit/test_sync_batch_auth.py
+ecf95d29fb45f843dd461acd014d10baa22cc81d0ef563bc721305b67ee3ecbe  backend/tests/unit/test_system_endpoint_auth.py
+===== git diff --quiet 对账 =====
+diff-quiet-rc=0
+===== model_construct 分支已复原 =====
+Settings.model_construct 计数: sync=1 system=1
+===== 全树 status（应只有 evidence 未跟踪）=====
+?? "_bmad-output/\345\256\241\346\237\245/evidence-red-a2/"

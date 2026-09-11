@@ -1,0 +1,328 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 61 items
+
+tests/unit/test_agent_service_extraction.py ............................ [ 45%]
+.EEF.                                                                    [ 54%]
+tests/unit/test_memory_service_batch.py EEEEEE                           [ 63%]
+tests/unit/test_story_30_11_batch_parallel.py EEEEEEEEEE.                [ 81%]
+tests/unit/test_story_30_13_batch_idempotency.py EEEEEEEEEEE             [100%]
+
+==================================== ERRORS ====================================
+_ ERROR at setup of TestDebugAgentResponseLogging.test_extract_with_debug_logging_enabled _
+file /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/tests/unit/test_agent_service_extraction.py, line 294
+      def test_extract_with_debug_logging_enabled(self, mocker, caplog):
+E       fixture 'mocker' not found
+>       available fixtures: _class_scoped_runner, _configure_logging_for_tests, _function_scoped_runner, _module_scoped_runner, _neo4j_live_port_guard, _no_vault_skeleton_left_behind, _package_scoped_runner, _pytest_bdd_example, _reset_structlog_contextvars, _session_scoped_runner, _stub_vault_identity_registry, agent_service, anyio_backend, anyio_backend_name, anyio_backend_options, async_client, canvas_file, canvas_service, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, client, cov, doctest_namespace, event_loop_policy, fallback_service, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, isolate_card_states_file, isolate_dependency_overrides, isolate_memory_singleton, mock_agent_service, mock_canvas_service, mock_graphiti_client, mock_healthy_provider, mock_settings_multi_provider, mock_task_manager, mock_unhealthy_provider, monkeypatch, neo4j_available, neo4j_test_session, no_cover, provider_factory_clean, pytestbdd_stepdef_given_trace, pytestbdd_stepdef_then_trace, pytestbdd_stepdef_when_trace, pytestconfig, real_memory_service, real_neo4j_client, record_property, record_testsuite_property, record_xml_attribute, recwarn, reset_prometheus, review_service, review_service_factory, sample_canvas_data, subtests, task_manager, temp_dir, test_canvas_path, test_node_id, test_settings, test_user_id, testrun_uid, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, unused_tcp_port, unused_tcp_port_factory, unused_udp_port, unused_udp_port_factory, wait_condition, wait_for_call, worker_id
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/tests/unit/test_agent_service_extraction.py:294
+_ ERROR at setup of TestDebugAgentResponseLogging.test_extract_without_debug_logging _
+file /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/tests/unit/test_agent_service_extraction.py, line 312
+      def test_extract_without_debug_logging(self, mocker, caplog):
+E       fixture 'mocker' not found
+>       available fixtures: _class_scoped_runner, _configure_logging_for_tests, _function_scoped_runner, _module_scoped_runner, _neo4j_live_port_guard, _no_vault_skeleton_left_behind, _package_scoped_runner, _pytest_bdd_example, _reset_structlog_contextvars, _session_scoped_runner, _stub_vault_identity_registry, agent_service, anyio_backend, anyio_backend_name, anyio_backend_options, async_client, canvas_file, canvas_service, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, client, cov, doctest_namespace, event_loop_policy, fallback_service, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, isolate_card_states_file, isolate_dependency_overrides, isolate_memory_singleton, mock_agent_service, mock_canvas_service, mock_graphiti_client, mock_healthy_provider, mock_settings_multi_provider, mock_task_manager, mock_unhealthy_provider, monkeypatch, neo4j_available, neo4j_test_session, no_cover, provider_factory_clean, pytestbdd_stepdef_given_trace, pytestbdd_stepdef_then_trace, pytestbdd_stepdef_when_trace, pytestconfig, real_memory_service, real_neo4j_client, record_property, record_testsuite_property, record_xml_attribute, recwarn, reset_prometheus, review_service, review_service_factory, sample_canvas_data, subtests, task_manager, temp_dir, test_canvas_path, test_node_id, test_settings, test_user_id, testrun_uid, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, unused_tcp_port, unused_tcp_port_factory, unused_udp_port, unused_udp_port_factory, wait_condition, wait_for_call, worker_id
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/tests/unit/test_agent_service_extraction.py:312
+_ ERROR at setup of TestRecordBatchLearningEventsConcept.test_concept_field_used_when_present _
+tests/unit/test_memory_service_batch.py:46: in memory_service
+    await service.initialize()
+app/services/memory_service.py:282: in initialize
+    await self._recover_episodes_from_neo4j()
+app/services/memory_service.py:381: in _recover_episodes_from_neo4j
+    records = await self.neo4j.get_all_recent_episodes(
+E   TypeError: 'MagicMock' object can't be awaited
+_ ERROR at setup of TestRecordBatchLearningEventsConcept.test_concept_fallback_to_node_text _
+tests/unit/test_memory_service_batch.py:46: in memory_service
+    await service.initialize()
+app/services/memory_service.py:282: in initialize
+    await self._recover_episodes_from_neo4j()
+app/services/memory_service.py:381: in _recover_episodes_from_neo4j
+    records = await self.neo4j.get_all_recent_episodes(
+E   TypeError: 'MagicMock' object can't be awaited
+_ ERROR at setup of TestRecordBatchLearningEventsConcept.test_concept_fallback_to_unknown _
+tests/unit/test_memory_service_batch.py:46: in memory_service
+    await service.initialize()
+app/services/memory_service.py:282: in initialize
+    await self._recover_episodes_from_neo4j()
+app/services/memory_service.py:381: in _recover_episodes_from_neo4j
+    records = await self.neo4j.get_all_recent_episodes(
+E   TypeError: 'MagicMock' object can't be awaited
+_ ERROR at setup of TestRecordBatchLearningEventsConcept.test_color_removed_event_type _
+tests/unit/test_memory_service_batch.py:46: in memory_service
+    await service.initialize()
+app/services/memory_service.py:282: in initialize
+    await self._recover_episodes_from_neo4j()
+app/services/memory_service.py:381: in _recover_episodes_from_neo4j
+    records = await self.neo4j.get_all_recent_episodes(
+E   TypeError: 'MagicMock' object can't be awaited
+_ ERROR at setup of TestRecordBatchLearningEventsConcept.test_node_removed_event_type _
+tests/unit/test_memory_service_batch.py:46: in memory_service
+    await service.initialize()
+app/services/memory_service.py:282: in initialize
+    await self._recover_episodes_from_neo4j()
+app/services/memory_service.py:381: in _recover_episodes_from_neo4j
+    records = await self.neo4j.get_all_recent_episodes(
+E   TypeError: 'MagicMock' object can't be awaited
+_ ERROR at setup of TestRecordBatchLearningEventsConcept.test_neo4j_disconnected_still_stores_in_memory _
+tests/unit/test_memory_service_batch.py:46: in memory_service
+    await service.initialize()
+app/services/memory_service.py:282: in initialize
+    await self._recover_episodes_from_neo4j()
+app/services/memory_service.py:381: in _recover_episodes_from_neo4j
+    records = await self.neo4j.get_all_recent_episodes(
+E   TypeError: 'MagicMock' object can't be awaited
+__ ERROR at setup of TestBatchParallelExecution.test_50_events_all_processed ___
+tests/unit/test_story_30_11_batch_parallel.py:52: in memory_service
+    await service.initialize()
+app/services/memory_service.py:282: in initialize
+    await self._recover_episodes_from_neo4j()
+app/services/memory_service.py:381: in _recover_episodes_from_neo4j
+    records = await self.neo4j.get_all_recent_episodes(
+E   TypeError: 'MagicMock' object can't be awaited
+_ ERROR at setup of TestBatchParallelExecution.test_neo4j_called_for_each_event _
+tests/unit/test_story_30_11_batch_parallel.py:52: in memory_service
+    await service.initialize()
+app/services/memory_service.py:282: in initialize
+    await self._recover_episodes_from_neo4j()
+app/services/memory_service.py:381: in _recover_episodes_from_neo4j
+    records = await self.neo4j.get_all_recent_episodes(
+E   TypeError: 'MagicMock' object can't be awaited
+_ ERROR at setup of TestBatchParallelExecution.test_parallel_faster_than_sequential _
+tests/unit/test_story_30_11_batch_parallel.py:52: in memory_service
+    await service.initialize()
+app/services/memory_service.py:282: in initialize
+    await self._recover_episodes_from_neo4j()
+app/services/memory_service.py:381: in _recover_episodes_from_neo4j
+    records = await self.neo4j.get_all_recent_episodes(
+E   TypeError: 'MagicMock' object can't be awaited
+_ ERROR at setup of TestBatchParallelExecution.test_performance_stats_recorded _
+tests/unit/test_story_30_11_batch_parallel.py:52: in memory_service
+    await service.initialize()
+app/services/memory_service.py:282: in initialize
+    await self._recover_episodes_from_neo4j()
+app/services/memory_service.py:381: in _recover_episodes_from_neo4j
+    records = await self.neo4j.get_all_recent_episodes(
+E   TypeError: 'MagicMock' object can't be awaited
+_ ERROR at setup of TestBatchPartialFailure.test_neo4j_failure_does_not_block_processing _
+tests/unit/test_story_30_11_batch_parallel.py:166: in memory_service
+    await service.initialize()
+app/services/memory_service.py:282: in initialize
+    await self._recover_episodes_from_neo4j()
+app/services/memory_service.py:381: in _recover_episodes_from_neo4j
+    records = await self.neo4j.get_all_recent_episodes(
+E   TypeError: 'MagicMock' object can't be awaited
+__ ERROR at setup of TestBatchPartialFailure.test_validation_failure_isolated __
+tests/unit/test_story_30_11_batch_parallel.py:166: in memory_service
+    await service.initialize()
+app/services/memory_service.py:282: in initialize
+    await self._recover_episodes_from_neo4j()
+app/services/memory_service.py:381: in _recover_episodes_from_neo4j
+    records = await self.neo4j.get_all_recent_episodes(
+E   TypeError: 'MagicMock' object can't be awaited
+_ ERROR at setup of TestBatchPartialFailure.test_episode_ids_only_for_successful _
+tests/unit/test_story_30_11_batch_parallel.py:166: in memory_service
+    await service.initialize()
+app/services/memory_service.py:282: in initialize
+    await self._recover_episodes_from_neo4j()
+app/services/memory_service.py:381: in _recover_episodes_from_neo4j
+    records = await self.neo4j.get_all_recent_episodes(
+E   TypeError: 'MagicMock' object can't be awaited
+__ ERROR at setup of TestBatchSemaphore.test_concurrency_limited_by_semaphore __
+tests/unit/test_story_30_11_batch_parallel.py:285: in memory_service
+    await service.initialize()
+app/services/memory_service.py:282: in initialize
+    await self._recover_episodes_from_neo4j()
+app/services/memory_service.py:381: in _recover_episodes_from_neo4j
+    records = await self.neo4j.get_all_recent_episodes(
+E   TypeError: 'MagicMock' object can't be awaited
+_ ERROR at setup of TestBatchNeo4jDegradation.test_neo4j_unavailable_still_processes_to_memory _
+tests/unit/test_story_30_11_batch_parallel.py:361: in memory_service
+    await service.initialize()
+app/services/memory_service.py:282: in initialize
+    await self._recover_episodes_from_neo4j()
+app/services/memory_service.py:381: in _recover_episodes_from_neo4j
+    records = await self.neo4j.get_all_recent_episodes(
+E   TypeError: 'MagicMock' object can't be awaited
+_ ERROR at setup of TestBatchIdempotencyCompat.test_duplicate_batch_no_duplicates _
+tests/unit/test_story_30_11_batch_parallel.py:423: in memory_service
+    await service.initialize()
+app/services/memory_service.py:282: in initialize
+    await self._recover_episodes_from_neo4j()
+app/services/memory_service.py:381: in _recover_episodes_from_neo4j
+    records = await self.neo4j.get_all_recent_episodes(
+E   TypeError: 'MagicMock' object can't be awaited
+____ ERROR at setup of TestBatchIdempotency.test_duplicate_event_detection _____
+tests/unit/test_story_30_13_batch_idempotency.py:46: in memory_service
+    await service.initialize()
+app/services/memory_service.py:282: in initialize
+    await self._recover_episodes_from_neo4j()
+app/services/memory_service.py:381: in _recover_episodes_from_neo4j
+    records = await self.neo4j.get_all_recent_episodes(
+E   TypeError: 'MagicMock' object can't be awaited
+_ ERROR at setup of TestBatchIdempotency.test_idempotent_writes_across_retries _
+tests/unit/test_story_30_13_batch_idempotency.py:46: in memory_service
+    await service.initialize()
+app/services/memory_service.py:282: in initialize
+    await self._recover_episodes_from_neo4j()
+app/services/memory_service.py:381: in _recover_episodes_from_neo4j
+    records = await self.neo4j.get_all_recent_episodes(
+E   TypeError: 'MagicMock' object can't be awaited
+_____ ERROR at setup of TestBatchIdempotency.test_large_batch_idempotency ______
+tests/unit/test_story_30_13_batch_idempotency.py:46: in memory_service
+    await service.initialize()
+app/services/memory_service.py:282: in initialize
+    await self._recover_episodes_from_neo4j()
+app/services/memory_service.py:381: in _recover_episodes_from_neo4j
+    records = await self.neo4j.get_all_recent_episodes(
+E   TypeError: 'MagicMock' object can't be awaited
+_ ERROR at setup of TestBatchIdempotency.test_different_events_not_deduplicated _
+tests/unit/test_story_30_13_batch_idempotency.py:46: in memory_service
+    await service.initialize()
+app/services/memory_service.py:282: in initialize
+    await self._recover_episodes_from_neo4j()
+app/services/memory_service.py:381: in _recover_episodes_from_neo4j
+    records = await self.neo4j.get_all_recent_episodes(
+E   TypeError: 'MagicMock' object can't be awaited
+___ ERROR at setup of TestBatchPerformance.test_batch_50_events_under_500ms ____
+tests/unit/test_story_30_13_batch_idempotency.py:46: in memory_service
+    await service.initialize()
+app/services/memory_service.py:282: in initialize
+    await self._recover_episodes_from_neo4j()
+app/services/memory_service.py:381: in _recover_episodes_from_neo4j
+    records = await self.neo4j.get_all_recent_episodes(
+E   TypeError: 'MagicMock' object can't be awaited
+___ ERROR at setup of TestBatchPerformance.test_batch_1000_events_completion ___
+tests/unit/test_story_30_13_batch_idempotency.py:46: in memory_service
+    await service.initialize()
+app/services/memory_service.py:282: in initialize
+    await self._recover_episodes_from_neo4j()
+app/services/memory_service.py:381: in _recover_episodes_from_neo4j
+    records = await self.neo4j.get_all_recent_episodes(
+E   TypeError: 'MagicMock' object can't be awaited
+_______ ERROR at setup of TestBatchPerformance.test_batch_memory_metrics _______
+tests/unit/test_story_30_13_batch_idempotency.py:46: in memory_service
+    await service.initialize()
+app/services/memory_service.py:282: in initialize
+    await self._recover_episodes_from_neo4j()
+app/services/memory_service.py:381: in _recover_episodes_from_neo4j
+    records = await self.neo4j.get_all_recent_episodes(
+E   TypeError: 'MagicMock' object can't be awaited
+____ ERROR at setup of TestBatchPerformance.test_concurrent_batch_requests _____
+tests/unit/test_story_30_13_batch_idempotency.py:46: in memory_service
+    await service.initialize()
+app/services/memory_service.py:282: in initialize
+    await self._recover_episodes_from_neo4j()
+app/services/memory_service.py:381: in _recover_episodes_from_neo4j
+    records = await self.neo4j.get_all_recent_episodes(
+E   TypeError: 'MagicMock' object can't be awaited
+_ ERROR at setup of TestBatchPartialFailureRecovery.test_partial_failure_recovery _
+tests/unit/test_story_30_13_batch_idempotency.py:46: in memory_service
+    await service.initialize()
+app/services/memory_service.py:282: in initialize
+    await self._recover_episodes_from_neo4j()
+app/services/memory_service.py:381: in _recover_episodes_from_neo4j
+    records = await self.neo4j.get_all_recent_episodes(
+E   TypeError: 'MagicMock' object can't be awaited
+_ ERROR at setup of TestBatchPartialFailureRecovery.test_event_ordering_preserved _
+tests/unit/test_story_30_13_batch_idempotency.py:46: in memory_service
+    await service.initialize()
+app/services/memory_service.py:282: in initialize
+    await self._recover_episodes_from_neo4j()
+app/services/memory_service.py:381: in _recover_episodes_from_neo4j
+    records = await self.neo4j.get_all_recent_episodes(
+E   TypeError: 'MagicMock' object can't be awaited
+_ ERROR at setup of TestBatchPartialFailureRecovery.test_neo4j_unavailable_fallback _
+tests/unit/test_story_30_13_batch_idempotency.py:46: in memory_service
+    await service.initialize()
+app/services/memory_service.py:282: in initialize
+    await self._recover_episodes_from_neo4j()
+app/services/memory_service.py:381: in _recover_episodes_from_neo4j
+    records = await self.neo4j.get_all_recent_episodes(
+E   TypeError: 'MagicMock' object can't be awaited
+=================================== FAILURES ===================================
+___ TestDebugAgentResponseLogging.test_config_has_debug_agent_response_field ___
+tests/unit/test_agent_service_extraction.py:348: in test_config_has_debug_agent_response_field
+    assert settings.DEBUG_AGENT_RESPONSE is False, "默认值应为 False"
+E   AssertionError: 默认值应为 False
+E   assert True is False
+E    +  where True = Settings(PROJECT_NAME='Canvas Learning System API', PROJECT_DESCRIPTION='Multi-agent learning system backend using Fey...OLD=0.85, FAITHFULNESS_THRESHOLD_LOW=0.5, FAITHFULNESS_MODEL='', INJECTION_GUARD_ENABLED=True, INJECTION_THRESHOLD=0.7).DEBUG_AGENT_RESPONSE
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:805
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/app/api/v1/endpoints/chat.py:805: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:105
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/app/api/v1/endpoints/metadata.py:105: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:179
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/app/api/v1/endpoints/metadata.py:179: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_agent_service_extraction.py::TestDebugAgentResponseLogging::test_config_has_debug_agent_response_field
+ERROR tests/unit/test_agent_service_extraction.py::TestDebugAgentResponseLogging::test_extract_with_debug_logging_enabled
+ERROR tests/unit/test_agent_service_extraction.py::TestDebugAgentResponseLogging::test_extract_without_debug_logging
+ERROR tests/unit/test_memory_service_batch.py::TestRecordBatchLearningEventsConcept::test_concept_field_used_when_present
+ERROR tests/unit/test_memory_service_batch.py::TestRecordBatchLearningEventsConcept::test_concept_fallback_to_node_text
+ERROR tests/unit/test_memory_service_batch.py::TestRecordBatchLearningEventsConcept::test_concept_fallback_to_unknown
+ERROR tests/unit/test_memory_service_batch.py::TestRecordBatchLearningEventsConcept::test_color_removed_event_type
+ERROR tests/unit/test_memory_service_batch.py::TestRecordBatchLearningEventsConcept::test_node_removed_event_type
+ERROR tests/unit/test_memory_service_batch.py::TestRecordBatchLearningEventsConcept::test_neo4j_disconnected_still_stores_in_memory
+ERROR tests/unit/test_story_30_11_batch_parallel.py::TestBatchParallelExecution::test_50_events_all_processed
+ERROR tests/unit/test_story_30_11_batch_parallel.py::TestBatchParallelExecution::test_neo4j_called_for_each_event
+ERROR tests/unit/test_story_30_11_batch_parallel.py::TestBatchParallelExecution::test_parallel_faster_than_sequential
+ERROR tests/unit/test_story_30_11_batch_parallel.py::TestBatchParallelExecution::test_performance_stats_recorded
+ERROR tests/unit/test_story_30_11_batch_parallel.py::TestBatchPartialFailure::test_neo4j_failure_does_not_block_processing
+ERROR tests/unit/test_story_30_11_batch_parallel.py::TestBatchPartialFailure::test_validation_failure_isolated
+ERROR tests/unit/test_story_30_11_batch_parallel.py::TestBatchPartialFailure::test_episode_ids_only_for_successful
+ERROR tests/unit/test_story_30_11_batch_parallel.py::TestBatchSemaphore::test_concurrency_limited_by_semaphore
+ERROR tests/unit/test_story_30_11_batch_parallel.py::TestBatchNeo4jDegradation::test_neo4j_unavailable_still_processes_to_memory
+ERROR tests/unit/test_story_30_11_batch_parallel.py::TestBatchIdempotencyCompat::test_duplicate_batch_no_duplicates
+ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchIdempotency::test_duplicate_event_detection
+ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchIdempotency::test_idempotent_writes_across_retries
+ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchIdempotency::test_large_batch_idempotency
+ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchIdempotency::test_different_events_not_deduplicated
+ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPerformance::test_batch_50_events_under_500ms
+ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPerformance::test_batch_1000_events_completion
+ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPerformance::test_batch_memory_metrics
+ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPerformance::test_concurrent_batch_requests
+ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPartialFailureRecovery::test_partial_failure_recovery
+ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPartialFailureRecovery::test_event_ordering_preserved
+ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPartialFailureRecovery::test_neo4j_unavailable_fallback
+============= 1 failed, 31 passed, 10 warnings, 29 errors in 3.97s =============
+rc=1
