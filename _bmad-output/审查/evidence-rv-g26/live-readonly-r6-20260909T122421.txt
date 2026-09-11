@@ -1,0 +1,15 @@
+### U3-A 核心裁判 5：live vault 只读 verify（HIGH 整改后复跑）ts=20260909T122421
+rc=0  （卡文要求 rc=2：用过的 vault 必有额外文件/漂移）
+match                  : 35
+missing                : 0
+extra                  : 0
+content-drift          : not evaluated (无 --source)
+allowed-extra          : 5
+optional-missing       : 0
+unreadable             : 0
+hotkeys                : 3 绑定 / 10 命令 / 0 orphan
+--- 四重禁写 ---
+  find -newer = 0
+  密钥 sha 同 ✅
+  git status canvas-vault = 0
+rc=0

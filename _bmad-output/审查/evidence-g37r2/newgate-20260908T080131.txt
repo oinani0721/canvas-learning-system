@@ -1,0 +1,8 @@
+tests/unit/test_mastery_fsrs_projection_boundary.py::test_projection_anchor_present_in_both_modules PASSED [ 16%]
+tests/unit/test_mastery_fsrs_projection_boundary.py::test_write_call_checker_is_not_vacuous PASSED [ 33%]
+tests/unit/test_mastery_fsrs_projection_boundary.py::test_mastery_modules_contain_no_filesystem_writes PASSED [ 50%]
+tests/unit/test_mastery_fsrs_projection_boundary.py::test_fsrs_card_states_appears_only_as_prose_anchor PASSED [ 66%]
+tests/unit/test_mastery_fsrs_projection_boundary.py::test_executable_code_checker_is_not_vacuous PASSED [ 83%]
+tests/unit/test_mastery_fsrs_projection_boundary.py::test_fsrs_update_does_not_write_review_projection PASSED [100%]
+======================== 6 passed, 10 warnings in 0.39s ========================
+rc=0

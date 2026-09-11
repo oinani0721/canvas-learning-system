@@ -1,0 +1,67 @@
+===== U10 车道 commit（da690bf8..HEAD）=====
+052a9289 docs(uat): 收官状态段 + 收官地盘门存档 [BATCH-2026-09-07-第十三批 / CARD-RED-A1-sentinel]
+b422e9dc docs(uat): Codex r2 整改 — 把正文里被推翻的三处说法一起改掉 + 探针还原自证加固 [BATCH-2026-09-07-第十三批 / CARD-RED-A1-sentinel]
+e74757c5 fix(tests): Codex r1 整改 — 三处把推断当事实的表述改正 + 补更强负控 [BATCH-2026-09-07-第十三批 / CARD-RED-A1-sentinel]
+b8017248 test(unit): 12 条哨兵红按真连点测试侧打桩 + system router 落鉴权 [BATCH-2026-09-07-第十三批 / CARD-RED-A1-sentinel]
+0acea4e3 docs(uat): Codex r5 末轮收尾 — 停轮达成 + 推翻一处与日志相反的耗时归因 [BATCH-2026-09-07-第十三批 / CARD-RED-A1-auth]
+385078b8 docs(uat): Codex r4 整改 — 台账最后一处本卡行号改用名称 [BATCH-2026-09-07-第十三批 / CARD-RED-A1-auth]
+1e326860 docs(tests): Codex r3 整改 — 位置引用一律改用例名，不再写会漂的行号 [BATCH-2026-09-07-第十三批 / CARD-RED-A1-auth]
+bcbe2741 docs(tests): Codex r2 整改 — 推翻一条不成立的「覆盖缺口」声明 [BATCH-2026-09-07-第十三批 / CARD-RED-A1-auth]
+faeda37f test(unit): opt-in authed_client 解开 37 条 router 级鉴权 503 [BATCH-2026-09-07-第十三批 / CARD-RED-A1-auth]
+7004a365 docs(agents): Codex r5 末轮收尾 — 停轮条件达成 + 最后一条声明收窄 [BATCH-2026-09-07-第十三批 / CARD-RED-E]
+2b9d44d8 docs(agents): Codex r4 整改 — 三处说明失实/过宽全部改正（纯 docstring）[BATCH-2026-09-07-第十三批 / CARD-RED-E]
+798b39b1 fix(agents): Codex r3 整改 — 门从数量判据升级为身份判据 [BATCH-2026-09-07-第十三批 / CARD-RED-E]
+49994317 fix(agents): Codex r2 整改 — 门从静态推断升级为运行期观测 [BATCH-2026-09-07-第十三批 / CARD-RED-E]
+f7729fdb fix(agents): Codex r1 整改 — 两表门绑全部绑定 + 消息分方向 + 表述更正 [BATCH-2026-09-07-第十三批 / CARD-RED-E]
+eed7a44c fix(agents): 恢复 6 份模板 + 新作 hint-generation + 假绿修 + 两表对齐 [BATCH-2026-09-07-第十三批 / CARD-RED-E]
+0465a35c docs(hygiene): Codex r6 四条全处置 — 停轮裁定接受 [BATCH-2026-09-07-第十三批 / CARD-HYGIENE-conftest]
+475f2bee docs(hygiene): 自审两轮 14 条确认全处置 + r6 裁判存档 [BATCH-2026-09-07-第十三批 / CARD-HYGIENE-conftest]
+4fa30e48 fix(hygiene): 目录符号链接记账 — 自审抓到的静默放行面 [BATCH-2026-09-07-第十三批 / CARD-HYGIENE-conftest]
+0491b12a docs(hygiene): Codex r5 末轮整改 — 撤回与 §三·八 矛盾的宽建议 [BATCH-2026-09-07-第十三批]
+bbdf19ea fix(hygiene): Codex r4 整改 — 撤回未交付的证据声明 + 三处结论收窄 [BATCH-2026-09-07-第十三批 / CARD-HYGIENE-conftest]
+ce5bc6e9 fix(hygiene): Codex r3 整改 — 三段内部的确定性断言全部收窄 [BATCH-2026-09-07-第十三批 / CARD-HYGIENE-conftest]
+459190f0 fix(hygiene): Codex r2 整改 — 三类信号分开报 + 越界判定改文件系统身份 [BATCH-2026-09-07-第十三批 / CARD-HYGIENE-conftest]
+2c799422 fix(hygiene): Codex r1 整改 — 目录枚举失败不再静默通过 + 告警措辞收窄 [BATCH-2026-09-07-第十三批 / CARD-HYGIENE-conftest]
+13a138c9 test(hygiene): /tmp 信号降告警 + 新增 AST 源码字面量门 [BATCH-2026-09-07-第十三批 / CARD-HYGIENE-conftest]
+
+===== 车道改过的非 _bmad-output 文件 =====
+.claude/agents/canvas-orchestrator.md
+.claude/agents/graphiti-memory-agent.md
+.claude/agents/hint-generation.md
+.claude/agents/iteration-validator.md
+.claude/agents/parallel-dev-orchestrator.md
+.claude/agents/planning-orchestrator.md
+.claude/agents/review-board-agent-selector.md
+backend/app/api/v1/system.py
+backend/app/services/agent_service.py
+backend/openapi.json
+backend/tests/support/authed_client.py
+backend/tests/unit/conftest.py
+backend/tests/unit/test_agent_templates_smoke.py
+backend/tests/unit/test_chat_endpoint.py
+backend/tests/unit/test_config_drift.py
+backend/tests/unit/test_enrich_context_vault_isolation.py
+backend/tests/unit/test_health_detailed.py
+backend/tests/unit/test_kg_health.py
+backend/tests/unit/test_mock_degradation_transparency.py
+backend/tests/unit/test_review_mode_support.py
+backend/tests/unit/test_startup_health_check.py
+backend/tests/unit/test_study_question_deep_mode.py
+backend/tests/unit/test_sync_exception_classification.py
+rc=0
+
+===== 开工 diff（vs 202 基线）分类计数 =====
+  16 tests/unit/test_chat_endpoint.py
+   9 tests/unit/test_agent_templates_smoke.py
+   8 tests/unit/test_study_question_deep_mode.py
+   6 tests/unit/test_sync_exception_classification.py
+   6 tests/unit/test_startup_health_check.py
+   3 tests/unit/test_health_detailed.py
+   2 tests/unit/test_enrich_context_vault_isolation.py
+   1 tests/unit/test_review_mode_support.py
+   1 tests/unit/test_mock_degradation_transparency.py
+   1 tests/unit/test_kg_health.py
+
+===== '>' 行数（新增红，必须 0）=====
+0
+0（grep 无匹配）

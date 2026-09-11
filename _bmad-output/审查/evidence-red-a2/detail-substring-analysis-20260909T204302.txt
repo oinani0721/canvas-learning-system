@@ -1,0 +1,8 @@
+共有前缀做正向子串断言 —— 分不开:
+  b1 in b1: True | b1 in b2: True
+  'not configured' in b1/b2: True / True
+Branch 2 独有后缀做子串断言 —— 能分，但断的是「不是 Branch 1」:
+  'Set INTERNAL_API_KEY env' in b1: False
+  'Set INTERNAL_API_KEY env' in b2: True
+正向锁定 Branch 1:
+  b1 == b1: True | b2 == b1: False

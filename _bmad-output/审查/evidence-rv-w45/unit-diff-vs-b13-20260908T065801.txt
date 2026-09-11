@@ -1,0 +1,31 @@
+=== 基线文件（本树缺席，取自 additional working dir）===
+BASE=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/审查/evidence-b13/unit-red-baseline-da690bf8.txt
+-rw-r--r--@ 1 Heishing  staff  22943 Sep  7 12:53 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/审查/evidence-b13/unit-red-baseline-da690bf8.txt
+--- 基线首 3 行（含注释头）---
+# tests/unit 目录级既有红基线 · 主干代码树 = da690bf8（第十三批 CODE_BASE；scratch worktree batch13-recon @ da690bf8，backend/.env 已补，venv = card-v5-lance 共享 venv）
+# 采集：2026-09-07 20260907T123925，命令 cd backend && PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest tests/unit -q -p no:cacheprovider（W4 门下）；原始输出 dir-tests-unit-20260907T123925.txt（汇总行 173 failed / 4749 passed / 48 skipped / 29 errors）
+# 口径：只收 pytest nodeid 行（FAILED/ERROR），已剥离 ' - <消息>' 尾巴并 sort -u；日志噪音行不计。nodeid 数见末行。与第十二批候选树 evidence-b12-integ/unit-red-integ-20260906T203713.txt（202）逐条 diff 见 unit-red-baseline-da690bf8.diff.txt
+--- 基线 nodeid 数（去注释去重）---
+     202
+
+=== 本次 nodeid 数 ===
+     202
+
+=== diff 基线 vs 本次 ===
+diff_rc=0
+
+=== 汇总行 ===
+= 173 failed, 4749 passed, 48 skipped, 122 warnings, 29 errors in 238.04s (0:03:58) =
+=== SKIPPED 集（红基线 diff 看不见覆盖损失，另收）===
+0
+0
+
+=== U10-A /tmp 负控噪音双判据 ===
+判据1 末尾 ERROR 是否 teardown 形态:
+ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPartialFailureRecovery::test_neo4j_unavailable_fallback
+判据2 是否含 /tmp/test-vault-negctl 或 /tmp/test-vault-treeB:
+0
+（命中的 test-vault 全部形态）:
+/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19193/test_endpoint_exists0/test-vault
+/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-19193/test_returns_structured_report0/test-vault-wizard
+结论: 两条判据均不成立 ⇒ 本次跑未中 U10-A 窗口噪音

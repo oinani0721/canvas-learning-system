@@ -1,0 +1,36 @@
+### CARD-RED-R bisect archive
+slug: test_story_38_6_scoring_reliability--test_get_learning_history_merges_failed_scores
+nodeid: tests/unit/test_story_38_6_scoring_reliability.py::TestAC4MergedView::test_get_learning_history_merges_failed_scores
+interval: good=dd50d505 (e6fbd337^)  bad=e6fbd337 (e6fbd337)
+started: 2026-09-09T11:51:53+0800
+runner-judge: pytest 摘要行 (⛔ 非退出码 —— 老 commit addopts 含 --cov-fail-under=85, passed 也 rc=1)
+sparse-checkout: 排除 /backend/.canvas-learning/ (该目录含非法字节序列路径, macOS 无法 checkout)
+
+Preparing worktree (detached HEAD e6fbd337)
+== 端点验证 1/2: BAD=e6fbd337 (期望 VERDICT=BAD) ==
+--- HEAD=e6fbd337 nodeid=tests/unit/test_story_38_6_scoring_reliability.py::TestAC4MergedView::test_get_learning_history_merges_failed_scores
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-test_story_38_6_scoring_reliability--test_get_learning_history_merges_failed_scores/backend/app/api/v1/endpoints/metadata.py:150: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-test_story_38_6_scoring_reliability--test_get_learning_history_merges_failed_scores/backend/app/mcp/server.py:132: DeprecationWarning: mount() is deprecated and will be removed in a future version. Use mount_http() for HTTP transport (recommended) or mount_sse() for SSE transport instead.
+ERROR tests/unit/test_story_38_6_scoring_reliability.py
+======================== 10 warnings, 1 error in 0.20s =========================
+--- pytest_raw_rc=4 (仅记录, 不作判据)
+VERDICT=SKIP reason=no-verdict-line
+bad_end_rc=125
+
+== 端点验证 2/2: GOOD=dd50d505 (期望 VERDICT=GOOD) ==
+--- HEAD=dd50d505 nodeid=tests/unit/test_story_38_6_scoring_reliability.py::TestAC4MergedView::test_get_learning_history_merges_failed_scores
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-test_story_38_6_scoring_reliability--test_get_learning_history_merges_failed_scores/backend/app/api/v1/endpoints/metadata.py:150: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-test_story_38_6_scoring_reliability--test_get_learning_history_merges_failed_scores/backend/app/mcp/server.py:132: DeprecationWarning: mount() is deprecated and will be removed in a future version. Use mount_http() for HTTP transport (recommended) or mount_sse() for SSE transport instead.
+ERROR tests/unit/test_story_38_6_scoring_reliability.py
+======================== 10 warnings, 1 error in 0.20s =========================
+--- pytest_raw_rc=4 (仅记录, 不作判据)
+VERDICT=SKIP reason=no-verdict-line
+good_end_rc=125
+
+ENDPOINT_STATUS=INCONCLUSIVE_bad125_good125
+
+== 区间预设被端点验证推翻, 不进入 bisect (见 ENDPOINT_STATUS) ==
+# first bad commit: [UNRESOLVED-需扩区间]
+worktree_removed_rc=0
+finished: 2026-09-09T11:53:06+0800
+rc=0

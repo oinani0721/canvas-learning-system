@@ -1,0 +1,16 @@
+### 判据: 多重集对照（键 = 路径(/backend/app/ 起) + 规则 + 严重度 + 归一化消息）；⛔ 不用行号交集
+基线树 da690bf8 : 41 条  summary={'filesAnalyzed': 4, 'errorCount': 39, 'warningCount': 2, 'informationCount': 0, 'timeInSec': 0.981}
+当前树 (工作区): 41 条  summary={'filesAnalyzed': 4, 'errorCount': 39, 'warningCount': 2, 'informationCount': 0, 'timeInSec': 1.015}
+
+### 新增（当前树有、基线没有）= 0
+
+### 消失（基线有、当前树没有）= 0
+
+### 结论: 0 新增 ✅
+
+### 按文件计数对照
+  /backend/app/api/v1/endpoints/review.py: base=14  head=14
+  /backend/app/services/mastery_engine.py: base=6  head=6
+  /backend/app/services/mastery_store.py: base=1  head=1
+  /backend/app/services/review_service.py: base=18  head=18
+rc=0

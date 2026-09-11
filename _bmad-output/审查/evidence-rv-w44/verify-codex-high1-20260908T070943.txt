@@ -1,0 +1,26 @@
+=== 独立验证 Codex 本卡 HIGH-1（完整 guard + 真实文件系统故障）===
+    guard      : /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u7-w4guard/backend/tests/support/live_port_guard.py
+    sha(before): 1b95586496c58a8e
+
+--- A  ledger=目录 + stderr 坏 ---
+    rc          = 0
+    进程内账本   = {'blocked': 1, 'unaccounted': 1, 'total': 1}
+--- B  ledger=目录 + stderr 正常 ---
+    rc          = 3
+    进程内账本   = {'blocked': 1, 'unaccounted': 1, 'total': 1}
+    stderr_tail = vy54671lh9nlqc_ft2w0000gn/T/w4-verify-high1-qti8gblq/ledger_as_dir: IsADirectoryError(21, 'Is a directory') ***
+
+*** live Neo4j port connect attempted —— 最终总账：blocked=1 unaccounted=1 reported_status=N
+--- C  ledger=正常 + stderr 坏 ---
+    rc          = 3
+    进程内账本   = {'blocked': 1, 'unaccounted': 1, 'total': 1}
+
+  [PASS] 三跑的进程内账本都记到了那条拦截（前提成立，否则后面全无意义）  (A={'blocked': 1, 'unaccounted': 1, 'total': 1} B={'blocked': 1, 'unaccounted': 1, 'total': 1} C={'blocked': 1, 'unaccounted': 1, 'total': 1})
+  [PASS] B：只有落盘失败时仍 rc=3（落盘失败本身不阻断强制退出）  (rc=3)
+  [PASS] C：只有 stderr 坏时仍 rc=3（:1291-1303 的保护块在位）  (rc=3)
+  [PASS] A：两者同时成立时 rc=0 —— Codex 的 HIGH-1 复现  (rc=0)
+  [PASS] A 与 B/C 结论确实不同（缺陷落在那一格，不是随便坏一个就退不出去）  (A=0 B=3 C=3)
+  [PASS] 代码树未被本脚本改动  (sha 一致)
+
+VERIFY-CODEX-HIGH1: CONFIRMED — 6/6 条判据成立
+rc=0

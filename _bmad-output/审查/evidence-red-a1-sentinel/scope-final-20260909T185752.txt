@@ -1,0 +1,32 @@
+# 收官地盘门 —— 阶段一单段 U0..HEAD
+# U0=0acea4e3a6a62501319c8144a83b9f58cbf310a2
+# HEAD=b422e9dc01013bdcdf31eb04cfcd8dac6f6ae209
+## ① 本卡真实改动面
+backend/app/api/v1/system.py
+backend/openapi.json
+backend/tests/unit/test_config_drift.py
+backend/tests/unit/test_health_detailed.py
+backend/tests/unit/test_kg_health.py
+backend/tests/unit/test_mock_degradation_transparency.py
+backend/tests/unit/test_review_mode_support.py
+backend/tests/unit/test_startup_health_check.py
+## ② 禁改路径（须空）
+forbid_rc=0
+## ③ 逐 commit 佐证（须全空）
+own_rc=0
+## ④ 本卡 commit 列表
+b422e9dc docs(uat): Codex r2 整改 — 把正文里被推翻的三处说法一起改掉 + 探针还原自证加固 [BATCH-2026-09-07-第十三批 / CARD-RED-A1-sentinel]
+e74757c5 fix(tests): Codex r1 整改 — 三处把推断当事实的表述改正 + 补更强负控 [BATCH-2026-09-07-第十三批 / CARD-RED-A1-sentinel]
+b8017248 test(unit): 12 条哨兵红按真连点测试侧打桩 + system router 落鉴权 [BATCH-2026-09-07-第十三批 / CARD-RED-A1-sentinel]
+## ⑤ *.stderr* 是否入库
+"_bmad-output/\345\256\241\346\237\245/G4-9-evidence/census-stderr.txt"
+stderr_tracked_rc=0（1 = 无，符合）
+## ⑥ 工作树（如实：5 个未跟踪的 .ts-* 临时标记，hook 阻止 rm 未删）
+?? "_bmad-output/\345\256\241\346\237\245/evidence-red-a1-sentinel/.ts-contract-before"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-red-a1-sentinel/.ts-five-open"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-red-a1-sentinel/.ts-open-revert"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-red-a1-sentinel/.ts-pyright-base"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-red-a1-sentinel/.ts-unit-open"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-red-a1-sentinel/scope-final-20260909T185752.txt"
+## ⑦ 未 push 自证
+fatal: ambiguous argument 'origin/card/u10-red-a': unknown revision or path not in the working tree.

@@ -1,0 +1,18 @@
+### 自查: 生成段幂等 [ ! -e ] 的可达性（目标已存在会 exit 66, 生成段何时重跑?）
+68:[ -e "$TARGET" ] && { echo "❌ 目标已存在, 拒绝覆盖 (防误伤学习数据): $TARGET" >&2; exit 66; }
+133:# 三份都「目标已存在则不覆盖」—— 脚本对同一目标重跑要幂等, 且绝不覆盖用户已改过的值。
+  ⇒ install-vault.sh 对已存在 target 一律 exit 66, 生成段的 [ ! -e ] 是**双保险**而非主防线:
+    主防线: target 必须是全新的 ⇒ 生成件只在全新 vault 上写一次
+    双保险: 若有人手工预放了同名件(或未来放开重入), 不覆盖用户已有内容
+  ⇒ 「目标已存在但内容是错的」这个洞被 exit 66 挡在前面; 重配 backendUrl 属于
+    重部署新 vault 或 U3-C activate 的职责面。登记进 UAT 未证明 #7 已覆盖一半,
+    补一句: 重入语义(同 target 重跑)本卡不承诺。
+
+### 自查 2: generate matcher 用 ExcludeMatcher 的语义
+  generate 路径: ['.canvas-config.yaml', '.claude/settings.local.json', '.obsidian/cls-internal-key.txt', '.obsidian/plugins/canvas-learning-system/data.json', '.obsidian/plugins/templater-obsidian/data.json']
+  .canvas-config.yaml                                  matches=True  (应 True)
+  .claude/settings.local.json                          matches=True  (应 True)
+  .obsidian/cls-internal-key.txt                       matches=True  (应 True)
+  .obsidian/plugins/canvas-learning-system/data.json   matches=True  (应 True)
+  .obsidian/plugins/templater-obsidian/data.json       matches=True  (应 True)
+  兄弟文件 stray.js                                          matches=False  (应 False)

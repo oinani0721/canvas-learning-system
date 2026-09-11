@@ -1,0 +1,4 @@
+请依次尝试创建下面两个文件，每个都独立报告成功或失败，失败时把原始错误信息原文抄录出来，不要跳过任何一个：
+1. outputs/probe-codex.txt          内容写一行 probe
+2. .agents/skills/probe-skill/note.txt   内容写一行 probe
+最后用一个两行的表格总结：文件路径 -> 成功/失败。

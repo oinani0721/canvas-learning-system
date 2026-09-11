@@ -41,6 +41,32 @@ class TestGitPluginDetection:
 
 
 class TestKGHealthEndpoint:
+    @pytest.fixture(autouse=True)
+    def stub_neo4j_driver(self):
+        """把 ``AsyncGraphDatabase.driver`` 换成不开 socket 的桩 (真连点)。
+
+        ``app/api/v1/endpoints/kg_health.py`` 的 driver 是**端点函数体内**新建的
+        (:39 ``from neo4j import AsyncGraphDatabase`` + :41-44 ``.driver(...)``),
+        模块全局里没有这个名字 ⇒ 只能 patch ``neo4j.AsyncGraphDatabase.driver``
+        本身 —— 函数体内的 import 在调用时从 ``sys.modules['neo4j']`` 解析, 所以
+        patch 得到。
+
+        让它抛而不是返回假 driver: 端点 :72-77 的 ``except`` 把任何异常吞成
+        ``neo4j_available=False`` + ``error="Neo4j 未连接: …"``, 这正是今天 W4
+        端口门在场时的**真实产物**, 用例的两条键存在性断言原样成立。
+
+        ⛔ 生产 ``kg_health.py`` 一字不改 (卡文 §三: 它不在本卡地盘, 只有本测试
+        文件在, 且只允许测试侧打桩)。该端点仍无鉴权、真连点仍在 —— 本 fixture
+        只保证**单元测试进程**不去拨 7691。
+        """
+        from unittest.mock import patch
+
+        with patch(
+            "neo4j.AsyncGraphDatabase.driver",
+            side_effect=RuntimeError("stubbed by unit test: live Neo4j is never dialled here (W4 port gate)"),
+        ) as stub:
+            yield stub
+
     @pytest.fixture
     def client(self):
         from app.main import app

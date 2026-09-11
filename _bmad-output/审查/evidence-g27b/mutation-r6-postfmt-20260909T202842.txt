@@ -1,0 +1,34 @@
+== 变异前基线 sha256（还原以此为准，不是 HEAD）==
+  a6f13f7e8e35ca813a4df7b9b999067f52a352006ea5e68e1316fa44f1677cae  scripts/cls_forbidden_paths.py
+  6270ac479230818a8f90b2c1eae26eb90e3c0d53cfe94ba508f42bd012a8c962  scripts/deploy-vault.sh
+
+[KILLED]  B-1 前缀退回只留词法 HOME
+           → test_forbidden_judge_covers_physical_home_claude_prefix 变红，断言消息含「物理 HOME 下的 .claude-new 未被拦」
+[KILLED]  B-2 去掉 hits() 里的逐段遍历判据
+           → test_forbidden_judge_catches_git_in_ancestor_of_link_target 变红，断言消息含「未拦住链目标祖先里的 .git」
+[KILLED]  B-2 让 walker 重新词法折叠 ..
+           → test_forbidden_judge_does_not_fold_dotdot_before_resolving 变红，断言消息含「被提前折叠」
+[KILLED]  B-4 镜像判据就地失效（内层）
+           → test_step4_mirror_files_pass_the_same_judge_before_sed 变红，断言消息含「被就地失效或改写」
+[KILLED]  B-4 外层守卫被架空（r6 MEDIUM-4）
+           → test_step4_mirror_files_pass_the_same_judge_before_sed 变红，断言消息含「外层守卫」
+[KILLED]  H-1(r6) fchmod 挪到 fstat 之前
+           → test_env_key_write_chmods_only_after_nofollow_and_nlink 变红，断言消息含「fchmod 必须在 fstat」
+[KILLED]  B-2(r6) 根处理**整体**移除（under 特例 + walker 登记根）
+           → test_forbidden_judge_handles_protected_target_at_root 变红，断言消息含「保护目标为根时漏拦」
+[KILLED]  B-1(r6) chain_resolvable 恒真
+           → test_forbidden_judge_fail_closed_when_second_hop_unsearchable 变红，断言消息含「第二跳不可搜索时未 fail-closed」
+[KILLED]  M-1(r6) 上限退回数段数
+           → test_forbidden_judge_does_not_block_deep_but_linkless_path 变红，断言消息含「无软链的深段路径被误拦」
+[KILLED]  H-2 去掉 --vault 绝对路径强制（r6 MEDIUM-2 修正：合法 bash + 多段输入）
+           → test_multi_segment_relative_vault_is_rejected_at_entry 变红，断言消息含「多段相对 --vault 未被入口拒」
+
+[PROBE] MEDIUM-5 探针：停用 ancestor_symlink_hits → **全绿**
+        ⇒ 该函数在现有用例下**零承重**。如实登记为冗余，
+          不得再宣称「两轴各自承重」（Codex r6 MEDIUM-5 原话）。
+
+== 还原逐字节核对 ==
+  同  a6f13f7e8e35ca813a4df7b9b999067f52a352006ea5e68e1316fa44f1677cae  scripts/cls_forbidden_paths.py
+  同  6270ac479230818a8f90b2c1eae26eb90e3c0d53cfe94ba508f42bd012a8c962  scripts/deploy-vault.sh
+
+结论: 10/10 KILLED, 0 有问题

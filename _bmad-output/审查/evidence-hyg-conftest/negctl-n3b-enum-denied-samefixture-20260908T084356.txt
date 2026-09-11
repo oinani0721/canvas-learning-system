@@ -1,0 +1,24 @@
+# U10-A N3b（同根对撞版）— Codex round-1 HIGH #1 整改的承重验证
+# 上一版 negctl-n3b-enum-denied-20260908T073843.txt 的缺陷（如实登记）:
+#   两版各从所在目录加载, 扫描根 = Path(__file__).parent ⇒ 旧版扫到 scratchpad
+#   (11 命中)、新版扫 tests/unit (0 命中), baseline 不可比 ⇒ 对照不严格。
+#   本版把两版放进**内容逐字节相同**的两个扫描根再对撞。
+# 扫描根各含: sample_hit.py（顶层命中样本）+ sub/nested_hit.py（子目录命中样本）
+# 旧版 = 13a138c9 (Path.rglob)   新版 = 工作区 (os.walk + onerror)
+# 旧版 sha256=5e9765c7d3c582f048951c4507f0659a041f33ef09f799b845ec0f99259645ab
+# 新版 sha256=d2c713c9d0ef614a82b33ef170adf45e923c36252eebac5316aa1d15aae79f5d
+# t0=2026-09-08T08:43:56
+
+=== 前提: 两个扫描根的样本文件逐字节相同 ===
+scanroot_identical_rc=0  (0 = 相同)
+
+=== 旧版（预期 baseline 有命中, denied 时 SILENT_PASS = 假绿）===
+label=OLD baseline_hits=2 baseline_unchecked=0
+label=OLD denied_hits=0 denied_unchecked=0
+label=OLD RESULT=SILENT_PASS  ⛔ 枚举失败被吞 = 假绿
+
+=== 新版（预期 baseline 同样有命中, denied 时 RECORDED_UNCHECKED）===
+label=NEW baseline_hits=2 baseline_unchecked=0
+label=NEW denied_hits=0 denied_unchecked=1
+label=NEW RESULT=RECORDED_UNCHECKED  ✅ 枚举失败进了 unchecked
+label=NEW   unchecked[0..2]: <未知路径> (目录枚举失败: PermissionError: [Errno 13] Permission denied (audit hook, 模拟目录枚举被拒))

@@ -1,0 +1,9 @@
+# ⚠️ 作废：本存档是被 grep 过滤的摘要（无 ^E 原文），完整版见下一份同名更新存档。
+[N1] KILLED (rc=1 + nodeid 命中 + ^E 行含点名断言串)
+[N2-gate2] KILLED (rc=1 + nodeid 命中 + ^E 行含点名断言串)
+[N2-gate3] KILLED (rc=1 + nodeid 命中 + ^E 行含点名断言串)
+SHA-RESTORE: OK（逐字节相同）
+N1(门①)      = KILLED
+N2(门②)      = KILLED
+N2(门③)      = KILLED
+rc=0

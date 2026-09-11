@@ -1636,11 +1636,19 @@ def value_shape_problems(value: object) -> list[str]:
 #:     账本里**已有**的行不走这道入口（durable `scored_at` 含 U+0085 时本函数
 #:     不报违规），那段由后续时刻解析与 `q_()` 承担；
 #:   · `attempt_count` / `grade_norm` → 整数/数值构造或校验后直接插值；
-#:   · ⛔ `self_confidence_norm` → **目前没有任何约束**：原样读取后裸插值进
-#:     receipt YAML，可改写新条目的 `event_id`（Codex round-1 HIGH 实测复现，
-#:     首写 rc=0 而其后每次评分都 rc=1）。已立 `xfail(strict=True)` 交接门
-#:     `test_g32ccr1_self_confidence_norm_must_not_forge_receipt_identity`，
-#:     修复移交 quiz-answer 写点边界卡。
+#:   · ✅ `self_confidence_norm` → 写点**入口门**（`[BATCH-2026-09-07-第十三批 /
+#:     CARD-G3-3-R2-writer-boundary]`）：quiz-answer/SKILL.md 的入口区在 `evid`
+#:     拼好之后、**任何写入之前**收口 —— `None` 放行、`bool` 拒、有限且
+#:     `0.0 <= x <= 1.0` 的数转 `float`、其余 fail-closed 拒写（含数字串：接受它
+#:     就得先 strip()，等于在身份键旁边重开一个「吃掉哪些字符」的口子）。
+#:     于是下游（读 `:1436` / 拼 `:1524`，本卡一字未改）只可能拿到 `None` 或
+#:     `float`，再拼不出「在条目里多开一行 `event_id:`」的注入 —— 原 Codex
+#:     round-1 HIGH 实测形态是首写 rc=0、其后**每次**评分都 rc=1（节点砖化）。
+#:     交接门 `test_g32ccr1_self_confidence_norm_must_not_forge_receipt_identity`
+#:     已由 `xfail(strict=True)` 转正为 PASS。
+#:     ⛔ 它**仍不进** `CHARSET_STRICT_FIELDS`：receipt-only 字段进本表在当前业务
+#:     路径上恒不触发（= 上面那条「装饰不是防线」的 E3 语义），所以修复落在写点，
+#:     不是靠扩表——扩表既不解决问题，还会让一致性门把它认成死条目。
 #: 行为证据见 `tests/regression/test_g3_2_review_ledger.py::test_g32ccr1_*`。
 #:
 #: 覆盖不到的 producer（start-exam-board / ai-linked-doc / append_event）仍可写入

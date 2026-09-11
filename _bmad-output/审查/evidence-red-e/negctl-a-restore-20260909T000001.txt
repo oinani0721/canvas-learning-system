@@ -1,0 +1,17 @@
+### 负控 A 还原 — 源 = index stage-0 blob（HEAD 无此文件，本卡新增）
+-- 还原后 sha --
+814c82899bb81b11ba51236c3af9a094fc51519d70d9eccf90c1b51d5dfd9db1  .claude/agents/graphiti-memory-agent.md
+-- 期望 sha（f425d7b7^ 原值）--
+814c82899bb81b11ba51236c3af9a094fc51519d70d9eccf90c1b51d5dfd9db1  -
+-- wc -c（期望 5584）--
+    5584
+-- git diff --quiet (工作树 vs index) --
+rc=0
+-- git status --porcelain .claude/agents --
+A  .claude/agents/canvas-orchestrator.md
+A  .claude/agents/graphiti-memory-agent.md
+A  .claude/agents/hint-generation.md
+A  .claude/agents/iteration-validator.md
+A  .claude/agents/parallel-dev-orchestrator.md
+A  .claude/agents/planning-orchestrator.md
+A  .claude/agents/review-board-agent-selector.md

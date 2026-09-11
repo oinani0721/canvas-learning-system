@@ -259,7 +259,16 @@ class TestProcessEpisodeForwarding:
         call_kwargs = mock_graphiti.add_episode.call_args.kwargs
         assert call_kwargs["name"] == "test-episode"
         assert call_kwargs["episode_body"] == "Student learned calculus"
-        assert call_kwargs["group_id"] == "math-group"
+        # 契约演进 7a3d53bc (2026-07-13 M2 双图隔离)：add_episode 是 LLM 抽取通道，
+        # group 在 episode_worker.py:601 单点重定向到语义影子分组
+        # semantic_group_id(sanitize_group_id_for_graphiti(task.group_id))。
+        # "math-group" 无冒号、字符全合法 ⇒ sanitize 恒等，只追加 "__semantic"。
+        # 断言写于 57aae588(2026-04-02，当时生产是 "group_id": task.group_id)，故过期。
+        # 期望值抄字面量而非调 semantic_group_id() 求值——同源会跟着实现一起退化。
+        # [CARD-RED-C2]
+        assert call_kwargs["group_id"] == "math-group__semantic"
+        # 独立不变量：影子分组只作用于 graphiti 调用面，不得就地改写 task 自身归属
+        assert task.group_id == "math-group"
         assert call_kwargs["entity_types"] is CANVAS_ENTITY_TYPES
         assert call_kwargs["edge_types"] is CANVAS_EDGE_TYPES
 

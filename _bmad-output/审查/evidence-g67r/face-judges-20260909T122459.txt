@@ -1,0 +1,12 @@
+# 裁判 7: 面判据  BASE=709beb0bfa63348394f49f2b7fc6fa829c40b947
+== daily_review_run.py 的每个 hunk 旧行区间 (须与 164-183 / 252-264 无交集) ==
+-- 硬边界实测行号: _nodes_max_mtime 164-183 (return latest @183); credited_today 252-264 --
+== 删行含 O_EXCL 的计数 (须 0) ==
+0
+== 删行含 os.replace(tmp, state) 的计数 (须 0) ==
+0
+== daily_review_pick.py 删除行 (卡文预估 ≤2, 实测见下) ==
+0
+== canvas-vault 零改动 (须 0) ==
+       0
+== 全部改动文件 (须都在 §三 允许面内) ==

@@ -1,0 +1,30 @@
+=== git rev-parse 360a4cb2^ ===
+93d47028b1a8a761b4713bef6a8d4e7914d21c7a
+93d47028
+=== git show --stat 360a4cb2 -- . exclude _bmad-output ===
+    Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+
+ backend/scripts/lifespan_isolation_guard_probes.py | 264 +++++++++++++++
+ backend/tests/conftest.py                          |  25 +-
+ backend/tests/support/guard_plugin.py              |  12 +-
+ backend/tests/support/live_port_guard.py           | 375 +++++++++++++++++----
+ .../tests/unit/test_live_port_guard_contract.py    | 372 ++++++++++++++++++++
+ 5 files changed, 981 insertions(+), 67 deletions(-)
+=== git log --oneline 03ac8bf8..360a4cb2^ ===
+93d47028 merge(squash): Y2-B CARD-G6-7 [BATCH-2026-09-05-第十二批 / CARD-G6-7]
+6f33161f merge(squash): Y2-A CARD-G6-5-R [BATCH-2026-09-05-第十二批 / CARD-G6-5-R]
+3582736d merge(squash): Y1-B CARD-DEBT-mutation-kill-identity [BATCH-2026-09-05-第十二批 / CARD-DEBT-mutation-kill-identity]
+d382f9f1 merge(squash): Y3-A CARD-G2-9 [BATCH-2026-09-05-第十二批 / CARD-G2-9]
+bd0655aa merge(squash): Y1-A CARD-G3-3-R1 [BATCH-2026-09-05-第十二批 / CARD-G3-3-R1]
+43775ff6 merge(squash): Y8-A CARD-RV-C [BATCH-2026-09-05-第十二批 / CARD-RV-C]
+c9107f53 merge(squash): Y6-B CARD-RV-D [BATCH-2026-09-05-第十二批 / CARD-RV-D]
+4856cc74 merge(squash): Y5-B CARD-RV-B [BATCH-2026-09-05-第十二批 / CARD-RV-B]
+6bb1a2c0 merge(squash): Y5-A CARD-RV-A [BATCH-2026-09-05-第十二批 / CARD-RV-A]
+d26acdc7 merge(squash): Y4-A CARD-RV-E [BATCH-2026-09-05-第十二批 / CARD-RV-E]
+65cfd8ff docs(goal-cards): 第十二批开跑手册 9 车道 23 卡 + 协议 §2.1-2.3 + 存档首部 + 台账勘误 [BATCH-2026-09-05-第十二批]
+count-with-caret=11
+count-without-caret=12
+=== full diff stat 03ac8bf8..360a4cb2 (NOT this card's surface) ===
+ scripts/daily_review_pick.py                       |   22 +-
+ scripts/daily_review_run.py                        |  112 +-
+ 29 files changed, 9029 insertions(+), 283 deletions(-)

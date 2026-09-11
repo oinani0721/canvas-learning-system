@@ -1,0 +1,34 @@
+### (h)② 校验器 + 目标态 + 禁写证明
+报告已写入 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy/_bmad-output/审查/evidence-g27a/verify-live-20260908T114136.txt
+verify-rc=0
+------------------------------------------------------------------
+match                  : 34
+missing                : 0
+extra                  : 0
+content-drift          : 0
+intentionally-excluded : 0
+allowed-extra          : 0
+optional-missing       : 1
+unreadable             : 0
+hotkeys                : 3 绑定 / 10 命令 / 0 orphan
+hotkey-orphan          : 0
+
+--- hotkeys 行 ---
+hotkeys                : 3 绑定 / 10 命令 / 0 orphan
+--- 目标态 ---
+  key 不存在            : ✅
+  .claude/mcp.json 不存在: ✅
+  .mcp.json 存在         : ✅
+  claudian 不存在        : ✅
+  main.js 存在           : ✅
+  app.json 等 from-live  : ✅
+  dataview 等 from-live  : ✅
+  yaml 2.1 六键: ✅
+  插件 data.json 4 键: ✅
+--- 禁写 1: find -newer ---
+  count=0
+--- 禁写 2: live 五文件 sha diff ---
+  diff 空 ✅
+--- 禁写 3: git status -- canvas-vault/ ---  count=0
+--- 禁写 4: WT/.env sha ---
+  不变 ✅ (c84c859683b6b0bd1f8e6915e7d4afa17652f8001753063294aa4d40914c7712)

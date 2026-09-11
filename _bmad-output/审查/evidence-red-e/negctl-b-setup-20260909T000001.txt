@@ -1,0 +1,5 @@
+### 负控 B — 把 .claude/agents/parallel-dev-orchestrator.md 移到树外，期望 test_minimum_template_count 变红（found 17）
+-- 改前 sha --
+76a67f32af0bbdaa8a29a42cbcd52ec744697f808c9dc40c1ef7f36feab55a36  .claude/agents/parallel-dev-orchestrator.md
+-- 目录现在（期望 17）--
+      17

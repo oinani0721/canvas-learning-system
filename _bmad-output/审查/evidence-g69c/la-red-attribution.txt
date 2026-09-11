@@ -1,0 +1,27 @@
+# CARD-G6-9c — LA 态 runner 红的基线归因对照
+
+## 处理端：当前树（本卡改动后）· TZ=America/Los_Angeles
+  rc=1  ================== 4 failed, 35 passed, 10 warnings in 1.12s ===================
+  FAILED 4 条:
+    tests/regression/test_daily_review_run.py::test_rest_due_rest_due_oscillation_capped_at_two
+    tests/regression/test_daily_review_run.py::test_rest_to_due_reversal_pushes_second_time
+    tests/regression/test_daily_review_run.py::test_second_push_failure_retries_next_hour
+    tests/regression/test_daily_review_run.py::test_two_vaults_same_day_push_and_state_isolated
+
+## 基线端：da690bf8 版的 scripts/daily_review_pick.py, scripts/daily_review_run.py（blob sha 已核）· TZ=America/Los_Angeles
+  rc=1  ================== 4 failed, 35 passed, 10 warnings in 1.15s ===================
+  FAILED 4 条:
+    tests/regression/test_daily_review_run.py::test_rest_due_rest_due_oscillation_capped_at_two
+    tests/regression/test_daily_review_run.py::test_rest_to_due_reversal_pushes_second_time
+    tests/regression/test_daily_review_run.py::test_second_push_failure_retries_next_hour
+    tests/regression/test_daily_review_run.py::test_two_vaults_same_day_push_and_state_isolated
+
+## 还原自证（须与跑前逐字节相同）
+  68e7d7ee4cd57ded1acfc8e02e47028aea4ccd58d410359d94aabaab473813a7  scripts/daily_review_pick.py  ✅ 同
+  7dd93ce16a8b296615b3ac94243e76c33ae3f5ac5cfd0b25c72c061b9a6e0ff7  scripts/daily_review_run.py  ✅ 同
+
+## 归因
+  两端同红（既有状态，非本卡引入）: 4 条
+  只在当前树红（**本卡引入**）    : 0 条 []
+  只在基线红（本卡**修好**了）    : 0 条 []
+  还原逐字节相同: True

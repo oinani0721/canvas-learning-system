@@ -1,0 +1,30 @@
+# 负控 r2：Codex round-1 + round-2 两轮给的复现输入，整改后必须全部变红
+# 方法：把真实 test 模块的 PROJECT_ROOT 指到临时目录，喂多种 docker-compose.yml
+#       —— 跑的是**测试本体**，不是另写一份等价逻辑
+HEAD=cfd299f3  跑于 2026-09-09 14:10:39
+
+OK  ① 现状（未改动的真实 compose）
+     期望=PASS 实测=PASS  
+OK  ② r1 复现：把一条获准 mount 复制到另一个 service
+     期望=FAIL 实测=FAIL  Hardcoded user paths outside services.neo4j.volumes: [(('volumes', 'malicious-service', 'volumes', '0'), '/Users/Heishin
+OK  ③ 对照：新增一条陌生的硬编码用户路径
+     期望=FAIL 实测=FAIL  Hardcoded user paths outside the 8a80595f neo4j exemption: ['- /Users/Someone/secret/data:/data']
+OK  ④ r2-HIGH 复现：挪到 `other: # comment` 的 volumes（只出现一次）
+     期望=FAIL 实测=FAIL  Hardcoded user paths outside services.neo4j.volumes: [(('volumes', 'other', 'volumes', '0'), '/Users/Heishing/Desktop/ca
+OK  ⑤ r2-HIGH 变体：挪到带引号的 `"other":` 的 volumes
+     期望=FAIL 实测=FAIL  Hardcoded user paths outside services.neo4j.volumes: [(('volumes', 'other', 'volumes', '0'), '/Users/Heishing/Desktop/ca
+OK  ⑥ r2-MEDIUM 复现：留在 neo4j 但挪进 command（不在 volumes）
+     期望=FAIL 实测=FAIL  Hardcoded user paths outside services.neo4j.volumes: [(('services', 'neo4j', 'command', '0'), '/Users/Heishing/Desktop/c
+OK  ⑦ 只写进注释（内容轴仍须放行，因为内容在名单里）
+     期望=FAIL 实测=FAIL  Hardcoded user paths outside the 8a80595f neo4j exemption: ['# 备注: /Users/Heishing/Desktop/canvas/canvas-learning-system
+
+判据：②④⑤⑥ 是两轮 Codex 给的漏过输入，必须全部 FAIL；① 现状 PASS；③ 正控 FAIL。
+
+⚠️ 用例 ⑦ 的标题措辞有误（存档保留原样，此处更正）：它期望 FAIL 且实测 FAIL，
+理由不是「内容轴放行」而是相反——注释行整行文本 `# 备注: /Users/...` 不在豁免名单里，
+被**内容轴**拦下。这正是内容轴用原始文本扫描（而不是只看 YAML 值）的意义：
+写进注释的硬编码路径不会因为 YAML 解析丢掉注释而漏过。
+
+⚠️ 用例 ② 的结构路径实测是 `('volumes','malicious-service','volumes','0')` 而不是
+`('services', ...)`——因为把片段追加到文件末尾时，它落进了顶层 `volumes:` 段而非 `services:`。
+判据照样拦下（前三段不等于 services/neo4j/volumes），结论不受影响；如实记录以免读者困惑。

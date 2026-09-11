@@ -432,10 +432,30 @@ class TestSharedResolverImportedByEndpoints:
     def test_endpoint_imports_shared_resolver(self, module_name):
         import importlib
 
+        import app.core.vault_scope as shared
+
+        # 契约演进 d14b50ab (2026-09-05 CARD-G4-4a 显式 VaultScope 移植)：agents.py 把
+        # `from ._vault_id_resolver import resolve_vault_group_id` 换成
+        # `from app.core.vault_scope import resolve_vault_scope`（agents.py:33），
+        # 7 个调用点全改成 `_scope = resolve_vault_scope(...)` 并加性透出
+        # X-Vault-Scope-Source 响应头。生产注释 agents.py:907 自述「语义与旧
+        # resolve_vault_group_id 完全一致」⇒ 仍走共享 resolver，只是换了更显式的
+        # 返回形态（带 source 的 VaultScope），不是退回各自为政的本地推导。
+        # 其余 11 个 endpoint 未迁移，仍用旧名。⛔ 不改 parametrize 的 id（module_name），
+        # 改了 nodeid 就变成「这条红消失了」而不是「这条红转绿」。[CARD-RED-C2]
+        expected_symbol = {"app.api.v1.endpoints.agents": "resolve_vault_scope"}.get(
+            module_name, "resolve_vault_group_id"
+        )
+
         module = importlib.import_module(module_name)
-        # 共享 resolver 应已被 import (变量名 resolve_vault_group_id)
-        assert hasattr(module, "resolve_vault_group_id"), (
-            f"{module_name} did not import resolve_vault_group_id from _vault_id_resolver"
+        assert hasattr(module, expected_symbol), (
+            f"{module_name} did not import {expected_symbol} from app.core.vault_scope"
+        )
+        # 判据强度提升：原断言只看「有没有同名属性」——模块自己定义一个同名本地函数
+        # 照样能过，正是本测试类要防的那件事。改为对象同一性：必须就是
+        # app.core.vault_scope 里那一个（_vault_id_resolver 只是它的 re-export）。
+        assert getattr(module, expected_symbol) is getattr(shared, expected_symbol), (
+            f"{module_name}.{expected_symbol} is not app.core.vault_scope.{expected_symbol}"
         )
 
 

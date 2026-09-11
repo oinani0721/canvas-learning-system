@@ -84,8 +84,12 @@ class TestExtractSubjectFromCanvasPath:
 
     def test_extract_subject_empty_path(self):
         """Test empty path returns default subject."""
-        assert extract_subject_from_canvas_path("") == DEFAULT_SUBJECT.value
-        assert extract_subject_from_canvas_path(None) == DEFAULT_SUBJECT.value
+        # 契约演进 b28133cc(2026-03-16)：SubjectType 枚举被删，DEFAULT_SUBJECT_ID
+        # 退化为纯 str（subject_config.py:27 `DEFAULT_SUBJECT_ID = "general"`），
+        # 生产函数体同批由 return DEFAULT_SUBJECT.value 改为 return DEFAULT_SUBJECT_ID。
+        # 期望值抄写字面量，不 import 常量（import 当期望值恒真）。[CARD-RED-C2]
+        assert extract_subject_from_canvas_path("") == "general"
+        assert extract_subject_from_canvas_path(None) == "general"
 
     def test_extract_subject_only_filename(self):
         """Test path with only filename."""

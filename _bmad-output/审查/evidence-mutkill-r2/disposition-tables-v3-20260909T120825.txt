@@ -1,0 +1,64 @@
+> 最终裁决取自 `run-g32b-20260909T103053.txt`（抽到 138 条）。
+
+## 39 条 KILLED-UNBOUND 逐条处置表
+
+> 来源：`g32b_mutation_gates.py` 的四张表按 AST 实读（EXPECT_MSG 99 / EXPECT_MSG_EXEMPT 39 / EXPECT_LOC 135 / EXPECT_LOC_EXEMPT 3）。
+
+> 「收口前」= 消息绑不出来 ⇒ 判据退化成旧口径「指定门红了」= `KILLED-UNBOUND`。
+> 「收口后」= 位置绑上了就是 `KILLED`（绑定维度只有位置，没有消息）。
+
+| # | 变异 tag | 消息为什么绑不出来（原豁免理由，节选） | 处置 | 位置身份 |
+|---|---|---|---|---|
+| 1 | `M10-R2-value-not-literal` | ① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N] | **绑（位置）→ 最终 HARNESS-ERROR(假杀)** | `stmt:c8e430b5ce69` |
+| 2 | `M102-receipt-attempt-type-only` | ① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N] | **绑（位置）** | `stmt:4a06447ea2ed` |
+| 3 | `M117-empty-source-skips-provenance` | ① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N] | **绑（位置）** | `stmt:9ca250d2cb86` |
+| 4 | `M12-N1-drop-out-of-order-shape-gate` | ① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N] | **绑（位置）** | `stmt:35b14b243932` |
+| 5 | `M129-missing-scored-at-warn-only` | ① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N] | **绑（位置）** | `stmt:6493eeda8b37` |
+| 6 | `M14-N3-drop-duplicate-key-hook` | ① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N] | **绑（位置）** | `stmt:c36b63813880` |
+| 7 | `M140-bare-collision-no-own-judge` | ⑥ 该门实际打红的那条断言, 其消息首行的字面片段在门文件里不唯一(出现 >1 次), 绑上去就不能证明红在哪一 | **绑（位置）** | `stmt:a6f9e6ddb8bb` |
+| 8 | `M15b-N4-decode-with-replace` | ① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N] | **绑（位置）** | `stmt:839c95da5e9d` |
+| 9 | `M16-N5-hard-compute-attempt-across-pending` | ① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N] | **绑（位置）** | `stmt:6105a6838306` |
+| 10 | `M20-B1-drop-gradenorm-completeness` | ① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N] | **绑（位置）** | `stmt:029dbd458414` |
+| 11 | `M23-C1-drop-event-type-gate` | ⑥ 该门实际打红的那条断言, 其消息首行的字面片段在门文件里不唯一(出现 >1 次), 绑上去就不能证明红在哪一 | **绑（位置）** | `stmt:8b4fc14dc10c` |
+| 12 | `M24-C1-drop-concept-id-gate` | ⑥ 该门实际打红的那条断言, 其消息首行的字面片段在门文件里不唯一(出现 >1 次), 绑上去就不能证明红在哪一 | **绑（位置）** | `stmt:8b4fc14dc10c` |
+| 13 | `M25-C1-drop-vault-id-gate` | ⑥ 该门实际打红的那条断言, 其消息首行的字面片段在门文件里不唯一(出现 >1 次), 绑上去就不能证明红在哪一 | **绑（位置）** | `stmt:8b4fc14dc10c` |
+| 14 | `M26-C2-drop-eid-whitespace-gate` | ② 该门此处断言的消息**求值为空串**, 短摘要里只有 'AssertionError:'  | **绑（位置）** | `stmt:fbbc07945c4f` |
+| 15 | `M29-R3-drop-event-version-gate` | ① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N] | **绑（位置）** | `stmt:060ef934e40c` |
+| 16 | `M2b-R2-drop-utc-offset-check` | ① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N] | **绑（位置）** | `stmt:c8e430b5ce69` |
+| 17 | `M30-R3-drop-two-instant-consistency` | ① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N] | **绑（位置）** | `stmt:29076bdbfb99` |
+| 18 | `M31-R3-drop-attempt-required` | ① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N] | **绑（位置）** | `stmt:3a5f92ec3335` |
+| 19 | `M32-R3-drop-payload-object-gate` | ① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N] | **绑（位置）** | `stmt:018880e4697d` |
+| 20 | `M38b-attempt-expectation-masked-by-max` | ① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N] | **绑（位置）** | `stmt:cca8c7fef0f3` |
+| 21 | `M45-allow-dup-and-foreign-same-round` | ① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N] | **绑（位置）** | `stmt:fbde4102f5f1` |
+| 22 | `M47-skip-validator-record-check` | ⑥ 该门实际打红的那条断言, 其消息首行的字面片段在门文件里不唯一(出现 >1 次), 绑上去就不能证明红在哪一 | **绑（位置）** | `stmt:4833e323c049` |
+| 23 | `M49-event-version-accepts-bool` | ⑥ 该门实际打红的那条断言, 其消息首行的字面片段在门文件里不唯一(出现 >1 次), 绑上去就不能证明红在哪一 | **绑（位置）** | `stmt:54141b83b77e` |
+| 24 | `M5-R5-drop-rating-consistency` | ① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N] | **绑（位置）** | `stmt:5a01df2235e9` |
+| 25 | `M50-non-object-line-silently-skipped` | ⑥ 该门实际打红的那条断言, 其消息首行的字面片段在门文件里不唯一(出现 >1 次), 绑上去就不能证明红在哪一 | **绑（位置）** | `stmt:54141b83b77e` |
+| 26 | `M51-line-strip-washes-nonjson-whitespace` | ⑥ 该门实际打红的那条断言, 其消息首行的字面片段在门文件里不唯一(出现 >1 次), 绑上去就不能证明红在哪一 | **绑（位置）** | `stmt:4833e323c049` |
+| 27 | `M58-input-ts-not-literally-checked` | ⑥ 该门实际打红的那条断言, 其消息首行的字面片段在门文件里不唯一(出现 >1 次), 绑上去就不能证明红在哪一 | **绑（位置）** | `stmt:6be363a3f232` |
+| 28 | `M61-durable-eid-whitespace-not-scanned` | ① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N] | **绑（位置）** | `stmt:6cee3c61a23a` |
+| 29 | `M65-loads-allows-nan` | ① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N] | **绑（位置）** | `stmt:4d0254dfdb35` |
+| 30 | `M75-w-fallback-restored` | ⑥ 该门实际打红的那条断言, 其消息首行的字面片段在门文件里不唯一(出现 >1 次), 绑上去就不能证明红在哪一 | **绑（位置）** | `stmt:66f7e7eef6ad` |
+| 31 | `M76-self-node-id-gate-dropped` | ⑤ 该门此处断言的消息**逐字抄自生产的报错文案**(`SKILL.md:331` 的 `写出去的事件将永远路由 | **绑（位置）** | `stmt:cca6ed1276e8` |
+| 32 | `M77-ordinal-fixed-minus-one` | ⑥ 该门实际打红的那条断言, 其消息首行的字面片段在门文件里不唯一(出现 >1 次), 绑上去就不能证明红在哪一 | **绑（位置）** | `stmt:df0f8fdcce4a` |
+| 33 | `M79-missing-scored-at-falls-back` | ① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N] | **绑（位置）** | `stmt:4b52b515653f` |
+| 34 | `M81-legacy-out-of-order-honored` | ⑥ 该门实际打红的那条断言, 其消息首行的字面片段在门文件里不唯一(出现 >1 次), 绑上去就不能证明红在哪一 | **绑（位置）** | `stmt:7841011453a9` |
+| 35 | `M89-receipt-drops-scored-at` | ③ 该门此处是**无消息断言**, 短摘要给的是 pytest 改写出来的值(如 'assert 1 == 0' | **保留 UNBOUND** | ⓒ 实测位置落在门 `test_round9_structured_receipt` 的**第 1/14 条 assert**(`asser |
+| 36 | `M9-6cell-cell2-drop-orphan-noop` | ② 该门此处断言的消息**求值为空串**, 短摘要里只有 'AssertionError:'  | **绑（位置）** | `stmt:5ad5a11505d6` |
+| 37 | `M90-receipt-drops-attempt` | ③ 该门此处是**无消息断言**, 短摘要给的是 pytest 改写出来的值(如 'assert 1 == 0' | **保留 UNBOUND** | ⓒ 实测位置落在门 `test_round9_structured_receipt` 的**第 1/14 条 assert**(`asser |
+| 38 | `M91-f1-only-unconditional-noop` | ① 该门此处断言的消息**整体就是被测子进程的 stderr**(`assert X, r.stderr[:N] | **绑（位置）** | `stmt:1f2e99d5342c` |
+| 39 | `M97-writeback-regex-only` | ④ 该变异让门以**未捕获异常**失败(yaml.parser.ParserError), 而不是落在门里任何一 | **保留 UNBOUND** | ⓐ 该变异让门在**门文件之外**失败(实见 file:parser.py), 只能绑到文件级弱身份; 按 check_expect_loc |
+
+**按最终裁决**：36 条新增位置绑定中，35 条最终 KILLED，1 条被空变异对照降档（假杀 ⇒ HARNESS-ERROR）。
+
+**小计**：39 条中 **36 条改绑位置身份**（新增位置绑定；最终裁决见上行），**3 条仍保留 UNBOUND**（逐条理由见上表右列），**退役 0 条**。
+退役 0 条的理由：位置身份把「门文件里没有可绑的**字面片段**」这个障碍整体绕开了 —— 消息绑不出来的那些条目，位置照样绑得出来，所以没有一条需要靠删掉来收口（删掉就是减覆盖，且要说明谁接管它守的规则）。
+
+## 四套分档对照表（收口后）
+
+| 套 | 变异条数 | 六档是否齐全 | expect_msg | expect_loc | 信号 | pytest 开关 |
+|---|---|---|---|---|---|---|
+| `g32b` | 138 | ✅ 从 `VERDICTS` 取 | 99 条 | ✅ 135 条 (+3 豁免) | ✅ RestoreGuard(4 信号 + 还原期屏蔽) | ✅ judge_flags() |
+| `g32cb` | 9 | ✅ 从 `VERDICTS` 取 | 9 条 | — (D-28 移交十四批) | ✅ RestoreGuard(4 信号 + 还原期屏蔽) | ✅ judge_flags() |
+| `g32ccr1` | 11 | ✅ 从 `VERDICTS` 取 | 11 条 | — (D-28 移交十四批) | ✅ RestoreGuard(4 信号 + 还原期屏蔽) | ✅ judge_flags() |
+| `g33` | 18 | ✅ 从 `VERDICTS` 取 | 18 条 | — (D-28 移交十四批) | ✅ RestoreGuard(4 信号 + 还原期屏蔽) | ✅ judge_flags() |

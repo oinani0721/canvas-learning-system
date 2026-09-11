@@ -1,0 +1,15 @@
+=== (g) install-vault.sh --activate 的 deprecated 警告：stdout 与 stderr 分离验证 ===
+rc=0
+
+--- stderr（警告必须在这里）---
+  ⚠️ deprecated: 单实例激活会改全局 .env ACTIVE_VAULT; 多 vault 请用 deploy-vault.sh --activate (G2-8)
+
+--- stdout 里是否也有该警告（不应有）---
+0
+  0（正确：警告只走 stderr）
+
+--- 判据 ---
+  stderr 含 deprecated: 1（期望 ≥1）
+  stderr 含 deploy-vault.sh --activate 指引: 1（期望 ≥1）
+  scratch .env 的 ACTIVE_VAULT: ACTIVE_VAULT=dep_probe
+  ⛔ 真 $WT/.env 未被碰: c84c859683b6b0bd… vs 基线 c84c859683b6b0bd…

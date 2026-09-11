@@ -1,0 +1,20 @@
+# 协议 §2「*.stderr* 永不入库」核查  2026-09-08T01:04:30Z
+
+本卡 5 份 .stderr 的跟踪状态:
+  ✓ codex-review-CARD-G2-9-F1-r1.stderr 未跟踪（.gitignore:264 覆盖）
+  ✓ codex-review-CARD-G2-9-F1-r2.stderr 未跟踪（.gitignore:264 覆盖）
+  ✓ codex-review-CARD-G2-9-F1-r3.stderr 未跟踪（.gitignore:264 覆盖）
+  ✓ codex-review-CARD-G2-9-F1-r4.stderr 未跟踪（.gitignore:264 覆盖）
+  ✓ codex-review-CARD-G2-9-F1-r5.stderr 未跟踪（.gitignore:264 覆盖）
+
+本卡引入的文件里是否含 stderr:
+  ✓ 无
+
+⚠️ 判据教训（本卡第 7 次「判据坏了」）:
+  首个判据 `git ls-files _bmad-output/审查 | grep -c 'stderr'` 得 1，差点判成越界。
+  两个原因叠加：
+    ① 判据面比协议约束**宽** —— grep 'stderr' 会命中 census-stderr.txt，
+       而协议约束是 *.stderr*（fnmatch 实测该文件**不匹配**）；
+    ② 中文路径转义 —— git ls-files 输出八进制转义形式，直接喂给 git cat-file -e
+       路径不匹配 ⇒ 误报「da690bf8 没有」。须 -c core.quotepath=false。
+  更正后：census-stderr.txt 属别卡历史文件，da690bf8 已有，本卡 6 个 commit 未碰。

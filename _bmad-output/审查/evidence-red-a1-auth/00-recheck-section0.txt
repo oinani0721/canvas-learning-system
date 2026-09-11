@@ -1,0 +1,67 @@
+CARD-RED-A1-auth §〇 逐条复核（完成条件 (a)）
+树: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a
+分支: card/u10-red-a   HEAD: 7004a365 (U10-B CARD-RED-E 末 commit)   git status --porcelain: 空
+backend/.venv/bin/pytest: 存在   backend/.env: 存在
+
+【吻合项（实测 == §〇）】
+security.py      :110 if not configured_key and debug_mode:            ✓
+                 :111-113 bypass_env = os.environ.get("ALLOW_UNSAFE_DEV_AUTH_BYPASS")…== "true"  ✓
+                 :114 client_host = request.client.host if request.client else None             ✓
+                 :115 is_loopback = client_host in {"127.0.0.1", "::1"}                          ✓
+                 :117 if bypass_env and is_loopback:   :124 return None                          ✓
+                 :126-134 logger.error("INTERNAL_API_KEY empty + DEBUG=True without explicit bypass …")  ✓
+                 :135-142 raise HTTPException(503, "Internal API key not configured. …")         ✓
+本地 client fixture（三份，同形裸 TestClient(app)，无 with / 无 no_lifespan / 无 settings 覆盖）:
+                 tests/unit/test_chat_endpoint.py                :22-26  ✓（:27 空行）
+                 tests/unit/test_enrich_context_vault_isolation.py :26-30 ✓（:31 空行）
+                 tests/unit/test_study_question_deep_mode.py      :22-26  ✓（:27 空行）
+                 → §〇 已声明的「勘探稿 :27-31 / :23-27 作废」成立，实测支持 §〇。
+tests/conftest.py :472-491 get_settings_override（:491 是 `)`，:492 空行）                        ✓
+                  :490 INTERNAL_API_KEY="test-internal-key"                                      ✓
+                  :488-489 FR-KG-04 Phase 2 Task 2.5 注释（两行）                                  ✓
+                  :494-517 client fixture（:511 overrides / :513 with no_lifespan+TestClient / :517 clear） ✓
+                  :441-452 isolate_dependency_overrides autouse（:449 copy / :451 clear / :452 update） ✓
+chat.py          :48 chat_router = APIRouter(dependencies=[Depends(require_internal_api_key)])   ✓
+                 :287-296 from app.core.vault_scope import resolve_vault_scope + resolve_vault_scope(...) ✓
+                 :39-47 旧 fail-closed 矩阵注释，:43「DEBUG=True + key 未配置 → allow + warning log」 ✓（登记不改）
+sync.py          :63 dependencies=[Depends(require_internal_api_key)]（端点级）                   ✓
+                 :107 gate_reason = await get_canvas_schema_gate().block_reason()  :108-109 503   ✓
+                 :114-118 resolve_vault_group_id(request.vault_id, …)                             ✓
+                 :126 await get_vault_identity_registry().assert_identity(…)  :127-128 422 / :129-130 409 / :131-134 503 ✓
+                 :25 sync_router = APIRouter()（router 无鉴权）                                    ✓
+test_sync_batch_auth.py :77-103 auth_client（:91-92 gate / :94-97 process_sync_batch /
+                 :98 patch("app.config.get_current_vault_id", return_value=SAMPLE_PAYLOAD["vault_id"]) /
+                 :99 patch("app.services.schema_gate.get_canvas_schema_gate", return_value=gate) / :101 no_lifespan+TestClient） ✓
+test_sync_exception_classification.py :48-58 _dev_settings（DEBUG=True, INTERNAL_API_KEY=""，
+                 docstring「Dev-mode settings so the auth dependency lets the request through」） ✓
+                 :61-66 client fixture（零桩，:64 with no_lifespan+TestClient / :66 clear）        ✓
+                 :30-45 SAMPLE_PAYLOAD，:33 "vault_id": "test_vault"                              ✓
+tests/support/   实测目录清单 = __init__.py / guard_plugin.py / lifespan.py / live_port_guard.py，
+                 无 authed_client.py                                                              ✓
+                 lifespan.py :63-83 no_lifespan（保存/恢复 lifespan_context，嵌套安全）            ✓
+grep -rn 'authed_client' backend/tests backend/app --include='*.py' → rc=1（零命中）              ✓
+security.py :13-22 docstring 矩阵，:15 `| True | empty | any | allow + structured warning (dev mode) |`
+                 与 :110-142 实现相反                                                             ✓（登记不改）
+security.py :48 INTERNAL_API_KEY_HEADER_NAME = "X-CLS-Internal-Key"                               ✓
+config.py   :286 is_local = self.DEBUG and ("localhost" in CORS_ORIGINS or "127.0.0.1" in CORS_ORIGINS) ✓
+                 :295-298 not is_local and not INTERNAL_API_KEY → ValueError                      ✓
+tests/unit 既有红基线 202 nodeid（evidence-b13/unit-red-baseline-da690bf8.txt，grep -vc '^#' = 202） ✓
+
+【偏差项（§〇 :X → 实测 :Y）】——按 (a) 要求先写再动手，不反向「更正」§〇
+偏差 #1  §〇「`assert_identity` 已被 `backend/tests/unit/conftest.py:137-160` autouse
+         `_stub_vault_identity_registry` 打成 no-op（:153-155 `_NoopRegistry.assert_identity` / :159
+         `monkeypatch.setattr(vir, "get_vault_identity_registry", …)`）」
+         → 实测：`_stub_vault_identity_registry` 在 **:395-418**：
+              :395 @pytest.fixture(autouse=True)
+              :396 def _stub_vault_identity_registry(monkeypatch):
+              :411 class _NoopRegistry:
+              :412     async def assert_identity(self, *, raw_vault_id: str, physical_gid: str) -> None:
+              :413         return None
+              :415 import app.services.vault_identity_registry as vir
+              :417 monkeypatch.setattr(vir, "get_vault_identity_registry", lambda: _NoopRegistry())
+              :418 yield
+            `tests/unit/conftest.py:137-160` 实际是 `_hygiene_scan_tmp_literals()` 的 docstring
+            （扫 `/tmp/` + `test-vault` 硬编码字面量的 hygiene 门，与 identity 桩无关）。
+         → 影响：**结论不变**。卡文 (e)「`assert_identity` 不再补桩」的依据成立（autouse no-op 桩
+            确实存在且对 tests/unit 全域生效），只是行号引用错。本卡按实测行号 :395-418 记账。
+            文件总行数 476（`wc -l`），故 §〇 的 :137-160 不是「行号漂移」而是引用了另一个函数。

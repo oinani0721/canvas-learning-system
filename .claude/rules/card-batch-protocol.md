@@ -11,6 +11,7 @@
 - **串行车道的绑定口径**：一条车道串多张卡时，前面的卡在后面的卡改代码后必然「失绑」——按**本卡 diff 面**判：`git diff --stat <审SHA> <本卡末commit> -- <本卡改过的代码文件>` 为空即仍绑定；跨卡后续 commit 不算破坏。但**同一卡内**审后再改（如「按 Codex 意见整改」那次 commit）就是真失绑，须登记「整改未复审」。
 - **轮次（用户 2026-09-07 裁定 D-15，自第十三批起）**：有代码改动的卡 Codex **多轮，直到确认没有问题 goal 才通过**——最后一轮必须绑最终 HEAD（`git diff --stat <审SHA> HEAD -- . ':(exclude)_bmad-output'` 为空）且该轮 **BLOCKER = 0、HIGH = 0**（MEDIUM/LOW 登记）；审后再改代码 ⇒ 必再送一轮（只改 `_bmad-output` 不算）；车道对 HIGH 的驳回要写理由但**不能自判通过**，由主 session 复核时裁定，裁定前该卡按未完成；轮次上限 5，第 5 轮仍有 HIGH → 停下交主 session 人审。零代码卡（纯复审/文档）仍 1 轮。改卡号不重置。0 字节存档重发一次，再 0 字节 → 主 session 人审替代，不等配额。（第十二批及以前的「≤3 轮 + 整改未复审只登记」口径作废；第十一/十二批 11/13、14/23 失绑是本条的由来。）
 - 主 session **人判合入**（终审「FAIL」但阻断级 0）必写：依据逐条对门、revert 点（单 squash SHA）、下批必排的修复卡。
+- **不入库的复核不作依据（第十二批 §五.5，自第十三批起）**：验收单/卡文里「内部对抗复核 N agents」「N 路交叉核」之类**没有入库 journal**（无 evidence 文件、无 Codex 存档）的说法不得作为验收依据引用；主 session 复核时按「未复核」处理。要算数就落盘（`evidence-<卡短名>/` 或 Codex 存档），落不了盘就别写。
 
 ## 2. Codex 复核命令（2026-09-05 起）
 
@@ -44,12 +45,13 @@ codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" 
 
 - 所有承重裁判的 stdout+stderr 一律 `2>&1 | tee _bmad-output/审查/evidence-<卡短名>/<name>-$(date +%Y%m%dT%H%M%S).txt`，**末行写 `rc=$?`**。⚠️ 后缀用 `.txt` 不用 `.log`：仓根 `.gitignore` 有全局 `*.log`，`.log` 存档会被静默忽略、commit 里没有（第十二批排批实测 `git check-ignore`）（`tee` 会吞退出码：用 `set -o pipefail` 或 `${PIPESTATUS[0]}` / zsh `$pipestatus[1]` 取被测命令的 rc）。
 - 验收单只**引用**路径与末行，不自述数字（Z6-B 教训：run-r2/r3 存档逐字节相同、无时间戳无 rc，不可区分轮次）。
+- **判据 grep git 输出一律 `--no-color`**（第十二批 Y5-C 实测：多 worktree 共用同一 `.git/config`，作业期内 `color.ui`/`color.diff` 被并发改写，`git diff | grep '^@@'`、`grep '^+'` 类判据会因 ANSI 前缀静默归零，同一判据前后跑结论相反；重定向到文件不豁免）。写法：`git --no-pager diff --no-color …` / `git -c color.ui=never …`；判据旁必带同次执行的验伪锚（先证 grep 能命中一条已知正例）。
 - 变异 / 换文件类裁判须同时落**跑前 / 跑后**全文件 `shasum -a 256`（不是 grep 变异标记字面量——变异体文本可不含该字样；且本文件不在 `mutant-residue-scan` 允许名单，写字面量会被门拦）。
 
 ### 2.3 批级环境变更通告
 
 - 任何改**共享运行环境**的动作（往 `card-v5-lance/backend/.venv` 装工具 / 升 codex / 升 lefthook / 改全局 hook）= 批级事件：动手前在手册 §零 追加一行「<时刻> <动作> <影响面>」并通知全部在跑车道；事后写进复核报告 §五。
-- 反例：第十一批 Z7-B 07:42 往共享 venv 装 pyright，5 张卡随即用 `LEFTHOOK_EXCLUDE=python-typecheck` 绕过提交且无存档。凡用 `LEFTHOOK_EXCLUDE` 提交，验收单必须贴被跳过 hook 的原始输出与「报错不在本卡改动行」的证明；改 `backend/app/**` 的卡不得绕过 `python-typecheck`。**过渡（用户 2026-09-07 裁 D-16 甲）**：先排一张卡清 `backend/app` 存量 pyright 报错（第十三批队首），该卡合入前允许带存档的绕过（判据用基线树多重集对照 = 0 新增，行号交集不充分）；合入后本条恢复硬禁。
+- 反例：第十一批 Z7-B 07:42 往共享 venv 装 pyright，5 张卡随即用 `LEFTHOOK_EXCLUDE=python-typecheck` 绕过提交且无存档。凡用 `LEFTHOOK_EXCLUDE` 提交，验收单必须贴被跳过 hook 的原始输出与「报错不在本卡改动行」的证明；改 `backend/app/**` 的卡不得绕过 `python-typecheck`。**过渡（用户 2026-09-07 裁 D-16 甲；第十三批排批落地为两车道 + 末位）**：`backend/app` 存量 pyright 报错由第十三批 **U1 PYRIGHT-DEBT-services / U2 PYRIGHT-DEBT-rest 两条并行车道**清（阶段 1 只清无其他车道写者的文件；阶段 2 在语义卡全部进候选树后于候选树上清共享文件），合并队列**末位**（不是队首——注解 hunk 必须叠在语义改动之上，否则每张语义卡都要 rebase 穿过注解噪音）；GATE 卡（U2-B）全批最后一条合入时把本条改回硬禁。两卡合入前的过渡口径：改 `backend/app/**` 被 `python-typecheck` 拦下的语义卡允许**带存档**的 `LEFTHOOK_EXCLUDE=python-typecheck` 提交，存档判据 = **基线树多重集对照 = 0 新增**（`git archive <CODE_BASE> backend/app` 到临时目录跑 pyright 得基线多重集，键 = 按 `/backend/app/` 锚点截取的路径 + rule + 消息文本、不含行号，与工作树多重集相减为空；行号交集不充分，见第十二批 Y9-B 卡文）；**语义车道禁止顺手修存量**类型错误（那是 U1/U2 的面，顺手修 = 同文件双写者 = 集成冲突）。清不掉的存量（需改契约 / 第三方 stub）登记进 PYRIGHT-TAIL（第十四批）。
 
 ## 3. 车道裁判的最低覆盖
 

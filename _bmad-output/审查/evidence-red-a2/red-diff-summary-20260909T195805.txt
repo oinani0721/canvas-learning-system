@@ -1,0 +1,34 @@
+===== 口径 A：vs 202 基线（卡文 (g) 原口径）=====
+diff-rc=1
+--- '>' 行（新增红，必须无输出）---
+grep-rc=1（1 = 无输出 = 合格）
+--- '<' 行逐文件计数 ---
+  16 tests/unit/test_chat_endpoint.py
+   9 tests/unit/test_agent_templates_smoke.py
+   8 tests/unit/test_study_question_deep_mode.py
+   6 tests/unit/test_sync_exception_classification.py
+   6 tests/unit/test_startup_health_check.py
+   3 tests/unit/test_health_detailed.py
+   2 tests/unit/test_system_endpoint_auth.py
+   2 tests/unit/test_enrich_context_vault_isolation.py
+   1 tests/unit/test_sync_batch_auth.py
+   1 tests/unit/test_review_mode_support.py
+   1 tests/unit/test_mock_degradation_transparency.py
+   1 tests/unit/test_kg_health.py
+
+===== 口径 B：vs 本卡开工快照（本卡净增量，承重口径）=====
+diff-rc=1
+--- '>' 行（必须无输出）---
+grep-rc=1（1 = 无输出 = 合格）
+--- '<' 行全文（必须恰为本卡 3 条）---
+< FAILED tests/unit/test_sync_batch_auth.py::TestProductionFailClosed::test_no_key_configured_fails_closed_503
+< FAILED tests/unit/test_system_endpoint_auth.py::TestSystemConfigAuth::test_prod_no_key_configured_503
+< FAILED tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuth::test_prod_no_key_configured_503
+--- 逐条 grep -c 确认（各须为 1）---
+net-diff=1  after-still-red=0  tests/unit/test_sync_batch_auth.py::TestProductionFailClosed::test_no_key_configured_fails_closed_503
+net-diff=1  after-still-red=0  tests/unit/test_system_endpoint_auth.py::TestSystemConfigAuth::test_prod_no_key_configured_503
+net-diff=1  after-still-red=0  tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuth::test_prod_no_key_configured_503
+
+===== 汇总行 + rc（开工 / 收工）=====
+开工: = 120 failed, 4810 passed, 48 skipped, 135 warnings, 29 errors in 264.89s (0:04:24) =  末行=rc=1
+收工: = 117 failed, 4813 passed, 48 skipped, 135 warnings, 29 errors in 278.38s (0:04:38) =  末行=rc=1

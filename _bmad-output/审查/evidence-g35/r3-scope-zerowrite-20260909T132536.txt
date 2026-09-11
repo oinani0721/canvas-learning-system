@@ -1,0 +1,31 @@
+########## 裁判 13 地盘门 (最终态) ##########
+MM backend/app/services/review_service.py
+AM backend/scripts/migrate_fsrs_card_states_vault_key_g35.py
+AM backend/tests/regression/test_g3_5_vault_keyed_card_states.py
+MM backend/tests/regression/test_g3_7_truth_source.py
+MM backend/tests/unit/test_review_service_fsrs.py
+rc=0
+
+########## 裁判 11 零写门 (最终态) ##########
+--- backend/data ---
+failed_edge_syncs.jsonl
+failed_writes.jsonl
+learning_memories.json
+neo4j_memory.json
+outbox
+presets
+reference_priority.json
+--- fsrs_card_states.json 泄漏? ---
+ok
+--- 现网两文件 sha ---
+1c359244cf0d23a010b2760f524630c18fc9fc50733f470a69b47ebedaad40a0  /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/data/fsrs_card_states.json
+2a18023e71a046db8a8c52e098cd48bd0b9898596e4ea3024e18695827796cb6  /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/learning_events.jsonl
+--- canvas-vault 改动数 (应 0) ---
+       0
+--- fsrs_bridge/decay_beta (应 0) ---
+       0
+--- vault 脚本门 diff ---
+rc=0
+--- *.stderr* 入库数 (应 0) ---
+0
+0

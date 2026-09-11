@@ -15,6 +15,7 @@ import sys
 import types
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -24,6 +25,31 @@ sys.path.insert(0, str(WT / "scripts"))
 import daily_review_pick as picker  # noqa: E402  # pyright: ignore[reportMissingImports]
 
 NOW = datetime(2026, 7, 30, 1, 0, tzinfo=timezone.utc)
+
+
+#: 本文件全部期望值所依据的时区 —— 与 _pin_pick_display_tz 夹具**同一个字面量**。
+#: ⛔ 禁写成 picker._DISPLAY_TZ 之类"从被测物取": 那让期望与被测量同源, 缺陷会
+#: 让两边一起退化 (memory「期望值与被测量同源」)。
+_FIXED_TZ = ZoneInfo("Asia/Shanghai")
+
+
+@pytest.fixture(autouse=True)
+def _pin_pick_display_tz(monkeypatch):
+    """把 pick 的显示时区钉在 Asia/Shanghai —— 本文件期望值全按上海日写死。
+
+    CARD-G6-9c 把 pick 的桶位时区从硬编码 Asia/Shanghai 收敛到
+    `local_tz.display_tz()`(缺省 = 机器本地)。本文件的期望值 (why_due 里的
+    「今天 21:00」「明天 7月31日」、due_today/future 的分桶) 全是按上海日算的 ——
+    **刻意保留原值**, 不改成按显示时区现算 (那会让期望与被测量同源)。
+
+    ⛔ 为什么 monkeypatch 常量而不是 setenv: pick 用**模块级常量** `_DISPLAY_TZ`
+    (U6-B / U6-C 卡文已引用的既定形态), 在 `import daily_review_pick` 那一刻就
+    固化了 —— setenv 对已 import 的模块完全无效。
+
+    ⚠ 对起**子进程**的用例 (`test_cli_rejects_unconvertible_now_*`) 无效: 子进程
+    重新 import、读自己的环境。那条用例的断言与时区无关 (新卡恒即刻到期), 故不受影响。
+    """
+    monkeypatch.setattr(picker, "_DISPLAY_TZ", _FIXED_TZ)
 
 
 _seq = iter(range(1000))
@@ -234,6 +260,11 @@ def test_projection_v3_purely_additive_keeps_v2_contract(tmp_path):
         "notification",
         "rank_manifest",  # CARD-G3-6b 加性新增 (S5 系数版本+指纹, 本断言显式扩)
         "truncated",  # CARD-G3-6b 加性新增 (S6 榜被截过的显式声明, 同上)
+        # CARD-G6-9c 加性新增: 生产器自报它归日用的时区 IANA 名。消费侧
+        # (review_overview._gate_buckets) 复算桶位时必须用同一个时区规则 ——
+        # 只有 generated_at 的偏移不够: 同偏移不同规则的时区对 (Bogota 恒 -05:00
+        # vs New_York 的 EST) 会让门在 DST 边界误拒合法投影、或放行错误归桶。
+        "display_tz",
     }
     for key in (
         "new",
@@ -393,7 +424,8 @@ def test_boards_rollup_golden_old_fields_frozen(tmp_path):
     """P1 加性纯度金样 (Codex-D1 M2): 冻结 rollup 引入前的完整 payload
     字面量, 删掉新增 boards 键后深度全等 + 顶层键序恒等 — 旧字段任何
     值/键序/嵌套漂移都在此翻车 (逐字段断言无法发现的同步漂移)。
-    generated_at/date 按 NOW.astimezone() 计算 (跟随机器时区, 非被测逻辑);
+    generated_at/date 按 _FIXED_TZ 计算 (与 _pin_pick_display_tz 夹具同源,
+    非被测逻辑 —— 跟随机器时区会让金样在非上海宿主上恒红);
     vault 名固定 goldenvault 保 vault_id 确定性。"""
     vault = tmp_path / "goldenvault"
     scripts = vault / ".claude" / "scripts"
@@ -417,6 +449,7 @@ def test_boards_rollup_golden_old_fields_frozen(tmp_path):
     # 三件套 + due_nodes 行内 idle_days (同一条累积冻结纪律)
     payload.pop("rank_manifest")
     payload.pop("truncated")
+    payload.pop("display_tz")  # CARD-G6-9c 加性顶层键（生产器自报归日时区）
     for _tb in payload["top_boards"]:
         _tb.pop("why_this_board")
         _tb.pop("estimated_minutes")
@@ -429,8 +462,8 @@ def test_boards_rollup_golden_old_fields_frozen(tmp_path):
         "unassigned_nodes": [],
         "schema_version": 3,
         "vault_id": "goldenvault",
-        "date": NOW.astimezone().date().isoformat(),
-        "generated_at": NOW.astimezone().isoformat(timespec="seconds"),
+        "date": NOW.astimezone(_FIXED_TZ).date().isoformat(),
+        "generated_at": NOW.astimezone(_FIXED_TZ).isoformat(timespec="seconds"),
         "top_boards": [
             {
                 "board": "普通板",
@@ -535,8 +568,9 @@ def test_buckets_five_way_partition_each_bucket_covered(tmp_path):
     assert len(b["due_today"]) + len(b["future"]) == s["future_nodes"] == 2
 
 
-def test_buckets_due_today_uses_shanghai_day_not_utc_day(tmp_path):
-    """跨上海日边界 (S1 第 4 桶): NOW=2026-07-30T01:00Z = 上海 07-30 09:00。
+def test_buckets_due_today_uses_display_tz_day_not_utc_day(tmp_path):
+    """跨显示时区日边界 (S1 第 4 桶; 夹具把显示时区钉在上海)。
+    NOW=2026-07-30T01:00Z = 上海 07-30 09:00。
     13:00Z / 15:59:59Z / 16:00Z 同属 UTC 07-30, 但上海侧前两个仍是 07-30、
     第三个已是 07-31 —— 用 UTC 日判会把 16:00Z 错判进 due_today。
     并锁 now 表示无关性: 同一时刻以 +08:00 表示时判桶结果逐字相同。"""
@@ -694,7 +728,8 @@ def test_buckets_golden_pre_g36a_fields_frozen(tmp_path):
     冻结 G3-6a 引入前的完整 payload 字面量 (含 D1 的 boards rollup), 摘掉本卡
     新增的顶层 buckets 与 due_nodes 行内 bucket/why_due 后深度全等 + 顶层键序
     恒等 —— 旧字段任何值/键序/嵌套漂移都在此翻车。
-    generated_at/date 按 NOW.astimezone() 计算 (跟随机器时区, 非被测逻辑);
+    generated_at/date 按 _FIXED_TZ 计算 (与 _pin_pick_display_tz 夹具同源,
+    非被测逻辑 —— 跟随机器时区会让金样在非上海宿主上恒红);
     vault 名固定 g36avault 保 vault_id 确定性。"""
     vault = tmp_path / "g36avault"
     scripts = vault / ".claude" / "scripts"
@@ -715,6 +750,7 @@ def test_buckets_golden_pre_g36a_fields_frozen(tmp_path):
     # 金样, 每轮新加性都要在此证明自己没动旧字段/旧键序)
     payload.pop("rank_manifest")
     payload.pop("truncated")
+    payload.pop("display_tz")  # CARD-G6-9c 加性顶层键（生产器自报归日时区）
     for _tb in payload["top_boards"]:
         _tb.pop("why_this_board")
         _tb.pop("estimated_minutes")
@@ -725,8 +761,8 @@ def test_buckets_golden_pre_g36a_fields_frozen(tmp_path):
         "unassigned_nodes": [],
         "schema_version": 3,
         "vault_id": "g36avault",
-        "date": NOW.astimezone().date().isoformat(),
-        "generated_at": NOW.astimezone().isoformat(timespec="seconds"),
+        "date": NOW.astimezone(_FIXED_TZ).date().isoformat(),
+        "generated_at": NOW.astimezone(_FIXED_TZ).isoformat(timespec="seconds"),
         "top_boards": [
             {
                 "board": "普通板",
@@ -888,7 +924,7 @@ def test_extreme_now_falls_back_instead_of_crashing():
         "到期时刻超出可显示范围，按未来排期处理",
     )
     # 今天基准退化为 UTC 日 (不崩)
-    assert picker._today_sh(now) == now.date()
+    assert picker._today_local(now) == now.date()
 
 
 def test_cli_rejects_unconvertible_now_with_clear_error(tmp_path):
@@ -905,27 +941,32 @@ def test_cli_rejects_unconvertible_now_with_clear_error(tmp_path):
     shutil.copy(WT / "canvas-vault" / ".claude" / "scripts" / "decay_beta.py", scripts)
     (vault / "节点" / "存量.md").write_text(_node(), encoding="utf-8")
     cmd = [sys.executable, str(WT / "scripts" / "daily_review_pick.py"), "--vault", str(vault), "--now"]
+    # ⛔ 子进程重新 import, `_pin_pick_display_tz` 夹具对它无效 —— 用 CANVAS_TZ
+    #    把它钉在上海。**必须钉**: 极值 9999-12-31T23:59:59Z 是否溢出取决于时区
+    #    的**符号** —— 东八区要 +8h ⇒ 年份溢出 ⇒ 被拒; 而洛杉矶要 -7h ⇒ 不溢出
+    #    ⇒ rc=0。本用例测的是"极值被明确拒绝"这个机制, 需要一个会溢出的时区。
+    env = {**os.environ, "CANVAS_TZ": "Asia/Shanghai", "PYTHONDONTWRITEBYTECODE": "1"}
 
-    bad = subprocess.run([*cmd, "9999-12-31T23:59:59Z"], capture_output=True, text=True)
+    bad = subprocess.run([*cmd, "9999-12-31T23:59:59Z"], capture_output=True, text=True, env=env)
     assert bad.returncode != 0
     assert "--now 超出可换算范围" in bad.stderr
     assert "Traceback" not in bad.stderr, "极值输入不得吐 traceback"
 
-    ok = subprocess.run([*cmd, "2026-07-30T01:00:00Z"], capture_output=True, text=True)
+    ok = subprocess.run([*cmd, "2026-07-30T01:00:00Z"], capture_output=True, text=True, env=env)
     assert ok.returncode == 0, ok.stderr
     assert json.loads(ok.stdout)["stats"]["due_nodes"] == 1
 
 
-def test_today_sh_three_tier_fallback_never_raises():
+def test_today_local_three_tier_fallback_never_raises():
     """Codex round-2 MEDIUM: UTC 回退本身也可能溢出 (year=1 且 offset=+14,
     换算需减 14 小时 → 年份下溢)。三档兜底必须保证本函数对任何 aware
-    datetime 都不抛。"""
+    datetime 都不抛。(夹具把显示时区钉在上海, 期望值原值保留。)"""
     up = datetime(9999, 12, 31, 23, 59, 59, tzinfo=timezone.utc)
-    assert picker._today_sh(up) == up.date(), "上界: 上海换算溢出 → 退 UTC 日"
+    assert picker._today_local(up) == up.date(), "上界: 显示时区换算溢出 → 退 UTC 日"
     low = datetime(1, 1, 1, 0, 0, tzinfo=timezone(timedelta(hours=14)))
-    assert picker._today_sh(low) == low.date(), "下界: 上海与 UTC 换算双溢出 → 退自身表示日"
+    assert picker._today_local(low) == low.date(), "下界: 显示时区与 UTC 换算双溢出 → 退自身表示日"
     normal = datetime(2026, 7, 30, 1, 0, tzinfo=timezone.utc)
-    assert picker._today_sh(normal).isoformat() == "2026-07-30", "常规值仍走上海日"
+    assert picker._today_local(normal).isoformat() == "2026-07-30", "常规值仍走显示时区日 (夹具=上海)"
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -2111,7 +2152,11 @@ _TWO_BOARDS = {
     "甲二": _node(board="甲板"),
     "乙一": _node(board="乙板"),
 }
-_TODAY = NOW.astimezone().date().isoformat()
+#: 「今天」按**与 _pin_pick_display_tz 夹具同一个字面量**的时区算 (CARD-G6-9c)。
+#: ⛔ 不能写 NOW.astimezone()(机器本地): 本文件的夹具把 picker._DISPLAY_TZ 钉在
+#: 上海, 而模块级常量在 import 时求值、夹具还没跑 —— 在非上海宿主上两者会差
+#: 一天, board_done 的「值 == 今天」判定当场失效 (让位不发生, 门却说是生产坏了)。
+_TODAY = NOW.astimezone(_FIXED_TZ).date().isoformat()
 
 
 def test_g67_done_board_yields_top_slot_but_stays_on_the_list(tmp_path):
@@ -2144,7 +2189,7 @@ def test_g67_yesterday_done_does_not_yield(tmp_path):
     """(f) 判据是「值 == 今天」: 昨天的完成账不该影响今天的榜首。"""
     _base, base_ranked = _build_with_done(tmp_path, _TWO_BOARDS, None)
     first = base_ranked[0]["board"]
-    yesterday = (NOW.astimezone() - timedelta(days=1)).date().isoformat()
+    yesterday = (NOW.astimezone(_FIXED_TZ) - timedelta(days=1)).date().isoformat()
     _payload, ranked = _build_with_done(tmp_path, _TWO_BOARDS, {first: yesterday})
     assert ranked[0]["board"] == first, "隔日的完成账必须自然失效"
 
@@ -2182,3 +2227,159 @@ def test_g67_four_positional_call_form_still_works(tmp_path):
     assert [r["board"] for r in ranked] == [r["board"] for r in golden_ranked]
     assert payload["top_boards"] == golden["top_boards"]
     assert payload["schema_version"] == 3, "本卡不动投影 schema"
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# CARD-G6-7-R: --state 同时取 board_last_recommended 与 board_done
+# ══════════════════════════════════════════════════════════════════════════
+
+
+def _mk_two_board_vault(tmp_path) -> Path:
+    vault = tmp_path / f"vault{next(_seq)}"
+    scripts = vault / ".claude" / "scripts"
+    scripts.mkdir(parents=True)
+    (vault / "节点").mkdir()
+    shutil.copy(WT / "canvas-vault" / ".claude" / "scripts" / "decay_beta.py", scripts)
+    for name, content in _TWO_BOARDS.items():
+        (vault / "节点" / f"{name}.md").write_text(content, encoding="utf-8")
+    return vault
+
+
+def _run_cli(monkeypatch, capsys, vault: Path, state: Path | None) -> dict:
+    argv = ["daily_review_pick.py", "--vault", str(vault), "--now", NOW.isoformat()]
+    if state is not None:
+        argv += ["--state", str(state)]
+    monkeypatch.setattr(sys, "argv", argv)
+    picker.main()
+    return json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+
+
+def test_g67r_main_reads_both_keys_from_state_in_one_parse(tmp_path, monkeypatch, capsys):
+    """(b) CLI 侧: --state 不再只取 board_last_recommended, board_done 同批取走。
+
+    Web 手动刷新走的就是这条 CLI —— Codex M-1 当时只修了 runner 那一半, 于是
+    浏览器上点「重新算一遍」时完成账根本流不进生产器, 榜首不让位。
+
+    三件事一起钉:
+      · 对照先证明"甲板本来是榜首"(否则让位断言可能恒真);
+      · 让位后甲板仍在 boards (折叠不是剔除, 撞 _gate_buckets 的合计恒等);
+      · state 文件**只被读一次**且前后字节不变 —— 两个键必须来自同一次解析
+        (加第二次 read_text 会在两次读之间开一个新的撕裂窗), 且 pick 对 state
+        的只读承诺是 _rebuild_projection 写侧承诺 ② 的前提。
+    """
+    vault = _mk_two_board_vault(tmp_path)
+    baseline = _run_cli(monkeypatch, capsys, vault, None)
+    # ⛔ 榜首**实测**取, 不写死板名: 卡文把 rank_boards 的排序律列为硬边界,
+    # 门若绑死"甲板恒第一"就等于在门里复刻了一份排序律, 排序律一动门就红在
+    # 与本卡无关的地方。(实测 ranked[0] 是乙板 —— 该文件 _TWO_BOARDS 上方的
+    # 既有注释说的是甲板, 与事实不符; 本卡不改存量注释, 只不依赖它。)
+    top = baseline["top_boards"][0]["board"]
+    assert len(baseline["top_boards"]) >= 2, "夹具前提: 至少两块板才谈得上'让给下一块'"
+    other = next(b["board"] for b in baseline["top_boards"] if b["board"] != top)
+
+    state = tmp_path / "daily-review.probe.state.json"
+    state.write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "board_last_recommended": {other: _TODAY},
+                "board_done": {top: _TODAY},
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    before = state.read_bytes()
+
+    reads: list[str] = []
+    real_read_text = Path.read_text
+
+    def _spy_read_text(self, *a, **kw):
+        if self == state:
+            reads.append(str(self))
+        return real_read_text(self, *a, **kw)
+
+    monkeypatch.setattr(Path, "read_text", _spy_read_text)
+    out = _run_cli(monkeypatch, capsys, vault, state)
+
+    assert out["top_boards"][0]["board"] != top, "已完成的板必须让出榜首"
+    assert top in [b["board"] for b in out["boards"]], "让位不是剔除 —— 板行必须还在"
+    assert out["stats"] == baseline["stats"], "让位只换顺序, 不动任何计数"
+    assert len(reads) == 1, f"state 必须只解析一次取两个键, 实读 {len(reads)} 次"
+    assert state.read_bytes() == before, "生产器对 state 只读, 一个字节都不许写"
+
+
+def test_g67r_main_state_corrupt_degrades_like_no_state(tmp_path, monkeypatch, capsys):
+    """(b) 损坏的 state 与"没有 state"逐项等价 —— 不崩、不半读。
+
+    卡文把这条列进"未证明什么"; 加起来很便宜, 而它守的正是 board_done 引入
+    的新失败面: 两个键从同一次解析里取, 一旦解析失败就必须两个都退回空,
+    不能出现"blr 拿到了、bd 没拿到"这种半截状态。
+    """
+    vault = _mk_two_board_vault(tmp_path)
+    baseline = _run_cli(monkeypatch, capsys, vault, None)
+
+    for bad in ("{不是合法 JSON", "[]", '"就是个字符串"', '{"board_done": [], "board_last_recommended": 7}'):
+        state = tmp_path / f"corrupt{next(_seq)}.json"
+        state.write_text(bad, encoding="utf-8")
+        out = _run_cli(monkeypatch, capsys, vault, state)
+        for key in ("top_boards", "boards", "buckets", "stats", "due_nodes"):
+            assert out[key] == baseline[key], f"损坏 state ({bad[:20]}) 改变了 {key}"
+
+    missing = tmp_path / "根本不存在.json"
+    out = _run_cli(monkeypatch, capsys, vault, missing)
+    assert out["top_boards"] == baseline["top_boards"]
+
+    # ⚠ Codex round-1 M2: 非法字节让 read_text 抛 UnicodeDecodeError —— 它同是
+    # ValueError 的子类但**不是** JSONDecodeError, 只捕后者就漏网, 整轮生成崩掉。
+    # 自本卡起 Web 手动刷新也走这条路, 一个坏字节能打死刷新按钮。
+    binary = tmp_path / f"nonutf8-{next(_seq)}.json"
+    binary.write_bytes(b'{"board_done": {"\xff\xfe": "x"}}')
+    out = _run_cli(monkeypatch, capsys, vault, binary)
+    for key in ("top_boards", "boards", "buckets", "stats", "due_nodes"):
+        assert out[key] == baseline[key], f"非 UTF-8 的 state 改变了 {key}"
+
+
+def test_g67r_main_state_with_wrongly_typed_values_does_not_crash(tmp_path, monkeypatch, capsys):
+    """(b) Codex round-3 M3: 账本里的**值**错型也不许打死生产器。
+
+    只检查"外层是不是 dict"是不够的: {"board_last_recommended": {"A板": 7}}
+    会让排序键拿 7 去和另一块板的 "" 比大小 → TypeError → 整轮生成崩掉 →
+    手动刷新拿到 503。这是既有排序缺陷的**新暴露路径** —— BASE 的 refresh
+    不传 state, 本卡把它接上了, 就得为这条新输入面负责。
+    与读侧 _read_board_done 同一条纪律: 形状不对 = 没有这条记录 (丢弃而不是
+    修正 —— 我们无从知道 7 本来想写哪一天)。
+    """
+    vault = _mk_two_board_vault(tmp_path)
+    baseline = _run_cli(monkeypatch, capsys, vault, None)
+    top = baseline["top_boards"][0]["board"]
+
+    for bad_blr, bad_bd in (
+        ({top: 7}, {}),
+        ({top: None}, {}),
+        ({top: []}, {}),
+        ({}, {top: 7}),
+        ({}, {top: {"嵌套": 1}}),
+        ({7: "2026-07-30"}, {}),
+    ):
+        state = tmp_path / f"typed{next(_seq)}.json"
+        state.write_text(
+            json.dumps(
+                {"schema_version": 2, "board_last_recommended": bad_blr, "board_done": bad_bd}, ensure_ascii=False
+            ),
+            encoding="utf-8",
+        )
+        out = _run_cli(monkeypatch, capsys, vault, state)
+        for key in ("top_boards", "boards", "buckets", "stats", "due_nodes"):
+            assert out[key] == baseline[key], f"错型值 blr={bad_blr} bd={bad_bd} 改变了 {key}"
+
+    # 正控: 值类型对的时候, 那两个键仍然真的被消费 (否则上面全绿只说明"整个忽略了")
+    ok = tmp_path / f"typed{next(_seq)}.json"
+    ok.write_text(
+        json.dumps(
+            {"schema_version": 2, "board_last_recommended": {}, "board_done": {top: _TODAY}}, ensure_ascii=False
+        ),
+        encoding="utf-8",
+    )
+    good = _run_cli(monkeypatch, capsys, vault, ok)
+    assert good["top_boards"][0]["board"] != top, "合法账没被消费 —— 上面那批全绿证明不了什么"

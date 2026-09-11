@@ -1,0 +1,7 @@
+### live vault 与 harness 树里, 部署面内是否真有软链
+--- live: .claude / .obsidian 下的软链 ---
+  合计: 0
+--- harness 树 canvas-vault: ---
+  合计: 0
+--- git 追踪的 symlink（mode 120000）---
+  合计: 0

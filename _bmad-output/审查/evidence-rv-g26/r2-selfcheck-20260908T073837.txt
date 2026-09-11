@@ -1,0 +1,31 @@
+### round-2 整改的对抗自查 (ts=20260908T073837, HEAD=6bdb0fab)
+对应 codex-prompt-CARD-RV-G2-6-r2.md §三 的 Q1/Q2/Q3 —— 送审前先自己走一遍。
+
+--- 调用点枚举（证明新出参没有漏改的调用链）---
+483:def _iter_relative(root: Path, base: Path, unreadable: list[str] | None = None) -> list[str]:
+565:            for rel in _iter_relative(scan_root, vault, unreadable)
+549:    def hits_for(self, vault: Path, item: Item, unreadable: list[str] | None = None) -> list[str]:
+768:            hits = excluder.hits_for(vault, item, scan_failures)
+1011:def _printable(text: str) -> str:
+1070:    return _printable("\n".join(lines) + "\n")
+1219:        sys.stdout.write(text)
+
+Q1 · 同一个读不动目录被多条 exclude 前缀扫到 ⇒ 是否重复登记
+  unreadable 条目: ['.claude/hooks']
+  是否有重复: False  rc=2
+
+Q1 · 源端缺项改记 unreadable 后, match 计数是否仍稳定
+  两侧一致时 match=28 (应 28)  unreadable=0 (应 0)  rc=0
+
+Q2/Q3 · 真 CLI 出口码（子进程实测, 看 shell 真拿到什么）
+  rc=3  缺参数值 → 期望 3
+  rc=3  缺必填 --vault → 期望 3
+  rc=3  未知开关 → 期望 3
+  rc=0  帮助 → 期望 0
+  rc=3  目录不存在 → 期望 3
+  rc=0  正常 → 期望 0
+
+Q3 · _printable 是否覆盖 stdout 路径（不给 --report）
+  stdout 路径 rc=2 (期望 2)  stdout 里含转义形式: True
+  stderr 有无 traceback: False
+rc=0

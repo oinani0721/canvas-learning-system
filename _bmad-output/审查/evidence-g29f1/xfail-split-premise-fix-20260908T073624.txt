@@ -1,0 +1,19 @@
+# 门⑤ 假 xfail 的修法验证：前提拆到不带 xfail 的独立用例
+# 2026-09-07T23:36:24Z  （复现文件在 scratchpad，不入库）
+
+== A 夹具坏 ==
+=========================== short test summary info ============================
+XFAIL test_split_premise.py::test_prefix_overlap_vault_is_not_isolated - 已知未闭合面
+1 failed, 1 xfailed in 0.12s
+== B 缺陷仍在 ==
+XFAIL test_split_premise.py::test_prefix_overlap_vault_is_not_isolated - 已知未闭合面
+1 passed, 1 xfailed in 0.10s
+== C 缺陷已修好 ==
+[XPASS(strict)] 已知未闭合面
+1 failed, 1 passed in 0.07s
+
+三态汇总行互不相同 ⇒ 可区分:
+  A 夹具坏     → 1 failed, 1 xfailed（红的是**前提**用例）
+  B 缺陷仍在   → 1 passed, 1 xfailed
+  C 缺陷已修好 → 1 failed, 1 passed（红的是**主**用例，XPASS(strict)）
+对比原写法（xfail-swallows-premise-*.txt）：A 与 B 都是 xfailed，不可区分。

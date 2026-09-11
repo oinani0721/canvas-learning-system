@@ -1,0 +1,27 @@
+# ruff format 判据 v2（Codex round-1 LOW 更正：文件级集合看不见已脏文件里的新增违规）
+# 新判据 = **归一化 hunk 内容多重集**对照：U0 版本 vs 收工版本。
+#   取 ruff format --diff 的 '-'/'+' 行（去行号，仅内容），排序后比集合。
+#   新增违规 ⇒ 收工侧出现 U0 侧没有的 hunk 内容。
+
+## app/api/v1/system.py
+   U0 hunk 行数=97  收工=97
+   ✅ 逐条相同 ⇒ 本卡零新增 format 违规
+## tests/unit/test_mock_degradation_transparency.py
+   U0 hunk 行数=122  收工=122
+   ✅ 逐条相同 ⇒ 本卡零新增 format 违规
+## tests/unit/test_review_mode_support.py
+   U0 hunk 行数=84  收工=84
+   ✅ 逐条相同 ⇒ 本卡零新增 format 违规
+## tests/unit/test_health_detailed.py
+   U0 hunk 行数=0  收工=0
+   ✅ 逐条相同 ⇒ 本卡零新增 format 违规
+## tests/unit/test_kg_health.py
+   U0 hunk 行数=0  收工=0
+   ✅ 逐条相同 ⇒ 本卡零新增 format 违规
+## tests/unit/test_startup_health_check.py
+   U0 hunk 行数=0  收工=0
+   ✅ 逐条相同 ⇒ 本卡零新增 format 违规
+## tests/unit/test_config_drift.py
+   U0 hunk 行数=0  收工=0
+   ✅ 逐条相同 ⇒ 本卡零新增 format 违规
+All checks passed!

@@ -1,0 +1,21 @@
+# 负控（提交态确认）：17 输入，HEAD=37b7c7b8  代码面未提交改动=0
+跑于 2026-09-09 17:44:05
+OK  ①基线                            期望=PASS 实测=PASS
+OK  ②分步count                       期望=PASS 实测=PASS
+OK  ③AS unlimited_count            期望=PASS 实测=PASS
+OK  ④LIMIT toInteger($limit)       期望=PASS 实测=PASS
+OK  ⑤SKIP $skip                    期望=PASS 实测=PASS
+OK  ⑥无kwargs裸查询                    期望=FAIL 实测=FAIL
+OK  ⑦绑错物理组                         期望=FAIL 实测=FAIL
+OK  ⑧内联LIMIT 5删limit               期望=FAIL 实测=FAIL
+OK  ⑨内联userId删kwarg                期望=FAIL 实测=FAIL
+OK  ⑩单引号拆半拼userId                  期望=FAIL 实测=FAIL
+OK  ⑪单引号拆半拼恶意串                     期望=FAIL 实测=FAIL
+OK  ⑫大小写变形内联                       期望=FAIL 实测=FAIL
+OK  ⑬LIMIT (5)                     期望=FAIL 实测=FAIL
+OK  ⑭LIMIT toInteger(5)            期望=FAIL 实测=FAIL
+OK  ⑮双引号拆半拼userId                  期望=FAIL 实测=FAIL
+OK  ⑯双引号拆半拼恶意串                     期望=FAIL 实测=FAIL
+OK  ⑰SKIP 5内联                      期望=FAIL 实测=FAIL
+
+还原校验 is ORIG = True | 17 条全符合 = True 

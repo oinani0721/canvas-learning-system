@@ -1,0 +1,54 @@
+### A dry-run (只读)
+CARD-G3-5 FSRS 投影 vault 键化迁移 — DRY RUN (只读, 不写任何文件)
+====================================================================
+目标文件 : /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.WRRFh5orD9/copy.json
+顶层键数 : 1
+n_old    : 1   (裸 concept_id 键, 待迁)
+n_new    : 0   (已在 vault 桶内的条目)
+冲突     : 0   (同一 concept 出现在多个 vault 桶)
+--------------------------------------------------------------------
+计划     : 把 1 条裸键并入 --vault-id 指定的桶 (本次未给 --vault-id, 故只报数不排计划)
+====================================================================
+[DRY RUN] No changes written to disk.
+报告已写: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u9-mastery/_bmad-output/审查/evidence-g35/migrate-dryrun.json
+rc_A=0
+dry-run 后 sha 变了吗: 1c359244cf0d23a010b2760f524630c18fc9fc50733f470a69b47ebedaad40a0 vs 1c359244cf0d23a010b2760f524630c18fc9fc50733f470a69b47ebedaad40a0
+有无 .bak: 0
+
+### B apply (tmp 副本)
+n_new    : 0 (迁移前已在桶内)
+备份     : /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.WRRFh5orD9/copy.json.bak.20260909_131643
+备份     : /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.WRRFh5orD9/copy.json.bak
+已写入   : /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.WRRFh5orD9/copy.json
+重读校验 : SUCCESS
+--------------------------------------------------------------------
+迁移完成: 桶内条目 0 → 1 (净增 1)
+====================================================================
+rc_B=0
+迁移后: {  "canvas_vault": {    "node123": "{\"due\": \"2026-04-07T11:52:24.200212+00:00\", \"stability\": 0.001, \"difficulty\": 9.977978460946307, \"state\": 1, \"reps\": 0, \"lapses\": 0, \"last_review\": \"2026-04-07T11:51:24.200212+00:00\"}"
+有 .bak: 2
+
+### C 空输入 {} apply (期望 rc=0 + 无可迁移条目 + 无 .bak)
+n_new    : 0 (迁移前已在桶内)
+--------------------------------------------------------------------
+无可迁移条目 (n_old = 0) — 未做任何写入, 未产生备份。
+====================================================================
+rc_C=0
+empty .bak 数 (应 0): 0
+
+### D live 闸 --file (期望 rc=2)
+ERROR: --apply 的目标 /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/data/fsrs_card_states.json 与**主仓现网**投影文件是同一个文件 (dev/inode (16777230, 4722935), 硬链接或同路径) — 本卡硬边界禁改它。请 cp 到临时目录后指向副本。
+rc_D=0
+
+### E [新] live 闸 --out (Codex HIGH-2, 期望 rc=2)
+ERROR: --out 的目标 /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/data/fsrs_card_states.json 与**主仓现网**投影文件是同一个文件 (dev/inode (16777230, 4722935), 硬链接或同路径) — 本卡硬边界禁改它。请 cp 到临时目录后指向副本。
+rc_E=0
+
+### F [新] --out 别名 --file (Codex HIGH-2, 期望 rc=2 且输入不被覆盖)
+ERROR: --out /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.WRRFh5orD9/empty.json 与 --file /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.WRRFh5orD9/empty.json 是同一个文件 (dev/inode (16777230, 40284071)) — 报告会覆盖快照本身, 拒绝执行。
+rc_F=0
+empty.json 内容仍是: {}
+
+### G 缺 --vault-id (期望 rc=2)
+ERROR: --apply 必须显式给 --vault-id — 归属由人裁定, 不由脚本按进程 active vault 猜 (猜错就是把一个 vault 的卡写进另一个 vault 的桶)。
+rc_G=0

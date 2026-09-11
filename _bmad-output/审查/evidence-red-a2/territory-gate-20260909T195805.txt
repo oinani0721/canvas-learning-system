@@ -1,0 +1,11 @@
+===== 裁判7 地盘门 =====
+--- 非 _bmad-output 改动面（只允许两个测试文件）---
+backend/tests/unit/test_sync_batch_auth.py
+backend/tests/unit/test_system_endpoint_auth.py
+rc=0
+--- backend/app 必须为空 ---
+rc=0
+--- 禁改面必须为空（conftest / support / api / lefthook / pyrightconfig）---
+rc=0
+--- app/config.py 与 app/security.py 与 app/main.py 逐一（须空）---
+rc=0

@@ -1,0 +1,29 @@
+步骤1 不动点传播 1 轮 → 安全变量名 = ['db_path', 'tmp_path', 'tmp_path_factory']
+
+步骤1b 路径类赋值逐条:
+  : 118  client = <根 ['LanceDBClient', 'db_path', 'dim', 'str', 'vault_id']>  ⛔
+  : 135  db_path = <根 ['tmp_path']>  ✓ 安全
+  : 136  db = <根 ['db_path', 'lancedb', 'str']>  ⛔
+  : 154  client = <根 ['_client', 'db_path']>  ⛔
+  : 157  after = <根 ['_all_names', 'db_path', 'lancedb', 'str']>  ⛔
+  : 194  db_path = <根 ['tmp_path']>  ✓ 安全
+  : 195  db = <根 ['db_path', 'lancedb', 'str']>  ⛔
+  : 209  client = <根 ['_client', 'db_path']>  ⛔
+  : 216  after = <根 ['_all_names', 'db_path', 'lancedb', 'str']>  ⛔
+  : 247  db_path = <根 ['tmp_path']>  ✓ 安全
+  : 248  db = <根 ['db_path', 'lancedb', 'str']>  ⛔
+  : 267  client = <根 ['_client', 'db_path']>  ⛔
+  : 269  after = <根 ['_all_names', 'db_path', 'lancedb', 'str']>  ⛔
+  : 300  db_path = <根 ['tmp_path']>  ✓ 安全
+  : 301  db = <根 ['db_path', 'lancedb', 'str']>  ⛔
+  : 308  client = <根 ['_client', 'db_path']>  ⛔
+  : 390  path = <根 ['consumer', 'shape', 'tmp_path_factory']>  ⛔
+  : 391  db = <根 ['lancedb', 'path', 'str']>  ⛔
+
+步骤2 _client(...) 调用 5 处，越界 1
+步骤3 lancedb.connect 调用 9 处，越界 1  [(391, ['path', 'str'])]
+步骤4 可疑路径/环境字面量 = 0
+
+判定: ⛔ 有问题
+验伪锚1（不认 tmp_path_factory 与其派生）→ 越界 1 处 [391] ⇒ v3 确实覆盖到 fixture ✓
+验伪锚2（v2 旧口径）→ 越界 1 处 [391] ⇒ v2 会把 fixture 那处判成越界或漏检

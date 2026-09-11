@@ -1,0 +1,26 @@
+### (b) 裁定表完整性审计 v2（修掉 v1 的判据缺陷）
+
+⚠️ v1 用 .split() 切 git ls-files 输出 ⇒ **含空格的路径被切碎**，产生 3 个空条目。
+   判据坏了结论就不能信 —— v2 改用 splitlines()，并把目录/文件粒度分开。
+
+git 追踪 vault 文件: 66（v1 因切碎报的是 70，实测 66）
+其中含空格的路径: 2
+    '原白板/CS 61B.md'
+    '原白板/递归与分治 (Recursion & Divide-Conquer).md'
+
+--- 未被 manifest / 脚本数组 / 裁定表 任一覆盖的追踪文件 ---
+共 5 个:
+    2111.md
+    Untitled.md
+    wiki/canvases/.gitkeep
+    wiki/concepts/.gitkeep
+    未命名.md
+
+--- 这些未裁项的性质分类 ---
+  vault 根级 .md（学习内容/临时件）: 3
+      2111.md
+      Untitled.md
+      未命名.md
+  骨架占位（.gitkeep）: 2
+      wiki/canvases/.gitkeep
+      wiki/concepts/.gitkeep

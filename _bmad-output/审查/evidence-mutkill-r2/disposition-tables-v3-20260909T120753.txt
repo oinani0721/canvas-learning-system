@@ -1,0 +1,17 @@
+## 39 条 KILLED-UNBOUND 逐条处置表
+
+> 来源：`g32b_mutation_gates.py` 的四张表按 AST 实读（EXPECT_MSG 99 / EXPECT_MSG_EXEMPT 39 / EXPECT_LOC 135 / EXPECT_LOC_EXEMPT 3）。
+
+> 「收口前」= 消息绑不出来 ⇒ 判据退化成旧口径「指定门红了」= `KILLED-UNBOUND`。
+> 「收口后」= 位置绑上了就是 `KILLED`（绑定维度只有位置，没有消息）。
+
+| # | 变异 tag | 消息为什么绑不出来（原豁免理由，节选） | 处置 | 位置身份 |
+|---|---|---|---|---|
+Traceback (most recent call last):
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u8-mutgates/_bmad-output/审查/evidence-mutkill-r2/make_disposition_table.py", line 121, in <module>
+    sys.exit(main())
+             ~~~~^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u8-mutgates/_bmad-output/审查/evidence-mutkill-r2/make_disposition_table.py", line 59, in main
+    fin = final.get(tag, "(未在最新存档里)")
+          ^^^^^
+UnboundLocalError: cannot access local variable 'final' where it is not associated with a value

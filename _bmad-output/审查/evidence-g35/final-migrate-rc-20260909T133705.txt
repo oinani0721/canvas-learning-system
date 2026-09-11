@@ -1,0 +1,18 @@
+### r2 处置后的 rc 全量测量 (无管道) ###
+A dry-run                rc=0  期望 0
+B apply                  rc=0  期望 0
+C 空输入 apply           rc=0  期望 0
+D live闸 --file          rc=2  期望 2
+E live闸 --out           rc=2  期望 2
+F --out 别名 --file      rc=2  期望 2
+G 缺 --vault-id          rc=2  期望 2
+H 互斥组 required        rc=2  期望 2
+I [新M3] vault-id 含冒号 rc=2  期望 2
+
+### [新H1] 备份路径过闸: .bak 是受保护文件的硬链接 ###
+迁移完成: 桶内条目 0 → 1 (净增 1)
+====================================================================
+rc_H1=0  (期望 2 = 备份闸拒绝)
+受保护文件 sha 前: 4bf7e7cdaeeeb2c55909c1ebbaf6c3b020b0adee0b342c447fd9aa797f0fb193
+受保护文件 sha 后: 1c359244cf0d23a010b2760f524630c18fc9fc50733f470a69b47ebedaad40a0
+**被覆写了**

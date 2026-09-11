@@ -1,0 +1,5 @@
+securitySchemes keys: ['InternalApiKey']
+GET   /api/v1/system/health                    security=<none>
+POST  /api/v1/system/config                    security=[{'APIKeyHeader': []}]
+POST  /api/v1/chat/enrich-context              security=[{'APIKeyHeader': []}]
+POST  /api/v1/sync/batch                       security=[{'APIKeyHeader': []}]

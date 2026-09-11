@@ -1,0 +1,164 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 45 items
+
+tests/unit/test_agent_templates_smoke.py ..F.....FFF..FF.F.............. [ 68%]
+......FF......                                                           [100%]
+
+=================================== FAILURES ===================================
+__ TestAgentTemplateFiles.test_agent_template_exists[canvas-orchestrator.md] ___
+tests/unit/test_agent_templates_smoke.py:73: in test_agent_template_exists
+    assert filepath.exists(), f"Missing agent template: {filepath}"
+E   AssertionError: Missing agent template: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/.claude/agents/canvas-orchestrator.md
+E   assert False
+E    +  where False = exists()
+E    +    where exists = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/.claude/agents/canvas-orchestrator.md').exists
+_ TestAgentTemplateFiles.test_agent_template_exists[graphiti-memory-agent.md] __
+tests/unit/test_agent_templates_smoke.py:73: in test_agent_template_exists
+    assert filepath.exists(), f"Missing agent template: {filepath}"
+E   AssertionError: Missing agent template: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/.claude/agents/graphiti-memory-agent.md
+E   assert False
+E    +  where False = exists()
+E    +    where exists = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/.claude/agents/graphiti-memory-agent.md').exists
+____ TestAgentTemplateFiles.test_agent_template_exists[hint-generation.md] _____
+tests/unit/test_agent_templates_smoke.py:73: in test_agent_template_exists
+    assert filepath.exists(), f"Missing agent template: {filepath}"
+E   AssertionError: Missing agent template: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/.claude/agents/hint-generation.md
+E   assert False
+E    +  where False = exists()
+E    +    where exists = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/.claude/agents/hint-generation.md').exists
+__ TestAgentTemplateFiles.test_agent_template_exists[iteration-validator.md] ___
+tests/unit/test_agent_templates_smoke.py:73: in test_agent_template_exists
+    assert filepath.exists(), f"Missing agent template: {filepath}"
+E   AssertionError: Missing agent template: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/.claude/agents/iteration-validator.md
+E   assert False
+E    +  where False = exists()
+E    +    where exists = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/.claude/agents/iteration-validator.md').exists
+_ TestAgentTemplateFiles.test_agent_template_exists[parallel-dev-orchestrator.md] _
+tests/unit/test_agent_templates_smoke.py:73: in test_agent_template_exists
+    assert filepath.exists(), f"Missing agent template: {filepath}"
+E   AssertionError: Missing agent template: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/.claude/agents/parallel-dev-orchestrator.md
+E   assert False
+E    +  where False = exists()
+E    +    where exists = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/.claude/agents/parallel-dev-orchestrator.md').exists
+_ TestAgentTemplateFiles.test_agent_template_exists[planning-orchestrator.md] __
+tests/unit/test_agent_templates_smoke.py:73: in test_agent_template_exists
+    assert filepath.exists(), f"Missing agent template: {filepath}"
+E   AssertionError: Missing agent template: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/.claude/agents/planning-orchestrator.md
+E   assert False
+E    +  where False = exists()
+E    +    where exists = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/.claude/agents/planning-orchestrator.md').exists
+_ TestAgentTemplateFiles.test_agent_template_exists[review-board-agent-selector.md] _
+tests/unit/test_agent_templates_smoke.py:73: in test_agent_template_exists
+    assert filepath.exists(), f"Missing agent template: {filepath}"
+E   AssertionError: Missing agent template: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/.claude/agents/review-board-agent-selector.md
+E   assert False
+E    +  where False = exists()
+E    +    where exists = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/.claude/agents/review-board-agent-selector.md').exists
+______________ TestAgentTemplateFiles.test_minimum_template_count ______________
+tests/unit/test_agent_templates_smoke.py:86: in test_minimum_template_count
+    assert len(actual_files) >= 17, (
+E   AssertionError: Expected >= 17 agent templates, found 11: ['scoring-agent.md', 'comparison-table.md', 'question-decomposition.md', 'memory-anchor.md', 'deep-decomposition.md', 'clarification-path.md', 'basic-decomposition.md', 'oral-explanation.md', 'example-teaching.md', 'four-level-explanation.md', 'verification-question-agent.md']
+E   assert 11 >= 17
+E    +  where 11 = len([PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/.claude/agents/scor...ing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/.claude/agents/clarification-path.md'), ...])
+_________ TestAgentTemplateFiles.test_hint_generation_template_exists __________
+tests/unit/test_agent_templates_smoke.py:94: in test_hint_generation_template_exists
+    assert filepath.exists(), "hint-generation.md template missing"
+E   AssertionError: hint-generation.md template missing
+E   assert False
+E    +  where False = exists()
+E    +    where exists = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/.claude/agents/hint-generation.md').exists
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:805
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/api/v1/endpoints/chat.py:805: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:105
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/api/v1/endpoints/metadata.py:105: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:179
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/backend/app/api/v1/endpoints/metadata.py:179: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+PASSED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agents_directory_exists
+PASSED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_exists[basic-decomposition.md]
+PASSED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_exists[clarification-path.md]
+PASSED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_exists[comparison-table.md]
+PASSED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_exists[deep-decomposition.md]
+PASSED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_exists[example-teaching.md]
+PASSED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_exists[four-level-explanation.md]
+PASSED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_exists[memory-anchor.md]
+PASSED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_exists[oral-explanation.md]
+PASSED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_exists[question-decomposition.md]
+PASSED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_exists[scoring-agent.md]
+PASSED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_exists[verification-question-agent.md]
+PASSED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_not_empty[basic-decomposition.md]
+PASSED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_not_empty[canvas-orchestrator.md]
+PASSED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_not_empty[clarification-path.md]
+PASSED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_not_empty[comparison-table.md]
+PASSED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_not_empty[deep-decomposition.md]
+PASSED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_not_empty[example-teaching.md]
+PASSED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_not_empty[four-level-explanation.md]
+PASSED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_not_empty[graphiti-memory-agent.md]
+PASSED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_not_empty[hint-generation.md]
+PASSED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_not_empty[iteration-validator.md]
+PASSED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_not_empty[memory-anchor.md]
+PASSED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_not_empty[oral-explanation.md]
+PASSED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_not_empty[parallel-dev-orchestrator.md]
+PASSED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_not_empty[planning-orchestrator.md]
+PASSED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_not_empty[question-decomposition.md]
+PASSED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_not_empty[review-board-agent-selector.md]
+PASSED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_not_empty[scoring-agent.md]
+PASSED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_not_empty[verification-question-agent.md]
+PASSED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_scoring_agent_template_exists
+PASSED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_verification_question_template_exists
+PASSED tests/unit/test_agent_templates_smoke.py::TestAgentTypeEnum::test_hint_generation_enum_exists
+PASSED tests/unit/test_agent_templates_smoke.py::TestAgentTypeEnum::test_verification_question_enum_exists
+PASSED tests/unit/test_agent_templates_smoke.py::TestAgentTypeEnum::test_scoring_enum_exists
+PASSED tests/unit/test_agent_templates_smoke.py::TestAgentTypeEnum::test_basic_decomposition_enum_exists
+FAILED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_exists[canvas-orchestrator.md]
+FAILED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_exists[graphiti-memory-agent.md]
+FAILED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_exists[hint-generation.md]
+FAILED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_exists[iteration-validator.md]
+FAILED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_exists[parallel-dev-orchestrator.md]
+FAILED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_exists[planning-orchestrator.md]
+FAILED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_agent_template_exists[review-board-agent-selector.md]
+FAILED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_minimum_template_count
+FAILED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_hint_generation_template_exists
+================== 9 failed, 36 passed, 10 warnings in 1.40s ===================
+rc=1

@@ -1,0 +1,18 @@
+### 红基线对账（两维：哨兵事件总数 + 剔除哨兵归属后的红集）
+
+单一 nodeid 集合判据对 **W4 哨兵归属漂移** 天然敏感：MemoryService 惰性初始化只连一次
+现网 7691，哨兵把它记在**当时正在跑的那个用例**名下。本卡新增 32 条门改变了执行时序，
+归属就漂了一格 —— 表现为「新引入 1 + 修复 1」，实则同一次事件换了个名字。
+
+维度一 · 哨兵事件总数（必须相等）
+  含本卡文件 : NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=12 (blocked=12, advisory=0, unaccounted=0)
+  排除本卡文件: NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=12 (blocked=12, advisory=0, unaccounted=0)
+
+维度二 · 剔除「哨兵归属」后的红集差异（必须为空）
+  差异条目（未剔除前）: 新增 1 / 消失 1
+    + tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422  → 是否哨兵归属: 1
+    - tests/unit/test_mock_degradation_transparency.py::TestMockScoringWarningLogs::test_mock_mode_logs_warning  → 基线侧是否哨兵归属: 1
+
+结论：两条差异**都**是哨兵归属条目，哨兵事件总数 12 == 12、总红数 173 == 173 ⇒
+      本卡未引入新失败；差异是归属漂移，非新增红。
+rc=0

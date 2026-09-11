@@ -1,0 +1,32 @@
+# P10-a 认根对照：车道树 canvas-vault/（祖先 = worktree 的 .git 文件）  @ 2026-09-08T07:12:59+08:00
+cwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u4-hosts/canvas-vault
+=== 该 vault 自身有无 .git ===
+ls: .git: No such file or directory
+=== git rev-parse --show-toplevel（对照 P0 的 rc=128）===
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u4-hosts
+rc=0
+=== 仓根/vault 的 .agents / .dsh 存在性（决定 dsh skills 根是否有内容）===
+  .agents ABSENT
+  .dsh ABSENT
+  .claude/skills EXISTS
+  ../.agents ABSENT
+  ../.dsh ABSENT
+
+=== (1) opencode debug skill @ canvas-vault ===
+rc=0
+  条目总数 = 25
+  来自车道树的条目数 = 15
+    name='research-pack'              location=<车道树>/.claude/skills/research-pack/SKILL.md
+    name='ai-linked-doc'              location=<车道树>/canvas-vault/.claude/skills/ai-linked-doc/SKILL.md
+    name='openspec-propose'           location=<车道树>/.claude/skills/openspec-propose/SKILL.md
+    name='openspec-apply-change'      location=<车道树>/.claude/skills/openspec-apply-change/SKILL.md
+    name='configure-whiteboard'       location=<车道树>/canvas-vault/.claude/skills/configure-whiteboard/SKILL.md
+    name='deploy-vault'               location=<车道树>/.claude/skills/deploy-vault/SKILL.md
+    name='chat-with-context'          location=<车道树>/canvas-vault/.claude/skills/chat-with-context/SKILL.md
+    name='study-question'             location=<车道树>/canvas-vault/.claude/skills/study-question/SKILL.md
+    name='exam-quick'                 location=<车道树>/canvas-vault/.claude/skills/exam-quick/SKILL.md
+    name='openspec-archive-change'    location=<车道树>/.claude/skills/openspec-archive-change/SKILL.md
+    name='start-exam-board'           location=<车道树>/canvas-vault/.claude/skills/start-exam-board/SKILL.md
+    name='node-chat'                  location=<车道树>/canvas-vault/.claude/skills/node-chat/SKILL.md
+  probe-skill 出现次数 = 0 (应为 0：探针 vault 不在此 cwd 下)
+rc=0

@@ -1,0 +1,50 @@
+# CARD-RV-G3-7 (b) 绑定核验 @ 2026-09-08T06:45:20+08:00
+# tree=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u9-mastery branch=card/u9-mastery HEAD=da690bf8817adc4a84b20d59a1b8d8db4a578969
+## 1) git cat-file -t
+0f7ffb0d -> commit
+ecfcc3f1 -> commit
+08fed737 -> commit
+afaceb06 -> commit
+7c9a6706 -> commit
+31e84281 -> commit
+## 2) git merge-base --is-ancestor 08fed737 HEAD
+is-ancestor rc=1  (1 = 非祖先, 对象可达)
+## 3) git diff --stat --no-color ecfcc3f1 08fed737 -- . ':(exclude)_bmad-output'
+ backend/app/api/v1/endpoints/review.py             |  18 ++++
+ backend/app/models/schemas.py                      |  26 ++++-
+ backend/app/services/review_service.py             | 114 ++++++++++++++++-----
+ backend/openapi.json                               |   8 +-
+ backend/tests/regression/test_g3_7_truth_source.py | 101 +++++++++++++++++-
+ docs/fsrs-truth-source-d0-revision.md              |  15 ++-
+ docs/known-gotchas.md                              |   2 +-
+ 7 files changed, 242 insertions(+), 42 deletions(-)
+cmd rc=0
+## 4) git diff --stat --no-color 08fed737 HEAD -- <7 files>
+ backend/openapi.json | 76 ++++++++++++++++++++++++++++++++++++++++++++++++++--
+ 1 file changed, 74 insertions(+), 2 deletions(-)
+cmd rc=0
+## 5) git diff --stat --no-color afaceb06 HEAD -- <6 files>  (期望空)
+cmd rc=0
+## 6) git show --stat --no-color afaceb06 -- . ':(exclude)_bmad-output'
+commit afaceb06b6205141928a20f540eba2345ce4a1fe
+Author: oinani0721 <2272104243@qq.com>
+Date:   Sun Sep 6 20:36:16 2026 +0800
+
+    merge(squash): Y9-B CARD-G3-7 [BATCH-2026-09-05-第十二批 / CARD-G3-7]
+    
+    squash of 0f7ffb0d^..70ced8a0 from lane (4 commits); openapi.json 冲突 2 次按声明交集取候选树版本，集成末尾统一 --write 再生
+    
+    Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+
+ backend/app/api/v1/endpoints/review.py             |  33 +
+ backend/app/models/schemas.py                      |  63 ++
+ backend/app/services/mastery_engine.py             |  18 +-
+ backend/app/services/review_service.py             | 393 +++++++++++-
+ backend/tests/regression/test_g3_7_truth_source.py | 670 +++++++++++++++++++++
+ docs/fsrs-truth-source-d0-revision.md              |  30 +
+ docs/known-gotchas.md                              |   8 +
+ 7 files changed, 1200 insertions(+), 15 deletions(-)
+## 7) parent 核验
+08fed737 parent = ecfcc3f1
+afaceb06 parent = 31e84281
+rc=0

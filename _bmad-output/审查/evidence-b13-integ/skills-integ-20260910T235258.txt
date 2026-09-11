@@ -1,0 +1,4 @@
+FAILED tests/skills/test_skill_portability_lint.py::test_managed_files_match_digest_baseline
+FAILED tests/skills/test_skill_portability_lint.py::test_tmp_block_fingerprints_match_baseline
+================= 2 failed, 544 passed, 22 warnings in 56.40s ==================
+rc=0

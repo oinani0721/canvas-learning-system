@@ -1,0 +1,168 @@
+########## M4: write_ledger def :1220 + _rewrite_ledger_after_late_record :1237-1255 ##########
+1218:
+1219:
+1220:def write_ledger(path: str, ledger: dict | None = None) -> None:
+1221:    """把账本写到 ``path``（父进程独立复核用）。写失败不静默——直接抛。
+1222:
+1223:    ⛔ **结算路径必须把快照传进来**（CARD-W4-4）。旧实现在这里自己**再取一次快照**，
+1224:    于是裁定读的是 ``_final_accounting`` 那一份、落盘写的是这一
+1225:    份——一条记录落在两次取快照之间，账本文件就会写着 ``unaccounted=1`` 而进程
+1226:    ``rc=0``。2026-09-05 实测复现见 ``evidence-w4-4/before-repro.py`` 的 ``before-2``。
+1227:
+1228:    ``ledger=None`` 只留给**结算之外**的独立调用（「现在把账面存一份看看」），
+1229:    那种场景没有第二份快照可比，取一次是对的。
+1230:    """
+1231:    if ledger is None:
+1232:        ledger = STATE.ledger()
+1233:    with open(path, "w", encoding="utf-8") as fh:
+1234:        json.dump(ledger, fh, ensure_ascii=False, indent=2)
+1235:
+1236:
+1237:def _rewrite_ledger_after_late_record() -> None:
+1238:    """迟到记录落地之后，把账本文件重写成**含这条记录**的版本。
+1239:
+1240:    由 :func:`_audit_hook` 的迟到分支在 ``os._exit(FINAL_EXIT_CODE)`` **之前**调用。
+1241:    没有这一步，账本文件停留在结算那一刻（空账），而进程 rc=3 —— 父进程按文件复核
+1242:    会得出「什么都没发生」，与 rc 直接矛盾。有了它，
+1243:    「``rc=3`` ⇔ 账本 ``unaccounted>0``」两个方向都成立（探针
+1244:    ``guard-ledger-matches-verdict`` 正反两跑钉这一条）。
+1245:
+1246:    ⚠️ 全程 fail-open：这是解释器收尾期、在任意线程里跑的，落盘失败绝不能挡住
+1247:    ``os._exit`` —— 强制非零 rc 才是承重的那一层，账本只是可观测性。
+1248:    """
+1249:    try:
+1250:        path = os.environ.get(ENV_LEDGER)
+1251:        if not path:
+1252:            return
+1253:        write_ledger(path, STATE.late_snapshot())
+1254:    except Exception:  # noqa: BLE001 —— 见上：绝不阻断 os._exit
+1255:        pass
+1256:
+1257:
+1258:def _final_accounting() -> None:
+########## M4: _final_accounting :1258 / snapshot :1275 / write_ledger :1279-1281 / 退出条件 :1288 ##########
+1258:def _final_accounting() -> None:
+1259:    """最后一道结账：任何未结账的拦截都必须让进程以非零 rc 结束。
+1260:
+1261:    第八批 Codex HIGH：``pytest_cmdline_main`` 返回之后还有 pytest 自身的清理、
+1262:    其它 ``atexit`` 处理器和迟到线程 —— 那段窗口里被拦下的连接会被记账，进程
+1263:    却仍然 ``exit 0``，于是「任何未结账尝试都令测试失败」这句承诺不成立。
+1264:
+1265:    R1 Codex HIGH-2：本处理器**之后**仍可能有更早注册的 atexit 回调在跑
+1266:    （见 :func:`register_final_accounting`）。所以第一件事是置不可逆的结算标志：
+1267:    从这一刻起，audit hook 命中受拦端口就直接 ``os._exit(3)``，不再指望任何后续结账。
+1268:
+1269:    ⛔ CARD-W4-4：置标志与取快照必须是**一次**操作
+1270:    （:meth:`_GuardState.finalize_and_snapshot`，同一次持锁），且裁定与落盘用
+1271:    **同一个** dict。旧实现这两处各写各的，留下的夹缝让一条 blocked 记录既进不了
+1272:    快照、又不触发迟到路径 ⇒ 进程 exit 0（``evidence-w4-4`` 的 ``before-1``）；
+1273:    而 ``write_ledger`` 自己再取一次快照，又让账本文件与裁定能互相打脸（``before-2``）。
+1274:    """
+1275:    ledger = STATE.finalize_and_snapshot()
+1276:    path = os.environ.get(ENV_LEDGER)
+1277:    if path:
+1278:        try:
+1279:            write_ledger(path, ledger)  # ← 同一份快照，不再取第二次
+1280:        except Exception as exc:  # noqa: BLE001 —— 落盘失败要说话，但不能盖掉结账
+1281:            print(f"*** W4 guard: 账本落盘失败 {path}: {exc!r} ***", file=sys.stderr)
+1282:    unaccounted = ledger["unaccounted"]
+1283:    blocked = ledger["blocked"]
+1284:    status = ledger["reported_status"]
+1285:    # status is None ⇒ 不是 pytest 跑的（脚本/探针直接 import 本模块）：按 0 处理，
+1286:    # 也就是「有非豁免拦截却打算正常退出」同样算失败。
+1287:    effective_status = 0 if status is None else status
+1288:    if unaccounted > 0 or (blocked > 0 and effective_status == 0):
+1289:        # ⛔ 报告整块包住（Codex round-1 HIGH-3 同型）：stderr 已关闭时 print 会抛，
+1290:        #    原来那个只裹 flush 的 try 挡不住它，异常会越过下面的强制退出。
+1291:        try:
+1292:            print(
+1293:                f"\n*** {BLOCK_REASON} —— 最终总账：blocked={blocked} "
+1294:                f"unaccounted={unaccounted} reported_status={status}；"
+1295:                f"进程被强制以退出码 {FINAL_EXIT_CODE} 结束（迟到连接不得以 0 收场）***",
+1296:                file=sys.stderr,
+1297:            )
+1298:            for rec in ledger["unaccounted_records"]:
+1299:                print(f"    - {rec['address']} on thread {rec['thread']} (owner={rec['owner']})", file=sys.stderr)
+1300:            sys.stdout.flush()
+1301:            sys.stderr.flush()
+1302:        except BaseException:  # noqa: BLE001 —— 可观测性不得挡在强制退出前面
+1303:            pass
+1304:        os._exit(FINAL_EXIT_CODE)
+1305:
+1306:
+1307:# ═══════════════════════════════════════════════════════════════════════════
+1308:# pytest 接线（由根 conftest 调用）
+1309:# ═══════════════════════════════════════════════════════════════════════════
+1310:
+########## ⇔ 三处 ##########
+77:把含迟到记录的账本**重写**一次，保证「``rc=3`` ⇔ 账本 ``unaccounted>0``」双向成立。
+293:        体现为 ``unaccounted`` —— 迟到路径重写账本后，「``rc=3`` ⇔ 账本
+1243:    「``rc=3`` ⇔ 账本 ``unaccounted>0``」两个方向都成立（探针
+########## :1288 单行 ##########
+    if unaccounted > 0 or (blocked > 0 and effective_status == 0):
+########## LOW-10: canonical_target_ports :934 + docstring :947-958 ##########
+932:       —— 驱动根本不接受带 userinfo 的 URI；
+933:    2. 同处校验 scheme 白名单（bolt / bolt+s / bolt+ssc / neo4j / neo4j+s / neo4j+ssc），
+934:       其它 scheme ``ConfigurationError``；
+935:    3. ``_sync/driver.py:276`` 把 **``parsed.netloc``** 交给
+936:       ``_Direct._parse_target`` → ``Address.parse(netloc, default_host='localhost',
+937:       default_port=7687)``。
+938:
+939:    所以这里也走 ``urlparse → scheme 校验 → netloc → Address.parse{,_list}``，
+940:    参数与 ``:446-452`` / ``:470-479`` 一字不差。
+941:    **刻意不自己切字符串**：直接把 ``bolt://user:pass@h:7692`` 的 tail 喂给
+942:    ``Address.parse`` 得到的东西与驱动的真实行为（在第 1 步就 ConfigurationError）
+943:    是两回事 —— 那种"看起来也拒了"的巧合不能当判据，它在别的输入上就会分叉。
+944:    （原注释说那会抛 ``ValueError: Unknown port value``，round-1 Codex 指出**并非
+945:    总是如此**，本机实测某些形态会返回字符串端口；措辞已改成不依赖具体异常。）
+946:
+947:    ⚠️ **延迟 import 的合法性**：本模块刻意不在模块层 import 任何重物（装门必须
+948:    早于一切业务 import，见 ``tests/conftest.py:28``）。本函数的两个调用方里，
+949:    :func:`assert_test_uri_not_blocked` 现在在 ``pytest_configure`` 期跑；
+950:    :func:`assert_neo4j_target_blocked` 由 :func:`install` 在 ``W4_GUARD_REQUIRE_BLOCKED_TARGET=1``
+951:    时调用，而 ``guard_plugin`` 是在**模块 import 期**调 ``install()`` 的 ——
+952:    也就是说开了那个负控开关时，本函数**会在插件 import 期**跑，比 configure 更早
+953:    （Codex round-1 LOW-10 更正了这里原先「两个调用方都在 configure 期或更晚」的说法）。
+954:    负控脚本实测这条路径可用（`lifespan_isolation_negative_control.py` 常绿）。
+955:    2026-09-05 实测：在一个**不加载 root conftest** 的最小会话里，
+956:    ``pytest_configure`` 期 ``from neo4j import Address`` 与本函数都正常工作，
+957:    所以「延迟 import 那时才可用」这个前提比上移前更弱、依然成立。
+958:    所以 import 写在**函数体内**是合法的；模块层新增 import 则禁止（裁判 6 会数）。
+959:
+960:    ⛔ 而且这段 import 现在跑在**门内**：:func:`install` 已把 ``_install_audit_hook()``
+########## LOW-10: :1193 ##########
+1190:
+1191:
+1192:# ═══════════════════════════════════════════════════════════════════════════
+1193:# 最终总账（atexit；**不是**「所有 cleanup / atexit 之后」——见 register_final_accounting）
+1194:# ═══════════════════════════════════════════════════════════════════════════
+1195:
+1196:_FINAL_REGISTERED = False
+########## LOW-10 残留: :119-120 (取 112,130) ##########
+112:  ``socket.connect`` 审计事件。承重的关门方式是 audit 的 ``import`` 事件——
+113:  ``import uvloop`` 直接抛（摘不掉）；``sys.modules`` 毒化只是让错误更早更清楚
+114:  （R1 Codex HIGH：毒化条目可以被 ``del`` 掉再 import，所以它不能当承重）。
+115:* **本门只覆盖 CPython 的 socket API**。绕过 CPython 直接调 libc 的路径
+116:  （``ctypes.CDLL(None).connect(...)`` 或原生扩展自己发 syscall）不触发审计事件，
+117:  本门看不见。当前 neo4j 驱动走的是 CPython socket，故按「防手滑」的威胁模型
+118:  这条属于已声明边界；要覆盖它必须下沉到 OS 层出站约束。
+119:* 「最终总账」之后（解释器 finalization 期间）发起的连接仍会被 audit hook 拦下，
+120:  但已无人能把它变成非零 rc —— 这段窗口无法在进程内闭合，如实登记。
+121:"""
+122:
+123:from __future__ import annotations
+124:
+125:import asyncio
+126:import atexit
+127:import contextvars
+128:import json
+129:import operator
+130:import os
+########## 模块 docstring :77 附近 ##########
+74:所以一条记录只有两种归宿，没有第三种：``record`` 先拿到锁 ⇒ 它在快照里；
+75:``finalize_and_snapshot`` 先拿到锁 ⇒ 它被判迟到、hook 就地 ``os._exit(3)``。
+76:裁定与落盘从此用**同一个** dict（:func:`write_ledger` 接收快照），迟到路径在退出前
+77:把含迟到记录的账本**重写**一次，保证「``rc=3`` ⇔ 账本 ``unaccounted>0``」双向成立。
+78:
+79:⛔ 这里刻意**没有** sleep / 重试 / 「多取一次快照」—— 那些只会把窗口变窄，
+80:不会让它消失，而变窄的窗口比明显的窗口更难被门抓住。

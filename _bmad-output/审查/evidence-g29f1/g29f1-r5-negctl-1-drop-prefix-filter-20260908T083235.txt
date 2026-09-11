@@ -1,0 +1,21 @@
+== negctl-1-drop-prefix-filter ==
+变异: 拆掉 _cache_tables 的 _owns_table 前缀过滤（还原成全表扫）
+跑前 sha: 5235c00d99f343a57924855193cfc5d4f8ffb5d72e4687438aac707287d312ff
+变异体 sha: 32b6275faa7d1d6e611f1e9f9fe8e5a22c87211c04b21c71e0cb8fc9cf73535b  (ast.parse OK)
+变异体 diff（1 删 / 1 增，hunk 1 个）:
+    --- baseline
+    +++ mutant[negctl-1-drop-prefix-filter]
+    @@ -1044,3 +1044,3 @@
+                     for t in self._tables_cache
+    -                if self._owns_table(t, owner_vault) and not t.endswith(self.FINGERPRINT_TABLE)
+    +                if not t.endswith(self.FINGERPRINT_TABLE)
+                 ]
+
+-- tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_cache_tables_never_touches_other_vault
+   rc=1  ======================== 1 failed, 14 warnings in 0.44s ========================
+   E   AssertionError: vault a 的启动自愈碰了 vault b 的表: b_canvas_nodes (16 维, 有 doc_type) 被 drop 了; 本次消失的表 = ['a_canvas_nodes', 'b_canvas_nodes', 'b_vault_notes']
+   E   assert 'b_canvas_nodes' in set()
+   判定: KILLED（红在声称的那条断言）
+
+跑后 sha: 5235c00d99f343a57924855193cfc5d4f8ffb5d72e4687438aac707287d312ff
+还原逐字节相同: YES ✓

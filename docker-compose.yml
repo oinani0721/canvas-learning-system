@@ -19,7 +19,7 @@ services:
   # ═══════════════════════════════════════════════════════════════════════════
   neo4j:
     image: neo4j:5.26-community
-    container_name: canvas-learning-system-neo4j
+    container_name: ${CLS_NEO4J_CONTAINER:-canvas-learning-system-neo4j}  # CARD-G2-7b: 按 vault 实例覆盖, 缺省 = 现网常量
 
     environment:
       - NEO4J_AUTH=${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-password}
@@ -62,7 +62,7 @@ services:
   # ═══════════════════════════════════════════════════════════════════════════
   neo4j-test:
     image: neo4j:5.26-community
-    container_name: canvas-learning-system-neo4j-test
+    container_name: ${CLS_NEO4J_TEST_CONTAINER:-canvas-learning-system-neo4j-test}  # CARD-G2-7b: 按 vault 实例覆盖, 缺省 = 现网常量
     profiles:
       - test
       - dev
@@ -101,7 +101,7 @@ services:
   # ═══════════════════════════════════════════════════════════════════════════
   ollama:
     image: ollama/ollama:latest
-    container_name: canvas-learning-system-ollama
+    container_name: ${CLS_OLLAMA_CONTAINER:-canvas-learning-system-ollama}  # CARD-G2-7b: 按 vault 实例覆盖, 缺省 = 现网常量
     profiles: ["windows"]  # Only start on Windows/Linux with NVIDIA GPU
 
     environment:
@@ -143,7 +143,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: canvas-learning-system-backend
+    container_name: ${CLS_BACKEND_CONTAINER:-canvas-learning-system-backend}  # CARD-G2-7b: 按 vault 实例覆盖, 缺省 = 现网常量
 
     ports:
       # P0-0 (2026-07-31): 实测无 key POST /mcp/tools/* 返回 200 — 收口到本机回环
@@ -247,7 +247,7 @@ services:
     build:
       context: .
       dockerfile: .devcontainer/Dockerfile.claude
-    container_name: claude-dev
+    container_name: ${CLS_DEV_CONTAINER:-claude-dev}  # CARD-G2-7b: 按 vault 实例覆盖, 缺省 = 现网常量
     profiles:
       - dev
     environment:

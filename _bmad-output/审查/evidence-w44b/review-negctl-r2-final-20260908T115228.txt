@@ -1,0 +1,15 @@
+=== REVIEW-NEGCTL case=r2 被测门: TestSingleLedgerSnapshot::test_publish_ledger_refuses_stale_even_after_a_failed_write ===
+MUTANT-APPLIED: case=r2 files=['live_port_guard.py']
+_ TestSingleLedgerSnapshot.test_publish_ledger_refuses_stale_even_after_a_failed_write _
+    def test_publish_ledger_refuses_stale_even_after_a_failed_write(self, tmp_path, isolated_state, monkeypatch):
+FAILED tests/unit/test_live_port_guard_contract.py::TestSingleLedgerSnapshot::test_publish_ledger_refuses_stale_even_after_a_failed_write
+--- 失败正文（_ 限定行）---
+E       AssertionError: 新快照写盘失败后，陈旧快照反而写成功了 —— I/O 失败把 MEDIUM-4 的门重开了
+E       assert True is False
+E        +  where True = <function _publish_ledger at 0x10a1adc70>('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-20431/test_publish_ledger_refuses_st0/ledger.json', {'advisory': 0, 'billed': 0, 'blocked': 0, 'blocked_ports': [7687, 7691], ...})
+E        +    where <function _publish_ledger at 0x10a1adc70> = guard._publish_ledger
+REVIEW-NEGCTL-r2: PASS（门在修前形态上以指定理由拦下）
+--- 还原 ---
+sha-before = b60f01928d0f73ab3de4ab82a885e419d63d7cf882eedc662bf3cff45c660561
+sha-after  = b60f01928d0f73ab3de4ab82a885e419d63d7cf882eedc662bf3cff45c660561
+RESTORE-OK: sha-before == sha-after

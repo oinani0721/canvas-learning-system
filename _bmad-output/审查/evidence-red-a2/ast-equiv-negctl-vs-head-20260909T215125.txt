@@ -1,0 +1,4 @@
+AST(剔除 docstring) 相同 = True   [/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u10-red-a/2808d5a6-b65f-4902-a7a0-3dd8377bcfd4/scratchpad/ast/test_sync_batch_auth.negctl.py] vs [backend/tests/unit/test_sync_batch_auth.py]
+  rc=0
+AST(剔除 docstring) 相同 = True   [/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u10-red-a/2808d5a6-b65f-4902-a7a0-3dd8377bcfd4/scratchpad/ast/test_system_endpoint_auth.negctl.py] vs [backend/tests/unit/test_system_endpoint_auth.py]
+  rc=0

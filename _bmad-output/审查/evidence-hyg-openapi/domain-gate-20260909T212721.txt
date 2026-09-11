@@ -1,0 +1,17 @@
+=== §二.7 地盘门 ===
+--- git diff --name-only ce1e085b HEAD -- . ':(exclude)_bmad-output'（须 ⊆ 两文件） ---
+backend/tests/contract/conftest.py
+backend/tests/contract/test_openapi_contract.py
+  行数 = 2
+
+--- 验伪锚：去掉 exclude 应多出 _bmad-output/ ---
+0
+
+=== (i) .hypothesis 不入库 ===
+  git ls-files backend/.hypothesis | wc -l = 202
+=== (i) *.stderr* 不入库 ===
+  git ls-files | grep -c stderr = 2
+
+=== commit header 字符数 ===
+      94
+rc=0

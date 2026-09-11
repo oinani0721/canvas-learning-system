@@ -1,0 +1,14 @@
+=== REVIEW-NEGCTL case=r1 被测门: TestSettlementAtomicity::test_block_message_binds_the_reason_despite_a_hostile_repr ===
+MUTANT-APPLIED: case=r1 files=['live_port_guard.py']
+FAILED tests/unit/test_live_port_guard_contract.py::TestSettlementAtomicity::test_block_message_binds_the_reason_despite_a_hostile_repr
+======================== 1 failed, 10 warnings in 0.54s ========================
+--- 失败正文（_ 限定行）---
+E       RuntimeError: __repr__ 故意抛出 —— 不得劫持拒因绑定
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'live Neo4j port connect attempted'
+E         Actual message: '__repr__ 故意抛出 —— 不得劫持拒因绑定'
+REVIEW-NEGCTL-r1: PASS（门在修前形态上以指定理由拦下）
+--- 还原 ---
+sha-before = b60f01928d0f73ab3de4ab82a885e419d63d7cf882eedc662bf3cff45c660561
+sha-after  = b60f01928d0f73ab3de4ab82a885e419d63d7cf882eedc662bf3cff45c660561
+RESTORE-OK: sha-before == sha-after

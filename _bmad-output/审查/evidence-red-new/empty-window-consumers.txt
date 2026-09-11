@@ -1,0 +1,210 @@
+=== #4 消费方证据：is_healthy 在 backend/app 的所有引用 ===
+backend/app/clients/base_provider.py:52:    def is_healthy(self) -> bool:
+backend/app/clients/base_provider.py:191:        return self.is_enabled and self.health.is_healthy
+backend/app/models/qa_models.py:63:    is_healthy: bool = Field(True, description="True if match_rate >= 0.7")
+backend/app/services/difficulty_matcher.py:315:        if not stats.is_healthy:
+backend/app/services/difficulty_matcher.py:382:            is_healthy=rate >= MATCH_THRESHOLD,
+
+=== get_stats / DifficultyMatchStats 的消费方 ===
+backend/app/clients/neo4j_edge_client.py:136:        base_stats = self.get_stats()
+backend/app/models/qa_models.py:53:class DifficultyMatchStats(BaseModel):
+backend/app/models/qa_models.py:234:    difficulty_match: DifficultyMatchStats = Field(
+backend/app/models/qa_models.py:235:        default_factory=DifficultyMatchStats,
+backend/app/api/v1/system.py:973:        from app.models.qa_models import DifficultyMatchStats
+backend/app/api/v1/system.py:975:        match_stats = DifficultyMatchStats()
+backend/app/api/v1/system.py:979:        extraction_stats = await validator.get_stats()
+backend/app/api/v1/endpoints/wikilink.py:149:    return {"data": svc.get_stats()}
+backend/app/api/v1/endpoints/metadata.py:230:        stats = lancedb_client.get_stats()
+backend/app/api/v1/endpoints/health.py:129:        stats = await sm.get_stats()
+backend/app/services/health_monitor.py:433:            stats = matcher.get_stats()
+backend/app/services/difficulty_matcher.py:32:from app.models.qa_models import DifficultyMatchRecord, DifficultyMatchStats
+backend/app/services/difficulty_matcher.py:314:        stats = self.get_stats()
+backend/app/services/difficulty_matcher.py:368:    def get_stats(self) -> DifficultyMatchStats:
+backend/app/services/difficulty_matcher.py:377:        return DifficultyMatchStats(
+backend/app/services/difficulty_matcher.py:387:    ) -> DifficultyMatchStats:
+backend/app/services/difficulty_matcher.py:394:        stats = self.get_stats()
+
+=== difficulty_matcher 被谁 import ===
+backend/app/domains/exam/gateway.py:7:       autoscore, scoring_faithfulness, difficulty_matcher, calibration_tracker,
+backend/app/domains/exam/gateway.py:29:from app.services.difficulty_matcher import DifficultyMatcher
+backend/app/domains/exam/gateway.py:49:    "DifficultyMatcher",
+backend/app/mcp/tools/exam_tools.py:329:            from app.services.difficulty_matcher import get_difficulty_matcher
+backend/app/mcp/tools/exam_tools.py:331:            matcher = get_difficulty_matcher()
+backend/app/api/v1/system.py:963:    from app.services.difficulty_matcher import get_difficulty_matcher
+backend/app/api/v1/system.py:969:        matcher = get_difficulty_matcher()
+backend/app/services/health_monitor.py:428:        """Check difficulty matching rate from DifficultyMatcher window."""
+backend/app/services/health_monitor.py:430:            from app.services.difficulty_matcher import get_difficulty_matcher
+backend/app/services/health_monitor.py:432:            matcher = get_difficulty_matcher()
+
+=== is_healthy 在 tests 的引用 ===
+backend/tests/smoke/test_health_smoke.py:43:    def test_health_status_is_healthy(self, client):
+backend/tests/test_health.py:76:    def test_health_check_status_is_healthy(self, client: TestClient):
+backend/tests/unit/test_difficulty_matcher.py:113:        assert stats.is_healthy is True  # No data -> no alert
+backend/tests/unit/test_difficulty_matcher.py:127:        assert stats.is_healthy is True
+backend/tests/unit/test_difficulty_matcher.py:138:        assert stats.is_healthy is False
+backend/tests/integration/test_provider_recovery.py:91:        assert health.is_healthy is True  # Degraded is still usable
+backend/tests/integration/test_failover.py:44:        assert health.is_healthy is True
+backend/tests/integration/test_failover.py:49:        assert health.is_healthy is True  # Still available
+backend/tests/integration/test_failover.py:54:        assert health.is_healthy is False
+backend/tests/integration/test_qa_pipeline_health.py:47:        assert stats.is_healthy is True
+backend/tests/integration/test_qa_pipeline_health.py:71:        assert stats.is_healthy is False
+=== qa_models.py:50-70 (DifficultyMatchStats 模型 + 默认值) ===
+50	    )
+51	
+52	
+53	class DifficultyMatchStats(BaseModel):
+54	    """Sliding window statistics for difficulty matching.
+55	
+56	    [Source: Story 7.4 AC-2 — sliding window of 50 questions]
+57	    """
+58	
+59	    window_size: int = Field(50, description="Sliding window size")
+60	    total_in_window: int = Field(0, description="Number of records in current window")
+61	    matched_count: int = Field(0, description="Number of matched records in window")
+62	    match_rate: float = Field(0.0, ge=0.0, le=1.0, description="matched / total ratio")
+63	    is_healthy: bool = Field(True, description="True if match_rate >= 0.7")
+64	    recent_records: List[DifficultyMatchRecord] = Field(
+65	        default_factory=list, description="Recent match records (last 10)"
+66	    )
+67	
+68	
+69	# ═══════════════════════════════════════════════════════════════════════════════
+70	# Extraction Validation Models (AC #3, #4)
+=== difficulty_matcher.py:305-325 (内部消费方 :315) ===
+305	        self._window.append(matched)
+306	
+307	        # 6. Story 6.10 AC-3: Track consecutive mismatches
+308	        if matched:
+309	            self._consecutive_mismatches = 0
+310	        else:
+311	            self._consecutive_mismatches += 1
+312	
+313	        # 7. Check alert threshold
+314	        stats = self.get_stats()
+315	        if not stats.is_healthy:
+316	            logger.warning(
+317	                f"[Story 7.4] Difficulty match rate {stats.match_rate:.2%} "
+318	                f"below threshold {MATCH_THRESHOLD:.0%} "
+319	                f"(window: {stats.total_in_window} questions)"
+320	            )
+321	
+322	        # 8. Story 6.10 AC-3: Fire DIFFICULTY_MISMATCH_ALERT on 3 consecutive mismatches
+323	        if self._consecutive_mismatches >= CONSECUTIVE_MISMATCH_ALERT_THRESHOLD:
+324	            await self._emit_mismatch_alert(node_id, proficiency, stats.match_rate)
+325	            self._consecutive_mismatches = 0  # Reset after alert
+=== health_monitor.py:420-460 (健康监控消费方) ===
+420	            )
+421	
+422	    # ───────────────────────────────────────────────────────────────────────
+423	    # Metric 7: Difficulty match rate
+424	    # [Source: Story 7.4 Task 3.8]
+425	    # ───────────────────────────────────────────────────────────────────────
+426	
+427	    async def _check_difficulty_match_rate(self) -> HealthMetric:
+428	        """Check difficulty matching rate from DifficultyMatcher window."""
+429	        try:
+430	            from app.services.difficulty_matcher import get_difficulty_matcher
+431	
+432	            matcher = get_difficulty_matcher()
+433	            stats = matcher.get_stats()
+434	
+435	            if stats.total_in_window == 0:
+436	                return HealthMetric(
+437	                    name="difficulty_match_rate",
+438	                    status="warning",
+439	                    value="no data",
+440	                    threshold=">= 70%",
+441	                    message="No difficulty evaluation data yet",
+442	                )
+443	
+444	            rate = stats.match_rate
+445	            status = (
+446	                "healthy"
+447	                if rate >= 0.70
+448	                else ("warning" if rate >= 0.50 else "critical")
+449	            )
+450	
+451	            return HealthMetric(
+452	                name="difficulty_match_rate",
+453	                status=status,
+454	                value=f"{rate:.1%}",
+455	                threshold=">= 70%",
+456	                message=None if rate >= 0.70 else f"Match rate {rate:.1%} below 70%",
+457	            )
+458	        except Exception:
+459	            return HealthMetric(
+460	                name="difficulty_match_rate",
+=== system.py:960-990 ===
+960	    [Source: Story 7.4 AC-2, AC-4]
+961	    """
+962	    from app.models.qa_models import QAMetricsResponse
+963	    from app.services.difficulty_matcher import get_difficulty_matcher
+964	    from app.services.extraction_validator import get_extraction_validator
+965	
+966	    now = datetime.now(timezone.utc).isoformat()
+967	
+968	    try:
+969	        matcher = get_difficulty_matcher()
+970	        match_stats = await matcher.get_stats_with_recent()
+971	    except Exception as e:
+972	        logger.error(f"[Story 7.4] Failed to get difficulty stats: {e}")
+973	        from app.models.qa_models import DifficultyMatchStats
+974	
+975	        match_stats = DifficultyMatchStats()
+976	
+977	    try:
+978	        validator = get_extraction_validator()
+979	        extraction_stats = await validator.get_stats()
+980	    except Exception as e:
+981	        logger.error(f"[Story 7.4] Failed to get extraction stats: {e}")
+982	        from app.models.qa_models import ExtractionStats
+983	
+984	        extraction_stats = ExtractionStats()
+985	
+986	    response = QAMetricsResponse(
+987	        difficulty_match=match_stats,
+988	        extraction_quality=extraction_stats,
+989	    )
+990	
+=== tests/integration/test_qa_pipeline_health.py:35-75 (只读，不跑) ===
+35	        async def deterministic_estimate(question: str) -> float:
+36	            return 0.5
+37	
+38	        matcher.estimate_difficulty = deterministic_estimate
+39	
+40	        # Generate 10 matched evaluations
+41	        for i in range(10):
+42	            await matcher.evaluate(f"node_{i}", f"Q{i}?", 0.5)
+43	
+44	        stats = matcher.get_stats()
+45	        assert stats.total_in_window == 10
+46	        assert stats.match_rate == 1.0
+47	        assert stats.is_healthy is True
+48	
+49	    @pytest.mark.asyncio
+50	    async def test_low_match_rate_triggers_unhealthy(self, tmp_path):
+51	        db_path = str(tmp_path / "test_low.db")
+52	        matcher = DifficultyMatcher(db_path)
+53	
+54	        call_count = 0
+55	
+56	        async def alternating_estimate(question: str) -> float:
+57	            nonlocal call_count
+58	            call_count += 1
+59	            # Return 0.95 (way out of range) for most questions
+60	            if call_count % 5 == 0:
+61	                return 0.5
+62	            return 0.95
+63	
+64	        matcher.estimate_difficulty = alternating_estimate
+65	
+66	        for i in range(10):
+67	            await matcher.evaluate(f"node_{i}", f"Q{i}?", 0.5)
+68	
+69	        stats = matcher.get_stats()
+70	        assert stats.match_rate < 0.7
+71	        assert stats.is_healthy is False
+72	
+73	
+74	# ═══════════════════════════════════════════════════════════════════════════════
+75	# End-to-end: Extraction -> Stats -> QA Metrics

@@ -1,0 +1,24 @@
+=== NEGCTL case=r1-high1 ===
+被测门: tests/unit/test_live_port_guard_contract.py::TestExtractPort::test_index_raising_baseexception_is_also_fail_closed
+应失败参数: SystemExit KeyboardInterrupt _CustomBaseException
+应通过参数: <无>
+失败正文期望串: 放了出来 —— 它会越过 STATE.record()
+MUTANT-APPLIED: case=r1-high1 files=['live_port_guard.py']
+pytest 退出码 = 1（要求恰好 1 = failed；2=INTERRUPTED / 3=INTERNALERROR 一律不算）
+FAILED tests/unit/test_live_port_guard_contract.py::TestExtractPort::test_index_raising_baseexception_is_also_fail_closed[SystemExit]
+FAILED tests/unit/test_live_port_guard_contract.py::TestExtractPort::test_index_raising_baseexception_is_also_fail_closed[KeyboardInterrupt]
+FAILED tests/unit/test_live_port_guard_contract.py::TestExtractPort::test_index_raising_baseexception_is_also_fail_closed[_CustomBaseException]
+======================== 3 failed, 10 warnings in 0.52s ========================
+--- 失败正文（^E 限定行）---
+E       AssertionError: 取端口把 SystemExit 放了出来 —— 它会越过 STATE.record()，这次尝试整条不进账
+E       assert SystemExit('__index__ 抛 BaseException —— 取端口仍必须 fail-closed') is None
+E       AssertionError: 取端口把 KeyboardInterrupt 放了出来 —— 它会越过 STATE.record()，这次尝试整条不进账
+E       assert KeyboardInterrupt('__index__ 抛 BaseException —— 取端口仍必须 fail-closed') is None
+E       AssertionError: 取端口把 _CustomBaseException 放了出来 —— 它会越过 STATE.record()，这次尝试整条不进账
+E       assert _CustomBaseException('__index__ 抛 BaseException —— 取端口仍必须 fail-closed') is None
+失败正文命中期望串 = 3 ; 应失败参数数 = 3
+NEGCTL-r1-high1: PASS（逐参数预期全部对上；rc=1）
+--- 还原 ---
+sha-before = 01f8f9e459cf303e99963cabb068802e5e55aaf873db9579acec18d0dc6ed362
+sha-after  = 01f8f9e459cf303e99963cabb068802e5e55aaf873db9579acec18d0dc6ed362
+RESTORE-OK: sha-before == sha-after

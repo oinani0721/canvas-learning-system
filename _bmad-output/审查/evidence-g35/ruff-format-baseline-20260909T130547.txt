@@ -1,0 +1,8 @@
+=== HEAD(155d3361) 基线: 这些文件本来是否 format-clean? ===
+Would reformat: /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.GdF9IqQODo/app/services/review_service.py
+Would reformat: /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.GdF9IqQODo/tests/unit/test_review_service_fsrs.py
+2 files would be reformatted, 1 file already formatted
+rc=1
+
+=== 结论 ===
+若上面报某文件 'would reformat' ⇒ 该文件在 HEAD 上即非 clean, 本卡不应整体 format 它

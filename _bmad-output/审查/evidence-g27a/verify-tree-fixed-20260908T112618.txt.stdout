@@ -1,0 +1,16 @@
+### (h)① 复跑校验器（digest generate 过滤修复后）
+报告已写入 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy/_bmad-output/审查/evidence-g27a/verify-tree-fixed-20260908T112618.txt
+verify-rc=0
+------------------------------------------------------------------
+match                  : 25
+missing                : 0
+extra                  : 0
+content-drift          : 0
+intentionally-excluded : 0
+allowed-extra          : 0
+optional-missing       : 10
+unreadable             : 0
+hotkeys                : not evaluated (.obsidian/plugins/canvas-learning-system/main.js 缺 — gitignored 构建产物)
+hotkey-orphan          : 0
+
+末行: exit=0

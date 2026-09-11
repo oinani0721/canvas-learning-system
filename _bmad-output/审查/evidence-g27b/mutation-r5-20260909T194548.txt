@@ -1,0 +1,25 @@
+== 变异前基线 sha256（还原以此为准，不是 HEAD）==
+  aeffb47e6708b5ad534b8e25b8e98df7a754b33a98f825d71a4593b99dbf9fa6  scripts/cls_forbidden_paths.py
+  d9a9134992ad28c9946d9e1c331e071120c4d8a23f03f370dc249eb5df29be1a  scripts/deploy-vault.sh
+
+[KILLED]  B-1 前缀退回只留词法 HOME
+           → test_forbidden_judge_covers_physical_home_claude_prefix 变红，断言消息含「物理 HOME 下的 .claude-new 未被拦」
+[KILLED]  B-2 去掉 hits() 里的逐段遍历判据
+           → test_forbidden_judge_catches_git_in_ancestor_of_link_target 变红，断言消息含「未拦住链目标祖先里的 .git」
+[KILLED]  B-2 让 walker 重新词法折叠 ..
+           → test_forbidden_judge_does_not_fold_dotdot_before_resolving 变红，断言消息含「被提前折叠」
+[KILLED]  B-3 去掉 HOME 可搜索性检查
+           → test_forbidden_judge_fail_closed_when_home_not_searchable 变红，断言消息含「未 fail-closed」
+[KILLED]  H-2 去掉 --vault 绝对路径强制
+           → test_relative_vault_is_rejected_at_entry 变红，断言消息含「相对 --vault 未被入口拒」
+[KILLED]  B-4 把镜像判据挪到 sed 之后
+           → test_step4_mirror_files_pass_the_same_judge_before_sed 变红，断言消息含「被就地失效或改写」
+[KILLED]  H-3 去掉写前 chmod
+           → test_env_file_is_chmod_600_before_key_is_written 变红
+
+== 还原逐字节核对 ==
+  同  aeffb47e6708b5ad534b8e25b8e98df7a754b33a98f825d71a4593b99dbf9fa6  scripts/cls_forbidden_paths.py
+  同  d9a9134992ad28c9946d9e1c331e071120c4d8a23f03f370dc249eb5df29be1a  scripts/deploy-vault.sh
+
+结论: 7/7 KILLED, 0 有问题
+rc=0

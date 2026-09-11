@@ -1,0 +1,28 @@
+=== M-4：audit `import` 事件 vs importlib.import_module 实测 ===
+    interpreter: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/bin/python
+    python: 3.14.4
+  [plain-import__with-poison]
+      结果          : RuntimeError: uvloop 的 import 被本门拦下：uvloop 走 libuv，不触发 socket.connect 审计事件，门会静默失效。若确需 uvloop，必
+      sys.modules   : None
+      账本          : {'total': 0, 'blocked': 0, 'advisory': 0, 'unaccounted': 0}
+      子进程 rc     : 0
+  [importlib__with-poison]
+      结果          : ModuleNotFoundError: import of uvloop halted; None in sys.modules
+      sys.modules   : None
+      账本          : {'total': 0, 'blocked': 0, 'advisory': 0, 'unaccounted': 0}
+      子进程 rc     : 0
+  [plain-import__poison-removed]
+      结果          : RuntimeError: uvloop 的 import 被本门拦下：uvloop 走 libuv，不触发 socket.connect 审计事件，门会静默失效。若确需 uvloop，必
+      sys.modules   : None
+      账本          : {'total': 0, 'blocked': 0, 'advisory': 0, 'unaccounted': 0}
+      子进程 rc     : 0
+  [importlib__poison-removed]
+      结果          : IMPORTED (未被拦)
+      sys.modules   : <module 'uvloop' from '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/uvloop/__init__.py'>
+      账本          : {'total': 0, 'blocked': 0, 'advisory': 0, 'unaccounted': 0}
+      子进程 rc     : 0
+
+承重层（毒化被绕过后仍被拦）: ['plain-import__poison-removed']
+两层都被越过（IMPORTED）    : ['importlib__poison-removed']
+M4-VERDICT: ESCAPED —— 有路径同时越过两层，需要在 audit import 分支上补齐
+rc=1

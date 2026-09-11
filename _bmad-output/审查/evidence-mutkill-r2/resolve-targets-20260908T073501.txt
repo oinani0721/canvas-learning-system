@@ -1,0 +1,15 @@
+LANE TREE = /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u8-mutgates
+LIVE VAULT (禁写) = /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault
+g32b      SKILL        in_lane=True  in_live=False exists=True  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u8-mutgates/canvas-vault/.claude/skills/quiz-answer/SKILL.md
+g32b      BRIDGE       in_lane=True  in_live=False exists=True  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u8-mutgates/canvas-vault/.claude/scripts/fsrs_bridge.py
+g32cb     SKILL        in_lane=True  in_live=False exists=True  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u8-mutgates/canvas-vault/.claude/skills/quiz-answer/SKILL.md
+g32cb     LEDGER_TEST  in_lane=True  in_live=False exists=True  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u8-mutgates/backend/tests/regression/test_g3_2_review_ledger.py
+g32ccr1   SKILL        in_lane=True  in_live=False exists=True  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u8-mutgates/canvas-vault/.claude/skills/quiz-answer/SKILL.md
+g32ccr1   LEDGER_TEST  in_lane=True  in_live=False exists=True  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u8-mutgates/backend/tests/regression/test_g3_2_review_ledger.py
+g33       SKILL        in_lane=True  in_live=False exists=True  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u8-mutgates/canvas-vault/.claude/skills/quiz-answer/SKILL.md
+g33       BRIDGE       in_lane=True  in_live=False exists=True  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u8-mutgates/canvas-vault/.claude/scripts/fsrs_bridge.py
+--- 去重后的全部写入面 ---
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u8-mutgates/backend/tests/regression/test_g3_2_review_ledger.py
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u8-mutgates/canvas-vault/.claude/scripts/fsrs_bridge.py
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u8-mutgates/canvas-vault/.claude/skills/quiz-answer/SKILL.md
+VERDICT: PASS

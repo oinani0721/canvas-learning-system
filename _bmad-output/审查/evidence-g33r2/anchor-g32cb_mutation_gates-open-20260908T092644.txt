@@ -1,0 +1,19 @@
+═══ 变异清单与锚点自检 ═══
+  [M1] 锚命中 1 次 @ canvas-vault/.claude/skills/quiz-answer/SKILL.md → test_round17_fsrs_applied_must_be_strict_bool
+       truthiness 回退：严格 bool 判定退回「只拒 None」(round-17 B① 的原形态)
+  [M2] 锚命中 1 次 @ canvas-vault/.claude/skills/quiz-answer/SKILL.md → test_round17_foreign_degraded_recovery_converges
+       去掉 foreign 凭据提升：`fsrs_applied: false` 补了调度却不升 true
+  [M3] 锚命中 1 次 @ canvas-vault/.claude/skills/quiz-answer/SKILL.md → test_g32cb_anchor_without_direction_evidence_falls_back
+       去掉写序锚方向校验：没有时刻/序数证据也认这个锚
+  [M4] 锚命中 1 次 @ backend/scripts/validate_learning_events.py → test_g32cb_depth_over_limit_rejected_before_first_append
+       去掉深度上限：§6.1 输入硬上限的深度维度失效（节点预算仍在）
+  [M5] 锚命中 1 次 @ backend/scripts/validate_learning_events.py → test_g32cb_node_budget_over_limit_rejected_before_first_append
+       去掉节点预算：只剩深度维度（证明两个维度各自承重，不是一个兜住另一个）
+  [M6] 锚命中 1 次 @ backend/scripts/validate_learning_events.py → test_g32cc_charaxis_nonconforming_codepoints_rejected
+       拆掉字符轴判据：非规范码点（NEL/LS/PS/C1/DEL/孤立代理）不再被拒（CARD-G3-2c-C）
+  [M7] 锚命中 1 次 @ backend/scripts/validate_learning_events.py → test_g32cc_forbidden_set_matches_expected_exactly
+       把禁止集从**区间**退化成**枚举**（只留 round 里点过名的 5 个码点）—— 这正是前 17 轮「修一个再生一个」的形态
+  [M8] 锚命中 1 次 @ canvas-vault/.claude/skills/quiz-answer/SKILL.md → test_g32cc_emitter_rebuild_never_mutates_existing_entries
+       重建已有 receipt 的编码退回裸 json.dumps（round-17 B② 的原缺陷形态）—— 载体必须是 receipt 里、又不受字段级字符轴约束的字段，否则观察不到差异
+  [M9] 锚命中 1 次 @ canvas-vault/.claude/skills/quiz-answer/SKILL.md → test_g32ce_q_ascii_escape_fallback_is_load_bearing
+       拆掉 `q_()` 的 **ASCII 转义回落**（`ensure_ascii=True` → `False`）—— 裸形证不成往返、又没有第二条路 ⇒ fail-closed 拒写，敌意载体从「能写、读得回」退化成「写不进去」

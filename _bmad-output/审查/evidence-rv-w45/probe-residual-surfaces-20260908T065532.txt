@@ -1,0 +1,25 @@
+── 正控（必红）─────────────────────────────────────────────
+  [RED-R2-5a       ] violations=1  — 包装器判定链在跑（嵌套函数 yield 失格）
+                     → <rvw45:RED-R2-5a>:12: TestClient(app) —— app 来自 app.main 且没有生效中的 no_lifespan/lifespan_lite（同 with 语句里排在前面的兄弟项，或支配本处的外层 with 块）
+  [RED-R2-5b       ] violations=1  — def-defaults 海象失格路径在跑（P2 的对照）
+                     → <rvw45:RED-R2-5b>:13: TestClient(app) —— app 来自 app.main 且没有生效中的 no_lifespan/lifespan_lite（同 with 语句里排在前面的兄弟项，或支配本处的外层 with 块）
+  [RED-R2-7        ] violations=1  — module_attr_writes 路径在跑（P3 的对照）
+                     → <rvw45:RED-R2-7>:5: with mod.client —— 送进上下文的对象来源静态不可证（解析结果=unknown），无法证明它不是用 app.main 的 app 构造的 TestClient 实例；按违规处理（fail-closed）。合法写法：把它换成能追溯来源的局部名字，或用 no_lifespan/lifespan_lite 包住构造点
+── 正控（必绿）─────────────────────────────────────────────
+  [GREEN-anchor10  ] violations=0  — 不是无差别判红（合法包装器仍绿）
+                     → (零违规)
+  [GREEN-C4b       ] violations=0  — C4 豁免这条路本身是通的（P3 判绿才有归因）
+                     → (零违规)
+── 待测 ───────────────────────────────────────────────────
+  [P1-branch-yield ] violations=0  — R2-5a 之 ii：同作用域跨分支 with 外 yield
+                     → (零违规)
+  [P2-lambda-default] violations=0  — R2-5b 之 lambda：只差 def→lambda
+                     → (零违规)
+  [P3-setattr-write] violations=0  — R2-7 之 setattr：只差写法
+                     → (零违规)
+
+  被测文件 sha256 跑前=563b0f3b725b7a44… 跑后=563b0f3b725b7a44… identical=True
+
+  正控自检: 3/3 必红全红, 2/2 必绿全绿 ⇒ 待测结果可归因
+RESIDUAL-PROBE: 未被拦下的形态 = ['P1-branch-yield', 'P2-lambda-default', 'P3-setattr-write']（各自与对照输入只差一处写法）
+rc=3

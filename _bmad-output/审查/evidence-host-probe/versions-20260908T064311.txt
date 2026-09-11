@@ -1,0 +1,14 @@
+# 四家 CLI 版本重测 @ 2026-09-08T06:43:20+08:00
+--- which ---
+/Users/Heishing/.nvm/versions/node/v24.16.0/bin/dsh
+/opt/homebrew/bin/codex
+/opt/homebrew/bin/opencode
+/Users/Heishing/.local/bin/claude
+--- dsh --version ---
+0.1.1-rc.2
+--- codex --version ---
+codex-cli 0.153.3
+--- opencode --version ---
+1.18.27
+--- claude --version ---
+2.1.263 (Claude Code)

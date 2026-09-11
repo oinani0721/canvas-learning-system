@@ -1,0 +1,63 @@
+#!/usr/bin/env python3
+"""独立复验 Codex round-5 的 2 条 HIGH + 我这轮新引入的 MEDIUM。只读, 不改代码。"""
+from __future__ import annotations
+import importlib.util, os, sys, tempfile
+from pathlib import Path
+WT = Path("/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy")
+V = WT / "scripts" / "verify_vault_install.py"
+spec = importlib.util.spec_from_file_location("_vv_c5", V)
+vv = importlib.util.module_from_spec(spec); sys.modules["_vv_c5"] = vv
+sys.dont_write_bytecode = True; spec.loader.exec_module(vv)
+
+print("HIGH-1: kind=file 的 is_file() 跟随软链, 目标查不到时返回 False 而不是 None")
+with tempfile.TemporaryDirectory() as td:
+    td = Path(td)
+    hidden = td / "hidden"; hidden.mkdir()
+    (hidden / "real.txt").write_text("x", encoding="utf-8")
+    link = td / "x"; os.symlink(hidden / "real.txt", link)
+    os.chmod(hidden, 0o000)
+    try:
+        item = vv.Item(path="x", role="t", action="exclude", kind="file")
+        print(f"   _entry_state(x) = {vv._entry_state(link)!r}   (lstat 成功 ⇒ 不进 None 分支)")
+        print(f"   _resolved_kind(x) = {vv._resolved_kind(link)!r}")
+        print(f"   _kind_ok(kind=file) = {vv._kind_ok(item, link)!r}   ← 期望 None, 实得?")
+        m = vv.ExcludeMatcher((item,)); ur: list[str] = []
+        hits = m.hits_for(td, item, ur)
+        print(f"   hits={hits}  unreadable={ur}   ← 两者皆空 = 静默漏报")
+    finally:
+        os.chmod(hidden, 0o755)
+
+print("\nHIGH-2: 同类型设备节点丢失设备号 (只读 /dev, 不创建)")
+for a, b in [("/dev/null", "/dev/zero")]:
+    da, bad_a = vv._leaf_digest(Path(a))
+    db, bad_b = vv._leaf_digest(Path(b))
+    sa, sb = os.lstat(a), os.lstat(b)
+    print(f"   {a}: 摘要={da!r} st_rdev={sa.st_rdev}")
+    print(f"   {b}: 摘要={db!r} st_rdev={sb.st_rdev}")
+    print(f"   ⇒ 两个不同设备判等: {da == db}   ← True 即为假绿")
+
+print("\nMEDIUM-1【我这轮新引入】: extra 扫描根**确实不存在**时被误报 unreadable")
+with tempfile.TemporaryDirectory() as td:
+    td = Path(td)
+    missing = td / "nope"
+    print(f"   _entry_state(不存在) = {vv._entry_state(missing)!r}  (absent)")
+    print(f"   _resolved_kind(不存在) = {vv._resolved_kind(missing)!r}  ← 期望能与 unreadable 区分")
+    plain = td / "f"; plain.write_text("x", encoding="utf-8")
+    print(f"   _resolved_kind(普通文件/child) = {vv._resolved_kind(plain / 'child')!r}  ← ENOTDIR")
+
+print("\nMEDIUM-3【本轮修复不完整】: 目录不可列举时 skip 只跳目录 key, 对侧子孙仍参与摘要")
+with tempfile.TemporaryDirectory() as td:
+    td = Path(td)
+    a, b = td / "a", td / "b"
+    for r in (a, b):
+        (r / "pkg" / "d").mkdir(parents=True)
+        (r / "pkg" / "d" / "leaf.txt").write_text("SAME", encoding="utf-8")
+    os.chmod(b / "pkg" / "d", 0o000)
+    try:
+        ua: list[str] = []; ub: list[str] = []
+        pa = vv._digest_pairs(a, None, a, ua); pb = vv._digest_pairs(b, None, b, ub)
+        skip = frozenset(ua) | frozenset(ub)
+        print(f"   a 侧 unreadable={ua}  b 侧 unreadable={ub}  skip={sorted(skip)}")
+        print(f"   两侧内容其实相同, _fold 后判等: {vv._fold(pa, skip) == vv._fold(pb, skip)}   ← False 即仍会误报 drift")
+    finally:
+        os.chmod(b / "pkg" / "d", 0o755)

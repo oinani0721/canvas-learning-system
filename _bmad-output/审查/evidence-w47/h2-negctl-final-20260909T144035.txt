@@ -1,0 +1,27 @@
+=== H-2 NEGCTL: _SELFTEST_HOST -> "localhost" ===
+sha-before = 01f8f9e459cf303e99963cabb068802e5e55aaf873db9579acec18d0dc6ed362
+MUTANT-APPLIED: case=h2 files=['live_port_guard.py']
+
+--- 旧 6 条在变异体上（逐条 PASSED 原文，禁只贴汇总）---
+  tests/unit/test_live_port_guard_contract.py::TestSelftestAddressClassification::test_genuine_selftest_address_is_classified PASSED [100%]
+  tests/unit/test_live_port_guard_contract.py::TestSelftestAddressClassification::test_tuple_subclass_disguise_is_not_selftest PASSED [100%]
+  tests/unit/test_live_port_guard_contract.py::TestSelftestAddressClassification::test_str_subclass_eq_disguise_is_not_selftest PASSED [100%]
+  tests/unit/test_live_port_guard_contract.py::TestSelftestAddressClassification::test_non_tuple_is_not_selftest PASSED [100%]
+  tests/unit/test_live_port_guard_contract.py::TestSelftestAddressClassification::test_audit_hook_does_not_block_plain_safe_address PASSED [100%]
+  tests/unit/test_live_port_guard_contract.py::TestSelftestAddressClassification::test_genuine_selftest_address_reaches_blocking_path PASSED [100%]
+旧 6 条 PASSED 计数 = 6 / 6
+
+--- 新哨兵断言在同一个变异体上 ---
+FAILED tests/unit/test_live_port_guard_contract.py::TestSelftestAddressClassification::test_selftest_host_is_an_unconnectable_sentinel
+======================== 1 failed, 10 warnings in 0.52s ========================
+失败正文命中期望串 = 2
+E       AssertionError: 哨兵首字符必须是 NUL —— 那才是它连不上任何东西的理由
+E       assert 108 == 0
+E        +  where 108 = ord('l')
+
+H2-NEGCTL: PASS（旧 6 条全绿 / 新断言以指定理由拦下）
+--- 还原 ---
+sha-before = 01f8f9e459cf303e99963cabb068802e5e55aaf873db9579acec18d0dc6ed362
+sha-after  = 01f8f9e459cf303e99963cabb068802e5e55aaf873db9579acec18d0dc6ed362
+RESTORE-OK: sha-before == sha-after
+rc=0

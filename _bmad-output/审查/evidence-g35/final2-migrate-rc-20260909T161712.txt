@@ -1,0 +1,11 @@
+A dry-run           rc=0  期望 0
+B apply             rc=0  期望 0
+C 空输入 apply      rc=0  期望 0
+D live闸 --file     rc=2  期望 2
+E live闸 --out      rc=2  期望 2
+F --out 别名 --file rc=2  期望 2
+G 缺 --vault-id     rc=2  期望 2
+H 互斥组 required   rc=2  期望 2
+I vault-id 含冒号   rc=2  期望 2
+J --out=备份路径    rc=2  期望 2
+副作用: copy .bak=2(应2) empty .bak=0(应0)

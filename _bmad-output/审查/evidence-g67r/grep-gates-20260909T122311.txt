@@ -1,0 +1,29 @@
+# 裁判 6: grep 门   BASE=709beb0bfa63348394f49f2b7fc6fa829c40b947
+-- method: "POST" 计数 (须 3) --
+3
+-- 三处归属 (须都在 on*Click 内) --
+653:    const resp = await fetch(URLS.refresh, {method: "POST", body: new URLSearchParams({vault_id: vid})});
+706:    const resp = await fetch(URLS.boardDone, {method: "POST",
+747:    const resp = await fetch(URLS.boardUndone, {method: "POST",
+-- 两个 _assert_* 各仍恰 1 (复用不复制) --
+_assert_same_origin 定义: 1
+_assert_write_target_contained 定义: 1
+-- 调用处 (各应 +1) --
+_assert_same_origin 调用: 3
+-- --state 注入 (须 ≥1) --
+1
+-- pick board_done= 计数 (须比 BASE +1) --
+HEAD: 2  BASE: 0
+-- learning_events.jsonl 字面量 (三文件各须 0) --
+scripts/daily_review_run.py:0
+backend/app/api/v1/endpoints/review_app.py:0
+backend/app/api/v1/endpoints/review_overview.py:0
+-- snooze (四文件, 须与 BASE 相同) --
+HEAD backend/app/api/v1/endpoints/review_overview.py: 1 | BASE: 1
+HEAD backend/app/api/v1/endpoints/review_app.py: 0 | BASE: 0
+HEAD scripts/daily_review_pick.py: 0 | BASE: 0
+HEAD scripts/daily_review_run.py: 0 | BASE: 0
+-- 取消完成 文案 (须 ≥1) --
+1
+-- 原「未做 (如实登记): 没有"取消完成"入口」须 0 --
+0

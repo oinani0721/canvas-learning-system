@@ -1,0 +1,73 @@
+# 收工禁写面对账（最终）  @ 2026-09-08T07:18:18+08:00
+
+############ (i) 配置面五行 sha diff —— ⛔ 阻断判据触发，未通过 ############
+3c3
+< 5636da377567323baae6a99b3b22b0aa59972317369221de9d00cd2ffdfc4063  /Users/Heishing/.codex/config.toml
+---
+> b221897cb36702c315f428b081bab7fec40700d9fb86e4991bf133c864421b30  /Users/Heishing/.codex/config.toml
+diff_rc=1
+
+=== 逐项判定 ===
+  1) ~/.dsh/profiles/web/cordis.yml        sha 不变 ✅（但 mtime 被 dsh 每次启动原样重写，见 P2-d）
+  2) ~/.dsh/profiles/web/cordis.patch.yml  sha 不变 ✅
+  3) ~/.codex/config.toml                  sha 改变 ⛔ ←唯一未通过项
+  4) ~/.claude/settings.json               sha 不变 ✅
+  5) ~/.config/opencode/opencode.json      开工 ABSENT / 收工 ABSENT ✅（两次同为 ABSENT）
+
+=== 第 3 项根因（本卡从未编辑过该文件；正负控见 causal-* evidence）===
+  触发者：codex exec --sandbox workspace-write
+  行为  ：在 ~/.codex/config.toml 追加 [projects."<该目录>"] trust 记录
+  证据链：
+    · mtime 07:06 == P6-b（本卡第一次 workspace-write）；
+      P6-a(07:05,ro)/P6-d(07:08,ro)/P10-b(07:13,ro) 之后 sha 均未再变
+    · 负控 r1：全新目录 + read-only      -> sha 不变、[projects] 15->15、目录未进表
+    · 正控 r2：全新目录 + workspace-write -> sha 7e23->b221、[projects] 15->16、目录进表
+    · 对照  ：[mcp_servers.*] 段数全程恒为 8 ⇒ 变的是 trust 表，不是 MCP/配置语义面
+  本卡因此在 ~/.codex/config.toml 留下 2 条 [projects] 记录：
+    [projects."<$PV>"]（P6-b 产生）与 [projects."<$SCRATCH>/causal-probe-ws"]（r2 产生）
+  ⛔ 不做恢复：手工删除条目 = 直接编辑用户配置文件，比宿主自身追加更重的写入。
+
+=== 处置（不自判放宽）===
+  本卡【不】把该项判为通过。如实登记为：(i) 阻断判据触发，根因 = 宿主运行期行为。
+  提请主 session 裁定：D-26 (i) 是否需把 ~/.codex/config.toml 的 [projects] 表
+  移入 (ii) 运行期状态面（与 ~/.claude/projects、~/.config/opencode 同类），
+  或把 (i) 判据从「整文件 sha」改为「[mcp_servers.*] 等语义段的结构口径」。
+  ⚠️ 若不改口径：任何用 codex workspace-write 的卡都会必然触发该阻断（假阻断）。
+
+############ (ii) 运行期状态面（登记不阻断）############
+=== 开工/收工 diff 差集统计 ===
+diff_rc=1
+  差集行数 = 86
+  ⚠️ 差集非空 = 预期内（探针确实跑起来了）；差集为空反而要怀疑探针没真跑
+  新增/变化路径（只记路径名，不读内容，取前 25 条）：
+    < drwxr-xr-x@ 53 Heishing  staff  1696 Sep  8 06:43 ..
+    > drwxr-xr-x@ 56 Heishing  staff  1792 Sep  8 07:17 ..
+    < drwxr-xr-x@   9 Heishing  staff    288 Sep  8 06:39 08
+    > drwxr-xr-x@  40 Heishing  staff   1280 Sep  8 07:17 08
+    < total 117528
+    < drwxr-xr-x@  9 Heishing  staff       288 Sep  8 06:39 .
+    > total 159456
+    > drwxr-xr-x@ 40 Heishing  staff      1280 Sep  8 07:17 .
+    < -rw-r--r--@  1 Heishing  staff  25065021 Sep  8 06:43 rollout-2026-09-08T05-52-32-01a07ddb-ce05-7001-8465-33e707a9a54b.jsonl
+    > -rw-r--r--@  1 Heishing  staff  25074978 Sep  8 06:43 rollout-2026-09-08T05-52-32-01a07ddb-ce05-7001-8465-33e707a9a54b.jsonl
+    > -rw-r--r--@  1 Heishing  staff   1079980 Sep  8 07:07 rollout-2026-09-08T07-00-56-01a07e1a-6c4c-7681-a705-8247ae41eb17.jsonl
+    > -rw-r--r--@  1 Heishing  staff    559578 Sep  8 07:05 rollout-2026-09-08T07-01-28-01a07e1a-eac6-7143-8e4a-d188997658b2.jsonl
+    > -rw-r--r--@  1 Heishing  staff    822514 Sep  8 07:05 rollout-2026-09-08T07-01-40-01a07e1b-1b58-7771-aeaa-c791ba9f39aa.jsonl
+    > -rw-r--r--@  1 Heishing  staff    673406 Sep  8 07:14 rollout-2026-09-08T07-03-10-01a07e1c-7822-7df0-af5b-437ae735d3d7.jsonl
+    > -rw-r--r--@  1 Heishing  staff    461712 Sep  8 07:10 rollout-2026-09-08T07-03-10-01a07e1c-7884-7b82-a400-99a32c1871ff.jsonl
+    > -rw-r--r--@  1 Heishing  staff    463144 Sep  8 07:08 rollout-2026-09-08T07-04-46-01a07e1d-efb3-7b90-9947-17c457482067.jsonl
+    > -rw-r--r--@  1 Heishing  staff    322997 Sep  8 07:06 rollout-2026-09-08T07-04-46-01a07e1d-f09e-70e0-a9c0-a5843322a095.jsonl
+    > -rw-r--r--@  1 Heishing  staff    516125 Sep  8 07:10 rollout-2026-09-08T07-05-00-01a07e1e-257a-7d81-bfe8-a33aaefb52bb.jsonl
+    > -rw-r--r--@  1 Heishing  staff    428217 Sep  8 07:06 rollout-2026-09-08T07-05-00-01a07e1e-2622-7ef1-bbb9-717967870f08.jsonl
+    > -rw-r--r--@  1 Heishing  staff    456940 Sep  8 07:10 rollout-2026-09-08T07-05-12-01a07e1e-549a-7070-af79-d78cf85ca8f6.jsonl
+    > -rw-r--r--@  1 Heishing  staff    323563 Sep  8 07:07 rollout-2026-09-08T07-05-12-01a07e1e-5548-7503-b23d-3780ed9a8955.jsonl
+    > -rw-r--r--@  1 Heishing  staff     90427 Sep  8 07:05 rollout-2026-09-08T07-05-28-01a07e1e-9376-78d0-9252-0b384d3d1422.jsonl
+    > -rw-r--r--@  1 Heishing  staff     92568 Sep  8 07:06 rollout-2026-09-08T07-06-30-01a07e1f-87b9-7692-a196-10656c394c53.jsonl
+    > -rw-r--r--@  1 Heishing  staff   1473153 Sep  8 07:13 rollout-2026-09-08T07-06-34-01a07e1f-951d-75f1-9e3b-30da6c71e03e.jsonl
+    > -rw-r--r--@  1 Heishing  staff   1128265 Sep  8 07:10 rollout-2026-09-08T07-07-02-01a07e20-04b4-7c60-ae78-ad0cedd78269.jsonl
+
+############ 其它硬判据 ############
+  live vault find -newer sentinel = 0
+  车道树 canvas-vault git status 行数 = 0
+  零代码门 diff 行数 = 0
+rc=0

@@ -1,0 +1,38 @@
+# CARD-G2-7b r10 整改后目录级对账 + 收工对账
+汇总行: 173 failed, 4981 passed, 48 skipped, 121 warnings, 29 errors in 228.02s
+原始: dir-tests-unit-r10fix-20260910T001450.raw
+
+## ⚠️ 本轮目录级跑了两次：第一次在 85% 处被**本机 OOM** 杀
+   被杀那次 raw 无汇总行 ⇒ 前置判据（§四.10）直接拦下，**未参与对账**。
+   若不看汇总行就去数 nodeid，会得到「红集变少了」的假绿 —— 该判据今天第 2 次救场。
+   加内存守卫（free >= 55%）重跑后正常完成。
+
+## 红集：基线 202 == 本次 202，diff 空 ⇒ 本卡引入 0 / 修复 0 ✅
+## passed 增量：4979 → 4981 = +2；新增 def test_ = 2，删除 = 0 ⇒ 逐数吻合
+   r10 新增门：tmpdir/npm 子路径入清单 + 基准绝对化 / --hosts 去空白不动点
+
+## r10 三条的实测
+  HIGH-1 npm 子路径 : 清单含 ev-npm-cache/ev-npm-logs；--evidence-dir/--env-dir 词法绝对化
+  HIGH-2 TMPDIR     : 合法 → rc 0；TMPDIR=~/.codex → **rc 71，消息点名 tmpdir**（新负控第 9 条）
+  LOW-1 混合空白    : $'	 claude 	' 恢复接受；claude,codex 仍 64
+
+## 禁写面（哨兵 = dir-red-close-r9fix.txt）
+  ~/Desktop/canvas/canvas-learning-system/canvas-vault 0
+  ~/.dsh                                     0
+  ~/.config/opencode                         0
+  ~/Library/LaunchAgents                     0
+  ~/.npm                                     19
+  $WT/.env sha == 基线: ✅
+  git status -- canvas-vault/: 0 行
+  裸 chmod / 裸 os.write / 非注释 here-string: 0 / 0 / 0
+
+## 地盘门: 7 文件（未变）；本轮改动 2 个
+rc=0
+
+## `~/.npm` 计 19 的归属（本轮**未跑过 build**）
+  本轮 judges 全部使用已在位的 main.js ⇒ E-4 build 分支**未触发**，
+  scratch 下 `npm-*` 目录数 = 0（若跑过 build 必然产生一个）。
+  ⇒ 那 19 个不可能来自本卡本轮，与 r9 同源（其它车道并发的 npm/node）。
+  ⚠️ 仍如实记数不写 0；判据是「本轮没有产生 build 标记目录」而不是「代码里没写 npm」。
+
+## `~/Library/LaunchAgents` 本轮计 0（r8/r9 时的 MLX plist 未再更新）

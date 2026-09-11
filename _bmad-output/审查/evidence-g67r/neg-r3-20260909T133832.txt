@@ -1,0 +1,57 @@
+== 变异前 sha:
+66ecd4deca80cdfca0b62aaa5bba87b9b9d771618ea7db24c56213e795d4be0d  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/scripts/daily_review_run.py
+f79a4b83047ffb29058f86c0d3cc209ae6a054ac70266a070d7822d25a9965d9  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/app/api/v1/endpoints/review_overview.py
+b4d4942ae07783cf756549f01face28ec1ea4f741cc57f023f622e1588fdb676  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/scripts/daily_review_pick.py
+aa2ac39af51973fb63c767ae88b60c9a095e047e00761fe0a05c642f8c37638c  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/tests/regression/test_daily_review_run.py
+
+════════ 变异 R3H1 (期望: test_g67r_state_and_lock_must_not_share_an_inode) ════════
+[mutate] R3H1 已退回 -> daily_review_run.py
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/scripts/daily_review_run.py:289:                if True:  # [MUTANT-R3H1] 去掉 inode 比对
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    import ast,sys;[ast.parse(open(f).read()) for f in sys.argv[1:]]
+                    ~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/ast.py", line 46, in parse
+    return compile(source, filename, mode, flags,
+                   _feature_version=feature_version, optimize=optimize)
+  File "<unknown>", line 293
+    except OSError:
+    ^^^^^^
+SyntaxError: invalid syntax
+R3H1 SYNTAX-INVALID —— 不算击杀
+
+════════ 变异 R3H2 (期望: test_g67r_base_snapshot_survives_state_symlink_being_replaced) ════════
+[mutate] R3H2 已退回 -> daily_review_run.py
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/scripts/daily_review_run.py:342:    return str(state.resolve())  # [MUTANT-R3H2] 退回 resolve
+FAILED tests/regression/test_daily_review_run.py::test_g67r_base_snapshot_survives_state_symlink_being_replaced
+========== 1 failed, 28 passed, 199 deselected, 10 warnings in 4.00s ===========
+
+════════ 变异 R3M2 (期望: test_g67r_quarantine_lock_blocks_a_lock_abiding_writer) ════════
+[mutate] R3M2 已退回 -> daily_review_run.py
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/scripts/daily_review_run.py:95:    return _load_state_locked(vault)  # [MUTANT-R3M2] 只撤外层锁, 保留重读
+FAILED tests/regression/test_daily_review_run.py::test_g67r_quarantine_lock_blocks_a_lock_abiding_writer
+========== 1 failed, 28 passed, 199 deselected, 10 warnings in 3.85s ===========
+
+════════ 变异 R3M3 (期望: test_g67r_main_state_with_wrongly_typed_values_does_not_crash) ════════
+[mutate] R3M3 已退回 -> daily_review_pick.py
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/scripts/daily_review_pick.py:1267:                # [MUTANT-R3M3] 退回只看外层 dict
+FAILED tests/regression/test_daily_review_pick.py::test_g67r_main_state_with_wrongly_typed_values_does_not_crash
+========== 1 failed, 28 passed, 199 deselected, 10 warnings in 3.87s ===========
+
+════════ 变异 L3IP (期望: test_g67r_state_passed_is_false_when_no_subprocess_ran (in_progress 分支)) ════════
+[mutate] L3IP 已退回 -> review_overview.py
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/app/api/v1/endpoints/review_overview.py:1857:            "state_passed": True,  # [MUTANT-L3IP] 只把 in_progress 那一处退回
+=============== 29 passed, 199 deselected, 10 warnings in 3.80s ================
+
+════════ 变异 R3M1 (期望: (握手退化: 时间门应仍绿 —— 见报告说明, 本条是覆盖面登记不是击杀)) ════════
+[mutate] R3M1 已退回 -> test_daily_review_run.py
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/tests/regression/test_daily_review_run.py:1189:    Path(sys.argv[3]).write_text("blocked", encoding="utf-8")  # [MUTANT-R3M1] 握手不再绑真锁
+FAILED tests/regression/test_daily_review_run.py::test_g67r_state_lock_blocks_other_process_until_released
+========== 1 failed, 28 passed, 199 deselected, 10 warnings in 2.15s ===========
+
+== 还原后 sha:
+66ecd4deca80cdfca0b62aaa5bba87b9b9d771618ea7db24c56213e795d4be0d  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/scripts/daily_review_run.py
+f79a4b83047ffb29058f86c0d3cc209ae6a054ac70266a070d7822d25a9965d9  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/app/api/v1/endpoints/review_overview.py
+b4d4942ae07783cf756549f01face28ec1ea4f741cc57f023f622e1588fdb676  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/scripts/daily_review_pick.py
+aa2ac39af51973fb63c767ae88b60c9a095e047e00761fe0a05c642f8c37638c  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u6-reviewtime/backend/tests/regression/test_daily_review_run.py
+[restore] 四个文件已还原

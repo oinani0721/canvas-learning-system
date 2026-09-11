@@ -1,0 +1,26 @@
+# (g)⑤ 自证：seam 门在未改动的 _audit_hook（HEAD 原样）上必须绿
+ backend/tests/support/live_port_guard.py | 166 ++++++++++++++++++++++++++++---
+ 1 file changed, 150 insertions(+), 16 deletions(-)
+## _audit_hook 未被本卡改动的证明（该函数体 diff 为空）:
+@@ -77 +77,6 @@ venv（CPython 3.14.4）实测，这条防线有一个结构性缺口：
+@@ -248,0 +254,19 @@ class GuardDrift(RuntimeError):
+@@ -293,2 +317,4 @@ class _GuardState:
+@@ -301,0 +328,16 @@ class _GuardState:
+@@ -310 +352 @@ class _GuardState:
+@@ -341 +383 @@ class _GuardState:
+@@ -347,0 +390,3 @@ class _GuardState:
+@@ -350 +395 @@ class _GuardState:
+@@ -381 +426 @@ class _GuardState:
+@@ -385,0 +431,11 @@ class _GuardState:
+@@ -388 +444 @@ class _GuardState:
+@@ -399,0 +456,3 @@ class _GuardState:
+@@ -761,0 +821,12 @@ def install() -> None:
+@@ -778,2 +849,6 @@ def install() -> None:
+@@ -780,0 +856 @@ def install() -> None:
+@@ -783 +858,0 @@ def install() -> None:
+@@ -1236,0 +1312,50 @@ def write_ledger(path: str, ledger: dict | None = None) -> None:
+@@ -1242,3 +1367,8 @@ def _rewrite_ledger_after_late_record() -> None:
+@@ -1253 +1383,3 @@ def _rewrite_ledger_after_late_record() -> None:
+@@ -1279 +1411,3 @@ def _final_accounting() -> None:
+======================== 1 passed, 10 warnings in 0.57s ========================
+rc=0

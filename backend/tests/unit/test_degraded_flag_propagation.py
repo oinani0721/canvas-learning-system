@@ -217,13 +217,19 @@ class TestDegradedResponseFormat:
     async def test_degraded_score_is_reasonable(
         self, verification_service_no_agent: VerificationService
     ):
-        """Mock 评分的基本合理性: 短答案分数 < 长答案分数.
+        """降级评分 fail-closed：分数与答案长度**无关**，恒为中性 0.0.
 
-        _mock_evaluate_answer 基于字符长度:
-        - < 20 chars → 20.0 (wrong)
-        - 20-50 chars → 50.0 (partial)
-        - 50-100 chars → 70.0 (good)
-        - > 100 chars → 90.0 (excellent)
+        契约演进 d0824e90 (2026-04-06, FR-KG-04 P1-4 安全整改)：
+        _mock_evaluate_answer 原按字符长度打分（<=20→20.0 / >20→50.0 /
+        >50→70.0 / >100→90.0）。该打法有安全缺陷——101 字噪音能压过 19 字
+        正确答案（90 vs 20），污染掌握度。整改后恒返 ("unknown", 0.0)，
+        见 verification_service.py:1677 `return "unknown", 0.0`。
+
+        ⇒ 原断言「短分 < 长分」锁的正是被安全整改删掉的那个行为，必红。
+        本条改为锁 fail-closed 契约本身：两种长度都必须拿到同一个中性分，
+        且该分必须是 0.0。这比原断言**更强**——原断言只要求偏序，
+        任何非零打分只要单调就能过；现在任何长度相关的打分都会红。
+        期望值 0.0 抄自生产源码字面量，不 import 常量。[CARD-RED-C2]
         """
         # 短答案 (< 20 chars)
         session_short = await verification_service_no_agent.start_session(
@@ -245,4 +251,10 @@ class TestDegradedResponseFormat:
 
         assert result_short["degraded"] is True
         assert result_long["degraded"] is True
-        assert result_short["score"] < result_long["score"]
+        # fail-closed：长度不再影响分数，两者必须相等且为中性 0.0
+        assert result_short["score"] == result_long["score"], (
+            "降级分数出现长度相关性——d0824e90 的安全整改被回退了？"
+            f"short={result_short['score']} long={result_long['score']}"
+        )
+        assert result_short["score"] == 0.0
+        assert result_long["score"] == 0.0

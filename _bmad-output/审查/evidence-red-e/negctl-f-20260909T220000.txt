@@ -1,0 +1,14 @@
+### 对照输入 F — 新用例自身的假绿面：若 AGENT_PROMPT_PATH 覆盖失效会怎样
+失效时 probe 读真实目录 ⇒ missing=[] ⇒ 'probe_names == names' 退化为 [] == 13项 ⇒ 应当红，
+但若断言写成子集/长度比较就会静默通过。本对照证明该用例在覆盖失效时**确实红**，且红在明确的位置。
+
+-- 跑前 sha --
+f40201495a03b33430716a30045b40d94338d546785dcd6bebff8d0ff463a404
+-- 注入：让 monkeypatch 指向真实目录（等价于覆盖失效）--
+injected: override now points at the real dir
+E   AssertionError: AGENT_PROMPT_PATH override did not take effect
+FAILED tests/unit/test_agent_templates_smoke.py::TestAgentTemplateFiles::test_health_probe_watches_exactly_the_names_this_gate_reads
+======================== 1 failed, 10 warnings in 0.93s ========================
+
+-- 还原 --
+WARNING: restored to HEAD, which lacks the r3 fix

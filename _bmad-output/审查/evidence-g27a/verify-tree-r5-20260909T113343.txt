@@ -1,0 +1,35 @@
+# vault-install verification report (CARD-G2-6, read-only)
+# manifest : scripts/vault-install-manifest.json (version 2, source harness-canvas-vault)
+# vault    : /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/53da01cb-6365-4026-b799-f74947279f9a/scratchpad/g27a/probe-r5-tree-20260909T113343
+# source   : (未提供 — content-drift 未评估)
+# 语义     : exclude 项按各自模式的静态前缀子树扫描; extra 只看 manifest
+#            extra_scan 声明的覆盖面 (根级文档不在覆盖面内, 故不报 extra);
+#            读不进去的条目记 unreadable 并计入退出码 —— 看不见不等于一致;
+#            extra_allow 放行的项进 allowed-extra, 只报告不计退出码;
+#            声明为 optional 的项缺失进 optional-missing, 同样不计退出码;
+#            退出码 0 ok / 1 只缺 / 2 多出·漂移·读不动·快捷键孤儿 / 3 用法错。
+------------------------------------------------------------------
+match                  : 25
+missing                : 0
+extra                  : 0
+content-drift          : not evaluated (无 --source)
+intentionally-excluded : 0
+allowed-extra          : 0
+optional-missing       : 10
+unreadable             : 0
+hotkeys                : not evaluated (.obsidian/plugins/canvas-learning-system/main.js 缺 — gitignored 构建产物)
+hotkey-orphan          : 0
+
+## optional-missing
+  .claude/agents [claude-system]  — 声明为 optional, 允许缺失 (不计退出码)
+  .claude/commands [claude-system]  — 声明为 optional, 允许缺失 (不计退出码)
+  .obsidian/app.json [obsidian-config]  — 声明为 optional, 允许缺失 (不计退出码)
+  .obsidian/appearance.json [obsidian-config]  — 声明为 optional, 允许缺失 (不计退出码)
+  .obsidian/core-plugins.json [obsidian-config]  — 声明为 optional, 允许缺失 (不计退出码)
+  .obsidian/cls-internal-key.txt [secret-or-local]  — 声明为 optional, 允许缺失 (不计退出码)
+  .obsidian/plugins/dataview [obsidian-plugin]  — 声明为 optional, 允许缺失 (不计退出码)
+  .obsidian/plugins/breadcrumbs [obsidian-plugin]  — 声明为 optional, 允许缺失 (不计退出码)
+  .obsidian/plugins/templater-obsidian [obsidian-plugin]  — 声明为 optional, 允许缺失 (不计退出码)
+  .obsidian/plugins/templater-obsidian/data.json [plugin-config]  — 声明为 optional, 允许缺失 (不计退出码)
+
+exit=0

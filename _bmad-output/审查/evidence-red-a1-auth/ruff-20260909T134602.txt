@@ -1,0 +1,10 @@
+=== ruff check ===
+All checks passed!
+check_rc=0
+
+=== ruff format --check ===
+Would reformat: backend/tests/unit/test_enrich_context_vault_isolation.py
+Would reformat: backend/tests/unit/test_study_question_deep_mode.py
+2 files would be reformatted, 3 files already formatted
+fmt_rc=1
+rc=0

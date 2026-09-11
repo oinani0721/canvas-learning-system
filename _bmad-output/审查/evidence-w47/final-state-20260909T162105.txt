@@ -1,0 +1,31 @@
+=== CARD-W4-7 收工态自证（2026-09-09T16:21:05）===
+HEAD = e68c216d2ad7fa217110a065428886dbd260ff29  short=e68c216d
+porcelain 行数 = 1
+
+--- 1. 代码树绑定：r5 审 SHA b9ba828b -> HEAD（排 _bmad-output）---
+ .../tests/unit/test_live_port_guard_contract.py    | 32 ++++++++++++++++------
+ 1 file changed, 23 insertions(+), 9 deletions(-)
+rc=0
+  ⇒ 唯一差异为 d07c4eca 的纯 docstring；等价证据 r5-binding-equivalence-*.txt（剥 docstring 后 AST 逐字节相同）
+  ⇒ 协议 §1：该等价由主 session 判，本卡不自判
+
+--- 2. 代码树绑定：bound-run 的 d07c4eca -> HEAD（应为空）---
+rc=0  [空 = bound-run 仍绑当前代码树]
+
+--- 3. 五份 Codex 存档首部（协议 §2.1）---
+  codex-review-CARD-W4-7           模型行=1 绑定行=1
+  codex-review-CARD-W4-7-r2        模型行=1 绑定行=1
+  codex-review-CARD-W4-7-r3        模型行=1 绑定行=1
+  codex-review-CARD-W4-7-r4        模型行=1 绑定行=1
+  codex-review-CARD-W4-7-r5        模型行=1 绑定行=1
+
+--- 4. _bmad-output 下入库文件的 NUL 扫描 ---
+  含 NUL 的入库文件数 = 0
+
+--- 5. *.stderr 是否入库 ---
+  git ls-files 匹配 .stderr 的条目数 = 0
+rc=1
+
+⚠️ 末行 rc=1 的读法：该 rc 来自最后一条 `git ls-files | grep -c '\.stderr'`——
+   `grep -c` 数到 0 时按约定返回 1。**rc=1 在这里正是期望结果（零 stderr 入库）**，不是失败。
+   （本批既有教训：rc 与「空输出」都必须结合它所在的那条命令的语义读，不能一律按 0=绿。）

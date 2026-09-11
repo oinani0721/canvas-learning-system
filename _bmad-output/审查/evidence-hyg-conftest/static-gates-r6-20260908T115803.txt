@@ -1,0 +1,41 @@
+# U10-A r6 静态门存档（dirlink 修复后, 绑工作树最终态）
+# 运行时 HEAD(已提交部分) = 0491b12a36e50575bd71c5f52711d80c93c5d409
+# 所测 conftest sha256 = 6f8f29f052921906a92beb691226e47e088771d24759c2eaf7c15e24b989fb76
+#（本轮该文件为未提交工作树改动, 即将 commit; 上面就是最终内容的 sha）
+# t0=2026-09-08T11:58:03
+
+=== ruff 双门 ===
+1 file already formatted
+ruff_format_check_rc=0
+All checks passed!
+ruff_check_rc=0
+
+=== 7a 双向验伪锚 ===
+7a_value(工作树)=0 （期望 0）
+7a_falsifier(da690bf8)=1 （期望 1 = 判据活着）
+
+=== 7d ast.parse ===
+AST_OK
+7d_rc=0
+
+=== 符号链接普查（§五.10 更新的依据, 本卡亲测）===
+find backend/tests/unit -type l | wc -l = 0
+
+=== 越界措辞黑名单（含 dirlink 整改后新增的检查）===
+  '即本次运行确实写了东西' = 0 （期望 0）
+  '将来会往全机共享' = 0 （期望 0）
+  '既没通过也没违规' = 0 （期望 0）
+  '最可能的写者' = 0 （期望 0）
+  '挡住目录符号链接' = 0 （期望 0）
+  '目录符号链接未跟随' = 1 （期望 >=1）
+  '环境受干扰' = 4 （期望 >=1）
+
+=== 硬边界自检（本卡新增面）===
+is_symlink 新增调用 = 1 （期望 >=1, 仅目录链接记账用）
+write/mkdir/chdir 新增 = 应为 0:
+  'mkdir(' 工作树=0 vs da690bf8=0
+  'os.chdir' 工作树=0 vs da690bf8=0
+  'write_text' 工作树=0 vs da690bf8=0
+  'write_bytes' 工作树=0 vs da690bf8=0
+  'import app.' 工作树=1 vs da690bf8=1
+  'open(' 工作树=0 vs da690bf8=0

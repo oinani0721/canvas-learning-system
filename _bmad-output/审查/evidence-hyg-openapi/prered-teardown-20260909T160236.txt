@@ -1,0 +1,7 @@
+=== (b)⓪ 步骤3 尾：拆除一次性 scratch（不留隔夜） ===
+remove_rc=0
+--- 拆后 worktree list 里是否还有 hyg-openapi-prered ---
+0
+--- 目录是否还在 ---
+GONE
+rc=0

@@ -1,0 +1,20 @@
+### 套件 ###
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+FAILED tests/unit/test_mastery_fusion.py::TestPearsonCorrelation::test_no_correlation
+================= 1 failed, 408 passed, 10 warnings in 44.19s ==================
+
+### 迁移器 rc ###
+A dry-run rc=0 (0)
+B apply rc=0 (0)
+C 空输入 rc=0 (0)
+D live闸file rc=2 (2)
+E live闸out rc=2 (2)
+F out别名file rc=2 (2)
+G 缺vault-id rc=2 (2)
+H 互斥组 rc=2 (2)
+I 含冒号 rc=2 (2)
+J out=备份 rc=2 (2)
+副作用: copy .bak=2(2) empty .bak=0(0)
+
+### 正常启动不被 fail-fast 误伤 ###
+OK 桶= ['canvas_vault'] 条= 1

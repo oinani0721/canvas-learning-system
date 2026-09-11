@@ -1,0 +1,5 @@
+[FORENSICS] total_calls=2 expected_edge_id='23b01549'
+[FORENSICS][0] event_type='node_created' node_id='node2' edge_id=None
+[FORENSICS][1] event_type='edge_created' node_id=None edge_id='23b01549'
+======================= 1 passed, 12 warnings in 13.20s ========================
+rc=0

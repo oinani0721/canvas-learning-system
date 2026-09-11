@@ -1,0 +1,24 @@
+=== NEGCTL case=3 ===
+被测门: TestSettlementAtomicity::test_audit_hook_reads_the_settlement_state_through_record
+期望新门失败正文含: .finalizing 属性访问
+
+--- 打变异 ---
+MUTANT-APPLIED: case=3 files=['live_port_guard.py']
+
+--- 旧门（HEAD 那一版）在同一个变异体上 ---
+======================== 1 passed, 10 warnings in 0.49s ========================
+OLD-GATE: pass
+
+--- 新门（本卡收紧后）在同一个变异体上 ---
+FAILED tests/unit/test_live_port_guard_contract.py::TestSettlementAtomicity::test_audit_hook_reads_the_settlement_state_through_record
+======================== 1 failed, 10 warnings in 0.54s ========================
+NEW-GATE: fail
+新门失败正文命中期望串: 2 处
+            f"hook 里出现了 {len(reads)} 处 .finalizing 属性访问 —— 那是锁外读结算标志，判定必须留在 record() 的锁内"
+E       AssertionError: hook 里出现了 1 处 .finalizing 属性访问 —— 那是锁外读结算标志，判定必须留在 record() 的锁内
+
+NEGCTL-3: PASS（旧门放行 / 新门以指定理由拦下）
+--- 还原 ---
+sha-before = fc0c6b0bf61edb8c3a3745b0f632c4097896bc239a3c0e1007c3d9f0e8a96e2c
+sha-after  = fc0c6b0bf61edb8c3a3745b0f632c4097896bc239a3c0e1007c3d9f0e8a96e2c
+RESTORE-OK: sha-before == sha-after

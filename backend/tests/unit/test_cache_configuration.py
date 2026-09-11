@@ -14,6 +14,8 @@ Tests:
 import inspect
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 # ---------------------------------------------------------------------------
 # AC-1: Deleted simulate-work sleep
 # ---------------------------------------------------------------------------
@@ -41,6 +43,19 @@ class TestDeleteSimulateWorkSleep:
 class TestMemoryRetryDelayFromSettings:
     """AC-36.13.2: memory_service retry delays use Settings config."""
 
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "59586af1 (2026-03-26) 删除 MemoryService._retry_base_delay / _retry_max_delay"
+            "（连同 _write_to_graphiti_json_with_retry 的退避计算）；memory_service.py 实测 "
+            "0 命中，本用例断言的是 MemoryService 上已不存在的属性。config.py:644/:650 的 "
+            "MEMORY_RETRY_BASE_DELAY / MEMORY_RETRY_MAX_DELAY 字段仍在，但 backend/app 下"
+            "**零消费方**（census 只命中 config.py 自身的定义），属死配置项，"
+            "接收卡 = CARD-CONFIG-CLEANUP（死配置项清理，第十四批候选，已登记台账）。"
+            "同类 test_retry_delay_defaults_match_original 只读 Settings 默认值，"
+            "不依赖该属性，仍绿。[CARD-RED-C1]"
+        ),
+    )
     def test_retry_delay_reads_settings(self):
         """MemoryService uses configurable retry delays."""
         with (
@@ -135,6 +150,18 @@ class TestMemoryServiceCacheFromSettings:
 class TestEnrichmentCacheFromSettings:
     """AC-36.13.5: ContextEnrichmentService cache uses Settings config."""
 
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "836d0986(2026-03-31 Epic2 architectural pruning) 整体裁撤 ContextEnrichmentService "
+            "的 association cache：该 commit 对 context_enrichment_service.py 148 增/700 删，"
+            "删除 association_cache_maxsize 构造参数、_association_cache 属性及其 DI 传递。"
+            "config.py:678 的 ENRICHMENT_CACHE_MAXSIZE 字段仍在但 backend/app 零消费方"
+            "（与 MEMORY_RETRY_* 同族死配置），接收卡 = CARD-CONFIG-CLEANUP（第十四批候选）。"
+            "注：同名 test_cache_uses_custom_maxsize 在 TestMemoryServiceCacheFromSettings "
+            "另有一份且当前绿，未波及。[CARD-RED-C2]"
+        ),
+    )
     def test_cache_uses_custom_maxsize(self):
         """ContextEnrichmentService cache respects injected maxsize."""
         from app.services.context_enrichment_service import ContextEnrichmentService
@@ -146,6 +173,18 @@ class TestEnrichmentCacheFromSettings:
         )
         assert svc._association_cache.maxsize == 300
 
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "836d0986(2026-03-31 Epic2 architectural pruning) 整体裁撤 ContextEnrichmentService "
+            "的 association cache：该 commit 对 context_enrichment_service.py 148 增/700 删，"
+            "删除 association_cache_maxsize 构造参数、_association_cache 属性及其 DI 传递。"
+            "config.py:678 的 ENRICHMENT_CACHE_MAXSIZE 字段仍在但 backend/app 零消费方"
+            "（与 MEMORY_RETRY_* 同族死配置），接收卡 = CARD-CONFIG-CLEANUP（第十四批候选）。"
+            "注：同名 test_cache_uses_custom_maxsize 在 TestMemoryServiceCacheFromSettings "
+            "另有一份且当前绿，未波及。[CARD-RED-C2]"
+        ),
+    )
     def test_cache_default_maxsize(self):
         """ContextEnrichmentService default maxsize = 1000."""
         from app.services.context_enrichment_service import ContextEnrichmentService
@@ -200,6 +239,18 @@ class TestDefaultValuesBackwardCompatible:
         # Just verify no crash and it's still a TTLCache
         assert isinstance(svc._memory_cache, TTLCache)
 
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "836d0986(2026-03-31 Epic2 architectural pruning) 整体裁撤 ContextEnrichmentService "
+            "的 association cache：该 commit 对 context_enrichment_service.py 148 增/700 删，"
+            "删除 association_cache_maxsize 构造参数、_association_cache 属性及其 DI 传递。"
+            "config.py:678 的 ENRICHMENT_CACHE_MAXSIZE 字段仍在但 backend/app 零消费方"
+            "（与 MEMORY_RETRY_* 同族死配置），接收卡 = CARD-CONFIG-CLEANUP（第十四批候选）。"
+            "注：同名 test_cache_uses_custom_maxsize 在 TestMemoryServiceCacheFromSettings "
+            "另有一份且当前绿，未波及。[CARD-RED-C2]"
+        ),
+    )
     def test_enrichment_extreme_maxsize_1(self):
         """ContextEnrichmentService with maxsize=1 does not crash."""
         from app.services.context_enrichment_service import ContextEnrichmentService
@@ -234,6 +285,18 @@ class TestDIPathPropagation:
             "dependencies.py must pass AGENT_MEMORY_CACHE_TTL to AgentService"
         )
 
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "836d0986(2026-03-31 Epic2 architectural pruning) 整体裁撤 ContextEnrichmentService "
+            "的 association cache：该 commit 对 context_enrichment_service.py 148 增/700 删，"
+            "删除 association_cache_maxsize 构造参数、_association_cache 属性及其 DI 传递。"
+            "config.py:678 的 ENRICHMENT_CACHE_MAXSIZE 字段仍在但 backend/app 零消费方"
+            "（与 MEMORY_RETRY_* 同族死配置），接收卡 = CARD-CONFIG-CLEANUP（第十四批候选）。"
+            "注：同名 test_cache_uses_custom_maxsize 在 TestMemoryServiceCacheFromSettings "
+            "另有一份且当前绿，未波及。[CARD-RED-C2]"
+        ),
+    )
     def test_enrichment_service_di_passes_cache_config(self):
         """dependencies.py reads Settings and passes to ContextEnrichmentService."""
         from app.dependencies import get_context_enrichment_service

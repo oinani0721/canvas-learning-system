@@ -10,12 +10,50 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+from app.main import app
+from app.security import INTERNAL_API_KEY_HEADER_NAME
+from tests.support.authed_client import (  # noqa: F401 — authed_client 由 fixture 请求
+    authed_client,
+    authed_settings_override,
+)
+from tests.support.lifespan import no_lifespan
+
+#: 桩件返回的 message。⛔ 不抄真实异常文案 —— 那会让读者以为这里真去连过一次
+#: (DD-13 名实一致)。断言只看字段存在性, 不看内容 (:37-40 / :74-77)。
+_STUB_DETAIL = "stubbed by unit test: live Neo4j is never dialled here (W4 port gate)"
+
+
+@pytest.fixture(autouse=True)
+def stub_neo4j_probe():
+    """把 ``_check_neo4j`` 换成**不开 socket** 的等价件。
+
+    为什么打在这一层: ``app/api/v1/system.py:47-74`` 的 ``_check_neo4j`` 每次被调
+    都新建一个 ``AsyncGraphDatabase.driver`` 并 ``session.run("RETURN 1")`` ——
+    socket 就开在这里, 而 :72-74 的 ``except`` 把连接异常吞成一个 "unhealthy"
+    的 ``ComponentStatus``。``startup_health_check`` :258-260 与 ``setup_wizard``
+    :478 (它内部再调 ``startup_health_check``) 都在调用时从**模块全局**解析这个
+    名字, 所以 patch 模块属性一处即可覆盖本文件全部端点用例。
+
+    为什么返回 "unhealthy" 而不是 "healthy": 桩件必须复刻**今天这个环境里的产物**
+    —— W4 端口门在, 真实 ``_check_neo4j`` 走的就是 :72-74 那条 except 分支。返
+    "healthy" 会悄悄换掉被测语义 (例如让 ``_probe_with_timeout`` 的
+    "unhealthy"→"unavailable" 映射失效)。⛔ 本 fixture 不放宽端口门、不改生产码。
+    """
+    from app.api.v1.system import ComponentStatus
+
+    stub = AsyncMock(return_value=ComponentStatus(name="neo4j", status="unhealthy", message=_STUB_DETAIL))
+    with patch("app.api.v1.system._check_neo4j", stub):
+        yield stub
+
 
 @pytest.fixture
-def client():
-    from app.main import app
+def client(authed_client: TestClient) -> TestClient:  # noqa: F811
+    """带 ``X-CLS-Internal-Key`` 的 TestClient (``tests/support/authed_client.py``)。
 
-    return TestClient(app)
+    ``system.py:28`` 的 router 自本卡起挂 ``require_internal_api_key``, 裸
+    ``TestClient(app)`` 会在业务逻辑之前被 ``security.py:144-152`` 判 403。
+    """
+    return authed_client
 
 
 class TestStartupCheck:
@@ -117,3 +155,70 @@ class TestSetupWizardPathValidation:
         assert resp.status_code != 422, f"绝对路径必须放行, 实得 {resp.status_code}: {resp.text[:200]}"
         # 骨架确实落在 tmp_path 内, 而不是仓库里
         assert (vault / "raw").is_dir()
+
+
+#: 「这个键本来不存在」与「本来是 None」的区分哨兵 —— 退出还原时用。
+_ABSENT = object()
+
+
+class TestSystemRouterAuth:
+    """CARD-RED-A1-sentinel (g): ``system.py:28`` 的 router 级鉴权真的挂上了。
+
+    没有这两条, 「所有端点测试都带着 key」与「router 根本没挂依赖」在测试面上
+    **不可区分** —— 全绿既可能是鉴权生效, 也可能是它压根不存在。
+
+    期望码是 **403 不是 503**: 两档共用 ``authed_settings_override`` (已配置 key
+    + ``DEBUG=True``), 落 ``app/security.py:144-152`` Branch 3。503 只来自 Branch 1
+    (:96-105, ``DEBUG=False`` + 空 key) 与 Branch 2 (:110-142, ``DEBUG=True`` +
+    空 key + 无 loopback bypass), 本档一个都不沾。Branch 1 那档在本分支连
+    ``Settings`` 都建不出来 (``app/config.py:295-298`` 直接 raise), 归 U10-E。
+    """
+
+    @pytest.fixture
+    def unauthed_client(self):
+        """**不带任何 key 头**的 TestClient, settings 档与 ``authed_client`` 逐项相同。
+
+        为什么另起一个而不是在 ``authed_client`` 上「不带头」: 后者把 key 挂在
+        ``TestClient(app, headers=...)`` 的**实例级默认头**上, httpx 会把默认头并
+        进它发出的每个请求 —— 在那个 client 上发不出「一个头都不带」的请求, 照字
+        面写会得到「用例名说不带头、实际带着头」的名实不符 (DD-13)。
+
+        settings 复用 ``authed_settings_override`` 而不是自己抄一份, 免得两处
+        Settings 在别的字段上分叉。⛔ 只 import, 不改 ``tests/support/authed_client.py``。
+        """
+        from app.config import get_settings
+
+        previous = app.dependency_overrides.get(get_settings, _ABSENT)
+        app.dependency_overrides[get_settings] = authed_settings_override
+        try:
+            with no_lifespan(app), TestClient(app) as test_client:
+                yield test_client
+        finally:
+            if previous is _ABSENT:
+                app.dependency_overrides.pop(get_settings, None)
+            else:
+                app.dependency_overrides[get_settings] = previous
+
+    def test_system_router_rejects_without_key_403(self, unauthed_client: TestClient):
+        """无 key 头 ⇒ 403, 且 detail 逐字绑到 Branch 3。
+
+        只断状态码不够: Branch 1/2 也可能被别的配置变更打出来, 但它们的 detail 是
+        ``Internal API key not configured…``。绑住文案 = 绑住「被哪一层拒的」。
+        """
+        resp = unauthed_client.get("/api/v1/system/startup-check")
+        assert resp.status_code == 403, f"实得 {resp.status_code}: {resp.text[:200]}"
+        assert resp.json()["detail"] == "Invalid internal API key"
+
+    def test_system_router_accepts_with_key_200(self, client: TestClient):
+        """同一端点带正确 key ⇒ 原状态码 200 (鉴权没有顺手打坏正常路径)。"""
+        resp = client.get("/api/v1/system/startup-check")
+        assert resp.status_code == 200, f"实得 {resp.status_code}: {resp.text[:200]}"
+
+    def test_wrong_key_also_403(self, unauthed_client: TestClient):
+        """key 不匹配 (Branch 4 :154-160) 与缺头同码同文案 —— 防「换条分支也能绿」。"""
+        resp = unauthed_client.get(
+            "/api/v1/system/startup-check",
+            headers={INTERNAL_API_KEY_HEADER_NAME: "definitely-not-the-key"},
+        )
+        assert resp.status_code == 403, f"实得 {resp.status_code}: {resp.text[:200]}"
+        assert resp.json()["detail"] == "Invalid internal API key"

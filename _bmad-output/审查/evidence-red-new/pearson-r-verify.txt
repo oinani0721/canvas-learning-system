@@ -1,0 +1,20 @@
+=== #7 新数据的 r 值实测（用生产函数，非手算）===
+2026-09-09 23:03:09 [debug    ] RAGService: Added /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u11-red-c/backend/lib to sys.path
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+  from pydantic.v1.fields import FieldInfo as FieldInfoV1
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  import pkg_resources
+Building prefix dict from the default dictionary ...
+Loading model from cache /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/jieba.cache
+Loading model cost 0.190 seconds.
+Prefix dict has been built successfully.
+2026-09-09 23:03:11 [info     ] RAGService: LangGraph/Agentic RAG available. LANGGRAPH_AVAILABLE=True
+  新数据 a=[1.0, 0.0, 1.0, 0.0] b=[1.0, 1.0, 0.0, 0.0]
+  compute_pearson_r -> 0.0   abs(r) < 0.5 ? True
+  docstring 里写的算式: mean 均 0.5, cov = .25-.25-.25+.25 = 0 -> r = 0.0  ✅ 与实测一致
+
+  旧数据 a=[1.0, 0.0, 1.0, 0.0, 1.0] b=[0.0, 1.0, 0.0, 1.0, 0.0]
+  compute_pearson_r -> -1.0  ⇒ b = 1-a 是完全负相关，−1.0 是数学正确值
+
+  同文件正控 test_perfect_negative_correlation:
+    a=[0.1, 0.2, 0.3, 0.4, 0.5] b=[0.5, 0.4, 0.3, 0.2, 0.1] -> -1.0（期望 ≈ -1.0）

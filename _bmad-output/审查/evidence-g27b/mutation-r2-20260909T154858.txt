@@ -1,0 +1,50 @@
+基线: sh=2c0d3567bc301acc helper=8df0780e2d5e2967
+
+── M9 步 4 把基准改回未特化的源树（Codex 说源码门杀不死）
+    变异落盘 2c0d3567bc301acc → bd5219d619013318
+    [restore] deploy-vault.sh -> 2c0d3567bc301acc
+    该门 = FAILED ⇒ KILLED
+    （不拦住的后果：content-drift 会因目标已特化而非 0 ⇒ 行为门抓到；源码门只看有没有 'SRC_MIRROR' 字样）
+
+── M10 .git 段检查去掉大小写归一（r2 BLOCKER-2 本体）
+    变异落盘 8df0780e2d5e2967 → 8298a372af9ddb23
+    [restore] cls_forbidden_paths.py -> 8df0780e2d5e2967
+    该门 = FAILED ⇒ KILLED
+    （不拦住的后果：.GIT 漏拦）
+
+── M11 realpath 换成 abspath（不解软链）—— r2 BLOCKER-1 本体
+    变异落盘 8df0780e2d5e2967 → 0ea5f6c52281c0e3
+    [restore] cls_forbidden_paths.py -> 8df0780e2d5e2967
+    该门 = FAILED ⇒ KILLED
+    （不拦住的后果：link/.. 的物理落点算错 ⇒ 保护目录漏拦）
+
+── M12 outputs 模式不再跳过 env 文件名规则
+    变异落盘 8df0780e2d5e2967 → 275b488b5893fd6d
+    [restore] cls_forbidden_paths.py -> 8df0780e2d5e2967
+    该门 = FAILED ⇒ KILLED
+    （不拦住的后果：脚本会永远拦下自己的正常产出（本卡实测过：所有正控 rc 71））
+
+── M13 判据不再覆盖产出对象（只查三个参数）
+    变异落盘 2c0d3567bc301acc → 66f5578387a6e297
+    [restore] deploy-vault.sh -> 2c0d3567bc301acc
+    该门 = FAILED ⇒ KILLED
+    （不拦住的后果：BLOCKER-4 复现：实际写入对象不过判据）
+
+── M14 lsof 三态退回两态（出错当空闲）
+    NOGATE（无对应门，如实登记：这条退化当前没有门能抓）
+
+═══ 汇总 ═══
+  KILLED                 M9 步 4 把基准改回未特化的源树（Codex 说源码门杀不死）
+       门: test_step4_actually_evaluates_content_drift_when_port_differs
+  KILLED                 M10 .git 段检查去掉大小写归一（r2 BLOCKER-2 本体）
+       门: test_forbidden_judge_catches_dotgit_any_case[.GIT]
+  KILLED                 M11 realpath 换成 abspath（不解软链）—— r2 BLOCKER-1 本体
+       门: test_forbidden_judge_catches_symlink_dotdot_physical_target
+  KILLED                 M12 outputs 模式不再跳过 env 文件名规则
+       门: test_outputs_mode_allows_the_scripts_own_env_files[.env.probe_x]
+  KILLED                 M13 判据不再覆盖产出对象（只查三个参数）
+       门: test_forbidden_judge_covers_actual_output_objects_not_just_params
+  NOGATE                 M14 lsof 三态退回两态（出错当空闲）
+
+KILLED=5  NOGATE=1  问题=0
+还原逐字节: ✅ 回到基线

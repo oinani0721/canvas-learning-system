@@ -1,0 +1,11 @@
+=== ruff check ===
+E902 No such file or directory (os error 2)
+--> backend/tests/support/authed_client.py backend/tests/unit/test_chat_endpoint.py backend/tests/unit/test_enrich_context_vault_isolation.py backend/tests/unit/test_study_question_deep_mode.py backend/tests/unit/test_sync_exception_classification.py:1:1
+
+Found 1 error.
+check_rc=1
+
+=== ruff format --check ===
+error: Failed to format backend/tests/support/authed_client.py backend/tests/unit/test_chat_endpoint.py backend/tests/unit/test_enrich_context_vault_isolation.py backend/tests/unit/test_study_question_deep_mode.py backend/tests/unit/test_sync_exception_classification.py: No such file or directory (os error 2)
+fmt_rc=2
+rc=0

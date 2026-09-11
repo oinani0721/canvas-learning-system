@@ -44,6 +44,19 @@ class TestQAEnvVarParsing:
 class TestQAGetAttrDefenseInDepth:
     """QA: getattr fallback pattern used in code matches safe default."""
 
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "59586af1 (2026-03-26) 删除 memory_service.py 侧的 "
+            'getattr(settings, "ENABLE_GRAPHITI_JSON_DUAL_WRITE", ...) 防御点'
+            "（实测该文件 0 命中，唯一残留是模块 docstring 的历史 AC 罗列，非代码）；"
+            "且 daa9fd37 起 config.py 该字段为 [DEPRECATED] default=False，本用例赖以成立的 "
+            "True 默认已不存在。⚠️ 如实声明：同形 getattr 防御在 canvas_service.py "
+            "(:267/:360/:440/:457/:986/:995) 仍有 6 处、且 fallback 默认值是 True 而非本用例名"
+            "所称的 False——「memory_service 侧防御点」才是被删对象，不是整个防御模式。"
+            "等价覆盖缺口归 CARD-EPW-COVERAGE（第十四批，登记）。[CARD-RED-C1]"
+        ),
+    )
     def test_memory_service_getattr_fallback_is_false(self):
         """
         memory_service.py uses getattr(settings, "ENABLE_GRAPHITI_JSON_DUAL_WRITE", False).

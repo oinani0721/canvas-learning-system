@@ -1,0 +1,5 @@
+=== (b)⓪ 步骤3：跑完立刻落档 —— ls <scratch>/backend | grep 五项 ===
+ls_grep_rc=1
+--- 各项 stat（存在者） ---
+--- git status --porcelain（scratch，只看 backend 顶层新增） ---
+rc=0

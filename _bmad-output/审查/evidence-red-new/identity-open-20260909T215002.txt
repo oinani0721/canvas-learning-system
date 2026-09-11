@@ -1,0 +1,763 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u11-red-c/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 143 items
+
+tests/unit/test_calibration_tracker.py .......................FF.......  [ 22%]
+tests/unit/test_canvas_memory_trigger.py ........F..........             [ 35%]
+tests/unit/test_difficulty_matcher.py ............F......                [ 48%]
+tests/unit/test_event_bus.py ..........FF...................             [ 70%]
+tests/unit/test_mastery_fusion.py ....................F.....             [ 88%]
+tests/unit/test_multimodal_path_security.py ..F.............             [100%]
+
+=================================== FAILURES ===================================
+______________ TestCalibrationRating.test_over_confident_boundary ______________
+tests/unit/test_calibration_tracker.py:266: in test_over_confident_boundary
+    assert compute_calibration_rating(0.15, 20) == CalibrationRating.WELL_CALIBRATED
+E   AssertionError: assert <CalibrationR...er_confident'> == <CalibrationR...l_calibrated'>
+E     
+E     - well_calibrated
+E     + over_confident
+_____________ TestCalibrationRating.test_under_confident_boundary ______________
+tests/unit/test_calibration_tracker.py:272: in test_under_confident_boundary
+    assert (
+E   AssertionError: assert <CalibrationR...er_confident'> == <CalibrationR...l_calibrated'>
+E     
+E     - well_calibrated
+E     + under_confident
+_________ TestAddEdgeMemoryTrigger.test_add_edge_triggers_memory_event _________
+tests/unit/test_canvas_memory_trigger.py:268: in test_add_edge_triggers_memory_event
+    assert call_args.kwargs["event_type"] == "edge_created"
+E   AssertionError: assert 'node_created' == 'edge_created'
+E     
+E     - edge_created
+E     ? ^ -
+E     + node_created
+E     ? ^^
+----------------------------- Captured stdout call -----------------------------
+{"event": "decision_recorded", "logger": "app.core.decision_tracker", "level": "info", "timestamp": "2026-09-09T13:50:10.269991Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.core.decision_tracker:decision_tracker.py:68 decision_recorded
+________________ TestSlidingWindowStats.test_empty_window_stats ________________
+tests/unit/test_difficulty_matcher.py:113: in test_empty_window_stats
+    assert stats.is_healthy is True  # No data -> no alert
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   assert False is True
+E    +  where False = DifficultyMatchStats(window_size=50, total_in_window=0, matched_count=0, match_rate=0.0, is_healthy=False, recent_records=[]).is_healthy
+_______________ TestTier2Important.test_tier2_retry_then_success _______________
+tests/unit/test_event_bus.py:159: in test_tier2_retry_then_success
+    assert call_count >= 2
+E   assert 0 >= 2
+----------------------------- Captured stdout call -----------------------------
+{"event": "EventBus: subscribed flaky_handler to bkt_updated", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T13:50:10.533724Z"}
+{"event": "EventBus: publishing bkt_updated (tier=tier_2_important, handlers=1, event_id=07784f62...)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T13:50:10.534097Z"}
+{"event": "decision_recorded", "logger": "app.core.decision_tracker", "level": "info", "timestamp": "2026-09-09T13:50:10.534175Z"}
+{"event": "EventBus[T2]: flaky_handler FAILED (attempt=1/3, 0.0ms, retry in 2.0s): Temporary failure", "logger": "app.services.event_bus", "level": "warning", "timestamp": "2026-09-09T13:50:10.534351Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed flaky_handler to bkt_updated', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.533724Z'}
+INFO     app.services.event_bus:event_bus.py:190 {'event': 'EventBus: publishing bkt_updated (tier=tier_2_important, handlers=1, event_id=07784f62...)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.534097Z'}
+INFO     app.core.decision_tracker:decision_tracker.py:68 decision_recorded
+WARNING  app.services.event_bus:event_bus.py:288 {'event': 'EventBus[T2]: flaky_handler FAILED (attempt=1/3, 0.0ms, retry in 2.0s): Temporary failure', 'logger': 'app.services.event_bus', 'level': 'warning', 'timestamp': '2026-09-09T13:50:10.534351Z'}
+______ TestTier2Important.test_tier2_all_retries_exhausted_writes_outbox _______
+tests/unit/test_event_bus.py:172: in test_tier2_all_retries_exhausted_writes_outbox
+    assert bus._stats["outbox_written"] >= 1
+E   assert 0 >= 1
+----------------------------- Captured stdout call -----------------------------
+{"event": "EventBus: subscribed always_fail to bkt_updated", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T13:50:10.538531Z"}
+{"event": "EventBus: publishing bkt_updated (tier=tier_2_important, handlers=1, event_id=8620c54f...)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T13:50:10.538791Z"}
+{"event": "decision_recorded", "logger": "app.core.decision_tracker", "level": "info", "timestamp": "2026-09-09T13:50:10.538853Z"}
+{"event": "EventBus[T2]: always_fail FAILED (attempt=1/3, 0.0ms, retry in 2.0s): Persistent failure", "logger": "app.services.event_bus", "level": "warning", "timestamp": "2026-09-09T13:50:10.539001Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed always_fail to bkt_updated', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.538531Z'}
+INFO     app.services.event_bus:event_bus.py:190 {'event': 'EventBus: publishing bkt_updated (tier=tier_2_important, handlers=1, event_id=8620c54f...)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.538791Z'}
+INFO     app.core.decision_tracker:decision_tracker.py:68 decision_recorded
+WARNING  app.services.event_bus:event_bus.py:288 {'event': 'EventBus[T2]: always_fail FAILED (attempt=1/3, 0.0ms, retry in 2.0s): Persistent failure', 'logger': 'app.services.event_bus', 'level': 'warning', 'timestamp': '2026-09-09T13:50:10.539001Z'}
+__________________ TestPearsonCorrelation.test_no_correlation __________________
+tests/unit/test_mastery_fusion.py:320: in test_no_correlation
+    assert abs(r) < 0.5  # Not strongly correlated
+    ^^^^^^^^^^^^^^^^^^^
+E   assert 1.0 < 0.5
+E    +  where 1.0 = abs(-1.0)
+____________ TestValidateSafePath.test_path_traversal_windows_style ____________
+tests/unit/test_multimodal_path_security.py:64: in test_path_traversal_windows_style
+    with pytest.raises(MultimodalServiceError, match="path traversal"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE <class 'app.services.multimodal_service.MultimodalServiceError'>
+---------------------------- Captured stdout setup -----------------------------
+{"event": "MultimodalStore not available \u2014 using JSON file persistence at /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23082/test_path_traversal_windows_st0/content_index.json. Data will survive restarts but advanced features (vector search) are disabled.", "logger": "app.services.multimodal_service", "level": "warning", "timestamp": "2026-09-09T13:50:10.882676Z"}
+------------------------------ Captured log setup ------------------------------
+WARNING  app.services.multimodal_service:multimodal_service.py:198 {'event': 'MultimodalStore not available — using JSON file persistence at /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23082/test_path_traversal_windows_st0/content_index.json. Data will survive restarts but advanced features (vector search) are disabled.', 'logger': 'app.services.multimodal_service', 'level': 'warning', 'timestamp': '2026-09-09T13:50:10.882676Z'}
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:805
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u11-red-c/backend/app/api/v1/endpoints/chat.py:805: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:105
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u11-red-c/backend/app/api/v1/endpoints/metadata.py:105: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:179
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u11-red-c/backend/app/api/v1/endpoints/metadata.py:179: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+tests/unit/test_canvas_memory_trigger.py::TestCanvasEventModels::test_canvas_event_creation_with_required_fields
+tests/unit/test_canvas_memory_trigger.py::TestCanvasEventModels::test_canvas_event_with_optional_fields
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/main.py:250: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+____________ TestRecordCalibration.test_misconception_is_dangerous _____________
+----------------------------- Captured stdout call -----------------------------
+{"event": "MISCONCEPTION detected: node=node1 confidence=0.90 performance=0.20 \u2014 user thinks they know but doesn't", "logger": "app.services.calibration_tracker", "level": "warning", "timestamp": "2026-09-09T13:50:10.146846Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.calibration_tracker:calibration_tracker.py:248 {'event': "MISCONCEPTION detected: node=node1 confidence=0.90 performance=0.20 — user thinks they know but doesn't", 'logger': 'app.services.calibration_tracker', 'level': 'warning', 'timestamp': '2026-09-09T13:50:10.146846Z'}
+______________ TestRecordCalibration.test_record_preserves_values ______________
+----------------------------- Captured stdout call -----------------------------
+{"event": "MISCONCEPTION detected: node=node1 confidence=0.75 performance=0.45 \u2014 user thinks they know but doesn't", "logger": "app.services.calibration_tracker", "level": "warning", "timestamp": "2026-09-09T13:50:10.148082Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.calibration_tracker:calibration_tracker.py:248 {'event': "MISCONCEPTION detected: node=node1 confidence=0.75 performance=0.45 — user thinks they know but doesn't", 'logger': 'app.services.calibration_tracker', 'level': 'warning', 'timestamp': '2026-09-09T13:50:10.148082Z'}
+_________ TestAddNodeMemoryTrigger.test_add_node_triggers_memory_event _________
+----------------------------- Captured stdout call -----------------------------
+{"event": "decision_recorded", "logger": "app.core.decision_tracker", "level": "info", "timestamp": "2026-09-09T13:50:10.155293Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.core.decision_tracker:decision_tracker.py:68 decision_recorded
+_________ TestAddNodeMemoryTrigger.test_add_node_without_memory_client _________
+----------------------------- Captured stdout call -----------------------------
+{"event": "decision_recorded", "logger": "app.core.decision_tracker", "level": "info", "timestamp": "2026-09-09T13:50:10.212970Z"}
+{"event": "Memory client unavailable, skipping event trigger", "logger": "app.services.canvas_service", "level": "warning", "timestamp": "2026-09-09T13:50:10.213026Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.core.decision_tracker:decision_tracker.py:68 decision_recorded
+WARNING  app.services.canvas_service:canvas_service.py:271 {'event': 'Memory client unavailable, skipping event trigger', 'logger': 'app.services.canvas_service', 'level': 'warning', 'timestamp': '2026-09-09T13:50:10.213026Z'}
+_______ TestAsyncNonBlocking.test_slow_memory_write_does_not_block_crud ________
+----------------------------- Captured stdout call -----------------------------
+{"event": "decision_recorded", "logger": "app.core.decision_tracker", "level": "info", "timestamp": "2026-09-09T13:50:10.276015Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.core.decision_tracker:decision_tracker.py:68 decision_recorded
+--------------------------- Captured stdout teardown ---------------------------
+{"event": "Memory write cancelled for node_created: test-canvas", "logger": "app.services.canvas_service", "level": "warning", "timestamp": "2026-09-09T13:50:10.276317Z"}
+---------------------------- Captured log teardown -----------------------------
+WARNING  app.services.canvas_service:canvas_service.py:314 {'event': 'Memory write cancelled for node_created: test-canvas', 'logger': 'app.services.canvas_service', 'level': 'warning', 'timestamp': '2026-09-09T13:50:10.276317Z'}
+________ TestSilentDegradation.test_memory_failure_does_not_block_crud _________
+----------------------------- Captured stdout call -----------------------------
+{"event": "decision_recorded", "logger": "app.core.decision_tracker", "level": "info", "timestamp": "2026-09-09T13:50:10.278777Z"}
+{"event": "Memory write failed for node_created: test-canvas: Neo4j connection failed", "logger": "app.services.canvas_service", "level": "warning", "timestamp": "2026-09-09T13:50:10.278878Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.core.decision_tracker:decision_tracker.py:68 decision_recorded
+WARNING  app.services.canvas_service:canvas_service.py:355 {'event': 'Memory write failed for node_created: test-canvas: Neo4j connection failed', 'logger': 'app.services.canvas_service', 'level': 'warning', 'timestamp': '2026-09-09T13:50:10.278878Z'}
+_________ TestSilentDegradation.test_memory_timeout_handled_gracefully _________
+----------------------------- Captured stdout call -----------------------------
+{"event": "decision_recorded", "logger": "app.core.decision_tracker", "level": "info", "timestamp": "2026-09-09T13:50:10.281027Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.core.decision_tracker:decision_tracker.py:68 decision_recorded
+--------------------------- Captured stdout teardown ---------------------------
+{"event": "Memory write cancelled for node_created: test-canvas", "logger": "app.services.canvas_service", "level": "warning", "timestamp": "2026-09-09T13:50:10.281277Z"}
+---------------------------- Captured log teardown -----------------------------
+WARNING  app.services.canvas_service:canvas_service.py:314 {'event': 'Memory write cancelled for node_created: test-canvas', 'logger': 'app.services.canvas_service', 'level': 'warning', 'timestamp': '2026-09-09T13:50:10.281277Z'}
+______________ TestEdgeCases.test_multiple_consecutive_operations ______________
+----------------------------- Captured stdout call -----------------------------
+{"event": "decision_recorded", "logger": "app.core.decision_tracker", "level": "info", "timestamp": "2026-09-09T13:50:10.283255Z"}
+{"event": "decision_recorded", "logger": "app.core.decision_tracker", "level": "info", "timestamp": "2026-09-09T13:50:10.284371Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.core.decision_tracker:decision_tracker.py:68 decision_recorded
+INFO     app.core.decision_tracker:decision_tracker.py:68 decision_recorded
+___________ TestEdgeCases.test_session_id_is_passed_to_memory_event ____________
+----------------------------- Captured stdout call -----------------------------
+{"event": "decision_recorded", "logger": "app.core.decision_tracker", "level": "info", "timestamp": "2026-09-09T13:50:10.338764Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.core.decision_tracker:decision_tracker.py:68 decision_recorded
+______ TestEvaluatePersistence.test_evaluate_persists_and_updates_window _______
+----------------------------- Captured stdout call -----------------------------
+{"event": "[Story 7.4] DifficultyMatcher initialized, window hydrated with 0 records", "logger": "app.services.difficulty_matcher", "level": "info", "timestamp": "2026-09-09T13:50:10.404159Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.difficulty_matcher:difficulty_matcher.py:152 {'event': '[Story 7.4] DifficultyMatcher initialized, window hydrated with 0 records', 'logger': 'app.services.difficulty_matcher', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.404159Z'}
+_______________ TestEvaluatePersistence.test_evaluate_unmatched ________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[Story 7.4] DifficultyMatcher initialized, window hydrated with 0 records", "logger": "app.services.difficulty_matcher", "level": "info", "timestamp": "2026-09-09T13:50:10.407146Z"}
+{"event": "[Story 7.4] Difficulty match rate 0.00% below threshold 70% (window: 1 questions)", "logger": "app.services.difficulty_matcher", "level": "warning", "timestamp": "2026-09-09T13:50:10.407801Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.difficulty_matcher:difficulty_matcher.py:152 {'event': '[Story 7.4] DifficultyMatcher initialized, window hydrated with 0 records', 'logger': 'app.services.difficulty_matcher', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.407146Z'}
+WARNING  app.services.difficulty_matcher:difficulty_matcher.py:316 {'event': '[Story 7.4] Difficulty match rate 0.00% below threshold 70% (window: 1 questions)', 'logger': 'app.services.difficulty_matcher', 'level': 'warning', 'timestamp': '2026-09-09T13:50:10.407801Z'}
+________________ TestEvaluatePersistence.test_hydration_from_db ________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[Story 7.4] DifficultyMatcher initialized, window hydrated with 0 records", "logger": "app.services.difficulty_matcher", "level": "info", "timestamp": "2026-09-09T13:50:10.409707Z"}
+{"event": "[Story 7.4] DifficultyMatcher initialized, window hydrated with 5 records", "logger": "app.services.difficulty_matcher", "level": "info", "timestamp": "2026-09-09T13:50:10.412703Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.difficulty_matcher:difficulty_matcher.py:152 {'event': '[Story 7.4] DifficultyMatcher initialized, window hydrated with 0 records', 'logger': 'app.services.difficulty_matcher', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.409707Z'}
+INFO     app.services.difficulty_matcher:difficulty_matcher.py:152 {'event': '[Story 7.4] DifficultyMatcher initialized, window hydrated with 5 records', 'logger': 'app.services.difficulty_matcher', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.412703Z'}
+________________ TestEventBusBasics.test_subscribe_and_publish _________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "EventBus: subscribed AsyncMock to score_submitted", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T13:50:10.414910Z"}
+{"event": "EventBus: publishing score_submitted (tier=tier_1_critical, handlers=1, event_id=b8da2b93...)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T13:50:10.415006Z"}
+{"event": "decision_recorded", "logger": "app.core.decision_tracker", "level": "info", "timestamp": "2026-09-09T13:50:10.415060Z"}
+{"event": "EventBus[T1]: AsyncMock OK (0.1ms, event=score_submitted)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T13:50:10.415154Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed AsyncMock to score_submitted', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.414910Z'}
+INFO     app.services.event_bus:event_bus.py:190 {'event': 'EventBus: publishing score_submitted (tier=tier_1_critical, handlers=1, event_id=b8da2b93...)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.415006Z'}
+INFO     app.core.decision_tracker:decision_tracker.py:68 decision_recorded
+INFO     app.services.event_bus:event_bus.py:226 {'event': 'EventBus[T1]: AsyncMock OK (0.1ms, event=score_submitted)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.415154Z'}
+_____________________ TestEventBusBasics.test_unsubscribe ______________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "EventBus: subscribed AsyncMock to score_submitted", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T13:50:10.415921Z"}
+{"event": "EventBus: unsubscribed AsyncMock from score_submitted", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T13:50:10.415977Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed AsyncMock to score_submitted', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.415921Z'}
+INFO     app.services.event_bus:event_bus.py:158 {'event': 'EventBus: unsubscribed AsyncMock from score_submitted', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.415977Z'}
+__________________ TestEventBusBasics.test_multiple_handlers ___________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "EventBus: subscribed AsyncMock to score_submitted", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T13:50:10.417384Z"}
+{"event": "EventBus: subscribed AsyncMock to score_submitted", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T13:50:10.417440Z"}
+{"event": "EventBus: publishing score_submitted (tier=tier_1_critical, handlers=2, event_id=6e15072b...)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T13:50:10.417481Z"}
+{"event": "decision_recorded", "logger": "app.core.decision_tracker", "level": "info", "timestamp": "2026-09-09T13:50:10.417529Z"}
+{"event": "EventBus[T1]: AsyncMock OK (0.1ms, event=score_submitted)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T13:50:10.417607Z"}
+{"event": "EventBus[T1]: AsyncMock OK (0.0ms, event=score_submitted)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T13:50:10.417685Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed AsyncMock to score_submitted', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.417384Z'}
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed AsyncMock to score_submitted', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.417440Z'}
+INFO     app.services.event_bus:event_bus.py:190 {'event': 'EventBus: publishing score_submitted (tier=tier_1_critical, handlers=2, event_id=6e15072b...)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.417481Z'}
+INFO     app.core.decision_tracker:decision_tracker.py:68 decision_recorded
+INFO     app.services.event_bus:event_bus.py:226 {'event': 'EventBus[T1]: AsyncMock OK (0.1ms, event=score_submitted)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.417607Z'}
+INFO     app.services.event_bus:event_bus.py:226 {'event': 'EventBus[T1]: AsyncMock OK (0.0ms, event=score_submitted)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.417685Z'}
+_________________ TestTier1Critical.test_tier1_await_execution _________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "EventBus: subscribed handler1 to score_submitted", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T13:50:10.418383Z"}
+{"event": "EventBus: publishing score_submitted (tier=tier_1_critical, handlers=1, event_id=4dd4de57...)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T13:50:10.418449Z"}
+{"event": "decision_recorded", "logger": "app.core.decision_tracker", "level": "info", "timestamp": "2026-09-09T13:50:10.418492Z"}
+{"event": "EventBus[T1]: handler1 OK (10.6ms, event=score_submitted)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T13:50:10.429115Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handler1 to score_submitted', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.418383Z'}
+INFO     app.services.event_bus:event_bus.py:190 {'event': 'EventBus: publishing score_submitted (tier=tier_1_critical, handlers=1, event_id=4dd4de57...)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.418449Z'}
+INFO     app.core.decision_tracker:decision_tracker.py:68 decision_recorded
+INFO     app.services.event_bus:event_bus.py:226 {'event': 'EventBus[T1]: handler1 OK (10.6ms, event=score_submitted)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.429115Z'}
+_______________ TestTier1Critical.test_tier1_failure_propagates ________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "EventBus: subscribed failing_handler to score_submitted", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T13:50:10.430212Z"}
+{"event": "EventBus: publishing score_submitted (tier=tier_1_critical, handlers=1, event_id=e18a9f1b...)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T13:50:10.430347Z"}
+{"event": "decision_recorded", "logger": "app.core.decision_tracker", "level": "info", "timestamp": "2026-09-09T13:50:10.430402Z"}
+{"event": "EventBus[T1]: failing_handler FAILED (0.0ms, event=score_submitted): Tier 1 failure", "logger": "app.services.event_bus", "level": "error", "timestamp": "2026-09-09T13:50:10.430425Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed failing_handler to score_submitted', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.430212Z'}
+INFO     app.services.event_bus:event_bus.py:190 {'event': 'EventBus: publishing score_submitted (tier=tier_1_critical, handlers=1, event_id=e18a9f1b...)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.430347Z'}
+INFO     app.core.decision_tracker:decision_tracker.py:68 decision_recorded
+ERROR    app.services.event_bus:event_bus.py:232 {'event': 'EventBus[T1]: failing_handler FAILED (0.0ms, event=score_submitted): Tier 1 failure', 'logger': 'app.services.event_bus', 'level': 'error', 'timestamp': '2026-09-09T13:50:10.430425Z'}
+____________________ TestTier2Important.test_tier2_success _____________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "EventBus: subscribed AsyncMock to bkt_updated", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T13:50:10.431301Z"}
+{"event": "EventBus: publishing bkt_updated (tier=tier_2_important, handlers=1, event_id=a3d3e4fc...)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T13:50:10.431371Z"}
+{"event": "decision_recorded", "logger": "app.core.decision_tracker", "level": "info", "timestamp": "2026-09-09T13:50:10.431415Z"}
+{"event": "EventBus[T2]: AsyncMock OK (attempt=1, 0.1ms, event=bkt_updated)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T13:50:10.431544Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed AsyncMock to bkt_updated', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.431301Z'}
+INFO     app.services.event_bus:event_bus.py:190 {'event': 'EventBus: publishing bkt_updated (tier=tier_2_important, handlers=1, event_id=a3d3e4fc...)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.431371Z'}
+INFO     app.core.decision_tracker:decision_tracker.py:68 decision_recorded
+INFO     app.services.event_bus:event_bus.py:273 {'event': 'EventBus[T2]: AsyncMock OK (attempt=1, 0.1ms, event=bkt_updated)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.431544Z'}
+____________________ TestTier3BestEffort.test_tier3_success ____________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "EventBus: subscribed AsyncMock to ui_mastery_push", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T13:50:10.542193Z"}
+{"event": "EventBus: publishing ui_mastery_push (tier=tier_3_best_effort, handlers=1, event_id=6d2c7a64...)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T13:50:10.542286Z"}
+{"event": "decision_recorded", "logger": "app.core.decision_tracker", "level": "info", "timestamp": "2026-09-09T13:50:10.542338Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed AsyncMock to ui_mastery_push', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.542193Z'}
+INFO     app.services.event_bus:event_bus.py:190 {'event': 'EventBus: publishing ui_mastery_push (tier=tier_3_best_effort, handlers=1, event_id=6d2c7a64...)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.542286Z'}
+INFO     app.core.decision_tracker:decision_tracker.py:68 decision_recorded
+___________ TestTier3BestEffort.test_tier3_failure_doesnt_propagate ____________
+----------------------------- Captured stdout call -----------------------------
+{"event": "EventBus: subscribed failing_handler to ui_mastery_push", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T13:50:10.643833Z"}
+{"event": "EventBus: publishing ui_mastery_push (tier=tier_3_best_effort, handlers=1, event_id=6b33273c...)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T13:50:10.643964Z"}
+{"event": "decision_recorded", "logger": "app.core.decision_tracker", "level": "info", "timestamp": "2026-09-09T13:50:10.644024Z"}
+{"event": "EventBus[T3]: failing_handler FAILED (0.0ms, event=ui_mastery_push): Tier 3 failure", "logger": "app.services.event_bus", "level": "warning", "timestamp": "2026-09-09T13:50:10.644078Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed failing_handler to ui_mastery_push', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.643833Z'}
+INFO     app.services.event_bus:event_bus.py:190 {'event': 'EventBus: publishing ui_mastery_push (tier=tier_3_best_effort, handlers=1, event_id=6b33273c...)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.643964Z'}
+INFO     app.core.decision_tracker:decision_tracker.py:68 decision_recorded
+WARNING  app.services.event_bus:event_bus.py:334 {'event': 'EventBus[T3]: failing_handler FAILED (0.0ms, event=ui_mastery_push): Tier 3 failure', 'logger': 'app.services.event_bus', 'level': 'warning', 'timestamp': '2026-09-09T13:50:10.644078Z'}
+_____________ TestIdempotency.test_duplicate_event_not_reprocessed _____________
+----------------------------- Captured stdout call -----------------------------
+{"event": "EventBus: subscribed AsyncMock to score_submitted", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T13:50:10.746540Z"}
+{"event": "EventBus: publishing score_submitted (tier=tier_1_critical, handlers=1, event_id=dup_123...)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T13:50:10.746658Z"}
+{"event": "decision_recorded", "logger": "app.core.decision_tracker", "level": "info", "timestamp": "2026-09-09T13:50:10.746730Z"}
+{"event": "EventBus[T1]: AsyncMock OK (0.1ms, event=score_submitted)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T13:50:10.746831Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed AsyncMock to score_submitted', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.746540Z'}
+INFO     app.services.event_bus:event_bus.py:190 {'event': 'EventBus: publishing score_submitted (tier=tier_1_critical, handlers=1, event_id=dup_123...)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.746658Z'}
+INFO     app.core.decision_tracker:decision_tracker.py:68 decision_recorded
+INFO     app.services.event_bus:event_bus.py:226 {'event': 'EventBus[T1]: AsyncMock OK (0.1ms, event=score_submitted)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.746831Z'}
+___________ TestIdempotency.test_different_event_ids_both_processed ____________
+----------------------------- Captured stdout call -----------------------------
+{"event": "EventBus: subscribed AsyncMock to score_submitted", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T13:50:10.747869Z"}
+{"event": "EventBus: publishing score_submitted (tier=tier_1_critical, handlers=1, event_id=event_1...)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T13:50:10.747948Z"}
+{"event": "decision_recorded", "logger": "app.core.decision_tracker", "level": "info", "timestamp": "2026-09-09T13:50:10.748004Z"}
+{"event": "EventBus[T1]: AsyncMock OK (0.1ms, event=score_submitted)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T13:50:10.748091Z"}
+{"event": "EventBus: publishing score_submitted (tier=tier_1_critical, handlers=1, event_id=event_2...)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T13:50:10.748125Z"}
+{"event": "decision_recorded", "logger": "app.core.decision_tracker", "level": "info", "timestamp": "2026-09-09T13:50:10.748166Z"}
+{"event": "EventBus[T1]: AsyncMock OK (0.0ms, event=score_submitted)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T13:50:10.748188Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed AsyncMock to score_submitted', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.747869Z'}
+INFO     app.services.event_bus:event_bus.py:190 {'event': 'EventBus: publishing score_submitted (tier=tier_1_critical, handlers=1, event_id=event_1...)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.747948Z'}
+INFO     app.core.decision_tracker:decision_tracker.py:68 decision_recorded
+INFO     app.services.event_bus:event_bus.py:226 {'event': 'EventBus[T1]: AsyncMock OK (0.1ms, event=score_submitted)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.748091Z'}
+INFO     app.services.event_bus:event_bus.py:190 {'event': 'EventBus: publishing score_submitted (tier=tier_1_critical, handlers=1, event_id=event_2...)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.748125Z'}
+INFO     app.core.decision_tracker:decision_tracker.py:68 decision_recorded
+INFO     app.services.event_bus:event_bus.py:226 {'event': 'EventBus[T1]: AsyncMock OK (0.0ms, event=score_submitted)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.748188Z'}
+____________________ TestEventBusStats.test_stats_tracking _____________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "EventBus: subscribed AsyncMock to score_submitted", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T13:50:10.751542Z"}
+{"event": "EventBus: publishing score_submitted (tier=tier_1_critical, handlers=1, event_id=bba5fc3d...)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T13:50:10.751616Z"}
+{"event": "decision_recorded", "logger": "app.core.decision_tracker", "level": "info", "timestamp": "2026-09-09T13:50:10.751668Z"}
+{"event": "EventBus[T1]: AsyncMock OK (0.1ms, event=score_submitted)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T13:50:10.751750Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed AsyncMock to score_submitted', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.751542Z'}
+INFO     app.services.event_bus:event_bus.py:190 {'event': 'EventBus: publishing score_submitted (tier=tier_1_critical, handlers=1, event_id=bba5fc3d...)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.751616Z'}
+INFO     app.core.decision_tracker:decision_tracker.py:68 decision_recorded
+INFO     app.services.event_bus:event_bus.py:226 {'event': 'EventBus[T1]: AsyncMock OK (0.1ms, event=score_submitted)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.751750Z'}
+_ TestEventBusContextVarInheritance.test_event_bus_dispatch_inherits_contextvar _
+----------------------------- Captured stdout call -----------------------------
+{"event": "EventBus: subscribed handler to bkt_updated", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T13:50:10.754584Z"}
+{"event": "EventBus: publishing bkt_updated (tier=tier_2_important, handlers=1, event_id=def72064...)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T13:50:10.754681Z"}
+{"event": "decision_recorded", "logger": "app.core.decision_tracker", "level": "info", "timestamp": "2026-09-09T13:50:10.754737Z"}
+{"event": "EventBus[T2]: handler OK (attempt=1, 0.0ms, event=bkt_updated)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T13:50:10.754794Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handler to bkt_updated', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.754584Z'}
+INFO     app.services.event_bus:event_bus.py:190 {'event': 'EventBus: publishing bkt_updated (tier=tier_2_important, handlers=1, event_id=def72064...)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.754681Z'}
+INFO     app.core.decision_tracker:decision_tracker.py:68 decision_recorded
+INFO     app.services.event_bus:event_bus.py:273 {'event': 'EventBus[T2]: handler OK (attempt=1, 0.0ms, event=bkt_updated)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.754794Z'}
+__ TestEventBusContextVarInheritance.test_tier3_dispatch_inherits_contextvar ___
+----------------------------- Captured stdout call -----------------------------
+{"event": "EventBus: subscribed handler to ui_mastery_push", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T13:50:10.806862Z"}
+{"event": "EventBus: publishing ui_mastery_push (tier=tier_3_best_effort, handlers=1, event_id=3595514b...)", "logger": "app.services.event_bus", "level": "info", "timestamp": "2026-09-09T13:50:10.806974Z"}
+{"event": "decision_recorded", "logger": "app.core.decision_tracker", "level": "info", "timestamp": "2026-09-09T13:50:10.807030Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.event_bus:event_bus.py:144 {'event': 'EventBus: subscribed handler to ui_mastery_push', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.806862Z'}
+INFO     app.services.event_bus:event_bus.py:190 {'event': 'EventBus: publishing ui_mastery_push (tier=tier_3_best_effort, handlers=1, event_id=3595514b...)', 'logger': 'app.services.event_bus', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.806974Z'}
+INFO     app.core.decision_tracker:decision_tracker.py:68 decision_recorded
+___________________ TestSignalRegistry.test_register_signal ____________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "SignalRegistry: registered signal 'test'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T13:50:10.859258Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'test'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.859258Z'}
+__________________ TestSignalRegistry.test_unregister_signal ___________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "SignalRegistry: registered signal 'test'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T13:50:10.859825Z"}
+{"event": "SignalRegistry: unregistered signal 'test'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T13:50:10.859886Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'test'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.859825Z'}
+INFO     app.services.signal_registry:signal_registry.py:49 {'event': "SignalRegistry: unregistered signal 'test'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.859886Z'}
+________________ TestSignalRegistry.test_unregister_nonexistent ________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "SignalRegistry: signal 'nonexistent' not found for unregister", "logger": "app.services.signal_registry", "level": "warning", "timestamp": "2026-09-09T13:50:10.860342Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.signal_registry:signal_registry.py:51 {'event': "SignalRegistry: signal 'nonexistent' not found for unregister", 'logger': 'app.services.signal_registry', 'level': 'warning', 'timestamp': '2026-09-09T13:50:10.860342Z'}
+__________________ TestSignalRegistry.test_register_overwrite __________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "SignalRegistry: registered signal 'test'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T13:50:10.860920Z"}
+{"event": "SignalRegistry: overwriting existing signal 'test'", "logger": "app.services.signal_registry", "level": "warning", "timestamp": "2026-09-09T13:50:10.860986Z"}
+{"event": "SignalRegistry: registered signal 'test'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T13:50:10.861019Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'test'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.860920Z'}
+WARNING  app.services.signal_registry:signal_registry.py:41 {'event': "SignalRegistry: overwriting existing signal 'test'", 'logger': 'app.services.signal_registry', 'level': 'warning', 'timestamp': '2026-09-09T13:50:10.860986Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'test'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.861019Z'}
+___________________ TestSignalRegistry.test_multiple_signals ___________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "SignalRegistry: registered signal 'a'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T13:50:10.861461Z"}
+{"event": "SignalRegistry: registered signal 'b'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T13:50:10.861509Z"}
+{"event": "SignalRegistry: registered signal 'c'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T13:50:10.861538Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'a'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.861461Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'b'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.861509Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'c'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.861538Z'}
+__________________ TestSignalRegistry.test_get_active_signals __________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "SignalRegistry: registered signal 'a'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T13:50:10.861991Z"}
+{"event": "SignalRegistry: registered signal 'b'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T13:50:10.862037Z"}
+{"event": "SignalRegistry: registered signal 'c'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T13:50:10.862064Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'a'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.861991Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'b'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.862037Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'c'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.862064Z'}
+__________________ TestMasteryFusionEngine.test_single_signal __________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "SignalRegistry: registered signal 'bkt'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T13:50:10.862593Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'bkt'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.862593Z'}
+____________ TestMasteryFusionEngine.test_two_signals_renormalized _____________
+----------------------------- Captured stdout call -----------------------------
+{"event": "SignalRegistry: registered signal 'bkt'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T13:50:10.863232Z"}
+{"event": "SignalRegistry: registered signal 'fsrs'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T13:50:10.863290Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'bkt'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.863232Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'fsrs'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.863290Z'}
+______________ TestMasteryFusionEngine.test_five_signals_all_data ______________
+----------------------------- Captured stdout call -----------------------------
+{"event": "SignalRegistry: registered signal 'bkt'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T13:50:10.863786Z"}
+{"event": "SignalRegistry: registered signal 'fsrs'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T13:50:10.863835Z"}
+{"event": "SignalRegistry: registered signal 'exam'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T13:50:10.863864Z"}
+{"event": "SignalRegistry: registered signal 'cal'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T13:50:10.863889Z"}
+{"event": "SignalRegistry: registered signal 'conf'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T13:50:10.863916Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'bkt'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.863786Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'fsrs'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.863835Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'exam'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.863864Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'cal'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.863889Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'conf'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.863916Z'}
+_______________ TestMasteryFusionEngine.test_all_signals_no_data _______________
+----------------------------- Captured stdout call -----------------------------
+{"event": "SignalRegistry: registered signal 'bkt'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T13:50:10.864720Z"}
+{"event": "SignalRegistry: registered signal 'fsrs'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T13:50:10.864767Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'bkt'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.864720Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'fsrs'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.864767Z'}
+_____ TestMasteryFusionEngine.test_single_signal_active_is_fallback_false ______
+----------------------------- Captured stdout call -----------------------------
+{"event": "SignalRegistry: registered signal 'bkt'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T13:50:10.865167Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'bkt'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.865167Z'}
+______ TestMasteryFusionEngine.test_five_signals_active_is_fallback_false ______
+----------------------------- Captured stdout call -----------------------------
+{"event": "SignalRegistry: registered signal 'bkt'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T13:50:10.865595Z"}
+{"event": "SignalRegistry: registered signal 'fsrs'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T13:50:10.865641Z"}
+{"event": "SignalRegistry: registered signal 'exam'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T13:50:10.865669Z"}
+{"event": "SignalRegistry: registered signal 'calibration'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T13:50:10.865693Z"}
+{"event": "SignalRegistry: registered signal 'confidence'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T13:50:10.865716Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'bkt'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.865595Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'fsrs'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.865641Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'exam'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.865669Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'calibration'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.865693Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'confidence'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.865716Z'}
+________ TestMasteryFusionEngine.test_weight_sum_zero_is_fallback_true _________
+----------------------------- Captured stdout call -----------------------------
+{"event": "SignalRegistry: registered signal 'zero_weight'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T13:50:10.866309Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'zero_weight'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.866309Z'}
+______________ TestMasteryFusionEngine.test_some_signals_no_data _______________
+----------------------------- Captured stdout call -----------------------------
+{"event": "SignalRegistry: registered signal 'bkt'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T13:50:10.866775Z"}
+{"event": "SignalRegistry: registered signal 'fsrs'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T13:50:10.866821Z"}
+{"event": "SignalRegistry: registered signal 'exam'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T13:50:10.866848Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'bkt'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.866775Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'fsrs'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.866821Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'exam'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.866848Z'}
+________________ TestMasteryFusionEngine.test_clamp_lower_bound ________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "SignalRegistry: registered signal 'bkt'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T13:50:10.867296Z"}
+{"event": "SignalRegistry: registered signal 'fsrs'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T13:50:10.867339Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'bkt'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.867296Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'fsrs'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.867339Z'}
+________________ TestMasteryFusionEngine.test_clamp_upper_bound ________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "SignalRegistry: registered signal 'bkt'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T13:50:10.867761Z"}
+{"event": "SignalRegistry: registered signal 'fsrs'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T13:50:10.867808Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'bkt'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.867761Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'fsrs'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.867808Z'}
+____________ TestMasteryFusionEngine.test_signal_details_populated _____________
+----------------------------- Captured stdout call -----------------------------
+{"event": "SignalRegistry: registered signal 'bkt'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T13:50:10.868230Z"}
+{"event": "SignalRegistry: registered signal 'fsrs'", "logger": "app.services.signal_registry", "level": "info", "timestamp": "2026-09-09T13:50:10.868273Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'bkt'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.868230Z'}
+INFO     app.services.signal_registry:signal_registry.py:43 {'event': "SignalRegistry: registered signal 'fsrs'", 'logger': 'app.services.signal_registry', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.868273Z'}
+____________ TestPearsonCorrelation.test_high_correlation_detection ____________
+----------------------------- Captured stdout call -----------------------------
+{"event": "Signal complementarity warning: 'bkt' and 'fsrs' are highly correlated (r=0.997). Consider reviewing redundancy.", "logger": "app.services.mastery_fusion", "level": "warning", "timestamp": "2026-09-09T13:50:10.875301Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.mastery_fusion:mastery_fusion.py:201 {'event': "Signal complementarity warning: 'bkt' and 'fsrs' are highly correlated (r=0.997). Consider reviewing redundancy.", 'logger': 'app.services.mastery_fusion', 'level': 'warning', 'timestamp': '2026-09-09T13:50:10.875301Z'}
+__________ TestPearsonCorrelation.test_low_correlation_not_redundant ___________
+----------------------------- Captured stdout call -----------------------------
+{"event": "Signal complementarity warning: 'bkt' and 'cal' are highly correlated (r=-0.741). Consider reviewing redundancy.", "logger": "app.services.mastery_fusion", "level": "warning", "timestamp": "2026-09-09T13:50:10.876486Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.mastery_fusion:mastery_fusion.py:201 {'event': "Signal complementarity warning: 'bkt' and 'cal' are highly correlated (r=-0.741). Consider reviewing redundancy.", 'logger': 'app.services.mastery_fusion', 'level': 'warning', 'timestamp': '2026-09-09T13:50:10.876486Z'}
+__________________ TestPearsonCorrelation.test_multiple_pairs __________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "Signal complementarity warning: 'a' and 'b' are highly correlated (r=1.000). Consider reviewing redundancy.", "logger": "app.services.mastery_fusion", "level": "warning", "timestamp": "2026-09-09T13:50:10.877613Z"}
+{"event": "Signal complementarity warning: 'a' and 'c' are highly correlated (r=-1.000). Consider reviewing redundancy.", "logger": "app.services.mastery_fusion", "level": "warning", "timestamp": "2026-09-09T13:50:10.877751Z"}
+{"event": "Signal complementarity warning: 'b' and 'c' are highly correlated (r=-1.000). Consider reviewing redundancy.", "logger": "app.services.mastery_fusion", "level": "warning", "timestamp": "2026-09-09T13:50:10.877814Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.mastery_fusion:mastery_fusion.py:201 {'event': "Signal complementarity warning: 'a' and 'b' are highly correlated (r=1.000). Consider reviewing redundancy.", 'logger': 'app.services.mastery_fusion', 'level': 'warning', 'timestamp': '2026-09-09T13:50:10.877613Z'}
+WARNING  app.services.mastery_fusion:mastery_fusion.py:201 {'event': "Signal complementarity warning: 'a' and 'c' are highly correlated (r=-1.000). Consider reviewing redundancy.", 'logger': 'app.services.mastery_fusion', 'level': 'warning', 'timestamp': '2026-09-09T13:50:10.877751Z'}
+WARNING  app.services.mastery_fusion:mastery_fusion.py:201 {'event': "Signal complementarity warning: 'b' and 'c' are highly correlated (r=-1.000). Consider reviewing redundancy.", 'logger': 'app.services.mastery_fusion', 'level': 'warning', 'timestamp': '2026-09-09T13:50:10.877814Z'}
+_____________ TestValidateSafePath.test_valid_path_within_storage ______________
+---------------------------- Captured stdout setup -----------------------------
+{"event": "MultimodalStore not available \u2014 using JSON file persistence at /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23082/test_valid_path_within_storage0/content_index.json. Data will survive restarts but advanced features (vector search) are disabled.", "logger": "app.services.multimodal_service", "level": "warning", "timestamp": "2026-09-09T13:50:10.879025Z"}
+------------------------------ Captured log setup ------------------------------
+WARNING  app.services.multimodal_service:multimodal_service.py:198 {'event': 'MultimodalStore not available — using JSON file persistence at /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23082/test_valid_path_within_storage0/content_index.json. Data will survive restarts but advanced features (vector search) are disabled.', 'logger': 'app.services.multimodal_service', 'level': 'warning', 'timestamp': '2026-09-09T13:50:10.879025Z'}
+_____________ TestValidateSafePath.test_path_traversal_unix_style ______________
+---------------------------- Captured stdout setup -----------------------------
+{"event": "MultimodalStore not available \u2014 using JSON file persistence at /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23082/test_path_traversal_unix_style0/content_index.json. Data will survive restarts but advanced features (vector search) are disabled.", "logger": "app.services.multimodal_service", "level": "warning", "timestamp": "2026-09-09T13:50:10.880901Z"}
+------------------------------ Captured log setup ------------------------------
+WARNING  app.services.multimodal_service:multimodal_service.py:198 {'event': 'MultimodalStore not available — using JSON file persistence at /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23082/test_path_traversal_unix_style0/content_index.json. Data will survive restarts but advanced features (vector search) are disabled.', 'logger': 'app.services.multimodal_service', 'level': 'warning', 'timestamp': '2026-09-09T13:50:10.880901Z'}
+----------------------------- Captured stdout call -----------------------------
+{"event": "Path traversal attempt detected: '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23082/test_path_traversal_unix_style0/image/../../etc/passwd' -> '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23082/etc/passwd'", "logger": "app.services.multimodal_service", "level": "warning", "timestamp": "2026-09-09T13:50:10.881542Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.multimodal_service:multimodal_service.py:510 {'event': "Path traversal attempt detected: '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23082/test_path_traversal_unix_style0/image/../../etc/passwd' -> '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23082/etc/passwd'", 'logger': 'app.services.multimodal_service', 'level': 'warning', 'timestamp': '2026-09-09T13:50:10.881542Z'}
+_____________ TestValidateSafePath.test_path_traversal_deep_nested _____________
+---------------------------- Captured stdout setup -----------------------------
+{"event": "MultimodalStore not available \u2014 using JSON file persistence at /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23082/test_path_traversal_deep_neste0/content_index.json. Data will survive restarts but advanced features (vector search) are disabled.", "logger": "app.services.multimodal_service", "level": "warning", "timestamp": "2026-09-09T13:50:10.886415Z"}
+------------------------------ Captured log setup ------------------------------
+WARNING  app.services.multimodal_service:multimodal_service.py:198 {'event': 'MultimodalStore not available — using JSON file persistence at /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23082/test_path_traversal_deep_neste0/content_index.json. Data will survive restarts but advanced features (vector search) are disabled.', 'logger': 'app.services.multimodal_service', 'level': 'warning', 'timestamp': '2026-09-09T13:50:10.886415Z'}
+----------------------------- Captured stdout call -----------------------------
+{"event": "Path traversal attempt detected: '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23082/test_path_traversal_deep_neste0/image/../../../../../../../tmp/evil' -> '/private/var/folders/tmp/evil'", "logger": "app.services.multimodal_service", "level": "warning", "timestamp": "2026-09-09T13:50:10.886957Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.multimodal_service:multimodal_service.py:510 {'event': "Path traversal attempt detected: '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23082/test_path_traversal_deep_neste0/image/../../../../../../../tmp/evil' -> '/private/var/folders/tmp/evil'", 'logger': 'app.services.multimodal_service', 'level': 'warning', 'timestamp': '2026-09-09T13:50:10.886957Z'}
+________________ TestValidateSafePath.test_path_traversal_mixed ________________
+---------------------------- Captured stdout setup -----------------------------
+{"event": "MultimodalStore not available \u2014 using JSON file persistence at /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23082/test_path_traversal_mixed0/content_index.json. Data will survive restarts but advanced features (vector search) are disabled.", "logger": "app.services.multimodal_service", "level": "warning", "timestamp": "2026-09-09T13:50:10.888459Z"}
+------------------------------ Captured log setup ------------------------------
+WARNING  app.services.multimodal_service:multimodal_service.py:198 {'event': 'MultimodalStore not available — using JSON file persistence at /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23082/test_path_traversal_mixed0/content_index.json. Data will survive restarts but advanced features (vector search) are disabled.', 'logger': 'app.services.multimodal_service', 'level': 'warning', 'timestamp': '2026-09-09T13:50:10.888459Z'}
+----------------------------- Captured stdout call -----------------------------
+{"event": "Path traversal attempt detected: '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23082/test_path_traversal_mixed0/image/normal/../../../evil.txt' -> '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23082/evil.txt'", "logger": "app.services.multimodal_service", "level": "warning", "timestamp": "2026-09-09T13:50:10.888822Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.multimodal_service:multimodal_service.py:510 {'event': "Path traversal attempt detected: '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23082/test_path_traversal_mixed0/image/normal/../../../evil.txt' -> '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23082/evil.txt'", 'logger': 'app.services.multimodal_service', 'level': 'warning', 'timestamp': '2026-09-09T13:50:10.888822Z'}
+______________ TestValidateSafePath.test_path_within_subdirectory ______________
+---------------------------- Captured stdout setup -----------------------------
+{"event": "MultimodalStore not available \u2014 using JSON file persistence at /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23082/test_path_within_subdirectory0/content_index.json. Data will survive restarts but advanced features (vector search) are disabled.", "logger": "app.services.multimodal_service", "level": "warning", "timestamp": "2026-09-09T13:50:10.889651Z"}
+------------------------------ Captured log setup ------------------------------
+WARNING  app.services.multimodal_service:multimodal_service.py:198 {'event': 'MultimodalStore not available — using JSON file persistence at /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23082/test_path_within_subdirectory0/content_index.json. Data will survive restarts but advanced features (vector search) are disabled.', 'logger': 'app.services.multimodal_service', 'level': 'warning', 'timestamp': '2026-09-09T13:50:10.889651Z'}
+____________ TestValidateSafePath.test_error_code_is_path_traversal ____________
+---------------------------- Captured stdout setup -----------------------------
+{"event": "MultimodalStore not available \u2014 using JSON file persistence at /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23082/test_error_code_is_path_traver0/content_index.json. Data will survive restarts but advanced features (vector search) are disabled.", "logger": "app.services.multimodal_service", "level": "warning", "timestamp": "2026-09-09T13:50:10.890793Z"}
+------------------------------ Captured log setup ------------------------------
+WARNING  app.services.multimodal_service:multimodal_service.py:198 {'event': 'MultimodalStore not available — using JSON file persistence at /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23082/test_error_code_is_path_traver0/content_index.json. Data will survive restarts but advanced features (vector search) are disabled.', 'logger': 'app.services.multimodal_service', 'level': 'warning', 'timestamp': '2026-09-09T13:50:10.890793Z'}
+----------------------------- Captured stdout call -----------------------------
+{"event": "Path traversal attempt detected: '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23082/test_error_code_is_path_traver0/image/../../etc/passwd' -> '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23082/etc/passwd'", "logger": "app.services.multimodal_service", "level": "warning", "timestamp": "2026-09-09T13:50:10.891124Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.multimodal_service:multimodal_service.py:510 {'event': "Path traversal attempt detected: '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23082/test_error_code_is_path_traver0/image/../../etc/passwd' -> '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23082/etc/passwd'", 'logger': 'app.services.multimodal_service', 'level': 'warning', 'timestamp': '2026-09-09T13:50:10.891124Z'}
+_ TestUploadFilePathTraversal.test_upload_file_rejects_traversal[../../etc/passwd] _
+---------------------------- Captured stdout setup -----------------------------
+{"event": "MultimodalStore not available \u2014 using JSON file persistence at /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23082/test_upload_file_rejects_trave0/content_index.json. Data will survive restarts but advanced features (vector search) are disabled.", "logger": "app.services.multimodal_service", "level": "warning", "timestamp": "2026-09-09T13:50:10.891935Z"}
+------------------------------ Captured log setup ------------------------------
+WARNING  app.services.multimodal_service:multimodal_service.py:198 {'event': 'MultimodalStore not available — using JSON file persistence at /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23082/test_upload_file_rejects_trave0/content_index.json. Data will survive restarts but advanced features (vector search) are disabled.', 'logger': 'app.services.multimodal_service', 'level': 'warning', 'timestamp': '2026-09-09T13:50:10.891935Z'}
+_ TestUploadFilePathTraversal.test_upload_file_rejects_traversal[..\\..\\windows\\system32\\config] _
+---------------------------- Captured stdout setup -----------------------------
+{"event": "MultimodalStore not available \u2014 using JSON file persistence at /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23082/test_upload_file_rejects_trave1/content_index.json. Data will survive restarts but advanced features (vector search) are disabled.", "logger": "app.services.multimodal_service", "level": "warning", "timestamp": "2026-09-09T13:50:10.894251Z"}
+------------------------------ Captured log setup ------------------------------
+WARNING  app.services.multimodal_service:multimodal_service.py:198 {'event': 'MultimodalStore not available — using JSON file persistence at /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23082/test_upload_file_rejects_trave1/content_index.json. Data will survive restarts but advanced features (vector search) are disabled.', 'logger': 'app.services.multimodal_service', 'level': 'warning', 'timestamp': '2026-09-09T13:50:10.894251Z'}
+_ TestUploadFilePathTraversal.test_upload_file_rejects_traversal[normal/../../../evil.txt] _
+---------------------------- Captured stdout setup -----------------------------
+{"event": "MultimodalStore not available \u2014 using JSON file persistence at /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23082/test_upload_file_rejects_trave2/content_index.json. Data will survive restarts but advanced features (vector search) are disabled.", "logger": "app.services.multimodal_service", "level": "warning", "timestamp": "2026-09-09T13:50:10.895969Z"}
+------------------------------ Captured log setup ------------------------------
+WARNING  app.services.multimodal_service:multimodal_service.py:198 {'event': 'MultimodalStore not available — using JSON file persistence at /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23082/test_upload_file_rejects_trave2/content_index.json. Data will survive restarts but advanced features (vector search) are disabled.', 'logger': 'app.services.multimodal_service', 'level': 'warning', 'timestamp': '2026-09-09T13:50:10.895969Z'}
+_ TestUploadFilePathTraversal.test_upload_file_rejects_traversal[../../../../../../../tmp/evil] _
+---------------------------- Captured stdout setup -----------------------------
+{"event": "MultimodalStore not available \u2014 using JSON file persistence at /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23082/test_upload_file_rejects_trave3/content_index.json. Data will survive restarts but advanced features (vector search) are disabled.", "logger": "app.services.multimodal_service", "level": "warning", "timestamp": "2026-09-09T13:50:10.897637Z"}
+------------------------------ Captured log setup ------------------------------
+WARNING  app.services.multimodal_service:multimodal_service.py:198 {'event': 'MultimodalStore not available — using JSON file persistence at /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23082/test_upload_file_rejects_trave3/content_index.json. Data will survive restarts but advanced features (vector search) are disabled.', 'logger': 'app.services.multimodal_service', 'level': 'warning', 'timestamp': '2026-09-09T13:50:10.897637Z'}
+____ TestUploadFilePathTraversal.test_upload_file_calls_validate_safe_path _____
+---------------------------- Captured stdout setup -----------------------------
+{"event": "MultimodalStore not available \u2014 using JSON file persistence at /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23082/test_upload_file_calls_validat0/content_index.json. Data will survive restarts but advanced features (vector search) are disabled.", "logger": "app.services.multimodal_service", "level": "warning", "timestamp": "2026-09-09T13:50:10.899123Z"}
+------------------------------ Captured log setup ------------------------------
+WARNING  app.services.multimodal_service:multimodal_service.py:198 {'event': 'MultimodalStore not available — using JSON file persistence at /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23082/test_upload_file_calls_validat0/content_index.json. Data will survive restarts but advanced features (vector search) are disabled.', 'logger': 'app.services.multimodal_service', 'level': 'warning', 'timestamp': '2026-09-09T13:50:10.899123Z'}
+----------------------------- Captured stdout call -----------------------------
+{"event": "Thumbnail generation failed for 7beb4144-09fe-480d-9271-b671c33fc0a1: cannot find loader for this BUFR file", "logger": "app.services.multimodal_service", "level": "warning", "timestamp": "2026-09-09T13:50:10.937112Z"}
+{"event": "Uploaded file: 7beb4144-09fe-480d-9271-b671c33fc0a1 (image) - 108 bytes", "logger": "app.services.multimodal_service", "level": "info", "timestamp": "2026-09-09T13:50:10.937529Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.multimodal_service:multimodal_service.py:324 {'event': 'Thumbnail generation failed for 7beb4144-09fe-480d-9271-b671c33fc0a1: cannot find loader for this BUFR file', 'logger': 'app.services.multimodal_service', 'level': 'warning', 'timestamp': '2026-09-09T13:50:10.937112Z'}
+INFO     app.services.multimodal_service:multimodal_service.py:641 {'event': 'Uploaded file: 7beb4144-09fe-480d-9271-b671c33fc0a1 (image) - 108 bytes', 'logger': 'app.services.multimodal_service', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.937529Z'}
+_ TestUploadFromUrlPathTraversal.test_upload_from_url_calls_validate_safe_path _
+---------------------------- Captured stdout setup -----------------------------
+{"event": "MultimodalStore not available \u2014 using JSON file persistence at /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23082/test_upload_from_url_calls_val0/content_index.json. Data will survive restarts but advanced features (vector search) are disabled.", "logger": "app.services.multimodal_service", "level": "warning", "timestamp": "2026-09-09T13:50:10.938781Z"}
+------------------------------ Captured log setup ------------------------------
+WARNING  app.services.multimodal_service:multimodal_service.py:198 {'event': 'MultimodalStore not available — using JSON file persistence at /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23082/test_upload_from_url_calls_val0/content_index.json. Data will survive restarts but advanced features (vector search) are disabled.', 'logger': 'app.services.multimodal_service', 'level': 'warning', 'timestamp': '2026-09-09T13:50:10.938781Z'}
+____ TestRealDefenseChain.test_validate_safe_path_real_blocks_crafted_path _____
+---------------------------- Captured stdout setup -----------------------------
+{"event": "MultimodalStore not available \u2014 using JSON file persistence at /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23082/test_validate_safe_path_real_b0/content_index.json. Data will survive restarts but advanced features (vector search) are disabled.", "logger": "app.services.multimodal_service", "level": "warning", "timestamp": "2026-09-09T13:50:10.940677Z"}
+------------------------------ Captured log setup ------------------------------
+WARNING  app.services.multimodal_service:multimodal_service.py:198 {'event': 'MultimodalStore not available — using JSON file persistence at /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23082/test_validate_safe_path_real_b0/content_index.json. Data will survive restarts but advanced features (vector search) are disabled.', 'logger': 'app.services.multimodal_service', 'level': 'warning', 'timestamp': '2026-09-09T13:50:10.940677Z'}
+----------------------------- Captured stdout call -----------------------------
+{"event": "Path traversal attempt detected: '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23082/test_validate_safe_path_real_b0/image/../../etc/passwd' -> '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23082/etc/passwd'", "logger": "app.services.multimodal_service", "level": "warning", "timestamp": "2026-09-09T13:50:10.940994Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.multimodal_service:multimodal_service.py:510 {'event': "Path traversal attempt detected: '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23082/test_validate_safe_path_real_b0/image/../../etc/passwd' -> '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23082/etc/passwd'", 'logger': 'app.services.multimodal_service', 'level': 'warning', 'timestamp': '2026-09-09T13:50:10.940994Z'}
+___ TestRealDefenseChain.test_upload_file_real_chain_safe_filename_generated ___
+---------------------------- Captured stdout setup -----------------------------
+{"event": "MultimodalStore not available \u2014 using JSON file persistence at /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23082/test_upload_file_real_chain_sa0/content_index.json. Data will survive restarts but advanced features (vector search) are disabled.", "logger": "app.services.multimodal_service", "level": "warning", "timestamp": "2026-09-09T13:50:10.941749Z"}
+------------------------------ Captured log setup ------------------------------
+WARNING  app.services.multimodal_service:multimodal_service.py:198 {'event': 'MultimodalStore not available — using JSON file persistence at /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23082/test_upload_file_real_chain_sa0/content_index.json. Data will survive restarts but advanced features (vector search) are disabled.', 'logger': 'app.services.multimodal_service', 'level': 'warning', 'timestamp': '2026-09-09T13:50:10.941749Z'}
+----------------------------- Captured stdout call -----------------------------
+{"event": "Thumbnail generation failed for 15cfd81b-d37f-458a-bd31-c90add5d7488: cannot find loader for this BUFR file", "logger": "app.services.multimodal_service", "level": "warning", "timestamp": "2026-09-09T13:50:10.943484Z"}
+{"event": "Uploaded file: 15cfd81b-d37f-458a-bd31-c90add5d7488 (image) - 108 bytes", "logger": "app.services.multimodal_service", "level": "info", "timestamp": "2026-09-09T13:50:10.943802Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.multimodal_service:multimodal_service.py:324 {'event': 'Thumbnail generation failed for 15cfd81b-d37f-458a-bd31-c90add5d7488: cannot find loader for this BUFR file', 'logger': 'app.services.multimodal_service', 'level': 'warning', 'timestamp': '2026-09-09T13:50:10.943484Z'}
+INFO     app.services.multimodal_service:multimodal_service.py:641 {'event': 'Uploaded file: 15cfd81b-d37f-458a-bd31-c90add5d7488 (image) - 108 bytes', 'logger': 'app.services.multimodal_service', 'level': 'info', 'timestamp': '2026-09-09T13:50:10.943802Z'}
+__ TestRealDefenseChain.test_generate_unique_filename_strips_path_components ___
+---------------------------- Captured stdout setup -----------------------------
+{"event": "MultimodalStore not available \u2014 using JSON file persistence at /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23082/test_generate_unique_filename_0/content_index.json. Data will survive restarts but advanced features (vector search) are disabled.", "logger": "app.services.multimodal_service", "level": "warning", "timestamp": "2026-09-09T13:50:10.944830Z"}
+------------------------------ Captured log setup ------------------------------
+WARNING  app.services.multimodal_service:multimodal_service.py:198 {'event': 'MultimodalStore not available — using JSON file persistence at /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-23082/test_generate_unique_filename_0/content_index.json. Data will survive restarts but advanced features (vector search) are disabled.', 'logger': 'app.services.multimodal_service', 'level': 'warning', 'timestamp': '2026-09-09T13:50:10.944830Z'}
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+PASSED tests/unit/test_calibration_tracker.py::TestQuadrantClassification::test_mastered_quadrant
+PASSED tests/unit/test_calibration_tracker.py::TestQuadrantClassification::test_misconception_quadrant
+PASSED tests/unit/test_calibration_tracker.py::TestQuadrantClassification::test_lucky_quadrant
+PASSED tests/unit/test_calibration_tracker.py::TestQuadrantClassification::test_unlearned_quadrant
+PASSED tests/unit/test_calibration_tracker.py::TestQuadrantClassification::test_boundary_exact_threshold_060
+PASSED tests/unit/test_calibration_tracker.py::TestQuadrantClassification::test_boundary_061
+PASSED tests/unit/test_calibration_tracker.py::TestQuadrantClassification::test_boundary_059
+PASSED tests/unit/test_calibration_tracker.py::TestBiasComputation::test_signed_bias_overconfident
+PASSED tests/unit/test_calibration_tracker.py::TestBiasComputation::test_signed_bias_underconfident
+PASSED tests/unit/test_calibration_tracker.py::TestBiasComputation::test_signed_bias_well_calibrated
+PASSED tests/unit/test_calibration_tracker.py::TestBiasComputation::test_signed_bias_empty_records
+PASSED tests/unit/test_calibration_tracker.py::TestBiasComputation::test_absolute_bias_computation
+PASSED tests/unit/test_calibration_tracker.py::TestBiasComputation::test_absolute_bias_perfect_calibration
+PASSED tests/unit/test_calibration_tracker.py::TestBiasComputation::test_absolute_bias_empty
+PASSED tests/unit/test_calibration_tracker.py::TestBiasComputation::test_bias_rounding
+PASSED tests/unit/test_calibration_tracker.py::TestThreeStageAssessment::test_stage1_below_10
+PASSED tests/unit/test_calibration_tracker.py::TestThreeStageAssessment::test_stage1_zero_records
+PASSED tests/unit/test_calibration_tracker.py::TestThreeStageAssessment::test_stage2_at_10
+PASSED tests/unit/test_calibration_tracker.py::TestThreeStageAssessment::test_stage2_at_20
+PASSED tests/unit/test_calibration_tracker.py::TestThreeStageAssessment::test_stage3_at_21
+PASSED tests/unit/test_calibration_tracker.py::TestThreeStageAssessment::test_stage3_full_report
+PASSED tests/unit/test_calibration_tracker.py::TestCalibrationRating::test_insufficient_data_below_10
+PASSED tests/unit/test_calibration_tracker.py::TestCalibrationRating::test_well_calibrated_boundary
+PASSED tests/unit/test_calibration_tracker.py::TestRecordCalibration::test_misconception_is_dangerous
+PASSED tests/unit/test_calibration_tracker.py::TestRecordCalibration::test_mastered_not_dangerous
+PASSED tests/unit/test_calibration_tracker.py::TestRecordCalibration::test_record_has_timestamp
+PASSED tests/unit/test_calibration_tracker.py::TestRecordCalibration::test_record_preserves_values
+PASSED tests/unit/test_calibration_tracker.py::TestQuadrantDistribution::test_all_one_quadrant
+PASSED tests/unit/test_calibration_tracker.py::TestQuadrantDistribution::test_even_distribution
+PASSED tests/unit/test_calibration_tracker.py::TestQuadrantDistribution::test_empty_distribution
+PASSED tests/unit/test_canvas_memory_trigger.py::TestCanvasEventModels::test_canvas_event_type_enum_values
+PASSED tests/unit/test_canvas_memory_trigger.py::TestCanvasEventModels::test_canvas_event_creation_with_required_fields
+PASSED tests/unit/test_canvas_memory_trigger.py::TestCanvasEventModels::test_canvas_event_with_optional_fields
+PASSED tests/unit/test_canvas_memory_trigger.py::TestCanvasEventModels::test_canvas_event_context_to_metadata
+PASSED tests/unit/test_canvas_memory_trigger.py::TestCanvasEventModels::test_canvas_event_context_edge_metadata
+PASSED tests/unit/test_canvas_memory_trigger.py::TestAddNodeMemoryTrigger::test_add_node_triggers_memory_event
+PASSED tests/unit/test_canvas_memory_trigger.py::TestAddNodeMemoryTrigger::test_add_node_without_memory_client
+PASSED tests/unit/test_canvas_memory_trigger.py::TestUpdateNodeMemoryTrigger::test_update_node_triggers_memory_event
+PASSED tests/unit/test_canvas_memory_trigger.py::TestAsyncNonBlocking::test_slow_memory_write_does_not_block_crud
+PASSED tests/unit/test_canvas_memory_trigger.py::TestSilentDegradation::test_memory_failure_does_not_block_crud
+PASSED tests/unit/test_canvas_memory_trigger.py::TestSilentDegradation::test_memory_timeout_handled_gracefully
+PASSED tests/unit/test_canvas_memory_trigger.py::TestEdgeCases::test_multiple_consecutive_operations
+PASSED tests/unit/test_canvas_memory_trigger.py::TestEdgeCases::test_session_id_is_passed_to_memory_event
+PASSED tests/unit/test_canvas_memory_trigger.py::TestColorMetadataExtraction::test_to_metadata_extracts_node_color
+PASSED tests/unit/test_canvas_memory_trigger.py::TestColorMetadataExtraction::test_to_metadata_no_color_field
+PASSED tests/unit/test_canvas_memory_trigger.py::TestColorMetadataExtraction::test_to_metadata_color_with_text
+PASSED tests/unit/test_canvas_memory_trigger.py::TestColorMetadataExtraction::test_color_changed_event_type_exists
+PASSED tests/unit/test_canvas_memory_trigger.py::TestColorMetadataExtraction::test_color_removed_event_type_exists
+PASSED tests/unit/test_difficulty_matcher.py::TestComputeDifficultyRange::test_mid_range_proficiency
+PASSED tests/unit/test_difficulty_matcher.py::TestComputeDifficultyRange::test_low_proficiency_clamped
+PASSED tests/unit/test_difficulty_matcher.py::TestComputeDifficultyRange::test_high_proficiency_clamped
+PASSED tests/unit/test_difficulty_matcher.py::TestComputeDifficultyRange::test_zero_proficiency
+PASSED tests/unit/test_difficulty_matcher.py::TestComputeDifficultyRange::test_one_proficiency
+PASSED tests/unit/test_difficulty_matcher.py::TestComputeDifficultyRange::test_proficiency_030
+PASSED tests/unit/test_difficulty_matcher.py::TestComputeDifficultyRange::test_proficiency_070
+PASSED tests/unit/test_difficulty_matcher.py::TestIsDifficultyMatched::test_within_range_matched
+PASSED tests/unit/test_difficulty_matcher.py::TestIsDifficultyMatched::test_at_lower_boundary_matched
+PASSED tests/unit/test_difficulty_matcher.py::TestIsDifficultyMatched::test_at_upper_boundary_matched
+PASSED tests/unit/test_difficulty_matcher.py::TestIsDifficultyMatched::test_below_range_not_matched
+PASSED tests/unit/test_difficulty_matcher.py::TestIsDifficultyMatched::test_above_range_not_matched
+PASSED tests/unit/test_difficulty_matcher.py::TestSlidingWindowStats::test_window_tracks_matches
+PASSED tests/unit/test_difficulty_matcher.py::TestSlidingWindowStats::test_below_threshold_not_healthy
+PASSED tests/unit/test_difficulty_matcher.py::TestSlidingWindowStats::test_window_size_capped
+PASSED tests/unit/test_difficulty_matcher.py::TestEvaluatePersistence::test_evaluate_persists_and_updates_window
+PASSED tests/unit/test_difficulty_matcher.py::TestEvaluatePersistence::test_evaluate_unmatched
+PASSED tests/unit/test_difficulty_matcher.py::TestEvaluatePersistence::test_hydration_from_db
+PASSED tests/unit/test_event_bus.py::TestLRUDedup::test_add_and_contains
+PASSED tests/unit/test_event_bus.py::TestLRUDedup::test_capacity_eviction
+PASSED tests/unit/test_event_bus.py::TestLRUDedup::test_lru_access_refreshes
+PASSED tests/unit/test_event_bus.py::TestEventBusBasics::test_subscribe_and_publish
+PASSED tests/unit/test_event_bus.py::TestEventBusBasics::test_unsubscribe
+PASSED tests/unit/test_event_bus.py::TestEventBusBasics::test_no_handlers
+PASSED tests/unit/test_event_bus.py::TestEventBusBasics::test_multiple_handlers
+PASSED tests/unit/test_event_bus.py::TestTier1Critical::test_tier1_await_execution
+PASSED tests/unit/test_event_bus.py::TestTier1Critical::test_tier1_failure_propagates
+PASSED tests/unit/test_event_bus.py::TestTier2Important::test_tier2_success
+PASSED tests/unit/test_event_bus.py::TestTier3BestEffort::test_tier3_success
+PASSED tests/unit/test_event_bus.py::TestTier3BestEffort::test_tier3_failure_doesnt_propagate
+PASSED tests/unit/test_event_bus.py::TestIdempotency::test_duplicate_event_not_reprocessed
+PASSED tests/unit/test_event_bus.py::TestIdempotency::test_different_event_ids_both_processed
+PASSED tests/unit/test_event_bus.py::TestEventTierMapping::test_score_submitted_is_tier1
+PASSED tests/unit/test_event_bus.py::TestEventTierMapping::test_bkt_updated_is_tier2
+PASSED tests/unit/test_event_bus.py::TestEventTierMapping::test_fsrs_updated_is_tier2
+PASSED tests/unit/test_event_bus.py::TestEventTierMapping::test_mastery_changed_is_tier2
+PASSED tests/unit/test_event_bus.py::TestEventTierMapping::test_calibration_recorded_is_tier2
+PASSED tests/unit/test_event_bus.py::TestEventTierMapping::test_rag_weight_adjust_is_tier3
+PASSED tests/unit/test_event_bus.py::TestEventTierMapping::test_ui_mastery_push_is_tier3
+PASSED tests/unit/test_event_bus.py::TestEventBusStats::test_stats_tracking
+PASSED tests/unit/test_event_bus.py::TestEventBusStats::test_circuit_breaker_registration
+PASSED tests/unit/test_event_bus.py::TestLearningEvent::test_event_has_uuid
+PASSED tests/unit/test_event_bus.py::TestLearningEvent::test_event_has_timestamp
+PASSED tests/unit/test_event_bus.py::TestLearningEvent::test_event_payload_access
+PASSED tests/unit/test_event_bus.py::TestLearningEvent::test_tier_not_overridable
+PASSED tests/unit/test_event_bus.py::TestEventBusContextVarInheritance::test_event_bus_dispatch_inherits_contextvar
+PASSED tests/unit/test_event_bus.py::TestEventBusContextVarInheritance::test_tier3_dispatch_inherits_contextvar
+PASSED tests/unit/test_mastery_fusion.py::TestSignalRegistry::test_register_signal
+PASSED tests/unit/test_mastery_fusion.py::TestSignalRegistry::test_unregister_signal
+PASSED tests/unit/test_mastery_fusion.py::TestSignalRegistry::test_unregister_nonexistent
+PASSED tests/unit/test_mastery_fusion.py::TestSignalRegistry::test_register_overwrite
+PASSED tests/unit/test_mastery_fusion.py::TestSignalRegistry::test_multiple_signals
+PASSED tests/unit/test_mastery_fusion.py::TestSignalRegistry::test_get_active_signals
+PASSED tests/unit/test_mastery_fusion.py::TestMasteryFusionEngine::test_single_signal
+PASSED tests/unit/test_mastery_fusion.py::TestMasteryFusionEngine::test_two_signals_renormalized
+PASSED tests/unit/test_mastery_fusion.py::TestMasteryFusionEngine::test_five_signals_all_data
+PASSED tests/unit/test_mastery_fusion.py::TestMasteryFusionEngine::test_no_signals_registered
+PASSED tests/unit/test_mastery_fusion.py::TestMasteryFusionEngine::test_all_signals_no_data
+PASSED tests/unit/test_mastery_fusion.py::TestMasteryFusionEngine::test_single_signal_active_is_fallback_false
+PASSED tests/unit/test_mastery_fusion.py::TestMasteryFusionEngine::test_five_signals_active_is_fallback_false
+PASSED tests/unit/test_mastery_fusion.py::TestMasteryFusionEngine::test_weight_sum_zero_is_fallback_true
+PASSED tests/unit/test_mastery_fusion.py::TestMasteryFusionEngine::test_some_signals_no_data
+PASSED tests/unit/test_mastery_fusion.py::TestMasteryFusionEngine::test_clamp_lower_bound
+PASSED tests/unit/test_mastery_fusion.py::TestMasteryFusionEngine::test_clamp_upper_bound
+PASSED tests/unit/test_mastery_fusion.py::TestMasteryFusionEngine::test_signal_details_populated
+PASSED tests/unit/test_mastery_fusion.py::TestPearsonCorrelation::test_perfect_positive_correlation
+PASSED tests/unit/test_mastery_fusion.py::TestPearsonCorrelation::test_perfect_negative_correlation
+PASSED tests/unit/test_mastery_fusion.py::TestPearsonCorrelation::test_insufficient_data
+PASSED tests/unit/test_mastery_fusion.py::TestPearsonCorrelation::test_zero_variance
+PASSED tests/unit/test_mastery_fusion.py::TestPearsonCorrelation::test_high_correlation_detection
+PASSED tests/unit/test_mastery_fusion.py::TestPearsonCorrelation::test_low_correlation_not_redundant
+PASSED tests/unit/test_mastery_fusion.py::TestPearsonCorrelation::test_multiple_pairs
+PASSED tests/unit/test_multimodal_path_security.py::TestValidateSafePath::test_valid_path_within_storage
+PASSED tests/unit/test_multimodal_path_security.py::TestValidateSafePath::test_path_traversal_unix_style
+PASSED tests/unit/test_multimodal_path_security.py::TestValidateSafePath::test_path_traversal_deep_nested
+PASSED tests/unit/test_multimodal_path_security.py::TestValidateSafePath::test_path_traversal_mixed
+PASSED tests/unit/test_multimodal_path_security.py::TestValidateSafePath::test_path_within_subdirectory
+PASSED tests/unit/test_multimodal_path_security.py::TestValidateSafePath::test_error_code_is_path_traversal
+PASSED tests/unit/test_multimodal_path_security.py::TestUploadFilePathTraversal::test_upload_file_rejects_traversal[../../etc/passwd]
+PASSED tests/unit/test_multimodal_path_security.py::TestUploadFilePathTraversal::test_upload_file_rejects_traversal[..\\..\\windows\\system32\\config]
+PASSED tests/unit/test_multimodal_path_security.py::TestUploadFilePathTraversal::test_upload_file_rejects_traversal[normal/../../../evil.txt]
+PASSED tests/unit/test_multimodal_path_security.py::TestUploadFilePathTraversal::test_upload_file_rejects_traversal[../../../../../../../tmp/evil]
+PASSED tests/unit/test_multimodal_path_security.py::TestUploadFilePathTraversal::test_upload_file_calls_validate_safe_path
+PASSED tests/unit/test_multimodal_path_security.py::TestUploadFromUrlPathTraversal::test_upload_from_url_calls_validate_safe_path
+PASSED tests/unit/test_multimodal_path_security.py::TestRealDefenseChain::test_validate_safe_path_real_blocks_crafted_path
+PASSED tests/unit/test_multimodal_path_security.py::TestRealDefenseChain::test_upload_file_real_chain_safe_filename_generated
+PASSED tests/unit/test_multimodal_path_security.py::TestRealDefenseChain::test_generate_unique_filename_strips_path_components
+FAILED tests/unit/test_calibration_tracker.py::TestCalibrationRating::test_over_confident_boundary
+FAILED tests/unit/test_calibration_tracker.py::TestCalibrationRating::test_under_confident_boundary
+FAILED tests/unit/test_canvas_memory_trigger.py::TestAddEdgeMemoryTrigger::test_add_edge_triggers_memory_event
+FAILED tests/unit/test_difficulty_matcher.py::TestSlidingWindowStats::test_empty_window_stats
+FAILED tests/unit/test_event_bus.py::TestTier2Important::test_tier2_retry_then_success
+FAILED tests/unit/test_event_bus.py::TestTier2Important::test_tier2_all_retries_exhausted_writes_outbox
+FAILED tests/unit/test_mastery_fusion.py::TestPearsonCorrelation::test_no_correlation
+FAILED tests/unit/test_multimodal_path_security.py::TestValidateSafePath::test_path_traversal_windows_style
+================== 8 failed, 135 passed, 12 warnings in 1.44s ==================
+rc=1

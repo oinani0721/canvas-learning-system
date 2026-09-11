@@ -1242,7 +1242,12 @@ async def verify_judges(uri: str, lancedb_path: str) -> dict[str, Any]:
 
 
 async def probe_schema_drift_side_effect(base_tmp: str) -> dict[str, Any]:
-    """实测 A 的 initialize 是否会连带删掉 B 的表。返回观察结果（不做判据）。"""
+    """实测 A 的 initialize 是否会连带删掉 B 的表。
+
+    CARD-G2-9-F1 (2026-09-07): 本探针的结果从「观察」升为 **判据** —— 结果字典
+    带 ``verdict`` 键，``_amain`` 据此返回 ``EXIT_ISOLATION_FAILED``。（原 docstring
+    写的「不做判据」自本卡起不再成立。）
+    """
     from lib.agentic_rag.clients.lancedb_client import LanceDBClient
 
     tmp = str(pathlib.Path(base_tmp) / "drift-probe")
@@ -1273,6 +1278,9 @@ async def probe_schema_drift_side_effect(base_tmp: str) -> dict[str, Any]:
         "tables_after_A_init": after,
         "B_table": b_table,
         "B_table_survived_A_init": b_table in after,
+        # CARD-G2-9-F1: 升为判据 —— A 的 initialize 碰了 B 的表就是跨 vault
+        # 数据丢失，_amain 据此返回 EXIT_ISOLATION_FAILED。
+        "verdict": "PASS" if b_table in after else "FAIL",
         "finding": (
             "CONFIRMED: vault A 的 LanceDBClient.initialize() 删掉了 vault B 的表"
             if b_table in before and b_table not in after
@@ -1435,6 +1443,18 @@ async def _run_canary_cli(
 
     live_port_guard.write_ledger(str(evidence / f"ledger-{ts}.json"))
     print(live_port_guard.STATE.summary_line())
+
+    # CARD-G2-9-F1: 跨 vault 连带删表从「附带发现」升为 rc 判据。
+    # ⛔ 必须用 .get() —— side_effect_probe 是**条件键**（只在
+    #    args.probe_schema_drift 为真时写入，--no-probe-schema-drift 关得掉），
+    #    裸下标会让每次「关探针」的运行都 KeyError。
+    probe = report.get("side_effect_probe")
+    if probe is not None and probe.get("verdict") != "PASS":
+        print(
+            "*** vault A 的 initialize() 删掉了 vault B 的表 —— 跨 vault 数据丢失 ***",
+            file=sys.stderr,
+        )
+        return EXIT_ISOLATION_FAILED
     return EXIT_OK
 
 

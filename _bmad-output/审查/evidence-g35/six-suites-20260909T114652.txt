@@ -1,0 +1,125 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u9-mastery/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 102 items
+
+tests/unit/test_review_service_fsrs.py ................................. [ 32%]
+.................F                                                       [ 50%]
+tests/unit/test_review_service_error_handling.py ..........              [ 59%]
+tests/regression/test_debt8_fsrs_fallback_honest.py .....                [ 64%]
+tests/regression/test_fsrs_new_card_none_serialization.py .......        [ 71%]
+tests/unit/test_fsrs_state_query.py ................                     [ 87%]
+tests/unit/test_epic32_p0_fixes.py ...FFF.F.....                         [100%]
+
+=================================== FAILURES ===================================
+_ TestCardStatePersistHonestyD3.test_save_card_states_pending_mutation_inside_lock _
+tests/unit/test_review_service_fsrs.py:778: in test_save_card_states_pending_mutation_inside_lock
+    assert on_disk["d3-bind"] == '{"state": 1}'
+           ^^^^^^^^^^^^^^^^^^
+E   KeyError: 'd3-bind'
+----------------------------- Captured stdout call -----------------------------
+{"event": "Initialized FSRS scheduler with retention=0.9", "logger": "memory.temporal.fsrs_manager", "level": "info", "timestamp": "2026-09-09T03:47:22.816544Z"}
+{"event": "FSRSManager created (desired_retention=0.9)", "logger": "app.services.review_service", "level": "info", "timestamp": "2026-09-09T03:47:22.816736Z"}
+{"event": "FSRS manager auto-created via factory", "logger": "app.services.review_service", "level": "info", "timestamp": "2026-09-09T03:47:22.816855Z"}
+------------------------------ Captured log call -------------------------------
+INFO     memory.temporal.fsrs_manager:fsrs_manager.py:127 Initialized FSRS scheduler with retention=0.9
+INFO     app.services.review_service:review_service.py:649 {'event': 'FSRSManager created (desired_retention=0.9)', 'logger': 'app.services.review_service', 'level': 'info', 'timestamp': '2026-09-09T03:47:22.816736Z'}
+INFO     app.services.review_service:review_service.py:719 {'event': 'FSRS manager auto-created via factory', 'logger': 'app.services.review_service', 'level': 'info', 'timestamp': '2026-09-09T03:47:22.816855Z'}
+_____ TestP02CardStatePersistence.test_load_card_states_empty_when_no_file _____
+tests/unit/test_epic32_p0_fixes.py:108: in test_load_card_states_empty_when_no_file
+    assert result == {}
+E   assert <app.services...t 0x138bfb610> == {}
+E     
+E     Use -v to get more diff
+_________ TestP02CardStatePersistence.test_load_card_states_from_file __________
+tests/unit/test_epic32_p0_fixes.py:120: in test_load_card_states_from_file
+    assert result == states
+E   assert <app.services...t 0x138bf99c0> == {'concept_a':...ility": 2.0}'}
+E     
+E     Use -v to get more diff
+----------------------------- Captured stdout call -----------------------------
+{"event": "CARD-G3-5: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-21322/test_load_card_states_from_fil0/fsrs_card_states.json \u662f legacy \u6241\u5e73\u683c\u5f0f (2 \u6761\u88f8 concept_id \u952e), **\u672a\u52a0\u8f7d** \u2014 \u8de8 vault \u5f52\u5c5e\u65e0\u6cd5\u5728\u542f\u52a8\u671f\u8bc1\u660e, \u62d2\u7edd\u9759\u9ed8\u5f52\u6876\u3002\u8bf7\u8dd1 backend/scripts/migrate_fsrs_card_states_vault_key_g35.py --apply --vault-id <vault> \u8fc1\u79fb\u540e\u518d\u542f\u52a8\u3002", "logger": "app.services.review_service", "level": "warning", "timestamp": "2026-09-09T03:49:15.015177Z"}
+{"event": "Loaded 0 FSRS card states across 0 vault(s) from /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-21322/test_load_card_states_from_fil0/fsrs_card_states.json", "logger": "app.services.review_service", "level": "info", "timestamp": "2026-09-09T03:49:15.015477Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.review_service:review_service.py:522 {'event': 'CARD-G3-5: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-21322/test_load_card_states_from_fil0/fsrs_card_states.json 是 legacy 扁平格式 (2 条裸 concept_id 键), **未加载** — 跨 vault 归属无法在启动期证明, 拒绝静默归桶。请跑 backend/scripts/migrate_fsrs_card_states_vault_key_g35.py --apply --vault-id <vault> 迁移后再启动。', 'logger': 'app.services.review_service', 'level': 'warning', 'timestamp': '2026-09-09T03:49:15.015177Z'}
+INFO     app.services.review_service:review_service.py:780 {'event': 'Loaded 0 FSRS card states across 0 vault(s) from /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-21322/test_load_card_states_from_fil0/fsrs_card_states.json', 'logger': 'app.services.review_service', 'level': 'info', 'timestamp': '2026-09-09T03:49:15.015477Z'}
+____ TestP02CardStatePersistence.test_load_card_states_handles_corrupt_file ____
+tests/unit/test_epic32_p0_fixes.py:132: in test_load_card_states_handles_corrupt_file
+    assert result == {}
+E   assert <app.services...t 0x138bf9ae0> == {}
+E     
+E     Use -v to get more diff
+----------------------------- Captured stdout call -----------------------------
+{"event": "Failed to load FSRS card states: Expecting value: line 1 column 1 (char 0)", "logger": "app.services.review_service", "level": "warning", "timestamp": "2026-09-09T03:49:15.024897Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.review_service:review_service.py:786 {'event': 'Failed to load FSRS card states: Expecting value: line 1 column 1 (char 0)', 'logger': 'app.services.review_service', 'level': 'warning', 'timestamp': '2026-09-09T03:49:15.024897Z'}
+______ TestP02CardStatePersistence.test_save_card_states_survives_restart ______
+tests/unit/test_epic32_p0_fixes.py:182: in test_save_card_states_survives_restart
+    assert result == states
+E   assert <app.services...t 0x138bf8280> == {'concept_1':...2': '{"s":2}'}
+E     
+E     Use -v to get more diff
+----------------------------- Captured stdout call -----------------------------
+{"event": "Initialized FSRS scheduler with retention=0.9", "logger": "memory.temporal.fsrs_manager", "level": "info", "timestamp": "2026-09-09T03:49:15.044919Z"}
+{"event": "FSRSManager created (desired_retention=0.9)", "logger": "app.services.review_service", "level": "info", "timestamp": "2026-09-09T03:49:15.045054Z"}
+{"event": "FSRS manager auto-created via factory", "logger": "app.services.review_service", "level": "info", "timestamp": "2026-09-09T03:49:15.045144Z"}
+{"event": "CARD-G3-5: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-21322/test_save_card_states_survives0/fsrs_card_states.json \u662f legacy \u6241\u5e73\u683c\u5f0f (2 \u6761\u88f8 concept_id \u952e), **\u672a\u52a0\u8f7d** \u2014 \u8de8 vault \u5f52\u5c5e\u65e0\u6cd5\u5728\u542f\u52a8\u671f\u8bc1\u660e, \u62d2\u7edd\u9759\u9ed8\u5f52\u6876\u3002\u8bf7\u8dd1 backend/scripts/migrate_fsrs_card_states_vault_key_g35.py --apply --vault-id <vault> \u8fc1\u79fb\u540e\u518d\u542f\u52a8\u3002", "logger": "app.services.review_service", "level": "warning", "timestamp": "2026-09-09T03:49:15.046904Z"}
+{"event": "Loaded 0 FSRS card states across 0 vault(s) from /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-21322/test_save_card_states_survives0/fsrs_card_states.json", "logger": "app.services.review_service", "level": "info", "timestamp": "2026-09-09T03:49:15.047172Z"}
+------------------------------ Captured log call -------------------------------
+INFO     memory.temporal.fsrs_manager:fsrs_manager.py:127 Initialized FSRS scheduler with retention=0.9
+INFO     app.services.review_service:review_service.py:649 {'event': 'FSRSManager created (desired_retention=0.9)', 'logger': 'app.services.review_service', 'level': 'info', 'timestamp': '2026-09-09T03:49:15.045054Z'}
+INFO     app.services.review_service:review_service.py:719 {'event': 'FSRS manager auto-created via factory', 'logger': 'app.services.review_service', 'level': 'info', 'timestamp': '2026-09-09T03:49:15.045144Z'}
+WARNING  app.services.review_service:review_service.py:522 {'event': 'CARD-G3-5: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-21322/test_save_card_states_survives0/fsrs_card_states.json 是 legacy 扁平格式 (2 条裸 concept_id 键), **未加载** — 跨 vault 归属无法在启动期证明, 拒绝静默归桶。请跑 backend/scripts/migrate_fsrs_card_states_vault_key_g35.py --apply --vault-id <vault> 迁移后再启动。', 'logger': 'app.services.review_service', 'level': 'warning', 'timestamp': '2026-09-09T03:49:15.046904Z'}
+INFO     app.services.review_service:review_service.py:780 {'event': 'Loaded 0 FSRS card states across 0 vault(s) from /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-21322/test_save_card_states_survives0/fsrs_card_states.json', 'logger': 'app.services.review_service', 'level': 'info', 'timestamp': '2026-09-09T03:49:15.047172Z'}
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:805
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u9-mastery/backend/app/api/v1/endpoints/chat.py:805: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:105
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u9-mastery/backend/app/api/v1/endpoints/metadata.py:105: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:179
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u9-mastery/backend/app/api/v1/endpoints/metadata.py:179: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_review_service_fsrs.py::TestCardStatePersistHonestyD3::test_save_card_states_pending_mutation_inside_lock
+FAILED tests/unit/test_epic32_p0_fixes.py::TestP02CardStatePersistence::test_load_card_states_empty_when_no_file
+FAILED tests/unit/test_epic32_p0_fixes.py::TestP02CardStatePersistence::test_load_card_states_from_file
+FAILED tests/unit/test_epic32_p0_fixes.py::TestP02CardStatePersistence::test_load_card_states_handles_corrupt_file
+FAILED tests/unit/test_epic32_p0_fixes.py::TestP02CardStatePersistence::test_save_card_states_survives_restart
+============ 5 failed, 97 passed, 10 warnings in 114.52s (0:01:54) =============
+rc=1

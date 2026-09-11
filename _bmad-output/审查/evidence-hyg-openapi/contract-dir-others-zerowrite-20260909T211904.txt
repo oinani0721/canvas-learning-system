@@ -1,0 +1,5 @@
+=== (g) 目录级（其余 5 文件）后：零写复核 ===
+五项 test -e：
+(无 POLLUTED 行即通过)
+git status --porcelain 排除本卡两文件：
+  行数 = 0

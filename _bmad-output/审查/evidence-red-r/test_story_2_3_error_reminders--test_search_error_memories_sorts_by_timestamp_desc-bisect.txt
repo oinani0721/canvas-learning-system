@@ -1,0 +1,154 @@
+### CARD-RED-R bisect archive
+slug: test_story_2_3_error_reminders--test_search_error_memories_sorts_by_timestamp_desc
+nodeid: tests/unit/test_story_2_3_error_reminders.py::test_search_error_memories_sorts_by_timestamp_desc
+interval: good=d11b9bd2 (3d10a02b^)  bad=3d10a02b (3d10a02b)
+started: 2026-09-09T11:58:22+0800
+runner-judge: pytest 摘要行 (⛔ 非退出码 —— 老 commit addopts 含 --cov-fail-under=85, passed 也 rc=1)
+sparse-checkout: 排除 /backend/.canvas-learning/ (该目录含非法字节序列路径, macOS 无法 checkout)
+
+Preparing worktree (detached HEAD 3d10a02b)
+== 端点验证 1/2: BAD=3d10a02b (期望 VERDICT=BAD) ==
+--- HEAD=3d10a02b nodeid=tests/unit/test_story_2_3_error_reminders.py::test_search_error_memories_sorts_by_timestamp_desc
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-test_story_2_3_error_reminders--test_search_error_memories_sorts_by_timestamp_desc/backend/app/api/v1/endpoints/metadata.py:213: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-test_story_2_3_error_reminders--test_search_error_memories_sorts_by_timestamp_desc/backend/app/mcp/server.py:135: DeprecationWarning: mount() is deprecated and will be removed in a future version. Use mount_http() for HTTP transport (recommended) or mount_sse() for SSE transport instead.
+FAILED tests/unit/test_story_2_3_error_reminders.py::test_search_error_memories_sorts_by_timestamp_desc
+======================== 1 failed, 11 warnings in 0.59s ========================
+--- pytest_raw_rc=1 (仅记录, 不作判据)
+VERDICT=BAD
+bad_end_rc=1
+
+== 端点验证 2/2: GOOD=d11b9bd2 (期望 VERDICT=GOOD) ==
+--- HEAD=d11b9bd2 nodeid=tests/unit/test_story_2_3_error_reminders.py::test_search_error_memories_sorts_by_timestamp_desc
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-test_story_2_3_error_reminders--test_search_error_memories_sorts_by_timestamp_desc/backend/app/api/v1/endpoints/metadata.py:140: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-test_story_2_3_error_reminders--test_search_error_memories_sorts_by_timestamp_desc/backend/app/api/v1/endpoints/metadata.py:213: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-test_story_2_3_error_reminders--test_search_error_memories_sorts_by_timestamp_desc/backend/app/mcp/server.py:135: DeprecationWarning: mount() is deprecated and will be removed in a future version. Use mount_http() for HTTP transport (recommended) or mount_sse() for SSE transport instead.
+======================== 1 passed, 11 warnings in 0.47s ========================
+--- pytest_raw_rc=0 (仅记录, 不作判据)
+VERDICT=GOOD
+good_end_rc=0
+
+ENDPOINT_STATUS=INTERVAL_OK
+
+== git bisect run ==
+3d10a02bf10bac6576db692098af0ee0be59d403 is the first bad commit
+commit 3d10a02bf10bac6576db692098af0ee0be59d403
+Author: oinani0721 <2272104243@qq.com>
+Date:   Thu May 14 17:43:34 2026 -0700
+
+    feat(story-2.4): callout 自动同步 — p0 三件套 + plan-b phase 1-4
+    
+    story 2.4 (callout 批注标记 tips) plan b 实施。
+    用户实测一次输入 = 8 sync = 3 episodicnode v1/v2/v3。
+    
+    p0 三件套 (修复 g1/g3 数据链路):
+    - p0-1 plugin → backend post /api/v1/tips
+    - p0-2 source_description schema 三方对齐
+    - p0-3 memory_format.py 加 learningtip + calloutannotation
+    
+    p0-4/5 (graphiti 内部约束):
+    - p0-4 protected attr 冲突 rename (3 处)
+    - p0-5 group_id 边界 sanitize (group_id_compat.py 新建)
+    
+    p0-6 + f1 (光标 + 可见提示):
+    - wrapselection 末尾追加 USER_INPUT_PROMPT
+    - onchooseitem 加 setcursor 光标自动定位
+    - f1 改为可见占位符避免 live preview 折叠
+    
+    plan b phase 1-4:
+    - phase 1 plugin vault.on('modify') + 500ms debounce + sha256
+    - phase 2 backend post /tips/batch + in-memory hash cache
+    - phase 3 find_episode_by_content_hash 持久查 neo4j
+    - phase 4 e2e 验证
+    
+    docker-compose: google_api_key env 从 host shell 传入
+    
+    PLAN-NNN: EPIC1-BMAD-DEV-ASSESS-2026-04-17
+    
+    Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+
+ backend/app/api/v1/endpoints/tips.py         |  232 ++-
+ backend/app/core/memory_format.py            |   55 +
+ backend/app/graphiti/entity_types.py         |   76 +-
+ backend/app/graphiti/group_id_compat.py      |   68 +
+ backend/app/services/episode_worker.py       |    7 +-
+ backend/app/services/memory_service.py       |  361 ++---
+ backend/app/services/question_generator.py   |   58 +-
+ docker-compose.yml                           |    4 +-
+ frontend/obsidian-plugin/src/callout-sync.ts |   69 +
+ frontend/obsidian-plugin/src/callout.ts      |  118 +-
+ frontend/obsidian-plugin/src/main.ts         | 2059 +++-----------------------
+ 11 files changed, 944 insertions(+), 2163 deletions(-)
+ create mode 100644 backend/app/graphiti/group_id_compat.py
+ create mode 100644 frontend/obsidian-plugin/src/callout-sync.ts
+running 'sh' '/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-runner.sh'
+--- HEAD=3d10a02b nodeid=tests/unit/test_story_2_3_error_reminders.py::test_search_error_memories_sorts_by_timestamp_desc
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-test_story_2_3_error_reminders--test_search_error_memories_sorts_by_timestamp_desc/backend/app/api/v1/endpoints/metadata.py:213: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-test_story_2_3_error_reminders--test_search_error_memories_sorts_by_timestamp_desc/backend/app/mcp/server.py:135: DeprecationWarning: mount() is deprecated and will be removed in a future version. Use mount_http() for HTTP transport (recommended) or mount_sse() for SSE transport instead.
+FAILED tests/unit/test_story_2_3_error_reminders.py::test_search_error_memories_sorts_by_timestamp_desc
+======================== 1 failed, 11 warnings in 0.47s ========================
+--- pytest_raw_rc=1 (仅记录, 不作判据)
+VERDICT=BAD
+3d10a02bf10bac6576db692098af0ee0be59d403 is the first bad commit
+commit 3d10a02bf10bac6576db692098af0ee0be59d403
+Author: oinani0721 <2272104243@qq.com>
+Date:   Thu May 14 17:43:34 2026 -0700
+
+    feat(story-2.4): callout 自动同步 — p0 三件套 + plan-b phase 1-4
+    
+    story 2.4 (callout 批注标记 tips) plan b 实施。
+    用户实测一次输入 = 8 sync = 3 episodicnode v1/v2/v3。
+    
+    p0 三件套 (修复 g1/g3 数据链路):
+    - p0-1 plugin → backend post /api/v1/tips
+    - p0-2 source_description schema 三方对齐
+    - p0-3 memory_format.py 加 learningtip + calloutannotation
+    
+    p0-4/5 (graphiti 内部约束):
+    - p0-4 protected attr 冲突 rename (3 处)
+    - p0-5 group_id 边界 sanitize (group_id_compat.py 新建)
+    
+    p0-6 + f1 (光标 + 可见提示):
+    - wrapselection 末尾追加 USER_INPUT_PROMPT
+    - onchooseitem 加 setcursor 光标自动定位
+    - f1 改为可见占位符避免 live preview 折叠
+    
+    plan b phase 1-4:
+    - phase 1 plugin vault.on('modify') + 500ms debounce + sha256
+    - phase 2 backend post /tips/batch + in-memory hash cache
+    - phase 3 find_episode_by_content_hash 持久查 neo4j
+    - phase 4 e2e 验证
+    
+    docker-compose: google_api_key env 从 host shell 传入
+    
+    PLAN-NNN: EPIC1-BMAD-DEV-ASSESS-2026-04-17
+    
+    Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+
+ backend/app/api/v1/endpoints/tips.py         |  232 ++-
+ backend/app/core/memory_format.py            |   55 +
+ backend/app/graphiti/entity_types.py         |   76 +-
+ backend/app/graphiti/group_id_compat.py      |   68 +
+ backend/app/services/episode_worker.py       |    7 +-
+ backend/app/services/memory_service.py       |  361 ++---
+ backend/app/services/question_generator.py   |   58 +-
+ docker-compose.yml                           |    4 +-
+ frontend/obsidian-plugin/src/callout-sync.ts |   69 +
+ frontend/obsidian-plugin/src/callout.ts      |  118 +-
+ frontend/obsidian-plugin/src/main.ts         | 2059 +++-----------------------
+ 11 files changed, 944 insertions(+), 2163 deletions(-)
+ create mode 100644 backend/app/graphiti/group_id_compat.py
+ create mode 100644 frontend/obsidian-plugin/src/callout-sync.ts
+bisect found first bad commit
+-- bisect log --
+# bad: [3d10a02bf10bac6576db692098af0ee0be59d403] feat(story-2.4): callout 自动同步 — p0 三件套 + plan-b phase 1-4
+# good: [d11b9bd218741ead05119fa09c7f87a88c5a38a2] chore(auto-sync): 1 files, append-instruction.py
+git bisect start '3d10a02b' 'd11b9bd2'
+# first bad commit: [3d10a02bf10bac6576db692098af0ee0be59d403] feat(story-2.4): callout 自动同步 — p0 三件套 + plan-b phase 1-4
+# bad: [3d10a02bf10bac6576db692098af0ee0be59d403] feat(story-2.4): callout 自动同步 — p0 三件套 + plan-b phase 1-4
+git bisect bad 3d10a02bf10bac6576db692098af0ee0be59d403
+# first bad commit: [3d10a02bf10bac6576db692098af0ee0be59d403] feat(story-2.4): callout 自动同步 — p0 三件套 + plan-b phase 1-4
+
+# first bad commit: [3d10a02bf10bac6576db692098af0ee0be59d403] feat(story-2.4): callout 自动同步 — p0 三件套 + plan-b phase 1-4
+worktree_removed_rc=0
+finished: 2026-09-09T11:59:03+0800
+rc=0

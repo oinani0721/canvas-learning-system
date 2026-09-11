@@ -1,0 +1,31 @@
+### r4 现网只读（sentinel 覆盖 r1-r4 全部跑）
+  data/lancedb → 0
+  data/lancedb → 0
+  data/lancedb → 0
+### r4 ruff
+All checks passed!
+3 files already formatted
+### r4 源码门
+endswith+FINGERPRINT_TABLE = True
+### r4 canary 静态核（本轮未改 canary）
+  ① probe verdict = 1
+  ③ 全文 verdict = 4
+  ④b report.get = 1
+### r4 地盘门
+backend/lib/agentic_rag/clients/lancedb_client.py
+backend/scripts/g29_dual_vault_canary.py
+backend/tests/unit/test_lancedb_cross_vault_drop_g29f1.py
+### r4 硬边界 fsrs/decay
+backend/tests/unit/test_lancedb_cross_vault_drop_g29f1.py:0
+backend/scripts/g29_dual_vault_canary.py:0
+backend/lib/agentic_rag/clients/lancedb_client.py:0
+### r4 lancedb.connect 溯源（门⑤ 族已移入 fixture）
+10
+12:的表"。所以这里全部走**真实** LanceDB (tmp_path) + 真实 ``_cache_tables()``,
+50:⚠️ 全部数据在 ``tmp_path``, 不碰任何真实库 (与 g23/g24 门同款纪律)。
+128:def test_cache_tables_never_touches_other_vault(tmp_path):
+135:    db_path = tmp_path / "db"
+179:def test_cache_tables_default_vault_only_touches_bare_tables(tmp_path):
+194:    db_path = tmp_path / "db"
+240:def test_cache_tables_scans_beyond_default_page(tmp_path):
+247:    db_path = tmp_path / "db"

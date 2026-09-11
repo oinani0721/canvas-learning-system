@@ -1,0 +1,5 @@
+# CARD-G2-7b r3 整改（含 M-4/M-5 门加强）后目录级对账
+# 汇总: = 173 failed, 4937 passed, 48 skipped, 121 warnings, 29 errors in 289.99s (0:04:49) =
+# 新引入 0 / 已修复 0
+# 无差异
+rc=0

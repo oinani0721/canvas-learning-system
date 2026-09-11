@@ -1,0 +1,25 @@
+=== NEGCTL case=2 ===
+被测门: TestSettlementAtomicity::test_settlement_path_never_nests_the_lock
+期望新门失败正文含: 不在已持锁 helper
+
+--- 打变异 ---
+MUTANT-APPLIED: case=2 files=['live_port_guard.py']
+
+--- 旧门（HEAD 那一版）在同一个变异体上 ---
+======================== 1 passed, 10 warnings in 0.49s ========================
+OLD-GATE: pass
+
+--- 新门（本卡收紧后）在同一个变异体上 ---
+FAILED tests/unit/test_live_port_guard_contract.py::TestSettlementAtomicity::test_settlement_path_never_nests_the_lock
+======================== 1 failed, 10 warnings in 0.56s ========================
+NEW-GATE: fail
+新门失败正文命中期望串: 2 处
+                        f"{method.name} 的临界区里调了 self.{name}() —— 不在已持锁 helper "
+E                   AssertionError: finalize_and_snapshot 的临界区里调了 self._not_a_locked_helper() —— 不在已持锁 helper 白名单 ['_ledger_locked', '_unaccounted_locked'] 内；_lock 不可重入，调了就是死锁
+
+NEGCTL-2: PASS（旧门放行 / 新门以指定理由拦下）
+--- 还原 ---
+sha-before = b60f01928d0f73ab3de4ab82a885e419d63d7cf882eedc662bf3cff45c660561
+sha-after  = b60f01928d0f73ab3de4ab82a885e419d63d7cf882eedc662bf3cff45c660561
+RESTORE-OK: sha-before == sha-after
+rc=0

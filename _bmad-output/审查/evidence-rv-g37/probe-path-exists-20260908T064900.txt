@@ -1,0 +1,63 @@
+# CARD-RV-G3-7 (c)① 独立探针: Path.exists() 是否吞 OSError  @ 2026-09-08T06:49:00+08:00
+# 判据对象: UAT-CARD-G3-7 §15 r2-1 自述「Path.exists() 不抛异常、自己吞 OSError 返 False ⇒ 实际走 if path is None」
+# 全部操作在 scratchpad 临时目录, 不碰项目树 / live vault
+########## probe 1 ##########
+== python: 3.14.4 (main, Apr  7 2026, 13:13:20) [Clang 21.0.0 (clang-2100.0.123.102)]
+== pathlib file: /opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py
+
+== inspect.getsource(pathlib.Path.exists) ==
+    def exists(self, *, follow_symlinks=True):
+        """
+        Whether this path exists.
+
+        This method normally follows symlinks; to check whether a symlink exists,
+        add the argument follow_symlinks=False.
+        """
+        if follow_symlinks:
+            return os.path.exists(self)
+        return os.path.lexists(self)
+
+== 行为实测 1: chmod 000 目录下的文件 ==
+  euid              = 501
+  Path.exists()     = False
+  os.stat           -> PermissionError errno=13 (EACCES)
+
+== 行为实测 2: 超长文件名 (ENAMETOOLONG) ==
+  name chars/bytes  = 203 / 603
+  Path.exists()     = False
+  os.stat           -> FileNotFoundError errno=2 (ENOENT)
+
+== 行为实测 3: lone surrogate id ==
+  Path.exists()     = False
+  os.stat           -> FileNotFoundError errno=2
+
+== 行为实测 4: symlink loop (ELOOP) ==
+  Path.exists()     = False
+  os.stat           -> OSError errno=62 (ELOOP)
+########## probe 2 ##########
+== os.path.exists 源码 ==
+def exists(path):
+    """Test whether a path exists.  Returns False for broken symbolic links"""
+    try:
+        os.stat(path)
+    except (OSError, ValueError):
+        return False
+    return True
+
+== NUL 字节 id ==
+  Path.exists()   = False
+  os.stat         -> ValueError: stat: embedded null character in path
+
+== 直接对 _node_md_path 施压: 它会抛吗? ==
+  _node_md_path(normal    ) -> None
+  _node_md_path(NUL       ) -> None
+  _node_md_path(surrogate ) -> None
+  _node_md_path(longCJK   ) -> None
+
+== errno 参考 (本机 macOS) ==
+  ENOENT = 2
+  ENOTDIR = 20
+  EACCES = 13
+  ELOOP = 62
+  ENAMETOOLONG = 63
+rc=0

@@ -1,0 +1,3 @@
+### 证明 r4 整改是纯文档改动：AST 结构对比（剥 docstring 后逐字节相同）
+HEAD 与工作树剥去 docstring 后的 AST 是否相同: True
+rc=0

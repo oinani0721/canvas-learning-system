@@ -1,0 +1,41 @@
+=== ls ~/.dsh/profiles ===
+total 0
+drwxr-xr-x@   4 Heishing  staff   128 Aug 17 02:50 .
+drwx------@  10 Heishing  staff   320 Aug 27 20:11 ..
+drwxr-xr-x@ 266 Heishing  staff  8512 Aug 27 20:11 node_modules
+drwxr-xr-x@   8 Heishing  staff   256 Aug 22 05:39 web
+
+=== ls ~/.dsh/profiles/web ===
+total 40
+drwxr-xr-x@ 8 Heishing  staff   256 Aug 22 05:39 .
+drwxr-xr-x@ 4 Heishing  staff   128 Aug 17 02:50 ..
+-rw-r--r--@ 1 Heishing  staff   217 Aug 17 02:50 cordis.patch.yml
+-rw-r--r--@ 1 Heishing  staff   223 Aug 27 20:11 cordis.yml
+drwxr-xr-x@ 7 Heishing  staff   224 Aug 22 05:39 node_modules
+-rw-r--r--@ 1 Heishing  staff   335 Aug 22 05:39 package.json
+-rw-r--r--@ 1 Heishing  staff  1700 Aug 22 05:39 pnpm-lock.yaml
+-rw-r--r--@ 1 Heishing  staff    61 Aug 17 02:50 pnpm-workspace.yaml
+
+=== dsh --profile web --help (timeout 60) ===
+(eval):8: command not found: timeout
+web_help_rc=
+=== dsh --profile web --help (alarm 90) ===
+Usage: dsh --profile web [options]
+
+Serve the DeepSeek Harness browser UI.
+
+Options:
+  --host <host>                  bind host
+  --no-open                      do not open the Web UI in the default browser
+  --port <port>                  listen port; pass 0 to let the OS pick a free
+                                 one
+  --trusted-host <authority...>  extra authority the /api browser-trust fence
+                                 accepts (host or host:port; repeatable)
+  -h, --help                     show this help
+
+Examples:
+  dsh --profile web                          serve on the composed host and port
+  dsh --profile web --no-open                serve without opening a browser
+  dsh --profile web --port 8080              serve on another port
+
+web_help_rc=0

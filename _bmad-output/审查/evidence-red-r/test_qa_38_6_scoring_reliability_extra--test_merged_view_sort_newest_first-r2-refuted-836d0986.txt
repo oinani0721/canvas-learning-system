@@ -1,0 +1,33 @@
+### CARD-RED-R bisect archive
+slug: test_qa_38_6_scoring_reliability_extra--test_merged_view_sort_newest_first
+nodeid: tests/unit/test_qa_38_6_scoring_reliability_extra.py::TestMergedViewEdgeCases::test_merged_view_sort_newest_first
+interval: good=836d0986 (836d0986)  bad=8f5f9efc (8f5f9efc)
+started: 2026-09-09T11:57:35+0800
+runner-judge: pytest 摘要行 (⛔ 非退出码 —— 老 commit addopts 含 --cov-fail-under=85, passed 也 rc=1)
+sparse-checkout: 排除 /backend/.canvas-learning/ (该目录含非法字节序列路径, macOS 无法 checkout)
+
+Preparing worktree (detached HEAD 8f5f9efc)
+== 端点验证 1/2: BAD=8f5f9efc (期望 VERDICT=BAD) ==
+--- HEAD=8f5f9efc nodeid=tests/unit/test_qa_38_6_scoring_reliability_extra.py::TestMergedViewEdgeCases::test_merged_view_sort_newest_first
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-test_qa_38_6_scoring_reliability_extra--test_merged_view_sort_newest_first/backend/app/api/v1/endpoints/chat.py:805: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+======================== 1 failed, 10 warnings in 0.62s ========================
+--- pytest_raw_rc=1 (仅记录, 不作判据)
+VERDICT=BAD
+bad_end_rc=1
+
+== 端点验证 2/2: GOOD=836d0986 (期望 VERDICT=GOOD) ==
+--- HEAD=836d0986 nodeid=tests/unit/test_qa_38_6_scoring_reliability_extra.py::TestMergedViewEdgeCases::test_merged_view_sort_newest_first
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+======================== 1 failed, 10 warnings in 0.52s ========================
+--- pytest_raw_rc=1 (仅记录, 不作判据)
+VERDICT=BAD
+good_end_rc=1
+
+ENDPOINT_STATUS=CANDIDATE_REFUTED_good_end_is_red
+
+== 区间预设被端点验证推翻, 不进入 bisect (见 ENDPOINT_STATUS) ==
+# first bad commit: [UNRESOLVED-需扩区间]
+worktree_removed_rc=0
+finished: 2026-09-09T11:58:11+0800
+rc=0

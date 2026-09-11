@@ -34,10 +34,28 @@ class TestAC1TimeoutRetryAlignment:
         """[P0] MEMORY_WRITE_TIMEOUT must be >= 10s per AC-1."""
         assert MEMORY_WRITE_TIMEOUT >= 10.0
 
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "59586af1 (2026-03-26) 删除 GRAPHITI_JSON_WRITE_TIMEOUT / GRAPHITI_RETRY_BACKOFF_BASE"
+            " 及 MemoryService 内的 JSON dual-write 重试路径；backend/app 下两符号实测 0 命中，"
+            "本用例断言的是本文件模块级本地桩而非生产值。重试语义归 GraphitiEpisodeWorker，"
+            "等价覆盖缺口归 CARD-EPW-COVERAGE（第十四批，登记）。[CARD-RED-C1]"
+        ),
+    )
     def test_inner_per_attempt_timeout_increased(self):
         """[P0] GRAPHITI_JSON_WRITE_TIMEOUT must be > 0.5s (old value)."""
         assert GRAPHITI_JSON_WRITE_TIMEOUT >= 2.0
 
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "59586af1 (2026-03-26) 删除 GRAPHITI_RETRY_BACKOFF_BASE 及其消费方"
+            " MemoryService._write_to_graphiti_json_with_retry；backend/app 实测 0 命中，"
+            "本用例断言的是本文件模块级本地桩而非生产值。退避语义归 GraphitiEpisodeWorker，"
+            "等价覆盖缺口归 CARD-EPW-COVERAGE（第十四批，登记）。[CARD-RED-C1]"
+        ),
+    )
     def test_retry_backoff_base_is_1_second(self):
         """[P0] Retry backoff base must be 1.0s for 1s/2s/4s progression."""
         assert GRAPHITI_RETRY_BACKOFF_BASE == 1.0
@@ -57,6 +75,15 @@ class TestAC1TimeoutRetryAlignment:
             f"Outer timeout ({MEMORY_WRITE_TIMEOUT}s) < inner total ({inner_total}s)"
         )
 
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "59586af1 (2026-03-26) 删除 GRAPHITI_RETRY_BACKOFF_BASE 及 1s/2s/4s 退避序列的生产实现；"
+            "backend/app 实测 0 命中，本用例推导的序列源自本文件模块级本地桩而非生产值。"
+            "退避语义归 GraphitiEpisodeWorker，等价覆盖缺口归 CARD-EPW-COVERAGE（第十四批，登记）。"
+            "[CARD-RED-C1]"
+        ),
+    )
     def test_backoff_progression(self):
         """[P1] Backoff sequence should be 1s, 2s, 4s."""
         for attempt in range(3):

@@ -1,0 +1,15 @@
+########## 证明 OpenAPI drift 是 HEAD 既有, 非本卡引入 ##########
+--- 1. review_overview.py 是否被本卡改动 (应不在 status 列表) ---
+count=0
+--- 2. 工作区 vs HEAD 的该文件逐字节 diff (应空) ---
+       0
+--- 3. openapi.json 是否被本卡改动 (应不在 status 列表) ---
+count=0
+--- 4. 差异串的两侧来源 ---
+live 代码 (工作区) 含 'learning_events 账本不追加': 1
+live 代码 (HEAD)   含同串:                        1
+snapshot (工作区) 含 'learning_events.jsonl 不追加': 1
+snapshot (HEAD)   含同串:                          1
+--- 5. 结论 ---
+两侧在 HEAD 与工作区逐字节相同 且 本卡未改这两个文件 ⇒ 该 drift 在 HEAD 上即存在, 非本卡引入。
+drift 性质: paths +0 -0 / schemas +0 -0 / diff lines 1 —— 无删字段、无新增必填、无改类型, 仅一处 description 文案。

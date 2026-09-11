@@ -1,0 +1,54 @@
+### health 端点语义影响自查（期望表 12 → 13）
+
+-- :5726-5745 分桶 --
+5726	
+5727	        prompt_path = Path(settings.AGENT_PROMPT_PATH)
+5728	        available_templates = []
+5729	        missing_templates = []
+5730	
+5731	        for template_name in expected_templates:
+5732	            template_file = prompt_path / f"{template_name}.md"
+5733	            if template_file.exists():
+5734	                available_templates.append(template_name)
+5735	            else:
+5736	                missing_templates.append(template_name)
+5737	
+5738	        prompt_template_check = {
+5739	            "total": len(expected_templates),
+5740	            "available": len(available_templates),
+5741	            "missing": missing_templates,
+5742	        }
+5743	
+5744	        # Check 4: Optional API test
+5745	        api_test_result = None
+
+-- :5765-5785 状态判定 --
+5765	                "enabled": False,
+5766	                "result": None,
+5767	            }
+5768	
+5769	        # Determine overall health status
+5770	        # ✅ Verified from Story 12.G.3 AC-1.1, AC-1.2, AC-1.3
+5771	        if not api_key_configured or not gemini_client_initialized:
+5772	            status = "unhealthy"
+5773	        elif len(missing_templates) > 0:
+5774	            status = "degraded"
+5775	        else:
+5776	            status = "healthy"
+5777	
+5778	        return {
+5779	            "status": status,
+5780	            "checks": {
+5781	                "api_key_configured": api_key_configured,
+5782	                "gemini_client_initialized": gemini_client_initialized,
+5783	                "prompt_templates": prompt_template_check,
+5784	                "api_test": api_test_result,
+5785	            },
+
+-- 实跑分桶逻辑（不起服务、不外呼；只复现 exists 循环）--
+prompt_path      = /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u10-red-a/.claude/agents
+total            = 13
+available        = 13
+missing          = []
+=> len(missing) > 0 ?  False  (True 会让 status = degraded)
+rc=0

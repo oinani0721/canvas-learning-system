@@ -1,0 +1,38 @@
+### settings.local.json 键名核查（决定 generate=5 还是 4）
+--- claude 版本 ---
+2.1.263 (Claude Code)
+--- claude --help 里与 settings/permissions 相关的行 ---
+  --add-dir <directories...>            Additional directories to allow tool
+                                        the 'agent' setting.
+  --allow-dangerously-skip-permissions  Enable bypassing all permission checks
+  --allowedTools, --allowed-tools <tools...>
+      Comma or space-separated list of tool names to allow (e.g. "Bash(git *)
+                                        apiKeyHelper via --settings (OAuth and
+                                        (CLAUDE.md dirs), --mcp-config,
+                                        --settings, --agents, --plugin-dir.
+  --dangerously-skip-permissions        Bypass all permission checks.
+  --disallowedTools, --disallowed-tools <tools...>
+--- 仓根自己的 .claude/settings.local.json 结构（同一 schema，非 vault 密钥件；只看键名）---
+  .claude/settings.local.json 顶层键: ['enableAllProjectMcpServers', 'enabledMcpjsonServers', 'outputStyle', 'permissions']
+    permissions 子键: ['allow']
+  /Users/Heishing/.claude/settings.json 顶层键: ['agentPushNotifEnabled', 'autoMode', 'autoUpdatesChannel', 'effortLevel', 'enabledPlugins', 'env', 'hooks', 'language', 'permissions', 'preferredNotifChannel', 'showClearContextOnPlanAccept', 'skipAutoPermissionPrompt', 'skipWorkflowUsageWarning', 'tui']
+    permissions 子键: ['allow', 'defaultMode', 'deny']
+--- vault 树内 .claude/settings.json（git 追踪，非本地件）顶层键 ---
+   ['hooks']
+--- live vault 的 settings.local.json 顶层键（只读键名，不抄值）---
+   顶层键: ['enabledMcpjsonServers']
+
+## 裁定
+键名**核到**（三源互证）：
+  1. Claude Code **2.1.263** 已装（`claude --version`）
+  2. 仓根 `.claude/settings.local.json` 顶层键含 `enabledMcpjsonServers` / `enableAllProjectMcpServers` / `permissions.allow`
+  3. **live vault 的 `.claude/settings.local.json` 恰好只有一个键 `enabledMcpjsonServers`** —— 最直接的生产形态证据
+服务器名 `canvas-learning-mcp`（树内 `.mcp.json` 与 live `.mcp.json` 一致）。
+
+⇒ 生成的最小件 = `{"enabledMcpjsonServers": ["canvas-learning-mcp"]}`
+⇒ 落在卡文的「**核到**」态：`.claude/settings.local.json` = `action: generate` + `optional: true`
+⇒ (g)⑤ generate 计数 = **5**；(g)⑥ / 裁判 7 的 optional-missing 预期集合 = **12 项**
+
+⚠️ 不抄 live 的值：live 那 5 个条目里有 4 个是用户全局开发用 MCP
+（sequential-thinking / context7 / codebase-memory / graphiti-canvas），
+把它们复制进新库正是 Y9-A 转 G2-7 ① 要停的「把上一个 vault 的私有状态带进新库」。

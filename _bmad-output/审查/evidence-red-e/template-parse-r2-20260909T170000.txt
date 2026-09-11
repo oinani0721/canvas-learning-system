@@ -1,0 +1,5 @@
+Both GOOGLE_API_KEY and GEMINI_API_KEY are set. Using GOOGLE_API_KEY.
+name = hint-generation
+hint_text present: True
+hint_level present: True
+input key count = 9

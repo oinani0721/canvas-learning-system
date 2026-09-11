@@ -1,0 +1,25 @@
+=== r5 问题 2/3 自查（第四版的边界）===
+--- 问题 3：below_root is None 分支是否可达 ---
+  逻辑：below_root = None 仅当 resolved_path NOT in storage_root；
+        而 if 的第一个条件正是 `not resolved_path.is_relative_to(storage_root)` ⇒ 该情形必被拒。
+        ⇒ None 分支对**最终结果**无影响（reinterpreted 取什么都会被第一重拒掉）。
+  实例：fp 在 base 外 ⇒ resolved in root? False ⇒ below_root=None ⇒ 旧=False 新=False（一致）
+
+--- 问题 2a：below_root == '.'（file_path 恰等于 base）---
+  below_root='.'  reinterpreted=/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp95_qa2yk/s  in root? True
+  旧=True 新=True  ⇒ 一致 ✅
+
+--- 问题 2b：storage_base_path 本身是符号链接 ---
+  真实目录           image/20260909_x.png         旧=True  新=True 
+  真实目录           image/..\..\etc\passwd       旧=True  新=False
+  真实目录           image/../../etc/passwd       旧=False 新=False
+  符号链接 base      image/20260909_x.png         旧=True  新=True 
+  符号链接 base      image/..\..\etc\passwd       旧=True  新=False
+  符号链接 base      image/../../etc/passwd       旧=False 新=False
+
+--- 问题 2c：below_root 含 .. ---
+  rel=image/../image/x.png     below_root='image/x.png'              旧=True  新=True 
+  rel=image/a/../b.png         below_root='image/b.png'              旧=True  新=True 
+  rel=image/..\x.png           below_root='image/..\\x.png'          旧=True  新=True 
+
+  判据：任何一行「旧=False 新=True」即为安全回退；「正常文件名 旧=True 新=False」即为误拒

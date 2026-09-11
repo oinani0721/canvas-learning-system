@@ -1,0 +1,15 @@
+### ls node_modules/.bin/openspec
+ls: node_modules/.bin/openspec: No such file or directory
+### npx --no-install openspec --version
+1.2.0
+### package.json devDependency
+18:    "@fission-ai/openspec": "^1.2.0",
+### openspec dirs
+changes
+config.yaml
+specs
+--- changes:
+archive
+--- specs count:
+      14
+rc=0

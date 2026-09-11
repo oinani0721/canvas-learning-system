@@ -1,0 +1,145 @@
+--- TEST test_canvas_memory_trigger.py :1,60 (imports + wait_for_call) ---
+1	# Canvas Learning System - Canvas Memory Trigger Unit Tests
+2	# Story 30.5: Canvas CRUD Operations Memory Trigger
+3	# [Source: docs/stories/30.5.story.md#Task-6]
+4	"""
+5	Unit tests for Canvas CRUD memory trigger mechanism.
+6	
+7	Test Coverage:
+8	- Task 6.1: canvas_events.py models validate correctly
+9	- Task 6.2: _trigger_memory_event() is called after add_node()
+10	- Task 6.3: _trigger_memory_event() is called after update_node()
+11	- Task 6.4: _trigger_memory_event() is called after add_edge()
+12	- Task 6.5: Async write doesn't block CRUD response
+13	- Task 6.6: Silent degradation on memory write failure
+14	
+15	Testing Standards:
+16	- Framework: pytest + pytest-asyncio
+17	- Mock: unittest.mock.AsyncMock for MemoryService
+18	"""
+19	
+20	import json
+21	import time
+22	from unittest.mock import AsyncMock
+23	
+24	import pytest
+25	from app.models.canvas_events import CanvasEvent, CanvasEventContext, CanvasEventType
+26	from app.services.canvas_service import CanvasService
+27	
+28	from tests.conftest import simulate_async_delay
+29	
+30	# =============================================================================
+31	# Test Fixtures
+32	# =============================================================================
+33	
+34	
+35	@pytest.fixture
+36	def temp_canvas_dir(tmp_path):
+37	    """Create temporary directory with a test canvas file."""
+38	    canvas_data = {
+39	        "nodes": [
+40	            {"id": "node1", "type": "text", "text": "Test Node 1", "x": 100, "y": 100}
+41	        ],
+42	        "edges": [],
+43	    }
+44	    canvas_file = tmp_path / "test-canvas.canvas"
+45	    canvas_file.write_text(json.dumps(canvas_data), encoding="utf-8")
+46	    return tmp_path
+47	
+48	
+49	@pytest.fixture
+50	def mock_memory_client():
+51	    """Create mock MemoryService with AsyncMock methods."""
+52	    mock = AsyncMock()
+53	    mock.record_temporal_event = AsyncMock(return_value="event-123")
+54	    mock.initialize = AsyncMock(return_value=True)
+55	    return mock
+56	
+57	
+58	@pytest.fixture
+59	def canvas_service_with_memory(temp_canvas_dir, mock_memory_client):
+60	    """Create CanvasService with mock memory client."""
+--- TEST test_canvas_memory_trigger.py :225,275 ---
+225	class TestAddEdgeMemoryTrigger:
+226	    """Test add_edge() triggers edge_created memory event."""
+227	
+228	    @pytest.mark.asyncio
+229	    async def test_add_edge_triggers_memory_event(
+230	        self,
+231	        canvas_service_with_memory,
+232	        mock_memory_client,
+233	        temp_canvas_dir,
+234	        wait_for_call,
+235	    ):
+236	        """Test that add_edge triggers edge_created memory event (AC-30.5.2)."""
+237	        # First add a second node for the edge
+238	        await canvas_service_with_memory.add_node(
+239	            "test-canvas",
+240	            {"id": "node2", "type": "text", "text": "Node 2", "x": 300, "y": 100},
+241	        )
+242	
+243	        # Reset mock to isolate edge test
+244	        mock_memory_client.record_temporal_event.reset_mock()
+245	
+246	        # Act
+247	        result = await canvas_service_with_memory.add_edge(
+248	            "test-canvas",
+249	            {
+250	                "fromNode": "node1",
+251	                "toNode": "node2",
+252	                "fromSide": "right",
+253	                "toSide": "left",
+254	            },
+255	        )
+256	
+257	        # Assert - CRUD succeeded
+258	        assert result["id"] is not None
+259	        assert result["fromNode"] == "node1"
+260	        assert result["toNode"] == "node2"
+261	
+262	        # Assert - Memory event was triggered
+263	        await wait_for_call(mock_memory_client.record_temporal_event)
+264	        mock_memory_client.record_temporal_event.assert_called()
+265	
+266	        # Verify call arguments
+267	        call_args = mock_memory_client.record_temporal_event.call_args
+268	        assert call_args.kwargs["event_type"] == "edge_created"
+269	        assert call_args.kwargs["edge_id"] == result["id"]
+270	
+271	
+272	# =============================================================================
+273	# Task 6.5: Test async write doesn't block CRUD response
+274	# =============================================================================
+275	
+--- canvas_service.py :270,300 (_trigger_memory_event) ---
+270	            else:
+271	                logger.warning("Memory client unavailable, skipping event trigger")
+272	            return
+273	
+274	        try:
+275	            # Build context for metadata extraction
+276	            context = CanvasEventContext(
+277	                canvas_name=canvas_name,
+278	                node_id=node_id,
+279	                edge_id=edge_id,
+280	                node_data=node_data,
+281	                edge_data=edge_data,
+282	            )
+283	
+284	            # [Review H1] Fire-and-forget with timeout + fallback on timeout/error
+285	            # wave-5 Stage B P0 (2026-05-11): snapshot ContextVar (vault) so the
+286	            # background memory event handler inherits the originating request's
+287	            # vault — prevents cross-vault leak. [ChatGPT v4 Agent C P0 fix]
+288	            ctx = contextvars.copy_context()
+289	            asyncio.create_task(self._safe_write_memory_event(event_type, context), context=ctx)
+290	            logger.debug(f"Triggered memory event: {event_type.value} for {canvas_name}")
+291	
+292	        except (RuntimeError, TypeError) as e:
+293	            # Task 4: Silent degradation - log but don't raise
+294	            logger.error(f"Memory event trigger failed: {event_type.value} for {canvas_name}: {e}")
+295	            # Don't re-raise - CRUD operation should succeed
+296	
+297	    async def _safe_write_memory_event(self, event_type: CanvasEventType, context: CanvasEventContext) -> None:
+298	        """
+299	        [Review H1] Wrapper that catches TimeoutError at the wait_for level.
+300	

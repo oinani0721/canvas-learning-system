@@ -1,0 +1,23 @@
+=== §二.2 判据（含追加排除 1 条后的口径修订） ===
+T_BEFORE=206  G(开工GET/HEAD)=93  EXTRA(写原语命中追加排除)=1  T_AFTER=92  N(差集)=114
+判据1 setup-wizard in after 计数(须0)   -> 0
+判据2 非 GET/HEAD 的 test_api_contract 行(须空):
+  empty_rc=1
+判据3 lancedb nodeid 已不在 after      -> 命中数 0
+
+⛔ 正控（口径修订：有追加排除时 T_AFTER == G - EXTRA，不是 == G）
+正控-1  T_AFTER == G - EXTRA ? (92 == 92) -> PASS
+正控-2  T_AFTER > 0 ?                                     -> PASS
+正控-3  T_BEFORE == T_AFTER + N ? (206 == 206) -> PASS
+正控-3' T_BEFORE == G + (N - EXTRA) ? (206 == 206) -> PASS
+正控-4  点名 GET nodeid 仍在 after ? 命中数 = 1
+
+=== 被排除清单 method 分布（N=114） ===
+  96 POST
+   9 DELETE
+   6 PUT
+   2 PATCH
+   1 GET
+=== 被排除的 GET（应恰为追加排除那 1 条） ===
+tests/contract/test_openapi_contract.py::test_api_contract[GET /api/v1/health/lancedb]
+rc=0

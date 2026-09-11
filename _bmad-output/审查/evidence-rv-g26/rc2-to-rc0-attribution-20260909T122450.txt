@@ -1,0 +1,17 @@
+### rc=2 → rc=0 的归因：是 manifest 变完整，不是判据被放宽
+--- A. U3-A 时点 manifest（086771d3，v1 38 项）+ 当前校验器 ---
+  rc=2  ← 卡文裁判 5 要求的 rc=2 在这个 manifest 下成立
+missing                : 0
+extra                  : 5
+allowed-extra          : 0
+unreadable             : 0
+--- B. 当前 manifest（v2 52 项）+ 当前校验器 ---
+  rc=0  ← U3-B 把 live 上那些未声明件逐条裁定后, 同一个 vault 变成合规
+missing                : 0
+extra                  : 0
+allowed-extra          : 5
+unreadable             : 0
+
+结论：rc 从 2 变 0 的原因是**被测对象合规了**（manifest 补完整、5 项经裁定进 allowed_allow），
+      不是校验器变松 —— 同一份校验器对 v1 manifest 仍给 rc=2。
+rc=0

@@ -1,0 +1,33 @@
+# U10-A r4 静态门原始存档（Codex round-3 自述 #3: 7a/7d/ruff 缺 r3 独立存档）
+# conftest sha256=d2c713c9d0ef614a82b33ef170adf45e923c36252eebac5316aa1d15aae79f5d
+# t0=2026-09-08T08:41:07
+
+=== ruff format（先跑 format，再 --check 取 rc）===
+1 file left unchanged
+1 file already formatted
+ruff_format_check_rc=0
+
+=== ruff check ===
+All checks passed!
+ruff_check_rc=0
+
+=== 7a 自指验伪锚: grep -c '/tmp/test-vault' conftest.py（期望 0）===
+0
+7a_value=0
+  验伪锚: 同一命令对 HEAD~3(未拆字面量的 da690bf8 版) 应 = 1
+1
+
+=== 7d: ast.parse ===
+AST_OK
+7d_rc=0
+
+=== _TMP_LITERAL 仍是未折叠的 BinOp ===
+node: BinOp | 两段: '/tmp/' + 'test-vault'
+
+=== round-3 点名的越界措辞是否已清零（源码全文，含注释）===
+  '即本次运行确实写了东西' = 0 (期望 0)
+  '将来会往全机共享' = 0 (期望 0)
+  '既没通过也没违规' = 0 (期望 0)
+  '最可能的写者' = 0 (期望 0)
+  '尚不能判定' = 2 (期望 >=1)
+  '不指认写者' = 2 (期望 >=1)

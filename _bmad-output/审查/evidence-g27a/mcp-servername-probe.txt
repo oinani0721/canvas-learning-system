@@ -1,0 +1,18 @@
+### MCP 服务器名核实（settings.local.json 要批准哪个）
+--- 树内 canvas-vault/.mcp.json 全文（8 行，无密钥）---
+     1	{
+     2	  "mcpServers": {
+     3	    "canvas-learning-mcp": {
+     4	      "type": "http",
+     5	      "url": "http://127.0.0.1:8011/mcp"
+     6	    }
+     7	  }
+     8	}--- live 的 .mcp.json 服务器名 ---
+  servers: ['canvas-learning-mcp']
+--- live settings.local.json 的 enabledMcpjsonServers 值（这是服务器名清单，非密钥）---
+   ['sequential-thinking', 'context7', 'codebase-memory', 'graphiti-canvas', 'canvas-learning-mcp']
+--- 树内 .claude/mcp.json（Claudian 专用 sse）服务器名 ---
+  顶层键: ['_claudian', '_doc', 'mcpServers']
+  mcpServers: ['canvas-learning-mcp']
+--- 后端只挂 http 不挂 sse 的证据 ---
+145:        mcp.mount_http()

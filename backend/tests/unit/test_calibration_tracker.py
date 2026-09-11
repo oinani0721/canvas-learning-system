@@ -18,6 +18,7 @@ from app.models.mastery_models import (
     CalibrationRecord,
 )
 from app.services.calibration_tracker import (
+    CALIBRATION_BIAS_THRESHOLD,
     classify_quadrant,
     compute_absolute_bias,
     compute_calibration_rating,
@@ -262,16 +263,37 @@ class TestCalibrationRating:
         assert compute_calibration_rating(0.0, 10) == CalibrationRating.WELL_CALIBRATED
 
     def test_over_confident_boundary(self):
-        """signed_bias >= 0.15 → OVER_CONFIDENT."""
-        assert compute_calibration_rating(0.15, 20) == CalibrationRating.WELL_CALIBRATED
+        """signed_bias >= threshold → OVER_CONFIDENT (the boundary itself is not WELL).
+
+        The implementation classifies WELL_CALIBRATED on ``abs(bias) < threshold``,
+        so the threshold value itself falls on the OVER side — which is what this
+        test's own docstring always claimed. The previous expectation
+        (0.15 == WELL_CALIBRATED) already contradicted that docstring at the commit
+        that introduced both (43d291d8): the threshold was a plain module constant
+        there, with no config loader, so 0.15 landed on OVER from day one. That
+        rules out "a later change broke it" as the explanation; it is not a claim
+        about every commit in between, which was not replayed.
+        """
+        # Pin the threshold's value separately from using it. _load_calibration_thresholds()
+        # can override the module constant from mastery_config.json at import time, and
+        # an expectation derived only from the constant would silently follow it.
+        assert CALIBRATION_BIAS_THRESHOLD == 0.15
+        # Inner control: just inside the threshold is still WELL_CALIBRATED, proving
+        # the boundary sits on the threshold rather than the whole scale being shifted.
+        assert compute_calibration_rating(CALIBRATION_BIAS_THRESHOLD - 0.001, 20) == CalibrationRating.WELL_CALIBRATED
+        assert compute_calibration_rating(CALIBRATION_BIAS_THRESHOLD, 20) == CalibrationRating.OVER_CONFIDENT
         assert compute_calibration_rating(0.16, 20) == CalibrationRating.OVER_CONFIDENT
         assert compute_calibration_rating(0.5, 30) == CalibrationRating.OVER_CONFIDENT
 
     def test_under_confident_boundary(self):
-        """signed_bias <= -0.15 → UNDER_CONFIDENT."""
-        assert (
-            compute_calibration_rating(-0.15, 20) == CalibrationRating.WELL_CALIBRATED
-        )
+        """signed_bias <= -threshold → UNDER_CONFIDENT (the boundary itself is not WELL).
+
+        Mirror of test_over_confident_boundary; see that docstring for why the
+        previous expectation contradicted this one's own docstring.
+        """
+        assert CALIBRATION_BIAS_THRESHOLD == 0.15
+        assert compute_calibration_rating(-CALIBRATION_BIAS_THRESHOLD + 0.001, 20) == CalibrationRating.WELL_CALIBRATED
+        assert compute_calibration_rating(-CALIBRATION_BIAS_THRESHOLD, 20) == CalibrationRating.UNDER_CONFIDENT
         assert (
             compute_calibration_rating(-0.16, 20) == CalibrationRating.UNDER_CONFIDENT
         )

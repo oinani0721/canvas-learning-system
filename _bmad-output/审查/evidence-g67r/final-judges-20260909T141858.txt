@@ -1,0 +1,60 @@
+# 收尾判据合集 (最终 HEAD=685e5552, 审 SHA 同)
+== 面判据: daily_review_run.py hunk 旧行区间 (须与 164-183 / 252-264 无交集) ==
+@@ -16,11 +16,16 @@
+@@ -54,6 +59,8 @@ def _now(arg: str | None) -> datetime:
+@@ -76,36 +83,334 @@ def state_path(vault: Path | None = None) -> Path:
+@@ -136,9 +441,23 @@ def save_state(st: dict, vault: Path | None = None):
+== 删行含 O_EXCL (须 0) ==
+0
+== 删行含 os.replace(tmp, state) (须 0) ==
+0
+== daily_review_pick.py 删除行 (卡文预估 ≤2, 实测见下) ==
+4
+-    ap.add_argument("--state", help="daily-review.state.json (只读, 取 board_last_recommended)")
+-            blr = json.loads(Path(args.state).read_text(encoding="utf-8")).get("board_last_recommended", {})
+-        except (json.JSONDecodeError, OSError):
+-    payload, ranked = build_payload(vault, now, blr, load_decay(vault))
+== test_review_overview.py 删除行 (须只落在获准的两处 + round-N 整改) ==
+-    assert changed == {"backups", f"backups/{state_file.name}"}, (
+-        f"写面必须恰是 backups 目录 + 那一个 state 文件, 实为 {sorted(changed)}"
+-    assert page2.count('name="board"') == 1, "已完成板不该再带完成钮"
+== _tree / _fsrs_fingerprint / _assert_fsrs_untouched / _FSRS_GATE_MSG 零删除行 ==
+0
+== canvas-vault 零改动 (须 0) ==
+       0
+== 硬边界文件零改动 (须全 0) ==
+scripts/daily-review-push.sh                                 0
+scripts/migrate_daily_review_state.py                        0
+lefthook.yml                                                 0
+pyrightconfig.json                                           0
+backend/tests/conftest.py                                    0
+backend/tests/unit/conftest.py                               0
+backend/tests/regression/test_g3_2_review_ledger.py          0
+backend/tests/regression/test_g6_9_boundary_matrix.py        0
+backend/app/core/display_tz.py                               0
+scripts/local_tz.py                                          0
+== scripts/launchd/* 零改动 ==
+       0
+== fsrs_bridge / decay_beta 零改动 ==
+       0
+== 全部改动文件 (须都在 §三 允许面内) ==
+ backend/app/api/v1/endpoints/review_app.py         |  73 +-
+ backend/app/api/v1/endpoints/review_overview.py    | 345 +++++++--
+ backend/openapi.json                               |  76 +-
+ backend/tests/regression/test_daily_review_pick.py | 156 ++++
+ backend/tests/regression/test_daily_review_run.py  | 798 +++++++++++++++++++++
+ backend/tests/unit/test_review_app.py              | 159 +++-
+ backend/tests/unit/test_review_overview.py         | 479 ++++++++++++-
+ scripts/daily_review_pick.py                       |  42 +-
+ scripts/daily_review_run.py                        | 371 +++++++++-
+ 9 files changed, 2393 insertions(+), 106 deletions(-)
+== openapi diff 摘要 ==
+ backend/openapi.json | 76 ++++++++++++++++++++++++++++++++++++++++++++++++++--
+ 1 file changed, 74 insertions(+), 2 deletions(-)
+board-undone 出现: 2
+state_passed 出现: 0
++    "/api/v1/review/overview/board-undone": {
+== *.stderr 不入库 (须 0) ==
+1
+== board_manifest_last_run.json 未随卡提交 (须 0) ==
+       0

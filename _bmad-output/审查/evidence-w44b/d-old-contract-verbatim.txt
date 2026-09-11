@@ -1,0 +1,23 @@
+# (d) 旧契约原文（翻转前，本卡 HEAD 10c80be7 :764-775）
+    def test_final_accounting_is_registered_after_the_precheck(self):
+        """相对顺序不变：预检抛出时就该拒绝装门，不留一个会 os._exit 的 atexit。"""
+        node = _fn_ast(guard.install)
+        precheck_at = register_at = None
+        for index, stmt in enumerate(node.body):
+            names = _called_names(stmt)
+            if precheck_at is None and "assert_neo4j_target_blocked" in names:
+                precheck_at = index
+            if register_at is None and "register_final_accounting" in names:
+                register_at = index
+        assert precheck_at is not None and register_at is not None
+        assert precheck_at < register_at
+
+# 旧 install() 顺序（翻转前 :778-785）
+    #    ``register_final_accounting()`` 的相对位置不变（仍在预检之后）：预检抛出时
+    #    本来就拒绝装门，此时不该留下一个会 os._exit 的 atexit 处理器。
+    _install_audit_hook()
+    if os.environ.get(ENV_REQUIRE_BLOCKED_TARGET) == "1":
+        assert_neo4j_target_blocked()
+    register_final_accounting()
+    if STATE.installed:
+        assert_guard_live("install(已装过，复核身份)")

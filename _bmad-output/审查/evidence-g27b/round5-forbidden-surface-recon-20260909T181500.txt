@@ -1,0 +1,61 @@
+# CARD-G2-7b round-5 收工禁写面对账（本 session：17:54 接卡 → 18:15）
+# 哨兵基准 = 上一 session 17:37 的存档 round5-quota-exhausted-20260909T173700.txt
+# 本 session 对代码**零改动**，只跑了 codex r5 + 三条 dry-run 探针 + 只读检查。
+
+## A 观察层（find -newer 计数）
+
+$ for d in "$LV" ~/.codex ~/.dsh ~/.config/opencode ~/Library/LaunchAgents; do
+    find "$d" -newer <哨兵> -not -path '*/.obsidian/workspace*.json' -not -path '*/.trash/*' | wc -l
+  done
+
+  live vault  (canvas-vault)      -> 0   ✅
+  ~/.codex                        -> 6   ⚠️ 见 B 层归属
+  ~/.dsh                          -> 0   ✅
+  ~/.config/opencode              -> 0   ✅
+  ~/Library/LaunchAgents          -> 0   ✅
+
+$ shasum -a 256 <feature 主干>/.env
+  c84c859683b6b0bd1f8e6915e7d4afa17652f8001753063294aa4d40914c7712
+  == evidence-g27b/pre-wt-env-sha.txt 基线，**逐字相同** ✅
+
+$ git status --porcelain -- canvas-vault/ | wc -l     -> 0  ✅
+$ git status --porcelain -- . ':(exclude)_bmad-output' | wc -l -> 0  ✅（代码面无未提交改动）
+$ git diff --stat 6b9ef8ce HEAD -- . ':(exclude)_bmad-output' -> 空 ✅
+  验伪锚（同 pathspec 形态必须能出非空）：
+  git diff --name-only 0ee633ea HEAD -- . ':(exclude)_bmad-output' -> 7 文件 ✅
+
+## B 精确层：~/.codex 的 6 个新文件逐条归属（**不是部署脚本写的**）
+
+  ~/.codex/state_5.sqlite-wal
+  ~/.codex/logs_2.sqlite-wal
+  ~/.codex/thread_history_1.sqlite-wal
+  ~/.codex/sessions/2026/09/09/rollout-2026-09-09T18-11-11-…jsonl
+  ~/.codex/sessions/2026/09/09/rollout-2026-09-09T18-11-48-…jsonl
+  ~/.codex/sessions/2026/09/09/rollout-2026-09-09T18-11-58-…jsonl
+
+$ ps -Ao pid,lstart,command | grep '[c]odex'
+  → 18:07:56  车道 card-u4-hosts  codex exec  CARD-SKILL-PORT-LINT round-23
+  → 18:11:06  车道 card-u6-reviewtime  codex exec  CARD-G6-6 round-3
+  → 另有 codex-code-mode-host / SkyComputerUseClient 常驻进程
+
+结论：这 6 个全部是 **codex CLI 自身的会话/状态产物**，由本 session 的 r5
+（session `01a0859a-94c7-7fe3-9037-5cbd1c72383c`，17:57）与**其他两条并发车道**产生。
+`deploy-vault.sh` 本 session 只跑过 **dry-run**（三次，`--apply` 一次都没跑），零写。
+⇒ 「~/.codex 非 0」**不构成本卡禁写面违规**，但按纪律如实记数、不写成 0。
+
+## C 本 session 跑过的部署脚本调用（全部 dry-run，零写）
+
+1. `--vault probe-rel-h2 --harness $(pwd) --port 8123 --hosts claude`  → rc **71**
+   （名不动点判据拒；用于确认相对路径未被入口拦而是被名字规则拦）
+2. `--vault course --harness $(pwd) --port 8123 --hosts claude`        → rc **0**
+   （H-2 可达性实测：单段相对路径通过 preflight，`--vaults-root .` 交给 installer）
+3. codex 配额探针 ×2（一次误用 `timeout` rc=127；一次真跑 rc=0）
+
+每次之后 `git status --porcelain -- . ':(exclude)_bmad-output'` 均为 **0 行**。
+
+## D 附带证实
+
+多条车道 18:07-18:11 正在并发跑 `codex exec` ⇒ 进一步证实
+「账号级配额耗尽至 09-15」这一结论已不成立（见 round5-quota-restored-*.txt）。
+
+rc=0

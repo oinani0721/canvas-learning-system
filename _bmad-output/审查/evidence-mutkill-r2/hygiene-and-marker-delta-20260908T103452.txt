@@ -1,0 +1,11 @@
+=== 卫生判据收紧：卡文说的是 *.stderr* 存档，不是「文件名里出现 stderr 这个词」 ===
+旧判据 grep -c stderr        = 1
+  命中的是: _bmad-output/审查/G4-9-evidence/census-stderr.txt
+  ⇒ 那是别的卡（G4-9）留下的 census-stderr.txt，**不是** *.stderr* 存档；旧判据口径比它的主张宽。
+精确判据 grep -cE '\.stderr' = 0
+工作树未跟踪 .stderr          = 0
+
+=== 标记计数 153 → 151 的逐行归因（须完全解释得清）===
+本卡 diff 中含该标记的 删除行=2 新增行=0
+153 - 2 = 151 ✓；两行都是**注释**（改写 _restore_one 的 docstring 时重写了那两句），不涉及任何变异体文本。
+文件清单仍是那 5 项，其余四项计数 11/11/2/13 原样。

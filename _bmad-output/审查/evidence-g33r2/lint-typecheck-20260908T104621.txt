@@ -1,0 +1,14 @@
+===== ruff check（本卡改的两个 backend 文件）=====
+All checks passed!
+rc=0
+
+===== ruff format --check =====
+Would reformat: app/services/learning_event_log.py
+Would reformat: tests/regression/test_g3_2_review_ledger.py
+Would reformat: tests/regression/test_learning_event_log.py
+3 files would be reformatted, 1 file already formatted
+rc=1
+
+===== pyright learning_event_log.py（主干 0 错，被拦=本卡引入）=====
+0 errors, 0 warnings, 0 informations
+rc=0

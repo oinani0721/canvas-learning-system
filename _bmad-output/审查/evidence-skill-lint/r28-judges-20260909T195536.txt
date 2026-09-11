@@ -1,0 +1,15 @@
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+====================== 542 passed, 22 warnings in 44.76s =======================
+rc=0
+<sys>:0: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
+rc=0
+[92mPASS — 9 份 skill 的检索平面协议全绿[0m
+rc=0
+✅ live 前提成立 newer=0
+✅ 禁改三份一致
+地盘门:
+backend/tests/skills/test_skill_portability_lint.py
+canvas-vault/.claude/skills/start-exam-board/SKILL.md
+All checks passed!
+1 file already formatted
+rc=0

@@ -1,0 +1,29 @@
+### --ignore 对照实验：把本卡测试文件摘掉后重跑 tests/unit  (ts=20260908T080355)
+命令: pytest -q -p no:cacheprovider tests/unit --ignore=tests/unit/test_vault_install_manifest.py
+汇总: = 173 failed, 4664 passed, 48 skipped, 121 warnings, 29 errors in 228.78s (0:03:48) =
+
+红集: 开工      202 / 收工(r3)      202 / 本次      202
+
+--- A. 本次 vs 开工（开工时本卡文件是 85 条的旧版, 也在跑）---
+  diff-rc=0
+--- B. 本次 vs 收工 r3 ---
+66d65
+< FAILED tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422
+119a119
+> FAILED tests/unit/test_mock_degradation_transparency.py::TestMockScoringWarningLogs::test_mock_mode_logs_warning
+  diff-rc=1
+
+--- 那两条的实际归属 ---
+  test_candidate_service.py::test_accept_candidate_already_accepted_returns_422                   开工:0 收工r3:1 本次:0
+  test_mock_degradation_transparency.py::TestMockScoringWarningLogs::test_mock_mode_logs_warning  开工:1 收工r3:0 本次:1
+
+## 裁定
+
+对照组与开工红集**逐条相同（diff-rc=0）**，而对照组用的是**本卡末态的代码**、只把本卡测试文件摘掉。
+⇒ 那两条的对调由「本卡测试文件的存在改变了 tests/unit 的顺序/共享状态」触发，
+   **与本卡改动的 verify_vault_install.py / install-vault.sh / vault-install-manifest.json 无关**。
+   判定：**本卡触发、非本卡引入**（与 Y9-A UAT §台账 4 记录的现象同源）。
+
+⚠️ 我原先的假设「这两条互相干扰、换顺序就翻」已被证伪（见 order-flip-control-*.txt 证据 3）：
+   单独跑时 mock 恒红、candidate 恒绿，两两组合换序也不翻。真正的触发面是整套 tests/unit
+   的全局状态，不是这两条之间。**假设被数据推翻时要改结论，不是改说法。**

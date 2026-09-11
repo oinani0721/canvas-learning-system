@@ -1,0 +1,16 @@
+=== 零写门污染事故 (2026-09-09) ===
+文件: backend/data/fsrs_card_states.json
+成因: 新增的 H4 门用 monkeypatch.undo() 恢复作用域打断, 而 undo() 会撤销
+      同一测试内**全部** patch —— 包括 states_file fixture 设的
+      _CARD_STATES_FILE, 于是那次写入落到了车道树真实路径。
+内容: (即该测试的数据, 非任何真实数据)
+{
+  "vault_a": {
+    "new-c": "new-card"
+  },
+  "orphan-c": "legacy-card"
+}
+处置: 移出到 scratchpad 保留可追溯; 测试改为定点保存/恢复那两个符号。
+证据: 开工存档 zero-write-20260909T125022.txt 显示 backend/data 当时无此文件;
+      .gitignore:8 覆盖它, 从未进版本控制 (git status 为空)。
+清理后: ok

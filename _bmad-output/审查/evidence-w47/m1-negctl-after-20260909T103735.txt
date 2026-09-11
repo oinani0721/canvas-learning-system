@@ -1,0 +1,25 @@
+=== M-1 NEGCTL: _is_selftest_address 末行 -> 只判 type(host) is str ===
+sha-before = 07de4d7ea42a5500037aea06163937f09cc88ba1ddfc20a889810c5d84ced9b9
+MUTANT-APPLIED: case=m1 files=['live_port_guard.py']
+
+--- 旧 6 条在变异体上（逐条原文）---
+  tests/unit/test_live_port_guard_contract.py::TestSelftestAddressClassification::test_genuine_selftest_address_is_classified PASSED [100%]
+  tests/unit/test_live_port_guard_contract.py::TestSelftestAddressClassification::test_tuple_subclass_disguise_is_not_selftest PASSED [100%]
+  tests/unit/test_live_port_guard_contract.py::TestSelftestAddressClassification::test_str_subclass_eq_disguise_is_not_selftest PASSED [100%]
+  tests/unit/test_live_port_guard_contract.py::TestSelftestAddressClassification::test_non_tuple_is_not_selftest PASSED [100%]
+  tests/unit/test_live_port_guard_contract.py::TestSelftestAddressClassification::test_audit_hook_does_not_block_plain_safe_address PASSED [100%]
+  tests/unit/test_live_port_guard_contract.py::TestSelftestAddressClassification::test_genuine_selftest_address_reaches_blocking_path PASSED [100%]
+旧 6 条 PASSED 计数 = 6 / 6
+
+--- 新 3 条在同一个变异体上（逐条原文）---
+  tests/unit/test_live_port_guard_contract.py::TestSelftestAddressClassification::test_plain_ipv4_on_blocked_port_is_not_selftest FAILED [100%]
+  tests/unit/test_live_port_guard_contract.py::TestSelftestAddressClassification::test_plain_hostname_on_blocked_port_is_not_selftest FAILED [100%]
+  tests/unit/test_live_port_guard_contract.py::TestSelftestAddressClassification::test_plain_ipv6_four_tuple_on_blocked_port_is_not_selftest FAILED [100%]
+新 3 条 FAILED 计数 = 3 / 3
+
+M1-NEGCTL: PASS（旧 6 条全绿 / 新 3 条全红）
+--- 还原 ---
+sha-before = 07de4d7ea42a5500037aea06163937f09cc88ba1ddfc20a889810c5d84ced9b9
+sha-after  = 07de4d7ea42a5500037aea06163937f09cc88ba1ddfc20a889810c5d84ced9b9
+RESTORE-OK: sha-before == sha-after
+rc=0

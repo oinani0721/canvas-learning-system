@@ -1,0 +1,24 @@
+Python 3.14.4
+
+=== 1. 源码层面：这些谓词是否吞 OSError ===
+  Path.exists: except OSError=False  return False=False
+  Path.is_dir: except OSError=True  return False=True
+  Path.is_file: except OSError=True  return False=True
+  Path.is_symlink: except OSError=False  return False=False
+
+=== 2. 行为层面：祖先目录不可搜索时 exists() 说什么 ===
+  目标确实存在(权限正常时): True
+  祖先 chmod 000 后 target.exists() = False   <- 期望看到 False
+  但它其实还在: 这就是「问不出来」被压成「不存在」
+  os.lstat 三态谓词 = unreadable (PermissionError)   <- 「问不出来」被单独立出来了
+  cleanup ok
+
+=== 3. 本卡这份文件的暴露面（只登记，不修）===
+  _hygiene_snapshot() 的骨架检查用的正是 Path.exists():
+    exists = {rel: (root / rel).exists() for rel in _HYGIENE_SKELETON_PATHS}
+  ⇒ 若 backend/ 因权限问题 stat 不到 raw/wiki/outputs/CLAUDE.md,
+    exists() 返回 False，门会认为「骨架不存在」= 通过（假绿）。
+  这是**既有**代码（Y6-A 引入），与 Codex Y6-A MEDIUM #5 的 None<->hash 同族。
+  卡文明确禁止本卡扩面 ⇒ 只登记移交，不修。
+  ⚠️ 本卡**新增**的扫描函数不吃这一坑: os.walk(onerror=) + 显式 try/except,
+     且 is_relative_to() 是纯路径运算不碰文件系统。

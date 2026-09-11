@@ -1,0 +1,5 @@
+treeA_start=2026-09-08T08:20:24
+treeA_end=2026-09-08T08:24:29
+treeB_launch=2026-09-08T08:21:24
+treeB_rc=1
+treeB_done=2026-09-08T08:21:34

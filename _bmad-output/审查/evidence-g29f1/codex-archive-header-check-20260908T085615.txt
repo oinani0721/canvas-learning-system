@@ -1,0 +1,12 @@
+# Codex 存档首部完整性（协议 §2.1：缺 模型/reasoning_effort/codex 任一 = 该轮不计配额）
+# 2026-09-08T00:56:15Z
+
+  codex-review-CARD-G2-9-F1-r1.md → 模型=1 effort=1 codex=1 绑定=1 自证=1 旧模型名=0  ✓ 齐
+  codex-review-CARD-G2-9-F1-r2.md → 模型=1 effort=1 codex=1 绑定=1 自证=1 旧模型名=0  ✓ 齐
+  codex-review-CARD-G2-9-F1-r3.md → 模型=1 effort=1 codex=1 绑定=1 自证=1 旧模型名=0  ✓ 齐
+  codex-review-CARD-G2-9-F1-r4.md → 模型=1 effort=1 codex=1 绑定=1 自证=1 旧模型名=0  ✓ 齐
+  codex-review-CARD-G2-9-F1-r5.md → 模型=0 effort=0 codex=0 绑定=0 自证=0 旧模型名=0  ⛔ 缺
+
+各轮 B 类结论:
+B 类 BLOCKER = 0，B 类 HIGH = 0。
+B 类 BLOCKER = 0，B 类 HIGH = 0。

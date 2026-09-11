@@ -1,0 +1,85 @@
+# 负控 r4（compose）：四轮 Codex 全部复现 + 两条**隔离判据**的专门用例
+# 方法：把真实 test 模块的 PROJECT_ROOT 指到临时目录，跑测试本体。
+# ⚠️ 本份新增 ⑩⑪⑫：round-4 LOW 指出 r3 那份的 ⑧ 是被**未改动的内容轴**拦下的，
+#    不能用它证明「新增的深度判据」起了作用。⑩ 专门构造「内容轴放行、只有深度判据能拦」的输入。
+HEAD=5e3c7998  跑于 2026-09-09 14:59:53
+
+OK  ① 现状
+     期望=PASS 实测=PASS  
+OK  ② r1：复制到真 sibling service
+     期望=FAIL 实测=FAIL  Hardcoded user paths outside services.neo4j.volumes[<i>]: [(('services', 'malicious-service', 'volumes', '0'), '/Users/Heishing/Desktop
+OK  ③ 正控：陌生用户路径
+     期望=FAIL 实测=FAIL  Hardcoded user paths outside the 8a80595f neo4j exemption: ['- /Users/Someone/secret/data:/data']
+OK  ④ r2：sibling 写成 `other: # comment`
+     期望=FAIL 实测=FAIL  Hardcoded user paths outside services.neo4j.volumes[<i>]: [(('services', 'other', 'volumes', '0'), '/Users/Heishing/Desktop/canvas/canv
+OK  ⑤ r2：sibling 写成带引号的 `"other":`
+     期望=FAIL 实测=FAIL  Hardcoded user paths outside services.neo4j.volumes[<i>]: [(('services', 'other', 'volumes', '0'), '/Users/Heishing/Desktop/canvas/canv
+OK  ⑥ r2：留在 neo4j 但挪进 command
+     期望=FAIL 实测=FAIL  Hardcoded user paths outside services.neo4j.volumes[<i>]: [(('services', 'neo4j', 'command', '0'), '/Users/Heishing/Desktop/canvas/canv
+OK  ⑦ 只写进注释
+     期望=FAIL 实测=FAIL  Hardcoded user paths outside the 8a80595f neo4j exemption: ['# 备注: /Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/d
+OK  ⑨ r3：`<<:` 合并键（原文两次、解析一次）
+     期望=FAIL 实测=FAIL  Hardcoded user paths outside services.neo4j.volumes[<i>]: [(('services', 'defaults', 'volumes', '0'), '/Users/Heishing/Desktop/canvas/c
+OK  ⑩ 隔离深度判据：长格式折叠标量，原始行恰等于获准值
+     期望=FAIL 实测=FAIL  Hardcoded user paths outside services.neo4j.volumes[<i>]: [(('services', 'neo4j', 'volumes', '0', 'source'), '/Users/Heishing/Desktop/c
+     内容轴自证: 含硬编码路径的原始行 3 行，其中不在豁免名单里的 = []（空 ⇒ 内容轴放行）
+     计数自证: data:/data 在文本里出现 1 次
+OK  ⑪ r4-HIGH：!!binary 编码的新挂载（PyYAML 解成 bytes）
+     期望=FAIL 实测=FAIL  Hardcoded user paths outside services.neo4j.volumes[<i>]: [(('services', 'other', 'volumes', '0'), '/Users/Heishing/other:/other')]
+     解码自证: services.other.volumes[0] 类型 = bytes
+OK  ⑫ r4-LOW：alias 重复（文本 1 次、解析 2 次）
+     期望=FAIL 实测=FAIL  Hardcoded user paths outside the 8a80595f neo4j exemption: ['- &mount /Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4
+     解析自证: neo4j.volumes 解析后条目数 = 4
+
+判据：①=PASS；其余全部 FAIL。⑩⑪⑫ 各附自证，说明它们确实是靠新增判据被拦下的。
+
+## 追加：⑬ —— 隔离「解析层计数」这一轴（⑫ 没能隔离，如实更正）
+⑫ 的失败原因实测是**内容轴**（`- &mount /Users/...` 整行不等于任何豁免值），
+不是新增的解析层计数轴 —— 与 round-4 LOW 指出 ⑧ 的问题同形态。
+⑬ 把锚点单独放一行，使承载路径的那一行原文**恰好等于**获准值：
+      - &mount
+        <获准值>
+      - *mount
+⇒ 内容轴放行、文本计数 = 1、两条都在 services.neo4j.volumes 深度 4（位置轴放行），
+   只有「解析层计数 > 1」能拦下它。
+
+  内容轴自证: 含路径原始行 3 行，不在名单里的 = []（空 ⇒ 内容轴放行）
+  文本计数自证: data:/data 出现 1 次
+  解析计数自证: neo4j.volumes 里该值出现 2 次，条目数 4，全部深度 4
+
+  OK  ⑬ 隔离解析层计数轴
+     期望=FAIL 实测=FAIL  Exempted mount values used more than once (text/parsed counts): [('/Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/data:/data', {'t
+
+(eval):1: parse error near `>'
+(eval):1: parse error in command substitution
+
+## 追加：⑩ 的隔离性补证（Codex round-5 LOW —— 存档没记清用的是折叠标量的哪一档）
+round-5 指出：不带 strip 的折叠标量会保留尾换行，值变成 '<路径>\n'，
+**旧的值白名单判据也会拒**，于是无法区分「是深度判据拦的」还是「白名单拦的」；
+只有带 strip chomping 的那一档才是纯隔离。本节把实际使用的 YAML 块原样贴出，三轴逐一算给你看。
+
+### ⑩ 实际使用的形态（折叠 + strip chomping）  ——  YAML 块原文：
+        |      - type: bind
+        |        source: >-
+        |          /Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/data:/data
+        |        target: /other
+     解析出的 source 值 = '/Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/data:/data'
+     轴一（内容）：含路径原始行 3 行，不在名单里的 = []
+     轴三（数量）：该值文本出现 1 次
+     值是否仍在白名单里 = True
+     实测 = FAIL  Hardcoded user paths outside services.neo4j.volumes[<i>]: [(('services', 'neo4j', 'volumes', '0', 'source'), '
+
+### 对照：折叠但不 strip  ——  YAML 块原文：
+        |      - type: bind
+        |        source: >
+        |          /Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/data:/data
+        |        target: /other
+     解析出的 source 值 = '/Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/data:/data\n'
+     轴一（内容）：含路径原始行 3 行，不在名单里的 = []
+     轴三（数量）：该值文本出现 1 次
+     值是否仍在白名单里 = False
+     实测 = FAIL  Hardcoded user paths outside services.neo4j.volumes[<i>]: [(('services', 'neo4j', 'volumes', '0', 'source'), '
+
+结论：strip 那一档 —— 轴一放行（不在名单里的行为空）、轴三计数为 1、值仍在白名单内，
+      唯一拒绝它的是**结构深度 5 ≠ 4** ⇒ ⑩ 确为深度判据的纯隔离用例。
+      不 strip 的那一档确实如 round-5 所说会被白名单先拒，故不能用它做隔离证明。

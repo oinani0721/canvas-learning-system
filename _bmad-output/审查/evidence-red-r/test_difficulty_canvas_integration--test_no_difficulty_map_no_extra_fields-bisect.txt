@@ -1,0 +1,908 @@
+### CARD-RED-R bisect archive
+slug: test_difficulty_canvas_integration--test_no_difficulty_map_no_extra_fields
+nodeid: tests/unit/test_difficulty_canvas_integration.py::TestAIQuestionDifficultyInjection::test_no_difficulty_map_no_extra_fields
+interval: good=a2d6c934 (a2d6c934)  bad=8f5f9efc (8f5f9efc)
+started: 2026-09-09T12:20:05+0800
+runner-judge: pytest 摘要行 (⛔ 非退出码 —— 老 commit addopts 含 --cov-fail-under=85, passed 也 rc=1)
+sparse-checkout: 根级 ASCII 首字符类 + backend 精确包含(含仓库根 /src/, conftest 链式 import 需要) —— 仓库根与 backend/ 根有非法字节序列文件名(macOS 无法创建), 树内切换会中止
+配置注入: 环境变量 env.exports (NEO4J_URI=bolt://127.0.0.1:1 / NEO4J_ENABLED=false / VAULTS_ROOT 指临时目录); ⛔ 不写 backend/.env
+
+Preparing worktree (detached HEAD 8f5f9efc)
+== 端点验证 1/2: BAD=8f5f9efc (期望 VERDICT=BAD) ==
+--- HEAD=8f5f9efc nodeid=tests/unit/test_difficulty_canvas_integration.py::TestAIQuestionDifficultyInjection::test_no_difficulty_map_no_extra_fields
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-test_difficulty_canvas_integration--test_no_difficulty_map_no_extra_fields/backend/app/api/v1/endpoints/chat.py:805: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+======================== 1 failed, 10 warnings in 0.45s ========================
+--- pytest_raw_rc=1 (仅记录, 不作判据)
+VERDICT=BAD
+bad_end_rc=1
+
+== 端点验证 2/2: GOOD=a2d6c934 (期望 VERDICT=GOOD) ==
+Previous HEAD position was 8f5f9efc docs(g33r2): round-5 收口 + 三条 MEDIUM 实证登记 [BATCH-2026-09-07-第十三批 / CARD-G3-3-R2-writer-boundary]
+HEAD is now at a2d6c934 docs(epic-31,32): add story definitions and test files
+checkout_good_head=a2d6c934 (期望 a2d6c934)
+--- HEAD=a2d6c934 nodeid=tests/unit/test_difficulty_canvas_integration.py::TestAIQuestionDifficultyInjection::test_no_difficulty_map_no_extra_fields
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+======================== 1 passed, 5 warnings in 0.19s =========================
+--- pytest_raw_rc=0 (仅记录, 不作判据)
+VERDICT=GOOD
+good_end_rc=0
+
+ENDPOINT_STATUS=INTERVAL_OK
+
+== git bisect run ==
+Bisecting: 522 revisions left to test after this (roughly 9 steps)
+[39a7dd76aa436d6f9d8e347d0d672e679b675271] refactor(story-2.4): plan-b → plan-a 回退 — 4 方对抗审查共识决策
+running 'sh' '/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-runner.sh'
+--- HEAD=39a7dd76 nodeid=tests/unit/test_difficulty_canvas_integration.py::TestAIQuestionDifficultyInjection::test_no_difficulty_map_no_extra_fields
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-test_difficulty_canvas_integration--test_no_difficulty_map_no_extra_fields/backend/app/api/v1/endpoints/chat.py:764: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+======================== 1 failed, 11 warnings in 0.38s ========================
+--- pytest_raw_rc=1 (仅记录, 不作判据)
+VERDICT=BAD
+Bisecting: 260 revisions left to test after this (roughly 8 steps)
+[51f2057b51836d407e1f32c49100fdb4bcbdc87a] feat(logging): configure unified structlog↔stdlib bridge
+running 'sh' '/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-runner.sh'
+--- HEAD=51f2057b nodeid=tests/unit/test_difficulty_canvas_integration.py::TestAIQuestionDifficultyInjection::test_no_difficulty_map_no_extra_fields
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+======================== 1 failed, 10 warnings in 0.38s ========================
+--- pytest_raw_rc=1 (仅记录, 不作判据)
+VERDICT=BAD
+Bisecting: 130 revisions left to test after this (roughly 7 steps)
+[f4838b3067f4e646a1ea0ff7cbdd5d9a8867eafe] feat(phase2): add _enqueue_episode adapter + swap fire-and-forget with worker enqueue
+running 'sh' '/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-runner.sh'
+--- HEAD=f4838b30 nodeid=tests/unit/test_difficulty_canvas_integration.py::TestAIQuestionDifficultyInjection::test_no_difficulty_map_no_extra_fields
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+======================== 1 passed, 9 warnings in 0.37s =========================
+--- pytest_raw_rc=0 (仅记录, 不作判据)
+VERDICT=GOOD
+Bisecting: 65 revisions left to test after this (roughly 6 steps)
+[48f4b82b239ec5ad5b83382fec647f5c5e6340bf] feat(Epic6): add canvas_path to memory API endpoints
+running 'sh' '/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-runner.sh'
+--- HEAD=48f4b82b nodeid=tests/unit/test_difficulty_canvas_integration.py::TestAIQuestionDifficultyInjection::test_no_difficulty_map_no_extra_fields
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+======================== 1 failed, 10 warnings in 0.37s ========================
+--- pytest_raw_rc=1 (仅记录, 不作判据)
+VERDICT=BAD
+Bisecting: 32 revisions left to test after this (roughly 5 steps)
+[2f338dd05e955ec8741c9f837bf56c18445b98f5] docs: S33 更新known-gotchas — G-FAKE-003纠正 + 新增G-SILENT/G-PARAM分类
+running 'sh' '/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-runner.sh'
+--- HEAD=2f338dd0 nodeid=tests/unit/test_difficulty_canvas_integration.py::TestAIQuestionDifficultyInjection::test_no_difficulty_map_no_extra_fields
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+======================== 1 passed, 10 warnings in 0.38s ========================
+--- pytest_raw_rc=0 (仅记录, 不作判据)
+VERDICT=GOOD
+Bisecting: 16 revisions left to test after this (roughly 4 steps)
+[11e67740fc33a63c7351f16cae3a32cf1e315b7f] fix(S34): 修复112个预存test failures — 3个root cause批量修复
+running 'sh' '/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-runner.sh'
+--- HEAD=11e67740 nodeid=tests/unit/test_difficulty_canvas_integration.py::TestAIQuestionDifficultyInjection::test_no_difficulty_map_no_extra_fields
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+======================== 1 passed, 10 warnings in 0.37s ========================
+--- pytest_raw_rc=0 (仅记录, 不作判据)
+VERDICT=GOOD
+Bisecting: 8 revisions left to test after this (roughly 3 steps)
+[4e095732b22fe15699c0bb214737d6302515102b] feat: Phase 3 PRD + Graphiti decision export + Gemini deep research
+running 'sh' '/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-runner.sh'
+--- HEAD=4e095732 nodeid=tests/unit/test_difficulty_canvas_integration.py::TestAIQuestionDifficultyInjection::test_no_difficulty_map_no_extra_fields
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+======================== 1 passed, 10 warnings in 0.38s ========================
+--- pytest_raw_rc=0 (仅记录, 不作判据)
+VERDICT=GOOD
+Bisecting: 4 revisions left to test after this (roughly 2 steps)
+[c5c8cf769dafe4bade457731dc8be27b9f619a71] chore(Epic2): complete textbook reference cleanup across tests
+running 'sh' '/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-runner.sh'
+--- HEAD=c5c8cf76 nodeid=tests/unit/test_difficulty_canvas_integration.py::TestAIQuestionDifficultyInjection::test_no_difficulty_map_no_extra_fields
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+======================== 1 failed, 10 warnings in 0.39s ========================
+--- pytest_raw_rc=1 (仅记录, 不作判据)
+VERDICT=BAD
+Bisecting: 1 revision left to test after this (roughly 1 step)
+[836d098696bfa587e4c56af89aac11260ee926b7] feat(Epic2): architectural pruning — remove cross_canvas + textbook + fix vault_notes
+running 'sh' '/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-runner.sh'
+--- HEAD=836d0986 nodeid=tests/unit/test_difficulty_canvas_integration.py::TestAIQuestionDifficultyInjection::test_no_difficulty_map_no_extra_fields
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+======================== 1 failed, 10 warnings in 0.37s ========================
+--- pytest_raw_rc=1 (仅记录, 不作判据)
+VERDICT=BAD
+Bisecting: 0 revisions left to test after this (roughly 0 steps)
+[c2a02a7cfcc2e9b93a452ddbbb4e0be59c855144] feat(Epic1): Profile Click-to-Jump — source traceability for tips & weaknesses
+running 'sh' '/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-runner.sh'
+--- HEAD=c2a02a7c nodeid=tests/unit/test_difficulty_canvas_integration.py::TestAIQuestionDifficultyInjection::test_no_difficulty_map_no_extra_fields
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+======================== 1 passed, 10 warnings in 0.36s ========================
+--- pytest_raw_rc=0 (仅记录, 不作判据)
+VERDICT=GOOD
+836d098696bfa587e4c56af89aac11260ee926b7 is the first bad commit
+commit 836d098696bfa587e4c56af89aac11260ee926b7
+Author: root <root@Frick.localdomain>
+Date:   Tue Mar 31 00:34:35 2026 -0700
+
+    feat(Epic2): architectural pruning — remove cross_canvas + textbook + fix vault_notes
+    
+    Phase 3 PRD Epic 2 (P0 GDA-2): prune cancelled features and fix RAG duplication.
+    
+    - Feature 2.1: delete cross_canvas_service.py (1368 lines) + endpoint (768 lines)
+    - Feature 2.2: delete textbook_context_service.py (659 lines) + endpoint (231 lines)
+      + RAG channels 6 to 4 (LanceDB, Vault Notes, Graphiti, Multimodal)
+    - Feature 2.3: fix vault_notes dual-search via LanceDB DEFAULT_TABLES cleanup
+    - add ruff.toml + bulk ruff format across entire codebase
+    
+    Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
+
+ PROGRESS.md                                        |    14 +
+ .../snapshots/schema_test/snapshots_index.json     |    26 +
+ .../80192ea5-f6d8-42fb-b436-a9daf1743f05.json.gz   |   Bin 268 -> 0 bytes
+ .../a66e5921-4a86-4c01-a8b1-c4c64e17f421.json.gz   |   Bin 268 -> 0 bytes
+ .../snapshots/test/snapshots_index.json            |   156 +-
+ .../snapshots/workflow_test/snapshots_index.json   |    26 +
+ backend/_gen_mastery_tests.py                      |     1 +
+ backend/app/__init__.py                            |     2 +
+ backend/app/api/v1/endpoints/agents.py             |   486 +-
+ backend/app/api/v1/endpoints/archive.py            |     5 +-
+ backend/app/api/v1/endpoints/config.py             |    10 +-
+ backend/app/api/v1/endpoints/context.py            |     8 +-
+ backend/app/api/v1/endpoints/cross_canvas.py       |   767 -
+ backend/app/api/v1/endpoints/debug.py              |    43 +-
+ backend/app/api/v1/endpoints/exam.py               |     8 +-
+ backend/app/api/v1/endpoints/exam_sessions.py      |     8 +-
+ backend/app/api/v1/endpoints/health.py             |   526 +-
+ backend/app/api/v1/endpoints/index_image.py        |    33 +-
+ backend/app/api/v1/endpoints/inheritance.py        |     8 +-
+ .../app/api/v1/endpoints/intelligent_parallel.py   |    28 +-
+ backend/app/api/v1/endpoints/mastery.py            |    62 +-
+ backend/app/api/v1/endpoints/mastery_ws.py         |    10 +-
+ backend/app/api/v1/endpoints/memory.py             |   102 +-
+ backend/app/api/v1/endpoints/metadata.py           |   134 +-
+ backend/app/api/v1/endpoints/monitoring.py         |   121 +-
+ backend/app/api/v1/endpoints/multimodal.py         |    71 +-
+ backend/app/api/v1/endpoints/profile.py            |    46 +-
+ backend/app/api/v1/endpoints/rag.py                |    66 +-
+ backend/app/api/v1/endpoints/review.py             |   447 +-
+ backend/app/api/v1/endpoints/rollback.py           |    70 +-
+ backend/app/api/v1/endpoints/skills.py             |     4 +-
+ backend/app/api/v1/endpoints/subjects.py           |     4 +-
+ backend/app/api/v1/endpoints/suggestions.py        |    20 +-
+ backend/app/api/v1/endpoints/textbook.py           |   230 -
+ backend/app/api/v1/endpoints/tips.py               |     3 +-
+ backend/app/api/v1/endpoints/websocket.py          |     7 +-
+ backend/app/api/v1/router.py                       |    83 +-
+ backend/app/api/v1/system.py                       |    64 +-
+ backend/app/audit/guardian.py                      |     5 +-
+ backend/app/clients/__init__.py                    |    15 +-
+ backend/app/clients/anthropic_provider.py          |    36 +-
+ backend/app/clients/base_provider.py               |     8 +-
+ backend/app/clients/claude_client.py               |    30 +-
+ backend/app/clients/gemini_client.py               |    95 +-
+ backend/app/clients/google_provider.py             |    28 +-
+ backend/app/clients/neo4j_client.py                |   404 +-
+ backend/app/clients/neo4j_edge_client.py           |   140 +-
+ backend/app/clients/neo4j_learning_base.py         |    14 +-
+ backend/app/clients/openai_provider.py             |    40 +-
+ backend/app/clients/provider_factory.py            |   124 +-
+ backend/app/config.py                              |   172 +-
+ backend/app/core/__init__.py                       |     4 +-
+ backend/app/core/agent_memory_mapping.py           |     6 +-
+ backend/app/core/bug_tracker.py                    |    17 +-
+ backend/app/core/exception_handlers.py             |    12 +-
+ backend/app/core/exceptions.py                     |     7 +
+ backend/app/core/litellm_config.py                 |    28 +-
+ backend/app/core/logging.py                        |    11 +-
+ backend/app/core/memory_format.py                  |     9 +-
+ backend/app/core/memory_system_logger.py           |    16 +-
+ backend/app/core/reference_config.py               |     4 +-
+ backend/app/core/request_cache.py                  |    22 +-
+ backend/app/core/subject_config.py                 |    26 +-
+ backend/app/core/unified_learning_event.py         |    45 +-
+ backend/app/dependencies.py                        |   207 +-
+ backend/app/graphiti/entity_types.py               |    24 +-
+ backend/app/main.py                                |    94 +-
+ backend/app/mcp/pipeline_token.py                  |    12 +-
+ backend/app/mcp/server.py                          |     6 +-
+ backend/app/mcp/tools/conversation_tools.py        |    29 +-
+ backend/app/mcp/tools/error_tools.py               |     9 +-
+ backend/app/mcp/tools/exam_tools.py                |   105 +-
+ backend/app/mcp/tools/mastery_tools.py             |    34 +-
+ backend/app/mcp/tools/memory_tools.py              |    93 +-
+ backend/app/mcp/tools/note_search_tools.py         |    22 +-
+ backend/app/middleware/__init__.py                 |    32 +-
+ backend/app/middleware/agent_metrics.py            |   119 +-
+ backend/app/middleware/cost_tracker.py             |     8 +-
+ backend/app/middleware/error_tracking.py           |    55 +-
+ backend/app/middleware/llm_call_logger.py          |    12 +-
+ backend/app/middleware/memory_metrics.py           |    91 +-
+ backend/app/middleware/metrics.py                  |    82 +-
+ backend/app/middleware/prompt_injection_guard.py   |   241 +-
+ backend/app/models/__init__.py                     |   133 +-
+ backend/app/models/agent_routing_models.py         |    47 +-
+ backend/app/models/canvas_events.py                |    16 +-
+ backend/app/models/common.py                       |    91 +-
+ backend/app/models/edge_rationale.py               |     4 +-
+ backend/app/models/enums.py                        |    12 +-
+ backend/app/models/exam_models.py                  |   124 +-
+ backend/app/models/intelligent_parallel_models.py  |   227 +-
+ backend/app/models/mastery_models.py               |    59 +-
+ backend/app/models/mastery_state.py                |     8 +-
+ backend/app/models/memory_schemas.py               |    90 +-
+ backend/app/models/metadata_models.py              |   141 +-
+ backend/app/models/multimodal_schemas.py           |   149 +-
+ backend/app/models/qa_models.py                    |    75 +-
+ backend/app/models/recommendation_models.py        |     7 +-
+ backend/app/models/review_models.py                |   269 +-
+ backend/app/models/rollback.py                     |     4 +-
+ backend/app/models/schemas.py                      |   439 +-
+ backend/app/models/session_models.py               |    26 +-
+ backend/app/models/subject_models.py               |     8 +-
+ backend/app/models/sync_models.py                  |    20 +-
+ backend/app/services/__init__.py                   |     6 +-
+ backend/app/services/agent_routing_engine.py       |   212 +-
+ backend/app/services/agent_selector.py             |    95 +-
+ backend/app/services/agent_service.py              |  1700 +-
+ backend/app/services/alert_manager.py              |    19 +-
+ backend/app/services/archive_scheduler.py          |     3 +-
+ backend/app/services/autoscore.py                  |    49 +-
+ backend/app/services/background_task_manager.py    |    33 +-
+ backend/app/services/batch_orchestrator.py         |   205 +-
+ backend/app/services/calibration_tracker.py        |    28 +-
+ backend/app/services/canvas_service.py             |   180 +-
+ backend/app/services/context_enrichment_service.py |   848 +-
+ backend/app/services/conversation_archive.py       |    73 +-
+ backend/app/services/conversation_distiller.py     |    52 +-
+ backend/app/services/conversation_inheritance.py   |    27 +-
+ backend/app/services/cross_canvas_service.py       |  1368 --
+ backend/app/services/cross_subject_bridge.py       |     4 +-
+ backend/app/services/difficulty_matcher.py         |    12 +-
+ backend/app/services/episode_worker.py             |    13 +-
+ backend/app/services/error_aggregator.py           |    12 +-
+ backend/app/services/error_classifier.py           |    40 +-
+ backend/app/services/event_bus.py                  |    40 +-
+ backend/app/services/event_handlers.py             |    20 +-
+ backend/app/services/exam_service.py               |    44 +-
+ backend/app/services/exam_service_ext.py           |   104 +-
+ backend/app/services/extraction_validator.py       |     8 +-
+ backend/app/services/fallback_sync_service.py      |    37 +-
+ backend/app/services/health_monitor.py             |    43 +-
+ .../app/services/intelligent_grouping_service.py   |    79 +-
+ .../app/services/intelligent_parallel_service.py   |    90 +-
+ backend/app/services/lancedb_index_service.py      |    30 +-
+ backend/app/services/learning_context_service.py   |    28 +-
+ backend/app/services/markdown_image_extractor.py   |    79 +-
+ backend/app/services/mastery_engine.py             |    65 +-
+ backend/app/services/mastery_store.py              |    61 +-
+ backend/app/services/memory_service.py             |   396 +-
+ backend/app/services/metrics_collector.py          |    69 +-
+ backend/app/services/multimodal_service.py         |   196 +-
+ backend/app/services/notification_channels.py      |    18 +-
+ backend/app/services/prompt_registry.py            |    44 +-
+ backend/app/services/question_generator.py         |    24 +-
+ backend/app/services/rag_service.py                |    49 +-
+ backend/app/services/react_agent.py                |   185 +-
+ backend/app/services/recommendation_service.py     |    71 +-
+ backend/app/services/resource_monitor.py           |    58 +-
+ backend/app/services/review_service.py             |   534 +-
+ backend/app/services/rollback_service.py           |    78 +-
+ backend/app/services/scoring_faithfulness.py       |    40 +-
+ backend/app/services/session_manager.py            |    50 +-
+ backend/app/services/signal_registry.py            |     8 +-
+ backend/app/services/skill_registry.py             |     4 +-
+ backend/app/services/subject_resolver.py           |   104 +-
+ backend/app/services/sync_service.py               |    30 +-
+ backend/app/services/textbook_context_service.py   |   658 -
+ backend/app/services/tool_definitions.py           |    17 +-
+ backend/app/services/tool_executor.py              |    35 +-
+ backend/app/services/topic_clustering.py           |    48 +-
+ backend/app/services/verification_service.py       |   598 +-
+ backend/app/services/websocket_manager.py          |    10 +-
+ backend/app/services/weight_calculator.py          |    55 +-
+ backend/openapi.json                               | 22010 +++++++++++++------
+ backend/scripts/migrate_neo4j_data.py              |    41 +-
+ backend/scripts/run_prompt_regression.py           |     1 +
+ .../tests/api/v1/endpoints/test_agents_dedup.py    |    44 +-
+ .../tests/api/v1/endpoints/test_agents_encoding.py |   125 +-
+ .../tests/api/v1/endpoints/test_agents_health.py   |    24 +-
+ .../api/v1/endpoints/test_agents_learning_event.py |    97 +-
+ .../tests/api/v1/endpoints/test_fsrs_state_api.py  |   123 +-
+ .../v1/endpoints/test_metadata_subject_mapping.py  |    14 +-
+ backend/tests/api/v1/endpoints/test_multimodal.py  |    12 +-
+ .../api/v1/endpoints/test_recommend_action.py      |     2 +-
+ backend/tests/benchmark/test_routing_accuracy.py   |   134 +-
+ backend/tests/conftest.py                          |    73 +-
+ .../contract/test_multimodal_pact_interactions.py  |    85 +-
+ backend/tests/contract/test_node_id_patterns.py    |   219 +-
+ backend/tests/contract/test_openapi_contract.py    |    11 +-
+ backend/tests/contract/test_pact_provider.py       |    40 +-
+ backend/tests/e2e/conftest.py                      |   234 +-
+ backend/tests/e2e/test_agent_generates_links.py    |   347 -
+ backend/tests/e2e/test_epic33_batch_pipeline.py    |   114 +-
+ backend/tests/e2e/test_epic36_endpoints.py         |    72 +-
+ backend/tests/e2e/test_epic36_integration.py       |    38 +-
+ backend/tests/e2e/test_health_endpoint.py          |     1 -
+ backend/tests/e2e/test_intelligent_parallel.py     |   301 +-
+ backend/tests/e2e/test_memory_api_e2e.py           |   137 +-
+ backend/tests/e2e/test_memory_learning_flow_e2e.py |    22 +-
+ .../tests/e2e/test_multimodal_perf_utility_e2e.py  |    47 +-
+ .../tests/e2e/test_multimodal_search_delete_e2e.py |    73 +-
+ backend/tests/e2e/test_multimodal_upload_e2e.py    |    92 +-
+ backend/tests/e2e/test_review_fsrs_degradation.py  |    52 +-
+ backend/tests/e2e/test_review_generate.py          |    82 +-
+ backend/tests/e2e/test_textbook_mount_e2e.py       |   336 -
+ backend/tests/e2e/test_textbook_mount_flow.py      |   662 -
+ backend/tests/factories.py                         |     2 +-
+ backend/tests/integration/conftest.py              |    13 +-
+ .../tests/integration/review_history/conftest.py   |     4 +-
+ .../tests/integration/review_history/helpers.py    |    14 +-
+ .../review_history/test_history_behavior.py        |     3 +-
+ .../review_history/test_history_endpoint.py        |     5 +-
+ .../review_history/test_history_real_service.py    |    63 +-
+ .../review_history/test_history_statistics.py      |    54 +-
+ .../review_history/test_history_validation.py      |     3 -
+ .../review_history_pagination/conftest.py          |    20 +-
+ .../test_pagination_basic.py                       |   117 +-
+ .../test_pagination_real_service.py                |    16 +-
+ .../test_pagination_validation.py                  |    47 +-
+ .../tests/integration/test_agent_canvas_param.py   |   167 +-
+ .../integration/test_agent_memory_integration.py   |    21 +-
+ .../test_agent_neo4j_memory_integration.py         |   121 +-
+ .../test_batch_orchestrator_integration.py         |    42 +-
+ backend/tests/integration/test_batch_processing.py |   191 +-
+ .../tests/integration/test_bidirectional_links.py  |   443 -
+ .../integration/test_canvas_edge_sync_real.py      |    62 +-
+ .../integration/test_canvas_memory_integration.py  |   124 +-
+ .../test_context_enrichment_file_nodes.py          |    83 +-
+ .../integration/test_cross_canvas_injection.py     |   703 -
+ .../tests/integration/test_dependency_injection.py |    63 +-
+ backend/tests/integration/test_di_completeness.py  |    84 +-
+ .../integration/test_dual_write_consistency.py     |   116 +-
+ .../tests/integration/test_edge_bulk_neo4j_sync.py |   131 +-
+ backend/tests/integration/test_edge_neo4j_sync.py  |   105 +-
+ .../tests/integration/test_encoding_middleware.py  |    37 +-
+ backend/tests/integration/test_encoding_safety.py  |     8 +-
+ .../tests/integration/test_epic12e_integration.py  |   161 +-
+ .../integration/test_epic30_memory_integration.py  |     9 +-
+ backend/tests/integration/test_epic31_e2e.py       |   133 +-
+ .../integration/test_epic33_di_completeness.py     |    26 +-
+ .../integration/test_epic36_gap_integration.py     |    51 +-
+ backend/tests/integration/test_failover.py         |    51 +-
+ .../tests/integration/test_graphiti_client_real.py |     5 +-
+ .../integration/test_intelligent_parallel_api.py   |    68 +-
+ backend/tests/integration/test_llm_stats_api.py    |     8 +-
+ .../tests/integration/test_mastery_store_real.py   |    70 +-
+ .../test_memory_graphiti_integration.py            |    50 +-
+ .../tests/integration/test_memory_health_api.py    |    31 +-
+ .../tests/integration/test_memory_persistence.py   |   172 +-
+ .../integration/test_memory_persistence_real.py    |    14 +-
+ .../integration/test_memory_singleton_unity.py     |    25 +-
+ .../integration/test_memory_subject_filter.py      |    86 +-
+ .../integration/test_multi_provider_switch.py      |   134 +-
+ .../test_multimodal_real_persistence.py            |    30 +-
+ .../tests/integration/test_provider_recovery.py    |    82 +-
+ backend/tests/integration/test_qa_pipeline.py      |    41 +-
+ .../tests/integration/test_rag_multimodal_api.py   |   154 +-
+ .../tests/integration/test_recommend_action_api.py |    41 +-
+ .../test_recommend_action_degradation.py           |     5 +-
+ .../tests/integration/test_review_generate_api.py  |    21 +-
+ .../tests/integration/test_review_singleton_di.py  |    37 +-
+ .../tests/integration/test_session_persistence.py  |    65 +-
+ .../integration/test_storage_health_integration.py |    34 +-
+ .../integration/test_story_30_14_agent_trigger.py  |    93 +-
+ .../test_story_30_16_neo4j_resilience.py           |   116 +-
+ .../integration/test_story_30_20_core_coverage.py  |    26 +-
+ .../test_story_30_21_real_integration.py           |    50 +-
+ .../tests/integration/test_story_31a2_ac1_real.py  |   116 +-
+ .../tests/integration/test_story_31a2_ac2_real.py  |   148 +-
+ .../tests/integration/test_story_31a2_ac3_real.py  |    11 +-
+ .../tests/integration/test_story_31a2_ac4_real.py  |    55 +-
+ .../tests/integration/test_story_31a2_ac5_real.py  |    17 +-
+ .../test_story_38_7_ac1_fresh_startup.py           |    33 +-
+ .../test_story_38_7_ac2_learning_flow.py           |    74 +-
+ .../test_story_38_7_ac3_restart_survival.py        |    82 +-
+ .../test_story_38_7_ac4_degraded_mode.py           |    34 +-
+ ...test_story_38_7_ac5_recovery_and_cross_story.py |   104 +-
+ .../integration/test_story_38_7_qa_supplement.py   |    45 +-
+ .../integration/test_subject_isolation_neo4j.py    |   107 +-
+ .../integration/test_verification_difficulty.py    |    88 +-
+ .../integration/test_verification_history_api.py   |   159 +-
+ .../test_verification_interactive_e2e.py           |   184 +-
+ .../test_verification_service_di_completeness.py   |    17 +-
+ .../integration/test_verification_service_e2e.py   |   113 +-
+ .../integration/test_websocket_integration.py      |    63 +-
+ backend/tests/load/test_batch_100_nodes.py         |    56 +-
+ .../tests/performance/test_history_performance.py  |    37 +-
+ backend/tests/performance/test_switch_latency.py   |    63 +-
+ backend/tests/regression/conftest.py               |    26 +-
+ backend/tests/regression/report_generator.py       |    28 +-
+ .../tests/regression/test_autoscore_regression.py  |    42 +-
+ .../regression/test_context_extract_regression.py  |    35 +-
+ .../regression/test_crag_grading_regression.py     |    28 +-
+ .../tests/regression/test_edge_dialog_prompt.py    |     9 +-
+ .../regression/test_query_optimize_regression.py   |     4 +-
+ .../regression/test_query_rewrite_regression.py    |    18 +-
+ .../regression/test_question_gen_regression.py     |    72 +-
+ .../regression/test_search_intent_regression.py    |    22 +-
+ backend/tests/security/test_api_key_security.py    |    74 +-
+ backend/tests/test_agent_metrics.py                |    32 +-
+ backend/tests/test_alert_manager.py                |    12 +-
+ backend/tests/test_config.py                       |    30 +-
+ backend/tests/test_context_enrichment_service.py   |   417 +-
+ backend/tests/test_cors.py                         |    27 +-
+ backend/tests/test_cors_exception.py               |   161 +-
+ backend/tests/test_cross_canvas_service.py         |   346 -
+ backend/tests/test_debug.py                        |    10 +-
+ backend/tests/test_deep_monitoring.py              |     8 +
+ backend/tests/test_dependencies.py                 |    94 +-
+ backend/tests/test_memory_metrics.py               |    21 +-
+ backend/tests/test_metrics_middleware.py           |     6 +-
+ backend/tests/test_multi_review_progress.py        |   201 +-
+ backend/tests/test_notification_channels.py        |     1 +
+ backend/tests/test_resource_monitor.py             |    47 +-
+ backend/tests/test_rollback_diff.py                |   197 +-
+ backend/tests/test_rollback_e2e.py                 |    11 +-
+ backend/tests/test_rollback_execute.py             |    20 +-
+ backend/tests/test_rollback_history.py             |    20 +-
+ backend/tests/test_rollback_snapshots.py           |    23 +-
+ backend/tests/test_routers.py                      |    15 +-
+ backend/tests/test_services.py                     |   198 +-
+ backend/tests/test_weight_calculator.py            |    93 +-
+ backend/tests/test_weighted_selection.py           |    38 +-
+ backend/tests/unit/conftest.py                     |     7 +-
+ backend/tests/unit/grouping/conftest.py            |     4 +-
+ backend/tests/unit/grouping/test_analyze_canvas.py |     7 +-
+ .../unit/grouping/test_factory_and_constants.py    |     2 -
+ backend/tests/unit/grouping/test_helpers.py        |     5 +-
+ .../tests/unit/grouping/test_perform_clustering.py |    38 +-
+ backend/tests/unit/test_agent_context_injection.py |     9 +-
+ backend/tests/unit/test_agent_memory_injection.py  |   103 +-
+ backend/tests/unit/test_agent_memory_trigger.py    |    20 +-
+ backend/tests/unit/test_agent_routing_engine.py    |   127 +-
+ .../tests/unit/test_agent_service_comparison.py    |    88 +-
+ .../tests/unit/test_agent_service_extraction.py    |    62 +-
+ .../tests/unit/test_agent_service_neo4j_memory.py  |   187 +-
+ .../unit/test_agent_service_user_understanding.py  |   193 +-
+ backend/tests/unit/test_agent_templates_smoke.py   |     5 +-
+ backend/tests/unit/test_agents_multimodal.py       |   430 +-
+ backend/tests/unit/test_batch_orchestrator.py      |    91 +-
+ backend/tests/unit/test_bug_tracker.py             |    46 +-
+ backend/tests/unit/test_cache_configuration.py     |    50 +-
+ backend/tests/unit/test_calibration_tracker.py     |    21 +-
+ backend/tests/unit/test_canvas_edge_bulk_sync.py   |   125 +-
+ backend/tests/unit/test_canvas_edge_sync.py        |    82 +-
+ backend/tests/unit/test_canvas_memory_trigger.py   |   111 +-
+ .../tests/unit/test_canvas_service_concurrency.py  |   122 +-
+ .../tests/unit/test_card_state_concurrent_write.py |    11 +-
+ backend/tests/unit/test_circuit_breaker.py         |     3 -
+ backend/tests/unit/test_config_neo4j.py            |     1 -
+ backend/tests/unit/test_context_enrichment_2hop.py |   135 +-
+ .../test_context_enrichment_get_node_content.py    |    92 +-
+ backend/tests/unit/test_cost_tracker.py            |     7 +-
+ backend/tests/unit/test_create_fsrs_manager.py     |    47 +-
+ .../tests/unit/test_cross_canvas_auto_discover.py  |   679 -
+ .../tests/unit/test_cross_canvas_persistence.py    |   928 -
+ backend/tests/unit/test_cross_canvas_removal.py    |   107 +
+ backend/tests/unit/test_dashboard_statistics.py    |    20 +-
+ .../tests/unit/test_degraded_flag_propagation.py   |    11 +-
+ backend/tests/unit/test_difficulty_adaptive.py     |   143 +-
+ .../unit/test_difficulty_canvas_integration.py     |    72 +-
+ backend/tests/unit/test_docker_compose_config.py   |     4 +-
+ backend/tests/unit/test_edge_rationale_fallback.py |     4 +-
+ backend/tests/unit/test_epic30_memory_pipeline.py  |    28 +-
+ backend/tests/unit/test_epic32_p0_fixes.py         |    97 +-
+ backend/tests/unit/test_epic36_gap_coverage.py     |   286 +-
+ backend/tests/unit/test_event_bus.py               |     4 +-
+ backend/tests/unit/test_failure_observability.py   |    30 +-
+ backend/tests/unit/test_faithfulness_check.py      |    24 +-
+ backend/tests/unit/test_fsrs_manager.py            |    51 +-
+ backend/tests/unit/test_fsrs_state_query.py        |    85 +-
+ backend/tests/unit/test_graphiti_client.py         |    59 +-
+ .../unit/test_graphiti_client_mock_performance.py  |    28 +-
+ .../tests/unit/test_graphiti_client_unification.py |     6 +-
+ .../tests/unit/test_graphiti_json_dual_write.py    |    29 +-
+ backend/tests/unit/test_graphiti_neo4j_calls.py    |    49 +-
+ .../unit/test_intelligent_parallel_endpoints.py    |   253 +-
+ backend/tests/unit/test_llm_call_logger.py         |     8 +-
+ .../tests/unit/test_markdown_image_extractor.py    |    18 +-
+ backend/tests/unit/test_mastery_api.py             |    64 +-
+ backend/tests/unit/test_mastery_engine_bkt.py      |    41 +-
+ .../tests/unit/test_mastery_engine_effective.py    |   104 +-
+ backend/tests/unit/test_mastery_engine_fsrs.py     |    21 +-
+ backend/tests/unit/test_mastery_engine_level.py    |    16 +-
+ backend/tests/unit/test_mastery_engine_misc.py     |    51 +-
+ backend/tests/unit/test_mastery_fusion.py          |     4 +-
+ backend/tests/unit/test_mastery_state.py           |    45 +-
+ backend/tests/unit/test_mastery_store.py           |    88 +-
+ backend/tests/unit/test_memory_service_batch.py    |    59 +-
+ .../tests/unit/test_memory_service_write_retry.py  |    15 +-
+ backend/tests/unit/test_migrate_neo4j_data.py      |    15 +-
+ .../unit/test_mock_degradation_transparency.py     |   107 +-
+ backend/tests/unit/test_multimodal_fixes.py        |    50 +-
+ .../tests/unit/test_multimodal_path_security.py    |    47 +-
+ backend/tests/unit/test_neo4j_client.py            |   139 +-
+ backend/tests/unit/test_neo4j_health.py            |    36 +-
+ backend/tests/unit/test_nfr_cache_bounds.py        |     9 +-
+ backend/tests/unit/test_prompt_injection_guard.py  |     9 +-
+ backend/tests/unit/test_prompt_registry.py         |    13 +-
+ .../tests/unit/test_qa_38_4_dual_write_extra.py    |    27 +-
+ backend/tests/unit/test_qa_38_5_fallback_extra.py  |    24 +-
+ .../unit/test_qa_38_6_scoring_reliability_extra.py |   127 +-
+ .../tests/unit/test_rag_multimodal_integration.py  |   143 +-
+ .../unit/test_review_difficulty_adaptation.py      |   121 +-
+ .../tests/unit/test_review_history_pagination.py   |    50 +-
+ backend/tests/unit/test_review_mode_support.py     |   157 +-
+ .../unit/test_review_service_error_handling.py     |   104 +-
+ backend/tests/unit/test_review_service_fsrs.py     |    95 +-
+ backend/tests/unit/test_session_manager.py         |   103 +-
+ backend/tests/unit/test_session_progress.py        |    17 +-
+ backend/tests/unit/test_storage_health.py          |    45 +-
+ backend/tests/unit/test_story_30_10_idempotency.py |   130 +-
+ .../tests/unit/test_story_30_11_batch_parallel.py  |   102 +-
+ .../tests/unit/test_story_30_12_agent_trigger.py   |    68 +-
+ .../unit/test_story_30_13_batch_idempotency.py     |    62 +-
+ .../unit/test_story_30_22_agent_trigger_deep.py    |    46 +-
+ backend/tests/unit/test_story_30_24_boundary.py    |   102 +-
+ backend/tests/unit/test_story_30_6_color_change.py |    47 +-
+ backend/tests/unit/test_story_30_7_plugin_init.py  |    54 +-
+ .../unit/test_story_31a2_ac1_neo4j_priority.py     |    88 +-
+ .../unit/test_story_31a2_ac2_client_method.py      |   132 +-
+ .../tests/unit/test_story_31a2_ac3_persistence.py  |    65 +-
+ .../tests/unit/test_story_31a2_ac4_pagination.py   |   126 +-
+ .../unit/test_story_31a2_ac5_api_injection.py      |    73 +-
+ backend/tests/unit/test_story_31a2_helpers.py      |     3 +-
+ .../tests/unit/test_story_33_10_runtime_defects.py |    82 +-
+ .../tests/unit/test_story_38_1_ac1_auto_trigger.py |    23 +-
+ .../unit/test_story_38_1_ac3_startup_recovery.py   |    52 +-
+ backend/tests/unit/test_story_38_1_review_fixes.py |    24 +-
+ .../tests/unit/test_story_38_2_episode_recovery.py |    92 +-
+ .../tests/unit/test_story_38_2_qa_supplement.py    |   296 +-
+ backend/tests/unit/test_story_38_3_edge_cases.py   |    33 +-
+ .../unit/test_story_38_3_fsrs_init_guarantee.py    |   112 +-
+ .../unit/test_story_38_4_dual_write_default.py     |     8 +-
+ .../test_story_38_5_canvas_crud_degradation.py     |    57 +-
+ .../unit/test_story_38_6_scoring_reliability.py    |   128 +-
+ .../tests/unit/test_story_38_8_fallback_sync.py    |   312 +-
+ backend/tests/unit/test_subject_isolation.py       |    14 +-
+ backend/tests/unit/test_subject_resolver.py        |     7 -
+ backend/tests/unit/test_textbook_link_format.py    |   309 -
+ backend/tests/unit/test_textbook_removal.py        |   149 +
+ backend/tests/unit/test_ttlcache_transparency.py   |    42 +-
+ backend/tests/unit/test_verification_dedup.py      |    66 +-
+ .../unit/test_verification_service_activation.py   |   160 +-
+ .../unit/test_verification_service_injection.py    |    33 +-
+ backend/tests/unit/test_websocket_endpoints.py     |    50 +-
+ ruff.toml                                          |     7 +
+ src/agentic_rag/__init__.py                        |    18 +-
+ src/agentic_rag/agent_graph.py                     |    77 +-
+ src/agentic_rag/clients/__init__.py                |     2 +-
+ src/agentic_rag/clients/graphiti_client.py         |   137 +-
+ .../clients/graphiti_temporal_client.py            |   364 +-
+ src/agentic_rag/clients/lancedb_client.py          |   244 +-
+ src/agentic_rag/clients/temporal_client.py         |    53 +-
+ src/agentic_rag/compression.py                     |    18 +-
+ src/agentic_rag/config.py                          |    46 +-
+ src/agentic_rag/faithfulness_check.py              |    33 +-
+ src/agentic_rag/mastery_injection.py               |    20 +-
+ src/agentic_rag/models/multimodal_content.py       |    29 +-
+ src/agentic_rag/nodes.py                           |   308 +-
+ src/agentic_rag/nodes/__init__.py                  |     5 +-
+ src/agentic_rag/processors/__init__.py             |    16 +-
+ src/agentic_rag/processors/association_engine.py   |   144 +-
+ src/agentic_rag/processors/audio_processor.py      |    54 +-
+ src/agentic_rag/processors/gemini_vision.py        |    48 +-
+ src/agentic_rag/processors/image_processor.py      |    11 +-
+ .../processors/multimodal_vectorizer.py            |   120 +-
+ src/agentic_rag/processors/pdf_extractor.py        |    76 +-
+ src/agentic_rag/processors/pdf_processor.py        |    29 +-
+ src/agentic_rag/processors/video_processor.py      |    26 +-
+ src/agentic_rag/reranking.py                       |    19 +-
+ src/agentic_rag/retrievers/__init__.py             |    22 +-
+ .../retrievers/cross_canvas_retriever.py           |    56 +-
+ src/agentic_rag/retrievers/multimodal_retriever.py |    90 +-
+ src/agentic_rag/retrievers/textbook_retriever.py   |   387 -
+ .../retrievers/vault_notes_retriever.py            |    49 +-
+ src/agentic_rag/state.py                           |    28 +-
+ src/agentic_rag/state_graph.py                     |    75 +-
+ src/agentic_rag/storage/multimodal_store.py        |    12 +-
+ src/api/config.py                                  |    41 +-
+ src/api/main.py                                    |    36 +-
+ src/api/models/agent.py                            |   100 +-
+ src/api/models/canvas.py                           |    79 +-
+ src/api/models/common.py                           |    38 +-
+ src/api/models/memory.py                           |    69 +-
+ src/api/models/review.py                           |    51 +-
+ src/api/routers/agents.py                          |   102 +-
+ src/api/routers/canvas.py                          |    76 +-
+ src/api/routers/health.py                          |     4 +-
+ src/api/routers/memory.py                          |    15 +-
+ src/api/routers/review.py                          |    37 +-
+ src/api/websocket/progress_ws.py                   |    84 +-
+ src/canvas/adapters/agentic_rag_adapter.py         |    20 +-
+ src/canvas/orchestrator_verification_canvas.py     |    43 +-
+ src/canvas_utils.py                                | 13948 +++++++-----
+ src/command_handlers/__init__.py                   |    30 +-
+ src/command_handlers/analytics_commands.py         |   233 +-
+ src/command_handlers/async_execution_engine.py     |    43 +-
+ src/command_handlers/canvas_commands.py            |   302 +-
+ .../intelligent_parallel_handler.py                |   323 +-
+ .../intelligent_parallel_handler_NEW_METHOD.py     |    20 +-
+ src/command_handlers/learning_commands.py          |   499 +-
+ src/command_handlers/memory_commands.py            |    84 +-
+ src/command_handlers/system_commands.py            |    25 +-
+ src/command_handlers/utilities_commands.py         |   356 +-
+ src/ebbinghaus_demo.py                             |    40 +-
+ src/ebbinghaus_review.py                           |   314 +-
+ src/memory/temporal/behavior_tracker.py            |    25 +-
+ src/memory/temporal/fsrs_manager.py                |    33 +-
+ src/memory/temporal/temporal_memory.py             |    16 +-
+ .../chromadb_to_lancedb/dual_write_adapter.py      |    98 +-
+ src/migration/chromadb_to_lancedb/exporter.py      |    39 +-
+ src/migration/chromadb_to_lancedb/importer.py      |     9 +-
+ src/migration/chromadb_to_lancedb/rollback.py      |    28 +-
+ src/migration/chromadb_to_lancedb/validator.py     |    37 +-
+ src/optimization/batch_writer.py                   |    14 +-
+ src/optimization/canvas_cache.py                   |    18 +-
+ src/optimization/resource_aware_scheduler.py       |    36 +-
+ src/rollback/graph_sync_service.py                 |    22 +-
+ src/rollback/models.py                             |    11 +-
+ src/rollback/operation_tracker.py                  |    17 +-
+ src/rollback/rollback_engine.py                    |    22 +-
+ src/rollback/snapshot_manager.py                   |     8 +-
+ src/services/progress_analyzer.py                  |    95 +-
+ src/services/source_node_validator.py              |    44 +-
+ src/temporal_memory.py                             |   193 +-
+ src/tests/agentic_rag/conftest.py                  |    45 +-
+ src/tests/agentic_rag/test_graphiti_client.py      |    67 +-
+ .../agentic_rag/test_graphiti_temporal_client.py   |   128 +-
+ src/tests/agentic_rag/test_lancedb_client.py       |    92 +-
+ src/tests/agentic_rag/test_multi_source_fusion.py  |   168 +-
+ src/tests/agentic_rag/test_temporal_client.py      |   100 +-
+ src/tests/api/conftest.py                          |    53 +-
+ src/tests/api/test_agents.py                       |    89 +-
+ src/tests/api/test_canvas.py                       |    61 +-
+ src/tests/api/test_review.py                       |    60 +-
+ src/tests/conftest.py                              |    14 +-
+ src/tests/conftest_semantic_mock.py                |    36 +-
+ src/tests/contract/conftest.py                     |    39 +-
+ src/tests/contract/mock_api_server.py              |   370 +-
+ src/tests/contract/test_agent_contracts.py         |   127 +-
+ src/tests/contract/test_canvas_contracts.py        |    75 +-
+ src/tests/e2e/conftest.py                          |     3 +-
+ src/tests/e2e/test_epic12_stategraph_e2e.py        |   248 +-
+ src/tests/epic10/conftest.py                       |   118 +-
+ src/tests/epic10/test_10_1_agent_selector.py       |   279 +-
+ .../epic10/test_epic10_interface_validation.py     |   173 +-
+ src/tests/integration/test_canvas_workflow.py      |   118 +-
+ src/tests/integration/test_epic12_agentic_rag.py   |   216 +-
+ src/tests/integration/test_epic9_integration.py    |   428 +-
+ src/tests/migration/test_chromadb_to_lancedb.py    |    21 +-
+ src/tests/performance/test_agent_optimizer.py      |    46 +-
+ src/tests/performance/test_agent_performance.py    |   220 +-
+ src/tests/performance/test_canvas_optimizer.py     |   145 +-
+ src/tests/performance/test_canvas_performance.py   |   145 +-
+ .../performance/test_end_to_end_performance.py     |   246 +-
+ src/tests/performance/test_load_performance.py     |   213 +-
+ src/tests/performance/test_memory_performance.py   |   163 +-
+ src/tests/performance/test_simple_performance.py   |    78 +-
+ src/tests/performance/test_system_stress.py        |   173 +-
+ src/tests/performance_test.py                      |    90 +-
+ src/tests/quick_test.py                            |    43 +-
+ src/tests/run_comprehensive_tests.py               |   134 +-
+ src/tests/run_graphiti_tests.py                    |    39 +-
+ src/tests/run_memory_recorder_tests.py             |    67 +-
+ src/tests/run_simple_tests.py                      |    17 +-
+ src/tests/temporal/test_temporal_memory.py         |    50 +-
+ src/tests/test_agent_instance_pool.py              |    48 +-
+ src/tests/test_agent_integration.py                |   100 +-
+ src/tests/test_agentic_rag_import.py               |    32 +-
+ src/tests/test_association_engine.py               |   234 +-
+ src/tests/test_async_execution_engine.py           |    49 +-
+ src/tests/test_audio_processor.py                  |    68 +-
+ src/tests/test_auto_node_generation.py             |   190 +-
+ src/tests/test_basic_decomposition_agent.py        |    53 +-
+ src/tests/test_canvas_3_layer_structure.py         |   207 +-
+ src/tests/test_canvas_attach_image.py              |   193 +-
+ src/tests/test_canvas_clustering.py                |   108 +-
+ src/tests/test_canvas_error_logger.py              |   196 +-
+ src/tests/test_canvas_error_system.py              |    17 +-
+ src/tests/test_canvas_events.py                    |    99 +-
+ src/tests/test_canvas_integration_coordinator.py   |    85 +-
+ src/tests/test_canvas_layout_optimization.py       |   315 +-
+ src/tests/test_canvas_memory_integration.py        |   302 +-
+ src/tests/test_canvas_monitor_engine.py            |   200 +-
+ src/tests/test_canvas_orchestrator.py              |   224 +-
+ .../test_canvas_orchestrator_collaboration.py      |   123 +-
+ src/tests/test_canvas_performance.py               |   226 +-
+ src/tests/test_canvas_utils.py                     |  2189 +-
+ src/tests/test_canvas_utils_clustering.py          |    92 +-
+ src/tests/test_canvas_validator.py                 |   320 +-
+ src/tests/test_clarification_path_agent.py         |   100 +-
+ src/tests/test_claude_canvas_integration.py        |    76 +-
+ src/tests/test_comparison_table_agent.py           |   140 +-
+ src/tests/test_concept_extractor.py                |    34 +-
+ src/tests/test_concurrent_agent_processor.py       |    28 +-
+ src/tests/test_concurrent_agents.py                |    91 +-
+ src/tests/test_conflict_resolution.py              |   182 +-
+ src/tests/test_creative_associations.py            |   136 +-
+ src/tests/test_diagnose_environment.py             |   248 +-
+ src/tests/test_diagnose_environment_simple.py      |   106 +-
+ src/tests/test_dynamic_review_system.py            |   133 +-
+ src/tests/test_ebbinghaus_integration.py           |    96 +-
+ src/tests/test_ebbinghaus_review.py                |    86 +-
+ src/tests/test_ebbinghaus_system.py                |   110 +-
+ src/tests/test_end_to_end_weak_point_clustering.py |   124 +-
+ src/tests/test_epic10_2_e2e.py                     |   116 +-
+ src/tests/test_epic10_2_performance.py             |    72 +-
+ src/tests/test_epic10_e2e.py                       |   142 +-
+ src/tests/test_error_formatters.py                 |   202 +-
+ src/tests/test_error_handling_system.py            |   214 +-
+ src/tests/test_example_teaching_agent.py           |   188 +-
+ src/tests/test_file_management.py                  |    94 +-
+ src/tests/test_four_level_explanation_agent.py     |   133 +-
+ src/tests/test_fusion_integration.py               |   102 +-
+ src/tests/test_fusion_performance.py               |   266 +-
+ src/tests/test_gemini_vision.py                    |   151 +-
+ src/tests/test_glm_rate_limiter.py                 |    26 +-
+ src/tests/test_glm_rate_limiter_basic.py           |    27 +-
+ src/tests/test_graph_sync_service.py               |    32 +-
+ src/tests/test_graphiti_integration.py             |    97 +-
+ .../test_graphiti_integration_comprehensive.py     |   106 +-
+ src/tests/test_health_monitor.py                   |    77 +-
+ src/tests/test_image_processor.py                  |    23 +-
+ src/tests/test_integration_end_to_end.py           |   203 +-
+ src/tests/test_intelligent_fusion.py               |   318 +-
+ src/tests/test_intelligent_parallel_command.py     |   360 +-
+ src/tests/test_intelligent_parallel_e2e.py         |    46 +-
+ .../test_intelligent_parallel_handler_async.py     |   181 +-
+ src/tests/test_intelligent_parallel_processing.py  |   254 +-
+ src/tests/test_intelligent_parallel_scheduler.py   |    95 +-
+ src/tests/test_intelligent_review_system.py        |   176 +-
+ src/tests/test_intelligent_scheduler.py            |   148 +-
+ src/tests/test_kg_basic.py                         |    33 +-
+ src/tests/test_knowledge_graph_layer.py            |    83 +-
+ src/tests/test_lancedb_embedding.py                |   179 +-
+ src/tests/test_layout_optimization_simple.py       |    45 +-
+ src/tests/test_learning_activity_capture.py        |   145 +-
+ .../test_learning_commands_mcp_integration.py      |   230 +-
+ src/tests/test_learning_session_english.py         |   109 +-
+ src/tests/test_learning_session_manager.py         |   248 +-
+ src/tests/test_learning_session_system.py          |   224 +-
+ src/tests/test_learning_start_fix.py               |   301 +-
+ src/tests/test_learning_start_integration.py       |   399 +-
+ src/tests/test_learning_status_report.py           |   285 +-
+ src/tests/test_mcp_health_check.py                 |   132 +-
+ .../test_mcp_health_check_integration_simple.py    |   121 +-
+ src/tests/test_mcp_integration_e2e.py              |   137 +-
+ src/tests/test_mcp_memory_client.py                |   180 +-
+ src/tests/test_mcp_performance.py                  |   176 +-
+ src/tests/test_memory_anchor_agent.py              |   120 +-
+ src/tests/test_memory_models.py                    |   103 +-
+ src/tests/test_memory_recorder.py                  |   361 +-
+ src/tests/test_mode_detection_integration.py       |   289 +-
+ src/tests/test_model_adapter.py                    |    98 +-
+ src/tests/test_model_adapter_integration.py        |    81 +-
+ .../test_monitoring_performance_benchmarks.py      |    83 +-
+ src/tests/test_multi_review_progress.py            |    44 +-
+ src/tests/test_multimodal_store.py                 |    16 +-
+ src/tests/test_multimodal_vectorizer.py            |   411 +-
+ src/tests/test_neo4j_gds_clustering.py             |    90 +-
+ src/tests/test_neo4j_validator.py                  |   304 +-
+ src/tests/test_optimization.py                     |    49 +-
+ src/tests/test_oral_explanation_agent.py           |    79 +-
+ src/tests/test_oral_explanation_integration.py     |   103 +-
+ src/tests/test_parallel_canvas_integration.py      |   218 +-
+ src/tests/test_parallel_canvas_processor.py        |   100 +-
+ src/tests/test_parallel_canvas_processor_fixed.py  |   118 +-
+ src/tests/test_parallel_commands.py                |    87 +-
+ src/tests/test_parallel_execution.py               |   142 +-
+ src/tests/test_path_manager.py                     |   101 +-
+ src/tests/test_pdf_extractor.py                    |    29 +-
+ src/tests/test_pdf_processor.py                    |    38 +-
+ src/tests/test_performance_baseline.py             |   182 +-
+ src/tests/test_performance_benchmarks.py           |   145 +-
+ src/tests/test_performance_framework.py            |    98 +-
+ src/tests/test_performance_optimization_system.py  |   129 +-
+ src/tests/test_rag_context_injection.py            |   143 +-
+ src/tests/test_real_service_launcher.py            |   484 +-
+ src/tests/test_realtime_memory_integration.py      |   242 +-
+ src/tests/test_review_integration.py               |   190 +-
+ src/tests/test_review_mode_support.py              |   141 +-
+ src/tests/test_rollback_engine.py                  |    53 +-
+ src/tests/test_rollback_operation_tracker.py       |    14 +-
+ src/tests/test_semantic_fallback_cache.py          |   156 +-
+ src/tests/test_semantic_memory_manager.py          |   475 +-
+ src/tests/test_semantic_processor.py               |    76 +-
+ src/tests/test_session_monitor.py                  |   302 +-
+ src/tests/test_slash_commands.py                   |   101 +-
+ src/tests/test_snapshot_manager.py                 |   118 +-
+ src/tests/test_state_graph.py                      |     8 +-
+ src/tests/test_stategraph_e2e.py                   |    13 +-
+ src/tests/test_status_persister.py                 |   118 +-
+ src/tests/test_story7_2_intelligent_fusion.py      |  1123 +-
+ src/tests/test_story7_2_simple.py                  |   376 +-
+ src/tests/test_story7_3_integration.py             |   268 +-
+ src/tests/test_story_10_11_integration.py          |    68 +-
+ src/tests/test_story_10_13_performance.py          |   115 +-
+ .../test_story_11_1_canvas_parsing_connection.py   |   116 +-
+ src/tests/test_story_11_2_hot_data_store.py        |    80 +-
+ src/tests/test_story_11_3_learning_analyzer.py     |   251 +-
+ src/tests/test_story_11_4_async_processor.py       |   118 +-
+ src/tests/test_story_11_5_cold_data_store.py       |    16 +-
+ src/tests/test_story_11_6_data_sync_scheduler.py   |   181 +-
+ src/tests/test_story_11_6_integration_manual.py    |   153 +-
+ src/tests/test_story_11_7_report_generator.py      |   220 +-
+ src/tests/test_story_11_9_monitoring_dashboard.py  |    71 +-
+ src/tests/test_story_2_9_suggestions.py            |   145 +-
+ src/tests/test_story_6_2_canvas_memory.py          |   220 +-
+ src/tests/test_story_6_4.py                        |   161 +-
+ src/tests/test_system_mode_detector.py             |   168 +-
+ src/tests/test_task4_batch_processing.py           |   157 +-
+ src/tests/test_task6_integration.py                |    98 +-
+ src/tests/test_technical_monitoring.py             |    94 +-
+ src/tests/test_temporal_manager_mode_attribute.py  |    58 +-
+ src/tests/test_temporal_memory.py                  |   212 +-
+ src/tests/test_temporal_memory_integration.py      |   310 +-
+ src/tests/test_trigger_point_4.py                  |   146 +-
+ src/tests/test_unified_memory_interface.py         |   307 +-
+ src/tests/test_usage_integration.py                |    52 +-
+ src/tests/test_user_scenarios.py                   |   149 +-
+ src/tests/test_video_processor.py                  |   225 +-
+ src/tests/unit/conftest.py                         |    36 +-
+ src/tests/unit/test_canvas_validator.py            |   333 +-
+ src/tests/unit/test_memory_recorder.py             |   257 +-
+ src/tests/unit/test_model_adapter.py               |   171 +-
+ src/tests/unit/test_path_manager.py                |   115 +-
+ src/tests/unit/test_progress_analyzer.py           |   204 +-
+ src/tests/unit/test_session_monitor.py             |   190 +-
+ src/tests/unit/test_source_node_validator.py       |    57 +-
+ src/tests/unit/test_system_health_monitor.py       |   147 +-
+ src/tests/unit/test_websocket_progress.py          |   104 +-
+ src/verification_graph/graph.py                    |    24 +-
+ src/verification_graph/nodes.py                    |    97 +-
+ src/verification_graph/state.py                    |    40 +-
+ 726 files changed, 63133 insertions(+), 52267 deletions(-)
+ delete mode 100644 backend/.canvas-learning/snapshots/test/snapshots/80192ea5-f6d8-42fb-b436-a9daf1743f05.json.gz
+ delete mode 100644 backend/.canvas-learning/snapshots/test/snapshots/a66e5921-4a86-4c01-a8b1-c4c64e17f421.json.gz
+ delete mode 100644 backend/app/api/v1/endpoints/cross_canvas.py
+ delete mode 100644 backend/app/api/v1/endpoints/textbook.py
+ delete mode 100644 backend/app/services/cross_canvas_service.py
+ delete mode 100644 backend/app/services/textbook_context_service.py
+ delete mode 100644 backend/tests/e2e/test_agent_generates_links.py
+ delete mode 100644 backend/tests/e2e/test_textbook_mount_e2e.py
+ delete mode 100644 backend/tests/e2e/test_textbook_mount_flow.py
+ delete mode 100644 backend/tests/integration/test_bidirectional_links.py
+ delete mode 100644 backend/tests/integration/test_cross_canvas_injection.py
+ delete mode 100644 backend/tests/test_cross_canvas_service.py
+ delete mode 100644 backend/tests/unit/test_cross_canvas_auto_discover.py
+ delete mode 100644 backend/tests/unit/test_cross_canvas_persistence.py
+ create mode 100644 backend/tests/unit/test_cross_canvas_removal.py
+ delete mode 100644 backend/tests/unit/test_textbook_link_format.py
+ create mode 100644 backend/tests/unit/test_textbook_removal.py
+ create mode 100644 ruff.toml
+ delete mode 100644 src/agentic_rag/retrievers/textbook_retriever.py
+bisect found first bad commit
+-- bisect log --
+# bad: [8f5f9efc1575f863aae0bdb2c03fc167e819675f] docs(g33r2): round-5 收口 + 三条 MEDIUM 实证登记 [BATCH-2026-09-07-第十三批 / CARD-G3-3-R2-writer-boundary]
+# good: [a2d6c9349704893fba5c70d99c1d741fad97413c] docs(epic-31,32): add story definitions and test files
+git bisect start '8f5f9efc' 'a2d6c934'
+# bad: [39a7dd76aa436d6f9d8e347d0d672e679b675271] refactor(story-2.4): plan-b → plan-a 回退 — 4 方对抗审查共识决策
+git bisect bad 39a7dd76aa436d6f9d8e347d0d672e679b675271
+# bad: [51f2057b51836d407e1f32c49100fdb4bcbdc87a] feat(logging): configure unified structlog↔stdlib bridge
+git bisect bad 51f2057b51836d407e1f32c49100fdb4bcbdc87a
+# good: [f4838b3067f4e646a1ea0ff7cbdd5d9a8867eafe] feat(phase2): add _enqueue_episode adapter + swap fire-and-forget with worker enqueue
+git bisect good f4838b3067f4e646a1ea0ff7cbdd5d9a8867eafe
+# bad: [48f4b82b239ec5ad5b83382fec647f5c5e6340bf] feat(Epic6): add canvas_path to memory API endpoints
+git bisect bad 48f4b82b239ec5ad5b83382fec647f5c5e6340bf
+# good: [2f338dd05e955ec8741c9f837bf56c18445b98f5] docs: S33 更新known-gotchas — G-FAKE-003纠正 + 新增G-SILENT/G-PARAM分类
+git bisect good 2f338dd05e955ec8741c9f837bf56c18445b98f5
+# good: [11e67740fc33a63c7351f16cae3a32cf1e315b7f] fix(S34): 修复112个预存test failures — 3个root cause批量修复
+git bisect good 11e67740fc33a63c7351f16cae3a32cf1e315b7f
+# good: [4e095732b22fe15699c0bb214737d6302515102b] feat: Phase 3 PRD + Graphiti decision export + Gemini deep research
+git bisect good 4e095732b22fe15699c0bb214737d6302515102b
+# bad: [c5c8cf769dafe4bade457731dc8be27b9f619a71] chore(Epic2): complete textbook reference cleanup across tests
+git bisect bad c5c8cf769dafe4bade457731dc8be27b9f619a71
+# bad: [836d098696bfa587e4c56af89aac11260ee926b7] feat(Epic2): architectural pruning — remove cross_canvas + textbook + fix vault_notes
+git bisect bad 836d098696bfa587e4c56af89aac11260ee926b7
+# good: [c2a02a7cfcc2e9b93a452ddbbb4e0be59c855144] feat(Epic1): Profile Click-to-Jump — source traceability for tips & weaknesses
+git bisect good c2a02a7cfcc2e9b93a452ddbbb4e0be59c855144
+# first bad commit: [836d098696bfa587e4c56af89aac11260ee926b7] feat(Epic2): architectural pruning — remove cross_canvas + textbook + fix vault_notes
+
+# first bad commit: [836d098696bfa587e4c56af89aac11260ee926b7] feat(Epic2): architectural pruning — remove cross_canvas + textbook + fix vault_notes
+worktree_removed_rc=0
+finished: 2026-09-09T12:22:32+0800
+rc=0

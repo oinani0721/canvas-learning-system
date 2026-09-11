@@ -1,0 +1,36 @@
+=== 存量对照：HEAD 版本（未含本卡改动）的 ruff format --check ===
+Would reformat: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u11-red-c/01646c57-c456-4a42-b7cc-8c6aadfd5daa/scratchpad/fmt-baseline/multimodal_service.py
+Would reformat: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u11-red-c/01646c57-c456-4a42-b7cc-8c6aadfd5daa/scratchpad/fmt-baseline/test_calibration_tracker.py
+Would reformat: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u11-red-c/01646c57-c456-4a42-b7cc-8c6aadfd5daa/scratchpad/fmt-baseline/test_canvas_memory_trigger.py
+Would reformat: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u11-red-c/01646c57-c456-4a42-b7cc-8c6aadfd5daa/scratchpad/fmt-baseline/test_event_bus.py
+Would reformat: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u11-red-c/01646c57-c456-4a42-b7cc-8c6aadfd5daa/scratchpad/fmt-baseline/test_mastery_fusion.py
+5 files would be reformatted, 1 file already formatted
+
+=== lefthook 是否有 ruff format 门 ===
+113:    # 现行配置**不报**。(不写死行号: 它已被本卡 commit-2 的 ruff format
+115:    # 真正拦住 scripts/ 的是下面的 `ruff format --check`。开 scripts/ 必错级
+126:        ruff format --check {staged_files} 2>&1 || {
+127:          echo "[Python] Format check FAILED! Fix: ruff format {staged_files}"
+
+=== python-typecheck 完整定义 ===
+    python-typecheck:
+      glob: "backend/app/*.py"
+      run: |
+        # Activate backend venv for pyright
+        if [ -f "backend/.venv/bin/activate" ]; then source backend/.venv/bin/activate; fi
+        # Resolve the binary explicitly: venv first, then PATH. Empty == not installed.
+        if [ -x "backend/.venv/bin/pyright" ]; then
+          PYRIGHT_BIN="backend/.venv/bin/pyright"
+        elif command -v pyright >/dev/null 2>&1; then
+          PYRIGHT_BIN="$(command -v pyright)"
+        else
+          PYRIGHT_BIN=""
+        fi
+        if [ -z "$PYRIGHT_BIN" ]; then
+          echo "[Python] SKIP: pyright not installed (looked for backend/.venv/bin/pyright, then PATH)."
+          echo "[Python] SKIP: typecheck did NOT run -- this is NOT a pass. See pyrightconfig.json."
+          exit 0
+        fi
+        echo "[Python] Running pyright type check ($PYRIGHT_BIN)..."
+        "$PYRIGHT_BIN" {staged_files} 2>&1
+        PYRIGHT_EXIT=$?

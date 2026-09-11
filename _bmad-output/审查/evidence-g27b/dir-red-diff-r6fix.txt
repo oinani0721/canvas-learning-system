@@ -1,0 +1,49 @@
+# CARD-G2-7b r6 整改后目录级对账（tests/unit）
+#
+# 前置判据（§四.10 教训）：raw 必须含 pytest 汇总行才允许对账。
+汇总行（干净那次）: 173 failed, 4968 passed, 48 skipped, 121 warnings, 29 errors in 233.57s
+原始输出: dir-tests-unit-r6fix-clean-*.raw
+
+# nodeid 口径（与 da690bf8 批级基线**逐字同**）：
+#   grep -E '^(FAILED|ERROR) tests/' | sed -E 's/ - .*$//' | sort -u
+#   ⚠️ 保留 FAILED/ERROR 前缀 —— 批级基线就是这个格式（r5 那次我先拿剥了前缀的
+#   车道文件去 diff，得到「202 行全不同」的**假信号**，已登记）。
+
+## ⚠️ 为什么跑了两次：我自己造的一次并发风险
+
+第一次目录级（20:27:06 起）与变异脚本（20:28:42 起）**并发**。变异脚本会改写
+`cls_forbidden_paths.py` / `deploy-vault.sh`，而目录级里的 `test_deploy_vault_sh.py`
+恰好读这两个文件 —— **两个任务的读写面相交**，那一次结果原则上不可信。
+
+时间线上 `test_deploy_vault_sh.py` 在 21% 处全绿、早于首次变异写入约 35 秒，
+但 **35 秒余量不足以当证据**。⇒ 无并发重跑一次，以干净那次为准。
+
+## 三个数据点
+
+A 干净重跑（无并发，权威）  dir-tests-unit-r6fix-clean-*.raw   → **202** nodeid
+B 并发那次（可疑）          dir-tests-unit-r6fix-2026*.raw     → **202** nodeid
+C 第十三批批级基线          evidence-b13/unit-red-baseline-da690bf8.txt → **202** nodeid
+
+diff(C, A) = **空** ⇒ ✅ 本卡引入 0 / 修复 0
+diff(B, A) = **空** ⇒ ✅ 并发窗口**实际未造成污染**（现在是证据，不是余量推测）
+
+## passed 增量核对（三处必须吻合，否则说明有别处变绿）
+
+  r5 整改后 4963 → r6 整改后 **4968**，差 **+5**
+  $ git diff -U0 e5ab1af0 -- backend/tests/unit/test_deploy_vault_sh.py | grep -cE '^\+def test_'  → 6
+  $ git diff -U0 e5ab1af0 -- backend/tests/unit/test_deploy_vault_sh.py | grep -cE '^-def test_'   → 1
+  净增 = 6 - 1 = **5**（被删的那 1 条是 chmod 门**改名**：
+        test_env_file_is_chmod_600_before_key_is_written
+      → test_env_key_write_chmods_only_after_nofollow_and_nlink）
+  文件级 311 → **316**，同为 +5。
+⇒ 三处逐数吻合：没有用例被 skip、也没有别处的红悄悄变绿。
+
+## 本轮新增的 5 条门（对应 r6 的 5 条整改）
+
+  test_multi_segment_relative_vault_is_rejected_at_entry          （r6 MEDIUM-2）
+  test_forbidden_judge_handles_protected_target_at_root           （r6 BLOCKER-2）
+  test_forbidden_judge_fail_closed_when_second_hop_unsearchable   （r6 BLOCKER-1）
+  test_forbidden_judge_does_not_block_deep_but_linkless_path      （r6 MEDIUM-1）
+  test_forbidden_judge_fail_closed_on_symlink_loop                （r6 MEDIUM-1 控制组）
+
+rc=0

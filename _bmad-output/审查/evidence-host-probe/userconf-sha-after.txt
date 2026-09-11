@@ -1,0 +1,5 @@
+c300dcf2ebc5f02062d6591268d29d3db6fe45e0cb138f5467276fe2ba06076e  /Users/Heishing/.dsh/profiles/web/cordis.yml
+ef189a8c27db6d63930aa3046a3040482e952eafcb7487c644d508e8d461f027  /Users/Heishing/.dsh/profiles/web/cordis.patch.yml
+b221897cb36702c315f428b081bab7fec40700d9fb86e4991bf133c864421b30  /Users/Heishing/.codex/config.toml
+46179f2659f65867f990a5156247947b0d6b34584a9a369645947468859258a7  /Users/Heishing/.claude/settings.json
+ABSENT ~/.config/opencode/opencode.json

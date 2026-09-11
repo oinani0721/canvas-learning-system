@@ -1,0 +1,5 @@
+# active_vault_id property 求值开销（决定 _cache_tables 里该不该提到循环外）
+# 2026-09-07T23:14:17Z
+active_vault_id (有 _vault_id_override 短路): 0.031 µs/次
+active_vault_id (无 override，走完整解析链): 401.774 µs/次
+→ 1000 张表的库上，列表推导内重复求值代价 ≈ 401.77 ms

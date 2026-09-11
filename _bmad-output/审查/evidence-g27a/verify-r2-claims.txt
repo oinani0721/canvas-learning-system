@@ -1,0 +1,17 @@
+### 复验 r2-HIGH-1: cp -R 对目录软链的真实行为 (macOS 25.5.0)
+--- target/plugin 是什么 ---
+lrwxr-xr-x@ 1 Heishing  wheel  177 Sep  8 17:33 target/plugin -> /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/53da01cb-6365-4026-b799-f74947279f9a/scratchpad/cplink-3606/shared
+--- 沿它删/写会不会打到 shared? ---
+  TARGET 里是软链 ⇒ rm/写会沿链打到 shared:
+  shared/data.json 现在内容: x
+
+### 复验 r2-MEDIUM-2: 源 key 是可读目录时现自检的行为
+   ✅ 后端鉴权 key 未从源复制
+cmp: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u3-deploy/53da01cb-6365-4026-b799-f74947279f9a/scratchpad/keycheck-23255/src/.obsidian/cls-internal-key.txt: Is a directory
+   ✅ 后端鉴权 key 未从源复制
+  (上面若 ✅ 即 MEDIUM-2 坐实: 源是目录, cmp 失败被当通过)
+### 修法实测: cp -R -H 对目录软链
+  target/plugin: drwxr-xr-x@  (应为 drwx…= 真目录)
+  内容到位: data.json=有 sub/f.txt=有
+  写 target 不再穿源:
+    shared/data.json 未动: {"internalApiKey": "  |  target 副本: Y

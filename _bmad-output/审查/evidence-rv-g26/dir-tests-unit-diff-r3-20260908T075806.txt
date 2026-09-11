@@ -1,0 +1,16 @@
+### tests/unit 目录级 收工(round-3) diff  ts=20260908T075806
+raw: dir-tests-unit-close-r3-20260908T075208.raw
+汇总: = 173 failed, 4790 passed, 48 skipped, 121 warnings, 29 errors in 238.28s (0:03:58) =
+⚠️ 本次等待用的 pgrep -f 'pytest … tests/unit$' 匹配到了**别的车道**的同名进程（已知坑），
+   故完成判据改用文件里的 pytest 汇总行，不用进程是否存在。
+开工红集=     202  收工红集=     202
+65a66
+> FAILED tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422
+119d119
+< FAILED tests/unit/test_mock_degradation_transparency.py::TestMockScoringWarningLogs::test_mock_mode_logs_warning
+diff-rc=1
+  只在开工(<)=1
+  只在收工(>)=1
+skipped: 开工 48 / 收工 48 skipped
+passed:  开工 4749 / 收工 4790 （+41 = 本文件 85→126）
+U10-A /tmp 噪音: 'test-vault' 命中=4（开工同为 4 ⇒ 全是 pytest tmpdir，非负控目录）

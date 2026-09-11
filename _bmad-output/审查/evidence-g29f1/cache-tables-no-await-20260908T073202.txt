@@ -1,0 +1,10 @@
+# r2 问题 0 自答：_cache_tables 执行期内有无 await 让出点
+# 2026-09-07T23:32:02Z
+
+_cache_tables 函数体内 Await/AsyncFor/AsyncWith 节点数 = 0
+调用的 self 方法/属性: ['_all_table_names', '_check_and_fix_dimension_mismatch', '_owns_table']
+   self._all_table_names         → sync
+   self._check_and_fix_dimension_mismatch → sync
+   self._owns_table              → sync
+结论: 0 个让出点 ⇒ owner_vault 求值一次与每次求值在语义上等价（asyncio 单线程，
+      期间无 await ⇒ ContextVar 不可能被同任务外的代码改写）。差异纯粹是性能。

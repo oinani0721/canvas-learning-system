@@ -1,0 +1,14 @@
+=== git ls-files .claude/agents | wc -l （判据，期望 18）===
+      18
+=== git status --porcelain .claude/agents （7 份必须都是 A）===
+A  .claude/agents/canvas-orchestrator.md
+A  .claude/agents/graphiti-memory-agent.md
+A  .claude/agents/hint-generation.md
+A  .claude/agents/iteration-validator.md
+A  .claude/agents/parallel-dev-orchestrator.md
+A  .claude/agents/planning-orchestrator.md
+A  .claude/agents/review-board-agent-selector.md
+=== A 计数（期望 7）===
+7
+=== check-ignore 仍命中（非判据，只记录规则未变）===
+check_ignore_rc=1

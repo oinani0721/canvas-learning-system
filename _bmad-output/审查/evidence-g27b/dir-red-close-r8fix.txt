@@ -1,0 +1,46 @@
+# CARD-G2-7b r8 整改后目录级对账 + 收工对账
+汇总行: 173 failed, 4975 passed, 48 skipped, 121 warnings, 29 errors in 260.04s
+原始: dir-tests-unit-r8fix-20260909T224548.raw
+
+## 红集：基线 202 == 本次 202，diff 空 ⇒ 本卡引入 0 / 修复 0 ✅
+## passed 增量：4973 → 4975 = +2；新增 def test_ = 2，删除 = 0 ⇒ 逐数吻合
+   r8 新增 2 条门：chmod_pinned 硬链接/非普通文件、字节码缓存必须在 import 之前
+
+## 禁写面（哨兵 = round8-oom，mtime 22:07:19）
+  ~/Desktop/canvas/canvas-learning-system/canvas-vault 0
+  ~/.dsh                                       0
+  ~/.config/opencode                           0
+  ~/Library/LaunchAgents                       2
+  ~/.codex 63（codex CLI 自身产物）
+  $WT/.env sha == 基线: ✅
+  git status -- canvas-vault/: 0 行
+  裸 chmod / 裸 os.write 残留: 0 / 0
+  __pycache__ 是否产生: 1（期望 0，PYTHONDONTWRITEBYTECODE 生效）
+
+## 地盘门: 7 文件（应 7）；本轮改动 3 个
+rc=0
+
+## ⚠️ 两处非零计数逐条归属（如实记，不写 0）
+
+### ~/Library/LaunchAgents = 2
+  ~/Library/LaunchAgents/local.mlx-serve.prefill-2048.plist  mtime 22:49:53
+  ⇒ **MLX 本地模型服务**（那个常驻 4GB 的进程，见 round8-oom 存档）自己写的 plist。
+     本卡代码面对 launchd/plist **零引用**，`scripts/launchd/*` 亦零触碰（硬边界）。
+     与 r5/r6/r7 三轮的 `~/.dsh`、`~/.codex` 同类：机器上其它常驻件的自身状态。
+
+### scripts/__pycache__ = 1（且**正是 H-2 要防的那个文件**）
+  scripts/__pycache__/cls_forbidden_paths.cpython-314.pyc  mtime 22:19
+  ⇒ 写者是**我自己的临时冒烟**（`python - <<PY` 里 import 判据模块，**没带**
+     PYTHONDONTWRITEBYTECODE），不是 deploy-vault.sh。
+
+  ⛔ 但这话不能只靠推理 —— **实测双向验证 H-2**：
+    1) 删掉该 .pyc → 跑完整 `--apply`（rc 0，步 3 OK ⇒ 确实经过 import 路径）
+       → `ls scripts/__pycache__/cls_forbidden_paths*.pyc` = **0**  ✅ export 生效
+    2) 反向锚：`unset PYTHONDONTWRITEBYTECODE` 后单独 import 一次
+       → 立刻出现 = **1**  ✅ 证明这条 export **承重**，不是装饰
+  这比源码顺序门强：是行为 + 反向锚，而不是文本推断。
+
+  ⚠️ 顺带暴露一条我自己的操作纪律问题：**临时冒烟脚本也会在受审树里制造写入**。
+     本卡的写入面判据管的是 deploy-vault.sh，管不了我手敲的 `python -` ——
+     以后在受审树里跑一次性 python，也应带上 PYTHONDONTWRITEBYTECODE。
+     （`__pycache__/` 被 .gitignore:2 覆盖，未入库；但「未入库」不等于「没写」。）

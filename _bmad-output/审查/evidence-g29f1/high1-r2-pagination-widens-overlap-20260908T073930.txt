@@ -1,0 +1,14 @@
+# Codex r2 HIGH-1 复核：分页收口是否扩大了前缀重叠的可达面
+# 反例夹具：vault 'a'，a_00..a_09 健康占满默认分页 + 第 11 张 a_b_canvas_nodes（vault 'a_b' 的漂移表）
+# 2026-09-07T23:39:30Z
+
+--- 改前（da690bf8 原版，临时换入）---
+默认分页可见 = 10 张，含 a_b_canvas_nodes? False
+a_b_canvas_nodes 仍在? True
+消失的表 = []
+--- 改后（本卡版）---
+默认分页可见 = 10 张，含 a_b_canvas_nodes? False
+a_b_canvas_nodes 仍在? False
+消失的表 = ['a_b_canvas_nodes']
+--- 还原核对 ---
+5a05c31d14cfc665fa79d0194cd33817cf6e931bd9ace1f907b737b067b3851f  backend/lib/agentic_rag/clients/lancedb_client.py

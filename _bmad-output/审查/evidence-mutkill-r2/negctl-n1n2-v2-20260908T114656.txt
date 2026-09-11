@@ -1,0 +1,34 @@
+旧版判据取自 3f073a1a:backend/scripts/mutation_kill_identity.py (245 行) → /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/mutkill-negctl-l7qfbrph/old/mutation_kill_identity_old.py
+新版判据 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u8-mutgates/backend/scripts/mutation_kill_identity.py (860 行)
+验伪锚0 新旧两份判据逐字节不同: PASS
+
+── N1 前提断言喂饱 (Y1-B HIGH-1)
+   rc=1 nodeid=negctl_gate.py::test_n1_premise_feeds_stderr
+   expect_msg='不得再推进水位线' expect_loc='stmt:cb77fc9fd04c'
+   旧版 kill_identity_ok = True   (期望 True = 放行)
+   新版 verdict          = SURVIVED ⇒ False   (期望 False)
+   新版理由: 位置不符: 期望 stmt:cb77fc9fd04c, 实见 ['stmt:4b515a7b73b0']
+   ⇒ PASS
+
+── N2 captured 区伪摘要行 (Y1-B HIGH-2)
+   rc=1 nodeid=negctl_gate.py::test_n2_forged_summary_line
+   expect_msg='不得再推进水位线' expect_loc='stmt:dbe791913418'
+   旧版 kill_identity_ok = True   (期望 True = 放行)
+   新版 verdict          = SURVIVED ⇒ False   (期望 False)
+   新版理由: 红在别的断言上: expect_msg='不得再推进水位线' 实见 ['AssertionError: 真实拒因与期望消息无关']
+   ⇒ PASS
+
+── P1 目标断言真的红了 (正控)
+   rc=1 nodeid=negctl_gate.py::test_p1_target_really_red
+   expect_msg='不得再推进水位线' expect_loc='stmt:144974b384aa'
+   旧版 kill_identity_ok = True   (期望 True = 放行)
+   新版 verdict          = KILLED ⇒ True   (期望 True)
+   新版理由: 红在声称的那一条断言上（绑定维度: 位置+消息）
+   ⇒ PASS
+
+── D `--show-capture=no` 独立防线对照（与解析收紧分开算）
+   不带该开关：伪造行出现在输出里 = True（= 旧版的实际工作条件，也是负控输入）
+   带该开关  ：伪造行出现在输出里 = False（= judge_flags() 的默认）
+   ⇒ PASS
+
+VERDICT: PASS

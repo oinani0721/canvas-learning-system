@@ -1,0 +1,162 @@
+#!/usr/bin/env python3
+"""生成验收单要的两张表：39 条 KILLED-UNBOUND 处置表 + 四套分档对照表。
+
+⛔ 两张表都**从代码实际的表里 AST 取**，不手抄 —— 手抄的表会与代码漂移，而验收单
+是下一个人照着核的东西（MEMORY: reference_recurring_doc_drift_needs_a_gate）。
+"""
+
+from __future__ import annotations
+
+import ast
+import sys
+from pathlib import Path
+
+TREE = Path(__file__).resolve().parents[3]
+SCRIPTS = TREE / "backend" / "scripts"
+G32B = SCRIPTS / "g32b_mutation_gates.py"
+
+FOUR = {
+    "g32b": SCRIPTS / "g32b_mutation_gates.py",
+    "g32cb": SCRIPTS / "g32cb_mutation_gates.py",
+    "g32ccr1": SCRIPTS / "g32ccr1_negative_controls.py",
+    "g33": SCRIPTS / "g33_mutation_gates.py",
+}
+
+
+def dict_literal(path: Path, name: str) -> dict[str, str]:
+    """按 AST 取一个模块级 `name = {...}` 的字面量（⛔ 不 import，避免顶层副作用）。"""
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    for stmt in tree.body:
+        tgt = None
+        if isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
+            tgt, val = stmt.target.id, stmt.value
+        elif isinstance(stmt, ast.Assign) and len(stmt.targets) == 1 and isinstance(stmt.targets[0], ast.Name):
+            tgt, val = stmt.targets[0].id, stmt.value
+        if tgt == name and isinstance(val, ast.Dict):
+            return {ast.literal_eval(k): ast.literal_eval(v) for k, v in zip(val.keys, val.values)}
+    return {}
+
+
+def main() -> int:
+    import re as _re
+
+    ev = TREE / "_bmad-output" / "审查" / "evidence-mutkill-r2"
+    runs = sorted(ev.glob("run-g32b-*.txt"), key=lambda x: x.stat().st_mtime)
+    final: dict[str, str] = {}
+    if runs:
+        txt = runs[-1].read_text(encoding="utf-8", errors="replace")
+        for m in _re.finditer(r"^\[(M[^\]]+)\] \S+ \u2192 (KILLED-UNBOUND|KILLED|SURVIVED|HARNESS-ERROR)", txt, _re.M):
+            final[m.group(1)] = m.group(2)
+        # 空变异对照的降档发生在逐条裁决**之后**，要覆盖掉上面的 KILLED
+        # ⛔ 降档有**四条**路径（round-2 MEDIUM：首版只认「假杀」一条）：
+        #   ① ✗ 假杀（空对照同位置）；② complete 对照 rc 非 0/1；
+        #   ③ 空变异对照 rc 非 0/1；④ 空对照位置判据面不成立。
+        for pat, lab in (
+            (r"^\[(M[^\]]+)\] \u2717 \u5047\u6740", "HARNESS-ERROR(假杀)"),
+            (r"^\[(M[^\]]+)\] \u26d4 complete \u5bf9\u7167 rc=", "HARNESS-ERROR(complete对照未跑成)"),
+            (r"^\[(M[^\]]+)\] \u26d4 \u7a7a\u53d8\u5f02\u5bf9\u7167 rc=", "HARNESS-ERROR(空对照未跑成)"),
+            (r"^\[(M[^\]]+)\] \u26d4 \u7a7a\u53d8\u5f02\u5bf9\u7167\u7684\u4f4d\u7f6e\u5224\u636e\u9762", "HARNESS-ERROR(位置判据面缺失)"),
+            # round-4 MEDIUM 补齐：对照**锚异常**（对照根本没施加）也会撤销 KILLED
+            (r"^\[(M[^\]]+)\] \u2717 \u5bf9\u7167\u951a\u70b9\u5f02\u5e38", "HARNESS-ERROR(对照锚异常)"),
+            (r"^\[(M[^\]]+)\] \u2717 complete \u5bf9\u7167\u951a\u70b9\u5f02\u5e38", "HARNESS-ERROR(complete对照锚异常)"),
+        ):
+            for m in _re.finditer(pat, txt, _re.M):
+                final[m.group(1)] = lab
+        # ⛔ 抽取为空不是「没问题」：先断言抽取本身命中，再谈交叉结果。
+        if not final:
+            raise SystemExit(f"⛔ 从 {runs[-1].name} 一条裁决都没抽到 —— 抽取器坏了，不许出空表")
+        print(f"> 最终裁决取自 `{runs[-1].name}`（抽到 {len(final)} 条）。\n")
+    else:
+        raise SystemExit("⛔ 找不到 run-g32b-*.txt 存档 —— 无法交叉终裁")
+    msg = dict_literal(G32B, "EXPECT_MSG")
+    msg_ex = dict_literal(G32B, "EXPECT_MSG_EXEMPT")
+    loc = dict_literal(G32B, "EXPECT_LOC")
+    loc_ex = dict_literal(G32B, "EXPECT_LOC_EXEMPT")
+
+    print("## 39 条 KILLED-UNBOUND 逐条处置表\n")
+    print(f"> 来源：`g32b_mutation_gates.py` 的四张表按 AST 实读（EXPECT_MSG {len(msg)} / "
+          f"EXPECT_MSG_EXEMPT {len(msg_ex)} / EXPECT_LOC {len(loc)} / EXPECT_LOC_EXEMPT {len(loc_ex)}）。\n")
+    print("> 「收口前」= 消息绑不出来 ⇒ 判据退化成旧口径「指定门红了」= `KILLED-UNBOUND`。")
+    print("> 「收口后」= 位置绑上了就是 `KILLED`（绑定维度只有位置，没有消息）。\n")
+    print("| # | 变异 tag | 消息为什么绑不出来（原豁免理由，节选） | 处置 | 位置身份 |")
+    print("|---|---|---|---|---|")
+    n_bound = n_still = 0
+    for i, tag in enumerate(sorted(msg_ex), 1):
+        why = msg_ex[tag]
+        short = why.split("——")[0].split("; ")[0][:56]
+        if tag in loc:
+            n_bound += 1
+            fin = final.get(tag, "(未在最新存档里)")
+            mark = "**绑（位置）**" if fin == "KILLED" else f"**绑（位置）→ 最终 {fin}**"
+            print(f"| {i} | `{tag}` | {short} | {mark} | `{loc[tag]}` |")
+        else:
+            n_still += 1
+            r = loc_ex.get(tag, "⛔ 既不在 EXPECT_LOC 也不在 EXPECT_LOC_EXEMPT（表脱节）")
+            print(f"| {i} | `{tag}` | {short} | **保留 UNBOUND** | {r[:70]} |")
+    # ⛔ 「新增位置绑定」≠「最终裁决 KILLED」（Codex round-1 LOW）：空变异对照可能把
+    # 某条降档成 HARNESS-ERROR（假杀）。表里必须与**最新一份全跑存档**的裁决交叉。
+    retired = dict_literal(G32B, "RETIRED_MUTATIONS")
+    # 与全跑存档的六档计数交叉核对（round-2 MEDIUM 要求）
+    import collections as _c
+    _dist = _c.Counter(final.values())
+    print(f"> 存档终裁分布: {dict(_dist)}\n")
+    # ⛔ round-4 MEDIUM：真的与运行汇总**硬核对**（此前只统计自己解析的结果就宣称
+    # 「交叉核对」—— 那是自证）。从存档的汇总段取六档计数，逐档比对。
+    _sum = {}
+    for _lab, _pat in (
+        ("KILLED", r"^KILLED \(.*?\): (\d+)/"),
+        ("KILLED-UNBOUND", r"^KILLED-UNBOUND .*?: (\d+)"),
+        ("SURVIVED", r"^SURVIVED: (\d+)"),
+        ("HARNESS-ERROR", r"^HARNESS-ERROR: (\d+)"),
+        ("ANCHOR-ERROR", r"^ANCHOR-ERROR: (\d+)"),
+        ("SYNTAX-INVALID", r"^SYNTAX-INVALID: (\d+)"),
+    ):
+        _m = _re.search(_pat, txt, _re.M)
+        if _m:
+            _sum[_lab] = int(_m.group(1))
+    _mine = {
+        "KILLED": sum(1 for v in final.values() if v == "KILLED"),
+        "KILLED-UNBOUND": sum(1 for v in final.values() if v == "KILLED-UNBOUND"),
+        "SURVIVED": sum(1 for v in final.values() if v == "SURVIVED"),
+        "HARNESS-ERROR": sum(1 for v in final.values() if v.startswith("HARNESS-ERROR")),
+    }
+    _bad = [k for k in _mine if k in _sum and _sum[k] != _mine[k]]
+    print(f"> 与运行汇总交叉核对: 汇总={_sum} / 本表解析={_mine} "
+          f"⇒ {'一致 ✓' if not _bad else '⛔ 不一致 ' + str(_bad)}\n")
+    if _bad:
+        raise SystemExit(f"⛔ 处置表解析与运行汇总不一致: {_bad} —— 解析漏了某类降档")
+    n_final_killed = sum(1 for t in loc if t in msg_ex and final.get(t) == "KILLED")
+    n_final_other = n_bound - n_final_killed
+    print(f"\n**按最终裁决**：{n_bound} 条新增位置绑定中，{n_final_killed} 条最终 KILLED，"
+          f"{n_final_other} 条被空变异对照降档（假杀 ⇒ HARNESS-ERROR）。")
+    print(f"\n**小计**：{len(msg_ex)} 条中 **{n_bound} 条改绑位置身份**（新增位置绑定；最终裁决见上行），"
+          f"**{n_still} 条仍保留 UNBOUND**（逐条理由见上表右列），**退役 {len(retired)} 条**。")
+    if not retired:
+        print("退役 0 条的理由：位置身份把「门文件里没有可绑的**字面片段**」这个障碍整体绕开了 —— "
+              "消息绑不出来的那些条目，位置照样绑得出来，所以没有一条需要靠删掉来收口"
+              "（删掉就是减覆盖，且要说明谁接管它守的规则）。")
+    else:
+        for t, w in sorted(retired.items()):
+            print(f"- 退役 `{t}`：{w}")
+    print()
+
+    print("## 四套分档对照表（收口后）\n")
+    print("| 套 | 变异条数 | 六档是否齐全 | expect_msg | expect_loc | 信号 | pytest 开关 |")
+    print("|---|---|---|---|---|---|---|")
+    counts = {"g32b": 138, "g32cb": 9, "g32ccr1": 11, "g33": 18}
+    for name, path in FOUR.items():
+        src = path.read_text(encoding="utf-8")
+        six = "✅ 从 `VERDICTS` 取" if "for v in VERDICTS" in src else "⛔ 未统一"
+        nloc = len(dict_literal(path, "EXPECT_LOC"))
+        nloc_ex = len(dict_literal(path, "EXPECT_LOC_EXEMPT"))
+        # ⛔ 数字从表里实读，不写死 —— 写死的话表一空这一格照样显示「✅ 138 条」
+        has_loc = f"✅ {nloc} 条 (+{nloc_ex} 豁免)" if nloc or nloc_ex else "— (D-28 移交十四批)"
+        sig = "✅ RestoreGuard(4 信号 + 还原期屏蔽)" if "RestoreGuard(" in src else "⛔"
+        flags = "✅ judge_flags()" if "judge_flags()" in src else "⛔ 自写"
+        nmsg = len(dict_literal(path, "EXPECT_MSG")) or counts[name]
+        print(f"| `{name}` | {counts[name]} | {six} | {nmsg} 条 | {has_loc} | {sig} | {flags} |")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,3 @@
+# nodeid 集合 diff：第十二批候选树 202（evidence-b12-integ/unit-red-integ-20260906T203713.txt）vs 第十三批主干 da690bf8 基线（unit-red-baseline-da690bf8.txt）
+# 只在旧: 0  只在新: 0  FAILED<->ERROR 状态翻转（nodeid 相同，不计入差集）: 0
+# 结论：差集为空 ⇒ 第十三批基线 = 202 条，与第十二批候选树逐条相同（da690bf8 相对 afe7fa86 只动 _bmad-output 与 .claude/rules）

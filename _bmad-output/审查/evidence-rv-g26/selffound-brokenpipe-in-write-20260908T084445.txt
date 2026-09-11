@@ -1,0 +1,13 @@
+### 自查发现（Codex round-4 探针暴露）: 断管发生在 write 阶段时仍脱离四档  ts=20260908T084445
+线索来源: codex-review-CARD-RV-G2-6-r4.stderr 里出现 BrokenPipeError traceback,
+          抛出点是 main() 的 sys.stdout.write(text)，不是我 handler 包住的 flush()。
+
+--- 为什么我自己的复验没看见 ---
+默认缓冲下 ~2KB 报告被 64KB 管道缓冲吃掉 ⇒ write 不炸、flush 才炸 ⇒ 正好落进 handler。
+强制无缓冲(-u)才走到 write 抛出的那条路径。⇒ 验证 I/O 失败路径必须跑两种缓冲模式。
+
+  默认缓冲: rc=3  BrokenPipeError traceback=False
+  -u 无缓冲: rc=1  BrokenPipeError traceback=True
+
+判定: 真缺陷。rc=1 在四档里是「只缺 missing」—— 把「结果送不出去」说成「vault 缺东西」。
+处置: 归 round-5（Codex round-4 正在读该文件，改了会让它的行号引用失准）。

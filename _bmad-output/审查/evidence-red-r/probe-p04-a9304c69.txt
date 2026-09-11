@@ -1,0 +1,97 @@
+### CARD-RED-R 单点探针 (取失败身份, 非 bisect)
+tag: p04-a9304c69
+rev: a9304c69 -> a9304c69   (2026-03-29 refactor(S35): Phase 3 Step 2 — except Exception 精确化（251处/65文件）)
+nodeid: tests/unit/test_difficulty_canvas_integration.py::TestGetDifficultyData::test_memory_service_unavailable_returns_none
+started: 2026-09-09T12:25:42+0800
+
+Preparing worktree (detached HEAD a9304c69)
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-u5-lance/26238ff3-25d8-42fc-91e8-b87fc077e7a0/scratchpad/bisect-probe-p04-a9304c69/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 1 item
+tests/unit/test_difficulty_canvas_integration.py F                       [100%]
+=================================== FAILURES ===================================
+______ TestGetDifficultyData.test_memory_service_unavailable_returns_none ______
+self = <tests.unit.test_difficulty_canvas_integration.TestGetDifficultyData object at 0x138aa1310>
+sample_nodes = [{'color': '4', 'id': 'node_1', 'text': '线性代数基础', 'type': 'text'}, {'color': '3', 'id': 'node_2', 'text': '矩阵乘法', 'type': 'text'}, {'color': '4', 'id': 'node_3', 'text': '特征值分解', 'type': 'text'}]
+    @pytest.mark.asyncio
+    async def test_memory_service_unavailable_returns_none(self, sample_nodes):
+        """MemoryService not available → return None (graceful degradation)."""
+        from app.api.v1.endpoints.review import _get_difficulty_data
+        with patch(
+            "app.services.memory_service.get_memory_service",
+            side_effect=Exception("MemoryService unavailable"),
+        ):
+>           result = await _get_difficulty_data(sample_nodes, "test_canvas")
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/unit/test_difficulty_canvas_integration.py:160: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+nodes_to_review = [{'color': '4', 'id': 'node_1', 'text': '线性代数基础', 'type': 'text'}, {'color': '3', 'id': 'node_2', 'text': '矩阵乘法', 'type': 'text'}, {'color': '4', 'id': 'node_3', 'text': '特征值分解', 'type': 'text'}]
+source_canvas = 'test_canvas'
+    async def _get_difficulty_data(
+        nodes_to_review: List[Dict],
+        source_canvas: str
+    ) -> Optional[Dict[str, "DifficultyResult"]]:
+        """
+        Query historical scores for all nodes and compute difficulty results.
+        Story 31.2+31.5: Parallel query with 5s total timeout, graceful degradation.
+        Args:
+            nodes_to_review: List of canvas node dicts (must have "id" and "text")
+            source_canvas: Source canvas name for score history lookup
+        Returns:
+            Dict mapping node_id -> DifficultyResult, or None on failure
+        """
+        if not _difficulty_available:
+            return None
+        try:
+            from app.services.memory_service import get_memory_service
+>           memory_service = await get_memory_service()
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+app/api/v1/endpoints/review.py:273: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+self = <AsyncMock name='get_memory_service' id='5238716944'>, args = ()
+kwargs = {}, _call = call(), effect = Exception('MemoryService unavailable')
+    async def _execute_mock_call(self, /, *args, **kwargs):
+        # This is nearly just like super(), except for special handling
+        # of coroutines
+        _call = _Call((args, kwargs), two=True)
+        self.await_count += 1
+        self.await_args = _call
+        self.await_args_list.append(_call)
+        effect = self.side_effect
+        if effect is not None:
+            if _is_exception(effect):
+>               raise effect
+E               Exception: MemoryService unavailable
+/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/unittest/mock.py:2333: Exception
+=============================== warnings summary ===============================
+../../../../../../../../Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+../../../../../../../../Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+../../../../../../../../Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+../../../../../../../../Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+    import pkg_resources
+<frozen importlib._bootstrap>:491
+<frozen importlib._bootstrap>:491
+app/api/v1/endpoints/metadata.py:97
+    canvas_path: str = Query(
+app/api/v1/endpoints/metadata.py:150
+    canvas_path: str = Query(
+../../../../../../../../Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+app/mcp/server.py:132
+    mcp.mount()
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/unit/test_difficulty_canvas_integration.py::TestGetDifficultyData::test_memory_service_unavailable_returns_none
+======================== 1 failed, 10 warnings in 0.53s ========================
+pytest_raw_rc=0 (⛔ 非判据: 老 commit addopts 含 --cov-fail-under=85)
+worktree_removed_rc=0
+rc=0

@@ -1,0 +1,16 @@
+### tests/unit 目录级 开工/收工 nodeid diff (ts=20260908T071013)
+开工 raw: dir-tests-unit-open-20260908T064340.raw   汇总: = 173 failed, 4749 passed, 48 skipped, 122 warnings, 29 errors in 264.42s (0:04:24) =
+收工 raw: dir-tests-unit-close-20260908T070510.raw  汇总: = 173 failed, 4773 passed, 48 skipped, 122 warnings, 29 errors in 228.58s (0:03:48) =
+b13 基线(feature 主干 --add-dir): 202 nodeid
+开工红集=     202  收工红集=     202
+--- diff 开工 vs 收工（'<' = 本卡修好；'>' = 本卡引入，必须为 0）---
+diff-rc=0
+  只在开工(<)=0
+  只在收工(>)=0
+--- 覆盖损失面：SKIPPED 集对照（红基线 diff 看不见类/模块级 skip 关掉的原本绿）---
+  开工 skipped=48 skipped  收工 skipped=48 skipped
+--- passed 增量（应 = 本卡新增 24 条）---
+  开工 passed=4749 passed  收工 passed=4773 passed
+  本文件 collected: 85 → 109 (+24)
+--- U10-A /tmp 负控窗口噪音是否混入 ---
+  'test-vault' 命中=4

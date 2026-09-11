@@ -1,0 +1,7 @@
+### 负控 missing-vault
+命令: scripts/deploy-vault.sh --harness /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-u3-deploy
+期望: rc=64 且消息含 缺 --vault
+
+❌ 用法错: 缺 --vault <绝对路径>
+   `deploy-vault.sh --help` 看六步与 rc 表。
+rc=64

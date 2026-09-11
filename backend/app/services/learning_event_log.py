@@ -155,6 +155,79 @@ def _log_path() -> Path:
     return Path(canvas_base) / "learning_events.jsonl"
 
 
+#: `event_id` 的**字符轴**禁止集 — 与校验器 `validate_learning_events.py::
+#: FORBIDDEN_CODEPOINT_RANGES` 是同一个闭合集 (C0 / DEL / C1 / LS-PS / 代理区 /
+#: Unicode noncharacters)。
+#: ⛔ 这里重列一份而不是 import 本体: `backend/app/**` 至今不依赖 `backend/scripts/**`
+#: (全仓零先例), 加 sys.path hack 会同时弄脏 pyright 面与打包面。防漂移不靠自觉 —
+#: `tests/regression/test_learning_event_log.py::test_g33r2_shape_gate_charset_matches_validator`
+#: 逐范围断言两侧**相等**, 校验器扩集而这里没跟上 = 当场报红。
+#: ⛔ 为什么必须同口径、不能更窄: 窄了就留下「写得进、读不回」——
+#: 一条含 U+2028 的 event_id 能被本函数写进账本, 而校验器读侧对该码点 fail-closed,
+#: 判的是**整个账本**不合规 ⇒ 那个 vault 从此所有评分都进不来。这正是
+#: `value_charset_problems` docstring 记录的 round-1 BLOCKER 那条数据丢失路径。
+_EVENT_ID_FORBIDDEN_RANGES: tuple[tuple[int, int], ...] = (
+    (0x0000, 0x001F),  # C0 控制符 (含 \n \r \t)
+    (0x007F, 0x007F),  # DEL
+    (0x0080, 0x009F),  # C1 控制符 (含 U+0085 NEL — 在终端里看起来就是个空格)
+    (0x2028, 0x2029),  # LINE / PARAGRAPH SEPARATOR
+    (0xD800, 0xDFFF),  # 代理区 — 孤立代理会让 utf-8 编码直接失败
+    (0xFDD0, 0xFDEF),  # Unicode noncharacters
+) + tuple(
+    # 每个平面末尾的 U+xFFFE / U+xFFFF (17 个平面共 34 个码点)
+    (0x10000 * _plane + 0xFFFE, 0x10000 * _plane + 0xFFFF)
+    for _plane in range(17)
+)
+
+#: `event_id` 长度上限 — 幂等键要参与**每一行**的全文件扫描比较, 并原样进 receipt YAML。
+#: 2026-09-08 只读普查: live 账本现存最长 62 字符, 512 留了两个数量级余量。
+#: 它挡的是「把一整篇批注塞进 id」这类形态, 不是任何正常业务 id。
+_EVENT_ID_MAX_LEN = 512
+
+
+def _event_id_shape_problems(event_id: object) -> list[str]:
+    """`event_id` 的形态问题清单 (空清单 = 形态合规)。
+
+    ⛔ 只管**形态**, 不管命名法。既有合法输入里有 `x-1` / `wrong` 这种**无
+    `type:` 前缀**的 id (regression 样本), 5 个 backend 调用点各带自己的前缀
+    (`archive:` / `callout:` / `accept:` / `dispute:` / `cand:`), live 账本里
+    还有含**空格**与中文的 `exam:CS 61B-2026-08-11-1349`、无 `#` 段的
+    `derive:规划代理的特点`。任何「必须匹配 `<type>:<x>#<y>`」的正则都会当场拒掉
+    生产数据 — 2026-09-08 只读普查实证, 设计稿的那条正则据此作废
+    (存档 `_bmad-output/审查/evidence-g33r2/event-id-shapes-*.txt`)。
+
+    ⛔ 首尾空白**拒绝**而不是 strip: 与 quiz-answer 写点入口同款理由 —— strip 会把
+    上游两个本来不同的 id 撞成一个, 那是替上游做主。带空白 = 上游 bug, 报给它。
+
+    ⛔ 报出**码点**是硬要求: C1 与 LS/PS 在终端和编辑器里大多不可见,
+    只说「含非法字符」等于让上游去猜 (与校验器 `_codepoint_problem` 同款立场)。
+    """
+    if not isinstance(event_id, str):
+        return [f"event_id 必须是字符串, 实见 {type(event_id).__name__}"]
+    if not event_id:
+        return ["event_id 为空 (幂等键必填)"]
+    problems: list[str] = []
+    if event_id != event_id.strip():
+        problems.append(
+            f"event_id 首尾含空白 ({event_id!r}) — 幂等键的字面即身份, "
+            "带空白的写法会与不带的各算一条 (双写账本 + 双吃 mastery)"
+        )
+    for ch in event_id:
+        cp = ord(ch)
+        if any(lo <= cp <= hi for lo, hi in _EVENT_ID_FORBIDDEN_RANGES):
+            problems.append(
+                f"event_id 含非规范码点 U+{cp:04X} — 该码点在 JSONL 行 / receipt YAML "
+                f"的某一层有特殊语义或不可编码, 写进去就读不回原值; "
+                f"值片段: {event_id[:40]!r}"
+            )
+            break
+    if len(event_id) > _EVENT_ID_MAX_LEN:
+        problems.append(
+            f"event_id 过长 ({len(event_id)} 字符 > {_EVENT_ID_MAX_LEN}) — 幂等键要参与每行比较并原样进 receipt YAML"
+        )
+    return problems
+
+
 def append_event(
     event_type: str,
     event_id: str,
@@ -180,6 +253,14 @@ def append_event(
             return False
         if not event_id:
             logger.warning("[learning-events] 拒绝空 event_id (幂等键必填)")
+            return False
+        # ⛔ CARD-G3-3-R2 形态门: 空判之后、**任何写入之前**。
+        # 与上一条同形 fail-closed —— `return False` 而不是抛, 因为本函数的契约
+        # 就是「永不抛异常 (记录失败不得影响主链)」, 抛出去会把一个日志问题
+        # 升级成主链故障。拒因进 warning 且带码点, 上游才修得动。
+        shape_problems = _event_id_shape_problems(event_id)
+        if shape_problems:
+            logger.warning("[learning-events] 拒绝形态非法的 event_id: %s", shape_problems)
             return False
 
         path = _log_path()

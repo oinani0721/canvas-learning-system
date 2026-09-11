@@ -1,0 +1,21 @@
+== negctl-2-default-always-true ==
+变异: 把 _owns_table 的 default 分支改成恒 True（空前缀退化成全表）
+跑前 sha: 5235c00d99f343a57924855193cfc5d4f8ffb5d72e4687438aac707287d312ff
+变异体 sha: 802963137158821ff47e8c36489b1aa1e437b8b01788b3630012103da2d455c0  (ast.parse OK)
+变异体 diff（1 删 / 1 增，hunk 1 个）:
+    --- baseline
+    +++ mutant[negctl-2-default-always-true]
+    @@ -898,3 +898,3 @@
+             if not vid or vid == "default":
+    -            return "_" not in name or name == self.FINGERPRINT_TABLE
+    +            return True
+             return name.startswith(f"{vid}_")
+
+-- tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_cache_tables_default_vault_only_touches_bare_tables
+   rc=1  ======================== 1 failed, 14 warnings in 0.53s ========================
+   E   AssertionError: default 的扫描面越过了 list_vault_tables:845 的逐字口径: canvas_nodes 含下划线, 按 `"_" not in t or t == FINGERPRINT_TABLE` 不归 default, 却被 drop 了
+   E   assert 'canvas_nodes' in {'file_fingerprints'}
+   判定: KILLED（红在声称的那条断言）
+
+跑后 sha: 5235c00d99f343a57924855193cfc5d4f8ffb5d72e4687438aac707287d312ff
+还原逐字节相同: YES ✓

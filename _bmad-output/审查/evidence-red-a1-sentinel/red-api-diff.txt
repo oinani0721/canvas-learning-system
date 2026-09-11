@@ -1,0 +1,6 @@
+# §二.9 tests/api 目录级对照
+# open  = api-open-20260909T164338.txt  （树态: system.py/openapi.json 还原到 HEAD）
+# after = api-after-20260909T163754.txt （树态: 本卡最终代码）
+# 两跑都是 268 passed / 0 failed ⇒ 红集皆空，diff 必空。
+# 依据（非免跑理由）: grep -rn '/api/v1/system\|/system/' backend/tests/api 实测 0 命中。
+api_diff_rc=0

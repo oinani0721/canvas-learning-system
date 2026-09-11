@@ -1,0 +1,49 @@
+# vault-install verification report (CARD-G2-6, read-only)
+# manifest : scripts/vault-install-manifest.json (version 2, source harness-canvas-vault)
+# vault    : /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault
+# source   : (未提供 — content-drift 未评估)
+# 语义     : exclude 项按各自模式的静态前缀子树扫描; extra 只看 manifest
+#            extra_scan 声明的覆盖面 (根级文档不在覆盖面内, 故不报 extra);
+#            读不进去的条目记 unreadable 并计入退出码 —— 看不见不等于一致;
+#            extra_allow 放行的项进 allowed-extra, 只报告不计退出码;
+#            声明为 optional 的项缺失进 optional-missing, 同样不计退出码;
+#            退出码 0 ok / 1 只缺 / 2 多出·漂移·读不动·快捷键孤儿 / 3 用法错。
+------------------------------------------------------------------
+match                  : 35
+missing                : 0
+extra                  : 0
+content-drift          : not evaluated (无 --source)
+intentionally-excluded : 17
+allowed-extra          : 5
+optional-missing       : 0
+unreadable             : 0
+hotkeys                : 3 绑定 / 10 命令 / 0 orphan
+hotkey-orphan          : 0
+
+## intentionally-excluded
+  .claude/mcp.json [retired]  — 目标里存在: .claude/mcp.json
+  .obsidian/plugins/claudian [retired]  — 目标里存在: .obsidian/plugins/claudian
+  原白板/** [learning-data]  — 目标里存在: 原白板/CS 61B.md, 原白板/CS.md, 原白板/CS188 lecture 2.md (共 6 项)
+  检验白板/** [learning-data]  — 目标里存在: 检验白板/CS 61B-2026-08-11-1349.md, 检验白板/CS 61B-2026-08-11-1538.md, 检验白板/特征值与特征向量-2026-07-05-1815.md (共 10 项)
+  节点/** [learning-data]  — 目标里存在: 节点/Characteristic-Equation-for-Eigenvalues.md, 节点/Eigenvalues-are-special-vectors-that-sat.md, 节点/Fundamentals.md (共 14 项)
+  learning_events.jsonl [learning-data]  — 目标里存在: learning_events.jsonl
+  outputs/** [build-artifact]  — 目标里存在: outputs/.recap-manifest-CS 61B.json, outputs/.recap-manifest-CS188 lecture 2.json, outputs/.recap-manifest-特征值与特征向量.json (共 19 项)
+  raw/** [learning-data]  — 目标里存在: raw/.gitkeep, raw/CS188, raw/CS188/.obsidian (共 260 项)
+  templates/** [learning-data]  — 目标里存在: templates/concept.md, templates/exam-board.md
+  wiki/concepts/** [learning-data]  — 目标里存在: wiki/concepts/.gitkeep
+  wiki/canvases/** [learning-data]  — 目标里存在: wiki/canvases/.gitkeep, wiki/canvases/cs-61b, wiki/canvases/math140
+  .obsidian/workspace.json [session-state]  — 目标里存在: .obsidian/workspace.json
+  .claude/**/__pycache__ [build-artifact]  — 目标里存在: .claude/hooks/__pycache__, .claude/scripts/__pycache__
+  .claude/hooks/pending_archives*.jsonl [session-state]  — 目标里存在: .claude/hooks/pending_archives.jsonl
+  .claudian/** [retired]  — 目标里存在: .claudian/claudian-settings.json, .claudian/sessions, .claudian/sessions/conv-1776676336319-sl0k3arzs.meta.json (共 32 项)
+  .quarantine/** [operational]  — 目标里存在: .quarantine/UAT-2.5.X-test.md
+  .trash/** [session-state]  — 目标里存在: .trash/An-eigenvalue-of-a-linear-transformation.md.cleanup-2026-05-01-v41, .trash/Eigenvalues-are-special-vectors.md.cleanup-2026-05-01, .trash/Math 140 Fundamentals.md.deleted-2026-05-01 (共 6 项)
+
+## allowed-extra
+  .claude/cache  — 由 extra_allow 的 '.claude/cache' 放行 (只报告, 不计退出码)
+  .obsidian/graph.json  — 由 extra_allow 的 '.obsidian/graph.json' 放行 (只报告, 不计退出码)
+  .obsidian/types.json  — 由 extra_allow 的 '.obsidian/types.json' 放行 (只报告, 不计退出码)
+  .obsidian/plugins/excalibrain  — 由 extra_allow 的 '.obsidian/plugins/excalibrain' 放行 (只报告, 不计退出码)
+  .obsidian/plugins/obsidian-excalidraw-plugin  — 由 extra_allow 的 '.obsidian/plugins/obsidian-excalidraw-plugin' 放行 (只报告, 不计退出码)
+
+exit=0

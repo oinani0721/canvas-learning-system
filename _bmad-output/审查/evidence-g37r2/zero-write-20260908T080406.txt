@@ -1,0 +1,40 @@
+### ls backend/data diff（应空）
+0a1,5
+> failed_edge_syncs.jsonl
+> failed_writes.jsonl
+> learning_memories.json
+> neo4j_memory.json
+> outbox
+### fsrs_card_states.json 泄漏检查
+ok
+### 主仓两文件 sha（LC_ALL=C）
+1c359244cf0d23a010b2760f524630c18fc9fc50733f470a69b47ebedaad40a0  /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/data/fsrs_card_states.json
+2a18023e71a046db8a8c52e098cd48bd0b9898596e4ea3024e18695827796cb6  /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/learning_events.jsonl
+### canvas-vault 改动行数（应 0）
+error: unknown option `no-color'
+usage: git status [<options>] [--] [<pathspec>...]
+
+    -v, --[no-]verbose    be verbose
+    -s, --[no-]short      show status concisely
+    -b, --[no-]branch     show branch information
+    --[no-]show-stash     show stash information
+    --[no-]ahead-behind   compute full ahead/behind values
+    --[no-]porcelain[=<version>]
+                          machine-readable output
+    --[no-]long           show status in long format (default)
+    -z, --[no-]null       terminate entries with NUL
+    -u, --[no-]untracked-files[=<mode>]
+                          show untracked files, optional modes: all, normal, no. (Default: all)
+    --[no-]ignored[=<mode>]
+                          show ignored files, optional modes: traditional, matching, no. (Default: traditional)
+    --[no-]ignore-submodules[=<when>]
+                          ignore changes to submodules, optional when: all, dirty, untracked. (Default: all)
+    --[no-]column[=<style>]
+                          list untracked files in columns
+    --no-renames          do not detect renames
+    --renames             opposite of --no-renames
+    -M, --find-renames[=<n>]
+                          detect renames, optionally set similarity index
+
+       0
+rc=0
