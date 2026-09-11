@@ -19,7 +19,6 @@ from __future__ import annotations
 import asyncio
 import contextvars
 import json
-import logging
 import time
 import uuid
 
@@ -67,7 +66,7 @@ class CanvasService:
 
     def __init__(
         self,
-        canvas_base_path: str = None,
+        canvas_base_path: Optional[str] = None,
         memory_client: Optional[MemoryService] = None,
         session_id: Optional[str] = None,
     ):
@@ -337,6 +336,10 @@ class CanvasService:
             metadata = context.to_metadata()
 
             # Call MemoryService to record the temporal event
+            # 唯一调用链 _trigger_memory_event(:264) 在 _memory_client is None 时提前 return,
+            # 故此处恒非 None。原代码遇 None 也会崩(AttributeError), 且本 try 的兜底
+            # `except Exception` 同样接住 AssertionError → 落地路径逐字不变。
+            assert self._memory_client is not None
             await self._memory_client.record_temporal_event(
                 event_type=event_type.value,
                 session_id=self._session_id,

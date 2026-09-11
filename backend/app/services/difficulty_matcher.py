@@ -20,16 +20,22 @@ never blocking the question delivery to the user.
 """
 
 import asyncio
-import logging
 from collections import deque
 
 import structlog
 from datetime import datetime, timezone
-from typing import Deque, Optional
+from typing import TYPE_CHECKING, Any, Deque, Optional, Sequence, cast
 
 import aiosqlite
 
 from app.models.qa_models import DifficultyMatchRecord, DifficultyMatchStats
+
+if TYPE_CHECKING:
+    # litellm 在本模块内是**函数内延迟 import**(加载慢/可选依赖)。这里只取类型,
+    # 运行期不执行 → 不把 litellm 拉进模块 import 图。配合 cast("ModelResponse", ...):
+    # acompletion 的签名是 ModelResponse | CustomStreamWrapper, 而本模块所有调用点
+    # 都未传 stream=True → 运行期恒为 ModelResponse。cast 只作类型层断言, 不改行为。
+    from litellm.types.utils import ModelResponse
 
 logger = structlog.get_logger(__name__)
 
@@ -143,7 +149,10 @@ class DifficultyMatcher:
 
                 # Hydrate sliding window from last N persisted records
                 cursor = await db.execute(_RECENT_LOGS, (WINDOW_SIZE,))
-                rows = await cursor.fetchall()
+                # aiosqlite.fetchall() 标注 Iterable[Row], 运行期恒返回 list(委托
+                # sqlite3.Cursor.fetchall); reversed() 要 Sequence。cast 是运行期
+                # no-op —— 不拷贝、不改顺序。
+                rows = cast("Sequence[Any]", await cursor.fetchall())
                 # Rows come in DESC order; reverse so oldest is first
                 for row in reversed(rows):
                     self._window.append(bool(row[3]))
@@ -219,7 +228,10 @@ class DifficultyMatcher:
                 temperature=0.0,
                 max_tokens=10,
             )
-            raw = response.choices[0].message.content.strip()
+            # ⛔ 不能用 assert(同 error_classifier.py 的 Codex round-2 校正): 下面的
+            # except 把异常消息 {e} 写进日志, AssertionError 的空消息会让日志丢掉原因。
+            # cast 是运行期 no-op —— content 为 None 时仍抛原本的 AttributeError, 消息逐字不变。
+            raw = cast(str, cast("ModelResponse", response).choices[0].message.content).strip()
             difficulty = float(raw)
             return max(0.0, min(1.0, difficulty))
         except (ValueError, TypeError, IndexError) as e:
