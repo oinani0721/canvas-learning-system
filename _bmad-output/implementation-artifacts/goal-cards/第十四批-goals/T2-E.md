@@ -121,7 +121,7 @@ done   # 每一份各 ≥1（协议 §2.1 首部 model 行；缺 = 该轮不计�
   2. `backend/tests/unit/test_deploy_vault_sh.py`（① 目标漂移负控、③ 六行状态门、④ ancestor_symlink_hits 独立门的测试侧、⑥ M-2 源码门收窄、各项先红后绿）；
   3. `scripts/cls_forbidden_paths.py`（④ ancestor_symlink_hits 若需生产侧配合独立门）。
   与设计稿 §3「只 T2」一致。
-- **禁改面**：`scripts/verify_vault_install.py`（**T7-D 地盘**，content-drift 计算在此，本卡只读；(b) 若缺陷落此则移交，不扩面）；`scripts/vault-install-manifest.json`、`canvas-vault/.claude/skills/deploy-vault/SKILL.md`、`docker-compose*.yml`（T2 其它卡已处置，本卡不动）；`backend/tests/conftest.py` / `tests/unit/conftest.py`（U7/T9、T10 地盘）；T2-A/B/C/D 已 commit 的改动（本卡叠在其上，只 append/改本卡面，不回滚前卡）。
+- **禁改面**：`scripts/verify_vault_install.py`（**T7-D 地盘**，content-drift 计算在此，本卡只读；(b) 若缺陷落此则移交，不扩面）；`scripts/vault-install-manifest.json`、`.claude/skills/deploy-vault/SKILL.md`（仓根真名，R-B14-8）、`docker-compose*.yml`（T2 其它卡已处置，本卡不动）；`backend/tests/conftest.py` / `tests/unit/conftest.py`（U7/T9、T10 地盘）；T2-A/B/C/D 已 commit 的改动（本卡叠在其上，只 append/改本卡面，不回滚前卡）。
 - **硬边界**：⛔ 禁写 live vault `/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/**`；⛔ 禁连 7691 / 7687；⛔ 禁碰 `canvas-vault/.claude/scripts/fsrs_bridge.py` / `decay_beta.py`（本卡零关联，三改动文件 `grep -rn fsrs_bridge` 应 0 命中）；⛔ 现网 LanceDB 目录只读（不 connect、不 initialize）；⛔ 不触 `backend/app/**`（若 diff 出现 app 文件 = 越界，停下）；⛔ 禁 `git stash`（共享栈）；不改台账（只主 session 改，卡在验收单写「台账待登记条目」）；不 push；**批中禁装/升任何工具**（不碰共享 venv、不升 lefthook）；`*.stderr*` 不入库（`.gitignore` 已覆盖）。
 - **禁放宽判据**：(b)/(e) 的负控必须真做突变对照，不得改成「源码里有某字样即绿」的纯文本门（Codex r2/r3 已两次指出源码门不承重）；(d-i) 必须从**部署入口**跑出 rc，不得只证「辅助逻辑返回 1」；(d-ii) 落盘六行不得靠 run_step 事后改文件伪装。
 

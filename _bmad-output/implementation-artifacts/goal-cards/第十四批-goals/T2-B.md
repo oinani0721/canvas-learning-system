@@ -114,7 +114,7 @@ git diff --stat --no-color <审SHA> HEAD -- . ':(exclude)_bmad-output'   # 空�
   - `backend/tests/unit/test_deploy_vault_sh.py` —— 新增本卡五件能力 + 名口径 + 负控的门（桩 docker/curl）。
 - **禁改面**：
   - `scripts/deploy-vault.sh` 的**步 1~4 逻辑**（`step1_preflight`/`step2_install`/`step3_postprocess`/`step4_verify`，G2-7b 交付面，只复用不重写；含 canvas-vault 名不动点 preflight —— (g) 收口是文档/决策 + 钉现状，不改其逻辑）；`--also-push` 的 harness 守卫（限 `FEATURE_TREE`，保留）。
-  - `scripts/cls_forbidden_paths.py`（禁写面判定本体，负控 (h)④ 钉 sha 不变）、`scripts/vault-install-manifest.json`、`canvas-vault/.claude/skills/deploy-vault/SKILL.md`（T2-A / T2-C 面或只读）、`backend/tests/unit/test_docker_compose_config.py`、`docker-compose*.yml`（只读核，改动须登记）。
+  - `scripts/cls_forbidden_paths.py`（禁写面判定本体，负控 (h)④ 钉 sha 不变）、`scripts/vault-install-manifest.json`、`.claude/skills/deploy-vault/SKILL.md`（仓根真名，R-B14-8；本卡只读；`--hosts` 文案同步归口 T2-C，见台账）、`backend/tests/unit/test_docker_compose_config.py`、`docker-compose*.yml`（只读核，改动须登记）。
   - 步 3 的**宿主绑定件**（`AGENTS.md` / `.agents/skills` / `.codex/*` / `opencode.json*` / `.dsh/*`）—— **T2-C/T2-D 面**；本卡一个字不碰（否则 `test_second_tier_hosts_not_implemented_anywhere` 变红）。
   - `backend/app/**` 零文件（本卡不触及 → `python-typecheck` 不触发；若 diff 出现 = 越界，停下报主 session）；`backend/app/models/**` 零写者。
 - **硬边界**：⛔ 禁写 live vault `/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/**`；⛔ 禁连 Neo4j 7691 / 7687；⛔ 禁碰 `canvas-vault/.claude/scripts/fsrs_bridge.py` / `decay_beta.py`（本卡零关联，`grep -rn 'fsrs_bridge\|decay_beta'` 两个改动文件应 0 命中）；⛔ 现网 LanceDB 目录只读；⛔ **真 `docker compose up -d` 仅在用户当次显式授权后、由主 session 陪跑**，未授权即 SKIP 并登记；⛔ 禁改 `ACTIVE_VAULT`（`--also-push` 只追加 `DAILY_REVIEW_VAULTS`）；⛔ 禁 `git stash`；不改台账（台账只主 session 改，卡在验收单写「台账待登记条目」）；不 push；`*.stderr*` 不入库；`.log` 后缀不用；批中禁装/升任何包。
