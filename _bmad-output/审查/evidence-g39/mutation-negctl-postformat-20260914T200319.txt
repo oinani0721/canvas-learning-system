@@ -1,0 +1,43 @@
+跑前 shasum: 3ee51facdcf43209e24f4c3ae05cb6a7ac4ca50859932ad9ec765b32e2655363
+还原基准 = 变异前 sha (脚本是新文件, HEAD 无此文件)
+
+[M1_去掉_overview板级due对账]
+  点名 nodeid : test_negctl_overview_board_due_plus_one
+  变异后 rc   : 1  ⇒ KILLED (判据有牙齿)
+  还原        : OK
+  pytest 摘要 : ======================== 1 failed, 10 warnings in 0.54s ========================
+
+[M2_去掉_板序对账]
+  点名 nodeid : test_negctl_picker_top_boards_order_swapped
+  变异后 rc   : 1  ⇒ KILLED (判据有牙齿)
+  还原        : OK
+  pytest 摘要 : ======================== 1 failed, 10 warnings in 0.61s ========================
+
+[M3_去掉_stats与明细长度对账]
+  点名 nodeid : test_negctl_stats_due_nodes_mismatch
+  变异后 rc   : 1  ⇒ KILLED (判据有牙齿)
+  还原        : OK
+  pytest 摘要 : ======================== 1 failed, 10 warnings in 0.56s ========================
+
+[M4_把corrupt降级成not-fetched豁免]
+  点名 nodeid : test_falsify_anchor_overview_corrupt_counts_as_semantic_diff
+  变异后 rc   : 1  ⇒ KILLED (判据有牙齿)
+  还原        : OK
+  pytest 摘要 : ======================== 1 failed, 10 warnings in 0.56s ========================
+
+[M5_把行序对账退化成集合比较]
+  点名 nodeid : test_node_order_mirrors_urgency_not_scan_order
+  变异后 rc   : 1  ⇒ KILLED (判据有牙齿)
+  还原        : OK
+  pytest 摘要 : ======================== 1 failed, 10 warnings in 0.47s ========================
+
+[M6_用isinstance判number（bool陷阱）]
+  点名 nodeid : test_dashboard_bool_is_not_a_js_number
+  变异后 rc   : 1  ⇒ KILLED (判据有牙齿)
+  还原        : OK
+  pytest 摘要 : ======================== 1 failed, 10 warnings in 0.58s ========================
+
+跑后 shasum: 3ee51facdcf43209e24f4c3ae05cb6a7ac4ca50859932ad9ec765b32e2655363  (与跑前相同)
+
+结论: 全部变异体被点名的那条断言打红 ⇒ 负控有牙齿
+rc=0

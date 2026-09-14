@@ -1,0 +1,14 @@
+=== 定稿后 live 只读跑一次 ===
+## vault: canvas-vault  [已对账面: picker+dashboard]
+semantic_diff: (空) — 本 vault 2 面逐项相同  ⚠️ overview 面缺席, 未覆盖总览页
+note[N3_overview_not_fetched]: overview 未取到 (backend down): 未提供 --overview-url / --overview-json (overview 面缺席)
+
+## vault: test-vault  [已对账面: picker+dashboard]
+semantic_diff: (空) — 本 vault 2 面逐项相同  ⚠️ overview 面缺席, 未覆盖总览页
+note[N4_picker_rollup_absent]: vault='test-vault' 的投影无 boards 顶层键 (旧投影合法形态); rollup ↔ group-by 子项 not-applicable
+note[N3_overview_not_fetched]: overview 未取到 (backend down): 未提供 --overview-url / --overview-json (overview 面缺席)
+
+[g39] semantic_diff 合计 = 0; known_scope_note 合计 = 3
+[g39] ⚠️ 以下 vault 未对满三面 (overview 缺席), rc=0 不代表总览页已验: ['canvas-vault', 'test-vault']
+[g39] 报告落盘: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t4-g3/_bmad-output/审查/evidence-g39/reconcile-live-final-20260914T200456.json
+rc=0

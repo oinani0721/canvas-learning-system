@@ -1,0 +1,29 @@
+=== 只读证明：find -newer sentinel ===
+--- 口径A：卡文原样（不排除）—— 车道树嵌在 VAULTS_ROOT 之下，会抓到本卡自己的证据文件 ---
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t1-lance/_bmad-output/审查/evidence-g29f2/g29f2-xpass-20260914T195936.txt
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t2-deploy/backend/data/failed_edge_syncs.jsonl
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t2-deploy/backend/data/failed_writes.jsonl
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t4-g3/_bmad-output/审查/evidence-g39/readonly-find-20260914T195946.txt
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t4-g3/_bmad-output/审查/evidence-g39/reconcile-live-20260914T195939.json
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t4-g3/_bmad-output/审查/evidence-g39/reconcile-live-20260914T195939.txt
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-bugs/_bmad-output/审查/evidence-tail-cleanup/g-unit-close-20260914T195745.txt
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t6-neo4j/_bmad-output/审查/codex-review-CARD-NEO4J-REPLAY-CENSUS.stderr
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t6-neo4j/_bmad-output/审查/evidence-neo4j-replay-census/unit-close-20260914T195635.txt
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/_bmad-output/审查/evidence-residue-fo/h-poscontrol-20260914T195939.txt
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/_bmad-output/审查/evidence-residue-fo/h-poscontrol-raw-20260914T195939.txt
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t9-w4/_bmad-output/审查/evidence-w4final/unit-open-20260914T195838.txt
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t9-w4/backend/data/failed_edge_syncs.jsonl
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/objects/94/dfffe70b1ef656b3bb91fe0c6f455b79bfd0a7
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/objects/pack/pack-e8d5fe23dc38e43f2c0da93acfc3bfd2b91e4eee.pack
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/worktrees/card-t8-tools/index
+口径A 计数 = 39
+
+--- 口径B：排除本车道 worktree（= 判据真正要证的『未写任何现网文件』）---
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/objects/72/39aaebc6094af9a22a03ea9f5c694d2b7db7a1
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/objects/94/dfffe70b1ef656b3bb91fe0c6f455b79bfd0a7
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/objects/pack/pack-467657cba7a77dcc790a4a7c4eb4637f97ae7950.pack
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/objects/pack/pack-e8d5fe23dc38e43f2c0da93acfc3bfd2b91e4eee.pack
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/worktrees/card-t8-tools/index
+口径B 计数 = 5
+
+--- 验伪锚：find 本身能发现现网写入吗？（在 scratchpad 造一个更新的文件后，用同一条 find 对该目录跑）---

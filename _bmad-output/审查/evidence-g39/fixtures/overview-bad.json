@@ -1,0 +1,64 @@
+{
+  "generated_at": "2026-09-14T09:30:00+08:00",
+  "display_tz": "Asia/Shanghai",
+  "vaults_root": "/fx",
+  "active_vault": "fx-vault",
+  "vaults": [
+    {
+      "vault_id": "fx-vault",
+      "path": "/fx/fx-vault",
+      "status": "ok",
+      "error": null,
+      "board_done": [],
+      "snoozed": {},
+      "projection": {
+        "schema_version": 3,
+        "vault_id": "fx-vault",
+        "date": "2026-09-14",
+        "due_count": 4,
+        "placeholder_backlog": 2,
+        "recommended_board": "乙板",
+        "boards": [
+          {
+            "board": "乙板",
+            "due": 2,
+            "due_new": 0,
+            "placeholder": 2,
+            "earliest": "2026-09-11T03:00:00Z",
+            "nodes": [
+              {
+                "node": "n4",
+                "due_reason": "scheduled",
+                "fsrs_due": "2026-09-11T03:00:00Z"
+              },
+              {
+                "node": "n3",
+                "due_reason": "scheduled",
+                "fsrs_due": "2026-09-12T02:00:00Z"
+              }
+            ]
+          },
+          {
+            "board": "甲板",
+            "due": 3,
+            "due_new": 1,
+            "placeholder": 0,
+            "earliest": "2026-09-10T01:00:00Z",
+            "nodes": [
+              {
+                "node": "n1",
+                "due_reason": "scheduled",
+                "fsrs_due": "2026-09-10T01:00:00Z"
+              },
+              {
+                "node": "n2",
+                "due_reason": "new",
+                "fsrs_due": ""
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
