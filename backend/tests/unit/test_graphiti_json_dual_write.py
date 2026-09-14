@@ -100,11 +100,12 @@ def memory_service(mock_neo4j_client, mock_learning_memory_client):
 async def ready_worker(tmp_path, monkeypatch):
     """A started GraphitiEpisodeWorker wired into ``memory_service.get_episode_worker``.
 
-    Deliberately a *real* worker instance: ``_enqueue_episode`` checks
-    ``worker.is_ready`` and builds a real ``EpisodeTask`` before it ever calls
-    ``enqueue``. Replacing the whole worker with a stub would leave that branch
-    and the task construction with zero coverage, so only the outermost graphiti
-    client is mocked.
+    Deliberately a *real* worker instance. ⚠️ Codex r3 LOW-2 更正：一个同时提供
+    ``is_ready`` 与 ``enqueue`` 的 stub **并不会**让 ``_enqueue_episode`` 的 readiness
+    分支与 ``EpisodeTask`` 创建失去覆盖——那些是生产代码，stub 之下照样执行。stub
+    真正拿掉的是 **worker 自身实现**的覆盖：队列计数（``episodes_enqueued``）、
+    ``is_ready`` 的真实语义（``_started and _graphiti is not None``）、以及队列满/已关闭
+    时 ``enqueue`` 返回 False 的分支。只 mock 最外层 graphiti 客户端，两侧都保持真实。
     """
     w = GraphitiEpisodeWorker(maxsize=64, dead_letter_path=str(tmp_path / "dead_letter.jsonl"))
     mock_graphiti = MagicMock()
@@ -348,7 +349,11 @@ class TestGraphitiJsonDualWrite:
 
         ⚠️ CARD-Y4-D-TAIL: ``ENABLE_GRAPHITI_JSON_DUAL_WRITE`` has no consumer in
         ``memory_service.py``, so this case can no longer verify a switch. It pins
-        the current behaviour instead: recording enqueues regardless of the flag.
+        current behaviour **for the flag=True side only**: recording enqueues.
+        ⚠️ Codex r3 LOW-1 更正：不要读成「无论 flag 如何都入队」——本用例没有测
+        flag=False 那一侧，而 test_config_flag_disables_dual_write 的断言也已与 flag
+        脱钩（见其注脚）。⇒ 若日后有人让 flag 重新生效、在 False 时跳过入队，
+        **这两条都发现不了**。该缺口已登记移交。
         The nodeid is kept so the history of AC-36.9.5 stays traceable.
         """
         # Arrange

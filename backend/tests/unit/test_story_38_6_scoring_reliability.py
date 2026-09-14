@@ -183,10 +183,11 @@ class TestAC3StartupRecovery:
     async def ready_worker(self, tmp_path, monkeypatch):
         """A started GraphitiEpisodeWorker wired into ``memory_service.get_episode_worker``.
 
-        A real worker, not a stub: ``_enqueue_episode`` checks ``worker.is_ready``
-        and builds a real ``EpisodeTask`` before calling ``enqueue``. Stubbing the
-        whole worker would leave that branch uncovered while still turning the
-        assertions green — only the outermost graphiti client is mocked.
+        A real worker, not a stub. ⚠️ Codex r3 LOW-2 更正：一个同时提供 ``is_ready``
+        与 ``enqueue`` 的 stub **并不会**让 ``_enqueue_episode`` 的 readiness 分支与
+        ``EpisodeTask`` 创建失去覆盖（那些是生产代码，stub 之下照样执行）。stub 真正
+        拿掉的是 **worker 自身实现**的覆盖：队列计数、``is_ready`` 的真实语义、以及
+        队列满/已关闭时 ``enqueue`` 返回 False 的分支。只 mock 最外层 graphiti 客户端。
         """
         w = GraphitiEpisodeWorker(maxsize=64, dead_letter_path=str(tmp_path / "dead_letter.jsonl"))
         mock_graphiti = MagicMock()
