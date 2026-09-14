@@ -1,0 +1,17 @@
+=== negctl FINAL m1d（round-2 定稿 sha；每层只拆一层）===
+--- sha BEFORE ---
+4fab081746f398338baa36c8907b0474eb1ed2330a7e8041f2a689804271cdfa  backend/scripts/mutation_kill_identity.py
+5704e8039cfef9352b0e8eac85349b40b447464cf65cd2c9dcea86e0adf37232  backend/scripts/g33_mutation_gates.py
+5bdadb27fd7d7e6a0143ea4db749aa45ecfde33fb00b55814d36a39dc297c8fb  backend/scripts/mutation_verdict_reconcile.py
+a766fbcc28e3ff917e740843c633e800aa8a75e949295f83efc90f55105f90f0  canvas-vault/.claude/scripts/fsrs_bridge.py
+3bf4ed9402a4c8edfde16630a79094a5d4518fd181fa60810319fe46d37abb90  canvas-vault/.claude/scripts/decay_beta.py
+applied negctl m1d on mutation_kill_identity.py: sha_before=4fab081746f398338baa36c8907b0474eb1ed2330a7e8041f2a689804271cdfa sha_after=35b9344b57ca26e58ecd72143192642f1ab75fc02a4fe882b4bd9d8ea332aa94
+FAILED tests/unit/test_mutation_kill_identity_r3.py::test_h1_bracket_in_path_is_not_a_param_segment
+================== 1 failed, 25 passed, 10 warnings in 0.80s ===================
+restored /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/scripts/mutation_kill_identity.py sha=4fab081746f398338baa36c8907b0474eb1ed2330a7e8041f2a689804271cdfa
+--- sha AFTER ---
+4fab081746f398338baa36c8907b0474eb1ed2330a7e8041f2a689804271cdfa  backend/scripts/mutation_kill_identity.py
+5704e8039cfef9352b0e8eac85349b40b447464cf65cd2c9dcea86e0adf37232  backend/scripts/g33_mutation_gates.py
+5bdadb27fd7d7e6a0143ea4db749aa45ecfde33fb00b55814d36a39dc297c8fb  backend/scripts/mutation_verdict_reconcile.py
+a766fbcc28e3ff917e740843c633e800aa8a75e949295f83efc90f55105f90f0  canvas-vault/.claude/scripts/fsrs_bridge.py
+3bf4ed9402a4c8edfde16630a79094a5d4518fd181fa60810319fe46d37abb90  canvas-vault/.claude/scripts/decay_beta.py

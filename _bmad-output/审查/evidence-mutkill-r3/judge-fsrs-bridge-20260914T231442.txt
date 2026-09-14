@@ -1,0 +1,21 @@
+=== (k) fsrs_bridge：卡文字面判据 vs 它想量的性质 ===
+--- ① 卡文字面判据（diff 的 + 行含 fsrs_bridge 的条数, 卡文期望 0）---
+2
+    ⛔ 实测 2 ≠ 0 —— 两处均为本卡新增的 **docstring**（原文见下），非代码：
+      +    铁律覆盖的 `fsrs_bridge.py`）。提为模块级 + 注入 `restore_all` / `exiting` 回调是
+      +铁律覆盖的 `canvas-vault/.claude/scripts/fsrs_bridge.py`。
+
+--- ② 对得上主张的判据：四文件里 fsrs_bridge 的**可执行**出现（排除 docstring）$PREV vs HEAD 多重集是否相同 ---
+   backend/scripts/mutation_kill_identity.py: PREV=[] HEAD=[] same=True
+   backend/scripts/g33_mutation_gates.py: PREV=['fsrs_bridge.py'] HEAD=['fsrs_bridge.py'] same=True
+   backend/scripts/mutation_verdict_reconcile.py: PREV=(本卡新增文件) HEAD=[] same=True
+   backend/tests/unit/test_mutation_kill_identity_r3.py: PREV=(本卡新增文件) HEAD=[] same=True
+   ⇒ 可执行出现多重集未变 = True
+
+--- ③ 权威判据：本卡 diff 面是否含 canvas-vault/ 任何路径（应 0）---
+0
+0
+--- ④ 零写者哨兵：开工 vs 收工 sha 逐字同 ---
+   IDENTICAL=yes
+--- 验伪锚（同次执行, 证明 ① 那条管道能命中）---
+63:BRIDGE = REPO / "canvas-vault" / ".claude" / "scripts" / "fsrs_bridge.py"

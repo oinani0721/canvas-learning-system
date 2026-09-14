@@ -1,0 +1,16 @@
+=== negctl m1a (round-2: 每层各有独立显形点后重跑) ===
+--- sha BEFORE ---
+fff357b4c2212f60bd7615fdad2c685fae2b3100972691b78ed26b3bcfdfcc02  backend/scripts/mutation_kill_identity.py
+1f66cc99db5ca5a0676fa167df753889354cf0507cd5aac694237fd6445049f2  backend/scripts/g33_mutation_gates.py
+a766fbcc28e3ff917e740843c633e800aa8a75e949295f83efc90f55105f90f0  canvas-vault/.claude/scripts/fsrs_bridge.py
+3bf4ed9402a4c8edfde16630a79094a5d4518fd181fa60810319fe46d37abb90  canvas-vault/.claude/scripts/decay_beta.py
+applied negctl m1a on mutation_kill_identity.py: sha_before=fff357b4c2212f60bd7615fdad2c685fae2b3100972691b78ed26b3bcfdfcc02 sha_after=ddc77ab6ed5cf145dca9305feabd7f226e3c3a763805739b82270e67345fc157
+FAILED tests/unit/test_mutation_kill_identity_r3.py::test_m1_anchor_drift_not_masked_by_rc0_survived
+FAILED tests/unit/test_mutation_kill_identity_r3.py::test_m1_anchor_drift_not_masked_by_out_of_gate_survived
+================== 2 failed, 19 passed, 10 warnings in 1.02s ===================
+restored /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/scripts/mutation_kill_identity.py sha=fff357b4c2212f60bd7615fdad2c685fae2b3100972691b78ed26b3bcfdfcc02
+--- sha AFTER ---
+fff357b4c2212f60bd7615fdad2c685fae2b3100972691b78ed26b3bcfdfcc02  backend/scripts/mutation_kill_identity.py
+1f66cc99db5ca5a0676fa167df753889354cf0507cd5aac694237fd6445049f2  backend/scripts/g33_mutation_gates.py
+a766fbcc28e3ff917e740843c633e800aa8a75e949295f83efc90f55105f90f0  canvas-vault/.claude/scripts/fsrs_bridge.py
+3bf4ed9402a4c8edfde16630a79094a5d4518fd181fa60810319fe46d37abb90  canvas-vault/.claude/scripts/decay_beta.py

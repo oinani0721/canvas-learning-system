@@ -1,0 +1,19 @@
+== 六档处置表跨套硬比（声明核 2 套: g32cb, g32ccr1）==
+── g32cb（stdout 形态, 存档 g32cb-run-20260915T001621.txt）
+     KILLED          9
+     KILLED-UNBOUND  0
+     SURVIVED        0
+     HARNESS-ERROR   0
+     ANCHOR-ERROR    0
+     SYNTAX-INVALID  0
+     逐档相加=9 该套印的六档之和=9 该套自称分母=9 AST 现算条数=9 ✓
+── g32ccr1（stdout 形态, 存档 g32ccr1-run-20260915T001953.txt）
+     KILLED          11
+     KILLED-UNBOUND  0
+     SURVIVED        0
+     HARNESS-ERROR   0
+     ANCHOR-ERROR    0
+     SYNTAX-INVALID  0
+     逐档相加=11 该套印的六档之和=11 该套自称分母=11 AST 现算条数=11 ✓
+
+✓ 2 套六档逐档硬比一致，且各套自称分母 == 源码 AST 现算条数

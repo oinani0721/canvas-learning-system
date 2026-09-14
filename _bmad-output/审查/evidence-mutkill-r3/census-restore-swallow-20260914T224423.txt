@@ -1,0 +1,36 @@
+=== census: 同型「末次还原吞没」在另三套是否存在（只读，不改） ===
+--- g32b_mutation_gates ---
+restore_or_keep_exit_code 命中: 0
+exiting() 命中: 1
+RestoreGuard 命中: 7
+traceback.print_exc 命中: 1
+2504:            except BaseException:  # noqa: BLE001  日志失败不改变控制流
+2522:    _was_exiting = _GUARD.exiting()
+2525:    except BaseException:
+2526:        if not _was_exiting:
+2530:        except BaseException:  # noqa: BLE001
+--- g32cb_mutation_gates ---
+restore_or_keep_exit_code 命中: 0
+exiting() 命中: 1
+RestoreGuard 命中: 3
+traceback.print_exc 命中: 1
+349:    _was_exiting = _GUARD.exiting()
+352:    except BaseException:
+353:        if not _was_exiting:
+357:        except BaseException:  # noqa: BLE001
+--- g32ccr1_negative_controls ---
+restore_or_keep_exit_code 命中: 0
+exiting() 命中: 1
+RestoreGuard 命中: 3
+traceback.print_exc 命中: 1
+257:    _was_exiting = _GUARD.exiting()
+260:    except BaseException:
+261:        if not _was_exiting:
+265:        except BaseException:  # noqa: BLE001
+
+=== 验伪锚（证明这些 grep 能命中）: g33 同名符号 ===
+3
+392:def restore_or_keep_exit_code(
+g32b_mutation_gates.py:2522 所在函数（由内到外）= [('_restore_active_or_keep_exit_code', 2510, 2531)]
+g32cb_mutation_gates.py:349 所在函数（由内到外）= [('_restore_active_or_keep_exit_code', 337, 358)]
+g32ccr1_negative_controls.py:257 所在函数（由内到外）= [('_restore_active_or_keep_exit_code', 245, 266)]

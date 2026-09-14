@@ -1,0 +1,17 @@
+=== negctl FINAL rc3（绑最终 HEAD 34473ebd；每层只拆一层）===
+--- sha BEFORE ---
+0fcc3c591f90a7a11c5cb6911611121aed52d4f5a2b3fc8abc11bcedbc580d9b  backend/scripts/mutation_kill_identity.py
+ee9b6e3a772ec36da640b03de4ec51c43f4904b1cab0b1e51933ddf2641d42bd  backend/scripts/g33_mutation_gates.py
+0730d8a174592f81ad97a880b345d578189ecce0dc91a8ba6360baae8aedfaab  backend/scripts/mutation_verdict_reconcile.py
+a766fbcc28e3ff917e740843c633e800aa8a75e949295f83efc90f55105f90f0  canvas-vault/.claude/scripts/fsrs_bridge.py
+3bf4ed9402a4c8edfde16630a79094a5d4518fd181fa60810319fe46d37abb90  canvas-vault/.claude/scripts/decay_beta.py
+applied negctl rc3 on mutation_verdict_reconcile.py: sha_before=0730d8a174592f81ad97a880b345d578189ecce0dc91a8ba6360baae8aedfaab sha_after=1dcbf5597499ff021fa212f621eddbae3245b53da717141ee331378d409eca39
+judge_05=0
+judge_0x10=0
+restored /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/scripts/mutation_verdict_reconcile.py sha=0730d8a174592f81ad97a880b345d578189ecce0dc91a8ba6360baae8aedfaab
+--- sha AFTER ---
+0fcc3c591f90a7a11c5cb6911611121aed52d4f5a2b3fc8abc11bcedbc580d9b  backend/scripts/mutation_kill_identity.py
+ee9b6e3a772ec36da640b03de4ec51c43f4904b1cab0b1e51933ddf2641d42bd  backend/scripts/g33_mutation_gates.py
+0730d8a174592f81ad97a880b345d578189ecce0dc91a8ba6360baae8aedfaab  backend/scripts/mutation_verdict_reconcile.py
+a766fbcc28e3ff917e740843c633e800aa8a75e949295f83efc90f55105f90f0  canvas-vault/.claude/scripts/fsrs_bridge.py
+3bf4ed9402a4c8edfde16630a79094a5d4518fd181fa60810319fe46d37abb90  canvas-vault/.claude/scripts/decay_beta.py

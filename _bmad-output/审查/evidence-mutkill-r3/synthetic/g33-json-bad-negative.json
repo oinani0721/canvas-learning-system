@@ -1,0 +1,21 @@
+{
+  "results": [],
+  "killed": 19,
+  "total": 18,
+  "partial": false,
+  "syntax_invalid": 0,
+  "verdict_counts": {
+    "KILLED": 19,
+    "KILLED-UNBOUND": 0,
+    "SURVIVED": -1,
+    "HARNESS-ERROR": 0,
+    "ANCHOR-ERROR": 0,
+    "SYNTAX-INVALID": 0
+  },
+  "verdict_sum_matches_total": true,
+  "restore_identical": true,
+  "restore_failures": [],
+  "mark_scan_ok": true,
+  "leftovers": [],
+  "baseline_missing": []
+}

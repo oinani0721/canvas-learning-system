@@ -1,0 +1,73 @@
+### 验伪锚：全对样本（g33 --json 形态 + g32b stdout 形态）应 rc=0
+== 六档处置表跨套硬比（声明核 2 套: g33, g32b）==
+── g33（json 形态, 存档 g33-json-ok.json）
+     KILLED          18
+     KILLED-UNBOUND  0
+     SURVIVED        0
+     HARNESS-ERROR   0
+     ANCHOR-ERROR    0
+     SYNTAX-INVALID  0
+     逐档相加=18 该套印的六档之和=18 该套自称分母=18 AST 现算条数=18 ✓
+── g32b（stdout 形态, 存档 g32b-stdout-ok.txt）
+     KILLED          6
+     KILLED-UNBOUND  0
+     SURVIVED        0
+     HARNESS-ERROR   0
+     ANCHOR-ERROR    0
+     SYNTAX-INVALID  0
+     逐档相加=6 该套印的六档之和=6 该套自称分母=6 AST 现算条数=6 ✓
+
+✓ 2 套六档逐档硬比一致，且各套自称分母 == 源码 AST 现算条数
+rc=0
+
+### 坏法 A：篡改某一档计数（SURVIVED 0→3，和行不动）应 rc≠0
+== 六档处置表跨套硬比（声明核 1 套: g32b）==
+── g32b（stdout 形态, 存档 g32b-stdout-bad-tampered.txt）
+     KILLED          6
+     KILLED-UNBOUND  0
+     SURVIVED        3
+     HARNESS-ERROR   0
+     ANCHOR-ERROR    0
+     SYNTAX-INVALID  0
+     逐档相加=9 该套印的六档之和=6 该套自称分母=6 AST 现算条数=6 ⛔ 对不上
+
+⛔ 对账不通过:
+   · g32b: 逐档相加 9 ≠ 该套印出来的六档之和 6 —— 存档里某一档的计数与和行对不上
+rc=1
+
+### 坏法 B：缺一个档键（g33 verdict_counts 少 ANCHOR-ERROR）应 rc≠0
+== 六档处置表跨套硬比（声明核 1 套: g33）==
+
+⛔ 对账不通过:
+   · g33: `verdict_counts` 缺这些档 ['ANCHOR-ERROR'] —— ⛔ 缺档不得当成 0/「一致」
+rc=1
+
+### 坏法 C：自称分母与 AST 现算不符（样本内部自洽 5/5/5，AST=6）应 rc≠0
+== 六档处置表跨套硬比（声明核 1 套: g32b）==
+── g32b（stdout 形态, 存档 g32b-stdout-bad-denominator.txt）
+     KILLED          5
+     KILLED-UNBOUND  0
+     SURVIVED        0
+     HARNESS-ERROR   0
+     ANCHOR-ERROR    0
+     SYNTAX-INVALID  0
+     逐档相加=5 该套印的六档之和=5 该套自称分母=5 AST 现算条数=6 ⛔ 对不上
+
+⛔ 对账不通过:
+   · g32b: 该套自称的分母 5 ≠ 源码 AST 现算的变异条数 6 —— 部分跑冒充全量, 或 MUTATIONS 已漂移（⛔ 这一条是唯一的跨源独立判据）
+rc=1
+
+### 坏法 D：声明了 g33 却不给输入 应 rc≠0
+== 六档处置表跨套硬比（声明核 2 套: g33, g32b）==
+── g32b（stdout 形态, 存档 g32b-stdout-ok.txt）
+     KILLED          6
+     KILLED-UNBOUND  0
+     SURVIVED        0
+     HARNESS-ERROR   0
+     ANCHOR-ERROR    0
+     SYNTAX-INVALID  0
+     逐档相加=6 该套印的六档之和=6 该套自称分母=6 AST 现算条数=6 ✓
+
+⛔ 对账不通过:
+   · g33: --expect 声明了要核，却没给 --json 输入 —— ⛔ 缺席不是「一致」
+rc=1
