@@ -60,7 +60,8 @@
 #   CLS_DEPLOY_ALLOW_DOCKER_UP  **缺省 0 = 步 5 只跑 `config` 断言后 SKIP，不 `up -d`**。
 #                             显式 =1 才真起容器（顶替现网容器不可逆 ⇒ opt-in，需用户当次授权）。
 #   CLS_LIVE_VAULT            live vault 绝对路径（禁写面第一条），缺省为主仓 canvas-vault。
-#   CLS_NPM_BUILD_TIMEOUT     步 1 `npm run build` 的**墙钟上限**（整数秒，取值 1..86400），
+#   CLS_NPM_BUILD_TIMEOUT     步 1 `npm run build` 的**墙钟上限**（整数秒，取值 1..86400；
+#                             含前导零在内**原串最多 20 位** —— Codex r3 LOW-3），
 #                             缺省 300。到点对 npm 所在进程组 TERM→（2s）→KILL，步 1 以
 #                             FAIL 71 + 超时专属文案返回，而不是无限挂起（集成期裁定 R-15：
 #                             候选树跑 tests/unit 时真跑本脚本的用例逐个卡死，挂点就是这条

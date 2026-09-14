@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-11-第十四批 · 车道 T2-A · 卡 CARD-DEPLOY-TIMEOUT round-1
+> 模型: `gpt-6-astra` · reasoning_effort: `ultra` · codex: `codex-cli 0.153.3`（`codex --version` 实测）
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat _bmad-output/审查/prompts/codex-prompt-CARD-DEPLOY-TIMEOUT.md)"`
+> 审查绑定: `7413283a`（该轮送审时的 HEAD；此后本卡按 D-15 继续整改 ⇒ 最终 HEAD 不同，末轮绑定见 r3 存档）
+> 会话头自证（抄 `.stderr` 中含 codex 版本行 + `model:` 行 + `reasoning effort` 行的三行，括注行号；`.stderr` 本身不入库）:
+> `:2 OpenAI Codex v0.153.3` / `:5 model: gpt-6-astra` / `:9 reasoning effort: ultra`
+
+---
+
 复核结论：**FAIL，1 HIGH / 2 MEDIUM / 3 LOW**。已绑定 `7413283a`，两个源码文件的哈希与负控记录一致。未修改文件、未重跑 pytest；以下复现使用无写盘的独立语义探针。
 
 **BLOCKER：无。**

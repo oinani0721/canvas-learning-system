@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-11-第十四批 · 车道 T2-A · 卡 CARD-DEPLOY-TIMEOUT round-2
+> 模型: `gpt-6-astra` · reasoning_effort: `ultra` · codex: `codex-cli 0.153.3`（`codex --version` 实测）
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat _bmad-output/审查/prompts/codex-prompt-CARD-DEPLOY-TIMEOUT-r2.md)"`
+> 审查绑定: `71a85acf`（该轮送审时的 HEAD；此后本卡按 D-15 继续整改 ⇒ 最终 HEAD 不同，末轮绑定见 r3 存档）
+> 会话头自证（抄 `.stderr` 中含 codex 版本行 + `model:` 行 + `reasoning effort` 行的三行，括注行号；`.stderr` 本身不入库）:
+> `:4 OpenAI Codex v0.153.3` / `:7 model: gpt-6-astra` / `:11 reasoning effort: ultra`
+
+---
+
 本轮结论：**BLOCKER 0 / HIGH 1 / MEDIUM 0 / LOW 3**。审查绑定 `71a85acf`；**round 1 HIGH-1 尚未关闭**。
 
 **BLOCKER：无。**
