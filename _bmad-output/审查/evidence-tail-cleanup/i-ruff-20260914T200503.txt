@@ -1,0 +1,45 @@
+# (i) ruff check — 本卡三文件 + 验伪锚 @ 20260914T200503
+# ⚠️ 生效配置 = backend/ruff.toml (select = E9,F63,F7,F82)，非 pyproject 的 E/W/F/I/B/C4。
+#   仓根 ruff.toml (select = []) 被 backend/ruff.toml 遮蔽；F401 / isort(I) 均未启用。
+#   ⇒ 卡文 §二.5 的「F401 验伪锚」在 backend/** 上恒不触发（锚点选在未启用规则上），
+#     改用启用集里的 F821（undefined-name，属 F82）做锚。覆盖面限制已登记。
+---
+## 生效配置自证
+Settings path: "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-bugs/backend/ruff.toml"
+linter.rules.enabled = [
+	io-error (E902),
+	assert-tuple (F631),
+	is-literal (F632),
+	invalid-print-syntax (F633),
+	if-tuple (F634),
+	break-outside-loop (F701),
+	continue-outside-loop (F702),
+	yield-outside-function (F704),
+	return-outside-function (F706),
+	default-except-not-last (F707),
+	forward-annotation-syntax-error (F722),
+
+## 判据：本卡三文件（zsh 数组，文件名保留 backend/ 前缀）
+files=3
+All checks passed!
+rc=0
+
+## 验伪锚：仓内放一个 F821（undefined-name）文件，须 rc=1
+F821 Undefined name `undefined_name_t5a`
+ --> backend/_t5a_anchor_f821.py:2:12
+  |
+1 | def f():
+2 |     return undefined_name_t5a
+  |            ^^^^^^^^^^^^^^^^^^
+  |
+
+Found 1 error.
+anchor_rc=1
+
+## ruff format --check（config.py 须仍 clean；另两文件属主干既有 462 漂移集）
+1 file already formatted
+rc_config_fmt=0
+Would reformat: backend/app/services/background_task_manager.py
+Would reformat: backend/tests/unit/test_background_task_manager.py
+2 files would be reformatted
+rc_other_fmt=1 (主干既有漂移，08100483 原版同样 would reformat)

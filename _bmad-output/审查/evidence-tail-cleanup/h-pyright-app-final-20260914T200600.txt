@@ -1,0 +1,4 @@
+# (h) pyright app — 绑最终代码 @ 20260914T200600
+---
+0 errors, 81 warnings, 0 informations
+rc=0

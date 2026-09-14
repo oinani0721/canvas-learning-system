@@ -723,6 +723,17 @@ class Settings(BaseSettings):
     )
 
     # ═══════════════════════════════════════════════════════════════════════════
+    # Background Task Cleanup Settings
+    # CARD-TAIL-CLEANUP-LOOP [BATCH-2026-09-11-第十四批] — T-new-4 忙循环修复
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    TASK_CLEANUP_INTERVAL_SECONDS: int = Field(
+        default=3600,
+        gt=0,
+        description="Interval in seconds between background-task cleanup sweeps. cleanup_old_tasks() 的保留截止以小时计（max_age_hours=24），每小时扫一次即足够；gt=0 防配 0 值退化为紧循环。",
+    )
+
+    # ═══════════════════════════════════════════════════════════════════════════
     # Computed Properties
     # ═══════════════════════════════════════════════════════════════════════════
 

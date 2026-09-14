@@ -1,0 +1,50 @@
+# (e) 负控 1 — 临时把 (c).1 新字段改名 ⇒ 根因门 + 测试 A 必须红
+# 还原机制: EXIT trap 从 $SCR 副本 cp 回；禁 git stash / git checkout
+## 跑前 shasum -a 256（三文件）
+6688a79efb604a5b6e8c3cc137bd7685b410198ed05de600b6239b27b3244c4b  backend/app/config.py
+ae9be4cae5c8a7e2fd143e836b67d0a829f60723c4970b0201b20810031ad01d  backend/app/services/background_task_manager.py
+c3b39ce009f999a1eb2e89e596a98f3b69d5f8a61819791da79aa11b2fbc9be0  backend/tests/unit/test_background_task_manager.py
+---变异开始---
+## 变异后 config.py sha（应与跑前不同）
+b4305e4332c7fd06bd523b7962a78461b0275cdc16233b13b6a32d886f86f95c  backend/app/config.py
+
+## 判据 A1: 根因门（期望 rc≠0 且含 AssertionError:'+' no field）
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    import sys;sys.path.insert(0,'.');from app.config import settings;assert hasattr(settings,'TASK_CLEANUP_INTERVAL_SECONDS'), 'no field';assert settings.TASK_CLEANUP_INTERVAL_SECONDS>0;print('ok')
+                                                                             ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: no field
+rc_rootcause=1
+
+## 判据 A2: 测试 A（期望 FAILED 在首行守卫）
+E   assert False
+E    +  where False = hasattr(Settings(PROJECT_NAME='Canvas Learning System API', PROJECT_DESCRIPTION='Multi-agent learning system backend using Fey...ITHFULNESS_MODEL='', INJECTION_GUARD_ENABLED=True, INJECTION_THRESHOLD=0.7, TASK_CLEANUP_INTERVAL_SECONDS_NEGCTL1=3600), 'TASK_CLEANUP_INTERVAL_SECONDS')
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+    import pkg_resources
+<frozen importlib._bootstrap>:491
+<frozen importlib._bootstrap>:491
+app/api/v1/endpoints/chat.py:807
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-bugs/backend/app/api/v1/endpoints/chat.py:807: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+app/api/v1/endpoints/metadata.py:103
+    canvas_path: str = Query(
+app/api/v1/endpoints/metadata.py:177
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_background_task_manager.py::TestCleanupScheduler::test_cleanup_loop_sleeps_the_configured_interval
+rc_testA=1
+
+## 跑后 shasum -a 256（三文件，必须与跑前逐字同）
+6688a79efb604a5b6e8c3cc137bd7685b410198ed05de600b6239b27b3244c4b  backend/app/config.py
+ae9be4cae5c8a7e2fd143e836b67d0a829f60723c4970b0201b20810031ad01d  backend/app/services/background_task_manager.py
+c3b39ce009f999a1eb2e89e596a98f3b69d5f8a61819791da79aa11b2fbc9be0  backend/tests/unit/test_background_task_manager.py

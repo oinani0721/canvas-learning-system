@@ -1,0 +1,38 @@
+# (e) 负控 1+2 — 绑最终代码（收行后行号：守卫 :187/:245，退避断言 :291）@ 20260914T200649
+# 还原: EXIT trap 从 SCR 副本 cp 回两文件（禁 git stash / git checkout）
+## 跑前 shasum -a 256（三文件）
+6688a79efb604a5b6e8c3cc137bd7685b410198ed05de600b6239b27b3244c4b  backend/app/config.py
+ae9be4cae5c8a7e2fd143e836b67d0a829f60723c4970b0201b20810031ad01d  backend/app/services/background_task_manager.py
+3c567090220a17b6c449f4f6207ee6a3712852a235a7e0eeda5ba93c2113768a  backend/tests/unit/test_background_task_manager.py
+---变异开始---
+
+### 负控 1: config 新字段改名 -> ..._NEGCTL1（声称杀: 根因门 hasattr + 测试 A 守卫 :187）
+变异后 config sha: b4305e4332c7fd06bd523b7962a78461b0275cdc16233b13b6a32d886f86f95c
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    import sys;sys.path.insert(0,'.');from app.config import settings;assert hasattr(settings,'TASK_CLEANUP_INTERVAL_SECONDS'), 'no field';print('ok')
+                                                                             ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: no field
+rc_rootcause=1
+tests/unit/test_background_task_manager.py:187: in test_cleanup_loop_sleeps_the_configured_interval
+E   AssertionError: no field
+tests/unit/test_background_task_manager.py:245: in test_cleanup_loop_backs_off_after_exception
+E   AssertionError: no field
+FAILED tests/unit/test_background_task_manager.py::TestCleanupScheduler::test_cleanup_loop_sleeps_the_configured_interval
+FAILED tests/unit/test_background_task_manager.py::TestCleanupScheduler::test_cleanup_loop_backs_off_after_exception
+============================== 2 failed in 1.11s ===============================
+rc_tests=1
+负控1 还原后 config sha: 6688a79efb604a5b6e8c3cc137bd7685b410198ed05de600b6239b27b3244c4b
+
+### 负控 2: 删 except 分支退避 await（声称杀: 测试 B 的 sleeps_between 断言 :291）
+变异后 btm sha: a95283fef454a5784ca759ecd5f2f0ba5947f607f74bef841b55b6e09f2c61cb
+tests/unit/test_background_task_manager.py:291: in test_cleanup_loop_backs_off_after_exception
+E   AssertionError: except Exception 分支必须先 await 一个退避 sleep, 再回到循环顶 sleep (两次), 才进下一轮清理; 只有 1 次 = 异常路径没退避 = 紧循环仍在。实测异常与下一轮清理之间 = ['sleep']; 完整序列 = [('sleep', 3600), ('cleanup-raise', 0), ('sleep', 3600), ('cleanup-ok', 0), ('sleep', 3600), ('cleanup-ok', 0), ('sleep', 3600)]
+FAILED tests/unit/test_background_task_manager.py::TestCleanupScheduler::test_cleanup_loop_backs_off_after_exception
+========================= 1 failed, 1 passed in 1.60s ==========================
+rc_tests=1
+
+## 跑后 shasum -a 256（三文件，须与跑前逐字同）
+6688a79efb604a5b6e8c3cc137bd7685b410198ed05de600b6239b27b3244c4b  backend/app/config.py
+ae9be4cae5c8a7e2fd143e836b67d0a829f60723c4970b0201b20810031ad01d  backend/app/services/background_task_manager.py
+3c567090220a17b6c449f4f6207ee6a3712852a235a7e0eeda5ba93c2113768a  backend/tests/unit/test_background_task_manager.py

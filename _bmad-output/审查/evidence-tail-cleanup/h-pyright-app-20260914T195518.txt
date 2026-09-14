@@ -1,0 +1,6 @@
+# (h) pyright app 保持 0 — 改代码后 @ 20260914T195518
+# 期望汇总行: 0 errors, 81 warnings
+# P=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/bin/pyright  (绝对路径 + test -x；cwd=backend/ 见 R-B14-10)
+---
+0 errors, 81 warnings, 0 informations
+rc=0

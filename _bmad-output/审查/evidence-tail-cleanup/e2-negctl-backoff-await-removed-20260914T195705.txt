@@ -1,0 +1,43 @@
+# (e) 负控 2 — 临时删掉 except Exception 分支的退避 await（:369）
+# 声称被杀的断言: 测试 B 的 sleeps_between == ["sleep", "sleep"]（test 文件 :297）
+# ⚠️ 锚点必须带上下文: 'await asyncio.sleep(settings.TASK_CLEANUP_INTERVAL_SECONDS)' 在本文件出现两次(:357 循环顶 / :369 退避)
+# 还原: EXIT trap 从 SCR 副本 cp 回（禁 git stash / git checkout）
+## 跑前 shasum -a 256
+6688a79efb604a5b6e8c3cc137bd7685b410198ed05de600b6239b27b3244c4b  backend/app/config.py
+ae9be4cae5c8a7e2fd143e836b67d0a829f60723c4970b0201b20810031ad01d  backend/app/services/background_task_manager.py
+c3b39ce009f999a1eb2e89e596a98f3b69d5f8a61819791da79aa11b2fbc9be0  backend/tests/unit/test_background_task_manager.py
+---变异开始---
+## 变异后 btm sha
+a95283fef454a5784ca759ecd5f2f0ba5947f607f74bef841b55b6e09f2c61cb  backend/app/services/background_task_manager.py
+
+## 变异实证：except 块现状
+361:                 except Exception as e:
+362:                     logger.error(f"Cleanup error: {e}")
+363:                     # 退避 (T-new-4 的第二层): 异常路径也必须 await 一个 > 0 的间隔
+364:                     # 才回到循环顶。否则一次持续性失败 (例如上面的 AttributeError)
+365:                     # 就会把 while True 变成不交还事件循环的紧循环 —— 这正是本卡
+366:                     # 修复的形态, 光补配置字段挡不住它。
+367:                     # 复用同一间隔 = 零新增配置面; 「独立的更短退避常量」这一取舍
+368:                     # 已登记移交 (见验收单「台账待登记条目」)。
+369:                     pass  # NEGCTL2: 退避 await 已被临时删除
+370: 
+
+## 判据 B: 测试 B（--tb=short，保留 file:line）
+tests/unit/test_background_task_manager.py:297: in test_cleanup_loop_backs_off_after_exception
+E   AssertionError: except Exception 分支必须先 await 一个退避 sleep, 再回到循环顶 sleep (两次), 才进下一轮清理; 只有 1 次 = 异常路径没退避 = 紧循环仍在。实测异常与下一轮清理之间 = ['sleep']; 完整序列 = [('sleep', 3600), ('cleanup-raise', 0), ('sleep', 3600), ('cleanup-ok', 0), ('sleep', 3600), ('cleanup-ok', 0), ('sleep', 3600)]
+E   assert ['sleep'] == ['sleep', 'sleep']
+E     
+E     Right contains one more item: 'sleep'
+E     Use -v to get more diff
+FAILED tests/unit/test_background_task_manager.py::TestCleanupScheduler::test_cleanup_loop_backs_off_after_exception
+============================== 1 failed in 1.01s ===============================
+rc_testB=1
+
+## 对照：同一变异下测试 A 应仍绿（证明负控只杀退避那条，不是全面打红）
+============================== 1 passed in 0.97s ===============================
+rc_testA_control=0
+
+## 跑后 shasum -a 256（须与跑前逐字同）
+6688a79efb604a5b6e8c3cc137bd7685b410198ed05de600b6239b27b3244c4b  backend/app/config.py
+ae9be4cae5c8a7e2fd143e836b67d0a829f60723c4970b0201b20810031ad01d  backend/app/services/background_task_manager.py
+c3b39ce009f999a1eb2e89e596a98f3b69d5f8a61819791da79aa11b2fbc9be0  backend/tests/unit/test_background_task_manager.py

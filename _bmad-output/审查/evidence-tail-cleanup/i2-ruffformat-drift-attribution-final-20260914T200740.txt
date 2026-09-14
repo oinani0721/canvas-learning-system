@@ -1,0 +1,40 @@
+# (i) ruff format --check 漂移归因 — 绑最终代码 @ 20260914T200740
+# 主张: 两文件的 format 漂移全部是 B14_BASE(08100483) 既有，无一落在本卡改动行；
+#       config.py 本卡改后仍 format-clean（rc=0）。
+# 方法: 逐 hunk 对应 —— 工作树 @@ 行段 vs 08100483 原版 @@ 行段，偏移量须等于本卡插入行数。
+---
+## config.py（本卡新增字段所在文件）
+1 file already formatted
+rc=0  ← 0 = clean，本卡未引入新漂移
+
+## background_task_manager.py
+### 工作树版 formatter 行段
+@@ -64,9 +64,7 @@
+@@ -280,9 +278,7 @@
+@@ -402,9 +398,7 @@
+### 08100483 原版 formatter 行段
+@@ -64,9 +64,7 @@
+@@ -280,9 +278,7 @@
+@@ -389,9 +385,7 @@
+### 本卡改动行段
+@@ -345,7 +345,13 @@ class BackgroundTaskManager:
+@@ -356,0 +363,7 @@ class BackgroundTaskManager:
+### 对应关系: 64↔64, 280↔280, 402↔389(+13 = 本卡净增 13 行); 三段大小均 9→7; 本卡改动在 345-357/363-369, 与三段无交集
+
+## test_background_task_manager.py
+### 工作树版 formatter 行段
+@@ -61,8 +61,7 @@
+@@ -121,12 +120,8 @@
+### 08100483 原版 formatter 行段
+@@ -59,8 +59,7 @@
+@@ -119,12 +118,8 @@
+### 本卡改动行段
+@@ -15,0 +16,2 @@ import pytest
+@@ -156,0 +159,139 @@ class TestContextVarInheritance:
+### 对应关系: 61↔59, 121↔119 (+2 = 本卡 import 插入 2 行); 两段大小 8→7 与 12→8 均一致;
+###   本卡新增区 (159-297) 原先有 3 处 formatter 行段(@@224/@@282/@@300)，已按 formatter 口径收行消除。
+### 08100483 原版形态: 两文件均 'Would reformat'（主干既有，非本卡引入）
+Would reformat: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t5-bugs/4d6e7de3-6059-4629-9ca3-488f2df65c2b/scratchpad/base/background_task_manager.py
+Would reformat: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t5-bugs/4d6e7de3-6059-4629-9ca3-488f2df65c2b/scratchpad/base/test_background_task_manager.py
+2 files would be reformatted
+rc=1
