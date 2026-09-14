@@ -497,10 +497,11 @@ def test_dst_window_candidates_cover_rules_that_roll_into_the_following_year(tz_
         `2023-01-01T04Z → 2024-01-01T02Z`，**只跨一个**年界，可它覆盖 `2024-01-01T00:30Z`
         的名义起始年仍是 `2022 = y−2`。
 
-    真正的机制：`start` 与 `end` 的生效时刻**各自**都可能滚出名义年（规则日最多 366 天，
-    再叠上最大 41.69 天的 `/N` 与同量级的偏移），两段位移累加起来，可以把名义年 `Y` 的
-    季度整体推到 `Y+2` 年里。所以「覆盖 ts 的名义起始年」最早到 `y−2`，而具体到某个规格
-    要看两个端点各滚了多少 —— 上面三个既有串的端点位移都不足以推到 y−2，反例串的够。
+    准确的机制（Codex r5 L2 给的表述，前面两版都被证伪，别再改回去）：**南半球分支的
+    季度终点取的是 `e(Y+1)`，而这个端点自己还能滚进 `Y+2` 年** —— 于是覆盖 y 年初的
+    季度，其名义起始年可以早到 `y−2`。
+    （初版「两段位移累加把季度整体推到 Y+2」也不准：`Y=2024` 的季度是
+    `2024-12-31T04Z → 2026-01-01T02Z`，两个端点的位移并没有相加。）
     界的严格推导在 `_in_dst` 的注释里（406.70 / 42 / 448.70 / 365 / 730 五个数）。
     ⛔ **滚出名义年不止一条路**（本卡实测更正了初版注释里「裸 n=365 是唯一写法」那句）：
       ① 平年的裸 `n=365` = `1月1日 + 365 天` = 次年元旦；
@@ -591,7 +592,8 @@ def test_candidate_year_guard_keeps_extreme_epochs_from_raising(copy_id):
     南半球分支还要取 `_dst_window(year + 1)`，所以上界也要留一格（9998）。
     实测 BASE 在 `0002-07-01T12:00Z` 上换算成功而 r3 之前的 HEAD 抛异常。
 
-    ⚠️ 本门只保证**不抛**，不保证与 C 库一致 —— 这些年份远在声明的对齐区间
+    ⚠️ 本门钉两件事：极值年份**不抛**，以及上界不被收得过紧（9999 年的北半球季度必须
+    仍算得出 +01:00）。它**不**保证这些年份的换算与 C 库一致 —— 它们远在声明的对齐区间
     （2007..2037）之外，C 库自己在那里也不套用 POSIX 规则。
     """
     module = backend_tz if copy_id == "backend" else _load_local_tz()
@@ -620,10 +622,79 @@ def test_candidate_year_guard_keeps_extreme_epochs_from_raising(copy_id):
         f"[{copy_id}] 候选年上界收得过紧: 9999-07-01T23:30Z 换算得 {late}（偏移 {late.utcoffset()}），"
         "应为 +01:00 —— 9999 年的北半球季度不需要 year+1，不该被跳过。"
     )
+    # ⛔ 上面那个规格走的是**北半球**分支，压不到南支的 `year < 9999` 守卫（Codex r5 L1
+    #    实测：把 `elif year < 9999:` 改成 `else:`，整条门仍通过）。南支要算 `year + 1`，
+    #    9999 年会算到 10000 ⇒ 必须单独喂一个南半球形态的规格。
+    south = module.parse_posix_tz("AAA0BBB,M11.1.0,M3.2.0")  # start 11 月、end 3 月 ⇒ s > e
+    assert south is not None, f"[{copy_id}] 前提不成立：南半球规格本应解析成功"
+    assert south._dst_window(9999)[0] > south._dst_window(9999)[1], (
+        f"[{copy_id}] 前提不成立：该规格在 9999 年不是南半球形态（s > e），压不到南支守卫"
+    )
+    try:
+        datetime(9999, 12, 15, 12, tzinfo=timezone.utc).astimezone(south)
+    except Exception as exc:  # noqa: BLE001
+        raise AssertionError(
+            f"[{copy_id}] 南半球分支的候选年上界失效: 9999-12-15 换算抛 "
+            f"{type(exc).__name__}: {exc}\n"
+            "  南支要取 `_dst_window(year + 1)`，year=9999 时会算到 10000。"
+        ) from exc
+
+
+#: ⛔ 非法字节的 `TZ` 值不能直接做 parametrize 的参数 —— pytest 为 bytes 生成 test id 时
+#: 会抛 `UnicodeEncodeError`，整个文件在**收集期**就 ERROR。用标签选，值放函数体里。
+_NON_UTF8_TZ_BYTES = {"dst-side": b"AAA0<\xff>", "std-side": b"<\xff>0BBB"}
+
+
+@pytest.mark.parametrize("copy_id", _COPY_IDS)
+@pytest.mark.parametrize("side", sorted(_NON_UTF8_TZ_BYTES))
+def test_display_tz_survives_non_utf8_tz_bytes(copy_id, side):
+    """`TZ` 是**环境变量**，里面可以有任意字节 —— `display_tz()` 不得因此抛异常。
+
+    ⛔ 这条守的是本卡引入过的一个**启动失败**面（Codex r5 H1）：长度检查改用
+    `len(spec.encode("utf-8"))` 之后，Python 会把非法字节读成**代理对**（0xFF 字节读成
+    U+DCFF），而严格 `.encode()` 对代理对抛 `UnicodeEncodeError`。
+    ⚠️ 本 docstring 里刻意**不写**那个转义序列的字面拼法 —— 它在普通字符串里会被 Python
+    当转义展开成真实的代理字符，pytest 的 assertion rewrite 随后编码整份源码时就会抛，
+    整个文件在**收集期** ERROR（本卡实测踩过）。
+    而 `review_overview` 的**模块级**启动校验就调 `display_tz()` ⇒ 带这种 `TZ` 的宿主上
+    应用根本起不来；BASE 在同样输入下只是正常退 UTC。
+    修法是 `encode("utf-8", "surrogateescape")` —— 它把代理对编回原字节，
+    数出来正是 C 库实际收到的字节数。
+
+    ⚠️ 本门只钉「不抛」。这些串本机 C 库是接受的，换算结果是否与 C 库一致不在本门范围。
+    """
+    raw_tz = _NON_UTF8_TZ_BYTES[side]
+    saved_tz = os.environb.get(b"TZ")
+    saved_canvas = os.environ.get("CANVAS_TZ")
+    os.environ.pop("CANVAS_TZ", None)
+    try:
+        os.environb[b"TZ"] = raw_tz
+        time.tzset()
+        try:
+            _display_tz_of(copy_id)
+        except Exception as exc:  # noqa: BLE001 —— 任何异常都是失败
+            raise AssertionError(
+                f"[{copy_id}] display_tz() 在 TZ={raw_tz!r} 下抛了 "
+                f"{type(exc).__name__}: {exc}\n"
+                "  长度检查必须用 encode('utf-8', 'surrogateescape')：环境变量里的非法字节\n"
+                "  被 Python 读成代理对，严格 encode 会抛，而模块级启动校验就调这个函数。"
+            ) from exc
+    finally:
+        if saved_tz is None:
+            os.environb.pop(b"TZ", None)
+        else:
+            os.environb[b"TZ"] = saved_tz
+        if saved_canvas is not None:
+            os.environ["CANVAS_TZ"] = saved_canvas
+        time.tzset()
 
 
 #: 省略规则分支**不得扩大错误接受面**（Codex r1 HIGH-2）。下面这些串在 BASE 上就返回
-#: `None`（⇒ `display_tz()` 退 UTC，与 C 库一致）；补默认规则时若不先校验偏移，它们会
+#: `None`（⇒ `display_tz()` 退 UTC）。⛔ 别把这句写成「退 UTC，与 C 库一致」（Codex r5 L3
+#: 证伪）：其中若干串 C 库是**接受**的 —— 例如 `AAA12BBB-12` 在 2026-07-01T23:30Z 上
+#: C 库给 `07-02 11:30 +12h` 而 BASE/HEAD 都退 UTC 归 07-01。那属于**既有**支持缺口
+#: （BASE 同样如此），本门守的是「本卡没有把它们从退 UTC 变成被接受」。补默认规则时
+#: 若不先校验偏移，它们会
 #: 变成「被接受并参与换算」——`AAA0:60BBB` 直接错一天，`AAA999BBB` 则在 `.isoformat()`
 #: 处抛 `ValueError`。⛔ 本门守的是「修复没有顺手放宽别的东西」，不是解析器的取值域本身
 #: （后者是上一轮登记的 MEDIUM，本卡不动带显式规则的那条路径）。
@@ -666,6 +737,9 @@ _OMITTED_RULE_REJECT_CASES = [
     #    字符却是 516 字节 —— 按字符量会放行，而 C 库拒收退 UTC ⇒ 差一整天（Codex r4 HIGH-1）。
     ("AAA0<" + "中" * 170 + ">", "176 字符 / **516 字节**：按字符量会放行，按字节量才拦得住"),
     ("<" + "中" * 170 + ">0BBB", "同形，落在**标准侧**引用名上"),
+    # ⛔ NUL 进不了完整的 C 环境字符串，但**能从 JSON 的 `display_tz` 自报值进来** ——
+    #    桶位门会用本函数重建生产者时区（Codex r5 M1：BASE 拒收，补规则后整串放行）。
+    ("AAA0<B\x00BB>", "引用名内含 NUL：走 JSON 自报值这条路进来，BASE 拒而补规则后会放行"),
 ]
 
 #: 正控：秒字段 60 **不该**被这条收紧误伤 —— C 库实测也接受它（`2026-01-20T00:30Z` 给

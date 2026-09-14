@@ -179,15 +179,24 @@ def parse_posix_tz(spec: str):
         #     但 `dst()` / `timetuple()` 会抛 ValueError。
         # ⚠️ 只收紧**本分支**: 带显式规则的那条路径是既有行为, 本卡不动它（它的取值域问题
         #    是上一轮登记的 MEDIUM, 混进来会让这次 HIGH 的收口说不清改了什么）。
-        if "\n" in spec or "\r" in spec:
+        if "\n" in spec or "\r" in spec or "\x00" in spec:
             # 正则用的是 `$` + `.match()`, Python 的 `$` 会在**末尾换行之前**收尾 ⇒
             # `"AAA0<BBB>\n"` 能匹配。C 库对这种**尾部**带换行的串整串拒收（实测
             # 2026-07-01T23:30Z 给 23:30 = UTC）, 补规则后却算成 +01:00、差一整天。
             # ⚠️ 别把它读成「C 库拒绝所有带换行的串」（Codex r4 LOW-3 证伪）: 换行若在
             #    **引用名内部**（`AAA0<B\nBB>`）C 库是接受的, 本条一并拒掉它们属于收紧,
             #    而 BASE 对那类串本来也返回 None ⇒ 既有缺口, 本卡没有加重。
+            # ⛔ NUL 同理拒掉（Codex r5 M1）: 它进不了完整的 C 环境字符串, 但**能从 JSON
+            #    里的 `display_tz` 自报值进来** —— 桶位门会用本函数重建生产者时区,
+            #    BASE 拒收而补规则后会整串放行, 那是本卡新增的语法接受缺口。
             return None
-        if len(spec.encode("utf-8")) > 255:
+        if len(spec.encode("utf-8", "surrogateescape")) > 255:
+            # ⛔ 必须带 `surrogateescape`（Codex r5 H1）: `TZ` 是**环境变量**, 里面可以有
+            #    任意字节; Python 把非法字节读成代理对（`b"\xff"` → `"\udcff"`）, 而严格
+            #    `.encode("utf-8")` 对代理对**抛 UnicodeEncodeError** —— BASE 在这种 TZ 下
+            #    正常退 UTC, 带严格 encode 的版本却抛异常, 而 `review_overview` 的模块级
+            #    启动校验就调 `display_tz()` ⇒ 应用**起不来**。`surrogateescape` 把它编回
+            #    原字节, 数出来正是 C 库实际收到的字节数（实测 `b"<\xff>0BBB"` → 7 字节）。
             # ⛔ 按 **UTF-8 字节**量, 不按字符量（Codex r4 HIGH-1）: `len(spec)` 数的是
             #    Unicode 字符, 而 C 库收到的是字节 —— `"AAA0<" + "中"*170 + ">"` 只有
             #    176 个字符却是 516 字节, 按字符量会放行, 而 C 库拒收退 UTC ⇒ 差一整天。
