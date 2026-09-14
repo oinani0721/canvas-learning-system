@@ -193,11 +193,15 @@ def _nodeid_shaped(s: str) -> bool:
       · 有参数段时，它从最后一个 `::` 之后那截里的**第一个** `[` 起、到整串**末尾的
         `]`** 止 —— 参数 ID 内部什么字符都可能出现（空格、` - `、`[`、`]`），内部不可约束。
 
-    ⛔ **参数段只可能在最后一个 `::` 之后**（Codex round-1 MEDIUM 实测）：**路径段本身
-    可以含方括号** —— `tests/test_[x].py::test_x` 是一个合法 nodeid。拿「整串第一个 `[`」
-    定位参数段起点，会把路径里的方括号误当参数段，于是「不以 `]` 收尾」⇒ 判它不是 nodeid 形
-    ⇒ 一条**合法的无 reason 摘要行**被 `_split_unique` 打成不可判定 ⇒ 假 HARNESS-ERROR。
-    没有 `::` 时（如收集错误行 `ERROR tests/x.py`）整串就是路径，**无参数段可言**。
+    ⛔ **参数段起点只能"存在量化"，不能固定取某一个 `[`**。两次固定取法都被反例打掉：
+      · 取**整串第一个 `[`** —— 路径段本身可含方括号（`tests/test_[x].py::test_x` 是合法
+        nodeid），于是「不以 `]` 收尾」⇒ 判它不是 nodeid 形 ⇒ 一条**合法的无 reason 摘要
+        行**被打成不可判定 ⇒ 假 HARNESS-ERROR（Codex round-1 MEDIUM）；
+      · 取**最后一个 `::` 之后** —— 参数 ID 里可以有 `::`（`…::test_x[case] - EXPECT[x :: y]]`
+        的参数 ID 是 `case] - EXPECT[x :: y]`），于是 `rpartition("::")` 切在参数内部、
+        前缀含空白 ⇒ 这条**真实的参数读法被漏掉** ⇒ 二义行重新被判唯一 ⇒ 假 KILLED
+        （Codex round-2 HIGH，本函数上一版引入的回归）。
+    ⇒ 判据写成：以 `]` 收尾时，**只要存在某个 `[`** 使它之前那截非空且不含空白即可。
 
     ⚠️ 这与 `_boundary_ok` 的「方括号成对」是**两条不同**的判据，不是同义改写：
     `a::b[[c]` 括号不成对却是合法 nodeid（参数 ID = `[c`），`a::b[c] - d` 括号成对却**不是**
@@ -206,18 +210,16 @@ def _nodeid_shaped(s: str) -> bool:
     """
     if not s:
         return False
-    head, sep, last = s.rpartition("::")
-    if not sep:
-        # 没有 `::` ⇒ 整串是路径, 没有参数段, 只要求不含空白。
+    if not s.endswith("]"):
+        # 无参数段：整串就是 `path` 或 `path::test`，唯一约束是不含空白。
         return not any(ch.isspace() for ch in s)
-    prefix = head + sep
-    if any(ch.isspace() for ch in prefix):
-        return False
-    i = last.find("[")
-    if i < 0:
-        return bool(last) and not any(ch.isspace() for ch in last)
-    name = last[:i]
-    return bool(name) and not any(ch.isspace() for ch in name) and s.endswith("]")
+    for i, ch in enumerate(s):
+        if ch.isspace():
+            # 前缀一旦出现空白，其后任何 `[` 的前缀都含空白 —— 不必再找。
+            return False
+        if ch == "[" and i > 0:
+            return True
+    return False
 
 
 def _split_unique(line: str, nodeid: str) -> bool:

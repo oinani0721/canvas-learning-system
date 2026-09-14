@@ -389,6 +389,10 @@ def _env() -> dict:
     return dict(os.environ)
 
 
+#: `RestoreGuard` 收到信号、**还原成功**后抛的退出码；还原失败时它抛 `+1`（= 131）。
+_SIGNAL_EXIT_CODE = 130
+
+
 def _report_final_restore_failure(exc: BaseException, verify: Callable[[], list[str]] | None) -> None:
     """末次还原失败时把事实**印出来**，并就地跑还原逐字节自检。
 
@@ -418,6 +422,7 @@ def restore_or_keep_exit_code(
     *,
     final: bool = False,
     verify: Callable[[], list[str]] | None = None,
+    clean_exit_code: int | None = None,
 ) -> bool:
     """还原一次；返回 `True` = 还原成功。
 
@@ -453,12 +458,24 @@ def restore_or_keep_exit_code(
     try:
         restore_all()
     except BaseException as exc:
-        # ⛔ Codex round-1 LOW：**信号退出不是还原失败**。`RestoreGuard` 收到信号时先把
-        # `restore()` 跑完、再抛 `SystemExit(exit_code)`；若该信号落在**本次**还原期间
+        # ⛔ Codex round-1 LOW：**干净的信号退出不是还原失败**。`RestoreGuard` 收到信号时
+        # 先把 `restore()` 跑完、再抛 `SystemExit(exit_code)`；若该信号落在**本次**还原期间
         # （进来时 `exiting()` 为假、出来时为真），这个 SystemExit 说明的是「还原做完了，
         # 然后按约定退出」，⛔ 不是「还原失败」。不分辨的话，一次**正常**的 Ctrl-C 会让
         # 报告印出「末次还原失败／不得当成干净」—— 那正是本卡要消灭的那类谎报。
-        guard_exit = isinstance(exc, SystemExit) and not was_exiting and exiting()
+        #
+        # ⛔⛔ Codex round-2 MEDIUM：但**只认那一个退出码**。`RestoreGuard._finish` 在
+        # 「还原本身失败」时抛的是 `SystemExit(exit_code + 1)`（= 131）—— 那恰恰**是**
+        # 还原失败的约定信号。上一版把「是不是 SystemExit」当判据，于是 131 被当成干净
+        # 退出放行，末次逐字节自检**零次调用** = 把本卡承诺的那道检查又丢了一次。
+        # `clean_exit_code=None`（未告知干净码）⇒ **fail-closed**：一律按还原失败处置。
+        guard_exit = (
+            clean_exit_code is not None
+            and isinstance(exc, SystemExit)
+            and exc.code == clean_exit_code
+            and not was_exiting
+            and exiting()
+        )
         if final and not guard_exit:
             # ⛔ SHA/还原逐字节自检**必须在这里就跑**：往下无论是 `raise`（把原异常
             # 继续展开）还是 `SystemExit(3)`，`main()` 的汇总段都一行都到不了。
@@ -521,7 +538,9 @@ def main() -> int:
     # 收口前这里已经是「先还原再退出」且四信号齐全, 缺的是最后一条: 还原循环本身
     # 若被第二个信号打断, 会停在「还原了一半」的状态。
     # SIGKILL 挡不住, 如实声明: 被 -9 打断时变异体会留在生产文件里, 须手动 restore。
-    _guard = RestoreGuard(restore_all)
+    # ⛔ 干净信号退出码与「还原失败」码（= 它 + 1，见 `RestoreGuard._finish`）必须有
+    # **单一来源**：末次还原路径要靠它分辨「还原做完了才退出」与「还原失败才退出」。
+    _guard = RestoreGuard(restore_all, exit_code=_SIGNAL_EXIT_CODE)
     _guard.install()
 
     def _verify_restore() -> list[str]:
@@ -615,7 +634,9 @@ def main() -> int:
         # `_verify_restore()` 把还原逐字节自检印出来, 再把退出码升到 3。⚠️ SHA 自检
         # 必须在**那里面**跑: 若原先那个 SystemExit(130) 继续展开, 下面的汇总段一行都
         # 到不了 (这正是收口前「仍报 130 且 SHA 不执行」的形态)。
-        if not restore_or_keep_exit_code(restore_all, _guard.exiting, final=True, verify=_verify_restore):
+        if not restore_or_keep_exit_code(
+            restore_all, _guard.exiting, final=True, verify=_verify_restore, clean_exit_code=_SIGNAL_EXIT_CODE
+        ):
             restore_failures.append("final")
 
     # ⛔ round-19 修回归: 收口前「判据面不成立」是 `return 2`(负控自己坏了)，改走

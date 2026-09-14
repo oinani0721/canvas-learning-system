@@ -122,7 +122,9 @@ def ast_mutation_count(source_name: str) -> int:
 #     «2 空格»六档之和: 9 (应 = 变异条数 9) ✓
 
 _CB_KILLED = re.compile(r"^ {2}(?P<n>\d+)/(?P<m>\d+) KILLED \(", re.M)
-_CB_FIVE = re.compile(rf"^ {{2}}(?P<name>{_TAIL_FIVE}): (?P<n>\d+)", re.M)
+#: ⛔ `(?![\d.])` 是 Codex round-2 MEDIUM 的封堵：没有它时 `SURVIVED: 0.5` 会被
+#: `\d+` 取到前缀 `0`，非整数计数**静默通过**对账（`_nonneg_int` 只管 JSON 那条路）。
+_CB_FIVE = re.compile(rf"^ {{2}}(?P<name>{_TAIL_FIVE}): (?P<n>\d+)(?![\d.])", re.M)
 _CB_SUM = re.compile(r"^ {2}六档之和: (?P<t>\d+) \(应 = 变异条数 (?P<m>\d+)\)", re.M)
 
 # ── 形态二：g32b 的 stdout 汇总段 ───────────────────────────────────────────
@@ -137,7 +139,7 @@ _CB_SUM = re.compile(r"^ {2}六档之和: (?P<t>\d+) \(应 = 变异条数 (?P<m>
 
 _B_KILLED = re.compile(r"^KILLED \(绑定断言身份: [^)]*\): (?P<n>\d+)/(?P<m>\d+)\s*$", re.M)
 _B_UNBOUND = re.compile(r"^KILLED-UNBOUND \([^)]*\): (?P<n>\d+)\s*$", re.M)
-_B_FOUR = re.compile(r"^(?P<name>SURVIVED|HARNESS-ERROR|ANCHOR-ERROR|SYNTAX-INVALID): (?P<n>\d+)", re.M)
+_B_FOUR = re.compile(r"^(?P<name>SURVIVED|HARNESS-ERROR|ANCHOR-ERROR|SYNTAX-INVALID): (?P<n>\d+)(?![\d.])", re.M)
 _B_SUM = re.compile(r"^六档之和: (?P<t>\d+) \(应 = (?P<m>\d+)\)", re.M)
 
 
@@ -211,8 +213,25 @@ def parse_stdout(suite: str, text: str) -> Parsed:
 
 def parse_json(suite: str, text: str) -> Parsed:
     """解析 g33 的 `--json` 存档（实测只有 g33 有 `verdict_counts` / `total`）。"""
+
+    def _no_dup(pairs: list[tuple[str, object]]) -> dict[str, object]:
+        """⛔ JSON **重复键**不得被后值静默覆盖（Codex round-2 MEDIUM）。
+
+        `json.loads` 默认保留最后一个同名键，于是 `"SURVIVED":5,"SURVIVED":0` 与
+        `"total":5,"total":18` 都能悄悄凑出一份「自洽」的存档并通过逐档硬比 ——
+        「存档里有互相冲突的数字」这件事完全不显形，与 stdout 侧的 `_put()` 同型。
+        """
+        seen: dict[str, object] = {}
+        for k, v in pairs:
+            if k in seen:
+                raise ReconcileError(f"{suite}: JSON 存档里键 `{k}` 出现了不止一次 —— ⛔ 冲突值不得静默覆盖")
+            seen[k] = v
+        return seen
+
     try:
-        data = json.loads(text)
+        data = json.loads(text, object_pairs_hook=_no_dup)
+    except ReconcileError:
+        raise
     except json.JSONDecodeError as exc:
         raise ReconcileError(f"{suite}: JSON 存档解析不了 —— {exc}") from exc
     if not isinstance(data, dict):

@@ -436,7 +436,13 @@ def test_m2_signal_exit_during_final_restore_is_not_a_restore_failure(capsys) ->
         return []
 
     with pytest.raises(SystemExit) as ei:
-        fn(_restore_then_signal, lambda: state["exiting"], final=True, verify=_verify)
+        fn(
+            _restore_then_signal,
+            lambda: state["exiting"],
+            final=True,
+            verify=_verify,
+            clean_exit_code=130,  # ⛔ 必须显式告知；不告知即 fail-closed（见下一条用例）
+        )
     assert ei.value.code == 130, f"⛔ 信号退出必须**保号** 130，不得升成 3，实得 {ei.value.code!r}"
     assert "末次还原失败" not in capsys.readouterr().err, "⛔ 还原其实成功了，不得谎报「末次还原失败」"
 
@@ -453,3 +459,65 @@ def test_m2_real_failure_during_signal_unwind_still_surfaces(capsys) -> None:
     with pytest.raises(OSError, match="real restore failure"):
         fn(_boom, lambda: state["exiting"], final=True, verify=lambda: [])
     assert "末次还原失败" in capsys.readouterr().err, "真失败必须浮出"
+
+
+def test_h1_double_colon_inside_param_id_still_ambiguous() -> None:
+    """⛔ 参数 ID 里可以有 `::` —— 参数段起点不能固定取「最后一个 `::` 之后」。
+
+    Codex round-2 HIGH（本函数上一版引入的回归）：
+    `FAILED tests/gate.py::test_target[case] - EXPECT[x :: y]] - AssertionError: other`
+    的读法 B 是「整段左侧就是 nodeid，参数 ID = `case] - EXPECT[x :: y]`」。上一版用
+    `rpartition("::")` 定位参数段，切点落进**参数 ID 内部**、前缀含空白 ⇒ 这条真实读法
+    被漏掉 ⇒ 二义行重新判唯一 ⇒ 假 KILLED。
+    """
+    left = "tests/gate.py::test_target[case] - EXPECT[x :: y]]"
+    assert mki._nodeid_shaped(left) is True, "参数 ID 含 `::` 的 nodeid 仍是 nodeid 形"
+    line = "FAILED tests/gate.py::test_target[case] - EXPECT[x :: y]] - AssertionError: other"
+    assert mki._split_unique(line, "tests/gate.py::test_target[case]") is False, (
+        "H1: 参数 ID 含 `::` 时两种读法并存 ⇒ 必须判不唯一"
+    )
+
+
+def test_m2_restore_failure_exit_code_is_not_a_clean_signal_exit(capsys) -> None:
+    """⛔ `SystemExit(131)` 是「还原失败」的约定信号，**不是**干净的信号退出。
+
+    Codex round-2 MEDIUM：`RestoreGuard._finish` 在还原本身失败时抛 `exit_code + 1`。
+    上一版只看「是不是 SystemExit」，于是 131 被当成干净退出放行，末次逐字节自检
+    **零次调用** —— 本卡承诺的那道检查又丢了一次。
+    """
+    fn = _restore_fn()
+    state = {"exiting": False, "verified": 0}
+
+    def _restore_fails_then_guard_exits() -> None:
+        state["exiting"] = True
+        raise SystemExit(131)  # 守卫：还原失败 ⇒ exit_code + 1
+
+    def _verify() -> list[str]:
+        state["verified"] += 1
+        return []
+
+    with pytest.raises(SystemExit):
+        fn(
+            _restore_fails_then_guard_exits,
+            lambda: state["exiting"],
+            final=True,
+            verify=_verify,
+            clean_exit_code=130,
+        )
+    assert state["verified"] == 1, "M②: 131 = 还原失败 ⇒ 末次逐字节自检必须仍然跑"
+    assert "末次还原失败" in capsys.readouterr().err, "M②: 131 必须浮出，不得当干净退出放行"
+
+
+def test_m2_clean_exit_code_unknown_is_fail_closed(capsys) -> None:
+    """⛔ 没告知干净退出码时 **fail-closed**：一律按还原失败处置（不猜）。"""
+    fn = _restore_fn()
+    state = {"exiting": False, "verified": 0}
+
+    def _sig() -> None:
+        state["exiting"] = True
+        raise SystemExit(130)
+
+    with pytest.raises(SystemExit):
+        fn(_sig, lambda: state["exiting"], final=True, verify=lambda: state.__setitem__("verified", 1) or [])
+    assert state["verified"] == 1, "M②: 未告知干净码 ⇒ 不得放行，自检照跑"
+    assert "末次还原失败" in capsys.readouterr().err
