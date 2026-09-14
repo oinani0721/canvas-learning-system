@@ -20,6 +20,7 @@ from app.services.agent_service import (
     MEMORY_WRITE_TIMEOUT,
     _record_failed_write,
 )
+from app.services.episode_worker import GraphitiEpisodeWorker
 from app.services.memory_service import MemoryService
 
 # Constants removed from memory_service; define locally for test compatibility
@@ -154,17 +155,17 @@ class TestAC2FailedWriteTracking:
         assert entry["score"] is None
 
 
-# fix-test-infra-paralysis Phase 2: skip — class monkeypatches the deleted
-# `MemoryService._write_to_graphiti_json_with_retry` attribute to verify
-# startup recovery retries via that helper. Retry now flows through
-# `_enqueue_episode → GraphitiEpisodeWorker`. Recovery contract needs a
-# fresh test under the new pipeline.
-@pytest.mark.skip(
-    reason="Monkeypatches deleted MemoryService._write_to_graphiti_json_with_retry; "
-    "startup recovery contract under EpisodeWorker pipeline needs separate test"
-)
 class TestAC3StartupRecovery:
-    """AC-3: Application startup replays failed writes."""
+    """AC-3: Application startup replays failed writes.
+
+    CARD-Y4-D-TAIL (第十四批, 2026-09-14): this class was switched off by a
+    class-level skip because one case monkeypatched a private retry helper that
+    fix-rag-transform-and-episode-isolation had deleted. Replay now runs through
+    ``MemoryService._enqueue_episode`` → ``GraphitiEpisodeWorker.enqueue``
+    (memory_service.py::recover_failed_writes), so the replay cases below drive a
+    real worker instead. ``test_recover_no_file`` needs no worker — it exercises
+    the early-return branch before any replay happens.
+    """
 
     @pytest.fixture
     def memory_service(self):
@@ -178,6 +179,24 @@ class TestAC3StartupRecovery:
         ms._score_history_cache = {}
         return ms
 
+    @pytest.fixture
+    async def ready_worker(self, tmp_path, monkeypatch):
+        """A started GraphitiEpisodeWorker wired into ``memory_service.get_episode_worker``.
+
+        A real worker, not a stub: ``_enqueue_episode`` checks ``worker.is_ready``
+        and builds a real ``EpisodeTask`` before calling ``enqueue``. Stubbing the
+        whole worker would leave that branch uncovered while still turning the
+        assertions green — only the outermost graphiti client is mocked.
+        """
+        w = GraphitiEpisodeWorker(maxsize=64, dead_letter_path=str(tmp_path / "dead_letter.jsonl"))
+        mock_graphiti = MagicMock()
+        mock_graphiti.add_episode = AsyncMock(return_value=None)
+        w.set_graphiti_client(mock_graphiti)
+        await w.start()
+        monkeypatch.setattr("app.services.memory_service.get_episode_worker", lambda: w)
+        yield w
+        await w.stop(timeout=5.0)
+
     @pytest.mark.asyncio
     async def test_recover_no_file(self, memory_service):
         """[P0] No fallback file → returns zeros, no crash."""
@@ -190,8 +209,13 @@ class TestAC3StartupRecovery:
         assert result == {"recovered": 0, "pending": 0}
 
     @pytest.mark.asyncio
-    async def test_recover_successful_replay(self, memory_service, tmp_path):
-        """[P0] Entries are replayed and removed from file on success."""
+    async def test_recover_successful_replay(self, memory_service, tmp_path, ready_worker):
+        """[P0] Entries are replayed and removed from file on success.
+
+        CARD-Y4-D-TAIL: replay succeeds only when the worker accepts the episode,
+        so this case now needs a started worker (previously the deleted retry
+        helper was patched onto the service).
+        """
         fallback_file = tmp_path / "failed_writes.jsonl"
         entry = {
             "timestamp": "2026-02-06T10:00:00",
@@ -215,8 +239,16 @@ class TestAC3StartupRecovery:
         assert not fallback_file.exists()
 
     @pytest.mark.asyncio
-    async def test_recover_partial_failure(self, memory_service, tmp_path):
-        """[P0] If replay fails, entry stays in file."""
+    async def test_recover_partial_failure(self, memory_service, tmp_path, ready_worker):
+        """[P0] If replay fails, entry stays in file.
+
+        CARD-Y4-D-TAIL: the original case monkeypatched a now-deleted private retry
+        helper so that the first replay returned True and the second False. The
+        equivalent boundary under the current pipeline is ``worker.enqueue``, which
+        returns False when the queue is full or shut down. Only that final call is
+        substituted — ``_enqueue_episode`` still runs its ``is_ready`` check and
+        builds a real ``EpisodeTask`` for both entries.
+        """
         fallback_file = tmp_path / "failed_writes.jsonl"
         entries = [
             {
@@ -238,15 +270,15 @@ class TestAC3StartupRecovery:
         ]
         fallback_file.write_text("\n".join(json.dumps(e) for e in entries) + "\n", encoding="utf-8")
 
-        # First call succeeds, second fails
+        # First enqueue succeeds, second is rejected (queue full / shut down)
         call_count = 0
 
-        async def mock_retry(*args, **kwargs):
+        def flaky_enqueue(task):
             nonlocal call_count
             call_count += 1
             return call_count == 1  # First succeeds, second fails
 
-        memory_service._write_to_graphiti_json_with_retry = mock_retry
+        ready_worker.enqueue = flaky_enqueue
 
         with (
             patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file),
@@ -256,13 +288,20 @@ class TestAC3StartupRecovery:
 
         assert result["recovered"] == 1
         assert result["pending"] == 1
+        # Both entries must have reached the enqueue boundary, otherwise the
+        # 1/1 split above could also come from the replay never running at all.
+        assert call_count == 2, f"expected 2 enqueue attempts, got {call_count}"
         # File should contain only the still-pending entry
         remaining = fallback_file.read_text(encoding="utf-8").strip().splitlines()
         assert len(remaining) == 1
 
     @pytest.mark.asyncio
-    async def test_recover_malformed_entries_preserved(self, memory_service, tmp_path):
-        """[P1] Malformed JSON lines are preserved in pending to avoid data loss."""
+    async def test_recover_malformed_entries_preserved(self, memory_service, tmp_path, ready_worker):
+        """[P1] Malformed JSON lines are preserved in pending to avoid data loss.
+
+        CARD-Y4-D-TAIL: the valid entry must actually replay for ``recovered == 1``
+        to mean anything, so a started worker is required.
+        """
         fallback_file = tmp_path / "failed_writes.jsonl"
         fallback_file.write_text(
             "not valid json\n"
