@@ -43,12 +43,18 @@ _SYNCED_FILE_RETENTION_DAYS = 30
 # Checkpoint save interval (entries)
 _CHECKPOINT_INTERVAL = 50
 
-#: JSONL 分行口径的版本标记 —— checkpoint 存的下标只在同一口径下有意义。
-#: 变更这个值的条件: 任何改动 :meth:`_sync_failed_writes` 切行方式的修改。
-#: 历史: "splitlines" (本卡之前) → "split-lf" (CARD-NEO4J-REPLAY-WIRE,
-#: Codex round-3 LOW-4 的 U+2028 修复)。读到不匹配的标记会回退到 0 重放,
-#: 理由见 :meth:`_load_checkpoint` 的 docstring。
-_LINE_SPLIT_VERSION = "split-lf"
+#: **进度语义版本** —— checkpoint 存的下标只在同一「切行口径 + 游标语义」下有意义。
+#: 变更这个值的条件: 改动 :meth:`_sync_failed_writes` 的切行方式**或**游标推进规则。
+#:
+#: 历史:
+#:   (无标记)              本卡之前: splitlines() 切行 + 游标按「已**尝试**」推进
+#:   "split-lf"            CARD-NEO4J-REPLAY-WIRE r3: 改 split("\n") (U+2028 修复)
+#:   "split-lf+contiguous" 同卡 r5 整改: 游标只推进到**连续成功前缀**
+#:
+#: ⛔ 读到任何不等于当前值的标记 (含 "split-lf" 与无标记) 一律**回退到 0**:
+#: 那些游标是按「已尝试」语义写下的, **无法证明其前缀全部成功** —— 沿用它就会
+#: 跳过从未成功的条目 (Codex round-5 HIGH)。理由与代价见 :meth:`_load_checkpoint`。
+_PROGRESS_VERSION = "split-lf+contiguous"
 
 
 class FallbackSyncService:
@@ -249,37 +255,51 @@ class FallbackSyncService:
         # 它们靠 len(current_lines) > len(lines) 判断「重放期间有没有新追加」,
         # 一边 splitlines 一边 split 会让这个比较在含 U+2028 的文件上永远为真。
         lines = raw.split("\n")
-        # 传 raw: 让 _load_checkpoint 实测这个文件在新旧两种切法下是否等价,
-        # 只有真不等价时才回退到 0 (见该方法 docstring)。
-        checkpoint_idx = self._load_checkpoint("failed_writes", raw=raw)
+        checkpoint_idx = self._load_checkpoint("failed_writes")
         recovered = 0
         still_pending: List[str] = []
+
+        # ⚠️ 游标只推进到**连续成功前缀**（Codex round-5 HIGH）。
+        # 原先是 `_save_checkpoint(i + 1)` —— 不管这一条成没成功都推进。失败的
+        # 条目只进内存 `still_pending`（此时**尚未**写回文件），若进程在写回前
+        # 中断，重启后游标已越过它 ⇒ **该条目被永久跳过**。
+        # 负控（Codex 纯内存实测）：51 条，第 1 条失败、2–50 成功，存下 index=50
+        # 后在第 51 条的 await 期间中断 ⇒ 重启只试第 51 条，第 1 条从未成功却被跳过。
+        # `contiguous_end` 的不变式：lines[checkpoint_idx : contiguous_end] 全部
+        # 重放成功。只有当前这条成功**且**它紧接在已证明的前缀之后，前缀才延长一位。
+        contiguous_end = checkpoint_idx
 
         for i, line in enumerate(lines):
             if i < checkpoint_idx:
                 # Already synced in a previous partial run
                 continue
 
+            entry_ok = False
             try:
                 entry = json.loads(line)
             except json.JSONDecodeError:
                 logger.warning("[Story 38.8] Skipping malformed failed_writes entry")
                 still_pending.append(line)
-                continue
-
-            try:
-                success = await self._replay_scoring_entry_to_neo4j(entry)
-                if success:
-                    recovered += 1
-                else:
+            else:
+                try:
+                    success = await self._replay_scoring_entry_to_neo4j(entry)
+                    if success:
+                        recovered += 1
+                        entry_ok = True
+                    else:
+                        still_pending.append(line)
+                except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
+                    logger.warning(f"[Story 38.8] failed_writes replay error: {e}")
                     still_pending.append(line)
-            except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
-                logger.warning(f"[Story 38.8] failed_writes replay error: {e}")
-                still_pending.append(line)
 
-            # Checkpoint every N entries
-            if (i + 1) % _CHECKPOINT_INTERVAL == 0:
-                self._save_checkpoint("failed_writes", i + 1)
+            if entry_ok and contiguous_end == i:
+                contiguous_end = i + 1
+
+            # Checkpoint every N entries —— 存的是**已证明全部成功**的前缀端点,
+            # 不是「扫到第几条」。前缀一旦被某条失败卡住, 后续再多成功也不推进,
+            # 于是崩溃重启时那条失败记录一定会被重新尝试。
+            if (i + 1) % _CHECKPOINT_INTERVAL == 0 and contiguous_end > checkpoint_idx:
+                self._save_checkpoint("failed_writes", contiguous_end)
 
         # Finalize — re-read under lock to preserve entries appended
         # during the async replay window (race condition fix).
@@ -613,40 +633,36 @@ class FallbackSyncService:
     # Checkpoint management
     # ─────────────────────────────────────────────────────────────────────
 
-    def _load_checkpoint(self, file_key: str, *, raw: Optional[str] = None) -> int:
+    def _load_checkpoint(self, file_key: str) -> int:
         """Load sync progress checkpoint for a file key.
 
-        ⚠️ **口径版本校验**（Codex round-4 HIGH）：checkpoint 存的是「已处理到
-        第几行」的下标，其含义依赖**当时那一版的分行切法**。本卡把
-        :meth:`_sync_failed_writes` 的 `splitlines()` 换成 `split("\\n")`
-        （U+2028 修复），同一个文件在新旧两版下的行数可能不同 —— 沿用旧下标会
-        让「已处理」的边界错位。
+        ⚠️ **进度语义版本校验**（Codex round-4 HIGH + round-5 HIGH）：checkpoint
+        存的下标同时依赖两件事 —— 当时那一版的**分行切法**，以及**游标推进规则**。
+        本卡两处都改了：
 
-        负控输入（Codex 纯内存实测）：首条记录含 U+2028、后接 50 条普通记录 ⇒
-        旧版切 52 片、新版切 51 行；中断时存下的 `index=50` 在新版下会让
-        **记录 49 被跳过**，而它既没同步也不进 `still_pending`，会随
-        ``_rotate_file`` 一起搬走 = **真丢**。
+        1. r3 把 :meth:`_sync_failed_writes` 的 ``splitlines()`` 换成 ``split("\\n")``
+           （U+2028 修复）⇒ 同一文件在新旧两版下**行数可能不同**，沿用旧下标会让
+           「已处理」的边界错位（r4 HIGH 的负控：首条含 U+2028 + 50 条普通记录 ⇒
+           旧版 52 片、新版 51 行，``index=50`` 会让**记录 49 被跳过**）。
+        2. r5 把游标从「已**尝试**」改为「连续**成功**前缀」⇒ 旧游标即便切法相同
+           也**不可信**：它可能越过了一条从未成功的记录（r5 HIGH 的负控：第 1 条
+           失败、2–50 成功，存下 ``index=50`` 后中断 ⇒ 重启跳过第 1 条，而它只存在
+           于上一进程的内存 ``still_pending`` 里，随 ``_rotate_file`` 消失 = **真丢**）。
 
-        处置：checkpoint 带 ``line_split`` 口径标记。读到标记不匹配（含缺标记的
-        旧 checkpoint）时，**不是无条件回退** —— 先拿 ``raw`` 实测**这个具体文件**
-        在新旧两种切法下行数是否相同：
+        处置：**任何**不等于 :data:`_PROGRESS_VERSION` 的标记（含 ``"split-lf"``
+        与无标记的历史 checkpoint）一律**回退到 0 从头重放**并记 warning。
 
-        * **相同** ⇒ 该文件不含 U+2028 之类的字符，两种口径对它等价，旧下标
-          可安全沿用（绝大多数文件走这一支，行为与本卡之前完全一致）。
-        * **不同** ⇒ 下标含义确实错位，**回退到 0 从头重放**并记 warning。
+        ⛔ 这里**刻意不再做** r4 那版「实测两种切法行数是否相同就沿用」的宽松判断：
+        那只覆盖问题 1。问题 2 是**语义**变更 —— 行数相同的文件，旧游标照样可能
+        越过失败条目，没有任何可在本地验证的判据能把它救回来。
 
-        为什么不「转换旧下标」：旧下标对应哪一条记录取决于 U+2028 出现在哪几行，
-        而文件已在重放中被改写 —— **不可逆推**。
-        为什么回退是安全的：重放走 MERGE + last-write-wins，重复处理不产生重复
-        的 Concept/LEARNED；唯一代价是 ``record_score_history`` 会多建几个
-        Episode（它是 ``CREATE randomUUID()``）。**重复且可观测** 远好于
-        **静默丢记录**。
-
-        Args:
-            file_key: 暂存链标识。
-            raw: 该链**当前文件内容**。只有按行切分的链（``failed_writes``）需要
-                传 —— ``canvas_events`` / ``learning_memories`` 走 ``json.loads``
-                得到 list，下标口径与切行无关，不传即表示「本链不受该问题影响」。
+        为什么不「转换旧游标」：旧游标对应哪一条记录、其前缀是否全部成功，都**不可
+        逆推**（失败条目只存在于上一进程的内存里，文件也已被改写）。
+        回退的代价与取舍：重放走 MERGE + last-write-wins，重复处理**不**产生重复的
+        Concept/LEARNED；唯一代价是 ``record_score_history`` 会多建几个 Episode
+        （它是 ``CREATE randomUUID()``）。**重复且可观测** 远好于 **静默丢记录**。
+        ⚠️ 该取舍已被 Codex round-5 标为「须由主 session 裁定迁移取舍」——
+        若裁定改为保留旧游标，只需放宽本方法，不必动 :meth:`_sync_failed_writes`。
         """
         with _checkpoint_lock:
             if not SYNC_CHECKPOINT_FILE.exists():
@@ -656,27 +672,23 @@ class FallbackSyncService:
                 entry = data.get(file_key, {})
                 if not isinstance(entry, dict):
                     return 0
-                index = entry.get("index", 0)
-                if entry.get("line_split") == _LINE_SPLIT_VERSION or raw is None:
-                    return index
-                # 标记不匹配且本链按行切分 —— 实测这个文件两种口径是否等价
-                if len(raw.split("\n")) == len(raw.splitlines()):
-                    return index
+                if entry.get("progress_version") == _PROGRESS_VERSION:
+                    return entry.get("index", 0)
                 logger.warning(
-                    "[Story 38.8] checkpoint for %s was written under line-split codec %r "
-                    "(current %r) and this file splits differently under the two codecs "
-                    "— replaying from 0. Already-synced entries may be replayed again "
-                    "(idempotent for Concept/LEARNED; may add duplicate scoring Episodes).",
+                    "[Story 38.8] checkpoint for %s was written under progress semantics %r "
+                    "(current %r) — cannot prove its prefix fully succeeded, replaying from 0. "
+                    "Already-synced entries may be replayed again (idempotent for "
+                    "Concept/LEARNED; may add duplicate scoring Episodes).",
                     file_key,
-                    entry.get("line_split"),
-                    _LINE_SPLIT_VERSION,
+                    entry.get("progress_version"),
+                    _PROGRESS_VERSION,
                 )
                 return 0
             except (json.JSONDecodeError, OSError, KeyError):
                 return 0
 
     def _save_checkpoint(self, file_key: str, index: int) -> None:
-        """Save sync progress checkpoint (带分行口径标记, 见 :meth:`_load_checkpoint`)."""
+        """Save sync progress checkpoint (带进度语义标记, 见 :meth:`_load_checkpoint`)."""
         with _checkpoint_lock:
             data: Dict[str, Any] = {}
             if SYNC_CHECKPOINT_FILE.exists():
@@ -687,7 +699,7 @@ class FallbackSyncService:
 
             data[file_key] = {
                 "index": index,
-                "line_split": _LINE_SPLIT_VERSION,
+                "progress_version": _PROGRESS_VERSION,
                 "updated_at": datetime.now().isoformat(),
             }
 

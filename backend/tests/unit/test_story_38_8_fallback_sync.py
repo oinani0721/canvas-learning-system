@@ -70,9 +70,7 @@ def tmp_checkpoint(tmp_path):
     return tmp_path / "sync_checkpoint.json"
 
 
-def _patch_paths(
-    tmp_failed_writes, tmp_canvas_events, tmp_learning_memories, tmp_checkpoint
-):
+def _patch_paths(tmp_failed_writes, tmp_canvas_events, tmp_learning_memories, tmp_checkpoint):
     """Return dict of patches for all file paths (attribute names only)."""
     return {
         "FAILED_WRITES_FILE": tmp_failed_writes,
@@ -187,9 +185,7 @@ class TestAC1StartupReplay:
                 "session_id": "s2",
             },
         ]
-        tmp_canvas_events.write_text(
-            json.dumps(events, ensure_ascii=False), encoding="utf-8"
-        )
+        tmp_canvas_events.write_text(json.dumps(events, ensure_ascii=False), encoding="utf-8")
 
         patches = _patch_paths(
             tmp_failed_writes,
@@ -226,9 +222,7 @@ class TestAC1StartupReplay:
                 "to_node_id": "n2",
             },
         ]
-        tmp_canvas_events.write_text(
-            json.dumps(events, ensure_ascii=False), encoding="utf-8"
-        )
+        tmp_canvas_events.write_text(json.dumps(events, ensure_ascii=False), encoding="utf-8")
 
         patches = _patch_paths(
             tmp_failed_writes,
@@ -274,9 +268,7 @@ class TestAC1StartupReplay:
             ],
             "metadata": {},
         }
-        tmp_learning_memories.write_text(
-            json.dumps(data, ensure_ascii=False), encoding="utf-8"
-        )
+        tmp_learning_memories.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
 
         patches = _patch_paths(
             tmp_failed_writes,
@@ -291,9 +283,7 @@ class TestAC1StartupReplay:
         # Now uses run_query with last-write-wins MERGE (not create_learning_relationship)
         # run_query called: 2 for learning_memories (may also have failed_writes calls)
         learning_calls = [
-            c
-            for c in mock_neo4j.run_query.call_args_list
-            if "LEARNED" in str(c) and "concept" in str(c).lower()
+            c for c in mock_neo4j.run_query.call_args_list if "LEARNED" in str(c) and "concept" in str(c).lower()
         ]
         assert len(learning_calls) >= 2
 
@@ -326,9 +316,7 @@ class TestAC1StartupReplay:
                 "session_id": "s1",
             },
         ]
-        tmp_canvas_events.write_text(
-            json.dumps(events, ensure_ascii=False), encoding="utf-8"
-        )
+        tmp_canvas_events.write_text(json.dumps(events, ensure_ascii=False), encoding="utf-8")
 
         call_order = []
         original_replay = sync_service._replay_canvas_event_to_neo4j
@@ -500,9 +488,25 @@ class TestAC3Checkpoint:
         write_jsonl(tmp_failed_writes, entries)
 
         # Pre-set checkpoint at index 3 (first 3 already synced)
+        # ⚠️ 必须带 progress_version（CARD-NEO4J-REPLAY-WIRE / Codex round-5 HIGH）:
+        # checkpoint 的下标含义依赖「分行切法 + 游标推进规则」, 两者本卡都改了
+        # (splitlines→split("\n"); 游标从「已尝试」改为「连续成功前缀」)。
+        # 不带标记 = 历史 checkpoint = 无法证明其前缀全部成功 ⇒ 实现会回退到 0
+        # 重放, 本用例要测的「从 checkpoint 续跑」就无从谈起。
+        # 从被测模块取常量而不是硬编码字面量, 避免版本再变时这里静默失配。
+        from app.services.fallback_sync_service import _PROGRESS_VERSION
+
         checkpoint_path = tmp_path / "sync_checkpoint.json"
         checkpoint_path.write_text(
-            json.dumps({"failed_writes": {"index": 3, "updated_at": "2026-02-07"}}),
+            json.dumps(
+                {
+                    "failed_writes": {
+                        "index": 3,
+                        "progress_version": _PROGRESS_VERSION,
+                        "updated_at": "2026-02-07",
+                    }
+                }
+            ),
             encoding="utf-8",
         )
 
@@ -732,9 +736,7 @@ class TestAC5FileRotation:
                 "session_id": "s1",
             },
         ]
-        tmp_canvas_events.write_text(
-            json.dumps(events, ensure_ascii=False), encoding="utf-8"
-        )
+        tmp_canvas_events.write_text(json.dumps(events, ensure_ascii=False), encoding="utf-8")
 
         patches = _patch_paths(
             tmp_failed_writes,
@@ -771,9 +773,7 @@ class TestAC5FileRotation:
             ],
             "metadata": {},
         }
-        tmp_learning_memories.write_text(
-            json.dumps(data, ensure_ascii=False), encoding="utf-8"
-        )
+        tmp_learning_memories.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
 
         patches = _patch_paths(
             tmp_failed_writes,
@@ -791,9 +791,7 @@ class TestAC5FileRotation:
         """Synced files older than retention period are deleted."""
         # Create old .synced file (new format with HHMMSS)
         old_date = datetime.now() - timedelta(days=_SYNCED_FILE_RETENTION_DAYS + 5)
-        old_synced = (
-            tmp_path / f"failed_writes.synced.{old_date.strftime('%Y-%m-%d-%H%M%S')}"
-        )
+        old_synced = tmp_path / f"failed_writes.synced.{old_date.strftime('%Y-%m-%d-%H%M%S')}"
         old_synced.write_text("old data", encoding="utf-8")
 
         # Create old .synced file (legacy format without HHMMSS)
@@ -801,10 +799,7 @@ class TestAC5FileRotation:
         old_legacy.write_text("old legacy data", encoding="utf-8")
 
         # Create recent .synced file
-        recent = (
-            tmp_path
-            / f"failed_writes.synced.{datetime.now().strftime('%Y-%m-%d-%H%M%S')}"
-        )
+        recent = tmp_path / f"failed_writes.synced.{datetime.now().strftime('%Y-%m-%d-%H%M%S')}"
         recent.write_text("recent data", encoding="utf-8")
 
         FallbackSyncService._cleanup_old_synced_files(tmp_path, "failed_writes")
@@ -905,9 +900,7 @@ class TestEdgeCases:
         """Empty fallback files produce zero-count results."""
         tmp_failed_writes.write_text("", encoding="utf-8")
         tmp_canvas_events.write_text("[]", encoding="utf-8")
-        tmp_learning_memories.write_text(
-            json.dumps({"memories": [], "metadata": {}}), encoding="utf-8"
-        )
+        tmp_learning_memories.write_text(json.dumps({"memories": [], "metadata": {}}), encoding="utf-8")
 
         patches = _patch_paths(
             tmp_failed_writes,
@@ -1020,9 +1013,7 @@ class TestEdgeCases:
             ],
             "metadata": {},
         }
-        tmp_learning_memories.write_text(
-            json.dumps(data, ensure_ascii=False), encoding="utf-8"
-        )
+        tmp_learning_memories.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
 
         patches = _patch_paths(
             tmp_failed_writes,
