@@ -1,0 +1,170 @@
+=== JUDGE-5X 双写开关第三态排查  2026-09-14T19:51:59+0800 ===
+--- 5x-a config.py :924-934 alias property 原文
+        """Alias for NEO4J_RETRY_MAX_DELAY (lowercase). Story 30.2."""
+        return self.NEO4J_RETRY_MAX_DELAY
+
+    @property
+    def enable_graphiti_json_dual_write(self) -> bool:
+        """Alias for ENABLE_GRAPHITI_JSON_DUAL_WRITE (lowercase). Story 36.9."""
+        return self.ENABLE_GRAPHITI_JSON_DUAL_WRITE
+
+    @property
+    def fsrs_desired_retention(self) -> float:
+        """Alias for FSRS_DESIRED_RETENTION (lowercase). Story 32.2."""
+
+--- 5x-b 小写 alias 名的全仓使用面（非测试）
+backend/app/config.py:928:    def enable_graphiti_json_dual_write(self) -> bool:
+rc_gitgrep=0
+--- 含测试全量
+backend/app/config.py:928:    def enable_graphiti_json_dual_write(self) -> bool:
+backend/tests/e2e/test_epic36_integration.py:316:    def test_enable_graphiti_json_dual_write_default_true(self, monkeypatch):
+backend/tests/unit/test_story_38_4_dual_write_default.py:55:        Verifies: config.py enable_graphiti_json_dual_write property
+backend/tests/unit/test_story_38_4_dual_write_default.py:64:            assert settings.enable_graphiti_json_dual_write is False, (
+rc=0
+
+--- 5x-c 小写名是否出现在 .env / .env.example（case_sensitive=True ⇒ 小写写法会被静默忽略）
+backend/.env:85:# ENABLE_GRAPHITI_JSON_DUAL_WRITE=true
+backend/.env.example:226:ENABLE_GRAPHITI_JSON_DUAL_WRITE=true
+rc=0
+
+--- 5x-d settings 单例来源（证明 getattr 的对象确实是 Settings 实例、字段恒存在）
+949:def get_settings() -> Settings:
+966:settings = get_settings()
+1072:    settings = get_settings()
+--- config.py 末尾 settings 导出原文
+     1	    global settings, DEFAULT_GROUP_ID
+     2	
+     3	    overrides = overrides or {}
+     4	    for key, value in overrides.items():
+     5	        os.environ[key] = str(value)
+     6	
+     7	    get_settings.cache_clear()
+     8	
+     9	    settings = get_settings()
+    10	    # Round-23 Patch 2: 经 canonical_group_id 归一化, 与 module-level DEFAULT_GROUP_ID 保持一致
+    11	    DEFAULT_GROUP_ID = _canonical_group_id(settings.DEFAULT_GROUP_ID)
+    12	    return settings
+
+=== JUDGE-6 链2/3/5 写读锚 ===
+--- 6a 链2 dead_letter
+107:            "episode_body": self.episode_body[:200],  # truncate for logging
+rc=0
+229:    def _store_full_body_enabled() -> bool:
+rc=0
+207:    credential — was permanently archived in ``data/dead_letter_episodes.jsonl``.
+224:    def __init__(self, file_path: str = "data/dead_letter_episodes.jsonl") -> None:
+306:        dead_letter_path: str = "data/dead_letter_episodes.jsonl",
+rc=0
+--- episode_worker.py :220-235 与 :250-258
+        type name — so accidentally-leaked secrets in exception messages don't
+        end up in the structured log stream either.
+    """
+
+    def __init__(self, file_path: str = "data/dead_letter_episodes.jsonl") -> None:
+        self._file_path = Path(file_path)
+        self._file_path.parent.mkdir(parents=True, exist_ok=True)
+
+    @staticmethod
+    def _store_full_body_enabled() -> bool:
+        flag = (os.environ.get("DEAD_LETTER_STORE_FULL_BODY") or "").strip().lower()
+        return flag in ("1", "true", "yes", "on")
+
+    def store(self, task: EpisodeTask, error: Exception, *, request_id: str | None = None) -> None:
+        """Append failed task to JSONL file synchronously (tiny payload, acceptable).
+
+   ...   
+            "failed_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+        # Opt-in: full body (still redacted for known secret patterns)
+        if self._store_full_body_enabled():
+            record["episode_body_full"] = _redact(task.episode_body)
+
+        if request_id is not None:
+            record["request_id"] = request_id
+
+        with open(self._file_path, "a", encoding="utf-8") as f:
+--- 全仓 dead_letter_episodes（非测试）
+backend/app/api/v1/endpoints/traces.py:23:    "dead_letter_episodes": DATA_DIR / "dead_letter_episodes.jsonl",
+backend/app/services/episode_worker.py:207:    credential — was permanently archived in ``data/dead_letter_episodes.jsonl``.
+backend/app/services/episode_worker.py:224:    def __init__(self, file_path: str = "data/dead_letter_episodes.jsonl") -> None:
+backend/app/services/episode_worker.py:306:        dead_letter_path: str = "data/dead_letter_episodes.jsonl",
+backend/scripts/census_dead_letter_episodes.py:462:        default="data/dead_letter_episodes.jsonl",
+backend/scripts/generate_regression_tests.py:4:Reads bug_log.jsonl, failed_edge_syncs.jsonl, dead_letter_episodes.jsonl
+backend/scripts/generate_regression_tests.py:156:    dead_letters = read_jsonl(DATA_DIR / "dead_letter_episodes.jsonl")
+rc_gitgrep=0
+
+--- 6b 链3 failed_writes
+FAILED_WRITES_FILE: Path = (
+    Path(__file__).parent.parent.parent / "data" / "failed_writes.jsonl"
+)
+802:        failed_scores = await asyncio.to_thread(self.load_failed_scores)
+2793:    def load_failed_scores(self) -> List[Dict[str, Any]]:
+rc=0
+98:def _record_failed_write(
+rc=0
+backend/app/core/failed_writes_constants.py:5:# that both the writer (_record_failed_write) and reader/recovery
+backend/app/services/agent_service.py:98:def _record_failed_write(
+backend/app/services/agent_service.py:5084:                _record_failed_write(
+backend/app/services/agent_service.py:5100:                _record_failed_write(
+backend/app/services/memory_service.py:2700:        Uses failed_writes_lock to avoid racing with _record_failed_write.
+backend/app/services/memory_service.py:2708:        # Acquire shared lock to prevent _record_failed_write from appending
+rc_gitgrep=0
+
+--- 6c 链4 failure_counters 锚
+24:EDGE_SYNC_DEAD_LETTER_PATH: Path = (
+rc=0
+# --- Counters (thread-safe) ---
+_counter_lock = threading.Lock()
+_edge_sync_failure_count: int = 0
+_dual_write_failure_count: int = 0
+
+# --- Dead-letter file paths ---
+EDGE_SYNC_DEAD_LETTER_PATH: Path = (
+    Path(__file__).parent.parent.parent / "data" / "failed_edge_syncs.jsonl"
+)
+DUAL_WRITE_DEAD_LETTER_PATH: Path = (
+    Path(__file__).parent.parent.parent / "data" / "failed_dual_writes.jsonl"
+)
+
+
+def increment_edge_sync_failures() -> int:
+    """Increment edge sync failure counter. Returns new count."""
+    global _edge_sync_failure_count
+    with _counter_lock:
+        _edge_sync_failure_count += 1
+
+--- 6d 链5 canvas_events_fallback（非测试）
+backend/app/services/canvas_service.py:96:        self._fallback_file_path: Path = Path(__file__).parent.parent / "data" / "canvas_events_fallback.json"
+backend/app/services/fallback_sync_service.py:8:#   2. app/data/canvas_events_fallback.json  (Story 38.5 - Canvas CRUD)
+backend/app/services/fallback_sync_service.py:33:CANVAS_EVENTS_FALLBACK_FILE = _APP_DATA_DIR / "canvas_events_fallback.json"
+backend/app/services/fallback_sync_service.py:190:    # 2. canvas_events_fallback.json sync
+backend/app/services/fallback_sync_service.py:204:            logger.warning(f"[Story 38.8] Cannot parse canvas_events_fallback: {e}")
+rc_gitgrep=0
+--- fallback_sync_service :85-90 / :188-196
+        # Priority 2: canvas_events
+        try:
+            result["canvas_events"] = await self._sync_canvas_events()
+        except (OSError, RuntimeError, ConnectionError) as e:
+            logger.warning(f"[Story 38.8] canvas_events sync error: {e}")
+            result["canvas_events"] = {"recovered": 0, "pending": 0, "error": str(e)}
+   ...   
+
+    # ─────────────────────────────────────────────────────────────────────
+    # 2. canvas_events_fallback.json sync
+    # ─────────────────────────────────────────────────────────────────────
+
+    async def _sync_canvas_events(self) -> Dict[str, int]:
+        """Replay Canvas CRUD events to Neo4j."""
+        if not CANVAS_EVENTS_FALLBACK_FILE.exists():
+            return {"recovered": 0, "pending": 0}
+
+--- 6e 链1 neo4j_memory.json
+backend/scripts/migrate_neo4j_data.py:35:DEFAULT_SOURCE = BACKEND_DIR / "data" / "neo4j_memory.json"
+backend/app/clients/neo4j_client.py:54:DEFAULT_STORAGE_PATH = Path(__file__).parent.parent.parent / "data" / "neo4j_memory.json"
+rc=0
+backend/app/clients/neo4j_client.py:54:DEFAULT_STORAGE_PATH = Path(__file__).parent.parent.parent / "data" / "neo4j_memory.json"
+backend/scripts/lifespan_isolation_guard_probes.py:738:    运行时文件搬进 `/tmp`，含 `llm_call_logs.db`(36KB) / `neo4j_memory.json` /
+backend/scripts/lifespan_isolation_negative_control.py:3029:    ``backend/data/`` 下有 ``llm_call_logs.db`` / ``neo4j_memory.json`` /
+backend/scripts/migrate_neo4j_data.py:35:DEFAULT_SOURCE = BACKEND_DIR / "data" / "neo4j_memory.json"
+rc_gitgrep=0

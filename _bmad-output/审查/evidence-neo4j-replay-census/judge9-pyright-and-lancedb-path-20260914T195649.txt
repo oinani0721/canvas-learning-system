@@ -1,0 +1,27 @@
+=== JUDGE-9' pyright app 未带红  2026-09-14T19:56:49+0800 ===
+0 errors, 81 warnings, 0 informations
+rc_pyright=0
+
+=== JUDGE-10' 现网 LanceDB 路径定位（只 ls，不 connect） ===
+--- config.py 中 lancedb 字段
+490:    # LanceDB Auto-Index Settings (Story 38.1)
+493:    ENABLE_LANCEDB_AUTO_INDEX: bool = Field(
+495:        description="Enable automatic LanceDB indexing after Canvas CRUD. Story 38.1 AC-1.",
+498:    LANCEDB_INDEX_DEBOUNCE_MS: int = Field(
+500:        description="Debounce window in ms for LanceDB auto-index. Prevents rapid re-indexing. Story 38.1.",
+503:    LANCEDB_INDEX_TIMEOUT: float = Field(
+505:        description="Timeout in seconds per LanceDB index attempt. Story 38.1 AC-1.",
+508:    LANCEDB_INDEX_TABLE_NAME: str = Field(
+510:        description="LanceDB table name for canvas node index. Story 38.1.",
+539:    VAULT_INDEX_ENABLED: bool = Field(default=True, description="Enable vault-wide .md note indexing to LanceDB.")
+548:            # - *-explanations: AI 生成解释（fnmatch glob，配合 lancedb_client.py:1251 fix）
+552:            #    与 lancedb_client.DEFAULT_VAULT_SKIP_DIRS 兜底常量保持一致)
+--- backend/.env 中 lancedb 相关
+88:# LanceDB Auto-Index
+91:ENABLE_LANCEDB_AUTO_INDEX=true
+92:LANCEDB_INDEX_DEBOUNCE_MS=500
+93:LANCEDB_INDEX_TIMEOUT=5.0
+94:# LANCEDB_PATH 已退役 (RAG-S0-2026-08-02): canonical 名是 LANCEDB_DATA_PATH (compose 设 /lancedb)。
+95:# 此处旧值 data/lancedb 经 load_dotenv 注入后与 compose 冲突, 触发 fail-fast——正是 P0-B
+96:# 「管道静默连空目录 3 个月」的残留配置。宿主裸跑时 resolver 默认 data/lancedb, 无需此行。
+97:# LANCEDB_PATH=data/lancedb

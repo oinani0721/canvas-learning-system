@@ -1,0 +1,23 @@
+=== JUDGE-10' 现网 LanceDB 只读门  2026-09-14T19:57:08+0800 ===
+--- 10'a LANCEDB_DATA_PATH resolver 默认值
+
+--- 10'b 候选目录 ls（只读，不 connect）
+### /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/data/lancedb
+total 0
+drwxr-xr-x@  4 Heishing  staff  128 Apr  5 17:52 .
+drwxr-xr-x@ 17 Heishing  staff  544 Jul 12 03:46 ..
+drwxr-xr-x@  5 Heishing  staff  160 Apr  5 17:52 file_fingerprints.lance
+drwxr-xr-x@  6 Heishing  staff  192 Apr  5 17:57 vault_notes.lance
+### /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t6-neo4j/backend/data/lancedb
+total 0
+drwxr-xr-x@ 2 Heishing  staff   64 Sep 14 19:57 .
+drwxr-xr-x@ 8 Heishing  staff  256 Sep 14 19:57 ..
+
+--- 10'c 只读门：现网目录中晚于 sentinel 的文件数（应为 0）
+sentinel mtime = 2026-09-14T19:50:07
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/data/lancedb -> newer_than_sentinel=0
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/data -> newer_than_sentinel=0
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault -> newer_than_sentinel=0
+
+--- 10'd 验伪锚：本卡 evidence 目录必 > 0（证明 -newer 判据非恒零）
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t6-neo4j/_bmad-output/审查/evidence-neo4j-replay-census -> newer_than_sentinel=20

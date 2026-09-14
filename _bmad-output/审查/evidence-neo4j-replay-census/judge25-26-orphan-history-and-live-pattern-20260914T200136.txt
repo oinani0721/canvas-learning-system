@@ -1,0 +1,52 @@
+=== JUDGE-25 孤儿的历史：曾接线，被 59586af1 摘除（只读 git show）  2026-09-14T20:01:36+0800 ===
+--- 25a commit 59586af1 是否可达
+59586af12e434139888cf6d290801a1d2afc602e
+Thu Mar 26 09:30:14 2026 -0400
+refactor(phase2): delete fake bridge/JSON dual-write code, replaced by GraphitiEpisodeWorker
+
+--- 25b 该 commit 对 main.py 的删除行（含 sync_all_fallbacks）
+-    _dw_explicit = os.environ.get("ENABLE_GRAPHITI_JSON_DUAL_WRITE") is not None
+-    if settings.ENABLE_GRAPHITI_JSON_DUAL_WRITE:
+-        logger.warning("JSON fallback is disabled. Neo4j outage will cause data loss.")
+-    # ✅ Story 38.8: Sync all JSON fallback files to Neo4j on startup
+-        from app.services.fallback_sync_service import get_fallback_sync_service
+-        sync_svc = get_fallback_sync_service()
+-            sync_svc.sync_all_fallbacks(), timeout=60.0
+-                f"[Story 38.8] Fallback sync skipped: {sync_result.get('reason')}"
+-            "[Story 38.8] Fallback sync timed out (60s), will resume next startup"
+-        logger.warning(f"[Story 38.8] Fallback sync failed (non-fatal): {e}")
+rc=0
+
+--- 25c 同日 daa9fd37 对 config.py 的改动（default True→False）
+daa9fd37ad690266498c90de75c1107b00fb163b Thu Mar 26 09:35:00 2026 -0400 refactor(phase2): rename misleading 'graphiti' functions to match actual behavior
++    # DEPRECATED: Phase 2 replaced JSON dual-write with GraphitiEpisodeWorker.
++    # DEPRECATED: Phase 2 replaced JSON dual-write with GraphitiEpisodeWorker.
+-        default=True,
+-        description="Enable dual-write of learning events to Graphiti JSON storage. Default: True (safe default for Neo4j offline resilience). Story 36.9 AC-36.9.5, Story 38.4 AC-1"
++        default=False,
++        description="[DEPRECATED] Legacy JSON dual-write. Replaced by GraphitiEpisodeWorker."
+
+--- 25d 验伪锚：git show 对一个已知存在的文件应有输出（本卡 HEAD 的 main.py 片段）
+        if _worker_graphiti is not None:
+rc=0
+
+=== JUDGE-26 链 E EventBus outbox（同仓唯一活着的『暂存↔启动重放』范式，T6-B 可照抄）===
+--- 26a recover_outbox 定义与调用点（非测试）
+backend/app/main.py:216:        recovered = await event_bus.recover_outbox()
+backend/app/services/event_bus.py:368:    async def recover_outbox(self) -> int:
+rc_gitgrep=0
+
+--- 26b main.py 中的调用原文
+214-
+215-        # Recover any failed Tier 2 events from previous run
+216:        recovered = await event_bus.recover_outbox()
+217-        if recovered > 0:
+218-            logger.info(f"[Story 5.7] EventBus recovered {recovered} outbox events")
+219-        logger.info("[Story 5.7] EventBus handlers registered")
+220-    except Exception as e:
+
+--- 26c _write_outbox 触发点（U11 称仅 :264/:304/:343）
+backend/app/services/event_bus.py:263:                self._write_outbox(event, handler.__name__, "circuit_open")
+backend/app/services/event_bus.py:303:        self._write_outbox(event, handler.__name__, "retries_exhausted")
+backend/app/services/event_bus.py:342:    def _write_outbox(
+rc_gitgrep=0

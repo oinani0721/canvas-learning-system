@@ -1,0 +1,180 @@
+=== JUDGE-18 第七条链 learning_memories.json 普查  2026-09-14T19:54:12+0800 ===
+--- 18a 全量 'learning_memories'（非测试）
+backend/app/clients/neo4j_edge_client.py:44:    Path(__file__).parent.parent.parent / "data" / "learning_memories.json"
+backend/app/services/agent_service.py:1720:                memory_context = await self._get_learning_memories(content=memory_query)
+backend/app/services/agent_service.py:1817:                memory_context = await self._get_learning_memories(content=memory_query)
+backend/app/services/agent_service.py:1993:        _get_learning_memories(). The CONTAINS query then tries to match
+backend/app/services/agent_service.py:2011:    async def _get_learning_memories(
+backend/app/services/agent_service.py:2052:            return self._format_learning_memories(cached_data)
+backend/app/services/agent_service.py:2063:                return self._format_learning_memories(cached_data)
+backend/app/services/agent_service.py:2189:            return self._format_learning_memories(results)
+backend/app/services/agent_service.py:2195:    def _format_learning_memories(self, memories: List[Dict[str, Any]]) -> str:
+backend/app/services/agent_service.py:2362:        # Story 12.A.4: Use refactored _get_learning_memories() with timeout and cache
+backend/app/services/agent_service.py:2374:            memory_context = await self._get_learning_memories(
+backend/app/services/agent_service.py:2384:                    "Added historical memories to context via _get_learning_memories()"
+backend/app/services/agent_service.py:2947:                    memory_context = await self._get_learning_memories(
+backend/app/services/agent_service.py:3147:                memory_context = await self._get_learning_memories(content=memory_query)
+backend/app/services/agent_service.py:3371:                memory_context = await self._get_learning_memories(content=memory_query)
+backend/app/services/agent_service.py:3634:                            memory_context = await self._get_learning_memories(
+backend/app/services/fallback_sync_service.py:9:#   3. data/learning_memories.json  (Story 38.4 - dual-write)
+backend/app/services/fallback_sync_service.py:34:LEARNING_MEMORIES_FILE = _BACKEND_DIR / "data" / "learning_memories.json"
+backend/app/services/fallback_sync_service.py:58:        Syncs in priority order: failed_writes → canvas_events → learning_memories.
+backend/app/services/fallback_sync_service.py:92:        # Priority 3: learning_memories
+backend/app/services/fallback_sync_service.py:94:            result["learning_memories"] = await self._sync_learning_memories()
+backend/app/services/fallback_sync_service.py:96:            logger.warning(f"[Story 38.8] learning_memories sync error: {e}")
+backend/app/services/fallback_sync_service.py:97:            result["learning_memories"] = {
+backend/app/services/fallback_sync_service.py:252:    # 3. learning_memories.json sync
+backend/app/services/fallback_sync_service.py:255:    async def _sync_learning_memories(self) -> Dict[str, int]:
+backend/app/services/fallback_sync_service.py:267:            logger.warning(f"[Story 38.8] Cannot parse learning_memories: {e}")
+backend/app/services/fallback_sync_service.py:276:        checkpoint_idx = self._load_checkpoint("learning_memories")
+backend/app/services/fallback_sync_service.py:295:                self._save_checkpoint("learning_memories", i + 1)
+backend/app/services/fallback_sync_service.py:297:        # NOTE: learning_memories.json is NOT rotated - still needed by
+backend/app/services/fallback_sync_service.py:299:        self._clear_checkpoint("learning_memories")
+backend/app/services/review_service.py:105:# P0-2: Card state persistence file path (matches learning_memories.json pattern)
+backend/app/services/verification_service.py:1848:            if graph_context.get("learning_memories"):
+backend/app/services/verification_service.py:1850:                for m in graph_context["learning_memories"][:3]:
+backend/app/services/verification_service.py:2123:        learning_memories: List[Dict[str, Any]] = []
+backend/app/services/verification_service.py:2188:        async def fetch_learning_memories():
+backend/app/services/verification_service.py:2200:                        learning_memories.append(
+backend/app/services/verification_service.py:2207:                logger.debug(f"Graph fetch_learning_memories failed: {e}")
+backend/app/services/verification_service.py:2214:                    fetch_learning_memories(),
+backend/app/services/verification_service.py:2224:        if not connected_concepts and not sibling_concepts and not learning_memories:
+backend/app/services/verification_service.py:2230:            "learning_memories": learning_memories,
+backend/app/services/verification_service.py:2360:            if graph_context.get("learning_memories"):
+backend/app/services/verification_service.py:2362:                for m in graph_context["learning_memories"][:3]:
+backend/app/services/verification_service.py:2807:            if graph_context.get("learning_memories"):
+backend/app/services/verification_service.py:2809:                for m in graph_context["learning_memories"][:3]:
+backend/lib/agentic_rag/mastery_injection.py:164:async def retrieve_learning_memories(
+backend/lib/agentic_rag/nodes.py:1744:        State updates: compressed_context, mastery_prefix, learning_memories, stale_count
+backend/lib/agentic_rag/nodes.py:1827:    learning_memories = ""
+backend/lib/agentic_rag/nodes.py:1832:        from agentic_rag.mastery_injection import retrieve_learning_memories
+backend/lib/agentic_rag/nodes.py:1873:                learning_memories, memory_degraded = await retrieve_learning_memories(
+backend/lib/agentic_rag/nodes.py:1897:        f"memories={len(learning_memories)} chars, "
+backend/lib/agentic_rag/nodes.py:1904:        "learning_memories": learning_memories,
+backend/lib/agentic_rag/state.py:157:    learning_memories: Annotated[Optional[str], "Graphiti 学习记忆文本"]
+backend/lib/agentic_rag/state.py:262:        "learning_memories": None,
+backend/scripts/lifespan_isolation_guard_probes.py:739:    `learning_memories.json`。改成 tracked-only 复制之后这一面消失，本探针把它钉成门。
+backend/scripts/lifespan_isolation_negative_control.py:3030:    ``learning_memories.json`` 这类**运行时数据**，它们全是 git-ignored 的，
+rc_gitgrep=0（判读以 stdout 为准）
+--- 全量行数（含测试）
+     181
+
+--- 18b fallback_sync_service 顶部常量区 :1-46
+# Story 38.8: JSON Fallback → Neo4j Complete Sync Mechanism
+#
+# When Neo4j is unavailable, three JSON fallback files accumulate data.
+# This service syncs them back to Neo4j on startup when it recovers.
+#
+# Fallback files:
+#   1. data/failed_writes.jsonl     (Story 38.6 - scoring failures)
+#   2. app/data/canvas_events_fallback.json  (Story 38.5 - Canvas CRUD)
+#   3. data/learning_memories.json  (Story 38.4 - dual-write)
+
+import asyncio
+import json
+import threading
+
+import structlog
+import time
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+from app.clients.neo4j_client import Neo4jClient, get_neo4j_client
+from app.core.failed_writes_constants import FAILED_WRITES_FILE, failed_writes_lock
+
+# T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式 (graphiti_core validator 拒冒号)
+from app.graphiti.group_id_compat import to_physical_group_id
+
+logger = structlog.get_logger(__name__)
+
+# Directory paths
+_BACKEND_DIR = Path(__file__).parent.parent.parent  # backend/
+_APP_DATA_DIR = Path(__file__).parent.parent / "data"  # backend/app/data/
+
+CANVAS_EVENTS_FALLBACK_FILE = _APP_DATA_DIR / "canvas_events_fallback.json"
+LEARNING_MEMORIES_FILE = _BACKEND_DIR / "data" / "learning_memories.json"
+SYNC_CHECKPOINT_FILE = _BACKEND_DIR / "data" / "sync_checkpoint.json"
+
+# Lock for checkpoint file access
+_checkpoint_lock = threading.Lock()
+
+# Days before .synced files are cleaned up
+_SYNCED_FILE_RETENTION_DAYS = 30
+
+# Checkpoint save interval (entries)
+_CHECKPOINT_INTERVAL = 50
+
+
+
+--- 18c _sync_learning_memories :266-300
+        except (json.JSONDecodeError, OSError) as e:
+            logger.warning(f"[Story 38.8] Cannot parse learning_memories: {e}")
+            return {"recovered": 0, "pending": 0}
+
+        if not memories:
+            return {"recovered": 0, "pending": 0}
+
+        # Sort by timestamp for chronological replay
+        memories.sort(key=lambda m: m.get("timestamp", ""))
+
+        checkpoint_idx = self._load_checkpoint("learning_memories")
+        recovered = 0
+        failed = 0
+
+        for i, mem in enumerate(memories):
+            if i < checkpoint_idx:
+                continue
+
+            try:
+                success = await self._replay_learning_memory_to_neo4j(mem)
+                if success:
+                    recovered += 1
+                else:
+                    failed += 1
+            except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
+                logger.warning(f"[Story 38.8] learning_memory replay error: {e}")
+                failed += 1
+
+            if (i + 1) % _CHECKPOINT_INTERVAL == 0:
+                self._save_checkpoint("learning_memories", i + 1)
+
+        # NOTE: learning_memories.json is NOT rotated - still needed by
+        # LearningMemoryClient for runtime queries.
+        self._clear_checkpoint("learning_memories")
+
+
+=== JUDGE-19 全域 data/ 暂存文件字面量总普查（防漏第 N 条链） ===
+--- 19a 全仓 'data/' 下 .json/.jsonl 字面量（非测试、非 scripts）
+backend/app/core/bug_tracker.py:89:    def __init__(self, log_path: str = "data/bug_log.jsonl"):
+backend/app/services/episode_worker.py:224:    def __init__(self, file_path: str = "data/dead_letter_episodes.jsonl") -> None:
+backend/app/services/episode_worker.py:306:        dead_letter_path: str = "data/dead_letter_episodes.jsonl",
+rc_gitgrep=0
+
+--- 19b Path 拼接形态 / "data" / "<name>.json(l)"
+backend/app/clients/neo4j_client.py:54:DEFAULT_STORAGE_PATH = Path(__file__).parent.parent.parent / "data" / "neo4j_memory.json"
+backend/app/clients/neo4j_edge_client.py:44:    Path(__file__).parent.parent.parent / "data" / "learning_memories.json"
+backend/app/core/failed_writes_constants.py:12:    Path(__file__).parent.parent.parent / "data" / "failed_writes.jsonl"
+backend/app/core/failure_counters.py:25:    Path(__file__).parent.parent.parent / "data" / "failed_edge_syncs.jsonl"
+backend/app/core/failure_counters.py:28:    Path(__file__).parent.parent.parent / "data" / "failed_dual_writes.jsonl"
+backend/app/core/reference_config.py:17:_CONFIG_PATH = Path(__file__).parent.parent.parent / "data" / "reference_priority.json"
+backend/app/services/canvas_service.py:96:        self._fallback_file_path: Path = Path(__file__).parent.parent / "data" / "canvas_events_fallback.json"
+backend/app/services/fallback_sync_service.py:34:LEARNING_MEMORIES_FILE = _BACKEND_DIR / "data" / "learning_memories.json"
+backend/app/services/fallback_sync_service.py:35:SYNC_CHECKPOINT_FILE = _BACKEND_DIR / "data" / "sync_checkpoint.json"
+backend/app/services/review_service.py:124:_CARD_STATES_FILE = _Path(__file__).parent.parent.parent / "data" / "fsrs_card_states.json"
+backend/scripts/lifespan_isolation_negative_control.py:215:        journal = fake / "app" / "data" / "vault_index_pending__selftest.jsonl"
+backend/scripts/lifespan_isolation_negative_control.py:226:        legacy = fake / "app" / "data" / "vault_index_pending.jsonl"
+backend/scripts/lifespan_isolation_negative_control.py:233:        sidecar = fake / "app" / "data" / "vault_index_pending_backup.jsonl"
+backend/scripts/migrate_fsrs_card_states_vault_key_g35.py:59:LIVE_CARD_STATES = LIVE_REPO_ROOT / "backend" / "data" / "fsrs_card_states.json"
+backend/scripts/migrate_fsrs_card_states_vault_key_g35.py:63:DEFAULT_FILE = Path(__file__).resolve().parent.parent / "data" / "fsrs_card_states.json"
+backend/scripts/migrate_neo4j_data.py:35:DEFAULT_SOURCE = BACKEND_DIR / "data" / "neo4j_memory.json"
+scripts/trace/locate_by_bug.py:27:BUG_LOG = PROJECT_ROOT / "backend" / "data" / "bug_log.jsonl"
+scripts/trace/locate_by_bug.py:28:DECISION_LOG = PROJECT_ROOT / "backend" / "data" / "decision_log.jsonl"
+rc_gitgrep=0
+
+--- 19c _APP_DATA_DIR 形态（fallback_sync_service 风格）
+backend/app/services/fallback_sync_service.py:33:CANVAS_EVENTS_FALLBACK_FILE = _APP_DATA_DIR / "canvas_events_fallback.json"
+rc_gitgrep=0
+
+--- 19d 验伪锚：19b 应命中已知的 failed_writes/failed_edge_syncs/dead_letter
+5

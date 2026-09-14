@@ -1,0 +1,20 @@
+=== JUDGE-32 Codex 12 条意见逐条实测复核结论  2026-09-14T20:07:30+0800 ===
+复核方式：对每条意见独立实测（nl -ba + sed 定位原文），不采信 Codex 表述本身。
+
+| # | 级别 | 主张 | 实测结论 | 关键锚点 |
+|---|---|---|---|---|
+| 1 | HIGH | 链5 写侧已有 10000 条上限 | ✅成立 | canvas_service.py:97 常量 / :164-166 截留 / :171 覆写 |
+| 2 | HIGH | 链3 漏两种写入格式；新回灌器跳过它们；UI 可见过强 | ✅成立 | fallback_sync:146 统一交评分helper / :314,:319-321 无concept即False / memory_service:2735 旧分支 / agent_service:117-127 无user_id / memory_service:805-806 按user_id过滤 |
+| 3 | HIGH | 跨 vault 归属风险未登记 | ✅成立 | fallback_sync:623-625 代码自陈；三处回灌 :324/:392/:441 同用 _build_group_id_from_canvas |
+| 4 | HIGH | traces 读路径与死信写路径错位 | ✅成立 | failure_counters:25 → backend/data/（实存763B）; traces:17 → backend/app/data/（目录不存在）|
+| 5 | HIGH | 链2 死信来源不限 markdown | ✅成立 | memory_service:481-500 会话归档投正文 / vault_backfill:195-213 只扫 md callouts+rels |
+| 6 | HIGH | 链4 死信不足以重放 | ✅成立 | 真实调用 :481-487 需 from/to/label；落盘 :508-516 无此三字段 |
+| 7 | MEDIUM | 判据19 漏 outbox 候选 | ✅成立 | event_bus:47-49 变量拼接（三形态外）；main.py:216 真实接线；backend/data/outbox/events.jsonl 实存383B |
+| 8 | MEDIUM | 二态缺「实际装载」前提 | ✅成立 | config:943 相对CWD .env；:1066-1072 overrides 可写进程环境 |
+| 9 | MEDIUM | :387 是定位，不等于可改范围 | ✅成立 | :386 被 :394-395 使用；:405-406 是整块 except |
+| 10 | MEDIUM | 链1 有运行时读 + 有删除 | ✅成立 | :447-449 初始化读入 _data；:915 降级查询读；:2197-2202 删除后覆写 |
+| 11 | LOW | _sync_failed_writes 定义在 :113 | ✅成立（本卡自查已同步发现） | fallback_sync:113 def |
+| 12 | LOW | 链7 读取方式表述不准 | ✅成立 | format_for_context:966-968 只格式化传入 list，不读文件 |
+
+结论：12 条全部成立，零误报。census 据此重写（纯文档修正，D-32 不重置轮次）。
+另有本卡自查 11 条（C-1..C-11，其中 C-2 与 Codex LOW-11 重合，C-7 被 HIGH-1 覆盖并更正）。

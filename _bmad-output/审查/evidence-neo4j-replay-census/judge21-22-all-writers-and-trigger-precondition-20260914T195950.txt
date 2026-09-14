@@ -1,0 +1,125 @@
+=== JUDGE-21 链3 failed_writes 全部写者（U11 §2.1 称三个，B14_BASE 复测）  2026-09-14T19:59:50+0800 ===
+--- 21a FAILED_WRITES_FILE 写入面（open(...,'a') / write_text）非测试
+backend/app/core/failed_writes_constants.py:11:FAILED_WRITES_FILE: Path = (
+backend/app/services/agent_service.py:31:from app.core.failed_writes_constants import FAILED_WRITES_FILE, failed_writes_lock
+backend/app/services/agent_service.py:94:# Story 38.6: FAILED_WRITES_FILE and failed_writes_lock imported from
+backend/app/services/agent_service.py:128:        FAILED_WRITES_FILE.parent.mkdir(parents=True, exist_ok=True)
+backend/app/services/agent_service.py:130:            with open(FAILED_WRITES_FILE, "a", encoding="utf-8") as f:
+backend/app/services/fallback_sync_service.py:22:from app.core.failed_writes_constants import FAILED_WRITES_FILE, failed_writes_lock
+backend/app/services/fallback_sync_service.py:115:        if not FAILED_WRITES_FILE.exists():
+backend/app/services/fallback_sync_service.py:120:                raw = FAILED_WRITES_FILE.read_text(encoding="utf-8").strip()
+backend/app/services/fallback_sync_service.py:164:                if FAILED_WRITES_FILE.exists():
+backend/app/services/fallback_sync_service.py:165:                    current_raw = FAILED_WRITES_FILE.read_text(encoding="utf-8").strip()
+backend/app/services/fallback_sync_service.py:178:                    FAILED_WRITES_FILE,
+backend/app/services/fallback_sync_service.py:182:                self._rotate_file(FAILED_WRITES_FILE)
+backend/app/services/fallback_sync_service.py:185:        self._cleanup_old_synced_files(FAILED_WRITES_FILE.parent, FAILED_WRITES_FILE.stem)
+backend/app/services/memory_service.py:63:from app.core.failed_writes_constants import FAILED_WRITES_FILE, failed_writes_lock
+backend/app/services/memory_service.py:146:# Story 38.6: FAILED_WRITES_FILE and failed_writes_lock imported from
+backend/app/services/memory_service.py:505:        立即写 FAILED_WRITES_FILE (非等 shutdown flush) 抗进程崩溃。条目带
+backend/app/services/memory_service.py:514:            FAILED_WRITES_FILE.parent.mkdir(parents=True, exist_ok=True)
+backend/app/services/memory_service.py:516:                with open(FAILED_WRITES_FILE, "a", encoding="utf-8") as f:
+backend/app/services/memory_service.py:2705:        if not FAILED_WRITES_FILE.exists():
+backend/app/services/memory_service.py:2712:                lines = FAILED_WRITES_FILE.read_text(encoding="utf-8").strip().splitlines()
+backend/app/services/memory_service.py:2771:                    tmp_file = FAILED_WRITES_FILE.with_suffix(".tmp")
+backend/app/services/memory_service.py:2776:                            tmp_file.replace(FAILED_WRITES_FILE)
+backend/app/services/memory_service.py:2786:                    FAILED_WRITES_FILE.unlink(missing_ok=True)
+backend/app/services/memory_service.py:2802:        if not FAILED_WRITES_FILE.exists():
+backend/app/services/memory_service.py:2808:                lines = FAILED_WRITES_FILE.read_text(encoding="utf-8").strip().splitlines()
+backend/app/services/memory_service.py:2870:            FAILED_WRITES_FILE.parent.mkdir(parents=True, exist_ok=True)
+backend/app/services/memory_service.py:2872:                with open(FAILED_WRITES_FILE, "a", encoding="utf-8") as f:
+backend/app/services/memory_service.py:2877:                f"pending failed writes to {FAILED_WRITES_FILE}"
+rc_gitgrep=0
+
+--- 21b _record_structured_outbox 定义与调用（U11 称 :499 定义 / :513 落盘 / :1662 调）
+502:    def _record_structured_outbox(self, entry: Dict[str, Any]) -> bool:
+1665:                    self._record_structured_outbox(
+
+--- 21c _pending_failed_writes 累积与 cleanup 刷盘（U11 称 :1419 累积 / :2864 刷）
+273:        self._pending_failed_writes: List[Dict[str, Any]] = []
+1422:                    self._pending_failed_writes.append(
+2845:        if self._pending_failed_writes:
+2846:            self._flush_pending_failed_writes()
+2854:    def _flush_pending_failed_writes(self) -> None:
+2864:        wrapping _pending_failed_writes access with an asyncio.Lock.
+2866:        if not self._pending_failed_writes:
+2873:                    for entry in self._pending_failed_writes:
+2876:                f"[Story 30.24] Flushed {len(self._pending_failed_writes)} "
+2882:            self._pending_failed_writes.clear()
+
+--- 21d _record_structured_outbox 全文（落盘处）
+    def _record_structured_outbox(self, entry: Dict[str, Any]) -> bool:
+        """A7 (P2): 结构化写入彻底失败时立即落盘 outbox, 不静默丢数据。
+
+        立即写 FAILED_WRITES_FILE (非等 shutdown flush) 抗进程崩溃。条目带
+        kind='knowledge_entity' 判别符, recover_failed_writes 据此重放
+        (重新走 record_knowledge_entity 的结构化写入, 此时 worker 通常已就绪)。
+
+        注: callout/relation 的主要持久化是 frontmatter + 启动回填 (vault md 是
+        真相源, backfill_vault 重建边), outbox 是非结构化材料/边界场景的兜底。
+        返回 True=已落盘, False=连兜底也失败(真数据丢失风险, 已 error 日志)。
+        """
+        try:
+            FAILED_WRITES_FILE.parent.mkdir(parents=True, exist_ok=True)
+            with failed_writes_lock:
+                with open(FAILED_WRITES_FILE, "a", encoding="utf-8") as f:
+                    f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+            return True
+        except OSError as e:
+            logger.error("[A7] outbox 落盘失败 (数据可能丢失): %s", e)
+            return False
+
+    async def record_learning_event(
+        self,
+        user_id: str,
+        canvas_path: str,
+        node_id: str,
+        concept: str,
+        agent_type: str,
+        score: Optional[int] = None,
+        duration_seconds: Optional[int] = None,
+        subject: Optional[str] = None,
+
+--- 21e cleanup 刷盘块
+
+        try:
+            FAILED_WRITES_FILE.parent.mkdir(parents=True, exist_ok=True)
+            with failed_writes_lock:
+                with open(FAILED_WRITES_FILE, "a", encoding="utf-8") as f:
+                    for entry in self._pending_failed_writes:
+                        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+            logger.warning(
+                f"[Story 30.24] Flushed {len(self._pending_failed_writes)} "
+                f"pending failed writes to {FAILED_WRITES_FILE}"
+            )
+        except (OSError, TypeError, ValueError) as e:
+            logger.error(f"[Story 30.24] Failed to flush pending writes: {e}")
+        finally:
+            self._pending_failed_writes.clear()
+
+
+# Singleton instance — the ONLY MemoryService singleton entry point for the entire project.
+# All modules (endpoints, dependencies, main) MUST import from here.
+_memory_service_instance: Optional[MemoryService] = None
+_memory_service_lock: asyncio.Lock = asyncio.Lock()
+
+
+async def get_memory_service() -> MemoryService:
+    """
+    Get or create MemoryService singleton (async, auto-initializes).
+
+
+=== JUDGE-22 链2 死信写者的触发前提（U11 §2.4：只在 worker 已就绪后才可能触发）===
+--- 22a _handle_failure 的调用链（谁调它）
+backend/app/services/episode_worker.py:555:                await self._handle_failure(task, e)
+rc_gitgrep=0
+--- 22b start() 与 is_ready 的门
+313:        self._started = False
+376:            self._graphiti = None
+434:            self._graphiti = None
+443:    async def start(self) -> None:
+445:        if self._started:
+450:        self._started = True
+460:        if not self._started:
+493:        self._started = False
+524:    def is_ready(self) -> bool:
+526:        return self._started and self._graphiti is not None

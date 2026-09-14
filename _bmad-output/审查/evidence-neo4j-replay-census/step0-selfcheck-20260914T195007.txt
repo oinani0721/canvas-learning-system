@@ -1,0 +1,11 @@
+### CARD-NEO4J-REPLAY-CENSUS 第0分钟自证 2026-09-14T19:50:07+0800
+pwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t6-neo4j
+branch=card/t6-neo4j
+HEAD_short8=08100483  HEAD_full=081004834e37b1b0253cf81dc7b44e784646c934
+git status --porcelain | wc -l = 1
+backend/.venv/bin/pytest exists = yes
+backend/.env exists = yes
+pyright exec = yes
+BASE=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/审查/evidence-b14/unit-red-baseline-08100483.txt
+grep -vc '^#' $BASE = 64
+sentinel mtime = 2026-09-14T19:50:07

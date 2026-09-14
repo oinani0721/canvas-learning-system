@@ -1,0 +1,42 @@
+=== JUDGE-7' 地盘门（零代码）  2026-09-14T19:56:42+0800 ===
+--- 7'a git --no-pager diff --stat --no-color 08100483 HEAD -- . ':(exclude)_bmad-output'
+rc=0  (空输出 = 零代码改动)
+行数=0
+
+--- 7'b 验伪锚：去掉 exclude（含未提交则看 working tree）
+rc=0
+注: HEAD 仍 = 08100483（尚未 commit），故两侧皆空属预期；真正验伪锚见 7'c（工作树对比）
+
+--- 7'c 工作树未提交改动（应只有 _bmad-output/）
+  ?? "_bmad-output/\345\256\241\346\237\245/2026-09-14-NEO4J-REPLAY-CENSUS.md"
+  ?? "_bmad-output/\345\256\241\346\237\245/evidence-neo4j-replay-census/judge1-orphan-recover-failed-writes-20260914T195022.txt"
+  ?? "_bmad-output/\345\256\241\346\237\245/evidence-neo4j-replay-census/judge10-writeside-wiring-requestid-20260914T195235.txt"
+  ?? "_bmad-output/\345\256\241\346\237\245/evidence-neo4j-replay-census/judge11-12-traces-emptiness-and-patch-target-20260914T195251.txt"
+  ?? "_bmad-output/\345\256\241\346\237\245/evidence-neo4j-replay-census/judge13-14-skip-owner-and-episodetask-requestid-20260914T195307.txt"
+  ?? "_bmad-output/\345\256\241\346\237\245/evidence-neo4j-replay-census/judge15-episodetask-requestid-full-20260914T195324.txt"
+  ?? "_bmad-output/\345\256\241\346\237\245/evidence-neo4j-replay-census/judge16-boundedness-20260914T195343.txt"
+  ?? "_bmad-output/\345\256\241\346\237\245/evidence-neo4j-replay-census/judge17-cleanup-ownership-20260914T195356.txt"
+  ?? "_bmad-output/\345\256\241\346\237\245/evidence-neo4j-replay-census/judge18-19-seventh-chain-and-full-sweep-20260914T195412.txt"
+  ?? "_bmad-output/\345\256\241\346\237\245/evidence-neo4j-replay-census/judge2-orphan-sync-all-fallbacks-20260914T195038.txt"
+  ?? "_bmad-output/\345\256\241\346\237\245/evidence-neo4j-replay-census/judge20-chain7-writeside-20260914T195427.txt"
+  ?? "_bmad-output/\345\256\241\346\237\245/evidence-neo4j-replay-census/judge2x-wide-callform-enum-20260914T195056.txt"
+  ?? "_bmad-output/\345\256\241\346\237\245/evidence-neo4j-replay-census/judge2y-gateway-and-red-baseline-20260914T195126.txt"
+  ?? "_bmad-output/\345\256\241\346\237\245/evidence-neo4j-replay-census/judge3-4-5-edgesync-startup-dualwrite-20260914T195140.txt"
+  ?? "_bmad-output/\345\256\241\346\237\245/evidence-neo4j-replay-census/judge5x-6-thirdstate-and-chain-anchors-20260914T195159.txt"
+  ?? "_bmad-output/\345\256\241\346\237\245/evidence-neo4j-replay-census/judge7-8-9-sixth-chain-traces-dualwrite-tests-20260914T195215.txt"
+  ?? "_bmad-output/\345\256\241\346\237\245/evidence-neo4j-replay-census/judge7-territory-gate-20260914T195642.txt"
+  ?? "_bmad-output/\345\256\241\346\237\245/evidence-neo4j-replay-census/sentinel"
+  ?? "_bmad-output/\345\256\241\346\237\245/evidence-neo4j-replay-census/step0-selfcheck-20260914T195007.txt"
+  ?? "_bmad-output/\345\256\241\346\237\245/evidence-neo4j-replay-census/unit-close-20260914T195635.txt"
+--- 非 _bmad-output 的改动行数（应为 0）
+0
+--- 验伪锚：_bmad-output 的改动行数（应 > 0，证明 status 非恒空）
+20
+
+--- 7'd 代码文件是否被碰（禁改清单逐个核）
+  backend/app/services/memory_service.py -> 改动行数=0
+  backend/app/services/fallback_sync_service.py -> 改动行数=0
+  backend/app/core/failure_counters.py -> 改动行数=0
+  backend/app/api/v1/endpoints/traces.py -> 改动行数=0
+  backend/app/core/failed_writes_constants.py -> 改动行数=0
+  backend/app/main.py -> 改动行数=0

@@ -1,0 +1,92 @@
+=== JUDGE-13 skip 归属 + EpisodeTask request_id 来源  2026-09-14T19:53:07+0800 ===
+--- 13a test_failure_observability.py :250-275（skip 装饰归属）
+
+
+# ============================================================================
+# AC-36.12.5: Dual-Write Failure in MemoryService Integration
+# ============================================================================
+
+
+# fix-test-infra-paralysis Phase 2: skip — class tests deleted methods
+# `_write_to_graphiti_json` and `_write_to_graphiti_json_with_retry` directly.
+# Both methods removed by fix-rag-transform-and-episode-isolation; dual-write
+# pipeline is now `MemoryService._enqueue_episode → GraphitiEpisodeWorker`.
+# Failure observability for the new path: covered by test_episode_worker_retry.py
+# (dead-letter scenario asserts metrics + JSONL fields).
+@pytest.mark.skip(
+    reason="Tests deleted MemoryService._write_to_graphiti_json[_with_retry] directly; "
+    "EpisodeWorker dead-letter coverage in test_episode_worker_retry.py"
+)
+class TestMemoryServiceDualWriteFailure:
+    """Test that dual-write failures increment counter + write dead-letter."""
+
+    @pytest.mark.asyncio
+    async def test_dual_write_timeout_increments_counter(self):
+        """When dual-write times out, dual_write_failures counter increments."""
+        from app.services.memory_service import MemoryService
+
+        mock_neo4j = MagicMock()
+
+--- 13b :326 所属 class（往上找最近的 class 定义）
+41:class TestEdgeSyncFailureCounter:
+74:class TestDualWriteFailureCounter:
+96:class TestDeadLetterWrite:
+172:class TestCanvasServiceEdgeSyncFailure:
+267:class TestMemoryServiceDualWriteFailure:
+361:class TestHealthStorageReflectsFailures:
+445:class TestResetCounters:
+470:class TestDeadLetterRequestId:
+
+--- 13c _write_to_graphiti_json_with_retry 是否存在于 memory_service（非测试）
+rc_gitgrep=0  (1=方法已删 ⇒ 该 class 测的是不存在的方法)
+
+=== JUDGE-14 EpisodeTask 构造点是否带 request_id（决定 traces 对链2 是否恒空） ===
+--- 14a EpisodeTask( 构造点（非测试）
+backend/app/api/v1/endpoints/tips.py:623:        task = EpisodeTask(
+backend/app/services/episode_worker.py:300:        worker.enqueue(EpisodeTask(name=..., episode_body=..., group_id=...))
+backend/app/services/memory_service.py:470:        task = EpisodeTask(
+rc_gitgrep=0
+
+--- 14b 各构造点原文（enqueue 面）
+### backend/app/api/v1/endpoints/tips.py
+623:        task = EpisodeTask(
+624-            name=f"callout:{request.node_id}:{request.callout_id}",
+625-            episode_body=body,
+626-            group_id=group_id,
+627-            source_description="obsidian.callout.direct",
+628-            reference_time=request.added_at,
+629-            metadata={
+### backend/app/services/episode_worker.py
+300:        worker.enqueue(EpisodeTask(name=..., episode_body=..., group_id=...))
+301-    """
+302-
+303-    def __init__(
+304-        self,
+305-        maxsize: int = 100,
+306-        dead_letter_path: str = "data/dead_letter_episodes.jsonl",
+### backend/app/services/memory_service.py
+470:        task = EpisodeTask(
+471-            name=name,
+472-            episode_body=episode_body,
+473-            group_id=group_id,
+474-            source_description=source_description,
+475-            entity_types=entity_types,
+476-            edge_types=edge_types,
+
+--- 14c EpisodeTask.to_dict :105-120
+        result = {
+            "name": self.name,
+            "episode_body": self.episode_body[:200],  # truncate for logging
+            "group_id": self.group_id,
+            "source_description": self.source_description,
+            "reference_time": self.reference_time.isoformat(),
+            "retry_count": self.retry_count,
+            "created_at": self.created_at.isoformat(),
+        }
+        if self.request_id is not None:
+            result["request_id"] = self.request_id
+        # Log type names only (type references are not JSON-serializable)
+        if self.entity_types:
+            result["entity_type_names"] = list(self.entity_types.keys())
+        if self.edge_types:
+            result["edge_type_names"] = list(self.edge_types.keys())

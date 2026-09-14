@@ -1,0 +1,214 @@
+=== JUDGE-17 链3 清理点归属 + 链1 写入方式 + 链5 有界机制归属  2026-09-14T19:53:56+0800 ===
+--- 17a memory_service.py :2760-2800（unlink :2786 归属哪个函数）
+                if enqueued:
+                    recovered += 1
+                else:
+                    still_pending.append(line)
+            except (RuntimeError, asyncio.TimeoutError):
+                still_pending.append(line)
+
+        # Rewrite file with only still-pending entries under lock
+        with failed_writes_lock:
+            try:
+                if still_pending:
+                    tmp_file = FAILED_WRITES_FILE.with_suffix(".tmp")
+                    tmp_file.write_text("\n".join(still_pending) + "\n", encoding="utf-8")
+                    # Windows-safe replace: retry on PermissionError (#2)
+                    for attempt in range(3):
+                        try:
+                            tmp_file.replace(FAILED_WRITES_FILE)
+                            break
+                        except PermissionError:
+                            if attempt < 2:
+                                import time as _time
+
+                                _time.sleep(0.1)
+                            else:
+                                raise
+                else:
+                    FAILED_WRITES_FILE.unlink(missing_ok=True)
+            except (OSError, PermissionError) as e:
+                logger.warning(f"[Story 38.6] Failed to update fallback file: {e}")
+
+        logger.info(f"[Story 38.6] Recovered {recovered} failed writes, {len(still_pending)} still pending")
+        return {"recovered": recovered, "pending": len(still_pending)}
+
+    def load_failed_scores(self) -> List[Dict[str, Any]]:
+        """
+        Story 38.6 AC-4: Load scoring entries from failed_writes.jsonl for merged view.
+
+        Returns list of dicts that can be merged into learning history results,
+        so the user never sees a "missing score" gap.
+
+        Uses failed_writes_lock to avoid reading a partially-written line.
+
+--- 17b recover_failed_writes 全文（:2687-2760）
+    async def recover_failed_writes(self) -> Dict[str, int]:
+        """
+        .. deprecated:: Story 38.8
+            Replaced by ``FallbackSyncService.sync_all_fallbacks()`` which handles
+            all three fallback files with checkpoint support and conflict resolution.
+            This method is retained for backward compatibility but is no longer
+            called from the startup lifespan. See ``fallback_sync_service.py``.
+
+        Story 38.6 AC-3: Replay failed writes from data/failed_writes.jsonl on startup.
+
+        Reads each entry, attempts to re-record it. Successfully replayed entries
+        are removed; still-failing entries remain in the file.
+
+        Uses failed_writes_lock to avoid racing with _record_failed_write.
+
+        Returns:
+            dict with 'recovered' and 'pending' counts
+        """
+        if not FAILED_WRITES_FILE.exists():
+            return {"recovered": 0, "pending": 0}
+
+        # Acquire shared lock to prevent _record_failed_write from appending
+        # while we read + rewrite the file (fixes #1 race condition).
+        with failed_writes_lock:
+            try:
+                lines = FAILED_WRITES_FILE.read_text(encoding="utf-8").strip().splitlines()
+            except (OSError, UnicodeDecodeError) as e:
+                logger.warning(f"[Story 38.6] Failed to read fallback file: {e}")
+                return {"recovered": 0, "pending": 0}
+
+        if not lines:
+            return {"recovered": 0, "pending": 0}
+
+        recovered = 0
+        still_pending = []
+
+        for line in lines:
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError:
+                logger.warning("[Story 38.6] Skipping malformed fallback entry")
+                still_pending.append(line)  # preserve malformed lines to avoid data loss
+                continue
+
+            try:
+                # A7 (P2): 结构化条目 (callout/error/relation/对话) → 重走
+                # record_knowledge_entity 的结构化写入 (启动时 worker 通常已就绪)。
+                # _from_recovery=True 防止再次失败时重复落 outbox。
+                if entry.get("kind") == "knowledge_entity":
+                    result = await self.record_knowledge_entity(
+                        event_type=entry.get("event_type", ""),
+                        content=entry.get("content", ""),
+                        metadata=entry.get("metadata"),
+                        group_id=entry.get("group_id"),
+                        _from_recovery=True,
+                    )
+                    if result.get("status") in ("written", "enqueued"):
+                        recovered += 1
+                    else:
+                        still_pending.append(line)
+                    continue
+
+                # Phase 2: Enqueue recovered entry to GraphitiEpisodeWorker
+                concept = entry.get("concept", "") or entry.get("concept_id", "unknown")
+                entry_canvas = entry.get("canvas_name", "")
+                inferred_subject = extract_subject_from_canvas_path(entry_canvas)
+                c_name = extract_canvas_name(entry_canvas)
+                enqueued = self._enqueue_episode(
+                    name=f"recovery:{concept[:80]}",
+                    episode_body=(f"Recovered learning event for concept '{concept}' on canvas '{entry_canvas}'."),
+                    group_id=_vault_scoped_group_id(inferred_subject, canvas_name=c_name),
+                    source_description="canvas_recovery",
+                )
+                if enqueued:
+
+--- 17c 链1 _save_json_data :475-500
+    async def _save_json_data(self) -> None:
+        """Save data to JSON storage file. Round-23 Story 8.2: atomic write."""
+        try:
+            from app.utils.atomic_io import atomic_write_json_async
+
+            await atomic_write_json_async(
+                self._storage_path,
+                self._data,
+                indent=2,
+                ensure_ascii=False,
+                default=str,
+            )
+        except (OSError, IOError, TypeError) as e:
+            logger.error(f"Failed to save JSON data: {e}")
+
+    async def _close_driver(self) -> None:
+        """Close Neo4j driver connection."""
+        if self._driver:
+            try:
+                await self._driver.close()
+                self._driver = None
+                logger.info("Neo4j driver closed")
+            except (RuntimeError, OSError) as e:
+                logger.error(f"Error closing Neo4j driver: {e}")
+
+    async def health_check(self) -> bool:
+
+--- 17d 链5 有界机制三函数的归属（_rotate_file/_cleanup_old_synced_files 被谁调）
+backend/app/services/fallback_sync_service.py:129:        checkpoint_idx = self._load_checkpoint("failed_writes")
+backend/app/services/fallback_sync_service.py:157:                self._save_checkpoint("failed_writes", i + 1)
+backend/app/services/fallback_sync_service.py:182:                self._rotate_file(FAILED_WRITES_FILE)
+backend/app/services/fallback_sync_service.py:185:        self._cleanup_old_synced_files(FAILED_WRITES_FILE.parent, FAILED_WRITES_FILE.stem)
+backend/app/services/fallback_sync_service.py:213:        checkpoint_idx = self._load_checkpoint("canvas_events")
+backend/app/services/fallback_sync_service.py:232:                self._save_checkpoint("canvas_events", i + 1)
+backend/app/services/fallback_sync_service.py:241:            self._rotate_file(CANVAS_EVENTS_FALLBACK_FILE)
+backend/app/services/fallback_sync_service.py:244:        self._cleanup_old_synced_files(
+backend/app/services/fallback_sync_service.py:276:        checkpoint_idx = self._load_checkpoint("learning_memories")
+backend/app/services/fallback_sync_service.py:295:                self._save_checkpoint("learning_memories", i + 1)
+backend/app/services/fallback_sync_service.py:490:    def _load_checkpoint(self, file_key: str) -> int:
+backend/app/services/fallback_sync_service.py:501:    def _save_checkpoint(self, file_key: str, index: int) -> None:
+backend/app/services/fallback_sync_service.py:545:    def _rotate_file(path: Path) -> None:
+backend/app/services/fallback_sync_service.py:563:    def _cleanup_old_synced_files(directory: Path, base_stem: str) -> None:
+rc=0
+
+--- 17e sync_all_fallbacks 全文 :53-100（证明三个 _sync_* 全挂在孤儿下）
+    async def sync_all_fallbacks(self) -> Dict[str, Any]:
+        """
+        Sync all three fallback files to Neo4j.
+
+        Checks Neo4j availability first. If unavailable, skips.
+        Syncs in priority order: failed_writes → canvas_events → learning_memories.
+
+        Returns:
+            Dict with per-file stats or {"skipped": True, "reason": "..."}
+        """
+        # Check Neo4j availability
+        if self._neo4j.is_fallback_mode:
+            return {"skipped": True, "reason": "Neo4j in fallback mode"}
+
+        try:
+            healthy = await self._neo4j.health_check()
+        except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
+            logger.warning(f"[Story 38.8] Neo4j health check failed: {e}")
+            return {"skipped": True, "reason": f"health check failed: {e}"}
+
+        if not healthy:
+            return {"skipped": True, "reason": "Neo4j unhealthy"}
+
+        result: Dict[str, Any] = {}
+
+        # Priority 1: failed_writes (scoring failures)
+        try:
+            result["failed_writes"] = await self._sync_failed_writes()
+        except (OSError, RuntimeError, ConnectionError) as e:
+            logger.warning(f"[Story 38.8] failed_writes sync error: {e}")
+            result["failed_writes"] = {"recovered": 0, "pending": 0, "error": str(e)}
+
+        # Priority 2: canvas_events
+        try:
+            result["canvas_events"] = await self._sync_canvas_events()
+        except (OSError, RuntimeError, ConnectionError) as e:
+            logger.warning(f"[Story 38.8] canvas_events sync error: {e}")
+            result["canvas_events"] = {"recovered": 0, "pending": 0, "error": str(e)}
+
+        # Priority 3: learning_memories
+        try:
+            result["learning_memories"] = await self._sync_learning_memories()
+        except (OSError, RuntimeError, ConnectionError) as e:
+            logger.warning(f"[Story 38.8] learning_memories sync error: {e}")
+            result["learning_memories"] = {
+                "recovered": 0,
+                "pending": 0,
+                "error": str(e),

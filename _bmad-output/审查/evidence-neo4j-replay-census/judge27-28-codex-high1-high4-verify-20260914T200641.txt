@@ -1,0 +1,79 @@
+=== JUDGE-27 复核 Codex HIGH-1：链5 是否已有写侧 10000 条上限  2026-09-14T20:06:41+0800 ===
+--- 27a canvas_service.py :95-99（上限常量）
+    95	        # Story 38.5: JSON fallback for Canvas events when memory system unavailable
+    96	        self._fallback_file_path: Path = Path(__file__).parent.parent / "data" / "canvas_events_fallback.json"
+    97	        self._max_fallback_events: int = 10000
+    98	        # [Review H1/M1] Initialize count from existing fallback file for cross-restart persistence
+    99	        self._fallback_count: int = self._read_existing_fallback_count()
+
+--- 27b :152-175（append 之后的截留与覆写）⛔ 我的判据16c 截在 :162 漏了这段
+   152	            # Read existing events or create new list
+   153	            events: List[Dict[str, Any]] = []
+   154	            if self._fallback_file_path.exists():
+   155	                try:
+   156	                    content = self._fallback_file_path.read_text(encoding="utf-8")
+   157	                    data = json.loads(content)
+   158	                    events = data if isinstance(data, list) else data.get("events", [])
+   159	                except (json.JSONDecodeError, KeyError):
+   160	                    events = []
+   161	
+   162	            events.append(event)
+   163	
+   164	            # [Review M2] Truncate oldest events when exceeding max limit
+   165	            if len(events) > self._max_fallback_events:
+   166	                events = events[-self._max_fallback_events :]
+   167	
+   168	            # Ensure parent directory exists
+   169	            self._fallback_file_path.parent.mkdir(parents=True, exist_ok=True)
+   170	
+   171	            self._fallback_file_path.write_text(json.dumps(events, ensure_ascii=False, indent=2), encoding="utf-8")
+   172	            self._fallback_count += 1
+   173	
+   174	        except Exception as e:
+   175	            logger.error(f"Failed to write canvas event fallback: {e}")
+
+--- 27c 上限常量的全部引用
+backend/app/services/canvas_service.py:97:        self._max_fallback_events: int = 10000
+rc=0
+
+=== JUDGE-28 复核 Codex HIGH-4：traces 读路径 vs 死信写路径是否错位 ===
+--- 28a failure_counters.py :20-30（写路径，数 .parent 层数）
+    20	_edge_sync_failure_count: int = 0
+    21	_dual_write_failure_count: int = 0
+    22	
+    23	# --- Dead-letter file paths ---
+    24	EDGE_SYNC_DEAD_LETTER_PATH: Path = (
+    25	    Path(__file__).parent.parent.parent / "data" / "failed_edge_syncs.jsonl"
+    26	)
+    27	DUAL_WRITE_DEAD_LETTER_PATH: Path = (
+    28	    Path(__file__).parent.parent.parent / "data" / "failed_dual_writes.jsonl"
+    29	)
+    30	
+文件位置: backend/app/core/failure_counters.py
+  __file__=backend/app/core/failure_counters.py → .parent=core → .parent.parent=app → .parent.parent.parent=backend
+  ⇒ 写路径 = backend/data/failed_edge_syncs.jsonl
+
+--- 28b traces.py :15-25（读路径，数 .parent 层数）
+    15	router = APIRouter()
+    16	
+    17	DATA_DIR = Path(__file__).parent.parent.parent.parent / "data"
+    18	LOGS_DIR = Path(__file__).parent.parent.parent.parent / "logs"
+    19	
+    20	LOG_FILES = {
+    21	    "bug_log": DATA_DIR / "bug_log.jsonl",
+    22	    "failed_edge_syncs": DATA_DIR / "failed_edge_syncs.jsonl",
+    23	    "dead_letter_episodes": DATA_DIR / "dead_letter_episodes.jsonl",
+    24	    "audit": LOGS_DIR / "audit.jsonl",
+    25	}
+文件位置: backend/app/api/v1/endpoints/traces.py
+  __file__=…/endpoints/traces.py → p1=endpoints → p2=v1 → p3=api → p4=app
+  ⇒ 读路径 = backend/app/data/failed_edge_syncs.jsonl
+
+--- 28c 实测两路径是否真的不同（用 python 只解析不导入 app）
+写(failure_counters .parent x3) = /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t6-neo4j/backend/data/failed_edge_syncs.jsonl
+读(traces DATA_DIR .parent x4) = /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t6-neo4j/backend/app/data/failed_edge_syncs.jsonl
+相同? False
+
+--- 28d 两个目录实测是否存在
+-rw-r--r--@ 1 Heishing  staff  763 Sep 14 19:57 backend/data/failed_edge_syncs.jsonl
+ls: backend/app/data/: No such file or directory

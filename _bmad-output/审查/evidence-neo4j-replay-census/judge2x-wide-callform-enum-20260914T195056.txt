@@ -1,0 +1,37 @@
+=== JUDGE-2X 宽枚举补强：漏掉的 call 形态 / 别名 / 实例化  2026-09-14T19:50:56+0800 ===
+--- 2x-a 裸形态（不带 await/. 前缀）: 'sync_all_fallbacks(' 全量
+backend/app/services/fallback_sync_service.py:53:    async def sync_all_fallbacks(self) -> Dict[str, Any]:
+backend/app/services/memory_service.py:2690:            Replaced by ``FallbackSyncService.sync_all_fallbacks()`` which handles
+rc_gitgrep=0
+
+--- 2x-b 类直接实例化: 'FallbackSyncService(' 全量（含测试，看非测试有无）
+backend/app/services/fallback_sync_service.py:661:        _fallback_sync_instance = FallbackSyncService(neo4j_client=neo4j)
+backend/tests/integration/test_cypher_contract_gate.py:519:    svc = FallbackSyncService(neo4j_client=gate_client)
+backend/tests/unit/test_story_38_8_fallback_sync.py:43:    return FallbackSyncService(neo4j_client=mock_neo4j)
+rc=0
+
+--- 2x-c 类名全命中（非测试）: 'FallbackSyncService'
+backend/app/domains/canvas/gateway.py:19:from app.services.fallback_sync_service import FallbackSyncService
+backend/app/domains/canvas/gateway.py:27:    "FallbackSyncService",
+backend/app/services/fallback_sync_service.py:47:class FallbackSyncService:
+backend/app/services/fallback_sync_service.py:653:_fallback_sync_instance: Optional[FallbackSyncService] = None
+backend/app/services/fallback_sync_service.py:656:def get_fallback_sync_service() -> FallbackSyncService:
+backend/app/services/fallback_sync_service.py:657:    """Get or create FallbackSyncService singleton."""
+backend/app/services/fallback_sync_service.py:661:        _fallback_sync_instance = FallbackSyncService(neo4j_client=neo4j)
+backend/app/services/memory_service.py:2690:            Replaced by ``FallbackSyncService.sync_all_fallbacks()`` which handles
+rc_gitgrep=0
+
+--- 2x-d 反射/别名形态: getattr( 含 sync_all_fallbacks / recover_failed_writes
+rc=1  (空=无反射调用)
+
+--- 2x-e 字符串形态（可能被 eval/任务名/调度器字符串引用）
+backend/tests/unit/test_qa_38_6_scoring_reliability_extra.py:446:        assert "get_fallback_sync_service" in source
+backend/tests/unit/test_qa_38_6_scoring_reliability_extra.py:453:        assert "sync_all_fallbacks" in source
+rc=0
+
+--- 2x-f 裸形态 'recover_failed_writes(' 非测试
+backend/app/services/memory_service.py:2687:    async def recover_failed_writes(self) -> Dict[str, int]:
+rc_gitgrep=0
+
+--- 2x-g gateway.py 是否被非测试使用（domains.canvas.gateway import 面）
+rc=1

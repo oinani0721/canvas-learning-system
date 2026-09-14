@@ -1,0 +1,23 @@
+=== JUDGE-8' tests/unit 目录级 diff（基线 nodeid 口径）  2026-09-14T20:03:43+0800 ===
+--- 8'a 跑成自证（⛔ 防 127/收集失败假绿）
+汇总行计数（须 >=1）= 1
+汇总行原文: = 35 failed, 5077 passed, 48 skipped, 23 xfailed, 171 warnings, 29 errors in 402.83s (0:06:42) =
+tail -1 = rc=1
+
+--- 8'b nodeid 提取
+base.nodeids 行数 = 64  （须 64）
+close.nodeids 行数 = 64
+⛔ 若 close=0 而 base=64 ⇒ 判「没跑成」不判「全修好」
+
+--- 8'c diff base vs close（只许 '<'）
+diff_rc=0  (0=完全一致)
+
+--- 8'd 新增红（'>' 行，须为 0）
+0
+--- 8'e 消失红（'<' 行，允许）
+0
+
+--- 8'f 本卡关注的两条红测试是否仍红（应仍在 close 里 ⇒ 本卡零代码未改变它们）
+FAILED tests/unit/test_qa_38_6_scoring_reliability_extra.py::TestStartupIntegration::test_fallback_sync_called_in_lifespan
+FAILED tests/unit/test_qa_38_6_scoring_reliability_extra.py::TestStartupIntegration::test_main_imports_fallback_sync
+rc=0

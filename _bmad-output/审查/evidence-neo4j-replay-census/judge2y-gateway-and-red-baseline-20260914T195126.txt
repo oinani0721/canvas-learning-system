@@ -1,0 +1,60 @@
+=== JUDGE-2Y gateway import 面（-e 多模式，避开 BRE '\|' 非交替坑）  2026-09-14T19:51:26+0800 ===
+--- 2y-a git grep -n -e 'domains.canvas' -e 'canvas.gateway' -e 'import gateway' -e 'from app.domains' -- '*.py'
+rc=1  (1=零命中)
+
+--- 2y-b 验伪锚：同法查一个已知被广泛 import 的模块 'from app.services.memory_service' 必须命中
+backend/app/api/v1/endpoints/agents.py:76:from app.services.memory_service import MemoryService
+backend/app/api/v1/endpoints/archive.py:203:        from app.services.memory_service import get_memory_service
+backend/app/api/v1/endpoints/chat.py:30:from app.services.memory_service import get_memory_service
+backend/app/api/v1/endpoints/memory.py:50:from app.services.memory_service import (
+backend/app/api/v1/endpoints/review.py:167:        from app.services.memory_service import get_memory_service
+rc_gitgrep=141  (0=命中 ⇒ -e 多模式 grep 非恒空)
+
+--- 2y-c 反证：确认 domains 目录确实存在且 gateway 文件非空
+total 16
+-rw-r--r--@  1 Heishing  staff   28 Sep 11 10:46 __init__.py
+drwxr-xr-x@  4 Heishing  staff  128 Sep 11 10:46 .
+drwxr-xr-x@ 10 Heishing  staff  320 Sep 11 10:46 ..
+-rw-r--r--@  1 Heishing  staff  791 Sep 11 10:46 gateway.py
+--- gateway.py 全文（37 行内）---
+     1	"""
+     2	Canvas Domain Gateway — 画布与同步统一入口
+     3	
+     4	Strangler Fig Pattern: 所有外部调用应通过此 gateway 访问 canvas 领域。
+     5	
+     6	包含: canvas_service, sync_service, fallback_sync_service,
+     7	       recommendation_service, markdown_image_extractor
+     8	"""
+     9	
+    10	from __future__ import annotations
+    11	
+    12	# ── 画布文件 CRUD ──
+    13	from app.services.canvas_service import CanvasService
+    14	
+    15	# ── Neo4j 同步 ──
+    16	from app.services.sync_service import SyncService
+    17	
+    18	# ── JSON 回退同步 ──
+    19	from app.services.fallback_sync_service import FallbackSyncService
+    20	
+    21	# ── 概念关联推荐 ──
+    22	from app.services.recommendation_service import RecommendationService
+    23	
+    24	__all__ = [
+    25	    "CanvasService",
+    26	    "SyncService",
+    27	    "FallbackSyncService",
+    28	    "RecommendationService",
+    29	]
+
+--- 2y-d 红基线中两条 TestStartupIntegration 原文（基线第 50-52 行）
+FAILED tests/unit/test_qa_38_6_scoring_reliability_extra.py::TestMergedViewEdgeCases::test_merged_view_sort_newest_first
+FAILED tests/unit/test_qa_38_6_scoring_reliability_extra.py::TestStartupIntegration::test_fallback_sync_called_in_lifespan
+FAILED tests/unit/test_qa_38_6_scoring_reliability_extra.py::TestStartupIntegration::test_main_imports_fallback_sync
+
+--- 2y-e main.py 中 fallback sync 字样（证明两条红测试的断言对象确实缺席）
+rc=1  (1=main.py 三个名字全缺席 ⇒ 两条断言必红)
+--- 验伪锚：main.py 含已知存在的字样 'backfill_vault' 必命中
+384:        from app.services.vault_backfill import backfill_vault
+392:            bf = await backfill_vault(
+rc=0

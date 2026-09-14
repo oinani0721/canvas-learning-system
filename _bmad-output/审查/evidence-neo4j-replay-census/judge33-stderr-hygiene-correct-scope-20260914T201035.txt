@@ -1,0 +1,23 @@
+=== JUDGE-33 存档卫生（正确口径：*.stderr* 模式，非 'stderr' 子串）  2026-09-14T20:10:35+0800 ===
+⛔ 判据口径更正：前一版判据 E 用 grep -c 'stderr' 匹配文件名任意位置子串，
+   与其主张「*.stderr* 不入库」不等价（历史合规 .txt 存档如 census-stderr.txt 会假阳）。
+   正确口径 = 匹配 .stderr 后缀或 .stderr. 中缀。
+
+--- 33a 全仓入库文件中真正的 *.stderr* （须 0）
+0
+
+--- 33b 本卡 commit 新增文件中 *.stderr*（须 0）
+0
+
+--- 33c 验伪锚：工作区确实存在一个 .stderr 文件（证明 33a/b 的 0 不是因为没有这类文件）
+_bmad-output/审查/codex-review-CARD-NEO4J-REPLAY-CENSUS.stderr
+工作区 .stderr 文件数=1
+⇒ 工作区有、入库为 0 ⇒ .gitignore 真在起作用（而非无此类文件的空洞通过）
+
+--- 33d 该文件被哪条规则拦下
+.gitignore:264:_bmad-output/审查/**/*.stderr*	"_bmad-output/\345\256\241\346\237\245/codex-review-CARD-NEO4J-REPLAY-CENSUS.stderr"
+
+--- 33e 前一版口径命中的 3 个文件（确认是合规 .txt，非 .stderr）
+  后缀=txt  路径="_bmad-output/\345\256\241\346\237\245/G4-9-evidence/census-stderr.txt"
+  后缀=txt  路径="_bmad-output/\345\256\241\346\237\245/evidence-g29f1/stderr-not-tracked-20260908T090430.txt"
+  后缀=txt  路径="_bmad-output/\345\256\241\346\237\245/evidence-pyright-svc/stderr-gate-20260908T074213.txt"
