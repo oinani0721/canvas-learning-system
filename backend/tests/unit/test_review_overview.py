@@ -895,8 +895,8 @@ def test_buckets_layer_counts_and_cross_source_gate(overview_env):
             boards=boards,
             buckets=buckets,
             # CARD-G6-9c-R2: 现役生产器 (daily_review_pick) **恒写** display_tz, 夹具
-            # 跟上它。缺这个键的投影会落到固定偏移回退, 而 due_today 取的是上海 23:00
-            # (离本地午夜 1 小时) —— 那类条目的归桶在 ±2h 内会翻转, 按新口径判不可判。
+            # 跟上它。缺这个键（或值为 null）的投影现在**整份判 corrupt** —— 没有生产者
+            # 时区就无法可靠重算归桶, 固定偏移只在 generated_at 那一刻可信。
             # 本用例要测的是五桶计数与跨源一致性, 不是「旧投影无 display_tz 怎么归桶」;
             # 后者由 test_g6_9c_single_tz_source.py 的两条桶位门专门守。
             display_tz="Asia/Shanghai",

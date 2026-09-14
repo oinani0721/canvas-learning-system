@@ -490,11 +490,15 @@ def test_dst_window_candidates_cover_rules_that_roll_into_the_following_year(tz_
     `<+10:30>-10:30<+11>-11,M10.1.0,M4.1.0/3` 是 10-05 → 次年 04-05，**都跨年**
     （初版注释写成「季度不跨年」，Codex r2 LOW-3 实测证伪）。
 
-    真正的区分点是 **`start` 有没有滚出名义年**（决定季度的名义起始年是 y−1 还是 y−2）：
-    上面三串的 `start` 相对本年元旦分别是 +271.58 / +0.17 / +278.65 天，都在名义年内 ⇒
-    包住某时刻的季度其起始年最早只到 y−1，三年候选窗够得着；
-    而 `AAA1BBB0,365/3,365/2` 的 `start(2024)` 是 **+365.17 天** —— 滚进了下一年，
+    真正的区分点是**季度跨了几个年界**（决定它的名义起始年是 y−1 还是 y−2）：
+    上面三串的季度都只跨**一个**年界（Y 年内起、Y+1 年内止）⇒ 包住某时刻的季度其名义
+    起始年最早只到 y−1，三年候选窗够得着；
+    而 `AAA1BBB0,365/3,365/2` 的 2024 季度是
+    `start(2024)=2024-12-31T04:00Z → end(2025)=2026-01-01T02:00Z` —— **跨了两个年界**，
     于是包住 2026 元旦的那个季度名义起始年是 2024 = y−2，三年候选窗够不着。
+    ⛔ 别把区分点写成「`start` 有没有滚出名义年」（初版如此、Codex r3 LOW-2 证伪）：
+       2024 是闰年，裸 `n=365` 落在 12-31（+365.17 天）**并没有**滚进下一年；
+       真正把季度推到第二个年界的是 `end(2025)` 延伸到了 2026。
     ⛔ **滚出名义年不止一条路**（本卡实测更正了初版注释里「裸 n=365 是唯一写法」那句）：
       ① 平年的裸 `n=365` = `1月1日 + 365 天` = 次年元旦；
       ② `Jn` / 裸 `n` 叠 `/N`（POSIX 允许到 167 小时，本实现的正则更放行到 999:99:99）；
@@ -574,6 +578,37 @@ def test_omitted_transition_rules_use_the_libc_default_instead_of_falling_back_t
     )
 
 
+@pytest.mark.parametrize("copy_id", _COPY_IDS)
+def test_candidate_year_guard_keeps_extreme_epochs_from_raising(copy_id):
+    """候选年扩到 y−2 后，极早/极晚年份不得因 `year` 越界抛异常（Codex r3 LOW-1）。
+
+    ⛔ 这是**本卡扩候选窗带来的新边界**，不是既有问题：BASE 的三年候选在 ts 落于公元 2 年
+    时算的是 (1, 2, 3) 全合法；扩到 y−2 后多出 `year=0`，而 `_rule_epoch` 的 M 分支走
+    `datetime(year, mon, 1)` ⇒ `ValueError: year must be in 1..9999, not 0`。
+    南半球分支还要取 `_dst_window(year + 1)`，所以上界也要留一格（9998）。
+    实测 BASE 在 `0002-07-01T12:00Z` 上换算成功而 r3 之前的 HEAD 抛异常。
+
+    ⚠️ 本门只保证**不抛**，不保证与 C 库一致 —— 这些年份远在声明的对齐区间
+    （2007..2037）之外，C 库自己在那里也不套用 POSIX 规则。
+    """
+    module = backend_tz if copy_id == "backend" else _load_local_tz()
+    tz = module.parse_posix_tz("AAA0BBB,M3.2.0,M11.1.0")
+    assert tz is not None, f"[{copy_id}] 前提不成立：这个规格本应解析成功"
+    for dt in (
+        datetime(2, 7, 1, 12, tzinfo=timezone.utc),  # y−2 = 0，下界
+        datetime(3, 1, 1, 12, tzinfo=timezone.utc),
+        datetime(9998, 7, 1, 12, tzinfo=timezone.utc),  # y+1 = 9999，上界
+    ):
+        try:
+            dt.astimezone(tz)
+        except Exception as exc:  # noqa: BLE001 —— 任何异常都是失败，类型不限
+            raise AssertionError(
+                f"[{copy_id}] 候选年守卫失效: {dt.isoformat()} 换算抛 "
+                f"{type(exc).__name__}: {exc}\n"
+                "  `_in_dst` 的候选年里有 year∉[1,9998]，`_rule_epoch` 的 `datetime(year, …)` 会抛。"
+            ) from exc
+
+
 #: 省略规则分支**不得扩大错误接受面**（Codex r1 HIGH-2）。下面这些串在 BASE 上就返回
 #: `None`（⇒ `display_tz()` 退 UTC，与 C 库一致）；补默认规则时若不先校验偏移，它们会
 #: 变成「被接受并参与换算」——`AAA0:60BBB` 直接错一天，`AAA999BBB` 则在 `.isoformat()`
@@ -604,6 +639,14 @@ _OMITTED_RULE_REJECT_CASES = [
     ("AAA１BBB", "非 ASCII 数字：正则放行但 C 库拒收，解析出 UTC−1 而 C 库给 UTC"),
     # POSIX 要求 std 名后必须跟偏移；缺了它 C 库整串拒收。
     ("<AAA><BBB>", "标准偏移缺省 —— 补规则后算成 UTC+1，C 库给 UTC，差一整天"),
+    # ⛔ 负向差值：`abs()` 少写一层就漏（把 `abs(dst_off - std_off)` 写成
+    #    `(dst_off - std_off)` 时，13 拒 + 3 正**全部仍绿**而本串被接受 —— Codex r2
+    #    MEDIUM-1 的整改自己也需要一条防退化用例）。
+    ("AAA-12BBB12", "DST 差为 **−24h**：两侧各自合法，只有带 abs() 的差值检查能拦"),
+    # 正则用 `$` + `.match()`，Python 的 `$` 会在**末尾换行之前**收尾 ⇒ 带 LF 的串能匹配。
+    ("AAA0<BBB>\n", "末尾 LF：C 库整串拒收退 UTC，补规则后算成 +01:00 差一整天"),
+    # 名字长度在既有正则里无上限；C 库实测边界在 507/508 之间。本实现用保守的整串 255 上限。
+    ("A" * 508 + "0BBB", "整串超长：C 库 508 字符拒收（507 接受），本实现按 255 上限拒"),
 ]
 
 #: 正控：秒字段 60 **不该**被这条收紧误伤 —— C 库实测也接受它（`2026-01-20T00:30Z` 给
@@ -1155,9 +1198,11 @@ def test_bucket_gate_rejects_wrong_buckets_even_when_display_tz_is_absent(tmp_pa
     误拒（合法 future 被判成 due_today）与误放行（伪造的 due_today 被当成合法）
     是**同一个**偏差的两侧，不可能只占一侧。r4 把它登记成「只有兼容性损失」，不成立。
 
-    ⛔ 本卡 r1 曾用「偏移 ±2h 敏感性复算」的温和版收口，被 Codex r1 打回：夏令时差 Δ 是
-    **未知量**，`ABC-1DEF-5`(Δ=+4h) 就落在带外、伪造的 due_today 照样放行。现口径是
-    **整份判 corrupt**，拒因统一为「display_tz 缺席或为 null」。
+    ⛔ 本卡 r1 曾用「偏移 ±2h 敏感性复算」的温和版收口，被 Codex r1 打回：带宽要同时
+    小到不误拒、大到不漏放行，而 `ABC-1DEF-5`(Δ=+4h) 就落在带外、伪造的 due_today
+    照样放行。（Δ 是**有界**的 —— 正则字段位宽定了上界 ≈ ±83 天；只是那个界远大于任何
+    实用带宽，缺 `display_tz` 时两个要求不可兼得。别写成「Δ 无界」，r2 LOW-2 证伪过。）
+    现口径是**整份判 corrupt**，拒因统一为「display_tz 缺席或为 null」。
 
     两种旧形态都要测：`display_tz` 键缺失（历史投影）与值为 `null`
     （现役生产器在**末档宿主**上的正常产出 —— `local_tz.display_tz()` 落到固定偏移

@@ -179,6 +179,19 @@ def parse_posix_tz(spec: str):
         #     但 `dst()` / `timetuple()` 会抛 ValueError。
         # ⚠️ 只收紧**本分支**: 带显式规则的那条路径是既有行为, 本卡不动它（它的取值域问题
         #    是上一轮登记的 MEDIUM, 混进来会让这次 HIGH 的收口说不清改了什么）。
+        if "\n" in spec or "\r" in spec:
+            # 正则用的是 `$` + `.match()`, Python 的 `$` 会在**末尾换行之前**收尾 ⇒
+            # `"AAA0<BBB>\n"` 能匹配。C 库对带换行的串整串拒收（实测 2026-07-01T23:30Z
+            # 给 23:30 = UTC）, 补规则后却算成 +01:00、差一整天。
+            return None
+        if len(spec) > 255:
+            # 名字长度无上限是既有正则的宽松处; 本机 C 库实测的接受边界在 **507/508**
+            # 字符之间（507 接受、508 退 UTC）。507 是平台相关的魔数, 这里改用一个保守
+            # 且与现实无冲突的整串上限 255（最长的真实 TZ 规格串也只有几十字符）。
+            # ⚠️ 如实声明这是**保守取舍**: 256..507 这段 C 库接受、本实现拒 —— 与
+            #    `AAA0000BBB` / `<>0BBB` 那类既有反向差异同性质（C 库接受而本实现拒收）,
+            #    不会让归日出错, 只会退 UTC。
+            return None
         if not g["std_off"]:
             return None
         for _off_txt in (g["std_off"], g["dst_off"]):
@@ -284,8 +297,19 @@ class _PosixTZ(tzinfo):
         #   规则, 那一段无论候选年取多宽都会与规格文本分歧, 红的是 C 库的边界不是本实现。
         y = time.gmtime(ts).tm_year
         for year in (y - 2, y - 1, y, y + 1):  # 规则可滚出名义年, 季度起始年最早到 y-2
+            if not 1 <= year <= 9998:
+                # `_rule_epoch` 的 M 分支走 `datetime(year, mon, 1)`, year∉[1,9999] 会抛;
+                # 南半球分支还要取 `_dst_window(year + 1)` ⇒ 上界收到 9998。
+                # ⛔ 这条是**本卡扩候选窗带来的新边界**（Codex r3 LOW-1）: BASE 的三年候选
+                #    在 ts 落于公元 2 年时算的是 (1,2,3) 全合法, 扩到 y-2 后多出 year=0 ⇒
+                #    `ValueError: year must be in 1..9999, not 0`。跳过越界年即与 BASE 同行为。
+                #    这些年份远在声明的 C 库对齐区间 (2007..2037) 之外, 跳过不影响任何判据。
+                continue
             s, e = self._dst_window(year)
-            if s <= e:  # 窗口落在同一年内（北半球形态）
+            # ⛔ `s <= e` 只说明「本年的 start 早于本年的 end」, **不等于**窗口落在同一
+            #    日历年内 —— 反例 `WART4WARST,J1/0,J365/25` 的 2024 窗口是
+            #    [2024-01-01T04Z, 2025-01-01T04Z)，s < e 却跨了年界（BASE 的注释也写错了这点）。
+            if s <= e:  # 季度由**同一名义年**的两条规则界定（北半球形态）
                 if s <= ts < e:
                     return True
             else:  # 跨年季度（南半球形态）= [start(year), end(year+1))
