@@ -1236,8 +1236,12 @@ def _live_called_names(node: ast.AST) -> list[str]:
     死代码也会被数进去 —— 顺序类断言（谁排在谁前面）因此可以被一个**诱饵**骗过：
     把死代码里的假调用摆在前面，真调用挪到后面，旧门照样绿。
 
-    **剪掉的恰好是下面四类**（CARD-W4-4b7-TAIL 把清单从「只剪 ``if False``」扩到这里；
-    描述与实现同步收窄，别再写「跳过恒假分支」那种过宽的说法）：
+    **剪掉的是下面四类**（CARD-W4-4b7-TAIL 把清单从「只剪 ``if False``」扩到这里；
+    描述与实现同步收窄，别再写「跳过恒假分支」那种过宽的说法）。⚠️ 「四类」说的是**剪掉**
+    什么，**不是**「其余一律计入」的全称保证：实现走 ``ast.iter_fields``，``FunctionDef`` 的
+    ``returns``（返回注解）与 ``type_params`` 在第 4 类的分支里**根本没被访问**，所以
+    ``def f() -> annotation_call(): ...`` 里的调用不计入，而**参数注解**里的会计入
+    （Codex round-5 LOW-1 实测）。要精确描述实现请直接读下面的 ``visit``。
 
     1. **恒假分支的 body**（``if False:`` / ``while 0:``，见 :func:`_is_dead_branch`）——
        ``test`` 与 ``orelse`` 仍算数（``if False: A`` 的 ``else`` 支是会跑的）；
@@ -1246,7 +1250,10 @@ def _live_called_names(node: ast.AST) -> list[str]:
     3. **同一语句块里终结语句之后的语句**（``return`` / ``raise`` / ``break`` /
        ``continue`` 之后，见 :func:`_reachable_prefix`）—— 终结语句自己仍算数；
     4. **不带装饰器的局部 ``FunctionDef`` 的 body** —— 「定义一个函数」这条语句不执行它的体。
-       带装饰器的**照常算**：装饰器在 ``def`` 执行时就拿到函数对象、可以当场调用它。
+       ⚠️ 只剪 **body**：同一条 ``def`` 语句上的装饰器表达式、**默认参数**、参数注解里的调用
+       照常计入（``def f(x=early()): ...`` 会数到 ``early``，Codex round-5 LOW-1 实测）。
+       带装饰器的**函数体也照常计入**，但那是**保守计入**而不是「定义时确实执行」：
+       ``@identity`` 这类装饰器**根本不会**调用被装饰函数，此时计入属于偏红那一侧的选择。
 
     ⛔ **第 4 类只在「没有跨语句调用」的前提下才是对的**，而本函数**看不到**那个前提 ——
     它是被逐条语句调用的。谁在什么时候真的执行了某个局部函数的 body，需要解析调用绑定才答
@@ -1293,11 +1300,15 @@ def _live_called_names(node: ast.AST) -> list[str]:
                 visit(decorator)
             visit(current.args)
             if current.decorator_list:
-                # ⛔ 装饰器在 def 执行时就拿到函数对象、可以当场调用它，源码此后不必再
-                #    出现函数名（Codex round-1 MEDIUM-2）⇒ 带装饰器的 body 在**定义点**执行。
+                # ⛔ 装饰器在 def 执行时就拿到函数对象、**可能**当场调用它，源码此后不必再
+                #    出现函数名（Codex round-1 MEDIUM-2）⇒ 带装饰器的 body 在定义点**保守计入**。
+                #    （不是「确实执行」：@identity 这类装饰器根本不调；计入是偏红那一侧的选择，
+                #     Codex round-5 LOW-1 更正。）
                 for stmt in _reachable_prefix(current.body):
                     visit(stmt)
-            # 不带装饰器的 def **不贡献任何调用**：「定义一个函数」这条语句不执行它的体。
+            # 不带装饰器的 def **其 body 不贡献调用**：「定义一个函数」这条语句不执行它的体。
+            #  ⚠️ 但上面已经访问过 decorator_list 与 args，所以默认参数 / 参数注解里的调用
+            #     照常计入 —— 别把这句读成「整条 def 语句不贡献任何调用」（round-5 LOW-1）。
             return
         if isinstance(current, ast.Call):
             func = current.func
@@ -1345,9 +1356,28 @@ def _refuse_to_guess_on_deferred_execution(scope: ast.FunctionDef) -> None:
 
     ⛔ **这条前置条件封的是「本作用域内可见的延迟执行体」，不是「顺序判断从此可靠」。**
     AST 看不穿一次**调用**背后的函数体，所以下面这些仍是**门未覆盖的路径**，如实登记而不是
-    假装封死（Codex round-4 MEDIUM-1 逐条实测）：调用一个**模块级** helper 而它体内做了提前
-    预检；``functools.partial(...)()``；``exec`` / ``eval`` 字符串；``type("X", (), {...})()``
-    这类动态绑定；把模块级函数直接绑成类属性。
+    假装封死（Codex round-4 MEDIUM-1 / round-5 逐条实测）：调用一个**模块级** helper 而它体内
+    做了提前预检；``functools.partial(...)()``；``exec`` / ``eval`` 字符串；
+    ``type("X", (), {...})()`` 这类**内置 type() 动态建类**（⚠️ 它**没有** ``ClassDef`` 节点，
+    因此**不在**上面的拒绝面内 —— 本卡 round-4 自述曾说它「已因 class 体翻红」，那是把用例换成了
+    ``class Early: ...`` 之后得出的结论，**对原例不成立**，Codex round-5 LOW-2 更正）；
+    把模块级函数直接绑成类属性。
+
+    ⛔ **已知但本卡未修的一条（MEDIUM，移交下一张 W4 卡）**：PEP 695 的 ``type X = <expr>``
+    （``ast.TypeAlias``，CPython 3.12 起**惰性求值**，读 ``__value__`` 才跑）是**本作用域内
+    AST 可见**的延迟执行体，按本函数自己的口径**应当**进拒绝面，但当前实现漏了它。
+    Codex round-5 MEDIUM-1 在本机 Python 3.14.4 实测：
+
+    .. code-block:: python
+
+        type H = _install_audit_hook()
+        type R = register_final_accounting()
+        assert_neo4j_target_blocked()
+        H.__value__; R.__value__          # 真实求值序：precheck → hook → register
+
+    下标读成 ``0/1/2`` ⇒ 两个顺序门**双双假绿**。修法是一行：把 ``ast.TypeAlias`` 加进下面的
+    收集分支。**本卡不改**——D-15 轮次上限 5 已用尽（末轮绑最终 HEAD 且 BLOCKER/HIGH = 0），
+    审后再改代码须再送一轮，故按 MEDIUM「登记不阻断」移交，见验收单 §四。
     ⚠️ 特别更正一句我曾写下、已被证伪的话：「挪到模块级函数里顺序门就数得对」——**不成立**，
     模块级 helper 正是上面第一条反例。顺序门证明的是 ``install()`` **字面语句序列**里那几个
     **直接具名调用**的先后，行为面的证明在子进程探针
