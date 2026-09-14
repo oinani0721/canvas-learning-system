@@ -32,8 +32,8 @@
 - **(d) 后绿：validate + archive 证（仓外 SCRATCH COPY）**：`npx --no-install openspec validate concept-identity --type spec --strict` → `is valid`；结构门 `grep -cE '^### Requirement:'` **≥1** + `grep -cE '^#### Scenario:'` **≥1** + `grep -cE '^### Scenario:'` **= 0**（防 3 井号静默失败）；把**改后** `openspec/` 整树拷到仓外 scratch（`$TMPDIR/u9b-after/openspec`），建一条 `## MODIFIED Requirements` re-state 替代 Requirement 的 change，`npx openspec archive <name> -y` **成功**且 stdout **不含** `Spec must have at least one requirement`（即 blocker 已解）。落盘 `evidence-u9b-openspec/after-archive-*.txt`。
 - **(e) 两处裸名字更正（地盘内）**：`A6-phase0-reference-card.md` 的「当前内容」描述块（:93-96）改为匹配**新** spec 的 Requirement/Scenario 名（line 96 的 `save_card_state` 去掉）；`test_g3_7_truth_source.py:14` 的 `save_card_state` → `_save_card_states`（模块 docstring 注释，**纯文案、无逻辑变化**，描述的 decision.md 裁定④ 语义不变）。**先红后绿（归零）**：改前 `git --no-pager grep -cw save_card_state --` 三文件 = spec.md `3` / A6 `1` / test_g3_7 `1`（验伪锚：先证 grep 能命中正例）；改后三文件各 = **0**。
 - **(f) 地盘核**：`git --no-pager diff --stat --no-color $PREV HEAD -- . ':(exclude)_bmad-output'` 列出的文件 **⊆** {`openspec/specs/concept-identity/spec.md`, `docs/project-status/fr-exploration/A6-phase0-reference-card.md`, `backend/tests/regression/test_g3_7_truth_source.py`}（恰 3 个或更少，**一个越界都不行**）；`git status --porcelain -- openspec/changes/` **空**（档案/在途 change 零改动）；`git status --porcelain -- backend/app/models/` **空**（models 零写者）。
-- **(g) test_g3_7 不破**：`python3 -c "import ast,sys;ast.parse(open('backend/tests/regression/test_g3_7_truth_source.py',encoding='utf-8').read())"` rc=0；`git --no-pager diff --no-color -- backend/tests/regression/test_g3_7_truth_source.py` 只显示 **:14 一行**改动（docstring）；承重裁判 `pytest --collect-only backend/tests/regression/test_g3_7_truth_source.py`（env 允许时）无 collection error（若 FSRS/lifespan 环境缺失而跳过，如实记 SKIP 理由，不假绿）。
-- **(h) tests/unit 目录级 diff 只许 `<`**：T4-C 不碰 `backend/tests/unit/`，开工/收工各跑一次目录级并 `diff`（nodeid 口径），差集**只许 `<`（消失/修复）不许 `>`（新增红）**；基线 `evidence-b14/unit-red-baseline-08100483.txt` = 64（带 `--ignore backend/tests/unit/test_deploy_vault_sh.py`，R-15）；预期**零差异**（本卡不动 unit）。
+- **(g) test_g3_7 不破**：`python3 -c "import ast,sys;ast.parse(open('backend/tests/regression/test_g3_7_truth_source.py',encoding='utf-8').read())"` rc=0；`git --no-pager diff --no-color -- backend/tests/regression/test_g3_7_truth_source.py` 只显示 **:14 一行**改动（docstring）；承重裁判**必须先 `cd backend` 再用相对路径**跑 `PYTHONDONTWRITEBYTECODE=1 ./.venv/bin/python -m pytest --collect-only tests/regression/test_g3_7_truth_source.py -q -p no:cacheprovider`（手册 §四.1.5 / R-B14-3 同口径），期望 `collected N items` 且 **0 collection error**。⛔ 从车道树根跑 `-m pytest backend/tests/…` 是**假红**：`backend/pytest.ini` 无 `pythonpath`、venv 内无 app 的 editable 安装、`backend/tests/conftest.py` 的 `from tests.support import live_port_guard`（:26）与 `from app.config import …`（:30）也无 `sys.path` 注入 ⇒ 只有 CWD=`backend/` 时可解析。故存档里若出现 `ModuleNotFoundError`/`ImportError`，那是**用法错**、改正后重跑，⛔ **不得**记成「环境缺失 SKIP」（= 把用法错洗成假绿）；只有非 import 类的真实环境缺失才可记 SKIP 并写明缺什么。
+- **(h) tests/unit 目录级 diff 只许 `<`**：T4-C 不碰 `backend/tests/unit/`，开工/收工各跑一次目录级并 `diff`（nodeid 口径），差集**只许 `<`（消失/修复）不许 `>`（新增红）**；基线 `evidence-b14/unit-red-baseline-08100483.txt` = 64（`grep -vc '^#'` 口径，R-B14-2）；⛔ 跑法必须 **`cd backend` 后 `--ignore tests/unit/test_deploy_vault_sh.py`（相对路径，R-B14-3，与基线文件头记录的跑法逐字同）**——写成 `--ignore backend/tests/unit/…` 在 `cd backend` 之后**不匹配任何被收集文件 = 空操作**，该重型文件仍会被真收集并挂起；⛔ 承重那跑的存档名先固定成变量、禁 glob（≥2 份会给 grep 每行加「文件名:」前缀使 diff 全变假阻断）。预期**零差异**（本卡不动 unit）。
 - **(i) ConceptState.fsrs_* 只登记**：`backend/app/models/**` 一字不碰（见 (f)）；验收单「台账待登记条目」写一条：`ConceptState.fsrs_*`（mastery_state.py:69 / :87-92）标注需求移交（models/** 本批零写者，UAT §11.6）。
 - **(j) 硬边界遵守**：现网 LanceDB/backups/live vault 只读；未连 7691/7687；未碰 `fsrs_bridge.py`/`decay_beta.py`；未 `git stash`；未改台账；批中未装/升任何包；未 push。
 - **(k) Codex 多轮（D-15）**：本卡改动含 `.py`（test_g3_7 docstring）+ spec/doc，按「有代码改动」走多轮，`Codex gpt-6-astra ultra 多轮直到绑最终 HEAD 的一轮 BLOCKER/HIGH = 0`（上限 5 轮；审后再改代码必再送一轮；只改 `_bmad-output` 不算）；纯 docstring/文案改动预期 1–2 轮收敛。存档首部按协议 §2.1。
@@ -109,10 +109,21 @@ git status --porcelain -- backend/app/models/         # 空
 # (g) test_g3_7 不破
 python3 -c "import ast;ast.parse(open('backend/tests/regression/test_g3_7_truth_source.py',encoding='utf-8').read())" && echo "ast OK"
 git --no-pager diff --no-color -- backend/tests/regression/test_g3_7_truth_source.py   # 只 :14 一行
-backend/.venv/bin/python -m pytest --collect-only backend/tests/regression/test_g3_7_truth_source.py \
-  2>&1 | tee "$EV/collect-g37-$(date +%Y%m%dT%H%M%S).txt"; echo "rc=$pipestatus[1]"
+# ⛔ 必须 cd backend + 相对路径（手册 §四.1.5 / R-B14-3）：从树根跑会在 conftest 阶段 ModuleNotFoundError = 假红
+TSG=$(date +%Y%m%dT%H%M%S); RUNG="$EV/collect-g37-$TSG.txt"
+( cd backend && PYTHONDONTWRITEBYTECODE=1 ./.venv/bin/python -m pytest --collect-only \
+    tests/regression/test_g3_7_truth_source.py -q -p no:cacheprovider ) 2>&1 | tee "$RUNG"; echo "rc=$pipestatus[1]"
+grep -cE 'ModuleNotFoundError|ImportError' "$RUNG"   # 期望 0；≠0 = 用法错(未 cd backend)，改正重跑，禁记 SKIP
 
 # (h) tests/unit 目录级 diff 只许 <（开工/收工各一跑，本卡预期零差异）
+# ⛔ cd backend + --ignore 相对路径（R-B14-3；写 backend/tests/unit/… 在 cd 后是空操作，重型文件会被真收集并挂起）
+# ⛔ 承重那跑的存档名先固定成变量，禁 glob（多份会给 grep 每行加文件名前缀，使 diff 全变假阻断）
+TSU=$(date +%Y%m%dT%H%M%S); RUNU="$EV/unit-close-$TSU.txt"
+( cd backend && PYTHONDONTWRITEBYTECODE=1 ./.venv/bin/python -m pytest tests/unit -q -p no:cacheprovider \
+    --ignore tests/unit/test_deploy_vault_sh.py ) 2>&1 | tee "$RUNU"; echo "rc=$pipestatus[1]" | tee -a "$RUNU"
+grep -E '^(FAILED|ERROR) tests/' "$RUNU" | sed 's/ - .*//' | sort -u > "$EV/close.nodeids"
+grep -v '^#' "$BASE" | sort -u > "$EV/base.nodeids"
+diff "$EV/base.nodeids" "$EV/close.nodeids"   # 只允许 < 行（消失/修复）；任何 > = 本卡引入红 = 阻断
 ```
 
 > ⚠️ (b)/(d) **不是粘贴即跑**（openspec Hybrid 固有：CLI 管结构/校验/归档，delta 内容由 agent 按模板编写）——`▶ 手工步骤` 行已在 §二 内标出承重判据的可执行边界：`openspec new change` 与 `archive` 可脚本化，中间填四件套（proposal `## Why`/`## What Changes`；spec delta `## REMOVED`/`## MODIFIED Requirements` + 4 井号 Scenario）须手工。scratch 在仓外 `mktemp -d`，**零污染真实树**；跳过手工填 delta 则 archive 不触发/不解除 SPEC_NO_REQUIREMENTS，(b)/(d) 期望值均拿不到。
