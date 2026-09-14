@@ -352,7 +352,17 @@ async def test_second_replay_is_idempotent(gate_client, authed_app, tmp_path: Pa
             f"首次回灌未回灌到 1 条, 幂等断言无从谈起: {first.json()!r}"
         )
         counts_after_first = await _gate_node_count(gate_client)
-        assert counts_after_first.get("Concept", 0) == 1, f"首次回灌后门 Concept 数不为 1: {counts_after_first!r}"
+        # ⚠️ 首轮必须逐标签钉成绝对值 1, 不能只钉 Concept (Codex round-1 ①):
+        # 第二轮的判据是「与首轮相同」—— 若首轮自己就已经重复 (例如 Episode=2),
+        # 那么 2 → 2 一样通过, 门就挡不住「同一条目在一轮内被重放两次」。
+        # 期望的四个节点来自一条评分条目的完整重放:
+        #   Concept          — _replay_scoring_entry_to_neo4j 的 MERGE
+        #   Node / Canvas    — record_score_history 的 MERGE
+        #   Episode          — record_score_history 的 CREATE(id: randomUUID()),
+        #                      全链路唯一非幂等的那个, 正是这条断言要盯住的
+        assert counts_after_first == {"Concept": 1, "Node": 1, "Canvas": 1, "Episode": 1}, (
+            f"首次回灌后门前缀节点数不是逐标签各 1 条: {counts_after_first!r}"
+        )
 
         second = await http.post(ADMIN_PATH, headers=GATE_HEADERS)
 

@@ -419,7 +419,20 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 else:
                     _rec = sum(v.get("recovered", 0) for v in replay.values() if isinstance(v, dict))
                     _pend = sum(v.get("pending", 0) for v in replay.values() if isinstance(v, dict))
-                    logger.info(f"[T6-B] Neo4j 启动已恢复 → 回灌 {_rec} 条, {_pend} 条待回灌")
+                    # sync_all_fallbacks 对子同步异常是**以返回值报告失败**的:
+                    # 它把异常吞进 {"recovered":0,"pending":0,"error":...}
+                    # (fallback_sync_service.py 的三个 except 分支)。只对
+                    # recovered/pending 求和 ⇒ 三条链全炸也会打成
+                    # 「回灌 0 条, 0 条待回灌」, 与「本来就没东西要回灌」逐字
+                    # 相同 —— 那正是本卡要消灭的那类伪装 (Codex round-1 ②)。
+                    _failed = [k for k, v in replay.items() if isinstance(v, dict) and v.get("error")]
+                    if _failed:
+                        logger.error(
+                            f"[T6-B] 启动回灌部分失败: {_failed} 未回灌 (异常详见上方 warning); "
+                            f"其余链回灌 {_rec} 条, {_pend} 条待回灌"
+                        )
+                    else:
+                        logger.info(f"[T6-B] Neo4j 启动已恢复 → 回灌 {_rec} 条, {_pend} 条待回灌")
             except Exception as replay_err:  # noqa: BLE001 — 回灌失败不得拖垮启动
                 logger.error(f"[T6-B] 启动回灌失败 (non-fatal, 条目仍在暂存文件里): {replay_err}")
         else:

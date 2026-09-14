@@ -120,7 +120,15 @@ async def replay_fallbacks() -> Dict[str, Any]:
         The stats dict from ``sync_all_fallbacks`` verbatim: per-file
         ``{"recovered": int, "pending": int}`` (plus ``"error"`` when that
         file's replay raised), or ``{"skipped": True, "reason": str}``.
-        ⚠️ Counts only — no file paths or entry contents are echoed back.
+
+        ⚠️ The happy path is counts only, but the ``error`` and ``reason``
+        fields carry ``str(e)`` of the underlying exception — an ``OSError``
+        there will typically embed an absolute path, and a driver error may
+        embed a host/port. This endpoint is behind ``require_internal_api_key``,
+        so the audience is limited, but the text itself is **not** filtered.
+        Do not widen the audience without adding redaction.
+        (Codex round-1 ③ — an earlier version of this docstring claimed no
+        paths were echoed back, which was not true of those two fields.)
     """
     stats = await get_fallback_sync_service().sync_all_fallbacks()
     logger.info("[T6-B] manual fallback replay via admin endpoint: %s", stats)

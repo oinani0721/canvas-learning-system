@@ -122,10 +122,14 @@ class FallbackSyncService:
         ``LearningMemoryClient`` 还要查它), 它的条目数是「本地记录总数」而不是
         「待回灌数」, 计进 total 会虚报。故单列返回、由调用方分开陈述。
 
-        读文件失败 (不存在 / 权限 / 格式坏) 按该条链 0 条计并记一条 warning:
-        本方法服务于「离线时不静默丢弃」这个目的, 若统计本身抛异常, 会被
-        ``main.py:405`` 那个 ``except`` 吞成一句 "启动回填 failed", 把
+        读文件失败 (不存在 / 权限 / 非 UTF-8 字节 / JSON 格式坏) 按该条链 0 条
+        计并记一条 warning: 本方法服务于「离线时不静默丢弃」这个目的, 若统计
+        本身抛异常, 会被外层回填 ``except`` 吞成一句 "启动回填 failed", 把
         「没统计成」伪装成「回填出问题」—— 比不统计更坏。
+
+        ⚠️ ``UnicodeDecodeError`` 必须显式列进捕获集 (Codex round-1 LOW-④):
+        它是 ``ValueError`` 的子类、**不是** ``OSError``, 只捕 OSError 会让
+        一个非法字节直接逃到外层, 上面那句承诺当场落空。
 
         Returns:
             ``{"failed_writes": int, "canvas_events": int,
@@ -149,7 +153,7 @@ class FallbackSyncService:
             return 0
         try:
             raw = path.read_text(encoding="utf-8")
-        except OSError as e:
+        except (OSError, UnicodeDecodeError) as e:
             logger.warning(f"[T6-B backlog] Cannot read {path.name}: {e}")
             return 0
         return sum(1 for line in raw.splitlines() if line.strip())
@@ -169,7 +173,7 @@ class FallbackSyncService:
             if not raw:
                 return 0
             data = json.loads(raw)
-        except (OSError, json.JSONDecodeError) as e:
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as e:
             logger.warning(f"[T6-B backlog] Cannot parse {path.name}: {e}")
             return 0
 
