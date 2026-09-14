@@ -171,6 +171,8 @@ class TestCleanupScheduler:
     - A 正常路径: 循环顶 sleep 真的拿到配置间隔, 走到 cleanup_old_tasks, **并继续下一轮**;
     - B 异常路径: ``except Exception`` 分支**就地 await 一个 > 0 的等待**再回循环顶,
       且失败恢复后**循环仍在周期运行**。
+      ⚠️ 「就地 await」在这里是**待测契约的表述**, 不等于「两测通过 = 已证明它」——
+      证明到什么程度见下面「本类不证明什么」第 3 条 (Codex round-5 措辞更正)。
 
     ⚠️ 每个测试的**首行**是 ``assert hasattr(settings, ...)`` fail-fast 守卫, 必须
     排在任何 ``start_cleanup_scheduler()`` 之前。原因: 在**未修**的代码上真驱动
@@ -196,7 +198,9 @@ class TestCleanupScheduler:
        给出, 只在评审里演算未入库): 把异常分支写成「把等待丢进 ``create_task``,
        再 ``await`` 一个 ``loop.call_soon`` 立刻兑现的 future」—— 检查点足以让子任务
        里的 spy 跑完两端, 精确四事件照样成立, 而那个正数等待其实没人等。拦这一类
-       需要对协程间依赖做追踪, 明确不在本卡范围。
+       需要对协程间依赖做追踪, 本卡**不扩建这道门** —— 但那种写法**仍然违反**本卡
+       「异常分支必须等待完成」的契约, 属于门没覆盖, 不是行为被判到卡外
+       (Codex round-5 的措辞更正)。
     4. 不证明 ``cleanup_old_tasks`` 本体的清理正确性 (本卡整体 monkeypatch 掉它)。
 
     ⚠️ 这两条整段序列比对是**窄回归门**, 偏紧是刻意的代价: 在生产 cleanup 之后加一个
@@ -296,7 +300,9 @@ class TestCleanupScheduler:
         events: list[tuple[str, float]] = []
         enters: list[float] = []
         # S1 → cleanup(抛) → 等待 → S2 → cleanup ok → S3 → cleanup ok → S4(抛 Cancel)
-        # ⇒ 失败恢复后仍完成 2 轮清理; 若生产在 cleanup 后提前退出, 下面的 >= 2 断言会红。
+        # ⇒ 失败恢复后仍完成 2 轮清理; 若生产在 cleanup 后提前退出, 下面那条整段序列
+        # 断言会红(早期版本另有一条 `recovered >= 2`, 已被整段序列断言取代 —— 这里的
+        # 指针一并更正, Codex round-5 指出)。
         stop_after = 5
 
         async def spy_sleep(delay, *args, **kwargs):
