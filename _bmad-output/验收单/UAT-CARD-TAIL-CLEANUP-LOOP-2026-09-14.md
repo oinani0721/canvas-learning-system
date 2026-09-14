@@ -1,7 +1,16 @@
 # UAT — CARD-TAIL-CLEANUP-LOOP（后台清理调度器不再忙循环）
 
 > 批次 `[BATCH-2026-09-11-第十四批 / CARD-TAIL-CLEANUP-LOOP]` · 车道 `card-t5-bugs`（分支 `card/t5-bugs`）
-> 基准 `B14_BASE` = `08100483` · **最终 HEAD = `6ce8b286`** · 代码终审 SHA = `970f7eaa`（其后仅 docstring 尾巴与 `_bmad-output`）
+> 基准 `B14_BASE` = `08100483` · **代码终审 SHA = `970f7eaa`**（Codex r5 绑定）
+>
+> ⚠️ **终审绑定口径（给集成期，别误判）**：协议 §1 的严格判据
+> `git diff --stat <审SHA> HEAD -- . ':(exclude)_bmad-output'` 在本卡**不为空** ——
+> `970f7eaa` 之后有一笔 `6ce8b286`，对 `backend/tests/unit/test_background_task_manager.py`
+> 是 `8 insertions / 2 deletions`。那是 **D-32 纯 docstring 尾巴**（三处措辞更正，
+> 零可执行代码变动），等价性已用「剥掉全部 docstring 后 AST 逐字相同 = True」自证，
+> 并带验伪锚（同法比对 `08100483` 原版 = False），存档 `evidence-tail-cleanup/l-d32-comment-tail-*.txt`。
+> D-32 明定此类尾巴**不占轮次、不重置**，请主 session 逐行等价核后按仍绑定处理。
+> 本卡 commit 链末端另有本验收单自身的 `_bmad-output`-only commit。
 > 缺陷来源：`TAIL-handover.txt` §A **T-new-4**；`RULINGS-2026-09-10.md` §R-10 定为 TAIL **最高优先**
 > 证据目录：`_bmad-output/审查/evidence-tail-cleanup/`（`README.md` 是索引与边界声明，标注权威/被取代）
 
