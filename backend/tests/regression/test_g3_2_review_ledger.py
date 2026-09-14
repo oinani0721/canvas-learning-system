@@ -7562,6 +7562,25 @@ def _ht_outcome(_fn, _vault_dir):
         "harness_tree: 　#alt",
         "# harness_tree: /a/b",
         "other: 1",
+        # ── round-3: 文档结构与语法上下文(本卡自查 + Codex round-2 MEDIUM-2/3)──
+        #: `safe_load` 只收单文档; 逐行扫描看不见文档边界, 会把第二份文档里的那行当成有效值
+        "harness_tree: /a/b\n---\nharness_tree: /c/d",
+        "harness_tree: /a/b\n...\nharness_tree: /c/d",
+        #: 连「整份文件里根本没有这个键」的多文档也不行 —— PyYAML 整份拒而降级会回退
+        "other: 1\n---\nmore: 2",
+        "harness_tree: /a/b\n...",
+        #: 转义键: YAML 还原出同一个键, 而原文里根本不含 `harness_tree` 这串字符。
+        #: ⛔ 反斜杠用 chr(92) 拼: 本卡实测被中间工具层把转义展开成真字符一次。
+        '"harness' + chr(92) + 'u005ftree": /a/b',
+        #: 别名 / 合并键: 键可以不在它出现的那一行上定义
+        "note: &a /a/b\nharness_tree: *a",
+        #: 块标量: 那串字符在 YAML 眼里是**值的内容**, 不是键
+        "x: |\n  harness_tree: /a/b",
+        #: 指令行 + 内容之后的文档开始 —— 实测 PyYAML 在这里抛的是 ComposerError
+        #: (「只收单文档」), 不是指令语义; 如实标注, 不按「指令行」宣称。
+        "%YAML 1.1\n---\nharness_tree: /a/b",
+        #: 跨行引号标量: 开引号之后每一行的语法身份都不再是它看上去的样子
+        'note: "open\n  harness_tree: /a/b"',
     ],
 )
 def test_g33r2_harness_tree_degraded_never_diverges_from_yaml(tmp_path, monkeypatch, _line):

@@ -2245,8 +2245,9 @@ TMP_BLOCK_BASELINE: dict[str, list[str]] = {
         #: → `yaml.safe_load` 优先 + 缺库降级只收一种规范写法 + `realpath` 取代
         #: `normpath`)改动了主写点 PYEOF 块 ⇒ 块指纹随卡同步。块起始行仍是 `:229`,
         #: 只有整块哈希变: `571eb660…`(基线) → `664dd4d8…`(重做 round-1 版) →
-        #: `094c1c37…`(按 Codex round-1 MEDIUM 收紧降级扫描 + realpath 改 strict 后)。
-        "B229:094c1c377cf08110",
+        #: `094c1c37…`(按 Codex round-1 收紧降级扫描 + realpath 改 strict) →
+        #: `c8120a7b…`(按 Codex round-2 + 本卡自查, 降级扫描改成「读不懂就停」)。
+        "B229:c8120a7b3626ef7d",
         "S96:b55afbca27229028",
         "S205:44b7655dd97c27b7",
     ],
@@ -4368,7 +4369,7 @@ MANAGED_FILE_DIGESTS: dict[str, str] = {
     "skills/configure-whiteboard/SKILL.md": "9eb21ecc6ac044a914ce11009025f8a84e51c5135221ec3b50f8c021ccfa2177",
     "skills/exam-quick/SKILL.md": "eb30e407a14145477710cbf439e7e85705afeb157c98c5993ee0b3616c324853",
     "skills/node-chat/SKILL.md": "3b15bc91dabea7e7b3876b75c2c0973e7a9284d48081e5d1b864623258b40fb7",
-    "skills/quiz-answer/SKILL.md": "7ddba3499bae65f2766e87c2e3072915db4c930e7392491dda2c17c559caac50",
+    "skills/quiz-answer/SKILL.md": "9c4d7168e75781078567727539680cc4c812a0b22b63e5da5a6f5e4f9f18b967",
     "skills/start-exam-board/SKILL.md": "0f2c085a1bae12446dd74ab89cc1e6aa5c8bc34901dd3be7ac5d8521310d0dce",
     "skills/study-question/SKILL.md": "0142b7833ff3ab54c9307227d59ebaa7d5ff3f9c18a76b07344d0ab295fa22e4",
     "scripts/decay_beta.py": "3bf4ed9402a4c8edfde16630a79094a5d4518fd181fa60810319fe46d37abb90",
