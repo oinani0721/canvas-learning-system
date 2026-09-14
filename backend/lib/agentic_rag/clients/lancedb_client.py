@@ -692,6 +692,13 @@ class LanceDBClient:
         # _KNOWN_VAULTS_TTL_SECONDS) + drop 记账 + 命名空间碰撞的去重告警集。
         self._known_vaults_cache: Optional[frozenset] = None
         self._known_vaults_cached_at: float = 0.0
+        #: 缓存归属于哪个 ``_db`` 连接 —— 换连接 (connect / connect_lightweight /
+        #: 测试直接赋 ``_db``) 即失效, 防"未连库时算出的缺项集合"跨连接沿用。
+        self._known_vaults_cache_db: Optional[int] = None
+        #: 目录来源本轮是否**失败**(抛错 / VAULTS_ROOT 不是目录)。"扫到了但一个都没有"
+        #: 不算失败。降级时归属只剩 active + 指纹来源, 对没有指纹表的 vault 会退回
+        #: 改前口径 —— 这是 ``_known_vault_ids`` 的已知边界, 必须可观测。
+        self._vault_registry_degraded: bool = False
         #: 最近一次 ``drop_vault_tables`` 里**删失败**的表: [(表名, "异常类型: 文案")]。
         #: 旧实现把这些异常 ``except: pass`` 吞掉且返回"尝试数"，调用方无从得知。
         self._last_drop_failures: List[tuple] = []
@@ -814,20 +821,25 @@ class LanceDBClient:
         它的表)。删掉会炸单 vault 部署。判据钉死在
         ``tests/unit/test_lancedb_vault_isolation.py:23`` 与 ``:35``。
 
-        CARD-G2-9-F2 (BATCH-2026-09-11-第十四批): 幂等守卫由"以我的前缀开头"改成
-        "按最长前缀优先**归我**" (``_owns_table``), 与 ``_owns_table`` /
-        ``_fingerprint_table_name`` 三处同一口径。正常路径逐字不变 (vault ``cs_61b``
-        把 ``canvas_nodes`` 拼成 ``cs_61b_canvas_nodes``, 再传该名仍原样返回);
-        变的只有病态输入: vault ``a`` 传入属于 vault ``a_b`` 的 ``a_b_canvas_nodes``
-        时, 改前**原样返回** ⇒ vault ``a`` 直接读写 ``a_b`` 的表 (跨库写, 比连带删
-        更隐蔽), 改后再前缀一次 ⇒ 名字怪但**隔离**。实测全部生产调用点传的都是逻辑
-        表名 (``vault_notes`` / ``canvas_nodes`` / canary 的 ``LANCE_TABLE``),
-        该分支只在防御面上。
+        CARD-G2-9-F2 (BATCH-2026-09-11-第十四批): 幂等守卫**保持纯命名判据**
+        (``_has_vault_prefix``), 本卡新增的是拼接结果的**归属自检**。
+
+        ⛔ 守卫为什么**不能**换成归属判定 (``_owns_table``): 那样 ``resolve`` 就不再幂等 ——
+        库里一旦存在 id 更长的 vault (V = {``a``, ``a_vault``}, active = ``a``),
+        ``resolve("vault_notes")`` 得 ``a_vault_notes``, 而这个名字按最长前缀归
+        ``a_vault``, 于是**第二次**解析会再前缀成 ``a_a_vault_notes``。生产上真有二次
+        解析: ``index_vault_notes`` 解析后把结果传给 ``add_documents``, 后者又解析一次
+        —— 删除走旧名、写入走新名, 读写目标当场分裂, 而指纹照常更新, 增量索引会认为
+        该文件"没变"。这是 Codex round-1 HIGH-4 抓到的回归, 初版实现踩了, 现已改回。
+
+        本卡实际加的是**回环自检**: 拼出来的名字若按 ``_table_owner`` 不归自己, 说明
+        两个 vault 的 id 与表名拼接后撞在了一起 (命名空间碰撞), ``logger.error`` 报出
+        但**不改名** —— 改名会让存量数据在新名字下变成空表。
         """
         vid = self.active_vault_id
         if not vid or vid == "default":
             return table_name
-        if self._owns_table(table_name, vid):
+        if self._has_vault_prefix(table_name, vid):
             return table_name
         resolved = f"{vid}_{table_name}"
         owner = self._table_owner(resolved, vid)
@@ -935,10 +947,16 @@ class LanceDBClient:
             return set()
 
         ids = set()
+        self._vault_registry_degraded = False
         try:
             root = Path(get_settings().VAULTS_ROOT).resolve()
             if not root.is_dir():
-                logger.warning("[LanceDB vault registry] VAULTS_ROOT 不是目录: %s — 归属判定将退化为朴素前缀", root)
+                self._vault_registry_degraded = True
+                logger.error(
+                    "[LanceDB vault registry] VAULTS_ROOT 不是目录: %s —— 主来源失效, "
+                    "没有指纹表的 vault 其归属将退回改前口径 (可能被 id 更短的 vault 认领)",
+                    root,
+                )
                 return set()
             for entry in sorted(root.iterdir()):
                 if not entry.is_dir() or entry.name.startswith("."):
@@ -949,8 +967,10 @@ class LanceDBClient:
                 if vid and vid != "default":
                     ids.add(vid)
         except (OSError, RuntimeError, ValueError, AttributeError) as e:
-            logger.warning(
-                "[LanceDB vault registry] 扫描 VAULTS_ROOT 失败 (%s: %s) — 归属判定将退化为朴素前缀",
+            self._vault_registry_degraded = True
+            logger.error(
+                "[LanceDB vault registry] 扫描 VAULTS_ROOT 失败 (%s: %s) —— 主来源失效, "
+                "没有指纹表的 vault 其归属将退回改前口径 (可能被 id 更短的 vault 认领)",
                 type(e).__name__,
                 e,
             )
@@ -964,7 +984,7 @@ class LanceDBClient:
         并不存在的 vault ``a_canvas``, 最长前缀优先会让真 vault ``a`` **失去**自己的
         表。这里只认一条生产不变量: RAG-S1 F1 之后指纹表恒走
         ``_fingerprint_table_name`` 前缀化且**没有** legacy 回退, 所以
-        ``X_file_fingerprints`` 存在 ⟹ X 是一个真实被索引过的 vault 的 id。
+        ``X_file_fingerprints`` 存在 ⟹ X 是一个真实 vault 的 id。
         实测生产侧的逻辑表名 (``canvas_nodes`` / ``vault_notes`` / ``chunks`` /
         ``nodes`` / ``file_fingerprints``) 里没有任何以 ``_file_fingerprints``
         结尾的, 所以不存在"某 vault 的普通表被误认成另一个 vault"的产出路径。
@@ -972,6 +992,15 @@ class LanceDBClient:
         它补的是目录来源的两个洞 (都直指数据丢失面):
         - vault 目录被删/移走但它的 LanceDB 表还在 ⇒ 目录枚举看不到它;
         - VAULTS_ROOT 不可达 / 扫描抛错 ⇒ 目录来源整个为空。
+
+        ⚠️ **覆盖面不是全部 vault** (Codex round-1 HIGH-1 更正; 初版 docstring 写
+        "每个被索引过的 vault 恒有指纹表"是过度主张): 写指纹的只有
+        ``index_vault_notes`` 与 ``index_single_file`` 两条路径 —— ``index_canvas``
+        **全程不写指纹** (实测: 该函数体内无任何 fingerprint 调用)。所以一个只索引过
+        canvas 的 vault 在本来源里看不见。⇒ 目录来源失效 **且** 该 vault 没有指纹表时,
+        它的表仍会被 id 更短的 vault 认领 (退回改前口径)。这条残留边界已登记移交,
+        并由 ``_vault_registry_degraded`` + ``_discover_vault_ids_from_root`` 的
+        ``logger.error`` 保证**不静默**。
 
         误报方向如实声明: 万一 X 是误报, 后果是真 vault **少认领**自己的表 (表变孤儿、
         不被删), **不丢数据**; 漏报方向才丢数据。风险不对称, 所以这条宁可多认。
@@ -1003,7 +1032,11 @@ class LanceDBClient:
         """
         now = time.monotonic()
         cached = self._known_vaults_cache
-        if cached is not None and (now - self._known_vaults_cached_at) < _KNOWN_VAULTS_TTL_SECONDS:
+        if (
+            cached is not None
+            and self._known_vaults_cache_db == id(self._db)
+            and (now - self._known_vaults_cached_at) < _KNOWN_VAULTS_TTL_SECONDS
+        ):
             return cached
 
         ids = set()
@@ -1014,17 +1047,52 @@ class LanceDBClient:
         ids |= self._vault_ids_from_fingerprint_tables()
 
         result = frozenset(ids)
+        if self._db is None:
+            # ⛔ 未连库时**不缓存**(Codex round-1 HIGH-2): 此刻指纹来源恒为空集, 把这份
+            # 缺项结果缓存下来, 随后 connect + 启动自愈会在 TTL 内沿用它 —— 库里明明
+            # 已有别的 vault 的指纹表也保护不到。缓存键还绑 id(self._db), 换连接即失效。
+            self._known_vaults_cache = None
+            return result
         self._known_vaults_cache = result
+        self._known_vaults_cache_db = id(self._db)
         self._known_vaults_cached_at = now
         return result
+
+    @staticmethod
+    def _has_vault_prefix(name: str, vid: object) -> bool:
+        """``name`` 是否**以 vault ``vid`` 的前缀形式命名** —— 这是**命名**判据, 不是归属判据。
+
+        ⛔ 别拿它做归属判定 (那是 ``_table_owner`` / ``_owns_table`` 的活): 它正是
+        CARD-G2-9-F2 之前那条会让短 id vault 单向认领长 id vault 的口径。
+
+        它唯一的用途是 ``resolve_table_name`` 的**幂等守卫**, 而幂等守卫必须是纯命名
+        判据: ``resolve(resolve(x)) == resolve(x)`` 要**无条件**成立。若把守卫换成归属
+        判定, 只要库里多一个 id 更长的 vault, 同一个名字第二次解析就会再前缀一次 ——
+        生产上真的会二次解析 (``index_vault_notes`` 先 ``resolve`` 再把结果传给
+        ``add_documents``, 后者又 ``resolve`` 一次), 于是删除用旧名、写入用新名,
+        读写目标当场分裂 (Codex round-1 HIGH-4 实测链)。
+        """
+        return name.startswith(f"{vid}_")
 
     def _table_owner(self, name: str, vault_id: object = _UNSET):
         """表 ``name`` 按**最长前缀优先**归属给哪个 vault; 无人认领返回 ``None``。
 
-        规则: 候选 ``C = {v ∈ V ∪ {vault_id} : name == v 或 name.startswith(v + "_")}``,
+        规则: 候选 ``C = {v ∈ V ∪ {vault_id} : name.startswith(v + "_")}``,
         取 ``C`` 中**最长**的那个 v。等长不可能并列 (等长且同为前缀 ⟹ 同一个 v),
         所以结果唯一确定。举例 V = {``a``, ``a_b``}:
         ``a_b_canvas_nodes`` → ``a_b`` (不再是 ``a``); ``a_canvas_nodes`` → ``a``。
+
+        ⚠️ **下划线边界是规则的一部分**: ``ab_canvas_nodes`` 不归 vault ``a``。
+
+        ⚠️ **不含 "name == vid" 这一支** (Codex round-1 HIGH-3 更正): 设计稿原口径写的是
+        "``t == v`` 或 ``t.startswith(v + "_")``", 但 ``t == v`` 这一支既**扩大**认领面
+        又给出**错误**的主人 ——
+        (a) 扩大: ``_owns_table("file_fingerprints", "file_fingerprints")`` 改前为假、
+            加了这一支变真, 于是 ``drop_vault_tables("file_fingerprints")`` 会删掉
+            default 的裸指纹表, 直接推翻"本卡只减少认领"这条不变量;
+        (b) 错误: 表名恰等于某 vault id 只可能是**另一个** vault 拼出来的 ——
+            vault ``a_b`` 的表恒为 ``a_b_<逻辑名>``, 永远不会恰是 ``a_b``; 而 vault ``a``
+            的逻辑表 ``b`` 解析出来正好是 ``a_b``。所以 ``a_b`` 的主人是 ``a`` 才对。
 
         ⚠️ **被问的那个 vault_id 恒并入候选**, 而不是只用 V。理由: 它可以是外部显式
         传进来的任意 vault (``DELETE /index/{vault_id}`` 的 path param), 该 vault 可能
@@ -1040,7 +1108,7 @@ class LanceDBClient:
         for v in candidates:
             if not v or v == "default":
                 continue
-            if name == v or name.startswith(f"{v}_"):
+            if self._has_vault_prefix(name, v):
                 if best is None or len(v) > len(best):
                     best = v
         return best
@@ -1371,15 +1439,22 @@ class LanceDBClient:
     def _fingerprint_table_exists(self) -> bool:
         """
         Story 2.7 Task 1.1 / RAG-S1 F1: check the vault-scoped fingerprint
-        table exists. Always queries db.table_names() — never trusts
+        table exists. Always queries the catalog — never trusts
         _tables_cache handles (2026-07-10 T3 stale-handle discipline).
 
         Schema: file_path (str), content_hash (str), last_indexed (str), chunk_count (int)
+
+        CARD-G2-9-F2 (Codex round-1 MEDIUM-5): 改走 ``_all_table_names()`` ——
+        ``table_names()`` 默认 ``limit=10``, 库里超过 10 张表且指纹表排在页外时,
+        本方法恒答"不存在" ⇒ ``_get_all_fingerprints`` 返回空基线 ⇒ 全库文件都被判成
+        "新文件"重新索引, 而 ``_update_fingerprint`` 又会走 create_table 分支去建一张
+        **已经存在**的表。与 F1 对 ``_cache_tables`` / ``list_vault_tables`` 的收口同因
+        同法 (``_is_table_absent`` 的注释记的就是这条 limit=10 实测)。
         """
         if self._db is None:
             return False
         try:
-            return self._fingerprint_table_name in self._db.table_names()
+            return self._fingerprint_table_name in set(self._all_table_names())
         except Exception as e:
             if LOGURU_ENABLED:
                 logger.debug(f"[fingerprint] Error checking fingerprint table: {e}")

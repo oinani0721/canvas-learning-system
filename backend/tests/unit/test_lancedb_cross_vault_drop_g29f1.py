@@ -67,6 +67,7 @@ t == FINGERPRINT_TABLE`` —— 判据是"表名**不含任何下划线**", 不�
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import sys
 from pathlib import Path
 
@@ -183,21 +184,38 @@ def vault_registry_root(tmp_path_factory):
     ``get_settings`` 的 lru_cache 进出各清一次 —— 否则本模块的 VAULTS_ROOT 会顺着
     缓存漏给同进程后跑的其它测试 (目录级跑时是真实风险)。
     """
+    root = tmp_path_factory.mktemp("vaults-root")
+    with _vaults_root_override(root, ("a", "a_b")):
+        yield root
+
+
+@contextlib.contextmanager
+def _vaults_root_override(root: Path, names):
+    """把 ``VAULTS_ROOT`` 指向 ``root`` 并在其下建出 ``names`` 各自的 vault 目录。
+
+    ⚠️ 用**独立**的 ``pytest.MonkeyPatch`` 实例 + 自己 ``undo()``, 不碰调用方的
+    ``monkeypatch`` fixture —— 在共享实例上调 ``undo()`` 会把 fixture 自己布下的
+    隔离一并撤掉 (踩过: 后续写入落到真实路径)。
+    ``get_settings`` 是 lru_cache, 进出各清一次: 出的时候必须在 env **恢复之后**清,
+    否则本次的 VAULTS_ROOT 会顺着缓存漏给同进程后跑的其它测试。
+    """
     from app.config import get_settings
 
-    root = tmp_path_factory.mktemp("vaults-root")
-    for name in ("a", "a_b"):
-        (root / name / ".obsidian").mkdir(parents=True)
+    for name in names:
+        (root / name / ".obsidian").mkdir(parents=True, exist_ok=True)
 
-    with pytest.MonkeyPatch.context() as mp:
-        mp.setenv("VAULTS_ROOT", str(root))
-        get_settings.cache_clear()
+    mp = pytest.MonkeyPatch()
+    mp.setenv("VAULTS_ROOT", str(root))
+    get_settings.cache_clear()
+    try:
         # 前提: 接管真的生效了 —— 否则下面所有"互不相认"的断言都在证别的东西
         assert Path(get_settings().VAULTS_ROOT).resolve() == root.resolve(), (
             f"VAULTS_ROOT 接管失败: 实为 {get_settings().VAULTS_ROOT!r}"
         )
         yield root
-    get_settings.cache_clear()
+    finally:
+        mp.undo()
+        get_settings.cache_clear()
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -640,14 +658,29 @@ def test_prefix_overlap_not_touched_by_drop_vault_tables(overlap_envs, shape, fi
     ⚠️ 每个 ``table`` 参数有**自己独立**的库 —— 共享会串扰：本用例跑的
     ``drop_vault_tables`` 有副作用，共享时后跑的参数看到的是先跑那个的残局
     （负控 8 当场抓到：共享时变异体下只有第一条 XPASS）。
+
+    ⚠️ **正向对照必须覆盖 page-outer**（Codex round-1 MEDIUM-5）：只断言「对方的表还在」
+    时，把 ``list_vault_tables`` 退回默认十张枚举也能全绿（前十张填充表被删、排在页外的
+    重叠表本来就该留）。所以这里同时断言**本 vault 的填充表一张不剩**且返回的实删数
+    等于填充表数 —— 页外那张若扫不到，实删数当场对不上。
     """
     env = overlap_envs[(shape, "drop", table)]
-    env["client"].drop_vault_tables(_SHORT_VAULT)
+    dropped = env["client"].drop_vault_tables(_SHORT_VAULT)
     after = _all_names(env["db"])
     assert table in after, (
         f"删 vault {_SHORT_VAULT} 的索引连带删掉了 vault {_LONG_VAULT} 的表 {table}："
         f"list_vault_tables({_SHORT_VAULT!r}) 把它算成了自己的; 形态={shape}; "
         f"消失的表 = {sorted(env['before'] - after)}"
+    )
+    # 正向对照：本 vault 的填充表（page-outer 形态下有 10 张）必须全被删掉
+    own_left = {t for t in after if t.startswith(f"{_SHORT_VAULT}_") and t != table}
+    assert not own_left, (
+        f"删 vault {_SHORT_VAULT} 的索引没删干净它自己的表: 还剩 {sorted(own_left)}; 形态={shape} "
+        "—— 若这里只剩页外那几张，说明表名枚举退回了默认 limit=10 分页"
+    )
+    assert dropped == filler, (
+        f"实删数 {dropped} != 本 vault 的表数 {filler}（形态={shape}）—— "
+        "枚举面或记账口径不对；页外的表没被扫到时这个数会偏小"
     )
     if env["is_fingerprint"]:
         # B-3：表还在不等于基线还能用 —— 用 a_b 自己的客户端把指纹读回来
@@ -840,3 +873,99 @@ def test_drop_vault_tables_accounts_for_swallowed_failures(tmp_path):
     assert not ({f"{_SHORT_VAULT}_canvas_nodes", f"{_SHORT_VAULT}_{LanceDBClient.FINGERPRINT_TABLE}"} & after), (
         f"其余两张本该删掉的表没删成, 一张失败不该拖垮整轮; 现存 = {sorted(after)}"
     )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 门⑧ 族 —— CARD-G2-9-F2 初版三个回归的锁（Codex round-1 HIGH-2/3/4）
+#
+# 这三条锁的都是**本卡初版实现自己踩的坑**，不是 F1 遗留面。没有它们，修复只是
+# 一次性的，下一个人照着"设计稿原口径"重写一遍就会把同样的洞打回来。
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def test_owns_table_does_not_claim_name_equal_to_vault_id(tmp_path):
+    """归属规则**不含** ``name == vid`` 那一支（Codex round-1 HIGH-3）。
+
+    设计稿原口径写的是「``t == v`` 或 ``t.startswith(v + "_")``」。加上 ``t == v``
+    会出两件事，方向相反但都错：
+
+    1. **认领面变大**（推翻"本卡只减少认领"）：裸指纹表 ``file_fingerprints``
+       在旧口径下不归任何叫这个名字的 vault（``startswith("file_fingerprints_")``
+       为假），加了这一支就归了 —— ``drop_vault_tables("file_fingerprints")``
+       会去删 default 的变更检测基线；
+    2. **主人判错**：表名恰等于某 vault id 只可能是**别人**拼出来的 —— vault
+       ``a_b`` 的表恒为 ``a_b_<逻辑名>``，永远不会恰是 ``a_b``；而 vault ``a`` 的
+       逻辑表 ``b`` 解析出来正好是 ``a_b``。所以 ``a_b`` 的主人是 ``a``。
+    """
+    client = _client(tmp_path / "db", vault_id=_SHORT_VAULT)
+
+    assert not client._owns_table(LanceDBClient.FINGERPRINT_TABLE, LanceDBClient.FINGERPRINT_TABLE), (
+        "裸指纹表被一个与它同名的 vault 认领了 —— 归属规则又长出了 `name == vid` 那一支，"
+        "drop_vault_tables('file_fingerprints') 会删掉 default 的变更检测基线"
+    )
+    assert not client._owns_table(_LONG_VAULT, _LONG_VAULT), (
+        f"表 {_LONG_VAULT!r} 被 vault {_LONG_VAULT!r} 认领了 —— 它拼不出这个名字（它的表恒为 {_LONG_VAULT}_<逻辑名>）"
+    )
+    assert client._owns_table(_LONG_VAULT, _SHORT_VAULT), (
+        f"表 {_LONG_VAULT!r} 没归 vault {_SHORT_VAULT!r} —— 它正是 {_SHORT_VAULT} 的逻辑表 'b' 解析出来的名字"
+    )
+
+
+def test_resolve_table_name_stays_idempotent_with_longer_vault(tmp_path):
+    """``resolve(resolve(x)) == resolve(x)`` 必须**无条件**成立（Codex round-1 HIGH-4）。
+
+    幂等守卫若改成归属判定，只要库里存在 id 更长的 vault（``a`` 与 ``a_vault`` 并存），
+    ``a`` 解析 ``vault_notes`` 得 ``a_vault_notes``，而该名按最长前缀归 ``a_vault``，
+    于是**第二次**解析再前缀成 ``a_a_vault_notes``。生产上真的会二次解析：
+    ``index_vault_notes`` 解析后把结果传给 ``add_documents``，后者又解析一次 ——
+    删除走旧名、写入走新名，读写目标当场分裂，而指纹照常更新，增量索引会认为该文件没变。
+
+    ⚠️ 本用例**自带** VAULTS_ROOT（含 ``a`` 与 ``a_vault``），不用模块级那份 ——
+    往模块级 root 里加目录会改掉同模块其它用例的已知 vault 集合。
+    """
+    with _vaults_root_override(tmp_path / "roots", (_SHORT_VAULT, "a_vault")):
+        client = _client(tmp_path / "db", vault_id=_SHORT_VAULT)
+        known = client._known_vault_ids()
+        assert {_SHORT_VAULT, "a_vault"} <= known, f"前提失效: 已知 vault 集合 = {sorted(known)}"
+
+        once = client.resolve_table_name("vault_notes")
+        twice = client.resolve_table_name(once)
+        assert once == f"{_SHORT_VAULT}_vault_notes", f"首次解析结果不符预期: {once!r}"
+        assert twice == once, (
+            f"resolve 不再幂等: 第一次 {once!r}、第二次 {twice!r} —— 幂等守卫被换成了归属判定，"
+            "生产的二次解析链（index_vault_notes → add_documents）会让删除与写入落到两张表"
+        )
+
+
+def test_known_vault_ids_cache_does_not_outlive_the_connection(tmp_path):
+    """未连库时算出的**缺项**集合不得跨连接沿用（Codex round-1 HIGH-2）。
+
+    指纹来源要读库；``_db`` 还是 ``None`` 时它恒为空集。若把这份结果按 TTL 缓存下来，
+    随后 ``connect`` + 启动自愈会在 TTL 内继续用它 —— 库里明明已有别的 vault 的指纹表
+    也保护不到（不需要新建 vault，也不需要等索引跑完）。
+
+    这里让目录来源**查不到** ``a_b``（自带一个只含 ``a`` 的 VAULTS_ROOT），于是
+    ``a_b`` 能否进集合完全取决于指纹来源，也就完全取决于缓存有没有跨连接沿用。
+    """
+    db_path = tmp_path / "db"
+    db = lancedb.connect(str(db_path))
+    db.create_table(f"{_LONG_VAULT}_{LanceDBClient.FINGERPRINT_TABLE}", data=_fingerprint_rows("AB"))
+
+    with _vaults_root_override(tmp_path / "roots", (_SHORT_VAULT,)):
+        # 未连库：此刻指纹来源无从读起
+        client = LanceDBClient(db_path=str(db_path), embedding_dim=_DIM, vault_id=_SHORT_VAULT)
+        assert client._db is None, "前提失效: 本用例要的是**未连库**的客户端"
+        before_connect = client._known_vault_ids()
+        assert _LONG_VAULT not in before_connect, (
+            f"前提失效: 未连库时就发现了 {_LONG_VAULT}（实得 {sorted(before_connect)}）—— "
+            "目录来源没被收窄成只含 a，本用例证不到缓存的事"
+        )
+
+        # 立刻连库（远在 TTL 之内）后再问一次
+        client._db = lancedb.connect(str(db_path))
+        after_connect = client._known_vault_ids()
+        assert _LONG_VAULT in after_connect, (
+            f"连库后仍未发现 {_LONG_VAULT}（实得 {sorted(after_connect)}）—— "
+            "未连库时算出的缺项集合被 TTL 缓存沿用了；此时 vault "
+            f"{_SHORT_VAULT} 的启动自愈/删索引会连带处理 {_LONG_VAULT} 的表"
+        )
