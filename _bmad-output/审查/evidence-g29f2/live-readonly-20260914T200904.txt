@@ -1,0 +1,20 @@
+sentinel: -rw-r--r--@ 1 Heishing  staff  0 Sep 14 19:49 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t1-lance/_bmad-output/审查/evidence-g29f2/sentinel
+newer-than-sentinel=0   /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/data/lancedb
+newer-than-sentinel=0   /Users/Heishing/Desktop/canvas/canvas-learning-system/data/lancedb
+newer-than-sentinel=0   /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/data/lancedb
+newer-than-sentinel=0   /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/backend/data/lancedb
+--- 验伪锚：本卡 tmp 库之外，sentinel 之后本树确实有新文件（证明 -newer 会命中）---
+lane-tree evidence newer=19
+--- 门文件里的 lancedb.connect 全部 tmp 派生 ---
+14:(``client._db = lancedb.connect(...)`` + ``asyncio.run(client._cache_tables())``,
+163:    client._db = lancedb.connect(str(db_path))
+216:    db = lancedb.connect(str(db_path))
+237:    after = _all_names(lancedb.connect(str(db_path)))
+275:    db = lancedb.connect(str(db_path))
+296:    after = _all_names(lancedb.connect(str(db_path)))
+328:    db = lancedb.connect(str(db_path))
+349:    after = _all_names(lancedb.connect(str(db_path)))
+381:    db = lancedb.connect(str(db_path))
+510:            db = lancedb.connect(str(path))
+675:    db = lancedb.connect(str(db_path))
+810:    db = lancedb.connect(str(db_path))
