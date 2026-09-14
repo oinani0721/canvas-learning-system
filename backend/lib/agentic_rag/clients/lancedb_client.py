@@ -702,6 +702,9 @@ class LanceDBClient:
         #: 最近一次 ``drop_vault_tables`` 里**删失败**的表: [(表名, "异常类型: 文案")]。
         #: 旧实现把这些异常 ``except: pass`` 吞掉且返回"尝试数"，调用方无从得知。
         self._last_drop_failures: List[tuple] = []
+        #: 最近一次 ``drop_vault_tables`` **整次拒绝**的原因（None = 没拒绝）。
+        #: 两道闸见该方法 docstring：vault 清单降级 / 指纹与内容会被拆开。
+        self._last_drop_refusal: Optional[str] = None
         self._collision_warned: set = set()
 
         # ✅ Story 23.2: MultimodalVectorizer for embedding
@@ -943,7 +946,7 @@ class LanceDBClient:
 
             from app.config import get_settings
         except (ImportError, AttributeError) as e:
-            logger.debug("[LanceDB vault registry] app.config 不可用 (%s: %s) — 目录来源跳过", type(e).__name__, e)
+            logger.debug(f"[LanceDB vault registry] app.config 不可用 ({type(e).__name__}: {e}) — 目录来源跳过")
             return set()
 
         ids = set()
@@ -953,9 +956,8 @@ class LanceDBClient:
             if not root.is_dir():
                 self._vault_registry_degraded = True
                 logger.error(
-                    "[LanceDB vault registry] VAULTS_ROOT 不是目录: %s —— 主来源失效, "
-                    "没有指纹表的 vault 其归属将退回改前口径 (可能被 id 更短的 vault 认领)",
-                    root,
+                    f"[LanceDB vault registry] VAULTS_ROOT 不是目录: {root} —— 主来源失效, "
+                    "没有指纹表的 vault 其归属将退回改前口径 (可能被 id 更短的 vault 认领)"
                 )
                 return set()
             for entry in sorted(root.iterdir()):
@@ -969,10 +971,8 @@ class LanceDBClient:
         except (OSError, RuntimeError, ValueError, AttributeError) as e:
             self._vault_registry_degraded = True
             logger.error(
-                "[LanceDB vault registry] 扫描 VAULTS_ROOT 失败 (%s: %s) —— 主来源失效, "
-                "没有指纹表的 vault 其归属将退回改前口径 (可能被 id 更短的 vault 认领)",
-                type(e).__name__,
-                e,
+                f"[LanceDB vault registry] 扫描 VAULTS_ROOT 失败 ({type(e).__name__}: {e}) —— 主来源失效, "
+                "没有指纹表的 vault 其归属将退回改前口径 (可能被 id 更短的 vault 认领)"
             )
             return set()
         return ids
@@ -1011,7 +1011,7 @@ class LanceDBClient:
         try:
             names = self._all_table_names()
         except Exception as e:
-            logger.debug("[LanceDB vault registry] 表名列举失败 (%s: %s) — 指纹来源跳过", type(e).__name__, e)
+            logger.debug(f"[LanceDB vault registry] 表名列举失败 ({type(e).__name__}: {e}) — 指纹来源跳过")
             return set()
         return {n[: -len(suffix)] for n in names if n.endswith(suffix) and len(n) > len(suffix)}
 
@@ -1047,11 +1047,16 @@ class LanceDBClient:
         ids |= self._vault_ids_from_fingerprint_tables()
 
         result = frozenset(ids)
-        if self._db is None:
-            # ⛔ 未连库时**不缓存**(Codex round-1 HIGH-2): 此刻指纹来源恒为空集, 把这份
-            # 缺项结果缓存下来, 随后 connect + 启动自愈会在 TTL 内沿用它 —— 库里明明
-            # 已有别的 vault 的指纹表也保护不到。缓存键还绑 id(self._db), 换连接即失效。
+        if self._db is None or self._vault_registry_degraded:
+            # ⛔ 两种**缺项**结果一律不缓存:
+            # (a) 未连库 (Codex round-1 HIGH-2): 此刻指纹来源恒为空集, 缓存下来后
+            #     connect + 启动自愈会在 TTL 内沿用它, 库里已有的指纹表也保护不到;
+            # (b) 目录来源本轮失败 (Codex round-2 HIGH-2): 根目录只是**暂时**不可达时,
+            #     缓存会让"来源已经恢复、保护却还没恢复"持续整个 TTL —— 同一个连接、
+            #     同一个 id(self._db), 连接键那道整改挡不住它。
+            # 代价是降级期间每次判定都重扫一次目录, 但降级本就该尽快结束。
             self._known_vaults_cache = None
+            self._known_vaults_cache_db = None
             return result
         self._known_vaults_cache = result
         self._known_vaults_cache_db = id(self._db)
@@ -1126,12 +1131,9 @@ class LanceDBClient:
             return
         self._collision_warned.add(produced)
         logger.error(
-            "[LanceDB vault namespace] 表名 %r 由 vault %r 拼出, 但按最长前缀优先归属给了 %r "
-            "—— 两个 vault 的 id 互为前缀且与表名拼接后重叠。该表存在被对方的删索引/启动自愈"
-            "连带处理的风险, 需人工改名其中一个 vault 的 id。",
-            produced,
-            vid,
-            owner,
+            f"[LanceDB vault namespace] 表名 {produced!r} 由 vault {vid!r} 拼出, 但按最长前缀优先"
+            f"归属给了 {owner!r} —— 两个 vault 的 id 互为前缀且与表名拼接后重叠。该表存在被对方的"
+            "删索引/启动自愈连带处理的风险, 需人工改名其中一个 vault 的 id。"
         )
 
     def _owns_table(self, name: str, vault_id: object = _UNSET) -> bool:
@@ -1251,10 +1253,51 @@ class LanceDBClient:
 
         ⚠️ 随之而来的行为变化 (已登记): 全部表都删失败时返回 0, ``DELETE /index``
         由"骗人的 200"变成 404 —— 这正是本卡要的诚实, 但它是**可观察的**契约变化。
+
+        **两道整次拒绝的前置闸** (Codex round-2 HIGH-1 / HIGH-3, 均返回 0 且
+        ``_last_drop_refusal`` 记原因):
+
+        1. **vault 清单降级时不删**: 已知 vault 集合的主来源 (VAULTS_ROOT 目录枚举)
+           本轮失败时, 归属退回朴素前缀, 此刻删表就可能连带删掉别的 vault 的数据。
+           删索引可以晚一点做, 删错了没法撤 —— 风险不对称, 宁可整次不删。
+        2. **指纹与内容会被拆开时不删**: 本 vault 的规范指纹名
+           ``{vault_id}_file_fingerprints`` 若**存在**却按最长前缀归了别人 (vault ``a``
+           与 vault ``a_file`` 并存的碰撞), 那就会出现"内容表删了、指纹表留着"——
+           随后一次普通增量索引会把每个文件都判成 unchanged, 内容**再也长不回来**。
+           改前这张表会被一起删掉 (它以 ``a_`` 开头), 所以这条拆开是本卡引入的,
+           必须由本卡挡住: 整次拒绝, 让人先去解决 vault id 碰撞。
         """
         self._last_drop_failures = []
+        self._last_drop_refusal = None
         if self._db is None:
             return 0
+
+        # 先刷一次 vault 清单 —— 降级标志由这次计算写上 (降级结果不进缓存, 见
+        # _known_vault_ids), 所以这里读到的是本轮的真实状态。
+        self._known_vault_ids()
+        if self._vault_registry_degraded:
+            self._last_drop_refusal = (
+                f"vault 清单降级 (VAULTS_ROOT 枚举本轮失败), 归属判定退回朴素前缀; "
+                f"为避免连带删掉别的 vault 的表, 整次拒绝删除 vault {vault_id!r} 的索引"
+            )
+            logger.error(f"[LanceDB drop_vault_tables] {self._last_drop_refusal}")
+            return 0
+
+        fp_name = f"{vault_id}_{self.FINGERPRINT_TABLE}"
+        try:
+            all_names = set(self._all_table_names())
+        except Exception:
+            all_names = set()
+        if fp_name in all_names and self._table_owner(fp_name, vault_id) != f"{vault_id}":
+            self._last_drop_refusal = (
+                f"vault {vault_id!r} 的指纹表 {fp_name!r} 存在, 但按最长前缀优先归属给了 "
+                f"{self._table_owner(fp_name, vault_id)!r} (vault id 互为前缀的命名碰撞); "
+                "继续删除会出现「内容表删了、变更检测基线留着」, 之后的增量索引会把每个文件"
+                "都判成未变更, 内容长不回来。整次拒绝, 请先解决 vault id 碰撞"
+            )
+            logger.error(f"[LanceDB drop_vault_tables] {self._last_drop_refusal}")
+            return 0
+
         tables = self.list_vault_tables(vault_id)
         dropped = 0
         for tname in tables:
@@ -1265,12 +1308,8 @@ class LanceDBClient:
             except Exception as e:
                 self._last_drop_failures.append((tname, f"{type(e).__name__}: {e}"))
                 logger.error(
-                    "[LanceDB drop_vault_tables] vault=%r 的表 %r 删除失败, 已跳过 (%s: %s) "
-                    "—— 该表仍在库里, 本次返回的实删数不含它",
-                    vault_id,
-                    tname,
-                    type(e).__name__,
-                    e,
+                    f"[LanceDB drop_vault_tables] vault={vault_id!r} 的表 {tname!r} 删除失败, "
+                    f"已跳过 ({type(e).__name__}: {e}) —— 该表仍在库里, 本次返回的实删数不含它"
                 )
         return dropped
 

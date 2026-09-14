@@ -470,7 +470,11 @@ def test_list_vault_tables_explicit_none_keeps_bare_scope(tmp_path):
 # ═══════════════════════════════════════════════════════════════════════════
 
 #: (形态 id, 填充表数量)。填充表是本 vault 的健康表，用来把重叠表挤出默认分页。
-_OVERLAP_SHAPES = [("page-inner", 0), ("page-outer", 10)]
+#: ⚠️ page-outer 用 **12** 而不是刚好 10（Codex round-2 MEDIUM-4）：填充表恰好 10 张时
+#: 它们**全在第一页**，页外只剩本来就该保留的重叠表 —— 此时把 ``list_vault_tables``
+#: 退回默认十张枚举，drop 门的正向对照（本 vault 的表一张不剩 + 实删数对得上）照样全绿，
+#: 等于没测到分页。12 张时 ``a_10`` / ``a_11`` 落在页外，枚举一退化就当场剩两张。
+_OVERLAP_SHAPES = [("page-inner", 0), ("page-outer", 12)]
 #: (消费路径, 重叠表名)。指纹表只在 drop 侧单列 —— ``_cache_tables:1045`` 的
 #: ``endswith(FINGERPRINT_TABLE)`` 豁免它，而 ``drop_vault_tables`` **不**豁免
 #: （``fingerprint-drift-gap-*.txt`` 实测）。
@@ -969,3 +973,118 @@ def test_known_vault_ids_cache_does_not_outlive_the_connection(tmp_path):
             "未连库时算出的缺项集合被 TTL 缓存沿用了；此时 vault "
             f"{_SHORT_VAULT} 的启动自愈/删索引会连带处理 {_LONG_VAULT} 的表"
         )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 门⑨ 指纹表的默认分页盲区（Codex round-2 MEDIUM-4/5）
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def test_fingerprint_baseline_readable_beyond_default_page(tmp_path):
+    """指纹表排在 ``table_names()`` 默认 ``limit=10`` **之外**时基线仍读得出来。
+
+    ``_fingerprint_table_exists`` 原先查的是 ``self._db.table_names()``（默认只回前
+    10 张）。库里超过 10 张表且指纹表排在页外时它恒答"不存在" ⇒
+    ``_get_all_fingerprints`` 回空基线 ⇒ 全库文件都被判成新文件重新索引，而
+    ``_update_fingerprint`` 又会走 create_table 分支去建一张**已经存在**的表。
+
+    ⚠️ 这条必须**独立**成门：门⑤ 族 drop 侧的指纹读回发生在本 vault 的表被删光之后，
+    那时库里只剩指纹表一张，默认分页也找得到它 —— 证不到分页这件事
+    （Codex round-2 MEDIUM-4 点名）。所以这里不删任何表，只把指纹表挤到页外。
+    """
+    db_path = tmp_path / "db"
+    db = lancedb.connect(str(db_path))
+    # ⚠️ 填充表名必须按字典序排在 ``a_file_fingerprints`` **之前**，指纹表才会落到页外。
+    # （初版写 ``a_t00..`` —— "a_f" < "a_t"，指纹表反而在第一页，本门的前提断言当场抓到。）
+    for i in range(12):
+        db.create_table(f"{_SHORT_VAULT}_a{i:02d}", data=_rows(f"T{i}"))
+    fp_name = f"{_SHORT_VAULT}_{LanceDBClient.FINGERPRINT_TABLE}"
+    db.create_table(fp_name, data=_fingerprint_rows("A"))
+
+    # 前提：分页盲区真的存在（否则本门锁的是个不存在的盲区）
+    assert fp_name not in set(db.table_names()), (
+        f"前提失效: 指纹表仍在默认分页内（默认分页 {len(db.table_names())} 张），本门证不到分页"
+    )
+    assert fp_name in _all_names(db), "前提失效: 指纹表根本没建成"
+
+    client = _client(db_path, vault_id=_SHORT_VAULT)
+    assert client._fingerprint_table_exists(), (
+        "指纹表明明在库里却被判成不存在 —— _fingerprint_table_exists 走了 table_names() 的"
+        "默认 limit=10 分页；后果是变更检测基线读空、全库重索引"
+    )
+    baseline = client._get_all_fingerprints()
+    assert len(baseline) == 2, f"变更检测基线读空/读残（实回 {baseline!r}）"
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 门⑩ drop 的两道整次拒绝闸（Codex round-2 HIGH-1 / HIGH-3）
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def test_drop_refuses_when_vault_registry_is_degraded(tmp_path):
+    """vault 清单主来源失败时，``drop_vault_tables`` 必须**整次拒绝**（round-2 HIGH-1）。
+
+    主来源（VAULTS_ROOT 目录枚举）失败 ⇒ 归属退回朴素前缀 ⇒ 短 id 的 vault 又会认领
+    长 id vault 的表。此刻删索引就是在拿别人的数据赌。删索引可以晚点做，删错没法撤。
+    """
+    db_path = tmp_path / "db"
+    db = lancedb.connect(str(db_path))
+    db.create_table(f"{_SHORT_VAULT}_canvas_nodes", data=_rows("A"))
+    db.create_table(f"{_LONG_VAULT}_canvas_nodes", data=_rows("AB"))
+
+    # 把 VAULTS_ROOT 指向一个**不存在**的路径 → 主来源失败（不是"扫到了但是空的"）
+    missing = tmp_path / "no-such-root"
+    from app.config import get_settings
+
+    mp = pytest.MonkeyPatch()
+    mp.setenv("VAULTS_ROOT", str(missing))
+    get_settings.cache_clear()
+    try:
+        client = _client(db_path, vault_id=_SHORT_VAULT)
+        dropped = client.drop_vault_tables(_SHORT_VAULT)
+        assert client._vault_registry_degraded is True, "主来源失败却没有置降级标志 —— 拒绝闸的前提读不到真实状态"
+        assert dropped == 0, f"清单降级时仍删了 {dropped} 张表"
+        assert client._last_drop_refusal and "降级" in client._last_drop_refusal, (
+            f"拒绝原因没记下来: {client._last_drop_refusal!r}"
+        )
+        after = _all_names(db)
+        assert after == {f"{_SHORT_VAULT}_canvas_nodes", f"{_LONG_VAULT}_canvas_nodes"}, (
+            f"拒绝了却还是删掉了东西: 现存 {sorted(after)}"
+        )
+    finally:
+        mp.undo()
+        get_settings.cache_clear()
+
+
+def test_drop_refuses_when_fingerprint_would_be_orphaned(tmp_path):
+    """指纹表会被留下、内容表被删时，必须**整次拒绝**（round-2 HIGH-3）。
+
+    vault ``a`` 与 vault ``a_file`` 并存时，``a`` 的规范指纹名 ``a_file_fingerprints``
+    按最长前缀归了 ``a_file``。若照常删索引：``a`` 的内容表删了、指纹表留着 ⇒ 之后一次
+    普通增量索引会把每个文件都判成 unchanged，内容**再也长不回来**。
+
+    ⚠️ 这是**本卡引入**的拆开（改前 ``a_file_fingerprints`` 以 ``a_`` 开头会被一起删掉），
+    所以必须由本卡挡住，不能拿"长 vault 以前也可能误删它"抵消。
+    """
+    db_path = tmp_path / "db"
+    db = lancedb.connect(str(db_path))
+    db.create_table(f"{_SHORT_VAULT}_vault_notes", data=_rows("A-NOTES"))
+    fp_name = f"{_SHORT_VAULT}_{LanceDBClient.FINGERPRINT_TABLE}"
+    db.create_table(fp_name, data=_fingerprint_rows("A"))
+    before = _all_names(db)
+
+    # a_file 只需是个**空** vault（连表都不用有）就足以把 a 的指纹名抢走
+    with _vaults_root_override(tmp_path / "roots", (_SHORT_VAULT, "a_file")):
+        client = _client(db_path, vault_id=_SHORT_VAULT)
+        assert client._table_owner(fp_name, _SHORT_VAULT) == "a_file", (
+            f"前提失效: {fp_name} 没被 a_file 抢走（实归 {client._table_owner(fp_name, _SHORT_VAULT)!r}），"
+            "本门证不到拆开这件事"
+        )
+        dropped = client.drop_vault_tables(_SHORT_VAULT)
+        assert dropped == 0, f"指纹与内容会被拆开时仍删了 {dropped} 张表"
+        assert client._last_drop_refusal and "指纹" in client._last_drop_refusal, (
+            f"拒绝原因没记下来: {client._last_drop_refusal!r}"
+        )
+        assert _all_names(db) == before, f"拒绝了却还是删掉了东西: 现存 {sorted(_all_names(db))}，原有 {sorted(before)}"
+        # 基线仍可用 —— 拒绝的意义正在于此
+        assert len(client._get_all_fingerprints()) == 2, "拒绝之后变更检测基线反而读不出来了"
