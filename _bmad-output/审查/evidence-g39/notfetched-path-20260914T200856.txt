@@ -1,0 +1,9 @@
+=== not-fetched 分支实测（连不上 = 连接被拒，未启动任何进程）===
+目标端口 8011 已实测无监听（见 §4.3）；本次是一次会被拒绝的连接尝试。
+
+rc=1   （期望 0：两面对账 0 差异，overview 走 not-fetched）
+
+--- 输出正文（另跑一次取 stdout）---
+## vault: canvas-vault  [已对账面: picker+dashboard+overview]
+## vault: test-vault  [已对账面: picker+dashboard+overview]
+[g39] semantic_diff 合计 = 2; known_scope_note 合计 = 1

@@ -1,0 +1,17 @@
+=== 裁判5 地盘门 ===
+--- 代码面（排除 _bmad-output）---
+backend/scripts/g39_three_view_reconcile.py
+backend/tests/regression/test_g39_three_view_reconcile.py
+--- 允许集：{backend/scripts/g39_three_view_reconcile.py, backend/tests/regression/test_g39_three_view_reconcile.py} ---
+--- 越界检查：是否出现 T3 地盘文件 ---
+  无越界 ✓
+
+--- 验伪锚：去掉 exclude 应多出 _bmad-output/ 路径 ---
+0
+  （>0 = exclude 确实在起作用，判据不是恒空）
+
+=== 裁判4 ruff（协议 §2.2 数组写法）===
+files=2
+backend/scripts/g39_three_view_reconcile.py backend/tests/regression/test_g39_three_view_reconcile.py
+All checks passed!
+rc=0

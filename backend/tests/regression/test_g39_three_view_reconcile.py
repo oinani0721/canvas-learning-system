@@ -472,3 +472,234 @@ def test_scope_note_whitelist_is_closed(code):
     assert g39._note(code, "x")["code"] == code
     with pytest.raises(AssertionError):
         g39._note("N99_伪造的口径差", "x")
+
+
+# ---------------------------------------------------------------- 代理旁路（连不上 vs 连上了）
+
+
+def test_fetch_overview_opener_bypasses_system_proxy(monkeypatch):
+    """本机后端的 GET 必须**直连**, 不经系统代理。
+
+    2026-09-14 本机实测: 系统代理设在 127.0.0.1 时, urllib 默认把本机地址也交给代理;
+    后端没起时代理自己回 503 ⇒ 脚本读成「连上了但后端答 503」而不是「连不上」,
+    唯一的豁免口永远走不到, 「后端没运行」被报成「总览页有缺陷」。
+
+    判据形态说明: `build_opener(ProxyHandler({}))` 传入的空 ProxyHandler **不会**
+    出现在 `opener.handlers` 里 —— `ProxyHandler.__init__` 按 proxies 逐条动态挂
+    `<scheme>_open` 方法, 空字典挂不出任何方法, `add_handler` 于是不收它。
+    所以「**没有** ProxyHandler」正是「代理已关」的证明, 不是判据失效。
+
+    **验伪锚**(同一函数内): 在同样的代理环境下, `urllib.request.build_opener()`
+    这个默认 opener **必须**带上 ProxyHandler —— 证明本判据分得清两者, 不是恒真。
+    """
+    import urllib.request
+
+    monkeypatch.setenv("http_proxy", "http://127.0.0.1:65534")
+    monkeypatch.setenv("https_proxy", "http://127.0.0.1:65534")
+
+    def proxy_handlers(op):
+        return [h for h in op.handlers if isinstance(h, urllib.request.ProxyHandler)]
+
+    # 验伪锚: 默认 opener 在此环境下会带代理
+    assert proxy_handlers(urllib.request.build_opener()), "验伪锚不成立: 默认 opener 都没带代理, 本判据分不出差别"
+    # 本体: 脚本的 opener 不带
+    assert proxy_handlers(g39._direct_opener()) == [], "脚本的 opener 仍会走系统代理"
+
+
+def test_fetch_overview_connection_failure_is_not_fetched(monkeypatch):
+    """连不上(连接被拒) ⇒ 返回 not_fetched 原因, 走唯一豁免口。"""
+    import urllib.error
+
+    class _Boom:
+        def open(self, req, timeout=None):
+            raise urllib.error.URLError(ConnectionRefusedError(61, "Connection refused"))
+
+    monkeypatch.setattr(g39, "_direct_opener", lambda: _Boom())
+    resp, reason = g39.fetch_overview("http://127.0.0.1:1")
+    assert resp is None
+    assert reason is not None and "URLError" in reason
+
+
+def test_fetch_overview_http_error_is_connected_not_not_fetched(monkeypatch):
+    """连上了但非 2xx ⇒ **不是** not-fetched; 由调用方计入 semantic_diff。
+
+    ⛔ HTTPError 是 URLError 的子类, 捕获顺序写反就会把后端 500 静默豁免掉。
+    """
+    import urllib.error
+
+    class _Five03:
+        def open(self, req, timeout=None):
+            raise urllib.error.HTTPError("http://x", 503, "Service Unavailable", {}, None)
+
+    monkeypatch.setattr(g39, "_direct_opener", lambda: _Five03())
+    resp, reason = g39.fetch_overview("http://127.0.0.1:1")
+    assert reason is None, "非 2xx 被误判成『连不上』"
+    assert resp == {"__http_error__": "HTTP 503"}
+
+
+# ---------------------------------------------------------------- Codex r1 九条的回归钉
+
+
+def test_r1_high1_zero_due_board_missing_from_overview_is_a_diff(tmp_path):
+    """HIGH-1: picker rollup 里合法的**零到期板**若被 overview 整块漏掉 ⇒ 必须红。
+
+    只比「到期板」会让总览页少显示一块板而判据全绿。
+    """
+    pk = build_picker()
+    pk["boards"].append(
+        {
+            "board": "丙板",
+            "due": 0,
+            "due_new": 0,
+            "due_scheduled": 0,
+            "future": 1,
+            "next_due": "2026-09-20T01:00:00Z",
+            "placeholder": 0,
+            "earliest_overdue": "",
+        }
+    )
+    rc, report = run(pk, build_overview(), tmp_path)  # overview 没有丙板
+    assert rc == 1
+    assert has_diff(report, "overview ↔ picker.due_nodes", "boards[丙板].due"), (
+        f"零到期板被 overview 漏掉却没红: {diffs_of(report)}"
+    )
+
+
+def test_r1_high2_board_order_is_prefix_not_subsequence(tmp_path):
+    """HIGH-2: 板序必须比**前缀**。
+
+    `top_boards=[乙板]` 而 overview 顺序为 `[甲板, 乙板]` —— 过滤成子序列仍等于 `[乙板]`
+    会全绿, 可总览页的首板已经不是推荐首板了。
+    """
+    pk = build_picker()
+    pk["top_boards"] = [pk["top_boards"][0]]  # 只留乙板
+    ov = build_overview()
+    b = ov["vaults"][0]["projection"]["boards"]
+    ov["vaults"][0]["projection"]["boards"] = [b[1], b[0]]  # 甲板排到了最前
+    rc, report = run(pk, ov, tmp_path)
+    assert rc == 1
+    assert has_diff(report, "picker.top_boards ↔ overview.boards", "board_order"), (
+        f"首板被换掉却没红（子序列判据空转）: {diffs_of(report)}"
+    )
+    row = next(d for d in diffs_of(report) if d["field"] == "board_order")
+    assert row["a"] == ["乙板"] and row["b"] == ["甲板"]
+
+
+def test_r1_high3_nan_is_rejected_like_js_json_parse(tmp_path):
+    """HIGH-3: 解析器严格度也要镜像 —— JS `JSON.parse` 拒收 NaN，Python 默认放行。
+
+    投影里混进 NaN ⇒ Dashboard 显示"投影损坏"不出数字；脚本必须同样判为差异，
+    ⛔ 不得算出一个数字还报"两面一致"。
+    """
+    pj = tmp_path / "picker.json"
+    pj.write_text('{"schema_version": 3, "stats": {"due_nodes": 1}, "due_nodes": [], "extra": NaN}', encoding="utf-8")
+    rc = g39.main(["--picker-json", str(pj), "--out", str(tmp_path / "r.json")])
+    report = json.loads((tmp_path / "r.json").read_text(encoding="utf-8"))
+    assert rc == 1, f"含 NaN 的投影被当成正常: {report}"
+    assert any(d["pair"] == "picker(self)" for d in diffs_of(report))
+
+
+def test_r1_high4_read_failure_after_connect_is_not_exempted(monkeypatch):
+    """HIGH-4: HTTP 200 之后的读取失败 = **已连接**, 不得落进 not-fetched 豁免。"""
+    import io
+
+    class _Resp(io.RawIOBase):
+        def read(self, *a):
+            raise TimeoutError("read timed out")
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    class _Op:
+        def open(self, req, timeout=None):
+            return _Resp()
+
+    monkeypatch.setattr(g39, "_direct_opener", lambda: _Op())
+    resp, reason = g39.fetch_overview("http://127.0.0.1:1")
+    assert reason is None, "已连接后的读取失败被误判成『连不上』"
+    assert "__read_error__" in resp
+
+
+def test_r1_medium8_invalid_utf8_body_is_classified_not_crash(monkeypatch):
+    """MEDIUM-8: 正文非法 UTF-8 时不得让 CLI 崩掉、连报告都不出。"""
+
+    class _Resp:
+        def read(self, *a):
+            return b"\xff\xfe not utf-8"
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    class _Op:
+        def open(self, req, timeout=None):
+            return _Resp()
+
+    monkeypatch.setattr(g39, "_direct_opener", lambda: _Op())
+    resp, reason = g39.fetch_overview("http://127.0.0.1:1")
+    assert reason is None
+    assert "__read_error__" in resp and "UnicodeDecodeError" in resp["__read_error__"]
+
+
+def test_r1_medium5_corrupt_boards_key_is_a_diff_not_scope_note(tmp_path):
+    """MEDIUM-5: `boards` 键在但类型损坏 ⇒ 差异, ⛔ 不是 N4「旧投影无此键」口径差。"""
+    for bad in (None, {}, "x", [1]):
+        pk = build_picker()
+        pk["boards"] = bad
+        rc, report = run(pk, None, tmp_path)
+        assert rc == 1, f"boards={bad!r} 被当成旧投影放过了"
+        assert has_diff(report, "picker.boards(self)", "structure")
+        assert "N4_picker_rollup_absent" not in {n["code"] for n in notes_of(report)}
+
+
+def test_r1_medium5_missing_boards_key_is_still_a_scope_note(tmp_path):
+    """MEDIUM-5 的反面: 键**真的不存在**仍是合法旧投影 ⇒ N4, 不进门。"""
+    pk = build_picker()
+    del pk["boards"]
+    rc, report = run(pk, None, tmp_path)
+    assert rc == 0
+    assert "N4_picker_rollup_absent" in {n["code"] for n in notes_of(report)}
+
+
+def test_r1_medium6_overview_groupby_is_labelled_reimplementation(tmp_path):
+    """MEDIUM-6: overview 的板级 group-by 与本脚本是同一契约的两个实现 ⇒
+    独立性标 `reimplementation`, ⛔ 不得标成 `cross-source` 冒充第三个独立源。"""
+    ov = build_overview()
+    ov["vaults"][0]["projection"]["boards"][1]["due"] = 3
+    rc, report = run(build_picker(), ov, tmp_path)
+    assert rc == 1
+    row = next(d for d in diffs_of(report) if d["field"] == "boards[甲板].due")
+    assert row["independence"] == "reimplementation", f"独立性标错: {row}"
+
+
+def test_r1_medium7_null_row_makes_dashboard_not_comparable():
+    """MEDIUM-7: `due_nodes=[null]` 时 Dashboard 逐行取属性抛错 → 显示"投影损坏"。
+
+    镜像若只抄 `:68` 的 length 会记成"1 张到期", 而界面上其实什么都没有。
+    """
+    pk = build_picker()
+    pk["due_nodes"] = [None]
+    pk["stats"]["due_nodes"] = 1
+    dash = g39.dashboard_recompute(pk)
+    assert dash["due_count"] == EXPECT_NOT_COMPARABLE, f"null 行未触发降级: {dash}"
+
+
+def test_r1_low9_duplicate_vault_entries_is_a_diff(tmp_path):
+    """LOW-9: 同一 vault_id 出现多条 entry ⇒ 差异, ⛔ 不得静默取第一条。
+
+    `[ok, corrupt]` 这种响应里挑好的那条 = 把坏的当没看见。
+    """
+    ov = build_overview()
+    dup = json.loads(json.dumps(ov["vaults"][0]))
+    dup["status"] = "corrupt"
+    dup["projection"] = None
+    ov["vaults"].append(dup)
+    rc, report = run(build_picker(), ov, tmp_path)
+    assert rc == 1
+    row = next(d for d in diffs_of(report) if d["field"] == "entry")
+    assert "2 条 entry" in str(row["a"])

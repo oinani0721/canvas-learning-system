@@ -21,7 +21,11 @@ rc 语义: `semantic_diff` 为空 ⇒ rc=0; 非空 ⇒ rc=1。`known_scope_note`
 
 ⚠️ **独立性分级** (本脚本每条判据自带 `independence` 字段, 后人勿把空转当第三源):
   - `cross-source`            两侧由**不同规则**从数据派生, 能真翻转。
-  - `structurally-guaranteed` 当前实现下恒真 (同一规则 / 上游网关已内部断言),
+  - `reimplementation`        **同一条契约的两个独立实现** (如 overview 的 group-by 与本脚本
+                              的 group-by)。能抓任一侧的**实现漂移**, 但两侧共享同一份规格 ⇒
+                              规格本身错了它一概发现不了, **不得**当作第三个独立派生源。
+                              (Codex r1 MEDIUM-6 指出原先误标成 cross-source。)
+  - `structurally-guaranteed` 当前实现下恒真 (纯透传 / 上游网关已内部断言),
                               保留是为了守**未来改动**, 不得冒充独立第三源。
   典型: `review_overview._gate_boards_rollup`(:283) 在网关内部已断言「rollup 的
   到期板集合+计数 ≡ due_nodes group-by 派生」, 不等即 raise → entry 变 corrupt。
@@ -137,6 +141,16 @@ def dashboard_recompute(payload: Any) -> dict:
                 f"due_nodes 为数组={has_detail}, stats.due_nodes 为 number={stats_due_ok})"
             ),
         }
+    # Codex r1 MEDIUM-7: `:70-72` 对**每一行**取属性 —— `reasonOf = d => d.due_reason ?? ...`
+    # 在 `d` 为 null 时抛 TypeError, 被 `:86` 的 catch 接住 → `:87` 显示"投影损坏"、不出数字。
+    # 只镜像 `:68` 的 `length` 会把 `due_nodes=[null]` 记成"1 张到期", 而界面上其实什么都没有。
+    # (字符串/数字行不抛: JS 对它们取不存在的属性只得 undefined, 故只拦 None。)
+    if has_detail and any(r is None for r in due_nodes):
+        return {
+            "due_count": NOT_COMPARABLE,
+            "backlog_count": NOT_COMPARABLE,
+            "degraded_reason": "Dashboard.md:70-72 逐行取属性遇 null → :87 投影损坏 (不出数字)",
+        }
     due_cnt = len(due_nodes) if has_detail else stats_due  # :68
     ineligible = payload.get("ineligible")
     placeholder = ineligible.get("placeholder") if isinstance(ineligible, dict) else None
@@ -170,21 +184,49 @@ def picker_group_by_board(due_nodes: Any) -> dict[str, list[dict]]:
     return groups
 
 
-def picker_rollup_due(payload: dict) -> dict[str, int] | None:
+def picker_rollup_due(payload: dict) -> tuple[dict[str, int] | None, str | None]:
     """picker 顶层 `boards` rollup 的逐板 `due` (daily_review_pick.py:1071-1088)。
 
-    返回 None = 投影无 `boards` 顶层键 (旧投影合法形态, 见 SCOPE_NOTE_CODES N4)。
+    返回 `(逐板 due, 损坏原因)`：
+      - `(None, None)`  = **键不存在** ⇒ 旧投影合法形态 (SCOPE_NOTE_CODES N4)
+      - `(None, 原因)`  = 键在但**类型损坏** ⇒ 这是差异, 不是口径差
+      - `({...}, None)` = 正常
+
+    ⛔ Codex r1 MEDIUM-5: 原实现把「键在但为 null / 字符串 / 对象」也归成 N4, 于是
+    一份**已经读到的损坏投影**会在 overview 缺席时被报成"两面一致"。缺键与损坏必须分开。
     """
+    if "boards" not in payload:
+        return None, None
     rollup = payload.get("boards")
-    if "boards" not in payload or not isinstance(rollup, list):
-        return None
+    if not isinstance(rollup, list):
+        return None, f"boards 顶层键在, 但不是数组 (实为 {type(rollup).__name__})"
     out: dict[str, int] = {}
-    for r in rollup:
+    for i, r in enumerate(rollup):
         if not isinstance(r, dict):
-            continue
+            return None, f"boards[{i}] 不是 object (实为 {type(r).__name__})"
         board = r.get("board")
-        if isinstance(board, str) and board:
-            out[board] = r.get("due")
+        if not isinstance(board, str) or not board:
+            return None, f"boards[{i}].board 不是非空字符串 (实为 {board!r})"
+        if board in out:
+            return None, f"boards[{i}].board 重复: {board!r}"
+        out[board] = r.get("due")
+    return out, None
+
+
+def picker_rollup_boards(payload: dict) -> dict[str, dict] | None:
+    """rollup 的**完整板行**（含 `due=0` 的零到期板）。
+
+    ⛔ Codex r1 HIGH-1: 板集对账只看「到期板」会漏掉合法的零到期板 —— 例如
+    `丙板 due=0 / future=1` 在 picker rollup 里在场, overview 端由 `rollup_zero`
+    渲染成零到期行; 若 overview 把它整块漏掉, 总览页就少显示一块板, 而只比到期板的
+    判据全绿。零到期板必须进板集对账。
+    """
+    if "boards" not in payload or not isinstance(payload.get("boards"), list):
+        return None
+    out: dict[str, dict] = {}
+    for r in payload["boards"]:
+        if isinstance(r, dict) and isinstance(r.get("board"), str) and r["board"]:
+            out[r["board"]] = r
     return out
 
 
@@ -218,28 +260,65 @@ def urgency_sorted_nodes(rows: list[dict]) -> list[str]:
 # --------------------------------------------------------------------------
 
 
+def _reject_js_nonstandard(const: str):
+    """`json.loads(parse_constant=...)` 钩子 —— 让 Python 的解析器与 JS 同严格度。
+
+    Python 默认把 `NaN` / `Infinity` / `-Infinity` 解析成 float; **JS 的 `JSON.parse`
+    拒收它们**。Dashboard 走的是 `JSON.parse`(`Dashboard.md:59`), 失败会落到 `:87`
+    显示"投影损坏"。所以镜像 Dashboard 不能只镜像归约逻辑, **解析器的严格度也得镜像**,
+    否则同一份投影: 界面显示"损坏", 本脚本却算出一个数字, 还报"三面一致"。
+    """
+    raise ValueError(f"非标准 JSON 常量 {const} (JS JSON.parse 拒收)")
+
+
+def _direct_opener() -> urllib.request.OpenerDirector:
+    """**不经代理**的 opener —— 本机后端的 GET 必须直连。
+
+    ⛔ 这不是洁癖, 是判据正确性问题 (2026-09-14 本机实测):
+    系统代理设在 `127.0.0.1:<某端口>` 时, `urllib` 默认会把 `http://127.0.0.1:8011/...`
+    也交给代理; 后端**没起**的时候, 代理自己回一个 **503**。于是脚本读到的是
+    「连上了, 但后端答 503」而不是「连不上」—— 唯一的豁免口 (not-fetched) 永远走不到,
+    「后端没运行」会被报成「总览页有缺陷」。空 `ProxyHandler` 关掉这条路径后,
+    同一次请求得到的是 `URLError(Connection refused)`, 分类才回到正确的那一档。
+    """
+    return urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
+
 def fetch_overview(base_url: str, timeout: float = 10.0) -> tuple[Any, str | None]:
     """对**已在运行**的后端只读 GET `/api/v1/review/overview`。
 
     返回 `(响应对象, not_fetched_reason)`。⛔ `not_fetched_reason` 非 None **只**用于
     「连不上」(连接被拒 / 超时 / DNS) —— 那时 overview 这一面整体缺席。
-    连上了但非 2xx / 响应不是 JSON ⇒ 抛回 `(None, None)` 之外的形态? 不: 这两种
-    都是**连上了**, 由调用方计入 semantic_diff (见 `reconcile` 的 fetch_error 分支)。
+    连上了但非 2xx / 响应不是 JSON ⇒ 两种都是**连上了**, 由调用方计入 semantic_diff
+    (见 `reconcile` 的 overview_error 分支)。
 
     ⚠️ `urllib.error.HTTPError` 是 `URLError` 的子类, 必须**先**捕 HTTPError,
     否则一个 500 会被误判成"连不上"并静默豁免掉后端缺陷。
+    ⚠️ 直连不走代理, 理由见 `_direct_opener`。
     """
     url = base_url.rstrip("/") + OVERVIEW_PATH
     req = urllib.request.Request(url, method="GET")  # noqa: S310 — 固定 http(s) 本机地址
+    # ⛔ Codex r1 HIGH-4 / MEDIUM-8: **连接阶段**与**读取阶段**必须分开捕获。
+    # 原实现把整段包在一个 try 里, 于是 HTTP 200 之后 `resp.read()` 超时 / 连接重置
+    # 也落进 not-fetched 豁免 —— 那是**连上了**之后的失败, 按声明应计入 semantic_diff;
+    # 而正文非法 UTF-8 时 `decode()` 抛的 UnicodeDecodeError 根本没人接, CLI 直接中断、
+    # 连报告都不产出。两者都不能留在豁免口里。
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310
-            body = resp.read().decode("utf-8")
+        resp = _direct_opener().open(req, timeout=timeout)  # noqa: S310
     except urllib.error.HTTPError as e:
-        return {"__http_error__": f"HTTP {e.code}"}, None
+        return {"__http_error__": f"HTTP {e.code}"}, None  # 连上了, 非 2xx
     except (urllib.error.URLError, TimeoutError, OSError) as e:
-        return None, f"{type(e).__name__}: {str(e)[:160]}"
+        return None, f"{type(e).__name__}: {str(e)[:160]}"  # ← 唯一的 not-fetched 出口
+    try:  # 以下全部属于"已连接", 任何失败都不再豁免
+        with resp:
+            body = resp.read().decode("utf-8")
+    except Exception as e:  # noqa: BLE001 — 已连接后的任意失败统一按差异呈现, 不豁免
+        return {"__read_error__": f"{type(e).__name__}: {str(e)[:160]}"}, None
     try:
-        return json.loads(body), None
+        # ⛔ Codex r1 HIGH-3: 与 JS `JSON.parse` 同严格度。Python 默认放行 NaN/Infinity,
+        # JS 拒收 —— 不拦的话, 含 NaN 的投影在 Dashboard 上显示"投影损坏"(`Dashboard.md:87`)
+        # 而本脚本却算出数字, 两面各说各话却报"一致"。`review_overview._summarize` 同款处理。
+        return json.loads(body, parse_constant=_reject_js_nonstandard), None
     except ValueError as e:
         return {"__json_error__": f"{type(e).__name__}: {str(e)[:160]}"}, None
 
@@ -257,6 +336,8 @@ def select_vault_entry(resp: Any, vault_id: str) -> tuple[Any, str | None]:
     """
     if isinstance(resp, dict) and "__http_error__" in resp:
         return None, f"overview 返回非 2xx: {resp['__http_error__']}"
+    if isinstance(resp, dict) and "__read_error__" in resp:
+        return None, f"overview 已连接但正文读取失败: {resp['__read_error__']}"
     if isinstance(resp, dict) and "__json_error__" in resp:
         return None, f"overview 响应不是 JSON: {resp['__json_error__']}"
     if isinstance(resp, dict) and "vault_id" in resp and "vaults" not in resp:
@@ -267,10 +348,14 @@ def select_vault_entry(resp: Any, vault_id: str) -> tuple[Any, str | None]:
         entries = resp
     else:
         return None, f"overview 响应形状不可识别: {type(resp).__name__}"
-    for e in entries:
-        if isinstance(e, dict) and e.get("vault_id") == vault_id:
-            return e, None
-    return None, f"overview 响应中无 vault_id={vault_id!r} 的 entry"
+    hits = [e for e in entries if isinstance(e, dict) and e.get("vault_id") == vault_id]
+    if not hits:
+        return None, f"overview 响应中无 vault_id={vault_id!r} 的 entry"
+    if len(hits) > 1:
+        # ⛔ Codex r1 LOW-9: 静默取首个会让 `[ok, corrupt]` 这种响应全绿 —— 挑一条
+        # 好的、把坏的那条当没看见。当前端点每目录一条, 这是防御缺口不是现存缺陷。
+        return None, f"overview 响应中 vault_id={vault_id!r} 有 {len(hits)} 条 entry (应唯一)"
+    return hits[0], None
 
 
 # --------------------------------------------------------------------------
@@ -313,7 +398,8 @@ def reconcile(
     p_len_due = len(due_nodes) if isinstance(due_nodes, list) else NOT_COMPARABLE
     groups = picker_group_by_board(due_nodes)
     group_due = {b: len(rows) for b, rows in groups.items()}
-    rollup_due = picker_rollup_due(pk)
+    rollup_due, rollup_corrupt = picker_rollup_due(pk)
+    rollup_rows = picker_rollup_boards(pk)
 
     # ---- ① 到期卡片数 ----------------------------------------------------
     # picker 内两源: stats 权威计数 vs 明细长度。生成期 `stats["due_nodes"] =
@@ -336,7 +422,12 @@ def reconcile(
         )
 
     # ---- ② 板集与板级到期数 ---------------------------------------------
-    if rollup_due is None:
+    if rollup_corrupt is not None:
+        # ⛔ Codex r1 MEDIUM-5: 键在但类型损坏 = 差异, **不是** N4 口径差。
+        diffs.append(
+            _diff("picker.boards(self)", "structure", rollup_corrupt, "(应为合法 rollup 数组)", "cross-source")
+        )
+    elif rollup_due is None:
         notes.append(
             _note(
                 "N4_picker_rollup_absent",
@@ -371,7 +462,9 @@ def reconcile(
         )
         ov_view = {"status": "error", "reason": overview_error}
     else:
-        ov_view = _reconcile_overview(overview_entry, vid, p_stats_due, dash, group_due, groups, pk, diffs, notes)
+        ov_view = _reconcile_overview(
+            overview_entry, vid, p_stats_due, dash, group_due, groups, pk, rollup_rows, diffs, notes
+        )
 
     # ⛔ 实际对上的面 —— not-fetched 时只有两面, 报告与终端都必须如实说,
     # 否则"后端没起"会被读成"三面一致"(Codex 问题④的假绿面)。
@@ -410,6 +503,7 @@ def _reconcile_overview(
     group_due: dict,
     groups: dict,
     pk: dict,
+    rollup_rows: dict | None,
     diffs: list,
     notes: list,
 ) -> dict:
@@ -486,25 +580,38 @@ def _reconcile_overview(
             )
         )
 
-    ov_due_nonzero = {b: d for b, d in ov_due_by_board.items() if d != 0}
-    for b in sorted(set(ov_due_nonzero) | set(group_due)):
+    # ⛔ Codex r1 HIGH-1: 板集必须含**零到期板**。picker rollup 收「有成员或有占位符」的板
+    # (含 due=0/future>0 的), overview 端由 `rollup_zero` 渲染成零到期行。只比到期板会让
+    # 「overview 整块漏掉一块零到期板」全绿 —— 总览页少显示一块板, 判据却说三面一致。
+    expected_boards = set(group_due) | (set(rollup_rows) if rollup_rows else set())
+    for b in sorted(expected_boards | set(ov_due_by_board)):
         a = ov_due_by_board.get(b, "(overview 无此板)")
-        c = group_due.get(b, "(picker 明细无此板)")
+        c = group_due.get(b, 0 if (rollup_rows and b in rollup_rows) else "(picker 明细无此板)")
         if a != c:
-            diffs.append(_diff("overview ↔ picker.due_nodes", f"boards[{b}].due", a, c, "cross-source"))
+            # 独立性: overview 的板级 due 与本脚本的 group-by 是**同一条规则的两个实现**
+            # (Codex r1 MEDIUM-6) —— 能抓实现漂移, 但**不是**第三个独立派生源。
+            diffs.append(_diff("overview ↔ picker.due_nodes", f"boards[{b}].due", a, c, "reimplementation"))
 
     # 排序 A — 板序: overview `board_rows.sort(key=(prio, -due, board))`(:911),
-    # `prio[b]=i` 取自 top_boards 下标(:831) ⇒ 在榜板按 top_boards 原序排最前。
+    # `prio[b]=i` 取自 top_boards 下标(:831) ⇒ 在榜板按 top_boards 原序排在**最前**。
+    # ⛔ Codex r1 HIGH-2: 必须比**前缀**, 不能比"过滤后的子序列" —— `top_boards=[乙]`
+    # 而 overview 顺序是 `[甲, 乙]` 时, 过滤后仍等于 `[乙]` 而全绿, 可实际上总览页的
+    # 首板已经不是推荐首板了。
     top_names = _top_board_names(pk)
     ov_order = (
         [r["board"] for r in ov_boards if isinstance(r, dict) and isinstance(r.get("board"), str)]
         if isinstance(ov_boards, list)
         else []
     )
-    ov_ranked_prefix = [b for b in ov_order if b in set(top_names)]
-    if top_names and ov_ranked_prefix != top_names:
+    if top_names and ov_order[: len(top_names)] != top_names:
         diffs.append(
-            _diff("picker.top_boards ↔ overview.boards", "board_order", top_names, ov_ranked_prefix, "cross-source")
+            _diff(
+                "picker.top_boards ↔ overview.boards",
+                "board_order",
+                top_names,
+                ov_order[: len(top_names)],
+                "cross-source",
+            )
         )
 
     # 排序 B — 板内节点: ①身份集合 ②行序 ≡ 独立复算的紧迫度序 (见 N2)。
@@ -627,16 +734,22 @@ def main(argv: list[str] | None = None) -> int:
     if args.overview_url:
         ov_resp, not_fetched = fetch_overview(args.overview_url)
     elif args.overview_json:
-        ov_resp = json.loads(Path(args.overview_json).read_text(encoding="utf-8"))
+        ov_resp = json.loads(
+            Path(args.overview_json).read_text(encoding="utf-8"), parse_constant=_reject_js_nonstandard
+        )
     else:
         not_fetched = "未提供 --overview-url / --overview-json (overview 面缺席)"
 
     results = []
     for p in picker_paths:
         try:
-            payload = json.loads(p.read_text(encoding="utf-8"))
+            # ⛔ Codex r1 HIGH-3: 与 Dashboard 的 `JSON.parse`(`Dashboard.md:59`) **同严格度**。
+            # Python 默认放行 NaN/Infinity, JS 拒收并落到 `:87`"投影损坏"。宽松解析会让
+            # 含 NaN 的投影在本脚本里算出数字, 而界面上根本不出数字, 却报"两面一致"。
+            payload = json.loads(p.read_text(encoding="utf-8"), parse_constant=_reject_js_nonstandard)
         except (OSError, ValueError) as e:
-            # 读不到 picker 投影 ⇒ 这一 vault 根本没有"同一数据集"可对账, 直接报错行。
+            # 读不到 / 解析不了 picker 投影 ⇒ 没有"同一数据集"可对账, 直接报差异行。
+            # (含 JS 会拒、Python 默认会放行的非标准常量 —— 那正是一处真实的界面分歧。)
             results.append(
                 {
                     "vault_id": p.parent.parent.name,
