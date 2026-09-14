@@ -1217,3 +1217,166 @@ def test_drop_does_not_reuse_a_stale_vault_registry(tmp_path):
             f"消失的表 = {sorted(before - after)}"
         )
         assert dropped == 1, f"实删数应为 1（只有 {_SHORT_VAULT} 自己那张），实为 {dropped}"
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 门⑫ 族 —— round-4 四条：模糊表名 / 降级不自愈 / 清单钉住 / 降级结果不缓存
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def test_drop_refuses_tables_whose_owner_cannot_be_determined(tmp_path):
+    """删除集合里出现"判不出主人"的表名时整次拒绝（round-4 H1）。
+
+    这条堵的是已知 vault 集合的**定义域边界**：vault ``a_b`` 的目录被移走（或
+    ``.obsidian`` 暂时不见）且它**没有指纹表**时，两条来源都补不回来，扫描却一切正常、
+    不置降级 —— 于是 ``a_b_canvas_nodes`` 又归了 ``a``。
+
+    表名本身仍给得出线索：本 vault 自己的表恒为 ``{vid}_{逻辑名}``，而 ``b_canvas_nodes``
+    这种"余名里还有下划线、又不是任何逻辑名"的余名，更像另一个 vault 的表。判不出来就不删。
+    """
+    db_path = tmp_path / "db"
+    db = lancedb.connect(str(db_path))
+    db.create_table(f"{_SHORT_VAULT}_canvas_nodes", data=_rows("A"))
+    db.create_table(f"{_LONG_VAULT}_canvas_nodes", data=_rows("AB"))  # 无指纹表
+    before = _all_names(db)
+
+    # 只有 a 的目录 —— a_b 完全不可发现（且它没有指纹表）
+    with _vaults_root_override(tmp_path / "roots", (_SHORT_VAULT,)):
+        client = _client(db_path, vault_id=_SHORT_VAULT)
+        assert _LONG_VAULT not in client._known_vault_ids(), "前提失效: a_b 此刻不该可被发现"
+        assert client._vault_registry_degraded is False, (
+            "前提失效: 本门要的是**扫描正常但缺项**，不是降级（那条另有门）"
+        )
+
+        dropped = client.drop_vault_tables(_SHORT_VAULT)
+        assert dropped == 0, f"判不出主人的表在删除集合里，却仍删了 {dropped} 张"
+        assert client._last_drop_refusal and "判不出主人" in client._last_drop_refusal, (
+            f"拒绝原因不是模糊表名这条: {client._last_drop_refusal!r}"
+        )
+        assert _all_names(db) == before, f"拒绝了却还是删掉了东西: 现存 {sorted(_all_names(db))}"
+
+
+def test_cache_tables_skips_healing_when_registry_is_degraded(tmp_path):
+    """vault 清单降级时启动自愈**不做维度修复**（round-4 H2）。
+
+    降级 ⇒ 归属退回朴素前缀 ⇒ 自愈会把别的 vault 的漂移表也 drop 掉。自愈是优化，
+    晚一轮没有代价；删错没法撤。表句柄照常装载（读侧不受影响），只跳过修复。
+    """
+    db_path = tmp_path / "db"
+    db = lancedb.connect(str(db_path))
+    db.create_table(f"{_SHORT_VAULT}_canvas_nodes", data=_rows("A", dim=_DRIFT_DIM))
+    db.create_table(f"{_LONG_VAULT}_canvas_nodes", data=_rows("AB", dim=_DRIFT_DIM))
+    before = _all_names(db)
+
+    from app.config import get_settings
+
+    mp = pytest.MonkeyPatch()
+    mp.setenv("VAULTS_ROOT", str(tmp_path / "no-such-root"))
+    get_settings.cache_clear()
+    try:
+        client = _client(db_path, vault_id=_SHORT_VAULT)
+        asyncio.run(client._cache_tables())
+        assert client._vault_registry_degraded is True, "前提失效: 主来源没被判成失败"
+        assert _all_names(db) == before, f"清单降级时启动自愈仍 drop 了表: 消失的 = {sorted(before - _all_names(db))}"
+        assert set(client._tables_cache) == before, (
+            f"表句柄装载被一起跳过了（读侧不该受影响）: {sorted(client._tables_cache)}"
+        )
+    finally:
+        mp.undo()
+        get_settings.cache_clear()
+
+
+def test_pinned_vault_ids_freezes_the_registry(tmp_path):
+    """``_pinned_vault_ids`` 期间清单不变，退出后立刻恢复跟随（round-4 H3 机制面）。
+
+    ⚠️ 窗口内必须**把 TTL 打到过期**再问：不然把钉住那段查询拿掉，``_known_vault_ids``
+    会落到刚刚 ``force_refresh`` 装进去的那份 TTL 缓存上、照样返回同一个集合 —— 门就成了
+    空门（本门初版正是这样：负控把钉住查询删掉，它仍 PASSED）。而 H3 说的本来就是
+    「TTL 在一次破坏性操作的**中途**到期」，所以这里模拟的正是那一刻。
+    """
+    root = tmp_path / "roots"
+    with _vaults_root_override(root, (_SHORT_VAULT,)):
+        client = _client(tmp_path / "db", vault_id=_SHORT_VAULT)
+        with client._pinned_vault_ids() as pinned:
+            assert _LONG_VAULT not in pinned, f"前提失效: 钉住时就不该有 {_LONG_VAULT}"
+            (root / _LONG_VAULT / ".obsidian").mkdir(parents=True)  # 钉住期间目录出现
+            client._known_vaults_cached_at = 0.0  # 模拟 TTL 在操作中途到期
+            assert client._known_vault_ids() == pinned, (
+                "钉住期间清单变了 —— 一次破坏性操作的中途会拿到两份不同的 V，入口处的降级/碰撞检查就管不住后面的删除"
+            )
+        assert _LONG_VAULT in client._known_vault_ids(force_refresh=True), (
+            "解钉之后清单没有恢复跟随目录 —— 钉住漏了还原"
+        )
+
+
+class _RecordPinDuringDrop:
+    """真库句柄 + 在每次 ``drop_table`` 时记下"此刻清单是否钉住"。"""
+
+    def __init__(self, db, client):
+        self._db = db
+        self._client = client
+        self.pinned_at_drop = []
+
+    def __getattr__(self, item):
+        return getattr(self._db, item)
+
+    def drop_table(self, name, *args, **kwargs):
+        self.pinned_at_drop.append(self._client._known_vaults_pinned is not None)
+        return self._db.drop_table(name, *args, **kwargs)
+
+
+def test_drop_runs_under_a_pinned_registry(tmp_path):
+    """真正删表的那一刻，清单必须处在钉住状态（round-4 H3 行为面）。
+
+    只测机制不够 —— 得证明 ``drop_vault_tables`` **用上了**它。这里在每次真实
+    ``drop_table`` 发生时记录钉住状态，删完再断言全程为真。
+    """
+    db_path = tmp_path / "db"
+    db = lancedb.connect(str(db_path))
+    db.create_table(f"{_SHORT_VAULT}_canvas_nodes", data=_rows("A"))
+    db.create_table(f"{_SHORT_VAULT}_vault_notes", data=_rows("A-NOTES"))
+
+    client = _client(db_path, vault_id=_SHORT_VAULT)
+    spy = _RecordPinDuringDrop(db, client)
+    client._db = spy
+    dropped = client.drop_vault_tables(_SHORT_VAULT)
+
+    assert dropped == 2, f"前提失效: 本该删掉 2 张，实删 {dropped}（拒绝原因 {client._last_drop_refusal!r}）"
+    assert spy.pinned_at_drop == [True, True], (
+        f"删表时清单没有钉住: {spy.pinned_at_drop} —— TTL 可以在流程中段把 V 重算成缺项的"
+    )
+    assert client._known_vaults_pinned is None, "操作结束后没有解钉"
+
+
+def test_degraded_registry_result_is_not_cached(tmp_path):
+    """降级算出的缺项集合**不进缓存**：来源一恢复，下一次查询立刻正确（round-4 M2）。
+
+    ⚠️ 与 ``test_drop_does_not_reuse_a_stale_vault_registry`` 的分工：那条测的是
+    "破坏性路径强制重算"，即使降级结果被缓存了它也会绿（因为它总是 force_refresh）。
+    本条测的是缓存本身的性质 —— **不**用 force_refresh，只看普通查询。
+    """
+    db_path = tmp_path / "db"
+    root = tmp_path / "roots"
+    (root / _SHORT_VAULT / ".obsidian").mkdir(parents=True)
+    (root / _LONG_VAULT / ".obsidian").mkdir(parents=True)
+
+    from app.config import get_settings
+
+    mp = pytest.MonkeyPatch()
+    mp.setenv("VAULTS_ROOT", str(tmp_path / "no-such-root"))  # 先失效
+    get_settings.cache_clear()
+    try:
+        client = _client(db_path, vault_id=_SHORT_VAULT)
+        degraded = client._known_vault_ids()
+        assert client._vault_registry_degraded is True, "前提失效: 主来源没被判成失败"
+        assert _LONG_VAULT not in degraded, f"前提失效: 降级时不该发现 {_LONG_VAULT}"
+
+        # 来源恢复（同一客户端、同一连接、远在 TTL 之内），用**普通**查询
+        mp.setenv("VAULTS_ROOT", str(root))
+        get_settings.cache_clear()
+        assert _LONG_VAULT in client._known_vault_ids(), (
+            "来源已恢复但清单仍是降级时那份 —— 降级结果被 TTL 缓存住了，「来源已恢复、保护还没恢复」会持续整个窗口"
+        )
+    finally:
+        mp.undo()
+        get_settings.cache_clear()
