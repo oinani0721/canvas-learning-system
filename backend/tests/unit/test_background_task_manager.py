@@ -232,12 +232,16 @@ class TestCleanupScheduler:
 
         manager = BackgroundTaskManager.get_instance()
 
+        cleanup_returns = [0, 3]  # 见下
+
         async def fake_cleanup(*args, **kwargs):
             events.append(("cleanup", 0))
-            # ⚠️ 返回**非零**清理数(真实场景就会非零)。若返 0, 生产里写成
-            # `if await self.cleanup_old_tasks(): break` 这种改坏不会被任何断言拦下
-            # (Codex round-3 LOW-1 实测的未被拦下的输入)。
-            return 3
+            # ⚠️ 返回值在 0 与非零之间**交替**, 两种值都要出现一次。
+            # 只返非零 ⇒ 生产写成 `if not await self.cleanup_old_tasks(): break` 漏网;
+            # 只返 0    ⇒ 生产写成 `if await self.cleanup_old_tasks(): break`     漏网。
+            # (前者 Codex round-4 LOW-1、后者 round-3 LOW-1, 均已实测; 负控 7/8 各钉一种。)
+            # 真实语义: cleanup_old_tasks 返回本轮清掉的任务数, 0 与非零都是正常值。
+            return cleanup_returns[(len(events) // 3) % 2]
 
         monkeypatch.setattr(manager, "cleanup_old_tasks", fake_cleanup)
         monkeypatch.setattr(asyncio, "sleep", spy_sleep)
@@ -275,10 +279,13 @@ class TestCleanupScheduler:
         判据是**因果位置 + enter/exit 配对**, 不是数值: 等待复用同一个间隔, 所以
         「有没有等待」在数值上完全看不出来。看的是「抛异常那次清理」与「下一次清理」
         之间的 sleep 事件序列 ——
-          就地 await:      enter/exit(异常分支) + enter/exit(循环顶) = 4 个事件
-          没有等待:        enter/exit(循环顶)                        = 2 个事件
-          丢进 create_task: 两个 enter 会连着出现, 不成对
-        三种形态互不相同, 所以这条断言同时拦住「删掉等待」和「没有就地 await」。
+          就地 await:          enter/exit(异常分支) + enter/exit(循环顶) = 4 个事件
+          没有等待:            enter/exit(循环顶)                        = 2 个事件
+          **直接**丢进 create_task: 两个 enter 会连着出现, 不成对
+        所以这条断言拦得住「删掉等待」和「**直接** create_task 后回循环顶」这两种形态
+        (负控 2 / 负控 3 各实测一种)。⚠️ 它**不**等于证明了循环在等那次等待完成 ——
+        把等待丢进 create_task 后再 await 一个立刻兑现的检查点, 照样能凑出成对四事件。
+        见类 docstring「本类不证明什么」第 3 条。
         """
         assert hasattr(settings, "TASK_CLEANUP_INTERVAL_SECONDS"), "no field"
 
@@ -309,7 +316,8 @@ class TestCleanupScheduler:
                 events.append(("cleanup-raise", 0))
                 raise RuntimeError("对照输入: 让本轮清理失败一次")
             events.append(("cleanup-ok", 0))
-            return 3  # 非零, 理由同测试 A(Codex round-3 LOW-1)
+            # 两次成功清理分别返 0 与 3, 理由同测试 A(Codex round-3/4 LOW-1)。
+            return 0 if len(cleanup_calls) == 2 else 3
 
         monkeypatch.setattr(manager, "cleanup_old_tasks", flaky_cleanup)
         monkeypatch.setattr(asyncio, "sleep", spy_sleep)

@@ -1,0 +1,48 @@
+# (k) round-4 commit @ 20260914T210613
+## 裸跑
+╭──────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: pre-commit │
+╰──────────────────────────────────────╯
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+│  cypher-vault-filter-lint (skip) no matching staged files
+┃  ghost-files ❯ 
+
+[Ghost Files] No untracked docs found.
+
+┃  mutant-residue-scan ❯ 
+
+[Mutant-Scan] OK (staged additions carry no mutation marker).
+
+┃  python-lint ❯ 
+
+[Python] Running ruff lint...
+All checks passed!
+[Python] Lint OK.
+[Python] Checking format...
+Would reformat: backend/tests/unit/test_background_task_manager.py
+1 file would be reformatted
+[Python] Format check FAILED! Fix: ruff format backend/tests/unit/test_background_task_manager.py
+
+exit status 1│  python-typecheck (skip) no files for inspection
+│  readme-claims-lint (skip) no matching staged files
+│  spec-sync-flat (skip) no matching staged files
+│  spec-sync-root (skip) no matching staged files
+                                      
+  ────────────────────────────────────
+summary: (done in 0.08 seconds)       
+✔️ ghost-files (0.02 seconds)
+✔️ mutant-residue-scan (0.03 seconds)
+🥊 python-lint (0.03 seconds)
+bare_rc=1
+
+## 正式提交 LEFTHOOK_EXCLUDE=python-lint（协议 §2.3 过渡条款）
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-tail-cleanup/i-ruff-r4-20260914T210540.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-tail-cleanup/k-commit-r3-20260914T205001.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-TAIL-CLEANUP-LOOP-r3.md"

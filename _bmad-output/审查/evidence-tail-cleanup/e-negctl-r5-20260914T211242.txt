@@ -1,0 +1,59 @@
+# (e) 负控 1~8 — 绑 round-5 代码 @ 20260914T211242
+## 跑前 shasum -a 256
+6688a79efb604a5b6e8c3cc137bd7685b410198ed05de600b6239b27b3244c4b  backend/app/config.py
+ae9be4cae5c8a7e2fd143e836b67d0a829f60723c4970b0201b20810031ad01d  backend/app/services/background_task_manager.py
+6461c864ee24b8eacfcd5969850b35df5d49e5db4614550e9435399b93285088  backend/tests/unit/test_background_task_manager.py
+---变异开始---
+
+### 负控 1: config 字段改名（含独立根因门重跑）
+-- 根因门 --
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    import sys;sys.path.insert(0,'.');from app.config import settings;assert hasattr(settings,'TASK_CLEANUP_INTERVAL_SECONDS'), 'no field';print('ok')
+                                                                             ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: no field
+rc_rootcause=1
+-- 两测 --
+test_background_task_manager.py:210: AssertionError: no field
+test_background_task_manager.py:290: AssertionError: no field
+2 failed
+
+### 负控 2: 删异常分支 await
+test_background_task_manager.py:339: AssertionError: except Exception 分支必须**就地 await** 一个等待(enter/
+1 failed
+1 passed
+
+### 负控 3: 异常分支 await → 直接 create_task
+test_background_task_manager.py:339: AssertionError: except Exception 分支必须**就地 await** 一个等待(enter/
+1 failed
+1 passed
+
+### 负控 4: cleanup 后 break
+test_background_task_manager.py:269: AssertionError: 调度必须是「等配置间隔 → 清理」严格交替、且**每一轮**都等满配置间隔; 走到 cle
+test_background_task_manager.py:368: AssertionError: 失败恢复后调度器必须**继续**按「等配置间隔 → 清理」严格交替运行, 且每个循环顶等待
+2 failed
+
+### 负控 5: 首轮配置间隔、之后 sleep(0)
+test_background_task_manager.py:269: AssertionError: 调度必须是「等配置间隔 → 清理」严格交替、且**每一轮**都等满配置间隔; 走到 cle
+test_background_task_manager.py:368: AssertionError: 失败恢复后调度器必须**继续**按「等配置间隔 → 清理」严格交替运行, 且每个循环顶等待
+2 failed
+
+### 负控 6: 一轮双清理后 break
+test_background_task_manager.py:269: AssertionError: 调度必须是「等配置间隔 → 清理」严格交替、且**每一轮**都等满配置间隔; 走到 cle
+test_background_task_manager.py:368: AssertionError: 失败恢复后调度器必须**继续**按「等配置间隔 → 清理」严格交替运行, 且每个循环顶等待
+2 failed
+
+### 负控 7 (Codex r3 LOW-1): if await cleanup(): break  —— truthy 方向
+test_background_task_manager.py:269: AssertionError: 调度必须是「等配置间隔 → 清理」严格交替、且**每一轮**都等满配置间隔; 走到 cle
+test_background_task_manager.py:368: AssertionError: 失败恢复后调度器必须**继续**按「等配置间隔 → 清理」严格交替运行, 且每个循环顶等待
+2 failed
+
+### 负控 8(新, Codex r4 LOW-1): if not await cleanup(): break  —— falsy 方向
+test_background_task_manager.py:269: AssertionError: 调度必须是「等配置间隔 → 清理」严格交替、且**每一轮**都等满配置间隔; 走到 cle
+test_background_task_manager.py:368: AssertionError: 失败恢复后调度器必须**继续**按「等配置间隔 → 清理」严格交替运行, 且每个循环顶等待
+2 failed
+
+## 跑后 shasum -a 256（须与跑前逐字同）
+6688a79efb604a5b6e8c3cc137bd7685b410198ed05de600b6239b27b3244c4b  backend/app/config.py
+ae9be4cae5c8a7e2fd143e836b67d0a829f60723c4970b0201b20810031ad01d  backend/app/services/background_task_manager.py
+6461c864ee24b8eacfcd5969850b35df5d49e5db4614550e9435399b93285088  backend/tests/unit/test_background_task_manager.py

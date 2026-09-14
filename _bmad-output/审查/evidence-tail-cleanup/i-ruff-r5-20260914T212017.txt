@@ -1,0 +1,61 @@
+# (i) ruff — 绑 round-5 @ 20260914T212017
+# Codex round-4 指出 i-ruff-20260914T200503.txt 的 enabled 列表在 F722 处被截断 ⇒ 本份落完整列表。
+---
+## 生效配置路径
+Settings path: "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-bugs/backend/ruff.toml"
+## backend/ruff.toml 全文（select 的真相源）
+# 终验审查红旗修复 (2026-07-24): backend 下 ruff 此前吃不到任何项目配置,
+# F821 未生效 → 3 处 NameError 静默存活 (memory_tools calibration/
+# learning_memory MCP 写入断 3 天 + memory_service Tier2 异常处理器自炸)。
+# 此文件定死「必错级」规则 (语法/未定义名/错误比较), 保证同类雷被 pre-commit
+# 拦截; 全量风格规则 (F401/I/C4, 存量 202 处) 待专项清理再开。
+line-length = 120
+target-version = "py39"
+
+[lint]
+select = ["E9", "F63", "F7", "F82"]
+## 仓根 ruff.toml 的 [lint] 段（被 backend 那份遮蔽）
+[lint]
+select = []
+## linter.rules.enabled 完整列表（不截断）
+linter.rules.enabled = [
+	io-error (E902),
+	assert-tuple (F631),
+	is-literal (F632),
+	invalid-print-syntax (F633),
+	if-tuple (F634),
+	break-outside-loop (F701),
+	continue-outside-loop (F702),
+	yield-outside-function (F704),
+	return-outside-function (F706),
+	default-except-not-last (F707),
+	forward-annotation-syntax-error (F722),
+	undefined-name (F821),
+	undefined-export (F822),
+	undefined-local (F823),
+]
+## 判据：F401 / I001 是否在启用集里（应各 0）
+F401 命中 = 0
+I001 命中 = 0
+F821 命中 = 1  ← >0，验伪锚选它才有效
+## 三文件 ruff check
+files=3
+All checks passed!
+rc=0
+## 验伪锚(F821)
+F821 Undefined name `undefined_name_t5a`
+ --> backend/_t5a_anchor_f821.py:2:12
+  |
+1 | def f():
+2 |     return undefined_name_t5a
+  |            ^^^^^^^^^^^^^^^^^^
+  |
+
+Found 1 error.
+anchor_rc=1
+## ruff format --check config.py
+1 file already formatted
+config_fmt_rc=0
+## test formatter 行段
+@@ -61,8 +61,7 @@
+@@ -121,12 +120,8 @@
