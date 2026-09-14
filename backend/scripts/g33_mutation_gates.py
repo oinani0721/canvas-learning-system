@@ -453,7 +453,13 @@ def restore_or_keep_exit_code(
     try:
         restore_all()
     except BaseException as exc:
-        if final:
+        # ⛔ Codex round-1 LOW：**信号退出不是还原失败**。`RestoreGuard` 收到信号时先把
+        # `restore()` 跑完、再抛 `SystemExit(exit_code)`；若该信号落在**本次**还原期间
+        # （进来时 `exiting()` 为假、出来时为真），这个 SystemExit 说明的是「还原做完了，
+        # 然后按约定退出」，⛔ 不是「还原失败」。不分辨的话，一次**正常**的 Ctrl-C 会让
+        # 报告印出「末次还原失败／不得当成干净」—— 那正是本卡要消灭的那类谎报。
+        guard_exit = isinstance(exc, SystemExit) and not was_exiting and exiting()
+        if final and not guard_exit:
             # ⛔ SHA/还原逐字节自检**必须在这里就跑**：往下无论是 `raise`（把原异常
             # 继续展开）还是 `SystemExit(3)`，`main()` 的汇总段都一行都到不了。
             _report_final_restore_failure(exc, verify)

@@ -190,21 +190,34 @@ def _nodeid_shaped(s: str) -> bool:
 
     nodeid 的结构约束只有两条，⛔ 都只能锚**两端**、不能锚内部：
       · 参数段之前那截（`path::test_name`）**不含空白**；
-      · 有参数段时，它从**第一个** `[` 起、到整串**末尾的 `]`** 止 —— 参数 ID 内部
-        什么字符都可能出现（空格、` - `、`[`、`]`），所以内部不可约束。
+      · 有参数段时，它从最后一个 `::` 之后那截里的**第一个** `[` 起、到整串**末尾的
+        `]`** 止 —— 参数 ID 内部什么字符都可能出现（空格、` - `、`[`、`]`），内部不可约束。
+
+    ⛔ **参数段只可能在最后一个 `::` 之后**（Codex round-1 MEDIUM 实测）：**路径段本身
+    可以含方括号** —— `tests/test_[x].py::test_x` 是一个合法 nodeid。拿「整串第一个 `[`」
+    定位参数段起点，会把路径里的方括号误当参数段，于是「不以 `]` 收尾」⇒ 判它不是 nodeid 形
+    ⇒ 一条**合法的无 reason 摘要行**被 `_split_unique` 打成不可判定 ⇒ 假 HARNESS-ERROR。
+    没有 `::` 时（如收集错误行 `ERROR tests/x.py`）整串就是路径，**无参数段可言**。
 
     ⚠️ 这与 `_boundary_ok` 的「方括号成对」是**两条不同**的判据，不是同义改写：
-    `a[[b]` 括号不成对却是合法 nodeid（参数 ID = `[b`），`a[b] - c` 括号成对却**不是**
+    `a::b[[c]` 括号不成对却是合法 nodeid（参数 ID = `[c`），`a::b[c] - d` 括号成对却**不是**
     合法 nodeid（不以 `]` 收尾）。两族各自能捞到对方漏掉的读法，所以 `_split_unique`
     取**并集**而不是二选一。
     """
     if not s:
         return False
-    i = s.find("[")
-    if i < 0:
+    head, sep, last = s.rpartition("::")
+    if not sep:
+        # 没有 `::` ⇒ 整串是路径, 没有参数段, 只要求不含空白。
         return not any(ch.isspace() for ch in s)
-    head = s[:i]
-    return bool(head) and not any(ch.isspace() for ch in head) and s.endswith("]")
+    prefix = head + sep
+    if any(ch.isspace() for ch in prefix):
+        return False
+    i = last.find("[")
+    if i < 0:
+        return bool(last) and not any(ch.isspace() for ch in last)
+    name = last[:i]
+    return bool(name) and not any(ch.isspace() for ch in name) and s.endswith("]")
 
 
 def _split_unique(line: str, nodeid: str) -> bool:
@@ -229,17 +242,27 @@ def _split_unique(line: str, nodeid: str) -> bool:
     **残缺的候选集**上成立的恒真式。现在三类读法进**同一个** `cands`，多于一种 ⇒
     调用方判 HARNESS-ERROR。⛔ 仍不用贪婪 / `rsplit`（那只是把错误换个方向）。
 
-    ⚠️ **如实声明改动方向（⛔ 不是「单调只收紧」——初稿那么写过，实测推翻）**：
-      · **有 ` - ` 切点**那一族的判据只**增不减**（`方括号成对 ∪ nodeid 形`）⇒ 候选集
-        单调变大 ⇒ 该族的返回值只可能 True→False；
-      · **无 ` - ` 切点**那一族（旧 `if not cands:` 分支）的判据从「整行方括号成对」换成
-        「整行是 nodeid 形」，两者**互不包含**，所以**两个方向都会翻**：
-          - `a::b[c - d]` 由 True 翻 False（括号成对，但正则切出的 nodeid 是 `a::b[c`，
-            与唯一合法读法不符 ⇒ 本该拒）——**收紧**，是想要的；
-          - `a::b[[c]`   由 False 翻 True（括号不成对，但它是**合法** nodeid：参数 ID
-            = `[c`）——**放宽**。这一条放宽**不影响**端到端判据：`_boundary_ok(nodeid)`
-            仍会因方括号不成对把该行打进 `unparsed_failure_lines` ⇒ 调用方照样判
-            HARNESS-ERROR（两者并联，见 `failure_records` / `parse_failed_nodeids`）。
+    ⚠️ **如实声明改动方向：⛔ 本函数不是单调的，两族、两个方向都会翻。**
+    （这句话本身被改过**两次**：初稿写「候选集只增不减 ⇒ 只会 True→False」，实测推翻；
+    改成「只有无 ` - ` 那族会双向翻」，Codex round-1 LOW 又推翻。现按实测写第三版 ——
+    ⛔ 后人若要再收窄这句，先跑反例，别照抄。）
+
+      · **无 ` - ` 切点**那族（旧 `if not cands:` 分支）：判据从「整行方括号成对」换成
+        「整行是 nodeid 形」，两者**互不包含**；
+      · **有 ` - ` 切点**那族：候选判据虽是并集（`方括号成对 ∪ nodeid 形`）、候选集只增
+        不减，但**候选集变大不等于返回值只会变 False** —— 旧版可能一条候选都没有而落到
+        `if not cands:` 的旧回退上返回 False，新版捞到了那条唯一候选反而返回 True。
+
+    两个方向各一条实测反例（都已进单测钉住）：
+      - `FAILED a::b[c - d]`（nodeid=`a::b[c`）True→**False**：括号成对，但正则切出的
+        nodeid 与唯一合法读法不符 ⇒ 本该拒 —— **收紧**，是想要的；
+      - `FAILED a::b[[c] - boom`（nodeid=`a::b[[c]`）False→**True**：左侧 `a::b[[c]`
+        括号不成对、旧版不收它 ⇒ 无候选 ⇒ 旧回退按整行括号数判 False；新版认出它是
+        合法 nodeid 形（参数 ID = `[c`）⇒ 唯一候选 ⇒ True —— **放宽**。
+
+    ⚠️ 两条放宽都**不影响端到端判据**：`_boundary_ok(nodeid)` 与本函数**并联**（见
+    `failure_records` / `parse_failed_nodeids`），方括号不成对的 nodeid 仍会被它打进
+    `unparsed_failure_lines` ⇒ 调用方照样判 HARNESS-ERROR。
 
     ⚠️ **保守性的代价也如实说**：参数化门 + reason 以 `]` 收尾（如
     `FAILED a::b[c] - AssertionError: [1, 2]`）现在判**不唯一** ⇒ HARNESS-ERROR。那**确实**

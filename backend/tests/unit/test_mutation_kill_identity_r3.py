@@ -140,19 +140,41 @@ def test_pc_split_unique_accepts_unambiguous_readings(line: str, nodeid: str) ->
     assert mki._split_unique(line, nodeid) is True, f"正控被误伤: {line!r}"
 
 
-def test_h1_no_reason_branch_flips_in_both_directions() -> None:
-    """⛔ 如实钉住「无 ` - ` 切点」那一族判据换法后的**两个**翻转方向。
+def test_h1_split_unique_flips_in_both_directions_in_both_families() -> None:
+    """⛔ 如实钉住：本函数**不是单调的**，两族、两个方向都会翻。
 
-    初稿 docstring 写的是「候选集只增不减 ⇒ 只会 True→False」—— 2026-09-14 实测**推翻**：
-    旧判据（整行方括号成对）与新判据（整行是 nodeid 形）**互不包含**。两条都钉住，
-    免得后人以为这里是单调的、据此推出错误的安全性结论。
+    这条断言被推翻过**两次**：初稿「候选集只增不减 ⇒ 只会 True→False」被实测推翻；
+    改成「只有无 ` - ` 那族会双向翻」又被 Codex round-1 LOW 推翻（有 ` - ` 那族也会
+    False→True：旧版一条候选都没有、落到旧回退返回 False，新版捞到了唯一候选返回 True）。
+    两族两向各钉一条，免得后人再据「它是单调的」推出错误的安全性结论。
     """
-    # 收紧方向：括号成对但正则切出的 nodeid 与唯一合法读法不符 ⇒ 本该拒
+    # 无 ` - ` 族 · 收紧：括号成对，但正则切出的 nodeid 与唯一合法读法不符 ⇒ 本该拒
     assert mki._split_unique("FAILED a::b[c - d]", "a::b[c") is False
-    # 放宽方向：括号不成对、却是**合法** nodeid（参数 ID = `[c`）⇒ 读法唯一
+    # 无 ` - ` 族 · 放宽：括号不成对、却是**合法** nodeid（参数 ID = `[c`）⇒ 读法唯一
     assert mki._split_unique("FAILED a::b[[c]", "a::b[[c]") is True
-    # ⛔ 但端到端不因此放宽：`_boundary_ok` 并联那道「方括号成对」仍会拒掉它
+    # 有 ` - ` 族 · 放宽（Codex round-1 LOW 的反例）：左侧 `a::b[[c]` 括号不成对、旧版
+    # 不收它 ⇒ 无候选 ⇒ 旧回退按整行括号数判 False；新版认出它是 nodeid 形 ⇒ 唯一候选
+    assert mki._split_unique("FAILED a::b[[c] - boom", "a::b[[c]") is True
+    # ⛔ 两条放宽都不影响端到端：`_boundary_ok` 并联那道「方括号成对」仍会拒掉它
     assert mki._boundary_ok("a::b[[c]") is False
+
+
+def test_h1_bracket_in_path_is_not_a_param_segment() -> None:
+    """⛔ 路径段里的方括号**不是**参数段（Codex round-1 MEDIUM）。
+
+    `tests/test_[x].py::test_x` 是合法 nodeid。拿「整串第一个 `[`」定位参数段起点会把
+    路径里的方括号误当参数段 ⇒「不以 `]` 收尾」⇒ 判它不是 nodeid 形 ⇒ 一条**合法的
+    无 reason 摘要行**被判不可判定 ⇒ 假 HARNESS-ERROR（旧裁决是 KILLED-UNBOUND）。
+    """
+    nid = "tests/test_[x].py::test_x"
+    assert mki._nodeid_shaped(nid) is True, "路径含方括号的普通 nodeid 应是 nodeid 形"
+    assert mki._split_unique(f"FAILED {nid}", nid) is True, "合法无 reason 行不得被判不唯一"
+    # 参数化 + 路径含方括号：参数段仍从**最后一个 `::` 之后**那截的第一个 `[` 起算
+    assert mki._nodeid_shaped("tests/test_[x].py::test_x[case]") is True
+    # 没有 `::` 时整串就是路径（收集错误行 `ERROR tests/x.py`），无参数段可言
+    assert mki._nodeid_shaped("tests/test_[x].py") is True
+    # ⛔ 验伪锚：路径含空白仍不是 nodeid 形（不是把判据整个放掉）
+    assert mki._nodeid_shaped("tests/te st.py::test_x") is False
 
 
 def test_h1_parametrized_reason_ending_with_bracket_is_ambiguous() -> None:
@@ -392,3 +414,42 @@ def test_m2_non_final_failure_is_reported_not_silent() -> None:
         raise OSError("mid-loop restore failed (synthetic)")
 
     assert fn(_boom, lambda: True) is False, "M②: 吞掉异常保号可以，但「还原失败过」这件事不得丢失"
+
+
+def test_m2_signal_exit_during_final_restore_is_not_a_restore_failure(capsys) -> None:
+    """⛔ 信号退出**不是**还原失败（Codex round-1 LOW）。
+
+    `RestoreGuard` 收到信号时先把 `restore()` 跑完、再抛 `SystemExit(exit_code)`。若该
+    信号落在**本次**还原期间（进来时 `exiting()` 为假、出来时为真），这个 SystemExit
+    说的是「还原做完了，然后按约定退出」。不分辨的话，一次**正常**的 Ctrl-C 会让报告印出
+    「末次还原失败／不得当成干净」—— 那正是本卡要消灭的那类谎报。
+    """
+    fn = _restore_fn()
+    state = {"exiting": False, "verified": 0}
+
+    def _restore_then_signal() -> None:
+        state["exiting"] = True  # 守卫在还原**之后**置位并抛出约定退出码
+        raise SystemExit(130)
+
+    def _verify() -> list[str]:
+        state["verified"] += 1
+        return []
+
+    with pytest.raises(SystemExit) as ei:
+        fn(_restore_then_signal, lambda: state["exiting"], final=True, verify=_verify)
+    assert ei.value.code == 130, f"⛔ 信号退出必须**保号** 130，不得升成 3，实得 {ei.value.code!r}"
+    assert "末次还原失败" not in capsys.readouterr().err, "⛔ 还原其实成功了，不得谎报「末次还原失败」"
+
+
+def test_m2_real_failure_during_signal_unwind_still_surfaces(capsys) -> None:
+    """⛔ 验伪锚：**真的**还原失败（非 SystemExit）仍照旧浮出 —— 上面那条分辨没把门放掉。"""
+    fn = _restore_fn()
+    state = {"exiting": False}
+
+    def _boom() -> None:
+        state["exiting"] = True  # 即便同期进入了退出展开，OSError 也不是「按约定退出」
+        raise OSError("real restore failure (synthetic)")
+
+    with pytest.raises(OSError, match="real restore failure"):
+        fn(_boom, lambda: state["exiting"], final=True, verify=lambda: [])
+    assert "末次还原失败" in capsys.readouterr().err, "真失败必须浮出"

@@ -155,6 +155,32 @@ def _one(rx: re.Pattern[str], text: str, what: str, suite: str) -> re.Match[str]
     return m
 
 
+def _nonneg_int(v: object, what: str, suite: str) -> int:
+    """必须是**非负整数**（⛔ `bool` 不算 —— Python 里 `True` 是 `int` 的子类）。
+
+    JSON 存档里的数字类型不受正则约束：`18.9` 被 `int()` 悄悄截断成 18、`-1` 原样收下
+    并在求和时与别的档**互相抵消**，两种都能凑出与 AST 分母相等的假绿（Codex round-1 MEDIUM）。
+    """
+    if isinstance(v, bool) or not isinstance(v, int):
+        raise ReconcileError(f"{suite}: `{what}` 不是整数（实得 {v!r}）—— ⛔ 不得 int() 截断后继续比")
+    if v < 0:
+        raise ReconcileError(f"{suite}: `{what}` 为负数 {v} —— ⛔ 负数会在求和时与别的档互相抵消")
+    return v
+
+
+def _put(counts: dict[str, int], name: str, value: str, suite: str) -> None:
+    """记一档；⛔ **同一档出现第二次即报错，不得静默覆盖**。
+
+    Codex round-1 MEDIUM：`finditer` 循环里直接 `counts[name] = ...` 时，存档里若混入
+    第二条同形的 `SURVIVED: 7`（手改、或两次跑的输出被拼到一份 tee 里），后写的那条会
+    **悄悄盖掉**前一条，对账照样通过 —— 这五档从来没经过 `_one()` 的「恰好一次」把关，
+    于是「存档里有互相冲突的计数」这件事完全不显形。
+    """
+    if name in counts:
+        raise ReconcileError(f"{suite}: 存档里「{name}」出现了不止一次(应恰好 1 次) —— ⛔ 冲突计数不得静默覆盖")
+    counts[name] = int(value)
+
+
 def parse_stdout(suite: str, text: str) -> Parsed:
     """解析三套 stdout 汇总段。⛔ 三套形态互异，按套分支，不共用一套正则。"""
     counts: dict[str, int] = {}
@@ -163,16 +189,15 @@ def parse_stdout(suite: str, text: str) -> Parsed:
         counts["KILLED"] = int(mk.group("n"))
         declared_m = int(mk.group("m"))
         counts["KILLED-UNBOUND"] = int(_one(_B_UNBOUND, text, "KILLED-UNBOUND 行", suite).group("n"))
-        four = _B_FOUR.finditer(text)
-        for m in four:
-            counts[m.group("name")] = int(m.group("n"))
+        for m in _B_FOUR.finditer(text):
+            _put(counts, m.group("name"), m.group("n"), suite)
         ms = _one(_B_SUM, text, "六档之和行", suite)
     else:
         mk = _one(_CB_KILLED, text, "KILLED 行", suite)
         counts["KILLED"] = int(mk.group("n"))
         declared_m = int(mk.group("m"))
         for m in _CB_FIVE.finditer(text):
-            counts[m.group("name")] = int(m.group("n"))
+            _put(counts, m.group("name"), m.group("n"), suite)
         ms = _one(_CB_SUM, text, "六档之和行", suite)
     missing = [v for v in VERDICT_NAMES if v not in counts]
     if missing:
@@ -198,10 +223,11 @@ def parse_json(suite: str, text: str) -> Parsed:
     missing = [v for v in VERDICT_NAMES if v not in raw]
     if missing:
         raise ReconcileError(f"{suite}: `verdict_counts` 缺这些档 {missing} —— ⛔ 缺档不得当成 0/「一致」")
-    total = data.get("total")
-    if not isinstance(total, int):
-        raise ReconcileError(f"{suite}: JSON 存档缺 `total`（该套自称的分母）")
-    counts = {v: int(raw[v]) for v in VERDICT_NAMES}
+    total = _nonneg_int(data.get("total"), "total", suite)
+    # ⛔ Codex round-1 MEDIUM：`int(raw[v])` 会把 `18.9` **截断**成 18、把 `-1` 原样收下，
+    # 于是「KILLED=18.9」或「KILLED=19, SURVIVED=-1」都能凑出 AST 分母 18 而判绿。
+    # 逐档硬比的前提是每一档本身就是个**非负整数**；不是就别往下比。
+    counts = {v: _nonneg_int(raw[v], f"verdict_counts.{v}", suite) for v in VERDICT_NAMES}
     # g33 自己印的「六档之和」在 stdout；JSON 侧它把结论存成布尔 `verdict_sum_matches_total`。
     # ⛔ 不拿这个布尔当「六档之和」用 —— 它是该套**自己的结论**，不是可交叉核对的数字。
     # JSON 形态下「该套自己印出来的和」以 `sum(verdict_counts)` 为准（那是它写进存档的
