@@ -1,0 +1,25 @@
+### r1 整改后全套静态裁判重跑 ts=20260914T203249
+--- bash -n ---
+bash_n_rc=0
+--- AST ---
+total 20 with 20 [89, 108, 474, 498, 508, 689, 898, 958, 1029, 1289, 1654, 1704, 1894, 1948, 1953, 1961, 1995, 1999, 2358, 2482] WITHOUT 0 []
+--- npm_config_offline 仍在 env 段 ---
+80:#   CLS_NPM_BUILD_OFFLINE     步 1 build 的 npm_config_offline 值，缺省 true：让 **npm 自己的
+601:               npm_config_offline="$CLS_NPM_BUILD_OFFLINE" \
+--- timeout 作为命令：非注释行计数（期望 0）---
+noncomment=0  [锚 perl=1]
+--- 步 2 以后逐字节对照 08100483 ---
+  base=96d10556a71e71c3702fd20a… work=96d10556a71e71c3702fd20a… bytes=33631 -> 逐字节相同 OK
+--- 地盘门 ---
+backend/tests/unit/test_deploy_vault_sh.py
+scripts/deploy-vault.sh
+backend_app=0
+fsrs_decay_rc=1（1=零命中）
+--- ruff ---
+files=1: backend/tests/unit/test_deploy_vault_sh.py
+All checks passed!
+check_rc=0
+1 file already formatted
+fmt_rc=0
+--- 现网只读 ---
+live_newer=0（期望 0）  [锚 ev_newer=21]

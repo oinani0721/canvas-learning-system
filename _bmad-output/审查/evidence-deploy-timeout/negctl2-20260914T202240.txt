@@ -1,0 +1,82 @@
+### 负控第四段（Codex r1 三处修复的变异杀伤力）ts=20260914T202240
+--- 驱动源码 ---
+#!/usr/bin/env bash
+# 负控第四段：把 Codex r1 的三处修复逐个变异回旧行为，验证**指定的那道门**会变红。
+set -uo pipefail
+ROOT="$1"; SP="$2"
+cd "$ROOT"
+SH_F=scripts/deploy-vault.sh
+SNAP="$SP/negctl2-deploy-vault.sh"
+cp "$SH_F" "$SNAP"
+trap 'cp "$SNAP" "$ROOT/$SH_F"; echo "[EXIT trap] 已无条件还原 $SH_F"' EXIT
+PYTEST="$ROOT/backend/.venv/bin/pytest"
+
+echo "===== 跑前 shasum ====="; shasum -a 256 "$SH_F" backend/tests/unit/test_deploy_vault_sh.py
+
+run_one () {   # $1=名字 $2=nodeid 表达式 $3=期望(RED/GREEN)
+  local out rc
+  out=$( cd backend && PYTHONDONTWRITEBYTECODE=1 "$PYTEST" -q -p no:cacheprovider \
+          tests/unit/test_deploy_vault_sh.py -k "$2" 2>&1 | tail -3 )
+  rc=$?
+  printf '  [%s] -k %s => %s\n' "$1" "$2" "$(printf '%s' "$out" | tr '\n' ' ')"
+}
+
+mutate () { python3 - "$SH_F" "$1" <<'PY'
+import sys
+p, which = sys.argv[1], sys.argv[2]
+s = open(p, encoding="utf-8").read()
+if which == "m1":      # 撤回取值范围校验 ⇒ 0 / 000 / 超界重新被放行
+    i = s.index('        _cap="${_cap#')
+    j = s.index("        # ⛔ 超时信号走", i)
+    s = s[:i] + s[j:]
+elif which == "m2":    # 超时信号改回「看退出码 124」⇒ 与 npm 自己 exit 124 撞车
+    s = s.replace('        case "$_build_out" in\n            *"$_mark"*)', '        case "$_build_rc" in\n            124)')
+elif which == "m3":    # 删掉离线开关注入
+    s = s.replace('               npm_config_offline="$CLS_NPM_BUILD_OFFLINE" \\\n', '')
+else:
+    raise SystemExit("unknown mutation")
+open(p, "w", encoding="utf-8").write(s)
+print(f"  [变异 {which}] 已应用，bash -n:", end=" ")
+PY
+bash -n "$SH_F" && echo "rc=0" || echo "rc=1 ⇒ 变异体语法坏了, 本段作废"
+}
+
+for M in m1 m2 m3; do
+  echo; echo "----- 变异 $M -----"
+  cp "$SNAP" "$SH_F"
+  mutate "$M"
+  case "$M" in
+    m1) run_one "$M 指定门(取值校验)" 'cap_values' "RED"; run_one "$M 旁证(挂起承重)" 'is_walltime_capped' "GREEN" ;;
+    m2) run_one "$M 指定门(rc124 不得报超时)" 'not_reported_as_timeout' "RED" ;;
+    m3) run_one "$M 指定门(离线开关到位)" 'does_not_kill_a_fast_build' "RED" ;;
+  esac
+done
+
+cp "$SNAP" "$SH_F"
+echo; echo "===== 还原后 shasum（须与跑前逐字同）====="; shasum -a 256 "$SH_F" backend/tests/unit/test_deploy_vault_sh.py
+echo "===== 还原后指定门应全绿 ====="
+run_one "还原" 'cap_values or not_reported_as_timeout or does_not_kill_a_fast_build' "GREEN"
+--- 执行 ---
+===== 跑前 shasum =====
+9f1e74b387da6f44c7bf4f3e6b6049d35955cb1bb4f7402289085a59a091bc03  scripts/deploy-vault.sh
+4722bac6b25489dbfa988fcaae05978541da177c048f3ffe7381f3c45e19bb60  backend/tests/unit/test_deploy_vault_sh.py
+
+----- 变异 m1 -----
+  [变异 m1] 已应用，bash -n: rc=0
+  [m1 指定门(取值校验)] -k cap_values => FAILED tests/unit/test_deploy_vault_sh.py::test_preflight_rejects_cap_values_that_would_silently_disable_it[000-8256] FAILED tests/unit/test_deploy_vault_sh.py::test_preflight_rejects_cap_values_that_would_silently_disable_it[4294967296-8257] ===== 3 failed, 1 passed, 150 deselected, 10 warnings in 137.25s (0:02:17) =====
+  [m1 旁证(挂起承重)] -k is_walltime_capped => -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0) ================ 1 passed, 153 deselected, 10 warnings in 8.34s ================
+
+----- 变异 m2 -----
+  [变异 m2] 已应用，bash -n: rc=0
+  [m2 指定门(rc124 不得报超时)] -k not_reported_as_timeout => =========================== short test summary info ============================ FAILED tests/unit/test_deploy_vault_sh.py::test_preflight_npm_build_failure_is_not_reported_as_timeout[rc124-8254] =========== 1 failed, 1 passed, 152 deselected, 10 warnings in 2.27s ===========
+
+----- 变异 m3 -----
+  [变异 m3] 已应用，bash -n: rc=0
+  [m3 指定门(离线开关到位)] -k does_not_kill_a_fast_build => =========================== short test summary info ============================ FAILED tests/unit/test_deploy_vault_sh.py::test_preflight_npm_build_cap_does_not_kill_a_fast_build ================ 1 failed, 153 deselected, 10 warnings in 1.96s ================
+
+===== 还原后 shasum（须与跑前逐字同）=====
+9f1e74b387da6f44c7bf4f3e6b6049d35955cb1bb4f7402289085a59a091bc03  scripts/deploy-vault.sh
+4722bac6b25489dbfa988fcaae05978541da177c048f3ffe7381f3c45e19bb60  backend/tests/unit/test_deploy_vault_sh.py
+===== 还原后指定门应全绿 =====
+  [还原] -k cap_values or not_reported_as_timeout or does_not_kill_a_fast_build => -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0) ================ 7 passed, 147 deselected, 10 warnings in 3.98s ================
+[EXIT trap] 已无条件还原 scripts/deploy-vault.sh

@@ -2701,23 +2701,28 @@ def _npm_cap_harness(tmp_path: Path, mode: str) -> tuple[Path, Path]:
         # cwd 已被脚本 cd 进 $HARNESS/frontend/obsidian-plugin
         "fast": 'printf "// fake build output\\n" > main.js\n',
         "fail": "exit 1\n",
+        # ⛔ Codex r1 MEDIUM-2：build 自己立刻 rc=124 曾与「上限到点」在退出码上无法区分
+        "rc124": "exit 124\n",
     }[mode]
     npm = bin_dir / "npm"
-    npm.write_text("#!/usr/bin/env bash\n" + body, encoding="utf-8")
+    # 每种形态都先记下**脚本真正传进来的 npm 配置**（离线开关是否真到了 npm 手里）——
+    # 没有这一笔，删掉脚本里那行 npm_config_offline 也不会有任何一条用例变红（Codex r1 LOW-1）。
+    rec = 'printf "offline=%s\\n" "${npm_config_offline-<unset>}" > "$CLS_FAKE_NPM_PIDS/npm-env.txt"\n'
+    npm.write_text("#!/usr/bin/env bash\n" + rec + body, encoding="utf-8")
     npm.chmod(0o755)
     return h, pids
 
 
-def _npm_cap_env(tmp_path: Path, pids: Path, cap: int) -> dict[str, str]:
+def _npm_cap_env(tmp_path: Path, pids: Path, cap: str | int) -> dict[str, str]:
     return {
-        "PATH": f"{pids.parent / 'bin'}:{os.environ.get('PATH', '')}",
+        "PATH": f"{tmp_path / 'bin'}:{os.environ.get('PATH', '')}",
         "CLS_LIVE_VAULT": str(_fake_live(tmp_path)),
         "CLS_FAKE_NPM_PIDS": str(pids),
         "CLS_NPM_BUILD_TIMEOUT": str(cap),
     }
 
 
-def _npm_cap_run(tmp_path: Path, h: Path, pids: Path, port: str, cap: int = 5):
+def _npm_cap_run(tmp_path: Path, h: Path, pids: Path, port: str, cap: str | int = 5):
     return _run(
         "--vault",
         str(tmp_path / "vaults" / "npmcap"),
@@ -2735,6 +2740,11 @@ def _npm_cap_run(tmp_path: Path, h: Path, pids: Path, port: str, cap: int = 5):
         env=_npm_cap_env(tmp_path, pids, cap),
         timeout=45,
     )
+
+
+def _npm_was_invoked(pids: Path) -> bool:
+    """假 npm 是否真的被调到 —— 用来把「没走到 build 分支」与「上限没生效」分开诊断。"""
+    return (pids / "npm-env.txt").is_file()
 
 
 def _pid_gone(pid: int, deadline: float = 5.0) -> bool:
@@ -2787,19 +2797,29 @@ def test_preflight_npm_build_is_walltime_capped(tmp_path: Path):
     elapsed = time.monotonic() - t0
     # ⛔ 顺序：先测「还活着吗」**再**收尸 —— 反过来是自己把它杀了，下面那条进程组
     #    断言会恒真（典型的自我实现的假绿）。
+    assert _npm_was_invoked(pids), f"假 npm 根本没被调到 ⇒ 没走到 build 分支，本条什么都没测: {r.stdout!r}"
     gone = {name: _pid_gone(int((pids / name).read_text().strip())) for name in ("npm.pid", "grandchild.pid")}
     _reap(pids)
 
     assert r.returncode == 71, f"步 1 应 FAIL(71): rc={r.returncode}\n{r.stdout}{r.stderr}"
     assert "npm run build 超时" in r.stdout, f"未命中超时专属文案（分不出超时与任意失败）: {r.stdout!r}"
     assert elapsed < 30, f"墙钟上限没把它打断: 整跑耗时 {elapsed:.1f}s（上限 {cap}s）"
-    assert all(gone.values()), f"上限只杀了壳、没杀到整个进程组（孙子进程成了孤儿）: {gone}"
+    assert all(gone.values()), f"上限只杀了壳、没杀到同组后代（它成了孤儿）: {gone}"
 
 
 def test_preflight_npm_build_cap_does_not_kill_a_fast_build(tmp_path: Path):
-    """正向对照：秒级产出 main.js 的 build 必须照常通过 —— 证明上限不是「永远杀」。"""
+    """正向对照：秒级产出 main.js 的 build 必须照常通过 —— 证明上限不是「永远杀」。
+
+    顺带钉住**离线开关真的到了 npm 手里**：假 npm 把收到的 `npm_config_offline` 落盘，
+    这里断言它是 `true`。没有这一笔，删掉脚本 env 段那行也不会有任何用例变红
+    （Codex r1 LOW-1 后半）。
+    """
     h, pids = _npm_cap_harness(tmp_path, "fast")
     r = _npm_cap_run(tmp_path, h, pids, "8252")
+    assert _npm_was_invoked(pids), f"假 npm 根本没被调到 ⇒ 没走到 build 分支: {r.stdout!r}"
+    assert (pids / "npm-env.txt").read_text().strip() == "offline=true", (
+        f"npm_config_offline 没传到 npm: {(pids / 'npm-env.txt').read_text()!r}"
+    )
     step1 = next((ln for ln in r.stdout.splitlines() if ln.startswith("[1/6]")), "")
     assert "preflight: OK" in step1, f"秒级 build 被墙钟上限误杀: {r.stdout!r}"
     assert "main.js 已 build 并就位" in step1, step1
@@ -2808,13 +2828,49 @@ def test_preflight_npm_build_cap_does_not_kill_a_fast_build(tmp_path: Path):
     assert r.returncode == 72, f"应停在步 2（桩 installer）: rc={r.returncode}\n{r.stdout}"
 
 
-def test_preflight_npm_build_failure_is_not_reported_as_timeout(tmp_path: Path):
-    """对照：build 自己失败（rc=1，秒级）必须报**失败**而不是超时。
+@pytest.mark.parametrize(("mode", "port"), [("fail", "8253"), ("rc124", "8254")])
+def test_preflight_npm_build_failure_is_not_reported_as_timeout(tmp_path: Path, mode: str, port: str):
+    """对照：build 自己失败（秒级）必须报**失败**而不是超时。
 
     没有这一条，上面那条的「命中超时文案」可能只是因为脚本把任何 build 失败都叫超时。
+    ⛔ `rc124` 那一支是 Codex r1 MEDIUM-2 的回归门：超时信号若用退出码 124 承载，
+    则「npm 自己 exit 124」与「上限到点」无法区分 —— 现在超时走带外标记，两者分得开。
     """
-    h, pids = _npm_cap_harness(tmp_path, "fail")
-    r = _npm_cap_run(tmp_path, h, pids, "8253")
+    h, pids = _npm_cap_harness(tmp_path, mode)
+    r = _npm_cap_run(tmp_path, h, pids, port)
+    assert _npm_was_invoked(pids), f"假 npm 根本没被调到 ⇒ 没走到 build 分支: {r.stdout!r}"
     assert r.returncode == 71, f"步 1 应 FAIL(71): rc={r.returncode}\n{r.stdout}"
     assert "npm run build 失败" in r.stdout, f"未命中失败文案: {r.stdout!r}"
     assert "超时" not in r.stdout, f"build 失败被误报成超时 —— 文案分不出两种失败: {r.stdout!r}"
+
+
+@pytest.mark.parametrize(
+    ("cap", "port"),
+    [("0", "8255"), ("000", "8256"), ("4294967296", "8257"), ("abc", "8258")],
+)
+def test_preflight_rejects_cap_values_that_would_silently_disable_it(tmp_path: Path, cap: str, port: str):
+    """⛔ Codex r1 HIGH-1：能通过校验却让保护静默消失的取值必须被**拒**，不能放行。
+
+    Perl 的 `alarm 0` 是「取消闹钟」，超过 uint32 的值同样退化为 0（`4294967297` 则截断成
+    1 秒）。这些值若只按「非负整数」放行，脚本就悄悄退回「没有上限」——正是本卡要修的状态。
+    判据钉「步 1 FAIL 71 + 消息点名该变量」，并且**假 npm 不应被调到**（拒在 build 之前）。
+    """
+    h, pids = _npm_cap_harness(tmp_path, "hang")
+    try:
+        r = _npm_cap_run(tmp_path, h, pids, port, cap)
+    except subprocess.TimeoutExpired:
+        _reap(pids)
+        raise AssertionError(f"CLS_NPM_BUILD_TIMEOUT={cap!r} 被放行 ⇒ 假 npm 挂住了整跑（上限静默失效）")
+    _reap(pids)
+    assert r.returncode == 71, f"步 1 应 FAIL(71): rc={r.returncode}\n{r.stdout}"
+    assert "CLS_NPM_BUILD_TIMEOUT" in r.stdout, f"消息未点名该变量: {r.stdout!r}"
+    assert not _npm_was_invoked(pids), "取值非法时不该已经启动 build（应拒在调 npm 之前）"
+
+
+def test_preflight_accepts_leading_zero_cap(tmp_path: Path):
+    """控制组：`005` 是合法的 5 秒 —— 上一条不能靠「凡是含 0 就拒」蒙混过关。"""
+    h, pids = _npm_cap_harness(tmp_path, "fast")
+    r = _npm_cap_run(tmp_path, h, pids, "8259", "005")
+    assert _npm_was_invoked(pids), f"005 被误拒，build 没跑: {r.stdout!r}"
+    step1 = next((ln for ln in r.stdout.splitlines() if ln.startswith("[1/6]")), "")
+    assert "preflight: OK" in step1, f"合法取值 005 被误拒: {r.stdout!r}"
