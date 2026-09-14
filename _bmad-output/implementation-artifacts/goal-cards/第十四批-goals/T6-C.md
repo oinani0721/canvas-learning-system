@@ -20,7 +20,7 @@
 | **勘探→实测更正**：recon_C/§4 写 `recover_failed_writes :2679` → 实测 **:2687**；`_record_structured_outbox` 调用点 recon 写 `:1662` → 实测定义 **:502** / 唯一调用点 **:1665**；`main.py` 回填门 recon/§4 写 `:386` → 实测 **:387**（`if _worker_graphiti is not None:`；backfill 调用 `:392`）。⚠️ `main.py` 是 T6-B 地盘（`:386-404` 段），**本卡不碰 main.py**，此条仅为核对背景 | `grep -n 'async def recover_failed_writes' backend/app/services/memory_service.py`；`grep -n 'if _worker_graphiti is not None:' backend/app/main.py` |
 | **新测试落新文件（零重名）**：本卡新增 `backend/tests/unit/test_dead_letter_bounded_t6c.py`（写侧有界）与 `backend/tests/unit/test_traces_backlog_t6c.py`（`/traces` backlog + DATA_DIR）；**不改任何既有测试文件**（`test_failure_observability.py` 等不在本卡地盘）。端点测试用**裸 FastAPI app**（`app=FastAPI(); app.include_router(traces_router, prefix="/api/v1")`，无 lifespan ⇒ 不起 Neo4j、不连 7691），路径/常量用 `monkeypatch` 指 `tmp_path` | 本卡设计；§3 地盘 |
 | **openapi**：本卡新增只读路由 ⇒ `backend/openapi.json` 会漂。按合并队列 **本卡不 commit `openapi.json`**（`openapi.json` 是声明交集，主 session 在 T5-D/T6 后统一再生）；若候选/车道树跑 `tests/contract/test_openapi_snapshot_drift.py` 因新路由变红 = 预期，登记不阻断，**不自行再生 openapi** | b14_design §2「主 session 再生 openapi.json」；§3 openapi 声明交集 |
-| **本批纪律**（§0.2）：**pyright 保持 0**（`08100483` 上 `pyright app` = 0 errors / 81 warnings；本卡触及 `backend/app`，新增 error 本卡自清、`# pyright: ignore[rule] # 理由` 带一行理由、**禁 `LEFTHOOK_EXCLUDE=python-typecheck`**）；判据 grep git 输出一律 `--no-color` + 同次验伪锚；evidence `.txt` 不 `.log`；承重裁判末行 `rc=$pipestatus[1]`（zsh）；ruff 判据用 zsh 数组写法；**批中禁装工具**（不往共享 venv 装/升任何包）；`fsrs_bridge.py`/`decay_beta.py` 零写者；live vault / 7691 / 7687 / 现网 LanceDB 只读 | 协议 §2.2/§2.3；b14_design §0.2 |
+| **本批纪律**（§0.2）：**pyright 保持 0**（`08100483` 上 `pyright app` = 0 errors / 81 warnings；本卡触及 `backend/app`，新增 error 本卡自清、`# pyright: ignore[rule] # 理由` 带一行理由、**禁 `LEFTHOOK_EXCLUDE=python-typecheck`**）；判据里 git 输出一律 `git --no-pager <cmd> --no-color`（`--no-color` 是 **git** 的 flag，不是 grep 的；R-B14-11a）+ 同次验伪锚；判据块含 `exit` 一律包进 `( … )` 子 shell（R-B14-11b）；evidence `.txt` 不 `.log`；承重裁判末行 `rc=$pipestatus[1]`（zsh）；ruff 判据用 zsh 数组写法；**批中禁装工具**（不往共享 venv 装/升任何包）；`fsrs_bridge.py`/`decay_beta.py` 零写者；live vault / 7691 / 7687 / 现网 LanceDB 只读 | 协议 §2.2/§2.3；b14_design §0.2 |
 
 ## 一 完成条件（AND）
 - (a) **第 0 分钟**：`pwd` = `…/worktrees/card-t6-neo4j`、分支 `card/t6-neo4j`、`git status --porcelain` 空；**`T6B_TIP=$(git rev-parse HEAD)`** 落档（= T6-B 末 commit，本卡地盘核的前提基准）；`test -x backend/.venv/bin/pytest && test -e backend/.env`；开工先 `sed -n`/`grep -nF`/AST 逐条核 §〇 每个 file:line（行号漂移则在验收单写「卡文 :X → 实测 :Y」）。**开工基线自证**：`BASE=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/审查/evidence-b14/unit-red-baseline-08100483.txt`（**feature 主干树绝对路径，不在本车道树**）；`test -f "$BASE" && grep -vc '^#' "$BASE"` → **64**（不是 64 或文件不在 ⇒ 停下报主 session）。⚠️ 本卡在 T6-B 之上，T6-B 可能已引入若干 `<`/`>`；开工先跑一次 `tests/unit` 目录级与 `$BASE` diff 落档作为「T6-B 之后的起点」，本卡只对**本卡引入**负责（收工 diff 相对开工 diff 不得新增 `>`）。
@@ -43,25 +43,29 @@
 - (m) **「本卡未证明什么」必填（≥4）+「台账待登记条目」必填（≥4）**（见 §四）。
 
 ## 二 裁判命令
-> 树根先 `PYTEST=$(pwd)/backend/.venv/bin/pytest`；`EV=$(pwd)/_bmad-output/审查/evidence-neo4j-replay-bound`（**绝对路径**——承重裁判都带 `cd backend`，相对 `EV` 会解析成不存在的 `backend/_bmad-output/…`，`tee` 报 No such file、存档落不下来）；`mkdir -p $EV`；`BASE=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/审查/evidence-b14/unit-red-baseline-08100483.txt`（feature 主干树绝对路径，不在本树）。承重裁判一律 `2>&1 | tee $EV/<name>-$(date +%Y%m%dT%H%M%S).txt; echo rc=$pipestatus[1]`（zsh；`.txt` 不 `.log`）。grep git 输出一律 `--no-color` + 同次验伪锚。
+> 树根先 `PYTEST=$(pwd)/backend/.venv/bin/pytest`；`EV=$(pwd)/_bmad-output/审查/evidence-neo4j-replay-bound`（**绝对路径**——承重裁判都带 `cd backend`，相对 `EV` 会解析成不存在的 `backend/_bmad-output/…`，`tee` 报 No such file、存档落不下来）；`mkdir -p $EV`；`BASE=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/审查/evidence-b14/unit-red-baseline-08100483.txt`（feature 主干树绝对路径，不在本树）。承重裁判一律 `2>&1 | tee $EV/<name>-$(date +%Y%m%dT%H%M%S).txt; echo rc=$pipestatus[1]`（zsh；`.txt` 不 `.log`）。判据里 git 输出一律 `git --no-pager <cmd> --no-color`（`--no-color` 是 git 的 flag，不是 grep 的；R-B14-11a）+ 同次验伪锚；判据块含 `exit` 一律包进 `( … )` 子 shell，`exit 1` 只退子 shell（R-B14-11b；§二.5 / §二.6 已包）。
 1. **状态 + §〇 逐字核**：`git rev-parse HEAD` 落档为 `$T6B_TIP`（= T6-B 末 commit）；`git status --porcelain | wc -l` → 0；`test -f "$BASE" && grep -vc '^#' "$BASE"` → 64；`grep -nF 'def write_dead_letter' backend/app/core/failure_counters.py`（:73）/ `grep -nF 'with open(FAILED_WRITES_FILE, "a"' backend/app/services/memory_service.py`（:516/:2872）/ `sed -n '17p;20,25p;50p' backend/app/api/v1/endpoints/traces.py` 与 §〇 原文一致；`python3 -c "from pathlib import Path;p=Path('backend/app/api/v1/endpoints/traces.py').resolve();print(p.parent.parent.parent.parent.name, (p.parent.parent.parent.parent/'data').exists())"`（改前末段名 `app`，backlog 依赖改后指 `backend/data`）。
 2. **先红 → 后绿**（改前改后各一次，同命令）：`cd backend && PYTHONDONTWRITEBYTECODE=1 $PYTEST -q -p no:cacheprovider tests/unit/test_dead_letter_bounded_t6c.py tests/unit/test_traces_backlog_t6c.py`；改前 → (b)(c)(d) 指定断言 `FAILED`（验伪锚「未超限不轮转」「不存在文件不崩」须 `passed`），rc=1；改后 → 全 `passed`，rc=0。两跑都 tee。
 3. **邻近套件**：`cd backend && PYTHONDONTWRITEBYTECODE=1 $PYTEST -q -p no:cacheprovider tests/unit/test_failure_observability.py tests/unit/test_a7_honest_failure.py tests/unit/test_story_38_1_ac2_failure_handling.py` → 0 failed（开工/收工各一次，passed 数对比）。
 4. **负控输入**：(g) 两段各 tee（`negctl-1-<ts>.txt`/`negctl-2-<ts>.txt`）→ 指定断言 `FAILED` 且红在对应消息；每段 `shasum -a 256` 改动文件跑前/跑后两行逐字同（都贴）。
 5. **pyright 保持 0**（⛔ 绝对路径 + `test -x` 自证，禁 `| tail -1`）：
    ```zsh
-   P=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/bin/pyright
-   test -x "$P" || { echo "pyright 缺席"; exit 1; }
-   (cd backend && "$P" app) 2>&1 | tee $EV/pyright-$(date +%Y%m%dT%H%M%S).txt | grep -E '^[0-9]+ errors?, '
+   (
+     P=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/bin/pyright
+     test -x "$P" || { echo "pyright 缺席"; exit 1; }
+     (cd backend && "$P" app 2>&1 | tee $EV/pyright-$(date +%Y%m%dT%H%M%S).txt | grep -E '^[0-9]+ errors?, ')
+   )
    ```
-   → 末行 `0 errors, …`（warnings 与基线 81 持平或更少）。
+   → 末行 `0 errors, …`（warnings 与基线 81 持平或更少）。整块包 `( … )` 子 shell（R-B14-11b）：`exit 1` 只退子 shell，不关车道自己的交互 zsh；cwd=`backend/`（R-B14-10，`pyrightconfig.json` 在仓根、汇总行只在 `cd backend` 下可得）。
 6. **ruff（zsh 数组，验伪锚）**：
    ```zsh
-   F=(${(f)"$(git diff --name-only --no-color --diff-filter=AM "$T6B_TIP" HEAD -- 'backend/**/*.py')"})
-   print -r -- "files=${#F}"; (( ${#F} )) || exit 1
-   backend/.venv/bin/ruff check -- "${F[@]}"; echo rc=$?
+   (
+     F=(${(f)"$(git diff --name-only --no-color --diff-filter=AM "$T6B_TIP" HEAD -- 'backend/**/*.py')"})
+     print -r -- "files=${#F}"; (( ${#F} )) || { echo "无改动的 backend py 文件"; exit 1; }
+     backend/.venv/bin/ruff check -- "${F[@]}"; echo rc=$?
+   )
    ```
-   → rc=0（验伪锚：另喂一个已知含 F401 的临时文件必 rc=1）。
+   → rc=0（验伪锚：另喂一个已知含 F401 的临时文件必 rc=1）。整块包 `( … )` 子 shell（R-B14-11b）：`(( ${#F} )) || exit 1` 在交互 zsh 里裸跑会直接关掉车道自己的 shell，子 shell 内 `exit 1` 只退子 shell。
 7. **地盘门**：`git diff --name-only --no-color "$T6B_TIP" HEAD -- . ':(exclude)_bmad-output'` ⊆ 六文件集（§一 (l)）；验伪锚：去掉 `':(exclude)_bmad-output'` 应多出 `_bmad-output/` 行。⚠️ `backend/openapi.json` **不得**出现在该集里（本卡不 commit）。
 8. **目录级**：`TS=$(date +%Y%m%dT%H%M%S); RUN=$EV/unit-close-$TS.txt`（开工同法 `unit-open-$TS.txt`）；`cd backend && PYTHONDONTWRITEBYTECODE=1 $PYTEST tests/unit --ignore tests/unit/test_deploy_vault_sh.py -q -p no:cacheprovider 2>&1 | tee $RUN; echo rc=$pipestatus[1] | tee -a $RUN`；`grep -E '^(FAILED|ERROR) tests/' $RUN | sed 's/ - .*//' | sort -u > $EV/close.nodeids`；与**开工那跑**的 `open.nodeids` `diff` → 不得新增 `>`。⛔ 判据里固定成变量单文件（禁 `grep … unit-close-*.txt` glob——多份会加文件名前缀污染）。
 9. **Codex 后**：`git diff --stat --no-color <审SHA> HEAD -- . ':(exclude)_bmad-output'` → 空；存档首部 `模型 / reasoning_effort / codex` 三字段齐（model 行必是 `gpt-6-astra`）；`grep -c` 任何旧模型名（非 `gpt-6-astra`）于存档 → 0。

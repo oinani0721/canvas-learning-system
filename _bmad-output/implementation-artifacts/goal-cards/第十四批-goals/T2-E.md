@@ -17,7 +17,7 @@
 | **⑥ M-2 源码门其余两处（UAT §十一.29）**：test 内源码门用 `src.count(...)` 计数形态——`:1194` `count("local -a PENDING_WRITES=(")==1`（清单元素被替换：计数挡不住等长替换）、`:1225/:1228/:1234` `count("open_pinned(")==2`/`count("write_all(fd, ")==2`/`count("os.ftruncate(fd, 0)")==2`（ftruncate 前置顺序 / 数组丢引号：计数不查语义/顺序）。三退化里 M-4 已回应，**其余两处（ftruncate 前置顺序 + 数组丢引号 或 清单元素等长替换）计数门仍可存活** | `sed -n '1190,1236p' backend/tests/unit/test_deploy_vault_sh.py` |
 | **⑦ M-3 tr -d（UAT §十一.29）**：`:736` `have="$(printf '%s' "$line" \| cut -d= -f2- \| tr -d '"'"'" \| tr -d '\r')"`——`tr -d` 删**值内全部** `"` 与 `'`，含 `O'Brien` 的合法父路径（如 `VAULTS_ROOT=/Users/O'Brien/vaults`）会被剥成 `/Users/OBrien/vaults` ⇒ `have != v` ⇒ A3「已有 .env 与参数矛盾」误拒 rc 73（:737-739 `STEP_MSG`） | `sed -n '734,739p' scripts/deploy-vault.sh` |
 | **⑧ M-5 变异存档方法学（UAT §十一.29）**：「红集总量相同不证明事件来源相同」——负控/变异存档须每条绑 nodeid + 断言消息片段 + 变异前 `sha256` + 逐字节还原核对（不能只贴摘要与红集总数）。既有「车道负控」承担端到端（test:1528 注释「端到端由车道负控承担，不在 pytest 里」） | `sed -n '1525,1532p' backend/tests/unit/test_deploy_vault_sh.py` |
-| **本批纪律**：本卡**不触及 `backend/app`**（改的是 `scripts/**` 与 `backend/tests/unit/**`）⇒ **不跑 pyright、不在 pyright `app`=0 门面内**；`python-typecheck` hook glob 仅覆盖 `backend/app`，若异常触发本卡改的 .py 报错 = 按本卡自己清（不得 `LEFTHOOK_EXCLUDE`）。改了 `backend/tests/unit/test_deploy_vault_sh.py`（.py）⇒ lefthook `python-lint`（ruff）会跑：判据用 **zsh 数组写法**（§二.5）；**若本卡也改 `scripts/cls_forbidden_paths.py`**（④ 条件性），`python-lint` glob `{backend,src,scripts}/*.py` 同样对它跑 `ruff check` + **`ruff format --check`**（scripts/ 的 ruff.toml `select=[]`，真门是 `ruff format --check`）——ruff 判据 pathspec 须同时覆盖 `backend/**/*.py` 与 `scripts/*.py`（§二.5）。判据 grep git 输出一律 **`--no-color`** + 同次验伪锚；evidence 用 **`.txt` 不 `.log`**（仓根 `.gitignore` 吞 `*.log`）；承重裁判末行 **`rc=$pipestatus[1]`**（zsh）。**批中禁装/升任何工具**（不碰共享 venv、不升 lefthook）。`fsrs_bridge.py` / `decay_beta.py` ⛔ 零写者；live vault `canvas-vault/**` / 7691 / 7687 / 现网 LanceDB 只读 | 手册 §零；协议 §2.2 |
+| **本批纪律**：本卡**不触及 `backend/app`**（改的是 `scripts/**` 与 `backend/tests/unit/**`）⇒ **不跑 pyright、不在 pyright `app`=0 门面内**；`python-typecheck` hook glob 仅覆盖 `backend/app`，若异常触发本卡改的 .py 报错 = 按本卡自己清（不得 `LEFTHOOK_EXCLUDE`）。改了 `backend/tests/unit/test_deploy_vault_sh.py`（.py）⇒ lefthook `python-lint`（ruff）会跑：判据用 **zsh 数组写法**（§二.5）；**若本卡也改 `scripts/cls_forbidden_paths.py`**（④ 条件性），`python-lint` glob `{backend,src,scripts}/*.py` 同样对它跑 `ruff check` + **`ruff format --check`**（scripts/ 的 ruff.toml `select=[]`，真门是 `ruff format --check`）——ruff 判据 pathspec 须同时覆盖 `backend/**/*.py` 与 `scripts/*.py`（§二.5）。判据里 **git** 输出一律 `git --no-pager <cmd> --no-color` + 同次验伪锚（`--no-color` 是 **git** 的 flag、不是 grep 的，写成 `grep --no-color` = grep 报错退出 = 假绿/假红，R-B14-11a）；含 `exit 1` 的判据块一律包进 `( … )` 子 shell（R-B14-11b，见 §二.5）；evidence 用 **`.txt` 不 `.log`**（仓根 `.gitignore` 吞 `*.log`）；承重裁判末行 **`rc=$pipestatus[1]`**（zsh）。**批中禁装/升任何工具**（不碰共享 venv、不升 lefthook）。`fsrs_bridge.py` / `decay_beta.py` ⛔ 零写者；live vault `canvas-vault/**` / 7691 / 7687 / 现网 LanceDB 只读 | 手册 §零；协议 §2.2 |
 
 ## 一 完成条件（AND）
 
@@ -78,13 +78,16 @@ diff "$EV/base.nodeids" "$EV/close.nodeids"   # 只允许 '<' 行；任何 '>' =
 # ⛔ 禁用写法：grep … $EV/unit-close-*.txt（多份存档时 grep 会加文件名前缀，整份作废、diff 全变 '>' 假阻断）
 
 # 5) ruff（zsh 数组写法；本卡改 test .py，条件性改 scripts/cls_forbidden_paths.py）——协议 §2.2 + lefthook python-lint glob {backend,src,scripts}/*.py
-cd "$(git rev-parse --show-toplevel)"   # ruff 用相对 venv 路径，回 worktree 根（gate4 的 cd backend 带偏会 fail-closed）
-F=(${(f)"$(git diff --name-only --diff-filter=AM "$T2D" HEAD -- 'backend/**/*.py' 'scripts/*.py')"})
-print -r -- "files=${#F}"; (( ${#F} )) || { echo "零文件 ⇒ fail-closed"; exit 1; }
-backend/.venv/bin/ruff check -- "${F[@]}"; echo "check_rc=$?"
-backend/.venv/bin/ruff format --check -- "${F[@]}"; echo "format_rc=$?"   # scripts/ 的真门是 format --check（lefthook 同跑），ruff check 对 scripts/ 近空操作（ruff.toml select=[]）
-# 验伪锚（承重）：喂一个已知含 F401 的文件必 check_rc=1
-# backend/.venv/bin/ruff check -- <known-F401-file>; echo "falsify_rc=$?"   # 1
+cd "$(git rev-parse --show-toplevel)"   # ruff 用相对 venv 路径，回 worktree 根（gate4 的 cd backend 带偏会 fail-closed）；cd 留在子 shell 外，后面 6)/8) 的相对路径靠它
+# ⛔ R-B14-11b：含 `exit 1` 的判据块一律包进 ( … ) 子 shell——交互 zsh 里裸 `|| { …; exit 1; }` 会直接关掉车道自己的 shell；exit 只退子 shell，父 shell 的 $EV/$BASE/$T2D 不受影响
+(
+  F=(${(f)"$(git diff --name-only --diff-filter=AM "$T2D" HEAD -- 'backend/**/*.py' 'scripts/*.py')"})
+  print -r -- "files=${#F}"; (( ${#F} )) || { echo "零文件 ⇒ fail-closed"; exit 1; }
+  backend/.venv/bin/ruff check -- "${F[@]}"; echo "check_rc=$?"
+  backend/.venv/bin/ruff format --check -- "${F[@]}"; echo "format_rc=$?"   # scripts/ 的真门是 format --check（lefthook 同跑），ruff check 对 scripts/ 近空操作（ruff.toml select=[]）
+  # 验伪锚（承重）：喂一个已知含 F401 的文件必 check_rc=1
+  # backend/.venv/bin/ruff check -- <known-F401-file>; echo "falsify_rc=$?"   # 1
+); echo "ruff_block_rc=$?"   # 1 = 零文件 fail-closed 触发；0 只表示块跑完，ruff 结论看上面 check_rc / format_rc 两行
 
 # 6) 地盘门（--no-color + 验伪锚）
 git diff --stat --no-color "$T2D" HEAD -- . ':(exclude)_bmad-output'
@@ -108,6 +111,7 @@ done   # 每一份各 ≥1（协议 §2.1 首部 model 行；缺 = 该轮不计�
 
 - ⛔ `':(exclude)_bmad-output'` 写法（`':!…'` 在 zsh / git 2.50 下报 `Unimplemented pathspec magic`、rc=128、stdout 空 ⇒「为空即绑定」会把没跑成读成绿，协议 §1）。
 - 承重裁判一律 `2>&1 | tee $EV/<name>-$(date +%Y%m%dT%H%M%S).txt; echo rc=$pipestatus[1]`；`.txt` 不 `.log`。
+- ⛔ 任何 `|| { …; exit 1; }` 形态的 fail-closed 判据（§二.5 ruff 块，以及车道自己照协议模板新写的）都必须整块包进 `( … )` 子 shell 再跑——裸写会在交互 zsh 里把车道的 shell 关掉（R-B14-11b，T2-E 修正者实测）。
 - 变异/负控（b/c/e/f）每段：跑前跑后全文件 `shasum -a 256` 两行逐字节同；EXIT/`try...finally` 无条件还原；**禁 `git stash` / 禁 `git checkout HEAD -- <path>`**（用副本或 `git show HEAD:<path> > <tmp>` 比对）。
 
 ## 三 禁改与隔离
