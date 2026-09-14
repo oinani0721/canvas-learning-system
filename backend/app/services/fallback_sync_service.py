@@ -46,15 +46,25 @@ _CHECKPOINT_INTERVAL = 50
 #: **进度语义版本** —— checkpoint 存的下标只在同一「切行口径 + 游标语义」下有意义。
 #: 变更这个值的条件: 改动 :meth:`_sync_failed_writes` 的切行方式**或**游标推进规则。
 #:
-#: 历史:
-#:   (无标记)              本卡之前: splitlines() 切行 + 游标按「已**尝试**」推进
-#:   "split-lf"            CARD-NEO4J-REPLAY-WIRE r3: 改 split("\n") (U+2028 修复)
-#:   "split-lf+contiguous" 同卡 r5 整改: 游标只推进到**连续成功前缀**
+#: 变更条件有三类, 缺一不可: 改**切行方式**、改**游标推进规则**、
+#: 或改**「什么算一条成功」的判定**。第三类最容易被漏掉 —— 见下面 r8 那一行。
 #:
-#: ⛔ 读到任何不等于当前值的标记 (含 "split-lf" 与无标记) 一律**回退到 0**:
-#: 那些游标是按「已尝试」语义写下的, **无法证明其前缀全部成功** —— 沿用它就会
-#: 跳过从未成功的条目 (Codex round-5 HIGH)。理由与代价见 :meth:`_load_checkpoint`。
-_PROGRESS_VERSION = "split-lf+contiguous"
+#: 历史:
+#:   (无标记)                      本卡之前: splitlines() 切行 + 游标按「已**尝试**」推进
+#:   "split-lf"                    CARD-NEO4J-REPLAY-WIRE r3: 改 split("\n") (U+2028 修复)
+#:   "split-lf+contiguous"         同卡 r5: 游标只推进到**连续成功前缀**
+#:   "split-lf+contiguous+history" 同卡 r8: **成功条件收紧** —— r7 之前
+#:                                 `record_score_history` 失败仍算整条成功;
+#:                                 现在它失败/拒写则整条判失败 (r7 HIGH-4)。
+#:
+#: ⛔ 读到任何不等于当前值的标记一律**回退到 0**。
+#: r8 这一版尤其要紧 (Codex round-8 HIGH-1, 本卡修复遗漏):
+#:   负控 —— r7 之前前 50 条 LEARNED 成功、其中一条评分历史失败但**仍被记成成功**,
+#:   于是存下 `index=50, progress_version="split-lf+contiguous"`; 升级后该标记
+#:   在旧口径下仍"有效", 那条缺历史的条目被跳过并随文件轮转出队。
+#:   r7 的 `return False` 只修好**重新执行**的记录, 覆盖不到**已被旧游标跳过**的。
+#:   ⇒ 成功条件一变, 按旧条件写下的游标就必须作废。
+_PROGRESS_VERSION = "split-lf+contiguous+history"
 
 #: 整次回灌的互斥锁（Codex round-6 HIGH-2）。
 #:
@@ -142,8 +152,14 @@ class FallbackSyncService:
                 "error": str(e),
             }
 
-        total_recovered = sum(v.get("recovered", 0) for v in result.values() if isinstance(v, dict))
-        total_pending = sum(v.get("pending", 0) for v in result.values() if isinstance(v, dict))
+        chains = [v for v in result.values() if isinstance(v, dict)]
+        total_recovered = sum(v.get("recovered", 0) for v in chains)
+        # ⚠️ pending == -1 是「数不出来」的哨兵 (finalize 读不到文件时), **不能直接
+        # 累加** —— 那会让它把别的链的真实待回灌数抵消掉, 甚至算出负数。
+        # 有任何一条链未知 ⇒ 总数就是未知, 如实打 "unknown" 而不是编一个数字。
+        known = [v.get("pending", 0) for v in chains if v.get("pending", 0) >= 0]
+        unknown = [k for k, v in result.items() if isinstance(v, dict) and v.get("pending", 0) < 0]
+        total_pending: Any = sum(known) if not unknown else f"≥{sum(known)} (+{','.join(unknown)} unknown)"
         logger.info(f"[Story 38.8] Fallback sync complete: {total_recovered} replayed, {total_pending} still pending")
 
         return result
@@ -254,8 +270,13 @@ class FallbackSyncService:
     # 1. failed_writes.jsonl sync
     # ─────────────────────────────────────────────────────────────────────
 
-    async def _sync_failed_writes(self) -> Dict[str, int]:
-        """Replay scoring failures from failed_writes.jsonl to Neo4j."""
+    async def _sync_failed_writes(self) -> Dict[str, Any]:
+        """Replay scoring failures from failed_writes.jsonl to Neo4j.
+
+        返回 ``{"recovered": int, "pending": int}``；finalize 无法完成时额外带
+        ``"error": str``，且 ``pending`` 可能是 **-1**（= 数不出来，见
+        Codex round-8 MEDIUM-4）。故标注是 ``Dict[str, Any]`` 而非 ``Dict[str, int]``。
+        """
         if not FAILED_WRITES_FILE.exists():
             return {"recovered": 0, "pending": 0}
 
@@ -357,7 +378,12 @@ class FallbackSyncService:
                     e,
                     len(still_pending),
                 )
-                return {"recovered": recovered, "pending": len(still_pending)}
+                # ⚠️ 带 error 键 + pending=-1 表「未知」(Codex round-8 MEDIUM-4):
+                # main.py 的启动汇总按「有没有 error 键」判这条链出没出问题;
+                # 不带的话 finalize 失败会被打成「正常完成、零待回灌」—— 正是本卡
+                # r1 整改②消灭的那类伪装在新路径上重现。读不到当前文件就数不出
+                # 还剩多少, 报确切数字等于编造。
+                return {"recovered": recovered, "pending": -1, "error": f"finalize re-read failed: {e}"}
 
             merged = still_pending + new_lines
             # ⛔ 先清游标再改写 (Codex round-6 HIGH-1: 文件代际错配):
@@ -377,7 +403,7 @@ class FallbackSyncService:
                     e,
                     len(still_pending),
                 )
-                return {"recovered": recovered, "pending": len(still_pending)}
+                return {"recovered": recovered, "pending": len(merged), "error": f"cannot clear checkpoint: {e}"}
 
             if merged:
                 self._atomic_write_file(
@@ -389,13 +415,15 @@ class FallbackSyncService:
 
         self._cleanup_old_synced_files(FAILED_WRITES_FILE.parent, FAILED_WRITES_FILE.stem)
 
-        return {"recovered": recovered, "pending": len(still_pending)}
+        # pending = 文件里实际剩下几条(含重放期间新追加的), 不是「本轮试过几条失败」
+        # —— 与 canvas 链同口径 (Codex round-8 MEDIUM-4)。
+        return {"recovered": recovered, "pending": len(merged)}
 
     # ─────────────────────────────────────────────────────────────────────
     # 2. canvas_events_fallback.json sync
     # ─────────────────────────────────────────────────────────────────────
 
-    async def _sync_canvas_events(self) -> Dict[str, int]:
+    async def _sync_canvas_events(self) -> Dict[str, Any]:
         """Replay Canvas CRUD events to Neo4j."""
         if not CANVAS_EVENTS_FALLBACK_FILE.exists():
             return {"recovered": 0, "pending": 0}
@@ -457,7 +485,11 @@ class FallbackSyncService:
                 e,
                 len(still_pending),
             )
-            return {"recovered": recovered, "pending": len(still_pending)}
+            # ⚠️ 带 error 键 (Codex round-8 MEDIUM-4): main.py 的启动汇总按
+            # 「有没有 error 键」判这条链是否出过问题; 不带的话 finalize 失败会被
+            # 打成「正常完成」—— 正是本卡 r1 整改②消灭的那类伪装在新路径上重现。
+            # pending 用 -1 明确表达「未知」: 读不到当前文件就数不出还剩多少。
+            return {"recovered": recovered, "pending": -1, "error": f"finalize re-read failed: {e}"}
 
         appended = [e for e in current_events if self._event_fingerprint(e) not in seen]
         merged = still_pending + appended
@@ -474,7 +506,11 @@ class FallbackSyncService:
             CANVAS_EVENTS_FALLBACK_FILE.stem,
         )
 
-        return {"recovered": recovered, "pending": len(still_pending)}
+        # ⚠️ pending 必须含 appended (Codex round-8 MEDIUM-4): 负控 —— x 全部成功、
+        # 重放期间追加 z, finalize 正确保留了 [z], 却报 pending=0 ⇒ 启动汇总打成
+        # 「回灌 N 条, 0 条待回灌」, 而文件里明明还躺着一条没重放的。
+        # 「文件里还剩几条」才是待回灌数, 不是「本轮试过几条失败」。
+        return {"recovered": recovered, "pending": len(merged)}
 
     @staticmethod
     def _event_fingerprint(event: Dict[str, Any]) -> str:

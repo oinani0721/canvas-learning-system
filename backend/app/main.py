@@ -424,8 +424,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 if replay.get("skipped"):
                     logger.info(f"[T6-B] 启动回灌跳过: {replay.get('reason')}")
                 else:
-                    _rec = sum(v.get("recovered", 0) for v in replay.values() if isinstance(v, dict))
-                    _pend = sum(v.get("pending", 0) for v in replay.values() if isinstance(v, dict))
+                    _chains = [v for v in replay.values() if isinstance(v, dict)]
+                    _rec = sum(v.get("recovered", 0) for v in _chains)
+                    # ⚠️ pending == -1 是「数不出来」的哨兵 (finalize 读不到文件),
+                    # 不能直接累加 —— 会抵消别的链的真实待回灌数甚至算出负数。
+                    # 有未知就如实说未知 (fallback_sync_service 同口径)。
+                    _known = [v.get("pending", 0) for v in _chains if v.get("pending", 0) >= 0]
+                    _unknown = [k for k, v in replay.items() if isinstance(v, dict) and v.get("pending", 0) < 0]
+                    _pend = sum(_known) if not _unknown else f"≥{sum(_known)} (+{','.join(_unknown)} 数不出)"
                     # sync_all_fallbacks 对子同步异常是**以返回值报告失败**的:
                     # 它把异常吞进 {"recovered":0,"pending":0,"error":...}。只对
                     # recovered/pending 求和 ⇒ 三条链全炸也会打成「回灌 0 条,
