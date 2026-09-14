@@ -101,18 +101,25 @@ _FINAL_RE = re.compile(
 #: ``if m:`` **静默丢弃**，身份集变空、CLI 照样判一致 —— 那是假绿。
 _BODY_RE = re.compile(r"^- (?P<addr>.+?) on thread (?P<thread>.+?) \(owner=", re.ASCII)
 
-#: **被换行截断**的记录行：`- <addr> on thread` 之后什么都没有。
-#: 线程名里若含 ``\n``（``threading.Thread(name=...)`` 允许），整条记录会被切成两半，
-#: 首半段恰好止于 ``on thread``（Codex round-2 HIGH-3）。这一半必须拒判。
-_BODY_TRUNCATED_RE = re.compile(r"^- .* on thread\s*$", re.ASCII)
-
-#: **孤儿续行**：含 ``(owner=`` 却不是以 ``- `` 开头的记录行 —— 多半是上一条被换行切开后
-#: 掉队的后半截。同样必须拒判。
+#: 记录**块抬头**：三个产出点都在遍历记录之前**自报本块条数**。这是本模块唯一
+#: 用来定位记录的锚 —— 不再扫全文猜「哪行像记录 / 哪行像坏掉的记录」。
 #:
-#: ⛔ 为什么不用宽松的 ``^- .* on thread `` 当候选（初版做法，Codex round-2 MEDIUM-3）：
-#: 那会把 captured stdout 里的普通日志 ``- waiting on thread worker`` 也当成畸形记录 ⇒ 假红。
-#: 这两条规则只认**截断痕迹**与**孤儿痕迹**，不去猜「这行像不像哨兵记录」。
-_BODY_ORPHAN_RE = re.compile(r"^(?!- ).*\(owner=", re.ASCII)
+#: ⛔ 为什么换掉前两版的「痕迹判定」（Codex round-1/2/3 连打三轮同一处）：
+#: r1 用 ``\S+`` ⇒ 含空格线程名静默丢失；r2 用「像不像记录」的宽松候选 ⇒ 普通日志假红
+#: （MEDIUM-3）；r3 用「截断痕迹 + 孤儿痕迹」⇒ ``worker\n- continued``、空线程名、
+#: ``地址\n- 续段``、owner 前截断 **四类**仍然两条痕迹都不命中 ⇒ 假绿。
+#: 三轮都栽在同一件事上：**开放式地判断「这行坏没坏」永远补不完**。
+#: 换成闭合判据：**只读被自报过条数的块，那 N 行必须逐行解析成功**，
+#: 少一行、多一行、有一行解析不出 —— 一律拒判；块外的行根本不看（假红也一并消失）。
+#:
+#: 抬头 A（``live_port_guard`` 最终总账）：条数 = ``unaccounted``，即 :data:`_FINAL_RE` 第 2 组。
+#: 抬头 B（根 ``conftest`` 无人结账）与 C（``format_sentinel`` 本用例）：条数在抬头自身。
+_BLOCK_HEAD_B_RE = re.compile(r"^\*\*\* .*? —— (0|[1-9][0-9]*) 次拦截无人结账", re.ASCII)
+_BLOCK_HEAD_C_RE = re.compile(
+    r"^live Neo4j port connect attempted —— 本用例期间有 (0|[1-9][0-9]*) "
+    r"次到现网 Neo4j 的连接尝试被拦下。$",
+    re.ASCII,
+)
 
 #: ``asyncio-portal-<hex>``：hex 是对象地址，**每跑不同**。归一成类别名。
 _PORTAL_RE = re.compile(r"^(asyncio-portal)-[0-9a-f]+$", re.ASCII)
@@ -213,6 +220,26 @@ def blocked_count(text: str) -> int | None:
     return final
 
 
+def _declared_record_blocks(lines: list[str]) -> list[tuple[int, int]]:
+    """找出全部「自报了条数的记录块」：返回 ``(抬头行下标, 自报条数)``。
+
+    三个产出点（更正③）各自的抬头见 :data:`_BLOCK_HEAD_B_RE` / :data:`_BLOCK_HEAD_C_RE`
+    与 :data:`_FINAL_RE`。抬头 A 的条数是 ``unaccounted`` —— 它遍历的是
+    ``ledger["unaccounted_records"]``，**不是** blocked 全集，别拿 blocked 去对。
+    """
+    heads: list[tuple[int, int]] = []
+    for i, raw in enumerate(lines):
+        line = raw.strip()
+        m = _FINAL_RE.match(line)
+        if m:
+            heads.append((i, int(m.group(2))))  # 第 2 组 = unaccounted
+            continue
+        m = _BLOCK_HEAD_B_RE.match(line) or _BLOCK_HEAD_C_RE.match(line)
+        if m:
+            heads.append((i, int(m.group(1))))
+    return heads
+
+
 def failure_body_identities(text: str) -> set[str]:
     """失败正文的**身份**集合：``<address> on thread <归一后的线程名>``。
 
@@ -220,23 +247,68 @@ def failure_body_identities(text: str) -> set[str]:
     并把线程名里每跑不同的对象地址归一（见 :func:`normalise_thread`）。
 
     只判**集合**不判条数：同一条记录可被三个产出点中的两个各印一次（更正③）。
+    所以**跨块**不比条数；条数只在**块内**与该块抬头自报的数对账。
+
+    ⛔ 判定方式（Codex round-3 HIGH-1 后重写，第三次改这里）：
+    **只读被抬头自报过条数的块**，块内第一条 ``- `` 行起连取 N 行，这 N 行必须
+    **逐行**匹配 :data:`_BODY_RE`；任何一行不匹配、或紧随其后还有一行也是记录，
+    一律 :class:`W4LedgerConflict`（CLI rc=2）。块外的行**根本不看**。
+
+    这条换掉了前三版「扫全文判断某行坏没坏」的开放式规则。那种规则被连续三轮
+    各证伪一次（``\\S+`` / 宽松候选 / 截断+孤儿痕迹），每次都是「换个输入又活过来」：
+    ``worker\n- continued`` 的续段以 ``- `` 开头逃过孤儿检查、空线程名两条痕迹都不命中、
+    ``地址\n- 续段`` 让前半段消失而后半段自成一条合法记录、owner 前截断整行被丢。
+    **开放式地枚举「坏法」补不完；闭合地要求「块内必须恰好 N 行且行行可解析」才补得完。**
+
+    代价（如实写在这里）：抬头文案若被改动，本函数会**看不见**那个块 —— 方向是
+    「记录消失」而不是「记录错认」，故末尾对 ``blocked > 0 却一个块都没有`` 另设拒判。
     """
+    lines = _lines(text)
     out: set[str] = set()
-    unparsed: list[str] = []
-    for raw in _lines(text):
-        line = raw.strip()
-        m = _BODY_RE.match(line)
-        if m:
+    blocks = _declared_record_blocks(lines)
+
+    for head_idx, declared in blocks:
+        if declared == 0:
+            # ⛔ 抬头 A 的第二个触发分支（``unaccounted > 0 or (blocked > 0 and status == 0)``）
+            #    会打出 ``unaccounted=0`` 的抬头、后面零条记录。此时**不得向前扫** ——
+            #    扫过去会撞上别处的记录行，判成「自报条数与实际不符」⇒ 假红。
+            #    自报 0 条就是没有记录要读，也就没有什么要对账。
+            continue
+        # 抬头与记录之间允许有固定的说明行（format_sentinel 有两行），
+        # 但一进入记录区（第一条 `- ` 行）就必须连续。
+        i = head_idx + 1
+        while i < len(lines) and not lines[i].strip().startswith("- "):
+            if _declared_record_blocks([lines[i]]):  # 撞上下一个抬头 ⇒ 本块零记录区
+                break
+            i += 1
+        taken = [lines[j].strip() for j in range(i, min(i + declared, len(lines)))]
+        if len(taken) < declared:
+            raise W4LedgerConflict(
+                f"记录块自报 {declared} 条，但存档只剩 {len(taken)} 行 —— "
+                f"存档被截断，不得当作『就这么多记录』：抬头={lines[head_idx].strip()[:80]!r}"
+            )
+        parsed = [_BODY_RE.match(ln) for ln in taken]
+        if not all(parsed):
+            bad = [ln for ln, m in zip(taken, parsed) if not m]
+            raise W4LedgerConflict(
+                f"记录块自报 {declared} 条，其中 {len(bad)} 行解析不出身份 —— "
+                f"不得当作『没有这条记录』静默放过：{bad[:3]}"
+            )
+        nxt = i + declared
+        if nxt < len(lines) and _BODY_RE.match(lines[nxt].strip()):
+            raise W4LedgerConflict(
+                f"记录块自报 {declared} 条，紧随其后还有一条记录行 —— 自报条数与实际不符：{lines[nxt].strip()[:80]!r}"
+            )
+        for m in parsed:
             out.add(f"{m.group('addr')} on thread {normalise_thread(m.group('thread'))}")
-        elif _BODY_TRUNCATED_RE.match(line) or _BODY_ORPHAN_RE.match(line):
-            # ⛔ 看得出被截断 / 是孤儿续行 ⇒ **不得静默丢弃**（Codex round-1 HIGH-3、round-2 HIGH-3）。
-            #    每一个 `if 匹配成功:` 都藏着一个未写的 else，而那个 else 通常就是假绿。
-            unparsed.append(line)
-    if unparsed:
-        raise W4LedgerConflict(
-            f"有 {len(unparsed)} 条看起来是失败正文、却解析不出身份的行 —— "
-            f"不得当作『没有这条记录』静默放过：{unparsed[:3]}"
-        )
+
+    if not blocks:
+        blocked = blocked_count(text)
+        if blocked:
+            raise W4LedgerConflict(
+                f"账面记着 blocked={blocked}，却一个自报条数的记录块都没有 —— "
+                "存档被截断或抬头文案已漂，身份集为空不代表没有记录"
+            )
     return out
 
 
@@ -262,12 +334,20 @@ def _describe(path: str) -> tuple[str, object, object, object]:
     """读一份存档，返回 ``(path, blocked, quad, bodies)``。
 
     ⛔ 必须把**四元组**也带出来（Codex round-1 HIGH-1）：初版只返回 ``blocked`` 与 bodies，
-    于是 ``advisory=12``（12 次**放行**到现网的真连接）与全零档被判成一致。
+    于是 ``advisory=12``（12 次到现网的连接尝试**被放行**，是否连上取决于对端）与全零档被判成一致。
     我在 docstring 与验收单里写过「CLI 比对整条四元组」——那句话当时是**假的**：
     ``summary_quad`` 写了但从没接进 CLI。能力存在 ≠ 能力接上了。
+
+    ⛔ 解码用 ``strict``（Codex round-3 MEDIUM-3）：初版用 ``errors="replace"``，
+    两份线程名原始字节分别是 ``work\\x80er`` / ``work\\x81er`` 的存档会**双双**变成
+    ``work\ufffder`` 而被判一致 —— 又一条「读不清却仍参与比较」。
+    存档读不出来就是读不出来，拒判（rc=2），不许拿替换字符去凑相等。
     """
-    with open(path, encoding="utf-8", errors="replace") as fh:
-        text = fh.read()
+    try:
+        with open(path, encoding="utf-8", errors="strict") as fh:
+            text = fh.read()
+    except UnicodeDecodeError as exc:
+        raise W4LedgerConflict(f"存档不是合法 UTF-8，读不出原文，无法参与一致性比较: {path} ({exc})") from exc
     return path, blocked_count(text), summary_quad(text), failure_body_identities(text)
 
 
@@ -304,7 +384,7 @@ def main(argv: list[str]) -> int:
 
     # ⛔ 缺四元组的档**不可比**（Codex round-2 HIGH-1）：初版把 None 从 quad_vals 里滤掉，
     #    于是「A 只有总账行（advisory 未知）+ B 有 advisory=12」被判一致。
-    #    没有汇总行就不知道 advisory 是多少，而 advisory 是**放行**的那些 —— 说不清就非 0。
+    #    没有汇总行就不知道 advisory 是多少，而 advisory 是**被放行**的那些尝试 —— 说不清就非 0。
     no_quad = [p for p, _, q, _ in rows if q is None]
     if no_quad:
         print(
@@ -326,7 +406,7 @@ def main(argv: list[str]) -> int:
 
     only = blocked_vals.pop()
     # ⛔ 「全零」必须按**整条四元组**判（Codex round-2 MEDIUM-4）：初版只看 blocked，
-    #    于是 (12, 0, 12, 0) —— 12 次 advisory 放行 —— 也被打上「全零」标签。
+    #    于是 (12, 0, 12, 0) —— 12 次尝试被 advisory 放行 —— 也被打上「全零」标签。
     if only == 0 and quad_vals == {(0, 0, 0, 0)}:
         # ⛔ 全零不等于「门在位且本轮查完了」（Codex round-1 HIGH-2）。
         #    汇总行由 summary_line() 产，而它**不含 installed 字段**（账本 dict 有、汇总行没有）；

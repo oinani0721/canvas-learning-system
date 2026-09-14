@@ -23,9 +23,13 @@ W4 哨兵判据由「会漂移的 nodeid 集」改绑到两个不变量，外加
 
 from __future__ import annotations
 
+import inspect
+import pathlib
+
 import pytest
 
 from tests.support.hygiene_snapshot_tristate import classify_sha_change
+from tests.support import w4_sentinel_identity as w4id
 from tests.support.w4_sentinel_identity import (
     W4LedgerConflict,
     blocked_count,
@@ -84,15 +88,34 @@ NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=1 (blocked=1, advisory=0, unaccounted=0)
 #: 更正④ 的样本：线程名带每跑不同的对象地址。两份「同一份代码重跑」只差 hex。
 SAMPLE_PORTAL_RUN1 = """\
 live Neo4j port connect attempted —— 本用例期间有 1 次到现网 Neo4j 的连接尝试被拦下。
+（连接处抛出的异常被 app/main.py 的 lifespan try/except 吞掉了，
+  所以由本哨兵把它转成用例失败——否则这道门什么都证明不了。）
   - ('::1', 7691, 0, 0) on thread asyncio-portal-15f0ef460 (owner=tests/unit/test_startup_health_check.py::TestStartupCheck::test_endpoint_exists)
 NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=1 (blocked=1, advisory=0, unaccounted=0)
 """
 
 SAMPLE_PORTAL_RUN2 = """\
 live Neo4j port connect attempted —— 本用例期间有 1 次到现网 Neo4j 的连接尝试被拦下。
+（连接处抛出的异常被 app/main.py 的 lifespan try/except 吞掉了，
+  所以由本哨兵把它转成用例失败——否则这道门什么都证明不了。）
   - ('::1', 7691, 0, 0) on thread asyncio-portal-14867cb40 (owner=tests/unit/test_startup_health_check.py::TestStartupCheck::test_endpoint_exists)
 NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=1 (blocked=1, advisory=0, unaccounted=0)
 """
+
+
+def sentinel_block(*records: str, declared: int | None = None) -> str:
+    """按 ``format_sentinel`` 的真实形态包一个**自报条数的记录块**。
+
+    ⛔ 判据（round-3 改写后）只读被抬头自报过条数的块 —— 裸记录行不再被扫描。
+    所以测试也必须喂真实形态，否则测的是想象中的输入。
+    ``declared`` 显式给值时可造出「自报数 ≠ 实有数」的负控。
+    """
+    n = len(records) if declared is None else declared
+    return (
+        f"live Neo4j port connect attempted —— 本用例期间有 {n} 次到现网 Neo4j 的连接尝试被拦下。\n"
+        "（连接处抛出的异常被 app/main.py 的 lifespan try/except 吞掉了，\n"
+        "  所以由本哨兵把它转成用例失败——否则这道门什么都证明不了。）\n" + "".join(records)
+    )
 
 
 class TestSampleFidelity:
@@ -168,7 +191,11 @@ class TestSummaryQuad:
         assert summary_quad(SAMPLE_R4) == (1, 1, 0, 0)
 
     def test_advisory_difference_is_visible_in_the_quad(self):
-        """两份 blocked 都是 0，但一份 advisory=12 —— 那 12 次是真连上了现网。"""
+        """两份 blocked 都是 0，但一份 advisory=12 —— 那 12 次连接尝试被**放行**了。
+
+        ⛔ 措辞（Codex round-1 LOW-7 / round-3 LOW-6）：advisory = 「只记不拦」= 放行，
+        **不等于连上了** —— 对端仍可能拒连。不得据 advisory 推断连接成功。
+        """
         a = "NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=12 (blocked=0, advisory=12, unaccounted=0)\n"
         b = "NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)\n"
         assert blocked_count(a) == blocked_count(b) == 0, "单判 blocked 看不出差别"
@@ -179,7 +206,7 @@ class TestCliActuallyUsesWhatItClaims:
     """⛔ Codex round-1 HIGH-1：能力存在 ≠ 能力接上了。
 
     初版**写了** :func:`summary_quad` 却从没把它接进 CLI —— `_describe()` 只返回
-    ``blocked`` 与 bodies，于是 ``advisory=12``（12 次**放行**到现网的真连接）
+    ``blocked`` 与 bodies，于是 ``advisory=12``（12 次到现网的连接尝试**被放行**）
     与全零档被判成一致，而我在 docstring 与验收单里已经写了「CLI 比对整条四元组」。
     上一版的测试只证明 helper 能区分，**没有证明 CLI 会用它** —— 这一类就是缺口。
     """
@@ -275,14 +302,14 @@ class TestFailureBodyIdentities:
 
     def test_both_indent_forms_are_collected(self):
         """三个产出点里 2 空格与 4 空格缩进各有，两种都要收。"""
-        two = "  - ('::1', 7691, 0, 0) on thread MainThread (owner=x)\n"
-        four = "    - ('::1', 7691, 0, 0) on thread MainThread (owner=y)\n"
+        two = sentinel_block("  - ('::1', 7691, 0, 0) on thread MainThread (owner=x)\n")
+        four = sentinel_block("    - ('::1', 7691, 0, 0) on thread MainThread (owner=y)\n")
         assert failure_body_identities(two) == failure_body_identities(four)
-        assert len(failure_body_identities(two + four)) == 1, "同一身份印两次仍是一个身份"
+        assert len(failure_body_identities(two + four)) == 1, "同一身份被两个产出点各印一次，仍是一个身份"
 
     def test_ipv4_two_tuple_is_collected(self):
         """IPv4 是 2 元组；只认 4 元组会整条漏掉。"""
-        text = "  - ('127.0.0.1', 7691) on thread MainThread (owner=z)\n"
+        text = sentinel_block("  - ('127.0.0.1', 7691) on thread MainThread (owner=z)\n")
         assert failure_body_identities(text) == {"('127.0.0.1', 7691) on thread MainThread"}
 
     def test_thread_name_with_spaces_is_not_silently_dropped(self):
@@ -293,13 +320,13 @@ class TestFailureBodyIdentities:
         ⇒ 两份形态完全不同的存档被判一致。**每一个 `if 匹配成功:` 都藏着一个未写的
         else，而那个 else 通常就是假绿。**
         """
-        text = "  - ('::1', 7691, 0, 0) on thread Thread-1 (worker) (owner=x)\n"
+        text = sentinel_block("  - ('::1', 7691, 0, 0) on thread Thread-1 (worker) (owner=x)\n")
         assert failure_body_identities(text) == {"('::1', 7691, 0, 0) on thread Thread-1 (worker)"}
 
     def test_unparseable_body_line_raises_instead_of_vanishing(self):
         """看得出是记录行、却解析不出身份 ⇒ 必须抛，不得当成「没有这条记录」。"""
         with pytest.raises(W4LedgerConflict, match="解析不出身份"):
-            failure_body_identities("- 某个畸形地址 on thread\n")
+            failure_body_identities(sentinel_block("- 某个畸形地址 on thread\n"))
 
     def test_thread_name_with_embedded_newline_is_refused_not_dropped(self):
         """⛔ Codex round-2 HIGH-3 残留：线程名含 ``\\n`` 时整条被切成两半。
@@ -307,7 +334,7 @@ class TestFailureBodyIdentities:
         首半段恰好止于 ``on thread``（截断痕迹），后半段含 ``(owner=`` 却不以 ``- `` 开头
         （孤儿痕迹）。初版的宽松候选规则两半都不认 ⇒ 记录静默消失 ⇒ 两份不同的档判一致。
         """
-        text = "  - ('::1', 7691, 0, 0) on thread \nworker (owner=x)\n"
+        text = sentinel_block("  - ('::1', 7691, 0, 0) on thread \nworker (owner=x)\n", declared=1)
         with pytest.raises(W4LedgerConflict, match="解析不出身份"):
             failure_body_identities(text)
 
@@ -317,23 +344,23 @@ class TestFailureBodyIdentities:
         captured stdout 里 ``- waiting on thread worker`` 这种行随处可见；
         判定只认**截断痕迹**与**孤儿痕迹**，不去猜「这行像不像哨兵记录」。
         """
-        assert (
-            failure_body_identities(
-                "NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=1 (blocked=1, advisory=0, unaccounted=0)\n"
-                "- waiting on thread worker\n"
-            )
-            == set()
+        text = (
+            sentinel_block("  - ('::1', 7691, 0, 0) on thread MainThread (owner=x)\n")
+            + "- waiting on thread worker\n"
+            + "cache refreshed (owner=worker)\n"
+            + "NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=1 (blocked=1, advisory=0, unaccounted=0)\n"
         )
+        assert failure_body_identities(text) == {"('::1', 7691, 0, 0) on thread MainThread"}
 
     def test_cli_rejects_two_files_whose_bodies_differ_via_spaced_threads(self, tmp_path):
         """HIGH-3 的 CLI 面：两份含空格线程名、内容不同的存档必须判不一致。"""
         s1 = (
-            "  - ('::1', 7691, 0, 0) on thread Thread-1 (worker) (owner=x)\n"
-            "NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=1 (blocked=1, advisory=0, unaccounted=0)\n"
+            sentinel_block("  - ('::1', 7691, 0, 0) on thread Thread-1 (worker) (owner=x)\n")
+            + "NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=1 (blocked=1, advisory=0, unaccounted=0)\n"
         )
         s2 = (
-            "  - ('127.0.0.1', 7687) on thread Thread-2 (worker) (owner=x)\n"
-            "NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=1 (blocked=1, advisory=0, unaccounted=0)\n"
+            sentinel_block("  - ('127.0.0.1', 7687) on thread Thread-2 (worker) (owner=x)\n")
+            + "NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=1 (blocked=1, advisory=0, unaccounted=0)\n"
         )
         a, b = tmp_path / "a.txt", tmp_path / "b.txt"
         a.write_text(s1)
@@ -342,11 +369,246 @@ class TestFailureBodyIdentities:
 
     def test_owner_containing_on_thread_does_not_leak_into_identity(self):
         """⛔ parametrize id 可含空格/括号/等号。贪婪从右切会把 owner 切进身份。"""
-        text = (
+        text = sentinel_block(
             "  - ('::1', 7691, 0, 0) on thread MainThread "
             "(owner=tests/unit/test_p.py::test_q[a on thread b (owner=c)])\n"
         )
         assert failure_body_identities(text) == {"('::1', 7691, 0, 0) on thread MainThread"}
+
+
+class TestDeclaredBlockContract:
+    """⛔ Codex round-3 HIGH-1 后重写的判据：**只读被自报过条数的块，块内必须行行可解析**。
+
+    前三版都是「扫全文猜这行坏没坏」，被连续三轮各证伪一次（``\\S+`` / 宽松候选 /
+    截断+孤儿痕迹）。下面前五条就是 r3 举出的、两条痕迹**都不命中**的输入 ——
+    在旧口径下它们全部静默变成空身份集、两份不同的存档判一致（假绿）。
+    """
+
+    # ── HIGH-1：四类「不留断口」的破坏形态 ──────────────────────────────
+    def test_thread_newline_followed_by_dash_is_refused(self):
+        """续段以 ``- `` 开头 ⇒ 逃过孤儿检查；首段不止于 ``on thread`` ⇒ 逃过截断检查。"""
+        text = sentinel_block("  - ('::1', 7691, 0, 0) on thread worker\n- continued (owner=x)\n", declared=1)
+        with pytest.raises(W4LedgerConflict, match="解析不出身份"):
+            failure_body_identities(text)
+
+    def test_carriage_return_variant_is_refused(self):
+        """``\\r`` 与 ``\\n`` 在 :func:`_lines` 下同样切行，必须同样拒判。"""
+        text = sentinel_block("  - ('::1', 7691, 0, 0) on thread worker\r- continued (owner=x)\n", declared=1)
+        with pytest.raises(W4LedgerConflict, match="解析不出身份"):
+            failure_body_identities(text)
+
+    def test_empty_thread_name_is_refused(self):
+        """``Thread(name="")`` 合法；空线程名两条痕迹都不命中，旧口径整条丢失。"""
+        text = sentinel_block("  - ('::1', 7691, 0, 0) on thread  (owner=x)\n")
+        with pytest.raises(W4LedgerConflict, match="解析不出身份"):
+            failure_body_identities(text)
+
+    def test_address_newline_leaving_a_valid_looking_tail_is_refused(self):
+        """地址含换行 ⇒ 后半段**自成一条合法记录**，旧口径不但不报还给出错误身份。"""
+        text = sentinel_block("  - ADDR-A\n- tail on thread worker (owner=x)\n", declared=1)
+        with pytest.raises(W4LedgerConflict, match="解析不出身份"):
+            failure_body_identities(text)
+
+    def test_truncation_before_owner_is_refused(self):
+        """owner 出现前就被截断 —— r2 曾有覆盖此类的测试，r3 指出它被换成了恰好止于
+        ``on thread`` 的输入，原输入重新漏过。这条把它钉回去。"""
+        text = sentinel_block("  - ('::1', 7691, 0, 0) on thread worker\n")
+        with pytest.raises(W4LedgerConflict, match="解析不出身份"):
+            failure_body_identities(text)
+
+    # ── 块条数对账（闭合判据的核心）─────────────────────────────────────
+    def test_block_with_more_records_than_declared_is_refused(self):
+        text = sentinel_block(
+            "  - ('::1', 7691, 0, 0) on thread MainThread (owner=x)\n",
+            "  - ('::1', 7687, 0, 0) on thread MainThread (owner=y)\n",
+            declared=1,
+        )
+        with pytest.raises(W4LedgerConflict, match="自报条数与实际不符"):
+            failure_body_identities(text)
+
+    def test_block_truncated_mid_way_is_refused(self):
+        text = sentinel_block("  - ('::1', 7691, 0, 0) on thread MainThread (owner=x)\n", declared=3)
+        with pytest.raises(W4LedgerConflict, match="存档被截断"):
+            failure_body_identities(text)
+
+    def test_ledger_says_blocked_but_no_block_at_all_is_refused(self):
+        """身份集为空**不代表**没有记录 —— 也可能是块被截掉或抬头文案漂了。"""
+        with pytest.raises(W4LedgerConflict, match="一个自报条数的记录块都没有"):
+            failure_body_identities("NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=1 (blocked=1, advisory=0, unaccounted=0)\n")
+
+    def test_clean_run_with_zero_blocked_and_no_block_is_fine(self):
+        """⛔ 反向锚：干净跑（本卡自己的目录级存档形态）必须照常退，不能自伤。"""
+        assert (
+            failure_body_identities("NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)\n")
+            == set()
+        )
+
+    # ── MEDIUM-2：块外的行根本不看（假红一并消失）───────────────────────
+    @pytest.mark.parametrize(
+        "noise",
+        [
+            "cache refreshed (owner=worker)\n",
+            '    print(f"    - {address} on thread {thread} (owner={owner})")\n',
+            "- waiting on thread\n",
+            "- waiting on thread worker\n",
+        ],
+    )
+    def test_ordinary_output_outside_a_block_never_causes_a_verdict(self, noise):
+        """⛔ 这四条在 r2/r3 口径下分别触发过假红（rc=2）。块外的行不参与判定。"""
+        text = sentinel_block("  - ('::1', 7691, 0, 0) on thread MainThread (owner=x)\n") + noise
+        assert failure_body_identities(text) == {"('::1', 7691, 0, 0) on thread MainThread"}
+
+    # ── 反向锚：真实样本不得被新判据自伤 ────────────────────────────────
+    def test_real_samples_still_parse_and_still_match(self):
+        assert failure_body_identities(SAMPLE_R4) == failure_body_identities(SAMPLE_R4B)
+        assert failure_body_identities(SAMPLE_R4) == {"('::1', 7691, 0, 0) on thread MainThread"}
+        assert failure_body_identities(SAMPLE_PORTAL_RUN1) == failure_body_identities(SAMPLE_PORTAL_RUN2)
+
+
+class TestJudgeIsBoundToTheRealProducers:
+    """⛔ 新判据只认**抬头**；抬头文案一漂，判据就对那个块**失明**（方向是记录消失）。
+
+    所以必须有一条把判据钉在**真产出方**上的测试：直接调 ``live_port_guard.format_sentinel``
+    造真输出，再让判据去解析。产出方改文案 ⇒ 这里真红，而不是判据静默看不见。
+    这条是 r3 整改引入的那个代价的**唯一防线**。
+    """
+
+    def test_judge_parses_real_format_sentinel_output(self):
+        from tests.support import live_port_guard
+
+        records = [
+            {"address": "('::1', 7691, 0, 0)", "thread": "MainThread", "owner": "ignored"},
+            {"address": "('127.0.0.1', 7687)", "thread": "asyncio-portal-15f0ef460", "owner": "ignored"},
+        ]
+        real = live_port_guard.format_sentinel("tests/unit/test_x.py::test_y", records)
+        assert failure_body_identities(real + "\n") == {
+            "('::1', 7691, 0, 0) on thread MainThread",
+            "('127.0.0.1', 7687) on thread asyncio-portal-<id>",
+        }, "判据解析不了真产出方的输出 —— 抬头/记录文案已漂，判据对该块失明"
+
+    def test_zero_record_sentinel_from_real_producer_is_not_a_false_red(self):
+        """``format_sentinel(owner, [])`` 自报 0 条：不得向前扫、不得误判。"""
+        from tests.support import live_port_guard
+
+        real = live_port_guard.format_sentinel("owner", [])
+        noise = "  - ('::1', 7691, 0, 0) on thread MainThread (owner=elsewhere)\n"
+        assert failure_body_identities(real + "\n" + noise) == set(), "自报 0 条的块向前扫到了别处的记录行 ⇒ 假红"
+
+    def test_block_reason_literal_still_matches_the_guard(self):
+        """判据把 ``BLOCK_REASON`` 写死在正则里 —— 它必须仍等于守卫本体的值。"""
+        from tests.support import live_port_guard
+
+        src = inspect.getsource(w4id)
+        assert live_port_guard.BLOCK_REASON in src, (
+            f"守卫的 BLOCK_REASON={live_port_guard.BLOCK_REASON!r} 已不在判据源码里，抬头正则锚已漂，判据会对整个块失明"
+        )
+
+    def test_final_ledger_header_literal_still_matches_the_guard(self):
+        """抬头 A 与 B 的文案锚：产出方改一个字，这里就该红。"""
+        guard_src = inspect.getsource(__import__("tests.support.live_port_guard", fromlist=["x"]))
+        conftest_src = pathlib.Path(__file__).resolve().parents[1].joinpath("conftest.py").read_text(encoding="utf-8")
+        assert "—— 最终总账：blocked=" in guard_src, "抬头 A 文案已漂"
+        # ⛔ 抬头 B 在源码里是**跨两个相邻字面量**拼的
+        #    （``f"... {len(unaccounted)} 次拦截"`` + ``"无人结账（..."``），
+        #    源码里没有连续的「次拦截无人结账」—— 运行期拼接后才有。
+        #    所以源码锚只能分段核；这也是为什么下面还要一条**运行期**的往返锚。
+        assert "次拦截" in conftest_src, "抬头 B 前半段文案已漂"
+        assert "无人结账（" in conftest_src, "抬头 B 后半段文案已漂"
+
+    def test_header_b_regex_matches_the_runtime_string(self):
+        """抬头 B 的源码锚只能分段核 ⇒ 这条按产出方的**运行期**拼法复原整行再喂正则。"""
+        from tests.support import live_port_guard
+
+        runtime = (
+            f"*** {live_port_guard.BLOCK_REASON} —— 2 次拦截"
+            "无人结账（迟到线程 / collection 期 / 未知线程），进程将以退出码 3 失败 ***"
+        )
+        block = (
+            runtime
+            + "\n"
+            + (
+                "    - ('::1', 7691, 0, 0) on thread MainThread (owner=a)\n"
+                "    - ('127.0.0.1', 7687) on thread MainThread (owner=b)\n"
+            )
+        )
+        assert failure_body_identities(block) == {
+            "('::1', 7691, 0, 0) on thread MainThread",
+            "('127.0.0.1', 7687) on thread MainThread",
+        }, "判据认不出抬头 B 的运行期形态"
+
+    def test_header_a_regex_matches_the_runtime_string(self):
+        """抬头 A：自报的 ``unaccounted=M`` 按 ``live_port_guard.py:443-444`` 的构造
+        恒等于随后遍历的 ``ledger["unaccounted_records"]`` 长度
+        （``"unaccounted": len(unaccounted)`` 与 ``"unaccounted_records": unaccounted``
+        是同一个 list）。这条按产出方写法复原整块再喂判据。
+
+        ⛔ 未证明面：本卡四份真实样本**全是 C 型**，A 型块只在此处按源码复原，
+        没在真实存档里见过。
+        """
+        from tests.support import live_port_guard
+
+        head = (
+            f"*** {live_port_guard.BLOCK_REASON} —— 最终总账：blocked=3 "
+            f"unaccounted=2 reported_status=3；"
+            f"进程被强制以退出码 {live_port_guard.FINAL_EXIT_CODE} 结束（迟到连接不得以 0 收场）***"
+        )
+        block = (
+            head
+            + "\n"
+            + (
+                "    - ('::1', 7691, 0, 0) on thread MainThread (owner=a)\n"
+                "    - ('127.0.0.1', 7687) on thread Thread-9 (late) (owner=b)\n"
+            )
+        )
+        assert failure_body_identities(block) == {
+            "('::1', 7691, 0, 0) on thread MainThread",
+            "('127.0.0.1', 7687) on thread Thread-9 (late)",
+        }, "判据认不出抬头 A 的运行期形态"
+
+    def test_header_a_with_zero_unaccounted_reads_no_records(self):
+        """A 的第二个触发分支：``blocked>0 且 status==0`` 时抬头写 ``unaccounted=0``、
+        后面零条记录。此时判据必须**不向前扫**，否则会吃掉别处的记录行 ⇒ 假红。"""
+        from tests.support import live_port_guard
+
+        head = (
+            f"*** {live_port_guard.BLOCK_REASON} —— 最终总账：blocked=1 "
+            f"unaccounted=0 reported_status=0；"
+            f"进程被强制以退出码 {live_port_guard.FINAL_EXIT_CODE} 结束（迟到连接不得以 0 收场）***"
+        )
+        elsewhere = "  - ('::1', 7691, 0, 0) on thread MainThread (owner=elsewhere)\n"
+        assert failure_body_identities(head + "\n" + elsewhere) == set()
+
+
+class TestArchiveDecoding:
+    """⛔ Codex round-3 MEDIUM-3：读不清的存档不得靠替换字符凑出「相等」。"""
+
+    def test_undecodable_archive_is_refused_not_replaced(self, tmp_path):
+        good = (
+            sentinel_block("  - ('::1', 7691, 0, 0) on thread MainThread (owner=x)\n")
+            + "NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=1 (blocked=1, advisory=0, unaccounted=0)\n"
+        )
+        a, b = tmp_path / "a.txt", tmp_path / "b.txt"
+        a.write_text(good, encoding="utf-8")
+        # 线程名的原始字节含**非法 UTF-8**：errors="replace" 会把它变成 U+FFFD。
+        # ⛔ 不能直接写 "\\x80" —— 那是 U+0080，编码后是合法的 b"\\xc2\\x80"。
+        #    必须先放一个哨兵字符、编码后再换成裸字节。
+        marker = "\ufffe"
+        b.write_bytes(
+            good.replace("MainThread", f"Main{marker}Thread").encode("utf-8").replace(marker.encode("utf-8"), b"\x80")
+        )
+        assert main([str(a), str(b)]) == 2, "读不出原文却参与比较 = 拿替换字符凑相等"
+
+    def test_two_differently_corrupted_archives_are_not_called_consistent(self, tmp_path):
+        """两份**不同**的损坏字节在 errors='replace' 下会变成同一个 U+FFFD ⇒ 假绿。"""
+        body = "  - ('::1', 7691, 0, 0) on thread work{}er (owner=x)\n"
+        tail = "NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=1 (blocked=1, advisory=0, unaccounted=0)\n"
+        paths = []
+        for name, bad in (("a.txt", b"\x80"), ("b.txt", b"\x81")):
+            f = tmp_path / name
+            head = sentinel_block(body.format("\ufffe")).encode("utf-8")
+            f.write_bytes(head.replace("\ufffe".encode("utf-8"), bad) + tail.encode("utf-8"))
+            paths.append(str(f))
+        assert main(paths) == 2, "两份不同的损坏被判一致 = 解码失败被压成了『内容相同』"
 
 
 class TestNaiveNodeidsIsTheFalsificationAnchor:
