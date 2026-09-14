@@ -443,7 +443,8 @@ class TestDeclaredBlockContract:
             == set()
         )
 
-    # ── MEDIUM-2：块外的行根本不看（假红一并消失）───────────────────────
+    # ── MEDIUM-2：块外的**普通**输出不参与判定（假红一并消失）──────────────
+    #    ⚠️ 块外**完整匹配 _BODY_RE** 的记录行仍会被当孤儿拒判（r4 MEDIUM-2 的兜底）。
     @pytest.mark.parametrize(
         "noise",
         [
