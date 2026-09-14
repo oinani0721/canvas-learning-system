@@ -379,9 +379,10 @@ else-body(离线分支): backfill_vault@[]     sync_all_fallbacks@[]     count_f
 | `unit-close-20260914T223803.txt` | `cd1b5ae9` | `33 failed / 5079 passed / 29 errors` | **62** | 只有 `<` ✅ |
 | `unit-close-final-20260914T230416.txt` | `d90f5a67` | `33 failed / 5079 passed / 29 errors` | **62** | 只有 `<` ✅ |
 | `unit-close-7bcbfc1a-*.txt` | `7bcbfc1a` | `33 failed / 5079 passed / 29 errors` | **62** | 只有 `<` ✅ |
-| `unit-close-ccb1d101-*.txt` | **`ccb1d101`（最终 HEAD）** | `33 failed / 5079 passed / 29 errors` | **62** | 只有 `<` ✅ |
+| `unit-close-ccb1d101-*.txt` | `ccb1d101` | `33 failed / 5079 passed / 29 errors` | **62** | 只有 `<` ✅ |
+| `unit-close-final-8e3c3fa2-*.txt` | **`8e3c3fa2`（代码最终）** | `33 failed / 5079 passed / 29 errors` | **62** | 只有 `<` ✅ |
 
-⇒ **五轮整改全程 `close` 恒为 62，diff 恒只有 `<`、零 `>`** —— 本卡引入 unit 红 = 0，且每一轮都在最终代码上重跑过（`unit-diff-final-*.txt`）。
+⇒ **十轮整改全程 `close` 恒为 62，diff 恒只有 `<`、零 `>`** —— 本卡引入 unit 红 = 0，且每一轮都在最终代码上重跑过（`unit-diff-final-*.txt`）。
 
 `base=64` / `open(开工)=65` / `close=62`（两轮整改后不变）
 
