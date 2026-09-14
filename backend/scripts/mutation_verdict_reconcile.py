@@ -122,9 +122,11 @@ def ast_mutation_count(source_name: str) -> int:
 #     «2 空格»六档之和: 9 (应 = 变异条数 9) ✓
 
 _CB_KILLED = re.compile(r"^ {2}(?P<n>\d+)/(?P<m>\d+) KILLED \(", re.M)
-#: ⛔ `(?![\d.])` 是 Codex round-2 MEDIUM 的封堵：没有它时 `SURVIVED: 0.5` 会被
-#: `\d+` 取到前缀 `0`，非整数计数**静默通过**对账（`_nonneg_int` 只管 JSON 那条路）。
-_CB_FIVE = re.compile(rf"^ {{2}}(?P<name>{_TAIL_FIVE}): (?P<n>\d+)(?![\d.])", re.M)
+#: ⛔ 计数必须是**整 token**：`(?=[\s(]|$)` 要求它后面紧跟空白 / `(` / 行尾。
+#: 只写 `(?![\d.])`（round-2 的写法）挡得住 `0.5` 却挡不住 `0x10`（`x` 既非数字也非点）
+#: —— `\d+` 仍取到前缀 `0`，非法 token 的整数前缀静默通过对账（Codex round-3 MEDIUM）。
+#: `_nonneg_int` 只覆盖 JSON 那条路，stdout 这条只能靠正则自己把边界钉死。
+_CB_FIVE = re.compile(rf"^ {{2}}(?P<name>{_TAIL_FIVE}): (?P<n>\d+)(?=[\s(]|$)", re.M)
 _CB_SUM = re.compile(r"^ {2}六档之和: (?P<t>\d+) \(应 = 变异条数 (?P<m>\d+)\)", re.M)
 
 # ── 形态二：g32b 的 stdout 汇总段 ───────────────────────────────────────────
@@ -139,7 +141,7 @@ _CB_SUM = re.compile(r"^ {2}六档之和: (?P<t>\d+) \(应 = 变异条数 (?P<m>
 
 _B_KILLED = re.compile(r"^KILLED \(绑定断言身份: [^)]*\): (?P<n>\d+)/(?P<m>\d+)\s*$", re.M)
 _B_UNBOUND = re.compile(r"^KILLED-UNBOUND \([^)]*\): (?P<n>\d+)\s*$", re.M)
-_B_FOUR = re.compile(r"^(?P<name>SURVIVED|HARNESS-ERROR|ANCHOR-ERROR|SYNTAX-INVALID): (?P<n>\d+)(?![\d.])", re.M)
+_B_FOUR = re.compile(r"^(?P<name>SURVIVED|HARNESS-ERROR|ANCHOR-ERROR|SYNTAX-INVALID): (?P<n>\d+)(?=[\s(]|$)", re.M)
 _B_SUM = re.compile(r"^六档之和: (?P<t>\d+) \(应 = (?P<m>\d+)\)", re.M)
 
 

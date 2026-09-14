@@ -169,9 +169,9 @@ def test_h1_bracket_in_path_is_not_a_param_segment() -> None:
     nid = "tests/test_[x].py::test_x"
     assert mki._nodeid_shaped(nid) is True, "路径含方括号的普通 nodeid 应是 nodeid 形"
     assert mki._split_unique(f"FAILED {nid}", nid) is True, "合法无 reason 行不得被判不唯一"
-    # 参数化 + 路径含方括号：参数段仍从**最后一个 `::` 之后**那截的第一个 `[` 起算
+    # 参数化 + 路径含方括号：仍认得出参数段（起点是「前缀含 `::` 且无空白」的那个 `[`）
     assert mki._nodeid_shaped("tests/test_[x].py::test_x[case]") is True
-    # 没有 `::` 时整串就是路径（收集错误行 `ERROR tests/x.py`），无参数段可言
+    # 不以 `]` 收尾时整串就是路径/测试名（收集错误行 `ERROR tests/x.py`），无参数段可言
     assert mki._nodeid_shaped("tests/test_[x].py") is True
     # ⛔ 验伪锚：路径含空白仍不是 nodeid 形（不是把判据整个放掉）
     assert mki._nodeid_shaped("tests/te st.py::test_x") is False
@@ -521,3 +521,18 @@ def test_m2_clean_exit_code_unknown_is_fail_closed(capsys) -> None:
         fn(_sig, lambda: state["exiting"], final=True, verify=lambda: state.__setitem__("verified", 1) or [])
     assert state["verified"] == 1, "M②: 未告知干净码 ⇒ 不得放行，自检照跑"
     assert "末次还原失败" in capsys.readouterr().err
+
+
+def test_h1_param_bracket_must_follow_a_double_colon() -> None:
+    """⛔ 参数段挂在**测试名**上，而测试名必然在 `::` 之后（Codex round-3 MEDIUM）。
+
+    少了这条，`tests/test_[x].py::test_x - AssertionError: [1, 2]` 会拿**路径**里那个 `[`
+    当参数段起点（前缀 `tests/test_` 无空白）⇒ 整行被误收进「无 reason」候选 ⇒ 一条合法行
+    被判二义 ⇒ 假 HARNESS-ERROR。而 `tests/test_` 里没有 `::`，它当不了 `path::test`。
+    """
+    line = "FAILED tests/test_[x].py::test_x - AssertionError: [1, 2]"
+    assert mki._nodeid_shaped("tests/test_[x].py::test_x - AssertionError: [1, 2]") is False
+    assert mki._split_unique(line, "tests/test_[x].py::test_x") is True, "合法行不得被判二义"
+    # ⛔ 验伪锚：`::` 之后的参数段仍然认（不是把整条判据放掉）
+    assert mki._nodeid_shaped("tests/test_[x].py::test_x[case]") is True
+    assert mki._nodeid_shaped("tests/x.py::TestC::test_m[a]") is True

@@ -201,7 +201,15 @@ def _nodeid_shaped(s: str) -> bool:
         的参数 ID 是 `case] - EXPECT[x :: y]`），于是 `rpartition("::")` 切在参数内部、
         前缀含空白 ⇒ 这条**真实的参数读法被漏掉** ⇒ 二义行重新被判唯一 ⇒ 假 KILLED
         （Codex round-2 HIGH，本函数上一版引入的回归）。
-    ⇒ 判据写成：以 `]` 收尾时，**只要存在某个 `[`** 使它之前那截非空且不含空白即可。
+    ⇒ 判据写成：以 `]` 收尾时，**存在某个 `[`** 使它之前那截 ① 不含空白、且 ② **含 `::`**。
+    ②（Codex round-3 MEDIUM）不可省：参数段是挂在**测试名**上的，而测试名必然在 `::` 之后。
+    少了它，`tests/test_[x].py::test_x - AssertionError: [1, 2]` 会拿路径里那个 `[` 当参数段
+    起点（前缀 `tests/test_` 无空白）⇒ 整行被误收进「无 reason」候选 ⇒ 合法行判成二义 ⇒
+    假 HARNESS-ERROR。而 `tests/test_` 里没有 `::`，它当不了「path::test」。
+
+    ⚠️ 如实声明这条的剩余面：**以 `]` 收尾且不含 `::` 的纯路径**（如 `ERROR a/[b]`）会被判
+    不是 nodeid 形。pytest 的收集错误行落在 `.py` 文件上（不以 `]` 收尾），本树未见该形态；
+    真出现时表现为保守的 HARNESS-ERROR，不是假杀。
 
     ⚠️ 这与 `_boundary_ok` 的「方括号成对」是**两条不同**的判据，不是同义改写：
     `a::b[[c]` 括号不成对却是合法 nodeid（参数 ID = `[c`），`a::b[c] - d` 括号成对却**不是**
@@ -217,7 +225,7 @@ def _nodeid_shaped(s: str) -> bool:
         if ch.isspace():
             # 前缀一旦出现空白，其后任何 `[` 的前缀都含空白 —— 不必再找。
             return False
-        if ch == "[" and i > 0:
+        if ch == "[" and i > 0 and "::" in s[:i]:
             return True
     return False
 
