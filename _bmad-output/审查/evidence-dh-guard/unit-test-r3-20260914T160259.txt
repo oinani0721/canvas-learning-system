@@ -1,0 +1,17 @@
+✔ R1: Edit/Write on PRD is blocked in any cwd (0.683708ms)
+✔ R1: Bash write indicators on PRD are blocked, reads pass (1.707125ms)
+✔ R2: live vault writes blocked from dev cwd, allowed from inside the vault (1.220792ms)
+✔ R2: relative mention from main repo root counts; reads never block (0.8885ms)
+✔ copy-like commands: protected path as SOURCE is a read, as DESTINATION is a write (1.015333ms)
+✔ R3: Obsidian CLI write/exec subcommands blocked, read subcommands pass (0.25025ms)
+✔ R4: bypass file within window allows everything (0.235084ms)
+✔ other tools and malformed input are allowed (fail-open) (0.069209ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 41.088292
+rc=0

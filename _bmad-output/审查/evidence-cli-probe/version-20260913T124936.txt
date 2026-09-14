@@ -1,0 +1,9 @@
+# cmd: obsidian-cli version
+# binary: /Applications/Obsidian.app/Contents/MacOS/obsidian-cli
+# cwd: /private/tmp
+# date: 2026-09-13T12:49:36+0800
+# ---- stdout+stderr ----
+1.13.7 (installer 1.12.7)
+
+# elapsed_s=0.034
+rc=0

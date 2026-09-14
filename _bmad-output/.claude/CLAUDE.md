@@ -109,7 +109,7 @@ sibling 代码目录通过 `--add-dir` 接入：
 | 6 | `research/obsidian-qa-round2-*.md` | 2 星 | 13 轮决策追溯 |
 | 7 | `review/*.md` | 1 星 | 审计 + 用户批注 + UAT |
 
-**外部锚定 PRD**: `/Users/Heishing/Desktop/spring course 2026/CS 61B/14-scheme-a-implementation-prd.md` (只读，pretool-guard 阻断修改)
+**外部锚定 PRD**: `/Users/Heishing/Desktop/spring course 2026/CS 61B/14-scheme-a-implementation-prd.md` (只读；执行层 = 用户级 hook `~/.claude/readonly-path-guard.js` R1，D-H 2026-09-14；旧文案「pretool-guard 阻断」不实已废——该脚本只查 DD-03 stub，不看路径)
 
 ---
 

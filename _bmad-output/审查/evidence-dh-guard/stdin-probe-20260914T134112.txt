@@ -1,0 +1,31 @@
+# readonly-path-guard real-stdin probe 2026-09-14T13:41:12+0800 script sha256=3e1d696c479cb546
+## Edit PRD (expect rc=2)
+[readonly-path-guard R1] PRD 锚定文档只读：/Users/Heishing/Desktop/spring course 2026/CS 61B/14-scheme-a-implementation-prd.md
+这是 CLAUDE.md「只读锚定」的真实执行层。若确需写入：由用户本人在 Claude 之外的终端执行 `touch /Users/Heishing/.claude/readonly-guard.allow`（20 分钟窗口），Claude 不得自行创建该文件。
+rc=2
+## Bash head PRD (expect rc=0)
+rc=0
+## Bash >> PRD (expect rc=2)
+[readonly-path-guard R1] PRD 锚定文档只读，命令含写入迹象：/Users/Heishing/Desktop/spring course 2026/CS 61B/14-scheme-a-implementation-prd.md
+这是 CLAUDE.md「只读锚定」的真实执行层。若确需写入：由用户本人在 Claude 之外的终端执行 `touch /Users/Heishing/.claude/readonly-guard.allow`（20 分钟窗口），Claude 不得自行创建该文件。
+rc=2
+## Write vault from dev cwd (expect rc=2)
+[readonly-path-guard R2] 线上 vault 只读（会话 cwd 在 vault 之外）：/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/节点/x.md
+这是 CLAUDE.md「只读锚定」的真实执行层。若确需写入：由用户本人在 Claude 之外的终端执行 `touch /Users/Heishing/.claude/readonly-guard.allow`（20 分钟窗口），Claude 不得自行创建该文件。
+rc=2
+## Write vault from vault cwd (expect rc=0)
+rc=0
+## obsidian eval (expect rc=2)
+[readonly-path-guard R3] Obsidian CLI 写/执行子命令被拦：eval
+这是 CLAUDE.md「只读锚定」的真实执行层。若确需写入：由用户本人在 Claude 之外的终端执行 `touch /Users/Heishing/.claude/readonly-guard.allow`（20 分钟窗口），Claude 不得自行创建该文件。
+rc=2
+## obsidian backlinks (expect rc=0)
+rc=0
+## malformed (expect rc=0)
+rc=0
+## grep -r vault (expect rc=0)
+rc=0
+## cp into vault from dev cwd (expect rc=2)
+[readonly-path-guard R2] 线上 vault 只读（会话 cwd 在 vault 之外），命令含写入迹象：/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault
+这是 CLAUDE.md「只读锚定」的真实执行层。若确需写入：由用户本人在 Claude 之外的终端执行 `touch /Users/Heishing/.claude/readonly-guard.allow`（20 分钟窗口），Claude 不得自行创建该文件。
+rc=2

@@ -1,0 +1,8 @@
+# live-session check after refined guard (sha c05f03d1…) 2026-09-14T16:03:30+0800
+# 1) cp <PRD> /dev/null — PRD as SOURCE only → expected ALLOW (was blocked by the coarse version)
+cp rc=0
+# 2) PRD sha256 unchanged:
+1ef5f0bebe069fb87a59d4e6be9e08674b6fbc2b224a8cca3bb82448ffe6215c  /Users/Heishing/Desktop/spring course 2026/CS 61B/14-scheme-a-implementation-prd.md
+# 3) audit entries for readonly-path-guard so far:
+164
+rc=0

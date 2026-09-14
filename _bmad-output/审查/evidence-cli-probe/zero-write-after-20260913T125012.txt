@@ -1,0 +1,80 @@
+# after 2026-09-13T12:50:12+0800
+## git status --porcelain canvas-vault/ (main repo)
+ M canvas-vault/.canvas-config.yaml
+ M canvas-vault/.claude/skills/ai-linked-doc/SKILL.md
+ M canvas-vault/.claude/skills/configure-whiteboard/SKILL.md
+ M canvas-vault/.claude/skills/configure-whiteboard/templates/whiteboard.md.template
+ M canvas-vault/.claude/skills/node-chat/SKILL.md
+ M "canvas-vault/\345\216\237\347\231\275\346\235\277/CS 61B.md"
+ M "canvas-vault/\350\212\202\347\202\271/csm-tutoring-unit-credit.md"
+?? canvas-vault/.claude/hooks/pending_archives.jsonl
+?? canvas-vault/.claude/mcp.json
+?? canvas-vault/.claude/scripts/
+?? canvas-vault/.claude/settings.json
+?? canvas-vault/.claude/skills/board-recap/
+?? canvas-vault/.claude/skills/chat-with-context/
+?? canvas-vault/.claude/skills/exam-quick/
+?? canvas-vault/.claude/skills/quiz-answer/
+?? canvas-vault/.claude/skills/start-exam-board/
+?? canvas-vault/.claude/skills/study-question/
+?? canvas-vault/.claudian/
+?? canvas-vault/.obsidian/cls-internal-key.txt
+?? canvas-vault/.obsidian/community-plugins.json
+?? canvas-vault/.obsidian/graph.json
+?? canvas-vault/.obsidian/hotkeys.json
+?? canvas-vault/.obsidian/plugins/
+?? canvas-vault/.obsidian/themes/
+?? canvas-vault/.obsidian/types.json
+?? canvas-vault/.quarantine/
+?? canvas-vault/.trash/
+?? canvas-vault/2111.md
+?? canvas-vault/CLAUDE.md
+?? canvas-vault/CS188/
+?? canvas-vault/CS189/
+?? canvas-vault/Dashboard.md
+?? canvas-vault/UAT-2.5.X-test.md
+?? canvas-vault/UAT-Study-Question-Skill-2026-05-10.md
+?? canvas-vault/Untitled.md
+?? canvas-vault/backups/
+?? canvas-vault/chatgpt-adversarial-review-Q1Q2Q3-2026-05-12.md
+?? canvas-vault/excalibrain.md
+?? canvas-vault/learning_events.jsonl
+?? canvas-vault/outputs/
+?? canvas-vault/templates/exam-board.md
+?? canvas-vault/wiki/
+?? "canvas-vault/\345\216\237\347\231\275\346\235\277/CS.md"
+?? "canvas-vault/\345\216\237\347\231\275\346\235\277/CS188 lecture 2.md"
+?? "canvas-vault/\345\216\237\347\231\275\346\235\277/\347\211\271\345\276\201\345\200\274\344\270\216\347\211\271\345\276\201\345\220\221\351\207\217.md"
+?? "canvas-vault/\345\216\237\347\231\275\346\235\277/\347\272\277\346\200\247\344\273\243\346\225\260.md"
+?? "canvas-vault/\345\216\237\347\231\275\346\235\277/\351\200\222\345\275\222\344\270\216\345\210\206\346\262\273 (Recursion & Divide-Conquer).md"
+?? "canvas-vault/\346\234\252\345\221\275\345\220\215 1.md"
+?? "canvas-vault/\346\234\252\345\221\275\345\220\215.md"
+?? "canvas-vault/\346\243\200\351\252\214\347\231\275\346\235\277/CS 61B-2026-08-11-1349.md"
+?? "canvas-vault/\346\243\200\351\252\214\347\231\275\346\235\277/CS 61B-2026-08-11-1538.md"
+?? "canvas-vault/\346\243\200\351\252\214\347\231\275\346\235\277/\347\211\271\345\276\201\345\200\274\344\270\216\347\211\271\345\276\201\345\220\221\351\207\217-2026-07-05-1815.md"
+?? "canvas-vault/\346\243\200\351\252\214\347\231\275\346\235\277/\347\211\271\345\276\201\345\200\274\344\270\216\347\211\271\345\276\201\345\220\221\351\207\217-2026-07-16-0112.md"
+?? "canvas-vault/\346\243\200\351\252\214\347\231\275\346\235\277/\347\211\271\345\276\201\345\200\274\344\270\216\347\211\271\345\276\201\345\220\221\351\207\217-2026-07-18-1741.md"
+?? "canvas-vault/\346\243\200\351\252\214\347\231\275\346\235\277/\347\211\271\345\276\201\345\200\274\344\270\216\347\211\271\345\276\201\345\220\221\351\207\217-2026-07-23-1939.md"
+?? "canvas-vault/\346\243\200\351\252\214\347\231\275\346\235\277/\347\211\271\345\276\201\345\200\274\344\270\216\347\211\271\345\276\201\345\220\221\351\207\217-2026-07-24-0405.md"
+?? "canvas-vault/\346\243\200\351\252\214\347\231\275\346\235\277/\347\211\271\345\276\201\345\200\274\344\270\216\347\211\271\345\276\201\345\220\221\351\207\217-2026-07-25-0233.md"
+?? "canvas-vault/\346\243\200\351\252\214\347\231\275\346\235\277/\351\200\222\345\275\222\344\270\216\345\210\206\346\262\273 (Recursion & Divide-Conquer)-2026-07-24-0714.md"
+?? "canvas-vault/\350\212\202\347\202\271/Characteristic-Equation-for-Eigenvalues.md"
+?? "canvas-vault/\350\212\202\347\202\271/Eigenvalues-are-special-vectors-that-sat.md"
+?? "canvas-vault/\350\212\202\347\202\271/Fundamentals.md"
+?? "canvas-vault/\350\212\202\347\202\271/lecture 2.md"
+?? "canvas-vault/\350\212\202\347\202\271/\344\273\243\347\220\206\345\206\263\347\255\226\345\210\206\346\236\220-0303().md"
+?? "canvas-vault/\350\212\202\347\202\271/\344\273\243\347\220\206\345\207\275\346\225\260-(Agent-Function).md"
+?? "canvas-vault/\350\212\202\347\202\271/\344\273\243\347\220\206\347\261\273\345\236\213\357\274\232\345\217\215\345\260\204\344\270\216\350\247\204\345\210\222.md"
+?? "canvas-vault/\350\212\202\347\202\271/\345\217\215\345\260\204\344\273\243\347\220\206\347\232\204\345\261\200\351\231\220\346\200\247\345\274\225\345\207\272\344\272\206\350\247\204\345\210\222\344\273\243\347\220\206-(Planning-Agents)-\347\232\204\351\234\200\346\261\202.md"
+?? "canvas-vault/\350\212\202\347\202\271/\347\220\206\346\200\247\344\273\243\347\220\206-(Rational-Agent).md"
+?? "canvas-vault/\350\212\202\347\202\271/\350\247\204\345\210\222\344\273\243\347\220\206\347\232\204\347\211\271\347\202\271.md"
+?? "canvas-vault/\350\212\202\347\202\271/\350\247\204\345\210\222\347\232\204\345\210\206\347\261\273-1549().md"
+## shasum -a 256 of 5 samples
+e06ba3b7ead4d8f15a4be14196096cd2b37de6b6123bde17b65eaea428ff7261  /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/节点/Fundamentals.md
+d25d8852ed034ad21070288d7239c4980acd261eb7c0d60dced16cbe661dd3b8  /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/节点/lecture 2.md
+47b1451f0862fd7e802132ae5a1e9557e9b205dd9018763d58302f23e2832ab0  /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/原白板/递归与分治 (Recursion & Divide-Conquer).md
+9bc0e6be316ac454f5a0a0f6fd1220246f1eb5ef9df89b2b8ae57558e8fe8dd9  /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/原白板/CS188 lecture 2.md
+e12ee283301c8a02a4948b23ceaec25bdb282b966f9ffe199ecf624cc543df71  /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/检验白板/递归与分治 (Recursion & Divide-Conquer)-2026-07-24-0714.md
+## md count
+      30
+rc=0

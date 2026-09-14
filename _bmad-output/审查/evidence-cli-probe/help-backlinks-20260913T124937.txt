@@ -1,0 +1,14 @@
+# cmd: obsidian-cli help backlinks
+# binary: /Applications/Obsidian.app/Contents/MacOS/obsidian-cli
+# cwd: /private/tmp
+# date: 2026-09-13T12:49:37+0800
+# ---- stdout+stderr ----
+  backlinks             List backlinks to a file
+    file=<name>         - Target file name
+    path=<path>         - Target file path
+    counts              - Include link counts
+    total               - Return backlink count
+    format=json|tsv|csv - Output format (default: tsv)
+
+# elapsed_s=0.033
+rc=0

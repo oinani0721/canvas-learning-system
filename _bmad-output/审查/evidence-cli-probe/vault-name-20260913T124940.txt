@@ -1,0 +1,9 @@
+# cmd: obsidian-cli vault=0a302bd176301457 vault info=name
+# binary: /Applications/Obsidian.app/Contents/MacOS/obsidian-cli
+# cwd: /private/tmp
+# date: 2026-09-13T12:49:40+0800
+# ---- stdout+stderr ----
+canvas-vault
+
+# elapsed_s=0.033
+rc=0

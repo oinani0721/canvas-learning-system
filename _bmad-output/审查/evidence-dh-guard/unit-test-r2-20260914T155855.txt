@@ -1,0 +1,61 @@
+✔ R1: Edit/Write on PRD is blocked in any cwd (0.985917ms)
+✔ R1: Bash write indicators on PRD are blocked, reads pass (1.731708ms)
+✔ R2: live vault writes blocked from dev cwd, allowed from inside the vault (3.378167ms)
+✖ R2: relative mention from main repo root counts; reads never block (0.902959ms)
+✖ copy-like commands: protected path as SOURCE is a read, as DESTINATION is a write (0.438833ms)
+✔ R3: Obsidian CLI write/exec subcommands blocked, read subcommands pass (0.566917ms)
+✔ R4: bypass file within window allows everything (0.256834ms)
+✔ other tools and malformed input are allowed (fail-open) (0.068708ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 6
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 42.460625
+
+✖ failing tests:
+
+test at .claude/hooks/tests/readonly-path-guard.test.js:50:1
+✖ R2: relative mention from main repo root counts; reads never block (0.902959ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  true !== false
+  
+      at TestContext.<anonymous> (/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/.claude/hooks/tests/readonly-path-guard.test.js:52:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: true,
+    expected: false,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at .claude/hooks/tests/readonly-path-guard.test.js:62:1
+✖ copy-like commands: protected path as SOURCE is a read, as DESTINATION is a write (0.438833ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  false !== true
+  
+      at TestContext.<anonymous> (/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/.claude/hooks/tests/readonly-path-guard.test.js:73:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+rc=1

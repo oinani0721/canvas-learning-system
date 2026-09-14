@@ -1,0 +1,12 @@
+# cmd: obsidian-cli help links
+# binary: /Applications/Obsidian.app/Contents/MacOS/obsidian-cli
+# cwd: /private/tmp
+# date: 2026-09-13T12:49:38+0800
+# ---- stdout+stderr ----
+  links                 List outgoing links from a file
+    file=<name>         - File name
+    path=<path>         - File path
+    total               - Return link count
+
+# elapsed_s=0.028
+rc=0

@@ -1,0 +1,12 @@
+# cmd: obsidian-cli vault=0a302bd176301457 search:context query=%%cb-
+# binary: /Applications/Obsidian.app/Contents/MacOS/obsidian-cli
+# cwd: /private/tmp
+# date: 2026-09-13T12:50:07+0800
+# ---- stdout+stderr ----
+检验白板/特征值与特征向量-2026-07-23-1939.md:34: > ② 判断这两个里**哪一个是 $A$ 的特征向量**——用你自己的话说清：你是**凭什么**判断的（即一个向量要算特征向量，> [!question]+ ❓ 提问 %%cb-ms03l04xwju7%%
+检验白板/特征值与特征向量-2026-07-18-1741.md:43: > [!question]+ ❓ 提问 %%cb-mrr5ur7qsag1%%
+检验白板/特征值与特征向量-2026-07-16-0112.md:44: > [!question]+ ❓ 提问 %%cb-mrqiq27bclpk%%
+节点/Fundamentals.md:133: > [!question]+ ❓ 提问 %%cb-ms03p2v9bzhb%%
+
+# elapsed_s=0.032
+rc=0

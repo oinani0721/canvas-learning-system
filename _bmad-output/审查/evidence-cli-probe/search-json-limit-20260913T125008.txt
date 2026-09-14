@@ -1,0 +1,9 @@
+# cmd: obsidian-cli vault=0a302bd176301457 search query=Fundamentals format=json limit=5
+# binary: /Applications/Obsidian.app/Contents/MacOS/obsidian-cli
+# cwd: /private/tmp
+# date: 2026-09-13T12:50:08+0800
+# ---- stdout+stderr ----
+["检验白板/考察-Fundamentals-2026-07-16.md","检验白板/特征值与特征向量-2026-07-23-1939.md","检验白板/特征值与特征向量-2026-07-18-1741.md","检验白板/特征值与特征向量-2026-07-25-0233.md","检验白板/特征值与特征向量-2026-07-24-0405.md"]
+
+# elapsed_s=0.026
+rc=0

@@ -1,0 +1,12 @@
+# cmd: obsidian-cli vault=0a302bd176301457 outline file=递归与分治 (Recursion & Divide-Conquer)
+# binary: /Applications/Obsidian.app/Contents/MacOS/obsidian-cli
+# cwd: /private/tmp
+# date: 2026-09-13T12:50:03+0800
+# ---- stdout+stderr ----
+└── 递归与分治 (Recursion & Divide-Conquer)
+    ├── Concepts
+    ├── 🔗 节点关系图（v2.8 · 白板核心 · 自动从真实双链生成）
+    └── Recent Activity
+
+# elapsed_s=0.029
+rc=0

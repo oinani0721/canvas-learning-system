@@ -116,7 +116,7 @@ CLI 负责**结构 + 校验 + 归档**，Claude 负责**内容写作**。Boris �
 ## 锚定文档（Read-Only）
 
 - `/Users/Heishing/Desktop/spring course 2026/CS 61B/14-scheme-a-implementation-prd.md` — PRD v5，唯一真相源
-  - Claude 只能 READ，不能 Edit/Write（`pretool-guard.js` hook 强制阻断）
+  - Claude 只能 READ，不能 Edit/Write。**执行层**（D-H 2026-09-14）：用户级 PreToolUse hook `~/.claude/readonly-path-guard.js`（源码与单测 `.claude/hooks/readonly-path-guard.js` / `.claude/hooks/tests/`）对 Edit/Write/MultiEdit/NotebookEdit/Bash 按路径阻断（R1 PRD 恒只读；R2 线上 `canvas-vault/` 对 cwd 在 vault 外的会话只读；R3 Obsidian CLI 写/执行子命令恒拦）。旁路仅限用户本人在 Claude 之外的终端 `touch ~/.claude/readonly-guard.allow`（20 分钟窗口）。⚠️ `pretool-guard.js` 只做 DD-03 stub 检查、不看路径，且本 worktree 项目级 hooks 已于 GOV-01 隔离——旧文案「pretool-guard.js 强制阻断」不实，已废。
   - 用户手动批注 §12 决策区（D1-D14）
   - 所有 OpenSpec change 和 Claude plan 必须在头部引用对应 § 章节
   - 引用格式：`> **From PRD**: §X [标题] (line YYYY-ZZZZ)`

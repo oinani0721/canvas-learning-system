@@ -1,0 +1,22 @@
+# cmd: obsidian-cli vault=0a302bd176301457 backlinks file=Fundamentals format=json counts
+# binary: /Applications/Obsidian.app/Contents/MacOS/obsidian-cli
+# cwd: /private/tmp
+# date: 2026-09-13T12:49:46+0800
+# ---- stdout+stderr ----
+[
+  {
+    "file": "节点/Characteristic-Equation-for-Eigenvalues.md",
+    "count": "4"
+  },
+  {
+    "file": "节点/Eigenvalues-are-special-vectors-that-sat.md",
+    "count": "6"
+  },
+  {
+    "file": "原白板/特征值与特征向量.md",
+    "count": "5"
+  }
+]
+
+# elapsed_s=0.03
+rc=0

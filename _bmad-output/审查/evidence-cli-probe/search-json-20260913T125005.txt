@@ -1,0 +1,9 @@
+# cmd: obsidian-cli vault=0a302bd176301457 search query=待剖析 format=json
+# binary: /Applications/Obsidian.app/Contents/MacOS/obsidian-cli
+# cwd: /private/tmp
+# date: 2026-09-13T12:50:05+0800
+# ---- stdout+stderr ----
+["节点/csm-tutoring-unit-credit.md","节点/Fundamentals.md","原白板/CS 61B.md","原白板/递归与分治 (Recursion & Divide-Conquer).md","原白板/特征值与特征向量.md","原白板/线性代数.md","原白板/CS.md","原白板/CS188 lecture 2.md","outputs/思维导图-特征值与特征向量.excalidraw.md","outputs/思维导图-CS188 lecture 2.excalidraw.md","outputs/思维导图-CS 61B.excalidraw.md","Dashboard.md"]
+
+# elapsed_s=0.031
+rc=0

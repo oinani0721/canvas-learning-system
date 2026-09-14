@@ -1,0 +1,9 @@
+# cmd: obsidian-cli vault=0a302bd176301457 backlinks file=Fundamentals total
+# binary: /Applications/Obsidian.app/Contents/MacOS/obsidian-cli
+# cwd: /private/tmp
+# date: 2026-09-13T12:49:53+0800
+# ---- stdout+stderr ----
+15
+
+# elapsed_s=0.027
+rc=0

@@ -1,0 +1,43 @@
+# ~/.claude/settings.json PreToolUse BEFORE
+[
+ {
+  "matcher": "Bash",
+  "hooks": [
+   {
+    "type": "command",
+    "command": "bash ~/.claude/hook-trace.sh bash ~/.claude/guard-hook.sh",
+    "timeout": 12
+   }
+  ]
+ }
+]
+# ~/.claude/settings.json PreToolUse AFTER
+[
+ {
+  "matcher": "Bash",
+  "hooks": [
+   {
+    "type": "command",
+    "command": "bash ~/.claude/hook-trace.sh bash ~/.claude/guard-hook.sh",
+    "timeout": 12
+   },
+   {
+    "type": "command",
+    "command": "bash ~/.claude/hook-trace.sh node ~/.claude/readonly-path-guard.js",
+    "timeout": 8
+   }
+  ]
+ },
+ {
+  "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+  "hooks": [
+   {
+    "type": "command",
+    "command": "bash ~/.claude/hook-trace.sh node ~/.claude/readonly-path-guard.js",
+    "timeout": 8
+   }
+  ]
+ }
+]
+# backup: ~/.claude/settings.json.bak-20260914T155608
+rc=0

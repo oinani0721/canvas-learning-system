@@ -1,0 +1,15 @@
+# cmd: obsidian-cli vault=0a302bd176301457 outline path=节点/Fundamentals.md format=json
+# binary: /Applications/Obsidian.app/Contents/MacOS/obsidian-cli
+# cwd: /private/tmp
+# date: 2026-09-13T12:50:04+0800
+# ---- stdout+stderr ----
+[
+  {
+    "level": 1,
+    "heading": "Linear Algebra Fundamentals",
+    "line": 129
+  }
+]
+
+# elapsed_s=0.028
+rc=0

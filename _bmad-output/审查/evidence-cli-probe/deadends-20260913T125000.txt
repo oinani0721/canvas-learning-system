@@ -1,0 +1,132 @@
+# cmd: obsidian-cli vault=0a302bd176301457 deadends
+# binary: /Applications/Obsidian.app/Contents/MacOS/obsidian-cli
+# cwd: /private/tmp
+# date: 2026-09-13T12:50:00+0800
+# ---- stdout+stderr ----
+2111.md
+检验白板/考察-Fundamentals-2026-07-16.md
+未命名 1.md
+未命名.md
+原白板/线性代数.md
+原白板/CS.md
+backups/fsrs_bridge.py.pre-deploy-2026-09-05T1052.bak
+backups/fsrs_bridge.py.pre-deploy-2026-09-07T0328.bak
+chatgpt-adversarial-review-Q1Q2Q3-2026-05-12.md
+CLAUDE.md
+CS188/lecture 4/lecture 4.md
+CS189/notes/lectures/Lecture_02/Lecture_02_Lecture 2 - Data Tools.md
+Dashboard.md
+excalibrain.md
+learning_events.jsonl
+outputs/回顾-递归与分治 (Recursion & Divide-Conquer)-2026-08-27.md
+outputs/回顾-特征值与特征向量-2026-08-27.md
+outputs/回顾-CS 61B-2026-08-27.md
+outputs/回顾-CS188 lecture 2-2026-08-27.md
+outputs/今日复习.json
+outputs/今日复习.md
+raw/CS188/_misc/junk/().md
+raw/CS188/_misc/junk/2026-03-06.md
+raw/CS188/_misc/junk/2026-03-07.md
+raw/CS188/_misc/junk/2026-03-08.md
+raw/CS188/_misc/junk/未命名 1.md
+raw/CS188/_misc/junk/未命名.md
+raw/CS188/管道设计.md
+raw/CS188/CLAUDE.md
+raw/CS188/CS 188-explanations/clarification-解释-bccdf951-20260308-161852.md
+raw/CS188/CS 188-explanations/clarification-解释-bccdf951-20260308-181238.md
+raw/CS188/CS 188-explanations/clarification-解释-bccdf951-20260308-201640.md
+raw/CS188/CS 188-explanations/clarification-解释-d23ec7df-20260309-114316.md
+raw/CS188/CS 188-explanations/clarification-解释-d23ec7df-20260309-115552.md
+raw/CS188/CS 188-explanations/clarification-解释-d23ec7df-20260309-123053.md
+raw/CS188/CS 188-explanations/clarification-解释-d23ec7df-20260309-130801.md
+raw/CS188/CS 188-explanations/clarification-解释-understa-20260309-170534.md
+raw/CS188/CS188_Midterm_Study_Guide.md
+raw/CS188/CS188_Practice_Problems_Checklist.md
+raw/CS188/exams/node_modules/@napi-rs/canvas-win32-x64-msvc/README.md
+raw/CS188/exams/node_modules/@napi-rs/canvas/README.md
+raw/CS188/exams/node_modules/node-readable-to-web-readable-stream/README.md
+raw/CS188/exams/node_modules/pdf-parse/node_modules/pdfjs-dist/CODE_OF_CONDUCT.md
+raw/CS188/exams/node_modules/pdf-parse/node_modules/pdfjs-dist/README.md
+raw/CS188/exams/node_modules/pdfjs-dist/CODE_OF_CONDUCT.md
+raw/CS188/exams/node_modules/pdfjs-dist/node_modules/@napi-rs/canvas-win32-x64-msvc/README.md
+raw/CS188/exams/node_modules/pdfjs-dist/node_modules/@napi-rs/canvas/README.md
+raw/CS188/exams/node_modules/pdfjs-dist/README.md
+raw/CS188/Excalidraw/Drawing 2026-04-04 12.25.51.excalidraw.md
+raw/CS188/media-lib/file-e2pt9l7f.md
+raw/CS188/media-lib/file-k3oo00lk.md
+raw/CS188/videos/discussions/Disc01_Search_[CS188 Discussion] Search Algorithms in Action/chunks/merged.md
+raw/CS188/videos/discussions/Disc01_Search_[CS188 Discussion] Search Algorithms in Action/Disc01_Search_[CS188 Discussion] Search Algorithms in Action.md
+raw/CS188/videos/discussions/Disc01_Search_[CS188 Discussion] Search and Heuristics/chunks/merged.md
+raw/CS188/videos/discussions/Disc01_Search_[CS188 Discussion] Search and Heuristics/Disc01_Search_[CS188 Discussion] Search and Heuristics.md
+raw/CS188/videos/discussions/Disc01_Search_[CS188 Discussion] Search： Pacfriends Unite/chunks/merged.md
+raw/CS188/videos/discussions/Disc01_Search_[CS188 Discussion] Search： Pacfriends Unite/Disc01_Search_[CS188 Discussion] Search： Pacfriends Unite.md
+raw/CS188/videos/discussions/Disc02_CSPs_[CS188 Discussion] CSPs： Course Scheduling/Disc02_CSPs_[CS188 Discussion] CSPs： Course Scheduling.md
+raw/CS188/videos/discussions/Disc02_CSPs_[CS188 Discussion] CSPs： Trapped Pacman/Disc02_CSPs_[CS188 Discussion] CSPs： Trapped Pacman.md
+raw/CS188/videos/discussions/Disc03_GameTrees_[CS188 Discussion] Games I/Disc03_GameTrees_[CS188 Discussion] Games I.md
+raw/CS188/videos/discussions/Disc03_GameTrees_[CS188 Discussion] Nonzero-sum Games/Disc03_GameTrees_[CS188 Discussion] Nonzero-sum Games.md
+raw/CS188/videos/discussions/Disc04_MDPs_[CS188 Discussion] MDPs： Grid-World Water Park/chunks/merged.md
+raw/CS188/videos/discussions/Disc04_MDPs_[CS188 Discussion] MDPs： Grid-World Water Park/Disc04_MDPs_[CS188 Discussion] MDPs： Grid-World Water Park.md
+raw/CS188/videos/discussions/Disc04_MDPs_[CS188 Discussion] MDPs： Micro-Blackjack/chunks/merged.md
+raw/CS188/videos/discussions/Disc04_MDPs_[CS188 Discussion] MDPs： Micro-Blackjack/Disc04_MDPs_[CS188 Discussion] MDPs： Micro-Blackjack.md
+raw/CS188/videos/discussions/Disc05_RL_[CS188 Discussion] RL III/Disc05_RL_[CS188 Discussion] RL III.md
+raw/CS188/videos/discussions/Disc05_RL_FA17 Midterm 1 Walkthrough Q6/Disc05_RL_FA17 Midterm 1 Walkthrough Q6.md
+raw/CS188/videos/exam_prep/EP01_Search_[CS188 Discussion] Iterative Deepening Search/EP01_Search_[CS188 Discussion] Iterative Deepening Search.md
+raw/CS188/videos/exam_prep/EP01_Search_[CS188 Discussion] Searching with Heuristics/chunks/merged.md
+raw/CS188/videos/exam_prep/EP01_Search_[CS188 Discussion] Searching with Heuristics/EP01_Search_[CS188 Discussion] Searching with Heuristics.md
+raw/CS188/videos/exam_prep/EP02_CSPs_[CS188 Discussion] CSP： Air Traffic Control/chunks/merged.md
+raw/CS188/videos/exam_prep/EP02_CSPs_[CS188 Discussion] CSP： Air Traffic Control/EP02_CSPs_[CS188 Discussion] CSP： Air Traffic Control.md
+raw/CS188/videos/exam_prep/EP02_CSPs_[CS188 Discussion] CSPs： Four-Digit Number/EP02_CSPs_[CS188 Discussion] CSPs： Four-Digit Number.md
+raw/CS188/videos/exam_prep/EP03_GameTrees_[CS188 Discussion] Games II/EP03_GameTrees_[CS188 Discussion] Games II.md
+raw/CS188/videos/exam_prep/EP03_GameTrees_[CS188 Discussion] MedianMiniMax/EP03_GameTrees_[CS188 Discussion] MedianMiniMax.md
+raw/CS188/videos/exam_prep/EP04_MDPs_[CS188 Discussion] MDPs： Dice Bonanza/EP04_MDPs_[CS188 Discussion] MDPs： Dice Bonanza.md
+raw/CS188/videos/exam_prep/EP04_MDPs_[CS188 Discussion] MDPs： How Do You Value It(eration)？/chunks/merged.md
+raw/CS188/videos/exam_prep/EP04_MDPs_[CS188 Discussion] MDPs： How Do You Value It(eration)？/EP04_MDPs_[CS188 Discussion] MDPs： How Do You Value It(eration)？.md
+raw/CS188/videos/exam_prep/EP05_RL_[CS188 Discussion] RL： Amusement Park/chunks/merged.md
+raw/CS188/videos/exam_prep/EP05_RL_[CS188 Discussion] RL： Amusement Park/EP05_RL_[CS188 Discussion] RL： Amusement Park.md
+raw/CS188/videos/exam_prep/EP05_RL_SP19 Midterm 1 Walkthrough Q4/EP05_RL_SP19 Midterm 1 Walkthrough Q4.md
+raw/CS188/videos/lectures/lecture 1/lecture 1.md
+raw/CS188/videos/lectures/lecture 2/lecture 2.md
+raw/CS188/videos/lectures/lecture 3/lecture 3-explanations/clarification-解释-text-dfs-20260308-154226.md
+raw/CS188/videos/lectures/lecture 3/lecture 3-explanations/clarification-解释-text-one-20260308-153748.md
+raw/CS188/videos/lectures/lecture 3/lecture 3-explanations/clarification-解释-text-sea-20260308-153315.md
+raw/CS188/videos/lectures/lecture 3/lecture 3-explanations/oral-解释-text-dfs-20260308-153415.md
+raw/CS188/videos/lectures/lecture 3/lecture 3-explanations/oral-解释-text-dfs-20260308-154003.md
+raw/CS188/videos/lectures/lecture 3/lecture 3-explanations/oral-解释-text-dfs-20260308-155337.md
+raw/CS188/videos/lectures/lecture 3/lecture 3-explanations/oral-解释-text-one-20260308-153537.md
+raw/CS188/videos/lectures/lecture 3/lecture 3-explanations/oral-解释-text-one-20260308-154315.md
+raw/CS188/videos/lectures/lecture 3/lecture 3-explanations/oral-解释-text-sea-20260308-153336.md
+raw/CS188/videos/lectures/lecture 3/lecture 3.md
+raw/CS188/videos/lectures/lecture 4/chunks/merged.md
+raw/CS188/videos/lectures/lecture 4/lecture 4.md
+raw/CS188/videos/lectures/lecture 5/chunks/merged.md
+raw/CS188/videos/lectures/lecture 5/lecture 5-explanations/oral-解释-text-pla-20260308-164758.md
+raw/CS188/videos/lectures/lecture 5/lecture 5-explanations/oral-解释-text-sta-20260308-164630.md
+raw/CS188/videos/lectures/lecture 5/lecture 5.md
+raw/CS188/videos/lectures/lecture 6/chunks/merged.md
+raw/CS188/videos/lectures/lecture 6/lecture 6.md
+raw/CS188/videos/lectures/lecture 7/chunks/merged.md
+raw/CS188/videos/lectures/lecture 7/lecture 7.md
+raw/CS188/videos/lectures/lecture 8/chunks/merged.md
+raw/CS188/videos/lectures/lecture 8/lecture 8.md
+raw/CS188/videos/lectures/lecture 9/chunks/merged.md
+raw/CS188/videos/lectures/lecture 9/lecture 9.md
+raw/CS188/videos/lectures/lecture 10/chunks/merged.md
+raw/CS188/videos/lectures/lecture 10/lecture 10.md
+raw/CS188/videos/lectures/lecture 11/chunks/merged.md
+raw/CS188/videos/lectures/lecture 11/lecture 11.md
+raw/CS188/videos/lectures/lecture 12/chunks/merged.md
+raw/CS188/videos/lectures/lecture 12/lecture 12.md
+raw/CS188/videos/review_sessions/RS1_Search_CSPs_GameTrees.md
+raw/CS188/videos/review_sessions/RS1_Search_CSPs_GameTrees/chunks/merged.md
+raw/CS188/videos/review_sessions/RS1_Search_CSPs_GameTrees/RS1_Search_CSPs_GameTrees.md
+raw/CS188/videos/review_sessions/RS2_MDPs_RL/chunks/merged.md
+raw/CS188/videos/review_sessions/RS2_MDPs_RL/RS2_MDPs_RL.md
+raw/my-recursion-notes.md
+templates/concept.md
+templates/exam-board.md
+UAT-2.5.X-test.md
+UAT-Study-Question-Skill-2026-05-10.md
+Untitled.md
+
+# elapsed_s=0.027
+rc=0

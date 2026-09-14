@@ -1,0 +1,13 @@
+# cmd: obsidian-cli help outline
+# binary: /Applications/Obsidian.app/Contents/MacOS/obsidian-cli
+# cwd: /private/tmp
+# date: 2026-09-13T12:49:39+0800
+# ---- stdout+stderr ----
+  outline               Show headings for the current file
+    file=<name>         - File name
+    path=<path>         - File path
+    format=tree|md|json - Output format (default: tree)
+    total               - Return heading count
+
+# elapsed_s=0.032
+rc=0
