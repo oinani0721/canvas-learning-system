@@ -484,7 +484,11 @@ def test_dst_window_candidates_cover_rules_that_roll_into_the_following_year(tz_
     ⛔ 这条与门⑦ 的判据 2（时刻守恒）互补而**不重叠**：本反例转回 UTC 仍然守恒，
     守恒判据对它完全无感 —— 只有墙钟/归日这一侧能抓。所以不要把本门并进那条。
 
-    为什么表里既有的 11 个串压不到：它们的切换时刻都不叠大 `/N`，规则因此落在名义年内。
+    为什么表里既有的 11 个串压不到：它们的 DST **季度**不跨年，于是漏格不显形。
+    ⛔ 别把这句读成「它们的规则都落在名义年内」—— 那不实：`WART4WARST,J1/0,J365/25`
+       的 `end(2024)` 实测落在 `2025-01-01 04:00Z`，相对元旦 **366.17 天**，确实滚出了
+       名义年；只是它的 `start` 是 `J1/0`（元旦 00:00），季度 `[start, end)` 整个落在
+       同一年内（北半球分支），所以够不着 `y-2` 那条路径。
     ⛔ **滚出名义年不止一条路**（本卡实测更正了初版注释里「裸 n=365 是唯一写法」那句）：
       ① 平年的裸 `n=365` = `1月1日 + 365 天` = 次年元旦；
       ② `Jn` / 裸 `n` 叠 `/N`（POSIX 允许到 167 小时，本实现的正则更放行到 999:99:99）；
@@ -561,6 +565,56 @@ def test_omitted_transition_rules_use_the_libc_default_instead_of_falling_back_t
         f"[{copy_id}] dst 有名省略规则被退 UTC(或退成了无 DST 的时区): {spec!r} 在夏冬两侧偏移相同\n"
         f"  夏 {summer.isoformat()} -> {off_summer}；冬 {winter.isoformat()} -> {off_winter}\n"
         "  给了夏令时名就必须真的有夏令时 —— 补的是 posixrules 的默认规则, 不是把 DST 抹掉。"
+    )
+
+
+#: 省略规则分支**不得扩大错误接受面**（Codex r1 HIGH-2）。下面这些串在 BASE 上就返回
+#: `None`（⇒ `display_tz()` 退 UTC，与 C 库一致）；补默认规则时若不先校验偏移，它们会
+#: 变成「被接受并参与换算」——`AAA0:60BBB` 直接错一天，`AAA999BBB` 则在 `.isoformat()`
+#: 处抛 `ValueError`。⛔ 本门守的是「修复没有顺手放宽别的东西」，不是解析器的取值域本身
+#: （后者是上一轮登记的 MEDIUM，本卡不动带显式规则的那条路径）。
+#: (spec, 为什么该拒)
+_OMITTED_RULE_REJECT_CASES = [
+    ("AAA0:60BBB", "分钟 60 越界 —— C 库拒收整串退 UTC（实测 2026-01-20T00:30Z 给 00:30 = UTC）"),
+    ("AAA999BBB", "偏移 999 小时不可表示 —— 被接受后会在 .isoformat() 抛 ValueError"),
+    ("AAA24BBB", "POSIX 小时字段允许 24，但 Python tzinfo 要求偏移**严格**小于 24 小时"),
+    ("AAA-24BBB", "同上，负向"),
+    ("AAA25BBB", "同上，超界"),
+]
+
+#: 正控：秒字段 60 **不该**被这条收紧误伤 —— C 库实测也接受它（`2026-01-20T00:30Z` 给
+#: `00:29−00:01`），两边一致。没有这条，「省略规则一律拒」的实现也能把上面五条跑绿。
+_OMITTED_RULE_ACCEPT_CASES = [
+    ("AAA0:0:60BBB", "秒字段 60：C 库接受并给 −00:01，本实现必须跟随"),
+    ("CET-1CEST", "本卡要修的正例"),
+    ("XYZ5XYD", "自造名正例"),
+]
+
+
+@pytest.mark.parametrize("copy_id", _COPY_IDS)
+@pytest.mark.parametrize("spec,why", _OMITTED_RULE_REJECT_CASES)
+def test_omitted_rule_branch_does_not_widen_the_accepted_offset_domain(copy_id, spec, why):
+    """补默认规则**不得**把原本退 UTC 的非法偏移串变成有效时区。"""
+    module = backend_tz if copy_id == "backend" else _load_local_tz()
+    got = module.parse_posix_tz(spec)
+    assert got is None, (
+        f"[{copy_id}] 省略规则分支扩大了错误接受面: parse_posix_tz({spec!r}) 返回 {got!r}，应为 None\n"
+        f"  {why}\n"
+        "  补默认规则前必须先校验两侧偏移（分钟 >59 拒、|偏移| ≥24h 拒），否则这条修复\n"
+        "  会把一批 C 库都不认的串放进归日链路。"
+    )
+
+
+@pytest.mark.parametrize("copy_id", _COPY_IDS)
+@pytest.mark.parametrize("spec,why", _OMITTED_RULE_ACCEPT_CASES)
+def test_omitted_rule_offset_guard_does_not_overreach(copy_id, spec, why):
+    """上一条的正控：偏移收紧不得误伤 C 库接受的串。"""
+    module = backend_tz if copy_id == "backend" else _load_local_tz()
+    got = module.parse_posix_tz(spec)
+    assert got is not None, (
+        f"[{copy_id}] 偏移收紧误伤了合法串: parse_posix_tz({spec!r}) 返回 None\n"
+        f"  {why}\n"
+        "  没有这条正控，「省略规则一律拒」的实现也能把上面那五条拒绝用例跑绿。"
     )
 
 
@@ -950,8 +1004,7 @@ def test_bucket_gate_rejects_wrong_bucket_and_forged_display_tz(tmp_path, tz_env
       · 节点被挪到错误的桶 ⇒ 必须拒；
       · `display_tz` 伪造成与 `generated_at` 偏移不自洽的时区 ⇒ 必须拒；
       · `display_tz` 伪造成不可解析的名字 ⇒ 必须拒；
-      · 旧投影（根本没有这个键）⇒ 按**归桶是否随偏移翻转**分两路：离本地午夜足够远的
-        照常放行（加性字段要向后兼容），落在 ±2h 带内的按不可判拒（CARD-G6-9c-R2）。
+      · 旧投影（`display_tz` 键缺席或为 null）⇒ **整份拒**（CARD-G6-9c-R2）。
 
     每条都用 `pytest.raises(match=...)` 绑**具体拒因**，不只看「抛了异常」——
     否则「被更早的防线拒掉」也会被记成通过。
@@ -1025,43 +1078,32 @@ def test_bucket_gate_rejects_wrong_bucket_and_forged_display_tz(tmp_path, tz_env
         )
     finally:
         picker._DISPLAY_TZ = saved_b
-    # ⚠️ CARD-G6-9c-R2 起口径改了：旧投影仍退回 generated_at 自带的固定偏移，但**归桶
-    #    会随偏移翻转**的条目按 corrupt 降级（Codex r5 HIGH-2 的双向堵）。原先这里只
-    #    断言「旧投影必须放行」，而那条恰好是被 HIGH-2 缺陷撑起来的 —— 它用的 Bogota
-    #    到期时刻在 -05:00 下是 23:30，离本地午夜只有 30 分钟，正是不可判的那一类。
-    #    三个子情形缺一不可：少了正控，「一律判 corrupt」也能跑绿（那等于砍掉全部旧投影
-    #    兼容性）；少了拒的两条，只堵一侧的实现照样跑绿。
+    # ⚠️ CARD-G6-9c-R2 起口径改了：`display_tz` 缺席或为 null ⇒ **整份判 corrupt**，
+    #    不再回退到 generated_at 自带的固定偏移。原先这里断言「旧投影必须放行」，而那条
+    #    恰好是被 HIGH-2 缺陷撑起来的 —— 固定偏移只在 generated_at 那一刻等于生产者的
+    #    真实偏移，到期时刻跨了 DST 切换就差一档，误拒与误放行是同一偏差的两侧。
+    #    ⛔ 本卡 r1 曾试过「偏移 ±2h 敏感性复算」的温和版（带内翻转才拒），被 Codex r1
+    #    打回：夏令时差 Δ 是**未知量**，本实现接受的 POSIX 串允许任意 Δ，`ABC-1DEF-5`
+    #    (Δ=+4h) 就落在 ±2h 带外、伪造的 due_today 照样放行。任何**有限**带宽都能被更大
+    #    的 Δ 打破，带宽取到任意大又等于拒绝一切 —— 这条路在信息上是死的。
+    #    ⚠️ 本门的正控不在这三行，而在函数开头的 `_gate(payload)`：带 display_tz 的合法
+    #    投影必须放行。没有它，「一律拒绝所有投影」的实现也能把下面三条跑绿。
     legacy_bogota = copy.deepcopy(bogota_payload)
     legacy_bogota.pop("display_tz")
-    with pytest.raises(ValueError, match="归桶在固定偏移"):
-        _gate(legacy_bogota)  # Bogota 的 due_today 在 -05:00 下是 03-08 23:30 —— 带内，不可判
-
-    # 正控：离本地午夜足够远的旧投影必须**仍被放行**（Bogota 当地 12:00 到期，
-    # 任何 ±2h 都不会让它跨日）。没有这一条，本门就挡不住「把旧投影一律判 corrupt」。
-    vault_far = _tmp_vault(tmp_path, name="vaultNegFar")
-    (vault_far / "节点" / "乙.md").write_text(
-        '---\ntype: concept\nsource_board: "[[原白板/板]]"\nfsrs_due: 2026-03-09T17:00:00Z\n---\n内容。\n',
-        encoding="utf-8",
-    )
-    saved_c = picker._DISPLAY_TZ
-    picker._DISPLAY_TZ = ZoneInfo("America/Bogota")
-    try:
-        far_payload, _r3 = picker.build_payload(
-            vault_far, datetime(2026, 3, 8, 5, 30, tzinfo=timezone.utc), {}, picker.load_decay(vault_far)
-        )
-    finally:
-        picker._DISPLAY_TZ = saved_c
-    legacy_far = copy.deepcopy(far_payload)
-    legacy_far.pop("display_tz")
-    _gate(legacy_far)  # 远离午夜的旧投影：向后兼容没有被这次收口牺牲掉
+    with pytest.raises(ValueError, match="display_tz 缺席或为 null"):
+        _gate(legacy_bogota)  # 固定偏移语义的生产者（Bogota 恒 -05:00）也一样拒 —— 消费端分辨不出
 
     legacy_ny = copy.deepcopy(payload)
     legacy_ny.pop("display_tz")
-    with pytest.raises(ValueError, match="归桶在固定偏移"):
-        # DST 边界旧投影：拒因从「仍在 generated_at（误拒）」升级为「不可判」——
-        # 同一个偏差原本还会把**伪造的** due_today 放行，那一侧由本文件的
-        # test_bucket_gate_rejects_wrong_buckets_even_when_display_tz_is_absent 守。
-        _gate(legacy_ny)
+    with pytest.raises(ValueError, match="display_tz 缺席或为 null"):
+        _gate(legacy_ny)  # DST 边界旧投影：拒因从「仍在 generated_at（误拒）」升级为「无可信参照」
+
+    null_ny = copy.deepcopy(payload)
+    null_ny["display_tz"] = None
+    with pytest.raises(ValueError, match="display_tz 缺席或为 null"):
+        # 键在、值为 null —— 现役生产器在**末档宿主**上的正常产出，走的是同一条路。
+        # 该形态的可用性损失已在验收单登记为取舍（正确性优先于旧投影兼容）。
+        _gate(null_ny)
 
 
 @pytest.mark.parametrize("legacy_form", ["missing", "null"])
@@ -1076,6 +1118,10 @@ def test_bucket_gate_rejects_wrong_buckets_even_when_display_tz_is_absent(tmp_pa
     到期时刻落在 DST 切换的另一侧时，固定偏移算出的本地日与真实时区差一天 ——
     误拒（合法 future 被判成 due_today）与误放行（伪造的 due_today 被当成合法）
     是**同一个**偏差的两侧，不可能只占一侧。r4 把它登记成「只有兼容性损失」，不成立。
+
+    ⛔ 本卡 r1 曾用「偏移 ±2h 敏感性复算」的温和版收口，被 Codex r1 打回：夏令时差 Δ 是
+    **未知量**，`ABC-1DEF-5`(Δ=+4h) 就落在带外、伪造的 due_today 照样放行。现口径是
+    **整份判 corrupt**，拒因统一为「display_tz 缺席或为 null」。
 
     两种旧形态都要测：`display_tz` 键缺失（历史投影）与值为 `null`
     （现役生产器在**末档宿主**上的正常产出 —— `local_tz.display_tz()` 落到固定偏移
@@ -1123,8 +1169,9 @@ def test_bucket_gate_rejects_wrong_buckets_even_when_display_tz_is_absent(tmp_pa
     tz_env(canvas_tz="America/New_York")
     try:
         _summarize(forged)
-    except ValueError:
-        pass  # 拒了就对 —— 拒因由 HIGH-2 的实现口径决定，这里只钉「不放行」
+    except ValueError as exc:
+        # ⛔ 绑**具体拒因**，不只看「抛了异常」—— 否则「被更早的防线拒掉」也会记成通过。
+        assert "display_tz 缺席或为 null" in str(exc), f"门确实拒了，但拒因不是「无可信参照时区规则」那条：{exc}"
     else:
         raise AssertionError(
             f"固定偏移回退误放行·桶 due_today（display_tz {legacy_form}）\n"

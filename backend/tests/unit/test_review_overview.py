@@ -1201,6 +1201,11 @@ def _layered(root, name: str, *, gen_iso: str, tomorrow: str, buckets=None, stat
             {**_ROLLUP_BLANK, "board": "乙板", "future": 1, "next_due": tomorrow},
         ],
         buckets=good if buckets is None else buckets,
+        # CARD-G6-9c-R2: 现役生产器恒写 display_tz, 夹具跟上它。缺这个键的投影现在整份
+        # 判 corrupt（没有生产者时区就无法可靠重算归桶 —— 固定偏移只在 generated_at
+        # 那一刻可信）。本 helper 造的是**合法分层投影**, 要测的是透传与渲染, 不是
+        # 「旧投影怎么归桶」; 后者由 test_g6_9c_single_tz_source.py 的桶位门专门守。
+        display_tz="Asia/Shanghai",
     )
     _mk_vault(root, name, proj)
     return good
