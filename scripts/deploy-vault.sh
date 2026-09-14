@@ -67,7 +67,8 @@
 #                             显式 =1 才真起容器（顶替现网容器不可逆 ⇒ opt-in，需用户当次授权）。
 #   CLS_DEPLOY_LANCE_READY_TIMEOUT
 #                             步 5 等 LanceDB **首索引**就绪的墙钟上限（整数秒，取值
-#                             1..86400，原串最多 10 位），缺省 120。到点即停并如实记
+#                             1..86400；含前导零在内**原串最多 20 位**，剥零后须 ≤5 位 ——
+#                             与步 1 的 npm 上限同律），缺省 120。到点即停并如实记
 #                             `rc≠0 progress=unknown` —— 不把「等不到」写成「就绪」。
 #   CLS_LIVE_VAULT            live vault 绝对路径（禁写面第一条），缺省为主仓 canvas-vault。
 #   CLS_NPM_BUILD_TIMEOUT     步 1 `npm run build` 的**墙钟上限**（整数秒，取值 1..86400；
@@ -1324,9 +1325,15 @@ PY
     #    （不是总账原卡文那套「恢复旧 ACTIVE_VAULT」—— 那套已作废）。
     # 需用户当次授权；车道禁跑（见头注与 §三）。
     # 每阶段一行 `stage=… rc=` ⇒ 事后能分清「哪一阶段失败、回滚有没有真做成」。
-    # 开一次账；开不出来不中止部署, 但会由步 6 以 76 如实失败（账不全 = 无从复核）。
+    # ⛔ 开账**失败即 fail-closed**（Codex r3 HIGH）：此刻**还没有起任何容器**,
+    #    而复查拒绝意味着这个路径已经不可信 —— 若只记个错继续走, 下面 up/down 的
+    #    `>> "$cfg"` 仍会按同一个不可信路径重定向, 等于「判据说不能写, 然后照写」。
+    #    这里返回 1 的代价是零（无容器要回滚），收益是步 5 之后**没有任何按路径的写**。
     # 失败路径不显式关 fd：`run_step` 对 FAIL 直接 `exit 7N`, 进程退出即释放。
-    act_journal_open "$cfg" || true
+    if ! act_journal_open "$cfg"; then
+        STEP_MSG="阶段账不可写, 拒绝起实例（${ACT_JOURNAL_ERR}）"
+        return 1
+    fi
     # ⛔ Lance 上限先校验再起容器：校验失败时**还没有**容器要回滚。
     #    取值必须是有界正整数且逐字符枚举（不写 `[!0-9]` 区间 —— 区间由 locale 的
     #    排序决定, `LC_ALL=ar_EG.UTF-8` 下阿拉伯数字能过门, 随后 `[ -ge ]` 报错
@@ -1366,12 +1373,12 @@ PY
     local up_rc=0
     docker compose -f "$HARNESS/docker-compose.yml" --env-file "$ENV_FILE" \
         -p "cls-$VAULT_NAME" --project-directory "$HARNESS" up -d backend \
-        >> "$cfg" 2>&1 || up_rc=$?
+        >&9 2>&1 || up_rc=$?
     act_stage "stage=up-instance project=cls-$VAULT_NAME rc=${up_rc}"
     if [ "$up_rc" != 0 ]; then
         local down_rc=0
         docker compose -f "$HARNESS/docker-compose.yml" --env-file "$ENV_FILE" \
-            -p "cls-$VAULT_NAME" --project-directory "$HARNESS" down >> "$cfg" 2>&1 || down_rc=$?
+            -p "cls-$VAULT_NAME" --project-directory "$HARNESS" down >&9 2>&1 || down_rc=$?
         # ⛔ `-p "cls-$VAULT_NAME"` 是「只拆本实例」的全部依据：去掉它 = 拆光
         #    当前 project-directory 下的一切, 别的 vault 的实例会被误伤。
         act_stage "stage=rollback-down project=cls-$VAULT_NAME rc=${down_rc} scope=only-this-project"
@@ -1398,7 +1405,7 @@ PY
     if [ "$reported" != "yes" ]; then
         local down_rc2=0
         docker compose -f "$HARNESS/docker-compose.yml" --env-file "$ENV_FILE" \
-            -p "cls-$VAULT_NAME" --project-directory "$HARNESS" down >> "$cfg" 2>&1 || down_rc2=$?
+            -p "cls-$VAULT_NAME" --project-directory "$HARNESS" down >&9 2>&1 || down_rc2=$?
         act_stage "stage=rollback-down project=cls-$VAULT_NAME rc=${down_rc2} scope=only-this-project"
         if [ "$down_rc2" = 0 ]; then
             STEP_MSG="/api/v1/vault/current 未报告 $VAULT_NAME, 已回滚 down（只拆 cls-$VAULT_NAME, 兄弟实例未碰）"
@@ -1578,7 +1585,12 @@ try:
         body = ln.rstrip(b"\r\n")
         term = ln[len(body) :]
         cur = body[len(kb) :].decode("utf-8", "replace")
-    # 清单口径 = 逗号/空格分隔（daily-review-wrapper.sh 与 memory-health.sh 同源）
+    # 清单口径 = 逗号/空格分隔（daily-review-wrapper.sh 与 memory-health.sh 同源）。
+    # ⛔ 先剥引号再切（Codex r3 MEDIUM）：消费方 memory-health.sh:74 就是
+    #    `cut -d= -f2- | tr -d '"' | tr -d "'"` —— 它眼里 `'beta'` 就是 `beta`。
+    #    这里不剥的话，`DAILY_REVIEW_VAULTS='beta'` 再来一次 beta 会追加成 `'beta',beta`，
+    #    消费方看到的是同一个库两遍。判重口径必须与消费方一致。
+    cur = cur.replace('"', "").replace("'", "")
     items = [t for t in cur.replace(",", " ").split() if t]
     if name in items:
         # 去重：一个字节都不写（fd 以 O_RDWR 开着, 但没 ftruncate 也没 write）
@@ -1588,14 +1600,16 @@ try:
     newline = kb + ",".join(items).encode("utf-8")
     if idx:
         lines[idx[-1]] = newline + term
+        out = b"".join(lines)
     else:
-        # 缺键（真 feature 树当前就是这个形态）：只在末尾补一行, 既有字节一个不动
-        if lines and not lines[-1].endswith((b"\n", b"\r")):
-            lines[-1] = lines[-1] + b"\n"
-        lines.append(newline + b"\n")
+        # 缺键（真 feature 树当前就是这个形态）：**原字节整段保留**, 只在其后追加。
+        # ⛔ 不去给末行补 LF（Codex r3 LOW-1）：那是改既有行的字节。分隔用的换行
+        #    作为**追加内容的一部分**写在原字节之后, 原文仍是新内容的逐字节前缀。
+        sep = b"" if (not raw or raw.endswith((b"\n", b"\r"))) else b"\n"
+        out = raw + sep + newline + b"\n"
     os.lseek(fd, 0, os.SEEK_SET)
     os.ftruncate(fd, 0)
-    write_all(fd, b"".join(lines))
+    write_all(fd, out)
     os.fsync(fd)
     print("appended " + name)
 finally:

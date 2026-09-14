@@ -1,0 +1,307 @@
+禁写面负控（本卡不碰）开工: d8b9b114967e8df2a0daab1c22aa8f85c3b8730c6fc34208375280ce5bcb2a68  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t2-deploy/scripts/cls_forbidden_paths.py
+HEAD 同文件                : d8b9b114967e8df2a0daab1c22aa8f85c3b8730c6fc34208375280ce5bcb2a68  -
+
+══════ seg=readiness-fakesuccess ══════
+/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t2-deploy/82d6d6e5-c8cf-48ee-b4bb-472c2da9815b/scratchpad/negctl8.sh: line 38: printf: --: invalid option
+printf: usage: printf [-v var] format [arguments]
+@@ -1499,7 +1499,7 @@
+     local grc=0 gbody="" gres="" gsrc=0 gstatus=""
+     gbody="$(curl -sS --fail -m 10 "http://127.0.0.1:$PORT/api/v1/health/knowledge-graph" 2> /dev/null)" || grc=$?
+     if [ "$grc" != 0 ]; then
+-        gres="skipped-with-reason=unreachable-rc-${grc}"
++        gres="ready"
+     else
+         gstatus="$(json_top_field status "$gbody")" || gsrc=$?
+         case "$gsrc" in
+--- 失败断言原文 ---
+E       AssertionError: readiness 探测失败却没落 skipped-with-reason（假成功）: stage=graphiti-readiness rc=28 result=ready
+E       assert False
+E        +  where False = <built-in method startswith of str object at 0x134ebeb80>('skipped-with-reason=')
+E        +    where <built-in method startswith of str object at 0x134ebeb80> = 'ready'.startswith
+E        +      where 'ready' = <built-in method group of re.Match object at 0x136f3bc40>(2)
+E        +        where <built-in method group of re.Match object at 0x136f3bc40> = <re.Match object; span=(543, 586), match='stage=graphiti-readiness rc=28 result=ready'>.group
+VERDICT=KILLED gate=tests/unit/test_deploy_vault_sh.py::test_g2_8_graphiti_readiness_never_reports_fake_success[fail-unreachable] rc=1 断言锚=«没落 skipped-with-reason» sha_restored=yes
+
+══════ seg=readiness-fulltext-regex ══════
+/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t2-deploy/82d6d6e5-c8cf-48ee-b4bb-472c2da9815b/scratchpad/negctl8.sh: line 38: printf: --: invalid option
+printf: usage: printf [-v var] format [arguments]
+@@ -1501,7 +1501,12 @@
+     if [ "$grc" != 0 ]; then
+         gres="skipped-with-reason=unreachable-rc-${grc}"
+     else
+-        gstatus="$(json_top_field status "$gbody")" || gsrc=$?
++        gsrc=0
++        if printf '%s' "$gbody" | grep -qE '"status"[[:space:]]*:[[:space:]]*"(ok|healthy|ready)"'; then
++            gstatus=ok
++        else
++            gstatus=notready
++        fi
+         case "$gsrc" in
+             0) ;;
+             4) gres="skipped-with-reason=no-status-field" ;;
+--- 失败断言原文 ---
+E       AssertionError: readiness 探测失败却没落 skipped-with-reason（假成功）: stage=graphiti-readiness rc=0 result=ready
+E       assert False
+E        +  where False = <built-in method startswith of str object at 0x10e4b4d20>('skipped-with-reason=')
+E        +    where <built-in method startswith of str object at 0x10e4b4d20> = 'ready'.startswith
+E        +      where 'ready' = <built-in method group of re.Match object at 0x13afbbc40>(2)
+E        +        where <built-in method group of re.Match object at 0x13afbbc40> = <re.Match object; span=(551, 593), match='stage=graphiti-readiness rc=0 result=ready'>.group
+VERDICT=KILLED gate=tests/unit/test_deploy_vault_sh.py::test_g2_8_graphiti_readiness_never_reports_fake_success[nested-not-ready] rc=1 断言锚=«没落 skipped-with-reason» sha_restored=yes
+
+══════ seg=readiness-nostatus-collapsed ══════
+/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t2-deploy/82d6d6e5-c8cf-48ee-b4bb-472c2da9815b/scratchpad/negctl8.sh: line 38: printf: --: invalid option
+printf: usage: printf [-v var] format [arguments]
+@@ -1504,7 +1504,7 @@
+         gstatus="$(json_top_field status "$gbody")" || gsrc=$?
+         case "$gsrc" in
+             0) ;;
+-            4) gres="skipped-with-reason=no-status-field" ;;
++            4) gres="skipped-with-reason=unparsable-response" ;;
+             *) gres="skipped-with-reason=unparsable-response" ;;
+         esac
+         if [ "$gsrc" = 0 ]; then
+--- 失败断言原文 ---
+E       AssertionError: 原因未如实写明: stage=graphiti-readiness rc=0 result=skipped-with-reason=unparsable-response
+E       assert 'no-status-field' in 'skipped-with-reason=unparsable-response'
+E        +  where 'skipped-with-reason=unparsable-response' = <built-in method group of re.Match object at 0x136b67ce0>(2)
+E        +    where <built-in method group of re.Match object at 0x136b67ce0> = <re.Match object; span=(559, 635), match='stage=graphiti-readiness rc=0 result=skipped-with>.group
+VERDICT=KILLED gate=tests/unit/test_deploy_vault_sh.py::test_g2_8_graphiti_readiness_never_reports_fake_success[nostatus-no-status-field] rc=1 断言锚=«原因未如实写明» sha_restored=yes
+
+══════ seg=alsopush-nodedup ══════
+/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t2-deploy/82d6d6e5-c8cf-48ee-b4bb-472c2da9815b/scratchpad/negctl8.sh: line 38: printf: --: invalid option
+printf: usage: printf [-v var] format [arguments]
+@@ -1592,7 +1592,7 @@
+     #    消费方看到的是同一个库两遍。判重口径必须与消费方一致。
+     cur = cur.replace('"', "").replace("'", "")
+     items = [t for t in cur.replace(",", " ").split() if t]
+-    if name in items:
++    if False:
+         # 去重：一个字节都不写（fd 以 O_RDWR 开着, 但没 ftruncate 也没 write）
+         print("already-present " + name)
+         raise SystemExit(0)
+--- 失败断言原文 ---
+E       AssertionError: 已在清单里却被重复追加: ['DAILY_REVIEW_VAULTS=probe_ap2,x,probe_ap2']
+E       assert ['DAILY_REVIE...,x,probe_ap2'] == ['DAILY_REVIE...=probe_ap2,x']
+E         
+E         At index 0 diff: 'DAILY_REVIEW_VAULTS=probe_ap2,x,probe_ap2' != 'DAILY_REVIEW_VAULTS=probe_ap2,x'
+E         Use -v to get more diff
+VERDICT=KILLED gate=tests/unit/test_deploy_vault_sh.py::test_g2_8_also_push_appends_and_dedups rc=1 断言锚=«已在清单里却被重复追加» sha_restored=yes
+
+══════ seg=active-vault-mutated ══════
+/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t2-deploy/82d6d6e5-c8cf-48ee-b4bb-472c2da9815b/scratchpad/negctl8.sh: line 38: printf: --: invalid option
+printf: usage: printf [-v var] format [arguments]
+@@ -1606,7 +1606,7 @@
+         # ⛔ 不去给末行补 LF（Codex r3 LOW-1）：那是改既有行的字节。分隔用的换行
+         #    作为**追加内容的一部分**写在原字节之后, 原文仍是新内容的逐字节前缀。
+         sep = b"" if (not raw or raw.endswith((b"\n", b"\r"))) else b"\n"
+-        out = raw + sep + newline + b"\n"
++        out = raw.replace(b"ACTIVE_VAULT=canvas-vault", b"ACTIVE_VAULT=" + name.encode()) + sep + newline + b"\n"
+     os.lseek(fd, 0, os.SEEK_SET)
+     os.ftruncate(fd, 0)
+     write_all(fd, out)
+--- 失败断言原文 ---
+E       AssertionError: --also-push 动了 ACTIVE_VAULT
+E       assert ['ACTIVE_VAULT=probe_ap1'] == ['ACTIVE_VAULT=canvas-vault']
+E         
+E         At index 0 diff: 'ACTIVE_VAULT=probe_ap1' != 'ACTIVE_VAULT=canvas-vault'
+E         Use -v to get more diff
+VERDICT=KILLED gate=tests/unit/test_deploy_vault_sh.py::test_g2_8_also_push_appends_and_dedups rc=1 断言锚=«动了 ACTIVE_VAULT» sha_restored=yes
+
+══════ seg=crlf-normalized-away ══════
+/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t2-deploy/82d6d6e5-c8cf-48ee-b4bb-472c2da9815b/scratchpad/negctl8.sh: line 38: printf: --: invalid option
+printf: usage: printf [-v var] format [arguments]
+@@ -1575,6 +1575,7 @@
+     #    那与「只碰 DAILY_REVIEW_VAULTS 这一个键」的承诺不符, 而且 splitlines()
+     #    口径的比较看不出来。这里只改/只加目标那一行, 其余字节原样。
+     raw = b"".join(chunks)
++    raw = raw.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+     lines = raw.splitlines(keepends=True)
+     kb = (KEY + "=").encode("utf-8")
+     idx = [i for i, ln in enumerate(lines) if ln.startswith(kb)]
+--- 失败断言原文 ---
+E       AssertionError: 既有字节被改了（不只是追加一行）: b'ACTIVE_VAULT=canvas-vault\r\nNEO4J_HTTP_PORT=7691\r\n' -> b'ACTIVE_VAULT=canvas-vault\nNEO4J_HTTP_PORT=7691\nDAILY_REVIEW_VAULTS=probe_crlf\n'
+E       assert b'ACTIVE_VAUL...=probe_crlf\n' == b'ACTIVE_VAUL...=probe_crlf\n'
+E         
+E         At index 25 diff: b'\n' != b'\r'
+E         Use -v to get more diff
+VERDICT=KILLED gate=tests/unit/test_deploy_vault_sh.py::test_g2_8_also_push_preserves_other_lines_byte_for_byte rc=1 断言锚=«既有字节被改了» sha_restored=yes
+
+══════ seg=journal-open-recheck-removed ══════
+/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t2-deploy/82d6d6e5-c8cf-48ee-b4bb-472c2da9815b/scratchpad/negctl8.sh: line 38: printf: --: invalid option
+printf: usage: printf [-v var] format [arguments]
+@@ -437,7 +437,7 @@
+ act_journal_open() {
+     ACT_JOURNAL="$1"
+     # 打开前紧邻复查（与脚本别处同律）：这是本函数唯一一次路径解析。
+-    if ! assert_writable_now "$ACT_JOURNAL"; then
++    if false; then
+         ACT_JOURNAL_ERR="开阶段账前复查未过: $WRITE_GUARD_ERR"
+         return 1
+     fi
+--- 失败断言原文 ---
+E       AssertionError: 开账被拦却没在起容器前 fail-closed: rc=0
+E         📦 deploy-vault [apply] vault=probe_jopen port=8256 hosts=claude
+E            harness=/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-24503/test_g2_8_journal_open_failure0/tx-harness
+E         [1/6] preflight: OK 树完整 / 禁写面过 / 名不动点 / port 8256 空闲 / skills 9 / main.js 在位
+E         [2/6] install: OK install-vault.sh rc 0, 输出 /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-24503/test_g2_8_journal_open_failure0/ev/install-20260914T234715.txt
+E         [3/6] postprocess: OK key 重生=yes(0600) 三处同值; :8011→:8256 ×4 已验残留 0; 绑定三件在位; .env 白名单跳过: NEO4J_BOLT_PORT OLLAMA_HOST VAULT_MOUNT_MODE LOCAL_EMBEDDER_BASE_URL
+VERDICT=KILLED gate=tests/unit/test_deploy_vault_sh.py::test_g2_8_journal_open_failure_fails_closed_before_starting_anything rc=1 断言锚=«开账被拦却没在起容器前 fail-closed» sha_restored=yes
+
+══════ seg=journal-write-by-path ══════
+/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t2-deploy/82d6d6e5-c8cf-48ee-b4bb-472c2da9815b/scratchpad/negctl8.sh: line 38: printf: --: invalid option
+printf: usage: printf [-v var] format [arguments]
+@@ -464,7 +464,7 @@
+         ACT_STAGES+=("stage=journal-write-failed of=${_what} rc=1")
+         return 0
+     fi
+-    if ! printf '%s\n' "$1" >&9; then
++    if ! printf '%s\n' "$1" >> "$ACT_JOURNAL"; then
+         ACT_JOURNAL_ERR="写阶段账失败: $ACT_JOURNAL"
+         ACT_STAGES+=("stage=journal-write-failed of=${_what} rc=1")
+     fi
+--- 失败断言原文 ---
+E       AssertionError: 阶段账被改道写进了掉包目标: 'stage=up-instance project=cls-probe_jbrk rc=0\nstage=health-assert path=/api/v1/vault/current reported=yes rc=0\nstage=index-journal-isolation rc=0 journals=lancedb_pending_index__probe_jbrk.jsonl,vault'
+E       assert 'stage=' not in 'stage=up-in...sult=ready\n'
+E         
+E         'stage=' is contained here:
+E           stage=up-instance project=cls-probe_jbrk rc=0
+E         ? ++++++
+VERDICT=KILLED gate=tests/unit/test_deploy_vault_sh.py::test_g2_8_journal_writes_cannot_be_diverted_by_a_swap rc=1 断言锚=«阶段账被改道写进了掉包目标» sha_restored=yes
+
+══════ seg=lance-cap-octal ══════
+/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t2-deploy/82d6d6e5-c8cf-48ee-b4bb-472c2da9815b/scratchpad/negctl8.sh: line 38: printf: --: invalid option
+printf: usage: printf [-v var] format [arguments]
+@@ -1354,7 +1354,7 @@
+         STEP_MSG="CLS_DEPLOY_LANCE_READY_TIMEOUT 位数过多（最多 20 位）, 实为 '${CLS_DEPLOY_LANCE_READY_TIMEOUT}'"
+         return 1
+     fi
+-    lcap="${lcap#"${lcap%%[!0]*}"}"   # 剥前导零（008 → 8；000 → 空）
++    :   # 变异: 不剥前导零
+     case "$lcap" in
+         '' | *[!0123456789]*)         # 剥零后再判一次：空串(000) 与残留非数字都在这里落地
+             STEP_MSG="CLS_DEPLOY_LANCE_READY_TIMEOUT 必须在 1..86400 秒内（0 会让上限静默失效）, 实为 '${CLS_DEPLOY_LANCE_READY_TIMEOUT}'"
+--- 失败断言原文 ---
+E       AssertionError: 缺 Lance 阶段行
+E       assert None
+VERDICT=KILLED gate=tests/unit/test_deploy_vault_sh.py::test_g2_8_lance_cap_leading_zero_is_decimal_not_octal rc=1 断言锚=«缺 Lance 阶段行» sha_restored=yes
+
+══════ seg=lance-elapsed-assertion ══════
+/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t2-deploy/82d6d6e5-c8cf-48ee-b4bb-472c2da9815b/scratchpad/negctl8.sh: line 38: printf: --: invalid option
+printf: usage: printf [-v var] format [arguments]
+@@ -1365,7 +1365,7 @@
+         STEP_MSG="CLS_DEPLOY_LANCE_READY_TIMEOUT 必须在 1..86400 秒内（超界会让上限静默失效）, 实为 '${CLS_DEPLOY_LANCE_READY_TIMEOUT}'"
+         return 1
+     fi
+-    # 到这里 lcap 已确定是 1-5 位纯 ASCII 数字 ⇒ 下面的数值比较与算术不可能出错
++    lcap=1   # 变异: 无视调用者给的预算
+     if [ "$lcap" -lt 1 ] || [ "$lcap" -gt 86400 ]; then
+         STEP_MSG="CLS_DEPLOY_LANCE_READY_TIMEOUT 必须在 1..86400 秒内, 实为 '${CLS_DEPLOY_LANCE_READY_TIMEOUT}'"
+         return 1
+--- 失败断言原文 ---
+E       AssertionError: `08` 没按十进制 8 秒生效（elapsed_s=1）—— 0 说明算术在实例起来后才炸
+E       assert 7 <= 1
+E        +  where 1 = int('1')
+E        +    where '1' = <built-in method group of re.Match object at 0x138d0fce0>(2)
+E        +      where <built-in method group of re.Match object at 0x138d0fce0> = <re.Match object; span=(463, 504), match='stage=lance-first-index rc=1 elapsed_s=1 '>.group
+VERDICT=KILLED gate=tests/unit/test_deploy_vault_sh.py::test_g2_8_lance_cap_leading_zero_is_decimal_not_octal rc=1 断言锚=«没按十进制 8 秒生效» sha_restored=yes
+
+══════ seg=lance-sleep-unbounded ══════
+/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t2-deploy/82d6d6e5-c8cf-48ee-b4bb-472c2da9815b/scratchpad/negctl8.sh: line 38: printf: --: invalid option
+printf: usage: printf [-v var] format [arguments]
+@@ -1485,7 +1485,7 @@
+         lnow="$(date +%s)"
+         lrem=$((lcap - (lnow - lstart)))
+         [ "$lrem" -gt 0 ] || break
+-        if [ "$lrem" -lt 2 ]; then sleep "$lrem"; else sleep 2; fi
++        sleep 2
+     done
+     lnow="$(date +%s)"
+     lelapsed=$((lnow - lstart))
+--- 失败断言原文 ---
+E       AssertionError: 上限 1 秒却花了 2s —— 轮询间隔没受预算约束
+E       assert 2 <= 1
+E        +  where 2 = int('2')
+E        +    where '2' = <built-in method group of re.Match object at 0x125e92170>(1)
+E        +      where <built-in method group of re.Match object at 0x125e92170> = <re.Match object; span=(463, 504), match='stage=lance-first-index rc=1 elapsed_s=2 '>.group
+VERDICT=KILLED gate=tests/unit/test_deploy_vault_sh.py::test_g2_8_lance_sleep_interval_is_bounded_by_budget rc=1 断言锚=«轮询间隔没受预算约束» sha_restored=yes
+
+══════ seg=rollback-unscoped ══════
+/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t2-deploy/82d6d6e5-c8cf-48ee-b4bb-472c2da9815b/scratchpad/negctl8.sh: line 38: printf: --: invalid option
+printf: usage: printf [-v var] format [arguments]
+@@ -1405,7 +1405,7 @@
+     if [ "$reported" != "yes" ]; then
+         local down_rc2=0
+         docker compose -f "$HARNESS/docker-compose.yml" --env-file "$ENV_FILE" \
+-            -p "cls-$VAULT_NAME" --project-directory "$HARNESS" down >&9 2>&1 || down_rc2=$?
++            --project-directory "$HARNESS" down >&9 2>&1 || down_rc2=$?
+         act_stage "stage=rollback-down project=cls-$VAULT_NAME rc=${down_rc2} scope=only-this-project"
+         if [ "$down_rc2" = 0 ]; then
+             STEP_MSG="/api/v1/vault/current 未报告 $VAULT_NAME, 已回滚 down（只拆 cls-$VAULT_NAME, 兄弟实例未碰）"
+--- 失败断言原文 ---
+E       AssertionError: 失败只拆 cls-<vault>, 兄弟实例不受影响 —— 实测被误伤: []
+E       assert 'cls-sibling' in []
+VERDICT=KILLED gate=tests/unit/test_deploy_vault_sh.py::test_g2_8_health_failure_tears_down_only_this_project rc=1 断言锚=«兄弟实例不受影响» sha_restored=yes
+
+══════ seg=updown-output-by-path ══════
+/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t2-deploy/82d6d6e5-c8cf-48ee-b4bb-472c2da9815b/scratchpad/negctl8.sh: line 38: printf: --: invalid option
+printf: usage: printf [-v var] format [arguments]
+@@ -1373,7 +1373,7 @@
+     local up_rc=0
+     docker compose -f "$HARNESS/docker-compose.yml" --env-file "$ENV_FILE" \
+         -p "cls-$VAULT_NAME" --project-directory "$HARNESS" up -d backend \
+-        >&9 2>&1 || up_rc=$?
++        >> "$cfg" 2>&1 || up_rc=$?
+     act_stage "stage=up-instance project=cls-$VAULT_NAME rc=${up_rc}"
+     if [ "$up_rc" != 0 ]; then
+         local down_rc=0
+--- 失败断言原文 ---
+E       AssertionError: up/down 的输出没有全部走 fd 9（实测 2 处）
+E       assert 2 == 3
+E        +  where 2 = <built-in method count of str object at 0x833215000>('>&9 2>&1')
+E        +    where <built-in method count of str object at 0x833215000> = 'step5_activate() {\n    if [ "$ACTIVATE" != 1 ]; then\n        STEP_MSG="未传 --activate（缺省只部署不激活）"\n        return 2\n...OLLOW）+ `write_all`（防短写）落盘。这是本脚本第三处\n#    python 写入点, 对应门 `test_every_bash_write_site_has_a_prewrite_recheck` 的计数 3。\n'.count
+VERDICT=KILLED gate=tests/unit/test_deploy_vault_sh.py::test_g2_8_activate_tx_opens_no_new_write_surface rc=1 断言锚=«up/down 的输出没有全部走 fd 9» sha_restored=yes
+
+══════ seg=alsopush-quotes-not-stripped ══════
+/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t2-deploy/82d6d6e5-c8cf-48ee-b4bb-472c2da9815b/scratchpad/negctl8.sh: line 38: printf: --: invalid option
+printf: usage: printf [-v var] format [arguments]
+@@ -1590,7 +1590,7 @@
+     #    `cut -d= -f2- | tr -d '"' | tr -d "'"` —— 它眼里 `'beta'` 就是 `beta`。
+     #    这里不剥的话，`DAILY_REVIEW_VAULTS='beta'` 再来一次 beta 会追加成 `'beta',beta`，
+     #    消费方看到的是同一个库两遍。判重口径必须与消费方一致。
+-    cur = cur.replace('"', "").replace("'", "")
++    pass  # 变异: 不剥引号
+     items = [t for t in cur.replace(",", " ").split() if t]
+     if name in items:
+         # 去重：一个字节都不写（fd 以 O_RDWR 开着, 但没 ftruncate 也没 write）
+--- 失败断言原文 ---
+E       AssertionError: 带引号的清单判重不对: ["DAILY_REVIEW_VAULTS='beta',beta"]
+E       assert ["DAILY_REVIE...='beta',beta"] == ["DAILY_REVIEW_VAULTS='beta'"]
+E         
+E         At index 0 diff: "DAILY_REVIEW_VAULTS='beta',beta" != "DAILY_REVIEW_VAULTS='beta'"
+E         Use -v to get more diff
+E       AssertionError: 带引号的清单判重不对: ['DAILY_REVIEW_VAULTS="alpha","beta",beta']
+VERDICT=KILLED gate=tests/unit/test_deploy_vault_sh.py::test_g2_8_also_push_dedups_quoted_values rc=1 断言锚=«带引号的清单判重不对» sha_restored=yes
+
+══════ seg=alsopush-pads-last-line ══════
+/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t2-deploy/82d6d6e5-c8cf-48ee-b4bb-472c2da9815b/scratchpad/negctl8.sh: line 38: printf: --: invalid option
+printf: usage: printf [-v var] format [arguments]
+@@ -1605,7 +1605,7 @@
+         # 缺键（真 feature 树当前就是这个形态）：**原字节整段保留**, 只在其后追加。
+         # ⛔ 不去给末行补 LF（Codex r3 LOW-1）：那是改既有行的字节。分隔用的换行
+         #    作为**追加内容的一部分**写在原字节之后, 原文仍是新内容的逐字节前缀。
+-        sep = b"" if (not raw or raw.endswith((b"\n", b"\r"))) else b"\n"
++        sep = b""
+         out = raw + sep + newline + b"\n"
+     os.lseek(fd, 0, os.SEEK_SET)
+     os.ftruncate(fd, 0)
+--- 失败断言原文 ---
+E       AssertionError: 既有字节没被原样保留: b'ACTIVE_VAULT=canvas-vault\nNEO4J_HTTP_PORT=7691' -> b'ACTIVE_VAULT=canvas-vault\nNEO4J_HTTP_PORT=7691DAILY_REVIEW_VAULTS=probe_notrail\n'
+E       assert b'ACTIVE_VAUL...obe_notrail\n' == b'ACTIVE_VAUL...obe_notrail\n'
+E         
+E         At index 46 diff: b'D' != b'\n'
+E         Use -v to get more diff
+VERDICT=KILLED gate=tests/unit/test_deploy_vault_sh.py::test_g2_8_also_push_keeps_original_bytes_when_file_has_no_trailing_newline rc=1 断言锚=«既有字节没被原样保留» sha_restored=yes
+
+禁写面负控（收工）        : d8b9b114967e8df2a0daab1c22aa8f85c3b8730c6fc34208375280ce5bcb2a68  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t2-deploy/scripts/cls_forbidden_paths.py
+
+RESTORE before=0e428fcce76b177b4b8dac7117c07bf53a6ef2c441dea5d3da4af038a9e9895d after=0e428fcce76b177b4b8dac7117c07bf53a6ef2c441dea5d3da4af038a9e9895d same=yes

@@ -3647,6 +3647,11 @@ def test_g2_8_activate_tx_opens_no_new_write_surface():
     act = src[src.index("step5_activate() {") : src.index("also_push_daily_review() {")]
     news = set(re.findall(r'>{1,2} "\$([A-Za-z_][A-Za-z0-9_]*)"', act))
     assert news <= {"cfg"}, f"步 5 出现了 $cfg 之外的写对象: {sorted(news)}"
+    # 开账之后，步 5 里再没有**按路径**的写：docker 的 up/down 输出也走 fd 9
+    # （Codex r3 HIGH：否则「判据说这个路径不可信」与「照这个路径写」会并存）。
+    assert act.count(">&9 2>&1") == 3, f"up/down 的输出没有全部走 fd 9（实测 {act.count('>&9 2>&1')} 处）"
+    after_open = act[act.index("act_journal_open") :]
+    assert '>> "$cfg"' not in after_open, "开账之后仍有按路径的追加写"
     # act_stage 自己那一处写在函数外（写 $ACT_JOURNAL）⇒ 上面那段扫不到它。
     # 把「ACT_JOURNAL 只能被赋成 $cfg」单独钉住，否则改一行就能把账落到新文件里。
     assigns = re.findall(r'^ACT_JOURNAL="([^"]*)"$', src, re.M)
@@ -3654,8 +3659,8 @@ def test_g2_8_activate_tx_opens_no_new_write_surface():
     # 唯一的内部赋值在 act_journal_open 里（形参），且它只被步 5 用 $cfg 调一次
     inner = re.findall(r'^\s+ACT_JOURNAL="([^"]*)"$', src, re.M)
     assert inner == ["$1"], f"ACT_JOURNAL 被别处赋值了: {inner}"
-    calls = re.findall(r"^\s*act_journal_open (\S+)", src, re.M)
-    assert calls == ['"$cfg"'], f"阶段账被开在了 $cfg 之外的对象上: {calls}"
+    calls = re.findall(r"act_journal_open (\S+)", src)
+    assert calls == ['"$cfg";'], f"阶段账被开在了 $cfg 之外的对象上: {calls}"
     # act_stage 只对**已打开的 fd 9** 写（Codex r2 HIGH：每写一行重新解析一次路径 =
     # 每写一行来一次窗口）。路径解析只许发生在 act_journal_open 那一次。
     stage_fn = src[src.index("act_stage() {") : src.index("\n}\n", src.index("act_stage() {"))]
@@ -3726,25 +3731,25 @@ def test_g2_8_journal_writes_cannot_be_diverted_by_a_swap(tmp_path: Path):
         assert stage in txt, f"掉包之后账反而不全了: 缺 {stage}"
 
 
-def test_g2_8_journal_open_failure_is_not_swallowed(tmp_path: Path):
-    """开账**之前**就被掉包 ⇒ 紧邻复查拦住，并由步 6 以 76 如实失败。
+def test_g2_8_journal_open_failure_fails_closed_before_starting_anything(tmp_path: Path):
+    """开账**之前**就被掉包 ⇒ 复查拦住，**在起任何容器之前**以 75 失败（Codex r3 HIGH）。
 
     注入点是 harness 的 venv python wrapper：它在 config 结构化断言跑完之后
     立刻把 compose-config 换成软链 —— 正好落在「断言已过、阶段账还没开」之间。
-    部署本身发生了，失败点在证据环节，所以是 76 而不是 75。
+    此刻还没有容器，所以正确处置是**拒绝起**，而不是记个错继续跑 ——
+    继续跑的话后面 up/down 的输出仍会按那个已被判定不可信的路径重定向。
     """
     h = _tx_harness(tmp_path)
     env = _tx_env(tmp_path, "8256", "probe_jopen", extra={"CLS_FAKE_BREAK_JOURNAL": "2"})
     r = _tx_run(tmp_path, h, "probe_jopen", "8256", env=env)
-    assert r.returncode == 76, f"开账被拦却没以 76 失败: rc={r.returncode}\n{r.stdout}{r.stderr}"
-    assert "激活分阶段账未能完整落盘" in r.stdout, r.stdout
-    dep = sorted((tmp_path / "ev").glob("deploy-*.txt"))
-    assert dep, "证据报告仍应落盘（失败也要留证据）"
-    txt = dep[-1].read_text(encoding="utf-8")
-    assert txt.rstrip().endswith("rc=76"), f"报告的 rc 行与进程退出码矛盾: {txt[-200:]!r}"
-    assert "stage=journal-write-failed" in txt, "报告里没有「这一行没落盘」的记录"
+    assert r.returncode == 75, f"开账被拦却没在起容器前 fail-closed: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    assert "阶段账不可写" in r.stdout, r.stdout
+    assert "cls-probe_jopen" not in _tx_state(tmp_path), "复查已拒, 却仍起了实例"
     decoy = tmp_path / "ev" / "decoy.txt"
-    assert decoy.is_file() and "stage=" not in decoy.read_text(encoding="utf-8"), "开账被拦之后仍有阶段行写进了掉包目标"
+    assert decoy.is_file(), "控制组不成立：桩没有做掉包"
+    assert decoy.read_text(encoding="utf-8") == "", (
+        f"判据说不能写, 之后仍有东西写进了掉包目标: {decoy.read_text(encoding='utf-8')[:200]!r}"
+    )
 
 
 def test_g2_8_also_push_preserves_other_lines_byte_for_byte(tmp_path: Path):
@@ -3852,3 +3857,57 @@ def test_g2_8_lance_cap_empty_falls_back_to_documented_default(tmp_path: Path):
     dep = sorted((tmp_path / "ev").glob("deploy-*.txt"))
     assert dep, "步 6 没落 evidence"
     assert "CLS_DEPLOY_LANCE_READY_TIMEOUT=120" in dep[-1].read_text(encoding="utf-8"), "缺省值与头注写的 120 不一致"
+
+
+@pytest.mark.parametrize(
+    ("seed", "name", "port", "want"),
+    [
+        # Codex r3 MEDIUM: 带引号的值 —— 消费方 memory-health.sh 会把引号 tr 掉，
+        # 判重口径必须与它一致。已在清单里 ⇒ **零写**, 所以原行逐字不变
+        # （而不是被规范化成去引号形态）。
+        ("DAILY_REVIEW_VAULTS='beta'\n", "beta", "8263", "DAILY_REVIEW_VAULTS='beta'"),
+        ('DAILY_REVIEW_VAULTS="alpha","beta"\n', "beta", "8264", 'DAILY_REVIEW_VAULTS="alpha","beta"'),
+        # 不在清单里 ⇒ 追加, 该行被重写成去引号形态（消费方口径一致, 值不变）
+        ('DAILY_REVIEW_VAULTS="alpha"\n', "gamma", "8266", "DAILY_REVIEW_VAULTS=alpha,gamma"),
+    ],
+)
+def test_g2_8_also_push_dedups_quoted_values(tmp_path: Path, seed: str, name: str, port: str, want: str):
+    """带引号的清单：判重按消费方口径（引号不算名字的一部分）。"""
+    h = _tx_harness(tmp_path, env_body="ACTIVE_VAULT=canvas-vault\n" + seed)
+    script = _tx_alsopush_script(tmp_path, h)
+    env = _tx_env(tmp_path, port, name)
+    r = _tx_run(tmp_path, h, name, port, "--also-push", env=env, script=script)
+    assert r.returncode == 0, f"rc={r.returncode}: {r.stdout}{r.stderr}"
+    got = [ln for ln in (h / ".env").read_text(encoding="utf-8").splitlines() if ln.startswith("DAILY_REVIEW_VAULTS=")]
+    assert got == [want], f"带引号的清单判重不对: {got}"
+
+
+def test_g2_8_also_push_keeps_original_bytes_when_file_has_no_trailing_newline(tmp_path: Path):
+    """末行无行尾 + 缺键 ⇒ 原字节整段是新内容的**逐字节前缀**（Codex r3 LOW-1）。
+
+    给末行补 LF 也是改既有行的字节。分隔用的换行必须算作**追加内容**。
+    """
+    h = _tx_harness(tmp_path, env_body="ACTIVE_VAULT=canvas-vault\nNEO4J_HTTP_PORT=7691")
+    before = (h / ".env").read_bytes()
+    assert not before.endswith((b"\n", b"\r")), "控制组不成立：写进去的文件末尾有行尾"
+    script = _tx_alsopush_script(tmp_path, h)
+    env = _tx_env(tmp_path, "8265", "probe_notrail")
+    r = _tx_run(tmp_path, h, "probe_notrail", "8265", "--also-push", env=env, script=script)
+    assert r.returncode == 0, f"rc={r.returncode}: {r.stdout}{r.stderr}"
+    after = (h / ".env").read_bytes()
+    assert after == before + b"\nDAILY_REVIEW_VAULTS=probe_notrail\n", f"既有字节没被原样保留: {before!r} -> {after!r}"
+
+
+def test_g2_8_lance_cap_header_digit_limit_matches_implementation():
+    """头注写的「原串最多 N 位」必须与实现里的那个 N 一致（Codex r3 LOW-2）。
+
+    两处手写的数字必然漂移 —— 本门把它们钉在一起。
+    """
+    src = DEPLOY_SH.read_text(encoding="utf-8")
+    impl = re.search(r'if \[ "\$\{#lcap\}" -gt (\d+) \]', src)
+    assert impl, "找不到 lcap 的原串长度判据"
+    head = re.search(r"含前导零在内\*\*原串最多 (\d+) 位\*\*，剥零后须 ≤(\d+) 位", src)
+    assert head, "头注没写 CLS_DEPLOY_LANCE_READY_TIMEOUT 的位数口径"
+    assert head.group(1) == impl.group(1), f"头注说 {head.group(1)} 位, 实现是 {impl.group(1)} 位"
+    impl2 = re.search(r'if \[ "\$\{#lcap\}" -gt (\d+) \]; then     # 86400', src)
+    assert impl2 and head.group(2) == impl2.group(1), "剥零后的位数口径也对不上"
