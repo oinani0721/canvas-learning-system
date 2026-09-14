@@ -158,7 +158,13 @@ class FallbackSyncService:
             # 只捕 OSError 会让一个非法字节逃到外层 (Codex round-1 LOW-④)。
             logger.warning(f"[T6-B backlog] Cannot read {path.name}: {e}")
             return 0
-        return sum(1 for line in raw.splitlines() if line.strip())
+        # ⚠️ split("\n") 而非 splitlines() (Codex round-3 LOW-4): JSONL 的行
+        # 分隔符只有 \n, 而 str.splitlines() 还在 U+2028/U+2029/\x0b/\x0c/
+        # \x1c-\x1e/U+0085 处断行 —— 这些字符在 JSON 字符串里是**合法原始字符**
+        # (从 PDF / 网页粘来的文本里并不罕见)。负控输入
+        # `json.dumps({"concept":"a b"}, ensure_ascii=False)` 是**一条**
+        # 合法记录, splitlines() 会把它数成两条。
+        return sum(1 for line in raw.split("\n") if line.strip())
 
     @staticmethod
     def _count_json_list(path: Path, key: Optional[str] = None) -> int:
@@ -211,7 +217,14 @@ class FallbackSyncService:
         if not raw:
             return {"recovered": 0, "pending": 0}
 
-        lines = raw.splitlines()
+        # ⚠️ split("\n") 而非 splitlines() (Codex round-3 LOW-4 的连带面):
+        # 含 U+2028 等字符的**一条**合法 JSONL 记录会被 splitlines() 切成两半,
+        # 两半都不是合法 JSON ⇒ 双双走 still_pending, 写回文件, 下一轮再切再失败
+        # —— 该条目**永远回灌不掉**。本卡接的就是这条回灌链, 这是链上的洞。
+        # ⛔ 下面 finalize 段重读文件时用的是**同一个**切法, 两处口径必须一致:
+        # 它们靠 len(current_lines) > len(lines) 判断「重放期间有没有新追加」,
+        # 一边 splitlines 一边 split 会让这个比较在含 U+2028 的文件上永远为真。
+        lines = raw.split("\n")
         checkpoint_idx = self._load_checkpoint("failed_writes")
         recovered = 0
         still_pending: List[str] = []
@@ -249,7 +262,8 @@ class FallbackSyncService:
             try:
                 if FAILED_WRITES_FILE.exists():
                     current_raw = FAILED_WRITES_FILE.read_text(encoding="utf-8").strip()
-                    current_lines = current_raw.splitlines() if current_raw else []
+                    # 与上面初读的切法逐字一致 (见那里的注释)
+                    current_lines = current_raw.split("\n") if current_raw else []
                     # Lines appended after our initial read
                     if len(current_lines) > len(lines):
                         new_lines = current_lines[len(lines) :]

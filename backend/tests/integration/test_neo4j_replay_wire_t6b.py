@@ -121,27 +121,69 @@ ADMIN_PATH = "/api/v1/traces/replay-fallbacks"
 GATE_KEY = "t6bgate-internal-key"
 GATE_HEADERS = {"X-CLS-Internal-Key": GATE_KEY}
 
-_CLEANUP_QUERIES = (
-    # ⚠️ Episode 必须删在 Node **之前**: Episode 的 id 是 randomUUID(), 没有门
-    # 前缀可认, 唯一的抓手是它挂在哪个前缀 Node 上。若先 DETACH DELETE 了 Node,
-    # 这条 MATCH 就恒不命中 = 一条永远清不到东西的死查询, 残留 Episode 会滞留在
-    # 共享的 7692 容器里, 把下一轮的「节点数不变」幂等断言污染成假红。
-    f"MATCH (e:Episode)-[:SCORED]->(n:Node) WHERE n.id STARTS WITH '{GATE_PREFIX}' DETACH DELETE e",
-    f"MATCH (c:Concept) WHERE c.name STARTS WITH '{GATE_PREFIX}' DETACH DELETE c",
-    f"MATCH (n:Node) WHERE n.id STARTS WITH '{GATE_PREFIX}' DETACH DELETE n",
-    f"MATCH (c:Canvas) WHERE c.path STARTS WITH '{GATE_PREFIX}' DETACH DELETE c",
-    # 兜底: 上一条若因顺序/中断没抓到, 清掉**本门 group** 下无邻居的 scoring Episode。
-    # ⚠️ 必须带 group 约束 (Codex round-2 MEDIUM-4): 原写法是
-    # `WHERE e.type = 'scoring' AND NOT (e)--()`, 没有任何门身份约束 ——
-    # 对照输入「别的门留下的无边 (:Episode {type:'scoring'})」同样会被本门删掉。
-    # 7692 是共享容器, 越界清理会让别的门随执行顺序时红时绿。
-    # 身份锚用 **group_id 以本门 canvas 名结尾**: 回灌链把 group 解析成
-    # `vault:<active_vault>:<canvas>` 再物理化, 故 vault 名随环境变、canvas 段不变。
-    # 用 ENDS WITH 比硬编码 vault 前缀稳。
-    f"MATCH (e:Episode) WHERE e.type = 'scoring' AND NOT (e)--() "
-    f"AND e.group_id IS NOT NULL AND e.group_id ENDS WITH '{GATE_CANVAS}' "
-    f"DETACH DELETE e",
-)
+#: 本门播种的 Concept / Node id 的**完整**前缀（含分隔下划线）。
+#: ⚠️ 用 `GATE_PREFIX`（"t6bgate"）做前缀会连带吃掉假想中的 `t6bgate2_*`
+#: （Codex round-3 MEDIUM-1 的对照输入）。带上 `_concept_` / `_cid_` 这两段
+#: 就把匹配面收窄到「只有 `_seed_entry()` 会产出的形状」。
+_GATE_CONCEPT_PREFIX = f"{GATE_PREFIX}_concept_"
+_GATE_NODE_PREFIX = f"{GATE_PREFIX}_cid_"
+
+
+def _gate_group_id() -> str | None:
+    """本门数据实际落库的**物理 group_id**（运行时算，不硬编码）。
+
+    回灌链走 `FallbackSyncService._build_group_id_from_canvas(GATE_CANVAS)`
+    → `to_physical_group_id()`。这里调同一对函数求值，得到的就是本门 Episode
+    身上那个 `group_id` 的**精确值**，用于清理时做等值匹配。
+    """
+    from app.graphiti.group_id_compat import to_physical_group_id
+    from app.services.fallback_sync_service import FallbackSyncService
+
+    logical = FallbackSyncService._build_group_id_from_canvas(GATE_CANVAS)
+    return to_physical_group_id(logical) if logical else None
+
+
+def _cleanup_queries() -> tuple[tuple[str, dict], ...]:
+    """清理查询 —— 一律**精确身份**，不用宽前缀/尾缀（Codex round-3 MEDIUM-1）。
+
+    round-2 那版把兜底那条从「全库无边 scoring Episode」收窄成
+    `group_id ENDS WITH '<canvas 名>'`，范围是小了，但**仍不是精确身份**：
+    对照输入 `group_id='vault__other__other_t6bgate_canvas'` 同样满足尾缀；
+    前四条的 `STARTS WITH 't6bgate'` 也会吃掉 `t6bgate2_*`。
+    本版改为：Canvas 路径**等值**、Concept/Node 用带分隔段的完整前缀、
+    Episode 的 group **等值**于运行时算出的真实物理 group。
+    参数化传值（不再 f-string 拼进 Cypher）。
+
+    ⚠️ Episode 仍必须删在 Node **之前**：它的 id 是 `randomUUID()`，唯一抓手是
+    挂在哪个门 Node 上；先删 Node 这条就恒不命中 = 死查询。
+    """
+    gid = _gate_group_id()
+    queries: list[tuple[str, dict]] = [
+        (
+            "MATCH (e:Episode)-[:SCORED]->(n:Node) WHERE n.id STARTS WITH $node_prefix DETACH DELETE e",
+            {"node_prefix": _GATE_NODE_PREFIX},
+        ),
+        (
+            "MATCH (c:Concept) WHERE c.name STARTS WITH $concept_prefix DETACH DELETE c",
+            {"concept_prefix": _GATE_CONCEPT_PREFIX},
+        ),
+        (
+            "MATCH (n:Node) WHERE n.id STARTS WITH $node_prefix DETACH DELETE n",
+            {"node_prefix": _GATE_NODE_PREFIX},
+        ),
+        ("MATCH (c:Canvas) WHERE c.path = $canvas DETACH DELETE c", {"canvas": GATE_CANVAS}),
+    ]
+    if gid:
+        # 兜底: 上面那条若因顺序/中断没抓到, 清掉**本门 group** 下无邻居的
+        # scoring Episode。group 用**等值**而非尾缀 —— 别的 vault 下同名 canvas
+        # 的 group 不再被误删。gid 解析不出来时整条跳过 (宁可漏清不可越界)。
+        queries.append(
+            (
+                "MATCH (e:Episode) WHERE e.type = 'scoring' AND NOT (e)--() AND e.group_id = $gid DETACH DELETE e",
+                {"gid": gid},
+            )
+        )
+    return tuple(queries)
 
 
 def _seed_entry() -> Dict[str, Any]:
@@ -228,13 +270,13 @@ async def gate_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(fss, "_fallback_sync_instance", fss.FallbackSyncService(neo4j_client=client))
 
     try:
-        for q in _CLEANUP_QUERIES:
-            await client.run_query(q)
+        for q, params in _cleanup_queries():
+            await client.run_query(q, **params)
         yield client
     finally:
         try:
-            for q in _CLEANUP_QUERIES:
-                await client.run_query(q)
+            for q, params in _cleanup_queries():
+                await client.run_query(q, **params)
         finally:
             await client.cleanup()
 
@@ -261,23 +303,32 @@ async def _write_seed(monkeypatch_path: Path, entry: Dict[str, Any]) -> None:
 
 
 async def _gate_node_count(client) -> Dict[str, int]:
-    """门前缀节点计数 —— 逐标签分开数, 便于定位是哪一类被重复创建."""
+    """门身份节点计数 —— 逐标签分开数, 便于定位是哪一类被重复创建.
+
+    身份口径与 :func:`_cleanup_queries` **逐字对齐**（Concept/Node 用带分隔段的
+    完整前缀、Canvas 用等值）: 若计数面比清理面宽, 清理清不掉的残留会进计数、
+    把幂等断言污染成假红; 若比清理面窄, 又会漏看本该发现的重复。
+    """
     rows: List[Dict[str, Any]] = await client.run_query(
         """
         MATCH (n)
-        WHERE n.name STARTS WITH $p OR n.id STARTS WITH $p OR n.path STARTS WITH $p
+        WHERE n.name STARTS WITH $concept_prefix
+           OR n.id STARTS WITH $node_prefix
+           OR n.path = $canvas
         RETURN labels(n)[0] AS label, count(n) AS c
         """,
-        p=GATE_PREFIX,
+        concept_prefix=_GATE_CONCEPT_PREFIX,
+        node_prefix=_GATE_NODE_PREFIX,
+        canvas=GATE_CANVAS,
     )
     counts = {str(r["label"]): int(r["c"]) for r in rows}
     episodes = await client.run_query(
         """
         MATCH (e:Episode)-[:SCORED]->(n:Node)
-        WHERE n.id STARTS WITH $p
+        WHERE n.id STARTS WITH $node_prefix
         RETURN count(e) AS c
         """,
-        p=GATE_PREFIX,
+        node_prefix=_GATE_NODE_PREFIX,
     )
     counts["Episode"] = int(episodes[0]["c"]) if episodes else 0
     return counts
