@@ -2247,8 +2247,9 @@ TMP_BLOCK_BASELINE: dict[str, list[str]] = {
         #: 只有整块哈希变: `571eb660…`(基线) → `664dd4d8…`(重做 round-1 版) →
         #: `094c1c37…`(按 Codex round-1 收紧降级扫描 + realpath 改 strict) →
         #: `c8120a7b…`(按 Codex round-2 + 本卡自查, 降级扫描改成「读不懂就停」) →
-        #: `8b8ce50d…`(按 Codex round-3: 空白口径统一 + 非法字符判据 + 文档标记状态)。
-        "B229:8b8ce50d430d62b5",
+        #: `8b8ce50d…`(按 Codex round-3: 空白口径统一 + 非法字符判据 + 文档标记状态) →
+        #: `7fae3bc35bccb988…`(按 Codex round-4: 三处措辞按实测更正为「已有反例」)。
+        "B229:7fae3bc35bccb988",
         "S96:b55afbca27229028",
         "S205:44b7655dd97c27b7",
     ],
@@ -4370,7 +4371,7 @@ MANAGED_FILE_DIGESTS: dict[str, str] = {
     "skills/configure-whiteboard/SKILL.md": "9eb21ecc6ac044a914ce11009025f8a84e51c5135221ec3b50f8c021ccfa2177",
     "skills/exam-quick/SKILL.md": "eb30e407a14145477710cbf439e7e85705afeb157c98c5993ee0b3616c324853",
     "skills/node-chat/SKILL.md": "3b15bc91dabea7e7b3876b75c2c0973e7a9284d48081e5d1b864623258b40fb7",
-    "skills/quiz-answer/SKILL.md": "035b22bb3f63e095531f285554780dafc73ad0293205452f10045d82d12c05a0",
+    "skills/quiz-answer/SKILL.md": "784a1cfc2fd0bf6add994f8ea716e81a6f00bc1e7ec8371e3bb13f0be390a42a",
     "skills/start-exam-board/SKILL.md": "0f2c085a1bae12446dd74ab89cc1e6aa5c8bc34901dd3be7ac5d8521310d0dce",
     "skills/study-question/SKILL.md": "0142b7833ff3ab54c9307227d59ebaa7d5ff3f9c18a76b07344d0ab295fa22e4",
     "scripts/decay_beta.py": "3bf4ed9402a4c8edfde16630a79094a5d4518fd181fa60810319fe46d37abb90",

@@ -7596,6 +7596,13 @@ def _ht_outcome(_fn, _vault_dir):
         "--- {a: 1}",
         "---",
         "...",
+        # ── round-5: 给三组「读不懂就停」判据各配一个专属哨兵（Codex round-4 LOW-1）──
+        #: 本卡原先登记「门结构上测不到判据失效、必须另立变异卡」—— **那是错的**。
+        #: 漏掉的一点: 判据一删, 降级就比 PyYAML **更宽**, 于是落进「违反」而不是「更窄」。
+        #: 下面三条各自只让**一组**判据的删除变红(本卡逐变体实测的对角线), 其余全绿。
+        "%FOO bar" + chr(10) + "harness_tree: /a/b",
+        "note: *undefined" + chr(10) + "harness_tree: /a/b",
+        'note: "unclosed' + chr(10) + "harness_tree: /a/b",
     ],
 )
 def test_g33r2_harness_tree_degraded_never_diverges_from_yaml(tmp_path, monkeypatch, _line):
