@@ -38,22 +38,35 @@ Optional ⇒ ``edges.py:66-70`` 的 ``neo4j is None`` 是死守卫), 且 ``backe
 是 ``NEO4J_ENABLED=true`` + ``NEO4J_URI`` 端口 **7691** ⇒ **打桩一旦失效那一跑就
 会真连现网**. 故两道门在发请求 / 发写之前都先过注入锚.
 
-⛔ 本文件**没有**证明什么 (Codex r2 HIGH-1, 如实记):
-两道门覆盖的是 ``AttributeError`` 这一条降级路径。**真实驱动失败并不走这条路** ——
+⛔ 本文件**没有**证明什么 (Codex r2 HIGH-1 / r3 L1, 如实记):
+两道门覆盖的是 ``AttributeError`` 这一条降级路径。**真实驱动失败不走这条路** ——
 neo4j 6.1.0 的 ``Neo4jError`` / ``ClientError`` / ``AuthError`` / ``TransientError`` /
 ``DriverError`` / ``ServiceUnavailable`` / ``SessionExpired`` 七类全部继承自
 ``GqlError -> Exception``, 与 ``RuntimeError`` / ``ConnectionError`` / ``OSError``
-无继承关系, 因此都**不在** ``_write_neo4j_triplet`` 的 except 元组内, 仍会上抛而让端点
-回到 500(实测存档 ``evidence-t-edges/neo4j-exception-mro-*.txt``)。本卡按卡文 §三
-「不得泛化, 只加 AttributeError 一个类型」未动这一面, 该缺口已登记移交。别把本文件的
+无继承关系, 因此**都不被** ``_write_neo4j_triplet`` 的 except 元组捕获(实测存档
+``evidence-t-edges/neo4j-exception-mro-*.txt``)。**措辞边界(r3 L1 整改)**: 这只说明
+「不被本函数捕获」, 不等于「这七类一发生就必然 500」—— ``ServiceUnavailable`` /
+``SessionExpired`` / ``TransientError`` 会先经客户端的重试与 JSON fallback, 初始化
+失败也另有 fallback, 最终 HTTP 状态取决于那条链路; 但**若穿透了客户端内部的重试与
+回退, 端点就会 500**, 权限 / 约束类 ``ClientError`` 存在该路径。本卡按卡文 §三
+「不得泛化, 只加 AttributeError 一个类型」未动这一面, 缺口已登记移交。别把本文件的
 两道绿读成「Neo4j 写失败一定记成 207」。
 
 ⛔ 为什么「改前 500」不能当注入证据 (恒真判据):
 改前无论 stub 是否注入都得 500 —— 注入则 stub 抛 ``AttributeError``, 未注入则
-真客户端同样没有 ``execute_query``, 照样 ``AttributeError``. 改后同样不可分辨:
-未注入时真客户端连 7691 会被 W4 门拦下抛 ``RuntimeError``, 而 ``RuntimeError``
-本就在 except 元组里 ⇒ 照样得 207. 唯一能分辨的锚是
-``stub.calls`` 与 **sentinel 串出现在响应体 ``graphiti_status.error`` 里**.
+真客户端同样没有 ``execute_query``, 照样 ``AttributeError``。所以「改前 500」对
+注入与否不可分辨。唯一能分辨的锚是 ``stub.calls`` 的 0→≥1 变化,
+与 **sentinel 串出现在响应体 ``graphiti_status.error`` 里**。
+
+⛔ 打桩失效时**没有第二道网络防线** (Codex r3 L3 整改, 这条曾被本文件写反):
+``backend/tests/support/live_port_guard.py`` 的 ``EXEMPT_MARKERS`` 含 ``integration`` /
+``real_neo4j``, ``EXEMPT_PATH_PREFIXES`` 含 ``integration`` —— 本文件两项都占,
+于是 W4 门对本文件的用例是 **advisory: 只记账, 不拦**。即打桩若失效, 到 7691 的连接
+会**真的建立**并真写现网, 不会像早先注释说的那样「被拦下抛 RuntimeError」。
+⇒ 本文件的注入锚是唯一防线, 因此它们是承重的, 断言不成立必须立即停跑。
+存档末行的 ``NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, ...)`` 仍是
+有意义的证据: 它说明在该账本覆盖的端口(7691/7687)上, 那一跑**一次连接尝试都没有**
+(advisory 也是 0, 不是「拦了没记」)。但它只覆盖这两个端口, 不等于整进程零网络。
 """
 
 from __future__ import annotations
@@ -147,13 +160,15 @@ def _test_uri_port_is_allowed(uri: str) -> bool:
     try:
         parsed = urlsplit(uri)
     except ValueError:
-        # 端口段不是合法整数 (如 bolt://host:abc) ⇒ 拒绝
+        # urlsplit 本身失败: 坏的 IPv6 括号、非法 netloc 等 ⇒ 拒绝
+        # (r3 L2 更正: 非整数端口不在这一段抛, 见下)
         return False
     if parsed.scheme.lower() not in ALLOWED_TEST_SCHEMES:
         return False
     try:
         return parsed.port == ALLOWED_TEST_PORT
     except ValueError:
+        # 读 .port 时才抛: 端口段非整数 (bolt://host:abc) 或越界 ⇒ 拒绝
         return False
 
 
