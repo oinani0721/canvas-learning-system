@@ -78,8 +78,21 @@ SCOPE_NOTE_CODES = (
     # N4: picker 投影无 `boards` 顶层键 = 旧投影合法形态 (CARD-D1 之前),
     #     `_gate_boards_rollup` docstring 明文"可选顶层键: 旧投影缺省走纯派生路径"。
     #     该子项 not-applicable, 不是差异。
+    #     ⚠️ 仅当 `buckets` 也缺席才算合法旧形态 —— `review_overview.py:869-872` 明文
+    #     "有 buckets 无 boards 不是任何历史形态"(Codex r2 MEDIUM-4)。
     "N4_picker_rollup_absent",
+    # N5: **根本没要求取** overview (未给 --overview-url / --overview-json) —— 与 N3
+    #     「试过但连不上」是两回事 (Codex r2 LOW-11)。把没试过写成 "backend down"
+    #     会让读者以为探测过后端。
+    "N5_overview_not_requested",
 )
+
+#: 判为「连不上」(N3 豁免) 的**连接层**失败。⛔ 只列能**证明**连接没建立起来的那几种;
+#: 超时 / 连接重置 / 协议错误一律不算 —— 它们可能发生在**连上之后**(如对端收下 GET 却
+#: 不返回响应头, Codex r2 HIGH-1 实测过这条路径), 含糊的一律计入 semantic_diff (fail-closed)。
+_CONNECT_FAILURE_ERRNOS = frozenset(
+    {61, 65, 51, 64, 111, 113, 101}
+)  # ECONNREFUSED/EHOSTDOWN/ENETUNREACH/EHOSTUNREACH 等
 
 
 # --------------------------------------------------------------------------
@@ -96,6 +109,30 @@ def _is_js_number(v: Any) -> bool:
     朴素镜像却会伪造出"1 张到期"。`type(True) is bool` ⇒ 下式自动排除。
     """
     return type(v) is int or type(v) is float
+
+
+def _js_interp_throws(v: Any) -> bool:
+    """JS 模板字符串 `${v}` 是否会抛 TypeError (Codex r2 MEDIUM-7)。
+
+    `String(v)` 先试 `valueOf`、再试 `toString`。JSON 解出来的普通对象继承
+    `Object.prototype.toString` ⇒ 得 "[object Object]", 不抛; **但** 若对象自带
+    `"toString"` 键, 该键的值在 JSON 里永远不可能是函数, 于是两步都拿不到原始值 ⇒ 抛。
+    数组走 `Array.prototype.toString`(join), 也不抛。
+
+    Dashboard `:83` 把 `generated_at` 等值插进模板 —— 抛出后落到 `:87` "投影损坏"、
+    **不出数字**。镜像必须跟到这一层, 否则脚本算出数字而界面什么都不显示。
+    """
+    return isinstance(v, dict) and "toString" in v
+
+
+def _strict_count(v: Any) -> int | None:
+    """严格计数: 只接受真 `int`。⛔ Codex r2 MEDIUM-6。
+
+    Python 的 `False == 0` / `2.0 == 2` 会让**损坏的计数**与正常值比较时相等,
+    于是 `due: false` 的板被当成"正常的零到期板"放行。返回 None = 类型不合法。
+    (与 `review_overview._strict_int` 同口径: bool 不是 int。)
+    """
+    return v if type(v) is int else None
 
 
 def dashboard_recompute(payload: Any) -> dict:
@@ -151,6 +188,18 @@ def dashboard_recompute(payload: Any) -> dict:
             "backlog_count": NOT_COMPARABLE,
             "degraded_reason": "Dashboard.md:70-72 逐行取属性遇 null → :87 投影损坏 (不出数字)",
         }
+    # Codex r2 MEDIUM-7: `:79-83` 把 generated_at / stats.unassigned 插进模板字符串,
+    # 值是「带 toString 键的对象」时 JS 抛 TypeError → `:87` 投影损坏、不出数字。
+    for fld, val in (
+        ("generated_at", payload.get("generated_at")),
+        ("stats.unassigned", (stats or {}).get("unassigned")),
+    ):
+        if _js_interp_throws(val):
+            return {
+                "due_count": NOT_COMPARABLE,
+                "backlog_count": NOT_COMPARABLE,
+                "degraded_reason": f"Dashboard.md:79-83 模板插值 {fld} 抛 TypeError → :87 投影损坏 (不出数字)",
+            }
     due_cnt = len(due_nodes) if has_detail else stats_due  # :68
     ineligible = payload.get("ineligible")
     placeholder = ineligible.get("placeholder") if isinstance(ineligible, dict) else None
@@ -209,8 +258,28 @@ def picker_rollup_due(payload: dict) -> tuple[dict[str, int] | None, str | None]
             return None, f"boards[{i}].board 不是非空字符串 (实为 {board!r})"
         if board in out:
             return None, f"boards[{i}].board 重复: {board!r}"
-        out[board] = r.get("due")
+        # ⛔ Codex r2 MEDIUM-6: `due` 必须是真 int。`False == 0` / `2.0 == 2` 会让
+        # 损坏计数在后续比较里与正常值相等, 于是 `due: false` 的板被当成正常零到期板。
+        due = _strict_count(r.get("due"))
+        if due is None:
+            return None, f"boards[{i}].due 不是整数 (实为 {r.get('due')!r})"
+        out[board] = due
     return out, None
+
+
+def picker_upcoming_boards(payload: dict) -> dict[str, Any]:
+    """`upcoming` 里的板 → `next_due`（Codex r2 MEDIUM-5）。
+
+    ⚠️ 这不是可选项: `boards` rollup **缺席**时 overview 的零到期行改从 `upcoming` 追加
+    (`review_overview.py:928-940`)。板集若不含 upcoming, 合法旧投影会被误报成
+    「overview 多出一块板」。
+    """
+    up = payload.get("upcoming")
+    out: dict[str, Any] = {}
+    for u in up if isinstance(up, list) else []:
+        if isinstance(u, dict) and isinstance(u.get("board"), str) and u["board"]:
+            out[u["board"]] = u.get("next_due")
+    return out
 
 
 def picker_rollup_boards(payload: dict) -> dict[str, dict] | None:
@@ -228,6 +297,39 @@ def picker_rollup_boards(payload: dict) -> dict[str, dict] | None:
         if isinstance(r, dict) and isinstance(r.get("board"), str) and r["board"]:
             out[r["board"]] = r
     return out
+
+
+def expected_board_order(
+    top_names: list[str], group_due: dict[str, int], rollup_rows: dict | None, upcoming: dict[str, Any]
+) -> list[str]:
+    """按 `review_overview` 的**完整**板序契约独立复算总览页板表的顺序。
+
+    ⛔ Codex r2 HIGH-2: 只比「推荐前缀」会漏掉其后的全部板序 —— `top=[乙]` 而
+    overview 返回 `[乙, 丁, 甲]`(应为 `[乙, 甲, 丁]`) 时前缀判据全绿; `top=[]` 时
+    更是整张板表的顺序都没人看。
+
+    契约两段 (逐字对照实现):
+      ① 到期板: `board_rows.sort(key=(prio.get(b, len(prio)), -due, board))` (`:911`),
+         `prio[b] = i` 取自 top_boards 下标 (`:831`)。
+      ② 零到期板追加在后 (`:942 board_rows += zero_rows`), 且来源二选一:
+         - rollup **在场** → 取 rollup 里 `due == 0` 的板, 排序键
+           `(earliest is None, earliest or "", board)`, 其中 earliest = `next_due or None` (`:918-925`);
+         - rollup **缺席** → 取 `upcoming` 的板, 排序键 `(earliest, board)` (`:928-940`)。
+         两种来源都**排除已在到期板里的板**。
+
+    独立性: 这是同一条契约的**另一个实现** ⇒ `reimplementation` 档 —— 能抓任一侧的
+    实现漂移, 抓不到契约本身写错。
+    """
+    prio = {b: i for i, b in enumerate(top_names)}
+    due_boards = sorted(group_due, key=lambda b: (prio.get(b, len(prio)), -group_due[b], b))
+    if rollup_rows is not None:
+        zero = [(b, (r.get("next_due") or None)) for b, r in rollup_rows.items() if _strict_count(r.get("due")) == 0]
+        zero = [(b, e) for b, e in zero if b not in group_due]
+        zero.sort(key=lambda t: (t[1] is None, t[1] or "", t[0]))
+    else:
+        zero = [(b, e) for b, e in upcoming.items() if b not in group_due]
+        zero.sort(key=lambda t: (t[1] if isinstance(t[1], str) else "", t[0]))
+    return due_boards + [b for b, _ in zero]
 
 
 def urgency_sorted_nodes(rows: list[dict]) -> list[str]:
@@ -271,6 +373,26 @@ def _reject_js_nonstandard(const: str):
     raise ValueError(f"非标准 JSON 常量 {const} (JS JSON.parse 拒收)")
 
 
+def _is_connection_failure(e: BaseException) -> bool:
+    """这个异常**能证明连接没建立起来**吗？(N3 豁免的唯一判据, Codex r2 HIGH-1)
+
+    能证明的只有三类: 连接被拒 (`ConnectionRefusedError`)、主机/网络不可达 (errno)、
+    DNS 解析不了 (`socket.gaierror`)。
+    ⛔ 超时 / 连接重置 / 协议错误一律**不算** —— `opener.open()` 要等响应头到齐才返回,
+    对端收下 GET 却不回响应头时抛的也是超时, 那是**已连接**的故障, 豁免它等于把后端
+    「起来了但不响应」读成「后端没起」。含糊的一律 fail-closed 进 semantic_diff。
+    未知 URL scheme (`ValueError`/`URLError("unknown url type")`) 同样不算连接失败。
+    """
+    import socket
+
+    inner = getattr(e, "reason", e)
+    if isinstance(inner, socket.gaierror) or isinstance(inner, ConnectionRefusedError):
+        return True
+    if isinstance(inner, OSError) and not isinstance(inner, (TimeoutError, ConnectionResetError)):
+        return inner.errno in _CONNECT_FAILURE_ERRNOS
+    return False
+
+
 def _direct_opener() -> urllib.request.OpenerDirector:
     """**不经代理**的 opener —— 本机后端的 GET 必须直连。
 
@@ -308,7 +430,13 @@ def fetch_overview(base_url: str, timeout: float = 10.0) -> tuple[Any, str | Non
     except urllib.error.HTTPError as e:
         return {"__http_error__": f"HTTP {e.code}"}, None  # 连上了, 非 2xx
     except (urllib.error.URLError, TimeoutError, OSError) as e:
-        return None, f"{type(e).__name__}: {str(e)[:160]}"  # ← 唯一的 not-fetched 出口
+        # ⛔ Codex r2 HIGH-1: `open()` 失败**不等于**连不上 —— 它要等到响应头到齐才返回,
+        # 所以"对端收下了 GET 却不回响应头"这种**已连接**的故障也会在这里抛。
+        # 唯一能豁免的是**能证明连接没建立**的那几种 (拒绝 / 主机不可达 / DNS);
+        # 超时、重置、协议错误一律 fail-closed 计入 semantic_diff。
+        if _is_connection_failure(e):
+            return None, f"{type(e).__name__}: {str(e)[:160]}"  # ← 唯一的 not-fetched 出口
+        return {"__open_error__": f"{type(e).__name__}: {str(e)[:160]}"}, None
     try:  # 以下全部属于"已连接", 任何失败都不再豁免
         with resp:
             body = resp.read().decode("utf-8")
@@ -338,6 +466,8 @@ def select_vault_entry(resp: Any, vault_id: str) -> tuple[Any, str | None]:
         return None, f"overview 返回非 2xx: {resp['__http_error__']}"
     if isinstance(resp, dict) and "__read_error__" in resp:
         return None, f"overview 已连接但正文读取失败: {resp['__read_error__']}"
+    if isinstance(resp, dict) and "__open_error__" in resp:
+        return None, f"overview 请求失败且无法证明连接未建立 (fail-closed): {resp['__open_error__']}"
     if isinstance(resp, dict) and "__json_error__" in resp:
         return None, f"overview 响应不是 JSON: {resp['__json_error__']}"
     if isinstance(resp, dict) and "vault_id" in resp and "vaults" not in resp:
@@ -377,6 +507,7 @@ def reconcile(
     overview_entry: Any,
     *,
     not_fetched_reason: str | None = None,
+    not_requested_reason: str | None = None,
     overview_error: str | None = None,
     vault_id: str | None = None,
 ) -> dict:
@@ -427,11 +558,24 @@ def reconcile(
         diffs.append(
             _diff("picker.boards(self)", "structure", rollup_corrupt, "(应为合法 rollup 数组)", "cross-source")
         )
+    elif rollup_due is None and "buckets" in pk:
+        # ⛔ Codex r2 MEDIUM-4: `review_overview.py:869-872` 明文「有 buckets 无 boards
+        # 不是任何历史形态」(二者同版一起落盘) ⇒ 这不是合法旧投影, 不能记 N4。
+        diffs.append(
+            _diff(
+                "picker.boards(self)",
+                "structure",
+                "buckets 在场但 boards 缺席 — 非生产器产物",
+                "(二者同版一起落盘)",
+                "cross-source",
+            )
+        )
     elif rollup_due is None:
         notes.append(
             _note(
                 "N4_picker_rollup_absent",
-                f"vault={vid!r} 的投影无 boards 顶层键 (旧投影合法形态); rollup ↔ group-by 子项 not-applicable",
+                f"vault={vid!r} 的投影无 boards 顶层键 (旧投影合法形态, 且 buckets 同样缺席); "
+                "rollup ↔ group-by 子项 not-applicable",
             )
         )
     else:
@@ -450,7 +594,11 @@ def reconcile(
 
     # ---- ③ overview 面 ---------------------------------------------------
     ov_view: Any
-    if not_fetched_reason is not None:
+    if not_requested_reason is not None:
+        # N5: 根本没要求取 —— 与 N3「试过但连不上」分开 (Codex r2 LOW-11)。
+        notes.append(_note("N5_overview_not_requested", not_requested_reason))
+        ov_view = {"status": "not-requested", "reason": not_requested_reason}
+    elif not_fetched_reason is not None:
         # ⛔ N3 是**唯一**的豁免口: 连不上 ⇒ overview 这一面整体缺席, 退化为
         # picker↔Dashboard 两面对账 (那两面仍须 0 semantic_diff)。
         notes.append(_note("N3_overview_not_fetched", f"overview 未取到 (backend down): {not_fetched_reason}"))
@@ -468,7 +616,8 @@ def reconcile(
 
     # ⛔ 实际对上的面 —— not-fetched 时只有两面, 报告与终端都必须如实说,
     # 否则"后端没起"会被读成"三面一致"(Codex 问题④的假绿面)。
-    compared = ["picker", "dashboard"] if not_fetched_reason is not None else ["picker", "dashboard", "overview"]
+    two_face_only = not_fetched_reason is not None or not_requested_reason is not None
+    compared = ["picker", "dashboard"] if two_face_only else ["picker", "dashboard", "overview"]
     return {
         "vault_id": vid,
         "compared_views": compared,
@@ -564,6 +713,17 @@ def _reconcile_overview(
     ov_due_by_board: dict[str, Any] = {}
     ov_nodes_by_board: dict[str, list] = {}
     if isinstance(ov_boards, list):
+        # ⛔ Codex r2 HIGH-3: 板行**重复**会被字典覆盖掉 —— `[乙, 甲, 甲]` 与 `[乙, 甲]`
+        # 在 dict 里无法区分, 于是多出来的那一行在对账里完全隐形。先查唯一性。
+        seen_boards: set[str] = set()
+        for r in ov_boards:
+            if isinstance(r, dict) and isinstance(r.get("board"), str):
+                b = r["board"]
+                if b in seen_boards:
+                    diffs.append(
+                        _diff("overview(self)", f"boards[{b}]", "板行重复出现", "(板行应唯一)", "reimplementation")
+                    )
+                seen_boards.add(b)
         for r in ov_boards:
             if isinstance(r, dict) and isinstance(r.get("board"), str):
                 ov_due_by_board[r["board"]] = r.get("due")
@@ -583,36 +743,33 @@ def _reconcile_overview(
     # ⛔ Codex r1 HIGH-1: 板集必须含**零到期板**。picker rollup 收「有成员或有占位符」的板
     # (含 due=0/future>0 的), overview 端由 `rollup_zero` 渲染成零到期行。只比到期板会让
     # 「overview 整块漏掉一块零到期板」全绿 —— 总览页少显示一块板, 判据却说三面一致。
-    expected_boards = set(group_due) | (set(rollup_rows) if rollup_rows else set())
+    # ⛔ Codex r2 MEDIUM-5: rollup **缺席**时零到期行改从 `upcoming` 追加
+    # (`review_overview.py:928-940`), 板集漏了 upcoming 会把**合法旧投影**误报成
+    # 「overview 多出一块板」。
+    upcoming = picker_upcoming_boards(pk)
+    zero_source = set(rollup_rows) if rollup_rows is not None else set(upcoming)
+    expected_boards = set(group_due) | zero_source
     for b in sorted(expected_boards | set(ov_due_by_board)):
         a = ov_due_by_board.get(b, "(overview 无此板)")
-        c = group_due.get(b, 0 if (rollup_rows and b in rollup_rows) else "(picker 明细无此板)")
+        c = group_due.get(b, 0 if b in zero_source else "(picker 明细无此板)")
         if a != c:
             # 独立性: overview 的板级 due 与本脚本的 group-by 是**同一条规则的两个实现**
             # (Codex r1 MEDIUM-6) —— 能抓实现漂移, 但**不是**第三个独立派生源。
             diffs.append(_diff("overview ↔ picker.due_nodes", f"boards[{b}].due", a, c, "reimplementation"))
 
-    # 排序 A — 板序: overview `board_rows.sort(key=(prio, -due, board))`(:911),
-    # `prio[b]=i` 取自 top_boards 下标(:831) ⇒ 在榜板按 top_boards 原序排在**最前**。
-    # ⛔ Codex r1 HIGH-2: 必须比**前缀**, 不能比"过滤后的子序列" —— `top_boards=[乙]`
-    # 而 overview 顺序是 `[甲, 乙]` 时, 过滤后仍等于 `[乙]` 而全绿, 可实际上总览页的
-    # 首板已经不是推荐首板了。
+    # 排序 A — 板序: 与 `expected_board_order()` 复算的**整张板表顺序**逐位比。
+    # ⛔ Codex r1 HIGH-2 先把「子序列」纠成「前缀」; Codex r2 HIGH-2 进一步指出
+    # **前缀之后的板序完全没人看** —— `top=[乙]` 而 overview 返回 `[乙, 丁, 甲]`
+    # (应为 `[乙, 甲, 丁]`) 时前缀判据全绿, `top=[]` 时整张表的顺序都不查。
     top_names = _top_board_names(pk)
     ov_order = (
         [r["board"] for r in ov_boards if isinstance(r, dict) and isinstance(r.get("board"), str)]
         if isinstance(ov_boards, list)
         else []
     )
-    if top_names and ov_order[: len(top_names)] != top_names:
-        diffs.append(
-            _diff(
-                "picker.top_boards ↔ overview.boards",
-                "board_order",
-                top_names,
-                ov_order[: len(top_names)],
-                "cross-source",
-            )
-        )
+    exp_order = expected_board_order(top_names, group_due, rollup_rows, upcoming)
+    if ov_order != exp_order:
+        diffs.append(_diff("overview.boards ↔ 复算板序", "board_order", ov_order, exp_order, "reimplementation"))
 
     # 排序 B — 板内节点: ①身份集合 ②行序 ≡ 独立复算的紧迫度序 (见 N2)。
     notes.append(
@@ -624,15 +781,31 @@ def _reconcile_overview(
         )
     )
     for b in sorted(set(ov_nodes_by_board) & set(groups)):
-        ov_seq = [n.get("node") for n in ov_nodes_by_board[b] if isinstance(n, dict)]
-        if set(ov_seq) != {r.get("node") for r in groups[b]}:
+        # ⛔ Codex r2 MEDIUM-9: 节点身份可能是不可哈希的值 (如 `node: []`) —— 直接进
+        # 集合会抛 TypeError 打断整个对账、连差异表都不出。非字符串身份先报成输入损坏。
+        bad = [r for r in groups[b] if not isinstance(r.get("node"), str)]
+        if bad:
+            diffs.append(
+                _diff(
+                    "picker.due_nodes(self)",
+                    f"boards[{b}].node",
+                    f"{len(bad)} 行的 node 不是字符串 (首个: {type(bad[0].get('node')).__name__})",
+                    "(node 应为字符串)",
+                    "cross-source",
+                )
+            )
+            continue
+        ov_seq = [n.get("node") for n in ov_nodes_by_board[b] if isinstance(n, dict) and isinstance(n.get("node"), str)]
+        # 独立性: 身份与行序两侧都源自同一份 due_nodes, 经**同一条契约的两个实现**
+        # (overview `_gate_due_groups`+`_node_rows` / 本脚本) ⇒ reimplementation (Codex r2 MEDIUM-10)。
+        if set(ov_seq) != {r["node"] for r in groups[b]}:
             diffs.append(
                 _diff(
                     "overview ↔ picker.due_nodes",
                     f"boards[{b}].node_identity",
-                    sorted(x for x in ov_seq if isinstance(x, str)),
-                    sorted(str(r.get("node")) for r in groups[b]),
-                    "cross-source",
+                    sorted(ov_seq),
+                    sorted(r["node"] for r in groups[b]),
+                    "reimplementation",
                 )
             )
             continue
@@ -640,7 +813,11 @@ def _reconcile_overview(
         if ov_seq != expected:
             diffs.append(
                 _diff(
-                    "overview ↔ urgency(picker.due_nodes)", f"boards[{b}].node_order", ov_seq, expected, "cross-source"
+                    "overview ↔ urgency(picker.due_nodes)",
+                    f"boards[{b}].node_order",
+                    ov_seq,
+                    expected,
+                    "reimplementation",
                 )
             )
 
@@ -731,14 +908,22 @@ def main(argv: list[str] | None = None) -> int:
 
     ov_resp: Any = None
     not_fetched: str | None = None
+    not_requested: str | None = None
     if args.overview_url:
         ov_resp, not_fetched = fetch_overview(args.overview_url)
     elif args.overview_json:
-        ov_resp = json.loads(
-            Path(args.overview_json).read_text(encoding="utf-8"), parse_constant=_reject_js_nonstandard
-        )
+        # ⛔ Codex r2 MEDIUM-8: 离线入口的解析异常此前直接逃逸出 main(), 连差异表都不出。
+        # 与 HTTP 入口同款分类: 读不了 / 解析不了 ⇒ 差异, 不是豁免。
+        try:
+            ov_resp = json.loads(
+                Path(args.overview_json).read_text(encoding="utf-8"), parse_constant=_reject_js_nonstandard
+            )
+        except (OSError, ValueError) as e:
+            ov_resp = {"__json_error__": f"{type(e).__name__}: {str(e)[:160]}"}
     else:
-        not_fetched = "未提供 --overview-url / --overview-json (overview 面缺席)"
+        # ⛔ Codex r2 LOW-11: 「根本没要求取」≠「试过但连不上」。写成 backend down
+        # 会让读者以为探测过后端。用独立的 N5 口径码。
+        not_requested = "未提供 --overview-url / --overview-json — 本次只做 picker↔Dashboard 两面对账"
 
     results = []
     for p in picker_paths:
@@ -766,9 +951,18 @@ def main(argv: list[str] | None = None) -> int:
         if not isinstance(vid, str) or not vid:
             vid = p.parent.parent.name
         entry, ov_err = (None, None)
-        if not_fetched is None:
+        if not_fetched is None and not_requested is None:
             entry, ov_err = select_vault_entry(ov_resp, vid)
-        results.append(reconcile(payload, entry, not_fetched_reason=not_fetched, overview_error=ov_err, vault_id=vid))
+        results.append(
+            reconcile(
+                payload,
+                entry,
+                not_fetched_reason=not_fetched,
+                not_requested_reason=not_requested,
+                overview_error=ov_err,
+                vault_id=vid,
+            )
+        )
 
     all_diffs = [d for r in results for d in r["semantic_diff"]]
     for r in results:

@@ -227,11 +227,12 @@ def test_negctl_picker_top_boards_order_swapped(tmp_path):
     pk["top_boards"] = [pk["top_boards"][1], pk["top_boards"][0]]  # 乙,甲 → 甲,乙
     rc, report = run(pk, build_overview(), tmp_path)
     assert rc == 1
-    assert has_diff(report, "picker.top_boards ↔ overview.boards", "board_order"), (
+    assert has_diff(report, "overview.boards ↔ 复算板序", "board_order"), (
         f"负控②未红在指定差异行, 实得: {diffs_of(report)}"
     )
     row = next(d for d in diffs_of(report) if d["field"] == "board_order")
-    assert row["a"] == ["甲板", "乙板"] and row["b"] == ["乙板", "甲板"]
+    # a = overview 实际板序；b = 按 top_boards 逆序后复算出来的应有板序
+    assert row["a"] == ["乙板", "甲板"] and row["b"] == ["甲板", "乙板"]
 
 
 def test_negctl_stats_due_nodes_mismatch(tmp_path):
@@ -415,6 +416,8 @@ _ALLOWED_IMPORT_ROOTS = frozenset(
     {
         "__future__",
         "argparse",
+        # socket: 只用于 `_is_connection_failure` 的**异常类型判定**(gaierror), 不建连接。
+        "socket",
         "json",
         "sys",
         "urllib",
@@ -578,11 +581,11 @@ def test_r1_high2_board_order_is_prefix_not_subsequence(tmp_path):
     ov["vaults"][0]["projection"]["boards"] = [b[1], b[0]]  # 甲板排到了最前
     rc, report = run(pk, ov, tmp_path)
     assert rc == 1
-    assert has_diff(report, "picker.top_boards ↔ overview.boards", "board_order"), (
+    assert has_diff(report, "overview.boards ↔ 复算板序", "board_order"), (
         f"首板被换掉却没红（子序列判据空转）: {diffs_of(report)}"
     )
     row = next(d for d in diffs_of(report) if d["field"] == "board_order")
-    assert row["a"] == ["乙板"] and row["b"] == ["甲板"]
+    assert row["a"] == ["甲板", "乙板"] and row["b"] == ["乙板", "甲板"]
 
 
 def test_r1_high3_nan_is_rejected_like_js_json_parse(tmp_path):
@@ -703,3 +706,173 @@ def test_r1_low9_duplicate_vault_entries_is_a_diff(tmp_path):
     assert rc == 1
     row = next(d for d in diffs_of(report) if d["field"] == "entry")
     assert "2 条 entry" in str(row["a"])
+
+
+# ---------------------------------------------------------------- Codex r2 十一条的回归钉
+
+
+def test_r2_high1_headerless_hang_is_not_exempted(monkeypatch):
+    """r2 HIGH-1: 对端收下 GET 却不回响应头 ⇒ `open()` 超时，但那是**已连接**的故障。
+
+    ⛔ 不得豁免成 not-fetched（后端「起来了但不响应」会被读成「后端没起」）。
+    """
+    import socket
+    import urllib.error
+
+    class _Op:
+        def open(self, req, timeout=None):
+            raise urllib.error.URLError(socket.timeout("timed out"))
+
+    monkeypatch.setattr(g39, "_direct_opener", lambda: _Op())
+    resp, reason = g39.fetch_overview("http://127.0.0.1:1")
+    assert reason is None, "响应头阶段的超时被误豁免成『连不上』"
+    assert "__open_error__" in resp
+
+
+def test_r2_high1_connection_refused_still_exempted(monkeypatch):
+    """r2 HIGH-1 的反面：真·连接被拒仍应豁免（否则「后端没起」会被报成缺陷）。"""
+    import urllib.error
+
+    class _Op:
+        def open(self, req, timeout=None):
+            raise urllib.error.URLError(ConnectionRefusedError(61, "Connection refused"))
+
+    monkeypatch.setattr(g39, "_direct_opener", lambda: _Op())
+    resp, reason = g39.fetch_overview("http://127.0.0.1:1")
+    assert resp is None and reason is not None
+
+
+def test_r2_high2_order_after_prefix_is_checked(tmp_path):
+    """r2 HIGH-2: 推荐前缀**之后**的板序也必须查。
+
+    `top=[乙]`、到期数 乙2/甲2/丁1 ⇒ 应为 `[乙, 甲, 丁]`；overview 给 `[乙, 丁, 甲]` 必红。
+    """
+    pk = build_picker()
+    pk["top_boards"] = [pk["top_boards"][0]]  # 只留乙板
+    pk["due_nodes"].append(
+        {"node": "n5", "board": "丁板", "fsrs_due": "2026-09-13T01:00:00Z", "due_reason": "scheduled"}
+    )
+    pk["stats"]["due_nodes"] = 5
+    pk["boards"].append(
+        {
+            "board": "丁板",
+            "due": 1,
+            "due_new": 0,
+            "due_scheduled": 1,
+            "future": 0,
+            "next_due": "",
+            "placeholder": 0,
+            "earliest_overdue": "2026-09-13T01:00:00Z",
+        }
+    )
+    ov = build_overview()
+    b = ov["vaults"][0]["projection"]["boards"]
+    ding = {
+        "board": "丁板",
+        "due": 1,
+        "due_new": 0,
+        "placeholder": 0,
+        "earliest": "2026-09-13T01:00:00Z",
+        "nodes": [{"node": "n5", "due_reason": "scheduled", "fsrs_due": "2026-09-13T01:00:00Z"}],
+    }
+    ov["vaults"][0]["projection"]["boards"] = [b[0], ding, b[1]]  # [乙, 丁, 甲] — 尾序错
+    ov["vaults"][0]["projection"]["due_count"] = 5
+    rc, report = run(pk, ov, tmp_path)
+    assert rc == 1
+    row = next(d for d in diffs_of(report) if d["field"] == "board_order")
+    assert row["a"] == ["乙板", "丁板", "甲板"] and row["b"] == ["乙板", "甲板", "丁板"]
+
+
+def test_r2_high3_duplicate_overview_board_row_is_a_diff(tmp_path):
+    """r2 HIGH-3: overview 板行重复会被字典覆盖 ⇒ 必须先查唯一性。"""
+    ov = build_overview()
+    b = ov["vaults"][0]["projection"]["boards"]
+    ov["vaults"][0]["projection"]["boards"] = [b[0], b[1], json.loads(json.dumps(b[1]))]  # [乙,甲,甲]
+    rc, report = run(build_picker(), ov, tmp_path)
+    assert rc == 1
+    assert has_diff(report, "overview(self)", "boards[甲板]"), f"重复板行没红: {diffs_of(report)}"
+
+
+def test_r2_medium4_buckets_without_boards_is_not_legacy(tmp_path):
+    """r2 MEDIUM-4: 「有 buckets 无 boards」不是任何历史形态 ⇒ 差异，不是 N4。"""
+    pk = build_picker()
+    del pk["boards"]
+    pk["buckets"] = {"new": [], "learning": [], "due_now": [], "due_today": [], "future": []}
+    rc, report = run(pk, None, tmp_path)
+    assert rc == 1
+    assert has_diff(report, "picker.boards(self)", "structure")
+    assert "N4_picker_rollup_absent" not in {n["code"] for n in notes_of(report)}
+
+
+def test_r2_medium5_legacy_upcoming_zero_board_is_not_a_false_diff(tmp_path):
+    """r2 MEDIUM-5: rollup 缺席时零到期行来自 `upcoming` ⇒ 合法旧投影不得误报。"""
+    pk = build_picker()
+    del pk["boards"]
+    pk["upcoming"] = [{"board": "丙板", "next_due": "2026-09-20T01:00:00Z", "node": "n9"}]
+    ov = build_overview()
+    ov["vaults"][0]["projection"]["boards"].append(
+        {"board": "丙板", "due": 0, "due_new": 0, "placeholder": None, "earliest": "2026-09-20T01:00:00Z", "nodes": []}
+    )
+    rc, report = run(pk, ov, tmp_path)
+    assert rc == 0, f"合法旧投影的 upcoming 零到期板被误报: {diffs_of(report)}"
+
+
+def test_r2_medium6_rollup_due_type_is_strict(tmp_path):
+    """r2 MEDIUM-6: `due: false` / `due: 2.0` 不得因 Python 的宽松相等被当成正常值。"""
+    for bad in (False, True, 2.0):
+        pk = build_picker()
+        pk["boards"][0]["due"] = bad
+        rc, report = run(pk, None, tmp_path)
+        assert rc == 1, f"boards[0].due={bad!r} 被当成正常计数"
+        assert has_diff(report, "picker.boards(self)", "structure")
+
+
+def test_r2_medium7_generated_at_throwing_value_degrades_dashboard():
+    """r2 MEDIUM-7: `generated_at` 带 toString 键 ⇒ JS 模板插值抛错 → 界面不出数字。"""
+    pk = build_picker()
+    pk["generated_at"] = {"toString": None}
+    assert g39.dashboard_recompute(pk)["due_count"] == EXPECT_NOT_COMPARABLE
+
+
+def test_r2_medium8_offline_overview_parse_error_is_classified(tmp_path):
+    """r2 MEDIUM-8: `--overview-json` 解析失败不得逃逸出 main()，要出差异表。"""
+    pj = tmp_path / "picker.json"
+    pj.write_text(json.dumps(build_picker(), ensure_ascii=False), encoding="utf-8")
+    oj = tmp_path / "ov.json"
+    oj.write_text('{"vaults": [], "x": NaN}', encoding="utf-8")
+    rc = g39.main(["--picker-json", str(pj), "--overview-json", str(oj), "--out", str(tmp_path / "r.json")])
+    report = json.loads((tmp_path / "r.json").read_text(encoding="utf-8"))
+    assert rc == 1
+    assert any("不是 JSON" in str(d["a"]) for d in diffs_of(report)), diffs_of(report)
+
+
+def test_r2_medium9_unhashable_node_does_not_abort_reconcile(tmp_path):
+    """r2 MEDIUM-9: `node: []` 不得让集合构造抛错打断对账、连差异表都不出。"""
+    pk = build_picker()
+    pk["due_nodes"][0]["node"] = []
+    rc, report = run(pk, build_overview(), tmp_path)
+    assert rc == 1
+    assert has_diff(report, "picker.due_nodes(self)", "boards[甲板].node")
+
+
+def test_r2_medium10_node_order_labelled_reimplementation(tmp_path):
+    """r2 MEDIUM-10: 节点排序两侧同出一份契约 ⇒ 标 `reimplementation`。"""
+    ov = build_overview()
+    b = ov["vaults"][0]["projection"]["boards"][0]
+    b["nodes"] = [b["nodes"][1], b["nodes"][0]]
+    rc, report = run(build_picker(), ov, tmp_path)
+    assert rc == 1
+    row = next(d for d in diffs_of(report) if d["field"] == "boards[乙板].node_order")
+    assert row["independence"] == "reimplementation"
+
+
+def test_r2_low11_not_requested_is_distinct_from_not_fetched(tmp_path):
+    """r2 LOW-11: 「根本没要求取」用 N5，⛔ 不得写成 N3 的 backend down。"""
+    pj = tmp_path / "picker.json"
+    pj.write_text(json.dumps(build_picker(), ensure_ascii=False), encoding="utf-8")
+    rc = g39.main(["--picker-json", str(pj), "--out", str(tmp_path / "r.json")])
+    report = json.loads((tmp_path / "r.json").read_text(encoding="utf-8"))
+    assert rc == 0
+    codes = {n["code"] for n in notes_of(report)}
+    assert "N5_overview_not_requested" in codes
+    assert "N3_overview_not_fetched" not in codes, "没试过被写成了『连不上』"

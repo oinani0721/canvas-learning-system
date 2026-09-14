@@ -1,6 +1,6 @@
 # J06 证据底稿（G3 层）— 不可变事件 / 幂等 / 乱序安全
 
-> 来源卡：CARD-G3-9 [BATCH-2026-09-11-第十四批 / 车道 T4-A]，绑定 SHA `30b23c4d`（基线 `08100483`）
+> 来源卡：CARD-G3-9 [BATCH-2026-09-11-第十四批 / 车道 T4-A]，绑定 SHA `b2f962d9`（基线 `08100483`；含 Codex r1 九条修复）
 > ⛔ **这是底稿，不是 J06 验收**。J06（出题与 FSRS 旅程验收）的完整 E2E 属 Phase 4 RC 阶段。
 > 本文件只登记 **G3 层**已产出的、可被机器复跑的那部分证据，并**逐条点名尚未证明的部分**。
 > 任何下游引用本文件时，不得把 §2 的内容当成 §3 的结论。
@@ -29,7 +29,7 @@
 | 件 | 路径 | 作用 |
 |---|---|---|
 | 三面对账脚本 | `backend/scripts/g39_three_view_reconcile.py` | 只读；对同一份投影跑三面逐项对账，`rc=0` ⟺ 无 `semantic_diff` |
-| 对账测试 | `backend/tests/regression/test_g39_three_view_reconcile.py` | 20 用例：绿例 + 负控三段 + 验伪锚两例 + 镜像保真加固 |
+| 对账测试 | `backend/tests/regression/test_g39_three_view_reconcile.py` | **33 用例**：绿例 + 负控三段 + 验伪锚两例 + 镜像保真加固 + Codex r1 九条的回归钉 |
 | 变异对照件 | `_bmad-output/审查/evidence-g39/g39_mutation_negctl.py` | 逐条抽掉判据，要求**被点名的那条测试**变红 |
 
 跑法（只读，不连库，不起后端）：
@@ -56,8 +56,8 @@ DataviewJS 归约 / 总览页 `GET /api/v1/review/overview`）。本卡把它们
 
 | 项 | 值 |
 |---|---|
-| 报告 | `_bmad-output/审查/evidence-g39/reconcile-live-final-20260914T200456.json` |
-| 终端存档 | `_bmad-output/审查/evidence-g39/reconcile-live-final-20260914T200456.txt` |
+| 报告 | `_bmad-output/审查/evidence-g39/reconcile-live-v2-20260914T201845.json` |
+| 终端存档 | `_bmad-output/审查/evidence-g39/gates-final-20260914T201845.txt` |
 | `canvas-vault` | `semantic_diff` = 0（已对账面：picker + dashboard） |
 | `test-vault` | `semantic_diff` = 0（已对账面：picker + dashboard） |
 | overview 面 | **缺席**——后端未在运行，本卡硬边界禁止启动后端 |
@@ -68,7 +68,9 @@ DataviewJS 归约 / 总览页 `GET /api/v1/review/overview`）。本卡把它们
 
 ### 2.2 判据有牙齿（不是空转）
 
-变异对照实测 6/6：抽掉任一判据，**被点名的那条测试**即红；脚本还原后 shasum 与跑前逐字节相同。
+变异对照实测 **13/13**：抽掉任一判据，**被点名的那条测试**即红；脚本还原后 shasum 与跑前逐字节相同
+（`1e3c4ac6…e3b5` → `1e3c4ac6…e3b5`）。其中 M7–M13 是把 Codex r1 指出的九条**修复各自改回缺陷形态**——
+证明修复本身也有牙齿，不只是「代码改了一下」。
 
 | 变异 | 抽掉的判据 | 被点名的测试 | 结果 |
 |---|---|---|---|
@@ -78,8 +80,15 @@ DataviewJS 归约 / 总览页 `GET /api/v1/review/overview`）。本卡把它们
 | M4 | corrupt 计入差异（改成豁免） | `test_falsify_anchor_overview_corrupt_counts_as_semantic_diff` | KILLED |
 | M5 | 行序对账（退化成集合比较） | `test_node_order_mirrors_urgency_not_scan_order` | KILLED |
 | M6 | JS number 判定（改用 isinstance） | `test_dashboard_bool_is_not_a_js_number` | KILLED |
+| M7 | 板序退回子序列比较（r1 HIGH-2 缺陷形态） | `test_r1_high2_board_order_is_prefix_not_subsequence` | KILLED |
+| M8 | 板集退回只比到期板（r1 HIGH-1 缺陷形态） | `test_r1_high1_zero_due_board_missing_from_overview_is_a_diff` | KILLED |
+| M9 | picker 解析退回宽松（r1 HIGH-3 缺陷形态） | `test_r1_high3_nan_is_rejected_like_js_json_parse` | KILLED |
+| M10 | 已连接后的读取失败退回豁免（r1 HIGH-4） | `test_r1_high4_read_failure_after_connect_is_not_exempted` | KILLED |
+| M11 | boards 损坏退回当成旧投影（r1 MEDIUM-5） | `test_r1_medium5_corrupt_boards_key_is_a_diff_not_scope_note` | KILLED |
+| M12 | 重复 vault_id 退回取首条（r1 LOW-9） | `test_r1_low9_duplicate_vault_entries_is_a_diff` | KILLED |
+| M13 | 去掉代理旁路（本卡自查出的缺陷形态） | `test_fetch_overview_opener_bypasses_system_proxy` | KILLED |
 
-存档：`_bmad-output/审查/evidence-g39/mutation-negctl-postformat-20260914T200319.txt`
+存档：`_bmad-output/审查/evidence-g39/mutation-negctl-v3-20260914T201517.txt`；工具 `evidence-g39/g39_mutation_negctl.py`（已入库）
 
 ### 2.3 反假绿的两条边界（对 J06 的直接可复用价值）
 
@@ -95,7 +104,9 @@ DataviewJS 归约 / 总览页 `GET /api/v1/review/overview`）。本卡把它们
 ≡ due_nodes group-by 派生」，不等即 raise → entry 变 corrupt。⇒ **overview 成功返回 entry 时，
 该子项在 overview 侧恒真**。真正能翻转它的只有 picker 自身的两源。
 
-脚本因此给每条判据带 `independence` 字段（`cross-source` / `structurally-guaranteed`），并把
+脚本因此给每条判据带 `independence` 三档字段（`cross-source` / `reimplementation` / `structurally-guaranteed`；
+中间那档是 Codex r1 MEDIUM-6 促成的——overview 的 group-by 与本脚本是**同一契约的两个实现**，
+能抓实现漂移但不是第三个独立源，原先误标成 cross-source），并把
 picker 侧 rollup ↔ group-by 的对账**直接在 picker JSON 上算**，不假手 overview——否则 overview
 一 corrupt，这一条就没人算了。
 

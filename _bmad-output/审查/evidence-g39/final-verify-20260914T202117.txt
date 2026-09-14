@@ -1,0 +1,8 @@
+=== 定稿全量复验 ===
+HEAD: b2f962d9  工作树: 6 项未提交(仅 _bmad-output 文档)
+脚本 sha: 1e3c4ac677f9b035b94300bd28c55fd3032eac249f559cff1a7ad76f1e52e3b5
+
+--- 本卡两个测试文件 + 参考测试 全绿 ---
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================= 121 passed, 10 warnings in 1.54s =======================
