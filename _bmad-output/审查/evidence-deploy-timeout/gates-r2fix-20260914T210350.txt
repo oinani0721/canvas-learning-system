@@ -1,0 +1,31 @@
+### 终态静态裁判全套 ts=20260914T210350
+--- bash -n ---
+bash_n_rc=0
+--- AST（期望 with 20 / WITHOUT 0）---
+total 20 with 20 [89, 108, 474, 498, 508, 689, 898, 958, 1029, 1289, 1654, 1704, 1894, 1948, 1953, 1961, 1995, 1999, 2358, 2482] WITHOUT 0 []
+--- 非 ASCII 紧跟变量门（脚本自身的门，本卡新增文案必须过）---
+  命中: 无
+--- npm_config_offline 在 env 段 ---
+87:#   CLS_NPM_BUILD_OFFLINE     步 1 build 的 npm_config_offline 值，缺省 true：让 **npm 自己的
+629:               npm_config_offline="$CLS_NPM_BUILD_OFFLINE" \
+--- 字符集逐字符枚举（locale 无关）---
+588:        #    最终 `alarm '٠٥'` = alarm 0。写 `[!0123456789]` 与 locale 无关。
+593:            '' | *[!0123456789]*)
+605:            '' | *[!0123456789]*)         # 剥零后再判一次：空串(000) 与残留非数字都在这里落地
+--- timeout 作为命令：非注释行（期望 0）---
+  noncomment=0  [锚 perl=1]
+--- 步 2 以后逐字节对照 08100483 ---
+  sha256=96d10556a71e71c3702fd20ae4cb31f4a1c6acab3cc2b3317e8d40abe5789819  bytes=33631  -> 逐字节相同 OK
+--- 地盘门 ---
+backend/tests/unit/test_deploy_vault_sh.py
+scripts/deploy-vault.sh
+  backend_app=0
+  fsrs_decay_rc=1（1=零命中）
+--- ruff ---
+  files=1: backend/tests/unit/test_deploy_vault_sh.py
+All checks passed!
+  check_rc=0
+1 file already formatted
+  fmt_rc=0
+--- 现网只读 ---
+  live_newer=0（期望 0）  [锚 ev_newer=34]

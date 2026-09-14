@@ -2713,16 +2713,26 @@ def _npm_cap_harness(tmp_path: Path, mode: str) -> tuple[Path, Path]:
     return h, pids
 
 
-def _npm_cap_env(tmp_path: Path, pids: Path, cap: str | int) -> dict[str, str]:
-    return {
+def _npm_cap_env(tmp_path: Path, pids: Path, cap: str | int, extra: dict[str, str] | None = None) -> dict[str, str]:
+    env = {
         "PATH": f"{tmp_path / 'bin'}:{os.environ.get('PATH', '')}",
         "CLS_LIVE_VAULT": str(_fake_live(tmp_path)),
         "CLS_FAKE_NPM_PIDS": str(pids),
         "CLS_NPM_BUILD_TIMEOUT": str(cap),
     }
+    if extra:
+        env.update(extra)
+    return env
 
 
-def _npm_cap_run(tmp_path: Path, h: Path, pids: Path, port: str, cap: str | int = 5):
+def _npm_cap_run(
+    tmp_path: Path,
+    h: Path,
+    pids: Path,
+    port: str,
+    cap: str | int = 5,
+    extra_env: dict[str, str] | None = None,
+):
     return _run(
         "--vault",
         str(tmp_path / "vaults" / "npmcap"),
@@ -2737,7 +2747,7 @@ def _npm_cap_run(tmp_path: Path, h: Path, pids: Path, port: str, cap: str | int 
         "--evidence-dir",
         str(tmp_path / "ev"),
         "--apply",
-        env=_npm_cap_env(tmp_path, pids, cap),
+        env=_npm_cap_env(tmp_path, pids, cap, extra_env),
         timeout=45,
     )
 
@@ -2766,18 +2776,25 @@ def _pid_gone(pid: int, deadline: float = 5.0) -> bool:
 
 
 def _reap(pids: Path) -> None:
-    """兜底收尸：先红那跑（脚本还没有上限）假 npm 会活到 3600s，不收会留孤儿。"""
+    """兜底收尸：先红那跑（脚本还没有上限）假 npm 会活到 3600s，不收会留孤儿。
+
+    ⚠️ 如实声明（Codex r2 LOW-1）：这里只认裸 PID —— 原进程退出后 PID 被同 UID 进程复用，
+    信号就会落到无关进程上。窗口极窄但不为零。这里只做两件收窄：① 先看还在不在，不在就
+    不发信号；② 直接 KILL 一次而不是 TERM→等→KILL（少一个等待窗口）。
+    """
     for f in sorted(pids.glob("*.pid")):
         try:
             pid = int(f.read_text().strip())
         except (OSError, ValueError):
             continue
-        for sig in (signal.SIGTERM, signal.SIGKILL):
-            try:
-                os.kill(pid, sig)
-            except (ProcessLookupError, PermissionError):
-                break
-            time.sleep(0.2)
+        try:
+            os.kill(pid, 0)  # 已经没了就别再发信号（PID 复用的主要来源）
+        except (ProcessLookupError, PermissionError):
+            continue
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            pass
 
 
 def test_preflight_npm_build_is_walltime_capped(tmp_path: Path):
@@ -2874,3 +2891,24 @@ def test_preflight_accepts_leading_zero_cap(tmp_path: Path):
     assert _npm_was_invoked(pids), f"005 被误拒，build 没跑: {r.stdout!r}"
     step1 = next((ln for ln in r.stdout.splitlines() if ln.startswith("[1/6]")), "")
     assert "preflight: OK" in step1, f"合法取值 005 被误拒: {r.stdout!r}"
+
+
+@pytest.mark.parametrize("loc", ["ar_EG.UTF-8", "C"])
+def test_preflight_rejects_non_ascii_digits_in_any_locale(tmp_path: Path, loc: str):
+    """⛔ Codex r2 HIGH-1：`[0-9]` 的**区间**由 locale 排序决定。
+
+    `LC_ALL=ar_EG.UTF-8` 下阿拉伯数字 `٠٥` 能过区间写法的数字门，随后 `[ -lt ]` 报
+    "integer expression expected"（rc=2）被 `if` 判假 ⇒ **放行**，最终 `alarm '٠٥'` = alarm 0
+    —— 上限被静默关掉。改成逐字符枚举 `[!0123456789]` 后与 locale 无关。
+    两个 locale 都跑：证明拒绝不是「碰巧这台机器的 locale 不认」。
+    """
+    h, pids = _npm_cap_harness(tmp_path, "hang")
+    try:
+        r = _npm_cap_run(tmp_path, h, pids, "8260" if loc == "C" else "8264", "٠٥", {"LC_ALL": loc})
+    except subprocess.TimeoutExpired:
+        _reap(pids)
+        raise AssertionError(f"LC_ALL={loc} 下 '٠٥' 被放行 ⇒ 假 npm 挂住了整跑（上限静默失效）")
+    _reap(pids)
+    assert r.returncode == 71, f"步 1 应 FAIL(71): rc={r.returncode}\n{r.stdout}"
+    assert "CLS_NPM_BUILD_TIMEOUT" in r.stdout, f"消息未点名该变量: {r.stdout!r}"
+    assert not _npm_was_invoked(pids), "取值非法时不该已经启动 build"

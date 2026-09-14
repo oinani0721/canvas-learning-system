@@ -1,0 +1,133 @@
+### 负控第五段（重跑，驱动已修自身 bug）ts=20260914T205017
+--- 驱动源码 ---
+#!/usr/bin/env bash
+# 负控第五段：四处修复逐个变异回旧行为，验证**指定的那道门**会变红。
+# ⛔ 相对 negctl2 的改进（Codex r2 LOW-2）：① 红绿由 pytest 汇总行判定, 不看 tail 的 rc；
+#    ② 预期值真的参与比对并打印 MATCH/MISMATCH；③ 保留失败断言正文（不是只留 nodeid）,
+#    这样「这条红是不是因为别的原因」可以被独立看出来；④ 每跑一次都留全量日志。
+set -uo pipefail
+ROOT="$1"; SP="$2"; EV="$3"
+cd "$ROOT"
+SH_F=scripts/deploy-vault.sh
+SNAP="$SP/negctl3-deploy-vault.sh"
+cp "$SH_F" "$SNAP"
+trap 'cp "$SNAP" "$ROOT/$SH_F"; echo "[EXIT trap] 已无条件还原 $SH_F"' EXIT
+PYTEST="$ROOT/backend/.venv/bin/pytest"
+MISMATCH=0
+
+echo "===== 跑前 shasum ====="; shasum -a 256 "$SH_F" backend/tests/unit/test_deploy_vault_sh.py
+
+run_case () {  # $1=标签 $2=-k表达式 $3=期望(RED/GREEN)
+  local tag="$1" kexpr="$2" want="$3" out summary actual collected
+  out="$EV/negctl3-$tag-$(date +%H%M%S).txt"
+  ( cd backend && PYTHONDONTWRITEBYTECODE=1 "$PYTEST" -q -p no:cacheprovider \
+      tests/unit/test_deploy_vault_sh.py -k "$kexpr" ) > "$out" 2>&1
+  summary="$(grep -E '^=+ .*(passed|failed|error)' "$out" | tail -1)"
+  collected="$(grep -cE '^(FAILED|PASSED)|passed|failed' "$out")"
+  if [ -z "$summary" ]; then actual="INVALID(无汇总行)"
+  elif printf '%s' "$summary" | grep -q 'no tests ran'; then actual="INVALID(零收集)"
+  elif printf '%s' "$summary" | grep -qE '[0-9]+ (failed|error)'; then actual="RED"
+  else actual="GREEN"; fi
+  if [ "$actual" = "$want" ]; then echo "  [$tag] 期望=$want 实测=$actual  ✅ MATCH"
+  else echo "  [$tag] 期望=$want 实测=$actual  ❌ MISMATCH"; MISMATCH=$((MISMATCH+1)); fi
+  echo "      汇总: $summary"
+  echo "      失败断言正文（前 4 行，用来排除「红于别的原因」）:"
+  grep -E '^E ' "$out" | head -4 | sed 's/^/        /'
+  echo "      全量日志: $(basename "$out")  (collected 行数=$collected)"
+}
+
+mutate () { python3 - "$SH_F" "$1" "$ROOT" <<'PY'
+import subprocess, sys
+p, which, root = sys.argv[1], sys.argv[2], sys.argv[3]
+s = open(p, encoding="utf-8").read()
+if which == "n1":   # 取值校验整块退回 71a85acf 版（区间字符集 + 一次性比较 = fail-open）
+    old = subprocess.run(["git", "-C", root, "show", "71a85acf:scripts/deploy-vault.sh"],
+                         capture_output=True, text=True, check=True).stdout
+    ob = old[old.index('        local _cap="$CLS_NPM_BUILD_TIMEOUT"'):old.index("        # ⛔ 超时信号走")]
+    nb = s[s.index('        local _cap="$CLS_NPM_BUILD_TIMEOUT"'):s.index("        # ⛔ 超时信号走")]
+    s = s.replace(nb, ob)
+elif which == "m1":  # 整块删掉范围校验（只剩字符集判断）
+    i = s.index("        # 先按原串长度拦")
+    j = s.index("        # ⛔ 超时信号走", i)
+    s = s[:i] + s[j:]
+elif which == "m2":  # 超时信号改回看退出码
+    s = s.replace('        case "$_build_out" in\n            *"$_mark"*)', '        case "$_build_rc" in\n            124)')
+elif which == "m3":  # 删掉离线开关注入
+    s = s.replace('               npm_config_offline="$CLS_NPM_BUILD_OFFLINE" \\\n', '')
+else:
+    raise SystemExit("unknown mutation")
+open(p, "w", encoding="utf-8").write(s)
+PY
+bash -n "$SH_F" && echo "  [变异 $1] bash -n rc=0" || { echo "  [变异 $1] bash -n rc=1 ⇒ 变异体语法坏了, 本段作废"; return 1; }
+}
+
+for M in n1 m1 m2 m3; do
+  echo; echo "----- 变异 $M -----"
+  cp "$SNAP" "$SH_F"; mutate "$M" || continue
+  case "$M" in
+    n1) run_case "n1-locale" 'non_ascii_digits' RED
+        run_case "n1-ctrl-legal" 'leading_zero' GREEN ;;
+    m1) run_case "m1-range" 'cap_values' RED
+        run_case "m1-ctrl-hang" 'is_walltime_capped' GREEN ;;
+    m2) run_case "m2-rc124" 'not_reported_as_timeout' RED ;;
+    m3) run_case "m3-offline" 'does_not_kill_a_fast_build' RED ;;
+  esac
+done
+
+cp "$SNAP" "$SH_F"
+echo; echo "===== 还原后 shasum（须与跑前逐字同）====="; shasum -a 256 "$SH_F" backend/tests/unit/test_deploy_vault_sh.py
+run_case "restore-all" 'npm_build or cap_values or leading_zero or non_ascii_digits' GREEN
+echo; echo "MISMATCH 总数 = ${MISMATCH} (必须为 0)"   # ⛔ 必须写 ${VAR}: 变量后紧跟全角括号会被吃进变量名
+[ "${MISMATCH}" = 0 ] && echo "负控第五段: 全部 MATCH" || echo "负控第五段: 有 MISMATCH, 本段不成立"
+--- 执行 ---
+===== 跑前 shasum =====
+5f6fc10f2747e8e6f5aeb84e2972c7ab2e2dc9769195069df1127df895585520  scripts/deploy-vault.sh
+8201359b1e14d3677dfa5d14b98cd96fb04892705b93878b676658488c6b657a  backend/tests/unit/test_deploy_vault_sh.py
+
+----- 变异 n1 -----
+  [变异 n1] bash -n rc=0
+  [n1-locale] 期望=RED 实测=RED  ✅ MATCH
+      汇总: ========== 1 failed, 1 passed, 154 deselected, 10 warnings in 46.75s ===========
+      失败断言正文（前 4 行，用来排除「红于别的原因」）:
+      全量日志: negctl3-n1-locale-205017.txt  (collected 行数=2)
+  [n1-ctrl-legal] 期望=GREEN 实测=GREEN  ✅ MATCH
+      汇总: ================ 1 passed, 155 deselected, 10 warnings in 2.20s ================
+      失败断言正文（前 4 行，用来排除「红于别的原因」）:
+      全量日志: negctl3-n1-ctrl-legal-205117.txt  (collected 行数=1)
+
+----- 变异 m1 -----
+  [变异 m1] bash -n rc=0
+  [m1-range] 期望=RED 实测=RED  ✅ MATCH
+      汇总: ===== 3 failed, 1 passed, 152 deselected, 10 warnings in 136.77s (0:02:16) =====
+      失败断言正文（前 4 行，用来排除「红于别的原因」）:
+      全量日志: negctl3-m1-range-205135.txt  (collected 行数=4)
+  [m1-ctrl-hang] 期望=GREEN 实测=GREEN  ✅ MATCH
+      汇总: ================ 1 passed, 155 deselected, 10 warnings in 8.47s ================
+      失败断言正文（前 4 行，用来排除「红于别的原因」）:
+      全量日志: negctl3-m1-ctrl-hang-205406.txt  (collected 行数=1)
+
+----- 变异 m2 -----
+  [变异 m2] bash -n rc=0
+  [m2-rc124] 期望=RED 实测=RED  ✅ MATCH
+      汇总: =========== 1 failed, 1 passed, 154 deselected, 10 warnings in 2.42s ===========
+      失败断言正文（前 4 行，用来排除「红于别的原因」）:
+      全量日志: negctl3-m2-rc124-205427.txt  (collected 行数=2)
+
+----- 变异 m3 -----
+  [变异 m3] bash -n rc=0
+  [m3-offline] 期望=RED 实测=RED  ✅ MATCH
+      汇总: ================ 1 failed, 155 deselected, 10 warnings in 2.96s ================
+      失败断言正文（前 4 行，用来排除「红于别的原因」）:
+      全量日志: negctl3-m3-offline-205444.txt  (collected 行数=2)
+
+===== 还原后 shasum（须与跑前逐字同）=====
+5f6fc10f2747e8e6f5aeb84e2972c7ab2e2dc9769195069df1127df895585520  scripts/deploy-vault.sh
+8201359b1e14d3677dfa5d14b98cd96fb04892705b93878b676658488c6b657a  backend/tests/unit/test_deploy_vault_sh.py
+  [restore-all] 期望=GREEN 实测=GREEN  ✅ MATCH
+      汇总: =============== 11 passed, 145 deselected, 10 warnings in 13.99s ===============
+      失败断言正文（前 4 行，用来排除「红于别的原因」）:
+      全量日志: negctl3-restore-all-205500.txt  (collected 行数=1)
+
+MISMATCH 总数 = 0 (必须为 0)
+负控第五段: 全部 MATCH
+[EXIT trap] 已无条件还原 scripts/deploy-vault.sh

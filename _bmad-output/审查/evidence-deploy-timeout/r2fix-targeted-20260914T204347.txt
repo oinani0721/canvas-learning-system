@@ -1,0 +1,13 @@
+
+app/api/v1/endpoints/chat.py:807
+
+app/api/v1/endpoints/metadata.py:103
+
+app/api/v1/endpoints/metadata.py:177
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=============== 11 passed, 145 deselected, 10 warnings in 14.22s ===============
+rc=0
