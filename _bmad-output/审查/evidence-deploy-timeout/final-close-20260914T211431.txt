@@ -1,0 +1,46 @@
+### 收尾核验（最终 HEAD，已订正两处判据写法）ts=20260914T211431
+HEAD=36bf9544  分支=card/t2-deploy
+
+⚠️ 订正说明：上一版本存档（未入库）里两条判据自己有问题，重写如下 ——
+   ① 'git ls-files | grep stderr' 数到 3，但那 3 个是**别的卡的既有文件名里含 stderr 子串**
+      （census-stderr.txt / stderr-not-tracked-*.txt / stderr-gate-*.txt），不是 *.stderr 存档。
+      正确判据要钉**扩展名**。
+   ② 地盘门验伪锚 grep '^_bmad-output/' 数到 0 = **假阴性**：git 对含非 ASCII 的路径会加双引号
+      输出（"_bmad-output/\345..."），行首不是 _。改用 -z 口径。
+
+--- A 末轮绑定（Codex r3 审 SHA 25f56065 → HEAD）---
+ scripts/deploy-vault.sh | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+  ⇒ 唯一改动是 scripts/deploy-vault.sh 的**纯注释**头注补充（r3 LOW-3）。
+  ⇒ 非注释面等价核: d32-comment-equivalence-20260914T211237.txt（两端各 960 行, sha256 相同, 验伪锚会动）
+  ⇒ 按 D-32 不重置轮次；末轮 BLOCKER 0 / HIGH 0 成立。
+
+--- B 地盘门（08100483 → HEAD）---
+  代码面改动文件:
+    backend/tests/unit/test_deploy_vault_sh.py
+    scripts/deploy-vault.sh
+  [验伪锚 -z 口径] 不排除时 _bmad-output 下文件数 = 43（>0 证明 exclude 真的在起作用）
+  [验伪锚 -z 口径] 排除后 _bmad-output 下文件数 = 0（期望 0）
+  backend/app 改动 = 0（期望 0 ⇒ python-typecheck 不触发, 候选树 pyright=0 不受影响）
+
+--- C *.stderr 未入库（钉扩展名，不钉子串）---
+  入库的 *.stderr 文件数 = 0（期望 0）
+  本卡本地 .stderr 文件数 = 3（3 份，全部被 .gitignore:264 覆盖）
+    .gitignore:264:_bmad-output/审查/**/*.stderr*	"_bmad-output/\345\256\241\346\237\245/codex-review-CARD-DEPLOY-TIMEOUT-r3.stderr"
+  [验伪锚] 同一把尺子对含 stderr 子串的既有文件计数 = 3（证明尺子会命中, 0 不是因为模式写错）
+
+--- D 本卡 commits（每条含卡号 + 批次标记）---
+    36bf9544 docs(deploy-timeout): Codex r3 达标 + 验收单 + 头注补 20 位约束 [BATCH-2026-09-11-第十四批 / CARD-DEPLOY-TIMEOUT]
+    25f56065 fix(deploy): r2 整改 — 上限取值改逐字符枚举(locale 无关) + 三处文档收回 [BATCH-2026-09-11-第十四批 / CARD-DEPLOY-TIMEOUT]
+    71a85acf fix(deploy): r1 整改 — 上限取值边界 + 超时带外标记 + 离线开关补门 [BATCH-2026-09-11-第十四批 / CARD-DEPLOY-TIMEOUT]
+    7413283a fix(deploy): 步 1 build 加墙钟上限+离线, 16 处裸跑加 timeout [BATCH-2026-09-11-第十四批 / CARD-DEPLOY-TIMEOUT]
+  含卡号的 = 4 / 共 4
+  header 长度（wc -m 口径, 须 ≤100）:
+    98  <- docs(deploy-timeout): Codex r3 达标 + 验收单 
+    97  <- fix(deploy): r2 整改 — 上限取值改逐字符枚举(locale 无
+    91  <- fix(deploy): r1 整改 — 上限取值边界 + 超时带外标记 + 离
+    94  <- fix(deploy): 步 1 build 加墙钟上限+离线, 16 处裸跑加
+
+--- E 未 push（本地分支领先 origin）---
+    领先 origin 的 commit 数=       0
+    origin 无该分支 ⇒ 本卡从未 push ✅
