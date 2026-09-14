@@ -1,0 +1,25 @@
+### 自查: _GATE_RUN_ID 的隔离边界 (round-5 问题②)
+--- 所有仍使用旧门级前缀 GATE_PREFIX 的查询 (应为 0, 都该带 run id) ---
+117:GATE_PREFIX = "t6bgate"
+134:GATE_CANVAS = f"{GATE_PREFIX}_canvas_{_GATE_RUN_ID}"
+135:_GATE_CONCEPT_PREFIX = f"{GATE_PREFIX}_concept_{_GATE_RUN_ID}_"
+136:_GATE_NODE_PREFIX = f"{GATE_PREFIX}_cid_{_GATE_RUN_ID}_"
+--- 清理与计数实际用的锚 ---
+133:_GATE_RUN_ID = uuid.uuid4().hex[:12]
+134:GATE_CANVAS = f"{GATE_PREFIX}_canvas_{_GATE_RUN_ID}"
+135:_GATE_CONCEPT_PREFIX = f"{GATE_PREFIX}_concept_{_GATE_RUN_ID}_"
+136:_GATE_NODE_PREFIX = f"{GATE_PREFIX}_cid_{_GATE_RUN_ID}_"
+142:    回灌链走 `FallbackSyncService._build_group_id_from_canvas(GATE_CANVAS)`
+149:    logical = FallbackSyncService._build_group_id_from_canvas(GATE_CANVAS)
+171:            {"node_prefix": _GATE_NODE_PREFIX},
+175:            {"concept_prefix": _GATE_CONCEPT_PREFIX},
+179:            {"node_prefix": _GATE_NODE_PREFIX},
+181:        ("MATCH (c:Canvas) WHERE c.path = $canvas DETACH DELETE c", {"canvas": GATE_CANVAS}),
+204:        "concept": f"{_GATE_CONCEPT_PREFIX}{tag}",
+205:        "concept_id": f"{_GATE_NODE_PREFIX}{tag}",
+206:        "canvas_name": GATE_CANVAS,
+326:        ("Concept", "c.name STARTS WITH $concept_prefix", {"concept_prefix": _GATE_CONCEPT_PREFIX}),
+327:        ("Node", "c.id STARTS WITH $node_prefix", {"node_prefix": _GATE_NODE_PREFIX}),
+328:        ("Canvas", "c.path = $canvas", {"canvas": GATE_CANVAS}),
+343:        node_prefix=_GATE_NODE_PREFIX,
+rc=0

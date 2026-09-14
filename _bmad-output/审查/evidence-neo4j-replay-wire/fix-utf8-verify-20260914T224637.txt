@@ -1,0 +1,14 @@
+### 验证 Codex round-1 ④ 的修复: 非法 UTF-8 字节不再逃到外层
+--- UnicodeDecodeError 的类型归属 (为何只捕 OSError 会漏) ---
+UnicodeDecodeError 是 ValueError 子类 = True
+UnicodeDecodeError 是 OSError 子类    = False  ← 这就是漏的原因
+
+  from pydantic.v1.fields import FieldInfo as FieldInfoV1
+  import pkg_resources
+2026-09-14 22:46:46 [warning  ] [T6-B backlog] Cannot read failed_writes.jsonl: 'utf-8' codec can't decode byte 0xff in position 16: invalid start byte
+2026-09-14 22:46:46 [warning  ] [T6-B backlog] Cannot parse canvas_events.json: 'utf-8' codec can't decode byte 0xff in position 0: invalid start byte
+修后 count_fallback_backlog(两个坏文件): 未抛异常 ✅  返回 = {'failed_writes': 0, 'canvas_events': 0, 'learning_memories': 0, 'pending_total': 0}
+
+--- 验伪锚: 同样的坏文件直接 read_text 必须抛 UnicodeDecodeError ---
+验伪锚: 抛了 UnicodeDecodeError ✅ ('utf-8' codec can't decode byte 0xff in position 0: invalid …) ⇒ 坏字节确实会触发该异常
+rc=0

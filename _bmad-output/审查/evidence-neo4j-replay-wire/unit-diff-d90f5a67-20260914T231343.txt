@@ -1,0 +1,10 @@
+### tests/unit 目录级 @ d90f5a67 (round-2 整改后)
+RUN=unit-close-final-20260914T230416.txt
+= 33 failed, 5079 passed, 48 skipped, 23 xfailed, 171 warnings, 29 errors in 341.38s (0:05:41) =
+rc: rc=1
+base=64 close=62
+--- diff base vs close (只允许 <) ---
+48,49d47
+< FAILED tests/unit/test_qa_38_6_scoring_reliability_extra.py::TestStartupIntegration::test_fallback_sync_called_in_lifespan
+< FAILED tests/unit/test_qa_38_6_scoring_reliability_extra.py::TestStartupIntegration::test_main_imports_fallback_sync
+diff_rc=1

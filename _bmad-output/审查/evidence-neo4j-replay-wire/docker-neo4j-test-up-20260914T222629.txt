@@ -1,0 +1,18 @@
+### 批级环境变更: 启动 Docker Desktop + neo4j-test (用户 2026-09-14 显式授权)
+--- docker ps (启动 daemon 后现状) ---
+canvas-learning-system-backend	Up About a minute (health: starting)	127.0.0.1:8011->8001/tcp
+canvas-learning-system-neo4j-test	Up About a minute (healthy)	127.0.0.1:7479->7474/tcp, 127.0.0.1:7692->7687/tcp
+canvas-learning-system-neo4j	Up About a minute (healthy)	127.0.0.1:7478->7474/tcp, 127.0.0.1:7691->7687/tcp
+--- 起 neo4j-test (profile test) ---
+time="2026-09-14T22:26:29+08:00" level=warning msg="The \"ANTHROPIC_API_KEY\" variable is not set. Defaulting to a blank string."
+time="2026-09-14T22:26:29+08:00" level=warning msg="/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t6-neo4j/docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion"
+time="2026-09-14T22:26:29+08:00" level=warning msg="a network with name canvas-learning-network exists but was not created for project \"card-t6-neo4j\".\nSet `external: true` to use an existing network"
+time="2026-09-14T22:26:29+08:00" level=warning msg="volume \"canvas-neo4j-test-data\" already exists but was not created by Docker Compose. Use `external: true` to use an existing volume"
+ Container canvas-learning-system-neo4j-test Creating 
+ Container canvas-learning-system-neo4j-test Error response from daemon: Conflict. The container name "/canvas-learning-system-neo4j-test" is already in use by container "85d9420162a25690d05b51ab8a5517a81cbf6251ee993df2dbede1a59116625f". You have to remove (or rename) that container to be able to reuse that name. 
+Error response from daemon: Conflict. The container name "/canvas-learning-system-neo4j-test" is already in use by container "85d9420162a25690d05b51ab8a5517a81cbf6251ee993df2dbede1a59116625f". You have to remove (or rename) that container to be able to reuse that name.
+--- docker ps (after) ---
+canvas-learning-system-backend	Up About a minute (health: starting)	127.0.0.1:8011->8001/tcp
+canvas-learning-system-neo4j-test	Up About a minute (healthy)	127.0.0.1:7479->7474/tcp, 127.0.0.1:7692->7687/tcp
+canvas-learning-system-neo4j	Up About a minute (healthy)	127.0.0.1:7478->7474/tcp, 127.0.0.1:7691->7687/tcp
+rc=0

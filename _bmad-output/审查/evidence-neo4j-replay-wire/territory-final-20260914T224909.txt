@@ -1,0 +1,20 @@
+### (l) 地盘门 最终 HEAD=d9fa0774  T6-A末=310eef31
+--- 主判据 ---
+ backend/app/api/v1/endpoints/traces.py             |  66 +++-
+ backend/app/main.py                                |  52 +++
+ backend/app/services/fallback_sync_service.py      |  79 ++++
+ .../integration/test_neo4j_replay_wire_t6b.py      | 425 +++++++++++++++++++++
+ 4 files changed, 621 insertions(+), 1 deletion(-)
+--- 禁改文件 (应全空) ---
+(空=未动)
+--- main.py 全量 hunk 头 ---
+@@ -402,0 +403,35 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+@@ -404,0 +440,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+--- main.py 删除行数 (期望 0) ---
+0
+--- 既有 import 块 :381-384 现状 ---
+        from app.config import get_current_vault_id
+        from app.core.subject_config import build_vault_group_id
+        from app.services.episode_worker import get_episode_worker
+        from app.services.vault_backfill import backfill_vault
+rc=0

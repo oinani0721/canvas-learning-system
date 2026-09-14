@@ -1,0 +1,22 @@
+  from pydantic.v1.fields import FieldInfo as FieldInfoV1
+  import pkg_resources
+Building prefix dict from the default dictionary ...
+### str.splitlines() 的断行字符集 vs JSONL 的行分隔符
+  splitlines() 对 13 字符的探针切成 7 段
+  ⇒ 它在 U+2028/U+2029/\x0b/\x0c/\x1c-\x1e/U+0085 处都断行
+  而 JSONL 的行分隔符定义只有 \n; 且 U+2028 在 JSON 字符串里是合法原始字符。
+
+### 一条含 U+2028 的合法 JSONL 记录
+  splitlines()     → 2 段   ❌ 一条记录被数成两条
+  split('\n') 非空 → 1 段   ✅
+
+### 影响面 1 — 本卡新增的计数 (虚高)
+  _count_jsonl_lines = 2  (文件里只有 1 条记录)
+
+### 影响面 2 — 既有 _sync_failed_writes (更严重: 该条目永远回灌不掉)
+    段1: JSONDecodeError ⇒ 走 still_pending 分支, 写回文件, 下轮重复
+    段2: JSONDecodeError ⇒ 走 still_pending 分支, 写回文件, 下轮重复
+
+⇒ 三处 splitlines (本文件 :161 新增 / :214 既有初读 / :252 既有 finalize 重读)
+  后两处口径互相比较 (len(current_lines) > len(lines) 防并发追加), 必须同时改。
+rc=0

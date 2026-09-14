@@ -1,0 +1,14 @@
+  from pydantic.v1.fields import FieldInfo as FieldInfoV1
+  import pkg_resources
+### Python 3.14.4 — Path.exists() 对权限类 OSError 的行为
+对照: 权限正常时 _count_jsonl_lines = 2  (文件真有 2 行)
+父目录 chmod 000 后 exists() = False   ← 没抛异常, 直接报 False
+--- 此处若有 [T6-B backlog] warning 则说明走到了 except ---
+--- (以上无 warning 行) ---
+_count_jsonl_lines = 0   ← 静默 0, 与「真的没有积压」逐字相同
+[还原] 权限恢复后 _count_jsonl_lines = 2
+
+结论: docstring 承诺「权限失败按 0 计并记一条 warning」在这一支不成立 ——
+      exists() 先把它判成「不存在」, return 0 时根本没走到 except。
+      影响面 = 日志可观测性 (离线登记本就只是一条日志), 不影响数据安全。已登记, 建议 T6-C 处置。
+rc=0

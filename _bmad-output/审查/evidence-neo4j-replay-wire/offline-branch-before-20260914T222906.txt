@@ -1,0 +1,13 @@
+### (b)② 回填门离线分支改前: 只有一句「跳过」, 不登记待回灌 HEAD=310eef31
+--- sed -n '403,404p' backend/app/main.py ---
+        else:
+            logger.info("[Graphiti-native] 启动回填跳过 (graphiti 未就绪)")
+--- sed -n '404p' ---
+            logger.info("[Graphiti-native] 启动回填跳过 (graphiti 未就绪)")
+--- 离线分支内「待回灌/pending/backlog」字样计数 (期望 0) ---
+count=0
+--- 验伪锚: 同 grep 在含「跳过」的那行应命中 1 ---
+anchor=1
+--- fallback_sync_service 只读计数方法 改前应无 (期望 0) ---
+count_method=0
+rc=0

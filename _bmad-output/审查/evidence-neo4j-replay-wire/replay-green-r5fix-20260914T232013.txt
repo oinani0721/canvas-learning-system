@@ -1,0 +1,10 @@
+    assert result["failed_writes"]["recovered"] == 2
+E   assert 5 == 2
+{"event": "[Story 38.8] checkpoint for failed_writes was written under line-split codec None (current 'split-lf') \u2014 replaying from 0. Some already-synced entries may be replayed again (idempotent for Concept/LEARNED; may add duplicate scoring Episodes).", "logger": "app.services.fallback_sync_service", "level": "warning", "timestamp": "2026-09-14T15:20:25.590249Z"}
+{"event": "[Story 38.8] Rotated failed_writes.jsonl \u2192 failed_writes.synced.2026-09-14-232025", "logger": "app.services.fallback_sync_service", "level": "info", "timestamp": "2026-09-14T15:20:25.592139Z"}
+WARNING  app.services.fallback_sync_service:fallback_sync_service.py:640 {'event': "[Story 38.8] checkpoint for failed_writes was written under line-split codec None (current 'split-lf') — replaying from 0. Some already-synced entries may be replayed again (idempotent for Concept/LEARNED; may add duplicate scoring Episodes).", 'logger': 'app.services.fallback_sync_service', 'level': 'warning', 'timestamp': '2026-09-14T15:20:25.590249Z'}
+INFO     app.services.fallback_sync_service:fallback_sync_service.py:708 {'event': '[Story 38.8] Rotated failed_writes.jsonl → failed_writes.synced.2026-09-14-232025', 'logger': 'app.services.fallback_sync_service', 'level': 'info', 'timestamp': '2026-09-14T15:20:25.592139Z'}
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+FAILED tests/unit/test_story_38_8_fallback_sync.py::TestAC3Checkpoint::test_resumes_from_checkpoint
+================== 1 failed, 35 passed, 10 warnings in 1.23s ===================
+rc=1

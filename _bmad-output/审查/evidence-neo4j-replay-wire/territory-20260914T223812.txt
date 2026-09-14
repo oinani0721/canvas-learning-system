@@ -1,0 +1,54 @@
+### (l) 地盘门  T6-A末commit=310eef31  HEAD=cd1b5ae9
+--- 主判据: 排除 _bmad-output 的改动面 ---
+ backend/app/api/v1/endpoints/traces.py             |  58 ++-
+ backend/app/main.py                                |  39 ++
+ backend/app/services/fallback_sync_service.py      |  75 ++++
+ .../integration/test_neo4j_replay_wire_t6b.py      | 415 +++++++++++++++++++++
+ 4 files changed, 586 insertions(+), 1 deletion(-)
+--- 验伪锚: 去掉 exclude 应多出 _bmad-output/ 路径 ---
+ backend/app/api/v1/endpoints/traces.py             |  58 ++-
+ backend/app/main.py                                |  39 ++
+ backend/app/services/fallback_sync_service.py      |  75 ++++
+ .../integration/test_neo4j_replay_wire_t6b.py      | 415 +++++++++++++++++++++
+ 4 files changed, 586 insertions(+), 1 deletion(-)
+--- 禁改文件核 (security.py / system.py / openapi.json / conftest) 应全空 ---
+(空 = 一个都没动)
+--- main.py 逐 hunk: 所有 +/- 行必须落在回填门 :386-404 ---
+@@ -400,8 +400,47 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+--- main.py diff 中的 -(删除)行 (期望 0, 本卡只加不删) ---
+0
+--- fsrs_bridge / decay_beta 零命中核 ---
+count=0
+--- (m) 新测试文件的连接行 (须全为 7692 或 tmp) ---
+10:   ``FallbackSyncService.sync_all_fallbacks()``, 然后直接查 7692 断言
+24:- 只连 **7692** 测试容器 (``NEO4J_TEST_URI``); 探针指向现网 7691 一律拒绝,
+26:- 三条暂存文件 + checkpoint 全部 monkeypatch 到 ``tmp_path``, 绝不碰
+32:- DD-03 禁 mock: 回灌走真 ``Neo4jClient`` → 真 7692, 不打桩 sync 路径。
+51:NEO4J_TEST_URI = os.getenv("NEO4J_TEST_URI", "bolt://127.0.0.1:7692")
+56:# 模块级可达性探针 (决定整文件 skip; 7691 现网一律拒绝)
+62:    if ":7691" in NEO4J_TEST_URI:
+63:        # 禁碰 live: 即使有人把 NEO4J_TEST_URI 指到现网也拒绝运行
+69:            NEO4J_TEST_URI,
+88:            "Neo4j test container unreachable (or NEO4J_TEST_URI points at live "
+89:            "7691 — refused). Start: docker compose --profile test up -d neo4j-test"
+105:    # 共享的 7692 容器里, 把下一轮的「节点数不变」幂等断言污染成假红。
+119:    concept / concept_id 带一次性 uuid 后缀 —— 同一个 7692 容器被多条门共用,
+169:async def gate_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+170:    """真 Neo4jClient → 7692 + 三条暂存链全部改指 tmp_path.
+180:        uri=NEO4J_TEST_URI,
+184:        storage_path=tmp_path / "gate_neo4j_fallback.json",
+190:    # 暂存链隔离: 三个文件 + checkpoint 全部落 tmp_path。
+193:    monkeypatch.setattr(fss, "FAILED_WRITES_FILE", tmp_path / "failed_writes.jsonl")
+194:    monkeypatch.setattr(fss, "CANVAS_EVENTS_FALLBACK_FILE", tmp_path / "canvas_events_fallback.json")
+195:    monkeypatch.setattr(fss, "LEARNING_MEMORIES_FILE", tmp_path / "learning_memories.json")
+196:    monkeypatch.setattr(fss, "SYNC_CHECKPOINT_FILE", tmp_path / "sync_checkpoint.json")
+275:def test_gate_never_targets_live_7691() -> None:
+276:    """探针已拒 7691; 此断言把「禁碰 live」从注释升级为可执行契约."""
+277:    assert ":7691" not in NEO4J_TEST_URI
+285:async def test_offline_entry_replays_into_graph_via_admin_endpoint(gate_client, authed_app, tmp_path: Path) -> None:
+286:    """离线落盘的评分条目, 经鉴权管理端点回灌后在 7692 图内按内容可查."""
+303:        f"回灌后 7692 图内查不到 (:User {{id:{GATE_USER_ID!r}}})-[:LEARNED]->"
+341:async def test_second_replay_is_idempotent(gate_client, authed_app, tmp_path: Path) -> None:
+382:# 进程默认单例, 它按 ``backend/.env`` 的 ``NEO4J_URI=bolt://localhost:7691``
+383:# 去连**现网**。挂上 gate_client 就把单例换成指向 7692 的实例, 于是「本门在
+rc=0

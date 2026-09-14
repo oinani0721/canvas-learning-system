@@ -1,0 +1,34 @@
+### 负控段①: 拆掉管理端点的鉴权依赖 → 「无 key → 403」用例必红
+--- [跑前] shasum ---
+6e85d3b41a8b027bf04a5fbdac8eca3aeb546d477bb8c0065227b83130e6a40d  backend/app/api/v1/endpoints/traces.py
+变异已落上: 删除端点级鉴权依赖 1 行
+mutate_rc=0
+--- [变异后] shasum (应与跑前不同, 证明变异真落上了) ---
+6659cfa370c72f762e361f9b60453a78d4187723e77cbb60b7dc7a0d750d5ca7  backend/app/api/v1/endpoints/traces.py
+--- 变异后该行剩余命中数 (应为 0) ---
+0
+--- 跑门: 只跑鉴权三条用例 ---
+E   AssertionError: 缺 key 未被拒: 200 {"failed_writes":{"recovered":0,"pending":0},"canvas_events":{"recovered":0,"pending":0},"learning_memories":{"recovered":0,"pending":0}}
+    assert 200 == 403
+{"event": "[T6-B] manual fallback replay via admin endpoint: {'failed_writes': {'recovered': 0, 'pending': 0}, 'canvas_events': {'recovered': 0, 'pending': 0}, 'learning_memories': {'recovered': 0, 'pending': 0}}", "request_id": "5251236592", "logger": "app.api.v1.endpoints.traces", "level": "info", "timestamp": "2026-09-14T14:37:21.281612Z"}
+INFO     app.api.v1.endpoints.traces:traces.py:125 [T6-B] manual fallback replay via admin endpoint: {'failed_writes': {'recovered': 0, 'pending': 0}, 'canvas_events': {'recovered': 0, 'pending': 0}, 'learning_memories': {'recovered': 0, 'pending': 0}}
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t6-neo4j/backend/tests/integration/test_neo4j_replay_wire_t6b.py:391: AssertionError: 缺 key 未被拒: 200 {"failed_writes":{"recovered":0,"pending":0},"canvas_events":{"recovered":0,"pending":0},"learning_memories":{"recovered":0,"pending":0}}
+E   AssertionError: 错 key 未被拒: 200 {"failed_writes":{"recovered":0,"pending":0},"canvas_events":{"recovered":0,"pending":0},"learning_memories":{"recovered":0,"pending":0}}
+    assert 200 == 403
+{"event": "[T6-B] manual fallback replay via admin endpoint: {'failed_writes': {'recovered': 0, 'pending': 0}, 'canvas_events': {'recovered': 0, 'pending': 0}, 'learning_memories': {'recovered': 0, 'pending': 0}}", "request_id": "5250948912", "logger": "app.api.v1.endpoints.traces", "level": "info", "timestamp": "2026-09-14T14:37:21.384708Z"}
+INFO     app.api.v1.endpoints.traces:traces.py:125 [T6-B] manual fallback replay via admin endpoint: {'failed_writes': {'recovered': 0, 'pending': 0}, 'canvas_events': {'recovered': 0, 'pending': 0}, 'learning_memories': {'recovered': 0, 'pending': 0}}
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t6-neo4j/backend/tests/integration/test_neo4j_replay_wire_t6b.py:399: AssertionError: 错 key 未被拒: 200 {"failed_writes":{"recovered":0,"pending":0},"canvas_events":{"recovered":0,"pending":0},"learning_memories":{"recovered":0,"pending":0}}
+E   AssertionError: 未配置 key 未 fail-closed: 200 {"failed_writes":{"recovered":0,"pending":0},"canvas_events":{"recovered":0,"pending":0},"learning_memories":{"recovered":0,"pending":0}}
+    assert 200 == 503
+{"event": "[T6-B] manual fallback replay via admin endpoint: {'failed_writes': {'recovered': 0, 'pending': 0}, 'canvas_events': {'recovered': 0, 'pending': 0}, 'learning_memories': {'recovered': 0, 'pending': 0}}", "request_id": "5250132416", "logger": "app.api.v1.endpoints.traces", "level": "info", "timestamp": "2026-09-14T14:37:21.412846Z"}
+INFO     app.api.v1.endpoints.traces:traces.py:125 [T6-B] manual fallback replay via admin endpoint: {'failed_writes': {'recovered': 0, 'pending': 0}, 'canvas_events': {'recovered': 0, 'pending': 0}, 'learning_memories': {'recovered': 0, 'pending': 0}}
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t6-neo4j/backend/tests/integration/test_neo4j_replay_wire_t6b.py:414: AssertionError: 未配置 key 未 fail-closed: 200 {"failed_writes":{"recovered":0,"pending":0},"canvas_events":{"recovered":0,"pending":0},"learning_memories":{"recovered":0,"pending":0}}
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+FAILED tests/integration/test_neo4j_replay_wire_t6b.py::test_admin_endpoint_rejects_missing_key_403
+FAILED tests/integration/test_neo4j_replay_wire_t6b.py::test_admin_endpoint_rejects_wrong_key_403
+FAILED tests/integration/test_neo4j_replay_wire_t6b.py::test_admin_endpoint_unconfigured_key_503
+================= 3 failed, 3 deselected, 10 warnings in 0.49s =================
+gate_rc=1
+[trap] 已无条件还原 backend/app/api/v1/endpoints/traces.py
+6e85d3b41a8b027bf04a5fbdac8eca3aeb546d477bb8c0065227b83130e6a40d  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t6-neo4j/backend/app/api/v1/endpoints/traces.py
+rc=0

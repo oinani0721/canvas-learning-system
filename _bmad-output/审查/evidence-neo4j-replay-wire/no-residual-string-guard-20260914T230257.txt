@@ -1,0 +1,25 @@
+### 确认本卡文件内再无「用字符串守端口」的残留判据
+--- 全文件中 ':7691' 字面量出现处 ---
+64:    ⚠️ 这里**不能**用 `":7691" in uri` 这类字符串判据 (Codex round-2 HIGH-1):
+309:    Codex round-2 HIGH-1: 原断言是 `":7691" not in NEO4J_TEST_URI`,
+326:    assert ":7691" not in "bolt://127.0.0.1:07691", (
+--- 逐条判定 ---
+  :64 [代码] ✅ 负控自证/说明
+      ⚠️ 这里**不能**用 `":7691" in uri` 这类字符串判据 (Codex round-2 HIGH-1):
+  :309 [代码] ✅ 负控自证/说明
+      Codex round-2 HIGH-1: 原断言是 `":7691" not in NEO4J_TEST_URI`,
+  :326 [代码] ✅ 负控自证/说明
+      assert ":7691" not in "bolt://127.0.0.1:07691", (
+--- 真正的防线判据 (应为驱动口径) ---
+69:    改为问驱动本人: `live_port_guard.canonical_target_ports()` 复现的正是
+71:    并且判据是**正向白名单**(端口必须 ∈ ALLOWED_TEST_PORTS)而不是反向黑名单
+76:    from tests.support.live_port_guard import ALLOWED_TEST_PORTS, canonical_target_ports
+78:    ports, _why = canonical_target_ports(uri)
+81:    return all(p in ALLOWED_TEST_PORTS for p in ports)
+312:    from tests.support.live_port_guard import ALLOWED_TEST_PORTS, canonical_target_ports
+314:    ports, why = canonical_target_ports(NEO4J_TEST_URI)
+316:    assert all(p in ALLOWED_TEST_PORTS for p in ports), (
+317:        f"本门只允许测试端口 {sorted(ALLOWED_TEST_PORTS)}, 实际解析到 {ports}（{why}）"
+321:    bypass_ports, _ = canonical_target_ports("bolt://127.0.0.1:07691")
+323:    assert not all(p in ALLOWED_TEST_PORTS for p in bypass_ports), (
+rc=0

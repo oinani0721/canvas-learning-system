@@ -1,0 +1,21 @@
+E   AssertionError: 回灌后 7692 图内查不到 (:User {id:'default_user'})-[:LEARNED]->(:Concept {name:'t6bgate_concept_af963bbc5483'}) —— 暂存条目没有被回灌。管理端点响应: 405 {"detail":"Method Not Allowed"}
+    assert []
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t6-neo4j/backend/tests/integration/test_neo4j_replay_wire_t6b.py:305: AssertionError: 回灌后 7692 图内查不到 (:User {id:'default_user'})-[:LEARNED]->(:Concept {name:'t6bgate_concept_af963bbc5483'}) —— 暂存条目没有被回灌。管理端点响应: 405 {"detail":"Method Not Allowed"}
+E   AssertionError: 首次回灌未返回 200: 405 {"detail":"Method Not Allowed"}
+    assert 405 == 200
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t6-neo4j/backend/tests/integration/test_neo4j_replay_wire_t6b.py:355: AssertionError: 首次回灌未返回 200: 405 {"detail":"Method Not Allowed"}
+E   AssertionError: 缺 key 未被拒: 405 {"detail":"Method Not Allowed"}
+    assert 405 == 403
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t6-neo4j/backend/tests/integration/test_neo4j_replay_wire_t6b.py:389: AssertionError: 缺 key 未被拒: 405 {"detail":"Method Not Allowed"}
+E   AssertionError: 错 key 未被拒: 405 {"detail":"Method Not Allowed"}
+    assert 405 == 403
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t6-neo4j/backend/tests/integration/test_neo4j_replay_wire_t6b.py:397: AssertionError: 错 key 未被拒: 405 {"detail":"Method Not Allowed"}
+E   AssertionError: 未配置 key 未 fail-closed: 405 {"detail":"Method Not Allowed"}
+    assert 405 == 503
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t6-neo4j/backend/tests/integration/test_neo4j_replay_wire_t6b.py:412: AssertionError: 未配置 key 未 fail-closed: 405 {"detail":"Method Not Allowed"}
+FAILED tests/integration/test_neo4j_replay_wire_t6b.py::test_offline_entry_replays_into_graph_via_admin_endpoint
+FAILED tests/integration/test_neo4j_replay_wire_t6b.py::test_second_replay_is_idempotent
+FAILED tests/integration/test_neo4j_replay_wire_t6b.py::test_admin_endpoint_rejects_missing_key_403
+FAILED tests/integration/test_neo4j_replay_wire_t6b.py::test_admin_endpoint_rejects_wrong_key_403
+FAILED tests/integration/test_neo4j_replay_wire_t6b.py::test_admin_endpoint_unconfigured_key_503
+rc=1

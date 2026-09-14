@@ -1,0 +1,6 @@
+files=4
+All checks passed!
+rc=0
+--- 验伪锚: 已知含 F401 的文件应 rc=1 ---
+All checks passed!
+anchor_rc=0

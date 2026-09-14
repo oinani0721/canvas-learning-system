@@ -1,0 +1,16 @@
+### §二.10 终审绑定判据
+round-2 审 SHA = d9fa0774 ; 当前 HEAD = d9fa0774
+--- git --no-pager diff --stat --no-color d9fa0774 HEAD -- . ':(exclude)_bmad-output' (期望空) ---
+[以上为空 = 仍绑定]
+--- 验伪锚: 同命令换 round-1 的 cd1b5ae9 应非空 (证明该判据真能测出失绑) ---
+ backend/app/api/v1/endpoints/traces.py                  | 10 +++++++++-
+ backend/app/main.py                                     | 15 ++++++++++++++-
+ backend/app/services/fallback_sync_service.py           | 14 +++++++++-----
+ backend/tests/integration/test_neo4j_replay_wire_t6b.py | 12 +++++++++++-
+ 4 files changed, 43 insertions(+), 8 deletions(-)
+--- 存档内旧复核模型名计数 (期望 0) ---
+_bmad-output/审查/codex-review-CARD-NEO4J-REPLAY-WIRE-r2.md: 0
+_bmad-output/审查/codex-review-CARD-NEO4J-REPLAY-WIRE.md: 0
+--- 存档首部三字段齐全核 ---
+_bmad-output/审查/codex-review-CARD-NEO4J-REPLAY-WIRE.md → 模型:1 reasoning:2 codex:1
+rc=0

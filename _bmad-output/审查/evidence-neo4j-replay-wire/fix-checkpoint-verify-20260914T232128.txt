@@ -1,0 +1,24 @@
+  from pydantic.v1.fields import FieldInfo as FieldInfoV1
+  import pkg_resources
+Building prefix dict from the default dictionary ...
+### Codex round-4 HIGH 的负控输入: 首条含 U+2028 + 后接普通记录
+  旧口径 splitlines() → 52 片
+  新口径 split('\n')  → 51 行   ← 差 1
+
+--- 场景 A: 旧 checkpoint (无 line_split 标记) + 含 U+2028 的文件 ---
+2026-09-14 23:21:36 [warning  ] [Story 38.8] checkpoint for failed_writes was written under line-split codec None (current 'split-lf') and this file splits differently under the two codecs — replaying from 0. Already-synced entries may be replayed again (idempotent for Concept/LEARNED; may add duplicate scoring Episodes).
+  _load_checkpoint → 0   ✅ 回退到 0, 不会漏掉记录 49
+
+--- 场景 B (对照): 旧 checkpoint + **不含** U+2028 的文件 ---
+  两种口径行数: splitlines=50 split=50  (相同)
+  _load_checkpoint → 50   ✅ 安全沿用旧下标 (等价, 不做无谓重放)
+
+--- 场景 C: 新 checkpoint (带 line_split 标记) ---
+  _load_checkpoint → 50   ✅ 同口径直接沿用
+
+--- 场景 D: 不按行切分的链 (canvas_events, 不传 raw) ---
+  _load_checkpoint → 7   ✅ 口径无关, 不受影响
+
+--- 新写入的 checkpoint 是否带标记 ---
+  {'index': 12, 'line_split': 'split-lf', 'updated_at': '2026-09-14T23:21:36.016015'}
+rc=0

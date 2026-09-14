@@ -1,0 +1,11 @@
+### traces.py DATA_DIR 指错目录 — 实证 (供 T6-C, 非转述)
+traces.py DATA_DIR      = /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t6-neo4j/backend/app/data
+  exists = False
+死信实际写入目录          = /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t6-neo4j/backend/data
+  exists = True
+  failed_edge_syncs.jsonl exists = True
+相同 = False
+
+⇒ GET /traces/{request_id} 对 failed_edge_syncs / dead_letter_episodes 恒查不到
+  (_search_jsonl 的 if not file_path.exists(): return results 直接返回空)
+rc=0

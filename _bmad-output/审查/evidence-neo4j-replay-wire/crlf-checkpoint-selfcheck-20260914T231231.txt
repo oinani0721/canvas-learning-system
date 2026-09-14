@@ -1,0 +1,18 @@
+### 问题① CRLF: split('\n') 会不会留下 \r ?
+  文件字节: b'{"a":1}\r\n{"a":2}\r\n'
+  read_text 得到: '{"a":1}\n{"a":2}\n'
+  ⇒ Path.read_text 默认 newline=None = **universal newlines**, \r\n 已被规范化为 \n
+  split('\n') → ['{"a":1}', '{"a":2}']
+  每段可解析: True
+  ⇒ CRLF 到不了 split('\n') 这一层, 作者原先『写侧用 \n 拼接』的理由其实更弱 —— 真正的保证在读侧。
+
+### 问题② checkpoint 语义: 换切法会不会让旧 checkpoint 下标错位?
+  生命周期: _load(开头) → _save(每 50 条) → _clear(结尾成功路径)
+  ⇒ 正常运行结束时 checkpoint 已被清掉; 只有『上一轮中途崩溃』才残留。
+  错位需要三件事同时成立: ① 上一轮崩溃留下 checkpoint
+                          ② 文件含 U+2028 等 splitlines 会断而 \n 不断的字符
+                          ③ 恰好跨这次版本升级
+  影响: 跳过或重复处理若干条。重复是幂等的(MERGE); 跳过的条目不进 still_pending,
+        会随 _rotate_file 一起搬走 ⇒ 那几条确实会丢。
+  ⇒ 极窄的跨版本边界; 根治要给 checkpoint 带口径版本号, 超出本卡地盘。登记。
+rc=0

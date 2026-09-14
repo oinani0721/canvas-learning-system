@@ -1,0 +1,32 @@
+### 验证 Codex round-2 的三处修复
+
+=== HIGH-1: 现网端口保护改用驱动 canonical 解析 ===
+URI                                      旧字符串判据           驱动解析端口      新判据
+bolt://127.0.0.1:7692                        放行          (7692,)       放行
+bolt://127.0.0.1:7691                        拒绝          (7691,)       拒绝
+bolt://127.0.0.1:07691                       放行          (7691,)       拒绝
+bolt://127.0.0.1:007691                      放行          (7691,)       拒绝
+bolt://127.0.0.1                             放行          (7687,)       拒绝
+bolt://127.0.0.1:0                           放行          (7687,)       拒绝
+neo4j://ok:7692 evil:7691                    拒绝     (7692, 7691)       拒绝
+
+⇒ :07691 / :007691 / 无端口 / :0 / routing 多地址 —— 旧判据全部放行,
+  新判据全部拒绝。ALLOWED_TEST_PORTS = [7692]
+
+=== MEDIUM-2: 无参数异常的 str(e)=='' 不再被算成成功 ===
+  RuntimeError()         str(e)=''         旧判据识别为失败=False 新判据=True
+  OSError()              str(e)=''         旧判据识别为失败=False 新判据=True
+  ConnectionError()      str(e)=''         旧判据识别为失败=False 新判据=True
+  TimeoutError()         str(e)=''         旧判据识别为失败=False 新判据=True
+  RuntimeError()         str(e)='boom'     旧判据识别为失败=True  新判据=True
+⇒ 四个无参数异常旧判据全部漏判(算成功), 新判据全部识别为失败。
+
+=== LOW-5: 超长整数字面量 JSON 不再逃逸 ===
+  from pydantic.v1.fields import FieldInfo as FieldInfoV1
+  import pkg_resources
+Building prefix dict from the default dictionary ...
+  验伪锚: json.loads 抛 ValueError: Exceeds the limit (4300 digits) for integer string conversio
+          是 JSONDecodeError 子类吗: False  ← False 即旧捕获集漏掉它
+2026-09-14 22:59:09 [warning  ] [T6-B backlog] Cannot parse canvas_events_fallback.json: Exceeds the limit (4300 digits) for integer string conversion: value has 5000 digits; use sys.set_int_max_str_digits() to increase the limit
+  修后 _count_json_list = 0 (未抛异常)
+rc=0

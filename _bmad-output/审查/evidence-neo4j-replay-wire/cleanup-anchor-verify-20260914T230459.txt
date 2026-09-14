@@ -1,0 +1,19 @@
+  from pydantic.v1.fields import FieldInfo as FieldInfoV1
+  import pkg_resources
+Building prefix dict from the default dictionary ...
+### 清理身份锚覆盖验证 (Codex round-2 MEDIUM-4 的整改)
+本门 canvas 名        = 't6bgate_canvas'
+解析出的逻辑 group    = 'vault:canvas_vault:t6bgate_canvas'
+物理化后 (实际落库值) = 'vault__canvas_vault__t6bgate_canvas'
+
+ENDS WITH 't6bgate_canvas' 命中本门 group = True  ✅
+
+--- 对照: 别的门的 group 不应被本锚命中 ---
+  vault__canvas_vault__g21gate_a             不命中(安全)
+  vault__canvas_vault__other_canvas          不命中(安全)
+  vault__canvas_vault                        不命中(安全)
+  vault__other__t6bgate_canvas               命中(会被本门删)  ← 同 canvas 名但别的 vault, 属本门语义内
+
+结论: 锚以 canvas 段结尾 ⇒ vault 段随环境变也能命中本门数据;
+      别的门用别的 canvas 名 ⇒ 不会被误删。
+rc=0

@@ -1,0 +1,13 @@
+### §二.10 终审绑定 (round-3)
+round-3 审 SHA = d90f5a67 ; 当前 HEAD = d90f5a67
+--- diff d90f5a67 HEAD 排除 _bmad-output (期望空) ---
+[空 = 仍绑定]
+--- 验伪锚: 换 round-2 的 d9fa0774 应非空 ---
+ 4 files changed, 79 insertions(+), 12 deletions(-)
+--- 三份存档旧模型名计数 (期望全 0) ---
+  codex-review-CARD-NEO4J-REPLAY-WIRE-r2.md: 0
+  codex-review-CARD-NEO4J-REPLAY-WIRE.md: 0
+--- 存档首部三字段 ---
+  codex-review-CARD-NEO4J-REPLAY-WIRE.md: 模型=1 reasoning=2 codex=1
+  codex-review-CARD-NEO4J-REPLAY-WIRE-r2.md: 模型=1 reasoning=2 codex=1
+rc=0

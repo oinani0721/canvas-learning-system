@@ -1,0 +1,24 @@
+### 负控段①: 拆掉管理端点的鉴权依赖 → 「无 key → 403」用例必红
+--- [跑前] shasum ---
+6e85d3b41a8b027bf04a5fbdac8eca3aeb546d477bb8c0065227b83130e6a40d  backend/app/api/v1/endpoints/traces.py
+变异已落上: 删除端点级鉴权依赖 1 行
+mutate_rc=0
+--- [变异后] shasum (应与跑前不同, 证明变异真落上了) ---
+6659cfa370c72f762e361f9b60453a78d4187723e77cbb60b7dc7a0d750d5ca7  backend/app/api/v1/endpoints/traces.py
+--- 变异后该行剩余命中数 (应为 0) ---
+0
+--- 跑门: 只跑鉴权三条用例 ---
+E   AssertionError: 缺 key 未被拒: 200 {"skipped":true,"reason":"Neo4j unhealthy"}
+    assert 200 == 403
+E   AssertionError: 错 key 未被拒: 200 {"skipped":true,"reason":"Neo4j unhealthy"}
+    assert 200 == 403
+E   AssertionError: 未配置 key 未 fail-closed: 200 {"skipped":true,"reason":"Neo4j unhealthy"}
+    assert 200 == 503
+FAILED tests/integration/test_neo4j_replay_wire_t6b.py::test_admin_endpoint_rejects_missing_key_403
+FAILED tests/integration/test_neo4j_replay_wire_t6b.py::test_admin_endpoint_rejects_wrong_key_403
+FAILED tests/integration/test_neo4j_replay_wire_t6b.py::test_admin_endpoint_unconfigured_key_503
+================= 3 failed, 3 deselected, 10 warnings in 0.46s =================
+gate_rc=1
+[trap] 已无条件还原 backend/app/api/v1/endpoints/traces.py
+6e85d3b41a8b027bf04a5fbdac8eca3aeb546d477bb8c0065227b83130e6a40d  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t6-neo4j/backend/app/api/v1/endpoints/traces.py
+rc=0

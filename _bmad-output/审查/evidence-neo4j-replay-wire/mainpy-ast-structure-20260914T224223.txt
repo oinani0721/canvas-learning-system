@@ -1,0 +1,13 @@
+### 回填门 if 节点: lineno=387 (期望 387)
+    if-body  行区间: 391..424
+    else-body 行区间: 426..443
+
+### 结构归属核 (AST, 非行号)
+  if-body(在线分支): backfill_vault@[392]  sync_all_fallbacks@[416]  count_fallback_backlog@[]
+  else-body(离线分支): backfill_vault@[]  sync_all_fallbacks@[]  count_fallback_backlog@[436]
+
+顺序: backfill_vault@392 < sync_all_fallbacks@416 ⇒ True
+回灌调用包在内层 Try@415, handler 数=1 ⇒ 不落外层 except
+内层 Try 存在 = True
+离线分支中 initialize/run_query/health_check 调用数 = 0 (期望 0)
+rc=0
