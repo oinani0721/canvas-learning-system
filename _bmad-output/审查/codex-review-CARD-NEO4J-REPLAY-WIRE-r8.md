@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-11-第十四批 · 车道 T6 · 卡 CARD-NEO4J-REPLAY-WIRE round-8
+> 模型: `gpt-6-astra` · reasoning_effort: `ultra` · codex: `codex-cli 0.153.3`
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat _bmad-output/审查/prompts/codex-prompt-CARD-NEO4J-REPLAY-WIRE-r8.md)"`
+> 审查绑定: `a66316dffd70779645842ebd68f2e2ce761537d7`（本轮首次按来源分类计数：本卡修复遗漏 1 / 既有算法重写项 1 / 既知 G2-2 移交 1）
+> 会话头自证（抄 .stderr 第 2/5/9 行含 model 行，stderr 本身不入库）:
+> `OpenAI Codex v0.153.3` / `model: gpt-6-astra` / `reasoning effort: ultra`
+
+---
+
 **`a66316df` 仍不能判为 `HIGH = 0`：确认 HIGH 3 条，其中本卡修复遗漏 1 条、既有算法重写项 1 条、既知 G2-2 移交项 1 条。**
 
 审查始末 HEAD 均为 `a66316dffd70779645842ebd68f2e2ce761537d7`，分支为 `card/t6-neo4j`，所审代码未变化。依据限定读取面、并行交叉复核及纯内存 AST／锁竞争核验；未改文件、未连接数据库。

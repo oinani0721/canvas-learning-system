@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-11-第十四批 · 车道 T6 · 卡 CARD-NEO4J-REPLAY-WIRE round-9
+> 模型: `gpt-6-astra` · reasoning_effort: `ultra` · codex: `codex-cli 0.153.3`
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat _bmad-output/审查/prompts/codex-prompt-CARD-NEO4J-REPLAY-WIRE-r9.md)"`
+> 审查绑定: `97bf36725073956999c8fddd5915e09c2ae68a18`（判定「本卡新增/遗漏 HIGH 已降为 0」）
+> 会话头自证（抄 .stderr 第 2/5/9 行含 model 行，stderr 本身不入库）:
+> `OpenAI Codex v0.153.3` / `model: gpt-6-astra` / `reasoning effort: ultra`
+
+---
+
 **`97bf3672` 的本卡新增／遗漏 HIGH 已降为 0；全量仍有 HIGH 2 条。旧游标漏口关闭，pending 修复仅部分闭环。**
 
 审查始末实际 HEAD 均为 `acc11c05`，它比指定版本多一次文档归档，代码无差异。本结论绑定 `97bf36725073956999c8fddd5915e09c2ae68a18`。完成限定源码、相关消费点及全卡差分交叉复核；未改文件、未连接数据库。验证采用源码条件／AST 表达式及标准库锁竞争，未运行实库集成门。
