@@ -1,0 +1,19 @@
+=== r4 修复后裁判汇总 ===
+脚本 sha: 16f6b3b37e3e2c88ab29898a5b64a2783ffbe94fcefb55117ba1798e168bbe39
+零库连接 grep rc=1 (1=0命中) · 验伪锚 73 处
+rc 正例=0
+rc 篡改=1
+## vault: canvas-vault  [已对账面: picker+dashboard]
+## vault: test-vault  [已对账面: picker+dashboard]
+[g39] semantic_diff 合计 = 0; known_scope_note 合计 = 3
+live rc=0
+  只读 canvas-vault: 0
+  只读 test-vault: 0
+  只读 _bmad-output: 0
+  验伪锚 evidence: 2
+All checks passed!
+ruff check rc=0
+2 files already formatted
+format rc=0
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================= 154 passed, 10 warnings in 1.40s =======================

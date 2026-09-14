@@ -1043,3 +1043,119 @@ def test_r3_medium11_duplicate_upcoming_is_reported(tmp_path):
     rc, report = run(pk, None, tmp_path)
     assert rc == 1
     assert has_diff(report, "picker.upcoming(self)", "structure"), diffs_of(report)
+
+
+# ---------------------------------------------------------------- Codex r4 八条的回归钉
+
+
+def test_r4_1_malformed_url_does_not_escape(monkeypatch):
+    """r4 #1: `Request()` 本身对畸形 URL 抛 ValueError ⇒ 不得逃逸出 fetch_overview。"""
+    resp, reason = g39.fetch_overview("http://[::1")
+    assert reason is None, "畸形 URL 被误判成『连不上』"
+    assert "__open_error__" in resp, f"畸形 URL 逃逸了: {resp}"
+
+
+def test_r4_2_deep_nesting_does_not_recurse_to_death():
+    """r4 #2（本卡引入的回归）：深嵌套数组是合法 JSON、JS 插值也正常，
+    递归实现却抛 RecursionError 打断整次报告。改用显式栈后不得崩。"""
+    deep = 1
+    for _ in range(2000):
+        deep = [deep]
+    assert g39._js_interp_throws(deep) is False  # 不崩、也不误判
+    deep_bad = {"toString": None}
+    for _ in range(2000):
+        deep_bad = [deep_bad]
+    assert g39._js_interp_throws(deep_bad) is True
+
+
+def test_r4_4_and_8_counts_compare_by_js_rendering():
+    """r4 #4 + #8：计数比较的唯一正确口径是 **JS 显示字符串**。
+
+    - `False` vs `0` ⇒ 界面显示 `false` vs `0` ⇒ **是**差异（#4）
+    - `0.0` vs `0` ⇒ 界面两边都显示 `0` ⇒ **不是**差异（#8 的假红）
+    """
+    assert g39._same_count(False, 0) is False, "false 与 0 被判成一致"
+    assert g39._same_count(0.0, 0) is True, "0.0 与 0 被判成不同（假红）"
+    assert g39._same_count(2.0, 2) is True
+    assert g39._same_count(True, 1) is False
+    assert g39._js_str(2.0) == "2" and g39._js_str(False) == "false" and g39._js_str(None) == "null"
+
+
+def test_r4_8_float_backlog_is_not_a_false_diff(tmp_path):
+    """r4 #8 端到端：`stats.ineligible=0.0` 与 overview `0` 不得报差异（JS 都显示 0）。"""
+    pk = build_picker()
+    pk["ineligible"]["placeholder"] = []
+    pk["boards"][1]["placeholder"] = 0
+    pk["stats"]["ineligible"] = 0.0
+    ov = build_overview()
+    ov["vaults"][0]["projection"]["placeholder_backlog"] = 0
+    ov["vaults"][0]["projection"]["boards"][0]["placeholder"] = 0
+    rc, report = run(pk, ov, tmp_path)
+    assert rc == 0, f"0.0 与 0 被报成假红: {diffs_of(report)}"
+
+
+def test_r4_4_false_due_count_is_a_diff(tmp_path):
+    """r4 #4 端到端：`stats.due_nodes=false` 必须红（界面显示 false，不是 0）。"""
+    pk = build_picker()
+    pk["due_nodes"] = []
+    pk["stats"]["due_nodes"] = False
+    pk["boards"] = []
+    rc, report = run(pk, None, tmp_path)
+    assert rc == 1, f"stats.due_nodes=false 被当成 0: {diffs_of(report)}"
+
+
+def test_r4_3_corrupt_rollup_next_due_is_reported(tmp_path):
+    """r4 #3：归一是为了不让排序抛错，**不是**为了放过损坏值。"""
+    pk = build_picker()
+    pk["boards"].append(
+        {
+            "board": "丙板",
+            "due": 0,
+            "due_new": 0,
+            "due_scheduled": 0,
+            "future": 1,
+            "next_due": {"x": 1},
+            "placeholder": 0,
+            "earliest_overdue": "",
+        }
+    )
+    ov = build_overview()
+    ov["vaults"][0]["projection"]["boards"].append(
+        {"board": "丙板", "due": 0, "due_new": 0, "placeholder": 0, "earliest": None, "nodes": []}
+    )
+    rc, report = run(pk, ov, tmp_path)
+    assert rc == 1
+    assert has_diff(report, "picker.boards(self)", "structure"), diffs_of(report)
+
+
+def test_r4_5_non_array_upcoming_is_reported(tmp_path):
+    """r4 #5：`upcoming` 键在但不是数组 ⇒ 损坏，不得静默当成空。"""
+    for bad in (None, {}, "x", 3):
+        pk = build_picker()
+        del pk["boards"]
+        pk["upcoming"] = bad
+        rc, report = run(pk, None, tmp_path)
+        assert rc == 1, f"upcoming={bad!r} 被静默当成空数组"
+        assert has_diff(report, "picker.upcoming(self)", "structure")
+
+
+def test_r4_6_corrupt_fsrs_due_is_reported(tmp_path):
+    """r4 #6：`fsrs_due` 是排序原料，非字符串会被归一成空串排到新卡那一档 ⇒ 必须报。"""
+    pk = build_picker()
+    pk["due_nodes"][0]["fsrs_due"] = {}
+    rc, report = run(pk, None, tmp_path)
+    assert rc == 1
+    assert has_diff(report, "picker.due_nodes(self)", "boards[甲板].fsrs_due"), diffs_of(report)
+
+
+def test_r4_7_empty_and_duplicate_node_names_are_reported(tmp_path):
+    """r4 #7：空串 node 与同板重名 node 都是垃圾，参照端点直接拒收。"""
+    pk = build_picker()
+    pk["due_nodes"][0]["node"] = ""
+    rc, report = run(pk, None, tmp_path)
+    assert rc == 1 and has_diff(report, "picker.due_nodes(self)", "boards[甲板].node")
+
+    pk2 = build_picker()
+    pk2["due_nodes"][1]["node"] = pk2["due_nodes"][0]["node"]  # 甲板内重名
+    rc2, report2 = run(pk2, None, tmp_path)
+    assert rc2 == 1 and has_diff(report2, "picker.due_nodes(self)", "boards[甲板].node_unique"), diffs_of(report2)

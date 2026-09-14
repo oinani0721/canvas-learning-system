@@ -118,6 +118,28 @@ def _is_js_number(v: Any) -> bool:
     return type(v) is int or type(v) is float
 
 
+def _js_str(v: Any) -> str:
+    """把值渲染成 JS `String(v)` 的结果 —— 用户在界面上**看到的那个字样**。
+
+    ⛔ Codex r4 #8: 上一轮用「Python 类型严格相等」比计数, 结果把 `0.0` 与 `0` 报成差异,
+    可 JS 两边都显示 `0` —— 那是**假红**。对账工具报假红比漏报更伤信任。
+    ⛔ Codex r4 #4: 反过来 `False` 与 `0` 在 Python 里相等, 但 JS 显示 `false` vs `0`,
+    那是**真差异**。两条都只有一个正确口径: **比显示字符串**。
+
+    JS 的数字渲染会丢掉整数值 float 的小数点 (`String(2.0) === "2"`), 布尔渲染成
+    `"true"/"false"`, null 渲染成 `"null"`。
+    """
+    if v is None:
+        return "null"
+    if v is True:
+        return "true"
+    if v is False:
+        return "false"
+    if type(v) is float and v.is_integer():
+        return str(int(v))
+    return str(v)
+
+
 def _js_interp_throws(v: Any) -> bool:
     """JS 模板字符串 `${v}` 是否会抛 TypeError (Codex r2 MEDIUM-7 / r3 MEDIUM-4)。
 
@@ -133,20 +155,31 @@ def _js_interp_throws(v: Any) -> bool:
     抛出后落到 `:87` "投影损坏"、**不出数字**。镜像必须跟到这一层, 否则脚本算出数字
     而界面上什么都不显示, 两面各说各话却报"一致"。
     """
-    if isinstance(v, dict):
-        return "toString" in v
-    if isinstance(v, list):
-        return any(_js_interp_throws(x) for x in v)
+    # ⛔ Codex r4 #2: 用**显式栈**而不是递归 —— 深嵌套数组是合法 JSON、JS 插值也正常,
+    # 递归实现却会抛 RecursionError 打断整次报告 (自己造的崩溃比漏检更糟)。
+    stack = [v]
+    seen = 0
+    while stack:
+        cur = stack.pop()
+        seen += 1
+        if seen > 100_000:  # 防御: 极端输入不让遍历自己变成挂起
+            return True
+        if isinstance(cur, dict):
+            if "toString" in cur:
+                return True
+        elif isinstance(cur, list):
+            stack.extend(cur)
     return False
 
 
 def _same_count(a: Any, b: Any) -> bool:
-    """计数相等且**类型也相等** (Codex r3 MEDIUM-6)。
+    """两个计数在**界面上显示成同一个字样**吗 (Codex r3 MEDIUM-6 / r4 #4 #8)。
 
-    Python 的 `False == 0` / `2.0 == 2` 会让「Dashboard 显示 `false` 张」与
-    「总览页显示 `0` 张」在判据里相等 —— 界面上那是两个不同的字样。
+    ⛔ 既不能用 Python 的 `==`(`False == 0` 会把「显示 false」和「显示 0」判成一致),
+    也不能用「类型严格相等」(会把 `0.0` 与 `0` 判成不同, 可 JS 两边都显示 `0` = 假红)。
+    唯一正确的口径是比 `String(v)` 的结果 —— 用户看到的就是那个。
     """
-    return type(a) is type(b) and a == b
+    return _js_str(a) == _js_str(b)
 
 
 def _strict_count(v: Any) -> int | None:
@@ -296,6 +329,11 @@ def picker_rollup_due(payload: dict) -> tuple[dict[str, int] | None, str | None]
         due = _strict_count(r.get("due"))
         if due is None:
             return None, f"boards[{i}].due 不是整数 (实为 {r.get('due')!r})"
+        # ⛔ Codex r4 #3: `next_due` 损坏时排序侧会把它归一掉 —— 归一是为了不让排序抛错,
+        # **不是**为了放过它。损坏本身必须在这里报出来, 否则归一就成了掩盖。
+        nd = r.get("next_due")
+        if nd is not None and not isinstance(nd, str):
+            return None, f"boards[{i}].next_due 不是字符串 (实为 {type(nd).__name__})"
         out[board] = due
     return out, None
 
@@ -310,6 +348,10 @@ def picker_upcoming_boards(payload: dict) -> tuple[dict[str, Any], list[str]]:
     up = payload.get("upcoming")
     out: dict[str, Any] = {}
     bad: list[str] = []
+    # ⛔ Codex r4 #5: `upcoming` 是 null / 对象 / 字符串 / 数字时, 原实现静默当成空数组 ——
+    # 一份**已经损坏的投影**于是全绿。键不在场是合法旧形态, 键在但不是数组就是损坏。
+    if "upcoming" in payload and not isinstance(up, list):
+        bad.append(f"upcoming 键在但不是数组 (实为 {type(up).__name__})")
     for i, u in enumerate(up if isinstance(up, list) else []):
         if not (isinstance(u, dict) and isinstance(u.get("board"), str) and u["board"]):
             bad.append(f"upcoming[{i}] 形状非法")
@@ -483,13 +525,15 @@ def fetch_overview(base_url: str, timeout: float = 10.0) -> tuple[Any, str | Non
     ⚠️ 直连不走代理, 理由见 `_direct_opener`。
     """
     url = base_url.rstrip("/") + OVERVIEW_PATH
-    req = urllib.request.Request(url, method="GET")  # noqa: S310 — 固定 http(s) 本机地址
     # ⛔ Codex r1 HIGH-4 / MEDIUM-8: **连接阶段**与**读取阶段**必须分开捕获。
     # 原实现把整段包在一个 try 里, 于是 HTTP 200 之后 `resp.read()` 超时 / 连接重置
     # 也落进 not-fetched 豁免 —— 那是**连上了**之后的失败, 按声明应计入 semantic_diff;
     # 而正文非法 UTF-8 时 `decode()` 抛的 UnicodeDecodeError 根本没人接, CLI 直接中断、
     # 连报告都不产出。两者都不能留在豁免口里。
     try:
+        # ⛔ Codex r4 #1: `Request()` **本身**会对畸形 URL 抛 ValueError —— 放在 try 外
+        # 会让 `--overview-url 'http://[::1'` 这类输入直接打断 CLI、连差异表都不出。
+        req = urllib.request.Request(url, method="GET")  # noqa: S310 — 固定 http(s) 本机地址
         resp = _direct_opener().open(req, timeout=timeout)  # noqa: S310
     except urllib.error.HTTPError as e:
         return {"__http_error__": f"HTTP {e.code}"}, None  # 连上了, 非 2xx
@@ -604,7 +648,7 @@ def reconcile(
     # len(due_rows)`(daily_review_pick.py:1060) 恒等, 但**消费侧拿到的是文件** ——
     # 手改/损坏的投影会让二者分叉, 而 Dashboard 读明细长度、overview 读 stats,
     # 于是两个界面显示不同数字。这是三面对账真正要抓的第一类缺陷。
-    if p_stats_due != p_len_due:
+    if not _same_count(p_stats_due, p_len_due):
         diffs.append(_diff("picker.stats ↔ picker.due_nodes", "due_count", p_stats_due, p_len_due, "cross-source"))
 
     if dash["due_count"] == NOT_COMPARABLE:
@@ -663,14 +707,41 @@ def reconcile(
     # ⛔ Codex r3 MEDIUM-7: 这些检查原先写在 `_reconcile_overview` 里, 于是 overview
     # 走 N3 / N5 时**根本不执行** —— 一条"只在第三方在场时才生效的自检"等于没有。
     for b in sorted(groups):
-        bad_nodes = [r for r in groups[b] if not isinstance(r.get("node"), str)]
+        # ⛔ Codex r4 #7: 只验类型不够 —— 空串 node 与**同板重名** node 都是垃圾,
+        # 参照端点 `:201`/`:205` 分别拒收 (stem 全局唯一)。靠别的比较"间接发现"不算数。
+        bad_nodes = [r for r in groups[b] if not isinstance(r.get("node"), str) or not r.get("node")]
         if bad_nodes:
             diffs.append(
                 _diff(
                     "picker.due_nodes(self)",
                     f"boards[{b}].node",
-                    f"{len(bad_nodes)} 行的 node 不是字符串 (首个: {type(bad_nodes[0].get('node')).__name__})",
-                    "(node 应为字符串)",
+                    f"{len(bad_nodes)} 行的 node 非非空字符串 (首个: {bad_nodes[0].get('node')!r})",
+                    "(node 应为非空字符串)",
+                    "cross-source",
+                )
+            )
+        names = [r.get("node") for r in groups[b] if isinstance(r.get("node"), str) and r.get("node")]
+        if len(names) != len(set(names)):
+            dup = sorted({n for n in names if names.count(n) > 1})
+            diffs.append(
+                _diff(
+                    "picker.due_nodes(self)",
+                    f"boards[{b}].node_unique",
+                    f"重复节点名: {dup}",
+                    "(节点名应唯一)",
+                    "cross-source",
+                )
+            )
+        # ⛔ Codex r4 #6: `fsrs_due` 是排序原料 —— 非字符串会被排序侧归一成空串,
+        # 于是一张"日期损坏"的卡悄悄排到新卡那一档还全绿。参照端点 `:165` 直接拒收。
+        bad_due = [r for r in groups[b] if not isinstance(r.get("fsrs_due"), str)]
+        if bad_due:
+            diffs.append(
+                _diff(
+                    "picker.due_nodes(self)",
+                    f"boards[{b}].fsrs_due",
+                    f"{len(bad_due)} 行的 fsrs_due 不是字符串 (首个: {bad_due[0].get('fsrs_due')!r})",
+                    "(fsrs_due 应为字符串, 空串=新卡)",
                     "cross-source",
                 )
             )
@@ -784,7 +855,7 @@ def _reconcile_overview(
     # stats, 明确"不退明细重数"。与 picker.stats 比属结构保证; 与 **Dashboard** 比才是
     # 用户在两个界面上看到的那两个数字 (mini-UAT 第⑤项就是肉眼版的这一条)。
     ov_due = proj.get("due_count")
-    if ov_due != p_stats_due:
+    if not _same_count(ov_due, p_stats_due):
         diffs.append(_diff("overview ↔ picker.stats", "due_count", ov_due, p_stats_due, "structurally-guaranteed"))
     if not _same_count(dash["due_count"], ov_due):
         diffs.append(_diff("dashboard ↔ overview", "due_count", dash["due_count"], ov_due, "cross-source"))
@@ -874,7 +945,7 @@ def _reconcile_overview(
     for b in sorted(expected_boards | set(ov_due_by_board)):
         a = ov_due_by_board.get(b, "(overview 无此板)")
         c = group_due.get(b, 0 if b in zero_source else "(picker 明细无此板)")
-        if a != c:
+        if not _same_count(a, c):
             # 独立性: overview 的板级 due 与本脚本的 group-by 是**同一条规则的两个实现**
             # (Codex r1 MEDIUM-6) —— 能抓实现漂移, 但**不是**第三个独立派生源。
             diffs.append(_diff("overview ↔ picker.due_nodes", f"boards[{b}].due", a, c, "reimplementation"))
