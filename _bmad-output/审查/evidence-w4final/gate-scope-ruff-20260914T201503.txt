@@ -1,0 +1,35 @@
+=== (h) 地盘门：08100483..HEAD 代码面（排除 _bmad-output） ===
+ backend/tests/support/live_port_guard.py | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+--- 验伪锚：去掉 exclude 应多出 _bmad-output/ 路径 ---
+ .../unit-open-20260914T195838.txt"                 | 1181 ++++++++++++++++++++
+ backend/tests/support/live_port_guard.py           |    5 +-
+ 20 files changed, 2938 insertions(+), 1 deletion(-)
+
+=== (k) §二.8 ruff 判据（zsh 数组） ===
+files=1
+list=backend/tests/support/live_port_guard.py
+All checks passed!
+rc_check=0
+1 file already formatted
+rc_fmt=0
+
+=== 验伪锚（⛔ 用 F821，不用 F401——backend/ruff.toml 未选 F401） ===
+F821 Undefined name `_undefined_probe`
+ --> backend/tests/support/_probe.py:2:12
+  |
+1 | def f():
+2 |     return _undefined_probe
+  |            ^^^^^^^^^^^^^^^^
+  |
+
+Found 1 error.
+rc=1
+rc=1
+--- 良构对照（期望 rc=0） ---
+rc=0
+--- 假锚实证：F401 在 backend/ 下恒 rc=0 ---
+All checks passed!
+rc=0
+--- 探针文件未落盘核（期望 absent） ---
+absent OK
