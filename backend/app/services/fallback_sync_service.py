@@ -415,53 +415,76 @@ class FallbackSyncService:
         # Sort by timestamp for chronological replay
         events.sort(key=lambda e: e.get("timestamp", ""))
 
-        checkpoint_idx = self._load_checkpoint("canvas_events")
+        # ⛔ 本链**不用位置 checkpoint**（Codex round-7 HIGH-1/HIGH-2）。
+        # 上面那行 `events.sort(...)` 决定了「第 i 条」不是稳定身份:
+        #   负控: 保存连续成功前缀 50 后中断, 随后追加一条**时间戳更早**的 z;
+        #   重启先排序 ⇒ z 落到游标之前, 从未重放却随 finalize 出队。
+        #   该路径不需要旧版本、也不需要发生压缩, 单靠排序即可触发。
+        # 另: 旧版按 `i + 1` 保存的 canvas 游标也带着当前 _PROGRESS_VERSION 标记
+        # (保存器是三链共用的), 升级后会被当成可信游标 —— 禁用位置游标一并止住。
+        # 代价: 崩溃后本链从头重放。重放走 MERGE 身份键, 图上幂等;
+        # 写侧另有上限 (canvas_service.py `_max_fallback_events = 10000`), 不会无界。
         recovered = 0
         still_pending: List[Dict[str, Any]] = []
-        # 与 _sync_failed_writes 同型 (Codex round-5 HIGH 的同一缺陷):
-        # 本链的 still_pending 也会 _atomic_write_file 写回文件, 但**被 checkpoint
-        # 跳过的条目根本不进 still_pending** ⇒ 游标按「已尝试」推进时, 中断重启后
-        # 那些从未成功的条目会被写回操作一并抹掉。游标同样只推进到连续成功前缀。
-        contiguous_end = checkpoint_idx
 
-        for i, event in enumerate(events):
-            if i < checkpoint_idx:
-                continue
-
-            entry_ok = False
+        for event in events:
             try:
                 success = await self._replay_canvas_event_to_neo4j(event)
                 if success:
                     recovered += 1
-                    entry_ok = True
                 else:
                     still_pending.append(event)
             except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
                 logger.warning(f"[Story 38.8] canvas_event replay error: {e}")
                 still_pending.append(event)
 
-            if entry_ok and contiguous_end == i:
-                contiguous_end = i + 1
+        # Finalize —— 必须重读并按**内容**核对 (Codex round-7 HIGH-3)。
+        # 原先完全不重读, 直接用初读快照算出的 still_pending 覆盖文件:
+        #   负控: 初读 [x,y], 重放期间追加 z, x 成功 y 失败 ⇒ 写回 [y], **z 被删**;
+        #   全部成功时连 z 一起轮转掉。无需注入任何异常即可复现。
+        # ⛔ 不能照搬 failed_writes 的「按长度截取追加后缀」—— 本链会排序,
+        # 位置对不上。改用**内容指纹差集**: 当前文件里凡不在初读快照中的, 一律保留。
+        seen = {self._event_fingerprint(e) for e in events}
+        try:
+            current_raw = CANVAS_EVENTS_FALLBACK_FILE.read_text(encoding="utf-8").strip()
+            current_events: List[Dict[str, Any]] = json.loads(current_raw) if current_raw else []
+        except (OSError, ValueError) as e:
+            # 读不到当前内容 ⇒ 无从判断有没有新追加 ⇒ 任何写回都可能抹掉未知记录。
+            # 保留原文件, 本轮已重放的条目下轮会被幂等地再放一次。
+            logger.error(
+                "[Story 38.8] canvas_events finalize re-read failed (%s) — leaving the "
+                "file untouched to avoid clobbering concurrent appends; %d entries pending.",
+                e,
+                len(still_pending),
+            )
+            return {"recovered": recovered, "pending": len(still_pending)}
 
-            if (i + 1) % _CHECKPOINT_INTERVAL == 0 and contiguous_end > checkpoint_idx:
-                self._save_checkpoint("canvas_events", contiguous_end)
-
-        # Finalize
-        if still_pending:
+        appended = [e for e in current_events if self._event_fingerprint(e) not in seen]
+        merged = still_pending + appended
+        if merged:
             self._atomic_write_file(
                 CANVAS_EVENTS_FALLBACK_FILE,
-                json.dumps(still_pending, ensure_ascii=False, indent=2),
+                json.dumps(merged, ensure_ascii=False, indent=2),
             )
         else:
             self._rotate_file(CANVAS_EVENTS_FALLBACK_FILE)
 
-        self._clear_checkpoint("canvas_events")
         self._cleanup_old_synced_files(
             CANVAS_EVENTS_FALLBACK_FILE.parent,
             CANVAS_EVENTS_FALLBACK_FILE.stem,
         )
 
         return {"recovered": recovered, "pending": len(still_pending)}
+
+    @staticmethod
+    def _event_fingerprint(event: Dict[str, Any]) -> str:
+        """canvas 事件的内容指纹 —— finalize 判「这条是不是重放期间新追加的」。
+
+        用 ``sort_keys`` 的紧凑 JSON：同一条事件无论字典键序如何都得到同一指纹。
+        ⚠️ 不能用「位置」或「长度」代替：本链在重放前 ``sort(key=timestamp)``，
+        期间新追加的条目可能排到任何位置（Codex round-7 HIGH-3）。
+        """
+        return json.dumps(event, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
 
     # ─────────────────────────────────────────────────────────────────────
     # 3. learning_memories.json sync
@@ -590,11 +613,20 @@ class FallbackSyncService:
             logger.warning(f"[Story 38.8] Neo4j scoring replay failed: {e}")
             return False
 
-        # Also record score history if score present
+        # Also record score history if score present.
+        # ⛔ 这一步失败必须让**整条**重放判失败 (Codex round-7 HIGH-4)。
+        # 原先是 `except ...: logger.warning("(non-fatal)")` 然后照样 `return True`:
+        #   负控: LEARNED 写入成功、record_score_history() 抛 ConnectionError ⇒
+        #   返回值与「两次写入都成功」的对照输入**完全相同** ⇒ 调用方据此把条目
+        #   移出队列并轮转, **缺失的评分历史再也不会自动重试**。
+        # 返回 False 让条目留在 pending, 下轮整条重放。代价是 LEARNED 会被重放
+        # 一次 —— 它是 MERGE + last-write-wins, 幂等; 而 record_score_history 的
+        # Episode 是 CREATE(randomUUID()), 提交结果不确定时可能重复。
+        # **重复且可见 远好于 静默缺失**; 可靠去重需要稳定记录身份, 属重写卡范围。
         if score is not None:
             try:
                 concept_id = entry.get("concept_id", concept)
-                await self._neo4j.record_score_history(
+                ok = await self._neo4j.record_score_history(
                     concept_id=concept_id,
                     canvas_name=canvas_name,
                     score=int(score),
@@ -602,7 +634,16 @@ class FallbackSyncService:
                     group_id=group_id,
                 )
             except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
-                logger.warning(f"[Story 38.8] Score history record failed (non-fatal): {e}")
+                logger.warning(f"[Story 38.8] Score history record failed: {e} — entry stays pending")
+                return False
+            if ok is False:
+                # 客户端也用**返回值**表达失败 (group 解析失败时 fail-closed 返 False,
+                # 见 neo4j_client.record_score_history) —— 同样不能算整条成功。
+                logger.warning(
+                    "[Story 38.8] Score history record refused (concept_id=%r) — entry stays pending",
+                    entry.get("concept_id", concept),
+                )
+                return False
 
         return True
 
