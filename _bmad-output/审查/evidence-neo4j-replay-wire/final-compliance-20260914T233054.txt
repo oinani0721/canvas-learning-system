@@ -1,0 +1,26 @@
+### 收尾合规核  2026-09-14 23:30
+--- 工作树干净? (T6-C 开工前提) ---
+?? "_bmad-output/\345\256\241\346\237\245/evidence-neo4j-replay-wire/final-compliance-20260914T233054.txt"
+(空 = 干净 ✅)
+--- 未 push? ---
+无 upstream ⇒ 未 push ✅
+--- commit 链 ---
+be8e8beb docs(t6-b): 验收单 + 证据 + Codex 五轮, 按 D-15 停车 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+ccb1d101 fix(t6-b): 按 Codex round-4 整改 checkpoint 口径等五处 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+7bcbfc1a fix(t6-b): 按 Codex round-3 整改清理身份与 U+2028 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+d90f5a67 fix(t6-b): 按 Codex round-2 整改 HIGH-1 等五处 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+d9fa0774 fix(t6-b): 按 Codex round-1 整改四处 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+cd1b5ae9 feat(t6-b): 孤儿重放器接进真实路径 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+--- .stderr 全部被 ignore? ---
+  codex-review-CARD-NEO4J-REPLAY-WIRE-r2.stderr: ignored ✅
+  codex-review-CARD-NEO4J-REPLAY-WIRE-r3.stderr: ignored ✅
+  codex-review-CARD-NEO4J-REPLAY-WIRE-r4.stderr: ignored ✅
+  codex-review-CARD-NEO4J-REPLAY-WIRE-r5.stderr: ignored ✅
+  codex-review-CARD-NEO4J-REPLAY-WIRE.stderr: ignored ✅
+--- 台账是否被改? (期望未改) ---
+(空 = 未改 ✅)
+--- 手册是否被改? (期望未改) ---
+(空 = 未改 ✅)
+--- openapi.json 是否被改? ---
+(空 = 未改 ✅)
+rc=0
