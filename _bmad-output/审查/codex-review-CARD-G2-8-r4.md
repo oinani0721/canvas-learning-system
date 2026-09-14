@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-11-第十四批 · 车道 T2 · 卡 CARD-G2-8 round-4
+> 模型: `gpt-6-astra` · reasoning_effort: `ultra` · codex: `codex-cli 0.153.3`
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat _bmad-output/审查/prompts/codex-prompt-CARD-G2-8-r4.md)"`
+> 审查绑定: `9526cfca`（该轮 HEAD；本轮后有 r4 整改 commit，故本档**不绑**最终 HEAD）
+> 会话头自证（抄 .stderr，行号如实标；.stderr 本身不入库）:
+> `.stderr:2` `OpenAI Codex v0.153.3` / `.stderr:5` `model: gpt-6-astra` / `.stderr:9` `reasoning effort: ultra`
+
+---
+
 复核绑定 **`9526cfca75fca457ddada46d0961bc4d65c03999`**，首尾 HEAD 一致。结论：**1 HIGH、1 LOW；未发现 BLOCKER / MEDIUM。r3 四条具体处置均核对通过，但开账仍有一个未覆盖窗口。**
 
 1. **HIGH — [scripts/deploy-vault.sh:444](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t2-deploy/scripts/deploy-vault.sh:444)**：负控条件是复查通过后、打开 fd 前路径对象发生变化；`exec 9>>` 仍重新解析路径，现有门只覆盖复查之前和开账之后，未覆盖这个窗口。

@@ -448,13 +448,20 @@ act_journal_open() {
     #    期间被掉包 ⇒ fd 连的是别的 inode ⇒ 身份对不上 ⇒ 关掉并拒。
     #    ⚠️ 只有「打开后核 fd 身份」才管用；再 stat 一次路径是没用的（掉包后路径与 fd
     #    指向同一个新对象, 两边一致而那个对象根本没验过）。
+    # ⛔ 身份三元组里**不能**把 nlink 也当「相等即可」（Codex r5 HIGH）：若在
+    #    assert_writable_now 与这次 lstat 之间就被加了硬链接, want 与 got 会**同为**
+    #    `dev:ino:2`, 相等而且都不合格。⇒ 采样与核对两侧各自**独立要求 nlink == 1
+    #    且是普通文件**（不合格就 exit 1 ⇒ 空串 ⇒ fail-closed）, 相等只用来挡「被换成
+    #    另一个同样合格的对象」。两件事分开判, 不让「相等」替「合格」背书。
     local want="" got=""
     want="$(python3 -c '
-import os, sys
+import os, stat, sys
 st = os.lstat(sys.argv[1])
-sys.stdout.write("%d:%d:%d" % (st.st_dev, st.st_ino, st.st_nlink))' "$ACT_JOURNAL" 2> /dev/null)" || want=""
+if not stat.S_ISREG(st.st_mode) or st.st_nlink != 1:
+    sys.exit(1)
+sys.stdout.write("%d:%d" % (st.st_dev, st.st_ino))' "$ACT_JOURNAL" 2> /dev/null)" || want=""
     if [ -z "$want" ]; then
-        ACT_JOURNAL_ERR="问不出阶段账的 inode 身份, 无从断言打开的是验过的那个: $ACT_JOURNAL"
+        ACT_JOURNAL_ERR="阶段账不是链接数为 1 的普通文件, 或问不出它的 inode 身份: $ACT_JOURNAL"
         return 1
     fi
     if ! exec 9>> "$ACT_JOURNAL"; then
@@ -463,13 +470,15 @@ sys.stdout.write("%d:%d:%d" % (st.st_dev, st.st_ino, st.st_nlink))' "$ACT_JOURNA
     fi
     ACT_JOURNAL_FD_OPEN=1
     got="$(python3 -c '
-import os, sys
+import os, stat, sys
 st = os.fstat(9)
-sys.stdout.write("%d:%d:%d" % (st.st_dev, st.st_ino, st.st_nlink))' 2> /dev/null)" || got=""
-    # 空值也拒（问不出来 = 无从断言, fail-closed, 与 assert_writable_now 的三态同律）
+if not stat.S_ISREG(st.st_mode) or st.st_nlink != 1:
+    sys.exit(1)
+sys.stdout.write("%d:%d" % (st.st_dev, st.st_ino))' 2> /dev/null)" || got=""
+    # 空值也拒（问不出来 / 不合格 = 无从断言, fail-closed, 与 assert_writable_now 三态同律）
     if [ -z "$got" ] || [ "$got" != "$want" ]; then
         act_journal_close
-        ACT_JOURNAL_ERR="阶段账在复查与打开之间被换过（验过 ${want}, 打开的是 ${got:-问不出来}）"
+        ACT_JOURNAL_ERR="阶段账在复查与打开之间被换过或被加了硬链接（验过 ${want}, 打开的是 ${got:-不合格/问不出来}）"
         return 1
     fi
     return 0

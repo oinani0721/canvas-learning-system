@@ -3015,6 +3015,11 @@ case "$sub" in
         ;;
     up)
         rc="${CLS_FAKE_UP_RC:-0}"
+        # 真 docker 常常是「容器已经建了一半才失败」⇒ 失败时也留下项目，回滚要能清掉
+        if [ "$rc" != 0 ] && [ "${CLS_FAKE_UP_PARTIAL:-0}" = 1 ]; then
+            grep -qxF "$proj" "$CLS_FAKE_STATE" 2> /dev/null \\
+                || printf '%s\\n' "$proj" >> "$CLS_FAKE_STATE"
+        fi
         if [ "$rc" = 0 ]; then
             grep -qxF "$proj" "$CLS_FAKE_STATE" 2> /dev/null \\
                 || printf '%s\\n' "$proj" >> "$CLS_FAKE_STATE"
@@ -3124,10 +3129,33 @@ if [ "${CLS_FAKE_BREAK_JOURNAL:-0}" = 4 ]; then
         esac
     done
 fi
+# mode 5：在 assert_writable_now 那次 lstat **之后**加硬链接 —— 复查已过，
+#        随后 act_journal_open 采样时对象已是 nlink=2
+if [ "${CLS_FAKE_BREAK_JOURNAL:-0}" = 5 ]; then
+    case "$*" in
+        *"os.lstat(sys.argv[1]).st_nlink"*)
+            for f in "$CLS_FAKE_EV"/compose-config-*.txt; do
+                [ -e "$f" ] || continue
+                ln "$f" "$CLS_FAKE_EV/hardlink.txt" 2> /dev/null || true
+            done
+            ;;
+    esac
+fi
+# mode 6：在**采样之后、exec 9>> 之前**加硬链接 —— want 是 nlink=1，got 会是 2
+if [ "${CLS_FAKE_BREAK_JOURNAL:-0}" = 6 ]; then
+    case "$*" in
+        *"st.st_dev, st.st_ino"*)
+            for f in "$CLS_FAKE_EV"/compose-config-*.txt; do
+                [ -e "$f" ] || continue
+                ln "$f" "$CLS_FAKE_EV/hardlink.txt" 2> /dev/null || true
+            done
+            ;;
+    esac
+fi
 # mode 3：只在「记 inode 身份」那一次调用之后掉包 —— 正落在它与 exec 9>> 之间
 if [ "${CLS_FAKE_BREAK_JOURNAL:-0}" = 3 ]; then
     case "$*" in
-        *"st.st_dev, st.st_ino, st.st_nlink"*)
+        *"st.st_dev, st.st_ino"*)
             : > "$CLS_FAKE_EV/decoy.txt"
             for f in "$CLS_FAKE_EV"/compose-config-*.txt; do
                 [ -e "$f" ] || continue
@@ -3823,7 +3851,19 @@ def test_g2_8_also_push_handles_mixed_separators_and_empty_value(
     assert got == [want], f"清单结果不对: {got}"
 
 
-@pytest.mark.parametrize(("cap", "port"), [("0", "8257"), ("000", "8258"), ("8a", "8259")])
+@pytest.mark.parametrize(
+    ("cap", "port"),
+    [
+        ("0", "8257"),
+        ("000", "8258"),
+        ("8a", "8259"),
+        # Codex r5 LOW：上界、剥零后超 5 位、原串超 20 位、非 ASCII 数字四类边界
+        ("86401", "8270"),
+        ("123456", "8271"),
+        ("0" * 21, "8272"),
+        ("٠٥", "8273"),
+    ],
+)
 def test_g2_8_lance_cap_rejects_values_that_would_disable_it(tmp_path: Path, cap: str, port: str):
     """上限取值非法 ⇒ 步 5 在**起容器之前**就 FAIL 75，不留半个实例。"""
     h = _tx_harness(tmp_path)
@@ -3966,10 +4006,21 @@ def test_g2_8_up_failure_also_tears_down_only_this_project(tmp_path: Path):
     h = _tx_harness(tmp_path)
     state = tmp_path / "docker-state.txt"
     state.write_text("cls-sibling\n", encoding="utf-8")
-    env = _tx_env(tmp_path, "8268", "probe_upfail", sibling_port="8298", extra={"CLS_FAKE_UP_RC": "1"})
+    env = _tx_env(
+        tmp_path,
+        "8268",
+        "probe_upfail",
+        sibling_port="8298",
+        # Codex r5 LOW：本项目**已部分创建**才失败 —— 这样「回滚确实清掉了它」才有内容
+        extra={"CLS_FAKE_UP_RC": "1", "CLS_FAKE_UP_PARTIAL": "1"},
+    )
     assert _tx_sibling_is_200(tmp_path, "8298"), "控制组不成立：跑之前兄弟实例就不是 200"
     r = _tx_run(tmp_path, h, "probe_upfail", "8268", env=env)
     assert r.returncode == 75, f"up 失败应 FAIL 75: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    calls = (tmp_path / "docker-calls.txt").read_text(encoding="utf-8")
+    # 控制组：本项目确实被「起过」（桩按 CLS_FAKE_UP_PARTIAL 留下了它）且确实被 down 过 ——
+    # 否则「清单里没有它」是空的（压根没加进去过, 断言不承重）
+    assert "-p cls-probe_upfail" in calls and " down" in calls, f"桩没被要求起/拆这个项目: {calls!r}"
     running = _tx_state(tmp_path)
     assert "cls-probe_upfail" not in running, f"回滚没拆掉本实例: {running}"
     assert "cls-sibling" in running, f"失败只拆 cls-<vault>, 兄弟实例不受影响 —— 实测被误伤: {running}"
@@ -3993,3 +4044,23 @@ def test_g2_8_journal_with_hardlink_is_refused(tmp_path: Path):
     assert r.returncode == 75, f"硬链接的阶段账没被拒: rc={r.returncode}\n{r.stdout}{r.stderr}"
     assert "阶段账不可写" in r.stdout and "硬链接" in r.stdout, r.stdout
     assert "cls-probe_jhl" not in _tx_state(tmp_path), "复查已拒, 却仍起了实例"
+
+
+@pytest.mark.parametrize(("mode", "port"), [("5", "8274"), ("6", "8275")])
+def test_g2_8_journal_hardlinked_after_recheck_is_refused(tmp_path: Path, mode: str, port: str):
+    """复查**之后**才被加硬链接 ⇒ 仍然拒（Codex r5 HIGH）。
+
+    两个注入时刻：
+      mode 5 —— 在 `assert_writable_now` 的 lstat 之后（复查已过，采样时已是 nlink=2）
+      mode 6 —— 在采样之后、`exec 9>>` 之前（want 是 1、got 会是 2）
+    ⛔ 只比较「want == got」挡不住 mode 5：两侧会**同为** `dev:ino:2`，相等而且都不合格。
+    所以采样与核对两侧必须**各自**要求 nlink == 1，相等只用来挡「换成另一个合格对象」。
+    """
+    name = f"probe_jhl{mode}"
+    h = _tx_harness(tmp_path)
+    env = _tx_env(tmp_path, port, name, extra={"CLS_FAKE_BREAK_JOURNAL": mode})
+    r = _tx_run(tmp_path, h, name, port, env=env)
+    assert (tmp_path / "ev" / "hardlink.txt").exists(), "控制组不成立：桩没有建成硬链接"
+    assert r.returncode == 75, f"复查后加的硬链接没被拒: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    assert "阶段账" in r.stdout, r.stdout
+    assert f"cls-{name}" not in _tx_state(tmp_path), "已判定不可写, 却仍起了实例"
