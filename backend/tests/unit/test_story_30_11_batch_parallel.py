@@ -32,6 +32,9 @@ class TestBatchParallelExecution:
         neo4j.stats = {"initialized": True, "connected": True}
         neo4j.record_episode = AsyncMock()
         neo4j.create_learning_relationship = AsyncMock()
+        # initialize() → _recover_episodes_from_neo4j() 会 await 它; 返回 [] 让
+        # _episodes 保持空, 不给下面的断言预置数据
+        neo4j.get_all_recent_episodes = AsyncMock(return_value=[])
         return neo4j
 
     @pytest.fixture
@@ -146,6 +149,9 @@ class TestBatchPartialFailure:
         neo4j.stats = {"initialized": True, "connected": True}
         neo4j.record_episode = AsyncMock()
         neo4j.create_learning_relationship = AsyncMock()
+        # initialize() → _recover_episodes_from_neo4j() 会 await 它; 返回 [] 让
+        # _episodes 保持空, 不给下面的断言预置数据
+        neo4j.get_all_recent_episodes = AsyncMock(return_value=[])
         return neo4j
 
     @pytest.fixture
@@ -265,6 +271,9 @@ class TestBatchSemaphore:
         neo4j.initialize = AsyncMock()
         neo4j.stats = {"initialized": True, "connected": True}
         neo4j.create_learning_relationship = AsyncMock()
+        # initialize() → _recover_episodes_from_neo4j() 会 await 它; 返回 [] 让
+        # _episodes 保持空, 不给下面的断言预置数据
+        neo4j.get_all_recent_episodes = AsyncMock(return_value=[])
         return neo4j
 
     @pytest.fixture
@@ -341,6 +350,10 @@ class TestBatchNeo4jDegradation:
         neo4j.stats = {"initialized": False}  # Neo4j NOT available
         neo4j.record_episode = AsyncMock()
         neo4j.create_learning_relationship = AsyncMock()
+        # initialize() → _recover_episodes_from_neo4j() 会 await 它 (该恢复路径不读
+        # stats, 与本类的「不可用」设定正交); 返回 [] 让 _episodes 保持空, 使
+        # test_..._still_processes_to_memory 的 len(_episodes) >= 1 仍只由批处理满足
+        neo4j.get_all_recent_episodes = AsyncMock(return_value=[])
         return neo4j
 
     @pytest.fixture
@@ -403,6 +416,9 @@ class TestBatchIdempotencyCompat:
         neo4j.stats = {"initialized": True, "connected": True}
         neo4j.record_episode = AsyncMock()
         neo4j.create_learning_relationship = AsyncMock()
+        # initialize() → _recover_episodes_from_neo4j() 会 await 它; 返回 [] 让
+        # _episodes 保持空, 不给下面的断言预置数据
+        neo4j.get_all_recent_episodes = AsyncMock(return_value=[])
         return neo4j
 
     @pytest.fixture

@@ -1,0 +1,164 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0 -- /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/bin/python
+hypothesis profile 'dev' -> max_examples=20, deadline=timedelta(milliseconds=10000)
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t10-red/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 28 items
+
+tests/unit/test_memory_service_batch.py::TestRecordBatchLearningEventsConcept::test_concept_field_used_when_present ERROR [  3%]
+tests/unit/test_memory_service_batch.py::TestRecordBatchLearningEventsConcept::test_concept_fallback_to_node_text ERROR [  7%]
+tests/unit/test_memory_service_batch.py::TestRecordBatchLearningEventsConcept::test_concept_fallback_to_unknown ERROR [ 10%]
+tests/unit/test_memory_service_batch.py::TestRecordBatchLearningEventsConcept::test_color_removed_event_type ERROR [ 14%]
+tests/unit/test_memory_service_batch.py::TestRecordBatchLearningEventsConcept::test_node_removed_event_type ERROR [ 17%]
+tests/unit/test_memory_service_batch.py::TestRecordBatchLearningEventsConcept::test_neo4j_disconnected_still_stores_in_memory ERROR [ 21%]
+tests/unit/test_story_30_11_batch_parallel.py::TestBatchParallelExecution::test_50_events_all_processed ERROR [ 25%]
+tests/unit/test_story_30_11_batch_parallel.py::TestBatchParallelExecution::test_neo4j_called_for_each_event ERROR [ 28%]
+tests/unit/test_story_30_11_batch_parallel.py::TestBatchParallelExecution::test_parallel_faster_than_sequential ERROR [ 32%]
+tests/unit/test_story_30_11_batch_parallel.py::TestBatchParallelExecution::test_performance_stats_recorded ERROR [ 35%]
+tests/unit/test_story_30_11_batch_parallel.py::TestBatchPartialFailure::test_neo4j_failure_does_not_block_processing ERROR [ 39%]
+tests/unit/test_story_30_11_batch_parallel.py::TestBatchPartialFailure::test_validation_failure_isolated ERROR [ 42%]
+tests/unit/test_story_30_11_batch_parallel.py::TestBatchPartialFailure::test_episode_ids_only_for_successful ERROR [ 46%]
+tests/unit/test_story_30_11_batch_parallel.py::TestBatchSemaphore::test_concurrency_limited_by_semaphore ERROR [ 50%]
+tests/unit/test_story_30_11_batch_parallel.py::TestBatchNeo4jDegradation::test_neo4j_unavailable_still_processes_to_memory ERROR [ 53%]
+tests/unit/test_story_30_11_batch_parallel.py::TestBatchIdempotencyCompat::test_duplicate_batch_no_duplicates ERROR [ 57%]
+tests/unit/test_story_30_11_batch_parallel.py::TestBatchIdempotencyCompat::test_config_batch_neo4j_concurrency_exists PASSED [ 60%]
+tests/unit/test_story_30_13_batch_idempotency.py::TestBatchIdempotency::test_duplicate_event_detection ERROR [ 64%]
+tests/unit/test_story_30_13_batch_idempotency.py::TestBatchIdempotency::test_idempotent_writes_across_retries ERROR [ 67%]
+tests/unit/test_story_30_13_batch_idempotency.py::TestBatchIdempotency::test_large_batch_idempotency ERROR [ 71%]
+tests/unit/test_story_30_13_batch_idempotency.py::TestBatchIdempotency::test_different_events_not_deduplicated ERROR [ 75%]
+tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPerformance::test_batch_50_events_under_500ms ERROR [ 78%]
+tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPerformance::test_batch_1000_events_completion ERROR [ 82%]
+tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPerformance::test_batch_memory_metrics ERROR [ 85%]
+tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPerformance::test_concurrent_batch_requests ERROR [ 89%]
+tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPartialFailureRecovery::test_partial_failure_recovery ERROR [ 92%]
+tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPartialFailureRecovery::test_event_ordering_preserved ERROR [ 96%]
+tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPartialFailureRecovery::test_neo4j_unavailable_fallback ERROR [100%]
+
+==================================== ERRORS ====================================
+_ ERROR at setup of TestRecordBatchLearningEventsConcept.test_concept_field_used_when_present _
+E   TypeError: 'MagicMock' object can't be awaited
+_ ERROR at setup of TestRecordBatchLearningEventsConcept.test_concept_fallback_to_node_text _
+E   TypeError: 'MagicMock' object can't be awaited
+_ ERROR at setup of TestRecordBatchLearningEventsConcept.test_concept_fallback_to_unknown _
+E   TypeError: 'MagicMock' object can't be awaited
+_ ERROR at setup of TestRecordBatchLearningEventsConcept.test_color_removed_event_type _
+E   TypeError: 'MagicMock' object can't be awaited
+_ ERROR at setup of TestRecordBatchLearningEventsConcept.test_node_removed_event_type _
+E   TypeError: 'MagicMock' object can't be awaited
+_ ERROR at setup of TestRecordBatchLearningEventsConcept.test_neo4j_disconnected_still_stores_in_memory _
+E   TypeError: 'MagicMock' object can't be awaited
+__ ERROR at setup of TestBatchParallelExecution.test_50_events_all_processed ___
+E   TypeError: 'MagicMock' object can't be awaited
+_ ERROR at setup of TestBatchParallelExecution.test_neo4j_called_for_each_event _
+E   TypeError: 'MagicMock' object can't be awaited
+_ ERROR at setup of TestBatchParallelExecution.test_parallel_faster_than_sequential _
+E   TypeError: 'MagicMock' object can't be awaited
+_ ERROR at setup of TestBatchParallelExecution.test_performance_stats_recorded _
+E   TypeError: 'MagicMock' object can't be awaited
+_ ERROR at setup of TestBatchPartialFailure.test_neo4j_failure_does_not_block_processing _
+E   TypeError: 'MagicMock' object can't be awaited
+__ ERROR at setup of TestBatchPartialFailure.test_validation_failure_isolated __
+E   TypeError: 'MagicMock' object can't be awaited
+_ ERROR at setup of TestBatchPartialFailure.test_episode_ids_only_for_successful _
+E   TypeError: 'MagicMock' object can't be awaited
+__ ERROR at setup of TestBatchSemaphore.test_concurrency_limited_by_semaphore __
+E   TypeError: 'MagicMock' object can't be awaited
+_ ERROR at setup of TestBatchNeo4jDegradation.test_neo4j_unavailable_still_processes_to_memory _
+E   TypeError: 'MagicMock' object can't be awaited
+_ ERROR at setup of TestBatchIdempotencyCompat.test_duplicate_batch_no_duplicates _
+E   TypeError: 'MagicMock' object can't be awaited
+____ ERROR at setup of TestBatchIdempotency.test_duplicate_event_detection _____
+E   TypeError: 'MagicMock' object can't be awaited
+_ ERROR at setup of TestBatchIdempotency.test_idempotent_writes_across_retries _
+E   TypeError: 'MagicMock' object can't be awaited
+_____ ERROR at setup of TestBatchIdempotency.test_large_batch_idempotency ______
+E   TypeError: 'MagicMock' object can't be awaited
+_ ERROR at setup of TestBatchIdempotency.test_different_events_not_deduplicated _
+E   TypeError: 'MagicMock' object can't be awaited
+___ ERROR at setup of TestBatchPerformance.test_batch_50_events_under_500ms ____
+E   TypeError: 'MagicMock' object can't be awaited
+___ ERROR at setup of TestBatchPerformance.test_batch_1000_events_completion ___
+E   TypeError: 'MagicMock' object can't be awaited
+_______ ERROR at setup of TestBatchPerformance.test_batch_memory_metrics _______
+E   TypeError: 'MagicMock' object can't be awaited
+____ ERROR at setup of TestBatchPerformance.test_concurrent_batch_requests _____
+E   TypeError: 'MagicMock' object can't be awaited
+_ ERROR at setup of TestBatchPartialFailureRecovery.test_partial_failure_recovery _
+E   TypeError: 'MagicMock' object can't be awaited
+_ ERROR at setup of TestBatchPartialFailureRecovery.test_event_ordering_preserved _
+E   TypeError: 'MagicMock' object can't be awaited
+_ ERROR at setup of TestBatchPartialFailureRecovery.test_neo4j_unavailable_fallback _
+E   TypeError: 'MagicMock' object can't be awaited
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:807
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t10-red/backend/app/api/v1/endpoints/chat.py:807: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:103
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t10-red/backend/app/api/v1/endpoints/metadata.py:103: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:177
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t10-red/backend/app/api/v1/endpoints/metadata.py:177: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+ERROR tests/unit/test_memory_service_batch.py::TestRecordBatchLearningEventsConcept::test_concept_field_used_when_present
+ERROR tests/unit/test_memory_service_batch.py::TestRecordBatchLearningEventsConcept::test_concept_fallback_to_node_text
+ERROR tests/unit/test_memory_service_batch.py::TestRecordBatchLearningEventsConcept::test_concept_fallback_to_unknown
+ERROR tests/unit/test_memory_service_batch.py::TestRecordBatchLearningEventsConcept::test_color_removed_event_type
+ERROR tests/unit/test_memory_service_batch.py::TestRecordBatchLearningEventsConcept::test_node_removed_event_type
+ERROR tests/unit/test_memory_service_batch.py::TestRecordBatchLearningEventsConcept::test_neo4j_disconnected_still_stores_in_memory
+ERROR tests/unit/test_story_30_11_batch_parallel.py::TestBatchParallelExecution::test_50_events_all_processed
+ERROR tests/unit/test_story_30_11_batch_parallel.py::TestBatchParallelExecution::test_neo4j_called_for_each_event
+ERROR tests/unit/test_story_30_11_batch_parallel.py::TestBatchParallelExecution::test_parallel_faster_than_sequential
+ERROR tests/unit/test_story_30_11_batch_parallel.py::TestBatchParallelExecution::test_performance_stats_recorded
+ERROR tests/unit/test_story_30_11_batch_parallel.py::TestBatchPartialFailure::test_neo4j_failure_does_not_block_processing
+ERROR tests/unit/test_story_30_11_batch_parallel.py::TestBatchPartialFailure::test_validation_failure_isolated
+ERROR tests/unit/test_story_30_11_batch_parallel.py::TestBatchPartialFailure::test_episode_ids_only_for_successful
+ERROR tests/unit/test_story_30_11_batch_parallel.py::TestBatchSemaphore::test_concurrency_limited_by_semaphore
+ERROR tests/unit/test_story_30_11_batch_parallel.py::TestBatchNeo4jDegradation::test_neo4j_unavailable_still_processes_to_memory
+ERROR tests/unit/test_story_30_11_batch_parallel.py::TestBatchIdempotencyCompat::test_duplicate_batch_no_duplicates
+ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchIdempotency::test_duplicate_event_detection
+ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchIdempotency::test_idempotent_writes_across_retries
+ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchIdempotency::test_large_batch_idempotency
+ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchIdempotency::test_different_events_not_deduplicated
+ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPerformance::test_batch_50_events_under_500ms
+ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPerformance::test_batch_1000_events_completion
+ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPerformance::test_batch_memory_metrics
+ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPerformance::test_concurrent_batch_requests
+ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPartialFailureRecovery::test_partial_failure_recovery
+ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPartialFailureRecovery::test_event_ordering_preserved
+ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPartialFailureRecovery::test_neo4j_unavailable_fallback
+================== 1 passed, 10 warnings, 27 errors in 0.95s ===================
+rc=1

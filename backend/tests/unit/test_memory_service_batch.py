@@ -26,6 +26,9 @@ class TestRecordBatchLearningEventsConcept:
         neo4j.initialize = AsyncMock()
         neo4j.stats = {"initialized": True, "connected": True}
         neo4j.record_episode = AsyncMock()
+        # initialize() → _recover_episodes_from_neo4j() 会 await 它; 返回 [] 让
+        # _episodes 保持空, 不给下面的断言预置数据 (非空会掏空 _episodes 类断言)
+        neo4j.get_all_recent_episodes = AsyncMock(return_value=[])
         return neo4j
 
     @pytest.fixture
