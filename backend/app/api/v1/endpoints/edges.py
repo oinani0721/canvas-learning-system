@@ -111,10 +111,19 @@ async def _write_neo4j_triplet(
         # 失败)降级成 WriteStatus(success=False), 由 handler 记成半成功 207, 而不是
         # 穿透 asyncio.gather(无 return_exceptions=True)与无 try 的 handler 崩成
         # 500 —— 那会把 LanceDB 侧已经写成功的那一半也一起丢掉。
-        # ⚠️ 如实声明覆盖边界(Codex r1 整改, 原注释写「任何方法名 / 签名错配」不实):
+        # ⚠️ 如实声明覆盖边界(Codex r1/r2 整改, 原注释写「任何方法名 / 签名错配」不实):
         #   - **签名**错配(实参与 run_query(self, query, **params) 不匹配)抛的是
         #     TypeError, **不在**本元组内, 仍会上抛 —— 这是有意的, 签名错配是本进程
         #     的编程缺陷, 不该伪装成「对端写失败」。
+        #   - ⛔ **neo4j 驱动异常整族都不在本元组内**(驱动 6.1.0 实测 MRO, 存档
+        #     _bmad-output/审查/evidence-t-edges/neo4j-exception-mro-*.txt): Neo4jError /
+        #     ClientError / AuthError / TransientError / DriverError / ServiceUnavailable /
+        #     SessionExpired 七类全部继承自 GqlError -> Exception, 与 RuntimeError /
+        #     ConnectionError / OSError 无继承关系。⇒ 真连 Neo4j 时「库连不上」
+        #     (ServiceUnavailable)、权限/约束错(ClientError)仍会上抛而回到 500。
+        #     本卡只按卡文 (d)④ 补 AttributeError 一类(卡文 §三 明令「不得泛化, 只加
+        #     AttributeError 一个类型」), **故本函数并未覆盖真实驱动失败**; 该缺口是
+        #     本卡之前就存在的同族缺陷, 已登记移交主 session 裁定是否另立卡收口。
         #   - 本 except 覆盖整个函数体, 故 params 组装期的 AttributeError(如模型字段
         #     改名)也会被记成 Neo4j 写失败而非报错。收窄它需要改 try 范围 = 行为变更,
         #     已登记移交, 不在本卡范围。

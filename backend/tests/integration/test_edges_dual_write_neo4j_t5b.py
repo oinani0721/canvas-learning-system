@@ -38,6 +38,16 @@ Optional ⇒ ``edges.py:66-70`` 的 ``neo4j is None`` 是死守卫), 且 ``backe
 是 ``NEO4J_ENABLED=true`` + ``NEO4J_URI`` 端口 **7691** ⇒ **打桩一旦失效那一跑就
 会真连现网**. 故两道门在发请求 / 发写之前都先过注入锚.
 
+⛔ 本文件**没有**证明什么 (Codex r2 HIGH-1, 如实记):
+两道门覆盖的是 ``AttributeError`` 这一条降级路径。**真实驱动失败并不走这条路** ——
+neo4j 6.1.0 的 ``Neo4jError`` / ``ClientError`` / ``AuthError`` / ``TransientError`` /
+``DriverError`` / ``ServiceUnavailable`` / ``SessionExpired`` 七类全部继承自
+``GqlError -> Exception``, 与 ``RuntimeError`` / ``ConnectionError`` / ``OSError``
+无继承关系, 因此都**不在** ``_write_neo4j_triplet`` 的 except 元组内, 仍会上抛而让端点
+回到 500(实测存档 ``evidence-t-edges/neo4j-exception-mro-*.txt``)。本卡按卡文 §三
+「不得泛化, 只加 AttributeError 一个类型」未动这一面, 该缺口已登记移交。别把本文件的
+两道绿读成「Neo4j 写失败一定记成 207」。
+
 ⛔ 为什么「改前 500」不能当注入证据 (恒真判据):
 改前无论 stub 是否注入都得 500 —— 注入则 stub 抛 ``AttributeError``, 未注入则
 真客户端同样没有 ``execute_query``, 照样 ``AttributeError``. 改后同样不可分辨:
@@ -106,25 +116,44 @@ NEO4J_TEST_DATABASE = os.getenv("NEO4J_TEST_DATABASE", "neo4j")
 #: 唯一放行的测试端口. ⛔ 白名单, 不是黑名单 —— 见 _test_uri_port_is_allowed.
 ALLOWED_TEST_PORT = 7692
 
+#: 唯一放行的 scheme. ⛔ **直连**族才行, 路由族 (``neo4j://`` / ``neo4j+s://`` /
+#: ``neo4j+ssc://``) 一律拒绝 —— Codex r2 HIGH-2 整改: 路由 URI 的入口端口只决定去哪台
+#: 机器取**路由表**, 真正的连接目标由服务端公布的地址决定, 服务端完全可以公布
+#: 7687 / 7691。也就是说「入口端口 = 7692」对路由族根本不构成「只连 7692」的保证。
+#: 直连族没有这一层间接, 目标就是 URI 里写的那个 host:port。
+ALLOWED_TEST_SCHEMES = frozenset({"bolt", "bolt+s", "bolt+ssc"})
+
 
 def _test_uri_port_is_allowed(uri: str) -> bool:
-    """解析 URI 并要求端口**恰好**等于 7692; 解析不出端口一律拒绝.
+    """要求 scheme 属直连族**且**解析出的端口恰好等于 7692; 其余一律拒绝.
 
     ⛔ 为什么不写 ``":7691" in uri or ":7687" in uri`` 这种黑名单 (Codex r1 HIGH 整改):
     黑名单只看得见字面量。``bolt://localhost`` 省略端口时字面量里既没有 7691 也没有
-    7687, 黑名单放行, 而 neo4j 驱动会把它归一成**默认 7687 = 现网**。同族写法还有
-    ``:0``(同样归一成 7687)、``:07692``、带 user-info 或 IPv6 括号的变体。要用黑名单
-    挡住它们, 就得穷举一切会被驱动归一成现网端口的写法 —— 那是挡不住的。白名单只放行
-    「解析出来确实等于 7692」的目标, 其余(含解析失败、端口缺省)全部拒绝。
+    7687, 黑名单放行, 而 neo4j 驱动会把它归一成**默认 7687 = 现网**(驱动 6.1.0 实测,
+    存档 ``evidence-t-edges/whitelist-vs-blacklist-*.txt``)。同族写法还有 ``:0``
+    (同样归一成 7687)。要用黑名单挡住它们, 就得穷举一切会被驱动归一成现网端口的写法
+    —— 那是挡不住的。白名单只放行「解析出来确实等于 7692」的目标。
+
+    ⛔ 为什么还要卡 scheme (Codex r2 HIGH-2 整改): 端口白名单只约束**入口** URI。
+    路由族 ``neo4j://host:7692`` 的入口端口是 7692, 但驱动随后按服务端公布的路由表
+    去连别的地址, 那些地址可以是 7687 / 7691。端口白名单对这条路径无能为力, 只能在
+    scheme 这一层把路由族整个排除掉。
 
     同口径的先例: ``backend/tests/support/live_port_guard.py`` 的 ALLOWED_TEST_PORTS
     是白名单, 而 BLOCKED_PORTS 黑名单只管 socket 层的每一次 connect —— 两者语义不同,
-    URI 级判定必须走白名单。
+    URI 级判定必须走白名单。(该 socket 层门是第二道防线; 本函数不依赖它成立, 以免
+    「门在不在」变成本文件正确性的隐含前提。)
     """
     try:
-        return urlsplit(uri).port == ALLOWED_TEST_PORT
+        parsed = urlsplit(uri)
     except ValueError:
         # 端口段不是合法整数 (如 bolt://host:abc) ⇒ 拒绝
+        return False
+    if parsed.scheme.lower() not in ALLOWED_TEST_SCHEMES:
+        return False
+    try:
+        return parsed.port == ALLOWED_TEST_PORT
+    except ValueError:
         return False
 
 
@@ -311,32 +340,49 @@ def test_neo4j_attribute_error_degrades_to_207(monkeypatch: pytest.MonkeyPatch) 
 
 
 # ---------------------------------------------------------------------------
-# 门 1b — 端口白名单行为门 (纯逻辑, 零网络; Codex r1 HIGH 整改的验伪锚)
+# 门 1b — scheme + 端口白名单行为门 (纯逻辑, 零网络; Codex r1 HIGH / r2 HIGH-2 的验伪锚)
 # ---------------------------------------------------------------------------
 
 
 def test_test_uri_port_whitelist_rejects_everything_but_7692() -> None:
-    """钉死: 只有解析出的端口 == 7692 才放行, 其余一律拒绝.
+    """钉死: 只有「直连族 scheme + 解析出的端口 == 7692」才放行, 其余一律拒绝.
 
-    这条门是 ``_test_uri_port_is_allowed`` 的验伪锚 —— 它在下面几种写法上必须拒绝,
-    而**字符串黑名单 ``":7691" in uri or ":7687" in uri`` 对前三种全都会放行**:
-    省略端口(驱动归一成现网 7687)、``:0``(同样归一成 7687)、含 7692 子串但端口不是
-    7692 的主机名。
+    这条门是 ``_test_uri_port_is_allowed`` 的验伪锚, 两组来历:
+
+    * **Codex r1 HIGH**——字符串黑名单 ``":7691" in uri or ":7687" in uri`` 挡不住
+      「省略端口」与 ``:0``: 驱动 6.1.0 实测把这两种都归一成 ``localhost:7687``(现网),
+      而黑名单对两者都放行(存档 ``evidence-t-edges/whitelist-vs-blacklist-*.txt`` 逐行)。
+      ⚠️ 只有这**两种**是黑名单放行的; ``bolt://host-7692.example:7687`` 字面量里含
+      ``:7687``, 黑名单也会拒 —— 下面第三条断言防的是「子串式端口判定」这一类写法,
+      不是「黑名单放行」(Codex r2 LOW-3 更正: 早先注释把三种都说成黑名单放行, 不实)。
+    * **Codex r2 HIGH-2**——路由族 ``neo4j://`` / ``neo4j+s://`` / ``neo4j+ssc://`` 即便
+      入口端口是 7692, 真实连接目标仍由服务端公布的路由表决定, 可以是 7687 / 7691。
+      端口白名单管不到它, 只能在 scheme 层整族排除。
     """
-    # ── 必须放行 ────────────────────────────────────────────────────────────
+    # ── 必须放行: 直连族 + 端口 7692 ────────────────────────────────────────
     assert _test_uri_port_is_allowed("bolt://localhost:7692")
     assert _test_uri_port_is_allowed("bolt://127.0.0.1:7692")
-    assert _test_uri_port_is_allowed("neo4j://user@host:7692")
+    assert _test_uri_port_is_allowed("bolt://user@host:7692")
+    assert _test_uri_port_is_allowed("BOLT://localhost:7692"), "scheme 大小写不应改变判定"
+    assert _test_uri_port_is_allowed("bolt+s://localhost:7692")
+    assert _test_uri_port_is_allowed("bolt://[::1]:7692"), "IPv6 括号形态"
 
-    # ── 必须拒绝: 黑名单看不见的三种 ────────────────────────────────────────
+    # ── 必须拒绝: 路由族 (r2 HIGH-2) ────────────────────────────────────────
+    assert not _test_uri_port_is_allowed("neo4j://host:7692"), "路由族: 入口 7692 不保证连接目标是 7692"
+    assert not _test_uri_port_is_allowed("neo4j+s://host:7692"), "路由族同上"
+    assert not _test_uri_port_is_allowed("neo4j+ssc://host:7692"), "路由族同上"
+    assert not _test_uri_port_is_allowed("neo4j://user@host:7692"), "路由族 + user-info"
+
+    # ── 必须拒绝: 黑名单放行的两种 (r1 HIGH) ────────────────────────────────
     assert not _test_uri_port_is_allowed("bolt://localhost"), "省略端口 ⇒ 驱动默认 7687 = 现网"
     assert not _test_uri_port_is_allowed("bolt://localhost:0"), ":0 ⇒ 驱动归一成 7687 = 现网"
-    assert not _test_uri_port_is_allowed("bolt://host-7692.example:7687"), "主机名含 7692 但端口是现网"
 
-    # ── 必须拒绝: 现网端口与非法端口 ────────────────────────────────────────
+    # ── 必须拒绝: 子串式判定会放行的写法 + 现网端口 + 非法端口 ──────────────
+    assert not _test_uri_port_is_allowed("bolt://host-7692.example:7687"), "主机名含 7692 但端口是现网"
     assert not _test_uri_port_is_allowed("bolt://localhost:7691")
     assert not _test_uri_port_is_allowed("bolt://localhost:7687")
     assert not _test_uri_port_is_allowed("bolt://localhost:abc"), "端口段非整数 ⇒ 解析异常也要拒绝"
+    assert not _test_uri_port_is_allowed("bolt://localhost:7692 "), "尾随空格 ⇒ 拒绝"
 
 
 # ---------------------------------------------------------------------------
