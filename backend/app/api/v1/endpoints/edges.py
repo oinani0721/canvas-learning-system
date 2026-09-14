@@ -107,10 +107,17 @@ async def _write_neo4j_triplet(
         # 只有 run_query(query, **params)(neo4j_client.py:536), 从来没有
         # execute_query, 旧写法每次调用都抛 AttributeError。run_query 收的是
         # **params 而非位置 dict, 故参数同步展开(键名逐字不变)。
-        # 下面 except 元组同时补了 AttributeError 作纵深: 任何方法名 / 签名错配
-        # 都降级成 WriteStatus(success=False), 由 handler 记成半成功 207, 而不是
+        # 下面 except 元组同时补了 AttributeError 作纵深: **方法名**错配(属性解析
+        # 失败)降级成 WriteStatus(success=False), 由 handler 记成半成功 207, 而不是
         # 穿透 asyncio.gather(无 return_exceptions=True)与无 try 的 handler 崩成
         # 500 —— 那会把 LanceDB 侧已经写成功的那一半也一起丢掉。
+        # ⚠️ 如实声明覆盖边界(Codex r1 整改, 原注释写「任何方法名 / 签名错配」不实):
+        #   - **签名**错配(实参与 run_query(self, query, **params) 不匹配)抛的是
+        #     TypeError, **不在**本元组内, 仍会上抛 —— 这是有意的, 签名错配是本进程
+        #     的编程缺陷, 不该伪装成「对端写失败」。
+        #   - 本 except 覆盖整个函数体, 故 params 组装期的 AttributeError(如模型字段
+        #     改名)也会被记成 Neo4j 写失败而非报错。收窄它需要改 try 范围 = 行为变更,
+        #     已登记移交, 不在本卡范围。
         # 生产取回路仍由 get_neo4j_client() 决定(是否真连 Neo4j 不在本卡范围)。
         params = {
             "record_id": record_id,

@@ -52,6 +52,7 @@ import asyncio
 import os
 import uuid
 from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import urlsplit
 
 import pytest
 from fastapi import FastAPI
@@ -102,10 +103,39 @@ NEO4J_TEST_PASSWORD = os.getenv("NEO4J_TEST_PASSWORD", "testpassword")
 NEO4J_TEST_DATABASE = os.getenv("NEO4J_TEST_DATABASE", "neo4j")
 
 
+#: 唯一放行的测试端口. ⛔ 白名单, 不是黑名单 —— 见 _test_uri_port_is_allowed.
+ALLOWED_TEST_PORT = 7692
+
+
+def _test_uri_port_is_allowed(uri: str) -> bool:
+    """解析 URI 并要求端口**恰好**等于 7692; 解析不出端口一律拒绝.
+
+    ⛔ 为什么不写 ``":7691" in uri or ":7687" in uri`` 这种黑名单 (Codex r1 HIGH 整改):
+    黑名单只看得见字面量。``bolt://localhost`` 省略端口时字面量里既没有 7691 也没有
+    7687, 黑名单放行, 而 neo4j 驱动会把它归一成**默认 7687 = 现网**。同族写法还有
+    ``:0``(同样归一成 7687)、``:07692``、带 user-info 或 IPv6 括号的变体。要用黑名单
+    挡住它们, 就得穷举一切会被驱动归一成现网端口的写法 —— 那是挡不住的。白名单只放行
+    「解析出来确实等于 7692」的目标, 其余(含解析失败、端口缺省)全部拒绝。
+
+    同口径的先例: ``backend/tests/support/live_port_guard.py`` 的 ALLOWED_TEST_PORTS
+    是白名单, 而 BLOCKED_PORTS 黑名单只管 socket 层的每一次 connect —— 两者语义不同,
+    URI 级判定必须走白名单。
+    """
+    try:
+        return urlsplit(uri).port == ALLOWED_TEST_PORT
+    except ValueError:
+        # 端口段不是合法整数 (如 bolt://host:abc) ⇒ 拒绝
+        return False
+
+
 def _test_neo4j_reachable() -> bool:
-    """探针: 7692 测试容器是否可达. 指向现网端口一律拒绝 (范式照 test_cypher_contract_gate.py)."""
-    if ":7691" in NEO4J_TEST_URI or ":7687" in NEO4J_TEST_URI:
-        # 禁碰 live: 即使有人把 NEO4J_TEST_URI 指到现网也拒绝运行
+    """真库门用的可达性探针.
+
+    ⛔ **惰性调用, 不在模块收集期跑** (Codex r1 HIGH 整改): 放在模块级会让
+    「只选降级门」的那一跑也发起一次网络连接, 而降级门本来完全不需要 DB。
+    现在是否建连完全收进真库门自己。
+    """
+    if not _test_uri_port_is_allowed(NEO4J_TEST_URI):
         return False
     try:
         from neo4j import GraphDatabase
@@ -124,9 +154,9 @@ def _test_neo4j_reachable() -> bool:
         return False
 
 
-_REAL_DB_REACHABLE = _test_neo4j_reachable()
 _REAL_DB_SKIP_REASON = (
-    f"Neo4j 测试容器不可达 ({NEO4J_TEST_URI}), 或 NEO4J_TEST_URI 指向现网 7691/7687 被拒. "
+    f"Neo4j 测试容器不可达, 或 NEO4J_TEST_URI ({NEO4J_TEST_URI}) 解析出的端口不是 "
+    f"{ALLOWED_TEST_PORT} (白名单拒绝, 含省略端口被驱动归一成现网 7687 的写法). "
     "启动: docker compose --profile test up -d neo4j-test"
 )
 
@@ -281,12 +311,40 @@ def test_neo4j_attribute_error_degrades_to_207(monkeypatch: pytest.MonkeyPatch) 
 
 
 # ---------------------------------------------------------------------------
+# 门 1b — 端口白名单行为门 (纯逻辑, 零网络; Codex r1 HIGH 整改的验伪锚)
+# ---------------------------------------------------------------------------
+
+
+def test_test_uri_port_whitelist_rejects_everything_but_7692() -> None:
+    """钉死: 只有解析出的端口 == 7692 才放行, 其余一律拒绝.
+
+    这条门是 ``_test_uri_port_is_allowed`` 的验伪锚 —— 它在下面几种写法上必须拒绝,
+    而**字符串黑名单 ``":7691" in uri or ":7687" in uri`` 对前三种全都会放行**:
+    省略端口(驱动归一成现网 7687)、``:0``(同样归一成 7687)、含 7692 子串但端口不是
+    7692 的主机名。
+    """
+    # ── 必须放行 ────────────────────────────────────────────────────────────
+    assert _test_uri_port_is_allowed("bolt://localhost:7692")
+    assert _test_uri_port_is_allowed("bolt://127.0.0.1:7692")
+    assert _test_uri_port_is_allowed("neo4j://user@host:7692")
+
+    # ── 必须拒绝: 黑名单看不见的三种 ────────────────────────────────────────
+    assert not _test_uri_port_is_allowed("bolt://localhost"), "省略端口 ⇒ 驱动默认 7687 = 现网"
+    assert not _test_uri_port_is_allowed("bolt://localhost:0"), ":0 ⇒ 驱动归一成 7687 = 现网"
+    assert not _test_uri_port_is_allowed("bolt://host-7692.example:7687"), "主机名含 7692 但端口是现网"
+
+    # ── 必须拒绝: 现网端口与非法端口 ────────────────────────────────────────
+    assert not _test_uri_port_is_allowed("bolt://localhost:7691")
+    assert not _test_uri_port_is_allowed("bolt://localhost:7687")
+    assert not _test_uri_port_is_allowed("bolt://localhost:abc"), "端口段非整数 ⇒ 解析异常也要拒绝"
+
+
+# ---------------------------------------------------------------------------
 # 门 2 — 真库写门 (7692 测试容器, 可 skip)
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.real_neo4j
-@pytest.mark.skipif(not _REAL_DB_REACHABLE, reason=_REAL_DB_SKIP_REASON)
 async def test_run_query_writes_edge_rationale_to_7692(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -294,10 +352,18 @@ async def test_run_query_writes_edge_rationale_to_7692(
 
     改前 (execute_query 不存在): 抛 AttributeError = RED.
     改后: WriteStatus(success=True) 且独立客户端在 7692 查得到该 record_id.
+
+    ⛔ skip 判定放在函数体内、不用模块级 ``skipif`` (Codex r1 HIGH 整改): ``skipif``
+    的条件在**收集期**求值, 会让「只选降级门」的那一跑也建一次连接; 挪进来之后,
+    降级门那一跑零网络动作。
     """
     from app.api.v1.endpoints.edges import _write_neo4j_triplet
     from app.clients.neo4j_client import Neo4jClient
     import app.clients.neo4j_client as neo4j_module
+
+    # ⛔ 端口白名单先于一切建连: 解析出的端口不等于 7692 就地 skip, 不做任何连接尝试
+    if not _test_neo4j_reachable():
+        pytest.skip(_REAL_DB_SKIP_REASON)
 
     suffix = uuid.uuid4().hex[:12]
     record_id = f"t5b-{suffix}"
@@ -326,9 +392,11 @@ async def test_run_query_writes_edge_rationale_to_7692(
         pytest.fail(
             "前置注入锚失败: 源模块 get_neo4j_client 未被替换 —— 继续会真往 .env 的 7691 现网写节点, 已立即停跑"
         )
-    if ":7692" not in injected_client._uri:
+    if not _test_uri_port_is_allowed(injected_client._uri):
+        # 走解析白名单而不是 ":7692" in uri 子串判定 (Codex r1 HIGH 同族整改)
         pytest.fail(
-            f"前置注入锚失败: 注入的 client 未指向 7692 测试容器 (实测 uri={injected_client._uri!r}), 已立即停跑"
+            f"前置注入锚失败: 注入的 client 解析出的端口不是 {ALLOWED_TEST_PORT} "
+            f"(实测 uri={injected_client._uri!r}), 已立即停跑"
         )
     if injected_client._use_json_fallback:
         pytest.fail(
@@ -350,7 +418,8 @@ async def test_run_query_writes_edge_rationale_to_7692(
     )
 
     verifier = _make_test_client()
-    assert ":7692" in verifier._uri  # 查回用的独立客户端同样只许连 7692
+    # 查回用的独立客户端同样只许连 7692 (同一条解析白名单, 不用子串判定)
+    assert _test_uri_port_is_allowed(verifier._uri), f"verifier client uri 非 7692: {verifier._uri!r}"
     try:
         status = await _write_neo4j_triplet(rationale, record_id, logical_group_id)
         assert status.success is True, (
@@ -377,5 +446,9 @@ async def test_run_query_writes_edge_rationale_to_7692(
                 group_id=physical_group_id,
             )
         finally:
-            await verifier.cleanup()
-            await injected_client.cleanup()
+            # 两个客户端各自嵌套 finally (Codex r1 LOW 整改): 串行写法下
+            # verifier.cleanup() 抛错会让 injected_client 永远拿不到释放机会。
+            try:
+                await verifier.cleanup()
+            finally:
+                await injected_client.cleanup()
