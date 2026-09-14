@@ -1,0 +1,27 @@
+=== ruff 三条（commit 前预检；两目标文件）===
+--- 1) ruff check ---
+All checks passed!
+rc=0
+--- 2) ruff format --check ---
+2 files already formatted
+rc=0
+--- 3) ruff check --select F401 (本卡专属阻断判据) ---
+All checks passed!
+rc=0
+
+=== 验伪锚 ⛔ 用 F821（不用 F401——backend/ruff.toml select 不含 F401）===
+F821 Undefined name `_undef_probe`
+ --> /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.pgniJGMWot/f821_probe.py:2:12
+  |
+1 | def f():
+2 |     return _undef_probe
+  |            ^^^^^^^^^^^^
+  |
+
+Found 1 error.
+rc=1
+--- 对照：同一桩换 F401 形态（应 rc=0 = 假锚，证明为什么不用 F401）---
+All checks passed!
+rc=0
+--- ruff settings 解析路径自证 ---
+Settings path: "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t10-red/backend/ruff.toml"

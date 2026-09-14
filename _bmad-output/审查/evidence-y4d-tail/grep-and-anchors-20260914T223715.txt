@@ -1,0 +1,23 @@
+=== 判据5: grep -cF 引用（改前 13/4 → 改后 期望 0/1）===
+backend/tests/unit/test_graphiti_json_dual_write.py:0
+backend/tests/unit/test_story_38_6_scoring_reliability.py:1
+--- 剩余 1 处明细（应在禁改的 xfail :50 reason 内）---
+55:            " MemoryService._write_to_graphiti_json_with_retry；backend/app 实测 0 命中，"
+--- 该行所属 xfail 块上下文 ---
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "59586af1 (2026-03-26) 删除 GRAPHITI_RETRY_BACKOFF_BASE 及其消费方"
+            " MemoryService._write_to_graphiti_json_with_retry；backend/app 实测 0 命中，"
+            "本用例断言的是本文件模块级本地桩而非生产值。退避语义归 GraphitiEpisodeWorker，"
+            "等价覆盖缺口归 CARD-EPW-COVERAGE（第十四批，登记）。[CARD-RED-C1]"
+        ),
+    )
+--- 验伪锚：grep 在这两文件能命中已知正例 _enqueue_episode ---
+backend/tests/unit/test_graphiti_json_dual_write.py:5
+backend/tests/unit/test_story_38_6_scoring_reliability.py:3
+
+=== 判据8b: xfail 三处仍在（禁改锚）===
+38:    @pytest.mark.xfail(
+51:    @pytest.mark.xfail(
+79:    @pytest.mark.xfail(

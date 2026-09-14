@@ -1,0 +1,25 @@
+=== 终审绑定判据（协议 §1：为空即仍绑定）===
+审SHA=b6858446  HEAD=b6858446
+--- git diff --stat --no-color b6858446 HEAD -- . ':(exclude)_bmad-output' ---
+rc=0
+[上方为空 = 仍绑定]
+
+⛔ 验伪锚（D-32 教训：判据非空才可信）——换一个更早的 SHA，应非空:
+ .../tests/unit/test_graphiti_json_dual_write.py    | 479 +++++++++++----------
+ .../unit/test_story_38_6_scoring_reliability.py    |  92 +++-
+ 2 files changed, 317 insertions(+), 254 deletions(-)
+
+=== 本卡全部 commit ===
+b6858446 test(y4d-tail): 按 Codex r4 收窄覆盖声明并加强两条 recovery 断言 [第十四批 / CARD-Y4-D-TAIL]
+9b631648 test(y4d-tail): 按 Codex r3 收窄两处过强的覆盖措辞 [BATCH-2026-09-11-第十四批 / CARD-Y4-D-TAIL]
+aebd0792 test(y4d-tail): 按 Codex r2 消除四处覆盖声明自相矛盾 [BATCH-2026-09-11-第十四批 / CARD-Y4-D-TAIL]
+f6f00bb5 test(y4d-tail): 按 Codex r1 更正覆盖归属措辞与分类自述 [BATCH-2026-09-11-第十四批 / CARD-Y4-D-TAIL]
+c1fab4cd test(y4d-tail): 恢复 4 条被 skip 掩盖的测试并按 EpisodeWorker 重写 [BATCH-2026-09-11-第十四批 / CARD-Y4-D-TAIL]
+
+=== 累计地盘（HEAD_OPEN..HEAD）===
+backend/tests/unit/test_graphiti_json_dual_write.py
+backend/tests/unit/test_story_38_6_scoring_reliability.py
+backend/app 命中: 0
+
+=== 旧 Codex 模型名字面量自检（卡文/prompt/存档，期望 0）===
+(全 0 ✅)

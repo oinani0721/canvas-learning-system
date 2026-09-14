@@ -1,0 +1,18 @@
+=== 第0分钟自证 2026-09-14T22:28:51+0800 ===
+pwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t10-red
+branch=card/t10-red
+HEAD_OPEN=95d2d27ad205d9ad549ce2f3329775510b92e4e7  short=95d2d27a
+--- git log --oneline -3 ---
+95d2d27a docs(red-envdep): 验收单 + Codex r1 存档 + 负控/地盘/diff 证据 [BATCH-2026-09-11-第十四批 / CARD-RED-ENVDEP]
+ee16b85a test(red-envdep): 两条 mocker 档 skipif + env 档隔离进程环境变量 [BATCH-2026-09-11-第十四批 / CARD-RED-ENVDEP]
+8381417b docs(red-mockfix): 验收单 + Codex r1 存档 + 补证 [BATCH-2026-09-11-第十四批 / CARD-RED-MOCKFIX]
+--- git status --porcelain (should be empty) ---
+?? "_bmad-output/\345\256\241\346\237\245/evidence-y4d-tail/"
+status lines=1
+--- venv/env ---
+backend/.venv/bin/pytest OK
+backend/.env OK
+--- baseline ---
+BASE=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/审查/evidence-b14/unit-red-baseline-08100483.txt
+BASE exists=yes
+grep -vc '^#' BASE = 64

@@ -1,0 +1,18 @@
+# 4 条恢复目标：可执行语句（去 docstring）在 HEAD_OPEN vs 终审 HEAD 的 AST 恒等性自证
+# 基线 = 95d2d27a (HEAD_OPEN, 本卡第一个 commit 之前)
+# 当前 = b6858446
+# 方法：ast.parse → 取目标函数 → 丢弃首个 docstring 表达式 → ast.dump 逐语句比对
+
+IDENTICAL  test_fire_and_forget_doesnt_block_return  (backend/tests/unit/test_graphiti_json_dual_write.py)
+    语句数 before=6 after=6  dump 长度 2193 / 2193
+IDENTICAL  test_timeout_protection  (backend/tests/unit/test_graphiti_json_dual_write.py)
+    语句数 before=6 after=6  dump 长度 3123 / 3123
+IDENTICAL  test_config_flag_disables_dual_write  (backend/tests/unit/test_graphiti_json_dual_write.py)
+    语句数 before=4 after=4  dump 长度 1350 / 1350
+IDENTICAL  test_recover_no_file  (backend/tests/unit/test_story_38_6_scoring_reliability.py)
+    语句数 before=2 after=2  dump 长度 632 / 632
+
+结论: 4 条目标的可执行语句 全部逐语句恒等 ✅
+
+⛔ 验伪锚（证明本判据能分辨出差异，不是恒 IDENTICAL）:
+    CHANGED ✅ 判据有效  test_dual_write_called_after_neo4j_success（本卡确实重写过它）
