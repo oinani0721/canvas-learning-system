@@ -416,6 +416,8 @@ _ALLOWED_IMPORT_ROOTS = frozenset(
     {
         "__future__",
         "argparse",
+        # errno: 只用于取**当前平台**的错误码常量名 (跨平台数字不可移植)。
+        "errno",
         # socket: 只用于 `_is_connection_failure` 的**异常类型判定**(gaierror), 不建连接。
         "socket",
         "json",
@@ -876,3 +878,168 @@ def test_r2_low11_not_requested_is_distinct_from_not_fetched(tmp_path):
     codes = {n["code"] for n in notes_of(report)}
     assert "N5_overview_not_requested" in codes
     assert "N3_overview_not_fetched" not in codes, "没试过被写成了『连不上』"
+
+
+# ---------------------------------------------------------------- Codex r3 十一条的回归钉
+
+
+def test_r3_high1_redirect_is_not_followed(monkeypatch):
+    """r3 HIGH-1: 不跟随重定向 —— 否则「首跳 302、次跳被拒」会整体判成连不上，
+    可**第一跳后端明明已经响应过**。不跟随 ⇒ 302 变成非 2xx ⇒ 计入差异。"""
+    import urllib.request
+
+    handlers = [type(h).__name__ for h in g39._direct_opener().handlers]
+    assert "_NoRedirect" in handlers, f"opener 仍会自动跟随重定向: {handlers}"
+    # 验伪锚：默认 opener 带的是会跟随的 HTTPRedirectHandler
+    default = [type(h).__name__ for h in urllib.request.build_opener().handlers]
+    assert "HTTPRedirectHandler" in default and "_NoRedirect" not in default
+
+
+def test_r3_medium2_errno_set_comes_from_current_platform():
+    """r3 MEDIUM-2: errno 白名单必须取**当前平台**的常量，不能混两平台的数字。"""
+    import errno
+
+    assert errno.ECONNREFUSED in g39._CONNECT_FAILURE_ERRNOS
+    assert errno.EHOSTUNREACH in g39._CONNECT_FAILURE_ERRNOS
+    # ETIME 在 macOS 上是 101（Linux 的 ECONNREFUSED 也是 111 系），不得混进来
+    if hasattr(errno, "ETIME"):
+        assert errno.ETIME not in g39._CONNECT_FAILURE_ERRNOS, "把超时类 errno 收进了连接失败"
+    if hasattr(errno, "ENETDOWN"):
+        assert errno.ENETDOWN in g39._CONNECT_FAILURE_ERRNOS
+
+
+def test_r3_medium3_protocol_and_url_errors_do_not_escape(monkeypatch):
+    """r3 MEDIUM-3: `BadStatusLine` / `ValueError`（未知 scheme、非法端口）不得逃逸。"""
+    import http.client
+
+    for exc in (http.client.BadStatusLine("garbage"), ValueError("unknown url type"), http.client.InvalidURL("bad")):
+
+        class _Op:
+            def __init__(self, e):
+                self.e = e
+
+            def open(self, req, timeout=None):
+                raise self.e
+
+        monkeypatch.setattr(g39, "_direct_opener", lambda e=exc: _Op(e))
+        resp, reason = g39.fetch_overview("http://127.0.0.1:1")
+        assert reason is None, f"{type(exc).__name__} 被误判成『连不上』"
+        assert "__open_error__" in resp, f"{type(exc).__name__} 逃逸了: {resp}"
+
+
+def test_r3_medium4_array_propagates_element_throw():
+    """r3 MEDIUM-4: 数组会把元素的字符串化异常传播出来（`join` 对每个元素再 String()）。"""
+    assert g39._js_interp_throws([{"toString": None}]) is True
+    assert g39._js_interp_throws([[{"toString": None}]]) is True
+    assert g39._js_interp_throws([1, "x", {"a": 1}]) is False
+
+
+def test_r3_medium5_backlog_interp_throw_degrades_dashboard():
+    """r3 MEDIUM-5: `backlogCnt` 自己也被插值 ⇒ 回退值损坏时界面不出数字（两面假绿源头）。"""
+    pk = build_picker()
+    pk["ineligible"]["placeholder"] = []
+    pk["stats"]["ineligible"] = {"toString": None}
+    assert g39.dashboard_recompute(pk)["backlog_count"] == EXPECT_NOT_COMPARABLE
+
+
+def test_r3_medium6_false_backlog_is_not_equal_to_zero(tmp_path):
+    """r3 MEDIUM-6: Dashboard 显示「false 张」≠ 总览页显示「0 张」。"""
+    pk = build_picker()
+    pk["ineligible"]["placeholder"] = []
+    pk["boards"][1]["placeholder"] = 0
+    pk["stats"]["ineligible"] = False
+    ov = build_overview()
+    ov["vaults"][0]["projection"]["placeholder_backlog"] = 0
+    ov["vaults"][0]["projection"]["boards"][0]["placeholder"] = 0
+    rc, report = run(pk, ov, tmp_path)
+    assert rc == 1
+    assert has_diff(report, "dashboard ↔ overview", "placeholder_backlog"), diffs_of(report)
+
+
+def test_r3_medium7_picker_self_check_runs_without_overview(tmp_path):
+    """r3 MEDIUM-7: picker 自检**不依赖 overview 在场** —— 走 N5 两面时也必须执行。"""
+    pk = build_picker()
+    pk["due_nodes"][0]["node"] = []
+    rc, report = run(pk, None, tmp_path)  # overview 缺席
+    assert rc == 1, "overview 缺席时 picker 自检没跑（自检旁路）"
+    assert has_diff(report, "picker.due_nodes(self)", "boards[甲板].node")
+
+
+def test_r3_medium8_malformed_overview_rows_are_reported(tmp_path):
+    """r3 MEDIUM-8: 被过滤掉的非法板行 / 节点行 = 隐形，必须报出来。"""
+    ov = build_overview()
+    ov["vaults"][0]["projection"]["boards"].append(None)
+    rc, report = run(build_picker(), ov, tmp_path)
+    assert rc == 1
+    assert any(d["pair"] == "overview(self)" and "boards[2]" in d["field"] for d in diffs_of(report)), diffs_of(report)
+
+    ov2 = build_overview()
+    ov2["vaults"][0]["projection"]["boards"][0]["nodes"].append({"node": []})
+    rc2, report2 = run(build_picker(), ov2, tmp_path)
+    assert rc2 == 1
+    assert any(d["pair"] == "overview(self)" and "nodes[2]" in d["field"] for d in diffs_of(report2)), diffs_of(report2)
+
+
+def test_r3_medium9_zero_due_board_nodes_must_be_empty(tmp_path):
+    """r3 MEDIUM-9: 零到期板的节点列表也要查 —— 塞幽灵节点不得全绿。"""
+    pk = build_picker()
+    pk["boards"].append(
+        {
+            "board": "丙板",
+            "due": 0,
+            "due_new": 0,
+            "due_scheduled": 0,
+            "future": 1,
+            "next_due": "2026-09-20T01:00:00Z",
+            "placeholder": 0,
+            "earliest_overdue": "",
+        }
+    )
+    ov = build_overview()
+    ov["vaults"][0]["projection"]["boards"].append(
+        {
+            "board": "丙板",
+            "due": 0,
+            "due_new": 0,
+            "placeholder": 0,
+            "earliest": "2026-09-20T01:00:00Z",
+            "nodes": [{"node": "phantom", "due_reason": "new", "fsrs_due": ""}],
+        }
+    )
+    rc, report = run(pk, ov, tmp_path)
+    assert rc == 1
+    assert has_diff(report, "overview ↔ picker.due_nodes", "boards[丙板].nodes"), diffs_of(report)
+
+
+def test_r3_medium10_corrupt_next_due_does_not_abort(tmp_path):
+    """r3 MEDIUM-10: 损坏的 `next_due` 不得让排序抛 TypeError 打断整次报告。"""
+    pk = build_picker()
+    for b, nd in (("丙板", {"x": 1}), ("丁板", "2026-09-20T01:00:00Z")):
+        pk["boards"].append(
+            {
+                "board": b,
+                "due": 0,
+                "due_new": 0,
+                "due_scheduled": 0,
+                "future": 1,
+                "next_due": nd,
+                "placeholder": 0,
+                "earliest_overdue": "",
+            }
+        )
+    rc, report = run(pk, build_overview(), tmp_path)  # 不抛异常即为通过
+    assert rc == 1
+    assert report["vaults"][0]["semantic_diff"], "损坏输入应产生差异行"
+
+
+def test_r3_medium11_duplicate_upcoming_is_reported(tmp_path):
+    """r3 MEDIUM-11: 同名 upcoming 会被字典覆盖 ⇒ 必须报出；非字符串 next_due 同理。"""
+    pk = build_picker()
+    del pk["boards"]
+    pk["upcoming"] = [
+        {"board": "丙板", "next_due": "2026-09-20T01:00:00Z", "node": "a"},
+        {"board": "丙板", "next_due": "2026-09-21T01:00:00Z", "node": "b"},
+    ]
+    rc, report = run(pk, None, tmp_path)
+    assert rc == 1
+    assert has_diff(report, "picker.upcoming(self)", "structure"), diffs_of(report)

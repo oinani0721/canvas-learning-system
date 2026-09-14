@@ -1,0 +1,96 @@
+{
+  "schema": "g39-three-view-reconcile/1",
+  "vaults": [
+    {
+      "vault_id": "canvas-vault",
+      "compared_views": [
+        "picker",
+        "dashboard"
+      ],
+      "views": {
+        "picker": {
+          "stats_due_nodes": 6,
+          "len_due_nodes": 6,
+          "boards_group_by": {
+            "特征值与特征向量": 2,
+            "CS 61B": 2,
+            "CS188 lecture 2": 1,
+            "递归与分治 (Recursion & Divide-Conquer)": 1
+          },
+          "boards_rollup": {
+            "CS 61B": 2,
+            "CS188 lecture 2": 1,
+            "特征值与特征向量": 2,
+            "递归与分治 (Recursion & Divide-Conquer)": 1
+          },
+          "top_boards": [
+            "CS 61B",
+            "特征值与特征向量",
+            "CS188 lecture 2"
+          ]
+        },
+        "dashboard": {
+          "due_count": 6,
+          "backlog_count": 8,
+          "degraded_reason": null
+        },
+        "overview": {
+          "status": "not-requested",
+          "reason": "未提供 --overview-url / --overview-json — 本次只做 picker↔Dashboard 两面对账"
+        }
+      },
+      "semantic_diff": [],
+      "known_scope_note": [
+        {
+          "code": "N5_overview_not_requested",
+          "detail": "未提供 --overview-url / --overview-json — 本次只做 picker↔Dashboard 两面对账"
+        }
+      ]
+    },
+    {
+      "vault_id": "test-vault",
+      "compared_views": [
+        "picker",
+        "dashboard"
+      ],
+      "views": {
+        "picker": {
+          "stats_due_nodes": 2,
+          "len_due_nodes": 2,
+          "boards_group_by": {
+            "演示白板": 2
+          },
+          "boards_rollup": null,
+          "top_boards": [
+            "演示白板"
+          ]
+        },
+        "dashboard": {
+          "due_count": 2,
+          "backlog_count": 1,
+          "degraded_reason": null
+        },
+        "overview": {
+          "status": "not-requested",
+          "reason": "未提供 --overview-url / --overview-json — 本次只做 picker↔Dashboard 两面对账"
+        }
+      },
+      "semantic_diff": [],
+      "known_scope_note": [
+        {
+          "code": "N4_picker_rollup_absent",
+          "detail": "vault='test-vault' 的投影无 boards 顶层键 (旧投影合法形态, 且 buckets 同样缺席); rollup ↔ group-by 子项 not-applicable"
+        },
+        {
+          "code": "N5_overview_not_requested",
+          "detail": "未提供 --overview-url / --overview-json — 本次只做 picker↔Dashboard 两面对账"
+        }
+      ]
+    }
+  ],
+  "semantic_diff_total": 0,
+  "vaults_without_overview": [
+    "canvas-vault",
+    "test-vault"
+  ]
+}

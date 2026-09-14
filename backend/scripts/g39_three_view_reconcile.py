@@ -37,7 +37,9 @@ rc 语义: `semantic_diff` 为空 ⇒ rc=0; 非空 ⇒ rc=1。`known_scope_note`
 from __future__ import annotations
 
 import argparse
+import errno
 import json
+import socket
 import sys
 import urllib.error
 import urllib.request
@@ -90,9 +92,14 @@ SCOPE_NOTE_CODES = (
 #: 判为「连不上」(N3 豁免) 的**连接层**失败。⛔ 只列能**证明**连接没建立起来的那几种;
 #: 超时 / 连接重置 / 协议错误一律不算 —— 它们可能发生在**连上之后**(如对端收下 GET 却
 #: 不返回响应头, Codex r2 HIGH-1 实测过这条路径), 含糊的一律计入 semantic_diff (fail-closed)。
+#: ⛔ Codex r3 MEDIUM-2: 必须用**当前平台**的 errno **名字**取值 —— 把两个平台的数字
+#: 并成一张表, 在 macOS 上会把 `ETIME=101` 误收成连接失败, 又漏掉 `ENETDOWN=50`;
+#: 在 Linux 上则漏掉 `EHOSTDOWN=112` / `ENETDOWN=100`。数字跨平台不可移植, 名字才是。
 _CONNECT_FAILURE_ERRNOS = frozenset(
-    {61, 65, 51, 64, 111, 113, 101}
-)  # ECONNREFUSED/EHOSTDOWN/ENETUNREACH/EHOSTUNREACH 等
+    getattr(errno, _n)
+    for _n in ("ECONNREFUSED", "EHOSTUNREACH", "ENETUNREACH", "EHOSTDOWN", "ENETDOWN", "EADDRNOTAVAIL")
+    if hasattr(errno, _n)
+)
 
 
 # --------------------------------------------------------------------------
@@ -112,17 +119,34 @@ def _is_js_number(v: Any) -> bool:
 
 
 def _js_interp_throws(v: Any) -> bool:
-    """JS 模板字符串 `${v}` 是否会抛 TypeError (Codex r2 MEDIUM-7)。
+    """JS 模板字符串 `${v}` 是否会抛 TypeError (Codex r2 MEDIUM-7 / r3 MEDIUM-4)。
 
-    `String(v)` 先试 `valueOf`、再试 `toString`。JSON 解出来的普通对象继承
+    `String(v)` 对对象先试 `toString`、再试 `valueOf`。JSON 解出来的普通对象继承
     `Object.prototype.toString` ⇒ 得 "[object Object]", 不抛; **但** 若对象自带
     `"toString"` 键, 该键的值在 JSON 里永远不可能是函数, 于是两步都拿不到原始值 ⇒ 抛。
-    数组走 `Array.prototype.toString`(join), 也不抛。
 
-    Dashboard `:83` 把 `generated_at` 等值插进模板 —— 抛出后落到 `:87` "投影损坏"、
-    **不出数字**。镜像必须跟到这一层, 否则脚本算出数字而界面什么都不显示。
+    ⛔ Codex r3 MEDIUM-4: **数组会把元素的字符串化异常传播出来** ——
+    `Array.prototype.toString` 走 `join`, 对每个元素再做一次 `String()`。
+    所以 `[{"toString": null}]` 同样抛, 嵌套数组亦然。必须递归。
+
+    Dashboard `:76-83` 把 `generated_at` / `unassigned` / `backlogCnt` 等值插进模板 ——
+    抛出后落到 `:87` "投影损坏"、**不出数字**。镜像必须跟到这一层, 否则脚本算出数字
+    而界面上什么都不显示, 两面各说各话却报"一致"。
     """
-    return isinstance(v, dict) and "toString" in v
+    if isinstance(v, dict):
+        return "toString" in v
+    if isinstance(v, list):
+        return any(_js_interp_throws(x) for x in v)
+    return False
+
+
+def _same_count(a: Any, b: Any) -> bool:
+    """计数相等且**类型也相等** (Codex r3 MEDIUM-6)。
+
+    Python 的 `False == 0` / `2.0 == 2` 会让「Dashboard 显示 `false` 张」与
+    「总览页显示 `0` 张」在判据里相等 —— 界面上那是两个不同的字样。
+    """
+    return type(a) is type(b) and a == b
 
 
 def _strict_count(v: Any) -> int | None:
@@ -207,6 +231,15 @@ def dashboard_recompute(payload: Any) -> dict:
     fallback = stats.get("ineligible") if stats is not None else None  # :74 `?? 0`
     fallback = 0 if fallback is None else fallback
     backlog_cnt = len(backlog_names) or fallback  # :74 `||` — 左值 int, 与 JS 同语义
+    # ⛔ Codex r3 MEDIUM-5: `backlogCnt` 自己也被插进模板 (`:78`) —— `stats.ineligible`
+    # 是带 toString 键的对象时, `||` 回退把它原样交给模板, Dashboard 当场抛错不出数字。
+    # 漏掉这一条会在 overview 缺席时形成**两面假绿**。
+    if _js_interp_throws(backlog_cnt):
+        return {
+            "due_count": NOT_COMPARABLE,
+            "backlog_count": NOT_COMPARABLE,
+            "degraded_reason": "Dashboard.md:78 模板插值 backlogCnt 抛 TypeError → :87 投影损坏 (不出数字)",
+        }
     return {"due_count": due_cnt, "backlog_count": backlog_cnt, "degraded_reason": None}
 
 
@@ -267,7 +300,7 @@ def picker_rollup_due(payload: dict) -> tuple[dict[str, int] | None, str | None]
     return out, None
 
 
-def picker_upcoming_boards(payload: dict) -> dict[str, Any]:
+def picker_upcoming_boards(payload: dict) -> tuple[dict[str, Any], list[str]]:
     """`upcoming` 里的板 → `next_due`（Codex r2 MEDIUM-5）。
 
     ⚠️ 这不是可选项: `boards` rollup **缺席**时 overview 的零到期行改从 `upcoming` 追加
@@ -276,10 +309,21 @@ def picker_upcoming_boards(payload: dict) -> dict[str, Any]:
     """
     up = payload.get("upcoming")
     out: dict[str, Any] = {}
-    for u in up if isinstance(up, list) else []:
-        if isinstance(u, dict) and isinstance(u.get("board"), str) and u["board"]:
-            out[u["board"]] = u.get("next_due")
-    return out
+    bad: list[str] = []
+    for i, u in enumerate(up if isinstance(up, list) else []):
+        if not (isinstance(u, dict) and isinstance(u.get("board"), str) and u["board"]):
+            bad.append(f"upcoming[{i}] 形状非法")
+            continue
+        b = u["board"]
+        # ⛔ Codex r3 MEDIUM-11: 同名 upcoming 会被字典覆盖 ⇒ 多出来的那条隐形。
+        if b in out:
+            bad.append(f"upcoming[{i}].board 重复: {b!r}")
+        nd = u.get("next_due")
+        # ⛔ 非字符串 next_due 不得被悄悄归一成空排序键 —— 那会让损坏值参与排序还全绿。
+        if not isinstance(nd, str):
+            bad.append(f"upcoming[{i}].next_due 不是字符串 (实为 {type(nd).__name__})")
+        out[b] = nd
+    return out, bad
 
 
 def picker_rollup_boards(payload: dict) -> dict[str, dict] | None:
@@ -322,13 +366,22 @@ def expected_board_order(
     """
     prio = {b: i for i, b in enumerate(top_names)}
     due_boards = sorted(group_due, key=lambda b: (prio.get(b, len(prio)), -group_due[b], b))
+
+    # ⛔ Codex r3 MEDIUM-10: 排序键里的时间值可能是**损坏的**(如 dict) —— 直接比较会抛
+    # `TypeError: '<' not supported between 'str' and 'dict'`, 整次报告中断、差异表都不出。
+    # 非字符串一律先归到一个**可排序且可辨认**的位置, 损坏本身由调用方按差异报出。
+    def _ts(v: Any) -> str | None:
+        return v if isinstance(v, str) else None
+
     if rollup_rows is not None:
-        zero = [(b, (r.get("next_due") or None)) for b, r in rollup_rows.items() if _strict_count(r.get("due")) == 0]
+        zero = [
+            (b, (_ts(r.get("next_due")) or None)) for b, r in rollup_rows.items() if _strict_count(r.get("due")) == 0
+        ]
         zero = [(b, e) for b, e in zero if b not in group_due]
         zero.sort(key=lambda t: (t[1] is None, t[1] or "", t[0]))
     else:
-        zero = [(b, e) for b, e in upcoming.items() if b not in group_due]
-        zero.sort(key=lambda t: (t[1] if isinstance(t[1], str) else "", t[0]))
+        zero = [(b, _ts(e)) for b, e in upcoming.items() if b not in group_due]
+        zero.sort(key=lambda t: (t[1] is None, t[1] or "", t[0]))
     return due_boards + [b for b, _ in zero]
 
 
@@ -373,6 +426,19 @@ def _reject_js_nonstandard(const: str):
     raise ValueError(f"非标准 JSON 常量 {const} (JS JSON.parse 拒收)")
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """⛔ Codex r3 HIGH-1: 关掉自动重定向。
+
+    默认 opener 会跟 302 再连一跳。若**下一跳**连接被拒, 抛的是 `ConnectionRefusedError`,
+    于是整次请求被判成「连不上」——可**第一跳后端明明已经响应过**。
+    `/overview` 是本机后端上的一个纯 JSON GET, 出现重定向本身就是异常形态:
+    不跟随, 让它变成 `HTTPError(302)` ⇒ 归「连上了但非 2xx」⇒ 计入 semantic_diff。
+    """
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: D102
+        return None
+
+
 def _is_connection_failure(e: BaseException) -> bool:
     """这个异常**能证明连接没建立起来**吗？(N3 豁免的唯一判据, Codex r2 HIGH-1)
 
@@ -383,8 +449,6 @@ def _is_connection_failure(e: BaseException) -> bool:
     「起来了但不响应」读成「后端没起」。含糊的一律 fail-closed 进 semantic_diff。
     未知 URL scheme (`ValueError`/`URLError("unknown url type")`) 同样不算连接失败。
     """
-    import socket
-
     inner = getattr(e, "reason", e)
     if isinstance(inner, socket.gaierror) or isinstance(inner, ConnectionRefusedError):
         return True
@@ -403,7 +467,7 @@ def _direct_opener() -> urllib.request.OpenerDirector:
     「后端没运行」会被报成「总览页有缺陷」。空 `ProxyHandler` 关掉这条路径后,
     同一次请求得到的是 `URLError(Connection refused)`, 分类才回到正确的那一档。
     """
-    return urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    return urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect)
 
 
 def fetch_overview(base_url: str, timeout: float = 10.0) -> tuple[Any, str | None]:
@@ -429,11 +493,14 @@ def fetch_overview(base_url: str, timeout: float = 10.0) -> tuple[Any, str | Non
         resp = _direct_opener().open(req, timeout=timeout)  # noqa: S310
     except urllib.error.HTTPError as e:
         return {"__http_error__": f"HTTP {e.code}"}, None  # 连上了, 非 2xx
-    except (urllib.error.URLError, TimeoutError, OSError) as e:
+    except Exception as e:  # noqa: BLE001
         # ⛔ Codex r2 HIGH-1: `open()` 失败**不等于**连不上 —— 它要等到响应头到齐才返回,
         # 所以"对端收下了 GET 却不回响应头"这种**已连接**的故障也会在这里抛。
-        # 唯一能豁免的是**能证明连接没建立**的那几种 (拒绝 / 主机不可达 / DNS);
-        # 超时、重置、协议错误一律 fail-closed 计入 semantic_diff。
+        # ⛔ Codex r3 MEDIUM-3: 捕获面必须是 `Exception` —— `BadStatusLine` / `LineTooLong`
+        # (http.client) 与 `ValueError` / `InvalidURL` (未知 scheme / 非法端口 / 畸形 URL)
+        # 都不是 OSError 子类, 窄捕获会让它们**逃出去**、连差异表都不出。
+        # 唯一能豁免的是**能证明连接没建立**的那几种 (拒绝 / 不可达 / DNS);
+        # 超时、重置、协议错误、URL 错误一律 fail-closed 计入 semantic_diff。
         if _is_connection_failure(e):
             return None, f"{type(e).__name__}: {str(e)[:160]}"  # ← 唯一的 not-fetched 出口
         return {"__open_error__": f"{type(e).__name__}: {str(e)[:160]}"}, None
@@ -592,6 +659,27 @@ def reconcile(
     if "" in groups:
         diffs.append(_diff("picker.due_nodes(self)", "board", "(空/非法板名)", f"{len(groups[''])} 行", "cross-source"))
 
+    # ---- picker 自检 (⛔ 与 overview 在不在场无关) ------------------------
+    # ⛔ Codex r3 MEDIUM-7: 这些检查原先写在 `_reconcile_overview` 里, 于是 overview
+    # 走 N3 / N5 时**根本不执行** —— 一条"只在第三方在场时才生效的自检"等于没有。
+    for b in sorted(groups):
+        bad_nodes = [r for r in groups[b] if not isinstance(r.get("node"), str)]
+        if bad_nodes:
+            diffs.append(
+                _diff(
+                    "picker.due_nodes(self)",
+                    f"boards[{b}].node",
+                    f"{len(bad_nodes)} 行的 node 不是字符串 (首个: {type(bad_nodes[0].get('node')).__name__})",
+                    "(node 应为字符串)",
+                    "cross-source",
+                )
+            )
+    upcoming, upcoming_bad = picker_upcoming_boards(pk)
+    for msg in upcoming_bad:
+        diffs.append(
+            _diff("picker.upcoming(self)", "structure", msg, "(upcoming 行应形状合法且板名唯一)", "cross-source")
+        )
+
     # ---- ③ overview 面 ---------------------------------------------------
     ov_view: Any
     if not_requested_reason is not None:
@@ -611,7 +699,7 @@ def reconcile(
         ov_view = {"status": "error", "reason": overview_error}
     else:
         ov_view = _reconcile_overview(
-            overview_entry, vid, p_stats_due, dash, group_due, groups, pk, rollup_rows, diffs, notes
+            overview_entry, vid, p_stats_due, dash, group_due, groups, pk, rollup_rows, upcoming, diffs, notes
         )
 
     # ⛔ 实际对上的面 —— not-fetched 时只有两面, 报告与终端都必须如实说,
@@ -653,6 +741,7 @@ def _reconcile_overview(
     groups: dict,
     pk: dict,
     rollup_rows: dict | None,
+    upcoming: dict,
     diffs: list,
     notes: list,
 ) -> dict:
@@ -697,10 +786,12 @@ def _reconcile_overview(
     ov_due = proj.get("due_count")
     if ov_due != p_stats_due:
         diffs.append(_diff("overview ↔ picker.stats", "due_count", ov_due, p_stats_due, "structurally-guaranteed"))
-    if dash["due_count"] != ov_due:
+    if not _same_count(dash["due_count"], ov_due):
         diffs.append(_diff("dashboard ↔ overview", "due_count", dash["due_count"], ov_due, "cross-source"))
     ov_backlog = proj.get("placeholder_backlog")
-    if dash["backlog_count"] != ov_backlog:
+    # ⛔ Codex r3 MEDIUM-6: 类型也要相等 —— Dashboard 显示「积压 false 张」而总览页显示
+    # 「0 张」时, `False == 0` 会让判据认为两个界面一致。
+    if not _same_count(dash["backlog_count"], ov_backlog):
         # Dashboard `:74` 有 `|| stats.ineligible` 回退, overview 只取 len(placeholder)
         # ⇒ placeholder 空而 stats.ineligible>0 时两个界面显示不同积压数。真跨源。
         diffs.append(
@@ -716,19 +807,51 @@ def _reconcile_overview(
         # ⛔ Codex r2 HIGH-3: 板行**重复**会被字典覆盖掉 —— `[乙, 甲, 甲]` 与 `[乙, 甲]`
         # 在 dict 里无法区分, 于是多出来的那一行在对账里完全隐形。先查唯一性。
         seen_boards: set[str] = set()
-        for r in ov_boards:
-            if isinstance(r, dict) and isinstance(r.get("board"), str):
-                b = r["board"]
-                if b in seen_boards:
-                    diffs.append(
-                        _diff("overview(self)", f"boards[{b}]", "板行重复出现", "(板行应唯一)", "reimplementation")
+        for i, r in enumerate(ov_boards):
+            # ⛔ Codex r3 MEDIUM-8: 非法板行原先被 `isinstance` 过滤掉 ⇒ 往板表里塞个
+            # `null` 也是零差异。过滤 = 隐形, 必须先报出来。
+            if not isinstance(r, dict) or not isinstance(r.get("board"), str) or not r["board"]:
+                diffs.append(
+                    _diff(
+                        "overview(self)",
+                        f"boards[{i}]",
+                        f"板行形状非法: {type(r).__name__}",
+                        "(应为带板名的 object)",
+                        "reimplementation",
                     )
-                seen_boards.add(b)
-        for r in ov_boards:
-            if isinstance(r, dict) and isinstance(r.get("board"), str):
-                ov_due_by_board[r["board"]] = r.get("due")
-                ns = r.get("nodes")
-                ov_nodes_by_board[r["board"]] = ns if isinstance(ns, list) else []
+                )
+                continue
+            b = r["board"]
+            if b in seen_boards:
+                diffs.append(
+                    _diff("overview(self)", f"boards[{b}]", "板行重复出现", "(板行应唯一)", "reimplementation")
+                )
+            seen_boards.add(b)
+            ov_due_by_board[b] = r.get("due")
+            ns = r.get("nodes")
+            if not isinstance(ns, list):
+                diffs.append(
+                    _diff(
+                        "overview(self)",
+                        f"boards[{b}].nodes",
+                        f"不是数组: {type(ns).__name__}",
+                        "(应为数组)",
+                        "reimplementation",
+                    )
+                )
+                ns = []
+            for j, n in enumerate(ns):
+                if not isinstance(n, dict) or not isinstance(n.get("node"), str) or not n["node"]:
+                    diffs.append(
+                        _diff(
+                            "overview(self)",
+                            f"boards[{b}].nodes[{j}]",
+                            f"节点行非法: {type(n).__name__}",
+                            "(应为带 node 字符串的 object)",
+                            "reimplementation",
+                        )
+                    )
+            ov_nodes_by_board[b] = ns
     else:
         diffs.append(
             _diff(
@@ -745,8 +868,7 @@ def _reconcile_overview(
     # 「overview 整块漏掉一块零到期板」全绿 —— 总览页少显示一块板, 判据却说三面一致。
     # ⛔ Codex r2 MEDIUM-5: rollup **缺席**时零到期行改从 `upcoming` 追加
     # (`review_overview.py:928-940`), 板集漏了 upcoming 会把**合法旧投影**误报成
-    # 「overview 多出一块板」。
-    upcoming = picker_upcoming_boards(pk)
+    # 「overview 多出一块板」。(upcoming 由调用方在 picker 自检时算好并传入。)
     zero_source = set(rollup_rows) if rollup_rows is not None else set(upcoming)
     expected_boards = set(group_due) | zero_source
     for b in sorted(expected_boards | set(ov_due_by_board)):
@@ -780,20 +902,23 @@ def _reconcile_overview(
             "独立复算的紧迫度序 两条判据对账, 不直接比原始行序",
         )
     )
-    for b in sorted(set(ov_nodes_by_board) & set(groups)):
-        # ⛔ Codex r2 MEDIUM-9: 节点身份可能是不可哈希的值 (如 `node: []`) —— 直接进
-        # 集合会抛 TypeError 打断整个对账、连差异表都不出。非字符串身份先报成输入损坏。
-        bad = [r for r in groups[b] if not isinstance(r.get("node"), str)]
-        if bad:
+    # ⛔ Codex r3 MEDIUM-9: 零到期板不在 `groups` 里 ⇒ 原循环根本不遍历它们, 往零到期板
+    # 塞几个幽灵节点也是零差异。参照实现 `:919` 明写零到期行 `"nodes": []`。
+    for b in sorted(set(ov_nodes_by_board) - set(groups)):
+        if ov_nodes_by_board[b]:
             diffs.append(
                 _diff(
-                    "picker.due_nodes(self)",
-                    f"boards[{b}].node",
-                    f"{len(bad)} 行的 node 不是字符串 (首个: {type(bad[0].get('node')).__name__})",
-                    "(node 应为字符串)",
-                    "cross-source",
+                    "overview ↔ picker.due_nodes",
+                    f"boards[{b}].nodes",
+                    f"零到期板却有 {len(ov_nodes_by_board[b])} 个节点行",
+                    "(零到期板的 nodes 应为空)",
+                    "reimplementation",
                 )
             )
+    for b in sorted(set(ov_nodes_by_board) & set(groups)):
+        # 非字符串 node 已由调用方的 picker 自检报出 (Codex r3 MEDIUM-7 上移); 这里跳过
+        # 该板的跨面比较, 避免不可哈希值进集合抛 TypeError 打断整次报告。
+        if any(not isinstance(r.get("node"), str) for r in groups[b]):
             continue
         ov_seq = [n.get("node") for n in ov_nodes_by_board[b] if isinstance(n, dict) and isinstance(n.get("node"), str)]
         # 独立性: 身份与行序两侧都源自同一份 due_nodes, 经**同一条契约的两个实现**

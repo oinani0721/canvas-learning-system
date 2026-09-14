@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-11-第十四批 · 车道 T4-A · 卡 CARD-G3-9 round-2
+> 模型: `gpt-6-astra` · reasoning_effort: `ultra` · codex: `codex-cli 0.153.3`（`codex --version` 实测）
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat _bmad-output/审查/prompts/codex-prompt-CARD-G3-9-r2.md)"`
+> 审查绑定: `b2f962d9`（该轮送审时的 HEAD；本轮十一条采纳后代码前进到 `0596386b`，故本轮**不绑**最终 HEAD，另送 round-3）
+> 会话头自证（抄 .stderr，stderr 本身不入库）:
+> `OpenAI Codex v0.153.3`（:2） / `model: gpt-6-astra`（:5） / `reasoning effort: ultra`（:9）
+
+---
+
 绑定 **`b2f962d914b4a87efd0479fc54ceb98f6e142ac4`**；脚本与测试的工作区字节均与该 SHA 一致。**BLOCKER：未发现。发现 3 条 HIGH、7 条 MEDIUM、1 条 LOW。** round-1 的指定反例均已修复，但部分边界仍未闭合。
 
 以下行号均属于 `backend/scripts/g39_three_view_reconcile.py`。
