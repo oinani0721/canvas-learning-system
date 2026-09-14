@@ -1,0 +1,10 @@
+=== 现网只读核（sentinel = /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t9-w4/_bmad-output/审查/evidence-w4final/sentinel, 建于开工） ===
+-rw-r--r--@ 1 Heishing  staff  0 Sep 14 19:50 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t9-w4/_bmad-output/审查/evidence-w4final/sentinel
+--- /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/data/lancedb ---
+新于 sentinel 的文件数（期望 0）=        0
+--- /Users/Heishing/Desktop/canvas/canvas-learning-system/data/lancedb ---
+新于 sentinel 的文件数（期望 0）=        0
+--- 验伪锚：find -newer 确实能报（拿 EV 自己的新文件试） ---
+EV 下新于 sentinel 的文件数（期望 >0）=       18
+--- live vault 零写核 ---
+canvas-vault 下新于 sentinel 的文件数（期望 0）=        0
