@@ -1251,44 +1251,20 @@ def _live_called_names(node: ast.AST) -> list[str]:
     ⛔ **第 4 类只在「没有跨语句调用」的前提下才是对的**，而本函数**看不到**那个前提 ——
     它是被逐条语句调用的。谁在什么时候真的执行了某个局部函数的 body，需要解析调用绑定才答
     得出；本卡三轮外审逐一证明：任何在 AST 层面替它作答的近似都会开出假绿口子（三种失败写法
-    的原文见 :func:`_refuse_to_guess_on_local_functions`）。
+    的原文见 :func:`_refuse_to_guess_on_deferred_execution`）。
 
-    所以顺序类判据**不靠本函数处理局部函数**，而是先调
-    :func:`_refuse_to_guess_on_local_functions` 把「作用域里有局部函数」这件事**判红**。
-    本函数的第 4 类因此只在那条前置条件成立时被使用 —— 即「压根没有局部函数」，剪与不剪
-    等价。独立探针若不走那条前置条件而直接喂含局部函数的片段，得到的是**只数定义点之外的
-    调用**这一语义，请按此理解，不要当成调用图分析。
+    所以顺序类判据**不靠本函数处理这些**，而是先调
+    :func:`_refuse_to_guess_on_deferred_execution` 把「作用域里有延迟执行体」这件事**判红**。
+    本函数的第 4 类因此只在那条前置条件成立时被使用 —— 即「压根没有局部定义」，剪与不剪等价。
+
+    ⚠️ 独立探针若不走那条前置条件而直接喂含局部函数的片段，得到的**不是**调用图分析。
+    准确说法是：函数体在**不带装饰器**时不计入；带装饰器时**保守计入**（装饰器**可能**当场
+    调用它，也**可能**像 ``identity`` 那样根本不调 —— 计入是偏红那一侧的选择，不是「定义时
+    确实执行」的断言，Codex round-4 LOW-1 更正）。装饰器表达式本身、默认参数里的调用一律计入。
 
     其余一律当可达：变量条件的分支、``while True`` 的 loop-else、``match`` 的各 case、
     ``lambda`` 体、以及任何要靠常量传播才判得出的不可达 —— 判据宁可多数一条，也不能
     把真调用当死代码放过。
-
-    ⛔ **第 4 类必须带 ``local_funcs`` 用，且展开发生在「调用点」**（Codex round-1
-    MEDIUM-2 / round-2 MEDIUM-2、MEDIUM-3）。顺序门是**逐条**语句调本函数的，而
-    「定义 helper」与「调 helper()」通常分属**两条**语句：
-
-    .. code-block:: python
-
-        def helper():
-            assert_neo4j_target_blocked()   # stmt 0：只是定义，什么都没跑
-        helper()                            # stmt 1：**这一刻**预检才真的跑了
-        _install_audit_hook()               # stmt 2
-
-    两个初版都错在同一处、方向相反：
-
-    * round-1：只看单条语句 ⇒ stmt 0 里 ``helper`` 没被提名 ⇒ body 被剪 ⇒ 预检整个丢掉；
-    * round-2：改成「名字在整个作用域被提过就在**定义处**展开」⇒ 预检被记到 stmt 0，
-      而 ``hook`` 在 stmt 2 ⇒ 顺序门读成「预检在前」。
-
-      真正致命的是下面这形态（Codex round-2 MEDIUM-2 原例）：把 hook/注册各包一层 helper
-      并在**第一次预检之后**才调用，定义点在最前面 ⇒ ``hook_at=0 < precheck_at=2`` ⇒
-      **两个顺序门双双变绿**，而真实执行是 ``precheck → hook → register → precheck``。
-
-    所以现在的语义是：**定义点不贡献任何调用**（除非带装饰器 —— 那种确实在 ``def`` 执行时
-    就跑），**调用点把被调函数的 body 就地展开**。调用方先用 :func:`_local_func_defs` 在
-    整个 ``install()`` 作用域收齐局部函数表传进来；``helper()`` 里再调 ``inner()`` 会沿着
-    调用链继续展开（递归带在途集合防自递归），Codex round-2 MEDIUM-3 的嵌套/传递两例因此
-    一并封住。``local_funcs=None`` 是**自足模式**，只供独立探针看单条语句用。
 
     ⛔ 剪枝判定必须发生在**进入每个节点时**，包括传进来的那个根节点。初版只在
     ``iter_child_nodes`` 的子节点上判，于是 ``_live_called_names(<if False 语句>)``
@@ -1321,7 +1297,7 @@ def _live_called_names(node: ast.AST) -> list[str]:
                 #    出现函数名（Codex round-1 MEDIUM-2）⇒ 带装饰器的 body 在**定义点**执行。
                 for stmt in _reachable_prefix(current.body):
                     visit(stmt)
-            # 不带装饰器的 def **不贡献任何调用**：它的 body 归到调用点（见 expand_call）。
+            # 不带装饰器的 def **不贡献任何调用**：「定义一个函数」这条语句不执行它的体。
             return
         if isinstance(current, ast.Call):
             func = current.func
@@ -1344,8 +1320,8 @@ def _live_called_names(node: ast.AST) -> list[str]:
     return names
 
 
-def _refuse_to_guess_on_local_functions(scope: ast.FunctionDef) -> None:
-    """顺序类判据的**前置条件**：``scope`` 体内不得有局部函数定义 —— 有就当场报红。
+def _refuse_to_guess_on_deferred_execution(scope: ast.FunctionDef) -> None:
+    """顺序类判据的**前置条件**：``scope`` 体内不得出现**延迟执行体** —— 有就当场报红。
 
     ⛔ 这条断言是 CARD-W4-4b7-TAIL 走了三轮外审之后的结论，写在这里以免后人重蹈：
 
@@ -1361,40 +1337,45 @@ def _refuse_to_guess_on_local_functions(scope: ast.FunctionDef) -> None:
        ``g = helper; g()`` 这种别名调用又漏掉；局部装饰器函数**自身**的 body 也漏掉。
 
     每修一次就开一个新口子，因为问题本身不是 AST 层面能判的。所以改成：**判据拒绝猜**。
-    真实的 ``install()`` 里一个局部函数都没有（本断言即其常驻证明），所以这条前置条件对
-    现状零影响；哪天真要往 ``install()`` 里加局部函数，本门会当场红，请**人工**确认顺序，
-    或者把那段逻辑挪到模块级函数里（模块级的调用关系顺序门本来就数得对）。
+
+    **拒绝面 = 本作用域里一切「写在这里、执行在别处」的体**：``def`` / ``async def`` /
+    ``lambda`` / ``class`` 体 / 列表-集合-字典推导式与生成器表达式（Codex round-4 MEDIUM-1
+    实测：两个 ``lambda`` 分别包住 hook 与注册、在首次预检之后才调用，旧断言看不到 ``def``
+    因而放行，两个顺序门双双变绿，而真实事件是 ``precheck → hook → register``）。
+
+    ⛔ **这条前置条件封的是「本作用域内可见的延迟执行体」，不是「顺序判断从此可靠」。**
+    AST 看不穿一次**调用**背后的函数体，所以下面这些仍是**门未覆盖的路径**，如实登记而不是
+    假装封死（Codex round-4 MEDIUM-1 逐条实测）：调用一个**模块级** helper 而它体内做了提前
+    预检；``functools.partial(...)()``；``exec`` / ``eval`` 字符串；``type("X", (), {...})()``
+    这类动态绑定；把模块级函数直接绑成类属性。
+    ⚠️ 特别更正一句我曾写下、已被证伪的话：「挪到模块级函数里顺序门就数得对」——**不成立**，
+    模块级 helper 正是上面第一条反例。顺序门证明的是 ``install()`` **字面语句序列**里那几个
+    **直接具名调用**的先后，行为面的证明在子进程探针
+    ``guard-install-order-precheck-is-guarded``，不在本门。
+
+    真实的 ``install()`` 里这些一个都没有（本断言即其常驻证明），所以这条前置条件对现状零影响；
+    哪天真要往里加，本门会当场红，请**人工**确认 hook/结算器/预检的真实顺序。
 
     方向上这是**收紧**不是放宽：更多输入判红，没有任何输入因此变绿。
     """
-    local_funcs = _local_func_defs(scope)
-    assert not local_funcs, (
-        f"{scope.name}() 里出现了局部函数定义 {sorted(local_funcs)} —— 顺序类判据**拒绝猜**："
-        "谁在什么时候真的执行了它的 body，需要解析调用绑定才答得出，纯 AST 判不了（本卡三轮"
-        "外审逐一打出过假绿，见本函数 docstring）。请人工确认 hook/结算器/预检的真实顺序，"
-        "或把那段逻辑挪到模块级函数里再放行本门。"
-    )
-
-
-def _local_func_defs(scope: ast.FunctionDef) -> dict[str, list[ast.AST]]:
-    """``scope`` 里**所有**局部函数定义（含嵌套），按名字归组。
-
-    供 :func:`_live_called_names` 在**调用点**展开用。三点口径：
-
-    * 收**定义**用裸 ``ast.walk``、不剪枝 —— 收多了无害（只有当某个调用真的解析到这个名字
-      时才会被展开），收少了才会漏掉真调用；
-    * 同名多份定义（不同分支各定义一次）**全部**收进来一起展开，而不是只留第一份。
-      只留第一份会漏掉第二份里的嵌套调用（Codex round-2 MEDIUM-3 实测：把第一份改个名，
-      原本漏掉的内层预检就又被发现了 —— 说明「只留第一份」正在掩盖真调用）。代价是同名
-      场景下可能多算，方向偏假红；**真实哪一份生效要靠流分析，本判据不做**，如实登记；
-    * 嵌套定义照样收：``outer`` 里的 ``inner`` 在 ``outer()`` 被调用、body 就地展开时，
-      ``inner()`` 这个调用会沿着同一条链继续展开（Codex round-2 MEDIUM-3 的两个形态）。
-    """
-    out: dict[str, list[ast.AST]] = {}
+    deferred: list[str] = []
     for node in ast.walk(scope):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node is not scope:
-            out.setdefault(node.name, []).append(node)
-    return out
+        if node is scope:
+            continue
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            deferred.append(f"def {node.name}")
+        elif isinstance(node, ast.ClassDef):
+            deferred.append(f"class {node.name}")
+        elif isinstance(node, ast.Lambda):
+            deferred.append("lambda")
+        elif isinstance(node, (ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)):
+            deferred.append(type(node).__name__)
+    assert not deferred, (
+        f"{scope.name}() 里出现了延迟执行体 {sorted(set(deferred))} —— 顺序类判据**拒绝猜**："
+        "谁在什么时候真的执行了它，需要解析调用绑定才答得出，纯 AST 判不了（本卡四轮外审逐一"
+        "打出过假绿，见本函数 docstring）。请人工确认 hook/结算器/预检的真实顺序；"
+        "行为面的证明在子进程探针 guard-install-order-precheck-is-guarded。"
+    )
 
 
 class TestSettlementAtomicity:
@@ -1847,7 +1828,7 @@ class TestInstallOrder:
         —— 那里是清单本身，这里不复写，免得两份手抄清单各自漂移。
         """
         node = _fn_ast(guard.install)
-        _refuse_to_guess_on_local_functions(node)
+        _refuse_to_guess_on_deferred_execution(node)
         hook_at = precheck_at = None
         for index, stmt in enumerate(_reachable_prefix(node.body)):
             names = _live_called_names(stmt)
@@ -1883,7 +1864,7 @@ class TestInstallOrder:
         ``guard-partial-install-settles-late-connection``。
         """
         node = _fn_ast(guard.install)
-        _refuse_to_guess_on_local_functions(node)
+        _refuse_to_guess_on_deferred_execution(node)
         precheck_at = register_at = hook_at = None
         for index, stmt in enumerate(_reachable_prefix(node.body)):
             names = _live_called_names(stmt)
