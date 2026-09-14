@@ -1,0 +1,25 @@
+# ⛔ 一跑作废登记：unit-close-20260914T224407.txt  2026-09-14T22:52:45+0800
+
+现象：该跑里我自己的三条测试红了——
+  FAILED tests/unit/test_w4_sentinel_rebind.py::TestClassifyShaChange::test_none_to_hash_is_unchecked
+  FAILED …::test_hash_to_none_is_unchecked
+  FAILED …::test_none_to_none_is_unchecked_not_unchanged
+  正文: assert 'changed' == 'unchecked' / assert 'unchanged' == 'unchecked'
+
+根因：**负控①与目录级跑共用同一棵工作树且时间窗重叠**。
+  · 目录级跑于 22:44:07 起（后台，约 6 分 50 秒）
+  · 负控①于 22:44:42 把 classify_sha_change 临时退回旧 2-way，几秒后还原
+  · 目录级跑在那个窗口里 import 了该模块 ⇒ 读到的是变异态
+  ⇒ 那三条红是**我自己的并发变异**造成的，不是代码缺陷，也不是本卡引入的红。
+
+⛔ 教训：EXIT trap + sha 跑前跑后逐字同只证明「还原正确」，
+        **证明不了「期间没有别的进程读到变异态」**。
+        任何临时改工作树的动作，不得与任何读同一棵树的长跑重叠。
+        （T9-B 靠『负控只跑单个 nodeid』天然规避了这件事；本卡因目录级在后台而失手。）
+
+处置：该跑作废不作依据，重跑 unit-close-clean-*.txt（全程无并发变异，跑前记两文件 sha）。
+      作废那份仍保留在 evidence 里并由本文件指认，不静默删除。
+
+算术旁证（不作判据，仅说明作废跑与基线的关系）：
+  作废跑: 38 failed + 29 errors = 67；减去我 3 条并发变异产物 = 64 = 基线条数。
+  ⇒ 与基线一致，但这是**算出来的**不是**跑出来的**，所以必须重跑。

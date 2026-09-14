@@ -1,0 +1,30 @@
+# Codex r1 三条 HIGH 的复现输入 —— 整改后复验  2026-09-14T23:09:22+0800
+W4-IDENTITY: DIFFER blocked=[0] quad=[(0, 0, 0, 0), (12, 0, 12, 0)] bodies=[[]]
+W4-IDENTITY: DIFFER blocked=[1] quad=[(1, 1, 0, 0)] bodies=[["('127.0.0.1', 7687) on thread Thread-2 (worker)"], ["('::1', 7691, 0, 0) on thread Thread-1 (worker)"]]
+── HIGH-1：advisory=12 vs 全零（12 次放行到现网的真连接）──
+/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmpqehgao6a/a.txt: blocked=0 quad=(0, 0, 0, 0) bodies=[]
+/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmpqehgao6a/b.txt: blocked=0 quad=(12, 0, 12, 0) bodies=[]
+OK   期望 rc=1  实测 rc=1  | Codex 原例
+── HIGH-3：含空格线程名（Thread-1 (worker)）──
+/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmpqehgao6a/a.txt: blocked=1 quad=(1, 1, 0, 0) bodies=["('::1', 7691, 0, 0) on thread Thread-1 (worker)"]
+/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmpqehgao6a/b.txt: blocked=1 quad=(1, 1, 0, 0) bodies=["('127.0.0.1', 7687) on thread Thread-2 (worker)"]
+OK   期望 rc=1  实测 rc=1  | Codex 原例
+     身份集 1 = {"('::1', 7691, 0, 0) on thread Thread-1 (worker)"}
+     身份集 2 = {"('127.0.0.1', 7687) on thread Thread-2 (worker)"}   ⇒ 不再是空集
+── HIGH-2：全零档的裁定词 ──
+OK   rc=0（仍 0，否则每次干净跑都红）
+     裁定词含 CONSISTENT-ZERO = True
+     带明示『不能证明门当时在位』 = True
+     裸 'CONSISTENT files=' 不再出现在全零档 = True
+── 反向锚：真正该判一致的仍 rc=0 ──
+/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmpqehgao6a/a.txt: blocked=1 quad=(1, 1, 0, 0) bodies=["('::1', 7691, 0, 0) on thread MainThread"]
+/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmpqehgao6a/b.txt: blocked=1 quad=(1, 1, 0, 0) bodies=["('::1', 7691, 0, 0) on thread MainThread"]
+W4-IDENTITY: CONSISTENT files=2 blocked=1 quad=[(1, 1, 0, 0)]
+OK   期望 rc=0  实测 rc=0  | r4 vs r4b（旧判据会漂）
+/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmpqehgao6a/a.txt: blocked=1 quad=(1, 1, 0, 0) bodies=["('::1', 7691, 0, 0) on thread asyncio-portal-<id>"]
+/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmpqehgao6a/b.txt: blocked=1 quad=(1, 1, 0, 0) bodies=["('::1', 7691, 0, 0) on thread asyncio-portal-<id>"]
+W4-IDENTITY: CONSISTENT files=2 blocked=1 quad=[(1, 1, 0, 0)]
+OK   期望 rc=0  实测 rc=0  | portal1 vs portal2（只差线程地址）
+
+BAD 计数 = 0
+rc=0

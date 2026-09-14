@@ -1,0 +1,47 @@
+# (g) tests/unit 目录级 diff 判定  2026-09-14T22:58:19+0800
+RUN=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t9-w4/_bmad-output/审查/evidence-w4-sentinel-rebind/unit-close-clean-20260914T225233.txt（全程无并发变异；作废那份见 voided-run-*.txt）
+= 35 failed, 5106 passed, 48 skipped, 23 xfailed, 171 warnings, 29 errors in 313.90s (0:05:13) =
+rc=1
+base=64  close=64
+
+=== 判据：diff base → close，只允许 '<' ===
+diff_rc=0（0 = 完全相同）
+  '>' 行数（本卡引入的红，必须 0）= 0
+  '<' 行数 = 0
+
+=== 本卡新测试一条都不在红集（验伪锚：同一 grep 对作废那跑应命中 3）===
+  干净跑里 test_w4_sentinel_rebind 命中 = 0  （期望 0）
+
+=== W4 哨兵判据（协议 §3：绑 blocked= 与失败正文，不绑 nodeid）===
+  汇总行 = NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+ugrep: warning: thread: No such file or directory
+ugrep: warning: MainThread": No such file or directory
+  失败正文锚去重 = 0
+
+=== 用本卡自己的工具跑这两份存档（工具吃自己做的饭）===
+  干净跑 vs 作废跑 rc = 2（两跑 blocked 都是 0 ⇒ 期望 0 CONSISTENT；哨兵不变量确实没变，变的只是我的并发变异）
+
+════ ⚠️ 补正：上一节三处判据自身的问题（结论不变，判据写法要修）════
+① 作废跑的文件名我写错了（写了启动时刻 224407，实际落盘名 224433）⇒ 验伪锚那行静默没打印。
+   真路径: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t9-w4/_bmad-output/审查/evidence-w4-sentinel-rebind/unit-close-20260914T224433.txt
+   验伪锚重跑：同一条 grep 对作废跑的命中 = 3（期望 3）
+   ⇒ 证明『干净跑命中 0』不是哑火，那条 grep 确实能命中。
+
+② 'on thread MainThread' 命中 0 —— **不是判据坏了，是这一跑本来就没有失败正文行**：
+   该跑汇总行 blocked=0 ⇒ 一次拦截都没发生 ⇒ 没有 ' - <addr> on thread ...' 记录。
+   （上一节那两行 ugrep warning 是我在 heredoc 里的引号被吃、把模式拆成了文件名；
+     用 command grep + 单引号重跑仍是 0，结论同。）
+   验伪锚：同一条 grep 对一份**确有**哨兵红的存档应 ≥1 —— 用本卡样本：
+   r4.txt 命中 = 1（期望 1）
+
+③ 工具对 (干净跑, 作废跑) 报 rc=2 —— **工具是对的**：我喂了一个不存在的路径，
+   它按设计走 UNREADABLE ⇒ rc=2（说不清就非 0，不静默退 0）。用真路径重跑：
+   真路径 rc = 0（两跑 blocked 都是 0、都无失败正文 ⇒ 期望 2 = UNCHECKED 没查成，
+               因为 blocked_count 对『找不到门产出行』返回 None 而非 0 —— 这正是本卡的设计）
+   /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t9-w4/_bmad-output/审查/evidence-w4-sentinel-rebind/unit-close-20260914T224433.txt: blocked=0 bodies=[]
+   W4-IDENTITY: CONSISTENT files=2 blocked=0
+
+   ⇒ 这三份 tests/unit 存档里的汇总行是 pytest_terminal_summary 打的，
+     工具的 _SUMMARY_RE 要求**整行**匹配，而存档里那行前面还有 pytest 的输出上下文。
+     逐字核该行：
+     1118:NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)

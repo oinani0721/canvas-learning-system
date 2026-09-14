@@ -1,0 +1,62 @@
+# (g) 目录级 diff 判定（r4：绑最终代码 eaadfb1e… + PYTHONDONTWRITEBYTECODE=1）  20260915T001049
+# 承重跑 = unit-close-r4d-20260915T000514.txt（干净跑）
+# 对照跑 = unit-close-r4c-20260914T235915.txt（同代码同环境，blocked=1）
+
+## 自证：存档里 FAILED/ERROR 行数（防 tail 截断导致漏数）
+  r4d: 64
+  r4c: 65
+
+## base=      64  r4d=      64  r4c=      65
+
+## diff base → r4d（承重）
+  diff rc=0  ⇒ 0 = 逐条完全相同；'>' 0 条，'<' 0 条
+
+## diff base → r4c（对照）
+32a33
+> FAILED tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422
+  diff rc=1
+
+## ⛔ 关于 r4c 多出的那一条：归因与依据
+
+多出的是 FAILED tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422
+
+它**不是**本卡引入的回归，依据三条（缺一不可）：
+
+1. **同代码同环境两跑结果不同**（非确定性）：
+   r4c 与 r4d 的四文件 sha 逐字相同（eaadfb1e… / e21500b4… / d50d9ed6… / f0ca7225…），
+   env 同为 PYTHONDONTWRITEBYTECODE=1，相隔约 6 分钟。
+   r4c 的 W4 汇总行 = blocked=1，r4d = blocked=0。
+   ⇒ 固定代码 × 固定环境下结果会变 ⇒ 非确定性，不是改动的确定性后果。
+   （只有 base 绿 / close 红两格是**不足以**归因的——那是「两轮对照归因不了测试新红」那条坑。）
+
+2. **因果隔离**：本卡改的两个模块
+   backend/tests/support/w4_sentinel_identity.py 只被 tests/unit/test_w4_sentinel_rebind.py import；
+   backend/tests/support/hygiene_snapshot_tristate.py 只被 tests/unit/conftest.py 与同一测试文件 import。
+   二者都不在 app.main lifespan 的导入闭包里，而红的成因是该用例期间
+   有一次到 ('::1', 7691, 0, 0) 的真实连接尝试被门拦下。
+
+3. **成因在存档里逐字可读**（r4c:606-609）：
+     live Neo4j port connect attempted —— 本用例期间有 1 次到现网 Neo4j 的连接尝试被拦下。
+     - ('::1', 7691, 0, 0) on thread MainThread (owner=tests/unit/test_candidate_service.py::test_accept...)
+   以及 r4c:612 的 "Neo4j health check failed: live Neo4j port connect attempted"。
+
+## ⚠️ 这条观测本身要登记（不是本卡的面，但是真的）
+
+tests/unit 里存在**偶发**的现网 7691 偷连：该用例偶尔会走到 app.main 的 lifespan 并发起真连接，
+被 W4 门拦下后哨兵把它转成失败。本卡四份固定样本此前是**手抄**的 U10-A 形态；
+r4c 是本卡期间**第一次在 live 上真的复现**这个现象（验收单 §三.1 原记「未在 live 上复现」，
+现可更新为「已在 r4c 复现一次，nodeid 与 SAMPLE_R4 相同」）。
+
+## 结论
+承重跑 r4d：'>' = 0、'<' = 0，与基线逐条完全相同；本卡 61 条新测试**零条**在红集。
+
+# ============================================================
+# ⛔ 事后更正（Codex round-5 MEDIUM-3；追加，不改上面任何原始行）
+# ============================================================
+# 上面写的「**不是**本卡引入的回归」**说过头了**。
+# 同代码同环境两跑一红一绿，证明的是「同版本下结果会波动」，
+# 它**不能排除**「本卡改动引入或放大了一个非确定性回归」这种可能 ——
+# 因果隔离（模块不在 lifespan 导入闭包内）也只排除了直接导入路径，
+# 没有排除测试执行时序上的间接影响。
+# ⇒ 可支持的表述：「观察到同版本结果波动，**未证明**由本卡引入」。
+#   归因调查作为移交项登记，不在本卡结清。

@@ -1,0 +1,6 @@
+OK  backend/tests/support/w4_sentinel_identity.py
+      剥 docstring 后 AST 长度 HEAD=33743 工作区=33743  逐字节相同=True
+OK  backend/tests/unit/test_w4_sentinel_rebind.py
+      剥 docstring 后 AST 长度 HEAD=60620 工作区=60620  逐字节相同=True
+
+⇒ D-32 成立：本次改动只动了 docstring / 注释，判定逻辑 AST 逐字节不变。

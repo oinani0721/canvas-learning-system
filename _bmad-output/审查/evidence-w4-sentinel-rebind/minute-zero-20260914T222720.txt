@@ -1,0 +1,122 @@
+# CARD-W4-SENTINEL-REBIND 第 0 分钟自证 + §〇 锚点实测  2026-09-14T22:27:20+0800
+pwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t9-w4  branch=card/t9-w4
+PREREQ=a4dbd156ac1254f6aa32422e80d90886d772d386  短=a4dbd156
+status行数=1（期望 0，本 evidence 目录尚未产文件）
+log顶含 CARD-W4-4b7-TAIL = 3
+pytest OK
+.env OK
+BASE条数=64（期望 64）
+
+=== §〇 口径更正① NEO4J_LIVE_PORT_CONNECT_ATTEMPTS 非 env ===
+  backend/tests/unit/test_verification_service_injection.py:110:            # 实测：只打这一处即可让 NEO4J_LIVE_PORT_CONNECT_ATTEMPTS 由 1 归 0
+  backend/tests/support/live_port_guard.py:207:_SUMMARY_PREFIX = "NEO4J_LIVE_PORT_CONNECT_ATTEMPTS"
+  backend/scripts/lifespan_isolation_negative_control.py:293:    r"^NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=(\d+) "
+  environ 探针: 0 命中（期望 0）
+  getenv  探针: 0 命中（期望 0）
+
+=== §〇 blocked= 产出点 ===
+1545:                f"\n*** {BLOCK_REASON} —— 最终总账：blocked={blocked} "
+--- summary_line :454-461 ---
+    def summary_line(self) -> str:
+        with self._lock:
+            unaccounted = len(self._unaccounted_locked())
+            return (
+                f"{_SUMMARY_PREFIX}={self.total} "
+                f"(blocked={self.blocked}, advisory={self.advisory}, "
+                f"unaccounted={unaccounted})"
+            )
+--- BLOCK_REASON :205 / _SUMMARY_PREFIX :207 ---
+BLOCK_REASON = "live Neo4j port connect attempted"
+_SUMMARY_PREFIX = "NEO4J_LIVE_PORT_CONNECT_ATTEMPTS"
+
+=== §〇 失败正文格式 ===
+1551:                print(f"    - {rec['address']} on thread {rec['thread']} (owner={rec['owner']})", file=sys.stderr)
+1595:        lines.append(f"  - {rec['address']} on thread {rec['thread']} (owner={owner})")
+--- extract_port docstring :520-528 ---
+    """从 socket 地址里取端口。
+
+    IPv4 是 2 元组 ``('127.0.0.1', 7691)``；IPv6 是 4 元组
+    ``('::1', 7691, 0, 0)`` —— 2026-09-01 实测 neo4j 驱动走的正是 IPv6 四元组，
+    只按 ``len(address) == 2`` 判会**整条漏掉**。
+    AF_UNIX（str/bytes 地址）与其它协议族返回 None（不在本门射程）。
+
+    端口用 :func:`operator.index` 规范化而不是 ``isinstance(port, int)``：
+    CPython 的 socket 接受任何实现 ``__index__`` 的对象当端口（2026-09-03 实测
+
+=== §〇 ledger 键（三条 grep -nF 分跑，禁表格内 grep -E 交替）===
+unaccounted_records:
+  444:            "unaccounted_records": unaccounted,
+  1550:            for rec in ledger["unaccounted_records"]:
+reported_status:
+  81:``reported_status`` 为 0 时同样退 3，而那种形态下 ``unaccounted`` 可以是 0。
+  295:        self.reported_status: int | None = None
+  445:            "reported_status": self.reported_status,
+  914:    的是 ``unaccounted`` / ``blocked`` / ``reported_status``，与 ``installed`` 无关
+  1486:    :func:`_final_accounting` 的第二个分支（``blocked>0`` 且原 ``reported_status``
+  1536:    status = ledger["reported_status"]
+  1546:                f"unaccounted={unaccounted} reported_status={status}；"
+def finalize_and_snapshot:
+  365:    def finalize_and_snapshot(self) -> dict:
+最终裁定分支 :1519:
+    快照、又不触发迟到路径 ⇒ 进程 exit 0（``evidence-w4-4`` 的 ``before-1``）；
+
+=== §〇 conftest 卫生快照 ===
+总行数=476（卡文 476）
+--- :76-98 ---
+def _hygiene_snapshot() -> dict:
+    """只读快照。**不创建、不删除、不写入任何文件。**
+
+    setup 与 teardown 共用本函数 —— 若两侧各写一份逻辑, 环境差异
+    (例如 /tmp 一时不可读) 会让前后口径不一致, 门就成了假红。
+    读不到的目标一律记 None, 前后同为 None 即视为未变化。
+    """
+    root = _hygiene_backend_root()
+    exists = {rel: (root / rel).exists() for rel in _HYGIENE_SKELETON_PATHS}
+
+    sha: dict[str, str | None] = {}
+    for rel in _HYGIENE_TRACKED_FILES:
+        try:
+            sha[rel] = hashlib.sha256((root / rel).read_bytes()).hexdigest()
+        except OSError:
+            sha[rel] = None
+
+    try:
+        tmp: frozenset[str] | None = frozenset(p.name for p in Path("/tmp").glob(_HYGIENE_TMP_GLOB))
+    except OSError:
+        tmp = None
+
+    return {"exists": exists, "sha": sha, "tmp": tmp}
+--- :299 / :357 既有边界注释 ---
+    #                  写入内容 (sha 侧读取失败记 None, None <-> hash 未必是内容改变);
+            "  失败会记 None, None <-> hash 的差异未必是内容改变 (既有边界, 已移交)。\n"
+--- :307-318（卡文说 :307-309 exists / :310 空行 / :311-317 sha 块）---
+    for rel in _HYGIENE_SKELETON_PATHS:
+        if after["exists"][rel] and not before["exists"][rel]:
+            pollution.append(f"  新出现 vault 骨架: {root / rel}")
+
+    for rel in _HYGIENE_TRACKED_FILES:
+        if after["sha"][rel] != before["sha"][rel]:
+            pollution.append(
+                f"  已入库文件被改写: {root / rel}\n"
+                f"    before sha256={before['sha'][rel]}\n"
+                f"    after  sha256={after['sha'][rel]}"
+            )
+
+--- 三类信号桶 :303-305 ---
+    #   cannot_check—— **是否违规尚不能判定**, 门拒绝把「没检查」当「没问题」。
+    pollution: list[str] = []
+    source_rule: list[str] = []
+    cannot_check: list[str] = []
+--- 告警锚 :326 / :332 ---
+    # ⛔ 禁再降成静默: 固定串「环境受干扰」是本卡的判据锚点。
+                    "[hygiene] 环境受干扰: 新出现 "
+  『环境受干扰』命中行号: 269 281 326 332 （期望 269 281 326 332，验伪锚：出现 339 = 读错树）
+
+=== §〇 协议 §3 W4 改绑（feature 主干那份）===
+  79:- **W4 哨兵判据绑 `blocked=` 次数 + 失败正文，不绑 nodeid**（R-08/R-10，第十四批起）：同一代码状态下哨兵红会在 nodeid 之间翻转（U10-A r4/r4b 实测：`candidate422` ↔ `mock_warning`，经 U1 第十三批验收单 §五.9-ter 转述落盘），逐 nodeid diff 自带 flaky。判据：`grep -c "blocked=" <存档>` 恒定 + `grep -oF "('::1', 7691, 0, 0) on thread MainThread" <存档> | sort -u | wc -l` = 1；红总数仍对基线，但不对具体哪条 nodeid 承 W4 身份。`NEO4J_LIVE_PORT_CONNECT_ATTEMPTS` 未设时 `blocked=0`（候选树常态），设了攻击次数才是「恒 12」口径——两态都写明。
+  车道树那份（08100483 版，应无命中）: 0
+
+=== §三 四个地盘文件：三个新文件必须不存在 ===
+  OK 不存在: backend/tests/support/hygiene_snapshot_tristate.py
+  OK 不存在: backend/tests/support/w4_sentinel_identity.py
+  OK 不存在: backend/tests/unit/test_w4_sentinel_rebind.py

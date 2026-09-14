@@ -1,0 +1,53 @@
+# 口径更正（卡文 → 实测）：三条与卡文字面冲突，本卡据实测实现并送 Codex 独立复核
+# 2026-09-14T22:41:42+0800   来源：内部对抗复核 workflow wf_af610803-fb9（8 agents，已落盘）+ 主 session 逐条实测
+
+════════ 更正③：失败正文产出点是 3 处不是 2 处 ════════
+卡文 §〇 与我自己的 anchor-drift 表都写「两处」，实测三处：
+  backend/tests/conftest.py:184:            print(f"    - {rec['address']} on thread {rec['thread']} (owner={rec['owner']})", file=sys.stderr)
+  backend/tests/support/live_port_guard.py:1551:                print(f"    - {rec['address']} on thread {rec['thread']} (owner={rec['owner']})", file=sys.stderr)
+  backend/tests/support/live_port_guard.py:1595:        lines.append(f"  - {rec['address']} on thread {rec['thread']} (owner={owner})")
+  ⇒ backend/tests/conftest.py:184 是 pytest_sessionfinish 里的 4 空格版，与 live_port_guard.py:1551 同形。
+  影响：同一条未结账记录可被 :184 与 :1551 各印一次 ⇒ 正文行条数 ≠ blocked。
+        任何『断言 len(bodies) == blocked』的实现会在未结账场景假红 ⇒ 本卡只判集合不判条数。
+
+════════ 更正④：线程名含每跑不同的对象地址 ⇒ 身份必须归一 ════════
+全仓 evidence 里 'on thread <X>' 的线程名分布（前 8）：
+   441 on thread MainThread
+    33 on thread asyncio-portal-15f0ef460
+     6 on thread asyncio-portal-14867cb40
+     6 on thread asyncio-portal-139a0cf30
+     5 on thread asyncio-portal-149e87150
+     5 on thread asyncio-portal-14867cad0
+     5 on thread asyncio-portal-14867c980
+     5 on thread asyncio-portal-146f91f60
+  ⇒ asyncio-portal-<hex> 的 hex 是对象地址，每跑不同。
+  ⛔ 若照卡文 (d)② 字面把整串 '<addr> on thread <thread>' 当身份，
+     新判据会**原样继承它要替换掉的那个 flaky**——只是从 nodeid 换成了线程地址。
+  本卡实现：身份 = (address, 归一后的线程名)；asyncio-portal-<hex> → asyncio-portal-<id>。
+  归一只抹对象地址，不抹线程类别（MainThread ≠ asyncio-portal-<id>，仍可区分）。
+
+════════ 更正⑤：两个 blocked= 产出点的值「不必然相等」，且不等是合法的 ════════
+卡文 (d)① 要求「多处取值必须一致，不一致返回哨兵/抛并在 CLI 报错」。实测反证：
+  282:        self.blocked = 0
+  355:                self.blocked += 1
+  361:            self.blocked += 1
+  440:            "blocked": self.blocked,
+  459:                f"(blocked={self.blocked}, advisory={self.advisory}, "
+  ⇒ :282 归零，:355/:361 只做 += 1，全文件无任何减法 ⇒ blocked 是**单调计数器**。
+  两个产出点是同一计数器的**两个时刻**：
+    · summary_line  由 tests/conftest.py:227 在 pytest_terminal_summary 时取；
+    · _final_accounting 由 live_port_guard.py:934 注册的 atexit 在更晚时取。
+  中间那段窗口正是 _final_accounting docstring 明写要兜住的（迟到线程/其它 atexit）。
+  ⇒ 要求相等 = 在门**正常工作**的那一天把它判成工具错误。
+  本卡实现：不变量改为 final >= summary；final < summary 才抛（计数器倒退 = 混档）。
+  返回值取**较晚**的那个（final 在场时取 final）。
+
+════════ 更正⑥：advisory 是「放行」不是「拦下」⇒ 只判 blocked 会漏真连 ════════
+  230:RECORD_ADVISORY = "advisory"  #: 豁免用例，只记不拦
+  ⇒ 逐字「豁免用例，只记不拦」：advisory 那几次**原 connect 照常执行**，是真的连上了现网。
+  本卡实现：CLI 比对整条汇总四元组 (total, blocked, advisory, unaccounted) 而非单判 blocked，
+            并带算术自洽门 total == blocked + advisory（依据 record() :351-363 每次恰加一次）。
+
+════════ 更正⑦：退出码不得占用 3 ════════
+  225:FINAL_EXIT_CODE = 3
+  ⇒ 3 是 guard 的强制退出码，且逐字印在被读的存档正文里。本工具用 0/1/2。

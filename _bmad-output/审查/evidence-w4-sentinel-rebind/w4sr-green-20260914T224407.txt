@@ -1,0 +1,62 @@
+# 后绿（卡文 (e)）  2026-09-14T22:44:07+0800
+--- 新测试全绿 ---
+collecting ... collected 28 items
+tests/unit/test_w4_sentinel_rebind.py::TestSampleFidelity::test_samples_differ_only_in_attribution PASSED [  3%]
+tests/unit/test_w4_sentinel_rebind.py::TestSampleFidelity::test_samples_are_not_accidentally_identical PASSED [  7%]
+tests/unit/test_w4_sentinel_rebind.py::TestBlockedCount::test_r4_and_r4b_agree PASSED [ 10%]
+tests/unit/test_w4_sentinel_rebind.py::TestBlockedCount::test_no_gate_output_is_none_not_zero PASSED [ 14%]
+tests/unit/test_w4_sentinel_rebind.py::TestBlockedCount::test_summary_and_final_may_differ_legitimately PASSED [ 17%]
+tests/unit/test_w4_sentinel_rebind.py::TestBlockedCount::test_counter_going_backwards_is_a_conflict PASSED [ 21%]
+tests/unit/test_w4_sentinel_rebind.py::TestBlockedCount::test_arithmetic_self_consistency_is_enforced PASSED [ 25%]
+tests/unit/test_w4_sentinel_rebind.py::TestBlockedCount::test_multiple_runs_in_one_file_is_a_conflict PASSED [ 28%]
+tests/unit/test_w4_sentinel_rebind.py::TestSummaryQuad::test_quad_is_parsed PASSED [ 32%]
+tests/unit/test_w4_sentinel_rebind.py::TestSummaryQuad::test_advisory_difference_is_visible_in_the_quad PASSED [ 35%]
+tests/unit/test_w4_sentinel_rebind.py::TestFailureBodyIdentities::test_r4_and_r4b_have_the_same_identity PASSED [ 39%]
+tests/unit/test_w4_sentinel_rebind.py::TestFailureBodyIdentities::test_identity_excludes_owner PASSED [ 42%]
+tests/unit/test_w4_sentinel_rebind.py::TestFailureBodyIdentities::test_identity_is_the_expected_string PASSED [ 46%]
+tests/unit/test_w4_sentinel_rebind.py::TestFailureBodyIdentities::test_portal_thread_address_is_normalised PASSED [ 50%]
+tests/unit/test_w4_sentinel_rebind.py::TestFailureBodyIdentities::test_normalisation_keeps_thread_class PASSED [ 53%]
+tests/unit/test_w4_sentinel_rebind.py::TestFailureBodyIdentities::test_both_indent_forms_are_collected PASSED [ 57%]
+tests/unit/test_w4_sentinel_rebind.py::TestFailureBodyIdentities::test_ipv4_two_tuple_is_collected PASSED [ 60%]
+tests/unit/test_w4_sentinel_rebind.py::TestFailureBodyIdentities::test_owner_containing_on_thread_does_not_leak_into_identity PASSED [ 64%]
+tests/unit/test_w4_sentinel_rebind.py::TestNaiveNodeidsIsTheFalsificationAnchor::test_old_criterion_drifts_on_the_same_samples PASSED [ 67%]
+tests/unit/test_w4_sentinel_rebind.py::TestNaiveNodeidsIsTheFalsificationAnchor::test_new_criterion_holds_where_old_one_drifts PASSED [ 71%]
+tests/unit/test_w4_sentinel_rebind.py::TestClassifyShaChange::test_same_hash_is_unchanged PASSED [ 75%]
+tests/unit/test_w4_sentinel_rebind.py::TestClassifyShaChange::test_different_hash_is_changed PASSED [ 78%]
+tests/unit/test_w4_sentinel_rebind.py::TestClassifyShaChange::test_none_to_hash_is_unchecked PASSED [ 82%]
+tests/unit/test_w4_sentinel_rebind.py::TestClassifyShaChange::test_hash_to_none_is_unchecked PASSED [ 85%]
+tests/unit/test_w4_sentinel_rebind.py::TestClassifyShaChange::test_none_to_none_is_unchecked_not_unchanged PASSED [ 89%]
+tests/unit/test_w4_sentinel_rebind.py::TestClassifyShaChange::test_only_three_verdicts_exist PASSED [ 92%]
+tests/unit/test_w4_sentinel_rebind.py::TestToolTouchesNoNetwork::test_module_imports_nothing_from_app PASSED [ 96%]
+tests/unit/test_w4_sentinel_rebind.py::TestToolTouchesNoNetwork::test_parsing_opens_no_socket PASSED [100%]
+======================= 28 passed, 10 warnings in 1.26s ========================
+
+--- CLI 真跑（卡文 §二.4）---
+  四份样本已落盘
+
+① r4 vs r4b（旧判据会漂、新判据应一致）⇒ 期望 rc=0
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t9-w4/_bmad-output/审查/evidence-w4-sentinel-rebind/r4.txt: blocked=1 bodies=["('::1', 7691, 0, 0) on thread MainThread"]
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t9-w4/_bmad-output/审查/evidence-w4-sentinel-rebind/r4b.txt: blocked=1 bodies=["('::1', 7691, 0, 0) on thread MainThread"]
+W4-IDENTITY: CONSISTENT files=2 blocked=1
+  rc=0
+② r4 vs r4x（blocked 真不同）⇒ 期望 rc=1
+W4-IDENTITY: DIFFER blocked=[1, 2] bodies=[["('::1', 7691, 0, 0) on thread MainThread"]]
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t9-w4/_bmad-output/审查/evidence-w4-sentinel-rebind/r4.txt: blocked=1 bodies=["('::1', 7691, 0, 0) on thread MainThread"]
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t9-w4/_bmad-output/审查/evidence-w4-sentinel-rebind/r4x.txt: blocked=2 bodies=["('::1', 7691, 0, 0) on thread MainThread"]
+  rc=1
+③ portal1 vs portal2（只差线程对象地址）⇒ 期望 rc=0（归一生效）
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t9-w4/_bmad-output/审查/evidence-w4-sentinel-rebind/portal1.txt: blocked=1 bodies=["('::1', 7691, 0, 0) on thread asyncio-portal-<id>"]
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t9-w4/_bmad-output/审查/evidence-w4-sentinel-rebind/portal2.txt: blocked=1 bodies=["('::1', 7691, 0, 0) on thread asyncio-portal-<id>"]
+W4-IDENTITY: CONSISTENT files=2 blocked=1
+  rc=0
+④ 只喂 1 份 ⇒ 期望 rc=2（1 份不是「一致」）
+需要至少 2 份存档才能比对，收到 1 份
+usage: python -m tests.support.w4_sentinel_identity <evidence.txt> [<evidence.txt> ...]
+  rc=2
+⑤ 未知参数 ⇒ 期望 rc=2
+unknown arg: --nonsense
+usage: python -m tests.support.w4_sentinel_identity <evidence.txt> [<evidence.txt> ...]
+  rc=2
+⑥ 文件不存在 ⇒ 期望 rc=2
+W4-IDENTITY: UNREADABLE /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t9-w4/_bmad-output/审查/evidence-w4-sentinel-rebind/nope.txt: [Errno 2] No such file or directory: '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t9-w4/_bmad-output/审查/evidence-w4-sentinel-rebind/nope.txt'
+  rc=2

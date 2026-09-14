@@ -1,0 +1,12 @@
+# 负控①：classify_sha_change 的 None 分支临时退回旧 2-way  2026-09-14T22:44:42+0800
+跑前 sha: e21500b4c2dd187b1817eb3f8c3242f5f2305063c91a750595abdca8f909ffab  backend/tests/support/hygiene_snapshot_tristate.py
+  对照输入已写入（只拆 None 分支这一层）
+    assert classify_sha_change("a" * 64, None) == "unchecked"
+E   AssertionError: assert 'changed' == 'unchecked'
+    assert classify_sha_change(None, None) == "unchecked"
+E   AssertionError: assert 'unchanged' == 'unchecked'
+FAILED tests/unit/test_w4_sentinel_rebind.py::TestClassifyShaChange::test_none_to_hash_is_unchecked
+FAILED tests/unit/test_w4_sentinel_rebind.py::TestClassifyShaChange::test_hash_to_none_is_unchecked
+FAILED tests/unit/test_w4_sentinel_rebind.py::TestClassifyShaChange::test_none_to_none_is_unchecked_not_unchanged
+=================== 3 failed, 3 passed, 10 warnings in 1.14s ===================
+跑后 sha: e21500b4c2dd187b1817eb3f8c3242f5f2305063c91a750595abdca8f909ffab  backend/tests/support/hygiene_snapshot_tristate.py

@@ -1,0 +1,34 @@
+# 真实存档端到端（非构造样本）  20260915T001036
+# A = unit-close-r4c-20260914T235915.txt  真实跑，blocked=1，C 型块
+# B = unit-close-r4d-20260915T000514.txt  真实跑，blocked=0
+# ⛔ 两份**同代码(eaadfb1e…)同环境(PYTHONDONTWRITEBYTECODE=1)**，仅相隔约 6 分钟
+#    ⇒ blocked 0↔1 是非确定性，不是本卡改动的确定性后果
+
+A(r4c): blocked=1  quad=(1, 1, 0, 0)
+A(r4c): bodies=["('::1', 7691, 0, 0) on thread MainThread"]
+A(r4c): 旧判据 nodeid 集大小=65
+B(r4d): blocked=0  quad=(0, 0, 0, 0)
+B(r4d): bodies=[]
+B(r4d): 旧判据 nodeid 集大小=64
+
+# 说明这对存档证明了什么、没证明什么：
+#   证明：判据能解析**真实跑出来的** C 型块（此前只在构造样本上验过），
+#         且两跑确实不同时正确判 DIFFER —— 真实存档上不假绿。
+#   未证明：旧判据在**这一对**上也会判不同（它俩 nodeid 集本就不同），
+#         所以『旧判据会漏』仍只由 SAMPLE_R4/R4B 那对固定样本证明。
+--- CLI rc（期望 1 = DIFFER）---
+W4-IDENTITY: DIFFER blocked=[0, 1] quad=[(0, 0, 0, 0), (1, 1, 0, 0)] bodies=[[], ["('::1', 7691, 0, 0) on thread MainThread"]]
+../_bmad-output/审查/evidence-w4-sentinel-rebind/unit-close-r4c-20260914T235915.txt: blocked=1 quad=(1, 1, 0, 0) bodies=["('::1', 7691, 0, 0) on thread MainThread"]
+../_bmad-output/审查/evidence-w4-sentinel-rebind/unit-close-r4d-20260915T000514.txt: blocked=0 quad=(0, 0, 0, 0) bodies=[]
+rc=1
+
+# ============================================================
+# ⛔ 事后更正（Codex round-4 LOW-7；追加，不改上面任何原始行）
+# ============================================================
+# 上面写的「旧判据会漏」**用词不准**，Codex 指出得对：
+#   SAMPLE_R4/R4B 的旧 nodeid 集**不同**、新不变量**相同** ——
+#   它证明的是旧判据因归属漂移而**误报不同（假阳性）**，不是**漏报（假阴性）**。
+# 正确表述：旧判据在同一份代码的两次跑之间会**误判为不同**，所以不能当判据；
+#           本卡的新判据在同一对样本上判相同。
+# ⚠️ 这已是本卡第二次「在更正/说明文字里写了个不准的断言」（第一次是 pipestatus 那条）。
+#    教训同上：说明文字与判据代码同等需要核对，它不是免检区。

@@ -1,0 +1,24 @@
+# 负控两段（r2：绑最终 parser 版本，Codex MEDIUM-6 要求）  2026-09-14T23:09:50+0800
+⛔ 严格串行：本段跑完并确认还原后，才启动目录级（吸取本卡时间窗重叠那次教训）
+
+════ 负控①：classify_sha_change 的 None 分支退回旧 2-way ════
+跑前 sha: e21500b4c2dd187b1817eb3f8c3242f5f2305063c91a750595abdca8f909ffab  backend/tests/support/hygiene_snapshot_tristate.py
+    assert classify_sha_change("a" * 64, None) == "unchecked"
+E   AssertionError: assert 'changed' == 'unchecked'
+    assert classify_sha_change(None, None) == "unchecked"
+E   AssertionError: assert 'unchanged' == 'unchecked'
+FAILED tests/unit/test_w4_sentinel_rebind.py::TestClassifyShaChange::test_none_to_hash_is_unchecked
+FAILED tests/unit/test_w4_sentinel_rebind.py::TestClassifyShaChange::test_hash_to_none_is_unchecked
+FAILED tests/unit/test_w4_sentinel_rebind.py::TestClassifyShaChange::test_none_to_none_is_unchecked_not_unchanged
+=================== 3 failed, 3 passed, 10 warnings in 0.88s ===================
+跑后 sha: e21500b4c2dd187b1817eb3f8c3242f5f2305063c91a750595abdca8f909ffab  backend/tests/support/hygiene_snapshot_tristate.py
+
+════ 负控②：failure_body_identities 退化成 nodeid 集 ════
+跑前 sha: c52a8a5bf005312eb939315040060f42a600555ede0d2833e0e60ed409ece81f  backend/tests/support/w4_sentinel_identity.py
+================== 11 failed, 23 passed, 10 warnings in 0.88s ==================
+  退化实现下 r4 vs r4b 的 rc = 1（期望 1 = DIFFER）
+跑后 sha: c52a8a5bf005312eb939315040060f42a600555ede0d2833e0e60ed409ece81f  backend/tests/support/w4_sentinel_identity.py
+  还原后同一对照的 rc = 0（期望 0 = CONSISTENT）⇒ 双向成立
+
+════ 还原确认（目录级启动前的前置条件）════
+======================= 34 passed, 10 warnings in 0.83s ========================

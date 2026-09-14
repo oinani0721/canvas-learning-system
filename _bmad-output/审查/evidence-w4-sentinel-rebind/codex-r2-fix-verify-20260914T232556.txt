@@ -1,0 +1,35 @@
+# Codex r2 四条发现的复现输入 —— 整改后复验  2026-09-14T23:25:56+0800
+W4-IDENTITY: UNCHECKED 这些存档没有汇总行、advisory 未知，比不了: ['/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp0lah5jzv/a.txt']
+W4-IDENTITY: CONFLICT /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp0lah5jzv/a.txt: 有 2 条看起来是失败正文、却解析不出身份的行 —— 不得当作『没有这条记录』静默放过：["- ('::1', 7691, 0, 0) on thread", 'worker (owner=x)']
+W4-IDENTITY: DIFFER blocked=[0] quad=[(0, 0, 0, 0), (12, 0, 12, 0)] bodies=[[]]
+W4-IDENTITY: DIFFER blocked=[1] quad=[(1, 1, 0, 0)] bodies=[["('::1', 7691, 0, 0) on thread Thread-1 (worker)"], ["('127.0.0.1', 7687) on thread Thread-2 (worker)"]]
+── r2 HIGH-1 残留：一份缺汇总行（advisory 未知）──
+OK   期望 rc=2  实测 rc=2  | Codex 原例
+── r2 HIGH-3 残留：线程名含前导换行 ──
+OK   期望 rc=2  实测 rc=2  | Codex 原例（拒判而非静默丢弃）
+── r2 MEDIUM-3：普通日志不得误判（假红）──
+OK   普通日志未被误判，身份集=set()
+     Codex 另举的 'worker\ncontinued' 形态：
+OK   拒判 W4LedgerConflict（孤儿续行被拦下）
+── r2 MEDIUM-4：ZERO 标签按整条四元组 ──
+OK   (12,0,12,0) ⇒ rc=0、不打 ZERO 标签 = True
+OK   真全零 (0,0,0,0) ⇒ 仍打 ZERO 标签 = True
+
+── 反向锚（不得自伤）──
+OK   期望 rc=0  实测 rc=0  | r4 vs r4b（旧判据会漂）
+OK   期望 rc=0  实测 rc=0  | portal1 vs portal2（只差线程地址）
+BAD  期望 rc=1  实测 rc=(1, '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp0lah5jzv/a.txt: blocked=0 quad=(0, 0, 0, 0) bodies=[]\n/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp0lah5jzv/b.txt: blocked=0 quad=(12, 0, 12, 0) bodies=[]\n')  | r1 HIGH-1 原例（advisory 差异）
+BAD  期望 rc=1  实测 rc=(1, '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp0lah5jzv/a.txt: blocked=1 quad=(1, 1, 0, 0) bodies=["(\'::1\', 7691, 0, 0) on thread Thread-1 (worker)"]\n/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp0lah5jzv/b.txt: blocked=1 quad=(1, 1, 0, 0) bodies=["(\'127.0.0.1\', 7687) on thread Thread-2 (worker)"]\n')  | r1 HIGH-3 原例（含空格线程名、不同地址）
+
+BAD 计数 = 2
+rc=1
+W4-IDENTITY: DIFFER blocked=[0] quad=[(0, 0, 0, 0), (12, 0, 12, 0)] bodies=[[]]
+W4-IDENTITY: DIFFER blocked=[1] quad=[(1, 1, 0, 0)] bodies=[["('::1', 7691, 0, 0) on thread Thread-1 (worker)"], ["('127.0.0.1', 7687) on thread Thread-2 (worker)"]]
+
+════ ⚠️ 补正：上面两条 BAD 是我脚本漏了 [0]，把 (rc, out) 元组整个传给了判定函数 ════
+   两条的真实 rc 就在元组首项，都是 1 ⇒ 反向锚其实成立。正确写法重跑：
+   OK   期望 rc=1  实测 rc=1  | r1 HIGH-1 原例（advisory 差异）
+   OK   期望 rc=1  实测 rc=1  | r1 HIGH-3 原例（含空格线程名、不同地址）
+   OK   期望 rc=0  实测 rc=0  | r4 vs r4b
+   OK   期望 rc=0  实测 rc=0  | portal1 vs portal2
+   补正后 BAD 计数 = 0

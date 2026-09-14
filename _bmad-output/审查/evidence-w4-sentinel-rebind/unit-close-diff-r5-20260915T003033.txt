@@ -1,0 +1,15 @@
+# (g) 目录级 diff 判定（r5：绑最终代码 9bac9844… + PYTHONDONTWRITEBYTECODE=1）  20260915T003033
+# 承重跑 = unit-close-r5-20260915T002449.txt
+
+## 自证：存档里 FAILED/ERROR 行数（防截断漏数）= 64
+## 本跑 W4 汇总行：NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+
+## base=      64  r5=      64
+## diff base → r5
+  diff rc=0  ⇒ 0 = 逐条完全相同；'>' 0 条，'<' 0 条
+## 本卡 67 条测试在红集中的条数 = 0
+
+## 验伪锚：diff 确实能看见差异（拿 r4c 的红集做对照，它多一条）
+32a33
+> FAILED tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422
+  ⇒ 同一条 diff 命令对 r4c 输出非空，证明上面对 r5 的『空』不是命令哑火

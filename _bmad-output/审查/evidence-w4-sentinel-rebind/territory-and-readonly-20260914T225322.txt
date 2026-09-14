@@ -1,0 +1,52 @@
+# (h) 地盘门 + (i) 只读守卫 + 调用形态门  2026-09-14T22:53:22+0800
+PREREQ=a4dbd156  HEAD=a4dbd156（尚未 commit，用工作树 diff）
+
+=== (h) 地盘：本卡改/新建的文件 ===
+ M backend/tests/unit/conftest.py
+?? backend/tests/support/hygiene_snapshot_tristate.py
+?? backend/tests/support/w4_sentinel_identity.py
+?? backend/tests/unit/test_w4_sentinel_rebind.py
+条数 = 4（期望 4）
+
+=== (i) 只读守卫：三份禁改文件的 sha（本卡零改，与 HEAD 版比对）===
+  ✅ 未改 backend/tests/support/live_port_guard.py  c395951a0b35698b1ff0169955dc46801f457cd2df00ec259bd7566e95b8a93e
+  ✅ 未改 backend/tests/support/guard_plugin.py  918a5c4abe76c3dfce875e6ff07b7dc04d82c2d1249c580d0c0144560c096e9d
+  ✅ 未改 backend/tests/conftest.py  c657bdddedf1946e265b8b33333742d65fe94ca8ef8fb20644ad1479942615a8
+
+=== (i)① 调用形态门：两个新文件不得有网络/DB 调用形态 ===
+逐 token 分跑（禁 grep -E 交替，见卡文 §〇）：
+  import socket    w4_sentinel_identity.py = 0
+  socket.          w4_sentinel_identity.py = 0
+  .connect(        w4_sentinel_identity.py = 0
+  neo4j            w4_sentinel_identity.py = 0
+  lancedb          w4_sentinel_identity.py = 0
+  httpx            w4_sentinel_identity.py = 0
+  requests.        w4_sentinel_identity.py = 0
+  import app       w4_sentinel_identity.py = 0
+  from app         w4_sentinel_identity.py = 0
+  addaudithook     w4_sentinel_identity.py = 0
+  urllib           w4_sentinel_identity.py = 0
+  subprocess       w4_sentinel_identity.py = 0
+  ⚠️ 测试文件 backend/tests/unit/test_w4_sentinel_rebind.py 里 'socket.' 命中非零是**有意**的：TestToolTouchesNoNetwork::test_parsing_opens_no_socket
+     用 monkeypatch socket.socket.connect 当探针，证明解析过程真的没发起连接——
+     那是**行为门**，比 grep 强；不是被守对象的调用。
+
+=== (i)① 验伪锚：同一批 token 对 live_port_guard.py 必须有命中（证明 grep 能命中已知正例）===
+  import socket    live_port_guard.py = 1
+  socket.          live_port_guard.py = 27
+  .connect(        live_port_guard.py = 4
+  addaudithook     live_port_guard.py = 2
+
+=== (i)② 字面量归属核：7691/7687 每一行必须落在样本字符串里，无一处在调用位置 ===
+  backend/tests/unit/test_w4_sentinel_rebind.py:55:  - ('::1', 7691, 0, 0) on thread MainThread (owner=tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422)
+  backend/tests/unit/test_w4_sentinel_rebind.py:76:  - ('::1', 7691, 0, 0) on thread MainThread (owner=tests/unit/test_mock_degradation_transparency.py::TestMockScoringWarningLogs::test_mock_mode_logs_warning)
+  backend/tests/unit/test_w4_sentinel_rebind.py:86:  - ('::1', 7691, 0, 0) on thread asyncio-portal-15f0ef460 (owner=tests/unit/test_startup_health_check.py::TestStartupCheck::test_endpoint_exists)
+  backend/tests/unit/test_w4_sentinel_rebind.py:92:  - ('::1', 7691, 0, 0) on thread asyncio-portal-14867cb40 (owner=tests/unit/test_startup_health_check.py::TestStartupCheck::test_endpoint_exists)
+  backend/tests/unit/test_w4_sentinel_rebind.py:190:        assert failure_body_identities(SAMPLE_R4) == {"('::1', 7691, 0, 0) on thread MainThread"}
+  backend/tests/unit/test_w4_sentinel_rebind.py:205:        two = "  - ('::1', 7691, 0, 0) on thread MainThread (owner=x)\n"
+  backend/tests/unit/test_w4_sentinel_rebind.py:206:        four = "    - ('::1', 7691, 0, 0) on thread MainThread (owner=y)\n"
+  backend/tests/unit/test_w4_sentinel_rebind.py:212:        text = "  - ('127.0.0.1', 7691) on thread MainThread (owner=z)\n"
+  backend/tests/unit/test_w4_sentinel_rebind.py:213:        assert failure_body_identities(text) == {"('127.0.0.1', 7691) on thread MainThread"}
+  backend/tests/unit/test_w4_sentinel_rebind.py:218:            "  - ('::1', 7691, 0, 0) on thread MainThread "
+  backend/tests/unit/test_w4_sentinel_rebind.py:221:        assert failure_body_identities(text) == {"('::1', 7691, 0, 0) on thread MainThread"}
+  backend/tests/support/w4_sentinel_identity.py:14:``('::1', 7691, 0, 0)`` 恒定、``MainThread`` 恒定、``asyncio-portal-<hex>`` **不恒定**

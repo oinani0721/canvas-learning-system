@@ -1,0 +1,46 @@
+# §〇 锚点漂移表（卡文写于 08100483；本树 HEAD a4dbd156 = T9-A + T9-B 之后）  2026-09-14T22:28:24+0800
+根因：T9-A 在 :1511-1512 加了一层嵌套保护（+3 行）、T9-B 改写了 _publish_ledger docstring（+18 行）
+     ⇒ live_port_guard.py 里 _publish_ledger 之后的一切整体 +21；之前的一律不漂。
+     conftest.py 本卡前零改动 ⇒ 全部锚点零漂移。
+
+锚                                              卡文           实测           判定
+  live_port_guard.py BLOCK_REASON              :205         :205         ✅ 不漂
+  live_port_guard.py _SUMMARY_PREFIX           :207         :207         ✅ 不漂
+  live_port_guard.py reported_status 定义        :295         :295         ✅ 不漂
+  live_port_guard.py finalize_and_snapshot     :365         :365         ✅ 不漂
+  live_port_guard.py unaccounted_records 定义    :444         :444         ✅ 不漂
+  live_port_guard.py summary_line              :454-461     :454-461     ✅ 不漂
+  live_port_guard.py extract_port docstring    :520-528     :520-528     ✅ 不漂
+  live_port_guard.py 最终裁定分支                    :1519        :1540        ⚠️ +21
+  live_port_guard.py blocked={blocked} 总账行     :1524        :1545        ⚠️ +21
+  live_port_guard.py unaccounted_records 消费    :1529        :1550        ⚠️ +21
+  live_port_guard.py 逐条记录 print                :1530        :1551        ⚠️ +21
+  live_port_guard.py format_sentinel 记录行       :1574        :1595        ⚠️ +21
+  live_port_guard.py def format_sentinel       （未给）         :1588        补录
+  unit/conftest.py 总行数                         476          476          ✅
+  unit/conftest.py _hygiene_snapshot           :76          :76          ✅ 不漂
+  unit/conftest.py 三类信号桶                       :303-305     :303-305     ✅ 不漂
+  unit/conftest.py exists 块                    :307-309     :307-309     ✅ 不漂
+  unit/conftest.py sha 对比块                     :311-317     :311-317     ✅ 不漂
+  unit/conftest.py 告警锚 judge 注释                :326         :326         ✅ 不漂
+  unit/conftest.py 环境受干扰 产出点                   :332         :332         ✅ 不漂
+  unit/conftest.py 既有边界注释                      :299/:357    :299/:357    ✅ 不漂
+
+验伪锚：『环境受干扰』实测命中 = 269 281 326 332 
+        卡文预言「实测恰 269/281/326/332，无 339；跑出 339 = 读错树」⇒ 本树符合，未读错。
+
+=== 两个 blocked= 产出点的逐字格式（解析契约的输入面）===
+① _final_accounting :1545-1547
+                f"\n*** {BLOCK_REASON} —— 最终总账：blocked={blocked} "
+                f"unaccounted={unaccounted} reported_status={status}；"
+                f"进程被强制以退出码 {FINAL_EXIT_CODE} 结束（迟到连接不得以 0 收场）***",
+② summary_line :458-460
+                f"{_SUMMARY_PREFIX}={self.total} "
+                f"(blocked={self.blocked}, advisory={self.advisory}, "
+                f"unaccounted={unaccounted})"
+
+=== 两个失败正文产出点的逐字格式（注意缩进不同）===
+① _final_accounting :1551（4 空格缩进）
+                print(f"    - {rec['address']} on thread {rec['thread']} (owner={rec['owner']})", file=sys.stderr)
+② format_sentinel  :1595（2 空格缩进）
+        lines.append(f"  - {rec['address']} on thread {rec['thread']} (owner={owner})")
