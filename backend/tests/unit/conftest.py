@@ -80,7 +80,12 @@ def _hygiene_snapshot() -> dict:
 
     setup 与 teardown 共用本函数 —— 若两侧各写一份逻辑, 环境差异
     (例如 /tmp 一时不可读) 会让前后口径不一致, 门就成了假红。
-    读不到的目标一律记 None, 前后同为 None 即视为未变化。
+    读不到的目标一律记 None。
+    ⛔ CARD-W4-SENTINEL-REBIND 起, sha 侧的 None 不再当「未变化」:
+       任一侧 None (含前后同为 None) 一律判 unchecked -> cannot_check,
+       因为 None 的含义是「这一次没读到」而不是「内容没变」。
+       (旧口径把 None <-> None 静默当未变化, 那是把「没查完」当「没问题」。)
+       exists 侧是 bool, 无此问题, 语义不变。
     """
     root = _hygiene_backend_root()
     exists = {rel: (root / rel).exists() for rel in _HYGIENE_SKELETON_PATHS}

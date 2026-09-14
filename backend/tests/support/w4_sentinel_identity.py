@@ -94,7 +94,15 @@ _FINAL_RE = re.compile(
 #: 失败正文记录行。三个产出点的缩进是 2 或 4 空格，这里一律先 strip 再认 ``- ``。
 #: 地址段用**非贪婪**并从左锚 ``on thread``：owner（nodeid）是用户可控的、最长最靠后的字段，
 #: 贪婪从右切会把 owner 切进身份里 —— 而 owner 正是要甩掉的那个会漂的量。
-_BODY_RE = re.compile(r"^- (?P<addr>.+?) on thread (?P<thread>\S+) \(owner=", re.ASCII)
+#:
+#: ⛔ 线程名用 ``.+?`` 而不是 ``\S+``（Codex round-1 HIGH-3）：``threading.Thread(name=...)``
+#: 允许**含空格**的线程名（实测 ``Thread-1 (worker)``）。``\S+`` 匹配不上时整行会被
+#: ``if m:`` **静默丢弃**，身份集变空、CLI 照样判一致 —— 那是假绿。
+_BODY_RE = re.compile(r"^- (?P<addr>.+?) on thread (?P<thread>.+?) \(owner=", re.ASCII)
+
+#: **看起来是**正文记录行的候选（宽松）。凡命中本条而 :data:`_BODY_RE` 不命中的，
+#: 是「看得出是记录行、但解析不了」—— 必须抛，不得静默当成「没有这条记录」。
+_BODY_CANDIDATE_RE = re.compile(r"^- .* on thread ", re.ASCII)
 
 #: ``asyncio-portal-<hex>``：hex 是对象地址，**每跑不同**。归一成类别名。
 _PORTAL_RE = re.compile(r"^(asyncio-portal)-[0-9a-f]+$", re.ASCII)
@@ -204,10 +212,21 @@ def failure_body_identities(text: str) -> set[str]:
     只判**集合**不判条数：同一条记录可被三个产出点中的两个各印一次（更正③）。
     """
     out: set[str] = set()
+    unparsed: list[str] = []
     for raw in _lines(text):
-        m = _BODY_RE.match(raw.strip())
+        line = raw.strip()
+        m = _BODY_RE.match(line)
         if m:
             out.add(f"{m.group('addr')} on thread {normalise_thread(m.group('thread'))}")
+        elif _BODY_CANDIDATE_RE.match(line):
+            # ⛔ 看得出是记录行却解析不了 ⇒ **不得静默丢弃**（Codex round-1 HIGH-3）。
+            #    每一个 `if 匹配成功:` 都藏着一个未写的 else，而那个 else 通常就是假绿。
+            unparsed.append(line)
+    if unparsed:
+        raise W4LedgerConflict(
+            f"有 {len(unparsed)} 条看起来是失败正文、却解析不出身份的行 —— "
+            f"不得当作『没有这条记录』静默放过：{unparsed[:3]}"
+        )
     return out
 
 
@@ -229,10 +248,17 @@ def naive_failed_nodeids(text: str) -> set[str]:
 _USAGE = "usage: python -m tests.support.w4_sentinel_identity <evidence.txt> [<evidence.txt> ...]"
 
 
-def _describe(path: str) -> tuple[str, object, object]:
+def _describe(path: str) -> tuple[str, object, object, object]:
+    """读一份存档，返回 ``(path, blocked, quad, bodies)``。
+
+    ⛔ 必须把**四元组**也带出来（Codex round-1 HIGH-1）：初版只返回 ``blocked`` 与 bodies，
+    于是 ``advisory=12``（12 次**放行**到现网的真连接）与全零档被判成一致。
+    我在 docstring 与验收单里写过「CLI 比对整条四元组」——那句话当时是**假的**：
+    ``summary_quad`` 写了但从没接进 CLI。能力存在 ≠ 能力接上了。
+    """
     with open(path, encoding="utf-8", errors="replace") as fh:
         text = fh.read()
-    return path, blocked_count(text), failure_body_identities(text)
+    return path, blocked_count(text), summary_quad(text), failure_body_identities(text)
 
 
 def main(argv: list[str]) -> int:
@@ -257,25 +283,42 @@ def main(argv: list[str]) -> int:
             print(f"W4-IDENTITY: CONFLICT {path}: {exc}", file=sys.stderr)
             return 2
 
-    for path, blocked, bodies in rows:
+    for path, blocked, quad, bodies in rows:
         shown = "unchecked(没查成)" if blocked is None else blocked
-        print(f"{path}: blocked={shown} bodies={sorted(bodies)}")
+        print(f"{path}: blocked={shown} quad={quad} bodies={sorted(bodies)}")
 
-    unchecked = [p for p, b, _ in rows if b is None]
+    unchecked = [p for p, b, _, _ in rows if b is None]
     if unchecked:
         print(f"W4-IDENTITY: UNCHECKED 这些存档里找不到门产出行，比不了: {unchecked}", file=sys.stderr)
         return 2
 
-    blocked_vals = {b for _, b, _ in rows}
-    body_vals = {frozenset(s) for _, _, s in rows}
-    if len(blocked_vals) > 1 or len(body_vals) > 1:
+    blocked_vals = {b for _, b, _, _ in rows}
+    quad_vals = {q for _, _, q, _ in rows if q is not None}
+    body_vals = {frozenset(s) for _, _, _, s in rows}
+    if len(blocked_vals) > 1 or len(quad_vals) > 1 or len(body_vals) > 1:
         print(
-            f"W4-IDENTITY: DIFFER blocked={sorted(blocked_vals)} bodies={[sorted(s) for s in body_vals]}",
+            f"W4-IDENTITY: DIFFER blocked={sorted(blocked_vals)} "
+            f"quad={sorted(quad_vals)} bodies={[sorted(s) for s in body_vals]}",
             file=sys.stderr,
         )
         return 1
 
-    print(f"W4-IDENTITY: CONSISTENT files={len(rows)} blocked={blocked_vals.pop()}")
+    only = blocked_vals.pop()
+    if only == 0:
+        # ⛔ 全零不等于「门在位且本轮查完了」（Codex round-1 HIGH-2）。
+        #    汇总行由 summary_line() 产，而它**不含 installed 字段**（账本 dict 有、汇总行没有）；
+        #    pytest-xdist 下每个 worker 有独立 STATE，主进程那条全零汇总看不到 worker 的账。
+        #    ⇒ 纯文本无从区分「门在位、零连接」与「门/记账缺席」。
+        #    这里仍退 0（否则每一次干净跑都会红），但**必须把话说清**，不得让
+        #    `W4-IDENTITY: CONSISTENT` 这个串在全零档上冒充「门证明了什么」。
+        print(
+            f"W4-IDENTITY: CONSISTENT-ZERO files={len(rows)} quad={sorted(quad_vals)}\n"
+            "  ⚠️ 全零：本工具只能证明这几份存档**彼此一致**，"
+            "不能证明门当时在位、也不能证明覆盖完整（汇总行不含 installed；xdist 每 worker 独立记账）。"
+        )
+        return 0
+
+    print(f"W4-IDENTITY: CONSISTENT files={len(rows)} blocked={only} quad={sorted(quad_vals)}")
     return 0
 
 

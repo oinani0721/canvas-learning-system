@@ -30,6 +30,7 @@ from tests.support.w4_sentinel_identity import (
     W4LedgerConflict,
     blocked_count,
     failure_body_identities,
+    main,
     naive_failed_nodeids,
     summary_quad,
 )
@@ -174,6 +175,49 @@ class TestSummaryQuad:
         assert summary_quad(a) != summary_quad(b), "四元组必须看得出 advisory 的差别"
 
 
+class TestCliActuallyUsesWhatItClaims:
+    """⛔ Codex round-1 HIGH-1：能力存在 ≠ 能力接上了。
+
+    初版**写了** :func:`summary_quad` 却从没把它接进 CLI —— `_describe()` 只返回
+    ``blocked`` 与 bodies，于是 ``advisory=12``（12 次**放行**到现网的真连接）
+    与全零档被判成一致，而我在 docstring 与验收单里已经写了「CLI 比对整条四元组」。
+    上一版的测试只证明 helper 能区分，**没有证明 CLI 会用它** —— 这一类就是缺口。
+    """
+
+    def test_cli_rejects_advisory_only_difference(self, tmp_path):
+        a = tmp_path / "a.txt"
+        b = tmp_path / "b.txt"
+        a.write_text("NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)\n")
+        b.write_text("NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=12 (blocked=0, advisory=12, unaccounted=0)\n")
+        assert main([str(a), str(b)]) == 1, (
+            "两份 blocked 都是 0 但一份 advisory=12（真连现网 12 次），CLI 判成一致 = 假绿"
+        )
+
+    def test_cli_zero_case_is_labelled_not_overclaimed(self, tmp_path, capsys):
+        """⛔ Codex round-1 HIGH-2：全零 ≠「门在位且查完了」。
+
+        汇总行由 ``summary_line()`` 产而它**不含 ``installed``**（账本 dict 有、汇总行没有）；
+        pytest-xdist 下每 worker 独立 STATE。纯文本无从区分「门在位、零连接」与「门缺席」。
+        仍退 0（否则每次干净跑都红），但裁定词必须是 ``CONSISTENT-ZERO`` 并带明示，
+        不得让 ``CONSISTENT`` 在全零档上冒充「门证明了什么」。
+        """
+        z = "NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)\n"
+        a, b = tmp_path / "a.txt", tmp_path / "b.txt"
+        a.write_text(z)
+        b.write_text(z)
+        assert main([str(a), str(b)]) == 0
+        out = capsys.readouterr().out
+        assert "CONSISTENT-ZERO" in out
+        assert "不能证明门当时在位" in out
+
+    def test_cli_still_consistent_on_the_r4_pair(self, tmp_path):
+        """反向锚：真正该判一致的那一对仍然 rc=0，且不是 ZERO 那条路径。"""
+        a, b = tmp_path / "r4.txt", tmp_path / "r4b.txt"
+        a.write_text(SAMPLE_R4)
+        b.write_text(SAMPLE_R4B)
+        assert main([str(a), str(b)]) == 0
+
+
 class TestFailureBodyIdentities:
     """不变量②：失败正文身份。"""
 
@@ -210,6 +254,37 @@ class TestFailureBodyIdentities:
         """IPv4 是 2 元组；只认 4 元组会整条漏掉。"""
         text = "  - ('127.0.0.1', 7691) on thread MainThread (owner=z)\n"
         assert failure_body_identities(text) == {"('127.0.0.1', 7691) on thread MainThread"}
+
+    def test_thread_name_with_spaces_is_not_silently_dropped(self):
+        """⛔ Codex round-1 HIGH-3：解析不了的记录行**不得静默丢弃**。
+
+        ``threading.Thread(name=...)`` 允许含空格的线程名（实测 ``Thread-1 (worker)``）。
+        初版用 ``\\S+`` 匹配线程名，匹配不上时 ``if m:`` 让整行**静默消失** ⇒ 身份集变空
+        ⇒ 两份形态完全不同的存档被判一致。**每一个 `if 匹配成功:` 都藏着一个未写的
+        else，而那个 else 通常就是假绿。**
+        """
+        text = "  - ('::1', 7691, 0, 0) on thread Thread-1 (worker) (owner=x)\n"
+        assert failure_body_identities(text) == {"('::1', 7691, 0, 0) on thread Thread-1 (worker)"}
+
+    def test_unparseable_body_line_raises_instead_of_vanishing(self):
+        """看得出是记录行、却解析不出身份 ⇒ 必须抛，不得当成「没有这条记录」。"""
+        with pytest.raises(W4LedgerConflict, match="解析不出身份"):
+            failure_body_identities("- 某个畸形地址 on thread 没有 owner 段的行\n")
+
+    def test_cli_rejects_two_files_whose_bodies_differ_via_spaced_threads(self, tmp_path):
+        """HIGH-3 的 CLI 面：两份含空格线程名、内容不同的存档必须判不一致。"""
+        s1 = (
+            "  - ('::1', 7691, 0, 0) on thread Thread-1 (worker) (owner=x)\n"
+            "NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=1 (blocked=1, advisory=0, unaccounted=0)\n"
+        )
+        s2 = (
+            "  - ('127.0.0.1', 7687) on thread Thread-2 (worker) (owner=x)\n"
+            "NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=1 (blocked=1, advisory=0, unaccounted=0)\n"
+        )
+        a, b = tmp_path / "a.txt", tmp_path / "b.txt"
+        a.write_text(s1)
+        b.write_text(s2)
+        assert main([str(a), str(b)]) == 1, "两份正文身份不同却判一致 = 假绿"
 
     def test_owner_containing_on_thread_does_not_leak_into_identity(self):
         """⛔ parametrize id 可含空格/括号/等号。贪婪从右切会把 owner 切进身份。"""
