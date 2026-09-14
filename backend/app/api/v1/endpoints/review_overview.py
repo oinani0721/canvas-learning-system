@@ -133,6 +133,13 @@ _FSRS_DUE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 #: +08:60 静默归一化成 +09:00, 不设范围等于没锁 (round2 实测绕过)。
 _GENERATED_AT_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:[+-](?:0\d|1[0-4]):[0-5]\d|Z)$")
 
+#: 固定偏移回退（`display_tz` 缺席/为 null）做归桶敏感性复算时的偏移带宽。取 2 小时是
+#: 因为它覆盖现实中全部 DST 跨度：多数地区 1 小时、Lord Howe 30 分钟、历史上的
+#: double summer time 2 小时。带内翻转 = 该条目「属哪个桶」不可判（见 _gate_buckets）。
+#: 上界安全性: `_GENERATED_AT_RE` 把偏移卡在 ±14:59, 加 2 小时后 ≤ ±16:59 < 24 小时,
+#: `timezone()` 不会抛。
+_FIXED_OFFSET_DST_SPAN = timedelta(hours=2)
+
 
 def _strict_int(v) -> int:
     """非负 int (bool 拒绝 — JSON true 属 int 子类, int(True)=1 会冒充计数)。"""
@@ -515,8 +522,10 @@ def _gate_buckets(
         #     vs New_York 的 EST) 仍会选错, 而且两个方向都错 (r3)。
         # 偏移**不能**决定时区规则, 只有生产器自己知道它用了哪个 —— 所以让它自报。
         # 自报值必须与 generated_at 的偏移自洽 (否则 payload 自相矛盾, 拒收);
-        # 缺席 (旧投影 / 末档无名时区) 则退回此刻的显示时区 —— 那是 r2 之前的形态,
-        # 它会误判 corrupt 但**不会放行错误归桶**, 是两害相权的那一侧。
+        # 缺席 (旧投影 / 末档无名时区) 退回 generated_at **自带的固定偏移**, 并对「归桶
+        # 会随偏移翻转」的条目按 corrupt 降级 —— 见下方 fixed_offset_base 两段。
+        # ⛔ 这里原先写的是「退回此刻的显示时区……不会放行错误归桶」: 前半与代码不符
+        #    (r2 起退的就是固定偏移), 后半已被 r5 证伪 (误拒与误放行是同一偏差的两侧)。
         # 「投影是不是今天的」由 _vault_entry 的 stale 判定负责, 那里恒用此刻时区。
     except (ValueError, OverflowError, OSError) as e:
         raise ValueError(f"generated_at 无法换算为参照时钟: {generated_at!r} ({e})")
@@ -547,12 +556,27 @@ def _gate_buckets(
                 f"generated_at 自带 {ref.utcoffset()}) — payload 自相矛盾"
             )
         ref_tz = candidate
+    fixed_offset_base: timedelta | None = None
     if ref_tz is None:
         # 旧投影（键缺失/None）⇒ 回退到 generated_at **自带的固定偏移**, 不是此刻的
         # 显示时区 (Codex r4 HIGH-2): 它忠于生产者写盘那一刻的偏移 —— Bogota 生成的
-        # due_today 在 NY 显示下仍被放行; DST 边界可能误判 corrupt(两害相权的一侧),
-        # 但不会放行错误归桶。生产者跑在 POSIX TZ 下时 payload 会自报规格串, 走不到这里。
+        # due_today 在 NY 显示下仍被放行。
+        # ⛔ r4 在这里断言「DST 边界可能误判 corrupt, 但不会放行错误归桶」—— **不成立**
+        #    (Codex r5 HIGH-2 实证): 固定偏移只在 generated_at **那一刻**等于生产者的
+        #    真实偏移, 到期时刻落在 DST 切换另一侧时它就差一档, 而误拒与误放行是同一个
+        #    偏差的两侧, 不可能只占一侧。同一份 NY 投影 (gen 2026-03-08T00:30−05:00 /
+        #    due 2026-03-09T04:30Z): 自报时区时门判得对; 键缺失时**合法的 future 被拒、
+        #    伪造的 due_today 被放行**。
+        # 双向堵的口径见 ⑥(a) 里的 fixed_offset_base 段: 参照日 (ref_day) 仍取固定偏移
+        # ——generated_at 那一刻它是准的——但非到期条目的归桶要在 ±_FIXED_OFFSET_DST_SPAN
+        # 内复算, 只要桶名随之翻转就按 corrupt 降级。离本地午夜足够远的条目不受影响,
+        # 所以整份旧投影仍照常放行 (**不是**把缺 display_tz 的投影一律判 corrupt ——
+        # `display_tz: null` 是现役生产器在末档宿主上的正常产出, 一律判 corrupt 会让
+        # 那类宿主的复习清单整页空, 且手动重建按钮恒 503, 无法自愈)。
         ref_tz = ref.tzinfo
+        fixed_offset_base = ref.utcoffset()
+        if fixed_offset_base is None:  # 不可达: _GENERATED_AT_RE 强制带偏移或 Z
+            raise ValueError(f"generated_at 缺时区偏移, 无法建立参照系: {generated_at!r}")
     try:
         ref_day = ref.astimezone(ref_tz).date()
     except (OverflowError, OSError) as e:
@@ -591,6 +615,25 @@ def _gate_buckets(
             if ts <= ref_z:
                 raise ValueError(f"buckets.{name}[{i}] fsrs_due={ts} 不晚于 generated_at, 应属到期侧")
             day = _display_day(ts, ref_tz)
+            if fixed_offset_base is not None and day is not None:
+                # 固定偏移回退的**双向堵** (Codex r5 HIGH-2)。判据是「这条的桶名是否只靠
+                # 一个不可信的偏移撑着」: 把参照偏移在 ±_FIXED_OFFSET_DST_SPAN 内挪一挪,
+                # 桶名若跟着翻转, 说明生产者那一刻真实偏移的任何一档合理取值都能得出不同
+                # 结论 ⇒ 该条目在信息上不可判, 按 corrupt 降级。
+                # 为什么这样能同时堵住两侧: 误拒 (合法 future 被算成 due_today) 与误放行
+                # (伪造的 due_today 被当成合法) 出自**同一个**偏差, 它们只会一起落在带内。
+                # 为什么只探两个端点: `_display_day` 给出的日期随偏移单调不减, ref_day 固定,
+                # 故 (== ref_day, > ref_day) 这个二元判定在区间内单调 —— 两端同侧 ⇒ 全区间同侧。
+                side = (day == ref_day, day > ref_day)
+                for span in (_FIXED_OFFSET_DST_SPAN, -_FIXED_OFFSET_DST_SPAN):
+                    probe = _display_day(ts, timezone(fixed_offset_base + span))
+                    if probe is None or (probe == ref_day, probe > ref_day) != side:
+                        raise ValueError(
+                            f"buckets.{name}[{i}] fsrs_due={ts} 的归桶在固定偏移 "
+                            f"{fixed_offset_base} ±{_FIXED_OFFSET_DST_SPAN} 内翻转 "
+                            f"({day} → {probe}, 参照日 {ref_day}) — display_tz 缺席时"
+                            "该条目属哪个桶不可判, 按 corrupt 降级"
+                        )
             if day is None:
                 # 时刻不可表示: 生产器兜底恒归 future, 不可能是"今天"
                 if name != "future":

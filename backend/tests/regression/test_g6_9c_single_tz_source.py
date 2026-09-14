@@ -332,6 +332,19 @@ _POSIX_TZ_VALUES = [
     "<+10:30>-10:30<+11>-11,M10.1.0,M4.1.0/3",  # 引用名 + 半小时 DST + 南半球
     "NZST-12NZDT,M9.5.0,M4.1.0/3",  # 末周规则 + 显式切换时刻
     "WART4WARST,J1/0,J365/25",  # J 儒略日规则 + >24h 的切换时刻
+    # ↓ CARD-G6-9c-R2 (Codex r5) 补的三串。**只加非 2026 时刻、不加串 = 装饰**: 上面
+    #   11 个串在结构上碰不到下面三条缺陷面 —— 实测 40 年 ×6h 粗扫 + 21 年年界/闰界
+    #   逐分钟细扫(每串 341,280 格)全部 0 mismatch。三串各锁一条, 缺哪条那条就无门可守。
+    "CET-1CEST",  # dst 名在场、切换规则**省略**: C 库按 tzset(3) 退 `posixrules` 的规则
+    #   (本机 posixrules 与 America/New_York 逐字节相同, sha256 一致 ⇒ M3.2.0,M11.1.0,
+    #   当地 02:00), 只把两侧偏移换成 TZ 自带值; 本实现曾整体退 UTC ⇒ 全年错一档偏移。
+    #   **与时刻无关**, 每个时刻格都红。
+    "AAA1BBB0,365/3,365/2",  # 裸 n=365 + 跨年季度: 平年里 n=365 落到**次年元旦**, 于是
+    #   包住元旦的那个 DST 季度其名义起始年 = y-2, 三年候选窗 (y-1, y, y+1) 漏掉它。
+    #   ⛔ 只在"前一年是平年"的元旦显形: 2024/2023 元旦红, 2025/2021 元旦绿(前一年是闰年,
+    #   n=365 落在 12/31 不滚年) —— 年界样本挑错年份就是哑弹。
+    "AAA5BBB,J60/2,J300/2",  # Jn 跳闰日: J60 在闰年必须**仍是 3/1**(Jn 不数 2/29)。现有
+    #   11 串没有任何一个在 2 月底附近有切换规则, 闰年 2 月末的样本因此无处着力。
 ]
 
 #: 探测时刻。**必须含折叠窗口内的时刻**（Codex r3 + 自验变异 B/C）：
@@ -346,6 +359,29 @@ _DST_PROBE_INSTANTS = [
     datetime(2026, 3, 8, 7, 30, tzinfo=timezone.utc),  # 北半球空缺窗口边缘
     datetime(2026, 4, 5, 3, 30, tzinfo=timezone.utc),  # 南半球折叠：Santiago
     datetime(2026, 4, 5, 4, 30, tzinfo=timezone.utc),
+    # ⛔ 以下三个**不在 2026 年**(CARD-G6-9c-R2, Codex r5 MEDIUM): 上面 8 个全落在 2026,
+    #   而闰年与跨年两类日期算术只在别的年份显形。每条都配了能压到它的串(见上表), 且都做过
+    #   逐格负控 —— 还原对应修复后它们必红, 不是装饰。
+    # ⛔⛔ 往本表加样本时年份**必须落在 2007..2037**: 本门比的是「与 C 库逐时刻取值相等」,
+    #   而 C 库对**省略切换规则**的串走 posixrules —— ≤2006 用的是那张 tzfile 的整张历史
+    #   转换表(例如 1975-02-23 那次能源危机提前实施 DST, 根本不是 M3.2.0), ≥2038 它的
+    #   32 位表止于 2037-11-01 且不外推、直接丢掉 DST。区间外红的是 C 库自己的边界,
+    #   不是本实现的缺陷（表里现有 `CET-1CEST` 就属该族）。
+    datetime(2024, 2, 29, 12, 0, tzinfo=timezone.utc),
+    #   闰年 2 月末。压 `_rule_epoch` 的 `calendar.isleap(year) and a >= 60` 分支: 配
+    #   `AAA5BBB,J60/2,J300/2`, 删掉跳闰日后 J60 从 3/1 变 2/29, 本时刻墙钟 07:00→08:00。
+    datetime(2024, 12, 31, 12, 0, tzinfo=timezone.utc),
+    #   闰年年末 12-31。同一分支的另一侧: 配**已有的** `WART4WARST,J1/0,J365/25`,
+    #   J365 在闰年必须仍是 12/31; 删掉跳闰日后终点提前一天, 墙钟 09:00→08:00。
+    #   ⛔ 这两个闰年时刻**各自不可删**, 不是互为冗余 —— 用区分性变异实测过(负控 ⑥⑦):
+    #   把闰日条件改成 `a >= 300` 只坏 J60 ⇒ 只杀 02-29 那格; 改成 `60 <= a < 300` 只坏
+    #   J365 ⇒ 只杀 12-31 那格; 只有「删整条跳闰日」才两格同杀。若只跑后一种变异, 会
+    #   误以为留一个就够。
+    datetime(2024, 1, 1, 0, 30, tzinfo=timezone.utc),
+    #   年界 01-01 —— Codex r5 HIGH-1 的逐字反例。配 `AAA1BBB0,365/3,365/2`: 正确窗口是
+    #   start(2022)=2023-01-01T04:00Z → end(2023)=2024-01-01T02:00Z, 候选窗只看
+    #   (y-1, y, y+1) 就漏掉名义 2022 年 ⇒ 墙钟被算成 2023-12-31 23:30, **直接错日**。
+    #   ⚠️ 此例**转回 UTC 仍守恒** ⇒ 判据 2(时刻守恒)抓不到它, 只有判据 1(墙钟)能抓。
 ]
 
 #: 两份同源副本都要被测 —— 门此前只喂 backend 那份，scripts 副本的 POSIX 分支
@@ -395,6 +431,192 @@ def test_posix_tz_string_resolves_to_process_local_not_etc_localtime(tz_env, tz_
             f"  换算得 {got!r}，转回 UTC 是 {got.astimezone(timezone.utc).isoformat()}，"
             f"原时刻是 {instant.isoformat()}\n"
             "  折叠时段没标对 fold，或 utcoffset() 没按 fold 取那一侧。"
+        )
+
+
+#: HIGH-1（CARD-G6-9c-R2）的逐点反例：规则的**实际生效时刻滚进了下一年**，于是包住目标
+#: 时刻的那个 DST 季度其**名义起始年 = y-2** —— 三年候选窗 `(y-1, y, y+1)` 够不着它。
+#: (spec, UTC 时刻, 为什么偏偏是这一年显形)
+_CROSS_YEAR_WINDOW_CASES = [
+    (
+        "AAA1BBB0,365/3,365/2",
+        datetime(2024, 1, 1, 0, 30, tzinfo=timezone.utc),
+        "2022 是平年 ⇒ start(2022) 的裸 n=365 落到 2023-01-01T04:00Z, end(2023) 落到 "
+        "2024-01-01T02:00Z ⇒ 该季度横跨整个 2023 年并包住 2024 元旦, 名义起始年是 y-2",
+    ),
+    (
+        "AAA1BBB0,365/3,365/2",
+        datetime(2023, 1, 1, 0, 30, tzinfo=timezone.utc),
+        "同形态的另一年(2021 也是平年) —— 两条一起排除「只是某一年凑巧」",
+    ),
+    (
+        # ⛔ 抗漂移的那一条。`365/3,365/2` 的红区**每年只有 2 小时**、且只在「前一年是
+        # 平年」的元旦出现(还原 y-2 后 2007..2037 里 23/31 年红); 把 `/时刻` 拉到 167 小时
+        # 后红区变成 **166 小时/年、31/31 年都红**。后人把探针时刻挪几小时时, 前者会静默
+        # 变哑弹, 后者不会。
+        # ⚠️ 「元旦 + 前一年闰 = 哑弹」是 `365/3` 这个**串**的性质, **不是 HIGH-1 的性质**
+        # —— 本串在 2021/2025/2026 元旦同样红。别把那句话读成「HIGH-1 只能靠某些年份测」。
+        "AAA1BBB0,365/167,365/166",
+        datetime(2024, 1, 1, 0, 30, tzinfo=timezone.utc),
+        "同一漏格、红区宽 166 小时且逐年都有 —— 时刻挪动后仍然承重",
+    ),
+    (
+        # 来源 ②：Jn 叠 /167。没有裸 n，证明漏格不是「裸 n 语义」特有的。
+        "AAA1BBB0,J365/167,J365/167",
+        datetime(2024, 1, 1, 0, 30, tzinfo=timezone.utc),
+        "Jn 叠大 /N 同样滚出名义年（2007..2037 元旦周逐小时红 4433 点）",
+    ),
+    (
+        # 来源 ③：Mm.w.d 年末叠 /167 —— **既无裸 n 也无 Jn**。这一条是初版注释里那句
+        # 「裸 n=365 是唯一会溢出名义年的写法」的直接反例。
+        "AAA1BBB0,M12.5.0/167,M12.5.0/167",
+        datetime(2024, 1, 1, 0, 30, tzinfo=timezone.utc),
+        "纯 Mm.w.d 规则也能滚年（末周日靠近月末的年份，红 2325 点）",
+    ),
+]
+
+
+@pytest.mark.parametrize("copy_id", _COPY_IDS)
+@pytest.mark.parametrize("spec,instant,why", _CROSS_YEAR_WINDOW_CASES)
+def test_dst_window_candidates_cover_rules_that_roll_into_the_following_year(tz_env, spec, instant, why, copy_id):
+    """DST 季度的候选年必须覆盖「规则滚进下一年」的那些季度，否则**直接错日**。
+
+    ⛔ 这条与门⑦ 的判据 2（时刻守恒）互补而**不重叠**：本反例转回 UTC 仍然守恒，
+    守恒判据对它完全无感 —— 只有墙钟/归日这一侧能抓。所以不要把本门并进那条。
+
+    为什么表里既有的 11 个串压不到：它们的切换时刻都不叠大 `/N`，规则因此落在名义年内。
+    ⛔ **滚出名义年不止一条路**（本卡实测更正了初版注释里「裸 n=365 是唯一写法」那句）：
+      ① 平年的裸 `n=365` = `1月1日 + 365 天` = 次年元旦；
+      ② `Jn` / 裸 `n` 叠 `/N`（POSIX 允许到 167 小时，本实现的正则更放行到 999:99:99）；
+      ③ `Mm.w.d` 落在年末再叠 `/N` —— **既无裸 n 也无 Jn**，且逐年不同（末周日是 12/25
+         的年份就不滚）。
+    三条来源下面各有一条用例；②③ 的红区比 ① 宽两个数量级（2007..2037 元旦周逐小时：
+    ① 46 点、② 4433 点、③ 2325 点），所以它们才是抗漂移的那几条。
+    """
+    tz_env(tz=spec)
+    resolved = _display_tz_of(copy_id)
+    got = instant.astimezone(resolved).replace(tzinfo=None)
+    libc = instant.astimezone().replace(tzinfo=None)
+    assert got == libc, (
+        f"[{copy_id}] 候选窗漏格·实得 {got} 应为 {libc}\n"
+        f"  TZ={spec!r} 在 {instant.isoformat()}\n"
+        f"  {why}\n"
+        "  `_in_dst` 的候选年只取名义年 (y-1, y, y+1), 漏掉了起始年更早的那个跨年季度。"
+    )
+    assert got.date() == libc.date(), (
+        f"[{copy_id}] 候选窗漏格·归日错一天: 实得 {got.date()} 应为 {libc.date()}\n"
+        f"  TZ={spec!r} 在 {instant.isoformat()} —— D-18 的「今天」在这里就算错了。"
+    )
+
+
+#: HIGH-new（CARD-G6-9c-R2）：`dst` 名在场但切换规则**省略**。C 库按 tzset(3) 用
+#: `posixrules` 的规则补齐（本机 posixrules 与 `America/New_York` 逐字节相同 ⇒
+#: `M3.2.0,M11.1.0`，当地 02:00），只把两侧偏移换成 TZ 自带值。
+#: (spec, 夏令时侧的 UTC 时刻, 标准时侧的 UTC 时刻, 备注)
+_OMITTED_RULE_CASES = [
+    (
+        "EST5EDT",
+        datetime(2026, 7, 31, 16, 30, tzinfo=timezone.utc),
+        datetime(2026, 1, 15, 16, 30, tzinfo=timezone.utc),
+        "有同名 tzfile, 故只有直接调 parse_posix_tz 才够得到本分支",
+    ),
+    (
+        "CET-1CEST",
+        datetime(2026, 7, 31, 22, 30, tzinfo=timezone.utc),
+        datetime(2026, 1, 15, 22, 30, tzinfo=timezone.utc),
+        "Codex r5 的逐字反例: 两副本给 22:30+00:00, libc 给 2026-08-01 00:30+02:00",
+    ),
+    (
+        "XYZ5XYD",
+        datetime(2026, 7, 31, 16, 30, tzinfo=timezone.utc),
+        datetime(2026, 1, 15, 16, 30, tzinfo=timezone.utc),
+        "自造名 —— /usr/share/zoneinfo 下无同名 tzfile, 排除「其实读到了同名文件」这一替代解释",
+    ),
+]
+
+
+@pytest.mark.parametrize("copy_id", _COPY_IDS)
+@pytest.mark.parametrize("spec,summer,winter,note", _OMITTED_RULE_CASES)
+def test_omitted_transition_rules_use_the_libc_default_instead_of_falling_back_to_utc(
+    spec, summer, winter, note, copy_id
+):
+    """给了夏令时名却省略切换规则**不是语法错误**，规格把规则留给实现定义。
+
+    ⛔ 走 `parse_posix_tz` 而**不是** `display_tz()`：`EST5EDT` 有同名 tzfile，
+    `display_tz()` 会在更早的 ZoneInfo 档就接住它，根本够不到本分支。卡文 (b)②
+    点名的正是这个串，所以判据必须直接打在解析器上。
+    """
+    module = backend_tz if copy_id == "backend" else _load_local_tz()
+    tz = module.parse_posix_tz(spec)
+    assert tz is not None, (
+        f"[{copy_id}] dst 有名省略规则被退 UTC: parse_posix_tz({spec!r}) 返回 None\n"
+        f"  {note}\n"
+        "  返回 None 会让 display_tz() 的 POSIX 档整体退回 ZoneInfo('UTC') —— 而 C 库\n"
+        "  按 tzset(3) 用 posixrules 的规则补齐, 于是每年有几百小时归错日, 且生产者\n"
+        "  自报的 display_tz 也一并退成 'UTC', 与 generated_at 自洽 ⇒ **错得不会报错**。"
+    )
+    off_summer = summer.astimezone(tz).utcoffset()
+    off_winter = winter.astimezone(tz).utcoffset()
+    assert off_summer != off_winter, (
+        f"[{copy_id}] dst 有名省略规则被退 UTC(或退成了无 DST 的时区): {spec!r} 在夏冬两侧偏移相同\n"
+        f"  夏 {summer.isoformat()} -> {off_summer}；冬 {winter.isoformat()} -> {off_winter}\n"
+        "  给了夏令时名就必须真的有夏令时 —— 补的是 posixrules 的默认规则, 不是把 DST 抹掉。"
+    )
+
+
+#: 省略切换规则时，C 库把**秋季回拨**钉在当地**标准**时 01:00 —— 而 POSIX 的 `/时刻`
+#: 语义指的是**切换前生效**的那一侧（end 之前生效的是夏令侧）。两者只在夏令时差恰为
+#: +1 小时时重合，所以 end 的切换时刻必须按 `3600 + dst_off − std_off` 现算，不能写死
+#: 「当地 02:00」。⛔ 写死 02:00 的实现只有在「省略 dst 偏移」那一族（Δ 恒 +1h）上才对 ——
+#: 只测那一族就会把子族结论当成全族结论（本卡 r2 实测：156 万点逐分钟里，Δ=+1h 的两个
+#: 规格 0 分歧，而 Δ∈{−2h,−1h,+1.5h,+4h} 的四个规格共 15810 分钟与 C 库不符）。
+#: ⛔ 年份钉在 2007..2037：见 `_DST_PROBE_INSTANTS` 上方那条区间说明。
+#: (spec, 夏令时差, 扫描起点 UTC, 分钟数)
+_OMITTED_RULE_TRANSITION_SCANS = [
+    ("IST-1GMT0", "-1h", datetime(2026, 10, 31, 23, 30, tzinfo=timezone.utc), 90),
+    ("ABC-1DEF-5", "+4h", datetime(2026, 10, 31, 23, 30, tzinfo=timezone.utc), 90),
+    ("NZST-12NZDT-13:30", "+1.5h", datetime(2026, 10, 31, 12, 30, tzinfo=timezone.utc), 90),
+    ("AAA5BBB7", "-2h", datetime(2026, 11, 1, 5, 30, tzinfo=timezone.utc), 90),
+    # 对照组：Δ=+1h 这一族两种写法**本就重合** —— 有它在，「四条红」才能归因到偏移差
+    # 那一维上，而不是「省略规则的实现整个是坏的」。
+    ("CET-1CEST", "+1h", datetime(2026, 10, 31, 23, 30, tzinfo=timezone.utc), 90),
+    # 春季侧正控：前跳钉在当地**标准**时 02:00，两种写法一致 —— 证明本门不是只对秋季敏感，
+    # 也证明 start 用 `_parse_rule` 缺省（7200）是对的。
+    ("IST-1GMT0", "-1h", datetime(2026, 3, 8, 0, 30, tzinfo=timezone.utc), 90),
+    ("ABC-1DEF-5", "+4h", datetime(2026, 3, 8, 0, 30, tzinfo=timezone.utc), 90),
+]
+
+
+@pytest.mark.parametrize("copy_id", _COPY_IDS)
+@pytest.mark.parametrize("spec,dst_span,scan_from,minutes", _OMITTED_RULE_TRANSITION_SCANS)
+def test_omitted_rule_transition_points_track_the_standard_side_offset(
+    tz_env, spec, dst_span, scan_from, minutes, copy_id
+):
+    """省略规则时补出来的切换点必须与 C 库逐分钟对齐，含**夏令时差 ≠ +1h** 的各族。
+
+    ⛔ 为什么必须逐分钟而不是逐小时：分歧窗宽度 = |Δ − 1h|，`<+10:30>` 这类半小时跨度
+    只有 30 分钟宽 —— 逐小时网格恰好采样不到（本卡实测过这个盲点：同一规格逐小时
+    mismatch=0、逐分钟 mismatch=30）。仓内规则里「门绿≠锁住修复：探针避开缺陷显形点」
+    说的就是这个形态。
+    """
+    tz_env(tz=spec)
+    resolved = _display_tz_of(copy_id)
+    for i in range(minutes):
+        instant = scan_from + timedelta(minutes=i)
+        converted = instant.astimezone(resolved)
+        got = converted.replace(tzinfo=None)
+        libc = instant.astimezone().replace(tzinfo=None)
+        assert got == libc, (
+            f"[{copy_id}] 省略规则的切换点与 C 库不符: TZ={spec!r}(夏令时差 {dst_span}) "
+            f"在 {instant.isoformat()}\n"
+            f"  本实现给 {got}，C 库给 {libc}\n"
+            "  end 的切换时刻要按 `3600 + dst_off − std_off` 现算（C 库钉的是当地**标准**时\n"
+            "  01:00）；写死「当地 02:00」只在夏令时差恰为 +1 小时时才对。"
+        )
+        assert converted.astimezone(timezone.utc) == instant, (
+            f"[{copy_id}] 省略规则的切换点附近**时刻不守恒**: TZ={spec!r} 在 {instant.isoformat()}\n"
+            f"  换算得 {converted!r}，转回 UTC 是 {converted.astimezone(timezone.utc).isoformat()}\n"
+            "  折叠/空缺时段的 fold 标错了。"
         )
 
 
@@ -728,7 +950,8 @@ def test_bucket_gate_rejects_wrong_bucket_and_forged_display_tz(tmp_path, tz_env
       · 节点被挪到错误的桶 ⇒ 必须拒；
       · `display_tz` 伪造成与 `generated_at` 偏移不自洽的时区 ⇒ 必须拒；
       · `display_tz` 伪造成不可解析的名字 ⇒ 必须拒；
-      · 旧投影（根本没有这个键）⇒ 必须**放行**（加性字段要向后兼容）。
+      · 旧投影（根本没有这个键）⇒ 按**归桶是否随偏移翻转**分两路：离本地午夜足够远的
+        照常放行（加性字段要向后兼容），落在 ±2h 带内的按不可判拒（CARD-G6-9c-R2）。
 
     每条都用 `pytest.raises(match=...)` 绑**具体拒因**，不只看「抛了异常」——
     否则「被更早的防线拒掉」也会被记成通过。
@@ -802,14 +1025,115 @@ def test_bucket_gate_rejects_wrong_bucket_and_forged_display_tz(tmp_path, tz_env
         )
     finally:
         picker._DISPLAY_TZ = saved_b
+    # ⚠️ CARD-G6-9c-R2 起口径改了：旧投影仍退回 generated_at 自带的固定偏移，但**归桶
+    #    会随偏移翻转**的条目按 corrupt 降级（Codex r5 HIGH-2 的双向堵）。原先这里只
+    #    断言「旧投影必须放行」，而那条恰好是被 HIGH-2 缺陷撑起来的 —— 它用的 Bogota
+    #    到期时刻在 -05:00 下是 23:30，离本地午夜只有 30 分钟，正是不可判的那一类。
+    #    三个子情形缺一不可：少了正控，「一律判 corrupt」也能跑绿（那等于砍掉全部旧投影
+    #    兼容性）；少了拒的两条，只堵一侧的实现照样跑绿。
     legacy_bogota = copy.deepcopy(bogota_payload)
     legacy_bogota.pop("display_tz")
-    _gate(legacy_bogota)  # 固定偏移语义的旧投影：跨显示时区必须放行
+    with pytest.raises(ValueError, match="归桶在固定偏移"):
+        _gate(legacy_bogota)  # Bogota 的 due_today 在 -05:00 下是 03-08 23:30 —— 带内，不可判
+
+    # 正控：离本地午夜足够远的旧投影必须**仍被放行**（Bogota 当地 12:00 到期，
+    # 任何 ±2h 都不会让它跨日）。没有这一条，本门就挡不住「把旧投影一律判 corrupt」。
+    vault_far = _tmp_vault(tmp_path, name="vaultNegFar")
+    (vault_far / "节点" / "乙.md").write_text(
+        '---\ntype: concept\nsource_board: "[[原白板/板]]"\nfsrs_due: 2026-03-09T17:00:00Z\n---\n内容。\n',
+        encoding="utf-8",
+    )
+    saved_c = picker._DISPLAY_TZ
+    picker._DISPLAY_TZ = ZoneInfo("America/Bogota")
+    try:
+        far_payload, _r3 = picker.build_payload(
+            vault_far, datetime(2026, 3, 8, 5, 30, tzinfo=timezone.utc), {}, picker.load_decay(vault_far)
+        )
+    finally:
+        picker._DISPLAY_TZ = saved_c
+    legacy_far = copy.deepcopy(far_payload)
+    legacy_far.pop("display_tz")
+    _gate(legacy_far)  # 远离午夜的旧投影：向后兼容没有被这次收口牺牲掉
 
     legacy_ny = copy.deepcopy(payload)
     legacy_ny.pop("display_tz")
-    with pytest.raises(ValueError, match="仍在 generated_at"):
-        _gate(legacy_ny)  # DST 边界旧投影的已知误判（登记项，见 docstring）
+    with pytest.raises(ValueError, match="归桶在固定偏移"):
+        # DST 边界旧投影：拒因从「仍在 generated_at（误拒）」升级为「不可判」——
+        # 同一个偏差原本还会把**伪造的** due_today 放行，那一侧由本文件的
+        # test_bucket_gate_rejects_wrong_buckets_even_when_display_tz_is_absent 守。
+        _gate(legacy_ny)
+
+
+@pytest.mark.parametrize("legacy_form", ["missing", "null"])
+def test_bucket_gate_rejects_wrong_buckets_even_when_display_tz_is_absent(tmp_path, tz_env, legacy_form):
+    """旧投影落到固定偏移回退时，**错误归桶也必须被拦住**（CARD-G6-9c-R2 / HIGH-2）。
+
+    ⛔ 这是上一条门漏掉的那一格：它测了「旧投影 + 合法桶」的两个子情形，却从没测过
+    「旧投影 + **错误**桶」。Codex r5 的四格表证明这一格在 r4 实现下是**放行**的 ——
+    与回退段注释里那句「但不会放行错误归桶」正好相反。
+
+    机理：`generated_at` 自带的固定偏移只在**它自己那一刻**等于生产者的真实偏移。
+    到期时刻落在 DST 切换的另一侧时，固定偏移算出的本地日与真实时区差一天 ——
+    误拒（合法 future 被判成 due_today）与误放行（伪造的 due_today 被当成合法）
+    是**同一个**偏差的两侧，不可能只占一侧。r4 把它登记成「只有兼容性损失」，不成立。
+
+    两种旧形态都要测：`display_tz` 键缺失（历史投影）与值为 `null`
+    （现役生产器在**末档宿主**上的正常产出 —— `local_tz.display_tz()` 落到固定偏移
+    兜底时没有 `.key`，`daily_review_pick` 照样恒写这个键、值为 None）。
+    """
+    import copy  # noqa: PLC0415
+
+    sys.path.insert(0, str(REPO_SCRIPTS))
+    import daily_review_pick as picker  # noqa: PLC0415  # pyright: ignore[reportMissingImports]
+
+    # ⛔ 走 _summarize（_gate_buckets 的唯一生产调用方），不自己拼调用 —— 同文件两处
+    #    栽过「复刻而非调用」的坑（生产侧接线被删门照样绿）。
+    from app.api.v1.endpoints.review_overview import _summarize  # noqa: PLC0415
+
+    vault = _tmp_vault(tmp_path, name=f"vaultLegacy{legacy_form}")
+    # NY 春季前跳：gen 在 EST(-05:00)，due 在 EDT(-04:00) ⇒ 真实本地日 = 03-09（future），
+    # 固定 -05:00 算出的却是 03-08（= gen 的本地日）。两种解释相差整整一天。
+    (vault / "节点" / "甲.md").write_text(
+        '---\ntype: concept\nsource_board: "[[原白板/板]]"\nfsrs_due: 2026-03-09T04:30:00Z\n---\n内容。\n',
+        encoding="utf-8",
+    )
+    saved = picker._DISPLAY_TZ
+    picker._DISPLAY_TZ = ZoneInfo("America/New_York")
+    try:
+        payload, _r = picker.build_payload(
+            vault, datetime(2026, 3, 8, 5, 30, tzinfo=timezone.utc), {}, picker.load_decay(vault)
+        )
+    finally:
+        picker._DISPLAY_TZ = saved
+
+    # 前提：生产器把它归进 future（这条不成立的话下面测的就不是「错误归桶」了）
+    assert [r["node"] for r in payload["buckets"]["future"]] == ["甲"], (
+        f"前提不成立 —— 生产器没把甲归进 future: {payload['buckets']}"
+    )
+
+    forged = copy.deepcopy(payload)
+    if legacy_form == "missing":
+        forged.pop("display_tz")
+    else:
+        forged["display_tz"] = None
+    # 错误归桶：把 future 那一行整体搬进 due_today（与上一条门的 `moved` 同法）
+    forged["buckets"]["due_today"] = forged["buckets"]["future"]
+    forged["buckets"]["future"] = []
+
+    tz_env(canvas_tz="America/New_York")
+    try:
+        _summarize(forged)
+    except ValueError:
+        pass  # 拒了就对 —— 拒因由 HIGH-2 的实现口径决定，这里只钉「不放行」
+    else:
+        raise AssertionError(
+            f"固定偏移回退误放行·桶 due_today（display_tz {legacy_form}）\n"
+            f"  fsrs_due=2026-03-09T04:30:00Z 在生产者时区(America/New_York)是 03-09 00:30 EDT,\n"
+            f"  与 generated_at={payload['generated_at']} 的本地日 03-08 **不是同一天** ⇒ 它属 future;\n"
+            "  门却用 generated_at 自带的固定 -05:00 把它算成 03-08 23:30, 于是放行了这个伪造的\n"
+            "  due_today。这正是 Codex r5 HIGH-2 点名的误放行 —— 与误拒完全对称, 不是「只有\n"
+            "  兼容性损失」。"
+        )
 
 
 # ══════════════════════════════════════════════════════════════════════════

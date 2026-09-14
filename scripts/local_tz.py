@@ -120,8 +120,23 @@ def _rule_epoch(rule, year: int) -> int:
 def parse_posix_tz(spec: str):
     """POSIX TZ 串 → `_PosixTZ`；语法/范围不合法返回 None（调用方决定退化或拒绝）。
 
-    给了夏令时名却没给切换规则 ⇒ None（libc 对这种输入会去找同名 tzfile,
-    我们在更早的 ZoneInfo 档已经覆盖该形态, 到这里的残形按不完整规格处理）。
+    给了夏令时名却**不写切换规则**（`CET-1CEST` / `EST5EDT`）不是非法输入 —— 规格
+    把规则留给实现定义。C 库按 tzset(3) 去读 `<zoneinfo>/posixrules` 的规则,「只把
+    两侧偏移换成 TZ 里写的值」; 本机实测 `posixrules` 与 `America/New_York` 逐字节
+    相同（sha256 一致）, 内嵌规则即 `M3.2.0,M11.1.0`（当地 02:00 = POSIX 缺省切换
+    时刻）。故此处按该默认规则补齐, 而不是判整串不可用。
+    ⛔ 不要改回 `return None`: 那会让整串退回 UTC（`display_tz()` 的 POSIX 档）,
+       `TZ=CET-1CEST` 的机器上每年 603 小时（6.9%）归错日 —— 而且生产者自报的
+       `display_tz` 也一并退成 "UTC", 与 generated_at 的 +00:00 自洽, 于是复习总览
+       的桶位门自洽校验查不出来, **错得不会报错**, 这才是它危险的地方。
+    对齐范围如实声明: **2007..2037** 与 C 库零分歧（7 个规格 × 156 万点逐分钟, 覆盖
+    夏令时差 −2h / −1h / +1h / +1.5h / +4h 五族）。区间外**有分歧且不打算对齐**:
+    ≤2006 —— C 库在那里用的是 posixrules **整张历史转换表**（America/New_York 的历史,
+    例如 1975 年 2 月 23 日那次能源危机提前实施, 根本不是 M3.2.0）; ≥2038 —— C 库的
+    32 位表止于 2037-11-01 且不外推, 直接丢掉 DST, 是它自己退化。跟随一张宿主 tzfile
+    的历史表会把平台数据引进一个规格驱动的实现, 这里**只跟它在作业区间内的规则形态**。
+    ⛔ 给这两份副本加新的「与 C 库逐时刻取值相等」样本时, 年份必须落在 2007..2037,
+       否则红的是 C 库的边界而不是本实现的缺陷。
     """
     m = _POSIX_TZ_RE.match(spec)
     if not m:
@@ -130,11 +145,32 @@ def parse_posix_tz(spec: str):
     std_off = _posix_offset_seconds(g["std_off"]) if g["std_off"] else 0
     if g["dst"] is None:
         return _PosixTZ(spec, _strip_name(g["std"]), std_off, None, None, None, None)
-    if g["start"] is None or g["end"] is None:
-        return None
     dst_off = _posix_offset_seconds(g["dst_off"]) if g["dst_off"] else std_off + 3600
-    start = _parse_rule(g["start"], g["stime"])
-    end = _parse_rule(g["end"], g["etime"])
+    if g["start"] is None or g["end"] is None:
+        # 规则整段缺席 ⇒ 补 posixrules 的默认规则。
+        # ⛔ 这里**故意**用字面量而不提成模块级常量: 源同源门只逐行比对 shared 名单里的
+        #    七个定义（`parse_posix_tz` 在内, 模块级常量**不在**）—— 写在函数体里这几行
+        #    才会被门比到; 提成常量就成了静默漂移面。
+        # 注: start / end 同属正则里**一个**可选组, 二者必同生共死（125 个结构化样本 +
+        #    2 万次随机 fuzz 实测无「只给一侧」形态）, 故本条件等价于「规则整段缺席」。
+        # 春季: C 库把前跳钉在当地**标准**时 02:00; 我们的 s = rule_epoch + secs − std_off,
+        #   令其相等即 secs = 7200 = POSIX 缺省切换时刻 ⇒ 直接走 _parse_rule 的缺省。
+        start = _parse_rule("M3.2.0", None)
+        # 秋季: C 库把回拨钉在当地**标准**时 01:00, 而 POSIX 的「/时刻」语义指的是**切换前
+        #   生效**的那一侧（end 之前生效的是夏令侧）。我们的 e = rule_epoch + secs − dst_off,
+        #   C 库的是 rule_epoch + 3600 − std_off ⇒ secs = 3600 + dst_off − std_off。
+        #   ⛔ 不要写死 `_parse_rule("M11.1.0", None)`（= 固定 7200）: 那只在夏令时差恰为
+        #      +1 小时时才与本式重合 —— 而那正是「省略 dst 偏移」那一族的特征, 只测那一族
+        #      就会把子族结论当成全族结论。实测（2007..2037 秋季回拨窗逐分钟, 156 万点）:
+        #      写死 02:00 时 IST-1GMT0(Δ=−1h) 3720 分钟、ABC-1DEF-5(Δ=+4h) 5580、
+        #      NZST-12NZDT-13:30(Δ=+1.5h) 930、AAA5BBB7(Δ=−2h) 5580 与 C 库不符;
+        #      按本式现算后四者全部归零。secs 可为负（Δ < +1h 时）, `_rule_epoch` 是纯
+        #      算术加法, 负值合法; 故直接构造规则元组而不过 `_parse_rule`（它的 `/hh`
+        #      文本语法表达不了负时刻）。
+        end = ("M", 11, 1, 0, 3600 + dst_off - std_off)
+    else:
+        start = _parse_rule(g["start"], g["stime"])
+        end = _parse_rule(g["end"], g["etime"])
     if start is None or end is None:
         return None
     return _PosixTZ(spec, _strip_name(g["std"]), std_off, _strip_name(g["dst"]), dst_off, start, end)
@@ -172,13 +208,36 @@ class _PosixTZ(tzinfo):
         return s, e
 
     def _in_dst(self, ts: int) -> bool:
+        # 候选年下界是 y-2 而不是 y-1（Codex r5 HIGH-1）: 规则的生效时刻能**滚出名义年**,
+        # 于是包住某个元旦的那个跨年季度其名义起始年是 y-2, 三年候选窗够不着它。反例
+        # `AAA1BBB0,365/3,365/2` 在 `2024-01-01T00:30Z` 上整整错一天（正确窗口
+        # start(2022)=2023-01-01T04:00Z → end(2023)=2024-01-01T02:00Z）, 且**转回 UTC 仍守恒**
+        # ⇒ 时刻守恒判据抓不到它, 只有墙钟/归日那一侧能抓。
+        # ⛔ 滚年有**三条互相独立**的来源, 别只记住第一条（2007..2037 元旦周逐小时实测红点数）:
+        #   ① 平年的裸 `n=365` = 「1月1日 + 365 天」= 次年元旦（`…,365/3,365/2` 红 46 点）;
+        #   ② `Jn` / 裸 `n` 叠 `/N`（POSIX 到 167h, 本正则放行到 999:99:99）
+        #      —— `…,J365/167,J365/167` 红 4433 点;
+        #   ③ `Mm.w.d` 落在年末再叠 `/N`, **既无裸 n 也无 Jn** —— `…,M12.5.0/167,M12.5.0/167`
+        #      红 2325 点; 且逐年不同（末周日是 12/25 的年份就不滚）。
+        #   三者在 y-2 下全部归零。
+        # 上下界推导（按本文件正则**实际允许**的取值域, 不是估计）: `_rule_epoch` 的返回值
+        # ∈ [年初, 年初 + 365 天 + 切换时刻]; 切换时刻与偏移都写成
+        # `\d{1,3}(?::\d{1,2}(?::\d{1,2})?)?` ⇒ 各 < 42 天 ⇒ 窗口端点偏离名义年 < 84 天。
+        # 于是 [s(Y), e(Y+1)) ⊆ (Y 年初 − 84 天, Y+2 年初 + 365 天 + 84 天), 反解得能包住
+        # ts 的名义年只可能落在 [y−2, y+1]。
+        # 实测佐证: 4088 个规格 × 873 个探针时刻（极端偏移 / `/167:59:59` / Jn·裸 n·Mm.w.d
+        # 全组合）与 C 库逐点对照 —— (y−1, y, y+1) 有 17 个规格共 1274 点分歧;
+        # (y−2 … y+1) 分歧 0; 再扩到 (y−3 … y+2) 无任何增量。
+        # ⛔ 作用域如实声明: 上述对照的采样年份都 ≥ 2007。**1972 以前不作为对齐目标** ——
+        #   macOS libc 对 POSIX 规格串的转换表自 EPOCH_YEAR 起算, 1970 之前根本不套用 DST
+        #   规则, 那一段无论候选年取多宽都会与规格文本分歧, 红的是 C 库的边界不是本实现。
         y = time.gmtime(ts).tm_year
-        for year in (y - 1, y, y + 1):  # 南半球窗口跨年, 取三年候选
+        for year in (y - 2, y - 1, y, y + 1):  # 规则可滚出名义年, 季度起始年最早到 y-2
             s, e = self._dst_window(year)
-            if s <= e:  # 北半球: 窗口在同一年内
+            if s <= e:  # 窗口落在同一年内（北半球形态）
                 if s <= ts < e:
                     return True
-            else:  # 南半球: 季度 = [start(year), end(year+1))
+            else:  # 跨年季度（南半球形态）= [start(year), end(year+1))
                 if s <= ts < self._dst_window(year + 1)[1]:
                     return True
         return False
