@@ -1,0 +1,13 @@
+=== 身份判据：真 backups/ 里不得出现 canary 的 vault key（不是只数文件数）===
+dir=/Users/Heishing/Desktop/canvas/canvas-learning-system/backups
+  (无 g29canary/g610 相关文件 ✓)
+dir=/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/backups
+  (无 g29canary/g610 相关文件 ✓)
+
+=== ruff check（backend/ruff.toml: select = E9,F63,F7,F82）===
+All checks passed!
+ruff_check_rc=0
+
+=== ruff format --check（lefthook 的硬门）===
+2 files already formatted
+ruff_format_rc=0

@@ -1,0 +1,51 @@
+=== 4.1 门文件全部 NEO4J_TEST_URI 引用（默认 7692 + :7691 拒跑逻辑）===
+56:    cd backend && NEO4J_TEST_URI=bolt://127.0.0.1:7692 \\
+70:NEO4J_TEST_URI = os.getenv("NEO4J_TEST_URI", "bolt://127.0.0.1:7692")
+81:    if ":7691" in NEO4J_TEST_URI:
+82:        # 禁碰 live: 即使有人把 NEO4J_TEST_URI 指到现网也拒绝运行
+88:            NEO4J_TEST_URI,
+107:            "Neo4j test container unreachable (or NEO4J_TEST_URI points at live "
+162:        uri=NEO4J_TEST_URI,
+301:    assert ":7691" not in NEO4J_TEST_URI
+
+=== 4.2 canary 的 state 目录全部 tmp 派生 ===
+84:落点：只有 ``tempfile.mkdtemp()`` 派生的临时目录。真 ``backups/`` 与 live vault
+97:import tempfile
+204:def _load_runner(tmp_repo: pathlib.Path):
+230:    mod.REPO = tmp_repo
+231:    mod.BACKUPS = tmp_repo / "backups"
+232:    mod.VAULT = tmp_repo / "canvas-vault"
+265:def _build_vault_pair(tmp_root: pathlib.Path, share_state: bool) -> tuple[pathlib.Path, pathlib.Path]:
+267:    a = tmp_root / "lane_a" / VAULT_DIR_A
+269:    b = tmp_root / "lane_b" / b_name
+281:def _assert_write_surface_is_tmp(runner, tmp_root: pathlib.Path, vaults: tuple[pathlib.Path, ...]) -> list[str]:
+284:    白名单而不是黑名单: 判据是「每一条落盘路径都在 tmp_root 之下」, 不是「不在真
+295:    tmp_resolved = tmp_root.resolve()
+300:            raise PreconditionRejected(f"落盘面逃出 tmp: {label} = {rp}（tmp_root = {tmp_resolved}）")
+454:    tmp_root = pathlib.Path(tempfile.mkdtemp(prefix="g610-canary-"))
+456:        tmp_repo = tmp_root / "repo"
+457:        tmp_repo.mkdir(parents=True)
+458:        runner = _load_runner(tmp_repo)
+460:        va, vb = _build_vault_pair(tmp_root, share_state)
+464:        report.extend(_assert_write_surface_is_tmp(runner, tmp_root, (va, vb)))
+528:        shutil.rmtree(tmp_root, ignore_errors=True)
+
+=== 4.3 canary 中 canvas-vault / backups / REPO 的每一处（确认无写真 backups/live）===
+12:不落 Neo4j 也不落 LanceDB，它落在 ``backups/daily-review.<vault_key>.state.json``
+84:落点：只有 ``tempfile.mkdtemp()`` 派生的临时目录。真 ``backups/`` 与 live vault
+214:    ``REPO`` / ``BACKUPS`` / ``VAULT`` 三个模块级常量在 import 时求值, 改它们是
+230:    mod.REPO = tmp_repo
+231:    mod.BACKUPS = tmp_repo / "backups"
+232:    mod.VAULT = tmp_repo / "canvas-vault"
+285:    backups 下」。黑名单要求我把所有不该写的地方列全, 列漏一个就是假绿; 白名单只
+303:    _under_tmp(runner.REPO, "runner.REPO")
+317:    只会安静地写到真 backups 去。所以这里主动调一次同一个入口做身份核对。
+
+=== 4.4 两个新文件对 fsrs_bridge / decay_beta 的命中（应为 0）===
+backend/scripts/g610_dual_vault_interaction_canary.py:0
+backend/tests/integration/test_g610_dual_vault_isolation.py:0
+
+=== 4.5 现网只读 sentinel（开工 touch，收工比新于它的文件数）===
+-rw-r--r--@ 1 Heishing  staff  0 Sep 14 22:28 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t4-g3/_bmad-output/审查/evidence-g610/sentinel
+dir=/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/backups exists=yes newer_than_sentinel=       0
+dir=/Users/Heishing/Desktop/canvas/canvas-learning-system/backups exists=yes newer_than_sentinel=       0

@@ -1,0 +1,6 @@
+# CARD-G6-10 门文件自身的 :7691 拒跑层（独立于 conftest 的 W4 门）
+# conftest.pytest_configure 会先 rc=3 硬拒，故本层在整跑里不会被触发——此处直接调函数证明它在位
+NEO4J_TEST_URI = bolt://127.0.0.1:7691
+_test_neo4j_reachable() = False (期望 False：URI 含 :7691 即拒，不做任何连接)
+skipif reason = Neo4j test container unreachable (or NEO4J_TEST_URI points at live 7691 — refused). Start: docker compose --profile test up -d neo4j-test
+test_g610_never_targets_live_7691: AssertionError ✓（环境自证门对 7691 必红）
