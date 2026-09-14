@@ -56,6 +56,23 @@ _CHECKPOINT_INTERVAL = 50
 #: 跳过从未成功的条目 (Codex round-5 HIGH)。理由与代价见 :meth:`_load_checkpoint`。
 _PROGRESS_VERSION = "split-lf+contiguous"
 
+#: 整次回灌的互斥锁（Codex round-6 HIGH-2）。
+#:
+#: 本卡之前 ``sync_all_fallbacks`` **零调用方**，不存在并发；本卡把它接进两处真实
+#: 路径（启动钩子 + 可被反复调用的鉴权管理端点）后，**并发成为现实**。
+#:
+#: 两个既有文件锁（``failed_writes_lock`` / ``_checkpoint_lock``）都是
+#: ``threading.Lock``，只护住各自那几行同步 IO，**盖不住重放中间的 await 窗口**。
+#: 负控：A、B 都初读 ``[x, y]``；A 成功 x、失败 y，写回 ``[y]``；随后追加 z，文件成为
+#: ``[y, z]``；B 仍拿旧快照 ``[x, y]``，两边长度同为 2 ⇒ 判定「没有新追加」，写回
+#: ``[y]`` —— **z 从未重放却被删掉**。
+#:
+#: ⚠️ 必须是 ``asyncio.Lock`` 而非 ``threading.Lock``：整次回灌是协程、中间大量
+#: ``await``，线程锁会阻塞整个事件循环。
+#: ⚠️ 本锁是**进程内**的；多 worker / 多进程部署下的并发**未覆盖**（需文件级锁或
+#: 单飞标志），已如实登记，不在本卡范围。
+_sync_all_lock = asyncio.Lock()
+
 
 class FallbackSyncService:
     """Syncs JSON fallback files back to Neo4j when it recovers."""
@@ -70,9 +87,21 @@ class FallbackSyncService:
         Checks Neo4j availability first. If unavailable, skips.
         Syncs in priority order: failed_writes → canvas_events → learning_memories.
 
+        ⚠️ **整次回灌互斥**（Codex round-6 HIGH-2）：全程持有
+        :data:`_sync_all_lock`。本卡把这个方法接进两处真实路径后并发成为现实，
+        而「初读快照 → 逐条 await 重放 → finalize 写回」这条链在并发下会让
+        后完成的那一方用**旧快照**覆盖掉期间新追加的条目。既有的两个
+        ``threading.Lock`` 只护住各自那几行同步 IO，盖不住 await 窗口。
+        进程内互斥；跨进程并发未覆盖（见该锁的注释）。
+
         Returns:
             Dict with per-file stats or {"skipped": True, "reason": "..."}
         """
+        async with _sync_all_lock:
+            return await self._sync_all_fallbacks_locked()
+
+    async def _sync_all_fallbacks_locked(self) -> Dict[str, Any]:
+        """:meth:`sync_all_fallbacks` 的实际实现（调用方须已持有 :data:`_sync_all_lock`）."""
         # Check Neo4j availability
         if self._neo4j.is_fallback_mode:
             return {"skipped": True, "reason": "Neo4j in fallback mode"}
@@ -313,12 +342,43 @@ class FallbackSyncService:
                     # Lines appended after our initial read
                     if len(current_lines) > len(lines):
                         new_lines = current_lines[len(lines) :]
-                else:
-                    current_lines = []
-            except OSError:
-                current_lines = []
+            except OSError as e:
+                # ⛔ 重读失败必须**放弃改写** (Codex round-6 HIGH-3):
+                # 原先是 `except OSError: current_lines = []` —— 吞掉异常继续往下
+                # 写回 `still_pending`。负控: 初始 [x,y], x 成功 y 失败, 重放期间
+                # 追加 z; 末尾重读抛 OSError 但随后的文件替换**成功** ⇒ 写回 [y],
+                # **z 从未重放却被删掉**。既然读不到当前内容, 就无从判断有没有新
+                # 追加, 任何写回都可能抹掉未知记录。
+                # 保留原文件 + 保留 checkpoint, 下一轮重来 —— 宁可重复不可丢。
+                logger.error(
+                    "[Story 38.8] failed_writes finalize re-read failed (%s) — "
+                    "leaving the file untouched to avoid clobbering concurrent appends; "
+                    "%d entries stay pending for the next run.",
+                    e,
+                    len(still_pending),
+                )
+                return {"recovered": recovered, "pending": len(still_pending)}
 
             merged = still_pending + new_lines
+            # ⛔ 先清游标再改写 (Codex round-6 HIGH-1: 文件代际错配):
+            # 游标的含义绑在**当次快照的下标**上, 而 `_rotate_file` /
+            # `_atomic_write_file` 会让文件换代。原先 `_clear_checkpoint` 在改写
+            # **之后**, 中间崩一次就会留下「指向上一代文件的游标」——
+            # 负控: 前 50 成功、第 51 失败, 存下 index=50 后文件被压缩成只剩第 51
+            # 条, 清游标前中断 ⇒ 重启拿 index=50 跳过唯一记录并直接轮转。
+            # 清不掉游标就**不动文件**: 换代与游标失效必须同生共死。
+            try:
+                self._clear_checkpoint("failed_writes")
+            except OSError as e:
+                logger.error(
+                    "[Story 38.8] cannot clear failed_writes checkpoint (%s) — "
+                    "refusing to rewrite/rotate the file (a stale cursor would point "
+                    "into the previous file generation); %d entries stay pending.",
+                    e,
+                    len(still_pending),
+                )
+                return {"recovered": recovered, "pending": len(still_pending)}
+
             if merged:
                 self._atomic_write_file(
                     FAILED_WRITES_FILE,
@@ -327,7 +387,6 @@ class FallbackSyncService:
             else:
                 self._rotate_file(FAILED_WRITES_FILE)
 
-        self._clear_checkpoint("failed_writes")
         self._cleanup_old_synced_files(FAILED_WRITES_FILE.parent, FAILED_WRITES_FILE.stem)
 
         return {"recovered": recovered, "pending": len(still_pending)}
@@ -731,22 +790,36 @@ class FallbackSyncService:
             )
 
     def _clear_checkpoint(self, file_key: str) -> None:
-        """Remove checkpoint entry after full sync."""
+        """Remove checkpoint entry after full sync.
+
+        ⚠️ **清不掉必须抛出来**（Codex round-6 HIGH-1）：调用方
+        :meth:`_sync_failed_writes` 在**改写/轮转文件之前**调本方法，靠它把
+        「上一代文件的游标」作废。若这里静默吞掉 OSError（原实现是
+        ``except (...): pass``），调用方会以为清干净了、照常换代文件，于是留下
+        一个指向**上一代**快照的游标 —— 下次启动按它跳过尚未成功的记录。
+        换代与游标失效必须同生共死，故 OSError 一律上抛由调用方决定不动文件。
+        JSON 解析失败仍吞掉：那说明 checkpoint 文件本身已不可信，
+        下面的 ``unlink`` 会把它整个删掉，目的同样达成。
+        """
         with _checkpoint_lock:
             if not SYNC_CHECKPOINT_FILE.exists():
                 return
             try:
                 data = json.loads(SYNC_CHECKPOINT_FILE.read_text(encoding="utf-8"))
-                data.pop(file_key, None)
-                if data:
-                    self._atomic_write_file(
-                        SYNC_CHECKPOINT_FILE,
-                        json.dumps(data, ensure_ascii=False, indent=2),
-                    )
-                else:
-                    SYNC_CHECKPOINT_FILE.unlink(missing_ok=True)
             except (json.JSONDecodeError, OSError):
-                pass
+                # 文件读不出/坏了 —— 整个删掉即可, 目的(让旧游标失效)同样达成。
+                # unlink 自己的 OSError 照样上抛。
+                SYNC_CHECKPOINT_FILE.unlink(missing_ok=True)
+                return
+
+            data.pop(file_key, None)
+            if data:
+                self._atomic_write_file(
+                    SYNC_CHECKPOINT_FILE,
+                    json.dumps(data, ensure_ascii=False, indent=2),
+                )
+            else:
+                SYNC_CHECKPOINT_FILE.unlink(missing_ok=True)
 
     # ─────────────────────────────────────────────────────────────────────
     # File rotation & cleanup
