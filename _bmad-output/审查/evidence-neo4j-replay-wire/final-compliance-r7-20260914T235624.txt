@@ -1,0 +1,17 @@
+### 最终合规自检  2026-09-14 23:56
+HEAD=36f48e10  代码最终=1028bea7
+--- 工作树 (T6-C 开工前提) ---
+?? "_bmad-output/\345\256\241\346\237\245/evidence-neo4j-replay-wire/final-compliance-r7-20260914T235624.txt"
+(仅本文件自身为 untracked 属正常)
+--- 未 push ---
+无 upstream ⇒ 未 push ✅
+--- commit 链 (310eef31..HEAD) ---
+11
+个 commit
+--- 七份 .stderr 全被 ignore ---
+  7 / 7 ignored
+--- 台账/手册/openapi 未改 ---
+(空=未改 ✅)
+--- evidence 计数 ---
+  98 个 .txt, 0 个 .log
+rc=0
