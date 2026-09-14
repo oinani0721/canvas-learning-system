@@ -1,0 +1,4 @@
+### 手册地盘对齐核（钉身份不钉总行数） ts=20260914T194807
+命中总行数(仅供参考,会随手册回写漂)=54
+--- 只 T2 地盘行原文 ---
+59:- **只 T2**：`scripts/deploy-vault.sh`、`backend/tests/unit/test_deploy_vault_sh.py`、`scripts/vault-install-manifest.json`、`.claude/skills/deploy-vault/SKILL.md`（⚠️ 排批稿误写 `canvas-vault/…`，实测在仓根；R-B14-8）、`scripts/cls_forbidden_paths.py`、`backend/tests/unit/test_docker_compose_config.py`。

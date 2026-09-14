@@ -60,6 +60,16 @@
 #   CLS_DEPLOY_ALLOW_DOCKER_UP  **缺省 0 = 步 5 只跑 `config` 断言后 SKIP，不 `up -d`**。
 #                             显式 =1 才真起容器（顶替现网容器不可逆 ⇒ opt-in，需用户当次授权）。
 #   CLS_LIVE_VAULT            live vault 绝对路径（禁写面第一条），缺省为主仓 canvas-vault。
+#   CLS_NPM_BUILD_TIMEOUT     步 1 `npm run build` 的**墙钟上限**（整数秒），缺省 300。
+#                             到点对整个进程组 TERM→KILL，步 1 以 FAIL 71 + 超时专属文案
+#                             返回，而不是无限挂起（集成期裁定 R-15：候选树跑 tests/unit 时
+#                             真跑本脚本的用例逐个卡死，挂点就是这条没有上限的 build）。
+#                             缺省 300 的依据：裁判侧兜底上限是 600（单测的 _SUBPROCESS_TIMEOUT），
+#                             脚本取其一半 ⇒ **脚本自己的超时文案**必定先于裁判超时出现，
+#                             用户看到的是「哪一步超时」而不是一个无解释的挂死。
+#                             ⚠️ 本机无 timeout(1)/gtimeout ⇒ 用 /usr/bin/perl 的 alarm 实现。
+#   CLS_NPM_BUILD_OFFLINE     步 1 build 的 npm_config_offline 值，缺省 true：只用本地缓存，
+#                             缓存缺失即快速失败、不等网。需要联网构建时显式 =false。
 #
 # ⚠️ set -e 与分步返回码的交互（Codex 问题 ②）：每个 stepN 函数都在 `|| rc=$?` 的条件
 #    上下文里被调用，因此**函数体内 set -e 被抑制**——中间命令失败不会中止函数。所以函数
@@ -73,6 +83,9 @@ CLS_MIN_SKILLS="${CLS_MIN_SKILLS:-9}"
 #    只写在注释里、没有执行闸门。现在改成 opt-in：必须显式 =1 才会 up。
 CLS_DEPLOY_ALLOW_DOCKER_UP="${CLS_DEPLOY_ALLOW_DOCKER_UP:-0}"
 CLS_LIVE_VAULT="${CLS_LIVE_VAULT:-/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault}"
+# 步 1 npm build 的墙钟上限与离线开关（CARD-DEPLOY-TIMEOUT / R-15，依据见头注 环境开关）
+CLS_NPM_BUILD_TIMEOUT="${CLS_NPM_BUILD_TIMEOUT:-300}"
+CLS_NPM_BUILD_OFFLINE="${CLS_NPM_BUILD_OFFLINE:-true}"
 FEATURE_TREE="/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev"
 
 VAULT=""
@@ -541,12 +554,42 @@ if s != n or v != n:
         local _npmroot="$EVIDENCE_DIR/npm-$TS"
         mkdir -p "$_npmroot/cache" "$_npmroot/logs" \
             || { STEP_MSG="建 npm 缓存目录失败: $_npmroot"; return 1; }
-        if ! (cd "$HARNESS/frontend/obsidian-plugin" \
+        # ⛔ 墙钟上限（CARD-DEPLOY-TIMEOUT，集成期裁定 R-15）：这条 build 原先**没有任何上限**,
+        #    npm 等网/等锁时会无限挂起 —— 候选树跑 tests/unit 时用例逐个卡死就是挂在这里。
+        #    本机没有 timeout(1)/gtimeout（GNU coreutils 未装）⇒ 用 /usr/bin/perl 的 alarm:
+        #    fork 一个**自成进程组**（setpgrp）的子进程 exec npm, 到点对**整个进程组**发
+        #    TERM→KILL —— 只杀壳的话 npm fork 出来的孙子进程会变成还在跑的孤儿。
+        #    超时以 rc 124 回报（与 GNU timeout 同惯例）, 与「build 自己失败」分开报。
+        case "$CLS_NPM_BUILD_TIMEOUT" in
+            '' | *[!0-9]*)
+                STEP_MSG="CLS_NPM_BUILD_TIMEOUT 必须是非负整数秒, 实为 '${CLS_NPM_BUILD_TIMEOUT}'"
+                return 1
+                ;;
+        esac
+        local _build_rc=0
+        (cd "$HARNESS/frontend/obsidian-plugin" \
             && npm_config_cache="$_npmroot/cache" \
                npm_config_logs_dir="$_npmroot/logs" \
                npm_config_update_notifier=false \
+               npm_config_offline="$CLS_NPM_BUILD_OFFLINE" \
                npm_config_fund=false npm_config_audit=false \
-               npm run build) > /dev/null 2>&1; then
+               perl -e '
+my $t = shift @ARGV;
+my $pid = fork();
+exit 125 unless defined $pid;
+if ($pid == 0) { setpgrp(0, 0); exec { $ARGV[0] } @ARGV; exit 127; }
+$SIG{ALRM} = sub { kill(-15, $pid); select(undef, undef, undef, 2); kill(-9, $pid); exit 124; };
+alarm $t;
+waitpid($pid, 0);
+alarm 0;
+my $st = $?;
+exit($st & 127 ? 128 + ($st & 127) : $st >> 8);
+' "$CLS_NPM_BUILD_TIMEOUT" npm run build) > /dev/null 2>&1 || _build_rc=$?
+        if [ "$_build_rc" = 124 ]; then
+            STEP_MSG="npm run build 超时（墙钟上限 ${CLS_NPM_BUILD_TIMEOUT}s, 已杀整个进程组）: $HARNESS/frontend/obsidian-plugin"
+            return 1
+        fi
+        if [ "$_build_rc" != 0 ]; then
             STEP_MSG="npm run build 失败（$HARNESS/frontend/obsidian-plugin）"
             return 1
         fi

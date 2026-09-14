@@ -1,0 +1,45 @@
+### ruff 判据重做（验伪锚用生效配置）ts=20260914T195908
+--- 生效配置（ruff 是就近 ruff.toml 优先，不是合并）---
+Settings path: "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t2-deploy/backend/ruff.toml"
+9:[lint]
+10-select = ["E9", "F63", "F7", "F82"]
+⚠️ 如实：本仓 lint 规则集只有 E9/F63/F7/F82（语法错 + 少量真错），**不含** F401 之类的风格规则
+   ⇒ 「ruff check 绿」只证明没有语法错与未定义名，承重的是 ruff format --check 与 pytest。
+
+--- 本卡改动的 .py（1 个）: backend/tests/unit/test_deploy_vault_sh.py
+All checks passed!
+ruff_check_rc=0
+1 file already formatted
+ruff_format_check_rc=0
+
+--- 验伪锚 A：F821 未定义名（属 F82 组，本仓已启用），用同一份 --config ---
+F821 Undefined name `undefined_symbol_for_falsifier`
+ --> /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t2-deploy/31d70716-3ac4-4fe0-85d4-235144ae3754/scratchpad/f821_probe.py:1:5
+  |
+1 | x = undefined_symbol_for_falsifier
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+
+Found 1 error.
+falsifier_A_rc=1（期望 1）
+--- 验伪锚 B：E9 语法错 ---
+invalid-syntax: Expected a parameter or the end of the parameter list
+ --> /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t2-deploy/31d70716-3ac4-4fe0-85d4-235144ae3754/scratchpad/e9_probe.py:1:12
+  |
+1 | def broken(:
+  |            ^
+  |
+
+invalid-syntax: unexpected EOF while parsing
+ --> /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t2-deploy/31d70716-3ac4-4fe0-85d4-235144ae3754/scratchpad/e9_probe.py:2:1
+  |
+1 | def broken(:
+  |             ^
+  |
+
+Found 2 errors.
+falsifier_B_rc=1（期望 1）
+--- 验伪锚 C：format 尺子会动（喂一个格式不规范的文件）---
+Would reformat: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t2-deploy/31d70716-3ac4-4fe0-85d4-235144ae3754/scratchpad/fmt_probe.py
+1 file would be reformatted
+falsifier_C_rc=1（期望 1）

@@ -1,0 +1,23 @@
+### AST 改后（期望 total 20 / with 20 / WITHOUT 0）ts=20260914T195612
+total 20 with 20 [89, 108, 474, 498, 508, 689, 896, 954, 1025, 1285, 1650, 1700, 1890, 1944, 1947, 1949, 1983, 1985, 2342, 2466] WITHOUT 0 []
+--- 验伪锚：原先 4 处仍在 with 里（未被本卡碰过，行号因新增常量整体下移）---
+  :89  timeout=timeout
+  :108  timeout=_SUBPROCESS_TIMEOUT
+  :474  timeout=120
+  :498  timeout=_SUBPROCESS_TIMEOUT
+  :689  timeout=_SUBPROCESS_TIMEOUT
+  :896  timeout=_SUBPROCESS_TIMEOUT
+  :954  timeout=_SUBPROCESS_TIMEOUT
+  :1025  timeout=_SUBPROCESS_TIMEOUT
+  :1285  timeout=_SUBPROCESS_TIMEOUT
+  :1650  timeout=_SUBPROCESS_TIMEOUT
+  :1700  timeout=_SUBPROCESS_TIMEOUT
+  :1890  timeout=600
+  :1947  timeout=_SUBPROCESS_TIMEOUT
+  :1949  timeout=_SUBPROCESS_TIMEOUT
+  :1985  timeout=_SUBPROCESS_TIMEOUT
+  :2466  timeout=120
+  :508  timeout=_SUBPROCESS_TIMEOUT
+  :1944  timeout=_SUBPROCESS_TIMEOUT
+  :1983  timeout=_SUBPROCESS_TIMEOUT
+  :2342  timeout=_SUBPROCESS_TIMEOUT

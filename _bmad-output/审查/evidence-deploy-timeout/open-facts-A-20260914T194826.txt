@@ -1,0 +1,59 @@
+### §〇 逐字核 ts=20260914T194826  HEAD=08100483
+--- F1 代码基线冻结：git diff --stat 08100483 HEAD -- 两文件（期望空）---
+[F1 空即冻结] 行数=0
+--- F1b 文件行数（期望 2596 / 1238）---
+    2596 backend/tests/unit/test_deploy_vault_sh.py
+    1238 scripts/deploy-vault.sh
+    3834 total
+--- F3 grep -nF 'timeout=' 测试文件（期望 5 处：83/476/603/1888/2467）---
+83:        timeout=timeout,
+476:        timeout=120,
+603:        timeout=timeout,
+1888:        timeout=600,
+2467:        timeout=120,
+--- F4 既有 helper 形态 sed -n 77,84p ---
+    return subprocess.run(
+        [str(script or DEPLOY_SH), *args],
+        capture_output=True,
+        text=True,
+        env=full_env,
+        cwd=str(REPO_ROOT),
+        timeout=timeout,
+    )
+--- F4b sed -n 462,477p ---
+    return subprocess.run(
+        [
+            "docker",
+            "compose",
+            "-f",
+            str(compose_path),
+            "--project-directory",
+            str(project_dir),
+            *ALL_PROFILES,
+            "config",
+        ],
+        capture_output=True,
+        text=True,
+        env=full_env,
+        timeout=120,
+    )
+--- F4c def _run 在 :65 ---
+#: 「缺省不 up」那条用例会**先真起容器**再断言 SKIP —— 断言发生在脚本跑完之后，
+#: 拦不住启动。这是 r1 把闸门反转成 opt-in 之后留下的新回归。
+_STRIP_ENV = ("CLS_DEPLOY_ALLOW_DOCKER_UP", "CLS_MIN_SKILLS", "CLS_LIVE_VAULT")
+
+
+def _run(
+    *args: str,
+    env: dict[str, str] | None = None,
+    timeout: int = 120,
+    script: Path | None = None,
+):
+--- F4d :600,606p（:603 helper kwarg 转发）---
+        "--apply",
+        *extra,
+        env={"CLS_LIVE_VAULT": str(_fake_live(tmp_path))},
+        timeout=timeout,
+    )
+
+

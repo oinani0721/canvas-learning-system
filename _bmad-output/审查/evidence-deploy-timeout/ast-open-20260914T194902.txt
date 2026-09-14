@@ -1,0 +1,15 @@
+### 先红① AST 探针（测试侧）ts=20260914T194902 HEAD=08100483
+--- 探针源码（逐字，与卡文 §二.2 同）---
+import ast
+p="backend/tests/unit/test_deploy_vault_sh.py"
+t=ast.parse(open(p).read()); w=[]; wo=[]
+for n in ast.walk(t):
+    if isinstance(n,ast.Call) and isinstance(n.func,ast.Attribute) and n.func.attr=="run" \
+       and getattr(n.func.value,"id","")=="subprocess":
+        (w if any(k.arg=="timeout" for k in n.keywords) else wo).append(n.lineno)
+print("total",len(w)+len(wo),"with",len(w),sorted(w),"WITHOUT",len(wo),sorted(wo))
+--- 输出 ---
+total 20 with 4 [77, 462, 1873, 2447] WITHOUT 16 [96, 486, 495, 675, 882, 940, 1010, 1270, 1635, 1684, 1927, 1930, 1932, 1965, 1967, 2324]
+--- 验伪锚：with 必含 [77, 462, 1873, 2447]（证明探针能识别已带 timeout= 的跑）---
+total 20 with 4 [77, 462, 1873, 2447] WITHOUT 16 [96, 486, 495, 675, 882, 940, 1010, 1270, 1635, 1684, 1927, 1930, 1932, 1965, 1967, 2324]
+ANCHOR_HIT=yes

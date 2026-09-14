@@ -1,0 +1,11 @@
+### §二.3 脚本 wrapper 判据 改前基线 ts=20260914T194847 HEAD=08100483
+--- J1 perl/alarm/kill/wait/CLS_NPM_BUILD_TIMEOUT（期望 0 命中）---
+J1_hits=0 rc=1
+[J1 验伪锚] grep -cwE 'npm' = 14  (期望 14)
+[J1 反例证明尺子会被污染] grep -cE 'kill ' = 3  (无 -w 时被注释里 skill 命中)
+--- J2 npm_config_offline（期望 0 行 rc=1）---
+J2_rc=1
+[J2 验伪锚] grep -cF 'npm_config_' = 4
+--- J3 timeout 作为命令词（期望 0，改后仍 0）---
+J3_count=0
+[J3 验伪锚] grep -cwF 'npm' = 14

@@ -1,0 +1,26 @@
+### 步 5/6 未动 + 地盘门 ts=20260914T195832  HEAD=08100483
+--- S1 步 2 以后（含 step5_activate / step6_evidence / run_step 六次调用）逐字节对照 08100483 ---
+  08100483 step2..EOF sha256=96d10556a71e71c3702fd20ae4cb31f4a1c6acab3cc2b3317e8d40abe5789819  bytes=33631
+  工作树   step2..EOF sha256=96d10556a71e71c3702fd20ae4cb31f4a1c6acab3cc2b3317e8d40abe5789819  bytes=33631
+  判定: 逐字节相同 -> 步 2-6 与主流程零改动 OK
+  [验伪锚] 头部(头注+缺省赋值, 本卡确实改过): 603cb0e52f1da27a vs ca5917a334cf8449 -> 不同 = 尺子会动 OK
+
+--- S2 地盘门：改动文件集合（期望恰两文件）---
+backend/tests/unit/test_deploy_vault_sh.py
+scripts/deploy-vault.sh
+[验伪锚] 去掉 exclude 应多出 _bmad-output/ 路径:
+    backend/tests/unit/test_deploy_vault_sh.py
+    scripts/deploy-vault.sh
+[未跟踪文件]
+     M backend/tests/unit/test_deploy_vault_sh.py
+     M scripts/deploy-vault.sh
+    ?? "_bmad-output/\345\256\241\346\237\245/evidence-deploy-timeout/"
+
+--- S3 fsrs_bridge / decay_beta 零命中 ---
+grep_rc=1（1=零命中）
+[验伪锚] 同一把尺子加 deploy-vault 必须命中（期望 3 / 10）:
+scripts/deploy-vault.sh:3
+backend/tests/unit/test_deploy_vault_sh.py:11
+
+--- S4 backend/app 零改动（python-typecheck 不触发）---
+backend_app_changed=0（期望 0）
