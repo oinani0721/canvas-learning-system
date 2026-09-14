@@ -1229,7 +1229,7 @@ def _reachable_prefix(stmts: list) -> list:
     return out
 
 
-def _live_called_names(node: ast.AST, local_funcs: dict[str, list[ast.AST]] | None = None) -> list[str]:
+def _live_called_names(node: ast.AST) -> list[str]:
     """同 :func:`_called_names`，但**只数可达语句里的调用**。
 
     ``_called_names`` 走 ``ast.walk``，于是 ``if False: _install_audit_hook()`` 这条
@@ -1245,29 +1245,19 @@ def _live_called_names(node: ast.AST, local_funcs: dict[str, list[ast.AST]] | No
        ``test`` 与 ``body`` 仍算数；
     3. **同一语句块里终结语句之后的语句**（``return`` / ``raise`` / ``break`` /
        ``continue`` 之后，见 :func:`_reachable_prefix`）—— 终结语句自己仍算数；
-    4. **既没有装饰器、名字又再没出现过第二次的局部 ``FunctionDef`` 的 body** ——
-       顺序语义不经过一个没人提过、也没人在定义期替它跑过的函数。
+    4. **不带装饰器的局部 ``FunctionDef`` 的 body** —— 「定义一个函数」这条语句不执行它的体。
+       带装饰器的**照常算**：装饰器在 ``def`` 执行时就拿到函数对象、可以当场调用它。
 
-    第 4 类的判据刻意**不是**「名字有没有作为被调用者出现」，而是「名字有没有在可达
-    部分作为任何 ``Name`` 出现过」：``g = helper`` 之后 ``g()`` 这种别名调用里
-    ``helper`` 从不出现在 ``Call.func`` 上，按调用面判就会把一段**真可达**的函数体剪掉。
+    ⛔ **第 4 类只在「没有跨语句调用」的前提下才是对的**，而本函数**看不到**那个前提 ——
+    它是被逐条语句调用的。谁在什么时候真的执行了某个局部函数的 body，需要解析调用绑定才答
+    得出；本卡三轮外审逐一证明：任何在 AST 层面替它作答的近似都会开出假绿口子（三种失败写法
+    的原文见 :func:`_refuse_to_guess_on_local_functions`）。
 
-    ⛔ **带装饰器的局部函数一律当可达**（Codex round-1 MEDIUM-2）。装饰器在 ``def``
-    执行时就拿到函数对象，**可以当场调用它**，而源码里此后不必再出现函数名：
-
-    .. code-block:: python
-
-        @eager                              # eager 立刻跑一次 helper()
-        def helper():
-            assert_neo4j_target_blocked()   # 真实的第一次预检，发生在装门之前
-
-        _install_audit_hook()
-        register_final_accounting()
-        assert_neo4j_target_blocked()
-
-    初版把 ``helper`` 的 body 剪掉，两个顺序门读到的下标是 `1 / 2 / 3` ⇒ **双双变绿**，
-    而真实的第一次预检其实排在 hook 前面。这推翻了初版 docstring 里「漏掉真调用只会
-    让门更容易红」那句话 —— 后面有一个同名调用时，漏掉前面那个就是**假绿**。
+    所以顺序类判据**不靠本函数处理局部函数**，而是先调
+    :func:`_refuse_to_guess_on_local_functions` 把「作用域里有局部函数」这件事**判红**。
+    本函数的第 4 类因此只在那条前置条件成立时被使用 —— 即「压根没有局部函数」，剪与不剪
+    等价。独立探针若不走那条前置条件而直接喂含局部函数的片段，得到的是**只数定义点之外的
+    调用**这一语义，请按此理解，不要当成调用图分析。
 
     其余一律当可达：变量条件的分支、``while True`` 的 loop-else、``match`` 的各 case、
     ``lambda`` 体、以及任何要靠常量传播才判得出的不可达 —— 判据宁可多数一条，也不能
@@ -1308,23 +1298,6 @@ def _live_called_names(node: ast.AST, local_funcs: dict[str, list[ast.AST]] | No
     就把 orelse 剪掉。
     """
     names: list[str] = []
-    #: 在途展开的局部函数名，防自递归/互递归把遍历卷死。
-    inflight: set[str] = set()
-
-    def expand_call(name: str) -> None:
-        """调用点就地展开局部函数 ``name`` 的 body（同名多份定义一律全展开）。"""
-        if local_funcs is None or name in inflight:
-            return
-        bodies = local_funcs.get(name)
-        if not bodies:
-            return
-        inflight.add(name)
-        try:
-            for func_node in bodies:
-                for stmt in _reachable_prefix(func_node.body):
-                    visit(stmt)
-        finally:
-            inflight.discard(name)
 
     def visit(current: ast.AST) -> None:
         if _is_dead_branch(current):
@@ -1354,7 +1327,6 @@ def _live_called_names(node: ast.AST, local_funcs: dict[str, list[ast.AST]] | No
             func = current.func
             if isinstance(func, ast.Name):
                 names.append(func.id)
-                expand_call(func.id)
             elif isinstance(func, ast.Attribute):
                 names.append(func.attr)
         for _field, value in ast.iter_fields(current):
@@ -1370,6 +1342,38 @@ def _live_called_names(node: ast.AST, local_funcs: dict[str, list[ast.AST]] | No
 
     visit(node)
     return names
+
+
+def _refuse_to_guess_on_local_functions(scope: ast.FunctionDef) -> None:
+    """顺序类判据的**前置条件**：``scope`` 体内不得有局部函数定义 —— 有就当场报红。
+
+    ⛔ 这条断言是 CARD-W4-4b7-TAIL 走了三轮外审之后的结论，写在这里以免后人重蹈：
+
+    顺序门要回答的是「``_install_audit_hook()`` 是不是排在 ``assert_neo4j_target_blocked()``
+    之前」。一旦 ``install()`` 里出现局部函数，这个问题就需要**解析调用绑定**才答得出，而纯
+    AST 做不到。本卡先后试过三种静态近似，每一种都被独立复核用可复现输入打出**假绿**：
+
+    1. 「名字在本子树里没被提名 ⇒ 剪掉 body」—— 跨语句「stmt i 定义、stmt j 调用」丢关联，
+       真实的第一次预检整个消失；
+    2. 「名字在整个作用域被提名过 ⇒ 在**定义处**展开」—— 把将来才执行的 body 记到 ``def``
+       的下标上，于是「helper 包着 hook、在预检之后才调用」被读成 hook 在前；
+    3. 「在**调用点**展开，同名定义全收」—— 恒假分支里的同名诱饵定义被算到活的调用上；
+       ``g = helper; g()`` 这种别名调用又漏掉；局部装饰器函数**自身**的 body 也漏掉。
+
+    每修一次就开一个新口子，因为问题本身不是 AST 层面能判的。所以改成：**判据拒绝猜**。
+    真实的 ``install()`` 里一个局部函数都没有（本断言即其常驻证明），所以这条前置条件对
+    现状零影响；哪天真要往 ``install()`` 里加局部函数，本门会当场红，请**人工**确认顺序，
+    或者把那段逻辑挪到模块级函数里（模块级的调用关系顺序门本来就数得对）。
+
+    方向上这是**收紧**不是放宽：更多输入判红，没有任何输入因此变绿。
+    """
+    local_funcs = _local_func_defs(scope)
+    assert not local_funcs, (
+        f"{scope.name}() 里出现了局部函数定义 {sorted(local_funcs)} —— 顺序类判据**拒绝猜**："
+        "谁在什么时候真的执行了它的 body，需要解析调用绑定才答得出，纯 AST 判不了（本卡三轮"
+        "外审逐一打出过假绿，见本函数 docstring）。请人工确认 hook/结算器/预检的真实顺序，"
+        "或把那段逻辑挪到模块级函数里再放行本门。"
+    )
 
 
 def _local_func_defs(scope: ast.FunctionDef) -> dict[str, list[ast.AST]]:
@@ -1843,10 +1847,10 @@ class TestInstallOrder:
         —— 那里是清单本身，这里不复写，免得两份手抄清单各自漂移。
         """
         node = _fn_ast(guard.install)
-        local_funcs = _local_func_defs(node)
+        _refuse_to_guess_on_local_functions(node)
         hook_at = precheck_at = None
         for index, stmt in enumerate(_reachable_prefix(node.body)):
-            names = _live_called_names(stmt, local_funcs)
+            names = _live_called_names(stmt)
             if hook_at is None and "_install_audit_hook" in names:
                 hook_at = index
             if precheck_at is None and "assert_neo4j_target_blocked" in names:
@@ -1879,10 +1883,10 @@ class TestInstallOrder:
         ``guard-partial-install-settles-late-connection``。
         """
         node = _fn_ast(guard.install)
-        local_funcs = _local_func_defs(node)
+        _refuse_to_guess_on_local_functions(node)
         precheck_at = register_at = hook_at = None
         for index, stmt in enumerate(_reachable_prefix(node.body)):
-            names = _live_called_names(stmt, local_funcs)
+            names = _live_called_names(stmt)
             if precheck_at is None and "assert_neo4j_target_blocked" in names:
                 precheck_at = index
             if register_at is None and "register_final_accounting" in names:
