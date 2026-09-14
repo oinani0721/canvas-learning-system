@@ -1,0 +1,21 @@
+  from pydantic.v1.fields import FieldInfo as FieldInfoV1
+  import pkg_resources
+Building prefix dict from the default dictionary ...
+### Codex r9 MEDIUM-3 负控: 全部成功、无追加, 但清 checkpoint 失败
+### 旧行为: 返回 pending=0 而原文件仍在 ⇒ 汇总说「零待回灌」
+2026-09-15 00:19:24 [error    ] [Story 38.8] cannot clear failed_writes checkpoint (cannot clear) — refusing to rewrite/rotate the file (a stale cursor would point into the previous file generation); 0 entries stay pending.
+2026-09-15 00:19:24 [info     ] [Story 38.8] Fallback sync complete: 3 replayed, ≥0 (+failed_writes unknown) still pending
+  stats = {'recovered': 3, 'pending': -1, 'error': 'cannot clear checkpoint, file left untouched: cannot clear'}
+  文件仍在 = True, 里面还有 3 条
+  ✅ pending=-1(未知) + 带 error, 不再谎报零待回灌
+
+### 初读失败 ⇒ 带 error 而非静默 0/0
+2026-09-15 00:19:24 [warning  ] [Story 38.8] Cannot parse canvas_events_fallback: Expecting property name enclosed in double quotes: line 1 column 3 (char 2)
+2026-09-15 00:19:24 [info     ] [Story 38.8] Fallback sync complete: 0 replayed, ≥0 (+canvas_events unknown) still pending
+  canvas_events 解析失败 ⇒ {'recovered': 0, 'pending': -1, 'error': 'cannot parse: Expecting property name enclosed in double quotes: line 1 column 3 (char 2)'}
+  ✅ 带 error, main.py 的 _failed 判据会识别
+
+### 汇总不把 -1 当数字累加
+  上一轮的三链 stats: [('failed_writes', 0), ('canvas_events', -1), ('learning_memories', 0)]
+  (日志里应打 '≥N (+链名 unknown)' 而不是负数 — 见上方 Fallback sync complete 行)
+rc=0
