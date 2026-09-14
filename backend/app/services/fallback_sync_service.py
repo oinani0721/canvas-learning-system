@@ -106,6 +106,81 @@ class FallbackSyncService:
 
         return result
 
+    def count_fallback_backlog(self) -> Dict[str, int]:
+        """只读统计三条暂存链的积压条目数 — 不连 Neo4j, 不改任何文件.
+
+        CARD-NEO4J-REPLAY-WIRE (BATCH-2026-09-11-第十四批): 供 ``app/main.py``
+        的启动回填门在 **Neo4j 离线分支**登记「有多少条攒着等回灌」。离线时
+        原先整段只打一句「启动回填跳过」, 攒下的条目既不回灌也不出现在任何
+        日志里 —— 数据事实上悄悄丢失。
+
+        ⚠️ ``pending_total`` **只累加 failed_writes 与 canvas_events**:
+        这两个文件在 :meth:`_sync_failed_writes` / :meth:`_sync_canvas_events`
+        回灌成功后会被 ``_rotate_file`` 搬走, 所以「文件里还有几条」= 「还有
+        几条没回灌」。``learning_memories.json`` **刻意不轮转**
+        (见 :meth:`_sync_learning_memories` 结尾的 NOTE —— 运行时
+        ``LearningMemoryClient`` 还要查它), 它的条目数是「本地记录总数」而不是
+        「待回灌数」, 计进 total 会虚报。故单列返回、由调用方分开陈述。
+
+        读文件失败 (不存在 / 权限 / 格式坏) 按该条链 0 条计并记一条 warning:
+        本方法服务于「离线时不静默丢弃」这个目的, 若统计本身抛异常, 会被
+        ``main.py:405`` 那个 ``except`` 吞成一句 "启动回填 failed", 把
+        「没统计成」伪装成「回填出问题」—— 比不统计更坏。
+
+        Returns:
+            ``{"failed_writes": int, "canvas_events": int,
+               "learning_memories": int, "pending_total": int}``
+        """
+        failed_writes = self._count_jsonl_lines(FAILED_WRITES_FILE)
+        canvas_events = self._count_json_list(CANVAS_EVENTS_FALLBACK_FILE)
+        learning_memories = self._count_json_list(LEARNING_MEMORIES_FILE, key="memories")
+
+        return {
+            "failed_writes": failed_writes,
+            "canvas_events": canvas_events,
+            "learning_memories": learning_memories,
+            "pending_total": failed_writes + canvas_events,
+        }
+
+    @staticmethod
+    def _count_jsonl_lines(path: Path) -> int:
+        """JSONL 文件的非空行数; 读不到记 warning 后按 0 计."""
+        if not path.exists():
+            return 0
+        try:
+            raw = path.read_text(encoding="utf-8")
+        except OSError as e:
+            logger.warning(f"[T6-B backlog] Cannot read {path.name}: {e}")
+            return 0
+        return sum(1 for line in raw.splitlines() if line.strip())
+
+    @staticmethod
+    def _count_json_list(path: Path, key: Optional[str] = None) -> int:
+        """JSON 文件里列表的长度 (``key`` 非空时取该键下的列表); 坏文件按 0 计.
+
+        ⚠️ 坏文件计 0 与「真的空」在返回值上不可区分 —— 这是刻意的取舍
+        (见 :meth:`count_fallback_backlog` 的 docstring), 但两者在日志里可分:
+        坏文件会留下本方法的 warning, 真空不会。
+        """
+        if not path.exists():
+            return 0
+        try:
+            raw = path.read_text(encoding="utf-8").strip()
+            if not raw:
+                return 0
+            data = json.loads(raw)
+        except (OSError, json.JSONDecodeError) as e:
+            logger.warning(f"[T6-B backlog] Cannot parse {path.name}: {e}")
+            return 0
+
+        if key:
+            # 坏文件可能是任意 JSON (顶层 list / str / null) —— 对非 dict 调
+            # .get 会抛 AttributeError, 那是本方法承诺不抛的那类异常。
+            items = data.get(key, []) if isinstance(data, dict) else []
+        else:
+            items = data
+        return len(items) if isinstance(items, list) else 0
+
     # ─────────────────────────────────────────────────────────────────────
     # 1. failed_writes.jsonl sync
     # ─────────────────────────────────────────────────────────────────────

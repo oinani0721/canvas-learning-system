@@ -400,8 +400,47 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 f"[Graphiti-native] 启动回填: {bf['callouts']} 批注, "
                 f"{bf['errors']} 错误, {bf['relations']} 原因, {bf['failed']} 失败"
             )
+
+            # CARD-NEO4J-REPLAY-WIRE [BATCH-2026-09-11-第十四批]: Neo4j 在线
+            # ⇒ 视为已从离线恢复, 立刻回灌降级期攒下的暂存链。原先
+            # `FallbackSyncService.sync_all_fallbacks` 实现完整却**零生产调用方**
+            # (fallback_sync_service.py:53), 四条链只写不回灌 = 数据事实上丢失。
+            # 它自己先查 is_fallback_mode / health_check (同文件 :64-74), 故此处
+            # 不重复判可用性。
+            from app.services.fallback_sync_service import get_fallback_sync_service
+
+            # 自带 try: 否则回灌抛异常会落到 :405 那个 except, 被记成
+            # "[Graphiti-native] 启动回填 failed" —— 把「回灌失败」伪装成
+            # 「回填出问题」(DD-13 名实不符), 且此时回填其实已经成功了。
+            try:
+                replay = await get_fallback_sync_service().sync_all_fallbacks()
+                if replay.get("skipped"):
+                    logger.info(f"[T6-B] 启动回灌跳过: {replay.get('reason')}")
+                else:
+                    _rec = sum(v.get("recovered", 0) for v in replay.values() if isinstance(v, dict))
+                    _pend = sum(v.get("pending", 0) for v in replay.values() if isinstance(v, dict))
+                    logger.info(f"[T6-B] Neo4j 启动已恢复 → 回灌 {_rec} 条, {_pend} 条待回灌")
+            except Exception as replay_err:  # noqa: BLE001 — 回灌失败不得拖垮启动
+                logger.error(f"[T6-B] 启动回灌失败 (non-fatal, 条目仍在暂存文件里): {replay_err}")
         else:
             logger.info("[Graphiti-native] 启动回填跳过 (graphiti 未就绪)")
+
+            # CARD-NEO4J-REPLAY-WIRE: 离线时原先到上面那句为止 —— 四条暂存链照写,
+            # 却没有任何一处说明攒了多少, 数据悄悄丢失。这里只做**只读**登记:
+            # `count_fallback_backlog` 纯读三个文件, 不连 Neo4j (工厂里的
+            # `Neo4jClient.__init__` 只存配置、_driver=None, 连接要到 initialize()
+            # 才建 — neo4j_client.py:299)。写侧有界/轮转与 /traces 积压字段是
+            # T6-C 的地盘, 本卡只到「一条日志 + 一个只读计数」为止。
+            from app.services.fallback_sync_service import get_fallback_sync_service
+
+            _backlog = get_fallback_sync_service().count_fallback_backlog()
+            logger.info(
+                f"[T6-B] Neo4j 离线, {_backlog['pending_total']} 条待回灌, 恢复后回灌 "
+                f"(failed_writes={_backlog['failed_writes']}, "
+                f"canvas_events={_backlog['canvas_events']}; "
+                f"learning_memories={_backlog['learning_memories']} 条本地记录, "
+                f"该文件回灌后不轮转、不计入待回灌)"
+            )
     except Exception as e:
         logger.warning(f"[Graphiti-native] 启动回填 failed (non-fatal): {e}")
 
