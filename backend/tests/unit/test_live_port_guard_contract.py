@@ -1096,10 +1096,28 @@ def _indirect_self_method_calls(node: ast.AST, known: set[str]) -> list[str]:
     被误判成持锁调用。收窄的代价是**动态属性名与更深的包装仍然漏**，那是本判据
     未覆盖的路径，不是本判据声称已封死的面。
 
-    ⚠️ 别名表按 ``ast.walk`` 收集，**不跟语句先后**：``f()`` 写在 ``f = self.ledger``
-    之前也会命中。这是刻意的过近似 —— 方向是「多判一条」，落在假红侧而不是漏侧。
+    ⚠️ 别名表按 ``ast.walk`` 收集，**不跟语句先后**，且每个别名保留它曾绑过的
+    **全部**方法（``dict[str, set[str]]``）。
+
+    ⛔ 初版把它写成「一个别名 → 一个方法」并在 docstring 里声称「过近似只会假红」——
+    **那句话是错的，Codex round-1 MEDIUM-1 当场证伪**：
+
+    .. code-block:: python
+
+        with self._lock:
+            f = self.ledger          # 非白名单
+            f()                      # 真正被调用的是这一个
+            f = self._ledger_locked  # 白名单；后写的覆盖了别名表
+
+    覆盖式别名表只剩 ``_ledger_locked``，于是这次**真实的非白名单持锁调用被判成合规** ——
+    那是**假绿**，不是假红。改成集合后 ``f()`` 会同时报出两个绑定，非白名单那个照样顶红。
+    同理支持一层以上的别名传递（``f = self.ledger; g = f; g()``）：别名→别名的赋值做闭包传播。
+
+    识别面**仍然有限**（动态属性名、容器/参数/包装器里的绑定方法、元组解包、临界区外绑定
+    后在区内调用……）。本函数证明的是「这几类写法进不来」，**不**主张「临界区一定不嵌套取锁」。
     """
-    aliases: dict[str, str] = {}
+    alias_methods: dict[str, set[str]] = {}
+    alias_links: dict[str, set[str]] = {}
 
     def _bound_method(value: ast.AST | None) -> str | None:
         if value is None:
@@ -1122,11 +1140,25 @@ def _indirect_self_method_calls(node: ast.AST, known: set[str]) -> list[str]:
         else:
             continue
         attr = _bound_method(child.value)
-        if attr is None:
-            continue
         for target in targets:
-            if isinstance(target, ast.Name):
-                aliases[target.id] = attr
+            if not isinstance(target, ast.Name):
+                continue
+            if attr is not None:
+                alias_methods.setdefault(target.id, set()).add(attr)
+            elif isinstance(child.value, ast.Name):
+                # ``g = f``：f 若是（或将是）别名，g 也得算 —— 下面做闭包传播。
+                alias_links.setdefault(target.id, set()).add(child.value.id)
+
+    # 别名→别名的传播，直到不动点（``f = self.ledger; g = f; h = g; h()`` 都算）
+    while True:
+        grew = False
+        for target, sources in alias_links.items():
+            merged = set().union(*(alias_methods.get(src, set()) for src in sources))
+            if not merged <= alias_methods.get(target, set()):
+                alias_methods.setdefault(target, set()).update(merged)
+                grew = True
+        if not grew:
+            break
 
     names: list[str] = []
     for child in ast.walk(node):
@@ -1143,8 +1175,8 @@ def _indirect_self_method_calls(node: ast.AST, known: set[str]) -> list[str]:
             if attr is not None:
                 names.append(attr)
                 continue
-        if isinstance(child.func, ast.Name) and child.func.id in aliases:
-            names.append(aliases[child.func.id])
+        if isinstance(child.func, ast.Name):
+            names.extend(sorted(alias_methods.get(child.func.id, set())))
     return names
 
 
@@ -1190,7 +1222,7 @@ def _reachable_prefix(stmts: list) -> list:
     return out
 
 
-def _live_called_names(node: ast.AST) -> list[str]:
+def _live_called_names(node: ast.AST, expandable: set[str] | None = None) -> list[str]:
     """同 :func:`_called_names`，但**只数可达语句里的调用**。
 
     ``_called_names`` 走 ``ast.walk``，于是 ``if False: _install_audit_hook()`` 这条
@@ -1206,25 +1238,54 @@ def _live_called_names(node: ast.AST) -> list[str]:
        ``test`` 与 ``body`` 仍算数；
     3. **同一语句块里终结语句之后的语句**（``return`` / ``raise`` / ``break`` /
        ``continue`` 之后，见 :func:`_reachable_prefix`）—— 终结语句自己仍算数；
-    4. **整个子树里名字再没出现过第二次的局部 ``FunctionDef`` 的 body** —— 顺序语义不
-       经过一个没人提过的函数。
+    4. **既没有装饰器、名字又再没出现过第二次的局部 ``FunctionDef`` 的 body** ——
+       顺序语义不经过一个没人提过、也没人在定义期替它跑过的函数。
 
     第 4 类的判据刻意**不是**「名字有没有作为被调用者出现」，而是「名字有没有在可达
     部分作为任何 ``Name`` 出现过」：``g = helper`` 之后 ``g()`` 这种别名调用里
-    ``helper`` 从不出现在 ``Call.func`` 上，按调用面判就会把一段**真可达**的函数体剪
-    掉 —— 那是假绿之外的另一种坏（真调用被漏 ⇒ 下标读错）。凡被提过一次就展开，
-    落在「多数一条」这一侧。
+    ``helper`` 从不出现在 ``Call.func`` 上，按调用面判就会把一段**真可达**的函数体剪掉。
+
+    ⛔ **带装饰器的局部函数一律当可达**（Codex round-1 MEDIUM-2）。装饰器在 ``def``
+    执行时就拿到函数对象，**可以当场调用它**，而源码里此后不必再出现函数名：
+
+    .. code-block:: python
+
+        @eager                              # eager 立刻跑一次 helper()
+        def helper():
+            assert_neo4j_target_blocked()   # 真实的第一次预检，发生在装门之前
+
+        _install_audit_hook()
+        register_final_accounting()
+        assert_neo4j_target_blocked()
+
+    初版把 ``helper`` 的 body 剪掉，两个顺序门读到的下标是 `1 / 2 / 3` ⇒ **双双变绿**，
+    而真实的第一次预检其实排在 hook 前面。这推翻了初版 docstring 里「漏掉真调用只会
+    让门更容易红」那句话 —— 后面有一个同名调用时，漏掉前面那个就是**假绿**。
 
     其余一律当可达：变量条件的分支、``while True`` 的 loop-else、``match`` 的各 case、
     ``lambda`` 体、以及任何要靠常量传播才判得出的不可达 —— 判据宁可多数一条，也不能
     把真调用当死代码放过。
 
-    ⚠️ 第 4 类有个直接推论：**根节点自己就是一个 ``FunctionDef`` 时，它的 body 不展开**
-    （它的名字不可能在它自己的子树里被提名）。顺序门正是逐条 ``install()`` 的 body 语句
-    调本函数的，而「定义一个局部函数」这条语句在顺序语义里确实不执行函数体，所以这是
-    对的。代价是一种**假红**：真调用若写成「stmt i 定义 ``helper``、stmt j 调 ``helper()``」
-    跨两条语句，本函数在任何一条上都数不到它，顺序门会以「找不到可达的 X」翻红而不是
-    读错顺序。方向是吵不是漏 —— 真要这么写，改门比改判据的默认方向安全。
+    ⛔ **第 4 类必须带 ``expandable`` 用**（Codex round-1 MEDIUM-2 / LOW-③）。顺序门是
+    **逐条**语句调本函数的，而「定义 helper」与「调 helper()」通常分属**两条**语句：
+
+    .. code-block:: python
+
+        def helper():
+            assert_neo4j_target_blocked()   # stmt 0：真实的第一次预检藏在这里
+        helper()                            # stmt 1：它在这一刻真的跑了
+        _install_audit_hook()               # stmt 2
+        register_final_accounting()         # stmt 3
+        assert_neo4j_target_blocked()       # stmt 4
+
+    只看单条语句时，stmt 0 的子树里 ``helper`` 不会被提名（提名在 stmt 1），于是它的
+    body 被剪 ⇒ ``precheck_at`` 落到 stmt 4、``hook_at`` 落到 stmt 2 ⇒ **顺序门变绿**，
+    而真实的第一次预检明明排在装门之前。**这是假绿，不是假红。**
+
+    所以调用方必须先用 :func:`_reachable_local_func_names` 在**整个 ``install()`` 作用域**
+    上算出「哪些局部函数名被可达地提名过」，把它当 ``expandable`` 传进来：名字在表里 ⇒
+    body 照常展开（跨语句的关联不再丢），不在表里 ⇒ 才算「谁都没提过」而剪掉。
+    ``expandable=None`` 是**自足模式**（只看本子树），仅供独立探针使用，不要给顺序门用。
 
     ⛔ 剪枝判定必须发生在**进入每个节点时**，包括传进来的那个根节点。初版只在
     ``iter_child_nodes`` 的子节点上判，于是 ``_live_called_names(<if False 语句>)``
@@ -1232,6 +1293,15 @@ def _live_called_names(node: ast.AST) -> list[str]:
     被数进去，诱饵照样生效。负控 case 4 当场抓到（2026-09-08 实测：新门在变异体上
     仍 passed）。第 2/3 类同理：``_live_called_names(<if True 语句>)`` 必须在根节点上
     就把 orelse 剪掉。
+    """
+    names, _referenced, _funcs = _walk_live(node, expandable)
+    return names
+
+
+def _walk_live(node: ast.AST, expandable: set[str] | None) -> tuple[list[str], set[str], dict[str, ast.AST]]:
+    """:func:`_live_called_names` 的遍历本体，额外回吐 ``referenced`` 与局部函数表。
+
+    ``_reachable_local_func_names`` 要用后两项，所以单独抽出来——两份手抄的遍历必然漂移。
     """
     names: list[str] = []
     referenced: set[str] = set()
@@ -1252,10 +1322,17 @@ def _live_called_names(node: ast.AST) -> list[str]:
             return
         if isinstance(current, (ast.FunctionDef, ast.AsyncFunctionDef)):
             # 定义一个函数这条语句本身不执行函数体；body 等被提名了再展开（第 4 类）。
-            local_funcs.setdefault(current.name, current)
             for decorator in current.decorator_list:
                 visit(decorator)
             visit(current.args)
+            if current.decorator_list or (expandable is not None and current.name in expandable):
+                # ⛔ 装饰器在 def 执行时就拿到函数对象、可以当场调用它，源码此后不必再
+                #    出现函数名（Codex round-1 MEDIUM-2）⇒ 带装饰器一律当可达。
+                #    expandable 命中 = 该名字在**整个作用域**里被可达地提名过（跨语句）。
+                for stmt in _reachable_prefix(current.body):
+                    visit(stmt)
+                return
+            local_funcs.setdefault(current.name, current)
             return
         if isinstance(current, ast.Name):
             referenced.add(current.id)
@@ -1278,18 +1355,39 @@ def _live_called_names(node: ast.AST) -> list[str]:
 
     visit(node)
 
-    expanded: set[str] = set()
-    while True:
-        pending = [name for name in local_funcs if name in referenced and name not in expanded]
-        if not pending:
-            break
-        for name in pending:
-            expanded.add(name)
-            func_node = local_funcs[name]
-            assert isinstance(func_node, (ast.FunctionDef, ast.AsyncFunctionDef))
-            for stmt in _reachable_prefix(func_node.body):
-                visit(stmt)
-    return names
+    if expandable is None:
+        # 自足模式：本子树内「定义 + 提名」都在时照常展开（同一条语句里的嵌套函数）。
+        expanded: set[str] = set()
+        while True:
+            pending = [name for name in local_funcs if name in referenced and name not in expanded]
+            if not pending:
+                break
+            for name in pending:
+                expanded.add(name)
+                func_node = local_funcs[name]
+                assert isinstance(func_node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                for stmt in _reachable_prefix(func_node.body):
+                    visit(stmt)
+    return names, referenced, local_funcs
+
+
+def _reachable_local_func_names(scope: ast.FunctionDef) -> set[str]:
+    """``scope`` 体内被**可达地提名过**的局部函数名（供顺序门当 ``expandable`` 用）。
+
+    逐条语句扫 ``scope`` 的可达前缀，把各条的 ``referenced`` 与局部函数表并起来，再取交集。
+    这样「stmt i 定义、stmt j 调用」的跨语句关联不会因为逐语句分析而丢掉
+    （Codex round-1 MEDIUM-2 / LOW-③ 的假绿正是这么来的）。
+
+    引用集合只从**已剪枝**的遍历里收：藏在恒假分支里的 ``helper()`` 不算提名，
+    否则死代码里的一次提名就能把一段真死码救活，剪枝等于白做。
+    """
+    referenced: set[str] = set()
+    funcs: dict[str, ast.AST] = {}
+    for stmt in _reachable_prefix(scope.body):
+        _names, stmt_referenced, stmt_funcs = _walk_live(stmt, expandable=None)
+        referenced |= stmt_referenced
+        funcs.update(stmt_funcs)
+    return {name for name in funcs if name in referenced}
 
 
 class TestSettlementAtomicity:
@@ -1742,9 +1840,10 @@ class TestInstallOrder:
         —— 那里是清单本身，这里不复写，免得两份手抄清单各自漂移。
         """
         node = _fn_ast(guard.install)
+        expandable = _reachable_local_func_names(node)
         hook_at = precheck_at = None
-        for index, stmt in enumerate(node.body):
-            names = _live_called_names(stmt)
+        for index, stmt in enumerate(_reachable_prefix(node.body)):
+            names = _live_called_names(stmt, expandable)
             if hook_at is None and "_install_audit_hook" in names:
                 hook_at = index
             if precheck_at is None and "assert_neo4j_target_blocked" in names:
@@ -1777,9 +1876,10 @@ class TestInstallOrder:
         ``guard-partial-install-settles-late-connection``。
         """
         node = _fn_ast(guard.install)
+        expandable = _reachable_local_func_names(node)
         precheck_at = register_at = hook_at = None
-        for index, stmt in enumerate(node.body):
-            names = _live_called_names(stmt)
+        for index, stmt in enumerate(_reachable_prefix(node.body)):
+            names = _live_called_names(stmt, expandable)
             if precheck_at is None and "assert_neo4j_target_blocked" in names:
                 precheck_at = index
             if register_at is None and "register_final_accounting" in names:
