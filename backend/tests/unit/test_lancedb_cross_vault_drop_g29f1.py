@@ -1380,3 +1380,49 @@ def test_degraded_registry_result_is_not_cached(tmp_path):
     finally:
         mp.undo()
         get_settings.cache_clear()
+
+
+def test_cache_tables_skips_tables_whose_owner_cannot_be_determined(tmp_path):
+    """启动自愈同样不碰"判不出主人"的表（Codex round-5 HIGH-1）。
+
+    ⚠️ 与 ``test_drop_refuses_tables_whose_owner_cannot_be_determined`` 是**同一条判据的
+    两个入口**：r4 把这道闸只加在了 ``drop_vault_tables``，于是同一个缺项形态
+    （vault ``a_b`` 的目录暂时不可见 + 它没有指纹表）还能从**启动自愈**漏过去 ——
+    扫描一切正常、不置降级，``a_b_canvas_nodes`` 又归了 ``a``，有漂移就被 drop。
+
+    ⚠️ 与降级那条门的分工：本条要的是「**扫描正常但缺项**」，所以显式断言
+    ``_vault_registry_degraded is False`` —— 否则这条门可能是被降级闸挡住的，
+    证不到模糊表名这一层（同款假绿在 round-3 的枚举失败门上真发生过）。
+    """
+    db_path = tmp_path / "db"
+    db = lancedb.connect(str(db_path))
+    # a 自己的漂移表 —— 正向对照，必须仍被自愈
+    db.create_table(f"{_SHORT_VAULT}_canvas_nodes", data=_rows("A", dim=_DRIFT_DIM))
+    # a_b 的漂移表 + 无指纹表 ⇒ 两条来源都补不回来
+    db.create_table(f"{_LONG_VAULT}_canvas_nodes", data=_rows("AB", dim=_DRIFT_DIM))
+    before = _all_names(db)
+
+    with _vaults_root_override(tmp_path / "roots", (_SHORT_VAULT,)):
+        client = _client(db_path, vault_id=_SHORT_VAULT)
+        assert _LONG_VAULT not in client._known_vault_ids(), "前提失效: a_b 此刻不该可被发现"
+        assert client._vault_registry_degraded is False, (
+            "前提失效: 本门要的是**扫描正常但缺项**，不是降级（那条另有门）"
+        )
+
+        asyncio.run(client._cache_tables())
+        after = _all_names(db)
+
+        assert f"{_LONG_VAULT}_canvas_nodes" in after, (
+            f"vault {_SHORT_VAULT} 的启动自愈删掉了判不出主人的表 {_LONG_VAULT}_canvas_nodes —— "
+            f"drop 侧有这道闸、自愈侧漏了; 消失的表 = {sorted(before - after)}"
+        )
+        assert f"{_SHORT_VAULT}_canvas_nodes" not in after, (
+            f"正向对照失败: vault {_SHORT_VAULT} **自己**的漂移表（余名是规范逻辑名）没被自愈 —— "
+            "这道闸收得过宽，会把正常自愈一起挡掉"
+        )
+        # 读侧不该受影响：判不出主人的表**句柄照常装载**，只是不进维度修复。
+        # ⚠️ 不能断言 `_tables_cache == before` —— 本 vault 自己那张漂移表被自愈 drop 掉后，
+        #    会一并从句柄缓存里移除（初版这么写，被本门当场抓到）。
+        assert f"{_LONG_VAULT}_canvas_nodes" in client._tables_cache, (
+            f"判不出主人的表连句柄都没装载（读侧被误伤）: {sorted(client._tables_cache)}"
+        )

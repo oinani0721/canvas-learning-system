@@ -1532,10 +1532,19 @@ class LanceDBClient:
                         f"本次装载 {len(self._tables_cache)} 张表句柄不受影响"
                     )
                     return
+                # ⛔ 判不出主人的表也不碰 (Codex round-5 HIGH-1; 主 session 2026-09-14 授权
+                # 第 6 轮补此条)。drop 侧已有这道闸, 自愈侧原先没有 —— 同一个缺项形态
+                # (某 vault 目录暂时不可见 + 它没有指纹表) 于是能从自愈这个入口漏过去,
+                # 把别人的漂移表 drop 掉。判据与 drop 侧逐字同: 余名还含下划线、又不是
+                # 本客户端会拼出的任何逻辑名 ⇒ 更像某个未被发现的长 id vault 的表。
+                logicals = set(self._canonical_logical_tables())
+                prefix_len = len(f"{owner_vault}_")
                 vector_tables = [
                     t
                     for t in self._tables_cache
-                    if self._owns_table(t, owner_vault) and not t.endswith(self.FINGERPRINT_TABLE)
+                    if self._owns_table(t, owner_vault)
+                    and not t.endswith(self.FINGERPRINT_TABLE)
+                    and not ("_" in t[prefix_len:] and t[prefix_len:] not in logicals)
                 ]
                 for tname in vector_tables:
                     self._check_and_fix_dimension_mismatch(tname, self.embedding_dim)
