@@ -1,0 +1,43 @@
+=== shasum -a 256 跑前 ===
+  68dc3881d475bc7c093586ee81466b05515597d0d5721f871a1f4bcaf1ed4ac9  scripts/local_tz.py
+  806be19ada1fe739408f704471ab1c4cc37e5413a65cdf52d7367368aa3a9ed9  backend/app/core/display_tz.py
+  354af5af02e2db841eeadb08681c343cb5c496c2d0865af1c143b9f5edfc9d6e  backend/app/api/v1/endpoints/review_overview.py
+
+① 还原 HIGH-1 候选窗(y-2 → y-1)
+   rc=1  汇总: ======================== 4 failed, 10 warnings in 0.51s ========================
+   失败正文含 '候选窗漏格': False
+   判定: NOT-RED ❌（负控失败）
+   还原后 sha 与跑前一致: True
+
+② 还原 HIGH-new(补默认规则 → return None)
+   rc=1  汇总: ======================== 6 failed, 10 warnings in 0.51s ========================
+   失败正文含 'dst 有名省略规则被退 UTC': False
+   判定: NOT-RED ❌（负控失败）
+   还原后 sha 与跑前一致: True
+
+③ 还原 HIGH-2 双向堵(敏感性复算短路)
+   rc=1  汇总: ======================== 2 failed, 10 warnings in 0.48s ========================
+   失败正文含 '固定偏移回退误放行': False
+   判定: NOT-RED ❌（负控失败）
+   还原后 sha 与跑前一致: True
+
+④ 还原 (c)+(d) 后跑门⑦(新增非 2026 样本须至少一条红)
+   rc=1  汇总: ================== 4 failed, 24 passed, 10 warnings in 0.58s ===================
+   失败正文含 '墙钟与 C 库不一致': False
+   判定: NOT-RED ❌（负控失败）
+   还原后 sha 与跑前一致: True
+
+⑤ 还原 end 切换时刻(现算 → 写死当地 02:00)
+   rc=1  汇总: =================== 8 failed, 6 passed, 10 warnings in 0.54s ===================
+   失败正文含 '省略规则的切换点与 C 库不符': False
+   判定: NOT-RED ❌（负控失败）
+   还原后 sha 与跑前一致: True
+
+=== shasum -a 256 跑后 ===
+  68dc3881d475bc7c093586ee81466b05515597d0d5721f871a1f4bcaf1ed4ac9  scripts/local_tz.py
+  806be19ada1fe739408f704471ab1c4cc37e5413a65cdf52d7367368aa3a9ed9  backend/app/core/display_tz.py
+  354af5af02e2db841eeadb08681c343cb5c496c2d0865af1c143b9f5edfc9d6e  backend/app/api/v1/endpoints/review_overview.py
+
+逐字相同: True
+五段全部 RED: False
+rc=1

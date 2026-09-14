@@ -1,0 +1,6 @@
+Traceback (most recent call last):
+  File "/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t3-review/87bf4fa1-6928-4165-9656-1f5b56fa5f3b/scratchpad/g69cr2_main/negctl.py", line 156, in <module>
+    assert _n == 1, f"⛔ 预检失败: 段「{_label}」的锚点在 {_f.name} 命中 {_n} 次（应为 1）: {_old[:60]!r}"
+           ^^^^^^^
+AssertionError: ⛔ 预检失败: 段「⑫ 还原末尾换行检查: AAA0<BBB>\n 被错误接受」的锚点在 local_tz.py 命中 0 次（应为 1）: '        if "\\n" in spec or "\\r" in spec:'
+rc=1

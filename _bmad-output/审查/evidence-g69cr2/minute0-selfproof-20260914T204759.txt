@@ -1,0 +1,51 @@
+# CARD-G6-9c-R2 第 0 分钟自证 @ 20260914T204759
+## 环境
+pwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t3-review
+branch=card/t3-review
+HEAD=08100483
+status-porcelain-lines=1
+venv-pytest=present
+backend/.env=present
+pyright-bin=executable
+python=3.14.4
+pytest=pytest 9.0.2
+ruff=ruff 0.15.9
+lefthook=2.1.6
+codex=codex-cli 0.153.3
+## 基线自证（R-B14-2 唯一口径）
+BASE=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/审查/evidence-b14/unit-red-baseline-08100483.txt
+test -f = yes
+grep -vc '^#' = 64   # 期望 64
+BASE 头第 2 行（跑法, 须与 §二.9 逐字一致）:
+# 跑法: cd backend && PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest tests/unit --ignore tests/unit/test_deploy_vault_sh.py -q -p no:cacheprovider（R-15 文件级 --ignore；T2-A 合入后主 session 撤 --ignore 重取）
+## pyright 基线（R-B14-10: cwd=backend/）
+0 errors, 81 warnings, 0 informations
+## 锚点核（grep -nF 实测）
+scripts/local_tz.py:176:        for year in (y - 1, y, y + 1):  # 南半球窗口跨年, 取三年候选
+backend/app/core/display_tz.py:175:        for year in (y - 1, y, y + 1):  # 南半球窗口跨年, 取三年候选
+scripts/local_tz.py:133:    if g["start"] is None or g["end"] is None:
+backend/app/core/display_tz.py:132:    if g["start"] is None or g["end"] is None:
+scripts/local_tz.py:131:    if g["dst"] is None:
+backend/app/core/display_tz.py:130:    if g["dst"] is None:
+review_overview.py ref_tz = ref.tzinfo -> 555:        ref_tz = ref.tzinfo
+253:            return ZoneInfo("UTC")  # 空 TZ = UTC, 与 libc 一致
+262:        return ZoneInfo("UTC")  # 垃圾 TZ 当 UTC —— 与 libc 的退化一致
+## shasum（改前）
+d9e190c5e80d2e29584ed02f941a4ef3b50f7cd7  backend/app/core/display_tz.py
+7cecb492a5cbf7fc597a2bd29df9c40b8392b12a  scripts/local_tz.py
+5fc4b99a1ff4fed285c80eb2adc61f7691d16f7f  backend/app/api/v1/endpoints/review_overview.py
+## §二.8 验伪锚⓪（pathspec 四项并列必须命中顶层 scripts/local_tz.py）
+四项并列 = 1
+单写 '**' 对照（应 0）= 0
+## tests/unit 目录级改前复现（基线逐条对照）
+RUN=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t3-review/_bmad-output/审查/evidence-g69cr2/unit-open-20260914T204116.txt
+= 35 failed, 5077 passed, 48 skipped, 23 xfailed, 171 warnings, 29 errors in 362.88s (0:06:02) =
+rc=1
+base.nodeids=64  open.nodeids=64
+diff base open = (空 — 基线逐条可复现)
+
+## ⚠ 关于上面的 status-porcelain-lines=1
+开工瞬间（本 session 首条命令，20:38）实测 git status --porcelain 为**空**（0 行）。
+本文件在 20:47 生成，此时唯一的未跟踪项 = 本 evidence 目录自身：
+    ?? "_bmad-output/\345\256\241\346\237\245/evidence-g69cr2/"
+即：非代码改动，不违反 (a) 的「第 0 分钟 status 空」。落档时点晚于开工时点。

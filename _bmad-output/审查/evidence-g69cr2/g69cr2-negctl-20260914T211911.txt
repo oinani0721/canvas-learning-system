@@ -1,0 +1,77 @@
+=== shasum -a 256 跑前 ===
+  68dc3881d475bc7c093586ee81466b05515597d0d5721f871a1f4bcaf1ed4ac9  scripts/local_tz.py
+  806be19ada1fe739408f704471ab1c4cc37e5413a65cdf52d7367368aa3a9ed9  backend/app/core/display_tz.py
+  354af5af02e2db841eeadb08681c343cb5c496c2d0865af1c143b9f5edfc9d6e  backend/app/api/v1/endpoints/review_overview.py
+
+① 还原 HIGH-1 候选窗(y-2 → y-1)
+   rc=1  汇总: ======================== 6 failed, 10 warnings in 0.55s ========================
+   失败正文含 '候选窗漏格': True
+   判定: RED ✅（负控成立）
+   还原后 sha 与跑前一致: True
+
+② 还原 HIGH-new(补默认规则 → return None)
+   rc=1  汇总: ======================== 6 failed, 10 warnings in 0.56s ========================
+   失败正文含 'dst 有名省略规则被退 UTC': True
+   判定: RED ✅（负控成立）
+   还原后 sha 与跑前一致: True
+
+③ 还原 HIGH-2 双向堵(敏感性复算短路)
+   rc=1  汇总: ======================== 2 failed, 10 warnings in 0.58s ========================
+   失败正文含 '固定偏移回退误放行': True
+   判定: RED ✅（负控成立）
+   还原后 sha 与跑前一致: True
+
+④ 还原 (c)+(d) 后跑门⑦(新增非 2026 样本须至少一条红)
+   rc=1  汇总: ================== 4 failed, 24 passed, 10 warnings in 0.56s ===================
+   失败正文含 '墙钟与 C 库不一致': True
+   判定: RED ✅（负控成立）
+   门⑦ 红格 nodeid:
+      FAILED tests/regression/test_g6_9c_single_tz_source.py::test_posix_tz_string_resolves_to_process_local_not_etc_localtime[CET-1CEST-backend]
+      FAILED tests/regression/test_g6_9c_single_tz_source.py::test_posix_tz_string_resolves_to_process_local_not_etc_localtime[CET-1CEST-scripts]
+      FAILED tests/regression/test_g6_9c_single_tz_source.py::test_posix_tz_string_resolves_to_process_local_not_etc_localtime[AAA1BBB0,365/3,365/2-backend]
+      FAILED tests/regression/test_g6_9c_single_tz_source.py::test_posix_tz_string_resolves_to_process_local_not_etc_localtime[AAA1BBB0,365/3,365/2-scripts]
+   红在新增非 2026 样本上的断言正文出现 2024: '2024' in out = True
+   还原后 sha 与跑前一致: True
+
+⑤ 还原 end 切换时刻(现算 → 写死当地 02:00)
+   rc=1  汇总: =================== 8 failed, 6 passed, 10 warnings in 0.59s ===================
+   失败正文含 '省略规则的切换点与 C 库不符': True
+   判定: RED ✅（负控成立）
+   还原后 sha 与跑前一致: True
+
+⑥ 闰日条件 a>=60 → a>=300(只坏 J60): 门⑦ 的 2024-02-29 格必红、2024-12-31 格必绿
+   rc=1  汇总: ================== 2 failed, 26 passed, 10 warnings in 0.52s ===================
+   失败正文含 '2024-02-29': True
+   判定: RED ✅（负控成立）
+   门⑦ 红格 nodeid:
+      FAILED tests/regression/test_g6_9c_single_tz_source.py::test_posix_tz_string_resolves_to_process_local_not_etc_localtime[AAA5BBB,J60/2,J300/2-backend]
+      FAILED tests/regression/test_g6_9c_single_tz_source.py::test_posix_tz_string_resolves_to_process_local_not_etc_localtime[AAA5BBB,J60/2,J300/2-scripts]
+   红在新增非 2026 样本上的断言正文出现 2024: '2024' in out = True
+   互斥判定: 正文含 2024-02-29=True（须 True）, 含 2024-12-31=False（须 False）
+   区分性: 成立 ✅
+      FAILED tests/regression/test_g6_9c_single_tz_source.py::test_posix_tz_string_resolves_to_process_local_not_etc_localtime[AAA5BBB,J60/2,J300/
+      FAILED tests/regression/test_g6_9c_single_tz_source.py::test_posix_tz_string_resolves_to_process_local_not_etc_localtime[AAA5BBB,J60/2,J300/
+   还原后 sha 与跑前一致: True
+
+⑦ 闰日条件 a>=60 → 60<=a<300(只坏 J365): 门⑦ 的 2024-12-31 格必红、2024-02-29 格必绿
+   rc=1  汇总: ================== 2 failed, 26 passed, 10 warnings in 0.53s ===================
+   失败正文含 '2024-12-31': True
+   判定: RED ✅（负控成立）
+   门⑦ 红格 nodeid:
+      FAILED tests/regression/test_g6_9c_single_tz_source.py::test_posix_tz_string_resolves_to_process_local_not_etc_localtime[WART4WARST,J1/0,J365/25-backe
+      FAILED tests/regression/test_g6_9c_single_tz_source.py::test_posix_tz_string_resolves_to_process_local_not_etc_localtime[WART4WARST,J1/0,J365/25-scrip
+   红在新增非 2026 样本上的断言正文出现 2024: '2024' in out = True
+   互斥判定: 正文含 2024-12-31=True（须 True）, 含 2024-02-29=False（须 False）
+   区分性: 成立 ✅
+      FAILED tests/regression/test_g6_9c_single_tz_source.py::test_posix_tz_string_resolves_to_process_local_not_etc_localtime[WART4WARST,J1/0,J36
+      FAILED tests/regression/test_g6_9c_single_tz_source.py::test_posix_tz_string_resolves_to_process_local_not_etc_localtime[WART4WARST,J1/0,J36
+   还原后 sha 与跑前一致: True
+
+=== shasum -a 256 跑后 ===
+  68dc3881d475bc7c093586ee81466b05515597d0d5721f871a1f4bcaf1ed4ac9  scripts/local_tz.py
+  806be19ada1fe739408f704471ab1c4cc37e5413a65cdf52d7367368aa3a9ed9  backend/app/core/display_tz.py
+  354af5af02e2db841eeadb08681c343cb5c496c2d0865af1c143b9f5edfc9d6e  backend/app/api/v1/endpoints/review_overview.py
+
+逐字相同: True
+五段全部 RED: True
+rc=0

@@ -1,0 +1,157 @@
+预检通过: 20 段 / 25 个(文件, 锚点)对全部唯一命中
+
+=== shasum -a 256 跑前 ===
+  7c20fd750d799dbd959dccb800b22b4e4586af02b62326b16f918988016505a1  scripts/local_tz.py
+  ce81b276c9e401305f4eeda45ba271e6c44a8ac7f2101cd31acbf894db09281d  backend/app/core/display_tz.py
+  7fe02df53464ecbe629d356e655b91827ba52ebe47f2ce281e756e76d0d72c10  backend/app/api/v1/endpoints/review_overview.py
+
+① 还原 HIGH-1 候选窗(y-2 → y-1)
+   rc=1  汇总: ======================= 10 failed, 10 warnings in 0.60s ========================
+   失败正文含 '候选窗漏格': True
+   判定: RED ✅（负控成立）
+   还原后 sha 与跑前一致: True
+
+② 还原 HIGH-new(补默认规则 → return None)
+   rc=1  汇总: ======================== 6 failed, 10 warnings in 0.54s ========================
+   失败正文含 'dst 有名省略规则被退 UTC': True
+   判定: RED ✅（负控成立）
+   还原后 sha 与跑前一致: True
+
+③ 还原 HIGH-2 双向堵(敏感性复算短路)
+   rc=1  汇总: ======================== 2 failed, 10 warnings in 0.53s ========================
+   失败正文含 'display_tz 缺席或为 null': True
+   判定: RED ✅（负控成立）
+   还原后 sha 与跑前一致: True
+
+④ 还原 (c)+(d) 后跑门⑦(新增非 2026 样本须至少一条红)
+   rc=1  汇总: ================== 4 failed, 24 passed, 10 warnings in 0.55s ===================
+   失败正文含 '墙钟与 C 库不一致': True
+   判定: RED ✅（负控成立）
+   门⑦ 红格 nodeid:
+      FAILED tests/regression/test_g6_9c_single_tz_source.py::test_posix_tz_string_resolves_to_process_local_not_etc_localtime[CET-1CEST-backend]
+      FAILED tests/regression/test_g6_9c_single_tz_source.py::test_posix_tz_string_resolves_to_process_local_not_etc_localtime[CET-1CEST-scripts]
+      FAILED tests/regression/test_g6_9c_single_tz_source.py::test_posix_tz_string_resolves_to_process_local_not_etc_localtime[AAA1BBB0,365/3,365/2-backend]
+      FAILED tests/regression/test_g6_9c_single_tz_source.py::test_posix_tz_string_resolves_to_process_local_not_etc_localtime[AAA1BBB0,365/3,365/2-scripts]
+   红在新增非 2026 样本上的断言正文出现 2024: '2024' in out = True
+   还原后 sha 与跑前一致: True
+
+⑤ 还原 end 切换时刻(现算 → 写死当地 02:00)
+   rc=1  汇总: =================== 8 failed, 6 passed, 10 warnings in 0.64s ===================
+   失败正文含 '省略规则的切换点与 C 库不符': True
+   判定: RED ✅（负控成立）
+   还原后 sha 与跑前一致: True
+
+⑥ 闰日条件 a>=60 → a>=300(只坏 J60): 门⑦ 的 2024-02-29 格必红、2024-12-31 格必绿
+   rc=1  汇总: ================== 2 failed, 26 passed, 10 warnings in 0.52s ===================
+   失败正文含 '2024-02-29': True
+   判定: RED ✅（负控成立）
+   门⑦ 红格 nodeid:
+      FAILED tests/regression/test_g6_9c_single_tz_source.py::test_posix_tz_string_resolves_to_process_local_not_etc_localtime[AAA5BBB,J60/2,J300/2-backend]
+      FAILED tests/regression/test_g6_9c_single_tz_source.py::test_posix_tz_string_resolves_to_process_local_not_etc_localtime[AAA5BBB,J60/2,J300/2-scripts]
+   红在新增非 2026 样本上的断言正文出现 2024: '2024' in out = True
+   互斥判定: 正文含 2024-02-29=True（须 True）, 含 2024-12-31=False（须 False）
+   区分性: 成立 ✅
+      FAILED tests/regression/test_g6_9c_single_tz_source.py::test_posix_tz_string_resolves_to_process_local_not_etc_localtime[AAA5BBB,J60/2,J300/
+      FAILED tests/regression/test_g6_9c_single_tz_source.py::test_posix_tz_string_resolves_to_process_local_not_etc_localtime[AAA5BBB,J60/2,J300/
+   还原后 sha 与跑前一致: True
+
+⑦ 闰日条件 a>=60 → 60<=a<300(只坏 J365): 门⑦ 的 2024-12-31 格必红、2024-02-29 格必绿
+   rc=1  汇总: ================== 2 failed, 26 passed, 10 warnings in 0.56s ===================
+   失败正文含 '2024-12-31': True
+   判定: RED ✅（负控成立）
+   门⑦ 红格 nodeid:
+      FAILED tests/regression/test_g6_9c_single_tz_source.py::test_posix_tz_string_resolves_to_process_local_not_etc_localtime[WART4WARST,J1/0,J365/25-backe
+      FAILED tests/regression/test_g6_9c_single_tz_source.py::test_posix_tz_string_resolves_to_process_local_not_etc_localtime[WART4WARST,J1/0,J365/25-scrip
+   红在新增非 2026 样本上的断言正文出现 2024: '2024' in out = True
+   互斥判定: 正文含 2024-12-31=True（须 True）, 含 2024-02-29=False（须 False）
+   区分性: 成立 ✅
+      FAILED tests/regression/test_g6_9c_single_tz_source.py::test_posix_tz_string_resolves_to_process_local_not_etc_localtime[WART4WARST,J1/0,J36
+      FAILED tests/regression/test_g6_9c_single_tz_source.py::test_posix_tz_string_resolves_to_process_local_not_etc_localtime[WART4WARST,J1/0,J36
+   还原后 sha 与跑前一致: True
+
+⑧ 还原省略规则分支的偏移收紧(|偏移| ≥24h 放行): 非法偏移串被错误接受
+   rc=1  汇总: ================== 20 failed, 18 passed, 10 warnings in 0.68s ==================
+   失败正文含 '省略规则分支扩大了错误接受面': True
+   判定: RED ✅（负控成立）
+   还原后 sha 与跑前一致: True
+
+⑨ 只还原 dst 侧越界检查(单侧退化): AAA23BBB24 被错误接受
+   rc=1  汇总: ================== 2 failed, 36 passed, 10 warnings in 0.53s ===================
+   失败正文含 'AAA23BBB24': True
+   判定: RED ✅（负控成立）
+   还原后 sha 与跑前一致: True
+
+⑪ 只还原 std 侧越界检查(对称的单侧退化): AAA24BBB23 被错误接受
+   rc=1  汇总: ================== 4 failed, 34 passed, 10 warnings in 0.55s ===================
+   失败正文含 'AAA24BBB23': True
+   判定: RED ✅（负控成立）
+   还原后 sha 与跑前一致: True
+
+⑩ 只还原「标准偏移必填」: <AAA><BBB> 被错误接受
+   rc=1  汇总: ================== 2 failed, 36 passed, 10 warnings in 0.54s ===================
+   失败正文含 '<AAA><BBB>': True
+   判定: RED ✅（负控成立）
+   还原后 sha 与跑前一致: True
+
+⑫ 还原末尾换行检查: AAA0<BBB>\n 被错误接受
+   rc=1  汇总: ================== 2 failed, 36 passed, 10 warnings in 0.53s ===================
+   失败正文含 'AAA0<BBB>': True
+   判定: RED ✅（负控成立）
+   还原后 sha 与跑前一致: True
+
+⑬ 还原整串长度检查: 508 字符串被错误接受
+   rc=1  汇总: ================== 6 failed, 32 passed, 10 warnings in 0.54s ===================
+   失败正文含 'AAAAAAAAAAAAAAAAAAAA': True
+   判定: RED ✅（负控成立）
+   还原后 sha 与跑前一致: True
+
+⑭ 还原候选年越界跳过: 公元 2 年换算抛 ValueError
+   rc=1  汇总: ======================== 2 failed, 10 warnings in 0.51s ========================
+   失败正文含 '候选年守卫失效': True
+   判定: RED ✅（负控成立）
+   还原后 sha 与跑前一致: True
+
+⑮ abs(差值) → 裸差值(负向退化): AAA-12BBB12 被错误接受
+   rc=1  汇总: ================== 2 failed, 36 passed, 10 warnings in 0.53s ===================
+   失败正文含 'AAA-12BBB12': True
+   判定: RED ✅（负控成立）
+   还原后 sha 与跑前一致: True
+
+⑯ 长度按字符而非 UTF-8 字节: 176 字符/516 字节的引用名被错误接受
+   rc=1  汇总: ================== 4 failed, 34 passed, 10 warnings in 0.54s ===================
+   失败正文含 '516 字节': True
+   判定: RED ✅（负控成立）
+   还原后 sha 与跑前一致: True
+
+⑰ 候选年上界收到 9998: 9999 年的北半球季度被整个跳过
+   rc=1  汇总: ======================== 2 failed, 10 warnings in 0.56s ========================
+   失败正文含 '候选年上界收得过紧': True
+   判定: RED ✅（负控成立）
+   还原后 sha 与跑前一致: True
+
+⑱ surrogateescape → 严格 encode: 非法字节 TZ 让 display_tz() 抛(启动失败面)
+   rc=1  汇总: ======================== 4 failed, 10 warnings in 0.58s ========================
+   失败正文含 'display_tz() 在 TZ=': True
+   判定: RED ✅（负控成立）
+   还原后 sha 与跑前一致: True
+
+⑲ 去掉 NUL 检查: 引用名内含 NUL 的自报值被错误接受
+   rc=1  汇总: ================== 2 failed, 36 passed, 10 warnings in 0.56s ===================
+   失败正文含 '含 NUL': True
+   判定: RED ✅（负控成立）
+   还原后 sha 与跑前一致: True
+
+⑳ 南半球上界 elif year<9999 → else: 9999 年南支算到 10000 抛
+   rc=1  汇总: ======================== 2 failed, 10 warnings in 0.61s ========================
+   失败正文含 '南半球分支的候选年上界失效': True
+   判定: RED ✅（负控成立）
+   还原后 sha 与跑前一致: True
+
+=== shasum -a 256 跑后 ===
+  7c20fd750d799dbd959dccb800b22b4e4586af02b62326b16f918988016505a1  scripts/local_tz.py
+  ce81b276c9e401305f4eeda45ba271e6c44a8ac7f2101cd31acbf894db09281d  backend/app/core/display_tz.py
+  7fe02df53464ecbe629d356e655b91827ba52ebe47f2ce281e756e76d0d72c10  backend/app/api/v1/endpoints/review_overview.py
+
+逐字相同: True
+全部 20 段 RED: True
+rc=0
