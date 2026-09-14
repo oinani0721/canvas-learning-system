@@ -234,14 +234,23 @@ class TestCleanupScheduler:
 
         interval = settings.TASK_CLEANUP_INTERVAL_SECONDS
         assert interval > 0, f"配置间隔必须 > 0, 否则 sleep(0) 仍是忙循环; 实测 {interval}"
-        assert events[:3] == [("sleep-enter", interval), ("sleep-exit", interval), ("cleanup", 0)], (
-            "第一轮必须是「进入循环顶 sleep(配置间隔) → 该 sleep 完成 → 进 cleanup_old_tasks」; "
-            f"走到 cleanup 就证明取配置不再抛 AttributeError。实测事件序列 = {events}"
-        )
-        cleanups = [kind for kind, _ in events].count("cleanup")
-        assert cleanups == 2, (
-            "调度器必须**继续**周期运行: 本用例让 spy 在第 3 次进入 sleep 时才终止, "
-            f"期间应完成 2 轮清理; 只有 1 轮说明循环在首轮后就退出了。实测 {cleanups} 轮, 序列 = {events}"
+        # 整段序列精确比对(含 delay 值), 不是「首轮形状 + 后面数个数」。
+        # 只钉首轮会放过两种真实的坏法(Codex round-2 LOW-1 指出, 均已实测):
+        #   (甲) 首轮等配置间隔、**之后各轮改成 sleep(0)** —— 那就是实质忙循环, 正是本卡要防的;
+        #   (乙) 一轮里连做两次 cleanup 后退出 —— 清理次数够了, 但周期性没了。
+        expected = [
+            ("sleep-enter", interval),
+            ("sleep-exit", interval),
+            ("cleanup", 0),
+            ("sleep-enter", interval),
+            ("sleep-exit", interval),
+            ("cleanup", 0),
+            ("sleep-enter", interval),  # 第 3 次进入即抛 Cancel, 故无 exit
+        ]
+        assert events == expected, (
+            "调度必须是「等配置间隔 → 清理」严格交替、且**每一轮**都等满配置间隔; "
+            "走到 cleanup 就证明取配置不再抛 AttributeError。"
+            f"\n实测 = {events}\n期望 = {expected}"
         )
 
     @pytest.mark.asyncio
@@ -306,15 +315,34 @@ class TestCleanupScheduler:
         between = after_raise[: after_raise.index("cleanup-ok")]
         assert between == ["sleep-enter", "sleep-exit", "sleep-enter", "sleep-exit"], (
             "except Exception 分支必须**就地 await** 一个等待(enter/exit 成对), 再经循环顶 sleep "
-            "才进下一轮清理 —— 共 4 个 sleep 事件。少于 4 个 = 异常分支没等待(错误会被立刻重试); "
-            "两个 enter 连着 = 等待没有被就地 await。⚠️ 注意: 这不等于说少了它就恢复成原先那个"
-            "「不交还事件循环」的忙循环 —— 循环顶的 sleep 仍会让出; 本条钉的是「异常路径必须等待」"
-            f"这条约定本身。实测异常与下一轮清理之间 = {between}; 完整序列 = {events}"
+            "才进下一轮清理 —— 共 4 个 sleep 事件。少于 4 个 = 异常分支没有自己的等待"
+            "(失败后只剩循环顶那一次等待, 不是「立刻」重试, 但「异常路径必须等待」这条约定没了); "
+            "两个 enter 连着 = 等待没有被就地 await。⚠️ 本条**不**声称少了它就恢复成原先那个"
+            "「不交还事件循环」的忙循环 —— 循环顶的 sleep 仍会让出。"
+            f"\n实测异常与下一轮清理之间 = {between}\n完整序列 = {events}"
         )
         backoff_delay = events[raise_at + 1][1]
         assert backoff_delay > 0, f"异常分支的等待秒数必须 > 0, 否则等于没等待; 实测 {backoff_delay}"
-        recovered = after_raise.count("cleanup-ok")
-        assert recovered >= 2, (
-            "失败恢复后调度器必须**继续**周期运行: spy 在第 5 次进入 sleep 才终止, "
-            f"期间应至少完成 2 轮成功清理; 实测 {recovered} 轮, 序列 = {events}"
+        # 整段序列精确比对: 钉住「每一个循环顶等待都等满配置间隔」与「严格交替」,
+        # 挡住「首轮之后退化成 sleep(0)」和「一轮连做两次清理」(Codex round-2 LOW-1)。
+        # 异常分支那次的秒数**刻意不钉死等于 interval** —— 卡文 (c).3 契约是「> 0 即可,
+        # 车道可换独立常量」, 钉死值会与契约冲突; 它只由上面那条 > 0 断言约束。
+        interval = settings.TASK_CLEANUP_INTERVAL_SECONDS
+        expected = [
+            ("sleep-enter", interval),
+            ("sleep-exit", interval),
+            ("cleanup-raise", 0),
+            ("sleep-enter", backoff_delay),
+            ("sleep-exit", backoff_delay),
+            ("sleep-enter", interval),
+            ("sleep-exit", interval),
+            ("cleanup-ok", 0),
+            ("sleep-enter", interval),
+            ("sleep-exit", interval),
+            ("cleanup-ok", 0),
+            ("sleep-enter", interval),  # 第 5 次进入即抛 Cancel, 故无 exit
+        ]
+        assert events == expected, (
+            "失败恢复后调度器必须**继续**按「等配置间隔 → 清理」严格交替运行, 且每个循环顶"
+            f"等待都等满配置间隔。\n实测 = {events}\n期望 = {expected}"
         )

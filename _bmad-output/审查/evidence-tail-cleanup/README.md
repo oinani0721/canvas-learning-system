@@ -39,3 +39,32 @@
    首次内联自证因此把头部也 grep 进去，报出 `AttributeError 命中=1` 的假阳性。该文件
    末尾已附「判据自污染更正」段：按 `---` 之后的正文重判为 `AttributeError = 0`，并带
    同次验伪锚（正文 `Error` 总命中 = 2，证明 0 不是 grep 坏了）。
+
+---
+
+## round-2 / round-3 追加（Codex 复核驱动）
+
+Codex round-1（绑 `8ace89c1`）= B0/H0/M0/L3 → 车道认两条半并补强测试（生产代码零改动）⇒ `85d2c18c`。
+Codex round-2（绑 `85d2c18c`）= B0/H0/M0/L3 → 再认一条半、把「首轮序列 + 数轮数」升级为
+**整段序列精确比对**（含 delay 值）⇒ round-3 commit。
+
+| 判据 | round-3 权威存档 | round-2 存档 |
+|---|---|---|
+| (e) 负控（r3 共 6 个） | `e-negctl-r3-*.txt` | `e-negctl-r2-*.txt`（4 个） |
+| (g) tests/unit 目录级 | `g-unit-close-r3-*.txt` | `g-unit-close-r2-*.txt` |
+| (h) pyright app | `h-pyright-app-r3-*.txt` | `h-pyright-app-r2-*.txt` |
+| (i) ruff + 验伪锚 | `i-ruff-r3-*.txt` | `i-ruff-r2-*.txt` |
+| (h) 81↔82 对照输入 | `h2-pyright-81vs82-control-*.txt`（一次即可，生产侧未再变） | 同左 |
+| (k) commit | `k-commit-r3-*.txt` | `k-commit-r2-*.txt` |
+
+**负控编号与它声称杀掉的断言**（round-3 行号）：
+1. config 字段改名 → 根因门 + 两测守卫 `:198` / `:268`
+2. 删异常分支的 `await` → `:316`（测试 A 仍绿）
+3. 异常分支 `await` 换成 `create_task` → `:316`（实测事件出现两个 `sleep-enter` 连着）
+4. `cleanup` 后注入 `break` → `:250` + `:345`
+5. **首轮等配置间隔、之后各轮 `sleep(0)`** → `:250` + `:345`（Codex r2 LOW-1 甲；这是实质忙循环）
+6. **一轮里连做两次 `cleanup` 后退出** → `:250` + `:345`（Codex r2 LOW-1 乙）
+
+⚠️ 负控 1~6 的 `shasum -a 256` 是**整批前后各一组**（跑前一组、六段跑完还原后一组），
+不是每段一组 —— 每段之间都从 `$SCR` 副本 `cp` 回，中间态不落档。这条边界由 Codex round-2 指出，
+如实记在这里，别把它读成「每段都单独比对过」。
