@@ -359,23 +359,33 @@ class FallbackSyncService:
         checkpoint_idx = self._load_checkpoint("canvas_events")
         recovered = 0
         still_pending: List[Dict[str, Any]] = []
+        # 与 _sync_failed_writes 同型 (Codex round-5 HIGH 的同一缺陷):
+        # 本链的 still_pending 也会 _atomic_write_file 写回文件, 但**被 checkpoint
+        # 跳过的条目根本不进 still_pending** ⇒ 游标按「已尝试」推进时, 中断重启后
+        # 那些从未成功的条目会被写回操作一并抹掉。游标同样只推进到连续成功前缀。
+        contiguous_end = checkpoint_idx
 
         for i, event in enumerate(events):
             if i < checkpoint_idx:
                 continue
 
+            entry_ok = False
             try:
                 success = await self._replay_canvas_event_to_neo4j(event)
                 if success:
                     recovered += 1
+                    entry_ok = True
                 else:
                     still_pending.append(event)
             except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
                 logger.warning(f"[Story 38.8] canvas_event replay error: {e}")
                 still_pending.append(event)
 
-            if (i + 1) % _CHECKPOINT_INTERVAL == 0:
-                self._save_checkpoint("canvas_events", i + 1)
+            if entry_ok and contiguous_end == i:
+                contiguous_end = i + 1
+
+            if (i + 1) % _CHECKPOINT_INTERVAL == 0 and contiguous_end > checkpoint_idx:
+                self._save_checkpoint("canvas_events", contiguous_end)
 
         # Finalize
         if still_pending:
@@ -422,23 +432,34 @@ class FallbackSyncService:
         checkpoint_idx = self._load_checkpoint("learning_memories")
         recovered = 0
         failed = 0
+        # 游标口径与另两条链统一为「连续成功前缀」。
+        # ⚠️ 本链的**后果**与另两条不同, 如实写明: 它既不写回也不轮转
+        # (见下方 NOTE —— 运行时 LearningMemoryClient 还要查这个文件),
+        # 所以被跳过的条目下一轮仍在文件里、**不会丢**, 只是这一轮没重放。
+        # 统一口径是为了「三条链的 checkpoint 语义一致」, 不是为了修数据丢失。
+        contiguous_end = checkpoint_idx
 
         for i, mem in enumerate(memories):
             if i < checkpoint_idx:
                 continue
 
+            entry_ok = False
             try:
                 success = await self._replay_learning_memory_to_neo4j(mem)
                 if success:
                     recovered += 1
+                    entry_ok = True
                 else:
                     failed += 1
             except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
                 logger.warning(f"[Story 38.8] learning_memory replay error: {e}")
                 failed += 1
 
-            if (i + 1) % _CHECKPOINT_INTERVAL == 0:
-                self._save_checkpoint("learning_memories", i + 1)
+            if entry_ok and contiguous_end == i:
+                contiguous_end = i + 1
+
+            if (i + 1) % _CHECKPOINT_INTERVAL == 0 and contiguous_end > checkpoint_idx:
+                self._save_checkpoint("learning_memories", contiguous_end)
 
         # NOTE: learning_memories.json is NOT rotated - still needed by
         # LearningMemoryClient for runtime queries.
