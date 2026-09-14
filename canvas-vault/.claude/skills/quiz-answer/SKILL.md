@@ -382,21 +382,27 @@ def _harness_tree(vault_dir):
     文件 F1 判定得出的是同一个结论(见 F1 那段 docstring 的「换 PyYAML 一次解决
     整类问题」), 这里照做 —— 不再逐字符猜 YAML 的合法形态。
     ⛔ 降级只收**一种**最规范写法: PyYAML 不可达时退回正则, 但只认
-    `harness_tree: <绝对路径>`(列首键、SP/TAB 分隔、裸值、不含 `#`)。其余一切形态
-    (引号 / `#` / 相对路径 / Unicode 空白 / 非列首键) fail-closed 拒写。每多认一种
-    就多一条猜错的路, 而猜错的代价是静默换树; 「这台机器装没装 PyYAML」不该改变
-    身份绑定, 宁可让缺库的机器停下说话。降级口径与本文件 F1 判定的「PyYAML 不
-    可用 → 退回正则扫描」声明同款: 都是「有总比没有强」的降级, 出现即告警。
+    `harness_tree: <绝对路径>`(列首键、空格分隔、裸值、不含 `#`、值内无 TAB 与冒号、
+    无续行)。其余一切形态(引号 / `#` / 相对路径 / Unicode 空白 / 非列首键 / 流式
+    映射 / 多行折叠) fail-closed 拒写。每多认一种就多一条猜错的路, 而猜错的代价是
+    静默换树; 「这台机器装没装 PyYAML」不该改变身份绑定, 宁可让缺库的机器停下
+    说话。收口的逐条依据见 `_degraded_scan` 的 docstring。降级口径与本文件 F1 判定
+    的「PyYAML 不可用 → 退回正则扫描」声明同款: 都是「有总比没有强」的降级,
+    出现即告警。
     ⛔ 路径用 `realpath` **逐段解析 symlink**, 不是 `normpath` 按字符串消 `..`:
     `/A/link/../repo` 在 `link → /B/child` 时, 按字符串消得 `/A/repo`, 而 OS 真正
     会打开的是 `/B/repo` —— 两棵都存在时就是又一次静默换树。以 OS 会打开的为准。
     ⛔ 有值但树不存在时**不回退**: 回退等于把「配置写错了」翻译成「按老布局跑」,
     而老布局下 import 往往**会成功**(另一棵树的 validator), 于是写出去的东西静静地
     绑到错的 harness 上 —— 配置断裂必须说话, 不能被兜底吃掉。
-    三条分界(与既有门逐字同语义, 本次重做不动它们): 无键 / 值为 null / 值为空串
-    ⇒ 回退 `dirname(VAULT)`; 有值但那棵树不存在 ⇒ fail-closed 拒写; config 本身
-    不是合法 YAML ⇒ fail-closed 拒写。第一条与第二条混成一条, 「用户把这个键清
-    掉了」就会变成砖化操作。
+    三条分界(**限 PyYAML 在的那条分支**, 与既有门逐字同语义, 本次重做不动它们):
+    无键 / 值为 null / 值为空串 ⇒ 回退 `dirname(VAULT)`; 有值但那棵树不存在 ⇒
+    fail-closed 拒写; config 本身不是合法 YAML ⇒ fail-closed 拒写。第一条与第二条
+    混成一条, 「用户把这个键清掉了」就会变成砖化操作。
+    ⚠️ 降级分支**只有两态**, 不要跨分支宣称上面那三条(Codex round-1 实测指出):
+    「整份 config 里没有 harness_tree 这个键」⇒ 回退; 其余一切(含 `harness_tree:`、
+    `harness_tree: null`、`harness_tree: ""` 这三种「用户清空了它」的写法)⇒
+    fail-closed。缺库时不猜「这是清空还是写错」—— 少认一种形态换的是「绝不绑错树」。
     """
     _cfg_p = os.path.join(vault_dir, ".canvas-config.yaml")
 
@@ -404,23 +410,56 @@ def _harness_tree(vault_dir):
         """PyYAML 不可用时的降级扫描: 只认一种最规范写法, 其余一律 fail-closed。
 
         返回 "" 只表示「这份 config 里没有 harness_tree 这个键」(⇒ 缺省回退);
-        有键但写法不规范一律抛 —— 绝不静默回退, 那正是 M-c 要消掉的形态。
-        `_loose` 只用来判「这一行看起来是在写这个键」, 不用来取值。
+        只要有哪一行**看起来**在写这个键而又不是那一种写法, 一律抛 —— 绝不静默
+        回退, 那正是 M-c 要消掉的形态。
+        ⛔ 不变量(本函数存在的全部理由): 降级正则的接受面必须 **⊆ PyYAML**, 且
+        接受的每一条都与 PyYAML **同值**。窄是允许的(窄 ⇒ 停下说话); 接受了
+        PyYAML 会拒的、或取到与 PyYAML 不同的值, 就是「同一份配置在装了和没装
+        PyYAML 的两台机器上绑到不同的树」—— 与 M-a/M-b/M-c 同一种事故。
+        实测(2026-09-14)据此收口的四类:
+          · 分隔符只认 **SP**: 冒号后跟 TAB 的写法会被 PyYAML 整份拒;
+          · 值内禁 **TAB** 与 **冒号**: `/x: y` / `/x:` / 值尾 TAB 同样被整份拒;
+          · 值内禁 YAML 当作**换行**的字符(U+0085 / U+2028 / U+2029 等):
+            `harness_tree: /repo` 后面紧跟一个 U+0085 再跟别的字, 在 PyYAML 里
+            值是 `/repo`, 逐行正则却会把 U+0085 之后的字一起吃进路径 ——
+            又一次静默换树(Codex round-1 MEDIUM 实测);
+          · 规范行后面若跟**续行**(缩进续写), PyYAML 会折叠成一个值
+            (实测 `/repo` + 缩进 `more` ⇒ `/repo more`), 逐行正则只看得见
+            `/repo` —— 同样拒。
         """
-        _canon = re.compile(r'^harness_tree:[ \t]+(/\S[^#]*?)[ \t]*$')
-        _loose = re.compile(r'^[ \t]*["\']?harness_tree["\']?[ \t]*:')
-        _val = ""
+        #: 这些字符 Python 的 `splitlines()` 会断行、YAML 也当换行或非法字符,
+        #: 但文本文件**按行迭代不会**在它们上面断行 —— 差异正是上面第三类的根因。
+        _breaks = "\v\f\x1c\x1d\x1e\x85  "
+        _canon = re.compile(r'^harness_tree:[ ]+(/[^\s#:][^\t#:]*?)[ ]*$')
+        _why = "只接受 `harness_tree: /path/to/tree`(列首键、空格分隔、裸值、无引号、无 #、值内无 TAB 与冒号、无续行)"
         try:
             with open(_cfg_p, encoding="utf-8") as _cf:
-                for _cl in _cf:
-                    _cl = _cl.rstrip("\r\n")
-                    _cm = _canon.match(_cl)
-                    if _cm:
-                        _val = _cm.group(1)
-                    elif _loose.match(_cl):
-                        raise SystemExit(f"[quiz-answer] PyYAML 不可用时 harness_tree 只接受规范绝对路径写法 `harness_tree: /path/to/tree` (列首键、裸值、无引号、无 #), 实见 {_cl!r} — 指向哪棵树不可证, fail-closed 拒写 — 请安装 PyYAML 或改用规范写法")
+                _txt = _cf.read()
         except OSError:
             return ""
+        _val = ""
+        _await_cont = False
+        for _raw in _txt.split("\n"):
+            _cl = _raw.rstrip("\r")
+            _bare = _cl.strip()
+            if not _bare:
+                continue            # 空行: 不打断续行判定(YAML 的折叠会跨过空行)
+            if _bare.startswith("#"):
+                continue            # 整行注释: YAML 视同没写这行
+            if _await_cont:
+                _await_cont = False
+                if _cl[:1] in (" ", "\t"):
+                    raise SystemExit(f"[quiz-answer] PyYAML 不可用时 harness_tree {_why}, 实见它后面跟着续行 {_cl!r} — PyYAML 会把两行折叠成一个值而逐行扫描看不到, 指向哪棵树不可证, fail-closed 拒写 — 请安装 PyYAML 或把路径写成一行")
+            if "harness_tree" not in _cl:
+                continue
+            if any(_b in _cl for _b in _breaks):
+                raise SystemExit(f"[quiz-answer] PyYAML 不可用时 harness_tree {_why}, 实见这一行里有 YAML 当作换行的字符 {_cl!r} — PyYAML 会在那里断行、取到另一个值, 指向哪棵树不可证, fail-closed 拒写 — 请安装 PyYAML 或删掉那个字符")
+            _cm = _canon.match(_cl)
+            if _cm:
+                _val = _cm.group(1)
+                _await_cont = True
+            else:
+                raise SystemExit(f"[quiz-answer] PyYAML 不可用时 harness_tree {_why}, 实见 {_cl!r} — 指向哪棵树不可证, fail-closed 拒写 — 请安装 PyYAML 或改用规范写法")
         return _val
 
     _tree = ""
@@ -436,7 +475,7 @@ def _harness_tree(vault_dir):
     except OSError:
         _tree = ""  # 压根没有 .canvas-config.yaml ⇒ 没写这个键 ⇒ 缺省回退
     except ImportError:
-        print("[quiz-answer] ⚠️ PyYAML 不可用 — harness_tree 解析退回正则, 只认 `harness_tree: <绝对路径>` 一种规范写法; 引号/`#`/相对路径/Unicode 空白/非列首键一律 fail-closed 拒写")
+        print("[quiz-answer] ⚠️ PyYAML 不可用 — harness_tree 解析退回正则, 只认 `harness_tree: <绝对路径>` 一种规范写法(列首键、空格分隔、裸值、无引号、无 #、值内无 TAB 与冒号、无续行); 其余一切写法一律 fail-closed 拒写")
         _degraded = True
     except Exception as _ye:
         raise SystemExit(f"[quiz-answer] .canvas-config.yaml 不是合法 YAML ({_ye}) — harness_tree 指向哪棵树不可证, fail-closed 拒写 — 请人工修复 {_cfg_p}")
@@ -449,11 +488,18 @@ def _harness_tree(vault_dir):
         _given = os.path.join(vault_dir, _given)
     #: ⛔ realpath 而不是 normpath (round-5 MEDIUM-a): normpath 按**字符串**消 `..`,
     #: 中间段是 symlink 时与 OS 的逐段解析分叉 —— 两棵树都存在就静静地绑错一棵。
-    _real = os.path.realpath(_given)
-    if not os.path.isdir(os.path.join(_real, "backend", "scripts")):
+    #: ⛔ 且必须 strict (Codex round-1 LOW): 非 strict 的 realpath 对**走不通**的
+    #: 路径也会给出一个看着正常的结果 —— 中间段是个**文件**时, `.../某文件/../..`
+    #: 会被消成一个真实存在的祖先目录, 而 OS 根本打不开那条路(ENOTDIR); 那个祖先
+    #: 若恰好长得像一棵 harness 树, 就又是一次静默换树。strict 让 OS 自己说不通。
+    try:
+        _real = os.path.realpath(_given, strict=True)
+    except OSError:
+        _real = ""  # 不存在 / 中间段不可遍历 ⇒ 与「那棵树不存在」同一结局
+    if not _real or not os.path.isdir(os.path.join(_real, "backend", "scripts")):
         #: 拒因先报**配置里写的那条路径**(已展开 `~`、已补全相对路径), 解析结果不
         #: 同时再附上 —— 只报解析后的路径, 用户认不出自己写错的是哪一行。
-        _also = "" if _real == _given else f" [逐段解析 symlink 后: {_real}]"
+        _also = "" if (not _real or _real == _given) else f" [逐段解析 symlink 后: {_real}]"
         raise SystemExit(f"[quiz-answer] harness_tree 指向不存在的树 ({_given}){_also} — G3-2 依赖不可达, fail-closed 拒写 — 请修正 .canvas-config.yaml 或删掉该键回退到 vault 父目录")
     return _real
 VAULT = os.path.dirname(os.path.dirname(os.path.abspath(NODE)))

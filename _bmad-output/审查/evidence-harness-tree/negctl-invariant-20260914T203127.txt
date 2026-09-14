@@ -1,0 +1,20 @@
+### 负控③ 新不变量门非 no-op: 还原到 f7f10be4(收紧前)的 SKILL.md ⇒ 必红
+[跑前] 7ddba3499bae65f2766e87c2e3072915db4c930e7392491dda2c17c559caac50  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills/canvas-vault/.claude/skills/quiz-answer/SKILL.md
+[还原态 f7f10be4] 6f53bb507a818adfbf4c0a6849773d0e66791dff51051d20d911f8428ac24953  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills/canvas-vault/.claude/skills/quiz-answer/SKILL.md
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/regression/test_g3_2_review_ledger.py::test_g33r2_harness_tree_degraded_never_diverges_from_yaml[harness_tree:\t/a/b]
+FAILED tests/regression/test_g3_2_review_ledger.py::test_g33r2_harness_tree_degraded_never_diverges_from_yaml[harness_tree: /a/b: c]
+FAILED tests/regression/test_g3_2_review_ledger.py::test_g33r2_harness_tree_degraded_never_diverges_from_yaml[harness_tree: /a/b:]
+FAILED tests/regression/test_g3_2_review_ledger.py::test_g33r2_harness_tree_degraded_never_diverges_from_yaml[harness_tree: /a/b\t]
+FAILED tests/regression/test_g3_2_review_ledger.py::test_g33r2_harness_tree_degraded_never_diverges_from_yaml[harness_tree: /a/b\x85x]
+FAILED tests/regression/test_g3_2_review_ledger.py::test_g33r2_harness_tree_degraded_never_diverges_from_yaml[harness_tree: /a/b\x85]
+FAILED tests/regression/test_g3_2_review_ledger.py::test_g33r2_harness_tree_degraded_never_diverges_from_yaml[harness_tree: /a/b\u2028x]
+FAILED tests/regression/test_g3_2_review_ledger.py::test_g33r2_harness_tree_degraded_never_diverges_from_yaml[harness_tree: /a/b\u2029x]
+FAILED tests/regression/test_g3_2_review_ledger.py::test_g33r2_harness_tree_degraded_never_diverges_from_yaml[harness_tree: /a/b\n  cont]
+FAILED tests/regression/test_g3_2_review_ledger.py::test_g33r2_harness_tree_degraded_never_diverges_from_yaml[harness_tree: /a/b\n\n  cont]
+FAILED tests/regression/test_g3_2_review_ledger.py::test_g33r2_harness_tree_degraded_never_diverges_from_yaml[{harness_tree: /a/b}]
+========== 11 failed, 29 passed, 183 deselected, 11 warnings in 2.39s ==========
+neg3_pytest_rc=1
+[trap] 已还原 sha=7ddba3499bae65f2766e87c2e3072915db4c930e7392491dda2c17c559caac50
+7ddba3499bae65f2766e87c2e3072915db4c930e7392491dda2c17c559caac50  canvas-vault/.claude/skills/quiz-answer/SKILL.md
