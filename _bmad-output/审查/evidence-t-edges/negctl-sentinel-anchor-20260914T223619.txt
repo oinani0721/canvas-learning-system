@@ -1,0 +1,51 @@
+== 负控②: 精确杀 sentinel 注入锚（证它不是恒真断言）==
+变异: _write_neo4j_triplet 的 except 分支不再把异常消息写进 WriteStatus.error
+预期: status 207 仍通过, 而 'SENTINEL in graphiti_status.error' 这条断言变红
+还原基准 = 变异前副本 /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t5-bugs/7bc5b2d0-947d-41ee-bead-4a96ad80718f/scratchpad/edges.py.premutation2
+
+== 跑前 shasum ==
+0b556095947c395bd1d8770581a74a4516c26e428b269ebcf2e44c8a8ddbcba5  backend/app/api/v1/endpoints/edges.py
+变异锚唯一, 落在第 147 行（_write_neo4j_triplet 44-147 内）
+变异已落盘
+-- 变异体 shasum（应与跑前不同）--
+db0f75321a8d14dd7eafea98d190e41110f98221d398c8d96e5fb539ef008d9c  backend/app/api/v1/endpoints/edges.py
+
+== 变异态重跑降级门（期望 FAILED, 红在 sentinel 断言而非 status）==
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-bugs/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 1 item
+
+tests/integration/test_edges_dual_write_neo4j_t5b.py F                   [100%]
+
+=================================== FAILURES ===================================
+__________________ test_neo4j_attribute_error_degrades_to_207 __________________
+tests/integration/test_edges_dual_write_neo4j_t5b.py:267: in test_neo4j_attribute_error_degrades_to_207
+    assert SENTINEL in graphiti_error, (
+E   AssertionError: 207 响应体里没有本门 sentinel (graphiti_status.error='negctl-redacted') —— 这条 207 不是 stub 的 AttributeError 被 edges.py:140 收下换来的
+E   assert 'T5B-STUB-SENTINEL' in 'negctl-redacted'
+----------------------------- Captured stdout call -----------------------------
+{"event": "vault_scope: both vault_id and group_id missing, deriving ACTIVE vault group (fail-closed, no DEFAULT_GROUP_ID fallback)", "logger": "app.core.vault_scope", "level": "warning", "timestamp": "2026-09-14T14:36:28.852762Z"}
+{"event": "Recording edge rationale: edge=edge-t5b-001, Concept A --[is prerequisite for]--> Concept B (confidence=0.85)", "logger": "app.api.v1.endpoints.edges", "level": "info", "timestamp": "2026-09-14T14:36:28.853091Z"}
+{"event": "Neo4j write failed for edge edge-t5b-001: T5B-STUB-SENTINEL: run_query refused by T5-B stub", "logger": "app.api.v1.endpoints.edges", "level": "error", "timestamp": "2026-09-14T14:36:28.853310Z"}
+{"event": "Partial dual-write for edge edge-t5b-001: neo4j=False, lancedb=True", "logger": "app.api.v1.endpoints.edges", "level": "warning", "timestamp": "2026-09-14T14:36:28.853541Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.core.vault_scope:vault_scope.py:195 vault_scope: both vault_id and group_id missing, deriving ACTIVE vault group (fail-closed, no DEFAULT_GROUP_ID fallback)
+INFO     app.api.v1.endpoints.edges:edges.py:315 Recording edge rationale: edge=edge-t5b-001, Concept A --[is prerequisite for]--> Concept B (confidence=0.85)
+ERROR    app.api.v1.endpoints.edges:edges.py:142 Neo4j write failed for edge edge-t5b-001: T5B-STUB-SENTINEL: run_query refused by T5-B stub
+WARNING  app.api.v1.endpoints.edges:edges.py:344 Partial dual-write for edge edge-t5b-001: neo4j=False, lancedb=True
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/integration/test_edges_dual_write_neo4j_t5b.py::test_neo4j_attribute_error_degrades_to_207
+============================== 1 failed in 0.56s ===============================
+negctl2_pytest_rc=1
+
+== 显式还原 ==
+== 跑后 shasum（应与跑前逐字相同）==
+0b556095947c395bd1d8770581a74a4516c26e428b269ebcf2e44c8a8ddbcba5  backend/app/api/v1/endpoints/edges.py
+2
+[EXIT trap] 已无条件还原 backend/app/api/v1/endpoints/edges.py
+rc=0

@@ -1,0 +1,21 @@
+作废存档（不作任何验收依据）
+================================================================================
+本文件是 CARD-T-EDGES 真库门「先红」的第一次运行产物, 现声明作废, 理由:
+
+该次命令写成
+    ( cd backend && $PYTEST ... | grep -vE ... ) 2>&1 | tee <本文件>
+    echo "rc=$pipestatus[1]"
+被测命令后面接了一条 grep 管道用于过滤 warnings 噪音, 于是 $pipestatus[1] 取到
+的是**子 shell 的退出码 = 子 shell 内最后一条管道 (grep) 的 rc = 0**, 而不是
+pytest 的 rc。末行落成 `rc=0`, 与正文里的 `1 failed` 矛盾 —— 正是协议 §2.2 与
+卡文裁判 8 点名的那类假绿 rc 行。
+
+正文里的失败原文 (AttributeError @ edges.py:112) 本身为真, 但本文件的 rc 行不可
+信, 故整份不入库作依据。
+
+真相源 = 同一门去掉附加管道 (改用 pytest 自带 -p no:warnings) 的重跑存档:
+    _bmad-output/审查/evidence-t-edges/edges-7692-red-20260914T223245.txt
+    末行 rc=1
+
+⛔ 本文件未被 `rm` 删除: 本仓 guard hook 阻断 `rm`（含 `rm -f`, 后者还会撞
+force-push 正则的 ` -f ` 跨命令匹配, 协议 §4.6）。故就地改写为本作废说明。

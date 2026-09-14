@@ -1,0 +1,36 @@
+绑定 HEAD = 5013ab96   PREV = 9b30179a
+
+######## 裁判 7 地盘门（最终，含可用的验伪锚）########
+-- 代码面（排除 _bmad-output）: 期望恰两文件 --
+backend/app/api/v1/endpoints/edges.py
+backend/tests/integration/test_edges_dual_write_neo4j_t5b.py
+-- 验伪锚: 去掉 ':(exclude)_bmad-output' 应多出 _bmad-output/ 路径 --
+   全量条数 = 48
+   其中 _bmad-output/ 条数 = 46
+   ⇒ 验伪锚成立(排除前后条数不同, 说明 pathspec 真在起作用)
+
+######## 终审绑定（协议 §1 / D-32）########
+-- r5 审 SHA 7c63c5eb .. HEAD 的代码树 diff --
+ backend/tests/integration/test_edges_dual_write_neo4j_t5b.py | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+   （非空 = D-32 纯 docstring 尾巴 5bffce4f，已在验收单声明，请主 session 逐行等价核）
+-- 该尾巴去 docstring 后 AST 是否等价 --
+   去 docstring 后 AST 相同: True
+   edges.py 在该尾巴中 diff: ''
+
+######## 未 push 自证 ########
+   origin/card/t5-bugs 不存在 ⇒ 本分支从未 push ✅
+
+######## 工作树 ########
+?? "_bmad-output/\345\256\241\346\237\245/evidence-t-edges/closeout-20260914T233311.txt"
+   (空 = 干净)
+
+######## 本卡 commit 链（7 个）########
+5013ab96 docs(t5-b): 验收单 UAT-CARD-T-EDGES + 五轮 Codex 存档 + 裁判证据 [BATCH-2026-09-11-第十四批 / CARD-T-EDGES]
+5bffce4f docs(t5-b): 按 Codex r5 L3 改掉 docstring 残余的「必然真连」表述 [BATCH-2026-09-11-第十四批 / CARD-T-EDGES]
+7c63c5eb docs(t5-b): 按 Codex r4 L3 把 advisory 措辞收成「可能」并撤回第二道防线说法 [BATCH-2026-09-11-第十四批 / CARD-T-EDGES]
+caf8180e docs(t5-b): 按 Codex r3 更正三处措辞——W4 对本文件只记账不拦 [BATCH-2026-09-11-第十四批 / CARD-T-EDGES]
+c2e3d533 fix(t5-b): 按 Codex r2 补 scheme 白名单排除路由族 URI [BATCH-2026-09-11-第十四批 / CARD-T-EDGES]
+9764cceb fix(t5-b): 按 Codex r1 整改 7692 端口白名单 + 惰性探针 [BATCH-2026-09-11-第十四批 / CARD-T-EDGES]
+c9c73f57 fix(t5-b): edges Neo4j 改 run_query + except 补 AttributeError [BATCH-2026-09-11-第十四批 / CARD-T-EDGES]
+rc=0

@@ -1,0 +1,35 @@
+绑定 HEAD: c9c73f57
+还原基准 = 变异前副本 /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t5-bugs/7bc5b2d0-947d-41ee-bead-4a96ad80718f/scratchpad/edges.premut.final （⛔ 非 git show HEAD: —— 见验收单记录, 两者此刻内容相同但基准口径以变异前副本为准）
+== 跑前 shasum ==
+0b556095947c395bd1d8770581a74a4516c26e428b269ebcf2e44c8a8ddbcba5  backend/app/api/v1/endpoints/edges.py
+
+################ 负控①: except 元组去掉 AttributeError ################
+变异①已落盘
+cb956e474d6172d3dcbd5a914e6b88f46a766c144a57571721bea00a2d471585  backend/app/api/v1/endpoints/edges.py
+    assert resp.status_code == 207, (
+E   AssertionError: 期望 207 Multi-Status (Neo4j 失败 + LanceDB 成功 = 半成功), 实得 500; 500 说明 Neo4j 侧的 AttributeError 仍在穿透 asyncio.gather 与 handler
+E   assert 500 == 207
+============================== 1 failed in 0.51s ===============================
+negctl1_note=红必须在「实得 500」
+已还原①
+0b556095947c395bd1d8770581a74a4516c26e428b269ebcf2e44c8a8ddbcba5  backend/app/api/v1/endpoints/edges.py
+
+################ 负控②: except 分支不透出异常消息（杀 sentinel 锚）################
+变异②已落盘 @行147
+db0f75321a8d14dd7eafea98d190e41110f98221d398c8d96e5fb539ef008d9c  backend/app/api/v1/endpoints/edges.py
+    assert SENTINEL in graphiti_error, (
+E   AssertionError: 207 响应体里没有本门 sentinel (graphiti_status.error='negctl-redacted') —— 这条 207 不是 stub 的 AttributeError 被 _write_neo4j_triplet 的 except 元组收下换来的
+E   assert 'T5B-STUB-SENTINEL' in 'negctl-redacted'
+{"event": "Neo4j write failed for edge edge-t5b-001: T5B-STUB-SENTINEL: run_query refused by T5-B stub", "logger": "app.api.v1.endpoints.edges", "level": "error", "timestamp": "2026-09-14T14:47:00.082990Z"}
+ERROR    app.api.v1.endpoints.edges:edges.py:142 Neo4j write failed for edge edge-t5b-001: T5B-STUB-SENTINEL: run_query refused by T5-B stub
+============================== 1 failed in 0.49s ===============================
+negctl2_note=红必须在「SENTINEL in graphiti_error」而非 status
+已还原②
+== 跑后 shasum（应与跑前逐字相同）==
+0b556095947c395bd1d8770581a74a4516c26e428b269ebcf2e44c8a8ddbcba5  backend/app/api/v1/endpoints/edges.py
+== 还原核: 含 AttributeError 的 except 行数（期望 1）==
+1
+== 工作树是否干净 ==
+(上面空 = 干净)
+[EXIT trap] 已无条件还原 backend/app/api/v1/endpoints/edges.py
+rc=0

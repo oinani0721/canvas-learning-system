@@ -1,0 +1,35 @@
+== backend/ruff.toml 实际启用规则（验伪锚选型依据）==
+6:line-length = 120
+10:select = ["E9", "F63", "F7", "F82"]
+
+== 验伪锚 A（卡文原写法 F401）: 未启用 ⇒ 恒不触发 = 假锚 ==
+All checks passed!
+F401_probe_rc=0  (卡文期望 rc=1, 实测 0 ⇒ 该锚在 backend/ 下不成立)
+
+== 验伪锚 B（改用 F821, 在启用的 F82 组内）==
+F821 Undefined name `t5b_undefined_name`
+ --> backend/app/_t5b_probe.py:1:5
+  |
+1 | x = t5b_undefined_name
+  |     ^^^^^^^^^^^^^^^^^^
+  |
+
+Found 1 error.
+F821_probe_rc=1  (期望 1 = ruff 真在查)
+
+== 裁判 6: ruff（zsh 数组, 整块子 shell）==
+files=2
+backend/app/api/v1/endpoints/edges.py backend/tests/integration/test_edges_dual_write_neo4j_t5b.py
+All checks passed!
+ruff_rc=0
+
+== 裁判 7: 地盘门 ==
+backend/app/api/v1/endpoints/edges.py
+backend/tests/integration/test_edges_dual_write_neo4j_t5b.py
+-- 验伪锚: 去掉 exclude 后应多出 _bmad-output 路径（本卡 evidence 尚未入库 ⇒ 应与上面相同）--
+backend/app/api/v1/endpoints/edges.py
+backend/tests/integration/test_edges_dual_write_neo4j_t5b.py
+
+== openapi.json 在 PREV..HEAD 是否被动（期望空）==
+(上面空 = 未动)
+rc=0

@@ -1,0 +1,50 @@
+== 还原基准 = 变异前副本（非 HEAD: 本卡代码未 commit, HEAD 是未修版, 用它还原会把修复一起还原掉）==
+基准副本: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t5-bugs/7bc5b2d0-947d-41ee-bead-4a96ad80718f/scratchpad/edges.py.premutation
+
+== 跑前 shasum ==
+0b556095947c395bd1d8770581a74a4516c26e428b269ebcf2e44c8a8ddbcba5  backend/app/api/v1/endpoints/edges.py
+
+== 变异: 只从 except 元组去掉 AttributeError 一个词 ==
+变异已落盘: except 元组去掉 AttributeError
+-- 变异体核: 含 AttributeError 的 except 行数（期望 0）--
+0
+-- 变异体 shasum（应与跑前不同）--
+cb956e474d6172d3dcbd5a914e6b88f46a766c144a57571721bea00a2d471585  backend/app/api/v1/endpoints/edges.py
+
+== 变异态重跑降级门（期望 FAILED, 实得 500）==
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-bugs/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 1 item
+
+tests/integration/test_edges_dual_write_neo4j_t5b.py F                   [100%]
+
+=================================== FAILURES ===================================
+__________________ test_neo4j_attribute_error_degrades_to_207 __________________
+tests/integration/test_edges_dual_write_neo4j_t5b.py:258: in test_neo4j_attribute_error_degrades_to_207
+    assert resp.status_code == 207, (
+E   AssertionError: 期望 207 Multi-Status (Neo4j 失败 + LanceDB 成功 = 半成功), 实得 500; 500 说明 Neo4j 侧的 AttributeError 仍在穿透 asyncio.gather 与 handler
+E   assert 500 == 207
+E    +  where 500 = <Response [500 Internal Server Error]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"event": "vault_scope: both vault_id and group_id missing, deriving ACTIVE vault group (fail-closed, no DEFAULT_GROUP_ID fallback)", "logger": "app.core.vault_scope", "level": "warning", "timestamp": "2026-09-14T14:35:57.145586Z"}
+{"event": "Recording edge rationale: edge=edge-t5b-001, Concept A --[is prerequisite for]--> Concept B (confidence=0.85)", "logger": "app.api.v1.endpoints.edges", "level": "info", "timestamp": "2026-09-14T14:35:57.145754Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.core.vault_scope:vault_scope.py:195 vault_scope: both vault_id and group_id missing, deriving ACTIVE vault group (fail-closed, no DEFAULT_GROUP_ID fallback)
+INFO     app.api.v1.endpoints.edges:edges.py:315 Recording edge rationale: edge=edge-t5b-001, Concept A --[is prerequisite for]--> Concept B (confidence=0.85)
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/integration/test_edges_dual_write_neo4j_t5b.py::test_neo4j_attribute_error_degrades_to_207
+============================== 1 failed in 0.49s ===============================
+negctl_pytest_rc=1
+
+== 显式还原 ==
+== 跑后 shasum（应与跑前逐字相同）==
+0b556095947c395bd1d8770581a74a4516c26e428b269ebcf2e44c8a8ddbcba5  backend/app/api/v1/endpoints/edges.py
+-- 还原核: 含 AttributeError 的 except 行数（期望 1）--
+1
+[EXIT trap] 已无条件还原 backend/app/api/v1/endpoints/edges.py
+rc=0

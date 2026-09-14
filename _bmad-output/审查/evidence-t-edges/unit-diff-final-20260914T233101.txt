@@ -1,0 +1,11 @@
+RUN  = /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-bugs/_bmad-output/审查/evidence-t-edges/unit-final-20260914T232531.txt
+BASE = /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/审查/evidence-b14/unit-red-baseline-08100483.txt
+base 条数 = 64   close 条数 = 64
+=== diff base close（只允许 '<' 行，预期空）===
+(diff 为空)
+diff_rc=0
+新增（'>' 行）条数 = 0
+=== 验伪锚: 证 diff 真能看出差异（往 close 临时加一行假 nodeid）===
+> FAILED tests/unit/test_falsification_probe.py::test_probe
+(验伪锚成立: diff 能报出新增行)
+rc=0

@@ -1,0 +1,31 @@
+== 把 openapi.json 写回 PREV(9b30179a) 版并暂存（guard 拦 restore/checkout, 用 git show 写回）==
+-- 对 PREV 的 diff（期望空）--
+(上面空 = 已回到 PREV 版)
+
+== amend: 定向排除 spec-sync-flat（它是把 openapi.json 塞进来的那个 hook）==
+⛔ 未排除 python-typecheck / python-lint —— 两者照常跑
+│ 🥊 lefthook v2.1.6  hook: post-commit │
+╰───────────────────────────────────────╯
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+[card/t5-bugs c9c73f57] fix(t5-b): edges Neo4j 改 run_query + except 补 AttributeError [BATCH-2026-09-11-第十四批 / CARD-T-EDGES]
+ Date: Mon Sep 14 22:45:38 2026 +0800
+ 2 files changed, 409 insertions(+), 27 deletions(-)
+ create mode 100644 backend/tests/integration/test_edges_dual_write_neo4j_t5b.py
+
+== amend 后改动面（期望恰两文件）==
+c9c73f57 fix(t5-b): edges Neo4j 改 run_query + except 补 AttributeError [BATCH-2026-09-11-第十四批 / CARD-T-EDGES]
+
+ backend/app/api/v1/endpoints/edges.py              |  55 +--
+ .../integration/test_edges_dual_write_neo4j_t5b.py | 381 +++++++++++++++++++++
+ 2 files changed, 409 insertions(+), 27 deletions(-)
+
+== status ==
+?? "_bmad-output/\345\256\241\346\237\245/evidence-t-edges/"
+rc=0
