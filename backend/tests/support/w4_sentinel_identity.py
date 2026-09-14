@@ -114,12 +114,20 @@ _BODY_RE = re.compile(r"^- (?P<addr>.+?) on thread (?P<thread>.+?) \(owner=", re
 #:
 #: 抬头 A（``live_port_guard`` 最终总账）：条数 = ``unaccounted``，即 :data:`_FINAL_RE` 第 2 组。
 #: 抬头 B（根 ``conftest`` 无人结账）与 C（``format_sentinel`` 本用例）：条数在抬头自身。
-_BLOCK_HEAD_B_RE = re.compile(r"^\*\*\* .*? —— (0|[1-9][0-9]*) 次拦截无人结账", re.ASCII)
+#: ⛔ B 锚死 ``BLOCK_REASON``（Codex round-4 MEDIUM-4：原来的 ``.*?`` 让普通输出
+#: ``*** cache —— 1 次拦截无人结账`` 被当成正式块 ⇒ 假红），且**只依赖到「N 次拦截」为止** ——
+#: 判据依赖的文案越短，产出方在其后改字就越不会误伤它（round-4 MEDIUM-3）。
+_BLOCK_HEAD_B_RE = re.compile(r"^\*\*\* live Neo4j port connect attempted —— (0|[1-9][0-9]*) 次拦截", re.ASCII)
 _BLOCK_HEAD_C_RE = re.compile(
     r"^live Neo4j port connect attempted —— 本用例期间有 (0|[1-9][0-9]*) "
     r"次到现网 Neo4j 的连接尝试被拦下。$",
     re.ASCII,
 )
+
+#: ``format_sentinel`` 抬头之后、记录之前的**固定说明行数**（``live_port_guard.py`` 内
+#: ``lines = [抬头, "（连接处…", "  所以由本哨兵…）"]``）。判据按此常量定位记录起点，
+#: 不做任何「向前找找看」。产出方增删说明行 ⇒ 首条「记录」解析不出 ⇒ 拒判（方向安全）。
+_FORMAT_SENTINEL_PROSE_LINES = 2
 
 #: ``asyncio-portal-<hex>``：hex 是对象地址，**每跑不同**。归一成类别名。
 _PORTAL_RE = re.compile(r"^(asyncio-portal)-[0-9a-f]+$", re.ASCII)
@@ -220,23 +228,28 @@ def blocked_count(text: str) -> int | None:
     return final
 
 
-def _declared_record_blocks(lines: list[str]) -> list[tuple[int, int]]:
-    """找出全部「自报了条数的记录块」：返回 ``(抬头行下标, 自报条数)``。
+def _declared_record_blocks(lines: list[str]) -> list[tuple[int, int, int]]:
+    """找出全部「自报了条数的记录块」：返回 ``(抬头行下标, 自报条数, 记录起始偏移)``。
 
     三个产出点（更正③）各自的抬头见 :data:`_BLOCK_HEAD_B_RE` / :data:`_BLOCK_HEAD_C_RE`
     与 :data:`_FINAL_RE`。抬头 A 的条数是 ``unaccounted`` —— 它遍历的是
     ``ledger["unaccounted_records"]``，**不是** blocked 全集，别拿 blocked 去对。
     """
-    heads: list[tuple[int, int]] = []
+    heads: list[tuple[int, int, int]] = []
     for i, raw in enumerate(lines):
         line = raw.strip()
         m = _FINAL_RE.match(line)
         if m:
-            heads.append((i, int(m.group(2))))  # 第 2 组 = unaccounted
+            heads.append((i, int(m.group(2)), 1))  # 第 2 组 = unaccounted；记录在下一行
             continue
-        m = _BLOCK_HEAD_B_RE.match(line) or _BLOCK_HEAD_C_RE.match(line)
+        m = _BLOCK_HEAD_B_RE.match(line)
         if m:
-            heads.append((i, int(m.group(1))))
+            heads.append((i, int(m.group(1)), 1))
+            continue
+        m = _BLOCK_HEAD_C_RE.match(line)
+        if m:
+            # ``format_sentinel`` 抬头后**固定两行**说明，随后才是记录。
+            heads.append((i, int(m.group(1)), 1 + _FORMAT_SENTINEL_PROSE_LINES))
     return heads
 
 
@@ -265,22 +278,22 @@ def failure_body_identities(text: str) -> set[str]:
     """
     lines = _lines(text)
     out: set[str] = set()
+    claimed: set[int] = set()
     blocks = _declared_record_blocks(lines)
 
-    for head_idx, declared in blocks:
+    for head_idx, declared, prose in blocks:
         if declared == 0:
             # ⛔ 抬头 A 的第二个触发分支（``unaccounted > 0 or (blocked > 0 and status == 0)``）
             #    会打出 ``unaccounted=0`` 的抬头、后面零条记录。此时**不得向前扫** ——
             #    扫过去会撞上别处的记录行，判成「自报条数与实际不符」⇒ 假红。
             #    自报 0 条就是没有记录要读，也就没有什么要对账。
             continue
-        # 抬头与记录之间允许有固定的说明行（format_sentinel 有两行），
-        # 但一进入记录区（第一条 `- ` 行）就必须连续。
-        i = head_idx + 1
-        while i < len(lines) and not lines[i].strip().startswith("- "):
-            if _declared_record_blocks([lines[i]]):  # 撞上下一个抬头 ⇒ 本块零记录区
-                break
-            i += 1
+        # ⛔ 记录起始位置是**已知常量**，不是「向前找找看」（Codex round-4 HIGH-1）：
+        #    上一版写成「扫到第一条 ``- `` 行」，于是 ``address="\\n- tail"`` 让首条记录退化成
+        #    只剩 ``- ``（strip 后是 ``-``、不满足 ``startswith("- ")``）而被当说明行**跳过**，
+        #    扫描继续前进落到后半段上并解析成功 ⇒ 两份不同的档判一致。
+        #    **只要还有任何一处是「向前找找看」，它就还是开放式规则** —— 这是第四次栽在同一件事上。
+        i = head_idx + prose
         taken = [lines[j].strip() for j in range(i, min(i + declared, len(lines)))]
         if len(taken) < declared:
             raise W4LedgerConflict(
@@ -299,8 +312,24 @@ def failure_body_identities(text: str) -> set[str]:
             raise W4LedgerConflict(
                 f"记录块自报 {declared} 条，紧随其后还有一条记录行 —— 自报条数与实际不符：{lines[nxt].strip()[:80]!r}"
             )
+        claimed.update(range(i, i + declared))
         for m in parsed:
             out.add(f"{m.group('addr')} on thread {normalise_thread(m.group('thread'))}")
+
+    # ⛔ 每一行「无疑义地就是一条记录」的行，都必须被某个块认领（Codex round-4 MEDIUM-2）。
+    #    原来的兜底只管「一个块都没有」，于是「有一个块正常、另一个块抬头漂了」时，
+    #    漂掉那块的记录**静默消失**、两份不同的档判一致。
+    #
+    #    注意这**不是**回到「猜这行坏没坏」：这里只认**完整匹配 `_BODY_RE`** 的行
+    #    （必须同时有 ``- `` 前缀、`` on thread ``、`` (owner=``）。普通日志
+    #    （``cache refreshed (owner=worker)`` 缺 `` on thread ``、源码回显不以 ``- `` 开头）
+    #    都不满足，所以 round-3 MEDIUM-2 的那几条假红不会回来。
+    orphans = [ln.strip() for n, ln in enumerate(lines) if n not in claimed and _BODY_RE.match(ln.strip())]
+    if orphans:
+        raise W4LedgerConflict(
+            f"有 {len(orphans)} 条完整的记录行不属于任何自报条数的记录块 —— "
+            f"多半是某个块的抬头文案已漂、整块判据看不见它：{orphans[:3]}"
+        )
 
     if not blocks:
         blocked = blocked_count(text)

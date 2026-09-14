@@ -217,7 +217,7 @@ class TestCliActuallyUsesWhatItClaims:
         a.write_text("NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)\n")
         b.write_text("NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=12 (blocked=0, advisory=12, unaccounted=0)\n")
         assert main([str(a), str(b)]) == 1, (
-            "两份 blocked 都是 0 但一份 advisory=12（真连现网 12 次），CLI 判成一致 = 假绿"
+            "两份 blocked 都是 0 但一份 advisory=12（12 次连接尝试被放行），CLI 判成一致 = 假绿"
         )
 
     def test_cli_zero_case_is_labelled_not_overclaimed(self, tmp_path, capsys):
@@ -465,6 +465,92 @@ class TestDeclaredBlockContract:
         assert failure_body_identities(SAMPLE_PORTAL_RUN1) == failure_body_identities(SAMPLE_PORTAL_RUN2)
 
 
+class TestRound4Closures:
+    """⛔ Codex round-4 的四条发现 —— 「闭合」在入口和边界上仍有开放式的口子。"""
+
+    def test_empty_first_segment_from_real_formatter_is_refused(self):
+        """**HIGH-1**：`address="\\n- tail"` 让首条记录退化成只剩 ``- ``。
+
+        上一版按「扫到第一条 ``- `` 行」定位记录起点，而 ``  - `` strip 后是 ``-``、
+        不满足 ``startswith("- ")`` ⇒ 被当说明行**跳过**，扫描继续前进落到后半段
+        ``- tail on thread worker (owner=x)`` 上并解析成功 ⇒ 两份不同的档判一致。
+        ⛔ 根因：**只要还有任何一处是「向前找找看」，它就还是开放式规则。**
+        现在记录起点是已知常量（A/B 抬头下一行、C 抬头后 2 行说明），不扫。
+        """
+        from tests.support import live_port_guard
+
+        bad = live_port_guard.format_sentinel("x", [{"address": "\n- tail", "thread": "worker", "owner": "x"}])
+        with pytest.raises(W4LedgerConflict, match="解析不出身份"):
+            failure_body_identities(bad + "\n")
+
+    def test_empty_first_segment_carriage_return_variant_is_refused(self):
+        from tests.support import live_port_guard
+
+        bad = live_port_guard.format_sentinel("x", [{"address": "\r- tail", "thread": "worker", "owner": "x"}])
+        with pytest.raises(W4LedgerConflict, match="解析不出身份"):
+            failure_body_identities(bad + "\n")
+
+    def test_orphan_record_outside_any_block_is_refused(self):
+        """**MEDIUM-2**：一个块正常、另一个块抬头漂了 ⇒ 漂掉那块的记录静默消失。
+
+        旧兜底只管「一个块都没有」，所以「还识别到任何一个块（含零条块）」时就接不住。
+        新规则：**每一行完整匹配 `_BODY_RE` 的记录行都必须被某个块认领**。
+        """
+        from tests.support import live_port_guard
+
+        ok = live_port_guard.format_sentinel(
+            "a", [{"address": "('::1', 7691, 0, 0)", "thread": "MainThread", "owner": "x"}]
+        )
+        drifted = ok.replace("本用例期间有", "本用例期间有大约")  # 抬头文案漂移
+        with pytest.raises(W4LedgerConflict, match="不属于任何自报条数的记录块"):
+            failure_body_identities(ok + "\n" + drifted + "\n")
+
+    def test_orphan_check_does_not_fire_on_ordinary_output(self):
+        """⛔ 反向锚：孤儿检查**只认完整记录行**，不得把普通输出当孤儿（否则假红回来）。"""
+        from tests.support import live_port_guard
+
+        ok = live_port_guard.format_sentinel(
+            "a", [{"address": "('::1', 7691, 0, 0)", "thread": "MainThread", "owner": "x"}]
+        )
+        noise = (
+            "cache refreshed (owner=worker)\n"
+            '    print(f"    - {address} on thread {thread} (owner={owner})")\n'
+            "- waiting on thread\n"
+            "- waiting on thread worker\n"
+        )
+        assert failure_body_identities(ok + "\n" + noise) == {"('::1', 7691, 0, 0) on thread MainThread"}
+
+    def test_header_b_does_not_match_arbitrary_prefix(self):
+        """**MEDIUM-4**：``*** cache —— 1 次拦截无人结账`` 曾被当成缺正文的正式块 ⇒ 假红。"""
+        text = (
+            "*** cache —— 1 次拦截无人结账\nNEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)\n"
+        )
+        assert failure_body_identities(text) == set(), "B 抬头仍接受任意前缀 ⇒ 普通输出被当成块"
+
+    def test_missing_quad_gate_is_actually_reached(self, tmp_path):
+        """**MEDIUM-5**：上一版这条测试的 B 档是「裸记录 + blocked=1 汇总」，
+
+        先被**缺块门**拦住，根本没走到缺四元组那条分支 —— 门是绿的，但覆盖是假的。
+        现在两档都带**正常 C 块**，只有 A 缺汇总行，才真正打在缺四元组门上。
+        """
+        from tests.support import live_port_guard
+
+        blk = live_port_guard.format_sentinel(
+            "x", [{"address": "('::1', 7691, 0, 0)", "thread": "MainThread", "owner": "x"}]
+        )
+        a, b = tmp_path / "a.txt", tmp_path / "b.txt"
+        a.write_text(
+            blk + "\n*** live Neo4j port connect attempted —— 最终总账：blocked=1 "
+            "unaccounted=0 reported_status=3；进程被强制以退出码 3 结束（迟到连接不得以 0 收场）***\n",
+            encoding="utf-8",
+        )
+        b.write_text(
+            blk + "\nNEO4J_LIVE_PORT_CONNECT_ATTEMPTS=1 (blocked=1, advisory=0, unaccounted=0)\n",
+            encoding="utf-8",
+        )
+        assert main([str(a), str(b)]) == 2, "A 缺汇总行（advisory 未知）却被判可比较"
+
+
 class TestJudgeIsBoundToTheRealProducers:
     """⛔ 新判据只认**抬头**；抬头文案一漂，判据就对那个块**失明**（方向是记录消失）。
 
@@ -486,16 +572,25 @@ class TestJudgeIsBoundToTheRealProducers:
             "('127.0.0.1', 7687) on thread asyncio-portal-<id>",
         }, "判据解析不了真产出方的输出 —— 抬头/记录文案已漂，判据对该块失明"
 
-    def test_zero_record_sentinel_from_real_producer_is_not_a_false_red(self):
-        """``format_sentinel(owner, [])`` 自报 0 条：不得向前扫、不得误判。"""
+    def test_zero_record_sentinel_does_not_swallow_the_next_block(self):
+        """``format_sentinel(owner, [])`` 自报 0 条：不得吞掉后一个块的记录。
+
+        ⛔ 「别处的记录」必须放进**它自己的合法块**里 —— 一条不属于任何块的完整记录行
+        本身就该被拒判（见 ``test_orphan_record_outside_any_block_is_refused``），
+        拿它当噪声等于把两件事混在一条测试里。
+        """
         from tests.support import live_port_guard
 
-        real = live_port_guard.format_sentinel("owner", [])
-        noise = "  - ('::1', 7691, 0, 0) on thread MainThread (owner=elsewhere)\n"
-        assert failure_body_identities(real + "\n" + noise) == set(), "自报 0 条的块向前扫到了别处的记录行 ⇒ 假红"
+        empty = live_port_guard.format_sentinel("owner", [])
+        elsewhere = live_port_guard.format_sentinel(
+            "other", [{"address": "('::1', 7691, 0, 0)", "thread": "MainThread", "owner": "x"}]
+        )
+        assert failure_body_identities(empty + "\n" + elsewhere + "\n") == {
+            "('::1', 7691, 0, 0) on thread MainThread"
+        }, "自报 0 条的块吞掉了后一个块的记录"
 
     def test_block_reason_literal_still_matches_the_guard(self):
-        """判据把 ``BLOCK_REASON`` 写死在正则里 —— 它必须仍等于守卫本体的值。"""
+        """三条抬头正则都把 ``BLOCK_REASON`` 写死了 —— 它必须仍等于守卫本体的值。"""
         from tests.support import live_port_guard
 
         src = inspect.getsource(w4id)
@@ -504,16 +599,23 @@ class TestJudgeIsBoundToTheRealProducers:
         )
 
     def test_final_ledger_header_literal_still_matches_the_guard(self):
-        """抬头 A 与 B 的文案锚：产出方改一个字，这里就该红。"""
+        """抬头 A 与 B 的源码锚：**锚住判据实际依赖的那一段，不多不少**。
+
+        ⛔ Codex round-4 MEDIUM-3：上一版锚得太松 —— A 把 ``unaccounted=`` 改成
+        ``unaccounted_count=``、B 在第一段字面量末尾加个空格，源码锚都**照样为真**，
+        而抬头正则已经不匹配了（块静默失明）。现在两条锚各自覆盖到正则依赖的末端为止。
+        """
         guard_src = inspect.getsource(__import__("tests.support.live_port_guard", fromlist=["x"]))
         conftest_src = pathlib.Path(__file__).resolve().parents[1].joinpath("conftest.py").read_text(encoding="utf-8")
-        assert "—— 最终总账：blocked=" in guard_src, "抬头 A 文案已漂"
-        # ⛔ 抬头 B 在源码里是**跨两个相邻字面量**拼的
-        #    （``f"... {len(unaccounted)} 次拦截"`` + ``"无人结账（..."``），
-        #    源码里没有连续的「次拦截无人结账」—— 运行期拼接后才有。
-        #    所以源码锚只能分段核；这也是为什么下面还要一条**运行期**的往返锚。
-        assert "次拦截" in conftest_src, "抬头 B 前半段文案已漂"
-        assert "无人结账（" in conftest_src, "抬头 B 后半段文案已漂"
+        # A：_FINAL_RE 一路依赖到 reported_status=
+        assert "—— 最终总账：blocked={blocked} " in guard_src, "抬头 A 的 blocked 段文案已漂"
+        assert "unaccounted={unaccounted} reported_status={status}；" in guard_src, (
+            "抬头 A 的 unaccounted/reported_status 段文案已漂，_FINAL_RE 将不匹配"
+        )
+        # B：_BLOCK_HEAD_B_RE 只依赖到「N 次拦截」为止 —— 锚也只锚到这里。
+        #    ⛔ 抬头 B 在源码里是**跨两个相邻字面量**拼的，「次拦截无人结账」在源码里不连续；
+        #    正好判据也不依赖后半段，所以锚到 ``次拦截`` 收尾既够用又不过度。
+        assert "—— {len(unaccounted)} 次拦截" in conftest_src, "抬头 B 判据依赖的那一段文案已漂"
 
     def test_header_b_regex_matches_the_runtime_string(self):
         """抬头 B 的源码锚只能分段核 ⇒ 这条按产出方的**运行期**拼法复原整行再喂正则。"""
@@ -567,7 +669,7 @@ class TestJudgeIsBoundToTheRealProducers:
 
     def test_header_a_with_zero_unaccounted_reads_no_records(self):
         """A 的第二个触发分支：``blocked>0 且 status==0`` 时抬头写 ``unaccounted=0``、
-        后面零条记录。此时判据必须**不向前扫**，否则会吃掉别处的记录行 ⇒ 假红。"""
+        后面零条记录。该块必须读 0 条，且**不得吞掉**后一个块的记录。"""
         from tests.support import live_port_guard
 
         head = (
@@ -575,8 +677,12 @@ class TestJudgeIsBoundToTheRealProducers:
             f"unaccounted=0 reported_status=0；"
             f"进程被强制以退出码 {live_port_guard.FINAL_EXIT_CODE} 结束（迟到连接不得以 0 收场）***"
         )
-        elsewhere = "  - ('::1', 7691, 0, 0) on thread MainThread (owner=elsewhere)\n"
-        assert failure_body_identities(head + "\n" + elsewhere) == set()
+        elsewhere = live_port_guard.format_sentinel(
+            "other", [{"address": "('::1', 7691, 0, 0)", "thread": "MainThread", "owner": "x"}]
+        )
+        assert failure_body_identities(head + "\n" + elsewhere + "\n") == {
+            "('::1', 7691, 0, 0) on thread MainThread"
+        }, "A 型自报 0 条的块吞掉了后一个块的记录"
 
 
 class TestArchiveDecoding:
