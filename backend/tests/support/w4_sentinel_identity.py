@@ -37,7 +37,8 @@ atexit 在更晚取。卡文 (d)① 要求「多处取值必须一致」会在�
 本模块的不变量是 ``final >= summary``；只有 ``final < summary``（计数器倒退）才是冲突。
 
 **更正⑥ ``advisory`` 是「只记不拦」= 放行**（``live_port_guard.py:230`` 逐字）——那几次
-原 connect 照常执行，是真连上了现网。只判 ``blocked`` 会把真连当没事，所以 CLI 比对的是
+原 ``connect`` 照常被执行（门没拦），**是否真的连上取决于对端**；无论成败，「到现网端口的连接
+尝试被放行了」这件事本身就是该看见的差异。只判 ``blocked`` 会把真连当没事，所以 CLI 比对的是
 整条**四元组**并带算术自洽门 ``total == blocked + advisory``。
 
 **更正⑦ 退出码不占用 3**：3 是 ``live_port_guard.FINAL_EXIT_CODE``，且逐字印在被读的
@@ -100,9 +101,18 @@ _FINAL_RE = re.compile(
 #: ``if m:`` **静默丢弃**，身份集变空、CLI 照样判一致 —— 那是假绿。
 _BODY_RE = re.compile(r"^- (?P<addr>.+?) on thread (?P<thread>.+?) \(owner=", re.ASCII)
 
-#: **看起来是**正文记录行的候选（宽松）。凡命中本条而 :data:`_BODY_RE` 不命中的，
-#: 是「看得出是记录行、但解析不了」—— 必须抛，不得静默当成「没有这条记录」。
-_BODY_CANDIDATE_RE = re.compile(r"^- .* on thread ", re.ASCII)
+#: **被换行截断**的记录行：`- <addr> on thread` 之后什么都没有。
+#: 线程名里若含 ``\n``（``threading.Thread(name=...)`` 允许），整条记录会被切成两半，
+#: 首半段恰好止于 ``on thread``（Codex round-2 HIGH-3）。这一半必须拒判。
+_BODY_TRUNCATED_RE = re.compile(r"^- .* on thread\s*$", re.ASCII)
+
+#: **孤儿续行**：含 ``(owner=`` 却不是以 ``- `` 开头的记录行 —— 多半是上一条被换行切开后
+#: 掉队的后半截。同样必须拒判。
+#:
+#: ⛔ 为什么不用宽松的 ``^- .* on thread `` 当候选（初版做法，Codex round-2 MEDIUM-3）：
+#: 那会把 captured stdout 里的普通日志 ``- waiting on thread worker`` 也当成畸形记录 ⇒ 假红。
+#: 这两条规则只认**截断痕迹**与**孤儿痕迹**，不去猜「这行像不像哨兵记录」。
+_BODY_ORPHAN_RE = re.compile(r"^(?!- ).*\(owner=", re.ASCII)
 
 #: ``asyncio-portal-<hex>``：hex 是对象地址，**每跑不同**。归一成类别名。
 _PORTAL_RE = re.compile(r"^(asyncio-portal)-[0-9a-f]+$", re.ASCII)
@@ -218,8 +228,8 @@ def failure_body_identities(text: str) -> set[str]:
         m = _BODY_RE.match(line)
         if m:
             out.add(f"{m.group('addr')} on thread {normalise_thread(m.group('thread'))}")
-        elif _BODY_CANDIDATE_RE.match(line):
-            # ⛔ 看得出是记录行却解析不了 ⇒ **不得静默丢弃**（Codex round-1 HIGH-3）。
+        elif _BODY_TRUNCATED_RE.match(line) or _BODY_ORPHAN_RE.match(line):
+            # ⛔ 看得出被截断 / 是孤儿续行 ⇒ **不得静默丢弃**（Codex round-1 HIGH-3、round-2 HIGH-3）。
             #    每一个 `if 匹配成功:` 都藏着一个未写的 else，而那个 else 通常就是假绿。
             unparsed.append(line)
     if unparsed:
@@ -292,8 +302,19 @@ def main(argv: list[str]) -> int:
         print(f"W4-IDENTITY: UNCHECKED 这些存档里找不到门产出行，比不了: {unchecked}", file=sys.stderr)
         return 2
 
+    # ⛔ 缺四元组的档**不可比**（Codex round-2 HIGH-1）：初版把 None 从 quad_vals 里滤掉，
+    #    于是「A 只有总账行（advisory 未知）+ B 有 advisory=12」被判一致。
+    #    没有汇总行就不知道 advisory 是多少，而 advisory 是**放行**的那些 —— 说不清就非 0。
+    no_quad = [p for p, _, q, _ in rows if q is None]
+    if no_quad:
+        print(
+            f"W4-IDENTITY: UNCHECKED 这些存档没有汇总行、advisory 未知，比不了: {no_quad}",
+            file=sys.stderr,
+        )
+        return 2
+
     blocked_vals = {b for _, b, _, _ in rows}
-    quad_vals = {q for _, _, q, _ in rows if q is not None}
+    quad_vals = {q for _, _, q, _ in rows}
     body_vals = {frozenset(s) for _, _, _, s in rows}
     if len(blocked_vals) > 1 or len(quad_vals) > 1 or len(body_vals) > 1:
         print(
@@ -304,7 +325,9 @@ def main(argv: list[str]) -> int:
         return 1
 
     only = blocked_vals.pop()
-    if only == 0:
+    # ⛔ 「全零」必须按**整条四元组**判（Codex round-2 MEDIUM-4）：初版只看 blocked，
+    #    于是 (12, 0, 12, 0) —— 12 次 advisory 放行 —— 也被打上「全零」标签。
+    if only == 0 and quad_vals == {(0, 0, 0, 0)}:
         # ⛔ 全零不等于「门在位且本轮查完了」（Codex round-1 HIGH-2）。
         #    汇总行由 summary_line() 产，而它**不含 installed 字段**（账本 dict 有、汇总行没有）；
         #    pytest-xdist 下每个 worker 有独立 STATE，主进程那条全零汇总看不到 worker 的账。

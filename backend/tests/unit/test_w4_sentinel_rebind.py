@@ -210,6 +210,36 @@ class TestCliActuallyUsesWhatItClaims:
         assert "CONSISTENT-ZERO" in out
         assert "不能证明门当时在位" in out
 
+    def test_cli_refuses_when_a_file_has_no_summary_line(self, tmp_path):
+        """⛔ Codex round-2 HIGH-1 残留：缺四元组的档**不可比**。
+
+        初版把 ``None`` 从 ``quad_vals`` 里滤掉，于是「A 只有总账行（advisory 未知）
+        + B 有 advisory=12」被判一致。没有汇总行就不知道 advisory 是多少，说不清就非 0。
+        """
+        a, b = tmp_path / "a.txt", tmp_path / "b.txt"
+        a.write_text(
+            "  - ('::1', 7691, 0, 0) on thread MainThread (owner=x)\n"
+            "*** live Neo4j port connect attempted —— 最终总账：blocked=1 "
+            "unaccounted=0 reported_status=1；结束***\n"
+        )
+        b.write_text(
+            "  - ('::1', 7691, 0, 0) on thread MainThread (owner=x)\n"
+            "NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=13 (blocked=1, advisory=12, unaccounted=0)\n"
+        )
+        assert main([str(a), str(b)]) == 2, "一份 advisory 未知却判一致 = 假绿"
+
+    def test_zero_label_needs_the_whole_quad_to_be_zero(self, tmp_path, capsys):
+        """⛔ Codex round-2 MEDIUM-4：``CONSISTENT-ZERO`` 不得只看 ``blocked``。
+
+        ``(12, 0, 12, 0)`` —— 12 次 advisory 放行 —— 初版也被打上「全零」标签。
+        """
+        z = "NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=12 (blocked=0, advisory=12, unaccounted=0)\n"
+        a, b = tmp_path / "a.txt", tmp_path / "b.txt"
+        a.write_text(z)
+        b.write_text(z)
+        assert main([str(a), str(b)]) == 0, "两份相同，一致性判定本身没问题"
+        assert "CONSISTENT-ZERO" not in capsys.readouterr().out, "advisory=12 不是全零"
+
     def test_cli_still_consistent_on_the_r4_pair(self, tmp_path):
         """反向锚：真正该判一致的那一对仍然 rc=0，且不是 ZERO 那条路径。"""
         a, b = tmp_path / "r4.txt", tmp_path / "r4b.txt"
@@ -269,7 +299,31 @@ class TestFailureBodyIdentities:
     def test_unparseable_body_line_raises_instead_of_vanishing(self):
         """看得出是记录行、却解析不出身份 ⇒ 必须抛，不得当成「没有这条记录」。"""
         with pytest.raises(W4LedgerConflict, match="解析不出身份"):
-            failure_body_identities("- 某个畸形地址 on thread 没有 owner 段的行\n")
+            failure_body_identities("- 某个畸形地址 on thread\n")
+
+    def test_thread_name_with_embedded_newline_is_refused_not_dropped(self):
+        """⛔ Codex round-2 HIGH-3 残留：线程名含 ``\\n`` 时整条被切成两半。
+
+        首半段恰好止于 ``on thread``（截断痕迹），后半段含 ``(owner=`` 却不以 ``- `` 开头
+        （孤儿痕迹）。初版的宽松候选规则两半都不认 ⇒ 记录静默消失 ⇒ 两份不同的档判一致。
+        """
+        text = "  - ('::1', 7691, 0, 0) on thread \nworker (owner=x)\n"
+        with pytest.raises(W4LedgerConflict, match="解析不出身份"):
+            failure_body_identities(text)
+
+    def test_ordinary_log_line_is_not_mistaken_for_a_malformed_record(self):
+        """⛔ Codex round-2 MEDIUM-3：候选规则不得把普通日志当畸形记录（假红）。
+
+        captured stdout 里 ``- waiting on thread worker`` 这种行随处可见；
+        判定只认**截断痕迹**与**孤儿痕迹**，不去猜「这行像不像哨兵记录」。
+        """
+        assert (
+            failure_body_identities(
+                "NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=1 (blocked=1, advisory=0, unaccounted=0)\n"
+                "- waiting on thread worker\n"
+            )
+            == set()
+        )
 
     def test_cli_rejects_two_files_whose_bodies_differ_via_spaced_threads(self, tmp_path):
         """HIGH-3 的 CLI 面：两份含空格线程名、内容不同的存档必须判不一致。"""
