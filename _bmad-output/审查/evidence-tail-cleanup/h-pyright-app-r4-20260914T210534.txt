@@ -1,0 +1,4 @@
+# (h) pyright app — 绑 round-4 @ 20260914T210534
+---
+0 errors, 81 warnings, 0 informations
+rc=0

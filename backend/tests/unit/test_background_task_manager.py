@@ -182,14 +182,26 @@ class TestCleanupScheduler:
     兜底网, 不是通过条件。
 
     ⚠️ spy 同时记 ``sleep-enter`` 与 ``sleep-exit`` 两个事件 —— 少了 exit 就分不出
-    「就地 await 了等待」和「把等待丢进 create_task 后立刻回到循环顶」: 后者两个
-    ``sleep-enter`` 会连着出现, 前者必是 enter/exit 成对。只数 sleep 次数看不出差别
-    (Codex round-1 LOW-1 指出的门未覆盖的路径)。
+    「就地 await 了等待」和「把等待**直接**丢进 ``create_task`` 后立刻回到循环顶」:
+    后者两个 ``sleep-enter`` 会连着出现, 前者必是 enter/exit 成对。只数 sleep 次数
+    看不出差别 (Codex round-1 LOW-1 指出的门未覆盖的路径)。**但见下面的边界第 3 条 ——
+    成对本身并不等于证明了 await 依赖。**
 
     **本类不证明什么**(如实, 别当它证明了):
-    - 不钉死异常分支的等待秒数**等于**配置间隔 —— 卡文契约是「> 0 即可, 车道可换用
-      独立常量」, 所以这里刻意只断言 > 0; 值的取舍属移交事项, 不是门的漏洞。
-    - 不证明真实定时器在高并发下的行为 (spy 拦截, 不走真实时间)。
+    1. 不钉死异常分支的等待秒数**等于**配置间隔 —— 卡文契约是「> 0 即可, 车道可换用
+       独立常量」, 所以这里刻意只断言 > 0; 值的取舍属移交事项, 不是门的漏洞。
+    2. 不证明真实定时器在高并发下的行为 (spy 拦截, 不走真实时间)。
+    3. **不证明「循环真的在等那次等待完成」这条协程依赖关系。** 事件成对只说明
+       spy 的两端都被执行过, 不说明是调度循环本身在 await 它。反例 (Codex round-2/3
+       给出, 只在评审里演算未入库): 把异常分支写成「把等待丢进 ``create_task``,
+       再 ``await`` 一个 ``loop.call_soon`` 立刻兑现的 future」—— 检查点足以让子任务
+       里的 spy 跑完两端, 精确四事件照样成立, 而那个正数等待其实没人等。拦这一类
+       需要对协程间依赖做追踪, 明确不在本卡范围。
+    4. 不证明 ``cleanup_old_tasks`` 本体的清理正确性 (本卡整体 monkeypatch 掉它)。
+
+    ⚠️ 这两条整段序列比对是**窄回归门**, 偏紧是刻意的代价: 在生产 cleanup 之后加一个
+    无害的 ``await asyncio.sleep(0)`` 也会让它红 (全局 spy 把那次让出一并记账)。
+    真要那么改时, 连同本门的期望序列一起改。
     """
 
     @pytest.mark.asyncio
@@ -222,7 +234,10 @@ class TestCleanupScheduler:
 
         async def fake_cleanup(*args, **kwargs):
             events.append(("cleanup", 0))
-            return 0
+            # ⚠️ 返回**非零**清理数(真实场景就会非零)。若返 0, 生产里写成
+            # `if await self.cleanup_old_tasks(): break` 这种改坏不会被任何断言拦下
+            # (Codex round-3 LOW-1 实测的未被拦下的输入)。
+            return 3
 
         monkeypatch.setattr(manager, "cleanup_old_tasks", fake_cleanup)
         monkeypatch.setattr(asyncio, "sleep", spy_sleep)
@@ -294,7 +309,7 @@ class TestCleanupScheduler:
                 events.append(("cleanup-raise", 0))
                 raise RuntimeError("对照输入: 让本轮清理失败一次")
             events.append(("cleanup-ok", 0))
-            return 0
+            return 3  # 非零, 理由同测试 A(Codex round-3 LOW-1)
 
         monkeypatch.setattr(manager, "cleanup_old_tasks", flaky_cleanup)
         monkeypatch.setattr(asyncio, "sleep", spy_sleep)
