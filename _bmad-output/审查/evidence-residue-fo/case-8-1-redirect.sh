@@ -28,6 +28,4 @@ echo "输入: 暂存 p.py(带标记, 不在允许名单内)"
 echo "注入: mktemp 垫片预置 200(只写)的 names —— 写得进、读不出"
 echo "      (垫片只改环境, 旧/新两版块本体一字未动)"
 
-run_block old "$REPO" "$SHIM"; OLD_RC=$?
-run_block new "$REPO" "$SHIM"; NEW_RC=$?
-judge 8-1 "$OLD_RC" "$NEW_RC"
+run_both 8-1 "$REPO" "$SHIM"

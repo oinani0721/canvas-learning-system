@@ -30,6 +30,4 @@ echo "输入: 暂存 _bmad-output/x.md(允许名单内, 主循环会 continue, �
 echo "注入: mktemp 垫片在临时目录里预置 444 的 hits, 使 \`: > hits\` 失败"
 echo "      (垫片只改环境, 旧/新两版块本体一字未动)"
 
-run_block old "$REPO" "$SHIM"; OLD_RC=$?
-run_block new "$REPO" "$SHIM"; NEW_RC=$?
-judge 6-5 "$OLD_RC" "$NEW_RC"
+run_both 6-5 "$REPO" "$SHIM"

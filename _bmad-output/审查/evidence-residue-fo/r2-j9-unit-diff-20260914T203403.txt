@@ -1,0 +1,8 @@
+=== 裁判 9 (round-2 收工) ===
+存档: _bmad-output/审查/evidence-residue-fo/r2-unit-after-20260914T202823.txt
+= 35 failed, 5077 passed, 48 skipped, 23 xfailed, 171 warnings, 29 errors in 316.02s (0:05:16) =
+本次红=64  基线=64
+--- diff(只允许 '<') ---
+diff_rc=0
+--- 验伪锚: 塞一条假 nodeid 必须出现 '>' ---
+1

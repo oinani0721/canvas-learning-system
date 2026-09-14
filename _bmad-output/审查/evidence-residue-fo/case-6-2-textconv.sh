@@ -24,6 +24,4 @@ echo "旁证: 旧标志集下 git 看到的新增行 ="
 ( cd "$REPO" && "$REAL_GIT" --no-pager --literal-pathspecs diff --cached --no-color \
     --no-renames -U0 --diff-filter=AM -- p.py | /usr/bin/grep '^+x' )
 
-run_block old "$REPO"; OLD_RC=$?
-run_block new "$REPO"; NEW_RC=$?
-judge 6-2 "$OLD_RC" "$NEW_RC"
+run_both 6-2 "$REPO"

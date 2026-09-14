@@ -18,6 +18,4 @@ echo "旁证: 旧标志集下 git 的输出 ="
 ( cd "$REPO" && "$REAL_GIT" --no-pager --literal-pathspecs diff --cached --no-color \
     --no-renames -U0 --diff-filter=AM -- p.py | sed -n '1,5p' )
 
-run_block old "$REPO"; OLD_RC=$?
-run_block new "$REPO"; NEW_RC=$?
-judge 6-3 "$OLD_RC" "$NEW_RC"
+run_both 6-3 "$REPO"

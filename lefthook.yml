@@ -386,6 +386,23 @@ pre-commit:
     #   hits 两处守卫  : `: > hits` 原是全块唯一无显式守卫的一步, 失败要显式报; `[ -s ]`
     #                    为假时还要核 hits 仍是可读普通文件 —— 它若被换成 /dev/null 之类,
     #                    真命中会被写丢而 `[ -s ]` 恒假, 那是「结论取不到」不是「没命中」。
+    #
+    # 以下四条是 Codex round-1 复核后补的(同卡, 同一批对照):
+    #   NUL 归一化     : awk 的字符串是 NUL 终止的。一条新增行里只要标记**前面**出现 NUL,
+    #                    index() 就看不见它 —— 实测 `+x<NUL> # <标记>` 判 MISS 且 rc=0。
+    #                    只加 --text 不够: git 把完整字节交出来了, awk 却只看到 NUL 之前那截。
+    #                    故在喂 awk 之前把 NUL 等长换成 `?`(行号与各种前缀都不受影响)。
+    #   LC_ALL=C + 逐段 rc : 管道的 rc 是**末段**的。`tr … | wc … | tr …` 里首段 tr 在
+    #                    UTF-8 locale 下遇非法字节序列会报 Illegal byte sequence 并少数一个,
+    #                    整链却 rc=0(本机 LANG 实测就是 en_US.UTF-8)。所以字节处理一律钉
+    #                    LC_ALL=C, 且拆成能各自核 rc 的步骤, 不用管道一把梭。
+    #   结束哨兵       : 「消费条数 == 清单里的 NUL 数」只说明**没少读**, 不说明**读到过**。
+    #                    空清单遇上 read 报错会得到 0 == 0 而通过。故往流末追一条绝不可能是
+    #                    真实路径的记录(git 路径不以 / 开头), 主循环必须真的读到它。
+    #   `: >` 的真实收益: `:` 是 POSIX 特殊内建 —— 在 `sh -c`(本机解析到 bash 的 POSIX 模式)
+    #                    下重定向失败**本来就会直接退出 shell**。那条守卫在真实 runner 下是把
+    #                    静默退出变成有诊断的阻断; 只有在普通 bash 下它才真把 fail-open 变
+    #                    fail-closed。对照脚本两种解释器都跑, 结论如实分开写。
     mutant-residue-scan:
       run: |
         set -u
@@ -407,16 +424,33 @@ pre-commit:
           echo "[Mutant-Scan]   这不是「没有暂存文件」, 按 fail-closed 阻断。"
           exit 1
         fi
-        if [ -s "$TMPD/names" ] && \
-           [ "$(tail -c 1 "$TMPD/names" | od -An -tu1 | tr -d ' \n')" != "0" ]; then
-          echo "[Mutant-Scan] FAILED: 暂存清单末条没有 NUL 终止(记录流被截断) —"
-          echo "[Mutant-Scan]   末条会被 read 直接丢弃, 按 fail-closed 阻断。"
-          exit 1
+        # ⚠️ 下面每一段字节处理都钉 LC_ALL=C 并**逐段核 rc**, 不用管道一把梭: 管道的 rc 是
+        # 末段的, 首段(tr)在 UTF-8 locale 下遇到非法字节序列会报 `Illegal byte sequence`
+        # 并少数一个, 而整链仍 rc=0。本机 LANG 实测就是 en_US.UTF-8, 这不是假想。
+        if [ -s "$TMPD/names" ]; then
+          if ! LC_ALL=C tail -c 1 "$TMPD/names" > "$TMPD/lastb"; then
+            echo "[Mutant-Scan] FAILED: 取暂存清单末字节失败 — 按 fail-closed 阻断。"; exit 1
+          fi
+          LASTB=$(LC_ALL=C od -An -tu1 < "$TMPD/lastb" | LC_ALL=C tr -d ' \n')
+          if [ "$LASTB" != "0" ]; then
+            echo "[Mutant-Scan] FAILED: 暂存清单末条没有 NUL 终止(记录流被截断) —"
+            echo "[Mutant-Scan]   末条会被 read 直接丢弃, 按 fail-closed 阻断。"
+            exit 1
+          fi
         fi
-        EXPECTED=$(tr -dc '\000' < "$TMPD/names" | wc -c | tr -d ' ') || EXPECTED=""
+        # 结束哨兵: 往记录流末尾追一条**绝不可能是真实路径**的记录(git 路径不以 / 开头),
+        # 主循环必须真的读到它。没有它, 空清单 + read 报错会得到 SEEN=EXPECTED=0 而通过
+        # —— 计数相等只说明「没少读」, 不说明「读到过任何东西」。
+        SENTINEL='/__mutant-scan-eof__'
+        printf '%s\000' "$SENTINEL" >> "$TMPD/names" || {
+          echo "[Mutant-Scan] FAILED: 无法追加结束哨兵 — 按 fail-closed 阻断。"; exit 1; }
+        if ! LC_ALL=C tr -dc '\000' < "$TMPD/names" > "$TMPD/nuls"; then
+          echo "[Mutant-Scan] FAILED: 统计暂存清单记录数失败 — 按 fail-closed 阻断。"; exit 1
+        fi
+        EXPECTED=$(wc -c < "$TMPD/nuls" | LC_ALL=C tr -d ' ')
         case "$EXPECTED" in
           ''|*[!0-9]*)
-            echo "[Mutant-Scan] FAILED: 统计暂存清单记录数失败 — 按 fail-closed 阻断。"
+            echo "[Mutant-Scan] FAILED: 暂存清单记录数不是数字 — 按 fail-closed 阻断。"
             exit 1 ;;
         esac
         # CARD-TOOL-residue-newline: 按 NUL 直接消费 -z, 不再经 tr 拆行 —— tr 把文件名里的
@@ -426,9 +460,10 @@ pre-commit:
         # CARD-TOOL-residue-fail-open 把这条取舍写实(对应 Y4-C Codex §4 MEDIUM):
         # 本块**要求** read -d。/bin/sh 若是 dash 等纯 POSIX sh, 下面这段必然判不过,
         # 于是**连干净暂存面也会被阻断** —— 这是明知的取舍(宁可停下也不放行), 不是 bug;
-        # 「跨平台正常提交不受影响」这句话不成立, 不要再照抄。用哪个 sh 由 lefthook 的
-        # 执行环境(LEFTHOOK_* 与系统 /bin/sh)决定; 本机实测 /bin/sh 是 bash 3.2.57,
-        # 支持 read -d, 故走不到这条分支。真要支持纯 POSIX sh 必须换掉整套 NUL 读法,
+        # 「跨平台正常提交不受影响」这句话不成立, 不要再照抄。lefthook 2.1.6 起的是
+        # `sh -c`, 这个 `sh` 由 lefthook 进程的 PATH 查找, **不是**硬编码 /bin/sh;
+        # 本机当前解析到 /bin/sh = bash 3.2.57, 支持 read -d, 故走不到这条分支
+        # (换句话说: PATH 上先出现一个纯 POSIX sh 就会走到)。真要支持纯 POSIX sh 必须换掉整套 NUL 读法,
         # 那是另一张卡的面 —— 在那之前**不得**把这里改成「是 dash 就降级放行」。
         printf 'a\\\nb\000 c\000' > "$TMPD/probe"
         PROBE_ACC=""
@@ -438,11 +473,18 @@ pre-commit:
           echo "[Mutant-Scan]   /bin/sh 若是 dash 等纯 POSIX sh 必然走到这里。按 fail-closed 阻断。"
           exit 1
         fi
+        # ⚠️ 如实声明(Codex round-1): `:` 是 POSIX 特殊内建, 在真实 runner(`sh -c`, 本机
+        # 解析到 bash 的 POSIX 模式)下, 这一步重定向失败**本来就会直接退出 shell**、rc 非零。
+        # 所以这条守卫在真实 runner 下的价值不是「把放行变成阻断」, 而是「把一句
+        # Permission denied 的静默退出变成一条说得清是哪一步的阻断」。在普通 bash(非 POSIX
+        # 模式)下它才真的是把 fail-open 变 fail-closed —— 对照脚本两种解释器都跑, 见存档。
         : > "$TMPD/hits" || {
           echo "[Mutant-Scan] FAILED: 无法初始化命中文件 — 按 fail-closed 阻断。"; exit 1; }
         SEEN=0
+        SAW_SENTINEL=0
         while IFS= read -r -d '' f; do
           SEEN=$((SEEN + 1))
+          if [ "$f" = "$SENTINEL" ]; then SAW_SENTINEL=1; continue; fi
           [ -n "$f" ] || continue
           case "$f" in
             backend/scripts/g32b_mutation_gates.py) continue ;;
@@ -458,6 +500,14 @@ pre-commit:
                  --no-renames -U0 --diff-filter=AMT -- "$f" > "$TMPD/d"; then
             echo "[Mutant-Scan] FAILED: 取 diff 失败: $f"; FAILED=1; continue
           fi
+          # NUL 归一化(必需, 不是保险): awk 的字符串是 NUL 终止的, 一条新增行里只要标记
+          # **前面**出现 NUL, index() 就看不见它 —— 本机实测 `+x<NUL> # <标记>` 判 MISS 而
+          # rc=0。--text 让 git 吐出完整字节, 归一化让 awk 真能看完这些字节, 两者缺一不可。
+          # 换成 '?' 是等长替换: 行号、`+`/`@@`/`diff --git` 前缀、命中列都不受影响, 也不会
+          # 凭空造出标记(标记全是 ASCII 字母)。LC_ALL=C 免得 tr 在 UTF-8 locale 下拒收非法字节。
+          if ! LC_ALL=C tr '\000' '?' < "$TMPD/d" > "$TMPD/dn"; then
+            echo "[Mutant-Scan] FAILED: NUL 归一化失败: $f"; FAILED=1; continue
+          fi
           F="$f" awk -v M="$MARKER" '
             BEGIN          { F = ENVIRON["F"] }
             /^diff --git / { inhunk = 0; next }
@@ -466,8 +516,13 @@ pre-commit:
             /^\+/          { if (index($0, M)) printf "  %s:%d: %s\n", F, ln, substr($0, 2); ln++; next }
             /^ /           { ln++; next }
             { next }
-          ' < "$TMPD/d" >> "$TMPD/hits" || { echo "[Mutant-Scan] FAILED: 解析失败: $f"; FAILED=1; }
+          ' < "$TMPD/dn" >> "$TMPD/hits" || { echo "[Mutant-Scan] FAILED: 解析失败: $f"; FAILED=1; }
         done < "$TMPD/names"
+        if [ "$SAW_SENTINEL" -ne 1 ]; then
+          echo "[Mutant-Scan] FAILED: 主循环没读到结束哨兵 — 记录流没被完整消费"
+          echo "[Mutant-Scan]   (打不开 / 读报错 / 被别的命令吞掉都会走到这里)。按 fail-closed 阻断。"
+          exit 1
+        fi
         if [ "$SEEN" -ne "$EXPECTED" ]; then
           echo "[Mutant-Scan] FAILED: 暂存清单 $EXPECTED 条, 主循环只消费了 $SEEN 条 —"
           echo "[Mutant-Scan]   记录流中途读失败或被别的命令吞掉, 这不是「读完了」。按 fail-closed 阻断。"

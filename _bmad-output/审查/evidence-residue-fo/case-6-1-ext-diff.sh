@@ -21,6 +21,4 @@ echo "旁证: 旧标志集下 git 的输出字节数 ="
 ( cd "$REPO" && "$REAL_GIT" --no-pager --literal-pathspecs diff --cached --no-color \
     --no-renames -U0 --diff-filter=AM -- p.py | wc -c )
 
-run_block old "$REPO"; OLD_RC=$?
-run_block new "$REPO"; NEW_RC=$?
-judge 6-1 "$OLD_RC" "$NEW_RC"
+run_both 6-1 "$REPO"

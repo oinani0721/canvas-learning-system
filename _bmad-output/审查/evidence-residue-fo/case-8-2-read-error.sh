@@ -23,6 +23,4 @@ printf 'x = 1  # %s\n' "$MARK" > "$REPO/p.py"
 ( cd "$REPO" && "$REAL_GIT" add p.py )
 echo "输入: 暂存 p.py(带标记, 不在允许名单内)"
 
-run_block old "$REPO"; OLD_RC=$?
-run_block new "$REPO"; NEW_RC=$?
-judge 8-2 "$OLD_RC" "$NEW_RC"
+run_both 8-2 "$REPO"

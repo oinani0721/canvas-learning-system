@@ -36,6 +36,4 @@ echo "注入: git 垫片让枚举输出 'a_clean.py<NUL>b_dirty.py' —— 末�
 echo -n "旁证: 该流的末字节(十进制, NUL 应为 0) = "
 printf 'a_clean.py\000b_dirty.py' | tail -c 1 | od -An -tu1 | tr -d ' \n'; echo
 
-run_block old "$REPO" "$SHIM"; OLD_RC=$?
-run_block new "$REPO" "$SHIM"; NEW_RC=$?
-judge 8-3 "$OLD_RC" "$NEW_RC"
+run_both 8-3 "$REPO" "$SHIM"

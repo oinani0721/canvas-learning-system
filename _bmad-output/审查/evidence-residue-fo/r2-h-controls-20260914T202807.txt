@@ -1,0 +1,24 @@
+=== round-2 (h) 正控 ===
+┃  mutant-residue-scan ❯ 
+[Mutant-Scan] OK (staged additions carry no mutation marker).
+✔️ mutant-residue-scan (0.03 seconds)
+lefthook_rc=0
+
+=== round-2 (h) 负控 A: 普通标记 ===
+┃  mutant-residue-scan ❯ 
+[Mutant-Scan] BLOCKED — 暂存的新增行里带变异残留标记:
+[Mutant-Scan] 变异 harness 没还原干净。先 restore 被改的生产文件,
+[Mutant-Scan] 再拿变异前的全文件 sha 基线逐个复核 —— 标记只是最弱那道网。
+🥊 mutant-residue-scan (0.05 seconds)
+lefthook_rc=1
+
+=== round-2 (h) 负控 B: 同行 NUL 在标记之前(真 hook 验 HIGH 修复) ===
+┃  mutant-residue-scan ❯ 
+[Mutant-Scan] BLOCKED — 暂存的新增行里带变异残留标记:
+[Mutant-Scan] 变异 harness 没还原干净。先 restore 被改的生产文件,
+[Mutant-Scan] 再拿变异前的全文件 sha 基线逐个复核 —— 标记只是最弱那道网。
+🥊 mutant-residue-scan (0.05 seconds)
+lefthook_rc=1
+
+=== 探针残留(必 0) ===
+0

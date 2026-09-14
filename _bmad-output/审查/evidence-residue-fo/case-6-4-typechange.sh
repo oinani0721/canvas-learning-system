@@ -22,6 +22,4 @@ echo "输入: tc.py 由 symlink 变成带标记的普通文件并暂存"
 echo -n "旁证 AM  枚举 : "; ( cd "$REPO" && "$REAL_GIT" --no-pager diff --cached --no-color --no-renames --name-only --diff-filter=AM  -z | tr '\000' '|' ); echo "  <-- 空"
 echo -n "旁证 AMT 枚举 : "; ( cd "$REPO" && "$REAL_GIT" --no-pager diff --cached --no-color --no-renames --name-only --diff-filter=AMT -z | tr '\000' '|' ); echo
 
-run_block old "$REPO"; OLD_RC=$?
-run_block new "$REPO"; NEW_RC=$?
-judge 6-4 "$OLD_RC" "$NEW_RC"
+run_both 6-4 "$REPO"

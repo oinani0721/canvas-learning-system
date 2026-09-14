@@ -29,6 +29,4 @@ printf 'x = 1  # %s\n' "$MARK" > "$REPO/b_dirty.py"
 export TMPDIR='t=x'
 echo "输入: 暂存 a_clean.py(无标记, 排序在前) + b_dirty.py(带标记); TMPDIR='t=x'(相对路径, 首段含 =)"
 
-run_block old "$REPO"; OLD_RC=$?
-run_block new "$REPO"; NEW_RC=$?
-judge 6-6 "$OLD_RC" "$NEW_RC"
+run_both 6-6 "$REPO"

@@ -1,0 +1,41 @@
+=== CASE 6-3: 单文件 diff 缺 --text ===
+旧版块 = git show 08100483:lefthook.yml 抽出, 58 行
+新版块 = 当前工作树 lefthook.yml 抽出, 145 行
+解释器: bash sh  (sh -> bash 3.2.57(1)-release)
+输入: 暂存 p.py — 第 1 行带标记, 第 2 行以 NUL 开头(落在前 8000 字节内)
+旁证: 旧标志集下 git 的输出 =
+diff --git a/p.py b/p.py
+new file mode 100644
+index 0000000..08aa772
+Binary files /dev/null and b/p.py differ
+######## 解释器 = bash ########
+  ----- [old / bash] rc=0 -----
+  [Mutant-Scan] OK (staged additions carry no mutation marker).
+  ----- [old / bash] end rc=0 -----
+  ----- [new / bash] rc=1 -----
+  
+  [Mutant-Scan] BLOCKED — 暂存的新增行里带变异残留标记:
+    p.py:1: x = 1  # MUTANT
+  
+  [Mutant-Scan] 变异 harness 没还原干净。先 restore 被改的生产文件,
+  [Mutant-Scan] 再拿变异前的全文件 sha 基线逐个复核 —— 标记只是最弱那道网。
+  ----- [new / bash] end rc=1 -----
+  旧版打 OK 且 rc=0 : YES  (rc=0)
+  新版不打 OK 且 rc=1: YES  (rc=1)
+  == 6-3 / bash: SEALED
+######## 解释器 = sh ########
+  ----- [old / sh] rc=0 -----
+  [Mutant-Scan] OK (staged additions carry no mutation marker).
+  ----- [old / sh] end rc=0 -----
+  ----- [new / sh] rc=1 -----
+  
+  [Mutant-Scan] BLOCKED — 暂存的新增行里带变异残留标记:
+    p.py:1: x = 1  # MUTANT
+  
+  [Mutant-Scan] 变异 harness 没还原干净。先 restore 被改的生产文件,
+  [Mutant-Scan] 再拿变异前的全文件 sha 基线逐个复核 —— 标记只是最弱那道网。
+  ----- [new / sh] end rc=1 -----
+  旧版打 OK 且 rc=0 : YES  (rc=0)
+  新版不打 OK 且 rc=1: YES  (rc=1)
+  == 6-3 / sh: SEALED
+CASE 6-3: bash=SEALED sh=SEALED
