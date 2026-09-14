@@ -1,0 +1,23 @@
+# (h) 对照输入 — 独立证明「删那条抑制注解」确实把 warnings 从 82 压回 81
+# 起因: Codex round-1 Q5「81→82 尚未独立证明」。本段把注解临时加回去再跑一次 pyright。
+# 跑前 btm sha: ae9be4cae5c8a7e2fd143e836b67d0a829f60723c4970b0201b20810031ad01d
+---
+## 现状（注解已删）
+0 errors, 81 warnings, 0 informations
+
+## 对照输入（注解加回，字段仍在 ⇒ 该注解变多余）
+0 errors, 82 warnings, 0 informations
+
+## 该多余注解被 pyright 点名的那一条诊断
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-bugs/backend/app/core/logging.py:72:45 - warning: Unnecessary "# type: ignore" comment (reportUnnecessaryTypeIgnoreComment)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-bugs/backend/app/dependencies.py:1035:63 - warning: Unnecessary "# pyright: ignore" rule: "reportArgumentType" (reportUnnecessaryTypeIgnoreComment)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-bugs/backend/app/main.py:573:34 - warning: Unnecessary "# type: ignore" comment (reportUnnecessaryTypeIgnoreComment)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-bugs/backend/app/middleware/agent_metrics.py:216:36 - warning: Unnecessary "# type: ignore" comment (reportUnnecessaryTypeIgnoreComment)
+
+## 还原后 btm sha（须与跑前同）: ae9be4cae5c8a7e2fd143e836b67d0a829f60723c4970b0201b20810031ad01d
+## 还原后复跑
+0 errors, 81 warnings, 0 informations
+
+## ⚠️ 上一段 'head -4' 被字母序靠前的文件截断，没抓到 background_task_manager 自己那条。精确重取：
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-bugs/backend/app/services/background_task_manager.py:358:83 - warning: Unnecessary "# pyright: ignore" rule: "reportAttributeAccessIssue" (reportUnnecessaryTypeIgnoreComment)
+[精确条目结束 —— 这一条就是 82-81 的那一条]

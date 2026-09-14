@@ -1,0 +1,81 @@
+# (k) 裸 commit 尝试（不带 LEFTHOOK_EXCLUDE）@ 20260914T201457
+---
+╭──────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: pre-commit │
+╰──────────────────────────────────────╯
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+│  cypher-vault-filter-lint (skip) no matching staged files
+┃  ghost-files ❯ 
+
+[Ghost Files] No untracked docs found.
+
+┃  mutant-residue-scan ❯ 
+
+[Mutant-Scan] OK (staged additions carry no mutation marker).
+
+┃  python-lint ❯ 
+
+[Python] Running ruff lint...
+All checks passed!
+[Python] Lint OK.
+[Python] Checking format...
+Would reformat: backend/app/services/background_task_manager.py
+Would reformat: backend/tests/unit/test_background_task_manager.py
+2 files would be reformatted, 1 file already formatted
+[Python] Format check FAILED! Fix: ruff format backend/app/config.py backend/app/services/background_task_manager.py backend/tests/unit/test_background_task_manager.py
+
+exit status 1┃  python-typecheck ❯ 
+
+[Python] Running pyright type check (backend/.venv/bin/pyright)...
+0 errors, 0 warnings, 0 informations
+[Python] Typecheck done (exit: 0).
+
+│  readme-claims-lint (skip) no matching staged files
+│  spec-sync-flat (skip) no matching staged files
+┃  spec-sync-root ❯ 
+
+[Spec Sync/root] API changes detected, regenerating backend/openapi.json (via backend/.venv/bin/python)...
+[92m20:15:00 - LiteLLM:WARNING[0m: get_model_cost_map.py:271 - LiteLLM: Failed to fetch remote model cost map from https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json: socket connect blocked during OpenAPI export (target=('127.0.0.1', 1082)) — check-openapi-drift.py 只允许 import, 不允许 lifespan/网络行为. Falling back to local backup.
+{"event": "LiteLLM: Failed to fetch remote model cost map from https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json: socket connect blocked during OpenAPI export (target=('127.0.0.1', 1082)) \u2014 check-openapi-drift.py \u53ea\u5141\u8bb8 import, \u4e0d\u5141\u8bb8 lifespan/\u7f51\u7edc\u884c\u4e3a. Falling back to local backup.", "logger": "LiteLLM", "level": "warning", "timestamp": "2026-09-14T12:15:00.168133Z"}
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+  from pydantic.v1.fields import FieldInfo as FieldInfoV1
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  import pkg_resources
+Building prefix dict from the default dictionary ...
+Loading model from cache /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/jieba.cache
+Loading model cost 0.263 seconds.
+Prefix dict has been built successfully.
+{"event": "cohere not installed. Cohere API reranking unavailable.", "logger": "agentic_rag.reranking", "level": "info", "timestamp": "2026-09-14T12:15:04.896624Z"}
+{"event": "Agentic RAG module loaded successfully. AGENTIC_RAG_AVAILABLE=True", "logger": "agentic_rag", "level": "info", "timestamp": "2026-09-14T12:15:04.931380Z"}
+{"event": "RAGService: LangGraph/Agentic RAG available. LANGGRAPH_AVAILABLE=True", "logger": "app.services.rag_service", "level": "info", "timestamp": "2026-09-14T12:15:04.931529Z"}
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-bugs/backend/app/api/v1/endpoints/metadata.py:103: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+  canvas_path: str = Query(
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-bugs/backend/app/api/v1/endpoints/metadata.py:177: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+  canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+{"event": "AgentService not available, canvas uses template questions only", "logger": "app.api.v1.endpoints.review", "level": "info", "timestamp": "2026-09-14T12:15:05.232763Z"}
+{"event": "src.rollback not available \u2014 rollback endpoints will return 503", "logger": "app.api.v1.endpoints.rollback", "level": "warning", "timestamp": "2026-09-14T12:15:05.264810Z"}
+{"event": "[MCP] Patched fastapi-mcp anyOf+type schema conflict (v0.4.0 bug)", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-09-14T12:15:05.511911Z"}
+{"event": "[P0-2] Registered 6 read-only MCP tool routes + 14 quarantined (410) stubs", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-09-14T12:15:05.528957Z"}
+{"event": "[MCP] Stripped spurious 'type' from 325 anyOf properties across 208 tools", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-09-14T12:15:05.936446Z"}
+{"event": "No auth config provided, skipping auth setup", "logger": "fastapi_mcp.server", "level": "info", "timestamp": "2026-09-14T12:15:05.937499Z"}
+{"event": "MCP HTTP server listening at /mcp", "logger": "fastapi_mcp.server", "level": "info", "timestamp": "2026-09-14T12:15:05.937533Z"}
+{"event": "[Story 3.2] MCP server mounted at /mcp (streamable HTTP) with canvas-learning tools", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-09-14T12:15:05.937616Z"}
+WROTE: backend/openapi.json (paths=197 schemas=357, x-generated-at=2026-09-14T12:15:06.438175+00:00)
+[Spec Sync/root] + backend/openapi.json staged
+
+                                      
+  ────────────────────────────────────
+summary: (done in 9.92 seconds)       
+✔️ ghost-files (0.01 seconds)
+✔️ mutant-residue-scan (0.04 seconds)
+✔️ python-typecheck (1.76 seconds)
+✔️ spec-sync-root (8.07 seconds)
+🥊 python-lint (0.03 seconds)
+rc=1

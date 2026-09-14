@@ -1,0 +1,113 @@
+# (k) commit @ 20260914T201549 — LEFTHOOK_EXCLUDE=python-lint,spec-sync-root
+# 依据与证据：
+#  1) python-lint：协议 §2.3 / 手册 §零.3 过渡条款（主干既有 462 文件 ruff-format 漂移，留到 T8-G）。
+#     被跳过门原始输出见 k-commit-attempt-bare-*.txt（裸跑，含 'Would reformat' 两行 + exit status 1）。
+#     「漂移不在本卡改动行」逐 hunk 证明见 i2-ruffformat-drift-attribution-final-*.txt。
+#     ⚠️ python-typecheck 保持启用（裸跑实测 0 errors, exit 0），本卡禁 LEFTHOOK_EXCLUDE=python-typecheck。
+#  2) spec-sync-root：该 hook 会重生成并**自动 staged** backend/openapi.json —— 那是 T5-D 的面，
+#     本卡 §三 地盘门要求 diff ⊆ 三文件。裸跑实测它产生的唯一差异是 x-generated-at 时间戳
+#     (git diff --numstat = 1 增 1 删, 仅 :15852 一行) ⇒ 本卡改动对 OpenAPI schema 零影响，
+#     跳过它没有掩盖任何真实 drift；已用 git show HEAD:backend/openapi.json 写回并 add 还原。
+---
+╭──────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: pre-commit │
+╰──────────────────────────────────────╯
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+│  cypher-vault-filter-lint (skip) no matching staged files
+┃  ghost-files ❯ 
+
+[Ghost Files] No untracked docs found.
+
+┃  mutant-residue-scan ❯ 
+
+[Mutant-Scan] OK (staged additions carry no mutation marker).
+
+│  python-lint (skip) name
+┃  python-typecheck ❯ 
+
+[Python] Running pyright type check (backend/.venv/bin/pyright)...
+0 errors, 0 warnings, 0 informations
+[Python] Typecheck done (exit: 0).
+
+│  readme-claims-lint (skip) no matching staged files
+│  spec-sync-flat (skip) no matching staged files
+│  spec-sync-root (skip) name
+                                      
+  ────────────────────────────────────
+summary: (done in 1.93 seconds)       
+✔️ ghost-files (0.02 seconds)
+✔️ mutant-residue-scan (0.05 seconds)
+✔️ python-typecheck (1.86 seconds)
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+╭──────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: commit-msg │
+╰──────────────────────────────────────╯
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+┃  commitlint ❯ 
+
+
+┃  spec-reference ❯ 
+
+[Spec Ref] OK.
+
+                                      
+  ────────────────────────────────────
+summary: (done in 0.56 seconds)       
+✔️ commitlint (0.53 seconds)
+✔️ spec-reference (0.04 seconds)
+╭───────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: post-commit │
+╰───────────────────────────────────────╯
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+[card/t5-bugs 8ace89c1] fix(t5-a): 后台清理调度器不再忙循环 [BATCH-2026-09-11-第十四批 / CARD-TAIL-CLEANUP-LOOP]
+ 24 files changed, 3178 insertions(+), 7 deletions(-)
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-tail-cleanup/README.md"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-tail-cleanup/a-minute0-selfproof-20260914T194929.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-tail-cleanup/b1-rootcause-gate-RED-20260914T195006.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-tail-cleanup/b2-testcleanupscheduler-RED-20260914T195230.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-tail-cleanup/base.nodeids"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-tail-cleanup/close.nodeids"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-tail-cleanup/d1-rootcause-gate-GREEN-20260914T195454.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-tail-cleanup/d1-rootcause-gate-GREEN-final-20260914T200600.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-tail-cleanup/d2-testcleanupscheduler-GREEN-20260914T195454.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-tail-cleanup/d2-testcleanupscheduler-GREEN-final-20260914T200600.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-tail-cleanup/e-negctl-final-20260914T200649.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-tail-cleanup/e1-negctl-config-field-renamed-20260914T195543.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-tail-cleanup/e1-negctl-config-field-renamed-locline-20260914T195634.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-tail-cleanup/e2-negctl-backoff-await-removed-20260914T195705.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-tail-cleanup/g-unit-close-20260914T195745.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-tail-cleanup/g-unit-close-final-20260914T200748.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-tail-cleanup/h-pyright-app-20260914T195518.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-tail-cleanup/h-pyright-app-final-20260914T200600.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-tail-cleanup/i-ruff-20260914T200503.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-tail-cleanup/i2-ruffformat-drift-attribution-final-20260914T200740.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-tail-cleanup/i2-ruffformat-drift-preexisting-20260914T200526.txt"
+rc=0

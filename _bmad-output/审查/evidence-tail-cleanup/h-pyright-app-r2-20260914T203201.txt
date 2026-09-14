@@ -1,0 +1,4 @@
+# (h) pyright app — 绑 round-2 代码 @ 20260914T203201
+---
+0 errors, 81 warnings, 0 informations
+rc=0
