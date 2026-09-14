@@ -185,29 +185,86 @@ PYEOF_RE = re.compile(r"<<'PYEOF'[ \t]*\r?\n(.*?)\r?\n^PYEOF[ \t]*\r?$", re.DOTA
 _FAILED_RE = re.compile(r"^(?P<status>FAILED|ERROR) (?P<nodeid>\S+?)(?: - (?P<reason>.*))?$", re.M)
 
 
+def _nodeid_shaped(s: str) -> bool:
+    r"""`s` 能否**整体**读成一个合法的 pytest nodeid（= 一种「无 reason」读法）。
+
+    nodeid 的结构约束只有两条，⛔ 都只能锚**两端**、不能锚内部：
+      · 参数段之前那截（`path::test_name`）**不含空白**；
+      · 有参数段时，它从**第一个** `[` 起、到整串**末尾的 `]`** 止 —— 参数 ID 内部
+        什么字符都可能出现（空格、` - `、`[`、`]`），所以内部不可约束。
+
+    ⚠️ 这与 `_boundary_ok` 的「方括号成对」是**两条不同**的判据，不是同义改写：
+    `a[[b]` 括号不成对却是合法 nodeid（参数 ID = `[b`），`a[b] - c` 括号成对却**不是**
+    合法 nodeid（不以 `]` 收尾）。两族各自能捞到对方漏掉的读法，所以 `_split_unique`
+    取**并集**而不是二选一。
+    """
+    if not s:
+        return False
+    i = s.find("[")
+    if i < 0:
+        return not any(ch.isspace() for ch in s)
+    head = s[:i]
+    return bool(head) and not any(ch.isspace() for ch in head) and s.endswith("]")
+
+
 def _split_unique(line: str, nodeid: str) -> bool:
     r"""整行的 `nodeid - reason` 切分是否**唯一可判定**。
 
-    ⛔ round-4 HIGH：只查「截断结果里方括号成对」不够 ——
-        `FAILED tests/x.py::test_x[case] - EXPECT[] - AssertionError: other`
-    真实参数 ID 可能是 `case] - EXPECT[`（整体括号也成对），解析器却在**第一个**
-    ` - ` 处切成 `test_x[case]`，把 `EXPECT[] - AssertionError: other` 当 reason
-    ⇒ 期望消息若是 `EXPECT`，弱位置判据遇到门内前提失败就能记 KILLED。
-    判据：枚举整行**所有** ` - ` 切点，凡「左侧无空白且方括号成对」的都是一种合法
-    读法；多于一种 ⇒ 边界不可判定 ⇒ 调用方判 HARNESS-ERROR。⛔ 仍不用贪婪/`rsplit`。
+    ⛔ **本函数修的是「边界不可判定」这个性质，不是某一条输入**（UAT §31 元教训）：
+    round-3 / round-4 连着两轮各补了「这一条反例」，下一轮换个参数 ID 又漏一类。
+    所以判据的写法是**枚举读法空间、取并集**，不是「再加一个 if」。
+
+    **读法空间（穷举；一行 `FAILED <body>` 的全部合法读法）**：
+      · **完整 reason**    —— `<nodeid> - <reason>`，在某个 ` - ` 处切开；
+      · **参数化**         —— 同上，nodeid 带 `[...]` 参数段；
+      · **无 reason**      —— 整行 body 就是 nodeid（pytest 在断言没有消息时只打
+        `FAILED <nodeid>`）；参数 ID 内部可含 ` - ` 与方括号，所以「整行」这一读法
+        跟上面两类**可以同时成立**；
+      · **括号闭合的二义形态** —— `…::test_x[case] - EXPECT[]`：既可读成
+        「nodeid=`…test_x[case]` + reason=`EXPECT[]`」，也可读成「整行是一个无 reason
+        的 nodeid，参数 ID = `case] - EXPECT[`」。两读并存 ⇒ 边界不可判定。
+
+    ⛔ round-20（H1）：旧实现把「无 reason」放在 `if not cands:` 的**另一条分支**里，
+    于是它**从不与**「截断 + reason」同台参与唯一性判定 —— `len(cands) == 1` 是在一个
+    **残缺的候选集**上成立的恒真式。现在三类读法进**同一个** `cands`，多于一种 ⇒
+    调用方判 HARNESS-ERROR。⛔ 仍不用贪婪 / `rsplit`（那只是把错误换个方向）。
+
+    ⚠️ **如实声明改动方向（⛔ 不是「单调只收紧」——初稿那么写过，实测推翻）**：
+      · **有 ` - ` 切点**那一族的判据只**增不减**（`方括号成对 ∪ nodeid 形`）⇒ 候选集
+        单调变大 ⇒ 该族的返回值只可能 True→False；
+      · **无 ` - ` 切点**那一族（旧 `if not cands:` 分支）的判据从「整行方括号成对」换成
+        「整行是 nodeid 形」，两者**互不包含**，所以**两个方向都会翻**：
+          - `a::b[c - d]` 由 True 翻 False（括号成对，但正则切出的 nodeid 是 `a::b[c`，
+            与唯一合法读法不符 ⇒ 本该拒）——**收紧**，是想要的；
+          - `a::b[[c]`   由 False 翻 True（括号不成对，但它是**合法** nodeid：参数 ID
+            = `[c`）——**放宽**。这一条放宽**不影响**端到端判据：`_boundary_ok(nodeid)`
+            仍会因方括号不成对把该行打进 `unparsed_failure_lines` ⇒ 调用方照样判
+            HARNESS-ERROR（两者并联，见 `failure_records` / `parse_failed_nodeids`）。
+
+    ⚠️ **保守性的代价也如实说**：参数化门 + reason 以 `]` 收尾（如
+    `FAILED a::b[c] - AssertionError: [1, 2]`）现在判**不唯一** ⇒ HARNESS-ERROR。那**确实**
+    是两种合法读法（读法 B 的参数 ID = `c] - AssertionError: [1, 2`），只看摘要行分不开。
+    要把这类分开只能靠 `expect_loc` 绑到具体断言（D-28 延期，T8-C 的面），不能靠在这里
+    挑一个「看起来更像」的读法 —— 那正是 round-3/4 两轮栽过的形态。
     """
     body = line.split(" ", 1)[1] if " " in line else line
     # ⛔ 候选 nodeid **允许含空格**：参数 ID 里本来就可能有（`test_x[case] - EXPECT[`
-    # 正是这种）。唯一的结构约束是方括号成对 —— 这恰恰让「截断读法」与「完整读法」
-    # 同时合法，于是切分不唯一，必须拒。
+    # 正是这种）。结构约束取两族的**并集**（见 `_nodeid_shaped` 的 ⚠️ 段）—— 这恰恰让
+    # 「截断读法」与「完整读法」同时合法，于是切分不唯一，必须拒。
     cands = []
     for i in range(len(body)):
         if body.startswith(" - ", i):
             left = body[:i]
-            if left and left.count("[") == left.count("]"):
+            if left and (left.count("[") == left.count("]") or _nodeid_shaped(left)):
                 cands.append(left)
-    if not cands:  # 无 reason 的行（`FAILED <nodeid>`）
-        return body.count("[") == body.count("]")
+    # ⛔ H1：无 reason 读法（整行即 nodeid）也是**一种候选读法**，必须进同一个候选集。
+    if _nodeid_shaped(body):
+        cands.append(body)
+    if not cands:
+        # 一种合法读法都凑不出来（body 既切不出 nodeid 形的左侧，整行也不是 nodeid 形）
+        # ⇒ 边界同样不可判定。⛔ 旧实现在这里回落到「整行方括号成对即可」，那把
+        # 「读不出来」当成了「读法唯一」。
+        return False
     return len(cands) == 1 and cands[0] == nodeid
 
 
@@ -607,6 +664,40 @@ def matched_loc_tokens(out: str, gate_file: str | Path) -> list[str | None]:
     return [loc_token_for(gate_file, p, ln) for p, ln, _ in failed_locations(out)]
 
 
+def anchor_surface_broken(gate_file: str | Path | None, expect_loc: str | None) -> str | None:
+    r"""位置锚**本身**还成不成立？返回问题描述；`None` = 成立（或本次不使用位置锚）。
+
+    ⛔ M①（round-20）：这道检查必须跑在**任何关于被测物的结论之前**。收口前
+    `kill_identity()` 里有两条早退排在锚检查前面 ——
+      · `rc == 0 ⇒ SURVIVED`（「变异没被这道门抓住」）；
+      · 「红在门文件之外 ⇒ SURVIVED」；
+    于是「门文件被别的卡改写、`expect_loc` 已失效」会被读成**关于被测物的结论**，
+    下一个人拿着这份报告去修一个根本没坏的门。判据面坏了就只能说「判据面坏了」。
+
+    判据与跑门**之前**的 `check_expect_loc_unique()` 逐字同口径：`stmt:` 指纹必须在
+    门文件里**恰好命中 1 条**（0 条 = 锚漂；>1 条 = 同形两处、身份不可唯一归属）。
+
+    ⚠️ 边界：本函数**不改 rc 契约** —— 锚完好时 `rc == 0` 仍然是 SURVIVED（那是关于
+    被测物的结论）。它只在「判据面本身求不了值」时抢在结论之前说话。
+    """
+    if expect_loc is None or not expect_loc.startswith("stmt:"):
+        return None
+    if gate_file is None:
+        return "要求位置判据却没给 gate_file —— 位置锚无法求值"
+    p = Path(gate_file)
+    if not p.exists():
+        return f"门文件不存在 {p} —— 位置锚无法求值"
+    try:
+        hits = stmt_fingerprints(p).get(expect_loc[5:], [])
+    except (SyntaxError, OSError, ValueError) as exc:
+        return f"门文件解析不了({exc}) —— 位置锚无法求值"
+    if len(hits) != 1:
+        return f"expect_loc {expect_loc} 在门文件里命中 {len(hits)} 条语句(应为 1)" + (
+            "—— 门被改写，锚失效" if not hits else f" 行号 {hits} —— 同形两处，身份不可唯一归属"
+        )
+    return None
+
+
 def _loc_identity(out: str, nodeid: str, gate_file: str | Path, expect_loc: str) -> tuple[bool, str]:
     """位置判据。返回 `(ok, 说明)`；说明以 `HARNESS:` 开头 = 判据面坏了，不是结论。"""
     failed = parse_failed_nodeids(out)
@@ -616,12 +707,18 @@ def _loc_identity(out: str, nodeid: str, gate_file: str | Path, expect_loc: str)
     if not locs:
         return False, "HARNESS: FAILURES 区里没有位置行（缺 `--tb=line`）"
     if expect_loc.startswith("stmt:"):
-        fps = stmt_fingerprints(gate_file)
-        if expect_loc[5:] not in fps:
+        # ⛔ M①（round-20）：除「在不在」外**复核命中数恰为 1**，与跑门**之前**的
+        # `check_expect_loc_unique()` 逐字同口径。只查存在性时，门文件在跑门**期间**
+        # 被改写成同形两条（同一作用域里逐字重复的断言）⇒ 指纹照样「在」，命中 2 条
+        # 的事实在运行期这一侧完全看不见，位置身份不可唯一归属却照判 KILLED。
+        if len(hits := stmt_fingerprints(gate_file).get(expect_loc[5:], [])) != 1:
             # ⛔ 这里必须是 HARNESS-ERROR 而不是 SURVIVED：门文件被别的卡改写后，
             # 「找不到那条语句」说明**锚漂了**，不是「防线失效」。把两者混起来，
             # 下一个人会去修一个根本没坏的门。
-            return False, f"HARNESS: expect_loc {expect_loc} 在门文件里已找不到对应语句 —— 门被改写，锚失效"
+            return False, (
+                f"HARNESS: expect_loc {expect_loc} 在门文件里命中 {len(hits)} 条语句(应为 1)"
+                + ("—— 门被改写，锚失效" if not hits else f" 行号 {hits} —— 同形两处，身份不可唯一归属")
+            )
     tokens = [loc_token_for(gate_file, p, ln) for p, ln, _ in locs]
     # ⛔ 同行多语句 ⇒ 位置归属不可证（Codex round-1 HIGH）：两条并列最小语句共享一个
     # 行号，`--tb=line` 只给行号 ⇒ 到底哪条失败分不开。判 HARNESS-ERROR，不猜。
@@ -665,10 +762,26 @@ def kill_identity(
 
     `expect_loc is None and expect_msg is None` ⇒ `KILLED-UNBOUND`：门确实红了，
     但没绑上是哪一条断言。它证明的东西比 `KILLED` 少，所以单列一档。
+
+    ⛔ round-20（H2 / M①）两处收口，都属「判据面归属」而不是新判据：
+      · **弱位置不得跨门借位**：`require_gate_file` 这一路（**无** `expect_loc`）原先
+        只查「有**某条**失败落在门文件里」；而「所有失败 nodeid 都属于目标门」那道核
+        只在 `_loc_identity()` 里、只有传 `expect_loc` 才跑 ⇒ 「目标门红在门文件外
+        （消息命中）」+「另一道门红在门文件内（消息不命中）」可以凑成 KILLED，位置
+        这一维是**借**来的。现在两路都核。⚠️ 这封堵的是**弱位置判据自己的承诺**
+        （「红在这个门文件里」），**不触碰** D-28 延期的「具体断言绑定（`expect_loc`）」
+        —— 后者是 T8-C 的面，本轮一条都不动；
+      · **锚漂移优先**：`anchor_surface_broken()` 抢在 `rc==0 ⇒ SURVIVED` 与
+        「红在门文件之外 ⇒ SURVIVED」两条早退**之前**判 HARNESS-ERROR。⛔ rc 契约不变：
+        锚完好时 `rc == 0` 仍然是 SURVIVED。
     """
     surface = judge_surface_missing(rc, out, need_location=require_gate_file or expect_loc is not None)
     if surface:
         return "HARNESS-ERROR", f"⛔ 判据面不成立: {surface}"
+    # ⛔ M①：锚检查必须排在下面两条 `SURVIVED` 早退**之前** —— 判据面坏了的时候，
+    # 任何关于被测物的结论都是没有依据的（见 `anchor_surface_broken` 的 ⛔ 段）。
+    if anchor_broken := anchor_surface_broken(gate_file, expect_loc):
+        return "HARNESS-ERROR", f"⛔ 判据面不成立: {anchor_broken}"
     if rc == 0:
         # ⛔ rc=0 是**关于被测物的结论**：门全绿 = 变异没被这道门抓住 = SURVIVED。
         # 首版把它并进「rc != 1 ⇒ HARNESS-ERROR」—— 真·存活的变异被解释成
@@ -693,6 +806,17 @@ def kill_identity(
         # ⚠️ `expect_loc` 永不以 `file:` 开头 —— `check_expect_loc_unique` 把那个形态
         # 整个禁了(落在门文件外的条目 = expect_loc 留空 + 两张豁免表 ⇒ KILLED-UNBOUND)。
         # 首版这里有个「file: 跳过本检查」的分支, 是走不到的死代码, 已删(独立复核确认)。
+        # ⛔ H2（round-20）：「所有失败 nodeid 都属于目标门」这道核**在弱位置路径上
+        # 也必须跑**。`--tb=line` 的位置行**不带 nodeid**，失败集里一旦混进别的门，
+        # 「这条位置行属于谁」在结构上就不可证 —— 此时无论位置落在门文件内还是外，
+        # 得出的都不是关于被测物的结论。收口前这道核只在 `_loc_identity()` 里、只有传
+        # `expect_loc` 才执行，于是弱位置那一路可以**借**另一道门的失败位置合成 KILLED
+        # （目标门只有一条 reason 时，下面那道「位置与消息配对」保护也不触发）。
+        if not all(gate_hit(nodeid, {f}) for f in failed):
+            return "HARNESS-ERROR", (
+                f"摘要区里有不属于目标门的失败 {sorted(failed)} —— "
+                f"`--tb=line` 位置行不带 nodeid, 位置归属不可证（⛔ 弱位置判据不得借他门失败位置）"
+            )
         gp = Path(gate_file).resolve()
         if not any(_same_file(p, gp) for p, _, _ in locs):
             return "SURVIVED", (

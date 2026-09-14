@@ -37,6 +37,7 @@ import stat
 import subprocess
 import traceback
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 # ⛔ 判据本体已抽成共用模块 (CARD-DEBT-mutation-kill-identity): 四套 harness
@@ -388,6 +389,90 @@ def _env() -> dict:
     return dict(os.environ)
 
 
+def _report_final_restore_failure(exc: BaseException, verify: Callable[[], list[str]] | None) -> None:
+    """末次还原失败时把事实**印出来**，并就地跑还原逐字节自检。
+
+    ⛔ 自检本身失败不得掩盖还原失败：那时「还原干净」这句话是**「未知」而不是「是」**
+    （与 g33 汇总段对扫描失败的措辞同口径）。本函数**不抛**——诊断绝不能改变控制流。
+    """
+    drift: list[str] | str
+    try:
+        drift = list(verify()) if verify is not None else []
+    except BaseException as verr:  # noqa: BLE001  自检失败不得掩盖还原失败
+        drift = f"⛔ 自检本身失败({verr!r}) —— 「还原干净」此刻是「未知」而不是「是」"
+    if isinstance(drift, str):
+        detail = drift
+    elif drift:
+        detail = f"漂移 {', '.join(drift)}"
+    else:
+        detail = "未检出漂移(但还原过程已报错, 不得当成干净)"
+    try:
+        print(f"⛔ 末次还原失败: {exc!r} —— 还原逐字节自检: {detail}", file=sys.stderr, flush=True)
+    except BaseException:  # noqa: BLE001  日志失败不改变控制流
+        pass
+
+
+def restore_or_keep_exit_code(
+    restore_all: Callable[[], None],
+    exiting: Callable[[], bool],
+    *,
+    final: bool = False,
+    verify: Callable[[], list[str]] | None = None,
+) -> bool:
+    """还原一次；返回 `True` = 还原成功。
+
+    `_finish` 抛 `SystemExit(131)` 后栈展开仍进 `finally` 再还原一次；还原若持续
+    遇到同一个 I/O 错误，第二次异常会替换掉 131 —— 约定的「还原失败」信号丢了。
+    ⇒ 已在退出展开中时吞掉二次异常，保住约定退出码（round-3 MEDIUM）。
+
+    ⛔ round-4 HIGH：绑**进入时**的状态。`exiting()` 在 `_finish` 抛出之前就置位，
+    于是「正常还原期间收到信号」产生的首次 `SystemExit(130)` 会被这里吞掉，进程继续
+    跑下一条变异 —— 信号退出彻底失效。只抑制**进来前就已在退出展开**的那一类。
+    这条约定本轮**不变**：还原成功时控制流一动不动，首次信号的 130 照旧保号。
+
+    ⛔ round-20（MEDIUM②）收口的是另一件事：**末次还原的新失败被静默吞掉**。
+    收口前 `except` 分支只 `traceback.print_exc()` 后 `pass`，于是
+      · 「还原失败过」这个事实除了一段 traceback 之外**不留痕**；
+      · 原先那个 `SystemExit(130)` 继续展开 ⇒ `main()` 走不到汇总段的 `drift` /
+        `ok_restore` 计算与那道 rc=3 检查 ⇒ **SHA 自检根本没跑**，而「变异体可能留在
+        生产文件里」正是这个 harness 最不能漏报的一件事。
+    现在：
+      · 非末次失败 —— 仍吞异常保号（退出码约定不变），但**返回 `False`** 让调用方记账；
+      · 末次失败（`final=True`）—— 先跑 `verify()`（还原逐字节自检）并把结果印出来，
+        再把退出码**升到 3**（「变异体可能留在生产文件里」比「被信号中断」严重，
+        与 `main()` 里 `not ok_restore ⇒ return 3` 同口径）。
+
+    ⚠️ 本函数原为 `main()` 内的**嵌套 def**，无模块级符号 ⇒ 末次还原这条路径在进程内
+    根本驱动不了，负控也就无从落地（唯一不写盘的入口 `--selfcheck-syntax` 早返回、
+    走不到这里；其它任何入口都会在 `finally` 里对 `_TARGET_FILES` 全量写回，含零写者
+    铁律覆盖的 `fsrs_bridge.py`）。提为模块级 + 注入 `restore_all` / `exiting` 回调是
+    为了让它可被单测**在进程内**驱动（CARD-DEBT-mutkill-R3 (h)④，主 session 已按
+    R-B14-9 补裁接受由此带来的 diff 扩大）。
+    """
+    was_exiting = exiting()
+    try:
+        restore_all()
+    except BaseException as exc:
+        if final:
+            # ⛔ SHA/还原逐字节自检**必须在这里就跑**：往下无论是 `raise`（把原异常
+            # 继续展开）还是 `SystemExit(3)`，`main()` 的汇总段都一行都到不了。
+            _report_final_restore_failure(exc, verify)
+        if not was_exiting:
+            raise
+        # ⚠️ `traceback.print_exc()` 只在**吞没**这条路上打 —— 要 `raise` 的那条由上层
+        # 打，这里再打一遍就是同一个异常印两次（收口前也是只在这条路上打，不改它）。
+        try:
+            traceback.print_exc()
+        except BaseException:  # noqa: BLE001  日志失败不改变控制流
+            pass
+        if final:
+            # ⛔ 升到 3 而不是继续保 130：「变异体可能留在生产文件里」是更严重、且
+            # **必须盖过一切**的硬事实（与 `main()` 里 `not ok_restore ⇒ return 3` 同口径）。
+            raise SystemExit(3) from exc
+        return False
+    return True
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--json", type=Path, default=None, help="把结果写成 JSON")
@@ -433,26 +518,17 @@ def main() -> int:
     _guard = RestoreGuard(restore_all)
     _guard.install()
 
-    def restore_or_keep_exit_code() -> None:
-        """还原；已在退出展开中时吞掉二次异常，保住约定退出码（round-3 MEDIUM）。
+    def _verify_restore() -> list[str]:
+        """还原逐字节自检：与基线 sha 不同的目标文件（空 = 还原干净）。
 
-        `_finish` 抛 `SystemExit(131)` 后栈展开仍进 `finally` 再还原一次；还原若持续
-        遇到同一个 I/O 错误，第二次异常会替换掉 131 —— 约定的「还原失败」信号丢了。
+        ⛔ 这个闭包是**唯一**一份「怎么算漂移」的写法，汇总段与末次还原失败路径都调它
+        —— 两份手抄的判据必然漂移，而漂移正是这道门要抓的东西。
         """
-        # ⛔ round-4 HIGH：绑**进入时**的状态。`exiting()` 在 `_finish` 抛出之前就置位，
-        # 于是「正常还原期间收到信号」产生的首次 `SystemExit(130)` 会被这里吞掉，
-        # 进程继续跑下一条变异 —— 信号退出彻底失效。只抑制进来前就已在退出展开的。
-        _was_exiting = _guard.exiting()
-        try:
-            restore_all()
-        except BaseException:
-            if not _was_exiting:
-                raise
-            try:
-                traceback.print_exc()
-            except BaseException:  # noqa: BLE001
-                pass
+        return [str(p) for p in _TARGET_FILES if _sha(p) != baseline[str(p)][1]]
 
+    #: 还原**报过错**的那几次（异常被吞以保住约定退出码时仍记账）。⛔ 空列表才算干净：
+    #: 「最后 sha 对得上」证明不了「中间没出过事」。
+    restore_failures: list[str] = []
     results = []
     try:
         for mid, path, old, new, nodeid, why, expect_msg in MUTATIONS:
@@ -482,7 +558,10 @@ def main() -> int:
                 # 逐条立即还原: 下一条变异必须打在干净的树上。
                 # ⛔ round-19: 走 `restore_all()`（内含 `critical()`）而不是自己写循环 ——
                 # 循环中途收到信号时旧写法会停在还原了一半的状态。
-                restore_or_keep_exit_code()
+                # ⛔ round-20: 吞异常保号可以，但「还原失败过」这件事不得丢失 —— 记账,
+                # 汇总段的 `ok_restore` 会把它算进去（sha 对得上也不算数: 还原过程报过错）。
+                if not restore_or_keep_exit_code(restore_all, _guard.exiting):
+                    restore_failures.append(mid)
             # ⛔ 先问「判据面在不在」再问「杀没杀死」: 缺 `-rf` 时短摘要不存在,
             # 判据会安静退化成恒假 ⇒ 全报 SURVIVED, 长得跟「门都不承重」一样。
             failed = parse_failed_nodeids(out)
@@ -526,7 +605,12 @@ def main() -> int:
                 f"failed={sorted(failed) or '∅'} expect_hit={expect_hit} loc={locs or '∅'} — {why_v}"
             )
     finally:
-        restore_or_keep_exit_code()
+        # ⛔ round-20 (MEDIUM②): 末次还原。新失败不再被静默吞掉 —— 函数内部会先跑
+        # `_verify_restore()` 把还原逐字节自检印出来, 再把退出码升到 3。⚠️ SHA 自检
+        # 必须在**那里面**跑: 若原先那个 SystemExit(130) 继续展开, 下面的汇总段一行都
+        # 到不了 (这正是收口前「仍报 130 且 SHA 不执行」的形态)。
+        if not restore_or_keep_exit_code(restore_all, _guard.exiting, final=True, verify=_verify_restore):
+            restore_failures.append("final")
 
     # ⛔ round-19 修回归: 收口前「判据面不成立」是 `return 2`(负控自己坏了)，改走
     # `kill_identity` 判 HARNESS-ERROR 之后, 它会和 SURVIVED 一起压进 rc=1 ——
@@ -534,8 +618,13 @@ def main() -> int:
     # 反复栽的坑。⇒ 有 HARNESS-ERROR 时仍以 rc=2 报出, 且**跑完**其余条目再报
     # (收口前是当场中止, 会把「其余 17 条还好着」这个信息一起丢掉)。
     n_harness_err = sum(1 for r in results if r["verdict"] == "HARNESS-ERROR")
-    drift = [str(p) for p in _TARGET_FILES if _sha(p) != baseline[str(p)][1]]
-    ok_restore = not drift
+    # ⛔ round-20: 用 `_verify_restore()` 而不是在这里再手抄一遍判据 —— 末次还原失败
+    # 路径与这里必须逐字同口径，两份手抄的清单必然漂移。
+    drift = _verify_restore()
+    # ⛔ round-20 (MEDIUM②): 「还原过程报过错」与「跑完 sha 对得上」是两件事。逐条还原
+    # 若失败过（异常被吞以保住约定退出码），即便最后一次恰好把文件写回对了, 也不得报
+    # 「还原逐字节相同」—— 中间那段窗口里到底发生了什么, 这份报告证不了。
+    ok_restore = not drift and not restore_failures
 
     # ⛔ 判据是「与基线集合相同」而不是「= 0」: 基线 03ac8bf8 上就有 5 个既有
     # 负控脚本含该字面量 (g32b / g32cb / g32ccr1 / openapi_drift_negative_control /
@@ -664,7 +753,18 @@ def main() -> int:
     _total = sum(nv.values())
     _sum_ok = _total == len(_selected)
     print(f"六档之和: {_total} (应 = 选中的变异条数 {len(_selected)}) {'✓' if _sum_ok else '⛔ 对不上'}")
-    print(f"还原逐字节相同: {'是' if ok_restore else '否 — ' + ', '.join(drift)}")
+    # ⛔ round-20: 两件事分开报 —— 「跑完 sha 对不对得上」(drift) 与「还原过程有没有
+    # 报过错」(restore_failures)。只印前者时，一次被吞掉的还原失败在报告里完全不存在。
+    _restore_note = (
+        "是"
+        if ok_restore
+        else "否 — "
+        + ", ".join(
+            ([f"字节漂移 {', '.join(drift)}"] if drift else [])
+            + ([f"还原报错 {', '.join(restore_failures)}"] if restore_failures else [])
+        )
+    )
+    print(f"还原逐字节相同: {_restore_note}")
     print(f"{MARK} 扫描: {'完成' if scan_ok else '⛔ 失败 (见上)'}")
     _unknown = "⛔ 未知 (扫描失败, 不等于「无」)"
     print(f"{MARK} 新增残留 (基线之外): {_unknown if leftovers is None else (leftovers or '无')}")
@@ -689,6 +789,10 @@ def main() -> int:
                     "verdict_counts": nv,
                     "verdict_sum_matches_total": _sum_ok,
                     "restore_identical": ok_restore,
+                    # ⛔ round-20: 还原**报过错**的那几次单列 —— 与 `restore_identical`
+                    # 不是同一件事(后者只看跑完的 sha)。消费方据此分辨「一直干净」与
+                    # 「中途失败过但最后写回对了」。
+                    "restore_failures": restore_failures,
                     "mark_scan_ok": scan_ok,
                     "leftovers": leftovers,
                     "baseline_missing": baseline_missing,
@@ -709,7 +813,7 @@ def main() -> int:
     # 我上一版就是那么放的）——那样 `--only` 会把「还原失败 / 标记残留 / 扫描失败」
     # 全部吞掉，而这三件正是**必须**盖过一切的。次序: 先报硬事实, 再报「部分跑」。
     if not ok_restore:
-        print(f"⛔ 还原后字节不同: {', '.join(drift)} —— 变异体可能留在生产文件里 (rc=3)")
+        print(f"⛔ 还原未能证明干净: {_restore_note} —— 变异体可能留在生产文件里 (rc=3)")
         return 3
     if not scan_ok:
         print(f"⛔ {MARK} 扫描失败 —— 「无残留」这句话此刻是「未知」而不是「无」 (rc=3)")
