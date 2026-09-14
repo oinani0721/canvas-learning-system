@@ -92,6 +92,10 @@ async def get_trace(request_id: str) -> Dict[str, Any]:
         "queries it), so that chain is replayed in full on every call — "
         "idempotent in the graph (MERGE + SET only) but its recovered count "
         "does not drop to zero. "
+        "NOTE: a chain's `pending` may be -1, meaning the remaining count is "
+        "UNKNOWN (the file could not be read, or finalize could not complete); "
+        "such a chain also carries an `error` field. Clients aggregating "
+        "`pending` must skip negative values instead of summing them. "
         "Requires the X-CLS-Internal-Key header."
     ),
     # 端点级鉴权 — 本 router 是裸 ``APIRouter()`` (无路由级依赖), 与
@@ -124,6 +128,15 @@ async def replay_fallbacks() -> Dict[str, Any]:
         The stats dict from ``sync_all_fallbacks`` verbatim: per-file
         ``{"recovered": int, "pending": int}`` (plus ``"error"`` when that
         file's replay raised), or ``{"skipped": True, "reason": str}``.
+
+        ⚠️ ``pending`` may be **-1**, which means *unknown* — not "minus one
+        entry". It is returned when the chain could not be read or its finalize
+        step could not complete, so the number of remaining entries cannot be
+        counted. Such a chain always carries ``error`` as well. Callers that
+        aggregate ``pending`` must skip negative values rather than summing
+        them (summing turns "unknown" into a number that cancels out other
+        chains' real backlog). See ``fallback_sync_service._PROGRESS_VERSION``
+        area for the same rule applied internally.
 
         ⚠️ The happy path is counts only, but the ``error`` and ``reason``
         fields carry ``str(e)`` of the underlying exception — an ``OSError``

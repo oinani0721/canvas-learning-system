@@ -132,14 +132,14 @@ class FallbackSyncService:
             result["failed_writes"] = await self._sync_failed_writes()
         except (OSError, RuntimeError, ConnectionError) as e:
             logger.warning(f"[Story 38.8] failed_writes sync error: {e}")
-            result["failed_writes"] = {"recovered": 0, "pending": 0, "error": str(e)}
+            result["failed_writes"] = {"recovered": 0, "pending": -1, "error": str(e)}
 
         # Priority 2: canvas_events
         try:
             result["canvas_events"] = await self._sync_canvas_events()
         except (OSError, RuntimeError, ConnectionError) as e:
             logger.warning(f"[Story 38.8] canvas_events sync error: {e}")
-            result["canvas_events"] = {"recovered": 0, "pending": 0, "error": str(e)}
+            result["canvas_events"] = {"recovered": 0, "pending": -1, "error": str(e)}
 
         # Priority 3: learning_memories
         try:
@@ -148,7 +148,7 @@ class FallbackSyncService:
             logger.warning(f"[Story 38.8] learning_memories sync error: {e}")
             result["learning_memories"] = {
                 "recovered": 0,
-                "pending": 0,
+                "pending": -1,
                 "error": str(e),
             }
 
@@ -284,8 +284,9 @@ class FallbackSyncService:
             try:
                 raw = FAILED_WRITES_FILE.read_text(encoding="utf-8").strip()
             except OSError as e:
+                # 带 error 键: 读不到文件不等于「没有待回灌」(Codex round-9 MEDIUM-3)
                 logger.warning(f"[Story 38.8] Cannot read failed_writes: {e}")
-                return {"recovered": 0, "pending": 0}
+                return {"recovered": 0, "pending": -1, "error": f"cannot read: {e}"}
 
         if not raw:
             return {"recovered": 0, "pending": 0}
@@ -374,9 +375,8 @@ class FallbackSyncService:
                 logger.error(
                     "[Story 38.8] failed_writes finalize re-read failed (%s) — "
                     "leaving the file untouched to avoid clobbering concurrent appends; "
-                    "%d entries stay pending for the next run.",
+                    "remaining count unknown (file could not be read).",
                     e,
-                    len(still_pending),
                 )
                 # ⚠️ 带 error 键 + pending=-1 表「未知」(Codex round-8 MEDIUM-4):
                 # main.py 的启动汇总按「有没有 error 键」判这条链出没出问题;
@@ -399,11 +399,18 @@ class FallbackSyncService:
                 logger.error(
                     "[Story 38.8] cannot clear failed_writes checkpoint (%s) — "
                     "refusing to rewrite/rotate the file (a stale cursor would point "
-                    "into the previous file generation); %d entries stay pending.",
+                    "into the previous file generation); the file still holds every "
+                    "entry from this run, remaining count reported as unknown.",
                     e,
-                    len(still_pending),
                 )
-                return {"recovered": recovered, "pending": len(merged), "error": f"cannot clear checkpoint: {e}"}
+                # ⚠️ 文件**没被动过** ⇒ 剩余是**原快照全部**, 不是 merged
+                # (Codex round-9 MEDIUM-3): 全部成功时 merged=[] 而原文件仍在,
+                # 报 pending=0 会让汇总说「零待回灌」而文件里躺着整份条目。
+                return {
+                    "recovered": recovered,
+                    "pending": -1,
+                    "error": f"cannot clear checkpoint, file left untouched: {e}",
+                }
 
             if merged:
                 self._atomic_write_file(
@@ -435,7 +442,7 @@ class FallbackSyncService:
             events: List[Dict[str, Any]] = json.loads(raw)
         except (json.JSONDecodeError, OSError) as e:
             logger.warning(f"[Story 38.8] Cannot parse canvas_events_fallback: {e}")
-            return {"recovered": 0, "pending": 0}
+            return {"recovered": 0, "pending": -1, "error": f"cannot parse: {e}"}
 
         if not events:
             return {"recovered": 0, "pending": 0}
@@ -481,9 +488,9 @@ class FallbackSyncService:
             # 保留原文件, 本轮已重放的条目下轮会被幂等地再放一次。
             logger.error(
                 "[Story 38.8] canvas_events finalize re-read failed (%s) — leaving the "
-                "file untouched to avoid clobbering concurrent appends; %d entries pending.",
+                "file untouched to avoid clobbering concurrent appends; "
+                "remaining count unknown (file could not be read).",
                 e,
-                len(still_pending),
             )
             # ⚠️ 带 error 键 (Codex round-8 MEDIUM-4): main.py 的启动汇总按
             # 「有没有 error 键」判这条链是否出过问题; 不带的话 finalize 失败会被
@@ -526,7 +533,7 @@ class FallbackSyncService:
     # 3. learning_memories.json sync
     # ─────────────────────────────────────────────────────────────────────
 
-    async def _sync_learning_memories(self) -> Dict[str, int]:
+    async def _sync_learning_memories(self) -> Dict[str, Any]:
         """Replay learning memories to Neo4j using MERGE (idempotent)."""
         if not LEARNING_MEMORIES_FILE.exists():
             return {"recovered": 0, "pending": 0}
@@ -539,7 +546,7 @@ class FallbackSyncService:
             memories: List[Dict[str, Any]] = data.get("memories", [])
         except (json.JSONDecodeError, OSError) as e:
             logger.warning(f"[Story 38.8] Cannot parse learning_memories: {e}")
-            return {"recovered": 0, "pending": 0}
+            return {"recovered": 0, "pending": -1, "error": f"cannot parse: {e}"}
 
         if not memories:
             return {"recovered": 0, "pending": 0}
