@@ -207,11 +207,11 @@
    代偿。R-15 描述的现场本身是**时点性**的，本卡没有在那个现场重放。
 6. **未定位挂起是否确由网络引起**。本卡给的是旁证（离线开关 + 假 npm 反证），**不是** npm 源码级
    的因果证明。「挂起根因」小节（§六.1）只声称到证据支持的程度。
-7. **lefthook 跑了，但不确定哪些 job 命中了本卡文件**（此条经第二次 commit 实测**订正**，见 §六.6）：
-   第二次 commit 的输出里有 `✔️ spec-reference`，证明 lefthook 确实在跑；但 `python-lint` 的 glob 是
-   `{backend,src,scripts}/*.py`，本卡改的是 `backend/tests/unit/*.py`（更深一层），**是否命中未单独确认**。
-   无论命中与否，本卡都按 `lefthook.yml::python-lint` 的同一条命令手工跑了 `ruff check` 与
-   `ruff format --check` 并落盘（`python-typecheck` 的 glob 是 `backend/app`，本卡零改动不触发）。
+7. ~~lefthook 没跑 / 命中面未知~~ —— **此条已被实测推翻两次，最终结论见 §六.5**：lefthook 2.1.6
+   确实执行（pre-commit / commit-msg / post-commit 三个钩子都打印），且 `python-lint` **覆盖**本卡的
+   `backend/tests/unit/*.py`（实测它跑了），`python-typecheck` 恒 skip（glob `backend/app/*.py`，
+   本卡零改动）。全程未用任何 `LEFTHOOK_EXCLUDE`。⇒ 这条不再属于「未证明」，保留编号只为让
+   §六.5 的订正链有锚点。
 8. **300:600 的先后顺序只是「通常」不是保证**（Codex r1 LOW-2，已认）：alarm 只覆盖 build 本身，
    步 1 前段的判据另计时，到点后还有 2s 清理宽限；用户把 `CLS_NPM_BUILD_TIMEOUT` 调到 >600
    时顺序必然反过来。头注已按此改写。
@@ -265,13 +265,25 @@ F821（未定义名）rc=1、E9（语法错）rc=1、`format --check` rc=1 —�
 该文件已移出 evidence 目录（不入库），`tests/unit` **全量重跑**一次并全量落盘
 （`unit-close-20260914T200536.txt`，1181 行 / 110935 bytes）。
 
-### 6.5 ⚠️ 自述订正：lefthook **确实在跑**（首版说法有误）
+### 6.5 ⚠️ 自述订正（两轮）：lefthook 不但在跑，而且**覆盖**本卡的测试文件
 
-首次 commit 时 lefthook 打印了一串 `core.hooksPath` 提示，我据此在验收单初版写了「lefthook 在本机
-没有真正执行」。第二次 commit 的输出里出现 `✔️ spec-reference` —— 说明 lefthook 是跑的，那串提示
-只是「hooks 没装在 `core.hooksPath` 指的那个目录」的告知。**未确认的只剩「`python-lint` 的 glob
-`{backend,src,scripts}/*.py` 是否命中 `backend/tests/unit/*.py`」**。手工同口径判据照跑照落盘，
-结论不变，但「lefthook 没跑」这句话是错的，按实测改掉（§五.7）。
+- **初版说法（错）**：首次 commit 打印了一串 `core.hooksPath` 提示，我据此写「lefthook 在本机没有
+  真正执行」。
+- **第一次订正（仍不完整）**：第二次 commit 输出里有 `✔️ spec-reference` ⇒ lefthook 是跑的；
+  但我把「`python-lint` 的 glob `{backend,src,scripts}/*.py` 是否命中更深一层的
+  `backend/tests/unit/*.py`」留成了「未确认」。
+- **第二次订正（实测定案，`lefthook-coverage2-20260914T211543.txt`）**：把本卡文件真正暂存后跑
+  `/opt/homebrew/bin/lefthook run pre-commit`，逐 job 的命中/跳过理由自带锚 ——
+  `python-lint ❯`（**跑了**）、`python-typecheck (skip) no files for inspection`、
+  其余 5 个 `(skip) no matching staged files`。⇒ **本卡文件在 python-lint 覆盖面内**。
+- 那次探针跑里 python-lint `exit status 1`，已归因：是**探针追加的那一行**让 `ruff format --check`
+  判要重排（同一命令对真实内容是 `All checks passed!` + `1 file already formatted`）。
+  旁证：本卡 5 条 commit 全部成功落地，而 pre-commit 非零会中止 commit（commitlint 拦下
+  `body-max-line-length` 那次就是实测）⇒ python-lint 在每次真实提交时都跑过且通过。
+- **顺带一条工具坑**：第一版探针用 `lefthook run pre-commit --files <path>`，lefthook 2.1.6 报
+  `flag provided but not defined: -files` —— 目标跑与验伪锚跑**都**因此无输出，锚没响 ⇒ 当时不能
+  从目标的沉默下任何结论（与 R-B14-1「`--no-auto-install` 是 lefthook 1.x 的 flag」同族）。
+  该版判据已作废，并如实写在 `lefthook-coverage2-…txt` 的抬头。
 
 ### 6.6 「挂起根因」小节（本卡能声称到哪一步）
 
