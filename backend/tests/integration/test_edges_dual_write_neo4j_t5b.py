@@ -58,15 +58,19 @@ neo4j 6.1.0 的 ``Neo4jError`` / ``ClientError`` / ``AuthError`` / ``TransientEr
 注入与否不可分辨。唯一能分辨的锚是 ``stub.calls`` 的 0→≥1 变化,
 与 **sentinel 串出现在响应体 ``graphiti_status.error`` 里**。
 
-⛔ 打桩失效时**没有第二道网络防线** (Codex r3 L3 整改, 这条曾被本文件写反):
+⛔ 打桩失效时**没有第二道网络防线** (Codex r3 L3 / r4 L3 整改, 这条曾被本文件写反):
 ``backend/tests/support/live_port_guard.py`` 的 ``EXEMPT_MARKERS`` 含 ``integration`` /
-``real_neo4j``, ``EXEMPT_PATH_PREFIXES`` 含 ``integration`` —— 本文件两项都占,
-于是 W4 门对本文件的用例是 **advisory: 只记账, 不拦**。即打桩若失效, 到 7691 的连接
-会**真的建立**并真写现网, 不会像早先注释说的那样「被拦下抛 RuntimeError」。
-⇒ 本文件的注入锚是唯一防线, 因此它们是承重的, 断言不成立必须立即停跑。
-存档末行的 ``NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, ...)`` 仍是
-有意义的证据: 它说明在该账本覆盖的端口(7691/7687)上, 那一跑**一次连接尝试都没有**
-(advisory 也是 0, 不是「拦了没记」)。但它只覆盖这两个端口, 不等于整进程零网络。
+``real_neo4j``, ``EXEMPT_PATH_PREFIXES`` 含 ``integration`` —— 本文件两项都占, 于是
+**默认豁免模式下, W4 只记录、不阻止连接尝试; 注入失效可能导致真实客户端连接并写入
+7691**。(措辞边界, r4 L3: 是「可能」不是「必然」—— 连接、认证或写入本身也可能失败;
+反过来也不像早先注释说的那样「被拦下抛 RuntimeError」, 那句是写反的。
+另: ``W4_GUARD_NO_EXEMPT=1`` 时豁免被关掉, 上述默认结论不适用。)
+⇒ 本文件的注入锚是唯一防线, 因此它们承重。其中**发写 / 发请求之前的前置身份检查**
+才是真正的阻止手段; 请求之后的 ``stub.calls`` 与 sentinel 是**事后证明**, 不构成阻止。
+存档末行的 ``NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, ...)`` 的正确
+读法: **账本计入的、受其覆盖的连接尝试为零**(advisory 也是 0, 不是「拦了没记」)。
+它只覆盖 7691/7687 两个端口, 且 W4 自证探针明确跳过记账, 因此不等于「整进程一次
+网络动作都没有」。
 """
 
 from __future__ import annotations
@@ -154,8 +158,11 @@ def _test_uri_port_is_allowed(uri: str) -> bool:
 
     同口径的先例: ``backend/tests/support/live_port_guard.py`` 的 ALLOWED_TEST_PORTS
     是白名单, 而 BLOCKED_PORTS 黑名单只管 socket 层的每一次 connect —— 两者语义不同,
-    URI 级判定必须走白名单。(该 socket 层门是第二道防线; 本函数不依赖它成立, 以免
-    「门在不在」变成本文件正确性的隐含前提。)
+    URI 级判定必须走白名单。
+    ⚠️ **那道 socket 层门对本文件不是「第二道防线」**(r4 L3 更正, 早先这里这么写过):
+    本文件占 ``integration`` marker 与路径前缀, 落在它的豁免面内, 默认只记录不阻止
+    (见模块 docstring)。本函数因此不依赖它成立 —— 「门在不在」不该变成本文件正确性的
+    隐含前提, 而这里它本来也不拦。
     """
     try:
         parsed = urlsplit(uri)
