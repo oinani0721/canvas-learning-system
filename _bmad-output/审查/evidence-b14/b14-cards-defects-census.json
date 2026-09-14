@@ -1,0 +1,933 @@
+{
+ "T1-A": [
+  {
+   "severity": "HIGH",
+   "where": "T1-A.md 第 144 行（§四 Codex prompt «prompt 五分节» 的问题 ③）",
+   "what": "Codex prompt 规范正文里含禁用措辞「绕过」——问题 ③ 原文「(f) 互前缀门的表名读回是否绕过默认分页」。这段是写死给车道照抄进 codex-prompt-CARD-G2-9-F2.md 的 prompt 内容，按协议 §2.2「prompt 里禁止出现 构造/可复现片段/打穿/绕过」与本批约束，车道逐字落盘后会在任务边界被 cyber 拦截。且与本卡自己第 145 行「不写『绕过』，改说『门未覆盖的路径』」直接自相矛盾。",
+   "evidence": "grep -n '绕过' T1-A.md → 144（prompt §③ 正文）与 145（规则行本身）。sed -n '144p' 命中「③ (f) 互前缀门的表名读回是否绕过默认分页」。打穿/可复现片段 仅出现在 145 规则行（可接受）；构造 仅在 §一 (f)/(g)/(i)（非 prompt，可接受）。唯一 prompt 内违规 = 144 行的 绕过。",
+   "fix_hint": "把问题 ③ 改为「(f) 互前缀门的表名读回是否走到了门未覆盖的默认分页路径」或「表名读回是否仍受默认分页 ≤10 盲区影响」，去掉「绕过」。"
+  },
+  {
+   "severity": "LOW",
+   "where": "T1-A.md 第 21 行（§〇 口径更正 4）",
+   "what": "引用别的文档用了行号而非条目名：「UAT-G2-9-F1 `:781-785` 写的『剩余默认分页站点…』」。按排批约束「卡文里引用别的文档一律用『文件名 + 条目名/节名』，不用行号（行号会漂）」，此处应改为按条目/节名引用 UAT-G2-9-F1 的对应段。（同行的 `:896/:1080/:3825/…` 是被标注为已漂的代码行号，属说明性质可接受；§〇 其余 recon C §1.1/§1.6 均已用节号，唯独此处用了 UAT 行区间。）",
+   "evidence": "grep -nE '(UAT|裁定请求)[^。]*:[0-9]' T1-A.md：仅 21 行命中 UAT-G2-9-F1 :781-785 为跨文档行号引用；line 13 已正确用「裁定请求 …§三」、line 22 已用「条目『B-3』『A-4/B-9』」。",
+   "fix_hint": "把「UAT-G2-9-F1 :781-785」改成「UAT-CARD-G2-9-F1 的『剩余默认分页站点』条目」之类的条目名引用。"
+  },
+  {
+   "severity": "LOW",
+   "where": "T1-A.md 第 80 行（§二 裁判命令 步骤 4 注释）对照 第 29 行（§一 (d)）",
+   "what": "§二 步骤 4 的期望注释写「2 标记 XPASS(strict)→FAILED + 6 前提门红，rc=1」，而 §一 (d) 给的总数是「12 红」。两处不自洽在字面上：2 个缺陷锁标记函数实际展开为 6 个 xfail nodeid（cache 2 + drop 4），修后全部 XPASS(strict)→FAILED = 6 个失败，再加 6 个前提门 = 12（(d) 正确）；但步骤 4 注释的「2 标记 … + 6 前提门」算术上只到 8，且 pytest 汇总行会显示 12 failed 而非『2 标记』，易让车道误判期望失败数。",
+   "evidence": "AST 实测：cache xfail 测试参数化 _OVERLAP_SHAPES=2 → 2 nodeid；drop xfail 测试 _OVERLAP_DROP_TABLES=2 × _OVERLAP_SHAPES=2 → 4 nodeid；合计 6 xfail nodeid 修后全 XPASS；premise gate _OVERLAP_CASES=3 × SHAPES=2 = 6 nodeid 断言翻红；6+6=12 与 (d) 一致，但步骤 4 注释表述为「2 标记 + 6」。",
+   "fix_hint": "把步骤 4 注释改为「6 个缺陷锁 nodeid（2 标记×参数化 2+4）XPASS(strict)→FAILED + 6 前提门红 = 12 failed, rc=1」，与 (d) 的 12 红对齐。"
+  },
+  {
+   "severity": "LOW",
+   "where": "T1-A.md §〇 事实表(第20行) / §一(c)(第28行) / §三 禁改(第131行)",
+   "what": "_cache_tables 的 endswith/FINGERPRINT_TABLE 归属条件被标为 :1048，主干树实测该条件行在 :1049（:1048 实为 `for t in self._tables_cache`）。此 :1048 在卡文三处重复出现。",
+   "evidence": "在主干树 backend/lib/agentic_rag/clients/lancedb_client.py 上 `grep -nF 'and not t.endswith(self.FINGERPRINT_TABLE)'` → 1049；`sed -n '1044,1052p'` 显示 1045=owner_vault、1048=`for t in self._tables_cache`、1049=`if self._owns_table(t, owner_vault) and not t.endswith(self.FINGERPRINT_TABLE)`。off-by-one。",
+   "fix_hint": "把 :1048 改为 :1049；实际危害可忽略——§一(a) 强制开工现场重核每个 file:line 且该处按两字面量（endswith / FINGERPRINT_TABLE）保留、非按行号，grep 会命中 1049。"
+  },
+  {
+   "severity": "LOW",
+   "where": "T1-A.md §二 裁判命令 第10步 ruff 块（第117-119行）",
+   "what": "ruff 判据正确采用设计稿 §0.2 item 2 要求的 zsh 数组写法，但缺同条明确要求的验伪锚（喂一个已知含 F401 的桩文件必须 rc=1），无法自证该 ruff 判据在真有 lint 错时会变红。",
+   "evidence": "设计稿 b14_design.md §0.2 item 2 原文含『验伪锚：喂一个已知含 F401 的文件必须 rc=1』；卡文 §二 第117-119 行 ruff 块只有 `F=(...); ruff check -- \"${F[@]}\"; echo rc=$?`，无对已知坏文件的 rc=1 断言。ruff 非本卡承重门（承重数据丢失门 (f)/(i) 均已带 shasum/断言级验伪锚）。",
+   "fix_hint": "在 ruff 块后补一行：对一个已知含 F401 的临时桩跑 `ruff check` 并断言 rc=1，再 rm 桩。"
+  }
+ ],
+ "T1-B": [
+  {
+   "severity": "MEDIUM",
+   "where": "T1-B.md §〇 事实表 第 19 行（`--verify-judges` 行锚）",
+   "what": "卡文写 `--verify-judges`（`:1475-1478`），但 B14_BASE 树上 `:1475-1479` 实为 `--allow-path-outside-tmp` 的 argparse 块，`--verify-judges` 实际在 `:1481-1484`。行锚指向了另一个参数。",
+   "evidence": "`sed -n '1465,1490p' backend/scripts/g29_dual_vault_canary.py`：1470-1474=`--no-probe-schema-drift`，1475-1479=`--allow-path-outside-tmp`，1481 行=`\"--verify-judges\"`（action store_true 在 1482、help 在 1483）。",
+   "fix_hint": "把 `:1475-1478` 改为 `:1481-1484`；或因 §〇 表头已声明行号只作今日语境，直接删该行号（判据本就用 `--verify-judges` flag 字面量与 symbol）。"
+  },
+  {
+   "severity": "LOW",
+   "where": "T1-B.md §〇 事实表 第 14 行（退出码 3 docstring 行锚）",
+   "what": "卡文写「端口门最终总账强制退出 `3`（docstring `:50-52`）」，实测该 docstring 行在 `:45`；`:50-52` 是关于 `data/lancedb` 被显式拒绝的 docstring，内容不符。",
+   "evidence": "`sed -n '42,52p'`：45 行=`3 = 端口门的最终总账强制退出（live_port_guard._final_accounting）`；50-52 行=`data/lancedb 被显式拒绝…现网 LanceDB 就在那个默认路径下。`",
+   "fix_hint": "改为 `:45`；或删行号（表头已声明行号非判据锚，判据用 `grep -n '^EXIT_'` symbol）。"
+  },
+  {
+   "severity": "LOW",
+   "where": "T1-B.md §〇 事实表 第 15 行（g29drift vault 行锚）",
+   "what": "卡文写 probe 用 vault `g29drift_a`/`g29drift_b`（`:1256`），实测 `vid_a, vid_b = \"g29drift_a\", \"g29drift_b\"` 在 `:1255`（off-by-one）。",
+   "evidence": "`grep -n 'g29drift' backend/scripts/g29_dual_vault_canary.py` → `1255:    vid_a, vid_b = \"g29drift_a\", \"g29drift_b\"`",
+   "fix_hint": "改为 `:1255`；或删行号（判据用字符串锚 `g29drift`）。"
+  },
+  {
+   "severity": "LOW",
+   "where": "T1-B.md §一 (c) / §二 裁判命令（blocked= 判据）",
+   "what": "(c) 把「ON 态 `live_port_guard.summary_line()` 含 `blocked=0`」列为核心判据，但裁判命令用 `grep -n 'blocked=' \"$EV\"/run-on-*.txt | tail -1` 只取最后一行且不作等值断言。协议 §2.2 明确把 `| tail` 列为假绿向量（虽其原文针对 pyright 汇总与 `| tail -N; echo rc=$?` 的 rc 掩盖，此处不掩盖 rc、危害较轻）。",
+   "evidence": "T1-B.md:88 `grep -n 'blocked=' \"$EV\"/run-on-*.txt | tail -1    # 期望 blocked=0`；协议 card-batch-protocol.md §2.2「禁 `| tail -1`」条。",
+   "fix_hint": "改为断言式，例如 `grep -c 'blocked=0' \"$EV\"/run-on-*.txt`（或 `grep 'blocked=' … | grep -qv 'blocked=0' && echo ⛔NONZERO`），避免 tail 取到非 summary 的 blocked= 行。"
+  },
+  {
+   "severity": "LOW",
+   "where": "T1-B.md §一 (h) / §二 裁判命令（tests/unit 开工快照）",
+   "what": "(h) 文字要求「开工/收工各跑一次并 diff（跑前先落开工快照）」，但 §二 可粘贴判据块只给了收工 `unit-end-*` 一条 pytest 命令，缺「开工快照」的具体命令，diff 的对照基准无可直接粘贴的获取命令。",
+   "evidence": "T1-B.md §二 `—— (h) tests/unit 目录级 diff ——` 块仅含 `pytest … --no-header … | tee \"$EV/unit-end-…\"` 与注释「取 nodeid 集与开工快照 diff（期望空）」，无 unit-start 命令。",
+   "fix_hint": "在 (a) 第 0 分钟块补一条与 (h) 同口径的开工快照命令（`pytest backend/tests/unit -q -p no:cacheprovider --no-header | tee \"$EV/unit-start-…\"`）。影响小：本卡零代码，(g) 已为主证、(h) 自述为冗余。"
+  }
+ ],
+ "T2-A": [
+  {
+   "severity": "MEDIUM",
+   "where": "T2-A.md §〇 事实表第 13 行（\"裸跑面混合\"那格）",
+   "what": "挂起机理陈述与代码实测相反。该格称 \":675 / :882 / :940 / :1270 / :1635 / :1684 / :1927 / :2324 等用例会 `_run(...)` 真跑 DEPLOY_SH（触发 step1_preflight）——这些才是 R-15 里『逐个无限挂起』的挂点\"。实测两点均错：(1) 这 16 处正是 AST 判入 WITHOUT 的**裸 subprocess.run**，它们不经 `_run(...)`（:882 行内注释甚至明写『不经 _run 时…』）；(2) 所列多数不跑 DEPLOY_SH——:675=`subprocess.run([\"docker\",\"ps\",...])`、:882=`subprocess.run([str(probe)])`、:940=`subprocess.run([\"bash\",\"-c\",\". '{fn}'; redact_secrets\"])`、:1270/:2324=`subprocess.run([sys.executable,str(FORBID_PY),...])`，都是快命令；真正直接 exec DEPLOY_SH 的裸跑只有 :1635/:1684/:1927（`subprocess.run([str(DEPLOY_SH),\"--vault\",...])`）。该段是 §〇『事实』，却把挂点归因讲错，且把裸跑硬说成 `_run(...)`。",
+   "evidence": "树 e58d5c5c(=08100483+纯文档)。`sed -n` 实测：675→`ps = subprocess.run([\"docker\",\"ps\",\"-a\",...])`；882→`raw = subprocess.run([str(probe)],...)` 紧邻注释『不经 _run 时宿主值确实可见』；940→`subprocess.run([\"bash\",\"-c\",f\". '{fn}'; redact_secrets\"],...)`；1270→`return subprocess.run(argv,...)` 其 `argv=[sys.executable,str(FORBID_PY),live,*items]`；1635/1684→`subprocess.run([str(DEPLOY_SH),\"--vault\",...])`；2324→`subprocess.run([sys.executable,str(FORBID_PY),...])`。AST 判据输出 `WITHOUT 16 [96,486,495,675,882,940,1010,1270,1635,1684,1927,1930,1932,1965,1967,2324]`——这 16 皆裸 subprocess.run，非 `_run` 调用。",
+   "fix_hint": "改写该格：16 处是裸 subprocess.run（故在 WITHOUT 列），不经 `_run`；真正 exec DEPLOY_SH 的裸跑是 :1635/:1684/:1927（无 timeout ⇒ 无限挂，正是 R-15 挂点），其余多为 docker ps/probe/bash func/FORBID_PY 快命令。操作侧 (d) 的 16 行清单本身 AST 实测正确，无须改动。"
+  },
+  {
+   "severity": "MEDIUM",
+   "where": "T2-A.md §四（第 79 行 prompt 五分节末尾的禁用提醒句）",
+   "what": "Codex prompt 规格段内逐字出现批次禁用的四词「构造 / 可复现片段 / 打穿 / 绕过」。本批硬约束为『Codex prompt 相关文字里不得出现这四个词（改说 负控输入/对照输入/未被拦下的输入/门未覆盖的路径）』。虽仅出现在『⛔ prompt 与存档不得出现「构造 / 可复现片段 / 打穿 / 绕过」』这条提醒里、prompt 正文已用批准措辞，但字面仍落在 Codex 段的 prompt 规格文字中。",
+   "evidence": "`grep -nE '构造|可复现片段|打穿|绕过' T2-A.md` 仅命中第 79 行（提醒句）。对照：本卡第 36 行 (k) 与格式参考 `第十三批-goals/U5-A.md` 第 52 行均用干净写法『prompt 与存档不得出现协议 §2 的四个禁用措辞』（U5-A/U8-C/U6-C 全文 0 命中这四词）。",
+   "fix_hint": "把第 79 行末句改为引用『协议 §2 的四个禁用措辞』而不逐字列出（与本卡第 36 行、U5-A 一致）。"
+  },
+  {
+   "severity": "LOW",
+   "where": "T2-A.md §〇 事实表第 11 行（grep -c=5 解释格）",
+   "what": "helper 函数名写错。该格称 \":603 timeout=timeout 是 helper 调用（`_run_deploy(..., timeout=timeout)`）的 kwarg\"。实测该文件无 `_run_deploy`，:603 所在调用是 `_run(...)`（def 在 :65，默认 `timeout:int=120`，:77 转发给 subprocess.run）。核心结论（:603 是 helper kwarg、AST 只计其余 4 处）正确，且卡文别处 (c)/(d)/(f) 均正确用 `_run`，仅此一处括注名错。",
+   "evidence": "`grep -rnE '_run_deploy' backend/tests/unit/test_deploy_vault_sh.py` → 无。`sed -n '587p'` 显示 :603 所在调用为 `return _run(`；`grep -nE 'def _run' ` → `65:def _run(`。",
+   "fix_hint": "把 `_run_deploy` 改为 `_run`。"
+  }
+ ],
+ "T2-B": [
+  {
+   "severity": "MEDIUM",
+   "where": "T2-B.md §四「存档首部」条款（约第 137 行）",
+   "what": "Codex 存档首部条款写成「会话头自证抄 .stderr 前三行（含 model 行 + reasoning 行 + codex 版本行，各写明其在 .stderr 的行号）」，仍保留了批14 协议 §2.1 回写所废弃的「抄前三行」表述。该卡自己的 banner（第 2 行）已如实转述本批回写为「§2.1 首部改『抄含版本行+model 行+reasoning 行』」，正是因为 codex 1.1.411/gpt-6-astra 的 model/reasoning/version 行不保证落在 stderr 的前三行；§四 正文与 banner 自相矛盾，按字面执行可能抄到错误的三行。",
+   "evidence": "grep -nF 会话头自证 T2-B.md → 第137行含「抄 `.stderr` 前三行」；设计稿 §0.1「§2.1 首部改『抄含版本行+model 行+reasoning 行』」；核验标准 #6『首部条款写成「抄前三行」= MEDIUM』。缓解：括号内已要求三条具体行 + 各写明 stderr 行号，部分捕捉了回写意图。",
+   "fix_hint": "把「抄 .stderr 前三行」改为「抄 .stderr 中的 codex 版本行 / model 行 / reasoning 行（不假定其为前三行），各写明其在 .stderr 的行号」，与 banner 的回写口径一致。"
+  },
+  {
+   "severity": "LOW",
+   "where": "T2-B.md §〇 事实表（六步锚行，约第 13 行「函数体止于 `}` 行 1157」；真 activate 桩行，约第 17 行「`return 0` :1155，`}` :1157」）",
+   "what": "卡文两处声称 step5_activate 的闭合 `}` 在 :1157；主干树实测 `}` 在 :1156（:1155 return 0 / :1156 `}` / :1157 空行 / :1158 步6注释 / :1159 step6_evidence()）。off-by-one。该误差与 recon C §13『step5_activate() 1060-1157』同源（recon 亦记 1157）。属非承重提示锚（无任何裁判命令引用 :1157），且卡文已显式声明 step5/6 行号为「B14_BASE 线索，开工前必在 T2-A tip 用 grep -nF 重定位」，不会让车道开工撞墙。",
+   "evidence": "awk 'NR>=1153&&NR<=1160' scripts/deploy-vault.sh → 1155:return 0 / 1156:} / 1157:(blank) / 1158:# 步6注释 / 1159:step6_evidence() {；grep -n '^}' 最近的顶层闭合为 1156 与 1221。",
+   "fix_hint": "将两处 `}` 行号由 1157 改为 1156（或直接删去该非承重的闭合括号行号，仅保留 grep -nF 重定位指引）。"
+  }
+ ],
+ "T3-A": [
+  {
+   "severity": "HIGH",
+   "where": "T3-A.md §三 禁改与隔离（地盘 file #5）+ §一(j)/§二 命令 10 地盘门",
+   "what": "卡文把 backend/tests/regression/test_g6_9c_single_tz_source.py 纳入本卡地盘（§三 允许改的第 5 个文件，三条 HIGH 先红后绿 + 门⑦ 补样本都落它），但设计稿 §3「只 T3」逐文件清单并不含该文件（§3 只列到 review_overview.py / review_app.py / 两 skill 脚本 / test_review_overview.py / test_review_app.py / test_daily_review_run.py）。即卡文 §三允许面 ≠ 设计稿 §3，属『越出』。",
+   "evidence": "grep -c 'test_g6_9c_single_tz_source' b14_design.md = 0（全设计稿 0 命中，§3 块 sed 68-80 确认不在）；grep -rl 'test_g6_9c_single_tz_source' 第十四批-goals/*.md 只命中 T3-A.md（无其它车道认领）。写卡者已在 §〇『地盘缺口』行与台账待登记条目 ③ 自曝并请主 session 裁，且该文件无别的车道写者 ⇒ 跨车道双写/集成冲突风险为 0，但设计稿 §3 仍需主 session 正式回填该文件的地盘出处后方可开工。",
+   "fix_hint": "主 session 在设计稿 §3 / 手册地盘表把 backend/tests/regression/test_g6_9c_single_tz_source.py 正式补进 T3 车道（唯一归属 T3-A），再放行；卡文保留现有自曝与台账条目即可。"
+  },
+  {
+   "severity": "MEDIUM",
+   "where": "T3-A.md §四 Codex / 验收单 —『存档首部』条款（对应 §二 命令 11）",
+   "what": "存档首部『会话头自证』写成『抄 .stderr 前三行含 model 行』，沿用的是被 2026-09-11 修订作废的旧口径。现行协议 §2.1 已改为『抄 .stderr 中含 codex 版本行 + model: 行 + reasoning effort 行的三行，行号不限、括注行号』，并明确警告 codex 0.153.3 把 model: 排在会话头第 5 行，『字面抄前三行会漏自证字段』。照卡文『抄前三行』执行会漏掉 model 行 ⇒ 触发协议首部『牙齿』（缺字段该轮不计配额）。",
+   "evidence": "card-batch-protocol.md §2.1（主干 HEAD e58d5c5c 实测）：『会话头自证（抄 .stderr 中含 codex 版本行 + `model:` 行 + `reasoning effort` 行的三行，**行号不限、括注行号**；codex 0.153.3 把 `model:` 排在会话头第 5 行，字面抄前三行会漏自证字段——U2 第十三批 r3 实测）』。T3-A.md 第 83 行原文：『会话头自证（抄 `.stderr` 前三行含 model 行…括注抄自的行号）』。设计稿 §0.1 / §5.15 亦写『首部改「抄含版本行+model 行+reasoning 行」』。",
+   "fix_hint": "把『抄 .stderr 前三行含 model 行』改为『抄 .stderr 中含 codex 版本行 + model: 行 + reasoning effort 行的三行（行号不限、括注行号；codex 0.153.3 的 model: 常在第 5 行，勿字面取前三行）』，与协议 §2.1 现行口径一致。"
+  },
+  {
+   "severity": "LOW",
+   "where": "T3-A.md §一 完成条件 (b)③（第 32 行）",
+   "what": "HIGH-2 先红描述用了『构造一条…的输入』，含本批敏感词『构造』。该词不在 Codex prompt 段（§四 prompt 五分节已正确改用『负控输入 / 对照输入 / 未被拦下的输入 / 门未覆盖的路径』，§四与短 goal 均 0 命中），故严格按核查口径（敏感词禁令仅作用于 Codex prompt 相关文字）不构成违规；但属本批明令关注的四词之一，建议防御性改写以免卡文片段被误送。",
+   "evidence": "grep -nF '构造' T3-A.md 仅命中第 32 行（§一 b③），§四 prompt 与 _goal/T3-A.txt 各 0 命中（构造/可复现片段/打穿/绕过 全 0）。协议 §2.2 本意为『cyber 拦截在任务边界，不在措辞』，(b)③ 属测试编写指令、不作为 codex exec prompt 发送。",
+   "fix_hint": "将『构造一条…的输入』改为『设计/准备一条…的输入』或『取一条…的对照输入』，与 §四 的措辞保持统一，彻底避开敏感词。"
+  }
+ ],
+ "T2-C": [
+  {
+   "severity": "MEDIUM",
+   "where": "T2-C.md §四 存档首部条款（及 (j)）",
+   "what": "存档首部自证写成旧口径「抄 .stderr 前三行含 model 行」，与主干协议 card-batch-protocol.md §2.1（2026-09-11 回写版）矛盾。该节已明确：codex 0.153.3 把 model: 排在会话头第 5 行，『字面抄前三行会漏自证字段』，应抄『含 codex 版本行 + model: 行 + reasoning effort 行的三行（行号不限、括注行号）』。按卡文字面『前三行含 model 行』操作会漏掉 model 行（不在前三行），首部缺字段 ⇒ 协议 §2.1 判该轮不计入配额，等于白审一轮。卡文自身也矛盾（『前三行含 model 行』但 model 实际在第 5 行）。",
+   "evidence": "grep -n 会话头自证 .claude/rules/card-batch-protocol.md → :40 原文『抄 .stderr 中含 codex 版本行 + model: 行 + reasoning effort 行的三行，行号不限、括注行号；codex 0.153.3 把 model: 排在会话头第 5 行，字面抄前三行会漏自证字段——U2 第十三批 r3 实测，2026-09-11 修订』。T2-C.md §四存档首部行：『会话头自证（抄 .stderr 前三行含 model 行…括注抄自的行号）』",
+   "fix_hint": "改为协议 §2.1 新口径：抄『codex 版本行 + model: 行 + reasoning effort 行』三行（行号不限、括注每行行号），删掉『前三行』字样。"
+  },
+  {
+   "severity": "MEDIUM",
+   "where": "T2-C.md §〇『本卡生成面』行 + §一(c) 步3 + §二 裁判6 + §一(g)",
+   "what": "§〇/§(c) 要求 deploy-vault.sh 步3 生成 $VAULT/AGENTS.md，内容含『项目级 opencode.json MCP 指引文案』；但 AGENTS.md 由脚本 heredoc/printf 写出，其正文里的字面量 opencode.json 会落在 deploy-vault.sh 的非注释行。裁判6 要求 `grep -nF 'opencode.json' scripts/deploy-vault.sh | grep -v '^\\s*#' → 0 命中`，且 §(g) 要求既有门 test_second_tier_hosts_not_implemented_anywhere 保持绿（该门禁件清单本卡只去 AGENTS.md、保留 opencode.json）。车道若照 §(c) 字面把 opencode.json 写进 AGENTS.md heredoc 正文，会同时破掉裁判6 与该既有门。卡文仅对 opencode.jsonc 子串做了『只在注释』的处置，对 AGENTS.md 正文里的 opencode.json 字面量与裁判6 的冲突未作任何调和或落地指引（无『AGENTS.md 里需动态拼/改措辞避免字面 opencode.json』之说）。",
+   "evidence": "T2-C.md:16『$VAULT/AGENTS.md（skills 清单 + 项目级 MCP opencode.json 指引文案）』；:31『写 $VAULT/AGENTS.md（skills 清单 + 项目级 opencode.json MCP 指引文案）』；§二裁判6:52『grep -nF opencode.json scripts/deploy-vault.sh | grep -v ^#（去注释后）→ 0 命中』；:22 既有禁件门保留 opencode.json。grep -nF 'opencode.json' T2-C.md | grep -iF '动态|拼|字面' → 无命中（卡文未给调和指引）。主干实测 deploy-vault.sh 当前非注释行 opencode.json = 0。",
+   "fix_hint": "在 §(c) 明确：AGENTS.md 的 MCP 指引文案不得在 deploy-vault.sh 非注释行出现字面 opencode.json（改述为『OpenCode 项目级配置』或运行时动态拼接文件名），并在 §〇 增一条口径与裁判6 呼应。"
+  },
+  {
+   "severity": "LOW",
+   "where": "T2-C.md §三 地盘允许面 file #5",
+   "what": "§三 允许面第5项写 repo-root `.claude/skills/deploy-vault/SKILL.md`，与设计稿 §3『只 T2』逐文件清单里的 `canvas-vault/.claude/skills/deploy-vault/SKILL.md` 不一致（后者实测不存在）。卡文已作为口径更正 + 台账移交项登记、设为可选，属对设计错误的正当修正；但严格对照设计 §3 仍是允许面偏离，依赖主 session 回改手册地盘表后才闭合。",
+   "evidence": "find . -name SKILL.md -path '*deploy-vault*' → 仅 ./.claude/skills/deploy-vault/SKILL.md（75 行）；canvas-vault/.claude/skills/ 下 11 个运行期 skill 无 deploy-vault。设计稿 §3 T2 行列的是 canvas-vault/.claude/skills/deploy-vault/SKILL.md。",
+   "fix_hint": "保持现状（已登记台账④ + 设可选）即可；主 session 合入前据此更新手册/设计 §3 地盘表的路径。"
+  },
+  {
+   "severity": "LOW",
+   "where": "T2-C.md §一(c)『其余 exit 64 文案保留 E-1』+ scripts/deploy-vault.sh:286",
+   "what": "opencode 转正后，E-1 printf 文案仍把 opencode 列为未实现二线宿主示例（『codex / opencode / dsh 等…本版不实现』），与新行为名实不符（DD-13 邻接）。卡文 (c) 明写『其余 exit 64 文案保留 E-1』，未要求更新该示例列表去掉 opencode。无测试断言该列表内容，故不破门，但消息会误导。",
+   "evidence": "grep -nF 'opencode' scripts/deploy-vault.sh → :286 `printf '   E-1 二线宿主（codex / opencode / dsh 等）等 HOST-PROBE 实测表（U4-A），本版不实现。'`（非注释 printf）。",
+   "fix_hint": "在 §(c) 附一句：E-1 文案示例列表去掉 opencode（改为 codex / dsh 等），保持消息与新支持面一致。"
+  }
+ ],
+ "T3-C": [
+  {
+   "severity": "LOW",
+   "where": "T3-C.md §〇 事实 表「三态测试的现成夹具」行",
+   "what": "两个夹具的 file:line 引用指到 @pytest.fixture 装饰器行而非 def 行（卡文写 board_done_env「def :2851」、overview_env「def :172」；B14_BASE 实测 def 分别在 2852、173，2851/172 是其上方的 @pytest.fixture 装饰器行）。其余同文件锚点（_state_of:2871、_mk_node_vault:1308、_projection:100、_now_local:54、_node_md:1300）均逐字精确。",
+   "evidence": "cd feature 主干树；sed -n '2851,2852p' backend/tests/unit/test_review_overview.py → 2851 `@pytest.fixture` / 2852 `def board_done_env(refresh_env, monkeypatch):`；sed -n '172,173p' 同文件 → 172 `@pytest.fixture` / 173 `def overview_env(tmp_path):`。",
+   "fix_hint": "把「def :2851」「def :172」改为「def :2852」「def :173」，或注明行号指装饰器行；非阻断——grep -nF 'def board_done_env' 可直接命中，且 §一(a) 已要求开工逐条 sed -n 复测并以实测为准。"
+  }
+ ],
+ "T3-B": [
+  {
+   "severity": "MEDIUM",
+   "where": "T3-B.md §〇 事实表第 6 行（投影 schema v3 单一生产器行）",
+   "what": "daily_review_run 的锚点 `:78 noti = (payload or {}).get(\"notification\")` 行号错误——主干树实测该语句在 `:713`，`:78` 行是 `return send_bark.vault_key((vault or VAULT).resolve().name)`（与 notification 无关）。同行其余锚点（:548 ensure_payload / :613 picker.build_payload / :559/:625 outputs/今日复习.json）均实测正确，仅此一处错。",
+   "evidence": "cd 主干树；`grep -nF 'get(\"notification\")' scripts/daily_review_run.py` → 仅 713；`sed -n '78p;713p' scripts/daily_review_run.py` → 78 行=`return send_bark.vault_key(...)`，713 行=`noti = (payload or {}).get(\"notification\")`。影响有限：§二 各裁判用 `grep -nF 'def ensure_payload\\|picker.build_payload\\|get(\"notification\")'`（会命中 713），且 (a) 已要求开工逐条复核并按符号名重定位，不会「撞墙」，故判 MEDIUM 而非 HIGH。",
+   "fix_hint": "把 §〇 该处 `:78` 改为 `:713`（或删行号改写为 `grep -nF 'get(\"notification\")' scripts/daily_review_run.py` 锚点），与 §二 的 grep 口径统一。"
+  },
+  {
+   "severity": "LOW",
+   "where": "T3-B.md §二 裁判命令（缺独立 ruff 判据）",
+   "what": "本卡新建 `backend/scripts/g68_five_view_contract.py`（.py 文件）并在 (g) 要求「仍须 ruff 干净」，但 §二 无任何独立的 ruff check 裁判命令（仅 (k) 提到 commit 时 lefthook `python-lint` 会跑、以及 `ruff format --check` 的漂移处置）；设计稿 §0.2.2 / 本批纪律明确要求写 ruff 判据时用 zsh 数组写法，此处 ruff lint 仅靠提交钩子兜底、无 pre-Codex 可判定的 ruff check 判据。",
+   "evidence": "`grep -nF 'ruff' T3-B.md` 仅见：§〇 line21 的纪律转述、(g) 的「ruff 干净」文字、(k) 的 `ruff format --check`；§二 1~11 条无 `ruff check` 命令。",
+   "fix_hint": "在 §二 补一条 ruff check 裁判（协议 §2.2 zsh 数组写法，带 F401 验伪锚），对本卡 diff 的 .py 文件跑 `ruff check`，或在 (g) 明确声明 ruff lint 由 commit 钩子承重、无需独立判据（二选一，使可判定性闭合）。"
+  }
+ ],
+ "T6-B": [
+  {
+   "severity": "MEDIUM",
+   "where": "T6-B.md §〇 row16/row20、§一(c)(e)(l)、§二 step7、§三 vs 设计稿 §3 (line 75) / 手册 §3 (line 63)",
+   "what": "卡文把 backend/app/main.py 的允许改动面声明为 :380–407，而设计稿 §3 与手册 §3 都明确写「T6-B 只改 :386-404 回填门段」。卡文单方面扩宽了区间（:380<:386，:407>:404），且手册/设计稿未同步更新。",
+   "evidence": "实测 sed -n '378,407p' backend/app/main.py：try: 在 :380、if _worker_graphiti is not None: :387、else logger.info :404、except :405、warning :406。设计稿 §3 line 75『两卡各自 diff 不得越出各自行段』给的是 :386-404；手册 line 63 同写 :386-404。卡文 (l)/§二 step7 自检 ⊆ :380-407。若车道把新 import（调 get_fallback_sync_service 所需）落在 :381-385 的既有 import 块内，该 hunk 在 :386-404 之外、:380-407 之内——主 session 若按手册 §3 的 :386-404 做 hunk 核会误判越界。两区间与 T5-D :568 均不重叠，故无真实集成冲突，属声明口径不一致。",
+   "fix_hint": "主 session 把设计稿 §3 / 手册 §3 的 T6-B main.py 段更新为 :380-407 与卡文一致；或卡文约束编辑（含新 import 用 if 分支内 inline import，≥:386）收回 :386-404。"
+  },
+  {
+   "severity": "MEDIUM",
+   "where": "T6-B.md §四 Codex prompt ①『最小读取面写死』——security.py:64-110",
+   "what": "Codex prompt 的最小读取面把 require_internal_api_key 截到 :64-110，但该函数实际 span :64-166；403（配置了 key 但不匹配）分支与 DEBUG 旁路分支尾部都在 :110 之后。Codex 被要求独立核对『管理端点鉴权与 /system/* 逐字同口径』(prompt ②) 与 (g)/(k) 依赖的 403/503 矩阵，却拿不到 403 分支源码。",
+   "evidence": "python3 ast 实测 require_internal_api_key = (64,166)。sed -n '110,135p' security.py 显示 :110 起才是 Branch 2(DEBUG+bypass)，503 在 :96-106，403(key mismatch) 在 :135 之后。该段非本卡 diff（既有代码），不会被 prompt 里的 git diff 读取面覆盖，必须显式引用才可见。",
+   "fix_hint": "prompt 最小读取面改引 security.py:64-166（完整 require_internal_api_key）。"
+  },
+  {
+   "severity": "MEDIUM",
+   "where": "T6-B.md §二 裁判命令（缺 ruff 判据）vs §〇 row21 / 设计稿 §0.2.2 / 协议 §2.2",
+   "what": "卡文 §〇 row21 声明『ruff 判据用 zsh 数组』、(o) 要求『python-lint（ruff）本卡新增行自证合格』，但 §二 九条裁判中没有任何一条是 ruff 的 zsh-数组判据命令（含 F401 验伪锚）。本卡改 backend/app 多个 .py，设计稿 §0.2.2/协议 §2.2 为此类卡规定了显式 ruff zsh-数组判据，卡文只靠提交期 lefthook python-lint 兜底，无独立可粘贴判据。",
+   "evidence": "grep 卡文 §二 step1-9 无 'ruff check' / 'F=(${(f)' 形态命令；设计稿 §0.2.2 第2条给出 F=(${(f)\"$(git diff --name-only --diff-filter=AM B14_BASE HEAD -- 'backend/**/*.py')\"});…ruff check -- \"${F[@]}\"；验伪锚 F401 文件 rc=1。",
+   "fix_hint": "在 §二 增一条 ruff zsh-数组判据（diff-filter=AM backend/**/*.py + ruff check -- 数组 + F401 验伪锚），与 pyright 判据并列。"
+  },
+  {
+   "severity": "LOW",
+   "where": "T6-B.md §〇 row16『回填门现状』",
+   "what": "声称 `except Exception as e:` 在 :406，实测该行在 :405（:406 是 logger.warning）。描述性锚点错位一行。",
+   "evidence": "awk NR 378-408 实测：:405 = 'except Exception as e:'，:406 = 'logger.warning(...启动回填 failed...)'。§二 step1 仅核 :387/:404 且 try 块范围 :380-407 覆盖 :405，故不致开工撞墙。",
+   "fix_hint": "改为 `except Exception as e:` :405（或整体以 :380-407 范围表述，不点单行）。"
+  },
+  {
+   "severity": "LOW",
+   "where": "T6-B.md §〇 row14『四条降级暂存链』",
+   "what": "声称 `increment_edge_sync_failures :33`，实测 def 在 :32（:33 是其 docstring）。描述性锚点错位一行。",
+   "evidence": "sed -n '32,33p' backend/app/core/failure_counters.py：:32 = 'def increment_edge_sync_failures() -> int:'，:33 = docstring。该行的实测命令是 sed -n '24,33p' 范围显示，仍能看到 def，不影响判定。",
+   "fix_hint": "改为 increment_edge_sync_failures :32。"
+  }
+ ],
+ "T2-D": [
+  {
+   "severity": "HIGH",
+   "where": "T2-D.md §一(h) 与 §二.6（目录级裁判）；另 §〇 第16行",
+   "what": "目录级不回退判据用 `--ignore backend/tests/unit/test_deploy_vault_sh.py`，但裁判前已 `cd backend`，该前缀路径不匹配任何被收集文件 ⇒ --ignore 变成空操作，test_deploy_vault_sh.py 仍被收集并真跑（重型 DEPLOY_SH 子进程），与声称的「与基线 64 同口径」相违。64-基线文件头实际用的是相对路径 `--ignore tests/unit/test_deploy_vault_sh.py`（已排除该文件）。两口径不一致，可致目录级跑变慢/行为不同，且该文件任一用例 ERROR 会成 `>` 行触发假阻断。",
+   "evidence": "在 scratchpad 复现：cd backend 后 `pytest tests/unit --collect-only --ignore backend/tests/unit/test_deploy_vault_sh.py` 仍收集到 `tests/unit/test_deploy_vault_sh.py::test_deploy`（2 tests collected）；换成 `--ignore tests/unit/test_deploy_vault_sh.py` 才正确排除（1 test）。基线文件 unit-red-baseline-08100483.txt 第2行跑法写 `--ignore tests/unit/test_deploy_vault_sh.py`（相对），64 条内无任何 test_deploy_vault_sh nodeid。",
+   "fix_hint": "将 §一(h)、§二.6、§〇第16行的 `--ignore backend/tests/unit/test_deploy_vault_sh.py` 统一改为 `--ignore tests/unit/test_deploy_vault_sh.py`（与基线文件头逐字一致，cwd=backend 下生效）。§〇第23行已写成 `--ignore test_deploy_vault_sh.py`，也应统一成相对全路径。"
+  },
+  {
+   "severity": "MEDIUM",
+   "where": "T2-D.md §二.1（裁判命令第1条）",
+   "what": "§二.1 以 `sed -n '28p;284,286p;697,701p;1232p' scripts/deploy-vault.sh 与 §〇 原文逐字同` 作为 0 分钟裁判，但本卡前提 T2-C 会修改 --hosts 校验循环（接受 opencode，改 :284-286 内容）并在 step3 体（684-945）内新增生成代码（下移 :697 A1 校验与 :1232 run_step 3 调用）。在本卡真实执行树（T2-C tip）上这些钉死行号/原文逐字对照必不成立，会让车道开工就撞墙；与 §〇 第11行、§一(a)「漂移则记录、按实测形态叠加」的漂移容忍口径自相矛盾。",
+   "evidence": "设计稿 §4 T2-C「步 3 生成 .agents/skills + AGENTS.md；--hosts 接受 opencode；改两门」确认 T2-C 触及 :284 循环与 step3；:697 落在 step3 体 684-945 内，step3 增长必下移 :697/:1232。§〇 行号在当前主干 B14_BASE 上实测全部成立（逐条已核），但 §二.1 的 verbatim 口径用在 post-T2-C 树上。",
+   "fix_hint": "§二.1 改为内容定位的 `grep -nF` 再核（与 §一(a) 一致：实测行号漂移只登记、不逐字钉死 B14_BASE 行号），或显式注明「以下行号为 B14_BASE 值、T2-C 后按内容锚点重测」。"
+  },
+  {
+   "severity": "MEDIUM",
+   "where": "T2-D.md §四（Codex/prompt 段，第80行）；另 §一(i) 第52行",
+   "what": "§四 Codex prompt 段把协议 §2 禁用措辞「构造 / 可复现片段 / 打穿 / 绕过」四个词逐字列出（在「不得出现…（用X替换Y）」的提醒括注里）。格式参考卡 U5-A 刻意只写「协议 §2 的四个禁用措辞」而不拼出原词；本卡拼出，违反核验硬约束「Codex prompt 相关文字里不得出现这四个词」。§一(i) 第52行亦用「构造一个指向 ~/.codex/x 的参数」肯定式出现「构造」（属完成条件、非 prompt 正文）。实际 prompt 五分节的问题正文措辞干净（用「空判据/误当执行凭据/rogue extra/fail-closed」），故不阻断车道。",
+   "evidence": "grep 本卡：构造=2（:52 完成条件、:80 meta 提醒）、可复现片段/打穿/绕过 各=1（均在 :80）。对照 U5-A.md :52「prompt 与存档不得出现协议 §2 的四个禁用措辞」未拼出原词。",
+   "fix_hint": "§四第80行按 U5-A 写法改为「不得出现协议 §2 的四个禁用措辞（见协议 §2）」，不拼出原词；§一(i) 的「构造」可改「组装/准备一个指向 ~/.codex/x 的负控输入参数」。"
+  }
+ ],
+ "T4-C": [
+  {
+   "severity": "MEDIUM",
+   "where": "T4-C.md §四 Codex / 验收单 — 存档首部条款（「会话头自证」行）",
+   "what": "存档首部用旧口径「抄 .stderr 前三行含 model 行 + reasoning 行」，与设计稿 §0.1（协议 §2.1 第十四批回写，设计稿第 325 行第 15 条）要求的新口径「抄含 codex 版本行 + model 行 + reasoning 行（行号不限、写明行号）」不一致。codex 会话头的 version/model/reasoning 三行不保证落在前三行，写「前三行」会漏抄版本行且可能漏抄 model/reasoning，导致该轮因缺字段不计轮次配额。",
+   "evidence": "实测 T4-C.md 第 144 行：『会话头自证（抄 .stderr 前三行含 model 行 + reasoning 行，各写明行号…』；设计稿 b14_design.md 第 325 行：『协议 §2.1 首部：抄含 codex 版本行 + model 行 + reasoning 行（行号不限、写明行号）』。二者「前三行」vs「行号不限 + 含版本行」冲突。",
+   "fix_hint": "把『抄 .stderr 前三行含 model 行 + reasoning 行』改为『抄 .stderr 里的 codex 版本行 + model 行 + reasoning 行（行号不限，各写明实际行号）』，与设计稿/协议 §2.1 第十四批口径逐字对齐。"
+  },
+  {
+   "severity": "MEDIUM",
+   "where": "T4-C.md §二 裁判命令 —（b）先红 archive 复现 与（d）后绿 archive 证",
+   "what": "承重的『先红』(b) 与『后绿』(d) archive 判据在 §二 里是带 `printf '... 草稿 ...' >/dev/null` 的占位骨架——粘贴即跑不会写出任何 REMOVED/MODIFIED spec delta，故无法复现/解除 blocker，期望值『stdout 含/不含 Spec must have at least one requirement』拿不到；真正产出证据依赖车道 agent 按第 114 行注解手工 `openspec instructions` 编写四件套 delta。与设计稿 §6「§二 可直接粘贴」有距离；此为 openspec CLI 固有限制，卡文已在第 114 行注明，但承重『先红后绿』证据链不是机械可执行的。",
+   "evidence": "实测 T4-C.md 第 70-74 行与 86-90 行：两段 `( cd ... && openspec new change ... && printf '... 草稿 ...' >/dev/null && openspec archive ... -y )`；第 114 行注解确认 printf 为占位、实跑需 agent 取模板填 delta。npx --no-install openspec archive --help 实测无 --dry（card §〇 口径正确），但 archive 必须有 REMOVED/MODIFIED delta 才能触发/解除 blocker，占位骨架不产出 delta。",
+   "fix_hint": "要么在 §二 给出可直接执行的 delta 写文步骤（heredoc 写 proposal/spec delta 文件到 scratch change 目录后再 archive），要么把 (b)/(d) 明确标注为『非粘贴即跑，须按 §一(b)/(d) prose + line 114 手工编写 delta 后执行』，使承重判据的可执行边界在 §二 自身可见。"
+  }
+ ],
+ "T2-E": [
+  {
+   "severity": "HIGH",
+   "where": "T2-E.md §一 (a) 第0分钟自证 + §二 裁判命令第 53 行(`# 64`)与第 73-74 行 base.nodeids 构造 + _goal/T2-E.txt 第 2 行",
+   "what": "基线自证公式 `grep '::' \"$BASE\" | grep -vc 'test_deploy_vault_sh'` 期望值写成 64，但实测 = 65。基线文件 unit-red-baseline-08100483.txt 共 67 行（3 行 # 注释 + 64 行真 nodeid）；`grep -c '::'` = 65（64 真 nodeid + 第 3 行注释里含一条 flaky nodeid `test_candidate_service::...` 也带 `::`）。从 65 降到 64 需要剔掉那条**注释行**，而不是剔 `test_deploy_vault_sh`——该基线是用 `--ignore test_deploy_vault_sh.py` 生成的，里面 test_deploy_vault_sh nodeid 数 = 0，所以该 filter 是空操作，结果恒 65。卡文 (a) 明写「不是 64 或文件不在 ⇒ 停下报主 session」，于是车道在开工第 0 分钟就会对一份**完全正确**的基线误判为异常而停摆（开工撞墙）。",
+   "evidence": "实测：`grep -c '::' $BASE`=65；`grep '::' $BASE | grep -vc 'test_deploy_vault_sh'`=65（非 64）；`grep '::' $BASE | grep -c '^#'`=1（注释里的 flaky nodeid）；`grep -cE '^(ERROR|FAILED)' $BASE`=64；`grep '::' $BASE | grep -v '^#' | wc -l`=64。三处（卡 (a)、§二、短 goal 第 2 行）同一错误公式。",
+   "fix_hint": "把三处自证公式改为剔注释行取 64：`grep '::' \"$BASE\" | grep -v '^#' | grep -vc 'test_deploy_vault_sh'`（=64），或直接 `grep -cE '^(ERROR|FAILED)' \"$BASE\"`（=64）；§二 第 74 行 base.nodeids 也应加 `grep -v '^#'` 防注释行污染 diff（虽只产生被允许的 `<` 行，但应清理）。"
+  },
+  {
+   "severity": "MEDIUM",
+   "where": "T2-E.md §二 裁判命令第 79 行（ruff zsh 数组判据，item 5）",
+   "what": "ruff 自证判据的 pathspec 写死为 `backend/**/*.py`，只覆盖 `backend/tests/unit/test_deploy_vault_sh.py`，**漏掉本卡地盘第三个文件 `scripts/cls_forbidden_paths.py`**（§三 明列为可改文件，item ④ ancestor_symlink_hits「若需生产侧配合」会改它）。该文件是 `scripts/*.py`，lefthook `python-lint`（glob `{backend,src,scripts}/*.py`，`ruff format --check`）在 commit 时仍会跑它；若本卡对它的改动产生 format 漂移，§二 ruff 判据给出「全绿」假信号、commit 却被 hook 拦下。判据照抄了协议 §0.2.2/§2.2 的通用模板（`backend/**/*.py`，假设只改 backend），未按 T2-E 实际地盘补 scripts/。",
+   "evidence": "§三 允许面含 scripts/cls_forbidden_paths.py；§二第 79 行 pathspec = 'backend/**/*.py'（git pathspec 不匹配 scripts/ 下文件）；lefthook.yml:118 `python-lint` glob = `{backend,src,scripts}/*.py`。缓解：根 ruff.toml `[lint] select = []`（scripts/ lint 规则为空，只剩 invalid-syntax + format-check），且该文件为条件性改动——故定 MEDIUM 非 HIGH。",
+   "fix_hint": "把 ruff 判据 pathspec 扩成同时覆盖两面，如 `git diff --name-only --diff-filter=AM \"$T2D\" HEAD -- 'backend/**/*.py' 'scripts/*.py'`，或显式把 cls_forbidden_paths.py 纳入；并在 §〇 纪律行补一句「改 scripts/cls_forbidden_paths.py 也会触发 python-lint 的 ruff format --check」。"
+  },
+  {
+   "severity": "MEDIUM",
+   "where": "T2-E.md §四 Codex / 验收单 · 存档首部条款（第 121 行）",
+   "what": "存档首部写「抄 `.stderr` **前三行**含 model 行 + reasoning 行 + 版本行」。但协议 §2.1（本批已回写，主干树实测第 40 行）明确更正为「抄 .stderr 中含 codex 版本行 + `model:` 行 + reasoning 行的**三行，行号不限、括注行号**；codex 0.153.3 把 `model:` 排在会话头**第 5 行**，字面抄前三行会漏自证字段——U2 第十三批 r3 实测」。卡文的「前三行」正是协议专门纠正的错写法；若车道照卡文字面抄 1-3 行会漏掉 `model:` 字段，触发协议 §2.1「牙齿」——该轮不计入 Codex 轮次配额。短 goal 第 7 行写法正确（「抄含版本行+model 行+reasoning 行并括注行号」，无「前三行」），仅卡文 §四 有此矛盾。",
+   "evidence": "协议 card-batch-protocol.md 第 40 行原文含「字面抄前三行会漏自证字段——U2 第十三批 r3 实测」。卡文 §四：「抄 `.stderr` 前三行含 model 行 + reasoning 行 + 版本行」。",
+   "fix_hint": "把「前三行」改为「抄 .stderr 中含 model 行 + reasoning 行 + 版本行的三行，行号不限、括注所抄行号」，与协议 §2.1 逐字对齐。"
+  },
+  {
+   "severity": "LOW",
+   "where": "T2-E.md §〇 事实表 ② 行（第 13 行）的实测命令括注",
+   "what": "§〇 ② 给出实测命令 `grep -nF 'assert_writable_now' scripts/deploy-vault.sh` 并在括号里列结果为「:581/:666/:926/:1041/:1072/:1169」（6 处）。实际该 grep 返回 9 行：另含 :201（def）、:455、:1020。卡文列的是与六写点相关的 6 处子集，但作为「实测命令 + 其输出」呈现时与真实 grep 输出不一致，车道逐条核锚时会看到 9 行而非 6 行，易误判为锚点漂移。",
+   "evidence": "实测 `grep -nF 'assert_writable_now' scripts/deploy-vault.sh` 返回 9 行：201(def)/455/581/666/926/1020/1041/1072/1169。",
+   "fix_hint": "把括注写全（9 处并标明哪 6 处是 bash 写点守卫），或改用能恰好命中 6 处的精确命令（如排除 def 行与 :455/:1020），使「命令—输出」自洽。"
+  }
+ ],
+ "T4-A": [
+  {
+   "severity": "MEDIUM",
+   "where": "T4-A.md §四 Codex/验收单（存档首部条款，第 62 行）",
+   "what": "存档首部的「会话头自证」条款写成旧口径「抄 `.stderr` 前三行含 model 行 + reasoning 行」，与本批已回写的协议 §2.1 直接矛盾。协议 §2.1（08100483→e58d5c5c 文档 commit 的 diff 已落）明确把该行改为「抄 .stderr 中含 codex 版本行 + `model:` 行 + `reasoning effort` 行的三行，**行号不限**」，并注「codex 0.153.3 把 `model:` 排在会话头第 5 行，字面抄前三行会漏自证字段——U2 第十三批 r3 实测」。按卡文「抄前三行」执行，会话头自证三行将不含 model 行，触发 §2.1 牙齿「缺 model 该轮不计配额」，等于白审一轮。卡文自身的短 goal（_goal/T4-A.txt 收尾行）反而写对了「抄 codex 版本行 + model 行 + reasoning 行」，两处自相矛盾。",
+   "evidence": "`sed -n '62p' T4-A.md` → 「会话头自证抄 `.stderr` 前三行含 model 行 + reasoning 行」；`git --no-pager diff --no-color 08100483 HEAD -- .claude/rules/card-batch-protocol.md` 显示 §2.1 blockquote 模板行由「抄 .stderr 前三行含 model 行」改为「抄 .stderr 中含 codex 版本行 + `model:` 行 + `reasoning effort` 行的三行，行号不限…字面抄前三行会漏自证字段」；`tail -1 _goal/T4-A.txt` 短 goal 用新口径「存档首部抄 codex 版本行 + model 行 + reasoning 行」。",
+   "fix_hint": "把 §四第 62 行「会话头自证抄 `.stderr` 前三行含 model 行 + reasoning 行」改为与协议 §2.1（回写版）一致：「会话头自证抄 `.stderr` 中含 codex 版本行 + `model:` 行 + `reasoning effort` 行的三行（行号不限、括注各行行号）」。"
+  },
+  {
+   "severity": "LOW",
+   "where": "T4-A.md §〇 事实表「口径更正」行（第 15 行，表内 ③）",
+   "what": "口径更正行称「`:296` 是 `TIE_FACTOR_KEYS` 常量元组（与 state 读无关，勿引）」，但主干树实测 `TIE_FACTOR_KEYS = (` 起于 :294，:296 是其成员行 `\"board_last_recommended\",`。注记意图（该区为 TIE_FACTOR_KEYS、与 json.loads state 读无关）正确，json.loads 两处（:588/:1316）也核实无误，仅该负向引用行号偏 2 行；属细节偏差，不会让车道撞墙。",
+   "evidence": "`grep -nF 'TIE_FACTOR_KEYS' scripts/daily_review_pick.py` → `294:TIE_FACTOR_KEYS = (`；`sed -n '294,299p'` 显示 :296 为 `\"board_last_recommended\",`；`grep -nF 'json.loads' scripts/daily_review_pick.py` → 仅 :588 / :1316（与卡文一致）。",
+   "fix_hint": "把「`:296`」改为「`:294`（TIE_FACTOR_KEYS 常量元组起始）」，或按跨文/跨段引用纪律改用符号名「`TIE_FACTOR_KEYS` 常量定义处」不带行号。"
+  }
+ ],
+ "T5-C": [
+  {
+   "severity": "MEDIUM",
+   "where": "T5-C.md §四「存档首部」(line 141)",
+   "what": "存档首部的「会话头自证」写成「抄 .stderr 前三行（含 model 行 + reasoning 行，括注各行行号）」——与设计稿 §5 第 15 条回写要求「抄含 codex 版本行 + model 行 + reasoning 行（行号不限、写明行号）」不符两处：(1)「前三行」固定了位置，与「行号不限」矛盾（codex 会话头的 version/model/reasoning 行不保证恰是前三行）；(2)会话头自证只点名 model 行 + reasoning 行，漏了「codex 版本行」（版本虽在 blockquote 的 `codex <--version 实测值>` 字段里另给，但那是单独跑的 `codex --version`，不是 .stderr 会话头行——设计稿要求会话头自证本身含版本行）。",
+   "evidence": "grep 实测 line 141：`会话头自证`抄 `.stderr` 前三行（含 model 行 + reasoning 行，**括注各行行号**）。对照设计稿 blwaxodpy.txt §5.15「协议 §2.1 首部：抄含 codex 版本行 + model 行 + reasoning 行（行号不限、写明行号）」及 §0.1「§2.1 首部改『抄含版本行+model 行+reasoning 行』」。",
+   "fix_hint": "把「前三行」改为「.stderr 会话头里含 codex 版本行 / model 行 / reasoning_effort 行的那三行（行号不限、逐行写明实测行号）」，并在会话头自证清单里显式列出「版本行」。"
+  },
+  {
+   "severity": "LOW",
+   "where": "T5-C.md §一 完成条件 (h) (line 56)",
+   "what": "§一(h) 的 tests/unit 目录级跑命令用了未定义的命令 token `backend_pytest`（`cd backend && PYTHONDONTWRITEBYTECODE=1 backend_pytest tests/unit …`）。全卡只在 line 73 定义了 `PYTEST=$(pwd)/backend/.venv/bin/pytest`，§二⑧ 的权威可粘贴块正确使用 `\"$PYTEST\"`。若车道照 §一(h) 文字跑会 command-not-found（rc=127），令这条承重判据（tests/unit diff 只 `<`）静默失效。",
+   "evidence": "grep -n backend_pytest T5-C.md → 仅 line 56 命中；line 73 `PYTEST=$(pwd)/backend/.venv/bin/pytest`；line 119(§二⑧) 用 `\"$PYTEST\"`。`backend_pytest` 非 shell 内建也非本卡定义的变量/别名。",
+   "fix_hint": "§一(h) 的 `backend_pytest` 改为 `\"$PYTEST\"`（与 §二⑧ 一致）。"
+  },
+  {
+   "severity": "LOW",
+   "where": "T5-C.md §二 裁判命令 ① 事实核 (line 81)",
+   "what": "标注「可直接粘贴」的事实核命令 `grep -n 'switch_vault' backend/app/mcp/server.py | grep -n 367 || grep -n 'QUARANTINED_MCP_TOOLS\\|switch_vault' …` 用法别扭：第二段 `grep -n 367` 是在前一 grep 的带行号输出里再搜字符串「367」，只是因为输出行恰含「367:」而偶然匹配成功，并不能可靠证明 switch_vault 位于第 367 行；`||` 回退分支因此几乎不会触发。属可判定性/表达瑕疵，非事实错误（switch_vault 实测确在 server.py:367）。",
+   "evidence": "sed -n '81p' 实测即该行；server.py 实测 :367 `    \"switch_vault\",`（grep -n 确认）。`grep -n 367` 搜的是字符串 367 不是行号 367。",
+   "fix_hint": "改为直接断言行号，例如 `grep -n '\"switch_vault\"' backend/app/mcp/server.py`（期望输出 `367:`）或 `awk 'NR==367' server.py | grep switch_vault`。"
+  }
+ ],
+ "T5-B": [
+  {
+   "severity": "HIGH",
+   "where": "T5-B.md §一 完成条件 (b) 降级门 + (c) 真库门 + §四 prompt §① 最小读取面（monkeypatch 目标）",
+   "what": "两条承重门都指示 `monkeypatch` 掉 `app.api.v1.endpoints.edges.get_neo4j_client`，但 `get_neo4j_client` 在 edges.py 里是函数体内 :63 的延迟导入（`from app.clients.neo4j_client import get_neo4j_client`），edges 模块上根本没有这个属性。`monkeypatch.setattr('app.api.v1.endpoints.edges.get_neo4j_client', stub)` 默认 raising=True 会在 setup 阶段直接抛 AttributeError（门 ERROR，改前改后都跑不起来）；若改用 raising=False 则 stub 完全不生效（`_write_neo4j_triplet` 每次调用都从 `app.clients.neo4j_client` 重新 import 真函数），改前可能经 `neo4j is None` 早返回走成 207 = 假绿，核心缺陷反而被掩盖。承重降级门 (b) 与真库门 (c) 按卡文字面执行必撞墙。卡文 §〇 事实行已正确写明这是 :63 的局部导入，却在 (b)/(c)/prompt 里给了错误的打桩目标，自相矛盾。",
+   "evidence": "`grep -nF 'get_neo4j_client' backend/app/api/v1/endpoints/edges.py` → 只有 63（`from app.clients.neo4j_client import get_neo4j_client`）/ 65（`neo4j = get_neo4j_client()`），均在 `_write_neo4j_triplet`（def 44-146）函数体内；`awk 'NR<44 && /get_neo4j_client/'` → 无模块级导入；edges.py 顶部导入（1-43 行）无 get_neo4j_client。对照 `_write_lancedb`（模块级 def :154）则可正常 monkeypatch。",
+   "fix_hint": "把 (b)/(c)/prompt 的打桩目标改为源模块 `app.clients.neo4j_client.get_neo4j_client`（函数内延迟导入只能在源模块处拦截）；或在 (b) 断言里加「打桩后 real `_write_neo4j_triplet` 确实调到 stub」的验伪锚（否则假绿）。"
+  },
+  {
+   "severity": "LOW",
+   "where": "T5-B.md §三 禁改与隔离（禁碰同车道其它卡的面，列 `backend/app/mcp/infra_tools.py`（T5-C））",
+   "what": "禁碰清单把 T5-C 的文件写成 `backend/app/mcp/infra_tools.py`，实测真实路径是 `backend/app/mcp/tools/infra_tools.py`。设计稿 §3/§4 T5-C 自身也标注『勘探写 mcp/infra_tools.py，开工 find 实测真路径』，说明该路径本就不确定，卡文照抄了错误路径。因是禁碰引用且文件名唯一，对 T5-B 实际无影响，但 file 锚点对不上。",
+   "evidence": "`find backend/app -name infra_tools.py` → `backend/app/mcp/tools/infra_tools.py`（非 `backend/app/mcp/infra_tools.py`）。",
+   "fix_hint": "禁碰行路径改为 `backend/app/mcp/tools/infra_tools.py`（并回报主 session 更正设计稿 §3/§4 T5-C 同一处）。"
+  }
+ ],
+ "T4-D": [
+  {
+   "severity": "MEDIUM",
+   "where": "T4-D.md §二 裁判命令（行 57、行 60 的两条 `git --no-pager grep`）",
+   "what": "两条承载 §10.4 可复核锚的 git grep 判据（② `git --no-pager grep -c \"ReviewService(\" -- 'scripts/*' 'backend/scripts/*'`；③ `git --no-pager grep -n \"ReviewService(\" -- '*.py' | grep -v '/tests/'`）未加 `--no-color`，与本卡 §〇『本批纪律』行自述的『判据 grep git 输出一律 --no-color + 同次验伪锚』以及设计稿 §0.2.3 / 协议 §2.2 相矛盾；同卡内 (g)/轮次段的三条 `git diff --stat --no-color` 都加了 --no-color，属作者漏加而非口径不知。",
+   "evidence": "grep -n 'git --no-pager grep' T4-D.md → 57、60 两行均无 --no-color；grep -n -- '--no-color' T4-D.md → 仅出现在 §〇 纪律行与行 35/89/115 的 git diff。协议 §2.2 明确警告多 worktree 共用 .git/config 时 color.ui 可被并发改写成 always，重定向到文件不豁免。实测功能风险低：② 为 -c 计数（0 命中 rc=1，颜色不影响）、③ 下游 `grep -v '/tests/'` 按路径排除 + tee 后人读『恰 1 行』，ANSI 包裹匹配项不会引入 /tests/ 也不改行数，故本例不构成假绿；但判据文本违反本卡自订纪律，集成期口径不统一。",
+   "fix_hint": "给行 57/60 两条 git grep 加 `--no-color`（或 `-c color.ui=never`），与 (g) 的 git diff 写法统一；并按 §〇 纪律在承重 grep 旁补同次验伪锚（行 66-67 已为 main.py grep 提供验伪锚，可同型补到 scripts/prod-ctor grep）。"
+  }
+ ],
+ "T5-D": [
+  {
+   "severity": "HIGH",
+   "where": "T5-D.md §四 Codex / 验收单，line 81「prompt 五分节」末尾",
+   "what": "§四 是 Codex prompt 规格文字（Codex-prompt 相关文字），其中字面写出了四个禁用措辞「不写「构造 / 可复现片段 / 打穿 / 绕过」」。⛔ 约束与协议 §2 要求 Codex prompt 相关文字里不得出现这四个词（cyber 拦截在任务边界、不在措辞）。同批兄弟卡 T5-A（line 70「用…描述，禁协议 §2 四措辞」）、T5-C（§四「协议 §2 点名的那四个禁用措辞」）、T8-B（「按协议 §2…列的四个禁用词（见协议 §2 该条原文）」）都只引用协议而不拼出原词——全批只有 T5-D 与 T1-A 把四个词写全。缓解：该句是「禁用…不写…」的禁止性提醒，且 cyber 门实际作用于生成的 codex-prompt-*.md 而非卡文本身，主 session 可据此酌降。",
+   "evidence": "grep -noF '不写「构造 / 可复现片段 / 打穿 / 绕过」' *.md → 命中 T1-A.md 与 T5-D.md 两张；grep -c 于 T5-D.md：构造=3 / 可复现片段=1 / 打穿=1 / 绕过=1，其中可复现片段/打穿/绕过三词全部且仅在 line 81（§四，`## 四` 起于 line 79）；line 26/76 的「构造」是 Python 构造器语义、位于 §一/§三 非 prompt 文字，不在禁用范围。对照：grep 'measure' T5-A.md line 70 / T5-C.md line 143 / T8-B.md line 74 均只引用「协议 §2 四措辞」不拼词。",
+   "fix_hint": "把 line 81 末句改为兄弟卡写法，如「prompt 与存档不得出现协议 §2 点名的那四个禁用措辞（见协议 §2 原文），一律改说「负控输入 / 对照输入 / 未被拦下的输入 / 门未覆盖的路径」」，不在卡文里拼出原词。"
+  },
+  {
+   "severity": "LOW",
+   "where": "T5-D.md §一(c) 方案 B（line 27）、§(i)（line 34）、§三 本卡地盘（line 74）——main.py 行窗口",
+   "what": "设计稿 §3（line 75「T5-D 只改 :568 security 段」）与 §4 T5-D 骨架（line 187「main.py 只改 :568 段」）把 T5-D 的 main.py 可改面声明为「:568 security 段」，而卡文方案 B 把窗口放宽为整个 `_custom_openapi`（:541-570），§(i) 地盘门也只要求 hunk 落在 541–570。由于 T6-B 的交集段是 :386-404、与 541-570 不重叠，且方案 A（推荐）根本不碰 main.py、方案 B 的实际写入点在 :568-570（securitySchemes/global security 之后、return :570 之前插重命名循环），不会造成跨卡集成冲突；属与设计稿声明行窗口的文字不一致，非越界碰撞。",
+   "evidence": "设计稿 §3 line 75：「T5-D 只改 :568 security 段；T6-B 只改 :386-404…两卡各自 diff 不得越出各自行段」；设计稿 §4 line 187：「main.py 只改 :568 段」。卡文 line 27/34 写 :541-570。实测 main.py：def _custom_openapi 在 :541、get_openapi :547、securitySchemes :554、openapi_schema[\"security\"] :568、函数返回 :570；T6-B 段 :386-404 与 541-570 无交集。",
+   "fix_hint": "在 §(i)/§三 注明方案 B 实际写入点落在 :568 之后（securitySchemes 覆盖之后、:570 return 之前），以对齐设计稿「:568 security 段」的声明口径；或在卡文里显式说明将设计声明窗口由 :568 扩读为整函数 :541-570 的理由（需读取上文才能插入重命名循环），供主 session 集成期核 hunk 不重叠时参照。"
+  }
+ ],
+ "T7-C": [
+  {
+   "severity": "HIGH",
+   "where": "第十四批-goals/T7-C.md — §一 (d) / (e) + §四 Codex prompt 二① + §四 五 边界（行 25/26/105/108/110）",
+   "what": "卡文 §〇「口径更正③」已实测并声明 `grep -cE '^def check_'` = 12（非原稿「十一条」），但完成条件 (d)、(e)、Codex prompt 自述点 二①、Codex §五、以及「本卡未证明什么」③ 仍写「十一条 check_*」/「十一条判据」——与本卡自己的更正和主干实测（12）直接矛盾。Codex 二① 要作者自述「十一条判据与全部基线值逐字节不变」会把错误计数喂给独立裁判，误导其按 11 条核（实为 12 条，含远在 :4441 的 check_managed_files）。",
+   "evidence": "主干实测 `grep -cE '^def check_' backend/tests/skills/test_skill_portability_lint.py` = 12，逐条行号 2418/2465/2486/2521/2549/3023/3046/3084/3145/3175/3208/4441 全部存在；卡文内 `grep -n '十一条' T7-C.md` 命中 6 处：行 10（= 口径更正③ 本身引用原稿，合理）+ 行 25(d)/26(e)/105(Codex二①)/108(Codex五)/110(未证明③) 5 处残留旧口径。短 goal _goal/T7-C.txt 全程用「12 个 check_*」，内部一致——只有卡文未把更正传播到下游字段。",
+   "fix_hint": "把 (d)/(e)/Codex 二①/§五/未证明③ 的「十一条」全部改为「12 个（或十二条）check_*」，与 §〇 口径更正③ 一致；(d) 的 grep 判据（=0 / >0）本身 count-agnostic 无需改。"
+  }
+ ],
+ "T5-E": [
+  {
+   "severity": "LOW",
+   "where": "T5-E.md §〇 事实表『ValidationError 真实触发面』行 + §四 prompt 五分节①最小读取面",
+   "what": "卡文称 `_ManifestEnvelope`（:197），主干树实测 class 定义在 `backend/app/models/board_manifest.py:198`（:197 是空行）。off-by-one。",
+   "evidence": "awk 'NR==197||NR==198' backend/app/models/board_manifest.py → 197 为空行、198 为 `class _ManifestEnvelope(BaseModel):`。该文件为只读定位面，必填字段 source/source_status/id_stability 行号（:203/:204/:209）与『无默认』判断均正确，且 sed/AST 引用范围 197-236 已覆盖该 class，不致撞墙。",
+   "fix_hint": "把 `_ManifestEnvelope（:197）` 改为 `:198`；或按设计稿 §6『跨文引用用条目名不用行号』，models 只读面改写『_ManifestEnvelope 类（project_manifest 上游）』不钉具体行。"
+  },
+  {
+   "severity": "LOW",
+   "where": "T5-E.md §二.1 开工自证 + §一 (a)",
+   "what": "承重前提自证 `git log --oneline 08100483..HEAD | grep -c 'CARD-SEC-DANGLING'` 未带 `--no-color`，与设计稿 §0.2.3 / 协议 §2.2『判据 grep git 输出一律 --no-color』不一致。",
+   "evidence": "grep -nE 'git (log|diff)[^|]*\\| *grep' T5-E.md 命中 §二.1 该行且其中无 `--no-color`；其余 git diff 判据（§二.8/§〇/（g））均已带 `--no-color`。实际风险低：`git log --oneline` 的着色仅作用于行首短 SHA，grep 匹配的是 subject 里的 'CARD-SEC-DANGLING' 文本，不受 SHA 着色影响。",
+   "fix_hint": "改为 `git --no-pager log --oneline --no-color 08100483..HEAD | grep -cF 'CARD-SEC-DANGLING'`，与本卡其它 git 判据口径统一。"
+  },
+  {
+   "severity": "LOW",
+   "where": "T5-E.md §二.5 pyright 判据 + §一 (i)『开工先跑一次存基线』",
+   "what": "pyright 判据写 `\"$P\" app`，未在该条内显式 `cd backend`；`app` 相对 cwd 解析，主干/车道树根下只有 `backend/app`、无 `./app`。若在开工（§二.1 处于树根）或单独粘贴 §二.5 执行，`app` 不解析、可能给出非 0/81 的误导结果。",
+   "evidence": "ls -d app → No such file；ls -d backend/app → 存在。pyrightconfig.json 在仓根、include=[\"backend/app\"]，基线 0 errors/81 warnings 实由 cwd=backend 下 `pyright app` 生成。§二.3/.7 先 `cd backend`，顺序执行时 cwd 已落在 backend，故串行跑无碍；仅『开工先存基线』与独立粘贴两种用法处于树根时有歧义。此写法逐字沿用手册 §零.3 / §一.2 钦定命令，缺陷为全批 ★app 卡共有、非本卡独引入。",
+   "fix_hint": "在 §二.5 pyright 行前显式 `cd backend`（或用绝对 `\"$P\" /Users/.../card-t5-bugs/backend/app`），并在 (i)『开工先跑一次存基线』处注明须在 backend 目录执行。"
+  }
+ ],
+ "T5-A": [
+  {
+   "severity": "MEDIUM",
+   "where": "T5-A.md §二 裁判命令 第 2 条（根因门）vs §一 (b)② 末句",
+   "what": "内部矛盾：§二.2 指示「`$PYTEST ... ::TestCleanupScheduler` —— 改前 FAILED」，要求在改代码前真跑 TestCleanupScheduler 并期待干净 FAILED；但 §一 (b)② 末句明确写「后绿单测只在修好后才可真跑」「先红靠 ① 的 hasattr 断言 + (e) 两个负控」，且 (d) 推荐的 spy 式测试实现（先 `await mgr.start_cleanup_scheduler(); await mgr._cleanup_task` 再断言 spy 入参）在改前会忙循环卡死——因 `:350` 的 `settings.TASK_CLEANUP_INTERVAL_SECONDS` 在 `asyncio.sleep` 调用（spy）前的参数求值即抛 AttributeError，spy 永远拿不到 Cancel 机会，`while True` 无 yield。车道若按 §二.2 逐字粘贴、在未修代码上跑 TestCleanupScheduler，会挂死而非得到可判定的红。",
+   "evidence": "sed -n '343,356p' backend/app/services/background_task_manager.py 实测：`except Exception as e:` 分支只有 `logger.error`、无任何 await/sleep；`:350` 属性取值在 `asyncio.sleep(` 之前求值；`hasattr(settings,'TASK_CLEANUP_INTERVAL_SECONDS')`=False（config.py 无此字段，grep 确认）。故改前真跑 cleanup_loop 必忙循环无 yield。",
+   "fix_hint": "把 §二.2「改前 FAILED」只绑 `python -c` 的 hasattr 断言 + (e) 两负控（与 (b)② 末句一致），TestCleanupScheduler 仅作改后「passed」判据；或在卡文明确要求 TestCleanupScheduler 的每个测试以 `assert hasattr(settings,'TASK_CLEANUP_INTERVAL_SECONDS')` 作首行、在进入 loop 前 fail-fast，使其改前能干净红而不真跑 loop。"
+  },
+  {
+   "severity": "LOW",
+   "where": "T5-A.md §三 禁改与隔离（本卡地盘逐文件）",
+   "what": "本卡允许面含 `backend/tests/unit/test_background_task_manager.py`（新增 TestCleanupScheduler 类），但设计稿 §3「只 T5」逐文件清单未列此测试文件（§3 T5 列的是 core/background_task_manager.py、core/config.py 及 T5-B~E 的生产文件，无任何 test_*.py）。严格按「§三允许面与设计稿 §3 逐文件一致」口径属越出。实测该文件无其它车道写者（T5-B 仅把它列为『禁碰（T5-A 的面）』），且设计稿 §4 T5-A『做』明确要求『测试证明不再忙循环』，故新增必要且无冲突——仅属设计稿 §3 未登记 test 文件的遗留，建议主 session 在 T5 地盘登记确认。",
+   "evidence": "grep 设计稿 §3『只 T5』无 test_background_task_manager.py；`grep -rln test_background_task_manager 第十四批-goals/T*.md` 仅 T5-A（写者）与 T5-B（禁碰声明）；wc -l backend/tests/unit/test_background_task_manager.py=156，grep cleanup_scheduler/TASK_CLEANUP=0 命中（现为空白面）。",
+   "fix_hint": "主 session 在 §3 地盘互斥表把 `backend/tests/unit/test_background_task_manager.py` 正式登记为 T5 独占（或确认设计稿 §3 省略 test 文件为通例），消除『允许面越出 §3』的形式不一致。"
+  }
+ ],
+ "T3-D": [
+  {
+   "severity": "HIGH",
+   "where": "T3-D.md §三 本卡地盘 + §一 (b)/(c) + §〇 口径更正① / 设计稿 §3 T3 行 + 手册 §零「只 T3」行",
+   "what": "item ①（卡标题与短 goal 首要项）的生产修复文件 scripts/daily_review_run.py 不在设计稿 §3 T3 地盘、也不在手册 §零「只 T3」行（两处均只列其测试 test_daily_review_run.py）。全批 §3 中无任何车道拥有该脚本本体 ⇒ 地盘缺口。卡文 (c) 把『scripts/daily_review_run.py:588 加 isinstance 判型』列为完成条件，即要求改一个不在允许面的文件。",
+   "evidence": "grep -n 'daily_review_run' 手册 → 仅 §59 只 T3 行列 test_daily_review_run.py；grep -nF 'daily_review_run.py' b14_design.md → §71 只 T3 行同样只列测试、无脚本本体；grep -rnF 'due_crossed' backend/app scripts canvas-vault → 唯一命中 scripts/daily_review_run.py:588（backend/app、skills 均 0）。手册当前不含『纳入 T3』字样 ⇒ 按卡文 (b) 闸门逻辑，item ① 会被降级为不做，headline 四项只落地 ②③④。",
+   "fix_hint": "主 session 排批阶段二选一并落手册 §零 + 设计稿 §3：(1) 把 scripts/daily_review_run.py 正式纳入 T3 地盘（无其它车道写者，零冲突风险），让 (b) 闸门命中『纳入 T3』；或 (2) 正式把 item ① 改派/延后到独立卡并从 T3-D 完成条件中移除。卡文 (b) 的闸门处置本身正确（不自行扩地盘），但计划侧不补齐则 item ① 无法交付。"
+  },
+  {
+   "severity": "MEDIUM",
+   "where": "T3-D.md §四 验收单段（『本卡未证明什么』『台账待登记条目』）",
+   "what": "§四只对『台账待登记条目』给了 4 条种子（①②③④），对『本卡未证明什么』只写『≥4 必填』而枚举 0 条种子。格式参考 U5-A 在卡文 §四内对两张清单都内联枚举了种子（未证明 ①~⑧、台账 ①~⑫），本卡对两张清单处理不一致，且未证明侧无任何在卡内容供车道与核验参照。",
+   "evidence": "grep -cF '本卡未证明什么' T3-D.md = 2（均为标签，(m) 与 §四 各一，无『至少含』枚举）；grep -cF '台账待登记条目' = 4 且 §四有『台账待登记至少含：①…④』；对照 U5-A.md §四同段落内联枚举『本卡未证明什么（≥4）：①…⑧』。",
+   "fix_hint": "照 U5-A，在 §四为『本卡未证明什么』补 ≥4 条种子（例：未证明 item② 残留三读钟在真实 launchd 路径的行为、item③ 反向不可达前提是快照非不变量、item① 未执行时的覆盖缺口、pyright 保持 0 仅静态核未覆盖运行期），与台账侧对齐。"
+  },
+  {
+   "severity": "LOW",
+   "where": "T3-D.md §〇 口径更正②事实格（_run_pick argv 行号）",
+   "what": "声称 _run_pick 的 `argv = [sys.executable, str(script), …]` 在 review_overview.py:1886，主干冻结态实测为 :1887（off-by-one）。",
+   "evidence": "grep -nF 'argv = [sys.executable, str(script)' backend/app/api/v1/endpoints/review_overview.py → 1887（def _run_pick 在 1876，sed 窗 1876,1894 仍覆盖）。",
+   "fix_hint": "影响很小：卡文已给 grep -nF 符号锚点为准并明写『行号会漂』，车道以 grep 命中 :1887 为准不会撞墙。可顺手把 :1886 更正为 :1887 或直接删行号只留符号锚点。"
+  }
+ ],
+ "T6-A": [
+  {
+   "severity": "HIGH",
+   "where": "T6-A.md §二.1 验伪锚 + §一(c) + 短goal T6-A.txt 核心裁判1",
+   "what": "验伪锚 `git --no-pager grep -nE '(await |\\.)load_failed_scores\\(' -- '*.py' | grep -v '/tests/'` 被卡文/短goal三处断言「必命中 memory_service.py:802」，但该命令在 B14_BASE 实测返回空——因为 :802 原文是 `failed_scores = await asyncio.to_thread(self.load_failed_scores)`，方法以引用传入、名字后是 `)` 不是 `(`，正则 `load_failed_scores\\(` 永不匹配。全卡孤儿实证的「防恒空假绿」核心验伪锚因此失效，车道按此判据会得到空结果、与卡文矛盾，且无法证明枚举 grep 非恒空。",
+   "evidence": "实测 `git --no-pager grep -nE '(await |\\.)load_failed_scores\\(' -- '*.py' | grep -v /tests/` → 空；`sed -n '802p'` = `failed_scores = await asyncio.to_thread(self.load_failed_scores)`（无 `(`）；全仓 `load_failed_scores\\(` 仅命中 def :2793 与 6 处测试。卡文 §一(c)/§二.1/短goal 均写「必命中 :802」。",
+   "fix_hint": "验伪锚改用真正以 `name(` 形态被非测试代码调用的名字（如某个确有直接调用点的方法），或把正则放宽到覆盖引用传参形态（如 `to_thread(self.load_failed_scores`）并据实改期望命中行；不得保留「必命中 :802」这一不成立的断言。"
+  },
+  {
+   "severity": "HIGH",
+   "where": "T6-A.md §〇 口径更正5 + §二.3 + 短goal T6-A.txt 核心裁判3",
+   "what": "`git --no-pager grep -n 'failed_edge_syncs' -- '*.py'` 实测为 9 行（5 非测试 + 4 仅测试），但卡文三处（§〇口径更正5、§二.3 裁判期望值、短goal）均写「8 行（5 非测试 + 3 仅测试）」。§〇 口径更正5 自身列出的测试行恰是 test_epic36_integration.py:226,336 与 test_failure_observability.py:101,211 共 4 行，却标「3 条」并求和为 8——内部自相矛盾且总数错。§二.3 的裁判期望值 8 会在车道执行时与实测 9 不符。",
+   "evidence": "实测 `git --no-pager grep -n 'failed_edge_syncs' -- '*.py' | wc -l` = 9；非测试 5（traces.py:4,22 / failure_counters.py:25 / generate_regression_tests.py:4,155），测试 4（test_epic36_integration.py:226,336 / test_failure_observability.py:101,211）。卡文写「8 行 = 5 + 3」。",
+   "fix_hint": "把三处「8 行 / 3 仅测试」改为「9 行 / 4 仅测试」，§二.3 裁判期望值改 9；零回灌结论不变（4 条均为测试断言非消费者）。"
+  },
+  {
+   "severity": "MEDIUM",
+   "where": "T6-A.md §四 存档首部条款",
+   "what": "卡文指示「会话头自证抄 `.stderr` 前三行（含 codex 版本行 + model 行 + reasoning 行）」，但协议 §2.1（HEAD 回写后原文）明确警告「codex 0.153.3 把 `model:` 排在会话头第 5 行，字面抄前三行会漏自证字段」，正确口径是「抄 .stderr 中含版本行+model行+reasoning行的三行、行号不限」。照卡文的「前三行」会漏 model: 字段，按协议 §2.1 牙齿「缺模型字段 = 该轮不计配额」，可致 Codex 轮次作废。",
+   "evidence": "协议 §2.1:40 原文「抄 .stderr 中含 codex 版本行 + `model:` 行 + `reasoning effort` 行的三行，行号不限、括注行号；…字面抄前三行会漏自证字段——2026-09-11 修订」；卡文 §四:65「会话头自证抄 `.stderr` 前三行（含…）」。",
+   "fix_hint": "§四 改为与协议 §2.1 一致的「抄含 codex 版本行 + model 行 + reasoning 行的三行、行号不限、括注行号」，删除「前三行」字样（短goal 已写「抄含…行并括注行号」正确，以短goal为准）。"
+  },
+  {
+   "severity": "MEDIUM",
+   "where": "T6-A.md §〇 链3 行 + §一(b)③",
+   "what": "卡文称写侧 `backend/app/services/agent_service.py:109` `_record_failed_write`，但实测该函数 def 在 :98，:109 落在函数 docstring 行（`Story 38.6 AC-2: Record a failed memory write…`）。配对的 :130（append 开文件）正确。此行号未进 §二 裁判，仅在 §〇/（b）描述表，(a) 的逐条复核会让车道发现并改正，但属卡文事实锚偏差。",
+   "evidence": "`grep -nF 'def _record_failed_write' agent_service.py` = :98（唯一 def；调用点 5084/5100）；`sed -n '109p'` = docstring 行；`sed -n '130p'` = `with open(FAILED_WRITES_FILE, \"a\", …) as f:`（append，正确）。",
+   "fix_hint": "§〇/（b）把 `_record_failed_write` 锚改为 :98（或用 grep -nF 'def _record_failed_write' 符号锚），保留 :130 作追加点。"
+  },
+  {
+   "severity": "MEDIUM",
+   "where": "T6-A.md §〇 链5 行",
+   "what": "卡文称回灌 `fallback_sync_service.py` `_sync_canvas_events`（`:190` 注释 / `:195` def），实测 def 在 :193，非 :195（偏 2 行）；:190 注释正确。此锚仅在 §〇 描述，不进 §二 裁判（§二.6 用 git grep 模式匹配 canvas_events_fallback），但属事实锚偏差。",
+   "evidence": "`grep -nF '_sync_canvas_events' fallback_sync_service.py` = :87（call）/ :193（def）；`sed -n '190,195p'` 显示 :190 = `# 2. canvas_events_fallback.json sync`、:193 = `async def _sync_canvas_events`。",
+   "fix_hint": "§〇 链5 把 `_sync_canvas_events` def 锚由 :195 改为 :193（或用符号锚）。"
+  }
+ ],
+ "T6-C": [
+  {
+   "severity": "MEDIUM",
+   "where": "T6-C.md §一(d)① + §二.2（traces DATA_DIR 先红后绿子门）",
+   "what": "(d)① 的「改前必红」机制两个选项都站不住：该子门的 monkeypatch setup（把 DATA_DIR/LOG_FILES 指 tmp_path）会掩盖 DATA_DIR 错目录缺陷——改前改后 get_trace 都从 tmp_path 读得到该条，恒绿，无法先红。卡文给的两个替代也都错：选项 A「用真实相对路径复现」必然写到真实 backend/app/data 或 backend/data，与 §三『单测一律 monkeypatch 到 tmp_path、不碰真实 backend/data 现网文件』边界冲突；选项 B「直接断言 traces.DATA_DIR 末两段 == app/data」方向反了——改前 DATA_DIR 确实 == ('app','data') ⇒ 该断言改前 PASS、改后（== ('backend','data')）FAIL，是先绿后红，与先红后绿门相反，会让 §二.2『改后全 passed』误判红。",
+   "evidence": "实测 backend/app/api/v1/endpoints/traces.py:17 `DATA_DIR = Path(__file__).parent.parent.parent.parent/'data'` → parts[-2:]==('app','data')；parents[4]/'data' → ('backend','data')（python3 实测）。死信文件实测在 backend/data（含 failed_edge_syncs.jsonl），backend/app/data 只有 vault_index_pending*。monkeypatch 到 tmp_path 后两态都命中；断言 ==('app','data') 改前真、改后假。",
+   "fix_hint": "把 (d)① 写成不 monkeypatch 的常量级断言 `assert traces.DATA_DIR.parts[-2:] == ('backend','data')`（改前 FAIL、改后 PASS，方向正确，零触真实目录）；卡文把选项 B 的等值对象从 app/data 改成 backend/data，删掉选项 A『真实相对路径复现』。"
+  },
+  {
+   "severity": "LOW",
+   "where": "T6-C.md §〇（failure_counters 事实行：`datetime`/`json` 已 import（`:9`/`:12`）)",
+   "what": "import 行号归属写反：卡文按序读为 datetime=:9 / json=:12，主干实测是 json 在 :9、datetime（from datetime import datetime, timezone）在 :12。两个 import 都存在（实质结论『无需补这两个 import』成立），仅行号-名称对应颠倒。",
+   "evidence": "grep -nE '^(import|from) (datetime|json)' backend/app/core/failure_counters.py → `9:import json` / `12:from datetime import datetime, timezone`。",
+   "fix_hint": "§〇 改为「`json`/`datetime` 已 import（`:9`/`:12`）」或明确写 json:9 / datetime:12。"
+  },
+  {
+   "severity": "LOW",
+   "where": "T6-C.md §一(e) 标题「只碰 5 个文件」 + 短 goal T6-C.txt (e)「只碰 5 文件」",
+   "what": "文件数自相矛盾：(e) 编号 1-4 是生产文件（failure_counters / failed_writes_constants / memory_service / traces.py），第 5 项『常量默认值写进 docstring；不碰 config.py』是约束不是文件；加上 2 个新测试文件，实际是 4 生产 + 2 测试 = 6 个文件，与 §一(l)/§二.7 地盘门『⊆ 六文件集』不一致。地盘门的六文件是权威且正确的。",
+   "evidence": "§一(l) 明列 6 文件集 {failure_counters.py, failed_writes_constants.py, memory_service.py, traces.py, test_dead_letter_bounded_t6c.py, test_traces_backlog_t6c.py}；(e) 头却写『5 个文件』。",
+   "fix_hint": "(e) 标题与短 goal (e) 改为『只碰 4 个生产文件 + 2 个新测试文件（共 6，见地盘门）』。"
+  },
+  {
+   "severity": "LOW",
+   "where": "短 goal T6-C.txt 第 1 行「本卡是坟场不爆的最后一层网」",
+   "what": "措辞略微夸大覆盖面：recon_C §11.4 列的四条实际单调增长链是 neo4j_memory.json / dead_letter_episodes.jsonl / failed_writes.jsonl / failed_edge_syncs.jsonl；本卡只对其中 2 条（failed_writes、failed_edge_syncs）做写侧有界（外加零写者的 failed_dual_writes），真正增长最大的两条（neo4j_memory 经 neo4j_client、dead_letter_episodes 经 episode_worker）只做只读 backlog、写侧移交台账④。卡文正文 未证明②/台账④ 已如实声明，仅短 goal 的『最后一层网』叙述偏满。",
+   "evidence": "recon_C_report.md §11.4 四链清单；卡文 §〇『四文件口径更正』确认 neo4j_memory/dead_letter_episodes/canvas_events_fallback 写点在其他地盘、本卡只只读 backlog。",
+   "fix_hint": "短 goal 改为『本卡给 T6 地盘内 3 个 JSONL 的坟场写侧兜底，其余链写侧移交对应地盘』，去掉『最后一层网』的全覆盖暗示。"
+  },
+  {
+   "severity": "LOW",
+   "where": "T6-C.md §〇（四文件口径更正行）+ §一(e).4 backlog 覆盖『全部暂存文件』",
+   "what": "DATA_DIR 修正前提（死信文件都在 backend/data）对 canvas_events_fallback.json 不成立：canvas_service.py:96 写到 `parent.parent/'data'` = backend/app/data，不是 backend/data。若新 backlog 路由统一以修正后的 DATA_DIR=backend/data 拼各文件路径，canvas_events_fallback.json 会恒报 exists=False；dead_letter_episodes 的 episode_worker 默认相对路径 'data/...' 亦依赖 cwd。卡文未点出这三者各自目录分歧。",
+   "evidence": "grep -nF '_fallback_file_path: Path = Path' backend/app/services/canvas_service.py → :96 `Path(__file__).parent.parent/'data'/'canvas_events_fallback.json'`（=backend/app/data）；backend/app/data 实测无 canvas_events_fallback.json。episode_worker.py:224 默认 'data/dead_letter_episodes.jsonl'（相对）。",
+   "fix_hint": "backlog 路由按各写侧锚点逐文件构造绝对路径（canvas_events_fallback→backend/app/data；neo4j_memory/failed_*→backend/data），不要统一套 DATA_DIR；在 §一(e).4 或未证明项写明这一目录分歧。"
+  }
+ ],
+ "T8-A": [
+  {
+   "severity": "MEDIUM",
+   "where": "T8-A.md §二 裁判 8（亦见 §一 (k)）",
+   "what": "边界保护门「不碰邻块」用 `git diff ... | grep -E '^[+-]' | grep -c 'PYRIGHT\\|python-typecheck\\|pyproject\\|HONESTY'` 期望 =0，但这条判据（1）与本卡 §二 抬头自己立的铁律「本卡所有 grep 判据一律 -F（或写死 /usr/bin/grep）」冲突——该模式靠 BRE 交替 `\\|`，一旦按抬头要求加 -F 会把整串当字面量、恒 0 命中（假绿）；且它既没写死 /usr/bin/grep、也没配验伪锚（本卡其余每个锚点判据——裁判 2/6/7——都带「该锚点恰 1 次」或「no-such-file 必 0」的验伪锚，唯独这条=0 期望的承重门没有）。这是本卡内唯一机械核查「T8-A 未编辑 python-typecheck 块 / HONESTY 注释」的门（同车道串行，T8-G 随后要对 lefthook.yml 的这两处出 patch，T8-A 若静默越界会与 T8-G 集成冲突）。缺验伪锚 ⇒ 无法区分「0 是因为确实没改这些行」还是「grep 因包装壳/误加 -F 而恒 0」。",
+   "evidence": "实测 `echo 'alpha' | /usr/bin/grep -cF 'alpha\\|beta'` → 0；`... | /usr/bin/grep -c 'alpha\\|beta'` → 1，证明 -F 会让交替失效恒 0；本卡 §二 抬头原文「本卡所有 grep 判据一律 -F（或写死 /usr/bin/grep）」与该判据所需的 BRE 交替语义互斥，且该判据行无任何『先证 grep 能命中一条已知正例』的验伪锚。",
+   "fix_hint": "把裁判 8（与 §一 (k)）改为写死 /usr/bin/grep -E，或拆成 4 条 `grep -cF` 逐词统计后相加；并补一条验伪锚（先对一段含 `python-typecheck` 的已知正例跑同一判据证明能命中 ≥1），把『=0』从『查不到』升级为『确已查过且确为 0』。"
+  }
+ ],
+ "T8-C": [
+  {
+   "severity": "HIGH",
+   "where": "T8-C.md §〇 第 13 行（kill_identity 调用点表）+ §二.1 裁判命令注释",
+   "what": "g33 的 kill_identity 调用点锚点对不上：卡文 §〇 把 g33 调用写为「:504 kill_identity(rc, out, nodeid, expect_msg, …)」，§二.1 裁判命令 `grep -nF 'kill_identity(' …` 注释写「期望 541 / 431 / 504」。实测：g33 的 `kill_identity(` 开括号在第 503 行（504 只是续行的实参行），`grep -nF 'kill_identity('` 在 g33 返回 493/501/503（两条注释 + 调用），从不返回 504。g32cb(541)/g32ccr1(431) 正确但都还各多一条注释行(533/426)未在期望值里体现。",
+   "evidence": "在主干树 backend 下 `grep -nF 'kill_identity(' scripts/g33_mutation_gates.py` → 493(注释)/501(注释)/503(调用 `verdict, why_v = kill_identity(`)；`sed -n '503,505p'` 确认 503=`kill_identity(`、504=实参、505=`)`。g32cb 返回 533/541，g32ccr1 返回 426/431。HEAD(e58d5c5c) 与 08100483 对该三文件 diff 为空，故非版本漂移。",
+   "fix_hint": "§〇 把 g33 调用锚改为 `:503`（开括号行），§二.1 注释把 g33 期望值改为「503（调用；493/501 为注释行）」；g32cb/g32ccr1 注释补「541/431 为调用行，533/426 为 round-19 注释行」。"
+  },
+  {
+   "severity": "MEDIUM",
+   "where": "T8-C.md §四「存档首部」条款",
+   "what": "Codex 存档首部「会话头自证」写成「抄 `.stderr` 前三行（含 model 行 + reasoning 行）」，沿用被协议回写作废的旧口径。设计稿 §0.1 明确本批协议 §2.1 首部改为「抄含版本行 + model 行 + reasoning 行」（抄这三条具体行，而非假定它们恰好是前三行）。卡文自身短 goal 已用正确口径「六行抄含 codex 版本行+model 行+reasoning 行并括注行号」，卡文 §四与短 goal 不一致。",
+   "evidence": "T8-C.md §四：「会话头自证抄 `.stderr` 前三行（含 `model` 行 + `reasoning` 行，括注所抄行号…」。短 goal 末行：「首部按协议 §2.1 六行抄含 codex 版本行+model 行+reasoning 行并括注行号」。设计稿 b14_design.md §0.1：「§2.1 首部改『抄含版本行+model 行+reasoning 行』」。",
+   "fix_hint": "§四 删「前三行」，改为「抄 `.stderr` 中的版本行 + `model` 行 + `reasoning` 行（各括注其实际行号），与短 goal 口径一致」。"
+  },
+  {
+   "severity": "MEDIUM",
+   "where": "T8-C.md §一(f) + §二.3（三套 --list 前后对照）",
+   "what": "g33 的「--list 前后对照」判据不可判定：§二.3 与 (f) 一律用 `<harness> --list`（「g32ccr1 / g33 同」）做改前/改后对照，且 (f) 称改前「rc 取决于既有消息/锚点自检」。但 g33 用 argparse，只认 --json/--only/--selfcheck-syntax，无 --list；改前跑 `g33 --list` 会得 argparse「unrecognized arguments」rc=2，并非「输出无 EXPECT_LOC 覆盖行、rc 取决于既有自检」。同时 (c) 对 g33 只说「按其既有只读入口（--selfcheck-syntax 同层）补一个只读自检入口」，未指明新入口 flag 名（是否叫 --list），使 g33 的改前/改后 --list 对照口径悬空。",
+   "evidence": "`grep -nE 'add_argument|--list' scripts/g33_mutation_gates.py`：只有 --json(:393)/--only(:394)/--selfcheck-syntax(:395)，无 --list；用法注释(:23-24)亦无 --list。卡文 §〇 第 16 行自述「g33 … 无 --list 位置覆盖行」，但 §二.3/(f) 仍统一用 --list。",
+   "fix_hint": "(c) 指定 g33 新增只读自检 flag 的确切名字（如 `--check-expect-loc`）；§二.3/(f) 把 g33 那条从 `--list` 改为该 flag，并把 g33 改前对照改为「该 flag 改前不存在 ⇒ argparse rc=2 / 或不产生覆盖行」的明确预期，不要套用 g32cb/g32ccr1 的 --list 口径。"
+  },
+  {
+   "severity": "LOW",
+   "where": "T8-C.md §〇 第 9 行（mutation_kill_identity.py 行号）",
+   "what": "§〇 给出 mutation_kill_identity.py 的 B14_BASE 行号（kill_identity:641 / _loc_identity:610 / check_expect_loc_unique:1021 / loc_token_for:585 / stmt_fingerprints:508 / failed_locations:410 / parse_failed_nodeids:381），但本卡运行在 T8-B 末 commit 之上，而 T8-B（CARD-DEBT-mutkill-R3）正是改该文件（H1 `_split_unique`:188-213 在这些函数之前），届时这些行号必漂。卡文未对这组行号标注「T8-B 改前口径、将漂移」。影响被同格 `实测命令` 列的符号 grep（`grep -n 'def kill_identity\\|…'`）消化，故仅 LOW。",
+   "evidence": "主干 08100483 实测上述行号全部吻合；但 §〇 banner 自述 HEAD=T8-B 末 commit 且 mutation_kill_identity 是 T8-B 地盘。T8-B 在 :188-213 区修 H1，位于列出的所有函数之前，会使 :381 以下全部下移。",
+   "fix_hint": "对这组 mutation_kill_identity.py 行号加一句「B14_BASE 口径；T8-B 合入后按同格符号 grep 复测，行号以 grep 实测为准」。"
+  }
+ ],
+ "T7-D": [
+  {
+   "severity": "MEDIUM",
+   "where": "T7-D.md §三 禁改与隔离（及 §二 judge 9 地盘门、短 goal 第 6 行）",
+   "what": "卡文把 backend/tests/unit/test_vault_install_manifest.py 纳入本卡允许面，但设计稿 §3「只 T7」与手册 §二 对 T7-D 只列 scripts/verify_vault_install.py，未列该测试文件——即 §三 允许面越出设计稿 §3 逐文件清单。",
+   "evidence": "grep 'test_vault_install_manifest' 于设计稿 tool-results 副本 = NOT in design doc；grep 于手册 2026-09-11-第十四批开跑手册 = NOT in manual；手册 §二 T7 行只写「_harness_tree…ai-linked-doc…lint 解析器…G2-7a 4 项」。缓解事实（均实测）：(1) 无任何其它车道写该文件（设计稿 §3 全文无此文件名），故无集成冲突；(2) 设计稿 §4 T7-D 判据本身要求「verify_vault_install.py 既有门全绿」+ FIFO 回归门，而该脚本唯一测试就是此文件（grep 'VERIFIER = ' →:84），不碰它无法交付判据，属设计稿 §3 漏列；(3) 卡文已在「台账待登记条目 ②」显式登记「地盘补登」并要求主 session 回填、开工先 grep 0 命中再继续。",
+   "fix_hint": "主 session 在合并前把 test_vault_install_manifest.py 补进设计稿 §3 / 手册 §二 的 T7-D 地盘（或确认无冲突后批准地盘补登）；卡文此处处理已透明，无需车道改动。"
+  },
+  {
+   "severity": "LOW",
+   "where": "T7-D.md §〇 事实 CLAUDE_MD 行 + (i) + 台账待登记条目③ / 本卡未证明什么④（对照设计稿 §4 T7-D「做」）",
+   "what": "设计稿 §4 T7-D『做』明写「CLAUDE_MD 骨架更新」（update），卡文降级为『只登记不动语义』，不更新骨架。属对设计稿交付项的缩减。",
+   "evidence": "设计稿 §4 T7-D 实测：『做：先修 MEDIUM-2…；CLAUDE_MD 骨架更新；平台限定文案；outputs/** 三条出路留 manifest-ruling.md 不动语义』。卡文 §〇/(i)：CLAUDE_MD_SKELETON 在 backend/app/services/vault_init_service.py:40（实测 grep 'CLAUDE_MD_SKELETON' →:40/:98），属 backend/app 硬边界、非 T7-D 地盘 ⇒ 只登记。该缩减有正当理由：设计稿 §4『做』与其自身 §3 地盘 / §0.2「不碰 backend/app」自相矛盾，卡文选择边界优先是防御性正确做法，且已在台账③与未证明④登记。",
+   "fix_hint": "主 session 确认 CLAUDE_MD 骨架更新是否有意推迟到独立卡（backend/app + install-vault.sh 双真相源分叉需单独授权地盘），并据此修订设计稿 §4『做』措辞，避免与 §3 冲突。"
+  },
+  {
+   "severity": "LOW",
+   "where": "T7-D.md §〇 事实第二行（形态检查不对称）与 §四 Codex prompt 三-④ / 本卡未证明什么②",
+   "what": "卡文把 main.js 读点标注为「:1342 read_text」/「main.js 侧 :1342」，但主干实测 :1342 是 report.hotkeys_note 赋值、:1343 是 return、真正的 main_js_path.read_text 在 :1345（且仅 kind=='file' 时到达）。行号标注不实，且与同一行后半句「:1341 != \"file\" 只置 note、return」自相矛盾。",
+   "evidence": "sed -n '1341,1346p' scripts/verify_vault_install.py：1341 `if main_js_kind != \"file\":` / 1342 `report.hotkeys_note = f\"not evaluated (...)\"` / 1343 `return` / 1344 `try:` / 1345 `source = main_js_path.read_text(encoding=\"utf-8\", errors=\"replace\")`。main.js 侧在 §三 明列「:1332-1346 不在本卡修面」，故此处不会让车道撞墙，纯属标注不精确。",
+   "fix_hint": "把「:1342 read_text」改为「:1345 read_text（仅 kind=='file' 时到达；非普通文件在 :1342 置 note、:1343 return）」，或直接引用符号名 main_js_path.read_text 不带行号。"
+  }
+ ],
+ "T7-A": [
+  {
+   "severity": "HIGH",
+   "where": "卡文 §三 第1条 / §〇「⚠ 地盘缺口」行 / §一(h) / §四台账②③；短 goal 第3行",
+   "what": "卡要求改 `backend/tests/regression/test_g3_2_review_ledger.py`（先红后绿 + 既有 16 门回归），该文件在卡文 §三「本卡地盘」内，但**不在设计稿 §3「只 T7」地盘互斥表、也不在手册 §一**——即 §三允许面越出设计稿 §3（鉴别口径：越出 = HIGH）。",
+   "evidence": "`grep -n test_g3_2_review_ledger` 设计稿 b14_design.md = 0 命中；手册 2026-09-11-第十四批开跑手册 = 0 命中（实测）。设计稿 §3 line76「只 T7」= {quiz-answer/SKILL.md, ai-linked-doc/**, learning_event_log.py, test_skill_portability_lint.py, start-exam-board/SKILL.md, verify_vault_install.py}，无 tests/regression。缓解属实：T7-B 对该文件只验证门⑪(`test_write_point_survey :521`)不改、T7-C 不碰它 ⇒ 全批确无其他写者且同车道串行，集成冲突风险为 0；卡已透明登记并请主 session 补表。",
+   "fix_hint": "维持现状登记即可，但主 session 须在合并前把 test_g3_2_review_ledger.py 补进设计稿 §3/手册 §一 的 T7 地盘（或明确裁定授权），否则 T7-A 的 commit 写了一个未授权文件。"
+  },
+  {
+   "severity": "LOW",
+   "where": "卡文 §〇 第9行（改动面恰三文件行）的 diff 命令路径列表",
+   "what": "diff 命令里写 `backend/app/core/learning_event_log.py`，但该文件实测在 `backend/app/services/learning_event_log.py`，core 下不存在。对 T7-A 非承重（T7-A 不写此文件，仅作「08100483..HEAD 未变」检查，路径不存在时 git 静默返回空，恰好让「为空」成立），但沿用了陈旧路径。",
+   "evidence": "`find backend/app -name learning_event_log.py` → 仅 `backend/app/services/learning_event_log.py`（实测）。T7-B 台账⑤已更正「勘探写 app/core → 实测 app/services」。设计稿 §3 line76 亦用同一错路径。",
+   "fix_hint": "把 §〇 diff 命令里的 `backend/app/core/learning_event_log.py` 改为 `backend/app/services/learning_event_log.py`，与 T7-B 口径一致。"
+  },
+  {
+   "severity": "LOW",
+   "where": "卡文 §〇 第11行「现状是逐行正则、零 yaml」行",
+   "what": "声称 `grep -n 'yaml\\|safe_load' canvas-vault/.claude/skills/quiz-answer/SKILL.md` 在 `:370-439` 区间「0 命中」，实测该区间命中 3 行（374/386/439，均含 `.canvas-config.yaml` 或 `PyYAML` 字样）。实质结论（`_harness_tree` 内无 `import yaml`/`safe_load`）为真，但所给 grep 判据的期望值（0 命中）失实，车道按 (a)『逐条复核』跑会得 3 行。",
+   "evidence": "`grep -n 'yaml\\|safe_load' SKILL.md | awk -F: '$1>=370&&$1<=439'` → 374/386/439（实测）。",
+   "fix_hint": "把判据收窄为 `grep -nE 'import yaml|safe_load'`（区间内确为 0 命中），或直接说明 3 处命中均为 `.canvas-config.yaml`/`PyYAML` 文本而非 yaml 用法。"
+  },
+  {
+   "severity": "LOW",
+   "where": "卡文 §二 裁判命令 #1 与 §〇 第10行的行号/原文对照",
+   "what": "§二#1 断言 `sed -n '397p;425p;428p;431p;437p;438p' … 与 §〇 原文逐字同`，但 §〇 把 line 428 写作 `elif _raw.startswith(\"#\"): _tree = \"\"`（内联），实测 428 仅 `elif _raw.startswith(\"#\"):`（`_tree = \"\"` 在 429）⇒ 该行 sed 输出不会与 §〇 逐字同；另 §〇 把 `if not _tree: return os.path.dirname(vault_dir)` 标为 `:433-434`，实测在 432-433（差一行），且同时把 :434 标为 expanduser（434 被重复标两种内容）。",
+   "evidence": "`sed -n '370,445p' … | cat -n`：offset59=428 `elif _raw.startswith(\"#\"):`、offset60=429 `_tree = \"\"`；offset63=432 `if not _tree:`、offset64=433 `return os.path.dirname(vault_dir)`、offset65=434 `_tree = os.path.expanduser(_tree)`（实测）。",
+   "fix_hint": "§〇 把 428 拆成 `:428 elif …:` / `:429 _tree = \"\"`，把回退标为 `:432-433`；或 §二#1 不强求 428 行逐字同、只对裸代码行对齐。卡已允许「漂移则验收单写 :X→:Y」，影响有限。"
+  },
+  {
+   "severity": "LOW",
+   "where": "卡文 §〇 第20行 / §一(e) / §二#4（SKILL-PORT-LINT :4360 与 QUIZ_ANSWER_BASELINE 更新归属）",
+   "what": "卡让 T7-A 自己更新 `test_skill_portability_lint.py:4360`(quiz-answer sha256) 与 `QUIZ_ANSWER_BASELINE`，但设计稿 §4 T7-A「判据」明写「SKILL-PORT-LINT 基线（若指纹变，**T7-C 同批更新基线并声明**）」。卡的做法其实更正确（串行每卡独立 commit + 门须绿，改 SKILL.md 的同一 commit 不更新 :4360 则 `test_managed_files_match_digest_baseline` 当场红）且已被手册 §一.3(line117)「lint 基线指纹随卡更新并声明」授权；但卡未引用该授权、也未把「与设计稿 §4『T7-C 更新基线』不一致」记入口径更正/台账（T7-B 卡明确引了手册 :117）。",
+   "evidence": "设计稿 b14_design.md line212「若指纹变，T7-C 同批更新基线并声明」；手册 line117 T7 行「改 SKILL.md 后 tests/skills 目录级 + lint 基线指纹随卡更新并声明」（实测）。代码注释 `:2284`『U5-B (CARD-G3-3-R2) 独占更新』，与 T7-C、T7-A 三处对『谁更新 quiz-answer 基线』表述不统一。",
+   "fix_hint": "在 §四台账补一条口径更正：依手册 §一.3(:117) 授权，quiz-answer 指纹/基线由本卡（改 SKILL.md 的卡）随卡更新，覆盖设计稿 §4『T7-C 同批更新基线』；并引用手册 :117 作为授权出处，与 T7-B 一致。"
+  }
+ ],
+ "T8-B": [
+  {
+   "severity": "BLOCKER",
+   "where": "T8-B.md §〇「MEDIUM③ 原文」行 + §一(g) + §二.5 + §二.6",
+   "what": "MEDIUM③ 的整个修法建立在「四套各自 --json 写 verdict_counts」这个假前提上，而实测只有 g33 支持 --json 并写 verdict_counts；g32b / g32cb / g32ccr1 三套既无 --json 选项也无 verdict_counts 字段。于是 §二.5 的 `python3 scripts/<套>.py --json $EV/<套>-r3.json` 对那三套不产出任何 json 存档；§二.6 的 reconcile 读四份存档、§一(g)「读四套 --json 存档的 verdict_counts 六档 + total/verdict_sum_matches_total、缺字段即 SystemExit」对三套恒不可满足 ⇒「全对 rc=0」永不可达。要满足必须给 g32b/g32cb/g32ccr1 补 --json+verdict_counts，但那三套在本卡禁改面（g32cb/g32ccr1 属 T8-C、g32b 属 T8-A/lefthook）——完成条件与自身地盘边界互斥。",
+   "evidence": "`grep -cF 'verdict_counts' g32b=0 g32cb=0 g32ccr1=0 g33=1`（g33:689）；`grep -n add_argument`/`--json` 实测仅 g33 有 `ap.add_argument(\"--json\", type=Path…)`（:393）并 `args.json.write_text`（:677-678）；g32cb main 仅 `if \"--list\" in sys.argv[1:]`（:461）、g32ccr1 仅 `if a == \"--list\"`（:338），均无 --json 写盘；g32b 同（`if \"--list\" in _argv` :2552）。「六档之和」stdout print 仅 g32cb:600 / g32ccr1:480 / g33:666（非 json，且 card 写『四套各自打印』实为 3 套）。",
+   "fix_hint": "改口径：reconcile 只能硬比 g33 的 verdict_counts；其余三套的「六档之和=变异条数」只能从其 stdout（run tee 文件）取，且须声明这不是「读存档汇总段」而是解析 stdout（与『不得只统计自己重解析的结果』的边界另行厘清）。或把给三套补 --json/verdict_counts 的工作显式移交 T8-C（同文件写者），本卡 MEDIUM③ 降为『仅 g33 存档硬比 + census 其余三套缺口』。§〇 的『四套各自 --json 写 verdict_counts』须更正为『仅 g33』。"
+  },
+  {
+   "severity": "HIGH",
+   "where": "T8-B.md §一(k)「现网只读 + 禁连」判据",
+   "what": "判据写「三个改动文件 `grep -rn fsrs_bridge` 应 0 命中」。但本卡声明的改动文件之一 g33_mutation_gates.py 第 62 行即 `BRIDGE = REPO / \"canvas-vault\" / \".claude\" / \"scripts\" / \"fsrs_bridge.py\"`——该文件本就引用 fsrs_bridge 路径（fsrs_bridge.py 是 g33 的变异目标文件）。此判据作为 0-命中门永远失败（恒 1 命中），是自相矛盾的门。",
+   "evidence": "`grep -rn fsrs_bridge scripts/mutation_kill_identity.py scripts/g33_mutation_gates.py | wc -l` → 1（命中 g33:62 `BRIDGE = … fsrs_bridge.py`）。g33 的 `_TARGET_FILES` 含 BRIDGE（MUTATIONS :107 引用 BRIDGE）。",
+   "fix_hint": "判据应限定在本卡 diff 新增行（`git diff $PREV HEAD` 的 `+` 行）不新引入 fsrs_bridge，或把 g33_mutation_gates.py 排除在该 grep 之外并注明 g33 既有 BRIDGE 常量属预期；不能对 g33 全文 grep 0 命中。"
+  },
+  {
+   "severity": "HIGH",
+   "where": "T8-B.md §一(i)「四套全量真跑」+ §三 硬边界「禁碰 fsrs_bridge.py/decay_beta.py 零写者」",
+   "what": "§一(i) 将「四套全量真跑」列为承重裁判，其中包含 g33。实测 g33 是就地变异 harness：`baseline=…p.read_bytes()`、mutate `path.write_text(mutated…)`(:478)、restore `Path(sp).write_bytes(data)`(:427)，而 _TARGET_FILES 含 BRIDGE=canvas-vault/.claude/scripts/fsrs_bridge.py。故全量真跑 g33 会就地写（改后还原）fsrs_bridge.py，与本卡自身 ⛔ 硬边界『禁碰 fsrs_bridge.py 零写者』直接冲突，并触及协议 §3『改 fsrs_bridge.py 的卡=合入当天须部署 live；daily-review-wrapper 对该文件开发树↔live 逐字节 cmp，不一致 exit 78 复习链停摆』的竞态窗口。卡文全程未声明 g33 会变异 fsrs_bridge.py，车道会在『跑 g33 全量』与『禁碰 fsrs_bridge』之间撞墙。",
+   "evidence": "g33:62 BRIDGE 定义；g33:107 MUTATIONS 含 BRIDGE；g33:248 `_TARGET_FILES = sorted({m[1] for m in MUTATIONS})`；g33:427 `Path(sp).write_bytes(data)`（restore 写回即证就地变异）；g33:478 `path.write_text(mutated…)`。",
+   "fix_hint": "明确声明 g33 全量真跑会就地变异 canvas-vault/.claude/scripts/fsrs_bridge.py（restore 后 sha 同）；要么把 g33 的跑限制到不含 BRIDGE 的子集/dry，要么在 §三 把『禁碰 fsrs_bridge.py』与『g33 harness 瞬时变异-还原』的边界写清，并加一条『跑 g33 期间暂停 :05 复习 cron 或错开档期』的防竞态说明。"
+  },
+  {
+   "severity": "MEDIUM",
+   "where": "T8-B.md §三 地盘 + 设计稿 §3 T8 逐文件清单",
+   "what": "本卡要求新增两文件 backend/scripts/mutation_verdict_reconcile.py 与 backend/tests/unit/test_mutation_kill_identity_r3.py，二者均不在设计稿 §3 的 T8 允许面（§3 T8 只列既有四套 harness + lifespan_isolation_negative_control.py + lefthook.yml/package.json/package-lock.json/ruff.toml/pyrightconfig.json）。卡文已自行声明『地盘出处=本卡§三、登台账请主 session 认定』，但按核规则『卡文要求改/新建的文件不在设计稿允许面』仍属需主 session 预裁的越面项，尤其 test_*.py 落 backend/tests/unit/（T9 占 conftest、T10 占该目录多个既有测试文件），新测试文件落点是否与 T10/T9 互斥未由设计稿确认。",
+   "evidence": "设计稿 §3『只 T8』行不含 mutation_verdict_reconcile.py / test_mutation_kill_identity_r3.py；二文件当前不存在（`ls` 均 No such file）。",
+   "fix_hint": "在排批阶段由主 session 把这两文件正式补进设计稿 §3 T8 允许面（或指定落点），避免集成期与 T9/T10 的 tests/unit 面判定为交集；卡文已挂『台账待登记条目②』，需主 session 先裁再放行。"
+  },
+  {
+   "severity": "LOW",
+   "where": "T8-B.md §〇 事实表（多处非门的 file:line 区间）",
+   "what": "§〇 若干行号/区间与 B14_BASE 实测小幅漂移（均落在事实说明格，非 §二 裁判；§二 的门用 AST 区间与 grep -nF 锚定，实测全对）：`_boundary_ok :214-223`（实测 214-225）；MEDIUM① 行把 `if expect_loc[5:] not in fps:` 标为 :619（实测 :620，:619 是 `fps = stmt_fingerprints(gate_file)`）；MEDIUM② 行把 `restore_or_keep_exit_code` 标为 :436-455（AST 实测 436-454）。卡文 §一(a) 已要求开工重测 §〇 并登记漂移，故影响有限。",
+   "evidence": "`ast _boundary_ok` → (214,225)；`sed -n 618,620p` → 620 行才是 `if expect_loc[5:] not in fps:`；`ast restore_or_keep_exit_code` → (436,454)。对比 §二 门锚全对：`_split_unique`(188,211)、`if not cands:` :209、H2 :697、`kill_identity`(641,742)、`_loc_identity`(610,638)、`check_expect_loc_unique`(1021,1073)、KILLED-UNBOUND 3/3/2、MUTATIONS 9/11/18 均实测一致。",
+   "fix_hint": "把这三处事实格的行号各 +1/+2 修正，或统一改用符号名/grep 锚（与卡文 H1 自述的符号名纪律一致），避免后人照抄漂移行号。"
+  }
+ ],
+ "T8-E": [
+  {
+   "severity": "HIGH",
+   "where": "T8-E.md §一(f) 与 §二.1（状态+§〇逐字核，首个裁判块）；§〇 row 15；短 goal 第 3 行",
+   "what": "承重/早期裁判命令 `/opt/homebrew/bin/lefthook --no-auto-install version` 在本机 brew lefthook 2.1.6 上不可用——`--no-auto-install` 是 lefthook 1.x 的全局 flag，2.x 已移除。命令报 `flag provided but not defined: -no-auto-install`、rc=1 并打印 usage，而非卡文声称的干净 `→ 2.1.6`。车道开工执行 §二.1 第一块裁判即撞墙，落档证据为错误态。卡文自身不一致：§〇 brew 行用的是可用的裸 `/opt/homebrew/bin/lefthook version`（rc=0→2.1.6），但 (f)/§二.1/短 goal 改用了带 flag 的坏形态。卡文所引台账 X8③ 恰恰写明『两版本 flag 集不兼容』，正是 `--no-auto-install` 在 2.1.6 失败的原因。",
+   "evidence": "实测 `/opt/homebrew/bin/lefthook version` → `2.1.6` rc=0；`/opt/homebrew/bin/lefthook --no-auto-install version` → rc=1，stderr `Incorrect Usage: flag provided but not defined: -no-auto-install`。`which lefthook`=/opt/homebrew/bin/lefthook。台账 未合卡追踪台账.md X8③ 行：『lefthook 双版本…flag 集不兼容』。手册 §零.8 同样错误地规定 `--no-auto-install`（坏源在手册，卡文继承为裁判）。",
+   "fix_hint": "(f)/§二.1/§〇 row 15/短 goal 统一改用裸 `/opt/homebrew/bin/lefthook version`（与 §〇 brew 行一致）或 `LEFTHOOK=0 /opt/homebrew/bin/lefthook version`；并在卡文注明手册 §零.8 的 `--no-auto-install` 对 2.1.6 失效、应同步更正。"
+  },
+  {
+   "severity": "MEDIUM",
+   "where": "T8-E.md §四『存档首部』段",
+   "what": "Codex 存档首部条款写成『会话头自证抄 `.stderr` 前三行（含 model 行 / reasoning 行…）』，与本批更新后的协议 §2.1 / 手册 §零.11 直接冲突。后者明确：codex 0.153.3 把 `model:` 排在会话头第 5 行，『字面抄前三行会漏自证字段』，规则应是『抄含 codex 版本行 + model 行 + reasoning 行（行号不限、括注行号），不是字面前三行』。按卡文『前三行』字面执行会漏掉 model 字段，触发 §2.1 牙齿『缺 模型 = 该轮不计配额』，使 Codex 轮次作废。卡文内部亦自相矛盾（既说『前三行』又说『含 model 行』而 model 行在第 5 行）。短 goal 第 8/收尾行写的是正确口径『含 codex 版本行/model 行/reasoning 行』，未沿用『前三行』。",
+   "evidence": "协议 .claude/rules/card-batch-protocol.md §2.1 行 40：『抄 .stderr 中含 codex 版本行 + model: 行 + reasoning effort 行的三行，行号不限、括注行号；codex 0.153.3 把 model: 排在会话头第 5 行，字面抄前三行会漏自证字段——U2 第十三批 r3 实测，2026-09-11 修订』。手册 §零.11：『会话头自证 = 抄含… 并括注行号，不是字面前三行』。",
+   "fix_hint": "把 §四『抄 .stderr 前三行』改为『抄 .stderr 中含 codex 版本行 + model 行 + reasoning effort 行的三行（行号不限、括注抄自的行号）』，与协议 §2.1 / 手册 §零.11 逐字对齐。"
+  }
+ ],
+ "T10-A": [
+  {
+   "severity": "HIGH",
+   "where": "T10-A.md §四 Codex / 验收单，`prompt 五分节`（主干树实测第 90 行）",
+   "what": "Codex prompt 正文含被禁词「构造」两处：`二 作者自述` 的「降级断言仍系于「不可用」构造、未被恢复桩掏空」，与 `三 问题②` 的「3 条「修后必重看」的「不可用」构造点是否真在写侧」。协议/本批纪律规定 Codex prompt 相关文字不得出现「构造/可复现片段/打穿/绕过」（cyber 拦截在任务边界不在措辞，benign 义也要替换）。本卡在同段 问题⓪/① 已用批准替换词「对照输入」「门未覆盖的路径」，却漏了这两处；且与本卡自己第 91 行「prompt 与存档不得出现「构造」…」的提醒自相矛盾——dev 把 §四 转写进 codex-prompt-CARD-RED-MOCKFIX.md 时会把「构造」带进真 prompt，存在被 Codex 任务边界拦截/轮次作废的风险。",
+   "evidence": "`sed -n '90p' T10-A.md | grep -oF '构造' | wc -l` → 2；上下文 grep 命中「…「不可用」构造、未被恢复桩掏空」与「…「不可用」构造点是否真在写侧」。第 91 行确含「prompt 与存档不得出现「构造」「可复现片段」「打穿」「绕过」」提醒（全卡 `grep -cF 构造`=6，其中 line15/17/58/94 在 §〇/§一/台账 等非 prompt 正文，不在禁用面；仅 line90 属 prompt 正文）。",
+   "fix_hint": "把 §四 prompt 五分节 line90 的「构造/构造点」改为批准替代说法（如「在哪一侧设定/设定点/落点」），与同段 ⓪① 一致；核对改后 `sed -n '90p' | grep -cF 构造` = 0。"
+  },
+  {
+   "severity": "LOW",
+   "where": "T10-A.md §〇 事实表（第 17 行「3 条「修好后必须重看」」）及 §四 台账②",
+   "what": "对外部文档 red-align 的引用使用行号（`red-align :280`、叙述中「red-align 身份 :381」）而非条目名/节名，且全卡未给出 red-align 文件名或路径（`grep -nF 'red-align-da690bf8'` = 无全路径）。本批格式规约要求「引用别的文档一律用「文件名 + 条目名/节名」，不用行号（行号会漂）」。red-align 是文档不是主干代码，`:280` 会随文档编辑漂移。",
+   "evidence": "`grep -nF 'red-align' T10-A.md` 命中 line17「red-align `:280` 点名」；`grep -nF 'red-align-da690bf8' T10-A.md` 无命中（未写文件名/路径）。对比：同卡对 recon C §7.1、手册 D-3、台账 D-30 均用条目名，唯 red-align 用行号。",
+   "fix_hint": "把「red-align `:280`」改为「red-align 文档（evidence-b13/red-align-da690bf8.md）MOCKFIX 节」之类条目名引用，去掉 `:280`/`:381` 的外部文档行号（主干代码 `:381/:384` 行号保留无妨，那是实测过的代码锚）。"
+  }
+ ],
+ "T9-B": [
+  {
+   "severity": "HIGH",
+   "where": "卡文 §〇「地盘更正」行 + §三 地盘 + §一(b)(c)(d)（文件 backend/tests/unit/test_live_port_guard_contract.py）vs 设计稿 §3「只 T9」",
+   "what": "卡文 §三 允许面（两文件）包含 backend/tests/unit/test_live_port_guard_contract.py，而设计稿 §3 的 T9 清单只列 live_port_guard.py / guard_plugin.py / 两 conftest / runtime_sha.sh，并未授权该 contract 测试文件；本卡核心工作 (b)(c)(d) 三个门全部物理落在该文件，等于 §三 越出设计稿 §3（逐文件不一致）。合并期若按设计稿 §3 做地盘核，T9-B 会被判越界。卡文虽如实登记并要求主 session 回填，但在设计稿 §3 / 手册 §一 未回填前，授权缺口真实存在。",
+   "evidence": "实测 grep -nF 'test_live_port_guard_contract' b14_design.md → §3 零命中（该文件全文件仅在 §4 T9-B 骨架的 `tests/unit -k live_port_guard` 判据里以通配出现）；设计稿 §3 line78「只 T9」逐字未含该文件。主干树 grep 确认三个门（test_settlement_path_never_nests_the_lock:1187 / test_seam_is_called_unconditionally_not_inside_a_condition:1715 / test_audit_hook_is_installed_before_the_target_precheck:1516）与两 helper（_direct_self_calls:1044 / _is_dead_branch:1054 / _live_called_names:1063）全在该文件，故 (b)(c)(d) 必改它。复核 T10 §3 清单（指名单测文件 + 禁改任何 conftest）不含该文件，确无跨车道交集。",
+   "fix_hint": "主 session 在设计稿 §3 与手册 §一 地盘表的 T9 条目补入 backend/tests/unit/test_live_port_guard_contract.py（T9-A 的 AST 判据同样落此文件，需一并授权），使授权面与卡文 §三 一致；回填前本卡 §三 与设计稿 §3 的不一致应视为待裁。"
+  },
+  {
+   "severity": "LOW",
+   "where": "卡文 §〇 LOW-3a 行 + §四 prompt 五分节（对 UAT-CARD-W4-7 等验收单的引用）",
+   "what": "对其它文档（验收单）的跨文引用使用行号而非条目名：§〇 写「UAT-W4-7 多轮登记移交，`:320`/`:403`」，§四 写「UAT-CARD-W4-7 `sed -n '316,322p;398,410p'`」。协议/设计稿 §6 要求跨文引用用「文件名 + 条目名/节名」，因行号会漂。（对主干代码 test_live_port_guard_contract.py 的 file:line 是实测锚点，合规，不在此列。）",
+   "evidence": "grep -noE 'UAT[^|]{0,40}:[0-9]{2,4}' T9-B.md → 命中 `UAT-W4-7 多轮登记移交，:320/:403`；§四 LOW-3a 实测行用 `sed -n '316,322p;398,410p'` 指向 UAT-CARD-W4-7。banner 与 §〇 其余处已用条目名（«LOW-3a»、MEDIUM-1/2/3、LOW-4），属局部混用。",
+   "fix_hint": "把对验收单的行号引用改为条目名，如「UAT-CARD-W4-7 的 LOW-3a（负控跑器拒未知参数 + 核 should-pass）」「round-4/round-5 LOW-3a 行」，去掉 :320/:403 与 sed 行号。"
+  }
+ ],
+ "T7-B": [
+  {
+   "severity": "HIGH",
+   "where": "T7-B.md §一 完成条件 (b)② test_concurrent_writers_no_lost_update + §一 (e)② 负控 + §二 裁判命令 2/3",
+   "what": "门②（承重先红后绿门）被设计成「两个进程并发写**不同** evid（derive:A甲/derive:A乙），断言两行都在，改前无锁→lost-update 只剩一行」。但第四写者是 `open(ev,'a')`(O_APPEND) 的追加写，对**不同内容**的并发追加，内核保证两条都落盘，**无需任何锁**。因此门② 在改前（无锁）不会红、负控 (e)②「去掉 fcntl.lockf→门② 必红」也不会红——锁的真实作用（防同一 evid 并发重复落账 / 串行化 LF 守卫避免 \\n\\n 交错）未被该测试触及。这使本卡核心「锁」写规无法被先红后绿证明，车道按卡文字面实施会撞墙（门② 恒绿）或被迫偏离卡文。",
+   "evidence": "主干实测 canvas-vault/.claude/skills/ai-linked-doc/SKILL.md:189 写点用 `open(ev,'a',encoding='utf-8').write(...)`（O_APPEND）。/tmp 实跑两个 `python3 -c` 并发进程、无锁：不同 evid(derive:A甲/derive:A乙)→账本 2 行（都在）；同 evid→1 行（未复现重复，取决于竞态窗口）。参照门 backend/tests/regression/test_g3_3_cas.py:303 test_concurrent_ledger_append_stays_wellformed（不同 id 8 进程→断言全在，是 well-formed 门不是 lost-update 门）、:315 test_concurrent_ledger_append_same_id_writes_once（**同 id**→断言只写一次，才是锁/幂等门）、:325 跨节点→断言无 \\n\\n。",
+   "fix_hint": "门② 改为两个并发进程写**同一** evid（带同步屏障强制双方都过查重再写），断言加锁后账本恰 1 行、去锁后出现 2 行同 id（重复），并/或按 cas:325 断言无 \\n\\n、全行可 json.loads；不要把「不同 evid 都在」当作 lost-update 红点。"
+  },
+  {
+   "severity": "MEDIUM",
+   "where": "T7-B.md §三 禁改与隔离（本卡地盘第 5 项）+ §一 (f)② + §一 (i) 地盘集",
+   "what": "卡文 §三 允许面包含 backend/tests/regression/test_learning_events_schema_contract.py，该文件**不在设计稿 §3 T7 地盘表**（设计稿 §3 line 76 T7 只列 quiz-answer/SKILL.md、ai-linked-doc/**、(core→)services/learning_event_log.py、test_skill_portability_lint.py、start-exam-board/SKILL.md、verify_vault_install.py）。按核验口径「§三 允许面越出设计稿 §3 = 需登记/裁定」。卡文已显式声明该越界、提供 grep 实证（无其它车道写）、给出 exec('…') 免动该文件的退路、并在 §四 台账待登记 ② 请主 session 确认——处置方式合规，但仍是越出设计稿 §3、需主 session 并入地盘表或采纳 exec 退路后方可无争议。",
+   "evidence": "设计稿 §3 line 76 T7 地盘表无 test_learning_events_schema_contract.py。grep 实测：第十四批-goals 下仅 T7-B.md 与同车道串行的 T7-C.md 引用该文件（无其它 T 车道）；同批 T7-A.md 对 test_g3_2_review_ledger.py 采用完全相同的「越界+声明+请主 session 补表」模式，佐证设计稿 §3 表本身不完整。producer 门 :996 实测 `m = re.search(r'python3 -c \"(.+?)\"`', ...)`，改 PYEOF 确会使其红，故 (f)② 的联动在选 PYEOF 时是必需的。",
+   "fix_hint": "主 session 将 test_learning_events_schema_contract.py 并入设计稿 §3 T7 地盘表（或采纳 (c) 的 exec('…') 多语句退路保留 python3 -c 形态，使该文件免动）；合并前确认无跨车道写者（已 grep 实证）。"
+  },
+  {
+   "severity": "LOW",
+   "where": "T7-B.md §一 完成条件 (b)④ test_shape_gate_rejects_malformed_event_id",
+   "what": "门④ 列出的形态反例含「空」（空 evid），但第四写者恒以模板拼 `evid='derive:<新节点名>'`——即使节点名为空，evid 仍是 'derive:'（带前缀、非空、无首尾空白、码点合法），会**通过**形态门、不被拒写。故以「空节点名」驱动的「空 evid」子用例无法让门④ 变红（该形态不可达）。含禁止码点 / 首尾空白两类子用例可正常触发，门④ 整体仍可红。",
+   "evidence": "SKILL.md:189 模板 `evid='derive:<新节点名>'`；空节点名→evid='derive:'，对照 services _event_id_shape_problems(:188-230) 判据（非空 / evid==evid.strip() / 禁止码点 / 长度）'derive:' 全部通过，不拒写。",
+   "fix_hint": "门④ 去掉不可达的「空 evid」子用例，保留「含禁止码点的节点名」「带首尾空白的节点名（如前导/尾随空格）」两类可达反例；若要测空/纯前缀，需在写点对 `derive:` 仅前缀无实体名的退化形态单独加判（超出本卡最小修法，可不做）。"
+  }
+ ],
+ "T8-D": [
+  {
+   "severity": "HIGH",
+   "where": "T8-D.md §一 (f) 与 §二 裁判 5（MEDIUM-6① :634 先红后绿，承重）",
+   "what": "MEDIUM-6① 的「先红」副本被规定从 B14_BASE 取：`git show <B14_BASE>:lifespan_isolation_negative_control.py > prefix.py`，再「把未收敛处置 hunk 剔除（保留自检）」后跑 `prefix.py --selfcheck-fixpoint`。但 `--selfcheck-fixpoint` 是本卡新增的子命令，B14_BASE 根本没有它——因此 prefix 里『没有自检可保留』，且在该 base 副本上跑 `--selfcheck-fixpoint` 是未知参数：main() 会越过 :3130 `--ast-negative-control` 与后面的 `--ast-only` 两个分支，落入 `make_isolated_backend`/子进程的完整负控重活（非纯 AST、非 fixpoint 自检）。承重「先红」因此无法按卡文执行，且会产出一个与『未收敛处置』无关的假红（rc≠0 来自别的代码路径），把 (f) 的红绿对照变成假门。",
+   "evidence": "主干树实测：`grep -nF 'selfcheck-fixpoint' <file>` → 0 命中（该子命令为本卡新增，base/当前均无）；`git diff --no-color 08100483 HEAD -- <file>` = 0（base 与当前逐字节相同，均无自检）；`sed -n '3113,3180p'` 显示 main() 仅对 `--ast-negative-control`(:3130) 与 `--ast-only` 提前 return，未知参数一律落入 `tempfile.mkdtemp`+`make_isolated_backend` 的完整运行路径。",
+   "fix_hint": "把 prefix 副本改为从『带修复的 HEAD/审SHA』取（`git show HEAD:...>prefix.py`），再用 sed 仅剔除未收敛『报错』那一处 hunk（把循环还原成 range+无条件 _rebuild），**保留**新增的 `--selfcheck-fixpoint` 子命令——只有 HEAD 同时具备{自检存在}+{修复可被移除}；B14_BASE 因自检不存在不能作为 prefix 来源。§一 (f) 与 §二 裁判 5 两处同步改。"
+  }
+ ],
+ "T9-A": [
+  {
+   "severity": "MEDIUM",
+   "where": "T9-A.md · §〇 事实表「非 app 卡」行",
+   "what": "卡文声称「`python-lint`（ruff）glob 覆盖 `backend/**/*.py`」，与主干 lefthook.yml 实测相反：python-lint 的 glob 实为 `{backend,src,scripts}/*.py`（单 `*`，非递归），而本仓在需要递归时显式写 `**`（lefthook.yml:247 `backend/app/{services,clients}/**/*.py`），可见单 `*` 在本仓不跨 `/`。因此 `backend/tests/support/live_port_guard.py`（嵌套三层）很可能根本不被 python-lint 的 glob 命中、commit 时 ruff 不会经 hook 跑到本文件。",
+   "evidence": "`grep -n 'glob:' lefthook.yml` → :118 `{backend,src,scripts}/*.py`（python-lint）、:247 `backend/app/{services,clients}/**/*.py`（显式 `**`）、:206 `backend/app/*.py`（python-typecheck）。卡文 §〇 原文『python-lint（ruff）glob 覆盖 backend/**/*.py』与该字面量不符。",
+   "fix_hint": "§〇 改写为实测 glob 串 `{backend,src,scripts}/*.py`，并说明该单 `*` 在本仓不跨 `/`、本文件不经 python-lint hook（本卡仍在 (k) 手动对 diff 文件跑 ruff 作为保持绿的依据）；不要声称 hook 覆盖本文件。非阻断（typecheck 结论『非 app 卡』仍正确，且 ruff 在 (k) 独立跑），但属 §〇 事实错误。"
+  },
+  {
+   "severity": "LOW",
+   "where": "T9-A.md · 一 完成条件 (d)①（及 §二.2 改后期望措辞）",
+   "what": "(d)① 把修后『三行全 protected』的行号写成 `:1512 / :1523 / :1530`。但 (c) 的最小修法是在 :1511 except 体内插入一层 `try:`（上方多一行）再包住 print，会使这三个 print 各下移约 +3 行（约 1513 / 1526 / 1533）。改后按 (d)① 期望的旧行号不会出现，易让实施者误判。",
+   "evidence": "`sed -n '1504,1535p'` 实测原 print 在 1512/1523/1530；(c) 代码块在 except 体内新增 `try:`/`except BaseException:`/`pass` 三行，净 +3 行下移后续语句。承重判据 `grep -c UNPROTECTED = 0`（§二.2）本身对行号免疫、是正确的。",
+   "fix_hint": "(d)① 去掉旧行号、只写『3 个 print 全 protected / `grep -c UNPROTECTED = 0`』，或注明『修后行号较改前 +3、以实测名单为准』（(a) 已有行漂移登记口径，可呼应）。"
+  },
+  {
+   "severity": "LOW",
+   "where": "T9-A.md · 一 (k) 与 §二 裁判命令（无 ruff 编号判据）",
+   "what": "(k) 与 §〇 引用「ruff 判据 zsh 数组写法」但全卡未给出设计稿 §0.2.2 / 协议 §2.2 要求的 `F=(${(f)\"$(git diff --name-only --diff-filter=AM 08100483 HEAD -- 'backend/**/*.py')\"}); ... ruff check -- \"${F[@]}\"` 具体可粘贴片段，§二 八条裁判里也无 ruff 命令（tee/rc 等其它判据均给了可粘贴命令）。对单文件卡影响小，但 ruff 判据的具体命令留给了实施者。",
+   "evidence": "T9-A.md §二 裁判 1–8 无 ruff 命令；(k)/§〇 仅以『zsh 数组写法』一语带过，未含 `${(f)}` 数组与验伪锚（喂一个含 F401 文件必 rc=1）。对照设计稿 §0.2.2 第 2 条。",
+   "fix_hint": "在 §二 增一条 ruff 判据：给出 zsh 数组片段（对本卡 diff 文件跑 `ruff check` + `ruff format --check`）+ 同次验伪锚，和 (k) 呼应；或在 (k) 内联该片段。"
+  }
+ ],
+ "T9-C": [
+  {
+   "severity": "MEDIUM",
+   "where": "T9-C.md §〇 口径更正① 位置/实测命令列（第 10 行）",
+   "what": "声称「全仓仅 live_port_guard.py:207 赋值 + test_verification_service_injection.py:110 注释」，枚举不完整——实测第三处命中 backend/scripts/lifespan_isolation_negative_control.py:293 的正则 `r\"^NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=(\\d+) \"`。卡文自己给的 `grep -rn 'NEO4J_LIVE_PORT_CONNECT_ATTEMPTS' backend/` 会返回 3 行，直接与括注的「仅两处」矛盾。核心结论（它是 _SUMMARY_PREFIX 标签、无 os.environ/getenv 读点）仍成立且被第三处正则解析佐证，但枚举数对不上。",
+   "evidence": "`grep -rn 'NEO4J_LIVE_PORT_CONNECT_ATTEMPTS' backend/` 返回 3 行：live_port_guard.py:207、test_verification_service_injection.py:110、lifespan_isolation_negative_control.py:293；`grep -rnE 'environ.*NEO4J_LIVE|getenv.*NEO4J_LIVE'` 对该名无命中（确认无 env 读点）。",
+   "fix_hint": "把「全仓仅两处」改为「三处：live_port_guard.py:207 赋值 + test_verification_service_injection.py:110 注释 + lifespan_isolation_negative_control.py:293 正则解析该总账前缀，三处均非 env 读点」。lifespan_isolation_negative_control.py 属 T8 地盘，本卡只读，不影响地盘。"
+  },
+  {
+   "severity": "LOW",
+   "where": "T9-C.md §〇 三类信号桶行（第 16 行）",
+   "what": "「告警固定串『环境受干扰』`:339` 区（judge 锚，禁改文案）」的行号不准：`环境受干扰` 固定串实际产出在 conftest.py:332（`\"[hygiene] 环境受干扰: 新出现 \"`），judge 锚注释在 :326；:339 处是警告消息块内的无关行（`\"\\n       与 ps -ww ...\"`）。因是「区」软指向且写卡者会 grep 字面串保文案，不致撞墙，但锚点偏约 7 行。",
+   "evidence": "`grep -n '环境受干扰' backend/tests/unit/conftest.py` → 269/281/326/332（无 339）；`sed -n '339p'` 为 `\"\\n       与 ps -ww -p <pid> ...\"`。",
+   "fix_hint": "把「`:339` 区」改为「固定串在 :332，judge 锚注释 :326，警告块 :327-345」。"
+  },
+  {
+   "severity": "LOW",
+   "where": "T9-C.md §〇 ledger 结构键行（第 13 行）实测命令列",
+   "what": "给出的验证命令 `grep -nE 'unaccounted_records\\|reported_status\\|def finalize_and_snapshot' …` 在 grep -E（ERE）下 `\\|` 是字面竖线而非交替，整条模式被当字面文本匹配，实测 rc=1、零输出。写卡者若用此命令「核对」三个结构键锚点会得到静默假阴性（三个锚点本身 :444/:295/:365 实测均正确，可单独 sed 核）。",
+   "evidence": "`grep -nE 'unaccounted_records\\|reported_status\\|def finalize_and_snapshot' backend/tests/support/live_port_guard.py; echo rc=$?` → rc=1、无输出；改用 `grep -nE 'unaccounted_records|reported_status|def finalize_and_snapshot'`（去反斜杠）或 `grep -F` 分别跑才命中。",
+   "fix_hint": "去掉反斜杠：`grep -nE 'unaccounted_records|reported_status|def finalize_and_snapshot'`，或拆成三条 `grep -nF`。"
+  },
+  {
+   "severity": "LOW",
+   "where": "T9-C.md §一 (c) 与 §〇 缺陷落点（第 25、15 行）",
+   "what": "(c) 称「sha 对比块（实测 :307-318）改为…」，但同句又说「exists 侧（:307-310）逻辑不变」——:307-310 落在 :307-318 之内，范围自相重叠。实测 :307-310 是 skeleton/exists 循环（`if after[\"exists\"][rel]…`），真正的 sha 对比循环在 :311-317（`for rel in _HYGIENE_TRACKED_FILES:` + `if after[\"sha\"][rel] != before[\"sha\"][rel]:`）。范围描述不精确（§〇 第 15 行已正确把 sha 比对 `if` 钉在 :312，故不致误改，但 (c) 的 :307-318 区间应收窄）。",
+   "evidence": "`sed -n '307,318p' backend/tests/unit/conftest.py`：307-309=exists/skeleton 循环，311=`for rel in _HYGIENE_TRACKED_FILES:`，312=`if after[\"sha\"][rel] != before[\"sha\"][rel]:`，313-316=pollution.append。",
+   "fix_hint": "把 (c) 的「sha 对比块（实测 :307-318）」改为「:311-317」，与「exists 侧 :307-310 不变」区分开。"
+  }
+ ],
+ "T8-F": [
+  {
+   "severity": "HIGH",
+   "where": "T8-F.md §〇「注释措辞 ③ / exam_service.py TYPE_CHECKING」行 + §一 (e) 第③条（prescribed 新注释文本）",
+   "what": "卡文把 exam_service_ext.py 的 ExamService.<name> 赋值行区间标为「实测 :956-963」，并把该区间写进要落地的新注释文本；但主干树实测 11 个赋值占 :956-966（首 :956 sync_node_to_source_canvas、末 :966 get_records_by_canvas，grep -c '^    ExamService\\.' = 11），:956-963 只覆盖 8 个。卡文自相矛盾（同段又说「11 个方法」），且 census 卡的全部价值就是注释精确——会把错误区间烤进本就为纠偏而改的注释。",
+   "evidence": "grep -n '^    ExamService\\.' backend/app/services/exam_service_ext.py → 956..966 连续 11 行；grep -c = 11。卡文内 grep -oF ':956-963' = 6 次，':956-966' = 0 次。def attach_to_exam_service() :932 / 模块顶层调用 :970 两处卡文正确。",
+   "fix_hint": "§〇 与 (e) 的赋值区间一律改为 :956-966；保留 def :932 / 调用 :970 不变。"
+  },
+  {
+   "severity": "HIGH",
+   "where": "T8-F.md §三「本卡地盘」+ §〇「地盘缺口」行 ↔ 设计稿 §3「只 T8」",
+   "what": "卡文 §三 要求改 5 个文件（pyrightconfig.json + backend/app/dependencies.py + services/review_service.py + services/canvas_service.py + services/exam_service.py），但设计稿 §3「只 T8」仅授予 pyrightconfig.json；其余 4 个 services/core 文件未列入任何车道 §3 地盘。这是设计稿 §3（地盘表）与 §4（T8-F「做」明令改这些注释/ignore）的内部矛盾，按核验口径属「卡文要求改的文件不在允许面」。卡文已如实标出并实测无并发写者、请主 session 补登，故无实际集成冲突，但地盘表必须由主 session 修订后方合法。",
+   "evidence": "设计稿 §3「只 T8」列表仅含 lefthook.yml / mutation_kill_identity.py / g32*/g33 / lifespan_isolation_negative_control.py / package.json / package-lock.json / ruff.toml / pyrightconfig.json。逐车道 §3 核对：dependencies.py、review_service.py、canvas_service.py、exam_service.py 不在 T3/T4/T5/T6 任一 §3（T4-D 对 review_service「零生产改动」只加新测试文件）。设计稿 §4 T8-F「做」明令「改三处注释 + exam_service TYPE_CHECKING 注释 + dependencies 冗余 ignore 删」。",
+   "fix_hint": "主 session 在设计稿 §3 T8 增列这 4 文件（或在台账声明 T8-F 独占），使 §3 与 §4 一致后再进合并队列。"
+  },
+  {
+   "severity": "MEDIUM",
+   "where": "T8-F.md §四「存档首部」",
+   "what": "存档首部条款写「blockquote 抄含 .stderr 前三行（codex 版本行 + model 行 + reasoning_effort 行）」，『前三行』措辞假定三条自证字段恰为 .stderr 的前三行；协议 §2.1 本批回写 + 设计稿 §5.15 的新形态是「抄含版本行 + model 行 + reasoning 行（行号不限、写明行号）」，字段未必在前三行。卡文后半「括注各行在 .stderr 的行号」已部分对冲，但『前三行』仍是被点名的旧措辞。",
+   "evidence": "设计稿 §5 第 15 条：『协议 §2.1 首部：抄含 codex 版本行 + model 行 + reasoning 行（行号不限、写明行号）』。卡文 §四原文含「抄含 .stderr 前三行」。",
+   "fix_hint": "把『前三行』改为『抄含 codex 版本行 + model 行 + reasoning_effort 行（行号不限、写明各行在 .stderr 的行号）』。"
+  },
+  {
+   "severity": "LOW",
+   "where": "T8-F.md §〇「冗余 ignore」行 + §一 (c) + §三（dependencies.py 条）",
+   "what": "卡文称要删的「陈旧注释块」在 :1030-1033；实测注释块在 :1031-1033，:1030 为空行。删 :1030-1033 会连带删掉相邻空行，结果无害，但区间声明比实际多一行（含非注释空行）。",
+   "evidence": "sed -n '1028,1038p' backend/app/dependencies.py：:1030 空行、:1031-1033 三行注释（# 根因在…/# Optional)…/# reportUnnecessaryTypeIgnoreComment 自曝, 阶段 2 复核时清理。）、:1035 为 ignore 行。pyright 实测 :1035:63 reportUnnecessaryTypeIgnoreComment warning（冗余非承重，(c) 先红成立）。",
+   "fix_hint": "注释块区间改为 :1031-1033（或写明『含其上空行 :1030』）。"
+  }
+ ],
+ "T8-G": [
+  {
+   "severity": "HIGH",
+   "where": "T8-G.md §一 (c)⑥（及 §二 裁判块 line 60-61 区域）",
+   "what": "(c)⑥ 的「新句在」grep `grep -c 'ruff format --check.*恢复硬禁\\|恢复硬禁.*改动行'` 在**改前的原协议**上已经命中 1（非 0），因此该 ≥1 判据是恒真，不能证明关闭句被真正插入；而卡文自带的验伪锚「改前在原协议上跑同一条『改后』grep 必须 0（证明不是恒真）」在真文件上直接失败。根因：协议 §2.3 的 ruff-format 条款原文里已含『格式漂移不在本卡改动行』，其中的『改动行』被第二个替换式 `恢复硬禁.*改动行` 命中（line 65 先有『恢复硬禁』后有『改动行』）。",
+   "evidence": "主干树 /Users/.../feature-obsidian-hybrid-dev：`grep -c 'ruff format --check.*恢复硬禁\\|恢复硬禁.*改动行' .claude/rules/card-batch-protocol.md` = 1；拆开看 alt1 `ruff format --check.*恢复硬禁` = 0、alt2 `恢复硬禁.*改动行` = 1；`sed -n '65p' … | grep -oE '.{6}改动行.{6}'` = 『漂移不在本卡改动行」证明（对本』。即原协议 line 65 已含『改动行』，使该『改后 grep』恒真、验伪锚期望值 0 实测 1。",
+   "fix_hint": "把「新句在」判据换成与原文不重叠的唯一新锚，例如 grep 新插入句里的独有串『不再允许带存档跳过』（改前=0、改后≥1），并据此重写 (c)⑥ 的验伪锚（改前该串=0）。不要用会命中『不在本卡改动行』的 `恢复硬禁.*改动行` 模式。"
+  },
+  {
+   "severity": "MEDIUM",
+   "where": "T8-G.md §一 (c)⑦",
+   "what": "(c)⑦ 用 `diff <(grep -n '自第十四批起.*python-typecheck.*恢复硬禁' 协议) <(grep -n … scratch)` 期望「空差集」来证明 python-typecheck 恢复硬禁句未被动；但协议里 python-typecheck 恢复硬禁句、ruff-format 过渡句、D-40 句三者**同在一条物理行（line 65）**。(c) 的编辑改的正是该行内的 ruff-format 片段，line 65 整行文本因此变化；grep -n 打印整行，两侧 grep 输出必然不同 ⇒ diff 非空 ⇒ 该判据即使在正确保留 python-typecheck 句时也恒失败，无法作为「未动」的证明。",
+   "evidence": "`awk 'NR==65{print length}'` 显示 line 65 长 763 字符；`sed -n '65p' | grep -o` 同行同时含 python-typecheck / ruff format --check / D-40 / 恢复硬禁；`grep -n '^### 2.3' / '^## 3\\.'` 取区间 60..68，三句均落在 line 65 一行内。",
+   "fix_hint": "改用不随 ruff-format 片段变动的判据，例如断言编辑前后 `grep -c '自第十四批起.*python-typecheck.*恢复硬禁' 协议` 的计数(=1)不变，或对 patch 的 @@ hunk 做「被改区间不覆盖 python-typecheck 子串起止偏移」的断言；不要用 grep -n 整行 diff 来证明同一行内另一子句未动。"
+  },
+  {
+   "severity": "LOW",
+   "where": "T8-G.md §二 裁判命令 line 78（(g) 地盘核第二条）",
+   "what": "`git diff --stat \"$T8F\" HEAD -- lefthook.yml backend pyrightconfig.json .claude   # 空` 缺 `--no-color`，与本批纪律『判据 grep git 输出一律 --no-color』及同段其余两条 git diff（line 70 / line 77 均带 `-c core.quotepath=false … --no-color`）不一致。该条只看是否为空、未管道给 grep，风险低，但破坏一致性且在 color.ui 被并发改写时(协议 §2.2 Y5-C 教训)不稳。",
+   "evidence": "T8-G.md line 77 = `git -c core.quotepath=false diff --stat --no-color \"$T8F\" HEAD -- . ':(exclude)_bmad-output'`（带 --no-color）；line 78 同类 diff 无 `--no-color` 亦无 `-c core.quotepath=false`。",
+   "fix_hint": "line 78 补 `-c core.quotepath=false … --no-color`，与 line 70/77 统一。"
+  }
+ ],
+ "T10-C": [
+  {
+   "severity": "MEDIUM",
+   "where": "T10-C.md §二 裁判命令 / §一(j)",
+   "what": "本卡对 backend/tests/unit/ 两个测试文件做实质重写（删 skip + 清 17 处 _write_to_graphiti_json 引用 + 按 EpisodeWorker 管线重写/删除 body 用例），但 §二 无任何 ruff 判据，(j) 只提 python-typecheck、未提 lefthook python-lint(ruff check + ruff format --check)。设计稿 §0.2 纪律 2 明确要求 ruff 判据用 zsh 数组写法、glob 覆盖 backend/**/*.py（含 tests）。同车道做同类测试重写的 T10-A 就带了专门 ruff 判据（#7，zsh 数组 + 验伪锚）并在 (j) 写明 python-lint 过渡口径；T10-C 缺失此判据属 §0.2 批级纪律未落地、且与兄弟卡不一致。",
+   "evidence": "grep -c 'ruff check|ruff format' T10-A.md=2 / T10-D.md=1 / T10-E.md=1，而 T10-C.md=0；T10-A.md:74 含完整 ruff zsh 数组判据；T10-C.md:21 facts 行仅口头提『ruff 判据用 zsh 数组写法』但 §二未操作化。重写删除 AsyncMock/patch(_write_to_graphiti_json_with_retry) 调用后极可能残留 F401 未用导入，缺 pre-commit 判据 → 仅在 lefthook commit 期暴露。",
+   "fix_hint": "在 §二 增一条 ruff 判据（照 T10-A.md:74：F=(${(f)\"$(git diff --name-only --diff-filter=AM 08100483 HEAD -- 'backend/**/*.py')\"}); ... backend/.venv/bin/ruff check -- \"${F[@]}\"; echo rc=$? → rc=0 + 喂已知 F401 文件的验伪锚），并在 (j) 补 lefthook python-lint 口径。"
+  },
+  {
+   "severity": "LOW",
+   "where": "T10-C.md §一(e) / §三 / §四 台账待登记条目② （相对设计稿 §4 T10-C）",
+   "what": "设计稿 §4 T10-C『做』列三项交付物：wrapper 5 瑕疵 + 4 条原绿恢复 + 删 2 skip。卡文正确发现 wrapper 落点 scripts/run_cmd_capture.sh 不在设计稿 §3 T10 地盘、且被测试跑 hook 调用属协议 §2.3 批级共享环境变更，遂将 wrapper 段默认 SKIP/HELD 待主 session 裁定。处置本身合规（照 T2-B 未授权即 SKIP 的口径，且登记进台账待登记条目②），但结果是本卡默认只交付设计 §4 三项中的两项——排批主 session 需显式裁定（授权 + 补列 §3 地盘 + §零 批级通告，或另立独立卡），否则 wrapper 5 瑕疵在本批无人认领。",
+   "evidence": "设计稿 §3 T10 行实测不含 run_cmd_capture.sh（全 10 车道均无认领）；设计稿 §4 T10-C『做：wrapper 5 瑕疵；…』；卡文 §一(e)/§三 将其默认 SKIP；台账待登记条目②已登记请主 session 裁定。属 §3↔§4 设计级矛盾，卡已正确上报。",
+   "fix_hint": "排批主 session 就 wrapper 5 瑕疵做显式裁定：要么当次授权 + 把 scripts/run_cmd_capture.sh 补进 §3 T10 地盘 + 手册 §零 批级通告后由本卡补做，要么另立独立卡承接（落点/5 瑕疵/判据已在本卡 §一(e)/§二.10 写死）。"
+  }
+ ],
+ "T10-B": [
+  {
+   "severity": "MEDIUM",
+   "where": "T10-B.md 第2行 banner(provenance 说明句)",
+   "what": "卡文称「写卡实测 2026-09-13 于主干树 HEAD e58d5c5c（B14_BASE 的祖先，二者之间仅 .claude/rules/card-batch-protocol.md 一处文档 commit…）」——方向写反且 diff 面失实：实测 e58d5c5c 是 B14_BASE(08100483) 的后代而非祖先；二者间那 1 个 commit(e58d5c5c) 改了 42 个文件，不是只改 card-batch-protocol.md。该句是向读者解释「为何在 e58 实测也对 081 有效」的依据，其陈述事实与主干相反(rubric #7)。",
+   "evidence": "cd feature-obsidian-hybrid-dev; `git merge-base --is-ancestor e58d5c5c 08100483` → rc=1(NO)；`git merge-base --is-ancestor 08100483 e58d5c5c` → rc=0(YES，081 是 e58 祖先)。`git rev-list --count 08100483..e58d5c5c` → 1；`git diff --name-only 08100483 e58d5c5c | wc -l` → 42(非 1)。缓解：实测 4 个关注文件(test_agent_service_extraction.py/requirements.txt/app/config.py/app/__init__.py)在 081 与 e58 逐字节 shasum 全 SAME，且车道从 081 切、(a) 步会在本树重核锚点——故不致开工撞墙，运营面安全；但 provenance 句本身与实测相反。",
+   "fix_hint": "把「B14_BASE 的祖先」改为「B14_BASE 的后代(081 是 e58 的祖先)」；把「仅 card-batch-protocol.md 一处文档 commit」改为「1 个纯文档 commit e58d5c5c(改 42 个文档/证据文件，关注的 4 个源文件在 081 与 e58 逐字节同，已 shasum 验)」。卡的操作结论(4 文件不变→锚点对 081 有效)本身正确，只需修正方向与 diff 面描述。"
+  }
+ ],
+ "T9-D": [
+  {
+   "severity": "HIGH",
+   "where": "T9-D.md §〇 口径更正① + §三 地盘；设计稿 §3 T9 行",
+   "what": "本卡实际编辑的文件 backend/scripts/lifespan_isolation_runtime_sha.sh 不在设计稿 §3 的 T9 允许面里——§3 T9 只列了 scripts/runtime_sha.sh（repo 根，实测不存在），且该真门在 §3 里不属于任何车道（negative_control.py=T8、guard_probes.py=无归属、runtime_sha 仅以不存在的 token 挂在 T9）。卡文诚实地把它作为『口径更正①』记进 §四台账待登记并请主 session 同步 §3，但在主 session 把 §3 / 手册 §一·§三 地盘 token 改成真实路径之前，集成期按『§三允许面与设计稿 §3 逐文件一致』做的地盘核会显示分歧。",
+   "evidence": "`ls scripts/runtime_sha.sh` = No such file；`wc -l backend/scripts/lifespan_isolation_runtime_sha.sh` = 649；设计稿 §3 T9 行 token = `scripts/runtime_sha.sh`，§3 无 `lifespan_isolation_runtime_sha.sh`（guard_probes.py 亦无归属，negative_control.py 在 T8 行）。设计稿 §4 T9-D 骨架写『三面进 runtime_sha.sh 监视』——意图指向此门无歧义。",
+   "fix_hint": "主 session 在合入前把设计稿 §3 T9 地盘 token 与手册 §一·§三 地盘表从 scripts/runtime_sha.sh 改为 backend/scripts/lifespan_isolation_runtime_sha.sh（卡文已在台账待登记 #1 提出），否则地盘逐文件核对不过。"
+  },
+  {
+   "severity": "LOW",
+   "where": "T9-D.md §一 (m) 与 §二 ⑧ vs §三 硬边界",
+   "what": "(m) 字面要求对 tests/unit 目录级基线做 `comm -13`（需一次目录级 pytest 取当前红 nodeid），而 §三 明写『禁跑 backend/tests/unit 目录级真连』。卡文虽在 (m) 声明『(j) 的回归绿是这条的充分条件』、§二⑧ 为纯注释不强制执行，二者仍存在表述张力，执行车道可能误去跑被 §三 禁止的目录级套件。",
+   "evidence": "§三（T9-D.md:148）『⛔ 禁跑 … backend/tests/unit 目录级真连』；§一 (m)（:34）『comm -13 本卡引入的新红 = 空 … (j) 的回归绿是这条的充分条件』；§二⑧（:136-139）全为注释。",
+   "fix_hint": "把 (m) 的判定口径明确收敛为『本卡零 test/app 改动 ⇒ 仅凭 (j) file-level 契约测试绿即判 comm -13 空』，删去可能诱导目录级运行的 comm -13 措辞，或显式标注目录级基线复跑由主 session 在候选树上做。"
+  },
+  {
+   "severity": "LOW",
+   "where": "T9-D.md §〇 口径更正①（位置/实测命令列）",
+   "what": "§〇 给出的自证命令 `find . -name 'runtime_sha*' -not -path '*/node_modules/*'` 被声称输出『仅 backend/scripts/lifespan_isolation_{runtime_sha.sh,guard_probes.py,negative_control.py}』，但 -name 'runtime_sha*' 只匹配以 runtime_sha 开头的文件名，对 lifespan_isolation_runtime_sha.sh 不命中，实测输出为空；且 guard_probes.py/negative_control.py 文件名不含 runtime_sha，即使改 pattern 也不会命中。该自证命令的声称输出失实。",
+   "evidence": "实测 `find . -name 'runtime_sha*' -not -path '*/node_modules/*'` 返回空；真门由 `wc -l`（=649）与其它锚独立证实，故结论本身正确，仅此条证据命令写错。",
+   "fix_hint": "改为 `find . -name '*runtime_sha*'`（并把声称输出改为只有 lifespan_isolation_runtime_sha.sh 一项），或删去该自证命令、保留 `ls scripts/runtime_sha.sh`+`wc -l` 两条已成立的证据。"
+  }
+ ],
+ "T10-E": [
+  {
+   "severity": "MEDIUM",
+   "where": "T10-E.md §四「存档首部（协议 §2.1）」",
+   "what": "卡文写「会话头自证（抄 `.stderr` 前三行含 model 行 / reasoning 行 / codex 版本行…）」，沿用了协议 §2.1 已废弃的「抄前三行」措辞。协议 §2.1（第十四批 2026-09-11 回写）明确警告：codex 0.153.3 把 `model:` 排在会话头第 5 行，**字面抄前三行会漏自证字段**——按 §2.1「牙齿」条款，首部缺『模型』字段该轮不计入卡族轮次配额（= 等于没审）。车道若照卡文字面抄前三行，可能白跑一轮 Codex。短 goal 第 7 行用的是正确措辞（「抄含 codex 版本行+model 行+reasoning 行并括注行号」），仅卡文 §四 残留旧措辞。",
+   "evidence": "实测 `grep -n '前三行' .claude/rules/card-batch-protocol.md`（主干 feature 树）→ §2.1：『会话头自证（抄 .stderr 中含 codex 版本行 + `model:` 行 + `reasoning effort` 行的三行，行号不限、括注行号；codex 0.153.3 把 model: 排在会话头第 5 行，字面抄前三行会漏自证字段——U2 第十三批 r3 实测，2026-09-11 修订）』。卡文 T10-E.md:151 则写『抄 `.stderr` 前三行含 model 行 / reasoning 行 / codex 版本行』。",
+   "fix_hint": "把卡文 §四『抄 .stderr 前三行含…』改成与协议 §2.1 一致的『抄 .stderr 中含 codex 版本行 + model: 行 + reasoning effort 行的三行（行号不限、括注行号），codex 0.153.3 的 model: 在第 5 行、不得字面取前三行』。"
+  },
+  {
+   "severity": "MEDIUM",
+   "where": "T10-E.md §〇 事实表 + (f)",
+   "what": "§〇 两处 file:line 锚点 off-by-one（在车道树代码态 08100483 = 本核验树 e58d5c5c 代码态上实测）：① `test_agents_health.py` MockAgentService 卡文写 `:34`，实测 `class MockAgentService:` 在 `:35`；② `test_cache_configuration.py` 卡文 §〇 与 (f) 多处写 `class TestMemoryRetryDelayFromSettings`（`:42`，(f) 删整类写 `:42-90`、§〇 另写 `:42-79`），实测该 class 在 `:43`。两处均偏 -1。影响有限：两锚点均可按名 grep 定位，且卡 (a) 已写「开工先 sed -n/grep -nF 核 §〇 每条 file:line（漂移则验收单写『卡文 :X → 实测 :Y』，⛔ 不得照漂移盲改）」+ (f) 要求 sed -n 核邻接边界，故不致撞墙；但属卡文自述锚点与主干实测不符。",
+   "evidence": "`grep -n 'class MockAgentService' backend/tests/api/v1/endpoints/test_agents_health.py` → `35:`；`grep -n 'class TestMemoryRetryDelayFromSettings' backend/tests/unit/test_cache_configuration.py` → `43:`。（注：卡 §〇 另写 xfail 在 `:47`，实测 `@pytest.mark.xfail(` 在 `:46`、`strict=True` 在 `:47`——因 strict=True 确在 47，此处可判为可接受、不单列。）",
+   "fix_hint": "把 §〇 的 MockAgentService `:34`→`:35`、class TestMemoryRetryDelayFromSettings `:42`→`:43`，并把 (f) 的删类范围起点由 `:42` 改为 `:43`（邻接边界仍按 (f) 原文要求 sed -n 实核）。"
+  }
+ ],
+ "T10-D": [
+  {
+   "severity": "HIGH",
+   "where": "T10-D.md §一(e→i) 完成条件 (i) 现网只读 + §二 裁判命令 step 10（核心裁判 #10「现网只读 sentinel=0」）",
+   "what": "(i) 的 sentinel 监视目录写成 `backend/app/data`，但被覆盖的 `GraphitiEpisodeWorker` 默认死信路径是相对路径 `DeadLetterStore(file_path=\"data/dead_letter_episodes.jsonl\")`（episode_worker.py:227-228），§二所有承重 pytest 都 `cd backend` 后跑 ⇒ CWD=backend ⇒ 默认死信落 `backend/data/dead_letter_episodes.jsonl`（实测该文件已存在，是真·坟场），而不是 `backend/app/data/`（后者装的是 vault_index_pending，与死信无关）。该 gate 自称要『证本卡测试没往 data/*.jsonl 坟场写』却盯错目录，无法对它声称防的污染发火。",
+   "evidence": "sed -n '227,233p' episode_worker.py → `self._file_path = Path(file_path)`，默认 `data/dead_letter_episodes.jsonl`（无锚点=CWD 相对）；find backend/data → dead_letter_episodes.jsonl / failed_writes.jsonl 等坟场文件在此；backend/app/data → 只有 vault_index_pending*.jsonl；git check-ignore backend/data/dead_letter_episodes.jsonl → 命中（gitignored）且 `git ls-files --error-unmatch` 报 did not match ⇒ 该文件未被 git 跟踪，故 (h) 地盘核 `git diff` 也抓不到对它的 stray write ⇒ 无任何二级兜底。漏 tmp_path 的用例会静默污染 backend/data 而 (i) 仍报 0=假绿。",
+   "fix_hint": "把 sentinel 改盯 `backend/data`（真死信坟场），或对已知坟场文件 `backend/data/dead_letter_episodes.jsonl` 做跑前跑后 shasum 不变断言；同时在 (c) 强调每条用例都显式传 `tmp_path` 作死信路径。"
+  },
+  {
+   "severity": "MEDIUM",
+   "where": "T10-D.md §四「存档首部（协议 §2.1）」条（line 123）",
+   "what": "Codex 存档首部自证条款写成『抄 `.stderr` 前三行含 model 行 + reasoning 行 + codex 版本行』，保留了『前三行』这一机械口径。设计稿 §0.1（协议回写）与 §5.15 已把标准改为『抄含 codex 版本行 + model 行 + reasoning 行（行号不限、写明行号）』——即按内容定位这三行并写明各自行号，而不是机械抄前三行；若 codex stderr 里这三行并非字面前三行，照『前三行』会抄错。",
+   "evidence": "设计稿 §0.1 line 14『§2.1 首部改「抄含版本行+model 行+reasoning 行」』+ §5.15『抄含 codex 版本行 + model 行 + reasoning 行（行号不限、写明行号）』；当前协议 08100483 版 §2.1 模板仍是旧『抄 .stderr 前三行含 model 行』（T8-G 才回写）。卡文沿用旧框架。",
+   "fix_hint": "把『抄 .stderr 前三行含…』改为『抄含 codex 版本行 + model 行 + reasoning 行（行号不限、逐行写明各自行号）』，去掉『前三行』机械措辞。已要求『括注各自行号』属部分缓解。"
+  },
+  {
+   "severity": "LOW",
+   "where": "T10-D.md §二 裁判命令 step 4（负控还原）与 §一(f)",
+   "what": "§二 step 4 的负控还原具体写法 `git show HEAD:$NEW > /tmp/epw.orig 比对还原`，其中 $NEW=新建的 test_episode_worker_coverage_epw.py 在负控阶段尚未 commit（commit 在 (l)），`git show HEAD:<该新文件>` 在 HEAD 里无此路径会失败/返回空，若据此『还原』可能把文件写空。§一(f) 文本虽给了『或副本比对还原』的正确替代，但 §二 的具体命令对新文件不成立。另：(f) 负控示例之一『patch _handle_failure』是运行时 patch、不改文件，使『shasum 跑前跑后逐字节同』对该示例恒真而失去意义，与『改被测点→还原→shasum』的机制框架自相矛盾。",
+   "evidence": "卡文 (l) 才 commit；负控在 (c)(e) 之后、commit 之前跑；git show HEAD 对未跟踪/未提交新文件无对象。",
+   "fix_hint": "对新文件的负控改用 `cp $NEW /tmp/epw.orig`（跑前备份）→ 变异→跑红→`cp /tmp/epw.orig $NEW` 还原→跑绿→shasum 对比；并统一负控为『编辑测试文件内断言』一种形态，避免 runtime-patch 示例使 shasum 判据空转。"
+  }
+ ]
+}
