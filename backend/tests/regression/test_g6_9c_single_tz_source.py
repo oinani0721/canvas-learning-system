@@ -484,11 +484,17 @@ def test_dst_window_candidates_cover_rules_that_roll_into_the_following_year(tz_
     ⛔ 这条与门⑦ 的判据 2（时刻守恒）互补而**不重叠**：本反例转回 UTC 仍然守恒，
     守恒判据对它完全无感 —— 只有墙钟/归日这一侧能抓。所以不要把本门并进那条。
 
-    为什么表里既有的 11 个串压不到：它们的 DST **季度**不跨年，于是漏格不显形。
-    ⛔ 别把这句读成「它们的规则都落在名义年内」—— 那不实：`WART4WARST,J1/0,J365/25`
-       的 `end(2024)` 实测落在 `2025-01-01 04:00Z`，相对元旦 **366.17 天**，确实滚出了
-       名义年；只是它的 `start` 是 `J1/0`（元旦 00:00），季度 `[start, end)` 整个落在
-       同一年内（北半球分支），所以够不着 `y-2` 那条路径。
+    为什么表里既有的 11 个串压不到：⛔ **不是因为「季度不跨年」** —— 实测 2024 年
+    `NZST-12NZDT,M9.5.0,M4.1.0/3` 的季度是 09-28 → 次年 04-05，
+    `WART4WARST,J1/0,J365/25` 是 01-01 → 次年 01-01，
+    `<+10:30>-10:30<+11>-11,M10.1.0,M4.1.0/3` 是 10-05 → 次年 04-05，**都跨年**
+    （初版注释写成「季度不跨年」，Codex r2 LOW-3 实测证伪）。
+
+    真正的区分点是 **`start` 有没有滚出名义年**（决定季度的名义起始年是 y−1 还是 y−2）：
+    上面三串的 `start` 相对本年元旦分别是 +271.58 / +0.17 / +278.65 天，都在名义年内 ⇒
+    包住某时刻的季度其起始年最早只到 y−1，三年候选窗够得着；
+    而 `AAA1BBB0,365/3,365/2` 的 `start(2024)` 是 **+365.17 天** —— 滚进了下一年，
+    于是包住 2026 元旦的那个季度名义起始年是 2024 = y−2，三年候选窗够不着。
     ⛔ **滚出名义年不止一条路**（本卡实测更正了初版注释里「裸 n=365 是唯一写法」那句）：
       ① 平年的裸 `n=365` = `1月1日 + 365 天` = 次年元旦；
       ② `Jn` / 裸 `n` 叠 `/N`（POSIX 允许到 167 小时，本实现的正则更放行到 999:99:99）；
@@ -576,10 +582,28 @@ def test_omitted_transition_rules_use_the_libc_default_instead_of_falling_back_t
 #: (spec, 为什么该拒)
 _OMITTED_RULE_REJECT_CASES = [
     ("AAA0:60BBB", "分钟 60 越界 —— C 库拒收整串退 UTC（实测 2026-01-20T00:30Z 给 00:30 = UTC）"),
+    ("AAA0:0:61BBB", "秒 61 越界 —— C 库拒收；被接受则算出 −00:01:01，与 C 库差 61 秒"),
     ("AAA999BBB", "偏移 999 小时不可表示 —— 被接受后会在 .isoformat() 抛 ValueError"),
-    ("AAA24BBB", "POSIX 小时字段允许 24，但 Python tzinfo 要求偏移**严格**小于 24 小时"),
+    ("AAA24BBB", "std 侧 24h：POSIX 小时字段允许 24，但 Python tzinfo 要求**严格**小于"),
     ("AAA-24BBB", "同上，负向"),
     ("AAA25BBB", "同上，超界"),
+    # ⛔ 下面两条各自只让**一侧**越界 —— 没有它们，实现退化成「只检查 std 侧」或
+    #    「只检查 dst 侧」时上面那几条照样全绿（Codex r2 MEDIUM-2 实测过这个退化面：
+    #    仅删掉 `or abs(dst_off) >= 86400`，5 拒 + 3 正控全部仍绿）。
+    ("AAA0BBB24", "dst 侧 −24h 不可表示（std=0 合法）"),
+    ("AAA24BBB0", "std 侧 −24h 不可表示（dst=0 合法）"),
+    # ⛔ 上面两条**不是**真正的单侧测试：它们的两侧之差也 ≥24h，会被差值检查顺带挡住 ——
+    #    只删单侧检查它们照样红（本卡负控 ⑨ 实测过这个盲点）。下面两条才是：
+    #    两侧之差 = 1 小时 < 24h，只有对应那一侧的独立检查能拦。
+    ("AAA23BBB24", "**只有 dst 侧**检查能拦：std=−23h 合法、差=1h 合法、dst=−24h 不可表示"),
+    ("AAA24BBB23", "**只有 std 侧**检查能拦：dst=−23h 合法、差=1h 合法、std=−24h 不可表示"),
+    # DST 差恰为 24h：两侧**各自**都在 24h 内，`utcoffset()` 也算得出，但 `dst()` 与
+    # `timetuple()` 会抛 ValueError（差值本身不可表示）⇒ 必须单独检查差。
+    ("AAA12BBB-12", "两侧各自合法但**差**恰为 24h —— dst() / timetuple() 会抛"),
+    # Python 的 `\d` 连全角数字一起匹配；C 库对这串整串拒收。
+    ("AAA１BBB", "非 ASCII 数字：正则放行但 C 库拒收，解析出 UTC−1 而 C 库给 UTC"),
+    # POSIX 要求 std 名后必须跟偏移；缺了它 C 库整串拒收。
+    ("<AAA><BBB>", "标准偏移缺省 —— 补规则后算成 UTC+1，C 库给 UTC，差一整天"),
 ]
 
 #: 正控：秒字段 60 **不该**被这条收紧误伤 —— C 库实测也接受它（`2026-01-20T00:30Z` 给
@@ -605,16 +629,34 @@ def test_omitted_rule_branch_does_not_widen_the_accepted_offset_domain(copy_id, 
     )
 
 
+#: 正控要验的不只是「非 None」，还要验**换算结果**与 C 库逐时刻一致 —— 否则一个
+#: 「返回一个随便什么 tzinfo」的实现也能把正控跑绿（Codex r2 MEDIUM-2）。
+#: (spec, 探针 UTC 时刻)
+_OMITTED_RULE_ACCEPT_PROBES = {
+    "AAA0:0:60BBB": datetime(2026, 1, 20, 0, 30, tzinfo=timezone.utc),
+    "CET-1CEST": datetime(2026, 7, 31, 22, 30, tzinfo=timezone.utc),
+    "XYZ5XYD": datetime(2026, 7, 31, 16, 30, tzinfo=timezone.utc),
+}
+
+
 @pytest.mark.parametrize("copy_id", _COPY_IDS)
 @pytest.mark.parametrize("spec,why", _OMITTED_RULE_ACCEPT_CASES)
-def test_omitted_rule_offset_guard_does_not_overreach(copy_id, spec, why):
-    """上一条的正控：偏移收紧不得误伤 C 库接受的串。"""
+def test_omitted_rule_offset_guard_does_not_overreach(tz_env, copy_id, spec, why):
+    """上一条的正控：偏移收紧不得误伤 C 库接受的串，且换算结果要跟 C 库对齐。"""
     module = backend_tz if copy_id == "backend" else _load_local_tz()
     got = module.parse_posix_tz(spec)
     assert got is not None, (
         f"[{copy_id}] 偏移收紧误伤了合法串: parse_posix_tz({spec!r}) 返回 None\n"
         f"  {why}\n"
-        "  没有这条正控，「省略规则一律拒」的实现也能把上面那五条拒绝用例跑绿。"
+        "  没有这条正控，「省略规则一律拒」的实现也能把上面那些拒绝用例跑绿。"
+    )
+    # 不只看「非 None」：拿 C 库当 oracle 验一个具体时刻的换算
+    instant = _OMITTED_RULE_ACCEPT_PROBES[spec]
+    tz_env(tz=spec)
+    assert instant.astimezone(got).replace(tzinfo=None) == instant.astimezone().replace(tzinfo=None), (
+        f"[{copy_id}] {spec!r} 被接受了，但换算结果与 C 库不符: "
+        f"本实现给 {instant.astimezone(got).replace(tzinfo=None)}，"
+        f"C 库给 {instant.astimezone().replace(tzinfo=None)}"
     )
 
 
@@ -1064,12 +1106,16 @@ def test_bucket_gate_rejects_wrong_bucket_and_forged_display_tz(tmp_path, tz_env
                 f"（该值与 generated_at={payload['generated_at']} 的偏移不符，或根本不是可解析的时区名）"
             )
 
-    # 旧投影（键缺失）⇒ 回退到 generated_at 自带的**固定偏移**（忠于生产者写盘
-    # 那一刻的偏移，Codex r4 HIGH-2 点名的 Bogota 反例）。两个子情形：
-    #   · 固定偏移语义的生产者（Bogota 恒 -05:00）⇒ 换任何显示时区都必须放行;
-    #   · DST 边界上的生产者（NY 的 EST 生成 / EDT 到期）⇒ 固定偏移判不出那 1 小时,
-    #     会被误判 corrupt —— **如实断言这个误判**（它触发页面重新生成, 自愈;
-    #     无键时这在信息上不可两全, 已在验收单 §四 登记, 不得改断言装作放行）。
+    # 旧投影（`display_tz` 键缺失或为 null）⇒ **整份判 corrupt**（CARD-G6-9c-R2）。
+    # ⛔ 原先这里写的是「回退到 generated_at 自带的固定偏移 / Bogota 的 due_today 必须放行 /
+    #    NY 的误判是已登记项」—— 那套说法随本卡的收口一起作废，别照抄。
+    #    固定偏移只在 generated_at **那一刻**等于生产者的真实偏移；到期时刻跨了 DST 切换
+    #    就差一档，而误拒与误放行是同一偏差的两侧，不可能只堵一侧。
+    # ⛔ 本卡 r1 曾试过「偏移 ±2h 敏感性复算」的温和版（带内翻转才拒），被 Codex r1 打回：
+    #    带宽要同时小到不误拒、大到不漏放行，而 `ABC-1DEF-5`(Δ=+4h) 就在 ±2h 带外。
+    #    （Δ 是**有界**的 —— 正则字段位宽定了上界；只是那个界远大于任何实用带宽。）
+    # ⚠️ 本门的正控不在下面三条，而在函数开头的 `_gate(payload)`：带 display_tz 的合法
+    #    投影必须放行。没有它，「一律拒绝所有投影」的实现也能把下面三条跑绿。
     saved_b = picker._DISPLAY_TZ
     picker._DISPLAY_TZ = ZoneInfo("America/Bogota")
     try:
@@ -1078,16 +1124,6 @@ def test_bucket_gate_rejects_wrong_bucket_and_forged_display_tz(tmp_path, tz_env
         )
     finally:
         picker._DISPLAY_TZ = saved_b
-    # ⚠️ CARD-G6-9c-R2 起口径改了：`display_tz` 缺席或为 null ⇒ **整份判 corrupt**，
-    #    不再回退到 generated_at 自带的固定偏移。原先这里断言「旧投影必须放行」，而那条
-    #    恰好是被 HIGH-2 缺陷撑起来的 —— 固定偏移只在 generated_at 那一刻等于生产者的
-    #    真实偏移，到期时刻跨了 DST 切换就差一档，误拒与误放行是同一偏差的两侧。
-    #    ⛔ 本卡 r1 曾试过「偏移 ±2h 敏感性复算」的温和版（带内翻转才拒），被 Codex r1
-    #    打回：夏令时差 Δ 是**未知量**，本实现接受的 POSIX 串允许任意 Δ，`ABC-1DEF-5`
-    #    (Δ=+4h) 就落在 ±2h 带外、伪造的 due_today 照样放行。任何**有限**带宽都能被更大
-    #    的 Δ 打破，带宽取到任意大又等于拒绝一切 —— 这条路在信息上是死的。
-    #    ⚠️ 本门的正控不在这三行，而在函数开头的 `_gate(payload)`：带 display_tz 的合法
-    #    投影必须放行。没有它，「一律拒绝所有投影」的实现也能把下面三条跑绿。
     legacy_bogota = copy.deepcopy(bogota_payload)
     legacy_bogota.pop("display_tz")
     with pytest.raises(ValueError, match="display_tz 缺席或为 null"):

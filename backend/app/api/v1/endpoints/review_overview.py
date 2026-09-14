@@ -382,7 +382,9 @@ def _display_day(ts: str, tz=None):
     """UTC-Z 定长串 → 显示时区(或显式指定 tz)的日期; 不可表示时 None (年份极值)。
 
     `tz` 显式传入的唯一用途见 _gate_buckets: 校验一份**已落盘**的投影时, 参照系
-    必须是它**生成时**的时区 (由 generated_at 自带偏移给出), 不是此刻的显示时区。
+    必须是它**生成时**的时区 —— 由投影顶层自报的 `display_tz` 重建的完整时区规则,
+    不是此刻的显示时区, 也不再是 generated_at 自带的固定偏移（CARD-G6-9c-R2: 自报值
+    缺席或为 null 时整份判 corrupt, 不退固定偏移）。
     """
     try:
         return (
@@ -467,7 +469,8 @@ def _gate_buckets(
        远期 FAKE-* 身份仍能拿到 ok):
        (a) 以投影自带的 generated_at 为参照时钟**重算桶判据** —— 每行
            fsrs_due 必须严格晚于 generated_at (未到期), 且 due_today 与
-           generated_at 同一本地日 (按 generated_at 自带偏移, 见 ref_tz)、
+           generated_at 同一本地日 (按投影自报 display_tz 重建的完整时区规则, 见 ref_tz;
+           自报值缺席/为 null 时不退固定偏移而是整份判 corrupt)、
            future 必须晚于该日;
            时刻不可表示 (年份极值) 只允许出现在 future (与生产器兜底同口径);
        (b) 与 boards rollup 逐板对账 —— 板级非到期行数 == rollup.future,
@@ -556,9 +559,11 @@ def _gate_buckets(
         #    不可能只占一侧（Codex r5 HIGH-2 实证: 同一份 NY 投影, 自报时区时门判得对,
         #    键缺席时合法的 future 被拒、伪造的 due_today 被放行）。
         # 为什么不能用「偏移 ±Δ 敏感性复算」兜（本卡 r1 试过、被 r1 Codex 打回）:
-        #    Δ 是**未知量** —— 本实现接受的 POSIX 串允许任意夏令时差, `ABC-1DEF-5`(Δ=+4h)
-        #    就在 ±2h 带外, 于是伪造的 due_today 照样放行。任何**有限**带宽都能被更大的 Δ
-        #    打破, 而带宽取到「任意大」等于拒绝一切 —— 这条路在信息上是死的。
+        #    带宽要同时满足两个互斥要求 —— 小到不误拒合法投影, 大到不漏放行错误归桶。
+        #    实测 `ABC-1DEF-5`(Δ=+4h) 就在 ±2h 带外、伪造的 due_today 照样放行; 而把带宽
+        #    提到覆盖本实现接受的全部 Δ（正则字段位宽决定的上界约 ±83 天）就等于拒绝一切。
+        #    ⚠️ 不要把这写成「Δ 无界」（r2 LOW-2 更正）: Δ 是**有界**的, 只是那个界远大于
+        #    任何实用带宽 —— 缺 display_tz 时这两个要求不可兼得, 才是这条路走不通的原因。
         # 取舍如实声明: 没有 `display_tz` 就无法可靠归日, 正确性优先于对旧投影的兼容。
         #    代价是那类投影整份走 corrupt 降级（页面显示「投影损坏」, 需重新生成）。
         raise ValueError(
