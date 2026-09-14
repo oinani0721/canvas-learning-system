@@ -1,0 +1,24 @@
+# Codex r1 MEDIUM-1/2 复现输入的修复验证  2026-09-14T21:02:19+0800
+=== MEDIUM-1：别名被后续赋值覆盖（Codex 原文复现输入）===
+OK   期望⊇['_ledger_locked', 'ledger']  实测=['_ledger_locked', 'ledger']  | Codex 原例：f=self.ledger; f(); f=self._ledger_locked
+OK   期望⊇['_ledger_locked', 'ledger']  实测=['_ledger_locked', 'ledger']  | 覆盖发生在恒假分支里（Codex 附注）
+OK   期望⊇['ledger']  实测=['ledger']  | 别名传递 f=self.ledger; g=f; g()（Codex LOW 表）
+OK   期望⊇['ledger']  实测=['ledger']  | 三级传递 f→g→h
+OK   期望⊇[]  实测=[]  | 干净形态不得误判
+  ⇒ 关键：前两例必须含 'ledger'（非白名单）。只报 '_ledger_locked' = Codex 指出的假绿。
+
+=== MEDIUM-2：装饰器 / 跨语句「先定义后调用」（Codex 原文复现输入）===
+  Codex 原例：@eager 装饰器立即调用
+    下标={'assert_neo4j_target_blocked': 0, '_install_audit_hook': 1, 'register_final_accounting': 2}   hook<precheck ⇒ 门红
+  跨语句：stmt0 定义 helper、stmt1 调用
+    下标={'assert_neo4j_target_blocked': 0, '_install_audit_hook': 2, 'register_final_accounting': 3}   hook<precheck ⇒ 门红
+  顶层 return 之后的 hook/register/precheck（Codex LOW-③）
+    下标={}   hook<precheck ⇒ 门红
+  谁都没提过的局部函数——第 4 类仍须剪掉（不得因修复而失效）
+    下标={'_install_audit_hook': 1, 'register_final_accounting': 2, 'assert_neo4j_target_blocked': 3}   hook<precheck ⇒ 门绿
+
+=== 干净源回归：install() 真实源码的下标必须不变 ===
+   {'_install_audit_hook': 4, 'register_final_accounting': 5, 'assert_neo4j_target_blocked': 6}  expandable = []
+
+BAD 计数 = 0
+rc=0

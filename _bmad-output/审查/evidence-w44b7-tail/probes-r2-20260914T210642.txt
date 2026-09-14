@@ -1,0 +1,45 @@
+# r2 前复检：两个直接探针复跑（确认 Codex 修复没破坏已验语义）  2026-09-14T21:06:42+0800
+=== 剪枝语义（自足模式 expandable=None，17 例）===
+OK   期望=  被剪  实测=  被剪  | 1 恒假 body 被剪
+OK   期望=  可达  实测=  可达  | 1 恒假 orelse 仍算
+OK   期望=  被剪  实测=  被剪  | 2 恒真 orelse 被剪
+OK   期望=  可达  实测=  可达  | 2 恒真 body 仍算
+OK   期望=  被剪  实测=  被剪  | 3 return 之后被剪
+OK   期望=  被剪  实测=  被剪  | 3 break 之后被剪
+OK   期望=  被剪  实测=  被剪  | 3 continue 之后被剪
+OK   期望=  可达  实测=  可达  | 3 终结语句自己仍算
+OK   期望=  被剪  实测=  被剪  | 3 raise 之后被剪
+OK   期望=  可达  实测=  可达  | 3 handler 不受 body 截断影响
+OK   期望=  被剪  实测=  被剪  | 4 未被提名的局部函数体被剪
+OK   期望=  可达  实测=  可达  | 4 被调用的局部函数体仍算
+OK   期望=  可达  实测=  可达  | 4 别名引用也算被提名
+OK   期望=  可达  实测=  可达  | 4 带装饰器一律当可达（新）
+OK   期望=  可达  实测=  可达  | 保守：变量条件分支可达
+OK   期望=  可达  实测=  可达  | 保守：while True loop-else 不剪
+OK   期望=  可达  实测=  可达  | 保守：lambda 体不剪
+验伪锚：被剪的那些在未剪枝 _called_names 下必须全『可达』
+  OK   _called_names → True  | 1 恒假 body 被剪
+  OK   _called_names → True  | 2 恒真 orelse 被剪
+  OK   _called_names → True  | 3 return 之后被剪
+  OK   _called_names → True  | 3 break 之后被剪
+  OK   _called_names → True  | 3 continue 之后被剪
+  OK   _called_names → True  | 3 raise 之后被剪
+  OK   _called_names → True  | 4 未被提名的局部函数体被剪
+
+=== 间接持锁识别面（11 例）===
+OK   期望=['ledger']  实测=['ledger']  | ① 别名赋值后调用
+OK   期望=['ledger']  实测=['ledger']  | ② 字面 getattr 直接调用
+OK   期望=['ledger']  实测=['ledger']  | ①+② 组合
+OK   期望=['ledger']  实测=['ledger']  | 内联海象
+OK   期望=['ledger']  实测=['ledger']  | 分离海象
+OK   期望=['ledger']  实测=['ledger']  | 带注解赋值
+OK   期望=['_ledger_locked']  实测=['_ledger_locked']  | 白名单内间接调用（应放行）
+OK   期望=['_ledger_locked', 'ledger']  实测=['_ledger_locked', 'ledger']  | 别名覆盖（Codex MEDIUM-1）
+OK   期望=['ledger']  实测=['ledger']  | 别名传递 f→g→h（Codex LOW）
+OK   期望=[]  实测=[]  | 绑数据属性——不该误判
+OK   期望=[]  实测=[]  | 动态名 getattr——已登记漏面
+干净源全部 with self._lock 临界区（须零命中）：
+  命中 = [] (期望 [])
+
+BAD 计数 = 0
+rc=0

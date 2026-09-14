@@ -1,0 +1,25 @@
+# 收工 tests/unit 目录级 diff 判定（完成条件 h · 绑最终代码 c118e33e）  2026-09-14T21:31:10+0800
+RUN=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t9-w4/_bmad-output/审查/evidence-w44b7-tail/unit-close-r3-20260914T212532.txt
+= 35 failed, 5078 passed, 48 skipped, 23 xfailed, 171 warnings, 29 errors in 312.95s (0:05:12) =
+rc=1
+base=64  open=65  close=64
+
+=== 判据一：收工 vs 开工（本卡只对这个差集的 > 负责）===
+33d32
+< FAILED tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422
+diff_rc=1
+  > 行数（本卡新增红，必须为 0）= 0
+  < 行数 = 1
+
+=== 判据二：收工 vs 08100483 基线 ===
+diff_rc=0
+
+=== W4 哨兵判据（协议 §3：绑 blocked= 与失败正文，不绑 nodeid）===
+  unit-open-20260914T203839.txt: 汇总行 = NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=1 (blocked=1, advisory=0, unaccounted=0)
+    失败正文锚去重计数 = 1  哨兵标题命中 = 1
+  unit-close-r3-20260914T212532.txt: 汇总行 = NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+    失败正文锚去重计数 = 0  哨兵标题命中 = 0
+
+=== 验伪锚：diff 确实会说话（open↔close 有差异才证明判据非哑火）===
+  open↔close 差异行数 = 1
+  base↔close 差异行数 = 0

@@ -1,0 +1,47 @@
+# 验收单 DoD-3 自检  2026-09-14T22:02:58+0800
+--- 七段结构 ---
+12:## 〇 第 0 分钟自证（完成条件 a）
+48:## 一 4-A：Claude 已代验的技术证据
+283:## 二 4-B：你来验（零技术词）
+292:## 三 本卡未证明什么（必填，≥4）
+329:## 四 台账待登记条目（必填，≥4）
+397:## 五 Codex 独立复核
+565:## 六 收尾实测
+--- §三 未证明条数（≥4）= 9
+--- §四 台账条数（≥4）= 15
+--- 4-B 段 D3-A 禁词扫描（期望全 0）---
+curl           0
+docker         0
+HTTP           0
+JSON           0
+端口             0
+.env           0
+endpoint       0
+pytest         0
+容器             0
+daemon         0
+DevTools       0
+requestUrl     0
+obsidiantools  0
+nodeid         0
+commit         0
+AST            0
+Codex          0
+--- D3-E felt-sense = 1
+--- 引用的存档是否都在（禁 glob）---
+缺 -negctl-r5-20260914T214915.txt
+缺 -ruff-and-territory-20260914T205124.txt
+缺 order-negctl-r3-20260914T212035.txt
+缺 ruff-and-territory-20260914T205124.txt
+--- 残留 glob 引用（期望无）---
+--- 0 字节 / No such file 存档（期望无）---
+_bmad-output/审查/evidence-w44b7-tail/uat-selfcheck-20260914T220258.txt
+--- *.stderr 是否被 gitignore ---
+是（不会入库）
+--- 五轮 Codex 存档首部三字段 ---
+r1: 1
+r2: 1
+r3: 1
+r4: 1
+r5: 1
+--- 旧模型名（期望 0）= 0

@@ -1,0 +1,31 @@
+# r2 前复检：跑器参数纪律（含 Codex LOW-④ 的 --help 短路例）  2026-09-14T21:03:13+0800
+--- negctl_whitelist.sh --nonsense-arg ---
+unknown arg: --nonsense-arg  (accepted: --gate --phase --prereq -h/--help)
+rc=2
+--- negctl_whitelist.sh --phase bogus ---
+unknown arg: --phase bogus  (accepted values: before after clean all)
+rc=2
+--- negctl_whitelist.sh --help --nonsense-arg ---
+unknown arg: --nonsense-arg  (accepted: --gate --phase --prereq -h/--help)
+rc=2
+--- negctl_seam.sh --nonsense-arg ---
+unknown arg: --nonsense-arg  (accepted: --gate --phase --prereq -h/--help)
+rc=2
+--- negctl_seam.sh --phase bogus ---
+unknown arg: --phase bogus  (accepted values: before after clean all)
+rc=2
+--- negctl_seam.sh --help --nonsense-arg ---
+unknown arg: --nonsense-arg  (accepted: --gate --phase --prereq -h/--help)
+rc=2
+--- negctl_order.sh --nonsense-arg ---
+unknown arg: --nonsense-arg  (accepted: --gate --phase --prereq -h/--help)
+rc=2
+--- negctl_order.sh --phase bogus ---
+unknown arg: --phase bogus  (accepted values: before after clean all)
+rc=2
+--- negctl_order.sh --help --nonsense-arg ---
+unknown arg: --nonsense-arg  (accepted: --gate --phase --prereq -h/--help)
+rc=2
+--- 验伪锚：单独 --help 必须 rc=0 且打 usage ---
+usage: negctl_w4_gates.sh [--phase before|after|clean|all] [--prereq <sha>]
+rc=0

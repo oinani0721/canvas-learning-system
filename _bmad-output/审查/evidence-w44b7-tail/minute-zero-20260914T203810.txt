@@ -1,0 +1,33 @@
+# CARD-W4-4b7-TAIL 第 0 分钟自证  2026-09-14T20:38:32+0800
+pwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t9-w4
+branch=card/t9-w4
+PREREQ=46e7bf77  # = T9-A 末 commit CARD-W4-FINAL-ACCOUNTING
+status_lines=1  # 期望 0（本文件生成前）
+log_has_T9A=2  # 期望 >=1
+46e7bf77 docs(w4-guard): 验收单 + Codex r1 存档 B0/H0 [BATCH-2026-09-11-第十四批 / CARD-W4-FINAL-ACCOUNTING]
+5e4d10cf fix(w4-guard): 结账落盘失败 print 移入保护块 [BATCH-2026-09-11-第十四批 / CARD-W4-FINAL-ACCOUNTING]
+08100483 docs(u1-pyright-svc): 集成期存档卫生——剔 2 份失败运行产物 + 验收单 glob 写全名 [BATCH-2026-09-07-第十三批]
+BASE=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/审查/evidence-b14/unit-red-baseline-08100483.txt
+BASE_nodeids=64   # 期望 64
+--- 行号实测（本树 HEAD，非 08100483 原值）---
+1035:def _locked_helper_names() -> set[str]:
+1044:def _direct_self_calls(node: ast.AST) -> list[str]:
+1054:def _is_dead_branch(node: ast.AST) -> bool:
+1063:def _live_called_names(node: ast.AST) -> list[str]:
+1187:    def test_settlement_path_never_nests_the_lock(self):
+1516:    def test_audit_hook_is_installed_before_the_target_precheck(self):
+1542:    def test_final_accounting_is_registered_before_the_precheck(self):
+1715:    def test_seam_is_called_unconditionally_not_inside_a_condition(self):
+1795:    def test_throwing_seam_cannot_skip_accounting(self, isolated_state, monkeypatch):
+1791:    def test_seam_untouched_passes_liveness(self):
+1785:    def test_seam_replacement_is_detected_as_drift(self, monkeypatch):
+1222:                        f"白名单 {sorted(allowed)} 内；_lock 不可重入，调了就是死锁"
+1408:def _publish_ledger(path: str, ledger: dict) -> bool:
+1430:    「**更旧的也别写**」：文件停留在截断/无效态，父进程 ``json.loads`` 直接报错 ——
+--- 面更正自证（卡文 §〇 第 1 行）---
+guard_plugin wc -l = 55
+guard_plugin def test_ = 0  # 期望 0
+contract  def test_ = 101  # 验伪锚 101
+--- 工具就位 ---
+backend/.venv/bin/pytest OK
+backend/.env OK

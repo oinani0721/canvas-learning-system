@@ -1,0 +1,14 @@
+# r3 前复检：跑器参数纪律 + node_result_line 恒真回归  2026-09-14T21:20:29+0800
+--- Codex r2 MEDIUM-1 / LOW-4 的复现输入 ---
+negctl_whitelist.sh --nonsense-arg → rc=2（期望非 0）
+negctl_whitelist.sh --phase bogus → rc=2（期望非 0）
+negctl_whitelist.sh --help --nonsense-arg → rc=2（期望非 0）
+negctl_whitelist.sh --help --phase bogus → rc=2（期望非 0）
+negctl_whitelist.sh --help --gate bogus → rc=2（期望非 0）
+negctl_whitelist.sh --phase --nonsense-arg --help → rc=2（期望非 0）
+验伪锚 negctl_whitelist.sh --help → rc=0（期望 0）
+
+--- node_result_line 恒真回归的直接自证（用一段假 PYTEST_OUT）---
+  真命中 rc=0（期望 0）
+  不命中 rc=1（期望非 0；旧写法此处为 0 = 恒真）
+  前缀冒充 rc=1（期望非 0）

@@ -1,0 +1,45 @@
+# r3 前复检：剪枝语义 + 间接持锁识别面 直接探针  2026-09-14T21:25:11+0800
+=== 剪枝语义（自足模式 local_funcs=None）===
+OK   期望=  被剪  实测=  被剪  | 1 恒假 body 被剪
+OK   期望=  可达  实测=  可达  | 1 恒假 orelse 仍算
+OK   期望=  被剪  实测=  被剪  | 2 恒真 orelse 被剪
+OK   期望=  可达  实测=  可达  | 2 恒真 body 仍算
+OK   期望=  被剪  实测=  被剪  | 3 return 之后被剪
+OK   期望=  被剪  实测=  被剪  | 3 break 之后被剪
+OK   期望=  被剪  实测=  被剪  | 3 continue 之后被剪
+OK   期望=  可达  实测=  可达  | 3 终结语句自己仍算
+OK   期望=  被剪  实测=  被剪  | 3 raise 之后被剪
+OK   期望=  可达  实测=  可达  | 3 handler 不受 body 截断影响
+OK   期望=  被剪  实测=  被剪  | 4 无装饰器的 def 定义点不贡献调用（新语义）
+OK   期望=  可达  实测=  可达  | 4 带装饰器在定义点就算可达
+OK   期望=  可达  实测=  可达  | 保守：变量条件分支可达
+OK   期望=  可达  实测=  可达  | 保守：while True loop-else 不剪
+OK   期望=  可达  实测=  可达  | 保守：lambda 体不剪
+验伪锚（被剪的在未剪枝 _called_names 下必须全可达）
+  OK   _called_names → True  | 1 恒假 body 被剪
+  OK   _called_names → True  | 2 恒真 orelse 被剪
+  OK   _called_names → True  | 3 return 之后被剪
+  OK   _called_names → True  | 3 break 之后被剪
+  OK   _called_names → True  | 3 continue 之后被剪
+  OK   _called_names → True  | 3 raise 之后被剪
+  OK   _called_names → True  | 4 无装饰器的 def 定义点不贡献调用（新语义）
+
+=== 间接持锁识别面 ===
+OK   期望=['ledger']  实测=['ledger']  | ① 别名赋值后调用
+OK   期望=['ledger']  实测=['ledger']  | ② 字面 getattr
+OK   期望=['ledger']  实测=['ledger']  | ①+② 组合
+OK   期望=['ledger']  实测=['ledger']  | 内联海象
+OK   期望=['ledger']  实测=['ledger']  | 分离海象
+OK   期望=['ledger']  实测=['ledger']  | 带注解赋值
+OK   期望=['_ledger_locked']  实测=['_ledger_locked']  | 白名单内间接调用（放行）
+OK   期望=['_ledger_locked', 'ledger']  实测=['_ledger_locked', 'ledger']  | 别名覆盖（r1 MEDIUM-1）
+OK   期望=['ledger']  实测=['ledger']  | 别名传递 f→g→h
+OK   期望=['_ledger_locked', 'ledger']  实测=['_ledger_locked', 'ledger']  | r2 LOW-1 有意假红（已登记）
+OK   期望=[]  实测=[]  | 绑数据属性不误判
+OK   期望=[]  实测=[]  | 动态名 getattr（已登记漏面）
+OK   期望=[]  实测=[]  | 元组解包（已登记漏面）
+OK   期望=[]  实测=[]  | with as 绑定（已登记漏面）
+干净源临界区命中 = [] (期望 [])
+
+BAD 计数 = 0
+rc=0

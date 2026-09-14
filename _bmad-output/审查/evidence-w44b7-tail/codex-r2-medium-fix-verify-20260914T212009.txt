@@ -1,0 +1,16 @@
+# Codex r2 MEDIUM-2/3 复现输入的修复验证（展开改到调用点）  2026-09-14T21:20:09+0800
+OK   期望门红  实测门红  下标={'assert_neo4j_target_blocked': 2, '_install_audit_hook': 3, 'register_final_accounting': 4}  | r2 MEDIUM-2 原例：hook/注册各包一层 helper，预检在前
+OK   期望门红  实测门红  下标={'assert_neo4j_target_blocked': 1, '_install_audit_hook': 2, 'register_final_accounting': 3}  | r2 MEDIUM-3 原例：outer 内定义并调 inner（嵌套）
+OK   期望门红  实测门红  下标={'assert_neo4j_target_blocked': 2, '_install_audit_hook': 3, 'register_final_accounting': 4}  | r2 MEDIUM-3 附例：first() 调 second()（传递，非嵌套）
+OK   期望门红  实测门红  下标={'assert_neo4j_target_blocked': 0, '_install_audit_hook': 1, 'register_final_accounting': 2}  | r1 MEDIUM-2 原例：@eager 装饰器
+OK   期望门红  实测门红  下标={}  | r1 LOW-3 原例：顶层 return 之后
+OK   期望门红  实测门红  下标={'assert_neo4j_target_blocked': 1, '_install_audit_hook': 2, 'register_final_accounting': 3}  | 跨语句：stmt0 定义、stmt1 调用（预检在调用点 = stmt1，仍在 hook 之前）
+OK   期望门绿  实测门绿  下标={'_install_audit_hook': 1, 'register_final_accounting': 2, 'assert_neo4j_target_blocked': 3}  | ⚠️ 不得误红：helper 在 hook 之后才调用，顺序本来是对的
+OK   期望门绿  实测门绿  下标={'_install_audit_hook': 1, 'register_final_accounting': 2, 'assert_neo4j_target_blocked': 3}  | 第 4 类仍生效：谁都没调过的局部函数不得被算进来
+OK   期望门红  实测门红  下标={'assert_neo4j_target_blocked': 1, '_install_audit_hook': 2, 'register_final_accounting': 3}  | 自递归不得把遍历卷死
+
+=== 干净源回归：install() 真实源码下标必须仍是 4/5/6 ===
+   {'_install_audit_hook': 4, 'register_final_accounting': 5, 'assert_neo4j_target_blocked': 6}  局部函数表 = {}
+
+BAD 计数 = 0
+rc=0

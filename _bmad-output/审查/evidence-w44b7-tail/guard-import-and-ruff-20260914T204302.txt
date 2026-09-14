@@ -1,0 +1,7 @@
+# (g) import 期装门 + ruff 单文件预检  2026-09-14T20:43:02+0800
+--- python -c 'import tests.support.live_port_guard'（在 backend/ 下）---
+imported ok, BLOCKED_PORTS= [7687, 7691]
+rc=0
+--- ruff check 两份改动文件 ---
+All checks passed!
+rc=0

@@ -1,0 +1,39 @@
+# 收工 tests/unit 目录级 diff 判定（完成条件 h）  2026-09-14T20:57:53+0800
+RUN=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t9-w4/_bmad-output/审查/evidence-w44b7-tail/unit-close-20260914T205114.txt   （代码定稿 45b8e0b4 之后）
+= 35 failed, 5078 passed, 48 skipped, 23 xfailed, 171 warnings, 29 errors in 357.62s (0:05:57) =
+rc=1
+base=64  open=65  close=64
+
+=== 判据一：收工 vs 开工（本卡只对这个差集的 > 负责，卡文 (a)(h)）===
+33d32
+< FAILED tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422
+diff_rc=1  （0 = 完全相同，无任何 > 也无 <）
+
+=== 判据二：收工 vs 基线 ===
+diff_rc=0
+
+=== W4 哨兵判据（协议 §3 / 手册 §零.6：绑 blocked= 与失败正文，不绑 nodeid）===
+  unit-open-20260914T203839.txt:
+    汇总行            = NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=1 (blocked=1, advisory=0, unaccounted=0)
+    失败正文锚去重计数 = 1
+    哨兵失败标题命中   = 1
+  unit-close-20260914T205114.txt:
+    汇总行            = NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+    失败正文锚去重计数 = 0
+    哨兵失败标题命中   = 0
+
+=== 验伪锚：diff 这条判据确实能报出差异吗？用 base vs close 作正例 ===
+  base↔close 差异行数 = 0  （>0 证明 diff 会说话）
+  open↔close 差异行数 = 1  （0 = 本卡零新增红）
+
+--- ⚠️ 补正：上面最后两行的锚标签写反了 ---
+我预期 base↔close 会有差异（当正例证明 diff 会说话），实测 = 0 —— 因为收工红集**恰好等于基线**。
+真正打响的正例是 open↔close = 1 行：diff 在有差异时确实会输出，说明上面两个 rc=0/1 不是哑火。
+结论不变，且比预期更好：
+  (h) 判据 = 收工相对开工只允许 '<' ⇒ 实测 1 个 '<'、0 个 '>' ✅
+  附带：收工相对 08100483 基线 diff 为空（64 = 64，逐 nodeid 全同）✅
+
+--- 那条 '<' 的身份（协议 §3 绑 blocked= 与失败正文）---
+  开工 blocked=1 / 失败正文锚 1 / 哨兵标题 1  ⇒ 哨兵红在场，挂到 candidate422
+  收工 blocked=0 / 失败正文锚 0 / 哨兵标题 0  ⇒ 该跑根本没发生受拦连接，哨兵无红可挂
+  ⇒ 消失的是 W4 哨兵红本身（随 lifespan 健康检查时序），不是本卡修好了某条用例，也非本卡引入。

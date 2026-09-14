@@ -1,0 +1,22 @@
+# (f) LOW-3a 跑器自证：未识别参数必 rc≠0 + 打印 unknown arg  2026-09-14T20:42:07+0800
+--- negctl_whitelist.sh --nonsense-arg ---
+unknown arg: --nonsense-arg  (accepted: --gate --phase --prereq -h/--help)
+rc=2
+--- negctl_whitelist.sh --phase bogus ---
+unknown arg: --phase bogus  (accepted values: before after clean all)
+rc=2
+--- negctl_seam.sh --nonsense-arg ---
+unknown arg: --nonsense-arg  (accepted: --gate --phase --prereq -h/--help)
+rc=2
+--- negctl_seam.sh --phase bogus ---
+unknown arg: --phase bogus  (accepted values: before after clean all)
+rc=2
+--- negctl_order.sh --nonsense-arg ---
+unknown arg: --nonsense-arg  (accepted: --gate --phase --prereq -h/--help)
+rc=2
+--- negctl_order.sh --phase bogus ---
+unknown arg: --phase bogus  (accepted values: before after clean all)
+rc=2
+--- 验伪锚：合法参数不得被误拒（--help 必 rc=0）---
+usage: negctl_w4_gates.sh [--phase before|after|clean|all] [--prereq <sha>]
+rc=0

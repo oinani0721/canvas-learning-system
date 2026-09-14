@@ -1,0 +1,22 @@
+# 开工 tests/unit 目录级 diff 判定（复写：首版的哨兵正文 grep 被 zsh 括号吃掉，rc/命中不可信）
+# 2026-09-14T20:46:36+0800
+RUN=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t9-w4/_bmad-output/审查/evidence-w44b7-tail/unit-open-20260914T203839.txt
+跑起于 20:38:39，本卡第一次编辑代码在 ~20:41 之后 ⇒ 本跑反映的是**改前**树
+= 36 failed, 5076 passed, 48 skipped, 23 xfailed, 171 warnings, 29 errors in 401.42s (0:06:41) =
+rc=1
+base=64  open=65
+--- diff base → open（只许如实记，本卡只对收工相对开工的新增 > 负责，卡文 (a)）---
+32a33
+> FAILED tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422
+diff_rc=1
+--- 那条 > 的身份：W4 哨兵红（协议 §3 / 手册 §零.6：绑 blocked= 与失败正文，不绑 nodeid）---
+blocked= 次数            = 1
+汇总行                   = NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=1 (blocked=1, advisory=0, unaccounted=0)
+失败正文锚去重计数(期望1) = 1
+哨兵失败标题命中          = 1
+--- 验伪锚：同一条 grep 打在一个不含该锚的文件上应为 0 ---
+对 base.nodeids 的同锚命中(期望0) = 0
+--- 结论 ---
+开工比基线多的 1 条 = 哨兵红按时序挂到 test_candidate_service.py::test_accept_candidate_already_accepted_returns_422；
+基线那跑 blocked=0（候选树常态），本跑 blocked=1 ⇒ 多出的不是新缺陷，是哨兵有没有抓到那次 lifespan 健康检查连接。
+本卡改动面 = 契约测试 + 一段 docstring，不可能产生 Neo4j 连接，与本条无因果。

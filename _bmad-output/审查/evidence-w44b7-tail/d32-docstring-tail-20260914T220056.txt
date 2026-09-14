@@ -1,0 +1,25 @@
+# D-32 纯 docstring 尾巴：等价核 + 复检  2026-09-14T22:00:56+0800
+基准副本（改前）= scratchpad/pre_d32.py；被改文件 = backend/tests/unit/test_live_port_guard_contract.py
+剥 docstring 后 AST 长度 = 174192 174192  逐字节相同 = True
+[OK] D-32 成立（主 session 可据此逐行等价核）
+--- 本轮改动的非注释行 diff（期望空）---
+-    **剪掉的恰好是下面四类**（CARD-W4-4b7-TAIL 把清单从「只剪 ``if False``」扩到这里；
++    **剪掉的是下面四类**（CARD-W4-4b7-TAIL 把清单从「只剪 ``if False``」扩到这里；
++    什么，**不是**「其余一律计入」的全称保证：实现走 ``ast.iter_fields``，``FunctionDef`` 的
+-    假装封死（Codex round-4 MEDIUM-1 逐条实测）：调用一个**模块级** helper 而它体内做了提前
++    假装封死（Codex round-4 MEDIUM-1 / round-5 逐条实测）：调用一个**模块级** helper 而它体内
++
++    AST 可见**的延迟执行体，按本函数自己的口径**应当**进拒绝面，但当前实现漏了它。
++
++
++
++    收集分支。**本卡不改**——D-15 轮次上限 5 已用尽（末轮绑最终 HEAD 且 BLOCKER/HIGH = 0），
+（上面若只剩 docstring 正文行即为纯注释改动；AST 核已给出权威结论）
+--- 契约套件复跑 ---
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================= 152 passed, 10 warnings in 0.84s =======================
+--- ruff ---
+All checks passed!
+lint_rc=0
+1 file already formatted
+format_rc=0

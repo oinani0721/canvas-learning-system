@@ -1,0 +1,25 @@
+# r2 前复检：契约套件 / 剪枝与识别面探针 / docstring AST / ruff  2026-09-14T21:05:49+0800
+--- (g) -k live_port_guard（核收集数）---
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+============== 152 passed, 5206 deselected, 10 warnings in 4.47s ===============
+--- 反向锚 + 两个硬化门逐条 ---
+collecting ... collected 6 items
+tests/unit/test_live_port_guard_contract.py::TestFinalizeRaceSeam::test_seam_untouched_passes_liveness PASSED [ 16%]
+tests/unit/test_live_port_guard_contract.py::TestFinalizeRaceSeam::test_seam_replacement_is_detected_as_drift PASSED [ 33%]
+tests/unit/test_live_port_guard_contract.py::TestFinalizeRaceSeam::test_throwing_seam_cannot_skip_accounting PASSED [ 50%]
+tests/unit/test_live_port_guard_contract.py::TestInstallOrder::test_audit_hook_is_installed_before_the_target_precheck PASSED [ 66%]
+tests/unit/test_live_port_guard_contract.py::TestInstallOrder::test_final_accounting_is_registered_before_the_precheck PASSED [ 83%]
+tests/unit/test_live_port_guard_contract.py::TestSettlementAtomicity::test_settlement_path_never_nests_the_lock PASSED [100%]
+======================== 6 passed, 10 warnings in 0.91s ========================
+--- (e) docstring 仍是纯 docstring（判定逻辑 AST 逐字节不变）---
+ast.dump 长度 before/after = 1437 1437  逐字节相同 = True
+docstring 变了 = True
+[OK]
+--- grep 新旧文案 ---
+新文案命中(期望1) = 1
+旧文案命中(期望0) = 0
+--- ruff ---
+All checks passed!
+lint_rc=0
+2 files already formatted
+format_rc=0
