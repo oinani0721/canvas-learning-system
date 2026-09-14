@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-11-第十四批 · 车道 T8 · 卡 CARD-TOOL-residue-fail-open round-2
+> 模型: `gpt-6-astra` · reasoning_effort: `ultra` · codex: `codex-cli 0.153.3`
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat _bmad-output/审查/prompts/codex-prompt-CARD-TOOL-residue-fail-open-r2.md)"`
+> 审查绑定: `cd31cffd..f9e31034`（本轮送审时 HEAD = `f9e31034`，与该轮存档正文自述的绑定一致）
+> 会话头自证（抄 .stderr 的 codex 版本行 / model 行 / reasoning 行，带行号；stderr 本身不入库）:
+> `:2 OpenAI Codex v0.153.3` / `:5 model: gpt-6-astra` / `:9 reasoning effort: ultra`
+
+---
+
 **原 H1 和空清单 M2 的修复逻辑成立；仍发现 2 项 MEDIUM、1 项 LOW。**
 
 复核绑定 `f9e31034dfa83a0e343b8625b02be94830a17358`，当前 `lefthook.yml` 与该提交逐字节一致。全程未运行 hook、对照脚本，未修改或暂存文件。下面两个故障反例均为**静态推导，本轮未实测**。

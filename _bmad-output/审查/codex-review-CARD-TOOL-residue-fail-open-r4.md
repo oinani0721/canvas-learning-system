@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-11-第十四批 · 车道 T8 · 卡 CARD-TOOL-residue-fail-open round-4
+> 模型: `gpt-6-astra` · reasoning_effort: `ultra` · codex: `codex-cli 0.153.3`
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat _bmad-output/审查/prompts/codex-prompt-CARD-TOOL-residue-fail-open-r4.md)"`
+> 审查绑定: `9020a1a5..158e5a60`（本轮送审时 HEAD = `158e5a60`，与该轮存档正文自述的绑定一致）
+> 会话头自证（抄 .stderr 的 codex 版本行 / model 行 / reasoning 行，带行号；stderr 本身不入库）:
+> `:4 OpenAI Codex v0.153.3` / `:7 model: gpt-6-astra` / `:11 reasoning effort: ultra`
+
+---
+
 **r3 的同 inode MEDIUM 已封住，未发现 r4 改坏已有封堵；注释 LOW 仍未完全整改。代码封堵可以收口，但目前不能签“两项整改均完成”。**
 
 复核绑定 `158e5a601ca2e61f2a4c39a784bc6b9142e95508`。当前 `lefthook.yml` 与该提交逐字节一致。全程未运行 hook、对照脚本或测试，未修改、暂存文件。

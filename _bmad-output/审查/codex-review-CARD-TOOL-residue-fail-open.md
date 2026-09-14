@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-11-第十四批 · 车道 T8 · 卡 CARD-TOOL-residue-fail-open round-1
+> 模型: `gpt-6-astra` · reasoning_effort: `ultra` · codex: `codex-cli 0.153.3`
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat _bmad-output/审查/prompts/codex-prompt-CARD-TOOL-residue-fail-open.md)"`
+> 审查绑定: `08100483..cd31cffd`（本轮送审时 HEAD = `cd31cffd`，与该轮存档正文自述的绑定一致）
+> 会话头自证（抄 .stderr 的 codex 版本行 / model 行 / reasoning 行，带行号；stderr 本身不入库）:
+> `:2 OpenAI Codex v0.153.3` / `:5 model: gpt-6-astra` / `:9 reasoning effort: ultra`
+
+---
+
 **十份对照在各自输入上因果成立，但不足以支持“十类失败全部封住”。** 确认 1 项 HIGH、2 项 MEDIUM、1 项 LOW。
 
 复核绑定 `cd31cffd`；当前 `lefthook.yml` 与该提交逐字节相同。全程未运行 hook 或对照脚本，未修改文件、暂存区或配置；新增验证仅使用只读命令、内存和管道。
