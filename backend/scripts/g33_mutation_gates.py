@@ -423,6 +423,7 @@ def restore_or_keep_exit_code(
     final: bool = False,
     verify: Callable[[], list[str]] | None = None,
     clean_exit_code: int | None = None,
+    pending_failures: list[str] | None = None,
 ) -> bool:
     """还原一次；返回 `True` = 还原成功。
 
@@ -443,12 +444,15 @@ def restore_or_keep_exit_code(
         生产文件里」正是这个 harness 最不能漏报的一件事。
     现在：
       · 非末次失败 —— 仍吞异常保号（退出码约定不变），但**返回 `False`** 让调用方记账。
-        ⚠️ **如实收窄这条的覆盖面**（Codex round-3 LOW）：那本账（`restore_failures`）只有在
-        主循环**正常跑完**时才走得到汇总段与 `--json` 写块；若当时正有 `SystemExit` 在展开
-        （信号退出），记完账后原异常继续上抛，汇总段一行都执行不到。⇒ 信号展开期间「中途
-        还原失败过」这件事**不靠这本账**兑现，而靠守卫自己的退出码（`_finish` 还原失败时抛
-        `exit_code + 1`）与末次还原的 `_report_final_restore_failure` 输出。⛔ 不得把这本账
-        说成「任何情况下都会进汇总」。
+        ⚠️ 那本账（`restore_failures`）只有主循环**正常跑完**时才走得到汇总段与 `--json`
+        写块；若当时正有 `SystemExit` 在展开（信号退出），记完账后原异常继续上抛，汇总段
+        一行都执行不到。
+        ⛔ **round-3 那版的收窄声明仍然说得太宽**（Codex round-4 LOW 实测）：它说这条路
+        「由守卫退出码与末次还原的报告兜」—— 但「守卫首次还原成功 → 中途某条还原失败 →
+        末次还原成功」这一串跑下来，退出码是 **130**（不是 131）、末次也**不报失败**，
+        于是那次中途失败只剩一段 traceback，两个「兜底」一个都没兜上。
+        ⇒ 现在把账**传进来**（`pending_failures`）：末次还原**即使成功**，只要这本账非空
+        就照样打印并跑一次逐字节自检。这样信号展开那条路上它也显形。
       · 末次失败（`final=True`）—— 先跑 `verify()`（还原逐字节自检）并把结果印出来，
         再把退出码**升到 3**（「变异体可能留在生产文件里」比「被信号中断」严重，
         与 `main()` 里 `not ok_restore ⇒ return 3` 同口径）。
@@ -499,6 +503,13 @@ def restore_or_keep_exit_code(
             # **必须盖过一切**的硬事实（与 `main()` 里 `not ok_restore ⇒ return 3` 同口径）。
             raise SystemExit(3) from exc
         return False
+    if final and pending_failures:
+        # ⛔ 末次还原**成功**，但这一轮里有还原**失败过** —— 信号展开那条路上汇总段到不了，
+        # 这里是这件事最后一次能被说出来的地方（Codex round-4 LOW）。
+        _report_final_restore_failure(
+            RuntimeError(f"本轮有 {len(pending_failures)} 次还原失败被吞（{', '.join(pending_failures)}）"),
+            verify,
+        )
     return True
 
 
@@ -641,7 +652,12 @@ def main() -> int:
         # 必须在**那里面**跑: 若原先那个 SystemExit(130) 继续展开, 下面的汇总段一行都
         # 到不了 (这正是收口前「仍报 130 且 SHA 不执行」的形态)。
         if not restore_or_keep_exit_code(
-            restore_all, _guard.exiting, final=True, verify=_verify_restore, clean_exit_code=_SIGNAL_EXIT_CODE
+            restore_all,
+            _guard.exiting,
+            final=True,
+            verify=_verify_restore,
+            clean_exit_code=_SIGNAL_EXIT_CODE,
+            pending_failures=restore_failures,
         ):
             restore_failures.append("final")
 

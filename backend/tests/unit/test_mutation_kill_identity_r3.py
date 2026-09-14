@@ -536,3 +536,32 @@ def test_h1_param_bracket_must_follow_a_double_colon() -> None:
     # ⛔ 验伪锚：`::` 之后的参数段仍然认（不是把整条判据放掉）
     assert mki._nodeid_shaped("tests/test_[x].py::test_x[case]") is True
     assert mki._nodeid_shaped("tests/x.py::TestC::test_m[a]") is True
+
+
+def test_m2_mid_loop_failure_surfaces_even_when_final_restore_succeeds(capsys) -> None:
+    """⛔ 中途还原失败过 + 末次还原**成功** ⇒ 这件事仍须显形（Codex round-4 LOW）。
+
+    round-3 的收窄声明说这条路「由守卫退出码与末次还原的报告兜」—— 实测两个都没兜上：
+    「守卫首次还原成功 → 中途某条还原失败 → 末次还原成功」跑下来退出码是 **130**（不是
+    131）、末次也**不报失败**，那次中途失败只剩一段 traceback。现在把账传进来，末次即使
+    成功也照样打印并跑一次逐字节自检。
+    """
+    fn = _restore_fn()
+    verified: list[str] = []
+
+    assert fn(lambda: None, lambda: True, final=True, verify=lambda: verified.append("x") or []) is True
+    assert verified == [], "⛔ 验伪锚：账为空时不得平白报警、也不必跑自检"
+
+    assert (
+        fn(
+            lambda: None,
+            lambda: True,
+            final=True,
+            verify=lambda: verified.append("ran") or [],
+            pending_failures=["M3", "M7"],
+        )
+        is True
+    )
+    err = capsys.readouterr().err
+    assert verified == ["ran"], "M②: 账非空时末次即使成功也须跑逐字节自检"
+    assert "2 次还原失败被吞" in err and "M3, M7" in err, f"M②: 中途失败必须显形，实得 {err!r}"

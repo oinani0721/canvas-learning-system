@@ -97,20 +97,46 @@ class ReconcileError(Exception):
 
 
 def ast_mutation_count(source_name: str) -> int:
-    """从 harness 源码 AST 现算 `len(MUTATIONS)`。
+    """从 harness 源码 AST 现算 `len(MUTATIONS)`（**含所有 `MUTATIONS += [...]` 扩展**）。
 
     ⛔ 用 `ast.parse` 而不是 `import`：import 会执行模块级代码（含路径常量与可能的
     副作用），而本工具的承诺是**只读**。
+
+    ⛔⛔ **必须把扩展算进去**（Codex round-4 MEDIUM）：`g32b_mutation_gates.py` 是
+    `MUTATIONS = [6 条]` 之后跟着 **36 段** `MUTATIONS += [...]`（共 132 条）—— 真实分母是
+    **138**（与它自己 `--list` 印的「共 138 条变异」一致）。上一版只取**第一个**
+    `MUTATIONS = [...]` 就返回，于是 g32b 的「独立分母」恒为 6：一份只跑了 6 条的部分表
+    能冒充全量通过对账 —— 这道本该是**唯一跨源独立判据**的门，对 g32b 从来就是错的。
+    ⚠️ 连带更正：卡文 §〇 事实格写「g32b **6**」同样是只读了首个赋值，实测应为 **138**。
+
+    ⛔ **不认识的形态一律报错（fail-closed）**：`MUTATIONS.extend(...)` / `MUTATIONS += 变量`
+    / 条件分支里的赋值……任何数不出字面量条数的写法都直接抛，⛔ 不得悄悄少算 —— 少算正是
+    这条判据上一次失效的方式。
     """
     path = SCRIPTS / source_name
     if not path.exists():
         raise ReconcileError(f"harness 源码不存在，分母无法独立现算: {path}")
     tree = ast.parse(path.read_text(encoding="utf-8"))
+    total: int | None = None
+    for node in tree.body:  # ⛔ 只看**模块级**：函数/条件里的同名赋值数不出静态条数
+        if isinstance(node, ast.Assign) and any(getattr(t, "id", "") == "MUTATIONS" for t in node.targets):
+            if not isinstance(node.value, ast.List):
+                raise ReconcileError(f"{source_name}:{node.lineno} `MUTATIONS = <非字面量列表>`，分母数不出来")
+            total = len(node.value.elts)  # 重新赋值 ⇒ 从头计数
+        elif isinstance(node, ast.AugAssign) and getattr(node.target, "id", "") == "MUTATIONS":
+            if not isinstance(node.op, ast.Add) or not isinstance(node.value, ast.List):
+                raise ReconcileError(f"{source_name}:{node.lineno} `MUTATIONS` 的扩展不是 `+= [字面量]`，分母数不出来")
+            if total is None:
+                raise ReconcileError(f"{source_name}:{node.lineno} 先 `+=` 后赋值？分母数不出来")
+            total += len(node.value.elts)
+    # ⛔ 其它任何提到 MUTATIONS 的模块级写法（`.extend` / `.append` / 解包）都必须报错
     for node in ast.walk(tree):
-        if isinstance(node, ast.Assign) and isinstance(node.value, ast.List):
-            if any(getattr(t, "id", "") == "MUTATIONS" for t in node.targets):
-                return len(node.value.elts)
-    raise ReconcileError(f"{source_name} 里找不到模块级 `MUTATIONS = [...]`，分母无法独立现算")
+        if isinstance(node, ast.Attribute) and getattr(node.value, "id", "") == "MUTATIONS":
+            if node.attr in ("append", "extend", "insert", "clear", "pop", "remove"):
+                raise ReconcileError(f"{source_name}:{node.lineno} 用 `MUTATIONS.{node.attr}(...)` 改表，分母数不出来")
+    if total is None:
+        raise ReconcileError(f"{source_name} 里找不到模块级 `MUTATIONS = [...]`，分母无法独立现算")
+    return total
 
 
 # ── 形态一：g32cb / g32ccr1 的 stdout 汇总段 ────────────────────────────────
