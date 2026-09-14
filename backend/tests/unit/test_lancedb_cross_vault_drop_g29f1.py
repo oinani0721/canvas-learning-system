@@ -30,19 +30,30 @@ vault 的数据。
    ``tests/regression/test_rag_stage1_index_contracts.py:484-490`` 在本卡地盘
    内的**本地副本**, 让"哨兵默认值写错"在本卡自己的门上就红。
 
-5. 门⑤ 族 —— ``test_prefix_overlap_premises_hold`` (**不带** xfail 的前提门) +
+5. 门⑤ 族 —— ``test_prefix_overlap_premises_hold`` (归属规则门) +
    ``test_prefix_overlap_not_touched_by_cache_tables`` /
-   ``test_prefix_overlap_not_touched_by_drop_vault_tables`` (两条 ``xfail(strict=True)``
-   的缺陷锁, 分别对应启动自愈与显式删索引两条消费路径), 各按 ``page-inner`` /
-   ``page-outer`` 参数化, drop 侧再按重叠表种 (数据表 / 指纹表) 参数化。
-   锁住本卡**未闭合**的面 (Codex round-1~3 的 HIGH-1 与 A-2): 归属口径
-   ``startswith(f"{vid}_")`` 让短 id 的 vault **单向**认领长 id vault 的表
-   (需下划线边界; ``ab_x`` 与 vault ``a`` 不碰撞)。其中 ``page-outer`` 各例是
-   **本卡的分页收口新打开**的可达面 —— ``da690bf8`` 因默认分页看不到那张表所以不碰,
-   本卡全量枚举后会碰。移交 CARD-G2-9-F2。
-   ⚠️ 前提**必须**待在不带 xfail 的那一条里: xfail 会吞掉同一用例内所有失败, 既让
-   「夹具坏」与「缺陷仍在」不可区分, 也让 F2 修好后的结果停在 XFAIL 而非承诺的
-   ``XPASS(strict)``。
+   ``test_prefix_overlap_not_touched_by_drop_vault_tables`` (两条消费路径各一:
+   启动自愈与显式删索引), 各按 ``page-inner`` / ``page-outer`` 参数化,
+   drop 侧再按重叠表种 (数据表 / 指纹表) 参数化。
+   锁的面: 短 id 的 vault **单向**认领长 id vault 的表 (需下划线边界;
+   ``ab_x`` 与 vault ``a`` 不碰撞)。``page-outer`` 各例是 F1 的分页收口新打开的
+   可达面 —— ``da690bf8`` 因默认分页看不到那张表所以不碰, 全量枚举后会碰。
+
+   ⚠️ **CARD-G2-9-F2 (BATCH-2026-09-11-第十四批) 已闭合该缺陷**: 归属改为
+   ``_table_owner`` 的**最长前缀优先** (``t`` 归 ``vid`` ⟺ ``vid`` 是已知 vault
+   集合 V 中使 ``t == v`` 或 ``t.startswith(v + "_")`` 成立的最长那个 v)。
+   于是本族三条**由缺陷锁 (``xfail(strict=True)``) 翻转成正向隔离门** ——
+   标记已删, 它们现在红了就是**真回归**, 不是"缺陷仍在"。
+   同步翻转的还有前提门: 它从"断言 ``a_b_*`` 仍归 ``a``"改成断言互前缀两侧
+   各归各家 (见该用例 docstring)。
+
+6. 门⑥ ``test_dual_vault_mutual_prefix_isolation`` (F2 新增, 承重) —— 互前缀双
+   vault 的**双向**隔离: vault ``a`` 与 ``a_b`` 在同一个库里各自初始化/删索引,
+   都不得碰对方的表; 且各自**自己的**漂移表仍被自愈 (正向对照)。
+
+7. 门⑦ ``test_drop_vault_tables_accounts_for_swallowed_failures`` (F2 新增) ——
+   ``drop_vault_tables`` 的返回值必须是**实删数**而不是"尝试数": 单表删除失败
+   不再被 ``except: pass`` 吞掉, 而是进 ``_last_drop_failures`` + ``logger.error``。
 
 ⚠️ default 口径以 ``list_vault_tables:845`` **逐字**为准: ``"_" not in t or
 t == FINGERPRINT_TABLE`` —— 判据是"表名**不含任何下划线**", 不是"没有 vault
@@ -116,11 +127,77 @@ def _assert_table_shape(db, name: str, *, dim: int, has_doc_type: bool) -> None:
     assert len(vectors[0]) == dim, f"夹具形态不符: {name} 的向量维度是 {len(vectors[0])}，预期 {dim}"
 
 
+def _fingerprint_rows(prefix: str, n: int = 2):
+    """**真实**指纹表的行 —— 与 ``LanceDBClient._update_fingerprint`` 的 record 同 schema。
+
+    CARD-G2-9-F2 (F1 验收单 B-3 MEDIUM): 旧夹具拿 ``_rows()`` 的普通向量行冒充指纹表,
+    于是"指纹表被连带删掉"这条断言证的只是"一张**叫**这个名字的表没了", 证不到
+    RAG-S1 H3 原话的那件事 —— **健康可用的变更检测基线**被抹掉。改用真 schema 后,
+    门可以在删表之后直接调 ``_get_all_fingerprints()`` 断言基线**读得出来**。
+    """
+    return [
+        {
+            "file_path": f"{prefix}/note-{i}.md",
+            "content_hash": f"{i:064x}",
+            "last_indexed": "2026-09-14T00:00:00",
+            "chunk_count": i + 1,
+        }
+        for i in range(n)
+    ]
+
+
+def _assert_fingerprint_shape(db, name: str, *, rows: int) -> None:
+    """前提断言: 指纹表**真的**是指纹 schema, 不是顶着这个名字的向量表。"""
+    tbl = db.open_table(name)
+    cols = set(tbl.schema.names)
+    assert {"file_path", "content_hash", "last_indexed", "chunk_count"} <= cols, (
+        f"夹具形态不符: {name} 不是真实指纹 schema; 实际列 = {sorted(cols)}"
+    )
+    assert "vector" not in cols, f"夹具形态不符: 真实指纹表不该有 vector 列; 实际列 = {sorted(cols)}"
+    assert tbl.count_rows() == rows, f"夹具形态不符: {name} 有 {tbl.count_rows()} 行, 预期 {rows}"
+
+
 def _client(db_path: Path, *, vault_id: str | None, dim: int = _DIM) -> LanceDBClient:
     """g24 :617-618 同法: 直连 tmp 库, **不调** ``initialize()``。"""
     client = LanceDBClient(db_path=str(db_path), embedding_dim=dim, vault_id=vault_id)
     client._db = lancedb.connect(str(db_path))
     return client
+
+
+@pytest.fixture(scope="module", autouse=True)
+def vault_registry_root(tmp_path_factory):
+    """让 vault ``a`` 与 ``a_b`` 都被**生产的** vault 发现路径看见 (CARD-G2-9-F2)。
+
+    F2 的最长前缀优先归属要消歧就必须知道"有哪些 vault"(``_known_vault_ids``)。
+    本卡选定的**主来源**是 ``VAULTS_ROOT`` 目录枚举 —— 候选规则逐字沿用仓内既有的
+    两处生产站点 (``GET /vault/list`` 与 ``review_overview._list_vault_dirs``):
+    非隐藏目录 + 含 ``.obsidian/``。所以这里在 tmp 下把两个 vault **真的建出来**,
+    走的是生产发现路径本身, 不是往客户端里注入一份现成名单 (注入式夹具只能证明
+    "给了名单就能用", 证不到"名单拿得到")。
+
+    ⚠️ ``autouse`` 且 module scope 的第二个理由: 不接管 ``VAULTS_ROOT`` 时, V 会含
+    **本机真实**存在的 vault, 本文件全部用例的归属判定就随开发机上有哪些库而变
+    (门①③④ 用的 ``a`` / ``b`` / ``notes`` 之类短名尤其危险)。指向 tmp 后行为恒定。
+
+    ⚠️ 全部在 tmp_path_factory 下, 不碰任何现网目录; env 由 MonkeyPatch 上下文恢复,
+    ``get_settings`` 的 lru_cache 进出各清一次 —— 否则本模块的 VAULTS_ROOT 会顺着
+    缓存漏给同进程后跑的其它测试 (目录级跑时是真实风险)。
+    """
+    from app.config import get_settings
+
+    root = tmp_path_factory.mktemp("vaults-root")
+    for name in ("a", "a_b"):
+        (root / name / ".obsidian").mkdir(parents=True)
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setenv("VAULTS_ROOT", str(root))
+        get_settings.cache_clear()
+        # 前提: 接管真的生效了 —— 否则下面所有"互不相认"的断言都在证别的东西
+        assert Path(get_settings().VAULTS_ROOT).resolve() == root.resolve(), (
+            f"VAULTS_ROOT 接管失败: 实为 {get_settings().VAULTS_ROOT!r}"
+        )
+        yield root
+    get_settings.cache_clear()
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -337,9 +414,21 @@ def test_list_vault_tables_explicit_none_keeps_bare_scope(tmp_path):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# 门⑤ 族 —— 未闭合面锁（xfail strict，跨卡交接给 CARD-G2-9-F2）
+# 门⑤ 族 —— 互前缀归属门（CARD-G2-9-F2 已把缺陷闭合，两条锁翻转成正向隔离门）
 #
-# 归属口径 startswith(f"{vid}_") 让**短 id 的 vault 单向认领长 id vault 的表**。
+# 【历史】F1 期这三条是缺陷锁：归属口径只看"以 {vid}_ 开头"，短 id 的 vault 会
+# **单向认领**长 id vault 的表，两条消费路径各一条 xfail(strict=True)，前提门
+# 不带 xfail 把守。F2 改成最长前缀优先后缺陷闭合，标记已删。
+#
+# 【F2 去标时的 XPASS 成因分辨（必须留档，否则后人只会按第一种解读）】
+#   (1) 归属被修好 —— 缺陷锁与同族前提门**一起**变色；
+#   (2) 有人撤掉了 F1 的分页收口 —— 只有 page-outer 那几例 XPASS，前提门仍绿；
+#   (3) 删除本身失败而异常被生产代码吞掉（旧 drop_vault_tables 的 except: pass）
+#       —— 表因此保留，归属与分页都没变，只有 drop 侧那几条变绿。
+#   F2 实测命中的是 (1)：6 条锁与 6 条前提门同时变色，且门①②③④ 全绿
+#   （门③ 仍绿 ⇒ 分页收口在，排除 (2)；(3) 由新增的门⑦ 单独钉住并已排除）。
+#   证据见 evidence-g29f2/g29f2-xpass-*.txt。
+#
 # 三个维度：
 #
 #   形态（表在不在默认分页内）
@@ -378,43 +467,41 @@ _OVERLAP_CASES = [
 #: drop 侧覆盖的两张表（供 drop 锁参数化用）
 _OVERLAP_DROP_TABLES = [t for c, t in _OVERLAP_CASES if c == "drop"]
 
-#: 缺陷锁共用的 reason。⚠️ 明确列出 XPASS 的**两种**成因，避免维护者只按第一种解读。
-_OVERLAP_XFAIL_REASON = (
-    "CARD-G2-9-F1 未闭合面（Codex round-1/2/3 的 HIGH-1 与 A-2）：归属口径是 "
-    'startswith(f"{vid}_")，短 id 的 vault 会**单向**认领长 id vault 的表 —— '
-    '"a_b_canvas_nodes".startswith("a_") 为真（需下划线边界，"ab_x" 不碰撞）。'
-    "本仓可达：sanitize_vault_id 产出的 id 含下划线（cs 61b→cs_61b）。"
-    "page-outer 那几例还是**本卡分页收口新打开**的可达面。移交 CARD-G2-9-F2。"
-    "⚠️ 本门 XPASS 至少有**三种**成因，别只按第一种解读："
-    "(1) F2 把归属修好了 —— 此时同族前提门的归属断言会同时翻红，两者一起变色；"
-    "(2) 有人撤掉了本卡的分页收口 —— 此时只有 page-outer 那几例 XPASS 而前提门仍绿"
-    "（负控 6 复现的是其中的 cache/page-outer 一例；drop 侧要另做 list_vault_tables 的回退才能覆盖）；"
-    "(3) 删除本身失败而异常被生产代码吞掉（drop_vault_tables 的 except: pass）—— "
-    "表因此保留，归属与分页都没变，只有这条锁变绿。遇到 XPASS 请先按这三条分辨再动标记。"
-)
+#: CARD-G2-9-F2: 互前缀两侧的 vault id。``a`` 是短 id、``a_b`` 是长 id ——
+#: 缺陷的方向是**单向**的（``a`` 会认领 ``a_b_*``，``a_b`` 不会认领 ``a_*``），
+#: 所以门必须把两个方向分别断言，只测一边会漏掉半个面。
+#: ⚠️ 这两个 id 必须与 ``vault_registry_root`` 在 tmp 下建出来的目录名一致 ——
+#: 归属规则靠"已知 vault 集合"消歧，集合里没有 ``a_b`` 时规则会退化成朴素前缀。
+_SHORT_VAULT = "a"
+_LONG_VAULT = "a_b"
 
 
 @pytest.fixture(scope="module")
 def overlap_envs(tmp_path_factory):
     """一次建好全部 (形态 × 消费路径) 的库并**当场自检**；四种组合各一个独立库。
 
-    ⚠️ **为什么是 module scope、且与不带 xfail 的前提门共用同一实例**：
-    ``xfail`` 会吞掉用例内**任何**失败，**fixture setup 阶段也不例外**（实测：
-    setup 抛异常的 xfail 用例照样报 ``xfailed``，不是 ``ERROR``）。
-    但只要**不带 xfail 的前提门**用的是同一个 fixture 实例，setup 失败就会在
-    **它**那里报 ``ERROR`` —— 信号照样到达；而且缺陷锁不再有「只有我自己的建库
-    失败了」这种与「缺陷仍在」不可区分的第四状态（Codex round-3 A-1）。
+    ⚠️ **为什么是 module scope、且与前提门共用同一实例**：F1 期这三条里有两条带
+    ``xfail``，而 ``xfail`` 会吞掉用例内**任何**失败，**fixture setup 阶段也不例外**
+    （实测：setup 抛异常的 xfail 用例照样报 ``xfailed``，不是 ``ERROR``）。让**不带**
+    xfail 的前提门用同一个 fixture 实例，setup 失败就会在**它**那里报 ``ERROR``。
+    F2 去标后三条都不带 xfail 了，共用实例的理由退化为"建库一次、三条共用"，
+    但下面那条顺序纪律**仍然成立**，别因为标记没了就把实时查询搬回用例里。
 
-    ⚠️ **依赖库状态的前提全部在这里查完，不放进前提门**（r5 修正）：缺陷锁会**改库**
+    ⚠️ **依赖库状态的前提全部在这里查完，不放进前提门**（r5 修正）：隔离门会**改库**
     （``_cache_tables`` / ``drop_vault_tables`` 都删表），而它与前提门共用同一实例 ——
-    若执行顺序被打乱（``-k`` 过滤、随机化插件），前提门里那次**实时** ``open_table``
+    若执行顺序与定义顺序不同（随机化插件；⚠️ ``-k`` 只做**筛选**不重排，F1 原文说它
+    "会打乱执行顺序"过宽 —— B-9），前提门里那次**实时** ``open_table``
     会读到已被删掉的表而**假红**（实测存档
-    ``evidence-g29f1/order-dependency-of-shared-fixture-*.txt``：把缺陷锁定义在前，
+    ``evidence-g29f1/order-dependency-of-shared-fixture-*.txt``：把隔离门定义在前，
     前提门当场 ``ValueError: Table ... was not found``）。在 fixture 里查则**一定**
-    发生在任何用例改库之前。前提门于是只剩两样**不依赖库当前状态**的断言。
+    发生在任何用例改库之前。前提门于是只剩**不依赖库当前状态**的断言。
 
-    缺陷锁用例内因此也**只做**「跑被测操作 + 用本 fixture 的 db 句柄枚举 + 断言」，
+    隔离门用例内因此也**只做**「跑被测操作 + 用本 fixture 的 db 句柄枚举 + 断言」，
     不再自己 ``lancedb.connect``（实测旧句柄在 drop 后反映最新状态）。
+
+    ⚠️ CARD-G2-9-F2 (B-3)：重叠**指纹**表改用**真实指纹 schema**
+    （``_fingerprint_rows``），不再拿向量行冒充 —— 否则"指纹表被连带删"证到的只是
+    "一张同名表没了"，证不到 RAG-S1 H3 说的**健康可用的变更检测基线**被抹掉。
     """
     envs = {}
     for shape, filler in _OVERLAP_SHAPES:
@@ -424,16 +511,23 @@ def overlap_envs(tmp_path_factory):
             for i in range(filler):
                 db.create_table(f"a_{i:02d}", data=_rows(f"FILL{i}"))
             # drop 路径用**健康**表（它不靠 schema 漂移）；cache 路径要漂移才会被 drop
+            is_fingerprint = table.endswith(LanceDBClient.FINGERPRINT_TABLE)
             dim = _DIM if consumer == "drop" else _DRIFT_DIM
-            db.create_table(table, data=_rows(f"AB-{table}", dim=dim))
-            client = _client(path, vault_id="a")
+            if is_fingerprint:
+                db.create_table(table, data=_fingerprint_rows(f"AB-{table}"))
+            else:
+                db.create_table(table, data=_rows(f"AB-{table}", dim=dim))
+            client = _client(path, vault_id=_SHORT_VAULT)
             before = _all_names(db)
 
             # ── 依赖库状态的前提：此刻查，此刻库还没被任何用例动过 ──────────
             tag = f"[{shape}/{consumer}/{table}]"
             assert len(before) == filler + 1, f"{tag} 夹具表数不符: 期望 {filler + 1}，实得 {len(before)}"
             assert table in before, f"{tag} 夹具没建成重叠表: {sorted(before)}"
-            _assert_table_shape(db, table, dim=dim, has_doc_type=True)
+            if is_fingerprint:
+                _assert_fingerprint_shape(db, table, rows=2)
+            else:
+                _assert_table_shape(db, table, dim=dim, has_doc_type=True)
             in_page = table in set(db.table_names())
             if shape == "page-inner":
                 assert in_page, f"{tag} 前提失效: 重叠表竟然不在默认分页内"
@@ -445,6 +539,7 @@ def overlap_envs(tmp_path_factory):
 
             envs[(shape, consumer, table)] = {
                 "db": db,
+                "path": path,
                 "client": client,
                 "before": before,
                 "shape": shape,
@@ -452,6 +547,7 @@ def overlap_envs(tmp_path_factory):
                 "consumer": consumer,
                 "table": table,
                 "dim": dim,
+                "is_fingerprint": is_fingerprint,
                 # 供前提门复述 —— 建库当时的快照，不随后续用例改库而变
                 "premises_checked": True,
                 "in_default_page": in_page,
@@ -462,65 +558,285 @@ def overlap_envs(tmp_path_factory):
 @pytest.mark.parametrize(("consumer", "table"), _OVERLAP_CASES)
 @pytest.mark.parametrize(("shape", "filler"), _OVERLAP_SHAPES)
 def test_prefix_overlap_premises_hold(overlap_envs, shape, filler, consumer, table):
-    """门⑤ 族的前提 —— **不带 xfail**，夹具坏了或缺陷被修好都必须以红色暴露。
+    """门⑤ 族的归属前提 —— 夹具坏了、或归属规则被改坏，都必须以红色暴露。
 
-    与缺陷锁共用 ``overlap_envs``（见该 fixture 的 docstring），因此本条通过就
-    等于缺陷锁那一份夹具也建成了。三态两两可区分：
-    夹具坏 → 本条 ERROR/FAILED；缺陷仍在 → 本条 passed + 缺陷锁 xfailed；
-    缺陷修好 → 本条 **FAILED**（归属断言翻转，正是它喊「去删 xfail 标记」）
-    + 缺陷锁 XPASS(strict)。
+    CARD-G2-9-F2 前后这条断言**整个翻了个面**：
+    - F1 期（缺陷仍在）断言的是 ``_owns_table(a_b_*, "a")`` 为**真**（锁住缺陷）；
+    - F2 起（缺陷已闭合）断言互前缀两侧**各归各家**。
+
+    与隔离门共用 ``overlap_envs``（见该 fixture 的 docstring），因此本条通过就
+    等于隔离门那一份夹具也建成了。可区分的两态：夹具坏 → 本条 ERROR/FAILED；
+    归属规则被改坏（退回朴素前缀 / 已知 vault 集合被打空）→ 本条与隔离门**一起** FAILED。
+    （⚠️ F1 原 docstring 写"三态两两可区分"——那是 F1 自己 §五 已撤回的说法：
+    xfail 会吞掉同一用例内**任何**失败，"夹具坏"与"缺陷仍在"在缺陷锁**那一侧**
+    本就不可区分，可区分性全靠本条不带 xfail。A-4，CARD-G2-9-F2 同步更正。）
 
     ⚠️ **本条只做不依赖库当前状态的事**（r5 修正）：复述 fixture 的自检结果、
-    以及查归属关系（``_owns_table`` 是**纯函数**，只看表名与 vault id）。
+    以及查归属关系（``_owns_table`` 只看表名、vault id 与已知 vault 集合，不读库内容）。
     依赖库状态的检查（表在不在、schema、分页位置）全部在 fixture 里做完 ——
-    因为缺陷锁会把库改掉，而两者共用同一实例，顺序一旦被打乱，写在这里的实时查询
-    就会读到被删的表而**假红**（实测见 fixture docstring 引的存档）。
+    因为隔离门会把库改掉，而两者共用同一实例，执行顺序一旦与定义顺序不同，写在这里
+    的实时查询就会读到被删的表而**假红**（实测见 fixture docstring 引的存档）。
     """
     env = overlap_envs[(shape, consumer, table)]
+    client = env["client"]
 
     assert env["premises_checked"] is True, "fixture 的建库自检没通过"
     assert env["in_default_page"] is (shape == "page-inner"), (
         f"分页位置前提与形态不符: shape={shape} 却 in_default_page={env['in_default_page']}"
     )
-    assert env["client"]._owns_table(table, "a"), (
-        f"前提失效：{table} 已经不归 vault a 了 —— 前缀口径可能已被修好，此时应删掉门⑤ 族的 xfail 标记而不是保留它"
+
+    rule = (
+        "归属规则 = 最长前缀优先: t 归 vid ⟺ vid 是**已知 vault 集合 V** 中使 "
+        "`t == v 或 t.startswith(v + '_')` 成立的**最长**那个 v。"
+        f"V 的主来源是 VAULTS_ROOT 目录枚举（本文件由 vault_registry_root fixture 在 tmp 下"
+        f"建出 {_SHORT_VAULT}/ 与 {_LONG_VAULT}/ 两个含 .obsidian 的目录），"
+        "另并入 active vault 与指纹表反推。V 里少了 "
+        f"{_LONG_VAULT} 时规则会退化成朴素前缀，本条与隔离门会一起红。"
+    )
+    assert not client._owns_table(table, _SHORT_VAULT), (
+        f"{table} 又被短 id 的 vault {_SHORT_VAULT!r} 认领了（跨 vault 删表的根因）。{rule}"
+    )
+    assert client._owns_table(table, _LONG_VAULT), (
+        f"{table} 没归到它真正的主人 vault {_LONG_VAULT!r} —— 这一侧红说明规则收得过紧，"
+        f"该 vault 会删不掉/扫不到自己的表。{rule}"
+    )
+    assert client._owns_table(f"{_SHORT_VAULT}_canvas_nodes", _SHORT_VAULT), (
+        f"vault {_SHORT_VAULT!r} 连自己的 {_SHORT_VAULT}_canvas_nodes 都不认了 —— "
+        f"最长前缀优先**只该减少**认领别人的表，不该减少认领自己的表。{rule}"
     )
 
 
 @pytest.mark.parametrize(("shape", "filler"), _OVERLAP_SHAPES)
-@pytest.mark.xfail(strict=True, reason=_OVERLAP_XFAIL_REASON)
 def test_prefix_overlap_not_touched_by_cache_tables(overlap_envs, shape, filler):
-    """启动自愈路径：vault ``a`` 的 ``_cache_tables`` 不得删掉 vault ``a_b`` 的表。"""
+    """启动自愈路径：vault ``a`` 的 ``_cache_tables`` 不得删掉 vault ``a_b`` 的表。
+
+    CARD-G2-9-F2 起本条**不再带 xfail**（缺陷已由最长前缀优先闭合）——
+    它现在是正向隔离门，红了就是真回归。
+    """
     env = overlap_envs[(shape, "cache", "a_b_canvas_nodes")]
     asyncio.run(env["client"]._cache_tables())
     after = _all_names(env["db"])
     assert "a_b_canvas_nodes" in after, (
-        "vault a 的启动自愈碰了 vault a_b 的表：前缀口径 startswith('a_') 把 "
+        f"vault {_SHORT_VAULT} 的启动自愈碰了 vault {_LONG_VAULT} 的表：归属把 "
         f"a_b_canvas_nodes 认成了自己的; 形态={shape}; 消失的表 = {sorted(env['before'] - after)}"
     )
 
 
 @pytest.mark.parametrize("table", _OVERLAP_DROP_TABLES)
 @pytest.mark.parametrize(("shape", "filler"), _OVERLAP_SHAPES)
-@pytest.mark.xfail(strict=True, reason=_OVERLAP_XFAIL_REASON)
 def test_prefix_overlap_not_touched_by_drop_vault_tables(overlap_envs, shape, filler, table):
     """显式删索引路径（``DELETE /index/{vault_id}`` → ``drop_vault_tables``）。
+
+    CARD-G2-9-F2 起本条**不再带 xfail**（同上）。
 
     ⚠️ 与启动自愈那条的两点差别：
     1. 重叠表是**健康**的（无 schema 漂移）—— ``drop_vault_tables`` 直接删
        ``list_vault_tables`` 的结果，**不看 schema**，所以触发条件少一条；
-    2. **没有指纹表豁免** —— ``_cache_tables:966`` 的 ``endswith(FINGERPRINT_TABLE)``
-       在这条路径上不存在，所以 ``a_b_file_fingerprints`` 也会被删掉，
-       那等于抹掉 vault ``a_b`` 的**变更检测基线**（RAG-S1 H3）。
+    2. **没有指纹表豁免** —— ``_cache_tables`` 里 ``endswith(FINGERPRINT_TABLE)``
+       的跳过在这条路径上不存在，所以 ``a_b_file_fingerprints`` 也会被删掉，
+       那等于抹掉 vault ``a_b`` 的**变更检测基线**（RAG-S1 H3）。指纹表用例因此
+       在删表之后再断言基线**读得出来**（B-3：真 schema 才证得到"健康可用"）。
 
     ⚠️ 每个 ``table`` 参数有**自己独立**的库 —— 共享会串扰：本用例跑的
     ``drop_vault_tables`` 有副作用，共享时后跑的参数看到的是先跑那个的残局
     （负控 8 当场抓到：共享时变异体下只有第一条 XPASS）。
     """
     env = overlap_envs[(shape, "drop", table)]
-    env["client"].drop_vault_tables("a")
+    env["client"].drop_vault_tables(_SHORT_VAULT)
     after = _all_names(env["db"])
     assert table in after, (
-        f"删 vault a 的索引连带删掉了 vault a_b 的表 {table}：list_vault_tables('a') 把它"
-        f"算成了 a 的; 形态={shape}; 消失的表 = {sorted(env['before'] - after)}"
+        f"删 vault {_SHORT_VAULT} 的索引连带删掉了 vault {_LONG_VAULT} 的表 {table}："
+        f"list_vault_tables({_SHORT_VAULT!r}) 把它算成了自己的; 形态={shape}; "
+        f"消失的表 = {sorted(env['before'] - after)}"
+    )
+    if env["is_fingerprint"]:
+        # B-3：表还在不等于基线还能用 —— 用 a_b 自己的客户端把指纹读回来
+        long_client = _client(env["path"], vault_id=_LONG_VAULT)
+        baseline = long_client._get_all_fingerprints()
+        assert len(baseline) == 2, (
+            f"vault {_LONG_VAULT} 的变更检测基线读不出来了（实回 {baseline!r}）—— "
+            "表名还在但内容/schema 已不可用，等于 RAG-S1 H3 说的那件事照样发生了"
+        )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 门⑥ 互前缀双 vault 的**双向**隔离（CARD-G2-9-F2 新增，承重）
+#
+# 缺陷方向是单向的（短 id 认领长 id），但"修好了"必须两个方向都成立：
+#   正向  a  的自愈/删索引不碰 a_b 的表  ← 缺陷面本身
+#   反向  a_b 的自愈/删索引不碰 a  的表  ← 防"修过头"（把归属收成谁都不认）
+# 每个场景一个**独立**库：自愈与删索引都有副作用，共享库会让后一个场景
+# 看到前一个的残局（同 _OVERLAP_CASES 的教训）。
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def _seed_mutual(db_path: Path, *, a_dim: int, ab_dim: int):
+    """建互前缀双 vault 的三张表：a 的一张 + a_b 的两张（含**真实** schema 的指纹表）。"""
+    db = lancedb.connect(str(db_path))
+    db.create_table(f"{_SHORT_VAULT}_canvas_nodes", data=_rows("A-NODES", dim=a_dim))
+    db.create_table(f"{_LONG_VAULT}_canvas_nodes", data=_rows("AB-NODES", dim=ab_dim))
+    db.create_table(f"{_LONG_VAULT}_{LanceDBClient.FINGERPRINT_TABLE}", data=_fingerprint_rows("AB"))
+    before = _all_names(db)
+    assert before == {
+        f"{_SHORT_VAULT}_canvas_nodes",
+        f"{_LONG_VAULT}_canvas_nodes",
+        f"{_LONG_VAULT}_{LanceDBClient.FINGERPRINT_TABLE}",
+    }, f"夹具没建成预期的三张表, 后面的断言全部不可信: {sorted(before)}"
+    _assert_fingerprint_shape(db, f"{_LONG_VAULT}_{LanceDBClient.FINGERPRINT_TABLE}", rows=2)
+    return db, before
+
+
+def test_dual_vault_mutual_prefix_isolation(tmp_path, vault_registry_root):
+    """互前缀的 ``a`` 与 ``a_b`` 各自初始化 / 删索引，都不得碰对方的表。
+
+    ⚠️ 本门与门⑤ 族的分工：门⑤ 族证的是**归属判定**与两条消费路径在 page-inner /
+    page-outer 两种形态下的行为；本门证的是**两个 vault 真的并存**时的双向隔离
+    （含"自己的表仍被处理"这一侧的正向对照 —— 否则把 ``_owns_table`` 写成恒 False
+    也能让"不碰对方"全绿）。
+
+    ⚠️ 前提：两个 vault 都必须被**已知 vault 集合**看见。``vault_registry_root``
+    已在 tmp 下把 ``a/`` 与 ``a_b/`` 两个含 ``.obsidian`` 的目录建出来，这里显式
+    断言集合里两个都在 —— 集合缺一个，最长前缀优先就退化成朴素前缀（缺陷复活），
+    而那种失败若不显式断言就会以"某张表莫名其妙没了"的形式出现，难以归因。
+    """
+    fp_table = f"{_LONG_VAULT}_{LanceDBClient.FINGERPRINT_TABLE}"
+
+    # ── 前提：发现路径真的把两个 vault 都找出来了 ──────────────────────────
+    probe = _client(tmp_path / "probe-db", vault_id=_SHORT_VAULT)
+    known = probe._known_vault_ids()
+    assert {_SHORT_VAULT, _LONG_VAULT} <= known, (
+        f"已知 vault 集合缺成员: {sorted(known)} —— 主来源是 VAULTS_ROOT 目录枚举"
+        f"（{vault_registry_root}），少了谁谁的表就会被 id 更短的 vault 认领"
+    )
+
+    # ── 场景 1: a 的启动自愈 ──────────────────────────────────────────────
+    db1, before1 = _seed_mutual(tmp_path / "db-cache-a", a_dim=_DRIFT_DIM, ab_dim=_DRIFT_DIM)
+    asyncio.run(_client(tmp_path / "db-cache-a", vault_id=_SHORT_VAULT)._cache_tables())
+    after1 = _all_names(db1)
+    assert f"{_LONG_VAULT}_canvas_nodes" in after1, (
+        f"vault {_SHORT_VAULT} 的启动自愈删掉了 {_LONG_VAULT} 的数据表; 消失的表 = {sorted(before1 - after1)}"
+    )
+    assert fp_table in after1, (
+        f"vault {_SHORT_VAULT} 的启动自愈删掉了 {_LONG_VAULT} 的指纹表（变更检测基线）; "
+        f"消失的表 = {sorted(before1 - after1)}"
+    )
+    assert f"{_SHORT_VAULT}_canvas_nodes" not in after1, (
+        f"正向对照失败: vault {_SHORT_VAULT} **自己**的漂移表没被自愈 —— 归属可能被收成了恒 False, "
+        "此时「不碰对方」是白给的，本门什么也没证明"
+    )
+
+    # ── 场景 2: a_b 的启动自愈（反向） ────────────────────────────────────
+    db2, before2 = _seed_mutual(tmp_path / "db-cache-ab", a_dim=_DRIFT_DIM, ab_dim=_DRIFT_DIM)
+    asyncio.run(_client(tmp_path / "db-cache-ab", vault_id=_LONG_VAULT)._cache_tables())
+    after2 = _all_names(db2)
+    assert f"{_SHORT_VAULT}_canvas_nodes" in after2, (
+        f"反向：vault {_LONG_VAULT} 的启动自愈删掉了 {_SHORT_VAULT} 的表; 消失的表 = {sorted(before2 - after2)}"
+    )
+    assert f"{_LONG_VAULT}_canvas_nodes" not in after2, f"正向对照失败: vault {_LONG_VAULT} **自己**的漂移表没被自愈"
+    assert fp_table in after2, "指纹表被自愈路径删了 —— endswith(FINGERPRINT_TABLE) 豁免失效"
+
+    # ── 场景 3: drop_vault_tables("a") 不得删 a_b 的表 ────────────────────
+    db3, before3 = _seed_mutual(tmp_path / "db-drop-a", a_dim=_DIM, ab_dim=_DIM)
+    client3 = _client(tmp_path / "db-drop-a", vault_id=_SHORT_VAULT)
+    dropped3 = client3.drop_vault_tables(_SHORT_VAULT)
+    after3 = _all_names(db3)
+    assert {f"{_LONG_VAULT}_canvas_nodes", fp_table} <= after3, (
+        f"删 vault {_SHORT_VAULT} 的索引连带删了 {_LONG_VAULT} 的表; 消失的表 = {sorted(before3 - after3)}"
+    )
+    assert f"{_SHORT_VAULT}_canvas_nodes" not in after3, (
+        f"正向对照失败: 删 vault {_SHORT_VAULT} 的索引没删掉它**自己**的表"
+    )
+    assert dropped3 == 1, f"实删数应为 1（只有 {_SHORT_VAULT} 自己那张），实为 {dropped3}"
+    # 指纹基线不只是"表还在"，而是**读得出来**（B-3）
+    baseline3 = _client(tmp_path / "db-drop-a", vault_id=_LONG_VAULT)._get_all_fingerprints()
+    assert len(baseline3) == 2, f"vault {_LONG_VAULT} 的变更检测基线读不出来了: {baseline3!r}"
+
+    # ── 场景 4: drop_vault_tables("a_b") 不得删 a 的表（反向） ────────────
+    db4, before4 = _seed_mutual(tmp_path / "db-drop-ab", a_dim=_DIM, ab_dim=_DIM)
+    client4 = _client(tmp_path / "db-drop-ab", vault_id=_LONG_VAULT)
+    dropped4 = client4.drop_vault_tables(_LONG_VAULT)
+    after4 = _all_names(db4)
+    assert f"{_SHORT_VAULT}_canvas_nodes" in after4, (
+        f"反向：删 vault {_LONG_VAULT} 的索引连带删了 {_SHORT_VAULT} 的表; 消失的表 = {sorted(before4 - after4)}"
+    )
+    assert not ({f"{_LONG_VAULT}_canvas_nodes", fp_table} & after4), (
+        f"正向对照失败: 删 vault {_LONG_VAULT} 的索引没删掉它自己的两张表; 现存 = {sorted(after4)}"
+    )
+    assert dropped4 == 2, f"实删数应为 2（{_LONG_VAULT} 自己的数据表 + 指纹表），实为 {dropped4}"
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 门⑦ drop_vault_tables 记账不吞（CARD-G2-9-F2 新增）
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class _DropFailsOn:
+    """真库句柄 + 只在**指定表**上让 ``drop_table`` 抛的薄包装。
+
+    ⚠️ 这是**故障注入**不是 mock：被测对象仍是真 ``drop_vault_tables`` + 真 LanceDB
+    库 + 真表，只在"删这一张时 I/O 失败"这一个点上注入（同款做法在邻近门
+    ``test_g24_lance_legacy_table_removal.py`` 里已有先例）。
+    真去造一张"删得动的表突然删不动"在文件系统层面不可稳定复现，而这条门锁的正是
+    "删失败时会不会被静默吞掉"，没有失败就没有门。
+    """
+
+    def __init__(self, db, boom: str):
+        self._db = db
+        self._boom = boom
+
+    def __getattr__(self, item):
+        return getattr(self._db, item)
+
+    def drop_table(self, name, *args, **kwargs):
+        if name == self._boom:
+            raise RuntimeError(f"injected I/O failure while dropping {name}")
+        return self._db.drop_table(name, *args, **kwargs)
+
+
+def test_drop_vault_tables_accounts_for_swallowed_failures(tmp_path):
+    """删表失败必须记账，返回值必须是**实删数**而不是"尝试数"。
+
+    改前 ``drop_vault_tables`` 的循环是 ``except Exception: pass`` 且
+    ``return len(tables)``：一张都没删成也会回一个非零计数，而
+    ``DELETE /index/{vault_id}``（``endpoints/index.py``）把它当 ``tables_dropped``
+    回给调用方 —— 调用方据此认为索引已清，实际全留着。
+
+    这同时也是门⑤ 族 XPASS 成因(3)（"删除本身失败而异常被吞掉"）的单独把守点：
+    有本门在，成因(3) 就不可能伪装成成因(1)。
+    """
+    db_path = tmp_path / "db"
+    db = lancedb.connect(str(db_path))
+    db.create_table(f"{_SHORT_VAULT}_canvas_nodes", data=_rows("A-NODES"))
+    db.create_table(f"{_SHORT_VAULT}_vault_notes", data=_rows("A-NOTES"))
+    db.create_table(f"{_SHORT_VAULT}_{LanceDBClient.FINGERPRINT_TABLE}", data=_fingerprint_rows("A"))
+    db.create_table("b_canvas_nodes", data=_rows("B-NODES"))
+    before = _all_names(db)
+    assert len(before) == 4, f"夹具没建成 4 张表: {sorted(before)}"
+
+    boom = f"{_SHORT_VAULT}_vault_notes"
+    client = _client(db_path, vault_id=_SHORT_VAULT)
+    attempted = client.list_vault_tables(_SHORT_VAULT)
+    assert len(attempted) == 3, f"前提失效: vault {_SHORT_VAULT} 名下应有 3 张表, 实为 {sorted(attempted)}"
+    assert boom in attempted, f"前提失效: 要注入失败的表不在待删清单里: {sorted(attempted)}"
+
+    client._db = _DropFailsOn(db, boom)
+    dropped = client.drop_vault_tables(_SHORT_VAULT)
+
+    assert dropped == 2, f"返回值应是**实删数** 2（3 张里 1 张失败），实为 {dropped}"
+    assert dropped != len(attempted), (
+        "返回值仍等于**尝试数** —— 旧实现正是把 len(tables) 当结果返回, "
+        "于是「全部删失败」也会回非零、DELETE /index 回一个骗人的 200"
+    )
+    assert [name for name, _ in client._last_drop_failures] == [boom], (
+        f"被吞的表名没进记账: _last_drop_failures={client._last_drop_failures!r}"
+    )
+    assert "RuntimeError" in client._last_drop_failures[0][1], (
+        f"记账里没带上异常类型/文案: {client._last_drop_failures!r}"
+    )
+
+    after = _all_names(db)
+    assert boom in after, f"注入失败的表居然被删掉了, 本门的前提不成立; 现存 = {sorted(after)}"
+    assert "b_canvas_nodes" in after, f"别的 vault 的表被删了: 现存 = {sorted(after)}"
+    assert not ({f"{_SHORT_VAULT}_canvas_nodes", f"{_SHORT_VAULT}_{LanceDBClient.FINGERPRINT_TABLE}"} & after), (
+        f"其余两张本该删掉的表没删成, 一张失败不该拖垮整轮; 现存 = {sorted(after)}"
     )

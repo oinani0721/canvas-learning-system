@@ -581,6 +581,21 @@ def _is_skipped_vault_file(rel_path: str, skip_files) -> bool:
 #: 用 ``None`` 作默认值就无法把"没传"与"显式 None"分开。
 _UNSET = object()
 
+#: CARD-G2-9-F2: 已知 vault 集合 (``_known_vault_ids``) 的缓存有效期，秒，单调钟。
+#:
+#: 为什么必须缓存: 归属判定 (``_owns_table``) 在 ``_cache_tables`` /
+#: ``list_vault_tables`` 里是**按表**调用的，而集合的计算含目录遍历 + 每 vault 一次
+#: yaml 读 + 一次表名列举。按表重算会把启动路径拖垮 —— 同一处已经为 ``active_vault_id``
+#: 踩过这个坑 (见 ``_cache_tables`` 里"必须在循环**外**求值一次"那段注释)。
+#:
+#: 为什么 TTL 而不是进程级永久缓存: 永久缓存会陈旧 —— 新 vault 建好之后集合里没有它,
+#: 短 id 的 vault 又会重新认领它的表 (缺陷复活)。TTL 把陈旧窗口压到几秒。
+#:
+#: 为什么 5 秒够: 陈旧窗口里唯一会出事的情形是"某 vault 刚出现、且它**已经有表**"。
+#: 表要先跑完索引才会存在，而索引耗时远大于 TTL，所以窗口内不存在"该被保护却没进
+#: 集合"的表。⛔ 若把 TTL 调大到分钟级，这条推理就不再成立。
+_KNOWN_VAULTS_TTL_SECONDS = 5.0
+
 
 class LanceDBClient:
     """
@@ -672,6 +687,15 @@ class LanceDBClient:
         self._initialized = False
         self._tables_cache: Dict[str, Any] = {}
         self._embedder = None
+
+        # CARD-G2-9-F2: 最长前缀优先归属所需的"已知 vault 集合"缓存 (TTL 见
+        # _KNOWN_VAULTS_TTL_SECONDS) + drop 记账 + 命名空间碰撞的去重告警集。
+        self._known_vaults_cache: Optional[frozenset] = None
+        self._known_vaults_cached_at: float = 0.0
+        #: 最近一次 ``drop_vault_tables`` 里**删失败**的表: [(表名, "异常类型: 文案")]。
+        #: 旧实现把这些异常 ``except: pass`` 吞掉且返回"尝试数"，调用方无从得知。
+        self._last_drop_failures: List[tuple] = []
+        self._collision_warned: set = set()
 
         # ✅ Story 23.2: MultimodalVectorizer for embedding
         self._vectorizer = None
@@ -789,13 +813,28 @@ class LanceDBClient:
         这不是 legacy 回退, 而是**单 vault 部署的正常命名空间** (裸表就是
         它的表)。删掉会炸单 vault 部署。判据钉死在
         ``tests/unit/test_lancedb_vault_isolation.py:23`` 与 ``:35``。
+
+        CARD-G2-9-F2 (BATCH-2026-09-11-第十四批): 幂等守卫由"以我的前缀开头"改成
+        "按最长前缀优先**归我**" (``_owns_table``), 与 ``_owns_table`` /
+        ``_fingerprint_table_name`` 三处同一口径。正常路径逐字不变 (vault ``cs_61b``
+        把 ``canvas_nodes`` 拼成 ``cs_61b_canvas_nodes``, 再传该名仍原样返回);
+        变的只有病态输入: vault ``a`` 传入属于 vault ``a_b`` 的 ``a_b_canvas_nodes``
+        时, 改前**原样返回** ⇒ vault ``a`` 直接读写 ``a_b`` 的表 (跨库写, 比连带删
+        更隐蔽), 改后再前缀一次 ⇒ 名字怪但**隔离**。实测全部生产调用点传的都是逻辑
+        表名 (``vault_notes`` / ``canvas_nodes`` / canary 的 ``LANCE_TABLE``),
+        该分支只在防御面上。
         """
         vid = self.active_vault_id
         if not vid or vid == "default":
             return table_name
-        if table_name.startswith(f"{vid}_"):
+        if self._owns_table(table_name, vid):
             return table_name
-        return f"{vid}_{table_name}"
+        resolved = f"{vid}_{table_name}"
+        owner = self._table_owner(resolved, vid)
+        if owner != vid:
+            # 拼出来的名字按同一条规则不归我 = 命名空间碰撞 (见 _warn_namespace_collision)
+            self._warn_namespace_collision(resolved, owner, f"{vid}")
+        return resolved
 
     def _is_table_absent(self, table_name: str) -> bool:
         """CARD-G2-4: 打表失败时判别「表不存在」vs「表在但打不开」。
@@ -838,6 +877,195 @@ class LanceDBClient:
             return list(getattr(raw, "tables", raw))
         return list(self._db.table_names(limit=10_000))
 
+    # =========================================================================
+    # CARD-G2-9-F2 (BATCH-2026-09-11-第十四批): 最长前缀优先归属
+    # =========================================================================
+
+    def _vault_id_for_dir(self, vault_dir) -> str:
+        """一个 vault 目录的 vault_id —— 与 ``app.config.Settings.vault_id`` 同优先级。
+
+        1. 该目录自己的 ``.canvas-config.yaml`` 的 ``vault_id`` 字段 (显式声明)；
+        2. ``sanitize_vault_id(目录名)``。
+
+        ⚠️ 为什么不能只按目录名: ``Settings.vault_id`` 读的是 yaml 优先，所以一个
+        用 yaml 显式声明了 id 的 vault，它**自己的进程**算出来的 id 与目录名派生的
+        不是一个。集合里装错名字 = 等于没装 (那个 vault 仍会被短 id vault 认领)。
+        既有的 ``GET /vault/list`` 只按目录名派生，本方法在**归属判定**这一侧把 yaml
+        这一级补上；两者对没有 yaml 的 vault 逐字同结果。
+        """
+        from app.config import sanitize_vault_id
+
+        try:
+            import yaml
+
+            yaml_path = vault_dir / ".canvas-config.yaml"
+            if yaml_path.exists():
+                with open(yaml_path, encoding="utf-8") as f:
+                    config = yaml.safe_load(f) or {}
+                explicit = config.get("vault_id")
+                if explicit and isinstance(explicit, str):
+                    sanitized = sanitize_vault_id(explicit)
+                    if sanitized != "default":
+                        return sanitized
+        except Exception:
+            # 与 Settings.vault_id 同样的宽容: yaml 坏了就退回目录名派生，
+            # 不让一个坏配置把整张 vault 清单打空 (打空 = 归属规则退化 = 缺陷复活)。
+            pass
+        return sanitize_vault_id(vault_dir.name)
+
+    def _discover_vault_ids_from_root(self) -> set:
+        """来源② VAULTS_ROOT 目录枚举 —— 本卡选定的**主**来源。
+
+        候选规则**逐字沿用**仓内既有的两处生产站点, 不另起一套:
+        ``app/api/v1/endpoints/vault.py::list_vaults`` (``GET /vault/list``) 与
+        ``review_overview.py::_list_vault_dirs`` (其 docstring 原文: "与
+        GET /vault/list 同一条候选规则") —— 非隐藏目录 + 含 ``.obsidian/``。
+        两份手抄清单必然漂移, 所以这里宁可与它们同错也不自创第三套口径。
+
+        失败一律返回空集而**不抛**: 本方法在启动路径 (``_cache_tables``) 与 property
+        里被调。空集的后果是归属退化成朴素前缀 (即改前行为), 由
+        ``_known_vault_ids`` 的另两条来源兜底。
+        """
+        try:
+            from pathlib import Path
+
+            from app.config import get_settings
+        except (ImportError, AttributeError) as e:
+            logger.debug("[LanceDB vault registry] app.config 不可用 (%s: %s) — 目录来源跳过", type(e).__name__, e)
+            return set()
+
+        ids = set()
+        try:
+            root = Path(get_settings().VAULTS_ROOT).resolve()
+            if not root.is_dir():
+                logger.warning("[LanceDB vault registry] VAULTS_ROOT 不是目录: %s — 归属判定将退化为朴素前缀", root)
+                return set()
+            for entry in sorted(root.iterdir()):
+                if not entry.is_dir() or entry.name.startswith("."):
+                    continue
+                if not (entry / ".obsidian").is_dir():
+                    continue
+                vid = self._vault_id_for_dir(entry)
+                if vid and vid != "default":
+                    ids.add(vid)
+        except (OSError, RuntimeError, ValueError, AttributeError) as e:
+            logger.warning(
+                "[LanceDB vault registry] 扫描 VAULTS_ROOT 失败 (%s: %s) — 归属判定将退化为朴素前缀",
+                type(e).__name__,
+                e,
+            )
+            return set()
+        return ids
+
+    def _vault_ids_from_fingerprint_tables(self) -> set:
+        """来源③ (**收窄形态**) 指纹表不变量反推 —— 目录来源的完整性补丁。
+
+        ⛔ **不是**"把表名按下划线随便切前缀": 那样会从 ``a_canvas_nodes`` 切出一个
+        并不存在的 vault ``a_canvas``, 最长前缀优先会让真 vault ``a`` **失去**自己的
+        表。这里只认一条生产不变量: RAG-S1 F1 之后指纹表恒走
+        ``_fingerprint_table_name`` 前缀化且**没有** legacy 回退, 所以
+        ``X_file_fingerprints`` 存在 ⟹ X 是一个真实被索引过的 vault 的 id。
+        实测生产侧的逻辑表名 (``canvas_nodes`` / ``vault_notes`` / ``chunks`` /
+        ``nodes`` / ``file_fingerprints``) 里没有任何以 ``_file_fingerprints``
+        结尾的, 所以不存在"某 vault 的普通表被误认成另一个 vault"的产出路径。
+
+        它补的是目录来源的两个洞 (都直指数据丢失面):
+        - vault 目录被删/移走但它的 LanceDB 表还在 ⇒ 目录枚举看不到它;
+        - VAULTS_ROOT 不可达 / 扫描抛错 ⇒ 目录来源整个为空。
+
+        误报方向如实声明: 万一 X 是误报, 后果是真 vault **少认领**自己的表 (表变孤儿、
+        不被删), **不丢数据**; 漏报方向才丢数据。风险不对称, 所以这条宁可多认。
+        """
+        if self._db is None:
+            return set()
+        suffix = f"_{self.FINGERPRINT_TABLE}"
+        try:
+            names = self._all_table_names()
+        except Exception as e:
+            logger.debug("[LanceDB vault registry] 表名列举失败 (%s: %s) — 指纹来源跳过", type(e).__name__, e)
+            return set()
+        return {n[: -len(suffix)] for n in names if n.endswith(suffix) and len(n) > len(suffix)}
+
+    def _known_vault_ids(self) -> frozenset:
+        """已知 vault id 集合 V —— 最长前缀优先归属的消歧依据。TTL 缓存。
+
+        ``a_canvas_nodes`` 既可能是 vault ``a`` 的 ``canvas_nodes``、也可能是 vault
+        ``a_canvas`` 的 ``nodes`` —— **不知道有哪些 vault 就无法消歧**。V 就是那份
+        "有哪些 vault"。三条来源 (依据与边界见各自 docstring):
+
+        1. ``self.active_vault_id`` —— 本客户端此刻的 vault, **恒**在 V 里;
+        2. ``_discover_vault_ids_from_root()`` —— 主来源, VAULTS_ROOT 目录枚举;
+        3. ``_vault_ids_from_fingerprint_tables()`` —— 指纹表不变量反推, 补 2 的洞。
+
+        ⚠️ **V 的完整性就是这道防线本身**: 少了哪个 vault, 该 vault 的表就会被 id
+        更短的 vault 重新认领 (= 改前的缺陷)。负控② 专门证这一点 —— 把 V 打空,
+        互前缀门当场变红。
+        """
+        now = time.monotonic()
+        cached = self._known_vaults_cache
+        if cached is not None and (now - self._known_vaults_cached_at) < _KNOWN_VAULTS_TTL_SECONDS:
+            return cached
+
+        ids = set()
+        active = self.active_vault_id
+        if active and active != "default":
+            ids.add(active)
+        ids |= self._discover_vault_ids_from_root()
+        ids |= self._vault_ids_from_fingerprint_tables()
+
+        result = frozenset(ids)
+        self._known_vaults_cache = result
+        self._known_vaults_cached_at = now
+        return result
+
+    def _table_owner(self, name: str, vault_id: object = _UNSET):
+        """表 ``name`` 按**最长前缀优先**归属给哪个 vault; 无人认领返回 ``None``。
+
+        规则: 候选 ``C = {v ∈ V ∪ {vault_id} : name == v 或 name.startswith(v + "_")}``,
+        取 ``C`` 中**最长**的那个 v。等长不可能并列 (等长且同为前缀 ⟹ 同一个 v),
+        所以结果唯一确定。举例 V = {``a``, ``a_b``}:
+        ``a_b_canvas_nodes`` → ``a_b`` (不再是 ``a``); ``a_canvas_nodes`` → ``a``。
+
+        ⚠️ **被问的那个 vault_id 恒并入候选**, 而不是只用 V。理由: 它可以是外部显式
+        传进来的任意 vault (``DELETE /index/{vault_id}`` 的 path param), 该 vault 可能
+        恰好不在 V 里 (典型: 目录已删、正要删它的索引)。不并入会让归属恒 False ⇒
+        删索引静默变成 no-op。并入后本规则的**最弱**形态就是改前的朴素前缀 ——
+        本卡因此**只减少 over-claim (认领别人的表), 不减少任何 vault 对自己表的认领**。
+        """
+        candidates = set(self._known_vault_ids())
+        if vault_id is not _UNSET and vault_id:
+            candidates.add(f"{vault_id}")
+
+        best = None
+        for v in candidates:
+            if not v or v == "default":
+                continue
+            if name == v or name.startswith(f"{v}_"):
+                if best is None or len(v) > len(best):
+                    best = v
+        return best
+
+    def _warn_namespace_collision(self, produced: str, owner, vid: str) -> None:
+        """拼接出来的表名被判给了**别的** vault —— 命名空间真碰撞, 报出来。
+
+        触发形态: vault ``a`` 与 vault ``a_file`` 并存时, a 的指纹表自然名
+        ``a_file_fingerprints`` 会被最长前缀规则判给 ``a_file``。任何不做转义的
+        ``{vid}_{table}`` 方案都解不了这种碰撞 —— 改前是**静默**被对方连带删掉,
+        本卡至少让它说话 (不改名: 改名会让存量数据在新名字下变成空表, 那比碰撞
+        更像"数据没了")。每个名字每实例只报一次, 避免启动路径刷屏。
+        """
+        if produced in self._collision_warned:
+            return
+        self._collision_warned.add(produced)
+        logger.error(
+            "[LanceDB vault namespace] 表名 %r 由 vault %r 拼出, 但按最长前缀优先归属给了 %r "
+            "—— 两个 vault 的 id 互为前缀且与表名拼接后重叠。该表存在被对方的删索引/启动自愈"
+            "连带处理的风险, 需人工改名其中一个 vault 的 id。",
+            produced,
+            vid,
+            owner,
+        )
+
     def _owns_table(self, name: str, vault_id: object = _UNSET) -> bool:
         """表 ``name`` 是否归属某个 vault —— 归属规则的**单点**。
 
@@ -870,38 +1098,38 @@ class LanceDBClient:
         ``{vid}_file_fingerprints`` 都归入 default。本卡只做单点化, **不改**这
         条既有裁定 (含下划线的裸表如 ``canvas_nodes`` 因此不归 default)。
 
-        ⚠️ **已知未闭合面 (CARD-G2-9-F1, Codex r1/r2 HIGH-1; 移交 CARD-G2-9-F2)**:
-        前缀口径是 ``startswith(f"{vid}_")``, 于是**短 id 的 vault 会单向认领长 id
-        vault 的表** —— ``"a_b_canvas_nodes".startswith("a_")`` 为真, vault ``a``
-        的启动自愈会 drop 掉 vault ``a_b`` 的漂移表。方向是**单向的** (vault
-        ``a_b`` 不会认领 ``a_*``), 且需要**下划线边界** —— ``ab_canvas_nodes`` 与
-        vault ``a`` **不**碰撞 (实测)。**本仓可达**: ``app.config.sanitize_vault_id``
-        产出的 id 含下划线 (``canvas-vault`` -> ``canvas_vault``,
-        ``cs 61b`` -> ``cs_61b``), 所以 vault ``cs`` 与 vault ``cs_61b`` 并存即触发。
+        ✅ **已闭合 (CARD-G2-9-F2, BATCH-2026-09-11-第十四批): 最长前缀优先**。
+        F1 交接过来的未闭合面是: 前缀口径只看"以 ``{vid}_`` 开头", 于是**短 id 的
+        vault 会单向认领长 id vault 的表** —— ``a_b_canvas_nodes`` 以 ``a_`` 开头,
+        vault ``a`` 的启动自愈会 drop 掉 vault ``a_b`` 的漂移表 (方向单向: ``a_b``
+        不会认领 ``a_*``; 需**下划线边界**, ``ab_canvas_nodes`` 与 vault ``a`` 不碰撞)。
+        本仓可达: ``app.config.sanitize_vault_id`` 产出的 id 含下划线
+        (``cs 61b`` -> ``cs_61b``), vault ``cs`` 与 vault ``cs_61b`` 并存即触发。
+        且 F1 的分页收口把它的可达面从"默认分页前 10 张"扩大到了全库。
 
-        口径本身是 ``resolve_table_name:790`` 起就有的**既有**行为, 本卡只做单点化、
-        **不改**它 (改它要能拿到全部 vault 列表做最长前缀优先, 超出本卡范围)。
-        ⚠️ **但本卡的分页收口把这条缺陷的可达面扩大了**: ``da690bf8`` 的
-        ``_cache_tables`` 只枚举默认分页的前 10 张, 排在页外的重叠表因此**碰不到**;
-        本卡改用 ``_all_table_names()`` 后**全库**都会被检查, 那些表就变成可删的了
-        (实测存档 ``_bmad-output/审查/evidence-g29f1/``
-        ``high1-r2-pagination-widens-overlap-*.txt``: 同一夹具改前留存、改后被删)。
-        这一点**不能**说成「沿用既有口径、本卡无影响」。
+        F2 的解法: 归属改由 ``_table_owner`` 按**已知 vault 集合 V** 取最长匹配 ——
+        ``t`` 归 ``vid`` ⟺ ``vid`` 是 V 中使 ``t == v`` 或 ``t.startswith(v + "_")``
+        成立的**最长**那个 v。V 的三条来源与各自边界见 ``_known_vault_ids``。
+        ⚠️ 消歧依赖 V 的完整性: V 里没有的 vault 仍会被短 id vault 认领 (规则退化
+        成改前的朴素前缀)。这不是残留缺陷而是**这条规则的定义域** —— 不知道有哪些
+        vault 就无法区分"vault ``a`` 的 ``b_canvas_nodes``"与"vault ``a_b`` 的
+        ``canvas_nodes``"。行为门 ``test_lancedb_cross_vault_drop_g29f1.py`` 的
+        ``::test_prefix_overlap_*`` 族正反两面各一条: 互前缀 vault 互不相认 (修复),
+        以及 V 被打空时缺陷复活 (负控②)。
 
         全部形态由 ``tests/unit/test_lancedb_cross_vault_drop_g29f1.py`` 锁住 ——
         两条消费路径各自成门: ``::test_prefix_overlap_not_touched_by_cache_tables``
         (启动自愈, 需 schema 漂移且指纹表有 endswith 豁免) 与
         ``::test_prefix_overlap_not_touched_by_drop_vault_tables``
         (``DELETE /index`` -> ``drop_vault_tables``, **不需要**漂移、**没有**指纹表
-        豁免), 各按 ``page-inner`` (既有面) / ``page-outer`` (本卡新打开的面) 参数化,
-        均 ``xfail(strict=True)``; 前提另由 ``::test_prefix_overlap_premises_hold``
-        在**不带** xfail 的用例里把守。修好后缺陷锁会 ``XPASS(strict)`` 报红 ——
-        ⚠️ 但 XPASS 还有另外两种成因 (分页收口被撤 / 删除异常被吞), 见门的 reason。
+        豁免), 各按 ``page-inner`` / ``page-outer`` 参数化; 前提另由
+        ``::test_prefix_overlap_premises_hold`` 把守。F2 已删掉这两条的 xfail 标记
+        (缺陷闭合, 它们现在是**正向隔离门**, 红了就是真回归)。
         """
         vid = self.active_vault_id if vault_id is _UNSET else vault_id
         if not vid or vid == "default":
             return "_" not in name or name == self.FINGERPRINT_TABLE
-        return name.startswith(f"{vid}_")
+        return self._table_owner(name, vid) == f"{vid}"
 
     def list_vault_tables(self, vault_id: str | None = None) -> list[str]:
         """Return table names belonging to a specific vault.
@@ -935,17 +1163,48 @@ class LanceDBClient:
         return stats
 
     def drop_vault_tables(self, vault_id: str) -> int:
-        """Drop all tables for a given vault_id. Returns count of dropped tables."""
+        """Drop all tables for a given vault_id. 返回**实删数**。
+
+        CARD-G2-9-F2 (BATCH-2026-09-11-第十四批): 改前这里返回的是
+        ``len(tables)`` —— **尝试**删的表数, 而循环里 ``except Exception: pass``
+        把单表删除失败整个吞掉。两件事叠加后果:
+
+        - ``DELETE /index/{vault_id}`` (``endpoints/index.py``) 把这个数当
+          ``tables_dropped`` 回给调用方, 于是"一张都没删成"也会回 200 + 一个
+          非零计数 —— 调用方据此认为索引已清, 实际全留着;
+        - 缺陷锁 ``test_prefix_overlap_not_touched_by_drop_vault_tables`` 的
+          XPASS 成因(3) 正是这个吞: 表没被删不是因为归属修好了, 而是因为删失败
+          被吞掉 —— 两种完全不同的原因在旧实现下**不可区分**。
+
+        改后: 逐表记账, ``drop_table`` 没抛才计数; 失败的 (表名, 异常) 进
+        ``self._last_drop_failures`` 并 ``logger.error``。返回值仍是 ``int``
+        (``endpoints/index.py:107`` 与 ``scripts/g29_dual_vault_canary.py`` 两个
+        消费方的类型契约不变), 但**语义**从"尝试数"变成"实删数"。
+
+        ⚠️ 随之而来的行为变化 (已登记): 全部表都删失败时返回 0, ``DELETE /index``
+        由"骗人的 200"变成 404 —— 这正是本卡要的诚实, 但它是**可观察的**契约变化。
+        """
+        self._last_drop_failures = []
         if self._db is None:
             return 0
         tables = self.list_vault_tables(vault_id)
+        dropped = 0
         for tname in tables:
             try:
                 self._db.drop_table(tname, ignore_missing=True)
                 self._tables_cache.pop(tname, None)
-            except Exception:
-                pass
-        return len(tables)
+                dropped += 1
+            except Exception as e:
+                self._last_drop_failures.append((tname, f"{type(e).__name__}: {e}"))
+                logger.error(
+                    "[LanceDB drop_vault_tables] vault=%r 的表 %r 删除失败, 已跳过 (%s: %s) "
+                    "—— 该表仍在库里, 本次返回的实删数不含它",
+                    vault_id,
+                    tname,
+                    type(e).__name__,
+                    e,
+                )
+        return dropped
 
     def connect_lightweight(self) -> bool:
         """
@@ -1074,11 +1333,22 @@ class LanceDBClient:
         global table would make every file look unchanged and the prefixed
         table would never get populated (bootstrap deadlock). First reconcile
         after this change re-indexes all files once — accepted one-time cost.
+
+        CARD-G2-9-F2 (BATCH-2026-09-11-第十四批): 本处是**拼接侧**, 没有前缀判定可改;
+        它在新口径下的义务是**回环自洽** —— 拼出来的名字必须被 ``_owns_table`` 判回
+        自己。不自洽 (vault ``a`` 与 vault ``a_file`` 并存时 ``a_file_fingerprints``
+        会被判给 ``a_file``) 是命名空间真碰撞, 这里**报出来但不改名**: 改名会让存量
+        指纹数据在新名字下变成空表 (= 全库看起来都"变更过", 比碰撞更像数据没了)。
+        改前同场景是静默被对方连带删, 所以这不是回归, 是把哑火改成会响。
         """
         vid = self.active_vault_id
         if not vid or vid == "default":
             return self.FINGERPRINT_TABLE
-        return f"{vid}_{self.FINGERPRINT_TABLE}"
+        name = f"{vid}_{self.FINGERPRINT_TABLE}"
+        owner = self._table_owner(name, vid)
+        if owner != vid:
+            self._warn_namespace_collision(name, owner, f"{vid}")
+        return name
 
     @staticmethod
     def _compute_file_hash(file_path: str) -> str:
