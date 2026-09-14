@@ -427,20 +427,44 @@ ACT_JOURNAL=""
 # 阶段账没能完整落盘时的原因。⛔ 不许只留一行标记就照常报成功（Codex r1 MEDIUM-6）：
 # 账不全 = 事后无从复核, 由步 6 以 76 如实失败（部署本身已发生, 失败点在证据环节）。
 ACT_JOURNAL_ERR=""
+# ⛔ 打开**一次**、之后只对那个 fd 写（Codex r2 HIGH）：每条 stage 都
+#    `assert_writable_now` 再 `>>` 的写法，检查与重定向之间仍要把路径**重新解析**一遍,
+#    残留窗口每写一行就来一次；而持有 fd 之后, 路径被换成软链也改变不了我们写的
+#    inode —— 「绝不写到没验过的对象上」这条才是真正要保的性质（能不能察觉掉包是次要的）。
+#    fd 9 是固定编号：本机 bash 3.2 没有 `{var}>>` 的动态分配。
+ACT_JOURNAL_FD_OPEN=0
+act_journal_open() {
+    ACT_JOURNAL="$1"
+    # 打开前紧邻复查（与脚本别处同律）：这是本函数唯一一次路径解析。
+    if ! assert_writable_now "$ACT_JOURNAL"; then
+        ACT_JOURNAL_ERR="开阶段账前复查未过: $WRITE_GUARD_ERR"
+        return 1
+    fi
+    if ! exec 9>> "$ACT_JOURNAL"; then
+        ACT_JOURNAL_ERR="打不开阶段账: $ACT_JOURNAL"
+        return 1
+    fi
+    ACT_JOURNAL_FD_OPEN=1
+    return 0
+}
+act_journal_close() {
+    [ "$ACT_JOURNAL_FD_OPEN" = 1 ] || return 0
+    exec 9>&-
+    ACT_JOURNAL_FD_OPEN=0
+    return 0
+}
 act_stage() {
     ACT_STAGES+=("$1")
-    [ -n "$ACT_JOURNAL" ] || return 0
     local _what="${1%% *}"
     _what="${_what#stage=}"
-    # ⛔ 紧邻复查（与脚本别处同律, Codex r1 HIGH-2）：步 5 开头那次 assert 与这一次
-    #    追加之间有时间窗, 对象可能被换成软链/硬链 —— 路径判据看不见 inode。
-    if ! assert_writable_now "$ACT_JOURNAL"; then
-        ACT_JOURNAL_ERR="写阶段账前复查未过: $WRITE_GUARD_ERR"
+    if [ "$ACT_JOURNAL_FD_OPEN" != 1 ]; then
+        # 账开不出来也不许静默 —— 由步 6 以 76 如实失败
+        [ -n "$ACT_JOURNAL_ERR" ] || ACT_JOURNAL_ERR="阶段账未打开"
         ACT_STAGES+=("stage=journal-write-failed of=${_what} rc=1")
         return 0
     fi
-    if ! printf '%s\n' "$1" >> "$ACT_JOURNAL"; then
-        ACT_JOURNAL_ERR="追加阶段账失败: $ACT_JOURNAL"
+    if ! printf '%s\n' "$1" >&9; then
+        ACT_JOURNAL_ERR="写阶段账失败: $ACT_JOURNAL"
         ACT_STAGES+=("stage=journal-write-failed of=${_what} rc=1")
     fi
     return 0
@@ -1300,11 +1324,18 @@ PY
     #    （不是总账原卡文那套「恢复旧 ACTIVE_VAULT」—— 那套已作废）。
     # 需用户当次授权；车道禁跑（见头注与 §三）。
     # 每阶段一行 `stage=… rc=` ⇒ 事后能分清「哪一阶段失败、回滚有没有真做成」。
-    ACT_JOURNAL="$cfg"
+    # 开一次账；开不出来不中止部署, 但会由步 6 以 76 如实失败（账不全 = 无从复核）。
+    # 失败路径不显式关 fd：`run_step` 对 FAIL 直接 `exit 7N`, 进程退出即释放。
+    act_journal_open "$cfg" || true
     # ⛔ Lance 上限先校验再起容器：校验失败时**还没有**容器要回滚。
     #    取值必须是有界正整数且逐字符枚举（不写 `[!0-9]` 区间 —— 区间由 locale 的
     #    排序决定, `LC_ALL=ar_EG.UTF-8` 下阿拉伯数字能过门, 随后 `[ -ge ]` 报错
     #    rc=2、`if` 判假 ⇒ 反而放行, 那是 fail-open；与步 1 的 npm 上限同律）。
+    # ⛔ 前导零必须**先剥掉**（Codex r2 MEDIUM-1）：bash 的 `[ -lt ]` 与 `$(( ))` 把
+    #    `08`/`09` 当八进制 ⇒ 前者报错 rc=2（`if` 判假 = 放行）、后者在实例已经起来
+    #    之后才炸；`010` 更坏 —— 静默按 **8** 秒算，与调用者写的数不是一回事。
+    #    处理顺序与步 1 的 npm 上限逐条同律（先枚举字符 → 限原串长 → 剥零 → 再枚举
+    #    → 限长 → 最后才做数值比较, 保证比较不可能 rc=2）。
     local lcap="$CLS_DEPLOY_LANCE_READY_TIMEOUT"
     case "$lcap" in
         '' | *[!0123456789]*)
@@ -1312,12 +1343,24 @@ PY
             return 1
             ;;
     esac
-    if [ "${#lcap}" -gt 10 ]; then
-        STEP_MSG="CLS_DEPLOY_LANCE_READY_TIMEOUT 原串 ${#lcap} 位, 超 10 位上限"
+    if [ "${#lcap}" -gt 20 ]; then
+        STEP_MSG="CLS_DEPLOY_LANCE_READY_TIMEOUT 位数过多（最多 20 位）, 实为 '${CLS_DEPLOY_LANCE_READY_TIMEOUT}'"
         return 1
     fi
+    lcap="${lcap#"${lcap%%[!0]*}"}"   # 剥前导零（008 → 8；000 → 空）
+    case "$lcap" in
+        '' | *[!0123456789]*)         # 剥零后再判一次：空串(000) 与残留非数字都在这里落地
+            STEP_MSG="CLS_DEPLOY_LANCE_READY_TIMEOUT 必须在 1..86400 秒内（0 会让上限静默失效）, 实为 '${CLS_DEPLOY_LANCE_READY_TIMEOUT}'"
+            return 1
+            ;;
+    esac
+    if [ "${#lcap}" -gt 5 ]; then     # 86400 是 5 位 ⇒ 再长必超界, 不必做数值比较
+        STEP_MSG="CLS_DEPLOY_LANCE_READY_TIMEOUT 必须在 1..86400 秒内（超界会让上限静默失效）, 实为 '${CLS_DEPLOY_LANCE_READY_TIMEOUT}'"
+        return 1
+    fi
+    # 到这里 lcap 已确定是 1-5 位纯 ASCII 数字 ⇒ 下面的数值比较与算术不可能出错
     if [ "$lcap" -lt 1 ] || [ "$lcap" -gt 86400 ]; then
-        STEP_MSG="CLS_DEPLOY_LANCE_READY_TIMEOUT 取值须在 1..86400 秒, 实为 '${lcap}'"
+        STEP_MSG="CLS_DEPLOY_LANCE_READY_TIMEOUT 必须在 1..86400 秒内, 实为 '${CLS_DEPLOY_LANCE_READY_TIMEOUT}'"
         return 1
     fi
     local up_rc=0
@@ -1430,9 +1473,12 @@ PY
                 esac
             fi
         fi
+        # ⛔ 间隔也受预算约束（Codex r2 MEDIUM-2）：写死 `sleep 2` 时上限 1 秒的这一跑
+        #    仍会花 2 秒 —— 上限说是 1 却做了 2, 就不是上限。
         lnow="$(date +%s)"
-        [ "$((lcap - (lnow - lstart)))" -gt 0 ] || break
-        sleep 2
+        lrem=$((lcap - (lnow - lstart)))
+        [ "$lrem" -gt 0 ] || break
+        if [ "$lrem" -lt 2 ]; then sleep "$lrem"; else sleep 2; fi
     done
     lnow="$(date +%s)"
     lelapsed=$((lnow - lstart))
@@ -1464,6 +1510,7 @@ PY
     fi
     act_stage "stage=graphiti-readiness rc=${grc} result=${gres}"
 
+    act_journal_close
     STEP_MSG="实例 cls-$VAULT_NAME 已起, /vault/current 报告 $VAULT_NAME; 分阶段账 ${#ACT_STAGES[@]} 行见 $cfg"
     return 0
 }

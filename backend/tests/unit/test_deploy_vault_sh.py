@@ -3091,10 +3091,29 @@ case "$mode" in
     nested) printf '{"status":"error","components":{"neo4j":{"status":"ok"}}}\\n'; exit 0 ;;
     # 被截断的响应：不是合法 JSON, 但字面量里就有 "status":"ready"
     truncated) printf '{"status":"ready"'; exit 0 ;;
+    # 合法 JSON 对象但顶层没有 status —— 与「解析失败」是两条不同分支
+    nostatus) printf '{"ok":true}\\n'; exit 0 ;;
     # 真按 `-m` 的秒数挂满再超时 —— 用来验「单次探测受剩余预算约束」
     slow) sleep "${mtimeout:-10}"; exit 28 ;;
 esac
 exit 0
+"""
+
+_TX_PY_WRAPPER = """#!/usr/bin/env bash
+"@REAL@" "$@"
+rc=$?
+if [ "${CLS_FAKE_BREAK_JOURNAL:-0}" = 2 ]; then
+    for a in "$@"; do
+        case "$a" in
+            */compose-config-*.txt)
+                : > "$CLS_FAKE_EV/decoy.txt"
+                rm -f "$a"
+                ln -s "$CLS_FAKE_EV/decoy.txt" "$a"
+                ;;
+        esac
+    done
+fi
+exit $rc
 """
 
 _TX_HARNESS_ENV = """# 假 harness 的 .env（--also-push 的目标面）
@@ -3141,7 +3160,10 @@ def _tx_harness(tmp_path: Path, *, with_env: bool = True, env_body: str | None =
     )
     venv_bin = h / "backend" / ".venv" / "bin"
     venv_bin.mkdir(parents=True)
-    os.symlink(sys.executable, venv_bin / "python")
+    # 不用 symlink 而用 wrapper：CLS_FAKE_BREAK_JOURNAL=2 时它在**真 python 跑完之后**
+    # 把 compose-config 换成软链 —— 那正好是「config 断言已过、阶段账还没开」的时刻，
+    # 用来验 act_journal_open 的紧邻复查真的拦得住。
+    _tx_write(venv_bin / "python", _TX_PY_WRAPPER.replace("@REAL@", sys.executable), mode=0o755)
     for i in range(_TX_SKILLS):
         _tx_write(h / "canvas-vault" / ".claude" / "skills" / f"probe{i}" / "SKILL.md", "# stub\n")
     _tx_write(h / "canvas-vault" / ".obsidian" / "plugins" / "canvas-learning-system" / "main.js", "//\n")
@@ -3397,6 +3419,8 @@ def test_g2_8_lance_not_ready_is_recorded_not_faked(tmp_path: Path):
         ("nested", "not-ready"),
         # 同上: 被截断的响应, 字面量里就有 "status":"ready" 但不是合法 JSON
         ("truncated", "unparsable"),
+        # Codex r2 LOW-1: 合法 JSON 对象但顶层无 status —— no-status-field 分支此前零覆盖
+        ("nostatus", "no-status-field"),
     ],
 )
 def test_g2_8_graphiti_readiness_never_reports_fake_success(tmp_path: Path, mode: str, reason: str):
@@ -3405,7 +3429,14 @@ def test_g2_8_graphiti_readiness_never_reports_fake_success(tmp_path: Path, mode
     ⛔ 断言必须**两侧都核**：只核 `skipped-with-reason=` 出现的话，
     「恒报 success 又顺手打一行 skipped」的变异体会让门仍绿。
     """
-    port = {"fail": "8237", "garbage": "8238", "notready": "8239", "nested": "8247", "truncated": "8248"}[mode]
+    port = {
+        "fail": "8237",
+        "garbage": "8238",
+        "notready": "8239",
+        "nested": "8247",
+        "truncated": "8248",
+        "nostatus": "8255",
+    }[mode]
     name = f"probe_kg_{mode}"
     h = _tx_harness(tmp_path)
     env = _tx_env(tmp_path, port, name, extra={"CLS_FAKE_KG": mode})
@@ -3620,11 +3651,20 @@ def test_g2_8_activate_tx_opens_no_new_write_surface():
     # 把「ACT_JOURNAL 只能被赋成 $cfg」单独钉住，否则改一行就能把账落到新文件里。
     assigns = re.findall(r'^ACT_JOURNAL="([^"]*)"$', src, re.M)
     assert assigns == [""], f"ACT_JOURNAL 的顶层初始化变了: {assigns}"
+    # 唯一的内部赋值在 act_journal_open 里（形参），且它只被步 5 用 $cfg 调一次
     inner = re.findall(r'^\s+ACT_JOURNAL="([^"]*)"$', src, re.M)
-    assert inner == ["$cfg"], f"ACT_JOURNAL 被赋成了 $cfg 之外的东西: {inner}"
+    assert inner == ["$1"], f"ACT_JOURNAL 被别处赋值了: {inner}"
+    calls = re.findall(r"^\s*act_journal_open (\S+)", src, re.M)
+    assert calls == ['"$cfg"'], f"阶段账被开在了 $cfg 之外的对象上: {calls}"
+    # act_stage 只对**已打开的 fd 9** 写（Codex r2 HIGH：每写一行重新解析一次路径 =
+    # 每写一行来一次窗口）。路径解析只许发生在 act_journal_open 那一次。
     stage_fn = src[src.index("act_stage() {") : src.index("\n}\n", src.index("act_stage() {"))]
+    assert ">&9" in stage_fn, "act_stage 不再对固定 fd 写了"
     stage_writes = set(re.findall(r'>{1,2} "\$([A-Za-z_][A-Za-z0-9_]*)"', stage_fn))
-    assert stage_writes == {"ACT_JOURNAL"}, f"act_stage 写了别的对象: {sorted(stage_writes)}"
+    assert stage_writes == set(), f"act_stage 又按路径写了: {sorted(stage_writes)}"
+    open_fn = src[src.index("act_journal_open() {") : src.index("\n}\n", src.index("act_journal_open() {"))]
+    assert 'exec 9>> "$ACT_JOURNAL"' in open_fn, "阶段账不是用一次性 exec 打开的"
+    assert 'assert_writable_now "$ACT_JOURNAL"' in open_fn, "打开前缺紧邻复查"
 
 
 # ── Codex r1 整改配套门 ──────────────────────────────────────────────────────
@@ -3663,23 +3703,48 @@ def test_g2_8_lance_probe_timeout_is_bounded_by_remaining_budget(tmp_path: Path)
     assert '-m "$lto"' in src, "Lance 探测的 -m 又变回常量了"
 
 
-def test_g2_8_journal_write_failure_is_not_swallowed(tmp_path: Path):
-    """阶段账写不进去时不得照常报成功（Codex r1 MEDIUM-6）。
+def test_g2_8_journal_writes_cannot_be_diverted_by_a_swap(tmp_path: Path):
+    """开账**之后**把路径换成软链，写入不得被改道（Codex r2 HIGH）。
 
-    桩 docker 在 `up` 之后把 compose-config 换成软链 —— 模拟「首次复查之后、
-    追加之前被掉包」。此时 `act_stage` 的紧邻复查必须拦住（HIGH-2），
-    并由步 6 以 76 如实失败：部署本身发生了，失败点在证据环节。
+    桩 docker 在 `up` 之后把 compose-config 换成指向 decoy 的软链。持有 fd 的写法
+    下，后续 stage 全部落在开账时验过的那个 inode 上 —— decoy 里一行都不该有。
+    「绝不写到没验过的对象上」才是要保的性质；能不能察觉掉包是次要的。
     """
     h = _tx_harness(tmp_path)
     env = _tx_env(tmp_path, "8251", "probe_jbrk", extra={"CLS_FAKE_BREAK_JOURNAL": "1"})
     r = _tx_run(tmp_path, h, "probe_jbrk", "8251", env=env)
-    assert r.returncode == 76, f"账写不进去却没以 76 失败: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    assert r.returncode == 0, f"rc={r.returncode}: {r.stdout}{r.stderr}"
+    decoy = tmp_path / "ev" / "decoy.txt"
+    assert decoy.is_file(), "控制组不成立：桩没有做掉包"
+    assert "stage=" not in decoy.read_text(encoding="utf-8"), (
+        f"阶段账被改道写进了掉包目标: {decoy.read_text(encoding='utf-8')[:200]!r}"
+    )
+    dep = sorted((tmp_path / "ev").glob("deploy-*.txt"))
+    assert dep, "证据报告应落盘"
+    txt = dep[-1].read_text(encoding="utf-8")
+    for stage in ("stage=up-instance", "stage=health-assert", "stage=graphiti-readiness"):
+        assert stage in txt, f"掉包之后账反而不全了: 缺 {stage}"
+
+
+def test_g2_8_journal_open_failure_is_not_swallowed(tmp_path: Path):
+    """开账**之前**就被掉包 ⇒ 紧邻复查拦住，并由步 6 以 76 如实失败。
+
+    注入点是 harness 的 venv python wrapper：它在 config 结构化断言跑完之后
+    立刻把 compose-config 换成软链 —— 正好落在「断言已过、阶段账还没开」之间。
+    部署本身发生了，失败点在证据环节，所以是 76 而不是 75。
+    """
+    h = _tx_harness(tmp_path)
+    env = _tx_env(tmp_path, "8256", "probe_jopen", extra={"CLS_FAKE_BREAK_JOURNAL": "2"})
+    r = _tx_run(tmp_path, h, "probe_jopen", "8256", env=env)
+    assert r.returncode == 76, f"开账被拦却没以 76 失败: rc={r.returncode}\n{r.stdout}{r.stderr}"
     assert "激活分阶段账未能完整落盘" in r.stdout, r.stdout
     dep = sorted((tmp_path / "ev").glob("deploy-*.txt"))
     assert dep, "证据报告仍应落盘（失败也要留证据）"
     txt = dep[-1].read_text(encoding="utf-8")
     assert txt.rstrip().endswith("rc=76"), f"报告的 rc 行与进程退出码矛盾: {txt[-200:]!r}"
     assert "stage=journal-write-failed" in txt, "报告里没有「这一行没落盘」的记录"
+    decoy = tmp_path / "ev" / "decoy.txt"
+    assert decoy.is_file() and "stage=" not in decoy.read_text(encoding="utf-8"), "开账被拦之后仍有阶段行写进了掉包目标"
 
 
 def test_g2_8_also_push_preserves_other_lines_byte_for_byte(tmp_path: Path):
@@ -3722,3 +3787,68 @@ def test_g2_8_also_push_handles_mixed_separators_and_empty_value(
     assert r.returncode == 0, f"rc={r.returncode}: {r.stdout}{r.stderr}"
     got = [ln for ln in (h / ".env").read_text(encoding="utf-8").splitlines() if ln.startswith("DAILY_REVIEW_VAULTS=")]
     assert got == [want], f"清单结果不对: {got}"
+
+
+@pytest.mark.parametrize(("cap", "port"), [("0", "8257"), ("000", "8258"), ("8a", "8259")])
+def test_g2_8_lance_cap_rejects_values_that_would_disable_it(tmp_path: Path, cap: str, port: str):
+    """上限取值非法 ⇒ 步 5 在**起容器之前**就 FAIL 75，不留半个实例。"""
+    h = _tx_harness(tmp_path)
+    env = _tx_env(tmp_path, port, "probe_cap", extra={"CLS_DEPLOY_LANCE_READY_TIMEOUT": cap})
+    r = _tx_run(tmp_path, h, "probe_cap", port, env=env)
+    assert r.returncode == 75, f"非法上限 {cap!r} 没被拦: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    assert "CLS_DEPLOY_LANCE_READY_TIMEOUT" in r.stdout, f"消息未点名该变量: {r.stdout!r}"
+    assert "cls-probe_cap" not in _tx_state(tmp_path), "取值校验应在起容器之前"
+
+
+def test_g2_8_lance_cap_leading_zero_is_decimal_not_octal(tmp_path: Path):
+    """`08` 必须按**十进制 8 秒**生效（Codex r2 MEDIUM-1）。
+
+    没剥前导零时：`[ "08" -lt 1 ]` 报错 rc=2 ⇒ `if` 判假 ⇒ **放行**，随后
+    `$((08 - 0))` 在实例已经起来之后才炸，循环一轮都没跑成 ⇒ `elapsed_s=0`。
+    剥零之后预算真的是 8 秒 ⇒ 探测一直未就绪时会用满。本门以 elapsed 区分两者。
+    """
+    h = _tx_harness(tmp_path)
+    env = _tx_env(
+        tmp_path,
+        "8261",
+        "probe_oct",
+        extra={"CLS_DEPLOY_LANCE_READY_TIMEOUT": "08", "CLS_FAKE_LANCE": "notready"},
+    )
+    r = _tx_run(tmp_path, h, "probe_oct", "8261", env=env)
+    assert r.returncode == 0, f"rc={r.returncode}: {r.stdout}{r.stderr}"
+    m = re.search(r"^stage=lance-first-index rc=(\d+) elapsed_s=(\d+) ", _tx_cfg(tmp_path), re.M)
+    assert m, "缺 Lance 阶段行"
+    assert m.group(1) != "0", "notready 下不该报就绪"
+    assert 7 <= int(m.group(2)) <= 10, (
+        f"`08` 没按十进制 8 秒生效（elapsed_s={m.group(2)}）—— 0 说明算术在实例起来后才炸"
+    )
+
+
+def test_g2_8_lance_sleep_interval_is_bounded_by_budget(tmp_path: Path):
+    """上限 1 秒时整段不得花到 2 秒（Codex r2 MEDIUM-2：`sleep 2` 写死会超预算）。"""
+    h = _tx_harness(tmp_path)
+    env = _tx_env(
+        tmp_path,
+        "8262",
+        "probe_slp",
+        extra={"CLS_DEPLOY_LANCE_READY_TIMEOUT": "1", "CLS_FAKE_LANCE": "notready"},
+    )
+    r = _tx_run(tmp_path, h, "probe_slp", "8262", env=env)
+    assert r.returncode == 0, f"rc={r.returncode}: {r.stdout}{r.stderr}"
+    m = re.search(r"^stage=lance-first-index rc=\d+ elapsed_s=(\d+) ", _tx_cfg(tmp_path), re.M)
+    assert m, "缺 Lance 阶段行"
+    assert int(m.group(1)) <= 1, f"上限 1 秒却花了 {m.group(1)}s —— 轮询间隔没受预算约束"
+
+
+def test_g2_8_lance_cap_empty_falls_back_to_documented_default(tmp_path: Path):
+    """空值 = 未设 ⇒ 用头注写的缺省 120，而不是「非法」。
+
+    反向锚：上面那条拒绝门若把空值也算非法，缺省路径就被拒了 —— 门必须两个方向都测。
+    """
+    h = _tx_harness(tmp_path)
+    env = _tx_env(tmp_path, "8260", "probe_capd", extra={"CLS_DEPLOY_LANCE_READY_TIMEOUT": ""})
+    r = _tx_run(tmp_path, h, "probe_capd", "8260", env=env)
+    assert r.returncode == 0, f"空值应走缺省: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    dep = sorted((tmp_path / "ev").glob("deploy-*.txt"))
+    assert dep, "步 6 没落 evidence"
+    assert "CLS_DEPLOY_LANCE_READY_TIMEOUT=120" in dep[-1].read_text(encoding="utf-8"), "缺省值与头注写的 120 不一致"

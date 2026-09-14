@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-11-第十四批 · 车道 T2 · 卡 CARD-G2-8 round-1
+> 模型: `gpt-6-astra` · reasoning_effort: `ultra` · codex: `codex-cli 0.153.3`
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat _bmad-output/审查/prompts/codex-prompt-CARD-G2-8.md)"`
+> 审查绑定: `bb070e6f`（该轮 HEAD；本轮后有 r1 整改 commit `53eca445`，故本档**不绑**最终 HEAD）
+> 会话头自证（抄 .stderr，行号如实标；.stderr 本身不入库）:
+> `.stderr:2` `OpenAI Codex v0.153.3` / `.stderr:5` `model: gpt-6-astra` / `.stderr:9` `reasoning effort: ultra`
+
+---
+
 已绑定 `bb070e6f` 复核。**发现 2 项 HIGH、4 项 MEDIUM、1 项 LOW；未发现 BLOCKER。** 本轮未修改文件、未运行测试或连接服务，不评价真 Docker 行为。
 
 1. **HIGH — [scripts/deploy-vault.sh:1402](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t2-deploy/scripts/deploy-vault.sh:1402)**：curl 返回零，但响应为含 `"status":"ready"` 的截断 JSON，或顶层状态失败、嵌套状态就绪时，全文正则仍会记 `result=ready`，现有三类失败样本未覆盖这些输入。
