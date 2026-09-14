@@ -43,6 +43,13 @@ _SYNCED_FILE_RETENTION_DAYS = 30
 # Checkpoint save interval (entries)
 _CHECKPOINT_INTERVAL = 50
 
+#: JSONL 分行口径的版本标记 —— checkpoint 存的下标只在同一口径下有意义。
+#: 变更这个值的条件: 任何改动 :meth:`_sync_failed_writes` 切行方式的修改。
+#: 历史: "splitlines" (本卡之前) → "split-lf" (CARD-NEO4J-REPLAY-WIRE,
+#: Codex round-3 LOW-4 的 U+2028 修复)。读到不匹配的标记会回退到 0 重放,
+#: 理由见 :meth:`_load_checkpoint` 的 docstring。
+_LINE_SPLIT_VERSION = "split-lf"
+
 
 class FallbackSyncService:
     """Syncs JSON fallback files back to Neo4j when it recovers."""
@@ -148,14 +155,23 @@ class FallbackSyncService:
 
     @staticmethod
     def _count_jsonl_lines(path: Path) -> int:
-        """JSONL 文件的非空行数; 读不到记 warning 后按 0 计."""
-        if not path.exists():
-            return 0
+        """JSONL 文件的非空行数; 读不到记 warning 后按 0 计.
+
+        ⚠️ **直接读, 不先 exists()** (Codex round-3 LOW-3 / round-4 LOW-5):
+        `Path.exists()` 对权限类 OSError 是**返回 False 而不是抛出** ——
+        「问不出来」被压成「不存在」, 函数直接 return 0 且**不留 warning**,
+        于是「目录不可读」与「真的没有积压」在日志里也不可分。
+        改为直接 read_text: FileNotFoundError 是「真的没有」(静默 0, 正常情形),
+        其余读取异常才是「读不到」(记 warning)。
+        """
         try:
             raw = path.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            return 0  # 文件不存在 = 没有积压, 这是正常情形, 不必 warning
         except (OSError, ValueError) as e:
             # ValueError 覆盖 UnicodeDecodeError (其子类) —— 后者不是 OSError,
             # 只捕 OSError 会让一个非法字节逃到外层 (Codex round-1 LOW-④)。
+            # OSError 这一支现在真能接到权限错误了 (不再被 exists() 吞掉)。
             logger.warning(f"[T6-B backlog] Cannot read {path.name}: {e}")
             return 0
         # ⚠️ split("\n") 而非 splitlines() (Codex round-3 LOW-4): JSONL 的行
@@ -173,14 +189,15 @@ class FallbackSyncService:
         ⚠️ 坏文件计 0 与「真的空」在返回值上不可区分 —— 这是刻意的取舍
         (见 :meth:`count_fallback_backlog` 的 docstring), 但两者在日志里可分:
         坏文件会留下本方法的 warning, 真空不会。
+        **直接读不先 exists()** 的理由同 :meth:`_count_jsonl_lines`。
         """
-        if not path.exists():
-            return 0
         try:
             raw = path.read_text(encoding="utf-8").strip()
             if not raw:
                 return 0
             data = json.loads(raw)
+        except FileNotFoundError:
+            return 0  # 文件不存在 = 没有积压, 正常情形
         except (OSError, ValueError) as e:
             # ValueError 一次覆盖三类 (Codex round-2 LOW-5):
             #   json.JSONDecodeError 与 UnicodeDecodeError 都是它的子类;
@@ -221,11 +238,20 @@ class FallbackSyncService:
         # 含 U+2028 等字符的**一条**合法 JSONL 记录会被 splitlines() 切成两半,
         # 两半都不是合法 JSON ⇒ 双双走 still_pending, 写回文件, 下一轮再切再失败
         # —— 该条目**永远回灌不掉**。本卡接的就是这条回灌链, 这是链上的洞。
+        #
+        # CRLF 不是障碍, 但理由要写对: 保证在**读侧** —— 上面 read_text() 默认
+        # newline=None = universal newlines, 实测 b'{"a":1}\r\n' → '{"a":1}\n',
+        # 裸 CR 同样被规范化。写成「写侧都用 \n 拼接所以安全」是个**更弱**的前提
+        # (存在 Windows 写侧或历史文件就破)。即便尾部真残留 \r, json.loads 也把它
+        # 当 JSON 空白接受。
+        #
         # ⛔ 下面 finalize 段重读文件时用的是**同一个**切法, 两处口径必须一致:
         # 它们靠 len(current_lines) > len(lines) 判断「重放期间有没有新追加」,
         # 一边 splitlines 一边 split 会让这个比较在含 U+2028 的文件上永远为真。
         lines = raw.split("\n")
-        checkpoint_idx = self._load_checkpoint("failed_writes")
+        # 传 raw: 让 _load_checkpoint 实测这个文件在新旧两种切法下是否等价,
+        # 只有真不等价时才回退到 0 (见该方法 docstring)。
+        checkpoint_idx = self._load_checkpoint("failed_writes", raw=raw)
         recovered = 0
         still_pending: List[str] = []
 
@@ -587,19 +613,70 @@ class FallbackSyncService:
     # Checkpoint management
     # ─────────────────────────────────────────────────────────────────────
 
-    def _load_checkpoint(self, file_key: str) -> int:
-        """Load sync progress checkpoint for a file key."""
+    def _load_checkpoint(self, file_key: str, *, raw: Optional[str] = None) -> int:
+        """Load sync progress checkpoint for a file key.
+
+        ⚠️ **口径版本校验**（Codex round-4 HIGH）：checkpoint 存的是「已处理到
+        第几行」的下标，其含义依赖**当时那一版的分行切法**。本卡把
+        :meth:`_sync_failed_writes` 的 `splitlines()` 换成 `split("\\n")`
+        （U+2028 修复），同一个文件在新旧两版下的行数可能不同 —— 沿用旧下标会
+        让「已处理」的边界错位。
+
+        负控输入（Codex 纯内存实测）：首条记录含 U+2028、后接 50 条普通记录 ⇒
+        旧版切 52 片、新版切 51 行；中断时存下的 `index=50` 在新版下会让
+        **记录 49 被跳过**，而它既没同步也不进 `still_pending`，会随
+        ``_rotate_file`` 一起搬走 = **真丢**。
+
+        处置：checkpoint 带 ``line_split`` 口径标记。读到标记不匹配（含缺标记的
+        旧 checkpoint）时，**不是无条件回退** —— 先拿 ``raw`` 实测**这个具体文件**
+        在新旧两种切法下行数是否相同：
+
+        * **相同** ⇒ 该文件不含 U+2028 之类的字符，两种口径对它等价，旧下标
+          可安全沿用（绝大多数文件走这一支，行为与本卡之前完全一致）。
+        * **不同** ⇒ 下标含义确实错位，**回退到 0 从头重放**并记 warning。
+
+        为什么不「转换旧下标」：旧下标对应哪一条记录取决于 U+2028 出现在哪几行，
+        而文件已在重放中被改写 —— **不可逆推**。
+        为什么回退是安全的：重放走 MERGE + last-write-wins，重复处理不产生重复
+        的 Concept/LEARNED；唯一代价是 ``record_score_history`` 会多建几个
+        Episode（它是 ``CREATE randomUUID()``）。**重复且可观测** 远好于
+        **静默丢记录**。
+
+        Args:
+            file_key: 暂存链标识。
+            raw: 该链**当前文件内容**。只有按行切分的链（``failed_writes``）需要
+                传 —— ``canvas_events`` / ``learning_memories`` 走 ``json.loads``
+                得到 list，下标口径与切行无关，不传即表示「本链不受该问题影响」。
+        """
         with _checkpoint_lock:
             if not SYNC_CHECKPOINT_FILE.exists():
                 return 0
             try:
                 data = json.loads(SYNC_CHECKPOINT_FILE.read_text(encoding="utf-8"))
-                return data.get(file_key, {}).get("index", 0)
+                entry = data.get(file_key, {})
+                if not isinstance(entry, dict):
+                    return 0
+                index = entry.get("index", 0)
+                if entry.get("line_split") == _LINE_SPLIT_VERSION or raw is None:
+                    return index
+                # 标记不匹配且本链按行切分 —— 实测这个文件两种口径是否等价
+                if len(raw.split("\n")) == len(raw.splitlines()):
+                    return index
+                logger.warning(
+                    "[Story 38.8] checkpoint for %s was written under line-split codec %r "
+                    "(current %r) and this file splits differently under the two codecs "
+                    "— replaying from 0. Already-synced entries may be replayed again "
+                    "(idempotent for Concept/LEARNED; may add duplicate scoring Episodes).",
+                    file_key,
+                    entry.get("line_split"),
+                    _LINE_SPLIT_VERSION,
+                )
+                return 0
             except (json.JSONDecodeError, OSError, KeyError):
                 return 0
 
     def _save_checkpoint(self, file_key: str, index: int) -> None:
-        """Save sync progress checkpoint."""
+        """Save sync progress checkpoint (带分行口径标记, 见 :meth:`_load_checkpoint`)."""
         with _checkpoint_lock:
             data: Dict[str, Any] = {}
             if SYNC_CHECKPOINT_FILE.exists():
@@ -610,6 +687,7 @@ class FallbackSyncService:
 
             data[file_key] = {
                 "index": index,
+                "line_split": _LINE_SPLIT_VERSION,
                 "updated_at": datetime.now().isoformat(),
             }
 

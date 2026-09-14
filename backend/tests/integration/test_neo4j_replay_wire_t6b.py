@@ -115,18 +115,25 @@ pytestmark = [
 ]
 
 GATE_PREFIX = "t6bgate"
-GATE_CANVAS = f"{GATE_PREFIX}_canvas"
 GATE_USER_ID = "default_user"  # fallback_sync_service.py:354 写死的 userId
 ADMIN_PATH = "/api/v1/traces/replay-fallbacks"
 GATE_KEY = "t6bgate-internal-key"
 GATE_HEADERS = {"X-CLS-Internal-Key": GATE_KEY}
 
-#: 本门播种的 Concept / Node id 的**完整**前缀（含分隔下划线）。
-#: ⚠️ 用 `GATE_PREFIX`（"t6bgate"）做前缀会连带吃掉假想中的 `t6bgate2_*`
-#: （Codex round-3 MEDIUM-1 的对照输入）。带上 `_concept_` / `_cid_` 这两段
-#: 就把匹配面收窄到「只有 `_seed_entry()` 会产出的形状」。
-_GATE_CONCEPT_PREFIX = f"{GATE_PREFIX}_concept_"
-_GATE_NODE_PREFIX = f"{GATE_PREFIX}_cid_"
+#: **本次运行**的独立身份（Codex round-4 MEDIUM-2）。
+#: round-3 那版把清理收窄到 `t6bgate_concept_` / `t6bgate_cid_` / canvas 等值，
+#: 但对照输入仍能穿过：① 另一 vault 的
+#: `Canvas {path:'t6bgate_canvas', group_id:'vault__other__…'}` 仍被 canvas
+#: 等值删掉；② **同一 7692 上并行的另一轮** 产出的
+#: `t6bgate_concept_<另一UUID>` 也仍命中前缀。
+#: 根因是身份锚是「门级」的，而越界发生在「运行级」。
+#: 本版给每次运行分配一个一次性 run id，Canvas / Concept / Node 三者的**清理
+#: 与计数共用它** —— 于是并行运行之间互不可见，别的 vault 的同名 canvas 也不再
+#: 被删（它的 path 里没有本次的 run id）。
+_GATE_RUN_ID = uuid.uuid4().hex[:12]
+GATE_CANVAS = f"{GATE_PREFIX}_canvas_{_GATE_RUN_ID}"
+_GATE_CONCEPT_PREFIX = f"{GATE_PREFIX}_concept_{_GATE_RUN_ID}_"
+_GATE_NODE_PREFIX = f"{GATE_PREFIX}_cid_{_GATE_RUN_ID}_"
 
 
 def _gate_group_id() -> str | None:
@@ -194,8 +201,8 @@ def _seed_entry() -> Dict[str, Any]:
     """
     tag = uuid.uuid4().hex[:12]
     return {
-        "concept": f"{GATE_PREFIX}_concept_{tag}",
-        "concept_id": f"{GATE_PREFIX}_cid_{tag}",
+        "concept": f"{_GATE_CONCEPT_PREFIX}{tag}",
+        "concept_id": f"{_GATE_NODE_PREFIX}{tag}",
         "canvas_name": GATE_CANVAS,
         "score": 73,
         "timestamp": "2026-09-14T10:00:00",
@@ -309,19 +316,24 @@ async def _gate_node_count(client) -> Dict[str, int]:
     完整前缀、Canvas 用等值）: 若计数面比清理面宽, 清理清不掉的残留会进计数、
     把幂等断言污染成假红; 若比清理面窄, 又会漏看本该发现的重复。
     """
-    rows: List[Dict[str, Any]] = await client.run_query(
-        """
-        MATCH (n)
-        WHERE n.name STARTS WITH $concept_prefix
-           OR n.id STARTS WITH $node_prefix
-           OR n.path = $canvas
-        RETURN labels(n)[0] AS label, count(n) AS c
-        """,
-        concept_prefix=_GATE_CONCEPT_PREFIX,
-        node_prefix=_GATE_NODE_PREFIX,
-        canvas=GATE_CANVAS,
-    )
-    counts = {str(r["label"]): int(r["c"]) for r in rows}
+    # ⚠️ 逐条绑定「标签 + 属性」组合 (Codex round-4 LOW-4): 原来是一条无标签的
+    # `MATCH (n) WHERE n.name STARTS WITH … OR n.id … OR n.path …`，对照输入
+    # `(:Node {name:'<concept前缀>foreign', id:'othergate_cid'})` 会因 **name**
+    # 命中而被计成 Node，却因清理要求「Concept 标签 + name」或「Node 标签 + id」
+    # 而清不掉 —— 首轮那条绝对值断言就会持续假红。计数面必须与清理面逐字同。
+    counts: Dict[str, int] = {}
+    for label, where, params in (
+        ("Concept", "c.name STARTS WITH $concept_prefix", {"concept_prefix": _GATE_CONCEPT_PREFIX}),
+        ("Node", "c.id STARTS WITH $node_prefix", {"node_prefix": _GATE_NODE_PREFIX}),
+        ("Canvas", "c.path = $canvas", {"canvas": GATE_CANVAS}),
+    ):
+        rows: List[Dict[str, Any]] = await client.run_query(
+            f"MATCH (c:{label}) WHERE {where} RETURN count(c) AS c",
+            **params,
+        )
+        n = int(rows[0]["c"]) if rows else 0
+        if n:
+            counts[label] = n
     episodes = await client.run_query(
         """
         MATCH (e:Episode)-[:SCORED]->(n:Node)
