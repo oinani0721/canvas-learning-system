@@ -190,13 +190,25 @@ def parse_posix_tz(spec: str):
             #    里的 `display_tz` 自报值进来** —— 桶位门会用本函数重建生产者时区,
             #    BASE 拒收而补规则后会整串放行, 那是本卡新增的语法接受缺口。
             return None
-        if len(spec.encode("utf-8", "surrogateescape")) > 255:
-            # ⛔ 必须带 `surrogateescape`（Codex r5 H1）: `TZ` 是**环境变量**, 里面可以有
-            #    任意字节; Python 把非法字节读成代理对（`b"\xff"` → `"\udcff"`）, 而严格
-            #    `.encode("utf-8")` 对代理对**抛 UnicodeEncodeError** —— BASE 在这种 TZ 下
-            #    正常退 UTC, 带严格 encode 的版本却抛异常, 而 `review_overview` 的模块级
-            #    启动校验就调 `display_tz()` ⇒ 应用**起不来**。`surrogateescape` 把它编回
-            #    原字节, 数出来正是 C 库实际收到的字节数（实测 `b"<\xff>0BBB"` → 7 字节）。
+        try:
+            _spec_bytes = spec.encode("utf-8")
+        except UnicodeEncodeError:
+            # `TZ` 是**环境变量**, 里面可以有任意字节; Python 把非法字节读成代理对
+            # （0xFF 字节 → U+DCFF）。这类串**整个不接受**, 退 None ⇒ `display_tz()`
+            # 退 UTC, 与 BASE 同行为。
+            # ⛔ 两轮都栽在这一处, 修法演进如实记下来:
+            #   · r4 用严格 `.encode()` 直接量长度 ⇒ 代理对让它**抛** UnicodeEncodeError,
+            #     而 `review_overview` 的模块级启动校验就调 `display_tz()` ⇒ 应用起不来
+            #     （r5 H1；BASE 只是正常退 UTC）;
+            #   · r5 改用 `surrogateescape` 放行 ⇒ 不抛了, 但 `_PosixTZ.key` 带着代理字符
+            #     一路进 API 响应, 在 `JSONResponse` 的编码边界再炸一次（r6 HIGH；实测
+            #     BASE 的 key='UTC' 序列化 OK, 那版 HEAD 的 key='<U+DCFF>0BBB' 抛）。
+            #     **修复只是把失败从启动挪到了响应出口。**
+            #   · 现在的写法两处都不炸: 不可严格编码 ⇒ 不接受 ⇒ key 恒是可序列化的。
+            # ⚠️ 代价如实声明: 本机 C 库其实**接受**这些字节并正常换算, 本实现退 UTC ——
+            #    但 BASE 同样退 UTC, 属既有支持缺口, 本卡没有加重。
+            return None
+        if len(_spec_bytes) > 255:
             # ⛔ 按 **UTF-8 字节**量, 不按字符量（Codex r4 HIGH-1）: `len(spec)` 数的是
             #    Unicode 字符, 而 C 库收到的是字节 —— `"AAA0<" + "中"*170 + ">"` 只有
             #    176 个字符却是 516 字节, 按字符量会放行, 而 C 库拒收退 UTC ⇒ 差一整天。

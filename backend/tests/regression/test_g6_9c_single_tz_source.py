@@ -640,8 +640,12 @@ def test_candidate_year_guard_keeps_extreme_epochs_from_raising(copy_id):
         ) from exc
 
 
-#: ⛔ 非法字节的 `TZ` 值不能直接做 parametrize 的参数 —— pytest 为 bytes 生成 test id 时
-#: 会抛 `UnicodeEncodeError`，整个文件在**收集期**就 ERROR。用标签选，值放函数体里。
+#: 这里用标签选、bytes 值放字典里，纯粹是为了让 test id 可读。
+#: ⛔ 初版注释把理由写成「bytes 不能直接 parametrize，pytest 生成 id 时会抛」——
+#:    **那是错的**（Codex r6 LOW 实测：直接参数化两个非 UTF-8 bytes，Python 3.14.4 +
+#:    pytest 9.0.2 下 `2 passed`、rc=0，id 自动转义）。真正让本文件在**收集期** ERROR 的
+#:    是 docstring 里写了转义序列的字面拼法 —— 它被 Python 当转义展开成真实代理字符，
+#:    编译整份源码时就抛（不需要 pytest rewrite，直接 `compile()` 即可复现）。
 _NON_UTF8_TZ_BYTES = {"dst-side": b"AAA0<\xff>", "std-side": b"<\xff>0BBB"}
 
 
@@ -671,13 +675,27 @@ def test_display_tz_survives_non_utf8_tz_bytes(copy_id, side):
         os.environb[b"TZ"] = raw_tz
         time.tzset()
         try:
-            _display_tz_of(copy_id)
+            resolved = _display_tz_of(copy_id)
         except Exception as exc:  # noqa: BLE001 —— 任何异常都是失败
             raise AssertionError(
                 f"[{copy_id}] display_tz() 在 TZ={raw_tz!r} 下抛了 "
                 f"{type(exc).__name__}: {exc}\n"
-                "  长度检查必须用 encode('utf-8', 'surrogateescape')：环境变量里的非法字节\n"
-                "  被 Python 读成代理对，严格 encode 会抛，而模块级启动校验就调这个函数。"
+                "  环境变量里的非法字节被 Python 读成代理对，严格 encode 会对它抛，\n"
+                "  而 review_overview 的模块级启动校验就调这个函数 ⇒ 应用起不来。"
+            ) from exc
+        # ⛔ 不能只验「不抛」（Codex r6 HIGH）：本卡 r5 就是只满足了这一条 ——
+        #    改用 `surrogateescape` 后函数确实不抛了，但 `.key` 带着代理字符一路进
+        #    API 响应，在 `JSONResponse` 的编码边界**再炸一次**。修复只是把失败从
+        #    启动挪到了响应出口。所以这里一并钉住**出口**。
+        key = getattr(resolved, "key", None)
+        try:
+            json.dumps({"display_tz": key}, ensure_ascii=False).encode("utf-8")
+        except Exception as exc:  # noqa: BLE001
+            raise AssertionError(
+                f"[{copy_id}] TZ={raw_tz!r} 下 display_tz() 没抛，但它的 .key={key!r} "
+                f"过不了响应序列化: {type(exc).__name__}: {exc}\n"
+                "  不可严格 UTF-8 编码的规格串整个不该被接受（退 None ⇒ 退 UTC，与 BASE 同行为），\n"
+                "  而不是用 surrogateescape 放行、把代理字符留在 .key 里。"
             ) from exc
     finally:
         if saved_tz is None:
