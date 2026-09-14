@@ -1,0 +1,17 @@
+=== round-5 裁判 6/7/8 ===
+J6 CS=522 CE=530
+          case "$f" in
+          esac
+  backend/scripts/g32b_mutation_gates.py               1
+  backend/scripts/g32cb_mutation_gates.py              1
+  backend/scripts/g32ccr1_negative_controls.py         1
+  backend/scripts/openapi_drift_negative_control.py    1
+  backend/tests/regression/recap_domain_negverify.py   1
+  验伪锚=0  continue;;=7
+J6 rc=0
+J7 旧计数残留=0
+J8 验伪锚=1  真判据=0
+J8 python-typecheck 逐字节相同
+J8 HONESTY 逐字节相同
+ lefthook.yml | 224 +++++++++++++++++++++++++++++++++++++++++++++++++++++++----
+ 1 file changed, 212 insertions(+), 12 deletions(-)

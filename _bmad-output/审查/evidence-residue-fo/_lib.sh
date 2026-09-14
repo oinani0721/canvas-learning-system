@@ -126,4 +126,8 @@ PY
   done
   echo "注入(旧/新两版同一位置、同一文本, 主循环之前):"
   printf '  %s\n' "$inj"
+  # 注入会覆写脚本, 所以 prepare_blocks 打的摘要对**注入后**不再成立。这里补打注入后的
+  # 摘要 —— 实际被执行的就是这两段字节。
+  echo "注入后实际执行的字节: old.sh sha256=$(shasum -a 256 < "$WORK/old.sh" | cut -d' ' -f1)"
+  echo "                      new.sh sha256=$(shasum -a 256 < "$WORK/new.sh" | cut -d' ' -f1)"
 }

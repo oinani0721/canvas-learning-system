@@ -408,11 +408,14 @@ pre-commit:
     #                    (tail / od / tr / awk)都显式钉 LC_ALL=C。
     #                    **rc 覆盖面的确切清单**(逐条核过, 别照抄成「一律」):
     #                      核了 rc 的 —— mktemp / 两处 git / tail / od / wc / 哨兵的 printf /
-    #                        NUL 计数那次 tr / NUL 归一化那次 tr / awk。
+    #                        NUL 计数那次 tr / NUL 归一化那次 tr / awk / hits 初始化那个 `:`。
     #                      **没**单独核 rc 的 —— 两处 `$(LC_ALL=C tr -d ' \n' < …)`、probe
-    #                        期望值那个 `$(printf …)`、两次 probe 的 printf、trap 注册本身、
-    #                        全部 echo(**包括末尾那条 —— 它直接决定本块的正常退出状态**)、
-    #                        两个 while 的终止状态、全部 `[`(不区分 false 与测试出错)。
+    #                        载荷那条 printf、probe 期望值那个 `$(printf …)`、trap **注册本身**
+    #                        与 trap 体里的 `rm`、命中分支的 `cat`、全部 echo(**包括末尾那条
+    #                        —— 它直接决定本块的正常退出状态**)、两个 while 的终止状态、
+    #                        全部 `[`(不区分 false 与测试出错)、两处 `read`(不区分 EOF 与读错误
+    #                        —— 那正是结束哨兵与 SEEN/EXPECTED 要补的位)。
+    #                      不另立守卫的固定操作 —— `set -u`、纯赋值、算术展开、`continue`。
     #                    ⚠️ 不要写成「tr 失败只会给出空串或非数字」—— tr 是先输出后报错的,
     #                    完全可能既给出有效数字又非零退出。这里真正的兜底是 `!= "0"`、
     #                    EXPECTED 的 case 校验和末尾的 SEEN/EXPECTED 比较, 那是**部分**

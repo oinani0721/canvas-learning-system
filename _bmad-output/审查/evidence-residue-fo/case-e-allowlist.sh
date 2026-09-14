@@ -9,6 +9,9 @@ set -u
 
 echo "=== CASE e: 允许名单 4 条新分支 + 验伪锚 ==="
 prepare_blocks || exit 1
+echo "⚠️ 本条**只跑 bash**(下面 run_one/run_two 直接调 bash, 不走 run_both) —— 上面那行"
+echo "   「解释器: bash sh」是 prepare_blocks 的统一抬头, 对本条不成立。允许名单的"
+echo "   匹配是 case 语句的语义, 与解释器无关, 故未跑双解释器; 如实声明, 不当双解释器证据。"
 
 run_one() {   # $1 = 仓内路径, $2 = 期望(ALLOW|BLOCK)
   local p=$1 want=$2 repo

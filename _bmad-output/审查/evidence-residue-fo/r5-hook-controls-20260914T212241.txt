@@ -1,0 +1,176 @@
+=== 真 hook 三控 @ 2026-09-14T21:22:41+08:00 ===
+车道树      : /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools
+HEAD        : 158e5a601ca2e61f2a4c39a784bc6b9142e95508
+lefthook.yml: sha256=35ec222712dfefe3a8d00cf55ec697fc3d469a7ac71545c031d7a7197d9b34f7
+工作树相对 HEAD 的 lefthook.yml 差异: 1 file changed, 7 insertions(+), 4 deletions(-)
+lefthook    : /opt/homebrew/bin/lefthook -> ../Cellar/lefthook/2.1.6/bin/lefthook
+lefthook 版本(裸调用): 2.1.6
+  version_rc=0
+
+######## 正控 — 允许名单内的路径 + 真标记(期望该块放行) ########
+探针路径    : _bmad-output/审查/evidence-residue-fo/_probe.txt   (期望 OK)
+探针字节(od): x = 1 # M U T A N T \n
+探针 blob OID: f773397d7bd64971b328aff036ce536ee1243593
+本次暂存清单 :
+  "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/_probe.txt"
+--- lefthook run pre-commit 输出(NUL 已等长换成 ?, 其余逐字节原样) ---
+╭──────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: pre-commit │
+╰──────────────────────────────────────╯
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+│  cypher-vault-filter-lint (skip) no matching staged files
+┃  ghost-files ❯ 
+
+[Ghost Files] No untracked docs found.
+
+┃  mutant-residue-scan ❯ 
+
+[Mutant-Scan] OK (staged additions carry no mutation marker).
+
+│  python-lint (skip) no files for inspection
+│  python-typecheck (skip) no files for inspection
+│  readme-claims-lint (skip) no matching staged files
+│  spec-sync-flat (skip) no matching staged files
+│  spec-sync-root (skip) no matching staged files
+                                      
+  ────────────────────────────────────
+summary: (done in 0.06 seconds)       
+✔️ ghost-files (0.02 seconds)
+✔️ mutant-residue-scan (0.03 seconds)
+--- lefthook_rc=0 ---
+撤销后 _t8a_probe/_probe 残留计数: 0
+
+######## 负控 A — 名单外的路径 + 普通标记(期望阻断) ########
+探针路径    : backend/scripts/_t8a_probe.py   (期望 BLOCKED)
+探针字节(od): x = 1 # M U T A N T \n
+探针 blob OID: f773397d7bd64971b328aff036ce536ee1243593
+本次暂存清单 :
+  backend/scripts/_t8a_probe.py
+--- lefthook run pre-commit 输出(NUL 已等长换成 ?, 其余逐字节原样) ---
+╭──────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: pre-commit │
+╰──────────────────────────────────────╯
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+│  cypher-vault-filter-lint (skip) no matching staged files
+┃  ghost-files ❯ 
+
+[Ghost Files] No untracked docs found.
+
+┃  mutant-residue-scan ❯ 
+
+
+[Mutant-Scan] BLOCKED — 暂存的新增行里带变异残留标记:
+  backend/scripts/_t8a_probe.py:1: x = 1  # MUTANT
+
+[Mutant-Scan] 变异 harness 没还原干净。先 restore 被改的生产文件,
+[Mutant-Scan] 再拿变异前的全文件 sha 基线逐个复核 —— 标记只是最弱那道网。
+
+exit status 1┃  python-lint ❯ 
+
+[Python] Running ruff lint...
+All checks passed!
+[Python] Lint OK.
+[Python] Checking format...
+1 file already formatted
+[Python] Format OK.
+
+│  python-typecheck (skip) no files for inspection
+│  readme-claims-lint (skip) no matching staged files
+│  spec-sync-flat (skip) no matching staged files
+│  spec-sync-root (skip) no matching staged files
+                                      
+  ────────────────────────────────────
+summary: (done in 0.10 seconds)       
+✔️ ghost-files (0.02 seconds)
+✔️ python-lint (0.02 seconds)
+🥊 mutant-residue-scan (0.05 seconds)
+--- lefthook_rc=1 ---
+撤销后 _t8a_probe/_probe 残留计数: 0
+
+######## 负控 B — 名单外 + 同一行内 NUL 在标记之前(期望阻断) ########
+探针路径    : backend/scripts/_t8a_probe.py   (期望 BLOCKED)
+探针字节(od): x = 1 \0 # M U T A N T \n 
+探针 blob OID: 8a0f7ae7cd808fd3fba84edb9d3bd9c147527148
+本次暂存清单 :
+  backend/scripts/_t8a_probe.py
+--- lefthook run pre-commit 输出(NUL 已等长换成 ?, 其余逐字节原样) ---
+╭──────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: pre-commit │
+╰──────────────────────────────────────╯
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+│  cypher-vault-filter-lint (skip) no matching staged files
+┃  ghost-files ❯ 
+
+[Ghost Files] No untracked docs found.
+
+┃  mutant-residue-scan ❯ 
+
+
+[Mutant-Scan] BLOCKED — 暂存的新增行里带变异残留标记:
+  backend/scripts/_t8a_probe.py:1: x = 1 ? # MUTANT
+
+[Mutant-Scan] 变异 harness 没还原干净。先 restore 被改的生产文件,
+[Mutant-Scan] 再拿变异前的全文件 sha 基线逐个复核 —— 标记只是最弱那道网。
+
+exit status 1┃  python-lint ❯ 
+
+[Python] Running ruff lint...
+invalid-syntax: Got unexpected token ?
+ --> backend/scripts/_t8a_probe.py:1:7
+  |
+1 | x = 1 ? # MUTANT
+  |       ^
+  |
+
+invalid-syntax: Expected a statement
+ --> backend/scripts/_t8a_probe.py:1:17
+  |
+1 | x = 1 ? # MUTANT
+  |                ^
+  |
+
+Found 2 errors.
+
+exit status 1│  python-typecheck (skip) no files for inspection
+│  readme-claims-lint (skip) no matching staged files
+│  spec-sync-flat (skip) no matching staged files
+│  spec-sync-root (skip) no matching staged files
+                                      
+  ────────────────────────────────────
+summary: (done in 0.09 seconds)       
+✔️ ghost-files (0.02 seconds)
+🥊 mutant-residue-scan (0.05 seconds)
+🥊 python-lint (0.02 seconds)
+--- lefthook_rc=1 ---
+撤销后 _t8a_probe/_probe 残留计数: 0
+
+=== 收尾: 工作树状态 ===
+   M "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/_lib.sh"
+   M "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/case-e-allowlist.sh"
+   M lefthook.yml
+  ?? "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-TOOL-residue-fail-open-r4.md"
+  ?? "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/r5-b-syntax-20260914T212221.txt"
+  ?? "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/r5-hook-controls-20260914T212241.txt"
+  ?? "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/run-hook-controls.sh"
+  ?? "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-TOOL-residue-fail-open-r4.md"
