@@ -1,0 +1,39 @@
+=== CASE 8-2: 主循环 read 报错被吞 ===
+旧版块 = git show 08100483:lefthook.yml 抽出, 58 行, sha256=94481ca9099e78af3581f4370e772afbd6ad2114615733de69359898d7b1f52b
+新版块 = 当前工作树 lefthook.yml 抽出, 165 行, sha256=073fe964a8b7e23b5ed17c9b63657c128082f5fab44340777d88226601750a0f
+工作树 lefthook.yml sha256 = fadd8519991a25eaeb93729a6ebe1b24bb7914533ca7d2a3ac9cf153a8feb5ab
+工作树 HEAD = f9e31034  (与 HEAD 的差异: 1 file changed, 40 insertions(+), 6 deletions(-))
+解释器: bash sh  (sh -> bash 3.2.57(1)-release)
+旁证(本机 read 语义): 从目录 fd 读 =
+  /bin/sh: line 0: read: read error: 0: Is a directory
+    records=0 loop_rc=0
+注入(旧/新两版同一位置、同一文本, 主循环之前):
+  mv "$TMPD/names" "$TMPD/names.orig" && mkdir "$TMPD/names"   # 注入: 记录流换成目录
+输入: 暂存 p.py(带标记, 不在允许名单内)
+######## 解释器 = bash ########
+  ----- [old / bash] rc=0 -----
+  /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T//t8a-case.pmxmzR/old.sh: line 25: read: read error: 0: Is a directory
+  [Mutant-Scan] OK (staged additions carry no mutation marker).
+  ----- [old / bash] end rc=0 -----
+  ----- [new / bash] rc=1 -----
+  /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T//t8a-case.pmxmzR/new.sh: line 87: read: read error: 0: Is a directory
+  [Mutant-Scan] FAILED: 主循环没读到结束哨兵 — 记录流没被完整消费
+  [Mutant-Scan]   (打不开 / 读报错 / 被别的命令吞掉都会走到这里)。按 fail-closed 阻断。
+  ----- [new / bash] end rc=1 -----
+  旧版打 OK 且 rc=0 : YES  (rc=0)
+  新版不打 OK 且 rc=1: YES  (rc=1)
+  == 8-2 / bash: SEALED
+######## 解释器 = sh ########
+  ----- [old / sh] rc=0 -----
+  /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T//t8a-case.pmxmzR/old.sh: line 25: read: read error: 0: Is a directory
+  [Mutant-Scan] OK (staged additions carry no mutation marker).
+  ----- [old / sh] end rc=0 -----
+  ----- [new / sh] rc=1 -----
+  /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T//t8a-case.pmxmzR/new.sh: line 87: read: read error: 0: Is a directory
+  [Mutant-Scan] FAILED: 主循环没读到结束哨兵 — 记录流没被完整消费
+  [Mutant-Scan]   (打不开 / 读报错 / 被别的命令吞掉都会走到这里)。按 fail-closed 阻断。
+  ----- [new / sh] end rc=1 -----
+  旧版打 OK 且 rc=0 : YES  (rc=0)
+  新版不打 OK 且 rc=1: YES  (rc=1)
+  == 8-2 / sh: SEALED
+CASE 8-2: bash=SEALED sh=SEALED

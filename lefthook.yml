@@ -383,6 +383,13 @@ pre-commit:
     #                    改成 `< "$TMPD/d"` 后彻底不给操作数。⚠️ 本机 awk(version
     #                    20200816)**不认 `--`**: 实测 `awk '…' -- 'a=b/d'` 报
     #                    can't open file `--`, 且 `a=b/d` 仍被当赋值 —— 用 `--` 挡不住。
+    #   临时文件类型   : hits / d / dn 三个临时文件在用之前都要核「是可读的普通文件」。
+    #                    `>` 不会替掉已有的符号链接, 所以一个指向 /dev/null 的 hits/d/dn 会让
+    #                    写进去的东西全丢而每一步都 rc=0(见 case-9)。检查必须在写之后做。
+    #   循环内 git 隔离 stdin : 主循环的 stdin 就是记录流。循环体里任何会读 stdin 的命令
+    #                    都可能吃掉下一条路径的一部分, 于是下一次 read 取到残缺路径或空记录
+    #                    —— 而哨兵与计数**仍然对得上**(空记录照样计入 SEEN、照样被跳过)。
+    #                    故循环内的 git 显式 `</dev/null`。
     #   hits 两处守卫  : `: > hits` 原是全块唯一无显式守卫的一步, 失败要显式报; `[ -s ]`
     #                    为假时还要核 hits 仍是可读普通文件 —— 它若被换成 /dev/null 之类,
     #                    真命中会被写丢而 `[ -s ]` 恒假, 那是「结论取不到」不是「没命中」。
@@ -394,8 +401,15 @@ pre-commit:
     #                    故在喂 awk 之前把 NUL 等长换成 `?`(行号与各种前缀都不受影响)。
     #   LC_ALL=C + 逐段 rc : 管道的 rc 是**末段**的。`tr … | wc … | tr …` 里首段 tr 在
     #                    UTF-8 locale 下遇非法字节序列会报 Illegal byte sequence 并少数一个,
-    #                    整链却 rc=0(本机 LANG 实测就是 en_US.UTF-8)。所以字节处理一律钉
-    #                    LC_ALL=C, 且拆成能各自核 rc 的步骤, 不用管道一把梭。
+    #                    整链却 rc=0(本机 LANG 实测就是 en_US.UTF-8)。所以碰字节的命令
+    #                    (tail / od / tr / awk)一律钉 LC_ALL=C, 且拆成能各自核 rc 的步骤。
+    #                    **确切范围**(别把它说宽): 逐段核过 rc 的是 tail / od / wc / tr /
+    #                    awk 这几条读写临时文件的; 仍留在 `$( )` 里不单独核 rc 的只有两处
+    #                    `tr -d ' \n' < <已确认写成功的文件>`, 它们失败只会给出空串或非数字,
+    #                    而 `!= "0"` 与 EXPECTED 的 case 校验会把那种结果挡下来。块里另有
+    #                    若干 rc 没单独核的命令(两次 probe printf、两个 while 的终止状态、
+    #                    trap 里的 rm、命中分支的 cat), 它们要么有语义兜底, 要么只影响诊断
+    #                    完整性而不影响「放行 / 阻断」这个判断 —— 如实登记, 不声称已覆盖。
     #   结束哨兵       : 「消费条数 == 清单里的 NUL 数」只说明**没少读**, 不说明**读到过**。
     #                    空清单遇上 read 报错会得到 0 == 0 而通过。故往流末追一条绝不可能是
     #                    真实路径的记录(git 路径不以 / 开头), 主循环必须真的读到它。
@@ -431,7 +445,12 @@ pre-commit:
           if ! LC_ALL=C tail -c 1 "$TMPD/names" > "$TMPD/lastb"; then
             echo "[Mutant-Scan] FAILED: 取暂存清单末字节失败 — 按 fail-closed 阻断。"; exit 1
           fi
-          LASTB=$(LC_ALL=C od -An -tu1 < "$TMPD/lastb" | LC_ALL=C tr -d ' \n')
+          if ! LC_ALL=C od -An -tu1 < "$TMPD/lastb" > "$TMPD/lastd"; then
+            echo "[Mutant-Scan] FAILED: 解析暂存清单末字节失败 — 按 fail-closed 阻断。"; exit 1
+          fi
+          # 只剩这一步用 $( ): 从一个已确认写成功的文件里删空白, 失败也只会给出空串或
+          # 非数字, 下面的 != "0" 与 EXPECTED 的 case 校验都会把那种结果挡下来。
+          LASTB=$(LC_ALL=C tr -d ' \n' < "$TMPD/lastd")
           if [ "$LASTB" != "0" ]; then
             echo "[Mutant-Scan] FAILED: 暂存清单末条没有 NUL 终止(记录流被截断) —"
             echo "[Mutant-Scan]   末条会被 read 直接丢弃, 按 fail-closed 阻断。"
@@ -447,7 +466,10 @@ pre-commit:
         if ! LC_ALL=C tr -dc '\000' < "$TMPD/names" > "$TMPD/nuls"; then
           echo "[Mutant-Scan] FAILED: 统计暂存清单记录数失败 — 按 fail-closed 阻断。"; exit 1
         fi
-        EXPECTED=$(wc -c < "$TMPD/nuls" | LC_ALL=C tr -d ' ')
+        if ! wc -c < "$TMPD/nuls" > "$TMPD/nulcount"; then
+          echo "[Mutant-Scan] FAILED: 统计暂存清单记录数失败 — 按 fail-closed 阻断。"; exit 1
+        fi
+        EXPECTED=$(LC_ALL=C tr -d ' \n' < "$TMPD/nulcount")
         case "$EXPECTED" in
           ''|*[!0-9]*)
             echo "[Mutant-Scan] FAILED: 暂存清单记录数不是数字 — 按 fail-closed 阻断。"
@@ -495,10 +517,19 @@ pre-commit:
             .claude/rules/*.md) continue ;;
             _bmad-output/*) continue ;;
           esac
+          # `</dev/null`: 循环内的 git 绝不能继承循环的 stdin —— 那是记录流本身。任何
+          # 从 stdin 读掉一点字节的东西都会让下一条 read 取到残缺路径(或空记录), 而哨兵
+          # 与计数都仍然对得上(空记录照样计入 SEEN、照样被跳过) ⇒ 那条文件就此漏扫。
           if ! git --no-pager --literal-pathspecs diff --cached --no-color \
                  --no-ext-diff --no-textconv --text \
-                 --no-renames -U0 --diff-filter=AMT -- "$f" > "$TMPD/d"; then
+                 --no-renames -U0 --diff-filter=AMT -- "$f" > "$TMPD/d" </dev/null; then
             echo "[Mutant-Scan] FAILED: 取 diff 失败: $f"; FAILED=1; continue
+          fi
+          # d / dn 必须是可读普通文件。它们若被换成 /dev/null 之类, 写进去的 diff 会被丢掉
+          # 而每一步都 rc=0 —— 与 hits 那条同型(见 case-9)。`>` 不会替掉已有的符号链接, 所以
+          # 这个检查要在写之后做。
+          if [ ! -f "$TMPD/d" ] || [ ! -r "$TMPD/d" ]; then
+            echo "[Mutant-Scan] FAILED: diff 暂存文件不是可读的普通文件: $f"; FAILED=1; continue
           fi
           # NUL 归一化(必需, 不是保险): awk 的字符串是 NUL 终止的, 一条新增行里只要标记
           # **前面**出现 NUL, index() 就看不见它 —— 本机实测 `+x<NUL> # <标记>` 判 MISS 而
@@ -508,7 +539,10 @@ pre-commit:
           if ! LC_ALL=C tr '\000' '?' < "$TMPD/d" > "$TMPD/dn"; then
             echo "[Mutant-Scan] FAILED: NUL 归一化失败: $f"; FAILED=1; continue
           fi
-          F="$f" awk -v M="$MARKER" '
+          if [ ! -f "$TMPD/dn" ] || [ ! -r "$TMPD/dn" ]; then
+            echo "[Mutant-Scan] FAILED: 归一化后的 diff 不是可读的普通文件: $f"; FAILED=1; continue
+          fi
+          F="$f" LC_ALL=C awk -v M="$MARKER" '
             BEGIN          { F = ENVIRON["F"] }
             /^diff --git / { inhunk = 0; next }
             /^@@/          { split($3, a, ","); ln = a[1] + 0; inhunk = 1; next }

@@ -45,8 +45,11 @@ prepare_blocks() {
   "$REAL_GIT" -C "$CARD_ROOT" show "$BASE_SHA":lefthook.yml > "$WORK/old.yml" || return 1
   extract_block "$WORK/old.yml" "$WORK/old.sh" || return 1
   extract_block "$CARD_ROOT/lefthook.yml" "$WORK/new.sh" || return 1
-  echo "旧版块 = git show $BASE_SHA:lefthook.yml 抽出, $(wc -l < "$WORK/old.sh" | tr -d ' ') 行"
-  echo "新版块 = 当前工作树 lefthook.yml 抽出, $(wc -l < "$WORK/new.sh" | tr -d ' ') 行"
+  # 指纹: 让这份存档能被事后**严格绑回**当时跑的到底是哪两段字节, 不只靠「145 行」这种描述
+  echo "旧版块 = git show $BASE_SHA:lefthook.yml 抽出, $(wc -l < "$WORK/old.sh" | tr -d ' ') 行, sha256=$(shasum -a 256 < "$WORK/old.sh" | cut -d' ' -f1)"
+  echo "新版块 = 当前工作树 lefthook.yml 抽出, $(wc -l < "$WORK/new.sh" | tr -d ' ') 行, sha256=$(shasum -a 256 < "$WORK/new.sh" | cut -d' ' -f1)"
+  echo "工作树 lefthook.yml sha256 = $(shasum -a 256 < "$CARD_ROOT/lefthook.yml" | cut -d' ' -f1)"
+  echo "工作树 HEAD = $("$REAL_GIT" -C "$CARD_ROOT" rev-parse --short=8 HEAD)  (与 HEAD 的差异: $("$REAL_GIT" -C "$CARD_ROOT" diff --stat --no-color HEAD -- lefthook.yml | tail -1 | sed 's/^ *//'))"
   echo "解释器: $INTERPS  (sh -> $(/bin/sh -c 'echo bash ${BASH_VERSION:-非bash}'))"
 }
 
