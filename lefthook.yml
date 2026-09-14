@@ -383,9 +383,12 @@ pre-commit:
     #                    改成 `< "$TMPD/d"` 后彻底不给操作数。⚠️ 本机 awk(version
     #                    20200816)**不认 `--`**: 实测 `awk '…' -- 'a=b/d'` 报
     #                    can't open file `--`, 且 `a=b/d` 仍被当赋值 —— 用 `--` 挡不住。
-    #   临时文件类型   : hits / d / dn 三个临时文件在用之前都要核「是可读的普通文件」。
-    #                    `>` 不会替掉已有的符号链接, 所以一个指向 /dev/null 的 hits/d/dn 会让
-    #                    写进去的东西全丢而每一步都 rc=0(见 case-9)。检查必须在写之后做。
+    #   临时文件类型   : `>` 不会替掉已有的符号链接, 所以一个指向 /dev/null 的 hits/d/dn 会让
+    #                    写进去的东西全丢而每一步都 rc=0(见 case-9 / case-m3)。⚠️ 三个文件的
+    #                    核查时机**不一样**, 别写成「都在用之前核」: `d` 与 `dn` 是**写后、用前**
+    #                    各核一次「是可读的普通文件」, 外加一条 `d -ef dn`(`-f` 跟随符号链接,
+    #                    看不出两者是同一个 inode; 那种情形下 `> dn` 会把 `d` 截空);
+    #                    `hits` 只有**末尾那一次**复核 —— 写入与命中读取都发生在它之前。
     #   循环内 git 隔离 stdin : 主循环的 stdin 就是记录流。循环体里任何会读 stdin 的命令
     #                    都可能吃掉下一条路径的一部分, 于是下一次 read 取到残缺路径或空记录
     #                    —— 而哨兵与计数**仍然对得上**(空记录照样计入 SEEN、照样被跳过)。
@@ -402,14 +405,18 @@ pre-commit:
     #   LC_ALL=C + 逐段 rc : 管道的 rc 是**末段**的。`tr … | wc … | tr …` 里首段 tr 在
     #                    UTF-8 locale 下遇非法字节序列会报 Illegal byte sequence 并少数一个,
     #                    整链却 rc=0(本机 LANG 实测就是 en_US.UTF-8)。所以碰字节的命令
-    #                    (tail / od / tr / awk)一律钉 LC_ALL=C, 且拆成能各自核 rc 的步骤。
-    #                    **确切范围**(别把它说宽): 逐段核过 rc 的是 tail / od / wc / tr /
-    #                    awk 这几条读写临时文件的; 仍留在 `$( )` 里不单独核 rc 的只有两处
-    #                    `tr -d ' \n' < <已确认写成功的文件>`, 它们失败只会给出空串或非数字,
-    #                    而 `!= "0"` 与 EXPECTED 的 case 校验会把那种结果挡下来。块里另有
-    #                    若干 rc 没单独核的命令(两次 probe printf、两个 while 的终止状态、
-    #                    trap 里的 rm、命中分支的 cat), 它们要么有语义兜底, 要么只影响诊断
-    #                    完整性而不影响「放行 / 阻断」这个判断 —— 如实登记, 不声称已覆盖。
+    #                    (tail / od / tr / awk)都显式钉 LC_ALL=C。
+    #                    **rc 覆盖面的确切清单**(逐条核过, 别照抄成「一律」):
+    #                      核了 rc 的 —— mktemp / 两处 git / tail / od / wc / 哨兵的 printf /
+    #                        NUL 计数那次 tr / NUL 归一化那次 tr / awk。
+    #                      **没**单独核 rc 的 —— 两处 `$(LC_ALL=C tr -d ' \n' < …)`、probe
+    #                        期望值那个 `$(printf …)`、两次 probe 的 printf、trap 注册本身、
+    #                        全部 echo(**包括末尾那条 —— 它直接决定本块的正常退出状态**)、
+    #                        两个 while 的终止状态、全部 `[`(不区分 false 与测试出错)。
+    #                    ⚠️ 不要写成「tr 失败只会给出空串或非数字」—— tr 是先输出后报错的,
+    #                    完全可能既给出有效数字又非零退出。这里真正的兜底是 `!= "0"`、
+    #                    EXPECTED 的 case 校验和末尾的 SEEN/EXPECTED 比较, 那是**部分**
+    #                    兜底, 不是与核 rc 等价的保证。
     #   结束哨兵       : 「消费条数 == 清单里的 NUL 数」只说明**没少读**, 不说明**读到过**。
     #                    空清单遇上 read 报错会得到 0 == 0 而通过。故往流末追一条绝不可能是
     #                    真实路径的记录(git 路径不以 / 开头), 主循环必须真的读到它。
@@ -438,7 +445,8 @@ pre-commit:
           echo "[Mutant-Scan]   这不是「没有暂存文件」, 按 fail-closed 阻断。"
           exit 1
         fi
-        # ⚠️ 下面每一段字节处理都钉 LC_ALL=C 并**逐段核 rc**, 不用管道一把梭: 管道的 rc 是
+        # ⚠️ 下面的字节处理都钉 LC_ALL=C; 其中 tail / od / wc 各自核 rc(两处 `$(tr -d …)`
+        # 没核, 清单见上方注释段的「rc 覆盖面」)。之所以不写成一条管道: 管道的 rc 是
         # 末段的, 首段(tr)在 UTF-8 locale 下遇到非法字节序列会报 `Illegal byte sequence`
         # 并少数一个, 而整链仍 rc=0。本机 LANG 实测就是 en_US.UTF-8, 这不是假想。
         if [ -s "$TMPD/names" ]; then
@@ -448,8 +456,8 @@ pre-commit:
           if ! LC_ALL=C od -An -tu1 < "$TMPD/lastb" > "$TMPD/lastd"; then
             echo "[Mutant-Scan] FAILED: 解析暂存清单末字节失败 — 按 fail-closed 阻断。"; exit 1
           fi
-          # 只剩这一步用 $( ): 从一个已确认写成功的文件里删空白, 失败也只会给出空串或
-          # 非数字, 下面的 != "0" 与 EXPECTED 的 case 校验都会把那种结果挡下来。
+          # 这一步的 rc 没核(tr 是先输出后报错的, 有可能既给出有效数字又非零退出)。
+          # 兜底只有下面的 `!= "0"` —— 那是**部分**兜底, 不是与核 rc 等价的保证。
           LASTB=$(LC_ALL=C tr -d ' \n' < "$TMPD/lastd")
           if [ "$LASTB" != "0" ]; then
             echo "[Mutant-Scan] FAILED: 暂存清单末条没有 NUL 终止(记录流被截断) —"
@@ -541,6 +549,13 @@ pre-commit:
           fi
           if [ ! -f "$TMPD/dn" ] || [ ! -r "$TMPD/dn" ]; then
             echo "[Mutant-Scan] FAILED: 归一化后的 diff 不是可读的普通文件: $f"; FAILED=1; continue
+          fi
+          # d 与 dn 必须是**两个不同的 inode**。若 dn 事先被做成指向 d 的链接(符号或硬链接),
+          # `< d > dn` 会在读之前把同一个 inode 截断成空: git/tr/awk 全都 rc=0, hits 正常为空,
+          # 类型检查也过(它们都是普通文件) —— 整份 diff 就这么没了。`-f` 跟随符号链接,
+          # 所以只靠类型检查看不出来; `-ef` 比的是 inode, 两种链接都能认出来。
+          if [ "$TMPD/d" -ef "$TMPD/dn" ]; then
+            echo "[Mutant-Scan] FAILED: diff 与其归一化副本指向同一个文件: $f"; FAILED=1; continue
           fi
           F="$f" LC_ALL=C awk -v M="$MARKER" '
             BEGIN          { F = ENVIRON["F"] }

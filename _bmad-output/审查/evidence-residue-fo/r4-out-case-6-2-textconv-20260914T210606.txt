@@ -1,0 +1,40 @@
+=== CASE 6-2: 单文件 diff 缺 --no-textconv ===
+旧版块 = git show 08100483:lefthook.yml 抽出, 58 行, sha256=94481ca9099e78af3581f4370e772afbd6ad2114615733de69359898d7b1f52b
+新版块 = 当前工作树 lefthook.yml 抽出, 173 行, sha256=b1bfdf1f600ac90ab569c42d29a6c901cd18fcbe71b62f6b509c734e6940f523
+工作树 lefthook.yml sha256 = 7a2761597535957b81faf0a7bbc4b2c59721eca3041b58a41b8f01fb255df8c7
+工作树 HEAD = 9020a1a5  (与 HEAD 的差异: 1 file changed, 29 insertions(+), 14 deletions(-))
+解释器: bash sh  (sh -> bash 3.2.57(1)-release)
+输入: 临时仓 .gitattributes = '*.py diff=strip'; diff.strip.textconv 把标记换成 REDACTED-BY-TEXTCONV
+旁证: 旧标志集下 git 看到的新增行 =
++x = 1  # REDACTED-BY-TEXTCONV
+######## 解释器 = bash ########
+  ----- [old / bash] rc=0 -----
+  [Mutant-Scan] OK (staged additions carry no mutation marker).
+  ----- [old / bash] end rc=0 -----
+  ----- [new / bash] rc=1 -----
+  
+  [Mutant-Scan] BLOCKED — 暂存的新增行里带变异残留标记:
+    p.py:1: x = 1  # MUTANT
+  
+  [Mutant-Scan] 变异 harness 没还原干净。先 restore 被改的生产文件,
+  [Mutant-Scan] 再拿变异前的全文件 sha 基线逐个复核 —— 标记只是最弱那道网。
+  ----- [new / bash] end rc=1 -----
+  旧版打 OK 且 rc=0 : YES  (rc=0)
+  新版不打 OK 且 rc=1: YES  (rc=1)
+  == 6-2 / bash: SEALED
+######## 解释器 = sh ########
+  ----- [old / sh] rc=0 -----
+  [Mutant-Scan] OK (staged additions carry no mutation marker).
+  ----- [old / sh] end rc=0 -----
+  ----- [new / sh] rc=1 -----
+  
+  [Mutant-Scan] BLOCKED — 暂存的新增行里带变异残留标记:
+    p.py:1: x = 1  # MUTANT
+  
+  [Mutant-Scan] 变异 harness 没还原干净。先 restore 被改的生产文件,
+  [Mutant-Scan] 再拿变异前的全文件 sha 基线逐个复核 —— 标记只是最弱那道网。
+  ----- [new / sh] end rc=1 -----
+  旧版打 OK 且 rc=0 : YES  (rc=0)
+  新版不打 OK 且 rc=1: YES  (rc=1)
+  == 6-2 / sh: SEALED
+CASE 6-2: bash=SEALED sh=SEALED

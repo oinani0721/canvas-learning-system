@@ -1,0 +1,47 @@
+=== round-4 真 hook 三控(含每次的暂存清单自证) ===
+(eval):6: command not found: git
+(eval):7: command not found: git
+(eval):7: command not found: tr
+--- 正控  暂存面 = 
+  lefthook_rc=1
+(eval):9: command not found: git
+(eval):6: command not found: git
+(eval):7: command not found: git
+(eval):7: command not found: tr
+--- 负控A  暂存面 = 
+  lefthook_rc=1
+(eval):9: command not found: git
+(eval):6: command not found: git
+(eval):7: command not found: git
+(eval):7: command not found: tr
+--- 负控B-NUL先  暂存面 = 
+  lefthook_rc=1
+(eval):9: command not found: git
+(eval):11: command not found: git
+探针残留(必 0) = 0
+
+=== round-4 裁判 6/7/8 ===
+(eval):15: command not found: cut
+(eval):16: command not found: awk
+J6 CS= CE=
+STOP
+J6 rc=1
+J7 旧计数残留 = 0
+J8 验伪锚 = 1
+(eval):24: command not found: git
+J8 真判据 = 0
+(eval):25: command not found: cut
+(eval):25: command not found: git
+(eval):25: command not found: cut
+(eval):26: command not found: git
+(eval):26: command not found: awk
+(eval):26: command not found: awk
+(eval):27: command not found: diff
+(eval):28: command not found: cut
+(eval):28: command not found: git
+(eval):28: command not found: cut
+(eval):29: command not found: git
+(eval):29: command not found: awk
+(eval):29: command not found: awk
+(eval):30: command not found: diff
+(eval):31: command not found: git

@@ -1,0 +1,26 @@
+=== 裁判 9 (round-4) ===
+存档: _bmad-output/审查/evidence-residue-fo/r4-unit-after-20260914T210658.txt
+本次红=64 基线=64
+--- diff(只允许 <) ---
+diff_rc=0
+验伪锚= 1
+
+=== 裁判 10 (round-4) ===
+1 lifespan 负控 : NEGATIVE-CONTROL: PASS (3 nodeids red for expected reason; summary=(7, 7, 0, 0); positive control: 3/3 passed, zero attempts, zero runtime writes; mutated run in an isolated copy did touch runtime files (isolation is load-bearing); real tree untouched; AST-GATE: PASS 0/400 files)
+2 AST 负控      : AST-NEGATIVE-CONTROL: PASS (48 绕过全抓 / 27 正例全净)
+3 AST-only      : AST-GATE: PASS (0 violations in 400 files)
+4 guard probes  : GUARD-PROBES: PASS — 59/59 条全部 fail-closed
+5 读 lefthook.yml 的 unit 测试 : ======================= 157 passed, 10 warnings in 4.09s =======================
+--- 受保护文件 sha ---
+  backend/scripts/lifespan_isolation_negative_control.py         SAME
+  backend/scripts/lifespan_isolation_guard_probes.py             SAME
+  backend/scripts/mutation_kill_identity.py                      SAME
+  backend/scripts/g32b_mutation_gates.py                         SAME
+  backend/scripts/g32cb_mutation_gates.py                        SAME
+  backend/scripts/g32ccr1_negative_controls.py                   SAME
+  backend/scripts/g33_mutation_gates.py                          SAME
+  backend/scripts/openapi_drift_negative_control.py              SAME
+  backend/tests/regression/recap_domain_negverify.py             SAME
+  canvas-vault/.claude/scripts/fsrs_bridge.py                    SAME
+  canvas-vault/.claude/scripts/decay_beta.py                     SAME
+  验伪锚 lefthook.yml DIFF <-- 判据有效
