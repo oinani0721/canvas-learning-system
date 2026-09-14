@@ -439,9 +439,16 @@ def _harness_tree(vault_dir):
           · 单双引号在一行里**成奇数个**: 说明有个跨行的引号标量开着, 那之后每一行
             的语法身份都不再是它看上去的样子。
         ⚠️ 不保证的那一半, 如实写在这里: 本函数**不做整份语法校验**(那等于重写一个
-        YAML 解析器)。一份语法坏在别处的 config, PyYAML 会整份拒, 而这里可能判成
-        「没有这个键」而回退。方向是安全的(不会绑错树), 且更下游的 vault 归属绑定
-        同样需要 PyYAML、会在那里 fail-closed。
+        YAML 解析器)。一份**语法**坏在别处的 config(缩进错等), PyYAML 会整份拒, 而
+        这里可能判成「没有这个键」而回退 —— 方向是安全的(不会绑错树), 且更下游的
+        vault 归属绑定同样需要 PyYAML、会在那里 fail-closed。
+        ⚠️ 另一条已知盲区(Codex round-3 MEDIUM-3, 登记不修): 本函数用「一行里引号
+        成不成对」当跨行引号标量的判据, 而这**证不出引号闭没闭合** —— 普通值里的
+        字面引号与跨行标量的定界引号恰好凑成偶数时就会放行。真要堵死只有两条路:
+        要么在这里塞进一个真正的词法分析器, 要么缺库时**对含任何引号的 config 一律
+        拒**(现网 config 里就有引号, 那等于缺库机器上一律拒写)。两条都超出本卡范围,
+        作为产品取舍移交。⛔ 由此: 上面那句「绝不采用一棵 PyYAML 不会给出的树」在
+        这一个盲区上**尚未被证明**, 不要当成已证结论引用。
         """
         #: 这些字符 Python 的 `splitlines()` 会断行、YAML 也当换行或非法字符,
         #: 但文本文件**按行迭代不会**在它们上面断行 —— 差异正是第一类的根因。
@@ -449,8 +456,15 @@ def _harness_tree(vault_dir):
         #: 的换行类字符, 写进源码等于让这份 SKILL.md 自己带上隐形断行 —— 本卡实测
         #: 被中间工具层把转义展开成真字符一次, 正是本函数要消掉的那一类东西。
         _breaks = "".join(chr(_c) for _c in (0x0B, 0x0C, 0x1C, 0x1D, 0x1E, 0x85, 0x2028, 0x2029))
+        #: PyYAML 自己的「可打印字符」集(逐字抄 `yaml/reader.py` 的 NON_PRINTABLE),
+        #: 集合外的字符它一律 ReaderError 整份拒 —— 而逐行扫描照样能取到值
+        #: (Codex round-3 MEDIUM-4: 别的字段里放一个 U+0001, PyYAML 拒、降级返回树)。
+        #: 与 `_breaks` 互补: 那八个是**合法但会断行**的, 这里是**压根不合法**的。
+        _nonprint = re.compile(
+            "[^\x09\x0a\x0d\x20-\x7e\x85\xa0-퟿-�\U00010000-\U0010ffff]"
+        )
         _canon = re.compile(r'^harness_tree:[ ]+(/[^\s#:][^\t#:]*?)[ ]*$')
-        _why = "只在整份 config 不含任何它读不懂的 YAML 构造、且恰有一行写成 `harness_tree: /path/to/tree`(列首键、空格分隔、裸值、无引号、无 #、值内无 TAB 与冒号、无续行)时才取值"
+        _why = "只在整份 config 不含任何它读不懂的 YAML 写法、且恰有一行写成 `harness_tree: /path/to/tree`(列首键、空格分隔、裸值、无引号、无 #、值内无 TAB 与冒号、无续行)时才取值"
         try:
             with open(_cfg_p, encoding="utf-8") as _cf:
                 _txt = _cf.read()
@@ -463,34 +477,48 @@ def _harness_tree(vault_dir):
         _val = ""
         _await_cont = False
         _seen_content = False
+        _doc_started = False
         for _raw in _txt.split("\n"):
             _cl = _raw.rstrip("\r")
             #: ⛔ 换行类字符必须先查: 它会让「这一行」在两边不是同一个东西, 所以
             #: 不能等到判完空行/注释再查(Codex round-2 MEDIUM-1)。
             if any(_b in _cl for _b in _breaks):
                 _stop("YAML 当作换行的字符", _cl)
+            if _nonprint.search(_cl):
+                _stop("PyYAML 会整份拒的非法字符", _cl)
             if "\\" in _cl:
                 _stop("反斜杠(转义可能还原出别的键)", _cl)
-            _bare = _cl.strip()
+            #: ⛔ 空行只按 **SP/TAB** 判(YAML 的 s-white 口径), 不能用裸 `.strip()`:
+            #: 后者剥全部 Unicode 空白, 会把一行「只有一个全角空格」当成空行跳过,
+            #: 而那在 PyYAML 眼里是标量内容(Codex round-3 MEDIUM-1 + 本卡自查)。
+            #: 这与本文件 round-3 的老教训同一条: 同一个函数里几处判据必须同口径。
+            _bare = _cl.strip(" \t")
             if not _bare:
                 continue            # 空行: 不打断续行判定(YAML 的折叠会跨过空行)
-            if _bare == "---" or _bare == "..." or _bare[:4] in ("--- ", "... "):
-                if _seen_content:
+            if _bare[:3] in ("---", "...") and (len(_bare) == 3 or _bare[3] in " \t"):
+                #: ⛔ 标记行后面还跟着内容(如 `--- {a: 1}`)时 PyYAML 读得到那个键,
+                #: 而这里一 `continue` 就把它整行吞了(Codex round-3 MEDIUM-2)。
+                if _bare[3:].strip(" \t"):
+                    _stop("文档标记后面同行还有内容", _cl)
+                if _bare[:3] == "..." or _seen_content or _doc_started:
                     _stop("文档分隔/结束标记(safe_load 只收单文档)", _cl)
-                continue            # 文件开头的 `---` = 单文档的显式开始, 放行
+                _doc_started = True  # 文件开头**第一个**裸 `---` = 单文档显式开始, 放行
+                continue
             if _bare.startswith("#"):
                 continue            # 整行注释: YAML 视同没写这行(也不算「内容」——
                 #: 注释之后的 `---` 仍然是文档**开始**而不是分隔)
             if _await_cont:
                 _await_cont = False
-                if _cl[:1] in (" ", "\t"):
-                    _stop("规范行后面跟着续行(PyYAML 会折叠成一个值)", _cl)
+                #: 行首**任何**空白都算缩进 —— 只认 SP/TAB 会漏掉全角空格/NBSP 起首
+                #: 的那些行, 而它们既不算空行也不算续行, 会被整个跳过(同上)。
+                if _cl[:1].isspace():
+                    _stop("规范行后面跟着续行(PyYAML 会把两行折叠成一个值)", _cl)
             _seen_content = True
             if _bare[:1] == "%":
                 _stop("YAML 指令行", _cl)
             for _tok in ("&", "*", "!", "<<:", "{", "[", "|", ">"):
                 if _tok in _cl:
-                    _stop(f"它读不懂的 YAML 构造 {_tok!r}", _cl)
+                    _stop(f"它读不懂的 YAML 写法 {_tok!r}", _cl)
             if _cl.count('"') % 2 or _cl.count("'") % 2:
                 _stop("成奇数个的引号(说明有跨行引号标量开着)", _cl)
             if "harness_tree" not in _cl:

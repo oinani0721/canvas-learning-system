@@ -7581,6 +7581,21 @@ def _ht_outcome(_fn, _vault_dir):
         "%YAML 1.1\n---\nharness_tree: /a/b",
         #: 跨行引号标量: 开引号之后每一行的语法身份都不再是它看上去的样子
         'note: "open\n  harness_tree: /a/b"',
+        # ── round-4: Codex round-3 MEDIUM-1/2/4 + 本卡自查 ──
+        #: M-1 同一函数里「什么算空白」两处口径不一致(裸 .strip() 按 Unicode 判空行,
+        #: 续行判据只认 ASCII) ⇒ 这类行既不算空行也不算续行, 被整个跳过, 降级照样
+        #: 采用前一行的值 —— 与本文件 round-3 的老教训同源。
+        #: ⛔ 不可见字符一律用 chr() 拼: 本卡实测被中间工具层把转义展开过三次。
+        "harness_tree: /a/b" + chr(10) + chr(0x3000) + "more",
+        "harness_tree: /a/b" + chr(10) + chr(0xA0) + "more",
+        "harness_tree: /a/b" + chr(10) + chr(0x3000) + chr(10) + "other: 1",
+        "harness_tree: /a/b" + chr(10) + chr(0x3000) + "# c",
+        #: M-4 非换行类的 YAML 非法字符: PyYAML 整份 ReaderError, 逐行扫描照样取到树
+        "other: " + chr(1) + "x" + chr(10) + "harness_tree: /a/b",
+        #: M-2 文档标记同行还有内容 / 连续起始标记 / 开头就是结束标记
+        "--- {a: 1}",
+        "---",
+        "...",
     ],
 )
 def test_g33r2_harness_tree_degraded_never_diverges_from_yaml(tmp_path, monkeypatch, _line):
