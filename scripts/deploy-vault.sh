@@ -424,14 +424,47 @@ emit() { STEP_LINES+=("$1"); printf '%s\n' "$1"; }
 # 每条 stage 行同时进数组（步 6 落 evidence）与 $ACT_JOURNAL（当场可审计）。
 declare -a ACT_STAGES=()
 ACT_JOURNAL=""
+# 阶段账没能完整落盘时的原因。⛔ 不许只留一行标记就照常报成功（Codex r1 MEDIUM-6）：
+# 账不全 = 事后无从复核, 由步 6 以 76 如实失败（部署本身已发生, 失败点在证据环节）。
+ACT_JOURNAL_ERR=""
 act_stage() {
     ACT_STAGES+=("$1")
-    if [ -n "$ACT_JOURNAL" ]; then
-        # 写不进去也不许静默 —— 把「这一行没落盘」本身记成一条阶段
-        printf '%s\n' "$1" >> "$ACT_JOURNAL" \
-            || ACT_STAGES+=("stage=journal-write-failed of=${1%% *}")
+    [ -n "$ACT_JOURNAL" ] || return 0
+    local _what="${1%% *}"
+    _what="${_what#stage=}"
+    # ⛔ 紧邻复查（与脚本别处同律, Codex r1 HIGH-2）：步 5 开头那次 assert 与这一次
+    #    追加之间有时间窗, 对象可能被换成软链/硬链 —— 路径判据看不见 inode。
+    if ! assert_writable_now "$ACT_JOURNAL"; then
+        ACT_JOURNAL_ERR="写阶段账前复查未过: $WRITE_GUARD_ERR"
+        ACT_STAGES+=("stage=journal-write-failed of=${_what} rc=1")
+        return 0
+    fi
+    if ! printf '%s\n' "$1" >> "$ACT_JOURNAL"; then
+        ACT_JOURNAL_ERR="追加阶段账失败: $ACT_JOURNAL"
+        ACT_STAGES+=("stage=journal-write-failed of=${_what} rc=1")
     fi
     return 0
+}
+
+# ── HTTP 响应体取**顶层**字段 ────────────────────────────────────────────────
+# ⛔ 不用 grep 全文匹配 `"status": "ok"`（Codex r1 HIGH-1）：嵌套字段
+#    （如 components.neo4j.status）或被截断的响应里出现同样的字面量时, 全文匹配会把
+#    「顶层说失败」读成「就绪」= 假成功。这里用 json.loads 只看顶层。
+# rc: 0 取到 / 3 解析不出（非 JSON 或非对象）/ 4 顶层没有这个键。
+# 取到的值按单 token 归一（非 [A-Za-z0-9_.-] 一律换 '-'）, 免得把换行带进阶段行。
+json_top_field() {
+    python3 - "$1" "$2" << 'PY' 2> /dev/null
+import json, re, sys
+
+field, body = sys.argv[1], sys.argv[2]
+try:
+    d = json.loads(body)
+except Exception:
+    sys.exit(3)
+if not isinstance(d, dict) or field not in d:
+    sys.exit(3 if not isinstance(d, dict) else 4)
+print(re.sub(r"[^A-Za-z0-9_.-]", "-", str(d[field]))[:64])
+PY
 }
 
 run_step() {
@@ -1370,20 +1403,35 @@ PY
     # ── ② Lance 首索引单独计时 + 进度 ────────────────────────────────────────
     # 量的是「实例起来之后到 LanceDB 报就绪」的墙钟 —— 首索引要建表, 这段时间
     # 用户是看不到东西的, 落进证据才好判断「慢」还是「卡死」。
-    local lstart lnow lelapsed=0 lrc=1 lprog="unknown" lbody="" lcrc=0
+    # ⛔ 单次探测的 `-m` 必须**受剩余预算约束**（Codex r1 MEDIUM-4）：写死 `-m 10` 时
+    #    `CLS_DEPLOY_LANCE_READY_TIMEOUT=1` 也可能卡满 10 秒, 上限形同虚设。
+    local lstart lnow lelapsed=0 lrem=0 lto=10 lrc=1 lprog="unknown" lbody="" lcrc=0 lsrc=0 lstatus="" ltc=""
     lstart="$(date +%s)"
     while :; do
-        lcrc=0
-        lbody="$(curl -sS --fail -m 10 "http://127.0.0.1:$PORT/api/v1/health/lancedb" 2> /dev/null)" || lcrc=$?
-        if [ "$lcrc" = 0 ] && printf '%s' "$lbody" | grep -qE '"status"[[:space:]]*:[[:space:]]*"(ok|healthy|ready)"'; then
-            lrc=0
-            lprog="table_count=$(printf '%s' "$lbody" | sed -n 's/.*"table_count"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p')"
-            [ "$lprog" != "table_count=" ] || lprog="unknown"
-            break
-        fi
         lnow="$(date +%s)"
         lelapsed=$((lnow - lstart))
-        [ "$lelapsed" -lt "$lcap" ] || break
+        lrem=$((lcap - lelapsed))
+        [ "$lrem" -gt 0 ] || break
+        lto=10
+        if [ "$lrem" -lt 10 ]; then lto="$lrem"; fi
+        lcrc=0
+        lsrc=0
+        lbody="$(curl -sS --fail -m "$lto" "http://127.0.0.1:$PORT/api/v1/health/lancedb" 2> /dev/null)" || lcrc=$?
+        if [ "$lcrc" = 0 ]; then
+            lstatus="$(json_top_field status "$lbody")" || lsrc=$?
+            if [ "$lsrc" = 0 ]; then
+                case "$lstatus" in
+                    ok | healthy | ready)
+                        lrc=0
+                        ltc="$(json_top_field table_count "$lbody")" || ltc=""
+                        if [ -n "$ltc" ]; then lprog="table_count=$ltc"; else lprog="unknown"; fi
+                        break
+                        ;;
+                esac
+            fi
+        fi
+        lnow="$(date +%s)"
+        [ "$((lcap - (lnow - lstart)))" -gt 0 ] || break
         sleep 2
     done
     lnow="$(date +%s)"
@@ -1393,16 +1441,26 @@ PY
     # ── ③ Graphiti 回填 readiness：⛔ 禁假成功 ───────────────────────────────
     # 三种失败面各自如实命名, 一律落 `skipped-with-reason=` —— 尤其 (ii)：
     # 「拿到响应但解析不出状态」最容易被写成「没报错 = 就绪」, 那正是假成功。
-    local grc=0 gbody="" gres=""
+    # ⛔ 只看**顶层** status（Codex r1 HIGH-1）：全文正则会被嵌套的
+    #    `components.*.status` 或截断响应里的同名字面量骗成 ready。
+    local grc=0 gbody="" gres="" gsrc=0 gstatus=""
     gbody="$(curl -sS --fail -m 10 "http://127.0.0.1:$PORT/api/v1/health/knowledge-graph" 2> /dev/null)" || grc=$?
     if [ "$grc" != 0 ]; then
         gres="skipped-with-reason=unreachable-rc-${grc}"
-    elif ! printf '%s' "$gbody" | grep -qE '"status"[[:space:]]*:'; then
-        gres="skipped-with-reason=unparsable-response"
-    elif printf '%s' "$gbody" | grep -qE '"status"[[:space:]]*:[[:space:]]*"(ok|healthy|ready)"'; then
-        gres="ready"
     else
-        gres="skipped-with-reason=not-ready-$(printf '%s' "$gbody" | sed -n 's/.*"status"[[:space:]]*:[[:space:]]*"\([A-Za-z_-]*\)".*/\1/p')"
+        gstatus="$(json_top_field status "$gbody")" || gsrc=$?
+        case "$gsrc" in
+            0) ;;
+            4) gres="skipped-with-reason=no-status-field" ;;
+            *) gres="skipped-with-reason=unparsable-response" ;;
+        esac
+        if [ "$gsrc" = 0 ]; then
+            case "$gstatus" in
+                ok | healthy | ready) gres="ready" ;;
+                '') gres="skipped-with-reason=empty-status" ;;
+                *) gres="skipped-with-reason=not-ready-${gstatus}" ;;
+            esac
+        fi
     fi
     act_stage "stage=graphiti-readiness rc=${grc} result=${gres}"
 
@@ -1458,29 +1516,39 @@ try:
         if not b:
             break
         chunks.append(b)
-    # 通用换行归一后再切（与 .env 白名单写入同律）: 只按 \n 切会把 CR 行连成一行
-    raw = b"".join(chunks).decode("utf-8").replace("\r\n", "\n").replace("\r", "\n")
-    lines = raw.split("\n")
-    idx = [i for i, ln in enumerate(lines) if ln.startswith(KEY + "=")]
-    cur = lines[idx[-1]][len(KEY) + 1 :] if idx else ""
+    # ⛔ 按**字节**切且保留各行原本的行尾（Codex r1 MEDIUM-5）：先把整份归一成 \n
+    #    再写回, 会把 CRLF 文件里**每一行**（含 ACTIVE_VAULT）的字节改掉 ——
+    #    那与「只碰 DAILY_REVIEW_VAULTS 这一个键」的承诺不符, 而且 splitlines()
+    #    口径的比较看不出来。这里只改/只加目标那一行, 其余字节原样。
+    raw = b"".join(chunks)
+    lines = raw.splitlines(keepends=True)
+    kb = (KEY + "=").encode("utf-8")
+    idx = [i for i, ln in enumerate(lines) if ln.startswith(kb)]
+    term = b""
+    cur = ""
+    if idx:
+        ln = lines[idx[-1]]
+        body = ln.rstrip(b"\r\n")
+        term = ln[len(body) :]
+        cur = body[len(kb) :].decode("utf-8", "replace")
+    # 清单口径 = 逗号/空格分隔（daily-review-wrapper.sh 与 memory-health.sh 同源）
     items = [t for t in cur.replace(",", " ").split() if t]
     if name in items:
         # 去重：一个字节都不写（fd 以 O_RDWR 开着, 但没 ftruncate 也没 write）
         print("already-present " + name)
         raise SystemExit(0)
     items.append(name)
-    newline = KEY + "=" + ",".join(items)
+    newline = kb + ",".join(items).encode("utf-8")
     if idx:
-        lines[idx[-1]] = newline
+        lines[idx[-1]] = newline + term
     else:
-        # 缺键（真 feature 树当前就是这个形态）：补一行, 既有行一个字节不动
-        if lines and lines[-1] == "":
-            lines.insert(len(lines) - 1, newline)
-        else:
-            lines.append(newline)
+        # 缺键（真 feature 树当前就是这个形态）：只在末尾补一行, 既有字节一个不动
+        if lines and not lines[-1].endswith((b"\n", b"\r")):
+            lines[-1] = lines[-1] + b"\n"
+        lines.append(newline + b"\n")
     os.lseek(fd, 0, os.SEEK_SET)
     os.ftruncate(fd, 0)
-    write_all(fd, "\n".join(lines).encode("utf-8"))
+    write_all(fd, b"".join(lines))
     os.fsync(fd)
     print("appended " + name)
 finally:
@@ -1566,16 +1634,23 @@ step6_evidence() {
         fi
         return 1
     fi
-    # ⛔ 同律（r3 MEDIUM-2）：`--also-push` 失败时落盘的 rc 行不得写 0 —— 进程会以
-    #    76 退出, 证据却说 0 就是自相矛盾, 而证据是事后唯一的依据。
+    # ⛔ 同律（r3 MEDIUM-2）：收尾失败时落盘的 rc 行不得写 0 —— 进程会以 76 退出,
+    #    证据却说 0 就是自相矛盾, 而证据是事后唯一的依据。
+    # 两类收尾失败：`--also-push` 没做成 / 激活分阶段账没能完整落盘（r1 MEDIUM-6）。
+    local _fail_msg=""
     if [ "$_aprc" != 0 ]; then
+        _fail_msg="--also-push 失败: ${ALSO_PUSH_MSG}"
+    elif [ -n "$ACT_JOURNAL_ERR" ]; then
+        _fail_msg="激活分阶段账未能完整落盘: ${ACT_JOURNAL_ERR}"
+    fi
+    if [ -n "$_fail_msg" ]; then
         local _pub2=1
         printf 'rc=76\n' >> "$out.tmp" || _pub2=0
         [ "$_pub2" = 1 ] && { mv "$out.tmp" "$out" || _pub2=0; }
         if [ "$_pub2" = 1 ]; then
-            STEP_MSG="--also-push 失败: ${ALSO_PUSH_MSG}; 证据已标 rc=76: $out"
+            STEP_MSG="${_fail_msg}; 证据已标 rc=76: $out"
         else
-            STEP_MSG="--also-push 失败: ${ALSO_PUSH_MSG}; 且证据**未能发布**, 报告不可信"
+            STEP_MSG="${_fail_msg}; 且证据**未能发布**, 报告不可信"
         fi
         return 1
     fi

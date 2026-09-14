@@ -1257,8 +1257,10 @@ def test_every_bash_write_site_has_a_prewrite_recheck():
         'assert_writable_now "$rep"',
         'assert_writable_now "$cfg"',
         'assert_writable_now "$out.tmp"',
-        # CARD-G2-8 新增的第三处写入点：`--also-push` 改 harness 自己的 `.env`
+        # CARD-G2-8 新增的两处写入点：`--also-push` 改 harness 自己的 `.env`；
+        # act_stage 追加阶段账（Codex r1 HIGH-2：首次 assert 与追加之间有掉包窗口）
         'assert_writable_now "$henv"',
+        'assert_writable_now "$ACT_JOURNAL"',
     ):
         assert obj in src, f"写入点缺紧邻复查: {obj}"
     # ⛔ 架构已变（Codex r7 HIGH-1）：`O_NOFOLLOW` 的字面量不再在本脚本里 ——
@@ -3017,6 +3019,15 @@ case "$sub" in
             grep -qxF "$proj" "$CLS_FAKE_STATE" 2> /dev/null \\
                 || printf '%s\\n' "$proj" >> "$CLS_FAKE_STATE"
         fi
+        # 故障注入：把阶段账文件换成软链 —— 模拟「首次复查之后、追加之前被掉包」
+        if [ "${CLS_FAKE_BREAK_JOURNAL:-0}" = 1 ]; then
+            : > "$CLS_FAKE_EV/decoy.txt"
+            for f in "$CLS_FAKE_EV"/compose-config-*.txt; do
+                [ -e "$f" ] || continue
+                rm -f "$f"
+                ln -s "$CLS_FAKE_EV/decoy.txt" "$f"
+            done
+        fi
         exit "$rc"
         ;;
     down)
@@ -3039,8 +3050,12 @@ _TX_CURL = """#!/usr/bin/env bash
 # 桩 curl：按 URL 的端口与路径分流。兄弟实例端口是否 200 **取决于**清单里
 # 还有没有 cls-sibling —— 这让「只拆本实例」有一个可观测的对照对象。
 url=""
+mtimeout=""
+prev=""
 for a in "$@"; do
+    case "$prev" in -m) mtimeout="$a" ;; esac
     case "$a" in http*) url="$a" ;; esac
+    prev="$a"
 done
 printf '%s\\n' "$url" >> "$CLS_FAKE_CURL_LOG"
 hostport="${url#http://}"; hostport="${hostport%%/*}"
@@ -3072,6 +3087,12 @@ case "$mode" in
     garbage) printf 'not-json\\n'; exit 0 ;;
     notready) printf '{"status":"error"}\\n'; exit 0 ;;
     wrong) printf '{"vault":"someone_else"}\\n'; exit 0 ;;
+    # 顶层说失败、**嵌套**里有 ok —— 全文正则会把它读成就绪
+    nested) printf '{"status":"error","components":{"neo4j":{"status":"ok"}}}\\n'; exit 0 ;;
+    # 被截断的响应：不是合法 JSON, 但字面量里就有 "status":"ready"
+    truncated) printf '{"status":"ready"'; exit 0 ;;
+    # 真按 `-m` 的秒数挂满再超时 —— 用来验「单次探测受剩余预算约束」
+    slow) sleep "${mtimeout:-10}"; exit 28 ;;
 esac
 exit 0
 """
@@ -3162,6 +3183,7 @@ def _tx_env(
         "CLS_FAKE_CURL_LOG": str(tmp_path / "curl-calls.txt"),
         "CLS_FAKE_PORT": port,
         "CLS_FAKE_VAULT_NAME": vault_name,
+        "CLS_FAKE_EV": str(tmp_path / "ev"),
     }
     if sibling_port:
         env["CLS_FAKE_SIBLING_PORT"] = sibling_port
@@ -3211,6 +3233,16 @@ def _tx_journal(tmp_path: Path) -> str:
     if not ev.is_dir():
         return ""
     return "".join(p.read_text(encoding="utf-8", errors="replace") for p in sorted(ev.glob("*.txt")))
+
+
+def _tx_cfg(tmp_path: Path) -> str:
+    """只读 compose-config-<ts>.txt —— 步 5 失败时 `run_step` 直接 exit 7N，
+    步 6 根本不会跑、`deploy-*.txt` 不存在（Codex r1 MEDIUM-3）。失败路径的阶段行
+    只可能在这一份里，拿它当判据面才不会因为「拼了一堆文件」而含糊。"""
+    ev = tmp_path / "ev"
+    if not ev.is_dir():
+        return ""
+    return "".join(p.read_text(encoding="utf-8", errors="replace") for p in sorted(ev.glob("compose-config-*.txt")))
 
 
 def _tx_state(tmp_path: Path) -> list[str]:
@@ -3282,7 +3314,10 @@ def test_g2_8_health_failure_tears_down_only_this_project(tmp_path: Path):
     assert "cls-probe_tx2" not in running, f"回滚没拆掉本实例: {running}"
     assert "cls-sibling" in running, f"失败只拆 cls-<vault>, 兄弟实例不受影响 —— 实测被误伤: {running}"
     assert _tx_sibling_is_200(tmp_path, "8299"), "失败只拆 cls-<vault>, 兄弟实例不受影响 —— 实测兄弟实例端口已不是 200"
-    jr = _tx_journal(tmp_path)
+    assert not list((tmp_path / "ev").glob("deploy-*.txt")), (
+        "步 5 FAIL 时 run_step 直接 exit 75, 步 6 不该跑过 —— 有 deploy 报告说明流程变了"
+    )
+    jr = _tx_cfg(tmp_path)
     assert re.search(r"^stage=rollback-down project=cls-probe_tx2 rc=0 ", jr, re.M), (
         f"缺「回滚」阶段的 rc 行（回滚未进分阶段账）: {jr!r}"
     )
@@ -3299,7 +3334,7 @@ def test_g2_8_rollback_failure_does_not_claim_rolled_back(tmp_path: Path):
     assert line, r.stdout
     assert "已回滚 down" not in line.group(1), f"down 失败却仍声称已回滚: {line.group(1)}"
     assert "需人工处置" in line.group(1), line.group(1)
-    jr = _tx_journal(tmp_path)
+    jr = _tx_cfg(tmp_path)
     assert re.search(r"^stage=rollback-down project=cls-probe_tx3 rc=1 ", jr, re.M), f"回滚失败也必须落 rc 行: {jr!r}"
 
 
@@ -3354,7 +3389,15 @@ def test_g2_8_lance_not_ready_is_recorded_not_faked(tmp_path: Path):
 # ── (b)⑤ Graphiti readiness：探测失败必须 skipped-with-reason，禁假成功 ──────
 @pytest.mark.parametrize(
     ("mode", "reason"),
-    [("fail", "unreachable"), ("garbage", "unparsable"), ("notready", "not-ready")],
+    [
+        ("fail", "unreachable"),
+        ("garbage", "unparsable"),
+        ("notready", "not-ready"),
+        # Codex r1 HIGH-1: 顶层说失败、**嵌套**里有 ok —— 全文正则会读成就绪
+        ("nested", "not-ready"),
+        # 同上: 被截断的响应, 字面量里就有 "status":"ready" 但不是合法 JSON
+        ("truncated", "unparsable"),
+    ],
 )
 def test_g2_8_graphiti_readiness_never_reports_fake_success(tmp_path: Path, mode: str, reason: str):
     """三种失败面各一条：不可达 / 解析不出 / 明确未就绪 —— 一律 skipped-with-reason。
@@ -3362,7 +3405,7 @@ def test_g2_8_graphiti_readiness_never_reports_fake_success(tmp_path: Path, mode
     ⛔ 断言必须**两侧都核**：只核 `skipped-with-reason=` 出现的话，
     「恒报 success 又顺手打一行 skipped」的变异体会让门仍绿。
     """
-    port = {"fail": "8237", "garbage": "8238", "notready": "8239"}[mode]
+    port = {"fail": "8237", "garbage": "8238", "notready": "8239", "nested": "8247", "truncated": "8248"}[mode]
     name = f"probe_kg_{mode}"
     h = _tx_harness(tmp_path)
     env = _tx_env(tmp_path, port, name, extra={"CLS_FAKE_KG": mode})
@@ -3490,7 +3533,11 @@ def test_g2_8_also_push_never_writes_active_vault():
     start = src.index("also_push_daily_review() {")
     end = src.index("\n}\n", start)
     body = src[start:end]
-    assert "ACTIVE_VAULT" not in body, f"--also-push 实现段提到了 ACTIVE_VAULT: {body}"
+    # 只看**非注释行**（与 test_second_tier_hosts_not_implemented_anywhere 同律）：
+    # 注释里解释「为什么不碰 ACTIVE_VAULT」是应该的，写进代码才是问题。
+    code = [ln for ln in body.splitlines() if not ln.lstrip().startswith("#")]
+    hits = [ln for ln in code if "ACTIVE_VAULT" in ln]
+    assert not hits, f"--also-push 实现段的非注释行提到了 ACTIVE_VAULT: {hits}"
     assert "DAILY_REVIEW_VAULTS" in body, "实现段没提到目标键"
 
 
@@ -3578,3 +3625,100 @@ def test_g2_8_activate_tx_opens_no_new_write_surface():
     stage_fn = src[src.index("act_stage() {") : src.index("\n}\n", src.index("act_stage() {"))]
     stage_writes = set(re.findall(r'>{1,2} "\$([A-Za-z_][A-Za-z0-9_]*)"', stage_fn))
     assert stage_writes == {"ACT_JOURNAL"}, f"act_stage 写了别的对象: {sorted(stage_writes)}"
+
+
+# ── Codex r1 整改配套门 ──────────────────────────────────────────────────────
+def test_g2_8_lance_nested_status_is_not_read_as_ready(tmp_path: Path):
+    """顶层 status 说失败、嵌套里有 ok ⇒ 不得记成就绪（Codex r1 HIGH-1 同族）。"""
+    h = _tx_harness(tmp_path)
+    env = _tx_env(tmp_path, "8249", "probe_lnest", extra={"CLS_FAKE_LANCE": "nested"})
+    r = _tx_run(tmp_path, h, "probe_lnest", "8249", env=env)
+    assert r.returncode == 0, f"rc={r.returncode}: {r.stdout}{r.stderr}"
+    m = re.search(r"^stage=lance-first-index rc=(\d+) elapsed_s=\d+ progress=(\S+)$", _tx_cfg(tmp_path), re.M)
+    assert m, "缺 Lance 阶段行"
+    assert m.group(1) != "0", f"嵌套 ok 被当成顶层就绪: {m.group(0)}"
+    assert m.group(2) == "unknown", m.group(0)
+
+
+def test_g2_8_lance_probe_timeout_is_bounded_by_remaining_budget(tmp_path: Path):
+    """单次探测的 `-m` 受**剩余预算**约束（Codex r1 MEDIUM-4）。
+
+    桩 curl 的 `slow` 模式**真按传进来的 `-m` 秒数**挂满再超时 ⇒ 写死 `-m 10` 时
+    上限 2 秒的这一跑会花 ~10 秒，受预算约束时只花 ~2 秒。门因此可分。
+    """
+    h = _tx_harness(tmp_path)
+    env = _tx_env(tmp_path, "8250", "probe_lcap", extra={"CLS_FAKE_LANCE": "slow"})
+    assert env["CLS_DEPLOY_LANCE_READY_TIMEOUT"] == "2", "本门依赖 2 秒上限"
+    t0 = time.monotonic()
+    r = _tx_run(tmp_path, h, "probe_lcap", "8250", env=env)
+    elapsed = time.monotonic() - t0
+    assert r.returncode == 0, f"rc={r.returncode}: {r.stdout}{r.stderr}"
+    m = re.search(r"^stage=lance-first-index rc=(\d+) elapsed_s=(\d+) ", _tx_cfg(tmp_path), re.M)
+    assert m, "缺 Lance 阶段行"
+    assert m.group(1) != "0", "slow 模式下不该报就绪"
+    assert int(m.group(2)) <= 5, f"Lance 阶段耗时 {m.group(2)}s 远超 2 秒上限 —— 单次探测没受预算约束"
+    assert elapsed < 45, f"整跑 {elapsed:.1f}s 偏长, 疑似上限未生效"
+    # 静态锚：`-m` 的值必须来自变量，而不是又写回常量
+    src = DEPLOY_SH.read_text(encoding="utf-8")
+    assert '-m "$lto"' in src, "Lance 探测的 -m 又变回常量了"
+
+
+def test_g2_8_journal_write_failure_is_not_swallowed(tmp_path: Path):
+    """阶段账写不进去时不得照常报成功（Codex r1 MEDIUM-6）。
+
+    桩 docker 在 `up` 之后把 compose-config 换成软链 —— 模拟「首次复查之后、
+    追加之前被掉包」。此时 `act_stage` 的紧邻复查必须拦住（HIGH-2），
+    并由步 6 以 76 如实失败：部署本身发生了，失败点在证据环节。
+    """
+    h = _tx_harness(tmp_path)
+    env = _tx_env(tmp_path, "8251", "probe_jbrk", extra={"CLS_FAKE_BREAK_JOURNAL": "1"})
+    r = _tx_run(tmp_path, h, "probe_jbrk", "8251", env=env)
+    assert r.returncode == 76, f"账写不进去却没以 76 失败: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    assert "激活分阶段账未能完整落盘" in r.stdout, r.stdout
+    dep = sorted((tmp_path / "ev").glob("deploy-*.txt"))
+    assert dep, "证据报告仍应落盘（失败也要留证据）"
+    txt = dep[-1].read_text(encoding="utf-8")
+    assert txt.rstrip().endswith("rc=76"), f"报告的 rc 行与进程退出码矛盾: {txt[-200:]!r}"
+    assert "stage=journal-write-failed" in txt, "报告里没有「这一行没落盘」的记录"
+
+
+def test_g2_8_also_push_preserves_other_lines_byte_for_byte(tmp_path: Path):
+    """CRLF 的 harness `.env`：追加只加一行，其余字节（含 ACTIVE_VAULT 的 \\r）原样。
+
+    Codex r1 MEDIUM-5：先整份归一成 \\n 再写回，会把每一行的字节都改掉 ——
+    与「只碰 DAILY_REVIEW_VAULTS 这一个键」的承诺不符，而按行比较看不出来。
+    """
+    crlf = "ACTIVE_VAULT=canvas-vault\r\nNEO4J_HTTP_PORT=7691\r\n"
+    h = _tx_harness(tmp_path, env_body=crlf)
+    before = (h / ".env").read_bytes()
+    assert b"\r\n" in before, "控制组不成立：写进去的不是 CRLF"
+    script = _tx_alsopush_script(tmp_path, h)
+    env = _tx_env(tmp_path, "8252", "probe_crlf")
+    r = _tx_run(tmp_path, h, "probe_crlf", "8252", "--also-push", env=env, script=script)
+    assert r.returncode == 0, f"rc={r.returncode}: {r.stdout}{r.stderr}"
+    after = (h / ".env").read_bytes()
+    assert after == before + b"DAILY_REVIEW_VAULTS=probe_crlf\n", (
+        f"既有字节被改了（不只是追加一行）: {before!r} -> {after!r}"
+    )
+
+
+@pytest.mark.parametrize(
+    ("seed", "name", "port", "want"),
+    [
+        # 逗号/空格混合分隔（wrapper 的口径）里已有该名 ⇒ 不重复追加
+        ("DAILY_REVIEW_VAULTS=alpha beta,gamma\n", "beta", "8253", "DAILY_REVIEW_VAULTS=alpha beta,gamma"),
+        # 键在但值为空 ⇒ 填上，不产生前导逗号
+        ("DAILY_REVIEW_VAULTS=\n", "probe_empt", "8254", "DAILY_REVIEW_VAULTS=probe_empt"),
+    ],
+)
+def test_g2_8_also_push_handles_mixed_separators_and_empty_value(
+    tmp_path: Path, seed: str, name: str, port: str, want: str
+):
+    """Codex r1 LOW-7：混合分隔 / 空值两类输入此前零覆盖。"""
+    h = _tx_harness(tmp_path, env_body="ACTIVE_VAULT=canvas-vault\n" + seed)
+    script = _tx_alsopush_script(tmp_path, h)
+    env = _tx_env(tmp_path, port, name)
+    r = _tx_run(tmp_path, h, name, port, "--also-push", env=env, script=script)
+    assert r.returncode == 0, f"rc={r.returncode}: {r.stdout}{r.stderr}"
+    got = [ln for ln in (h / ".env").read_text(encoding="utf-8").splitlines() if ln.startswith("DAILY_REVIEW_VAULTS=")]
+    assert got == [want], f"清单结果不对: {got}"
