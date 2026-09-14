@@ -1,0 +1,9 @@
+E   assert 5 == 2
+{"event": "[Story 38.8] checkpoint for failed_writes was written under progress semantics None (current 'split-lf+contiguous') \u2014 cannot prove its prefix fully succeeded, replaying from 0. Already-synced entries may be replayed again (idempotent for Concept/LEARNED; may add duplicate scoring Episodes).", "logger": "app.services.fallback_sync_service", "level": "warning", "timestamp": "2026-09-14T15:33:57.012252Z"}
+{"event": "[Story 38.8] Rotated failed_writes.jsonl \u2192 failed_writes.synced.2026-09-14-233357", "logger": "app.services.fallback_sync_service", "level": "info", "timestamp": "2026-09-14T15:33:57.014089Z"}
+WARNING  app.services.fallback_sync_service:fallback_sync_service.py:677 {'event': "[Story 38.8] checkpoint for failed_writes was written under progress semantics None (current 'split-lf+contiguous') — cannot prove its prefix fully succeeded, replaying from 0. Already-synced entries may be replayed again (idempotent for Concept/LEARNED; may add duplicate scoring Episodes).", 'logger': 'app.services.fallback_sync_service', 'level': 'warning', 'timestamp': '2026-09-14T15:33:57.012252Z'}
+INFO     app.services.fallback_sync_service:fallback_sync_service.py:744 {'event': '[Story 38.8] Rotated failed_writes.jsonl → failed_writes.synced.2026-09-14-233357', 'logger': 'app.services.fallback_sync_service', 'level': 'info', 'timestamp': '2026-09-14T15:33:57.014089Z'}
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+FAILED tests/unit/test_story_38_8_fallback_sync.py::TestAC3Checkpoint::test_resumes_from_checkpoint
+================== 1 failed, 35 passed, 10 warnings in 1.10s ===================
+rc=1

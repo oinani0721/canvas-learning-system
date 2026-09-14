@@ -1,0 +1,4 @@
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+FAILED tests/unit/test_qa_38_6_scoring_reliability_extra.py::TestMergedViewEdgeCases::test_merged_view_sort_newest_first
+============ 1 failed, 338 passed, 5 skipped, 28 warnings in 13.83s ============
+rc=1

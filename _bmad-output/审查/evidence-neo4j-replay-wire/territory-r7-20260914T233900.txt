@@ -1,0 +1,21 @@
+### 地盘门 @ HEAD=c667b1eb
+--- 主判据 ---
+ backend/app/api/v1/endpoints/traces.py             |  70 ++-
+ backend/app/main.py                                |  92 +++-
+ backend/app/services/fallback_sync_service.py      | 255 +++++++++-
+ .../integration/test_neo4j_replay_wire_t6b.py      | 539 +++++++++++++++++++++
+ .../tests/unit/test_story_38_8_fallback_sync.py    |  67 ++-
+ 5 files changed, 947 insertions(+), 76 deletions(-)
+--- 禁改文件 (应全空) ---
+(空=未动)
+--- main.py hunk 头 (应全在 :386-404) ---
+@@ -388,15 +388,60 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+@@ -404,0 +450,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+--- :381-384 import 块 ---
+        from app.config import get_current_vault_id
+        from app.core.subject_config import build_vault_group_id
+        from app.services.episode_worker import get_episode_worker
+        from app.services.vault_backfill import backfill_vault
+--- 门 if 锚点 ---
+387:        if _worker_graphiti is not None:
+rc=0

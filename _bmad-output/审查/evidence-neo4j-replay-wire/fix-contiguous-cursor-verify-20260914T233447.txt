@@ -1,0 +1,24 @@
+  from pydantic.v1.fields import FieldInfo as FieldInfoV1
+  import pkg_resources
+Building prefix dict from the default dictionary ...
+### Codex r5 HIGH 负控: 第 1 条失败、2-50 成功, 存下 index 后中断
+### 期望: 游标只推进到**连续成功前缀** ⇒ 卡在 0, 第 1 条不会被跳过
+
+2026-09-14 23:34:53 [info     ] [Story 38.8] Fallback sync complete: 50 replayed, 1 still pending
+首轮: 尝试 51 条, stats = {'recovered': 50, 'pending': 1}
+首轮结束后 checkpoint = {}   (成功路径会 _clear_checkpoint, 空属正常)
+
+--- 模拟中断: 复现『扫到第 50 条时存下的游标』---
+  旧实现会存 index=50 (扫到第几条就存几) ⇒ 重启跳过 c0
+  新实现只存**连续成功前缀**端点; c0 失败 ⇒ 前缀卡在 0, 永远不会存出 50
+
+2026-09-14 23:34:53 [info     ] [Story 38.8] Rotated failed_writes.jsonl → failed_writes.synced.2026-09-14-233453
+2026-09-14 23:34:53 [info     ] [Story 38.8] Fallback sync complete: 1 replayed, 0 still pending
+  带 index=50 重跑: 尝试 ['c50']
+  c0 被跳过 = True  ← 这正是 Codex 指出的危害形态
+
+=== 不变式直测: 失败条目存在时, 游标不得越过它 ===
+2026-09-14 23:34:53 [info     ] [Story 38.8] Fallback sync complete: 50 replayed, 1 still pending
+  实现实际存过的游标值: []
+  ✅ 未存出任何 > 0 的值 —— c0 失败卡住了前缀
+rc=0
