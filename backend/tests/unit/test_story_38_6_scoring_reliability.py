@@ -213,8 +213,9 @@ class TestAC3StartupRecovery:
         """[P0] Entries are replayed and removed from file on success.
 
         CARD-Y4-D-TAIL: replay succeeds only when the worker accepts the episode,
-        so this case now needs a started worker (previously the deleted retry
-        helper was patched onto the service).
+        so this case now needs a started worker. (It never patched the deleted
+        retry helper itself — only ``test_recover_partial_failure`` did; this case
+        was switched off because the class-level skip covered the whole class.)
         """
         fallback_file = tmp_path / "failed_writes.jsonl"
         entry = {

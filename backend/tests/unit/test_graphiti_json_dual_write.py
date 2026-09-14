@@ -162,8 +162,12 @@ class TestGraphitiJsonDualWrite:
         assert "node-123" in task.episode_body
         assert "score: 85/100" in task.episode_body
         # group_id is derived from the active vault (ContextVar), so only its
-        # shape is stable across environments.
+        # shape is stable across environments. ⚠️ This is a shape check only — a
+        # wrong-but-non-empty group would still pass (Codex r1).
         assert isinstance(task.group_id, str) and task.group_id
+        # The spy records before delegating, so len(enqueued) alone only proves an
+        # attempt. The worker's own counter proves the queue actually accepted it.
+        assert ready_worker.metrics.episodes_enqueued == 1
 
     @pytest.mark.asyncio
     async def test_fire_and_forget_doesnt_block_return(self, memory_service, mock_learning_memory_client):
@@ -178,8 +182,10 @@ class TestGraphitiJsonDualWrite:
         ``_enqueue_episode``）⇒ ``slow_write`` 永不执行，下面的 ``elapsed < 0.5``
         并非由「fire-and-forget 生效」保证，当前只证明调用方自身不阻塞。断言之所
         以保持原样，是为了证明本用例在模块级 skip 之前就是绿的（净覆盖损失的证
-        据）。非阻塞入队的真实语义见 test_dual_write_called_after_neo4j_success
-        与 test_episode_worker_retry.py scenario 1。
+        据）。⚠️ Codex r1 MEDIUM 更正：此处原写「真实语义见 X」不成立——本仓当前
+        **没有**任何用例对调用方施加真实的下游延迟来验证非阻塞；入队路径的用例
+        （test_dual_write_called_after_neo4j_success）证明的是「确实入了队」，
+        不是「慢下游不会拖住调用方」。该覆盖缺口已登记移交。
         """
         # Arrange
         await memory_service.initialize()
@@ -372,18 +378,21 @@ class TestGraphitiJsonDualWrite:
     # 现由 GraphitiEpisodeWorker 承担，等价覆盖逐条归属如下：
     #
     #   success_logging → test_episode_worker_retry.py::test_basic_enqueue_and_process
-    #       （metrics.episodes_processed == 1 + add_episode.await_count == 1 +
-    #         转发 kwargs 断言；比原 logger.debug 断言更强）
+    #       （成功路径：metrics.episodes_processed == 1 + add_episode.await_count == 1）
     #   timeout_logging → test_episode_worker_retry.py::test_exponential_backoff_sleep_series
-    #       （下游久不返回 → 失败 → 退避重试序列）
-    #       + ::test_dead_letter_on_retries_exhausted（重试耗尽后落 dead-letter）
+    #       + ::test_dead_letter_on_retries_exhausted（失败 → 退避 → 耗尽落 dead-letter）
     #   failure_logging → test_episode_worker_retry.py::test_dead_letter_on_retries_exhausted
     #       （dead-letter 记录含 error / error_type / retry_count）
     #       + ::test_worker_metrics_completeness（metrics.episodes_failed）
     #
-    # ⚠️ 如实声明：上述归属是按场景语义对应，未逐断言比对；原用例断言的是
-    # logger.debug/warning 的调用与文案，新归属处断言的是 metrics 与 dead-letter
-    # 记录，二者不是同一观测面。日志文案本身现无专门用例覆盖（已登记移交）。
+    # ⚠️ 归属定性：**邻近场景，非等价覆盖**（Codex r1 MEDIUM 更正——此处原写
+    # 「比原断言更强」不成立）。逐条列出**未被接替**的观测点：
+    #   - success：`logger.debug` 被调用、且日志文案含该次 episode_id —— 无接替；
+    #   - failure：`logger.warning` 文案含 "failed" —— 无接替（新归属处断言的是
+    #     dead-letter 记录字段与 metrics 计数，不读日志）；
+    #   - timeout：原用例施加的是**慢下游**输入（下游久不返回），而 scenario 2/3
+    #     的下游是**立即抛 RuntimeError** —— 输入形态不同，慢下游这一路现无覆盖。
+    # 即：日志可观测性与慢下游输入在本仓当前无专门用例覆盖（已登记移交）。
 
     @pytest.mark.asyncio
     async def test_record_temporal_event_dual_write(self, memory_service, ready_worker):
