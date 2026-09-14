@@ -1,0 +1,9 @@
+=== 定向: 读 lefthook.yml 的两个 unit 测试 ===
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================= 157 passed, 10 warnings in 5.38s =======================
+pytest_rc=0
+--- 收集数自证(禁 rc=5 假绿) ---
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+========================= 157 tests collected in 0.20s =========================

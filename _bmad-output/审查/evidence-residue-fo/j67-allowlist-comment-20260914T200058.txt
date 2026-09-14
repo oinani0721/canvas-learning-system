@@ -1,0 +1,54 @@
+=== 裁判 6: 允许名单对账(区间现求, 不写死行号) ===
+唯一性自证 grep -cF 'case "$f" in' = 1
+CS=447 CE=455
+--- 边界自证(应打 case 行与 esac 行) ---
+          case "$f" in
+          esac
+--- 区间全文 ---
+          case "$f" in
+            backend/scripts/g32b_mutation_gates.py) continue ;;
+            backend/scripts/g32cb_mutation_gates.py) continue ;;
+            backend/scripts/g32ccr1_negative_controls.py) continue ;;
+            backend/scripts/openapi_drift_negative_control.py) continue ;;
+            backend/tests/regression/recap_domain_negverify.py) continue ;;
+            .claude/rules/*.md) continue ;;
+            _bmad-output/*) continue ;;
+          esac
+--- 逐项对账(每项必须恰 1) ---
+backend/scripts/g32b_mutation_gates.py 1
+backend/scripts/g32cb_mutation_gates.py 1
+backend/scripts/g32ccr1_negative_controls.py 1
+backend/scripts/openapi_drift_negative_control.py 1
+backend/tests/regression/recap_domain_negverify.py 1
+验伪锚 no-such-file.py) (必 0) = 0
+continue ;; 计数 = 7
+J6 rc=0
+
+=== 裁判 7: 注释块对账(区间现求) ===
+锚点1 唯一性 = 1
+锚点2 唯一性 = 1
+CBS=311 CBE=327
+    # CARD-TOOL-residue-fail-open 于 B14_BASE 08100483 逐文件实测值, 不是估计:
+    #   backend/scripts/g32b_mutation_gates.py              变异 harness 本体 151 处
+    #   backend/scripts/g32cb_mutation_gates.py             变异 harness 本体 11 处
+    #   backend/scripts/g32ccr1_negative_controls.py        负控本体 11 处
+    #   backend/scripts/openapi_drift_negative_control.py   负控本体 2 处
+    #   backend/tests/regression/recap_domain_negverify.py  负控本体 13 处
+    #   .claude/rules/*.md                                  规则文正文引用(按默认补, 待用户确认)
+    #   _bmad-output/**                                     审查报告/验收单正文引用
+    # ⚠️ 匹配面(本卡实测): case 的 `*` **会匹配 `/`**, 所以 `.claude/rules/*.md` 覆盖
+    # 该目录下**任意深度**的 .md(与既有的 `_bmad-output/*` 同口径), 而 `.md.bak`、
+    # `notes.txt`、`.claude/rulesX/a.md`、`docs/.claude/rules/a.md` 都**不**在面内。
+    # 前两行的计数在第十四批之前写的是 153 / 10, 均已过时(第十三批 U8-B 改过
+    # g32b); 后三个文件在第十四批之前**不在名单里** —— 它们一旦被暂存修改就会
+    # 被本门拦下(fail-closed 误伤)。`.claude/rules/*.md` 入名单的依据是「规则文
+    # 里写标记字面量会被自己的门拦」(第十二批复核报告 §五.10)。
+J7 rc=0
+
+=== 裁判 7b: 注释计数与实测逐项对齐 ===
+backend/scripts/g32b_mutation_gates.py               实测=151  注释里「 151 处」命中=1
+backend/scripts/g32cb_mutation_gates.py              实测=11   注释里「 11 处」命中=1
+backend/scripts/g32ccr1_negative_controls.py         实测=11   注释里「 11 处」命中=1
+backend/scripts/openapi_drift_negative_control.py    实测=2    注释里「 2 处」命中=1
+backend/tests/regression/recap_domain_negverify.py   实测=13   注释里「 13 处」命中=1
+验伪锚: 注释里是否还残留旧计数 153/10 处 = 0

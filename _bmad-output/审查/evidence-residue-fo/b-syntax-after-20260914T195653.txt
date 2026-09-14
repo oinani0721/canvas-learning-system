@@ -1,0 +1,26 @@
+=== (b) 抽块语法门 — 改后 ===
+唯一性自证 mutant-residue-scan: = 1
+唯一性自证 Mutant-Scan] OK  = 1
+S=386 E=494 (锚点现求, 未写死)
+抽出行数:      107 (期望 107)
+--- 首行/末行自证 ---
+set -u
+echo "[Mutant-Scan] OK (staged additions carry no mutation marker)."
+--- bash -n ---
+bash_n_rc=0
+--- sh -n ---
+sh_n_rc=0
+--- YAML 可解析自证 ---
+yaml_ok cmds= 8
+--- lefthook 仍能解析并跑 (裸调用, 干净暂存面) ---
+│  mutant-residue-scan (skip) no matching staged files
+summary: (done in 0.00 seconds)       
+lh_rc=0
+--- (j) 自指不变量 ---
+MUT""ANT 字面量(期望1) = 1
+拼接标记(期望0)        = 0
+命令名锚 mutant-residue-scan(期望1) = 1
+awk 仍经 -v M=$MARKER 传入(期望1) = 1
+priority 未加(期望0) = 1
+--- wc -l ---
+     611 lefthook.yml

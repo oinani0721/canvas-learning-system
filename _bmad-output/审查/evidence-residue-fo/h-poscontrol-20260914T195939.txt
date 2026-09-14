@@ -1,0 +1,11 @@
+=== (h) 正控: 允许名单内的路径 + 真标记 -> 期望 Mutant-Scan OK, 该块不阻断 ===
+探针内容(拼接生成, 卡文/命令里不含字面量):
+probe line with marker: MUTANT
+staged:
+"_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/_probe.txt"
+--- lefthook run pre-commit (裸调用) ---
+┃  mutant-residue-scan ❯ 
+[Mutant-Scan] OK (staged additions carry no mutation marker).
+summary: (done in 0.06 seconds)       
+✔️ mutant-residue-scan (0.03 seconds)
+lefthook_rc=0

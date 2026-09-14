@@ -1,0 +1,46 @@
+=== T8-A 第0分钟核锚 @ 2026-09-14T19:51:06+08:00 ===
+--- pwd ---
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools
+--- branch ---
+card/t8-tools
+--- HEAD (期望 08100483 = B14_BASE) ---
+08100483
+--- git status --porcelain | wc -l (期望 0) ---
+       1
+--- ls -la /opt/homebrew/bin/lefthook (期望 -> Cellar/lefthook/2.1.6/) ---
+lrwxr-xr-x@ 1 Heishing  admin  37 May  7 13:15 /opt/homebrew/bin/lefthook -> ../Cellar/lefthook/2.1.6/bin/lefthook
+--- /opt/homebrew/bin/lefthook version 裸调用 (R-B14-1) ---
+2.1.6
+version_rc=0
+--- 基线自证 grep -vc '^#' (R-B14-2, 期望 64) ---
+baseline file OK: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/审查/evidence-b14/unit-red-baseline-08100483.txt
+64
+--- type grep (证明包装壳存在 => -F 陷阱成立) ---
+grep is a shell function from /Users/Heishing/.claude/shell-snapshots/snapshot-zsh-1789386567219-hkz9zh.sh
+--- wc -l lefthook.yml (期望 521) ---
+     521 lefthook.yml
+--- 锚点唯一性 ---
+mutant-residue-scan: count = 1
+Mutant-Scan] OK count  = 1
+345:    mutant-residue-scan:
+404:        echo "[Mutant-Scan] OK (staged additions carry no mutation marker)."
+--- 自指不变量 (j) ---
+MUT""ANT literal count (期望 1) = 1
+拼接标记 in lefthook.yml (期望 0) = 0
+--- 标记基线 5 文件 ---
+backend/scripts/g32b_mutation_gates.py 151
+backend/scripts/g32cb_mutation_gates.py 11
+backend/scripts/g32ccr1_negative_controls.py 11
+backend/scripts/openapi_drift_negative_control.py 2
+backend/tests/regression/recap_domain_negverify.py 13
+--- .claude/rules/*.md 标记计数 (期望全 0) ---
+.claude/rules/card-batch-protocol.md 0
+.claude/rules/cypher-read-contract.md 0
+.claude/rules/cypher-write-contract.md 0
+--- 邻块行号实测 (裁判8 分诊用) ---
+133:    # HONESTY CONTRACT (CARD-DEBT-hook-pyright, BATCH-2026-09-04-第十批):
+302:    # HONESTY CONTRACT —— 本门抓不到什么(照抄 X7-A 的真实反例, 别把它当锚点):
+8:#   pre-commit  → parallel checks (spec-sync, python-lint, python-typecheck, ghost-files)
+138:    # (rc=127) was reported by lefthook as `✔️ python-typecheck`. Worse, 127
+205:    python-typecheck:
+135:    # backend/requirements*.txt, backend/pyproject.toml and backend/.venv);

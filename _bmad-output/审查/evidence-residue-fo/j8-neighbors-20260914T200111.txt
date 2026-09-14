@@ -1,0 +1,34 @@
+=== 裁判 8: 不碰邻块(承重门) ===
+--- 验伪锚(必 >=1): 证明这条两段管道在目标词出现时确能命中 ---
+1
+--- 真判据(必 =0) ---
+0
+--- 说明: HEAD 尚未含本卡改动, 故同时对工作树跑一次(这才是本卡真正要守的面) ---
+0
+--- 分诊用: 打出 @@ 头与任何命中行 ---
+@@ -311,4 +311,16 @@ pre-commit:
+@@ -330 +342 @@ pre-commit:
+@@ -332 +344,4 @@ pre-commit:
+@@ -344,0 +360,29 @@ pre-commit:
+@@ -353,2 +397,2 @@ pre-commit:
+@@ -356,0 +401,21 @@ pre-commit:
+@@ -360,0 +426,7 @@ pre-commit:
+@@ -369 +441,3 @@ pre-commit:
+@@ -370,0 +445 @@ pre-commit:
+@@ -374,0 +450,4 @@ pre-commit:
+@@ -378 +457,2 @@ pre-commit:
+@@ -389 +469 @@ pre-commit:
+@@ -390,0 +471,5 @@ pre-commit:
+@@ -402,0 +488,8 @@ pre-commit:
+--- 邻块逐字节不变自证: python-typecheck 块 + HONESTY 注释段 ---
+  B14_BASE :133-145 sha=fa971b80aec3c28df4496d350c0058fa496bfa978e3b504bbef27c56eb91ab4a
+  B14_BASE :205-231 sha=7ded8bc528851be72f998f5ba57d489defd35f5d5a5b67e8e5264354be32d039
+  (改后行号已位移, 用内容锚重取)
+  现 python-typecheck: 块名行 = 205
+  原 python-typecheck: 块名行 = 205
+--- 两侧 python-typecheck 块(块名 -> exit $PYRIGHT_EXIT)逐字节比对 ---
+  python-typecheck 块: 逐字节相同
+  HONESTY(:133-145) 段: 逐字节相同
+--- 地盘门 ---
+ lefthook.yml | 115 +++++++++++++++++++++++++++++++++++++++++++++++++++++------
+ 1 file changed, 104 insertions(+), 11 deletions(-)

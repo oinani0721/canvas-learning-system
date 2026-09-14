@@ -1,0 +1,16 @@
+=== CASE 8-3: 记录流末条无 NUL 终止 ===
+旧版块 = git show 08100483:lefthook.yml 抽出, 58 行
+新版块 = 当前工作树 lefthook.yml 抽出, 107 行
+输入: 暂存 a_clean.py(无标记) + b_dirty.py(带标记)
+注入: git 垫片让枚举输出 'a_clean.py<NUL>b_dirty.py' —— 末条缺 NUL; 其余 git 调用透传
+旁证: 该流的末字节(十进制, NUL 应为 0) = 121
+----- [old 版块] rc=0 -----
+[Mutant-Scan] OK (staged additions carry no mutation marker).
+----- [old 版块] end rc=0 -----
+----- [new 版块] rc=1 -----
+[Mutant-Scan] FAILED: 暂存清单末条没有 NUL 终止(记录流被截断) —
+[Mutant-Scan]   末条会被 read 直接丢弃, 按 fail-closed 阻断。
+----- [new 版块] end rc=1 -----
+旧版打 OK 且 rc=0 : YES  (rc=0)
+新版不打 OK 且 rc=1: YES  (rc=1)
+CASE 8-3: SEALED

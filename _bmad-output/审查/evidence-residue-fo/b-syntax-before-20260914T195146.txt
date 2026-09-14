@@ -1,0 +1,17 @@
+=== (b) 抽块语法门 — 改前 ===
+唯一性自证 mutant-residue-scan: = 1
+唯一性自证 Mutant-Scan] OK  = 1
+S=345 E=404   (S=块名行, s+1=run:| 行被跳过, E=块末 echo)
+抽出行数:       58  (期望 = E-(S+1) = 58)
+--- 首行/末行自证 ---
+set -u
+echo "[Mutant-Scan] OK (staged additions carry no mutation marker)."
+--- 抽出物里的 exit 1 计数(期望 5) ---
+5
+--- bash -n ---
+bash_n_rc=0
+--- sh -n ---
+sh_n_rc=0
+--- 验伪锚: 故意坏语法必须让 bash -n 红 ---
+/tmp/blk-t8a-bad.sh: line 2: syntax error: unexpected end of file
+bad_bash_n_rc=2

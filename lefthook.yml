@@ -308,10 +308,22 @@ pre-commit:
     #   小写的散文提及("mutant testing")不会被误拦。
     #
     # 刻意不设 glob: 残留可以落在 .md / .yml / .sh, 不只是 .py。
-    # 排除名单写死在下面的 case 里(这三处的标记是**数据**不是残留):
-    #   backend/scripts/g32b_mutation_gates.py   变异 harness 本体(153 处)
-    #   backend/scripts/g32cb_mutation_gates.py  变异 harness 本体(10 处)
-    #   _bmad-output/**                          审查报告/验收单正文引用
+    # 排除名单写死在下面的 case 里(这几处的标记是**数据**不是残留)。计数是
+    # CARD-TOOL-residue-fail-open 于 B14_BASE 08100483 逐文件实测值, 不是估计:
+    #   backend/scripts/g32b_mutation_gates.py              变异 harness 本体 151 处
+    #   backend/scripts/g32cb_mutation_gates.py             变异 harness 本体 11 处
+    #   backend/scripts/g32ccr1_negative_controls.py        负控本体 11 处
+    #   backend/scripts/openapi_drift_negative_control.py   负控本体 2 处
+    #   backend/tests/regression/recap_domain_negverify.py  负控本体 13 处
+    #   .claude/rules/*.md                                  规则文正文引用(按默认补, 待用户确认)
+    #   _bmad-output/**                                     审查报告/验收单正文引用
+    # ⚠️ 匹配面(本卡实测): case 的 `*` **会匹配 `/`**, 所以 `.claude/rules/*.md` 覆盖
+    # 该目录下**任意深度**的 .md(与既有的 `_bmad-output/*` 同口径), 而 `.md.bak`、
+    # `notes.txt`、`.claude/rulesX/a.md`、`docs/.claude/rules/a.md` 都**不**在面内。
+    # 前两行的计数在第十四批之前写的是 153 / 10, 均已过时(第十三批 U8-B 改过
+    # g32b); 后三个文件在第十四批之前**不在名单里** —— 它们一旦被暂存修改就会
+    # 被本门拦下(fail-closed 误伤)。`.claude/rules/*.md` 入名单的依据是「规则文
+    # 里写标记字面量会被自己的门拦」(第十二批复核报告 §五.10)。
     # 标记串在运行时由两段拼出, 使**本文件自身**不含那个字面量 —— 否则每次
     # 编辑本块都会被自己拦下(判据不可自指)。
     #
@@ -327,9 +339,12 @@ pre-commit:
     # 先于无 priority 的)。要真正排到最后只能改命令名的字母序, 已登台账。
     #
     # 以下防御逐条对应 Codex round-1 的实测反例(全部本机复现过):
-    #   -z + tr        : `core.quotepath=false` 只关非 ASCII 八进制转义;
+    #   -z 直接消费    : `core.quotepath=false` 只关非 ASCII 八进制转义;
     #                    含 `"`/`\`/TAB 的路径仍被 C 引号化, 拿去当 pathspec
-    #                    查不到东西 → 静默放行。-z 输出原始字节, 无引号。
+    #                    查不到东西 → 静默放行。-z 输出原始字节, 无引号。记录
+    #                    按 NUL **逐条直接消费, 不再经 tr 拆行**(tr 会把文件名
+    #                    里的 \n 拆成两半); 本 shell 是否真取得回逐字节 NUL 记录
+    #                    由块内 probe 段现场自证。
     #   --literal-pathspecs : 文件名里的 `*` `?` `:` 不再被当 pathspec 通配/魔法。
     #   --no-color     : `color.ui=always` 时 diff 带 ANSI 前缀, `^+` 命中数
     #                    实测由 90 掉到 0 → 门静默放行。必须用 diff 的**标志**,
@@ -342,6 +357,35 @@ pre-commit:
     #                    少 1)。现在只有 `@@` 之前的行算文件头。
     #   FAILED 位      : git / awk 失败不再被管道吞成 0; 扫描没跑完 = fail-closed。
     #   mktemp -d      : 0700 私有目录, 取代可预测的 $$ 路径与 `: >` 截断。
+    #
+    # 以下是 CARD-TOOL-residue-fail-open(BATCH-2026-09-11-第十四批)补的一批, 逐条对应
+    # Y4-C 登记的存量 fail-open(「六 + 三 + `-s hits`」)。它们的共同形态是: 某一步失败
+    # 了, 但 FAILED 位没被置上, 于是块末照样打 OK 退 0 —— 「门坏了」与「没抓到东西」
+    # 在输出上一模一样。每条都配了一份对照(旧版 OK rc=0 / 新版 rc=1), 存档见
+    # _bmad-output/审查/evidence-residue-fo/。
+    #   --no-ext-diff  : `diff.external` / GIT_EXTERNAL_DIFF 接管输出后 git 仍 rc=0 而
+    #                    正文为空(本机实测 0 字节), awk 无输入 ⇒ 零命中。
+    #   --no-textconv  : `.gitattributes` 挂 diff=<drv> + textconv 时, awk 拿到的是被
+    #                    转换后的文本(实测标记已被换成别的字样) ⇒ 零命中。
+    #   --text         : 前 8000 字节含 NUL(或带 -diff 属性)时 git 只输出
+    #                    `Binary files … differ`, 无 @@ 无 + 行 ⇒ 零命中。
+    #   --diff-filter 加 T : T(typechange, 例如 symlink→普通文件)既不算 A 也不算 M。
+    #                    实测同一暂存态下 AM 枚举为空、AMT 枚举得到该文件, 且其新内容
+    #                    确实带 + 行。(R 已被 --no-renames 变回 A, 见上一条。)
+    #   记录流前置校验 : 暂存清单必须是**可读的普通文件**, 且非空时以 NUL 结尾。只写
+    #                    文件会让 `< names` 打不开、目录会让 read 报错 —— 两种情况下
+    #                    主循环都跑 0 次而 rc 仍 0; 末条缺 NUL 则末条被 read 直接丢弃。
+    #   SEEN/EXPECTED  : 主循环消费的记录数必须等于清单里的 NUL 个数, 否则是被中途吞掉
+    #                    (例如 awk 抢读了循环的 stdin)而不是「读完了」。
+    #   awk 用 < 重定向: awk 把形如 `name=value` 的操作数当**变量赋值**而不是文件名。
+    #                    TMPDIR 为相对路径且首段含 `=` 时 "$TMPD/d" 正是这个形态, awk
+    #                    转而读 stdin(也就是循环的记录流)、一次吞完 ⇒ 循环提前结束。
+    #                    改成 `< "$TMPD/d"` 后彻底不给操作数。⚠️ 本机 awk(version
+    #                    20200816)**不认 `--`**: 实测 `awk '…' -- 'a=b/d'` 报
+    #                    can't open file `--`, 且 `a=b/d` 仍被当赋值 —— 用 `--` 挡不住。
+    #   hits 两处守卫  : `: > hits` 原是全块唯一无显式守卫的一步, 失败要显式报; `[ -s ]`
+    #                    为假时还要核 hits 仍是可读普通文件 —— 它若被换成 /dev/null 之类,
+    #                    真命中会被写丢而 `[ -s ]` 恒假, 那是「结论取不到」不是「没命中」。
     mutant-residue-scan:
       run: |
         set -u
@@ -350,14 +394,42 @@ pre-commit:
           echo "[Mutant-Scan] FAILED: 无法创建临时目录 — 按 fail-closed 阻断。"; exit 1; }
         trap 'rm -rf "$TMPD"' EXIT
         FAILED=0
-        if ! git --no-pager diff --cached --no-color --no-renames \
-               --name-only --diff-filter=AM -z > "$TMPD/names"; then
+        if ! git --no-pager diff --cached --no-color --no-ext-diff --no-textconv \
+               --no-renames --name-only --diff-filter=AMT -z > "$TMPD/names"; then
           echo "[Mutant-Scan] FAILED: 枚举暂存文件失败 — 按 fail-closed 阻断。"; exit 1
         fi
+        # CARD-TOOL-residue-fail-open: 记录流前置校验。三条都必须在主循环之前跑 ——
+        # 它们各自对应一种「循环一次都没跑, rc 却是 0」的形态(只写文件 / 目录 / 截断流)。
+        # --no-ext-diff 与 --no-textconv 对 --name-only 是惰性的, 写在这里是为了让两个
+        # git 调用点的标志集保持一致, 以后不会只改一处。
+        if [ ! -f "$TMPD/names" ] || [ ! -r "$TMPD/names" ]; then
+          echo "[Mutant-Scan] FAILED: 暂存清单不是可读的普通文件 —"
+          echo "[Mutant-Scan]   这不是「没有暂存文件」, 按 fail-closed 阻断。"
+          exit 1
+        fi
+        if [ -s "$TMPD/names" ] && \
+           [ "$(tail -c 1 "$TMPD/names" | od -An -tu1 | tr -d ' \n')" != "0" ]; then
+          echo "[Mutant-Scan] FAILED: 暂存清单末条没有 NUL 终止(记录流被截断) —"
+          echo "[Mutant-Scan]   末条会被 read 直接丢弃, 按 fail-closed 阻断。"
+          exit 1
+        fi
+        EXPECTED=$(tr -dc '\000' < "$TMPD/names" | wc -c | tr -d ' ') || EXPECTED=""
+        case "$EXPECTED" in
+          ''|*[!0-9]*)
+            echo "[Mutant-Scan] FAILED: 统计暂存清单记录数失败 — 按 fail-closed 阻断。"
+            exit 1 ;;
+        esac
         # CARD-TOOL-residue-newline: 按 NUL 直接消费 -z, 不再经 tr 拆行 —— tr 把文件名里的
         # \n 拆成两半, 两半各自当路径查 diff, git 对不存在的路径 rc=0 且无输出 => 静默放行。
         # 下面先自证本 shell 真能逐字节取回 NUL 记录: 载荷同时带反斜线/换行/前导空格,
         # 故 -r、IFS=、-d '' 任缺一个都判不过; dash 等纯 POSIX sh 无 read -d, 一次都不循环。
+        # CARD-TOOL-residue-fail-open 把这条取舍写实(对应 Y4-C Codex §4 MEDIUM):
+        # 本块**要求** read -d。/bin/sh 若是 dash 等纯 POSIX sh, 下面这段必然判不过,
+        # 于是**连干净暂存面也会被阻断** —— 这是明知的取舍(宁可停下也不放行), 不是 bug;
+        # 「跨平台正常提交不受影响」这句话不成立, 不要再照抄。用哪个 sh 由 lefthook 的
+        # 执行环境(LEFTHOOK_* 与系统 /bin/sh)决定; 本机实测 /bin/sh 是 bash 3.2.57,
+        # 支持 read -d, 故走不到这条分支。真要支持纯 POSIX sh 必须换掉整套 NUL 读法,
+        # 那是另一张卡的面 —— 在那之前**不得**把这里改成「是 dash 就降级放行」。
         printf 'a\\\nb\000 c\000' > "$TMPD/probe"
         PROBE_ACC=""
         while IFS= read -r -d '' _p; do PROBE_ACC="$PROBE_ACC|$_p"; done < "$TMPD/probe"
@@ -366,16 +438,24 @@ pre-commit:
           echo "[Mutant-Scan]   /bin/sh 若是 dash 等纯 POSIX sh 必然走到这里。按 fail-closed 阻断。"
           exit 1
         fi
-        : > "$TMPD/hits"
+        : > "$TMPD/hits" || {
+          echo "[Mutant-Scan] FAILED: 无法初始化命中文件 — 按 fail-closed 阻断。"; exit 1; }
+        SEEN=0
         while IFS= read -r -d '' f; do
+          SEEN=$((SEEN + 1))
           [ -n "$f" ] || continue
           case "$f" in
             backend/scripts/g32b_mutation_gates.py) continue ;;
             backend/scripts/g32cb_mutation_gates.py) continue ;;
+            backend/scripts/g32ccr1_negative_controls.py) continue ;;
+            backend/scripts/openapi_drift_negative_control.py) continue ;;
+            backend/tests/regression/recap_domain_negverify.py) continue ;;
+            .claude/rules/*.md) continue ;;
             _bmad-output/*) continue ;;
           esac
           if ! git --no-pager --literal-pathspecs diff --cached --no-color \
-                 --no-renames -U0 --diff-filter=AM -- "$f" > "$TMPD/d"; then
+                 --no-ext-diff --no-textconv --text \
+                 --no-renames -U0 --diff-filter=AMT -- "$f" > "$TMPD/d"; then
             echo "[Mutant-Scan] FAILED: 取 diff 失败: $f"; FAILED=1; continue
           fi
           F="$f" awk -v M="$MARKER" '
@@ -386,8 +466,13 @@ pre-commit:
             /^\+/          { if (index($0, M)) printf "  %s:%d: %s\n", F, ln, substr($0, 2); ln++; next }
             /^ /           { ln++; next }
             { next }
-          ' "$TMPD/d" >> "$TMPD/hits" || { echo "[Mutant-Scan] FAILED: 解析失败: $f"; FAILED=1; }
+          ' < "$TMPD/d" >> "$TMPD/hits" || { echo "[Mutant-Scan] FAILED: 解析失败: $f"; FAILED=1; }
         done < "$TMPD/names"
+        if [ "$SEEN" -ne "$EXPECTED" ]; then
+          echo "[Mutant-Scan] FAILED: 暂存清单 $EXPECTED 条, 主循环只消费了 $SEEN 条 —"
+          echo "[Mutant-Scan]   记录流中途读失败或被别的命令吞掉, 这不是「读完了」。按 fail-closed 阻断。"
+          exit 1
+        fi
         if [ "$FAILED" -ne 0 ]; then
           echo "[Mutant-Scan] 扫描未完成(见上) — 这不是「没发现标记」, 按 fail-closed 阻断。"
           exit 1
@@ -399,6 +484,14 @@ pre-commit:
           echo ""
           echo "[Mutant-Scan] 变异 harness 没还原干净。先 restore 被改的生产文件,"
           echo "[Mutant-Scan] 再拿变异前的全文件 sha 基线逐个复核 —— 标记只是最弱那道网。"
+          exit 1
+        fi
+        # `[ -s hits ]` 为假有两种成因: (1) 真的一条都没命中; (2) hits 的状态根本取不到
+        # (被换成 /dev/null 之类的非普通文件, 写进去的命中被丢掉, 于是恒假)。
+        # 只有排除掉 (2) 才敢把「没命中」当结论。
+        if [ ! -f "$TMPD/hits" ] || [ ! -r "$TMPD/hits" ]; then
+          echo "[Mutant-Scan] FAILED: 命中文件不是可读的普通文件 —"
+          echo "[Mutant-Scan]   「没有命中」这个结论取不到, 按 fail-closed 阻断。"
           exit 1
         fi
         echo "[Mutant-Scan] OK (staged additions carry no mutation marker)."
