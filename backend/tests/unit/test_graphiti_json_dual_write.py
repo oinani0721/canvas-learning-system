@@ -34,11 +34,15 @@ cases below are kept for their nodeid history, but they pin *current*
 behaviour rather than a working switch.
 
 Test Coverage (Story 36.9 Task 4, re-mapped onto the current pipeline):
-- 4.1: learning event is enqueued after the Neo4j write succeeds
-- 4.2: the caller returns without waiting on downstream work
-- 4.3: a rejected enqueue degrades silently
-- 4.4: downstream latency does not propagate to the caller
-- 4.5: the caller records unconditionally (see the config-flag note)
+- 4.1: learning event is enqueued after the Neo4j write succeeds  [verified]
+- 4.3: a rejected enqueue degrades silently  [verified]
+- 4.5: the caller records unconditionally (see the config-flag note)  [verified]
+
+⚠️ 4.2 / 4.4 are NOT verified by this file (Codex r2 LOW-3). Their cases are kept
+for nodeid history and their assertions are untouched, but no case here applies a
+real downstream delay: the slow writes are attached to a client the current
+pipeline never calls. "Caller is not blocked by a slow downstream" therefore has
+no covering test in this repo right now — see the per-case notes below.
 
 [Source: docs/stories/36.9.story.md#Testing]
 [Migration: openspec/changes/fix-test-infra-paralysis/specs/test-infrastructure-resilience/spec.md]
@@ -256,9 +260,10 @@ class TestGraphitiJsonDualWrite:
         ⚠️ 覆盖边界（CARD-Y4-D-TAIL 2026-09-14 实测，断言保持原样）：现行管线没有
         per-write 超时——下游超时/失败由 GraphitiEpisodeWorker 的重试与 dead-letter
         承担（test_episode_worker_retry.py scenario 2/3）。本用例的 slow write 挂在
-        从不被调用的客户端上，且等待时长由 ``wait_for_condition`` 自行控制，故断言
-        当前只证明调用方不被下游拖住。断言保持原样以证明本用例在模块级 skip 之前
-        就是绿的。
+        从不被调用的客户端上，且等待时长由 ``wait_for_condition`` 自行控制。
+        ⚠️ Codex r2 LOW-3 更正：因此它连「调用方不被下游拖住」都**证明不了**——
+        本用例运行期间根本不存在下游延迟。它当前只证明调用方会返回一个 episode_id。
+        断言保持原样以证明本用例在模块级 skip 之前就是绿的。
         """
         # Arrange
         await memory_service.initialize()
@@ -375,7 +380,9 @@ class TestGraphitiJsonDualWrite:
     # 用例（名字里带那个已删私有助手）直接调用了
     # fix-rag-transform-and-episode-isolation 删除的私有助手，移除模块级 skip 后
     # 恒 AttributeError。这三条断言的语义（成功写入 / 超时 / 失败 各自的可观测性）
-    # 现由 GraphitiEpisodeWorker 承担，等价覆盖逐条归属如下：
+    # 现由 GraphitiEpisodeWorker 承担。归属逐条如下——⚠️ 先读本段末尾的定性：
+    # 这是**邻近场景归属，不是等价覆盖**（Codex r2 LOW-2：此处原写「等价覆盖」
+    # 与末段定性自相矛盾）：
     #
     #   success_logging → test_episode_worker_retry.py::test_basic_enqueue_and_process
     #       （成功路径：metrics.episodes_processed == 1 + add_episode.await_count == 1）
@@ -430,6 +437,10 @@ class TestGraphitiJsonDualWrite:
         assert task.name == "temporal:node_created:新建节点内容"
         assert task.source_description == "canvas_temporal:node_created"
         assert "node-456" in task.episode_body
+        # Same reason as in test_dual_write_called_after_neo4j_success: the spy
+        # records before delegating, so the worker's own counter is what proves
+        # the queue accepted the task rather than rejecting it (Codex r2 LOW-1).
+        assert ready_worker.metrics.episodes_enqueued == 1
 
     # ── 已删除：test_learning_memory_dataclass_creation（CARD-Y4-D-TAIL）───────
     #
