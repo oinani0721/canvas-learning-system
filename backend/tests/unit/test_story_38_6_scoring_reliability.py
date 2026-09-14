@@ -186,8 +186,11 @@ class TestAC3StartupRecovery:
         A real worker, not a stub. ⚠️ Codex r3 LOW-2 更正：一个同时提供 ``is_ready``
         与 ``enqueue`` 的 stub **并不会**让 ``_enqueue_episode`` 的 readiness 分支与
         ``EpisodeTask`` 创建失去覆盖（那些是生产代码，stub 之下照样执行）。stub 真正
-        拿掉的是 **worker 自身实现**的覆盖：队列计数、``is_ready`` 的真实语义、以及
-        队列满/已关闭时 ``enqueue`` 返回 False 的分支。只 mock 最外层 graphiti 客户端。
+        拿掉的是 **worker 自身实现**的覆盖：队列计数与 ``is_ready`` 的真实语义
+        （``_started and _graphiti is not None``）。只 mock 最外层 graphiti 客户端。
+        ⚠️ Codex r4 LOW-2 更正：**不要**把「队列满/已关闭时 ``enqueue`` 返回 False」也算
+        进来——``test_recover_partial_failure`` 的失败侧是直接替换 ``enqueue`` 返回值模拟的，
+        没有触发真实拒绝分支，真实 ``QueueFull`` / shutdown 处理的回归本类发现不了。
         """
         w = GraphitiEpisodeWorker(maxsize=64, dead_letter_path=str(tmp_path / "dead_letter.jsonl"))
         mock_graphiti = MagicMock()
@@ -293,9 +296,12 @@ class TestAC3StartupRecovery:
         # Both entries must have reached the enqueue boundary, otherwise the
         # 1/1 split above could also come from the replay never running at all.
         assert call_count == 2, f"expected 2 enqueue attempts, got {call_count}"
-        # File should contain only the still-pending entry
+        # File should contain only the still-pending entry — and it must be the
+        # one that failed (n2), not the one that succeeded. Counting lines alone
+        # would also pass if recovery kept the wrong entry (Codex r4 LOW-3).
         remaining = fallback_file.read_text(encoding="utf-8").strip().splitlines()
         assert len(remaining) == 1
+        assert json.loads(remaining[0])["concept_id"] == "n2"
 
     @pytest.mark.asyncio
     async def test_recover_malformed_entries_preserved(self, memory_service, tmp_path, ready_worker):
@@ -329,6 +335,11 @@ class TestAC3StartupRecovery:
         # Valid entry recovered, malformed preserved as pending (#9 fix)
         assert result["recovered"] == 1
         assert result["pending"] == 1
+        # The point of this case is no data loss: the unparseable line must still
+        # be on disk. A 1/1 count alone would also pass if it were dropped and
+        # something else were counted as pending (Codex r4 LOW-3).
+        remaining = fallback_file.read_text(encoding="utf-8").strip().splitlines()
+        assert remaining == ["not valid json"]
 
 
 class TestAC4MergedView:

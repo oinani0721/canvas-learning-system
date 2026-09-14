@@ -36,7 +36,11 @@ behaviour rather than a working switch.
 Test Coverage (Story 36.9 Task 4, re-mapped onto the current pipeline):
 - 4.1: learning event is enqueued after the Neo4j write succeeds  [verified]
 - 4.3: a rejected enqueue degrades silently  [verified]
-- 4.5: the caller records unconditionally (see the config-flag note)  [verified]
+- 4.5: with the flag on, the caller enqueues  [verified — True side only]
+
+⚠️ 4.5's flag=False side is NOT verified either (Codex r4 LOW-1): the disables case
+asserts against a client the pipeline never calls, so an implementation that skipped
+recording when the flag is off would still pass both flag cases.
 
 ⚠️ 4.2 / 4.4 are NOT verified by this file (Codex r2 LOW-3). Their cases are kept
 for nodeid history and their assertions are untouched, but no case here applies a
@@ -103,9 +107,12 @@ async def ready_worker(tmp_path, monkeypatch):
     Deliberately a *real* worker instance. ⚠️ Codex r3 LOW-2 更正：一个同时提供
     ``is_ready`` 与 ``enqueue`` 的 stub **并不会**让 ``_enqueue_episode`` 的 readiness
     分支与 ``EpisodeTask`` 创建失去覆盖——那些是生产代码，stub 之下照样执行。stub
-    真正拿掉的是 **worker 自身实现**的覆盖：队列计数（``episodes_enqueued``）、
-    ``is_ready`` 的真实语义（``_started and _graphiti is not None``）、以及队列满/已关闭
-    时 ``enqueue`` 返回 False 的分支。只 mock 最外层 graphiti 客户端，两侧都保持真实。
+    真正拿掉的是 **worker 自身实现**的覆盖：队列计数（``episodes_enqueued``，本文件
+    的接纳断言正是读它）与 ``is_ready`` 的真实语义（``_started and _graphiti is not None``）。
+    只 mock 最外层 graphiti 客户端，这两样保持真实。
+    ⚠️ Codex r4 LOW-2 更正：**不要**把「队列满/已关闭时 ``enqueue`` 返回 False」也算进来——
+    本文件没有任何用例触发那条真实分支（拒绝场景是直接替换 ``enqueue`` 的返回值模拟的），
+    真实 ``QueueFull`` / shutdown 处理若发生回归，本文件发现不了。
     """
     w = GraphitiEpisodeWorker(maxsize=64, dead_letter_path=str(tmp_path / "dead_letter.jsonl"))
     mock_graphiti = MagicMock()
