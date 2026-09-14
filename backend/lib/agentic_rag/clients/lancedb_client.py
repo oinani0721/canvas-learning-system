@@ -950,7 +950,6 @@ class LanceDBClient:
             return set()
 
         ids = set()
-        self._vault_registry_degraded = False
         try:
             root = Path(get_settings().VAULTS_ROOT).resolve()
             if not root.is_dir():
@@ -1011,11 +1010,17 @@ class LanceDBClient:
         try:
             names = self._all_table_names()
         except Exception as e:
-            logger.debug(f"[LanceDB vault registry] 表名列举失败 ({type(e).__name__}: {e}) — 指纹来源跳过")
+            # Codex round-3 HIGH-2: 这也是**来源失败**, 必须置降级 —— 否则这份缺项集合
+            # 会进 TTL 缓存, 枚举恢复后仍在窗口内按缺项集合删表。
+            self._vault_registry_degraded = True
+            logger.error(
+                f"[LanceDB vault registry] 指纹来源的表名列举失败 ({type(e).__name__}: {e}) "
+                "—— 主来源之外的补丁也失效, 归属可能退回改前口径"
+            )
             return set()
         return {n[: -len(suffix)] for n in names if n.endswith(suffix) and len(n) > len(suffix)}
 
-    def _known_vault_ids(self) -> frozenset:
+    def _known_vault_ids(self, *, force_refresh: bool = False) -> frozenset:
         """已知 vault id 集合 V —— 最长前缀优先归属的消歧依据。TTL 缓存。
 
         ``a_canvas_nodes`` 既可能是 vault ``a`` 的 ``canvas_nodes``、也可能是 vault
@@ -1029,17 +1034,25 @@ class LanceDBClient:
         ⚠️ **V 的完整性就是这道防线本身**: 少了哪个 vault, 该 vault 的表就会被 id
         更短的 vault 重新认领 (= 改前的缺陷)。负控② 专门证这一点 —— 把 V 打空,
         互前缀门当场变红。
+
+        ``force_refresh`` (Codex round-3 HIGH-2): **破坏性路径必须传它**。TTL 缓存在
+        "某个 vault 目录**暂时**看不见 (``.obsidian`` 被挪走 / 挂载抖动) 而它的表一直在"
+        这种情形下会沿用一份缺项集合 —— 表早就存在, 不需要等索引跑完, 所以
+        "五秒内物理上不可能有表"这条理由**不成立**。删表与启动自愈各自只发生一次,
+        重算一遍的代价可以忽略。
         """
         now = time.monotonic()
         cached = self._known_vaults_cache
         if (
-            cached is not None
+            not force_refresh
+            and cached is not None
             and self._known_vaults_cache_db == id(self._db)
             and (now - self._known_vaults_cached_at) < _KNOWN_VAULTS_TTL_SECONDS
         ):
             return cached
 
         ids = set()
+        self._vault_registry_degraded = False  # 本轮两条来源共用这一个标志, 进来先清
         active = self.active_vault_id
         if active and active != "default":
             ids.add(active)
@@ -1178,8 +1191,9 @@ class LanceDBClient:
         且 F1 的分页收口把它的可达面从"默认分页前 10 张"扩大到了全库。
 
         F2 的解法: 归属改由 ``_table_owner`` 按**已知 vault 集合 V** 取最长匹配 ——
-        ``t`` 归 ``vid`` ⟺ ``vid`` 是 V 中使 ``t == v`` 或 ``t.startswith(v + "_")``
-        成立的**最长**那个 v。V 的三条来源与各自边界见 ``_known_vault_ids``。
+        ``t`` 归 ``vid`` ⟺ ``vid`` 是 V 中使 ``t.startswith(v + "_")`` 成立的**最长**
+        那个 v (⛔ **没有** ``t == v`` 那一支, 原因见 ``_table_owner``)。
+        V 的三条来源与各自边界见 ``_known_vault_ids``。
         ⚠️ 消歧依赖 V 的完整性: V 里没有的 vault 仍会被短 id vault 认领 (规则退化
         成改前的朴素前缀)。这不是残留缺陷而是**这条规则的定义域** —— 不知道有哪些
         vault 就无法区分"vault ``a`` 的 ``b_canvas_nodes``"与"vault ``a_b`` 的
@@ -1260,43 +1274,62 @@ class LanceDBClient:
         1. **vault 清单降级时不删**: 已知 vault 集合的主来源 (VAULTS_ROOT 目录枚举)
            本轮失败时, 归属退回朴素前缀, 此刻删表就可能连带删掉别的 vault 的数据。
            删索引可以晚一点做, 删错了没法撤 —— 风险不对称, 宁可整次不删。
-        2. **指纹与内容会被拆开时不删**: 本 vault 的规范指纹名
-           ``{vault_id}_file_fingerprints`` 若**存在**却按最长前缀归了别人 (vault ``a``
-           与 vault ``a_file`` 并存的碰撞), 那就会出现"内容表删了、指纹表留着"——
-           随后一次普通增量索引会把每个文件都判成 unchanged, 内容**再也长不回来**。
-           改前这张表会被一起删掉 (它以 ``a_`` 开头), 所以这条拆开是本卡引入的,
-           必须由本卡挡住: 整次拒绝, 让人先去解决 vault id 碰撞。
+        2. **本 vault 的表会被拆开时不删**: ``CANONICAL_LOGICAL_TABLES`` 里任何一个
+           ``{vault_id}_{逻辑名}`` 若**存在**却按最长前缀归了别人 (vault ``a`` 与
+           vault ``a_file`` / ``a_vault`` 并存的碰撞), 删除就会只删掉一半 ——
+           指纹表留下会让之后的增量索引把每个文件都判成 unchanged (内容**再也长不回来**),
+           内容表留下则是删索引没删干净。改前这些表都以 ``a_`` 开头会被一起删掉,
+           所以这条拆开是本卡引入的, 必须由本卡挡住: 整次拒绝, 先去解决 vault id 碰撞。
+           ⛔ 枚举失败也拒绝 —— "问不出来"不能当"不存在"放行。
+           ⚠️ ``default`` / 空 vault 走裸表口径, 不做本检查 (它的基线是裸指纹表)。
         """
         self._last_drop_failures = []
         self._last_drop_refusal = None
         if self._db is None:
             return 0
 
-        # 先刷一次 vault 清单 —— 降级标志由这次计算写上 (降级结果不进缓存, 见
-        # _known_vault_ids), 所以这里读到的是本轮的真实状态。
-        self._known_vault_ids()
+        # 先**强制**刷一次 vault 清单 (Codex round-3 HIGH-2: 破坏性路径不吃 TTL 缓存 ——
+        # 某个 vault 目录暂时看不见时, 缓存里那份缺项集合会让这次删表照旧越界)。
+        # 降级标志由这次计算写上, 所以下面读到的是本轮的真实状态。
+        self._known_vault_ids(force_refresh=True)
         if self._vault_registry_degraded:
             self._last_drop_refusal = (
-                f"vault 清单降级 (VAULTS_ROOT 枚举本轮失败), 归属判定退回朴素前缀; "
+                f"vault 清单降级 (VAULTS_ROOT 或指纹来源本轮枚举失败), 归属判定退回朴素前缀; "
                 f"为避免连带删掉别的 vault 的表, 整次拒绝删除 vault {vault_id!r} 的索引"
             )
             logger.error(f"[LanceDB drop_vault_tables] {self._last_drop_refusal}")
             return 0
 
-        fp_name = f"{vault_id}_{self.FINGERPRINT_TABLE}"
+        # 碰撞预检 (Codex round-3 HIGH-1 / MEDIUM-1)。⛔ 枚举失败**不能**当成"这些表不存在"
+        # 就放行 —— 那正是 round-2 那道闸的失败分支漏洞: 前置检查枚举抛错 → 空集 → 跳过拒绝,
+        # 而后面 list_vault_tables 又枚举成功、照删不误, 于是内容删了、基线留着。
         try:
             all_names = set(self._all_table_names())
-        except Exception:
-            all_names = set()
-        if fp_name in all_names and self._table_owner(fp_name, vault_id) != f"{vault_id}":
+        except Exception as e:
             self._last_drop_refusal = (
-                f"vault {vault_id!r} 的指纹表 {fp_name!r} 存在, 但按最长前缀优先归属给了 "
-                f"{self._table_owner(fp_name, vault_id)!r} (vault id 互为前缀的命名碰撞); "
-                "继续删除会出现「内容表删了、变更检测基线留着」, 之后的增量索引会把每个文件"
-                "都判成未变更, 内容长不回来。整次拒绝, 请先解决 vault id 碰撞"
+                f"无法枚举表名 ({type(e).__name__}: {e}), 判不出本 vault 的表会不会被拆开删一半; "
+                f"整次拒绝删除 vault {vault_id!r} 的索引"
             )
             logger.error(f"[LanceDB drop_vault_tables] {self._last_drop_refusal}")
             return 0
+
+        # ⚠️ default / 空 vault 走**裸表**口径 (它的基线就是裸 file_fingerprints),
+        # 拼 "default_xxx" 去检查会对着一张与它无关的存量表误拒 (Codex round-3 LOW)。
+        if vault_id and vault_id != "default":
+            for logical in self.CANONICAL_LOGICAL_TABLES:
+                canonical = f"{vault_id}_{logical}"
+                if canonical not in all_names:
+                    continue
+                owner = self._table_owner(canonical, vault_id)
+                if owner != f"{vault_id}":
+                    self._last_drop_refusal = (
+                        f"vault {vault_id!r} 的 {canonical!r} 存在, 但按最长前缀优先归属给了 "
+                        f"{owner!r} (vault id 互为前缀的命名碰撞); 继续删除会把本 vault 的表"
+                        "**拆开删一半** —— 指纹表留下会让之后的增量索引把每个文件都判成未变更, "
+                        "内容表留下则是删索引没删干净。整次拒绝, 请先解决 vault id 碰撞"
+                    )
+                    logger.error(f"[LanceDB drop_vault_tables] {self._last_drop_refusal}")
+                    return 0
 
         tables = self.list_vault_tables(vault_id)
         dropped = 0
@@ -1409,6 +1442,9 @@ class LanceDBClient:
             # （实测 ~340-400 µs/次）。必须在循环**外**求值一次 —— 写进列表推导会按表数
             # 重复解析（1000 张表 ≈ 0.4 s，而这里是启动路径）。
             owner_vault = self.active_vault_id
+            # Codex round-3 HIGH-2: 启动自愈也会 drop 表 —— 破坏性路径不吃 TTL 缓存。
+            # 循环**外**刷一次即可 (循环内每表都刷会把启动路径拖垮)。
+            self._known_vault_ids(force_refresh=True)
             vector_tables = [
                 t
                 for t in self._tables_cache
@@ -1426,6 +1462,14 @@ class LanceDBClient:
     # =========================================================================
 
     FINGERPRINT_TABLE = "file_fingerprints"
+
+    #: CARD-G2-9-F2 (Codex round-3 MEDIUM-1): 本客户端会**按 vault 前缀拼出来**的全部
+    #: 逻辑表名（实测闭集：``DEFAULT_TABLES`` + 各索引方法的 ``table_name`` 默认值 +
+    #: 指纹表；全仓 ``resolve_table_name("…")`` 的实参字面量只有前两个）。
+    #: ⚠️ 它**不是**删除白名单 —— 删除集合仍是 ``list_vault_tables`` 的全量结果。
+    #: 它只用于 ``drop_vault_tables`` 的**碰撞预检**：这些名字里只要有一个"本该是我的、
+    #: 却按最长前缀归了别人"，就说明本 vault 的表会被拆开删一半，整次拒绝。
+    CANONICAL_LOGICAL_TABLES = ("canvas_nodes", "vault_notes", FINGERPRINT_TABLE)
 
     @property
     def _fingerprint_table_name(self) -> str:

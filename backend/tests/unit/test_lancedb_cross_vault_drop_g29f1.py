@@ -41,7 +41,7 @@ vault 的数据。
 
    ⚠️ **CARD-G2-9-F2 (BATCH-2026-09-11-第十四批) 已闭合该缺陷**: 归属改为
    ``_table_owner`` 的**最长前缀优先** (``t`` 归 ``vid`` ⟺ ``vid`` 是已知 vault
-   集合 V 中使 ``t == v`` 或 ``t.startswith(v + "_")`` 成立的最长那个 v)。
+   集合 V 中使 ``t.startswith(v + "_")`` 成立的最长那个 v；⛔ **无** ``t == v`` 支)。
    于是本族三条**由缺陷锁 (``xfail(strict=True)``) 翻转成正向隔离门** ——
    标记已删, 它们现在红了就是**真回归**, 不是"缺陷仍在"。
    同步翻转的还有前提门: 它从"断言 ``a_b_*`` 仍归 ``a``"改成断言互前缀两侧
@@ -609,7 +609,7 @@ def test_prefix_overlap_premises_hold(overlap_envs, shape, filler, consumer, tab
 
     rule = (
         "归属规则 = 最长前缀优先: t 归 vid ⟺ vid 是**已知 vault 集合 V** 中使 "
-        "`t == v 或 t.startswith(v + '_')` 成立的**最长**那个 v。"
+        "`t.startswith(v + '_')` 成立的**最长**那个 v（无 `t == v` 支）。"
         f"V 的主来源是 VAULTS_ROOT 目录枚举（本文件由 vault_registry_root fixture 在 tmp 下"
         f"建出 {_SHORT_VAULT}/ 与 {_LONG_VAULT}/ 两个含 .obsidian 的目录），"
         "另并入 active vault 与指纹表反推。V 里少了 "
@@ -1088,3 +1088,132 @@ def test_drop_refuses_when_fingerprint_would_be_orphaned(tmp_path):
         assert _all_names(db) == before, f"拒绝了却还是删掉了东西: 现存 {sorted(_all_names(db))}，原有 {sorted(before)}"
         # 基线仍可用 —— 拒绝的意义正在于此
         assert len(client._get_all_fingerprints()) == 2, "拒绝之后变更检测基线反而读不出来了"
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 门⑪ 族 —— round-3 三条：拒绝闸的失败分支 / 内容表拆分 / 破坏性路径不吃缓存
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class _ListTablesFails:
+    """真库句柄 + 让**第 n 次**表名枚举抛错的薄包装（只影响 list_tables / table_names）。
+
+    ⚠️ 必须能指定**第几次**：``drop_vault_tables`` 一次调用里会枚举三轮 ——
+    ① 刷 vault 清单（指纹来源）② 碰撞预检 ③ ``list_vault_tables`` 取删除集合。
+    若让第 ① 轮失败，指纹来源会置降级标志，于是走的是**降级闸**而不是预检的失败分支,
+    门就测不到它声称的那一层（初版写 ``fail_times=1`` 正是这样假绿的：降级文案里也含
+    「枚举」二字，连断言都一起骗过去了）。
+    """
+
+    def __init__(self, db, *, fail_on: int):
+        self._db = db
+        self._fail_on = fail_on
+        self._calls = 0
+
+    def __getattr__(self, item):
+        return getattr(self._db, item)
+
+    def _maybe_boom(self):
+        self._calls += 1
+        if self._calls == self._fail_on:
+            raise RuntimeError("injected catalog failure while listing tables")
+
+    def list_tables(self, *args, **kwargs):
+        self._maybe_boom()
+        return self._db.list_tables(*args, **kwargs)
+
+    def table_names(self, *args, **kwargs):
+        self._maybe_boom()
+        return self._db.table_names(*args, **kwargs)
+
+
+def test_drop_refuses_when_table_listing_fails(tmp_path):
+    """枚举表名失败时必须**整次拒绝**，不能当成"这些表不存在"放行（round-3 HIGH-1）。
+
+    round-2 那道指纹闸把枚举异常吞成空集：前置检查因此判"指纹表不存在"而放行，
+    随后 ``list_vault_tables`` 又枚举成功、照常删内容表 —— 内容删了、基线留着，
+    正是这道闸本来要挡的后果。「问不出来」不能当「不存在」。
+    """
+    db_path = tmp_path / "db"
+    db = lancedb.connect(str(db_path))
+    db.create_table(f"{_SHORT_VAULT}_vault_notes", data=_rows("A-NOTES"))
+    db.create_table(f"{_SHORT_VAULT}_{LanceDBClient.FINGERPRINT_TABLE}", data=_fingerprint_rows("A"))
+    before = _all_names(db)
+
+    client = _client(db_path, vault_id=_SHORT_VAULT)
+    # 只让**碰撞预检**那一次（第 2 轮枚举）失败，前后两轮都正常 —— 正是 round-2 漏洞的形态：
+    # 预检因异常判「表不存在」而放行，随后第 3 轮枚举成功、照常删内容表。
+    client._db = _ListTablesFails(db, fail_on=2)
+    dropped = client.drop_vault_tables(_SHORT_VAULT)
+
+    assert dropped == 0, f"枚举失败时仍删了 {dropped} 张表"
+    # ⛔ 断言必须绑**预检**那条文案：降级闸的文案里也含「枚举」二字，用它当判据会让
+    #    「其实走的是降级闸」也算通过（本门初版就这么假绿过）。
+    assert client._last_drop_refusal and "无法枚举表名" in client._last_drop_refusal, (
+        f"拒绝原因不是预检的枚举失败分支（可能被降级闸先拦下了）: {client._last_drop_refusal!r}"
+    )
+    assert client._vault_registry_degraded is False, (
+        "本门要的是**预检**枚举失败这条路径，但 vault 清单被判成了降级 —— 注入落在了第 1 轮"
+    )
+    assert _all_names(db) == before, f"拒绝了却还是删掉了东西: 现存 {sorted(_all_names(db))}"
+
+
+def test_drop_refuses_when_a_content_table_would_be_orphaned(tmp_path):
+    """**内容表**被抢走时同样整次拒绝，不只指纹表（round-3 MEDIUM-1）。
+
+    V = {a, a_vault} 时 ``a_vault_notes``（vault ``a`` 的逻辑表 ``vault_notes``）按最长
+    前缀归了 ``a_vault``。round-2 的闸只看指纹表，于是删 ``a`` 会返回 2、却留下一张
+    确实由 ``a`` 写出的内容表 —— "只减少认领别人的表"在内容表这一侧同样不成立。
+    """
+    db_path = tmp_path / "db"
+    db = lancedb.connect(str(db_path))
+    db.create_table(f"{_SHORT_VAULT}_canvas_nodes", data=_rows("A-NODES"))
+    db.create_table(f"{_SHORT_VAULT}_vault_notes", data=_rows("A-NOTES"))
+    db.create_table(f"{_SHORT_VAULT}_{LanceDBClient.FINGERPRINT_TABLE}", data=_fingerprint_rows("A"))
+    before = _all_names(db)
+
+    with _vaults_root_override(tmp_path / "roots", (_SHORT_VAULT, "a_vault")):
+        client = _client(db_path, vault_id=_SHORT_VAULT)
+        assert client._table_owner(f"{_SHORT_VAULT}_vault_notes", _SHORT_VAULT) == "a_vault", (
+            "前提失效: a_vault_notes 没被 a_vault 抢走，本门证不到内容表拆分"
+        )
+        dropped = client.drop_vault_tables(_SHORT_VAULT)
+        assert dropped == 0, f"内容表会被拆开时仍删了 {dropped} 张表"
+        assert client._last_drop_refusal and "拆开删一半" in client._last_drop_refusal, (
+            f"拒绝原因没记下来: {client._last_drop_refusal!r}"
+        )
+        assert _all_names(db) == before, f"拒绝了却还是删掉了东西: 现存 {sorted(_all_names(db))}"
+
+
+def test_drop_does_not_reuse_a_stale_vault_registry(tmp_path):
+    """破坏性路径必须**强制重算** vault 清单，不吃 TTL 缓存（round-3 HIGH-2）。
+
+    某个 vault 的目录**暂时**看不见（``.obsidian`` 被挪走 / 挂载抖动）时，一次普通的归属
+    查询会把缺项集合按 TTL 缓存下来。它的表一直都在，不需要等索引跑完，所以
+    「五秒内物理上不可能有表」这条理由不成立：目录恢复后若仍在窗口内，删索引照旧越界。
+
+    本门在**同一个客户端、同一个连接**上按时间顺序走：先在 ``a_b`` 不可见时问一次归属
+    （把缺项集合装进缓存），再恢复目录，然后立刻删 —— 中间不等待。
+    """
+    db_path = tmp_path / "db"
+    db = lancedb.connect(str(db_path))
+    db.create_table(f"{_SHORT_VAULT}_canvas_nodes", data=_rows("A"))
+    db.create_table(f"{_LONG_VAULT}_canvas_nodes", data=_rows("AB"))  # 无指纹表：只能靠目录来源发现
+    before = _all_names(db)
+
+    root = tmp_path / "roots"
+    with _vaults_root_override(root, (_SHORT_VAULT,)):  # 此刻只有 a 可见
+        client = _client(db_path, vault_id=_SHORT_VAULT)
+        stale = client._known_vault_ids()
+        assert _LONG_VAULT not in stale, f"前提失效: {_LONG_VAULT} 此刻就不该可见（实得 {sorted(stale)}）"
+
+        # 目录恢复（同一次 VAULTS_ROOT 接管内，客户端与连接都没换）
+        (root / _LONG_VAULT / ".obsidian").mkdir(parents=True)
+
+        dropped = client.drop_vault_tables(_SHORT_VAULT)
+        after = _all_names(db)
+        assert f"{_LONG_VAULT}_canvas_nodes" in after, (
+            f"删 vault {_SHORT_VAULT} 时沿用了陈旧的 vault 清单，连带删掉了 {_LONG_VAULT} 的表; "
+            f"消失的表 = {sorted(before - after)}"
+        )
+        assert dropped == 1, f"实删数应为 1（只有 {_SHORT_VAULT} 自己那张），实为 {dropped}"
