@@ -1,0 +1,8 @@
+# [证据 · CARD-RED-ENVDEP] (i) tests/unit 目录级运行的固定输出路径
+#
+# 协议 §2.2 禁止用 glob 取存档（多份文件时 grep 会加文件名前缀，判据静默作废），
+# 故运行前先把文件名定成 $RUN 变量并落盘在此，供事后核对「判据读的就是这一份」。
+#
+# ⚠️ 本文件原名 .runpath（隐藏文件），本应改名为 unit-close-runpath.txt，
+#    但本机用户级只读守卫阻断了 mv / rm，无法改名或删除；故就地补本说明头，如实保留。
+RUN=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t10-red/_bmad-output/审查/evidence-red-envdep/unit-close-20260914T204126.txt

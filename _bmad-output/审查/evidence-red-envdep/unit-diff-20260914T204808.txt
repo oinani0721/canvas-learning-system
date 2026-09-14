@@ -1,0 +1,57 @@
+== (i) tests/unit 目录级 diff（R-15 同口径，--ignore tests/unit/test_deploy_vault_sh.py）==
+-- RUN 汇总行 + rc --
+FAILED tests/unit/test_websocket_endpoints.py::TestWebSocketEndpoint::test_validate_session_handles_validator_error
+= 34 failed, 5105 passed, 50 skipped, 23 xfailed, 171 warnings in 369.80s (0:06:09) =
+rc=1
+
+-- base.nodeids 条数（应 64）--
+      64
+-- close.nodeids 条数 --
+      34
+
+-- diff base close：只允许 < 行，任何 > 行 = 阻断 --
+1,29d0
+< ERROR tests/unit/test_agent_service_extraction.py::TestDebugAgentResponseLogging::test_extract_with_debug_logging_enabled
+< ERROR tests/unit/test_agent_service_extraction.py::TestDebugAgentResponseLogging::test_extract_without_debug_logging
+< ERROR tests/unit/test_memory_service_batch.py::TestRecordBatchLearningEventsConcept::test_color_removed_event_type
+< ERROR tests/unit/test_memory_service_batch.py::TestRecordBatchLearningEventsConcept::test_concept_fallback_to_node_text
+< ERROR tests/unit/test_memory_service_batch.py::TestRecordBatchLearningEventsConcept::test_concept_fallback_to_unknown
+< ERROR tests/unit/test_memory_service_batch.py::TestRecordBatchLearningEventsConcept::test_concept_field_used_when_present
+< ERROR tests/unit/test_memory_service_batch.py::TestRecordBatchLearningEventsConcept::test_neo4j_disconnected_still_stores_in_memory
+< ERROR tests/unit/test_memory_service_batch.py::TestRecordBatchLearningEventsConcept::test_node_removed_event_type
+< ERROR tests/unit/test_story_30_11_batch_parallel.py::TestBatchIdempotencyCompat::test_duplicate_batch_no_duplicates
+< ERROR tests/unit/test_story_30_11_batch_parallel.py::TestBatchNeo4jDegradation::test_neo4j_unavailable_still_processes_to_memory
+< ERROR tests/unit/test_story_30_11_batch_parallel.py::TestBatchParallelExecution::test_50_events_all_processed
+< ERROR tests/unit/test_story_30_11_batch_parallel.py::TestBatchParallelExecution::test_neo4j_called_for_each_event
+< ERROR tests/unit/test_story_30_11_batch_parallel.py::TestBatchParallelExecution::test_parallel_faster_than_sequential
+< ERROR tests/unit/test_story_30_11_batch_parallel.py::TestBatchParallelExecution::test_performance_stats_recorded
+< ERROR tests/unit/test_story_30_11_batch_parallel.py::TestBatchPartialFailure::test_episode_ids_only_for_successful
+< ERROR tests/unit/test_story_30_11_batch_parallel.py::TestBatchPartialFailure::test_neo4j_failure_does_not_block_processing
+< ERROR tests/unit/test_story_30_11_batch_parallel.py::TestBatchPartialFailure::test_validation_failure_isolated
+< ERROR tests/unit/test_story_30_11_batch_parallel.py::TestBatchSemaphore::test_concurrency_limited_by_semaphore
+< ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchIdempotency::test_different_events_not_deduplicated
+< ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchIdempotency::test_duplicate_event_detection
+< ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchIdempotency::test_idempotent_writes_across_retries
+< ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchIdempotency::test_large_batch_idempotency
+< ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPartialFailureRecovery::test_event_ordering_preserved
+< ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPartialFailureRecovery::test_neo4j_unavailable_fallback
+< ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPartialFailureRecovery::test_partial_failure_recovery
+< ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPerformance::test_batch_1000_events_completion
+< ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPerformance::test_batch_50_events_under_500ms
+< ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPerformance::test_batch_memory_metrics
+< ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPerformance::test_concurrent_batch_requests
+31d1
+< FAILED tests/unit/test_agent_service_extraction.py::TestDebugAgentResponseLogging::test_config_has_debug_agent_response_field
+diff rc=1
+
+-- 计数：'>' 行数（必须 0）--
+0
+-- 计数：'<' 行数 --
+30
+
+-- 本卡 3 条 nodeid 必在 '<' 里（应 3）--
+3
+-- 验伪锚：同一过滤式对 close 集应命中 0（证本卡三条真的没了）--
+0
+-- 验伪锚：同一过滤式对 base 集应命中 3（证过滤式不是恒 0）--
+3

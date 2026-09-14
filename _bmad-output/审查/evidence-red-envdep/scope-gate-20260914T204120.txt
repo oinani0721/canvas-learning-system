@@ -1,0 +1,29 @@
+== (h) 地盘核：PREREQ=8381417b (T10-A tip) → HEAD=ee16b85a ==
+-- 主判据：排除 _bmad-output 后的代码面 --
+ backend/requirements.txt                           |  1 +
+ .../tests/unit/test_agent_service_extraction.py    | 27 ++++++++++++++++++++--
+ 2 files changed, 26 insertions(+), 2 deletions(-)
+rc=0
+
+-- name-only 精确文件集 --
+backend/requirements.txt
+backend/tests/unit/test_agent_service_extraction.py
+
+-- 验伪锚 A：pathspec 真在过滤 —— 排除 requirements.txt 应让它消失 --
+backend/tests/unit/test_agent_service_extraction.py
+
+-- 验伪锚 B：不带任何 exclude 的全量（本阶段 _bmad-output 尚未 commit，故应与主判据同）--
+backend/requirements.txt
+backend/tests/unit/test_agent_service_extraction.py
+
+-- 计数：代码面文件数应恰为 2 --
+       2
+-- 第三方文件检测（应为 0）--
+       0
+-- 验伪锚 C：同一过滤式对已知正例应命中 2（证过滤式不是恒 0）--
+2
+
+== (j) 硬边界只读自证 ==
+命中数 rc=1 (1=零命中)
+-- 工作树状态（负控还原后应只剩 evidence untracked）--
+?? "_bmad-output/\345\256\241\346\237\245/evidence-red-envdep/"
