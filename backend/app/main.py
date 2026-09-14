@@ -425,7 +425,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                     # recovered/pending 求和 ⇒ 三条链全炸也会打成
                     # 「回灌 0 条, 0 条待回灌」, 与「本来就没东西要回灌」逐字
                     # 相同 —— 那正是本卡要消灭的那类伪装 (Codex round-1 ②)。
-                    _failed = [k for k, v in replay.items() if isinstance(v, dict) and v.get("error")]
+                    # ⚠️ 判 key 存在, 不判真值 (Codex round-2 MEDIUM-2):
+                    # 捕获集里的 RuntimeError()/OSError()/ConnectionError()/
+                    # TimeoutError() 无参数时 str(e) == ""，v.get("error") 取到
+                    # 空串是 falsy ⇒ 整条链失败却被算成成功。有没有 error 这个
+                    # **键**才是「这条链出过异常」的事实, 异常文本空不空无关。
+                    _failed = [k for k, v in replay.items() if isinstance(v, dict) and "error" in v]
                     if _failed:
                         logger.error(
                             f"[T6-B] 启动回灌部分失败: {_failed} 未回灌 (异常详见上方 warning); "

@@ -86,8 +86,12 @@ async def get_trace(request_id: str) -> Dict[str, Any]:
         "Startup already replays automatically when Neo4j is up (app/main.py); "
         "this endpoint covers recovery that happens mid-run, when the process "
         "is past its startup window. "
-        "Idempotent: entries are removed from their file once replayed, so a "
-        "second call reports recovered=0. "
+        "failed_writes and canvas_events entries are removed from their file "
+        "once replayed, so a second call reports recovered=0 for those two. "
+        "learning_memories is deliberately NOT rotated (the runtime still "
+        "queries it), so that chain is replayed in full on every call — "
+        "idempotent in the graph (MERGE + SET only) but its recovered count "
+        "does not drop to zero. "
         "Requires the X-CLS-Internal-Key header."
     ),
     # 端点级鉴权 — 本 router 是裸 ``APIRouter()`` (无路由级依赖), 与

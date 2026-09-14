@@ -58,9 +58,32 @@ NEO4J_TEST_PASSWORD = os.getenv("NEO4J_TEST_PASSWORD", "testpassword")
 # ---------------------------------------------------------------------------
 
 
+def _targets_only_allowed_test_ports(uri: str) -> bool:
+    """URI 的**驱动 canonical 初始目标端口**是否全部落在测试白名单内.
+
+    ⚠️ 这里**不能**用 `":7691" in uri` 这类字符串判据 (Codex round-2 HIGH-1):
+    未被拦下的输入 `bolt://127.0.0.1:07691` —— 子串检查放行, 而驱动
+    `Address.parse` 解析后端口是 **7691**, 即现网。字符串面与驱动面是两个
+    不同的输入面, 在字符串面上判「不是现网」证明不了驱动不会连现网。
+
+    改为问驱动本人: `live_port_guard.canonical_target_ports()` 复现的正是
+    `neo4j/_api.py::parse_neo4j_uri → urlparse → Address.parse{,_list}` 这条链。
+    并且判据是**正向白名单**(端口必须 ∈ ALLOWED_TEST_PORTS)而不是反向黑名单
+    ——黑名单漏一个端口就放行, 白名单漏一个只会多 skip 一次。
+    routing scheme 的 netloc 会被拆成多个地址, 故要求**每一个**都合规。
+    解析不出来一律 fail-closed。
+    """
+    from tests.support.live_port_guard import ALLOWED_TEST_PORTS, canonical_target_ports
+
+    ports, _why = canonical_target_ports(uri)
+    if not ports:
+        return False
+    return all(p in ALLOWED_TEST_PORTS for p in ports)
+
+
 def _test_neo4j_reachable() -> bool:
-    if ":7691" in NEO4J_TEST_URI:
-        # 禁碰 live: 即使有人把 NEO4J_TEST_URI 指到现网也拒绝运行
+    if not _targets_only_allowed_test_ports(NEO4J_TEST_URI):
+        # 禁碰 live: 端口不在测试白名单内 (含 :07691 这类绕过写法) 一律拒绝运行
         return False
     try:
         from neo4j import GraphDatabase
@@ -107,9 +130,17 @@ _CLEANUP_QUERIES = (
     f"MATCH (c:Concept) WHERE c.name STARTS WITH '{GATE_PREFIX}' DETACH DELETE c",
     f"MATCH (n:Node) WHERE n.id STARTS WITH '{GATE_PREFIX}' DETACH DELETE n",
     f"MATCH (c:Canvas) WHERE c.path STARTS WITH '{GATE_PREFIX}' DETACH DELETE c",
-    # 兜底: 上一条若因顺序/中断没抓到, 无邻居的 scoring Episode 一律清掉。
-    # (本容器共用, 无邻居的 scoring Episode 对任何门都是垃圾。)
-    "MATCH (e:Episode) WHERE e.type = 'scoring' AND NOT (e)--() DETACH DELETE e",
+    # 兜底: 上一条若因顺序/中断没抓到, 清掉**本门 group** 下无邻居的 scoring Episode。
+    # ⚠️ 必须带 group 约束 (Codex round-2 MEDIUM-4): 原写法是
+    # `WHERE e.type = 'scoring' AND NOT (e)--()`, 没有任何门身份约束 ——
+    # 对照输入「别的门留下的无边 (:Episode {type:'scoring'})」同样会被本门删掉。
+    # 7692 是共享容器, 越界清理会让别的门随执行顺序时红时绿。
+    # 身份锚用 **group_id 以本门 canvas 名结尾**: 回灌链把 group 解析成
+    # `vault:<active_vault>:<canvas>` 再物理化, 故 vault 名随环境变、canvas 段不变。
+    # 用 ENDS WITH 比硬编码 vault 前缀稳。
+    f"MATCH (e:Episode) WHERE e.type = 'scoring' AND NOT (e)--() "
+    f"AND e.group_id IS NOT NULL AND e.group_id ENDS WITH '{GATE_CANVAS}' "
+    f"DETACH DELETE e",
 )
 
 
@@ -273,8 +304,28 @@ async def _read_learned(client, concept: str) -> List[Dict[str, Any]]:
 
 
 def test_gate_never_targets_live_7691() -> None:
-    """探针已拒 7691; 此断言把「禁碰 live」从注释升级为可执行契约."""
-    assert ":7691" not in NEO4J_TEST_URI
+    """把「禁碰 live」从注释升级为可执行契约 —— 按**驱动口径**判, 不按字符串判.
+
+    Codex round-2 HIGH-1: 原断言是 `":7691" not in NEO4J_TEST_URI`,
+    未被拦下的输入 `bolt://127.0.0.1:07691` 能通过它而驱动解析后连的是 7691。
+    """
+    from tests.support.live_port_guard import ALLOWED_TEST_PORTS, canonical_target_ports
+
+    ports, why = canonical_target_ports(NEO4J_TEST_URI)
+    assert ports, f"URI 的驱动 canonical 端口解析失败, fail-closed: {why}"
+    assert all(p in ALLOWED_TEST_PORTS for p in ports), (
+        f"本门只允许测试端口 {sorted(ALLOWED_TEST_PORTS)}, 实际解析到 {ports}（{why}）"
+    )
+
+    # 负控自证: 带前导零的现网端口必须被本判据拒掉 (原字符串判据会放行)
+    bypass_ports, _ = canonical_target_ports("bolt://127.0.0.1:07691")
+    assert bypass_ports == (7691,), f"前导零 URI 的驱动解析结果意外: {bypass_ports}"
+    assert not all(p in ALLOWED_TEST_PORTS for p in bypass_ports), (
+        "判据放行了 bolt://127.0.0.1:07691 —— 这正是 round-2 HIGH-1 的那条输入"
+    )
+    assert ":7691" not in "bolt://127.0.0.1:07691", (
+        "前提自证: 旧的字符串判据确实看不见这条输入 (故本断言必须用驱动口径)"
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -153,7 +153,9 @@ class FallbackSyncService:
             return 0
         try:
             raw = path.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError) as e:
+        except (OSError, ValueError) as e:
+            # ValueError 覆盖 UnicodeDecodeError (其子类) —— 后者不是 OSError,
+            # 只捕 OSError 会让一个非法字节逃到外层 (Codex round-1 LOW-④)。
             logger.warning(f"[T6-B backlog] Cannot read {path.name}: {e}")
             return 0
         return sum(1 for line in raw.splitlines() if line.strip())
@@ -173,7 +175,12 @@ class FallbackSyncService:
             if not raw:
                 return 0
             data = json.loads(raw)
-        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as e:
+        except (OSError, ValueError) as e:
+            # ValueError 一次覆盖三类 (Codex round-2 LOW-5):
+            #   json.JSONDecodeError 与 UnicodeDecodeError 都是它的子类;
+            #   Python 3.11+ 的**整数字符串转换位数上限**对超长数字字面量
+            #   (负控输入 '[' + '1'*5000 + ']') 抛的是**普通** ValueError,
+            #   逐个列子类会漏掉它, 让一个坏文件逃到外层被记成「回填失败」。
             logger.warning(f"[T6-B backlog] Cannot parse {path.name}: {e}")
             return 0
 
