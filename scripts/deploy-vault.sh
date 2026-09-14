@@ -441,11 +441,37 @@ act_journal_open() {
         ACT_JOURNAL_ERR="开阶段账前复查未过: $WRITE_GUARD_ERR"
         return 1
     fi
+    # ⛔ 复查与 `exec 9>>` 之间仍有窗口（Codex r4 HIGH）：bash 的重定向没有 O_NOFOLLOW,
+    #    也没法把「检查」和「打开」做成一步。脚本别处只能声明「窗口收到最窄、不为零」——
+    #    但这里可以**把它关掉**：先记下复查当时那个对象的 dev:ino:nlink, 打开之后再问
+    #    **这个 fd 到底连到了哪个 inode**（fd 被子进程继承, `os.fstat(9)` 问得到）。
+    #    期间被掉包 ⇒ fd 连的是别的 inode ⇒ 身份对不上 ⇒ 关掉并拒。
+    #    ⚠️ 只有「打开后核 fd 身份」才管用；再 stat 一次路径是没用的（掉包后路径与 fd
+    #    指向同一个新对象, 两边一致而那个对象根本没验过）。
+    local want="" got=""
+    want="$(python3 -c '
+import os, sys
+st = os.lstat(sys.argv[1])
+sys.stdout.write("%d:%d:%d" % (st.st_dev, st.st_ino, st.st_nlink))' "$ACT_JOURNAL" 2> /dev/null)" || want=""
+    if [ -z "$want" ]; then
+        ACT_JOURNAL_ERR="问不出阶段账的 inode 身份, 无从断言打开的是验过的那个: $ACT_JOURNAL"
+        return 1
+    fi
     if ! exec 9>> "$ACT_JOURNAL"; then
         ACT_JOURNAL_ERR="打不开阶段账: $ACT_JOURNAL"
         return 1
     fi
     ACT_JOURNAL_FD_OPEN=1
+    got="$(python3 -c '
+import os, sys
+st = os.fstat(9)
+sys.stdout.write("%d:%d:%d" % (st.st_dev, st.st_ino, st.st_nlink))' 2> /dev/null)" || got=""
+    # 空值也拒（问不出来 = 无从断言, fail-closed, 与 assert_writable_now 的三态同律）
+    if [ -z "$got" ] || [ "$got" != "$want" ]; then
+        act_journal_close
+        ACT_JOURNAL_ERR="阶段账在复查与打开之间被换过（验过 ${want}, 打开的是 ${got:-问不出来}）"
+        return 1
+    fi
     return 0
 }
 act_journal_close() {

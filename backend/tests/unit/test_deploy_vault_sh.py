@@ -3113,6 +3113,30 @@ if [ "${CLS_FAKE_BREAK_JOURNAL:-0}" = 2 ]; then
         esac
     done
 fi
+# mode 4：给 compose-config **加一个硬链接** —— inode 身份核对看不见这种情况
+#        （want 与 got 是同一个 inode，连 nlink 都相同），只有 assert_writable_now 拦得住
+if [ "${CLS_FAKE_BREAK_JOURNAL:-0}" = 4 ]; then
+    for a in "$@"; do
+        case "$a" in
+            */compose-config-*.txt)
+                ln "$a" "$CLS_FAKE_EV/hardlink.txt" 2> /dev/null || true
+                ;;
+        esac
+    done
+fi
+# mode 3：只在「记 inode 身份」那一次调用之后掉包 —— 正落在它与 exec 9>> 之间
+if [ "${CLS_FAKE_BREAK_JOURNAL:-0}" = 3 ]; then
+    case "$*" in
+        *"st.st_dev, st.st_ino, st.st_nlink"*)
+            : > "$CLS_FAKE_EV/decoy.txt"
+            for f in "$CLS_FAKE_EV"/compose-config-*.txt; do
+                [ -e "$f" ] || continue
+                rm -f "$f"
+                ln -s "$CLS_FAKE_EV/decoy.txt" "$f"
+            done
+            ;;
+    esac
+fi
 exit $rc
 """
 
@@ -3180,6 +3204,9 @@ def _tx_bins(tmp_path: Path) -> Path:
     fake_bin.mkdir(exist_ok=True)
     _tx_write(fake_bin / "docker", _TX_DOCKER, mode=0o755)
     _tx_write(fake_bin / "curl", _TX_CURL, mode=0o755)
+    # `act_journal_open` 记 inode 身份用的是 PATH 上的 `python3`（不是 harness venv 那个），
+    # 所以掉包注入点也得在这里。wrapper 本身是透明的：默认只是 exec 真 python。
+    _tx_write(fake_bin / "python3", _TX_PY_WRAPPER.replace("@REAL@", sys.executable), mode=0o755)
     return fake_bin
 
 
@@ -3508,13 +3535,15 @@ def test_g2_8_also_push_appends_and_dedups(tmp_path: Path):
         before.replace("ACTIVE_VAULT=canvas-vault", "ACTIVE_VAULT=canvas-vault\nDAILY_REVIEW_VAULTS=probe_ap2,x"),
         encoding="utf-8",
     )
+    seeded = (h / ".env").read_bytes()
     env2 = _tx_env(tmp_path, "8242", "probe_ap2")
     r2 = _tx_run(tmp_path, h, "probe_ap2", "8242", "--also-push", env=env2, script=script)
     assert r2.returncode == 0, f"rc={r2.returncode}: {r2.stdout}{r2.stderr}"
-    line2 = [
-        ln for ln in (h / ".env").read_text(encoding="utf-8").splitlines() if ln.startswith("DAILY_REVIEW_VAULTS=")
-    ]
+    after2 = (h / ".env").read_bytes()
+    line2 = [ln for ln in after2.decode("utf-8").splitlines() if ln.startswith("DAILY_REVIEW_VAULTS=")]
     assert line2 == ["DAILY_REVIEW_VAULTS=probe_ap2,x"], f"已在清单里却被重复追加: {line2}"
+    # Codex r4：命中去重时是**零写** ⇒ 整份文件逐字节不变（不止清单那一行）
+    assert after2 == seeded, f"去重命中却动了文件: {seeded!r} -> {after2!r}"
 
 
 def test_g2_8_also_push_appends_key_when_absent(tmp_path: Path):
@@ -3911,3 +3940,56 @@ def test_g2_8_lance_cap_header_digit_limit_matches_implementation():
     assert head.group(1) == impl.group(1), f"头注说 {head.group(1)} 位, 实现是 {impl.group(1)} 位"
     impl2 = re.search(r'if \[ "\$\{#lcap\}" -gt (\d+) \]; then     # 86400', src)
     assert impl2 and head.group(2) == impl2.group(1), "剥零后的位数口径也对不上"
+
+
+def test_g2_8_journal_swap_between_check_and_open_is_caught(tmp_path: Path):
+    """复查通过**之后、`exec 9>>` 之前**被掉包 ⇒ 打开的 fd 身份对不上，拒（Codex r4 HIGH）。
+
+    bash 的重定向没有 O_NOFOLLOW，「检查」与「打开」做不成一步，所以窗口本身消不掉；
+    但可以**在打开之后核这个 fd 连到了哪个 inode** —— 期间被换过就对不上。
+    ⚠️ 再 stat 一次路径是没用的：掉包之后路径与 fd 指向同一个新对象，两边一致，
+    而那个对象根本没验过。
+    """
+    h = _tx_harness(tmp_path)
+    env = _tx_env(tmp_path, "8267", "probe_jswap", extra={"CLS_FAKE_BREAK_JOURNAL": "3"})
+    r = _tx_run(tmp_path, h, "probe_jswap", "8267", env=env)
+    assert r.returncode == 75, f"复查与打开之间的掉包没被抓到: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    assert "被换过" in r.stdout, r.stdout
+    assert "cls-probe_jswap" not in _tx_state(tmp_path), "身份对不上, 却仍起了实例"
+    decoy = tmp_path / "ev" / "decoy.txt"
+    assert decoy.is_file(), "控制组不成立：桩没有做掉包"
+    assert decoy.read_text(encoding="utf-8") == "", "身份对不上之后仍有东西写进了掉包目标"
+
+
+def test_g2_8_up_failure_also_tears_down_only_this_project(tmp_path: Path):
+    """`up -d` 失败那条回滚分支同样只拆本实例（Codex r4 LOW：此前只测了健康失败那条）。"""
+    h = _tx_harness(tmp_path)
+    state = tmp_path / "docker-state.txt"
+    state.write_text("cls-sibling\n", encoding="utf-8")
+    env = _tx_env(tmp_path, "8268", "probe_upfail", sibling_port="8298", extra={"CLS_FAKE_UP_RC": "1"})
+    assert _tx_sibling_is_200(tmp_path, "8298"), "控制组不成立：跑之前兄弟实例就不是 200"
+    r = _tx_run(tmp_path, h, "probe_upfail", "8268", env=env)
+    assert r.returncode == 75, f"up 失败应 FAIL 75: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    running = _tx_state(tmp_path)
+    assert "cls-probe_upfail" not in running, f"回滚没拆掉本实例: {running}"
+    assert "cls-sibling" in running, f"失败只拆 cls-<vault>, 兄弟实例不受影响 —— 实测被误伤: {running}"
+    assert _tx_sibling_is_200(tmp_path, "8298"), "失败只拆 cls-<vault>, 兄弟实例不受影响 —— 实测已不是 200"
+    jr = _tx_cfg(tmp_path)
+    assert re.search(r"^stage=up-instance project=cls-probe_upfail rc=1$", jr, re.M), f"缺 up 失败的 rc 行: {jr!r}"
+    assert re.search(r"^stage=rollback-down project=cls-probe_upfail rc=0 ", jr, re.M), f"缺回滚 rc 行: {jr!r}"
+    assert "已回滚 down" in r.stdout, r.stdout
+
+
+def test_g2_8_journal_with_hardlink_is_refused(tmp_path: Path):
+    """阶段账有第二个硬链接 ⇒ 拒（这一条只有 `assert_writable_now` 拦得住）。
+
+    inode 身份核对（r4 HIGH 的那层）对硬链接是瞎的：want 与 got 是**同一个 inode**，
+    连 nlink 都一样。所以两层不是冗余 —— 各自覆盖不同的面，本门钉住前一层承重。
+    """
+    h = _tx_harness(tmp_path)
+    env = _tx_env(tmp_path, "8269", "probe_jhl", extra={"CLS_FAKE_BREAK_JOURNAL": "4"})
+    r = _tx_run(tmp_path, h, "probe_jhl", "8269", env=env)
+    assert (tmp_path / "ev" / "hardlink.txt").exists(), "控制组不成立：桩没有建成硬链接"
+    assert r.returncode == 75, f"硬链接的阶段账没被拒: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    assert "阶段账不可写" in r.stdout and "硬链接" in r.stdout, r.stdout
+    assert "cls-probe_jhl" not in _tx_state(tmp_path), "复查已拒, 却仍起了实例"
