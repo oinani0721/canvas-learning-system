@@ -35,8 +35,10 @@
 函数. 而 ``get_neo4j_client()`` 恒返 ``Neo4jClient``、**永不返 None**
 (``neo4j_client.py:2754-2808`` 唯一 ``return _client_instance``, 注解非
 Optional ⇒ ``edges.py:66-70`` 的 ``neo4j is None`` 是死守卫), 且 ``backend/.env``
-是 ``NEO4J_ENABLED=true`` + ``NEO4J_URI`` 端口 **7691** ⇒ **打桩一旦失效那一跑就
-会真连现网**. 故两道门在发请求 / 发写之前都先过注入锚.
+是 ``NEO4J_ENABLED=true`` + ``NEO4J_URI`` 端口 **7691**。
+在上述配置且默认 W4 豁免生效时, 若注入失效并继续执行, 真实客户端**可能**连接并写入
+7691; 连接、认证或写入本身也可能失败。``W4_GUARD_NO_EXEMPT=1`` 时上述默认豁免结论
+不适用。故两道门在发请求 / 发写之前都先过注入锚。
 
 ⛔ 本文件**没有**证明什么 (Codex r2 HIGH-1 / r3 L1, 如实记):
 两道门覆盖的是 ``AttributeError`` 这一条降级路径。**真实驱动失败不走这条路** ——
