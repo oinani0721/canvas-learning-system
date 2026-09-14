@@ -103,32 +103,33 @@ async def _write_neo4j_triplet(
         RETURN er.record_id AS record_id
         """
 
-        # ⚠️ 真缺陷, 本卡只让类型过门不修(TAIL): Neo4jClient 没有 execute_query,
-        # 只有 run_query(query, **params)(运行期 hasattr 实证)。且本函数的 except
-        # 元组 (RuntimeError, ConnectionError, TimeoutError, OSError) 不含
-        # AttributeError ⇒ 这一行会把整个双写端点打成 500, 不是记成半成功。
-        # 不改名的理由: run_query 收 **params 而这里传的是位置 dict, 改名等于
-        # 立刻换成另一个错; 且把「从不连库」变成「真写 Neo4j」是行为变更, 另立卡。
-        await neo4j.execute_query(  # pyright: ignore[reportAttributeAccessIssue]
-            query,
-            {
-                "record_id": record_id,
-                "edge_id": rationale.edge_id,
-                "source_node_id": rationale.source_node_id,
-                "target_node_id": rationale.target_node_id,
-                "source_concept": rationale.source_concept,
-                "target_concept": rationale.target_concept,
-                "relation_type": rationale.relation_type,
-                "rationale_text": rationale.rationale_text,
-                "confidence": rationale.confidence,
-                "strategies_applied": rationale.strategies_applied,
-                "questioning_rounds": rationale.questioning_rounds,
-                "explanation_depth_score": rationale.explanation_depth_score,
-                "episode_body": episode_body,
-                # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式
-                "group_id": to_physical_group_id(resolved_group_id),
-            },
-        )
+        # CARD-T-EDGES (第十四批): 已改调 run_query(**params) —— Neo4jClient 上
+        # 只有 run_query(query, **params)(neo4j_client.py:536), 从来没有
+        # execute_query, 旧写法每次调用都抛 AttributeError。run_query 收的是
+        # **params 而非位置 dict, 故参数同步展开(键名逐字不变)。
+        # 下面 except 元组同时补了 AttributeError 作纵深: 任何方法名 / 签名错配
+        # 都降级成 WriteStatus(success=False), 由 handler 记成半成功 207, 而不是
+        # 穿透 asyncio.gather(无 return_exceptions=True)与无 try 的 handler 崩成
+        # 500 —— 那会把 LanceDB 侧已经写成功的那一半也一起丢掉。
+        # 生产取回路仍由 get_neo4j_client() 决定(是否真连 Neo4j 不在本卡范围)。
+        params = {
+            "record_id": record_id,
+            "edge_id": rationale.edge_id,
+            "source_node_id": rationale.source_node_id,
+            "target_node_id": rationale.target_node_id,
+            "source_concept": rationale.source_concept,
+            "target_concept": rationale.target_concept,
+            "relation_type": rationale.relation_type,
+            "rationale_text": rationale.rationale_text,
+            "confidence": rationale.confidence,
+            "strategies_applied": rationale.strategies_applied,
+            "questioning_rounds": rationale.questioning_rounds,
+            "explanation_depth_score": rationale.explanation_depth_score,
+            "episode_body": episode_body,
+            # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式
+            "group_id": to_physical_group_id(resolved_group_id),
+        }
+        await neo4j.run_query(query, **params)
 
         logger.info(
             "Neo4j write succeeded for edge %s (record %s)",
@@ -137,7 +138,7 @@ async def _write_neo4j_triplet(
         )
         return WriteStatus(success=True)
 
-    except (RuntimeError, ConnectionError, asyncio.TimeoutError, OSError) as e:
+    except (RuntimeError, ConnectionError, asyncio.TimeoutError, OSError, AttributeError) as e:
         logger.error(
             "Neo4j write failed for edge %s: %s",
             rationale.edge_id,
