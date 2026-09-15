@@ -95,6 +95,7 @@ import pathlib
 import shutil
 import sys
 import tempfile
+import traceback
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 装门 —— 第一段可执行代码，必须早于任何业务 import
@@ -201,8 +202,11 @@ def _tree_digest(root: pathlib.Path) -> str:
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-def _load_runner(tmp_repo: pathlib.Path):
-    """加载生产 runner 模块并把它的落盘根改到 tmp。
+def _load_runner():
+    """加载生产 runner 模块，返回 ``(模块, 受保护位置)``。**此时还不打补丁。**
+
+    分成加载与改指向两步，是因为「受保护位置」只能从**打补丁之前**的 runner 读出来，
+    而它又必须早于 :func:`tempfile.mkdtemp` 被用上（见 :func:`_assert_tempdir_anchor`）。
 
     ⚠ 必须与 ``review_overview._load_runner`` 装载的是**同一个模块对象**, 否则补丁
     打在 A 副本、被测代码读 B 副本 = 假绿。手段是照它的契约来: 同一份文件路径 +
@@ -214,6 +218,11 @@ def _load_runner(tmp_repo: pathlib.Path):
     ``REPO`` / ``BACKUPS`` / ``VAULT`` 三个模块级常量在 import 时求值, 改它们是
     runner 自己 docstring 写明的隔离手段:「测试 fixture 只需 monkeypatch BACKUPS
     一处即可全隔离」(daily_review_run.py:42-44)。
+
+    ⚠ Codex r1 MEDIUM-2: ``exec_module`` 期间必须关字节码缓存。生产 loader 这么做过
+    （``review_overview._load_runner`` 有同款保护），自建 loader 漏掉就会往**真仓库**的
+    ``scripts/__pycache__`` 写 ``.pyc`` —— 那是 tmp 白名单管不到的落盘点，与本脚本
+    「只往 tmp 写」的承诺直接冲突。解释器级全局，窗口限于这一次加载且无条件恢复。
     """
     import importlib.util
 
@@ -225,12 +234,54 @@ def _load_runner(tmp_repo: pathlib.Path):
         raise PreconditionRejected(f"无法为 {script} 建立 import spec")
     mod = importlib.util.module_from_spec(spec)
     sys.modules["daily_review_run"] = mod
-    spec.loader.exec_module(mod)
+    prev_dont_write = sys.dont_write_bytecode
+    sys.dont_write_bytecode = True
+    try:
+        spec.loader.exec_module(mod)
+    except BaseException:
+        sys.modules.pop("daily_review_run", None)  # 半加载的壳不留在表里
+        raise
+    finally:
+        sys.dont_write_bytecode = prev_dont_write
 
+    # ⛔ 先记下 runner **打补丁之前**自己算出来的落盘位置 —— 那就是「生产本来会写
+    # 到哪里」。受保护位置由此派生而不是抄一份路径字面量: 抄的那份会与
+    # daily_review_run.py 的默认值漂移, 而漂移之后守卫会安静地少保护一个地方。
+    protected = {
+        "runner.REPO(生产)": mod.REPO,
+        "runner.BACKUPS(生产)": mod.BACKUPS,
+        "runner.VAULT(生产 live vault)": mod.VAULT,
+        "worktree(开发树)": _BACKEND.parent,
+    }
+    return mod, protected
+
+
+def _assert_tempdir_anchor(protected: dict[str, pathlib.Path]) -> list[str]:
+    """在 :func:`tempfile.mkdtemp` **被调用之前**验它要落在哪里。
+
+    ⛔ Codex r1 HIGH-1 的收口。``mkdtemp()`` 认 ``TMPDIR``，而它**自己就会建目录**
+    —— 等拿到返回值再检查已经晚了：那个目录已经建在 ``TMPDIR`` 指的地方了。所以
+    受保护位置的判定必须前移到 ``gettempdir()`` 上，在一个字节（含一个目录项）落盘
+    之前完成。
+    """
+    base = pathlib.Path(tempfile.gettempdir()).resolve()
+    lines = [f"tempfile.gettempdir() = {base}"]
+    for label, protected_path in protected.items():
+        pr = protected_path.resolve()
+        if base == pr or pr in base.parents or base in pr.parents:
+            raise PreconditionRejected(
+                f"TMPDIR 落在受保护位置 {label} 之内/之上: gettempdir() = {base}, {label} = {pr}"
+                "（mkdtemp 会在那里建目录 —— 在建之前拒绝）"
+            )
+        lines.append(f"anchor(pre-mkdtemp): gettempdir() 与 {label} 互不包含 ✓")
+    return lines
+
+
+def _point_runner_at(mod, tmp_repo: pathlib.Path) -> None:
+    """把 runner 的三个落盘根改到 tmp（加载与改指向分成两步，见 :func:`_load_runner`）。"""
     mod.REPO = tmp_repo
     mod.BACKUPS = tmp_repo / "backups"
     mod.VAULT = tmp_repo / "canvas-vault"
-    return mod
 
 
 def _materialize_vault(vault_dir: pathlib.Path) -> None:
@@ -262,14 +313,16 @@ def _materialize_vault(vault_dir: pathlib.Path) -> None:
     )
 
 
-def _build_vault_pair(tmp_root: pathlib.Path, share_state: bool) -> tuple[pathlib.Path, pathlib.Path]:
-    """造两个库。两态**只差 B 的 basename**一个变量（见模块 docstring）。"""
+def _plan_vault_pair(tmp_root: pathlib.Path, share_state: bool) -> tuple[pathlib.Path, pathlib.Path]:
+    """**只算路径，不建目录**。两态只差 B 的 basename 一个变量（见模块 docstring）。
+
+    ⚠ Codex r1 MEDIUM-1: 算路径与落盘必须分成两步。合成一步的话，落盘面守卫拿到的
+    是"已经建好、已经写过白板"的目录 —— 「任何写之前检查」就成了一句自述。现在顺序
+    是: 算路径 → 守卫（含白板文件路径）→ 才动盘。
+    """
     a = tmp_root / "lane_a" / VAULT_DIR_A
     b_name = VAULT_DIR_A if share_state else VAULT_DIR_B
     b = tmp_root / "lane_b" / b_name
-    for v in (a, b):
-        v.mkdir(parents=True, exist_ok=True)
-        _materialize_vault(v)
     return a, b
 
 
@@ -278,7 +331,12 @@ def _build_vault_pair(tmp_root: pathlib.Path, share_state: bool) -> tuple[pathli
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-def _assert_write_surface_is_tmp(runner, tmp_root: pathlib.Path, vaults: tuple[pathlib.Path, ...]) -> list[str]:
+def _assert_write_surface_is_tmp(
+    runner,
+    tmp_root: pathlib.Path,
+    vaults: tuple[pathlib.Path, ...],
+    protected: dict[str, pathlib.Path],
+) -> list[str]:
     """把「补丁应该生效了」变成「跑之前证明落盘路径确实在 tmp 下」。
 
     白名单而不是黑名单: 判据是「每一条落盘路径都在 tmp_root 之下」, 不是「不在真
@@ -290,9 +348,31 @@ def _assert_write_surface_is_tmp(runner, tmp_root: pathlib.Path, vaults: tuple[p
       · ``state_lock_path(v)`` = BACKUPS/daily-review.<key>.state.lock   ← state_locked 的 O_CREAT
       · save_state 的 tmp 件    同目录 → os.replace                       ← 同在 BACKUPS 下
       · vault 目录本身          写辅助明写「不写 vault 内任何路径」         ← 仍逐库校验
+      · ``v / SHARED_BOARD``   本脚本自己落的同名白板（Codex r1 MEDIUM-1）
+
+    ⛔ **白名单的锚点自己也要被验**（Codex r1 HIGH-1）。原版只问「落盘路径在不在
+    ``tmp_root`` 下」，而 ``tmp_root`` 来自 :func:`tempfile.mkdtemp`，它认 ``TMPDIR``。
+    把 ``TMPDIR`` 指到真 ``backups/`` 或 live vault，mkdtemp 就在**那里面**建目录，
+    于是每一条落盘路径都「在 tmp_root 下」——白名单全绿，字节却写进了现网。
+    判据是自指的：锚点没被验，白名单证明不了任何事。所以先用一条黑名单验锚点
+    （这是黑名单唯一正确的用法：受保护的位置是有限且已知的），再用白名单验落盘点。
     """
     checked: list[str] = []
     tmp_resolved = tmp_root.resolve()
+
+    # ---- 锚点自证: tmp_root 本身不得落在任何受保护位置之内/之上 ----
+    for label, protected_path in protected.items():
+        pr = protected_path.resolve()
+        if tmp_resolved == pr or pr in tmp_resolved.parents:
+            raise PreconditionRejected(
+                f"tmp_root 落在受保护位置 {label} 之内: tmp_root = {tmp_resolved}, {label} = {pr}"
+                "（TMPDIR 被指到了不该写的地方 —— 白名单的锚点失效, 拒绝开跑）"
+            )
+        if tmp_resolved in pr.parents:
+            raise PreconditionRejected(
+                f"tmp_root 是受保护位置 {label} 的祖先: tmp_root = {tmp_resolved}, {label} = {pr} —— 拒绝开跑"
+            )
+        checked.append(f"anchor: tmp_root 与 {label} 互不包含 ✓")
 
     def _under_tmp(p: pathlib.Path, label: str) -> None:
         rp = p.resolve()
@@ -304,6 +384,7 @@ def _assert_write_surface_is_tmp(runner, tmp_root: pathlib.Path, vaults: tuple[p
     _under_tmp(runner.BACKUPS, "runner.BACKUPS")
     for tag, v in zip(("A", "B"), vaults):
         _under_tmp(v, f"vault_{tag}")
+        _under_tmp(v / SHARED_BOARD, f"board_{tag}")
         _under_tmp(runner.state_path(v), f"state_path({tag})")
         _under_tmp(runner.state_lock_path(v), f"state_lock_path({tag})")
     return checked
@@ -446,22 +527,45 @@ def run(share_state: bool) -> tuple[int, list[str]]:
     except PreconditionRejected as exc:
         report.append(f"*** PRECONDITION REJECTED *** {exc}")
         return EXIT_PRECONDITION_REJECTED, report
+    except Exception as exc:  # noqa: BLE001
+        # ⚠ Codex r1 MEDIUM-3: 任何**别的**异常都不许走成 rc=1。rc=1 只能有一个含义
+        # ——「隔离被破坏」。让崩溃与负控命中共用一个退出码，等于让读存档的人无法
+        # 区分「门抓到了串台」与「跑挂了」，负控从此不可信。
+        report.append(f"*** UNEXPECTED ERROR *** {type(exc).__name__}: {exc}")
+        report.append(traceback.format_exc())
+        return EXIT_PRECONDITION_REJECTED, report
 
 
 def _run_inner(share_state: bool, report: list[str]) -> int:
+    # ⛔ 顺序是契约，且这一段的次序本身是实测出来的教训（Codex r1 HIGH-1 的收口）：
+    #   ① 加载 runner（只拉 stdlib + send_bark + local_tz，不碰第三方重依赖）
+    #   ② 由它派生受保护位置
+    #   ③ **验 TMPDIR**
+    #   ④ 才 import app.*（这一步会拉起 jieba / torch 等，它们会往 TMPDIR 写缓存）
+    #   ⑤ 才 mkdtemp（它自己就会建目录）
+    # ④ 排在 ③ 之后是承重的：本卡实测把 TMPDIR 指到真 backups/ 时，即使守卫在
+    # mkdtemp 之前就拒了跑，**import 链已经先往那里写了 jieba.cache 与
+    # torchinductor 目录** —— 守卫挡住了自己的写面，却没挡住它自己的 import 副作用。
+    runner, protected = _load_runner()
+    report.append("-- 前置（import app.* 与 mkdtemp 之前）--")
+    report.extend(_assert_tempdir_anchor(protected))
+
     from app.api.v1.endpoints.review_overview import _write_board_done, _write_board_snooze
 
     tmp_root = pathlib.Path(tempfile.mkdtemp(prefix="g610-canary-"))
     try:
         tmp_repo = tmp_root / "repo"
         tmp_repo.mkdir(parents=True)
-        runner = _load_runner(tmp_repo)
+        _point_runner_at(runner, tmp_repo)
         vaults_root = _BACKEND.parent
-        va, vb = _build_vault_pair(tmp_root, share_state)
+        va, vb = _plan_vault_pair(tmp_root, share_state)
 
-        # ---- 第 1 层：前置 ----
+        # ---- 第 1 层：前置（⛔ 在 _materialize_vault 落任何字节**之前**）----
         report.append("-- 前置 --")
-        report.extend(_assert_write_surface_is_tmp(runner, tmp_root, (va, vb)))
+        report.extend(_assert_write_surface_is_tmp(runner, tmp_root, (va, vb), protected))
+        for v in (va, vb):
+            v.mkdir(parents=True, exist_ok=True)
+            _materialize_vault(v)
         report.append(_assert_patch_live_on_production_path(vaults_root, runner))
         report.extend(_assert_mode_shape(runner, va, vb, share_state))
         report.extend(_group_dimension(va, vb, share_state))

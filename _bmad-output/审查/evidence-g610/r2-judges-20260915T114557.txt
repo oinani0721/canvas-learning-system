@@ -1,0 +1,15 @@
+=== r2 ruff ===
+All checks passed!
+check_rc=0
+2 files already formatted
+format_rc=0
+
+=== r2 canary 落盘守卫的 TMPDIR 负控（Codex r1 HIGH-1）===
+live backups before=      16
+*** PRECONDITION REJECTED *** TMPDIR 落在受保护位置 runner.REPO(生产) 之内/之上: gettempdir() = /Users/Heishing/Desktop/canvas/canvas-learning-system/backups, runner.REPO(生产) = /Users/Heishing/Desktop/canvas/canvas-learning-system（mkdtemp 会在那里建目录 —— 在建之前拒绝）
+verdict=REJECTED rc=2
+live backups after =      16
+✓ 零写入（守卫已前移到 import app.* 与 mkdtemp 之前）
+
+=== 现网只读 sentinel ===
+dir=/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/backups newer_than_sentinel=       0

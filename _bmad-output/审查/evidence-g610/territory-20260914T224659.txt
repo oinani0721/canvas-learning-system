@@ -1,0 +1,31 @@
+PREREQ(T4-A tip)=80d2fbb0d594351d606dd0ec95dfe1969a908cda
+HEAD=974058e59dc7f93695a75e954262a6b80be45c75  short=974058e5
+git status --porcelain lines=       1
+
+=== 裁判 5 地盘门：80d2fbb0d594351d606dd0ec95dfe1969a908cda..HEAD 排除 _bmad-output ===
+backend/scripts/g610_dual_vault_interaction_canary.py
+backend/tests/integration/test_g610_dual_vault_isolation.py
+(以上应恰为 canary + 门 两个文件)
+
+=== 验伪锚：去掉 exclude 后必须多出 _bmad-output/ 路径 ===
+"_bmad-output/\345\256\241\346\237\245/evidence-g610/base.nodeids"
+"_bmad-output/\345\256\241\346\237\245/evidence-g610/canary-guard-anchors-20260914T223856.txt"
+"_bmad-output/\345\256\241\346\237\245/evidence-g610/canary-isolated-20260914T223646.txt"
+"_bmad-output/\345\256\241\346\237\245/evidence-g610/canary-sharestate-20260914T223700.txt"
+"_bmad-output/\345\256\241\346\237\245/evidence-g610/close.nodeids"
+"_bmad-output/\345\256\241\346\237\245/evidence-g610/gate-7691-refused-20260914T223717.txt"
+"_bmad-output/\345\256\241\346\237\245/evidence-g610/gate-7691-selflayer-20260914T223759.txt"
+"_bmad-output/\345\256\241\346\237\245/evidence-g610/gate-7692-20260914T223717.txt"
+"_bmad-output/\345\256\241\346\237\245/evidence-g610/gate-mutation-anchors-20260914T223817.txt"
+"_bmad-output/\345\256\241\346\237\245/evidence-g610/prereq.txt"
+"_bmad-output/\345\256\241\346\237\245/evidence-g610/readonly-and-uri-20260914T223904.txt"
+"_bmad-output/\345\256\241\346\237\245/evidence-g610/ruff-and-identity-20260914T223914.txt"
+"_bmad-output/\345\256\241\346\237\245/evidence-g610/ruff-falsification-anchor-20260914T223926.txt"
+"_bmad-output/\345\256\241\346\237\245/evidence-g610/sentinel"
+"_bmad-output/\345\256\241\346\237\245/evidence-g610/unit-close-20260914T223934.txt"
+backend/scripts/g610_dual_vault_interaction_canary.py
+backend/tests/integration/test_g610_dual_vault_isolation.py
+
+=== 裁判 7 越界自证：backend/app + daily_review_run.py + review_overview.py 的 diff 必须为空 ===
+[上面为空 = 本卡一行都没改它们]
+空判据行数=       0

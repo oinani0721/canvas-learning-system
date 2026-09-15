@@ -1,0 +1,63 @@
+2026-09-15 11:45:28 [debug    ] RAGService: Added /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t4-g3/backend/lib to sys.path
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+  from pydantic.v1.fields import FieldInfo as FieldInfoV1
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  import pkg_resources
+Building prefix dict from the default dictionary ...
+Loading model from cache /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/jieba.cache
+Loading model cost 0.206 seconds.
+Prefix dict has been built successfully.
+2026-09-15 11:45:31 [info     ] RAGService: LangGraph/Agentic RAG available. LANGGRAPH_AVAILABLE=True
+== CARD-G6-10 双 vault 交互隔离 canary · mode=isolated ==
+-- 前置（import app.* 与 mkdtemp 之前）--
+tempfile.gettempdir() = /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T
+anchor(pre-mkdtemp): gettempdir() 与 runner.REPO(生产) 互不包含 ✓
+anchor(pre-mkdtemp): gettempdir() 与 runner.BACKUPS(生产) 互不包含 ✓
+anchor(pre-mkdtemp): gettempdir() 与 runner.VAULT(生产 live vault) 互不包含 ✓
+anchor(pre-mkdtemp): gettempdir() 与 worktree(开发树) 互不包含 ✓
+-- 前置 --
+anchor: tmp_root 与 runner.REPO(生产) 互不包含 ✓
+anchor: tmp_root 与 runner.BACKUPS(生产) 互不包含 ✓
+anchor: tmp_root 与 runner.VAULT(生产 live vault) 互不包含 ✓
+anchor: tmp_root 与 worktree(开发树) 互不包含 ✓
+runner.REPO = /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/g610-canary-uidopwdd/repo
+runner.BACKUPS = /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/g610-canary-uidopwdd/repo/backups
+vault_A = /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/g610-canary-uidopwdd/lane_a/g29canary_a
+board_A = /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/g610-canary-uidopwdd/lane_a/g29canary_a/双vault验证/同名白板.canvas
+state_path(A) = /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/g610-canary-uidopwdd/repo/backups/daily-review.g29canary_a.state.json
+state_lock_path(A) = /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/g610-canary-uidopwdd/repo/backups/daily-review.g29canary_a.state.lock
+vault_B = /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/g610-canary-uidopwdd/lane_b/g29canary_b
+board_B = /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/g610-canary-uidopwdd/lane_b/g29canary_b/双vault验证/同名白板.canvas
+state_path(B) = /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/g610-canary-uidopwdd/repo/backups/daily-review.g29canary_b.state.json
+state_lock_path(B) = /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/g610-canary-uidopwdd/repo/backups/daily-review.g29canary_b.state.lock
+_require_runner(...) is patched runner  →  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t4-g3/scripts/daily_review_run.py
+vault_key(A) = g29canary_a
+vault_key(B) = g29canary_b
+state_path(A) = /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/g610-canary-uidopwdd/repo/backups/daily-review.g29canary_a.state.json
+state_path(B) = /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/g610-canary-uidopwdd/repo/backups/daily-review.g29canary_b.state.json
+mode=isolated: state_path(A) != state_path(B) ✓
+physical group A = vault__g29canary_a
+physical group B = vault__g29canary_b
+mode=isolated: group A != group B 且互不为前缀 ✓
+-- seed --
+seed sha A = 5f3da06dc9e40ada06ef0ff0b66f200450c7bb87fae093c0825143a8a10f5b15
+seed sha B = 5f3da06dc9e40ada06ef0ff0b66f200450c7bb87fae093c0825143a8a10f5b15
+seed sha A == seed sha B ✓（同名攻击形状：两库起点逐字节相同）
+-- 对 A 的操作（复用生产写辅助，不经 HTTP）--
+_write_board_snooze(A, …, '双vault验证/同名白板.canvas', '2026-01-01T21:00:00+08:00')
+_write_board_done(A, …, '双vault验证/同名白板.canvas', '2026-01-01')
+-- 正向对照（证明 A 确有本次写入）--
+P1 A state sha  5f3da06dc9e40ada… → 40e068c35fe63de3…（已变）
+P2 A snoozed[双vault验证/同名白板.canvas] = 2026-01-01T21:00:00+08:00
+P2 A board_done[双vault验证/同名白板.canvas] = 2026-01-01
+P3 写辅助自报落盘路径 == state_path(A) = /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/g610-canary-uidopwdd/repo/backups/daily-review.g29canary_a.state.json
+-- 隔离判据（B 库逐字节不变）--
+B state file   = /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/g610-canary-uidopwdd/repo/backups/daily-review.g29canary_b.state.json
+B state before = 5f3da06dc9e40ada06ef0ff0b66f200450c7bb87fae093c0825143a8a10f5b15
+B state after  = 5f3da06dc9e40ada06ef0ff0b66f200450c7bb87fae093c0825143a8a10f5b15
+B vault tree before = ed48c77fd6e00d66a1f1ebce2c33f27928498fa8031c7a945ff3132bf059095f
+B vault tree after  = ed48c77fd6e00d66a1f1ebce2c33f27928498fa8031c7a945ff3132bf059095f
+ISOLATION OK —— B 的 state 与 vault 树逐字节不变，A 确有本次写入
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+verdict=ISOLATED rc=0
+rc=0

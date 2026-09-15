@@ -137,7 +137,15 @@ REVIEW_SCORE = 95
 #: 隔离断言失败正文里的稳定锚。负控用它 match，证明红的是**这条**断言。
 _BREACH_MARKER = "G610-ISOLATION-BREACH"
 
+#: ⚠ Codex r1 MEDIUM-6: **Episode 必须删在 Node 之前**。原版把
+#: `MATCH (e:Episode)-[:SCORED]->(n:Node) …` 放在 `DETACH DELETE n` 之后，而
+#: `DETACH DELETE` 连边一起删 —— 等轮到 Episode 那条时，用来定位它的 SCORED 边已经
+#: 没了，声称要清的「无 group 的 scoring Episode」一条也定位不到，清理语句形同虚设。
+#: 收尾再补一条模板 `:109` 的孤儿扫（没有任何边、type=scoring、无 group 的残渣）。
 _CLEANUP_QUERIES = (
+    # ① 先按 SCORED 边定位 Episode（此时 Node 还在，边还在）
+    f"MATCH (e:Episode)-[:SCORED]->(n:Node) WHERE n.id STARTS WITH '{GATE_PREFIX}' DETACH DELETE e",
+    # ② 再删节点族
     f"MATCH (n) WHERE n.group_id STARTS WITH 'vault__{GATE_PREFIX}' DETACH DELETE n",
     f"MATCH (c:Concept) WHERE c.name STARTS WITH '{GATE_PREFIX}' DETACH DELETE c",
     f"MATCH (u:User) WHERE u.id STARTS WITH '{GATE_PREFIX}' DETACH DELETE u",
@@ -145,7 +153,8 @@ _CLEANUP_QUERIES = (
     # 不清理会永久滞留共享 7692 容器, 让回归修好后重跑仍假红。
     f"MATCH (c:Canvas) WHERE c.path STARTS WITH '{GATE_PREFIX}' DETACH DELETE c",
     f"MATCH (n:Node) WHERE n.id STARTS WITH '{GATE_PREFIX}' DETACH DELETE n",
-    f"MATCH (e:Episode)-[:SCORED]->(n:Node) WHERE n.id STARTS WITH '{GATE_PREFIX}' DETACH DELETE e",
+    # ③ 孤儿收尾: 上面删 Node 时被剥成孤儿的无 group scoring Episode
+    "MATCH (e:Episode) WHERE e.type = 'scoring' AND e.group_id IS NULL AND NOT (e)--() DETACH DELETE e",
 )
 
 
@@ -229,18 +238,65 @@ async def _review_write(client, gid_logical: str) -> None:
         pytest.fail(f"precondition: 复习写 record_score_history 返回 False (group={gid_logical})")
 
 
-async def _snapshot_group(
-    client, gid_logical: str, gid_physical: str, *, group_filtered: bool = True
-) -> dict[str, Any]:
-    """按 **concept 名 / node 名**取样一个组的复习读面。
+async def _snapshot_raw(client, gid_physical: str, *, group_filtered: bool) -> dict[str, Any]:
+    """按 concept 名 / node 名取样复习读面 —— **三条 facet 都是手写 Cypher**。
 
-    三条读各自是生产读路径:
-      · ``get_learning_history``       —— LEARNED 边（复习分数账）
-      · ``get_concept_score_history``  —— scoring Episode（历史分数）
-      · Concept 节点直读              —— 负控 ② 在这里把 group 过滤去掉
+    ⚠ Codex r1 HIGH-2 的收口。原版这个函数在 ``group_filtered=False`` 时只把**手写的
+    Concept 查询**去掉过滤，另外两条仍走生产方法（生产方法按 R4 恒带 scope，去不掉），
+    于是负控 ② 实际改了两个变量：过滤 + 换了写入内容。现在三条 facet 全部手写、
+    ``group_filtered`` 是它们**唯一**的差别 —— 负控 ② 才真是单变量。
 
-    返回的是**按名字索引的字典**而不是计数: 计数判据挡不住等长替换（幂等 MERGE 把
-    B 的 40 分覆盖成 95 分时，行数一个都不会少）。
+    生产读路径的隔离另由 :func:`_snapshot_production` 在正例里单独证（那才是用户真正
+    走的那条路；手写查询只用来表达「读侧带不带 scope」这一个对照维度）。
+
+    ⚠ Codex r1 MEDIUM-4: LEARNED 的键是 **(concept 名, concept 的 group, 边的 group)**
+    三元组，不是概念名。按名字做键会把「A 的同名行泄漏进 B 的结果」和「B 自己那行」
+    压成同一个键，泄漏行被静默吃掉 —— 判据要测身份，不是测名字。
+    """
+    scope_learned = "AND r.group_id = $gid AND c.group_id = $gid" if group_filtered else ""
+    learned_rows = await client.run_query(
+        f"""
+        MATCH (u:User {{id: $uid}})-[r:LEARNED]->(c:Concept)
+        WHERE c.name STARTS WITH $prefix {scope_learned}
+        RETURN c.name AS name, c.group_id AS cgid, r.group_id AS rgid, r.score AS score
+        ORDER BY name, cgid, rgid, score
+        """,
+        uid=SHARED_USER_ID,
+        prefix=GATE_PREFIX,
+        gid=gid_physical,
+    )
+    scope_ep = "AND n.group_id = $gid AND r.group_id = $gid AND e.group_id = $gid" if group_filtered else ""
+    episode_rows = await client.run_query(
+        f"""
+        MATCH (n:Node)<-[r:SCORED]-(e:Episode)
+        WHERE n.id STARTS WITH $prefix {scope_ep}
+        RETURN n.id AS nid, n.group_id AS ngid, r.group_id AS rgid, r.score AS score
+        ORDER BY nid, ngid, rgid, score
+        """,
+        prefix=GATE_PREFIX,
+        gid=gid_physical,
+    )
+    scope_concept = "AND c.group_id = $gid" if group_filtered else ""
+    concept_rows = await client.run_query(
+        f"""
+        MATCH (c:Concept) WHERE c.name STARTS WITH $prefix {scope_concept}
+        RETURN c.name AS name, c.group_id AS gid ORDER BY name, gid
+        """,
+        prefix=GATE_PREFIX,
+        gid=gid_physical,
+    )
+    return {
+        "learned": sorted((r["name"], r["cgid"], r["rgid"], r["score"]) for r in learned_rows),
+        "episodes": sorted((r["nid"], r["ngid"], r["rgid"], r["score"]) for r in episode_rows),
+        "concepts": sorted((r["name"], r["gid"]) for r in concept_rows),
+    }
+
+
+async def _snapshot_production(client, gid_logical: str) -> dict[str, Any]:
+    """用**生产读方法**取样 —— 用户真正走的那条路，正例里单独断言它也隔离。
+
+    键同样含 group_id（MEDIUM-4 同因）：生产方法读回的 group_id 已被
+    ``desanitize_group_id_from_graphiti`` 还原成 D16 冒号格式，原样入键即可。
     """
     history = await client.get_learning_history(user_id=SHARED_USER_ID, group_id=gid_logical)
     scores = await client.get_concept_score_history(
@@ -248,47 +304,42 @@ async def _snapshot_group(
         canvas_name=SHARED_CANVAS_PATH,
         group_id=gid_logical,
     )
-    if group_filtered:
-        concept_rows = await client.run_query(
-            "MATCH (c:Concept) WHERE c.group_id = $gid AND c.name STARTS WITH $prefix "
-            "RETURN c.name AS name, c.group_id AS gid ORDER BY name, gid",
-            gid=gid_physical,
-            prefix=GATE_PREFIX,
-        )
-    else:
-        # 负控 ②: R1 违规形态 —— 去掉 group 过滤的裸读
-        concept_rows = await client.run_query(
-            "MATCH (c:Concept) WHERE c.name STARTS WITH $prefix RETURN c.name AS name, c.group_id AS gid ORDER BY name, gid",
-            prefix=GATE_PREFIX,
-        )
     return {
-        "learned": {r["concept"]: (r.get("score"), r.get("timestamp")) for r in history},
-        "episodes": [(r.get("score"), str(r.get("timestamp"))) for r in scores],
-        "concepts": sorted((r["name"], r["gid"]) for r in concept_rows),
+        "learned": sorted((r.get("concept"), r.get("group_id"), r.get("score")) for r in history),
+        "episodes": sorted((r.get("score"), str(r.get("timestamp"))) for r in scores),
+        "concepts": [],
     }
+
+
+def _assert_seed_landed(raw: dict[str, Any], prod: dict[str, Any], *, where: str) -> None:
+    """seed **回读**确认 B 组确实有初始复习账（Codex r1 MEDIUM-5）。
+
+    只检查写函数返回 True 是不够的：写返回成功却没落库时，B 是「空 → 空」，
+    隔离断言照样绿。那是最难看的一种假绿 —— 门测的是一个空集合。
+    所以取样之后立刻断言三个 facet 都**非空**，并且分数确实是 seed 分数。
+    """
+    for facet in ("learned", "episodes", "concepts"):
+        assert raw[facet], f"precondition [{where}]: 手写带 scope 的读里 {facet} 为空 —— seed 没落库，门会测一个空集合"
+    for facet in ("learned", "episodes"):
+        assert prod[facet], f"precondition [{where}]: 生产读的 {facet} 为空 —— seed 没落库，门会测一个空集合"
+    seed_scores = {score for _n, _c, _r, score in raw["learned"]}
+    assert seed_scores == {SEED_SCORE}, f"precondition [{where}]: B 组初始 LEARNED 分数不是 seed 分数: {seed_scores}"
 
 
 def _assert_group_b_intact(before: dict[str, Any], after: dict[str, Any], *, where: str) -> None:
     """B 组的复习读面逐条不变 —— 正例与两条负控**共用**的那一条断言。
 
-    逐个名字比对（不是计数）: 先比键集合，再比每个键的值。键集合相同而值变了，正是
-    「同名概念被对方的写覆盖」的形态，计数判据对它完全失明。
+    逐条比对身份（不是计数）: 每个 facet 都是「(名字, group, 值)」的有序列表，
+    多出一行、少一行、同名行的值被覆盖，三种都会让它红。计数判据对第三种完全失明。
     """
-    b_names = set(before["learned"])
-    a_names = set(after["learned"])
-    assert a_names == b_names, f"{_BREACH_MARKER} [{where}] B 组 LEARNED 概念名集合变了: {b_names} → {a_names}"
-    for name in sorted(b_names):
-        assert after["learned"][name] == before["learned"][name], (
-            f"{_BREACH_MARKER} [{where}] B 组概念 {name!r} 的复习账被改动: "
-            f"{before['learned'][name]} → {after['learned'][name]}"
+    for facet, human in (
+        ("learned", "LEARNED 复习账"),
+        ("episodes", "scoring Episode 历史分数"),
+        ("concepts", "可见 Concept 名单"),
+    ):
+        assert after[facet] == before[facet], (
+            f"{_BREACH_MARKER} [{where}] B 组的 {human} 变了:\n  before = {before[facet]}\n  after  = {after[facet]}"
         )
-    assert after["episodes"] == before["episodes"], (
-        f"{_BREACH_MARKER} [{where}] B 组 node {SHARED_NODE_ID!r} 的历史分数被改动: "
-        f"{before['episodes']} → {after['episodes']}"
-    )
-    assert after["concepts"] == before["concepts"], (
-        f"{_BREACH_MARKER} [{where}] B 组可见的 Concept 名单变了: {before['concepts']} → {after['concepts']}"
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -302,33 +353,42 @@ def test_g610_never_targets_live_7691():
 
 
 # ---------------------------------------------------------------------------
-# 门 1 — 正例: A 组的复习写，B 组逐个名字不变
+# 门 1 — 正例: A 组的复习写，B 组逐条不变（手写读 + 生产读两条路都验）
 # ---------------------------------------------------------------------------
 
 
 async def test_group_b_unaffected_by_group_a_review_write(gate_client):
     """A 组复习一次，B 组的 LEARNED / Episode / Concept 名单逐条不变。
 
-    正向对照同在本测试内: A 组自己的读**必须**看到新分数。少了它，「B 没变」可以是
-    因为那次复习写根本没落库 —— 那是假绿，不是隔离。
+    两层正向对照同在本测试内，缺一「B 没变」就不构成隔离证据:
+      · seed 回读 —— B 组**确实有**初始复习账（Codex r1 MEDIUM-5: 只看写函数返回
+        True 挡不住「写返回成功但没落库」，那种情形下 B 是空→空，照样"没变"）;
+      · A 组自己的读**必须**看到新分数 —— 证明那次复习写真的发生了。
     """
     await _seed_pair(gate_client, GID_A_LOGICAL, GID_B_LOGICAL)
-    before = await _snapshot_group(gate_client, GID_B_LOGICAL, GID_B)
+
+    before = await _snapshot_raw(gate_client, GID_B, group_filtered=True)
+    before_prod = await _snapshot_production(gate_client, GID_B_LOGICAL)
+    _assert_seed_landed(before, before_prod, where="positive/B")
 
     await _review_write(gate_client, GID_A_LOGICAL)
 
-    # 正向对照: A 确有本次复习写
-    a_after = await _snapshot_group(gate_client, GID_A_LOGICAL, GID_A)
-    assert a_after["learned"][SHARED_CONCEPT][0] == REVIEW_SCORE, (
-        f"precondition: A 组自己没看到复习分数 {REVIEW_SCORE}（拿到 {a_after['learned'].get(SHARED_CONCEPT)}）"
+    # 正向对照: A 确有本次复习写（读的是 A 自己的 scope）
+    a_after = await _snapshot_production(gate_client, GID_A_LOGICAL)
+    a_scores = [score for _name, _gid, score in a_after["learned"]]
+    assert REVIEW_SCORE in a_scores, (
+        f"precondition: A 组自己没看到复习分数 {REVIEW_SCORE}（拿到 {a_after['learned']}）"
         " —— 写没落库，本测试的『B 没变』不构成隔离证据"
     )
-    assert REVIEW_SCORE in [s for s, _ in a_after["episodes"]], (
+    assert REVIEW_SCORE in [s for s, _ts in a_after["episodes"]], (
         f"precondition: A 组的历史分数里没有本次复习的 {REVIEW_SCORE}（拿到 {a_after['episodes']}）"
     )
 
-    after = await _snapshot_group(gate_client, GID_B_LOGICAL, GID_B)
-    _assert_group_b_intact(before, after, where="positive")
+    # 隔离判据: 手写带 scope 的读 与 生产读，两条路都不变
+    after = await _snapshot_raw(gate_client, GID_B, group_filtered=True)
+    _assert_group_b_intact(before, after, where="positive/raw-scoped")
+    after_prod = await _snapshot_production(gate_client, GID_B_LOGICAL)
+    _assert_group_b_intact(before_prod, after_prod, where="positive/production-read")
 
 
 # ---------------------------------------------------------------------------
@@ -343,16 +403,18 @@ async def test_negctl_write_side_mislabeled_group_breaches_isolation(gate_client
     （``MERGE (c:Concept {name, group_id})``），写侧**没有**可"去掉"的 group 过滤。
     误标身份键就是这条路径上唯一真实的串台形态。
 
-    与正例的单变量差: 只有 ``_review_write`` 的 group 实参从 A 换成 B，seed、资产、
+    与正例的单变量差: 只有 ``_review_write`` 的 group 实参从 A 换成 B —— seed、资产、
     取样函数、断言函数全部逐字相同。
     """
     await _seed_pair(gate_client, GID_NEG_A_LOGICAL, GID_NEG_B_LOGICAL)
-    before = await _snapshot_group(gate_client, GID_NEG_B_LOGICAL, GID_NEG_B)
+    before = await _snapshot_raw(gate_client, GID_NEG_B, group_filtered=True)
+    before_prod = await _snapshot_production(gate_client, GID_NEG_B_LOGICAL)
+    _assert_seed_landed(before, before_prod, where="negctl-write-side/B")
 
     # ⬇ 唯一的变量：本该是 GID_NEG_A_LOGICAL
     await _review_write(gate_client, GID_NEG_B_LOGICAL)
 
-    after = await _snapshot_group(gate_client, GID_NEG_B_LOGICAL, GID_NEG_B)
+    after = await _snapshot_raw(gate_client, GID_NEG_B, group_filtered=True)
     with pytest.raises(AssertionError, match=_BREACH_MARKER):
         _assert_group_b_intact(before, after, where="negctl-write-side")
 
@@ -365,32 +427,29 @@ async def test_negctl_write_side_mislabeled_group_breaches_isolation(gate_client
 async def test_negctl_read_side_without_group_filter_breaches_isolation(gate_client):
     """B 的读去掉 group 过滤（R1 违规形态）⇒ 看见 A 组的写 ⇒ 隔离断言必红。
 
-    与正例的单变量差: 只有 ``_snapshot_group`` 的 ``group_filtered`` 从 True 换成
-    False。A 的那次复习写本身完全正确（落的是 A 的身份键）—— 串台纯粹由"读的时候
-    没带 scope"造成，这正是读契约 R1 要拦的那件事。
+    **单变量**（Codex r1 HIGH-2 的收口）: 与正例相比，这里写的还是同一次
+    ``_review_write(A)``、落的还是 A 自己的身份键、seed 与断言函数逐字相同 ——
+    唯一的差别是 :func:`_snapshot_raw` 的 ``group_filtered`` 从 True 换成 False。
 
-    A 组的复习写会新建一个 A 独有的概念（``…_only_a``），于是"名单变了"在去过滤的
-    读里必然发生；带过滤的读则看不到它（门 1 已证）。
+    为什么它一定会红: seed 让两组各有一条同名概念的 40 分 LEARNED；A 复习后 A 那条
+    变 95。带 scope 的读只看见 B 的 40（不变）；去掉 scope 的读同时看见 A 的 95 与
+    B 的 40，A 那条从 40 变 95 ⇒ 身份三元组里的值变了 ⇒ 红。
+    这正是读契约 R1 要拦的那件事：写是对的，读没带 scope。
     """
     await _seed_pair(gate_client, GID_NEG_A_LOGICAL, GID_NEG_B_LOGICAL)
-    before = await _snapshot_group(gate_client, GID_NEG_B_LOGICAL, GID_NEG_B, group_filtered=False)
-
-    ok = await gate_client.create_learning_relationship(
-        user_id=SHARED_USER_ID,
-        concept=f"{GATE_PREFIX}_only_a",
-        score=REVIEW_SCORE,
-        group_id=GID_NEG_A_LOGICAL,
+    before_unscoped = await _snapshot_raw(gate_client, GID_NEG_B, group_filtered=False)
+    before_scoped = await _snapshot_raw(gate_client, GID_NEG_B, group_filtered=True)
+    _assert_seed_landed(
+        before_scoped, await _snapshot_production(gate_client, GID_NEG_B_LOGICAL), where="negctl-read-side/B"
     )
-    if not ok:
-        pytest.fail("precondition: A 组独有概念写入返回 False")
 
-    after = await _snapshot_group(gate_client, GID_NEG_B_LOGICAL, GID_NEG_B, group_filtered=False)
+    await _review_write(gate_client, GID_NEG_A_LOGICAL)  # 写是**对的**：落 A 的身份键
+
+    after_unscoped = await _snapshot_raw(gate_client, GID_NEG_B, group_filtered=False)
     with pytest.raises(AssertionError, match=_BREACH_MARKER):
-        _assert_group_b_intact(before, after, where="negctl-read-side")
+        _assert_group_b_intact(before_unscoped, after_unscoped, where="negctl-read-side")
 
-    # 对照: 同一次写，带 group 过滤的读**看不见** —— 证明红是"去过滤"造成的，
-    # 不是那次写本身越界。
-    filtered = await _snapshot_group(gate_client, GID_NEG_B_LOGICAL, GID_NEG_B)
-    assert all(name != f"{GATE_PREFIX}_only_a" for name, _ in filtered["concepts"]), (
-        f"A 组独有概念出现在 B 的 group-scoped 读里: {filtered['concepts']}"
-    )
+    # 对照: 同一次写、同一个 B、只把 scope 加回来 ⇒ 不红。
+    # 证明红是"读少了 scope"造成的，不是那次写本身越界。
+    after_scoped = await _snapshot_raw(gate_client, GID_NEG_B, group_filtered=True)
+    _assert_group_b_intact(before_scoped, after_scoped, where="negctl-read-side/scoped-control")

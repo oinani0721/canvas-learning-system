@@ -1,0 +1,8 @@
+=== 裁判 5 ruff（zsh 数组写法，文件名来自 git diff）===
+files=2
+backend/scripts/g610_dual_vault_interaction_canary.py
+backend/tests/integration/test_g610_dual_vault_isolation.py
+All checks passed!
+ruff_check_rc=0
+2 files already formatted
+ruff_format_rc=0
