@@ -307,9 +307,18 @@ def _resolve_tmp_base(protected: dict[str, pathlib.Path]) -> tuple[pathlib.Path,
     ③ 即使先验了 ``TMPDIR``/``TEMP``/``TMP``，环境变量没设时 tempfile 仍会自己往
        平台默认、最后往 **cwd** 探 —— 而 cwd 就在受保护的开发树里。
 
-    唯一彻底的做法是**不让 tempfile 挑**：本函数按它的候选顺序自己选一个已验过的
-    目录，再 ``mkdtemp(dir=base)``。传了 ``dir`` 之后 ``mkdtemp`` 不会调
-    ``gettempdir()``，探针那一步根本不发生。
+    ④ 还不够（Codex r4 H1）：``mkdtemp(dir=...)`` 只管住**本脚本自己**那一次。随后
+       ``import app.*`` 拉起的第三方（jieba / torch …）会自己调 ``gettempdir()``，
+       它照样按 ``TMPDIR`` → ``TEMP`` → ``TMP`` → 平台默认 → cwd 逐个探。选中的那个
+       不可写时就回落到下一个 —— 于是「我选了个安全目录」根本约束不到它们。
+
+    所以本函数做两件事，缺一不可：
+      · **每一个候选都验**（不是选中就 return，剩下的不看）—— 任何一个指向受保护
+        位置都拒跑，因为第三方可能回落到那一个；
+      · 选定之后把 ``TMPDIR`` / ``TEMP`` / ``TMP`` 与 ``tempfile.tempdir`` **一起钉死**
+        到选中的目录，再放 ``import app.*`` 进来。钉两侧（环境变量给子进程和重新读
+        环境的库看，``tempfile.tempdir`` 给本进程已 import 的 tempfile 看）——只钉
+        一侧就是把真值交给了没被钉的那一侧。
     """
     lines: list[str] = []
     candidates: list[tuple[str, str]] = []
@@ -321,15 +330,26 @@ def _resolve_tmp_base(protected: dict[str, pathlib.Path]) -> tuple[pathlib.Path,
             lines.append(f"anchor: ${var} 未设置")
     candidates.extend((f"平台默认 {d}", d) for d in _TMPDIR_PLATFORM_DEFAULTS)
 
+    # 第一遍：**全部**候选都验（含选中之后的那些 —— 第三方可能回落到它们）
+    for label, raw in candidates:
+        lines.extend(
+            _reject_if_protected(pathlib.Path(raw), label, protected, "tempfile 的候选之一，第三方可能回落到它")
+        )
+
+    # 第二遍：选第一个真的能用的
     for label, raw in candidates:
         path = pathlib.Path(raw)
-        # 受保护检查在**存在性检查之前**: 指向受保护位置就拒，不因为"它不存在"而放过
-        lines.extend(_reject_if_protected(path, label, protected, "tempfile 会在那里建探针文件并写入"))
         if not path.is_dir():
             lines.append(f"anchor: {label} = {raw} 不是目录，跳过")
             continue
-        lines.append(f"tmp base = {path.resolve()}（来自 {label}；显式传给 mkdtemp(dir=...)，tempfile 不自行挑）")
-        return path, lines
+        resolved = path.resolve()
+        # 钉死两侧，让随后 import 的第三方也只能落在这里
+        for var in _TMPDIR_ENV_VARS:
+            os.environ[var] = str(resolved)
+        tempfile.tempdir = str(resolved)
+        lines.append(f"tmp base = {resolved}（来自 {label}）")
+        lines.append(f"已钉死 TMPDIR/TEMP/TMP 与 tempfile.tempdir = {resolved}（第三方 import 也只能落这里）")
+        return resolved, lines
 
     raise PreconditionRejected(f"没有可用且安全的临时目录根（已试: {[c[1] for c in candidates]}）—— 拒绝开跑")
 

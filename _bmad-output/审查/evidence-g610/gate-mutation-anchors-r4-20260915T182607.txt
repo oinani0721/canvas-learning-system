@@ -1,0 +1,17 @@
+# CARD-G6-10 门负控验伪锚 —— r4 版（四轮整改后）
+PRE_SHA=74a278ab425ac12f7edd1303c78e8ea515d2c9b51138b89c6a099be26a6d966b  行号: 写侧=516 读侧=541/549
+
+== MUT-1 写侧负控改回正确 group ==
+    await _review_write(gate_client, GID_NEG_A_LOGICAL)
+E   Failed: DID NOT RAISE <class 'AssertionError'>
+FAILED tests/integration/test_g610_dual_vault_isolation.py::test_negctl_write_side_mislabeled_group_breaches_isolation
+=================== 1 failed, 3 passed, 10 warnings in 0.76s ===================
+
+== MUT-2 读侧负控把 scope 加回来 ==
+    before_unscoped = await _snapshot_raw(gate_client, GID_NEG_B, group_filtered=True)
+    after_unscoped = await _snapshot_raw(gate_client, GID_NEG_B, group_filtered=True)
+E   Failed: DID NOT RAISE <class 'AssertionError'>
+FAILED tests/integration/test_g610_dual_vault_isolation.py::test_negctl_read_side_without_group_filter_breaches_isolation
+=================== 1 failed, 3 passed, 10 warnings in 0.74s ===================
+
+RESTORE_VERIFIED (74a278ab425ac12f7edd1303c78e8ea515d2c9b51138b89c6a099be26a6d966b)

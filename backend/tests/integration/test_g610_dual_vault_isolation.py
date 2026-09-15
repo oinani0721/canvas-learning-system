@@ -80,33 +80,48 @@ NEO4J_TEST_PASSWORD = os.getenv("NEO4J_TEST_PASSWORD", "testpassword")
 #: 现网端口。7691 = 现网 Neo4j 的宿主映射端口；7687 = Neo4j 默认端口（容器内/直连现网）。
 _LIVE_PORTS = frozenset({7691, 7687})
 
+#: **正面白名单**：本文件只允许打 7692 测试容器。与
+#: ``tests/support/live_port_guard.ALLOWED_TEST_PORTS`` 同值同语义。
+#: ⚠ Codex r4 M2: 只列黑名单（拒 7691/7687）与文件开头「只跑容器（7692）」的声明
+#: 不一致 —— `bolt://127.0.0.1:7693` 会被放行。判据必须恰好等于它的主张，所以改成
+#: 白名单：不是 7692 就不跑。黑名单保留，让「指到现网」这一类有专属的拒绝理由。
+_ALLOWED_TEST_PORTS = frozenset({7692})
 
-def _targets_live_port(uri: str) -> bool:
-    """URI 是否指向现网端口 —— **按解析出的端口判，不按子串判**。
 
-    ⚠ Codex r3 M2: 原版只写 `":7691" in uri`。`bolt://127.0.0.1:07691` 连的就是
-    7691，子串检查却放行 —— 判据比它的主张窄。这里用 `urlsplit(...).port`（会
-    `int()` 掉前导零）判定，子串检查作为额外的一层保留。
+def _parse_port(uri: str) -> int | None:
+    """解析 URI 端口；畸形或缺省一律返回 None（= 不可判定 = 不安全）。
 
-    端口缺省也一律按现网处理: Neo4j 驱动对缺省端口取 7687，那正是现网默认端口，
-    「没写端口」不能当成「安全」。解析不出来（畸形 URI）同样按不安全处理。
+    ⚠ Codex r3 M2: 不能用 `":7691" in uri` 这种子串判据 ——
+    `bolt://127.0.0.1:07691` 连的就是 7691，子串检查却放行。
     """
-    if any(f":{p}" in uri for p in _LIVE_PORTS):
-        return True
     from urllib.parse import urlsplit
 
     try:
-        port = urlsplit(uri).port
-    except ValueError:  # 端口非法/越界 —— 不可判定即按不安全处理
+        return urlsplit(uri).port
+    except ValueError:  # 端口非法/越界
+        return None
+
+
+def _targets_live_port(uri: str) -> bool:
+    """URI 是否指向现网端口（按解析出的端口判，子串作为额外一层）。"""
+    if any(f":{p}" in uri for p in _LIVE_PORTS):
         return True
-    if port is None:  # 缺省端口 = 驱动取 7687 = 现网默认
+    port = _parse_port(uri)
+    if port is None:  # 缺省端口 = 驱动取 7687 = 现网默认；或畸形 URI
         return True
     return port in _LIVE_PORTS
 
 
+def _targets_allowed_test_port(uri: str) -> bool:
+    """URI 是否指向本文件允许的测试端口（白名单，当前只有 7692）。"""
+    if _targets_live_port(uri):
+        return False
+    return _parse_port(uri) in _ALLOWED_TEST_PORTS
+
+
 def _test_neo4j_reachable() -> bool:
-    if _targets_live_port(NEO4J_TEST_URI):
-        # 禁碰 live: 即使有人把 NEO4J_TEST_URI 指到现网也拒绝运行
+    if not _targets_allowed_test_port(NEO4J_TEST_URI):
+        # 禁碰 live，且非白名单端口一律不跑（不是 7692 就不是本文件该打的库）
         return False
     try:
         from neo4j import GraphDatabase
@@ -398,12 +413,18 @@ def test_g610_never_targets_live_7691():
     顺带把 r3 M2 的形态钉死: 带前导零的 `:07691` 也必须被判为现网。
     """
     assert not _targets_live_port(NEO4J_TEST_URI)
+    assert _targets_allowed_test_port(NEO4J_TEST_URI)
     # 形态门: 判据按解析端口而不是子串（前导零 / 缺省端口 两种都得拦下）
     assert _targets_live_port("bolt://127.0.0.1:07691")
     assert _targets_live_port("bolt://127.0.0.1:7691")
     assert _targets_live_port("bolt://127.0.0.1:7687")
     assert _targets_live_port("bolt://127.0.0.1")  # 缺省端口 = 7687 = 现网默认
     assert not _targets_live_port("bolt://127.0.0.1:7692")
+    # 白名单（Codex r4 M2）: 不是 7692 就不跑 —— 「只跑容器」是声明，也得是判据
+    assert _targets_allowed_test_port("bolt://127.0.0.1:7692")
+    assert not _targets_allowed_test_port("bolt://127.0.0.1:7693")
+    assert not _targets_allowed_test_port("bolt://127.0.0.1:07691")
+    assert not _targets_allowed_test_port("bolt://127.0.0.1")
 
 
 # ---------------------------------------------------------------------------
@@ -441,10 +462,27 @@ async def test_group_b_unaffected_by_group_a_review_write(gate_client):
     assert REVIEW_SCORE in a_ep_scores, (
         f"precondition: A 组的 Episode 里没有本次复习的 {REVIEW_SCORE}（拿到 {a_after['episodes']}）"
     )
-    # Codex r3 M3: 不只是「有 95」，而是「Episode 集合确实变了」—— seed 已锁死为全 40，
-    # 所以这一条同时证明了本次复习**新增**了记录，而不是命中了一条旧的。
-    assert a_after["episodes"] != a_before["episodes"], (
-        f"precondition: A 组 Episode 集合未变（{a_before['episodes']}）—— 本次复习没有新增记录"
+    # Codex r3 M3 + r4 L1: 「有 95 且集合变了」只证明**变化**，不证明**新增** ——
+    # 把原来那条 40 原地改成 95 也满足它。要证新增只能数条数: `_snapshot_raw` 的
+    # episodes 是 list 不是 set（重复行保留），所以 +1 就是实打实多了一条 Episode。
+    assert len(a_after["episodes"]) == len(a_before["episodes"]) + 1, (
+        f"precondition: A 组 Episode 条数未 +1（{len(a_before['episodes'])} → {len(a_after['episodes'])}）"
+        " —— 本次复习没有**新增**记录，只是改了旧的"
+    )
+    # 且旧的那条 seed 记录原样还在（新增 ≠ 覆盖）
+    assert all(row in a_after["episodes"] for row in a_before["episodes"]), (
+        f"precondition: A 组原有 Episode 被改写而非新增: {a_before['episodes']} → {a_after['episodes']}"
+    )
+
+    # Codex r4 M1: 生产读也要有「切回 A 看得见本次复习」的正控。少了它，一个恒返回
+    # B 的旧数据的生产 getter 也能让本门全绿（B 前后相等 + A 由手写查询单独验）。
+    a_after_prod = await _snapshot_production(gate_client, GID_A_LOGICAL)
+    assert REVIEW_SCORE in {score for _n, _g, score in a_after_prod["learned"]}, (
+        f"precondition: **生产读**在 A 的 scope 下看不到本次复习分数 {REVIEW_SCORE}"
+        f"（拿到 {a_after_prod['learned']}）—— 生产读可能根本没按 group 取数"
+    )
+    assert REVIEW_SCORE in {s for s, _ts in a_after_prod["episodes"]}, (
+        f"precondition: **生产读**在 A 的 scope 下看不到本次复习的 Episode（拿到 {a_after_prod['episodes']}）"
     )
 
     # 隔离判据: 手写带 scope 的读 与 生产读，两条路都不变
