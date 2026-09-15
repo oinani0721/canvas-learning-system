@@ -91,11 +91,18 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import pathlib
 import shutil
 import sys
 import tempfile
 import traceback
+
+# ⛔ Codex r2 MEDIUM-1: 字节码禁写必须是**进程级、从第一个 import 起**。原版只在
+# runner 的 exec_module 前后开关，于是 `live_port_guard` / `g29_dual_vault_canary` /
+# `app.*` 这些 import 照样往**真仓库**的 `__pycache__` 写 .pyc —— 那是 tmp 白名单
+# 管不到的落盘点。本脚本是一次性 canary，全程关缓存的代价只是 import 慢一点。
+sys.dont_write_bytecode = True
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 装门 —— 第一段可执行代码，必须早于任何业务 import
@@ -234,15 +241,15 @@ def _load_runner():
         raise PreconditionRejected(f"无法为 {script} 建立 import spec")
     mod = importlib.util.module_from_spec(spec)
     sys.modules["daily_review_run"] = mod
-    prev_dont_write = sys.dont_write_bytecode
-    sys.dont_write_bytecode = True
+    # 字节码禁写在模块顶部已置为进程级常开（Codex r2 MEDIUM-1）—— 这里**不再**保存并
+    # 恢复旧值：恢复之后随后的 `import app.*` 就又开始写 .pyc 了，正是 r2 抓到的漏面。
+    if not sys.dont_write_bytecode:  # pragma: no cover — 顶部已置 True，此处是回归哨兵
+        raise PreconditionRejected("sys.dont_write_bytecode 被谁改回了 False —— 会往真仓库写 .pyc，拒绝开跑")
     try:
         spec.loader.exec_module(mod)
     except BaseException:
         sys.modules.pop("daily_review_run", None)  # 半加载的壳不留在表里
         raise
-    finally:
-        sys.dont_write_bytecode = prev_dont_write
 
     # ⛔ 先记下 runner **打补丁之前**自己算出来的落盘位置 —— 那就是「生产本来会写
     # 到哪里」。受保护位置由此派生而不是抄一份路径字面量: 抄的那份会与
@@ -256,24 +263,58 @@ def _load_runner():
     return mod, protected
 
 
-def _assert_tempdir_anchor(protected: dict[str, pathlib.Path]) -> list[str]:
-    """在 :func:`tempfile.mkdtemp` **被调用之前**验它要落在哪里。
+#: tempfile 依次认的环境变量（``tempfile._candidate_tempdir_list`` 的前三个来源）。
+_TMPDIR_ENV_VARS = ("TMPDIR", "TEMP", "TMP")
 
-    ⛔ Codex r1 HIGH-1 的收口。``mkdtemp()`` 认 ``TMPDIR``，而它**自己就会建目录**
-    —— 等拿到返回值再检查已经晚了：那个目录已经建在 ``TMPDIR`` 指的地方了。所以
-    受保护位置的判定必须前移到 ``gettempdir()`` 上，在一个字节（含一个目录项）落盘
-    之前完成。
-    """
-    base = pathlib.Path(tempfile.gettempdir()).resolve()
-    lines = [f"tempfile.gettempdir() = {base}"]
-    for label, protected_path in protected.items():
-        pr = protected_path.resolve()
-        if base == pr or pr in base.parents or base in pr.parents:
+
+def _reject_if_protected(path: pathlib.Path, label: str, protected: dict[str, pathlib.Path], why: str) -> list[str]:
+    """``path`` 与任何受保护位置互相包含即拒。返回逐条通过记录。"""
+    rp = path.resolve()
+    lines: list[str] = []
+    for plabel, ppath in protected.items():
+        pr = ppath.resolve()
+        if rp == pr or pr in rp.parents or rp in pr.parents:
             raise PreconditionRejected(
-                f"TMPDIR 落在受保护位置 {label} 之内/之上: gettempdir() = {base}, {label} = {pr}"
-                "（mkdtemp 会在那里建目录 —— 在建之前拒绝）"
+                f"{label} 落在受保护位置 {plabel} 之内/之上: {label} = {rp}, {plabel} = {pr}（{why}）"
             )
-        lines.append(f"anchor(pre-mkdtemp): gettempdir() 与 {label} 互不包含 ✓")
+        lines.append(f"anchor: {label} 与 {plabel} 互不包含 ✓")
+    return lines
+
+
+def _assert_tempdir_anchor(protected: dict[str, pathlib.Path]) -> list[str]:
+    """在 tempfile **写出第一个字节之前**验临时目录落在哪里。
+
+    ⛔ Codex r1 HIGH-1 + r2 HIGH 的收口，两步都是实测出来的：
+
+    ① ``mkdtemp()`` 认 ``TMPDIR``，而它**自己就会建目录** —— 等拿到返回值再检查已经晚了。
+    ② 更早一步：``tempfile.gettempdir()`` 首次调用会走 ``_get_default_tempdir()``，
+       它**逐个候选目录建一个探针文件、``_os.write(fd, b'blat')``、再 unlink**
+       （CPython 源码实测）。所以连 ``gettempdir()`` 都不能先调 —— 它本身就是一次写。
+       目录列表看不见那个探针，是因为它在同一次调用里被删掉了，**不是因为没写**。
+
+    所以判定只能从**环境变量原文**读起：先看 ``TMPDIR``/``TEMP``/``TMP`` 的字面值，
+    全部安全了，才允许 tempfile 去碰盘；之后再把 ``gettempdir()`` 的实际结果复验一遍
+    （覆盖"环境变量没设、落到平台默认或 cwd"这一支）。
+    """
+    lines: list[str] = []
+    for var in _TMPDIR_ENV_VARS:
+        raw = os.environ.get(var)
+        if not raw:
+            lines.append(f"anchor(pre-tempfile): ${var} 未设置")
+            continue
+        lines.extend(
+            _reject_if_protected(
+                pathlib.Path(raw),
+                f"${var}",
+                protected,
+                "tempfile 会在那里建探针文件并写入 —— 在它碰盘之前拒绝",
+            )
+        )
+
+    # 环境变量已安全 ⇒ 现在才允许 tempfile 碰盘；结果再复验一遍（平台默认 / cwd 兜底支）
+    base = pathlib.Path(tempfile.gettempdir())
+    lines.append(f"tempfile.gettempdir() = {base.resolve()}")
+    lines.extend(_reject_if_protected(base, "gettempdir()", protected, "mkdtemp 会在那里建目录"))
     return lines
 
 
@@ -644,9 +685,18 @@ def main() -> None:
     args = ap.parse_args()
 
     rc, report = run(share_state=args.share_state)
-    print("\n".join(report))
-    print(live_port_guard.STATE.summary_line())
-    print(f"verdict={_VERDICT.get(rc, 'UNKNOWN')} rc={rc}")
+    # ⛔ Codex r2 MEDIUM-2: 输出本身也必须在异常边界内。原版把 print 放在 run() 之外，
+    # 于是一次 UnicodeEncodeError（报告全是中文，PYTHONIOENCODING=ascii 就会炸）也会让
+    # 进程以 rc=1 退出 —— 与「隔离被破坏」撞码。rc=1 只能有一个含义。
+    try:
+        print("\n".join(report))
+        print(live_port_guard.STATE.summary_line())
+        print(f"verdict={_VERDICT.get(rc, 'UNKNOWN')} rc={rc}")
+    except Exception as exc:  # noqa: BLE001
+        # 报告打不出来 ⇒ 这一跑的结论无从查验 ⇒ 按「实验没做成」收场，不是隔离结论。
+        # 这里只写 ASCII，避免在处理编码错误时再触发一次编码错误。
+        sys.stderr.write(f"G610 PRECONDITION REJECTED: report output failed: {type(exc).__name__}\n")
+        sys.exit(EXIT_PRECONDITION_REJECTED)
     sys.exit(rc)
 
 

@@ -1,0 +1,13 @@
+# Codex r2 MEDIUM-1 / MEDIUM-2 验证（修正版）
+# ⚠ 前一份 r2medium-anchors-*.txt 的 MEDIUM-2 那行**作废**：命令里的重定向写坏了，
+#   那个 rc=1 是 shell 重定向失败的退出码，不是 canary 的。如实更正，不覆盖原档。
+
+## MEDIUM-1: 进程级禁写字节码（刻意不设 PYTHONDONTWRITEBYTECODE）
+  跑后新于哨兵的 .pyc 数 =        0  ← 期望 0
+
+## MEDIUM-2: 报告输出失败必须 rc=2，不得与 rc=1（隔离被破坏）撞码
+  负控输入 PYTHONIOENCODING=ascii:
+    rc=2  ← 期望 2
+    stderr 末行: G610 PRECONDITION REJECTED: report output failed: UnicodeEncodeError
+  对照输入（正常编码）:
+    rc=0  ← 期望 0

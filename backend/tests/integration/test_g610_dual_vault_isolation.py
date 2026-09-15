@@ -153,8 +153,15 @@ _CLEANUP_QUERIES = (
     # 不清理会永久滞留共享 7692 容器, 让回归修好后重跑仍假红。
     f"MATCH (c:Canvas) WHERE c.path STARTS WITH '{GATE_PREFIX}' DETACH DELETE c",
     f"MATCH (n:Node) WHERE n.id STARTS WITH '{GATE_PREFIX}' DETACH DELETE n",
-    # ③ 孤儿收尾: 上面删 Node 时被剥成孤儿的无 group scoring Episode
-    "MATCH (e:Episode) WHERE e.type = 'scoring' AND e.group_id IS NULL AND NOT (e)--() DETACH DELETE e",
+    # ⛔ 这里**刻意没有**模板 `:109` 那条孤儿扫
+    #    `MATCH (e:Episode) WHERE e.type='scoring' AND e.group_id IS NULL AND NOT (e)--() …`
+    #    （Codex r2 MEDIUM-3）: 它没有任何 g610gate 范围条件，在**共享的** 7692 容器里会
+    #    连别的卡/别的任务留下的无 group、无边 scoring Episode 一起删掉 —— 判据的作用面
+    #    大于它的主张，那是越界清理，不是清理不彻底。
+    #    本门不需要它: ① 已在 Node 还在、SCORED 边还在时按边删过 Episode；② 带 group 的
+    #    由 `group_id STARTS WITH 'vault__g610gate'` 覆盖。
+    #    未覆盖的只剩「无 group **且** 边已先消失」这一种，本门自己的写路径产不出来
+    #    （record_score_history 恒 CREATE 边、恒带 group）—— 如实登记，不拿越界语句去盖。
 )
 
 

@@ -1,0 +1,18 @@
+# Codex r2 HIGH 的验证：gettempdir() 的探针写（纳秒 mtime 口径）
+# CPython tempfile._get_default_tempdir 源码实测: _os.open → _os.write(fd, b'blat') → _os.unlink
+# 目录列表看不见它（同一次调用里就 unlink 了），父目录 mtime 看得见。
+# ⚠ 判据必须用**分数秒** mtime（stat -f %Fm）：整秒口径下前后落在同一秒，
+#   验伪锚会假阴性 —— 本卡第一次就是这么错的，如实记下。
+
+## 验伪锚（scratchpad，证明判据真的能看见探针写）
+  mtime before = 1789444442.338222404
+  mtime after  = 1789444442.568872951
+  ✓ mtime 变了 = 判据能看见探针写
+
+## 实际负控：TMPDIR 指向真 backups/
+*** PRECONDITION REJECTED *** $TMPDIR 落在受保护位置 runner.REPO(生产) 之内/之上: $TMPDIR = /Users/Heishing/Desktop/canvas/canvas-learning-system/backups, runner.REPO(生产) = /Users/Heishing/Desktop/canvas/canvas-learning-system（tempfile 会在那里建探针文件并写入 —— 在它碰盘之前拒绝）
+verdict=REJECTED rc=2
+  live backups mtime before = 1789443957.127974178
+  live backups mtime after  = 1789443957.127974178
+  ✓ mtime 逐位未变 = tempfile 一次都没碰盘（r2 HIGH 已闭合）
+  条目数=      16（探测前 14，那 2 项待用户清理，见 live-backups-cleanup-PENDING.md）
