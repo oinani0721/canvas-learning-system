@@ -54,12 +54,12 @@
 
 ⛔ 打桩为什么打**源模块** ``app.clients.neo4j_client.get_neo4j_client``, 不打
 ``app.api.v1.endpoints.edges.get_neo4j_client``:
-``_write_neo4j_triplet`` 在**函数体内**局部 import (``edges.py:63``), edges 模块
+``_write_neo4j_triplet`` 在**函数体内**局部 import ``get_neo4j_client``, edges 模块
 上根本没有这个属性 —— 打 edges 路径时 ``raising=True`` 会在 setup 阶段就抛
 ``AttributeError``, ``raising=False`` 则 stub 根本不生效、每次调用重新 import 真
 函数. 而 ``get_neo4j_client()`` 恒返 ``Neo4jClient``、**永不返 None**
-(``neo4j_client.py:2754-2808`` 唯一 ``return _client_instance``, 注解非
-Optional ⇒ ``edges.py:66-70`` 的 ``neo4j is None`` 是死守卫), 且 ``backend/.env``
+(``neo4j_client.py`` 里该函数体唯一一条 ``return _client_instance``, 注解非
+Optional ⇒ ``_write_neo4j_triplet`` 里那句 ``if neo4j is None`` 是死守卫), 且 ``backend/.env``
 是 ``NEO4J_ENABLED=true`` + ``NEO4J_URI`` 端口 **7691**。
 在上述配置且默认 W4 豁免生效时, 若注入失效并继续执行, 真实客户端**可能**连接并写入
 7691; 连接、认证或写入本身也可能失败。``W4_GUARD_NO_EXEMPT=1`` 时上述默认豁免结论
@@ -581,14 +581,16 @@ def test_本进程与部署缺陷不得被伪装成对端写失败(monkeypatch: 
     exc_cls = _EXCLUDED_TYPES[type_name]
     # 身份判据: 这一类确实**不在**生产元组里
     assert not issubclass(exc_cls, edges_module._NEO4J_WRITE_FAILURES), (
-        f"{type_name} 被收进了 edges._NEO4J_WRITE_FAILURES —— 本进程/部署缺陷正在被伪装成对端写失败, 见本门 docstring"
+        f"{type_name} 被收进了 edges._NEO4J_WRITE_FAILURES —— 按当前处置策略它应保留 500, "
+        f"收进 207 会把它静默记成对端写失败, 见本门 docstring"
     )
 
     stub = _AttributeErrorNeo4jStub(exc_factory=lambda: exc_cls(f"{SENTINEL}: {type_name}"))
     resp = _post_with_stub(monkeypatch, stub)
 
     assert resp.status_code == 500, (
-        f"{type_name} 是本进程/部署缺陷, 必须响亮地 500, 实得 {resp.status_code}(207 = 它被静默记成了对端写失败)"
+        f"{type_name} 按当前处置策略应保留 500, 实得 {resp.status_code}"
+        f"(207 = 它被静默记成了对端写失败)。异常类型本身不唯一确定根因 —— 见本门 docstring"
     )
 
 
@@ -838,7 +840,8 @@ async def test_run_query_writes_edge_rationale_to_7692(
     #
     # ⚠️ 只有**这一条**是真承重的(第十四批 T5-B 第二轮对抗复核更正)。早先这里写着
     # 「三条前置锚」, 实测另外两条都不可证伪, 已按其真实检测力改写, 不再冒充承重:
-    #   - 「client 的端口是不是 7692」与上面 :435 的 skip 判据是**同一个纯函数作用在
+    #   - 「client 的端口是不是 7692」与本门开头那句 `if not _test_neo4j_reachable():
+    #     pytest.skip(...)` 的判据是**同一个纯函数作用在
     #     同一个字符串上**(Neo4jClient.__init__ 原样存 uri, 不归一不重写), 因此在
     #     skip 放行之后必然也放行 ⇒ 恒真。它真正能钉住的是「client 没有改写 URI」,
     #     所以改成直接断言这一点。
@@ -903,9 +906,15 @@ async def test_run_query_writes_edge_rationale_to_7692(
                 "MATCH (er:EdgeRationale) WHERE er.group_id = $group_id DETACH DELETE er RETURN count(er) AS deleted",
                 group_id=physical_group_id,
             )
+            # ⚠️ 措辞边界(r8-LOW-2): 无回执**不能**证明 DELETE 没执行 —— 只能说
+            # 「未取得确认」。同理下面不断言 deleted == 1: finally 也覆盖「写本身没成功
+            # ⇒ 合法零删除」的路径, 硬钉 1 会把正常情形判红。
             assert deleted_rows, (
-                "清理语句没有回执 —— verifier 可能已转入 JSON fallback, 清理是空转, "
+                "清理未取得确认, 提交结果未知; verifier 可能已转入 JSON fallback, "
                 f"group_id={physical_group_id!r} 的节点可能滞留在共享 7692"
+            )
+            assert len(deleted_rows) == 1 and deleted_rows[0]["deleted"] >= 0, (
+                f"清理回执形态不对(期望单行且 deleted 为非负整数): {deleted_rows!r}"
             )
         finally:
             # 两个客户端各自嵌套 finally (Codex r1 LOW 整改): 串行写法下
