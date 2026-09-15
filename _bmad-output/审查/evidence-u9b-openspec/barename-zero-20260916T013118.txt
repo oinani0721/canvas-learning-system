@@ -1,0 +1,14 @@
+=== (e 后绿) 三文件裸名字归零 ===
+  0 openspec/specs/concept-identity/spec.md
+  0 docs/project-status/fr-exploration/A6-phase0-reference-card.md
+  0 backend/tests/regression/test_g3_7_truth_source.py
+  （git grep -c 对零命中的文件不输出行 ⇒ 下面用显式 grep 复核）
+  openspec/specs/concept-identity/spec.md                                  0
+  docs/project-status/fr-exploration/A6-phase0-reference-card.md           0
+  backend/tests/regression/test_g3_7_truth_source.py                       0
+  ← 期望 0 / 0 / 0
+
+=== 验伪锚：同一条 grep 对地盘外故意保留项仍能命中（证明 grep 没坏）===
+  backend/tests/unit/test_review_service_fsrs.py                           2
+  docs/known-gotchas.md                                                    2
+  ← 非 0 = 判据有牙齿，归零不是因为 grep 失效

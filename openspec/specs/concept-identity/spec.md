@@ -3,42 +3,81 @@
 ## Purpose
 TBD - created by archiving change a6-phase0-fsrs-card-state-bucket-preservation. Update Purpose after archive.
 ## Requirements
-### Requirement: FSRS Card State Legacy Bucket Preservation On Save
+### Requirement: FSRS Card State Projection Snapshot Persistence
 
-The `ReviewService._save_card_states()` method SHALL serialize the union of both in-memory card-state buckets — `self._card_states` (UUID-v4-keyed, authoritative post-migration) and `self._legacy_card_states` (text-keyed pre-migration legacy FSRS data) — to the persistent `fsrs_card_states.json` file. It MUST NOT silently drop the legacy bucket.
+`ReviewService._save_card_states()` SHALL persist the in-memory card-state container
+`self._card_states` as a **full snapshot**, serialized via `_card_states_payload()` (which
+returns `_VaultScopedCardStates.to_nested()` — a vault-scoped nested mapping) with
+`json.dumps(..., ensure_ascii=False, indent=2)`. The write is not incremental: each successful
+call replaces the whole persisted document with the current in-memory contents.
 
-The merge MUST be computed as `{**self._legacy_card_states, **self._card_states}` so that on the defensively-handled (though impossible by construction) chance of a key collision, the UUID bucket value takes precedence. The UUID bucket is the authoritative source for any concept that has been re-keyed to its Canvas node UUID, and the text-bucket key space is disjoint from the UUID bucket key space because `_load_card_states` partitions keys via `is_uuid_v4(key)`.
+The write MUST be performed as **temp-file-then-atomic-replace**: the serialized text is written
+to `_CARD_STATES_FILE.with_suffix(".json.tmp")` and only then moved onto `_CARD_STATES_FILE` via
+`Path.replace`; both filesystem steps are dispatched through `asyncio.to_thread`. The method MUST
+NOT open the destination path in write mode, so a failure occurring before the replace step leaves
+the destination's previous contents unchanged.
 
-The debug log line emitted by this method MUST report the size of the merged dictionary (not the size of `_card_states` alone), so that any future regression where one bucket silently empties is visible in operator logs.
+The entire method body — the optional `pending` mutation, serialization, and both filesystem steps
+— MUST execute inside the `async with _card_states_lock:` critical section (a module-level
+`asyncio.Lock`). Applying the mutation inside the lock is what binds the return value to *this*
+call's `card_data`: a mutation applied outside the lock could be overwritten by a concurrent call,
+making `True` unable to testify to this call's data.
 
-The merge and serialization MUST happen inside the existing `async with _card_states_lock:` critical section to prevent a concurrent `save_card_state()` mutation from corrupting the serialized JSON.
+When `pending` is supplied and its vault scope cannot be resolved, the method MUST **fail closed**:
+`_card_states_try_set()` returns `False`, the concept is recorded in `self._unpersisted_concepts`,
+and the method returns `False` **without touching the filesystem at all** — it returns before the
+`try:` block, so not even the parent-directory `mkdir` runs. Silently writing into a default bucket
+is forbidden, because that would both disguise a broken configuration as a successful write and
+place one vault's card into another vault's bucket.
 
-#### Scenario: Round-trip preserves both buckets
+Failures inside the `try:` block MUST be normalized to a `False` return rather than propagating:
+`TypeError`/`ValueError` (which covers the `UnicodeEncodeError` raised by a lone-surrogate
+`concept_id`) additionally MUST roll the `pending` mutation back out of memory — restoring the
+previous value, or removing the key when there was none — so that one poisoned entry cannot keep
+failing the full-snapshot write for every other concept; `OSError` MUST retain the in-memory value
+and only record the concept as unpersisted. Both paths MUST mark the pending concept dirty.
 
-- **GIVEN** `fsrs_card_states.json` exists on disk containing 1 UUID-v4 key (`"f4d10d8b-1234-4abc-89ab-cdef01234567"`) AND 1 legacy text key (`"node123"`)
-- **AND** a `ReviewService` instance is initialized — after `_load_card_states` runs, `_card_states` contains the UUID entry and `_legacy_card_states` contains the text entry
-- **WHEN** `await review_service._save_card_states()` is called (with no other mutations in between)
-- **AND** the file is re-read from disk and a fresh `ReviewService` instance is initialized against the same file path
-- **THEN** the fresh instance's `_card_states` still contains exactly the UUID entry
-- **AND** the fresh instance's `_legacy_card_states` still contains exactly the text entry
-- **AND** no warning about lost legacy keys is emitted during the save
+On a successful replace the method MUST clear `self._unpersisted_concepts` in full — a full snapshot
+by construction persists every concept, so it heals all previously failed writes at once.
 
-#### Scenario: Save with empty legacy bucket is byte-equivalent to UUID-only case
+This file is a **projection/cache, not the FSRS scheduling truth source** (frontmatter is; CARD-G3-7).
+A `True` return therefore attests only that the projection reached disk. Callers MUST report
+`persisted` and `truth_source` as separate signals and MUST NOT let the former stand in for the
+latter.
 
-- **GIVEN** `fsrs_card_states.json` contains only UUID-v4 keyed entries (a fully-migrated install with no pre-migration data)
-- **AND** a `ReviewService` instance is initialized — `_card_states` contains all entries, `_legacy_card_states` is an empty dict `{}`
-- **WHEN** `await review_service._save_card_states()` is called
-- **THEN** the serialized JSON on disk is byte-equivalent to what `json.dumps(self._card_states, ensure_ascii=False, indent=2)` would have produced
-- **AND** no error is raised
-- **AND** the debug log line reports `len(combined) == len(self._card_states)`
+#### Scenario: Snapshot is published by atomic replace, never by writing the destination
 
-#### Scenario: Save preserves new UUID entries written via save_card_state
+- **GIVEN** a `ReviewService` whose `self._card_states` holds at least one card state
+- **WHEN** `await review_service._save_card_states()` completes successfully
+- **THEN** the serialized text was written to the `.json.tmp` sibling path and moved onto
+  `_CARD_STATES_FILE` by `Path.replace`
+- **AND** `_CARD_STATES_FILE` was never opened in write mode by this method
+- **AND** the persisted document is the nested vault-scoped snapshot produced by
+  `_card_states_payload(self._card_states)`, not a partial or incremental update
 
-- **GIVEN** `_card_states = {"<uuid-A>": {...}}` (1 UUID entry from init)
-- **AND** `_legacy_card_states = {"text-B": {...}}` (1 legacy text entry from init)
-- **WHEN** `await review_service.save_card_state(concept_id="<uuid-C>", concept_name="foo", card_data=..., canvas_name=..., rating=3)` is called, which internally triggers `_save_card_states()`
-- **AND** the file is re-read from disk and a fresh `ReviewService` instance is initialized against the same file path
-- **THEN** the fresh instance's `_card_states` contains both `<uuid-A>` and `<uuid-C>`
-- **AND** the fresh instance's `_legacy_card_states` still contains exactly `text-B`
-- **AND** the total number of entries in the serialized JSON is exactly 3
+#### Scenario: Unresolvable vault scope fails closed without any filesystem write
 
+- **GIVEN** `pending = (concept_id, card_data)` whose vault scope cannot be resolved
+- **WHEN** `await review_service._save_card_states(pending)` is called
+- **THEN** `_card_states_try_set()` reports failure and the method returns `False`
+- **AND** `concept_id`'s dirty key is present in `self._unpersisted_concepts`
+- **AND** no filesystem call is made — the method returns before the `try:` block, so the
+  parent-directory `mkdir`, the temp write, and the replace all do not happen
+
+#### Scenario: Serialization failure is normalized to False and the mutation is rolled back
+
+- **GIVEN** `pending` carries a `concept_id` or `card_data` that cannot be serialized
+  (for example a lone surrogate, whose `UnicodeEncodeError` is a `ValueError`)
+- **WHEN** `await review_service._save_card_states(pending)` is called
+- **THEN** the method returns `False` instead of propagating the exception
+- **AND** `self._card_states` no longer carries this call's mutation — the previous value is
+  restored, or the key is removed when there was none
+- **AND** the concept is recorded in `self._unpersisted_concepts`
+
+#### Scenario: A successful snapshot clears every outstanding dirty marker
+
+- **GIVEN** `self._unpersisted_concepts` is non-empty from earlier failed writes
+- **WHEN** `await review_service._save_card_states()` completes successfully
+- **THEN** the method returns `True`
+- **AND** `self._unpersisted_concepts` is empty, because the snapshot that just landed contains
+  every concept currently held in memory

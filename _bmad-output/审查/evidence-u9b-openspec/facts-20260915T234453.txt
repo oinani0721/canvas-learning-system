@@ -1,0 +1,25 @@
+=== status 明细（确认唯一脏项是我刚建的 evidence 目录）===
+?? "_bmad-output/\345\256\241\346\237\245/evidence-u9b-openspec/"
+
+=== §〇 事实逐条实测 ===
+--- ① validate 改前本就 PASS（不是本卡鉴别裁判）---
+Specification 'concept-identity' is valid
+
+--- spec 结构现状 ---
+### Requirement: 计数=1  ← 期望 1
+#### Scenario: 计数=3  ← 期望 3
+### Scenario:  计数=0  ← 期望 0
+字节数=    3796  ← 期望 3796
+
+--- 悬空实证：双桶模型在生产代码零命中 ---
+命中数=       0  ← 期望 0
+
+--- 悬空实证：save_card_state 公共方法已退役 ---
+grep_rc=1  ← 1 = 不存在
+_save_card_states 定义行=920:    async def _save_card_states(self, pending: Optional[Tuple[str, str]] = None) -> bool:
+
+--- (e) 先红验伪锚：三文件裸名字计数 ---
+  openspec/specs/concept-identity/spec.md:3 openspec/specs/concept-identity/spec.md
+  docs/project-status/fr-exploration/A6-phase0-reference-card.md:1 docs/project-status/fr-exploration/A6-phase0-reference-card.md
+  backend/tests/regression/test_g3_7_truth_source.py:1 backend/tests/regression/test_g3_7_truth_source.py
+  ← 期望 3 / 1 / 1

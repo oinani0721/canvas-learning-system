@@ -90,13 +90,21 @@ docs/project-status/fr-exploration/A6-resolution-summary.md
 openspec/specs/concept-identity/spec.md
 ```
 
-**当前内容**：1 个 Requirement `FSRS Card State Legacy Bucket Preservation On Save` + 3 个 `#### Scenario:`
-  1. Round-trip preserves both buckets
-  2. Save with empty legacy bucket is byte-equivalent to UUID-only case
-  3. Save preserves new UUID entries written via save_card_state
+**当前内容**：1 个 Requirement `FSRS Card State Projection Snapshot Persistence` + 4 个 `#### Scenario:`
+  1. Snapshot is published by atomic replace, never by writing the destination
+  2. Unresolvable vault scope fails closed without any filesystem write
+  3. Serialization failure is normalized to False and the mutation is rolled back
+  4. A successful snapshot clears every outstanding dirty marker
+
+> **⚠️ 2026-09-15（CARD-U9B-OPENSPEC）替换记录**：原先那条
+> `FSRS Card State Legacy Bucket Preservation On Save` 是**悬空**的——它描述的双桶模型
+> （`_card_states` + `_legacy_card_states`，按 `is_uuid_v4()` 分桶）在 `backend/app` 下零命中，
+> 其 Scenario 3 调用的公共方法也已于第十三批 CARD-G3-7-R2 退役。现替换为如实描述
+> `_save_card_states()` 已实现行为的 Requirement。
 
 **打开它能回答的问题**:
-- 审查新 PR 是否破坏 FSRS 双桶不变式 → 这里的 3 个 scenario 是 acceptance criteria
+- 审查新 PR 是否破坏 FSRS 投影落盘不变式（全量快照 / 临时文件+原子替换 / 作用域 fail-closed /
+  失败归一为 False 并回滚 / 成功清脏标记）→ 这里的 4 个 scenario 是 acceptance criteria
 - 将来的 `a6-phase1-*` 归档时 spec 累积在哪 → 同一个文件
 
 **⚠️ GOTCHA（仅提醒，不是任务）**:

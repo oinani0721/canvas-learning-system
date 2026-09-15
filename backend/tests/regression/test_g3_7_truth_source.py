@@ -11,7 +11,7 @@
   ② GET /fsrs-state     → 保留 + 门锁边界：该 concept 在 frontmatter 侧有真相源
                            时，一律不写盘、不推进 _card_states，且 due 以
                            frontmatter 为准。
-  ③ mastery grade / ④ save_card_state → 隔离（仅注释，无行为改动，不在本文件覆盖）。
+  ③ mastery grade / ④ _save_card_states → 隔离（仅注释，无行为改动，不在本文件覆盖）。
 
 D0 修订 §五 T1：「frontmatter 与任何后端状态不一致时，以 frontmatter 为准，
 分歧须以 degraded 信号如实透出」。

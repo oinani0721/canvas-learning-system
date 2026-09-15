@@ -1,0 +1,10 @@
+=== (d) 结构门 ===
+### Requirement: 计数=1  ← 期望 ≥1
+#### Scenario: 计数=4  ← 期望 ≥1
+### Scenario:  计数=0  ← 期望 0（防 3 井号静默失败）
+裸 save_card_state 计数=0  ← 期望 0
+## Purpose 占位符未动=1  ← 期望 1
+
+=== (d) validate --strict ===
+Specification 'concept-identity' is valid
+rc=0

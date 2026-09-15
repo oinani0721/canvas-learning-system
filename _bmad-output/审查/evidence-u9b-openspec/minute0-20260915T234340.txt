@@ -1,0 +1,10 @@
+=== (a) 第 0 分钟 ===
+pwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t4-g3
+branch=card/t4-g3
+PREV=02f59e5f9b52c1431f42c0bd59b3c7784f4d4cbe  (= T4-B 末 commit)
+anc_rc=0  ← 0 = HEAD 是 B14_BASE 的后代
+status 行数=       1  ← 0 = T4-B 已独立 commit 且干净
+venv symlink OK
+env OK
+BASE 非注释行=64  ← 期望 64
+openspec CLI=1.2.0  ← 期望 1.2.0
