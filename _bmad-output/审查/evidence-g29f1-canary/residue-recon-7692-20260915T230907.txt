@@ -1,0 +1,22 @@
+=== 跑后残留对账（只读）：7692 测试容器里还有没有 canary 数据 ===
+⚠️ 这是 Codex r1 MEDIUM-3 指出的缺口（purge_left_nothing 只是起点前提，不是最终对账）的**补测**。
+URI(字面量) = bolt://localhost:7692 | user = neo4j | 凭据来源 = NEO4J_TEST_* 默认值（与 canary 同源）
+
+--- 连上的实例自证 ---
+    {'name': 'Neo4j Kernel', 'versions': ['5.26.23'], 'edition': 'community'}
+
+--- ① canary/probe 前缀的节点（应为 0 = 无残留） ---
+    命中行数 = 0
+
+--- ② 关系侧同查（应为 0） ---
+    命中行数 = 0
+
+--- ③ [验伪锚] 同形查询对全库（证查询不是恒空／连接是活的） ---
+    全库节点总数      = 114
+    带 group_id 的节点 = 84
+    库中现存 group_id（前 20）= ['test', 'vault__canvas_vault__calculus', 'vault__canvas_vault__canvas_0', 'vault__canvas_vault__canvas_1', 'vault__canvas_vault__canvas_2', 'vault__canvas_vault__dual_write_test_b61e7fec', 'vault__canvas_vault__dual_write_test_ff436e01', 'vault__canvas_vault__linear_algebra', 'vault__canvas_vault__quantum', 'vault__canvas_vault__t6bu2028_canvas', 'vault__canvas_vault__test', 'vault__test', '数学', '物理']
+
+【结论】见上：① ② 命中行数为 0 即『本卡 canary/probe 在 7692 上无图侧残留』；
+        非 0 则为实测残留，需登记（本卡不清理、不修）。
+⚠️ 覆盖面声明：本查询只覆盖**Neo4j 图侧**按 group_id 前缀可见的节点与关系；
+   LanceDB 侧本卡全程写 mktemp 临时目录（与现网库无关），未纳入本次对账。
