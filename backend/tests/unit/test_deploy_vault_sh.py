@@ -173,9 +173,15 @@ def test_unknown_flag_is_usage_error():
     assert "未知参数" in r.stderr
 
 
-@pytest.mark.parametrize("host", ["codex", "opencode", "dsh", "claude,codex"])
+@pytest.mark.parametrize("host", ["codex", "dsh", "claude,codex"])
 def test_second_tier_hosts_rejected_with_e1(tmp_path: Path, host: str):
-    """E-1: 本版只 claude。消息必须点名 E-1，否则读者不知道这是「等实测表」而非 bug。"""
+    """E-1: 本版 claude / opencode，其余仍拒。消息必须点名 E-1，否则读者不知道这是「等实测表」而非 bug。
+
+    ⛔ `opencode` 于 CARD-HOSTS-OPENCODE（第十四批）从本参数表**移出** —— 它已转正
+       （静态绑定件面），留在这里会让这条门变成「钉死一个已经不存在的行为」。
+       转正后的正向行为由 `test_hosts_opencode_generates_binding_files` 等门接管；
+       `codex` 归 T2-D，届时同法移出。
+    """
     r = _run(
         "--vault",
         str(tmp_path / "v"),
@@ -865,9 +871,16 @@ def test_dry_run_is_the_default_not_apply():
 
 
 def test_second_tier_hosts_not_implemented_anywhere():
-    """E-1：不得偷偷生成二线宿主的配置件。"""
+    """E-1：不得偷偷生成**仍未实现**的宿主的配置件。
+
+    ⛔ `AGENTS.md` 于 CARD-HOSTS-OPENCODE（第十四批）从禁件清单**移出** —— opencode
+       转正后它是脚本明写的生成物（步 3 B4b），留在清单里这条门必红。
+    ⚠️ `opencode.json` **保留**：那是 OpenCode 的配置件名, 本脚本对它仍是零写者。
+       它同时锁住一条子串约束 —— 实际文件名 `opencode.jsonc` 是它的**超串**,
+       所以脚本的非注释行里连那个文件名也不许出现（见 `$OPENCODE_CFG_EXT` 的运行期拼接）。
+    """
     src = DEPLOY_SH.read_text(encoding="utf-8")
-    for artifact in ["AGENTS.md", ".codex/config.toml", "opencode.json", ".dsh/"]:
+    for artifact in [".codex/config.toml", "opencode.json", ".dsh/"]:
         # 只允许出现在「不生成」的说明里, 不允许出现在写操作附近
         for i, line in enumerate(src.splitlines(), 1):
             if artifact in line and not line.lstrip().startswith("#"):
@@ -3680,6 +3693,18 @@ def test_g2_8_activate_tx_opens_no_new_write_surface():
     """步 5/6 的新增记账只许写**已在 PENDING_WRITES 里申报过的**对象。
 
     步 1 禁改 ⇒ 新开一个文件就等于绕过 preflight 的禁写面判据。
+
+    ⚠️ 下面那个集合是**精确相等**判据，新增写面必须来这里登记 —— 那正是它的用意
+       （`ev-npm-cache`/`ev-npm-logs` 当初也是这样被逼着登记的）。
+       CARD-HOSTS-OPENCODE（第十四批）因此补进 3 项：`--hosts` 含 opencode 时步 3
+       会写 `.agents/skills`（根）与 `AGENTS.md`（+ 其 `.tmp`）。
+    ⛔ **不许**靠挪动位置让这条门扫不到新写面：本门的取名面是
+       `PENDING_WRITES=(` … `local -a DIR_WRITES=` 之间的**文本切片**，把
+       `PENDING_WRITES+=(...)` 挪到切片之外，运行期行为一模一样而门当场变绿 ——
+       那不是修好，是把门弄瞎。条件 append 必须留在切片内。
+    ⚠️ 叶子软链 `.agents/skills/<name>` **不在**这份清单里，也不该在：条目名取决于
+       步 2 装进来什么，步 1 时还不知道。它们在 `write_opencode_binding` 里过**同一份**
+       判据（`check_forbidden_paths --outputs`），与步 4 源镜像 MIRROR_WRITES 同律。
     """
     src = DEPLOY_SH.read_text(encoding="utf-8")
     block = src[src.index("local -a PENDING_WRITES=(") : src.index("local -a DIR_WRITES=")]
@@ -3699,7 +3724,13 @@ def test_g2_8_activate_tx_opens_no_new_write_surface():
         "ev-deploy-report-tmp",
         "ev-npm-cache",
         "ev-npm-logs",
+        # CARD-HOSTS-OPENCODE：`--hosts` 含 opencode 时步 3 的写面（条件 append）。
+        "opencode-skills-root",
+        "opencode-agents-md",
+        "opencode-agents-md-tmp",
     }, f"待写清单变了（步 1 禁改 / 新写面必须先进这份清单）: {sorted(declared)}"
+    # 条件 append 必须**留在本门的取名面里**（见 docstring 的「不许弄瞎」一条）。
+    assert "PENDING_WRITES+=(" in block, "opencode 的条件 append 被挪出了本门的取名面"
     # 步 5 新增的记账落点必须是 $cfg（= ev-compose-config），不是新文件
     act = src[src.index("step5_activate() {") : src.index("also_push_daily_review() {")]
     news = set(re.findall(r'>{1,2} "\$([A-Za-z_][A-Za-z0-9_]*)"', act))
@@ -4064,3 +4095,217 @@ def test_g2_8_journal_hardlinked_after_recheck_is_refused(tmp_path: Path, mode: 
     assert r.returncode == 75, f"复查后加的硬链接没被拒: rc={r.returncode}\n{r.stdout}{r.stderr}"
     assert "阶段账" in r.stdout, r.stdout
     assert f"cls-{name}" not in _tx_state(tmp_path), "已判定不可写, 却仍起了实例"
+
+
+# ═══ CARD-HOSTS-OPENCODE (BATCH-2026-09-11-第十四批) ═════════════════════════
+# `--hosts opencode` 转正：步 3 apply 态生成**静态**绑定件，不跑 OpenCode 模型。
+#   ① `$VAULT/.agents/skills/<name>` —— **条目级**软链 → `../../.claude/skills/<name>`
+#   ② `$VAULT/AGENTS.md` —— 技能清单 + OpenCode 项目级 MCP 接线指引
+# ⛔ 这两件由**步 3 自己生成**，不是步 2 装出来的 ⇒ 它们不能进 Phase A 的 A1 在位判
+#    （那时还不存在）；在位断言只能在生成之后。
+# ⛔ 判据一律逐条 `is_symlink()` + `os.readlink()` 目标核，**不用**「目录存在」之类的
+#    存在性计数 —— 整目录级软链、空目录、半数条目缺失都能过存在性计数。
+
+#: 桩 vault 里的技能条目（kebab-case，且 frontmatter `name` == 目录名 ——
+#: 与 SKILL-PORT-LINT 层 1 同口径，见 `_OC_KEBAB_RE`）。
+_OC_SKILLS = ("alpha-skill", "beta-skill", "gamma-skill")
+
+#: 与 `backend/tests/skills/test_skill_portability_lint.py:197` 的 `_KEBAB_RE` 逐字同源。
+#: ⚠️ 手抄一份而不是 import：那份在 `tests/skills` 包下，跨包 import 会把两份 conftest
+#:    的夹具面绑在一起。**两份手抄清单必然漂移** —— 所以这里只抄这一个正则，
+#:    且在验收单登记「层 1 口径若改，此处同改」。
+_OC_KEBAB_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
+
+#: 真 `install-vault.sh` 把 harness 的 `canvas-vault/.claude/skills/` 整个拷进 vault
+#: （manifest 里 `.claude/skills` 是 copy 项）。`_TX_INSTALLER` 只 `mkdir` 了个空目录 ——
+#: 拿它跑本卡的门等于在「零条目」上验条目级软链，永远绿。这里补上拷贝这一步。
+_OC_INSTALLER = _TX_INSTALLER + "".join(
+    f"""mkdir -p "$v/.claude/skills/{s}"
+printf -- '---\\nname: {s}\\ndescription: stub skill for CARD-HOSTS-OPENCODE\\n---\\n\\n# {s}\\n' \\
+    > "$v/.claude/skills/{s}/SKILL.md"
+"""
+    for s in _OC_SKILLS
+)
+
+
+def _oc_harness(tmp_path: Path) -> Path:
+    """`_tx_harness` + 会真造出技能条目的 installer 桩。"""
+    h = _tx_harness(tmp_path)
+    _tx_write(h / "scripts" / "install-vault.sh", _OC_INSTALLER, mode=0o755)
+    return h
+
+
+def _oc_run(
+    tmp_path: Path,
+    h: Path,
+    name: str,
+    port: str,
+    *,
+    env: dict[str, str],
+    hosts: str = "claude,opencode",
+    apply_: bool = True,
+):
+    """跑一趟部署。⛔ 不带 `--activate`（本卡不碰步 5 语义，那是 T2-B 的定稿面）。"""
+    args = [
+        "--vault",
+        str(tmp_path / "vaults" / name),
+        "--harness",
+        str(h),
+        "--port",
+        port,
+        "--hosts",
+        hosts,
+        "--env-dir",
+        str(tmp_path / "env"),
+        "--evidence-dir",
+        str(tmp_path / "ev"),
+    ]
+    if apply_:
+        args.append("--apply")
+    return _run(*args, env=env, timeout=120)
+
+
+def _oc_frontmatter_name(skill_md: Path) -> object:
+    """取 SKILL.md 的 frontmatter `name`（层 1 口径）。取不到一律回 None。"""
+    text = skill_md.read_text(encoding="utf-8")
+    m = re.match(r"^---\n(.*?)\n---\n", text, re.S)
+    if not m:
+        return None
+    fm = yaml.safe_load(m.group(1))
+    return fm.get("name") if isinstance(fm, dict) else None
+
+
+def test_hosts_opencode_generates_binding_files(tmp_path: Path):
+    """`--hosts claude,opencode --apply` ⇒ 条目级软链 + AGENTS.md 都在位且指对。"""
+    name, port = "probe_oc1", "8281"
+    h = _oc_harness(tmp_path)
+    env = _tx_env(tmp_path, port, name)
+    r = _oc_run(tmp_path, h, name, port, env=env)
+    assert r.returncode == 0, f"rc={r.returncode}\n{r.stdout}{r.stderr}"
+
+    v = tmp_path / "vaults" / name
+    root = v / ".agents" / "skills"
+    assert root.is_dir(), f"{root} 不在位\n{r.stdout}{r.stderr}"
+    # ⛔ 条目级**不是**整目录级：整目录软链也能让上面那条 is_dir() 为真。
+    assert not root.is_symlink(), "`.agents/skills` 本身是软链 = 整目录级，不是条目级"
+    assert not (v / ".agents").is_symlink(), "`.agents` 本身是软链 = 整目录级"
+
+    # 身份判据（不是数量判据）：条目集合必须恰好等于 `.claude/skills` 下的目录集合。
+    installed = {p.name for p in (v / ".claude" / "skills").iterdir() if p.is_dir()}
+    assert installed == set(_OC_SKILLS), f"控制组不成立：installer 桩没造出技能条目 {installed}"
+    assert {p.name for p in root.iterdir()} == set(_OC_SKILLS), sorted(p.name for p in root.iterdir())
+
+    for s in _OC_SKILLS:
+        link = root / s
+        assert link.is_symlink(), f"{link} 不是软链"
+        assert os.readlink(link) == f"../../.claude/skills/{s}", f"软链目标不是相对两级回跳: {os.readlink(link)!r}"
+        tgt = link.resolve()
+        assert tgt.is_dir(), f"软链解不到存在的目标: {link} -> {os.readlink(link)}"
+        assert tgt == (v / ".claude" / "skills" / s).resolve(), f"解到了别处: {tgt}"
+        # SKILL-PORT-LINT 层 1 口径：frontmatter `name` == 目录名 且 kebab-case。
+        fm_name = _oc_frontmatter_name(tgt / "SKILL.md")
+        assert fm_name == s, f"{s}: frontmatter name={fm_name!r} != 条目名"
+        assert isinstance(fm_name, str) and _OC_KEBAB_RE.match(fm_name), f"name 非 kebab-case: {fm_name!r}"
+
+    agents_md = v / "AGENTS.md"
+    assert agents_md.is_file() and not agents_md.is_symlink(), f"{agents_md} 不在位"
+    body = agents_md.read_text(encoding="utf-8")
+    for s in _OC_SKILLS:
+        assert s in body, f"AGENTS.md 缺技能清单条目 {s}: {body!r}"
+
+
+def test_hosts_opencode_dry_run_writes_nothing(tmp_path: Path):
+    """dry 态（不传 --apply）：opencode 不再被 E-1 拒、打印生成意图、**零写**。"""
+    name, port = "probe_oc2", "8282"
+    h = _oc_harness(tmp_path)
+    env = _tx_env(tmp_path, port, name)
+    r = _oc_run(tmp_path, h, name, port, env=env, apply_=False)
+    assert r.returncode != 64, f"opencode 仍被 E-1 拒: {r.stderr}"
+    assert r.returncode == 0, f"rc={r.returncode}\n{r.stdout}{r.stderr}"
+    assert "will:" in r.stdout, r.stdout
+    assert ".agents/skills" in r.stdout and "AGENTS.md" in r.stdout, f"没打印生成意图: {r.stdout}"
+    # ⛔ 零写判据面取整个 tmp_path（不止 $VAULT）：dry 态下 $VAULT 根本不该被建出来，
+    #    只盯 $VAULT 会因为「目录不存在」而恒真。
+    strays = [str(p) for p in tmp_path.rglob(".agents")] + [str(p) for p in tmp_path.rglob("AGENTS.md")]
+    assert strays == [], f"dry 态写了东西: {strays}"
+
+
+def test_hosts_claude_only_generates_no_opencode_binding(tmp_path: Path):
+    """条件生成：`--hosts claude` 单宿主不得落下任何 opencode 绑定件。
+
+    ⛔ 没有这条门，「无条件生成」也能让上面两条全绿。
+    """
+    name, port = "probe_oc3", "8283"
+    h = _oc_harness(tmp_path)
+    env = _tx_env(tmp_path, port, name)
+    r = _oc_run(tmp_path, h, name, port, env=env, hosts="claude")
+    assert r.returncode == 0, f"rc={r.returncode}\n{r.stdout}{r.stderr}"
+    v = tmp_path / "vaults" / name
+    assert (v / ".claude" / "skills" / _OC_SKILLS[0]).is_dir(), "控制组不成立：claude 侧没装上"
+    assert not (v / ".agents").exists(), "单宿主 claude 落下了 .agents/"
+    assert not (v / "AGENTS.md").exists(), "单宿主 claude 落下了 AGENTS.md"
+    assert ".agents/skills" not in r.stdout, f"单宿主却打印了 opencode 生成意图: {r.stdout}"
+
+
+# ── D-26(i)：`~/.config/opencode` 下的实写文件必须被判据拦下 ──────────────────
+# HOST-PROBE §三.10 的「覆盖面漏洞」= **决策文档 D-26(i) 枚举的文件名**与 OpenCode
+# 实写的不一致（文档写 `opencode.json`，实写 `opencode.jsonc` + `.gitignore`）。
+# 运行期口径不是按文件名枚举的：`build_targets` 把 `~/.config/opencode` **整目录**
+# 入 targets，`under()` 对根做前缀判 ⇒ 其下全部文件早已被拦。
+# 这两条门把「早已被拦」变成可执行断言（此前零覆盖），承重性由车道负控证明
+# （删掉 targets 里那一行 ⇒ 下面这条从拒变放行，存档 evidence-hosts-opencode/）。
+FORBID_PY = REPO_ROOT / "scripts" / "cls_forbidden_paths.py"
+
+
+def _oc_forbid(tmp_path: Path, *items: str):
+    """跑判据 CLI。live 位置参数用 tmp 下的假 live —— 绝不指现网。"""
+    return subprocess.run(
+        [sys.executable, str(FORBID_PY), str(_fake_live(tmp_path)), "--outputs", *items],
+        capture_output=True,
+        text=True,
+        timeout=_SUBPROCESS_TIMEOUT,
+    )
+
+
+def test_d26i_opencode_user_config_files_are_refused(tmp_path: Path):
+    """D-26(i) 覆盖面：OpenCode **实写**的两个用户级文件都必须被拒。"""
+    home = Path.home()
+    r = _oc_forbid(
+        tmp_path,
+        f"o1:{home}/.config/opencode/opencode.jsonc",
+        f"o2:{home}/.config/opencode/.gitignore",
+    )
+    assert r.returncode != 0, f"两个用户级配置件都被放行了: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    assert "HIT o1" in r.stdout, f"opencode.jsonc 未被拦: {r.stdout}"
+    assert "HIT o2" in r.stdout, f".gitignore 未被拦: {r.stdout}"
+
+
+def test_d26i_falsification_anchor_ordinary_path_is_allowed(tmp_path: Path):
+    """验伪锚：判据不是恒拒。
+
+    ⛔ **必须另起一跑**。`main()` 对全部 item 累加 `bad` 之后 `return 1 if bad else 0`
+       ⇒ 把验伪锚塞进上一跑，rc **恒 1**，锚恒假。
+    """
+    r = _oc_forbid(tmp_path, f"ok:{tmp_path}/v/foo")
+    assert r.returncode == 0, f"普通 tmp 路径被拒 = 判据恒拒: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    assert "OK ok" in r.stdout, r.stdout
+
+
+def test_deploy_sh_never_writes_opencode_user_config(tmp_path: Path):
+    """脚本对 D-26(i) 硬禁面是零写者：`~/.config/opencode` 不出现在任何非注释行。
+
+    ⚠️ 如实声明这条门的**代价**：AGENTS.md 的指引正文（由 printf 写出 = 非注释行）
+       想劝用户「别手改用户级配置目录」，却不能直接点那个目录的全名 —— 只好绕成
+       「`~/.config/` 下 OpenCode 的用户级配置目录」。可读性换的是一条**词法**保证：
+       脚本正文里连那个路径的字样都不存在，谁也没法「顺手」加一行往那里写。
+    ⚠️ 这条门是**词法**判据，不是运行期判据：它证不了「脚本运行时不会写到那里」
+       （那由 `check_forbidden_paths` + cls_forbidden_paths.py:270 的整目录保护承担，
+       回归断言见上面两条 D-26(i) 门）。两者不互相替代。
+    """
+    src = DEPLOY_SH.read_text(encoding="utf-8")
+    code = [
+        (i, ln)
+        for i, ln in enumerate(src.splitlines(), 1)
+        if not ln.lstrip().startswith("#") and ".config/opencode" in ln
+    ]
+    assert code == [], f"deploy-vault.sh 非注释行提到了用户级 opencode 配置目录: {code}"

@@ -1,7 +1,7 @@
 {
   "version": 2,
   "source": "harness-canvas-vault",
-  "description": "Canvas Learning System vault 部署清单 — install-vault.sh MANIFEST 区 (:73-77) 的机器可读投影。模板源 = <harness>/canvas-vault/ 的 git 追踪系统件 + 脚本生成件（E-4）；--source 可改指一个活 vault 取那些 gitignored、树里本就没有的件。extra_allow 是「覆盖面内允许多出来」的路径白名单（与 items 的 path 同口径，支持 *? 通配，与已声明项或 exclude 模式重叠即拒绝加载）——命中的项进报告的 allowed-extra 段，只报告不计退出码。item 级 optional=true 表示「声明了但允许它不在」：缺失进 optional-missing 段、同样不计退出码，在位时 copy 项照常比内容，generate 项不比（按定义每 vault 不同，Codex round-2 核对）。",
+  "description": "Canvas Learning System vault 部署清单 — install-vault.sh MANIFEST 区 (:73-77) 的机器可读投影。模板源 = <harness>/canvas-vault/ 的 git 追踪系统件 + 脚本生成件（E-4）；--source 可改指一个活 vault 取那些 gitignored、树里本就没有的件。extra_allow 是「覆盖面内允许多出来」的路径白名单（与 items 的 path 同口径，支持 *? 通配，与已声明项或 exclude 模式重叠即拒绝加载）——命中的项进报告的 allowed-extra 段，只报告不计退出码。item 级 optional=true 表示「声明了但允许它不在」：缺失进 optional-missing 段、同样不计退出码，在位时 copy 项照常比内容，generate 项不比（按定义每 vault 不同，Codex round-2 核对）。⚠️ origin 约定的两条例外（CARD-HOSTS-OPENCODE）：`.agents/skills` 与 `AGENTS.md` 的 origin 指向 **deploy-vault.sh** 而不是 install-vault.sh —— 它们由部署脚本步 3 在 `--hosts` 含 opencode 时生成，install-vault.sh 里没有任何对应锚行（`.obsidian/cls-internal-key.txt` 同属「由 deploy-vault.sh 生成」一类，但它在 install-vault.sh 里有一行自检反向判可作锚，这两件没有）。故本文件不再是 install-vault.sh 的**纯**投影；`test_generate_section_covers_exactly_the_generate_items` 的 OUTSOURCED 集合是这一归属差异的可执行形态。",
   "generated_from": "scripts/install-vault.sh",
   "extra_allow": [
     ".claude/cache",
@@ -66,6 +66,22 @@
       "role": "claude-system",
       "action": "copy",
       "origin": "install-vault.sh:72"
+    },
+    {
+      "path": ".agents/skills",
+      "role": "opencode-binding",
+      "action": "generate",
+      "origin": "deploy-vault.sh step3 B4b (CARD-HOSTS-OPENCODE)",
+      "optional": true,
+      "note": "仅 `deploy-vault.sh --hosts` 含 opencode 时在位。其下每条是指向 `.claude/skills/<name>` 的**条目级**软链（相对 `../../.claude/skills/<name>`），不是整目录级一根。generate 项按定义每 vault 不同，verify 不比内容。"
+    },
+    {
+      "path": "AGENTS.md",
+      "role": "opencode-binding",
+      "action": "generate",
+      "origin": "deploy-vault.sh step3 B4b (CARD-HOSTS-OPENCODE)",
+      "optional": true,
+      "note": "仅 `deploy-vault.sh --hosts` 含 opencode 时在位。内容 = 技能清单 + OpenCode 项目级 MCP 接线指引，首行带生成标记；缺标记的同名文件视为用户手写，脚本拒绝覆盖。"
     },
     {
       "path": ".claude/scripts",

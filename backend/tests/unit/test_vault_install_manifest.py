@@ -230,17 +230,22 @@ def test_manifest_covers_implicit_and_generated_semantics():
                 )
 
     # CARD-G2-7a: generate 由 1 条扩到 5 条 —— 每 vault 应当**不同**的东西一律生成不复制
+    # CARD-HOSTS-OPENCODE（第十四批）再扩到 7 条: `--hosts` 含 opencode 时
+    # deploy-vault.sh 步 3 生成 `.agents/skills`（条目级软链根）与 `AGENTS.md`。
+    # ⚠️ 排序位置：`.`(0x2E) < `A`(0x41)，所以点开头的全排在 `AGENTS.md` 之前。
     generated = sorted(i["path"] for i in data["items"] if i["action"] == "generate")
     assert generated == [
+        ".agents/skills",
         ".canvas-config.yaml",
         ".claude/settings.local.json",
         ".obsidian/cls-internal-key.txt",
         ".obsidian/plugins/canvas-learning-system/data.json",
         ".obsidian/plugins/templater-obsidian/data.json",
+        "AGENTS.md",
     ], f"generate 清单不符: {generated}"
-    # 其中 4 条带 optional（除 .canvas-config.yaml —— 脚本无条件生成它, 必须在）
+    # 其中 6 条带 optional（除 .canvas-config.yaml —— 脚本无条件生成它, 必须在）
     gen_opt = sorted(i["path"] for i in data["items"] if i["action"] == "generate" and i.get("optional"))
-    assert len(gen_opt) == 4 and ".canvas-config.yaml" not in gen_opt, f"generate+optional 不符: {gen_opt}"
+    assert len(gen_opt) == 6 and ".canvas-config.yaml" not in gen_opt, f"generate+optional 不符: {gen_opt}"
 
 
 def test_manifest_has_no_absolute_paths_and_no_secrets_inline():
@@ -1759,14 +1764,18 @@ def test_declared_paths_has_a_single_source_of_truth():
     """
     manifest = vv.load_manifest(MANIFEST)
     assert vv._declared_paths(manifest.items) == manifest.declared_paths
-    # 35 而不是 30: declared 是 copy+skeleton+**generate**, 比集合等价门那 30 项多
-    # 5 条 generate。两个数字各有出处, 不得互抄 —— 抄错正是本条的来历。
-    assert len(manifest.declared_paths) == 35
+    # 37 而不是 30: declared 是 copy+skeleton+**generate**, 比集合等价门那 30 项多
+    # 7 条 generate。两个数字各有出处, 不得互抄 —— 抄错正是本条的来历。
+    # CARD-HOSTS-OPENCODE（第十四批）把 generate 从 5 条扩到 7 条: `--hosts` 含
+    # opencode 时 deploy-vault.sh 步 3 生成 `.agents/skills` 与 `AGENTS.md`。
+    assert len(manifest.declared_paths) == 37
     assert manifest.declared_paths - {
         i["path"]
         for i in json.loads(MANIFEST.read_text(encoding="utf-8"))["items"]
         if i["action"] in ("copy", "skeleton")
     } == {
+        ".agents/skills",
+        "AGENTS.md",
         ".canvas-config.yaml",
         ".claude/settings.local.json",
         ".obsidian/cls-internal-key.txt",
@@ -2783,7 +2792,10 @@ def test_generate_section_covers_exactly_the_generate_items():
     #   .canvas-config.yaml      → 本脚本独立的 yaml 生成器(:116 附近)
     #   .obsidian/cls-internal-key.txt → deploy-vault.sh 的 activate 步(CARD-G2-7b,
     #     那一步才知道跟哪个后端实例配对); 本脚本对它只「不清不生成」+ 自检反向判
-    OUTSOURCED = {".canvas-config.yaml", ".obsidian/cls-internal-key.txt"}
+    #   .agents/skills / AGENTS.md → deploy-vault.sh 步 3 B4b（`--hosts` 含 opencode 时）；
+    #     本脚本完全不知道 opencode 这回事，对这两件既不清也不生成
+    #     （CARD-HOSTS-OPENCODE，与 cls-internal-key.txt 同一类归属）
+    OUTSOURCED = {".canvas-config.yaml", ".obsidian/cls-internal-key.txt", ".agents/skills", "AGENTS.md"}
     expected = {i["path"] for i in data["items"] if i["action"] == "generate"} - OUTSOURCED
     # 验伪锚: 生成段确实被解析到了(否则空集==空集恒真)
     # 验伪锚只证明「解析器没有空转」, 阈值要**远低于**主断言的期望值 ——

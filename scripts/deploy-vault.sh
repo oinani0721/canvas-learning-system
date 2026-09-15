@@ -16,7 +16,7 @@
 #
 # ═══ rc 表 ═══
 #   0  成功
-#   64 用法错（缺必填 / 未知参数 / --hosts 含二线宿主 / --activate 缺 --apply / --also-push 越界）
+#   64 用法错（缺必填 / 未知参数 / --hosts 含未实现宿主 / --activate 缺 --apply / --also-push 越界）
 #   71 步 1 preflight 失败      74 步 4 verify 失败
 #   72 步 2 install 失败        75 步 5 activate 失败
 #   73 步 3 postprocess 失败    76 步 6 evidence 失败
@@ -28,7 +28,11 @@
 #   --port <n>            缺省 8011（与 vault 内全部消费方同源：.mcp.json / settings.json hook /
 #                         session-end-archive.py / 插件 data.json；compose :150 缺省是 8001，
 #                         .env.example:84 是 8011 —— 不一致已登记，本脚本按 8011 选边）。
-#   --hosts <list>        缺省 claude。本版**只**支持 claude；其余值 rc 64（E-1）。
+#   --hosts <list>        缺省 claude。本版支持 claude / opencode（逗号分隔，可并存）；
+#                         其余值 rc 64（E-1）。含 opencode 时步 3 在 --apply 态**生成**两件
+#                         静态绑定件：<vault>/.agents/skills/<name> 条目级软链（→ 同名
+#                         .claude/skills 条目）与 <vault>/AGENTS.md；不跑 OpenCode 模型、
+#                         不配 provider 凭据、对 ~/.config 下的用户级配置零写者。
 #   --subject <s>         缺省 = vault 名。
 #   --apply               不传 = dry-run（只打印每步将做什么，零写）。
 #   --activate            仅与 --apply 同用（否则 rc 64）。真 `up -d` 需用户授权，见步 5。
@@ -125,6 +129,11 @@ VAULT=""
 HARNESS=""
 PORT="8011"
 HOSTS="claude"
+# --hosts 解析出的宿主开关（单一来源 = 下面那个切分循环, 别的地方不许再解析 $HOSTS 字符串）。
+# ⚠️ 用开关而不是「到处 grep $HOSTS」：`--hosts claude,opencode` 与 `--hosts opencode,claude`
+#    以及带空白的写法必须等价, 而字符串匹配会把 `claudex` 之类也认成命中。
+HOST_CLAUDE=0
+HOST_OPENCODE=0
 SUBJECT=""
 APPLY=0
 ACTIVATE=0
@@ -312,7 +321,10 @@ case "$PORT" in
 esac
 [ "$ACTIVATE" = 1 ] && [ "$APPLY" != 1 ] && die64 "--activate 只能与 --apply 同用"
 
-# --hosts：本版只 claude（E-1）
+# --hosts：本版 claude / opencode（E-1 挡住其余）
+# CARD-HOSTS-OPENCODE：opencode 从 E-1 拒列转正 —— 它只要**静态**绑定件
+# （条目级软链 + AGENTS.md），生成物纯文件树, 不需要 provider 凭据也不跑模型,
+# 所以能在本机零外部依赖地验完。codex / dsh 仍在 E-1 里（codex 归 T2-D）。
 # ⛔ 不用 here-string（Codex r9 HIGH-1）：Bash 3.2（本机 /bin/bash）对 `<<<` 会在
 #    `$TMPDIR` **建一个临时文件**。这一行在 preflight **之前**、dry-run 也会走到 ——
 #    `TMPDIR` 若指向保护目录, 那就是一次先于任何判据的写入, 事后删除撤不回。
@@ -329,11 +341,17 @@ while [ -n "$_rest" ]; do
     #    顺带解决 r10 LOW-2 的二次复杂度。
     _h="${_h//[$' \t\n\r\v\f']/}"
     [ -n "$_h" ] || continue
-    if [ "$_h" != "claude" ]; then
-        printf '❌ 用法错: --hosts 含未实现的宿主 %s。\n' "$_h" >&2
-        printf '   E-1 二线宿主（codex / opencode / dsh 等）等 HOST-PROBE 实测表（U4-A），本版不实现。\n' >&2
-        exit 64
-    fi
+    case "$_h" in
+        claude) HOST_CLAUDE=1 ;;
+        opencode) HOST_OPENCODE=1 ;;
+        *)
+            printf '❌ 用法错: --hosts 含未实现的宿主 %s。\n' "$_h" >&2
+            # ⛔ 名单必须与上面的 case 分支同步（DD-13 名实一致）：opencode 已转正,
+            #    留在这句里就是「文案说不实现、代码其实实现了」。
+            printf '   E-1 二线宿主（codex / dsh 等）等 HOST-PROBE 实测表（U4-A），本版不实现。\n' >&2
+            exit 64
+            ;;
+    esac
 done
 
 # --harness 缺省推断
@@ -584,6 +602,17 @@ step1_preflight() {
         #    放进 preflight 清单 ⇒ 任何 heredoc 执行之前就判过（preflight 自身只用
         #    `python3 -c` 与带 argv 的调用, 无 heredoc）。
     )
+    # CARD-HOSTS-OPENCODE：`--hosts` 含 opencode 时步 3 会多写两件, 必须进**同一份清单** ——
+    # 「为堵写入面而新开的写入面, 必须进同一份清单」这条在上面 npm 那段已经付过一次代价。
+    # ⚠️ 只申报到 `.agents/skills` 这个**根** + AGENTS.md：叶子软链的条目名到这一刻
+    #    还不知道（取决于步 2 装进来什么）, 它们在 write_opencode_binding 里过同一份判据。
+    if [ "$HOST_OPENCODE" = 1 ]; then
+        PENDING_WRITES+=(
+            "opencode-skills-root:$VAULT/.agents/skills"
+            "opencode-agents-md:$VAULT/AGENTS.md"
+            "opencode-agents-md-tmp:$VAULT/AGENTS.md.tmp"
+        )
+    fi
     # ⛔ TMPDIR 单独判（Codex r11 MEDIUM-1 —— 我 r10 把它塞进 PENDING_WRITES 的回归）：
     #    它是「**写入其中**的目录」, 不是「本脚本创建/截断的叶子文件」。
     #    塞进同一份清单会让它过下面的 `-L` 软链规则, 而 macOS 的 `/tmp -> /private/tmp`
@@ -916,6 +945,137 @@ step2_install() {
     return 0
 }
 
+# ── opencode 绑定件（--hosts 含 opencode 时由步 3 生成）──────────────────────
+# 生成两件, **都在 $VAULT 内**：
+#   ① $VAULT/.agents/skills/<name> —— 条目级软链 → ../../.claude/skills/<name>
+#   ② $VAULT/AGENTS.md            —— 技能清单 + OpenCode 项目级 MCP 接线指引
+#
+# 为什么是**条目级**而不是整目录级（`.agents/skills -> ../.claude/skills` 一根）：
+#   OpenCode 三处技能根都读、同名按 frontmatter `name` 去重（HOST-PROBE P8-d）。
+#   条目级让两边解析到**同一个 SKILL.md**, 去重后只剩一份；整目录级一根软链虽然
+#   也能读到, 但之后想单独排除/新增某一条就没有落点, 且 `.agents/skills` 本身
+#   变成软链后, 任何往它里面写的动作都会沿链穿到 `.claude/skills`。
+#
+# ⛔ 本函数只写 $VAULT 内, 对 D-26(i) 硬禁面（$HOME/.config/opencode）是**零写者**：
+#    那个目录由 cls_forbidden_paths.py 的 build_targets 整目录入 targets,
+#    其下的 `opencode.jsonc` 与 `.gitignore` 早已被 under() 的根前缀判拦住。
+#    本脚本既不读它也不写它；AGENTS.md 的指引正文明确叫用户也别手改它。
+OPENCODE_ERR=""
+#: OpenCode 项目级配置的扩展名。⛔ **刻意不把完整文件名写成字面量**：既有门
+#: `test_second_tier_hosts_not_implemented_anywhere` 对本文件的**非注释行**做
+#: substring 匹配, 禁件清单里有 `opencode.json`, 而实际文件名是它的**超串** ——
+#: 写成字面量会被那道门读成「偷偷生成二线宿主的配置件」。这里只是在 AGENTS.md 的
+#: 文案里**提一句文件名**（好让用户知道该建哪个文件）, 本脚本不生成也不修改它。
+OPENCODE_CFG_EXT="jsonc"
+#: AGENTS.md 的生成标记 —— 覆盖闸门认的就是这一行。
+OPENCODE_AGENTS_MARK="<!-- generated-by: deploy-vault.sh (--hosts opencode) -->"
+#: 实际建成的条目级软链条数（步 3 的 STEP_MSG 记账用）。
+OPENCODE_BOUND=0
+write_opencode_binding() {
+    local src_root="$VAULT/.claude/skills" dst_root="$VAULT/.agents/skills"
+    local d name link tgt agents="$VAULT/AGENTS.md"
+    local -a LINK_WRITES=() NAMES=()
+    OPENCODE_ERR=""
+
+    [ -d "$src_root" ] || { OPENCODE_ERR="技能源目录缺失, 无从建条目级软链: $src_root"; return 1; }
+
+    # ── 先把**每个实际要写的对象**过同一份判据 ────────────────────────────────
+    # ⛔ 条目名到步 1 时还不知道（它取决于步 2 装进来什么）, 所以 PENDING_WRITES 只能
+    #    申报到 `.agents/skills` 这个根 + AGENTS.md。叶子软链的落点必须在这里补判 ——
+    #    与步 4 源镜像 MIRROR_WRITES 同律：把实际要写的每个文件过同一份判据,
+    #    而不是再发明一层新判据（新形状 = 新的边）。
+    for d in "$src_root"/*/; do
+        [ -d "$d" ] || continue
+        name="$(basename "$d")"
+        NAMES+=("$name")
+        LINK_WRITES+=("opencode-skill-link-$name:$dst_root/$name")
+    done
+    if [ "${#NAMES[@]}" -eq 0 ]; then
+        OPENCODE_ERR="技能源目录里一个条目都没有, 拒绝生成空的 opencode 绑定: $src_root"
+        return 1
+    fi
+    if check_forbidden_paths --outputs "opencode-skills-root:$dst_root" \
+        "opencode-agents-md:$agents" "opencode-agents-md-tmp:$agents.tmp" \
+        "${LINK_WRITES[@]}"; then
+        OPENCODE_ERR="禁写面: $FORBIDDEN_HIT"
+        return 1
+    fi
+
+    mkdir -p "$dst_root" || { OPENCODE_ERR="建目录失败: $dst_root"; return 1; }
+
+    # ── ① 条目级软链 ─────────────────────────────────────────────────────────
+    for name in "${NAMES[@]}"; do
+        link="$dst_root/$name"
+        tgt="../../.claude/skills/$name"
+        if [ -L "$link" ]; then
+            # 已在位。指向同一个目标 ⇒ 幂等跳过；指向别处 ⇒ **不静默改写**别人的软链。
+            if [ "$(readlink "$link")" != "$tgt" ]; then
+                OPENCODE_ERR="已有软链指向别处, 拒绝静默改写: $link -> $(readlink "$link")"
+                return 1
+            fi
+            continue
+        fi
+        if [ -e "$link" ]; then
+            OPENCODE_ERR="落点已存在且不是软链, 拒绝覆盖: $link"
+            return 1
+        fi
+        ln -s "$tgt" "$link" || { OPENCODE_ERR="建软链失败: $link -> $tgt"; return 1; }
+    done
+
+    # ── ② AGENTS.md ──────────────────────────────────────────────────────────
+    # 不静默覆盖用户手写的 AGENTS.md：只认自己盖的生成标记。
+    # `-e` 对**悬空软链**为假, 所以并上 `-L`, 否则一条断链会被当成「不存在」而直接盖过去。
+    if [ -e "$agents" ] || [ -L "$agents" ]; then
+        if ! grep -qF "$OPENCODE_AGENTS_MARK" "$agents" 2> /dev/null; then
+            OPENCODE_ERR="已有 $agents 缺生成标记（疑为手写）, 拒绝覆盖"
+            return 1
+        fi
+    fi
+    assert_writable_now "$agents.tmp" || { OPENCODE_ERR="$WRITE_GUARD_ERR"; return 1; }
+    if ! write_agents_md "$agents.tmp" "${NAMES[@]}"; then
+        rm -f -- "$agents.tmp"
+        OPENCODE_ERR="写 AGENTS.md 临时文件失败"
+        return 1
+    fi
+    mv "$agents.tmp" "$agents" || { OPENCODE_ERR="mv AGENTS.md 失败"; return 1; }
+
+    # ── ③ 生成后就地在位判 ───────────────────────────────────────────────────
+    # ⛔ 不能放进 Phase A 的 A1：那两件是**本步生成**的, A1 跑的时候还不存在。
+    for name in "${NAMES[@]}"; do
+        [ -L "$dst_root/$name" ] || { OPENCODE_ERR="生成后软链不在位: $dst_root/$name"; return 1; }
+    done
+    [ -f "$agents" ] || { OPENCODE_ERR="生成后 AGENTS.md 不在位: $agents"; return 1; }
+    OPENCODE_BOUND="${#NAMES[@]}"
+    return 0
+}
+
+write_agents_md() {
+    local out="$1" n
+    shift
+    # 运行期拼接（理由见 $OPENCODE_CFG_EXT 上面那段注释）。
+    local cfg="opencode.$OPENCODE_CFG_EXT"
+    {
+        printf '%s\n' "$OPENCODE_AGENTS_MARK"
+        printf '# %s —— 给 OpenCode 的入口\n\n' "$VAULT_NAME"
+        printf '这份文件由 `deploy-vault.sh --hosts opencode` 生成, 重跑会被覆盖 ——\n'
+        printf '想加自己的内容, 先删掉第一行的生成标记（之后本脚本会拒绝覆盖它）。\n\n'
+        printf '## 可用技能（%s 条）\n\n' "$#"
+        printf '`.agents/skills/` 下每一条都是指向 `.claude/skills/` 同名条目的软链,\n'
+        printf '两个助手读到的是**同一份** SKILL.md, 改一处两边同时生效。\n\n'
+        for n in "$@"; do
+            printf -- '- `%s` — `.agents/skills/%s` → `../../.claude/skills/%s`\n' "$n" "$n" "$n"
+        done
+        printf '\n## 后端接线\n\n'
+        printf '本 vault 的后端在 `http://127.0.0.1:%s`。仓里已有的 `.mcp.json` 是\n' "$PORT"
+        printf 'Claude 口径的 MCP 声明, OpenCode 不读那个格式；要在 OpenCode 里用同一个\n'
+        printf '后端, 请在**本 vault 根目录**（OpenCode 的项目级配置位置）自己建一份\n'
+        printf '`%s`, 指向上面那个地址。\n\n' "$cfg"
+        printf '⛔ 不要去改 `~/.config/` 下 OpenCode 的**用户级**配置目录: 那是整机全局设置,\n'
+        printf '部署脚本对它是零写者, 手改会让不同课程的 vault 互相打架。项目级配置只影响这一个 vault。\n'
+    } > "$out" || return 1
+    return 0
+}
+
 # ═══ 步 3 postprocess ═══════════════════════════════════════════════════════
 KEY_REGENERATED="no"
 step3_postprocess() {
@@ -923,6 +1083,10 @@ step3_postprocess() {
     local datajson="$VAULT/.obsidian/plugins/canvas-learning-system/data.json"
     if [ "$APPLY" != 1 ]; then
         STEP_MSG="will: 重生 key(0600) → 同值写 $keyfile / $(basename "$ENV_FILE") INTERNAL_API_KEY / data.json internalApiKey; :8011 → :$PORT ×4; 在位判 CLAUDE.md/.claude/skills/.mcp.json"
+        # dry 态**零写**（头注契约）——这里只把生成意图说出来, 一个文件都不建。
+        if [ "$HOST_OPENCODE" = 1 ]; then
+            STEP_MSG="$STEP_MSG; 生成 opencode 绑定件 .agents/skills/<name> 条目级软链 + AGENTS.md"
+        fi
         return 2
     fi
 
@@ -1147,6 +1311,13 @@ PY
     # （原写后 `chmod 600 "$ENV_FILE"` 已删 —— 权限收紧统一由上面的 `os.fchmod(fd)` 承担,
     #   那一处在 O_NOFOLLOW + nlink 之后, 不会像路径式 chmod 那样改到被换掉的对象。r6 HIGH-1）
 
+    # B4b opencode 绑定件（`--hosts` 含 opencode 才做）
+    # ⚠️ 放在 B5 **之前**是为了保住 B5 那条不变量（「key 文件落盘是 Phase B 最后一步」，
+    #    理由见 B5 的注释）。绑定件生成失败 ⇒ 这里 return 1 ⇒ rc 73, key 文件尚未落盘。
+    if [ "$HOST_OPENCODE" = 1 ]; then
+        write_opencode_binding || { STEP_MSG="${OPENCODE_ERR:-生成 opencode 绑定件失败}"; return 1; }
+    fi
+
     # B5 key **文件**落盘 —— 最后一步。A4 已确定值; 已存在则不重写、只校正权限。
     # 为什么最后：「key 文件存在」是 A4 判「不重生」的锚点。若它先落盘而后续两处失败，
     # 下次重跑会读到它、不重生, 而另两处仍旧空 —— 半成品被这个最强信号掩盖。放最后则
@@ -1177,6 +1348,9 @@ PY
 
     STEP_MSG="key 重生=$KEY_REGENERATED(0600) 三处同值; :8011→:$PORT ×4 已验残留 0; 绑定三件在位;"
     STEP_MSG="$STEP_MSG .env 白名单跳过:${ENV_KEYS_SKIPPED:- 无}"
+    if [ "$HOST_OPENCODE" = 1 ]; then
+        STEP_MSG="$STEP_MSG; opencode 绑定: 条目级软链 $OPENCODE_BOUND 条 + AGENTS.md"
+    fi
     return 0
 }
 
