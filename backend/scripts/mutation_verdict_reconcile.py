@@ -234,14 +234,24 @@ _B_UNBOUND = re.compile(r"^KILLED-UNBOUND \([^)]*\): (?P<n>\d+)\s*$", re.M)
 _B_FOUR = re.compile(r"^(?P<name>SURVIVED|HARNESS-ERROR|ANCHOR-ERROR|SYNTAX-INVALID): (?P<n>\d+)(?=[\s(]|$)", re.M)
 _B_SUM = re.compile(r"^六档之和: (?P<t>\d+) \(应 = (?P<m>\d+)\)", re.M)
 
-#: 逐条裁决行里的档名。
-#: 实测形态：`«缩进»<nodeid> → rc=<n> ⇒ <档名> (<why>)`。
-#: ⛔ **必须锚到 `rc=<数字> ⇒`**（Codex round-8 MEDIUM）：只锚 `⇒ <档名>` 会把 **why 里的
-#: 诊断文字**也数进去 —— `⇒ SURVIVED (红在别的断言上: 实见 ['diagnostic ⇒ KILLED'])` 这一条
-#: 会被数成 SURVIVED 1 + KILLED 1，于是**合法**存档反而对账失败（假红）。而 why 是被测进程
-#: 的断言消息拼出来的，内容**被测进程可控** —— 让它能影响计数本身就是个口子。
+#: 逐条裁决行里的档名 —— ⛔ **按套写**，与聚合段同理（三套形态互不相同）。
+#:
+#: ⛔ **必须锚到行结构**（Codex round-8 MEDIUM）：只锚一个 `⇒ <档名>` 会把 **why 里的
+#: 诊断文字**也数进去 —— `⇒ SURVIVED (红在别的断言上: 实见 ['diagnostic ⇒ KILLED'])`
+#: 会被数成 SURVIVED 1 + KILLED 1，于是**合法**存档反而对账失败（假红）。而 why 由被测
+#: 进程的断言消息拼出来，**内容被测进程可控** —— 让它能影响计数本身就是个口子。
 #: ⛔ `(?![\w-])` 收右边界，否则 `KILLED` 会把 `KILLED-UNBOUND` 吃掉一半。
-_PER_ITEM = re.compile(rf"rc=-?\d+ ⇒ (?P<name>KILLED-UNBOUND|KILLED|{_TAIL_FIVE.split('|', 1)[1]})(?![\w-])")
+_VERDICT_ALT = "KILLED-UNBOUND|KILLED|" + _TAIL_FIVE.split("|", 1)[1]
+
+#: `g32cb` / `g32ccr1`：`«缩进»<nodeid> → rc=<n> ⇒ <档名> (<why>)`。
+_PER_ITEM_CB = re.compile(rf"rc=-?\d+ ⇒ (?P<name>{_VERDICT_ALT})(?![\w-])")
+
+#: `g32b`：`[<tag>] <gate> → <档名> …（本卡只读其源码实测 `_label` 的构造）。
+#: ⛔ 它的形态与上面**完全不同**（`→` 不是 `⇒`、无 `rc=`），而且 `SURVIVED` 的标签里
+#: **自带一个 `⇒`**（`SURVIVED ⇒ 假门 (…)`）—— 拿 `⇒` 去锚它会同时漏数和错数。
+#: 上一版只有一条 `⇒` 正则 ⇒ 对 g32b **零命中** ⇒ 整个「聚合 vs 逐条」这一维**静默**
+#: 降级成「未核」（Codex round-9 提问②指的就是这个面）。
+_PER_ITEM_B = re.compile(rf"^\[[^\]]+\] .+ → (?P<name>{_VERDICT_ALT})(?![\w-])", re.M)
 
 
 def _one(rx: re.Pattern[str], text: str, what: str, suite: str) -> re.Match[str]:
@@ -317,7 +327,7 @@ def parse_stdout(suite: str, text: str) -> Parsed:
     # ⛔ 逐条裁决记录是**第二个来源**（见 `Parsed.per_item`）。存档里没有逐条行时留 None ——
     # ⚠️ 留 None 意味着这一维**没核**，绝不能当成「核过且一致」（那正是本工具在骂的那种话）。
     per = {v: 0 for v in VERDICT_NAMES}
-    hits = _PER_ITEM.findall(text)
+    hits = (_PER_ITEM_B if suite == "g32b" else _PER_ITEM_CB).findall(text)
     for name in hits:
         per[name] += 1
     return Parsed(counts, int(ms.group("t")), declared_m, per if hits else None)

@@ -1148,3 +1148,43 @@ def test_rec_expect_rejects_duplicate_suite() -> None:
     # ⛔ 验伪锚：不重复时不得被这条误拦（它应当走到「文件不存在」那一条）
     with pytest.raises(SystemExit):
         rec.main(["--expect", "g33", "--json", "g33=/nonexistent.json"])
+
+
+def test_rec_per_item_regex_is_per_suite_not_one_size_fits_all() -> None:
+    """⛔ 逐条正则**按套写** —— g32b 的形态与另两套完全不同（Codex round-9 提问②）。
+
+    `g32cb` / `g32ccr1`：`… → rc=1 ⇒ KILLED (…)`；
+    `g32b`：`[<tag>] <gate> → KILLED (…)` —— **`→` 不是 `⇒`、没有 `rc=`**，而且
+    `SURVIVED` 的标签里**自带一个 `⇒`**（源码实测 `"SURVIVED ⇒ 假门 (…)"`）。
+    只用一条 `⇒` 正则对 g32b **零命中** ⇒ 整个「聚合 vs 逐条」这一维**静默**降级成「未核」。
+    """
+    rec = _rec()
+    agg_b = (
+        "\n── 汇总 ──\nKILLED (绑定断言身份: 位置 [+ 消息]): 1/2\n"
+        "KILLED-UNBOUND (仅证明指定门红了, 位置与消息都没绑): 0\n"
+        "KILLED 合计 (两者之和, **不等于**「全部被指定断言杀死」): 1/2\n"
+        "SURVIVED: 1\nHARNESS-ERROR: 0 (x)\nANCHOR-ERROR: 0 (x)\nSYNTAX-INVALID: 0 (x)\n"
+        "六档之和: 2 (应 = 2) ✓\n"
+    )
+    per_b = (
+        "[M1] tests/x.py::t1 → KILLED (红在声称的那一条断言上)  [还原字节相同 abc123def456]\n"
+        "[M2] tests/x.py::t2 → SURVIVED ⇒ 假门 (门全绿)  [还原字节相同 abc123def456]\n"
+    )
+    parsed = rec.parse_stdout("g32b", per_b + agg_b)
+    assert parsed.per_item is not None, "⛔ g32b 的逐条行必须数得到，不得静默降级成「未核」"
+    assert parsed.per_item["KILLED"] == 1 and parsed.per_item["SURVIVED"] == 1, parsed.per_item
+    # ⛔ `SURVIVED ⇒ 假门` 里那个 `⇒` 不得让它被数成别的档
+    assert sum(parsed.per_item.values()) == 2, f"恰好两条逐条记录，实得 {parsed.per_item}"
+
+
+def test_rec_truncated_archive_is_rejected_not_silently_accepted(tmp_path: Path) -> None:
+    """⛔ 半截存档（跑到一半的 tee）必须被拒 —— 这正是「禁 glob 取存档」那条规则的由来。
+
+    2026-09-15 实跑时 `ls -1t` 取到了**正在跑**的那份 31 行 tee，判据当场报「KILLED 行命中
+    0 次」。⇒ 拿 glob 取「最新」存档，会在并发跑动时悄悄换成一份没写完的。
+    """
+    rec = _rec()
+    partial = tmp_path / "partial.txt"
+    partial.write_text("  [M1] 变异说明\n        t1 → rc=1 ⇒ KILLED (x)\n", encoding="utf-8")
+    with pytest.raises(rec.ReconcileError, match="KILLED 行"):
+        rec.parse_stdout("g32cb", partial.read_text(encoding="utf-8"))
