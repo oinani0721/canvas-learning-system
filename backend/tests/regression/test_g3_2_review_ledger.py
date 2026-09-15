@@ -7334,157 +7334,86 @@ def _run_writer_no_yaml_at_harness_tree(vault: Path, payload: dict):
 
 
 #: 降级分支打印的告警。门靠它证明「确实走了那条分支」, 而不是碰巧 rc 对上了。
-_DEGRADED_BANNER = "PyYAML 不可用 — harness_tree 解析退回正则"
+#: 缺库时写点打出来的拒因（点名 PyYAML）。门靠它证明「确实是缺库这条路拒的」，
+#: 而不是碰巧被别的判据拒了。
+_NO_YAML_REFUSAL = "PyYAML 不可用 — harness_tree 指向哪棵树不可证"
 
 
-def test_g33r2_harness_tree_degraded_canonical_form_still_works(vault):
-    """降级分支①: 规范写法 `harness_tree: /绝对路径` 在缺库时仍被采用。
+def test_g33r2_harness_tree_no_pyyaml_refuses_canonical_form_accepted_cost(vault):
+    """⛔ 缺 PyYAML ⇒ **连最规范的写法也拒**。这条门钉的是我们**明知并接受的代价**。
 
-    缺省回退目标先弄坏 ⇒ rc=0 只可能来自「降级正则真的取到了 alt 树」。
-    另断言告警确实打印过 —— 否则「rc=0」可能只是因为探针压根没生效。
+    用户 2026-09-14 裁定「缺库即拒写」，本函数不再做任何降级解析。代价不是零：
+    2026-09-14 在一台真正 `find_spec("yaml") is None` 的 py3.14 上三向对照实测 ——
+    同机同 payload，`harness_tree` 指向本仓 `b85a168a` 那棵旧树（其 `_vault_id_of`
+    是正则解析、零 yaml）⇒ rc=0、账本落一行、节点 mastery 0.5→0.57，**写成了**；
+    换成当前树 ⇒ 「vault 归属无法绑定」零写；同 config 换回有 PyYAML 的解释器 ⇒ rc=0。
+    ⇒「缺库时下游本来也会拒」**不是写点的性质，而是 harness_tree 选中那棵树的性质**。
+    本函数在拒绝的那一刻，结构上无从知道自己是不是丢掉了一次本来能完成的写入。
+
+    用户在知道这个代价后仍裁定走拒写：「可见的拒绝」好过「静默地绑错一棵树」，
+    且前者可恢复（装上 PyYAML 就好）、后者用户无从察觉。**本门存在的意义是把这个
+    代价钉在测试里** —— 将来谁想把降级解析加回来，先得先删掉这条门，而删它就得
+    先读懂上面这段。
+
+    配对控制组：同一份 config、同一份 payload，只是不注入缺库 ⇒ 必须 rc=0 且账本
+    恰 1 行。没有它，「拒写」可能只是这份 config 本身有问题。
     """
-    alt = _build_alt_harness(vault.parent / "alt-harness-degraded-ok")
+    alt = _build_alt_harness(vault.parent / "alt-harness-noyaml")
     _write_cfg(vault, f"harness_tree: {alt}\n")
-    _disable_tree(vault.parent)
+    _disable_tree(vault.parent)  # 缺省回退堵死 ⇒ 控制组的 rc=0 只能来自绑到 alt
+
+    # ── 控制组: 有 PyYAML ⇒ 这份 config 本来写得成 ──
     (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
     (vault / "learning_events.jsonl").unlink(missing_ok=True)
-    r = _run_writer_no_yaml_at_harness_tree(vault, _payload(event_id="板降#q1", ts=TS1, review_time=TS1))
-    assert _DEGRADED_BANNER in (r.stdout or ""), (
-        f"⛔ 探针没生效: 没看到降级告警 ⇒ 这一跑走的仍是 yaml 分支, 证不到降级分支: {(r.stdout or '')[-300:]}"
-    )
-    assert r.returncode == 0, f"⛔ 规范写法在降级分支被拒了: {(r.stderr or '')[-400:]}"
-    assert len(_ledger_lines(vault)) == 1, "降级分支取到 alt 树 ⇒ 照常写入"
+    _ok = _run_writer_settled(vault, _payload(event_id="板拒#q1", ts=TS1, review_time=TS1))
+    assert _ok.returncode == 0, f"⛔ 控制组不成立: 有 PyYAML 时这份 config 也跑不通: {(_ok.stderr or '')[-400:]}"
+    assert len(_ledger_lines(vault)) == 1, "⛔ 控制组不成立: 缺省端已弄坏, 这里必须是绑到 alt 才写得出来"
 
-
-def test_g33r2_harness_tree_degraded_absent_key_still_falls_back(vault):
-    """降级分支②: 缺库**不得**把「没写这个键」也变成拒写。
-
-    降级只收一种写法, 但「一种都没写」是缺省态, 不是不规范写法 —— 混成一条
-    会让缺库的机器上所有老布局 vault 当场砖化。
-    """
-    _write_cfg(vault)  # 无 harness_tree
-    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
-    (vault / "learning_events.jsonl").unlink(missing_ok=True)
-    r = _run_writer_no_yaml_at_harness_tree(vault, _payload(event_id="板降#q2", ts=TS1, review_time=TS1))
-    assert _DEGRADED_BANNER in (r.stdout or ""), "⛔ 探针没生效, 证不到降级分支"
-    assert r.returncode == 0, f"⛔ 缺库 + 无该键应照常回退, 不该拒写: {(r.stderr or '')[-400:]}"
-    assert len(_ledger_lines(vault)) == 1, "缺省回退 ⇒ 照常写入"
-
-
-@pytest.mark.parametrize(
-    ("_mode", "_tpl", "_why"),
-    [
-        ("append", "harness_tree : {alt}\n", "M-c 键后空格"),
-        ("append", '"harness_tree": {alt}\n', "M-c 键被双引号包裹"),
-        ("append", "'harness_tree': {alt}\n", "M-c 键被单引号包裹"),
-        ("append", 'harness_tree: "{alt}"\n', "值带引号"),
-        ("append", "harness_tree: {alt} #alt\n", "值后带 # 注释"),
-        ("append", "harness_tree: ../alt-harness-degraded-rel\n", "相对路径"),
-        ("append", "harness_tree: {alt}\n", "值尾藏 U+0085 —— YAML 当换行, 逐行扫描看不见"),
-        ("append", "harness_tree: {base}/alt\n  cont\n", "续行 —— YAML 折叠成一个值, 逐行扫描只看到前半"),
-        (
-            "whole",
-            '{{vault_id: "canvas-vault-测试", subject: cs-61b, harness_tree: {alt}}}\n',
-            "流式映射写在一行",
-        ),
-    ],
-)
-def test_g33r2_harness_tree_degraded_noncanonical_is_fail_closed(vault, _mode, _tpl, _why):
-    """降级分支③: 缺库时任何**非规范**写法一律 fail-closed, 不静默回退、不猜。
-
-    ⛔ 这是本次重做的核心取舍: 逐行正则每多认一种形态就多一条猜错的路, 而猜错
-    的代价是静默换树。缺库是罕见态 —— 让它停下说话, 比让它猜对九成便宜。
-
-    后三条(U+0085 / 续行 / 流式映射)是 Codex round-1 MEDIUM 指出的结构形态:
-    它们在 PyYAML 眼里是一个值、在**逐行**扫描眼里是另一个值 —— 逐行正则先天
-    看不见「YAML 在哪里换行」。本卡的收口方式不是继续补正则, 而是让扫描器发现
-    这类形态就停下。
-
-    **配对控制组**(同一份 config, 不加探针, 且**缺省回退目标已弄坏**): 必须 rc=0
-    且账本恰 1 行 —— 证明两件事: ① 这份 config 在 PyYAML 可用时本来是能用的,
-    下面那条 fail-closed 确实是缺库带来的; ② 它当时**绑到了 alt 那棵**(缺省端已
-    堵死, 回退会当场红)。少了这一组, 一个把所有输入都拒掉的实现也能让本门全绿;
-    少了「弄坏缺省端」这一步, 控制组会对「其实走了回退」失明(Codex round-1 LOW)。
-    """
-    alt = _build_alt_harness(vault.parent / "alt-harness-degraded-rel")
-    #: 续行那条的 YAML 真值是「前半 + 空格 + 后半」⇒ 真树得叫 `alt cont`
-    _build_alt_harness(vault.parent / "alt cont")
-    _cfg_text = _tpl.format(alt=alt, base=vault.parent)
-    if _mode == "whole":
-        #: 流式映射必须是**整份文档**才合法(接在 block mapping 后面 PyYAML 会拒),
-        #: 所以这一条不走 `_write_cfg`, 而是把三个键全写进同一个 flow mapping。
-        (vault / ".canvas-config.yaml").write_text(_cfg_text, encoding="utf-8")
-    else:
-        _write_cfg(vault, _cfg_text)
-    _disable_tree(vault.parent)  # 缺省回退目标堵死 ⇒ 控制组的 rc=0 只能来自绑到 alt
-
-    # ── 配对控制组: 同一份 config, 不注入缺库 ⇒ 不得 fail-closed, 且绑到 alt ──
-    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
-    (vault / "learning_events.jsonl").unlink(missing_ok=True)
-    _ok = _run_writer_settled(vault, _payload(event_id="板降#q3", ts=TS1, review_time=TS1))
-    assert _ok.returncode == 0, (
-        f"⛔ 控制组不成立: 这份 config 在 PyYAML 可用时本身就跑不通({_why}) ⇒ "
-        f"下面那条 fail-closed 证不到是缺库造成的: {(_ok.stderr or '')[-400:]}"
-    )
-    assert len(_ledger_lines(vault)) == 1, (
-        f"⛔ 控制组不成立: PyYAML 可用时没写成({_why}) —— 缺省端已弄坏, 这里必须是绑到 alt 才写得出来"
-    )
-
-    # ── 判据: 注入缺库 ⇒ 必须 fail-closed 且点名 ──
+    # ── 判据: 缺库 ⇒ 拒, 且拒因点名 PyYAML ──
     (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
     (vault / "learning_events.jsonl").unlink(missing_ok=True)
     face0 = _write_face(vault)
-    r = _run_writer_no_yaml_at_harness_tree(vault, _payload(event_id="板降#q4", ts=TS1, review_time=TS1))
-    assert _DEGRADED_BANNER in (r.stdout or ""), f"⛔ 探针没生效, 证不到降级分支({_why})"
+    r = _run_writer_no_yaml_at_harness_tree(vault, _payload(event_id="板拒#q2", ts=TS1, review_time=TS1))
     assert r.returncode != 0, (
-        f"⛔ 缺库时非规范写法被放行({_why}) ⇒ 降级正则又在猜 ⇒ 静默换树的老路: {(r.stdout or '')[-300:]}"
+        "⛔ 缺库时规范写法被放行 ⇒ 降级解析被加回来了。若这是有意为之, 请先读本门的 docstring: "
+        f"删掉的那段每个版本都留下过「采用一棵 PyYAML 不会给出的树」的反例。{(r.stdout or '')[-300:]}"
     )
-    _err = r.stderr or ""
-    assert "harness_tree" in _err, f"⛔ 拒因须点名 harness_tree({_why}): {_err[-400:]}"
-    assert "PyYAML" in _err, f"⛔ 拒因须说清是「缺库 + 写法不规范」而不是别的({_why}): {_err[-400:]}"
-    assert len(_ledger_lines(vault)) == 0, f"拒绝 ⇒ 账本零行({_why})"
-    assert _write_face(vault) == face0, f"拒绝 ⇒ 写入面逐字节不变({_why})"
-
-
-def test_g33r2_harness_tree_degraded_unicode_space_is_fail_closed_too(vault):
-    """降级分支④: 值首 Unicode 空白在缺库时同样 fail-closed —— 但**理由不同**, 分开钉。
-
-    ⚠️ 这一条不能用「不加探针时 rc=0」当控制组(上面那组参数化用的就是那种控制组):
-    `harness_tree: \u3000/abs` 在 PyYAML 下的真值是 `\u3000/abs`(全角空格是标量内容, 与既有门
-    `..leading_unicode_space_is_not_silently_dropped` 同形) ⇒ 相对路径 ⇒ 那棵树不存在
-    ⇒ **本来就** fail-closed。两条分支都拒, 区别只在拒因:
-      · PyYAML 在 : 「harness_tree 指向不存在的树 (…)」—— **路径**判据拒的;
-      · 缺库降级 : 「PyYAML 不可用时 harness_tree 只接受规范绝对路径写法」—— **写法**判据拒的。
-    本门钉的是这个区别(拒因必须说清是哪一种), 不是「谁拒谁不拒」。
-    另实测(2026-09-14): 冒号后**直接**跟 U+3000 / NBSP / TAB 的写法, 本机 PyYAML 的
-    scanner 直接报 ScannerError —— 「Unicode 空白当分隔符」这种形态在 yaml 分支上压根
-    到不了取值那一步, 故也造不出「平时成功、缺库才拒」的用例。如实登记, 不硬造。
-    """
-    _write_cfg(vault, "harness_tree: \u3000#alt\n")
-
-    # ── 对照①: PyYAML 在 ⇒ 拒, 且拒因是**路径**判据 ──
-    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
-    (vault / "learning_events.jsonl").unlink(missing_ok=True)
-    _y = _run_writer_settled(vault, _payload(event_id="板降#q5", ts=TS1, review_time=TS1))
-    assert _y.returncode != 0, "对照①: 值首全角空格 ⇒ 相对路径 ⇒ 本来就该拒"
-    assert "指向不存在的树" in (_y.stderr or ""), f"对照①: PyYAML 在时拒因应是路径判据: {(_y.stderr or '')[-300:]}"
-
-    # ── 判据②: 缺库 ⇒ 也拒, 但拒因换成**写法**判据 ──
-    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
-    (vault / "learning_events.jsonl").unlink(missing_ok=True)
-    face0 = _write_face(vault)
-    r = _run_writer_no_yaml_at_harness_tree(vault, _payload(event_id="板降#q6", ts=TS1, review_time=TS1))
-    assert _DEGRADED_BANNER in (r.stdout or ""), "⛔ 探针没生效, 证不到降级分支"
-    assert r.returncode != 0, f"⛔ 缺库时值首 Unicode 空白被放行: {(r.stdout or '')[-300:]}"
-    _err = r.stderr or ""
-    assert "PyYAML" in _err and "harness_tree" in _err, (
-        f"⛔ 缺库时的拒因应是写法判据并点名 harness_tree, 而不是沿用路径判据: {_err[-400:]}"
+    assert _NO_YAML_REFUSAL in (r.stderr or ""), (
+        f"⛔ 拒因须点名 PyYAML(而不是被别的判据顺手拒了): {(r.stderr or '')[-400:]}"
     )
     assert len(_ledger_lines(vault)) == 0, "拒绝 ⇒ 账本零行"
     assert _write_face(vault) == face0, "拒绝 ⇒ 写入面逐字节不变"
 
 
-# ── CARD-HARNESS-TREE-PARSE-REDO: 核心不变量门（Codex round-1 MEDIUM 收口）──
+def test_g33r2_harness_tree_no_pyyaml_refuses_even_without_the_key(vault):
+    """⛔ 缺 PyYAML ⇒ **连「压根没写这个键」的老布局 vault 也拒**。
+
+    这是本次裁定里对用户最可见的那一半行为变化：老布局 vault（`harness_tree` 键
+    根本不存在、缺省回退到 vault 父目录）在缺 PyYAML 的机器上，从「照常写入」变成
+    「拒写并要求装 PyYAML」。
+
+    ⚠️ 为什么连这种也拒: 要判断「这份 config 里到底有没有这个键」，本身就得解析
+    YAML —— 逐行扫描判不出（转义键能还原出同一个键而原文不含那串字符；跨行标量
+    里的一行看着像键其实是内容）。所以「没写这个键」在缺库时是**不可证**的，
+    不能当成「可以安全回退」。
+
+    配对控制组同上：有 PyYAML 时同一份 config 必须照常写入。
+    """
+    _write_cfg(vault)  # 无 harness_tree 键
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    (vault / "learning_events.jsonl").unlink(missing_ok=True)
+    _ok = _run_writer_settled(vault, _payload(event_id="板拒#q3", ts=TS1, review_time=TS1))
+    assert _ok.returncode == 0, f"⛔ 控制组不成立: 有 PyYAML 时缺省路径也跑不通: {(_ok.stderr or '')[-400:]}"
+    assert len(_ledger_lines(vault)) == 1, "⛔ 控制组不成立: 缺省路径本应照常写入"
+
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    (vault / "learning_events.jsonl").unlink(missing_ok=True)
+    face0 = _write_face(vault)
+    r = _run_writer_no_yaml_at_harness_tree(vault, _payload(event_id="板拒#q4", ts=TS1, review_time=TS1))
+    assert r.returncode != 0, f"⛔ 缺库 + 无该键被放行 ⇒ 又在「判断有没有这个键」了: {(r.stdout or '')[-300:]}"
+    assert _NO_YAML_REFUSAL in (r.stderr or ""), f"⛔ 拒因须点名 PyYAML: {(r.stderr or '')[-400:]}"
+    assert len(_ledger_lines(vault)) == 0, "拒绝 ⇒ 账本零行"
+    assert _write_face(vault) == face0, "拒绝 ⇒ 写入面逐字节不变"
 
 
 def _extract_harness_tree():
@@ -7605,21 +7534,23 @@ def _ht_outcome(_fn, _vault_dir):
         'note: "unclosed' + chr(10) + "harness_tree: /a/b",
     ],
 )
-def test_g33r2_harness_tree_degraded_never_diverges_from_yaml(tmp_path, monkeypatch, _line):
-    """⛔ 本卡的核心不变量: **装没装 PyYAML 不该改变身份绑定**。
+def test_g33r2_harness_tree_no_pyyaml_never_returns_a_tree(tmp_path, monkeypatch, _line):
+    """⛔ 缺 PyYAML 时, `_harness_tree` **对任何 config 都不返回任何树** —— 一律抛并点名 PyYAML。
 
-    对同一份 config, 缺库分支的结局只允许是两者之一:
-      · 与 PyYAML 分支**完全相同**(同一棵树 / 同一句拒因); 或
-      · 一个**点名 PyYAML 的拒绝**(降级认得窄, 于是停下说话)。
-    绝不允许「两条分支各自返回一棵不同的树」, 也绝不允许「PyYAML 拒了而缺库
-    分支照样放行」—— 那就是 M-a/M-b/M-c 同一种事故换了个触发条件。
+    这是用户 2026-09-14 裁定「缺库即拒写」之后的不变量, 比它取代的那条更强也更简单。
+    旧不变量是「缺库分支要么与 PyYAML 同值、要么更窄」; 它在降级解析被整段删除之后
+    **退化成了恒真**(降级恒拒 ⇒ 每一条都落进「更窄」这一档 ⇒ 无论实现对错都绿)。
+    本卡实测到了这次退化: 删掉降级解析后, 那 60 条参数**一条不改就全绿** —— 假门。
+    所以换成现在这条: 只要缺库时**返回了任何东西**, 本门立刻红。
 
-    比较的是 `_harness_tree` 的**结局**而不是正则的捕获值: 收紧后的正则本身仍会
-    匹配 `harness_tree: /a/b<U+0085>`, 真正拦住它的是扫描器里跑在 `_canon` 之前的
-    换行字符判据 —— 只测正则会漏掉这一整族(本卡实测踩过)。
+    下面这张表逐条都是曾经真的让两条分支分叉过的形态(换行类字符 / 转义键 / 续行折叠 /
+    流式映射 / 文档标记 / 空白口径 / 非法字符 …)。它们现在的作用不再是「比对两侧取值」,
+    而是**证明没有任何一种形态能让缺库分支重新开口**。谁要把降级解析加回来, 这 60 条
+    会一起红 —— 那正是本门想要的阻力。
 
-    ⚠️ 本门**不要求**降级侧与 PyYAML 一样宽: `harness_tree:` / `null` / `""` 这三种
-    「用户清空了它」的写法在 PyYAML 侧回退、在降级侧拒, 属第二种允许结局。
+    ⚠️ 本门只管 `_harness_tree` 这一层。端到端那一半(账本零写、拒因点名 PyYAML、以及
+    我们**明知接受的代价**)由 `..._no_pyyaml_refuses_canonical_form_accepted_cost` 与
+    `..._no_pyyaml_refuses_even_without_the_key` 两门钉。
     """
     _fn = _extract_harness_tree()
     _vd = tmp_path / "canvas-vault"
@@ -7628,19 +7559,20 @@ def test_g33r2_harness_tree_degraded_never_diverges_from_yaml(tmp_path, monkeypa
         '# 测试 config\nvault_id: "canvas-vault-测试"\nsubject: cs-61b\n' + _line + "\n",
         encoding="utf-8",
     )
-    _with_yaml = _ht_outcome(_fn, _vd)
 
-    #: 前提自证: 没屏蔽之前, PyYAML 这条分支确实是走得到的(`yaml` 在 sys.modules 里)
-    assert "yaml" in sys.modules, "⛔ 前提没成立: 本进程里 PyYAML 不可用, 上面那次跑的根本不是 yaml 分支"
+    #: 前提自证: 屏蔽之前 PyYAML 确实可用 —— 否则下面那次「缺库」什么也没证明。
+    assert "yaml" in sys.modules, "⛔ 前提没成立: 本进程里 PyYAML 本就不可用, 这一跑证不到东西"
     monkeypatch.setitem(sys.modules, "yaml", None)
-    _degraded = _ht_outcome(_fn, _vd)
 
-    if _degraded == _with_yaml:
-        return
-    assert _degraded[0] == "exit" and "PyYAML" in _degraded[1], (
-        f"⛔ 两条分支对同一份 config 给出了不同的结局, 且缺库侧不是「点名 PyYAML 的拒绝」\n"
+    _outcome = _ht_outcome(_fn, _vd)
+    assert _outcome[0] == "exit", (
+        f"⛔ 缺 PyYAML 时 `_harness_tree` 返回了一棵树, 而不是拒绝\n"
         f"   配置行: {_line!r}\n"
-        f"   PyYAML 在 : {_with_yaml!r}\n"
-        f"   缺库降级 : {_degraded!r}\n"
-        f"   ⇒ 同一份配置在两台机器上会绑到不同的树 —— 正是本卡要消掉的那一族"
+        f"   返回值: {_outcome[1]!r}\n"
+        f"   ⇒ 降级解析被加回来了。它的每一个版本都留下过「采用一棵 PyYAML 不会给出的树」\n"
+        f"     的实测反例; 真要加回来, 先读本门与 SKILL.md 里 `_harness_tree` 的 docstring。"
+    )
+    assert "PyYAML" in _outcome[1], (
+        f"⛔ 缺库时是拒了, 但拒因没点名 PyYAML({_line!r}): {_outcome[1]!r}\n"
+        f"   ⇒ 它多半是被别的判据顺手拒的; 用户看到的将是一句与真实原因无关的错误。"
     )

@@ -1,0 +1,12 @@
+### 负控⑥ 新不变量门非 no-op: 还原到 4eeaeaa6（含降级解析）⇒ 60 参数应大面积红
+[跑前] f52a5946d6d957323c3441f3c348dc4ca6a5d43591ab00ef4fa343d13291a178  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills/canvas-vault/.claude/skills/quiz-answer/SKILL.md
+[还原态 4eeaeaa6] 784a1cfc2fd0bf6add994f8ea716e81a6f00bc1e7ec8371e3bb13f0be390a42a  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills/canvas-vault/.claude/skills/quiz-answer/SKILL.md
+FAILED tests/regression/test_g3_2_review_ledger.py::test_g33r2_harness_tree_no_pyyaml_never_returns_a_tree[harness_tree: /a/b\u3000]
+FAILED tests/regression/test_g3_2_review_ledger.py::test_g33r2_harness_tree_no_pyyaml_never_returns_a_tree[harness_tree: /a/b,c]
+FAILED tests/regression/test_g3_2_review_ledger.py::test_g33r2_harness_tree_no_pyyaml_never_returns_a_tree[harness_tree: /a]
+FAILED tests/regression/test_g3_2_review_ledger.py::test_g33r2_harness_tree_no_pyyaml_never_returns_a_tree[# harness_tree: /a/b]
+FAILED tests/regression/test_g3_2_review_ledger.py::test_g33r2_harness_tree_no_pyyaml_never_returns_a_tree[other: 1]
+========== 12 failed, 50 passed, 171 deselected, 11 warnings in 3.48s ==========
+neg6_pytest_rc=1
+[trap] 已还原 sha=f52a5946d6d957323c3441f3c348dc4ca6a5d43591ab00ef4fa343d13291a178
+f52a5946d6d957323c3441f3c348dc4ca6a5d43591ab00ef4fa343d13291a178  canvas-vault/.claude/skills/quiz-answer/SKILL.md

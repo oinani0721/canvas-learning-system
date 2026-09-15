@@ -2251,7 +2251,9 @@ TMP_BLOCK_BASELINE: dict[str, list[str]] = {
         #: `7fae3bc35bccb988…`(按 Codex round-4: 三处措辞按实测更正为「已有反例」)。
         #: → `f753616790369913…`(round-5 纯措辞更正: `_breaks` 八字符分类 + 「只有两条路」
         #: 是假二分, 走 D-32 尾巴; 逻辑零变化, 主 session 可逐行等价核)。
-        "B229:f753616790369913",
+        #: → `8d5ce8d4…`(用户 2026-09-14 裁定「缺 PyYAML 即拒写」: `_degraded_scan`
+        #: 整段删除, 净减 134 行; 代价已实测并写进该函数 docstring, 见验收单 §五-septies)。
+        "B229:8d5ce8d4018daf53",
         "S96:b55afbca27229028",
         "S205:44b7655dd97c27b7",
     ],
@@ -2298,6 +2300,9 @@ PARENT_DIR_PROSE_BASELINE: dict[str, list[int]] = {
 #: 单列在这里就是为了让那次 diff 一眼可见。
 #: 行号标注(2026-09-14 CARD-HARNESS-TREE-PARSE-REDO 实测): 4 处裸 `/tmp/` 在
 #: `:98/:106/:205/:233`, 4 处 `claude_dir_ref` 在 `:74/:3104/:3112/:3203`。
+#: ⚠️ 2026-09-15 复核: 这组数在本卡六个 commit 里一路漂到 `:3231` 又**恰好绕回**
+#: `:3104`(删 `_degraded_scan` 后总行数正好回到 3204, 与 f7f10be4 同) —— 纯属巧合,
+#: 别据此以为这组标注稳定。要现值就跑下面那条命令。
 #: ⚠️ 这组行号**会漂, 别照抄**: 上一版标注的 `:74/:2977/:2985/:3076` 在 `08100483`
 #: 上实测已是 `:74/:3086/:3094/:3185`(早于本卡就漂了 109 行), 本卡的 `_harness_tree`
 #: 重做再 +18。计数(4/4)才是基线, 行号只是找它们的线索 —— 要现值就重测:
@@ -4373,7 +4378,7 @@ MANAGED_FILE_DIGESTS: dict[str, str] = {
     "skills/configure-whiteboard/SKILL.md": "9eb21ecc6ac044a914ce11009025f8a84e51c5135221ec3b50f8c021ccfa2177",
     "skills/exam-quick/SKILL.md": "eb30e407a14145477710cbf439e7e85705afeb157c98c5993ee0b3616c324853",
     "skills/node-chat/SKILL.md": "3b15bc91dabea7e7b3876b75c2c0973e7a9284d48081e5d1b864623258b40fb7",
-    "skills/quiz-answer/SKILL.md": "5c7df579e200384345df245785a9b92007bf028814862abb6d2acda05bb5d786",
+    "skills/quiz-answer/SKILL.md": "f52a5946d6d957323c3441f3c348dc4ca6a5d43591ab00ef4fa343d13291a178",
     "skills/start-exam-board/SKILL.md": "0f2c085a1bae12446dd74ab89cc1e6aa5c8bc34901dd3be7ac5d8521310d0dce",
     "skills/study-question/SKILL.md": "0142b7833ff3ab54c9307227d59ebaa7d5ff3f9c18a76b07344d0ab295fa22e4",
     "scripts/decay_beta.py": "3bf4ed9402a4c8edfde16630a79094a5d4518fd181fa60810319fe46d37abb90",

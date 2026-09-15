@@ -376,182 +376,49 @@ def _harness_tree(vault_dir):
     vault, 可以放在代码树之外的任何地方, 那时 `dirname(VAULT)` 指到的是用户的文稿
     目录而不是 harness。键名与 U3-B 写入端逐字同 (`harness_tree`)。
     ⛔ 用真正的 YAML 解析器 (CARD-HARNESS-TREE-PARSE-REDO, 2026-09-14): 逐行正则
-    这条路被**四轮**同一族缺陷打穿 —— 尾注释被截断 / `#` 当分隔符 / 正则的空白类
+    这条路被**四轮**同一族缺陷打回 —— 尾注释被截断 / `#` 当分隔符 / 正则的空白类
     连值首的全角空格一起吃掉 / 转义引号截短 / 非列首键写法不认识。每一次的表现
     都一样: 用户明明写对了, 系统悄悄读了**另一棵存在的树**(或当他没写)。这与本
     文件 F1 判定得出的是同一个结论(见 F1 那段 docstring 的「换 PyYAML 一次解决
     整类问题」), 这里照做 —— 不再逐字符猜 YAML 的合法形态。
-    ⛔ 降级只收**一种**最规范写法: PyYAML 不可达时退回正则, 但只认
-    `harness_tree: <绝对路径>`(列首键、空格分隔、裸值、不含 `#`、值内无 TAB 与冒号、
-    无续行)。其余一切形态(引号 / `#` / 相对路径 / Unicode 空白 / 非列首键 / 流式
-    映射 / 多行折叠) fail-closed 拒写。每多认一种就多一条猜错的路, 而猜错的代价是
-    静默换树; 「这台机器装没装 PyYAML」不该改变身份绑定, 宁可让缺库的机器停下
-    说话。收口的逐条依据见 `_degraded_scan` 的 docstring。降级口径与本文件 F1 判定
-    的「PyYAML 不可用 → 退回正则扫描」声明同款: 都是「有总比没有强」的降级,
-    出现即告警。
+    ⛔ **PyYAML 不可用 ⇒ 直接拒写, 不做任何降级解析**(用户 2026-09-14 裁定):
+    本函数曾经有过一段「缺库时退回逐行扫描」的降级实现。它被 Codex 五轮复核逐步
+    收紧到「读不懂就停」, 但到最后仍留着两处**已有实测反例**的盲区 —— 一行里引号
+    成不成对证不出引号闭没闭合; 别的字段生成失败时 PyYAML 整份拒而逐行扫描照样
+    采用目标行那棵树。根因是逐行扫描先天缺两样东西: 它不知道 YAML 在哪里换行,
+    也不知道自己看的这一行处在什么语法上下文里。补正则补不出来 —— 所以不补了,
+    整段删除, 缺库时直接说话。
+    ⚠️ **这个取舍有代价, 如实写在这里, 别再引用「保守拒无代价」那句话**:
+    之前的 rationale 写过「缺库时更下游的 vault 归属绑定本来也会 fail-closed, 所以
+    保守拒不损失一次原本能完成的写入」—— **该说法已被实测证伪**。2026-09-14 在一台
+    真正 `find_spec("yaml") is None` 的 py3.14 上三向对照实测:
+      · harness_tree 指向本仓 `b85a168a` 那棵旧树(其 `_vault_id_of` 是正则解析、
+        零 yaml) ⇒ rc=0, 账本落一行完整事件, 节点 mastery 0.5→0.57 —— **写成了**;
+      · 同机同输入, 只把 harness_tree 换成当前树 ⇒ 「vault 归属无法绑定」、账本零字节;
+      · 同 config 换成有 PyYAML 的解释器 ⇒ rc=0(证明夹具本身有效)。
+    也就是说「缺库时下游本来也会拒」**不是写点的性质, 而是 harness_tree 选中的那棵
+    树的性质**, 而 harness_tree 是部署侧可写的运行期自由变量 —— 本函数在拒绝的那
+    一刻, 结构上无从知道自己是不是丢掉了一次本来能完成的写入。**用户在知道这个代价
+    之后仍裁定走拒写**: 理由是本函数一以贯之的取向 ——「可见的拒绝」好过「静默地绑
+    错一棵树」, 且前者可恢复(装上 PyYAML 就好)、后者用户无从察觉。
+    ⚠️ 相关的结构性缺口(另立卡, 不在本函数职责内): 写点从 harness_tree 选中的那棵
+    树无条件导入 7 个名字而**不做任何版本/契约校验** —— 上面那条反例能成立正是因为
+    旧树的 `_vault_id_of` 是另一套实现。任意旧版/异版 harness 分发都会被静默采用并
+    按其语义写账本。修它需要给 harness 树加契约门, 不是在这里多判几行。
     ⛔ 路径用 `realpath` **逐段解析 symlink**, 不是 `normpath` 按字符串消 `..`:
     `/A/link/../repo` 在 `link → /B/child` 时, 按字符串消得 `/A/repo`, 而 OS 真正
     会打开的是 `/B/repo` —— 两棵都存在时就是又一次静默换树。以 OS 会打开的为准。
     ⛔ 有值但树不存在时**不回退**: 回退等于把「配置写错了」翻译成「按老布局跑」,
     而老布局下 import 往往**会成功**(另一棵树的 validator), 于是写出去的东西静静地
     绑到错的 harness 上 —— 配置断裂必须说话, 不能被兜底吃掉。
-    三条分界(**限 PyYAML 在的那条分支**, 与既有门逐字同语义, 本次重做不动它们):
-    无键 / 值为 null / 值为空串 ⇒ 回退 `dirname(VAULT)`; 有值但那棵树不存在 ⇒
-    fail-closed 拒写; config 本身不是合法 YAML ⇒ fail-closed 拒写。第一条与第二条
-    混成一条, 「用户把这个键清掉了」就会变成砖化操作。
-    ⚠️ 降级分支是**另外三态**, 不要跨分支宣称上面那三条(Codex round-1/2 实测指出
-    并更正措辞): ①「整份 config 可证地没有 harness_tree 这个键」⇒ 回退;
-    ② 恰有一行是那一种规范写法、且整份 config 不含它读不懂的构造 ⇒ **采用该树**
-    (仍走同一套 `realpath` + 目录判定, 不存在照样拒); ③ 其余一切(含
-    `harness_tree:`、`harness_tree: null`、`harness_tree: ""` 这三种「用户清空了它」
-    的写法)⇒ fail-closed。缺库时不猜「这是清空还是写错」—— 少认一种形态换的是
-    「绝不绑错树」。
+    三条分界(与既有门逐字同语义, 本次重做不动它们): 无键 / 值为 null / 值为空串
+    ⇒ 回退 `dirname(VAULT)`; 有值但那棵树不存在 ⇒ fail-closed 拒写; config 本身
+    不是合法 YAML ⇒ fail-closed 拒写。第一条与第二条混成一条, 「用户把这个键清
+    掉了」就会变成砖化操作。⚠️ 这三条**全部以 PyYAML 可用为前提** —— 缺库时只有
+    一种结局(拒写), 不要跨分支宣称。
     """
     _cfg_p = os.path.join(vault_dir, ".canvas-config.yaml")
-
-    def _degraded_scan():
-        """PyYAML 不可用时的降级扫描: 只在**能证明自己读对了**的前提下取值, 否则拒。
-
-        三种结局, 没有第四种:
-          · 整份 config **可证**地没有 `harness_tree` 这个键 ⇒ 返回 ""(⇒ 缺省回退);
-          · 恰有一行是那一种规范写法、且整份 config 不含任何本函数读不懂的 YAML
-            构造 ⇒ 返回那个值(⇒ 与 PyYAML 同值);
-          · 其余一切 ⇒ 抛, 点名 PyYAML。
-        ⛔ 不变量(本函数存在的全部理由): **降级分支绝不采用一棵 PyYAML 不会给出
-        的树**。逐行扫描先天缺两样东西 —— 它不知道 YAML 在哪里换行, 也不知道自己
-        看的这一行处在什么语法上下文里。补正则补不出来(Codex round-1/2 两轮各指出
-        一批), 所以改成反过来做: 只要整份文件里出现**任何一种本函数推不动的构造**,
-        就当场停下, 而不是猜。
-        实测(2026-09-14)逐条收口的来源:
-          · 换行类字符(U+0085 / U+2028 / U+2029 / VT / FF / FS / GS / RS): 文本按行
-            迭代不在它们上面断行 ——「一行」两边不是同一个东西。⚠️ 措辞更正(Codex
-            round-4 LOW-2): 这八个里只有前三个是 PyYAML 的**换行**, 后五个是它的
-            **非法字符**(报 ReaderError), 与下面 `_nonprint` 重叠; 拦截行为本身正确,
-            但不能笼统说成「合法但会断行」。⛔ 这条
-            判据必须跑在「跳过空行 / 整行注释」**之前**: 一个含换行字符的物理行,
-            在 PyYAML 眼里可能前半是注释、后半是键(Codex round-2 MEDIUM-1);
-          · 反斜杠: 双引号键里的转义(如把 `_` 写成转义序列)能还原成同一个键, 而
-            原文里根本不含 `harness_tree` 这串字符(Codex round-2 MEDIUM-2);
-          · 文档标记 `---` / `...`(非首个内容行): `safe_load` 只收**单**文档, 见到
-            第二个就整份拒; 逐行扫描看不见文档边界, 会把第二份文档里的那行当成
-            有效值 —— 实测(本卡自查)PyYAML 抛 ComposerError 而降级取到了 `/c/d`;
-          · 指令行 `%`、锚点 `&`、别名 `*`、标签 `!`、合并键 `<<:`: 键可以不在它
-            出现的那一行上定义; 别名还可能压根没定义(PyYAML 整份拒);
-          · 流式括号 `{` `[`: 一整个映射可以写在一行里, 也可以跨行;
-          · 块标量 `|` `>`: 值在后面几行, 逐行扫描只看得到指示符;
-          · 单双引号在一行里**成奇数个**: 说明有个跨行的引号标量开着, 那之后每一行
-            的语法身份都不再是它看上去的样子。
-        ⚠️ 不保证的那一半, 如实写在这里: 本函数**不做整份语法校验**(那等于重写一个
-        YAML 解析器)。一份**语法**坏在别处的 config(缩进错等), PyYAML 会整份拒, 而
-        这里可能判成「没有这个键」而回退 —— 方向是安全的(不会绑错树), 且更下游的
-        vault 归属绑定同样需要 PyYAML、会在那里 fail-closed。
-        ⚠️ ⛔ **已知反例, 登记不修**(Codex round-3 MEDIUM-3 / round-4 MEDIUM-1 复现):
-        本函数用「一行里引号成不成对」当跨行引号标量的判据, 而这**证不出引号闭没
-        闭合** —— 字面引号、跨行标量的定界引号、尾注释里的引号恰好凑成偶数时, 一行
-        处在字符串**内部**却被当成配置行。复核方内存跑真函数确认: 存在一份 config,
-        PyYAML 走回退而本函数**采用了另一棵存在的树**。
-        ⚠️ ⛔ 同属已知反例(round-4 MEDIUM-2): 别的字段里有**构造不出来的隐式类型**
-        (如非法日期)、**不可哈希的复杂键**, 或块集合/普通标量的结构错误时, PyYAML 整份
-        拒(ValueError / ConstructorError / ParserError / ScannerError), 而本函数跳过
-        非目标行、**照样采用**目标行那棵树 —— 不只是「判成无键而回退」。
-        ⛔ 因此上面那句「绝不采用一棵 PyYAML 不会给出的树」**在这两个盲区上已有反例**,
-        不是「尚未证明」, 更不能当成已证结论引用。堵死只有两条路: 在这里塞进一个真正
-        的 YAML 词法/构造分析器(=把 PyYAML 重写一遍, 与本函数的结论自相矛盾), 或缺库时
-        **对含任何引号或任何非平凡结构的 config 一律拒**(现网 config 里就有引号, 那等于
-        缺库机器上一律拒写)。后者与实测一致(缺库时更下游的 vault 归属绑定本来也会
-        fail-closed, 保守拒不会损失一次原本能完成的写入), 但那是**用户可见的行为决定**,
-        超出本卡「重做解析」的范围 —— 作为产品取舍移交。
-        ⚠️ 措辞更正(Codex round-5 LOW): 上面说「只有两条路」是**假二分**。至少还有两条:
-        ③ 缺库时**直接明确退出**, 压根不进解析 —— 那就不必判引号、也不必判「非平凡结构」;
-        ④ 只认一个**明确限定的极小文档子集**并把那个子集**完整验证**到底 —— 那不等于
-        重写整个 PyYAML。把选项说窄了会让后面的人以为没得选, 如实改回来。
-        """
-        #: 这八个字符 Python 的 `splitlines()` 都会断行, 而文本文件**按行迭代不会**
-        #: —— 差异正是第一类的根因。⚠️ 它们在 PyYAML 那边**不是同一回事**(round-4/5 LOW):
-        #: 只有 U+0085 / U+2028 / U+2029 是它的**换行**; VT / FF / FS / GS / RS 是它的
-        #: **非法字符**(ReaderError), 与下面 `_nonprint` 重叠 —— 重复拦截无害, 但别把
-        #: 八个笼统说成「合法但会断行」。
-        #: ⛔ 用 chr() 拼而不是写成字面量: 这几个里有两个(U+2028 / U+2029)是**不可见**
-        #: 的换行类字符, 写进源码等于让这份 SKILL.md 自己带上隐形断行 —— 本卡实测
-        #: 被中间工具层把转义展开成真字符一次, 正是本函数要消掉的那一类东西。
-        _breaks = "".join(chr(_c) for _c in (0x0B, 0x0C, 0x1C, 0x1D, 0x1E, 0x85, 0x2028, 0x2029))
-        #: PyYAML 自己的「可打印字符」集(逐字抄 `yaml/reader.py` 的 NON_PRINTABLE),
-        #: 集合外的字符它一律 ReaderError 整份拒 —— 而逐行扫描照样能取到值
-        #: (Codex round-3 MEDIUM-4: 别的字段里放一个 U+0001, PyYAML 拒、降级返回树)。
-        #: 与 `_breaks` 互补: 那八个是**合法但会断行**的, 这里是**压根不合法**的。
-        _nonprint = re.compile(
-            "[^\x09\x0a\x0d\x20-\x7e\x85\xa0-퟿-�\U00010000-\U0010ffff]"
-        )
-        _canon = re.compile(r'^harness_tree:[ ]+(/[^\s#:][^\t#:]*?)[ ]*$')
-        _why = "只在整份 config 不含任何它读不懂的 YAML 写法、且恰有一行写成 `harness_tree: /path/to/tree`(列首键、空格分隔、裸值、无引号、无 #、值内无 TAB 与冒号、无续行)时才取值"
-        try:
-            with open(_cfg_p, encoding="utf-8") as _cf:
-                _txt = _cf.read()
-        except OSError:
-            return ""
-
-        def _stop(_what, _line):
-            raise SystemExit(f"[quiz-answer] PyYAML 不可用时 harness_tree {_why}, 实见{_what}: {_line!r} — 这一行的语法身份本函数推不动, 指向哪棵树不可证, fail-closed 拒写 — 请安装 PyYAML")
-
-        _val = ""
-        _await_cont = False
-        _seen_content = False
-        _doc_started = False
-        for _raw in _txt.split("\n"):
-            _cl = _raw.rstrip("\r")
-            #: ⛔ 换行类字符必须先查: 它会让「这一行」在两边不是同一个东西, 所以
-            #: 不能等到判完空行/注释再查(Codex round-2 MEDIUM-1)。
-            if any(_b in _cl for _b in _breaks):
-                _stop("YAML 当作换行、或直接判为非法的字符", _cl)
-            if _nonprint.search(_cl):
-                _stop("PyYAML 会整份拒的非法字符", _cl)
-            if "\\" in _cl:
-                _stop("反斜杠(转义可能还原出别的键)", _cl)
-            #: ⛔ 空行只按 **SP/TAB** 判(YAML 的 s-white 口径), 不能用裸 `.strip()`:
-            #: 后者剥全部 Unicode 空白, 会把一行「只有一个全角空格」当成空行跳过,
-            #: 而那在 PyYAML 眼里是标量内容(Codex round-3 MEDIUM-1 + 本卡自查)。
-            #: 这与本文件 round-3 的老教训同一条: 同一个函数里几处判据必须同口径。
-            _bare = _cl.strip(" \t")
-            if not _bare:
-                continue            # 空行: 不打断续行判定(YAML 的折叠会跨过空行)
-            if _bare[:3] in ("---", "...") and (len(_bare) == 3 or _bare[3] in " \t"):
-                #: ⛔ 标记行后面还跟着内容(如 `--- {a: 1}`)时 PyYAML 读得到那个键,
-                #: 而这里一 `continue` 就把它整行吞了(Codex round-3 MEDIUM-2)。
-                if _bare[3:].strip(" \t"):
-                    _stop("文档标记后面同行还有内容", _cl)
-                if _bare[:3] == "..." or _seen_content or _doc_started:
-                    _stop("文档分隔/结束标记(safe_load 只收单文档)", _cl)
-                _doc_started = True  # 文件开头**第一个**裸 `---` = 单文档显式开始, 放行
-                continue
-            if _bare.startswith("#"):
-                continue            # 整行注释: YAML 视同没写这行(也不算「内容」——
-                #: 注释之后的 `---` 仍然是文档**开始**而不是分隔)
-            if _await_cont:
-                _await_cont = False
-                #: 行首**任何**空白都算缩进 —— 只认 SP/TAB 会漏掉全角空格/NBSP 起首
-                #: 的那些行, 而它们既不算空行也不算续行, 会被整个跳过(同上)。
-                if _cl[:1].isspace():
-                    _stop("规范行后面跟着续行(PyYAML 会把两行折叠成一个值)", _cl)
-            _seen_content = True
-            if _bare[:1] == "%":
-                _stop("YAML 指令行", _cl)
-            for _tok in ("&", "*", "!", "<<:", "{", "[", "|", ">"):
-                if _tok in _cl:
-                    _stop(f"它读不懂的 YAML 写法 {_tok!r}", _cl)
-            if _cl.count('"') % 2 or _cl.count("'") % 2:
-                _stop("成奇数个的引号(说明有跨行引号标量开着)", _cl)
-            if "harness_tree" not in _cl:
-                continue
-            _cm = _canon.match(_cl)
-            if _cm:
-                _val = _cm.group(1)
-                _await_cont = True
-            else:
-                _stop("提到了这个键但不是那一种写法", _cl)
-        return _val
-
     _tree = ""
-    _degraded = False
     try:
         import yaml  # harness_tree 解析: 与 F1 判定同一个理由
         with open(_cfg_p, encoding="utf-8") as _cf:
@@ -563,12 +430,11 @@ def _harness_tree(vault_dir):
     except OSError:
         _tree = ""  # 压根没有 .canvas-config.yaml ⇒ 没写这个键 ⇒ 缺省回退
     except ImportError:
-        print("[quiz-answer] ⚠️ PyYAML 不可用 — harness_tree 解析退回正则, 只认 `harness_tree: <绝对路径>` 一种规范写法(列首键、空格分隔、裸值、无引号、无 #、值内无 TAB 与冒号、无续行); 其余一切写法一律 fail-closed 拒写")
-        _degraded = True
+        #: ⛔ 缺库即拒写。**不要**在这里加任何「先试着读一下」的降级 —— 那正是被
+        #: 删掉的那段, 它的每一个版本都留下过「采用一棵 PyYAML 不会给出的树」的反例。
+        raise SystemExit("[quiz-answer] PyYAML 不可用 — harness_tree 指向哪棵树不可证, fail-closed 拒写 — 逐行扫描猜不出 YAML 的换行与语法上下文, 猜错的代价是把学习事件静静地绑到另一棵 harness 树上, 故本写点在缺库时一律不写。请在跑 quiz-answer 的那个解释器里装上 PyYAML (pip install pyyaml) 后重跑")
     except Exception as _ye:
         raise SystemExit(f"[quiz-answer] .canvas-config.yaml 不是合法 YAML ({_ye}) — harness_tree 指向哪棵树不可证, fail-closed 拒写 — 请人工修复 {_cfg_p}")
-    if _degraded:
-        _tree = _degraded_scan()
     if not _tree:
         return os.path.dirname(vault_dir)
     _given = os.path.expanduser(_tree)
