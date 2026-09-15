@@ -18,16 +18,18 @@ rc=0 且打印 ``EPW-PATH-GATE: PASS`` 为通过。
 
 ⚠️ **本门已知的未覆盖路径（如实声明，不主张它能独立承担隔离验收）**
 
-已封（各配一枚验伪锚，见 `epw-path-gate-probes-*.txt` / `epw-path-gate-v3-*.txt`）：
+已封（各配验伪锚，见 `epw-path-gate-probes-*.txt` / `-v3-*` / `-v5-*`；反向锚证不误杀）：
   - 漏传 kwarg / 位置参数形态；
   - 直调 ``get_episode_worker`` / ``cleanup_episode_worker``（含 ``import … as`` 别名，
     **不限来源模块**——从 ``app.services.memory_service`` 转出的同名符号也算，Codex r2 LOW-2）；
-  - 死信路径**表达式子树里任何位置**出现危险字面量片段
-    （裸字面量、``str("…")`` 包一层、f-string 拼接都命中，Codex r1 MEDIUM-4 + r2 LOW-2）。
+  - 单个字符串常量里出现完整危险片段（裸字面量、``str("…")`` 包一层、f-string 内嵌整段）；
+  - **纯字面量表达式**（不依赖任何变量），无论常量怎么切分拼接 —— 由「值必须依赖变量」
+    这条正向规则统一覆盖（Codex r3 LOW-2 → r4 LOW-2 重写）。
 
 **仍未封**（本门是必要条件，不是充分条件）：
-  ① 值经**变量中转**时不看取值：``p = "data/dead_letter_episodes.jsonl"``
-     然后 ``GraphitiEpisodeWorker(dead_letter_path=p)`` 仍 PASS —— 需要数据流分析；
+  ① 值经**变量中转**且那个变量本身就是危险路径：``p = "data/dead_letter_episodes.jsonl"``
+     然后 ``GraphitiEpisodeWorker(dead_letter_path=p)`` 仍 PASS —— 正向规则只看「是否依赖变量」，
+     不看变量的取值，要判得准需要数据流分析。**这是本门当前最大的洞**；
   ② ``memory_service`` 启发式只查源码里**是否出现** ``get_episode_worker`` 这个串：
      删掉某个用例的 ``ready_worker`` fixture 形参、只留 fixture 定义里的那个串，门照样 PASS
      （注释里的同名串也算数）；
@@ -81,6 +83,9 @@ for n in ast.walk(t):
 #: 出现在死信路径表达式**任何位置**的这些字面量片段都判危险（含 `str("…")` 包一层、f-string 等）。
 DANGEROUS_PATH_FRAGMENTS = ("dead_letter_episodes.jsonl", "data/dead_letter")
 
+#: 判「值是否依赖变量」时要忽略的名字——它们是包装/转换，不携带路径来源。
+_PATH_WRAPPER_NAMES = {"str", "os", "Path", "pathlib", "PurePath", "fspath"}
+
 
 def _path_value_is_safe(node):
     """kwarg 在场还不够，值不能指向真死信坟场。
@@ -90,20 +95,31 @@ def _path_value_is_safe(node):
     - Codex r2 LOW-2：`str("data/dead_letter_episodes.jsonl")` 是 `ast.Call`、不是 `Constant`，
       于是又被放行 ⇒ **递归**扫整个表达式子树里的每一个字符串常量。
     - Codex r3 LOW-2：`str("data/" + "dead_letter_" + "episodes.jsonl")` 的三个常量**各自**都不含
-      完整危险片段，逐个查又漏了 ⇒ 再把子树里所有字符串常量**按出现顺序拼起来**查一次。
+      完整危险片段，逐个查又漏了 ⇒ 当时加了「常量按 `ast.walk` 顺序拼起来再查一次」。
+    - **Codex r4 LOW-2（本版重写）**：上一版那个拼接检查两头不讨好——
+      ① `ast.walk` 是**广度**遍历、不是求值顺序：`"data/" + "dead_" + "letter_" + "episodes.jsonl"`
+         会拼成 `episodes.jsonlletter_data/dead_`，**仍然漏检**；
+      ② 反过来又**误杀**了 `str(tmp_path / ("data/" + "dead_letter.jsonl"))` —— 它其实落在 tmp_path 内。
+      根因：「按字面量猜路径」本来就判不了归属。改成一条**正向**规则——
+
+        值表达式必须至少含一个**非包装名**（`str`/`Path`/`os` 之外的 `Name`），
+        也就是这个路径得**依赖某个变量**（测试里就是 `tmp_path` / `dead_letter_path` 一类 fixture）。
+
+      纯字面量拼出来的表达式不含自由变量 ⇒ 一律 FAIL（无论常量怎么切、`ast.walk` 什么顺序）；
+      经 `tmp_path` 派生的写法都带着那个变量 ⇒ 不会被误杀。
+      **逐个常量**的危险片段检查保留（挡「把整段危险路径写进一个常量」的 f-string 形态）。
     """
     literals = [
         sub.value for sub in ast.walk(node) if isinstance(sub, ast.Constant) and isinstance(sub.value, str)
     ]
-    # ① 逐个常量
+    # ① 单个常量里出现完整危险片段
     if any(frag in lit for lit in literals for frag in DANGEROUS_PATH_FRAGMENTS):
         return False
-    # ② 常量拼接结果（拆分字面量规避）
-    if any(frag in "".join(literals) for frag in DANGEROUS_PATH_FRAGMENTS):
-        return False
-    if isinstance(node, ast.Constant):
-        return False
-    if isinstance(node, ast.JoinedStr) and all(isinstance(v, ast.Constant) for v in node.values):
+    # ② 正向规则：路径必须依赖变量；纯字面量表达式（含任意切分拼接）一律 FAIL
+    free_names = {
+        sub.id for sub in ast.walk(node) if isinstance(sub, ast.Name) and sub.id not in _PATH_WRAPPER_NAMES
+    }
+    if not free_names:
         return False
     return True
 

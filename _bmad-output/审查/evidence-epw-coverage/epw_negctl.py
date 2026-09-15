@@ -1,9 +1,10 @@
 """CARD-EPW-COVERAGE 负控验伪锚驱动（形态＝编辑 $NEW 自身的断言期望值）。
 
-对 (c) 的六组核心断言各留一条对照输入，并随 Codex 三轮整改逐条扩充，**当前 16 条**
-（r1 定稿 8 → Codex r1 整改 +4 = 12 → r2 整改 +3 = 15 → r3 整改 +1 = 16；另有两条因断言被
-改写/被 `ruff format` 折行而同步更新了变异串，不计入新增）：
-⚠️ 这个数字曾被写成 17（没数就写），由驱动自己的 `── 负控` 块数实测更正为 16。
+对 (c) 的六组核心断言各留一条对照输入，并随 Codex 四轮整改逐条扩充，**当前 18 条**
+（r1 定稿 8 → r1 整改 +4 = 12 → r2 整改 +3 = 15 → r3 整改 +1 = 16 → r4 整改 +2 = 18；
+另有两条因断言被改写 / 被 `ruff format` 折行而同步更新了变异串，不计入新增）。
+⚠️ 这个数字被写错过一次（曾写 17，实为 16）；现按 `MUTATIONS` 的 **AST 实测**与驱动输出里的
+`── 负控` 块数**双向核对**得出。
 每条 = 把新文件里一句核心断言的期望值改成与被测语义矛盾的值 ⇒ 单跑该文件必须变红，
 **且红的必须是声称的那条用例**（不是「某处失败」）；随后从跑前 `cp` 副本还原并 `shasum`
 逐字节比对。⛔ 不用运行时 patch 形态——文件本身不变的话 shasum 判据恒真、等于没做。
@@ -60,6 +61,18 @@ MUTATIONS = [
         "test_retry_actually_sleeps_backoff_seconds_series_2_4_8",
         "assert slept_with == sentinels, (",
         "assert slept_with == sentinels[::-1], (",
+    ),
+    (
+        "(2'd) 属性不得对抽样结果做下限抬升（Codex r4 LOW-1）",
+        "test_backoff_upper_bound_is_monotonic_and_capped_at_60",
+        "assert tiny_returned == [0.001, 0.001, 0.001], (",
+        "assert tiny_returned == [0.1, 0.1, 0.1], (",
+    ),
+    (
+        "(3') 死信计数精确等于 1（Codex r4 LOW-3）",
+        "test_dead_letter_written_on_retry_exhaustion",
+        "这里补一条精确计数断言，让矩阵 #2 的「`episodes_dead_lettered == 1`」说法与实测一致。\n    assert w.metrics.episodes_dead_lettered == 1",
+        "这里补一条精确计数断言，让矩阵 #2 的「`episodes_dead_lettered == 1`」说法与实测一致。\n    assert w.metrics.episodes_dead_lettered == 2",
     ),
     (
         "(2'c) 属性原样返回抽样值、不得二次截断（Codex r3 LOW-1）",

@@ -472,6 +472,28 @@ def test_backoff_upper_bound_is_monotonic_and_capped_at_60():
     assert bounds[:7] == [1, 2, 4, 8, 16, 32, 60], "2**i 直到触顶后恒为 60"
     assert returned == bounds, f"属性必须原样返回抽样值、不得再加工（如二次截断）；抽样={bounds} 返回={returned}"
 
+    # Codex r4 LOW-1：上面的桩返回的是**上界**（最小 1），所以只挡得住「上限被截低」
+    # （`min(uniform, 5.0)`），挡不住「下限被抬高」（`max(uniform, 0.1)` 把 [0,0.1) 全抬到 0.1）。
+    # 这里再跑一遍，桩返回一个**远低于任何合理下限**的样本，属性必须原样交出。
+    def tiny_uniform(low, high):
+        return 0.001
+
+    with patch("app.services.episode_worker.random.uniform", side_effect=tiny_uniform):
+        tiny_returned = [
+            EpisodeTask(
+                name=f"tiny{i}",
+                episode_body=_BODY,
+                group_id=_GROUP_ID,
+                source_description="backoff_tiny",
+                retry_count=i,
+            ).backoff_seconds
+            for i in (0, 3, 10)
+        ]
+
+    assert tiny_returned == [0.001, 0.001, 0.001], (
+        f"属性不得对抽样结果做下限抬升（如 max(uniform, 0.1)）；实测 {tiny_returned}"
+    )
+
     # 不打桩的真实抖动：落在 [0, 上界] 内（本条不依赖上面的桩）。
     live = EpisodeTask(
         name="live_jitter",
@@ -503,6 +525,9 @@ async def test_dead_letter_written_on_retry_exhaustion(worker):
         await _wait_until(lambda: w.metrics.episodes_dead_lettered >= 1)
 
     assert dl.exists()
+    # Codex r4 LOW-3：`_wait_until` 只等到 `>= 1`，若生产把计数器改成每次加 2 本用例照样过。
+    # 这里补一条精确计数断言，让矩阵 #2 的「`episodes_dead_lettered == 1`」说法与实测一致。
+    assert w.metrics.episodes_dead_lettered == 1
     records = _read_records(dl)
     assert len(records) == 1
     record = records[0]
@@ -784,8 +809,22 @@ def test_worker_metrics_to_dict_serializes_nonzero_depth_and_times():
     assert m.to_dict()["max_processing_time_ms"] == 100.0, "旧的 1500ms 样本应已被滑出窗口"
 
 
+@pytest.mark.skipif(
+    not hasattr(asyncio.Queue, "shutdown"),
+    reason=(
+        "关停后拒绝入队走的是 asyncio.QueueShutDown 分支，只在 Python 3.13+ 存在。"
+        "Py<3.13 时 episode_worker 的兼容层只投停止哨兵、enqueue 不查关闭状态，"
+        "空队列关停后仍会返回 True —— 那是生产**已知的兼容分支行为**，不在本卡处置面。"
+        "（Codex r4 LOW-4 移交项：生产容器为 python:3.11-slim 时本条无覆盖。）"
+    ),
+)
 async def test_enqueue_after_stop_returns_false(dead_letter_path):
-    """关停后入队被拒（返回 False 而非抛异常），计数不变。"""
+    """关停后入队被拒（返回 False 而非抛异常），计数不变。
+
+    ⚠️ 版本相关（Codex r4 LOW-4）：本条钉的是 `enqueue` 的 `_QUEUE_SHUTDOWN` 分支，
+    依赖 `asyncio.Queue.shutdown`（Python 3.13+）。本车道 venv 实测 Python 3.14.4，
+    该分支存在；在 Py<3.13 上本条会被 skip 而不是假绿。
+    """
     w = GraphitiEpisodeWorker(maxsize=4, dead_letter_path=str(dead_letter_path))
     mock_graphiti = MagicMock()
     mock_graphiti.add_episode = AsyncMock(return_value=None)
