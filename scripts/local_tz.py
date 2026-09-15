@@ -45,15 +45,28 @@ from zoneinfo import ZoneInfo
 #: 日期: Jn(1..365 跳过 2/29) / n(0..365 含闰) / Mm.w.d; 切换时刻缺省 02:00:00
 #: （BASE 这里原写 02:02:00, 与下方 `_POSIX_DEFAULT_TRANSITION` 和 `_parse_rule` 的实际
 #:  返回值矛盾, 也与它自己 :57 那条注释矛盾 —— Codex r2 点名, 本卡顺手改正）。
+#: ⛔ 位宽一律 `\d+`、名字一律 `+`/`*`, **不用** `{1,3}` 这类人为窄口径（Codex r10 M1/M2）。
+#: 本机实测: C 库对数字字段的位数**没有上限**（`AAA00000001` = +1h 照收）、前导零随意
+#: （`M03.02.00` / `J0001` / `/0002` 全收）、名字可以只有 1 个字符（`A1`）也可以是**空**
+#: 引用名（`<>1`）。原来的 `{1,3}` / `{1,2}` / `{3,}` 把这些**合法**串一律拒掉 ⇒ 退 UTC
+#: ⇒ 与机器本地时区归日不同。25704 组合的对拍里，正则窄口径一项就占误拒的 95%。
+#: ⛔ **裸名不是 `[A-Za-z]+`**: C 库的裸名一直吃到遇见数字 / `+` / `-` / `,` 为止,
+#:    中间的任何可打印字符都算名字 —— `ABC<DEF>2` 的名字是 `ABC<DEF>`（它的 tzname
+#:    打成 `ABC_DEF_`）、`ABC DEF2` 的名字是 `ABC DEF`。原来的 `[A-Za-z]{3,}` 把这类
+#:    整串判无 std 偏移而拒, 占对拍里 240 条误拒。控制字符仍排除（`\x00-\x1f`）——
+#:    放它们进名字会让 `.key` 带控制字符进 API 响应, 本卡 r5/r6 为此栽过两次。
+#: ⛔ **引用名分支必须排在裸名之前**: 正则的 `|` 是左优先, 裸名字符集含 `<`,
+#:    若裸名在前, `<+10:30>-10:30<+11>-11,…` 会被吃成名字 `<` + 偏移 `+10:30`, 整串错解。
+#: 值域不在正则里判 —— 交给 ⑤（ASCII + 范围）、⑦（名字和式）、⑧（量级）、⑨（规则可解析）。
 _POSIX_TZ_RE = re.compile(
-    r"^(?P<std>[A-Za-z]{3,}|<[^<>]+>)"
-    r"(?P<std_off>[+-]?\d{1,3}(?::\d{1,2}(?::\d{1,2})?)?)?"
-    r"(?:(?P<dst>[A-Za-z]{3,}|<[^<>]+>)"
-    r"(?P<dst_off>[+-]?\d{1,3}(?::\d{1,2}(?::\d{1,2})?)?)?)?"
-    r"(?:,(?P<start>J?\d{1,3}|M\d{1,2}\.\d\.\d)"
-    r"(?:/(?P<stime>\d{1,3}(?::\d{1,2}(?::\d{1,2})?)?))?"
-    r",(?P<end>J?\d{1,3}|M\d{1,2}\.\d\.\d)"
-    r"(?:/(?P<etime>\d{1,3}(?::\d{1,2}(?::\d{1,2})?)?))?)?$"
+    r"^(?P<std><[^<>]*>|[^\x00-\x1f\d+,\-]+)"
+    r"(?P<std_off>[+-]?\d+(?::\d+(?::\d+)?)?)?"
+    r"(?:(?P<dst><[^<>]*>|[^\x00-\x1f\d+,\-]+)"
+    r"(?P<dst_off>[+-]?\d+(?::\d+(?::\d+)?)?)?)?"
+    r"(?:,(?P<start>J?\d+|M\d+\.\d+\.\d+)"
+    r"(?:/(?P<stime>\d+(?::\d+(?::\d+)?)?))?"
+    r",(?P<end>J?\d+|M\d+\.\d+\.\d+)"
+    r"(?:/(?P<etime>\d+(?::\d+(?::\d+)?)?))?)?$"
 )
 
 #: POSIX 缺省切换时刻 = 当地 02:00:00（规格明文）。⛔ 曾误写成加两分钟: 切换后头两
@@ -117,6 +130,41 @@ def _rule_epoch(rule, year: int) -> int:
         return calendar.timegm((year, mon, day, 0, 0, 0)) + secs
     yday = a + (1 if (kind == "J" and calendar.isleap(year) and a >= 60) else 0) - (1 if kind == "J" else 0)
     return calendar.timegm((year, 1, 1, 0, 0, 0)) + yday * 86400 + secs
+
+
+def _zoneinfo_key_candidates(env_tz: str) -> tuple[str, ...]:
+    """把 `TZ` 的各种**路径**形态归一成可喂给 `ZoneInfo` 的 IANA 名候选（按优先序）。
+
+    C 库把 `TZ` 先当**文件路径**解析（绝对路径直接打开, 相对路径相对 `TZDIR`,
+    默认 `/usr/share/zoneinfo`）, 解析不了才退 POSIX 规格串。本机实测（Codex r10 M4/M5）:
+
+    ========================================  =========  ==========
+    TZ                                        C 库        原实现
+    ========================================  =========  ==========
+    `:Asia/Shanghai`                          +08:00     +08:00
+    `::Asia/Shanghai`                         **UTC**    +08:00 ⛔误收
+    `/usr/share/zoneinfo/Asia/Shanghai`       +08:00     UTC ⛔误拒
+    `./Asia/Shanghai` / `Asia//Shanghai`      +08:00     UTC ⛔误拒
+    ========================================  =========  ==========
+
+    ⛔ 冒号只剥**一个**: 原实现用 `lstrip(":")` 剥掉全部前导冒号, 于是
+    `::Asia/Shanghai` 被剥成合法名 —— 而 C 库剥一个之后剩下 `:Asia/Shanghai`,
+    当作路径打不开, 退 UTC。这是**误收 + 误算**（整整差 8 小时）, 比误拒严重。
+
+    ⚠️ 如实声明一处**有意的收紧**: 绝对路径只接受**路径里含 `zoneinfo` 段**的那种,
+    取其后的部分作 IANA 名。C 库会打开任意路径的 tzfile（`TZ=/tmp/whatever`）,
+    本实现不跟 —— `TZ` 是环境变量, 按它去开任意文件是不必要的输入面。落在这个
+    收紧外的路径退 UTC（= 原行为）。
+    """
+    raw = env_tz[1:] if env_tz.startswith(":") else env_tz  # C 库只剥一个冒号
+    cands = [env_tz, raw]
+    parts = [p for p in raw.split("/") if p not in ("", ".")]  # `//` 与 `./` 归一
+    if parts:
+        if "zoneinfo" in parts:
+            cands.append("/".join(parts[parts.index("zoneinfo") + 1 :]))
+        elif not raw.startswith("/"):
+            cands.append("/".join(parts))  # 相对 TZDIR 的名, 归一化后再试
+    return tuple(dict.fromkeys(c for c in cands if c))
 
 
 def parse_posix_tz(spec: str):
@@ -210,11 +258,21 @@ def parse_posix_tz(spec: str):
     #    的错都真实发生: `<A×507>-1<B×3>,…` 合法却判超限（误拒）; `<A×512>-1` 这类
     #    无 dst 形态**根本没进**这条检查（误收 —— 本实现接受了 C 库拒绝的串, 比误拒糟）。
     # ⛔ 量纲是**字节**不是字符（本卡第三次栽在这一对上: awk 的 length()、r4 的
-    #    `len(spec)`, 现在是这里）。实测 `A×504 + 中×1` = 507 字节 / 505 字符 → 接受,
-    #    `中×170` = 510 字节 / 170 字符 → 拒; 按字符算这两条都会判反。
-    _name_bytes = len(_strip_name(g["std"]).encode("utf-8")) + 1
-    if g["dst"] is not None:
-        _name_bytes += len(_strip_name(g["dst"]).encode("utf-8")) + 1
+    #    `len(spec)`, 现在是这里）。能把两种量纲分开的是 `AAA0<中×170>`:
+    #    和(字节) = 3 + 510 + 2 = 515 > 512 ⇒ 拒（与 C 库同）, 和(字符) = 3 + 170 + 2
+    #    = 175 ⇒ 收 ⇒ 按字符算会**误收**。
+    # ⚠️ `A×504 + 中×1`（507 字节 / 505 字符）**分不开**两种量纲 —— 512 与 510 都 ≤512,
+    #    两种算法都给「收」。上一版注释写「按字符算这两条都会判反」是错的（Codex r10 L1）:
+    #    一条样本要能证伪某个假设, 得让两个假设在它身上给出**不同**答案; 否则它只是
+    #    一条正例, 不是区分点。
+    # ⛔ **空名不占缓冲区**（Codex r10 对名字和式的补充, 本机实测）:
+    #    `<A×511>-1<>,M3.2.0,M11.1.0` C 库**收**（511 + 1 = 512）, `<A×512>-1<>` 才拒。
+    #    机械地给空 dst 名也加一个 NUL（511+0+2 = 513）会把它误拒。
+    _name_bytes = sum(
+        len(_strip_name(_nm).encode("utf-8")) + 1
+        for _nm in (g["std"], g["dst"])
+        if _nm is not None and _strip_name(_nm)
+    )
     if _name_bytes > 512:
         return None
     std_off = _posix_offset_seconds(g["std_off"])
@@ -230,9 +288,19 @@ def parse_posix_tz(spec: str):
     _end_rule = _parse_rule(g["end"], g["etime"]) if g["end"] is not None else None
     if (g["start"] is not None and _start_rule is None) or (g["end"] is not None and _end_rule is None):
         return None
-    if g["dst"] is None:
+    # ⑩ 无 dst 名**且**无规则 ⇒ 真·无 DST。⛔ 只判 `g["dst"] is None` 是错的（Codex r10 H1）:
+    #    C 库对 `AAA-1,M3.2.0,M11.1.0` 这类「无 dst 名但**带合法规则**」的串**照常实行 DST**
+    #    —— 规则用 TZ **自带的**那套（实测 `AAA-1,M4.1.0,M10.1.0` 在 3/20 给 +1h、4/20 给 +2h,
+    #    与带 dst 名的同规则串逐点相同, 而"整体退 posixrules"那种读法会在 3/20 给 +2h）,
+    #    只有 dst **名**借 posixrules 的、dst 偏移取默认 std_off + 3600。
+    #    漏掉这一支的后果不是误拒而是**误算**: 夏季整整差一小时 ⇒ 归日可能差一天。
+    if g["dst"] is None and g["start"] is None:
         return _PosixTZ(spec, _strip_name(g["std"]), std_off, None, None, None, None)
     dst_off = _posix_offset_seconds(g["dst_off"]) if g["dst_off"] else std_off + 3600
+    # dst 名: 自带则用自带; 无 dst 名而有规则时借 posixrules 的夏令名（本机实测 "EDT",
+    # 与 posixrules ≡ America/New_York 逐字节相同这一事实一致）。
+    # ⚠️ 同上: 字面量是历史选择, 模块级常量的同源缺口已由 r10 的 AST 门补上。
+    dst_name = _strip_name(g["dst"]) if g["dst"] is not None else "EDT"
     # dst 侧与两侧之**差**同样要 < 24h —— `AAA12BBB-12` 两侧各自合法而差恰为 24h,
     # `utcoffset()` 算得出但 `dst()` / `timetuple()` 会抛。
     # ⚠️ 差值这一条是**过度拒绝**, 如实声明: C 库接受 `AAA12BBB-12,M3.2.0,M11.1.0`
@@ -242,8 +310,11 @@ def parse_posix_tz(spec: str):
         return None
     if g["start"] is None or g["end"] is None:
         # 规则整段缺席 ⇒ 补 posixrules 的默认规则。
-        # ⛔ 故意用字面量而不提模块级常量: 源同源门只逐行比对 shared 名单里的七个定义
-        #    （`parse_posix_tz` 在内, 模块级常量**不在**）—— 写在函数体里才会被门比到。
+        # ⚠️ 这里写字面量而不提模块级常量, 是 r4 的历史选择: 当时源同源门只比 shared
+        #    名单里的七个函数/类定义, 模块级常量**不在门内**, 写进函数体才比得到。
+        #    Codex r10 M9 之后那个缺口已补（`test_two_copies_share_identical_module_level_constants`
+        #    按 AST 枚举顶层赋值逐字比对）, 所以这条理由**已不成立**; 字面量保留只是
+        #    为了不在负控锚点密集区做无行为变化的重构。
         # 春季: C 库把前跳钉在当地**标准**时 02:00, 与 POSIX 缺省一致 ⇒ 走 `_parse_rule` 缺省。
         start = _parse_rule("M3.2.0", None)
         # 秋季: C 库把回拨钉在当地**标准**时 01:00, 而 POSIX 的 `/时刻` 指**切换前生效**
@@ -258,7 +329,7 @@ def parse_posix_tz(spec: str):
         end = ("M", 11, 1, 0, 3600 + dst_off - std_off)
     else:
         start, end = _start_rule, _end_rule
-    return _PosixTZ(spec, _strip_name(g["std"]), std_off, _strip_name(g["dst"]), dst_off, start, end)
+    return _PosixTZ(spec, _strip_name(g["std"]), std_off, dst_name, dst_off, start, end)
 
 
 class _PosixTZ(tzinfo):
@@ -395,6 +466,15 @@ class _PosixTZ(tzinfo):
         return (off or timedelta(0)) - timedelta(seconds=self._std_off)
 
     def tzname(self, dt):
+        """夏令名 / 标准名。
+
+        ⚠️ **如实声明一处与 C 库的差异**（Codex r10 L6）: C 库在把名字放进 tzname 时会
+        做一层**缩写清理**, 本实现原样返回。本机实测的清理规则（无文档依据, 只能穷举
+        字符集测出来）: `/` → `_`, 非 ASCII 按**字节**逐个换成 `_`（`<中>` 给 `___`）,
+        而空格 / `.` / `+` / `-` / 数字都原样保留; 超长名还会被截断。
+        不跟的理由: 这条差异只落在**显示**上 —— 归日走的是 `utcoffset()`, 与 tzname 无关;
+        而要跟就得把那套「哪些字符合法」的平台细节再实测一遍并长期维护。
+        """
         if dt is None or self._dst_off is None:
             return self._std_name
         # ⛔ 不能用「实际偏移 == dst_off」判 DST **身份**（Codex r9 L2）: 两侧偏移相等的
@@ -406,6 +486,12 @@ class _PosixTZ(tzinfo):
         return self._dst_name if self._in_dst(wall - off) else self._std_name
 
     def fromutc(self, dt: datetime) -> datetime:
+        # tzinfo 协议要求 fromutc 只接受「tzinfo 就是自己」的 aware datetime
+        # （`datetime.timezone.fromutc` / `ZoneInfo.fromutc` 本机实测都对 naive 与
+        #  异 tzinfo 抛 ValueError）。缺了它, 传 naive 或 `tzinfo=timezone.utc` 的
+        #  datetime 会被静默当成本时区的 UTC 读数换算出一个看似合理的结果（Codex r10 L7）。
+        if dt.tzinfo is not self:
+            raise ValueError("fromutc: dt.tzinfo is not self")
         ts = calendar.timegm(dt.replace(tzinfo=None).timetuple())
         dst_off = self._dst_off
         if dst_off is None:
@@ -436,7 +522,7 @@ def display_tz():
     if env_tz is not None:
         if not env_tz:
             return ZoneInfo("UTC")  # 空 TZ = UTC, 与 libc 一致
-        for cand in (env_tz, env_tz.lstrip(":")):  # ":Asia/Shanghai" 与裸 IANA 名
+        for cand in _zoneinfo_key_candidates(env_tz):
             try:
                 return ZoneInfo(cand)
             except Exception:  # noqa: BLE001

@@ -22,8 +22,10 @@
 
 from __future__ import annotations
 
+import ast
 import importlib.util
 import inspect
+import itertools
 import json
 import os
 import re
@@ -121,6 +123,7 @@ def test_two_copies_share_identical_localtz_class():
         "_rule_epoch",
         "_parse_hms",
         "_strip_name",
+        "_zoneinfo_key_candidates",
     )
     for name in shared:
         for label, mod in (("backend/app/core/display_tz.py", backend_tz), ("scripts/local_tz.py", local_tz)):
@@ -138,6 +141,65 @@ def test_two_copies_share_identical_localtz_class():
     cls_src = inspect.getsource(backend_tz._PosixTZ)
     for must in ("def fromutc", "def utcoffset", "def dst", "def tzname"):
         assert must in cls_src, f"_PosixTZ 类体里没有 {must} —— 比的不是这个类"
+
+
+def _module_level_assignments(path: Path) -> dict[str, str]:
+    """用 AST 取一份文件**顶层**赋值语句的 {名字: 源码文本}。
+
+    只看 `tree.body`，函数体 / 类体里的赋值一概不进来（那些已被门 ② 逐行比过）。
+    多行赋值（正则那种）按 `lineno..end_lineno` 整段取，不逐行拼。
+    """
+    src = path.read_text(encoding="utf-8")
+    lines = src.splitlines()
+    out: dict[str, str] = {}
+    for node in ast.parse(src).body:
+        targets = (
+            [node.target] if isinstance(node, ast.AnnAssign) else node.targets if isinstance(node, ast.Assign) else []
+        )
+        names = [tg.id for tg in targets if isinstance(tg, ast.Name)]
+        if not names:
+            continue
+        text = "\n".join(ln.rstrip() for ln in lines[node.lineno - 1 : node.end_lineno])
+        for n in names:
+            out[n] = text
+    return out
+
+
+def test_two_copies_share_identical_module_level_constants():
+    """两份副本的**模块级常量**也必须逐字相同（Codex r10 M9）。
+
+    ⛔ 门 ①② 比的是 `inspect.getsource()` 能拿到的东西——函数与类。模块级常量
+    `_POSIX_TZ_RE` / `_POSIX_DEFAULT_TRANSITION` **不在**它们的范围内，而解析器的
+    整个词法面就在那条正则里。Codex r10 给的反例：只把 `scripts/local_tz.py` 的
+    位宽 `1,3` 改成 `1,4`，两份副本的接受域立刻分叉（scripts 收 `AAA0001`、
+    backend 拒），而当时**整套门全绿**——包括源同源门和 199 个原测试参数格。
+
+    ⛔ 用 AST 枚举而不是手写名单：手写的两份清单必然漂移，新增常量不会自动进门。
+    """
+    local_tz = _load_local_tz()
+    a = _module_level_assignments(Path(backend_tz.__file__))
+    b = _module_level_assignments(REPO_SCRIPTS / "local_tz.py")
+    assert a.keys() == b.keys(), (
+        "两份副本的模块级常量**名单**不一致 —— 同源副本漂移了。\n"
+        f"  只在 backend: {sorted(a.keys() - b.keys())}\n"
+        f"  只在 scripts: {sorted(b.keys() - a.keys())}"
+    )
+    for name in sorted(a):
+        assert a[name] == b[name], (
+            f"两份副本的模块级常量 {name} 不一致 —— 同源副本漂移了。\n"
+            f"  backend: {a[name][:200]!r}\n"
+            f"  scripts: {b[name][:200]!r}"
+        )
+    # 验伪锚：解析器赖以成立的两个常量必须真的在枚举结果里，否则这道门在空集上恒真
+    for must in ("_POSIX_TZ_RE", "_POSIX_DEFAULT_TRANSITION"):
+        assert must in a, f"模块级常量枚举里没有 {must} —— 门跑在空集上（AST 提取失效）"
+    # 验伪锚锚在**命名组**上而不是某个位宽字面量：位宽是会被调整的实现细节
+    # （r10 就把 `\\d{1,3}` 放宽成了 `\\d+`），命名组才是这条正则的稳定身份。
+    for _grp in ("(?P<std>", "(?P<std_off>", "(?P<dst>", "(?P<start>", "(?P<end>"):
+        assert _grp in a["_POSIX_TZ_RE"], f"_POSIX_TZ_RE 的源码文本里没有 {_grp} —— 取到的不是那条正则，验伪锚不成立"
+    # 当前两份副本的模块级赋值恰好就是上面两个（`re` / `time` 等是 import 不是赋值）。
+    # 门不为常量数量设上限，只保证它不跑在空集上。
+    assert len(a) >= 2, f"只枚举到 {len(a)} 个模块级常量，门失去被测对象"
 
 
 def test_both_copies_carry_the_d18_ruling_date():
@@ -367,6 +429,13 @@ _DST_PROBE_INSTANTS = [
     #   转换表(例如 1975-02-23 那次能源危机提前实施 DST, 根本不是 M3.2.0), ≥2038 它的
     #   32 位表止于 2037-11-01 且不外推、直接丢掉 DST。区间外红的是 C 库自己的边界,
     #   不是本实现的缺陷（表里现有 `CET-1CEST` 就属该族）。
+    # ⚠️ 作用域订正（Codex r10 L5）: 这条区间限制**只对省略切换规则的串成立** ——
+    #   它们要去查 posixrules 那张 tzfile。**带显式规则**的串不查表、直接按规则算,
+    #   实测 `AAA0BBB,M3.2.0,M11.1.0` 在 2038 与 2050 的夏季照样给 +1h（DST 生效）,
+    #   所以给那一族加样本时不必受 2007..2037 的限制。
+    # ⚠️ 但 9999 年是**另一条**边界, 两族都过不去: 同一个显式规则串在 9999-07-01
+    #   实测给 +0h（C 库那里 DST 没生效）。所以「显式规则在 9999 年也能实行 DST」
+    #   这个说法本机**不成立** —— 加极值年样本前先实测那一年。
     datetime(2024, 2, 29, 12, 0, tzinfo=timezone.utc),
     #   闰年 2 月末。压 `_rule_epoch` 的 `calendar.isleap(year) and a >= 60` 分支: 配
     #   `AAA5BBB,J60/2,J300/2`, 删掉跳闰日后 J60 从 3/1 变 2/29, 本时刻墙钟 07:00→08:00。
@@ -683,9 +752,10 @@ def test_display_tz_survives_non_utf8_tz_bytes(copy_id, side):
     （判据打在 `.encode("utf-8")` 那一步 —— `json.dumps` 默认 `ensure_ascii=True` 会把
     代理字符转义成 `\\udcff` 而不抛，用它做判据是假绿）。
     这些串本机 C 库是接受的，换算结果是否与 C 库一致**不在**本门范围。
-    ⚠️ 作用域限定（Codex r7）：「非法字节退 UTC」只适用于本卡改过的**省略规则分支**。
-    无 DST 的 `<非法字节>0` 与带显式规则的串在 BASE/HEAD 都仍可能让响应编码失败 ——
-    那是**既有**缺口，本卡未加重也未修。
+    ⚠️ 作用域声明**已更新**（Codex r10 L2）：r7 时这段写的是「只适用于省略规则分支，
+    无 DST 与显式规则两支是既有缺口、本卡未修」。r9 起用户裁定「既有也要修」，那两支
+    的整串属性校验（控制字符 / 可严格 UTF-8 / 名字和式）已经提到**两分支共用位置**，
+    三支现在同口径。留着旧措辞会让后人以为还有两个敞着的口子。
     """
     raw_tz = _NON_UTF8_TZ_BYTES[side]
     saved_tz = os.environb.get(b"TZ")
@@ -727,72 +797,398 @@ def test_display_tz_survives_non_utf8_tz_bytes(copy_id, side):
         time.tzset()
 
 
+#: TZ 的**路径**形态（Codex r10 M4/M5）。C 库把 `TZ` 先当文件路径解析，解析不了才
+#: 退 POSIX 规格串；本实现原来只试 `env_tz` 与 `env_tz.lstrip(":")` 两个候选。
+#: (TZ 值, 期望与 C 库一致的偏移来源说明)
+_TZ_PATH_FORMS = [
+    (":Asia/Shanghai", "单冒号 + IANA 名"),
+    ("::Asia/Shanghai", "**双**冒号：C 库只剥一个，剩下 `:Asia/Shanghai` 当路径打不开 ⇒ UTC"),
+    (":::Asia/Shanghai", "三冒号：同上"),
+    ("Asia/Shanghai", "裸 IANA 名"),
+    ("/usr/share/zoneinfo/Asia/Shanghai", "绝对路径：C 库直接打开该 tzfile"),
+    (":/usr/share/zoneinfo/Asia/Shanghai", "冒号 + 绝对路径"),
+    ("./Asia/Shanghai", "相对 TZDIR 的路径"),
+    ("Asia//Shanghai", "双斜杠"),
+    ("Not/AZone", "不存在的名 ⇒ 两边都退 UTC"),
+    ("EST5EDT,M3.2.0,M11.1.0", "POSIX 规格串（不是路径）"),
+    ("", "空 TZ ⇒ UTC"),
+    ("/tmp/whatever", "任意路径：这里两边都退 UTC —— 但**理由不同**，见门内说明"),
+]
+
+
+@pytest.mark.parametrize("copy_id", _COPY_IDS)
+@pytest.mark.parametrize("tz_value,why", _TZ_PATH_FORMS, ids=[w[:24] for _v, w in _TZ_PATH_FORMS])
+def test_tz_path_forms_match_libc(tz_env, copy_id, tz_value, why):
+    """`TZ` 的各种路径形态，本实现解析出的偏移必须与 C 库相同（r10 M4/M5）。
+
+    ⛔ **误收比误拒危险**：原实现用 `lstrip(":")` 剥掉**全部**前导冒号，于是
+    `::Asia/Shanghai` 被剥成合法名给出 +08:00，而 C 库只剥一个冒号、剩下的当路径
+    打不开 ⇒ UTC。整整差 8 小时，且方向是「本实现自作主张地认出了一个时区」。
+
+    ⚠️ 如实声明一处**有意的收紧**：绝对路径只认路径里含 `zoneinfo` 段的那种。
+    C 库会打开任意路径的 tzfile（`TZ=/tmp/<某个真 tzfile>`），本实现不跟——
+    `TZ` 是环境变量，按它去开任意文件是不必要的输入面。上表最后一条两边都给 UTC，
+    但本实现是因为这条收紧、C 库是因为 `/tmp/whatever` 不存在；**不要**把这条
+    当成「该收紧无副作用」的证据。
+    """
+    tz_env(tz=tz_value)
+    module = backend_tz if copy_id == "backend" else _load_local_tz()
+    instant = datetime(2026, 7, 15, 12, 0, tzinfo=timezone.utc)
+    libc_off = instant.astimezone().utcoffset()
+    mine_off = instant.astimezone(module.display_tz()).utcoffset()
+    assert mine_off == libc_off, (
+        f"[{copy_id}] TZ={tz_value!r} 下偏移与 C 库不符: 本实现 {mine_off}，C 库 {libc_off}\n  形态: {why}"
+    )
+
+
+@pytest.mark.parametrize("copy_id", _COPY_IDS)
+def test_fromutc_rejects_foreign_tzinfo(copy_id):
+    """`fromutc()` 必须拒绝「tzinfo 不是自己」的 datetime（tzinfo 协议，r10 L7）。
+
+    ⛔ 缺了这道校验不会报错，会**静默给出一个看似合理的结果**：传进来的 naive
+    datetime 被当成「本时区的 UTC 读数」换算，调用方拿到的时刻偏一整个偏移量。
+    本机 stdlib 的 `timezone.fromutc()` 与 `ZoneInfo.fromutc()` 都按协议抛 ValueError。
+    """
+    module = backend_tz if copy_id == "backend" else _load_local_tz()
+    tz = module.parse_posix_tz("EST5EDT,M3.2.0,M11.1.0")
+    assert tz is not None
+    for label, bad in (
+        ("naive", datetime(2026, 7, 1, 12, 0)),
+        ("异 tzinfo", datetime(2026, 7, 1, 12, 0, tzinfo=timezone.utc)),
+    ):
+        with pytest.raises(ValueError):
+            tz.fromutc(bad)
+        # 对照：stdlib 自己也这么做 —— 证明这不是本实现自创的严格
+        with pytest.raises(ValueError):
+            timezone(timedelta(hours=3)).fromutc(bad)
+    # 正例：tzinfo 就是自己时必须正常工作（否则「一律抛」也能跑绿）
+    ok = datetime(2026, 7, 1, 12, 0, tzinfo=tz)
+    assert tz.fromutc(ok).tzinfo is tz
+
+
+#: ══════════════════════════════════════════════════════════════════════════
+#: 接受域**组合**对拍（Codex r10 M1/M2/M3 的根治）
+#: ══════════════════════════════════════════════════════════════════════════
+#: ⛔ 手写样本会塌到子族 —— 本卡为此栽过四次（507 单名上限把 std 名钉死在 `AAA`；
+#:    量纲变异只改一行；NUL 只测引用名外；`AAA-1\n` 的 libc 列写反）。这里改成
+#:    **显式列出每一维再取笛卡尔积**，让组合自己去覆盖边界，而不是靠我想得起来。
+#: ⛔ 判据是**双向**的，而且两个方向的分量完全不同：
+#:      · 误收（本实现收 / C 库拒）⇒ 硬性 **0**，一条都不许有；
+#:      · 误拒（C 库收 / 本实现拒）⇒ 必须逐条落在下面 `_declared_narrowing()`
+#:        列举的**已声明收紧**里，出现任何一条声明外的误拒就红。
+#:    只钉误收会让「一律拒」跑绿；只钉误拒会让「一律收」跑绿。
+_GRID_STD_NAME = ["ABC", "<ABC>", "A", "AB", "<>", "<A B>", "<+05>", "<-03>", "A" * 300]
+_GRID_STD_OFF = ["", "1", "01", "0001", "-5", "+5", "1:30", "1:30:45", "0", "23", "24", "1:60"]
+_GRID_DST_NAME = [None, "DEF", "<DEF>", "<>", "D" * 300]
+_GRID_DST_OFF = ["", "2", "-3", "0"]
+_GRID_RULES = [
+    None,
+    "M3.2.0,M11.1.0",
+    "M03.02.00,M11.1.0",  # 前导零（C 库收）
+    "J60,J300",
+    "J0060,J300",  # 前导零
+    "60,300",
+    "0060,300",  # 前导零
+    "M3.2.0/2,M11.1.0/2",
+    "M3.2.0/167,M11.1.0",  # 切换时刻上边界
+    "M3.2.0/168,M11.1.0",  # 越界
+    "M3.2.0/2:60,M11.1.0",  # 分钟越界
+    "M3.2.0/0002,M11.1.0",  # 前导零
+    "J0,J300",  # 非法 J0
+    "M13.2.0,M11.1.0",  # 非法月
+]
+
+
+#: 换算对拍的探针时刻。⛔ `3-20` 与 `10-20` 不是凑数：它们落在「TZ 自带规则」与
+#: 「posixrules 默认规则」**分歧**的那两段（自带 `M4.1.0..M10.1.0` vs 默认
+#: `M3.2.0..M11.1.0`），是唯一能区分「用谁的规则」的两格。只取冬夏两个时刻的话，
+#: 「整体退 posixrules」这种错读法会跑绿 —— r10 H1 的修复正是靠 3-20 那格定的向。
+_GRID_PROBES = [
+    datetime(2026, 1, 15, 12, 0, tzinfo=timezone.utc),  # 冬（两套规则都不在 DST）
+    datetime(2026, 3, 20, 12, 0, tzinfo=timezone.utc),  # 默认规则已 DST、自带规则未到
+    datetime(2026, 7, 15, 12, 0, tzinfo=timezone.utc),  # 夏（两套都在 DST）
+    datetime(2026, 10, 20, 12, 0, tzinfo=timezone.utc),  # 自带规则已结束、默认规则未结束
+]
+
+
+def _grid_specs():
+    """笛卡尔积（去掉「无 dst 名却有 dst 偏移」这种构造不出来的组合），去重。"""
+    seen = set()
+    for sn, so, dn, do, ru in itertools.product(
+        _GRID_STD_NAME, _GRID_STD_OFF, _GRID_DST_NAME, _GRID_DST_OFF, _GRID_RULES
+    ):
+        if dn is None and do:
+            continue
+        spec = sn + so + (dn + do if dn is not None else "") + ("," + ru if ru else "")
+        if spec not in seen:
+            seen.add(spec)
+            yield spec
+
+
+def _libc_accepts(spec: str) -> bool:
+    """问一次 C 库：它收不收这个规格串。
+
+    ⛔ 判据是 `time.tzname == ('UTC','UTC')` 而**不是** `tm_gmtoff == 0` ——
+    `std_off=0` 的串被**接受**时 gmtoff 也是 0，用偏移当判据会把接受读成拒。
+    """
+    saved = os.environb.get(b"TZ")
+    try:
+        os.environb[b"TZ"] = spec.encode("utf-8")
+        time.tzset()
+        return time.tzname != ("UTC", "UTC")
+    finally:
+        if saved is None:
+            os.environb.pop(b"TZ", None)
+        else:
+            os.environb[b"TZ"] = saved
+        time.tzset()
+
+
+def _declared_narrowing(spec: str) -> str | None:
+    """这条误拒是否属于**已声明**的收紧；是则返回理由，否则 None（⇒ 门红）。
+
+    三条收紧都写在生产代码的注释里，这里只是把它们变成可执行的判据，
+    让「声明」和「实际拒的是什么」不能悄悄脱节。
+    """
+    m = backend_tz._POSIX_TZ_RE.match(spec)
+    if m is None:
+        return "词法：正则不认（控制字符等）" if any(ord(c) < 0x20 for c in spec) else None
+    g = m.groupdict()
+    if not g["std_off"]:
+        return None
+    std_off = backend_tz._posix_offset_seconds(g["std_off"])
+    if abs(std_off) >= 86400:
+        return "⑧ |std_off| ≥ 24h：Python tzinfo 不可表示（注释已声明，非 C 库口径）"
+    if g["dst"] is not None or g["start"] is not None:
+        dst_off = backend_tz._posix_offset_seconds(g["dst_off"]) if g["dst_off"] else std_off + 3600
+        if abs(dst_off) >= 86400:
+            return "⑧ |dst_off| ≥ 24h：同上"
+        if abs(dst_off - std_off) >= 86400:
+            return "两侧之差 ≥ 24h：dst() / timetuple() 会抛（过度拒绝，注释已声明）"
+    return None
+
+
+def test_accepted_domain_grid_matches_libc(tz_env):
+    """组合对拍，**两个阶段**：① 接受域（误收 0、误拒只许落在已声明的收紧里）；
+    ② 对两边都接受的串逐时刻比**换算结果**。
+
+    只对 backend 那一份跑 —— 两份副本逐字节同源已由门 ①②③ 分别锁住
+    （函数体 / 类体 / 模块级常量），在这里再跑一遍 scripts 副本只是把耗时翻倍。
+    """
+    total = over_accept = 0
+    undeclared: list[str] = []
+    narrowed: dict[str, int] = {}
+    for spec in _grid_specs():
+        total += 1
+        libc_ok = _libc_accepts(spec)
+        impl_ok = backend_tz.parse_posix_tz(spec) is not None
+        if libc_ok == impl_ok:
+            continue
+        if impl_ok:
+            over_accept += 1
+            undeclared.append(f"[误收] {spec[:70]!r}")
+        else:
+            why = _declared_narrowing(spec)
+            if why is None:
+                undeclared.append(f"[误拒·未声明] {spec[:70]!r}")
+            else:
+                narrowed[why] = narrowed.get(why, 0) + 1
+    assert not undeclared, (
+        f"接受域对拍失败（{total} 个组合，误收 {over_accept} 条，"
+        f"声明外的分歧 {len(undeclared)} 条）：\n"
+        + "\n".join("  " + x for x in undeclared[:25])
+        + (f"\n  … 另有 {len(undeclared) - 25} 条" if len(undeclared) > 25 else "")
+        + "\n  误收方向尤其危险：它让本实现接受 C 库拒绝的串，从而与机器本地时区归日不同。"
+    )
+    # 验伪锚一：门必须真的跑在**上万**个组合上，而不是被某个维度塌成空集
+    assert total > 20000, f"只枚举到 {total} 个组合 —— 维度表被削过，门失去覆盖面"
+    # 验伪锚二：三条已声明收紧必须**都有实例命中**，否则说明对应维度没取到边界值
+    assert len(narrowed) >= 2, (
+        f"只有 {len(narrowed)} 类已声明收紧被命中：{sorted(narrowed)}。"
+        "维度表里的 24h 越界样本（`24` / `23`+`-3`）必须留着，否则这条门对那两条收紧是盲的。"
+    )
+
+    # ── 第二阶段：**换算结果** ──────────────────────────────────────
+    # ⛔ 只比「收不收」对「收了但算错」这一整类缺陷是全盲的 —— r11 负控实测：
+    #    把「无 dst 名但带规则」那一支改回早退后，串**仍被接受**（接受域门全绿），
+    #    只是夏季偏移少了整整一小时。收/拒相同 ≠ 行为相同。
+    points = mismatches = 0
+    bad_points: list[str] = []
+    for spec in _grid_specs():
+        tz = backend_tz.parse_posix_tz(spec)
+        if tz is None:
+            continue
+        saved = os.environb.get(b"TZ")
+        try:
+            os.environb[b"TZ"] = spec.encode("utf-8")
+            time.tzset()
+            for probe in _GRID_PROBES:
+                points += 1
+                libc_off = probe.astimezone().utcoffset()
+                mine_off = probe.astimezone(tz).utcoffset()
+                if libc_off != mine_off:
+                    mismatches += 1
+                    if len(bad_points) < 20:
+                        bad_points.append(f"{spec[:56]!r} @ {probe:%m-%d}: C 库 {libc_off} / 本实现 {mine_off}")
+        finally:
+            if saved is None:
+                os.environb.pop(b"TZ", None)
+            else:
+                os.environb[b"TZ"] = saved
+            time.tzset()
+    assert not bad_points, (
+        f"换算对拍失败（{points} 个「串 × 时刻」点，不符 {mismatches} 个）：\n"
+        + "\n".join("  " + x for x in bad_points)
+        + "\n  这些串两边**都接受**，只是算出来的偏移不同 —— 接受域门对这一类是盲的。"
+    )
+    # 验伪锚三：第二阶段必须真的比到了上万个点（被接受的串不能塌成一小撮）
+    assert points > 40000, f"换算对拍只跑了 {points} 个点 —— 被接受的串太少，门失去覆盖面"
+
+
 #: 解析器的**接受域**必须逐条对齐 C 库（Codex r9 M1–M5）。每条都在本机三方实测过
 #: （BASE / HEAD / libc），判据是「本实现接受 ⟺ C 库接受」。
 #: ⛔ C 库「拒」的自证锚是 `time.tzname` 变成 `('UTC','UTC')`，**不能**用 `tm_gmtoff == 0`
 #:    —— `std_off=0` 的串被接受时 off 也是 0，那个判据会把接受读成拒。
 #: (spec, 本实现应否接受, 依据)
 _ACCEPTANCE_DOMAIN_CASES = [
-    # ——— 必须**接受**（C 库也接受；上一轮这几条被误拒，Codex r9 M1/M2）———
-    ("<A\nAA>-1", True, "引用名**内部**换行：C 库接受（只有**尾部**空白才让它整串退 UTC）"),
-    ("AAA0<B\nBB>,M3.2.0,M11.1.0", True, "同上，带显式规则的形态"),
-    ("<A AA>-1", True, "引用名内部空格：C 库接受"),
-    ("A" * 254 + "-1", True, "256 字节整串、名字 254 字节：远未到名字缓冲区上限"),
-    ("AAA0<" + "中" * 169 + ">", True, "3 + 507 + 2 = **512**：和式约束的上边界（多字节名字侧）"),
+    # ——— C 库收 / 本实现也收 ———
+    ("<A\nAA>-1", True, True, "引用名**内部**换行：C 库接受"),
+    ("AAA0<B\nBB>,M3.2.0,M11.1.0", True, True, "同上，带显式规则的形态"),
+    ("<A AA>-1", True, True, "引用名内部空格：C 库接受"),
+    ("A" * 254 + "-1", True, True, "256 字节整串、名字 254 字节：远未到名字缓冲区上限"),
+    ("AAA0<" + "中" * 169 + ">", True, True, "3 + 507 + 2 = **512**：和式上边界（多字节名字侧）"),
     (
         "<" + "A" * 507 + ">-1<BBB>,M3.2.0,M11.1.0",
         True,
-        "507 + 3 + 2 = **512**：std 名占满时 dst 名仍可有 3 字节 —— 旧的「每名 ≤507」口径在这条上**误拒**",
+        True,
+        "507 + 3 + 2 = **512**：std 名占满时 dst 名仍可有 3 字节 —— 旧的「每名 ≤507」口径在这条上误拒",
     ),
-    ("<" + "A" * 511 + ">-1", True, "无 dst 形态 511 + 1 = **512**：该侧上边界"),
-    ("AAA0BBB,M3.2.0/167,M11.1.0", True, "切换时刻 167 小时：C 库接受的上边界"),
-    ("AAA0BBB,M3.2.0/2:00:60,M11.1.0", True, "切换时刻秒 60：C 库接受（61 才拒）"),
-    # ——— 必须**拒**（C 库也拒）———
-    ("AAA-1\n", False, "**尾部**换行：C 库让带 dst 名的串整串退 UTC（正则的 `$` 会放过它）"),
-    ("<AAA><BBB>,M3.2.0,M11.1.0", False, "缺 std 偏移：C 库对**所有**形态整串拒收（r9 M3）"),
-    ("<AAA>", False, "同上，无 dst 形态也拒"),
-    ("AAA-1,J0,J0", False, "非法规则 J0：C 库拒，**无 dst 形态也要验规则**（r9 M4）"),
-    ("AAA0BBB,M3.2.0/2:60,M11.1.0", False, "切换时刻分钟 60：C 库拒（r9 M5）"),
-    ("AAA0BBB,M3.2.0/2:00:61,M11.1.0", False, "切换时刻秒 61：C 库拒（60 接受、61 拒，边界两侧都在表里）"),
-    ("AAA0BBB,M3.2.0/168,M11.1.0", False, "切换时刻 168 小时：越过 C 库的 167 上界（r9 M5）"),
-    ("AAA0BBB,M３.2.0,M11.1.0", False, "规则含**全角**数字：Python 的 `\\d` 匹配它而 C 库拒（r9 M5）"),
-    ("AAA0BBB,M3.2.0/２,M11.1.0", False, "切换时刻含全角数字：同上"),
-    ("AAA0<" + "中" * 170 + ">", False, "3 + 510 + 2 = 515 > 512：越过和式上界（多字节名字侧）"),
-    ("<" + "A" * 508 + ">-1<BBB>,M3.2.0,M11.1.0", False, "508 + 3 + 2 = 513 > 512：和式上界外一字节"),
+    ("<" + "A" * 511 + ">-1", True, True, "无 dst 形态 511 + 1 = **512**：该侧上边界"),
+    ("AAA0BBB,M3.2.0/167,M11.1.0", True, True, "切换时刻 167 小时：C 库接受的上边界"),
+    ("AAA0BBB,M3.2.0/2:00:60,M11.1.0", True, True, "切换时刻秒 60：C 库接受（61 才拒）"),
+    # ——— C 库拒 / 本实现也拒 ———
+    (
+        "AAA-1\n",
+        True,
+        False,
+        "⚠️分歧: C 库把尾部换行**吃进 dst 名**并实行 DST（tzname 给 `('AAA','_')`）。"
+        "本实现拒 ⇒ 退 UTC。取舍: 接受它就得把控制字符放进 `.key`，而 `.key` 会进 API 响应 —— "
+        "本卡 r5/r6 为「代理字符进 .key」栽过两次。退 UTC 是可预测的降级（= BASE 行为）。",
+    ),
+    ("<AAA><BBB>,M3.2.0,M11.1.0", False, False, "缺 std 偏移：C 库对**所有**形态整串拒收（r9 M3）"),
+    ("<AAA>", False, False, "同上，无 dst 形态也拒"),
+    ("AAA-1,J0,J0", False, False, "非法规则 J0：C 库拒，**无 dst 形态也要验规则**（r9 M4）"),
+    ("AAA0BBB,M3.2.0/2:60,M11.1.0", False, False, "切换时刻分钟 60：C 库拒（r9 M5）"),
+    ("AAA0BBB,M3.2.0/2:00:61,M11.1.0", False, False, "切换时刻秒 61：C 库拒（60 接受、61 拒，两侧都在表里）"),
+    ("AAA0BBB,M3.2.0/168,M11.1.0", False, False, "切换时刻 168 小时：越过 C 库的 167 上界（r9 M5）"),
+    ("AAA0BBB,M３.2.0,M11.1.0", False, False, "规则含**全角**数字：Python 的 `\\d` 匹配它而 C 库拒（r9 M5）"),
+    ("AAA0BBB,M3.2.0/２,M11.1.0", False, False, "切换时刻含全角数字：同上"),
+    ("AAA0<" + "中" * 170 + ">", False, False, "3 + 510 + 2 = 515 > 512：越过和式上界（多字节名字侧）"),
+    ("<" + "A" * 508 + ">-1<BBB>,M3.2.0,M11.1.0", False, False, "508 + 3 + 2 = 513 > 512：和式上界外一字节"),
     (
         "<" + "A" * 512 + ">-1",
         False,
-        "无 dst 形态 512 + 1 = 513 > 512 —— 旧口径**根本没检查**这一支，于是**误收**了 C 库拒绝的串",
+        False,
+        "无 dst 形态 512 + 1 = 513 > 512 —— 旧口径**根本没检查**这一支，于是误收了 C 库拒绝的串",
     ),
     (
         "<" + "A" * 507 + ">-1<" + "B" * 507 + ">,M3.2.0,M11.1.0",
         False,
-        "两个名字**各自**都 ≤507 却和 = 1016 > 512：单名上限口径在这条上**误收**，和式口径才拒",
+        False,
+        "两个名字**各自**都 ≤507 却和 = 1016 > 512：单名上限口径在这条上误收，和式口径才拒",
+    ),
+    # ——— 以下为 Codex r10 新增。⛔ 一律**追加在末尾**：负控段按 `accept-N`/`reject-N`
+    #     绑定 id，在中间插入会让所有绑定静默错位（红仍是红，但红的不是声称的那条）。
+    (
+        "AAA-1,M3.2.0,M11.1.0",
+        True,
+        True,
+        "**无 dst 名但带合法规则**：C 库照常实行 DST，规则用**自带的**那套、dst 名借 posixrules 的、"
+        "dst 偏移取 std_off+3600。只判 `dst is None` 就早退会**误算**整整一小时（r10 H1）",
+    ),
+    ("AAA-1,J60,J300", True, True, "同上，J 形式规则"),
+    ("AAA0001", True, True, "前导零偏移：C 库数字字段**无位数上限**（`AAA00000001` 也收）（r10 M2）"),
+    ("AAA1BBB,M03.02.00,M11.1.0", True, True, "规则字段前导零：C 库收（r10 M2）"),
+    ("AAA1BBB,J0001,J0200", True, True, "儒略日前导零：同上"),
+    ("A1", True, True, "**单字符**名：C 库不要求 POSIX 的「≥3 字符」（r10 M1）"),
+    ("<>1", True, True, "**空**引用名：C 库接受（r10 M1）"),
+    (
+        "ABC<DEF>2",
+        True,
+        True,
+        "裸名一直吃到遇见数字为止 ⇒ 名字是 `ABC<DEF>`（C 库 tzname 打成 `ABC_DEF_`）。"
+        "原 `[A-Za-z]{3,}` 会把它判成「缺 std 偏移」而整串拒（r10 M1）",
+    ),
+    ("ABC DEF2", True, True, "同上，名字里带空格"),
+    (
+        "<" + "A" * 511 + ">-1<>,M3.2.0,M11.1.0",
+        True,
+        True,
+        "511 + **空** dst 名 = 512：空名**不占**缓冲区、不加 NUL。机械地按 511+0+2=513 算会误拒",
+    ),
+    ("<" + "A" * 512 + ">-1<>,M3.2.0,M11.1.0", False, False, "512 + 1 = 513 > 512：空 dst 名侧的上界外一字节"),
+    (
+        "AAA-1BBB\n",
+        True,
+        False,
+        "⚠️分歧: 同 `AAA-1\\n` —— C 库把尾部换行吃进 dst 名（tzname `('AAA','BBB_')`）。理由同上条。",
+    ),
+    (
+        "AAA24BBB",
+        True,
+        False,
+        "⚠️分歧: |std_off| = 24h。C 库**接受**（实测 `tzset()` 成功、`tm_gmtoff=-86400`），"
+        "但 Python 的 `tzinfo` 要求偏移严格 < 24h，接受它 `utcoffset()` 会抛。"
+        "这是本实现为保证全年可表示做的收紧，**不是**跟随 C 库（r9 L4 的归因更正）。",
+    ),
+    (
+        "AAA12BBB-12,M3.2.0,M11.1.0",
+        True,
+        False,
+        "⚠️分歧: 两侧各自合法而**差**恰为 24h。C 库接受并在冬季给 −12h，本实现全年退 UTC。"
+        "取舍: `dst()` / `timetuple()` 在夏季抛是**运行时**炸、落点不可预测（模板渲染 / 序列化 / 日志）；"
+        "退 UTC 是可预测的降级。",
     ),
 ]
 
 
 @pytest.mark.parametrize("copy_id", _COPY_IDS)
 @pytest.mark.parametrize(
-    "spec,should_accept,why",
+    "spec,libc_ok,impl_ok,why",
     _ACCEPTANCE_DOMAIN_CASES,
-    ids=[f"{'accept' if ok else 'reject'}-{i}" for i, (_, ok, _w) in enumerate(_ACCEPTANCE_DOMAIN_CASES)],
+    ids=[f"{'accept' if ok else 'reject'}-{i}" for i, (_s, _l, ok, _w) in enumerate(_ACCEPTANCE_DOMAIN_CASES)],
 )
-def test_accepted_domain_matches_libc(copy_id, spec, should_accept, why):
-    """解析器接受哪些串，必须与 C 库逐条一致 —— 两个方向都钉。
+def test_accepted_domain_matches_libc(tz_env, copy_id, spec, libc_ok, impl_ok, why):
+    """解析器接受哪些串，必须与 C 库逐条一致——**分歧允许存在，但必须显式声明**。
 
-    ⛔ 只钉「该拒的拒了」是不够的：本卡 r9 那一轮把校验提到共用位置时，顺手把
-    **C 库接受**的引用名内部换行与 256 字节长名也拒了（误拒），而当时的拒绝表全绿。
-    接受侧与拒绝侧必须在**同一张表**里，否则「一律拒」和「一律收」各能跑绿一半。
+    ⛔ 表有**四**列而不是两列，因为「C 库收不收」和「本实现收不收」是两件事：
+    把它们压成一列，就只能在「假装完全一致」和「把分歧条目从表里删掉」之间选，
+    两种做法都会让表失真。Codex r10 M3 抓到的正是前一种——表里 `AAA-1\\n` 标着
+    「C 库也拒」，而 C 库**接受**它并实行 DST，测试却全绿，因为它根本没问过 C 库。
+
+    ⛔ 所以这条测试**自己去问 C 库**（`_libc_accepts`），把表里的 libc 列当作
+    需要被核验的断言而不是可信输入。手写的那一列再也不可能悄悄写错。
     """
+    if "\x00" not in spec:  # 含 NUL 的串进不了环境变量，C 库侧问不到
+        assert _libc_accepts(spec) == libc_ok, (
+            f"表里的 **libc 列**与实测不符: {spec[:60]!r} 表称 C 库{'收' if libc_ok else '拒'}，"
+            f"实测{'收' if not libc_ok else '拒'}。\n"
+            f"  依据栏写的是: {why}\n"
+            "  —— 这一列是手写的，写错过（r10 M3）。以实测为准，改表。"
+        )
     module = backend_tz if copy_id == "backend" else _load_local_tz()
-    got = module.parse_posix_tz(spec)
-    accepted = got is not None
-    assert accepted == should_accept, (
-        f"[{copy_id}] 接受域与 C 库不符: parse_posix_tz({spec[:60]!r}…) "
-        f"{'接受了' if accepted else '拒绝了'}，应当{'接受' if should_accept else '拒绝'}\n"
+    accepted = module.parse_posix_tz(spec) is not None
+    assert accepted == impl_ok, (
+        f"[{copy_id}] 本实现的接受域变了: parse_posix_tz({spec[:60]!r}…) "
+        f"{'接受了' if accepted else '拒绝了'}，表称应当{'接受' if impl_ok else '拒绝'}\n"
         f"  依据: {why}"
     )
+    if libc_ok != impl_ok:
+        assert why.startswith("⚠️分歧"), (
+            f"{spec[:60]!r} 与 C 库不一致（C 库{'收' if libc_ok else '拒'} / "
+            f"本实现{'收' if impl_ok else '拒'}），依据栏必须以「⚠️分歧」开头并写清取舍。\n"
+            f"  当前依据: {why}"
+        )
 
 
 @pytest.mark.parametrize("copy_id", _COPY_IDS)
@@ -1518,8 +1914,11 @@ def test_bucket_gate_rejects_wrong_buckets_even_when_display_tz_is_absent(tmp_pa
 
     ⛔ 本卡 r1 曾用「偏移 ±2h 敏感性复算」的温和版收口，被 Codex r1 打回：带宽要同时
     小到不误拒、大到不漏放行，而 `ABC-1DEF-5`(Δ=+4h) 就落在带外、伪造的 due_today
-    照样放行。（Δ 是**有界**的 —— 正则字段位宽定了上界 ≈ ±83 天；只是那个界远大于任何
-    实用带宽，缺 `display_tz` 时两个要求不可兼得。别写成「Δ 无界」，r2 LOW-2 证伪过。）
+    照样放行。（Δ 是**有界**的，但界**不再**是 r2 说的「正则字段位宽给的 ±83 天」——
+    r11 把位宽放宽成了 `\\d+`，那条论证随之作废；现在的界来自解析器的量级检查：
+    两侧偏移各自 < 24h 且**两侧之差** < 24h ⇒ |Δ| < 24h。界变小了，结论不变：
+    24 小时仍远大于任何实用带宽，缺 `display_tz` 时两个要求依旧不可兼得。
+    别写成「Δ 无界」——r2 LOW-2 证伪过；也别再引 ±83 天——r10 L4 证伪过。）
     现口径是**整份判 corrupt**，拒因统一为「display_tz 缺席或为 null」。
 
     两种旧形态都要测：`display_tz` 键缺失（历史投影）与值为 `null`
