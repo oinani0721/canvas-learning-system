@@ -1284,16 +1284,29 @@ def test_every_bash_write_site_has_a_prewrite_recheck():
     #    门的意图是「**每一处** python 写入都走硬化原语」，跟着写入点数走才叫钉住；
     #    把新写入点改成 bash 重定向来保住「2」才是放宽（那处会失去 O_NOFOLLOW 与防短写）。
     #    ⇒ 再加写入点仍要同步改这几个数，且新写入点必须也走 open_pinned + write_all。
-    assert src.count("open_pinned(") == 3, "三处 python 写入必须都走 open_pinned"
+    # ⛔ 计数一律在**去注释的代码**上做（CARD-HOSTS-OPENCODE 实测踩到）：原版直接在
+    #    全文 `src` 上 count，于是**注释里**写出这个字面量也会被数一次 ——
+    #    我写整改说明时就制造过一次这样的假计数。判据分不清代码和注释 = 判据在说谎。
+    code = "\n".join(ln for ln in src.splitlines() if not ln.lstrip().startswith("#"))
+    assert code.count("open_pinned(") == 3, "三处 python 写入必须都走 open_pinned"
     # ⛔ 裸 `os.write` 会**短写**（Codex r8 HIGH-4）：返回值小于长度时文件已被截断，
     #    忽略返回值 = 把「只写了一半」当成功。每处写入必须走循环写。
-    assert src.count("write_all(fd, ") == 3, "三处写入必须走 write_all（防短写）"
+    # ⚠️ CARD-HOSTS-OPENCODE 把这个数从 3 改到 5：`publish_agents_md` 真的多了**两处**
+    #    python 写入（正文 body、失败时的半成品标记），两处都走 write_all。
+    #    ⛔ 它们**不**走 open_pinned，所以上面那个数仍是 3 —— 不是漏登记：open_pinned
+    #    每次从路径逐级解析，而这两处是相对**已钉死的目录 fd** 的 openat（带 O_EXCL），
+    #    比逐级重解析更强；换成 open_pinned 反而把已经拿到的那个保证丢掉。
+    # ⚠️ 本判据按字面量计数，**多行调用数不到** ⇒ 新写入点必须写成单行 `write_all(fd, …)`。
+    assert code.count("write_all(fd, ") == 5, "五处写入必须走 write_all（防短写）"
     # 原语本体在判据模块里（与 open_pinned 同理：两个 heredoc 各抄一份必然漂移，本卡栽过）
     _f = FORBID_PY.read_text(encoding="utf-8")
     assert "def write_all(" in _f and "n = os.write(fd, view)" in _f, "write_all 必须真的调 os.write 并按返回值推进"
     bare = [ln for ln in src.splitlines() if "os.write(" in ln and "write_all" not in ln]
     assert not bare, f"脚本内仍有裸 os.write（短写会被当成功）: {bare}"
-    assert src.count("os.ftruncate(fd, 0)") == 3, "必须先 fstat 查链接数再 ftruncate"
+    # ⚠️ CARD-HOSTS-OPENCODE 从 3 改到 4：`publish_agents_md` 失败清理多了第四处 ——
+    #    它同样先 `os.fstat(fd).st_nlink != 1` 才截断（O_EXCL 保证是本次新建的，但写入
+    #    期间仍可能被 link 出第二个名字，那时截断改的是共享 inode）。
+    assert code.count("os.ftruncate(fd, 0)") == 4, "必须先 fstat 查链接数再 ftruncate"
     assert src.count("st.st_nlink > 1") == 3, "O_NOFOLLOW 之后还要挡硬链接（共享 inode）"
     # 原语本体的形状（在判据模块里）：逐级 O_NOFOLLOW + 叶子也带 O_NOFOLLOW
     fsrc = FORBID_PY.read_text(encoding="utf-8")
@@ -4398,15 +4411,54 @@ def test_deploy_sh_publishes_agents_md_without_a_temp_file(tmp_path: Path):
     """
     src = DEPLOY_SH.read_text(encoding="utf-8")
     start = src.index("publish_agents_md() {")
-    end = src.index("\nPYPUB\n", start)
+    # ⛔ 取到**函数结束**，不是取到 `PYPUB`（Codex r4 MEDIUM-2）：PYPUB 之后还有
+    #    shell 侧的尾巴（源码捕获守卫 + `python3 -c`），在那里加写操作旧切片看不见。
+    end = src.index("\n}\n", start) + len("\n}\n")
     body = src[start:end]
-    code = [ln for ln in body.splitlines() if not ln.lstrip().startswith("#")]
-    for banned in ("os.replace(", "os.link(", "os.rename("):
-        hits = [ln.strip() for ln in code if banned in ln]
+    # ⛔ 判据只看**去注释的代码**（同上）：flags 写在注释里也能让「in body」为真 ——
+    #    那是拿「有人提过它」冒充「它还生效」。
+    code_lines = [ln for ln in body.splitlines() if not ln.lstrip().startswith("#")]
+    code = "\n".join(code_lines)
+    for banned in ("os.replace(", "os.link(", "os.rename(", "os.renames(", "shutil.move(", ".rename("):
+        hits = [ln.strip() for ln in code_lines if banned in ln]
         assert not hits, f"发布路径又出现了改名式发布 {banned}: {hits}"
-    assert "O_EXCL" in body and "O_NOFOLLOW" in body, "直写目标的两个关键 flag 没了"
+    # 失败清理也不许回到「按路径删」（r4 HIGH-1）。
+    for banned in ("os.unlink(", "os.remove(", "shutil.rmtree("):
+        hits = [ln.strip() for ln in code_lines if banned in ln]
+        assert not hits, f"发布路径出现了按路径删除 {banned}: {hits}"
+    for flag in ("O_EXCL", "O_NOFOLLOW", "O_CREAT"):
+        assert flag in code, f"直写目标的关键 flag {flag} 只剩注释或已消失"
+    assert "os.ftruncate(" in code, "失败清理不再走 ftruncate（按 fd 截断）了"
     # 写面清单里也不该再有 tmp 的登记（名实一致）。
     assert "opencode-agents-md-tmp" not in src, "PENDING_WRITES 里还留着已不会被写的 tmp 登记"
+
+
+def test_deploy_sh_binds_skills_through_symlink_syscall_not_ln(tmp_path: Path):
+    """条目级软链必须走 `symlink(2)`，不得回到 `ln -s`（Codex r4 HIGH-2）。
+
+    ⛔ `ln -s tgt link` 在 `link` **此刻是目录**（或指向目录的软链）时，会把它当
+       *目标目录*，实际在 `link/<name>` 里建 —— 那个实际写对象从没过判据。
+       这不是「检查得不够细」，是 `ln(1)` 把叶子参数重新解释成了目录。
+       `symlink(2)` 对任何已存在的落点一律 EEXIST（本机实测：落点是目录时 EEXIST
+       且目录内容为空），且支持 `dir_fd`，所以整条链能钉在 fd 上。
+    """
+    src = DEPLOY_SH.read_text(encoding="utf-8")
+    start = src.index("bind_opencode_skills() {")
+    end = src.index("\n}\n", start) + len("\n}\n")
+    code_lines = [ln for ln in src[start:end].splitlines() if not ln.lstrip().startswith("#")]
+    code = "\n".join(code_lines)
+    assert "os.symlink(" in code, "条目级软链不再走 symlink(2)"
+    for banned in ("ln -s", "os.system(", "subprocess."):
+        hits = [ln.strip() for ln in code_lines if banned in ln]
+        assert not hits, f"绑定段又用上了 {banned}: {hits}"
+    for flag in ("O_DIRECTORY", "O_NOFOLLOW"):
+        assert flag in code, f"目录 fd 链的关键 flag {flag} 只剩注释或已消失"
+    assert "dir_fd=" in code, "不再相对目录 fd 操作了"
+    # 生产侧的整个 write_opencode_binding 里也不该再有 shell 的 ln -s。
+    wstart = src.index("write_opencode_binding() {")
+    wend = src.index("\n}\n", wstart)
+    wcode = [ln for ln in src[wstart:wend].splitlines() if not ln.lstrip().startswith("#")]
+    assert not [ln for ln in wcode if "ln -s" in ln], "write_opencode_binding 里还留着 ln -s"
 
 
 def test_hosts_opencode_agents_md_is_nonempty_and_marked(tmp_path: Path):

@@ -1003,43 +1003,24 @@ write_opencode_binding() {
         return 1
     fi
 
-    # ⛔ 祖先软链（Codex r1 HIGH-1）：上面那道判据只判「路径落不落在禁写面」, 而步 1 的
-    #    `-L` 复查只对**叶子**做、且那时 $VAULT 还不存在 ⇒ 两层都看不见 `.agents` 本身是软链。
-    #    若 `.agents -> /somewhere/else`, `mkdir -p` 会沿链穿过去, 叶子软链建在别人家,
-    #    而它的两级回跳 `../../.claude/skills/<n>` 于是从**别人的**目录起算 —— 落点整体偏移。
-    #    生成后的 `[ -L ]` 沿链解析仍为真, 发现不了。故逐级 fail-closed。
-    local anc
-    for anc in "$VAULT/.agents" "$dst_root"; do
-        if [ -L "$anc" ]; then
-            OPENCODE_ERR="opencode 绑定根是软链, 写入会沿链穿到别处: $anc -> $(readlink "$anc")"
-            return 1
-        fi
-        if [ -e "$anc" ] && [ ! -d "$anc" ]; then
-            OPENCODE_ERR="opencode 绑定根已存在且不是目录: $anc"
-            return 1
-        fi
-    done
-
-    mkdir -p "$dst_root" || { OPENCODE_ERR="建目录失败: $dst_root"; return 1; }
-
-    # ── ① 条目级软链 ─────────────────────────────────────────────────────────
-    for name in "${NAMES[@]}"; do
-        link="$dst_root/$name"
-        tgt="../../.claude/skills/$name"
-        if [ -L "$link" ]; then
-            # 已在位。指向同一个目标 ⇒ 幂等跳过；指向别处 ⇒ **不静默改写**别人的软链。
-            if [ "$(readlink "$link")" != "$tgt" ]; then
-                OPENCODE_ERR="已有软链指向别处, 拒绝静默改写: $link -> $(readlink "$link")"
-                return 1
-            fi
-            continue
-        fi
-        if [ -e "$link" ]; then
-            OPENCODE_ERR="落点已存在且不是软链, 拒绝覆盖: $link"
-            return 1
-        fi
-        ln -s "$tgt" "$link" || { OPENCODE_ERR="建软链失败: $link -> $tgt"; return 1; }
-    done
+    # ── ① 条目级软链：整条 mkdir + symlink 链都钉在 fd 上 ───────────────────
+    # ⛔ 为什么不用 shell 的 `[ -L ]` 检查 + `ln -s`（Codex r1 HIGH-1 / r4 HIGH-2）：
+    #    ① 祖先形态：`.agents` 若是软链, `mkdir -p` 沿链穿过去, 叶子建在别人家,
+    #       而它的两级回跳于是从**别人的**目录起算 —— 落点整体偏移, 事后 `[ -L ]`
+    #       沿链解析仍为真, 看不出来；
+    #    ② **`ln -s` 的目录语义**：检查之后落点若变成目录（或指向目录的软链）,
+    #       `ln -s "$tgt" "$link"` 会把它当**目标目录**, 实际在 `$link/<name>` 里建 ——
+    #       那个实际写对象从没过判据。这不是「检查得不够细」, 是 `ln(1)` 把叶子参数
+    #       重新解释成了目录。
+    #    改法：交给 symlink(2)。它对已存在的落点**一律 EEXIST**（本机实测：落点是
+    #    目录时 EEXIST 且目录内容为空, 没有 ln(1) 那个便利语义）, 且支持 dir_fd ——
+    #    逐级 O_DIRECTORY|O_NOFOLLOW 打开、全程相对 fd 操作, 祖先在这之后被换掉也无效。
+    local berr brc=0
+    berr="$(printf '%s\n' "${NAMES[@]}" | bind_opencode_skills "$VAULT" 2>&1)" || brc=$?
+    if [ "$brc" != 0 ]; then
+        OPENCODE_ERR="${berr:-建条目级软链失败}"
+        return 1
+    fi
 
     # ── ② AGENTS.md ──────────────────────────────────────────────────────────
     # ⛔ 发布走 publish_agents_md，shell 侧**不自己写文件、也不自己抄一份判据**
@@ -1084,6 +1065,129 @@ write_opencode_binding() {
     return 0
 }
 
+# 在 $1（vault）下建 `.agents/skills/<name>` 条目级软链；条目名从 stdin 每行一个读入。
+# 整条 mkdir + symlink 链都钉在目录 fd 上，理由见 write_opencode_binding ① 那段。
+bind_opencode_skills() {
+    local src srcrc=0
+    src="$(
+        cat << 'PYBIND'
+import os
+import stat as statmod
+import sys
+
+vault = sys.argv[1]
+names = [ln.strip() for ln in sys.stdin.read().splitlines() if ln.strip()]
+if not names:
+    print("没有要绑定的技能条目", file=sys.stderr)
+    sys.exit(1)
+
+
+def die(msg):
+    print(msg, file=sys.stderr)
+    sys.exit(1)
+
+
+def open_dir_child(parent_fd, name, where):
+    """在 parent_fd 下取得 `name` 这个**真目录**的 fd；不存在就建。
+
+    ⛔ 全程 `dir_fd=` + `O_NOFOLLOW`：拿到的 fd 钉死那个 inode，
+       之后祖先被换掉也影响不到；`name` 本身是软链时当场失败而不是沿链穿过去。
+    """
+    try:
+        os.mkdir(name, 0o755, dir_fd=parent_fd)
+    except FileExistsError:
+        pass
+    except OSError as exc:
+        die(f"建目录失败: {where} ({exc})")
+    try:
+        st = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+    except OSError as exc:
+        die(f"问不出目录状态, 不敢往里写: {where} ({exc})")
+    if statmod.S_ISLNK(st.st_mode):
+        die(f"opencode 绑定根是软链, 写入会沿链穿到别处: {where}")
+    if not statmod.S_ISDIR(st.st_mode):
+        die(f"opencode 绑定根已存在且不是目录: {where}")
+    try:
+        return os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent_fd)
+    except OSError as exc:
+        die(f"打开目录失败: {where} ({exc})")
+
+
+# ⚠️ 末段（$VAULT 自己）用 O_NOFOLLOW；**祖先**在步 1 判据与这一刻之间被换掉仍挡不住 ——
+#    闭合它要让步 1 打开 fd 一路传到步 3，而步 1 是别的卡的定稿面。已登记为移交项。
+try:
+    vfd = os.open(vault, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+except OSError as exc:
+    die(f"打开 vault 目录失败: {vault} ({exc})")
+
+afd = sfd = None
+made = []
+try:
+    afd = open_dir_child(vfd, ".agents", f"{vault}/.agents")
+    sfd = open_dir_child(afd, "skills", f"{vault}/.agents/skills")
+    for name in names:
+        tgt = f"../../.claude/skills/{name}"
+        where = f"{vault}/.agents/skills/{name}"
+        try:
+            # symlink(2) 对**任何**已存在的落点一律 EEXIST —— 目录、软链、普通文件都是。
+            # 没有 ln(1) 那个「落点是目录就建到里面去」的便利语义。
+            os.symlink(tgt, name, dir_fd=sfd)
+            made.append(name)
+        except FileExistsError:
+            # 已在位：指向同一个目标 ⇒ 幂等跳过；指向别处 ⇒ 不静默改写别人的东西。
+            try:
+                st = os.stat(name, dir_fd=sfd, follow_symlinks=False)
+            except OSError as exc:
+                die(f"落点已存在却问不出状态: {where} ({exc})")
+            if not statmod.S_ISLNK(st.st_mode):
+                die(f"落点已存在且不是软链, 拒绝覆盖: {where}")
+            try:
+                cur = os.readlink(name, dir_fd=sfd)
+            except OSError as exc:
+                die(f"读不出已有软链的目标: {where} ({exc})")
+            if cur != tgt:
+                die(f"已有软链指向别处, 拒绝静默改写: {where} -> {cur}")
+        except OSError as exc:
+            die(f"建软链失败: {where} -> {tgt} ({exc})")
+
+    # 建完就地核一遍：每条都必须是软链、目标逐字相符、且解得到本 vault 里的同名技能目录。
+    for name in names:
+        where = f"{vault}/.agents/skills/{name}"
+        st = os.stat(name, dir_fd=sfd, follow_symlinks=False)
+        if not statmod.S_ISLNK(st.st_mode):
+            die(f"建完之后它不是软链: {where}")
+        if os.readlink(name, dir_fd=sfd) != f"../../.claude/skills/{name}":
+            die(f"建完之后目标不对: {where}")
+        # 解析要走**同一个 sfd** 相对解析：O_NOFOLLOW 去掉才能跟随本条软链，
+        # 但整条路径仍相对已钉死的 sfd，不重新从根解析。
+        try:
+            tfd = os.open(name, os.O_RDONLY | os.O_DIRECTORY, dir_fd=sfd)
+        except OSError as exc:
+            die(f"软链解不到存在的技能目录: {where} ({exc})")
+        try:
+            tst = os.fstat(tfd)
+            want = os.stat(f".claude/skills/{name}", dir_fd=vfd, follow_symlinks=True)
+            if (tst.st_dev, tst.st_ino) != (want.st_dev, want.st_ino):
+                die(f"软链解到了别处, 不是本 vault 的同名技能条目: {where}")
+        finally:
+            os.close(tfd)
+    print(f"bound={len(names)} new={len(made)}")
+finally:
+    for fd in (sfd, afd, vfd):
+        if fd is not None:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+PYBIND
+    )" || srcrc=$?
+    if [ "$srcrc" != 0 ] || [ -z "$src" ]; then
+        printf '取 bind_opencode_skills 的程序源失败(rc=%s, 长度=%s)\n' "$srcrc" "${#src}" >&2
+        return 1
+    fi
+    python3 -c "$src" "$1"
+}
+
 # 把 stdin 的正文安全发布到 $1（标记 $2）。见 write_opencode_binding ② 的整改说明。
 # ⛔ 不能写成 `python3 - "$1" "$2" << 'PYPUB'`（我 r1 整改时正是这么写的, 当场踩中）：
 #    `python3 -` 就是「**从 stdin 读程序**」, heredoc 把 stdin 占了, 管道送来的正文
@@ -1099,6 +1203,12 @@ publish_agents_md() {
 import os
 import stat as statmod
 import sys
+
+sys.path.insert(0, sys.argv[3])
+from cls_forbidden_paths import write_all  # noqa: E402
+
+#: 半成品标记 —— 写入失败时留在文件首行，下次跑由 describe_existing 认出来并给出指引。
+INCOMPLETE_MARK = b"<!-- INCOMPLETE:"
 
 dst, mark = sys.argv[1], sys.argv[2].encode()
 ddir = os.path.dirname(dst) or "."
@@ -1124,19 +1234,30 @@ def describe_existing(dfd, name, path):
         return f"目标是目录: {path}"
     if not statmod.S_ISREG(st.st_mode):
         return f"目标不是普通文件: {path}"
+    # ⛔ O_NONBLOCK（Codex r4 MEDIUM-1）：上面的 stat 与这里的 open 之间若被换成 FIFO,
+    #    不带它会**卡死在 open 里**, 连 rc 73 都返回不了 —— 挂起比报错更坏。
     try:
-        rfd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=dfd)
+        rfd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=dfd)
     except OSError as exc:
         return f"打不开已有目标: {path} ({exc})"
     try:
-        with os.fdopen(rfd, "rb") as fh:
-            first = fh.readline()
+        # 打开之后**再按 fd 确认一次**是普通文件：stat 那次判的是「当时」。
+        if not statmod.S_ISREG(os.fstat(rfd).st_mode):
+            return f"打开后发现目标不是普通文件: {path}"
+        # ⛔ 定长读, 不用 readline（Codex r4 MEDIUM-1）：一个没有换行的巨大文件
+        #    会把整个文件读进内存。标记就一行, 读够判断它的量即可。
+        head = os.read(rfd, len(mark) + 64)
     except OSError as exc:
-        return f"读不出已有目标的首行: {path} ({exc})"
+        return f"读不出已有目标的开头: {path} ({exc})"
+    finally:
+        os.close(rfd)
+    first = head.split(b"\n", 1)[0]
     # ⛔ 首行**精确相等**, 不是全文子串匹配：子串匹配会把任何正文里
     #    碰巧引用过这行标记的手写文件判成「我生成的」。
     if first.rstrip(b"\r\n") == mark:
         return f"目标已是本脚本上次生成的产物, 要重建请先删掉它: {path}"
+    if first.startswith(INCOMPLETE_MARK):
+        return f"目标是上一次写到一半的残件, 内容不完整, 请删掉它再重跑: {path}"
     return f"目标疑为手写（缺生成标记）: {path}"
 
 
@@ -1187,9 +1308,12 @@ try:
     except OSError as exc:
         die(f"建 AGENTS.md 失败, 未写任何东西: {dst} ({exc})")
 
-    with os.fdopen(fd, "wb", closefd=False) as fh:
-        fh.write(body)
-        fh.flush()
+    # ⛔ 走 write_all 而不是裸 os.write（既有铁律，Codex r8 HIGH-4）：`os.write` 会**短写**,
+    #    返回值小于长度时文件已被截断, 忽略返回值 = 把「只写了一半」当成功。
+    #    ⚠️ 这里**不**走 open_pinned：它每次从路径逐级解析, 而上面的
+    #    `os.open(base, …, dir_fd=dfd)` 是相对**已钉死的目录 fd** 的 openat ——
+    #    比逐级重解析更强, 换成 open_pinned 反而把已经拿到的那个保证丢掉。
+    write_all(fd, body)
     os.fsync(fd)
 
     # 写完核一次身份：这个 fd 指向的必须仍然是 `dst` 这个名字下的那个 inode,
@@ -1207,17 +1331,28 @@ try:
 finally:
     if fd is not None:
         if not ok:
-            # 清理**我自己刚建的**那个半成品 —— 先按身份确认它还是我建的那个,
-            # 身份对不上就不动它并说出来（别替不知道是谁的文件做决定）。
+            # ⛔ **不按路径 unlink**（Codex r4 HIGH-1）：`stat 确认身份 → unlink(name)`
+            #    是两个操作, 目录 fd 钉得住父目录、钉不住那个叶子名字 ——
+            #    两步之间换进来的手写文件会被这一下删掉。
+            #    改为对**同一个 fd** 截断并写一行自解释标记：全程零路径解析,
+            #    这一类窗口整个消失。留下的文件一眼能看出是半成品, 下次跑会被
+            #    「存在即拒」拦住并报出它是什么, 由人决定怎么处置。
             try:
-                mine = os.fstat(fd)
-                now = os.stat(base, dir_fd=dfd, follow_symlinks=False)
-                if (mine.st_dev, mine.st_ino) == (now.st_dev, now.st_ino):
-                    os.unlink(base, dir_fd=dfd)
-                else:
-                    print(f"半成品已不是我建的那个, 原样留下: {dst}", file=sys.stderr)
+                # ⛔ 截断前先查链接数（与脚本里另外三处 ftruncate 同律）：O_EXCL 保证
+                #    它是**本次新建**的，但写入期间仍可能被 link 出第二个名字 ——
+                #    那时 ftruncate 改的是共享 inode，会削掉别人的文件。
+                if os.fstat(fd).st_nlink != 1:
+                    raise OSError("半成品已被加上硬链接, 不敢截断（会改到共享 inode）")
+                os.ftruncate(fd, 0)
+                os.lseek(fd, 0, os.SEEK_SET)
+                # ⚠️ 刻意写成**单行**调用：写面门按字面量计数，多行调用它数不到 ——
+                #    那样门会说「有 N 处」而实际有 N+1 处。
+                #    （这行注释本身也刻意不写出那个被计数的字面量：我第一版写了，
+                #     于是注释自己被数了一次 —— 计数判据分不清代码和注释。）
+                incomplete = INCOMPLETE_MARK + b" deploy-vault.sh \xe5\x86\x99\xe5\x88\xb0\xe4\xb8\x80\xe5\x8d\x8a\xe5\xa4\xb1\xe8\xb4\xa5\xef\xbc\x8c\xe8\xaf\xb7\xe5\x88\xa0\xe6\x8e\x89\xe5\xae\x83\xe5\x86\x8d\xe9\x87\x8d\xe8\xb7\x91\xe3\x80\x82 -->\n"
+                write_all(fd, incomplete)
             except OSError as exc:
-                print(f"清理半成品失败, 原样留下: {dst} ({exc})", file=sys.stderr)
+                print(f"标记半成品失败, 文件内容不可信: {dst} ({exc})", file=sys.stderr)
         try:
             os.close(fd)
         except OSError:
@@ -1232,7 +1367,7 @@ PYPUB
         printf '取 publish_agents_md 的程序源失败(rc=%s, 长度=%s)\n' "$srcrc" "${#src}" >&2
         return 1
     fi
-    python3 -c "$src" "$1" "$2"
+    python3 -c "$src" "$1" "$2" "$(dirname "$FORBID_PY")"
 }
 
 # 正文写 **stdout**（落盘交给 publish_agents_md）。入参 = 技能条目名。
@@ -1242,8 +1377,9 @@ write_agents_md() {
     local cfg="opencode.$OPENCODE_CFG_EXT"
     printf '%s\n' "$OPENCODE_AGENTS_MARK"
     printf '# %s —— 给 OpenCode 的入口\n\n' "$VAULT_NAME"
-    printf '这份文件由 `deploy-vault.sh --hosts opencode` 生成, 重跑会被覆盖 ——\n'
-    printf '想加自己的内容, 先删掉**第一行**的生成标记（之后本脚本会拒绝覆盖它）。\n\n'
+    printf '这份文件由 `deploy-vault.sh --hosts opencode` 生成。\n'
+    printf '⚠️ 脚本**不会**覆盖已经存在的这份文件 —— 想重新生成, 先自己删掉它再重跑；\n'
+    printf '想在这里加自己的内容, 直接改就行, 脚本不会动它。\n\n'
     printf '## 可用技能（%s 条）\n\n' "$#"
     printf '`.agents/skills/` 下每一条都是指向 `.claude/skills/` 同名条目的软链,\n'
     printf '两个助手读到的是**同一份** SKILL.md, 改一处两边同时生效。\n\n'
