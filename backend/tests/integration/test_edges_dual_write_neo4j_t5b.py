@@ -442,7 +442,8 @@ def test_neo4j_attribute_error_degrades_to_207(monkeypatch: pytest.MonkeyPatch) 
     if neo4j_module.get_neo4j_client is not _fake_get_neo4j_client:
         pytest.fail(
             "注入锚失败: app.clients.neo4j_client.get_neo4j_client 未被替换; "
-            "继续发请求会真连 .env 的 7691 现网, 已立即停跑"
+            "继续发请求**可能**连上并写入 .env 的 7691 现网(也可能连接/认证/写入本身失败), "
+            "已立即停跑"
         )
 
     async def _fake_write_lancedb(rationale: EdgeRationaleCreate, record_id: str) -> WriteStatus:
@@ -464,8 +465,8 @@ def test_neo4j_attribute_error_degrades_to_207(monkeypatch: pytest.MonkeyPatch) 
     # ── 核心断言: 半成功 207, 不是 500 ────────────────────────────────────
     assert resp.status_code == 207, (
         f"期望 207 Multi-Status (Neo4j 失败 + LanceDB 成功 = 半成功), "
-        f"实得 {resp.status_code}; 500 说明 Neo4j 侧的 AttributeError 仍在穿透 "
-        f"asyncio.gather 与 handler"
+        f"实得 {resp.status_code}; 500 **可能**是 Neo4j 侧的 AttributeError 仍在穿透 "
+        f"asyncio.gather 与 handler, 但任意未捕获异常都会给出 500 —— 需核对异常来源"
     )
 
     body = resp.json()
@@ -850,7 +851,8 @@ async def test_run_query_writes_edge_rationale_to_7692(
     #     真正覆盖 fallback 态的是零 DB 的门 1f + 生产侧的写确认判据。
     if neo4j_module.get_neo4j_client is not _fake_get_neo4j_client:
         pytest.fail(
-            "前置注入锚失败: 源模块 get_neo4j_client 未被替换 —— 继续会真往 .env 的 7691 现网写节点, 已立即停跑"
+            "前置注入锚失败: 源模块 get_neo4j_client 未被替换 —— 继续**可能**真往 .env 的 "
+            "7691 现网写节点(也可能连接/认证/写入本身失败), 已立即停跑"
         )
     # 结构断言(非承重): client 原样保存了我们给的 URI, 没有另接别处
     assert injected_client._uri == NEO4J_TEST_URI, (
@@ -913,9 +915,15 @@ async def test_run_query_writes_edge_rationale_to_7692(
                 "清理未取得确认, 提交结果未知; verifier 可能已转入 JSON fallback, "
                 f"group_id={physical_group_id!r} 的节点可能滞留在共享 7692"
             )
-            assert len(deleted_rows) == 1 and deleted_rows[0]["deleted"] >= 0, (
-                f"清理回执形态不对(期望单行且 deleted 为非负整数): {deleted_rows!r}"
-            )
+            # ⛔ 显式排除 bool: Python 里 True 是 int 的子类, 不排除的话 `True` 会被
+            # 当成合法计数通过(Codex r9 附带观察: 原写法对 0.5 / True 都放行)。
+            _deleted = deleted_rows[0]["deleted"] if len(deleted_rows) == 1 else None
+            assert (
+                len(deleted_rows) == 1
+                and isinstance(_deleted, int)
+                and not isinstance(_deleted, bool)
+                and _deleted >= 0
+            ), f"清理回执形态不对(期望单行且 deleted 为非负整数): {deleted_rows!r}"
         finally:
             # 两个客户端各自嵌套 finally (Codex r1 LOW 整改): 串行写法下
             # verifier.cleanup() 抛错会让 injected_client 永远拿不到释放机会。
