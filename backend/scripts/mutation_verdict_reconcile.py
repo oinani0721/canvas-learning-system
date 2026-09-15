@@ -96,6 +96,21 @@ class ReconcileError(Exception):
 # ── 独立分母：AST 现算 ──────────────────────────────────────────────────────
 
 
+#: 会就地改动列表的方法 —— 出现任何一个都说明条数不是静态可数的。
+_LIST_MUTATORS = ("append", "extend", "insert", "clear", "pop", "remove", "__iadd__", "__setitem__")
+
+
+def _literal_len(node: ast.AST, source_name: str, lineno: int) -> int:
+    """字面量列表的条数；⛔ 任何数不出来的形态都抛（不返回估计值）。"""
+    if not isinstance(node, ast.List):
+        raise ReconcileError(f"{source_name}:{lineno} `MUTATIONS` 的值不是字面量列表，分母数不出来")
+    starred = [e for e in node.elts if isinstance(e, ast.Starred)]
+    if starred:
+        # `MUTATIONS += [*OTHER, x]` —— `*OTHER` 展开几条要执行才知道。
+        raise ReconcileError(f"{source_name}:{lineno} `MUTATIONS` 字面量里有 `*` 展开，条数数不出来")
+    return len(node.elts)
+
+
 def ast_mutation_count(source_name: str) -> int:
     """从 harness 源码 AST 现算 `len(MUTATIONS)`（**含所有 `MUTATIONS += [...]` 扩展**）。
 
@@ -109,31 +124,52 @@ def ast_mutation_count(source_name: str) -> int:
     能冒充全量通过对账 —— 这道本该是**唯一跨源独立判据**的门，对 g32b 从来就是错的。
     ⚠️ 连带更正：卡文 §〇 事实格写「g32b **6**」同样是只读了首个赋值，实测应为 **138**。
 
-    ⛔ **不认识的形态一律报错（fail-closed）**：`MUTATIONS.extend(...)` / `MUTATIONS += 变量`
-    / 条件分支里的赋值……任何数不出字面量条数的写法都直接抛，⛔ 不得悄悄少算 —— 少算正是
-    这条判据上一次失效的方式。
+    ⛔⛔⛔ **fail-closed 覆盖到全树**（Codex round-5 MEDIUM）：上一版只扫 `tree.body`，于是
+    **嵌套块里**的写入（`if True: MUTATIONS += [...]`、`for ...: MUTATIONS += [...]`、函数里
+    `global MUTATIONS` 后赋值）既不计数、**也不报错** —— 又一次「少算而不出声」，正是这条
+    判据连着两轮失效的同一个形态。现在的判据是**两段**：
+      ① 只在**模块级顶层**认两种可数形态（`= [字面量]` / `+= [字面量]`）并计数；
+      ② 全树扫描，凡是 `MUTATIONS` 的**写入位**（`Store`/`Del` 上下文的 Name）不在 ① 认下的
+         那几个，或出现 `MUTATIONS.<就地改动方法>(...)`，一律**抛**。
+    ⇒ 数不出来时给的是错误，**不是一个偏小的数**。
+
+    ⚠️ 如实声明剩余面：`globals()["MUTATIONS"] = …` / `exec()` 之类的动态写入静态数不出来，
+    本函数看不见（四套源码实测均无此形态）。
     """
     path = SCRIPTS / source_name
     if not path.exists():
         raise ReconcileError(f"harness 源码不存在，分母无法独立现算: {path}")
     tree = ast.parse(path.read_text(encoding="utf-8"))
+
     total: int | None = None
-    for node in tree.body:  # ⛔ 只看**模块级**：函数/条件里的同名赋值数不出静态条数
-        if isinstance(node, ast.Assign) and any(getattr(t, "id", "") == "MUTATIONS" for t in node.targets):
-            if not isinstance(node.value, ast.List):
-                raise ReconcileError(f"{source_name}:{node.lineno} `MUTATIONS = <非字面量列表>`，分母数不出来")
-            total = len(node.value.elts)  # 重新赋值 ⇒ 从头计数
-        elif isinstance(node, ast.AugAssign) and getattr(node.target, "id", "") == "MUTATIONS":
-            if not isinstance(node.op, ast.Add) or not isinstance(node.value, ast.List):
-                raise ReconcileError(f"{source_name}:{node.lineno} `MUTATIONS` 的扩展不是 `+= [字面量]`，分母数不出来")
+    counted_targets: set[int] = set()  # ① 认下的那些写入位（按 Name 节点身份）
+    for node in tree.body:  # ⛔ 只在**模块级顶层**认，嵌套块交给 ② 去抛
+        if isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "MUTATIONS" for t in node.targets):
+            if len(node.targets) != 1:
+                # `MUTATIONS = OTHER = [...]` / `a, MUTATIONS = ...` —— 不认，交给 ② 抛。
+                continue
+            total = _literal_len(node.value, source_name, node.lineno)  # 重新赋值 ⇒ 从头计数
+            counted_targets.add(id(node.targets[0]))
+        elif isinstance(node, ast.AugAssign) and isinstance(node.target, ast.Name) and node.target.id == "MUTATIONS":
+            if not isinstance(node.op, ast.Add):
+                raise ReconcileError(f"{source_name}:{node.lineno} `MUTATIONS` 的扩展不是 `+=`，分母数不出来")
             if total is None:
                 raise ReconcileError(f"{source_name}:{node.lineno} 先 `+=` 后赋值？分母数不出来")
-            total += len(node.value.elts)
-    # ⛔ 其它任何提到 MUTATIONS 的模块级写法（`.extend` / `.append` / 解包）都必须报错
+            total += _literal_len(node.value, source_name, node.lineno)
+            counted_targets.add(id(node.target))
+
+    # ② fail-closed 全树扫描：任何**没被 ① 数到**的写入/改动一律抛。
     for node in ast.walk(tree):
-        if isinstance(node, ast.Attribute) and getattr(node.value, "id", "") == "MUTATIONS":
-            if node.attr in ("append", "extend", "insert", "clear", "pop", "remove"):
+        if isinstance(node, ast.Name) and node.id == "MUTATIONS" and isinstance(node.ctx, (ast.Store, ast.Del)):
+            if id(node) not in counted_targets:
+                raise ReconcileError(
+                    f"{source_name}:{node.lineno} 有**未被计数**的 `MUTATIONS` 写入"
+                    f"（嵌套块 / 循环 / 函数内 / 链式赋值）—— 分母数不出来，⛔ 不得少算蒙混"
+                )
+        if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id == "MUTATIONS":
+            if node.attr in _LIST_MUTATORS:
                 raise ReconcileError(f"{source_name}:{node.lineno} 用 `MUTATIONS.{node.attr}(...)` 改表，分母数不出来")
+
     if total is None:
         raise ReconcileError(f"{source_name} 里找不到模块级 `MUTATIONS = [...]`，分母无法独立现算")
     return total

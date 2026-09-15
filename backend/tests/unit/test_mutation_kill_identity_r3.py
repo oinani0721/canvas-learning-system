@@ -564,4 +564,113 @@ def test_m2_mid_loop_failure_surfaces_even_when_final_restore_succeeds(capsys) -
     )
     err = capsys.readouterr().err
     assert verified == ["ran"], "M②: 账非空时末次即使成功也须跑逐字节自检"
-    assert "2 次还原失败被吞" in err and "M3, M7" in err, f"M②: 中途失败必须显形，实得 {err!r}"
+    # ⚠️ 措辞在 round-6 改成如实的「末次还原成功, 但本轮早些时候有还原失败被吞」（round-5 LOW）
+    assert "有还原失败被吞" in err and "2 次" in err and "M3, M7" in err, f"M②: 中途失败必须显形，实得 {err!r}"
+    assert "末次还原失败" not in err, "⛔ 末次其实成功了，不得这么说"
+
+
+def test_m2_guard_retry_must_not_hide_the_first_real_failure(capsys) -> None:
+    """⛔ 守卫**重试成功**不得把首次真实失败盖掉（Codex round-5 MEDIUM）。
+
+    `RestoreGuard.critical()` 的 `finally` 在**本体已经抛了 OSError** 的情况下仍会跑
+    `_finish(pending)` —— 它重试 `restore()` 这次成功了，于是抛 `SystemExit(130)`。
+    Python 把正在处理的 `OSError` 挂到 `__context__` 上，调用方只看见一个**形态干净**的
+    130 ⇒ 首次那次真实还原失败一点痕迹都不留、自检也不跑。
+    ⚠️ 本例用**真实** `RestoreGuard`（不是模拟守卫），逐字复现该时序。
+    """
+    calls = {"n": 0}
+
+    def _restore() -> None:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise OSError("first restore failed (synthetic)")  # 重试那次会成功
+
+    guard = mki.RestoreGuard(_restore, log=lambda _m: None)
+
+    def _restore_all_under_critical() -> None:
+        with guard.critical():
+            guard._handler(2, None)  # 还原期收到 SIGINT ⇒ 只记待办
+            _restore()  # 首次失败 ⇒ critical 的 finally 里守卫重试并抛 SystemExit(130)
+
+    verified: list[str] = []
+    with pytest.raises(SystemExit) as ei:
+        g33.restore_or_keep_exit_code(
+            _restore_all_under_critical,
+            guard.exiting,
+            final=True,
+            verify=lambda: verified.append("ran") or [],
+            clean_exit_code=130,
+        )
+    err = capsys.readouterr().err
+    assert ei.value.code == 130, f"⛔ 约定退出码仍须保号 130，实得 {ei.value.code!r}"
+    assert verified == ["ran"], "M②: 底下压着真实失败时，逐字节自检必须仍然跑"
+    assert "first restore failed" in err, f"M②: 被盖住的原始失败必须显形，实得 {err!r}"
+
+
+def test_m2_clean_signal_exit_has_no_swallowed_cause(capsys) -> None:
+    """⛔ 验伪锚：**真正干净**的信号退出（底下没压异常）仍不得报警、不得多跑自检。"""
+    verified: list[str] = []
+    guard = mki.RestoreGuard(lambda: None, log=lambda _m: None)
+
+    def _restore_then_signal() -> None:
+        guard._handler(2, None)  # 不在 critical 里 ⇒ 立刻 _finish：还原成功后抛 130
+
+    with pytest.raises(SystemExit) as ei:
+        g33.restore_or_keep_exit_code(
+            _restore_then_signal,
+            guard.exiting,
+            final=True,
+            verify=lambda: verified.append("ran") or [],
+            clean_exit_code=130,
+        )
+    assert ei.value.code == 130
+    assert verified == [], "⛔ 干净信号退出不得平白多跑自检"
+    assert "末次还原" not in capsys.readouterr().err, "⛔ 干净信号退出不得报「末次还原失败」"
+
+
+def test_m2_wording_matches_what_actually_happened(capsys) -> None:
+    """⛔ 措辞必须说实话：末次**成功**时不得印「末次还原失败」（Codex round-5 LOW）。"""
+    fn = _restore_fn()
+    assert fn(lambda: None, lambda: True, final=True, verify=lambda: [], pending_failures=["M3"]) is True
+    err = capsys.readouterr().err
+    assert "末次还原成功" in err, f"末次确实成功，措辞必须如实，实得 {err!r}"
+    assert "末次还原失败" not in err, f"⛔ 末次没失败，不得这么说，实得 {err!r}"
+
+    def _boom() -> None:
+        raise OSError("real final failure (synthetic)")
+
+    with pytest.raises(SystemExit):
+        fn(_boom, lambda: True, final=True, verify=lambda: [], clean_exit_code=130)
+    assert "末次还原失败" in capsys.readouterr().err, "⛔ 验伪锚：真失败时仍须说「末次还原失败」"
+
+
+def test_m3_ast_denominator_fails_closed_on_uncountable_shapes(tmp_path: Path) -> None:
+    """⛔ 数不出来时必须**抛**，不得返回一个偏小的数（Codex round-5 MEDIUM）。
+
+    上一版只扫 `tree.body`，嵌套块里的写入既不计数**也不报错** —— 又一次「少算而不出声」，
+    正是这条判据连着两轮失效的同一个形态。
+    """
+    import mutation_verdict_reconcile as rec
+
+    base = "MUTATIONS = [1, 2, 3]\nMUTATIONS += [4, 5]\n"
+    probe = tmp_path / "probe.py"
+    orig = rec.SCRIPTS
+    rec.SCRIPTS = tmp_path
+    try:
+        probe.write_text(base, encoding="utf-8")
+        assert rec.ast_mutation_count("probe.py") == 5, "⛔ 验伪锚：可数形态必须数得对（含 `+=` 扩展）"
+        for tail in (
+            "\nif True:\n    MUTATIONS += [9]\n",  # 嵌套块
+            "\nfor _ in range(3):\n    MUTATIONS += [9]\n",  # 循环
+            "\n_X = [1]\nMUTATIONS += [*_X, 2]\n",  # `*` 展开
+            "\nMUTATIONS.extend([9])\n",  # 就地改动
+            "\ndef _f():\n    global MUTATIONS\n    MUTATIONS = []\n",  # 函数内 global
+            "\n_O = None\nMUTATIONS = _O = [1]\n",  # 链式赋值
+            "\n_Y = [1]\nMUTATIONS += _Y\n",  # `+= 变量`
+            "\ntry:\n    MUTATIONS += [9]\nexcept Exception:\n    pass\n",  # try 块
+        ):
+            probe.write_text(base + tail, encoding="utf-8")
+            with pytest.raises(rec.ReconcileError):
+                rec.ast_mutation_count("probe.py")
+    finally:
+        rec.SCRIPTS = orig

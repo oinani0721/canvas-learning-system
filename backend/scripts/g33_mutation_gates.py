@@ -393,25 +393,56 @@ def _env() -> dict:
 _SIGNAL_EXIT_CODE = 130
 
 
-def _report_final_restore_failure(exc: BaseException, verify: Callable[[], list[str]] | None) -> None:
-    """末次还原失败时把事实**印出来**，并就地跑还原逐字节自检。
+def _swallowed_cause(exc: BaseException) -> BaseException | None:
+    """穿过 `__cause__` / `__context__` 链，找出被 `SystemExit` **盖住**的原始异常。
 
-    ⛔ 自检本身失败不得掩盖还原失败：那时「还原干净」这句话是**「未知」而不是「是」**
+    ⛔ Codex round-5 MEDIUM：`RestoreGuard.critical()` 的 `finally` 在**本体已经抛了
+    `OSError`** 的情况下仍会跑 `_finish(pending)` —— 它重试 `restore()` 这次成功了，于是抛
+    `SystemExit(130)`。Python 把正在处理的 `OSError` 挂到新异常的 `__context__` 上，而调用
+    方只看见一个**干净形态**的 130 ⇒ 首次那次真实的还原失败**一点痕迹都不留**。
+
+    判据：`SystemExit` 底下压着非 `SystemExit` 的异常 ⇒ 这不是「干净的信号退出」，
+    而是「一次被盖住的失败」。返回那个原始异常（没有则 `None`）。
+
+    ⛔ `exc` **本身不是 `SystemExit`** 时返回 `None` —— 那种情况下没有任何东西被「盖住」，
+    异常就摆在那儿。（初版漏了这个前置判断，于是一个普通的 `OSError` 也被报成「被退出码
+    盖住」，措辞又一次说得比事实宽 —— 与本轮要修的 LOW 是同一个病。）
+    """
+    if not isinstance(exc, SystemExit):
+        return None
+    seen: set[int] = set()
+    cur: BaseException | None = exc.__cause__ or exc.__context__
+    while cur is not None and id(cur) not in seen:
+        seen.add(id(cur))
+        if not isinstance(cur, SystemExit):
+            return cur
+        cur = cur.__cause__ or cur.__context__
+    return None
+
+
+def _report_restore_concern(headline: str, detail_of: str, verify: Callable[[], list[str]] | None) -> None:
+    """把一件「还原相关、需要人看一眼」的事实**印出来**，并就地跑还原逐字节自检。
+
+    ⛔ `headline` 由调用方给 —— 这个函数**不许**替调用方断言发生了什么。
+    round-5 LOW 抓到的正是这一点：末次还原**成功**、只是本轮早些时候有失败被吞时，
+    上一版照样印「末次还原失败」，那是本卡要消灭的那类措辞（说得比证据宽）。
+
+    ⛔ 自检本身失败不得掩盖被报的事：那时「还原干净」这句话是**「未知」而不是「是」**
     （与 g33 汇总段对扫描失败的措辞同口径）。本函数**不抛**——诊断绝不能改变控制流。
     """
     drift: list[str] | str
     try:
         drift = list(verify()) if verify is not None else []
-    except BaseException as verr:  # noqa: BLE001  自检失败不得掩盖还原失败
+    except BaseException as verr:  # noqa: BLE001  自检失败不得掩盖被报的事
         drift = f"⛔ 自检本身失败({verr!r}) —— 「还原干净」此刻是「未知」而不是「是」"
     if isinstance(drift, str):
         detail = drift
     elif drift:
         detail = f"漂移 {', '.join(drift)}"
     else:
-        detail = "未检出漂移(但还原过程已报错, 不得当成干净)"
+        detail = "未检出漂移(但本轮还原报过错, 不得当成干净)"
     try:
-        print(f"⛔ 末次还原失败: {exc!r} —— 还原逐字节自检: {detail}", file=sys.stderr, flush=True)
+        print(f"⛔ {headline}: {detail_of} —— 还原逐字节自检: {detail}", file=sys.stderr, flush=True)
     except BaseException:  # noqa: BLE001  日志失败不改变控制流
         pass
 
@@ -479,17 +510,26 @@ def restore_or_keep_exit_code(
         # 还原失败的约定信号。上一版把「是不是 SystemExit」当判据，于是 131 被当成干净
         # 退出放行，末次逐字节自检**零次调用** = 把本卡承诺的那道检查又丢了一次。
         # `clean_exit_code=None`（未告知干净码）⇒ **fail-closed**：一律按还原失败处置。
+        # ⛔ round-6：干净退出还要求**底下没压着别的异常**。守卫在「本体已抛 OSError」时
+        # 仍会重试 `restore()`，重试成功就抛形态干净的 130，把首次那次真实失败盖成
+        # `__context__` —— 只看退出码分不出「一次成功的信号退出」和「一次被盖住的失败」。
+        swallowed = _swallowed_cause(exc)
         guard_exit = (
             clean_exit_code is not None
             and isinstance(exc, SystemExit)
             and exc.code == clean_exit_code
             and not was_exiting
             and exiting()
+            and swallowed is None
         )
         if final and not guard_exit:
             # ⛔ SHA/还原逐字节自检**必须在这里就跑**：往下无论是 `raise`（把原异常
             # 继续展开）还是 `SystemExit(3)`，`main()` 的汇总段都一行都到不了。
-            _report_final_restore_failure(exc, verify)
+            _report_restore_concern(
+                "末次还原失败" if swallowed is None else "末次还原期间有异常被退出码盖住",
+                repr(swallowed if swallowed is not None else exc),
+                verify,
+            )
         if not was_exiting:
             raise
         # ⚠️ `traceback.print_exc()` 只在**吞没**这条路上打 —— 要 `raise` 的那条由上层
@@ -506,8 +546,10 @@ def restore_or_keep_exit_code(
     if final and pending_failures:
         # ⛔ 末次还原**成功**，但这一轮里有还原**失败过** —— 信号展开那条路上汇总段到不了，
         # 这里是这件事最后一次能被说出来的地方（Codex round-4 LOW）。
-        _report_final_restore_failure(
-            RuntimeError(f"本轮有 {len(pending_failures)} 次还原失败被吞（{', '.join(pending_failures)}）"),
+        # ⚠️ 措辞必须说实话：末次是**成功**的（round-5 LOW —— 上一版照抄「末次还原失败」）。
+        _report_restore_concern(
+            "末次还原成功, 但本轮早些时候有还原失败被吞",
+            f"{len(pending_failures)} 次（{', '.join(pending_failures)}）",
             verify,
         )
     return True
