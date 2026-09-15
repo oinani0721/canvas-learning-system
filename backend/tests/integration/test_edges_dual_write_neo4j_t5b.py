@@ -438,7 +438,8 @@ def test_neo4j_attribute_error_degrades_to_207(monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setattr("app.clients.neo4j_client.get_neo4j_client", _fake_get_neo4j_client)
 
     # ⛔ 前置注入锚 (承重): 源模块属性必须已被替换. 不成立就立即停 ——
-    # 继续发请求会让真 get_neo4j_client() 造出连 .env 里 7691 现网的真客户端.
+    # 继续发请求会让真 get_neo4j_client() 造出指向 .env 里 7691 现网的真客户端,
+    # 那一跑**可能**连上并写入现网(与下方失败消息同口径, r10-LOW-1)。
     if neo4j_module.get_neo4j_client is not _fake_get_neo4j_client:
         pytest.fail(
             "注入锚失败: app.clients.neo4j_client.get_neo4j_client 未被替换; "
@@ -471,10 +472,14 @@ def test_neo4j_attribute_error_degrades_to_207(monkeypatch: pytest.MonkeyPatch) 
 
     body = resp.json()
     graphiti_error = body["graphiti_status"]["error"] or ""
-    # ── 注入锚 (承重, 第二条): 这条 207 确实是 stub 的 AttributeError 换来的 ──
+    # ── 注入锚 (承重, 第二条): 这条 207 的来源 ──
+    # ⚠️ 措辞边界(r10-LOW-1): sentinel 缺失**不能**直接推出「这条 207 不是 stub 的
+    # AttributeError 换来的」—— 生产完全可能仍捕获了它, 只是把错误文本脱敏或只留类型名。
+    # 断言该失败, 但失败原因得留给人核对。
     assert SENTINEL in graphiti_error, (
-        f"207 响应体里没有本门 sentinel (graphiti_status.error={graphiti_error!r}) —— "
-        "这条 207 不是 stub 的 AttributeError 被 _write_neo4j_triplet 的 except 元组收下换来的"
+        f"207 响应体里缺少预期 sentinel (graphiti_status.error={graphiti_error!r}) —— "
+        "无法确认这条 207 的来源: 可能不是 stub 的 AttributeError 被 except 元组收下换来的, "
+        "也可能是生产改写 / 脱敏了错误文本。请核对异常来源"
     )
     assert body["graphiti_status"]["success"] is False
     assert body["lancedb_status"]["success"] is True
@@ -611,7 +616,7 @@ def test_取_client_阶段的异常必须穿透成_500_而不是被降级(
 
     ⛔ 为什么需要这道门(Codex r6 M3): 1c/1d 两组的异常**都从客户端调用处抛出**,
     所以它们分辨不了 ``try`` 的范围。只要有人把 ``try`` 恢复成包整个函数体
-    (同时保留新元组与写确认), 1c/1d/1e/1f 十四格**全部照绿** —— 而那个回归恰恰是
+    (同时保留新元组与写确认), 门 1 + 1c/1d/1e/1f 共十四格**全部照绿** —— 而那个回归恰恰是
     本轮最重要的修复被撤销: params 里 14 次 ``rationale.<field>`` 取值、
     ``get_neo4j_client()`` 的配置缺陷、``to_physical_group_id`` 的 punycode 路径,
     任一出错都会重新被记成「Neo4j 写失败」⇒ 静默 207 ⇒ 数据永久丢失。
@@ -837,7 +842,8 @@ async def test_run_query_writes_edge_rationale_to_7692(
 
     # ⛔ 前置注入锚 (发写之前). 不成立就立即 pytest.fail —— 绝不能带着未生效的打桩
     # 去调 _write_neo4j_triplet: 那一调会拿到 .env 指向 7691 现网的真单例,
-    # 并真往现网写 :EdgeRationale 节点。
+    # **可能**真往现网写 :EdgeRationale 节点(连接 / 认证 / 写入本身也可能失败,
+    # 所以是「可能」不是「必然」—— 与下方失败消息同口径, r10-LOW-1)。
     #
     # ⚠️ 只有**这一条**是真承重的(第十四批 T5-B 第二轮对抗复核更正)。早先这里写着
     # 「三条前置锚」, 实测另外两条都不可证伪, 已按其真实检测力改写, 不再冒充承重:
