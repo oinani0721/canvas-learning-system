@@ -1,0 +1,38 @@
+2026-09-15 12:03:36 [debug    ] RAGService: Added /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-bugs/backend/lib to sys.path
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+  from pydantic.v1.fields import FieldInfo as FieldInfoV1
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  import pkg_resources
+Building prefix dict from the default dictionary ...
+Loading model from cache /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/jieba.cache
+Loading model cost 0.276 seconds.
+Prefix dict has been built successfully.
+2026-09-15 12:03:40 [info     ] RAGService: LangGraph/Agentic RAG available. LANGGRAPH_AVAILABLE=True
+Unhandled query pattern: 
+        CREATE (er:EdgeRationale { record_id: $record_id })
+        RETURN er.record_id AS record_i
+Unhandled query pattern: 
+        CREATE (er:EdgeRationale {
+            record_id: $record_id,
+            edge_id: $edge_id
+=== A. JSON fallback 态: CREATE (er:EdgeRationale) 会怎样 ===
+  client _use_json_fallback = True  (⇒ run_query 走 _run_query_json_fallback)
+  run_query 返回 = []   (类型 list, 长度 0)
+  ⇒ 没有抛异常: True
+
+=== B. 走真 _write_neo4j_triplet（注入这个 fallback client）===
+  WriteStatus.success = True   error = None
+  ⛔ 零写入却报 success=True: True
+
+=== C. 派发器为什么不认这条 query（neo4j_client.py:_run_query_json_fallback 的关键词）===
+  'merge' in q: False   'match' in q: False
+  'user' in q: False     'concept' in q(大写 Concept): False
+  'learned' in q: False
+  ⇒ 三个分支全不命中 ⇒ 落 else: logger.warning + return []
+
+=== D. 真写会返回几行？（Cypher 有 RETURN er.record_id AS record_id）===
+  真库写成功 ⇒ 恰 1 行；JSON fallback ⇒ 0 行 ⇒ 行数可作写确认判据
+
+=== E. _write_lancedb 是否真写（add_documents 是不是 async def）===
+  lib/agentic_rag/clients/lancedb_client.py:3787 add_documents 是 async def
+rc=0

@@ -1,0 +1,21 @@
+跑前 shasum:
+d0c18c189c8ac0090de9dd75c804b6357a65a0321b150383e663f31095627eca  backend/tests/integration/test_edges_dual_write_neo4j_t5b.py
+
+######## NC-H: 清理语句去掉 RETURN count ⇒ 回执断言必红（真库门）########
+  变异已落盘: 清理语句去掉 RETURN count
+-- 变异体 shasum(应与跑前不同) --
+a89eec6b40376c22d32b52121cc94f410c5b9c1d9f4e946638408086936db41e  backend/tests/integration/test_edges_dual_write_neo4j_t5b.py
+E   AssertionError: 清理语句没有回执 —— verifier 可能已转入 JSON fallback, 清理是空转, group_id='vault__t5bgate_e21d820b920a' 的节点可能滞留在共享 7692
+FAILED tests/integration/test_edges_dual_write_neo4j_t5b.py::test_run_query_writes_edge_rationale_to_7692
+========================= 1 failed, 16 passed in 0.61s =========================
+
+== 还原后 shasum(应与跑前同) ==
+d0c18c189c8ac0090de9dd75c804b6357a65a0321b150383e663f31095627eca  backend/tests/integration/test_edges_dual_write_neo4j_t5b.py
+== 还原后全绿 ==
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+============================== 17 passed in 0.58s ==============================
+
+== 7692 残留复核（负控可能留下节点）==
+  7692 全库 :EdgeRationale = 0 (期望 0)
+[EXIT trap] 已还原
+rc=0

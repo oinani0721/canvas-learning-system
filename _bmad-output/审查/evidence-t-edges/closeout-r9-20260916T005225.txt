@@ -1,0 +1,39 @@
+绑定 HEAD = 134cf5a4   PREV = 9b30179a
+
+######## 地盘门 ########
+backend/app/api/v1/endpoints/edges.py
+backend/tests/integration/test_edges_dual_write_neo4j_t5b.py
+-- 验伪锚(排除前后条数不同 = pathspec 真在起作用) --
+   全量 = 49  其中 _bmad-output/ = 47
+
+######## ruff ########
+files=2
+All checks passed!
+ruff_rc=0
+2 files already formatted
+fmt_rc=0
+-- 验伪锚 F821 --
+   F821_probe_rc=1（期望 1）
+
+######## openapi 未动 ########
+   (空 = 未动)
+
+######## 未 push 自证 ########
+   origin/card/t5-bugs 不存在 ⇒ 从未 push ✅
+
+######## 工作树代码面 ########
+   (空 = 干净)
+
+######## 本卡 commit 链 ########
+     1	134cf5a4 test(t5-b): 按 Codex r8 收三条 LOW——失败消息措辞 + 行号引用改符号名 [BATCH-2026-09-11-第十四批 / CARD-T-EDGES]
+     2	34935f62 fix(t5-b): 按 Codex r7 收四条 LOW + 补清理回执断言 [BATCH-2026-09-11-第十四批 / CARD-T-EDGES]
+     3	a6f68241 fix(t5-b): 按 Codex r6 修 M2 假门 + 补 try 边界门与 RETURN 耦合锚 [BATCH-2026-09-11-第十四批 / CARD-T-EDGES]
+     4	8ff37ea5 fix(t5-b): 修 H1——收窄 try + 写确认 + 可枚举的对端故障类型集 [BATCH-2026-09-11-第十四批 / CARD-T-EDGES]
+     5	a1147f19 docs(t5-b): 验收单 UAT-CARD-T-EDGES + 五轮 Codex 存档 + 裁判证据 [BATCH-2026-09-11-第十四批 / CARD-T-EDGES]
+     6	5bffce4f docs(t5-b): 按 Codex r5 L3 改掉 docstring 残余的「必然真连」表述 [BATCH-2026-09-11-第十四批 / CARD-T-EDGES]
+     7	7c63c5eb docs(t5-b): 按 Codex r4 L3 把 advisory 措辞收成「可能」并撤回第二道防线说法 [BATCH-2026-09-11-第十四批 / CARD-T-EDGES]
+     8	caf8180e docs(t5-b): 按 Codex r3 更正三处措辞——W4 对本文件只记账不拦 [BATCH-2026-09-11-第十四批 / CARD-T-EDGES]
+     9	c2e3d533 fix(t5-b): 按 Codex r2 补 scheme 白名单排除路由族 URI [BATCH-2026-09-11-第十四批 / CARD-T-EDGES]
+    10	9764cceb fix(t5-b): 按 Codex r1 整改 7692 端口白名单 + 惰性探针 [BATCH-2026-09-11-第十四批 / CARD-T-EDGES]
+    11	c9c73f57 fix(t5-b): edges Neo4j 改 run_query + except 补 AttributeError [BATCH-2026-09-11-第十四批 / CARD-T-EDGES]
+rc=0

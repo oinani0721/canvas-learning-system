@@ -1,0 +1,50 @@
+绑定工作树 edges.py shasum(跑前):
+71ed66f4b6bc99f6455b3d174b03247ec1cca4cb62a1faa7ec8e6fff7f113866  backend/app/api/v1/endpoints/edges.py
+
+######## NC-A: 把新收的 5 类从元组里删掉 ⇒ 门 1c 五格必红 ########
+  变异已落盘
+FAILED tests/integration/test_edges_dual_write_neo4j_t5b.py::test_每个被收进元组的对端故障类型都降级成_207[ServiceUnavailable]
+FAILED tests/integration/test_edges_dual_write_neo4j_t5b.py::test_每个被收进元组的对端故障类型都降级成_207[SessionExpired]
+FAILED tests/integration/test_edges_dual_write_neo4j_t5b.py::test_每个被收进元组的对端故障类型都降级成_207[TransientError]
+FAILED tests/integration/test_edges_dual_write_neo4j_t5b.py::test_每个被收进元组的对端故障类型都降级成_207[DatabaseError]
+FAILED tests/integration/test_edges_dual_write_neo4j_t5b.py::test_每个被收进元组的对端故障类型都降级成_207[RetryError]
+========================= 5 failed, 11 passed in 0.85s =========================
+
+######## NC-B: 删掉写确认 (if not rows) ⇒ 门 1e/1f 必红 ########
+  变异已落盘: 删掉写确认块
+INFO     app.api.v1.endpoints.edges:edges.py:202 Neo4j write succeeded for edge edge-t5b-fallback (record t5b-fallback-rec)
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/integration/test_edges_dual_write_neo4j_t5b.py::test_run_query_返回空行必须记成写失败而不是_200
+FAILED tests/integration/test_edges_dual_write_neo4j_t5b.py::test_真客户端在_json_fallback_态下不得报写成功
+========================= 2 failed, 14 passed in 0.83s =========================
+
+######## NC-C: 把 Neo4jError 加进元组(泛化) ⇒ 门 1d 的 ClientError/AuthError 必红 ########
+  变异已落盘
+E    +    where (<class 'RuntimeError'>, <class 'ConnectionError'>, <class 'TimeoutError'>, <class 'OSError'>, <class 'AttributeError'>, <class 'neo4j.exceptions.ServiceUnavailable'>, ...) = <module 'app.api.v1.endpoints.edges' from '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-bugs/backend/app/api/v1/endpoints/edges.py'>._NEO4J_WRITE_FAILURES
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/integration/test_edges_dual_write_neo4j_t5b.py::test_本进程与部署缺陷不得被伪装成对端写失败[ClientError]
+FAILED tests/integration/test_edges_dual_write_neo4j_t5b.py::test_本进程与部署缺陷不得被伪装成对端写失败[AuthError]
+========================= 2 failed, 14 passed in 0.77s =========================
+
+######## NC-D: 删掉 AttributeError ⇒ 原降级门必红 ########
+  变异已落盘
+WARNING  app.core.vault_scope:vault_scope.py:195 vault_scope: both vault_id and group_id missing, deriving ACTIVE vault group (fail-closed, no DEFAULT_GROUP_ID fallback)
+INFO     app.api.v1.endpoints.edges:edges.py:386 Recording edge rationale: edge=edge-t5b-001, Concept A --[is prerequisite for]--> Concept B (confidence=0.85)
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/integration/test_edges_dual_write_neo4j_t5b.py::test_neo4j_attribute_error_degrades_to_207
+========================= 1 failed, 15 passed in 0.73s =========================
+
+== 全部还原后 shasum(应与跑前逐字相同) ==
+71ed66f4b6bc99f6455b3d174b03247ec1cca4cb62a1faa7ec8e6fff7f113866  backend/app/api/v1/endpoints/edges.py
+== 还原后全绿复核 ==
+collected 16 items
+
+tests/integration/test_edges_dual_write_neo4j_t5b.py ................    [100%]
+
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+============================== 16 passed in 0.64s ==============================
+[EXIT trap] 已还原
+rc=0

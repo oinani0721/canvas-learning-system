@@ -1,0 +1,29 @@
+跑前 shasum:
+0bb956a3b34ee2a65364454ceeb8042994fa3b111530a5d6e8995e779e23bda1  backend/app/api/v1/endpoints/edges.py
+
+######## NC-E(验 M2 修法): 生产把 error 前缀去掉 ⇒ 1c 五格必红 ########
+  变异已落盘
+FAILED tests/integration/test_edges_dual_write_neo4j_t5b.py::test_每个被收进元组的对端故障类型都降级成_207[ServiceUnavailable]
+FAILED tests/integration/test_edges_dual_write_neo4j_t5b.py::test_每个被收进元组的对端故障类型都降级成_207[SessionExpired]
+FAILED tests/integration/test_edges_dual_write_neo4j_t5b.py::test_每个被收进元组的对端故障类型都降级成_207[TransientError]
+FAILED tests/integration/test_edges_dual_write_neo4j_t5b.py::test_每个被收进元组的对端故障类型都降级成_207[DatabaseError]
+FAILED tests/integration/test_edges_dual_write_neo4j_t5b.py::test_每个被收进元组的对端故障类型都降级成_207[RetryError]
+========================= 5 failed, 12 passed in 0.61s =========================
+
+######## NC-F(验 M3 新门): try 恢复成包整个函数体 ⇒ 1d2 必红 ########
+  变异已落盘: getter 被 try 包住
+FAILED tests/integration/test_edges_dual_write_neo4j_t5b.py::test_取_client_阶段的异常必须穿透成_500_而不是被降级
+========================= 1 failed, 16 passed in 0.55s =========================
+
+######## NC-G(验 RETURN 耦合锚): 删掉 Cypher 末尾的 RETURN ⇒ 耦合锚必红 ########
+  变异已落盘
+FAILED tests/integration/test_edges_dual_write_neo4j_t5b.py::test_neo4j_attribute_error_degrades_to_207
+FAILED tests/integration/test_edges_dual_write_neo4j_t5b.py::test_run_query_writes_edge_rationale_to_7692
+========================= 2 failed, 15 passed in 0.64s =========================
+
+== 还原后 shasum(应与跑前同) ==
+0bb956a3b34ee2a65364454ceeb8042994fa3b111530a5d6e8995e779e23bda1  backend/app/api/v1/endpoints/edges.py
+== 还原后全绿复核 ==
+============================== 17 passed in 0.58s ==============================
+[EXIT trap] 已还原
+rc=0
