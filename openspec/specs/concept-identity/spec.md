@@ -17,11 +17,12 @@ to `_CARD_STATES_FILE.with_suffix(".json.tmp")` and only then moved onto `_CARD_
 NOT open the destination path in write mode, so a failure occurring before the replace step leaves
 the destination's previous contents unchanged.
 
-The entire method body — the optional `pending` mutation, serialization, and both filesystem steps
-— MUST execute inside the `async with _card_states_lock:` critical section (a module-level
-`asyncio.Lock`). Applying the mutation inside the lock is what binds the return value to *this*
-call's `card_data`: a mutation applied outside the lock could be overwritten by a concurrent call,
-making `True` unable to testify to this call's data.
+All card-state access and I/O — reading the previous value, applying the optional `pending`
+mutation, serializing, and both filesystem steps — MUST execute inside the
+`async with _card_states_lock:` critical section (a module-level `asyncio.Lock`). Applying the
+mutation inside the lock is what binds the return value to *this* call's `card_data`: a mutation
+applied outside the lock could be overwritten by a concurrent call, making `True` unable to
+testify to this call's data.
 
 When `pending` is supplied and its vault scope cannot be resolved, the method MUST **fail closed**:
 `_card_states_try_set()` returns `False`, the concept is recorded in `self._unpersisted_concepts`,
@@ -37,8 +38,13 @@ previous value, or removing the key when there was none — so that one poisoned
 failing the full-snapshot write for every other concept; `OSError` MUST retain the in-memory value
 and only record the concept as unpersisted. Both paths MUST mark the pending concept dirty.
 
-On a successful replace the method MUST clear `self._unpersisted_concepts` in full — a full snapshot
-by construction persists every concept, so it heals all previously failed writes at once.
+On a successful replace the method MUST clear `self._unpersisted_concepts` in full, and it does so
+**unconditionally** — it does not check whether each cleared entry is actually represented in the
+snapshot that just landed. The cleared marker therefore attests only that every concept *currently
+held in memory* has been persisted. It does NOT restore a value that never reached memory (the
+fail-closed path) or that was rolled back out of it (the serialization-failure path); those values
+are absent from the projection and no later snapshot recovers them. Marker clearing is not data
+healing, and this spec MUST NOT be read as promising the latter.
 
 This file is a **projection/cache, not the FSRS scheduling truth source** (frontmatter is; CARD-G3-7).
 A `True` return therefore attests only that the projection reached disk. Callers MUST report
@@ -74,10 +80,13 @@ latter.
   restored, or the key is removed when there was none
 - **AND** the concept is recorded in `self._unpersisted_concepts`
 
-#### Scenario: A successful snapshot clears every outstanding dirty marker
+#### Scenario: A successful snapshot clears every dirty marker without restoring lost values
 
-- **GIVEN** `self._unpersisted_concepts` is non-empty from earlier failed writes
-- **WHEN** `await review_service._save_card_states()` completes successfully
+- **GIVEN** an earlier call rolled a serialization-failing `pending` back out of memory and
+  recorded its dirty key, so `self._unpersisted_concepts` is non-empty
+- **WHEN** a later `await review_service._save_card_states()` completes successfully for a
+  different, serializable concept
 - **THEN** the method returns `True`
-- **AND** `self._unpersisted_concepts` is empty, because the snapshot that just landed contains
-  every concept currently held in memory
+- **AND** `self._unpersisted_concepts` is empty — including the earlier concept's key
+- **AND** the persisted snapshot still does NOT contain the rolled-back value, because it was
+  never in memory to be serialized

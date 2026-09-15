@@ -1,0 +1,29 @@
+PREV(T4-B 末 commit)=02f59e5f9b52c1431f42c0bd59b3c7784f4d4cbe
+HEAD=af4793bc813faab4316471632a5b8cc542cce4a0
+
+=== (f) 地盘核：PREV..HEAD 排除 _bmad-output ===
+ backend/tests/regression/test_g3_7_truth_source.py |  2 +-
+ .../fr-exploration/A6-phase0-reference-card.md     | 18 ++--
+ openspec/specs/concept-identity/spec.md            | 95 +++++++++++++++-------
+ 3 files changed, 81 insertions(+), 34 deletions(-)
+
+文件集:
+  backend/tests/regression/test_g3_7_truth_source.py
+  docs/project-status/fr-exploration/A6-phase0-reference-card.md
+  openspec/specs/concept-identity/spec.md
+  ← 必须 ⊆ {spec.md, A6-phase0-reference-card.md, test_g3_7_truth_source.py}
+
+=== 验伪锚：去掉 exclude 后必须多出 _bmad-output 路径 ===
+12
+  ← 非 0 = 判据没跑空
+
+=== 越界自证（必须全空）===
+  backend/app                                        diff行数=       0
+  openspec/changes                                   diff行数=       0
+  backend/app/models                                 diff行数=       0
+  canvas-vault/.claude/scripts/fsrs_bridge.py        diff行数=       0
+  canvas-vault/.claude/scripts/decay_beta.py         diff行数=       0
+
+=== (g) test_g3_7 只 :14 一行 ===
+  -  ③ mastery grade / ④ save_card_state → 隔离（仅注释，无行为改动，不在本文件覆盖）。
+  +  ③ mastery grade / ④ _save_card_states → 隔离（仅注释，无行为改动，不在本文件覆盖）。

@@ -1,0 +1,6 @@
+=== r1 整改后重跑结构门 + validate ===
+### Requirement:=1  #### Scenario:=4  ### Scenario:=0
+裸 save_card_state（三文件）: spec=0 A6=0 test=0
+Purpose 未动=1
+Specification 'concept-identity' is valid
+validate_rc=0

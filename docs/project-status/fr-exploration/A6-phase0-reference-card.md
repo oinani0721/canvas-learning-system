@@ -103,8 +103,10 @@ openspec/specs/concept-identity/spec.md
 > `_save_card_states()` 已实现行为的 Requirement。
 
 **打开它能回答的问题**:
-- 审查新 PR 是否破坏 FSRS 投影落盘不变式（全量快照 / 临时文件+原子替换 / 作用域 fail-closed /
-  失败归一为 False 并回滚 / 成功清脏标记）→ 这里的 4 个 scenario 是 acceptance criteria
+- 审查新 PR 是否破坏 FSRS 投影落盘不变式 → 这里的 4 个 scenario 是 acceptance criteria：
+  全量快照 / 临时文件+原子替换 / 作用域解析失败 fail-closed（零文件操作）/
+  `try` 内失败归一为 `False`（⚠️ 两个分支不同：`TypeError`/`ValueError` **回滚**内存 mutation，
+  `OSError` **保留**内存值）/ 成功清空全部脏标记（清的是标记不是数据）
 - 将来的 `a6-phase1-*` 归档时 spec 累积在哪 → 同一个文件
 
 **⚠️ GOTCHA（仅提醒，不是任务）**:

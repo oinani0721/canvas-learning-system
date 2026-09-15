@@ -1,0 +1,16 @@
+# (d) 后绿 r2：archive 对**整改后**的 spec 仍不撞 SPEC_NO_REQUIREMENTS
+# SCRATCH=/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.LYB3YJ6uVs
+archive 前 sha=899cadc4bf647987d33ddd5cd8f0aee7eb5b7acc96eb6644b3043d16adfaa264  Requirement=1
+工作树 spec sha=899cadc4bf647987d33ddd5cd8f0aee7eb5b7acc96eb6644b3043d16adfaa264  ← 应与上行相同（scratch 是改后树的拷贝）
+Task status: No tasks
+
+Specs to update:
+  concept-identity: update
+Applying changes to openspec/specs/concept-identity/spec.md:
+  ~ 1 modified
+Totals: + 0, ~ 1, - 0, → 0
+Specs updated successfully.
+Change 'restate-concept-identity' archived as '2026-09-15-restate-concept-identity'.
+ARCHIVE_RC=0
+archive 后 sha=e16295c7ff463971c907781ca51fced720bbd12383aaa726d36fb95930820201  Requirement=1
+✓ sha 变了 = archive 真写了主 spec
