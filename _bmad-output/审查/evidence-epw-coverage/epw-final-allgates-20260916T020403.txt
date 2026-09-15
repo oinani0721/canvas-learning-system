@@ -1,0 +1,24 @@
+### 终稿全判据复核
+-- 矩阵门
+N1(新文件)=21 N2(已有 retry 测试)=0 T10-C=15 N3(退役)=1
+EPW-MATRIX-GATE: PASS
+-- 路径门（两份地盘文件）
+EPW-PATH-GATE: PASS
+  rc=0
+EPW-PATH-GATE: PASS
+  rc=0
+-- 三份测试
+================== 1 failed, 68 passed, 10 warnings in 1.59s ===================
+-- ruff
+All checks passed!
+  rc=0
+-- sentinel（全局，开工那枚）
+  backend/data/failed_edge_syncs.jsonl
+  backend/data/failed_writes.jsonl
+-- 真死信坟场
+  ls: backend/data/dead_letter_episodes.jsonl: No such file or directory
+  ls: data/dead_letter_episodes.jsonl: No such file or directory
+-- *.stderr* 入库数
+0
+-- grep CARD-EPW-COVERAGE in 38_6
+0

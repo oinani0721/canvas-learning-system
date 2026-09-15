@@ -97,13 +97,14 @@
 | `TestAC1TimeoutRetryAlignment::test_retry_backoff_base_is_1_second` | 模块级本地桩 `GRAPHITI_RETRY_BACKOFF_BASE == 1.0`（桩值 0.1 ⇒ 恒假） | **A（改写对齐真 worker）** | 改为断言 `EpisodeTask.backoff_seconds` 的**上界基数**：`retry_count=0` 时退避区间是 `[0, 1]`（patch `random.uniform` 捕获实参），与旧「base=1.0s」同值；名实一致（函数名仍是「退避基数为 1 秒」） |
 | `TestAC1TimeoutRetryAlignment::test_backoff_progression` | 模块级本地桩推导的 `[1.0, 2.0, 4.0]` 序列 | **A（改写对齐真 worker）** | 改为断言真 worker 的上界序列 `[1, 2, 4]`（`min(2**retry_count, 60)`），并钉 60s 封顶；与新文件 `test_backoff_upper_bound_series_is_1_2_4` 同源语义、互为双保险 |
 
-## 附录 B — 新文件用例清单（**33 个测试函数**，参数展开后 **47 条**，169 条 assert）
+## 附录 B — 新文件用例清单（**33 个测试函数**，参数展开后 **47 条**，171 条 assert）
 
 > ⚠️ 本节数字被 Codex 连纠两轮，现按**终稿**实测重写：
 > - r1 LOW-1：原先写「26 条」，那是写卡时的计划数、不是实测数；
 > - r3 LOW-3：r2 时写的「32 函数 / 46 条 / 161 assert」在 r3 加了一个用例后未同步。
 >
-> 终稿实测口径：`ast` 数出 **33** 个 `test_` 函数、**169** 条 `assert`；
+> 终稿实测口径：`ast` 数出 **33** 个 `test_` 函数、**171** 条 `assert`；
+> （⚠️ Codex r5 LOW-5：`169` 是 r4 时的数，r5 整改又加了断言没同步；本行为收工重取值。）
 > `pytest --collect-only` 收集到 **47** 条（3 个参数化用例分别展开 6/6/5）。
 > 三笔代码 commit 的用例数轨迹：31 →（r1 HIGH-1）32 →（r2 LOW-1）33。
 

@@ -1,0 +1,33 @@
+### 工作树未提交改动（应只有 _bmad-output）
+   M _bmad-output/审查/evidence-epw-coverage/coverage-matrix-20260915T121111.md
+   M _bmad-output/审查/evidence-epw-coverage/epw_negctl.py
+   M _bmad-output/审查/evidence-epw-coverage/epw_path_gate.py
+  ?? _bmad-output/审查/codex-review-CARD-EPW-COVERAGE-r5.md
+  ?? _bmad-output/审查/evidence-epw-coverage/epw-binding-final-20260916T020304.txt
+  ?? _bmad-output/审查/evidence-epw-coverage/epw-negctl-01-test_metrics_snapshot_covers_all_counters-20260916T015905.txt
+  ?? _bmad-output/审查/evidence-epw-coverage/epw-negctl-02-test_backoff_upper_bound_series_is_1_2_4-20260916T015905.txt
+  ?? _bmad-output/审查/evidence-epw-coverage/epw-negctl-03-test_backoff_upper_bound_is_monotonic_and_capped_at_60-20260916T015905.txt
+  ?? _bmad-output/审查/evidence-epw-coverage/epw-negctl-04-test_retry_actually_sleeps_backoff_seconds_series_2_4_8-20260916T015905.txt
+  ?? _bmad-output/审查/evidence-epw-coverage/epw-negctl-05-test_retry_actually_sleeps_backoff_seconds_series_2_4_8-20260916T015905.txt
+  ?? _bmad-output/审查/evidence-epw-coverage/epw-negctl-06-test_backoff_upper_bound_is_monotonic_and_capped_at_60-20260916T015905.txt
+  ?? _bmad-output/审查/evidence-epw-coverage/epw-negctl-07-test_dead_letter_written_on_retry_exhaustion-20260916T015905.txt
+  ?? _bmad-output/审查/evidence-epw-coverage/epw-negctl-08-test_backoff_upper_bound_is_monotonic_and_capped_at_60-20260916T015905.txt
+  ?? _bmad-output/审查/evidence-epw-coverage/epw-negctl-09-test_retry_warning_includes_attempt_number_and_error_message-20260916T015905.txt
+  ?? _bmad-output/审查/evidence-epw-coverage/epw-negctl-10-test_worker_metrics_to_dict_serializes_nonzero_depth_and_times-20260916T015905.txt
+  ?? _bmad-output/审查/evidence-epw-coverage/epw-negctl-11-test_success_after_one_retry-20260916T015905.txt
+  ?? _bmad-output/审查/evidence-epw-coverage/epw-negctl-12-test_retry_reuses_same_task_and_preserves_timestamps-20260916T015905.txt
+  ?? _bmad-output/审查/evidence-epw-coverage/epw-negctl-13-test_metrics_snapshot_covers_all_counters-20260916T015905.txt
+  ?? _bmad-output/审查/evidence-epw-coverage/epw-negctl-14-test_all_attempts_timeout_then_dead_letter-20260916T015905.txt
+  ?? _bmad-output/审查/evidence-epw-coverage/epw-negctl-15-test_deterministic_validation_error_skips_retry_and_dead_letters-20260916T015905.txt
+  非 _bmad-output 的改动数 = 0
+
+### 终审绑定（r5 审 SHA 99958aa8 → HEAD，排除 _bmad-output 必须为空）
+  行数 = 0（0 = 仍绑定）
+  验伪锚：去掉 exclude 的 _bmad-output 路径数 = 0
+
+### 地盘门（PREV → HEAD）
+backend/tests/unit/test_episode_worker_coverage_epw.py
+backend/tests/unit/test_story_38_6_scoring_reliability.py
+### backend/app 越界 = 0
+### 被测试文件是否与 commit 态逐字节一致（负控还原验证）
+  行数 = 0（0 = 负控已完全还原）

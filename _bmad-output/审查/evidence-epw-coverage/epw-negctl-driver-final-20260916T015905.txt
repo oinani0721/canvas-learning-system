@@ -1,0 +1,79 @@
+shasum A = 680675c3e1cd52f1f45f8317133453519529972eba1c4549d2f3ff5767497251
+跑前副本 = /tmp/epw-negctl-orig.q5_j98ot
+
+── 负控 (1) 成功入队→处理 + metrics 计数 → test_metrics_snapshot_covers_all_counters
+   对照输入: 'assert snapshot["success_rate"] == 0.2' → 'assert snapshot["success_rate"] == 0.9'
+   rc=1 该用例出现在 FAILED 行=True
+
+── 负控 (2) 退避上界序列 → test_backoff_upper_bound_series_is_1_2_4
+   对照输入: 'assert observed_bounds == [(0, 1), (0, 2), (0, 4)]' → 'assert observed_bounds == [(0, 1), (0, 2), (0, 8)]'
+   rc=1 该用例出现在 FAILED 行=True
+
+── 负控 (2) 退避单调 + 60s 封顶 → test_backoff_upper_bound_is_monotonic_and_capped_at_60
+   对照输入: 'assert bounds[:7] == [1, 2, 4, 8, 16, 32, 60]' → 'assert bounds[:7] == [1, 2, 4, 8, 16, 32, 64]'
+   rc=1 该用例出现在 FAILED 行=True
+
+── 负控 (2'a) 实际重试的抽样区间下界 = 0（full jitter 未被削半，Codex r2 MEDIUM-1） → test_retry_actually_sleeps_backoff_seconds_series_2_4_8
+   对照输入: 'assert uniform_calls == [(0, 2), (0, 4), (0, 8)], (' → 'assert uniform_calls == [(1, 2), (0, 4), (0, 8)], ('
+   rc=1 该用例出现在 FAILED 行=True
+
+── 负控 (2'b) 传给 sleep 的就是 random.uniform 的返回值（哨兵；Codex r1 HIGH-1 + r3 MEDIUM-1） → test_retry_actually_sleeps_backoff_seconds_series_2_4_8
+   对照输入: 'assert slept_with == sentinels, (' → 'assert slept_with == sentinels[::-1], ('
+   rc=1 该用例出现在 FAILED 行=True
+
+── 负控 (2'd) 属性不得对抽样结果做下限抬升（Codex r4 LOW-1） → test_backoff_upper_bound_is_monotonic_and_capped_at_60
+   对照输入: 'assert tiny_returned == [0.001, 0.001, 0.001], (' → 'assert tiny_returned == [0.1, 0.1, 0.1], ('
+   rc=1 该用例出现在 FAILED 行=True
+
+── 负控 (3') 死信计数精确等于 1（Codex r4 LOW-3） → test_dead_letter_written_on_retry_exhaustion
+   对照输入: '这里补一条精确计数断言，让矩阵 #2 的「`episodes_dead_lettered == 1`」说法与实测一致。\n    assert w.metrics.episodes_dead_lettered == 1' → '这里补一条精确计数断言，让矩阵 #2 的「`episodes_dead_lettered == 1`」说法与实测一致。\n    assert w.metrics.episodes_dead_lettered == 2'
+   rc=1 该用例出现在 FAILED 行=True
+
+── 负控 (2'c) 属性原样返回抽样值、不得二次截断（Codex r3 LOW-1） → test_backoff_upper_bound_is_monotonic_and_capped_at_60
+   对照输入: 'assert returned == bounds, f"' → 'assert returned == [b + 1 for b in bounds], f"'
+   rc=1 该用例出现在 FAILED 行=True
+
+── 负控 (G-4) 重试 warning 逐条带 attempt i/3（Codex r2 LOW-4） → test_retry_warning_includes_attempt_number_and_error_message
+   对照输入: 'assert [f"attempt {i}/3" in warnings[i - 1] for i in (1, 2, 3)] == [True, True, True], (' → 'assert [f"attempt {i}/3" in warnings[i - 1] for i in (1, 2, 3)] == [True, False, True], ('
+   rc=1 该用例出现在 FAILED 行=True
+
+── 负控 (F-4) to_dict 对非零 queue_depth / 耗时的序列化（Codex r2 LOW-1） → test_worker_metrics_to_dict_serializes_nonzero_depth_and_times
+   对照输入: 'assert d["avg_processing_time_ms"] == 1000.0, "avg = (0.5+1.5)/2 * 1000"' → 'assert d["avg_processing_time_ms"] == 999.0, "avg = (0.5+1.5)/2 * 1000"'
+   rc=1 该用例出现在 FAILED 行=True
+
+── 负控 (1') 重试成功也记 info（Codex r1 MEDIUM-1） → test_success_after_one_retry
+   对照输入: 'assert len(processed_infos) == 1, f"重试成功后必须记一条 info，实测 {infos}"' → 'assert len(processed_infos) == 2, f"重试成功后必须记一条 info，实测 {infos}"'
+   rc=1 该用例出现在 FAILED 行=True
+
+── 负控 (I') 死信落的是原对象本身（Codex r1 MEDIUM-2） → test_retry_reuses_same_task_and_preserves_timestamps
+   对照输入: 'assert store_spy.call_args.args[0] is task, "落进死信的必须是**原对象本身**，不是它的副本"' → 'assert store_spy.call_args.args[0] is not task, "落进死信的必须是**原对象本身**，不是它的副本"'
+   rc=1 该用例出现在 FAILED 行=True
+
+── 负控 (1'') metrics 的 queue_depth 值（Codex r1 LOW-2） → test_metrics_snapshot_covers_all_counters
+   对照输入: 'assert snapshot["queue_depth"] == 0, "两条都处理完后队列必须排空"' → 'assert snapshot["queue_depth"] == 1, "两条都处理完后队列必须排空"'
+   rc=1 该用例出现在 FAILED 行=True
+
+── 负控 (3) 重试耗尽 → 落死信 → test_all_attempts_timeout_then_dead_letter
+   对照输入: 'assert mock_graphiti.add_episode.await_count == 4, "初次 + 3 次重试"' → 'assert mock_graphiti.add_episode.await_count == 5, "初次 + 3 次重试"'
+   rc=1 该用例出现在 FAILED 行=True
+
+── 负控 (4) 确定性校验错跳过重试 → test_deterministic_validation_error_skips_retry_and_dead_letters
+   对照输入: 'assert mock_graphiti.add_episode.await_count == 1, "确定性错误不得重试"' → 'assert mock_graphiti.add_episode.await_count == 4, "确定性错误不得重试"'
+   rc=1 该用例出现在 FAILED 行=True
+
+── 负控 (5) 死信隐私：默认不落全文 → test_dead_letter_omits_full_body_by_default
+   对照输入: 'assert "episode_body_full" not in record' → 'assert "episode_body_full" in record'
+   rc=1 该用例出现在 FAILED 行=True
+
+── 负控 (6) DeadLetterStore.count → test_dead_letter_store_count_matches_appended_lines
+   对照输入: 'assert store.count() == 1' → 'assert store.count() == 2'
+   rc=1 该用例出现在 FAILED 行=True
+
+── 负控 (6) _redact 脱敏 → test_redact_scrubs_known_secret_patterns
+   对照输入: 'assert "***REDACTED***" in scrubbed' → 'assert "***REDACTED***" not in scrubbed'
+   rc=1 该用例出现在 FAILED 行=True
+
+还原后整跑 rc=0
+shasum B = 680675c3e1cd52f1f45f8317133453519529972eba1c4549d2f3ff5767497251
+
+EPW-NEGCTL-GATE: PASS 

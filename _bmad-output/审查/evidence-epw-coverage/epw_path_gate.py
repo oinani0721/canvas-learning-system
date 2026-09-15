@@ -22,9 +22,14 @@ rc=0 且打印 ``EPW-PATH-GATE: PASS`` 为通过。
   - 漏传 kwarg / 位置参数形态；
   - 直调 ``get_episode_worker`` / ``cleanup_episode_worker``（含 ``import … as`` 别名，
     **不限来源模块**——从 ``app.services.memory_service`` 转出的同名符号也算，Codex r2 LOW-2）；
-  - 单个字符串常量里出现完整危险片段（裸字面量、``str("…")`` 包一层、f-string 内嵌整段）；
+  - 单个字符串常量里出现危险**路径前缀** ``data/dead_letter``（裸字面量、``str("…")`` 包一层、
+    f-string 内嵌整段都命中）。⚠️ 片段表在 Codex r5 LOW-2 后**收窄**：原先还认裸文件名
+    ``dead_letter_episodes.jsonl``，那会把 ``str(tmp_path / "dead_letter_episodes.jsonl")``
+    这种**落在临时目录内**的写法误杀；
   - **纯字面量表达式**（不依赖任何变量），无论常量怎么切分拼接 —— 由「值必须依赖变量」
-    这条正向规则统一覆盖（Codex r3 LOW-2 → r4 LOW-2 重写）。
+    这条正向规则统一覆盖（Codex r3 LOW-2 → r4 LOW-2 重写），
+    且包装名连 ``from pathlib import Path as P`` 这类**别名**一并算作包装、不算来源变量
+    （Codex r5 LOW-1）。
 
 **仍未封**（本门是必要条件，不是充分条件）：
   ① 值经**变量中转**且那个变量本身就是危险路径：``p = "data/dead_letter_episodes.jsonl"``
@@ -80,11 +85,27 @@ for n in ast.walk(t):
             elif a.name == "DeadLetterStore":
                 store_aliases.add(target)
 
-#: 出现在死信路径表达式**任何位置**的这些字面量片段都判危险（含 `str("…")` 包一层、f-string 等）。
-DANGEROUS_PATH_FRAGMENTS = ("dead_letter_episodes.jsonl", "data/dead_letter")
+#: 危险的**相对路径前缀**。⚠️ Codex r5 LOW-2：这里原本还有裸文件名 `dead_letter_episodes.jsonl`，
+#: 于是 `str(tmp_path / "dead_letter_episodes.jsonl")`（明明落在临时目录内）被**误杀**。
+#: 收窄成只认路径前缀后：`"data/dead_letter…"` 仍 FAIL，而 tmp_path 派生的同名文件 PASS。
+DANGEROUS_PATH_FRAGMENTS = ("data/dead_letter",)
 
 #: 判「值是否依赖变量」时要忽略的名字——它们是包装/转换，不携带路径来源。
+#: ⚠️ Codex r5 LOW-1：`from pathlib import Path as P` 之后 `P(...)` 里的 `P` 也是包装名，
+#: 原先没解析别名，于是 `P("data/" + "dead_" + …)` 被当成「依赖变量」而放行。别名在下方补收。
 _PATH_WRAPPER_NAMES = {"str", "os", "Path", "pathlib", "PurePath", "fspath"}
+
+# Codex r5 LOW-1：把 `from pathlib import Path as P` / `import pathlib as pl` 的别名也算作包装名，
+# 否则包装别名会被误当成「路径来源变量」，让纯字面量表达式蒙混过关。
+for _n in ast.walk(t):
+    if isinstance(_n, ast.ImportFrom) and (_n.module or "") in ("pathlib", "os", "os.path"):
+        for _a in _n.names:
+            _PATH_WRAPPER_NAMES.add(_a.asname or _a.name)
+    elif isinstance(_n, ast.Import):
+        for _a in _n.names:
+            if _a.name in ("pathlib", "os", "os.path"):
+                _PATH_WRAPPER_NAMES.add(_a.asname or _a.name.split(".")[0])
+
 
 
 def _path_value_is_safe(node):

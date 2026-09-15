@@ -178,7 +178,7 @@ print(f"shasum A = {sha_a}")
 print(f"跑前副本 = {backup}")
 
 failures = []
-for group, testname, old, mutated in MUTATIONS:
+for idx, (group, testname, old, mutated) in enumerate(MUTATIONS, start=1):
     if original.count(old) != 1:
         print(f"❌ 原文在文件中出现 {original.count(old)} 次（需恰好 1 次）: {old!r}")
         failures.append(group)
@@ -190,7 +190,9 @@ for group, testname, old, mutated in MUTATIONS:
     print(f"\n── 负控 {group} → {testname}")
     print(f"   对照输入: {old!r} → {mutated!r}")
     print(f"   rc={rc} 该用例出现在 FAILED 行={named_red}")
-    (ev / f"epw-negctl-{testname}-{TS}.txt").write_text(
+    # Codex r5 LOW-4：同一个用例可能被多条负控打中，文件名只带用例名会互相覆盖，
+    # 结果「18 个驱动块」只剩 14 份详细红档。加序号使每条负控各留一份现场。
+    (ev / f"epw-negctl-{idx:02d}-{testname}-{TS}.txt").write_text(
         f"# 负控 {group}\n# 对照输入: {old!r} → {mutated!r}\n{out}\nrc={rc}\n", encoding="utf-8"
     )
     # 还原：从**跑前 cp 副本**回写（⛔ 不用 git show / git checkout / git stash）
