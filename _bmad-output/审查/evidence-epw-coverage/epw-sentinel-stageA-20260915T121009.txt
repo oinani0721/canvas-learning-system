@@ -1,0 +1,13 @@
+# Stage A —— 只跑本卡归因面三文件后的 sentinel（期望 0 行）
+行数=0
+
+# 验伪锚：证这条门会发火（探针命中 backend/data/.gitignore 的 *.jsonl，当场删除）
+探针后行数=1（必 >=1）
+backend/data/.epw-probe.jsonl
+删探针后行数=0（必回 0）
+
+# 真死信坟场仍不存在？
+ls: backend/data/dead_letter_episodes.jsonl: No such file or directory
+ls: data/dead_letter_episodes.jsonl: No such file or directory
+# 探针确实被 gitignore 吞（证明 (h) 的 git diff 抓不到它，本门是唯一防线）
+backend/data/.gitignore:5:*.jsonl	backend/data/dead_letter_episodes.jsonl

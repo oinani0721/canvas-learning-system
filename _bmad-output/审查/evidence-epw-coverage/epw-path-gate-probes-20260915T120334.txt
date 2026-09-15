@@ -1,0 +1,29 @@
+### 验伪锚 1：漏传 kwarg + 直调单例 ⇒ 必 FAIL rc=1（❌ 2 行）
+worker=1 deadletter=0 singleton=1 imports_memory_service=False strict_ms=True
+❌ /tmp/epw-path-probe.jLjZSf:2 [<module>] GraphitiEpisodeWorker( 缺 kwarg dead_letter_path=（位置参数形态也判 FAIL，改写成 kwarg）
+❌ /tmp/epw-path-probe.jLjZSf:3 [<module>] get_episode_worker( 单例工厂恒用默认死信路径，禁直调
+EPW-PATH-GATE: FAIL
+rc=1
+
+### 验伪锚 2：import memory_service 且无 patch 串，strict ⇒ 必 FAIL rc=1（❌ 1 行）
+worker=1 deadletter=0 singleton=0 imports_memory_service=True strict_ms=True
+❌ /tmp/epw-path-probe.jLjZSf: import 了 memory_service 却没 patch get_episode_worker（间接入口：memory_service 的 4 处 get_episode_worker() 调用）
+EPW-PATH-GATE: FAIL
+rc=1
+
+### 验伪锚 2b：同一探针不带 --strict-ms ⇒ 只 ADVISORY、rc=0
+worker=1 deadletter=0 singleton=0 imports_memory_service=True strict_ms=False
+⚠️ ADVISORY(登记不阻断，归因见 scope) /tmp/epw-path-probe.jLjZSf: import 了 memory_service 却没 patch get_episode_worker（间接入口：memory_service 的 4 处 get_episode_worker() 调用）
+EPW-PATH-GATE: PASS
+rc=0
+
+### 验伪锚 3：DeadLetterStore 位置参数形态（非 kwarg）⇒ 必 FAIL
+worker=0 deadletter=1 singleton=0 imports_memory_service=False strict_ms=False
+❌ /tmp/epw-path-probe.jLjZSf:2 [<module>] DeadLetterStore( 缺 kwarg file_path=（位置参数形态也判 FAIL，改写成 kwarg）
+EPW-PATH-GATE: FAIL
+rc=1
+
+### 验伪锚 4：真实参照文件 test_episode_worker_retry.py（kwarg 形态）⇒ 必 PASS
+worker=1 deadletter=0 singleton=0 imports_memory_service=False strict_ms=False
+EPW-PATH-GATE: PASS
+rc=0

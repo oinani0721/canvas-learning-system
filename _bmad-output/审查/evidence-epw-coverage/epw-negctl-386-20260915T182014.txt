@@ -1,0 +1,15 @@
+# 38_6 两条改写用例的负控（形态同 (f)：编辑断言期望值 → 必红 → cp 副本还原 → 必绿）
+shasum A = c55451223956de55a088f455f007da5dd3db20cc61057060395946bfc5a27cdb
+
+## 负控 1：test_retry_backoff_base_is_1_second 的区间期望 [0,1] → [0,2]
+E   assert [(0, 1)] == [(0, 2)]
+FAILED tests/unit/test_story_38_6_scoring_reliability.py::TestAC1TimeoutRetryAlignment::test_retry_backoff_base_is_1_second
+
+## 负控 2：test_backoff_progression 的上界序列 [1,2,4] → [1,2,5]
+E   assert [1, 2, 4] == [1, 2, 5]
+FAILED tests/unit/test_story_38_6_scoring_reliability.py::TestAC1TimeoutRetryAlignment::test_backoff_progression
+
+## 还原后必绿
+======================== 4 passed, 10 warnings in 0.79s ========================
+shasum B = c55451223956de55a088f455f007da5dd3db20cc61057060395946bfc5a27cdb
+A == B 逐字节同 ✅

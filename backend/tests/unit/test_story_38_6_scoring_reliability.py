@@ -20,7 +20,7 @@ from app.services.agent_service import (
     MEMORY_WRITE_TIMEOUT,
     _record_failed_write,
 )
-from app.services.episode_worker import GraphitiEpisodeWorker
+from app.services.episode_worker import EpisodeTask, GraphitiEpisodeWorker
 from app.services.memory_service import MemoryService
 
 # Constants removed from memory_service; define locally for test compatibility
@@ -29,37 +29,56 @@ GRAPHITI_RETRY_BACKOFF_BASE = 0.1
 
 
 class TestAC1TimeoutRetryAlignment:
-    """AC-1: Outer timeout must be >= sum of inner retries + margin."""
+    """AC-1: Outer timeout must be >= sum of inner retries + margin.
+
+    第十四批 T10-D (2026-09-15): CARD-RED-C1 给本类三条用例打了
+    `xfail(strict=True)`，reason 写死了承接卡的 ID —— 它们断言的是本文件模块级**本地桩**
+    (`GRAPHITI_JSON_WRITE_TIMEOUT` / `GRAPHITI_RETRY_BACKOFF_BASE`)，而 `59586af1`
+    (2026-03-26) 已把这两个常量连同 `MemoryService._write_to_graphiti_json_with_retry`
+    一起删除（`backend/app` 下两符号 0 命中），故永远不会自然 XPASS。本卡按测试侧
+    决策程序去标（⛔ 全程不改 `backend/app`）：
+
+      - `test_retry_backoff_base_is_1_second` / `test_backoff_progression`
+        → **改写对齐真 worker**（`EpisodeTask.backoff_seconds`）。旧「定值 1s/2s/4s」
+        的等价不变量是 full jitter 的**上界**序列 1/2/4，名实一致，去标后 PASS。
+      - `test_inner_per_attempt_timeout_increased`
+        → **删除**。现 worker 对 `add_episode` 不加任何超时包装
+        （`_process_episode` 直接 await；全文件 `asyncio.wait_for` 只用于连通性探针与
+        `stop()` 排空），该语义**无等价**，不在测试侧伪造一个出来。退役登记见
+        `_bmad-output/审查/evidence-epw-coverage/coverage-matrix-*.md` 附录 A。
+
+    重试 / 退避 / 死信 / 计数 / 隐私的完整等价覆盖在
+    `backend/tests/unit/test_episode_worker_coverage_epw.py`。
+    """
 
     def test_outer_timeout_is_at_least_10_seconds(self):
         """[P0] MEMORY_WRITE_TIMEOUT must be >= 10s per AC-1."""
         assert MEMORY_WRITE_TIMEOUT >= 10.0
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "59586af1 (2026-03-26) 删除 GRAPHITI_JSON_WRITE_TIMEOUT / GRAPHITI_RETRY_BACKOFF_BASE"
-            " 及 MemoryService 内的 JSON dual-write 重试路径；backend/app 下两符号实测 0 命中，"
-            "本用例断言的是本文件模块级本地桩而非生产值。重试语义归 GraphitiEpisodeWorker，"
-            "等价覆盖缺口归 CARD-EPW-COVERAGE（第十四批，登记）。[CARD-RED-C1]"
-        ),
-    )
-    def test_inner_per_attempt_timeout_increased(self):
-        """[P0] GRAPHITI_JSON_WRITE_TIMEOUT must be > 0.5s (old value)."""
-        assert GRAPHITI_JSON_WRITE_TIMEOUT >= 2.0
-
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "59586af1 (2026-03-26) 删除 GRAPHITI_RETRY_BACKOFF_BASE 及其消费方"
-            " MemoryService._write_to_graphiti_json_with_retry；backend/app 实测 0 命中，"
-            "本用例断言的是本文件模块级本地桩而非生产值。退避语义归 GraphitiEpisodeWorker，"
-            "等价覆盖缺口归 CARD-EPW-COVERAGE（第十四批，登记）。[CARD-RED-C1]"
-        ),
-    )
     def test_retry_backoff_base_is_1_second(self):
-        """[P0] Retry backoff base must be 1.0s for 1s/2s/4s progression."""
-        assert GRAPHITI_RETRY_BACKOFF_BASE == 1.0
+        """[P0] 退避基数 1.0s —— 现实现的等价物是 full jitter 的**上界基数**。
+
+        `EpisodeTask.backoff_seconds` = `random.uniform(0, min(2**retry_count, 60))`，
+        `retry_count=0` 时区间为 [0, 1]：基数仍是 1 秒，只是由定值变成上界。把
+        `random.uniform` 换成「返回上界」的桩即可对公式做确定性断言，而不是对抖动采样猜区间。
+        """
+        seen: list[tuple[float, float]] = []
+
+        def capture(low, high):
+            seen.append((low, high))
+            return high
+
+        with patch("app.services.episode_worker.random.uniform", side_effect=capture):
+            delay = EpisodeTask(
+                name="backoff_base",
+                episode_body="{}",
+                group_id="vault:cs_61b",
+                source_description="test_story_38_6",
+                retry_count=0,
+            ).backoff_seconds
+
+        assert seen == [(0, 1)], f"首次重试的退避区间必须是 [0, 1]，实测 {seen}"
+        assert delay == 1.0
 
     def test_outer_timeout_covers_inner_total(self):
         """
@@ -76,21 +95,34 @@ class TestAC1TimeoutRetryAlignment:
             f"Outer timeout ({MEMORY_WRITE_TIMEOUT}s) < inner total ({inner_total}s)"
         )
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "59586af1 (2026-03-26) 删除 GRAPHITI_RETRY_BACKOFF_BASE 及 1s/2s/4s 退避序列的生产实现；"
-            "backend/app 实测 0 命中，本用例推导的序列源自本文件模块级本地桩而非生产值。"
-            "退避语义归 GraphitiEpisodeWorker，等价覆盖缺口归 CARD-EPW-COVERAGE（第十四批，登记）。"
-            "[CARD-RED-C1]"
-        ),
-    )
     def test_backoff_progression(self):
-        """[P1] Backoff sequence should be 1s, 2s, 4s."""
-        for attempt in range(3):
-            delay = GRAPHITI_RETRY_BACKOFF_BASE * (2**attempt)
-            expected = [1.0, 2.0, 4.0][attempt]
-            assert delay == expected, f"Attempt {attempt}: expected {expected}s, got {delay}s"
+        """[P1] 退避序列 1s/2s/4s —— 现实现的等价物是**上界**序列，并新增 60s 封顶。
+
+        旧实现 `base * 2**attempt` 是定值；现实现每次抽 `[0, min(2**retry_count, 60)]`，
+        上界仍走 1/2/4，但超过 2**6 后恒为 60（旧实现没有封顶，这是迁移新增的保护）。
+        """
+        bounds: list[float] = []
+
+        def capture(low, high):
+            bounds.append(high)
+            return high
+
+        def _task(retry_count: int) -> EpisodeTask:
+            return EpisodeTask(
+                name=f"backoff_{retry_count}",
+                episode_body="{}",
+                group_id="vault:cs_61b",
+                source_description="test_story_38_6",
+                retry_count=retry_count,
+            )
+
+        with patch("app.services.episode_worker.random.uniform", side_effect=capture):
+            for attempt in range(3):
+                _task(attempt).backoff_seconds
+            _task(10).backoff_seconds
+
+        assert bounds[:3] == [1, 2, 4], f"上界序列必须是 1/2/4，实测 {bounds[:3]}"
+        assert bounds[3] == 60, "2**10 = 1024 必须被封顶到 60s"
 
 
 class TestAC2FailedWriteTracking:
