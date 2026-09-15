@@ -1,0 +1,29 @@
+=== 实测更正：--verify-judges 的真实耗时（验收单写「约 40 分钟」是估算，未实测） ===
+缘起：独立多视角审计报「证据时间戳只支持约 23 分钟」。本节用文件时间戳精确重算。
+
+--- 输入（精确路径，不用 glob——本卡已两次踩到 glob 撞名） ---
+  tee  = _bmad-output/审查/evidence-g29f1-canary/verify-judges-20260915T182632.txt
+  json = _bmad-output/审查/evidence-g29f1-canary/canary-verify-judges-20260915T102632Z.json
+
+--- 时间戳 ---
+  起跑（tee 文件名内嵌，本地时区） = 2026-09-15 18:26:32
+  报告 timestamp（UTC，脚本自报）  = 20260915T102632Z  → 本地 18:26:32（一致）
+  tee  mtime  = 2026-09-15 18:49:39
+  json mtime  = 2026-09-15 18:49:37
+
+  起跑 → tee 落盘 = 1387 秒 = 23.1 分钟
+  起跑 → json 报告 落盘 = 1385 秒 = 23.1 分钟
+
+--- 交叉核对：报告里各变异是否有自报耗时 ---
+  报告顶层键 = ['all_killed', 'baseline_verdicts', 'coverage', 'mutations', 'timestamp']
+  mutations 条数 = 12
+  单条 mutation 的键 = ['applied', 'breaks', 'mutation', 'target_judges', 'verdict', 'what']
+  → 报告内**没有**逐条耗时字段，故只能用文件时间戳推算（上面那组）。
+
+=== 结论 ===
+  ❌ 验收单 (d) 段写的「耗时约 40 分钟」是**估算**，无实测依据。
+  ✅ 实测：起跑 18:26:32 → 报告落盘 18:49:37 = **1385 秒 ≈ 23.1 分钟**。
+  ⇒ 该数字须改为 23 分钟，并注明依据是文件时间戳（起跑时刻取自 tee 文件名 + 报告自报 timestamp，二者一致）。
+  ⚠️ 顺带记一次同型踩坑：本次核对时用 "$EV"/verify-judges-*.txt 取文件，
+     该 glob 把 verify-judges-**assert**-*.txt 一并吃进来（第三次踩 glob 撞名）。
+     教训：判据取文件一律用**精确路径**，或先断言 glob 匹配数 = 1。

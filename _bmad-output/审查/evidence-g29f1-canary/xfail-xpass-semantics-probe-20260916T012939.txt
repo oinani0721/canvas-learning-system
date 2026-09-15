@@ -1,0 +1,49 @@
+=== ⛔ 实测更正：xfail/XPASS 对 nodeid 红集的可见性（推翻本卡先前结论） ===
+缘起：本卡先前在验收单写「xfail→XPASS 的翻转不产生 FAILED/ERROR 行，对红集不可见」，
+      并据此给主 session 下了通则。独立多视角审计（140 agents）指出该结论方向反了。本节实测。
+
+--- 实验 1：四态最小对照（pytest pytest 9.0.2） ---
+用例设计（scratchpad 临时文件，未碰项目任何测试）：
+  A  @pytest.mark.xfail(strict=True)  + assert True   ← 缺陷锁解开的形态
+  B  @pytest.mark.xfail(strict=False) + assert True
+  C  @pytest.mark.xfail(strict=True)  + assert False  ← 锁仍然成立
+  D  （无标记）                        + assert True   ← 删标记后的形态
+
+FXx.                                                                     [100%]
+=================================== FAILURES ===================================
+_________________________ test_strict_lock_but_passes __________________________
+[XPASS(strict)] strict lock
+=========================== short test summary info ============================
+FAILED ../../../../../../../../../private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t1-lance/96797ef9-e562-476a-8adb-1521a5767c27/scratchpad/xfailprobe/test_xfail_semantics.py::test_strict_lock_but_passes
+1 failed, 1 passed, 1 xfailed, 1 xpassed in 0.07s
+
+--- 判读 ---
+  A strict=True + 通过  → 状态字符 F → **FAILED**，出现在 short summary 的 FAILED 行 ⇒ **进 nodeid 红集**
+  B strict=False + 通过 → 状态字符 X → xpassed，不出现在 FAILED 行        ⇒ 不进红集
+  C xfail + 确实失败    → 状态字符 x → xfailed                            ⇒ 不进红集
+  D 无标记 + 通过       → 状态字符 . → passed                              ⇒ 不进红集
+
+--- 实验 2：仓内真实反例（F2 自己的存档，非本卡构造） ---
+  文件: _bmad-output/审查/evidence-g29f2/g29f2-xpass-20260914T195936.txt
+  [XPASS(strict)] 行数            = 6
+  ^ 同一跑里的 FAILED nodeid 行数 = 12
+  汇总行                          =  12 failed, 4 passed, 62 warnings in 1.99s 
+  该跑 xpassed 计数               = 0  ← 0 = strict XPASS 没被记成 xpassed，而是 FAILED
+
+--- 实验 3：本卡两跑的实际形态 ---
+  unit-start-20260915T121159.txt: xpass 命中=0 | 汇总== 35 failed, 5102 passed, 48 skipped, 17 xfailed, 231 warnings, 29 errors in 4
+  unit-end-20260915T184953.txt: xpass 命中=0 | 汇总== 35 failed, 5102 passed, 48 skipped, 17 xfailed, 231 warnings, 29 errors in 2
+  单测文件自述（T1-A 地盘，只读）:
+46:   标记已删, 它们现在红了就是**真回归**, 不是"缺陷仍在"。
+439:# 不带 xfail 把守。F2 改成最长前缀优先后缺陷闭合，标记已删。
+
+=== 结论（更正先前的错误通则） ===
+  ❌ 旧结论（错）：「xfail→XPASS 翻转不产生 FAILED/ERROR 行，对红集不可见」
+     ⇒ 据此给主 session 的通则「不能用红集变了没判断是否解锁过 xfail」**方向反了**。
+  ✅ 正确机制：
+     · strict=True 的 XPASS → pytest 记 **FAILED** → **会进** nodeid 红集（实验 1-A + 实验 2 真实反例）
+     · strict=False 的 XPASS → 记 xpassed → 不进红集
+  ✅ 本卡两侧红集相同的**真实原因**：F2 是把 xfail 标记**删掉**了（不是留着让它变 XPASS）——
+     基线侧记 xfailed、车道侧记 passed，两侧都不进红集，故集合相同。本卡两跑 xpassed 计数为 0 佐证。
+  ⇒ 对主 session 的正确提醒：解锁 xfail 在红集里**可不可见取决于解锁方式**——
+     删标记 ⇒ 不可见；保留 strict 标记而代码修好 ⇒ **可见且表现为新增 FAILED**（勿误判为本卡引入新红）。

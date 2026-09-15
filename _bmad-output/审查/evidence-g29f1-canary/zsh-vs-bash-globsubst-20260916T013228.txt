@@ -1,0 +1,15 @@
+=== 实测：zsh vs bash 对「变量展开结果是否继续做 glob」的差异 ===
+（缘起：Codex r3 L4 指出我在验收单实测更正 ⑤ 里写的「bash 同理」是错的。本节验证它。）
+
+--- zsh（本 session 的 shell；zsh --version: zsh 5.9 (arm64-apple-darwin25.0)） ---
+  变量 f=unit-start-*.txt
+  ls "$D"/$f    → ls: _bmad-output/审查/evidence-g29f1-canary/unit-start-*.txt: No such file or directory
+  ls "$D"/${~f} → _bmad-output/审查/evidence-g29f1-canary/unit-start-20260915T121159.txt
+
+--- bash（--noprofile --norc；GNU bash, version 3.2.57(1)-release (arm64-apple-darwin25)） ---
+  ls "$D"/$f    → _bmad-output/审查/evidence-g29f1-canary/unit-start-20260915T121159.txt
+
+=== 判定 ===
+  zsh : $f 不做 glob（报 No such file），必须写 ${~f}
+  bash: $f **会**做 glob（直接列出真实文件名）
+  ⇒ 「bash 同理」**不成立**。这是 zsh 特有行为（GLOB_SUBST 默认关闭），Codex r3 L4 成立，验收单须删该括注。
