@@ -1,0 +1,2 @@
+backend/lib/agentic_rag/clients/lancedb_client.py: 去 docstring 后 AST 相同 = True
+backend/tests/unit/test_lancedb_cross_vault_drop_g29f1.py: 去 docstring 后 AST 相同 = True

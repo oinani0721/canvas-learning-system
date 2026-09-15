@@ -1,0 +1,14 @@
+=== 该 nodeid 单跑 ×5（同一棵树 675bfd70）===
+  run1: ======================== 1 passed, 10 warnings in 1.31s ========================
+  run2: ======================== 1 passed, 10 warnings in 1.09s ========================
+  run3: ======================== 1 passed, 10 warnings in 1.05s ========================
+  run4: ======================== 1 passed, 10 warnings in 1.00s ========================
+  run5: ======================== 1 passed, 10 warnings in 1.21s ========================
+
+=== 本卡改动与该测试的关联（应为 0）===
+  test_candidate_service 提到 lancedb 的次数: 0
+  本卡改的两个文件被 candidate 链路 import 的次数: backend/app/services/candidate_service.py:0
+0（无 candidate_service.py 或零命中）
+
+=== 本卡五次全量目录级跑的历史（同一 nodeid）===
+(eval):19: no matches found: unit-close-final-*
