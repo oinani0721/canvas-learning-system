@@ -1188,3 +1188,81 @@ def test_rec_truncated_archive_is_rejected_not_silently_accepted(tmp_path: Path)
     partial.write_text("  [M1] 变异说明\n        t1 → rc=1 ⇒ KILLED (x)\n", encoding="utf-8")
     with pytest.raises(rec.ReconcileError, match="KILLED 行"):
         rec.parse_stdout("g32cb", partial.read_text(encoding="utf-8"))
+
+
+def test_h1_expect_msg_must_not_be_read_from_the_test_name(tmp_path: Path) -> None:
+    """⛔ `expect_msg` 不得从**测试名**里读出来（Codex round-9 HIGH）。
+
+    ⚠️ 这是第六次动这条线，但**换了问法**：前五次都在问「哪一种切分是真的」，每次给一条
+    新的 nodeid 形态启发式，然后被下一条反例打掉。实测证明测试名可以是**任意字符串**
+    ⇒ 每个 ` - ` 切点原则上都是合法读法 ⇒ 行级的「唯一性」判据要么漏、要么把几乎所有行
+    都判成不可判定。现在只问：**我正要下的那个结论，对所有还说得通的读法是否都成立**。
+
+    攻击：`FAILED …::test_x[case] - EXPECT]tail - AssertionError: OTHER`
+    —— 解析器切成 nodeid=`…test_x[case]` + reason=`EXPECT]tail - …`，`EXPECT`「命中」；
+    但真相可能是有个**名字叫** `test_x[case] - EXPECT]tail` 的测试，它的 reason 是
+    `AssertionError: OTHER`，**根本不含** EXPECT。
+    """
+    gate = _write_gate(tmp_path, _GATE_DUP)
+    out = _out(
+        ["FAILED tests/gate.py::test_x[case] - EXPECT]tail - AssertionError: OTHER"],
+        [f"{gate}:2: AssertionError: OTHER"],
+    )
+    verdict, why = mki.kill_identity(1, out, "tests/gate.py::test_x", "EXPECT", gate_file=gate, require_gate_file=True)
+    assert verdict == "HARNESS-ERROR", f"⛔ 假 KILLED：EXPECT 可能来自测试名，实得 {verdict}（{why}）"
+    assert "测试名" in why, f"诊断必须点明是「可能来自测试名」，实得 {why}"
+
+
+@pytest.mark.parametrize(
+    ("summary", "declared", "expect"),
+    [
+        ("FAILED tests/gate.py::test_x - AssertionError: boom", "tests/gate.py::test_x", "boom"),
+        ("FAILED tests/gate.py::test_x[case] - AssertionError: boom", "tests/gate.py::test_x", "boom"),
+        ("FAILED tests/gate.py::test_x[c] - AssertionError: EXPECT here", "tests/gate.py::test_x", "EXPECT"),
+    ],
+)
+def test_pc_expect_msg_from_reason_still_killed(tmp_path: Path, summary: str, declared: str, expect: str) -> None:
+    """⛔ 验伪锚：`expect_msg` 确实在 reason 里时仍判 KILLED（这条收紧没有误伤正常面）。"""
+    gate = _write_gate(tmp_path, _GATE_DUP)
+    out = _out([summary], [f"{gate}:2: AssertionError: X"])
+    verdict, why = mki.kill_identity(1, out, declared, expect, gate_file=gate, require_gate_file=True)
+    assert verdict == "KILLED", f"正控被误伤: {summary!r} 实得 {verdict}（{why}）"
+
+
+def test_rec_per_item_line_anchored_against_diagnostic_injection() -> None:
+    """⛔ 逐条正则必须**整行锚定** —— why 里塞 `rc=1 ⇒ KILLED` 就能污染计数（round-9 MEDIUM）。
+
+    why 由被测进程的断言消息拼出、**内容它可控**，所以判据不能只靠「附近有没有某个片段」，
+    必须靠**这一行整体长什么样**。污染的后果是**合法**存档反而对账假红。
+    """
+    rec = _rec()
+    tee = (
+        "  a → rc=1 ⇒ SURVIVED (红在别的断言上: 实见 ['diagnostic rc=1 ⇒ KILLED'])\n"
+        "\n  0/1 KILLED (绑定: 消息 + 失败位置在门文件内; x)\n  KILLED-UNBOUND: 0 (x)\n  SURVIVED: 1\n"
+        "  HARNESS-ERROR: 0 (x)\n  ANCHOR-ERROR: 0 (x)\n  SYNTAX-INVALID: 0 (x)\n"
+        "  六档之和: 1 (应 = 变异条数 1) ✓\n"
+    )
+    per = rec.parse_stdout("g32cb", tee).per_item
+    assert per["KILLED"] == 0 and per["SURVIVED"] == 1, f"注入的 `rc=1 ⇒ KILLED` 不得计数，实得 {per}"
+
+
+def test_rec_readonly_whitelist_rejects_attribute_chains(tmp_path: Path) -> None:
+    """⛔ 白名单只放**单层**属性 —— `.copy.__self__` 能把原列表拿回来改（round-9 MEDIUM）。"""
+    rec = _rec()
+    probe = tmp_path / "probe.py"
+    orig = rec.SCRIPTS
+    rec.SCRIPTS = tmp_path
+    try:
+        for tail in (
+            "\nMUTATIONS.copy.__self__.append(4)\n",
+            "\nMUTATIONS.__class__.__imul__(MUTATIONS, 2)\n",
+            "\nMUTATIONS.count.__self__.clear()\n",
+        ):
+            probe.write_text("MUTATIONS = [1, 2, 3]" + tail, encoding="utf-8")
+            with pytest.raises(rec.ReconcileError, match="单层"):
+                rec.ast_mutation_count("probe.py")
+        # ⛔ 验伪锚：单层只读访问仍放行
+        probe.write_text("MUTATIONS = [1, 2, 3]\n_n = MUTATIONS.count(1)\n_c = MUTATIONS.copy()\n", encoding="utf-8")
+        assert rec.ast_mutation_count("probe.py") == 3
+    finally:
+        rec.SCRIPTS = orig

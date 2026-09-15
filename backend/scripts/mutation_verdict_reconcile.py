@@ -190,13 +190,24 @@ def ast_mutation_count(source_name: str) -> int:
                 raise ReconcileError(
                     f"{source_name}:{node.lineno} 用 `MUTATIONS[...] = …` / `del MUTATIONS[...]` 改表，分母数不出来"
                 )
-        if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id == "MUTATIONS":
-            # ⛔ 白名单之外一律抛（黑名单每漏一个方法就是一个静默少算的口子）。
-            if node.attr not in _LIST_READONLY_ATTRS:
-                raise ReconcileError(
-                    f"{source_name}:{node.lineno} 用 `MUTATIONS.{node.attr}(...)` 访问/改表 —— "
-                    f"不在只读白名单里，分母数不出来"
-                )
+        if isinstance(node, ast.Attribute):
+            # ⛔ 顺着 `.a.b.c` 链找到根 Name；根是 MUTATIONS 就必须**整条链恰好一层**且那一层
+            # 在只读白名单里（Codex round-9 MEDIUM）。上一版只看**紧邻**那一层 ⇒
+            # `MUTATIONS.copy.__self__.append(4)` 里紧邻的是白名单里的 `copy`，链再往下
+            # 经 `.__self__` 把原列表拿回来改 —— 白名单被绕开。任何**两层以上**的属性链
+            # 本函数都数不出来，一律抛。
+            chain: list[str] = []
+            cur: ast.AST = node
+            while isinstance(cur, ast.Attribute):
+                chain.append(cur.attr)
+                cur = cur.value
+            if isinstance(cur, ast.Name) and cur.id == "MUTATIONS":
+                chain.reverse()
+                if len(chain) != 1 or chain[0] not in _LIST_READONLY_ATTRS:
+                    raise ReconcileError(
+                        f"{source_name}:{node.lineno} 用 `MUTATIONS.{'.'.join(chain)}` 访问/改表 —— "
+                        f"不是只读白名单里的**单层**属性，分母数不出来"
+                    )
 
     if total is None:
         raise ReconcileError(f"{source_name} 里找不到模块级 `MUTATIONS = [...]`，分母无法独立现算")
@@ -244,14 +255,19 @@ _B_SUM = re.compile(r"^六档之和: (?P<t>\d+) \(应 = (?P<m>\d+)\)", re.M)
 _VERDICT_ALT = "KILLED-UNBOUND|KILLED|" + _TAIL_FIVE.split("|", 1)[1]
 
 #: `g32cb` / `g32ccr1`：`«缩进»<nodeid> → rc=<n> ⇒ <档名> (<why>)`。
-_PER_ITEM_CB = re.compile(rf"rc=-?\d+ ⇒ (?P<name>{_VERDICT_ALT})(?![\w-])")
+#: ⛔ **必须整行锚定**（`^…$` + `re.M`，Codex round-9 MEDIUM）：只锚 `rc=<n> ⇒` 仍可被
+#: **why 里的诊断文字**注入 —— 断言消息里塞一句 `diagnostic rc=1 ⇒ KILLED` 就能让 9 条被
+#: 数成 10 条，于是**合法**存档反而对账假红。why 由被测进程拼出、内容它可控，所以判据
+#: 不能只靠「附近有没有某个片段」，必须靠**这一行整体长什么样**。
+#: 形态：行首若干空格 + nodeid（无空白）+ ` → rc=<n> ⇒ <档名>` + 空格/`(`/行尾。
+_PER_ITEM_CB = re.compile(rf"^\s*\S+ → rc=-?\d+ ⇒ (?P<name>{_VERDICT_ALT})(?=[ (]|$)", re.M)
 
 #: `g32b`：`[<tag>] <gate> → <档名> …（本卡只读其源码实测 `_label` 的构造）。
 #: ⛔ 它的形态与上面**完全不同**（`→` 不是 `⇒`、无 `rc=`），而且 `SURVIVED` 的标签里
 #: **自带一个 `⇒`**（`SURVIVED ⇒ 假门 (…)`）—— 拿 `⇒` 去锚它会同时漏数和错数。
 #: 上一版只有一条 `⇒` 正则 ⇒ 对 g32b **零命中** ⇒ 整个「聚合 vs 逐条」这一维**静默**
 #: 降级成「未核」（Codex round-9 提问②指的就是这个面）。
-_PER_ITEM_B = re.compile(rf"^\[[^\]]+\] .+ → (?P<name>{_VERDICT_ALT})(?![\w-])", re.M)
+_PER_ITEM_B = re.compile(rf"^\[[^\]]+\] \S+ → (?P<name>{_VERDICT_ALT})(?=[ (]|$)", re.M)
 
 
 def _one(rx: re.Pattern[str], text: str, what: str, suite: str) -> re.Match[str]:

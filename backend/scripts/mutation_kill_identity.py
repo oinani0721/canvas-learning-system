@@ -845,6 +845,53 @@ def _loc_identity(out: str, nodeid: str, gate_file: str | Path, expect_loc: str)
     return False, f"位置不符: 期望 {expect_loc}, 实见 {tokens}"
 
 
+def expect_msg_may_come_from_nodeid(out: str, nodeid: str, expect_msg: str) -> list[str]:
+    r"""`expect_msg` 有没有可能是从**测试名**里读出来的（而不是 reason）？返回可疑读法。
+
+    ⛔⛔ **这是第六次动 H1 那条线，但换了问法** —— 前五次都在问「哪一种切分是真的」，
+    每次给一条新的 nodeid 形态启发式，然后被下一条反例打掉：
+      整串第一个 `[` → 最后一个 `::` 之后 → 存在量化 → 前缀含 `::` →（round-8 收紧后回滚）。
+    2026-09-15 实测（`evidence-mutkill-r3/probe-nodeid-whitespace-*.txt`）证明**测试名可以是
+    任意字符串**（`globals()["任意名字"] = f` 就能被收集）⇒ **每一个** ` - ` 切点在原则上
+    都是合法读法 ⇒ 一个「哪种切分唯一」的行级判据要么漏、要么把几乎所有行都判成不可判定。
+    ⇒ 这条路走不通，别再加第六种启发式。
+
+    **换的问法**：不问「哪种读法是真的」，只问「我正要下的那个结论，是不是对**所有**
+    还说得通的读法都成立」。本函数只管 `expect_msg` 这一维的**具体**危害形态：
+      解析器把 `FAILED <path>::test_x[case] - EXPECT]tail - AssertionError: OTHER` 切成
+      nodeid=`…test_x[case]` + reason=`EXPECT]tail - AssertionError: OTHER`，于是 `EXPECT`
+      「命中」了 —— 但真相可能是有个**名字叫** `test_x[case] - EXPECT]tail` 的测试，
+      它的 reason 是 `AssertionError: OTHER`，**根本不含** `EXPECT`。
+      `expect_msg` 是从**名字**里读出来的 ⇒ **假 KILLED**（Codex round-9 HIGH）。
+
+    判据：在**更靠后**的 ` - ` 切点上还有别的读法，其 nodeid 仍命中目标门、且
+    **nodeid 里含 `expect_msg` 而它自己的 reason 不含** ⇒ 这个「命中」不可归属 ⇒ 调用方
+    判 HARNESS-ERROR。⚠️ 只看比解析结果**更长**的读法（整行无 reason 那种不算）——
+    否则任何参数化行都会因为「整行里当然含它」而被误判。
+    """
+    region = summary_region(out)
+    if region is None:
+        return []
+    suspect: list[str] = []
+    for ln in region.splitlines():
+        if not _FAILEDISH_RE.match(ln):
+            continue
+        m = _FAILED_RE.match(ln)
+        if m is None or not gate_hit(nodeid, {m.group("nodeid")}):
+            continue
+        body = ln.split(" ", 1)[1] if " " in ln else ln
+        parsed_len = len(m.group("nodeid"))
+        for i in range(parsed_len + 1, len(body)):
+            if not body.startswith(" - ", i):
+                continue
+            alt_nodeid, alt_reason = body[:i], body[i + 3 :]
+            if not gate_hit(nodeid, {alt_nodeid}):
+                continue
+            if expect_msg in alt_nodeid and expect_msg not in alt_reason:
+                suspect.append(alt_nodeid)
+    return suspect
+
+
 def kill_identity(
     rc: int,
     out: str,
@@ -939,6 +986,15 @@ def kill_identity(
             return ("HARNESS-ERROR" if why.startswith("HARNESS:") else "SURVIVED"), why
 
     if expect_msg is not None:
+        # ⛔ round-12（Codex round-9 HIGH）：先问「这个『命中』会不会其实来自**测试名**」。
+        # 测试名可以是任意字符串 ⇒ 行级的「哪种切分唯一」判不出来；但「我要下的这个结论
+        # 是否对所有还说得通的读法都成立」判得出来。见 `expect_msg_may_come_from_nodeid`。
+        if from_name := expect_msg_may_come_from_nodeid(out, nodeid, expect_msg):
+            return "HARNESS-ERROR", (
+                f"expect_msg={expect_msg!r} 可能是从**测试名**里读出来的而不是 reason —— "
+                f"还有这些同样命中目标门的读法把它算进了 nodeid: {from_name[:3]} "
+                f"（⛔ 名字可含任意字符，摘要行分不开；要分开只能靠 expect_loc）"
+            )
         gate_reasons = [r for nid, r in failed_reasons(out) if gate_hit(nodeid, {nid})]
         hits = [r for r in gate_reasons if expect_msg in r]
         if not hits:
