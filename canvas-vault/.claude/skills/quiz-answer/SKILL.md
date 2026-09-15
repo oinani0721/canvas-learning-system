@@ -432,7 +432,10 @@ def _harness_tree(vault_dir):
     except ImportError:
         #: ⛔ 缺库即拒写。**不要**在这里加任何「先试着读一下」的降级 —— 那正是被
         #: 删掉的那段, 它的每一个版本都留下过「采用一棵 PyYAML 不会给出的树」的反例。
-        raise SystemExit("[quiz-answer] PyYAML 不可用 — harness_tree 指向哪棵树不可证, fail-closed 拒写 — 逐行扫描猜不出 YAML 的换行与语法上下文, 猜错的代价是把学习事件静静地绑到另一棵 harness 树上, 故本写点在缺库时一律不写。请在跑 quiz-answer 的那个解释器里装上 PyYAML (pip install pyyaml) 后重跑")
+        #: ⛔ 报错里必须带上**这个进程自己的解释器路径**与一条绑定它的安装命令
+        #: (Codex round-6 LOW): 只说「请装 PyYAML」时, 用户照抄 `pip install pyyaml`
+        #: 很可能装进了另一个环境 —— 装成功了、却还是被拒, 而消息里没有任何线索。
+        raise SystemExit(f"[quiz-answer] PyYAML 不可用 — harness_tree 指向哪棵树不可证, fail-closed 拒写 — 逐行扫描猜不出 YAML 的换行与语法上下文, 猜错的代价是把学习事件静静地绑到另一棵 harness 树上, 故本写点在缺库时一律不写。跑本写点的解释器是 {sys.executable} ; 请照抄这一条装(它绑定的正是上面那个解释器, 不要换成裸 pip): {sys.executable} -m pip install pyyaml")
     except Exception as _ye:
         raise SystemExit(f"[quiz-answer] .canvas-config.yaml 不是合法 YAML ({_ye}) — harness_tree 指向哪棵树不可证, fail-closed 拒写 — 请人工修复 {_cfg_p}")
     if not _tree:

@@ -1,7 +1,7 @@
 # UAT · CARD-HARNESS-TREE-PARSE-REDO（`_harness_tree` 解析整体重做）
 
 > 批次 `[BATCH-2026-09-11-第十四批 / CARD-HARNESS-TREE-PARSE-REDO]` · 车道 `card-t7-skills`（分支 `card/t7-skills`）
-> 基线 `08100483` → 代码 commit **`f7f10be4`**（round-1 审过的中间态）→ **`4d21bc9b`**（按 round-1 结论整改）→ **`e844d6a1`**（按 round-2 结论 + 自查整改）→ **`34451227`**（按 round-3 结论整改）→ **`4eeaeaa6`**（按 round-4 结论整改，最终 HEAD）· 未 push
+> 基线 `08100483` → 代码 commit **`f7f10be4`**（round-1 审过的中间态）→ **`4d21bc9b`**（按 round-1 结论整改）→ **`e844d6a1`**（按 round-2 结论 + 自查整改）→ **`34451227`**（按 round-3 结论整改）→ **`4eeaeaa6`**（按 round-4 结论整改）→ **`faaeb005`**（用户裁定「缺库即拒写」）→ **r7 待提交**（按 Codex r6 + 变异测试补门，最终 HEAD）· 未 push
 > ⚠️ 卡文 (k) 写「单独 commit」；实际两个代码 commit —— Codex round-1 报 MEDIUM+LOW，按 D-15「审后再改代码必再送一轮」整改后必然产生第二个。两个 commit 都只落在同三文件。
 > 证据目录 `_bmad-output/审查/evidence-harness-tree/`（全部 `.txt`，无 `*.stderr*` 入库）
 
@@ -10,7 +10,7 @@
 ## 一 本卡做了什么
 
 `canvas-vault/.claude/skills/quiz-answer/SKILL.md` 的 `_harness_tree`（`:370-460`）由**逐行正则**改为
-**`yaml.safe_load` 优先 + 缺库降级只收一种规范写法 + `realpath` 取代 `normpath`**，根治
+**`yaml.safe_load` 优先 + `realpath` 取代 `normpath` + 缺 PyYAML 即拒写**，根治
 `UAT-CARD-G3-3-R2-writer-boundary-2026-09-08.md` §七 round-5 登记的三条同族 MEDIUM：
 
 | 代号 | 旧实现的实际行为（本卡先红实测） | 重做后 |
@@ -141,7 +141,7 @@ F1 `:1183`/`:1202`；测试文件 7447 行。
 | 3 | 规范行后跟**续行** ⇒ 拒（PyYAML 会折叠成一个值，逐行扫描只看到前半） | Codex r1 MEDIUM | 同上 `_await_cont` |
 | 4 | 任何含 `harness_tree` 而非那一种写法的行（含流式映射）⇒ 拒；判据从「像键的正则」改为「这一行提到了这个词」 | Codex r1 MEDIUM | 同上 |
 | 5 | `os.path.realpath(..., strict=True)`，`OSError` 落到既有「树不存在」拒因 | Codex r1 LOW② | `SKILL.md` realpath 处 |
-| 6 | docstring：三条分界**限 PyYAML 在的那条分支**；降级分支只有「无键 ⇒ 回退 / 其余 ⇒ fail-closed」两态 | Codex r1 Q2 | `_harness_tree` docstring |
+| 6 | docstring：三条分界**限 PyYAML 在的那条分支**；降级分支只有「无键 ⇒ 回退 / 其余 ⇒ fail-closed」两态 | Codex r1 Q2 | `_harness_tree` docstring ⚠️ **已被 §五-septies 取代**：降级分支整段删除，缺库只剩「拒写」一种结局 |
 | 7 | 降级门控制组补「先弄坏缺省回退目标 + 断言账本恰 1 行」 | Codex r1 LOW① | `..degraded_noncanonical_is_fail_closed` |
 | 8 | 降级 fail-closed 门 +3 结构参数（U+0085 / 续行 / 流式映射） | Codex r1 MEDIUM | 同上 |
 | 9 | 探针 `finally` 改为哨兵记录原模块对象后按原样放回，不再只 `del` | Codex r1 Q5 | `_run_writer_no_yaml_at_harness_tree` |
@@ -374,6 +374,10 @@ ConstructorError / ParserError / ScannerError），而本函数跳过非目标�
 ⛔ **建议主 session 直接裁第 2 条**：复核方已指出「按此前提，提前保守拒绝不会损失一次原本
 能完成的写入」，代价只是缺库机器上的错误信息从「vault 归属无法绑定」变成「请装 PyYAML」。
 
+> ⚠️ **本段的建议理由随后被实测证伪、但结论被用户采纳** —— 见 §五-septies。那句「不会损失
+> 任何一次原本能完成的写入」是**假的**（三向对照有反例）。用户是在知道真实代价之后仍裁定
+> 走拒写的，理由换成了「可见的拒绝好过静默地绑错一棵树」。**引用本段时必须连这条更正一起引。**
+
 ### 五-quinquies.5　round-5 全量判据
 
 | 判据 | 结果 |
@@ -428,14 +432,209 @@ Codex round-5（绑最终 HEAD `4eeaeaa6`）：**BLOCKER 0 / HIGH 0**，MEDIUM 2
 
 ---
 
+## 五-septies　用户裁定后的新增范围：缺 PyYAML 即拒写（commit `faaeb005`）
+
+> ⛔ 本节记的不只是「做了什么」，还有**一条我给用户的论据被实测证伪**。两者在文档里分量不同：
+> 「未证明」读起来像「大概没事」，「已证伪」是「已知会这样」。这一条属后者。
+
+### 五-septies.1　裁定与它的前提
+
+我在 round-5 收尾时向用户建议「缺 PyYAML 时干脆拒写」，论据是复核方认可的一句话：
+**「保守拒不会损失任何一次原本能完成的写入」**（因为缺库时更下游的 vault 归属绑定本来也会
+fail-closed）。用户据此裁定「是」。
+
+**在据此删代码之前，我用一个 9 agent 的工作流独立验证了这个前提 —— 它被推翻了。**
+
+四路独立判定（静态 / 真跑 / 调用图 / 专门反驳），2/4 支持、2 条反例。裁定意见：
+**全称形式为假，条件形式为真**。
+
+### 五-septies.2　三向对照实测（我本人复现，非转述）
+
+复现脚本已入库：`_bmad-output/审查/evidence-harness-tree/repro-counterexample-20260914.py`。
+解释器 = `/opt/homebrew/bin/python3 -S`（py3.14，`find_spec("yaml") is None`，零足迹，
+**不是** PYTHONPATH 注入 —— 复核方指出注入法在某些树布局下可被 `sys.path.insert` 遮蔽）。
+
+| | 解释器 | `harness_tree` | rc | 账本 | mastery |
+|---|---|---|---|---|---|
+| **A** | 真缺 PyYAML | → 本仓 `b85a168a` 旧树 | **0** | **1 行** | 0.5 → **0.57** |
+| **B** | 真缺 PyYAML | 无（回退到当前树） | 1 | 0 | 不变 |
+| **C** | 有 PyYAML | 无（回退到当前树） | 0 | 1 行 | 0.5 → 0.57 |
+
+A vs B 把因果钉在 **harness_tree** 上；B vs C 把因果钉在 **PyYAML** 上；C 证明夹具本身有效
+（B 的失败不是夹具坏了）。旧树 `b85a168a` 的 `validate_learning_events.py` 实测 `import yaml`
+计数 = **0**，其 `_vault_id_of` 是正则白名单解析。
+
+⇒ **「缺库时下游本来也会拒」不是写点的性质，而是 `harness_tree` 选中那棵树的性质。**
+而 `harness_tree` 是部署侧可写的运行期自由变量，本函数在拒绝的那一刻，结构上无从知道
+自己是不是丢掉了一次本来能完成的写入。
+
+### 五-septies.3　用户在知道代价后的重新裁定
+
+我带着这个更正回去问，用户重新裁定：**仍走拒写**。理由（我在选项里写明、用户选定）：
+本函数一以贯之的取向是「**可见的拒绝**好过**静默地绑错一棵树**」，且前者可恢复（装上
+PyYAML 就好）、后者用户无从察觉。
+
+⛔ **此后任何地方都不得再引用「保守拒无代价」。** 正确表述：「代价 = A 那一类场景，
+已实测、可复现（脚本已入库）、可恢复。」
+
+### 五-septies.4　代码改动
+
+`_degraded_scan` **整段删除**，`except ImportError` 直接 `raise SystemExit` 点名 PyYAML。
+净减 **134 行**（`_harness_tree` 从 224 行降到 90 行）。PyYAML 可用时的行为**零变化**。
+代价与三向实测已逐字写进该函数 docstring —— 谁想把降级加回来，得先读那一段。
+
+### 五-septies.5　⚠️ 顺带抓到一个假门（这是本节第二件要紧事）
+
+删掉降级解析后，原来那道 60 参数的核心不变量门（「缺库分支要么与 PyYAML 同值、要么更窄」）
+**一条参数不改就全绿** —— 因为降级恒拒 ⇒ 每条都落进「更窄」那一档 ⇒ **无论实现对错都绿**。
+
+这正是我在 round-5 §五-sexies 里担心过、并专门让复核方查的那件事，这次真的发生了。
+**一个曾经能抓东西的门，会因为被守护对象的形态改变而悄悄退化成恒真** —— 而它表面上还是绿的。
+
+换成更强也更简单的断言：**缺库时对任何 config 都不返回任何树，一律抛且点名 PyYAML**。
+负控⑥（还原到 `4eeaeaa6`，含降级解析）⇒ **12 条变红**，证明新门非 no-op。
+存档 `evidence-harness-tree/negctl-r6-failclosed-*.txt`。
+
+### 五-septies.6　门重构（4 → 2 + 1 重写）
+
+| 门 | 处置 |
+|---|---|
+| `..._degraded_canonical_form_still_works` | 删，语义反转 ⇒ 新 `..._no_pyyaml_refuses_canonical_form_accepted_cost`：连最规范写法也拒；**配对控制组**（有 PyYAML ⇒ rc=0 + 账本 1 行）证明这份 config 本来写得成 ⇒ **把我们明知接受的代价钉在测试里** |
+| `..._degraded_absent_key_still_falls_back` | 删，语义反转 ⇒ 新 `..._no_pyyaml_refuses_even_without_the_key`：老布局 vault 在缺库机器上也拒。理由：「有没有这个键」本身就得解析 YAML 才判得出，缺库时不可证 |
+| `..._degraded_noncanonical_is_fail_closed`（9 参数） | 折叠 —— 其形态已全部在 60 参数 unit 层覆盖（此声称已列进 r6 prompt 请复核方独立核对） |
+| `..._degraded_unicode_space_is_fail_closed_too` | 同上折叠 |
+| `..._degraded_never_diverges_from_yaml`（60 参数） | 重写为 `..._no_pyyaml_never_returns_a_tree`，断言换强；参数表逐条保留（它们仍是「曾经真的让两条分支分叉过的形态」的回归表） |
+
+### 五-septies.7　行为变化（用户可见）
+
+**老布局 vault（没写 `harness_tree` 键）在缺 PyYAML 的机器上，从「照常写入」变成「拒写并
+要求装 PyYAML」。** 这是本次裁定里对用户最可见的一半，已由
+`..._no_pyyaml_refuses_even_without_the_key` 钉住。
+
+⚠️ 另有一条**不属本卡、但用户会看到**的事实（callgraph 路发现，静态）：缺库时净效果**不是
+「什么都没写」** —— Step 3 早已由 Claude 用 Edit 把分数写进检验白板（`status:
+scored_pending_node_update`），主写点块之前还会建 `.locks` 锁文件。所以缺库用户看到的是
+**一张记了分但节点没更新的半态白板**。登记，另立卡评估。
+
+### 五-septies.8　判据
+
+| 判据 | 结果 |
+|---|---|
+| `-k harness_tree` | **84 passed**（16 既有 + 6 M + 2 新端到端 + 60 不变量） |
+| 整文件 | **233 passed** |
+| `tests/skills` | **546 passed** |
+| ruff | `check_rc=0`；format 先红（本卡引入）⇒ `ruff format` 后两项均 0 |
+| 地盘核 | 仍恰三文件；`backend/app` 0 |
+| 负控⑥ | 还原到 `4eeaeaa6` ⇒ 新不变量门 **12 条红** |
+| 不可见字符 | 本卡引入 0 |
+| 指纹 | SKILL.md `5c7df579…`→`f52a5946…`；`B229` `f7536167…`→`8d5ce8d4…` |
+
+---
+
+## 五-octies　变异测试：13/25 存活，门被逼着补了一轮（2026-09-15）
+
+> r5 的 LOW-1 说「要钉住判据还活着，需要的是变异测试」；我当时判「另立卡」，Codex r4 说
+> 「补参数就行」。**实测下来两边各对一半**：3 条哨兵参数确实杀掉了 3 组判据的删除（r5 做了），
+> 但**光靠加参数猜不出夹具形状的缺口** —— 那要系统性变异才看得见。这次补上了。
+
+### 五-octies.1　怎么跑的
+
+12 个 agent、25 个「似是而非的错误实现」，五个角度各提一批（偷偷把降级加回来 / 静默回退 /
+消息不对 / 部分拒绝 / 改有库那一侧），逐个在**内存里**打到 `_harness_tree` 上再跑门。
+⛔ 全程不碰仓库文件（当时 Codex r6 正在只读审这棵树）。
+
+**结果：25 个变异体，13 个存活，0 个无效。** 每个存活者都附了**阳性对照**（证明该分支不是
+死代码，喂对输入它真的会开口）与**反向证伪**（例如把环境变量指向真树后复跑，60 条参数
+**全部**返回那棵树）。
+
+⚠️ 如实记：`parallel[5]` 那一组 agent 卡死（6 次尝试无进展），**还有一批变异体没评上**；
+综合那一步也因登录刷新失败没跑成，裁定由我本人补做。所以「25 个」不是穷举。
+
+### 五-octies.2　存活的根因：不是参数不够，是**夹具形状太窄**
+
+那 60 条 config 彼此太像，于是整类错误实现从门下面走过去：
+
+| 根因 | 哪一类实现能躲过 |
+|---|---|
+| 每条都带同一个引号注释头 | 「只解析简单 config」的降级 |
+| 目标路径**没有一条真实存在** | 「先试着解析、树真存在就用」——`realpath(strict=True)` 恒 OSError，这条判据在门内**结构上跑不到** |
+| 每条都**有** config 文件 | 「文件不存在就静默回退」 |
+| 父目录从来不是一棵树 | 「父目录是树就用它」——而那正是 docstring 明说的**老布局常态** |
+| 门从不设环境变量 | 一条 `*_HARNESS_TREE` 后门，**完全绕过 config** |
+| 每条都用全新 tmp | 「把上次解析结果缓存进 sidecar」——用户改了 config 而系统装作没看见 |
+| 探针只造一种缺库 | `sys.modules["yaml"]=None` 抛的是 `ModuleNotFoundError`，于是把 `except ImportError` **收窄**成它照样全绿 |
+| 消息判据只查 `"PyYAML" in msg` | 把两条拒因合成一个模板、把缺库说成 config 有毛病 |
+
+最危险的一个是 `R3-try-then-refuse`：它的阳性对照**复现了 docstring 自己那条反例** ——
+多文档 config 下 PyYAML 整份 `ComposerError` 拒，而变异体返回了树 A。
+
+### 五-octies.3　据此补的门
+
+| 新门 | 维度 | 杀哪一类 |
+|---|---|---|
+| `..._no_pyyaml_refuses_across_fixture_shapes` | **7 形状 × 2 缺库方式 = 14 格** | 上表前 7 行 |
+| 同上的 `plain_import_error` 维（monkeypatch `builtins.__import__` 抛**普通 ImportError**） | — | `except` 子句收窄（真实场景：PyYAML 装着但 C 扩展 `_yaml` 版本错配） |
+| 60 参数门的消息判据 | 只查子串 → **锚整句**（与两道端到端门共用同一常量） | 消息模板合并 |
+
+⛔ 每一种形状都**特意把诱惑摆好**：目标树是真的、父目录是真的、环境变量指着真树、sidecar
+里写着真树 —— 任何肯读它们的实现都会立刻返回一棵树而不是拒。这才叫有区分力。
+
+### 五-octies.4　验证新门真能杀（不验就只是信仰）
+
+脚本入库：`_bmad-output/审查/evidence-harness-tree/verify-new-gates-kill-mutants-20260915.py`
+（自证：任一格不符即非零退出）。
+
+**KILLED 9/9**，且每个变异体被**为它设计的那一格**抓住（一条干净的对角线）：
+
+```
+R3-try-then-refuse     → target_tree_really_exists
+R6-env-override        → env_override_set
+M1-parent-is-a-tree    → parent_is_a_usable_tree
+R4-sidecar-cache       → sidecar_present
+R5-json-superset       → pure_json_config
+R1-simple-config-only  → minimal_unquoted_config
+P2-open-before-import  → no_config_file
+WM-narrow-except       → plain_import_error   ← 只有第二探针那一维抓得住
+WM-merge-message       → 整句锚（14 格全抓）
+```
+
+**阴性对照**：生产代码本身 14 格全绿 ⇒ 新门无误伤。
+
+### 五-octies.5　顺带被新门抓到的一个自引缺陷
+
+给拒因加上 `sys.executable` 之后，**14 条新门齐刷刷 `NameError: name 'sys' is not defined`**。
+生产没问题（写点顶部 import 了 `sys`），错的是 `_extract_harness_tree()` 的命名空间只放了
+`{os, re}` —— **测试夹具与被测代码的 import 面漂了**。
+已改成**逐字取写点在 `def _harness_tree` 之前的顶层 import** 来构造命名空间，并加断言
+「缺 os/re/sys 任一即当场停」。这样生产以后再多 import 什么，夹具自动跟上，不用人去追。
+
+### 五-octies.6　判据
+
+| 判据 | 结果 |
+|---|---|
+| `-k harness_tree` | **102 passed**（16 既有 + 6 M + 2 缺库端到端 + 1 flow 文档 + 3 采用门 + 14 形状门 + 60 不变量） |
+| 整文件 | **251 passed** |
+| `tests/skills` | **546 passed** |
+| 变异验证 | KILLED 9/9，阴性对照 14 格全绿 |
+| ruff | check + format 均 0 |
+| 地盘核 | 仍恰三文件 |
+| 指纹 | SKILL.md `f52a5946…`→`f708913c…`；`B229` `8d5ce8d4…`→`543e37de…` |
+
+---
+
 ## 六 4-B　用户侧（零技术词）
 
 配置里指到学习引擎的那行，就算写法略有出入或路径拐了个弯，系统要么照正确的那棵读、要么直接说
 「这儿写错了」，再也不会悄悄读错地方——我感觉终于放心了。
 
+还有一种情况它现在也会当面说出来：如果这台机器少装了一个它读配置要用的东西，它不再"尽力猜着读"，
+而是停下来告诉我缺什么、怎么补。我一开始觉得这样是不是太较真了，但想明白了——猜错的那次我根本
+不会知道，而它停下来我一眼就看见、照着装上就好。
+
 **felt-sense**：以前那种"它好像跑成功了，可我不确定它到底记到哪儿去了"的悬着的感觉没有了。现在只有两种
 结局：正确地写进去，或者当着我的面停下来告诉我哪一行写错了、写的是什么、它实际找到的是哪里。中间那片
-"看起来正常、其实记错了地方"的灰色地带被拿掉了。
+"看起来正常、其实记错了地方"的灰色地带被拿掉了。多出来的那点"它有时会拦住我"，换来的是我不用再
+疑心它背着我记到了别处——这笔我换得很值。
 
 ---
 
@@ -490,6 +689,26 @@ Codex round-5（绑最终 HEAD `4eeaeaa6`）：**BLOCKER 0 / HIGH 0**，MEDIUM 2
 20. **Codex 轮次与存档**：r1 `f7f10be4` (0/0/1/2) → r2-p1 **0 字节被 cyber 拦**（prompt 问法落在任务边界上，按协议改写后重发）→ r2-p2 `4d21bc9b` (0/0/3/1) → r3 `e844d6a1` (0/0/4/1) → r4 `34451227` (0/0/2/2) → **r5 `4eeaeaa6` (0/0/2/3)，绑最终 HEAD、B=H=0、轮次 5/5 用满**。
 21. **合并门口径下的本卡状态**：阻断级 = **0**（无数据丢失 / 无 live vault 或 7691 写入 / 无安全问题 / 无指定裁判红 / 无负控假绿）⇒ **可合**。
 
+22. **⛔ 已立卡（用户 2026-09-14 裁定「另立必排卡」）：harness 树零契约校验**。写点从
+    `harness_tree` 选中的那棵树**无条件导入 7 个名字**（`classify_card_state` / `_vault_id_of` /
+    `_WHOLE_SECOND_RE` / `_looks_like_review_ext` / `validate_record_full` / `_golden_manifest` /
+    `_TS_RE`），**零版本/契约校验**（实测在 `_harness_tree` 体内 grep `version|契约|compat|sha|cmp`
+    = 0 命中），只有兜底 `except Exception → SystemExit`。⇒ 任意旧版/异版 harness 分发都会被
+    **静默采用并按其语义写账本**。这是 §五-septies.2 那条反例得以成立的**结构根因**，面比降级
+    解析的盲区大得多。⛔ 建议主 session 排进下一批。
+23. **⚠️ 另立卡：缺库时的半态白板**。缺 PyYAML 时净效果不是「什么都没写」—— Step 3
+    （`SKILL.md` 的 `grep -n "scored_pending_node_update"` 段）早已由 Claude 用 Edit 把分数写进
+    检验白板，主写点块之前还会建 `.locks` 锁文件。用户看到的是**一张记了分但节点没更新的
+    半态白板**。本卡的拒写让这个半态更常见，值得单独评估（是否该把 Step 3 也挪到 vault 绑定之后）。
+24. **⚠️ 工程教训（建议进工程坑索引）：门会因为被守护对象变形而悄悄退化成恒真**。本卡实测：
+    删掉降级解析后，那道 60 参数的核心不变量门**一条不改就全绿** —— 它的允许条件（「降级更窄
+    即放行」）在「降级恒拒」之后把所有输入都吸进了允许档。**它表面上仍是绿的。** 改动会不会
+    让某道门变成恒真，应当与「会不会让它变红」一起检查；判法是**把实现改错，看它红不红**。
+25. **⚠️ 论证纪律（第三次）：我又一次把「我想到的」当成了全集**。§五-sexies 已记两次，这是
+    第三次 —— 「缺库时下游本来也会拒」我只验了 harness_tree 缺省那一个取值，就把结论写成了
+    对**所有** harness_tree 取值成立的全称句。**全称句只能被反例杀死，不能被一个正例证实。**
+    写「必然 / 无论怎样 / 不会损失任何」之前，先找出句子里的自由变量，再问自己验了它几个取值。
+
 ---
 
 ## 九 Codex 复核
@@ -503,7 +722,12 @@ Codex round-5（绑最终 HEAD `4eeaeaa6`）：**BLOCKER 0 / HIGH 0**，MEDIUM 2
 | r4 | `08100483..34451227` | `codex-review-…-r4.md` | **0 / 0** / 2 / 2 | 三条反驳**全部接受**：LOW-1 原登记理由错、已补 3 条哨兵参数；MEDIUM-1/2 与 LOW-2 按 D-32 纯 docstring 更正（§五-quinquies） |
 | r5 | `08100483..4eeaeaa6`（最终 HEAD） | `codex-review-…-r5.md` | **0 / 0** / 2 / 3 | **轮次上限 5/5**。确认两处盲区移交定性准确；LOW-1/LOW-3 按 D-32 纯措辞更正，LOW-2 登记不修（§五-sexies） |
 
-> ⛔ **D-15 结论**：绑最终 HEAD 的那一轮（r5）**BLOCKER = 0、HIGH = 0**，轮次 5/5 用满未超。r5 之后只做了 D-32 的纯注释/消息尾巴（控制流零变化，主 session 可逐行等价核），未再改逻辑。
+> ⛔ **D-15 结论（分两段账，别混）**：
+> · **原范围**（卡文定义的「重做解析」）：轮次 **5/5 用满**，末轮 r5 绑当时最终 HEAD `4eeaeaa6`，
+>   **BLOCKER = 0、HIGH = 0**。r5 之后在原范围内只做了 D-32 的纯注释/消息尾巴。
+> · **用户裁定后的新增范围**（缺库即拒写）：这是**逻辑改动**，不是 D-32 尾巴。已另起轮次
+>   r6（绑 `faaeb005`，B=0/H=0）、r7（绑最终 HEAD）。⚠️ 原先写的「r5 之后未再改逻辑」在
+>   `faaeb005` 落地后**已不成立**，此处据实改写。
 
 **r1 结论原文要点**：BLOCKER 无；HIGH 无；MEDIUM = 「降级扫描仍会接受与 PyYAML 不同的值，或漏掉合法键后静默回退」（U+0085 / 续行折叠 / 流式映射三种反例）；LOW① = 降级门控制组对绑定树失明；LOW② = 非严格 `realpath` 对「中间段是文件」的路径仍会给出祖先目录（旧版已有，非本卡新增）。
 

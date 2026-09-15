@@ -1,4 +1,9 @@
-"""独立复现 refute 的承重反例：真缺 PyYAML 时，harness_tree 指向旧树能否写成。
+"""复现本卡的承重反例：真缺 PyYAML 时，harness_tree 指向旧树能否写成。
+
+⛔ 写点必须取自 `PIN_REV`（删除降级解析**之前**的那一版），不能从活动工作树提取 ——
+   工作树在 `faaeb005` 之后已经是「缺库即拒写」版，A/B 都会提前收到 PyYAML 拒绝，
+   于是这个反例在最终 HEAD 上**重现不出来**（Codex round-6 MEDIUM-2 指出，属实）。
+   一份跑不出结论的证据比没有证据更坏，故此处把版本钉死。
 
 跑法：用 /opt/homebrew/bin/python3 -S（py3.14，find_spec('yaml') is None，零足迹）当写点解释器。
 对照组：同机同输入，只把 harness_tree 换成 HEAD 树。
@@ -40,7 +45,11 @@ def make_vault(name):
     return repo, v
 
 # ── 3. 提取写点 ──
-skill = (WT / "canvas-vault/.claude/skills/quiz-answer/SKILL.md").read_text(encoding="utf-8")
+#: ⛔ 钉死版本：反例成立的前提是写点**还带着降级解析**（缺库时能走到 harness_tree 取值）。
+PIN_REV = "4eeaeaa6"
+skill = subprocess.run(["git", "-C", str(WT), "show",
+                        f"{PIN_REV}:canvas-vault/.claude/skills/quiz-answer/SKILL.md"],
+                       capture_output=True, text=True, check=True).stdout
 CODE = [b for b in re.findall(r"python3 - <<'PYEOF'\n(.*?)\nPYEOF", skill, re.DOTALL)
         if 'P = "/tmp/quiz-answer-payload.json"' in b][0]
 
@@ -85,7 +94,22 @@ rc_head, n_head = run("B: 无 harness(HEAD树)", "", NOYAML)
 print("\n=== 对照（同输入，但解释器有 PyYAML）===")
 rc_y, n_y = run("C: 有yaml+无harness", "", [str(WT / "backend/.venv/bin/python")])
 
-print("\n=== 结论 ===")
-print(f"  A 旧树 缺库: rc={rc_old} 账本={n_old}  ← 若 rc=0 且账本=1，则「缺库必然写不成」被证伪")
-print(f"  B HEAD 缺库: rc={rc_head} 账本={n_head}")
-print(f"  C HEAD 有库: rc={rc_y} 账本={n_y}  ← 夹具本身有效性对照")
+print("\n=== 结论（写点版本 = %s，非工作树）===" % PIN_REV)
+print(f"  A 旧树 缺库: rc={rc_old} 账本={n_old}  ← 期望 rc=0 账本=1（「缺库必然写不成」被证伪）")
+print(f"  B HEAD 缺库: rc={rc_head} 账本={n_head}  ← 期望 rc≠0 账本=0")
+print(f"  C HEAD 有库: rc={rc_y} 账本={n_y}  ← 期望 rc=0 账本=1（夹具本身有效性对照）")
+
+#: 脚本自证：三条期望任一不满足就非零退出, 免得它安静地打印一堆数字却没人核。
+_fail = []
+if not (rc_old == 0 and n_old == 1):
+    _fail.append(f"A 未复现（rc={rc_old} 账本={n_old}）—— 反例不成立或环境变了")
+if not (rc_head != 0 and n_head == 0):
+    _fail.append(f"B 对照失效（rc={rc_head} 账本={n_head}）")
+if not (rc_y == 0 and n_y == 1):
+    _fail.append(f"C 夹具失效（rc={rc_y} 账本={n_y}）—— B 的失败不能归因于缺库")
+if _fail:
+    print("\n⛔ 自证失败:")
+    for _f in _fail:
+        print("   -", _f)
+    sys.exit(1)
+print("\n✅ 三条期望全部满足，反例可复现。")

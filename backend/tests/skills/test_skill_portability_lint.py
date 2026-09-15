@@ -2253,7 +2253,9 @@ TMP_BLOCK_BASELINE: dict[str, list[str]] = {
         #: 是假二分, 走 D-32 尾巴; 逻辑零变化, 主 session 可逐行等价核)。
         #: → `8d5ce8d4…`(用户 2026-09-14 裁定「缺 PyYAML 即拒写」: `_degraded_scan`
         #: 整段删除, 净减 134 行; 代价已实测并写进该函数 docstring, 见验收单 §五-septies)。
-        "B229:8d5ce8d4018daf53",
+        #: → `543e37de58c7a214…`(Codex round-6 LOW: 缺库拒因补上本进程解释器路径与
+        #: 绑定它的安装命令 —— 只说「请装 PyYAML」时用户很可能装进另一个环境)。
+        "B229:543e37de58c7a214",
         "S96:b55afbca27229028",
         "S205:44b7655dd97c27b7",
     ],
@@ -4378,7 +4380,7 @@ MANAGED_FILE_DIGESTS: dict[str, str] = {
     "skills/configure-whiteboard/SKILL.md": "9eb21ecc6ac044a914ce11009025f8a84e51c5135221ec3b50f8c021ccfa2177",
     "skills/exam-quick/SKILL.md": "eb30e407a14145477710cbf439e7e85705afeb157c98c5993ee0b3616c324853",
     "skills/node-chat/SKILL.md": "3b15bc91dabea7e7b3876b75c2c0973e7a9284d48081e5d1b864623258b40fb7",
-    "skills/quiz-answer/SKILL.md": "f52a5946d6d957323c3441f3c348dc4ca6a5d43591ab00ef4fa343d13291a178",
+    "skills/quiz-answer/SKILL.md": "f708913cee2ac0d64eb74c78f608dc0712269c7131af53e724f634ed8879b19c",
     "skills/start-exam-board/SKILL.md": "0f2c085a1bae12446dd74ab89cc1e6aa5c8bc34901dd3be7ac5d8521310d0dce",
     "skills/study-question/SKILL.md": "0142b7833ff3ab54c9307227d59ebaa7d5ff3f9c18a76b07344d0ab295fa22e4",
     "scripts/decay_beta.py": "3bf4ed9402a4c8edfde16630a79094a5d4518fd181fa60810319fe46d37abb90",

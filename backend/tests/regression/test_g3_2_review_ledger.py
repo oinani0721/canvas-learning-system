@@ -7280,7 +7280,7 @@ def test_g33r2_harness_tree_noncanonical_key_form_is_honored(vault, _key_form, _
     assert len(_ledger_lines(vault)) == 1, f"认出该写法 ⇒ 绑 alt 树 ⇒ 照常写入({_why})"
 
 
-# ── CARD-HARNESS-TREE-PARSE-REDO: 降级分支(PyYAML 不可用)覆盖 ──
+# ── CARD-HARNESS-TREE-PARSE-REDO: 缺 PyYAML 时的行为覆盖 ──
 #: 本机 venv 里 PyYAML 在(6.0.3) ⇒ yaml-first 分支恒被走到, `except ImportError`
 #: 下那段正则降级**永远跑不到** —— 不注入就等于这段代码零覆盖。
 
@@ -7295,9 +7295,16 @@ def _run_writer_no_yaml_at_harness_tree(vault: Path, payload: dict):
     `raise ImportError` 的 `yaml.py` 之后, 写点会在**更下游**的 `_vault_id_of()`
     (vault 归属绑定, 同样要 PyYAML)先 fail-closed —— 实测 rc=1、stderr
     「vault 归属无法绑定 (.canvas-config.yaml 缺失/损坏或 backend 不可达)」。
-    也就是说在**真缺库**的机器上, 「规范写法在降级分支仍写得成」这半条根本
-    不可达: 降级分支只能改变「你看到哪条错」, 改变不了「写不写得成」。
-    整进程注入因此测不到本函数的降级分支(它被下游的错盖住了)。
+    ⚠️ 这段结论**曾经被我写成全称句, 后被实测证伪**(Codex round-6 LOW): 我写过
+    「缺库时成功写入根本不可达 / 降级改变不了写不写得成」—— 不成立。2026-09-14 三向
+    对照实测: 同机同输入, `harness_tree` 指向一棵 `_vault_id_of` 不依赖 yaml 的旧树时,
+    缺库下 rc=0、账本落一行、mastery 0.5→0.57(复现脚本
+    `_bmad-output/审查/evidence-harness-tree/repro-counterexample-20260914.py`, 已钉死
+    写点版本并自证三条期望)。「下游会不会拒」**不是写点的性质, 而是 harness_tree 选中
+    那棵树的性质**。正确的说法只到这里: **当 harness_tree 解析到一棵 `_vault_id_of`
+    依赖 PyYAML 的树时**, 缺库 ⇒ 下游也拒。
+    整进程注入之所以不合用, 是另一个更朴素的理由: 它会在到达本函数之前就把下游打死,
+    于是测不到本函数自己那一格。
     故探针把缺库**收窄到那一次调用**: `sys.modules["yaml"] = None` 让
     `import yaml` 抛 ImportError, 调用一结束立刻还原。
     ⚠️ 如实声明: 这是**分支级**覆盖, 不是「真缺库机器上的端到端行为」。
@@ -7389,8 +7396,13 @@ def test_g33r2_harness_tree_no_pyyaml_refuses_even_without_the_key(vault):
     """⛔ 缺 PyYAML ⇒ **连「压根没写这个键」的老布局 vault 也拒**。
 
     这是本次裁定里对用户最可见的那一半行为变化：老布局 vault（`harness_tree` 键
-    根本不存在、缺省回退到 vault 父目录）在缺 PyYAML 的机器上，从「照常写入」变成
-    「拒写并要求装 PyYAML」。
+    根本不存在、缺省回退到 vault 父目录）在缺 PyYAML 的机器上会被拒写并要求装 PyYAML。
+
+    ⚠️ **代价范围别写大**（Codex round-6 LOW，我先前确实写大了）：不能说成「它们本来
+    都能写成、现在变拒了」。三向对照的 B 格恰恰表明，**回退到当前这棵树时缺库本来就
+    拒**（下游 `_vault_id_of` 需要 PyYAML）。真正会因本次裁定损失写入的，只有
+    「harness_tree 指向一棵 `_vault_id_of` 不依赖 yaml 的树」那一类。本门的「有库成功 /
+    屏蔽后拒绝」只证明本门这个夹具下的两侧对照，**证不到所有老布局此前都能成功**。
 
     ⚠️ 为什么连这种也拒: 要判断「这份 config 里到底有没有这个键」，本身就得解析
     YAML —— 逐行扫描判不出（转义键能还原出同一个键而原文不含那串字符；跨行标量
@@ -7416,6 +7428,94 @@ def test_g33r2_harness_tree_no_pyyaml_refuses_even_without_the_key(vault):
     assert _write_face(vault) == face0, "拒绝 ⇒ 写入面逐字节不变"
 
 
+def test_g33r2_harness_tree_no_pyyaml_refuses_whole_flow_document(vault):
+    """⛔ 整份写成**流式映射**的合法 config，缺库时也拒 —— 且它在有库时确实能用。
+
+    ⚠️ 本门是补回来的覆盖（Codex round-6 MEDIUM-1）：重构时我把原 9 参数的降级门折叠进
+    60 参数 unit 表，并声称「形态已全部覆盖、折叠非覆盖损失」——**那句话是错的**。
+    原门里「整份文档流式映射」那一条走的是 `_mode="whole"`（整份文件就是一个 flow mapping、
+    没有 block 配置头）；而 60 参数表的每一条都被接在固定的三行配置头之后，于是
+    `{harness_tree: /a/b}` 在 PyYAML 眼里变成「block mapping 后面又跟一个 flow mapping」
+    ⇒ ScannerError ⇒ **已经不是原来那个形态了**。
+
+    所以这里单独立一门，并且把**两半都钉住**：
+      · 控制组（有 PyYAML）：这份整份 flow 文档是合法的，且**真的采用**了目标树
+        （缺省端已弄坏 ⇒ 账本能写出来只可能是绑到了 alt）；
+      · 判据（缺库）：照样拒，且拒因点名 PyYAML。
+    少了控制组这一半，「缺库拒了」就可能只是因为这份 config 本来就不合法。
+    """
+    alt = _build_alt_harness(vault.parent / "alt-harness-flowdoc")
+    #: 整份文档 = 一个 flow mapping，三个键全写在一行里（不走 `_write_cfg` 的配置头）
+    (vault / ".canvas-config.yaml").write_text(
+        '{vault_id: "canvas-vault-测试", subject: cs-61b, harness_tree: ' + str(alt) + "}\n",
+        encoding="utf-8",
+    )
+    _disable_tree(vault.parent)
+
+    # ── 控制组: 有 PyYAML ⇒ 合法且真的绑到 alt ──
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    (vault / "learning_events.jsonl").unlink(missing_ok=True)
+    _ok = _run_writer_settled(vault, _payload(event_id="板流#q1", ts=TS1, review_time=TS1))
+    assert _ok.returncode == 0, (
+        f"⛔ 控制组不成立: 整份 flow 文档在有 PyYAML 时也跑不通 ⇒ 下面那条拒写证不到是缺库造成的: "
+        f"{(_ok.stderr or '')[-400:]}"
+    )
+    assert len(_ledger_lines(vault)) == 1, "⛔ 控制组不成立: 缺省端已弄坏, 写得出来只可能是绑到了 alt"
+
+    # ── 判据: 缺库 ⇒ 拒 ──
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    (vault / "learning_events.jsonl").unlink(missing_ok=True)
+    face0 = _write_face(vault)
+    r = _run_writer_no_yaml_at_harness_tree(vault, _payload(event_id="板流#q2", ts=TS1, review_time=TS1))
+    assert r.returncode != 0, f"⛔ 缺库时整份 flow 文档被放行: {(r.stdout or '')[-300:]}"
+    assert _NO_YAML_REFUSAL in (r.stderr or ""), f"⛔ 拒因须点名 PyYAML: {(r.stderr or '')[-400:]}"
+    assert len(_ledger_lines(vault)) == 0, "拒绝 ⇒ 账本零行"
+    assert _write_face(vault) == face0, "拒绝 ⇒ 写入面逐字节不变"
+
+
+@pytest.mark.parametrize(
+    ("_kind", "_why"),
+    [
+        ("relative", "相对路径（相对 VAULT）"),
+        ("nel", "值尾藏一个 U+0085 —— PyYAML 在那里断行, 值是它前面那截"),
+        ("fold", "续行 —— PyYAML 把两行折叠成一个带空格的值"),
+    ],
+)
+def test_g33r2_harness_tree_pyyaml_adopts_these_forms(vault, _kind, _why):
+    """⛔ 这三种形态在 **PyYAML 可用**时必须**真的被采用**（绑到那棵树并写入）。
+
+    ⚠️ 本门也是补回来的覆盖（Codex round-6 MEDIUM-1）：这三种形态原先在降级门里有
+    「有库侧成功采用」的控制组，重构时 60 参数 unit 门**删掉了有库侧调用**（它只跑缺库那一侧），
+    于是这半边控制随旧门一起没了 —— 留下的只证明「缺库时它们被拒」，证不到「有库时它们被
+    正确读出来」。一个把这三种形态统统读错的实现，在只剩缺库侧的门下照样全绿。
+
+    判法与 `..._explicit_alt_tree_is_actually_used` 同：**先弄坏缺省回退目标**，
+    于是账本能写出来只可能是绑到了这三种写法各自指向的那棵树。
+    """
+    base = vault.parent
+    if _kind == "relative":
+        _build_alt_harness(base / "alt-harness-adopt-rel")
+        _extra = "harness_tree: ../alt-harness-adopt-rel\n"
+    elif _kind == "nel":
+        alt = _build_alt_harness(base / "alt-harness-adopt-nel")
+        _extra = "harness_tree: " + str(alt) + chr(0x85) + "\n"
+    else:
+        #: PyYAML 把 `<base>/alt` + 缩进 `cont` 折叠成 `<base>/alt cont`（带一个空格）
+        _build_alt_harness(base / "alt cont")
+        _extra = "harness_tree: " + str(base) + "/alt\n  cont\n"
+    _write_cfg(vault, _extra)
+    _disable_tree(base)  # 缺省回退堵死 ⇒ 写得出来只可能是绑到了目标树
+
+    (vault / NODE_REL).write_text(NODE_V0, encoding="utf-8")
+    (vault / "learning_events.jsonl").unlink(missing_ok=True)
+    r = _run_writer_settled(vault, _payload(event_id="板采#q1", ts=TS1, review_time=TS1))
+    assert r.returncode == 0, (
+        f"⛔ 有 PyYAML 时这种写法没被正确采用({_why}) —— 缺省端已弄坏, 这里 rc≠0 说明它既没读对、"
+        f"也没回退: {(r.stderr or '')[-400:]}"
+    )
+    assert len(_ledger_lines(vault)) == 1, f"⛔ 采用了目标树就该照常写入({_why})"
+
+
 def _extract_harness_tree():
     """把写点里的 `_harness_tree` **逐字**抽出来, 在本进程里直接调用。
 
@@ -7426,7 +7526,19 @@ def _extract_harness_tree():
     _mod = ast.parse(CODE)
     _fns = [n for n in _mod.body if isinstance(n, ast.FunctionDef) and n.name == "_harness_tree"]
     assert len(_fns) == 1, f"⛔ 写点里 `_harness_tree` 定义应恰 1 处, 实见 {len(_fns)} —— 锚不到就等于没测生产代码"
-    _ns: dict = {"os": os, "re": re}
+    #: ⛔ 命名空间必须**镜像写点自己的 import 面**, 不能只放「我猜它要用的那几个」。
+    #: 2026-09-15 实测栽过一次: 生产给拒因加了 `sys.executable`(好让用户知道该往哪个
+    #: 解释器装 PyYAML), 生产没问题(写点顶部 import 了 sys), 而这里的命名空间只有
+    #: {os, re} ⇒ 14 条新门齐刷刷 NameError。那是**测试夹具与被测代码的 import 面漂移**,
+    #: 不是被测代码的错。下面逐字取写点在 `def _harness_tree` **之前**的顶层 import,
+    #: 漂移时这里跟着漂, 不用人去追。
+    _prelude = CODE[: CODE.index("def _harness_tree")]
+    _ns: dict = {}
+    for _stmt in ast.parse(_prelude).body:
+        if isinstance(_stmt, (ast.Import, ast.ImportFrom)):
+            exec(compile(ast.Module(body=[_stmt], type_ignores=[]), "<skill-prelude>", "exec"), _ns)  # noqa: S102
+    for _need in ("os", "re", "sys"):
+        assert _need in _ns, f"⛔ 写点的顶层 import 里没有 {_need} —— 本 helper 的假设漂了, 先核写点"
     exec(compile(ast.Module(body=_fns, type_ignores=[]), "<skill-harness-tree>", "exec"), _ns)  # noqa: S102
     return _ns["_harness_tree"]
 
@@ -7548,6 +7660,11 @@ def test_g33r2_harness_tree_no_pyyaml_never_returns_a_tree(tmp_path, monkeypatch
     而是**证明没有任何一种形态能让缺库分支重新开口**。谁要把降级解析加回来, 这 60 条
     会一起红 —— 那正是本门想要的阻力。
 
+    ⚠️ 计数如实（Codex round-6 LOW 更正了我先前的说法）：把 SKILL.md 还原到 `4eeaeaa6`
+    时，存档汇总是 **12 failed + 50 passed = 62 项**，而那 62 项里包含 60 条 unit 参数
+    **加 2 道端到端门** ⇒ 实为 **10 个 unit 参数红 + 2 道端到端门红**，不是「12 条 unit
+    参数红」，更不是「60 条一起红」。我先前写成后者，属夸大。
+
     ⚠️ 本门只管 `_harness_tree` 这一层。端到端那一半(账本零写、拒因点名 PyYAML、以及
     我们**明知接受的代价**)由 `..._no_pyyaml_refuses_canonical_form_accepted_cost` 与
     `..._no_pyyaml_refuses_even_without_the_key` 两门钉。
@@ -7572,7 +7689,118 @@ def test_g33r2_harness_tree_no_pyyaml_never_returns_a_tree(tmp_path, monkeypatch
         f"   ⇒ 降级解析被加回来了。它的每一个版本都留下过「采用一棵 PyYAML 不会给出的树」\n"
         f"     的实测反例; 真要加回来, 先读本门与 SKILL.md 里 `_harness_tree` 的 docstring。"
     )
-    assert "PyYAML" in _outcome[1], (
-        f"⛔ 缺库时是拒了, 但拒因没点名 PyYAML({_line!r}): {_outcome[1]!r}\n"
-        f"   ⇒ 它多半是被别的判据顺手拒的; 用户看到的将是一句与真实原因无关的错误。"
+    #: ⛔ 锚**整句**而不是「含 PyYAML 三个字」(变异测试 2026-09-15 实测): 只查子串时,
+    #: 一个把两条拒因合并成「.canvas-config.yaml 无法用 PyYAML 解析」的实现照样全绿 ——
+    #: 它把缺库归因成 config 有毛病, 指挥用户去修一份很可能完全正确的文件, 而真正的
+    #: 一行修复(装 PyYAML)从消息里消失了。锚整句与两道端到端门共用同一个常量。
+    assert _NO_YAML_REFUSAL in _outcome[1], (
+        f"⛔ 缺库时是拒了, 但拒因不是「缺库」那一条({_line!r}): {_outcome[1]!r}\n"
+        f"   ⇒ 它多半掉进了别的 except 分支; 用户看到的将是一句与真实原因无关的错误。"
+    )
+
+
+def _usable_tree(root: Path) -> Path:
+    """在 `root` 造一棵能通过 `isdir(<tree>/backend/scripts)` 的树（unit 层用，不起子进程）。"""
+    (root / "backend" / "scripts").mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def _block_yaml(monkeypatch, _mode):
+    """制造「PyYAML 不可用」。**两种方式**, 因为它们抛的不是同一个异常。
+
+    ⛔ 为什么要两种(变异测试 2026-09-15 实测): `sys.modules["yaml"] = None` 抛的是
+    **ModuleNotFoundError**。于是把生产代码里的 `except ImportError` 收窄成
+    `except ModuleNotFoundError` 时, 三道门**一条都不红** —— 门看不见这一整类
+    「except 子句收窄」的改动。而那正是真实世界里会出事的一格: PyYAML 装着但导入链
+    炸了(C 扩展 `_yaml` 版本错配 / 半装残留 / 同名 `yaml.py` 遮蔽)时抛的是**普通
+    ImportError**, 收窄后它会掉进 `except Exception` ⇒ 用户被告知去「人工修复
+    .canvas-config.yaml」一份**完全正确**的文件, 而真正该做的事(重装 PyYAML)一个字都没提。
+    """
+    if _mode == "module_not_found":
+        monkeypatch.setitem(sys.modules, "yaml", None)
+    else:
+        import builtins
+
+        _real_import = builtins.__import__
+
+        def _fake_import(_name, *_a, **_kw):
+            if _name == "yaml":
+                raise ImportError("cannot import name '_yaml' from partially initialized module 'yaml'")
+            return _real_import(_name, *_a, **_kw)
+
+        monkeypatch.setattr(builtins, "__import__", _fake_import)
+
+
+@pytest.mark.parametrize("_probe", ["module_not_found", "plain_import_error"])
+@pytest.mark.parametrize(
+    "_shape",
+    [
+        "no_config_file",
+        "target_tree_really_exists",
+        "parent_is_a_usable_tree",
+        "minimal_unquoted_config",
+        "pure_json_config",
+        "env_override_set",
+        "sidecar_present",
+    ],
+)
+def test_g33r2_harness_tree_no_pyyaml_refuses_across_fixture_shapes(tmp_path, monkeypatch, _shape, _probe):
+    """⛔ 缺 PyYAML 时一律拒 —— 换**夹具形状**也一样。
+
+    ⚠️ 本门是 2026-09-15 变异测试逼出来的（25 个「似是而非的错误实现」里 **13 个存活**）。
+    存活的根因几乎全是**夹具形状太窄**, 而不是参数条数不够 —— 那 60 条 config 彼此太像:
+      · 每条都带同一个引号注释头 ⇒ 「只解析简单 config」的降级躲过去了;
+      · 目标路径**没有一条真实存在** ⇒ 「先试着解析, 树真存在就用」躲过去了
+        (`realpath(strict=True)` 恒 OSError ⇒ 那条判据在门内**结构上跑不到**);
+      · 每条都**有** config 文件 ⇒ 「文件不存在就静默回退」躲过去了;
+      · 父目录从来不是一棵树 ⇒ 「父目录是树就用它」躲过去了 —— 而那正是 docstring
+        明说的**老布局常态**;
+      · 门从不设环境变量 ⇒ 一条 `*_HARNESS_TREE` 后门躲过去了(反向证伪: 把它指向真树后
+        复跑那 60 条, **60 条全部返回那棵树**);
+      · 每条都用全新 tmp ⇒ 「把上次解析结果缓存进 sidecar」躲过去了。
+    ⇒ 光靠往参数表里加 config 写法, 猜不出这些缺口。下面按**形状**取维度。
+
+    ⛔ 每一种形状都特意把「诱惑」摆好: 目标树是真的、父目录是真的、环境变量指着真树、
+    sidecar 里写着真树 —— 也就是说, **任何一个肯读它们的实现都会立刻返回一棵树而不是拒**。
+    这才叫有区分力。
+    """
+    _vd = tmp_path / "canvas-vault"
+    _vd.mkdir()
+    _cfg = _vd / ".canvas-config.yaml"
+    _real = _usable_tree(tmp_path / "real-harness")
+
+    if _shape == "no_config_file":
+        pass  # 压根不写 .canvas-config.yaml
+    elif _shape == "target_tree_really_exists":
+        _cfg.write_text(f'# c\nvault_id: "v"\nharness_tree: {_real}\n', encoding="utf-8")
+    elif _shape == "parent_is_a_usable_tree":
+        _usable_tree(tmp_path)  # 老布局: vault 的父目录自己就是代码树
+        _cfg.write_text('# c\nvault_id: "v"\nsubject: cs-61b\n', encoding="utf-8")
+    elif _shape == "minimal_unquoted_config":
+        _cfg.write_text(f"subject: cs61b\nharness_tree: {_real}\n", encoding="utf-8")
+    elif _shape == "pure_json_config":
+        _cfg.write_text(json.dumps({"subject": "cs61b", "harness_tree": str(_real)}), encoding="utf-8")
+    elif _shape == "env_override_set":
+        _cfg.write_text('# c\nvault_id: "v"\nsubject: cs-61b\n', encoding="utf-8")
+        for _k in ("QUIZ_ANSWER_HARNESS_TREE", "CANVAS_HARNESS_TREE", "HARNESS_TREE"):
+            monkeypatch.setenv(_k, str(_real))
+    else:  # sidecar_present
+        _cfg.write_text('# c\nvault_id: "v"\nsubject: cs-61b\n', encoding="utf-8")
+        (_vd / ".canvas-config.harness-tree").write_text(str(_real), encoding="utf-8")
+
+    _fn = _extract_harness_tree()
+    assert "yaml" in sys.modules, "⛔ 前提没成立: 本进程里 PyYAML 本就不可用, 这一跑证不到东西"
+    _block_yaml(monkeypatch, _probe)
+
+    _outcome = _ht_outcome(_fn, _vd)
+    assert _outcome[0] == "exit", (
+        f"⛔ 缺 PyYAML 时返回了一棵树而不是拒绝\n"
+        f"   夹具形状: {_shape} / 缺库方式: {_probe}\n"
+        f"   返回值  : {_outcome[1]!r}\n"
+        f"   ⇒ 有实现在读它不该读的东西(环境变量 / sidecar / 父目录 / 猜出来的 config 子集),\n"
+        f"     或者在「树恰好真实存在」时把拒绝改成了采用。这两类都是本卡要消掉的那一族。"
+    )
+    assert _NO_YAML_REFUSAL in _outcome[1], (
+        f"⛔ 拒了, 但拒因不是「缺库」那一条({_shape}/{_probe}): {_outcome[1]!r}\n"
+        f"   ⇒ 它多半掉进了别的 except 分支(例如把缺库当成 config 语法错), 用户会被指去修一份没问题的文件。"
     )

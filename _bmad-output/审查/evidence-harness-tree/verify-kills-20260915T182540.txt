@@ -1,0 +1,14 @@
+变异体                      判定        被哪一格抓住
+------------------------------------------------------------------------------
+R3-try-then-refuse       KILLED    target_tree_really_exists/module_not_found (+3)
+R6-env-override          KILLED    env_override_set/module_not_found (+1)
+M1-parent-is-a-tree      KILLED    parent_is_a_usable_tree/module_not_found (+1)
+R4-sidecar-cache         KILLED    sidecar_present/module_not_found (+1)
+R5-json-superset         KILLED    pure_json_config/module_not_found (+1)
+R1-simple-config-only    KILLED    minimal_unquoted_config/module_not_found (+1)
+P2-open-before-import    KILLED    no_config_file/module_not_found (+1)
+WM-narrow-except         KILLED    no_config_file/plain_import_error (+6)
+WM-merge-message         KILLED    no_config_file/module_not_found (+13)
+------------------------------------------------------------------------------
+KILLED 9 / 9
+阴性对照（生产代码应 14 格全绿）: 全绿 ✅
