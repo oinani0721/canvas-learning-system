@@ -7342,7 +7342,8 @@ def _run_writer_no_yaml_at_harness_tree(vault: Path, payload: dict):
     )
 
 
-#: 降级分支打印的告警。门靠它证明「确实走了那条分支」, 而不是碰巧 rc 对上了。
+#: ⚠️ 这个常量的名字是历史遗留(它曾是「降级分支打印的告警」)。降级解析已整段删除,
+#: 现在它是**缺库拒因的整句锚** —— 门靠它证明「确实是缺库这条路拒的」, 而不是碰巧 rc 对上。
 #: 缺库时写点打出来的拒因（点名 PyYAML）。门靠它证明「确实是缺库这条路拒的」，
 #: 而不是碰巧被别的判据拒了。
 _NO_YAML_REFUSAL = "PyYAML 不可用 — harness_tree 指向哪棵树不可证"
@@ -7708,7 +7709,8 @@ def _usable_tree(root: Path) -> Path:
 
 
 def _block_yaml(monkeypatch, _mode):
-    """制造「PyYAML 不可用」。**两种方式**, 因为它们抛的不是同一个异常。
+    """制造「拿不到 PyYAML」。**四种方式**, 因为它们各自代表不同的真实故障, 且门只测得到
+    它显式制造的那几种(本卡已两次被「只造一种」坑到)。
 
     ⛔ 为什么要两种(变异测试 2026-09-15 实测): `sys.modules["yaml"] = None` 抛的是
     **ModuleNotFoundError**。于是把生产代码里的 `except ImportError` 收窄成
@@ -7720,6 +7722,11 @@ def _block_yaml(monkeypatch, _mode):
     """
     if _mode == "module_not_found":
         monkeypatch.setitem(sys.modules, "yaml", None)
+        return
+    if _mode == "imports_but_not_pyyaml":
+        #: ⛔ 第四种(Codex round-8 MEDIUM 实测): sys.path 上放一个**空的同名 yaml.py** 时
+        #: import 照样成功 —— 只拦「导入失败」是不够的, 还要问「我要用的入口在不在」。
+        monkeypatch.setitem(sys.modules, "yaml", object())
         return
     import builtins
 
@@ -7740,7 +7747,10 @@ def _block_yaml(monkeypatch, _mode):
     monkeypatch.setattr(builtins, "__import__", _fake_import)
 
 
-@pytest.mark.parametrize("_probe", ["module_not_found", "plain_import_error", "import_raises_oserror"])
+@pytest.mark.parametrize(
+    "_probe",
+    ["module_not_found", "plain_import_error", "import_raises_oserror", "imports_but_not_pyyaml"],
+)
 @pytest.mark.parametrize(
     "_shape",
     [
@@ -7749,6 +7759,11 @@ def _block_yaml(monkeypatch, _mode):
         #: `no_config_file` 不造可用父树、`parent_is_a_usable_tree` 又必写 config,
         #: 于是「只在无 config 且父树可用时回退」这一种错误实现从 14 格中间穿过去。
         "no_config_and_parent_is_tree",
+        #: ⛔ 再两格组合(Codex round-8 MEDIUM-3): 原来「无 config」那两格不设变量/缓存,
+        #: 而 `env_override_set` / `sidecar_present` 又**必写** config ⇒「**只在**无 config
+        #: 时才采用变量/缓存」这一种错误实现从中间穿过去。缺口从来长在**组合**上。
+        "no_config_and_env_set",
+        "no_config_and_sidecar",
         "target_tree_really_exists",
         "parent_is_a_usable_tree",
         "minimal_unquoted_config",
@@ -7786,6 +7801,11 @@ def test_g33r2_harness_tree_no_pyyaml_refuses_across_fixture_shapes(tmp_path, mo
         pass  # 压根不写 .canvas-config.yaml
     elif _shape == "no_config_and_parent_is_tree":
         _usable_tree(tmp_path)  # 无 config **且** 父目录是一棵可用树
+    elif _shape == "no_config_and_env_set":
+        for _k in ("QUIZ_ANSWER_HARNESS_TREE", "CANVAS_HARNESS_TREE", "HARNESS_TREE"):
+            monkeypatch.setenv(_k, str(_real))  # 无 config **且** 环境变量指着真树
+    elif _shape == "no_config_and_sidecar":
+        (_vd / ".canvas-config.harness-tree").write_text(str(_real), encoding="utf-8")
     elif _shape == "target_tree_really_exists":
         _cfg.write_text(f'# c\nvault_id: "v"\nharness_tree: {_real}\n', encoding="utf-8")
     elif _shape == "parent_is_a_usable_tree":
@@ -7819,3 +7839,35 @@ def test_g33r2_harness_tree_no_pyyaml_refuses_across_fixture_shapes(tmp_path, mo
         f"⛔ 拒了, 但拒因不是「缺库」那一条({_shape}/{_probe}): {_outcome[1]!r}\n"
         f"   ⇒ 它多半掉进了别的 except 分支(例如把缺库当成 config 语法错), 用户会被指去修一份没问题的文件。"
     )
+
+
+def test_g33r2_harness_tree_pyyaml_available_no_config_falls_back_to_parent(tmp_path):
+    """⛔ PyYAML **可用**、config 文件压根不存在、父目录是一棵可用树 ⇒ 回退父树。
+
+    ⚠️ 本门补的是一个**我先前判错的缺口**（Codex round-8 MEDIUM-2）。上一轮变异测试里
+    `P2-open-before-import`（把读 config 挪到 import 之前、仍在同一 try）报 INVALID，
+    我据此写下「H1 的修法从结构上消掉了那个变异点」—— **错了**。它只是**旧文本锚失配**：
+    换个写法照样做得出同类变异，而且 24 格**全绿**，因为那 24 格每一格都制造「拿不到
+    PyYAML」，从来没有一格是「PyYAML 好好的、但 config 不存在」。
+
+    那一格恰恰是这类缺陷唯一显形的地方：把读 config 放在 import 之前、共用一个 try 时，
+    `FileNotFoundError` 会被报成「PyYAML 不可用」并拒写，而正确行为是**回退父树**。
+    既有门 `..._absent_falls_back_to_parent` 测的是「config **存在**但无键」，补不上这一格。
+
+    ⛔ 教训写在这里免得再犯：**「锚点失配」只说明旧变异体的文本对不上了，不说明那类
+    缺陷不存在。** 判「某类缺陷已被构造性消除」要有正面论证，不能拿 INVALID 当证据。
+    """
+    _vd = tmp_path / "canvas-vault"
+    _vd.mkdir()
+    _usable_tree(tmp_path)  # 父目录是一棵可用树；且**不写** .canvas-config.yaml
+
+    _fn = _extract_harness_tree()
+    assert "yaml" in sys.modules, "⛔ 前提没成立: 本进程里 PyYAML 不可用, 这一跑测不到「有库」那一侧"
+    _outcome = _ht_outcome(_fn, _vd)
+
+    assert _outcome[0] == "ok", (
+        f"⛔ PyYAML 可用而 config 不存在时应当**回退父树**, 实际抛了: {_outcome[1]!r}\n"
+        f"   ⇒ 多半是把读 config 的 FileNotFoundError 误报成了「PyYAML 不可用」——\n"
+        f"     这两件事必须分在两个 try 里, 否则「文件没有」会被说成「库没有」。"
+    )
+    assert _outcome[1] == str(tmp_path), f"⛔ 回退目标应是 vault 的父目录 {str(tmp_path)!r}, 实际 {_outcome[1]!r}"

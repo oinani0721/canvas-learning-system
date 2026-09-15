@@ -42,6 +42,10 @@ def build(shape, base):
         pass
     elif shape == "no_config_and_parent_is_tree":
         usable(base)
+    elif shape == "no_config_and_env_set":
+        env = {k: str(real) for k in ("QUIZ_ANSWER_HARNESS_TREE", "CANVAS_HARNESS_TREE", "HARNESS_TREE")}
+    elif shape == "no_config_and_sidecar":
+        (vd / ".canvas-config.harness-tree").write_text(str(real), encoding="utf-8")
     elif shape == "target_tree_really_exists":
         cfg.write_text(f'# c\nvault_id: "v"\nharness_tree: {real}\n', encoding="utf-8")
     elif shape == "parent_is_a_usable_tree":
@@ -60,10 +64,10 @@ def build(shape, base):
     return vd, env
 
 
-SHAPES = ["no_config_file", "no_config_and_parent_is_tree", "target_tree_really_exists",
-          "parent_is_a_usable_tree", "minimal_unquoted_config", "pure_json_config",
-          "env_override_set", "sidecar_present"]
-PROBES = ["module_not_found", "plain_import_error", "import_raises_oserror"]
+SHAPES = ["no_config_file", "no_config_and_parent_is_tree", "no_config_and_env_set",
+          "no_config_and_sidecar", "target_tree_really_exists", "parent_is_a_usable_tree",
+          "minimal_unquoted_config", "pure_json_config", "env_override_set", "sidecar_present"]
+PROBES = ["module_not_found", "plain_import_error", "import_raises_oserror", "imports_but_not_pyyaml"]
 
 
 def run_cell(fn, shape, probe):
@@ -75,6 +79,8 @@ def run_cell(fn, shape, probe):
     real_import = builtins.__import__
     if probe == "module_not_found":
         sys.modules["yaml"] = None
+    elif probe == "imports_but_not_pyyaml":
+        sys.modules["yaml"] = object()
     else:
         _e = (ImportError("cannot import name '_yaml' from partially initialized module 'yaml'")
               if probe == "plain_import_error"
@@ -186,6 +192,21 @@ MUTANTS = {
         if not os.path.exists(_cfg_p) and os.path.isdir(os.path.join(_par0, "backend", "scripts")):
             return _par0
         raise SystemExit(f"[quiz-answer] PyYAML 不可用 — harness_tree'''),
+    #: r8-M1: 去掉「导入成功但不是 PyYAML」那道检查
+    "M1-no-safeload-check": (
+        '        if not callable(getattr(yaml, "safe_load", None)):',
+        '        if False:'),
+    #: r8-M2: 把读 config 挪到 import 之前、仍共用一个 try（我上一轮误判为「已消除」的那类）
+    "M2-read-before-import": (
+        '    try:\n        import yaml  # harness_tree 解析: 与 F1 判定同一个理由',
+        '    try:\n        _pre_read = open(_cfg_p, encoding="utf-8").read()\n        import yaml  # harness_tree 解析: 与 F1 判定同一个理由'),
+    #: r8-M3: 只在 config 不存在时才采用环境变量
+    "M3-env-only-when-no-config": (
+        IMPORT_ERR_LINE,
+        '''        _ev3 = os.environ.get("QUIZ_ANSWER_HARNESS_TREE")
+        if _ev3 and not os.path.exists(_cfg_p) and os.path.isdir(os.path.join(_ev3, "backend", "scripts")):
+            return os.path.realpath(_ev3)
+        raise SystemExit(f"[quiz-answer] PyYAML 不可用 — harness_tree'''),
     "WM-merge-message": (IMPORT_ERR_LINE,
                          '        raise SystemExit(f"[quiz-answer] .canvas-config.yaml 无法用 PyYAML 解析 — fail-closed 拒写 — 请人工修复 {_cfg_p}") or SystemExit(f"[quiz-answer] x — harness_tree'),
 }
@@ -217,6 +238,26 @@ for name, (old, new) in MUTANTS.items():
 
 print("-" * 78)
 print("KILLED %d / %d" % (n_killed, len(MUTANTS)))
+
+# ── 额外一格：PyYAML **可用** + 无 config + 父目录是树 ⇒ 必须回退父树（r8 M2 那一类）──
+print()
+print("=== 有库侧那一格（r8 M2）: 无 config + 父目录是树 ⇒ 应回退父树 ===")
+def yaml_available_cell(fn):
+    base = pathlib.Path(tempfile.mkdtemp(prefix="vk-ya-"))
+    vd = base / "canvas-vault"; vd.mkdir(parents=True); usable(base)
+    try:
+        return ("ok", fn(str(vd)), str(base))
+    except SystemExit as e:
+        return ("exit", str(e)[:60], str(base))
+for nm in ("M2-read-before-import",):
+    old, new = MUTANTS[nm]
+    if SRC.count(old) != 1:
+        print(f"  {nm}: INVALID（锚 {SRC.count(old)} 次）"); continue
+    r = yaml_available_cell(make_fn(SRC.replace(old, new)))
+    ok = r[0] == "ok" and r[1] == r[2]
+    print(f"  {nm}: {'⛔ SURVIVED' if ok else 'KILLED'} —— {r[0]} {r[1][:50]!r}")
+rp = yaml_available_cell(make_fn(SRC))
+print(f"  阴性对照(生产): {'✅ 回退父树' if rp[0]=='ok' and rp[1]==rp[2] else '⛔ ' + str(rp)}")
 
 # 阴性对照：生产代码本身必须 14 格全绿（否则是新门误伤）
 prod = make_fn(SRC)

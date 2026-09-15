@@ -427,13 +427,25 @@ def _harness_tree(vault_dir):
     #: 就拒写」, 拿不到的原因有多少种不重要 —— 任何一种都让「指向哪棵树」不可证。
     try:
         import yaml  # harness_tree 解析: 与 F1 判定同一个理由
+        #: ⛔ 「import 成功」≠「拿到了 PyYAML」(Codex round-8 MEDIUM, 已独立复现):
+        #: sys.path 上放一个**空的同名 `yaml.py`** 时 import 照样成功, 上面的 except
+        #: 一声不响, 于是往下走到读 config —— 文件不存在就回退父目录, 「拿不到 PyYAML
+        #: 绝不返回树」当场有反例。所以这里要问的不是「导进来没有」, 而是
+        #: **「我真正要用的那个入口在不在」**。
+        if not callable(getattr(yaml, "safe_load", None)):
+            raise ImportError(f"导入的 yaml 模块没有可调用的 safe_load (来自 {getattr(yaml, '__file__', '未知位置')})")
     except Exception as _ie:
         #: ⛔ 报错里必须带上**这个进程自己的解释器路径**与一条绑定它的安装命令
         #: (Codex round-6 LOW): 只说「请装 PyYAML」时, 用户照抄 `pip install pyyaml`
         #: 很可能装进了另一个环境 —— 装成功了、却还是被拒, 而消息里没有任何线索。
-        #: 路径两侧加引号并转义内部引号(Codex round-7 LOW): 解释器装在带空格的目录里时,
-        #: 裸路径会被 shell 拆成两个参数, 用户照抄那一行会失败。
-        _exe_q = '"' + sys.executable.replace('"', '\\"') + '"'
+        #: 路径要按 shell 参数规则**正确引用**(Codex round-7/8 LOW, 两轮才修对):
+        #: 第一版只加双引号 + 转义双引号 —— 不够, 双引号内 shell 仍会展开 `$VAR` /
+        #: `$(...)` / 反引号(复核方实测 `/opt/$(printf wrong)/bin/python` 被展开成
+        #: `/opt/wrong/bin/python`), 反斜杠紧邻引号还会让引号不配对。用 shlex.quote:
+        #: 它是 stdlib, 与「PyYAML 拿不到」这件事无关, 在这里 import 是安全的。
+        import shlex
+
+        _exe_q = shlex.quote(sys.executable)
         raise SystemExit(f"[quiz-answer] PyYAML 不可用 — harness_tree 指向哪棵树不可证, fail-closed 拒写 — 逐行扫描猜不出 YAML 的换行与语法上下文, 猜错的代价是把学习事件静静地绑到另一棵 harness 树上, 故本写点在拿不到 PyYAML 时一律不写。拿不到的原因: {type(_ie).__name__}: {_ie}。跑本写点的解释器是 {sys.executable} ; 请照抄这一条装(它绑定的正是上面那个解释器, 不要换成裸 pip): {_exe_q} -m pip install pyyaml")
     _tree = ""
     try:

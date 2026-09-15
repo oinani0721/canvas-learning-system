@@ -1,7 +1,7 @@
 # UAT · CARD-HARNESS-TREE-PARSE-REDO（`_harness_tree` 解析整体重做）
 
 > 批次 `[BATCH-2026-09-11-第十四批 / CARD-HARNESS-TREE-PARSE-REDO]` · 车道 `card-t7-skills`（分支 `card/t7-skills`）
-> 基线 `08100483` → 代码 commit **`f7f10be4`**（round-1 审过的中间态）→ **`4d21bc9b`**（按 round-1 结论整改）→ **`e844d6a1`**（按 round-2 结论 + 自查整改）→ **`34451227`**（按 round-3 结论整改）→ **`4eeaeaa6`**（按 round-4 结论整改）→ **`faaeb005`**（用户裁定「缺库即拒写」）→ **`8d973a29`**（按 r6 + 变异测试补门）→ **r8 待提交**（按 r7 HIGH 修 import/读 config 分离，最终 HEAD）· 未 push
+> 基线 `08100483` → 代码 commit **`f7f10be4`**（round-1 审过的中间态）→ **`4d21bc9b`**（按 round-1 结论整改）→ **`e844d6a1`**（按 round-2 结论 + 自查整改）→ **`34451227`**（按 round-3 结论整改）→ **`4eeaeaa6`**（按 round-4 结论整改）→ **`faaeb005`**（用户裁定「缺库即拒写」）→ **`8d973a29`**（按 r6 + 变异测试补门）→ **`4c722826`**（按 r7 HIGH 修 import/读 config 分离）→ **r9 待提交**（按 r8 五条整改，最终 HEAD）· 未 push
 > ⚠️ 卡文 (k) 写「单独 commit」；实际两个代码 commit —— Codex round-1 报 MEDIUM+LOW，按 D-15「审后再改代码必再送一轮」整改后必然产生第二个。两个 commit 都只落在同三文件。
 > 证据目录 `_bmad-output/审查/evidence-harness-tree/`（全部 `.txt`，无 `*.stderr*` 入库）
 
@@ -530,7 +530,7 @@ scored_pending_node_update`），主写点块之前还会建 `.locks` 锁文件�
 | `tests/skills` | **546 passed** |
 | ruff | `check_rc=0`；format 先红（本卡引入）⇒ `ruff format` 后两项均 0 |
 | 地盘核 | 仍恰三文件；`backend/app` 0 |
-| 负控⑥ | 还原到 `4eeaeaa6` ⇒ 新不变量门 **12 条红** |
+| 负控⑥ | 还原到 `4eeaeaa6` ⇒ **12 项红 = 10 条 unit 参数 + 2 道端到端门**（存档 12 failed + 50 passed = 62 项 = 60 unit + 2 e2e）|
 | 不可见字符 | 本卡引入 0 |
 | 指纹 | SKILL.md `5c7df579…`→`f52a5946…`；`B229` `f7536167…`→`8d5ce8d4…` |
 
@@ -702,6 +702,83 @@ except OSError:
 
 ---
 
+## 五-decies　round-8：HIGH 归零，但推翻了我上一轮的一个断言（2026-09-16）
+
+Codex round-8（绑 `4c722826`）：**BLOCKER 0 / HIGH 0** ✓，MEDIUM 3 / LOW 2。**五条全部整改。**
+
+### 五-decies.1　M2：我说「变异点被构造性消除」——错了
+
+上一轮 `P2-open-before-import` 报 INVALID（锚点命中 0 次），我据此在验收单与 commit 里写下
+「**H1 的修法从结构上消掉了那个变异点**」。复核方核实后指出：**那只是旧文本锚失配**。
+保留 `except Exception`、把 `open(...).read()` 挪到 `import yaml` **之前**（仍共用一个 try），
+40 格矩阵**全绿**；而在 **PyYAML 可用**、config 不存在、父目录是树时，生产返回父树、
+变体却把 `FileNotFoundError` 报成「PyYAML 不可用」并拒写。
+
+**根因是矩阵的维度本身**：那 40 格**每一格都在制造「拿不到 PyYAML」**，从来没有一格是
+「PyYAML 好好的、但 config 不存在」—— 而那恰恰是这类缺陷唯一显形的地方。既有门
+`..._absent_falls_back_to_parent` 测的是「config **存在**但无键」，补不上这一格。
+
+已补 `..._pyyaml_available_no_config_falls_back_to_parent`，并实测该变异体被它 KILLED。
+
+⛔ **这是我今天第五次把「换个写法就不成立了」说成「这类缺陷消失了」。**
+教训已就地写进那道门的 docstring：**「锚点失配」只说明旧变异体的文本对不上了，不说明
+那类缺陷不存在。判「某类缺陷已被构造性消除」要有正面论证，不能拿 INVALID 当证据。**
+
+### 五-decies.2　M1：「import 成功」≠「拿到了 PyYAML」
+
+`sys.path` 上放一个**空的同名 `yaml.py`**，`import yaml` 照样成功 ⇒ 我那层 `except Exception`
+一声不响 ⇒ 往下读 config，文件不存在就回退父树。**「拿不到 PyYAML 绝不返回树」当场有反例。**
+我只拦住了「导入失败」，没拦住「导入成功但根本不是它」。
+
+修法：导入后判 `callable(getattr(yaml, "safe_load", None))` —— 要问的不是「导进来没有」，
+而是**「我真正要用的那个入口在不在」**。并加**第四种探针** `imports_but_not_pyyaml`。
+
+### 五-decies.3　M3：缺口又长在「组合」上
+
+「无 config」那两格不设环境变量/缓存，而 `env_override_set` / `sidecar_present` 又**必写**
+config ⇒「**只在**无 config 时才采用变量/缓存」从中间穿过去。已补两格组合形状
+`no_config_and_env_set` / `no_config_and_sidecar`。
+
+⚠️ 这是 r7 的 M1 **同一形状**（那次是「无 config **且** 父树可用」）。连续两轮同一形状
+⇒ 记一条判法：**每加一个新维度，都要问「它和已有维度的交叉格有没有人测」**，而不是
+只把新维度自己那一行填满。
+
+### 五-decies.4　L1：引号两轮才修对
+
+第一版只加双引号 + 转义双引号 —— 不够：双引号内 shell 仍会展开 `$VAR` / `$(...)` / 反引号
+（复核方实测 `/opt/$(printf wrong)/bin/python` 被展开成 `/opt/wrong/bin/python`），
+反斜杠紧邻引号还会让引号不配对。已改用 `shlex.quote`（stdlib，与「拿不到 PyYAML」无关，
+在那个分支里 import 是安全的）。
+
+### 五-decies.5　验证
+
+| 变异体 | 判定 | 被哪一格抓住 |
+|---|---|---|
+| `M1-no-safeload-check` | KILLED | `no_config_file` / **`imports_but_not_pyyaml`**（第四探针） |
+| `M3-env-only-when-no-config` | KILLED | **`no_config_and_env_set`**（新组合格） |
+| `M2-read-before-import` | 40 格矩阵 SURVIVED（**符合预期**——那 40 格全是「拿不到 PyYAML」）；**被新增的有库侧那一格 KILLED** | `..._pyyaml_available_no_config_falls_back_to_parent` |
+| 此前 8 个 | KILLED | 各自那一格 |
+
+**KILLED 11/14**（3 个 INVALID = 代码变了、旧文本锚失配）；**阴性对照生产代码 40 格全绿**，
+且有库侧那一格正确回退父树。
+
+⚠️ 对 INVALID 的定性**这次不再外推**：`M2-read-before-import` 就是 `P2` 换了写法，它**仍然
+存在**，只是现在被新门抓住了。INVALID 只代表「这条变异体的文本锚失效」。
+
+### 五-decies.6　判据
+
+| 判据 | 结果 |
+|---|---|
+| `-k harness_tree` | **129 passed**（16 既有 + 6 M + 2 缺库端到端 + 1 flow 文档 + 3 采用门 + **40 形状门** + 1 有库回退门 + 60 不变量） |
+| 整文件 | **278 passed** |
+| `tests/skills` | **546 passed** |
+| 变异验证 | KILLED 11/14，阴性对照 40 格全绿 + 有库侧正确回退 |
+| ruff | check + format 均 0 |
+| 地盘核 | 仍恰三文件 |
+| 指纹 | SKILL.md `6f963f1a…`→`aa51908a…`；`B229` `6098a8a3…`→`df79074d…` |
+
+---
+
 ## 六 4-B　用户侧（零技术词）
 
 配置里指到学习引擎的那行，就算写法略有出入或路径拐了个弯，系统要么照正确的那棵读、要么直接说
@@ -763,7 +840,7 @@ except OSError:
 
 15. **⚠️ 工程教训（建议进工程坑索引）：同一个函数里「什么算空白」的口径必须一处定义**。SKILL.md 的正则实现在 round-3 就吃过一次（`\s` 连全角空格一起吃掉），本卡的降级扫描**又吃了一次**（裸 `.strip()` 按 Unicode 判空行 vs 续行判据只认 ASCII）。两次表现相同：某一类行「两头不沾」被整个跳过。
 16. **⚠️ 批级模板缺陷（建议回写协议）：凡在文本里写 `\uXXXX` 转义，落盘后必须逐字复核**。本卡一天内被同一隐患咬**三次**、且三次是不同的工具层：① SKILL.md 的 `\u2028`/`\u2029` 被展开成**真的不可见换行字符**落进生产文件；② 测试参数 `\u005f` 少算一个下划线，使那条参数在负控里不红（测了个寂寞）；③ r3 prompt 的 `\u005f` 被展开，使其中一问变成自相矛盾的表述、该问那一轮没测到东西。**修法**：不可见字符一律 `chr(0xXXXX)` 拼装（本卡代码与新增门参数已全改），落盘后跑一次「不可见字符 = 0」复核。
-17. **⚠️ 产品取舍移交主 session**：缺 PyYAML 时是否**直接明确退出 / 或对含引号与非平凡结构的 config 一律拒**。⛔ 复核方明确认可「按『下游同样需要 PyYAML』这个前提，提前保守拒绝**不会损失一次原本能完成的写入**」⇒ 实际代价只是错误信息从「vault 归属无法绑定」变成「请装 PyYAML」。**建议直接裁走这条。**
+17. ~~**⚠️ 产品取舍移交主 session**：缺 PyYAML 时是否直接明确退出……「提前保守拒绝不会损失一次原本能完成的写入」⇒ 实际代价只是错误信息不同~~ ⛔ **已裁定并落地，且本条的理由已被证伪、不得再引用**：用户 2026-09-14 裁定走「缺库即拒写」（已落地，见 §五-septies）；但「不会损失一次原本能完成的写入」是**假的** —— 三向对照实测有反例（A 格：harness_tree 指向一棵 `_vault_id_of` 不依赖 yaml 的树时，缺库下 rc=0、账本落一行）。**真实代价 = A 那一类场景被拒**，可复现（脚本已入库）、可恢复（装上 PyYAML 即可）。用户是在知道这个真实代价之后仍裁定拒写的，理由是「可见的拒绝好过静默地绑错一棵树」。
 18. **⚠️ 另立卡**：不变量门加「整份文档」模式参数入口，补上「文件首文档标记」那一半覆盖（§五-sexies.2）。
 19. **⚠️ 论证纪律教训**：本卡两次把「还有别的选项」说成了二分 —— ① LOW-1 我断言「门结构上测不到判据失效」，漏掉「判据一删降级反而更宽」；② LOW-3 我断言「堵死只有两条路」，漏掉「缺库直接退出」与「只认极小子集并完整验证」。两次都是**把自己想到的两条当成了全集**。
 20. **Codex 轮次与存档**：r1 `f7f10be4` (0/0/1/2) → r2-p1 **0 字节被 cyber 拦**（prompt 问法落在任务边界上，按协议改写后重发）→ r2-p2 `4d21bc9b` (0/0/3/1) → r3 `e844d6a1` (0/0/4/1) → r4 `34451227` (0/0/2/2) → **r5 `4eeaeaa6` (0/0/2/3)，绑最终 HEAD、B=H=0、轮次 5/5 用满**。

@@ -1,0 +1,23 @@
+变异体                      判定        被哪一格抓住
+------------------------------------------------------------------------------
+R3-try-then-refuse       KILLED    target_tree_really_exists/module_not_found (+7)
+R6-env-override          KILLED    no_config_and_env_set/module_not_found (+7)
+M1-parent-is-a-tree      KILLED    no_config_and_parent_is_tree/module_not_found (+7)
+R4-sidecar-cache         KILLED    no_config_and_sidecar/module_not_found (+7)
+R5-json-superset         KILLED    pure_json_config/module_not_found (+3)
+R1-simple-config-only    KILLED    minimal_unquoted_config/module_not_found (+3)
+P2-open-before-import    INVALID   old_snippet 命中 0 次
+WM-narrow-except         KILLED    no_config_file/plain_import_error (+29)
+H1-merged-try            INVALID   old_snippet 命中 0 次
+M1-parent-when-no-config KILLED    no_config_and_parent_is_tree/module_not_found (+3)
+M1-no-safeload-check     KILLED    no_config_file/imports_but_not_pyyaml (+9)
+M2-read-before-import    SURVIVED  ⛔ 40 格全绿 —— 新门仍抓不住
+M3-env-only-when-no-config KILLED    no_config_and_env_set/module_not_found (+3)
+WM-merge-message         KILLED    no_config_file/module_not_found (+39)
+------------------------------------------------------------------------------
+KILLED 11 / 14
+
+=== 有库侧那一格（r8 M2）: 无 config + 父目录是树 ⇒ 应回退父树 ===
+  M2-read-before-import: KILLED —— exit '[quiz-answer] PyYAML 不可用 — harness_tree 指向哪棵树不可证, '
+  阴性对照(生产): ✅ 回退父树
+阴性对照（生产代码应 40 格全绿）: 全绿 ✅
