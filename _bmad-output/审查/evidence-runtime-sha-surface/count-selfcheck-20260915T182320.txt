@@ -1,0 +1,5 @@
+[正常门] rc=0 固定计数GATE-BROKEN=0 glob计数GATE-BROKEN=0 unchanged=1
+[验伪锚①·固定计数改错] rc=1 固定计数GATE-BROKEN=1 glob计数GATE-BROKEN=0 unchanged=0
+[验伪锚②·glob计数改错] rc=1 固定计数GATE-BROKEN=0 glob计数GATE-BROKEN=1 unchanged=0
+COUNT-SELFCHECK bad=0
+rc=0

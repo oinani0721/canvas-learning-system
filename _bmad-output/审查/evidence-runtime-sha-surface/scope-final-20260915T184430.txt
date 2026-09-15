@@ -1,0 +1,21 @@
+# 本份更正 scope-final-20260915T184400.txt：那份把验伪锚③的期望写成「3 行」，
+# 实测 7 行。7 才是对的（3 个新监视项 + 2 个计数常量的 - 与 + 各一次）。
+# 旧存档保留不删（改证据比写错更糟），以本份为准。
+PREV=5fa2d401cdbe2926a23629280c6277fa4b4a15be  HEAD=1f63d216f95f76ffa1ff54c960d32d1004f58fea  (最终态)
+=== (l) 地盘核 ===
+ backend/scripts/lifespan_isolation_runtime_sha.sh | 83 +++++++++++++++++++++--
+ 1 file changed, 76 insertions(+), 7 deletions(-)
+--- 文件清单（只应一行） ---
+backend/scripts/lifespan_isolation_runtime_sha.sh
+--- 验伪锚①：exclude 写法真能排除（排掉 backend 后应为空且 rc=0，不是 128） ---
+rc=0
+--- 验伪锚②：D-32 纯注释尾巴 —— b191a085..HEAD 非注释 +/- 行数，期望 0 ---
+       0
+--- 验伪锚③：同一过滤器对 PREV..b191a085，期望 7 行（3 新监视项 + 2 计数常量各 -/+） ---
++  "${BACKEND_DIR}/data/neo4j_memory.json"
++  "${BACKEND_DIR}/data/llm_call_logs.db"
++  "${BACKEND_DIR}/app/data/lancedb_pending_index__*.jsonl"
+-EXPECTED_FIXED_COUNT=3
+-EXPECTED_GLOB_COUNT=1
++EXPECTED_FIXED_COUNT=5
++EXPECTED_GLOB_COUNT=2

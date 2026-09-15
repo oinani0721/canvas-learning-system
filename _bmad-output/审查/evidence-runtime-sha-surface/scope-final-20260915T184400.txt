@@ -1,0 +1,12 @@
+PREV=5fa2d401cdbe2926a23629280c6277fa4b4a15be  HEAD=1f63d216f95f76ffa1ff54c960d32d1004f58fea  (最终态)
+=== (l) 地盘核 ===
+ backend/scripts/lifespan_isolation_runtime_sha.sh | 83 +++++++++++++++++++++--
+ 1 file changed, 76 insertions(+), 7 deletions(-)
+--- 文件清单（只应一行） ---
+backend/scripts/lifespan_isolation_runtime_sha.sh
+--- 验伪锚①：exclude 写法真能排除（排掉 backend 后应为空且 rc=0） ---
+rc=0
+--- 验伪锚②：D-32 纯注释尾巴（b191a085..HEAD 非注释行应为空） ---
+       0
+--- 验伪锚③：同一过滤器对 PREV..b191a085 应打印 3 行（证明它不是恒空） ---
+       7

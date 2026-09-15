@@ -1,0 +1,7 @@
+tag=L rel=app/data/lancedb_pending_index__probe.jsonl exp=CHANGED exp_rc=1 got='RUNTIME-FILES: CHANGED' hits=1 rc=1 root=/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.c3Aph3kHHC
+tag=N rel=data/neo4j_memory.json exp=CHANGED exp_rc=1 got='RUNTIME-FILES: CHANGED' hits=1 rc=1 root=/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.ZiFWCwZF49
+tag=D rel=data/llm_call_logs.db exp=CHANGED exp_rc=1 got='RUNTIME-FILES: CHANGED' hits=1 rc=1 root=/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.4zp6tdPObo
+tag=X rel=app/data/not_watched_probe.txt exp=unchanged exp_rc=0 got='RUNTIME-FILES: unchanged' hits=1 rc=0 root=/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.leopr6TwRW
+INJECT-SUMMARY want=CHANGED bad=0
+rc=0
+工作树门 sha 前=248b3a6f949adfbb6b8632145ccdbd5f0a574122776fc778bb744ac536a77ee4 后=248b3a6f949adfbb6b8632145ccdbd5f0a574122776fc778bb744ac536a77ee4 相同=yes

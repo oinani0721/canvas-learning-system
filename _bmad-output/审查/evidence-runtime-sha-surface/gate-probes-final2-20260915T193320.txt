@@ -1,0 +1,37 @@
+# 本份取代 gate-probes-final-20260915T183936.txt（那份误经 tail -4，只剩 6 行、无结束 sha）
+跑前门 sha=f0858a154cb03c2899284b27060be6eecc0ca6f3493cf1620f451e4a5437e995
+HEAD=1f63d216f95f76ffa1ff54c960d32d1004f58fea
+gate = /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t9-w4/backend/scripts/lifespan_isolation_guard_probes.py
+[probe_shell_injections] 返回 19 条
+  [ok ] shell-fake-dirname  rc=0  监视路径未被劫持
+  [ok ] shell-fake-printf  rc=0  监视路径未被劫持
+  [ok ] shell-bash-env  rc=0  监视路径未被劫持
+  [ok ] shell-readonly-func  rc=0  监视路径未被劫持
+  [ok ] shell-alias-test-hijack  rc=2  空跑被门自己识别并拒绝
+  [ok ] shell-exit-trap-hijack  rc=2  空跑被门自己识别并拒绝
+  [ok ] shell-bash-env-exec-layer-is-load-bearing  rc=0  exec 层自己摘掉了导出函数
+  [ok ] shell-exec-strips-readonly-func  rc=0  exec 层自己摘掉了导出函数
+  [ok ] shell-wrapped-cmd-sees-no-injected-func  rc=0  exec 层自己摘掉了导出函数
+  [ok ] shell-reexec-sentinel-preset  rc=0  预设旧哨兵不再能跳过清洗
+  [ok ] shell-reexec-sentinel-forged  rc=1  标记不匹配被该分支拒绝
+  [ok ] shell-forged-ticket-with-injection-refused  rc=1  PID 可伪造，但非空 BASH_ENV 被该分支拦下
+  [ok ] shell-ticket-ok-but-exported-func-refused  rc=1  残留导出函数被**导出函数**分支拦下
+  [ok ] shell-forged-ticket-under-exit-trap  rc=1  拒绝路径先清 trap，rc 与 stdout 都没被改写
+  [ok ] shell-multiline-env-var-not-mistaken-for-func  rc=0  多行普通变量没有被误当成导出函数
+  [ok ] shell-env-enum-failure-is-fail-closed-pass1  rc=1  第一趟枚举不完整时拒绝给结论
+  [ok ] shell-env-enum-failure-is-fail-closed-pass2  rc=1  第二趟枚举不完整时拒绝给结论
+  [ok ] shell-shellopts-errexit-does-not-false-red  rc=0  调用者的 SHELLOPTS 被 exec 摘掉，正常调用仍给出结论
+  [ok ] shell-probe-roster-matches-declared-count  rc=-1  门头声明的探针条数与清单，和实际产出一致
+  [ok ] shell-selftest-load-bearing  rc=1  自证承重
+  [ok ] shell-can-report-changed  rc=1  能判 CHANGED
+  [ok ] runtime-glob-absent-to-present  rc=1  glob 分支能抓到新建 journal
+  [ok ] runtime-glob-cached-expansion  rc=0  缓存展开后门确实瞎了 ⇒ 「每次重新展开」承重
+  [ok ] runtime-glob-pattern-neutralized  rc=0  换掉模式后门确实瞎了 ⇒ 这条 glob 项承重
+  [ok ] runtime-glob-sidecar-excluded  rc=0  旁文件不在监视面（M14 收窄生效）
+  [ok ] runtime-glob-expansion-sorted  rc=0  glob 展开按字节序排好（且原始展开确实乱序 ⇒ 排序承重）
+  [ok ] runtime-legacy-journal-watched  rc=1  旧固定名仍在监视面（收窄没让它漏网）
+GATE-PROBES total=27 failed=0
+probes rc=0
+跑后门 sha=f0858a154cb03c2899284b27060be6eecc0ca6f3493cf1620f451e4a5437e995
+跑后 guard_probes sha=5edae9e5661d86c7860831cf4b2f55ec49afd8305a5490dde170550b23bb9d7b
+HEAD blob guard_probes sha=5edae9e5661d86c7860831cf4b2f55ec49afd8305a5490dde170550b23bb9d7b

@@ -1,0 +1,3 @@
+7fc2217a1a9ce089ff3c9281e73ae974c079bd382b92c301f7b5e80f7003efd1  backend/data/neo4j_memory.json
+absent  backend/data/llm_call_logs.db
+absent  backend/app/data/lancedb_pending_index__*.jsonl

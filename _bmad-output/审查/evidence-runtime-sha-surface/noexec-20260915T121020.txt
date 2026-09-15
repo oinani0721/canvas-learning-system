@@ -1,0 +1,9 @@
+[断言验伪锚] 空输出=1(期望1) unchanged=0(期望0) CHANGED=0(期望0)
+[g 先红·真门] rc=0 no_verdict=True out_len=0
+[h 后绿·断言(noexec输出)] = 1 (期望 1)
+[h 对照·正常run] rc=0 has_unchanged=True 断言=0 (期望 rc=0 / True / 0)
+[shell 版·同一 noexec 环境] rc=0 out_len=0 ← 如实登记：bash 调用方自己也被 noexec 噎死，故常驻断言必须落在非 bash 进程
+[shell 版·正常环境] rc=0 stdout='GATE-RAN rc=0' (期望 rc=0 且放行)
+[shell 版·验伪锚(哑门 rc=0 零输出)] rc=1 (期望 != 0)
+NOEXEC-CONTRACT: PASS
+rc=0

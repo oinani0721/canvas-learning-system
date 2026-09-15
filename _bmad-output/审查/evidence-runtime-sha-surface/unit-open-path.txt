@@ -1,0 +1,1 @@
+RUN=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t9-w4/_bmad-output/审查/evidence-runtime-sha-surface/unit-open-20260915T120846.txt

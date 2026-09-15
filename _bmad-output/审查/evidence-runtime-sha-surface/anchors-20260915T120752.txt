@@ -1,0 +1,21 @@
+=== 四锚现求行号 ===
+482:WATCHED_FIXED=(
+504:WATCHED_GLOBS=(
+507:EXPECTED_FIXED_COUNT=3
+508:EXPECTED_GLOB_COUNT=1
+=== 三面生产写点 ===
+75:        self._journal_stem: str = "lancedb_pending_index"
+54:DEFAULT_STORAGE_PATH = Path(__file__).parent.parent.parent / "data" / "neo4j_memory.json"
+35:_DEFAULT_DB_PATH = _BACKEND_DIR / "data" / "llm_call_logs.db"
+=== T-13 四方法（期望恰 4 行，定性移交） ===
+backend/app/services/rag_service.py:344:    async def get_weak_concepts_with_status(
+backend/app/services/memory_service.py:1087:    async def get_review_suggestions_with_status(
+backend/app/services/memory_service.py:2282:    async def search_memories_with_status(
+backend/app/services/memory_service.py:2485:    async def search_error_memories_with_status(
+=== 三面 git-ignored 自证 ===
+backend/data/neo4j_memory.json
+backend/data/llm_call_logs.db
+backend/app/data/lancedb_pending_index__x.jsonl
+check-ignore rc=0
+=== 验伪锚：一个明知不被忽略的文件应不命中 ===
+not-ignored rc=1  (期望 1)

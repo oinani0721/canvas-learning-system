@@ -1,0 +1,10 @@
+PREV=5fa2d401cdbe2926a23629280c6277fa4b4a15be  HEAD=b191a0853ac1d2290978a5b114f939617e82c30f
+=== (l) 地盘核 ===
+ backend/scripts/lifespan_isolation_runtime_sha.sh | 71 ++++++++++++++++++++---
+ 1 file changed, 64 insertions(+), 7 deletions(-)
+--- 文件清单（只应一行） ---
+backend/scripts/lifespan_isolation_runtime_sha.sh
+--- 验伪锚：不加 exclude 时应能看到 _bmad-output 之外还有别的吗（本 commit 只含 .sh，故同一行）---
+backend/scripts/lifespan_isolation_runtime_sha.sh
+--- 验伪锚②：exclude 写法可用性（rc 必须 0，非 128） ---
+exclude-backend rc=0 （应 rc=0 且输出空）
