@@ -760,7 +760,8 @@ def test_m2_non_final_entry_also_surfaces_a_swallowed_failure(capsys) -> None:
     with pytest.raises(SystemExit):
         g33.restore_or_keep_exit_code(_restore_all_under_critical, guard.exiting, clean_exit_code=130)
     err = capsys.readouterr().err
-    assert "逐条还原期间有异常被退出码盖住" in err, f"逐条入口也须显形，实得 {err!r}"
+    # ⚠️ 措辞在 round-7 改成不归因的「盖住了一个异常(未必来自还原本身)」（round-7 LOW）
+    assert "逐条还原的退出码盖住了一个异常" in err, f"逐条入口也须显形，实得 {err!r}"
     assert "mid-loop first restore failed" in err
 
 
@@ -799,3 +800,89 @@ def test_m3_real_suite_denominators_are_unchanged() -> None:
         "g32ccr1": 11,
         "g33": 18,
     }
+
+
+@pytest.mark.parametrize(
+    ("line", "nodeid"),
+    [
+        # reason 里带 ` - ` 是**极常见**的形态，绝不能因此被判二义
+        ("FAILED tests/gate.py::test_x - AssertionError: expected - actual", "tests/gate.py::test_x"),
+        ("FAILED tests/gate.py::test_x - assert 3 - 1 == 1", "tests/gate.py::test_x"),
+        ("FAILED tests/gate.py::test_x[c] - AssertionError: a - b - c", "tests/gate.py::test_x[c]"),
+    ],
+)
+def test_h1_dash_inside_reason_does_not_make_it_ambiguous(line: str, nodeid: str) -> None:
+    """⛔ 「方括号成对」不再是候选判据（Codex round-7 MEDIUM）。
+
+    `tests/gate.py::test_x - AssertionError: expected` 的括号数 0 == 0「成对」，但它在括号外
+    含空白 —— pytest **永远不会**把它当 nodeid 打出来。旧判据把它收进候选 ⇒ 一条**唯一可
+    判定**的普通摘要行被判二义 ⇒ 假 HARNESS-ERROR。而 reason 里带 ` - ` 极其常见。
+    """
+    assert mki._split_unique(line, nodeid) is True, f"普通 reason 含 ` - ` 不得被判二义: {line!r}"
+    # ⛔ 验伪锚：这条收紧**没有**把真正的二义行也放过
+    assert mki._split_unique("FAILED tests/x.py::test_x[case] - EXPECT[]", "tests/x.py::test_x[case]") is False
+
+
+def test_m2_missing_verify_must_not_claim_no_drift(capsys) -> None:
+    """⛔ **没跑自检就不能说「未检出漂移」**（Codex round-7 MEDIUM）。
+
+    上一版把 `verify=None` 和「跑了、结果是空」折成同一个分支，于是一条根本没做的检查被
+    报成了「没问题」—— 这正是本卡从头到尾在消灭的那类话。
+    """
+    fn = _restore_fn()
+    assert fn(lambda: None, lambda: True, final=True, verify=None, pending_failures=["M3"]) is True
+    err = capsys.readouterr().err
+    assert "未跑" in err and "未知" in err, f"没给自检回调时必须说「未跑/未知」，实得 {err!r}"
+    assert "未检出漂移" not in err, "⛔ 根本没跑，不得说「未检出漂移」"
+    # ⛔ 验伪锚：真跑了且没漂移时，仍照旧说「未检出漂移」
+    assert fn(lambda: None, lambda: True, final=True, verify=lambda: [], pending_failures=["M3"]) is True
+    assert "未检出漂移" in capsys.readouterr().err
+
+
+def test_m2_swallowed_exception_is_not_attributed_to_restore(capsys) -> None:
+    """⛔ 被退出码盖住的异常**未必来自还原**，措辞不得替它归因（Codex round-7 LOW）。
+
+    跑门时的 `TimeoutExpired` 正在展开、还原期间收到信号、三次还原**全部成功** —— 此时
+    链上压着的是门执行的异常，不是还原失败。
+    """
+    fn = _restore_fn()
+
+    def _signal_during_outer_unwind() -> None:
+        raise SystemExit(130)
+
+    try:
+        raise TimeoutError("gate run timed out (synthetic)")
+    except TimeoutError:
+        with pytest.raises(SystemExit):
+            fn(_signal_during_outer_unwind, lambda: True, final=True, verify=lambda: [], clean_exit_code=130)
+    err = capsys.readouterr().err
+    assert "未必来自还原本身" in err, f"不得把它归因给还原，实得 {err!r}"
+    assert "TimeoutError" in err, "必须把原异常 repr 给出来让人自己判断"
+
+
+def test_m3_ast_denominator_uses_a_readonly_allowlist(tmp_path: Path) -> None:
+    """⛔ 属性判据必须是**白名单**（Codex round-7 MEDIUM）。
+
+    黑名单每漏一个方法就是一个静默少算的口子 —— `__imul__` / `__delitem__` 就是这么漏的。
+    """
+    import mutation_verdict_reconcile as rec
+
+    probe = tmp_path / "probe.py"
+    orig = rec.SCRIPTS
+    rec.SCRIPTS = tmp_path
+    try:
+        for tail in (
+            "\nMUTATIONS.__imul__(2)\n",
+            "\nMUTATIONS.__delitem__(0)\n",
+            "\nMUTATIONS.sort()\n",
+            "\nMUTATIONS.reverse()\n",
+            "\nMUTATIONS.__init__([1])\n",
+        ):
+            probe.write_text("MUTATIONS = [1, 2, 3]" + tail, encoding="utf-8")
+            with pytest.raises(rec.ReconcileError):
+                rec.ast_mutation_count("probe.py")
+        # ⛔ 验伪锚：只读访问仍放行（白名单不能收得连合法读取都挡掉）
+        probe.write_text("MUTATIONS = [1, 2, 3]\n_n = MUTATIONS.count(1)\n_m = len(MUTATIONS)\n", encoding="utf-8")
+        assert rec.ast_mutation_count("probe.py") == 3
+    finally:
+        rec.SCRIPTS = orig

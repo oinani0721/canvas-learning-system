@@ -70,11 +70,15 @@ MARK = "MUT" + "ANT"
 
 #: (id, 文件, 原文片段, 变异后片段, 必须变红的 nodeid, 一句话说明, expect_msg)
 #:
-#: `expect_msg` = **预期打红的那一条断言**的消息片段。判据只取 pytest 回溯里
-#: 以 `E ` 开头的行 (即真正抛出来的异常文本), **不是**整份 stdout ——
-#: ⛔ pytest 的 long traceback 会把**整个测试函数的源码**打出来, 于是该函数里
-#: 每一条断言的消息串都出现在 stdout 里; 拿 `msg in stdout` 当判据等于恒真,
-#: 那是「判据被自己要找的东西喂饱」的又一种形态。
+#: `expect_msg` = **预期打红的那一条断言**的消息片段。
+#: ⛔ **口径更正(Codex round-7 LOW)**: 此前这里写「判据只取 pytest 回溯里以 `E ` 开头的行」
+#: ——**与实际不符**。round-19 统一走 `kill_identity()` 之后, 真正进裁决的是**摘要区**
+#: (`-rf` 的 `FAILED <nodeid> - <reason>`) 里该 nodeid 的 reason;
+#: 本文件下面那个 `err_text = _error_lines(out)` 只进 `results` 当**诊断记录**, 不参与裁决。
+#: 原来那条纪律本身仍然成立, 只是落点换了: ⛔ 不得拿 `msg in stdout` 当判据 ——
+#: pytest 的 long traceback 会把**整个测试函数的源码**打出来, 于是该函数里每一条断言的
+#: 消息串都出现在 stdout 里, 那等于「判据被自己要找的东西喂饱」。摘要区取法(而不是整份
+#: stdout)才是现在兜住它的东西。
 MUTATIONS = [
     (
         "M1-per-node-lock",
@@ -445,12 +449,20 @@ def _report_restore_concern(headline: str, detail_of: str, verify: Callable[[], 
     ⛔ 自检本身失败不得掩盖被报的事：那时「还原干净」这句话是**「未知」而不是「是」**
     （与 g33 汇总段对扫描失败的措辞同口径）。本函数**不抛**——诊断绝不能改变控制流。
     """
-    drift: list[str] | str
-    try:
-        drift = list(verify()) if verify is not None else []
-    except BaseException as verr:  # noqa: BLE001  自检失败不得掩盖被报的事
-        drift = f"⛔ 自检本身失败({verr!r}) —— 「还原干净」此刻是「未知」而不是「是」"
-    if isinstance(drift, str):
+    drift: list[str] | str | None
+    if verify is None:
+        # ⛔ Codex round-7 MEDIUM：**没跑自检就不能说「未检出漂移」**。上一版把 `None`
+        # 和「跑了、结果是空」折成同一个分支，于是一条根本没做的检查被报成了「没问题」——
+        # 这正是本卡从头到尾在消灭的那类话。
+        drift = None
+    else:
+        try:
+            drift = list(verify())
+        except BaseException as verr:  # noqa: BLE001  自检失败不得掩盖被报的事
+            drift = f"⛔ 自检本身失败({verr!r}) —— 「还原干净」此刻是「未知」而不是「是」"
+    if drift is None:
+        detail = "⛔ **未跑**(本次调用没给自检回调) —— 「还原干净」此刻是「未知」而不是「是」"
+    elif isinstance(drift, str):
         detail = drift
     elif drift:
         detail = f"漂移 {', '.join(drift)}"
@@ -545,8 +557,11 @@ def restore_or_keep_exit_code(
             # （`final=False`）在 `was_exiting` 为假时直接 `raise`，记账那行根本走不到 ——
             # 于是「守卫重试成功、盖住首次真实失败」在**逐条**入口上仍旧一点痕迹不留。
             # 这行打印是那条路上唯一能留下痕迹的地方。
+            # ⛔ Codex round-7 LOW：**不得把它归因给「还原」**。`__context__` 链上压着的
+            # 可能是更外层的异常（例如跑门时的 `TimeoutExpired` 正在展开，还原其实三次全成功），
+            # 本函数分辨不了来源 —— 那就只说「有异常被退出码盖住」，把 repr 给出来让人判断。
             _report_restore_concern(
-                f"{'末次' if final else '逐条'}还原期间有异常被退出码盖住",
+                f"{'末次' if final else '逐条'}还原的退出码盖住了一个异常(未必来自还原本身)",
                 repr(swallowed),
                 verify,
             )
@@ -668,7 +683,15 @@ def main() -> int:
                 # 循环中途收到信号时旧写法会停在还原了一半的状态。
                 # ⛔ round-20: 吞异常保号可以，但「还原失败过」这件事不得丢失 —— 记账,
                 # 汇总段的 `ok_restore` 会把它算进去（sha 对得上也不算数: 还原过程报过错）。
-                if not restore_or_keep_exit_code(restore_all, _guard.exiting):
+                # ⛔ round-7: 逐条这一路也要给 `verify` 与 `clean_exit_code` ——
+                # 缺 `verify` 会让报告把「没跑自检」说成「未检出漂移」(M-2)；
+                # 缺 `clean_exit_code` 会让这一路 fail-closed 成「一律按失败处置」。
+                if not restore_or_keep_exit_code(
+                    restore_all,
+                    _guard.exiting,
+                    verify=_verify_restore,
+                    clean_exit_code=_SIGNAL_EXIT_CODE,
+                ):
                     restore_failures.append(mid)
             # ⛔ 先问「判据面在不在」再问「杀没杀死」: 缺 `-rf` 时短摘要不存在,
             # 判据会安静退化成恒假 ⇒ 全报 SURVIVED, 长得跟「门都不承重」一样。
@@ -714,9 +737,12 @@ def main() -> int:
             )
     finally:
         # ⛔ round-20 (MEDIUM②): 末次还原。新失败不再被静默吞掉 —— 函数内部会先跑
-        # `_verify_restore()` 把还原逐字节自检印出来, 再把退出码升到 3。⚠️ SHA 自检
-        # 必须在**那里面**跑: 若原先那个 SystemExit(130) 继续展开, 下面的汇总段一行都
-        # 到不了 (这正是收口前「仍报 130 且 SHA 不执行」的形态)。
+        # `_verify_restore()` 把还原逐字节自检印出来。⚠️ SHA 自检必须在**那里面**跑:
+        # 若原先那个 SystemExit(130) 继续展开, 下面的汇总段一行都到不了 (这正是收口前
+        # 「仍报 130 且 SHA 不执行」的形态)。
+        # ⚠️ **口径更正(Codex round-7 LOW)**: 此前这句写「再把退出码升到 3」——**说宽了**。
+        # 升 3 **只在进来时已在退出展开**(`exiting()` 为真)那一路; 否则原异常原样重抛、
+        # 不换码(替它换码反而把真实失败类型盖掉)。函数 docstring 已写明, 这里同步。
         if not restore_or_keep_exit_code(
             restore_all,
             _guard.exiting,

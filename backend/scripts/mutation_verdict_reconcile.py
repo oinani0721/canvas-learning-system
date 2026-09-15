@@ -62,7 +62,9 @@ VERDICT_NAMES: tuple[str, ...] = (
     "SYNTAX-INVALID",
 )
 
-#: 三套 stdout 形态里，除 KILLED 外的五档都是 `档名: N`（g32cb/g32ccr1 带两空格缩进）。
+#: `g32cb` / `g32ccr1` 的尾五档形态：`«2 空格»档名: N`。
+#: ⚠️ **不适用于 g32b**（Codex round-7 LOW，此前这条注释把三套一起说了）：g32b 的
+#: `KILLED-UNBOUND` 是 `档名 (说明): N`，所以它单列了 `_B_UNBOUND`；其余四档才是 `档名: N`。
 _TAIL_FIVE = "KILLED-UNBOUND|SURVIVED|HARNESS-ERROR|ANCHOR-ERROR|SYNTAX-INVALID"
 
 
@@ -96,8 +98,15 @@ class ReconcileError(Exception):
 # ── 独立分母：AST 现算 ──────────────────────────────────────────────────────
 
 
-#: 会就地改动列表的方法 —— 出现任何一个都说明条数不是静态可数的。
-_LIST_MUTATORS = ("append", "extend", "insert", "clear", "pop", "remove", "__iadd__", "__setitem__")
+#: `MUTATIONS` 上**只读**的属性/方法白名单。
+#:
+#: ⛔ Codex round-7 MEDIUM：上一版是**黑名单**（列举会改表的方法），于是每漏一个就是一个
+#: 静默少算的口子 —— `__imul__` / `__delitem__` 都是这么漏掉的（`MUTATIONS.__imul__(2)`
+#: 实际长度翻倍，AST 照旧返回原数）。黑名单在这里天然是错的形态：要穷举的是**攻击面**。
+#: 反过来写成白名单后，任何**没列**的属性访问都报错 ⇒ fail-closed by construction。
+_LIST_READONLY_ATTRS = frozenset(
+    {"count", "index", "copy", "__len__", "__getitem__", "__iter__", "__contains__", "__class__"}
+)
 
 
 def _literal_len(node: ast.AST, source_name: str, lineno: int) -> int:
@@ -176,8 +185,12 @@ def ast_mutation_count(source_name: str) -> int:
                     f"{source_name}:{node.lineno} 用 `MUTATIONS[...] = …` / `del MUTATIONS[...]` 改表，分母数不出来"
                 )
         if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id == "MUTATIONS":
-            if node.attr in _LIST_MUTATORS:
-                raise ReconcileError(f"{source_name}:{node.lineno} 用 `MUTATIONS.{node.attr}(...)` 改表，分母数不出来")
+            # ⛔ 白名单之外一律抛（黑名单每漏一个方法就是一个静默少算的口子）。
+            if node.attr not in _LIST_READONLY_ATTRS:
+                raise ReconcileError(
+                    f"{source_name}:{node.lineno} 用 `MUTATIONS.{node.attr}(...)` 访问/改表 —— "
+                    f"不在只读白名单里，分母数不出来"
+                )
 
     if total is None:
         raise ReconcileError(f"{source_name} 里找不到模块级 `MUTATIONS = [...]`，分母无法独立现算")

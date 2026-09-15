@@ -48,7 +48,13 @@ Y1-B 外审两条 HIGH 在本树上**当场复现**（证据
 配套两道结构性收紧：
 
 * `judge_flags()` 统一四套的 pytest 命令行，其中 `--show-capture=no` 让
-  captured 区**根本不产生** —— 判据面里不再有任何被测进程可控的字节。
+  captured 区**根本不产生**。
+  ⛔ **口径更正（Codex round-7 LOW）**：此前这句写「判据面里不再有任何被测进程可控的
+  字节」——**说宽了**，且与 `judge_flags()` 里已改好的说明自相矛盾。它只关掉 captured 区；
+  被测进程的文字仍可经**别的**路子进 FAILURES 区（门里自己写的
+  `assert r.returncode == 0, r.stderr[:250]` 就把子进程 stderr 塞进了断言消息）。
+  真正兜住「伪造判据面」的是 `summary_region()` 只取摘要区 + `expect_loc` 的位置绑定，
+  本开关只是把最便宜的一条路堵掉。
   （代价如实说：SURVIVED 诊断时看不到子进程原文，要人工重跑一次。）
 * `PYEOF_RE` 的终止符收紧为**行首锚定 + 只许尾随空白**（见该常量的注释）。
 
@@ -68,8 +74,12 @@ Y1-B 外审两条 HIGH 在本树上**当场复现**（证据
   2. 必须带 `--tb=line`（否则没有位置行，`expect_loc` 恒不命中）；
   3. 必须设 `COLUMNS` 足够大 —— 80 列下 `FAILED … - <reason>` 的 reason 会被
      截成空串；用 `judge_env()` 拿这份环境。
-  三条都由 `judge_surface_missing()` 在**每次判定前**当场检查，缺了就报 harness
-  失败，而不是安静地把所有变异记成 SURVIVED。
+  ⛔ **口径更正（Codex round-7 LOW）**：此前这句写「三条都由 `judge_surface_missing()`
+  在每次判定前当场检查」——**只有前两条是**。它查的是「摘要区在不在 / 有没有 FAILED 行 /
+  （需要时）有没有位置行」；**第 3 条（`COLUMNS` 够不够宽）它根本不查** —— reason 被截断
+  时摘要行仍然完好，判据面看起来是成立的，只是 `expect_msg` 恒不命中 ⇒ 静静地报 SURVIVED。
+  兜住第 3 条的是 `judge_env()` 把 `COLUMNS=1000` 发下去（四套都从这里取），
+  **不是**一道运行期检查。⚠️ 这意味着：谁绕过 `judge_env()` 自己拼环境，这条就失守。
 
 ## `expect_msg` 的取值纪律
 
@@ -304,7 +314,17 @@ def _split_unique(line: str, nodeid: str) -> bool:
     for i in range(len(body)):
         if body.startswith(" - ", i):
             left = body[:i]
-            if left and (left.count("[") == left.count("]") or _nodeid_shaped(left)):
+            # ⛔ 判据是 `_nodeid_shaped` **一条**，不再并上「方括号成对」（Codex round-7 MEDIUM）。
+            # 「方括号成对」会把**根本不可能是 nodeid** 的左侧收进候选：
+            #   `FAILED tests/gate.py::test_x - AssertionError: expected - actual`
+            # 的第二个切点左侧是 `tests/gate.py::test_x - AssertionError: expected` ——
+            # 括号数 0 == 0 「成对」，但它在括号外含空白，pytest **永远不会**把它当 nodeid 打出来。
+            # 于是一条**唯一可判定**的普通摘要行被判二义 ⇒ 假 HARNESS-ERROR。而 reason 里带
+            # ` - `（`expected - actual`、`assert 3 - 1 == 1`）是**极常见**的形态。
+            # ⚠️ 这是本函数**唯一一次收紧候选集**（此前几轮都在放宽）。安全性论证：被删掉的
+            # 那一族是「成对但不是 nodeid 形」，按定义就不是合法读法，不该参与唯一性判定；
+            # 两个方向的反例都已进单测钉住。
+            if left and _nodeid_shaped(left):
                 cands.append(left)
     # ⛔ H1：无 reason 读法（整行即 nodeid）也是**一种候选读法**，必须进同一个候选集。
     if _nodeid_shaped(body):
