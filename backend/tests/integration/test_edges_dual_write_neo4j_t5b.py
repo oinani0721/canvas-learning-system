@@ -1,23 +1,42 @@
 # CARD-T-EDGES (BATCH-2026-09-11-第十四批 / 车道 T5-B)
-"""Edge 双写端点 Neo4j 侧的两道行为门.
+"""Edge 双写端点 Neo4j 侧的行为门.
 
 被测缺陷: ``_write_neo4j_triplet`` 曾调 ``neo4j.execute_query(query, {...})``,
 而 ``Neo4jClient`` 只有 ``run_query(query, **params)`` (``neo4j_client.py:536``).
 ``execute_query`` 不存在 ⇒ 每次调用抛 ``AttributeError``; 该函数的 except 元组
 原为 ``(RuntimeError, ConnectionError, asyncio.TimeoutError, OSError)``, 不含
 ``AttributeError`` ⇒ 异常穿透 ``asyncio.gather`` (无 ``return_exceptions=True``)
-再穿透无 try 的 handler ⇒ FastAPI 兜成 **500**, 连 LanceDB 侧已经写成功的那一半
-也一起丢掉, 而不是按 Story 4.4 AC-4 记成半成功 **207**.
+再穿透无 try 的 handler ⇒ FastAPI 兜成 **500**, 把 LanceDB 侧那一半的结果一并丢弃,
+而不是按 Story 4.4 AC-4 记成半成功 **207**.
 
-两道门:
+⚠️ 措辞边界: 这里说的是「丢弃 LanceDB 那一半的**结果**」, 不是「丢弃已经落盘的数据」
+—— 实测 ``_write_lancedb`` 目前**根本没有真写**(见文末「已知不实前提」), 所以
+「已经写成功的那一半」是一句不实陈述, 本文件不再那么写.
 
-1. ``test_neo4j_attribute_error_degrades_to_207`` — 降级门, **不需要任何 DB**.
-   注入一个 ``run_query`` / ``execute_query`` 都抛 ``AttributeError`` 的 stub,
-   LanceDB 侧打成功, 断言端点返回 207 且 ``graphiti_status.error`` 带本门独有的
-   sentinel. 修复前实得 500 (RED), 修复后 207 (GREEN).
+门清单:
+
+1. ``test_neo4j_attribute_error_degrades_to_207`` — 降级门, **零 DB**. 注入
+   ``run_query`` / ``execute_query`` 都抛 ``AttributeError`` 的 stub, LanceDB 侧
+   打成功, 断言 207 且 ``graphiti_status.error`` 带本门独有 sentinel.
+   修复前 500 (RED), 修复后 207 (GREEN).
+1c. ``test_每个被收进元组的对端故障类型都降级成_207`` — **零 DB, 参数化 5 格**.
+   对 ``edges._NEO4J_WRITE_FAILURES`` 里新收的每一类(ServiceUnavailable /
+   SessionExpired / TransientError / DatabaseError / RetryError)各跑一次, 逐格断言
+   207 + sentinel + 错误串带类型名. ⛔ 类型清单**从生产模块读并逐类断言它确实在
+   生产元组里**, 不在测试里手抄(手抄必漂移).
+1d. ``test_本进程与部署缺陷不得被伪装成对端写失败`` — **反向门, 零 DB, 5 格**.
+   ClientError / AuthError / ConnectionPoolError / TypeError / KeyError 必须仍然
+   **500**. 这道门是「加宽」的护栏: 没有它, 后人把 ``Neo4jError`` 或 ``Exception``
+   整族收进元组时不会有任何东西变红.
+1e. ``test_run_query_返回空行必须记成写失败而不是_200`` + 其对照组
+   ``test_run_query_返回一行是成功路径`` — **零 DB**. 钉住写确认判据.
+1f. ``test_真客户端在_json_fallback_态下不得报写成功`` — **零 DB 零网络**, 用真的
+   ``Neo4jClient(use_json_fallback=True)`` 证明 1e 模拟的「返回 []」形态确实是真实
+   客户端在 fallback 态下的行为, 不是编出来的.
+1b. ``test_test_uri_port_whitelist_rejects_everything_but_7692`` — 纯逻辑零网络,
+   钉 scheme + 端口白名单.
 2. ``test_run_query_writes_edge_rationale_to_7692`` — 真库写门, 走 **7692 测试
-   容器** (D-39; ⛔ 禁 7691/7687 现网). 7692 不可达则整门 skip, 核心缺陷仍由
-   降级门覆盖.
+   容器** (D-39; ⛔ 禁 7691/7687 现网). 7692 不可达则该门 skip.
 
 ⛔ 为什么两道门都**不 mock 被测函数本身** (G-TEST-GAP):
 既有 ``backend/tests/unit/test_edge_rationale_fallback.py`` 测 207/500 语义时
@@ -40,19 +59,28 @@ Optional ⇒ ``edges.py:66-70`` 的 ``neo4j is None`` 是死守卫), 且 ``backe
 7691; 连接、认证或写入本身也可能失败。``W4_GUARD_NO_EXEMPT=1`` 时上述默认豁免结论
 不适用。故两道门在发请求 / 发写之前都先过注入锚。
 
-⛔ 本文件**没有**证明什么 (Codex r2 HIGH-1 / r3 L1, 如实记):
-两道门覆盖的是 ``AttributeError`` 这一条降级路径。**真实驱动失败不走这条路** ——
-neo4j 6.1.0 的 ``Neo4jError`` / ``ClientError`` / ``AuthError`` / ``TransientError`` /
-``DriverError`` / ``ServiceUnavailable`` / ``SessionExpired`` 七类全部继承自
-``GqlError -> Exception``, 与 ``RuntimeError`` / ``ConnectionError`` / ``OSError``
-无继承关系, 因此**都不被** ``_write_neo4j_triplet`` 的 except 元组捕获(实测存档
-``evidence-t-edges/neo4j-exception-mro-*.txt``)。**措辞边界(r3 L1 整改)**: 这只说明
-「不被本函数捕获」, 不等于「这七类一发生就必然 500」—— ``ServiceUnavailable`` /
-``SessionExpired`` / ``TransientError`` 会先经客户端的重试与 JSON fallback, 初始化
-失败也另有 fallback, 最终 HTTP 状态取决于那条链路; 但**若穿透了客户端内部的重试与
-回退, 端点就会 500**, 权限 / 约束类 ``ClientError`` 存在该路径。本卡按卡文 §三
-「不得泛化, 只加 AttributeError 一个类型」未动这一面, 缺口已登记移交。别把本文件的
-两道绿读成「Neo4j 写失败一定记成 207」。
+⛔ 本文件**没有**证明什么 (如实记):
+
+* **不证明「任何 Neo4j 写失败都会记成 207」**。被刻意排除在外的那一族(门 1d 的五格)
+  仍然 500, 那是**有意的**: 它们不是对端的错。
+* **已知未覆盖的逃逸面**: ``neo4j._exceptions.BoltError`` 族与 packstream 解码层的
+  裸 ``ValueError`` / ``struct.error`` —— 握手完成后收到畸形 Bolt 帧时会逃出
+  ``edges._NEO4J_WRITE_FAILURES`` 而 500。驱动自己的连接池写的是
+  ``except (Neo4jError, DriverError, BoltError)``, 但 ``BoltError`` 在私有模块里,
+  本卡不引私有 API。已登记移交。
+* **写确认只证明「有没有落盘」, 不证明「落的内容对不对」**: 门 1e 用 stub 造出
+  「返回 1 行」即判成功, 真库门(2)才校验字段值。
+* **不证明整个 pytest 进程零网络**(见下方 W4 段)。
+
+⛔ **已知不实前提(不是本卡能修的面, 但本文件的措辞必须绕开它)**:
+``_write_lancedb`` 目前**不会真写 LanceDB**。``LanceDBClient.add_documents`` 是
+``async def``(``backend/lib/agentic_rag/clients/lancedb_client.py:3787`` 实测),
+而 ``_write_lancedb`` 用 ``await asyncio.to_thread(client.add_documents, ...)``
+调它 —— ``to_thread`` 在工作线程里只是**调用**它拿到一个协程对象就返回, 函数体一行
+都不执行、也不抛异常, 于是它恒返 ``WriteStatus(success=True)`` 而零写入
+(进程日志里会有 ``RuntimeWarning: coroutine ... was never awaited``)。
+⇒ 本文件与 ``edges.py`` 都**不得**写「LanceDB 侧已经写成功的那一半」这类话。
+``_write_lancedb`` 不在本卡可改面内(卡文 §三 禁碰), 该缺陷已登记移交。
 
 ⛔ 为什么「改前 500」不能当注入证据 (恒真判据):
 改前无论 stub 是否注入都得 500 —— 注入则 stub 抛 ``AttributeError``, 未注入则
@@ -86,6 +114,16 @@ from urllib.parse import urlsplit
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from neo4j.exceptions import (
+    AuthError,
+    ClientError,
+    ConnectionPoolError,
+    DatabaseError,
+    ServiceUnavailable,
+    SessionExpired,
+    TransientError,
+)
+from tenacity import RetryError
 
 from app.graphiti.group_id_compat import to_physical_group_id
 from app.models.edge_rationale import EdgeRationaleCreate, WriteStatus
@@ -215,23 +253,61 @@ _REAL_DB_SKIP_REASON = (
 
 
 # ---------------------------------------------------------------------------
+# 门 1c / 1d 的类型表
+# ---------------------------------------------------------------------------
+
+#: 被收进 ``edges._NEO4J_WRITE_FAILURES`` 的「对端故障」类型 —— 每一类一道门(1c)。
+#: ⛔ 这里只写**名字→类**的映射; 「它在不在生产元组里」由门自己对生产模块断言,
+#: 不靠本表自证(否则就是测试与测试对账)。
+_WIDENED_TYPES: Dict[str, Any] = {
+    "ServiceUnavailable": ServiceUnavailable,
+    "SessionExpired": SessionExpired,
+    "TransientError": TransientError,
+    "DatabaseError": DatabaseError,
+    "RetryError": RetryError,
+}
+
+#: 被**刻意排除**的类型 —— 每一类一道反向门(1d), 必须仍然 500。
+_EXCLUDED_TYPES: Dict[str, Any] = {
+    "ClientError": ClientError,  # 我们发的请求不对(ParameterMissing / CypherSyntax…)
+    "AuthError": AuthError,  # 凭据没配对 = 部署坏了
+    "ConnectionPoolError": ConnectionPoolError,  # 连接池耗尽 = 我方 session 泄漏
+    "TypeError": TypeError,  # 签名漂移
+    "KeyError": KeyError,  # params 契约破裂
+}
+
+
+# ---------------------------------------------------------------------------
 # 降级门用的 stub 与夹具
 # ---------------------------------------------------------------------------
 
 
 class _AttributeErrorNeo4jStub:
-    """两个方法都抛带 sentinel 的 AttributeError 的假 Neo4j 客户端.
+    """假 Neo4j 客户端: 可注入「抛什么」或「返回什么」.
 
-    同时覆盖 ``execute_query`` (改名前的调用形态) 与 ``run_query`` (改名后),
-    使同一个 stub 在「改前跑」与「改后跑」两态下都能走到抛出点 —— 这样两跑的
-    差别只来自 edges.py 的 except 元组, 不来自 stub 形态.
+    默认两个方法都抛带 sentinel 的 ``AttributeError`` —— 同时覆盖 ``execute_query``
+    (改名前的调用形态) 与 ``run_query`` (改名后), 使同一个 stub 在「改前跑」与
+    「改后跑」两态下都能走到抛出点, 两跑的差别只来自 edges.py 的 except 元组。
+
+    ``exc_factory`` 让同一个 stub 抛别的类型, 供「每个被收进 except 元组的类型都要有
+    一道门」与「被刻意排除的类型必须仍然 500」两组用例共用(第十四批 T5-B 第二轮补)。
+    ``rows`` 让它**正常返回**指定行 —— 用来钉住写确认判据: 返回 ``[]`` 必须被记成
+    写失败, 而不是像本卡第一轮那样丢弃返回值直接报 success=True。
     """
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        exc_factory: Optional[Any] = None,
+        rows: Optional[List[Dict[str, Any]]] = None,
+    ) -> None:
         self.calls = 0
         self.called_methods: List[str] = []
         self.last_args: Optional[Tuple[Any, ...]] = None
         self.last_kwargs: Optional[Dict[str, Any]] = None
+        #: None ⇒ 抛默认的 AttributeError(sentinel); 否则调它拿要抛的异常实例
+        self._exc_factory = exc_factory
+        #: 只有 exc_factory 与本项都为 None 之外的组合才有意义: rows 非 None ⇒ 正常返回
+        self._rows = rows
 
     def _record(self, method: str, args: Tuple[Any, ...], kwargs: Dict[str, Any]) -> None:
         self.calls += 1
@@ -239,13 +315,54 @@ class _AttributeErrorNeo4jStub:
         self.last_args = args
         self.last_kwargs = kwargs
 
+    def _outcome(self, method: str) -> List[Dict[str, Any]]:
+        if self._rows is not None:
+            return self._rows
+        if self._exc_factory is not None:
+            raise self._exc_factory()
+        raise AttributeError(f"{SENTINEL}: {method} refused by T5-B stub")
+
     async def run_query(self, query: str, **params: Any) -> List[Dict[str, Any]]:
         self._record("run_query", (query,), params)
-        raise AttributeError(f"{SENTINEL}: run_query refused by T5-B stub")
+        return self._outcome("run_query")
 
     async def execute_query(self, query: str, *args: Any, **kwargs: Any) -> List[Dict[str, Any]]:
         self._record("execute_query", (query, *args), kwargs)
-        raise AttributeError(f"{SENTINEL}: execute_query refused by T5-B stub")
+        return self._outcome("execute_query")
+
+
+def _post_with_stub(
+    monkeypatch: pytest.MonkeyPatch,
+    stub: _AttributeErrorNeo4jStub,
+) -> Any:
+    """把 stub 注入**源模块**、把 LanceDB 侧打成功, 然后发一次请求, 返回 response.
+
+    ⛔ 注入锚在这里统一过: 打不中就 pytest.fail 立即停 —— 本文件落在 W4 门的
+    advisory 豁免面内(见模块 docstring), 打桩失效时**没有** socket 层防线。
+    """
+    import app.api.v1.endpoints.edges as edges_module
+    import app.clients.neo4j_client as neo4j_module
+
+    def _fake_get_neo4j_client(*args: Any, **kwargs: Any) -> _AttributeErrorNeo4jStub:
+        return stub
+
+    monkeypatch.setattr("app.clients.neo4j_client.get_neo4j_client", _fake_get_neo4j_client)
+    if neo4j_module.get_neo4j_client is not _fake_get_neo4j_client:
+        pytest.fail("注入锚失败: 源模块 get_neo4j_client 未被替换, 已立即停跑")
+
+    async def _fake_write_lancedb(rationale: EdgeRationaleCreate, record_id: str) -> WriteStatus:
+        return WriteStatus(success=True)
+
+    monkeypatch.setattr(edges_module, "_write_lancedb", _fake_write_lancedb)
+
+    assert stub.calls == 0, "stub 在发请求前不应被调用过"
+    client = TestClient(_minimal_edges_app(), raise_server_exceptions=False)
+    resp = client.post("/edges/record-rationale", json=_valid_payload())
+    assert stub.calls >= 1, (
+        f"注入锚失败: stub 一次都没被调用 (calls={stub.calls}) —— 这一跑很可能用的是"
+        f"真客户端并对现网 7691 发起过连接, 请登记后再排查"
+    )
+    return resp
 
 
 def _minimal_edges_app() -> FastAPI:
@@ -364,6 +481,176 @@ def test_neo4j_attribute_error_degrades_to_207(monkeypatch: pytest.MonkeyPatch) 
 
 
 # ---------------------------------------------------------------------------
+# 门 1c — 被收进 except 元组的每一类都必须真的降级成 207 (零 DB, 承重)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "type_name",
+    ["ServiceUnavailable", "SessionExpired", "TransientError", "DatabaseError", "RetryError"],
+)
+def test_每个被收进元组的对端故障类型都降级成_207(monkeypatch: pytest.MonkeyPatch, type_name: str) -> None:
+    """逐类钉住 ``edges._NEO4J_WRITE_FAILURES`` 里新收的那几类.
+
+    ⛔ 为什么必须逐类: 本卡第一轮只有「stub 抛 AttributeError」这一种输入, 于是把
+    元组里的任何类型删掉, 三道门依然全绿 —— 门不锁修复 = 修完等于没修(第十四批
+    T5-B 第二轮对抗复核报的 HIGH)。现在删掉哪一类, 对应那一格就红。
+
+    ⛔ 类型清单**从生产模块读**, 不在测试里手抄 —— 手抄的清单必然与生产漂移。
+    """
+    import app.api.v1.endpoints.edges as edges_module
+
+    exc_cls = _WIDENED_TYPES[type_name]
+    # 身份判据: 这一类确实在生产的元组里(而不是测试自说自话)
+    assert issubclass(exc_cls, edges_module._NEO4J_WRITE_FAILURES), (
+        f"{type_name} 不在 edges._NEO4J_WRITE_FAILURES 里 —— 本门与生产元组已漂移"
+    )
+
+    stub = _AttributeErrorNeo4jStub(exc_factory=lambda: exc_cls(f"{SENTINEL}: {type_name}"))
+    resp = _post_with_stub(monkeypatch, stub)
+
+    assert resp.status_code == 207, f"{type_name} 应被记成对端写失败 ⇒ 207(LanceDB 那一半保住), 实得 {resp.status_code}"
+    body = resp.json()
+    assert body["graphiti_status"]["success"] is False
+    assert SENTINEL in (body["graphiti_status"]["error"] or "")
+    assert type_name in (body["graphiti_status"]["error"] or ""), (
+        "错误串必须带类型名, 否则 ServiceUnavailable(重试有用)与 DatabaseError(对端内部错)"
+        "在响应体里不可分辨, 运维无法分流"
+    )
+    assert body["lancedb_status"]["success"] is True
+
+
+# ---------------------------------------------------------------------------
+# 门 1d — 被**刻意排除**的类型必须仍然 500 (零 DB, 承重的反向门)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "type_name",
+    ["ClientError", "AuthError", "ConnectionPoolError", "TypeError", "KeyError"],
+)
+def test_本进程与部署缺陷不得被伪装成对端写失败(monkeypatch: pytest.MonkeyPatch, type_name: str) -> None:
+    """反向门: 这几类**不该**降级, 必须原样上抛成 500.
+
+    它们的共同点是「不是对端的错」:
+    - ``ClientError`` / ``AuthError``  —— 我们发的请求或凭据不对(ParameterMissing /
+      CypherSyntaxError / 密码没同步)。收进 207 的后果是每个请求都 207、5xx 率恒 0、
+      前端 Outbox 把 207 当「部分成功已保留」继续投递 ⇒ 数据永久丢失且无人察觉。
+    - ``ConnectionPoolError`` —— 连接池耗尽, 典型成因是我方 session 泄漏。
+    - ``TypeError`` / ``KeyError`` —— 签名漂移与 params 契约破裂, 纯本地缺陷。
+
+    ⛔ 这道门是「加宽」的护栏: 没有它, 后人把 ``Neo4jError`` 或 ``Exception`` 一整族
+    收进元组时不会有任何东西变红。
+    """
+    import app.api.v1.endpoints.edges as edges_module
+
+    exc_cls = _EXCLUDED_TYPES[type_name]
+    # 身份判据: 这一类确实**不在**生产元组里
+    assert not issubclass(exc_cls, edges_module._NEO4J_WRITE_FAILURES), (
+        f"{type_name} 被收进了 edges._NEO4J_WRITE_FAILURES —— 本进程/部署缺陷正在被伪装成对端写失败, 见本门 docstring"
+    )
+
+    stub = _AttributeErrorNeo4jStub(exc_factory=lambda: exc_cls(f"{SENTINEL}: {type_name}"))
+    resp = _post_with_stub(monkeypatch, stub)
+
+    assert resp.status_code == 500, (
+        f"{type_name} 是本进程/部署缺陷, 必须响亮地 500, 实得 {resp.status_code}(207 = 它被静默记成了对端写失败)"
+    )
+
+
+# ---------------------------------------------------------------------------
+# 门 1e — 写确认: run_query 返回 0 行 = 没落盘, 不得报成功 (零 DB, 承重)
+# ---------------------------------------------------------------------------
+
+
+def test_run_query_返回空行必须记成写失败而不是_200(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """钉住本卡第二轮修的那个假绿.
+
+    Cypher 以 ``RETURN er.record_id AS record_id`` 收尾 ⇒ 真写成功恒返 1 行。
+    ``Neo4jClient`` 在 JSON fallback 态把查询交给 ``_run_query_json_fallback``,
+    而那个分发器只认 MERGE+User+Concept / MATCH+LEARNED 两族, 本卡的
+    ``CREATE (er:EdgeRationale …)`` 全不命中 ⇒ 落 else 分支 **返回 [] 且不抛异常**。
+    第一轮的 ``_write_neo4j_triplet`` 丢弃返回值直接 ``WriteStatus(success=True)``
+    ⇒ 「Neo4j 宕机」的实际产出是 **HTTP 200「双写全部成功」而图库里什么都没有** ——
+    比 500 更坏, 且这条路是本卡接通 run_query 之后才可达的。
+
+    ⛔ 本门是零 DB 的: 直接让 stub 正常返回 ``[]``。
+    """
+    stub = _AttributeErrorNeo4jStub(rows=[])
+    resp = _post_with_stub(monkeypatch, stub)
+
+    assert resp.status_code != 200, "run_query 返回 0 行 = 这次写没有落盘, 端点绝不能报 200「双写全部成功」"
+    assert resp.status_code == 207, f"应记成半成功 207(LanceDB 那一半保住), 实得 {resp.status_code}"
+    body = resp.json()
+    assert body["graphiti_status"]["success"] is False
+    assert "not confirmed" in (body["graphiti_status"]["error"] or "").lower()
+    assert body["lancedb_status"]["success"] is True
+
+
+def test_run_query_返回一行是成功路径(monkeypatch: pytest.MonkeyPatch) -> None:
+    """写确认判据的对照组: 返回 1 行必须仍是 200.
+
+    ⛔ 没有这条对照, 上一门可以靠「把 success 永远设成 False」作弊通过。
+    """
+    stub = _AttributeErrorNeo4jStub(rows=[{"record_id": "whatever"}])
+    resp = _post_with_stub(monkeypatch, stub)
+
+    assert resp.status_code == 200, f"两侧都成功应为 200, 实得 {resp.status_code}"
+    body = resp.json()
+    assert body["graphiti_status"]["success"] is True
+    assert body["lancedb_status"]["success"] is True
+
+
+# ---------------------------------------------------------------------------
+# 门 1f — 端到端: 真 Neo4jClient 的 JSON fallback 态 (零 DB, 零网络)
+# ---------------------------------------------------------------------------
+
+
+async def test_真客户端在_json_fallback_态下不得报写成功(monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> None:
+    """不用 stub, 用**真的** ``Neo4jClient(use_json_fallback=True)`` 走一遍.
+
+    这道门比 1e 强的地方: 1e 靠 stub 模拟「返回 []」这个形态, 本门证明**真实客户端
+    在真实的 fallback 态下确实返回 []**——即 1e 模拟的那个形态不是我编的。
+    零网络: ``use_json_fallback=True`` 时 ``Neo4jClient`` 不建任何连接,
+    storage_path 指向 pytest 的 tmp_path。
+    """
+    from app.api.v1.endpoints.edges import _write_neo4j_triplet
+    from app.clients.neo4j_client import Neo4jClient
+
+    fallback_client = Neo4jClient(
+        uri="bolt://127.0.0.1:9",  # 不会被使用: fallback 态不建连
+        use_json_fallback=True,
+        storage_path=tmp_path / "t5b_fallback.json",
+    )
+    assert fallback_client._use_json_fallback is True
+
+    monkeypatch.setattr(
+        "app.clients.neo4j_client.get_neo4j_client",
+        lambda *a, **k: fallback_client,
+    )
+
+    rationale = EdgeRationaleCreate(
+        edge_id="edge-t5b-fallback",
+        source_node_id="node-a",
+        target_node_id="node-b",
+        source_concept="A",
+        target_concept="B",
+        relation_type="is prerequisite for",
+        rationale_text="fallback gate",
+        confidence=0.5,
+    )
+    status_ = await _write_neo4j_triplet(rationale, "t5b-fallback-rec", "vault:t5bfallback")
+
+    assert status_.success is False, (
+        "真客户端在 JSON fallback 态下对 CREATE (er:EdgeRationale …) 只会 "
+        "logger.warning + 返回 [], 零写入 —— 绝不能报 success=True"
+    )
+    assert "not confirmed" in (status_.error or "").lower()
+
+
+# ---------------------------------------------------------------------------
 # 门 1b — scheme + 端口白名单行为门 (纯逻辑, 零网络; Codex r1 HIGH / r2 HIGH-2 的验伪锚)
 # ---------------------------------------------------------------------------
 
@@ -455,23 +742,29 @@ async def test_run_query_writes_edge_rationale_to_7692(
 
     monkeypatch.setattr("app.clients.neo4j_client.get_neo4j_client", _fake_get_neo4j_client)
 
-    # ⛔ 前置注入锚 (承重, 发写之前). 三条任一不成立就立即 pytest.fail ——
-    # 绝不能带着未生效的打桩去调 _write_neo4j_triplet: 那一调会拿到 .env 指向
-    # 7691 现网的真单例, 并真往现网写 :EdgeRationale 节点.
+    # ⛔ 前置注入锚 (发写之前). 不成立就立即 pytest.fail —— 绝不能带着未生效的打桩
+    # 去调 _write_neo4j_triplet: 那一调会拿到 .env 指向 7691 现网的真单例,
+    # 并真往现网写 :EdgeRationale 节点。
+    #
+    # ⚠️ 只有**这一条**是真承重的(第十四批 T5-B 第二轮对抗复核更正)。早先这里写着
+    # 「三条前置锚」, 实测另外两条都不可证伪, 已按其真实检测力改写, 不再冒充承重:
+    #   - 「client 的端口是不是 7692」与上面 :435 的 skip 判据是**同一个纯函数作用在
+    #     同一个字符串上**(Neo4jClient.__init__ 原样存 uri, 不归一不重写), 因此在
+    #     skip 放行之后必然也放行 ⇒ 恒真。它真正能钉住的是「client 没有改写 URI」,
+    #     所以改成直接断言这一点。
+    #   - 「client 是不是 JSON fallback 态」在此处恒假: 该标志只可能由 run_query →
+    #     initialize() 内部的 _fallback_to_json() 置位, 而那发生在本行**之后**。
+    #     真正覆盖 fallback 态的是零 DB 的门 1f + 生产侧的写确认判据。
     if neo4j_module.get_neo4j_client is not _fake_get_neo4j_client:
         pytest.fail(
             "前置注入锚失败: 源模块 get_neo4j_client 未被替换 —— 继续会真往 .env 的 7691 现网写节点, 已立即停跑"
         )
-    if not _test_uri_port_is_allowed(injected_client._uri):
-        # 走解析白名单而不是 ":7692" in uri 子串判定 (Codex r1 HIGH 同族整改)
-        pytest.fail(
-            f"前置注入锚失败: 注入的 client 解析出的端口不是 {ALLOWED_TEST_PORT} "
-            f"(实测 uri={injected_client._uri!r}), 已立即停跑"
-        )
-    if injected_client._use_json_fallback:
-        pytest.fail(
-            "前置注入锚失败: 注入的 client 处于 JSON fallback 模式, 不会真写 Neo4j —— 这一跑的绿是假绿, 已立即停跑"
-        )
+    # 结构断言(非承重): client 原样保存了我们给的 URI, 没有另接别处
+    assert injected_client._uri == NEO4J_TEST_URI, (
+        f"Neo4jClient 改写了 uri: 传入 {NEO4J_TEST_URI!r} 实得 {injected_client._uri!r} "
+        f"—— 上游 skip 判据据此失效, 需重新评估发写前的防线"
+    )
+    assert _test_uri_port_is_allowed(injected_client._uri), "同上: 端口白名单对该 uri 必须成立"
 
     rationale = EdgeRationaleCreate(
         edge_id=f"edge-{suffix}",
