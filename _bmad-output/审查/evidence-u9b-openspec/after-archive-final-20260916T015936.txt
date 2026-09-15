@@ -1,0 +1,15 @@
+# (d) 后绿 final：archive 对最终 spec 仍不撞 SPEC_NO_REQUIREMENTS
+scratch 输入 sha=f3646937842e7c35ccec765cb6e0e996febf90a1eb9cccd9536975486d416405
+工作树 spec sha =f3646937842e7c35ccec765cb6e0e996febf90a1eb9cccd9536975486d416405  ← 两行必须相同
+Task status: No tasks
+
+Specs to update:
+  concept-identity: update
+Applying changes to openspec/specs/concept-identity/spec.md:
+  ~ 1 modified
+Totals: + 0, ~ 1, - 0, → 0
+Specs updated successfully.
+Change 'restate-concept-identity' archived as '2026-09-15-restate-concept-identity'.
+ARCHIVE_RC=0
+archive 后 sha=ee6be72a4b07e045b63e6b0e60842ca7024002b5cd595129cd318160923ed663  Requirement=1
+✓ archive 真写了主 spec

@@ -90,11 +90,12 @@ docs/project-status/fr-exploration/A6-resolution-summary.md
 openspec/specs/concept-identity/spec.md
 ```
 
-**当前内容**：1 个 Requirement `FSRS Card State Projection Snapshot Persistence` + 4 个 `#### Scenario:`
+**当前内容**：1 个 Requirement `FSRS Card State Projection Snapshot Persistence` + 5 个 `#### Scenario:`
   1. Snapshot is published by atomic replace, never by writing the destination
   2. Unresolvable vault scope fails closed without any filesystem write
   3. Serialization failure is normalized to False and the mutation is rolled back
-  4. A successful snapshot clears every outstanding dirty marker
+  4. A successful snapshot clears every dirty marker without restoring lost values
+  5. A dirty marker in one vault does not make a same-named concept in another look unpersisted
 
 > **⚠️ 2026-09-15（CARD-U9B-OPENSPEC）替换记录**：原先那条
 > `FSRS Card State Legacy Bucket Preservation On Save` 是**悬空**的——它描述的双桶模型
@@ -103,10 +104,12 @@ openspec/specs/concept-identity/spec.md
 > `_save_card_states()` 已实现行为的 Requirement。
 
 **打开它能回答的问题**:
-- 审查新 PR 是否破坏 FSRS 投影落盘不变式 → 这里的 4 个 scenario 是 acceptance criteria：
+- 审查新 PR 是否破坏 FSRS 投影落盘不变式 → 这里的 5 个 scenario 是 acceptance criteria：
   全量快照 / 临时文件+原子替换 / 作用域解析失败 fail-closed（零文件操作）/
-  `try` 内失败归一为 `False`（⚠️ 两个分支不同：`TypeError`/`ValueError` **回滚**内存 mutation，
-  `OSError` **保留**内存值）/ 成功清空全部脏标记（清的是标记不是数据）
+  `try` 内**仅** `TypeError`·`ValueError`·`OSError` 归一为 `False`（⚠️ 两族处置不同：前者**回滚**
+  内存 mutation，`OSError` **保留**内存值；其余异常照常冒泡，不保证恒返 bool）/
+  成功清空全部脏标记（清的是**标记**不是**数据**）/ 脏标记身份是 `(vault_id, concept_id)`
+  （防跨 vault 同名 concept 误报未落盘）
 - 将来的 `a6-phase1-*` 归档时 spec 累积在哪 → 同一个文件
 
 **⚠️ GOTCHA（仅提醒，不是任务）**:

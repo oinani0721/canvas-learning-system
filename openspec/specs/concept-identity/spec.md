@@ -31,12 +31,22 @@ and the method returns `False` **without touching the filesystem at all** — it
 is forbidden, because that would both disguise a broken configuration as a successful write and
 place one vault's card into another vault's bucket.
 
-Failures inside the `try:` block MUST be normalized to a `False` return rather than propagating:
-`TypeError`/`ValueError` (which covers the `UnicodeEncodeError` raised by a lone-surrogate
-`concept_id`) additionally MUST roll the `pending` mutation back out of memory — restoring the
-previous value, or removing the key when there was none — so that one poisoned entry cannot keep
-failing the full-snapshot write for every other concept; `OSError` MUST retain the in-memory value
-and only record the concept as unpersisted. Both paths MUST mark the pending concept dirty.
+`TypeError`, `ValueError` and `OSError` raised inside the `try:` block MUST be normalized to a
+`False` return rather than propagating. `TypeError`/`ValueError` (which covers the
+`UnicodeEncodeError` raised by a lone-surrogate `concept_id`) additionally MUST roll the `pending`
+mutation back out of memory — restoring the previous value, or removing the key when there was
+none — so that one poisoned entry cannot keep failing the full-snapshot write for every other
+concept; `OSError` MUST retain the in-memory value and only record the concept as unpersisted.
+Both paths MUST mark the pending concept dirty. Normalization is scoped to **those three exception
+families inside that block**: anything else (and anything raised outside it) propagates to the
+caller, so this spec MUST NOT be read as promising that the method always returns a `bool`.
+
+The dirty-marker identity MUST be the vault-scoped pair `(vault_id, concept_id)` produced by
+`_dirty_key()`, never a bare `concept_id`. The main state carries a vault dimension, so this
+derived state must carry the same one: otherwise a failed write for concept `c` in vault A would
+make vault B's *same-named* concept `c` report `persisted=False` on a cache hit — a cross-vault
+false report. When the vault cannot be resolved, `None` stands in for `vault_id`, which is
+faithful because in that case the projection was never advanced anyway.
 
 On a successful replace the method MUST clear `self._unpersisted_concepts` in full, and it does so
 **unconditionally** — it does not check whether each cleared entry is actually represented in the
@@ -90,3 +100,13 @@ latter.
 - **AND** `self._unpersisted_concepts` is empty — including the earlier concept's key
 - **AND** the persisted snapshot still does NOT contain the rolled-back value, because it was
   never in memory to be serialized
+
+#### Scenario: A dirty marker in one vault does not make a same-named concept in another look unpersisted
+
+- **GIVEN** concept id `c` exists in both vault A and vault B
+- **AND** a write for `c` under vault A failed, so `("A", "c")` is in `self._unpersisted_concepts`
+- **WHEN** the persisted state of `c` is queried while vault B is the active scope
+- **THEN** `c` is reported as persisted under vault B, because the lookup key is `("B", "c")`
+  and that pair is not in the set
+- **AND** a bare-`concept_id` marker identity would instead have reported vault B's `c` as
+  unpersisted
