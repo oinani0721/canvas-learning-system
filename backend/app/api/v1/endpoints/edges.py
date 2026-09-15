@@ -49,19 +49,32 @@ logger = logging.getLogger(__name__)
 #: `ConstraintError`。这些全是**本进程 / 本部署的缺陷**, 收进 207 的后果是:
 #: 每个请求都返 207 → 5xx 率恒 0 → 看板全绿 → 前端 Outbox 把 207 当「部分成功已保留」
 #: 继续投递 → 全部 edge rationale 的 Neo4j 半边永久丢失且无人察觉。
-#: 同理不收 `ConnectionPoolError`(连接池耗尽 = 我方 session 泄漏)、
-#: `ResultError`/`SessionError`/`TransactionError` 族(驱动 API 误用)、
-#: `ConfigurationError` 族(部署配置坏了) —— 它们都该响亮地 500。
+#: 同理不收 `ConnectionPoolError`、`ResultError`/`SessionError`/`TransactionError` 族、
+#: `ConfigurationError` 族 —— 它们都该响亮地 500。
 #:
-#: 收进来的这四类**只描述对端状态**, 与我方请求内容无关:
+#: 收进来的这四类的共同点是**不指向某一次请求的内容**:
 #: ServiceUnavailable/SessionExpired(连不上或会话失效)、TransientError(对端让重试)、
 #: DatabaseError(对端内部错)。加上 tenacity `RetryError`(重试耗尽, 在已 fallback 态
 #: 由 neo4j_client 裸 raise)与原有四类内建异常。
 #:
-#: ⚠️ 已知未覆盖(如实记, 已登记移交): `neo4j._exceptions.BoltError` 族与 packstream
-#: 解码层的裸 `ValueError`/`struct.error` —— 握手完成后收到畸形 Bolt 帧时会逃出本元组
-#: 而 500。驱动自己的连接池写的是 `except (Neo4jError, DriverError, BoltError)`,
-#: 但 `BoltError` 在私有模块 `neo4j._exceptions` 里, 本卡不引私有 API。
+#: ⚠️ **这是 207/500 的处置策略, 不是根因分类器**(Codex r6 L1 整改, 原措辞过绝对):
+#: 同一个类可以有多种根因 —— `ConnectionAcquisitionTimeoutError`(⊂ ConnectionPoolError)
+#: 既可能来自我方 session 泄漏, 也可能只是正常慢查询占满了连接池; 官方也写明
+#: `ServiceUnavailable` 可能源于配置错误。所以「收/不收」表达的是「这一类**默认**按
+#: 对端故障还是按我方缺陷处置」, 不能反过来当成「出现这个类就一定是谁的锅」。
+#: `ConnectionAcquisitionTimeoutError` 是这条线上最值得重新裁定的一类, 现按 500 处置。
+#:
+#: ⚠️ 已知未覆盖(如实记, 已登记移交):
+#: 1. `neo4j._exceptions.BoltError` 族与 packstream 解码层的裸 `ValueError`/`struct.error`
+#:    —— 握手完成后收到畸形 Bolt 帧时会逃出本元组而 500。驱动自己的连接池写的是
+#:    `except (Neo4jError, DriverError, BoltError)`, 但 `BoltError` 在私有模块
+#:    `neo4j._exceptions` 里, 本卡不引私有 API。
+#: 2. ⛔ **「部署错误必然 500」只在「驱动已初始化之后」成立**(Codex r6 H1):
+#:    `Neo4jClient.initialize()` 对 `AuthError` 与任意 `Exception` 一律转 JSON fallback
+#:    (`neo4j_client.py:411` 附近), 于是**首次初始化就撞上凭据/配置错误**的那条路上,
+#:    异常根本到不了本元组 —— 后续查询返回 `[]`, 由下面的写确认判据兜成 207。
+#:    也就是说那种情形下本端点给出的是「写未确认」而不是「部署坏了」的信号。
+#:    client 侧这条吞异常的行为不在本卡可改面, 已登记移交。
 _NEO4J_WRITE_FAILURES: tuple[type[Exception], ...] = (
     RuntimeError,  # neo4j_client.py:595-596 "Neo4j driver not initialized"
     ConnectionError,  # ⊂ OSError, 保留为可读性
@@ -186,9 +199,19 @@ async def _write_neo4j_triplet(
         )
         return WriteStatus(success=False, error=f"{type(e).__name__}: {e}")
 
-    # ⛔ 写确认: 上面的 Cypher 以 `RETURN er.record_id AS record_id` 收尾, 真写成功
-    # 恒返回**恰 1 行**。返回 0 行意味着这次写**没有落盘**, 必须记成失败。
-    # 为什么非查不可(本轮实测, 存档 evidence-t-edges/fallback-200-falsegreen-*.txt):
+    # ⛔ 写确认(⚠️ 判据与 query 末尾那句 `RETURN er.record_id AS record_id` 绑定 ——
+    # 7692 实测: 带 RETURN 的 CREATE 返 1 行, 去掉 RETURN 返 0 行。谁删了那句 RETURN,
+    # 每一次成功写入都会被本判据误判成失败。存档 write-confirm-rowcount-probe-*.txt):
+    # 返回 0 行 = **没有取得写入确认**, 必须记成失败。
+    #
+    # ⚠️ 措辞边界(Codex r6 M1 整改, 原注释写「没有落盘」过强): `[]` 表达的是
+    # **「未取得确认」而不是「确定没写进去」**。存在「已提交但拿不到确认」的路径 ——
+    # Neo4j 已提交 → 最终响应在网络上丢失 → ServiceUnavailable/SessionExpired →
+    # 重试耗尽 → `_fallback_to_json()` → JSON 分发器返回 `[]`。此时真实结果未知。
+    # 保守记成 success=False 仍是对的(宁可让调用方重试/告警, 不可谎报成功), 但不能
+    # 宣称「这条没写进去」。本函数不做幂等重试, 那是 client 侧的事, 已登记移交。
+    #
+    # 为什么非查不可(实测, 存档 evidence-t-edges/fallback-200-falsegreen-*.txt):
     # Neo4jClient 在 JSON fallback 态把查询交给 _run_query_json_fallback, 而那个
     # 分发器只认 MERGE+User+Concept / MATCH+LEARNED 两族, 本函数的
     # `CREATE (er:EdgeRationale …)` 三个分支全不命中 ⇒ 落 else 分支
@@ -202,13 +225,13 @@ async def _write_neo4j_triplet(
     if not rows:
         logger.error(
             "Neo4j write NOT confirmed for edge %s (record %s): run_query returned 0 rows "
-            "(JSON fallback 的 unhandled-query 分支即如此) — 记为写失败, 不报成功",
+            "(JSON fallback 的 unhandled-query 分支即如此) — 提交结果未知, 记为写失败",
             rationale.edge_id,
             record_id,
         )
         return WriteStatus(
             success=False,
-            error="Neo4j write not confirmed: query returned no rows (write did not land)",
+            error=("Neo4j write not confirmed: query returned no rows (commit outcome unknown — treated as failure)"),
         )
 
     logger.info(

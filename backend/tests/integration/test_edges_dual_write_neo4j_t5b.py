@@ -20,14 +20,19 @@
    打成功, 断言 207 且 ``graphiti_status.error`` 带本门独有 sentinel.
    修复前 500 (RED), 修复后 207 (GREEN).
 1c. ``test_每个被收进元组的对端故障类型都降级成_207`` — **零 DB, 参数化 5 格**.
-   对 ``edges._NEO4J_WRITE_FAILURES`` 里新收的每一类(ServiceUnavailable /
-   SessionExpired / TransientError / DatabaseError / RetryError)各跑一次, 逐格断言
-   207 + sentinel + 错误串带类型名. ⛔ 类型清单**从生产模块读并逐类断言它确实在
-   生产元组里**, 不在测试里手抄(手抄必漂移).
+   对新收的每一类(ServiceUnavailable / SessionExpired / TransientError /
+   DatabaseError / RetryError)各跑一次, 逐格断言 207 + sentinel + 错误串**以生产
+   加的类型名前缀开头**. 用例清单是测试独立维护的预期表, 门内另有一条
+   ``issubclass`` 断言检查「这一类确实会被生产元组接住」—— 两者的分工与代价见该门
+   docstring.
 1d. ``test_本进程与部署缺陷不得被伪装成对端写失败`` — **反向门, 零 DB, 5 格**.
    ClientError / AuthError / ConnectionPoolError / TypeError / KeyError 必须仍然
    **500**. 这道门是「加宽」的护栏: 没有它, 后人把 ``Neo4jError`` 或 ``Exception``
    整族收进元组时不会有任何东西变红.
+1d2. ``test_取_client_阶段的异常必须穿透成_500_而不是被降级`` — **零 DB**. 钉住
+   ``try`` 的**边界**本身: 1c/1d 的异常都从客户端调用处抛, 分辨不了 try 的范围;
+   本门让 getter 抛 ``AttributeError``(该类型在元组里, 所以「没被接住」只能是因为
+   它落在 try 之外), 断言 500.
 1e. ``test_run_query_返回空行必须记成写失败而不是_200`` + 其对照组
    ``test_run_query_返回一行是成功路径`` — **零 DB**. 钉住写确认判据.
 1f. ``test_真客户端在_json_fallback_态下不得报写成功`` — **零 DB 零网络**, 用真的
@@ -38,7 +43,7 @@
 2. ``test_run_query_writes_edge_rationale_to_7692`` — 真库写门, 走 **7692 测试
    容器** (D-39; ⛔ 禁 7691/7687 现网). 7692 不可达则该门 skip.
 
-⛔ 为什么两道门都**不 mock 被测函数本身** (G-TEST-GAP):
+⛔ 为什么所有门都**不 mock 被测函数本身** (G-TEST-GAP):
 既有 ``backend/tests/unit/test_edge_rationale_fallback.py`` 测 207/500 语义时
 整体 ``patch("app.api.v1.endpoints.edges._write_neo4j_triplet", ...)`` (实测 9
 处, 行号 :65/92/118/144/168/193/218/245/279), 把**被测函数本身**换成桩 ⇒ 真实的
@@ -479,6 +484,17 @@ def test_neo4j_attribute_error_degrades_to_207(monkeypatch: pytest.MonkeyPatch) 
     )
     assert stub.last_kwargs["group_id"].startswith("vault__"), "group_id 未经 to_physical_group_id 物理化 (契约 W3)"
 
+    # ── 写确认判据的耦合锚 ────────────────────────────────────────────────
+    # ⛔ 生产的写确认判据是「run_query 返回 0 行 ⇒ 记失败」, 它**只在 Cypher 末尾带
+    # `RETURN er.record_id` 时成立**。7692 实测: 带 RETURN 的 CREATE 返 1 行, 去掉
+    # RETURN 返 0 行(存档 evidence-t-edges/write-confirm-rowcount-probe-*.txt)。
+    # 谁删了那句 RETURN, 每一次成功写入都会被判成失败(假红, 且没有别的门会发现)。
+    # 本锚直接钉住实际发给客户端的那条 query 文本。
+    assert "RETURN er.record_id" in stub.last_args[0], (
+        "Cypher 末尾的 `RETURN er.record_id` 不见了 —— 生产的「返回 0 行 = 未取得写入"
+        "确认」判据依赖它, 去掉之后每一次成功写入都会被误判成失败"
+    )
+
 
 # ---------------------------------------------------------------------------
 # 门 1c — 被收进 except 元组的每一类都必须真的降级成 207 (零 DB, 承重)
@@ -496,26 +512,36 @@ def test_每个被收进元组的对端故障类型都降级成_207(monkeypatch:
     元组里的任何类型删掉, 三道门依然全绿 —— 门不锁修复 = 修完等于没修(第十四批
     T5-B 第二轮对抗复核报的 HIGH)。现在删掉哪一类, 对应那一格就红。
 
-    ⛔ 类型清单**从生产模块读**, 不在测试里手抄 —— 手抄的清单必然与生产漂移。
+    ⛔ 措辞如实(Codex r6 L2 整改, 原写「类型清单从生产模块读」不准确):
+    用例清单 ``_WIDENED_TYPES`` 是**测试独立维护**的预期表, 不是从生产元组生成的;
+    下面那条 ``issubclass`` 断言检查的是**继承捕获关系**(这一类会不会被生产元组接住),
+    不是「它是元组的直接成员」。这个组合是有意的 —— 若改成从生产元组动态生成用例,
+    删掉生产里的某个类型会连它的测试一起删掉, 缺陷反而不可见。
+    代价如实记: 生产**新增**类型不会自动多出一格, 需要人同步本表。
     """
     import app.api.v1.endpoints.edges as edges_module
 
     exc_cls = _WIDENED_TYPES[type_name]
-    # 身份判据: 这一类确实在生产的元组里(而不是测试自说自话)
     assert issubclass(exc_cls, edges_module._NEO4J_WRITE_FAILURES), (
-        f"{type_name} 不在 edges._NEO4J_WRITE_FAILURES 里 —— 本门与生产元组已漂移"
+        f"{type_name} 不会被 edges._NEO4J_WRITE_FAILURES 接住 —— 本门与生产元组已漂移"
     )
 
-    stub = _AttributeErrorNeo4jStub(exc_factory=lambda: exc_cls(f"{SENTINEL}: {type_name}"))
+    # ⛔ 异常消息里**只放 sentinel, 不放类型名**(Codex r6 M2 整改)。
+    # 原写法 `exc_cls(f"{SENTINEL}: {type_name}")` 把类型名自己塞进了消息, 于是
+    # 下面「响应里含类型名」这条断言变成恒真 —— 生产就算把
+    # `error=f"{type(e).__name__}: {e}"` 改回 `error=str(e)`, 这五格照样绿。
+    # 判据的取名面不等于它的主张。现在改成断言**前缀**, 那个前缀只能由生产加上。
+    stub = _AttributeErrorNeo4jStub(exc_factory=lambda: exc_cls(SENTINEL))
     resp = _post_with_stub(monkeypatch, stub)
 
     assert resp.status_code == 207, f"{type_name} 应被记成对端写失败 ⇒ 207(LanceDB 那一半保住), 实得 {resp.status_code}"
     body = resp.json()
     assert body["graphiti_status"]["success"] is False
-    assert SENTINEL in (body["graphiti_status"]["error"] or "")
-    assert type_name in (body["graphiti_status"]["error"] or ""), (
-        "错误串必须带类型名, 否则 ServiceUnavailable(重试有用)与 DatabaseError(对端内部错)"
-        "在响应体里不可分辨, 运维无法分流"
+    error = body["graphiti_status"]["error"] or ""
+    assert SENTINEL in error
+    assert error.startswith(f"{type_name}:"), (
+        f"错误串必须由生产加上类型名前缀(实得 {error!r}) —— 否则 ServiceUnavailable"
+        f"(重试有用)与 DatabaseError(对端内部错)在响应体里不可分辨, 运维无法分流"
     )
     assert body["lancedb_status"]["success"] is True
 
@@ -559,7 +585,53 @@ def test_本进程与部署缺陷不得被伪装成对端写失败(monkeypatch: 
 
 
 # ---------------------------------------------------------------------------
-# 门 1e — 写确认: run_query 返回 0 行 = 没落盘, 不得报成功 (零 DB, 承重)
+# 门 1d2 — 钉住 try 的**边界**: 取 client 阶段的异常必须穿透成 500 (零 DB, 承重)
+# ---------------------------------------------------------------------------
+
+
+def test_取_client_阶段的异常必须穿透成_500_而不是被降级(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """钉住「``try`` 只包 ``await neo4j.run_query(...)`` 这一行」这件事本身.
+
+    ⛔ 为什么需要这道门(Codex r6 M3): 1c/1d 两组的异常**都从客户端调用处抛出**,
+    所以它们分辨不了 ``try`` 的范围。只要有人把 ``try`` 恢复成包整个函数体
+    (同时保留新元组与写确认), 1c/1d/1e/1f 十四格**全部照绿** —— 而那个回归恰恰是
+    本轮最重要的修复被撤销: params 里 14 次 ``rationale.<field>`` 取值、
+    ``get_neo4j_client()`` 的配置缺陷、``to_physical_group_id`` 的 punycode 路径,
+    任一出错都会重新被记成「Neo4j 写失败」⇒ 静默 207 ⇒ 数据永久丢失。
+
+    本门让 **getter 本身**抛 ``AttributeError``(该类型确实在元组里, 所以「没被接住」
+    只可能是因为它落在 ``try`` **之外**), 断言端点 500。
+    """
+    import app.api.v1.endpoints.edges as edges_module
+
+    def _exploding_get_client(*args: Any, **kwargs: Any) -> Any:
+        raise AttributeError(f"{SENTINEL}: getter exploded before any run_query")
+
+    monkeypatch.setattr("app.clients.neo4j_client.get_neo4j_client", _exploding_get_client)
+
+    async def _fake_write_lancedb(rationale: EdgeRationaleCreate, record_id: str) -> WriteStatus:
+        return WriteStatus(success=True)
+
+    monkeypatch.setattr(edges_module, "_write_lancedb", _fake_write_lancedb)
+
+    # 前提锚: AttributeError 确实在生产元组里 —— 否则本门红的原因就不是「try 边界」
+    assert AttributeError in edges_module._NEO4J_WRITE_FAILURES, (
+        "AttributeError 不在生产元组里, 本门无法区分「try 太宽」与「类型没收」"
+    )
+
+    client = TestClient(_minimal_edges_app(), raise_server_exceptions=False)
+    resp = client.post("/edges/record-rationale", json=_valid_payload())
+
+    assert resp.status_code == 500, (
+        f"取 client 阶段抛的异常必须原样上抛成 500, 实得 {resp.status_code} —— "
+        f"207 说明 try 又包住了 run_query 之外的代码, 本轮的收窄被撤销了"
+    )
+
+
+# ---------------------------------------------------------------------------
+# 门 1e — 写确认: run_query 返回 0 行 = 未取得确认, 不得报成功 (零 DB, 承重)
 # ---------------------------------------------------------------------------
 
 
