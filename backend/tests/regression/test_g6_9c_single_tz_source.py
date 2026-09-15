@@ -452,9 +452,12 @@ _CROSS_YEAR_WINDOW_CASES = [
     (
         # ⛔ 抗漂移的那一条。`365/3,365/2` 的红区**每年只有 2 小时**、且只在「前一年是
         # 平年」的元旦出现(还原 y-2 后 2007..2037 里 23/31 年红); 把 `/时刻` 拉到 167 小时
-        # 后红区变成 **142–166 小时/年、31/31 年都红**（实测逐年: 多数年 166 小时
-        # `01-01 00:00 → 01-07 21:00Z`; **闰年后一年**只有 142 小时, 如 2025/2029 到
-        # `01-06 21:00Z` 为止 —— Codex r7 LOW-2 更正了初版写死的「166 小时/年」）。
+        # 后红区变成 **142–166 小时/年、31/31 年都红**（实测逐年: 多数年 166 小时,
+        # 连续区间 `[01-01T00:00Z, 01-07T22:00Z)`; **闰年后一年**只有 142 小时,
+        # 如 2025/2029 是 `[01-01T00:00Z, 01-06T22:00Z)` —— 两处右端**不含端点**,
+        # 逐秒实测 `01-06T21:59:59Z` 仍红、`22:00:00Z` 才绿）。
+        # ⛔ 端点别写成「到 21:00Z 为止」（初版如此、Codex r8 LOW-1 更正）: 那是最后一个
+        #    红的**整点采样**, 不是连续红区的右端 —— 两者差整整一小时。
         # 后人把探针时刻挪几小时时, 前者会静默变哑弹, 后者不会。
         # ⚠️ 「元旦 + 前一年闰 = 哑弹」是 `365/3` 这个**串**的性质, **不是 HIGH-1 的性质**
         # —— 本串在 2021/2025/2026 元旦同样红。别把那句话读成「HIGH-1 只能靠某些年份测」。
@@ -650,6 +653,12 @@ def test_candidate_year_guard_keeps_extreme_epochs_from_raising(copy_id):
 #:    编译整份源码时就抛（不需要 pytest rewrite，直接 `compile()` 即可复现）。
 _NON_UTF8_TZ_BYTES = {"dst-side": b"AAA0<\xff>", "std-side": b"<\xff>0BBB"}
 
+#: 另外两支（无 DST / 带显式规则）的同型输入 —— Codex r8 既有① 的复现串。
+_NON_UTF8_TZ_BYTES_ALL_BRANCH = {
+    "no-dst": b"<\xff>0",
+    "explicit-rules": b"AAA0<\xff>,M3.2.0,M11.1.0",
+}
+
 
 @pytest.mark.parametrize("copy_id", _COPY_IDS)
 @pytest.mark.parametrize("side", sorted(_NON_UTF8_TZ_BYTES))
@@ -707,6 +716,74 @@ def test_display_tz_survives_non_utf8_tz_bytes(copy_id, side):
                 f"过不了响应序列化: {type(exc).__name__}: {exc}\n"
                 "  不可严格 UTF-8 编码的规格串整个不该被接受（退 None ⇒ 退 UTC，与 BASE 同行为），\n"
                 "  而不是用 surrogateescape 放行、把代理字符留在 .key 里。"
+            ) from exc
+    finally:
+        if saved_tz is None:
+            os.environb.pop(b"TZ", None)
+        else:
+            os.environb[b"TZ"] = saved_tz
+        if saved_canvas is not None:
+            os.environ["CANVAS_TZ"] = saved_canvas
+        time.tzset()
+
+
+#: 整串属性校验（控制字符 / 可严格编码 / 字节长度 / 偏移范围）对**所有**形态生效，
+#: 不只是「省略切换规则」那一支 —— Codex r8 把这两条列为**既有**缺口，本卡一并收口：
+#:   ① 无 DST 的 `<非法字节>0` 与带显式规则的 `AAA0<非法字节>,M3.2.0,M11.1.0`
+#:      在 BASE 上会把代理字符留在 `.key` 里，在 `JSONResponse` 的编码边界抛；
+#:   ② 带显式规则的 `AAA24BBB,M3.2.0,M11.1.0` 在 BASE 上被接受、换算时抛 ValueError。
+#: (spec, 该拒的理由, 该形态属于哪一支)
+_ALL_BRANCH_REJECT_CASES = [
+    ("AAA24BBB,M3.2.0,M11.1.0", "std 侧 −24h 不可表示（C 库对它 tzset 直接报错）", "显式规则"),
+    ("AAA0:60BBB,M3.2.0,M11.1.0", "分钟 60 越界（C 库退 UTC，与本实现一致）", "显式规则"),
+    ("AAA0", "无 DST + std 偏移为 0：合法，本条是**正控**位（见下方 accept 表）", None),
+]
+
+
+@pytest.mark.parametrize("copy_id", _COPY_IDS)
+@pytest.mark.parametrize(
+    "spec,why",
+    [(s, w) for s, w, branch in _ALL_BRANCH_REJECT_CASES if branch is not None],
+)
+def test_offset_domain_is_checked_on_every_branch_not_only_omitted_rules(copy_id, spec, why):
+    """偏移取值域的校验必须覆盖**带显式规则**那条路径，不能只管省略规则分支。
+
+    ⛔ 这是 Codex r8 列为「既有」的那条（BASE 同样有），本卡一并收口 ——
+    因为校验一旦只加在一个分支上，同一类非法输入换条路就能进来。
+    """
+    module = backend_tz if copy_id == "backend" else _load_local_tz()
+    got = module.parse_posix_tz(spec)
+    assert got is None, (
+        f"[{copy_id}] 显式规则分支未校验偏移取值域: parse_posix_tz({spec!r}) 返回 {got!r}\n"
+        f"  {why}\n"
+        "  整串属性与偏移范围的校验要放在两个分支的**共用**位置，不能只写在省略规则那一支里。"
+    )
+
+
+@pytest.mark.parametrize("copy_id", _COPY_IDS)
+@pytest.mark.parametrize("side", sorted(_NON_UTF8_TZ_BYTES_ALL_BRANCH))
+def test_non_utf8_key_never_reaches_response_on_any_branch(tz_env, copy_id, side):
+    """无 DST / 显式规则两支也不得把代理字符留在 `.key` 里（Codex r8 既有①）。
+
+    ⛔ BASE 在这两支上会返回 `key='<U+DCFF>0'` 之类，序列化直接抛 —— 与本卡 r6 修掉的
+    省略规则分支是同一个病，只是换了条路进来。判据同样打在**编码到字节**那一步。
+    """
+    raw_tz = _NON_UTF8_TZ_BYTES_ALL_BRANCH[side]
+    saved_tz = os.environb.get(b"TZ")
+    saved_canvas = os.environ.get("CANVAS_TZ")
+    os.environ.pop("CANVAS_TZ", None)
+    try:
+        os.environb[b"TZ"] = raw_tz
+        time.tzset()
+        resolved = _display_tz_of(copy_id)
+        key = getattr(resolved, "key", None)
+        try:
+            json.dumps({"display_tz": key}, ensure_ascii=False).encode("utf-8")
+        except Exception as exc:  # noqa: BLE001
+            raise AssertionError(
+                f"[{copy_id}] TZ={raw_tz!r}（{side}）的 .key={key!r} 过不了响应序列化: "
+                f"{type(exc).__name__}: {exc}\n"
+                "  整串编码校验要对**所有**形态生效，不能只写在省略规则分支里。"
             ) from exc
     finally:
         if saved_tz is None:

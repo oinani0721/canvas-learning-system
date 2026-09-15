@@ -144,10 +144,87 @@ def parse_posix_tz(spec: str):
     if not m:
         return None
     g = m.groupdict()
+    # ⛔ 下面三条是**整串属性**校验（控制字符 / 可严格编码 / 字节长度），对**所有**形态生效 ——
+    #    不只是「省略切换规则」那一支（Codex r8 列的既有①）：无 DST 的 `<非法字节>0` 与带
+    #    显式规则的 `AAA0<非法字节>,M3.2.0,M11.1.0` 在 BASE 上同样会把代理字符留在 `.key` 里、
+    #    在 `JSONResponse` 的编码边界抛。本卡把校验提到这里一并收口。
+    #    ⚠️ 偏移范围那几条**没有**跟着提上来 —— 它们与「补默认规则」绑定, 且会改变带显式
+    #    规则那条既有路径接受哪些串; 那是另一个面, 见下方省略规则分支内的注释。
+    if "\n" in spec or "\r" in spec or "\x00" in spec:
+        # 正则用的是 `$` + `.match()`, Python 的 `$` 会在**末尾换行之前**收尾 ⇒
+        # `"AAA0<BBB>\n"` 能匹配。C 库对这种**尾部**带换行的串整串拒收（实测
+        # 2026-07-01T23:30Z 给 23:30 = UTC）, 补规则后却算成 +01:00、差一整天。
+        # ⚠️ 别把它读成「C 库拒绝所有带换行的串」（Codex r4 LOW-3 证伪）: 换行若在
+        #    **引用名内部**（`AAA0<B\nBB>`）C 库是接受的, 本条一并拒掉它们属于收紧,
+        #    而 BASE 对那类串本来也返回 None ⇒ 既有缺口, 本卡没有加重。
+        # ⛔ NUL 同理拒掉（Codex r5 M1）: 它进不了完整的 C 环境字符串, 但**能从 JSON
+        #    里的 `display_tz` 自报值进来** —— 桶位门会用本函数重建生产者时区,
+        #    BASE 拒收而补规则后会整串放行, 那是本卡新增的语法接受缺口。
+        return None
+    try:
+        _spec_bytes = spec.encode("utf-8")
+    except UnicodeEncodeError:
+        # `TZ` 是**环境变量**, 里面可以有任意字节; Python 把非法字节读成代理对
+        # （0xFF 字节 → U+DCFF）。这类串**整个不接受**, 退 None ⇒ `display_tz()`
+        # 退 UTC, 与 BASE 同行为。
+        # ⛔ 两轮都栽在这一处, 修法演进如实记下来:
+        #   · r4 用严格 `.encode()` 直接量长度 ⇒ 代理对让它**抛** UnicodeEncodeError,
+        #     而 `review_overview` 的模块级启动校验就调 `display_tz()` ⇒ 应用起不来
+        #     （r5 H1；BASE 只是正常退 UTC）;
+        #   · r5 改用 `surrogateescape` 放行 ⇒ 不抛了, 但 `_PosixTZ.key` 带着代理字符
+        #     一路进 API 响应, 在 `JSONResponse` 的编码边界再炸一次（r6 HIGH；实测
+        #     BASE 的 key='UTC' 序列化 OK, 那版 HEAD 的 key='<U+DCFF>0BBB' 抛）。
+        #     **修复只是把失败从启动挪到了响应出口。**
+        #   · 现在的写法两处都不炸: 不可严格编码 ⇒ 不接受 ⇒ key 恒是可序列化的。
+        # ⚠️ 代价如实声明: 本机 C 库其实**接受**这些字节并正常换算, 本实现退 UTC ——
+        #    但 BASE 同样退 UTC, 属既有支持缺口, 本卡没有加重。
+        return None
+    if len(_spec_bytes) > 255:
+        # ⛔ 按 **UTF-8 字节**量, 不按字符量（Codex r4 HIGH-1）: `len(spec)` 数的是
+        #    Unicode 字符, 而 C 库收到的是字节 —— `"AAA0<" + "中"*170 + ">"` 只有
+        #    176 个字符却是 516 字节, 按字符量会放行, 而 C 库拒收退 UTC ⇒ 差一整天。
+        #    （同一形态在标准侧引用名上也复现。）
+        # 名字长度无上限是既有正则的宽松处。本机 C 库实测: `"A"*507+"0BBB"`（511 字节）
+        # 接受、`"A"*508+"0BBB"`（512 字节）退 UTC —— 注意那是**名字**长度的边界,
+        # 不是整串的; 且 507 是平台相关的魔数。这里改用保守的整串 255 **字节**上限。
+        # ⚠️ 如实声明这是**保守取舍**, 且它的代价不止「退 UTC」: `"A"*252+"0BBB"`
+        #    （256 字节）在 C 库下归 07-02、本实现归 07-01 —— 但 **BASE 也归 07-01**,
+        #    属既有支持缺口, 本卡没有加重它。真实 tzdata 2026c 的 599 个 TZif 里最长
+        #    尾串是 Pacific/Chatham 的 44 字节, 255 对现实样本无影响。
+        return None
+    # ⛔ 偏移的**字段级**校验也对所有形态生效（Codex r8 列的既有②）: 带显式规则的
+    #    `AAA24BBB,M3.2.0,M11.1.0` 在 BASE 上会被接受、然后在换算时抛 ValueError。
+    #    逐项对齐 C 库的接受域: 偏移文本只收 ASCII 数字（Python 的 `\d` 连全角一起匹配）,
+    #    分钟 >59 拒, 秒 >60 拒（**恰好 60 放行**: 实测 C 库也接受、给 −00:01）。
+    for _off_txt in (g["std_off"], g["dst_off"]):
+        if not _off_txt:
+            continue
+        _body = _off_txt.lstrip("+-")
+        if not _body.replace(":", "").isascii():
+            return None
+        _fields = _body.split(":")
+        if len(_fields) > 1 and int(_fields[1]) > 59:
+            return None
+        if len(_fields) > 2 and int(_fields[2]) > 60:
+            return None
     std_off = _posix_offset_seconds(g["std_off"]) if g["std_off"] else 0
+    # 量级校验分两处: std 侧在这里（无 DST 形态也要管）, dst 侧与差值在算出 dst_off 之后。
+    # Python tzinfo 要求偏移**严格**小于 24 小时, 而 POSIX 的小时字段允许到 24。
+    if abs(std_off) >= 86400:
+        return None
     if g["dst"] is None:
         return _PosixTZ(spec, _strip_name(g["std"]), std_off, None, None, None, None)
     dst_off = _posix_offset_seconds(g["dst_off"]) if g["dst_off"] else std_off + 3600
+    # dst 侧与两侧之**差**也要 < 24h —— `AAA12BBB-12` 两侧各自合法而差恰为 24h,
+    # `utcoffset()` 算得出但 `dst()` / `timetuple()` 会抛 ValueError。
+    # ⚠️ 差值这一条是**过度拒绝**, 如实声明: 实测 C 库**接受** `AAA12BBB-12,M3.2.0,M11.1.0`
+    #    并在冬季给 −12h（std 侧, 那时根本不算 dst()）—— 本实现却全年退 UTC, 冬季也偏离。
+    #    取舍依据: `dst()` 在夏季抛是**运行时**炸、落点不可预测（模板渲染 / 序列化 / 日志
+    #    都可能触发）; 退 UTC 是可预测的降级。BASE 的行为是「接受但 dst() 会抛」,
+    #    本条属收紧。前两条（|std|、|dst| ≥24h）不是过度: C 库对 `AAA24BBB` 直接 tzset 报错、
+    #    对 `AAA0:60BBB` 退 UTC, 与本实现一致（三方实测）。
+    if abs(dst_off) >= 86400 or abs(dst_off - std_off) >= 86400:
+        return None
     if g["start"] is None or g["end"] is None:
         # 规则整段缺席 ⇒ 补 posixrules 的默认规则。
         # ⛔ 这里**故意**用字面量而不提成模块级常量: 源同源门只逐行比对 shared 名单里的
@@ -179,62 +256,7 @@ def parse_posix_tz(spec: str):
         #     但 `dst()` / `timetuple()` 会抛 ValueError。
         # ⚠️ 只收紧**本分支**: 带显式规则的那条路径是既有行为, 本卡不动它（它的取值域问题
         #    是上一轮登记的 MEDIUM, 混进来会让这次 HIGH 的收口说不清改了什么）。
-        if "\n" in spec or "\r" in spec or "\x00" in spec:
-            # 正则用的是 `$` + `.match()`, Python 的 `$` 会在**末尾换行之前**收尾 ⇒
-            # `"AAA0<BBB>\n"` 能匹配。C 库对这种**尾部**带换行的串整串拒收（实测
-            # 2026-07-01T23:30Z 给 23:30 = UTC）, 补规则后却算成 +01:00、差一整天。
-            # ⚠️ 别把它读成「C 库拒绝所有带换行的串」（Codex r4 LOW-3 证伪）: 换行若在
-            #    **引用名内部**（`AAA0<B\nBB>`）C 库是接受的, 本条一并拒掉它们属于收紧,
-            #    而 BASE 对那类串本来也返回 None ⇒ 既有缺口, 本卡没有加重。
-            # ⛔ NUL 同理拒掉（Codex r5 M1）: 它进不了完整的 C 环境字符串, 但**能从 JSON
-            #    里的 `display_tz` 自报值进来** —— 桶位门会用本函数重建生产者时区,
-            #    BASE 拒收而补规则后会整串放行, 那是本卡新增的语法接受缺口。
-            return None
-        try:
-            _spec_bytes = spec.encode("utf-8")
-        except UnicodeEncodeError:
-            # `TZ` 是**环境变量**, 里面可以有任意字节; Python 把非法字节读成代理对
-            # （0xFF 字节 → U+DCFF）。这类串**整个不接受**, 退 None ⇒ `display_tz()`
-            # 退 UTC, 与 BASE 同行为。
-            # ⛔ 两轮都栽在这一处, 修法演进如实记下来:
-            #   · r4 用严格 `.encode()` 直接量长度 ⇒ 代理对让它**抛** UnicodeEncodeError,
-            #     而 `review_overview` 的模块级启动校验就调 `display_tz()` ⇒ 应用起不来
-            #     （r5 H1；BASE 只是正常退 UTC）;
-            #   · r5 改用 `surrogateescape` 放行 ⇒ 不抛了, 但 `_PosixTZ.key` 带着代理字符
-            #     一路进 API 响应, 在 `JSONResponse` 的编码边界再炸一次（r6 HIGH；实测
-            #     BASE 的 key='UTC' 序列化 OK, 那版 HEAD 的 key='<U+DCFF>0BBB' 抛）。
-            #     **修复只是把失败从启动挪到了响应出口。**
-            #   · 现在的写法两处都不炸: 不可严格编码 ⇒ 不接受 ⇒ key 恒是可序列化的。
-            # ⚠️ 代价如实声明: 本机 C 库其实**接受**这些字节并正常换算, 本实现退 UTC ——
-            #    但 BASE 同样退 UTC, 属既有支持缺口, 本卡没有加重。
-            return None
-        if len(_spec_bytes) > 255:
-            # ⛔ 按 **UTF-8 字节**量, 不按字符量（Codex r4 HIGH-1）: `len(spec)` 数的是
-            #    Unicode 字符, 而 C 库收到的是字节 —— `"AAA0<" + "中"*170 + ">"` 只有
-            #    176 个字符却是 516 字节, 按字符量会放行, 而 C 库拒收退 UTC ⇒ 差一整天。
-            #    （同一形态在标准侧引用名上也复现。）
-            # 名字长度无上限是既有正则的宽松处。本机 C 库实测: `"A"*507+"0BBB"`（511 字节）
-            # 接受、`"A"*508+"0BBB"`（512 字节）退 UTC —— 注意那是**名字**长度的边界,
-            # 不是整串的; 且 507 是平台相关的魔数。这里改用保守的整串 255 **字节**上限。
-            # ⚠️ 如实声明这是**保守取舍**, 且它的代价不止「退 UTC」: `"A"*252+"0BBB"`
-            #    （256 字节）在 C 库下归 07-02、本实现归 07-01 —— 但 **BASE 也归 07-01**,
-            #    属既有支持缺口, 本卡没有加重它。真实 tzdata 2026c 的 599 个 TZif 里最长
-            #    尾串是 Pacific/Chatham 的 44 字节, 255 对现实样本无影响。
-            return None
         if not g["std_off"]:
-            return None
-        for _off_txt in (g["std_off"], g["dst_off"]):
-            if not _off_txt:
-                continue
-            _body = _off_txt.lstrip("+-")
-            if not _body.replace(":", "").isascii():
-                return None
-            _fields = _body.split(":")
-            if len(_fields) > 1 and int(_fields[1]) > 59:
-                return None
-            if len(_fields) > 2 and int(_fields[2]) > 60:
-                return None
-        if abs(std_off) >= 86400 or abs(dst_off) >= 86400 or abs(dst_off - std_off) >= 86400:
             return None
         start = _parse_rule("M3.2.0", None)
         # 秋季: C 库把回拨钉在当地**标准**时 01:00, 而 POSIX 的「/时刻」语义指的是**切换前
