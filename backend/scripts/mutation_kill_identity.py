@@ -434,8 +434,25 @@ def judge_flags() -> list[str]:
     * `-p no:cacheprovider` 不写 `.pytest_cache`（变异期间不留痕）；
     * `--tb=line`           每条失败一行 `<file>:<lineno>: <Exc>: <msg>` ——
                             `expect_loc` 的**唯一**来源；
-    * `-rf`                 短摘要 `FAILED <nodeid> - <reason>` —— nodeid 与
-                            `expect_msg` 的唯一来源；
+    * `-rfE`                短摘要 `FAILED/ERROR <nodeid> - <reason>` —— nodeid 与
+                            `expect_msg` 的唯一来源。
+                            ⛔⛔ **`E` 不可省**（2026-09-15 实测，pytest 9.0.2）：
+                            `-r` 的字符串**替换**默认值 `fE`，所以只写 `-rf` 会让
+                            **ERROR 行整条不进短摘要**。三层后果，一层比一层重：
+                            ① 目标门若是 **ERROR**（fixture / teardown 炸）而不是
+                               FAILED，它的 nodeid 根本不在失败集里 ⇒ `gate_hit`
+                               为假 ⇒ 判 **SURVIVED** —— 一个把门炸掉的变异被报成
+                               「门没抓住」，是**假 SURVIVED**，方向最坏；
+                            ② `failures_region()` 却把 `=== ERRORS ===` 段的位置行
+                               一起收下 ⇒ 「所有失败属目标门」那道核在一个**看不见
+                               ERROR** 的集合上**空真**通过，而位置行照借 —— H2 刚
+                               堵住的跨门借位从 ERROR 那一半原样复活；
+                            ③ `exactly_one_failed()` 里 round-3 MEDIUM 加的
+                               「0 条 ERROR」守卫**结构性不可达** —— 修复被 harness
+                               自己的开关废掉了，`failure_records()` 里那半个
+                               `ERROR` 分支同样是死代码。
+                            实测对照：同一份用例集，`-rf` 的摘要区只有 FAILED 一行，
+                            `-rfE` 才多出 `ERROR …::test_errors - RuntimeError: …`。
     * `--show-capture=no`   ⛔ round-19 新增：不回显被测进程的 captured
                             stdout/stderr。实测（pytest 9.0.2）captured 区就在
                             `=== FAILURES ===` 与摘要分隔线之间，被测进程只要打一行
@@ -454,7 +471,7 @@ def judge_flags() -> list[str]:
                             ⚠️ 这是**显示级**开关，不改变测试结果，也不改变 rc；
                             代价只是诊断时看不到子进程原文。
     """
-    return ["-q", "-p", "no:cacheprovider", "--tb=line", "-rf", "--show-capture=no"]
+    return ["-q", "-p", "no:cacheprovider", "--tb=line", "-rfE", "--show-capture=no"]
 
 
 def syntax_check(path: Path, text: str) -> str | None:
@@ -581,7 +598,7 @@ def judge_surface_missing(rc: int, out: str, *, need_location: bool = False) -> 
     if rc != 1:
         return None
     if summary_region(out) is None:
-        return "rc=1(有测试失败)但输出里没有 `-rf` 短摘要区 —— pytest 命令缺 `-rf`，判据面不存在"
+        return "rc=1(有测试失败)但输出里没有短摘要区 —— pytest 命令缺 `-rfE`，判据面不存在"
     if not _FAILED_RE.search(summary_region(out) or ""):
         return "rc=1(有测试失败)但摘要区里没有 `FAILED`/`ERROR` 行 —— 判据面不存在"
     if need_location and not failed_locations(out):

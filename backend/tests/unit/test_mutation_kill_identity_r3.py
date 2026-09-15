@@ -886,3 +886,152 @@ def test_m3_ast_denominator_uses_a_readonly_allowlist(tmp_path: Path) -> None:
         assert rec.ast_mutation_count("probe.py") == 3
     finally:
         rec.SCRIPTS = orig
+
+
+# ══ M③ 解析层的 pytest 覆盖 ═══════════════════════════════════════════════
+#
+# ⛔ 独立对抗扫描（2026-09-15）抓到的**覆盖缺口**：round-1/2/3 接受的 5 条 reconcile
+# 修复此前**只有负控 shell 跑**在护，`pytest` 这一侧零覆盖 —— 逐条回退那 5 条修复，
+# 35 条单测照样全绿（`18.9→18` 的假绿当场就能重开）。判据自己没被门护住，
+# 与本卡要修的病同族，所以补在这里。
+
+
+def _rec():
+    import mutation_verdict_reconcile as rec
+
+    return rec
+
+
+_G32B_OK = """
+── 汇总 ──
+KILLED (绑定断言身份: 位置 [+ 消息]): 138/138
+KILLED-UNBOUND (仅证明指定门红了, 位置与消息都没绑): 0
+KILLED 合计 (两者之和, **不等于**「全部被指定断言杀死」): 138/138
+SURVIVED: 0
+HARNESS-ERROR: 0 (负控自己坏了, 不是关于被测物的结论)
+ANCHOR-ERROR: 0 (变异未施加, 不是结论)
+SYNTAX-INVALID: 0 (>0 说明负控自己坏了)
+六档之和: 138 (应 = 138) ✓
+"""
+
+
+def test_rec_parse_stdout_g32b_happy_path() -> None:
+    """⛔ 验伪锚：合法 g32b 汇总段必须解析得出，且不把「KILLED 合计」吃成一档。"""
+    parsed = _rec().parse_stdout("g32b", _G32B_OK)
+    assert parsed.counts["KILLED"] == 138 and parsed.counts["KILLED-UNBOUND"] == 0
+    assert parsed.printed_total == 138 and parsed.declared_m == 138
+    assert sum(parsed.counts.values()) == 138, "「KILLED 合计」那行不得被多算成一档"
+
+
+@pytest.mark.parametrize(
+    ("mutate", "must_mention"),
+    [
+        (lambda t: t.replace("SURVIVED: 0", "SURVIVED: 0.5"), "解析不到"),  # 整 token：`0.5`
+        (lambda t: t.replace("SURVIVED: 0", "SURVIVED: 0x10"), "解析不到"),  # 整 token：`0x10`
+        (lambda t: t.replace("SURVIVED: 0", "SURVIVED: 7\nSURVIVED: 0"), "不止一次"),  # 同档重复
+        (lambda t: t.replace("SURVIVED: 0\n", ""), "解析不到"),  # 缺档
+        (lambda t: t.replace("六档之和: 138", "六档之和: 137"), None),  # 和 ≠ 逐档相加
+    ],
+)
+def test_rec_parse_stdout_rejects_each_bad_shape(mutate, must_mention) -> None:
+    """⛔ 五种坏法逐条钉住 —— 这些正是 round-1~3 接受的修复，此前 pytest 侧零覆盖。"""
+    rec = _rec()
+    bad = mutate(_G32B_OK)
+    if must_mention is None:
+        parsed = rec.parse_stdout("g32b", bad)
+        assert sum(parsed.counts.values()) != parsed.printed_total, "逐档相加应与印出来的和对不上"
+    else:
+        with pytest.raises(rec.ReconcileError, match=must_mention):
+            rec.parse_stdout("g32b", bad)
+
+
+def test_rec_parse_json_rejects_non_integer_and_duplicate_keys() -> None:
+    """⛔ JSON 侧：小数截断 / 负数抵消 / 重复键，三条都必须抛。"""
+    rec = _rec()
+    base = (
+        '{"verdict_counts": {"KILLED": %s, "KILLED-UNBOUND": 0, "SURVIVED": %s, '
+        '"HARNESS-ERROR": 0, "ANCHOR-ERROR": 0, "SYNTAX-INVALID": 0}, "total": 18}'
+    )
+    assert rec.parse_json("g33", base % (18, 0)).counts["KILLED"] == 18, "⛔ 验伪锚：合法 JSON 必须解析得出"
+    with pytest.raises(rec.ReconcileError, match="不是整数"):
+        rec.parse_json("g33", base % (18.9, 0))
+    with pytest.raises(rec.ReconcileError, match="为负数"):
+        rec.parse_json("g33", base % (19, -1))
+    with pytest.raises(rec.ReconcileError, match="不止一次"):
+        rec.parse_json("g33", '{"verdict_counts": {}, "total": 5, "total": 18}')
+
+
+def test_rec_aggregate_vs_per_item_catches_compensating_tamper() -> None:
+    """⛔ **补偿式篡改**只有「聚合 vs 逐条」这一维看得见。
+
+    KILLED 9→8 同时 SURVIVED 0→1：逐档相加、印出来的和、自称分母、AST 现算条数
+    **四个数全对得上**，只有把逐条裁决记录数一遍才露馅。
+    """
+    rec = _rec()
+    tee = (
+        "  x → rc=1 ⇒ KILLED (a)\n" * 9 + "\n  8/9 KILLED (绑定: 消息 + 失败位置在门文件内; x)\n"
+        "  KILLED-UNBOUND: 0 (x)\n  SURVIVED: 1\n  HARNESS-ERROR: 0 (x)\n"
+        "  ANCHOR-ERROR: 0 (x)\n  SYNTAX-INVALID: 0 (x)\n  六档之和: 9 (应 = 变异条数 9) ✓\n"
+    )
+    parsed = rec.parse_stdout("g32cb", tee)
+    assert sum(parsed.counts.values()) == parsed.printed_total == parsed.declared_m == 9, "四数确实全对得上"
+    assert parsed.per_item == {
+        "KILLED": 9,
+        "KILLED-UNBOUND": 0,
+        "SURVIVED": 0,
+        "HARNESS-ERROR": 0,
+        "ANCHOR-ERROR": 0,
+        "SYNTAX-INVALID": 0,
+    }, "逐条记录里 KILLED 仍是 9 —— 与聚合的 8 对不上"
+    assert parsed.counts != parsed.per_item, "这一维必须能看出差异"
+
+
+def test_rec_per_item_none_means_unchecked_not_consistent() -> None:
+    """⛔ 没有逐条记录时是「**未核**」，不得当成「核过且一致」。"""
+    parsed = _rec().parse_stdout("g32b", _G32B_OK)
+    assert parsed.per_item is None, "纯汇总段存档没有逐条行 ⇒ 这一维未核"
+
+
+def test_rec_per_item_regex_does_not_eat_killed_unbound() -> None:
+    """⛔ `KILLED` 的逐条正则不得把 `KILLED-UNBOUND` 吃掉一半（边界锚）。"""
+    rec = _rec()
+    tee = (
+        "  a → rc=1 ⇒ KILLED (x)\n  b → rc=1 ⇒ KILLED-UNBOUND (x)\n"
+        "\n  1/2 KILLED (绑定: 消息 + 失败位置在门文件内; x)\n"
+        "  KILLED-UNBOUND: 1 (x)\n  SURVIVED: 0\n  HARNESS-ERROR: 0 (x)\n"
+        "  ANCHOR-ERROR: 0 (x)\n  SYNTAX-INVALID: 0 (x)\n  六档之和: 2 (应 = 变异条数 2) ✓\n"
+    )
+    parsed = rec.parse_stdout("g32cb", tee)
+    assert parsed.per_item["KILLED"] == 1 and parsed.per_item["KILLED-UNBOUND"] == 1
+
+
+def test_judge_flags_keeps_error_lines_in_the_summary() -> None:
+    """⛔ `-r` 的字符串**替换**默认 `fE` ⇒ 只写 `-rf` 会让 ERROR 行整条不进短摘要。
+
+    2026-09-15 实测（pytest 9.0.2）：同一份用例集，`-rf` 的摘要区只有 FAILED 一行，
+    `-rfE` 才多出 `ERROR …`。后果三层（最坏的是**假 SURVIVED**）见 `judge_flags` docstring。
+    """
+    assert "-rfE" in mki.judge_flags(), "⛔ 缺 `E`：目标门 ERROR 时会被判成 SURVIVED"
+    assert "-rf" not in mki.judge_flags(), "⛔ 不得同时留下裸 `-rf`"
+
+
+def test_h2_error_summary_line_is_not_borrowable(tmp_path: Path) -> None:
+    """⛔ 目标门 **ERROR**（而非 FAILED）时不得判 SURVIVED（`-rfE` 修复的端到端面）。
+
+    `-rf` 下目标门的 ERROR 不进摘要 ⇒ `gate_hit` 为假 ⇒ 判 SURVIVED（**假 SURVIVED**），
+    而 `failures_region()` 却把 `=== ERRORS ===` 段的位置行一起收下 ⇒ H2 刚堵的借位
+    从 ERROR 那一半原样复活。带上 `E` 之后该 nodeid 进失败集，归属不可证 ⇒ HARNESS-ERROR。
+    """
+    gate = _write_gate(tmp_path, _GATE_DUP)
+    other = _write_gate(tmp_path, "def test_other() -> None:\n    assert 5 == 6, 'x'\n", "test_other_gate.py")
+    nodeid = "tests/gate.py::test_target"
+    head_err = "=================================== ERRORS ===================================="
+    out = (
+        f"{head_err}\n{gate}:2: RuntimeError: fixture exploded\n"
+        f"{_FAILURES_HEAD}\n{other}:2: AssertionError: unrelated\n"
+        f"{_SUMMARY_HEAD}\n"
+        "FAILED tests/other.py::test_other - AssertionError: unrelated\n"
+        f"ERROR {nodeid} - RuntimeError: fixture exploded\n{_TAIL}\n"
+    )
+    verdict, why = mki.kill_identity(1, out, nodeid, gate_file=gate, require_gate_file=True)
+    assert verdict == "HARNESS-ERROR", f"目标门 ERROR 时不得判 SURVIVED，实得 {verdict}（{why}）"

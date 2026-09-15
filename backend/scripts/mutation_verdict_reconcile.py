@@ -74,6 +74,11 @@ class Parsed(NamedTuple):
     counts: dict[str, int]
     printed_total: int  # 该套自己印的「六档之和」
     declared_m: int  # 该套自称的分母
+    #: **逐条**裁决记录里各档的出现次数；`None` = 这份存档里没有逐条记录可数。
+    #: ⛔ 它与 `counts` 是**两个来源**：`counts` 来自聚合行/聚合字段，本字段来自
+    #: 该套逐条打印（或 JSON 的 `results[]`）的那些行。聚合被**补偿式篡改**
+    #: （KILLED 9→8 同时 SURVIVED 0→1，和不变）时，四个数全对得上，只有它能看出来。
+    per_item: dict[str, int] | None = None
 
 
 class Suite(NamedTuple):
@@ -228,6 +233,11 @@ _B_UNBOUND = re.compile(r"^KILLED-UNBOUND \([^)]*\): (?P<n>\d+)\s*$", re.M)
 _B_FOUR = re.compile(r"^(?P<name>SURVIVED|HARNESS-ERROR|ANCHOR-ERROR|SYNTAX-INVALID): (?P<n>\d+)(?=[\s(]|$)", re.M)
 _B_SUM = re.compile(r"^六档之和: (?P<t>\d+) \(应 = (?P<m>\d+)\)", re.M)
 
+#: 逐条裁决行里的档名。
+#: `g32cb` / `g32ccr1`：`… → rc=1 ⇒ KILLED (…)`；`g32b`：`[tag] … ⇒ KILLED`（同形）。
+#: ⛔ 用 `(?![\w-])` 收边界，否则 `KILLED` 会把 `KILLED-UNBOUND` 也吃掉一半。
+_PER_ITEM = re.compile(rf"⇒ (?P<name>KILLED-UNBOUND|KILLED|{_TAIL_FIVE.split('|', 1)[1]})(?![\w-])")
+
 
 def _one(rx: re.Pattern[str], text: str, what: str, suite: str) -> re.Match[str]:
     """整份存档里该形态必须**恰好命中一次**。
@@ -299,7 +309,13 @@ def parse_stdout(suite: str, text: str) -> Parsed:
     sum_m = int(ms.group("m"))
     if sum_m != declared_m:
         raise ReconcileError(f"{suite}: 该套自称的分母自相矛盾（KILLED 行 {declared_m} vs 六档之和行 {sum_m}）")
-    return Parsed(counts, int(ms.group("t")), declared_m)
+    # ⛔ 逐条裁决记录是**第二个来源**（见 `Parsed.per_item`）。存档里没有逐条行时留 None ——
+    # ⚠️ 留 None 意味着这一维**没核**，绝不能当成「核过且一致」（那正是本工具在骂的那种话）。
+    per = {v: 0 for v in VERDICT_NAMES}
+    hits = _PER_ITEM.findall(text)
+    for name in hits:
+        per[name] += 1
+    return Parsed(counts, int(ms.group("t")), declared_m, per if hits else None)
 
 
 def parse_json(suite: str, text: str) -> Parsed:
@@ -345,7 +361,18 @@ def parse_json(suite: str, text: str) -> Parsed:
     declared_sum_ok = data.get("verdict_sum_matches_total")
     if declared_sum_ok is not None and not isinstance(declared_sum_ok, bool):
         raise ReconcileError(f"{suite}: `verdict_sum_matches_total` 形态不对（应为布尔）")
-    return Parsed(counts, sum(counts.values()), total)
+    # ⛔ JSON 形态下「该套自己印的和」只能取 `sum(counts)` ⇒ 判据①（逐档相加 == 印出来的和）
+    # 对它是**恒真**的。这一维靠 `results[]` 里的逐条 `verdict` 补上（第二个来源）。
+    per: dict[str, int] | None = None
+    raw_results = data.get("results")
+    if isinstance(raw_results, list) and raw_results:
+        per = {v: 0 for v in VERDICT_NAMES}
+        for item in raw_results:
+            v = item.get("verdict") if isinstance(item, dict) else None
+            if v not in per:
+                raise ReconcileError(f"{suite}: `results[]` 里有不认识的 verdict {v!r}")
+            per[v] += 1
+    return Parsed(counts, sum(counts.values()), total, per)
 
 
 # ── 对账 ────────────────────────────────────────────────────────────────────
@@ -375,12 +402,27 @@ def reconcile_one(suite: str, path: Path) -> list[str]:
             f"{suite}: 该套自称的分母 {parsed.declared_m} ≠ 源码 AST 现算的变异条数 {ast_n} "
             f"—— 部分跑冒充全量, 或 MUTATIONS 已漂移（⛔ 这一条是唯一的跨源独立判据）"
         )
+    # ⛔ 第五条：聚合 vs **逐条**。前四条全看聚合那一个来源，于是**补偿式篡改**
+    # （KILLED 9→8 同时 SURVIVED 0→1，和不变）四数全对得上 —— 只有把逐条裁决记录
+    # 数一遍才看得见。⚠️ 没有逐条记录时**如实说「未核」**，不得沉默略过。
+    if parsed.per_item is None:
+        print(f"     ⚠️ {suite}: 存档里没有逐条裁决记录 —— 「聚合 vs 逐条」这一维**未核**")
+    else:
+        mismatched = {
+            v: (parsed.counts[v], parsed.per_item[v]) for v in VERDICT_NAMES if parsed.counts[v] != parsed.per_item[v]
+        }
+        if mismatched:
+            problems.append(
+                f"{suite}: 聚合计数与**逐条**裁决记录对不上 {mismatched}（格式 档: 聚合 vs 逐条）"
+                f" —— 补偿式篡改只有这一维看得见"
+            )
     print(f"── {suite}（{cfg.form} 形态, 存档 {path.name}）")
     for v in VERDICT_NAMES:
         print(f"     {v:15} {parsed.counts[v]}")
     print(
         f"     逐档相加={own_sum} 该套印的六档之和={parsed.printed_total} "
         f"该套自称分母={parsed.declared_m} AST 现算条数={ast_n} "
+        f"逐条记录={sum(parsed.per_item.values()) if parsed.per_item else '未核'} "
         f"{'✓' if not problems else '⛔ 对不上'}"
     )
     return problems
