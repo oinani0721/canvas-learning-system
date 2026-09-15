@@ -1,0 +1,11 @@
+=== r3 整改后全判据 ===
+结构: Req=1 Scen4#=5 Scen3#=0
+裸名字: spec=0 A6=0 test=0
+Specification 'concept-identity' is valid
+A6↔spec Scenario 名一致性:
+   5 / 5 一致
+archive scratch 输入 sha=4fb92b1af4cf199386f15bde5aeb4aafca1a4b2b5025bc0c094f8509fadb21b9
+工作树 spec sha      =4fb92b1af4cf199386f15bde5aeb4aafca1a4b2b5025bc0c094f8509fadb21b9
+Specs updated successfully.
+Change 'restate-concept-identity' archived as '2026-09-15-restate-concept-identity'.
+✓ archive 真写了主 spec

@@ -105,7 +105,9 @@ latter.
 
 - **GIVEN** concept id `c` exists in both vault A and vault B
 - **AND** a write for `c` under vault A failed, so `("A", "c")` is in `self._unpersisted_concepts`
-- **WHEN** the persisted state of `c` is queried while vault B is the active scope
+- **AND** `("B", "c")` is NOT in `self._unpersisted_concepts` — vault B's own writes all succeeded
+- **WHEN** `c` is served from cache while vault B is the active scope and its persisted state is
+  queried via `_is_unpersisted()`
 - **THEN** `c` is reported as persisted under vault B, because the lookup key is `("B", "c")`
   and that pair is not in the set
 - **AND** a bare-`concept_id` marker identity would instead have reported vault B's `c` as
