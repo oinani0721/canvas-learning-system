@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-11-第十四批 · 车道 T4-B · 卡 CARD-G6-10 round-4
+> 模型: `gpt-6-astra` · reasoning_effort: `ultra` · codex: `codex-cli 0.153.3`
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat _bmad-output/审查/prompts/codex-prompt-CARD-G6-10-r4.md)"`
+> 审查绑定: `ee80de0e9687001b59b5a8f4472226b923b416af`（该轮的 HEAD；其后有整改 commit）
+> 会话头自证（抄 .stderr 含 model 行，stderr 本身不入库）:
+> L2: `OpenAI Codex v0.153.3` / L5: `model: gpt-6-astra` / L9: `reasoning effort: ultra`
+
+---
+
 复核绑定 **`ee80de0e9687001b59b5a8f4472226b923b416af`**。未改文件、未连接数据库；验证仅使用源码及抽取后的纯内存断言。
 
 **结论：`--share-state` 确实制造了生产 state 文件碰撞；但落盘保护仍有 HIGH 缺口。**

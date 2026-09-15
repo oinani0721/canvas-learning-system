@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-11-第十四批 · 车道 T4-B · 卡 CARD-G6-10 round-2
+> 模型: `gpt-6-astra` · reasoning_effort: `ultra` · codex: `codex-cli 0.153.3`
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat _bmad-output/审查/prompts/codex-prompt-CARD-G6-10-r2.md)"`
+> 审查绑定: `ca5a50ad3142e1813a969b7dd8c27a65920e008b`（该轮的 HEAD；其后有整改 commit）
+> 会话头自证（抄 .stderr 含 model 行，stderr 本身不入库）:
+> L4: `OpenAI Codex v0.153.3` / L7: `model: gpt-6-astra` / L11: `reasoning effort: ultra`
+
+---
+
 当前 HEAD 为 `ca5a50ad`。**同 state 文件的负控构造可信，但落盘安全整改尚未闭合。**本次仅做静态复核，未改文件、未运行 canary／测试、未连接数据库；以下负控输入均未执行。
 
 **BLOCKER：无。**

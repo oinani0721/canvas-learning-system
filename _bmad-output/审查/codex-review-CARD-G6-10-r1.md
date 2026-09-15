@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-11-第十四批 · 车道 T4-B · 卡 CARD-G6-10 round-1
+> 模型: `gpt-6-astra` · reasoning_effort: `ultra` · codex: `codex-cli 0.153.3`
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat _bmad-output/审查/prompts/codex-prompt-CARD-G6-10.md)"`
+> 审查绑定: `974058e59dc7f93695a75e954262a6b80be45c75`（该轮的 HEAD；其后有整改 commit）
+> 会话头自证（抄 .stderr 含 model 行，stderr 本身不入库）:
+> L2: `OpenAI Codex v0.153.3` / L5: `model: gpt-6-astra` / L9: `reasoning effort: ultra`
+
+---
+
 **⓪ 结论：`--share-state` 确实把两个库指向同一个 state 文件，不是改断言制造红灯。** 两库 basename 相同，生产 `_vault_key` 只传入 `.resolve().name`，`send_bark.vault_key` 不包含父目录信息；最终比较的也是实际文件 SHA。
 
 本次绑定 `80d2fbb… → 974058e…`，仅静态读取，未执行测试、修改文件或连接数据库。以下负控输入均未执行。

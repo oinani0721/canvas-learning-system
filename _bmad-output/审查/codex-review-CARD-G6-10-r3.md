@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-11-第十四批 · 车道 T4-B · 卡 CARD-G6-10 round-3
+> 模型: `gpt-6-astra` · reasoning_effort: `ultra` · codex: `codex-cli 0.153.3`
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat _bmad-output/审查/prompts/codex-prompt-CARD-G6-10-r3.md)"`
+> 审查绑定: `52bab59e0d43b2fca444a958410a8f07177fab89`（该轮的 HEAD；其后有整改 commit）
+> 会话头自证（抄 .stderr 含 model 行，stderr 本身不入库）:
+> L2: `OpenAI Codex v0.153.3` / L5: `model: gpt-6-astra` / L9: `reasoning effort: ultra`
+
+---
+
 复核绑定 **HEAD `52bab59e0d43b2fca444a958410a8f07177fab89`**。基线差异仅新增本卡两个文件；未修改文件、未运行 canary/pytest、未连接数据库。
 
 **⓪ 结论：`--share-state` 确实制造了同一个 state 文件。** 两库父目录不同、basename 相同；生产 `_vault_key` 将 `resolve().name` 交给 `send_bark.vault_key`，相同输入得到相同 key，再由同一个 `BACKUPS` 拼出相同路径。最终失败判据比较 B 文件实际 SHA，没有替换 `_vault_key` 或翻转断言。
