@@ -69,27 +69,26 @@
 
 ---
 
-## 六 本轮变更（r2 → r3，仅本轮存在此节）
+## 六 本轮变更（r3 → r4，仅本轮存在此节）
 
-r1 = B0/H1/M4/L2，r2 = **B0/H0**/M1/L4。r2 已达 D-15 通过线，但其 MEDIUM 1 + LOW 4 都是真缺口且
-可在测试侧关闭，故继续整改并再送一轮（`backend/app` 仍零改动）：
+轮次记录：r1 = B0/H1/M4/L2 → r2 = **B0/H0**/M1/L4 → r3 = **B0/H0**/M1/L3。
+r2 起已达通过线，但每轮的 M/L 都是可在测试侧关闭的真缺口，故继续整改（`backend/app` 始终零改动）。
+本轮（按 r3）：
 
-- **r2 MEDIUM-1**（上界桩分辨不出 `uniform(0, cap)` 与 `uniform(cap/2, cap)`）
-  → `test_retry_actually_sleeps_backoff_seconds_series_2_4_8` 的桩改成返回**区间 1/4 点**
-  （`low + (high-low)*0.25`），并新增对 `random.uniform` **实参**的等值断言
-  `uniform_calls == [(0,2),(0,4),(0,8)]`（下界必须是 0），实际 sleep 值断言相应变成 `[0.5,1.0,2.0]`。
-- **r2 LOW-1**（`to_dict()` 把 `queue_depth`/耗时写死成 0 也能通过）
-  → 新增 `test_worker_metrics_to_dict_serializes_nonzero_depth_and_times`（喂已知样本求值：
-  `queue_depth=7` / `avg=1000.0` / `max=1500.0`，并钉 100 条滑窗），
-  `test_queue_full_drops_and_counts` 补 `to_dict()["queue_depth"] == 1` 的序列化观察点。
-- **r2 LOW-2**（门放行 `str("危险字面量")` 与跨模块 `import … as` 别名）
-  → 危险字面量改成**递归扫表达式子树**里的每个字符串常量（`str(...)` 包一层、f-string 都命中）；
-  别名收集**不限来源模块**。docstring 的「已封 / 仍未封」两段按实际能力重写。
-- **r2 LOW-3**（重叠表低估参照文件）→ 逐行重数：同题 8 / 部分同题 6 / 未触及 7（8+6+7=21），
-  #1 移入「同题」（参照文件有 `episodes_failed == 4` 的等式）、#20 移入「同题」
-  （参照文件的失败形态就是 `RuntimeError`）。
-- **r2 LOW-4**（warning 只验首尾两条）→ 改为逐条核 `attempt 1/3`、`2/3`、`3/3`。
+- **r3 MEDIUM-1**（1/4 点桩仍是 `(low, high)` 的函数 ⇒「保留抽样调用但把 sleep 改成按区间重算」
+  仍不红）→ 桩改为**逐次返回与区间无函数关系的哨兵串** `[0.37, 1.23, 4.56]`，
+  断言 `slept_with == sentinels`。任何「按区间重算」的写法都得不到这串值。
+- **r3 LOW-1**（封顶用例只记 `high`、丢掉属性返回值 ⇒ `min(uniform(0,cap), 5.0)` 的二次截断不红）
+  → 同时收下属性返回值并断言 `returned == bounds`。
+- **r3 LOW-2**（门放行 `str("data/" + "dead_letter_" + "episodes.jsonl")` 这种拆分字面量）
+  → `_path_value_is_safe` 除逐个常量外，再把子树里所有字符串常量**按序拼接**后查一次。
+- **r3 LOW-3**（矩阵附录数字与退避说明未同步）→ 附录 B 头部改为终稿实测
+  **33 函数 / 47 条 / 169 assert**（并记下 31→32→33 的轨迹）；B 组条目重写成当前断言口径；
+  F 组补上新增的 metrics 序列化用例。
 
-**本轮请重点判**：① 上述整改是否真的关闭了对应问题；② 新写法本身有没有新的门未覆盖的路径
-（特别是 1/4 点桩与 `uniform_calls` 断言的组合，是否还留有「实际重试不走 `backoff_seconds`」的对照输入）；
-③ 重叠表这次的分类是否与参照文件的实际断言逐条对得上。其余口径同上文 §一～§五。
+负控同步扩到 **16 条**（每条仍要求「声称的那条用例」变红 + cp 副本还原后 shasum 逐字节同）。
+
+**本轮请重点判**：① 哨兵桩 + `uniform_calls` 的组合是否还留有「实际重试不使用抽样结果」的对照输入；
+② `returned == bounds` 是否真的覆盖了二次加工；③ 门的拼接检查有没有引入**误杀**
+（正常的 `str(tmp_path / "dead_letter.jsonl")` 必须仍 PASS）；④ 附录数字这次是否与 AST/收集实测一致。
+其余口径同上文 §一～§五。

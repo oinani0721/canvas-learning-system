@@ -1,6 +1,9 @@
 """CARD-EPW-COVERAGE 负控验伪锚驱动（形态＝编辑 $NEW 自身的断言期望值）。
 
-对 (c) 的六组核心断言各留一条对照输入（退避与 count/_redact 各两条 ⇒ 共 7 条）：
+对 (c) 的六组核心断言各留一条对照输入，并随 Codex 三轮整改逐条扩充，**当前 16 条**
+（r1 定稿 8 → Codex r1 整改 +4 = 12 → r2 整改 +3 = 15 → r3 整改 +1 = 16；另有两条因断言被
+改写/被 `ruff format` 折行而同步更新了变异串，不计入新增）：
+⚠️ 这个数字曾被写成 17（没数就写），由驱动自己的 `── 负控` 块数实测更正为 16。
 每条 = 把新文件里一句核心断言的期望值改成与被测语义矛盾的值 ⇒ 单跑该文件必须变红，
 **且红的必须是声称的那条用例**（不是「某处失败」）；随后从跑前 `cp` 副本还原并 `shasum`
 逐字节比对。⛔ 不用运行时 patch 形态——文件本身不变的话 shasum 判据恒真、等于没做。
@@ -53,10 +56,16 @@ MUTATIONS = [
         "assert uniform_calls == [(1, 2), (0, 4), (0, 8)], (",
     ),
     (
-        "(2'b) 传给 sleep 的就是抽到的那个值（Codex r1 HIGH-1）",
+        "(2'b) 传给 sleep 的就是 random.uniform 的返回值（哨兵；Codex r1 HIGH-1 + r3 MEDIUM-1）",
         "test_retry_actually_sleeps_backoff_seconds_series_2_4_8",
-        "assert slept_with == [0.5, 1.0, 2.0], (",
-        "assert slept_with == [0.5, 1.0, 2.5], (",
+        "assert slept_with == sentinels, (",
+        "assert slept_with == sentinels[::-1], (",
+    ),
+    (
+        "(2'c) 属性原样返回抽样值、不得二次截断（Codex r3 LOW-1）",
+        "test_backoff_upper_bound_is_monotonic_and_capped_at_60",
+        "assert returned == bounds, f\"",
+        "assert returned == [b + 1 for b in bounds], f\"",
     ),
     (
         "(G-4) 重试 warning 逐条带 attempt i/3（Codex r2 LOW-4）",

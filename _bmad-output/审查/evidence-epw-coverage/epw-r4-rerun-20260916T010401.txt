@@ -1,0 +1,14 @@
+### 新文件
+======================= 47 passed, 10 warnings in 1.54s ========================
+### 38_6
+================== 1 failed, 16 passed, 10 warnings in 1.41s ===================
+### retry 参照
+======================== 5 passed, 10 warnings in 1.29s ========================
+### ruff
+All checks passed!
+rc=0
+### 矩阵门
+N1(新文件)=21 N2(已有 retry 测试)=0 T10-C=15 N3(退役)=1
+EPW-MATRIX-GATE: PASS
+### grep CARD-EPW-COVERAGE in 38_6
+0

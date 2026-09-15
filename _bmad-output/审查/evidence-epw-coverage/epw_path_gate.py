@@ -88,12 +88,19 @@ def _path_value_is_safe(node):
     - Codex r1 MEDIUM-4：`GraphitiEpisodeWorker(dead_letter_path="data/dead_letter_episodes.jsonl")`
       带着 kwarg 却指向真坟场，原门照样 PASS ⇒ 裸字面量一律 FAIL。
     - Codex r2 LOW-2：`str("data/dead_letter_episodes.jsonl")` 是 `ast.Call`、不是 `Constant`，
-      于是又被放行 ⇒ 改成**递归**扫整个表达式子树里的每一个字符串常量，命中危险片段即 FAIL。
+      于是又被放行 ⇒ **递归**扫整个表达式子树里的每一个字符串常量。
+    - Codex r3 LOW-2：`str("data/" + "dead_letter_" + "episodes.jsonl")` 的三个常量**各自**都不含
+      完整危险片段，逐个查又漏了 ⇒ 再把子树里所有字符串常量**按出现顺序拼起来**查一次。
     """
-    for sub in ast.walk(node):
-        if isinstance(sub, ast.Constant) and isinstance(sub.value, str):
-            if any(frag in sub.value for frag in DANGEROUS_PATH_FRAGMENTS):
-                return False
+    literals = [
+        sub.value for sub in ast.walk(node) if isinstance(sub, ast.Constant) and isinstance(sub.value, str)
+    ]
+    # ① 逐个常量
+    if any(frag in lit for lit in literals for frag in DANGEROUS_PATH_FRAGMENTS):
+        return False
+    # ② 常量拼接结果（拆分字面量规避）
+    if any(frag in "".join(literals) for frag in DANGEROUS_PATH_FRAGMENTS):
+        return False
     if isinstance(node, ast.Constant):
         return False
     if isinstance(node, ast.JoinedStr) and all(isinstance(v, ast.Constant) for v in node.values):

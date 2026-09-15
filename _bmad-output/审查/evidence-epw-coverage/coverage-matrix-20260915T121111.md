@@ -97,21 +97,30 @@
 | `TestAC1TimeoutRetryAlignment::test_retry_backoff_base_is_1_second` | 模块级本地桩 `GRAPHITI_RETRY_BACKOFF_BASE == 1.0`（桩值 0.1 ⇒ 恒假） | **A（改写对齐真 worker）** | 改为断言 `EpisodeTask.backoff_seconds` 的**上界基数**：`retry_count=0` 时退避区间是 `[0, 1]`（patch `random.uniform` 捕获实参），与旧「base=1.0s」同值；名实一致（函数名仍是「退避基数为 1 秒」） |
 | `TestAC1TimeoutRetryAlignment::test_backoff_progression` | 模块级本地桩推导的 `[1.0, 2.0, 4.0]` 序列 | **A（改写对齐真 worker）** | 改为断言真 worker 的上界序列 `[1, 2, 4]`（`min(2**retry_count, 60)`），并钉 60s 封顶；与新文件 `test_backoff_upper_bound_series_is_1_2_4` 同源语义、互为双保险 |
 
-## 附录 B — 新文件用例清单（**32 个测试函数**，参数展开后 **46 条**，161 条 assert）
+## 附录 B — 新文件用例清单（**33 个测试函数**，参数展开后 **47 条**，169 条 assert）
 
-> ⚠️ Codex r1 LOW-1 更正：本节原先写「26 条」，那是写卡时的计划数、不是实测数。
-> 实测口径（收工时重取）：`ast` 数出 **32** 个 `test_` 函数；
-> `pytest --collect-only` 收集到 **46** 条（3 个参数化用例分别展开 6/6/5）。
+> ⚠️ 本节数字被 Codex 连纠两轮，现按**终稿**实测重写：
+> - r1 LOW-1：原先写「26 条」，那是写卡时的计划数、不是实测数；
+> - r3 LOW-3：r2 时写的「32 函数 / 46 条 / 161 assert」在 r3 加了一个用例后未同步。
+>
+> 终稿实测口径：`ast` 数出 **33** 个 `test_` 函数、**169** 条 `assert`；
+> `pytest --collect-only` 收集到 **47** 条（3 个参数化用例分别展开 6/6/5）。
+> 三笔代码 commit 的用例数轨迹：31 →（r1 HIGH-1）32 →（r2 LOW-1）33。
 
 A 组 重试与尝试次数（8）：`test_first_attempt_success_no_retry` / `test_success_after_one_retry` /
 `test_success_after_two_retries` / `test_all_attempts_timeout_then_dead_letter` /
 `test_non_timeout_exception_triggers_retry` / `test_all_attempts_exception_then_dead_letter` /
 `test_zero_max_retries_single_attempt_then_dead_letter` / `test_mixed_timeout_then_exception_then_success`
 
-B 组 退避（3）：`test_backoff_upper_bound_series_is_1_2_4`（属性层：`random.uniform` 实参 = (0,1)/(0,2)/(0,4)）/
-`test_retry_actually_sleeps_backoff_seconds_series_2_4_8`（**实际重试链路**：传给 `asyncio.sleep` 的实参
-= 2/4/8，钉住「`_handle_failure` 真的用了这个公式」且 `retry_count` 先递增——Codex r1 HIGH-1）/
-`test_backoff_upper_bound_is_monotonic_and_capped_at_60`
+B 组 退避（3）：
+- `test_backoff_upper_bound_series_is_1_2_4` —— 属性层：`random.uniform` 实参 = (0,1)/(0,2)/(0,4)
+- `test_retry_actually_sleeps_backoff_seconds_series_2_4_8` —— **实际重试链路**（函数名保留历史，
+  断言已随 Codex 两轮收紧而升级）：① 抽样区间实参 = `[(0,2),(0,4),(0,8)]`（下界 0 = full jitter
+  未被削半，且 `retry_count` **先递增** ⇒ 是 2/4/8 不是 1/2/4）；② 传给 `asyncio.sleep` 的值
+  == `random.uniform` 返回的**哨兵串** `[0.37, 1.23, 4.56]`（与区间无函数关系 ⇒
+  「保留抽样调用但按区间重算 sleep 值」的写法得不到它们 —— Codex r1 HIGH-1 + r3 MEDIUM-1）
+- `test_backoff_upper_bound_is_monotonic_and_capped_at_60` —— 上界单调 + 60s 封顶，
+  并断言**属性返回值 == 抽样值**（防二次截断，Codex r3 LOW-1）
 
 C 组 死信（3）：`test_dead_letter_written_on_retry_exhaustion` /
 `test_dead_letter_record_is_replayable_without_full_body` / `test_dead_letter_store_count_matches_appended_lines`
@@ -124,8 +133,10 @@ E 组 隐私（6）：`test_dead_letter_omits_full_body_by_default` /
 `test_dead_letter_error_message_is_redacted_and_truncated` /
 `test_redact_scrubs_known_secret_patterns`（5 参数） / `test_redact_is_noop_for_non_strings_and_clean_text`
 
-F 组 计数（5）：`test_timeout_failures_increment_failure_counter_per_attempt` /
+F 组 计数（6）：`test_timeout_failures_increment_failure_counter_per_attempt` /
 `test_exception_failures_increment_failure_counter_per_attempt` / `test_metrics_snapshot_covers_all_counters` /
+`test_worker_metrics_to_dict_serializes_nonzero_depth_and_times`（**Codex r2 LOW-1 新增**：喂已知样本
+求值 `queue_depth=7` / `avg=1000.0` / `max=1500.0` + 100 条滑窗，防 `to_dict()` 把这些字段写死成 0）/
 `test_queue_full_drops_and_counts` / `test_enqueue_after_stop_returns_false`
 
 G 组 日志（3）：`test_retry_warning_includes_attempt_number_and_error_message` /

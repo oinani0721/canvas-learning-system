@@ -1,0 +1,22 @@
+### 三份真实文件仍必须 PASS（防误杀）
+test_episode_worker_coverage_epw.py                        rc=0 EPW-PATH-GATE: PASS
+test_story_38_6_scoring_reliability.py                     rc=0 EPW-PATH-GATE: PASS
+test_episode_worker_retry.py                               rc=0 EPW-PATH-GATE: PASS
+
+### r3 LOW-2 新锚：拆开的字面量拼接 ⇒ 必 FAIL
+rc=1
+❌ /tmp/epw-gate5.WuLAi6/probe.py:2 [<module>] DeadLetterStore(file_path=…) 的值是写死的路径字面量（str('data/' + 'dead_letter_' + 'episodes.jsonl')）——必须是 tmp_path 派生的表达式
+EPW-PATH-GATE: FAIL
+
+### 反向锚 1：tmp_path / "dead_letter.jsonl"（38_6 的真实写法）⇒ 必 PASS
+rc=0
+EPW-PATH-GATE: PASS
+
+### 反向锚 2：tmp_path / "dl.jsonl" ⇒ 必 PASS
+rc=0
+EPW-PATH-GATE: PASS
+
+### 旧锚回归（r1/r2 的五条）
+漏传+直调 rc=1 EPW-PATH-GATE: FAIL
+跨模块别名 rc=1 EPW-PATH-GATE: FAIL
+str()包字面量 rc=1 EPW-PATH-GATE: FAIL

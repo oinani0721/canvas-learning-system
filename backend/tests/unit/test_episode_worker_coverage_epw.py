@@ -398,26 +398,32 @@ async def test_retry_actually_sleeps_backoff_seconds_series_2_4_8(worker):
     （`episode_worker.py::_handle_failure`），所以三次实际重试的抽样区间是
     **[0,2] / [0,4] / [0,8]**（= `min(2**1,60)` 等），而**不是** retry_count=0/1/2 的 [0,1]/[0,2]/[0,4]。
 
-    ⛔ **桩必须返回区间内的非上界点**（Codex r2 MEDIUM-1）：若桩只返回 `high`，则
-    `random.uniform(0, cap)` 与 `random.uniform(cap/2, cap)` 给出的值**完全相同**——
-    「full jitter 的下半区间被丢掉」这种回归看不出来。这里改成返回 `low + (high-low)*0.25`，
-    并**同时断言传给 `random.uniform` 的 `(low, high)` 实参**：下界必须是 0。
+    ⛔ **桩的返回值必须与区间无关**（Codex r2 MEDIUM-1 → r3 MEDIUM-1 两轮收紧）：
+      - 只返回 `high`：`uniform(0, cap)` 与 `uniform(cap/2, cap)` 输出相同，
+        「full jitter 下半区间被丢掉」看不出来；
+      - 返回 `low + (high-low)*0.25`：仍是 `(low, high)` 的函数，于是
+        `await asyncio.sleep(min(2**retry_count, 60) * 0.25)`（保留抽样调用但**丢弃抽样结果**）
+        也能得到同一串数，「实际退避不再用随机结果」照样看不出来。
+    所以这里让桩**逐次返回一串与区间无关的哨兵值**：只有「sleep 收到的确实是 `random.uniform`
+    的返回值」时，`slept_with` 才可能等于这串哨兵——任何「按区间重算」的写法都得不到它们。
     """
     w, mock_graphiti, dl = worker
     mock_graphiti.add_episode = AsyncMock(side_effect=RuntimeError("always fails"))
     slept_with: list[float] = []
     uniform_calls: list[tuple[float, float]] = []
+    #: 与 (low, high) 无任何函数关系的哨兵；故意不是上界、不是中点、不是任何比例点。
+    sentinels = [0.37, 1.23, 4.56]
 
-    def quarter_point(low, high):
+    def sentinel_uniform(low, high):
         uniform_calls.append((low, high))
-        return low + (high - low) * 0.25
+        return sentinels[len(uniform_calls) - 1]
 
     async def recording_sleep(seconds):
         slept_with.append(seconds)
         await _ORIGINAL_ASYNCIO_SLEEP(0)
 
     with (
-        patch("app.services.episode_worker.random.uniform", side_effect=quarter_point),
+        patch("app.services.episode_worker.random.uniform", side_effect=sentinel_uniform),
         patch("app.services.episode_worker.asyncio.sleep", side_effect=recording_sleep),
     ):
         w.enqueue(_make_task(name="sleep_values"))
@@ -427,16 +433,22 @@ async def test_retry_actually_sleeps_backoff_seconds_series_2_4_8(worker):
     assert uniform_calls == [(0, 2), (0, 4), (0, 8)], (
         f"三次重试的抽样区间必须是 [0,2]/[0,4]/[0,8]（下界 0 = full jitter 未被削成半抖动），实测 {uniform_calls}"
     )
-    # ② 传给 sleep 的**就是**抽出来的那个值（非上界点 ⇒ 能分辨「sleep 收到的不是 backoff_seconds」）
-    assert slept_with == [0.5, 1.0, 2.0], (
-        f"传给 asyncio.sleep 的必须是 backoff_seconds 抽到的值本身（桩取区间 1/4 点），实测 {slept_with}"
+    # ② 传给 sleep 的**就是**抽样返回的那个值（哨兵与区间无关 ⇒ 按区间重算的写法得不到它们）
+    assert slept_with == sentinels, (
+        f"传给 asyncio.sleep 的必须是 random.uniform 的返回值本身，实测 {slept_with}（期望哨兵 {sentinels}）"
     )
     assert w.metrics.episodes_dead_lettered == 1
     assert _read_records(dl)[0]["retry_count"] == 3
 
 
 def test_backoff_upper_bound_is_monotonic_and_capped_at_60():
-    """上界单调不减且封顶 60s —— 旧实现没有封顶，这是本次迁移新增的保护。"""
+    """上界单调不减且封顶 60s —— 旧实现没有封顶，这是本次迁移新增的保护。
+
+    Codex r3 LOW-1：原先只记录传给 `random.uniform` 的 `high`、**丢掉了属性的返回值**，
+    于是把实现改成 `min(random.uniform(0, cap), 5.0)`（大退避被错误截成 5 秒）也不会红。
+    这里把返回值一并收下并逐条比对——桩原样返回 `high`，属性就必须原样把它交出来，
+    中间不得再加工。
+    """
     bounds = []
 
     def fake_uniform(low, high):
@@ -444,7 +456,7 @@ def test_backoff_upper_bound_is_monotonic_and_capped_at_60():
         return high
 
     with patch("app.services.episode_worker.random.uniform", side_effect=fake_uniform):
-        for i in range(0, 12):
+        returned = [
             EpisodeTask(
                 name=f"cap{i}",
                 episode_body=_BODY,
@@ -452,10 +464,13 @@ def test_backoff_upper_bound_is_monotonic_and_capped_at_60():
                 source_description="backoff_cap",
                 retry_count=i,
             ).backoff_seconds
+            for i in range(0, 12)
+        ]
 
     assert bounds == sorted(bounds), f"上界必须单调不减: {bounds}"
     assert max(bounds) == 60, "上界必须封顶在 60s"
     assert bounds[:7] == [1, 2, 4, 8, 16, 32, 60], "2**i 直到触顶后恒为 60"
+    assert returned == bounds, f"属性必须原样返回抽样值、不得再加工（如二次截断）；抽样={bounds} 返回={returned}"
 
     # 不打桩的真实抖动：落在 [0, 上界] 内（本条不依赖上面的桩）。
     live = EpisodeTask(
