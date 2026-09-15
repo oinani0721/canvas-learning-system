@@ -70,7 +70,9 @@ Y1-B 外审两条 HIGH 在本树上**当场复现**（证据
   语句位置，被测进程改不了它。这是唯一能把「红在哪一条断言上」问清楚的面。
 
 ⚠️ 配套硬约束（少一条判据就退化成恒不命中的**假 SURVIVED**）：
-  1. harness 的 pytest 命令必须带 `-rf`（否则根本没有短摘要行）；
+  1. harness 的 pytest 命令必须带 **`-rfE`**（Codex round-8 LOW：此前这条硬约束写的是
+     裸 `-rf`，照它配会**再次漏掉 ERROR 行** —— `-r` 的字符串是**替换**默认 `fE` 的，
+     见 `judge_flags()` 里那段实测。没有短摘要行则判据面整个不存在）；
   2. 必须带 `--tb=line`（否则没有位置行，`expect_loc` 恒不命中）；
   3. 必须设 `COLUMNS` 足够大 —— 80 列下 `FAILED … - <reason>` 的 reason 会被
      截成空串；用 `judge_env()` 拿这份环境。
@@ -314,17 +316,29 @@ def _split_unique(line: str, nodeid: str) -> bool:
     for i in range(len(body)):
         if body.startswith(" - ", i):
             left = body[:i]
-            # ⛔ 判据是 `_nodeid_shaped` **一条**，不再并上「方括号成对」（Codex round-7 MEDIUM）。
-            # 「方括号成对」会把**根本不可能是 nodeid** 的左侧收进候选：
-            #   `FAILED tests/gate.py::test_x - AssertionError: expected - actual`
-            # 的第二个切点左侧是 `tests/gate.py::test_x - AssertionError: expected` ——
-            # 括号数 0 == 0 「成对」，但它在括号外含空白，pytest **永远不会**把它当 nodeid 打出来。
-            # 于是一条**唯一可判定**的普通摘要行被判二义 ⇒ 假 HARNESS-ERROR。而 reason 里带
-            # ` - `（`expected - actual`、`assert 3 - 1 == 1`）是**极常见**的形态。
-            # ⚠️ 这是本函数**唯一一次收紧候选集**（此前几轮都在放宽）。安全性论证：被删掉的
-            # 那一族是「成对但不是 nodeid 形」，按定义就不是合法读法，不该参与唯一性判定；
-            # 两个方向的反例都已进单测钉住。
-            if left and _nodeid_shaped(left):
+            # ⛔⛔ 判据是**并集**（`方括号成对 ∪ nodeid 形`）。这一行被改过两次、回滚过一次，
+            # 过程本身就是教训，完整记在这里免得后人第三次踩：
+            #
+            # round-8 曾把「方括号成对」那半**删掉**，理由是：
+            #   `FAILED …::test_x - AssertionError: expected - actual` 的第二个切点左侧
+            #   `…::test_x - AssertionError: expected` 括号数 0==0「成对」，但它**在括号外含
+            #   空白**，「pytest 永远不会把它当 nodeid 打出来」⇒ 判二义是假 HARNESS-ERROR。
+            # 两次独立复核（Codex round-7 MEDIUM + 一次 172-agent 多视角扫描的 HIGH）都这么说。
+            #
+            # ⛔ **那个共同前提是错的，2026-09-15 于 pytest 9.0.2 实测推翻**
+            # （存档 `evidence-mutkill-r3/probe-nodeid-whitespace-*.txt`）：
+            #   `globals()["test_x[case] - EXPECT"] = f` 这样注入的测试**能被正常收集**，
+            #   `--collect-only` 打出 `…::test_x[case] - EXPECT`，短摘要打出
+            #   `FAILED …::test_x[case] - EXPECT - AssertionError: OTHER`。
+            # ⇒ nodeid **可以**含空白与 ` - `；上面那种行是**真二义**，判 HARNESS-ERROR 正确。
+            # ⇒ round-8 的收紧开了一条**假 KILLED**（Codex round-8 HIGH 当场复现：同一输入
+            #   在收紧前判 HARNESS-ERROR、收紧后判 KILLED），已回滚。
+            #
+            # ⚠️ 保守性的代价如实说：reason 里带 ` - `（`expected - actual`）的行会判
+            # HARNESS-ERROR。那**不是**误判 —— 只看摘要行确实分不开。要分开只能靠
+            # `expect_loc` 绑到具体断言（D-28 延期，T8-C 的面）。本树实测该形态零命中
+            # （全部存档 1932 条裁决行里 0 条含 ASCII ` - `，断言消息一律用全角破折号）。
+            if left and (left.count("[") == left.count("]") or _nodeid_shaped(left)):
                 cands.append(left)
     # ⛔ H1：无 reason 读法（整行即 nodeid）也是**一种候选读法**，必须进同一个候选集。
     if _nodeid_shaped(body):

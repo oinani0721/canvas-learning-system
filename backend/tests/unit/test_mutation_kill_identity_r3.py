@@ -802,25 +802,57 @@ def test_m3_real_suite_denominators_are_unchanged() -> None:
     }
 
 
-@pytest.mark.parametrize(
-    ("line", "nodeid"),
-    [
-        # reason 里带 ` - ` 是**极常见**的形态，绝不能因此被判二义
-        ("FAILED tests/gate.py::test_x - AssertionError: expected - actual", "tests/gate.py::test_x"),
-        ("FAILED tests/gate.py::test_x - assert 3 - 1 == 1", "tests/gate.py::test_x"),
-        ("FAILED tests/gate.py::test_x[c] - AssertionError: a - b - c", "tests/gate.py::test_x[c]"),
-    ],
-)
-def test_h1_dash_inside_reason_does_not_make_it_ambiguous(line: str, nodeid: str) -> None:
-    """⛔ 「方括号成对」不再是候选判据（Codex round-7 MEDIUM）。
+def test_h1_dash_inside_reason_is_genuinely_ambiguous() -> None:
+    """⛔ reason 里带 ` - ` 的行**确实**二义 —— 判 HARNESS-ERROR 是对的，不是误判。
 
-    `tests/gate.py::test_x - AssertionError: expected` 的括号数 0 == 0「成对」，但它在括号外
-    含空白 —— pytest **永远不会**把它当 nodeid 打出来。旧判据把它收进候选 ⇒ 一条**唯一可
-    判定**的普通摘要行被判二义 ⇒ 假 HARNESS-ERROR。而 reason 里带 ` - ` 极其常见。
+    这条断言的方向被**改过两次、回滚过一次**，过程本身是教训：
+
+    round-8 曾把候选判据里的「方括号成对」删掉，让这类行判「唯一」。两次独立复核
+    （Codex round-7 MEDIUM + 一次 172-agent 多视角扫描的 HIGH）都主张这么改，理由是
+    「`…::test_x - AssertionError: expected` 在括号外含空白，pytest 永远不会把它当 nodeid」。
+
+    ⛔ **那个共同前提是错的**，2026-09-15 于 pytest 9.0.2 实测推翻（存档
+    `evidence-mutkill-r3/probe-nodeid-whitespace-*.txt`）：`globals()["test_x[case] - EXPECT"] = f`
+    注入的测试**能被正常收集**，短摘要打出
+    `FAILED …::test_x[case] - EXPECT - AssertionError: OTHER` —— 与「nodeid + reason」
+    形态**逐字不可区分**。round-8 的收紧因此开了一条**假 KILLED**（Codex round-8 HIGH
+    当场复现），已回滚。
+
+    ⚠️ 代价如实说：这类行判 HARNESS-ERROR，是**保守但正确**的；要分开只能靠 `expect_loc`。
     """
-    assert mki._split_unique(line, nodeid) is True, f"普通 reason 含 ` - ` 不得被判二义: {line!r}"
-    # ⛔ 验伪锚：这条收紧**没有**把真正的二义行也放过
-    assert mki._split_unique("FAILED tests/x.py::test_x[case] - EXPECT[]", "tests/x.py::test_x[case]") is False
+    # 真二义：左侧可能是一个名字含 ` - ` 的测试
+    assert (
+        mki._split_unique("FAILED tests/gate.py::test_x - AssertionError: expected - actual", "tests/gate.py::test_x")
+        is False
+    )
+    assert mki._split_unique("FAILED tests/gate.py::test_x - assert 3 - 1 == 1", "tests/gate.py::test_x") is False
+    # ⛔ round-8 HIGH 的那条反例：左侧 `…[case] - EXPECT` 括号成对 ⇒ 必须进候选 ⇒ 判二义
+    assert (
+        mki._split_unique(
+            "FAILED tests/gate.py::test_x[case] - EXPECT - AssertionError: OTHER",
+            "tests/gate.py::test_x[case]",
+        )
+        is False
+    ), "⛔ 不判二义就会把一条名字含 ` - ` 的测试的失败误当成 expect_msg 命中 ⇒ 假 KILLED"
+    # ⛔ 验伪锚：reason 里**没有** ` - ` 时仍判唯一（收紧没有把整族都打成二义）
+    assert mki._split_unique("FAILED tests/gate.py::test_x - AssertionError: boom", "tests/gate.py::test_x") is True
+
+
+def test_h1_false_killed_path_is_closed_end_to_end(tmp_path: Path) -> None:
+    """⛔ round-8 HIGH 的端到端面：那条行不得判 KILLED。
+
+    构造与实测摘要行同形：目标门声明 `…::test_x`、`expect_msg="EXPECT"`；真实失败的是
+    名字为 `test_x[case] - EXPECT` 的测试，其真实 reason 是 `AssertionError: OTHER`
+    （**不含** EXPECT）。若判据把左侧截断成 `…::test_x[case]`，`EXPECT` 就从**测试名**里
+    被读成了 reason ⇒ 假 KILLED。
+    """
+    gate = _write_gate(tmp_path, _GATE_DUP)
+    out = _out(
+        ["FAILED tests/gate.py::test_x[case] - EXPECT - AssertionError: OTHER"],
+        [f"{gate}:2: AssertionError: OTHER"],
+    )
+    verdict, why = mki.kill_identity(1, out, "tests/gate.py::test_x", "EXPECT", gate_file=gate, require_gate_file=True)
+    assert verdict == "HARNESS-ERROR", f"⛔ 假 KILLED 路径必须封死，实得 {verdict}（{why}）"
 
 
 def test_m2_missing_verify_must_not_claim_no_drift(capsys) -> None:
@@ -1035,3 +1067,84 @@ def test_h2_error_summary_line_is_not_borrowable(tmp_path: Path) -> None:
     )
     verdict, why = mki.kill_identity(1, out, nodeid, gate_file=gate, require_gate_file=True)
     assert verdict == "HARNESS-ERROR", f"目标门 ERROR 时不得判 SURVIVED，实得 {verdict}（{why}）"
+
+
+def test_rec_reconcile_one_rejects_compensating_tamper(tmp_path: Path, capsys) -> None:
+    """⛔ 这条打在 **`reconcile_one()`** 本体上，不是只断言解析结果不同（Codex round-8 MEDIUM）。
+
+    上一条补偿式篡改用例只比较了 `parse_stdout()` 的返回值 —— 把 `reconcile_one()` 里那段
+    「聚合 vs 逐条」比较整段删掉，它照样绿。判据本身没被门护住，与本卡要修的病同族。
+    """
+    rec = _rec()
+    src = tmp_path / "probe_suite.py"
+    src.write_text("MUTATIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9]\n", encoding="utf-8")
+    tee = tmp_path / "tee.txt"
+    per_item_lines = "  x → rc=1 ⇒ KILLED (a)\n" * 9
+    good = (
+        "\n  9/9 KILLED (绑定: 消息 + 失败位置在门文件内; x)\n  KILLED-UNBOUND: 0 (x)\n  SURVIVED: 0\n"
+        "  HARNESS-ERROR: 0 (x)\n  ANCHOR-ERROR: 0 (x)\n  SYNTAX-INVALID: 0 (x)\n"
+        "  六档之和: 9 (应 = 变异条数 9) ✓\n"
+    )
+    orig_scripts, orig_suites = rec.SCRIPTS, dict(rec.SUITES)
+    rec.SCRIPTS = tmp_path
+    rec.SUITES["g32cb"] = rec.Suite("probe_suite.py", "stdout")
+    try:
+        tee.write_text(per_item_lines + good, encoding="utf-8")
+        assert rec.reconcile_one("g32cb", tee) == [], "⛔ 验伪锚：全对的存档必须判空问题列表"
+        # 补偿式篡改：KILLED 9→8 且 SURVIVED 0→1，四个数仍全对得上
+        tee.write_text(
+            per_item_lines + good.replace("9/9 KILLED", "8/9 KILLED").replace("SURVIVED: 0", "SURVIVED: 1"),
+            encoding="utf-8",
+        )
+        problems = rec.reconcile_one("g32cb", tee)
+        assert problems, "⛔ `reconcile_one()` 必须把补偿式篡改报成问题"
+        assert any("逐条" in p for p in problems), f"必须点名是「聚合 vs 逐条」这一维，实得 {problems}"
+    finally:
+        rec.SCRIPTS = orig_scripts
+        rec.SUITES.clear()
+        rec.SUITES.update(orig_suites)
+        capsys.readouterr()
+
+
+def test_rec_per_item_regex_ignores_diagnostic_text(tmp_path: Path) -> None:
+    """⛔ why 里的诊断文字不得被数进逐条（Codex round-8 MEDIUM）。
+
+    why 是**被测进程可控**的断言消息拼出来的 —— 让它能影响计数本身就是个口子；
+    且会让**合法**存档反而对账失败（假红）。
+    """
+    rec = _rec()
+    tee = (
+        "  a → rc=1 ⇒ SURVIVED (红在别的断言上: 实见 ['diagnostic ⇒ KILLED'])\n"
+        "\n  0/1 KILLED (绑定: 消息 + 失败位置在门文件内; x)\n  KILLED-UNBOUND: 0 (x)\n  SURVIVED: 1\n"
+        "  HARNESS-ERROR: 0 (x)\n  ANCHOR-ERROR: 0 (x)\n  SYNTAX-INVALID: 0 (x)\n"
+        "  六档之和: 1 (应 = 变异条数 1) ✓\n"
+    )
+    per = rec.parse_stdout("g32cb", tee).per_item
+    assert per["KILLED"] == 0 and per["SURVIVED"] == 1, f"诊断文字里的 `⇒ KILLED` 不得计数，实得 {per}"
+
+
+def test_rec_json_results_wrong_shape_is_an_error_not_unchecked() -> None:
+    """⛔ 字段**在但形态错** ≠ 字段**缺席**（Codex round-8 MEDIUM）。
+
+    两者一起降级成「未核」，就等于把 `results` 改成 `"broken"` 当作豁免口。
+    """
+    rec = _rec()
+    base = (
+        '{"verdict_counts": {"KILLED": 18, "KILLED-UNBOUND": 0, "SURVIVED": 0, '
+        '"HARNESS-ERROR": 0, "ANCHOR-ERROR": 0, "SYNTAX-INVALID": 0}, "total": 18%s}'
+    )
+    assert rec.parse_json("g33", base % "").per_item is None, "缺席 ⇒ 未核（如实说）"
+    assert rec.parse_json("g33", base % ', "results": []').per_item is None, "空数组 ⇒ 未核"
+    for bad in ('"broken"', "{}", "5"):
+        with pytest.raises(rec.ReconcileError, match="不是数组"):
+            rec.parse_json("g33", base % f', "results": {bad}')
+
+
+def test_rec_expect_rejects_duplicate_suite() -> None:
+    """⛔ `--expect g33,g33` 把同一份来源核两遍却报「2 套」—— 覆盖面说宽了（round-8 LOW）。"""
+    rec = _rec()
+    with pytest.raises(SystemExit, match="重复声明"):
+        rec.main(["--expect", "g33,g33", "--json", "g33=/nonexistent.json"])
+    # ⛔ 验伪锚：不重复时不得被这条误拦（它应当走到「文件不存在」那一条）
+    with pytest.raises(SystemExit):
+        rec.main(["--expect", "g33", "--json", "g33=/nonexistent.json"])

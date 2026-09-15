@@ -109,9 +109,10 @@ class ReconcileError(Exception):
 #: 静默少算的口子 —— `__imul__` / `__delitem__` 都是这么漏掉的（`MUTATIONS.__imul__(2)`
 #: 实际长度翻倍，AST 照旧返回原数）。黑名单在这里天然是错的形态：要穷举的是**攻击面**。
 #: 反过来写成白名单后，任何**没列**的属性访问都报错 ⇒ fail-closed by construction。
-_LIST_READONLY_ATTRS = frozenset(
-    {"count", "index", "copy", "__len__", "__getitem__", "__iter__", "__contains__", "__class__"}
-)
+#: ⛔ `__class__` **不在**白名单里（Codex round-8 MEDIUM）：`MUTATIONS.__class__.__imul__(MUTATIONS, 2)`
+#: 经由它绕开整条判据（实际长度翻倍，AST 照旧返回原数）。任何能拿到类型再回调的入口都是
+#: 绕过口 —— 白名单只放**读值**用的那几个。
+_LIST_READONLY_ATTRS = frozenset({"count", "index", "copy", "__len__", "__getitem__", "__iter__", "__contains__"})
 
 
 def _literal_len(node: ast.AST, source_name: str, lineno: int) -> int:
@@ -234,9 +235,13 @@ _B_FOUR = re.compile(r"^(?P<name>SURVIVED|HARNESS-ERROR|ANCHOR-ERROR|SYNTAX-INVA
 _B_SUM = re.compile(r"^六档之和: (?P<t>\d+) \(应 = (?P<m>\d+)\)", re.M)
 
 #: 逐条裁决行里的档名。
-#: `g32cb` / `g32ccr1`：`… → rc=1 ⇒ KILLED (…)`；`g32b`：`[tag] … ⇒ KILLED`（同形）。
-#: ⛔ 用 `(?![\w-])` 收边界，否则 `KILLED` 会把 `KILLED-UNBOUND` 也吃掉一半。
-_PER_ITEM = re.compile(rf"⇒ (?P<name>KILLED-UNBOUND|KILLED|{_TAIL_FIVE.split('|', 1)[1]})(?![\w-])")
+#: 实测形态：`«缩进»<nodeid> → rc=<n> ⇒ <档名> (<why>)`。
+#: ⛔ **必须锚到 `rc=<数字> ⇒`**（Codex round-8 MEDIUM）：只锚 `⇒ <档名>` 会把 **why 里的
+#: 诊断文字**也数进去 —— `⇒ SURVIVED (红在别的断言上: 实见 ['diagnostic ⇒ KILLED'])` 这一条
+#: 会被数成 SURVIVED 1 + KILLED 1，于是**合法**存档反而对账失败（假红）。而 why 是被测进程
+#: 的断言消息拼出来的，内容**被测进程可控** —— 让它能影响计数本身就是个口子。
+#: ⛔ `(?![\w-])` 收右边界，否则 `KILLED` 会把 `KILLED-UNBOUND` 吃掉一半。
+_PER_ITEM = re.compile(rf"rc=-?\d+ ⇒ (?P<name>KILLED-UNBOUND|KILLED|{_TAIL_FIVE.split('|', 1)[1]})(?![\w-])")
 
 
 def _one(rx: re.Pattern[str], text: str, what: str, suite: str) -> re.Match[str]:
@@ -363,15 +368,26 @@ def parse_json(suite: str, text: str) -> Parsed:
         raise ReconcileError(f"{suite}: `verdict_sum_matches_total` 形态不对（应为布尔）")
     # ⛔ JSON 形态下「该套自己印的和」只能取 `sum(counts)` ⇒ 判据①（逐档相加 == 印出来的和）
     # 对它是**恒真**的。这一维靠 `results[]` 里的逐条 `verdict` 补上（第二个来源）。
+    # ⛔ Codex round-8 MEDIUM：「字段**缺席**」与「字段**在但形态错**」是两回事。
+    # 上一版把两者一起降级成「未核」⇒ 把 `results` 改成 `"broken"` / `{}` 就能让这一维
+    # 静默消失并照样打 ✓ —— 又一个「没检查到当成通过」。缺席 ⇒ 未核（如实说）；
+    # 形态错 ⇒ **抛**。
     per: dict[str, int] | None = None
-    raw_results = data.get("results")
-    if isinstance(raw_results, list) and raw_results:
-        per = {v: 0 for v in VERDICT_NAMES}
-        for item in raw_results:
-            v = item.get("verdict") if isinstance(item, dict) else None
-            if v not in per:
-                raise ReconcileError(f"{suite}: `results[]` 里有不认识的 verdict {v!r}")
-            per[v] += 1
+    if "results" in data:
+        raw_results = data["results"]
+        if not isinstance(raw_results, list):
+            raise ReconcileError(
+                f"{suite}: `results` 在但不是数组（实得 {type(raw_results).__name__}）—— 形态错不得降级成「未核」"
+            )
+        if raw_results:
+            per = {v: 0 for v in VERDICT_NAMES}
+            for item in raw_results:
+                if not isinstance(item, dict):
+                    raise ReconcileError(f"{suite}: `results[]` 里有非对象条目 {item!r}")
+                v = item.get("verdict")
+                if v not in per:
+                    raise ReconcileError(f"{suite}: `results[]` 里有不认识的 verdict {v!r}")
+                per[v] += 1
     return Parsed(counts, sum(counts.values()), total, per)
 
 
@@ -455,6 +471,11 @@ def main(argv: list[str] | None = None) -> int:
     unknown = [s for s in expect if s not in SUITES]
     if unknown:
         raise SystemExit(f"⛔ --expect 里的套名不认识: {unknown}（可选: {', '.join(SUITES)}）")
+    # ⛔ Codex round-8 LOW：`--expect g33,g33` 会把**同一份来源**核两遍，然后报「2 套一致」——
+    # 把覆盖面说得比实际宽。重复声明一律拒。
+    dupes = sorted({x for x in expect if expect.count(x) > 1})
+    if dupes:
+        raise SystemExit(f"⛔ --expect 里重复声明了 {dupes} —— 同一来源核两遍不等于核了两套")
 
     stdout_in = _kv(args.stdout, "--stdout")
     json_in = _kv(args.json, "--json")

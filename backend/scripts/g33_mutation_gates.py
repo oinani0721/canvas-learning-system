@@ -467,7 +467,10 @@ def _report_restore_concern(headline: str, detail_of: str, verify: Callable[[], 
     elif drift:
         detail = f"漂移 {', '.join(drift)}"
     else:
-        detail = "未检出漂移(但本轮还原报过错, 不得当成干净)"
+        # ⛔ Codex round-8 LOW：后缀也不得替调用方归因。标题已写「未必来自还原本身」，
+        # 后缀却仍说「本轮还原报过错」—— 外层 TimeoutError 展开、还原其实三次全成功时
+        # 那句就是假的。只说「本次有异常要报」这个不带归因的事实。
+        detail = "未检出漂移(但本次有异常要报, 不得据此断言一切正常)"
     try:
         print(f"⛔ {headline}: {detail_of} —— 还原逐字节自检: {detail}", file=sys.stderr, flush=True)
     except BaseException:  # noqa: BLE001  日志失败不改变控制流
