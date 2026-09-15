@@ -4165,6 +4165,32 @@ def _oc_run(
     return _run(*args, env=env, timeout=120)
 
 
+def _oc_tree_snapshot(root: Path) -> dict[str, str]:
+    """整棵树的 `{相对路径: 类型+身份}` 快照 —— dry 零写门的真判据。
+
+    ⛔ 不用「找特定文件名」代替（Codex r1 MEDIUM-2）：那只能证明**我想到的**那几个名字
+       没出现，证不了「什么都没写」。这里连内容 sha 与软链目标一起钉，
+       任何新增 / 删除 / 改写 / 换成软链都会让两次快照不等。
+    ⚠️ 建完又删的临时文件本判据仍看不见（前后两个时刻都不存在）—— 那要靠脚本自己的
+       「不传 --apply 就不走写分支」控制流，本判据不宣称覆盖它。
+    """
+    import hashlib
+
+    snap: dict[str, str] = {}
+    for p in sorted(root.rglob("*")):
+        rel = str(p.relative_to(root))
+        if p.is_symlink():
+            snap[rel] = "L:" + os.readlink(p)
+        elif p.is_dir():
+            snap[rel] = "D"
+        else:
+            try:
+                snap[rel] = "F:" + hashlib.sha256(p.read_bytes()).hexdigest()
+            except OSError as exc:  # 读不出来也要留痕，不能压成「不存在」
+                snap[rel] = f"E:{exc.__class__.__name__}"
+    return snap
+
+
 def _oc_frontmatter_name(skill_md: Path) -> object:
     """取 SKILL.md 的 frontmatter `name`（层 1 口径）。取不到一律回 None。"""
     text = skill_md.read_text(encoding="utf-8")
@@ -4219,7 +4245,9 @@ def test_hosts_opencode_dry_run_writes_nothing(tmp_path: Path):
     name, port = "probe_oc2", "8282"
     h = _oc_harness(tmp_path)
     env = _tx_env(tmp_path, port, name)
+    before_snap = _oc_tree_snapshot(tmp_path)
     r = _oc_run(tmp_path, h, name, port, env=env, apply_=False)
+    after_snap = _oc_tree_snapshot(tmp_path)
     assert r.returncode != 64, f"opencode 仍被 E-1 拒: {r.stderr}"
     assert r.returncode == 0, f"rc={r.returncode}\n{r.stdout}{r.stderr}"
     assert "will:" in r.stdout, r.stdout
@@ -4228,6 +4256,15 @@ def test_hosts_opencode_dry_run_writes_nothing(tmp_path: Path):
     #    只盯 $VAULT 会因为「目录不存在」而恒真。
     strays = [str(p) for p in tmp_path.rglob(".agents")] + [str(p) for p in tmp_path.rglob("AGENTS.md")]
     assert strays == [], f"dry 态写了东西: {strays}"
+    # ⛔ **按名字找特定文件证不了「零写」**（Codex r1 MEDIUM-2）：上面两条只搜 `.agents` 与
+    #    `AGENTS.md`，漏掉任何别的新文件、`AGENTS.md.tmp`、原文件被改写、以及建完又删的临时件。
+    #    真判据 = 跑前跑后**整棵树**的快照逐项相同（路径 + 类型 + 内容 sha / 软链目标）。
+    #    Codex 给的对照输入：在 dry 分支塞一句 `: > "$HARNESS/stray.txt"`，旧判据照样绿、本判据会红。
+    assert after_snap == before_snap, (
+        "dry 态改动了 tmp 根下的文件树:\n"
+        f"  新增/改动: {sorted(set(after_snap.items()) - set(before_snap.items()))[:20]}\n"
+        f"  消失: {sorted(set(before_snap.items()) - set(after_snap.items()))[:20]}"
+    )
 
 
 def test_hosts_claude_only_generates_no_opencode_binding(tmp_path: Path):
@@ -4245,6 +4282,76 @@ def test_hosts_claude_only_generates_no_opencode_binding(tmp_path: Path):
     assert not (v / ".agents").exists(), "单宿主 claude 落下了 .agents/"
     assert not (v / "AGENTS.md").exists(), "单宿主 claude 落下了 AGENTS.md"
     assert ".agents/skills" not in r.stdout, f"单宿主却打印了 opencode 生成意图: {r.stdout}"
+
+
+# ── Codex r1 整改配套门 ──────────────────────────────────────────────────────
+def _oc_preseed_installer(tmp_path: Path, h: Path, extra_sh: str) -> None:
+    """让 installer 桩在造完 vault 之后多做一件事 —— 用来预置「已有 vault 上的坏形态」。
+
+    ⚠️ 必须由 installer 桩来做，不能在跑脚本前先建：`$VAULT` 是步 2 才被造出来的，
+       提前建会被步 2 的防覆盖闸门拦成 rc 72，根本走不到步 3（那样测的是步 2，不是本卡）。
+    """
+    _tx_write(h / "scripts" / "install-vault.sh", _OC_INSTALLER + extra_sh, mode=0o755)
+
+
+def test_hosts_opencode_refuses_when_agents_root_is_a_symlink(tmp_path: Path):
+    """`.agents` 是软链 ⇒ 拒（Codex r1 HIGH-1）。
+
+    祖先软链会让 `mkdir -p` 沿链穿到别处，叶子软链的两级回跳于是从**别人的**目录起算 ——
+    落点整体偏移，而生成后的 `[ -L ]` 沿链解析仍为真，看不出来。
+    ⛔ 本门的承重断言是「拒 + 外部目录零污染」，不是「rc 非 0」：脚本因别的原因崩掉
+       （set -u 之类）同样是非 0，那会把「判据拦住了」和「脚本坏了」读成一回事。
+    """
+    name, port = "probe_oc4", "8284"
+    h = _oc_harness(tmp_path)
+    outside = tmp_path / "outside-agents"
+    outside.mkdir()
+    _oc_preseed_installer(tmp_path, h, f'ln -s "{outside}" "$v/.agents"\n')
+    env = _tx_env(tmp_path, port, name)
+    r = _oc_run(tmp_path, h, name, port, env=env)
+    assert r.returncode == 73, f"祖先软链没被拒成步 3 失败: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    assert "软链" in r.stdout, f"消息没点名软链: {r.stdout}"
+    v = tmp_path / "vaults" / name
+    assert (v / ".agents").is_symlink(), "控制组不成立：桩没把 .agents 建成软链"
+    assert list(outside.iterdir()) == [], f"沿链穿到外部目录写了东西: {list(outside.iterdir())}"
+    assert not (v / "AGENTS.md").exists(), "被拒之后仍落下了 AGENTS.md"
+
+
+def test_hosts_opencode_refuses_to_clobber_handwritten_agents_md(tmp_path: Path):
+    """已有的**手写** AGENTS.md（无生成标记）⇒ 拒，且原文一字不动（Codex r1 HIGH-2）。"""
+    name, port = "probe_oc5", "8285"
+    h = _oc_harness(tmp_path)
+    handwritten = "# 我自己写的\n\n别动我。\n"
+    _oc_preseed_installer(tmp_path, h, f"printf '%s' '{handwritten}' > \"$v/AGENTS.md\"\n")
+    env = _tx_env(tmp_path, port, name)
+    r = _oc_run(tmp_path, h, name, port, env=env)
+    assert r.returncode == 73, f"手写 AGENTS.md 被盖了或别的错: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    assert "生成标记" in r.stdout, f"消息没说清为什么拒: {r.stdout}"
+    v = tmp_path / "vaults" / name
+    assert (v / "AGENTS.md").read_text(encoding="utf-8") == handwritten, "手写正文被改动了"
+    assert not (v / "AGENTS.md.tmp").exists(), "临时文件没被清掉"
+
+
+def test_hosts_opencode_agents_md_is_nonempty_and_marked(tmp_path: Path):
+    """AGENTS.md 必须**非空**且首行恰是生成标记。
+
+    ⛔ 这条门的由来：r1 整改初版把发布写成 `python3 - … << 'PY'`，而 `python3 -` 就是
+       「从 stdin 读程序」—— heredoc 占了 stdin，管道送来的正文读成空串，
+       脚本 rc 仍是 0，只落下一个 **0 字节**的 AGENTS.md。
+       「文件存在」这类存在性判据对这种失败完全是瞎的。
+    """
+    name, port = "probe_oc6", "8286"
+    h = _oc_harness(tmp_path)
+    env = _tx_env(tmp_path, port, name)
+    r = _oc_run(tmp_path, h, name, port, env=env)
+    assert r.returncode == 0, f"rc={r.returncode}\n{r.stdout}{r.stderr}"
+    body = (tmp_path / "vaults" / name / "AGENTS.md").read_text(encoding="utf-8")
+    assert body.strip(), "AGENTS.md 是空的"
+    assert body.splitlines()[0] == "<!-- generated-by: deploy-vault.sh (--hosts opencode) -->", (
+        f"首行不是生成标记: {body.splitlines()[:1]}"
+    )
+    # MCP 端点必须是**完整**的（Codex r1 MEDIUM-1：少了 /mcp 照着填会连不上）。
+    assert f"http://127.0.0.1:{port}/mcp" in body, f"AGENTS.md 没给完整 MCP 端点: {body}"
 
 
 # ── D-26(i)：`~/.config/opencode` 下的实写文件必须被判据拦下 ──────────────────

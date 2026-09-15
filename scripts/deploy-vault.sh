@@ -1001,6 +1001,23 @@ write_opencode_binding() {
         return 1
     fi
 
+    # ⛔ 祖先软链（Codex r1 HIGH-1）：上面那道判据只判「路径落不落在禁写面」, 而步 1 的
+    #    `-L` 复查只对**叶子**做、且那时 $VAULT 还不存在 ⇒ 两层都看不见 `.agents` 本身是软链。
+    #    若 `.agents -> /somewhere/else`, `mkdir -p` 会沿链穿过去, 叶子软链建在别人家,
+    #    而它的两级回跳 `../../.claude/skills/<n>` 于是从**别人的**目录起算 —— 落点整体偏移。
+    #    生成后的 `[ -L ]` 沿链解析仍为真, 发现不了。故逐级 fail-closed。
+    local anc
+    for anc in "$VAULT/.agents" "$dst_root"; do
+        if [ -L "$anc" ]; then
+            OPENCODE_ERR="opencode 绑定根是软链, 写入会沿链穿到别处: $anc -> $(readlink "$anc")"
+            return 1
+        fi
+        if [ -e "$anc" ] && [ ! -d "$anc" ]; then
+            OPENCODE_ERR="opencode 绑定根已存在且不是目录: $anc"
+            return 1
+        fi
+    done
+
     mkdir -p "$dst_root" || { OPENCODE_ERR="建目录失败: $dst_root"; return 1; }
 
     # ── ① 条目级软链 ─────────────────────────────────────────────────────────
@@ -1023,57 +1040,154 @@ write_opencode_binding() {
     done
 
     # ── ② AGENTS.md ──────────────────────────────────────────────────────────
-    # 不静默覆盖用户手写的 AGENTS.md：只认自己盖的生成标记。
-    # `-e` 对**悬空软链**为假, 所以并上 `-L`, 否则一条断链会被当成「不存在」而直接盖过去。
-    if [ -e "$agents" ] || [ -L "$agents" ]; then
-        if ! grep -qF "$OPENCODE_AGENTS_MARK" "$agents" 2> /dev/null; then
-            OPENCODE_ERR="已有 $agents 缺生成标记（疑为手写）, 拒绝覆盖"
-            return 1
-        fi
-    fi
-    assert_writable_now "$agents.tmp" || { OPENCODE_ERR="$WRITE_GUARD_ERR"; return 1; }
-    if ! write_agents_md "$agents.tmp" "${NAMES[@]}"; then
-        rm -f -- "$agents.tmp"
-        OPENCODE_ERR="写 AGENTS.md 临时文件失败"
+    # ⛔ 发布走 publish_agents_md（Codex r1 HIGH-2）：原来「`grep` 查标记 → `assert_writable_now`
+    #    → shell 重定向按路径重开 → `mv`」有三个各自独立的窗口 ——
+    #    ① 复查之后重定向**重新解析路径**, 期间被换成软链/硬链接就写穿；
+    #    ② 标记检查与 `mv` 之间冒出来的手写文件会被盖掉；
+    #    ③ 目标变成目录时 `mv` 会写进 `AGENTS.md/AGENTS.md.tmp`。
+    #    改为：O_CREAT|O_EXCL|O_NOFOLLOW 建 tmp（拿到的必然是本次新建的普通文件）
+    #    → 写 → **紧邻** os.replace 前再核一次目标身份与标记 → replace。
+    #    标记判据只此一份（在 publish_agents_md 里前后各调一次同一个函数），
+    #    shell 侧不再手抄一份 grep —— 两份手抄的判据必然漂移。
+    local perr prc=0
+    perr="$(write_agents_md "${NAMES[@]}" | publish_agents_md "$agents" "$OPENCODE_AGENTS_MARK" 2>&1)" || prc=$?
+    if [ "$prc" != 0 ]; then
+        OPENCODE_ERR="${perr:-发布 AGENTS.md 失败(rc=$prc)}"
         return 1
     fi
-    mv "$agents.tmp" "$agents" || { OPENCODE_ERR="mv AGENTS.md 失败"; return 1; }
 
     # ── ③ 生成后就地在位判 ───────────────────────────────────────────────────
     # ⛔ 不能放进 Phase A 的 A1：那两件是**本步生成**的, A1 跑的时候还不存在。
+    # ⛔ 不能只判 `-L`（Codex r1 HIGH-1）：它沿链解析, 祖先被换掉照样为真。
+    #    这里核**物理**落点 —— 软链自己与它解出来的目标都必须在本 vault 的物理路径下。
+    local vphys lphys tphys
+    vphys="$(cd "$VAULT" 2> /dev/null && pwd -P)" \
+        || { OPENCODE_ERR="解析 vault 物理路径失败: $VAULT"; return 1; }
     for name in "${NAMES[@]}"; do
         [ -L "$dst_root/$name" ] || { OPENCODE_ERR="生成后软链不在位: $dst_root/$name"; return 1; }
+        lphys="$(cd "$dst_root" 2> /dev/null && pwd -P)/$name" \
+            || { OPENCODE_ERR="解析软链所在目录失败: $dst_root"; return 1; }
+        # 前缀比较用 `${var#"$prefix"}`（引号让 prefix 按字面处理）, 不用 case 模式 ——
+        # vault 路径里若含 `[` `*` `?`, case 会把它当通配。
+        if [ "${lphys#"$vphys"/}" = "$lphys" ]; then
+            OPENCODE_ERR="条目级软链落到了 vault 之外: $lphys"
+            return 1
+        fi
+        tphys="$(cd "$dst_root/$name" 2> /dev/null && pwd -P)" \
+            || { OPENCODE_ERR="软链解不到存在的目标: $dst_root/$name"; return 1; }
+        if [ "$tphys" != "$vphys/.claude/skills/$name" ]; then
+            OPENCODE_ERR="软链目标不是本 vault 的同名技能条目: $tphys"
+            return 1
+        fi
     done
-    [ -f "$agents" ] || { OPENCODE_ERR="生成后 AGENTS.md 不在位: $agents"; return 1; }
+    [ -f "$agents" ] && [ ! -L "$agents" ] \
+        || { OPENCODE_ERR="生成后 AGENTS.md 不在位或不是普通文件: $agents"; return 1; }
     OPENCODE_BOUND="${#NAMES[@]}"
     return 0
 }
 
+# 把 stdin 的正文安全发布到 $1（标记 $2）。见 write_opencode_binding ② 的整改说明。
+# ⛔ 不能写成 `python3 - "$1" "$2" << 'PYPUB'`（我 r1 整改时正是这么写的, 当场踩中）：
+#    `python3 -` 就是「**从 stdin 读程序**」, heredoc 把 stdin 占了, 管道送来的正文
+#    于是读成空串 —— 脚本 rc 仍是 0, 只是 AGENTS.md 落成一个 0 字节文件。
+#    改成 `python3 -c "$src"`：程序走 argv, stdin 留给正文。
+# ⚠️ heredoc 放在**函数体内**而不是文件顶层：Bash 3.2 对 heredoc 会在 $TMPDIR 建临时文件,
+#    顶层赋值会在**参数解析与 preflight 之前**就写一次 —— 那正是 r9 HIGH-1 删掉 `<<<`
+#    所修的那一类。放在函数里, 执行时机是步 3, TMPDIR 早已过判据（步 1 的 DIR_WRITES）。
+publish_agents_md() {
+    local src
+    src="$(
+        cat << 'PYPUB'
+import os
+import sys
+
+dst, mark = sys.argv[1], sys.argv[2].encode()
+tmp = dst + ".tmp"
+
+
+def refuse_reason(path):
+    """目标为何不可被替换；None = 可以。⛔ 判据只此一份，前后两次调的是同一个函数。"""
+    if not os.path.lexists(path):
+        return None
+    if os.path.islink(path):
+        return f"目标是软链, 拒绝替换（写入会沿链穿到别处）: {path}"
+    if os.path.isdir(path):
+        return f"目标是目录, 拒绝替换: {path}"
+    try:
+        with open(path, "rb") as fh:
+            first = fh.readline()
+    except OSError as exc:
+        return f"读不出已有目标的首行, 无从判断是不是本脚本生成的: {path} ({exc})"
+    # ⛔ 首行**精确**相等, 不是全文子串匹配（Codex r1 事实更正）：
+    #    子串匹配会让任何正文里碰巧引用过这行标记的手写文件被判成「我生成的」。
+    if first.rstrip(b"\r\n") != mark:
+        return f"已有目标缺生成标记（疑为手写）, 拒绝覆盖: {path}"
+    return None
+
+
+body = sys.stdin.buffer.read()
+
+why = refuse_reason(dst)  # ① fail-fast: 不可发布就别建 tmp
+if why:
+    print(why, file=sys.stderr)
+    sys.exit(1)
+
+try:
+    # O_EXCL ⇒ 已存在（含软链、硬链接）一律失败；O_NOFOLLOW ⇒ 不跟随末段软链。
+    # 于是这个 fd 必然指向**本次新建的**普通文件，写入不可能穿到别处。
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644)
+except OSError as exc:
+    print(f"建 AGENTS.md 临时文件失败, 未写任何东西: {tmp} ({exc})", file=sys.stderr)
+    sys.exit(1)
+
+try:
+    with os.fdopen(fd, "wb") as fh:
+        fh.write(body)
+        fh.flush()
+        os.fsync(fh.fileno())
+    # ② 紧邻 replace 前**再核一次**。窗口只能压缩、不能消除（POSIX 没有「条件替换」
+    #    这个原子操作）, 这里把它压到下一行。
+    why = refuse_reason(dst)
+    if why:
+        raise OSError(why)
+    os.replace(tmp, dst)  # 目标是目录时 replace 自己会失败, 不会写进目录里
+except OSError as exc:
+    try:
+        os.unlink(tmp)
+    except OSError:
+        pass
+    print(f"发布 AGENTS.md 失败, 已丢弃临时文件（未污染 {dst}）: {exc}", file=sys.stderr)
+    sys.exit(1)
+PYPUB
+    )"
+    python3 -c "$src" "$1" "$2"
+}
+
+# 正文写 **stdout**（落盘交给 publish_agents_md）。入参 = 技能条目名。
 write_agents_md() {
-    local out="$1" n
-    shift
+    local n
     # 运行期拼接（理由见 $OPENCODE_CFG_EXT 上面那段注释）。
     local cfg="opencode.$OPENCODE_CFG_EXT"
-    {
-        printf '%s\n' "$OPENCODE_AGENTS_MARK"
-        printf '# %s —— 给 OpenCode 的入口\n\n' "$VAULT_NAME"
-        printf '这份文件由 `deploy-vault.sh --hosts opencode` 生成, 重跑会被覆盖 ——\n'
-        printf '想加自己的内容, 先删掉第一行的生成标记（之后本脚本会拒绝覆盖它）。\n\n'
-        printf '## 可用技能（%s 条）\n\n' "$#"
-        printf '`.agents/skills/` 下每一条都是指向 `.claude/skills/` 同名条目的软链,\n'
-        printf '两个助手读到的是**同一份** SKILL.md, 改一处两边同时生效。\n\n'
-        for n in "$@"; do
-            printf -- '- `%s` — `.agents/skills/%s` → `../../.claude/skills/%s`\n' "$n" "$n" "$n"
-        done
-        printf '\n## 后端接线\n\n'
-        printf '本 vault 的后端在 `http://127.0.0.1:%s`。仓里已有的 `.mcp.json` 是\n' "$PORT"
-        printf 'Claude 口径的 MCP 声明, OpenCode 不读那个格式；要在 OpenCode 里用同一个\n'
-        printf '后端, 请在**本 vault 根目录**（OpenCode 的项目级配置位置）自己建一份\n'
-        printf '`%s`, 指向上面那个地址。\n\n' "$cfg"
-        printf '⛔ 不要去改 `~/.config/` 下 OpenCode 的**用户级**配置目录: 那是整机全局设置,\n'
-        printf '部署脚本对它是零写者, 手改会让不同课程的 vault 互相打架。项目级配置只影响这一个 vault。\n'
-    } > "$out" || return 1
-    return 0
+    printf '%s\n' "$OPENCODE_AGENTS_MARK"
+    printf '# %s —— 给 OpenCode 的入口\n\n' "$VAULT_NAME"
+    printf '这份文件由 `deploy-vault.sh --hosts opencode` 生成, 重跑会被覆盖 ——\n'
+    printf '想加自己的内容, 先删掉**第一行**的生成标记（之后本脚本会拒绝覆盖它）。\n\n'
+    printf '## 可用技能（%s 条）\n\n' "$#"
+    printf '`.agents/skills/` 下每一条都是指向 `.claude/skills/` 同名条目的软链,\n'
+    printf '两个助手读到的是**同一份** SKILL.md, 改一处两边同时生效。\n\n'
+    for n in "$@"; do
+        printf -- '- `%s` — `.agents/skills/%s` → `../../.claude/skills/%s`\n' "$n" "$n" "$n"
+    done
+    printf '\n## 后端接线\n\n'
+    # ⚠️ 给**完整的 MCP 端点**, 不是根地址（Codex r1 MEDIUM-1）：`.mcp.json` 登记的是
+    #    `127.0.0.1:<port>/mcp`, 照着根地址填会得到一个连不上的端点。
+    printf '本 vault 的后端 MCP 端点是 `http://127.0.0.1:%s/mcp`（与仓里 `.mcp.json` 同一个）。\n' "$PORT"
+    printf '那份 `.mcp.json` 是 Claude 口径的声明, OpenCode 不读那个格式；要在 OpenCode 里\n'
+    printf '用同一个后端, 请在**本 vault 根目录**（OpenCode 的项目级配置位置）自己建一份\n'
+    printf '`%s`, 在里面声明一个 **remote** 类型的 MCP server, url 填上面那个**完整**端点\n' "$cfg"
+    printf '（连 `/mcp` 一起, 少了它连不上）。\n\n'
+    printf '⛔ 不要去改 `~/.config/` 下 OpenCode 的**用户级**配置目录: 那是整机全局设置,\n'
+    printf '部署脚本对它是零写者, 手改会让不同课程的 vault 互相打架。项目级配置只影响这一个 vault。\n'
 }
 
 # ═══ 步 3 postprocess ═══════════════════════════════════════════════════════
