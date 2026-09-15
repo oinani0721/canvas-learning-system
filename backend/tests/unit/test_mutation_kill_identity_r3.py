@@ -1362,3 +1362,41 @@ def test_rec_whitelisted_method_must_be_called_not_taken_as_value(tmp_path: Path
         assert rec.ast_mutation_count("probe.py") == 3
     finally:
         rec.SCRIPTS = orig
+
+
+def test_h1_location_crosscheck_truncation_asymmetry_is_safe(tmp_path: Path) -> None:
+    """⛔ 钉住「位置行交叉核」那条安全性论证 —— 截断的不对称落在**安全**那一侧。
+
+    交叉核的危险方向是「`expect_msg` 在**摘要**里有、在**位置行**里没有」（会造假
+    HARNESS-ERROR）。2026-09-15 实测（pytest 9.0.2，`COLUMNS=1000`）：约 900 字符的断言
+    消息下，**摘要 reason 被截得更短**（879，带 `...` 省略号），**位置行更长**（924，完整）
+    —— 不对称恰好在反方向，所以截断造不出那个危险方向。
+
+    ⚠️ 这条是**真跑**出来的性质，不是推理；所以用真 pytest 复跑一次钉住，
+    而不是拿合成串假装验过。若哪天 pytest 改了截断策略，这条会先红。
+    """
+    import os
+    import subprocess
+
+    probe = tmp_path / "test_trunc_probe.py"
+    probe.write_text('def test_long():\n    assert False, "X" * 900 + "TAILMARK"\n', encoding="utf-8")
+    pytest_bin = Path(__file__).resolve().parents[2] / ".venv" / "bin" / "pytest"
+    if not pytest_bin.exists():  # pragma: no cover - 环境缺 venv 时不把门判红
+        pytest.skip("本树 backend/.venv/bin/pytest 不在")
+    run = subprocess.run(
+        [str(pytest_bin), str(probe), *mki.judge_flags()],
+        capture_output=True,
+        text=True,
+        env={**os.environ, **mki.judge_env()},
+    )
+    out = run.stdout + run.stderr
+    reasons = [r for _n, r in mki.failed_reasons(out)]
+    locs = [rest for _p, _l, rest in mki.failed_locations(out)]
+    assert reasons and locs, "夹具前提：这一跑必须同时产出摘要行与位置行"
+    assert len(locs[0]) >= len(reasons[0]), (
+        f"⛔ 位置行被截得比摘要还短 ⇒ 「摘要有、位置行没有」这个**危险方向**会因截断出现 ⇒ "
+        f"位置行交叉核会造假 HARNESS-ERROR（摘要 {len(reasons[0])} / 位置行 {len(locs[0])}）"
+    )
+    assert "TAILMARK" in locs[0] and "TAILMARK" not in reasons[0], (
+        "夹具前提：这一跑确实触发了两侧的截断差（否则这条论证没被真的测到）"
+    )
