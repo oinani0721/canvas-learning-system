@@ -45,13 +45,26 @@
 #
 # ## 这道门不比什么（诚实边界）
 #
-# * 只看 WATCHED_FIXED / WATCHED_GLOBS 这份**具名**清单（3 个固定项 + 1 条 glob）。
+# * 只看 WATCHED_FIXED / WATCHED_GLOBS 这份**具名**清单（5 个固定项 + 2 条 glob）。
 #   lifespan 若写了别的路径（新增的日志/缓存/临时文件），本门看不到 —— 它证明的是
-#   「这几个已知受害者没被动」，不是「全盘零写入」。同族的
-#   `lancedb_pending_index__*.jsonl` **不在**清单里（扩面属另一张卡的范围决策）。
+#   「这几个已知受害者没被动」，不是「全盘零写入」。
+#   ⛔ CARD-RUNTIME-SHA-SURFACE（第十四批）把三个原先漏列的已知受害者补了进来：
+#     - `app/data/lancedb_pending_index__*.jsonl`（glob）
+#     - `data/neo4j_memory.json`（固定项）
+#     - `data/llm_call_logs.db`（固定项）
+#   三项各有可追溯的生产写点，逐条记在下面两份清单的上方。扩面是**加**不是放宽：
+#   没有放宽任何 glob、没有动任何 fail-closed 分支、没有摘掉任何既有监视项。
+#   上一版这段写的是「同族的 `lancedb_pending_index__*.jsonl` **不在**清单里（扩面属
+#   另一张卡的范围决策）」—— 那张卡就是本卡，所以这段话跟着清单一起更新了。
+#   ⚠️ 这里的「已知受害者」仍是**默认路径**：生产若用 settings 把 storage_path /
+#   db_path / state_dir 指到别处，写到别处的那一份本门照样看不到。
 # * 只比首尾两个时刻。命令中途写进去、结束前又改回原内容，本门判 unchanged。
-# * 不看 live vault、不看 Neo4j。数据库里被 DDL 改了 schema，本门照样绿
-#   —— 那是 socket 门（backend/tests/support/live_port_guard.py）的职责。
+# * 不看 live vault、不看 Neo4j **库内**的 schema 与数据。数据库里被 DDL 改了 schema，
+#   本门照样绿 —— 那是 socket 门（backend/tests/support/live_port_guard.py）的职责。
+#   ⚠️ 别把这一条读成「凡是跟 Neo4j 沾边的都不看」：JSON 降级路径**落在磁盘上**的
+#   那份 `data/neo4j_memory.json`（`app/clients/neo4j_client.py::DEFAULT_STORAGE_PATH`）
+#   是**文件**不是数据库，它现在就在 WATCHED_FIXED 里。两者的分界是「进程外的数据库
+#   服务」vs「本仓 backend/data 下的落盘文件」，不是名字里有没有 neo4j。
 # * `absent → absent` 与 `present 且 sha 不变` 同样算 unchanged；两者语义不同，
 #   脚本会逐条打印实际状态，不要只看最后一行结论。
 # * 被包裹命令在**调用者的 PATH** 下执行（门只给自己锁 PATH）。门不为被包裹
@@ -116,6 +129,24 @@
 #   由此得出一条给**调用方**的硬要求：**判据不能只看 rc**，必须要求 stdout 里出现
 #   `RUNTIME-FILES: unchanged` / `CHANGED` 这一行结论；只看 rc 的调用方在 noexec 下
 #   会把「门压根没跑」读成「通过」。
+#   ⛔ 这条硬要求的可执行形态（CARD-RUNTIME-SHA-SURFACE 实测，第十四批）——
+#   取 **stdout+stderr** 合并文本，**没有结论行就判红，不看 rc**：
+#     Python（推荐，免疫 noexec）:
+#       p = subprocess.run(["bash", GATE, "--", *cmd], capture_output=True, text=True)
+#       if "RUNTIME-FILES:" not in (p.stdout + p.stderr):
+#           raise SystemExit("门未自报结论行 ⇒ 门没跑（SHELLOPTS=noexec？解释器被换？）")
+#     shell（够用但**挡不住 noexec**，见下）:
+#       out="$(bash "$GATE" -- "$@" 2>&1)"; rc=$?
+#       printf '%s\n' "$out" | grep -qE '^RUNTIME-FILES: (unchanged|CHANGED)$' \
+#         || { printf 'GATE-DID-NOT-RUN\n' >&2; exit 1; }
+#       exit "$rc"
+#   ⛔ 为什么**常驻**强制必须落在非 bash 进程：同一个 `SHELLOPTS=noexec` 环境里，
+#      上面那个 shell 版调用方**自己也只解析不执行**（实测 rc=0、零输出）。同理，
+#      在 repo 根另建一个 bash launcher 来「防 noexec」是**假安全感** —— 那个壳一样
+#      不会执行。所以：断言要么跑在 Python / pytest / make 里，要么它防不住这一条。
+#   ⛔ 本脚本内部**没有**、也不会有任何声称能防 noexec 的分支：脚本自己的代码正是
+#      那个不会执行的东西，写一个看起来能防的分支比如实登记更糟。这里只有注释与
+#      配方，强制在调用方。把它钉成常驻探针属于 guard_probes / 契约测试的面。
 #
 # 退出码:
 #   1  = 文件被改，或门自证失败（门的裁定）
@@ -479,10 +510,23 @@ fi
 #       <- app/core/vault_state_paths.py::legacy_state_path（G2-5 之前的旧固定名）。
 #          它以前是被下面那条过宽 glob 顺带收进来的；M14 收窄后 glob 只认命名空间
 #          形态，所以旧名必须**显式**列在这里，否则监视面会悄悄变窄。
+#   data/neo4j_memory.json       <- app/clients/neo4j_client.py::DEFAULT_STORAGE_PATH
+#          （CARD-RUNTIME-SHA-SURFACE 补入，第十四批。Neo4j 不可用时的 JSON 降级落盘；
+#          `Path(__file__).parent.parent.parent / "data" / "neo4j_memory.json"` 展开
+#          恰是 backend/data/ 下这一份，与 BACKEND_DIR 同基。）
+#   data/llm_call_logs.db        <- app/middleware/cost_tracker.py::_DEFAULT_DB_PATH
+#          （CARD-RUNTIME-SHA-SURFACE 补入，第十四批。⚠️ 它是 **SQLite 二进制**：门按
+#          逐字节 sha256 判定，所以先实测过「只读不写不会改字节」——默认连接 SELECT、
+#          再 SELECT、只读 URI SELECT 三种形态 sha 均不变，真写入才变（验伪锚）。
+#          若将来换 WAL 或有别的写者，这一项会变成新的假红面，届时查这里。）
+# ⚠️ 上面五项都只盯**默认**路径。生产若用 settings 覆盖了 storage_path / db_path，
+#    写到别处的那一份本门看不到 —— 这与本门「具名清单、不是全盘零写入」的定位一致。
 WATCHED_FIXED=(
   "${BACKEND_DIR}/data/bug_log.jsonl"
   "${BACKEND_DIR}/data/outbox/events.jsonl"
   "${BACKEND_DIR}/app/data/vault_index_pending.jsonl"
+  "${BACKEND_DIR}/data/neo4j_memory.json"
+  "${BACKEND_DIR}/data/llm_call_logs.db"
 )
 
 # ⛔ orchestrator 的 durable journal 不能写成固定文件名（2026-09-04 主干合并后
@@ -501,11 +545,24 @@ WATCHED_FIXED=(
 #    `NAMESPACE_SEP` 是双下划线（vault_state_paths.py:36），`sanitize_vault_id` 保证
 #    key 只含 \w、压缩形态是 `<前缀>-<sha12>`，两者都不含 `/` —— `__*` 恰好覆盖全部
 #    可能的 key。收窄是**放松**方向，逐文件证据见验收单 §M14。
+#
+# ⛔ 第二条 glob（CARD-RUNTIME-SHA-SURFACE，第十四批）：LanceDB 索引队列的 durable
+#    journal。`app/services/lancedb_index_service.py` 的
+#    `_journal_stem: str = "lancedb_pending_index"` 经**同一个**
+#    `vault_state_paths.py::namespaced_state_path()` 落成
+#    `app/data/lancedb_pending_index__<vault_key>.jsonl` —— 与上面那条**同命名空间
+#    形态、同一个双下划线 `NAMESPACE_SEP`、同一套 `sanitize_vault_id`**。
+#    所以它的收窄口径逐字照搬上面：**必须**双下划线 `__*`。写成单下划线
+#    `lancedb_pending_index*.jsonl` 会把人手放的 `lancedb_pending_index_backup.jsonl`
+#    这类旁文件收进监视面 —— 正是 M14 刚刚收窄掉的那种假红，别再造一遍。
+#    在此之前本门**不**看这一族（文件开头的边界一节旧版写着「扩面属另一张卡的
+#    范围决策」），那一段已随本次扩面同步更新。
 WATCHED_GLOBS=(
   "${BACKEND_DIR}/app/data/vault_index_pending__*.jsonl"
+  "${BACKEND_DIR}/app/data/lancedb_pending_index__*.jsonl"
 )
-EXPECTED_FIXED_COUNT=3
-EXPECTED_GLOB_COUNT=1
+EXPECTED_FIXED_COUNT=5
+EXPECTED_GLOB_COUNT=2
 
 # 自检: 监视清单不能悄悄变空/变短 —— 空清单会让本门「零比较、恒绿」。
 # 两类分别自检: glob 项数为 0 同样是「零比较」，只是更隐蔽。
