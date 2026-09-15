@@ -159,12 +159,21 @@ def ast_mutation_count(source_name: str) -> int:
             counted_targets.add(id(node.target))
 
     # ② fail-closed 全树扫描：任何**没被 ① 数到**的写入/改动一律抛。
+    #
+    # ⛔ Codex round-6 MEDIUM：只看 `Name` 的 `Store`/`Del` **不够** —— `MUTATIONS[:0] = [9]`
+    # 与 `del MUTATIONS[0]` 里的 `MUTATIONS` 是 **Load** 上下文（写入位是外层的 `Subscript`），
+    # 于是切片增删又一次「少算而不出声」。这里补上三类：下标写入、下标删除、`del MUTATIONS`。
     for node in ast.walk(tree):
         if isinstance(node, ast.Name) and node.id == "MUTATIONS" and isinstance(node.ctx, (ast.Store, ast.Del)):
             if id(node) not in counted_targets:
                 raise ReconcileError(
                     f"{source_name}:{node.lineno} 有**未被计数**的 `MUTATIONS` 写入"
                     f"（嵌套块 / 循环 / 函数内 / 链式赋值）—— 分母数不出来，⛔ 不得少算蒙混"
+                )
+        if isinstance(node, ast.Subscript) and isinstance(node.value, ast.Name) and node.value.id == "MUTATIONS":
+            if isinstance(node.ctx, (ast.Store, ast.Del)):
+                raise ReconcileError(
+                    f"{source_name}:{node.lineno} 用 `MUTATIONS[...] = …` / `del MUTATIONS[...]` 改表，分母数不出来"
                 )
         if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id == "MUTATIONS":
             if node.attr in _LIST_MUTATORS:
@@ -248,7 +257,12 @@ def _put(counts: dict[str, int], name: str, value: str, suite: str) -> None:
 
 
 def parse_stdout(suite: str, text: str) -> Parsed:
-    """解析三套 stdout 汇总段。⛔ 三套形态互异，按套分支，不共用一套正则。"""
+    """解析三套 stdout 汇总段。
+
+    ⛔ **口径更正（Codex round-6 LOW）**：此前写「三套形态互异」—— 实测是**两组**：
+    `g32cb` 与 `g32ccr1` 的汇总段逐字同形（共用 `_CB_*` 正则），`g32b` 自成一组（`_B_*`）。
+    分支仍按套写（省得下次某套改了格式时三套一起错），但**不得再声称三套互异**。
+    """
     counts: dict[str, int] = {}
     if suite == "g32b":
         mk = _one(_B_KILLED, text, "KILLED 行", suite)

@@ -674,3 +674,128 @@ def test_m3_ast_denominator_fails_closed_on_uncountable_shapes(tmp_path: Path) -
                 rec.ast_mutation_count("probe.py")
     finally:
         rec.SCRIPTS = orig
+
+
+def test_h1_double_colon_inside_path_is_not_a_test_name(tmp_path: Path) -> None:
+    """⛔ **路径自身可以含 `::`** —— 参数段起点的前缀必须留得下**非空测试名**。
+
+    Codex round-6 MEDIUM：`tests/foo::[x]/test_gate.py::test_x - AssertionError: [1, 2]`
+    里 `[x]` 前面那截 `tests/foo::` 既无空白又含 `::`，「前缀含 `::`」那条单独放它过 ⇒
+    整行又被误收进「无 reason」候选 ⇒ 同一种假 HARNESS-ERROR 换了个入口。
+    加上「最后一个 `::` 之后非空」之后，`tests/foo::` 的测试名是空的，当不了 `path::test`。
+    """
+    nid = "tests/foo::[x]/test_gate.py::test_x"
+    assert mki._nodeid_shaped(f"{nid} - AssertionError: [1, 2]") is False
+    assert mki._split_unique(f"FAILED {nid} - AssertionError: [1, 2]", nid) is True, "合法行不得判二义"
+    # ⛔ 验伪锚：同一条路径带真参数段时仍认得出（不是把判据整个放掉）
+    assert mki._nodeid_shaped(f"{nid}[case]") is True
+    # ⛔ 验伪锚：③ 没有退化成「取最后一个 `::` 之后的那个 `[`」—— 参数 ID 里的 `::` 仍算数
+    assert mki._nodeid_shaped("tests/gate.py::test_target[case] - EXPECT[x :: y]]") is True
+    # 测试名为空的纯形态也拒
+    assert mki._nodeid_shaped("a::[b]") is False
+
+
+def test_m2_swallowed_cause_walks_both_chain_branches() -> None:
+    """⛔ 异常链的 `__cause__` 与 `__context__` **两支都要走**（Codex round-6 MEDIUM）。
+
+    `raise SystemExit(130) from SystemExit(130)` 在处理 `OSError` 时抛出 ⇒ `__cause__` 是那个
+    `SystemExit`、`__context__` 才是 `OSError`。只沿「优先链」(`__cause__ or __context__`) 走
+    会一路走到 `None`，把真实失败整条漏掉。
+    """
+
+    def _cause_is_systemexit_context_is_oserror() -> None:
+        try:
+            raise OSError("hidden real failure")
+        except OSError:
+            raise SystemExit(130) from SystemExit(130)
+
+    with pytest.raises(SystemExit) as ei:
+        _cause_is_systemexit_context_is_oserror()
+    found = g33._swallowed_cause(ei.value)
+    assert isinstance(found, OSError) and "hidden real failure" in str(found), f"两支都要走，实得 {found!r}"
+
+    def _suppressed_context() -> None:
+        try:
+            raise OSError("suppressed but real")
+        except OSError:
+            raise SystemExit(130) from None
+
+    with pytest.raises(SystemExit) as ei2:
+        _suppressed_context()
+    # ⛔ 不理会 `__suppress_context__`：它是给 traceback 打印用的显示提示，不是
+    #   「那次失败没发生」。拿它当豁免，正好等于给判据开一个后门。
+    assert isinstance(g33._swallowed_cause(ei2.value), OSError), "`from None` 不得成为豁免口"
+
+    # ⛔ 验伪锚：真干净的退出仍返回 None（不是把所有 SystemExit 都报成脏）
+    assert g33._swallowed_cause(SystemExit(130)) is None
+    try:
+        try:
+            raise SystemExit(131)
+        except SystemExit:
+            raise SystemExit(130)
+    except SystemExit as e:
+        assert g33._swallowed_cause(e) is None, "SystemExit 套 SystemExit 底下没有真失败"
+    assert g33._swallowed_cause(OSError("not a SystemExit")) is None
+
+
+def test_m2_non_final_entry_also_surfaces_a_swallowed_failure(capsys) -> None:
+    """⛔ **逐条**还原入口（`final=False`）上被盖住的失败也必须显形（Codex round-6 MEDIUM）。
+
+    那条路在 `was_exiting` 为假时直接 `raise`，记账那行根本走不到 —— 打印是唯一的痕迹。
+    """
+    calls = {"n": 0}
+
+    def _restore() -> None:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise OSError("mid-loop first restore failed (synthetic)")
+
+    guard = mki.RestoreGuard(_restore, log=lambda _m: None)
+
+    def _restore_all_under_critical() -> None:
+        with guard.critical():
+            guard._handler(2, None)
+            _restore()
+
+    with pytest.raises(SystemExit):
+        g33.restore_or_keep_exit_code(_restore_all_under_critical, guard.exiting, clean_exit_code=130)
+    err = capsys.readouterr().err
+    assert "逐条还原期间有异常被退出码盖住" in err, f"逐条入口也须显形，实得 {err!r}"
+    assert "mid-loop first restore failed" in err
+
+
+def test_m3_ast_denominator_rejects_subscript_and_del(tmp_path: Path) -> None:
+    """⛔ 切片增删也要 fail-closed（Codex round-6 MEDIUM）。
+
+    `MUTATIONS[:0] = [9]` / `del MUTATIONS[0]` 里的 `MUTATIONS` 是 **Load** 上下文
+    （写入位是外层 `Subscript`），只看 `Name` 的 `Store`/`Del` 会整条漏掉 ⇒ 又一次少算而不出声。
+    """
+    import mutation_verdict_reconcile as rec
+
+    probe = tmp_path / "probe.py"
+    orig = rec.SCRIPTS
+    rec.SCRIPTS = tmp_path
+    try:
+        probe.write_text("MUTATIONS = [1, 2, 3]\n", encoding="utf-8")
+        assert rec.ast_mutation_count("probe.py") == 3, "⛔ 验伪锚：可数形态仍要数得对"
+        for tail in ("\nMUTATIONS[:0] = [9]\n", "\ndel MUTATIONS[0]\n", "\nMUTATIONS[0] = 9\n"):
+            probe.write_text("MUTATIONS = [1, 2, 3]" + tail, encoding="utf-8")
+            with pytest.raises(rec.ReconcileError):
+                rec.ast_mutation_count("probe.py")
+    finally:
+        rec.SCRIPTS = orig
+
+
+def test_m3_real_suite_denominators_are_unchanged() -> None:
+    """⛔ 验伪锚：fail-closed 收紧之后，四套**真实**源码的分母必须原样（138/9/11/18）。
+
+    收紧判据最容易的失败模式是「把合法写法也拒掉」—— 那会让整条对账链恒红。
+    """
+    import mutation_verdict_reconcile as rec
+
+    assert {k: rec.ast_mutation_count(v.source) for k, v in rec.SUITES.items()} == {
+        "g32b": 138,
+        "g32cb": 9,
+        "g32ccr1": 11,
+        "g33": 18,
+    }

@@ -201,11 +201,22 @@ def _nodeid_shaped(s: str) -> bool:
         的参数 ID 是 `case] - EXPECT[x :: y]`），于是 `rpartition("::")` 切在参数内部、
         前缀含空白 ⇒ 这条**真实的参数读法被漏掉** ⇒ 二义行重新被判唯一 ⇒ 假 KILLED
         （Codex round-2 HIGH，本函数上一版引入的回归）。
-    ⇒ 判据写成：以 `]` 收尾时，**存在某个 `[`** 使它之前那截 ① 不含空白、且 ② **含 `::`**。
+    ⇒ 判据写成：以 `]` 收尾时，**存在某个 `[`** 使它之前那截同时满足
+      ① 不含空白；② 含 `::`；③ **最后一个 `::` 之后那截（= 测试名）非空**。
+
     ②（Codex round-3 MEDIUM）不可省：参数段是挂在**测试名**上的，而测试名必然在 `::` 之后。
     少了它，`tests/test_[x].py::test_x - AssertionError: [1, 2]` 会拿路径里那个 `[` 当参数段
     起点（前缀 `tests/test_` 无空白）⇒ 整行被误收进「无 reason」候选 ⇒ 合法行判成二义 ⇒
     假 HARNESS-ERROR。而 `tests/test_` 里没有 `::`，它当不了「path::test」。
+
+    ③（Codex round-6 MEDIUM）也不可省：**路径本身可以含 `::`**。
+    `tests/foo::[x]/test_gate.py::test_x - AssertionError: [1, 2]` 里，`[x]` 前面那截
+    `tests/foo::` 既无空白又含 `::`，②单独放它过 ⇒ 整行又被误收进候选 ⇒ 同一种假
+    HARNESS-ERROR 换了个入口。加上③之后 `tests/foo::` 的测试名是**空**的，它当不了
+    `path::test[param]`，于是被拒。
+    ⚠️ ③ **不能**退化成「取最后一个 `::` 之后的那个 `[`」—— 参数 ID 里也可以有 `::`
+    （`…::test_target[case] - EXPECT[x :: y]]`，Codex round-2 HIGH）。「存在某个 `[`」这层
+    存在量化必须保留；③ 只是给**每个**候选 `[` 各自加一条前缀合法性检查。
 
     ⚠️ 如实声明这条的剩余面：**以 `]` 收尾且不含 `::` 的纯路径**（如 `ERROR a/[b]`）会被判
     不是 nodeid 形。pytest 的收集错误行落在 `.py` 文件上（不以 `]` 收尾），本树未见该形态；
@@ -225,8 +236,13 @@ def _nodeid_shaped(s: str) -> bool:
         if ch.isspace():
             # 前缀一旦出现空白，其后任何 `[` 的前缀都含空白 —— 不必再找。
             return False
-        if ch == "[" and i > 0 and "::" in s[:i]:
-            return True
+        if ch == "[" and i > 0:
+            head = s[:i]
+            # ③ 前缀必须形如 `<path>::<非空测试名>` —— 路径自身也可以含 `::`，所以要看
+            #   **最后一个** `::` 之后还剩不剩东西（`tests/foo::` 剩空 ⇒ 当不了 path::test）。
+            marker = head.rfind("::")
+            if marker >= 0 and head[marker + 2 :]:
+                return True
     return False
 
 
@@ -404,9 +420,19 @@ def judge_flags() -> list[str]:
                             stdout/stderr。实测（pytest 9.0.2）captured 区就在
                             `=== FAILURES ===` 与摘要分隔线之间，被测进程只要打一行
                             `FAILED <nodeid> - <expect_msg>` 就能伪造判据面
-                            （Y1-B HIGH-2）。关掉它 = 那段区间里不再有任何被测进程
-                            可控的字节。⚠️ 这是**显示级**开关，不改变测试结果，
-                            也不改变 rc；代价只是诊断时看不到子进程原文。
+                            （Y1-B HIGH-2）。关掉它 = **captured 区**里不再有被测
+                            进程可控的字节。
+                            ⛔ **口径更正（Codex round-6 LOW）**：此前这句写的是
+                            「那段区间里不再有任何被测进程可控的字节」——**说宽了**。
+                            它只关掉 captured 区；被测进程的文字仍可经**别的**路子进
+                            FAILURES 区，例如门里自己写的
+                            `assert r.returncode == 0, r.stderr[:250]` 会把子进程
+                            stderr 塞进断言消息，`--tb=line` 照样打出来。
+                            真正兜住「伪造判据面」的是**摘要区取法**
+                            （`summary_region()` 只取 `short test summary info` 那段）
+                            与 `expect_loc` 的位置绑定，本开关只是把最便宜的一条路堵掉。
+                            ⚠️ 这是**显示级**开关，不改变测试结果，也不改变 rc；
+                            代价只是诊断时看不到子进程原文。
     """
     return ["-q", "-p", "no:cacheprovider", "--tb=line", "-rf", "--show-capture=no"]
 

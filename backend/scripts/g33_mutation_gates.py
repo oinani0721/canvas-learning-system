@@ -406,17 +406,32 @@ def _swallowed_cause(exc: BaseException) -> BaseException | None:
 
     ⛔ `exc` **本身不是 `SystemExit`** 时返回 `None` —— 那种情况下没有任何东西被「盖住」，
     异常就摆在那儿。（初版漏了这个前置判断，于是一个普通的 `OSError` 也被报成「被退出码
-    盖住」，措辞又一次说得比事实宽 —— 与本轮要修的 LOW 是同一个病。）
+    盖住」，措辞又一次说得比事实宽 —— 与同轮要修的 LOW 是同一个病。）
+
+    ⛔⛔ **两支都要走**（Codex round-6 MEDIUM）：`raise SystemExit(130) from SystemExit(130)`
+    在处理 `OSError` 时抛出 ⇒ `__cause__` 是那个 `SystemExit`、`__context__` 才是 `OSError`。
+    上一版写 `cur.__cause__ or cur.__context__`（优先链），沿 `__cause__` 走到底就返回 `None`，
+    `OSError` 被整条漏掉。现在按**广度**遍历 `__cause__` 与 `__context__` **两支**。
+    ⛔⛔ **不理会 `__suppress_context__`**（这一条是上面那条修复的第二次迭代）：
+    `raise X from Y` **总是**把 `__suppress_context__` 置真 —— 它是给 **traceback 打印**
+    用的显示提示，不是「那次失败没发生」。初版拿它当豁免，结果恰好把 Codex 的反例
+    （`raise SystemExit(130) from SystemExit(130)`，`__context__` 里压着 `OSError`）放行了 ——
+    一个**给判据用的**豁免口，正好是本函数要堵的那类洞。本函数是 fail-closed 的诊断判据：
+    ⚠️ 代价如实说 —— `raise ... from None` 之后若确实有别的异常在处理中，本函数**会**把它
+    报出来。对这个判据而言宁可多报一次，也不能放过一次被盖住的还原失败。
     """
     if not isinstance(exc, SystemExit):
         return None
-    seen: set[int] = set()
-    cur: BaseException | None = exc.__cause__ or exc.__context__
-    while cur is not None and id(cur) not in seen:
+    seen: set[int] = {id(exc)}
+    queue: list[BaseException] = [n for n in (exc.__cause__, exc.__context__) if n is not None]
+    while queue:
+        cur = queue.pop(0)
+        if id(cur) in seen:
+            continue
         seen.add(id(cur))
         if not isinstance(cur, SystemExit):
             return cur
-        cur = cur.__cause__ or cur.__context__
+        queue.extend(n for n in (cur.__cause__, cur.__context__) if n is not None)
     return None
 
 
@@ -485,8 +500,11 @@ def restore_or_keep_exit_code(
         ⇒ 现在把账**传进来**（`pending_failures`）：末次还原**即使成功**，只要这本账非空
         就照样打印并跑一次逐字节自检。这样信号展开那条路上它也显形。
       · 末次失败（`final=True`）—— 先跑 `verify()`（还原逐字节自检）并把结果印出来，
-        再把退出码**升到 3**（「变异体可能留在生产文件里」比「被信号中断」严重，
-        与 `main()` 里 `not ok_restore ⇒ return 3` 同口径）。
+        **且仅当进来时已在退出展开**（`exiting()` 为真）才把退出码升到 3
+        （「变异体可能留在生产文件里」比「被信号中断」严重，与 `main()` 里
+        `not ok_restore ⇒ return 3` 同口径）。⛔ 进来时**没在**退出展开时，原异常
+        **原样重抛**、不升 3 —— 那条路上异常本来就会自己浮出来，替它换个退出码反而
+        把真实失败类型盖掉（Codex round-6 LOW：上一版这句漏写了前置条件）。
 
     ⚠️ 本函数原为 `main()` 内的**嵌套 def**，无模块级符号 ⇒ 末次还原这条路径在进程内
     根本驱动不了，负控也就无从落地（唯一不写盘的入口 `--selfcheck-syntax` 早返回、
@@ -522,14 +540,20 @@ def restore_or_keep_exit_code(
             and exiting()
             and swallowed is None
         )
-        if final and not guard_exit:
-            # ⛔ SHA/还原逐字节自检**必须在这里就跑**：往下无论是 `raise`（把原异常
-            # 继续展开）还是 `SystemExit(3)`，`main()` 的汇总段都一行都到不了。
+        if swallowed is not None:
+            # ⛔ Codex round-6 MEDIUM：**不分 final 与否都要报**。逐条还原那条路
+            # （`final=False`）在 `was_exiting` 为假时直接 `raise`，记账那行根本走不到 ——
+            # 于是「守卫重试成功、盖住首次真实失败」在**逐条**入口上仍旧一点痕迹不留。
+            # 这行打印是那条路上唯一能留下痕迹的地方。
             _report_restore_concern(
-                "末次还原失败" if swallowed is None else "末次还原期间有异常被退出码盖住",
-                repr(swallowed if swallowed is not None else exc),
+                f"{'末次' if final else '逐条'}还原期间有异常被退出码盖住",
+                repr(swallowed),
                 verify,
             )
+        elif final and not guard_exit:
+            # ⛔ SHA/还原逐字节自检**必须在这里就跑**：往下无论是 `raise`（把原异常
+            # 继续展开）还是 `SystemExit(3)`，`main()` 的汇总段都一行都到不了。
+            _report_restore_concern("末次还原失败", repr(exc), verify)
         if not was_exiting:
             raise
         # ⚠️ `traceback.print_exc()` 只在**吞没**这条路上打 —— 要 `raise` 的那条由上层
@@ -882,9 +906,12 @@ def main() -> int:
                     "verdict_counts": nv,
                     "verdict_sum_matches_total": _sum_ok,
                     "restore_identical": ok_restore,
-                    # ⛔ round-20: 还原**报过错**的那几次单列 —— 与 `restore_identical`
-                    # 不是同一件事(后者只看跑完的 sha)。消费方据此分辨「一直干净」与
-                    # 「中途失败过但最后写回对了」。
+                    # ⛔ round-20: 还原**报过错**的那几次单列, 给消费方一份**明细**。
+                    # ⚠️ 口径更正(Codex round-6 LOW): 此前这里写「与 `restore_identical`
+                    # 不是同一件事(后者只看跑完的 sha)」——**不对**。`ok_restore` 已经是
+                    # `not drift and not restore_failures`, 所以 `restore_identical` 在
+                    # 本账非空时也是 False。两者的区别是**粒度**(布尔结论 vs 哪几条失败),
+                    # 不是「看不看这本账」。
                     "restore_failures": restore_failures,
                     "mark_scan_ok": scan_ok,
                     "leftovers": leftovers,
