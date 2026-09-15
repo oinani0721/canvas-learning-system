@@ -897,6 +897,44 @@ def expect_msg_may_come_from_nodeid(out: str, nodeid: str, expect_msg: str) -> l
     return suspect
 
 
+def gate_identity_unprovable(out: str, nodeid: str) -> list[str]:
+    r"""「**这道门**红了」这句话本身证明了没有？返回让它站不住的读法。
+
+    ⛔ 与 `expect_msg_may_come_from_nodeid()` 是**同一形状的另一半**：
+      · 那个问「`expect_msg` 会不会其实来自**测试名**」（消息维）；
+      · 本函数问「还有没有别的读法，它的 nodeid **根本不属于这道门**」（**身份维**）。
+
+    危害形态（Codex round-11 HIGH-2）：真实失败的是一个**名字叫** `test_x - suffix]tail`
+    的测试 —— 它跟声明的 `test_x` **是两个测试**。但 `_FAILED_RE` 的 `\S+?` 非贪婪把它截成
+    `test_x`，`gate_hit()` 于是「命中」，消息与位置也都对得上 ⇒ 判 KILLED。
+    而**指定的那道门根本没红**。这是本模块开篇声明要封堵的「拿粗判据判 KILLED」的最深一层：
+    连「红的是不是它」都没证明。
+
+    判据：在比解析结果**更靠后**的 ` - ` 切点上还有读法，其 nodeid **不** `gate_hit` 目标门
+    ⇒ 「红的是这道门」不可证 ⇒ 调用方判 HARNESS-ERROR。
+    （完备性同 `expect_msg_may_come_from_nodeid`：`\S+?` 非贪婪 ⇒ 解析结果是最短切分，
+    不存在更靠前的读法可漏。）
+
+    ⚠️ 这仍**不是**根治 —— 根治要靠 `expect_loc` 把身份绑到门文件里的**那一条语句**上
+    （D-28 延期，T8-C 的面）。本函数只保证：身份存疑时**说出来**，而不是悄悄判 KILLED。
+    """
+    region = summary_region(out)
+    if region is None:
+        return []
+    suspect: list[str] = []
+    for ln in region.splitlines():
+        if not _FAILEDISH_RE.match(ln):
+            continue
+        m = _FAILED_RE.match(ln)
+        if m is None or not gate_hit(nodeid, {m.group("nodeid")}):
+            continue
+        body = ln.split(" ", 1)[1] if " " in ln else ln
+        for i in range(len(m.group("nodeid")) + 1, len(body)):
+            if body.startswith(" - ", i) and not gate_hit(nodeid, {body[:i]}):
+                suspect.append(body[:i])
+    return suspect
+
+
 def kill_identity(
     rc: int,
     out: str,
@@ -980,6 +1018,18 @@ def kill_identity(
                 f"`--tb=line` 位置行不带 nodeid, 位置归属不可证（⛔ 弱位置判据不得借他门失败位置）"
             )
         gp = Path(gate_file).resolve()
+        # ⛔ round-14（Codex round-11 HIGH-1）：目标门有**多条**失败时，`any(...)` 这条弱位置
+        # 判据可以被**跨实例拼装**：位置从落在门内的那一条借、消息从另一条借，两维各由不同
+        # 失败实例满足。`--tb=line` 的位置行不带 nodeid，多条时配对本就不可证 ⇒ 此时要求
+        # 位置**全部**落在门文件里；有一条在门外就说明拼装面存在。
+        # ⚠️ 只在多条时收紧 —— 单条失败仍用 `any`（那时不存在可借的第二条）。
+        gate_failed = {f for f in failed if gate_hit(nodeid, {f})}
+        if len(gate_failed) > 1 and not all(_same_file(p, gp) for p, _, _ in locs):
+            outside = [(Path(p).name, ln) for p, ln, _ in locs if not _same_file(p, gp)]
+            return "HARNESS-ERROR", (
+                f"目标门有 {len(gate_failed)} 条失败, 而位置行里有落在门文件**之外**的 {outside[:2]} —— "
+                f"位置与消息可能由**不同**失败实例分别满足, 配对不可证"
+            )
         if not any(_same_file(p, gp) for p, _, _ in locs):
             return "SURVIVED", (
                 f"红在门文件之外: 实见 {[(Path(p).name, ln) for p, ln, _ in locs]} （期望落在 {gp.name} 里）"
@@ -989,6 +1039,15 @@ def kill_identity(
         ok, why = _loc_identity(out, nodeid, gate_file, expect_loc)
         if not ok:
             return ("HARNESS-ERROR" if why.startswith("HARNESS:") else "SURVIVED"), why
+
+    # ⛔ round-14（Codex round-11 HIGH-2）：先问**最基础**的那件事 ——「红的是不是这道门」。
+    # 它排在消息维之前：消息对得上、但红的根本是**另一个测试**，那是更深一层的假 KILLED。
+    if ghost := gate_identity_unprovable(out, nodeid):
+        return "HARNESS-ERROR", (
+            f"摘要行还能读成**不属于目标门**的 nodeid {ghost[:2]} —— 「红的是这道门」不可证"
+            f"（⛔ 测试名可含任意字符，非贪婪的 `\\S+?` 会把更长的真名截成目标门的样子；"
+            f"根治要靠 expect_loc 绑到具体语句，D-28 延期）"
+        )
 
     if expect_msg is not None:
         # ⛔ round-12（Codex round-9 HIGH）：先问「这个『命中』会不会其实来自**测试名**」。
@@ -1002,7 +1061,12 @@ def kill_identity(
         # —— 两个信源当场不一致 ⇒ 这个「命中」不可证。
         # ⚠️ 只在**有位置行**时才判（`require_gate_file` / `expect_loc` 这两路才保证有）；
         # 没有位置行时如实退回「只有摘要一个信源」，不假装核过。
-        if locs_for_msg := failed_locations(out):
+        # ⛔ round-14（Codex round-11 MEDIUM）：这条交叉核**只在摘要侧确实命中时**才有意义。
+        # 上一版把它排在「摘要有没有命中」之前，于是**两侧都不含** `expect_msg` 的那种正常
+        # SURVIVED（变异没被这道门抓住）被改判成 HARNESS-ERROR，诊断还谎称「只在摘要区命中」。
+        # 交叉核问的是「摘要命中了、另一条信源认不认」，摘要没命中就没有可对的东西。
+        _summary_hit = any(expect_msg in r for nid, r in failed_reasons(out) if gate_hit(nodeid, {nid}))
+        if _summary_hit and (locs_for_msg := failed_locations(out)):
             if not any(expect_msg in rest for _p, _ln, rest in locs_for_msg):
                 return "HARNESS-ERROR", (
                     f"expect_msg={expect_msg!r} 只在**摘要区**命中，`--tb=line` 位置行里没有 —— "

@@ -103,18 +103,6 @@ class ReconcileError(Exception):
 # ── 独立分母：AST 现算 ──────────────────────────────────────────────────────
 
 
-#: `MUTATIONS` 上**只读**的属性/方法白名单。
-#:
-#: ⛔ Codex round-7 MEDIUM：上一版是**黑名单**（列举会改表的方法），于是每漏一个就是一个
-#: 静默少算的口子 —— `__imul__` / `__delitem__` 都是这么漏掉的（`MUTATIONS.__imul__(2)`
-#: 实际长度翻倍，AST 照旧返回原数）。黑名单在这里天然是错的形态：要穷举的是**攻击面**。
-#: 反过来写成白名单后，任何**没列**的属性访问都报错 ⇒ fail-closed by construction。
-#: ⛔ `__class__` **不在**白名单里（Codex round-8 MEDIUM）：`MUTATIONS.__class__.__imul__(MUTATIONS, 2)`
-#: 经由它绕开整条判据（实际长度翻倍，AST 照旧返回原数）。任何能拿到类型再回调的入口都是
-#: 绕过口 —— 白名单只放**读值**用的那几个。
-_LIST_READONLY_ATTRS = frozenset({"count", "index", "copy", "__len__", "__getitem__", "__iter__", "__contains__"})
-
-
 def _literal_len(node: ast.AST, source_name: str, lineno: int) -> int:
     """字面量列表的条数；⛔ 任何数不出来的形态都抛（不返回估计值）。"""
     if not isinstance(node, ast.List):
@@ -173,9 +161,6 @@ def ast_mutation_count(source_name: str) -> int:
             total += _literal_len(node.value, source_name, node.lineno)
             counted_targets.add(id(node.target))
 
-    # 所有「被当作调用目标」的表达式（用来区分 `MUTATIONS.copy()` 与 `MUTATIONS.copy`）。
-    called_funcs = {id(n.func) for n in ast.walk(tree) if isinstance(n, ast.Call)}
-
     # ② fail-closed 全树扫描：任何**没被 ① 数到**的写入/改动一律抛。
     #
     # ⛔ Codex round-6 MEDIUM：只看 `Name` 的 `Store`/`Del` **不够** —— `MUTATIONS[:0] = [9]`
@@ -194,31 +179,24 @@ def ast_mutation_count(source_name: str) -> int:
                     f"{source_name}:{node.lineno} 用 `MUTATIONS[...] = …` / `del MUTATIONS[...]` 改表，分母数不出来"
                 )
         if isinstance(node, ast.Attribute):
-            # ⛔ 顺着 `.a.b.c` 链找到根 Name；根是 MUTATIONS 就必须**整条链恰好一层**且那一层
-            # 在只读白名单里（Codex round-9 MEDIUM）。上一版只看**紧邻**那一层 ⇒
-            # `MUTATIONS.copy.__self__.append(4)` 里紧邻的是白名单里的 `copy`，链再往下
-            # 经 `.__self__` 把原列表拿回来改 —— 白名单被绕开。任何**两层以上**的属性链
-            # 本函数都数不出来，一律抛。
-            chain: list[str] = []
+            # ⛔⛔ round-14（Codex round-11 MEDIUM）：**对 `MUTATIONS` 的属性访问整族禁掉**。
+            # 「白名单」这条路被连着绕开三次，每次换个入口：
+            #   `MUTATIONS.__imul__` → `MUTATIONS.__class__.__imul__` →
+            #   `MUTATIONS.copy.__self__` → `MUTATIONS.__iter__().__reduce__()[1][0]`
+            # 最后那个的属性链**以调用表达式为根**，「顺链找根 Name」根本够不着 ——
+            # 只要允许**任何**属性访问，就总能再找到一条通往原列表的路。
+            # ⇒ 停止逐个堵入口，改封**整个面**：本函数的承诺是「静态数得出条数」，而
+            # `MUTATIONS.<任何属性>` 都数不出来。
+            # ⚠️ 实测四套源码对 `MUTATIONS` 的属性访问**各 0 处**（`len()` / `for m in
+            # MUTATIONS` / 下标读都不走属性），所以这条禁令不挡任何现有合法写法。
             cur: ast.AST = node
             while isinstance(cur, ast.Attribute):
-                chain.append(cur.attr)
                 cur = cur.value
             if isinstance(cur, ast.Name) and cur.id == "MUTATIONS":
-                chain.reverse()
-                if len(chain) != 1 or chain[0] not in _LIST_READONLY_ATTRS:
-                    raise ReconcileError(
-                        f"{source_name}:{node.lineno} 用 `MUTATIONS.{'.'.join(chain)}` 访问/改表 —— "
-                        f"不是只读白名单里的**单层**属性，分母数不出来"
-                    )
-                # ⛔ Codex round-10 MEDIUM：白名单里的方法**必须当场调用**，不能当值取走。
-                # `method = MUTATIONS.copy` 把**绑定方法对象**存进别名，`method.__self__`
-                # 就把原列表拿回来了 —— 根名变成 `method`，上面那条链判据看不见它。
-                if id(node) not in called_funcs:
-                    raise ReconcileError(
-                        f"{source_name}:{node.lineno} `MUTATIONS.{chain[0]}` 被当**值**取走而不是当场调用 —— "
-                        f"绑定方法对象可经 `.__self__` 拿回原列表，分母数不出来"
-                    )
+                raise ReconcileError(
+                    f"{source_name}:{node.lineno} 对 `MUTATIONS` 做了属性访问 —— "
+                    f"⛔ 一律不认（任何属性都可能通往原列表），分母数不出来"
+                )
 
     if total is None:
         raise ReconcileError(f"{source_name} 里找不到模块级 `MUTATIONS = [...]`，分母无法独立现算")
@@ -391,6 +369,16 @@ def parse_json(suite: str, text: str) -> Parsed:
     missing = [v for v in VERDICT_NAMES if v not in raw]
     if missing:
         raise ReconcileError(f"{suite}: `verdict_counts` 缺这些档 {missing} —— ⛔ 缺档不得当成 0/「一致」")
+    # ⛔ round-14（Codex round-11 MEDIUM）：**多出来的档键也要抛**。上一版只按六个已知键
+    # 取值，于是往存档里加一个 `"UNEXPECTED-VERDICT": 1` 就被**静默忽略** —— 存档自己的
+    # 计数和是 19，本工具却按 18 去跟 AST 分母比，照样打 ✓。缺档不许当 0，多档同样不许
+    # 当不存在：两边都是「没看见的东西当成没有」。
+    extra = [k for k in raw if k not in VERDICT_NAMES]
+    if extra:
+        raise ReconcileError(
+            f"{suite}: `verdict_counts` 里有**不认识**的档 {sorted(extra)} —— "
+            f"⛔ 多出来的档不得静默忽略（它会让六档之和与存档实际计数对不上）"
+        )
     total = _nonneg_int(data.get("total"), "total", suite)
     # ⛔ Codex round-1 MEDIUM：`int(raw[v])` 会把 `18.9` **截断**成 18、把 `-1` 原样收下，
     # 于是「KILLED=18.9」或「KILLED=19, SURVIVED=-1」都能凑出 AST 分母 18 而判绿。

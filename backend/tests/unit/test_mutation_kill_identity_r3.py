@@ -892,42 +892,6 @@ def test_m2_swallowed_exception_is_not_attributed_to_restore(capsys) -> None:
     assert "TimeoutError" in err, "必须把原异常 repr 给出来让人自己判断"
 
 
-def test_m3_ast_denominator_uses_a_readonly_allowlist(tmp_path: Path) -> None:
-    """⛔ 属性判据必须是**白名单**（Codex round-7 MEDIUM）。
-
-    黑名单每漏一个方法就是一个静默少算的口子 —— `__imul__` / `__delitem__` 就是这么漏的。
-    """
-    import mutation_verdict_reconcile as rec
-
-    probe = tmp_path / "probe.py"
-    orig = rec.SCRIPTS
-    rec.SCRIPTS = tmp_path
-    try:
-        for tail in (
-            "\nMUTATIONS.__imul__(2)\n",
-            "\nMUTATIONS.__delitem__(0)\n",
-            "\nMUTATIONS.sort()\n",
-            "\nMUTATIONS.reverse()\n",
-            "\nMUTATIONS.__init__([1])\n",
-        ):
-            probe.write_text("MUTATIONS = [1, 2, 3]" + tail, encoding="utf-8")
-            with pytest.raises(rec.ReconcileError):
-                rec.ast_mutation_count("probe.py")
-        # ⛔ 验伪锚：只读访问仍放行（白名单不能收得连合法读取都挡掉）
-        probe.write_text("MUTATIONS = [1, 2, 3]\n_n = MUTATIONS.count(1)\n_m = len(MUTATIONS)\n", encoding="utf-8")
-        assert rec.ast_mutation_count("probe.py") == 3
-    finally:
-        rec.SCRIPTS = orig
-
-
-# ══ M③ 解析层的 pytest 覆盖 ═══════════════════════════════════════════════
-#
-# ⛔ 独立对抗扫描（2026-09-15）抓到的**覆盖缺口**：round-1/2/3 接受的 5 条 reconcile
-# 修复此前**只有负控 shell 跑**在护，`pytest` 这一侧零覆盖 —— 逐条回退那 5 条修复，
-# 35 条单测照样全绿（`18.9→18` 的假绿当场就能重开）。判据自己没被门护住，
-# 与本卡要修的病同族，所以补在这里。
-
-
 def _rec():
     import mutation_verdict_reconcile as rec
 
@@ -1269,28 +1233,6 @@ def test_rec_per_item_line_anchored_against_diagnostic_injection() -> None:
     assert per["KILLED"] == 0 and per["SURVIVED"] == 1, f"注入的 `rc=1 ⇒ KILLED` 不得计数，实得 {per}"
 
 
-def test_rec_readonly_whitelist_rejects_attribute_chains(tmp_path: Path) -> None:
-    """⛔ 白名单只放**单层**属性 —— `.copy.__self__` 能把原列表拿回来改（round-9 MEDIUM）。"""
-    rec = _rec()
-    probe = tmp_path / "probe.py"
-    orig = rec.SCRIPTS
-    rec.SCRIPTS = tmp_path
-    try:
-        for tail in (
-            "\nMUTATIONS.copy.__self__.append(4)\n",
-            "\nMUTATIONS.__class__.__imul__(MUTATIONS, 2)\n",
-            "\nMUTATIONS.count.__self__.clear()\n",
-        ):
-            probe.write_text("MUTATIONS = [1, 2, 3]" + tail, encoding="utf-8")
-            with pytest.raises(rec.ReconcileError, match="单层"):
-                rec.ast_mutation_count("probe.py")
-        # ⛔ 验伪锚：单层只读访问仍放行
-        probe.write_text("MUTATIONS = [1, 2, 3]\n_n = MUTATIONS.count(1)\n_c = MUTATIONS.copy()\n", encoding="utf-8")
-        assert rec.ast_mutation_count("probe.py") == 3
-    finally:
-        rec.SCRIPTS = orig
-
-
 def test_h1_shortest_split_makes_later_only_scan_complete() -> None:
     """⛔ 钉住「只看更靠后」那条完备性论证**所依赖的前提**。
 
@@ -1341,29 +1283,6 @@ def test_pc_expect_msg_corroborated_by_both_sources_still_killed(tmp_path: Path)
         assert verdict == "KILLED", f"正控被误伤: {summary!r} 实得 {verdict}（{why}）"
 
 
-def test_rec_whitelisted_method_must_be_called_not_taken_as_value(tmp_path: Path) -> None:
-    """⛔ 白名单里的方法必须**当场调用**，不能当值取走（Codex round-10 MEDIUM）。
-
-    `method = MUTATIONS.copy` 把**绑定方法对象**存进别名，`method.__self__` 就把原列表
-    拿回来了 —— 根名变成 `method`，属性链判据看不见它。
-    """
-    rec = _rec()
-    probe = tmp_path / "probe.py"
-    orig = rec.SCRIPTS
-    rec.SCRIPTS = tmp_path
-    try:
-        probe.write_text(
-            "MUTATIONS = [1, 2, 3]\nmethod = MUTATIONS.copy\nmethod.__self__.append(4)\n", encoding="utf-8"
-        )
-        with pytest.raises(rec.ReconcileError, match="当\\*\\*值\\*\\*取走"):
-            rec.ast_mutation_count("probe.py")
-        # ⛔ 验伪锚：当场调用仍放行
-        probe.write_text("MUTATIONS = [1, 2, 3]\n_c = MUTATIONS.copy()\n_n = MUTATIONS.count(1)\n", encoding="utf-8")
-        assert rec.ast_mutation_count("probe.py") == 3
-    finally:
-        rec.SCRIPTS = orig
-
-
 def test_h1_location_crosscheck_truncation_asymmetry_is_safe(tmp_path: Path) -> None:
     """⛔ 钉住「位置行交叉核」那条安全性论证 —— 截断的不对称落在**安全**那一侧。
 
@@ -1400,3 +1319,125 @@ def test_h1_location_crosscheck_truncation_asymmetry_is_safe(tmp_path: Path) -> 
     assert "TAILMARK" in locs[0] and "TAILMARK" not in reasons[0], (
         "夹具前提：这一跑确实触发了两侧的截断差（否则这条论证没被真的测到）"
     )
+
+
+def test_h2_gate_identity_must_be_provable(tmp_path: Path) -> None:
+    """⛔ 「红的是**这道门**」本身要证明（Codex round-11 HIGH-2）。
+
+    真实失败的是一个**名字叫** `test_x - suffix]tail` 的测试 —— 它跟声明的 `test_x`
+    **是两个测试**。但 `_FAILED_RE` 的 `\\S+?` 非贪婪把它截成 `test_x`，`gate_hit()` 于是
+    「命中」，消息与位置也都对得上 ⇒ 判 KILLED，而**指定的那道门根本没红**。
+    """
+    gate = _write_gate(tmp_path, _GATE_DUP)
+    out = _out(
+        ["FAILED tests/gate.py::test_x - suffix]tail - AssertionError: EXPECT"],
+        [f"{gate}:2: AssertionError: EXPECT"],
+    )
+    verdict, why = mki.kill_identity(1, out, "tests/gate.py::test_x", "EXPECT", gate_file=gate, require_gate_file=True)
+    assert verdict == "HARNESS-ERROR", f"⛔ 门身份不可证时不得判 KILLED，实得 {verdict}（{why}）"
+    assert "不属于目标门" in why
+
+
+def test_h2_multi_failure_locations_must_all_be_in_gate(tmp_path: Path) -> None:
+    """⛔ 目标门有**多条**失败时，位置必须全部落在门文件里（Codex round-11 HIGH-1）。
+
+    否则弱位置判据可被**跨实例拼装**：位置从落在门内的那一条借、消息从另一条借，
+    两维各由不同失败实例满足 —— `--tb=line` 的位置行不带 nodeid，多条时配对本就不可证。
+    """
+    gate = _write_gate(tmp_path, _GATE_DUP)
+    outside = _write_gate(tmp_path, "x = 1\n", "helper.py")
+    out = _out(
+        [
+            f"FAILED tests/gate.py::test_x[{'a' * 1100}] - EXPECT]tail",
+            "FAILED tests/gate.py::test_x[other] - AssertionError: EXPECT",
+        ],
+        [f"{gate}:2: AssertionError: OTHER", f"{outside}:1: AssertionError: EXPECT"],
+    )
+    verdict, why = mki.kill_identity(1, out, "tests/gate.py::test_x", "EXPECT", gate_file=gate, require_gate_file=True)
+    assert verdict == "HARNESS-ERROR", f"⛔ 跨实例拼装必须拦下，实得 {verdict}（{why}）"
+    # ⛔ 验伪锚：多条失败但位置**全部**在门内时仍判 KILLED（不是把多条一律打死）
+    out_ok = _out(
+        [
+            "FAILED tests/gate.py::test_x[a] - AssertionError: boom",
+            "FAILED tests/gate.py::test_x[b] - AssertionError: boom",
+        ],
+        [f"{gate}:2: AssertionError: boom", f"{gate}:3: AssertionError: boom"],
+    )
+    assert (
+        mki.kill_identity(1, out_ok, "tests/gate.py::test_x", "boom", gate_file=gate, require_gate_file=True)[0]
+        == "KILLED"
+    )
+
+
+def test_m1_crosscheck_only_applies_when_summary_actually_hit(tmp_path: Path) -> None:
+    """⛔ 两侧**都不含** `expect_msg` 是正常的 SURVIVED，不是 HARNESS-ERROR（round-11 MEDIUM）。
+
+    交叉核问的是「摘要命中了、另一条信源认不认」；摘要没命中就没有可对的东西。
+    上一版把它排在「摘要有没有命中」之前，于是把一条正常的 SURVIVED 改判成 HARNESS-ERROR，
+    诊断还谎称「只在摘要区命中」。
+    """
+    gate = _write_gate(tmp_path, _GATE_DUP)
+    out = _out(
+        ["FAILED tests/gate.py::test_x - AssertionError: OTHER"],
+        [f"{gate}:2: AssertionError: OTHER"],
+    )
+    verdict, why = mki.kill_identity(1, out, "tests/gate.py::test_x", "EXPECT", gate_file=gate, require_gate_file=True)
+    assert verdict == "SURVIVED", f"两侧都不命中 = 变异没被这道门抓住，实得 {verdict}（{why}）"
+
+
+def test_rec_all_attribute_access_on_mutations_is_banned(tmp_path: Path) -> None:
+    """⛔ 对 `MUTATIONS` 的属性访问**整族禁掉**（Codex round-11 MEDIUM）。
+
+    「白名单」被连着绕开三次，每次换个入口：`__imul__` → `__class__.__imul__` →
+    `copy.__self__` → `__iter__().__reduce__()[1][0]`。最后那个的属性链**以调用表达式为根**，
+    「顺链找根 Name」够不着 —— 只要允许**任何**属性访问，就总能再找到一条通往原列表的路。
+    ⇒ 停止逐个堵入口，改封整个面。实测四套源码对 `MUTATIONS` 的属性访问**各 0 处**。
+
+    ⚠️ 本条**取代**了三条按「白名单」写的旧用例（`…uses_a_readonly_allowlist` /
+    `…whitelist_rejects_attribute_chains` / `…must_be_called_not_taken_as_value`）——
+    白名单那套判据已整体作废，留着它们就是在**断言一份已经不存在的契约**。
+    """
+    rec = _rec()
+    probe = tmp_path / "probe.py"
+    orig = rec.SCRIPTS
+    rec.SCRIPTS = tmp_path
+    try:
+        for tail in (
+            "\nMUTATIONS.__iter__().__reduce__()[1][0].append(4)\n",
+            "\nmethod = MUTATIONS.copy\n",
+            "\nMUTATIONS.__class__.__imul__(MUTATIONS, 2)\n",
+            "\n_c = MUTATIONS.copy()\n",
+        ):
+            probe.write_text("MUTATIONS = [1, 2, 3]" + tail, encoding="utf-8")
+            with pytest.raises(rec.ReconcileError, match="属性访问"):
+                rec.ast_mutation_count("probe.py")
+        # ⛔ 验伪锚：不走属性的合法读法仍放行（禁令不挡任何现有写法）
+        for tail in ("\n_n = len(MUTATIONS)\n", "\n_s = [m for m in MUTATIONS]\n", "\n_f = MUTATIONS[0]\n"):
+            probe.write_text("MUTATIONS = [1, 2, 3]" + tail, encoding="utf-8")
+            assert rec.ast_mutation_count("probe.py") == 3
+    finally:
+        rec.SCRIPTS = orig
+    # ⛔ 四套真实源码必须原样（收紧最容易的失败模式是把合法写法也拒掉）
+    assert {k: rec.ast_mutation_count(v.source) for k, v in rec.SUITES.items()} == {
+        "g32b": 138,
+        "g32cb": 9,
+        "g32ccr1": 11,
+        "g33": 18,
+    }
+
+
+def test_rec_extra_verdict_key_is_rejected() -> None:
+    """⛔ `verdict_counts` 里**多出来**的档也要抛（Codex round-11 MEDIUM）。
+
+    只按六个已知键取值时，加一个 `"UNEXPECTED-VERDICT": 1` 会被**静默忽略** —— 存档自己的
+    计数和是 19，本工具却按 18 去跟 AST 分母比，照样打 ✓。
+    缺档不许当 0，多档同样不许当不存在：两边都是「没看见的东西当成没有」。
+    """
+    rec = _rec()
+    base = (
+        '{"verdict_counts": {"KILLED": 18, "KILLED-UNBOUND": 0, "SURVIVED": 0, '
+        '"HARNESS-ERROR": 0, "ANCHOR-ERROR": 0, "SYNTAX-INVALID": 0%s}, "total": 18}'
+    )
+    assert rec.parse_json("g33", base % "").counts["KILLED"] == 18, "⛔ 验伪锚：合法 JSON 仍要解析得出"
+    with pytest.raises(rec.ReconcileError, match="不认识"):
+        rec.parse_json("g33", base % ', "UNEXPECTED-VERDICT": 1')
