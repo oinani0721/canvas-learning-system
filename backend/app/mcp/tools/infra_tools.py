@@ -86,4 +86,7 @@ async def switch_vault(input: SwitchVaultInput) -> Dict[str, Any]:
             vault_id=str(payload.get("vault_id") or ""),
         ).model_dump()
     except Exception as e:
-        return SwitchVaultOutput(success=False, error=str(e)[:200]).model_dump()
+        # 带上异常类型名: 空消息异常(如 RuntimeError())的 str(e) 是空串, 调用方拿到
+        # error="" —— 又是一句没有信息量的文案, 正是本卡要消除的那种形态。
+        reason = f"{type(e).__name__}: {e}" if str(e) else type(e).__name__
+        return SwitchVaultOutput(success=False, error=reason[:200]).model_dump()

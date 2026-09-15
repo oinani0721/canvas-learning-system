@@ -10,8 +10,8 @@
 
 本文件锁死修复后的行为:
 
-- ① (承重, 先红后绿) 工具返回的 ``error`` **不再**是属性错误文案, 而含真实
-  隔离原因 (quarantin / P0-3 / ACTIVE_VAULT 任一);
+- ① (承重, 先红后绿) 工具返回的 ``error`` **不再**是属性错误文案, 而且**逐字等于**
+  端点真实 body 的 ``detail[:200]``;
 - ② (验伪锚, 改前改后都绿) 被调端点确实是**真实**的 P0-3 隔离端点 ——
   ``status_code == 410`` 且 body 里**没有** vault_name / vault_id。
 
@@ -23,11 +23,27 @@
 - ② 同时锁住卡文 §〇 的「口径更正」: 设计稿原以为「解析 body 取 vault_name」,
   实测 body 只有 ``{"error", "detail"}``。这条断言防后人照原设计稿改回去。
 - ⛔ ① **不得**弱化成「只断言 success is False」—— 改前改后都成立, 锁不住修复。
+- ① 末尾那条**逐字**比对是 Codex round-1 LOW-4 的整改: 只做 token 匹配时, 把文案
+  硬编码成 ``error="quarantined"`` 也能全绿; 逐字比对把「透传」本身锁住, 并且让
+  ①② 之间产生真实数据依赖 —— 否则②只证明端点契约, 证明不了①调用了该端点。
 
-⚠️ **本文件不证明什么**: 不证明该工具在 live MCP 路由上可达
-(``switch_vault`` ∈ ``server.py::QUARANTINED_MCP_TOOLS``, ``/mcp/tools/switch_vault``
-是 410 stub, 本函数未注册 live 路由); 不证明端点将来解除隔离后 success 分支
-正确 (隔离态下该分支永不执行, 无真实成功响应可测)。
+⚠️ **本文件不证明什么** (Codex round-1 ⑥ 逐条核对后如实登记):
+1. 不证明该工具在 live MCP 路由上可达 —— ``switch_vault`` ∈
+   ``server.py::QUARANTINED_MCP_TOOLS``, ``/mcp/tools/switch_vault`` 是 410 stub,
+   本函数未注册 live 路由 (测试与显式 Python 调用仍能执行本体, 不等于运行期可达);
+2. 不证明端点将来解除隔离后 success 分支正确 —— 隔离态下该分支**永不执行**,
+   属门未覆盖的路径, 本文件对它**没有任何**约束力;
+3. 不锁 ``isinstance(payload, dict)`` 守卫 —— 端点恒返回 dict body, 删掉该守卫
+   两条测试仍全绿 (那条路径当前不可达);
+4. 不锁成功分支的字段映射 (``vault_name`` / ``vault_id`` 取值) —— 同上, 不可达;
+5. **不锁 ``bytes(result.body)`` 转换** (负控 D 实测: 删掉它两条测试仍全绿)。
+   实测 ``JSONResponse.body`` 的**运行期**类型恒为 ``bytes``, ``bytes()`` 是 no-op;
+   它存在纯粹是为静态类型 —— typeshed 把 ``Response.body`` 标成
+   ``bytes | memoryview[int]`` 而 ``json.loads`` 不收 memoryview。⇒ **它由 pyright
+   门守, 不由本文件守**。(本条曾一度被写成「能被①的逐字比对间接锁住」, 负控 D 当场
+   证伪并更正 —— 关于证据的断言必须先跑一遍再写。)
+6. 不锁外层 ``except`` 的文案形态 (负控 E 实测: 退回 ``str(e)[:200]`` 两条仍全绿) ——
+   那条路径要靠端点抛异常才显形, 而端点恒正常返回 410。
 
 本文件只 ``await`` 协程, 不起 TestClient、不连 Neo4j / LanceDB / 任何端口 ——
 被调端点只做一次 ``logger.warning`` 后返回常量 ``JSONResponse``。
@@ -64,6 +80,18 @@ def test_switch_vault_surfaces_quarantine_not_attribute_error():
     lowered = res["error"].lower()
     assert any(token in lowered for token in ("quarantin", "p0-3", "active_vault")), (
         f"error 未透传 P0-3 隔离原因 (期望含 quarantin / p0-3 / active_vault 之一); 实测 res={res!r}"
+    )
+
+    # ⛔ 承重断言(交叉比对): error 必须**逐字**等于端点真实 body 的 detail(截断到 200),
+    # 而不只是「碰巧含某个 token」—— 后者挡不住把文案硬编码成 "quarantined" 的写法
+    # (负控 C 实测: token 断言对该变异是绿的, 只有这条逐字比对会红)。这条把「透传」
+    # 本身锁住, 并且同时证明上面那次调用确实走到了下面这个端点 —— 两条测试之间因此
+    # 有真实数据依赖, 而非各说各话。
+    endpoint_resp = asyncio.run(_switch(VaultSwitchRequest(vault_path=_TARGET_VAULT_PATH)))
+    endpoint_detail = json.loads(bytes(endpoint_resp.body))["detail"]
+    assert res["error"] == endpoint_detail[:200], (
+        "error 不是端点 detail 的逐字透传 —— 可能是硬编码文案或落进了兜底分支; "
+        f"实测 error={res['error']!r}\n期望 = detail[:200] = {endpoint_detail[:200]!r}"
     )
 
 
