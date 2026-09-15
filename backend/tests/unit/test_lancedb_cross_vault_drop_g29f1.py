@@ -588,7 +588,11 @@ def test_prefix_overlap_premises_hold(overlap_envs, shape, filler, consumer, tab
 
     与隔离门共用 ``overlap_envs``（见该 fixture 的 docstring），因此本条通过就
     等于隔离门那一份夹具也建成了。可区分的两态：夹具坏 → 本条 ERROR/FAILED；
-    归属规则被改坏（退回朴素前缀 / 已知 vault 集合被打空）→ 本条与隔离门**一起** FAILED。
+    归属规则被改坏（退回朴素前缀 / 已知 vault 集合被打空）→ **本条** FAILED。
+    ⚠️ 不要再写成「本条与隔离门**一起**红」（Codex round-7 LOW 更正）：自 round-4 起
+    ``drop_vault_tables`` / ``_cache_tables`` 都有「判不出主人就不碰」的闸，归属被改坏时
+    它仍能保住 ``a_b_canvas_nodes``，隔离门因此**可能继续绿**。负控报告必须按**实际红点**
+    解释，不能把「前提门红」说成「跨 vault 删除已经发生」。
     （⚠️ F1 原 docstring 写"三态两两可区分"——那是 F1 自己 §五 已撤回的说法：
     xfail 会吞掉同一用例内**任何**失败，"夹具坏"与"缺陷仍在"在缺陷锁**那一侧**
     本就不可区分，可区分性全靠本条不带 xfail。A-4，CARD-G2-9-F2 同步更正。）

@@ -1148,8 +1148,13 @@ class LanceDBClient:
 
         ``vault_id`` 为空 / ``"default"`` 时走的是**裸表口径**
         (``"_" not in name or name == FINGERPRINT_TABLE``) —— 它只看表名里有没有下划线,
-        **根本不查 V**, 因此也**没有任何跨 vault 暴露面**: 别的 vault 的表恒含
-        ``{vid}_`` 前缀、必然含下划线, 一开始就不归 default。
+        **根本不查 V**: 别的 vault 的表恒含 ``{vid}_`` 前缀、必然含下划线, 一开始就不归
+        default, 所以**这几道闸保护不到它任何东西**。
+
+        ⚠️ 不等于"零跨 vault 暴露面"(Codex round-7 LOW 更正): 裸表口径里
+        ``name == FINGERPRINT_TABLE`` 那条精确例外仍可能被撞 —— vault ``file`` 若把逻辑名
+        配成 ``fingerprints``, 拼出来正好是裸 ``file_fingerprints``。那是**基线既有**的
+        重名边界 (与 V 无关, 本卡不新增也不闭合), 已登记移交。
 
         所以那几道为「V 可能缺项」而设的闸 (清单降级拒绝 / 判不出主人就不碰) 对它是
         **纯代价**: 单 vault 部署一旦把 ``VAULTS_ROOT`` 配错, 就会连**自己的**维度自愈与
@@ -1181,8 +1186,13 @@ class LanceDBClient:
         ⚠️ **被问的那个 vault_id 恒并入候选**, 而不是只用 V。理由: 它可以是外部显式
         传进来的任意 vault (``DELETE /index/{vault_id}`` 的 path param), 该 vault 可能
         恰好不在 V 里 (典型: 目录已删、正要删它的索引)。不并入会让归属恒 False ⇒
-        删索引静默变成 no-op。并入后本规则的**最弱**形态就是改前的朴素前缀 ——
-        本卡因此**只减少 over-claim (认领别人的表), 不减少任何 vault 对自己表的认领**。
+        删索引静默变成 no-op。并入后本规则的**最弱**形态就是改前的朴素前缀。
+
+        ⚠️ **能证明的与不能证明的** (Codex round-7 LOW 更正; 初版写成"不减少任何 vault 对
+        自己表的认领"是过度表述): 能证明的是**同一个被问的 vault, 新认领集合 ⊆ 改前集合**;
+        **不能**证明"减少掉的全是别人的表"—— V 里有 ``a_vault`` 时, vault ``a`` 自己拼出的
+        ``a_vault_notes`` 也会归给 ``a_vault``。这类同族碰撞由 ``drop_vault_tables`` 的
+        碰撞预检拦成"整次拒绝"(见该方法), 而不是靠归属规则纠正。
         """
         candidates = set(self._known_vault_ids())
         if vault_id is not _UNSET and vault_id:
