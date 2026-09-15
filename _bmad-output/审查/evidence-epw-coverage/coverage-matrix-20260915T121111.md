@@ -63,17 +63,24 @@
   `test_dead_letter_on_retries_exhausted` / `test_worker_metrics_completeness` /
   `test_request_id_propagation_through_episode_task`。逐行比对结果：
 
-  | 重叠程度 | 行号 | 说明 |
-  |---|---|---|
-  | **同题**（参照文件已有直接断言） | #2 #13 #14 #24 #28 #30 | #2/#30 落在 `test_dead_letter_on_retries_exhausted`（死信文件 + sha256/length/截断正文）；#13/#14 落在 `test_exponential_backoff_sleep_series`；#28 落在 `test_basic_enqueue_and_process`；#24 同 #2 那条 |
-  | **部分同题**（形态更窄或用不等式） | #1 #3 #23 #25 | #1/#3 只在 `test_worker_metrics_completeness` 里以 `episodes_failed >= 4` 的**不等式**+单一 `RuntimeError` 形态出现；#23 只覆盖 name/group_id/episode_body 三个 kwarg，未覆盖 entity_types/edge_types/source；#25 的错误形态是 `RuntimeError` 不是超时 |
-  | **未触及** | #12 #15 #17 #18 #19 #20 #21 #22 #26 #27 #29 | 共 **11** 行：日志分级四条（#12 #19 #21 #22）、混合错误类型（#15）、重试身份（#17）、超时/异常的区分位置（#18）、非超时异常触发重试（#20）、一次/两次重试后成功的**确切尝试数**（#26 #27）、`max_retries=0`（#29） |
+  ⚠️ **本表在 Codex r2 LOW-3 后重数过一遍**（原版把 #1 说成「只有不等式」、把 #20 列进「未触及」，
+  两处都不实——参照文件 `test_dead_letter_on_retries_exhausted` 已有 `episodes_failed == 4` 的**等式**，
+  `test_exponential_backoff_sleep_series` 的失败形态就是 `RuntimeError` 即已覆盖「非超时异常触发重试」）。
 
-  新文件相对参照文件的增量，逐条不同：#13/#14 由「区间采样（允许 0）」升为「`random.uniform`
-  **实参**的确定性断言」并新增**实际重试链路**的 2/4/8 实参断言；#25 补超时形态与 `error_type`；
-  #23 补三个可选参数与「未设不得以 None 透传」；#1/#3 把不等式改成逐次尝试的等号；
-  **#28 的增量最小**，只多了对象级 `task.retry_count == 0`（参照文件的 `episodes_failed == 0`
-  已蕴含零重试）；#2/#30 的增量是 `count()` 与 `request_id` 字段的组合断言。
+  | 重叠程度 | 行号 | 计 | 说明 |
+  |---|---|---|---|
+  | **同题**（参照文件已有直接断言） | #1 #2 #13 #14 #20 #24 #28 #30 | 8 | #1/#2/#24/#30 落在 `test_dead_letter_on_retries_exhausted`（`await_count == 4`、`episodes_failed == 4`、`episodes_dead_lettered == 1`、sha256/length/截断正文）；#13/#14/#20 落在 `test_exponential_backoff_sleep_series`（3 次 `RuntimeError` → 重试 → 第 4 次成功 + 三段退避区间）；#28 落在 `test_basic_enqueue_and_process` |
+  | **部分同题**（形态更窄／不等式／只覆盖一部分字段） | #3 #18 #23 #25 #26 #27 | 6 | #3 的超时形态参照文件没有（它只用 `RuntimeError`）；#18 参照文件只断言单一 `error_type == "RuntimeError"`，没有「超时 vs 异常如何区分」的对照；#23 只覆盖 name/group_id/episode_body 三个 kwarg，未覆盖 entity_types/edge_types/source；#25 的错误形态是 `RuntimeError` 不是超时；#26/#27 参照文件只有「3 次失败后成功」这一种，没有**一次**/**两次**重试的确切尝试数 |
+  | **未触及** | #12 #15 #17 #19 #21 #22 #29 | 7 | 日志分级三条（#12 #19 #21 #22 中的 #12/#19/#21/#22 —— 参照文件**零**日志断言）、混合错误类型（#15）、重试身份与时间戳（#17）、`max_retries=0`（#29） |
+
+  （8 + 6 + 7 = 21 ✅ 与 N1 对齐。）
+
+  新文件相对参照文件的增量，逐条不同：#13/#14 由「区间采样（下界允许 0，也允许 `cap/2`）」升为
+  「`random.uniform` **实参 `(0, cap)` 的等值断言**」，并新增**实际重试链路**的抽样区间 + 实际 sleep 值断言；
+  #3/#25 补超时形态与 `error_type` 对照；#23 补三个可选参数与「未设不得以 None 透传」；
+  #1 把「耗尽路径的 4」扩到「部分失败路径的 2」；#12/#19/#21/#22 是**参照文件完全没有**的日志分级面；
+  #17 是对象身份 + 时间戳不变量；**#28 的增量最小**，只多了对象级 `task.retry_count == 0`
+  （参照文件的 `episodes_failed == 0` 已蕴含零重试）；#2/#30 的增量是 `count()` 与 `request_id` 的组合断言。
 - **T10-C 已 un-skip 重写 = 15**（#4–#11 共 8 + #31–#33 共 3 + #34–#37 共 4）
 - **语义已删·无等价·登记退役 N3 = 1**（#16，删除 sha `59586af1`）
 - **N1 + N2 + 15 + N3 = 21 + 0 + 15 + 1 = 37** ✅

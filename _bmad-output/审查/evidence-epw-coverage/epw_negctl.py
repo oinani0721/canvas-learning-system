@@ -47,10 +47,28 @@ MUTATIONS = [
         'assert bounds[:7] == [1, 2, 4, 8, 16, 32, 64]',
     ),
     (
-        "(2') 实际重试链路真的用了 backoff_seconds（Codex r1 HIGH-1）",
+        "(2'a) 实际重试的抽样区间下界 = 0（full jitter 未被削半，Codex r2 MEDIUM-1）",
         "test_retry_actually_sleeps_backoff_seconds_series_2_4_8",
-        "assert slept_with == [2, 4, 8], (",
-        "assert slept_with == [2, 4, 9], (",
+        "assert uniform_calls == [(0, 2), (0, 4), (0, 8)], (",
+        "assert uniform_calls == [(1, 2), (0, 4), (0, 8)], (",
+    ),
+    (
+        "(2'b) 传给 sleep 的就是抽到的那个值（Codex r1 HIGH-1）",
+        "test_retry_actually_sleeps_backoff_seconds_series_2_4_8",
+        "assert slept_with == [0.5, 1.0, 2.0], (",
+        "assert slept_with == [0.5, 1.0, 2.5], (",
+    ),
+    (
+        "(G-4) 重试 warning 逐条带 attempt i/3（Codex r2 LOW-4）",
+        "test_retry_warning_includes_attempt_number_and_error_message",
+        "assert [f\"attempt {i}/3\" in warnings[i - 1] for i in (1, 2, 3)] == [True, True, True], (",
+        "assert [f\"attempt {i}/3\" in warnings[i - 1] for i in (1, 2, 3)] == [True, False, True], (",
+    ),
+    (
+        "(F-4) to_dict 对非零 queue_depth / 耗时的序列化（Codex r2 LOW-1）",
+        "test_worker_metrics_to_dict_serializes_nonzero_depth_and_times",
+        'assert d["avg_processing_time_ms"] == 1000.0, "avg = (0.5+1.5)/2 * 1000"',
+        'assert d["avg_processing_time_ms"] == 999.0, "avg = (0.5+1.5)/2 * 1000"',
     ),
     (
         "(1') 重试成功也记 info（Codex r1 MEDIUM-1）",

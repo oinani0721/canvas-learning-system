@@ -66,6 +66,7 @@ from app.services.episode_worker import (
     DeadLetterStore,
     EpisodeTask,
     GraphitiEpisodeWorker,
+    WorkerMetrics,
     _redact,
 )
 
@@ -394,26 +395,41 @@ async def test_retry_actually_sleeps_backoff_seconds_series_2_4_8(worker):
     退避值就变成确定值，于是可以对**传给 sleep 的实参**做等值断言。
 
     同时钉住 `_handle_failure` 的**时序**：它 `retry_count += 1` **之后**才取 `backoff_seconds`
-    （`episode_worker.py::_handle_failure`），所以三次实际重试的上界是 **2 / 4 / 8**
-    （= `min(2**1,60)` / `min(2**2,60)` / `min(2**3,60)`），而**不是** 1/2/4。
+    （`episode_worker.py::_handle_failure`），所以三次实际重试的抽样区间是
+    **[0,2] / [0,4] / [0,8]**（= `min(2**1,60)` 等），而**不是** retry_count=0/1/2 的 [0,1]/[0,2]/[0,4]。
+
+    ⛔ **桩必须返回区间内的非上界点**（Codex r2 MEDIUM-1）：若桩只返回 `high`，则
+    `random.uniform(0, cap)` 与 `random.uniform(cap/2, cap)` 给出的值**完全相同**——
+    「full jitter 的下半区间被丢掉」这种回归看不出来。这里改成返回 `low + (high-low)*0.25`，
+    并**同时断言传给 `random.uniform` 的 `(low, high)` 实参**：下界必须是 0。
     """
     w, mock_graphiti, dl = worker
     mock_graphiti.add_episode = AsyncMock(side_effect=RuntimeError("always fails"))
     slept_with: list[float] = []
+    uniform_calls: list[tuple[float, float]] = []
+
+    def quarter_point(low, high):
+        uniform_calls.append((low, high))
+        return low + (high - low) * 0.25
 
     async def recording_sleep(seconds):
         slept_with.append(seconds)
         await _ORIGINAL_ASYNCIO_SLEEP(0)
 
     with (
-        patch("app.services.episode_worker.random.uniform", side_effect=lambda low, high: high),
+        patch("app.services.episode_worker.random.uniform", side_effect=quarter_point),
         patch("app.services.episode_worker.asyncio.sleep", side_effect=recording_sleep),
     ):
         w.enqueue(_make_task(name="sleep_values"))
         await _wait_until(lambda: w.metrics.episodes_dead_lettered >= 1)
 
-    assert slept_with == [2, 4, 8], (
-        f"三次重试实际传给 asyncio.sleep 的必须是 backoff_seconds 的上界序列 2/4/8（retry_count 先递增），实测 {slept_with}"
+    # ① 抽样区间：下界恒 0（full jitter），上界 = min(2**retry_count, 60) 且 retry_count 先递增
+    assert uniform_calls == [(0, 2), (0, 4), (0, 8)], (
+        f"三次重试的抽样区间必须是 [0,2]/[0,4]/[0,8]（下界 0 = full jitter 未被削成半抖动），实测 {uniform_calls}"
+    )
+    # ② 传给 sleep 的**就是**抽出来的那个值（非上界点 ⇒ 能分辨「sleep 收到的不是 backoff_seconds」）
+    assert slept_with == [0.5, 1.0, 2.0], (
+        f"传给 asyncio.sleep 的必须是 backoff_seconds 抽到的值本身（桩取区间 1/4 点），实测 {slept_with}"
     )
     assert w.metrics.episodes_dead_lettered == 1
     assert _read_records(dl)[0]["retry_count"] == 3
@@ -725,7 +741,32 @@ async def test_queue_full_drops_and_counts(dead_letter_path):
     assert w.metrics.episodes_enqueued == 1, "被丢弃的不得计入 enqueued"
     assert w.metrics.episodes_dropped_queue_full == 1
     assert w.metrics.queue_depth == 1
+    # Codex r2 LOW-1：序列化观察点必须见过**非零** queue_depth，否则「to_dict 恒返 0」也能通过
+    assert w.metrics.to_dict()["queue_depth"] == 1
+    assert w.metrics.to_dict()["episodes_dropped_queue_full"] == 1
     assert not dead_letter_path.exists(), "队列满是丢弃不是死信"
+
+
+def test_worker_metrics_to_dict_serializes_nonzero_depth_and_times():
+    """`to_dict()` 对 `queue_depth` / 平均耗时 / 最大耗时的**序列化**必须是真值，不是恒 0。
+
+    Codex r2 LOW-1：前面那条快照用例里这三个字段的取值都是 0 或只被不等式约束，
+    若 `to_dict()` 把它们写死成 `0` / `0.0` 照样全绿。这里直接喂已知样本求值。
+    """
+    m = WorkerMetrics()
+    m.queue_depth = 7
+    m.record_processing_time(0.5)  # 500 ms
+    m.record_processing_time(1.5)  # 1500 ms
+
+    d = m.to_dict()
+    assert d["queue_depth"] == 7
+    assert d["avg_processing_time_ms"] == 1000.0, "avg = (0.5+1.5)/2 * 1000"
+    assert d["max_processing_time_ms"] == 1500.0
+    # 滑窗上限 100 条（`record_processing_time` 只保留最近 100 条）
+    for _ in range(120):
+        m.record_processing_time(0.1)
+    assert len(m._processing_times) == 100
+    assert m.to_dict()["max_processing_time_ms"] == 100.0, "旧的 1500ms 样本应已被滑出窗口"
 
 
 async def test_enqueue_after_stop_returns_false(dead_letter_path):
@@ -766,8 +807,10 @@ async def test_retry_warning_includes_attempt_number_and_error_message(worker):
 
     assert len(warnings) == 3, f"3 次重试各一条 warning, got {warnings}"
     assert all(marker in m for m in warnings), "warning 必须带错误消息本身"
-    assert "attempt 1/3" in warnings[0]
-    assert "attempt 3/3" in warnings[2]
+    # Codex r2 LOW-4：逐条核编号（原先只看首尾，中间那条输出 `attempt 1/3` 也能通过）
+    assert [f"attempt {i}/3" in warnings[i - 1] for i in (1, 2, 3)] == [True, True, True], (
+        f"三条 warning 必须分别带 attempt 1/3、2/3、3/3，实测 {warnings}"
+    )
 
 
 async def test_dead_letter_log_carries_error_type_not_error_message(worker):

@@ -16,16 +16,25 @@
     python3 epw_path_gate.py [--strict-ms] <file.py>
 rc=0 且打印 ``EPW-PATH-GATE: PASS`` 为通过。
 
-⚠️ **本门已知的未覆盖路径（Codex r1 MEDIUM-4，如实声明，不主张它能独立承担隔离验收）**：
-  - r1 提的两条已封：**写死的路径字面量**（带着 kwarg 却指向真坟场）与 **import 别名**
-    （`import get_episode_worker as get_w` 后调 `get_w()`）；
-  - **仍未封**：① 值是变量/参数时只看形态不看取值（`p = "data/dead_letter_episodes.jsonl";
-    GraphitiEpisodeWorker(dead_letter_path=p)` 仍 PASS——需要数据流分析）；② `memory_service`
-    启发式只查源码里**是否出现** ``get_episode_worker`` 这个串，删掉某个用例的 ``ready_worker``
-    fixture 形参、只留 fixture 定义里的那个串，门照样 PASS（注释里的同名串也算数）；
-    ③ 经 ``memory_service`` 的**间接**入口不追调用链。
-  运行期的后置防线是 (i) 的 sentinel，而 sentinel 又抓不到「建了默认路径 worker 但这次没落死信」。
-  两层各有盲区 —— 本门是**必要条件**，不是充分条件。
+⚠️ **本门已知的未覆盖路径（如实声明，不主张它能独立承担隔离验收）**
+
+已封（各配一枚验伪锚，见 `epw-path-gate-probes-*.txt` / `epw-path-gate-v3-*.txt`）：
+  - 漏传 kwarg / 位置参数形态；
+  - 直调 ``get_episode_worker`` / ``cleanup_episode_worker``（含 ``import … as`` 别名，
+    **不限来源模块**——从 ``app.services.memory_service`` 转出的同名符号也算，Codex r2 LOW-2）；
+  - 死信路径**表达式子树里任何位置**出现危险字面量片段
+    （裸字面量、``str("…")`` 包一层、f-string 拼接都命中，Codex r1 MEDIUM-4 + r2 LOW-2）。
+
+**仍未封**（本门是必要条件，不是充分条件）：
+  ① 值经**变量中转**时不看取值：``p = "data/dead_letter_episodes.jsonl"``
+     然后 ``GraphitiEpisodeWorker(dead_letter_path=p)`` 仍 PASS —— 需要数据流分析；
+  ② ``memory_service`` 启发式只查源码里**是否出现** ``get_episode_worker`` 这个串：
+     删掉某个用例的 ``ready_worker`` fixture 形参、只留 fixture 定义里的那个串，门照样 PASS
+     （注释里的同名串也算数）；
+  ③ 经 ``memory_service`` 的**间接**入口不追调用链。
+
+运行期的后置防线是 (i) 的 sentinel，而 sentinel 又抓不到「建了默认路径 worker 但这次没落死信」。
+两层各有盲区。
 """
 
 import ast
@@ -55,25 +64,36 @@ SINGLETON_NAMES = {"get_episode_worker", "cleanup_episode_worker"}
 singleton_aliases = set(SINGLETON_NAMES)
 worker_aliases = {"GraphitiEpisodeWorker"}
 store_aliases = {"DeadLetterStore"}
+# Codex r2 LOW-2 加固：别名收集**不限来源模块**。`from app.services.memory_service import
+# get_episode_worker as get_w` 与从 episode_worker 导入等效（memory_service 转出同一个符号），
+# 原先只认 `app.services.episode_worker` 开头的模块，跨模块别名整条漏掉。
 for n in ast.walk(t):
-    if isinstance(n, ast.ImportFrom) and (n.module or "").startswith("app.services.episode_worker"):
+    if isinstance(n, ast.ImportFrom):
         for a in n.names:
-            if a.asname:
-                if a.name in SINGLETON_NAMES:
-                    singleton_aliases.add(a.asname)
-                elif a.name == "GraphitiEpisodeWorker":
-                    worker_aliases.add(a.asname)
-                elif a.name == "DeadLetterStore":
-                    store_aliases.add(a.asname)
+            target = a.asname or a.name
+            if a.name in SINGLETON_NAMES:
+                singleton_aliases.add(target)
+            elif a.name == "GraphitiEpisodeWorker":
+                worker_aliases.add(target)
+            elif a.name == "DeadLetterStore":
+                store_aliases.add(target)
+
+#: 出现在死信路径表达式**任何位置**的这些字面量片段都判危险（含 `str("…")` 包一层、f-string 等）。
+DANGEROUS_PATH_FRAGMENTS = ("dead_letter_episodes.jsonl", "data/dead_letter")
 
 
 def _path_value_is_safe(node):
-    """Codex r1 MEDIUM-4 加固 ②：kwarg 在场还不够，值不能是写死的路径字面量。
+    """kwarg 在场还不够，值不能指向真死信坟场。
 
-    `GraphitiEpisodeWorker(dead_letter_path="data/dead_letter_episodes.jsonl")` 带着 kwarg
-    却指向真死信坟场，原门照样 PASS。要求：值必须是**表达式**（`str(tmp_path / …)` 一类），
-    不得是 `ast.Constant` 字面量，也不得是纯字面量拼接的 JoinedStr。
+    - Codex r1 MEDIUM-4：`GraphitiEpisodeWorker(dead_letter_path="data/dead_letter_episodes.jsonl")`
+      带着 kwarg 却指向真坟场，原门照样 PASS ⇒ 裸字面量一律 FAIL。
+    - Codex r2 LOW-2：`str("data/dead_letter_episodes.jsonl")` 是 `ast.Call`、不是 `Constant`，
+      于是又被放行 ⇒ 改成**递归**扫整个表达式子树里的每一个字符串常量，命中危险片段即 FAIL。
     """
+    for sub in ast.walk(node):
+        if isinstance(sub, ast.Constant) and isinstance(sub.value, str):
+            if any(frag in sub.value for frag in DANGEROUS_PATH_FRAGMENTS):
+                return False
     if isinstance(node, ast.Constant):
         return False
     if isinstance(node, ast.JoinedStr) and all(isinstance(v, ast.Constant) for v in node.values):

@@ -1,0 +1,16 @@
+### 全局 sentinel（开工 11:54:18 那枚，覆盖全部 pytest 跑）
+backend/data/failed_edge_syncs.jsonl
+backend/data/failed_writes.jsonl
+行数 = 2
+
+### 真死信坟场（承重目标）是否出现
+ls: backend/data/dead_letter_episodes.jsonl: No such file or directory
+ls: data/dead_letter_episodes.jsonl: No such file or directory
+
+### Stage A 复核（只跑本卡三文件，新 sentinel）
+================== 1 failed, 67 passed, 10 warnings in 1.90s ===================
+本卡三文件跑后新增文件数 = 0  ← 必 0
+
+### 验伪锚：证这条门会发火
+探针后 = 1  ← 必 >=1
+删探针后 = 0  ← 必回 0

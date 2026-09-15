@@ -1,3 +1,14 @@
+> 批次: BATCH-2026-09-11-第十四批 · 车道 card-t10-red · 卡 CARD-EPW-COVERAGE round-1
+> 模型: `gpt-6-astra` · reasoning_effort: `ultra` · codex: `codex-cli 0.153.3`（`codex --version` 实测）
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat _bmad-output/审查/prompts/codex-prompt-EPW-COVERAGE.md)"`
+> 审查绑定: `65a84a91`（送审时 HEAD = `65a84a91`，绑定成立；本轮之后按 r1 意见改了**代码**，
+> 故 r1 不再绑最终 HEAD，已按 D-15 再送 r2）
+> 会话头自证（抄 `.stderr` 里含 codex 版本行 + `model:` 行 + `reasoning effort` 行的那三行，
+> 逐行括注各自行号；⛔ 不是机械抄前三行——`model:` 在第 5 行；`.stderr` 本身不入库）:
+> `OpenAI Codex v0.153.3`（`.stderr:2`） / `model: gpt-6-astra`（`.stderr:5`） / `reasoning effort: ultra`（`.stderr:9`）
+
+---
+
 **结论：可作为有实质增量的部分覆盖，尚不能认定这 22 条缺口全部闭合。**
 
 复核基于提交 `65a84a91`，全程只读，未运行 pytest、生产模块、数据库或网络。下述生产代码变更均为**静态对照推演**，未实际修改。

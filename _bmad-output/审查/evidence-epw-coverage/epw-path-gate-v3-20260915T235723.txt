@@ -1,0 +1,28 @@
+### 加固后三份真实文件仍必须 PASS
+test_episode_worker_coverage_epw.py                            rc=0 EPW-PATH-GATE: PASS
+test_story_38_6_scoring_reliability.py                         rc=0 EPW-PATH-GATE: PASS
+test_episode_worker_retry.py                                   rc=0 EPW-PATH-GATE: PASS
+
+### r2 LOW-2 新锚 A：str("…") 包一层的危险字面量 ⇒ 必 FAIL
+rc=1
+❌ /tmp/epw-gate4.ZtE8IX/probe.py:2 [<module>] GraphitiEpisodeWorker(dead_letter_path=…) 的值是写死的路径字面量（str('data/dead_letter_episodes.jsonl')）——必须是 tmp_path 派生的表达式
+EPW-PATH-GATE: FAIL
+
+### r2 LOW-2 新锚 B：从 memory_service 转出的别名调单例 ⇒ 必 FAIL
+rc=1
+❌ /tmp/epw-gate4.ZtE8IX/probe.py:2 [<module>] get_w( 单例工厂恒用默认死信路径，禁直调（import 别名，实为 cleanup_episode_worker/get_episode_worker 之一）
+EPW-PATH-GATE: FAIL
+
+### 新锚 C：f-string 拼出的危险路径 ⇒ 必 FAIL
+rc=1
+❌ /tmp/epw-gate4.ZtE8IX/probe.py:3 [<module>] DeadLetterStore(file_path=…) 的值是写死的路径字面量（f'{base}/data/dead_letter_episodes.jsonl'）——必须是 tmp_path 派生的表达式
+EPW-PATH-GATE: FAIL
+
+### 反向锚 D（防误杀）：tmp_path 派生的正常写法 ⇒ 必 PASS
+rc=0
+EPW-PATH-GATE: PASS
+
+### 矩阵门（改后）
+rc=0
+N1(新文件)=21 N2(已有 retry 测试)=0 T10-C=15 N3(退役)=1
+EPW-MATRIX-GATE: PASS

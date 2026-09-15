@@ -66,3 +66,30 @@
 按 **BLOCKER / HIGH / MEDIUM / LOW** 四级分组输出，每条给 `file:line` + 一句话事实 + 为什么它
 是这一级。没有就写「该级 0 条」。最后给一段总评：这份等价覆盖能不能替代被 skip 的那 22 条
 （21 条声称承接 + 1 条退役），以及哪些结论是本卡证据支撑不了的。
+
+---
+
+## 六 本轮变更（r2 → r3，仅本轮存在此节）
+
+r1 = B0/H1/M4/L2，r2 = **B0/H0**/M1/L4。r2 已达 D-15 通过线，但其 MEDIUM 1 + LOW 4 都是真缺口且
+可在测试侧关闭，故继续整改并再送一轮（`backend/app` 仍零改动）：
+
+- **r2 MEDIUM-1**（上界桩分辨不出 `uniform(0, cap)` 与 `uniform(cap/2, cap)`）
+  → `test_retry_actually_sleeps_backoff_seconds_series_2_4_8` 的桩改成返回**区间 1/4 点**
+  （`low + (high-low)*0.25`），并新增对 `random.uniform` **实参**的等值断言
+  `uniform_calls == [(0,2),(0,4),(0,8)]`（下界必须是 0），实际 sleep 值断言相应变成 `[0.5,1.0,2.0]`。
+- **r2 LOW-1**（`to_dict()` 把 `queue_depth`/耗时写死成 0 也能通过）
+  → 新增 `test_worker_metrics_to_dict_serializes_nonzero_depth_and_times`（喂已知样本求值：
+  `queue_depth=7` / `avg=1000.0` / `max=1500.0`，并钉 100 条滑窗），
+  `test_queue_full_drops_and_counts` 补 `to_dict()["queue_depth"] == 1` 的序列化观察点。
+- **r2 LOW-2**（门放行 `str("危险字面量")` 与跨模块 `import … as` 别名）
+  → 危险字面量改成**递归扫表达式子树**里的每个字符串常量（`str(...)` 包一层、f-string 都命中）；
+  别名收集**不限来源模块**。docstring 的「已封 / 仍未封」两段按实际能力重写。
+- **r2 LOW-3**（重叠表低估参照文件）→ 逐行重数：同题 8 / 部分同题 6 / 未触及 7（8+6+7=21），
+  #1 移入「同题」（参照文件有 `episodes_failed == 4` 的等式）、#20 移入「同题」
+  （参照文件的失败形态就是 `RuntimeError`）。
+- **r2 LOW-4**（warning 只验首尾两条）→ 改为逐条核 `attempt 1/3`、`2/3`、`3/3`。
+
+**本轮请重点判**：① 上述整改是否真的关闭了对应问题；② 新写法本身有没有新的门未覆盖的路径
+（特别是 1/4 点桩与 `uniform_calls` 断言的组合，是否还留有「实际重试不走 `backoff_seconds`」的对照输入）；
+③ 重叠表这次的分类是否与参照文件的实际断言逐条对得上。其余口径同上文 §一～§五。
