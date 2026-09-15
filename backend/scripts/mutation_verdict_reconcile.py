@@ -173,6 +173,9 @@ def ast_mutation_count(source_name: str) -> int:
             total += _literal_len(node.value, source_name, node.lineno)
             counted_targets.add(id(node.target))
 
+    # 所有「被当作调用目标」的表达式（用来区分 `MUTATIONS.copy()` 与 `MUTATIONS.copy`）。
+    called_funcs = {id(n.func) for n in ast.walk(tree) if isinstance(n, ast.Call)}
+
     # ② fail-closed 全树扫描：任何**没被 ① 数到**的写入/改动一律抛。
     #
     # ⛔ Codex round-6 MEDIUM：只看 `Name` 的 `Store`/`Del` **不够** —— `MUTATIONS[:0] = [9]`
@@ -207,6 +210,14 @@ def ast_mutation_count(source_name: str) -> int:
                     raise ReconcileError(
                         f"{source_name}:{node.lineno} 用 `MUTATIONS.{'.'.join(chain)}` 访问/改表 —— "
                         f"不是只读白名单里的**单层**属性，分母数不出来"
+                    )
+                # ⛔ Codex round-10 MEDIUM：白名单里的方法**必须当场调用**，不能当值取走。
+                # `method = MUTATIONS.copy` 把**绑定方法对象**存进别名，`method.__self__`
+                # 就把原列表拿回来了 —— 根名变成 `method`，上面那条链判据看不见它。
+                if id(node) not in called_funcs:
+                    raise ReconcileError(
+                        f"{source_name}:{node.lineno} `MUTATIONS.{chain[0]}` 被当**值**取走而不是当场调用 —— "
+                        f"绑定方法对象可经 `.__self__` 拿回原列表，分母数不出来"
                     )
 
     if total is None:

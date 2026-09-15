@@ -1214,17 +1214,40 @@ def test_h1_expect_msg_must_not_be_read_from_the_test_name(tmp_path: Path) -> No
 
 
 @pytest.mark.parametrize(
-    ("summary", "declared", "expect"),
+    ("summary", "loc_rest", "declared", "expect"),
     [
-        ("FAILED tests/gate.py::test_x - AssertionError: boom", "tests/gate.py::test_x", "boom"),
-        ("FAILED tests/gate.py::test_x[case] - AssertionError: boom", "tests/gate.py::test_x", "boom"),
-        ("FAILED tests/gate.py::test_x[c] - AssertionError: EXPECT here", "tests/gate.py::test_x", "EXPECT"),
+        (
+            "FAILED tests/gate.py::test_x - AssertionError: boom",
+            "AssertionError: boom",
+            "tests/gate.py::test_x",
+            "boom",
+        ),
+        (
+            "FAILED tests/gate.py::test_x[case] - AssertionError: boom",
+            "AssertionError: boom",
+            "tests/gate.py::test_x",
+            "boom",
+        ),
+        (
+            "FAILED tests/gate.py::test_x[c] - AssertionError: EXPECT here",
+            "AssertionError: EXPECT here",
+            "tests/gate.py::test_x",
+            "EXPECT",
+        ),
     ],
 )
-def test_pc_expect_msg_from_reason_still_killed(tmp_path: Path, summary: str, declared: str, expect: str) -> None:
-    """⛔ 验伪锚：`expect_msg` 确实在 reason 里时仍判 KILLED（这条收紧没有误伤正常面）。"""
+def test_pc_expect_msg_from_reason_still_killed(
+    tmp_path: Path, summary: str, loc_rest: str, declared: str, expect: str
+) -> None:
+    """⛔ 验伪锚：`expect_msg` 确实在 reason 里时仍判 KILLED（这条收紧没有误伤正常面）。
+
+    ⚠️ 夹具里位置行必须带**真实**的那条消息 —— 2026-09-15 实测（pytest 9.0.2）：摘要区的
+    reason 与 `--tb=line` 的位置行**逐字相同**（带消息的断言与裸 `assert 1 == 2` 都是）。
+    初稿这里图省事写成 `AssertionError: X`，于是 round-13 新加的「两个信源须一致」当场把
+    它判成 HARNESS-ERROR —— **夹具不真，正控就测不出真东西**。
+    """
     gate = _write_gate(tmp_path, _GATE_DUP)
-    out = _out([summary], [f"{gate}:2: AssertionError: X"])
+    out = _out([summary], [f"{gate}:2: {loc_rest}"])
     verdict, why = mki.kill_identity(1, out, declared, expect, gate_file=gate, require_gate_file=True)
     assert verdict == "KILLED", f"正控被误伤: {summary!r} 实得 {verdict}（{why}）"
 
@@ -1282,3 +1305,60 @@ def test_h1_shortest_split_makes_later_only_scan_complete() -> None:
         "`expect_msg_may_come_from_nodeid` 的「只看更靠后」就漏读法了"
     )
     assert "\\S+?" in mki._FAILED_RE.pattern, "⛔ nodeid 必须保持非贪婪 `\\S+?`"
+
+
+def test_h1_expect_msg_must_be_corroborated_by_the_location_line(tmp_path: Path) -> None:
+    """⛔ `expect_msg` 必须被**位置行**这条独立信源佐证（Codex round-10 HIGH）。
+
+    攻击：`FAILED …::test_x[<超长参数>] - EXPECT]tail` —— 超长参数把 reason 挤没了，
+    `EXPECT` 其实是**测试名**的一部分。上一版的「更靠后切点」检查够不着它（整行无 reason
+    的读法被有意排除，否则任何参数化行都会误判）。
+
+    ⇒ 换信源：`--tb=line` 的位置行打 `<file>:<lineno>: <Exc>: <msg>`，与摘要区的 reason
+    **不是同一条来源**。攻击下两者当场不一致（位置行是 `AssertionError: OTHER`）⇒ 不可证。
+    """
+    gate = _write_gate(tmp_path, _GATE_DUP)
+    out = _out(
+        [f"FAILED tests/gate.py::test_x[{'a' * 1100}] - EXPECT]tail"],
+        [f"{gate}:2: AssertionError: OTHER"],
+    )
+    verdict, why = mki.kill_identity(1, out, "tests/gate.py::test_x", "EXPECT", gate_file=gate, require_gate_file=True)
+    assert verdict == "HARNESS-ERROR", f"⛔ 两个信源不一致时不得判 KILLED，实得 {verdict}（{why}）"
+    assert "两个独立信源" in why, f"诊断须点明是信源不一致，实得 {why}"
+
+
+def test_pc_expect_msg_corroborated_by_both_sources_still_killed(tmp_path: Path) -> None:
+    """⛔ 验伪锚：两个信源**都**含 `expect_msg` 时仍判 KILLED（这条收紧没有误伤正常面）。"""
+    gate = _write_gate(tmp_path, _GATE_DUP)
+    for summary, loc in (
+        ("FAILED tests/gate.py::test_x - AssertionError: boom", "AssertionError: boom"),
+        ("FAILED tests/gate.py::test_x[c] - AssertionError: boom", "AssertionError: boom"),
+    ):
+        out = _out([summary], [f"{gate}:2: {loc}"])
+        verdict, why = mki.kill_identity(
+            1, out, "tests/gate.py::test_x", "boom", gate_file=gate, require_gate_file=True
+        )
+        assert verdict == "KILLED", f"正控被误伤: {summary!r} 实得 {verdict}（{why}）"
+
+
+def test_rec_whitelisted_method_must_be_called_not_taken_as_value(tmp_path: Path) -> None:
+    """⛔ 白名单里的方法必须**当场调用**，不能当值取走（Codex round-10 MEDIUM）。
+
+    `method = MUTATIONS.copy` 把**绑定方法对象**存进别名，`method.__self__` 就把原列表
+    拿回来了 —— 根名变成 `method`，属性链判据看不见它。
+    """
+    rec = _rec()
+    probe = tmp_path / "probe.py"
+    orig = rec.SCRIPTS
+    rec.SCRIPTS = tmp_path
+    try:
+        probe.write_text(
+            "MUTATIONS = [1, 2, 3]\nmethod = MUTATIONS.copy\nmethod.__self__.append(4)\n", encoding="utf-8"
+        )
+        with pytest.raises(rec.ReconcileError, match="当\\*\\*值\\*\\*取走"):
+            rec.ast_mutation_count("probe.py")
+        # ⛔ 验伪锚：当场调用仍放行
+        probe.write_text("MUTATIONS = [1, 2, 3]\n_c = MUTATIONS.copy()\n_n = MUTATIONS.count(1)\n", encoding="utf-8")
+        assert rec.ast_mutation_count("probe.py") == 3
+    finally:
+        rec.SCRIPTS = orig

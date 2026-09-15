@@ -994,6 +994,21 @@ def kill_identity(
         # ⛔ round-12（Codex round-9 HIGH）：先问「这个『命中』会不会其实来自**测试名**」。
         # 测试名可以是任意字符串 ⇒ 行级的「哪种切分唯一」判不出来；但「我要下的这个结论
         # 是否对所有还说得通的读法都成立」判得出来。见 `expect_msg_may_come_from_nodeid`。
+        # ⛔ round-13（Codex round-10 HIGH）：**位置行是一条独立信源**，先拿它对一次。
+        # `--tb=line` 打的是 `<file>:<lineno>: <Exc>: <msg>` —— 与摘要区的 reason **不是同一
+        # 条来源**（一个来自 FAILURES 区、一个来自 short summary）。攻击形态
+        # `FAILED …::test_x[<超长参数>] - EXPECT]tail`（长参数把 reason 挤没了，EXPECT 其实
+        # 是**测试名**的一部分）在摘要侧「命中」，位置行侧却是 `AssertionError: OTHER`
+        # —— 两个信源当场不一致 ⇒ 这个「命中」不可证。
+        # ⚠️ 只在**有位置行**时才判（`require_gate_file` / `expect_loc` 这两路才保证有）；
+        # 没有位置行时如实退回「只有摘要一个信源」，不假装核过。
+        if locs_for_msg := failed_locations(out):
+            if not any(expect_msg in rest for _p, _ln, rest in locs_for_msg):
+                return "HARNESS-ERROR", (
+                    f"expect_msg={expect_msg!r} 只在**摘要区**命中，`--tb=line` 位置行里没有 —— "
+                    f"两个独立信源不一致（位置行实见 {[r[:60] for _p, _l, r in locs_for_msg][:2]}）；"
+                    f"⛔ 常见成因: 它其实是**测试名**的一部分而不是断言消息"
+                )
         if from_name := expect_msg_may_come_from_nodeid(out, nodeid, expect_msg):
             return "HARNESS-ERROR", (
                 f"expect_msg={expect_msg!r} 可能是从**测试名**里读出来的而不是 reason —— "
