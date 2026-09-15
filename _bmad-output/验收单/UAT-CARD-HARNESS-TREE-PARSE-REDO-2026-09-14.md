@@ -1,7 +1,7 @@
 # UAT · CARD-HARNESS-TREE-PARSE-REDO（`_harness_tree` 解析整体重做）
 
 > 批次 `[BATCH-2026-09-11-第十四批 / CARD-HARNESS-TREE-PARSE-REDO]` · 车道 `card-t7-skills`（分支 `card/t7-skills`）
-> 基线 `08100483` → 代码 commit **`f7f10be4`**（round-1 审过的中间态）→ **`4d21bc9b`**（按 round-1 结论整改）→ **`e844d6a1`**（按 round-2 结论 + 自查整改）→ **`34451227`**（按 round-3 结论整改）→ **`4eeaeaa6`**（按 round-4 结论整改）→ **`faaeb005`**（用户裁定「缺库即拒写」）→ **r7 待提交**（按 Codex r6 + 变异测试补门，最终 HEAD）· 未 push
+> 基线 `08100483` → 代码 commit **`f7f10be4`**（round-1 审过的中间态）→ **`4d21bc9b`**（按 round-1 结论整改）→ **`e844d6a1`**（按 round-2 结论 + 自查整改）→ **`34451227`**（按 round-3 结论整改）→ **`4eeaeaa6`**（按 round-4 结论整改）→ **`faaeb005`**（用户裁定「缺库即拒写」）→ **`8d973a29`**（按 r6 + 变异测试补门）→ **r8 待提交**（按 r7 HIGH 修 import/读 config 分离，最终 HEAD）· 未 push
 > ⚠️ 卡文 (k) 写「单独 commit」；实际两个代码 commit —— Codex round-1 报 MEDIUM+LOW，按 D-15「审后再改代码必再送一轮」整改后必然产生第二个。两个 commit 都只落在同三文件。
 > 证据目录 `_bmad-output/审查/evidence-harness-tree/`（全部 `.txt`，无 `*.stderr*` 入库）
 
@@ -492,7 +492,8 @@ PyYAML 就好）、后者用户无从察觉。
 **一个曾经能抓东西的门，会因为被守护对象的形态改变而悄悄退化成恒真** —— 而它表面上还是绿的。
 
 换成更强也更简单的断言：**缺库时对任何 config 都不返回任何树，一律抛且点名 PyYAML**。
-负控⑥（还原到 `4eeaeaa6`，含降级解析）⇒ **12 条变红**，证明新门非 no-op。
+负控⑥（还原到 `4eeaeaa6`，含降级解析）⇒ **12 项变红**，证明新门非 no-op。
+⚠️ 计数如实（Codex round-6/7 更正）：那 12 项 = **10 条 unit 参数 + 2 道端到端门**（存档汇总是 12 failed + 50 passed = 62 项，而 62 = 60 unit + 2 e2e），**不是「12 条 unit」，更不是「60 条一起红」**。
 存档 `evidence-harness-tree/negctl-r6-failclosed-*.txt`。
 
 ### 五-septies.6　门重构（4 → 2 + 1 重写）
@@ -501,15 +502,19 @@ PyYAML 就好）、后者用户无从察觉。
 |---|---|
 | `..._degraded_canonical_form_still_works` | 删，语义反转 ⇒ 新 `..._no_pyyaml_refuses_canonical_form_accepted_cost`：连最规范写法也拒；**配对控制组**（有 PyYAML ⇒ rc=0 + 账本 1 行）证明这份 config 本来写得成 ⇒ **把我们明知接受的代价钉在测试里** |
 | `..._degraded_absent_key_still_falls_back` | 删，语义反转 ⇒ 新 `..._no_pyyaml_refuses_even_without_the_key`：老布局 vault 在缺库机器上也拒。理由：「有没有这个键」本身就得解析 YAML 才判得出，缺库时不可证 |
-| `..._degraded_noncanonical_is_fail_closed`（9 参数） | 折叠 —— 其形态已全部在 60 参数 unit 层覆盖（此声称已列进 r6 prompt 请复核方独立核对） |
+| `..._degraded_noncanonical_is_fail_closed`（9 参数） | 折叠 —— ⚠️ **当时声称「形态已全部在 60 参数 unit 层覆盖」，经 Codex round-6 独立核对**不成立**：整份 flow 文档那一条没有等价保留，且相对路径 / U+0085 / 续行的「有库侧成功采用」控制也随旧门消失。已在 §五-octies 前的 r6 整改里补两道门找回来。** |
 | `..._degraded_unicode_space_is_fail_closed_too` | 同上折叠 |
 | `..._degraded_never_diverges_from_yaml`（60 参数） | 重写为 `..._no_pyyaml_never_returns_a_tree`，断言换强；参数表逐条保留（它们仍是「曾经真的让两条分支分叉过的形态」的回归表） |
 
 ### 五-septies.7　行为变化（用户可见）
 
-**老布局 vault（没写 `harness_tree` 键）在缺 PyYAML 的机器上，从「照常写入」变成「拒写并
-要求装 PyYAML」。** 这是本次裁定里对用户最可见的一半，已由
-`..._no_pyyaml_refuses_even_without_the_key` 钉住。
+**老布局 vault（没写 `harness_tree` 键）在缺 PyYAML 的机器上会被拒写并要求装 PyYAML。**
+已由 `..._no_pyyaml_refuses_even_without_the_key` 钉住。
+
+⚠️ **代价范围别写大**（Codex round-6/7 两轮都点了这条，我确实写大过）：不能说成「它们本来
+都能写成、现在变拒了」。三向对照的 **B 格**恰恰表明，回退到当前这棵树时**缺库本来就拒**
+（下游 `_vault_id_of` 需要 PyYAML）。真正因本次裁定损失写入的，只有「harness_tree 指向一棵
+`_vault_id_of` 不依赖 yaml 的树」那一类（= A 格）。
 
 ⚠️ 另有一条**不属本卡、但用户会看到**的事实（callgraph 路发现，静态）：缺库时净效果**不是
 「什么都没写」** —— Step 3 早已由 Claude 用 Edit 把分数写进检验白板（`status:
@@ -622,6 +627,81 @@ WM-merge-message       → 整句锚（14 格全抓）
 
 ---
 
+## 五-nonies　round-7：抓到一个我自己引入的 HIGH（2026-09-15）
+
+Codex round-7（绑 `8d973a29`）：**BLOCKER 0 / HIGH 1 / MEDIUM 1 / LOW 2**。
+它先确认了上一轮的自述属实（用 **140 格对照**独立复核「KILLED 9/9 + 阴性对照全绿」），
+然后抓到一个**我在「修静默绑错树」时自己写进去的静默绑错树**。
+
+### 五-nonies.1　H1：`import` 与读 config 共用一个 `try`
+
+```python
+try:
+    import yaml                      # ← 导入自己也可能抛 OSError
+    with open(_cfg_p, ...) as _cf:   # ← 这一句抛 OSError 才是「没有 config」
+        ...
+except OSError:
+    _tree = ""                       # ⇒ 静默回退父目录
+```
+
+**导入过程自己抛的 `OSError`**（yaml 包源码/依赖不可读、权限错）会被下面那条
+`except OSError` 当成「没有 config 文件」⇒ **静默回退父目录** ⇒ 绕过「拿不到 PyYAML 就拒写」。
+复核方已独立复现：config 明明指向另一棵树，函数却返回了父目录。父目录若恰是三向反例里
+那种不依赖 yaml 的旧 harness，下游也兜不住。
+
+**修法**：拆成两个 `try`；拿 PyYAML 那一层用 `except Exception`（裁定是「拿不到就拒写」，
+拿不到的**原因**有多少种不重要 —— 任何一种都让「指向哪棵树」不可证），并把原因写进拒因。
+本人实测：导入抛 `PermissionError` ⇒ 拒写，不再回退。
+
+⚠️ 这是本卡第 N 次遇到同一个形状的东西：**一个只在「异常来自哪一层」上出错的分支，
+外表与正确实现完全一样**。它不是打字错，是「把两件不同的事放进同一个 `try`」。
+
+### 五-nonies.2　M1：14 格漏掉一个**两条件同时成立**的组合
+
+`no_config_file` 不造可用父树、`parent_is_a_usable_tree` 又必写 config ⇒
+「只在**无 config 且父树可用**时回退」这一种错误实现从 14 格中间穿过去。
+已补第八种形状 `no_config_and_parent_is_tree`，并加第三种探针 `import_raises_oserror`
+（专打 H1 那一类）⇒ **8 形状 × 3 探针 = 24 格**。
+
+### 五-nonies.3　验证（含一次我自己的方法错误）
+
+| 变异体 | 判定 | 被哪一格抓住 |
+|---|---|---|
+| `H1-merged-try` | KILLED | `no_config_file` / **`import_raises_oserror`** |
+| `M1-parent-when-no-config` | KILLED | **`no_config_and_parent_is_tree`** |
+| 原 6 个 + `WM-narrow-except` + `WM-merge-message` | KILLED | 各自那一格 |
+| `P2-open-before-import` | **INVALID** | 锚点命中 0 次 —— **H1 的修法从结构上消掉了这个变异点**（import 与 open 不再同处一个 try）。这是缺陷类别被构造性消除，不是漏网 |
+
+**KILLED 10/11；阴性对照生产代码 24 格全绿。**
+
+⚠️ **过程中我犯过一个方法错误并自查纠正**：`M1-parent-when-no-config` 第一次跑出 SURVIVED，
+我没有直接据此加门，而是先看**为什么**存活 —— 发现是我把那段回退插在 `import` 的 `try`
+**之后**，而缺库时那个 try 已经先抛了 SystemExit ⇒ 插进去的代码**根本执行不到**。
+「存活」是**空洞的**，不是门的缺口。把位置改到缺库分支内再跑，立刻 KILLED。
+**教训：变异体存活时先问「它到底跑到了吗」，否则会照着一个假缺口去加门。**
+
+### 五-nonies.4　L1 / L2 两条 LOW
+
+- **L1**：安装命令里的解释器路径**加引号并转义内部引号** —— 解释器装在带空格的目录里时，
+  裸路径会被 shell 拆成两个参数，用户照抄那一行会失败。
+- **L2**：措辞残留六处已全清（验收单四处 + 测试两处），其中一处**就在我上一轮写的更正正上方**
+  （「这 60 条会一起红」与紧随其后的「实为 10 unit + 2 端到端」自相矛盾）；另一处把调用顺序
+  说反了（「到达本函数**之前**就把下游打死」—— 实际是先本函数、后下游）。
+
+### 五-nonies.5　判据
+
+| 判据 | 结果 |
+|---|---|
+| `-k harness_tree` | **112 passed**（16 既有 + 6 M + 2 缺库端到端 + 1 flow 文档 + 3 采用门 + **24 形状门** + 60 不变量） |
+| 整文件 | **261 passed** |
+| `tests/skills` | **546 passed** |
+| 变异验证 | KILLED 10/11（1 INVALID = 变异点被构造性消除），阴性对照 24 格全绿 |
+| ruff | check + format 均 0 |
+| 地盘核 | 仍恰三文件 |
+| 指纹 | SKILL.md `f708913c…`→`6f963f1a…`；`B229` `543e37de…`→`6098a8a3…` |
+
+---
+
 ## 六 4-B　用户侧（零技术词）
 
 配置里指到学习引擎的那行，就算写法略有出入或路径拐了个弯，系统要么照正确的那棵读、要么直接说
@@ -673,7 +753,7 @@ WM-merge-message       → 整句锚（14 格全抓）
 6. **docstring 内 `:1075` 过时锚已改符号化**（真实位置是 F1 判定段，现 `:1183`/`:1202`）。
 7. **⚠️ 批级模板缺陷（建议回写协议 §2.2 / 手册）**：地盘验伪锚 `git diff --name-only … | grep -c '^_bmad-output/'` 在含中文路径的本仓**恒 0 = 假绿**，必须写 `git -c core.quotepath=false`。本卡已落两种写法的对照存档。见 §四.5。
 8. **⚠️ 负控模板缺陷（建议回写协议 §2.2）**：EXIT trap 里用相对路径还原 + 脚本中途 `cd` = 还原静默失败；且 `( cmd | tail )` 外层取 `pipestatus` 会取到 `tail` 的 rc。两条都在本卡实际发生并被"跑后 sha 必须等于跑前"抓到。见 §四.9。
-9. **降级分支在真缺库机器上不可达为成功路径**（更下游 `_vault_id_of` 同样要 PyYAML）。这条决定了"降级要不要宽容"的取舍——宽容换不来一次成功写入，只会换来猜错树。建议作为 G3-2 的一条结构性事实登记；是否让 `_vault_id_of` 也有降级路径，另立卡评估。
+9. ~~**降级分支在真缺库机器上不可达为成功路径**（更下游 `_vault_id_of` 同样要 PyYAML）……宽容换不来一次成功写入~~ ⛔ **本条已被实测证伪，作废**（见 §五-septies.2 三向对照 + 入库复现脚本）：能不能写成**取决于 harness_tree 选中哪棵树**，指向一棵 `_vault_id_of` 不依赖 yaml 的树时，缺库下 rc=0、账本落一行。正确表述只到「**当 harness_tree 解析到一棵 `_vault_id_of` 依赖 PyYAML 的树时**，缺库 ⇒ 下游也拒」。是否让 `_vault_id_of` 也有降级路径，另立卡评估（与 harness 契约卡相关）。
 10. **既有 SyntaxWarning 未修（非本卡引入）**：`test_g3_2_review_ledger.py:6981` 的 docstring 含裸 `\s`，Python 3.14 每跑必告警、3.17 将成错误。位于本卡编辑的同一个 docstring 的相邻段，但不属"regex 专属措辞更新"范围，**本卡不顺手改**，登记供后续卡处置。
 11. **Codex 各轮**：存档路径、绑定 SHA、B/H/M/L 计数 —— 见 §九。
 

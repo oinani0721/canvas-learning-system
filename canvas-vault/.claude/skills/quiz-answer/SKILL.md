@@ -418,9 +418,25 @@ def _harness_tree(vault_dir):
     一种结局(拒写), 不要跨分支宣称。
     """
     _cfg_p = os.path.join(vault_dir, ".canvas-config.yaml")
-    _tree = ""
+    #: ⛔ **拿 PyYAML 与读 config 必须分成两个 try**(Codex round-7 HIGH, 已独立复现):
+    #: 合在一个 try 里时, **导入过程自己抛的 OSError**(yaml 包源码/依赖不可读、权限错等)
+    #: 会被下面那条 `except OSError` 当成「没有 config 文件」⇒ 静默回退父目录 ⇒ 绕过
+    #: 「拿不到 PyYAML 就拒写」。复现形态: config 明明指向另一棵树, 函数却返回了父目录 ——
+    #: 又是一次静默绑错树, 而且就长在「修静默绑错树」的这段代码里。
+    #: ⛔ 这一层用 `except Exception` 而不是 `except ImportError`: 裁定是「拿不到 PyYAML
+    #: 就拒写」, 拿不到的原因有多少种不重要 —— 任何一种都让「指向哪棵树」不可证。
     try:
         import yaml  # harness_tree 解析: 与 F1 判定同一个理由
+    except Exception as _ie:
+        #: ⛔ 报错里必须带上**这个进程自己的解释器路径**与一条绑定它的安装命令
+        #: (Codex round-6 LOW): 只说「请装 PyYAML」时, 用户照抄 `pip install pyyaml`
+        #: 很可能装进了另一个环境 —— 装成功了、却还是被拒, 而消息里没有任何线索。
+        #: 路径两侧加引号并转义内部引号(Codex round-7 LOW): 解释器装在带空格的目录里时,
+        #: 裸路径会被 shell 拆成两个参数, 用户照抄那一行会失败。
+        _exe_q = '"' + sys.executable.replace('"', '\\"') + '"'
+        raise SystemExit(f"[quiz-answer] PyYAML 不可用 — harness_tree 指向哪棵树不可证, fail-closed 拒写 — 逐行扫描猜不出 YAML 的换行与语法上下文, 猜错的代价是把学习事件静静地绑到另一棵 harness 树上, 故本写点在拿不到 PyYAML 时一律不写。拿不到的原因: {type(_ie).__name__}: {_ie}。跑本写点的解释器是 {sys.executable} ; 请照抄这一条装(它绑定的正是上面那个解释器, 不要换成裸 pip): {_exe_q} -m pip install pyyaml")
+    _tree = ""
+    try:
         with open(_cfg_p, encoding="utf-8") as _cf:
             _doc = yaml.safe_load(_cf)
         #: `_doc` 非 dict (空文件 / 纯标量 / 列表)、键缺失、值为 null —— 三者一律
@@ -429,13 +445,6 @@ def _harness_tree(vault_dir):
             _tree = str(_doc["harness_tree"])
     except OSError:
         _tree = ""  # 压根没有 .canvas-config.yaml ⇒ 没写这个键 ⇒ 缺省回退
-    except ImportError:
-        #: ⛔ 缺库即拒写。**不要**在这里加任何「先试着读一下」的降级 —— 那正是被
-        #: 删掉的那段, 它的每一个版本都留下过「采用一棵 PyYAML 不会给出的树」的反例。
-        #: ⛔ 报错里必须带上**这个进程自己的解释器路径**与一条绑定它的安装命令
-        #: (Codex round-6 LOW): 只说「请装 PyYAML」时, 用户照抄 `pip install pyyaml`
-        #: 很可能装进了另一个环境 —— 装成功了、却还是被拒, 而消息里没有任何线索。
-        raise SystemExit(f"[quiz-answer] PyYAML 不可用 — harness_tree 指向哪棵树不可证, fail-closed 拒写 — 逐行扫描猜不出 YAML 的换行与语法上下文, 猜错的代价是把学习事件静静地绑到另一棵 harness 树上, 故本写点在缺库时一律不写。跑本写点的解释器是 {sys.executable} ; 请照抄这一条装(它绑定的正是上面那个解释器, 不要换成裸 pip): {sys.executable} -m pip install pyyaml")
     except Exception as _ye:
         raise SystemExit(f"[quiz-answer] .canvas-config.yaml 不是合法 YAML ({_ye}) — harness_tree 指向哪棵树不可证, fail-closed 拒写 — 请人工修复 {_cfg_p}")
     if not _tree:

@@ -7303,7 +7303,9 @@ def _run_writer_no_yaml_at_harness_tree(vault: Path, payload: dict):
     写点版本并自证三条期望)。「下游会不会拒」**不是写点的性质, 而是 harness_tree 选中
     那棵树的性质**。正确的说法只到这里: **当 harness_tree 解析到一棵 `_vault_id_of`
     依赖 PyYAML 的树时**, 缺库 ⇒ 下游也拒。
-    整进程注入之所以不合用, 是另一个更朴素的理由: 它会在到达本函数之前就把下游打死,
+    整进程注入之所以不合用, 是另一个更朴素的理由(措辞按 Codex round-7 LOW 更正 ——
+    调用顺序是先本函数、后下游, 原话把先后说反了): 它会让**本函数之后**的下游也一并
+    拿不到 PyYAML, 于是端到端结局被下游那条拒因盖住,
     于是测不到本函数自己那一格。
     故探针把缺库**收窄到那一次调用**: `sys.modules["yaml"] = None` 让
     `import yaml` 抛 ImportError, 调用一结束立刻还原。
@@ -7657,8 +7659,8 @@ def test_g33r2_harness_tree_no_pyyaml_never_returns_a_tree(tmp_path, monkeypatch
 
     下面这张表逐条都是曾经真的让两条分支分叉过的形态(换行类字符 / 转义键 / 续行折叠 /
     流式映射 / 文档标记 / 空白口径 / 非法字符 …)。它们现在的作用不再是「比对两侧取值」,
-    而是**证明没有任何一种形态能让缺库分支重新开口**。谁要把降级解析加回来, 这 60 条
-    会一起红 —— 那正是本门想要的阻力。
+    而是**证明没有任何一种形态能让缺库分支重新开口**。谁要把降级解析加回来, 这张表里
+    会有一批一起红 —— 那正是本门想要的阻力。
 
     ⚠️ 计数如实（Codex round-6 LOW 更正了我先前的说法）：把 SKILL.md 还原到 `4eeaeaa6`
     时，存档汇总是 **12 failed + 50 passed = 62 项**，而那 62 项里包含 60 条 unit 参数
@@ -7718,24 +7720,35 @@ def _block_yaml(monkeypatch, _mode):
     """
     if _mode == "module_not_found":
         monkeypatch.setitem(sys.modules, "yaml", None)
-    else:
-        import builtins
+        return
+    import builtins
 
-        _real_import = builtins.__import__
+    _real_import = builtins.__import__
+    #: 第三种: 导入过程自己抛 **OSError**(包源码/依赖不可读、权限错)。Codex round-7 HIGH
+    #: 实测过一次真事故: 它曾被 `except OSError` 当成「没有 config 文件」⇒ 静默回退父目录。
+    _exc = (
+        ImportError("cannot import name '_yaml' from partially initialized module 'yaml'")
+        if _mode == "plain_import_error"
+        else PermissionError(13, "Permission denied", "/site-packages/yaml/__init__.py")
+    )
 
-        def _fake_import(_name, *_a, **_kw):
-            if _name == "yaml":
-                raise ImportError("cannot import name '_yaml' from partially initialized module 'yaml'")
-            return _real_import(_name, *_a, **_kw)
+    def _fake_import(_name, *_a, **_kw):
+        if _name == "yaml":
+            raise _exc
+        return _real_import(_name, *_a, **_kw)
 
-        monkeypatch.setattr(builtins, "__import__", _fake_import)
+    monkeypatch.setattr(builtins, "__import__", _fake_import)
 
 
-@pytest.mark.parametrize("_probe", ["module_not_found", "plain_import_error"])
+@pytest.mark.parametrize("_probe", ["module_not_found", "plain_import_error", "import_raises_oserror"])
 @pytest.mark.parametrize(
     "_shape",
     [
         "no_config_file",
+        #: ⛔ 两条件**同时**成立才测得到的一格(Codex round-7 MEDIUM): 原来
+        #: `no_config_file` 不造可用父树、`parent_is_a_usable_tree` 又必写 config,
+        #: 于是「只在无 config 且父树可用时回退」这一种错误实现从 14 格中间穿过去。
+        "no_config_and_parent_is_tree",
         "target_tree_really_exists",
         "parent_is_a_usable_tree",
         "minimal_unquoted_config",
@@ -7771,6 +7784,8 @@ def test_g33r2_harness_tree_no_pyyaml_refuses_across_fixture_shapes(tmp_path, mo
 
     if _shape == "no_config_file":
         pass  # 压根不写 .canvas-config.yaml
+    elif _shape == "no_config_and_parent_is_tree":
+        _usable_tree(tmp_path)  # 无 config **且** 父目录是一棵可用树
     elif _shape == "target_tree_really_exists":
         _cfg.write_text(f'# c\nvault_id: "v"\nharness_tree: {_real}\n', encoding="utf-8")
     elif _shape == "parent_is_a_usable_tree":

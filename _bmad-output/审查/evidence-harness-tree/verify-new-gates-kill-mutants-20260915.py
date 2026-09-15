@@ -40,6 +40,8 @@ def build(shape, base):
     env = {}
     if shape == "no_config_file":
         pass
+    elif shape == "no_config_and_parent_is_tree":
+        usable(base)
     elif shape == "target_tree_really_exists":
         cfg.write_text(f'# c\nvault_id: "v"\nharness_tree: {real}\n', encoding="utf-8")
     elif shape == "parent_is_a_usable_tree":
@@ -58,9 +60,10 @@ def build(shape, base):
     return vd, env
 
 
-SHAPES = ["no_config_file", "target_tree_really_exists", "parent_is_a_usable_tree",
-          "minimal_unquoted_config", "pure_json_config", "env_override_set", "sidecar_present"]
-PROBES = ["module_not_found", "plain_import_error"]
+SHAPES = ["no_config_file", "no_config_and_parent_is_tree", "target_tree_really_exists",
+          "parent_is_a_usable_tree", "minimal_unquoted_config", "pure_json_config",
+          "env_override_set", "sidecar_present"]
+PROBES = ["module_not_found", "plain_import_error", "import_raises_oserror"]
 
 
 def run_cell(fn, shape, probe):
@@ -73,9 +76,12 @@ def run_cell(fn, shape, probe):
     if probe == "module_not_found":
         sys.modules["yaml"] = None
     else:
+        _e = (ImportError("cannot import name '_yaml' from partially initialized module 'yaml'")
+              if probe == "plain_import_error"
+              else PermissionError(13, "Permission denied", "/site-packages/yaml/__init__.py"))
         def fake(name, *a, **kw):
             if name == "yaml":
-                raise ImportError("cannot import name '_yaml' from partially initialized module 'yaml'")
+                raise _e
             return real_import(name, *a, **kw)
         builtins.__import__ = fake
     try:
@@ -168,7 +174,18 @@ MUTANTS = {
     ),
     "P2-open-before-import": ("    try:\n        import yaml  # harness_tree 解析: 与 F1 判定同一个理由\n        with open(_cfg_p, encoding=\"utf-8\") as _cf:\n            _doc = yaml.safe_load(_cf)",
                               "    try:\n        with open(_cfg_p, encoding=\"utf-8\") as _cf:\n            _txt0 = _cf.read()\n        import yaml  # harness_tree 解析: 与 F1 判定同一个理由\n        _doc = yaml.safe_load(_txt0)"),
-    "WM-narrow-except": ("    except ImportError:", "    except ModuleNotFoundError:"),
+    "WM-narrow-except": ("    except Exception as _ie:", "    except ModuleNotFoundError as _ie:"),
+    "H1-merged-try": (
+        "    try:\n        import yaml  # harness_tree 解析: 与 F1 判定同一个理由\n    except Exception as _ie:",
+        "    try:\n        import yaml  # harness_tree 解析: 与 F1 判定同一个理由\n        _probe_open = open(_cfg_p, encoding=\"utf-8\").read()\n    except OSError:\n        return os.path.dirname(vault_dir)\n    except Exception as _ie:"),
+    #: ⛔ 位置要对: 这条回退必须插进**缺库分支**(import 的 except)里, 插在它后面等于
+    #: 永远执行不到 —— 那样「存活」是空洞的, 不是门的缺口。第一版我就放错了位置。
+    "M1-parent-when-no-config": (
+        IMPORT_ERR_LINE,
+        '''        _par0 = os.path.dirname(vault_dir)
+        if not os.path.exists(_cfg_p) and os.path.isdir(os.path.join(_par0, "backend", "scripts")):
+            return _par0
+        raise SystemExit(f"[quiz-answer] PyYAML 不可用 — harness_tree'''),
     "WM-merge-message": (IMPORT_ERR_LINE,
                          '        raise SystemExit(f"[quiz-answer] .canvas-config.yaml 无法用 PyYAML 解析 — fail-closed 拒写 — 请人工修复 {_cfg_p}") or SystemExit(f"[quiz-answer] x — harness_tree'),
 }
@@ -196,7 +213,7 @@ for name, (old, new) in MUTANTS.items():
         n_killed += 1
         print("%-24s %-9s %s" % (name, "KILLED", caught[0] + (f" (+{len(caught)-1})" if len(caught) > 1 else "")))
     else:
-        print("%-24s %-9s %s" % (name, "SURVIVED", "⛔ 14 格全绿 —— 新门仍抓不住"))
+        print("%-24s %-9s %s" % (name, "SURVIVED", f"⛔ {len(SHAPES)*len(PROBES)} 格全绿 —— 新门仍抓不住"))
 
 print("-" * 78)
 print("KILLED %d / %d" % (n_killed, len(MUTANTS)))
@@ -204,4 +221,4 @@ print("KILLED %d / %d" % (n_killed, len(MUTANTS)))
 # 阴性对照：生产代码本身必须 14 格全绿（否则是新门误伤）
 prod = make_fn(SRC)
 bad = [(s, p) for s in SHAPES for p in PROBES if not run_cell(prod, s, p)[0]]
-print("阴性对照（生产代码应 14 格全绿）:", "全绿 ✅" if not bad else f"⛔ 误伤 {bad}")
+print(f"阴性对照（生产代码应 {len(SHAPES)*len(PROBES)} 格全绿）:", "全绿 ✅" if not bad else f"⛔ 误伤 {bad}")
