@@ -3705,6 +3705,8 @@ def test_g2_8_activate_tx_opens_no_new_write_surface():
     ⚠️ 叶子软链 `.agents/skills/<name>` **不在**这份清单里，也不该在：条目名取决于
        步 2 装进来什么，步 1 时还不知道。它们在 `write_opencode_binding` 里过**同一份**
        判据（`check_forbidden_paths --outputs`），与步 4 源镜像 MIRROR_WRITES 同律。
+    ⚠️ `AGENTS.md.tmp` 曾经在这份清单里，随发布机制改为「直写目标」而退场 —— 写面清单
+       与脚本实际写的对象必须一一对应，多登记一条不会更安全，只会让清单开始说谎。
     """
     src = DEPLOY_SH.read_text(encoding="utf-8")
     block = src[src.index("local -a PENDING_WRITES=(") : src.index("local -a DIR_WRITES=")]
@@ -3725,9 +3727,11 @@ def test_g2_8_activate_tx_opens_no_new_write_surface():
         "ev-npm-cache",
         "ev-npm-logs",
         # CARD-HOSTS-OPENCODE：`--hosts` 含 opencode 时步 3 的写面（条件 append）。
+        # ⚠️ 这里**没有** `AGENTS.md.tmp`：Codex r3 之后发布不再经临时文件
+        #    （直接 O_CREAT|O_EXCL 建目标本身）。写面清单只登记真正会被写的对象 ——
+        #    留一条永远不会被写的登记就是名实不符（DD-13），所以它随机制一起退场。
         "opencode-skills-root",
         "opencode-agents-md",
-        "opencode-agents-md-tmp",
     }, f"待写清单变了（步 1 禁改 / 新写面必须先进这份清单）: {sorted(declared)}"
     # 条件 append 必须**留在本门的取名面里**（见 docstring 的「不许弄瞎」一条）。
     assert "PENDING_WRITES+=(" in block, "opencode 的条件 append 被挪出了本门的取名面"
@@ -4360,6 +4364,49 @@ def test_hosts_opencode_refuses_to_clobber_handwritten_agents_md(tmp_path: Path)
     v = tmp_path / "vaults" / name
     assert (v / "AGENTS.md").read_text(encoding="utf-8") == handwritten, "手写正文被改动了"
     assert not (v / "AGENTS.md.tmp").exists(), "临时文件没被清掉"
+
+
+def test_hosts_opencode_refuses_to_replace_even_its_own_previous_output(tmp_path: Path):
+    """已存在的 AGENTS.md **即使带本脚本的生成标记**也一律拒绝替换（Codex r3 之后的新行为）。
+
+    ⛔ 这条门锁的是一个**刻意的取舍**，别当成 bug 顺手"修好"：
+       替换已有目标必然要先 `unlink`，而「目标存在」这件事只能在 `unlink` **之前**检查 ——
+       检查与删除之间冒出来的手写文件就会被无声删掉（Codex r3 H1 实测的正是这条）。
+       为一个**走不到的分支**（整脚本重跑先被步 2 的防覆盖闸门拦成 rc 72，到不了步 3）
+       保留 unlink，换来的是一整类竞态。所以：存在即拒，让人自己决定怎么处置。
+    """
+    name, port = "probe_oc7", "8287"
+    h = _oc_harness(tmp_path)
+    marked = "<!-- generated-by: deploy-vault.sh (--hosts opencode) -->\n# 上一次生成的\n"
+    _oc_preseed_installer(tmp_path, h, f"printf '%s' '{marked}' > \"$v/AGENTS.md\"\n")
+    env = _tx_env(tmp_path, port, name)
+    r = _oc_run(tmp_path, h, name, port, env=env)
+    assert r.returncode == 73, f"带标记的已有目标没被拒: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    assert "上次生成的产物" in r.stdout, f"消息没说清它是什么: {r.stdout}"
+    v = tmp_path / "vaults" / name
+    assert (v / "AGENTS.md").read_text(encoding="utf-8") == marked, "已有目标被改动了"
+    assert not (v / "AGENTS.md.tmp").exists(), "落下了临时文件（本版本根本不该有 tmp）"
+
+
+def test_deploy_sh_publishes_agents_md_without_a_temp_file(tmp_path: Path):
+    """静态门：发布路径里不得再出现「写 tmp 再改名」那套。
+
+    ⛔ Codex r3 的 H1 / H2 / M1 **三条 HIGH/MEDIUM 全部出在 tmp + 改名这套机制上**
+       （EEXIST 分支无条件 unlink / link 按名字重找源 / tmp 清理静默失败）。
+       换成「直接 O_CREAT|O_EXCL|O_NOFOLLOW 建目标本身」之后整类问题消失。
+       哪天有人为了"发布原子性"把 tmp 加回来，这条门会红，逼他先读那段说明。
+    """
+    src = DEPLOY_SH.read_text(encoding="utf-8")
+    start = src.index("publish_agents_md() {")
+    end = src.index("\nPYPUB\n", start)
+    body = src[start:end]
+    code = [ln for ln in body.splitlines() if not ln.lstrip().startswith("#")]
+    for banned in ("os.replace(", "os.link(", "os.rename("):
+        hits = [ln.strip() for ln in code if banned in ln]
+        assert not hits, f"发布路径又出现了改名式发布 {banned}: {hits}"
+    assert "O_EXCL" in body and "O_NOFOLLOW" in body, "直写目标的两个关键 flag 没了"
+    # 写面清单里也不该再有 tmp 的登记（名实一致）。
+    assert "opencode-agents-md-tmp" not in src, "PENDING_WRITES 里还留着已不会被写的 tmp 登记"
 
 
 def test_hosts_opencode_agents_md_is_nonempty_and_marked(tmp_path: Path):

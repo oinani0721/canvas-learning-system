@@ -610,8 +610,10 @@ step1_preflight() {
         PENDING_WRITES+=(
             "opencode-skills-root:$VAULT/.agents/skills"
             "opencode-agents-md:$VAULT/AGENTS.md"
-            "opencode-agents-md-tmp:$VAULT/AGENTS.md.tmp"
         )
+        # ⚠️ 这里**没有** AGENTS.md.tmp：r3 起发布不再经临时文件（见 publish_agents_md
+        #    顶部那段说明）。写入面清单只登记真正会被写的对象 —— 留一条永远不会被写的
+        #    登记, 就是让清单说的和脚本做的对不上（DD-13 名实一致）。
     fi
     # ⛔ TMPDIR 单独判（Codex r11 MEDIUM-1 —— 我 r10 把它塞进 PENDING_WRITES 的回归）：
     #    它是「**写入其中**的目录」, 不是「本脚本创建/截断的叶子文件」。
@@ -995,7 +997,7 @@ write_opencode_binding() {
         return 1
     fi
     if check_forbidden_paths --outputs "opencode-skills-root:$dst_root" \
-        "opencode-agents-md:$agents" "opencode-agents-md-tmp:$agents.tmp" \
+        "opencode-agents-md:$agents" \
         "${LINK_WRITES[@]}"; then
         OPENCODE_ERR="禁写面: $FORBIDDEN_HIT"
         return 1
@@ -1040,15 +1042,11 @@ write_opencode_binding() {
     done
 
     # ── ② AGENTS.md ──────────────────────────────────────────────────────────
-    # ⛔ 发布走 publish_agents_md（Codex r1 HIGH-2）：原来「`grep` 查标记 → `assert_writable_now`
-    #    → shell 重定向按路径重开 → `mv`」有三个各自独立的窗口 ——
-    #    ① 复查之后重定向**重新解析路径**, 期间被换成软链/硬链接就写穿；
-    #    ② 标记检查与 `mv` 之间冒出来的手写文件会被盖掉；
-    #    ③ 目标变成目录时 `mv` 会写进 `AGENTS.md/AGENTS.md.tmp`。
-    #    改为：O_CREAT|O_EXCL|O_NOFOLLOW 建 tmp（拿到的必然是本次新建的普通文件）
-    #    → 写 → **紧邻** os.replace 前再核一次目标身份与标记 → replace。
-    #    标记判据只此一份（在 publish_agents_md 里前后各调一次同一个函数），
-    #    shell 侧不再手抄一份 grep —— 两份手抄的判据必然漂移。
+    # ⛔ 发布走 publish_agents_md，shell 侧**不自己写文件、也不自己抄一份判据**
+    #    （两份手抄的判据必然漂移）。三轮 Codex 把这条路径上的竞态逐个逼了出来，
+    #    最终的形态是「直接以 O_CREAT|O_EXCL|O_NOFOLLOW 建目标本身」——
+    #    为什么不是「写 tmp 再改名」, 见 publish_agents_md 顶部那段说明。
+    #    这里只负责把正文送进去、把失败原因带出来。
     local perr prc=0
     perr="$(write_agents_md "${NAMES[@]}" | publish_agents_md "$agents" "$OPENCODE_AGENTS_MARK" 2>&1)" || prc=$?
     if [ "$prc" != 0 ]; then
@@ -1105,33 +1103,31 @@ import sys
 dst, mark = sys.argv[1], sys.argv[2].encode()
 ddir = os.path.dirname(dst) or "."
 base = os.path.basename(dst)
-tmpbase = base + ".tmp"
 
 
-def refuse_reason(dfd, name, path):
-    """目标为何不可被替换；None = 可以。
+def describe_existing(dfd, name, path):
+    """目标已存在时它是什么；None = 不存在（可以创建）。
 
-    ⛔ 判据只此一份（前后两次调的是同一个函数）——两份手抄的判据必然漂移。
     ⛔ 一律 `dir_fd=` + `follow_symlinks=False`：绑在已打开的目录 fd 上，
-       父目录在这之后被换掉也不影响；末段不跟随软链。
+       父目录在这之后被换掉也影响不到；末段不跟随软链。
+    ⛔ 「问不出来」不能压成「没问题」—— 一律 fail-closed。
     """
     try:
         st = os.stat(name, dir_fd=dfd, follow_symlinks=False)
     except FileNotFoundError:
         return None
     except OSError as exc:
-        # 「问不出来」不能压成「没问题」——fail-closed。
-        return f"问不出目标的状态, 不敢发布: {path} ({exc})"
+        return f"问不出目标的状态, 不敢动它: {path} ({exc})"
     if statmod.S_ISLNK(st.st_mode):
-        return f"目标是软链, 拒绝替换（写入会沿链穿到别处）: {path}"
+        return f"目标是软链: {path}"
     if statmod.S_ISDIR(st.st_mode):
-        return f"目标是目录, 拒绝替换: {path}"
+        return f"目标是目录: {path}"
     if not statmod.S_ISREG(st.st_mode):
-        return f"目标不是普通文件, 拒绝替换: {path}"
+        return f"目标不是普通文件: {path}"
     try:
         rfd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=dfd)
     except OSError as exc:
-        return f"打不开已有目标, 无从判断是不是本脚本生成的: {path} ({exc})"
+        return f"打不开已有目标: {path} ({exc})"
     try:
         with os.fdopen(rfd, "rb") as fh:
             first = fh.readline()
@@ -1139,9 +1135,9 @@ def refuse_reason(dfd, name, path):
         return f"读不出已有目标的首行: {path} ({exc})"
     # ⛔ 首行**精确相等**, 不是全文子串匹配：子串匹配会把任何正文里
     #    碰巧引用过这行标记的手写文件判成「我生成的」。
-    if first.rstrip(b"\r\n") != mark:
-        return f"已有目标缺生成标记（疑为手写）, 拒绝覆盖: {path}"
-    return None
+    if first.rstrip(b"\r\n") == mark:
+        return f"目标已是本脚本上次生成的产物, 要重建请先删掉它: {path}"
+    return f"目标疑为手写（缺生成标记）: {path}"
 
 
 def die(msg):
@@ -1151,87 +1147,82 @@ def die(msg):
 
 body = sys.stdin.buffer.read()
 # ⛔ 空正文一律拒：上游没把内容送进来时（例如 stdin 被别的东西占了）, 落一个 0 字节的
-#    AGENTS.md 而 rc 仍是 0 —— 这种「成功地什么都没做」正是本卡自己踩过的那个坑。
+#    文件而 rc 仍是 0 —— 这种「成功地什么都没做」正是本卡自己踩过的那个坑。
 if not body.strip():
     die("AGENTS.md 正文为空, 拒绝发布（上游没把内容送进来）")
 
-# 目录 fd 一旦打开就**钉死了那个 inode**, 之后的 stat / open / link / unlink 全都相对它做,
-# 父目录在这之后被换成别的目录也影响不到我们。
-# ⚠️ 刻意不加 O_NOFOLLOW：末段就是 $VAULT 自己, 它由步 1 的判据物理解析过；
-#    这里要挡的是「打开之后被换掉」, 而那正是 fd 语义本身提供的。
+# ⚠️ O_NOFOLLOW：末段（$VAULT 自己）被换成软链时当场失败。
+#    ⛔ 如实声明它**挡不住**什么：$VAULT 的**祖先**在步 1 判据与这一刻之间被换掉，
+#    这里照样会打开「换之后」的那个目录 —— 要闭合它得让步 1 打开 fd 一路传到步 3,
+#    而步 1 是别的卡的定稿面。该残留窗口已登记为移交项，不假装它不存在。
 try:
-    dfd = os.open(ddir, os.O_RDONLY | os.O_DIRECTORY)
+    dfd = os.open(ddir, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
 except OSError as exc:
     die(f"打开 AGENTS.md 所在目录失败: {ddir} ({exc})")
 
-tfd = None
-published = False
+fd = None
+ok = False
 try:
-    why = refuse_reason(dfd, base, dst)  # ① fail-fast: 不可发布就别建 tmp
-    if why:
-        die(why)
+    # ══ 直接以 O_CREAT|O_EXCL|O_NOFOLLOW 建**目标本身**并写进去 ══════════════
+    # ⛔ 刻意**不**走「写 tmp → 改名发布」那套（Codex r3 H1/H2/M1 全出在它身上）：
+    #    ① EEXIST 分支要 unlink 旧目标, 而 EEXIST 只证明「此刻有东西」,
+    #       不证明「是我刚检查过的那个」⇒ 会删掉刚出现的手写文件；
+    #    ② link/replace 按**名字**重新找源, 身份检查绑不住实际发布的那个 inode；
+    #    ③ tmp 清理失败只能静默吞掉, 残片让下次跑在 O_EXCL 上永久失败。
+    #    换来的只是「发布原子性」—— 而这是一份**纯说明文档**, 半成品既不会损坏数据
+    #    也不会让别的东西读出错误行为, 且失败时整脚本 rc 73、用户看得见。
+    #    直写目标则一次性拿到全部想要的性质：
+    #      · O_EXCL   ⇒「绝不覆盖任何已存在的东西」由内核保证, 不靠检查+祈祷
+    #      · 全程持有同一个 fd ⇒ 没有任何一步「按名字再找一次」
+    #      · 没有 tmp ⇒ tmp 相关的竞态与残片问题整类消失
+    #    代价（如实声明）：写到一半失败会留下内容不完整的目标, 下面按身份清理。
     try:
-        # O_EXCL ⇒ 已存在（含软链、硬链接）一律失败；O_NOFOLLOW ⇒ 不跟随末段软链。
-        # 于是这个 fd 必然指向**本次新建的**普通文件。
-        tfd = os.open(
-            tmpbase, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644, dir_fd=dfd
-        )
+        fd = os.open(base, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644, dir_fd=dfd)
+    except FileExistsError:
+        # 已存在 ⇒ 一律不动它, 只把「它是什么」说清楚。
+        # ⚠️ 本脚本刻意**不**做「覆盖上次的产物」：整脚本重跑会先被步 2 的防覆盖闸门
+        #    拦成 rc 72, 到不了这里；为一个走不到的分支留 unlink, 换来的是 H1 那类缺陷。
+        what = describe_existing(dfd, base, dst) or f"目标已存在: {dst}"
+        die(f"拒绝覆盖 —— {what}")
     except OSError as exc:
-        die(f"建 AGENTS.md 临时文件失败, 未写任何东西: {dst}.tmp ({exc})")
+        die(f"建 AGENTS.md 失败, 未写任何东西: {dst} ({exc})")
 
-    with os.fdopen(tfd, "wb", closefd=False) as fh:
+    with os.fdopen(fd, "wb", closefd=False) as fh:
         fh.write(body)
         fh.flush()
-    os.fsync(tfd)
+    os.fsync(fd)
 
-    # ② 身份钉死：fd 侧与路径侧**各自**要求 nlink == 1, 再要求两侧是同一个 inode。
-    #    ⛔ 只比「两侧相等」挡不住「两侧同时变坏」（都被换成同一个硬链接对）——
-    #    「相等」不能替「合格」背书。
-    want = os.fstat(tfd)
-    if want.st_nlink != 1:
-        die(f"临时文件（fd 侧）有 {want.st_nlink} 个硬链接, 不合格: {dst}.tmp")
-    got = os.stat(tmpbase, dir_fd=dfd, follow_symlinks=False)
-    if got.st_nlink != 1:
-        die(f"临时文件（路径侧）有 {got.st_nlink} 个硬链接, 不合格: {dst}.tmp")
-    if (want.st_dev, want.st_ino) != (got.st_dev, got.st_ino):
-        die(f"临时文件在写完之后被掉包, 拒绝发布: {dst}.tmp")
-
-    why = refuse_reason(dfd, base, dst)  # ③ 紧邻发布前再核一次
-    if why:
-        die(why)
-
-    # ④ 发布用 os.link 而不是 os.replace：
-    #    link 在目标已存在时**原子失败**(EEXIST), replace 则无条件覆盖。
-    #    于是「不覆盖任何已存在的东西」由内核保证, 不再靠「检查完祈祷没人插队」。
-    #    （os.replace 在本平台不支持 dir_fd, 也钉不住父目录 —— 实测
-    #     `os.replace in os.supports_dir_fd` 为 False。）
-    try:
-        os.link(tmpbase, base, src_dir_fd=dfd, dst_dir_fd=dfd)
-    except FileExistsError:
-        # 目标存在 —— 上一行刚核过它带我们的标记, 即**上一次生成的产物**。
-        # 先 unlink 再 link：这中间若有人抢先建了同名文件, link 会 EEXIST 而
-        # **不覆盖**它（比 replace 的无条件覆盖保守）。
-        # 如实声明代价：unlink 与 link 之间进程若被杀, AGENTS.md 会暂时消失 ——
-        # 它是可重新生成的派生件, 重跑即可。
-        os.unlink(base, dir_fd=dfd)
-        os.link(tmpbase, base, src_dir_fd=dfd, dst_dir_fd=dfd)
-    published = True
+    # 写完核一次身份：这个 fd 指向的必须仍然是 `dst` 这个名字下的那个 inode,
+    # 且 nlink == 1。⛔ fd 侧与路径侧**各自**要求 nlink == 1 ——
+    # 只比「两侧相等」挡不住两侧同时变坏,「相等」不能替「合格」背书。
+    mine = os.fstat(fd)
+    if mine.st_nlink != 1:
+        die(f"刚写的 AGENTS.md（fd 侧）有 {mine.st_nlink} 个硬链接, 不合格: {dst}")
+    now = os.stat(base, dir_fd=dfd, follow_symlinks=False)
+    if now.st_nlink != 1:
+        die(f"刚写的 AGENTS.md（路径侧）有 {now.st_nlink} 个硬链接, 不合格: {dst}")
+    if (mine.st_dev, mine.st_ino) != (now.st_dev, now.st_ino):
+        die(f"AGENTS.md 在写完之后被掉包: {dst}")
+    ok = True
 finally:
-    if tfd is not None:
+    if fd is not None:
+        if not ok:
+            # 清理**我自己刚建的**那个半成品 —— 先按身份确认它还是我建的那个,
+            # 身份对不上就不动它并说出来（别替不知道是谁的文件做决定）。
+            try:
+                mine = os.fstat(fd)
+                now = os.stat(base, dir_fd=dfd, follow_symlinks=False)
+                if (mine.st_dev, mine.st_ino) == (now.st_dev, now.st_ino):
+                    os.unlink(base, dir_fd=dfd)
+                else:
+                    print(f"半成品已不是我建的那个, 原样留下: {dst}", file=sys.stderr)
+            except OSError as exc:
+                print(f"清理半成品失败, 原样留下: {dst} ({exc})", file=sys.stderr)
         try:
-            os.close(tfd)
-        except OSError:
-            pass
-        # link 成功后 tmp 只是同一个 inode 的多余名字；失败时它是残片。
-        # 两种情况都要清掉 —— 留着会让下一次跑在 O_EXCL 上永久失败。
-        try:
-            os.unlink(tmpbase, dir_fd=dfd)
+            os.close(fd)
         except OSError:
             pass
     os.close(dfd)
-
-if not published:
-    die(f"发布 AGENTS.md 未完成: {dst}")
 PYPUB
     )" || srcrc=$?
     # ⛔ 捕获失败必须当场拒（Codex r2 LOW-1）：`$(...)` 在条件上下文里不触发 set -e,
