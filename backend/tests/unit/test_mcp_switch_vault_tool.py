@@ -24,26 +24,42 @@
   实测 body 只有 ``{"error", "detail"}``。这条断言防后人照原设计稿改回去。
 - ⛔ ① **不得**弱化成「只断言 success is False」—— 改前改后都成立, 锁不住修复。
 - ① 末尾那条**逐字**比对是 Codex round-1 LOW-4 的整改: 只做 token 匹配时, 把文案
-  硬编码成 ``error="quarantined"`` 也能全绿; 逐字比对把「透传」本身锁住, 并且让
-  ①② 之间产生真实数据依赖 —— 否则②只证明端点契约, 证明不了①调用了该端点。
+  硬编码成 ``error="quarantined"`` 也能全绿(负控 C 实测), 逐字比对把「文案与端点
+  当前 body 一致」锁住。⚠️ 它**不**证明①调用了该端点 —— 见下 §7。
 
-⚠️ **本文件不证明什么** (Codex round-1 ⑥ 逐条核对后如实登记):
+⚠️ **本文件不证明什么** (Codex round-1 ⑥ / round-2 LOW-1·LOW-2·LOW-3 逐条核对,
+八组负控实测后如实登记; 每条都标注是哪组变异实测出来的):
 1. 不证明该工具在 live MCP 路由上可达 —— ``switch_vault`` ∈
    ``server.py::QUARANTINED_MCP_TOOLS``, ``/mcp/tools/switch_vault`` 是 410 stub,
    本函数未注册 live 路由 (测试与显式 Python 调用仍能执行本体, 不等于运行期可达);
 2. 不证明端点将来解除隔离后 success 分支正确 —— 隔离态下该分支**永不执行**,
    属门未覆盖的路径, 本文件对它**没有任何**约束力;
-3. 不锁 ``isinstance(payload, dict)`` 守卫 —— 端点恒返回 dict body, 删掉该守卫
-   两条测试仍全绿 (那条路径当前不可达);
+3. 不锁 ``isinstance(payload, dict)`` 守卫 —— 端点恒返回 dict body, 那条路径不可达;
 4. 不锁成功分支的字段映射 (``vault_name`` / ``vault_id`` 取值) —— 同上, 不可达;
-5. **不锁 ``bytes(result.body)`` 转换** (负控 D 实测: 删掉它两条测试仍全绿)。
-   实测 ``JSONResponse.body`` 的**运行期**类型恒为 ``bytes``, ``bytes()`` 是 no-op;
-   它存在纯粹是为静态类型 —— typeshed 把 ``Response.body`` 标成
-   ``bytes | memoryview[int]`` 而 ``json.loads`` 不收 memoryview。⇒ **它由 pyright
-   门守, 不由本文件守**。(本条曾一度被写成「能被①的逐字比对间接锁住」, 负控 D 当场
-   证伪并更正 —— 关于证据的断言必须先跑一遍再写。)
-6. 不锁外层 ``except`` 的文案形态 (负控 E 实测: 退回 ``str(e)[:200]`` 两条仍全绿) ——
-   那条路径要靠端点抛异常才显形, 而端点恒正常返回 410。
+5. **不锁 ``bytes(result.body)`` 转换** (负控 D: 删掉它 2 passed)。实测
+   ``JSONResponse.body`` 在**当前端点正常返回、body 未被中间层替换**的路径上恒为
+   ``bytes`` (``starlette.responses.JSONResponse.render`` 返回编码后的 bytes),
+   故 ``bytes()`` 在这条路径上是 no-op; 它存在纯粹是为**静态类型** —— Starlette
+   ``Response.body`` 的推导类型是 ``bytes | memoryview[int]``, 而 ``json.loads``
+   的签名只收 ``str | bytes | bytearray``。⇒ **它由 pyright 门守, 不由本文件守**。
+   (本条曾一度写成「能被①的逐字比对间接锁住」, 负控 D 证伪; 归因也曾错记为
+    「typeshed 把 Response.body 标成…」, 由 Codex round-2 ① 更正。)
+6. 不锁外层 ``except`` 的文案形态 (负控 E: 退回 ``str(e)[:200]`` 后 2 passed) ——
+   那条路径要靠端点抛异常才显形, 而端点恒正常返回 410;
+7. **不锁调用链本身** (负控 H: 把工具改成跳过端点、直接硬编码完整 ``detail[:200]``,
+   仍 2 passed)。①末尾的逐字比对锁的是「文案与端点当前 body 一致」, 不是「①调用了
+   端点」; 后者由源码保证(函数体内无替换、无 mock), 不由断言保证;
+8. **不锁失败判据的两侧** (负控 F: 删掉 ``result.status_code >= 400`` 一侧 → 2 passed;
+   负控 G: 把 ``or`` 改成 ``and`` → 2 passed)。当前端点同时满足两侧(410 且 body 有
+   ``error`` 键), 故任一侧单独失效都不显形 —— 要锁住它们需要一个「只满足一侧」的
+   真实响应, 而隔离态下不存在;
+9. 不锁内层异常兜底与 ``detail`` 缺失时的回退链 (``detail`` → ``error`` → HTTP 文案)
+   —— 当前 body 恒有非空 ``detail``, 这些分支都不可达。
+
+⚠️ **证据口径**: 上述「2 passed」均来自**整文件两条测试**的负控跑
+(``_bmad-output/审查/evidence-switchvault/negctl-r3-8mutants-*.txt``)。
+早一版负控只跑了测试①、日志是 ``1 failed``/``1 passed``, 却被表述成「两条全绿」——
+由 Codex round-2 LOW-3 指出后改为本口径重跑。
 
 本文件只 ``await`` 协程, 不起 TestClient、不连 Neo4j / LanceDB / 任何端口 ——
 被调端点只做一次 ``logger.warning`` 后返回常量 ``JSONResponse``。
@@ -84,9 +100,12 @@ def test_switch_vault_surfaces_quarantine_not_attribute_error():
 
     # ⛔ 承重断言(交叉比对): error 必须**逐字**等于端点真实 body 的 detail(截断到 200),
     # 而不只是「碰巧含某个 token」—— 后者挡不住把文案硬编码成 "quarantined" 的写法
-    # (负控 C 实测: token 断言对该变异是绿的, 只有这条逐字比对会红)。这条把「透传」
-    # 本身锁住, 并且同时证明上面那次调用确实走到了下面这个端点 —— 两条测试之间因此
-    # 有真实数据依赖, 而非各说各话。
+    # (负控 C 实测: token 断言对该变异是绿的, 只有这条逐字比对会红)。
+    # ⚠️ **它的边界**(Codex round-2 LOW-1, 负控 H 实测证实): 这条断言**不能**证明
+    # 上面那次调用真的走到了下面这个端点 —— 把工具改成跳过端点、直接硬编码完整
+    # detail[:200], 两条测试仍 2 passed。它锁住的只是「文案与端点当前 body 逐字一致」,
+    # 调用链本身由源码(本函数体内无替换、无 mock)保证, 不由本断言保证。
+    # (本注释一度写成「同时证明调用了该端点」, 由负控 H 证伪并更正。)
     endpoint_resp = asyncio.run(_switch(VaultSwitchRequest(vault_path=_TARGET_VAULT_PATH)))
     endpoint_detail = json.loads(bytes(endpoint_resp.body))["detail"]
     assert res["error"] == endpoint_detail[:200], (
