@@ -44,16 +44,10 @@ MUT_HIGH2 = ('        raise ValueError(\n            f"display_tz 缺席或为 n
              '        ref_tz = ref.tzinfo  # NEGCTL-MUTATED: 还原成固定偏移回退\n',
              [RO])
 # ⑧ 还原省略规则分支的偏移收紧
-MUT_OFFGUARD = ("        if abs(std_off) >= 86400 or abs(dst_off) >= 86400 or abs(dst_off - std_off) >= 86400:\n            return None",
-                "        if False:  # NEGCTL-MUTATED\n            return None",
-                [LOCAL, DISP])
+MUT_OFFGUARD = ('    if abs(dst_off) >= 86400 or abs(dst_off - std_off) >= 86400:', '    if False:  # NEGCTL-MUTATED', [LOCAL, DISP])
 # ⑨ 只还原 dst 侧的越界检查（Codex r2 MEDIUM-2 点名的单侧退化面）
-MUT_OFFGUARD_DST_ONLY = ("        if abs(std_off) >= 86400 or abs(dst_off) >= 86400 or abs(dst_off - std_off) >= 86400:",
-                         "        if abs(std_off) >= 86400 or abs(dst_off - std_off) >= 86400:  # NEGCTL-MUTATED",
-                         [LOCAL, DISP])
-MUT_OFFGUARD_STD_ONLY = ("        if abs(std_off) >= 86400 or abs(dst_off) >= 86400 or abs(dst_off - std_off) >= 86400:",
-                         "        if abs(dst_off) >= 86400 or abs(dst_off - std_off) >= 86400:  # NEGCTL-MUTATED",
-                         [LOCAL, DISP])
+MUT_OFFGUARD_DST_ONLY = ('    if abs(dst_off) >= 86400 or abs(dst_off - std_off) >= 86400:', '    if abs(dst_off - std_off) >= 86400:  # NEGCTL-MUTATED', [LOCAL, DISP])
+MUT_OFFGUARD_STD_ONLY = ('    if abs(std_off) >= 86400:', '    if False:  # NEGCTL-MUTATED', [LOCAL, DISP])
 # ⑩ 只还原「标准偏移必填」
 MUT_STDOFF_REQUIRED = ('        if not g["std_off"]:\n            return None',
                        '        if False:  # NEGCTL-MUTATED\n            return None',
@@ -74,16 +68,16 @@ def run(nodeids):
     return r.returncode, r.stdout + r.stderr
 
 # ⑫⑬⑭⑮ Codex r3 整改面的负控
-MUT_NEWLINE = ('        if "\\n" in spec or "\\r" in spec or "\\x00" in spec:', '        if "\\x00" in spec:  # NEGCTL-MUTATED', [LOCAL, DISP])
-MUT_LENGTH = ('        if len(spec.encode("utf-8", "surrogateescape")) > 255:', '        if False:  # NEGCTL-MUTATED', [LOCAL, DISP])
+MUT_NEWLINE = ('    if "\\n" in spec or "\\r" in spec or "\\x00" in spec:', '    if "\\x00" in spec:  # NEGCTL-MUTATED', [LOCAL, DISP])
+MUT_LENGTH = ('    if len(_spec_bytes) > 255:', '    if False:  # NEGCTL-MUTATED', [LOCAL, DISP])
 MUT_YEARGUARD = ("            if not 1 <= year <= 9999:", "            if False:  # NEGCTL-MUTATED", [LOCAL, DISP])
-MUT_ABS_DIFF = ("or abs(dst_off - std_off) >= 86400:", "or (dst_off - std_off) >= 86400:  # NEGCTL-MUTATED", [LOCAL, DISP])
+MUT_ABS_DIFF = ('    if abs(dst_off) >= 86400 or abs(dst_off - std_off) >= 86400:', '    if abs(dst_off) >= 86400 or (dst_off - std_off) >= 86400:  # NEGCTL-MUTATED', [LOCAL, DISP])
 # ⑯⑰ Codex r4 整改面的负控
-MUT_BYTELEN = ('        if len(spec.encode("utf-8", "surrogateescape")) > 255:', '        if len(spec) > 255:  # NEGCTL-MUTATED', [LOCAL, DISP])
+MUT_BYTELEN = ('    if len(_spec_bytes) > 255:', '    if len(spec) > 255:  # NEGCTL-MUTATED', [LOCAL, DISP])
 MUT_YEAR_UPPER = ("            if not 1 <= year <= 9999:", "            if not 1 <= year <= 9998:  # NEGCTL-MUTATED", [LOCAL, DISP])
 # ⑱⑲⑳ Codex r5 整改面的负控
-MUT_SURROGATE = ('        if len(spec.encode("utf-8", "surrogateescape")) > 255:', '        if len(spec.encode("utf-8")) > 255:  # NEGCTL-MUTATED', [LOCAL, DISP])
-MUT_NUL = ('        if "\\n" in spec or "\\r" in spec or "\\x00" in spec:', '        if "\\n" in spec or "\\r" in spec:  # NEGCTL-MUTATED', [LOCAL, DISP])
+MUT_SURROGATE = ('        _spec_bytes = spec.encode("utf-8")', '        _spec_bytes = spec.encode("utf-8", "surrogateescape")  # NEGCTL-MUTATED', [LOCAL, DISP])
+MUT_NUL = ('    if "\\n" in spec or "\\r" in spec or "\\x00" in spec:', '    if "\\n" in spec or "\\r" in spec:  # NEGCTL-MUTATED', [LOCAL, DISP])
 MUT_SOUTH_UPPER = ("            elif year < 9999:", "            else:  # NEGCTL-MUTATED", [LOCAL, DISP])
 SEGMENTS = [
     ("① 还原 HIGH-1 候选窗(y-2 → y-1)", [MUT_HIGH1],
@@ -137,12 +131,20 @@ SEGMENTS = [
      [f"{F}::test_omitted_rule_branch_does_not_widen_the_accepted_offset_domain"], "516 字节"),
     ("⑰ 候选年上界收到 9998: 9999 年的北半球季度被整个跳过", [MUT_YEAR_UPPER],
      [f"{F}::test_candidate_year_guard_keeps_extreme_epochs_from_raising"], "候选年上界收得过紧"),
-    ("⑱ surrogateescape → 严格 encode: 非法字节 TZ 让 display_tz() 抛(启动失败面)", [MUT_SURROGATE],
-     [f"{F}::test_display_tz_survives_non_utf8_tz_bytes"], "display_tz() 在 TZ="),
+    ("⑱ 不可严格编码时改用 surrogateescape 放行: 代理字符进 .key、过不了响应序列化", [MUT_SURROGATE],
+     [f"{F}::test_display_tz_survives_non_utf8_tz_bytes"], "过不了响应序列化"),
     ("⑲ 去掉 NUL 检查: 引用名内含 NUL 的自报值被错误接受", [MUT_NUL],
      [f"{F}::test_omitted_rule_branch_does_not_widen_the_accepted_offset_domain"], "含 NUL"),
     ("⑳ 南半球上界 elif year<9999 → else: 9999 年南支算到 10000 抛", [MUT_SOUTH_UPPER],
      [f"{F}::test_candidate_year_guard_keeps_extreme_epochs_from_raising"], "南半球分支的候选年上界失效"),
+    ("㉑ 只还原 std 侧越界检查 → **显式规则**路径的越界串被接受（既有② 的修复）",
+     [MUT_OFFGUARD_STD_ONLY],
+     [f"{F}::test_offset_domain_is_checked_on_every_branch_not_only_omitted_rules"],
+     "显式规则分支未校验偏移取值域"),
+    ("㉒ 严格 encode → surrogateescape → **无 DST / 显式规则**两支的 .key 带代理字符（既有① 的修复）",
+     [MUT_SURROGATE],
+     [f"{F}::test_non_utf8_key_never_reaches_response_on_any_branch"],
+     "要对**所有**形态生效"),
 ]
 
 # ⛔ 预检：每个段用到的变异锚点必须在**开跑前**就全部命中。

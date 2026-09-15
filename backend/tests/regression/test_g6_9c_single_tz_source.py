@@ -727,6 +727,116 @@ def test_display_tz_survives_non_utf8_tz_bytes(copy_id, side):
         time.tzset()
 
 
+#: 解析器的**接受域**必须逐条对齐 C 库（Codex r9 M1–M5）。每条都在本机三方实测过
+#: （BASE / HEAD / libc），判据是「本实现接受 ⟺ C 库接受」。
+#: ⛔ C 库「拒」的自证锚是 `time.tzname` 变成 `('UTC','UTC')`，**不能**用 `tm_gmtoff == 0`
+#:    —— `std_off=0` 的串被接受时 off 也是 0，那个判据会把接受读成拒。
+#: (spec, 本实现应否接受, 依据)
+_ACCEPTANCE_DOMAIN_CASES = [
+    # ——— 必须**接受**（C 库也接受；上一轮这几条被误拒，Codex r9 M1/M2）———
+    ("<A\nAA>-1", True, "引用名**内部**换行：C 库接受（只有**尾部**空白才让它整串退 UTC）"),
+    ("AAA0<B\nBB>,M3.2.0,M11.1.0", True, "同上，带显式规则的形态"),
+    ("<A AA>-1", True, "引用名内部空格：C 库接受"),
+    ("A" * 254 + "-1", True, "256 字节整串、名字 254 字节：远未到名字缓冲区上限"),
+    ("AAA0<" + "中" * 169 + ">", True, "3 + 507 + 2 = **512**：和式约束的上边界（多字节名字侧）"),
+    (
+        "<" + "A" * 507 + ">-1<BBB>,M3.2.0,M11.1.0",
+        True,
+        "507 + 3 + 2 = **512**：std 名占满时 dst 名仍可有 3 字节 —— 旧的「每名 ≤507」口径在这条上**误拒**",
+    ),
+    ("<" + "A" * 511 + ">-1", True, "无 dst 形态 511 + 1 = **512**：该侧上边界"),
+    ("AAA0BBB,M3.2.0/167,M11.1.0", True, "切换时刻 167 小时：C 库接受的上边界"),
+    ("AAA0BBB,M3.2.0/2:00:60,M11.1.0", True, "切换时刻秒 60：C 库接受（61 才拒）"),
+    # ——— 必须**拒**（C 库也拒）———
+    ("AAA-1\n", False, "**尾部**换行：C 库让带 dst 名的串整串退 UTC（正则的 `$` 会放过它）"),
+    ("<AAA><BBB>,M3.2.0,M11.1.0", False, "缺 std 偏移：C 库对**所有**形态整串拒收（r9 M3）"),
+    ("<AAA>", False, "同上，无 dst 形态也拒"),
+    ("AAA-1,J0,J0", False, "非法规则 J0：C 库拒，**无 dst 形态也要验规则**（r9 M4）"),
+    ("AAA0BBB,M3.2.0/2:60,M11.1.0", False, "切换时刻分钟 60：C 库拒（r9 M5）"),
+    ("AAA0BBB,M3.2.0/2:00:61,M11.1.0", False, "切换时刻秒 61：C 库拒（60 接受、61 拒，边界两侧都在表里）"),
+    ("AAA0BBB,M3.2.0/168,M11.1.0", False, "切换时刻 168 小时：越过 C 库的 167 上界（r9 M5）"),
+    ("AAA0BBB,M３.2.0,M11.1.0", False, "规则含**全角**数字：Python 的 `\\d` 匹配它而 C 库拒（r9 M5）"),
+    ("AAA0BBB,M3.2.0/２,M11.1.0", False, "切换时刻含全角数字：同上"),
+    ("AAA0<" + "中" * 170 + ">", False, "3 + 510 + 2 = 515 > 512：越过和式上界（多字节名字侧）"),
+    ("<" + "A" * 508 + ">-1<BBB>,M3.2.0,M11.1.0", False, "508 + 3 + 2 = 513 > 512：和式上界外一字节"),
+    (
+        "<" + "A" * 512 + ">-1",
+        False,
+        "无 dst 形态 512 + 1 = 513 > 512 —— 旧口径**根本没检查**这一支，于是**误收**了 C 库拒绝的串",
+    ),
+    (
+        "<" + "A" * 507 + ">-1<" + "B" * 507 + ">,M3.2.0,M11.1.0",
+        False,
+        "两个名字**各自**都 ≤507 却和 = 1016 > 512：单名上限口径在这条上**误收**，和式口径才拒",
+    ),
+]
+
+
+@pytest.mark.parametrize("copy_id", _COPY_IDS)
+@pytest.mark.parametrize(
+    "spec,should_accept,why",
+    _ACCEPTANCE_DOMAIN_CASES,
+    ids=[f"{'accept' if ok else 'reject'}-{i}" for i, (_, ok, _w) in enumerate(_ACCEPTANCE_DOMAIN_CASES)],
+)
+def test_accepted_domain_matches_libc(copy_id, spec, should_accept, why):
+    """解析器接受哪些串，必须与 C 库逐条一致 —— 两个方向都钉。
+
+    ⛔ 只钉「该拒的拒了」是不够的：本卡 r9 那一轮把校验提到共用位置时，顺手把
+    **C 库接受**的引用名内部换行与 256 字节长名也拒了（误拒），而当时的拒绝表全绿。
+    接受侧与拒绝侧必须在**同一张表**里，否则「一律拒」和「一律收」各能跑绿一半。
+    """
+    module = backend_tz if copy_id == "backend" else _load_local_tz()
+    got = module.parse_posix_tz(spec)
+    accepted = got is not None
+    assert accepted == should_accept, (
+        f"[{copy_id}] 接受域与 C 库不符: parse_posix_tz({spec[:60]!r}…) "
+        f"{'接受了' if accepted else '拒绝了'}，应当{'接受' if should_accept else '拒绝'}\n"
+        f"  依据: {why}"
+    )
+
+
+@pytest.mark.parametrize("copy_id", _COPY_IDS)
+def test_southern_season_in_year_9999_is_not_dropped(tz_env, copy_id):
+    """9999 年的**南半球**季度不得被候选年上界整段排除（Codex r9 L1）。
+
+    ⛔ 上一轮把南支写成 `elif year < 9999` —— 那让 9999 年的整个跨年季度消失。
+    `_dst_window(10000)` 确实会抛，但季度**确实**从 `s(9999)` 开始；终点算不出来时
+    按「从 s 起一直到可表示范围末尾」处理，那正是 C 库在该段的行为。
+    """
+    spec = "AAA0BBB,M10.1.0,M3.1.0"  # start 10 月、end 3 月 ⇒ 南半球形态
+    tz_env(tz=spec)
+    resolved = _display_tz_of(copy_id)
+    instant = datetime(9999, 12, 1, 23, 30, tzinfo=timezone.utc)
+    got = instant.astimezone(resolved).replace(tzinfo=None)
+    libc = instant.astimezone().replace(tzinfo=None)
+    assert got == libc, (
+        f"[{copy_id}] 9999 年南半球季度被丢掉了: 本实现给 {got}，C 库给 {libc}\n"
+        "  南支的候选年上界不能写成 `elif year < 9999`——那会把整段季度排除。"
+    )
+
+
+@pytest.mark.parametrize("copy_id", _COPY_IDS)
+def test_tzname_uses_dst_membership_not_offset_equality(tz_env, copy_id):
+    """`tzname()` 判 DST **身份**要用 `_in_dst`，不能比较偏移（Codex r9 L2）。
+
+    ⛔ 两侧偏移**相等**的规格（`AAA0BBB0,…`）下「实际偏移 == dst_off」恒真，
+    冬季也会返回 dst 名。偏移大小与夏令时身份是两回事 —— 本文件的 fold 处理一直是
+    「按偏移大小选侧、按 `_in_dst` 判身份」，`tzname` 也该跟同一条。
+    """
+    spec = "AAA0BBB0,M3.2.0,M11.1.0"  # 两侧偏移都是 0
+    tz_env(tz=spec)
+    resolved = _display_tz_of(copy_id)
+    winter = datetime(2026, 1, 1, 0, 30, tzinfo=timezone.utc).astimezone(resolved)
+    summer = datetime(2026, 7, 1, 0, 30, tzinfo=timezone.utc).astimezone(resolved)
+    assert winter.tzname() == "AAA", (
+        f"[{copy_id}] 冬季 tzname 应为 std 名 'AAA'，实得 {winter.tzname()!r} —— "
+        "偏移相等时不能用「偏移 == dst_off」判身份。"
+    )
+    assert summer.tzname() == "BBB", (
+        f"[{copy_id}] 夏季 tzname 应为 dst 名 'BBB'，实得 {summer.tzname()!r}（正控：别改成恒返回 std 名）"
+    )
+
+
 #: 整串属性校验（控制字符 / 可严格编码 / 字节长度 / 偏移范围）对**所有**形态生效，
 #: 不只是「省略切换规则」那一支 —— Codex r8 把这两条列为**既有**缺口，本卡一并收口：
 #:   ① 无 DST 的 `<非法字节>0` 与带显式规则的 `AAA0<非法字节>,M3.2.0,M11.1.0`
@@ -835,16 +945,25 @@ _OMITTED_RULE_REJECT_CASES = [
     ("AAA-12BBB12", "DST 差为 **−24h**：两侧各自合法，只有带 abs() 的差值检查能拦"),
     # 正则用 `$` + `.match()`，Python 的 `$` 会在**末尾换行之前**收尾 ⇒ 带 LF 的串能匹配。
     ("AAA0<BBB>\n", "末尾 LF：C 库整串拒收退 UTC，补规则后算成 +01:00 差一整天"),
-    # 名字长度在既有正则里无上限。C 库实测: `"A"*507+"0BBB"`（511 字节）接受、
-    # `"A"*508+"0BBB"`（512 字节）退 UTC —— 那是**名字**长度的边界、且 507 是平台相关的
-    # 魔数，所以本实现改用保守的整串 **255 字节**上限。
-    ("A" * 508 + "0BBB", "整串 512 字节：C 库退 UTC（511 字节则接受），本实现按 255 字节上限拒"),
-    # ⛔ 长度必须按 **UTF-8 字节**量：`len(spec)` 数的是 Unicode 字符，下面这串只有 176 个
-    #    字符却是 516 字节 —— 按字符量会放行，而 C 库拒收退 UTC ⇒ 差一整天（Codex r4 HIGH-1）。
-    ("AAA0<" + "中" * 170 + ">", "176 字符 / **516 字节**：按字符量会放行，按字节量才拦得住"),
-    ("<" + "中" * 170 + ">0BBB", "同形，落在**标准侧**引用名上"),
+    # 名字长度在既有正则里无上限。C 库的真口径是**两个名字连同各自的 NUL 终止符**共用
+    # 一个 512 字节缓冲区（macOS tzcode 的 `TZ_MAX_CHARS`）⇒ 这是一条**和式**约束：
+    # 带 dst 时 `len(std) + len(dst) + 2 <= 512`。下面这条是**裸名**形态的边界样本，
+    # 与引用名形态同口径（实测 `"A"*507+"0BBB"` = 507+3+2 = 512 接受、
+    # `"A"*508+"0BBB"` = 508+3+2 = 513 退 UTC）。
+    # ⛔ 这段注释曾写「本实现改用保守的整串 255 字节上限」——那个上限早已移除，
+    #    留着会让后人以为判据是整串长度，而它其实是名字的和。
+    ("A" * 508 + "0BBB", "裸名 508 + dst 名 3 + 2 = 513 > 512：C 库退 UTC，本实现按和式拒"),
+    # ⛔ 长度必须按 **UTF-8 字节**量：`len()` 数的是 Unicode 字符，下面这串的引用名只有
+    #    170 个字符却是 510 字节 —— 按字符量和式只有 3+170+2 = 175（放行），按字节量是
+    #    3+510+2 = 515 > 512 才拦得住（Codex r4 HIGH-1 的量纲教训）。
+    ("AAA0<" + "中" * 170 + ">", "dst 名 170 字符 / **510 字节**：按字符量会放行，按字节量才拦得住"),
+    ("<" + "中" * 170 + ">0BBB", "同形，落在**标准侧**引用名上（510 + 3 + 2 = 515）"),
     # ⛔ NUL 进不了完整的 C 环境字符串，但**能从 JSON 的 `display_tz` 自报值进来** ——
     #    桶位门会用本函数重建生产者时区（Codex r5 M1：BASE 拒收，补规则后整串放行）。
+    # ⛔ 这条用例守的是 `parse_posix_tz` 里那条显式 NUL 检查的**唯一显形位置**：
+    #    NUL 在引用名**内部**。正则的引用名是 `<[^<>]+>`，`[^<>]` 放行 NUL ⇒ 能匹配进来，
+    #    只有那条检查能拒。放在串尾或放在偏移与 dst 名之间的 NUL 则由正则先拒。
+    #    换句话说：删掉这条用例，那条检查就没有任何门守着了。
     ("AAA0<B\x00BB>", "引用名内含 NUL：走 JSON 自报值这条路进来，BASE 拒而补规则后会放行"),
 ]
 
