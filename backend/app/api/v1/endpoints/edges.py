@@ -69,7 +69,9 @@ logger = logging.getLogger(__name__)
 #:    —— 握手完成后收到畸形 Bolt 帧时会逃出本元组而 500。驱动自己的连接池写的是
 #:    `except (Neo4jError, DriverError, BoltError)`, 但 `BoltError` 在私有模块
 #:    `neo4j._exceptions` 里, 本卡不引私有 API。
-#: 2. ⛔ **「部署错误必然 500」只在「驱动已初始化之后」成立**(Codex r6 H1):
+#: 2. ⛔ **保证的准确形态(Codex r7 H1 给的表述)**: 「``run_query`` 原样抛出、且不被
+#:    本元组捕获的异常」才会上抛成 500; **初始化阶段被 client 吞掉的异常不受该保证
+#:    覆盖**。别把「驱动已初始化之后」读成充分保证。展开:
 #:    `Neo4jClient.initialize()` 对 `AuthError` 与任意 `Exception` 一律转 JSON fallback
 #:    (`neo4j_client.py:411` 附近), 于是**首次初始化就撞上凭据/配置错误**的那条路上,
 #:    异常根本到不了本元组 —— 后续查询返回 `[]`, 由下面的写确认判据兜成 207。
@@ -219,7 +221,9 @@ async def _write_neo4j_triplet(
     # 进入 fallback 态的路径有三条且都可达: NEO4J_ENABLED=false 构造即 fallback;
     # initialize() 健康检查/AuthError 失败转 fallback; _run_query_neo4j 重试耗尽
     # (ServiceUnavailable 等)转 fallback。⇒ 不查返回值的话, 「Neo4j 宕机」的实际
-    # 产出是 **HTTP 200「双写全部成功」而图库里什么都没有**, 比 500 更坏。
+    # 产出是 **HTTP 200「双写全部成功」, 而这次写连一次确认都没拿到**, 比 500 更坏。
+    # (措辞边界 r7-L1: 说「没拿到确认」不说「图库里什么都没有」—— 见上面那段,
+    #  返回空行不能据此断言没有落盘。)
     # ⚠️ 这条路是**本卡打通的**: 改前调的 execute_query 不存在, 每次都死在
     # AttributeError, 根本走不到 run_query, 所以 JSON fallback 分支此前不可达。
     if not rows:

@@ -29,10 +29,11 @@
    ClientError / AuthError / ConnectionPoolError / TypeError / KeyError 必须仍然
    **500**. 这道门是「加宽」的护栏: 没有它, 后人把 ``Neo4jError`` 或 ``Exception``
    整族收进元组时不会有任何东西变红.
-1d2. ``test_取_client_阶段的异常必须穿透成_500_而不是被降级`` — **零 DB**. 钉住
-   ``try`` 的**边界**本身: 1c/1d 的异常都从客户端调用处抛, 分辨不了 try 的范围;
-   本门让 getter 抛 ``AttributeError``(该类型在元组里, 所以「没被接住」只能是因为
-   它落在 try 之外), 断言 500.
+1d2. ``test_取_client_阶段的异常必须穿透成_500_而不是被降级`` — **零 DB**. 验证
+   **getter 阶段**的 ``AttributeError`` 不被降级, 防止 ``try`` 扩大到覆盖 getter。
+   1c/1d 的异常都从客户端调用处抛, 分辨不了 try 的范围; 本门让 getter 抛
+   ``AttributeError``(该类型在元组里, 「没被接住」只能是因为它落在 try 之外), 断言 500。
+   ⚠️ 它**不等于**锁住「try 恰好只包一行」—— 只把 params 组装包进 try 时本门仍绿。
 1e. ``test_run_query_返回空行必须记成写失败而不是_200`` + 其对照组
    ``test_run_query_返回一行是成功路径`` — **零 DB**. 钉住写确认判据.
 1f. ``test_真客户端在_json_fallback_态下不得报写成功`` — **零 DB 零网络**, 用真的
@@ -67,14 +68,16 @@ Optional ⇒ ``edges.py:66-70`` 的 ``neo4j is None`` 是死守卫), 且 ``backe
 ⛔ 本文件**没有**证明什么 (如实记):
 
 * **不证明「任何 Neo4j 写失败都会记成 207」**。被刻意排除在外的那一族(门 1d 的五格)
-  仍然 500, 那是**有意的**: 它们不是对端的错。
+  按当前**处置策略**保留 500, 那是有意的。⚠️ 异常类型本身不唯一确定根因(r7-L2):
+  「保留 500」表达的是默认处置, 不是「出现这个类就一定是我方的错」。
 * **已知未覆盖的逃逸面**: ``neo4j._exceptions.BoltError`` 族与 packstream 解码层的
   裸 ``ValueError`` / ``struct.error`` —— 握手完成后收到畸形 Bolt 帧时会逃出
   ``edges._NEO4J_WRITE_FAILURES`` 而 500。驱动自己的连接池写的是
   ``except (Neo4jError, DriverError, BoltError)``, 但 ``BoltError`` 在私有模块里,
   本卡不引私有 API。已登记移交。
-* **写确认只证明「有没有落盘」, 不证明「落的内容对不对」**: 门 1e 用 stub 造出
-  「返回 1 行」即判成功, 真库门(2)才校验字段值。
+* **写确认只证明「有没有拿到写入确认」, 既不证明「一定没落盘」也不证明「落的内容
+  对不对」**(r7-L1): 返回空行表示未取得写入确认、提交结果未知, 不能据此断言没有落盘;
+  门 1e 用 stub 造出「返回 1 行」即判成功, 真库门(2)才校验字段值。
 * **不证明整个 pytest 进程零网络**(见下方 W4 段)。
 
 ⛔ **已知不实前提(不是本卡能修的面, 但本文件的措辞必须绕开它)**:
@@ -276,7 +279,7 @@ _WIDENED_TYPES: Dict[str, Any] = {
 _EXCLUDED_TYPES: Dict[str, Any] = {
     "ClientError": ClientError,  # 我们发的请求不对(ParameterMissing / CypherSyntax…)
     "AuthError": AuthError,  # 凭据没配对 = 部署坏了
-    "ConnectionPoolError": ConnectionPoolError,  # 连接池耗尽 = 我方 session 泄漏
+    "ConnectionPoolError": ConnectionPoolError,  # 连接池耗尽(根因不唯一, 见门 docstring)
     "TypeError": TypeError,  # 签名漂移
     "KeyError": KeyError,  # params 契约破裂
 }
@@ -488,8 +491,10 @@ def test_neo4j_attribute_error_degrades_to_207(monkeypatch: pytest.MonkeyPatch) 
     # ⛔ 生产的写确认判据是「run_query 返回 0 行 ⇒ 记失败」, 它**只在 Cypher 末尾带
     # `RETURN er.record_id` 时成立**。7692 实测: 带 RETURN 的 CREATE 返 1 行, 去掉
     # RETURN 返 0 行(存档 evidence-t-edges/write-confirm-rowcount-probe-*.txt)。
-    # 谁删了那句 RETURN, 每一次成功写入都会被判成失败(假红, 且没有别的门会发现)。
-    # 本锚直接钉住实际发给客户端的那条 query 文本。
+    # 谁删了那句 RETURN, 每一次成功写入都会被判成失败(假红)。**当真库门被 skip 时,
+    # 原有的零 DB 门无法发现 RETURN 被删除**(r7-L3: 真库门在场时它本来就会红) ——
+    # 本锚补的是那个缺口。它只证明该片段**存在于发出的 query 文本里**, 不证明它是
+    # 有效、未被注释掉的 Cypher 子句; 执行语义由真库门(2)验。
     assert "RETURN er.record_id" in stub.last_args[0], (
         "Cypher 末尾的 `RETURN er.record_id` 不见了 —— 生产的「返回 0 行 = 未取得写入"
         "确认」判据依赖它, 去掉之后每一次成功写入都会被误判成失败"
@@ -556,13 +561,16 @@ def test_每个被收进元组的对端故障类型都降级成_207(monkeypatch:
     ["ClientError", "AuthError", "ConnectionPoolError", "TypeError", "KeyError"],
 )
 def test_本进程与部署缺陷不得被伪装成对端写失败(monkeypatch: pytest.MonkeyPatch, type_name: str) -> None:
-    """反向门: 这几类**不该**降级, 必须原样上抛成 500.
+    """反向门: 这几类按当前处置策略**不降级**, 必须原样上抛成 500.
 
-    它们的共同点是「不是对端的错」:
-    - ``ClientError`` / ``AuthError``  —— 我们发的请求或凭据不对(ParameterMissing /
-      CypherSyntaxError / 密码没同步)。收进 207 的后果是每个请求都 207、5xx 率恒 0、
-      前端 Outbox 把 207 当「部分成功已保留」继续投递 ⇒ 数据永久丢失且无人察觉。
-    - ``ConnectionPoolError`` —— 连接池耗尽, 典型成因是我方 session 泄漏。
+    ⚠️ 这是**处置策略, 不是根因分类器**(r7-L2): 异常类型本身不唯一确定根因,
+    下面写的是「为什么默认按 500 处置」, 不是「出现它就一定是谁的锅」。
+    - ``ClientError`` / ``AuthError``  —— 典型成因是我们发的请求或凭据不对
+      (ParameterMissing / CypherSyntaxError / 密码没同步)。收进 207 的后果是每个请求
+      都 207、5xx 率恒 0、前端 Outbox 把 207 当「部分成功已保留」继续投递 ⇒ 数据
+      永久丢失且无人察觉。
+    - ``ConnectionPoolError`` —— 连接获取超时。可能是我方 session 泄漏, **也可能只是
+      正常慢查询占满了连接池**; 现按 500 处置, 是本卡最值得重新裁定的一类。
     - ``TypeError`` / ``KeyError`` —— 签名漂移与 params 契约破裂, 纯本地缺陷。
 
     ⛔ 这道门是「加宽」的护栏: 没有它, 后人把 ``Neo4jError`` 或 ``Exception`` 一整族
@@ -592,7 +600,11 @@ def test_本进程与部署缺陷不得被伪装成对端写失败(monkeypatch: 
 def test_取_client_阶段的异常必须穿透成_500_而不是被降级(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """钉住「``try`` 只包 ``await neo4j.run_query(...)`` 这一行」这件事本身.
+    """验证 **getter 阶段**的 AttributeError 不被降级, 防止 ``try`` 扩大到覆盖 getter.
+
+    ⚠️ 覆盖边界如实(r7-L3): 本门锁的是「getter 有没有落在 try 里」这一点,
+    **不等于**锁住了「try 恰好只包一行」—— 若有人把 getter 留在外面、只把 params
+    组装包进 try, 本门仍绿。
 
     ⛔ 为什么需要这道门(Codex r6 M3): 1c/1d 两组的异常**都从客户端调用处抛出**,
     所以它们分辨不了 ``try`` 的范围。只要有人把 ``try`` 恢复成包整个函数体
@@ -640,12 +652,16 @@ def test_run_query_返回空行必须记成写失败而不是_200(
 ) -> None:
     """钉住本卡第二轮修的那个假绿.
 
+    ⚠️ 语义(r7-L1): 返回空行 = **未取得写入确认, 提交结果未知**, 不等于「确定没写进去」。
+    保守记成失败仍是对的(宁可让调用方重试/告警, 不可谎报成功)。
+
     Cypher 以 ``RETURN er.record_id AS record_id`` 收尾 ⇒ 真写成功恒返 1 行。
     ``Neo4jClient`` 在 JSON fallback 态把查询交给 ``_run_query_json_fallback``,
     而那个分发器只认 MERGE+User+Concept / MATCH+LEARNED 两族, 本卡的
     ``CREATE (er:EdgeRationale …)`` 全不命中 ⇒ 落 else 分支 **返回 [] 且不抛异常**。
     第一轮的 ``_write_neo4j_triplet`` 丢弃返回值直接 ``WriteStatus(success=True)``
-    ⇒ 「Neo4j 宕机」的实际产出是 **HTTP 200「双写全部成功」而图库里什么都没有** ——
+    ⇒ 「Neo4j 宕机」的实际产出是 **HTTP 200「双写全部成功」, 而这次写连一次确认都
+    没拿到**(r7-L1: 不写「图库里什么都没有」—— 空行不能据此断言没有落盘) ——
     比 500 更坏, 且这条路是本卡接通 run_query 之后才可达的。
 
     ⛔ 本门是零 DB 的: 直接让 stub 正常返回 ``[]``。
@@ -653,7 +669,9 @@ def test_run_query_返回空行必须记成写失败而不是_200(
     stub = _AttributeErrorNeo4jStub(rows=[])
     resp = _post_with_stub(monkeypatch, stub)
 
-    assert resp.status_code != 200, "run_query 返回 0 行 = 这次写没有落盘, 端点绝不能报 200「双写全部成功」"
+    assert resp.status_code != 200, (
+        "run_query 返回 0 行 = 未取得写入确认(提交结果未知), 端点绝不能报 200「双写全部成功」"
+    )
     assert resp.status_code == 207, f"应记成半成功 207(LanceDB 那一半保住), 实得 {resp.status_code}"
     body = resp.json()
     assert body["graphiti_status"]["success"] is False
@@ -836,7 +854,6 @@ async def test_run_query_writes_edge_rationale_to_7692(
         f"Neo4jClient 改写了 uri: 传入 {NEO4J_TEST_URI!r} 实得 {injected_client._uri!r} "
         f"—— 上游 skip 判据据此失效, 需重新评估发写前的防线"
     )
-    assert _test_uri_port_is_allowed(injected_client._uri), "同上: 端口白名单对该 uri 必须成立"
 
     rationale = EdgeRationaleCreate(
         edge_id=f"edge-{suffix}",
@@ -876,9 +893,19 @@ async def test_run_query_writes_edge_rationale_to_7692(
     finally:
         # per-test uuid 隔离 + 无条件清理: 不清会永久滞留共享 7692
         try:
-            await verifier.run_query(
-                "MATCH (er:EdgeRationale) WHERE er.group_id = $group_id DETACH DELETE er",
+            # ⛔ 清理必须带回执并断言(本轮自查, 7692 实测):
+            # 裸 `DETACH DELETE` 返回 `[]` —— 与「verifier 中途转 JSON fallback、
+            # 清理落进 _run_query_json_fallback 的 else 分支只 logger.warning 就返回
+            # []」**完全不可分辨**, 于是节点会永久滞留共享 7692 而没有任何信号。
+            # 带 `RETURN count(er) AS deleted` 才有回执(实测 [{"deleted": 1}]),
+            # 存档 evidence-t-edges/write-confirm-rowcount-probe-*.txt 与本轮清理实测。
+            deleted_rows = await verifier.run_query(
+                "MATCH (er:EdgeRationale) WHERE er.group_id = $group_id DETACH DELETE er RETURN count(er) AS deleted",
                 group_id=physical_group_id,
+            )
+            assert deleted_rows, (
+                "清理语句没有回执 —— verifier 可能已转入 JSON fallback, 清理是空转, "
+                f"group_id={physical_group_id!r} 的节点可能滞留在共享 7692"
             )
         finally:
             # 两个客户端各自嵌套 finally (Codex r1 LOW 整改): 串行写法下
