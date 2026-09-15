@@ -1441,3 +1441,82 @@ def test_rec_extra_verdict_key_is_rejected() -> None:
     assert rec.parse_json("g33", base % "").counts["KILLED"] == 18, "⛔ 验伪锚：合法 JSON 仍要解析得出"
     with pytest.raises(rec.ReconcileError, match="不认识"):
         rec.parse_json("g33", base % ', "UNEXPECTED-VERDICT": 1')
+
+
+def test_h2_multi_failure_guard_counts_records_not_deduped_nodeids(tmp_path: Path) -> None:
+    """⛔ 数**失败记录**，不数去重后的 nodeid（Codex round-12 HIGH）。
+
+    `failed` 是个 `set`：两条摘要行只要解析出的 nodeid 相同（长前缀 + 不同尾巴）就被去重成
+    1 条 ⇒ 「多条失败」判假 ⇒ round-14 那道位置守卫**整条失效**，跨实例拼装原样复活。
+    `failure_records()` 保留全部记录、不去重 —— 它就是为这件事存在的。
+    """
+    gate = _write_gate(tmp_path, _GATE_DUP)
+    outside = _write_gate(tmp_path, "x = 1\n", "helper.py")
+    long_id = "a" * 1100
+    out = _out(
+        [
+            f"FAILED tests/gate.py::test_x[{long_id}] - EXPECT]first",
+            f"FAILED tests/gate.py::test_x[{long_id}] - EXPECT]second",
+        ],
+        [f"{gate}:2: AssertionError: OTHER", f"{outside}:1: AssertionError: EXPECT"],
+    )
+    verdict, why = mki.kill_identity(1, out, "tests/gate.py::test_x", "EXPECT", gate_file=gate, require_gate_file=True)
+    assert verdict == "HARNESS-ERROR", f"⛔ 去重不得让守卫失效，实得 {verdict}（{why}）"
+
+
+def test_pc_multi_failure_guard_does_not_touch_the_expect_loc_path(tmp_path: Path) -> None:
+    """⛔ 验伪锚：给了 `expect_loc` 时那道守卫**不参与**（Codex round-12 MEDIUM）。
+
+    位置已绑到门文件里的**那一条语句**上，另一条失败落在 helper 并不妨碍身份成立；
+    在那条路上套用弱位置守卫会把**正当**的 KILLED 打成 HARNESS-ERROR。
+    """
+    gate = _write_gate(tmp_path, 'def test_a() -> None:\n    assert 1 == 2, "EXPECT"\n', "test_loc_gate.py")
+    outside = _write_gate(tmp_path, "x = 1\n", "helper.py")
+    token = mki.loc_token_for(gate, str(gate), 2)
+    assert token and token.startswith("stmt:"), "夹具前提：门里那条语句要取得到指纹"
+    out = _out(
+        [
+            "FAILED tests/gate.py::test_x[a] - AssertionError: EXPECT",
+            "FAILED tests/gate.py::test_x[b] - AssertionError: EXPECT",
+        ],
+        [f"{gate}:2: AssertionError: EXPECT", f"{outside}:1: AssertionError: EXPECT"],
+    )
+    verdict, why = mki.kill_identity(1, out, "tests/gate.py::test_x", "EXPECT", gate_file=gate, expect_loc=token)
+    assert verdict == "KILLED", f"expect_loc 路不得被弱位置守卫误伤，实得 {verdict}（{why}）"
+
+
+def test_rec_mutations_read_contexts_are_whitelisted(tmp_path: Path) -> None:
+    """⛔ **读**也按白名单收（Codex round-12 MEDIUM）。
+
+    上一轮只禁了 `MUTATIONS.<属性>`，于是换成**不经属性**的路子照样改表：
+    `list.append(MUTATIONS, 4)`（当**实参**传给未绑定方法）、
+    `alias = MUTATIONS; alias.append(4)`（换个名字，根 Name 就不叫 MUTATIONS 了）。
+    ⇒ 逐个堵入口这条路已走到头（第五次换入口）。改成**只认三种语境**。
+    ⚠️ 实测四套源码对 `MUTATIONS` 的 Load **只有**这三种（各 23 / 12 / 11 处）。
+    """
+    rec = _rec()
+    probe = tmp_path / "probe.py"
+    orig = rec.SCRIPTS
+    rec.SCRIPTS = tmp_path
+    try:
+        for tail in ("\nlist.append(MUTATIONS, 4)\n", "\nalias = MUTATIONS\nalias.append(4)\n", "\n_x = MUTATIONS\n"):
+            probe.write_text("MUTATIONS = [1, 2, 3]" + tail, encoding="utf-8")
+            with pytest.raises(rec.ReconcileError, match="未白名单"):
+                rec.ast_mutation_count("probe.py")
+        # ⛔ 验伪锚：四套实际用到的三种读法必须仍放行
+        for tail in (
+            "\n_n = len(MUTATIONS)\n",
+            "\n_s = [m for m in MUTATIONS]\n",
+            "\n_f = MUTATIONS[0]\n",
+            "\nfor _m in MUTATIONS:\n    pass\n",
+        ):
+            probe.write_text("MUTATIONS = [1, 2, 3]" + tail, encoding="utf-8")
+            assert rec.ast_mutation_count("probe.py") == 3, f"合法读法被误挡: {tail!r}"
+    finally:
+        rec.SCRIPTS = orig
+    assert {k: rec.ast_mutation_count(v.source) for k, v in rec.SUITES.items()} == {
+        "g32b": 138,
+        "g32cb": 9,
+        "g32ccr1": 11,
+        "g33": 18,
+    }

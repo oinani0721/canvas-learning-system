@@ -161,6 +161,12 @@ def ast_mutation_count(source_name: str) -> int:
             total += _literal_len(node.value, source_name, node.lineno)
             counted_targets.add(id(node.target))
 
+    # 父节点索引 —— ② 段判「这个 Load 出现在什么语境里」要用。
+    parent: dict[int, ast.AST] = {}
+    for _n in ast.walk(tree):
+        for _c in ast.iter_child_nodes(_n):
+            parent[id(_c)] = _n
+
     # ② fail-closed 全树扫描：任何**没被 ① 数到**的写入/改动一律抛。
     #
     # ⛔ Codex round-6 MEDIUM：只看 `Name` 的 `Store`/`Del` **不够** —— `MUTATIONS[:0] = [9]`
@@ -177,6 +183,26 @@ def ast_mutation_count(source_name: str) -> int:
             if isinstance(node.ctx, (ast.Store, ast.Del)):
                 raise ReconcileError(
                     f"{source_name}:{node.lineno} 用 `MUTATIONS[...] = …` / `del MUTATIONS[...]` 改表，分母数不出来"
+                )
+        if isinstance(node, ast.Name) and node.id == "MUTATIONS" and isinstance(node.ctx, ast.Load):
+            # ⛔⛔ round-15（Codex round-12 MEDIUM）：**读**也要按白名单收。
+            # 上一轮只禁了 `MUTATIONS.<属性>`，于是换成**不经属性**的路子照样改表：
+            #   `list.append(MUTATIONS, 4)`（把它当**实参**传给未绑定方法）
+            #   `alias = MUTATIONS; alias.append(4)`（换个名字，根 Name 就不叫 MUTATIONS 了）
+            # ⇒ 逐个堵入口这条路已经走到头（这是第五次换入口）。改成：**只认三种语境**，
+            # 其余一律抛。实测四套源码对 `MUTATIONS` 的 Load 只有这三种（各 23/12/11 处）：
+            #   · 推导式 / `for` 的迭代对象；· `len(MUTATIONS)`；· Load 下标。
+            par = parent.get(id(node))
+            ok = (
+                (isinstance(par, ast.comprehension) and par.iter is node)
+                or (isinstance(par, ast.For) and par.iter is node)
+                or (isinstance(par, ast.Call) and getattr(par.func, "id", None) == "len" and node in par.args)
+                or (isinstance(par, ast.Subscript) and isinstance(par.ctx, ast.Load))
+            )
+            if not ok:
+                raise ReconcileError(
+                    f"{source_name}:{node.lineno} `MUTATIONS` 出现在**未白名单**的语境里"
+                    f"（父节点 {type(par).__name__}）—— 它可能被传走/改名后就地改表，分母数不出来"
                 )
         if isinstance(node, ast.Attribute):
             # ⛔⛔ round-14（Codex round-11 MEDIUM）：**对 `MUTATIONS` 的属性访问整族禁掉**。
@@ -234,7 +260,8 @@ _B_UNBOUND = re.compile(r"^KILLED-UNBOUND \([^)]*\): (?P<n>\d+)\s*$", re.M)
 _B_FOUR = re.compile(r"^(?P<name>SURVIVED|HARNESS-ERROR|ANCHOR-ERROR|SYNTAX-INVALID): (?P<n>\d+)(?=[\s(]|$)", re.M)
 _B_SUM = re.compile(r"^六档之和: (?P<t>\d+) \(应 = (?P<m>\d+)\)", re.M)
 
-#: 逐条裁决行里的档名 —— ⛔ **按套写**，与聚合段同理（三套形态互不相同）。
+#: 逐条裁决行里的档名 —— ⛔ **按套写**，与聚合段同理。
+#: ⚠️ 准确说是**两组**（round-12 LOW）：`g32cb` / `g32ccr1` 同形，`g32b` 自成一组。
 #:
 #: ⛔ **必须锚到行结构**（Codex round-8 MEDIUM）：只锚一个 `⇒ <档名>` 会把 **why 里的
 #: 诊断文字**也数进去 —— `⇒ SURVIVED (红在别的断言上: 实见 ['diagnostic ⇒ KILLED'])`
@@ -244,7 +271,9 @@ _B_SUM = re.compile(r"^六档之和: (?P<t>\d+) \(应 = (?P<m>\d+)\)", re.M)
 _VERDICT_ALT = "KILLED-UNBOUND|KILLED|" + _TAIL_FIVE.split("|", 1)[1]
 
 #: `g32cb` / `g32ccr1`：`«缩进»<nodeid> → rc=<n> ⇒ <档名> (<why>)`。
-#: ⛔ **必须整行锚定**（`^…$` + `re.M`，Codex round-9 MEDIUM）：只锚 `rc=<n> ⇒` 仍可被
+#: ⛔ **必须锚到行首**（`^` + `re.M`，Codex round-9 MEDIUM；⚠️ 只锚行首不锚行尾 ——
+#: 行尾还有 `(why)`，锚 `$` 会一条都匹配不上。round-12 LOW 指出上一版注释写成
+#: 「`^…$` 整行锚定」，说得比代码宽）：只锚 `rc=<n> ⇒` 仍可被
 #: **why 里的诊断文字**注入 —— 断言消息里塞一句 `diagnostic rc=1 ⇒ KILLED` 就能让 9 条被
 #: 数成 10 条，于是**合法**存档反而对账假红。why 由被测进程拼出、内容它可控，所以判据
 #: 不能只靠「附近有没有某个片段」，必须靠**这一行整体长什么样**。

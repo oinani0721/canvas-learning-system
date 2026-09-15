@@ -1023,11 +1023,18 @@ def kill_identity(
         # 失败实例满足。`--tb=line` 的位置行不带 nodeid，多条时配对本就不可证 ⇒ 此时要求
         # 位置**全部**落在门文件里；有一条在门外就说明拼装面存在。
         # ⚠️ 只在多条时收紧 —— 单条失败仍用 `any`（那时不存在可借的第二条）。
-        gate_failed = {f for f in failed if gate_hit(nodeid, {f})}
-        if len(gate_failed) > 1 and not all(_same_file(p, gp) for p, _, _ in locs):
+        # ⛔ round-15（Codex round-12 HIGH）：数**失败记录**，不数去重后的 nodeid。
+        # `failed` 是个 `set`，两条摘要行只要解析出的 nodeid 相同（长前缀 + 不同尾巴）
+        # 就会被去重成 1 条 ⇒ 「多条失败」判假 ⇒ 这道守卫整条失效。
+        # `failure_records()` 保留全部记录、不去重（它就是为这件事存在的）。
+        gate_records = [r for st, nid, r in failure_records(out) if gate_hit(nodeid, {nid})]
+        # ⛔ round-15（Codex round-12 MEDIUM）：只在**弱位置**那一路收紧。
+        # 给了 `expect_loc` 时位置已绑到门文件里的**那一条语句**上，另一条失败落在 helper
+        # 并不妨碍身份成立 —— 在那条路上套用本守卫会把**正当**的 KILLED 打成 HARNESS-ERROR。
+        if expect_loc is None and len(gate_records) > 1 and not all(_same_file(p, gp) for p, _, _ in locs):
             outside = [(Path(p).name, ln) for p, ln, _ in locs if not _same_file(p, gp)]
             return "HARNESS-ERROR", (
-                f"目标门有 {len(gate_failed)} 条失败, 而位置行里有落在门文件**之外**的 {outside[:2]} —— "
+                f"目标门有 {len(gate_records)} 条失败, 而位置行里有落在门文件**之外**的 {outside[:2]} —— "
                 f"位置与消息可能由**不同**失败实例分别满足, 配对不可证"
             )
         if not any(_same_file(p, gp) for p, _, _ in locs):
