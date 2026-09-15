@@ -4128,6 +4128,19 @@ printf -- '---\\nname: {s}\\ndescription: stub skill for CARD-HOSTS-OPENCODE\\n-
 )
 
 
+def _oc_tmpdir(tmp_path: Path) -> Path:
+    """被测脚本用的 TMPDIR —— **单一来源**。
+
+    ⛔ 必须在 `tmp_path` 内（Codex r2 MEDIUM-1）：`_run` 继承宿主环境，不钉 TMPDIR 的话
+       脚本的 heredoc / 子进程临时文件落在快照面**之外**，dry 零写门根本照不到。
+    ⛔ 也必须由零写门在**拍 before 快照之前**先调一次 —— 否则「测试自己建的这个目录」
+       会被读成「被测物写的东西」（本卡实测踩到：after 多出 `tmpdir/` 且根目录 nlink 变了）。
+    """
+    d = tmp_path / "tmpdir"
+    d.mkdir(exist_ok=True)
+    return d
+
+
 def _oc_harness(tmp_path: Path) -> Path:
     """`_tx_harness` + 会真造出技能条目的 installer 桩。"""
     h = _tx_harness(tmp_path)
@@ -4162,7 +4175,11 @@ def _oc_run(
     ]
     if apply_:
         args.append("--apply")
-    return _run(*args, env=env, timeout=120)
+    # ⛔ 把 TMPDIR 钉进 tmp_path（Codex r2 MEDIUM-1）：`_run` 继承宿主环境，脚本的
+    #    heredoc / 子进程临时文件于是落在 `tmp_path` **之外** —— dry 零写门的快照面
+    #    根本照不到那里，留下的临时文件门看不见。判据的面必须覆盖被测物真正会写的地方。
+    #    （TMPDIR 指向 tmp_path 内不会被步 1 的禁写面判据误拒：那不是保护目录。）
+    return _run(*args, env={**env, "TMPDIR": str(_oc_tmpdir(tmp_path))}, timeout=120)
 
 
 def _oc_tree_snapshot(root: Path) -> dict[str, str]:
@@ -4171,23 +4188,35 @@ def _oc_tree_snapshot(root: Path) -> dict[str, str]:
     ⛔ 不用「找特定文件名」代替（Codex r1 MEDIUM-2）：那只能证明**我想到的**那几个名字
        没出现，证不了「什么都没写」。这里连内容 sha 与软链目标一起钉，
        任何新增 / 删除 / 改写 / 换成软链都会让两次快照不等。
-    ⚠️ 建完又删的临时文件本判据仍看不见（前后两个时刻都不存在）—— 那要靠脚本自己的
-       「不传 --apply 就不走写分支」控制流，本判据不宣称覆盖它。
+    ⚠️ **本判据看不见什么**（如实声明，别把它当成「证明了全过程零写」）：
+       ① 建完又删的临时文件（前后两个时刻都不存在）；② 内容相同的重写；
+       ③ atime —— **刻意不入判据**：拍快照这个动作自己就会改它（Codex r2 E 条）。
+       真正管住这些的是脚本「不传 --apply 就不走写分支」的控制流，不是本判据。
+    ⚠️ 元数据入判据的口径：mode / nlink / ino 入（权限被改、被换成硬链接、被整体替换
+       成另一个 inode 都算改动），size 由内容 sha 蕴含，mtime 不入（内容相同时它变不变
+       都不改变「有没有被写」这个结论，反而会让判据对 touch 之类无害动作变噪音）。
     """
     import hashlib
 
     snap: dict[str, str] = {}
-    for p in sorted(root.rglob("*")):
-        rel = str(p.relative_to(root))
+    entries = [root, *sorted(root.rglob("*"))]  # 根目录自身也入判据
+    for p in entries:
+        rel = "." if p == root else str(p.relative_to(root))
+        try:
+            st = p.lstat()
+        except OSError as exc:
+            snap[rel] = f"E:lstat:{exc.__class__.__name__}"
+            continue
+        meta = f"m{st.st_mode:o},n{st.st_nlink},i{st.st_ino}"
         if p.is_symlink():
-            snap[rel] = "L:" + os.readlink(p)
+            snap[rel] = f"L:{os.readlink(p)}|{meta}"
         elif p.is_dir():
-            snap[rel] = "D"
+            snap[rel] = f"D:|{meta}"
         else:
             try:
-                snap[rel] = "F:" + hashlib.sha256(p.read_bytes()).hexdigest()
+                snap[rel] = f"F:{hashlib.sha256(p.read_bytes()).hexdigest()}|{meta}"
             except OSError as exc:  # 读不出来也要留痕，不能压成「不存在」
-                snap[rel] = f"E:{exc.__class__.__name__}"
+                snap[rel] = f"E:read:{exc.__class__.__name__}|{meta}"
     return snap
 
 
@@ -4245,6 +4274,7 @@ def test_hosts_opencode_dry_run_writes_nothing(tmp_path: Path):
     name, port = "probe_oc2", "8282"
     h = _oc_harness(tmp_path)
     env = _tx_env(tmp_path, port, name)
+    _oc_tmpdir(tmp_path)  # ⛔ 先建好，免得把测试自己的脚手架读成被测物的写入
     before_snap = _oc_tree_snapshot(tmp_path)
     r = _oc_run(tmp_path, h, name, port, env=env, apply_=False)
     after_snap = _oc_tree_snapshot(tmp_path)

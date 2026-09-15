@@ -1095,71 +1095,152 @@ write_opencode_binding() {
 #    顶层赋值会在**参数解析与 preflight 之前**就写一次 —— 那正是 r9 HIGH-1 删掉 `<<<`
 #    所修的那一类。放在函数里, 执行时机是步 3, TMPDIR 早已过判据（步 1 的 DIR_WRITES）。
 publish_agents_md() {
-    local src
+    local src srcrc=0
     src="$(
         cat << 'PYPUB'
 import os
+import stat as statmod
 import sys
 
 dst, mark = sys.argv[1], sys.argv[2].encode()
-tmp = dst + ".tmp"
+ddir = os.path.dirname(dst) or "."
+base = os.path.basename(dst)
+tmpbase = base + ".tmp"
 
 
-def refuse_reason(path):
-    """目标为何不可被替换；None = 可以。⛔ 判据只此一份，前后两次调的是同一个函数。"""
-    if not os.path.lexists(path):
-        return None
-    if os.path.islink(path):
-        return f"目标是软链, 拒绝替换（写入会沿链穿到别处）: {path}"
-    if os.path.isdir(path):
-        return f"目标是目录, 拒绝替换: {path}"
+def refuse_reason(dfd, name, path):
+    """目标为何不可被替换；None = 可以。
+
+    ⛔ 判据只此一份（前后两次调的是同一个函数）——两份手抄的判据必然漂移。
+    ⛔ 一律 `dir_fd=` + `follow_symlinks=False`：绑在已打开的目录 fd 上，
+       父目录在这之后被换掉也不影响；末段不跟随软链。
+    """
     try:
-        with open(path, "rb") as fh:
+        st = os.stat(name, dir_fd=dfd, follow_symlinks=False)
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        # 「问不出来」不能压成「没问题」——fail-closed。
+        return f"问不出目标的状态, 不敢发布: {path} ({exc})"
+    if statmod.S_ISLNK(st.st_mode):
+        return f"目标是软链, 拒绝替换（写入会沿链穿到别处）: {path}"
+    if statmod.S_ISDIR(st.st_mode):
+        return f"目标是目录, 拒绝替换: {path}"
+    if not statmod.S_ISREG(st.st_mode):
+        return f"目标不是普通文件, 拒绝替换: {path}"
+    try:
+        rfd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=dfd)
+    except OSError as exc:
+        return f"打不开已有目标, 无从判断是不是本脚本生成的: {path} ({exc})"
+    try:
+        with os.fdopen(rfd, "rb") as fh:
             first = fh.readline()
     except OSError as exc:
-        return f"读不出已有目标的首行, 无从判断是不是本脚本生成的: {path} ({exc})"
-    # ⛔ 首行**精确**相等, 不是全文子串匹配（Codex r1 事实更正）：
-    #    子串匹配会让任何正文里碰巧引用过这行标记的手写文件被判成「我生成的」。
+        return f"读不出已有目标的首行: {path} ({exc})"
+    # ⛔ 首行**精确相等**, 不是全文子串匹配：子串匹配会把任何正文里
+    #    碰巧引用过这行标记的手写文件判成「我生成的」。
     if first.rstrip(b"\r\n") != mark:
         return f"已有目标缺生成标记（疑为手写）, 拒绝覆盖: {path}"
     return None
 
 
+def die(msg):
+    print(msg, file=sys.stderr)
+    sys.exit(1)
+
+
 body = sys.stdin.buffer.read()
+# ⛔ 空正文一律拒：上游没把内容送进来时（例如 stdin 被别的东西占了）, 落一个 0 字节的
+#    AGENTS.md 而 rc 仍是 0 —— 这种「成功地什么都没做」正是本卡自己踩过的那个坑。
+if not body.strip():
+    die("AGENTS.md 正文为空, 拒绝发布（上游没把内容送进来）")
 
-why = refuse_reason(dst)  # ① fail-fast: 不可发布就别建 tmp
-if why:
-    print(why, file=sys.stderr)
-    sys.exit(1)
-
+# 目录 fd 一旦打开就**钉死了那个 inode**, 之后的 stat / open / link / unlink 全都相对它做,
+# 父目录在这之后被换成别的目录也影响不到我们。
+# ⚠️ 刻意不加 O_NOFOLLOW：末段就是 $VAULT 自己, 它由步 1 的判据物理解析过；
+#    这里要挡的是「打开之后被换掉」, 而那正是 fd 语义本身提供的。
 try:
-    # O_EXCL ⇒ 已存在（含软链、硬链接）一律失败；O_NOFOLLOW ⇒ 不跟随末段软链。
-    # 于是这个 fd 必然指向**本次新建的**普通文件，写入不可能穿到别处。
-    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644)
+    dfd = os.open(ddir, os.O_RDONLY | os.O_DIRECTORY)
 except OSError as exc:
-    print(f"建 AGENTS.md 临时文件失败, 未写任何东西: {tmp} ({exc})", file=sys.stderr)
-    sys.exit(1)
+    die(f"打开 AGENTS.md 所在目录失败: {ddir} ({exc})")
 
+tfd = None
+published = False
 try:
-    with os.fdopen(fd, "wb") as fh:
+    why = refuse_reason(dfd, base, dst)  # ① fail-fast: 不可发布就别建 tmp
+    if why:
+        die(why)
+    try:
+        # O_EXCL ⇒ 已存在（含软链、硬链接）一律失败；O_NOFOLLOW ⇒ 不跟随末段软链。
+        # 于是这个 fd 必然指向**本次新建的**普通文件。
+        tfd = os.open(
+            tmpbase, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644, dir_fd=dfd
+        )
+    except OSError as exc:
+        die(f"建 AGENTS.md 临时文件失败, 未写任何东西: {dst}.tmp ({exc})")
+
+    with os.fdopen(tfd, "wb", closefd=False) as fh:
         fh.write(body)
         fh.flush()
-        os.fsync(fh.fileno())
-    # ② 紧邻 replace 前**再核一次**。窗口只能压缩、不能消除（POSIX 没有「条件替换」
-    #    这个原子操作）, 这里把它压到下一行。
-    why = refuse_reason(dst)
+    os.fsync(tfd)
+
+    # ② 身份钉死：fd 侧与路径侧**各自**要求 nlink == 1, 再要求两侧是同一个 inode。
+    #    ⛔ 只比「两侧相等」挡不住「两侧同时变坏」（都被换成同一个硬链接对）——
+    #    「相等」不能替「合格」背书。
+    want = os.fstat(tfd)
+    if want.st_nlink != 1:
+        die(f"临时文件（fd 侧）有 {want.st_nlink} 个硬链接, 不合格: {dst}.tmp")
+    got = os.stat(tmpbase, dir_fd=dfd, follow_symlinks=False)
+    if got.st_nlink != 1:
+        die(f"临时文件（路径侧）有 {got.st_nlink} 个硬链接, 不合格: {dst}.tmp")
+    if (want.st_dev, want.st_ino) != (got.st_dev, got.st_ino):
+        die(f"临时文件在写完之后被掉包, 拒绝发布: {dst}.tmp")
+
+    why = refuse_reason(dfd, base, dst)  # ③ 紧邻发布前再核一次
     if why:
-        raise OSError(why)
-    os.replace(tmp, dst)  # 目标是目录时 replace 自己会失败, 不会写进目录里
-except OSError as exc:
+        die(why)
+
+    # ④ 发布用 os.link 而不是 os.replace：
+    #    link 在目标已存在时**原子失败**(EEXIST), replace 则无条件覆盖。
+    #    于是「不覆盖任何已存在的东西」由内核保证, 不再靠「检查完祈祷没人插队」。
+    #    （os.replace 在本平台不支持 dir_fd, 也钉不住父目录 —— 实测
+    #     `os.replace in os.supports_dir_fd` 为 False。）
     try:
-        os.unlink(tmp)
-    except OSError:
-        pass
-    print(f"发布 AGENTS.md 失败, 已丢弃临时文件（未污染 {dst}）: {exc}", file=sys.stderr)
-    sys.exit(1)
+        os.link(tmpbase, base, src_dir_fd=dfd, dst_dir_fd=dfd)
+    except FileExistsError:
+        # 目标存在 —— 上一行刚核过它带我们的标记, 即**上一次生成的产物**。
+        # 先 unlink 再 link：这中间若有人抢先建了同名文件, link 会 EEXIST 而
+        # **不覆盖**它（比 replace 的无条件覆盖保守）。
+        # 如实声明代价：unlink 与 link 之间进程若被杀, AGENTS.md 会暂时消失 ——
+        # 它是可重新生成的派生件, 重跑即可。
+        os.unlink(base, dir_fd=dfd)
+        os.link(tmpbase, base, src_dir_fd=dfd, dst_dir_fd=dfd)
+    published = True
+finally:
+    if tfd is not None:
+        try:
+            os.close(tfd)
+        except OSError:
+            pass
+        # link 成功后 tmp 只是同一个 inode 的多余名字；失败时它是残片。
+        # 两种情况都要清掉 —— 留着会让下一次跑在 O_EXCL 上永久失败。
+        try:
+            os.unlink(tmpbase, dir_fd=dfd)
+        except OSError:
+            pass
+    os.close(dfd)
+
+if not published:
+    die(f"发布 AGENTS.md 未完成: {dst}")
 PYPUB
-    )"
+    )" || srcrc=$?
+    # ⛔ 捕获失败必须当场拒（Codex r2 LOW-1）：`$(...)` 在条件上下文里不触发 set -e,
+    #    src 落成空串时 `python3 -c ""` 会**返回 0** —— 发布程序与标记检查一行都没跑,
+    #    而后置的「AGENTS.md 在位」判据在「本来就有一份」时照样通过 ⇒ 静默的假绿。
+    if [ "$srcrc" != 0 ] || [ -z "$src" ]; then
+        printf '取 publish_agents_md 的程序源失败(rc=%s, 长度=%s)\n' "$srcrc" "${#src}" >&2
+        return 1
+    fi
     python3 -c "$src" "$1" "$2"
 }
 
