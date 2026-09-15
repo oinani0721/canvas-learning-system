@@ -9,25 +9,72 @@ POST /api/v1/traces/replay-fallbacks (鉴权) 手动触发 Neo4j 降级暂存链
 
 import json
 import logging
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import APIRouter, Depends
 
+from app.clients.neo4j_client import DEFAULT_STORAGE_PATH as NEO4J_MEMORY_FILE
+from app.core.failed_writes_constants import FAILED_WRITES_FILE
+from app.core.failure_counters import (
+    DUAL_WRITE_DEAD_LETTER_PATH,
+    EDGE_SYNC_DEAD_LETTER_PATH,
+    count_lines,
+    overflow_siblings,
+)
 from app.security import require_internal_api_key
-from app.services.fallback_sync_service import get_fallback_sync_service
+from app.services.fallback_sync_service import (
+    CANVAS_EVENTS_FALLBACK_FILE,
+    LEARNING_MEMORIES_FILE,
+    get_fallback_sync_service,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-DATA_DIR = Path(__file__).parent.parent.parent.parent / "data"
-LOGS_DIR = Path(__file__).parent.parent.parent.parent / "logs"
+# ⚠️ CARD-NEO4J-REPLAY-BOUND (T6-C): 本文件在 backend/app/api/v1/endpoints/，
+# 原先的 4 层 ``.parent`` 只走到 **backend/app** ⇒ DATA_DIR 解析成
+# ``backend/app/data``（实测该目录根本不存在），而全部死信文件写在
+# ``backend/data``（写侧 failure_counters.py / failed_writes_constants.py 从
+# ``backend/app/core/`` 走 3 层 ``.parent`` 恰好到 backend）。LOGS_DIR 同错
+# （``audit.jsonl`` 在 backend/logs）。于是 ``/traces/{request_id}`` 的 summary
+# 宣称聚合 bug_log / failed_edge_syncs / dead_letter_episodes / audit，实际读的
+# 是空目录，**恒查不到** —— DD-13 名实不符。``parents[4]`` == backend。
+_BACKEND_DIR = Path(__file__).resolve().parents[4]
+_REPO_ROOT = Path(__file__).resolve().parents[5]
+
+DATA_DIR = _BACKEND_DIR / "data"
+LOGS_DIR = _BACKEND_DIR / "logs"
 
 LOG_FILES = {
     "bug_log": DATA_DIR / "bug_log.jsonl",
     "failed_edge_syncs": DATA_DIR / "failed_edge_syncs.jsonl",
     "dead_letter_episodes": DATA_DIR / "dead_letter_episodes.jsonl",
     "audit": LOGS_DIR / "audit.jsonl",
+}
+
+# Neo4j 离线降级时的全部暂存链。
+#
+# ⚠️ 每条链的路径**按它自己的写侧锚点取**，不统一套 DATA_DIR：
+# ``canvas_events_fallback.json`` 的写侧（canvas_service.py:96）用的是
+# ``Path(__file__).parent.parent / "data"``，落 **backend/app/data**，与其余
+# 六条（backend/data）不是同一个目录。统一套 DATA_DIR 会让它恒 exists=False
+# —— 报「不存在」而其实一直在写，又是一处 DD-13。
+#
+# 能 import 到常量的一律直接 import，不手抄路径（手抄的两份清单必然漂移）。
+# 唯一的例外是 ``dead_letter_episodes.jsonl``：它的写侧
+# （episode_worker.py:224）是**函数参数默认值** ``"data/dead_letter_episodes.jsonl"``，
+# 相对 cwd 解析，没有模块常量可 import。运行时 cwd=backend 时与下面一致；
+# cwd 不是 backend 时实际落点会不同，本表报的就会是另一个位置。
+BACKLOG_FILES: Dict[str, Path] = {
+    "failed_writes.jsonl": FAILED_WRITES_FILE,
+    "failed_edge_syncs.jsonl": EDGE_SYNC_DEAD_LETTER_PATH,
+    "failed_dual_writes.jsonl": DUAL_WRITE_DEAD_LETTER_PATH,
+    "dead_letter_episodes.jsonl": DATA_DIR / "dead_letter_episodes.jsonl",
+    "neo4j_memory.json": NEO4J_MEMORY_FILE,
+    "learning_memories.json": LEARNING_MEMORIES_FILE,
+    "canvas_events_fallback.json": CANVAS_EVENTS_FALLBACK_FILE,
 }
 
 
@@ -51,6 +98,161 @@ def _search_jsonl(file_path: Path, request_id: str) -> List[Dict[str, Any]]:
     except Exception as e:
         logger.warning(f"Failed to read {file_path}: {e}")
     return results
+
+
+def _display_path(path: Path) -> str:
+    """相对仓根的路径；算不出来就只给文件名。
+
+    本路由与兄弟 ``/traces/{request_id}`` 一样**无鉴权**，所以不回绝对路径
+    （那会把文件系统布局暴露给任何能打到端口的人）。
+    """
+    try:
+        return str(path.resolve().relative_to(_REPO_ROOT))
+    except (ValueError, OSError):
+        return path.name
+
+
+def _first_last_timestamp(path: Path) -> Tuple[Optional[str], Optional[str]]:
+    """单趟扫出首/末条**可解析且带 timestamp** 的条目时间戳（O(1) 内存）。
+
+    坏行 / 空行 / 非 dict 一律跳过——死信文件正是在系统出问题时写的，
+    里面有半截行很正常，不该让只读端点 500。
+    """
+    first: Optional[str] = None
+    last: Optional[str] = None
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if not isinstance(entry, dict):
+                    continue
+                ts = entry.get("timestamp")
+                if ts is None:
+                    continue
+                if first is None:
+                    first = str(ts)
+                last = str(ts)
+    except OSError as e:
+        logger.warning(f"Failed to scan timestamps in {path}: {e}")
+    return first, last
+
+
+def _backlog_entry(name: str, path: Path) -> Dict[str, Any]:
+    """一条暂存链的积压快照。
+
+    ⚠️ ``backlog`` 只对 JSONL 有意义（= 行数）。``neo4j_memory.json`` /
+    ``canvas_events_fallback.json`` 是整块 JSON，没有「第几条」可言 ⇒
+    ``backlog`` / ``oldest`` / ``newest`` 一律 ``None``，改看 ``size_bytes``
+    与 ``mtime``。**不**把 mtime 塞进 ``newest`` 冒充条目时间戳——那是
+    DD-13 名实不符，读的人会以为那是最后一条记录的时间。
+
+    ⚠️ ``backlog`` 只数**活动文件**。写侧上限触发后，真正的积压在
+    ``.overflow.*`` 兄弟里，所以必须同时报 ``overflow_files`` /
+    ``overflow_bytes``，否则轮转一次就会把「积压 10000 条」报成「积压 3 条」。
+    """
+    entry: Dict[str, Any] = {
+        "name": name,
+        "path": _display_path(path),
+        "kind": "jsonl" if path.suffix == ".jsonl" else "json",
+        "exists": False,
+        "backlog": None,
+        "oldest": None,
+        "newest": None,
+        "size_bytes": 0,
+        "mtime": None,
+        "overflow_files": 0,
+        "overflow_bytes": 0,
+    }
+    try:
+        siblings = overflow_siblings(path)
+        entry["overflow_files"] = len(siblings)
+        entry["overflow_bytes"] = sum(p.stat().st_size for p in siblings if p.exists())
+    except OSError as e:
+        logger.warning(f"Failed to stat overflow siblings of {path}: {e}")
+
+    if not path.exists():
+        if entry["kind"] == "jsonl":
+            entry["backlog"] = 0
+        return entry
+
+    entry["exists"] = True
+    try:
+        stat = path.stat()
+        entry["size_bytes"] = stat.st_size
+        entry["mtime"] = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat()
+    except OSError as e:
+        logger.warning(f"Failed to stat {path}: {e}")
+
+    if entry["kind"] == "jsonl":
+        entry["backlog"] = count_lines(path)
+        entry["oldest"], entry["newest"] = _first_last_timestamp(path)
+    return entry
+
+
+def _safe_backlog_entry(name: str, path: Path) -> Dict[str, Any]:
+    """一条链读失败不得让另外六条也看不见。
+
+    ⚠️ 只回 ``type(e).__name__``，**不回 ``str(e)``**：本路由无鉴权，而
+    ``OSError`` 的消息通常内嵌绝对路径。完整信息只进服务端日志。
+    （兄弟端点 ``/traces/replay-fallbacks`` 回了 ``str(e)``，但它在
+    ``require_internal_api_key`` 后面，受众不同。）
+    """
+    try:
+        return _backlog_entry(name, path)
+    except Exception as e:  # noqa: BLE001 — 观测端点对单链故障必须降级而非整体 500
+        logger.exception(f"Failed to read backlog for {name} ({path})")
+        return {
+            "name": name,
+            "path": _display_path(path),
+            "kind": "jsonl" if path.suffix == ".jsonl" else "json",
+            "exists": None,
+            "backlog": None,
+            "oldest": None,
+            "newest": None,
+            "size_bytes": None,
+            "mtime": None,
+            "overflow_files": 0,
+            "overflow_bytes": 0,
+            "error": type(e).__name__,
+        }
+
+
+@router.get(
+    # ⛔ 必须声明在 ``/traces/{request_id}`` **之前**。FastAPI/Starlette 按
+    # 声明序匹配路径，放在后面会被动态段吃掉（request_id="dead-letter-backlog"，
+    # 返回空 timeline 而不是 backlog）。实测改前正是这个形态。
+    "/traces/dead-letter-backlog",
+    summary="Neo4j fallback backlog snapshot",
+    description=(
+        "Read-only snapshot of every Neo4j-degradation staging file: how many "
+        "entries are waiting, how old the oldest one is, and how much has been "
+        "rotated out to .overflow.* siblings by the write-side bound. "
+        "`backlog` is a line count and only applies to JSONL chains; the two "
+        "whole-JSON chains report `size_bytes`/`mtime` instead and leave "
+        "`backlog`/`oldest`/`newest` null. `oldest`/`newest` are the "
+        "`timestamp` fields of the first/last parsable entry, not file mtimes. "
+        "`backlog` counts the ACTIVE file only — rotated entries are counted "
+        "separately as `overflow_files`/`overflow_bytes`. Purely read-only: "
+        "this endpoint never rotates, deletes, or replays anything."
+    ),
+)
+async def get_dead_letter_backlog() -> Dict[str, Any]:
+    """Return per-chain backlog for all Neo4j offline staging files."""
+    files = [_safe_backlog_entry(name, path) for name, path in BACKLOG_FILES.items()]
+    return {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "files": files,
+        # 只把 JSONL 的行数求和；None 跳过而不是当 0 —— 「未知」不该被算成
+        # 「空」（同 /traces/replay-fallbacks 对 pending=-1 的口径）。
+        "total_backlog": sum(f["backlog"] or 0 for f in files),
+        "total_overflow_files": sum(f["overflow_files"] for f in files),
+    }
 
 
 @router.get(
