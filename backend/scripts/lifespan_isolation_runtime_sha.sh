@@ -130,16 +130,25 @@
 #   `RUNTIME-FILES: unchanged` / `CHANGED` 这一行结论；只看 rc 的调用方在 noexec 下
 #   会把「门压根没跑」读成「通过」。
 #   ⛔ 这条硬要求的可执行形态（CARD-RUNTIME-SHA-SURFACE 实测，第十四批）——
-#   取 **stdout+stderr** 合并文本，**没有结论行就判红，不看 rc**：
+#   取 **stdout+stderr** 合并文本，**先确认门自报了结论行，再照常看 rc**：
 #     Python（推荐，免疫 noexec）:
+#       VERDICT = re.compile(r'^RUNTIME-FILES: (unchanged|CHANGED)$', re.M)
 #       p = subprocess.run(["bash", GATE, "--", *cmd], capture_output=True, text=True)
-#       if "RUNTIME-FILES:" not in (p.stdout + p.stderr):
-#           raise SystemExit("门未自报结论行 ⇒ 门没跑（SHELLOPTS=noexec？解释器被换？）")
+#       if not VERDICT.search(p.stdout + p.stderr):
+#           raise SystemExit(f"门未自报结论行 ⇒ 门没跑或已损坏；rc={p.returncode} 不作数")
+#       raise SystemExit(p.returncode)   # 有结论行只说明门**跑过了**，过没过仍看 rc
 #     shell（够用但**挡不住 noexec**，见下）:
 #       out="$(bash "$GATE" -- "$@" 2>&1)"; rc=$?
 #       printf '%s\n' "$out" | grep -qE '^RUNTIME-FILES: (unchanged|CHANGED)$' \
 #         || { printf 'GATE-DID-NOT-RUN\n' >&2; exit 1; }
 #       exit "$rc"
+#   ⛔ 配方里两个细节都是**承重**的，抄的时候别省（Codex round-1 MEDIUM-1）：
+#     * **整行精确匹配**，不能只判 `RUNTIME-FILES:` 这个子串——`RUNTIME-FILES: GATE-BROKEN …`
+#       同样含这个子串，而它是**门损坏**、不是结论。只判子串等于把门自己喊出来的
+#       「我坏了」读成「门跑过了」。
+#     * **rc 必须继续传播**。「有结论行」只证明门运行到了终点，**不**代表通过：
+#       `CHANGED` 是 rc=1，被包裹命令自己的退出码也从这里透出（见文末退出码表）。
+#       断言只负责堵住「门没跑」这一类，不替代原有的 rc 判定。
 #   ⛔ 为什么**常驻**强制必须落在非 bash 进程：同一个 `SHELLOPTS=noexec` 环境里，
 #      上面那个 shell 版调用方**自己也只解析不执行**（实测 rc=0、零输出）。同理，
 #      在 repo 根另建一个 bash launcher 来「防 noexec」是**假安全感** —— 那个壳一样
@@ -518,7 +527,10 @@ fi
 #          （CARD-RUNTIME-SHA-SURFACE 补入，第十四批。⚠️ 它是 **SQLite 二进制**：门按
 #          逐字节 sha256 判定，所以先实测过「只读不写不会改字节」——默认连接 SELECT、
 #          再 SELECT、只读 URI SELECT 三种形态 sha 均不变，真写入才变（验伪锚）。
-#          若将来换 WAL 或有别的写者，这一项会变成新的假红面，届时查这里。）
+#          ⚠️ 本项只比**主 `.db` 文件**的字节；`-wal` / `-shm` 边车**不在清单**。
+#          上面那组实测是在默认 journal 模式、单连接、无并发下做的：换日志模式
+#          （如 WAL）或出现并发写者后，覆盖面与误报/漏报边界**需要重新验证**，
+#          本卡未测。⛔ 到那时也不要靠放宽本清单来消化问题。）
 # ⚠️ 上面五项都只盯**默认**路径。生产若用 settings 覆盖了 storage_path / db_path，
 #    写到别处的那一份本门看不到 —— 这与本门「具名清单、不是全盘零写入」的定位一致。
 WATCHED_FIXED=(
