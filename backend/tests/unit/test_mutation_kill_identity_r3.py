@@ -1266,3 +1266,19 @@ def test_rec_readonly_whitelist_rejects_attribute_chains(tmp_path: Path) -> None
         assert rec.ast_mutation_count("probe.py") == 3
     finally:
         rec.SCRIPTS = orig
+
+
+def test_h1_shortest_split_makes_later_only_scan_complete() -> None:
+    """⛔ 钉住「只看更靠后」那条完备性论证**所依赖的前提**。
+
+    `expect_msg_may_come_from_nodeid()` 只扫比解析结果更靠后的 ` - ` 切点，完备性来自
+    `_FAILED_RE` 的 nodeid 是 `\\S+?`（**非贪婪**）⇒ 正则给出的就是**最短**合法切分 ⇒
+    不存在「更靠前且仍命中目标门」的读法可漏。
+    ⚠️ 谁把它改成贪婪或 `rsplit`，那条完备性当场失效 —— 所以把前提本身钉在这里。
+    """
+    m = mki._FAILED_RE.match("FAILED tests/gate.py::test_x - EXPECT - AssertionError: OTHER")
+    assert m is not None and m.group("nodeid") == "tests/gate.py::test_x", (
+        "⛔ 解析结果必须是**最短**切分；非贪婪一旦被改成贪婪，"
+        "`expect_msg_may_come_from_nodeid` 的「只看更靠后」就漏读法了"
+    )
+    assert "\\S+?" in mki._FAILED_RE.pattern, "⛔ nodeid 必须保持非贪婪 `\\S+?`"

@@ -868,6 +868,11 @@ def expect_msg_may_come_from_nodeid(out: str, nodeid: str, expect_msg: str) -> l
     **nodeid 里含 `expect_msg` 而它自己的 reason 不含** ⇒ 这个「命中」不可归属 ⇒ 调用方
     判 HARNESS-ERROR。⚠️ 只看比解析结果**更长**的读法（整行无 reason 那种不算）——
     否则任何参数化行都会因为「整行里当然含它」而被误判。
+
+    ⛔ **「只看更靠后」为什么是完备的**（2026-09-15 自核，答 Codex round-10 提问②）：
+    `_FAILED_RE` 的 nodeid 是 `\\S+?` —— **非贪婪**，所以正则给出的就是**最短**的那个合法
+    切分。⇒ 不存在「比解析结果更靠前、且仍命中目标门」的读法可漏。⚠️ 这条完备性**依赖
+    那个 `\\S+?`**：谁把它改成贪婪或 `rsplit`，这里的「只看更靠后」当场失效，必须同改。
     """
     region = summary_region(out)
     if region is None:
