@@ -117,16 +117,28 @@ def _unique_overflow_target(path: Path) -> Path:
     + 存在性防撞（跨进程微秒仍可能撞）。
     """
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d-%H%M%S%f")
-    target = path.with_suffix(f"{OVERFLOW_SUFFIX}{stamp}")
-    if not target.exists():
-        return target
-    for n in range(1, 100):
-        candidate = path.with_suffix(f"{OVERFLOW_SUFFIX}{stamp}-{n:02d}")
+    # ⚠️ 结尾保留原扩展名（独立复核 2026-09-15 MEDIUM）。``with_suffix`` 会把
+    # ``.jsonl`` 吃掉，而 ``backend/data/.gitignore`` 忽略的是 ``*.jsonl`` 与
+    # ``*.synced.*`` —— 都盖不住 ``failed_writes.overflow.<ts>``（实测
+    # ``git check-ignore`` 无命中）。那样每轮转一次就往 ``git status`` 里多一个
+    # 未跟踪文件，迟早被顺手 commit 进仓库（死信内容含错误消息与 id）。
+    # 带上 ``.jsonl`` 后实测被 ``.gitignore:5`` 的 ``*.jsonl`` 命中。
+    # 时间戳定宽 + 扩展名是常量后缀 ⇒ 字典序仍 == 时序，retention「删最老」不受影响。
+    tail = path.suffix
+    # ⚠️ 序号**恒存在**（`-00` 起），不是「撞了才加」。初版是撞了才追加 `-01`，
+    # 于是 `<ts>.jsonl` 与 `<ts>-01.jsonl` 之间按 ASCII 比较 `.`(0x2E) > `-`(0x2D)
+    # ⇒ **后产生的 `-01` 排在先产生的前面**，直接打破 `_prune_overflow`
+    # 赖以「删最老」的「定宽 ⇒ 字典序 == 时序」不变量（本文件自己的测试
+    # test_unique_overflow_target_does_not_overwrite_existing 抓到的）。
+    # 所有名字同形之后，同微秒内按 `-NN` 递增、跨微秒由时间戳主导，两级都对。
+    for n in range(100):
+        candidate = path.with_suffix(f"{OVERFLOW_SUFFIX}{stamp}-{n:02d}{tail}")
         if not candidate.exists():
             return candidate
-    # 100 次同微秒撞名基本不可能；真发生了宁可牺牲可排序性也不覆盖数据。
+    # 同一微秒连撞 100 次基本不可能；真发生了宁可牺牲可排序性也不覆盖数据。
+    # 挂在 `-99-` 之后 ⇒ 在同微秒族内仍排最后，只是族内彼此之间无序。
     logger.warning("轮转目标名连撞 100 次, 退化到随机后缀: %s", path)
-    return path.with_suffix(f"{OVERFLOW_SUFFIX}{stamp}-{uuid4().hex[:8]}")
+    return path.with_suffix(f"{OVERFLOW_SUFFIX}{stamp}-99-{uuid4().hex[:8]}{tail}")
 
 
 def _prune_overflow(path: Path, max_rotations: int) -> None:
@@ -136,7 +148,14 @@ def _prune_overflow(path: Path, max_rotations: int) -> None:
     """
     if max_rotations < 0:
         return
-    siblings = overflow_siblings(path)
+    try:
+        siblings = overflow_siblings(path)
+    except OSError as e:
+        # Codex round-1 M1: 父目录可写可遍历但**不可列**时，数行与 rename 都能
+        # 成功，随后 iterdir() 抛错 —— 若不接住，清理失败就会阻断本次追加，
+        # 与本函数「删不掉旧档案不该阻断新死信落盘」的声明自相矛盾。
+        logger.warning("[T6-C] 枚举溢出文件失败, 跳过清理 %s: %s", path, e)
+        return
     victims = siblings if max_rotations == 0 else siblings[:-max_rotations]
     for victim in victims:
         try:

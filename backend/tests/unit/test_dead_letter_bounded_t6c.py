@@ -274,3 +274,305 @@ def test_record_structured_outbox_still_returns_false_on_oserror(service, bounde
     blocker.write_text("not a directory\n", encoding="utf-8")
     monkeypatch.setattr(ms, "FAILED_WRITES_FILE", blocker / "failed_writes.jsonl")
     assert service._record_structured_outbox({"kind": "knowledge_entity"}) is False
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 上限常量的边界分支（Codex round-1 L3：这些分支此前无输入覆盖）
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def test_max_rotations_zero_keeps_no_overflow(monkeypatch, tmp_path):
+    """MAX_ROTATIONS=0 = 轮转后立即全删（纯截断）。
+
+    盯的是 ``_prune_overflow`` 里 ``siblings[:-max_rotations]`` 的陷阱：
+    ``lst[:-0]`` == ``lst[:0]`` == 空，会让「保留 0 份」变成「一份都不删」，
+    与 docstring 写的语义正好相反。现有其余测试的保留数都是正数，拦不住它。
+    """
+    monkeypatch.setattr(fc, "DEAD_LETTER_MAX_LINES", 1, raising=False)
+    monkeypatch.setattr(fc, "DEAD_LETTER_MAX_ROTATIONS", 0, raising=False)
+    path = tmp_path / "failed_edge_syncs.jsonl"
+    for i in range(4):
+        fc.write_dead_letter(path, "edge_sync", f"err{i}", edge_id=f"e{i}")
+
+    assert _overflow_siblings(path) == [], "MAX_ROTATIONS=0 却留下了 overflow"
+    assert _nlines(path) <= 1
+
+
+def test_max_lines_non_positive_disables_bounding(monkeypatch, tmp_path):
+    """MAX_LINES<=0 = 关闭上限（不轮转），留给「宁可涨也别动文件」的部署。"""
+    monkeypatch.setattr(fc, "DEAD_LETTER_MAX_LINES", 0, raising=False)
+    monkeypatch.setattr(fc, "DEAD_LETTER_MAX_ROTATIONS", 5, raising=False)
+    path = tmp_path / "failed_edge_syncs.jsonl"
+    for i in range(4):
+        fc.write_dead_letter(path, "edge_sync", f"err{i}", edge_id=f"e{i}")
+
+    assert _overflow_siblings(path) == [], "上限已关闭却仍轮转"
+    assert _nlines(path) == 4
+
+
+def test_bound_from_env_never_raises_on_bad_values(monkeypatch):
+    """坏 env 值必须退回默认并告警，不得在**模块导入期**抛 ValueError。
+
+    这些常量是模块级求值的：一个 ``CLS_DEAD_LETTER_MAX_LINES=abc``
+    就足以让整个后端起不来。
+    """
+    for raw, expected in [
+        ("abc", 10),  # 非整数
+        ("-5", 10),  # 负数
+        ("0", 10),  # 小于下限
+        ("", 10),  # 空串
+        ("   ", 10),  # 全空白
+        ("  7  ", 7),  # 合法值带空白
+    ]:
+        monkeypatch.setenv("CLS_PROBE_BOUND_T6C", raw)
+        assert fc.bound_from_env("CLS_PROBE_BOUND_T6C", 10, minimum=1) == expected, raw
+    monkeypatch.delenv("CLS_PROBE_BOUND_T6C", raising=False)
+    assert fc.bound_from_env("CLS_PROBE_BOUND_T6C", 10, minimum=1) == 10
+
+
+def test_count_lines_counts_unterminated_last_line(tmp_path):
+    """末行没有换行符也算一行——否则崩溃期被截断的半行会让上限判定少算。"""
+    path = tmp_path / "failed_edge_syncs.jsonl"
+    path.write_bytes(b'{"a":1}\n{"a":2}')
+    assert fc.count_lines(path) == 2
+    assert fc.count_lines(tmp_path / "does-not-exist.jsonl") == 0
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Codex round-1 M1：读侧/清理侧失败**不得**阻断追加（旧版裸追加本来能成功）
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def test_unreadable_active_file_does_not_block_append(service, bounded_failed_writes, monkeypatch):
+    """活动文件可写但不可读时仍须落盘。
+
+    ``rotate_if_over_limit`` 已吞下它那次读失败；若 helper 里的第二次
+    ``count_lines`` 再抛出去，追加就整个不发生，而批量路径的
+    ``finally: pending.clear()`` 会把条目清掉 = 真丢数据。
+    """
+    path = bounded_failed_writes
+
+    def _boom(_p):
+        raise OSError("permission denied")
+
+    monkeypatch.setattr(fwc, "count_lines", _boom)
+    assert service._record_structured_outbox({"kind": "knowledge_entity", "i": 1})
+    assert _nlines(path) == 1, "数行失败把追加整个挡掉了（旧版裸追加反而能成功）"
+
+
+def test_unlistable_dir_does_not_block_dead_letter_append(monkeypatch, tmp_path):
+    """父目录可写可遍历但不可列时，清理失败不得阻断新死信落盘。
+
+    ``rotate_if_over_limit`` 的 docstring 声称「删不掉旧档案不该阻断新死信
+    落盘」，但初版只保护了 ``unlink``，没保护 ``iterdir`` 那一步枚举。
+    """
+    monkeypatch.setattr(fc, "DEAD_LETTER_MAX_LINES", 1, raising=False)
+    monkeypatch.setattr(fc, "DEAD_LETTER_MAX_ROTATIONS", 1, raising=False)
+    path = tmp_path / "failed_edge_syncs.jsonl"
+    fc.write_dead_letter(path, "edge_sync", "first", edge_id="e0")
+
+    calls = {"n": 0}
+    real = fc.overflow_siblings
+
+    def _boom_on_prune(p):
+        calls["n"] += 1
+        # 第一次是 _unique_overflow_target 之后的 _prune_overflow 调用
+        raise OSError("operation not permitted")
+
+    monkeypatch.setattr(fc, "overflow_siblings", _boom_on_prune)
+    fc.write_dead_letter(path, "edge_sync", "second", edge_id="e1")
+    monkeypatch.setattr(fc, "overflow_siblings", real)
+
+    assert calls["n"] >= 1, "本门没有走到枚举失败的那条路径"
+    assert _nlines(path) == 1, "清理失败把新死信的追加挡掉了"
+    assert _overflow_siblings(path), "轮转本身应已完成（失败的只是清理）"
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Codex round-1 L3：身份守恒（行数守恒挡不住「丢一个 + 重一个」）
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def _collect_edge_ids(path):
+    ids = []
+    for p in [path] + _overflow_siblings(path):
+        if not p.exists():
+            continue
+        for line in p.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line:
+                ids.append(json.loads(line)["edge_id"])
+    return ids
+
+
+def test_rotation_preserves_entry_identity_not_just_count(monkeypatch, tmp_path):
+    """条目**身份**守恒：丢一个 e0、重复一个 e1，行数照样守恒，但集合不对。"""
+    monkeypatch.setattr(fc, "DEAD_LETTER_MAX_LINES", 1, raising=False)
+    monkeypatch.setattr(fc, "DEAD_LETTER_MAX_ROTATIONS", 99, raising=False)
+    path = tmp_path / "failed_edge_syncs.jsonl"
+    total = 6
+    for i in range(total):
+        fc.write_dead_letter(path, "edge_sync", f"err{i}", edge_id=f"e{i}")
+
+    assert _overflow_siblings(path), "轮转未发生，本门无意义"
+    got = sorted(_collect_edge_ids(path))
+    assert got == [f"e{i}" for i in range(total)], f"条目身份不守恒: {got}"
+
+
+def test_retention_keeps_exactly_the_newest_overflows(monkeypatch, tmp_path):
+    """retention 留下的必须**恰好是最新的那两份**。
+
+    只断言「两份且没有 err0」是不够的：保留 e1/e2、删掉更新的 e3/e4
+    同样满足它（Codex round-1 L3 给的对照）。这里断言确切集合。
+    """
+    monkeypatch.setattr(fc, "DEAD_LETTER_MAX_LINES", 1, raising=False)
+    monkeypatch.setattr(fc, "DEAD_LETTER_MAX_ROTATIONS", 2, raising=False)
+    path = tmp_path / "failed_edge_syncs.jsonl"
+    for i in range(6):
+        fc.write_dead_letter(path, "edge_sync", f"err{i}", edge_id=f"e{i}")
+
+    overflow = _overflow_siblings(path)
+    assert len(overflow) == 2, f"保留上限未生效: {len(overflow)} 个 overflow"
+    kept = sorted(json.loads(p.read_text(encoding="utf-8").splitlines()[0])["edge_id"] for p in overflow)
+    # 6 次追加 ⇒ 轮转 5 次（e0..e4 各成一份），活动文件留 e5。
+    # 保留最新两份 = e3, e4。
+    assert kept == ["e3", "e4"], f"retention 留下的不是最新两份: {kept}"
+    assert _collect_edge_ids(path).count("e5") == 1
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 回灌窗口 × 轮转（内部对抗复核 2026-09-15 的 BLOCKER，Codex round-1 未发现）
+#
+# fallback_sync_service._sync_failed_writes 的 finalize 用「长度比较 + 位置
+# 切片」判断重放期间有没有新追加（:366-367），前提是活动文件**只增不减**。
+# 本卡是第一个让它变短的写者 ⇒ 窗口内轮转会让新条目被整份覆盖，或被错标成
+# `.synced.`（谎称已回灌）。fallback_sync_service 在本卡是禁改面，所以修在
+# 写侧：窗口开着就不轮转。
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+async def test_no_rotation_while_replay_window_open(service, bounded_failed_writes):
+    """回灌窗口开着时**绝不轮转**，且一条不丢。
+
+    用的是**真实的** ``_sync_all_lock``，不是打桩 —— 打桩只能证明「我写的
+    判断会被调用」，证明不了它读的是回灌侧真正在用的那把锁。
+    """
+    import app.services.fallback_sync_service as fss
+
+    path = bounded_failed_writes
+    total = MAX_LINES + 3
+
+    async with fss._sync_all_lock:
+        for i in range(total):
+            assert service._record_structured_outbox({"kind": "knowledge_entity", "i": i})
+
+    assert _overflow_siblings(path) == [], (
+        "回灌窗口内发生了轮转 —— finalize 的「只增不减」判据会因此把窗口内新写的条目覆盖掉或错标成 .synced."
+    )
+    assert _nlines(path) == total, "窗口内的条目丢了"
+
+
+async def test_rotation_resumes_after_replay_window_closes(service, bounded_failed_writes):
+    """控制组：同样的输入，窗口**关着**时必须照常轮转。
+
+    没有这条，上面那条门用「永不轮转」也能变绿。
+    """
+    import app.services.fallback_sync_service as fss
+
+    path = bounded_failed_writes
+    assert not fss._sync_all_lock.locked(), "前置不成立：锁本来就被别人占着"
+
+    for i in range(MAX_LINES + 3):
+        assert service._record_structured_outbox({"kind": "knowledge_entity", "i": i})
+
+    assert _overflow_siblings(path), "窗口关着却没轮转 —— 上限失效了"
+    assert _nlines(path) <= MAX_LINES
+
+
+def test_replay_probe_falls_back_to_bounded_when_unobservable(monkeypatch):
+    """观测不到回灌状态（import 失败 / 属性不在）⇒ 退回有界行为，而不是停掉上限。
+
+    「读不到状态」不该被当成「回灌正在跑」—— 那会让上限被一个 import 错误
+    永久关掉，而这正是本卡要防的磁盘占满。
+    """
+    import builtins
+
+    real_import = builtins.__import__
+
+    def _no_fss(name, *a, **kw):
+        if name == "app.services.fallback_sync_service":
+            raise ImportError("simulated")
+        return real_import(name, *a, **kw)
+
+    monkeypatch.setattr(builtins, "__import__", _no_fss)
+    assert fwc._replay_in_flight() is False
+
+
+def test_failed_writes_retention_keeps_newest_and_drops_oldest(service, monkeypatch, tmp_path):
+    """failed_writes 这条链的 retention 此前零覆盖（只测过 dead-letter 侧）。"""
+    monkeypatch.setattr(fwc, "FAILED_WRITES_MAX_LINES", 1, raising=False)
+    monkeypatch.setattr(fwc, "FAILED_WRITES_MAX_ROTATIONS", 2, raising=False)
+    path = tmp_path / "failed_writes.jsonl"
+    monkeypatch.setattr(ms, "FAILED_WRITES_FILE", path)
+
+    for i in range(6):
+        assert service._record_structured_outbox({"kind": "knowledge_entity", "i": i})
+
+    overflow = _overflow_siblings(path)
+    assert len(overflow) == 2, f"failed_writes 的保留上限未生效: {len(overflow)}"
+    kept = sorted(json.loads(p.read_text(encoding="utf-8").splitlines()[0])["i"] for p in overflow)
+    assert kept == [3, 4], f"留下的不是最新两份: {kept}"
+
+
+def test_overflow_name_keeps_extension_so_gitignore_covers_it(monkeypatch, tmp_path):
+    """轮转产物必须仍以原扩展名结尾。
+
+    ``backend/data/.gitignore`` 忽略的是 ``*.jsonl`` 与 ``*.synced.*``；
+    ``with_suffix`` 会把 ``.jsonl`` 吃掉，产出的 ``failed_writes.overflow.<ts>``
+    **不被任何规则命中**（实测 git check-ignore 无输出），于是每轮转一次就往
+    git status 里多一个未跟踪文件，内容还含错误消息与 id。
+    """
+    monkeypatch.setattr(fc, "DEAD_LETTER_MAX_LINES", 1, raising=False)
+    monkeypatch.setattr(fc, "DEAD_LETTER_MAX_ROTATIONS", 5, raising=False)
+    path = tmp_path / "failed_edge_syncs.jsonl"
+    for i in range(3):
+        fc.write_dead_letter(path, "edge_sync", f"err{i}", edge_id=f"e{i}")
+
+    names = [p.name for p in _overflow_siblings(path)]
+    assert names, "轮转未发生"
+    for n in names:
+        assert n.endswith(".jsonl"), f"轮转产物丢了扩展名, gitignore 盖不住: {n}"
+        assert ".overflow." in n
+
+
+def test_unique_overflow_target_does_not_overwrite_existing(monkeypatch, tmp_path):
+    """防撞段此前零覆盖：目标名已被占用时必须换名，不得覆盖既有归档。
+
+    ⚠️ 必须**把时钟钉死**再测。否则两次调用大概率落在不同微秒上，根本走不到
+    防撞分支，测试就成了「只要两次返回不同名字即可」的空壳 —— 覆盖不到
+    `Path.rename` 静默覆盖那条真正危险的路径。
+    """
+    import datetime as _dt
+
+    class _FrozenDateTime(_dt.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return _dt.datetime(2026, 9, 15, 12, 0, 0, 123456, tzinfo=tz)
+
+    monkeypatch.setattr(fc, "datetime", _FrozenDateTime)
+
+    path = tmp_path / "failed_edge_syncs.jsonl"
+    path.write_text('{"a":1}\n', encoding="utf-8")
+
+    first = fc._unique_overflow_target(path)
+    first.write_text("occupied\n", encoding="utf-8")
+
+    second = fc._unique_overflow_target(path)
+    assert second != first, "同一微秒下防撞失效：返回了已存在的目标（rename 会静默覆盖它）"
+    assert second.name.endswith(".jsonl"), second.name
+    assert first.read_text(encoding="utf-8") == "occupied\n", "既有归档被覆盖了"
+    # 第三次必须继续往后排，且保持字典序 == 时序
+    second.write_text("occupied2\n", encoding="utf-8")
+    third = fc._unique_overflow_target(path)
+    assert third not in (first, second)
+    assert sorted([first.name, second.name, third.name]) == [first.name, second.name, third.name]

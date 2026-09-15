@@ -7,6 +7,7 @@ POST /api/v1/traces/replay-fallbacks (鉴权) 手动触发 Neo4j 降级暂存链
 —— CARD-NEO4J-REPLAY-WIRE (BATCH-2026-09-11-第十四批)。
 """
 
+import asyncio
 import json
 import logging
 from datetime import datetime, timezone
@@ -20,10 +21,12 @@ from app.core.failed_writes_constants import FAILED_WRITES_FILE
 from app.core.failure_counters import (
     DUAL_WRITE_DEAD_LETTER_PATH,
     EDGE_SYNC_DEAD_LETTER_PATH,
+    bound_from_env,
     count_lines,
     overflow_siblings,
 )
 from app.security import require_internal_api_key
+from app.services.event_bus import OUTBOX_FILE
 from app.services.fallback_sync_service import (
     CANVAS_EVENTS_FALLBACK_FILE,
     LEARNING_MEMORIES_FILE,
@@ -41,8 +44,15 @@ router = APIRouter()
 # （``audit.jsonl`` 在 backend/logs）。于是 ``/traces/{request_id}`` 的 summary
 # 宣称聚合 bug_log / failed_edge_syncs / dead_letter_episodes / audit，实际读的
 # 是空目录，**恒查不到** —— DD-13 名实不符。``parents[4]`` == backend。
+#
+# ⚠️ 但**别把这处修复说得比它实际管用**（独立复核 2026-09-15 MEDIUM 更正了
+# 初版注释的过强表述）：四个源里只有 ``failed_edge_syncs``（写侧
+# ``failure_counters.py`` 的 ``parent.parent.parent/"data"``）与 ``audit``
+# 是绝对锚，改对目录就真读得到。``bug_log`` 与 ``dead_letter_episodes`` 的
+# 写侧是 **cwd 相对**路径（``episode_worker.py:224`` 的默认参数
+# ``"data/dead_letter_episodes.jsonl"``），只有在 cwd=backend 时才与这里一致；
+# cwd 不是 backend 时它们仍然对不上，而那不是本卡能在读侧修的。
 _BACKEND_DIR = Path(__file__).resolve().parents[4]
-_REPO_ROOT = Path(__file__).resolve().parents[5]
 
 DATA_DIR = _BACKEND_DIR / "data"
 LOGS_DIR = _BACKEND_DIR / "logs"
@@ -75,7 +85,18 @@ BACKLOG_FILES: Dict[str, Path] = {
     "neo4j_memory.json": NEO4J_MEMORY_FILE,
     "learning_memories.json": LEARNING_MEMORIES_FILE,
     "canvas_events_fallback.json": CANVAS_EVENTS_FALLBACK_FILE,
+    # Tier-2 事件 outbox（event_bus.py:49）：图写入重试耗尽后落这里。它同样是
+    # 一条 Neo4j 降级暂存链，初版漏了它，而本端点的 description 写的是
+    # 「every Neo4j-degradation staging file」⇒ 少报一处积压 = DD-13
+    # （独立复核 2026-09-15 指出）。本卡只读它，写侧有界属 event_bus 地盘。
+    "outbox/events.jsonl": OUTBOX_FILE,
 }
+
+# backlog 扫时间戳的尺寸闸（Codex round-1 M3）。超过它就只报行数与尺寸、不扫
+# 时间戳，并在该条目上标 degraded —— 按行迭代会把一整行读进内存，一条没有换行
+# 的超长记录足以撑爆它。8 MiB ≈ 上限 10000 行 × 每行 ~800 B 的两倍余量。
+# env 覆盖：CLS_BACKLOG_SCAN_MAX_BYTES。
+BACKLOG_SCAN_MAX_BYTES: int = bound_from_env("CLS_BACKLOG_SCAN_MAX_BYTES", 8 * 1024 * 1024, minimum=1)
 
 
 def _search_jsonl(file_path: Path, request_id: str) -> List[Dict[str, Any]]:
@@ -105,21 +126,53 @@ def _display_path(path: Path) -> str:
 
     本路由与兄弟 ``/traces/{request_id}`` 一样**无鉴权**，所以不回绝对路径
     （那会把文件系统布局暴露给任何能打到端口的人）。
+
+    ⚠️ 锚点是 ``_BACKEND_DIR`` 而不是仓根（独立复核 2026-09-15 MEDIUM）。
+    初版用 ``parents[5]`` 当仓根，在容器等「backend 不在第 5 层」的布局里会
+    退化：若仓根解析成 ``/``，``relative_to`` **不会**失败，而是原样回整条
+    绝对路径（只少一个前导斜杠）—— 脱敏静默失效，门还全绿。
+    七条链全部位于 ``backend/`` 之下，所以按 backend 锚是部署无关的。
+
+    ⚠️ 捕获面是 ``Exception`` 而不是 ``(ValueError, OSError)``（Codex round-1
+    L2）：符号链接成环时 ``Path.resolve()`` 在 Python < 3.13 抛的是
+    ``RuntimeError``，两者都不是它的子类。而 ``_safe_backlog_entry`` 的降级
+    分支**又会调用本函数**，于是这一处漏网会让异常逃出整条路由变成 500 ——
+    降级路径上的函数自己必须不可抛。``path.name`` 是纯字符串运算，安全。
     """
     try:
-        return str(path.resolve().relative_to(_REPO_ROOT))
-    except (ValueError, OSError):
+        return "backend/" + str(path.resolve().relative_to(_BACKEND_DIR))
+    except Exception:  # noqa: BLE001 — 见 docstring：降级路径不得成为新的失败点
         return path.name
 
 
-def _first_last_timestamp(path: Path) -> Tuple[Optional[str], Optional[str]]:
-    """单趟扫出首/末条**可解析且带 timestamp** 的条目时间戳（O(1) 内存）。
+def _first_last_timestamp(path: Path, *, max_bytes: int) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+    """单趟扫出首/末条**可解析且带 timestamp** 的条目时间戳。
 
     坏行 / 空行 / 非 dict 一律跳过——死信文件正是在系统出问题时写的，
     里面有半截行很正常，不该让只读端点 500。
+
+    ⚠️ 内存不是无条件 O(1)（Codex round-1 M3 更正了初版这处过强的说法）：
+    按行迭代会把**一整行**读进内存，一条没有换行的超长记录就能撑爆它。
+    所以按 ``max_bytes`` 设闸：文件超过这个尺寸就**完全不扫**，直接返回
+    ``truncated=True``，由调用方如实标记，而不是报一个扫了一半的时间戳。
+
+    Returns:
+        ``(oldest, newest, reason)``。``reason`` 为 ``None`` 表示完整扫完；
+        非 ``None`` 时 oldest/newest 不可信，值是**机器可读的原因**：
+        ``size_capped``（尺寸超闸，没扫）/ ``stat:<ExcName>``（量尺寸就失败）/
+        ``read:<ExcName>``（扫到一半失败）。
+        ⚠️ 「跳过」与「失败」必须分开报：合成一个 ``truncated=True`` 会让
+        「文件太大所以没看」和「看了但读坏了」在响应里无法区分。
     """
     first: Optional[str] = None
     last: Optional[str] = None
+    try:
+        if path.stat().st_size > max_bytes:
+            logger.info("[T6-C] %s 超过扫描上限 %d B, 跳过时间戳扫描", path.name, max_bytes)
+            return None, None, "size_capped"
+    except OSError as e:
+        logger.warning(f"Failed to size {path} before scan: {e}")
+        return None, None, f"stat:{type(e).__name__}"
     try:
         with open(path, "r", encoding="utf-8", errors="replace") as f:
             for line in f:
@@ -140,7 +193,8 @@ def _first_last_timestamp(path: Path) -> Tuple[Optional[str], Optional[str]]:
                 last = str(ts)
     except OSError as e:
         logger.warning(f"Failed to scan timestamps in {path}: {e}")
-    return first, last
+        return first, last, f"read:{type(e).__name__}"
+    return first, last, None
 
 
 def _backlog_entry(name: str, path: Path) -> Dict[str, Any]:
@@ -155,6 +209,15 @@ def _backlog_entry(name: str, path: Path) -> Dict[str, Any]:
     ⚠️ ``backlog`` 只数**活动文件**。写侧上限触发后，真正的积压在
     ``.overflow.*`` 兄弟里，所以必须同时报 ``overflow_files`` /
     ``overflow_bytes``，否则轮转一次就会把「积压 10000 条」报成「积压 3 条」。
+
+    ⚠️ **部分失败必须留痕**（Codex round-1 M2）。初版把每一处 ``except OSError``
+    都写成「记个日志然后接着走」，于是「归档目录列不出来」和「真的一个归档都
+    没有」在响应里**长得一模一样**（``overflow_files=0``、无 ``error``）——
+    读的人会把「没测到」当成「没积压」，正是本卡要修的那类 DD-13。
+    现在每一处降级都往 ``degraded`` 里追加一个**机器可读的原因标签**，并置
+    ``partial=True``；顶层再据此给出 ``incomplete``。
+    标签只放原因名（如 ``overflow_scan:PermissionError``），**不放 ``str(e)``**
+    —— 本路由无鉴权，而 ``OSError`` 的消息通常内嵌绝对路径。
     """
     entry: Dict[str, Any] = {
         "name": name,
@@ -168,13 +231,21 @@ def _backlog_entry(name: str, path: Path) -> Dict[str, Any]:
         "mtime": None,
         "overflow_files": 0,
         "overflow_bytes": 0,
+        "partial": False,
+        "degraded": [],
     }
+
+    def _degrade(reason: str) -> None:
+        entry["partial"] = True
+        entry["degraded"].append(reason)
+
     try:
         siblings = overflow_siblings(path)
         entry["overflow_files"] = len(siblings)
         entry["overflow_bytes"] = sum(p.stat().st_size for p in siblings if p.exists())
     except OSError as e:
         logger.warning(f"Failed to stat overflow siblings of {path}: {e}")
+        _degrade(f"overflow_scan:{type(e).__name__}")
 
     if not path.exists():
         if entry["kind"] == "jsonl":
@@ -188,10 +259,18 @@ def _backlog_entry(name: str, path: Path) -> Dict[str, Any]:
         entry["mtime"] = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat()
     except OSError as e:
         logger.warning(f"Failed to stat {path}: {e}")
+        _degrade(f"stat:{type(e).__name__}")
 
     if entry["kind"] == "jsonl":
-        entry["backlog"] = count_lines(path)
-        entry["oldest"], entry["newest"] = _first_last_timestamp(path)
+        try:
+            entry["backlog"] = count_lines(path)
+        except OSError as e:
+            logger.warning(f"Failed to count lines in {path}: {e}")
+            _degrade(f"count_lines:{type(e).__name__}")
+        oldest, newest, scan_reason = _first_last_timestamp(path, max_bytes=BACKLOG_SCAN_MAX_BYTES)
+        entry["oldest"], entry["newest"] = oldest, newest
+        if scan_reason is not None:
+            _degrade(f"timestamp_scan:{scan_reason}")
     return entry
 
 
@@ -219,6 +298,8 @@ def _safe_backlog_entry(name: str, path: Path) -> Dict[str, Any]:
             "mtime": None,
             "overflow_files": 0,
             "overflow_bytes": 0,
+            "partial": True,
+            "degraded": [f"entry:{type(e).__name__}"],
             "error": type(e).__name__,
         }
 
@@ -238,13 +319,29 @@ def _safe_backlog_entry(name: str, path: Path) -> Dict[str, Any]:
         "`backlog`/`oldest`/`newest` null. `oldest`/`newest` are the "
         "`timestamp` fields of the first/last parsable entry, not file mtimes. "
         "`backlog` counts the ACTIVE file only — rotated entries are counted "
-        "separately as `overflow_files`/`overflow_bytes`. Purely read-only: "
-        "this endpoint never rotates, deletes, or replays anything."
+        "separately as `overflow_files`/`overflow_bytes`. "
+        "PARTIAL READS ARE FLAGGED, NOT SILENTLY ZEROED: any chain whose "
+        "overflow scan, stat, line count, or timestamp scan degraded carries "
+        "`partial: true` plus machine-readable reasons in `degraded` (e.g. "
+        "`overflow_scan:PermissionError`, `timestamp_scan:size_capped`). The "
+        "top level then reports `incomplete: true` and lists `degraded_chains`. "
+        "When `incomplete` is true, `total_backlog` is a LOWER BOUND, not the "
+        "real figure — do not render it as 'nothing is queued'. Files larger "
+        "than CLS_BACKLOG_SCAN_MAX_BYTES skip the timestamp scan entirely. "
+        "Purely read-only: this endpoint never rotates, deletes, or replays "
+        "anything."
     ),
 )
 async def get_dead_letter_backlog() -> Dict[str, Any]:
-    """Return per-chain backlog for all Neo4j offline staging files."""
-    files = [_safe_backlog_entry(name, path) for name, path in BACKLOG_FILES.items()]
+    """Return per-chain backlog for all Neo4j offline staging files.
+
+    ⚠️ 整段文件 I/O 走 ``asyncio.to_thread``（Codex round-1 M3）。数行与时间戳
+    解析都是同步阻塞调用，直接写在 ``async def`` 里会在大文件上把事件循环按住，
+    连累同进程的其他请求。观测端点尤其不该在系统出问题（= 文件最大）时拖垮它
+    要观测的那个系统。
+    """
+    files = await asyncio.to_thread(lambda: [_safe_backlog_entry(name, path) for name, path in BACKLOG_FILES.items()])
+    incomplete = any(f.get("partial") or f.get("error") for f in files)
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "files": files,
@@ -252,6 +349,10 @@ async def get_dead_letter_backlog() -> Dict[str, Any]:
         # 「空」（同 /traces/replay-fallbacks 对 pending=-1 的口径）。
         "total_backlog": sum(f["backlog"] or 0 for f in files),
         "total_overflow_files": sum(f["overflow_files"] for f in files),
+        # ⛔ 有任何一条链降级，合计数就是**下界**而不是真值。不给这个标记的话
+        # 「读不到」会和「真的没有」在响应里无法区分（Codex round-1 M2）。
+        "incomplete": incomplete,
+        "degraded_chains": [f["name"] for f in files if f.get("partial") or f.get("error")],
     }
 
 

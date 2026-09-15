@@ -201,8 +201,14 @@ def test_backlog_non_jsonl_reports_size_not_fake_timestamps(client, monkeypatch,
 
 
 def test_backlog_covers_every_staging_chain():
-    """七条降级暂存链一条都不能漏 —— 漏一条 = backlog 少报一处积压。"""
+    """每条降级暂存链都不能漏 —— 漏一条 = backlog 少报一处积压。
+
+    ``outbox/events.jsonl`` 是独立复核 2026-09-15 抓到的遗漏：event_bus 的
+    Tier-2 图写入重试耗尽后落它，同样是 Neo4j 降级链，而端点 description
+    写的是「every Neo4j-degradation staging file」。
+    """
     assert set(traces.BACKLOG_FILES) == {
+        "outbox/events.jsonl",
         "failed_writes.jsonl",
         "failed_edge_syncs.jsonl",
         "failed_dual_writes.jsonl",
@@ -243,3 +249,202 @@ def test_backlog_path_field_is_not_absolute(client, monkeypatch, tmp_path):
     monkeypatch.setattr(traces, "BACKLOG_FILES", {"failed_writes.jsonl": active}, raising=False)
     entry = client.get(BACKLOG_PATH).json()["files"][0]
     assert not entry["path"].startswith("/"), f"回了绝对路径: {entry['path']}"
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Codex round-1 M2：部分读取失败必须留痕，不得被包装成正常零值
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def test_overflow_scan_failure_is_flagged_not_zeroed(client, monkeypatch, tmp_path):
+    """归档目录列不出来 ⇒ 必须 partial + degraded，而不是静悄悄的 overflow_files=0。
+
+    「没测到」和「没积压」在响应里长得一样，就是本卡要修的那类 DD-13。
+    """
+    active = tmp_path / "failed_writes.jsonl"
+    _write_jsonl(active, [{"timestamp": "2026-09-01T00:00:00Z"}])
+
+    def _boom(_p):
+        raise PermissionError("cannot list dir")
+
+    monkeypatch.setattr(traces, "overflow_siblings", _boom)
+    monkeypatch.setattr(traces, "BACKLOG_FILES", {"failed_writes.jsonl": active}, raising=False)
+
+    body = client.get(BACKLOG_PATH).json()
+    entry = body["files"][0]
+    assert entry["partial"] is True, "归档枚举失败却报成了完整结果"
+    assert any(d.startswith("overflow_scan:") for d in entry["degraded"]), entry["degraded"]
+    assert body["incomplete"] is True
+    assert body["degraded_chains"] == ["failed_writes.jsonl"]
+    # 活动文件仍然读到了 —— 降级是局部的，不是整条链报废
+    assert entry["backlog"] == 1
+
+
+def test_timestamp_scan_failure_is_flagged(client, monkeypatch, tmp_path):
+    """数行成功、时间戳扫描失败 ⇒ oldest/newest 为 null **且**带 degraded 原因。"""
+    active = tmp_path / "failed_writes.jsonl"
+    _write_jsonl(active, [{"timestamp": "2026-09-01T00:00:00Z"}])
+
+    def _boom(_p, *, max_bytes):
+        raise AssertionError("不该被调用")
+
+    monkeypatch.setattr(traces, "_first_last_timestamp", lambda p, *, max_bytes: (None, None, "read:OSError"))
+    monkeypatch.setattr(traces, "BACKLOG_FILES", {"failed_writes.jsonl": active}, raising=False)
+
+    entry = client.get(BACKLOG_PATH).json()["files"][0]
+    assert entry["oldest"] is None and entry["newest"] is None
+    assert "timestamp_scan:read:OSError" in entry["degraded"]
+    assert entry["partial"] is True
+
+
+def test_oversized_file_skips_timestamp_scan_and_says_so(client, monkeypatch, tmp_path):
+    """超过尺寸闸 ⇒ 跳过时间戳扫描，但必须报 size_capped 而不是假装扫过了。
+
+    「跳过」与「失败」是两个原因标签，不能合成一个 truncated 布尔。
+    """
+    active = tmp_path / "failed_writes.jsonl"
+    _write_jsonl(active, [{"timestamp": "2026-09-01T00:00:00Z"}, {"timestamp": "2026-09-02T00:00:00Z"}])
+    monkeypatch.setattr(traces, "BACKLOG_SCAN_MAX_BYTES", 1)  # 任何真实文件都超闸
+    monkeypatch.setattr(traces, "BACKLOG_FILES", {"failed_writes.jsonl": active}, raising=False)
+
+    body = client.get(BACKLOG_PATH).json()
+    entry = body["files"][0]
+    assert entry["backlog"] == 2, "尺寸超闸只该跳过时间戳扫描，不该连行数也不数"
+    assert entry["oldest"] is None and entry["newest"] is None
+    assert "timestamp_scan:size_capped" in entry["degraded"]
+    assert body["incomplete"] is True
+
+
+def test_healthy_chain_is_not_flagged(client, monkeypatch, tmp_path):
+    """验伪锚（承重）：一切正常时 partial/incomplete 必须是 False。
+
+    否则「恒 partial=True」也能让上面三条门变绿 —— 那样标记就没有鉴别力。
+    """
+    active = tmp_path / "failed_writes.jsonl"
+    _write_jsonl(active, [{"timestamp": "2026-09-01T00:00:00Z"}])
+    monkeypatch.setattr(traces, "BACKLOG_FILES", {"failed_writes.jsonl": active}, raising=False)
+
+    body = client.get(BACKLOG_PATH).json()
+    assert body["incomplete"] is False
+    assert body["degraded_chains"] == []
+    assert body["files"][0]["partial"] is False
+    assert body["files"][0]["degraded"] == []
+
+
+def test_missing_file_is_not_treated_as_degraded(client, monkeypatch, tmp_path):
+    """文件不存在 ≠ 读失败：那是「确实没有积压」，不该标 partial。"""
+    monkeypatch.setattr(traces, "BACKLOG_FILES", {"gone.jsonl": tmp_path / "nope" / "gone.jsonl"}, raising=False)
+    body = client.get(BACKLOG_PATH).json()
+    assert body["files"][0]["partial"] is False
+    assert body["incomplete"] is False
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Codex round-1 L2：降级路径上的 _display_path 自己不得抛
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def test_display_path_never_raises(monkeypatch, tmp_path):
+    """resolve() 抛 RuntimeError（符号链接成环，Py<3.13）时必须退回文件名。
+
+    ``_safe_backlog_entry`` 的降级分支**又会调用**它，所以这一处漏网会让
+    异常逃出整条路由变成 500。捕获面必须宽于 (ValueError, OSError)。
+    """
+
+    class _Loop(type(tmp_path)):
+        def resolve(self, strict=False):
+            raise RuntimeError("Symlink loop")
+
+    p = _Loop(tmp_path / "failed_writes.jsonl")
+    assert traces._display_path(p) == "failed_writes.jsonl"
+
+
+def test_entry_level_failure_degrades_that_chain_only(client, monkeypatch, tmp_path):
+    """一条链整体抛错 ⇒ 该条 error + partial，另一条仍要能读出来。"""
+    good = tmp_path / "failed_writes.jsonl"
+    _write_jsonl(good, [{"timestamp": "2026-09-01T00:00:00Z"}])
+    bad = tmp_path / "failed_edge_syncs.jsonl"
+    _write_jsonl(bad, [{"timestamp": "2026-09-02T00:00:00Z"}])
+
+    real = traces._backlog_entry
+
+    def _selective(name, path):
+        if name == "failed_edge_syncs.jsonl":
+            raise RuntimeError("boom")
+        return real(name, path)
+
+    monkeypatch.setattr(traces, "_backlog_entry", _selective)
+    monkeypatch.setattr(
+        traces,
+        "BACKLOG_FILES",
+        {"failed_writes.jsonl": good, "failed_edge_syncs.jsonl": bad},
+        raising=False,
+    )
+
+    body = client.get(BACKLOG_PATH).json()
+    assert body["files"][0]["backlog"] == 1, "好的那条链被连累了"
+    assert body["files"][1]["error"] == "RuntimeError"
+    assert body["files"][1]["partial"] is True
+    assert body["incomplete"] is True
+    assert body["degraded_chains"] == ["failed_edge_syncs.jsonl"]
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 独立复核 2026-09-15：被点名「零覆盖 / 判据恒真」的分支
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def test_display_path_success_branch_is_repo_relative(tmp_path, monkeypatch):
+    """顺利分支必须有断言 —— 只测 fallback 的话，实现恒返回 path.name 也全绿。"""
+    monkeypatch.setattr(traces, "_BACKEND_DIR", tmp_path)
+    got = traces._display_path(tmp_path / "data" / "failed_writes.jsonl")
+    assert got == "backend/data/failed_writes.jsonl"
+    assert not got.startswith("/")
+
+
+def test_display_path_does_not_leak_absolute_when_anchor_is_root(monkeypatch, tmp_path):
+    """锚点退化成 `/` 时不得把整条绝对路径当「相对路径」回出去。
+
+    这正是初版用 parents[5] 当仓根的问题：容器里 relative_to('/') **不会**
+    抛异常，只是把前导斜杠去掉，脱敏静默失效。现在锚在 backend 上，
+    tmp_path 下的文件根本不在锚内 ⇒ 走 fallback 只回文件名。
+    """
+    monkeypatch.setattr(traces, "_BACKEND_DIR", Path("/nonexistent-anchor-t6c"))
+    assert traces._display_path(tmp_path / "failed_writes.jsonl") == "failed_writes.jsonl"
+
+
+def test_newest_skips_entries_without_timestamp(client, monkeypatch, tmp_path):
+    """末条没有 timestamp 时，newest 必须回退到**最后一条有 timestamp 的**。
+
+    只断言 oldest 的话，把 `if ts is None: continue` 删掉照样全绿。
+    """
+    active = tmp_path / "failed_writes.jsonl"
+    active.write_text(
+        '{"timestamp": "2026-09-01T00:00:00Z"}\n{"timestamp": "2026-09-02T00:00:00Z"}\n{"no_timestamp": 1}\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(traces, "BACKLOG_FILES", {"failed_writes.jsonl": active}, raising=False)
+    entry = client.get(BACKLOG_PATH).json()["files"][0]
+    assert entry["oldest"] == "2026-09-01T00:00:00Z"
+    assert entry["newest"] == "2026-09-02T00:00:00Z", "末条无 timestamp 时 newest 取错了"
+
+
+def test_totals_are_asserted_and_unknown_is_not_counted_as_zero(client, monkeypatch, tmp_path):
+    """顶层汇总字段必须有断言，且「未知」不得被压成「空」。"""
+    jsonl = tmp_path / "failed_writes.jsonl"
+    _write_jsonl(jsonl, [{"timestamp": "2026-09-01T00:00:00Z"}, {"timestamp": "2026-09-02T00:00:00Z"}])
+    blob = tmp_path / "neo4j_memory.json"
+    blob.write_text("{}", encoding="utf-8")
+    for ts in ("2026-09-01-000000000001",):
+        _write_jsonl(tmp_path / f"failed_writes.overflow.{ts}.jsonl", [{"a": 1}])
+    monkeypatch.setattr(
+        traces,
+        "BACKLOG_FILES",
+        {"failed_writes.jsonl": jsonl, "neo4j_memory.json": blob},
+        raising=False,
+    )
+    body = client.get(BACKLOG_PATH).json()
+    # 非 JSONL 链的 backlog 是 None（未知），不得被当 0 加进去，也不得让求和崩
+    assert body["total_backlog"] == 2
+    assert body["total_overflow_files"] == 1
+    assert body["incomplete"] is False
