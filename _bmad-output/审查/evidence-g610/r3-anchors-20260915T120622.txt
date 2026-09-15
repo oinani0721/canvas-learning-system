@@ -1,0 +1,26 @@
+# r3 整改验证（H1 / M1 / M2 / L2）
+
+## H1: 不让 tempfile 自己挑 —— TMPDIR 指真 backups/ 时零探针写（分数秒 mtime 口径）
+  验伪锚 mtime 1789445182.780170257 → 1789445183.025096507
+  ✓ 判据能看见探针写
+*** PRECONDITION REJECTED *** $TMPDIR 落在受保护位置 runner.REPO(生产) 之内/之上: $TMPDIR = /Users/Heishing/Desktop/canvas/canvas-learning-system/backups, runner.REPO(生产) = /Users/Heishing/Desktop/canvas/canvas-learning-system（tempfile 会在那里建探针文件并写入）
+verdict=REJECTED rc=2
+  live backups mtime 1789445101.753555792 → 1789445101.753555792
+  ✓ 零探针写
+
+## H1 续: 三个环境变量都指向不可用值时，不得回落到 cwd（受保护）
+  cwd = /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t4-g3/backend（在开发树内 = 受保护）
+anchor: $TMPDIR = /nonexistent-g610 不是目录，跳过
+anchor: $TEMP = /nonexistent-g610 不是目录，跳过
+anchor: $TMP = /nonexistent-g610 不是目录，跳过
+tmp base = /private/tmp（来自 平台默认 /tmp；显式传给 mkdtemp(dir=...)，tempfile 不自行挑）
+verdict=ISOLATED rc=0
+  rc=0  ← 期望 0（落到平台默认 /tmp，不是 cwd）
+
+## M1: 进程级禁写字节码提到第一条语句之后
+  新于哨兵的 .pyc =        0  ← 期望 0
+
+## L2: --help 在 ascii 编码下必须 rc=2 而不是 rc=1
+  rc=2  ← 期望 2
+  对照（正常编码 --help）:
+  rc=0  ← 期望 0

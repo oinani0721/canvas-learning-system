@@ -77,8 +77,35 @@ NEO4J_TEST_PASSWORD = os.getenv("NEO4J_TEST_PASSWORD", "testpassword")
 # ---------------------------------------------------------------------------
 
 
+#: 现网端口。7691 = 现网 Neo4j 的宿主映射端口；7687 = Neo4j 默认端口（容器内/直连现网）。
+_LIVE_PORTS = frozenset({7691, 7687})
+
+
+def _targets_live_port(uri: str) -> bool:
+    """URI 是否指向现网端口 —— **按解析出的端口判，不按子串判**。
+
+    ⚠ Codex r3 M2: 原版只写 `":7691" in uri`。`bolt://127.0.0.1:07691` 连的就是
+    7691，子串检查却放行 —— 判据比它的主张窄。这里用 `urlsplit(...).port`（会
+    `int()` 掉前导零）判定，子串检查作为额外的一层保留。
+
+    端口缺省也一律按现网处理: Neo4j 驱动对缺省端口取 7687，那正是现网默认端口，
+    「没写端口」不能当成「安全」。解析不出来（畸形 URI）同样按不安全处理。
+    """
+    if any(f":{p}" in uri for p in _LIVE_PORTS):
+        return True
+    from urllib.parse import urlsplit
+
+    try:
+        port = urlsplit(uri).port
+    except ValueError:  # 端口非法/越界 —— 不可判定即按不安全处理
+        return True
+    if port is None:  # 缺省端口 = 驱动取 7687 = 现网默认
+        return True
+    return port in _LIVE_PORTS
+
+
 def _test_neo4j_reachable() -> bool:
-    if ":7691" in NEO4J_TEST_URI:
+    if _targets_live_port(NEO4J_TEST_URI):
         # 禁碰 live: 即使有人把 NEO4J_TEST_URI 指到现网也拒绝运行
         return False
     try:
@@ -331,6 +358,11 @@ def _assert_seed_landed(raw: dict[str, Any], prod: dict[str, Any], *, where: str
         assert prod[facet], f"precondition [{where}]: 生产读的 {facet} 为空 —— seed 没落库，门会测一个空集合"
     seed_scores = {score for _n, _c, _r, score in raw["learned"]}
     assert seed_scores == {SEED_SCORE}, f"precondition [{where}]: B 组初始 LEARNED 分数不是 seed 分数: {seed_scores}"
+    # ⚠ Codex r3 M3: Episode 也要锁到 seed 分数，不能只要求"非空"。否则 seed 的
+    # Episode 若已是 REVIEW_SCORE，后面那句「A 看到 95」就证明不了这次复习真的新增了
+    # 记录 —— 旧的 95 就足以让正控通过。锁死之后，任何一条 95 都必然是本次写的。
+    ep_scores = {score for _nid, _ngid, _rgid, score in raw["episodes"]}
+    assert ep_scores == {SEED_SCORE}, f"precondition [{where}]: 初始 Episode 分数不是 seed 分数: {ep_scores}"
 
 
 def _assert_group_b_intact(before: dict[str, Any], after: dict[str, Any], *, where: str) -> None:
@@ -355,8 +387,23 @@ def _assert_group_b_intact(before: dict[str, Any], after: dict[str, Any], *, whe
 
 
 def test_g610_never_targets_live_7691():
-    """探针已拒 7691; 此断言把"禁碰 live"从注释升级为可执行契约."""
-    assert ":7691" not in NEO4J_TEST_URI
+    """探针已拒现网端口; 此断言把"禁碰 live"从注释升级为可执行契约.
+
+    ⚠ 如实声明（Codex r1 LOW-1 / r2 LOW-1 / r3 L1，三轮同一条，未改代码）：本测试与
+    数据库测试**共用模块级 skipif**，所以 URI 指现网时它自己也被 skip，不构成独立的
+    第三层执行证据。该层的独立证据落在 `evidence-g610/gate-7691-selflayer-*.txt`
+    （直接调 `_targets_live_port()` / `_test_neo4j_reachable()` 证明其对 7691 返 True/False）。
+    要让它真正独立执行需要把它拆到另一个不带 skipif 的文件 —— 属地盘外，登记待裁。
+
+    顺带把 r3 M2 的形态钉死: 带前导零的 `:07691` 也必须被判为现网。
+    """
+    assert not _targets_live_port(NEO4J_TEST_URI)
+    # 形态门: 判据按解析端口而不是子串（前导零 / 缺省端口 两种都得拦下）
+    assert _targets_live_port("bolt://127.0.0.1:07691")
+    assert _targets_live_port("bolt://127.0.0.1:7691")
+    assert _targets_live_port("bolt://127.0.0.1:7687")
+    assert _targets_live_port("bolt://127.0.0.1")  # 缺省端口 = 7687 = 现网默认
+    assert not _targets_live_port("bolt://127.0.0.1:7692")
 
 
 # ---------------------------------------------------------------------------
@@ -377,18 +424,27 @@ async def test_group_b_unaffected_by_group_a_review_write(gate_client):
     before = await _snapshot_raw(gate_client, GID_B, group_filtered=True)
     before_prod = await _snapshot_production(gate_client, GID_B_LOGICAL)
     _assert_seed_landed(before, before_prod, where="positive/B")
+    # A 侧也锁 seed 形态：这样「复习后 A 出现 95」必然是本次写的，不是本来就有的
+    a_before = await _snapshot_raw(gate_client, GID_A, group_filtered=True)
+    _assert_seed_landed(a_before, await _snapshot_production(gate_client, GID_A_LOGICAL), where="positive/A")
 
     await _review_write(gate_client, GID_A_LOGICAL)
 
     # 正向对照: A 确有本次复习写（读的是 A 自己的 scope）
-    a_after = await _snapshot_production(gate_client, GID_A_LOGICAL)
-    a_scores = [score for _name, _gid, score in a_after["learned"]]
+    a_after = await _snapshot_raw(gate_client, GID_A, group_filtered=True)
+    a_scores = {score for _n, _c, _r, score in a_after["learned"]}
     assert REVIEW_SCORE in a_scores, (
         f"precondition: A 组自己没看到复习分数 {REVIEW_SCORE}（拿到 {a_after['learned']}）"
         " —— 写没落库，本测试的『B 没变』不构成隔离证据"
     )
-    assert REVIEW_SCORE in [s for s, _ts in a_after["episodes"]], (
-        f"precondition: A 组的历史分数里没有本次复习的 {REVIEW_SCORE}（拿到 {a_after['episodes']}）"
+    a_ep_scores = {score for _nid, _ngid, _rgid, score in a_after["episodes"]}
+    assert REVIEW_SCORE in a_ep_scores, (
+        f"precondition: A 组的 Episode 里没有本次复习的 {REVIEW_SCORE}（拿到 {a_after['episodes']}）"
+    )
+    # Codex r3 M3: 不只是「有 95」，而是「Episode 集合确实变了」—— seed 已锁死为全 40，
+    # 所以这一条同时证明了本次复习**新增**了记录，而不是命中了一条旧的。
+    assert a_after["episodes"] != a_before["episodes"], (
+        f"precondition: A 组 Episode 集合未变（{a_before['episodes']}）—— 本次复习没有新增记录"
     )
 
     # 隔离判据: 手写带 scope 的读 与 生产读，两条路都不变

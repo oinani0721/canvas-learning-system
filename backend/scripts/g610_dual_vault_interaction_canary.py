@@ -88,21 +88,28 @@ key**。本脚本就是把这条单点机制放到真实写路径下跑一遍。
 
 from __future__ import annotations
 
-import argparse
-import hashlib
-import json
-import os
-import pathlib
-import shutil
 import sys
-import tempfile
-import traceback
 
-# ⛔ Codex r2 MEDIUM-1: 字节码禁写必须是**进程级、从第一个 import 起**。原版只在
-# runner 的 exec_module 前后开关，于是 `live_port_guard` / `g29_dual_vault_canary` /
-# `app.*` 这些 import 照样往**真仓库**的 `__pycache__` 写 .pyc —— 那是 tmp 白名单
-# 管不到的落盘点。本脚本是一次性 canary，全程关缓存的代价只是 import 慢一点。
+# ⛔ 本模块的**第一条可执行语句**（Codex r2 MEDIUM-1 + r3 M1）。字节码禁写必须是
+# 进程级、从**本文件的第一个 import 之前**起：原版只包 runner 的 exec_module，于是
+# `live_port_guard` / `g29_dual_vault_canary` / `app.*` 照样往**真仓库**的
+# `__pycache__` 写 .pyc；r2 那版挪到 import 块之后，`argparse`/`json`/`tempfile`
+# 这批 stdlib import 仍在窗口里（`PYTHONPYCACHEPREFIX` 可以把它们的缓存重定向到
+# 任意目录）。现在提到最前。
+#
+# 如实声明残留：解释器自身的 bootstrap（`site.py` 等）发生在本文件第一行**之前**，
+# 脚本内代码无法早于它 —— 那一段只能靠外部的 `-B` / `PYTHONDONTWRITEBYTECODE`
+# 控制，不在本脚本可及范围（验收单「本卡未证明什么」已登记）。
 sys.dont_write_bytecode = True
+
+import argparse  # noqa: E402
+import hashlib  # noqa: E402
+import json  # noqa: E402
+import os  # noqa: E402
+import pathlib  # noqa: E402
+import shutil  # noqa: E402
+import tempfile  # noqa: E402
+import traceback  # noqa: E402
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 装门 —— 第一段可执行代码，必须早于任何业务 import
@@ -281,41 +288,50 @@ def _reject_if_protected(path: pathlib.Path, label: str, protected: dict[str, pa
     return lines
 
 
-def _assert_tempdir_anchor(protected: dict[str, pathlib.Path]) -> list[str]:
-    """在 tempfile **写出第一个字节之前**验临时目录落在哪里。
+#: 平台默认候选（与 ``tempfile._candidate_tempdir_list`` 同序）。**刻意不含 cwd**
+#: —— tempfile 的最后一支兜底是当前目录，而本脚本的 cwd 正是 backend/（受保护的
+#: 开发树内）。让 tempfile 自己去兜底 = 允许它往受保护位置写探针（Codex r3 H1）。
+_TMPDIR_PLATFORM_DEFAULTS = ("/tmp", "/var/tmp", "/usr/tmp")
 
-    ⛔ Codex r1 HIGH-1 + r2 HIGH 的收口，两步都是实测出来的：
 
-    ① ``mkdtemp()`` 认 ``TMPDIR``，而它**自己就会建目录** —— 等拿到返回值再检查已经晚了。
-    ② 更早一步：``tempfile.gettempdir()`` 首次调用会走 ``_get_default_tempdir()``，
-       它**逐个候选目录建一个探针文件、``_os.write(fd, b'blat')``、再 unlink**
-       （CPython 源码实测）。所以连 ``gettempdir()`` 都不能先调 —— 它本身就是一次写。
-       目录列表看不见那个探针，是因为它在同一次调用里被删掉了，**不是因为没写**。
+def _resolve_tmp_base(protected: dict[str, pathlib.Path]) -> tuple[pathlib.Path, list[str]]:
+    """**自己**挑临时目录根，挑完显式传给 ``mkdtemp(dir=...)``。
 
-    所以判定只能从**环境变量原文**读起：先看 ``TMPDIR``/``TEMP``/``TMP`` 的字面值，
-    全部安全了，才允许 tempfile 去碰盘；之后再把 ``gettempdir()`` 的实际结果复验一遍
-    （覆盖"环境变量没设、落到平台默认或 cwd"这一支）。
+    ⛔ Codex r1 HIGH-1 → r2 HIGH → r3 H1，三轮往前挪同一件事，最后只能这么收：
+
+    ① ``mkdtemp()`` 认 ``TMPDIR``，而它自己就会建目录 —— 拿到返回值再查已经晚了；
+    ② ``tempfile.gettempdir()`` 首次调用走 ``_get_default_tempdir()``，它**逐个候选
+       目录建探针文件、``_os.write(fd, b'blat')``、再 unlink**（CPython 源码实测）。
+       所以连 ``gettempdir()`` 都是一次写。目录列表看不见那个探针，是因为它在同一次
+       调用里被删了，**不是因为没写**；父目录的分数秒 mtime 看得见；
+    ③ 即使先验了 ``TMPDIR``/``TEMP``/``TMP``，环境变量没设时 tempfile 仍会自己往
+       平台默认、最后往 **cwd** 探 —— 而 cwd 就在受保护的开发树里。
+
+    唯一彻底的做法是**不让 tempfile 挑**：本函数按它的候选顺序自己选一个已验过的
+    目录，再 ``mkdtemp(dir=base)``。传了 ``dir`` 之后 ``mkdtemp`` 不会调
+    ``gettempdir()``，探针那一步根本不发生。
     """
     lines: list[str] = []
+    candidates: list[tuple[str, str]] = []
     for var in _TMPDIR_ENV_VARS:
         raw = os.environ.get(var)
-        if not raw:
-            lines.append(f"anchor(pre-tempfile): ${var} 未设置")
-            continue
-        lines.extend(
-            _reject_if_protected(
-                pathlib.Path(raw),
-                f"${var}",
-                protected,
-                "tempfile 会在那里建探针文件并写入 —— 在它碰盘之前拒绝",
-            )
-        )
+        if raw:
+            candidates.append((f"${var}", raw))
+        else:
+            lines.append(f"anchor: ${var} 未设置")
+    candidates.extend((f"平台默认 {d}", d) for d in _TMPDIR_PLATFORM_DEFAULTS)
 
-    # 环境变量已安全 ⇒ 现在才允许 tempfile 碰盘；结果再复验一遍（平台默认 / cwd 兜底支）
-    base = pathlib.Path(tempfile.gettempdir())
-    lines.append(f"tempfile.gettempdir() = {base.resolve()}")
-    lines.extend(_reject_if_protected(base, "gettempdir()", protected, "mkdtemp 会在那里建目录"))
-    return lines
+    for label, raw in candidates:
+        path = pathlib.Path(raw)
+        # 受保护检查在**存在性检查之前**: 指向受保护位置就拒，不因为"它不存在"而放过
+        lines.extend(_reject_if_protected(path, label, protected, "tempfile 会在那里建探针文件并写入"))
+        if not path.is_dir():
+            lines.append(f"anchor: {label} = {raw} 不是目录，跳过")
+            continue
+        lines.append(f"tmp base = {path.resolve()}（来自 {label}；显式传给 mkdtemp(dir=...)，tempfile 不自行挑）")
+        return path, lines
+
+    raise PreconditionRejected(f"没有可用且安全的临时目录根（已试: {[c[1] for c in candidates]}）—— 拒绝开跑")
 
 
 def _point_runner_at(mod, tmp_repo: pathlib.Path) -> None:
@@ -589,11 +605,12 @@ def _run_inner(share_state: bool, report: list[str]) -> int:
     # torchinductor 目录** —— 守卫挡住了自己的写面，却没挡住它自己的 import 副作用。
     runner, protected = _load_runner()
     report.append("-- 前置（import app.* 与 mkdtemp 之前）--")
-    report.extend(_assert_tempdir_anchor(protected))
+    tmp_base, base_lines = _resolve_tmp_base(protected)
+    report.extend(base_lines)
 
     from app.api.v1.endpoints.review_overview import _write_board_done, _write_board_snooze
 
-    tmp_root = pathlib.Path(tempfile.mkdtemp(prefix="g610-canary-"))
+    tmp_root = pathlib.Path(tempfile.mkdtemp(prefix="g610-canary-", dir=str(tmp_base)))
     try:
         tmp_repo = tmp_root / "repo"
         tmp_repo.mkdir(parents=True)
@@ -682,7 +699,14 @@ def main() -> None:
         action="store_true",
         help="负控：只把 B 的目录名改成与 A 相同 ⇒ 生产 vault_key 把两库算成同一个 state 文件",
     )
-    args = ap.parse_args()
+    # ⛔ Codex r3 L2: parse_args 也在异常边界内。`--help` 要打中文帮助，
+    # PYTHONIOENCODING=ascii 下会抛 UnicodeEncodeError，逃出去就是 rc=1 —— 又和
+    # 「隔离被破坏」撞码。`SystemExit`（--help 正常结束）是 BaseException，不被这里捕获。
+    try:
+        args = ap.parse_args()
+    except Exception as exc:  # noqa: BLE001
+        sys.stderr.write(f"G610 PRECONDITION REJECTED: argument parsing/help output failed: {type(exc).__name__}\n")
+        sys.exit(EXIT_PRECONDITION_REJECTED)
 
     rc, report = run(share_state=args.share_state)
     # ⛔ Codex r2 MEDIUM-2: 输出本身也必须在异常边界内。原版把 print 放在 run() 之外，
