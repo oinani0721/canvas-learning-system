@@ -1,0 +1,57 @@
+=== r1-MEDIUM-1 整改材料：assert_test_uri_not_blocked 是否建立连接 ===
+⚠️ 本节是**代码结构依据**，不是运行时网络抓包。措辞据此收窄，不再声称『零 socket』。
+
+--- 函数全文 ---
+def assert_test_uri_not_blocked() -> None:
+    """``NEO4J_TEST_URI`` 的**驱动 canonical 端口**必须在 :data:`ALLOWED_TEST_PORTS` 里。
+
+    判据历史（两次都是被独立终审打回后改的，留着免得有人往回改）：
+
+    1. 最早是 ``f":{port}" in uri`` 的子串判断 —— ``bolt://127.0.0.1``（不写端口）
+       通过检查，而驱动会用 7687。R1 Codex BLOCKER。
+    2. 改成「解析出端口 + 端口不在 :data:`BLOCKED_PORTS`」—— 仍是**黑名单**，
+       ``bolt://127.0.0.1:0`` 的端口 ``0`` 既非 None 又不在黑名单里 ⇒ 放行，
+       而驱动把 ``:0`` 归一成 7687，再经 :func:`is_exempt` 的 advisory 路径**真连开发库**。
+       X4 两轮独立终审给出的**同一条 BLOCKER**。
+
+    现在是**正面白名单 + 驱动口径**，判据显式三分，没有"其余情况"这种灰地带：
+
+    * 没配 ``NEO4J_TEST_URI`` → **射程外**，直接返回（不是本函数要管的事）；
+    * 驱动口径解析不出 int 端口 → **拒绝**（fail-closed，不再靠"没看见受拦端口"推断）；
+    * 解析出端口且 ∈ :data:`ALLOWED_TEST_PORTS` → **放行**；其余一律**拒绝**。
+
+    白名单为空时连 7692 也拒 —— 契约测试 monkeypatch 空集验证这一点，证明它承重
+    而不是恒真。
+    """
+    # ⛔ 先检查白名单**自己**合不合法，且**无条件**检查（不受"有没有配 URI"影响）：
+    #    「往 ALLOWED_TEST_PORTS 里加一个现网端口」是拆掉本判据最省事的方式 ——
+    #    加完之后 `:0`→7687 就成了"白名单内"，这道判据当场变成恒真。白名单与
+    #    受拦集合必须不相交，相交即 fail-closed。探针
+    #    `guard-allowed-test-ports-cannot-admit-live` 钉死这一条。
+    admitted_live = ALLOWED_TEST_PORTS & BLOCKED_PORTS
+    if admitted_live:
+        raise RuntimeError(
+            f"ALLOWED_TEST_PORTS={sorted(ALLOWED_TEST_PORTS)} 与受拦集合 "
+            f"{sorted(BLOCKED_PORTS)} 相交于 {sorted(admitted_live)} —— "
+            f"把现网端口放进测试白名单等于把这道判据拆成恒真，拒绝装门。"
+        )
+    uri = os.environ.get("NEO4J_TEST_URI")
+    if not uri:
+        _mark_precheck_done()
+        return  # 射程外：没配测试容器 URI
+    ports, why = canonical_target_ports(uri)
+    if ports is None:
+        raise RuntimeError(
+            f"NEO4J_TEST_URI={uri!r} 无法按驱动口径解析出端口（{why}）。"
+            f"解析不了就不能证明它不指向现网库（默认端口 {_DRIVER_DEFAULT_PORT}），"
+            f"拒绝装门。测试容器请写全，例如 bolt://127.0.0.1:7692。"
+        )
+    # ⛔ **每一个**初始候选地址都要合规，不是只看驱动会先用的那个：routing scheme
+    #    的 netloc 会被拆成多地址，`neo4j://ok:7692 evil:7691` 只看第一个就漏了。
+
+--- 该函数体内是否出现建连相关调用（socket/connect/driver/session/verify_connectivity） ---
+  （无命中）
+
+--- [验伪锚] 同一提取式对本文件中确实建连的位置，必须有命中 ---
+69
+^ 全文命中数（>0 证提取式有效）

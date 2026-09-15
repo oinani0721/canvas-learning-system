@@ -68,11 +68,15 @@
 | ↑ 验伪锚 | 常量向量三处命中 `:118` / `:613` / `:724` | 同上 |
 | lazy import 清点 | **13** 条，全为 `graphiti_core` / `app.*` / `lib.agentic_rag`，**无任何 embedding 客户端** | 同上 |
 
-> 故本卡**不设** bge-m3/Ollama 前置门——设了就是一个与判据无关、却随时能让整卡停摆的假红门。
+> 故本卡**不设** bge-m3/Ollama 前置门。
 >
 > ⚠️ **但上面这条 grep 的搜索面只覆盖 canary 脚本自身，不覆盖它调用的 client。** 本卡实测发现 canary 运行时**确实会加载嵌入模型**（详见 §本卡实测更正 ①）：`LanceDBClient.initialize()` 里无条件调 `_init_vectorizer()` 预热，ON 态日志里 `Loading weights: 391/391` 出现 **4 次**。
-> **不设前置门的结论仍然成立，但正确的理由要换**：不是「canary 不碰 embedding」，而是该预热的失败被 `_init_vectorizer` 的 `except` 吞掉。
-> ⚠️ 再收一层：这条理由本卡**只有代码结构依据，没有运行时实证** —— 本次 4 次预加载**全部成功**（`Loading weights: 100%` 计数 4 = 总计数 4，失败告警 0），`except` 分支根本没被走到。所以本卡能证的是「**本次环境下**该前置门不必要」，**不能**证「嵌入端挂掉时 canary 照样绿」。见 `embed-dep-correction-ADDENDUM-*.txt` 与「本卡未证明什么」第 6 条。
+>
+> **⇒「不设前置门」这个做法，本卡只能作为「本次成功环境下的执行选择」保留，不是一个无条件成立的结论**（按 Codex r1 MEDIUM 收窄，初稿写的「结论仍然成立」过强）。理由链逐层收窄如下：
+> 1. 「canary 不碰 embedding」——**不成立**（实测加载 4 次）；
+> 2. 换成「预热失败被 `_init_vectorizer` 的 `except` 吞掉」——**只有代码结构依据，无运行时实证**：本次 4 次预加载**全部成功**（`Loading weights: 100%` 计数 4 = 总计数 4，失败告警 0），`except` 分支没被走到；且本卡的读取面只看到调用点与构造片段，**没有逐行核过完整的 `except` 实现**；
+> 3. 因此本卡**不能**证「嵌入端挂掉时 canary 照样绿」。
+> 见 `embed-dep-correction-ADDENDUM-*.txt` 与「本卡未证明什么」第 5、9 条。
 
 ### (c) 两态真跑（核心判据）✅
 
@@ -111,10 +115,11 @@ ON 态 14 条 `verdicts` 全名单（`on-report-detail-*.txt`）——判据名�
 | `A_equals_B` | True | 对称性 |
 | `shared_concept_split_per_group` | True | 同名概念按组分裂，不合并 |
 | `read_scope_sentinels_clean` | True | 读作用域哨兵干净 |
-| `purge_left_nothing` | True | **跑完清理干净** |
+| `purge_left_nothing` | True | 本轮 purge 之后、该判据所查的那组对象计数归零 |
 
 > `A_counts_positive` / `B_counts_positive` 这两条尤其重要：它们排除了「两边都是空的，所以当然互相看不见」这种退化的假绿。
-> `purge_left_nothing = True` 也意味着本卡没有在**共享的 7692 测试容器**里留下脏数据（并发环境下这点对其他车道有意义）。
+>
+> ⚠️ **`purge_left_nothing` 的含义已按 Codex r1 MEDIUM 收窄**：初稿把它解读成「跑完清理干净 / 没在共享 7692 留脏数据」——**过宽**。验伪报告里对应的变异 `M11_purge_leaves_residue` 把这条判据明确描述为**起点前提**（「计数是本轮写的，不是上轮遗留」），两态报告给出的也是**特定对象、特定阶段**的计数，**不是对共享容器的最终对账**。本卡既没做跑后全库快照，也没列举 canary vault 之外的残留面 ⇒ 既不能据此说留了脏数据，也**不能据此说没有残留**（已列入「本卡未证明什么」第 12 条）。
 
 `identities` 实测（证实只动了本卡自己的 vault）：
 `A → vault__g29canary_a` / `g29canary_a_canvas_nodes`；`B → vault__g29canary_b` / `g29canary_b_canvas_nodes`（物理 group_id 为双下划线格式，符合 R5）。
@@ -192,11 +197,23 @@ OFF 态：
 
 **⛔ 这里我又写过一句过强的话，当场更正**（`attempts-semantics-correction-*.txt`）：初稿把 `ATTEMPTS=0` 注释成「零 socket，根本没连库」——**错**。ledger 的 `blocked_ports = [7687, 7691]`，这个计数器**只盯现网端口**；ON 态真的连了 7692 并跑满 260 秒，它的 ledger **同样是 `total=0`**。所以：
 
-- `ATTEMPTS=0` 能支撑的结论是「**没碰现网库 7691/7687**」——这仍是本卡硬边界的重要证据，但仅此而已；
-- 「负控**零 socket**」不能靠它，只能靠**控制流**：`_amain` 里 `uri = _preflight_neo4j_uri()` 抛 `PreconditionRejected` 时，唯一会建立连接的 `_run_canary_cli` **根本没被调用**；两条负控横幅写的是 `(preflight)` 而非 `(runtime)`，正是这条控制流的运行时证据。
+- `ATTEMPTS=0` 能支撑的结论是「**没碰现网库 7691/7687**」——这仍是本卡硬边界的重要证据，但仅此而已。
+
+**⛔ 再收一层（Codex r1 MEDIUM，已接受）：本卡不再声称「负控零 socket」。**
+初稿的替代论证是「`_amain` 里 preflight 抛异常时 `_run_canary_cli` 未被调用 + 横幅写 `(preflight)`」。Codex 指出：**`preflight` 是程序的阶段标签，不是网络活动记录**；而且负控②在被拒之前已经走过 `_preflight_neo4j_uri` 里的 `live_port_guard.assert_test_uri_not_blocked()`。因此收窄为：
+
+| 能证 | 不能证 |
+|---|---|
+| 两条负控**按预期的那一层、在进入 canary runtime 主流程之前**被拒（`_run_canary_cli` 是唯一建立数据库连接的地方，它没被调用） | 「整个进程没有打开任何 socket、没有连接任何库」——本卡没有进程级网络抓包，也未覆盖解释器启动、依赖导入、拒绝处理路径上的全部行为 |
+
+补充的**代码结构依据**（`negctl-preflight-no-connect-evidence-*.txt`，明确标注不是运行时网络证据）：`assert_test_uri_not_blocked` 函数体内对 `socket|connect|GraphDatabase|driver|session|verify_connectivity` 的命中数为 **0**（验伪锚：同一提取式对该文件全文命中 **69**）；它只做白名单集合运算 + 读环境变量 + `canonical_target_ports()` URI 解析。
+⇒ 已列入「本卡未证明什么」第 4 条。
 
 - 负控②的 `NEO4J_TEST_URI` 是**设好的**（tee 里有 env 回显），所以第一道 preflight 放行；实测 `NEGCTL_REJECTED_BY` 为 `_preflight_lancedb_path`，即拒绝来自第二道——归因由实测字段给出，不靠推断。
-- 负控②额外证据：**被拒的路径没有被建出来**（`test -e` → 不存在）。判据确实在 `mkdir` 之前——拒一条路径的同时把它建出来，等于 canary 自己在现网位置留痕。
+- 负控②额外证据：**被拒的路径没有被建出来** —— 判据确实在 `mkdir` 之前。拒一条路径的同时把它建出来，等于 canary 自己在现网位置留痕。
+  ⛔ **证据引用更正（Codex r1 LOW，已接受）**：初稿在 `negctl-summary-*.txt` 里写「见 tee 同次输出的 `test -e` 行」——**那条输出当时并没有落进 tee**（`negctl-forbidden-path-20260915T182702.txt` 全文仅 9 行、末行 `rc=2`，不含该检查）。引用一条不在证据里的检查，等于凭记忆背书。
+  **已补跑并完整落档**：`negctl-forbidden-path-rerun-mkdir-check-*.txt`（20 行），含 **PRE: NOT EXISTS** → canary `rc=2` → **POST: NOT EXISTS** → 父目录 `ls` 为空（连 `data/` 都没建）→ 验伪锚（`test -e` 对确实存在的 `$T` 返回 EXISTS，证这条检查不是恒假）。
+  ⚠️ 该文件末行 `rc=0` 是**外层包装组**的 rc；canary 自身的 `rc=2` 在组内由 `echo "canary rc=$?"` 打出。
 - **对照组**（证这两条不是恒红的假门）：ON 态用合法 tmp 路径 + 已设 URI 走同一份 preflight，放行并跑到底 `rc=0`，拒绝横幅出现 **0** 次。
 - 证据：`negctl-no-uri-*.txt` / `negctl-forbidden-path-*.txt` / `negctl-summary-*.txt`
 
@@ -208,14 +225,46 @@ OFF 态：
 | `grep -cF 'side_effect_probe'` | `5` | `5` | ✅ 不变 |
 
 - 验伪锚：同一条 `shasum -a 256` 对 `lancedb_client.py` 给出完全不同的值（`0ff52a5e…`），证明它不是恒定输出。
-- 另一重佐证：`git diff --stat HEAD`（全树，不限路径）**输出为空** —— 本卡全部产物都是**未跟踪的新文件**，对已跟踪文件零修改。
+- 另一重佐证（**时点 = commit `49db0305` 之前的那一刻**，Codex r1 LOW 要求标清）：彼时 `git diff --stat HEAD`（全树、不限路径）**输出为空**，即本卡对已跟踪文件零修改、全部产物都是新增文件。
+  ⚠️ 此后本验收单本身按 Codex r1 意见被整改，所以**当前**工作树相对 HEAD 已有本文件的改动——这不影响 (g)（`_bmad-output` 外的差异仍为空），但那句话是历史快照、不是当前状态。
 - 证据：`canary-sha-start.txt` / `canary-sha-end.txt` / `probe-key-count-start.txt` / `probe-key-count-end.txt` / `sha-end-and-turf-*.txt`
 
 > `--verify-judges` 注入的 12 条变异全部作用在**内存里的 `_MUTATION` 全局变量**上，不落文件——这是 sha 在跑了 13 次完整 canary 之后仍然逐字节不变的原因。
 
-### (g) 地盘核 <!-- PENDING -->
+### (g) 地盘核 ✅
 
-<!-- G-SECTION-PLACEHOLDER -->
+`$PREREQ` = `60600433`（T1-A 末 commit）→ 本卡 commit `49db0305`。
+
+| 判据 | 实测 |
+|---|---|
+| `git diff --stat --no-color 60600433 HEAD -- . ':(exclude)_bmad-output'` | **输出为空**，`rc=0` |
+| **同次验伪锚**（不加排除） | `54 files changed, 5108 insertions(+)` —— 证命令跑得通、区间有内容 |
+| 本卡 commit 文件数 | **54** |
+| 其中在 `_bmad-output/` 下 | **54** |
+| 其中在 `_bmad-output/` 之外 | **0** |
+
+**硬边界文件逐个核**（每个都必须 0 次出现在本卡 diff 里）：
+
+| 文件 | 出现次数 |
+|---|---|
+| `backend/scripts/g29_dual_vault_canary.py` | 0 ✅ |
+| `backend/lib/agentic_rag/clients/lancedb_client.py` | 0 ✅ |
+| `backend/tests/unit/test_lancedb_cross_vault_drop_g29f1.py` | 0 ✅ |
+| `canvas-vault/.claude/scripts/fsrs_bridge.py` | 0 ✅ |
+| `canvas-vault/.claude/scripts/decay_beta.py` | 0 ✅ |
+
+> **验伪锚**：同一条命令对一个**确实在本卡 diff 里**的文件（本验收单自身）返回 **1** —— 证明上面那一圈 0 是真 0，不是命令恒空。
+
+**⚠️ pathspec 写法实测**（`pathspec-selfcheck-*.txt`，复现协议点名的假绿陷阱）：
+
+| 写法 | 结果 |
+|---|---|
+| `':(exclude)_bmad-output'`（协议要求） | rc=**0**，空输出 = 真的没差异 |
+| `':!_bmad-output'`（坏写法） | `fatal: Unimplemented pathspec magic '_'`，rc=**128** ← 空输出是「没跑成」 |
+
+本机 `git version 2.50.1 (Apple Git-155)`。
+
+**另一重佐证**（时点 = commit `49db0305` 之前）：彼时 `git diff --stat HEAD` 全树输出为空。**当前**该命令会列出本验收单（按 Codex r1 整改后重新提交），(g) 的代码面结论不受影响。
 
 ### (h) tests/unit 目录级 diff ✅
 
@@ -315,12 +364,12 @@ _bmad-output/审查/evidence-g29f2/sentinel                  (0B)
 | 该日志的产出方 | `transformers/core_model_loading.py:1233`（`tqdm(..., desc="Loading weights")`） |
 | 加载点（符号锚） | `LanceDBClient.initialize()` 里的 `# Pre-load embedding model to avoid cold-start timeout during search` → `await self._init_vectorizer()` —— **无条件调用** |
 | `_init_vectorizer` 构造什么 | `MultimodalVectorizer(model_name=self.embedding_model, ...)` 并 `await .initialize()` |
-| 是否走网络 | 否 —— 4 次加载速率均 ~5×10⁴ it/s（本地 HF 缓存） |
+| ~~是否走网络~~ | ⛔ **此行的原结论已撤回**（Codex r1 MEDIUM）：初稿写「否 —— 4 次加载速率均 ~5×10⁴ it/s（本地 HF 缓存）」。**加载速度推不出零网络** —— 它排除不掉加载前后的元数据请求、缓存有效性检查等访问。证据只支持「**4 次权重加载各自完成到 100%**」，不支持「零网络」。已列入「本卡未证明什么」第 5 条。 |
 
 **准确的边界应当这样写**：
 - ✅ canary **写入 LanceDB 的向量**是硬编码常量（`[0.1]*8` / `[0.2]*16`），**不经任何嵌入服务生成** —— 卡文这半句成立；
 - ❌ 但 canary **运行时确实加载了嵌入模型**，「不碰任何 embedding 服务」不成立；
-- ⚠️ **「不设 bge-m3/Ollama HALT 前置」这个结论仍然正确**，但理由要换：不是「不碰」，而是 `_init_vectorizer` 的失败被 `except` 吞掉并置 `_vectorizer_initialized = True`。
+- ⚠️ **「不设 bge-m3/Ollama HALT 前置」这个做法，只能作为「本次成功环境下的执行选择」保留**（Codex r1 MEDIUM：初稿写「结论仍然正确」过强）。替代理由「`_init_vectorizer` 的失败被 `except` 吞掉并置 `_vectorizer_initialized = True`」**只有代码结构依据**，且本卡读取面未逐行核过完整的 `except` 实现。
 
 **⛔ 这里我自己也写过一句过强的话，当场更正**（`embed-dep-correction-ADDENDUM-*.txt`）：初稿写「本卡 ON/OFF/两条负控 rc 全部符合预期，即该 fallback 生效的实证」——**错**。本次 4 次预加载**全部成功**（`Loading weights: 100%` 计数 **4** = `Loading weights` 总计数 **4**；`Failed to initialize vectorizer|Vectorizer not available` 计数 **0**，同次验伪锚对构造的假日志行命中 **1**）。成功路径被走到，恰恰说明 `except` 分支**没被触发**。拿正例给反例分支背书是无效的。
 ⇒ 收窄后：该理由**只有代码结构依据，没有运行时实证**；本卡能证「**本次环境下**前置门不必要」，不能证「嵌入端挂掉时 canary 照样绿」。后者已如实列入「本卡未证明什么」第 6 条。
@@ -397,27 +446,43 @@ printf '_bmad-output/审查\n_bmad-output/验收单\n_bmad-output/审查\n' | so
 | (f) 脚本 sha 跑前=跑后 | ✅ 逐字节相同 |
 | (g) 地盘核 diff 空 | ✅ 见 (g) 段 |
 | (h) tests/unit diff | ✅ 集合完全相同（64/64，diff rc=0） |
-| (i) Codex + 验收单 + commit | ✅ 见 §Codex 与 §commit 记录 |
+| (i) Codex + 验收单 + commit | ✅ Codex r1 已跑（B0/H1/M3/L2 → 全部整改，见 §Codex 复核记录）；验收单本文件；commit `49db0305` + 整改 commit |
 
 ---
 
 ## 📌 本卡未证明什么
 
 1. **未证明 canary 覆盖 CARD-G2-9-F2 的「前缀重叠」修复面。** `run_canary` 用 `g29canary_a`/`g29canary_b`，探针用 `g29drift_a`/`g29drift_b`——四个 id **两两互不为前缀**（等长、末字符不同）。F2 修的是 `a` 与 `a_b` 这类**最长前缀归属**，本卡 canary 的输入里根本不存在这种形状，因此 canary 全绿**不能**为 F2 的前缀面背书。那条面只由 T1-A 的单测 `test_lancedb_cross_vault_drop_g29f1.py`（xfail→XPASS 翻转）证明。
-2. **未证明 `side_effect_probe` 的 verdict 判据自身可翻红。** `--verify-judges` 只覆盖 `report["verdicts"]` 里的 14 条；`side_effect_probe` 是**条件顶层键**、不在覆盖集内（代码结构上：`--verify-judges` 在 `_run_canary_cli` 里是 **early return**，走不到 `run_canary` 之后的 probe 写入）。probe 的翻红能力只有 (a) 的历史红参照（2026-09-06，U5-A 修复前），而本卡零生产改动**不重建红** —— 那是历史证据，不是本卡产出。
-3. **未做现网 LanceDB 备份对账。** 「是否已经有 B 表在历史上被误删过」只能从备份里查；D-41 裁定该动作需用户授权，本卡不排。
-4. **未真跑 7691 端口门负控。** 本卡硬边界禁连 7691/7687，两条负控都是零 socket 的前置拒绝。端口门拦 7691 的牙齿由历史 `evidence-g29/canary-negctl-*.txt` 证据引用，本卡不复现。
-5. **未证明 7692 不可用时的行为。** 前置不满足即 HALT 上报，本卡前置满足（rc=0），所以降级路径未被走到。
-6. **未证明「canary 接入真实嵌入端后仍隔离」。** canary **写入的向量**是硬编码常量（`[0.1]*8` / `[0.2]*16`），本卡的隔离结论只在这个「确定性向量」前提下成立；换成真实嵌入端（维度、归一化、异步批处理都会变）需另行验证。
+2. **⛔ 未证明「probe 判 FAIL 时进程返回 `EXIT_ISOLATION_FAILED`」——U5-A 移交的两项里，这一项本卡没有实证**（Codex r1 HIGH，已接受）。
+   U5-A 移交的是两件事：**(i)** 关探针时 rc 守卫不 KeyError；**(ii)** 开探针且 probe 判 FAIL 时 rc 变 `EXIT_ISOLATION_FAILED`。
+   - **(i) 已实证**：OFF 态 `rc=0`、报告无该键、tee 零 `KeyError`/`Traceback`。
+   - **(ii) 只有静态依据，没有本次运行证据**：ON 态 probe 判 `PASS`（走的是 `return EXIT_OK` 那条路）；OFF 态根本不跑 probe；`--verify-judges` 在 `_run_canary_cli` 里是 **early return**，既不写 `side_effect_probe` 也不经过那段 rc 守卫。**三条路径没有一条会走进 FAIL 分支。**
+   - 历史红参照也补不上这个缺口：2026-09-06 那份报告的 probe 字典**根本没有 `verdict` 键**（`red-ref-keys-*.txt` 实测），所以它连「历史上 verdict 曾为 FAIL」都不能证明，更不能证明当年的退出码链。
+   - 在**零生产改动**这条硬边界下，本卡无法构造 FAIL（probe 的 FAIL 条件是 A 的 `initialize()` 删掉 B 的表，而那个缺陷已被 U5-A 修复；从脚本外部无法干预 probe 内部的建表/删表时序）。
+   ⇒ **因此本卡的正确结论是「U5-A 移交项部分落地」，不是「全部落地」。** 剩余项（FAIL→退出码实证）需要一张允许改动或另造夹具的卡来收口。
+3. **未证明 `side_effect_probe` 的 verdict 判据自身可翻红。** 同上，`--verify-judges` 只覆盖 `report["verdicts"]` 的 14 条，probe 的 verdict 是条件顶层键、不在覆盖集内。本卡零生产改动**不重建红**。
+4. **未证明整个进程「零 socket」**（Codex r1 MEDIUM，已接受）。本卡能证的是「在进入 canary runtime 主流程之前被拒」——`_amain` 里两条 preflight 都排在 `_run_canary_cli`（唯一建立数据库连接的地方）之前，且两条负控的拒绝横幅写的是 `(preflight)` 而非 `(runtime)`。但 **`preflight` 是程序的阶段标签，不是网络活动记录**；本卡没有做进程级的网络抓包，也没有覆盖解释器启动、依赖导入、拒绝处理路径上的全部行为。
+   补充的代码结构依据（非运行时证据）：`assert_test_uri_not_blocked` 函数体内对 `socket|connect|GraphDatabase|driver|session|verify_connectivity` 的命中数为 **0**（验伪锚：同一提取式对该文件全文命中 **69**），它只做白名单集合运算 + 环境变量读取 + `canonical_target_ports()` URI 解析。证据 `negctl-preflight-no-connect-evidence-*.txt`。
+5. **未证明嵌入模型加载「零网络」**（Codex r1 MEDIUM，已接受）。本卡此前用「加载速率约 5×10⁴ it/s」推断「本地缓存、零网络」——**这个推断不成立**：权重加载速度排除不掉加载前后的元数据请求、缓存有效性检查等网络访问。证据只支持「4 次权重加载各自完成到 100%」，不支持「零网络」。
+6. **未做现网 LanceDB 备份对账。** 「是否已经有 B 表在历史上被误删过」只能从备份里查；D-41 裁定该动作需用户授权，本卡不排。
+7. **未真跑 7691 端口门负控。** 本卡硬边界禁连 7691/7687，两条负控都是**前置拒绝**（措辞已按第 4 条收窄，不再称「零 socket」）。端口门拦 7691 的牙齿由历史 `evidence-g29/canary-negctl-*.txt` 证据引用，本卡不复现。
+8. **未证明 7692 不可用时的行为。** 前置不满足即 HALT 上报，本卡前置满足（rc=0），所以降级路径未被走到。
+9. **未证明「canary 接入真实嵌入端后仍隔离」。** canary **写入的向量**是硬编码常量（`[0.1]*8` / `[0.2]*16`），本卡的隔离结论只在这个「确定性向量」前提下成立；换成真实嵌入端（维度、归一化、异步批处理都会变）需另行验证。
    ⚠️ 注意这**不等于**「canary 零 embedding 调用」——实测它每次 `LanceDBClient.initialize()` 都会预加载嵌入模型（4 次），见 §本卡实测更正 ①。本卡也**未证明**「嵌入模型预加载失败时 canary 仍能跑完」：本次环境下预加载是成功的（4 次权重加载都完成了），失败分支未被走到。
-7. **未证明两态之间没有互相污染。** 两态各用独立 `mktemp -d`，但共用同一个 7692 容器与同一份 canary vault id；本卡未做「先 OFF 后 ON」的顺序置换对照，因此「顺序无关」未被证明。
-8. **未证明并发期间 7692 上无交叉干扰。** 本卡作业期间实测有 **8 个 `codex exec` 进程**并发运行（其他车道），7692 测试容器是**共享**的。本卡既没有独占容器，也没有做「跑前/跑后全库快照对账」，因此「本次结果未被其他车道的写入影响」只有间接支持（本卡 14 条 verdicts 全绿 + `ATTEMPTS=0`），**没有直接证据**。证据：`env-concurrency-and-gitignore-*.txt`。
+10. **未证明两态之间没有互相污染。** 两态各用独立 `mktemp -d`，但共用同一个 7692 容器与同一份 canary vault id；本卡未做「先 OFF 后 ON」的顺序置换对照，因此「顺序无关」未被证明。
+11. **未证明并发期间 7692 上无交叉干扰。** 本卡作业期间实测有 **8 个 `codex exec` 进程**并发运行（其他车道），7692 测试容器是**共享**的。本卡既没有独占容器，也没有做「跑前/跑后全库快照对账」，因此「本次结果未被其他车道的写入影响」**没有直接证据**。
+   ⚠️ 此处**删除**了原先用 `ATTEMPTS=0` 作间接支持的说法（Codex r1 MEDIUM）：那个账本监控的是 **7687/7691**（`blocked_ports=[7687,7691]`），对「共享的 7692 上有无并发干扰」没有任何证明力。证据：`env-concurrency-and-gitignore-*.txt`。
+12. **未证明「跑后共享容器无残留」**（Codex r1 MEDIUM，已接受）。此前把 `purge_left_nothing = True` 解读为「跑完清理干净 / 没在共享 7692 留脏数据」——**解读过宽**：该判据在验伪报告里被明确描述为**起点前提**（「计数是本轮写的，不是上轮遗留」，对应变异 `M11_purge_leaves_residue`），两态报告给出的也是特定对象、特定阶段的计数，**不是对共享容器的最终对账**。
+    本卡既没有做跑后全库快照，也没有列举 canary vault 之外的残留面。⇒ 既不能据此断言留下了脏数据，也**不能据此证明没有残留**。
 
 ---
 
 ## 📋 台账待登记条目
 
-1. **T1-B = U5-A 移交项落地**（台账 ③ 完整 canary 复跑 + ⑫ (e) 守卫两模式真跑）：本卡 commit sha + 两态报告 `canary-report-20260915T101823Z.json`（ON）/ `canary-report-20260915T102343Z.json`（OFF）+ 验伪锚报告路径。
+1. **⚠️ T1-B = U5-A 移交项「部分落地」，不是全部落地**（按 Codex r1 HIGH 收窄）。台账 ③「完整 canary 复跑」**已落地**；台账 ⑫「(e) 守卫两模式真跑」**只落地一半**：
+   - ✅ **关探针不 KeyError** —— OFF 态实证（`rc=0`、报告无该键、零 `KeyError`/`Traceback`）；
+   - ❌ **开探针且 probe 判 FAIL 时 rc 变 `EXIT_ISOLATION_FAILED`** —— **本卡未实证**（ON 走 PASS 分支、OFF 不跑 probe、`--verify-judges` early return，三条路径都进不了 FAIL 分支；零生产改动下无法构造 FAIL）。**需另立卡收口。**
+   证据：两态报告 `canary-report-20260915T101823Z.json`（ON）/ `canary-report-20260915T102343Z.json`（OFF）+ 验伪报告 `canary-verify-judges-20260915T102632Z.json`；本卡 commit `49db0305`（+ Codex 整改 commit）。
 2. **canary 脚本 sha 跑前=跑后（零改动）**：`$SHA0` = `5411cf14da00cabfec8e1f8ddd1f56c8ffeeda745b1eb147536d4927e200ee7a`，与卡文记录的 B14_BASE 值逐字节相同（⇒ T1-A 未动该脚本）。
 3. **两态 rc 与 probe 判据**：ON/OFF 各 rc=0；ON 的 `verdict=PASS` + `B_table_survived_A_init=true` + `B_table ∈ tables_after_A_init`；两态 guard 均 `ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)`。
 4. **`--verify-judges` 结果**：报告 `canary-verify-judges-20260915T102632Z.json`（本卡新跑）；`rc=0`、`all_killed=True`、`coverage={covered:14, total:14, complete:True, uncovered:[], phantom_targets:[]}`；**12 条变异（M1–M12）全部 `KILLED` 且全部 `applied=True`**（排除 NOT_APPLIED）；`baseline_verdicts` 14 条全 True。如实声明：**不覆盖** `side_effect_probe` 的 verdict（`--verify-judges` 在 `_run_canary_cli` 里是 early return）。
@@ -428,9 +493,33 @@ printf '_bmad-output/审查\n_bmad-output/验收单\n_bmad-output/审查\n' | so
    ④ zsh 下 `grep --include=*.py` 未加引号会被当 glob 吃掉，整条命令 rc=1，「无命中」与「没跑成」长得一样。
    **⑤（判据语义，易被后续卡照抄错）** `NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0` / ledger `total=0` 的含义是「**没有对受监控的 live 端口发起尝试**」（ledger `blocked_ports = [7687, 7691]`），**不是**「零 socket」。实证：ON 态真连 7692 跑满 260 秒，ledger 同样 `total=0`。用它证「没碰现网库」✅；用它证「负控没开任何连接」❌——后者只能靠控制流（preflight 抛异常时 `_run_canary_cli` 未被调用）+ 横幅的 `(preflight)` 阶段字样。
 6. **开工偏差 B-1**：T1-A 遗留 4 个未跟踪 evidence 书签文件，本卡不删不提交、逐路径精确 add 规避误提交，处置交主 session 裁定。
-7. **地盘核与 tests/unit diff 结果**：<!-- PENDING -->
-8. **Codex 1 轮存档**：路径、绑定的最终 HEAD SHA、B/H/M/L 计数 <!-- PENDING -->
+7. **地盘核与 tests/unit diff 结果**：地盘核 `git diff --stat 60600433 49db0305 -- . ':(exclude)_bmad-output'` **为空**（验伪锚：不加排除 = 54 files / 5108 insertions）；本卡 commit **54 个文件全部在 `_bmad-output/` 下、0 越界**；5 个硬边界文件（canary 脚本 / lancedb_client / T1-A 单测 / fsrs_bridge / decay_beta）各 **0 次**出现。tests/unit nodeid 集合 `diff rc=0`（开工 64 / 收工 64，汇总行除耗时外逐字相同）。
+   **附**：车道开工红集与批级基线 `08100483` 集合**完全相同**（diff rc=0）——与卡文 (h) 预期不符，根因是 xfail→XPASS 对 nodeid 红集不可见；**主 session 注意：不能用「红集变了没」判断某卡是否解锁过 xfail**。
+8. **Codex 存档**：`_bmad-output/审查/codex-review-CARD-G2-9-F1-canary-r1.md`（首部六行齐全：模型 `gpt-6-astra` / `reasoning_effort: ultra` / `OpenAI Codex v0.153.3`；会话头自证按实际行号抄 L2/L5/L9）。**r1 绑定 `49db0305`，计数 BLOCKER 0 / HIGH 1 / MEDIUM 3 / LOW 2**，结论 `PARTIAL`。**全部 6 条已整改**（无驳回），详见 §Codex 复核记录。整改只动 `_bmad-output/`，代码面零变化。r2 复审结果见同段。
 9. **移交项**：D-41 现网 LanceDB 备份对账（需用户授权）；「canary 接入真实嵌入端后的隔离验证」尚无卡承接；「两态顺序置换对照」尚无卡承接。
+
+---
+
+## 🔍 Codex 复核记录
+
+**r1**：`codex-review-CARD-G2-9-F1-canary-r1.md`，模型 `gpt-6-astra` · `reasoning_effort: ultra` · `OpenAI Codex v0.153.3`，绑定 `49db0305`。
+计数 **BLOCKER 0 / HIGH 1 / MEDIUM 3 / LOW 2**，结论 `PARTIAL`。**6 条全部接受并整改，零驳回。**
+
+Codex 独立核对的五条作者主张：**ON/OFF 两态字段与配对 PASS**、**两条负控的阶段/拒绝层/rc PASS**、**verify 报告确为本卡新跑 PASS**、**sha 前后相同 PASS**、**地盘 diff 与非空验伪锚 PASS**。它还独立重算了 12 条变异的 `applied`/`KILLED` 与 14 项覆盖，与 `all_killed`、`coverage` 一致。
+
+| # | 级别 | 问题 | 整改 |
+|---|---|---|---|
+| 1 | **HIGH** | probe 判 FAIL → 退出码仍未实跑验证；验收单却写「U5-A 移交项落地」 | **接受**。三条路径（ON 走 PASS / OFF 不跑 probe / `--verify-judges` early return）都进不了 FAIL 分支，零生产改动下无法构造。结论改为「**部分落地**」，新增「本卡未证明什么」第 2 条，台账条目 1 同步收窄，并标明需另立卡收口 |
+| 2 | MEDIUM | 「负控零 socket」证据不足：`preflight` 是阶段标签不是网络活动记录 | **接受**。收窄为「未进入 canary runtime 主流程」；补代码结构依据（`assert_test_uri_not_blocked` 体内建连调用命中 0、全文验伪锚 69）并明确标注非运行时证据；新增未证明第 4 条 |
+| 3 | MEDIUM | 用 `ATTEMPTS=0` 支持「共享 7692 无并发干扰」无证明力（账本只盯 7687/7691） | **接受**，该依据已从未证明第 11 条中**删除** |
+| 4 | MEDIUM | 「加载速率 5×10⁴ it/s ⇒ 零网络」是第三处外推 | **接受**。撤回该结论（速度排除不掉元数据请求/缓存检查）；证据只支持「4 次加载各自完成到 100%」；新增未证明第 5 条 |
+| 5 | MEDIUM | `purge_left_nothing` 被扩大成「跑后共享容器无残留」 | **接受**。该判据在验伪报告里是**起点前提**（变异 `M11_purge_leaves_residue`），不是最终对账；新增未证明第 12 条 |
+| 6 | LOW | 所称同次 `test -e` 实测**没有落在证据里**（原 tee 仅 9 行） | **接受**。补跑并完整落档 `negctl-forbidden-path-rerun-mkdir-check-*.txt`（20 行，PRE/POST/父目录/验伪锚齐全） |
+| 7 | LOW | 验收结果表 (i) 标完成但引用章节不存在；台账仍有 `PENDING`；「工作树 diff 空」已非当前事实 | **接受**。(i) 行改为实际状态、`PENDING` 清零、两处「工作树 diff 空」加时点标注（= commit `49db0305` 之前的快照） |
+
+**关于已落盘 evidence 里的旧错误**：Codex 指出 `negctl-summary-*.txt` 与 `embed-dep-correction-*.txt` 原文里仍留着「0＝零 socket」「本次证明 fallback 生效」等表述。本卡的纪律是**落盘证据只追加、不回改**，这些文件保留原样，更正以 ADDENDUM / 本验收单为准——它们属于**可辨认的历史错误记录**，不是当前有效结论。
+
+**r2**：见下方追加（复审整改是否到位）。
 
 ---
 

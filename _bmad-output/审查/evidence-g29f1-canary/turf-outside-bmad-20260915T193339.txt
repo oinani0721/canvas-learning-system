@@ -1,0 +1,28 @@
+=== (g) 地盘核 ===
+$PREREQ = 60600433 (T1-A 末 commit)
+HEAD    = 49db0305  docs(g2-9-f1-canary): canary 两态真跑+验伪锚+前置负控 [BATCH-2026-09-11...
+
+--- 判据：排除 _bmad-output 后的代码面 diff（期望空） ---
+rc=0  （写法必须是 ':(exclude)…'；':!…' 在本机 git 2.50 报 Unimplemented pathspec magic、rc=128、stdout 空 = 假绿，见 pathspec-selfcheck-*.txt）
+
+--- ⛔ 同次验伪锚：不加排除，必须出非空行（证命令本身跑得通、区间有内容） ---
+ .../prompts/codex-prompt-CARD-G2-9-F1-canary.md"   |   58 +
+ .../UAT-CARD-G2-9-F1-canary-20260915.md"           |  443 ++++++++
+ 54 files changed, 5108 insertions(+)
+rc=0
+
+--- 本卡 commit 的文件数与顶层归属 ---
+本卡 commit 文件数 = 54
+其中 _bmad-output/ 下 = 54
+其中 非 _bmad-output = 0  <- 必须 0
+
+--- 硬边界文件逐个核（必须都不在本卡 diff 里） ---
+  backend/scripts/g29_dual_vault_canary.py                       出现次数=0 ✅
+  backend/lib/agentic_rag/clients/lancedb_client.py              出现次数=0 ✅
+  backend/tests/unit/test_lancedb_cross_vault_drop_g29f1.py      出现次数=0 ✅
+  canvas-vault/.claude/scripts/fsrs_bridge.py                    出现次数=0 ✅
+  canvas-vault/.claude/scripts/decay_beta.py                     出现次数=0 ✅
+
+--- [验伪锚] 对一个确实在本卡 diff 里的文件，同命令必须 =1 ---
+1
+^ 必须为 1（证上面那圈 0 是真 0，不是命令恒空）
