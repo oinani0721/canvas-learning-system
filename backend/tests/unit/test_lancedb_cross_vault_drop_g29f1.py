@@ -1426,3 +1426,72 @@ def test_cache_tables_skips_tables_whose_owner_cannot_be_determined(tmp_path):
         assert f"{_LONG_VAULT}_canvas_nodes" in client._tables_cache, (
             f"判不出主人的表连句柄都没装载（读侧被误伤）: {sorted(client._tables_cache)}"
         )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 门⑬ 族 —— 裸表口径不该被「V 可能缺项」的那几道闸拖累（Codex round-6 MEDIUM-2）
+#
+# default / 空 vault 走的是裸表口径（`"_" not in name or name == FINGERPRINT_TABLE`），
+# 它**根本不查已知 vault 集合**，也就没有任何跨 vault 暴露面：别的 vault 的表恒含
+# `{vid}_` 前缀、必然含下划线，一开始就不归 default。所以清单降级拒绝与「判不出主人
+# 就不碰」对它是纯代价 —— 单 vault 部署把 VAULTS_ROOT 配错就会连自己的自愈与删索引
+# 一起失去。两个入口各锁一条。
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def test_default_scope_still_drops_when_registry_is_degraded(tmp_path):
+    """``VAULTS_ROOT`` 配错时，default 的 ``DELETE /index`` 仍须照常删（round-6 M2）。"""
+    db_path = tmp_path / "db"
+    db = lancedb.connect(str(db_path))
+    db.create_table("notes", data=_rows("BARE-NOTES"))  # 无下划线 → 归 default
+    db.create_table(LanceDBClient.FINGERPRINT_TABLE, data=_fingerprint_rows("FP"))  # 裸指纹表
+    db.create_table("b_canvas_nodes", data=_rows("B"))  # 别 vault 的表 —— 必须不被碰
+
+    from app.config import get_settings
+
+    mp = pytest.MonkeyPatch()
+    mp.setenv("VAULTS_ROOT", str(tmp_path / "no-such-root"))
+    get_settings.cache_clear()
+    try:
+        client = _client(db_path, vault_id="default")
+        dropped = client.drop_vault_tables("default")
+        assert client._vault_registry_degraded is True, "前提失效: 主来源没被判成失败"
+        assert client._last_drop_refusal is None, (
+            f"裸表口径被清单降级闸拦了（它根本不查 V）: {client._last_drop_refusal!r}"
+        )
+        assert dropped == 2, f"default 名下两张裸表应被删，实删 {dropped}"
+        after = _all_names(db)
+        assert after == {"b_canvas_nodes"}, f"要么没删干净、要么碰了别的 vault 的表; 现存 {sorted(after)}"
+    finally:
+        mp.undo()
+        get_settings.cache_clear()
+
+
+def test_default_scope_still_heals_when_registry_is_degraded(tmp_path):
+    """``VAULTS_ROOT`` 配错时，default 的启动自愈仍须修自己的漂移表（round-6 M2）。"""
+    db_path = tmp_path / "db"
+    db = lancedb.connect(str(db_path))
+    db.create_table("notes", data=_rows("BARE-NOTES", dim=_DRIFT_DIM))  # 归 default 的漂移表
+    db.create_table("b_canvas_nodes", data=_rows("B", dim=_DRIFT_DIM))  # 别 vault 的漂移表
+    before = _all_names(db)
+
+    from app.config import get_settings
+
+    mp = pytest.MonkeyPatch()
+    mp.setenv("VAULTS_ROOT", str(tmp_path / "no-such-root"))
+    get_settings.cache_clear()
+    try:
+        client = _client(db_path, vault_id="default")
+        assert client.active_vault_id in ("", "default"), (
+            f"夹具没构成 default 场景: active_vault_id={client.active_vault_id!r}"
+        )
+        asyncio.run(client._cache_tables())
+        assert client._vault_registry_degraded is True, "前提失效: 主来源没被判成失败"
+        after = _all_names(db)
+        assert "notes" not in after, (
+            "清单降级把 default 自己的自愈也停了 —— 裸表口径不查 V，没有被保护的必要，单 vault 部署会因此永远修不了维度"
+        )
+        assert "b_canvas_nodes" in after, f"default 的自愈碰了别的 vault 的表; 消失的表 = {sorted(before - after)}"
+    finally:
+        mp.undo()
+        get_settings.cache_clear()

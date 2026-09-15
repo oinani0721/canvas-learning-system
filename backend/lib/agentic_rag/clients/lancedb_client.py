@@ -1142,6 +1142,22 @@ class LanceDBClient:
         """
         return name.startswith(f"{vid}_")
 
+    @staticmethod
+    def _scope_depends_on_registry(vault_id: object) -> bool:
+        """这次操作的归属口径**是否依赖已知 vault 集合 V**。
+
+        ``vault_id`` 为空 / ``"default"`` 时走的是**裸表口径**
+        (``"_" not in name or name == FINGERPRINT_TABLE``) —— 它只看表名里有没有下划线,
+        **根本不查 V**, 因此也**没有任何跨 vault 暴露面**: 别的 vault 的表恒含
+        ``{vid}_`` 前缀、必然含下划线, 一开始就不归 default。
+
+        所以那几道为「V 可能缺项」而设的闸 (清单降级拒绝 / 判不出主人就不碰) 对它是
+        **纯代价**: 单 vault 部署一旦把 ``VAULTS_ROOT`` 配错, 就会连**自己的**维度自愈与
+        ``DELETE /index`` 一起失去, 而它本来就没有被保护的必要
+        (Codex round-6 MEDIUM-2; 主 session 2026-09-14 授权第 7 轮修)。
+        """
+        return bool(vault_id) and vault_id != "default"
+
     def _table_owner(self, name: str, vault_id: object = _UNSET):
         """表 ``name`` 按**最长前缀优先**归属给哪个 vault; 无人认领返回 ``None``。
 
@@ -1347,7 +1363,9 @@ class LanceDBClient:
         (Codex round-4 H3: 不钉住时 TTL 可以在流程中段把集合重算成缺项的)。
         """
         assert self._db is not None  # 调用方已判
-        if self._vault_registry_degraded:
+        # ⚠️ 裸表口径不查 V ⇒ 下面几道为「V 可能缺项」设的闸对它是纯代价, 跳过。
+        scoped = self._scope_depends_on_registry(vault_id)
+        if scoped and self._vault_registry_degraded:
             self._last_drop_refusal = (
                 f"vault 清单降级 (VAULTS_ROOT 或指纹来源本轮枚举失败), 归属判定退回朴素前缀; "
                 f"为避免连带删掉别的 vault 的表, 整次拒绝删除 vault {vault_id!r} 的索引"
@@ -1395,10 +1413,14 @@ class LanceDBClient:
         # 这是 V 的定义域边界 —— 判不出来的时候宁可不删。
         logicals = set(self._canonical_logical_tables())
         prefix_len = len(f"{vault_id}_")
-        ambiguous = sorted(
-            t
-            for t in tables
-            if self._has_vault_prefix(t, vault_id) and "_" in t[prefix_len:] and t[prefix_len:] not in logicals
+        ambiguous = (
+            []
+            if not scoped
+            else sorted(
+                t
+                for t in tables
+                if self._has_vault_prefix(t, vault_id) and "_" in t[prefix_len:] and t[prefix_len:] not in logicals
+            )
         )
         if ambiguous:
             self._last_drop_refusal = (
@@ -1523,7 +1545,9 @@ class LanceDBClient:
             # Codex round-3 HIGH-2 / round-4 H3: 启动自愈也会 drop 表 —— 破坏性路径不吃
             # TTL 缓存, 且整段共用同一份已知 vault 集合 (循环内每表都刷会把启动路径拖垮)。
             with self._pinned_vault_ids():
-                if self._vault_registry_degraded:
+                # 同 drop 侧: 裸表口径不查 V, 两道闸对它是纯代价 (round-6 MEDIUM-2)
+                scoped = self._scope_depends_on_registry(owner_vault)
+                if scoped and self._vault_registry_degraded:
                     # Codex round-4 H2: 清单降级时归属退回朴素前缀, 此刻自愈就可能 drop 掉
                     # 别的 vault 的漂移表。自愈是**优化**, 晚一轮没有代价; 删错没法撤。
                     logger.error(
@@ -1544,7 +1568,7 @@ class LanceDBClient:
                     for t in self._tables_cache
                     if self._owns_table(t, owner_vault)
                     and not t.endswith(self.FINGERPRINT_TABLE)
-                    and not ("_" in t[prefix_len:] and t[prefix_len:] not in logicals)
+                    and not (scoped and "_" in t[prefix_len:] and t[prefix_len:] not in logicals)
                 ]
                 for tname in vector_tables:
                     self._check_and_fix_dimension_mismatch(tname, self.embedding_dim)
