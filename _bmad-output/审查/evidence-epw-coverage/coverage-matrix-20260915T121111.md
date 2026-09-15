@@ -27,7 +27,7 @@
 | 13 | `test_memory_service_write_retry.py::TestWriteRetryStrictQA::test_exponential_backoff_all_failures` | 全部失败时退避序列 1.0s/2.0s | 新文件 | `test_backoff_upper_bound_series_is_1_2_4` + `test_all_attempts_exception_then_dead_letter`（定值 → full jitter **上界**序列，语义收窄声明见文件头 §1） |
 | 14 | `test_memory_service_write_retry.py::TestWriteRetryStrictQA::test_exponential_backoff_delays` | 退避延迟值 1.0s/2.0s | 新文件 | `test_backoff_upper_bound_series_is_1_2_4`（patch `random.uniform` 捕获实参 `(0,1)/(0,2)/(0,4)`）+ `test_backoff_upper_bound_is_monotonic_and_capped_at_60` |
 | 15 | `test_memory_service_write_retry.py::TestWriteRetryStrictQA::test_mixed_timeout_then_exception_then_success` | 超时→异常→成功的混合重试链 | 新文件 | `test_mixed_timeout_then_exception_then_success`（3 次尝试、2 次退避、最终 processed） |
-| 16 | `test_memory_service_write_retry.py::TestWriteRetryStrictQA::test_record_temporal_event_uses_retry_method` | 调用方 `record_temporal_event` 走的是带重试的写方法 | 语义已删·无等价·登记退役 | 被测符号 `MemoryService._write_to_graphiti_json_with_retry` 随 `59586af1` (2026-03-26) 删除；**接线**语义在 worker 侧无对应点——唯一接线点 `get_episode_worker()`（`episode_worker.py::get_episode_worker`）是本卡禁止直调面（(c) 三入口门），调用方覆盖归 `memory_service` 面（T10-C 重写的 `TestAC3StartupRecovery` 已实测经 `_enqueue_episode → get_episode_worker()`）。登记移交，不在新文件伪造 |
+| 16 | `test_memory_service_write_retry.py::TestWriteRetryStrictQA::test_record_temporal_event_uses_retry_method` | 调用方 `record_temporal_event` 走的是带重试的写方法 | 语义已删·无等价·登记退役 | **被测符号**已删：`MemoryService._write_to_graphiti_json_with_retry` 随 `59586af1` (2026-03-26) 删除 ⇒ 针对该符号的这条用例无等价物，退役成立。⚠️ **收窄口径（Codex r1 MEDIUM-3 更正，原措辞过强）**：这**不等于**「调用方接线语义已消失」——`memory_service` 今天仍有 4 处 `get_episode_worker()`（`:462/:1540/:1821/:1957`），要为它写等价接线测试在技术上**是可行的**（`test_story_38_6_scoring_reliability.py::TestAC3StartupRecovery::ready_worker` 的「tmp_path worker + `monkeypatch.setattr` 替换工厂」就是现成范式）。本卡不写的理由是**地盘**：那属 `memory_service` 接线面，且 (c) 的三入口门禁止本卡直调单例。故本行的准确含义是「**旧符号退役 + 新接线覆盖移交、未验证**」，不是「缺口已闭合」 |
 | 17 | `test_memory_service_write_retry.py::TestWriteRetryStrictQA::test_retry_creates_new_timestamp_each_attempt` | 每次重试新建记录（新 timestamp） | 新文件 | `test_retry_reuses_same_task_and_preserves_timestamps`（⚠️ 语义**反转**：现实现重新入队**同一** `EpisodeTask`，`created_at`/`reference_time` 不变，仅 `retry_count` 递增；按现实现钉死，声明见文件头 §4） |
 | 18 | `test_memory_service_write_retry.py::TestWriteRetryStrictQA::test_timeout_failure_warning_includes_timeout_suffix` | 超时失败的 warning 带 `(timeout)` 后缀以区分错误类型 | 新文件 | `test_all_attempts_timeout_then_dead_letter`（`error_type=="TimeoutError"`）+ `test_dead_letter_log_carries_error_type_not_error_message`（⚠️ 收窄：区分能力从文案后缀迁到死信记录 `error_type`；`TimeoutError` 的 `str()` 为空串，现 warning 无法承载该区分，声明见文件头 §3） |
 | 19 | `test_memory_service_write_retry.py::TestWriteToGraphitiJsonWithRetry::test_all_retries_failed_warning_logging` | 全部重试失败后的 warning 日志 | 新文件 | `test_retry_warning_includes_attempt_number_and_error_message`（每次重试一条 warning）+ `test_dead_letter_log_carries_error_type_not_error_message`（耗尽后的 `logger.error`） |
@@ -55,17 +55,25 @@
 - **新文件承接 N1 = 21**（#1 #2 #3 #12 #13 #14 #15 #17 #18 #19 #20 #21 #22 #23 #24 #25 #26 #27 #28 #29 #30）
 - **已有 retry 测试承接 N2 = 0** —— 本卡对这 21 行**逐条都写了**新用例，故承接方一律记新文件；
   `test_episode_worker_retry.py` 的同向用例在「承接用例/依据」列作交叉引用，不另计承接，
-  避免一条缺口被两处重复记账。⚠️ 如实：这 21 行里有 5 行（#13 #14 #24 #25 #28）参照文件也已触及，
-  新文件相对它的增量逐条不同——#13/#14 由「区间采样」升为「`random.uniform` 实参的确定性断言」；
-  #24/#25 补了超时形态与 `error_type` 字段；**#28 的增量最小**，只多了对象级 `task.retry_count == 0`
-  （参照文件的 `episodes_failed == 0` 已蕴含零重试）。
-  另外 **#1 / #3**（失败计数器递增）与参照文件的 `test_worker_metrics_completeness`
-  **部分同题**——那条断言 `episodes_failed >= 4` 与 `episodes_dead_lettered == 1`，但用的是
-  `RuntimeError` 单一形态、且是 `>=` 不等式；新文件把超时形态与异常形态拆开、用等号钉死
-  逐次尝试的计数（`== 4` / `== 2`）。剩余 14 行参照文件的 5 个用例**均未触及**
-  （参照文件全部用例：`test_basic_enqueue_and_process` / `test_exponential_backoff_sleep_series` /
+  避免一条缺口被两处重复记账。
+
+  ⚠️ **与参照文件的重叠度（Codex r1 LOW-1 更正——原措辞「剩余 14 行参照文件均未触及」不成立，
+  逐行数过后重写）**。参照文件共 **5 个**用例（`grep -c 'def test_'` 实测 = 5）：
+  `test_basic_enqueue_and_process` / `test_exponential_backoff_sleep_series` /
   `test_dead_letter_on_retries_exhausted` / `test_worker_metrics_completeness` /
-  `test_request_id_propagation_through_episode_task`，实测 `grep -n 'def test_'` = 5 条）。
+  `test_request_id_propagation_through_episode_task`。逐行比对结果：
+
+  | 重叠程度 | 行号 | 说明 |
+  |---|---|---|
+  | **同题**（参照文件已有直接断言） | #2 #13 #14 #24 #28 #30 | #2/#30 落在 `test_dead_letter_on_retries_exhausted`（死信文件 + sha256/length/截断正文）；#13/#14 落在 `test_exponential_backoff_sleep_series`；#28 落在 `test_basic_enqueue_and_process`；#24 同 #2 那条 |
+  | **部分同题**（形态更窄或用不等式） | #1 #3 #23 #25 | #1/#3 只在 `test_worker_metrics_completeness` 里以 `episodes_failed >= 4` 的**不等式**+单一 `RuntimeError` 形态出现；#23 只覆盖 name/group_id/episode_body 三个 kwarg，未覆盖 entity_types/edge_types/source；#25 的错误形态是 `RuntimeError` 不是超时 |
+  | **未触及** | #12 #15 #17 #18 #19 #20 #21 #22 #26 #27 #29 | 共 **11** 行：日志分级四条（#12 #19 #21 #22）、混合错误类型（#15）、重试身份（#17）、超时/异常的区分位置（#18）、非超时异常触发重试（#20）、一次/两次重试后成功的**确切尝试数**（#26 #27）、`max_retries=0`（#29） |
+
+  新文件相对参照文件的增量，逐条不同：#13/#14 由「区间采样（允许 0）」升为「`random.uniform`
+  **实参**的确定性断言」并新增**实际重试链路**的 2/4/8 实参断言；#25 补超时形态与 `error_type`；
+  #23 补三个可选参数与「未设不得以 None 透传」；#1/#3 把不等式改成逐次尝试的等号；
+  **#28 的增量最小**，只多了对象级 `task.retry_count == 0`（参照文件的 `episodes_failed == 0`
+  已蕴含零重试）；#2/#30 的增量是 `count()` 与 `request_id` 字段的组合断言。
 - **T10-C 已 un-skip 重写 = 15**（#4–#11 共 8 + #31–#33 共 3 + #34–#37 共 4）
 - **语义已删·无等价·登记退役 N3 = 1**（#16，删除 sha `59586af1`）
 - **N1 + N2 + 15 + N3 = 21 + 0 + 15 + 1 = 37** ✅
@@ -82,14 +90,21 @@
 | `TestAC1TimeoutRetryAlignment::test_retry_backoff_base_is_1_second` | 模块级本地桩 `GRAPHITI_RETRY_BACKOFF_BASE == 1.0`（桩值 0.1 ⇒ 恒假） | **A（改写对齐真 worker）** | 改为断言 `EpisodeTask.backoff_seconds` 的**上界基数**：`retry_count=0` 时退避区间是 `[0, 1]`（patch `random.uniform` 捕获实参），与旧「base=1.0s」同值；名实一致（函数名仍是「退避基数为 1 秒」） |
 | `TestAC1TimeoutRetryAlignment::test_backoff_progression` | 模块级本地桩推导的 `[1.0, 2.0, 4.0]` 序列 | **A（改写对齐真 worker）** | 改为断言真 worker 的上界序列 `[1, 2, 4]`（`min(2**retry_count, 60)`），并钉 60s 封顶；与新文件 `test_backoff_upper_bound_series_is_1_2_4` 同源语义、互为双保险 |
 
-## 附录 B — 新文件用例清单（26 条）
+## 附录 B — 新文件用例清单（**32 个测试函数**，参数展开后 **46 条**，161 条 assert）
+
+> ⚠️ Codex r1 LOW-1 更正：本节原先写「26 条」，那是写卡时的计划数、不是实测数。
+> 实测口径（收工时重取）：`ast` 数出 **32** 个 `test_` 函数；
+> `pytest --collect-only` 收集到 **46** 条（3 个参数化用例分别展开 6/6/5）。
 
 A 组 重试与尝试次数（8）：`test_first_attempt_success_no_retry` / `test_success_after_one_retry` /
 `test_success_after_two_retries` / `test_all_attempts_timeout_then_dead_letter` /
 `test_non_timeout_exception_triggers_retry` / `test_all_attempts_exception_then_dead_letter` /
 `test_zero_max_retries_single_attempt_then_dead_letter` / `test_mixed_timeout_then_exception_then_success`
 
-B 组 退避（2）：`test_backoff_upper_bound_series_is_1_2_4` / `test_backoff_upper_bound_is_monotonic_and_capped_at_60`
+B 组 退避（3）：`test_backoff_upper_bound_series_is_1_2_4`（属性层：`random.uniform` 实参 = (0,1)/(0,2)/(0,4)）/
+`test_retry_actually_sleeps_backoff_seconds_series_2_4_8`（**实际重试链路**：传给 `asyncio.sleep` 的实参
+= 2/4/8，钉住「`_handle_failure` 真的用了这个公式」且 `retry_count` 先递增——Codex r1 HIGH-1）/
+`test_backoff_upper_bound_is_monotonic_and_capped_at_60`
 
 C 组 死信（3）：`test_dead_letter_written_on_retry_exhaustion` /
 `test_dead_letter_record_is_replayable_without_full_body` / `test_dead_letter_store_count_matches_appended_lines`

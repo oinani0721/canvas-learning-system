@@ -1,0 +1,16 @@
+# 更正：上一份存档最后三行的 rc 是 tail 的退出码，不是门的（管道吃 rc）。此处不加管道重取。
+
+### 旧锚 1：漏传 kwarg + 直调单例（strict）
+rc=1
+❌ /tmp/epw-gate3.6D1LNQ/probe.py:3 [<module>] get_episode_worker( 单例工厂恒用默认死信路径，禁直调
+EPW-PATH-GATE: FAIL
+
+### 旧锚 2：import memory_service 无 patch 串（strict）
+rc=1
+❌ /tmp/epw-gate3.6D1LNQ/probe.py: import 了 memory_service 却没 patch get_episode_worker（间接入口：memory_service 的 4 处 get_episode_worker() 调用）
+EPW-PATH-GATE: FAIL
+
+### 旧锚 2b：同一探针非 strict ⇒ 只 ADVISORY
+rc=0
+⚠️ ADVISORY(登记不阻断，归因见 scope) /tmp/epw-gate3.6D1LNQ/probe.py: import 了 memory_service 却没 patch get_episode_worker（间接入口：memory_service 的 4 处 get_episode_worker() 调用）
+EPW-PATH-GATE: PASS

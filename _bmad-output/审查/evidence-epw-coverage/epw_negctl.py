@@ -47,6 +47,30 @@ MUTATIONS = [
         'assert bounds[:7] == [1, 2, 4, 8, 16, 32, 64]',
     ),
     (
+        "(2') 实际重试链路真的用了 backoff_seconds（Codex r1 HIGH-1）",
+        "test_retry_actually_sleeps_backoff_seconds_series_2_4_8",
+        "assert slept_with == [2, 4, 8], (",
+        "assert slept_with == [2, 4, 9], (",
+    ),
+    (
+        "(1') 重试成功也记 info（Codex r1 MEDIUM-1）",
+        "test_success_after_one_retry",
+        'assert len(processed_infos) == 1, f"重试成功后必须记一条 info，实测 {infos}"',
+        'assert len(processed_infos) == 2, f"重试成功后必须记一条 info，实测 {infos}"',
+    ),
+    (
+        "(I') 死信落的是原对象本身（Codex r1 MEDIUM-2）",
+        "test_retry_reuses_same_task_and_preserves_timestamps",
+        'assert store_spy.call_args.args[0] is task, "落进死信的必须是**原对象本身**，不是它的副本"',
+        'assert store_spy.call_args.args[0] is not task, "落进死信的必须是**原对象本身**，不是它的副本"',
+    ),
+    (
+        "(1'') metrics 的 queue_depth 值（Codex r1 LOW-2）",
+        "test_metrics_snapshot_covers_all_counters",
+        'assert snapshot["queue_depth"] == 0, "两条都处理完后队列必须排空"',
+        'assert snapshot["queue_depth"] == 1, "两条都处理完后队列必须排空"',
+    ),
+    (
         "(3) 重试耗尽 → 落死信",
         "test_all_attempts_timeout_then_dead_letter",
         'assert mock_graphiti.add_episode.await_count == 4, "初次 + 3 次重试"',

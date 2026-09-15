@@ -1,0 +1,21 @@
+### 矩阵门（编辑后重跑）
+red-align: C1=33 原本绿=4 合计=37
+matrix: rows=37
+N1(新文件)=21 N2(已有 retry 测试)=0 T10-C=15 N3(退役)=1
+EPW-MATRIX-GATE: PASS
+rc=0
+
+### 新文件整跑
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================= 46 passed, 10 warnings in 1.45s ========================
+
+### 38_6 整跑
+FAILED tests/unit/test_story_38_6_scoring_reliability.py::TestAC4MergedView::test_get_learning_history_merges_failed_scores
+================== 1 failed, 16 passed, 10 warnings in 0.99s ===================
+
+### retry 参照不回退
+======================== 5 passed, 10 warnings in 0.99s ========================
+
+### ruff
+All checks passed!
+rc=0

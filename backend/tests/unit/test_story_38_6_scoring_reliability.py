@@ -59,8 +59,14 @@ class TestAC1TimeoutRetryAlignment:
         """[P0] 退避基数 1.0s —— 现实现的等价物是 full jitter 的**上界基数**。
 
         `EpisodeTask.backoff_seconds` = `random.uniform(0, min(2**retry_count, 60))`，
-        `retry_count=0` 时区间为 [0, 1]：基数仍是 1 秒，只是由定值变成上界。把
+        `retry_count == 0` 时区间为 [0, 1]：基数仍是 1 秒，只是由定值变成上界。把
         `random.uniform` 换成「返回上界」的桩即可对公式做确定性断言，而不是对抖动采样猜区间。
+
+        ⚠️ 本条钉的是**属性本身**在 `retry_count == 0` 上的取值，**不是**「第一次实际重试」的退避：
+        `_handle_failure` 先 `retry_count += 1` 再取 `backoff_seconds`，所以第一次实际重试的区间是
+        [0, 2]。实际重试链路的退避实参由
+        `test_episode_worker_coverage_epw.py::test_retry_actually_sleeps_backoff_seconds_series_2_4_8`
+        钉住（Codex r1 HIGH-1 更正）。
         """
         seen: list[tuple[float, float]] = []
 
@@ -77,7 +83,7 @@ class TestAC1TimeoutRetryAlignment:
                 retry_count=0,
             ).backoff_seconds
 
-        assert seen == [(0, 1)], f"首次重试的退避区间必须是 [0, 1]，实测 {seen}"
+        assert seen == [(0, 1)], f"retry_count=0 时退避区间必须是 [0, 1]，实测 {seen}"
         assert delay == 1.0
 
     def test_outer_timeout_covers_inner_total(self):
@@ -99,7 +105,11 @@ class TestAC1TimeoutRetryAlignment:
         """[P1] 退避序列 1s/2s/4s —— 现实现的等价物是**上界**序列，并新增 60s 封顶。
 
         旧实现 `base * 2**attempt` 是定值；现实现每次抽 `[0, min(2**retry_count, 60)]`，
-        上界仍走 1/2/4，但超过 2**6 后恒为 60（旧实现没有封顶，这是迁移新增的保护）。
+        上界随 `retry_count` 走 1/2/4，但超过 2**6 后恒为 60（旧实现没有封顶，这是迁移新增的保护）。
+
+        ⚠️ 同上：这里的 1/2/4 是**属性**在 `retry_count = 0/1/2` 上的上界。**实际**三次重试因为
+        `_handle_failure` 先递增计数，走的是 2/4/8——由
+        `test_episode_worker_coverage_epw.py::test_retry_actually_sleeps_backoff_seconds_series_2_4_8` 钉住。
         """
         bounds: list[float] = []
 

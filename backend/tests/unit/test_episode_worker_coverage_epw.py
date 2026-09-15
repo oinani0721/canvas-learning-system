@@ -22,6 +22,11 @@ GraphitiEpisodeWorker 等价覆盖 — CARD-EPW-COVERAGE（第十四批）。
    `random.uniform(0, min(2**retry_count, 60))`（full jitter, 60s 封顶,
    `EpisodeTask.backoff_seconds`）。可对齐的不变量是**上界序列**仍为 1/2/4/8，
    故断言写成「上界 + 单调不减 + 封顶」，不对抖动取定值。
+   ⚠️ **时序（Codex r1 HIGH-1 更正）**：`_handle_failure` 是 `retry_count += 1` **之后**才取
+   `backoff_seconds`，所以**实际**三次重试的上界是 **2/4/8**，不是属性本身在 `retry_count=0,1,2`
+   上的 1/2/4。两者都被钉：属性层见 `test_backoff_upper_bound_series_is_1_2_4`，
+   **实际重试层**见 `test_retry_actually_sleeps_backoff_seconds_series_2_4_8`（断言传给
+   `asyncio.sleep` 的**实参**，不只是次数——只数次数的话，把生产改成 `sleep(0)` 也全绿）。
 2. **每次尝试超时**：旧实现有 per-attempt timeout 常量；现 worker 对
    `add_episode` **不加任何超时包装**（`_process_episode` 直接 `await`，全文件
    `asyncio.wait_for` 只出现在连通性探针与 `stop()` 排空）。该语义**无等价**，
@@ -178,7 +183,12 @@ async def test_first_attempt_success_no_retry(worker):
 
 
 async def test_success_after_one_retry(worker):
-    """等价于「第一次失败后重试成功」：2 次尝试、1 次退避、最终 processed。"""
+    """等价于「第一次失败后重试成功」：2 次尝试、1 次退避、最终 processed，且**重试成功也记 info**。
+
+    Codex r1 MEDIUM-1：原先「重试成功日志」这条承接语义被拆在两个用例里——一个只跑首次成功、
+    一个不看日志——于是「成功 info 只在 retry_count==0 时输出」这种回归两边都发现不了。
+    本用例把日志观察点搬到**重试成功**这条路径上。
+    """
     w, mock_graphiti, dl = worker
     attempts = {"n": 0}
 
@@ -190,9 +200,13 @@ async def test_success_after_one_retry(worker):
     mock_graphiti.add_episode = AsyncMock(side_effect=fail_once)
     task = _make_task(name="retry_once")
 
-    with patch("app.services.episode_worker.asyncio.sleep", side_effect=_no_sleep) as slept:
+    with (
+        patch("app.services.episode_worker.logger") as log,
+        patch("app.services.episode_worker.asyncio.sleep", side_effect=_no_sleep) as slept,
+    ):
         w.enqueue(task)
         await _wait_until(lambda: w.metrics.episodes_processed >= 1)
+        infos = [c.args[0] for c in log.info.call_args_list]
 
     assert attempts["n"] == 2
     assert w.metrics.episodes_failed == 1
@@ -201,6 +215,10 @@ async def test_success_after_one_retry(worker):
     assert slept.await_count == 1, "每次重试前恰好一次退避 sleep"
     assert task.retry_count == 1
     assert not dl.exists()
+    # 重试成功（retry_count == 1）同样落一条 `Episode processed` info——不是只有首次成功才记。
+    processed_infos = [m for m in infos if "Episode processed" in m]
+    assert len(processed_infos) == 1, f"重试成功后必须记一条 info，实测 {infos}"
+    assert "retry_once" in processed_infos[0]
 
 
 async def test_success_after_two_retries(worker):
@@ -365,6 +383,40 @@ def test_backoff_upper_bound_series_is_1_2_4():
 
     assert observed_bounds == [(0, 1), (0, 2), (0, 4)], "退避区间必须是 [0, 2**retry_count]"
     assert delays == [1.0, 2.0, 4.0], "上界序列与旧实现的 1s/2s/4s 定值序列一致"
+
+
+async def test_retry_actually_sleeps_backoff_seconds_series_2_4_8(worker):
+    """⛔ 承重：钉住「`_handle_failure` 真的用了 `backoff_seconds`」，而不只是「睡了几次」。
+
+    Codex r1 HIGH-1：只断言 `sleep` **次数**时，把生产的
+    `await asyncio.sleep(backoff)` 换成 `await asyncio.sleep(0)` 照样全绿——公式测对了，
+    但「实际重试用的是这个公式」没有观察点。本用例把 `random.uniform` 换成「返回上界」的桩，
+    退避值就变成确定值，于是可以对**传给 sleep 的实参**做等值断言。
+
+    同时钉住 `_handle_failure` 的**时序**：它 `retry_count += 1` **之后**才取 `backoff_seconds`
+    （`episode_worker.py::_handle_failure`），所以三次实际重试的上界是 **2 / 4 / 8**
+    （= `min(2**1,60)` / `min(2**2,60)` / `min(2**3,60)`），而**不是** 1/2/4。
+    """
+    w, mock_graphiti, dl = worker
+    mock_graphiti.add_episode = AsyncMock(side_effect=RuntimeError("always fails"))
+    slept_with: list[float] = []
+
+    async def recording_sleep(seconds):
+        slept_with.append(seconds)
+        await _ORIGINAL_ASYNCIO_SLEEP(0)
+
+    with (
+        patch("app.services.episode_worker.random.uniform", side_effect=lambda low, high: high),
+        patch("app.services.episode_worker.asyncio.sleep", side_effect=recording_sleep),
+    ):
+        w.enqueue(_make_task(name="sleep_values"))
+        await _wait_until(lambda: w.metrics.episodes_dead_lettered >= 1)
+
+    assert slept_with == [2, 4, 8], (
+        f"三次重试实际传给 asyncio.sleep 的必须是 backoff_seconds 的上界序列 2/4/8（retry_count 先递增），实测 {slept_with}"
+    )
+    assert w.metrics.episodes_dead_lettered == 1
+    assert _read_records(dl)[0]["retry_count"] == 3
 
 
 def test_backoff_upper_bound_is_monotonic_and_capped_at_60():
@@ -619,7 +671,11 @@ async def test_exception_failures_increment_failure_counter_per_attempt(worker):
 
 
 async def test_metrics_snapshot_covers_all_counters(worker):
-    """`WorkerMetrics.to_dict()` 的十个字段在一次成功 + 一次死信后各自取到真值。"""
+    """`WorkerMetrics.to_dict()` 的十个字段在一次成功 + 一次死信后各自取到真值。
+
+    Codex r1 LOW-2：原先 `queue_depth` / `avg_processing_time_ms` / `max_processing_time_ms`
+    只验证了「键存在」，返回错值照样通过。下面给这三个也补上值断言。
+    """
     w, mock_graphiti, dl = worker
 
     w.enqueue(_make_task(name="metrics_ok"))
@@ -651,6 +707,12 @@ async def test_metrics_snapshot_covers_all_counters(worker):
     assert snapshot["worker_running"] is True
     # success_rate = processed / (processed + failed) = 1/5
     assert snapshot["success_rate"] == 0.2
+    # 剩下三个字段的**值**（不只是键）：
+    assert snapshot["queue_depth"] == 0, "两条都处理完后队列必须排空"
+    # 每次成功与每次失败尝试各记一次耗时 ⇒ 1 成功 + 4 次失败尝试 = 5 条样本（确定值，不依赖时钟精度）
+    assert len(w.metrics._processing_times) == 5
+    assert snapshot["max_processing_time_ms"] >= snapshot["avg_processing_time_ms"] >= 0.0
+    assert snapshot["max_processing_time_ms"] == round(max(w.metrics._processing_times) * 1000, 1)
 
 
 async def test_queue_full_drops_and_counts(dead_letter_path):
@@ -813,6 +875,11 @@ async def test_retry_reuses_same_task_and_preserves_timestamps(worker):
     `EpisodeTask` 对象重新入队 ⇒ `created_at` / `reference_time` 全程不变，只有
     `retry_count` 递增。死信记录里的 `created_at` 因此是**首次**入队时刻，可用于算端到端
     滞留时长。本用例按现实现钉死，免得后人照旧描述改坏。
+
+    ⛔ **对象身份必须直接断言**（Codex r1 MEDIUM-2）：只看「原对象的最终计数 + 时间戳 + 死信字段」
+    是不够的——若最后一次重入队换成 `copy.copy(task)`，上述断言**全部仍然成立**，可落进死信的
+    已经是另一个对象了。故这里再捕获 `DeadLetterStore.store` 收到的那个 task，断言它
+    **`is` 原对象**。
     """
     w, mock_graphiti, dl = worker
     mock_graphiti.add_episode = AsyncMock(side_effect=RuntimeError("identity"))
@@ -820,10 +887,15 @@ async def test_retry_reuses_same_task_and_preserves_timestamps(worker):
     original_created_at = task.created_at
     original_reference_time = task.reference_time
 
-    with patch("app.services.episode_worker.asyncio.sleep", side_effect=_no_sleep):
+    with (
+        patch("app.services.episode_worker.asyncio.sleep", side_effect=_no_sleep),
+        patch.object(w._dead_letter, "store", wraps=w._dead_letter.store) as store_spy,
+    ):
         w.enqueue(task)
         await _wait_until(lambda: w.metrics.episodes_dead_lettered >= 1)
 
+    assert store_spy.call_count == 1
+    assert store_spy.call_args.args[0] is task, "落进死信的必须是**原对象本身**，不是它的副本"
     assert task.retry_count == 3, "重试次数写在同一个对象上"
     assert task.created_at == original_created_at, "重试不得刷新 created_at"
     assert task.reference_time == original_reference_time, "重试不得刷新 reference_time"

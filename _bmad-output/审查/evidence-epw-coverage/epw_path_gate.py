@@ -15,6 +15,17 @@
 用法：
     python3 epw_path_gate.py [--strict-ms] <file.py>
 rc=0 且打印 ``EPW-PATH-GATE: PASS`` 为通过。
+
+⚠️ **本门已知的未覆盖路径（Codex r1 MEDIUM-4，如实声明，不主张它能独立承担隔离验收）**：
+  - r1 提的两条已封：**写死的路径字面量**（带着 kwarg 却指向真坟场）与 **import 别名**
+    （`import get_episode_worker as get_w` 后调 `get_w()`）；
+  - **仍未封**：① 值是变量/参数时只看形态不看取值（`p = "data/dead_letter_episodes.jsonl";
+    GraphitiEpisodeWorker(dead_letter_path=p)` 仍 PASS——需要数据流分析）；② `memory_service`
+    启发式只查源码里**是否出现** ``get_episode_worker`` 这个串，删掉某个用例的 ``ready_worker``
+    fixture 形参、只留 fixture 定义里的那个串，门照样 PASS（注释里的同名串也算数）；
+    ③ 经 ``memory_service`` 的**间接**入口不追调用链。
+  运行期的后置防线是 (i) 的 sentinel，而 sentinel 又抓不到「建了默认路径 worker 但这次没落死信」。
+  两层各有盲区 —— 本门是**必要条件**，不是充分条件。
 """
 
 import ast
@@ -37,26 +48,70 @@ for n in ast.walk(t):
         for line in range(n.lineno, (n.end_lineno or n.lineno) + 1):
             scope[line] = n.name
 
+# Codex r1 MEDIUM-4 加固 ①：解析 import 别名。
+# `from app.services.episode_worker import get_episode_worker as get_w` 之后调 `get_w()`
+# 与直调同效，原门只按被调名字匹配、看不见别名。
+SINGLETON_NAMES = {"get_episode_worker", "cleanup_episode_worker"}
+singleton_aliases = set(SINGLETON_NAMES)
+worker_aliases = {"GraphitiEpisodeWorker"}
+store_aliases = {"DeadLetterStore"}
+for n in ast.walk(t):
+    if isinstance(n, ast.ImportFrom) and (n.module or "").startswith("app.services.episode_worker"):
+        for a in n.names:
+            if a.asname:
+                if a.name in SINGLETON_NAMES:
+                    singleton_aliases.add(a.asname)
+                elif a.name == "GraphitiEpisodeWorker":
+                    worker_aliases.add(a.asname)
+                elif a.name == "DeadLetterStore":
+                    store_aliases.add(a.asname)
+
+
+def _path_value_is_safe(node):
+    """Codex r1 MEDIUM-4 加固 ②：kwarg 在场还不够，值不能是写死的路径字面量。
+
+    `GraphitiEpisodeWorker(dead_letter_path="data/dead_letter_episodes.jsonl")` 带着 kwarg
+    却指向真死信坟场，原门照样 PASS。要求：值必须是**表达式**（`str(tmp_path / …)` 一类），
+    不得是 `ast.Constant` 字面量，也不得是纯字面量拼接的 JoinedStr。
+    """
+    if isinstance(node, ast.Constant):
+        return False
+    if isinstance(node, ast.JoinedStr) and all(isinstance(v, ast.Constant) for v in node.values):
+        return False
+    return True
+
+
 bad = []
 warn = []
 counts = {"worker": 0, "deadletter": 0, "singleton": 0}
 for c in (x for x in ast.walk(t) if isinstance(x, ast.Call)):
     k = nm(c)
-    kws = {kw.arg for kw in c.keywords}
+    kws = {kw.arg: kw.value for kw in c.keywords}
     where = f"{p}:{c.lineno} [{scope.get(c.lineno, '<module>')}]"
-    if k == "GraphitiEpisodeWorker":
+    if k in worker_aliases:
         counts["worker"] += 1
         if "dead_letter_path" not in kws:
             bad.append(
                 f"{where} GraphitiEpisodeWorker( 缺 kwarg dead_letter_path=（位置参数形态也判 FAIL，改写成 kwarg）"
             )
-    elif k == "DeadLetterStore":
+        elif not _path_value_is_safe(kws["dead_letter_path"]):
+            bad.append(
+                f"{where} GraphitiEpisodeWorker(dead_letter_path=…) 的值是写死的路径字面量"
+                f"（{ast.unparse(kws['dead_letter_path'])}）——必须是 tmp_path 派生的表达式"
+            )
+    elif k in store_aliases:
         counts["deadletter"] += 1
         if "file_path" not in kws:
             bad.append(f"{where} DeadLetterStore( 缺 kwarg file_path=（位置参数形态也判 FAIL，改写成 kwarg）")
-    elif k in ("get_episode_worker", "cleanup_episode_worker"):
+        elif not _path_value_is_safe(kws["file_path"]):
+            bad.append(
+                f"{where} DeadLetterStore(file_path=…) 的值是写死的路径字面量"
+                f"（{ast.unparse(kws['file_path'])}）——必须是 tmp_path 派生的表达式"
+            )
+    elif k in singleton_aliases:
         counts["singleton"] += 1
-        bad.append(f"{where} {k}( 单例工厂恒用默认死信路径，禁直调")
+        alias_note = "" if k in SINGLETON_NAMES else f"（import 别名，实为 {'/'.join(sorted(SINGLETON_NAMES))} 之一）"
+        bad.append(f"{where} {k}( 单例工厂恒用默认死信路径，禁直调{alias_note}")
 
 
 def _ms(x):
