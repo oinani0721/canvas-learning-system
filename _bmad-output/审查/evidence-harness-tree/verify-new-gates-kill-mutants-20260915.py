@@ -4,7 +4,7 @@
 逐格跑，看是否至少有一格红（= KILLED）。全格绿 = 门仍然抓不住（= 我白加了）。
 ⛔ 只读仓库；变异只在内存里。
 """
-import ast, builtins, json, os, re, sys, tempfile, pathlib
+import ast, builtins, json, os, re, sys, tempfile, types, pathlib
 
 WT = pathlib.Path("/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills")
 txt = (WT / "canvas-vault/.claude/skills/quiz-answer/SKILL.md").read_text(encoding="utf-8")
@@ -67,7 +67,8 @@ def build(shape, base):
 SHAPES = ["no_config_file", "no_config_and_parent_is_tree", "no_config_and_env_set",
           "no_config_and_sidecar", "target_tree_really_exists", "parent_is_a_usable_tree",
           "minimal_unquoted_config", "pure_json_config", "env_override_set", "sidecar_present"]
-PROBES = ["module_not_found", "plain_import_error", "import_raises_oserror", "imports_but_not_pyyaml"]
+PROBES = ["module_not_found", "plain_import_error", "import_raises_oserror",
+          "imports_but_not_pyyaml", "safe_load_not_callable", "safe_load_misbehaves"]
 
 
 def run_cell(fn, shape, probe):
@@ -79,8 +80,13 @@ def run_cell(fn, shape, probe):
     real_import = builtins.__import__
     if probe == "module_not_found":
         sys.modules["yaml"] = None
-    elif probe == "imports_but_not_pyyaml":
-        sys.modules["yaml"] = object()
+    elif probe in ("imports_but_not_pyyaml", "safe_load_not_callable", "safe_load_misbehaves"):
+        _f = types.ModuleType("yaml")
+        if probe == "safe_load_not_callable":
+            _f.safe_load = 1
+        elif probe == "safe_load_misbehaves":
+            _f.safe_load = list
+        sys.modules["yaml"] = _f
     else:
         _e = (ImportError("cannot import name '_yaml' from partially initialized module 'yaml'")
               if probe == "plain_import_error"
@@ -207,6 +213,14 @@ MUTANTS = {
         if _ev3 and not os.path.exists(_cfg_p) and os.path.isdir(os.path.join(_ev3, "backend", "scripts")):
             return os.path.realpath(_ev3)
         raise SystemExit(f"[quiz-answer] PyYAML 不可用 — harness_tree'''),
+    #: r9-M2: 把「表现得像解析器」弱化成「有这个属性」
+    "r9-hasattr-only": (
+        '        try:\n            _probe = yaml.safe_load("a: 1")',
+        '        if not hasattr(yaml, "safe_load"):\n            raise ImportError("no safe_load")\n        try:\n            _probe = {"a": 1}'),
+    #: r9-H1: 把解析途中的 OSError 重新并回「没有 config」
+    "r9-parse-oserror-as-missing": (
+        '        except Exception as _ye:\n            #: 这里**不再**豁免 OSError',
+        '        except OSError:\n            _tree = ""\n        except Exception as _ye:\n            #: 这里**不再**豁免 OSError'),
     "WM-merge-message": (IMPORT_ERR_LINE,
                          '        raise SystemExit(f"[quiz-answer] .canvas-config.yaml 无法用 PyYAML 解析 — fail-closed 拒写 — 请人工修复 {_cfg_p}") or SystemExit(f"[quiz-answer] x — harness_tree'),
 }
@@ -238,6 +252,40 @@ for name, (old, new) in MUTANTS.items():
 
 print("-" * 78)
 print("KILLED %d / %d" % (n_killed, len(MUTANTS)))
+
+# ── 有库侧：解析这一步坏了 ⇒ 必须拒（r9 H1 那一类）──
+print()
+print("=== 有库侧那一片（r9 H1）: config 打得开但解析抛 OSError ⇒ 应拒 ===")
+def yaml_parse_fail_cell(fn):
+    import yaml as _ry
+    base = pathlib.Path(tempfile.mkdtemp(prefix="vk-pf-")); vd = base / "canvas-vault"
+    vd.mkdir(parents=True); usable(base); tgt = usable(base / "target-tree")
+    (vd / ".canvas-config.yaml").write_text(f'vault_id: "v"\nharness_tree: {tgt}\n', encoding="utf-8")
+    fake = types.ModuleType("yaml")
+    def sl(stream, *a, **k):
+        if isinstance(stream, str): return _ry.safe_load(stream)
+        raise OSError(5, "Input/output error")
+    fake.safe_load = sl
+    prev = sys.modules.get("yaml"); sys.modules["yaml"] = fake
+    try:
+        r = ("ok", fn(str(vd)), str(base))
+    except SystemExit as e:
+        r = ("exit", str(e)[:60], str(base))
+    finally:
+        if prev is None: sys.modules.pop("yaml", None)
+        else: sys.modules["yaml"] = prev
+    return r
+for nm in ("r9-parse-oserror-as-missing",):
+    old, new = MUTANTS[nm]
+    if SRC.count(old) != 1:
+        print(f"  {nm}: INVALID（锚 {SRC.count(old)} 次）"); continue
+    r = yaml_parse_fail_cell(make_fn(SRC.replace(old, new)))
+    #: ⚠️ 这一格的「正确」与上一格**相反**: 解析失败时生产应当 exit, 所以变异体返回 ok
+    #: (回退父树)= 门会红 = KILLED。第一版我从上一格照抄了判定逻辑、忘了翻转, 于是把
+    #: 一个被杀掉的变异体报成了 SURVIVED —— 差点照着一个不存在的缺口再去加门。
+    print(f"  {nm}: {'KILLED' if r[0]=='ok' else '⛔ SURVIVED'} —— 变异体得到 {r[0]} {r[1][:46]!r}（门要求 exit）")
+rp2 = yaml_parse_fail_cell(make_fn(SRC))
+print(f"  阴性对照(生产): {'✅ 拒写' if rp2[0]=='exit' else '⛔ ' + str(rp2[:2])}")
 
 # ── 额外一格：PyYAML **可用** + 无 config + 父目录是树 ⇒ 必须回退父树（r8 M2 那一类）──
 print()

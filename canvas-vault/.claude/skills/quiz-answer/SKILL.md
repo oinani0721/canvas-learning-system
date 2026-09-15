@@ -430,10 +430,18 @@ def _harness_tree(vault_dir):
         #: ⛔ 「import 成功」≠「拿到了 PyYAML」(Codex round-8 MEDIUM, 已独立复现):
         #: sys.path 上放一个**空的同名 `yaml.py`** 时 import 照样成功, 上面的 except
         #: 一声不响, 于是往下走到读 config —— 文件不存在就回退父目录, 「拿不到 PyYAML
-        #: 绝不返回树」当场有反例。所以这里要问的不是「导进来没有」, 而是
-        #: **「我真正要用的那个入口在不在」**。
-        if not callable(getattr(yaml, "safe_load", None)):
-            raise ImportError(f"导入的 yaml 模块没有可调用的 safe_load (来自 {getattr(yaml, '__file__', '未知位置')})")
+        #: 绝不返回树」当场有反例。
+        #: ⛔ 再进一步(Codex round-9 MEDIUM): 光看「有没有可调用的 safe_load」也不够 ——
+        #: `safe_load = list` 是可调用的, 一个恒返回字典的假函数还能指向另一棵存在的树。
+        #: **靠自省证明不了「它就是 PyYAML」**, 但可以要求它在一个已知输入上**表现得像个
+        #: YAML 解析器**。本文件别处早就用过同一招(receipt 写侧的「让 YAML 自己解析一遍
+        #: 来证明」往返自证) —— 这里照做: 证不出来就当作拿不到。
+        try:
+            _probe = yaml.safe_load("a: 1")
+        except Exception as _pe:
+            raise ImportError(f"yaml.safe_load 在最简输入上就抛了 ({type(_pe).__name__}: {_pe}); 来自 {getattr(yaml, '__file__', '未知位置')}")
+        if not (isinstance(_probe, dict) and _probe.get("a") == 1):
+            raise ImportError(f"yaml.safe_load 对 'a: 1' 给出的是 {_probe!r} 而不是 {{'a': 1}} —— 它不是一个能用的 YAML 解析器 (来自 {getattr(yaml, '__file__', '未知位置')})")
     except Exception as _ie:
         #: ⛔ 报错里必须带上**这个进程自己的解释器路径**与一条绑定它的安装命令
         #: (Codex round-6 LOW): 只说「请装 PyYAML」时, 用户照抄 `pip install pyyaml`
@@ -447,18 +455,29 @@ def _harness_tree(vault_dir):
 
         _exe_q = shlex.quote(sys.executable)
         raise SystemExit(f"[quiz-answer] PyYAML 不可用 — harness_tree 指向哪棵树不可证, fail-closed 拒写 — 逐行扫描猜不出 YAML 的换行与语法上下文, 猜错的代价是把学习事件静静地绑到另一棵 harness 树上, 故本写点在拿不到 PyYAML 时一律不写。拿不到的原因: {type(_ie).__name__}: {_ie}。跑本写点的解释器是 {sys.executable} ; 请照抄这一条装(它绑定的正是上面那个解释器, 不要换成裸 pip): {_exe_q} -m pip install pyyaml")
+    #: ⛔ **「打不开」与「打开了但读/解析出错」必须分成两个作用域**(Codex round-9 HIGH,
+    #: 已独立复现)。原先两者共用一个 `except OSError` ⇒ 解析途中的 IO 错(读流时 EIO、
+    #: safe_load 自己抛的 OSError)被当成「压根没有 config」⇒ 静默回退父目录, 而 config
+    #: 明明指着另一棵树。
+    #: ⚠️ 这与 round-7 的 HIGH **是同一个结构错, 只是深了一层**: 两件语义不同的事共用
+    #: 一个 except, 于是一个异常被当成了另一个异常的意思。修一处不等于这类错没了 ——
+    #: 往后在本函数里新开 try 时, 先问「这个 except 会不会同时接住两种不同含义的失败」。
     _tree = ""
     try:
-        with open(_cfg_p, encoding="utf-8") as _cf:
-            _doc = yaml.safe_load(_cf)
-        #: `_doc` 非 dict (空文件 / 纯标量 / 列表)、键缺失、值为 null —— 三者一律
-        #: 视同「没写这个键」, 与「值是空串」同口径回退, 不是 fail-closed。
-        if isinstance(_doc, dict) and _doc.get("harness_tree") is not None:
-            _tree = str(_doc["harness_tree"])
+        _cf = open(_cfg_p, encoding="utf-8")
     except OSError:
-        _tree = ""  # 压根没有 .canvas-config.yaml ⇒ 没写这个键 ⇒ 缺省回退
-    except Exception as _ye:
-        raise SystemExit(f"[quiz-answer] .canvas-config.yaml 不是合法 YAML ({_ye}) — harness_tree 指向哪棵树不可证, fail-closed 拒写 — 请人工修复 {_cfg_p}")
+        _cf = None  # 压根没有 .canvas-config.yaml ⇒ 没写这个键 ⇒ 缺省回退
+    if _cf is not None:
+        try:
+            with _cf:
+                _doc = yaml.safe_load(_cf)
+            #: `_doc` 非 dict (空文件 / 纯标量 / 列表)、键缺失、值为 null —— 三者一律
+            #: 视同「没写这个键」, 与「值是空串」同口径回退, 不是 fail-closed。
+            if isinstance(_doc, dict) and _doc.get("harness_tree") is not None:
+                _tree = str(_doc["harness_tree"])
+        except Exception as _ye:
+            #: 这里**不再**豁免 OSError: 文件已经打开了, 之后任何失败都不是「没有 config」。
+            raise SystemExit(f"[quiz-answer] .canvas-config.yaml 打开后读取/解析失败 ({type(_ye).__name__}: {_ye}) — harness_tree 指向哪棵树不可证, fail-closed 拒写 — 请人工修复 {_cfg_p}")
     if not _tree:
         return os.path.dirname(vault_dir)
     _given = os.path.expanduser(_tree)

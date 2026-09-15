@@ -1,7 +1,7 @@
 # UAT · CARD-HARNESS-TREE-PARSE-REDO（`_harness_tree` 解析整体重做）
 
 > 批次 `[BATCH-2026-09-11-第十四批 / CARD-HARNESS-TREE-PARSE-REDO]` · 车道 `card-t7-skills`（分支 `card/t7-skills`）
-> 基线 `08100483` → 代码 commit **`f7f10be4`**（round-1 审过的中间态）→ **`4d21bc9b`**（按 round-1 结论整改）→ **`e844d6a1`**（按 round-2 结论 + 自查整改）→ **`34451227`**（按 round-3 结论整改）→ **`4eeaeaa6`**（按 round-4 结论整改）→ **`faaeb005`**（用户裁定「缺库即拒写」）→ **`8d973a29`**（按 r6 + 变异测试补门）→ **`4c722826`**（按 r7 HIGH 修 import/读 config 分离）→ **r9 待提交**（按 r8 五条整改，最终 HEAD）· 未 push
+> 基线 `08100483` → 代码 commit **`f7f10be4`**（round-1 审过的中间态）→ **`4d21bc9b`**（按 round-1 结论整改）→ **`e844d6a1`**（按 round-2 结论 + 自查整改）→ **`34451227`**（按 round-3 结论整改）→ **`4eeaeaa6`**（按 round-4 结论整改）→ **`faaeb005`**（用户裁定「缺库即拒写」）→ **`8d973a29`**（按 r6 + 变异测试补门）→ **`4c722826`**（按 r7 HIGH 修 import/读 config 分离）→ **`9496f84d`**（按 r8 五条整改）→ **r10 待提交**（按 r9 五条整改，最终 HEAD）· 未 push
 > ⚠️ 卡文 (k) 写「单独 commit」；实际两个代码 commit —— Codex round-1 报 MEDIUM+LOW，按 D-15「审后再改代码必再送一轮」整改后必然产生第二个。两个 commit 都只落在同三文件。
 > 证据目录 `_bmad-output/审查/evidence-harness-tree/`（全部 `.txt`，无 `*.stderr*` 入库）
 
@@ -670,7 +670,7 @@ except OSError:
 | `H1-merged-try` | KILLED | `no_config_file` / **`import_raises_oserror`** |
 | `M1-parent-when-no-config` | KILLED | **`no_config_and_parent_is_tree`** |
 | 原 6 个 + `WM-narrow-except` + `WM-merge-message` | KILLED | 各自那一格 |
-| `P2-open-before-import` | **INVALID** | 锚点命中 0 次 —— **H1 的修法从结构上消掉了这个变异点**（import 与 open 不再同处一个 try）。这是缺陷类别被构造性消除，不是漏网 |
+| `P2-open-before-import` | **INVALID** | 锚点命中 0 次。⛔ **当时我据此写下「缺陷类别被构造性消除」—— 那句话是错的，已就地撤销**（Codex round-8 MEDIUM-2）：它只是旧文本锚失配，换个写法（`M2-read-before-import`）同类变异**仍然存在**，后被新增的有库侧那一格抓住。**INVALID 只代表这条变异体的文本锚失效，不代表那类缺陷不存在。** |
 
 **KILLED 10/11；阴性对照生产代码 24 格全绿。**
 
@@ -756,11 +756,13 @@ config ⇒「**只在**无 config 时才采用变量/缓存」从中间穿过去
 |---|---|---|
 | `M1-no-safeload-check` | KILLED | `no_config_file` / **`imports_but_not_pyyaml`**（第四探针） |
 | `M3-env-only-when-no-config` | KILLED | **`no_config_and_env_set`**（新组合格） |
-| `M2-read-before-import` | 40 格矩阵 SURVIVED（**符合预期**——那 40 格全是「拿不到 PyYAML」）；**被新增的有库侧那一格 KILLED** | `..._pyyaml_available_no_config_falls_back_to_parent` |
+| `M2-read-before-import` | 40 格矩阵内 **SURVIVED**（**符合预期**——那 40 格全是「拿不到 PyYAML」）；**被新增的有库侧那一格 KILLED** | `..._pyyaml_available_no_config_falls_back_to_parent` |
 | 此前 8 个 | KILLED | 各自那一格 |
 
-**KILLED 11/14**（3 个 INVALID = 代码变了、旧文本锚失配）；**阴性对照生产代码 40 格全绿**，
-且有库侧那一格正确回退父树。
+**矩阵内 11 KILLED / 2 INVALID / 1 SURVIVED**；那个 SURVIVED（`M2-read-before-import`）随后
+**被新增的有库侧那一格 KILLED** ⇒ 合计 **12 KILLED / 2 INVALID**。
+⚠️ 我先前写成「KILLED 11/14（3 个 INVALID）」—— **把一个 SURVIVED 错计成了第三个 INVALID**
+（Codex round-9 LOW 核对原始日志后指出）。**阴性对照生产代码 40 格全绿**，且有库侧那一格正确回退父树。
 
 ⚠️ 对 INVALID 的定性**这次不再外推**：`M2-read-before-import` 就是 `P2` 换了写法，它**仍然
 存在**，只是现在被新门抓住了。INVALID 只代表「这条变异体的文本锚失效」。
@@ -776,6 +778,90 @@ config ⇒「**只在**无 config 时才采用变量/缓存」从中间穿过去
 | ruff | check + format 均 0 |
 | 地盘核 | 仍恰三文件 |
 | 指纹 | SKILL.md `6f963f1a…`→`aa51908a…`；`B229` `6098a8a3…`→`df79074d…` |
+
+---
+
+## 五-undecies　round-9：同一个结构错的第二次、缺口维度的第四次（2026-09-16）
+
+Codex round-9（绑最终 HEAD `9496f84d`）：**BLOCKER 0 / HIGH 1 / MEDIUM 2 / LOW 2**。五条全部整改。
+
+### 五-undecies.1　H1：与 r7 是**同一个结构错，深了一层**
+
+```python
+try:
+    with open(_cfg_p, ...) as _cf:   # 「打不开」= 没有 config
+        _doc = yaml.safe_load(_cf)   # 「打开了但读/解析失败」= 完全另一回事
+except OSError:
+    _tree = ""                       # ⇒ 两者被压成同一档 ⇒ 静默回退父树
+```
+
+r7 的 HIGH 是「import 与读 config 共用一个 try」，这次是「open 与 parse 共用一个 try」——
+**同一个毛病：一个 except 同时接住了两种语义不同的失败。** 修一处不等于这类错没了。
+
+修法：`open` 单独一个作用域（失败 ⇒ 没有 config ⇒ 回退）；打开之后的任何失败一律 fail-closed，
+**不再豁免 OSError**。已就地写进注释：往后在本函数里新开 try，先问「这个 except 会不会
+同时接住两种不同含义的失败」。
+
+### 五-undecies.2　M1：自省证明不了「它就是 PyYAML」
+
+`callable(getattr(yaml, "safe_load", None))` 还是不够 —— `safe_load = list` 是可调用的，
+一个恒返回字典的假函数甚至能指向另一棵存在的树。
+
+**改为行为自证**：要求它对 `"a: 1"` 给出 `{"a": 1}`，否则当作拿不到。
+⚠️ 这不是「证明它是 PyYAML」（做不到），而是「要求它在一个已知输入上**表现得像**一个 YAML
+解析器」。本文件别处早就用过同一招（receipt 写侧的「让 YAML 自己解析一遍来证明」往返自证），
+这里只是把它用到了这一层。
+
+### 五-undecies.3　M2 + 第四次「缺口是一个维度，不是一格」
+
+第四探针只覆盖「属性缺失」，于是把生产判据弱化成 `hasattr` 时全矩阵仍绿。已补第五、六种探针
+（`safe_load = 1` 不可调用 / `safe_load = list` 行为不对），**6 种探针 × 10 形状 = 60 格**。
+
+而 H1 那个变异体（把解析期 OSError 重新并回「没有 config」）在 **60 格里 SURVIVED** ——
+因为那 60 格**每一格都在制造「拿不到 PyYAML」**，根本走不到解析那一步。
+
+⛔ **这是第四次缺口长在「有库侧」这个整体维度上**（r8 M2 是「有库 + 无 config」，
+r9 H1 是「有库 + 解析失败」）。所以这次不再补格子，补的是**一小片矩阵**：
+新增 `..._pyyaml_available_failures_are_not_missing_config`（3 参数：解析抛 OSError /
+抛 ValueError / 返回非 dict），把「有库侧三条分界」钉齐：
+打不开 ⇒ 回退；**打开了但读不出来 ⇒ 拒**；读出来但没这个键 ⇒ 回退。
+⚠️ 后两条的区别是：**「YAML 说这里没有这个键」 vs 「YAML 根本没能说话」。**
+
+**教训（已写进那道门的 docstring）**：缺口不一定是「少一格」，可能是「少一个维度」。
+往矩阵里加格子补不上一个缺失的维度 —— 要问「这张矩阵的每一格是不是都固定了同一个前提」，
+那个被固定死的前提本身就是盲区。
+
+### 五-undecies.4　L1 / L2：我自己的两处记账错误
+
+- **L1**：旧验证表里「INVALID = 缺陷类别被构造性消除」**没有就地撤销** —— 后文虽已更正，
+  但单独读那张表的人仍会看到相反结论。已就地改掉，并写明「INVALID 只代表这条变异体的
+  文本锚失效」。同样撤销了 `_ht_outcome` 里「比较两个 exit 等于比较解析树」的说明
+  （降级删除后，缺库侧拒因里根本没有解析结果）。
+- **L2**：我把一个 **SURVIVED 错计成了第三个 INVALID**。核对原始日志：矩阵内实为
+  **11 KILLED / 2 INVALID / 1 SURVIVED**，那个 SURVIVED 随后被有库侧那一格 KILLED
+  ⇒ 合计 **12 KILLED / 2 INVALID**。
+
+### 五-undecies.5　验证中我自己犯的第二个方法错误（已自查纠正）
+
+给「有库侧解析失败」那一格写验证时，我从上一格**照抄了判定逻辑却忘了翻转**：
+那一格的「正确」是 `exit`（不是 `ok`），于是一个**被杀掉的**变异体被我的脚本报成了 SURVIVED。
+我没有照着这个「缺口」再去加门，而是先核对了门本身（直接跑 `-k pyyaml_available_failures`
+⇒ 3 passed），才发现是脚本报反。已修脚本并就地注释。
+
+⚠️ 与 r7 那次（变异体插错位置导致空洞 SURVIVED）合起来看：**变异测试里「SURVIVED」这个信号
+本身就需要验伪** —— 它可能是真缺口，也可能是变异没跑到、或判定写反了。
+
+### 五-undecies.6　判据
+
+| 判据 | 结果 |
+|---|---|
+| `-k harness_tree` | **152 passed**（16 既有 + 6 M + 2 缺库端到端 + 1 flow 文档 + 3 采用门 + **60 形状门** + 1 有库回退门 + **3 有库失败门** + 60 不变量） |
+| 整文件 | **301 passed** |
+| `tests/skills` | **546 passed** |
+| 变异验证 | 矩阵内 11 KILLED / 2 INVALID / 1 SURVIVED（后者被有库侧格 KILLED）；两片有库侧格各自 KILLED 对应变异体；阴性对照生产代码 60 格全绿 + 两侧行为均正确 |
+| ruff | check + format 均 0 |
+| 地盘核 | 仍恰三文件 |
+| 指纹 | SKILL.md `aa51908a…`→`6ae2558f…`；`B229` `df79074d…`→`9a1ec16c…` |
 
 ---
 

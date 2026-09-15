@@ -1,3 +1,13 @@
+> 批次: BATCH-2026-09-11-第十四批 · 车道 T7 · 卡 CARD-HARNESS-TREE-PARSE-REDO round-8（裁定后新增范围第 3 轮）
+> 模型: `gpt-6-astra` · reasoning_effort: `ultra` · codex: `codex-cli 0.153.3`
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat _bmad-output/审查/prompts/codex-prompt-CARD-HARNESS-TREE-PARSE-REDO-r8.md)"`
+> 审查绑定: `08100483..4c722826`（该轮 HEAD；**HIGH 已归零**）。其 M1/M2/M3 与 L1/L2 五条全部整改 ⇒ HEAD 已前进到 `9496f84d`，故本轮**不绑最终 HEAD**，见 r9。
+> ⛔ 本轮推翻了作者上一轮的一个断言：「P2 变 INVALID = 变异点被构造性消除」不成立，那只是旧文本锚失配。
+> 会话头自证（抄 .stderr 前 12 行中的三条，stderr 本身不入库）:
+> `OpenAI Codex v0.153.3`（第 2 行） / `model: gpt-6-astra`（第 5 行） / `reasoning effort: ultra`（第 9 行）
+
+---
+
 绑定 **`08100483..4c722826`**；结束时 HEAD 和被审文件未漂移。
 
 **结论：BLOCKER 0 / HIGH 0 / MEDIUM 3 / LOW 2。**  

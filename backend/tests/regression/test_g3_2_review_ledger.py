@@ -34,6 +34,7 @@ import re
 import stat
 import subprocess
 import sys
+import types
 from pathlib import Path
 
 import pytest
@@ -7549,9 +7550,11 @@ def _extract_harness_tree():
 def _ht_outcome(_fn, _vault_dir):
     """跑一次 `_harness_tree`, 把结局归一成可比较的二元组。
 
-    `("ok", <绑定到的树>)` 或 `("exit", <拒因全文>)`。拒因里带着**解析出来的那条
-    路径**, 所以比较两个 `exit` 就等于比较两条分支各自解析出了什么 —— 不需要真
-    造出那棵树也能测出「两边取值不同」。
+    `("ok", <绑定到的树>)` 或 `("exit", <拒因全文>)`。
+    ⚠️ 说明按实际更正(Codex round-9 LOW): 「比较两个 exit 就等于比较两边解析出了什么」
+    这句话**只对当年那版成立** —— 那时两条分支都会解析、拒因里都带着各自解析出的路径。
+    降级解析删除之后, 缺库侧的拒因里**没有任何解析结果**(它压根没解析), 所以现在
+    比较的是**结局的种类**(拒 / 返回), 不是取值。
     """
     try:
         return ("ok", _fn(str(_vault_dir)))
@@ -7723,10 +7726,20 @@ def _block_yaml(monkeypatch, _mode):
     if _mode == "module_not_found":
         monkeypatch.setitem(sys.modules, "yaml", None)
         return
-    if _mode == "imports_but_not_pyyaml":
-        #: ⛔ 第四种(Codex round-8 MEDIUM 实测): sys.path 上放一个**空的同名 yaml.py** 时
-        #: import 照样成功 —— 只拦「导入失败」是不够的, 还要问「我要用的入口在不在」。
-        monkeypatch.setitem(sys.modules, "yaml", object())
+    if _mode in ("imports_but_not_pyyaml", "safe_load_not_callable", "safe_load_misbehaves"):
+        #: ⛔ 第四~六种(Codex round-8/9 MEDIUM 实测): 「拿不到 PyYAML」有三个逐级更深的形态 ——
+        #:   · 空的同名 `yaml.py`: import 成功但**没有** safe_load;
+        #:   · `safe_load = 1`: 属性**在**但不可调用;
+        #:   · `safe_load = list`: 可调用但**行为不是 YAML 解析器**(它对 "a: 1" 返回 ['a: 1'])。
+        #: 只造第一种时, 把生产判据弱化成 `hasattr(yaml, "safe_load")` 全矩阵仍绿 —— 假门。
+        #: ⚠️ 自省证明不了「它就是 PyYAML」; 生产改成在已知输入上要求它**表现得像**解析器,
+        #: 这三种探针分别打在那道判据的三个台阶上。
+        _fake = types.ModuleType("yaml")
+        if _mode == "safe_load_not_callable":
+            _fake.safe_load = 1
+        elif _mode == "safe_load_misbehaves":
+            _fake.safe_load = list
+        monkeypatch.setitem(sys.modules, "yaml", _fake)
         return
     import builtins
 
@@ -7749,7 +7762,14 @@ def _block_yaml(monkeypatch, _mode):
 
 @pytest.mark.parametrize(
     "_probe",
-    ["module_not_found", "plain_import_error", "import_raises_oserror", "imports_but_not_pyyaml"],
+    [
+        "module_not_found",
+        "plain_import_error",
+        "import_raises_oserror",
+        "imports_but_not_pyyaml",
+        "safe_load_not_callable",
+        "safe_load_misbehaves",
+    ],
 )
 @pytest.mark.parametrize(
     "_shape",
@@ -7871,3 +7891,74 @@ def test_g33r2_harness_tree_pyyaml_available_no_config_falls_back_to_parent(tmp_
         f"     这两件事必须分在两个 try 里, 否则「文件没有」会被说成「库没有」。"
     )
     assert _outcome[1] == str(tmp_path), f"⛔ 回退目标应是 vault 的父目录 {str(tmp_path)!r}, 实际 {_outcome[1]!r}"
+
+
+@pytest.mark.parametrize(
+    ("_failure", "_why"),
+    [
+        ("parse_oserror", "解析途中抛 OSError（读流 EIO 之类）"),
+        ("parse_valueerror", "解析途中抛 ValueError"),
+        ("parse_returns_junk", "解析返回一个非 dict 的东西"),
+    ],
+)
+def test_g33r2_harness_tree_pyyaml_available_failures_are_not_missing_config(tmp_path, monkeypatch, _failure, _why):
+    """⛔ PyYAML **可用**、config **打得开**，但解析这一步出了问题 ⇒ 不得当成「没有 config」。
+
+    ⚠️ 本门补的是**第四次**长在同一个地方的缺口（Codex round-9 HIGH）：那 60 格形状矩阵
+    **每一格都在制造「拿不到 PyYAML」**，于是任何「有库、但解析这一步坏了」的错误实现
+    在它下面**一格都碰不到**。前三次分别是 ——
+      · r8 M2：有库 + 无 config + 父树是树（把 FileNotFoundError 报成「PyYAML 不可用」）；
+      · r9 H1：有库 + config 打得开 + 解析抛 OSError（被当成「没有 config」而回退父树）；
+      · 以及这两次各自的变异体在 40/60 格矩阵里都是 SURVIVED。
+    ⛔ 教训（写在这里免得再犯）：**缺口不一定是「少一格」，可能是「少一个维度」。**
+    往矩阵里加格子补不上一个缺失的维度 —— 得问「这张矩阵的每一格是不是都固定了同一个
+    前提」，那个被固定死的前提本身就是盲区。
+
+    三条分界在这一侧的正确行为：
+      · 打不开 config（文件不存在）⇒ 回退父树（由 `..._no_config_falls_back_to_parent` 钉）；
+      · **打开了、但读/解析失败 ⇒ fail-closed 拒写**（本门）；
+      · 解析出来但不是 dict / 没这个键 / 值为空 ⇒ 回退（由既有 16 门钉）。
+    ⚠️ 第三条与第二条的区别：前者是「YAML 说这里没有这个键」，后者是「YAML 根本没能说话」。
+    """
+    _vd = tmp_path / "canvas-vault"
+    _vd.mkdir()
+    _usable_tree(tmp_path)  # 父目录是可用树 ⇒ 一旦误判成「没有 config」就会回退到它
+    _target = _usable_tree(tmp_path / "target-tree")
+    (_vd / ".canvas-config.yaml").write_text(f'vault_id: "v"\nharness_tree: {_target}\n', encoding="utf-8")
+
+    import yaml as _real_yaml
+
+    _fake = types.ModuleType("yaml")
+
+    def _safe_load(_stream, *_a, **_kw):
+        #: 自证探针(生产会先用 "a: 1" 验它像不像解析器)照常放行, 只在读**文件对象**时发难 ——
+        #: 否则这个假模块在自证那一步就被拒了, 本门就测不到「解析这一步」。
+        if isinstance(_stream, str):
+            return _real_yaml.safe_load(_stream)
+        if _failure == "parse_oserror":
+            raise OSError(5, "Input/output error")
+        if _failure == "parse_valueerror":
+            raise ValueError("boom")
+        return ["not", "a", "dict"]
+
+    _fake.safe_load = _safe_load
+    monkeypatch.setitem(sys.modules, "yaml", _fake)
+
+    _fn = _extract_harness_tree()
+    _outcome = _ht_outcome(_fn, _vd)
+
+    if _failure == "parse_returns_junk":
+        #: 解析**成功**但结果不是 dict ⇒ 按「没写这个键」回退, 与既有 16 门同口径。
+        assert _outcome == ("ok", str(tmp_path)), (
+            f"⛔ 解析出非 dict 时应按「没写这个键」回退父树({_why}), 实得 {_outcome!r}"
+        )
+        return
+
+    assert _outcome[0] == "exit", (
+        f"⛔ config 打得开、解析却失败时返回了一棵树而不是拒绝({_why}): {_outcome[1]!r}\n"
+        f"   ⇒ 多半是把解析期的异常又并回了「没有 config」那一档 —— 这两件事必须分开:\n"
+        f"     「文件没有」可以回退, 「打开了却读不出来」不可以。"
+    )
+    assert "打开后读取/解析失败" in _outcome[1], (
+        f"⛔ 拒因应说清是「打开后读取/解析失败」而不是别的({_why}): {_outcome[1]!r}"
+    )
