@@ -1,0 +1,16 @@
+=== T1-B 第0分钟自证 2026-09-15T04:08:45Z ===
+--- pwd ---
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t1-lance
+--- branch ---
+card/t1-lance
+--- git log --oneline -3 ---
+60600433 docs(g2-9-f2): r6/r7 存档 + 验收单 §11/§12 + 移交书附录 A/B [BATCH-2026-09-11-第十四批 / CARD-G2-9-F2]
+9e2b1443 docs(g2-9-f2): 按 Codex r7 两条 LOW 更正 docstring 过度表述（D-32 纯文案） [BATCH-2026-09-11-第十四批 / CARD-G2-9-F2]
+64b1848f fix(g2-9-f2): 裸表口径不再被「V 可能缺项」的闸拖累（r6-M2） [BATCH-2026-09-11-第十四批 / CARD-G2-9-F2]
+--- git status --porcelain ---
+?? "_bmad-output/\345\256\241\346\237\245/evidence-g29f1-canary/"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-g29f2/.last-unit-final"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-g29f2/.last-unit-run"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-g29f2/.last-unit-run-verbatim"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-g29f2/sentinel"
+--- (status 非空：4 个 T1-A evidence 残留未跟踪文件，见 §偏差登记 B-1) ---

@@ -1,0 +1,22 @@
+=== ⛔ 实测：locale collation 让 sort|uniq 合并两个不同的中文串 ===
+locale: LANG=en_US.UTF-8 LC_COLLATE=LC_COLLATE="en_US.UTF-8"
+
+--- 复现（两个明显不同的串） ---
+_bmad-output/审查
+_bmad-output/验收单
+_bmad-output/审查
+  ↓ 经过 sort | uniq -c ↓
+   3 _bmad-output/审查
+
+--- 同样输入，LC_ALL=C 下 ---
+   2 _bmad-output/审查
+   1 _bmad-output/验收单
+
+--- 纯 uniq（不排序）对比 ---
+   2 审查
+
+--- 直接比较两串是否被判等 ---
+2
+^ 若为 1 = sort -u 认为两串相同（collation 合并）；应为 2
+2
+^ LC_ALL=C 下的结果

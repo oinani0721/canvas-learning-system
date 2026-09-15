@@ -1,0 +1,9 @@
+### 负控② LanceDB 路径命中禁用后缀  T_N2=/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.BM6cMezvtR
+### env 确认: NEO4J_TEST_URI=[bolt://localhost:7692]（已设 ⇒ 第一道 preflight 会放行，拒绝必来自第二道）
+### 目标路径 = /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.BM6cMezvtR/data/lancedb
+*** G2-9 CANARY REJECTED (preflight) ***
+NEGCTL_REJECTED_BY=g29_dual_vault_canary._preflight_lancedb_path
+NEGCTL_REJECTED_SOURCE=g29_dual_vault_canary.py::_preflight_lancedb_path（本脚本前置检查）
+NEGCTL_REASON=LanceDB 路径 /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.BM6cMezvtR/data/lancedb 指向现网默认库（*/data/lancedb）。canary 只许写 tmp。
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+rc=2

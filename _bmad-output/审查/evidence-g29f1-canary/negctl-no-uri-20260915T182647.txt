@@ -1,0 +1,8 @@
+### 负控① 未设 NEO4J_TEST_URI  T_N1=/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.hOEu6NGed0
+### env 确认: NEO4J_TEST_URI=[<未设>]
+*** G2-9 CANARY REJECTED (preflight) ***
+NEGCTL_REJECTED_BY=g29_dual_vault_canary._preflight_neo4j_uri
+NEGCTL_REJECTED_SOURCE=g29_dual_vault_canary.py::_preflight_neo4j_uri（本脚本前置检查）
+NEGCTL_REASON=NEO4J_TEST_URI 未设置。本 canary 拒绝猜测目标库 —— 必须显式写 bolt://localhost:7692（测试容器），绝不落到 7691/7687 现网库。
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+rc=2

@@ -1,0 +1,22 @@
+=== (c) 补强：ON 态报告的 verdicts 全名单 + phases/identities ===
+--- 14 条 verdicts 逐条 ---
+  True  A_cannot_see_B
+  True  A_counts_positive
+  True  A_equals_B
+  True  A_gone_after_delete
+  True  A_unaffected_by_B_write
+  True  B_cannot_see_A
+  True  B_counts_positive
+  True  B_unchanged_after_deleting_A
+  True  graphiti_delete_is_load_bearing
+  True  identities_distinct
+  True  lancedb_delete_is_load_bearing
+  True  purge_left_nothing
+  True  read_scope_sentinels_clean
+  True  shared_concept_split_per_group
+
+--- identities（两个 vault 的身份，证实用的是 canary 自己的 vault 不碰别人） ---
+  {"A": {"graphiti_group_id": "vault__g29canary_a", "lancedb_table": "g29canary_a_canvas_nodes", "lancedb_vault_id": "g29canary_a", "logical_group_id": "vault:g29canary_a", "neo4j_physical_group_id": "vault__g29canary_a"}, "B": {"graphiti_group_id": "vault__g29canary_b", "lancedb_table": "g29canary_b_canvas_nodes", "lancedb_vault_id": "g29canary_b", "logical_group_id": "vault:g29canary_b", "neo4j_ph
+
+--- phases 阶段名 ---
+  ['A_after_B_written', 'A_after_delete', 'A_sees_B', 'A_written', 'B_after_deleting_A', 'B_before_deleting_A', 'B_sees_A', 'B_written', 'after_purge_A', 'after_purge_B', 'concept_group_distribution', 'deleted_when_purging_A']

@@ -1,0 +1,30 @@
+=== 验收单引用的 evidence 文件名 → 是否真实存在 ===
+（zsh 坑：变量展开结果默认不再 glob，必须写 ${~f}；用 "$EV"/$f 会把所有带 * 的模式判成缺失）
+
+  ✅ assert-on-*.txt                               → 1 个文件
+  ✅ attempts-semantics-correction-*.txt           → 1 个文件
+  ✅ blocked-tokens.txt                            → 1 个文件
+  ✅ canary-report-20260915T101823Z.json           → 1 个文件
+  ✅ canary-report-20260915T102343Z.json           → 1 个文件
+  ✅ canary-sha-start.txt                          → 1 个文件
+  ✅ embed-dep-correction-*.txt                    → 2 个文件
+  ✅ embed-dep-correction-ADDENDUM-*.txt           → 1 个文件
+  ✅ env-concurrency-and-gitignore-*.txt           → 1 个文件
+  ✅ negctl-forbidden-path-*.txt                   → 1 个文件
+  ✅ negctl-no-uri-*.txt                           → 1 个文件
+  ✅ negctl-summary-*.txt                          → 1 个文件
+  ✅ no-embed-dep.txt                              → 1 个文件
+  ✅ pre-run-zero-reports.txt                      → 1 个文件
+  ✅ precheck-7692.txt                             → 1 个文件
+  ✅ prereq-20260915T120845.txt                    → 1 个文件
+  ✅ probe-key-count-start.txt                     → 1 个文件
+  ✅ red-ref-20260915T120948.txt                   → 1 个文件
+  ✅ red-ref-keys-20260915T121014.txt              → 1 个文件
+  ✅ two-state-assert-*.txt                        → 1 个文件
+  ✅ venv-env-selfcheck-20260915T120920.txt        → 1 个文件
+
+命中 21 项 / 缺失 0 项
+
+--- [验伪锚] 对一个确实不存在的文件名，必须报缺失 ---
+(eval):15: no matches found: _bmad-output/审查/evidence-g29f1-canary/this-file-does-not-exist-*.txt
+  ✅ 不存在的模式被正确判为缺失（证这条检查有牙齿）

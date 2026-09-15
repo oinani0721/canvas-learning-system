@@ -1,0 +1,18 @@
+=== (c) 两态联合断言 ===
+ON  tee = /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t1-lance/_bmad-output/审查/evidence-g29f1-canary/run-on-20260915T181823.txt
+ON  rep = /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t1-lance/_bmad-output/审查/evidence-g29f1-canary/canary-report-20260915T101823Z.json   <- 从 ON tee 的『报告:』行抓（产出方自报，非 sorted[-2:] 位置锚）
+OFF tee = /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t1-lance/_bmad-output/审查/evidence-g29f1-canary/run-off-20260915T182343.txt
+OFF rep = /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t1-lance/_bmad-output/审查/evidence-g29f1-canary/canary-report-20260915T102343Z.json  <- 从 OFF tee 的『报告:』行抓
+配对互异 = True
+
+[ON ] has side_effect_probe 键 = True
+[ON ] verdict = PASS | B_survived = True | B_in_after = True
+[OFF] has side_effect_probe 键 = False   <- 期望 False（探针**未跑**，不是『探针通过』）
+[OFF] 顶层键 = ['duration_s', 'evidence_dir', 'guard_summary', 'identities', 'lancedb_path', 'phases', 'timestamp', 'verdicts']
+
+[ON ] verdicts 条数 = 14 全绿 = True
+[OFF] verdicts 条数 = 14 全绿 = True
+
+(c) ON  三条判据全中 = True
+(c) OFF 无 probe 键  = True
+(c) 结论 = PASS

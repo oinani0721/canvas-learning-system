@@ -1,0 +1,2 @@
+Connection to 127.0.0.1 port 7692 [tcp/*] succeeded!
+7692 up rc=0

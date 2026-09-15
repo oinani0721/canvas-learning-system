@@ -1,0 +1,14 @@
+=== 本卡 evidence 目录「跑前零报告」自证（对 Codex 问 3：数据必为本卡新跑） ===
+--- 本卡目录 canary-report|normalized|verify-judges 计数（期望 0） ---
+0
+^ rc=1 (grep -c 无匹配时 rc=1，计数行本身即判据)
+--- [验伪锚] 同一提取式对历史目录 evidence-g29/（期望 >0，证提取式真能命中同形文件名） ---
+7
+--- 历史目录命中的文件名（本卡结论不得引用这些） ---
+canary-normalized-20260906T021343Z.json
+canary-normalized-20260906T021427Z.json
+canary-normalized-diff-20260906T101427.txt
+canary-report-20260906T021343Z.json
+canary-report-20260906T021427Z.json
+canary-verify-judges-20260906T021613Z.json
+canary-verify-judges-20260906T101613.txt

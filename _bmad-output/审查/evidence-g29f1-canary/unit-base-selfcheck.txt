@@ -1,0 +1,8 @@
+=== 批级基线自证（R-B14-2 唯一口径：grep -vc '^#'，禁 grep -c '::'） ===
+基线文件存在: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/审查/evidence-b14/unit-red-baseline-08100483.txt
+--- grep -vc '^#' （期望 64） ---
+64
+--- 对照：grep -c '::' （R-B14-2 点名的错误口径，会多 1 = 65，仅作反例落档） ---
+65
+--- 验伪锚：grep -cE '^(FAILED|ERROR) ' 基线（证 (h) 的提取式能命中同形行，期望 64） ---
+64
