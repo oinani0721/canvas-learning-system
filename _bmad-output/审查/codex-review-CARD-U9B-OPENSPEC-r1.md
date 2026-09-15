@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-11-第十四批 · 车道 T4-C · 卡 CARD-U9B-OPENSPEC round-1
+> 模型: `gpt-6-astra` · reasoning_effort: `ultra` · codex: `codex-cli 0.153.3`
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat _bmad-output/审查/prompts/codex-prompt-CARD-U9B-OPENSPEC-r1.md)"`
+> 审查绑定: `af4793bc813faab4316471632a5b8cc542cce4a0`（该轮 HEAD；其后有整改 commit）
+> 会话头自证（抄 .stderr 含 model 行，stderr 本身不入库）:
+> L2: `OpenAI Codex v0.153.3` / L5: `model: gpt-6-astra` / L9: `reasoning effort: ultra`
+
+---
+
 审查绑定 `02f59e5f… → af4793bc…`。**发现 1 个 MEDIUM、2 个 LOW；问题④暂无法独立确认。** 全程只读，未运行测试或 archive，未连接数据库。
 
 ## BLOCKER

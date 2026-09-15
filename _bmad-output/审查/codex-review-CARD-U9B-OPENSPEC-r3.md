@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-11-第十四批 · 车道 T4-C · 卡 CARD-U9B-OPENSPEC round-3
+> 模型: `gpt-6-astra` · reasoning_effort: `ultra` · codex: `codex-cli 0.153.3`
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat _bmad-output/审查/prompts/codex-prompt-CARD-U9B-OPENSPEC-r3.md)"`
+> 审查绑定: `86b9aed820d66acf975747889880f9b348bb7532`（该轮 HEAD；其后有整改 commit）
+> 会话头自证（抄 .stderr 含 model 行，stderr 本身不入库）:
+> L2: `OpenAI Codex v0.153.3` / L5: `model: gpt-6-astra` / L9: `reasoning effort: ultra`
+
+---
+
 基于指定的 `02f59e5f… → 86b9aed8…` 差异复核：**正文契约与实现相符，确认 1 项 LOW 场景前置条件缺口。** 全程只读，未连接数据库。
 
 ## BLOCKER
