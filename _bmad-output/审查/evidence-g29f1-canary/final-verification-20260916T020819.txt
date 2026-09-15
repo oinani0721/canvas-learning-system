@@ -1,0 +1,62 @@
+════════ CARD-G2-9-F1-canary 收工核验 2026-09-15T18:08:19Z ════════
+
+── commit 链（$PREREQ 60600433 起）──
+8c616270 docs(g2-9-f1-canary): 按 Codex r5 整改 3 条 [BATCH-2026-09-11-第十四批 / CARD-G2-9-F1-canary]
+3d4edb5f docs(g2-9-f1-canary): r5 收官确认 prompt [BATCH-2026-09-11-第十四批 / CARD-G2-9-F1-canary]
+059b5ca0 docs(g2-9-f1-canary): 按 Codex r4 整改 4 条 [BATCH-2026-09-11-第十四批 / CARD-G2-9-F1-canary]
+c5e1cd40 docs(g2-9-f1-canary): r4 冻结态终审 prompt [BATCH-2026-09-11-第十四批 / CARD-G2-9-F1-canary]
+9a80f991 docs(g2-9-f1-canary): 按 r3 + 独立审计整改 12 条 [BATCH-2026-09-11-第十四批 / CARD-G2-9-F1-canary]
+77e798c2 docs(g2-9-f1-canary): r3 冻结态终审 prompt [BATCH-2026-09-11-第十四批 / CARD-G2-9-F1-canary]
+b1c4cefa docs(g2-9-f1-canary): 按 Codex r2 整改 5 条 [BATCH-2026-09-11-第十四批 / CARD-G2-9-F1-canary]
+98d4943b docs(g2-9-f1-canary): 按 Codex r1 整改 6 条 [BATCH-2026-09-11-第十四批 / CARD-G2-9-F1-canary]
+49db0305 docs(g2-9-f1-canary): canary 两态真跑+验伪锚+前置负控 [BATCH-2026-09-11-第十四批 / CARD-G2-9-F1-canary]
+
+── 每个 commit 的代码面差异（必须全 0）──
+  49db0305  0 ✅
+  98d4943b  0 ✅
+  b1c4cefa  0 ✅
+  77e798c2  0 ✅
+  9a80f991  0 ✅
+  c5e1cd40  0 ✅
+  059b5ca0  0 ✅
+  3d4edb5f  0 ✅
+  8c616270  0 ✅
+
+── (f) 脚本 sha 跑前=跑后 ──
+  开工 5411cf14da00cabfec8e1f8ddd1f56c8ffeeda745b1eb147536d4927e200ee7a
+  收工 5411cf14da00cabfec8e1f8ddd1f56c8ffeeda745b1eb147536d4927e200ee7a
+  ✅ 逐字节相同
+
+── (g) 地盘核（最终 HEAD）──
+  rc=0 （空=代码面零差异）
+  验伪锚（不加排除）:  80 files changed, 6597 insertions(+)
+
+── 硬边界文件（各须 0 次出现在本卡 diff）──
+  backend/scripts/g29_dual_vault_canary.py                   0
+  backend/lib/agentic_rag/clients/lancedb_client.py          0
+  backend/tests/unit/test_lancedb_cross_vault_drop_g29f1.py  0
+  canvas-vault/.claude/scripts/fsrs_bridge.py                0
+  canvas-vault/.claude/scripts/decay_beta.py                 0
+
+── 五轮 Codex 计数 ──
+  r1 绑定 49db0305   首部齐全=✅
+  r2 绑定 98d4943b   首部齐全=✅
+  r3 绑定 77e798c2   首部齐全=✅
+  r4 绑定 c5e1cd40   首部齐全=✅
+  r5 绑定 3d4edb5f   首部齐全=✅
+
+── evidence / stderr ──
+  evidence 文件数 = 70
+  已 tracked      = 69
+  *.stderr 入库数 = 3  （须 0）
+
+── 工作树 ──
+?? _bmad-output/审查/evidence-g29f1-canary/final-verification-20260916T020819.txt
+?? _bmad-output/审查/evidence-g29f2/.last-unit-final
+?? _bmad-output/审查/evidence-g29f2/.last-unit-run
+?? _bmad-output/审查/evidence-g29f2/.last-unit-run-verbatim
+?? _bmad-output/审查/evidence-g29f2/sentinel
+  （只应剩 T1-A 的 4 个未跟踪残留 = 偏差 B-1）
+
+── 未 push 确认 ──
+  无上游分支 ⇒ 未 push ✅

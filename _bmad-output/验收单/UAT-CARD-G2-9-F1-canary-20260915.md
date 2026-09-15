@@ -491,6 +491,17 @@ printf '_bmad-output/审查\n_bmad-output/验收单\n_bmad-output/审查\n' | so
 
 **给后续卡**：凡是要对**含中文的内容**做去重/计数，一律 `LC_ALL=C`，并且**别用 `uniq` 当去重判据**；两个口径的结果互相矛盾时，不要挑一个信，要挖到根因。
 
+### ⑧ ⛔ 判据的提取式取名面必须**恰好等于**它的主张（本卡第四次踩同型）
+
+收工核验时用 `git ls-files _bmad-output/审查/ | grep -c 'stderr'` 检查「stderr 是否入库」，得 **3**，一度以为违反了协议「`*.stderr*` 永不入库」。
+
+实查：那 3 个是**历史卡提交的 `.txt` 文件**，只是**文件名里含 `stderr` 子串**（第五批 `census-stderr.txt`、第十三批两个 `stderr-*.txt`），既不是 `.stderr` 文件，也各自 **0 次**出现在本卡 diff 里。
+
+改用正确口径 `grep -cE '\.stderr(\.|$)'` 后：本卡 diff **0**、全仓 tracked **0**；本卡自己产生的 5 份 `.stderr` 逐个核 —— 全部被 `.gitignore:264`（`_bmad-output/审查/**/*.stderr*`）覆盖、`tracked=0`；验伪锚（对确实 tracked 的 `r1.md`）命中，证明那圈 0 是真 0。证据 `stderr-not-tracked-verify-*.txt`。
+
+**这已经是本卡第四次栽在同一件事上**：① `grep '^\s{4}"…"'` 数变异数得 21（嵌套子键被一起数）；② `unit-start-*` 撞进自造的 `unit-start-vs-*`；③ `verify-judges-*` 撞进 `verify-judges-assert-*`；④ 本条。
+**规矩**：写判据前先问一句「这个提取式命中的集合，和我要主张的集合，是不是**同一个**？」；对文件名类判据，用**精确路径**或**锚定后缀**（`\.ext$`），不要用子串。
+
 ### ⑦ zsh 下 `grep --include=*.py` 未加引号会被当 glob 吃掉
 
 报 `no matches found` 且**整条命令** rc=1（不是 grep 的错，是 zsh 在 grep 启动前就失败了）。判据里必须写 `--include='*.py'`。这类失败会让「搜索无命中」与「搜索没跑成」长得一样。
