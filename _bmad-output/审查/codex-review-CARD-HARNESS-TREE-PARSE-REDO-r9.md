@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-11-第十四批 · 车道 T7 · 卡 CARD-HARNESS-TREE-PARSE-REDO round-9（裁定后新增范围第 4 轮）
+> 模型: `gpt-6-astra` · reasoning_effort: `ultra` · codex: `codex-cli 0.153.3`
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat _bmad-output/审查/prompts/codex-prompt-CARD-HARNESS-TREE-PARSE-REDO-r9.md)"`
+> 审查绑定: `08100483..9496f84d`（该轮 HEAD；**报 HIGH 1**）。五条全部整改 ⇒ HEAD 已前进到 `f7ffe2cb`，故本轮**不绑最终 HEAD**，见 r10。
+> 会话头自证（抄 .stderr 前 12 行中的三条，stderr 本身不入库）:
+> `OpenAI Codex v0.153.3`（第 2 行） / `model: gpt-6-astra`（第 5 行） / `reasoning effort: ultra`（第 9 行）
+
+---
+
 绑定最终 HEAD **`9496f84d`**。结论：**BLOCKER 0 / HIGH 1 / MEDIUM 2 / LOW 2**。
 
 ## BLOCKER

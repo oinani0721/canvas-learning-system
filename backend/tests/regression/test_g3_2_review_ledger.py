@@ -7948,6 +7948,16 @@ def test_g33r2_harness_tree_pyyaml_available_failures_are_not_missing_config(tmp
     _outcome = _ht_outcome(_fn, _vd)
 
     if _failure == "parse_returns_junk":
+        #: ⛔⛔ **本参数的期望有误, 已登记待主 session 裁定（Codex round-10 HIGH 的一部分）。**
+        #: 问题: 这里用的是一个**说谎的解析器**（config 文件里明明写着目标树, 假模块却返回
+        #: 一个列表）, 然后断言「回退父树是对的」—— 这等于把**错误结果固化进了门**。
+        #: 「YAML 本身是列表 ⇒ 回退」这条语义要成立, 场景应当是**config 文件里本来就是个
+        #: 列表**、用**真 PyYAML** 跑; 而不是让假模块谎报。
+        #: ⚠️ 未就地改断言的原因: 本卡 Codex 轮次已用满（新增范围 5/5）, 改测试属代码改动、
+        #: 需再送一轮。按协议「第 5 轮仍有 HIGH ⇒ 停下交主 session 人审」, 此处只标注不改。
+        #: 修法建议（给接手的人）: 把本参数换成 config 文件内容为 `- a\n- b` 的真实场景,
+        #: 并**删掉**假模块那一支; 同时补上 round-10 指出的第四种形态 ——
+        #: 「探针答对、但对真实 config 返回的东西不忠于文件内容」。
         #: 解析**成功**但结果不是 dict ⇒ 按「没写这个键」回退, 与既有 16 门同口径。
         assert _outcome == ("ok", str(tmp_path)), (
             f"⛔ 解析出非 dict 时应按「没写这个键」回退父树({_why}), 实得 {_outcome!r}"
