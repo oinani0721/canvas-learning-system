@@ -1520,3 +1520,73 @@ def test_rec_mutations_read_contexts_are_whitelisted(tmp_path: Path) -> None:
         "g32ccr1": 11,
         "g33": 18,
     }
+
+
+def test_pc_multi_failure_guard_does_not_swallow_the_out_of_gate_survived(tmp_path: Path) -> None:
+    """⛔ 「全部位置都在门外」不是拼装面，是普通的 SURVIVED（Codex round-13 MEDIUM）。
+
+    拼装要成立得**有一条门内位置可借**。上一版的守卫写成 `not all(在门内)`，于是
+    「一条门内位置都没有」也被吞进 HARNESS-ERROR，遮住了它后面那条**正确**的
+    「红在门文件之外 ⇒ SURVIVED」早退 —— 此时根本没有可借的位置。
+    """
+    gate = _write_gate(tmp_path, _GATE_DUP)
+    outside = _write_gate(tmp_path, "x = 1\n", "helper.py")
+    out = _out(
+        [
+            "FAILED tests/gate.py::test_x[a] - AssertionError: boom",
+            "FAILED tests/gate.py::test_x[b] - AssertionError: boom",
+        ],
+        [f"{outside}:1: AssertionError: boom", f"{outside}:1: AssertionError: boom"],
+    )
+    verdict, why = mki.kill_identity(1, out, "tests/gate.py::test_x", "boom", gate_file=gate, require_gate_file=True)
+    assert verdict == "SURVIVED", f"⛔ 全门外应判 SURVIVED，实得 {verdict}（{why}）"
+    assert "门文件之外" in why, f"⛔ 诊断必须说的是「红在门外」而不是配对不可证: {why}"
+    # ⛔ 验伪锚：**混合**（一条门内、一条门外）仍必须 HARNESS-ERROR —— 这次收窄不得
+    # 把 round-14 那道拼装守卫一并放掉。
+    mixed = _out(
+        [
+            "FAILED tests/gate.py::test_x[a] - AssertionError: other",
+            "FAILED tests/gate.py::test_x[b] - AssertionError: boom",
+        ],
+        [f"{gate}:2: AssertionError: other", f"{outside}:1: AssertionError: boom"],
+    )
+    assert (
+        mki.kill_identity(1, mixed, "tests/gate.py::test_x", "boom", gate_file=gate, require_gate_file=True)[0]
+        == "HARNESS-ERROR"
+    ), "⛔ 拼装面仍必须拦下"
+
+
+def test_rec_read_whitelist_pins_operand_position_and_builtin_identity(tmp_path: Path) -> None:
+    """⛔ 白名单要核的是**操作数站在哪个位子**、**那个函数到底是谁**（Codex round-13 MEDIUM）。
+
+    同一个语法形状里换个位子/换个绑定就能就地改表，两例均实测运行时 4 条、旧版 AST 数 3：
+      · `Sink()[MUTATIONS]` —— `MUTATIONS` 在**下标**位而不是被下标的对象，
+        `Sink.__getitem__` 拿到的就是原列表；
+      · `def len(x): x.append(4)` 之后的 `len(MUTATIONS)` —— 名字叫 `len`，绑的不是内建。
+    """
+    rec = _rec()
+    probe = tmp_path / "probe.py"
+    orig = rec.SCRIPTS
+    rec.SCRIPTS = tmp_path
+    try:
+        for tail in (
+            "\nclass Sink:\n    def __getitem__(self, k):\n        k.append(4)\nSink()[MUTATIONS]\n",
+            "\ndef len(x):\n    x.append(4)\n    return 0\nlen(MUTATIONS)\n",
+            "\nlen = list.append\nlen(MUTATIONS, 4)\n",
+            "\n_d = {}\n_d[MUTATIONS[0]] = MUTATIONS\n",
+        ):
+            probe.write_text("MUTATIONS = [1, 2, 3]" + tail, encoding="utf-8")
+            with pytest.raises(rec.ReconcileError, match="未白名单"):
+                rec.ast_mutation_count("probe.py")
+        # ⛔ 验伪锚：被下标的**对象**位 + 未被重绑的 `len` 仍放行（不是把两条白名单删了）
+        for tail in ("\n_f = MUTATIONS[0]\n", "\n_n = len(MUTATIONS)\n", "\n_g = MUTATIONS[1:2]\n"):
+            probe.write_text("MUTATIONS = [1, 2, 3]" + tail, encoding="utf-8")
+            assert rec.ast_mutation_count("probe.py") == 3, f"合法读法被误挡: {tail!r}"
+    finally:
+        rec.SCRIPTS = orig
+    assert {k: rec.ast_mutation_count(v.source) for k, v in rec.SUITES.items()} == {
+        "g32b": 138,
+        "g32cb": 9,
+        "g32ccr1": 11,
+        "g33": 18,
+    }, "⛔ 四套真实分母不得因本次收紧而变"

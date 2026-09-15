@@ -265,7 +265,17 @@ def _split_unique(line: str, nodeid: str) -> bool:
     round-3 / round-4 连着两轮各补了「这一条反例」，下一轮换个参数 ID 又漏一类。
     所以判据的写法是**枚举读法空间、取并集**，不是「再加一个 if」。
 
-    **读法空间（穷举；一行 `FAILED <body>` 的全部合法读法）**：
+    ⛔ round-16（Codex round-13 LOW）**先把本函数的面说清楚**：下面这张表**不是**
+    「全部合法读法」的穷举 —— 它穷举的是**候选判据认得下的**那些读法。测试名可含
+    **任意字符**（含空白：`globals()["test_x[c] - E"] = f` 实测能被 pytest 9.0.2 收集，
+    见 :854 与 `gate_identity_unprovable()`），而 `_nodeid_shaped()` 要求 `[` 之前**无空白**
+    ⇒ 带空白的合法名被判据排除在候选集之外。这条剩余歧义**不在行级判据的能力范围内**
+    （行级信息本身不足以定切分），本函数不假装覆盖它：它由
+    `gate_identity_unprovable()` / `expect_msg_may_come_from_nodeid()` 在**结论**一侧兜
+    （「所有还说得通的读法是否都同意我要下的结论」），根治要靠 `expect_loc` 绑到具体
+    语句 —— 属 T8-C 的面，D-28 延期。
+
+    **候选判据认下的读法（对 `FAILED <body>` 一行）**：
       · **完整 reason**    —— `<nodeid> - <reason>`，在某个 ` - ` 处切开；
       · **参数化**         —— 同上，nodeid 带 `[...]` 参数段；
       · **无 reason**      —— 整行 body 就是 nodeid（pytest 在断言没有消息时只打
@@ -1031,7 +1041,12 @@ def kill_identity(
         # ⛔ round-15（Codex round-12 MEDIUM）：只在**弱位置**那一路收紧。
         # 给了 `expect_loc` 时位置已绑到门文件里的**那一条语句**上，另一条失败落在 helper
         # 并不妨碍身份成立 —— 在那条路上套用本守卫会把**正当**的 KILLED 打成 HARNESS-ERROR。
-        if expect_loc is None and len(gate_records) > 1 and not all(_same_file(p, gp) for p, _, _ in locs):
+        # ⛔ round-16（Codex round-13 MEDIUM）：只有**混合**（有的在门内、有的在门外）才是
+        # 「拼装面」。位置行**一条都没落在门内**时根本没有可借的门内位置 —— 那是普通的
+        # 「红在门文件之外」，该走下面那条 SURVIVED 早退。上一版写成 `not all(...)`，把
+        # 「全在门外」也吞进 HARNESS-ERROR，遮住了它后面那条**正确**的 SURVIVED。
+        _inside = [_same_file(p, gp) for p, _, _ in locs]
+        if expect_loc is None and len(gate_records) > 1 and any(_inside) and not all(_inside):
             outside = [(Path(p).name, ln) for p, ln, _ in locs if not _same_file(p, gp)]
             return "HARNESS-ERROR", (
                 f"目标门有 {len(gate_records)} 条失败, 而位置行里有落在门文件**之外**的 {outside[:2]} —— "

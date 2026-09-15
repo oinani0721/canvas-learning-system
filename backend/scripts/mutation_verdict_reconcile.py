@@ -167,6 +167,25 @@ def ast_mutation_count(source_name: str) -> int:
         for _c in ast.iter_child_nodes(_n):
             parent[id(_c)] = _n
 
+    # ⛔ round-16（Codex round-13 MEDIUM）：白名单里的 `len(MUTATIONS)` 之前只核**名字**叫
+    # `len`，没核它**绑到谁**。模块里 `def len(x): x.append(4); return 0` 之后，
+    # `len(MUTATIONS)` 就是一次就地改表 —— 实测运行时 4 条、AST 数 3 条。
+    # ⇒ 只有在 `len` 这个名字**全树都没有被绑定过**（还是内建）时才认这条白名单。
+    # 收得比必要更紧（函数内的局部 `len` 参数也算），因为这里的承诺是「数得出来」，
+    # 而「这个 `len` 到底是哪个」在静态上就是分辨不了的。实测四套源码 `len` 绑定数 = 0。
+    bound_names: set[str] = set()
+    for _n in ast.walk(tree):
+        if isinstance(_n, ast.Name) and isinstance(_n.ctx, (ast.Store, ast.Del)):
+            bound_names.add(_n.id)
+        elif isinstance(_n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            bound_names.add(_n.name)
+        elif isinstance(_n, (ast.Import, ast.ImportFrom)):
+            bound_names.update((a.asname or a.name.split(".")[0]) for a in _n.names)
+        elif isinstance(_n, ast.arg):
+            bound_names.add(_n.arg)
+        elif isinstance(_n, (ast.Global, ast.Nonlocal)):
+            bound_names.update(_n.names)
+
     # ② fail-closed 全树扫描：任何**没被 ① 数到**的写入/改动一律抛。
     #
     # ⛔ Codex round-6 MEDIUM：只看 `Name` 的 `Store`/`Del` **不够** —— `MUTATIONS[:0] = [9]`
@@ -192,12 +211,23 @@ def ast_mutation_count(source_name: str) -> int:
             # ⇒ 逐个堵入口这条路已经走到头（这是第五次换入口）。改成：**只认三种语境**，
             # 其余一律抛。实测四套源码对 `MUTATIONS` 的 Load 只有这三种（各 23/12/11 处）：
             #   · 推导式 / `for` 的迭代对象；· `len(MUTATIONS)`；· Load 下标。
+            # ⛔ round-16（Codex round-13 MEDIUM）：上一版这两条白名单**没核操作数的位置**，
+            # 于是同一个语法形状里换个位子就通：
+            #   · `Sink()[MUTATIONS]` —— `MUTATIONS` 在**下标**位而不是被下标的对象，
+            #     `Sink.__getitem__` 拿到的就是原列表（实测运行时 4 条、AST 数 3 条）；
+            #   · `len(MUTATIONS)` —— `len` 被模块自己重定义（见上面 `bound_names`）。
+            # ⇒ 两条都补上「这个 `MUTATIONS` 到底站在哪个操作数位」/「这个函数到底是谁」。
             par = parent.get(id(node))
             ok = (
                 (isinstance(par, ast.comprehension) and par.iter is node)
                 or (isinstance(par, ast.For) and par.iter is node)
-                or (isinstance(par, ast.Call) and getattr(par.func, "id", None) == "len" and node in par.args)
-                or (isinstance(par, ast.Subscript) and isinstance(par.ctx, ast.Load))
+                or (
+                    isinstance(par, ast.Call)
+                    and getattr(par.func, "id", None) == "len"
+                    and "len" not in bound_names
+                    and node in par.args
+                )
+                or (isinstance(par, ast.Subscript) and isinstance(par.ctx, ast.Load) and par.value is node)
             )
             if not ok:
                 raise ReconcileError(
