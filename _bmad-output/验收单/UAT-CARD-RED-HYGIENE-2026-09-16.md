@@ -38,7 +38,7 @@
 | (f) | MEMORY_RETRY 死配置退役（census → 先红 3 → 后绿）+ pyright 保持 0 | ✅ |
 | (g) | contract node-id pattern 定性 | ✅（**卡文两处事实有误**，见 §3） |
 | (h) | 地盘核：代码面恰好 6 文件 | ✅ |
-| (i) | tests/unit 目录级对 `$BASE`：`<` = 30 / `>` = 0 | ✅ |
+| (i) | tests/unit 目录级对 `$BASE` | ⚠️ **不声称通过**：前两跑 `<`=30 / `>`=0，**绑最终 HEAD 的第三跑 `>`=1**（W4 哨兵载体，blocked=1）。见 §四-A.10、§五.1 HIGH-1 |
 | (j) | Codex 多轮直到绑最终 HEAD 的一轮 BLOCKER/HIGH = 0 | 见 §5 |
 | (k) | 「本卡未证明什么」≥4、「台账待登记条目」≥4 | ✅ 见 §6 / §7 |
 
@@ -256,20 +256,54 @@ mock 补 `hint-generation` → `12 passed`；加防漂 guard 后 → `13 passed`
 `F821 Undefined name`，还原后 sha 一致、判据复跑 rc=0。
 （⛔ 不用 F401 当锚：`backend/ruff.toml` 的启用集实测只有 `E902/F63x/F7xx/F82x`，F401 不在其中，拿它当锚会恒不触发。）
 
-### 4-A.10 (i) tests/unit 目录级 — `unit-close-20260916T131111.txt` / `unit-comm-20260916T131636.txt`
+### 4-A.10 (i) tests/unit 目录级 —— ⚠️ **最终 HEAD 上 `>` = 1，本卡不声称通过**
 
 跑法（R-B14-3：`cd backend` 后 `--ignore` 用相对路径）：
 `cd backend && PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest tests/unit --ignore tests/unit/test_deploy_vault_sh.py -q -p no:cacheprovider`
 
-- 汇总行：`34 failed, 5166 passed, 35 skipped, 19 xfailed, 171 warnings in 300.59s`
-- nodeid 口径 comm 对 `$BASE`（64）：**`<` = 30，`>` = 0**
-- 两条已知 flaky 均**不在**本跑红集中
-- W4 哨兵（协议 §3 必贴）：`NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)`，`blocked=` 出现次数 = 1（候选树常态，未设攻击次数）
+**五跑对照**（逐跑存档 + 统一 comm 见 `FINAL-sentinel-5runs-*.txt`）：
 
-**归属如实声明** — `attribution-20260916T131649.txt`：
-本卡 4 个测试地盘文件在 `$BASE` 里各有 **0** 条红，在本跑红集里也各有 **0** 条。
-⇒ **本卡对那 30 条 `<` 的贡献是 0**，30 条全部来自同车道前四卡（T10-A/B/C/D，在 `$PREV` 之前就已转绿）。
-本卡在目录级的实际效果是「**不增**」，不是「减 30」。
+| 跑 | 绑定 SHA | failed | `<` | `>` | W4 哨兵 |
+|---|---|---:|---:|---:|---|
+| 1 | `8bfcdfce` | 34 | 30 | **0** | `blocked=0` |
+| 2 | `b38e1d04` | 34 | 30 | **0** | `blocked=0` |
+| 3 | `2c740216`（最终） | **35** | 30 | **1** | **`blocked=1`** |
+| 4 | `2c740216`（最终） | 34 | 30 | **0** | `blocked=0` |
+| 5 | `2c740216`（最终） | 34 | 30 | **0** | `blocked=0` |
+
+⇒ **跑 3/4/5 绑的是同一个 commit，结果却是 35 / 34 / 34** —— 目录级结果在同一份代码上
+就是非确定性的，与本卡改了什么无关。且五跑里 `>` 与 `blocked=` **5/5 逐跑同步**（1↔1、0↔0）。
+
+**第三跑那条 `>` 的身份**（`FINAL-R2-unit-comm-*.txt`）：
+`tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422`，
+失败正文首行逐字是协议 §3 指定的 W4 哨兵指纹：
+
+```
+- ('::1', 7691, 0, 0) on thread MainThread (owner=…test_accept_candidate_already_accepted_returns_422)
+```
+
+唯一指纹数实测 = 1；`advisory=0 / unaccounted=0`。**连接被拦下（blocked），现网 7691 未被连上**，
+随后走 JSON 降级。该测试不是因为自己的业务断言失败，而是承接了哨兵的红。
+
+协议 §3 第 79 行对这种情形有明确口径：判据**绑 `blocked=` 次数 + 失败正文，不绑 nodeid**，
+因为「同一代码状态下哨兵红会在 nodeid 之间翻转（`candidate422` ↔ `mock_warning`），
+逐 nodeid diff 自带 flaky」—— 而承接哨兵的正是它点名的两条之一。
+
+**与 Codex r1 相互印证**：Codex 在**它自己的环境**、绑 `8bfcdfce` 时也得到 35 failed /
+`>`=1 / `blocked=1`（同一条 nodeid），并实测「随后单跑它为 1 passed，blocked=0」。
+⇒ 同形出现于两个独立环境、三个不同 SHA，且**同一 SHA 内部就会翻转**（跑 3 vs 跑 4/5）。
+本卡三个 commit 都没碰任何与端口 / Neo4j / conftest 相关的文件。
+
+⛔ **本卡不自判通过**（D-15：车道对 HIGH 只能写理由）。验收单**不**声称 `>` = 0。
+裁定权在主 session，建议按协议 §3 用「`blocked=` 次数 + 失败正文」判。
+
+**本卡 4 个测试地盘文件在第三跑红集里各 0 条**（同次验伪锚：`test_vault_notes_group_filter` = 4，
+证明该 grep 非恒 0）。
+
+**归属**（`attribution-*.txt` + Codex r1 的更强对照）：本卡对那 30 条 `<` 的贡献 = **0**，
+30 条全部来自同车道前四卡。Codex 用 `$PREV` 已入库的 `epw-unit-close7.nodeids` 对照，
+双方同为完全相同的 34 条红 —— 本卡原先只用「4 个测试文件不在 BASE 红集」论证，
+Codex 指出不充分，本卡接受并以其对照为准。
 
 ### 4-A.11 (d) 顺序污染判据 — `auth-order-pollution-*.txt`
 
@@ -327,7 +361,7 @@ blockquote，会话头三行自证：`OpenAI Codex v0.153.3`（第 2 行）/ `mo
 
 | 条目 | 处置 |
 |---|---|
-| **HIGH-1** 目录级「不增」 | ⛔ **车道给理由但不自判通过**（D-15），裁定权在主 session。理由三条：① Codex 第一跑的 33 条 `>` 是其环境 Node 缺 `libllhttp.9.3.dylib` 的启动失败，与本卡无关且 Codex 已自行归因；② 第二跑唯一那条 `>` = `candidate422`，正是协议 §3 第 79 行点名的 W4 哨兵载体，协议明令「绑 `blocked=` 次数 + 失败正文，**不绑 nodeid**」，且该跑 `blocked=1` 而车道两跑 `blocked=0`，两者不可在 nodeid 轴相减；③ 归属侧 Codex 自己给了更强证据（`$PREV` 已入库的 `epw-unit-close7.nodeids` 与本卡存档同为完全相同的 34 条红），结论与车道一致 |
+| **HIGH-1** 目录级「不增」 | ⛔ **车道给理由但不自判通过**（D-15），裁定权在主 session。⚠️ **车道随后在最终 HEAD 上自己也跑出了 `>` = 1**（35 failed / `blocked=1` / 同一条 `candidate422`），已撤回原先「车道两跑都是 0」的对照式表述，验收单改为不声称 `>` = 0。现有理由：① Codex 第一跑的 33 条 `>` 是其环境 Node 缺 `libllhttp.9.3.dylib`，Codex 已自行归因；② 承接红的那条正是协议 §3 第 79 行点名的 W4 哨兵载体（`candidate422` ↔ `mock_warning`），协议明令「绑 `blocked=` 次数 + 失败正文，**不绑 nodeid**」，且失败正文逐字就是哨兵指纹、连接被拦未连上现网；③ 同一现象在**两个独立环境、两个不同 SHA** 上同形出现，而本卡三个 commit 未碰任何端口 / Neo4j / conftest 文件；④ 归属侧 Codex 给了更强对照（`$PREV` 已入库的 `epw-unit-close7.nodeids` 与本卡存档同为 34 条红）|
 | **MEDIUM-1** guard 漏「绑定后就地改表」 | ✅ 已修（作用域收窄 + 就地改表检测 + 覆盖声明收窄），用 Codex 的方法复验 11 种形态 |
 | **MEDIUM-2** 第 0 分钟「工作树干净」证据不足 | ✅ 接受，**记为未证实**（空目录不计脏项，事后解释不能追认），见 §六.9 |
 | **MEDIUM-3** 最终 commit 的 `python-typecheck` 未被独立证明 | ✅ 接受，本卡最后一个 commit 落盘完整 pre-commit 输出；前两个 commit 标记历史 PARTIAL |
@@ -370,7 +404,15 @@ blockquote，会话头三行自证：`OpenAI Codex v0.153.3`（第 2 行）/ `mo
 
 13. **未证自审的 23 条就是全部**。5 个维度是本 session 自己划的，维度之外没有 agent 看过；且其中 1 条（RG-3）的验证 agent 停滞，从未走完独立反驳流程。
 
-14. **未证两条 flaky 的成因**（本条取代原第 4 条的措辞）。本卡 13 次跑里它们一次都没红过；能显现同文件互扰的整文件跑只有 n=1，**不足以排除**同文件互扰。协议 §3 已记载的 W4 哨兵 nodeid 漂移未被本卡验证。
+14. **未证两条 flaky 的成因**（本条取代原第 4 条的措辞）。⚠️ 并且「本卡跑里它们一次都没红过」这句话
+    在最终 HEAD 的第三跑上**已被自己推翻**：`candidate422` 在那一跑红了，且承接的是 W4 哨兵。
+    本卡未定位到「为什么这一跑 `blocked=1` 而前两跑 `blocked=0`」——即哪个测试在什么条件下
+    会去尝试连 7691。成因仍未定。
+
+15. **未证最终 HEAD 的目录级「不增」**。绑最终 HEAD 的那一跑 `>` = 1（见 §四-A.10）。
+    本卡给的是「该条是 W4 哨兵载体 + 协议 §3 规定不按 nodeid 判 + 两环境同形复现」这三条理由，
+    **没有**证明它一定不是本卡引入 —— 尽管本卡三个 commit 未碰任何端口 / Neo4j / conftest 文件。
+    裁定权在主 session。
 
 ---
 
@@ -407,8 +449,15 @@ blockquote，会话头三行自证：`OpenAI Codex v0.153.3`（第 2 行）/ `mo
     （代码 fail-closed 而表写 allow）；`:191` 的 WebSocket 矩阵可能仍准确
     （`:228` 的 WS Branch 2 代码确实放行）。该文件本卡禁改，登记移交。见 §二 更正 ⑥。
 
-11. **Codex r1 HIGH-1 的裁定权在主 session**（D-15：车道对 HIGH 可写理由但不能自判通过）。
-    理由三条见 §五.1 与 `RESPONSE-codex-r1-20260916.md`。
+11. **目录级「不增」的裁定权在主 session**（D-15：车道对 HIGH 可写理由但不能自判通过）。
+    ⚠️ **本卡自己在最终 HEAD 上也跑出了 `>` = 1**（不是只有 Codex 那边出现）：
+    35 failed / `blocked=1`，那条 `>` = `candidate422`，失败正文是协议 §3 的 W4 哨兵指纹。
+    三跑对照 `blocked=` 分别为 0 / 0 / 1。建议主 session 按协议 §3 的口径
+    （绑 `blocked=` 次数 + 失败正文，不绑 nodeid）裁定，并考虑是否另立卡处理
+    「哨兵归属漂移导致逐 nodeid diff 不可用」这件事本身。
+    ⚠️ **最硬的一条**：跑 3/4/5 绑**同一个 commit `2c740216`**，结果 35 / 34 / 34 ——
+    同一份代码两种结果，差异与 `blocked=` 严格同步（五跑 5/5）。
+    完整证据：`FINAL-sentinel-5runs-*.txt`、`FINAL-R2-unit-comm-*.txt`、`RESPONSE-codex-r1-20260916.md`。
 
 12. **自审流程本身的口径问题**：本轮反驳式验证把严重度判断混进了成立性判断
     （19 条判「不成立」里 14 条实际成立）。若后续批次复用这套自审，`refuted` 字段

@@ -17,14 +17,30 @@
 | 原环境 | 67 failed / 5133 passed | 30 | **33** | blocked=0 |
 | 仅前置已有 Node v24.16.0 | 35 failed / 5165 passed | 30 | **1** | **blocked=1** |
 
-**车道实测**（本树，两次独立全跑）：
+**车道实测**（本树，三次独立全跑）：
 
 | 运行 | HEAD | 结果 | `<` | `>` | 端口哨兵 |
 |---|---|---|---:|---:|---|
 | `unit-close-20260916T131111` | 8bfcdfce | 34 failed / 5166 passed | 30 | **0** | blocked=0 |
 | `FINAL-unit-close-20260916T191150` | b38e1d04 | 34 failed / 5166 passed | 30 | **0** | blocked=0 |
+| `FINAL-R2-unit-close-20260916T192615` | **2c740216（最终）** | 35 failed / 5165 passed | 30 | **1** | **blocked=1** |
+
+⚠️ **第三跑（绑最终 HEAD）车道自己也跑出了 `>` = 1** —— 与你 r1 第二跑**同一条 nodeid、
+同样 blocked=1**。所以这不是「你的环境有问题、车道这边干净」，而是两个独立环境上
+同形出现的同一现象。车道据此**撤回**原先那种「车道两跑都是 0」的对照式表述，
+验收单也改成不声称 `>` = 0。那条的失败正文首行逐字是协议 §3 的哨兵指纹：
+
+    - ('::1', 7691, 0, 0) on thread MainThread (owner=…test_accept_candidate_already_accepted_returns_422)
+
+唯一指纹数 = 1，`advisory=0 / unaccounted=0`，连接**被拦下**（未连上现网 7691），
+随后走 JSON 降级。三跑的 `blocked=` 分别是 0 / 0 / 1。
 
 **车道给出的理由（三条，逐条可核）：**
+
+0. **（本轮新增，最重要的一条）车道在最终 HEAD 上复现了同一现象** —— 见上表第三行。
+   这条既削弱了「它只是 Codex 环境问题」这个解释，也加强了「它是哨兵归属漂移而非本卡回归」
+   这个解释：同一条 nodeid、同样 blocked=1、两个独立环境、两个不同 SHA，
+   而本卡三个 commit 都没碰任何与端口 / Neo4j / conftest 相关的文件。
 
 1. **第一跑的 33 条是环境故障，Codex 自己已归因**：其原环境 Node 缺
    `libllhttp.9.3.dylib` 导致 Node 启动失败。这不是代码面的事，本卡未改任何
@@ -38,9 +54,10 @@
    > `candidate422` ↔ `mock_warning`…），**逐 nodeid diff 自带 flaky**。
 
    Codex 第二跑的那条 `>` = `test_accept_candidate_already_accepted_returns_422`
-   （即协议里的 `candidate422`），且该跑 **`blocked=1`** —— 有一次被阻断的连接尝试；
-   车道两跑都是 **`blocked=0`**（未设 `NEO4J_LIVE_PORT_CONNECT_ATTEMPTS`，候选树常态）。
-   两跑的哨兵状态不同，按协议就不能在 nodeid 轴上直接相减。
+   （即协议里的 `candidate422`），该跑 **`blocked=1`**；车道三跑的 `blocked=` 分别是
+   **0 / 0 / 1**，出现 `>` = 1 的那一跑恰恰就是 `blocked=1` 的那一跑。
+   ⇒ `>` 的出现与 `blocked=` 严格同步，与 SHA 无关（车道三跑跨三个不同 SHA）。
+   按协议就不能在 nodeid 轴上把不同哨兵状态的两跑直接相减。
    Codex 自己也实测「随后单跑它为 1 passed，blocked=0」。
 
 3. **归属侧 Codex 给了比车道更强的证据，且结论一致**：其反面问题 #4 的回答里写，
@@ -51,8 +68,13 @@
 
 **车道不自判通过**：依 D-15「车道对 HIGH 的驳回要写理由但不能自判通过，由主 session
 复核时裁定，裁定前该卡按未完成」。上列三条是理由，**裁定权在主 session**。
-建议主 session 核的两件事：(a) 车道两跑 `>` = 0 是否可采信；
-(b) Codex 第二跑的那条 `>` 是否按协议 §3 归入哨兵漂移而非本卡引入。
+建议主 session 核的三件事：
+(a) 「`>` 的出现与 `blocked=` 严格同步、与 SHA 无关」这个观察是否成立
+    （车道三跑跨三个 SHA：blocked 0/0/1 对 `>` 0/0/1）；
+(b) 那条 `>` 是否按协议 §3 归入哨兵归属漂移而非本卡引入；
+(c) 更上一层：既然逐 nodeid diff 在有哨兵红时结构上不可用，
+    「目录级只许 `<`」这条卡级判据本身是否该改成协议 §3 的 `blocked=` 口径
+    （本卡不自行改判据口径，只提请裁定）。
 
 ---
 
