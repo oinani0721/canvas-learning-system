@@ -1,0 +1,24 @@
+=== (j) tests/unit 守卫（nodeid 口径归一后）===
+归一规则：去 ANSI 转义 + 截掉 ' - <断言消息>' 尾巴。
+  理由：基线文件头自述为「nodeid 口径」，而本跑的 FAILED 行带消息尾巴，
+       其中 test_live_vault_enforce_clean 的消息还含 ANSI 码（测试自身输出的颜色）。
+       不归一会把**同一条**红判成 '57c57 差异'。
+
+基线条数 = 64
+本跑条数 = 64
+
+=== diff（只许 '<'；'>' = 本卡引入新红）===
+diff rc=0  （0 = 零 diff = 本卡零影响）
+
+=== ⛔ 验伪锚（管道内不插 head，否则读到 head 的 rc）===
+去掉基线首条后 diff rc=1  （期望 ≠0 = 判据真能发现差异）
+改坏基线首条 nodeid 后 diff rc=1  （期望 ≠0）
+
+=== 未归一时的原始差异（如实留证，说明为何需要归一）===
+57c57
+< FAILED tests/unit/test_vault_doc_roles.py::test_live_vault_enforce_clean
+---
+> FAILED tests/unit/test_vault_doc_roles.py::test_live_vault_enforce_clean - AssertionError: ^[[2m�M-^O�账^[[0m /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills/backend/scripts/vault_doc_roles.yaml
+
+=== 本跑结论行 ===
+rc=1

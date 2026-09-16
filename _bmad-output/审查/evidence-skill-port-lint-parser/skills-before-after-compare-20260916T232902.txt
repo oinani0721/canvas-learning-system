@@ -1,0 +1,12 @@
+⛔ 本轮输出作废 —— 判据自身有缺陷，结论不可采信。
+
+缺陷：判据用 glob `$EV/skills-before-*.txt` 取 before 存档，但同一条命令的 tee
+目标文件名 `skills-before-after-compare-<ts>.txt` 也以 `skills-before-` 开头，
+于是 glob 匹配到 2 个文件（其中一个是判据自己正在写的输出）：
+  · `diff <before> <after>` 收到 3 个参数 → BSD diff 打 usage、rc=2（不是 1）；
+  · `grep -oE '[0-9]+ passed' <2 个文件>` 触发 grep 的多文件模式加了 `文件名:` 前缀
+    → 后续 `grep -oE '^[0-9]+'` 取不到数字 → before 计数读成空 → 相等判定假 NO。
+方向：本次朝**假红**错，所以被发现；同型缺陷朝假绿错时（自己的输出正好凑够
+期望计数）不会有任何征兆。
+
+更正后的判据见同目录 `passed-compare-<ts>.txt`：一律写**显式文件名**，不用 glob。

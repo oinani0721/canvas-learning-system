@@ -1,0 +1,6 @@
+=== ruff 验伪锚：F821 在 backend 配置下必触发（F401 不在 enabled 列表，不可用作锚）===
+All checks passed!
+F821 探针 rc=0  （期望 1 = ruff 判据能数到正例）
+--- 对照：F401 探针在同一配置下不触发（故此锚作废）---
+All checks passed!
+F401 探针 rc=0  （实测 0 = 该规则未启用）

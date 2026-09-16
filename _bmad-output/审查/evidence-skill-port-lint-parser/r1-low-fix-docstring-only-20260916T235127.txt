@@ -1,0 +1,14 @@
+=== r1 LOW 整改：证明只动了 docstring、代码零影响 ===
+--- diff 面（只应是模块 docstring 行）---
+ backend/tests/skills/skill_portability_lint.py | 15 +++++++++------
+ 1 file changed, 9 insertions(+), 6 deletions(-)
+
+--- 改动行是否全落在模块头 docstring 内（第 1 个 """ 到第 2 个 """ 之间）---
+docstring 结束行 = 40
+@@ -18,6 +18,9 @@
+  hunk 起于 :18 < docstring 末行 40 ✓
+
+=== ⛔ D-32 口径：去 docstring 后 ast.dump 逐字符相同 = 真代码零改动 ===
+去 docstring 后 ast.dump 相同 = True
+含 docstring 时相同 = False (应为 False = 确实改了文案)
+验伪锚 strip_doc 能分辨真代码改动 = True

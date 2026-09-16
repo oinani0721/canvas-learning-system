@@ -1,0 +1,20 @@
+=== backend 面启用的 ruff 规则（决定验伪锚该选哪条）===
+linter.rules.enabled = [
+	io-error (E902),
+	assert-tuple (F631),
+	is-literal (F632),
+	invalid-print-syntax (F633),
+	if-tuple (F634),
+	break-outside-loop (F701),
+	continue-outside-loop (F702),
+	yield-outside-function (F704),
+	return-outside-function (F706),
+	default-except-not-last (F707),
+	forward-annotation-syntax-error (F722),
+	undefined-name (F821),
+	undefined-export (F822),
+	undefined-local (F823),
+=== ruff 正跑（仓根，不 cd backend）===
+files=2
+All checks passed!
+ruff rc=0

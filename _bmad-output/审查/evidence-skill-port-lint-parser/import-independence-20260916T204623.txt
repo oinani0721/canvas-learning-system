@@ -1,0 +1,19 @@
+=== (f) 模块独立可导入（正例）===
+import-ok
+rc=0
+=== (f) 验伪锚：缺失符号必 rc≠0 ===
+    from tests.skills.skill_portability_lint import _nonexistent
+ImportError: cannot import name '_nonexistent' from 'tests.skills.skill_portability_lint' (/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills/backend/tests/skills/skill_portability_lint.py)
+rc=0
+=== (f) 12 个 check_ 全部可独立导入 + REPO_ROOT 基准自证 ===
+check_ exported = 12 ['check_body', 'check_dynamic_tmp_joins', 'check_escaping_tmp', 'check_frontmatter', 'check_handoff_constants', 'check_managed_files', 'check_opaque_tmp', 'check_parent_dir_prose', 'check_scripts', 'check_suspicious_tmp_lines', 'check_tmp_blocks', 'check_url_override']
+pytest imported by module? False
+REPO_ROOT = /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills
+DEFAULT_ROOT exists = True
+problems on tree = {'check_frontmatter': 0}
+rc=0
+=== REPO_ROOT 与 HEAD 版 test 文件算出的是否同一路径 ===
+module parents[3] = /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills
+test   parents[3] = /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills
+same = True
+rc=0

@@ -1,0 +1,22 @@
+=== 判据写法：显式文件名，不用 glob（作废轮见 skills-before-after-compare-20260916T232902.txt）===
+  before = _bmad-output/审查/evidence-skill-port-lint-parser/skills-before-20260916T204321.txt
+  after  = _bmad-output/审查/evidence-skill-port-lint-parser/skills-after-20260916T204602.txt
+
+=== 两次独立跑的自证 ===
+0f0999cc38f2903e121c294467952d4e1190a5d3ba327a02fde7acadc9771c84  _bmad-output/审查/evidence-skill-port-lint-parser/skills-before-20260916T204321.txt
+40255f4211c21020536b3353e3079087807a4a5c60104f238b780b1e71307800  _bmad-output/审查/evidence-skill-port-lint-parser/skills-after-20260916T204602.txt
+--- diff（期望 rc=1，差异只在耗时行）---
+69c69
+< ================= 555 passed, 22 warnings in 74.31s (0:01:14) ==================
+---
+> ================= 555 passed, 22 warnings in 63.90s (0:01:03) ==================
+diff rc=1
+
+=== 承重结论 ===
+before: ================= 555 passed, 22 warnings in 74.31s (0:01:14) ==================
+after : ================= 555 passed, 22 warnings in 63.90s (0:01:03) ==================
+before passed=555  after passed=555  相等=YES
+before FAILED/ERROR 行数 = 0
+after  FAILED/ERROR 行数 = 0
+--- 验伪锚：同一 grep 对已知红存档须 >0 ---
+变异轮存档 'failed' 字样 = 1

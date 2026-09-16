@@ -1,0 +1,35 @@
+=== backend 面 ruff enabled 含 F821（上条存档已打印全表）===
+2
+=== 正跑：两地盘文件（仓根跑，不 cd backend）===
+files=2
+All checks passed!
+正跑 rc=0  （期望 files=2 / rc=0）
+
+=== 验伪锚（正确形态）：对同一文件、同一命令注入一个未定义名，必须变红 ===
+--- 锚 1: 模块 ---
+F821 Undefined name `undefined_name_probe_zzz`
+    --> backend/tests/skills/skill_portability_lint.py:3313:13
+     |
+3311 |     return problems
+3312 |
+3313 | ZZZ_PROBE = undefined_name_probe_zzz
+     |             ^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+
+Found 1 error.
+模块注入锚 rc=1  （期望 1）
+--- 锚 2: test 文件（同时证明 import 名单若漏名会被 F821 抓出）---
+F821 Undefined name `undefined_name_probe_zzz`
+    --> backend/tests/skills/test_skill_portability_lint.py:3124:13
+     |
+3122 |     )
+3123 |
+3124 | ZZZ_PROBE = undefined_name_probe_zzz
+     |             ^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+
+Found 1 error.
+test 注入锚 rc=1  （期望 1）
+
+=== 作废锚记录：探针放 scratchpad 且不带 --select 时 rc=0（在项目外，未套用 backend 配置）===
+  故本卡 ruff 验伪锚一律用上面的 stdin 注入形态，不用外部探针文件。
