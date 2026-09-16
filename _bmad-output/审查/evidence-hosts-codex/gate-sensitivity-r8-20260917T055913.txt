@@ -1,0 +1,8 @@
+### round-7 敏感性负控 —— 模板发布器的互斥
+原 sha=89e849c2a8e04aa1da244b84d2607f7fe1b9f595be430eea4ca90be76ba84c53
+① 还原态: NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+   变异：去掉「读已有模板」那把锁
+② 变异态:
+FAILED tests/unit/test_deploy_vault_sh.py::test_agents_append_takes_an_exclusive_lock
+====================== 1 failed, 250 deselected in 0.97s =======================
+③ 还原后 sha: OK

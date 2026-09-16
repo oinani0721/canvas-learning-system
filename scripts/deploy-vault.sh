@@ -1691,6 +1691,7 @@ publish_codex_config() {
     local src srcrc=0
     src="$(
         cat << 'PYCFG'
+import fcntl
 import os
 import stat as statmod
 import sys
@@ -1855,6 +1856,11 @@ def _refuse(msg):
 try:
     try:
         fd = os.open(CFG_REL, os.O_WRONLY | os.O_CREAT | os.O_EXCL | _NOFOLLOW_ANY, 0o644, dir_fd=vfd)
+        # ⛔ Codex r7 MEDIUM：模板发布器原来**没有互斥** —— A 写完正文还没 fsync,
+        #    B 无锁读到完整正文就报 `kept`; A 随后 fsync 失败把文件截成 INCOMPLETE ⇒
+        #    B 已经宣布成功, 而盘上是残件。新建、失败清理、已有文件读取**共用同一把锁**。
+        #    ⚠️ 与 AGENTS 侧同律：flock 是**协作式**的, 只挡同样取锁的写者。
+        fcntl.flock(fd, fcntl.LOCK_EX)
     except FileExistsError:
         # 已存在 ⇒ **一律不动它**（用户很可能已按自己的需要改过）。不比内容、不覆盖。
         # ⛔ 但要先排除「它是上次写到一半留下的残件」（Codex r1 MEDIUM）：
@@ -1865,6 +1871,9 @@ try:
         except OSError as exc:
             die(f"已有 codex 模板打不开（是软链？）: {dst} ({exc})")
         try:
+            # ⛔ Codex r7 MEDIUM：读之前取**同一把锁** —— 否则会读到另一个部署写到一半的正文,
+            #    报 `kept` 之后对方再把它截成残件。取锁后读到的是确定的状态。
+            fcntl.flock(rfd, fcntl.LOCK_EX)
             if not statmod.S_ISREG(os.fstat(rfd).st_mode):
                 die(f"已有 codex 模板不是普通文件: {dst}")
             full = os.read(rfd, MAX_TEMPLATE)

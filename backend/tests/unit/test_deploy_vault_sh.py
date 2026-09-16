@@ -5460,8 +5460,12 @@ def test_agents_append_takes_an_exclusive_lock():
     # ⚠️ Codex r4 HIGH：**两个发布器**（opencode 的 PYPUB 与 codex 的 PYSEC）必须遵守同一把锁，
     #    否则不取锁的那个照样能覆盖/截掉另一个刚写好的内容。
     per = {tag: _py_call_count(b, "flock") for tag, b in blocks.items()}
-    assert per.get("PYSEC", 0) == 2, f"codex 发布器的锁不是两处（新建 + 追加）: {per}"
+    assert per.get("PYSEC", 0) == 2, f"AGENTS 发布器的锁不是两处（新建 + 追加）: {per}"
     assert per.get("PYPUB", 0) >= 1, f"opencode 发布器没取同一把锁（Codex r4 HIGH）: {per}"
+    # ⚠️ Codex r7 MEDIUM：**模板**发布器也要互斥 —— A 写完正文未 fsync、B 无锁读到完整正文
+    #    报 `kept`，A 随后 fsync 失败把它截成残件 ⇒ B 已宣布成功而盘上是残件。
+    #    新建路径与「已存在则读」路径共用同一把锁 ⇒ 两处。
+    assert per.get("PYCFG", 0) == 2, f"模板发布器的锁不是两处（新建 + 读已有）: {per}"
     # 回滚必须带「多出来的字节可能是别人写的」这道守卫
     assert "grown > append_len" in _decomment(_sh_src()), "回滚没判增量 —— 会截掉并发写者的正文"
 
