@@ -1,0 +1,23 @@
+# part4 — 两节精确计数 + 对 part2 一处判据口径的更正（新 session 复核）
+
+## 更正 part2 的一条假阳
+part2 写「git 跟踪的 stderr 文件数(须0)=3」= 判据口径过宽（grep -c 'stderr' 命中的是
+文件名含 stderr 的普通 .txt 存档，不是 .stderr 文件本身）。精确口径见 part3：count=0。
+被误计的 3 个（均为历史批次、非本卡引入，PREV..HEAD 的 name-only grep stderr = 0）：
+"_bmad-output/\345\256\241\346\237\245/G4-9-evidence/census-stderr.txt"
+"_bmad-output/\345\256\241\346\237\245/evidence-g29f1/stderr-not-tracked-20260908T090430.txt"
+"_bmad-output/\345\256\241\346\237\245/evidence-pyright-svc/stderr-gate-20260908T074213.txt"
+
+## 验收单两节精确计数（按行号区间，避开 awk 起止同行自终止）
+六 本卡未证明什么（189-207）编号条目数=8  期望>=4
+七 台账待登记条目（211-232）编号条目数=9  期望>=4
+-- 验伪锚：同正则作用在 §五 5-A（无编号列表，156-173）须=0 --
+anchor=0
+
+## DoD-3 双段存在性
+154:## 五 DoD-3 双段
+156:### 5-A Claude 已代验（技术指标，你不必跑）
+174:### 5-B 你来验（零技术词）
+
+## 本 session 未装包
+[空=未装包]

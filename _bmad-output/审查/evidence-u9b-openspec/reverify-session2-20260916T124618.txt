@@ -1,0 +1,48 @@
+# 独立复核（新 session 2026-09-16）：在当前 HEAD 上重跑核心裁判 1/3/4/5/6
+HEAD=a38f3c9243a59365d120de8e049f141f91aac26d  branch=card/t4-g3
+PREV=02f59e5f9b52c1431f42c0bd59b3c7784f4d4cbe
+status 行数(期望0)=1
+
+=== 裁判 3a: validate --strict ===
+CLI version=1.2.0
+Specification 'concept-identity' is valid
+VALIDATE_RC=0
+
+=== 裁判 3b: 结构门三数 ===
+Requirement 数(≥1)=1
+4井号 Scenario 数(≥1)=5
+3井号 Scenario 数(须=0)=0
+
+=== 裁判 4: 三文件裸名字归零 + 验伪锚(PREV 侧须 3/1/1) ===
+openspec/specs/concept-identity/spec.md  PREV=3  NOW=0
+docs/project-status/fr-exploration/A6-phase0-reference-card.md  PREV=1  NOW=0
+backend/tests/regression/test_g3_7_truth_source.py  PREV=1  NOW=0
+
+=== 裁判 5: 地盘 ===
+ backend/tests/regression/test_g3_7_truth_source.py |   2 +-
+ .../fr-exploration/A6-phase0-reference-card.md     |  23 +++-
+ openspec/specs/concept-identity/spec.md            | 126 ++++++++++++++++-----
+ 3 files changed, 117 insertions(+), 34 deletions(-)
+-- openspec/changes/ 工作区(须空) --
+[end]
+-- backend/app/models/ 对 PREV 的 diff(须空) --
+[end]
+
+=== 裁判 6: test_g3_7 ast + diff 行 ===
+ast.parse OK
+AST_RC=0
+-- 该文件对 PREV 的 diff --
+diff --git a/backend/tests/regression/test_g3_7_truth_source.py b/backend/tests/regression/test_g3_7_truth_source.py
+index 2a95017b..d0eec311 100644
+--- a/backend/tests/regression/test_g3_7_truth_source.py
++++ b/backend/tests/regression/test_g3_7_truth_source.py
+@@ -11,7 +11,7 @@
+   ② GET /fsrs-state     → 保留 + 门锁边界：该 concept 在 frontmatter 侧有真相源
+                            时，一律不写盘、不推进 _card_states，且 due 以
+                            frontmatter 为准。
+-  ③ mastery grade / ④ save_card_state → 隔离（仅注释，无行为改动，不在本文件覆盖）。
++  ③ mastery grade / ④ 已退役的公共单卡保存入口 → 隔离（仅注释，无行为改动，不在本文件覆盖）。
+ 
+ D0 修订 §五 T1：「frontmatter 与任何后端状态不一致时，以 frontmatter 为准，
+ 分歧须以 degraded 信号如实透出」。
+rc=0

@@ -1,0 +1,35 @@
+=== status 那 1 行是什么 ===
+?? "_bmad-output/\345\256\241\346\237\245/evidence-u9b-openspec/reverify-session2-20260916T124618.txt"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-u9b-openspec/reverify-session2-part2-20260916T124637.txt"
+[end]
+
+=== D-15 终审绑定：r4 审SHA=52afdb9b → HEAD 代码树 diff 须空 ===
+[空=仍绑定]
+-- 验伪锚（同命令不加 exclude，须非空，证明命令本身能出货）--
+ .../prompts/codex-prompt-CARD-U9B-OPENSPEC-r4.md"  | 169 +++++++++++++++
+ .../UAT-CARD-U9B-OPENSPEC-2026-09-16.md"           | 240 +++++++++++++++++++++
+ 7 files changed, 487 insertions(+)
+
+=== (h) tests/unit 基线对照 ===
+空 diff = 无新增红/无覆盖损失
+DIFF_RC=0
+base 行数=      64  close 行数=      64
+
+=== Codex r4 存档首部（协议 §2.1 五字段）===
+> 批次: BATCH-2026-09-11-第十四批 · 车道 T4-C · 卡 CARD-U9B-OPENSPEC round-4
+> 模型: `gpt-6-astra` · reasoning_effort: `ultra` · codex: `codex-cli 0.153.3`
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat _bmad-output/审查/prompts/codex-prompt-CARD-U9B-OPENSPEC-r4.md)"`
+> 审查绑定: `52afdb9b2024d8ab46627dfde8df1b4b26a93551`（= 本卡最终代码 HEAD，绑定按同一 commit 成立）
+> 会话头自证（抄 .stderr 含 model 行，stderr 本身不入库）:
+> L2: `OpenAI Codex v0.153.3` / L5: `model: gpt-6-astra` / L9: `reasoning effort: ultra`
+
+---
+
+**round-3 的 LOW 已闭合，未发现整改引入新的代码不符。**复核绑定 `52afdb9b2024d8ab46627dfde8df1b4b26a93551`，仅评本轮整改。
+
+- [spec.md:108](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t4-g3/openspec/specs/concept-identity/spec.md:108) 已明确排除 B 自己的脏标记，并限定 B 作用域下的缓存查询。
+
+=== *.stderr* 不入库 ===
+git 跟踪的 stderr 文件数(须0)=3
+check-ignore:
+.gitignore:264:_bmad-output/审查/**/*.stderr*	"_bmad-output/\345\256\241\346\237\245/codex-review-CARD-U9B-OPENSPEC-r4.stderr"
