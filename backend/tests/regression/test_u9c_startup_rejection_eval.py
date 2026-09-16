@@ -275,6 +275,9 @@ def _build_probe_app(
 class TestHttpLayerMasksMessage:
     """请求期抛出 ⇒ 500 + 进程不崩；消息进不进响应体**取决于哪一层接住**。
 
+    ⚠️ 类名里的 `MasksMessage` 是初稿遗留，**只描述下面第一条用例**；
+    本类整体测的是两个**方向相反**的结果（见下表），不是单向的「屏蔽」。
+
     ⚠️ **口径更正（Codex r1 HIGH-1，本卡实测确认并加强）**：本类初稿断言
     「CARD-G3-5 被 `generic_exception_handler` 从响应体屏蔽」并把它当成生产
     表征 —— **那是错的**，错在「能力存在 ≠ 能力接上」：
@@ -389,9 +392,10 @@ class TestHttpLayerMasksMessage:
         且该分支消息本来就不含 `--vault-id`（评估文档 ③.3.5）。
         故本条证明的是「未脱敏、原文进体」，**不是**「运维总能拿到完整指引」。
 
-        ⚠️ 若将来采纳评估文档议题 α（给 `VaultScopeUnresolved` 加专用处理器
-        并让生产真正 `register_exception_handlers`），本条与上一条的断言方向
-        都要重新裁定——它们钉的是**当前口径**，不是永久不变量。
+        ⚠️ 若将来采纳评估文档议题 α（当前讨论面是**给 `CORSExceptionMiddleware`
+        加脱敏口径**；单纯「补上 `register_exception_handlers`」不改变本响应——
+        本用例自己就是那个反例），本条与上一条的断言方向都要重新裁定
+        ——它们钉的是**当前口径**，不是永久不变量。
         """
         from fastapi.testclient import TestClient
 
@@ -423,7 +427,13 @@ class TestHttpLayerMasksMessage:
 
         # ⛔ 子串断言**证明不了「未脱敏」**（Codex r3 LOW-3）：把绝对路径脱敏、
         # 只保留这两个子串，上面两条照样通过。要钉住「原文逐字进体」，必须拿
-        # 异常自身的 str() 去比——这同时锁住了 main.py:739 的 [:500] 截断口径。
+        # 异常自身的 str() 去比。
+        #
+        # ⚠️ 覆盖边界（Codex r4 LOW-3）：本用例的异常只有 311 字符，
+        # 所以这条等式证明的是「**本输入**未被脱敏、逐字进体」，
+        # **不证明** main.py:739 的 500 字符上限——把生产改成
+        # safe_message 或 safe_message[:1000]，本文件五条用例照样全绿。
+        # 截断行为由评估文档 ③.3.5 的实算（538 字符样本）覆盖，不在本用例内。
         assert body["message"] == str(raised[0])[:500]
 
         # ── 进程不崩 ──

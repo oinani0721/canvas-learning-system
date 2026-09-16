@@ -365,8 +365,12 @@ error_type key   = True (中间件独有字段)
    此后作用域 `a` 的请求会在 `:2953` 的快路径直接返回那个已建好的实例，
    **不再走 `from_persisted`、也就不再触发冲突检查**。
 
-⇒ 成立的是：**在 singleton 尚未成功初始化、且该请求确实调用了这个工厂时**，
-每次调用都会重走实例化链并再次抛出。
+3. **只限本次的数据与作用域仍满足拒绝条件时**。上面第 2 条的反例同时说明了
+   这一点：同一份数据下，作用域 `b` 的请求**满足**前两条限定（singleton 仍空、
+   确实调了工厂），却**成功**构造——因为 B 桶没有同名冲突。
+
+⇒ 成立的是：**在 singleton 尚未成功初始化、该请求确实调用了这个工厂、
+且本次的数据与作用域仍满足拒绝条件时**，该次调用会重走实例化链并再次抛出。
 
 ### 4.3 ⛔ 但由它**推不出**「每个请求都 500，直到跑迁移脚本」
 
@@ -422,13 +426,31 @@ return FSRSStateQueryResponse(
 但上一轮整改改成「依赖都是 singleton，重入不重建」——**又过头了**
 （Codex r2 MEDIUM-2）。逐项实测：
 
-| 工厂内建立的东西 | 行 | 重入时 | 运行时自证 |
+| 工厂内建立的东西 | 行 | 重入时 | 证据类型 |
 |---|---|---|---|
-| `memory_client`（`await get_memory_service()`） | `memory_service.py:2908` 快路径 | **复用** singleton | 读码 |
-| `graphiti_client`（`get_graphiti_temporal_client()`） | `dependencies.py:779` 快路径 | **复用** singleton | 读码 |
-| `BackgroundTaskManager` | `:2979` 直接 `BackgroundTaskManager()` | **复用** singleton | `first is second = True` |
-| `CanvasService` | `:2976` 直接 `CanvasService(...)` | **每次新建** | `is-same = False` |
-| `FSRSManager` | `:2982 create_fsrs_manager(settings)` → `:756 FSRSManager(...)` | **启用且可用时**每次新建 | `USE_FSRS=True` 下 `is-same = False` |
+| `memory_client`（`await get_memory_service()`） | `memory_service.py:2908` 快路径 | **上次成功后**复用 singleton | 读码 |
+| `graphiti_client`（`get_graphiti_temporal_client()`） | `dependencies.py:779` 快路径 | **上次成功后**复用；⚠️ **失败不缓存**（`:798-815` 三个 `except` 全 `return None`）⇒ 下次**完整重试初始化** | 读码 |
+| `BackgroundTaskManager` | `:2979` 直接 `BackgroundTaskManager()` | **复用** singleton | **运行时自证** `first is second = True` |
+| `CanvasService` | `:2976` 直接 `CanvasService(...)` | **每次新建** | **运行时自证** `is-same = False` |
+| `FSRSManager` | `:2982 create_fsrs_manager(settings)` → `:756 FSRSManager(...)` | `USE_FSRS=True` 且包装模块可 import 时**每次新建** | **运行时自证**（本机 `USE_FSRS=True`）`is-same = False` |
+
+> **⛔ 「py-fsrs 装没装」决定不了它返不返 `None`**（Codex r4 MEDIUM-1）。
+> 本卡 round-3 曾写「py-fsrs 缺失时工厂返 `None`」——错在把两个**同名不同义**
+> 的标志当成了一个：
+>
+> | 位置 | `FSRS_AVAILABLE` 的含义 |
+> |---|---|
+> | `lib/memory/temporal/fsrs_manager.py:24` | **底层 `fsrs` 库**可导入 |
+> | `app/services/review_service.py:94` | **包装模块** `memory.temporal.fsrs_manager` 可导入 |
+>
+> `:750` 的 `if not FSRS_AVAILABLE` 读的是**后者**。而底层 `fsrs` 缺失时，
+> 包装模块 `:21-29` 捕获 `ImportError`、定义 fallback 类后**仍然导入成功**
+> ⇒ `review_service.FSRS_AVAILABLE` 仍为 `True` ⇒ **照样新建** `FSRSManager`，
+> 只是该实例的 `library_available`（`:122`）为 `False`。
+> 真正让它返 `None` 的是：`USE_FSRS=False`，或**包装模块本身**导入失败。
+>
+> ⚠️ **本机两个标志实测都是 `True`**（底层 fsrs 已安装），故「底层缺失时仍新建」
+> 这一条是**代码路径推演**，不是本机运行时观测；如实标注，不冒充实测。
 
 > ⚠️ **上一轮我把 `BackgroundTaskManager` 判成「每次新建」，那是错的**
 > （Codex r3 MEDIUM-1）。它的 `background_task_manager.py:91 __new__` 返回缓存的
@@ -439,13 +461,21 @@ return FSRSStateQueryResponse(
 > 我改成「全部复用」（r2 打回）；r2 指出「有些确实新建」，我又把
 > `BackgroundTaskManager` 一并算进新建（r3 打回）。教训写在 §6.9。
 
-⇒ 重入的真实开销 = 「**三个** singleton 查表命中」+「**两个**对象真新建
-（`CanvasService`，以及 FSRS 启用时的 `FSRSManager`）」+「再抛一次」。
-`USE_FSRS=False` 或 py-fsrs 缺失时 `create_fsrs_manager` 返 `None`，
-新建对象数降为 1。
+⇒ 重入的真实开销（在「依赖此前都已成功初始化」这个前提下）=
+「三次 singleton 查表命中」+「两个对象真新建（`CanvasService` +
+`USE_FSRS=True` 时的 `FSRSManager`）」+「再抛一次」。
 
-> 这一段本身属于 ⑦ 声明的「工厂中段：只读证据覆盖、本卡未执行」范围——
-> 上表由读码得出，未在运行时观测过。
+两处会让上式失效，都不能省：
+- **graphiti 上次没成功** ⇒ 这次不是查表命中，而是**完整重试初始化**；
+- **`USE_FSRS=False` 或包装模块导入失败** ⇒ `create_fsrs_manager` 返 `None`，
+  新建对象降为 1（**注意不包括**「底层 py-fsrs 缺失」这一情形，见上框）。
+
+> **证据边界（Codex r4 LOW-5 更正）**：上表的「证据类型」列区分了两种情况——
+> 标「运行时自证」的三行是**单独对该依赖做过实例化探针**（`is`/`is-same` 实测）；
+> 标「读码」的两行只有源码依据。但**无论哪一行，本卡都没有执行过完整的
+> `get_review_service()` 工厂**（会连真服务，硬边界禁止），
+> 所以「工厂重入时这些对象各自会怎样」仍是**由单点实测 + 控制流拼出来的推演**，
+> 不是对工厂重入本身的观测。⑦ 的「工厂中段未执行」声明不变。
 
 ### 4.4 更正后的可用性表述
 
@@ -480,9 +510,14 @@ return FSRSStateQueryResponse(
    （`main.py:709-715`，只做 UTF-8 round-trip），整条异常消息前 500 字符进响应体。
    本卡实测原文含 `_CARD_STATES_FILE` 的**绝对路径**
    （`/Users/…/worktrees/card-t4-g3/backend/data/fsrs_card_states.json`）
-   ⇒ 任何能打到该端点的人都能读到部署布局。这不限于本异常——**凡是从路由或
-   更内层逸出、未被端点自己接住的异常**都走这条路（不含比它更外层的
-   Metrics / CORS / Encoding 三个中间件自身抛的异常，见 ③.3.3 的拓扑更正）。
+   ⇒ 任何能打到该端点的人都能读到部署布局。这不限于本异常，但**也不是「所有
+   未处理异常」**——准确范围是「从路由或更内层逸出、**既没被端点自己接住、
+   也没有已注册处理器**的异常」。两类不走这条路：
+   - **有已注册处理器的异常类型**：如 `review.py:1315` 的
+     `HTTPException(400)`，由更内层的 starlette `ExceptionMiddleware`
+     用默认处理器处理，根本到不了 CORS 中间件的 `except`（Codex r4 LOW-2）；
+   - **比它更外层的 Metrics / CORS / Encoding 三个中间件自身抛的异常**
+     （见 ③.3.3 的拓扑更正）。
 2. **意图与实现相反**：`generic_exception_handler` 的 `:210` docstring 明写
    `IMPORTANT: In production, this should NOT expose internal error details.`，
    `:261` 行内注释再复述一次。这份「不暴露」的设计意图**从未生效**，
@@ -815,7 +850,8 @@ grep -n 'clobbered = sorted' backend/app/services/review_service.py
 | ① lifespan grep | `evidence-u9c-eval/grep-main-20260916T144314.txt` |
 | ③ 初稿「先红」验伪锚（历史，结论已被推翻） | `evidence-u9c-eval/u9c-antigate-20260916T144639.txt` |
 | ③ 初稿 4 passed（历史） | `evidence-u9c-eval/pytest-u9c-20260916T144743.txt` |
-| ③④ **整改后 5 passed（当前）** | `evidence-u9c-eval/pytest-u9c-r2-20260916T190729.txt` |
+| ③④ r1 整改后 5 passed（历史，早于 r3/r4 整改） | `evidence-u9c-eval/pytest-u9c-r2-20260916T190729.txt` |
+| ③④ **最终 5 passed（绑最终代码态；`rc=` 当场取，见 §6.5）** | `evidence-u9c-eval/pytest-u9c-final-20260916T194319.txt` |
 | ④ 工厂链只读摘录 | `evidence-u9c-eval/factory-readonly-20260916T145559.txt` |
 | 7.4 pytest 零写实验 | `evidence-u9c-eval/zero-write-proof-20260916T190821.txt` |
 | (h) tests/unit 目录级 | `evidence-u9c-eval/unit-20260916T144844.txt` + `unit-{base,now}.nodeids` + `unit-new-red.txt`（空） |
