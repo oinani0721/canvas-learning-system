@@ -1,0 +1,21 @@
+# 配额「恢复」的实测 20260917T000718
+
+## 三次探测的对照
+  ① 23:53 r15 首发      → stderr 末行 = ERROR: You've hit your usage limit（几秒内 rc=1）
+  ② 23:53 最小探针      → 同样 usage limit, rc=1 ⇒ 当时判「真用尽」是**对的**
+  ③ 00:0x 最小探针复测  → **跑满 180s 未被拒**；stderr 里 usage limit 命中 = 0,
+                          末行变成 ERROR: Reconnecting... waiting for network
+
+## 判读
+  · 「几秒内 rc=1 + usage limit」= 配额用尽（硬拒）
+  · 「长时间不返回 + Reconnecting」= 网络/连接问题（可恢复）
+  ⇒ 两者**不是同一种失败**, 不能都读成「Codex 不可用」。
+  ⇒ 提示里的「Sep 19th 8:16 PM 恢复」**没有兑现**（几分钟后就不再硬拒）——
+    再次印证 memory 的「外部服务的重置时间是一次观测不是不变量」。
+
+## 本次处置
+  配额既已放行, 直接原样重发 r15（prompt 未改动, 保证与首发同题）。
+  ⛔ 如果当时按提示信了「3 天后恢复」而收工, 就会白白把一条本可取得的终审绑定丢掉。
+
+  当前 r15 stderr usage-limit 命中 = 0
+0（0 = 已放行）
