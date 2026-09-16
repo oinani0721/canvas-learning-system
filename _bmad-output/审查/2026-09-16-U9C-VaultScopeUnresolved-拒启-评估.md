@@ -17,10 +17,11 @@ U9-C 原立面「**CLI/后台无 vault 上下文实例化 ReviewService ⇒ 拒�
 
 该请求的后果**不是单一结论**，取决于两件事：
 
-- **端点是否把工厂调用包进 `try`**：没包 ⇒ 异常逸出到最外层中间件
-  `CORSExceptionMiddleware` ⇒ **500，且 `CARD-G3-5` 指引原文（含绝对路径）
-  就在响应体 `message` 里**；包了 ⇒ **HTTP 200** + `reason` 带同样的原文
-  （`/review/fsrs-state` 即如此，监控按状态码告警看不见）。
+- **该端点的 `except` 接不接 `VaultScopeUnresolved`**（不是「有没有 `try`」——
+  `/review/progress/multi` 有 `try` 但只接 `CanvasNotFoundException`）：
+  不接 ⇒ 异常逸出到 `CORSExceptionMiddleware` ⇒ **500，且 `CARD-G3-5` 原文
+  （含绝对路径）就在响应体 `message` 里**；接了且吞掉 ⇒ **HTTP 200** +
+  `reason` 带同样的原文（`/review/fsrs-state` 即如此，按状态码告警的监控看不见）。
 - **解析到哪个 vault**：同名冲突分支只查当前桶，换一个 vault 可能直接实例化成功，
   不必先跑迁移脚本。
 
@@ -97,7 +98,7 @@ grep -nc 'get_review_service\|ReviewService(\|review_service' backend/app/main.p
 | 触发者 | CLI / 后台脚本 | **HTTP 请求**（首个命中 `get_review_service()` 的那个） |
 | 失败时刻 | 进程启动期 | 请求处理期 |
 | 进程后果 | 起不来 | **照常起得来**，worker 不死 |
-| 用户可见 | 服务不可用 | 该请求 500；review 面**持续** 500（见 ④） |
+| 用户可见 | 服务不可用 | 视端点与 vault 而定：500 带原文 / 200 带原文 / 换 vault 可能正常（见 ④.4） |
 
 ---
 
@@ -222,8 +223,19 @@ user_middleware         = ['MetricsMiddleware', 'CORSMiddleware', 'EncodingValid
 `backend/app/main.py`：
 
 - `:634` `class CORSExceptionMiddleware(BaseHTTPMiddleware):`
-- `:757` `app.add_middleware(CORSExceptionMiddleware)` —— 注释 `:751` 写明
-  「**最外层，捕获所有异常**」（starlette 中后 add 的先执行）
+- `:757` `app.add_middleware(CORSExceptionMiddleware)`
+
+> ⚠️ **`main.py:751` 那条注释（「1. CORSExceptionMiddleware ← 最外层，
+> 捕获所有异常」）与代码不符，本文档初稿照抄了它**（Codex r2 LOW-1）。
+> 实测 `grep -n 'add_middleware' app/main.py`：`:757` 之后还有
+> `:762 EncodingValidationMiddleware`、`:767 CORSMiddleware`、`:779 MetricsMiddleware`。
+> starlette 里**后 add 的在更外层** ⇒ 实际从外到内是
+> **Metrics → CORS → Encoding → CORSException**。
+> ⇒ `CORSExceptionMiddleware` 是**最内层**的 user middleware，
+> 它接住的是「路由与更内层抛出的异常」；比它更外层的三个中间件自身抛的异常
+> 它接不到。本卡结论只依赖前者（`from_persisted` 在路由内抛），不受影响；
+> 但「捕获所有未处理异常」这个说法**过强**，已在本文档各处收窄。
+> 那条生产注释本身是否要改，属生产改动，不在本卡范围，登记移交。
 - `:694` `except Exception as e:` 接住一切
 - `:709-715` 消息提取：
   ```python
@@ -284,8 +296,24 @@ error_type key   = True (中间件独有字段)
 | `code+bug_id` 可作产出方指纹 | 称成立 | ❌ **不成立** —— 两层都有；`error_type` 才是 |
 
 ⇒ **U9-C 设计稿「请求 500 带 CARD-G3-5 消息」在生产栈上其实是对的**，
-本卡初稿对它的「一半成立」判定应予撤回。运维能从 HTTP 响应直接看到指引
-（含迁移脚本名与 `--vault-id` 用法），不必翻日志。
+本卡初稿对它的「一半成立」判定应予撤回。
+
+> ⚠️ **但「运维能从 HTTP 直接看到完整指引」这句不能说满**（Codex r2 LOW-4，本卡实算证实）：
+> `main.py:739` 取的是 `safe_message[:500]`，而同名冲突分支（`:593`）的消息长度
+> **随冲突键数量增长**。实算（5 个 36 字符 UUID 键，`scratchpad/probe_truncation.py`）：
+>
+> ```
+> len(msg) = 538
+> script name in full msg  = True
+> script name in msg[:500] = False        ← 被截断
+> tail of msg[:500]        = '…请先跑 backend/scripts/migrate_f'
+> '--vault-id' in full msg = False        ← 该分支原文本来就没有这个参数
+> ```
+>
+> 对照 None 分支（`:570`）：`len = 311`，脚本名与 `--vault-id` **都在** 500 字符内。
+> ⇒ 准确表述：**`:570` 分支能看到完整指引；`:593` 分支只在冲突键较少时能看到脚本名，
+> 且从来不含 `--vault-id`**。泄漏结论（绝对路径进响应体）不受影响，
+> 「完整操作指引」这一保证不成立。
 
 ⇒ 反过来，**评估文档 ⑤ 的议题 α 需要重新定性**：它不再是「要不要把指引
 暴露出来」（已经暴露了），而是「**暴露得太多**」——`str(e)` 未脱敏，消息里
@@ -330,9 +358,24 @@ error_type key   = True (中间件独有字段)
 
 初稿这句话三处都不准，实测三条反例：
 
-**(a) 端点把工厂调用包进 `try` 时 ⇒ 用户拿到的是 HTTP 200，不是 500。**
-`backend/app/api/v1/endpoints/review.py:1458` 在 `try` 内调
-`_get_review_service_singleton()`，`:1507` `except Exception as e:` 捕获后返回
+**(a) 后果取决于端点是否捕获**这个异常类型**——「有没有 `try`」不是判据。**
+
+> ⚠️ 上一轮整改把判据写成「包进 `try` 就是 200」——**仍然过强**
+> （Codex r2 MEDIUM-1）。反例：`/review/progress/multi/{path}`
+> （`review.py:1225` 起）**也**在 `try` 内调工厂，但它只
+> `except CanvasNotFoundException`（`:1230`），`VaultScopeUnresolved`
+> 直接穿过 ⇒ 仍是 500。
+> ⇒ 正确判据是「该端点的 `except` 子句**接不接这个异常类型**，以及接住后返回什么」。
+
+已实测的三种端点形态：
+
+| 端点 | 工厂调用位置 | `except` | 结果 |
+|---|---|---|---|
+| `/review/history`（`:693`） | `try` **之外** | — | 逸出 ⇒ 中间件 500 + 原文 |
+| `/review/progress/multi`（`:1225`） | `try` 内 | 只 `CanvasNotFoundException` | 穿过 ⇒ 中间件 500 + 原文 |
+| `/review/fsrs-state`（`:1458`） | `try` 内 | `except Exception`（`:1507`） | **HTTP 200** + `reason` 带原文 |
+
+第三种的返回体：
 
 ```python
 return FSRSStateQueryResponse(
@@ -359,22 +402,41 @@ return FSRSStateQueryResponse(
 （注意这不是好事：legacy 会被**推定**归进 B 桶并在下次落盘固化——
 正是 `from_persisted` docstring `:541-545` 警告的那个反例。）
 
-**(c) 依赖不会被重复建立，开销结论不成立。**
-初稿称「每次重入还会重建一遍 memory / canvas / graphiti 依赖，每个失败请求
-都付一次重依赖建立开销」。实测这些依赖工厂都是 singleton 快路径：
-- `memory_service.py:2908` `if _memory_service_instance is not None and _memory_service_instance._initialized: return _memory_service_instance`
-- `dependencies.py:779` `if _neo4j_temporal_client_instance is not None: return _neo4j_temporal_client_instance`
+**(c) 重入开销：部分复用、部分真重建——两种一刀切说法都不对。**
 
-⇒ 首次成功初始化后，后续重入**复用**已有实例；`ReviewService` 赋值失败
-不会清除它们。重入的真实开销是「再走一遍工厂函数体 + 再抛一次」，不是重建依赖。
+初稿称「每次重入会重建一遍 memory / canvas / graphiti 依赖」——过强。
+但上一轮整改改成「依赖都是 singleton，重入不重建」——**又过头了**
+（Codex r2 MEDIUM-2）。逐项实测：
+
+| 工厂内建立的东西 | 行 | 重入时 |
+|---|---|---|
+| `memory_client`（`await get_memory_service()`） | `memory_service.py:2908` 快路径 | **复用** singleton |
+| `graphiti_client`（`get_graphiti_temporal_client()`） | `dependencies.py:779` 快路径 | **复用** singleton |
+| `CanvasService` | `review_service.py:2976` 直接 `CanvasService(...)` | **每次新建** |
+| `BackgroundTaskManager` | `:2979` 直接 `BackgroundTaskManager()` | **每次新建** |
+| `FSRSManager` | `:2982 create_fsrs_manager(settings)` → `:756 FSRSManager(...)` | 启用且可用时**每次新建** |
+
+⇒ 重入的真实开销 = 「两个 singleton 查表命中」+「三个对象真新建」+「再抛一次」。
+既不是「全部重建」，也不是「全部复用」。
+
+> 这一段本身属于 ⑦ 声明的「工厂中段：只读证据覆盖、本卡未执行」范围——
+> 上表由读码得出，未在运行时观测过。
 
 ### 4.4 更正后的可用性表述
 
-> singleton 恒 `None` ⇒ 每个 review 请求都会重入工厂并重新触发实例化。
-> **用户看到什么，取决于两件事**：(1) 该请求解析到哪个 vault——换 vault 可能
-> 直接成功（4.3b）；(2) 该端点是否把工厂调用包进 `try`——包了就是 200 +
-> `reason` 带原文（4.3a），没包就是 500 + `message` 带原文（3.3）。
-> 只有在「同一 vault + 端点不捕获」这个交集上，才是持续 500。
+> singleton 恒 `None` ⇒ 每个 review 请求都会重入工厂并重新触发实例化
+> （这一条成立，见 4.2）。
+>
+> **但「用户看到什么」不是一个全局结论**，取决于两件事：
+>
+> 1. **该请求解析到哪个 vault** —— 同名冲突只查当前桶，换一个 vault 就可能
+>    直接实例化成功（4.3b），不必先跑迁移脚本；
+> 2. **该端点的 `except` 接不接 `VaultScopeUnresolved`** —— 不接（无论有没有
+>    `try`）⇒ 逸出到 `CORSExceptionMiddleware` ⇒ **500 + `message` 带原文**；
+>    接了且吞掉 ⇒ 如 `/review/fsrs-state` 那样返回 **HTTP 200 + `reason` 带原文**。
+>
+> ⇒ 「review 面持续 500 直到运维跑迁移脚本」**只在「同一 vault + 端点不接这个
+> 异常」这个交集上成立**，不能作为该面的整体描述。
 
 ## ⑤ legacy 兼容重做 = 设计级议题（D-38，登记不排本批）
 
@@ -418,14 +480,25 @@ return FSRSStateQueryResponse(
   用户 2026-09-09 裁定 ③「缩小本卡」，只保留键化核心（vault 分桶 + fail-closed + 迁移器），
   legacy 兼容整体移交。该裁定的原文就写在 `from_persisted` 的 docstring 里（**`:530-534`**）。
 - **现状**：当前口径是「凡是归不掉的 legacy 一律 fail-fast」——**最简且可证**，
-  代价是可用性（④：整片持续 500）。
+  代价是可用性（④.4：在「同一 vault + 端点不接该异常」的交集上持续 500；
+  其余形态是 200 带原文，或换 vault 后正常）。
 - **D-38 裁定**：作为**设计级**议题登记，**不排第十四批**。
 
 ### 移交建议
 
-α 与 β **可以分开裁**：α 是小改动（加一个 handler）、只改可观测性；
-β 是大改动、改数据处置语义。建议先裁 α（若用户认为「运维看不到指引」是真问题），
-β 单独立卡走完整设计流程。
+α 与 β **可以分开裁**，但 α **不是**「加一个 handler」那么小：
+
+> ⚠️ Codex r2 MEDIUM-3 指出、本卡新测试**自己就是反例**：
+> `test_production_stack_exposes_message_in_500_body` 的配置正是
+> 「先 `register_exception_handlers`，再挂真中间件」，结果**仍返回原文**。
+> ⇒ **只把现有 `generic_exception_handler` 接上，不会改变这条路由异常的响应**
+> （中间件在更内层先接住），也管不到 `/review/fsrs-state` 已吞异常后的 200。
+
+α 的真实工作量 = 至少三处一起裁（见上），而且要先确定「不暴露内部细节」
+这份设计意图是**要落地**还是**已作废**。建议：
+- 先裁**意图**（一句话决策：异常原文该不该进 HTTP 响应），再谈实现；
+- β 大改数据处置语义，单独立卡走完整设计流程；
+- 两者都不在第十四批（D-38）。
 
 ---
 
@@ -569,7 +642,25 @@ echo "rc=$RC" | tee -a "../$UNIT"
 
 > 同族已登记教训：`reference_pipeline_eats_rc_three_times`。本卡是第四次。
 
-### 6.6 行号偏移汇总（勘探 → 本树实测）
+### 6.7 ⛔ 一条**不采纳**的审查意见（如实记录，附实测依据）
+
+Codex r2 LOW-2 末句称：「另一个小行号偏差：冲突条件实际在 `:590`，
+不是说明中的 `:589`。」——**本卡不采纳这一条**，实测如下：
+
+```zsh
+grep -n 'clobbered = sorted' backend/app/services/review_service.py
+# → 589:        clobbered = sorted(cid for cid in legacy if cid in bucket)
+```
+
+`:589` 是**冲突集合的计算行**（本文档与测试 docstring 引用的就是它），
+`:590` 是紧随其后的 `if clobbered:` 判定行。两者都对，取决于指的是哪一行；
+本卡引用的是计算行，没有写错。
+
+> 记这一条不是为了争对错，而是留下一个**审查意见也需要复核**的样本：
+> 本卡对 r1/r2 的其余全部 finding 都逐条实测后采纳（并有两条在实测中被加强），
+> 唯独这一条经 `grep -n` 实测判定不成立。**照单全收和一概不收都不是复核。**
+
+### 6.8 行号偏移汇总（勘探 → 本树实测）
 
 | 锚点 | 勘探 recon C | 本树实测 | 偏移 |
 |---|---|---|---|

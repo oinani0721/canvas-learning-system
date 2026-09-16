@@ -122,9 +122,10 @@ class TestConstructionLayerRaises:
     两处均在 `ReviewService.__init__ :850 → _load_card_states :876 → :893`
     这条实例化链上，故「拒启」的源头在实例化期而不是请求逻辑期。
 
-    本组**改前跑即绿**（零生产改动，钉的是既有行为）；判据的可判定性由
-    `test_no_legacy_does_not_raise` 这条负控承担 —— 若把断言误写成无条件
-    抛出，负控必红。
+    本组**改前跑即绿**（零生产改动，钉的是既有行为）。判据的可判定性由
+    `test_no_legacy_does_not_raise` 这条对照输入承担，但它的覆盖面是**有限的**
+    ——只接得住「入口处 / legacy 分支之前」的无条件抛出，接不住 legacy 分支
+    内部判定被改成恒真。完整的「谁接住什么」逐条列在该用例自己的 docstring 里。
     """
 
     def test_unresolved_scope_raise_carries_card_g3_5(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -243,9 +244,14 @@ def _build_probe_app(
     app = FastAPI()
     exception_handlers.register_exception_handlers(app)
     if with_production_middleware:
-        # 复刻 main.py:757 的注册。⚠️ 它是**最外层** user middleware
-        # （最后 add 的最先执行），会先于 starlette 的 ServerErrorMiddleware
-        # 接住异常 —— 也就是先于 generic_exception_handler。
+        # 复刻 main.py:757 的注册。它比 starlette 的 ServerErrorMiddleware
+        # 更靠内，会先接住路由抛出的异常 —— 也就是先于 generic_exception_handler。
+        #
+        # ⚠️ 生产 main.py:751 的注释写「CORSExceptionMiddleware ← 最外层」是
+        # **错的**：:757 之后还 add 了 Encoding(:762) / CORS(:767) / Metrics(:779)，
+        # 后 add 的在更外层，实际从外到内是 Metrics → CORS → Encoding →
+        # CORSException。它其实是**最内层**的 user middleware。这不影响本用例
+        # （路由抛的异常它照样先接住），但「捕获所有未处理异常」这个说法过强。
         from app.main import CORSExceptionMiddleware
 
         app.add_middleware(CORSExceptionMiddleware)
@@ -280,8 +286,8 @@ class TestHttpLayerMasksMessage:
          `WebSocketRequestValidationError` —— **没有 `Exception`**。
          ⇒ `generic_exception_handler` 在生产 app 上这条路径是死代码。
       2. 即便它被注册，也轮不到它：`CORSExceptionMiddleware`
-         （`main.py:634` 定义、`:757` 注册，是**最外层** user middleware）
-         的 `except Exception`（`:694`）会先接住，返回
+         （`main.py:634` 定义、`:757` 注册）的 `except Exception`（`:694`）
+         会先接住，返回
          `{"code":500, "message": str(e)[:500], "error_type":..., "bug_id":...}`
          （`:738-741`；`safe_message` 在 `:709-715` 就是 `str(e)` 的 UTF-8
          round-trip，**无脱敏**）。
@@ -371,6 +377,13 @@ class TestHttpLayerMasksMessage:
           1. 中间件确实在 handler 之前接住（`error_type` 键在 ⇒ 产出方是中间件）；
           2. `safe_message` 未脱敏 ⇒ 指引原文（含迁移脚本名）随 500 返回；
           3. 进程照常服务后续请求。
+
+        ⚠️ **第 2 条的覆盖边界**：本用例走 `:570` 分支（单个 legacy 键），
+        消息长 311 字符，完整落在 `main.py:739` 的 `safe_message[:500]` 内。
+        **同名冲突分支（`:593`）的消息会随冲突键数量增长而被截断** —— 实算
+        5 个 36 字符 UUID 键时长 538 字符，脚本名被切成 `migrate_f`，
+        且该分支消息本来就不含 `--vault-id`（评估文档 ③.3.5）。
+        故本条证明的是「未脱敏、原文进体」，**不是**「运维总能拿到完整指引」。
 
         ⚠️ 若将来采纳评估文档议题 α（给 `VaultScopeUnresolved` 加专用处理器
         并让生产真正 `register_exception_handlers`），本条与上一条的断言方向
