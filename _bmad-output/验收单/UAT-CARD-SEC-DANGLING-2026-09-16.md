@@ -401,6 +401,14 @@ prompt 已写好并绑定 r3 commit：`_bmad-output/审查/prompts/codex-prompt-
 
 **两次发送均失败**，记录 `codex-r3-quota-failure-20260916T235911.txt`：两次都是 `codex_rc=1`、产出 `.md` **0 字节**，stderr 逐字为 `ERROR: You've hit your usage limit.`；会话头自证 `.stderr:2/:5/:9` 为 `OpenAI Codex v0.153.3` / `model: gpt-6-astra` / `reasoning effort: ultra`（即模型与 effort 都对，是配额不是配置问题）。
 
+**第三次：跨时段独立复测 + 排除替代解释**，记录 `codex-r3-quota-recheck-20260917T001432.txt`。按本仓教训「外部服务报的重置时间是**一次观测**不是不变量」（R-05），没有继承 23:58 那两次的结论，而是在约 15 分钟后用一个极小 prompt 重探：
+
+- `probe_rc=1`，最终仍落在 `usage limit`；过程中先出现数分钟 `ERROR: Reconnecting... waiting for network` 循环（stderr 持续写入 = 活着但不推进，本仓已知形态）。
+- **排除「网络问题」这一替代解释**：同一时刻 `curl` 实测 `chatgpt.com` http=403 / 1.29s、`raw.githubusercontent.com` http=301 / 1.19s —— 网络秒级响应。⇒ `Reconnecting` 是 codex 侧重试噪声，根因是配额。
+- **旁证（非本卡因素）**：该时刻本机 **39 个 codex 进程** —— 本批 10 条车道并发共用同一账号配额。同批 T7-C 也撞上同一堵墙。
+
+⇒ 三次独立观测一致，且第三次带网络对照。本车道做到「1 次重发 + 1 次跨时段复测 + 1 条替代解释排除」，超出协议要求的最低限度；**仍不据 `Sep 19th` 那个时刻做任何推断**（它同样只是一次观测）。
+
 按协议 §四「**0 字节存档重发一次，再 0 字节 → 主 session 人审替代，不等配额**」：**本卡 r3 不再重试，交主 session 人审。**
 
 > 那条 0 字节产物已从复核存档命名空间移出并改名为 `evidence-sec-dangling/codex-r3-EMPTY-quota-failed-no-review.md`，且写入了「本文件不是复核意见」的说明行 —— 避免主 session 的 D-15 存档扫描把它当成一轮复核（本树 guard hook 禁 `rm`，故用改名 + 标注代替删除）。
@@ -416,6 +424,36 @@ prompt 已写好并绑定 r3 commit：`_bmad-output/审查/prompts/codex-prompt-
 **考虑过但未采用的另一条路（决策留痕）**：同批 T7-C 遇到同一配额墙时用的解法是「把代码树回审版化，使 `git diff <审SHA> HEAD` 为空」，从而让上一轮复核绑住最终 HEAD。本卡**不取**该解法，理由是它在这里会产生相反的效果：r3 改的每一项**都是 Codex r2 自己提出、且被采纳的意见**（`x-*` 容器层误计、docstring 主张过强、验伪锚不可独立复核、W4 记账缺两阶段、长跑复用理由过强）。把树回退到 r2 版 = 让 r2 的复核绑住一份**仍带着它自己刚指出的那些缺陷**的代码。⇒ 宁可保留改进、如实标注「该轮未复核」交主 session 裁，也不为了让流程好看而把已确认的缺陷改回去。
 
 **未证明（如实）**：r3 这一轮**没有**独立复核。按协议 §1「不入库的复核不作依据」，本车道不以任何未落盘的自查充当该轮复核；上表裁判是**作者自跑的判据**，不是第三方复核。
+
+### ⛳ 一步闭环用的交接（给主 session / 配额恢复后接手的人）
+
+卡文 (k) 的终点是「绑**最终 HEAD** 的一轮 BLOCKER/HIGH = 0」。当前差的就是这一轮。prompt 已在盘上且已绑最终 HEAD，**原样重发即可**，无需重写：
+
+```bash
+cd /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-bugs
+codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" \
+  "$(cat _bmad-output/审查/prompts/codex-prompt-CARD-SEC-DANGLING-r3.md)" \
+  > _bmad-output/审查/codex-review-CARD-SEC-DANGLING-r3.md \
+  2> _bmad-output/审查/codex-review-CARD-SEC-DANGLING-r3.stderr </dev/null
+echo "codex_rc=$?"; wc -c _bmad-output/审查/codex-review-CARD-SEC-DANGLING-r3.md
+```
+
+**发之前先核这一条**（prompt 里写死的 `__REVIEW_SHA__` 已替换为 `9861c595…`，若此后又有代码 commit 就不再绑最终 HEAD）：
+
+```bash
+git --no-pager diff --stat --no-color 9861c59598ca350ca7df10921744292b0deffb41 HEAD -- . ':(exclude)_bmad-output'
+# 期望：空。非空 ⇒ 先把 prompt 里的两个 SHA 换成新的最终 HEAD 再发。
+```
+
+**三种结果的处置**：
+
+| 结果 | 处置 |
+|---|---|
+| 存档非 0 字节且 **BLOCKER 0 / HIGH 0** | 补协议 §2.1 六行首部（会话头自证抄 `.stderr` 的 `:2`/`:5`/`:9` 三行并括注行号，与 r1/r2 两份同形），卡文 (k) 即闭合；本卡轮次 = 3，未触 5 轮上限 |
+| 存档非 0 字节但有 HIGH | 按 D-15「审后改代码必再送一轮」处理；注意本卡已用 3 轮，剩 2 轮 |
+| 仍 0 字节 | 维持本节的人审路径；**不要**为了让流程好看而把 r3 的代码回退成 r2 版（理由见上方「考虑过但未采用的另一条路」） |
+
+**人审时的最小核对面**（若走人审而非重发）：`git diff 76a602c4 <最终 HEAD> -- . ':(exclude)_bmad-output'` 只有一个测试文件；配套判据见上方 round-3 表的六份存档；三条交接要点见上方「交给主 session 人审时请对照这三点」。
 
 ## 八 提交
 
