@@ -5315,10 +5315,14 @@ def _py_call_count(block: str, func: str) -> int:
     #    「调用在但控制流走不到」的一般情形 AST 判不了（需要可达性分析），已如实登记移交。
     dead = set()
     for node in ast.walk(tree):
-        if isinstance(node, ast.If) and isinstance(node.test, ast.Constant) and not node.test.value:
-            for sub in node.body:
-                for d in ast.walk(sub):
-                    dead.add(id(d))
+        if not (isinstance(node, ast.If) and isinstance(node.test, ast.Constant)):
+            continue
+        # ⛔ Codex r6 MEDIUM-2：**对称的那一半**也要剪 —— `if True: pass` 的 `else` 同样是死代码。
+        #    只剪 `if False:` 的 body 时，`if True: pass\nelse: guard()` 仍被数成 1 = 假绿。
+        branch = node.orelse if node.test.value else node.body
+        for sub in branch:
+            for d in ast.walk(sub):
+                dead.add(id(d))
     n = 0
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call) or id(node) in dead:
@@ -5406,9 +5410,18 @@ def test_codex_publishers_judge_the_real_write_target(tmp_path: Path):
     assert invocations.count("fd, ()") == 3, f"写前判文件 fd 的次数不对（期望 3）: {invocations}"
     # ⛔ Codex r5 BLOCKER-1 后半：守卫**拒绝之后**失败清理不得再写 —— 写前那三处必须走
     #    会置 `refused` 的 `_refuse`，且两个程序块的清理分支都要判 `refused`。
+    # ⛔ Codex r6 HIGH-1：清理从「黑名单（拒绝过就不写）」改成**白名单**（守卫**正常返回**过才敢写）——
+    #    黑名单漏掉「守卫自己抛异常」那条路（问不出 fd 路径时抛 OSError，标志仍是 False）。
     for tag in ("PYCFG", "PYSEC"):
-        assert "not refused" in blocks[tag], f"{tag} 的失败清理没判 refused（拒绝后仍会写）"
-    assert _decomment(raw).count("live, _refuse)") == 3, "写前守卫没走会置 refused 的那条"
+        b = _decomment(blocks[tag])
+        assert "cleanup_allowed = False" in b, f"{tag} 的清理开关没有**默认关**"
+        assert "and cleanup_allowed" in b, f"{tag} 的失败清理没判 cleanup_allowed"
+        assert "not refused" not in b, f"{tag} 还留着旧的黑名单写法"
+        # 解禁必须**紧跟在守卫之后**，不能提前置 True
+        i_guard = b.index("_refuse_if_forbidden(fd, (), live, _refuse)")
+        i_open = b.index("cleanup_allowed = True")
+        assert i_open > i_guard, f"{tag} 在守卫之前就解禁了清理"
+    assert _decomment(raw).count("live, _refuse)") == 3, "写前守卫没走 _refuse 那条"
     # 验伪锚（两向）：对已知调用取得出完整参数；对函数**定义**行不命中。
     assert pat.findall('_refuse_if_forbidden(vfd, ("x",), live, die)') == ['vfd, ("x",)']
     assert pat.findall("def _refuse_if_forbidden(fd, names, live, say):") == []
@@ -5517,6 +5530,9 @@ def test_structural_gates_are_not_fooled_by_comments_or_strings():
     as_comment = "pass  # _refuse_if_forbidden(v, (), l, d)\npass  # fcntl.flock(fd, fcntl.LOCK_EX)"
     as_string = '"_refuse_if_forbidden(v, (), l, d)"\n"fcntl.flock(fd, fcntl.LOCK_EX)"'
     as_dead = "if False:\n    _refuse_if_forbidden(v, (), l, d)\n    fcntl.flock(fd, fcntl.LOCK_EX)"
+    as_dead_else = (
+        "if True:\n    pass\nelse:\n    _refuse_if_forbidden(v, (), l, d)\n    fcntl.flock(fd, fcntl.LOCK_EX)"
+    )
     # 正例：真实调用必须被数到
     assert _py_call_count(real, "_refuse_if_forbidden") == 1
     assert _py_call_count(real, "flock") == 1
@@ -5533,6 +5549,9 @@ def test_structural_gates_are_not_fooled_by_comments_or_strings():
     # 反例 ③（Codex r5 的变异）：`if False:` —— Call 节点还在，只数节点仍会假绿
     assert _py_call_count(as_dead, "_refuse_if_forbidden") == 0, "常量假分支里的调用被数进来 = 假绿"
     assert _py_call_count(as_dead, "flock") == 0, "常量假分支里的锁被数进来 = 假绿"
+    # 反例 ④（Codex r6 的变异）：`if True: pass` 的 **else** —— 对称的另一半死代码
+    assert _py_call_count(as_dead_else, "_refuse_if_forbidden") == 0, "常量真分支的 else 被数进来 = 假绿"
+    assert _py_call_count(as_dead_else, "flock") == 0, "常量真分支的 else 被数进来 = 假绿"
 
 
 def test_codex_template_rejects_truncation_before_url_line(tmp_path: Path):
@@ -5603,14 +5622,26 @@ def test_codex_publishers_use_nofollow_any_for_multiseg_paths():
        结构门钉住的是「所有多段路径 open 都换过来了」。
     ⚠️ 两个 flag **不能同时带**（本机实测 EINVAL），所以这里也断言没有同时出现。
     """
+    # ⛔ Codex r6 MEDIUM-1：**两条拒绝条件都是否定式** —— 把 `| _NOFOLLOW_ANY` 整个删掉
+    #    （常量定义留着）之后，两条都不命中、门照样绿。改成**正向逐处检查**：
+    #    每一处 `os.open(` 的 flags 里都必须**有** `_NOFOLLOW_ANY`。
     blocks = _py_blocks(_sh_src())
+    opens = []
     for tag in ("PYCFG", "PYSEC"):
-        code = _decomment(blocks[tag])
-        for ln in code.splitlines():
-            if "os.open(" not in ln:
-                continue
-            if "os.O_NOFOLLOW" in ln and "_NOFOLLOW_ANY" not in ln:
-                pytest.fail(f"{tag} 仍有裸 O_NOFOLLOW 的 open（中间段软链会被跟随）: {ln.strip()}")
-            if "os.O_NOFOLLOW " in ln and "_NOFOLLOW_ANY" in ln:
-                pytest.fail(f"{tag} 同时带了两个 flag（本机实测 EINVAL）: {ln.strip()}")
-    assert "_NOFOLLOW_ANY = 0x20000000 if sys.platform" in _sh_src(), "常量定义不在（或平台判丢了）"
+        for ln in _decomment(blocks[tag]).splitlines():
+            if "os.open(" in ln:
+                opens.append((tag, ln.strip()))
+    assert len(opens) >= 4, f"codex 两个发布器的 open 点少于 4 处（锚点漂了？）: {opens}"
+    for tag, ln in opens:
+        assert "_NOFOLLOW_ANY" in ln, f"{tag} 有一处 open 没带 _NOFOLLOW_ANY（中间段软链会被跟随）: {ln}"
+        assert "os.O_NOFOLLOW " not in ln and "os.O_NOFOLLOW|" not in ln, (
+            f"{tag} 同时带了两个 flag（本机实测 EINVAL）: {ln}"
+        )
+    # ⛔ Codex r6 BLOCKER-2：非 Darwin 必须 **fail-closed**，不是静默退回 O_NOFOLLOW。
+    src = _decomment(_sh_src())
+    assert "_NOFOLLOW_ANY = 0x20000000" in src, "常量定义不在"
+    assert 'if sys.platform == "darwin" else os.O_NOFOLLOW' not in src, (
+        "非 Darwin 仍在静默退回 O_NOFOLLOW —— 那等于把中间段软链的洞重新打开"
+    )
+    assert src.count("def _require_darwin(") == 2, "平台门函数不在（或份数不对）"
+    assert src.count("_require_darwin(die)") == 2, "两个发布器都必须在任何写之前过平台门"

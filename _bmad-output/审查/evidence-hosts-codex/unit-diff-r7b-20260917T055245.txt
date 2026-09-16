@@ -1,0 +1,10 @@
+### (h) nodeid diff r7b（重跑）  RUN=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t2-deploy/_bmad-output/审查/evidence-hosts-codex/unit-close-r7b-20260917T054752.txt
+= 35 failed, 5077 passed, 48 skipped, 23 xfailed, 171 warnings, 29 errors in 266.88s (0:04:26) =
+rc=1
+FAILED tests/unit/__probe__.py::t - X
+anchor1_rc=0
+anchor2_rc=0（必须 0；上一跑正是这里 rc=1 暴露了没跑成）
+close=64  base=64
+diff_rc=0
+'<' = 0
+'>' = 0  （>0 = 阻断）

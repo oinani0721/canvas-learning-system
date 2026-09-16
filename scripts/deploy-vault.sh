@@ -1711,9 +1711,19 @@ from cls_forbidden_paths import ForbiddenPath, build_targets, hits, open_pinned,
 #: 本卡实测（`evidence-hosts-codex/nofollow-any-probe-*.txt`）：`.codex` 是指向保护面的软链时,
 #: 只带 O_NOFOLLOW ⇒ **文件被建进保护面**; 带 O_NOFOLLOW_ANY ⇒ ELOOP; **两个同时带 ⇒ EINVAL**
 #: （所以是替换不是叠加）; 正常非软链路径不误拒; 叶子本身是软链时它同样 ELOOP（是 O_NOFOLLOW 的超集）。
-#: ⚠️ 这是 Darwin 专有 flag。非 Darwin 上退回 O_NOFOLLOW —— 本脚本本来就是 macOS 专用
-#: （Bash 3.2 行为、`docker compose ls` 口径都钉在本机）, 但退化面如实写在这里, 不假装它跨平台。
-_NOFOLLOW_ANY = 0x20000000 if sys.platform == "darwin" else os.O_NOFOLLOW
+#: ⛔ Darwin 专有。**非 Darwin 一律 fail-closed**（Codex r6 BLOCKER-2）：
+#: 原来写成「退回 O_NOFOLLOW」——那等于在非 macOS 上**把中间段软链的洞重新打开**,
+#: 而注释里的「本脚本是 macOS 专用」是句说明, **不是一道执行门**。
+#: 这里在任何 mkdir/open 之前就拒, 保证「拿不到这个保证就一个字节都不写」。
+_NOFOLLOW_ANY = 0x20000000
+
+
+def _require_darwin(say):
+    if sys.platform != "darwin":
+        say(
+            "本发布器依赖 Darwin 专有的 O_NOFOLLOW_ANY 才能挡住多段路径的中间软链; "
+            "当前平台 %s 上拿不到这个保证, 拒绝写任何东西（fail-closed）" % sys.platform
+        )
 
 
 def _fd_realpath(fd):
@@ -1763,6 +1773,9 @@ def die(msg):
     print(msg, file=sys.stderr)
     sys.exit(1)
 
+
+# ⛔ 平台门放在**最前面**：任何 mkdir/open 之前（Codex r6 BLOCKER-2）。
+_require_darwin(die)
 
 body = sys.stdin.buffer.read()
 # 空正文一律拒（与 publish_agents_md 同律）：上游没把内容送进来时落一个 0 字节文件
@@ -1830,15 +1843,14 @@ CFG_REL = ".codex/config.toml"
 dst = f"{vault}/{CFG_REL}"
 fd = None
 ok = False
-#: 守卫拒绝过 ⇒ 下面的失败清理**一个字节都不许写**（Codex r5 BLOCKER-1 后半）。
-#: 原来 `die()` 之后 `finally` 照样 ftruncate + write_all(标记) —— 那是**守卫已经说不行之后**
-#: 仍然发生的写入, 而且正好落在它刚判定为禁写面的那个对象上。
-refused = False
+#: ⛔ 失败清理**默认禁写**, 只有落点守卫**正常返回**之后才解禁（Codex r6 HIGH-1）。
+#: 原来用的是「拒绝过就不清理」的黑名单 —— 漏掉了守卫**自己抛异常**那条路
+#: （`_fd_realpath` 问不出路径时抛 OSError, 没走 `_refuse`, 标志仍是 False）⇒
+#: 「落点根本没确认」的情况下照样截断并写标记。改成白名单：确认过才敢动。
+cleanup_allowed = False
 
 
 def _refuse(msg):
-    global refused
-    refused = True
     die(msg)
 try:
     try:
@@ -1894,6 +1906,7 @@ try:
     # ⛔ Codex r4 BLOCKER：**写第一个字节之前**再判一次 —— 判的是刚建出来的那个文件
     #    fd 自己的物理路径。open 与这一步之间若已被搬走, 这里如实失败, 文件仍是 0 字节。
     _refuse_if_forbidden(fd, (), live, _refuse)
+    cleanup_allowed = True  # 落点已确认 ⇒ 失败清理可以动这个 fd
     write_all(fd, body)
     os.fsync(fd)
     # 写完核身份：这个 fd 指向的必须仍是 `config.toml` 这个名字下的那个 inode, 且 nlink==1。
@@ -1912,10 +1925,11 @@ try:
     ok = True
 finally:
     if fd is not None:
-        if not ok and not refused:
+        if not ok and cleanup_allowed:
             # 写到一半失败 ⇒ 对**同一个 fd** 截断并写一行自解释标记（零路径解析）。
-            # ⛔ `refused` 时**跳过整段清理**：守卫已经判定这个落点在禁写面, 再写标记就是
-            #    「拒绝之后仍然写」（Codex r5 BLOCKER-1 后半）。只关 fd。
+            # ⛔ 清理是**白名单**：只有落点守卫**正常返回**过（`cleanup_allowed`）才敢动这个 fd。
+            #    守卫拒绝、或它自己抛异常（问不出路径）时一律只关 fd —— 在「落点没确认」
+            #    的情况下截断并写标记，正是 Codex r5/r6 连着点的那条。
             # O_EXCL 保证它是本次新建的, 但写入期间仍可能被 link 出第二个名字,
             # 那时截断会削到共享 inode ⇒ 先查 nlink。
             # ⛔ 标记不能省（Codex r1 MEDIUM）：只截断到 0 字节的话, 下次跑会走
@@ -1981,9 +1995,19 @@ from cls_forbidden_paths import ForbiddenPath, build_targets, hits, open_pinned,
 #: 本卡实测（`evidence-hosts-codex/nofollow-any-probe-*.txt`）：`.codex` 是指向保护面的软链时,
 #: 只带 O_NOFOLLOW ⇒ **文件被建进保护面**; 带 O_NOFOLLOW_ANY ⇒ ELOOP; **两个同时带 ⇒ EINVAL**
 #: （所以是替换不是叠加）; 正常非软链路径不误拒; 叶子本身是软链时它同样 ELOOP（是 O_NOFOLLOW 的超集）。
-#: ⚠️ 这是 Darwin 专有 flag。非 Darwin 上退回 O_NOFOLLOW —— 本脚本本来就是 macOS 专用
-#: （Bash 3.2 行为、`docker compose ls` 口径都钉在本机）, 但退化面如实写在这里, 不假装它跨平台。
-_NOFOLLOW_ANY = 0x20000000 if sys.platform == "darwin" else os.O_NOFOLLOW
+#: ⛔ Darwin 专有。**非 Darwin 一律 fail-closed**（Codex r6 BLOCKER-2）：
+#: 原来写成「退回 O_NOFOLLOW」——那等于在非 macOS 上**把中间段软链的洞重新打开**,
+#: 而注释里的「本脚本是 macOS 专用」是句说明, **不是一道执行门**。
+#: 这里在任何 mkdir/open 之前就拒, 保证「拿不到这个保证就一个字节都不写」。
+_NOFOLLOW_ANY = 0x20000000
+
+
+def _require_darwin(say):
+    if sys.platform != "darwin":
+        say(
+            "本发布器依赖 Darwin 专有的 O_NOFOLLOW_ANY 才能挡住多段路径的中间软链; "
+            "当前平台 %s 上拿不到这个保证, 拒绝写任何东西（fail-closed）" % sys.platform
+        )
 
 
 def _fd_realpath(fd):
@@ -2034,6 +2058,9 @@ def die(msg):
     sys.exit(1)
 
 
+# ⛔ 平台门放在**最前面**：任何 open 之前（Codex r6 BLOCKER-2）。
+_require_darwin(die)
+
 body = sys.stdin.buffer.read()
 if not body.strip():
     die("Codex 段正文为空, 拒绝写入（上游没把内容送进来）")
@@ -2058,13 +2085,11 @@ except OSError as exc:
 fd = None
 created = False
 ok = False
-#: 守卫拒绝过 ⇒ 失败清理**一个字节都不许写**（Codex r5 BLOCKER-1 后半）。
-refused = False
+#: ⛔ 失败清理**默认禁写**, 只有落点守卫正常返回之后才解禁（Codex r6 HIGH-1）。
+cleanup_allowed = False
 
 
 def _refuse(msg):
-    global refused
-    refused = True
     die(msg)
 #: 追加前的文件长度 —— 追加失败时回滚到它。⛔ Codex r1 MEDIUM：不回滚的话，
 #: 「只写进半个首锚」（例如 `\n<!-- cls-codex`）留下的残件下次跑**认不出来**：
@@ -2101,6 +2126,7 @@ try:
         # ⛔ Codex r4 BLOCKER（同一条）：写第一个字节之前, 判一次刚拿到的**文件 fd** 的物理路径。
         #    open 与这一步之间若目录已被搬走, 这里如实失败（新建的那份仍是 0 字节, 由清理兜）。
         _refuse_if_forbidden(fd, (), live, _refuse)
+        cleanup_allowed = True  # 落点已确认 ⇒ 失败清理可以动这个 fd
         write_all(fd, head_mark + b"\n\n" + body)
     else:
         # ── 分支 B：已存在 ⇒ 只在它是**我们生成的**时候追加 ─────────────────
@@ -2125,6 +2151,7 @@ try:
             die(f"给 AGENTS.md 上排他锁失败, 不敢在无锁下追加: {dst} ({exc})")
         # ⛔ Codex r4 BLOCKER（同一条）：动它之前判一次这个 fd 的物理路径。
         _refuse_if_forbidden(fd, (), live, _refuse)
+        cleanup_allowed = True  # 落点已确认
         st = os.fstat(fd)
         if not statmod.S_ISREG(st.st_mode):
             die(f"AGENTS.md 不是普通文件, 不敢往里写: {dst}")
@@ -2180,16 +2207,16 @@ try:
     ok = True
 finally:
     if fd is not None:
-        if not ok and created and not refused:
+        if not ok and created and cleanup_allowed:
             # 本次新建的那份失败 ⇒ 截空（O_EXCL 保证它是我们建的）。
-            # ⛔ `refused` 时跳过：守卫已判该落点在禁写面, 再截断就是「拒绝之后仍然写」。
+            # ⛔ 白名单：只有落点守卫正常返回过才敢截断（守卫拒绝或自己抛异常时都不动）。
             try:
                 if os.fstat(fd).st_nlink != 1:
                     raise OSError("半成品已被加上硬链接, 不敢截断（会改到共享 inode）")
                 os.ftruncate(fd, 0)
             except OSError as exc:
                 print(f"清理半成品失败, 文件内容不可信: {dst} ({exc})", file=sys.stderr)
-        elif not ok and keep_size is not None and not refused:
+        elif not ok and keep_size is not None and cleanup_allowed:
             # ⛔ 追加失败 ⇒ **回滚到追加前的长度**（Codex r1 MEDIUM）。
             #    原来这里什么都不做, 理由是「截断会毁掉用户已有内容」—— 那个理由只对
             #    「截到 0」成立；截回 keep_size 恰恰是**恢复**原有内容（O_APPEND 只往

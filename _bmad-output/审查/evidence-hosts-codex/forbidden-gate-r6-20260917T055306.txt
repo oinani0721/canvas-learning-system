@@ -1,0 +1,13 @@
+### (i)+硬边界 r6
+HIT --vault /Users/Heishing/.codex（mkdir -p 会创建的中间段 /Users/Heishing/.codex）
+rc_neg=1
+OK --vault
+rc_anchor=0
+开工 config sha: 579fc8ed7545bafb1055e689ee9adc0cca00aa3070b6ed8ca825e86cff7f149f  /Users/Heishing/.codex/config.toml
+现在 config sha: 579fc8ed7545bafb1055e689ee9adc0cca00aa3070b6ed8ca825e86cff7f149f  /Users/Heishing/.codex/config.toml
+现在 auth  sha : 19f3be27e1421fcd8e5a4bf0ab619ba9d6973de575b664c4c259e7e45e269a0c  /Users/Heishing/.codex/auth.json
+  scripts/cls_forbidden_paths.py                           0
+  scripts/verify_vault_install.py                          0
+  scripts/install-vault.sh                                 0
+  backend/tests/unit/test_vault_install_manifest.py        0
+  .claude/skills/deploy-vault/SKILL.md                     0
