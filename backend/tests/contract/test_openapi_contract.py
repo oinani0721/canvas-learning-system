@@ -200,9 +200,9 @@ class TestCanvasWorkflow:
 #
 # [BATCH-2026-09-11-第十四批 / CARD-SEC-DANGLING]
 #
-# 本门证明什么: 真实 `app.openapi()` 里**每一处** `security` 引用(31 处 per-operation +
-#   1 处文档根全局)的方案名都能在 `components.securitySchemes` 找到定义 —— 即契约零悬空。
-#   覆盖面的完整性依据见 `_iter_security_refs` 的 docstring(本仓快照普查实测)。
+# 本门证明什么: 真实 `app.openapi()` 里每一处**内联** `security` 引用(本仓现为 31 处
+#   per-operation + 1 处文档根全局)的方案名都能在 `components.securitySchemes` 找到定义
+#   —— 即契约零悬空。覆盖面的边界(尤其 `$ref` 不解析)见 `_iter_security_refs` 的 docstring。
 # 本门不证明什么:
 #   - 不验证运行时鉴权行为(`require_internal_api_key` 的 fail-closed matrix / 403 / 503
 #     归本批 T10-E), 本门是纯文档/契约层断言;
@@ -263,6 +263,20 @@ def _as_dict(value):
     return value if isinstance(value, dict) else {}
 
 
+def _named_entries(container):
+    """产出 (名, 值) 并跳过 `x-*` 规范扩展键。
+
+    Paths / Callback / Components 这几个对象都允许挂 `x-*` 扩展, 其值是**厂商数据**而不是
+    Path Item。不跳的话 `paths["x-audit-data"] = {"get": {"security": […]}}` 这种形状会被
+    当成一条真 operation 记进引用集 —— 既能造成误红, 也能冒充 `per_op_refs` 非空条件。
+    (`_HTTP_METHODS` 白名单只挡了 Path Item **内部**的 `x-*`, 挡不住容器这一层。)
+    """
+    for name, value in _as_dict(container).items():
+        if isinstance(name, str) and name.startswith("x-"):
+            continue
+        yield name, value
+
+
 def _iter_path_item_security_refs(path_item, location):
     """遍历一个 Path Item Object 下所有 operation 的 `security`, 并递归其 `callbacks`。
 
@@ -280,8 +294,8 @@ def _iter_path_item_security_refs(path_item, location):
         for requirement in operation.get("security") or []:
             for scheme_name in requirement:
                 yield op_location, scheme_name
-        for callback_name, callback in _as_dict(operation.get("callbacks")).items():
-            for expression, callback_item in _as_dict(callback).items():
+        for callback_name, callback in _named_entries(operation.get("callbacks")):
+            for expression, callback_item in _named_entries(callback):
                 # 位置串把宿主 operation 包进方括号, 免得嵌套层读成 "POST GET /x …" 像笔误
                 yield from _iter_path_item_security_refs(
                     callback_item, f"[{op_location}] callbacks[{callback_name}][{expression}]"
@@ -289,18 +303,27 @@ def _iter_path_item_security_refs(path_item, location):
 
 
 def _iter_security_refs(schema):
-    """产出 (位置, 方案名) —— schema 里**每一处** `security` 需求引用的每个方案名。
+    """产出 (位置, 方案名) —— schema 里每一处**内联** `security` 需求引用的每个方案名。
 
-    覆盖面 = OpenAPI 3.1 里 Security Requirement Object 的**全部**合法位置:
+    覆盖面 = OpenAPI 3.1 里 Security Requirement Object 的全部**内联**位置:
       - 文档根的全局 `security`(位置写作 `<root>`);
       - `paths[<path>][<method>]`(位置写作 `GET /api/v1/x`);
       - `webhooks[<名>][<method>]`;
       - `components.pathItems[<名>][<method>]`;
       - 以及上述任一 operation 的 `callbacks[<名>][<表达式>][<method>]`
         与 `components.callbacks[<名>][<表达式>][<method>]`(经 `_iter_path_item_security_refs` 递归)。
+    容器层的 `x-*` 规范扩展键由 `_named_entries` 跳过(它们是厂商数据, 不是 Path Item)。
 
-    `$ref` 不解析: 被引用的 Path Item 若来自 `components.pathItems`, 它本身已在上面被独立遍历,
-    覆盖面不因此缺口(代价是同一 operation 可能以两个位置串各记一次, 对"是否悬空"的判定无影响)。
+    ⚠️ **`$ref` 不解析, 故"内联"这个限定词不能去掉**(Codex round-2 MEDIUM-1 收窄):
+    Path Item 与 Callback 都可以写成 `$ref`, 目标可落在本函数遍历清单**之外**的任意位置
+    (根上的 `x-` 扩展、甚至外部文档)。那种形状下的 security 引用本门看不见。
+    对**本仓**不构成缺口的依据是数据而不是推理: 2026-09-16 于本仓快照实测全文 `$ref` 共 736 处
+    (`components` 212 / `paths` 524), 但 **Path Item 级 `$ref`(`$.paths.<path>.$ref`) = 0** ——
+    `paths` 下那 524 处全在更深层(operation 的请求/响应 schema 里), 承载不了 Security Requirement;
+    同批实测无 `webhooks`、`components` 只有 `schemas`/`securitySchemes`、`callbacks` 子树无 `$ref`。
+    若将来换生成器或手工拼 spec, 这条限定就是真缺口 —— 届时要么补解析, 要么另立门。
+    (顺带: 若同一 Path Item 既被 `components.pathItems` 收录又被 `$ref` 引用, 只有组件定义处
+    产出引用、引用处被跳过, 不会重复计数。)
 
     2026-09-16 于本仓快照实测: 只有前两类命中, 合计 32 处(31 per-op + 1 root); 该 schema 无
     `webhooks`、无 `components.pathItems`/`components.callbacks`。WebSocket 路由
@@ -311,15 +334,15 @@ def _iter_security_refs(schema):
     for requirement in schema.get("security") or []:
         for scheme_name in requirement:
             yield "<root>", scheme_name
-    for path, path_item in _as_dict(schema.get("paths")).items():
+    for path, path_item in _named_entries(schema.get("paths")):
         yield from _iter_path_item_security_refs(path_item, path)
-    for name, path_item in _as_dict(schema.get("webhooks")).items():
+    for name, path_item in _named_entries(schema.get("webhooks")):
         yield from _iter_path_item_security_refs(path_item, f"webhooks[{name}]")
     components = _as_dict(schema.get("components"))
-    for name, path_item in _as_dict(components.get("pathItems")).items():
+    for name, path_item in _named_entries(components.get("pathItems")):
         yield from _iter_path_item_security_refs(path_item, f"components.pathItems[{name}]")
-    for callback_name, callback in _as_dict(components.get("callbacks")).items():
-        for expression, callback_item in _as_dict(callback).items():
+    for callback_name, callback in _named_entries(components.get("callbacks")):
+        for expression, callback_item in _named_entries(callback):
             yield from _iter_path_item_security_refs(
                 callback_item, f"components.callbacks[{callback_name}][{expression}]"
             )

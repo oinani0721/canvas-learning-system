@@ -257,6 +257,9 @@ Would reformat: backend/app/security.py
 8. **未证明 `LEFTHOOK_EXCLUDE=python-lint` 跳过的那次 hook 里没有别的检查项**。已核 `python-lint` 只含 `ruff check` + `ruff format --check` 两步，前者本卡已自跑 rc=0；但未逐行审计 lefthook 在 2.1.6 下对该命令块的完整执行语义。
 9. **本门不检测 `securitySchemes` 里的冗余 / 同义方案**（自曝一条覆盖边界）。门的主张是「每一处引用都能找到定义」，是**包含关系**不是**等价关系**。因此若有人用卡文 §三 明令禁止的那条修法 —— 给 `securitySchemes` 补一个 `APIKeyHeader` 别名 —— 悬空同样归 0、本门同样会绿，尽管契约里会留下两个同义方案、与「统一」背道。本卡是**靠选型**（方案 A 从源头改名）而不是靠这道门排除该走法的；门只锁「不悬空」，不锁「不冗余」。同理，一个**被声明但无人引用**的方案也不会被本门发现。
 10. **未证明再生后的 `securitySchemes` 定义体本身正确**。门只比方案**名**；`InternalApiKey` 的 `type`/`in`/`name` 三个字段仍由 `main.py:554-566` 手写覆盖，本卡未对它们加任何断言（只在 (c) 层 2 顺带实测 `model.name` 未变）。
+11. **门不解析 `$ref`，故它的覆盖面是「全部**内联**位置」而不是「全部合法位置」**（Codex r2 MEDIUM-1 收窄）。Path Item 与 Callback 都可以写成 `$ref`，目标能落在枚举清单之外（根上的 `x-` 扩展、甚至外部文档），那种形状的悬空本门看不见。对**本仓**不构成缺口的依据是实测而非推理：`ref-distribution-census-20260916T204712.txt` —— 全文 `$ref` 736 处（`components` 212 / `paths` 524），**Path Item 级 `$ref`（`$.paths.<path>.$ref`）= 0**，`paths` 下那 524 处全在更深层（operation 的请求/响应 schema），承载不了 Security Requirement。**换生成器或手工拼 spec 时这就是真缺口。**
+12. **门与模块级 `pytest.importorskip("schemathesis")` 的耦合未解**（Codex r1 LOW-2 / r2 LOW-2）。schemathesis 缺席时，本卡这条非 schemathesis 的静态门会被一并跳过。⚠️ 理由更正：这**不是**技术上做不到（可把可选导入与 `from_asgi` 初始化收进「依赖可用」分支、静态门独立定义在分支外），而是**范围决策** —— 那要改 `:17`–`:19` 与 `:78`–`:85` 这些既有模块级行，卡文 §三 明写「既有 schemathesis 测试一行不动」。留作移交项。
+13. **未证明「整条收集路径无网络行为」，且已实测到反例**。`test_openapi_contract.py:18` 的模块级 `from app.main import app` 不在任何 socket 禁闭内；r3 探针运行时实测该 import 触发了 LiteLLM 对 `raw.githubusercontent.com` 的**真实外联**并 SSL 握手超时（原文见 `enum-coverage-probe-r3-20260916T232823.txt` 运行段首行）。它**不是** 7691/7687（每次跑的 W4 记账仍为 `blocked=0/advisory=0/unaccounted=0`），也**不是本卡引入**（是 `import app.main` 的既有行为，本仓所有测试都走这条路），但它坐实了那条主张必须收窄：本门只主张「断言自身不发 HTTP 请求」+「W4 端口门逐次记账为 0」。
 
 ---
 
@@ -272,6 +275,9 @@ Would reformat: backend/app/security.py
 8. **本卡判据自曝一条**：再生 diff 面的第一版判据因 `flat()` 吞空容器而对「`{"APIKeyHeader": []}` 的方案名层」完全失明，报「0 差异」形似绿实为瞎（`dangling-count-after-20260916T194629.txt` 内），已由 `regen-diff-surface-20260916T194646.txt` 修正并加验伪锚。**教训可复用：比对 JSON 契约时，「键才是信息、值是空容器」的结构会被朴素扁平化静默丢弃。**
 9. **tests/unit 目录级** diff 对 64 基线**零差集**；**pyright `app` = 0 errors / 81 warnings** 留档。
 10. **门覆盖面扩到全 `security` 面并改名**（`…cover_all_per_op_refs` → `…cover_all_security_refs`），依据 = 普查实测根节点是 (b) 原口径唯一未盖的引用面；是加强不是放宽，先红数字不变（31/16）。
+11. **移交（建议第十五批立卡）：契约门与 `pytest.importorskip("schemathesis")` 解耦**。现状是 schemathesis 缺席时，同文件里那条**不依赖 schemathesis** 的静态门会被一并跳过。不在本卡修的理由是范围（要动卡文禁改的既有模块级行），不是技术不可能 —— 详见「本卡未证明什么」第 12 条。
+12. **移交（同上）：`$ref` 形态的 Path Item / Callback 在契约门里不可见**。本仓当前实测 Path Item 级 `$ref` = 0 所以不构成缺口；若将来换 OpenAPI 生成器或引入手工拼装的 spec，需要补 `$ref` 解析或另立门。详见「本卡未证明什么」第 11 条。
+13. **观测留档：`import app.main` 会触发 LiteLLM 对公网的 model-cost-map 拉取**（本次实测为 SSL 握手超时后回落本地备份）。非本卡引入、非 7691/7687、不影响任何判据，但它说明本仓测试进程的「无网络」假设对模块级 import 段并不成立。若将来要把测试环境做成真正离线，这是一个已知外联点。
 
 ---
 
@@ -347,7 +353,48 @@ r2 只改 `backend/tests/contract/test_openapi_contract.py`；`backend/app/secur
 | `r2-red-green-negctl-fixed-20260916T202118.txt` | 基准已改对、三阶段正确，但跑在 `_as_dict` 加固前的版本上 |
 | `r2-ruff-pyright-20260916T202258.txt` | 同上，加固前版本 |
 
-**r2 送审**：prompt `_bmad-output/审查/prompts/codex-prompt-CARD-SEC-DANGLING-r2.md`，存档 `_bmad-output/审查/codex-review-CARD-SEC-DANGLING-r2.md`，绑定见该档首部。结果见该档与下方小节。
+**r2 送审**：prompt `_bmad-output/审查/prompts/codex-prompt-CARD-SEC-DANGLING-r2.md`，存档 `_bmad-output/审查/codex-review-CARD-SEC-DANGLING-r2.md`。
+
+> ⚠️ **r2 发过两次，第一次由本车道主动中止（不计轮次，无存档产出）**：首版 prompt 写于 `_as_dict` 加固**之前**，其 ② 自述漏了该项、引用的也是随后被取代的存档。拿陈旧自述去审当前代码会白费一轮，故用 TaskStop 停掉并改写 prompt（补 ③ 加固的来龙去脉、改引承重存档、新增一问 ⑥）后重发。被停的那次**未产出任何存档文件**，按协议 §2.1「缺字段不计配额」的同理不计轮次。
+
+**r2 结果：BLOCKER 0 / HIGH 0 / MEDIUM 2 / LOW 4**，绑定 `76a602c436e25e55c44c690098a4b55ed1f99cfd`（= r2 commit，最终 HEAD）。Codex 独立复算了三个提交文件的 SHA 并确认「r1→r2 确实只改测试文件」，且判定 **⑤ 本轮无需重新生成生产源或快照，推断成立**。
+
+⇒ **按 D-15，本卡的合并条件在 r2 即已满足**（绑最终 HEAD 的一轮 B=0 / H=0）。下面 r3 是车道**主动**追加的质量整改，不是被 HIGH 逼出来的。
+
+| # | 级别 | 意见 | 处置 |
+|---|---|---|---|
+| M-1 | MEDIUM | ⓪ 「全部合法位置」仍过强：`$ref` 不解析 ⇒ Path Item / Callback 的引用目标可落在遍历清单之外（例如根上的 `x-` 扩展、外部文档），那种形状的悬空看不见 | **采纳（收窄主张 + 补实测依据）**。docstring 改为「全部**内联**位置」，并写明 `$ref` 不解析是**已知边界**；同时补一条本仓实测：全文 `$ref` 736 处（`components` 212 / `paths` 524），但 **Path Item 级 `$ref`（`$.paths.<path>.$ref`）= 0** ⇒ 对本仓不构成缺口，换生成器就是真缺口。证据 `ref-distribution-census-20260916T204712.txt` |
+| M-2 | MEDIUM | ② 16/16 验伪锚只有 PASS 标签，没有合成输入、断言原文与 `run_no_raise` 实现 ⇒ 无法独立判断 B 组比的是完整结果还是「某个名字没出现」，也指认不出哪条恒真 | **采纳并重写探针**。新版每条用例打印**合成输入 / 实际完整产出 / 精确期望集合**，断言一律是**集合相等**；生成器用 `list()` 消费；每条标注 `能区分加固 = True/False`；存档**逐字收录探针全文** |
+| L-1 | LOW | ① `x-*` 误计只修了 Path Item 层：Paths Object 与 Callback Object **容器层**的 `x-*` 仍会被当 Path Item（`paths["x-audit-data"]`） | **采纳并修**。新增 `_named_entries()`，在 `paths` / `webhooks` / `components.pathItems` / `components.callbacks` / callback 名与表达式**五个容器层**统一跳过 `x-*` |
+| L-2 | LOW | ④ 「必须留在同文件所以不能修」不充分 —— 也可以把 schemathesis 的可选导入与 schema 初始化限制在依赖可用的分支，静态门独立定义 | **采纳意见、维持不修，但更正理由**。见下方「理由更正」 |
+| L-3 | LOW | ⑥ 两条长跑的复用理由把「未收集」推成了「任何内容都不进运行」—— conftest / `pytest_plugins` / `-p` / 自动加载插件都可能加载未被收集的模块 | **采纳，且直接消除争点**：r3 在最终 sha 上**重跑**了这两条长跑，不再依赖「可复用」的推断 |
+| L-4 | LOW | ③ 「每次定向跑均为零」超出承重档可确认的范围：最终红绿档只在对照阶段留了 W4 零记账行，红阶段与负控阶段没有 | **采纳并修**。r3 的红绿档**逐阶段**打印 W4 行 |
+| — | 更正 | ① 「同一 operation 可能以两个位置串各记一次」的解释不准确（引用处被跳过，只有组件定义处产出） | **采纳**，docstring 已按此改写 |
+| — | 提醒 | ① `.lower()` 接受 `GET`/`Get` 属宽松容错；OpenAPI 固定字段区分大小写，大写用例不能证明标准 operation 覆盖 | 接受。新探针把该用例标为 `能区分加固 = False` 并注明它只说明「本门不因大小写漏掉」 |
+
+**L-2 的理由更正（Codex 说得对）**：原写法「卡文把落点钉死在该文件 ⇒ 技术上只能迁移文件」是**不成立**的。技术上确有不迁文件的做法（把 `pytest.importorskip("schemathesis")`、`from_asgi` 初始化与 `@schema.parametrize()` 收进「依赖可用」分支，静态门独立定义在分支外）。不做的真实理由是**范围**：那要改动 `:17`–`:19` 与 `:78`–`:85` 这些**既有模块级行**，而卡文 §三 明写「既有 schemathesis 测试一行不动」。这是范围决策，不是技术不可能 —— 已按此更正措辞，并留作移交项。
+
+### round-3 — 主动追加的质量整改与重取的裁判
+
+r3 同样只改 `backend/tests/contract/test_openapi_contract.py` 与文档；`backend/app/security.py`、`backend/openapi.json` 自 r1 起 sha 全程 `925443dc…` / `9df9f7df…` 未变（Codex r2 已独立复算确认）。
+
+**改动三项 + 两处措辞**：① 新增 `_named_entries()`，在 `paths` / `webhooks` / `components.pathItems` / `components.callbacks` / callback 名层 / callback 表达式层**六个容器层**统一跳过 `x-*` 扩展键（r2 LOW-1）；② docstring 把覆盖面主张从「全部合法位置」收窄为「全部**内联**位置」，并把 `$ref` 不解析写成**已知边界** + 本仓实测依据（r2 MEDIUM-1）；③ 重写验伪锚探针使其可独立复核（r2 MEDIUM-2）。另：红绿档逐阶段打 W4 行（r2 LOW-4）、两条长跑在最终 sha 上重跑（r2 LOW-3）。
+
+| 判据 | 存档（全文件名） | 结果 |
+|---|---|---|
+| 枚举面对抗输入台（A5 + B6 + C6 + D2 + E1 = 20 条） | `enum-coverage-probe-r3-20260916T232823.txt`（21931 B，**末尾逐字收录探针全文**） | **20/20 PASS**，`PYTHON_RC=0`；分类由脚本自算并带自洽断言：**能区分本卡加固 15 / 覆盖性 4 / 回归锁 1 = 20** |
+| 先红 / 对照绿 / 负控（**逐阶段** W4 行） | `r3-red-green-negctl-20260916T232904.txt` | 阶段 0 `2 passed` rc=0；阶段 1 rc=1 带 `31 处` + `/system/* 16 处` + `APIKeyHeader`；阶段 2 `2 failed` rc=1；**三阶段 W4 均为 `blocked=0/advisory=0/unaccounted=0`**；跑前跑后三文件 sha 逐字同 |
+| `$ref` 分布实测（M-1 收窄的依据） | `ref-distribution-census-20260916T204712.txt` | `$ref` 736（`components` 212 / `paths` 524）；**Path Item 级 `$ref` = 0**；无 `webhooks`；`components` 只有 `schemas`/`securitySchemes`；`callbacks` 子树 `$ref` = 0；`paths` 下 `x-*` 键 = 0 |
+| contract 三文件（**最终 sha 上重跑**） | `contract-3files-close-r3-20260916T232959.txt` | `2 failed, 75 passed in 218.40s`，`blocked=19/advisory=0/unaccounted=0` |
+| tests/unit 目录级（**最终 sha 上重跑**） | `unit-close-r3-20260916T232959.txt` + `close-r3.nodeids` | `35 failed … 29 errors`；对 64 基线 **diff 空**（`diff_rc=0`，`>` 行 0，close-r3 = 64 条） |
+| ruff / F821 锚 / pyright | `r3-ruff-pyright-20260916T233009.txt` | `All checks passed!` rc=0；锚 rc=1；`0 errors, 81 warnings` |
+| **收尾 docstring 尾巴的等价证明** | `r3-docstring-ast-equivalence-20260916T234342.txt` | 见下 |
+
+> **收尾的一行 docstring 改动与它的等价证明（D-32 口径）**：上表全部裁判跑在 `test_openapi_contract.py` sha `ae32c3c7…` 上；之后为口径一致，又把 `_iter_security_refs` docstring 首句的「每一处」改成「每一处**内联**」。该档证明这是纯文案：**去掉全部 docstring 后两版 AST 逐字相同**（`True`），**验伪锚**（把一处真代码 `x-` → `y-`）在同一比对下给出 `False`（= 该比对确实看得见代码改动）；并补上最关键的一环 —— **重建的「旧版」sha256 实测 = `ae32c3c7…` = 上表裁判所绑的那个**，所以 AST 等价证的不是两个我自己编的版本。⇒ 上表裁判对当前文件仍然绑得住。
+
+**r3 被取代的中间档（留痕，不作依据）**：`enum-coverage-probe-r3-20260916T204806.txt` —— 新探针的首跑，`PYTHON_RC=1`，A5 用例的多层花括号没配平（`SyntaxError: closing parenthesis ')' does not match opening parenthesis '{'`）。**同一处栽了两次**（r2 的 `enum-coverage-probe-20260916T201836.txt` 也是它），第二次起改为逐层显式变量构建，并在脚本里留了注释说明原因。该档的 `PYTHON_RC=1` 是**显式捕获**的 python rc，不再是管道末端 grep 的 rc —— 这正是它能被当场看出来失败的原因。
+
+**r3 送审**：prompt `_bmad-output/审查/prompts/codex-prompt-CARD-SEC-DANGLING-r3.md`，存档 `_bmad-output/审查/codex-review-CARD-SEC-DANGLING-r3.md`。
 
 ## 八 提交
 
