@@ -41,7 +41,7 @@
 | (f) | MEMORY_RETRY 死配置退役（census → 先红 3 → 后绿）+ pyright 保持 0 | ✅ |
 | (g) | contract node-id pattern 定性 | ✅（**卡文两处事实有误**，见 §3） |
 | (h) | 地盘核：代码面恰好 6 文件 | ✅ |
-| (i) | tests/unit 目录级对 `$BASE` | ⚠️ **不自判通过**（D-15）：**九跑**里 `<` 恒 30；`>` 两跑 = 1、七跑 = 0，且 `>` 与 `blocked=` **9/9 同步**；同一 SHA 内部会翻转。Codex r2/r3/r4 均判该条不阻断本卡。裁定权在主 session。见 §四-A.10 |
+| (i) | tests/unit 目录级对 `$BASE` | ⚠️ **不自判通过**（D-15）：**十跑**里 `<` 恒 30；`>` 三跑 = 1、七跑 = 0，且 `>` 与 `blocked=` **10/10 同步**；同一 SHA 内部会翻转。Codex r2/r3/r4 均判该条不阻断本卡。裁定权在主 session。见 §四-A.10 |
 | (j) | Codex 多轮直到绑最终 HEAD 的一轮 BLOCKER/HIGH = 0 | ✅ **达成**：r4 绑最终 SHA `ef21be2c`、diff 空 exit=0、**BLOCKER 0 / HIGH 0**，Codex 明写「不要求继续改代码送第 5 轮」。r2/r3 亦各满足过一次 |
 | (k) | 「本卡未证明什么」≥4、「台账待登记条目」≥4 | ✅ 见 §6 / §7 |
 
@@ -152,17 +152,35 @@ WS Branch 2 代码**确实仍然放行** —— 那一张表可能是准确的�
 
 ## 三、地盘与合规
 
-**代码面恰好 6 文件**（`FINAL-territory-*.txt`，绑本卡最终 HEAD）：
+**代码面恰好 6 文件**（`FINAL-R5-territory-*.txt`，绑**当前** HEAD）：
 
 ```
-backend/.env.example                                |  16 ---
-backend/app/config.py                               |  16 ---
-backend/tests/api/v1/endpoints/test_agents_health.py| 128 ++++++++++++++---
-backend/tests/unit/test_cache_configuration.py      |  95 +++++----------
-backend/tests/unit/test_sync_batch_auth.py          |  24 +++-
-backend/tests/unit/test_system_endpoint_auth.py     | 125 +++++++++++++++++-
-6 files changed, 286 insertions(+), 118 deletions(-)
+backend/.env.example                                |  16 --
+backend/app/config.py                               |  16 --
+backend/tests/api/v1/endpoints/test_agents_health.py| 279 +++++++++++++++++++--
+backend/tests/unit/test_cache_configuration.py      |  95 +++----
+backend/tests/unit/test_sync_batch_auth.py          |  24 +-
+backend/tests/unit/test_system_endpoint_auth.py     | 134 +++++++++-
+6 files changed, 446 insertions(+), 118 deletions(-)
 ```
+
+⛔ **本段数字曾经失实，2026-09-16 主 session 复核时更正**（成因与 §七.16 同族，本卡第五次）：
+原文贴的是 `286 insertions`，并标注「（`FINAL-territory-*.txt`，绑本卡最终 HEAD）」——
+但那份存档首部自写 `HEAD=b38e1d04`，是**第二个 commit**，不是最终 HEAD。
+其后车道又跑过两版（`FINAL-R3-territory` 绑 `69c99d1a` = 419、`FINAL-R4-territory` 绑 `ef21be2c` = 429），
+**验收单一次都没跟着改**。逐版实测：
+
+| 存档 | 绑定 SHA | insertions | 验收单当时引用 |
+|---|---|---:|---|
+| `territory-worktree-*` | 工作树（commit 前） | 268 | — |
+| `territory-headcommit-*` | `8bfcdfce` | 267 | — |
+| `FINAL-territory-*` | `b38e1d04` | **286** | ⛔ 被当成「最终 HEAD」引用 |
+| `FINAL-R3-territory-*` | `69c99d1a` | 419 | 未引 |
+| `FINAL-R4-territory-*` | `ef21be2c` | 429 | 未引 |
+| `FINAL-R5-territory-*` | **当前 HEAD** | **446** | ✅ 现引此份 |
+
+⇒ 「6 个文件」这个**结论**六版全部一致、从未失实；失实的是**行数**与**绑定声明**。
+本卡地盘边界没有被突破过，但「绑本卡最终 HEAD」这句话在写下时就是错的。
 
 - 验伪锚①：单查 `config.py` 必命中 → `1 file changed, 16 deletions(-)`
 - 验伪锚②：去掉 `':(exclude)_bmad-output'` 后 `_bmad-output` 面 = **36** 文件，带 exclude 时 = **0** ⇒ exclude pathspec 生效
@@ -259,12 +277,12 @@ mock 补 `hint-generation` → `12 passed`；加防漂 guard 后 → `13 passed`
 `F821 Undefined name`，还原后 sha 一致、判据复跑 rc=0。
 （⛔ 不用 F401 当锚：`backend/ruff.toml` 的启用集实测只有 `E902/F63x/F7xx/F82x`，F401 不在其中，拿它当锚会恒不触发。）
 
-### 4-A.10 (i) tests/unit 目录级 —— ⚠️ **最终 HEAD 上 `>` = 1，本卡不声称通过**
+### 4-A.10 (i) tests/unit 目录级 —— ⚠️ **当前 HEAD 上 `>` = 1，本卡不声称通过**
 
 跑法（R-B14-3：`cd backend` 后 `--ignore` 用相对路径）：
 `cd backend && PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest tests/unit --ignore tests/unit/test_deploy_vault_sh.py -q -p no:cacheprovider`
 
-**九跑对照**（全表 + 统一 comm 见 `FINAL-sentinel-9runs-*.txt`）：
+**十跑对照**（前九跑全表 + 统一 comm 见 `FINAL-sentinel-9runs-*.txt`；第 10 跑见 `FINAL-R5-unit-close-*.txt` / `FINAL-R5-unit-comm-CORRECTED-*.txt`）：
 
 | 跑 | 绑定 SHA | failed | `<` | `>` | W4 哨兵 |
 |---|---|---:|---:|---:|---|
@@ -275,15 +293,27 @@ mock 补 `hint-generation` → `12 passed`；加防漂 guard 后 → `13 passed`
 | 5 | `2c740216` | 34 | 30 | 0 | `blocked=0` |
 | 6 | `69c99d1a` | 34 | 30 | 0 | `blocked=0` |
 | 7 | `69c99d1a` | 34 | 30 | 0 | `blocked=0` |
-| 8 | `ef21be2c`（最终） | 34 | 30 | 0 | `blocked=0` |
-| 9 | `ef21be2c`（最终） | **35** | 30 | **1** | **`blocked=1`** |
+| 8 | `ef21be2c` | 34 | 30 | 0 | `blocked=0` |
+| 9 | `ef21be2c` | **35** | 30 | **1** | **`blocked=1`** |
+| 10 | `0bc3baef`（**当前 HEAD**） | **35** | 30 | **1** | **`blocked=1`** |
 
-三条可核的观察：
-1. `>` 与 `blocked=` **9/9 完全同步**；出现 `>` 的两跑，唯一新增 nodeid 都是 `candidate422`，
+> 第 10 跑为 2026-09-16 主 session 复核时在**当前 HEAD** 补跑（`FINAL-R5-unit-close-*.txt` 420.66s，
+> comm 见 `FINAL-R5-unit-comm-CORRECTED-*.txt`）。它把样本从 9 扩到 10，
+> 并把绑定点从 `ef21be2c` 推进到当前 HEAD —— 结论与前九跑同型，不构成新情况。
+> ⚠️ 该 comm 首算时用错了 BASE 提取口径（基线 64 行是 `FAILED `/`ERROR ` **两种**前缀，
+> 而提取只脱 `FAILED ` 后取字段 1，29 条 ERROR 塌成字面量一条，BASE 被算成 36、`'<'` 被算成 2）。
+> **错档保留并标 SUPERSEDED**（`FINAL-R5-unit-comm-20260916T233419.txt`，开头有作废说明），
+> 更正档用两侧统一取字段 2 的口径，BASE 复得 64、`'<'` 复得 30，与前九跑一致。
+> 值得记一笔：`'>' = 1` 与那条 nodeid 在**两种口径下相同** —— 新增红的判定不受 BASE 塌缩影响，
+> 所以「结论看起来对」并没能暴露这个口径错误，是 `'<'` 对不上前九跑的 30 才暴露的。
+
+三条可核的观察（第 10 跑已并入计数）：
+1. `>` 与 `blocked=` **10/10 完全同步**；出现 `>` 的三跑，唯一新增 nodeid 都是 `candidate422`，
    失败正文都是协议 §3 的哨兵指纹（连接**被拦下**，现网 7691 未被连上）。
-2. **同一 SHA 内部就会翻转**：`2c740216` 三跑 = 35/34/34；`ef21be2c` 两跑 = 34/**35**。
+2. **同一 SHA 内部就会翻转**：`2c740216` 三跑 = 35/34/34；`ef21be2c` 两跑 = 34/**35**；
+   当前 HEAD 第 10 跑 = **35**（该 SHA 目前仅一跑，不构成同 SHA 内翻转的新证据）。
    ⇒ 目录级结果不由代码状态决定。
-3. `<` 九跑恒 **30**；本卡 4 个测试地盘文件在九跑红集里恒 **0** 条。
+3. `<` 十跑恒 **30**；本卡 4 个测试地盘文件在十跑红集里恒 **0** 条。
 
 ⛔ **这三条不能推出「它与本卡无关 / 早于本卡」** —— 这正是 Codex 连着三轮（r2/r3/r4）
 纠正车道的地方，车道已接受。成立的证据是两份**历史原始日志**，各证一事、不可混引：
@@ -323,13 +353,29 @@ mock 补 `hint-generation` → `12 passed`；加防漂 guard 后 → `13 passed`
 双方同为完全相同的 34 条红 —— 本卡原先只用「4 个测试文件不在 BASE 红集」论证，
 Codex 指出不充分，本卡接受并以其对照为准。
 
-### 4-A.13 (b) guard 形态覆盖（19 格自校验）— `FINAL-R3-guard-shapes-*.txt`
+### 4-A.13 (b) guard 形态覆盖 — 绑**当前实现**的是 `FINAL-R4-guard-shapes-*.txt`（26 格）
 
-import **入库的真 helper**（非副本），只在内存替换 `inspect.getsource` 输入。
+⛔ **版本对应关系（2026-09-16 主 session 复核补，原文只引 R3 那份，会被读成当前行为的证据）**：
+本卡对 guard 的判定方式**换过一次实现**，两份探针绑的不是同一段代码 ——
+
+| 存档 | 绑定 SHA | 被测实现 | 格数 | 是否当前行为 |
+|---|---|---|---:|---|
+| `FINAL-R3-guard-shapes-*.txt` | `69c99d1a` | `_own_statements` / `_iter_write_targets` / `_assert_not_mutated_after_binding`（**枚举语句类型**） | 19 | ❌ **已被取代** |
+| `FINAL-R4-guard-shapes-*.txt` | `ef21be2c` | `_own_nodes` / `_collect_writes`（**按 AST `ctx` 判定**） | 26 | ✅ 是（`0bc3baef` 只改 docstring，AST 等价已证） |
+
+两份的差异不是措辞而是**行为**，实测一例：**「纯注解无右值」**（`expected_templates: list[str]`）——
+* 旧实现（R3 格 19）：`binds = 0` ⇒ 红在「找到 0 处绑定」；
+* 当前实现（补测格 `F2-only`）：`binds = 1` ⇒ 红在「那处绑定不是普通赋值，取不到字面量」。
+两边都红、**都不放过**，但红的身份不同。⇒ 引 R3 的表说明当前行为会失真，故本节改以 R4 为准。
+（`FINAL-R4` 存档抬头第 2 行仍写「构造上穷尽」，那是 r4 证伪前写的，**已在该文件开头追加撤回批注**；
+其正文 26 格逐格自断言，不受该措辞影响。）
+
+两份的共同做法：import **入库的真 helper**（非副本），只在内存替换 `inspect.getsource` 输入，
 **逐格写死预期并由探针自己断言**，退出码反映「预期是否全部兑现」——
 不再靠末尾一句人工期望（那正是 Codex r2 LOW-1 点的问题：`rc=0` 只说明探针跑完了）。
+`FINAL-R4` 实测 **26 格、预期不符 = 0、`probe_rc=0`**。
 
-实测 `预期不符的格数 = 0`，19 格全部兑现：
+下表是 **R3 那 19 格**（保留作历史对照，⛔ **不代表当前行为**，逐格差异以上表口径读）：
 
 | 应通过（2 格） | 应报红（17 格） |
 |---|---|
@@ -349,7 +395,13 @@ import **入库的真 helper**（非副本），只在内存替换 `inspect.gets
 (2) 12/12 用例进门自设 `get_settings`，残留立即被改写；
 (3) fixture teardown 还有一次 `app.dependency_overrides.clear()` 兜底。
 
-### 4-A.12 (b) guard 的形态覆盖 — `guard-ast-shapes-*.txt`
+### 4-A.12 (b) guard 形态覆盖的**最早一版** — `guard-ast-shapes-*.txt`（⛔ 已被 4-A.13 取代，非独立证据）
+
+⛔ **定性更正（2026-09-16 主 session 复核补）**：本节与 4-A.13 **不是两层独立证据**，是**同一维度的三个版本**，
+后者取代前者；并列摆着会被读成互相印证（台账「并列同层判据 ≠ 换了一层」）。本节这一版有两处弱于 4-A.13：
+1. 它把 guard 的 AST 逻辑**逐字抄进探针**（逻辑副本），测的是副本不是入库代码 —— 副本与本体一旦分叉，它照样全绿；
+2. 它绑的实现比 R3 那版还早，**当前 HEAD 上这段逻辑已不存在**。
+保留本节仅作过程记录。**当前行为一律以 4-A.13 表中的 `FINAL-R4`（26 格、import 真 helper）为准。**
 
 把 guard 的 AST 取值逻辑逐字搬到 scratchpad 探针，喂 5 种生产形态：
 
@@ -363,6 +415,42 @@ import **入库的真 helper**（非副本），只在内存替换 `inspect.gets
 | 变量改名（不再叫该名） | `FOUND-0` → 红 |
 
 ⇒ **没有一种形态会让它静默返回空表或错表**。验伪锚：生产里 `expected_templates = [` 实测出现 1 次（正是形态 1 且唯一）。
+
+### 4-A.14 (b) r4 之后写进 docstring 的 6 条主张 —— 补证 `FINAL-R5-docstring-claims-*.txt`
+
+⛔ **为什么要补这一节**：`ef21be2c → 0bc3baef` 按 Codex r4 MEDIUM-1 撤回「构造上穷尽」时，
+在 `_collect_writes` 的 docstring 里**新写了 6 条可验证的技术主张**（3 类已知漏面 + 3 类已知误报）。
+这 6 条是 r4 **之后**写的，**没有任何一轮 Codex 审过，也没有入库证据** ——
+按台账「不入库的复核不作依据」，它们在补证之前只是**未经检验的自述**。
+撤回一句过强声明时顺手写下的替代声明，本身同样需要判据，否则只是把一个未证主张换成另一个。
+
+**做法**：import 入库真 helper（`_own_nodes` / `_collect_writes`，非逻辑副本），
+复刻 `_production_expected_templates()` 的完整取值三步，逐格喂构造源码，看 guard **实际**怎么裁决，
+与 docstring 声称的结果逐条对照。存档首部打 HEAD + 被测文件 **HEAD 侧与工作树侧双 sha256**
+（两侧相同 ⇒ 跑的就是已提交内容，不是未提交工作区；台账「存档写了 rc= 不等于它绑定了那次 commit」）。
+
+| 格 | docstring 主张 | 类别 | 实测 | 一致 |
+|---|---|---|---|:-:|
+| L1 | `case [*expected_templates]`（`MatchStar.name` 是字符串，不产生 `Name(ctx=Store)`） | 漏面，称**不红** | `binds=1` → `PASS(取到 2 项)` | ✅ |
+| L2 | `class Helper: expected_templates.pop()`（类体当场执行，但 `_own_nodes` 跳过 `ClassDef` 体） | 漏面，称**不红** | `binds=1` → `PASS(取到 2 项)` | ✅ |
+| L3a | `except … as expected_templates` | 漏面，称**不红** | `binds=1` → `PASS(取到 2 项)` | ✅ |
+| L3b | `import os as expected_templates` | 漏面，称**不红** | `binds=1` → `PASS(取到 2 项)` | ✅ |
+| L3c | `def expected_templates(): …` | 漏面，称**不红** | `binds=1` → `PASS(取到 2 项)` | ✅ |
+| F1 | `[x for x in …]` 推导式同名变量算成第二处绑定 | 误报，称**红** | `binds=2` → `RED(binds=2!=1)` | ✅ |
+| F2 | `expected_templates: list[str]` 纯注解算成绑定 | 误报，称**红** | `binds=2` → `RED(binds=2!=1)` | ✅ |
+| F3 | `x[:][0] = "renamed"` 改切片副本仍算写入 | 误报，称**红** | `others=['写它的下标 / 属性']` → `RED` | ✅ |
+
+**`MISMATCH_COUNT = 0`** —— 6 条主张（L3 拆成 a/b/c 共 8 格）**逐条实测成立**，
+docstring 里的漏面与误报清单**不是推测，是实测**。
+
+**验伪锚（同次执行）**：已知必红形态 `.append()` 实测 `RED(others=['调用就地变更方法 .append()'])`
+⇒ 本探针的「红」判定不是恒 `False`，上表那 5 个「不红」是真的分辨出来的，不是判据空转的产物。
+
+**补格 `F2-only`（对照，无 docstring 主张）**：只有纯注解、无任何赋值 → `binds=1`，
+红在「那处绑定不是普通赋值 / 取不到字面量」。此格正是 4-A.13 表里两版实现**行为分叉**的那一例。
+
+⚠️ **本节未证明什么**：这 8 格证明的是「docstring 说漏的确实漏、说误报的确实误报」，
+**不证明这 3 类漏面就是全部漏面** —— 穷尽性正是 r4 证伪、本卡已撤回并登记移交的那一条（§六.16 / §七.14）。
 
 ---
 
@@ -502,7 +590,13 @@ Codex 直接去翻 `$PREV` **已入库**的
 
 10. **未证前两个 commit 的 `python-typecheck` 实跑**（Codex r1 MEDIUM-3，记历史 PARTIAL）。它不在 `LEFTHOOK_EXCLUDE` 里，但没留原始输出，而该 hook 在工具缺席时也会 SKIP 并返回 0。只有本卡最后一个 commit 有完整 pre-commit 输出。
 
-11. **未证防漂 guard 钉住的是运行时名单**。它钉的是「生产在**绑定处声明**的名单」；「声明 ≠ 运行时」的形态（`+=` / 下标赋值 / `.append` 等）被显式挡在门外报红，使门通过时两者必然一致 —— 这是靠**排除**达成的，不是靠读运行时值。
+11. **未证防漂 guard 钉住的是运行时名单**。它钉的是「生产在**绑定处声明**的名单」；「声明 ≠ 运行时」的形态（`+=` / 下标赋值 / `.append` 等）被显式挡在门外报红 —— 这是靠**排除**达成的，不是靠读运行时值。
+    ⛔ **本条原文末尾曾写「使门通过时两者必然一致」，该措辞已撤回**（2026-09-16 主 session 复核抓出）：
+    它与本节第 16 条（Codex r4 MEDIUM-1 证伪穷尽性）和代码 docstring 的最终口径**直接冲突**。
+    r4 整改时改了代码 docstring（明写「这**不等于**『门通过时两者必然一致』」），却漏改了本验收单
+    —— 这正是本节第 18 条 / §七.16 登记的那个「回应声称已改 vs 原件实际未改」问题的**第四次**出现，
+    也印证了台账里「两份手抄清单必然漂移」。准确口径：**排除掉的是本作用域内语法可见的那些写法，
+    不含别名 / 传出去改 / 动态手段，也不含 §七.14 登记的 3 类已知漏面**。
 
 12. **未证 Codex 第二跑那条 `>` 一定是哨兵漂移**。车道给的是协议 §3 的口径依据 + 两跑 `blocked=` 状态不同这一事实，**没有**在 Codex 的环境里复现并定位成因。
 
@@ -513,7 +607,9 @@ Codex 直接去翻 `$PREV` **已入库**的
     本卡未定位到「为什么这一跑 `blocked=1` 而前两跑 `blocked=0`」——即哪个测试在什么条件下
     会去尝试连 7691。成因仍未定。
 
-15. **未证最终 SHA 的目录级「不增」**。九跑里有两跑 `>` = 1（含最终 SHA 的第 2 跑），
+15. **未证任何 SHA 上的目录级「不增」**（措辞已由「最终 SHA」放宽 —— 本卡 HEAD 在写下该条之后
+    又推进过，把结论钉在「最终 SHA」这个会移动的位置锚上本身就是错的）。十跑里有三跑 `>` = 1
+    （`2c740216` 第 1 跑、`ef21be2c` 第 2 跑、当前 HEAD `0bc3baef` 第 10 跑），
     见 §四-A.10。车道**不自判通过**；Codex r2/r3/r4 均判该条不阻断本卡，依据是
     `$PREV` 的历史原始日志（不是车道那套「非确定性」论证）。裁定权在主 session。
 
@@ -528,6 +624,28 @@ Codex 直接去翻 `$PREV` **已入库**的
 
 18. **未建立「回应声称 vs 原件实际」的对账机制**。本卡三次出现「回应里写已改、原件其实没改」
     （r1 LOW-4 / r3 LOW-2 / r4 LOW-2），每次都只做了逐次更正。
+    ⛔ **更新（2026-09-16 主 session 复核）：这个数字要从「三次」改成「七次」** ——
+    本轮在**没有任何外部审查者参与**的情况下，又自查出四处同型失实，全部是「改了 A 没改 B」：
+    (i) §六.11 的「使门通过时两者必然一致」（r4 整改改了代码 docstring、漏改验收单）；
+    (ii) §三 贴的 `286 insertions` 绑 `b38e1d04` 却标称「最终 HEAD」，其后 R3/R4 两版都没同步；
+    (iii) §四-A.13 引绑旧实现的 R3 探针、§四-A.12 引逻辑副本，都没标版本归属；
+    (iv) `FINAL-R4-guard-shapes-*.txt` 抬头仍留着已撤回的穷尽性声明。
+    ⇒ **频次不是「偶尔」，是每一轮整改都会产生至少一处**。逐次更正治不了它，
+    因为漏掉的那一处恰恰是「这次没想到要看」的那一处。见 §七.16 的建议。
+
+19. **未证本轮四处自查已是全部**。⛔ 这一条必须写在前面那条之后 ——
+    §六.18 刚刚把「三次」改成「七次」，靠的是主 session 这一轮的人工通读，
+    **而人工通读正是前四轮每次都漏掉东西的那个方法**。本轮新找到四处，
+    没有任何依据说明第五处不存在；真正的判据（机械对账）仍未建立。
+    **本条的存在本身就是 §六.18 的例证**：一个刚被证明不可靠的方法，
+    不会因为这次用它找到了东西就变可靠。
+
+20. **未证 `FINAL-R5-docstring-claims-*.txt` 的复刻与真实调用点无偏差**。
+    该探针复刻了 `_production_expected_templates()` 的取值三步（`_own_nodes` → `_collect_writes` →
+    binds/others 判定），而不是直接调用它 —— 因为后者把源码取自 `AgentService.health_check` 写死了，
+    喂不进对照输入。复刻用的是**入库的真 helper**（非逻辑副本），但「复刻的那三步 == 真函数的那三步」
+    这件事本身**只经过人工比对，没有机械判据**。若复刻漏了真函数里的某个分支，
+    `MISMATCH_COUNT = 0` 就是复刻误差而非真实行为。已列为 r5 请复核项第 7 条。
 
 ---
 
@@ -594,8 +712,34 @@ Codex 直接去翻 `$PREV` **已入库**的
     收工判据必然晚于最后一个 commit，所以这个缺口会在每张卡上重复出现。
     建议批级统一处置（例如允许「判据存档补提交」并在台账写明其与被审 SHA 的先后关系）。
 
-16. **「回应声称已改 vs 原件实际未改」缺对账机制**（本卡三次：r1 LOW-4 / r3 LOW-2 / r4 LOW-2）：
+16. **「回应声称已改 vs 原件实际未改」缺对账机制**（本卡**七次**：r1 LOW-4 / r3 LOW-2 / r4 LOW-2
+    ＋ 2026-09-16 主 session 自查的四处，逐条见 §六.18）：
     根因是「声称」写在 RESPONSE、「落地」在原件，两处无机制对账。建议批级加一条收工判据。
+    ⛔ **本条的严重度请主 session 按「七次」重估，不要按原先的「三次」** ——
+    三次像偶发，七次说明它是**流程的默认产出**而不是疏忽。具体建议两条机械判据：
+    (甲) **数字类**：验收单里每个引用存档数字的地方都标注来源文件名，收工时脚本逐条回读该文件比对
+    （本卡 §三 那处失实，只要有这条就抓得到 —— `286` 在 `FINAL-territory-*.txt` 里，
+    而该文件首部自写 `HEAD=b38e1d04` ≠ 最终 HEAD，两个字段一比即红）；
+    (乙) **撤回类**：每次撤回一句声明，用被撤回措辞的关键词全仓 `grep`，命中处逐一处置
+    （本卡那句穷尽性声明同时躺在代码 docstring、存档抬头、验收单三处，
+    改一处漏两处 —— 一条 `grep` 就能列全）。
+
+17. **多版本同名存档缺「哪版是当前」的机器可读标记**（本卡两族共 11 份）：
+    `territory` 族 6 份（268 / 267 / 286 / 419 / 429 / 446）、`guard-shapes` 族 5 份
+    （其中 3 份绑三种**不同的实现**）。命名只靠 `FINAL` / `FINAL-R3` / `FINAL-R4` 前缀区分，
+    **谁绑哪个 SHA、哪版是当前**要打开文件读首部才知道，验收单因此引错了两次（§三、§四-A.13）。
+    建议批级规定：存档首部必须有一行机器可读的 `BOUND_SHA=<40 位>`，收工判据据此自动挑最新那份。
+
+18. **`FINAL-sentinel-9runs-*.txt` 的文件名已与内容不符**（本轮新增第 10 跑后）：
+    该档仍叫 `9runs`，而目录级样本现为 10 跑。本卡**未改其文件名**（改名会让既有引用断链，
+    且它内容确实只含前九跑，没有失实）；第 10 跑另存 `FINAL-R5-unit-close-*` /
+    `FINAL-R5-unit-comm-CORRECTED-*`。登记此处命名与样本数的漂移，供主 session 定夺是否统一。
+
+19. **`comm` 类判据的前缀提取口径建议写进协议**：
+    红基线文件混有 `FAILED ` 与 `ERROR ` 两种前缀，只脱其一再取字段 1 会让另一类**静默塌成一条**
+    （本轮实测：BASE 从 64 塌成 36、`'<'` 从 30 塌成 2）。更麻烦的是这种错**不一定改变结论** ——
+    本轮 `'>' = 1` 与那条 nodeid 在两种口径下完全相同，靠看结论发现不了。
+    建议协议统一规定：两侧一律 `awk '{print $2}'`，且判据必须**同时**打印 BASE 计数供交叉核对。
 
 ---
 

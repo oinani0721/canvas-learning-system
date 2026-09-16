@@ -4,34 +4,104 @@
 
 工作树：`/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t10-red`
 分支：`card/t10-red`
-本卡最终 HEAD：`ef21be2ca360bf26e918155c0edace193d1db38c`
+本卡最终 HEAD：**以 `git rev-parse HEAD` 实取为准**（本 prompt 与它同在一个 commit 里，写不进自己的 SHA）。
 本卡 commit 链：`8bfcdfce`（主体）→ `b38e1d04`（只读自审整改）→ `2c740216`（按你 r1 整改）
 → `f28c0f4a`（**零代码**）→ `69c99d1a`（按你 r2 整改）→ `ef21be2c`（按你 r3 整改）
+→ `0bc3baef`（按你 r4 整改，**纯 docstring + 文档**）→ 本 commit（**纯文档，零代码**）
 
-⚠️ **本轮是第 4 轮，D-15 上限 5 轮。** 你的 r2 与 r3 都已给出 BLOCKER 0 / HIGH 0 且绑当时的
-最终 HEAD —— 终审条件其实已满足过两次，只是车道每次都选择继续修 MEDIUM/LOW 才失绑。
-依协议 §1，MEDIUM/LOW 本就「登记不阻断」。**本轮之后车道将停止改代码**：
-若你仍报 MEDIUM/LOW，车道会如实登记移交而不再整改，以免撞轮次上限。
-所以请把力气放在「有没有 BLOCKER / HIGH」以及「这次的改动有没有引入新问题」上。
+⚠️ **本轮是第 5 轮 = D-15 上限。第 5 轮仍有 HIGH ⇒ 停下交主 session 人审。**
+
+⚠️ **本轮的定位与前四轮不同，请先读这一段再决定怎么分配力气：**
+你的 r4（绑 `ef21be2c`）已给出 **BLOCKER 0 / HIGH 0**，并明写「不要求继续改代码送第 5 轮」。
+**自 `ef21be2c` 起，本卡的代码行为零改动** —— 之后只动了两样东西：
+1. `0bc3baef` 改了 `test_agents_health.py` 的**两个 docstring 块**（按你 r4 MEDIUM-1 撤回
+   那句「按其形式即穷尽」的过强声明）。去 docstring 后 `ast.dump` 逐字相同、长度同为 43367
+   （证据 `FINAL-d32-equivalence-*.txt`；主 session 已带验伪锚独立复算：不去 docstring 时两侧 AST
+   **必须不同**，实测确为不同 ⇒ 该判据没有空转）。按批级裁定 D-32，纯注释/docstring 尾巴不占轮次。
+2. 本 commit 只动 `_bmad-output`（文档与存档），**一行代码都没改**。
+
+所以本轮**不是**为了再改代码，而是为了让终审在字面上也绑最终 HEAD，并复核一件
+**前四轮都没看过的事**：⓪ 段列的那些「撤回过强声明之后新写下的替代声明」本身成不成立。
+若你仍报 MEDIUM/LOW，车道会如实登记移交而不再整改（轮次已到上限）。
 `$PREV`（= 同车道上一张卡 CARD-EPW-COVERAGE 的 commit）：`f294878bb677ae54dcbf17277004efa2fa1ef97b`
 
-看改动（对 `$PREV` 的累计代码面）：
+看改动（对 `$PREV` 的累计代码面 —— 本卡代码改动的全部）：
 
 ```
-git --no-pager diff --no-color f294878b ef21be2c -- . ':(exclude)_bmad-output'
+git --no-pager diff --no-color f294878b HEAD -- . ':(exclude)_bmad-output'
 ```
 
-只看本轮相对你 r3 的增量：
+**本轮相对你 r4 的代码增量（应当只有两个 docstring 块）**：
 
 ```
-git --no-pager diff --no-color 69c99d1a ef21be2c -- . ':(exclude)_bmad-output'
+git --no-pager diff --no-color ef21be2c HEAD -- . ':(exclude)_bmad-output'
 ```
 
-（`':(exclude)…'` 的写法是必需的，本机 git 不认 `':!…'`。）
+**终审绑定自核（本轮请你自己跑并把结果写进报告）**：
+
+```
+git --no-pager diff --no-color <你实际审的 SHA> HEAD -- . ':(exclude)_bmad-output' ; echo "rc=$?"
+```
+
+（`':(exclude)…'` 的写法是必需的，本机 git 不认 `':!…'`；`--no-color` 也是必需的 ——
+本机多个 worktree 共用同一份 `.git/config`，作业期内 `color.ui` 会被并发改写，
+带 ANSI 前缀的输出会让 `grep '^@@'` 之类的判据静默归零。）
 
 ---
 
-## ⓪ 你的 r3 已被逐条处置 —— 本轮重点
+## ⓪ 你的 r4 已被逐条处置 —— 本轮重点（**请优先看这一节**）
+
+r4（绑 `ef21be2c`）：**BLOCKER 0 / HIGH 0 / MEDIUM 1 / LOW 2**，你明写「不要求继续改代码送第 5 轮」。
+逐条处置见 `_bmad-output/审查/evidence-red-hygiene/RESPONSE-codex-r4-20260916.md`。
+
+- **MEDIUM-1（`ctx` 判定并非穷尽）**：**接受，不改代码，改为撤回声明 + 登记移交**。
+  `_collect_writes` 的 docstring 里那句穷尽性声明已删，替换为**逐条列出的已知漏面**
+  （`match` 捕获的 `MatchStar.name` 是字符串、类体在定义时当场执行而 `_own_nodes` 跳过 `ClassDef` 体、
+  `import`/`def`/`except … as` 的名字绑定不经 `ctx`）。
+- **LOW-1（新判定新增两种误报）**：接受，同样**登记移交**并写进 docstring，
+  且从两种扩写为三种（推导式局部同名变量、无右值的纯注解、切片副本写下标）。
+- **LOW-2（回应声称已收窄、原件却还留着旧论证）**：已修（纯文档）。
+
+### ⚠️ 本轮真正要你看的是：**那些「撤回」本身带来的新声明，前四轮谁都没审过**
+
+这是本轮与前四轮唯一的实质差别，也是车道请你重点判的地方：
+r4 让车道撤回一句过强声明，车道照做了 —— 但**撤回时顺手写下的替代声明有 6 条可验证的技术主张**
+（上面 MEDIUM-1 的 3 类漏面 + LOW-1 的 3 类误报），它们写在 `ef21be2c → 0bc3baef` 的 docstring 里，
+**在 r4 之后产生，因此没有任何一轮看过**。按批级口径「不入库的复核不作依据」，
+它们在补证之前只是未经检验的自述 —— 把一个未证主张换成另一个未证主张，并不是整改。
+
+主 session 已就此补做三件事，**请逐件独立复核，不要采信车道的转述**：
+
+1. **6 条主张的实测补证** — `_bmad-output/审查/evidence-red-hygiene/FINAL-R5-docstring-claims-*.txt`
+   做法：import 入库真 helper（非逻辑副本），复刻 `_production_expected_templates()` 的完整取值三步，
+   逐格喂对照输入看 guard 实际裁决，与 docstring 声称的结果对照。实测 **`MISMATCH_COUNT = 0`**
+   （8 格：L1/L2/L3a/L3b/L3c 称不红→实测不红；F1/F2/F3 称红→实测红）。
+   存档带**同次执行的验伪锚**（已知必红的 `.append()` 实测确为红 ⇒ 那 5 个「不红」不是判据空转），
+   并打了 HEAD + 被测文件 HEAD 侧/工作树侧双 `sha256`（两侧相同 ⇒ 跑的是已提交内容）。
+   **请判**：(a) 这 8 格喂的对照输入是否真能落到它声称的那条路径上？
+   (b) `MISMATCH_COUNT = 0` 有没有可能是探针复刻取值三步时与真实调用点产生了偏差而得来的？
+   (c) 这 3 类漏面是否**确实**是门未覆盖的路径（而不是其实会红、docstring 自谦写错了）？
+
+2. **两份 guard 探针存档的版本对应关系被理清** — 验收单 §四-A.13 改写。
+   此前验收单只引 `FINAL-R3-guard-shapes-*.txt`（19 格），而那份绑的是 `69c99d1a` 的**旧实现**
+   （`_own_statements` / `_iter_write_targets` / `_assert_not_mutated_after_binding`，枚举语句类型），
+   在当前 HEAD 上那段代码**已不存在**。绑当前实现的是 `FINAL-R4-guard-shapes-*.txt`（26 格）。
+   两版行为确有分叉，实测一例：「纯注解无右值」在旧实现下 `binds=0`（红在「找到 0 处绑定」），
+   在当前实现下 `binds=1`（红在「那处绑定不是普通赋值」）—— 都红但红的身份不同。
+   §四-A.12 引用的 `guard-ast-shapes-*.txt` 更早，且测的是**逻辑副本**而非入库代码，已降级为过程记录。
+   **请判**：这三份存档的版本归属写对了吗？还有没有别处仍在拿绑旧实现的证据说当前行为？
+
+3. **一处过强措辞被撤回** — 验收单 §六.11 原写「使门通过时两者**必然一致**」，
+   与同节第 16 条（你 r4 MEDIUM-1 的结论）和代码 docstring 的最终口径直接冲突：
+   r4 整改时改了代码 docstring 却漏改验收单。已撤回并写明成因。
+   另 `FINAL-R4-guard-shapes-*.txt` 抬头第 2 行仍留着那句已撤回的穷尽性声明，
+   已在该文件开头**追加**撤回批注（原文一字未改，正文 26 格逐格自断言，不受该措辞影响）。
+   **请判**：仓内还有没有**别的**地方仍在主张那句已撤回的穷尽性声明？
+   （这是本卡反复出现的老问题：同一结论抄在多处，改一处漏多处。车道已登记为 §七.16。）
+
+---
+
+## ⓪-bis（背景，r3 的处置摘要，已在 r4 核过，保留供索引）
 
 r3（绑 `69c99d1a`）：**BLOCKER 0 / HIGH 0 / MEDIUM 2 / LOW 3**，维持撤销 r1 HIGH-1。
 逐条处置见 `_bmad-output/审查/evidence-red-hygiene/RESPONSE-codex-r3-20260916.md`。
@@ -253,7 +323,12 @@ r3（绑 `69c99d1a`）：**BLOCKER 0 / HIGH 0 / MEDIUM 2 / LOW 3**，维持撤�
 - `backend/tests/contract/test_node_id_patterns.py`（只读）
 - `lefthook.yml`（`python-lint` 与 `spec-sync-root` 两节）
 - 红基线：`/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/审查/evidence-b14/unit-red-baseline-08100483.txt`
-- `_bmad-output/审查/evidence-red-hygiene/` 全部存档
+- `_bmad-output/审查/evidence-red-hygiene/` 全部存档，本轮新增/改动的三份请务必看：
+  - `FINAL-R5-docstring-claims-*.txt`（6 条主张的实测补证，本轮新增）
+  - `FINAL-R5-unit-close-*.txt`（当前 HEAD 的目录级重跑，本轮新增）
+  - `FINAL-R4-guard-shapes-*.txt`（**开头被追加了撤回批注**，原文一字未改）
+- 验收单 `_bmad-output/验收单/UAT-CARD-RED-HYGIENE-2026-09-16.md`
+  本轮改动的四处：§四-A.12（降级）、§四-A.13（版本对应改写）、§四-A.14（新增）、§六.11（撤回过强措辞）
 
 跑测试用：
 
@@ -291,6 +366,25 @@ cd <树>/backend && PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest -q -p no:cachepro
 
 6. **(e)(g) 的「只定性不改」是否掩盖了本该在本卡处理的事？** 还是说它们确实越出了本卡地盘、登记移交是正确处置？
 
+7. **【本轮新增】撤回一句过强声明之后，新写下的替代声明站得住吗？** 见 ⓪ 段第 1 项。
+   具体：docstring 现在列的 3 类漏面（`match` 捕获 / 类体当场执行 / `import`·`def`·`except as` 的名字绑定）
+   是否**确实**是门未覆盖的路径？3 类误报（推导式局部同名变量 / 无右值纯注解 / 切片副本写下标）
+   是否**确实**会红？主 session 的补证 `FINAL-R5-docstring-claims-*.txt` 报 `MISMATCH_COUNT = 0`，
+   但那份探针是**复刻**取值三步而非直接调用 `_production_expected_templates()`
+   （后者写死了从 `AgentService.health_check` 取源码，喂不进对照输入）——
+   **这个复刻本身有没有与真实调用点产生偏差**，以致 8 格全对是复刻误差而非真实行为？
+
+8. **【本轮新增】仓内还有没有别处仍在主张那句已撤回的穷尽性声明？** 见 ⓪ 段第 3 项。
+   本卡已知它至少出现在三处（代码 docstring、`FINAL-R4-guard-shapes-*.txt` 抬头、验收单 §六.11），
+   前者已改、后两者已加撤回批注 / 已撤回。**请你独立搜一遍**，看还有没有第四处。
+   这是本卡反复栽的同一个坑（同一结论抄在多处、改一处漏多处），车道登记在 §七.16。
+
+9. **【本轮新增】绑旧实现的证据有没有别处仍被当成当前行为引用？** 见 ⓪ 段第 2 项。
+   `FINAL-R3-guard-shapes-*.txt`（19 格）绑 `69c99d1a` 的旧实现，当前 HEAD 上那段代码已不存在；
+   `guard-ast-shapes-*.txt` 更早且测的是逻辑副本。验收单 §四-A.12 / §四-A.13 已分别降级与改写。
+   **请核**：这两份的版本归属现在写对了吗？验收单别处（含 §五 各轮小结、§六、§七）还有没有
+   仍拿它们当当前行为的依据？
+
 ---
 
 ## ⑤ 输出格式
@@ -304,7 +398,12 @@ cd <树>/backend && PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest -q -p no:cachepro
 
 最后请单独给一行绑定声明：你本次审查绑定的 SHA，以及
 `git --no-pager diff --stat --no-color <你审的SHA> HEAD -- . ':(exclude)_bmad-output'` 是否为空。
-（本轮的目标是绑最终 HEAD `2c740216` 且 BLOCKER = 0、HIGH = 0；若你仍判有 HIGH，请写清它是
-本卡引入的缺陷，还是环境/既有 flaky/协议口径问题。）
+
+⚠️ 上一版 prompt 此处写的是「本轮的目标是绑最终 HEAD `2c740216`」——
+那个 SHA 停留在 r2 时期，之后四轮都没更新，**已失实，现更正**：
+本轮的目标是**绑 `git rev-parse HEAD` 实取到的那个 SHA**（就是含本 prompt 的这个 commit），
+且 BLOCKER = 0、HIGH = 0。**请不要照抄 prompt 里的任何 SHA 当作最终 HEAD，以你实取的为准。**
+若你仍判有 HIGH，请写清它是本卡引入的缺陷，还是环境 / 既有 flaky / 协议口径问题
+（本轮是第 5 轮 = 上限，仍有 HIGH 将停下交主 session 人审，车道不会再改代码）。
 
 若某一级为 0 条，请显式写「BLOCKER: 0」「HIGH: 0」，不要省略。

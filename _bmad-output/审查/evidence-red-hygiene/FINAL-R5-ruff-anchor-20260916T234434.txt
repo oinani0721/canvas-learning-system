@@ -1,0 +1,29 @@
+### [FINAL-R5] ruff 判据 + F821 验伪锚 @ HEAD 0bc3baef47e493fd2366f3285b6da3a5864bc0af
+### 锚为何用 F821 不用 F401：backend/** 的 ruff 配置只启用少数必错级规则，
+###   F401 不在启用列表 ⇒ 拿它当锚会恒不触发（台账已记）。F821 在列表内。
+### 注入窗口安全性：本判据在目录级重跑（FINAL-R5-unit-close，420.66s）**完全结束之后**才执行，
+###   与任何同树长跑不重叠（台账「变异窗口不得与同树长跑重叠」）。
+### 注入前 sha256(backend/tests/unit/test_cache_configuration.py) = b95d97ea78b5dcadf1394f3e7999f98834bd150ddf947efa994119e2c05808a4
+
+--- 正跑：本卡改动的 .py 文件集（files=5）---
+All checks passed!
+ruff rc=0
+
+--- 验伪锚：向 backend/tests/unit/test_cache_configuration.py 末尾注入一行 F821，判据命令一字不变 ---
+注入后 sha256 = 503538a021b658c95bb31be5adb7ea50b1f34eeebe8943f7eeb23c9723edcb10  （须与注入前不同）
+F821 Undefined name `_definitely_not_defined_anywhere_in_this_module_r5`
+   --> backend/tests/unit/test_cache_configuration.py:295:12
+    |
+294 | def _ruff_anchor_probe_r5():
+295 |     return _definitely_not_defined_anywhere_in_this_module_r5
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+
+Found 1 error.
+ruff rc(注入后)=1   ⇐ 须非 0，否则该判据对这类错误没有分辨力
+
+--- 还原核 ---
+还原后 sha256 = b95d97ea78b5dcadf1394f3e7999f98834bd150ddf947efa994119e2c05808a4
+与注入前相同 = True
+与 HEAD 版逐字相同 = True
+rc=0
