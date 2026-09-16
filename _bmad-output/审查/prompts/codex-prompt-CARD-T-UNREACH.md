@@ -17,7 +17,7 @@ pyright 保持 `0 errors / 81 warnings`。
 
 **最小读取面（只读这些，不要扩散到其它文件）**：
 
-- `git diff <PREV_SHA> <REVIEW_SHA> -- . ':(exclude)_bmad-output'`（本卡完整代码改动面）
+- `git diff 3b819f404668c59c7ddc08c083f8014355e2dc96 802f05ca352afc3d432b1511f7e2e38869f19eb3 -- . ':(exclude)_bmad-output'`（本卡完整代码改动面）
 - `backend/app/api/v1/endpoints/boards.py` 的 `get_board_manifest_http`（约 :53-95）
 - `backend/app/mcp/tools/board_manifest_tools.py` 的 `get_board_manifest`（约 :47-76）
 - `backend/tests/unit/test_board_manifest_unreach_t5e.py` 全文
