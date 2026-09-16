@@ -237,9 +237,17 @@ def _nodeid_shaped(s: str) -> bool:
     真出现时表现为保守的 HARNESS-ERROR，不是假杀。
 
     ⚠️ 这与 `_boundary_ok` 的「方括号成对」是**两条不同**的判据，不是同义改写：
-    `a::b[[c]` 括号不成对却是合法 nodeid（参数 ID = `[c`），`a::b[c] - d` 括号成对却**不是**
-    合法 nodeid（不以 `]` 收尾）。两族各自能捞到对方漏掉的读法，所以 `_split_unique`
+    `a::b[[c]` 括号不成对却**本启发式认**（参数 ID = `[c`），`a::b[c] - d` 括号成对却
+    **本启发式不认**（不以 `]` 收尾）。两族各自能捞到对方漏掉的读法，所以 `_split_unique`
     取**并集**而不是二选一。
+
+    ⛔⛔ round-22（Codex round-19 LOW）**更正整条 docstring 的用词**：本函数判的是
+    「**满不满足这条启发式**」，⛔ **不是**「是不是 pytest 的合法 nodeid」——两者不等价，
+    而且差别就在本卡反复踩的那个点上：`test_x[d] - EXPECT` 是**能被 pytest 收集**的合法
+    测试名（本仓 `test_h1_real_pytest_exotic_but_selectable_name_is_harness_error` 起真
+    子进程实测过），本函数却返回 **False**。⇒ 凡本文（及调用方注释）出现「合法 nodeid」
+    字样，一律读作「**本启发式认的形态**」；把启发式的边界说成语言/工具的合法性边界，
+    正是本卡要消灭的那类失实声明。
     """
     if not s:
         return False

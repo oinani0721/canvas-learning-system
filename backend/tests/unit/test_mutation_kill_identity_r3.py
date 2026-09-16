@@ -199,8 +199,17 @@ def test_h1_split_unique_flips_in_both_directions_in_both_families() -> None:
     # ⛔ 先验**对照组本身**：Codex round-18 拿这条反例证明上一版 old_rule 不等价。
     #   真旧版（`dde52775`）对它返回 False；漏写 `cands[0] == nodeid` 的版本返回 True。
     assert old_rule("FAILED a::b[c - d] - boom", "a::b[c") is False, (
-        "⛔ old_rule 不等价于收口前的实现 —— 对照组坏了，下面四格的「方向」就都不作数"
+        "⛔ old_rule 漏了 `cands[0] == nodeid` —— 对照组坏了，下面四格的「方向」就都不作数"
     )
+    # ⛔ round-22（Codex round-19 补充）：上面那条锚只挡得住**相等性检查**被删，挡不住
+    #   `left` 非空守卫被删。这条挡后者：body 以 ` - ` 开头 ⇒ 空 `left` 是唯一切点。
+    #   有守卫：它被跳过 ⇒ 无候选 ⇒ 回退按整行方括号数判 True；
+    #   无守卫：`cands == [""]` ⇒ `cands[0] == nodeid` 对非空 nodeid 为 False。
+    assert old_rule("FAILED  - boom", "x") is True, (
+        "⛔ old_rule 漏了 `left` 非空守卫 —— 对照组坏了，下面四格的「方向」就都不作数"
+    )
+    # ⚠️ 如实声明：这两条锚**不是**穷尽的等价性证明（Codex round-19 明确指出），
+    #   它们只钉住已知的两处遗漏；「old_rule 逐字等价于 dde52775」靠的是人工逐行对照。
 
     # 2×2：(有无 ` - ` 切点) × (收紧 True→False / 放宽 False→True)
     grid = [
@@ -522,7 +531,11 @@ def test_m2_signal_exit_during_final_restore_is_not_a_restore_failure(capsys) ->
     state = {"exiting": False, "verified": 0}
 
     def _restore_then_signal() -> None:
-        state["exiting"] = True  # 守卫在还原**之后**置位并抛出约定退出码
+        # ⛔ round-22（Codex round-19 LOW）更正原注释「守卫在还原**之后**置位」—— 写反了：
+        # `RestoreGuard._finish` 是**先**置 `_finishing = True`，**再**调 `self._restore()`。
+        # 本桩要模拟的是「还原跑完、守卫抛出约定退出码」那一刻的状态，所以这里两件事
+        # 一起做；置位顺序与守卫真身不同**不影响本桩**（被测函数只读 `exiting()` 的当前值）。
+        state["exiting"] = True
         raise SystemExit(130)
 
     def _verify() -> list[str]:
