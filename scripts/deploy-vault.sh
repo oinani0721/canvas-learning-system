@@ -1135,6 +1135,44 @@ made = []
 try:
     afd = open_dir_child(vfd, ".agents", f"{vault}/.agents")
     sfd = open_dir_child(afd, "skills", f"{vault}/.agents/skills")
+    # ⛔ 源目录必须是 vault 内的**真目录**，不能是软链（Codex r8 MEDIUM-1）：
+    #    `.claude/skills/<n>` 本身若是指向 vault 外的软链，下面的两次解析会**一起**
+    #    跟随它 ⇒ 两边 `(dev, ino)` 相同、检查通过，而我们建的软链物理落点在 vault 外。
+    #    「两次采样相等」只证明它们指向同一个东西，**不证明那个东西合格**
+    #    —— 相等不能替合格背书（本卡在 tmp 身份检查上已经栽过同型）。
+    #    r4 曾有一份 shell 侧物理路径比较能拒掉这种输入，r7 我因它剥尾随换行而删掉，
+    #    却没把这条性质补回来 —— 逐条对照「检查的名目」不够，要对照
+    #    「**在什么输入下两者结论不同**」。这里按后者补。
+    # ⛔ 这段必须在**建软链之前**跑（本卡实测踩到）：我第一版插在建链循环之后，
+    #    于是「拒绝」发生在残链已经落盘之后 —— 与 r5 HIGH-1 完全同型的毛病。
+    #    检查的位置决定了它是「拒绝」还是「建了再报错」。
+    #    ⚠️ O_NOFOLLOW 逐级打开 `.claude` → `skills`，再对每个条目 lstat：
+    #    全程不跟随软链，源目录是软链时当场失败，而不是沿链穿出去。
+    try:
+        cfd = os.open(".claude", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=vfd)
+    except OSError as exc:
+        die(f"打开 .claude 失败（是软链或不存在？）: {vault}/.claude ({exc})")
+    try:
+        try:
+            csfd = os.open("skills", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=cfd)
+        except OSError as exc:
+            die(f"打开 .claude/skills 失败（是软链或不存在？）: {vault}/.claude/skills ({exc})")
+        try:
+            for name in names:
+                where = f"{vault}/.claude/skills/{name}"
+                try:
+                    st = os.stat(name, dir_fd=csfd, follow_symlinks=False)
+                except OSError as exc:
+                    die(f"技能源条目问不出状态: {where} ({exc})")
+                if statmod.S_ISLNK(st.st_mode):
+                    die(f"技能源条目是软链, 拒绝为它建绑定（落点会在 vault 之外）: {where}")
+                if not statmod.S_ISDIR(st.st_mode):
+                    die(f"技能源条目不是目录: {where}")
+        finally:
+            os.close(csfd)
+    finally:
+        os.close(cfd)
+
     for name in names:
         tgt = f"../../.claude/skills/{name}"
         where = f"{vault}/.agents/skills/{name}"

@@ -4561,6 +4561,38 @@ def test_hosts_opencode_skill_name_survives_the_shell_python_handoff(tmp_path: P
     assert os.readlink(root / odd) == f"../../.claude/skills/{odd}", os.readlink(root / odd)
 
 
+def test_hosts_opencode_refuses_skill_source_symlinked_outside_vault(tmp_path: Path):
+    """技能**源目录**本身是指向 vault 外的软链 ⇒ 拒，且**不留残链**（Codex r8 MEDIUM-1）。
+
+    ⛔ 这条是「统一 helper 会删掉一条规则」的活标本，值得完整记下来：
+       r4 的 shell 侧物理核用 `pwd -P` 比较绝对路径，**能**拒掉这种输入；
+       r7 我因它剥尾随换行而删掉它，并做了一次「逐条对照」自查，结论是「没有性质丢掉」。
+       **那次自查是错的** —— 我对照的是「两边各写了什么检查」，而不是
+       「**在什么输入下两者结论不同**」。python 侧的 `(dev, ino)` 比对在这种输入下
+       两次解析会**一起**跟随那个软链 ⇒ 两边相等、检查通过，而落点在 vault 外。
+       「两次采样相等」只证明它们指向同一个东西，**不证明那个东西合格**。
+    ⛔ 检查还必须在**建软链之前**：我第一版插在建链循环之后，于是「拒绝」发生在
+       残链已经落盘之后 —— 与 r5 HIGH-1 完全同型。位置决定它是「拒绝」还是「建了再报错」。
+    """
+    name, port = "probe_oc11", "8291"
+    h = _oc_harness(tmp_path)
+    outside = tmp_path / "outside-skill"
+    (outside / "SKILL.md").parent.mkdir(parents=True, exist_ok=True)
+    (outside / "SKILL.md").write_text("---\nname: outside-skill\n---\n", encoding="utf-8")
+    _oc_preseed_installer(tmp_path, h, f'ln -s "{outside}" "$v/.claude/skills/outside-skill"\n')
+    env = _tx_env(tmp_path, port, name)
+    r = _oc_run(tmp_path, h, name, port, env=env)
+    v = tmp_path / "vaults" / name
+    assert (v / ".claude" / "skills" / "outside-skill").is_symlink(), "控制组不成立：桩没把源建成软链"
+    assert r.returncode == 73, f"vault 外的源软链没被拒: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    assert "技能源条目是软链" in r.stdout, f"消息没点名原因: {r.stdout}"
+    # ⛔ 承重断言：**一条残链都不许留**（检查必须在建之前）。
+    root = v / ".agents" / "skills"
+    built = sorted(p.name for p in root.iterdir()) if root.is_dir() else []
+    assert built == [], f"被拒之后仍留下了软链: {built}"
+    assert not (v / "AGENTS.md").exists(), "被拒之后仍落下了 AGENTS.md"
+
+
 def test_deploy_sh_takes_skill_names_without_command_substitution(tmp_path: Path):
     """取名不得走 `$(basename …)`，label 不得嵌名字（Codex r6 MEDIUM-1 / MEDIUM-2）。
 
