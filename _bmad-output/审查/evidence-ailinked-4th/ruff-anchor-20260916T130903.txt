@@ -1,0 +1,16 @@
+=== ruff 验伪锚 (stdin, 按 backend/ 路径规则集; 不落盘) ===
+--- 锚 A: F821 未定义名 ---
+F821 Undefined name `undefined_name_for_falsification_anchor`
+ --> backend/tests/skills/_anchor.py:1:5
+  |
+1 | x = undefined_name_for_falsification_anchor
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+
+Found 1 error.
+anchorA_rc=1
+--- 锚 B: F401 未使用导入 (记忆教训: backend/** 可能没启用, 记录实测) ---
+All checks passed!
+anchorB_rc=0
+--- backend/** 启用的规则集 ---
+linter.rules.enabled = [

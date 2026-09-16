@@ -1,0 +1,26 @@
+# 地盘门 · 判据修正版  2026-09-16T20:03:29
+HEAD=475afac5a3e71a824c3aecdb0aa4c2416634c896 (文档 commit) | 审SHA=341a88b6 (代码 commit)
+
+⛔ 判据修正 1: 中文路径会被 git quoting 成 "_bmad-output/\345..." (行首是双引号),
+   所以 grep '^_bmad-output/' 恒 0 = 验伪锚假阴性。必须 -c core.quotepath=false。
+--- 验伪锚 (修正后, 应 >0) ---
+43
+
+⛔ 判据修正 2: grep 'stderr' 会命中历史批次里**名字含 stderr 的 .txt**(如 census-stderr.txt),
+   那不是 *.stderr 后缀文件。判据要取 '\.stderr' 且只看本卡新增面。
+--- 本卡 $PREQ..HEAD 新增的 .stderr 文件数 (应 0) ---
+0
+--- 本卡 4 份 .stderr 的 check-ignore 证明 ---
+.gitignore:264:_bmad-output/审查/**/*.stderr*	"_bmad-output/\345\256\241\346\237\245/codex-review-CARD-AILINKED-4TH-WRITER.stderr"
+.gitignore:264:_bmad-output/审查/**/*.stderr*	"_bmad-output/\345\256\241\346\237\245/codex-review-CARD-AILINKED-4TH-WRITER-r2.stderr"
+.gitignore:264:_bmad-output/审查/**/*.stderr*	"_bmad-output/\345\256\241\346\237\245/codex-review-CARD-AILINKED-4TH-WRITER-r3.stderr"
+.gitignore:264:_bmad-output/审查/**/*.stderr*	"_bmad-output/\345\256\241\346\237\245/codex-review-CARD-AILINKED-4TH-WRITER-r4.stderr"
+
+--- 地盘门: $PREQ..HEAD 代码面 (应恰 5 文件) ---
+backend/app/services/learning_event_log.py
+backend/tests/regression/test_learning_events_schema_contract.py
+backend/tests/skills/test_ai_linked_doc_writer.py
+backend/tests/skills/test_skill_portability_lint.py
+canvas-vault/.claude/skills/ai-linked-doc/SKILL.md
+--- 终审绑定: 341a88b6..HEAD 代码面 (应空) ---
+(空=仍绑定)

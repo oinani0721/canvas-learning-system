@@ -1,0 +1,18 @@
+# 地盘门验伪锚 + 终审绑定 · 文档 commit 后  2026-09-16T20:03:00
+HEAD=475afac5a3e71a824c3aecdb0aa4c2416634c896  (文档 commit)
+审SHA=341a88b6  (代码 commit = Codex r4 绑定)
+--- 地盘门: $PREQ..HEAD 代码面 ---
+backend/app/services/learning_event_log.py
+backend/tests/regression/test_learning_events_schema_contract.py
+backend/tests/skills/test_ai_linked_doc_writer.py
+backend/tests/skills/test_skill_portability_lint.py
+canvas-vault/.claude/skills/ai-linked-doc/SKILL.md
+--- 验伪锚: 去掉 exclude 后多出的 _bmad-output 路径数 (应 >0, 证明 pathspec 真在起作用) ---
+0
+--- 终审绑定: 审SHA..HEAD 代码面 diff --stat (应空 = 仍绑定) ---
+(以上为空=仍绑定)
+--- *.stderr* 未入库自检 (应 0) ---
+3
+--- 本卡两个 commit ---
+475afac5 docs(t7b): 验收单 + Codex 四轮存档 + 裁判证据 [BATCH-2026-09-11-第十四批 / CARD-AILINKED-4TH-WRITER]
+341a88b6 feat(t7b): ai-linked-doc 第四写者对齐账本四写规 [BATCH-2026-09-11-第十四批 / CARD-AILINKED-4TH-WRITER]

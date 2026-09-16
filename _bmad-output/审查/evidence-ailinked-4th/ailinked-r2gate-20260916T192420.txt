@@ -1,0 +1,9 @@
+跑前 shasum = f3673ca9529eaeff1358b50e11b4a9455a12f137cd676a4d1568f5f29b2ae176
+--- 整改前(65e3f333) 跑新门 rc=1 ---
+E   AssertionError: 无法解码的坏行被当成了 duplicate 证据: 历史行解不开 UTF-8, 不该证明 'derive:测试节点' 已存在, 新事件却零次落账 (实见 0 条)
+E   assert 0 == 1
+E    +  where 0 = _count_event_id(PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-26293/test_undecodable_line_is_not_d0/learning_events.jsonl'), 'derive:测试节点')
+FAILED tests/skills/test_ai_linked_doc_writer.py::test_undecodable_line_is_not_dedup_evidence
+======================== 1 failed, 10 warnings in 0.54s ========================
+跑后 shasum = f3673ca9529eaeff1358b50e11b4a9455a12f137cd676a4d1568f5f29b2ae176
+还原校验: 逐字相同 ✓
