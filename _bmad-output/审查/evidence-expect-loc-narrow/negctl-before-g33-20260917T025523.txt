@@ -1,0 +1,22 @@
+── 对照输入（g33 / 变异 M2-cas-guard / 口径 before）──
+  门文件      : /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py
+  nodeid      : tests/regression/test_g3_3_cas.py::test_cas_conflict_refuses_and_rerun_converges
+  expect_msg  : '外部写者插队后仍照常发布'
+  前提断言    : 行 640  指纹 stmt:10fee07a4d79  命中 1 条
+                源码 'assert _race_fired(vault), f"竞态注入没有触发, 本门的前提不成立\\nSTDOUT{out}\\nSTDERR{err}"'
+  目标断言    : 行 641  指纹 stmt:cba02d3de9fe  命中 1 条
+                源码 'assert rc != 0, f"外部写者插队后仍照常发布 = CAS 门没起作用\\nSTDOUT{out}"'
+  合成 out（逐行）:
+    | =========================== FAILURES ===========================
+    | /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:640: AssertionError: 前提不成立(子进程 stderr 原样内嵌): [child-stderr] ... 外部写者插队后仍照常发布 ... [/child-stderr]
+    | ===================== short test summary info =====================
+    | FAILED tests/regression/test_g3_3_cas.py::test_cas_conflict_refuses_and_rerun_converges - AssertionError: 前提不成立(子进程 stderr 原样内嵌): [child-stderr] ... 外部写者插队后仍照常发布 ... [/child-stderr]
+    | ========================= 1 failed in 0.42s =========================
+
+  口径: expect_loc=None（本卡改前三套的实际调用形态）
+
+  ⇒ verdict = KILLED
+     why     = 红在含期望消息的断言上(仅消息维, 分不开同函数里的其它断言)（绑定维度: 仅消息(位置未绑)）
+
+  判据: verdict 以 KILLED 开头 ⇒ ✅ 成立（当前口径误判）
+rc=0

@@ -1,0 +1,33 @@
+== 目的：跑完裁判之后的那次编辑是**纯注释**，裁判存档仍绑定当前行为 ==
+== 验伪锚（证明这把尺子不是恒 True）==
+文件        : /tmp/_av.py
+编辑前快照  : /tmp/_bv.py
+字节相同    : False
+AST 相同    : False  ← True = 那次编辑只动了注释/行号，代码零改动
+⛔ AST 不同 —— 那次编辑不是纯注释，裁判存档必须重跑
+  ↑ 期望 rc=1，实测 rc=1
+文件        : /tmp/_cv.py
+编辑前快照  : /tmp/_dv.py
+字节相同    : False
+AST 相同    : True  ← True = 那次编辑只动了注释/行号，代码零改动
+  ↑ 期望 rc=0，实测 rc=0
+
+== g32cb_mutation_gates.py ==
+文件        : /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/scripts/g32cb_mutation_gates.py
+编辑前快照  : /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t8-tools/b2c76df6-68b1-46be-94e3-d33c89b532e8/scratchpad/pre-comment-edit/g32cb_mutation_gates.py
+字节相同    : True
+AST 相同    : True  ← True = 那次编辑只动了注释/行号，代码零改动
+  rc=0
+== g32ccr1_negative_controls.py ==
+文件        : /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/scripts/g32ccr1_negative_controls.py
+编辑前快照  : /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t8-tools/b2c76df6-68b1-46be-94e3-d33c89b532e8/scratchpad/pre-comment-edit/g32ccr1_negative_controls.py
+字节相同    : False
+AST 相同    : True  ← True = 那次编辑只动了注释/行号，代码零改动
+  rc=0
+== g33_mutation_gates.py ==
+文件        : /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/scripts/g33_mutation_gates.py
+编辑前快照  : /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t8-tools/b2c76df6-68b1-46be-94e3-d33c89b532e8/scratchpad/pre-comment-edit/g33_mutation_gates.py
+字节相同    : False
+AST 相同    : False  ← True = 那次编辑只动了注释/行号，代码零改动
+⛔ AST 不同 —— 那次编辑不是纯注释，裁判存档必须重跑
+  rc=1

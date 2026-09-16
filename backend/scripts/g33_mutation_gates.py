@@ -22,6 +22,9 @@
 
 用法: `backend/.venv/bin/python backend/scripts/g33_mutation_gates.py [--json <out>]`
       `... --selfcheck-syntax`  (负控之负控: 旧 M15 串必判 SYNTAX-INVALID, 新串必通过)
+      `... --selfcheck-loc`     (只读: `EXPECT_LOC` 覆盖/唯一性自检 + 绑定覆盖行, 不改盘、不跑门)
+      `... --skip <完整 mid>`   (精确匹配、可重复; 排除触及零写者文件的条目, 与 `--only` 同为部分跑 ⇒ rc 恒 4)
+      `... --probe`             (只**观察**每条实际红在哪条语句上, 回填 `EXPECT_LOC` 用; 不做裁决、rc 恒 4)
       (从仓库根或 backend/ 跑均可; 只读 live vault 与 7691, 不碰它们)
 """
 
@@ -46,6 +49,7 @@ from pathlib import Path
 from mutation_kill_identity import (
     VERDICTS,
     RestoreGuard,
+    check_expect_loc_unique,
     check_expect_msg_unique,
     failed_locations,
     failed_reasons,
@@ -53,7 +57,9 @@ from mutation_kill_identity import (
     judge_env,
     judge_flags,
     kill_identity,
+    loc_token_for,
     parse_failed_nodeids,
+    stmt_fingerprints,
     syntax_check,
 )
 
@@ -370,6 +376,160 @@ def _check_expect_msg_unique() -> list[str]:
     )
 
 
+#: **断言源位置身份** (CARD-EXPECT-LOC-NARROW, 用户裁定 D-28 的三套尾巴)。
+#: 值形如 `stmt:<12 位十六进制>` = `sha256(所在作用域全名 + 语句的 AST 规范化 dump)[:12]`,
+#: 由 `mutation_kill_identity.loc_token_for()` 折算 (见该模块 `_fp` 的 docstring)。
+#:
+#: ⛔ **它挡的是哪一种假杀** (Y1-B HIGH-1, UAT-CARD-DEBT-mutkill-R2 §9 #4):
+#: `require_gate_file=True` 这道弱位置判据只问「有**某条**失败落在**门文件**里」。而本套门
+#: 函数里往往既有**前提断言** (`assert _race_fired(vault), f"竞态注入没有触发...{out}{err}"`
+#: —— 消息里**原样内嵌**被测子进程的 STDOUT/STDERR) 又有**目标断言** (这条变异本该打红的
+#: 那一条)。子进程运行期拼出的文本里只要含目标断言的 `expect_msg` 片段, 消息维与弱位置维
+#: **同时**被喂饱, 而目标断言根本没执行 ⇒ 误判 KILLED。两条断言同在一个文件里, 文件级位置
+#: 分不开它们; 绑到**语句**才分得开。
+#: 本卡对照输入存档: `_bmad-output/审查/evidence-expect-loc-narrow/negctl-*-g33-*.txt`。
+#:
+#: ⚠️ **这张表是怎么来的, 如实说**: 由 `--probe` 跑一遍变异、观察每条**实际**红在哪条语句
+#: 上再回填 —— **判据与被测量同源**, 所以它今天证不出「每条变异确实红在它声称的那条断言
+#: 上」。价值在**从今往后**: 门文件或生产代码一漂移、击杀落到别的语句上, 就当场报 SURVIVED;
+#: 语句本身被改写则报 HARNESS-ERROR (锚失效), 而不是静默记 KILLED。
+#: 这一条写进了验收单「本卡未证明什么」。
+#:
+#: ⚠️ 与内联的 `expect_msg` (`MUTATIONS` 第 7 字段) 是 **AND**: 两者都有的条目要**同时**满足。
+#: 本套**没有**模块级 `EXPECT_MSG` 字典, 所以这张表按 `mid` (`MUTATIONS` 第 1 字段) 建键。
+#:
+#: 回填证据: `_bmad-output/审查/evidence-expect-loc-narrow/probe-g33-skipM5-*.txt`
+#: (17 条真跑, 全部落在门文件 `tests/regression/test_g3_3_cas.py` 里、且指纹所在作用域**就是**
+#: 各自点名的那道门 ⇒ `EXPECT_LOC_HELPER` 为空; 第 18 条 `M5-cas-revision-only` 按裁定
+#: R-B14-9 (1) 禁真跑 ⇒ 进 `EXPECT_LOC_EXEMPT`)。行号注释是**回填当时**的观察值,
+#: ⚠️ 指纹不随行号漂移 (`_fp` 不含行号); **改断言文本或改测试函数名**才会失配 —— 那时报
+#: HARNESS-ERROR「锚失效」, 这是想要的方向。
+EXPECT_LOC: dict[str, str] = {
+    "M1-per-node-lock": "stmt:beacfb662989",  # 行 210 · test_concurrent_same_node_no_lost_update
+    "M2-cas-guard": "stmt:cba02d3de9fe",  # 行 641 · test_cas_conflict_refuses_and_rerun_converges
+    "M3-ledger-lock-backend": "stmt:b19d8467e5a8",  # 行 876 · test_append_event_refuses_when_ledger_locked
+    "M6-ledger-lock-skill": "stmt:d35dc8f468e4",  # 行 384 · test_writer_waits_for_held_ledger_lock
+    "M7-lock-dropped-by-second-fd": "stmt:b34864a8bc5f",  # 行 1019 · test_append_event_still_holds_lock_at_the_moment_of_write
+    "M8-thread-lock-lifetime": "stmt:e7bc8c53157d",  # 行 449 · test_thread_critical_sections_do_not_overlap
+    "M9-splitlines-instead-of-lf": "stmt:243ce266f438",  # 行 472 · test_dedup_scan_splits_only_on_physical_lf
+    "M10-short-write-unchecked": "stmt:e6dd183a30ef",  # 行 493 · test_short_write_is_not_reported_as_success
+    "M11-out-of-order-auto-guess": "stmt:c6341f5d1047",  # 行 517 · test_out_of_order_is_caller_declared_not_auto_guessed
+    "M12-a3-node-lock": "stmt:f2a78dd09aee",  # 行 1111 · test_incremental_block_waits_for_node_lock
+    "M13-a3-cas": "stmt:4572f662b63a",  # 行 1154 · test_incremental_block_cas_preserves_racing_edit
+    "M14-exam-board-ledger-lock": "stmt:7eefe47ecb5f",  # 行 1227 · test_exam_board_waits_for_held_ledger_lock
+    "M15-post-lock-redup": "stmt:fa419abd1e38",  # 行 1197 · test_writer_refuses_when_other_writer_took_the_event_id
+    "M16-a2-foreign-cas": "stmt:35c598faa1bf",  # 行 1309 · test_a2_foreign_recovery_publish_respects_cas
+    "M17-dup-recovery-cas": "stmt:f64532b1998f",  # 行 1340 · test_dup_recovery_publish_respects_cas
+    # ⚠️ M4a / M4b 是**同一道门**的两种拆法, 但落在**不同的两条**断言上(行 764 / 760) ——
+    # 这正是位置身份比消息身份强的地方: 两条变异的 expect_msg 都指向同一道门, 位置把它们分开了。
+    "M4a-payload-in-place": "stmt:ad7ce842b700",  # 行 764 · test_out_of_order_marker_is_additive
+    "M4b-marker-not-additive": "stmt:9801333c4a98",  # 行 760 · test_out_of_order_marker_is_additive
+}
+
+#: 位置落在**共享 helper** 的断言上: 指纹唯一、绑得上, 但证不了红在**哪一道门**的调用
+#: ⇒ 身份比「绑到本门函数里的那一条断言」弱一档。⛔ 与 `EXPECT_LOC_EXEMPT` 语义不同:
+#: 这里是「绑上了但弱一档」, 那里是「根本没绑」(范式见 `g32b::EXPECT_LOC_HELPER`)。
+EXPECT_LOC_HELPER: dict[str, str] = {}
+
+#: 位置绑不出来的条目 `{id: 具体理由}`。
+#: ⛔ **这些条目落哪一档, 如实说**: 本套 18 条**全部**有内联 `expect_msg` ⇒ `kill_identity()`
+#: 只在 `expect_loc` 与 `expect_msg` **两维同时为空**时才给 `KILLED-UNBOUND`, 本套取不到那一
+#: 档。位置豁免条目的实际结果是 **`KILLED` + 「仅消息维」** (`require_gate_file` 保持 `True`,
+#: 弱位置判据仍在)。⛔ 不得照抄 g32b 的 `require_gate_file=tag not in EXPECT_LOC_EXEMPT`:
+#: 那是为「两维皆空 ⇒ KILLED-UNBOUND」的条目写的, 在本套会把「弱位置 AND 消息」整块降成
+#: 「只消息」= 放宽判据。
+EXPECT_LOC_EXEMPT: dict[str, str] = {
+    "M5-cas-revision-only": (
+        "本批零写者铁律禁真跑(主 session 裁定 R-B14-9 (1), 修订 R-B14-6): 它是 18 条里**唯一** "
+        "path=BRIDGE=canvas-vault/.claude/scripts/fsrs_bridge.py 的条目, 而该文件是本批点名的零写者 "
+        "⇒ 不跑 ⇒ 指纹取不到, ⛔ 不得伪造一个 stmt: 凑覆盖率。⚠️ 这条**不是**「本可绑却偷懒」: "
+        "它的失败位置落在哪里本卡没观测过, 所以既不证明它绑得出来、也不证明绑不出来。"
+        "移交第十五批(前置 = 给 _TARGET_FILES 加 live 部署链文件排除, 或改副本树变异)。"
+        "⚠️ 它实际落的档是 **KILLED + 仅消息维**(require_gate_file 仍为 True、内联 expect_msg 仍在), "
+        "**不是** KILLED-UNBOUND。"
+    ),
+}
+
+
+def _check_expect_loc() -> list[str]:
+    """`EXPECT_LOC` 完整性 + 唯一性自检 (共用实现, 见 `mutation_kill_identity`)。"""
+    # ⚠️ **一个隐含前提, 如实写出来**: 下面那张作用域表是按**固定**的 `BACKEND / TESTS`
+    # 建的, 而 `check_expect_loc_unique()` 收的是**逐条**从 `nodeid` 推出来的门文件路径;
+    # 跑门时 `kill_identity()` 拿的也是固定的 `BACKEND / TESTS`。三者今天一致, 因为 AST
+    # 实测 18/18 条变异的 nodeid 都落在 `tests/regression/test_g3_3_cas.py` 里。将来若加
+    # 一条**别的**测试文件里的门, 这三处会各指一处、指纹静默对不上(表现成 HARNESS-ERROR
+    # 「锚失效」, 而真因是判据面拿错了文件)。届时必须同改这三处。
+    # ⛔ 本卡**没有**把这个前提做成运行时检查 —— 它是既有形态(`_check_expect_msg_unique`
+    # 早就这么写), 收窄它超出本卡地盘, 已登记移交。
+    problems = check_expect_loc_unique(
+        [(m[0], str(BACKEND / m[4].split("::", 1)[0]), EXPECT_LOC.get(m[0])) for m in MUTATIONS],
+        exempt=EXPECT_LOC_EXEMPT,
+    )
+    stale = sorted((set(EXPECT_LOC) | set(EXPECT_LOC_EXEMPT)) - {m[0] for m in MUTATIONS})
+    if stale:
+        # ⛔ 反向也要看: 表里留着已不存在的 id ⇒ 这张表与变异表脱节了 (与 baseline_missing 同型)。
+        problems.append(f"EXPECT_LOC/EXEMPT 里有已不存在的 id: {stale}")
+    stale_h = sorted(set(EXPECT_LOC_HELPER) - {m[0] for m in MUTATIONS})
+    if stale_h:
+        problems.append(f"EXPECT_LOC_HELPER 里有已不存在的 id: {stale_h}")
+    # ⛔ 指纹所在作用域必须就是该条变异点名的那道门; 落在共享 helper 里的必须显式登记
+    # `EXPECT_LOC_HELPER` (身份弱一档)。不核这一条的话,「绑到了具体断言」这句话会把
+    # 「绑到了某个被多道门共用的 helper 断言」也算进去 —— 比证据宽。
+    from mutation_kill_identity import _fp, _stmts_with_scope  # 局部导入: 不在顶部再挂一层
+
+    scopes: dict[str, str] = {}
+    for node, sc in _stmts_with_scope(BACKEND / TESTS):
+        scopes.setdefault(_fp(node, sc), sc)
+    for m in MUTATIONS:
+        loc = EXPECT_LOC.get(m[0])
+        if not loc or not loc.startswith("stmt:"):
+            continue
+        sc = scopes.get(loc[5:])
+        if sc is None:
+            continue  # 「指纹已找不到」由共用自检报, 这里不重复
+        gate_fn = m[4].rsplit("::", 1)[-1].split("[", 1)[0]
+        if sc != gate_fn and m[0] not in EXPECT_LOC_HELPER:
+            problems.append(
+                f"{m[0]}: expect_loc 的指纹落在作用域 `{sc}` (≠ 门 {gate_fn}) —— 共享 helper "
+                f"身份弱一档, 须登记 EXPECT_LOC_HELPER 并写理由"
+            )
+    return problems
+
+
+def _loc_coverage_line() -> str:
+    """只读入口打印的绑定覆盖行。⛔ 文案与表一一对应, 不自述「全部绑到具体断言」。"""
+    n_msg = sum(1 for m in MUTATIONS if m[6] is not None)
+    return (
+        f"  绑定覆盖: 内联 expect_msg {n_msg} 条 / EXPECT_LOC {len(EXPECT_LOC)} 条 "
+        f"/ 位置豁免 {len(EXPECT_LOC_EXEMPT)} / 位置弱一档(共享 helper) {len(EXPECT_LOC_HELPER)} "
+        f"(共 {len(MUTATIONS)} 条变异)"
+    )
+
+
+def _selfcheck_loc() -> int:
+    """`--selfcheck-loc`: 只读位置绑定自检。⛔ 不改盘、不跑门 (与 `--selfcheck-syntax` 同层早退)。"""
+    problems = _check_expect_loc()
+    print("══ EXPECT_LOC 只读自检 ══")
+    for b in problems:
+        print(f"  ⛔ EXPECT_LOC 自检: {b}")
+    print(_loc_coverage_line())
+    return 0 if not problems else 4
+
+
+def _observed_loc(out: str) -> tuple[str | None, str | None]:
+    """本次失败的**位置** token (`--probe` 回填 `EXPECT_LOC` 用); 没有则 `(None, None)`。
+
+    ⛔ 回填这件事如实说: 它是「跑一次看它红在哪」再写回表里, **判据与被测量同源** ——
+    今天证不出「这条变异确实打红了它声称的那条断言」(见 `EXPECT_LOC` 的表头注释)。
+    ⚠️ 原始 `<路径>:<行号>` 也一并返回: 取值方式将来若再变, 有了原始位置就能**离线重算**。
+    """
+    locs = failed_locations(out)
+    if not locs:
+        return None, None
+    path, lineno, _ = locs[0]
+    return loc_token_for(BACKEND / TESTS, path, lineno), f"{path}:{lineno}"
+
+
 def _run_gate(nodeid: str) -> tuple[int, str]:
     proc = subprocess.run(
         # ⛔ round-19: 命令行开关统一从 `judge_flags()` 取（四套一份）。本套原先
@@ -614,15 +774,55 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--json", type=Path, default=None, help="把结果写成 JSON")
     ap.add_argument("--only", default=None, help="只跑某一条变异 (id 前缀)")
+    # ⛔ `--skip` 是**精确 mid** 匹配, 不是前缀: `--skip M1` 按前缀会连 M10~M17 一起误排 9 条。
+    # 它存在的唯一理由是 `--only` 只接**单个前缀**、表达不出「排除某一条」——
+    # 而排除触及零写者文件 (`fsrs_bridge.py`) 的那一条是本批铁律 (裁定 R-B14-9 (1))。
+    ap.add_argument(
+        "--skip",
+        action="append",
+        default=[],
+        metavar="MID",
+        help="跳过某一条变异 (**精确** mid, 可重复); 与 --only 同为部分跑 ⇒ rc 恒 4",
+    )
+    ap.add_argument(
+        "--probe",
+        action="store_true",
+        help="只**观察**每条实际红在哪条语句上 (回填 EXPECT_LOC 用): 不做裁决、一律 OBSERVED、rc 恒 4",
+    )
     ap.add_argument(
         "--selfcheck-syntax",
         action="store_true",
         help="负控之负控: 只跑编译自检 (旧 M15 串必判 SYNTAX-INVALID), 不改盘、不跑门",
     )
+    ap.add_argument(
+        "--selfcheck-loc",
+        action="store_true",
+        help="只读: EXPECT_LOC 覆盖/唯一性自检 + 绑定覆盖行, 不改盘、不跑门",
+    )
     args = ap.parse_args()
 
     if args.selfcheck_syntax:
         return _selfcheck_syntax()
+    # ⛔ 与 `--selfcheck-syntax` **同层早退**: 排在 `_TARGET_FILES` 存在性循环与 `baseline`
+    # 之前, 保证 `--selfcheck-loc` 是纯只读、零写入入口。
+    if args.selfcheck_loc:
+        return _selfcheck_loc()
+
+    # ⛔ `--skip` 的取值必须在变异表里: 打错一个字就会静默退化成「全量跑」(而调用者以为
+    # 自己排掉了那条零写者条目)。当场 rc=4 拒跑, **不施加任何变异**。
+    _skip = set(args.skip)
+    if _unknown_skip := sorted(_skip - {m[0] for m in MUTATIONS}):
+        print(
+            f"⛔ --skip 取值不在变异表里: {_unknown_skip} —— 拒跑, 未施加任何变异 (rc=4)",
+            file=sys.stderr,
+        )
+        return 4
+
+    # ⛔ 选中集合上提到这里: `--probe` 的早退块排在六档汇总**之前**, 也要用它当分母。
+    # ⚠️ 这里**不**把循环改成遍历 `_selected` —— 循环里的过滤与本表达式**分别**写一遍,
+    # 「六档之和 = len(_selected)」才能顺带抓到「过滤与分母漂开」; 合并成一处会把这条
+    # 交叉核变成恒真式 (同型教训: 分母曾被写成 `len(results)`)。两处的谓词必须逐字同口径。
+    _selected = [m for m in MUTATIONS if (not args.only or m[0].startswith(args.only)) and m[0] not in _skip]
 
     for p in _TARGET_FILES:
         if not p.exists():
@@ -634,6 +834,15 @@ def main() -> int:
         for b in bad:
             print(f"⛔ expect_msg 唯一性自检失败 — {b}", file=sys.stderr)
         return 2
+
+    # ⛔ 位置判据同样先自检: 指纹漂了 ⇒ 「红在哪一条断言上」不再可证。
+    # ⚠️ `--probe` 跳过它: probe 就是**为了**把 `EXPECT_LOC` 填出来才跑的, 表可能还空着;
+    # 作为交换, probe 一律不判定、rc 恒 4 (与 g32b 同口径)。
+    if not args.probe:
+        if bad := _check_expect_loc():
+            for b in bad:
+                print(f"⛔ EXPECT_LOC 自检失败 — {b}", file=sys.stderr)
+            return 2
 
     # ⛔ 基线覆盖**所有会被变异的文件**, 不是只盯一个: grep 标记有盲区
     # (变异体文本未必含该字样), 全文件 sha 才是外部锚点。
@@ -669,9 +878,14 @@ def main() -> int:
     #: 「最后 sha 对得上」证明不了「中间没出过事」。
     restore_failures: list[str] = []
     results = []
+    #: `--probe` 的观察表 `{id: (stmt token, 原始 <路径>:<行号>, rc)}`。
+    _observed: dict[str, tuple[str | None, str | None, int]] = {}
     try:
         for mid, path, old, new, nodeid, why, expect_msg in MUTATIONS:
             if args.only and not mid.startswith(args.only):
+                continue
+            # ⛔ 精确匹配 (见 `--skip` 的 add_argument 注释): 前缀语义会多排 8 条。
+            if mid in _skip:
                 continue
             src = path.read_text(encoding="utf-8")
             n = src.count(old)
@@ -721,13 +935,42 @@ def main() -> int:
             # 那道门** → 失败**位置**在不在门文件里 ((c)① 弱位置判据) → 摘要区 reason
             # 含不含 `expect_msg`。只判 rc 会被别的门红了喂饱; 只判 nodeid 会被**同一个
             # 门里别的断言**喂饱 —— 后者正是旧 M15 假杀的形态。
-            # ⚠️ 按用户裁定 D-28 本套**不加** `expect_loc` ⇒ 挡不住 Y1-B HIGH-1 那种
-            # 「前提断言把子进程输出插进消息首行」的形态, 已登记移交第十四批。
+            # ⛔ CARD-EXPECT-LOC-NARROW (D-28 的三套尾巴): 补上 `expect_loc` 之后, Y1-B
+            # HIGH-1 那种「前提断言把子进程输出插进消息首行」的形态被挡住 —— 前提断言与目标
+            # 断言同在门文件里, 弱位置判据分不开, 语句级指纹分得开。
+            # ⚠️ `require_gate_file` **恒 `True`**, 位置豁免条目也不例外:
+            # `kill_identity()` 里 `if require_gate_file or expect_loc is not None:` 是**整块**
+            # 弱位置判据, 对「有 expect_msg、无 expect_loc」的条目置 False 等于把它从
+            # 「弱位置 AND 消息」降成「只消息」= 放宽判据 (口径见 EXPECT_LOC_EXEMPT)。
             # ⛔ `judge_surface_missing` 不再在这里单独调用后 `return 2`: 判据面缺失现在
             # 由 `kill_identity()` 判成 `HARNESS-ERROR` 并**继续跑完其余条目** ——
             # 原先一条判据面异常就整份中止, 「其余 17 条还好着」这个信息也一起丢掉。
+            if args.probe:
+                # ⛔ probe 只**观察**, 从不判定: 裁决一律 OBSERVED、rc 恒 4。
+                _tok, _raw = _observed_loc(out)
+                _observed[mid] = (_tok, _raw, rc)
+                results.append(
+                    {
+                        "id": mid,
+                        "verdict": "OBSERVED",
+                        "rc": rc,
+                        "nodeid": nodeid,
+                        "why": why,
+                        "loc_token": _tok,
+                        "at": _raw,
+                        "failed_locations": locs,
+                    }
+                )
+                print(f"👁  {'OBSERVED':15} {mid}: rc={rc} loc={_tok!r} at={_raw!r}")
+                continue
             verdict, why_v = kill_identity(
-                rc, out, nodeid, expect_msg, gate_file=BACKEND / TESTS, require_gate_file=True
+                rc,
+                out,
+                nodeid,
+                expect_msg,
+                gate_file=BACKEND / TESTS,
+                expect_loc=EXPECT_LOC.get(mid),
+                require_gate_file=True,
             )
             killed = verdict.startswith("KILLED")
             results.append(
@@ -887,6 +1130,27 @@ def main() -> int:
         leftovers = None
         baseline_missing = None
 
+    if args.probe:
+        # ⛔ probe 的输出不进裁决口径 (OBSERVED 不在 `VERDICTS` 六档里, 混进去会让
+        # 「六档之和 = 选中条数」这个不变量恒对不上)。单独一张观察表 + rc 恒 4。
+        # ⚠️ 还原自检与 MARK 扫描**照跑** —— 观察模式一样会写盘, 没还原干净必须当场报出来。
+        print("\n── PROBE 观察表（不是裁决）──")
+        for _t, (_tok, _raw, _rc) in _observed.items():
+            print(f"  {_t}\trc={_rc}\tloc={_tok!r}\tat={_raw!r}")
+        print("\n── 可回填的 EXPECT_LOC（观察值, 不是已验证的期望值）──")
+        _fps = stmt_fingerprints(BACKEND / TESTS)
+        for _t, (_tok, _raw, _rc) in _observed.items():
+            _lines = _fps.get(_tok[5:], []) if _tok and _tok.startswith("stmt:") else []
+            print(f'    "{_t}": "{_tok}",   # 门文件行 {_lines or "(不在门文件里)"} ← {_raw}')
+        print(f"\n还原逐字节相同: {'是' if ok_restore else f'否 — 漂移 {drift} / 还原报错 {restore_failures}'}")
+        print(f"{MARK} 扫描: {'完成' if scan_ok else '⛔ 失败'} / 新增残留: {leftovers} / 基线缺失: {baseline_missing}")
+        print(f"观察条数: {len(_observed)} (应 = 选中的变异条数 {len(_selected)})")
+        if not ok_restore or not scan_ok or leftovers or baseline_missing:
+            print("⛔ 还原 / 残留检查未通过 —— 先修这个, probe 结果不可用 (rc=3)")
+            return 3
+        print("\n⚠️ --probe 只观察不判定，rc 恒为 4。")
+        return 4
+
     # ⛔ round-19: 六档口径与另三套逐字一致（`mutation_kill_identity.VERDICTS`）。
     # 收口前本套只有 KILLED / SURVIVED / SYNTAX-INVALID 三档, 锚点异常还另叫
     # `ANCHOR-DRIFT` —— 同一个 `kill_identity` 在四套里被四种口径消费。
@@ -894,9 +1158,16 @@ def main() -> int:
     n_killed = nv["KILLED"]
     n_syntax = nv["SYNTAX-INVALID"]
     print("\n── 汇总 ──")
-    # ⛔ 文案不得比证据宽：本套按 D-28 **没有** `expect_loc`，位置只绑到门文件一级。
+    # ⛔ 文案不得比证据宽：位置豁免条目**没有**绑到具体断言，它们仍只是「弱位置 + 消息」；
+    # 所以这里逐项报数，不写「全部绑到具体断言」。⛔ 也不得写「⇒ KILLED-UNBOUND」：本套 18 条
+    # 全部有内联 `expect_msg`，那一档取不到（`kill_identity()` 只在两维同时为空时才给）。
+    # ⚠️ 括号里那三个数是**表**的计数（这套 harness 把哪几维绑上了），**不是**本次跑覆盖了
+    # 多少条 —— `--only` / `--skip` 部分跑时两者不同（例如排掉 M5 之后跑的是 17 条，而
+    # 「位置豁免 1 条」说的是表里那条被排掉的），本次覆盖由「选中 N/M 条」那行单独说。
     print(
-        f"KILLED (绑定: 消息 + 失败位置在门文件内; ⚠️ 未绑到具体断言, expect_loc 按 D-28 移交十四批): "
+        f"KILLED (绑定: 消息 + 断言源位置(`stmt:` 指纹) {len(EXPECT_LOC)} 条; "
+        f"位置豁免 {len(EXPECT_LOC_EXEMPT)} 条 = **仅消息维**, 位置仍只绑到门文件一级; "
+        f"位置弱一档(共享 helper) {len(EXPECT_LOC_HELPER)} 条): "
         f"{n_killed}/{len(results)}"
     )
     print(f"KILLED-UNBOUND: {nv['KILLED-UNBOUND']} (仅证明指定门红了)")
@@ -908,7 +1179,9 @@ def main() -> int:
     # 六档之和（每个写进 `results` 的裁决值都字面来自 `VERDICTS`），那是个**恒真判据**，
     # 什么也证不了（独立复核 2026-09-08 指出；收口时我照抄了 g32b 的形态却换错了分母）。
     # 用「选中的变异条数」当分母，才能抓住「某条变异跑完没落进任何一档」。
-    _selected = [m for m in MUTATIONS if not args.only or m[0].startswith(args.only)]
+    # ⛔ 分母 = `_selected`（定义上提到 `--skip` 校验之后, 与循环里的过滤逐字同口径:
+    # `--only` 前缀 **与** `--skip` 精确排除都要算）。漏掉 `--skip` 会让
+    # 「六档之和 = 选中的变异条数」这个不变量当场对不上。
     _total = sum(nv.values())
     _sum_ok = _total == len(_selected)
     print(f"六档之和: {_total} (应 = 选中的变异条数 {len(_selected)}) {'✓' if _sum_ok else '⛔ 对不上'}")
@@ -942,7 +1215,9 @@ def main() -> int:
                     # ⛔ total 用「选中的变异条数」而不是 len(results) —— 后者恒等于
                     # 六档之和, 消费方拿它复现「sum==total」会得到恒真式(独立复核)。
                     "total": len(_selected),
-                    "partial": bool(args.only),
+                    # ⛔ `--skip` / `--probe` 同样是**部分跑 / 不裁决**: 漏进这个字段, 消费方会把
+                    # 一份排掉了条目 (或根本没判定) 的结果当成全量结论。
+                    "partial": bool(args.only) or bool(_skip) or bool(args.probe),
                     "syntax_invalid": n_syntax,
                     # round-19: 六档计数进 JSON, 消费方不必自己从 results 里数
                     "verdict_counts": nv,
@@ -994,11 +1269,15 @@ def main() -> int:
     if n_harness_err:
         print(f"⛔ HARNESS-ERROR {n_harness_err} 条 —— 负控自己坏了, 不是关于被测物的结论 (rc=2)")
         return 2
-    if args.only:
+    if args.only or _skip:
         # ⛔ 与 g32b / g32ccr1 同口径：部分跑**不构成全量结论**，rc 恒为 4。
         # 收口前 `--only M1` 跑完照样 rc=0 + 「六档之和 ✓」，与全量通过在输出上不可分 ——
         # 而定点复核的输出正是最容易被当成存档证据的那种（独立复核 2026-09-08）。
-        print(f"\n⚠️ --only {args.only!r} 选中 {len(_selected)}/{len(MUTATIONS)} 条 —— 部分跑不构成全量结论，rc 恒为 4")
+        # ⛔ `--skip` 走**同一条**路: 它排掉的那条 (零写者条目) 没跑过, 结论同样不是全量的。
+        _how = " ".join(
+            ([f"--only {args.only!r}"] if args.only else []) + ([f"--skip {sorted(_skip)}"] if _skip else [])
+        )
+        print(f"\n⚠️ {_how} 选中 {len(_selected)}/{len(MUTATIONS)} 条 —— 部分跑不构成全量结论，rc 恒为 4")
         return 4
     # 到这里 ok_restore / scan_ok / leftovers / baseline_missing 已各自单独判过并早退,
     # 保留在条件里是**冗余的**第二道 —— 冗余不等于多余: 它让「rc=0」这句话不依赖上面

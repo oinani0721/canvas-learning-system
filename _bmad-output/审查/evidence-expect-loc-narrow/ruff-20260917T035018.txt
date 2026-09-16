@@ -1,0 +1,14 @@
+== ruff 判据（zsh 数组；此刻 commit 前用工作树形态 796f6490ba951a1826e2c28e97037ab47d71f4b8 -- ...）==
+files=3
+backend/scripts/g32cb_mutation_gates.py
+backend/scripts/g32ccr1_negative_controls.py
+backend/scripts/g33_mutation_gates.py
+All checks passed!
+ruff-check rc=0
+3 files already formatted
+ruff-format-check rc=0
+
+== 验伪锚：喂一个已知含 F821 的临时文件，ruff check 必 rc=1 ==
+All checks passed!
+anchor rc=0
+（⚠️ backend/** 的 ruff 只开少数必错级规则，F401 恒不触发 —— 故锚点选 F821，见 MEMORY）

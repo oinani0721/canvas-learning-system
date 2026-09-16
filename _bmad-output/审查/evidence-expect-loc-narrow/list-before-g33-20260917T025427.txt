@@ -1,0 +1,4 @@
+usage: g33_mutation_gates.py [-h] [--json JSON] [--only ONLY]
+                             [--selfcheck-syntax]
+g33_mutation_gates.py: error: unrecognized arguments: --selfcheck-loc
+rc=2

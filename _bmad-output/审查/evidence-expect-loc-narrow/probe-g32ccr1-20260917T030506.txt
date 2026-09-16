@@ -1,0 +1,85 @@
+=== 跑前 shasum -a 256（被变异文件 + 零写者 fsrs_bridge.py）===
+c1588ec6fda0371c85d801870bd035360891cd63f20c22be10fab779a173a1e4  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/canvas-vault/.claude/skills/quiz-answer/SKILL.md
+a7cbaee4b9cabd3431a73a944921d739fe3d3ab9561bdf2555a897bb61272025  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/scripts/validate_learning_events.py
+a766fbcc28e3ff917e740843c633e800aa8a75e949295f83efc90f55105f90f0  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/canvas-vault/.claude/scripts/fsrs_bridge.py
+═══ 锚点自检（先于一切慢步骤）═══
+  [E1] 锚命中 1 次 @ canvas-vault/.claude/skills/quiz-answer/SKILL.md → test_g32cc_emitter_rebuild_never_mutates_existing_entries
+  [E2] 锚命中 1 次 @ canvas-vault/.claude/skills/quiz-answer/SKILL.md → test_g32cc_emitter_rebuild_never_mutates_existing_entries
+  [E3] 锚命中 1 次 @ backend/scripts/validate_learning_events.py → test_g32ccr1_charset_scope_is_bounded_by_ledger_record_reality
+  [E4] 锚命中 1 次 @ canvas-vault/.claude/skills/quiz-answer/SKILL.md → test_g32ccr1_receipt_only_fields_roundtrip_under_hostile_codepoints
+  [E6] 锚命中 1 次 @ canvas-vault/.claude/skills/quiz-answer/SKILL.md → test_g32cc_emitter_rebuild_never_mutates_existing_entries
+  [E7] 锚命中 1 次 @ canvas-vault/.claude/skills/quiz-answer/SKILL.md → test_g32cc_emitter_rebuild_never_mutates_existing_entries
+  [E8] 锚命中 1 次 @ canvas-vault/.claude/skills/quiz-answer/SKILL.md → test_g32ccr1_timestamp_axis_rejects_hostile_codepoints_before_any_write
+  [E9] 锚命中 1 次 @ backend/scripts/validate_learning_events.py → test_g32ccr1_charset_scope_is_bounded_by_ledger_record_reality
+  [E10] 锚命中 1 次 @ backend/scripts/validate_learning_events.py → test_g32ccr1_nondict_branch_unreachable_from_validate_record_full
+  [E11] 锚命中 1 次 @ backend/scripts/validate_learning_events.py → test_g32cc_charset_traverses_all_container_shapes
+  [E5] 锚命中 1 次 @ backend/scripts/validate_learning_events.py → test_g32ccr1_nondict_branch_unreachable_from_validate_record_full
+
+═══ 变异前 sha 基线 ═══
+  a7cbaee4b9cabd3431a73a944921d739fe3d3ab9561bdf2555a897bb61272025  backend/scripts/validate_learning_events.py
+  c1588ec6fda0371c85d801870bd035360891cd63f20c22be10fab779a173a1e4  canvas-vault/.claude/skills/quiz-answer/SKILL.md
+
+═══ 绿态前提（变异前每道门必须绿）═══
+  [E1] test_g32cc_emitter_rebuild_never_mutates_existing_entries → rc=0 ✅
+  [E2] test_g32cc_emitter_rebuild_never_mutates_existing_entries → rc=0 ✅
+  [E3] test_g32ccr1_charset_scope_is_bounded_by_ledger_record_reality → rc=0 ✅
+  [E4] test_g32ccr1_receipt_only_fields_roundtrip_under_hostile_codepoints → rc=0 ✅
+  [E6] test_g32cc_emitter_rebuild_never_mutates_existing_entries → rc=0 ✅
+  [E7] test_g32cc_emitter_rebuild_never_mutates_existing_entries → rc=0 ✅
+  [E8] test_g32ccr1_timestamp_axis_rejects_hostile_codepoints_before_any_write → rc=0 ✅
+  [E9] test_g32ccr1_charset_scope_is_bounded_by_ledger_record_reality → rc=0 ✅
+  [E10] test_g32ccr1_nondict_branch_unreachable_from_validate_record_full → rc=0 ✅
+  [E11] test_g32cc_charset_traverses_all_container_shapes → rc=0 ✅
+  [E5] test_g32ccr1_nondict_branch_unreachable_from_validate_record_full → rc=0 ✅
+
+═══ 变异（串行）═══
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_2_review_ledger.py:6981: SyntaxWarning: "\s" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\s"? A raw string is also an option.
+  \u00b7 `\s+` \u5f53\u5206\u9694\uff1aPython `\s` \u542b\u5168\u89d2\u7a7a\u683c/NBSP\uff0cYAML s-white \u53ea\u6709 SP/TAB \u2014\u2014
+  [E1] test_g32cc_emitter_rebuild_never_mutates_existing_entries → OBSERVED rc=1 loc='stmt:53162da695b2' at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_2_review_ledger.py:6581'
+  [E2] test_g32cc_emitter_rebuild_never_mutates_existing_entries → OBSERVED rc=1 loc='stmt:ad9c3f7a2307' at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_2_review_ledger.py:6591'
+  [E3] test_g32ccr1_charset_scope_is_bounded_by_ledger_record_reality → OBSERVED rc=1 loc='stmt:dfff1778d16f' at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_2_review_ledger.py:6063'
+  [E4] test_g32ccr1_receipt_only_fields_roundtrip_under_hostile_codepoints → OBSERVED rc=1 loc='stmt:d43950d3021d' at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_2_review_ledger.py:6166'
+  [E6] test_g32cc_emitter_rebuild_never_mutates_existing_entries → OBSERVED rc=1 loc='stmt:ad9c3f7a2307' at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_2_review_ledger.py:6591'
+  [E7] test_g32cc_emitter_rebuild_never_mutates_existing_entries → OBSERVED rc=1 loc='stmt:d7cd6124725c' at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_2_review_ledger.py:6614'
+  [E8] test_g32ccr1_timestamp_axis_rejects_hostile_codepoints_before_any_write → OBSERVED rc=1 loc='stmt:a2a081911fac' at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_2_review_ledger.py:6216'
+  [E9] test_g32ccr1_charset_scope_is_bounded_by_ledger_record_reality → OBSERVED rc=1 loc='stmt:dfff1778d16f' at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_2_review_ledger.py:6063'
+  [E10] test_g32ccr1_nondict_branch_unreachable_from_validate_record_full → OBSERVED rc=1 loc='stmt:3021a17bfac1' at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_2_review_ledger.py:6286'
+  [E11] test_g32cc_charset_traverses_all_container_shapes → OBSERVED rc=1 loc='stmt:53ae32c1ce3a' at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_2_review_ledger.py:5915'
+  [E5] test_g32ccr1_nondict_branch_unreachable_from_validate_record_full → OBSERVED rc=1 loc='stmt:3021a17bfac1' at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_2_review_ledger.py:6286'
+
+═══ 变异后 sha 复核 ═══
+  ✅ backend/scripts/validate_learning_events.py  a7cbaee4b9cabd3431a73a944921d739fe3d3ab9561bdf2555a897bb61272025
+  ✅ canvas-vault/.claude/skills/quiz-answer/SKILL.md  c1588ec6fda0371c85d801870bd035360891cd63f20c22be10fab779a173a1e4
+
+── PROBE 观察表（不是裁决）──
+  E1	rc=1	loc='stmt:53162da695b2'	at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_2_review_ledger.py:6581'
+  E2	rc=1	loc='stmt:ad9c3f7a2307'	at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_2_review_ledger.py:6591'
+  E3	rc=1	loc='stmt:dfff1778d16f'	at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_2_review_ledger.py:6063'
+  E4	rc=1	loc='stmt:d43950d3021d'	at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_2_review_ledger.py:6166'
+  E6	rc=1	loc='stmt:ad9c3f7a2307'	at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_2_review_ledger.py:6591'
+  E7	rc=1	loc='stmt:d7cd6124725c'	at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_2_review_ledger.py:6614'
+  E8	rc=1	loc='stmt:a2a081911fac'	at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_2_review_ledger.py:6216'
+  E9	rc=1	loc='stmt:dfff1778d16f'	at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_2_review_ledger.py:6063'
+  E10	rc=1	loc='stmt:3021a17bfac1'	at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_2_review_ledger.py:6286'
+  E11	rc=1	loc='stmt:53ae32c1ce3a'	at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_2_review_ledger.py:5915'
+  E5	rc=1	loc='stmt:3021a17bfac1'	at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_2_review_ledger.py:6286'
+
+── 可回填的 EXPECT_LOC（观察值, 不是已验证的期望值）──
+    "E1": "stmt:53162da695b2",   # 门文件行 [6581] ← /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_2_review_ledger.py:6581
+    "E2": "stmt:ad9c3f7a2307",   # 门文件行 [6591] ← /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_2_review_ledger.py:6591
+    "E3": "stmt:dfff1778d16f",   # 门文件行 [6063] ← /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_2_review_ledger.py:6063
+    "E4": "stmt:d43950d3021d",   # 门文件行 [6166] ← /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_2_review_ledger.py:6166
+    "E6": "stmt:ad9c3f7a2307",   # 门文件行 [6591] ← /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_2_review_ledger.py:6591
+    "E7": "stmt:d7cd6124725c",   # 门文件行 [6614] ← /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_2_review_ledger.py:6614
+    "E8": "stmt:a2a081911fac",   # 门文件行 [6216] ← /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_2_review_ledger.py:6216
+    "E9": "stmt:dfff1778d16f",   # 门文件行 [6063] ← /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_2_review_ledger.py:6063
+    "E10": "stmt:3021a17bfac1",   # 门文件行 [6286] ← /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_2_review_ledger.py:6286
+    "E11": "stmt:53ae32c1ce3a",   # 门文件行 [5915] ← /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_2_review_ledger.py:5915
+    "E5": "stmt:3021a17bfac1",   # 门文件行 [6286] ← /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_2_review_ledger.py:6286
+
+⚠️ --probe 只观察不判定，rc 恒为 4。
+rc=4
+=== 跑后 shasum -a 256 ===
+c1588ec6fda0371c85d801870bd035360891cd63f20c22be10fab779a173a1e4  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/canvas-vault/.claude/skills/quiz-answer/SKILL.md
+a7cbaee4b9cabd3431a73a944921d739fe3d3ab9561bdf2555a897bb61272025  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/scripts/validate_learning_events.py
+a766fbcc28e3ff917e740843c633e800aa8a75e949295f83efc90f55105f90f0  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/canvas-vault/.claude/scripts/fsrs_bridge.py

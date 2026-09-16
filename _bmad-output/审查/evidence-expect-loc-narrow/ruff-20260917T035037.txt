@@ -1,0 +1,51 @@
+== 验伪锚 v2：用 --stdin-filename 把锚点**按仓内路径**喂给 ruff（不落盘、不改任何文件）==
+--- 锚点内容: def f(): return _undefined_name_for_anchor ---
+F821 Undefined name `_undefined_name_for_anchor`
+ --> backend/scripts/_ruff_anchor_tmp.py:2:12
+  |
+1 | def f():
+2 |     return _undefined_name_for_anchor
+  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+
+Found 1 error.
+anchor rc=1   （期望 rc=1 且报 F821）
+
+--- 对照：同样内容按**仓外**路径喂（ruff.toml 不生效）---
+F821 Undefined name `_undefined_name_for_anchor`
+ --> /tmp/_ruff_anchor.py:2:12
+  |
+1 | def f():
+2 |     return _undefined_name_for_anchor
+  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+
+Found 1 error.
+tmp anchor rc=1
+
+== ⛔ 验伪锚第一版为什么没红（已查实，不是猜）==
+第一版把锚点文件写到 `/tmp/_ruff_anchor.py`、cwd 在仓根跑 `ruff check -- /tmp/...`，结果
+`All checks passed!` rc=0 —— 锚**恒不红** = 假阴性（判据看起来「通过」其实什么也没测）。
+`ruff check -v` 实测给出原因：
+    [ruff::resolve][DEBUG] Using configuration file (via parent) at: <仓根>/ruff.toml
+而 **仓根 `ruff.toml:39` 是 `select = []`**（注释自述：2000+ 存量违规，lint 规则暂时全关，
+只保留 format 检查）⇒ 解析到它的路径 `linter.rules.enabled = []`，**任何**规则都不会触发。
+
+对照实测（三种口径，结论各不相同）：
+  cwd=仓根, 路径=/tmp/x.py                        → 用仓根 ruff.toml (select=[]) → rc=0 ⛔ 假阴性
+  cwd=/tmp, 路径=x.py                             → 无配置、走 ruff 缺省       → rc=1 F821 ✅
+  cwd=仓根, --stdin-filename backend/scripts/x.py → 用 backend/ruff.toml        → rc=1 F821 ✅
+
+`--show-settings` 实测两面的启用规则：
+  backend/scripts/**  : select = ["E9","F63","F7","F82"] ⇒ enabled 14 条，含 **F821 undefined-name**
+  仓根 scripts/**     : enabled = []（空集）
+
+⇒ **本卡采用的锚**：`--stdin-filename backend/scripts/_ruff_anchor_tmp.py`（不落盘、不改任何文件），
+   实测 rc=1 + F821。⛔ 教训与 MEMORY `reference_ruff_f401_anchor_never_fires_in_backend` 同族、
+   但换了一面：那条说的是「F401 在 backend 面没启用」，这条说的是「**锚点路径**若解析到仓根
+   `select=[]`，连 F821 也不会红」——锚点必须落在**被判据实际覆盖的那一面**上。
+
+== 本判据是承重的实证 ==
+本卡作业期内，`ruff check` 的 **F821 Undefined name `_selected`** 真的抓到过一个缺陷：
+`g33_mutation_gates.py` 新加的 `--probe` 早退块引用了当时定义在其**后面**的 `_selected`
+（那次 probe 真跑因此在收尾打印崩溃）。见验收单 §二.1。

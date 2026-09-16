@@ -1,0 +1,29 @@
+== 仓根 ruff.toml 与 backend/ruff.toml 的 select 面（实测）==
+--- 仓根 ruff.toml ---
+15:# 本卡只统一 line-length 这**一个**口径, 不动 select (2000+ 存量违规, 另开卡):
+39:select = []
+--- backend/ruff.toml ---
+10:select = ["E9", "F63", "F7", "F82"]
+
+== ruff --show-settings 对 backend/scripts/ 实际启用的规则（完整列表）==
+linter.rules.enabled = [
+	io-error (E902),
+	assert-tuple (F631),
+	is-literal (F632),
+	invalid-print-syntax (F633),
+	if-tuple (F634),
+	break-outside-loop (F701),
+	continue-outside-loop (F702),
+	yield-outside-function (F704),
+	return-outside-function (F706),
+	default-except-not-last (F707),
+	forward-annotation-syntax-error (F722),
+	undefined-name (F821),
+	undefined-export (F822),
+	undefined-local (F823),
+]
+linter.rules.should_fix = [
+
+== 同样看仓根面（scripts/ 下随便一个 tracked .py）==
+linter.rules.enabled = []
+linter.rules.should_fix = []
