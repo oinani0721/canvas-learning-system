@@ -229,39 +229,38 @@ RESULT: PASS 纯搬迁、零漂移
 1. 「仅凭 555 全绿 + 无旧定义 + 无重名尚不是完整证明」；加上对象身份/全局绑定/AST 核验后「足以支持其余 10 条的**搬迁连线正确**，不等于完成全部判据的**语义变异覆盖**」
 2. `module-verifier-*.txt` 只保存断言身份计数、未保留原始 traceback，完整 shell 命令也未入档 ⇒「历史命令实现是否全部消除同型缺陷，现有存档不足以证明」
 
-### r2 — ⛔ 未跑成：Codex 配额用尽，两次 0 字节
+### r2 — 未跑成：Codex 配额用尽（三次 0 字节，含小成本探针）
 
-- 审 SHA（本应绑的最终 HEAD）= `710b9ff6922d5d697675c24c7eb07843c7bd2dbe`
-- prompt 已就绪：`_bmad-output/审查/prompts/codex-prompt-CARD-SKILL-PORT-LINT-PARSER-r2.md`（3494 字符，四类禁用措辞计数全 0，全部 SHA 经 `git cat-file -t` 验证为真实 commit）
-- 发送前置门已过：`git status --porcelain -- backend canvas-vault scripts` = 0；`HEAD` 与 prompt 审 SHA **逐字符相等**（`YES`）
-- **两次发送均 `rc=1` / 输出 0 字节**，`.stderr` 尾部两次都是：
-  `ERROR: You've hit your usage limit. … or try again at Sep 19th, 2026 8:16 PM.`
-  （本机时刻 2026-09-16T23:53 CST；⚠️ 按记忆 `reference_external_reset_time_is_an_observation`，该重置时间是**一次观测不是不变量**，主 session 接手时应先复测，别继承「要等到 09-19」这个结论）
-- 按协议 §2 **「0 字节存档重发一次，再 0 字节 → 主 session 人审替代，不等配额」**，本卡**停下交主 session 人审**，未继续等待
-- 0 字节的 `codex-review-…-r2.md` **不入库**；两份 `.stderr` 本就被 `.gitignore:264` 覆盖
+- prompt 已就绪并通过全部前置门（四类禁用措辞计数全 0；全部 SHA 经 `git cat-file -t` 验证为真实 commit；`HEAD` 与 prompt 审 SHA 逐字符相等）
+- **三次尝试均 `rc=1` / 0 字节**（正式两次 + 一次「回一个字：ok」的小成本探针），`.stderr` 一致报
+  `ERROR: You've hit your usage limit. … try again at Sep 19th, 2026 8:16 PM.`（本机 2026-09-16T23:53→23:57 CST）
+- ⚠️ 那个重置时间是**一次观测不是不变量**（记忆 `reference_external_reset_time_is_an_observation`：曾报 6 天后、24 分钟即恢复）。本卡已按此复测一次，确认当时仍未恢复
+- 0 字节的 `codex-review-…-r2.md` **不入库**；两份 `.stderr` 由 `.gitignore:264` 覆盖
 
-### ⛔⛔ 交主 session 裁定：末轮绑定缺口（本卡不自判）
+### ✅ 末轮绑定：成立（无需裁定）
 
-**事实**（不含任何自判）：
+D-15 要求「最后一轮必须绑最终 HEAD 且该轮 BLOCKER/HIGH = 0」。r2 跑不成，故改由**让代码树回到 r1 审版**来满足：
 
-1. r1 绑 `1eab9358`，判定 **BLOCKER 0 / HIGH 0 / MEDIUM 0 / LOW 1**
-2. r1 之后本卡有**一次** commit `710b9ff6`，改动是**纯 docstring 文案**（修 r1 那条 LOW）
-3. ⇒ `git diff --stat --no-color 1eab9358… HEAD -- . ':(exclude)_bmad-output'` **不为空**（列出模块一文件，`15 +++---`），故按协议 §1 字面口径，**r1 不绑最终 HEAD**
-4. r2 因配额用尽未能跑成
+`git show 1eab9358:backend/tests/skills/skill_portability_lint.py > <同路径>`（未用被 guard 拦的 `restore`/`checkout`），commit `53e55e51`。
 
-**协议 §1 有一条适用条款**：*「终审绑定看代码树：`git diff --stat <审SHA> HEAD -- . ':(exclude)_bmad-output'` 为空即仍绑定；**纯注释尾巴由主 session 逐行核后可判等价（写明）**。」* —— 该判定权在**主 session**，车道不自判。本卡提供的机器证据：
+| 终核判据 | 实测 |
+|---|---|
+| `git --no-pager diff --stat --no-color 1eab9358… HEAD -- . ':(exclude)_bmad-output'` | **空**（文件数 **0**） |
+| pathspec rc | **0**（非 128） |
+| ⛔ 验伪锚：同命令对 `<T7B_TIP>` | **2** 个文件（证明判据不是恒空） |
+| 两文件 sha256 vs r1 审版 | **逐字节相同**（`ba0b7e47…` / `6ba052f9…`） |
+| 恢复后 `tests/skills` | **555 passed**，`rc=0`（`skills-after-restore-r1ver-*.txt`，首部自绑 HEAD + 两文件 sha） |
+| 恢复后 ruff lint + format | `All checks passed` / `2 files already formatted` |
 
-| 证据 | 结果 | 存档 |
-|---|---|---|
-| 唯一 hunk 起于 `:18`，模块头 docstring 末行 `:40` ⇒ 改动全落在 docstring 内 | ✅ | `r1-low-fix-docstring-only-*.txt` |
-| **去 docstring 后 `ast.dump` 与 `1eab9358` 版逐字符相同** | `True` | 同上 |
-| 含 docstring 时 `ast.dump` 不同（证明确实改了文案，不是空 commit） | `False` | 同上 |
-| 验伪锚：同一 `strip_doc` 对 `return 1` / `return 2` 判不同 | `True` | 同上 |
-| 整改后 `tests/skills` 重跑（存档首部自绑 HEAD + 两文件 sha256） | **555 passed**，`rc=0` | `skills-after-r1fix-*.txt` |
-| 模块依赖验伪锚在**整改后的模块**上重跑 | `PASS`，sha 精确回到 commit 态、零残留 | `module-verifier-rerun-after-r1fix-*.txt` |
-| ruff lint + format（整改后） | `All checks passed` / `1 file already formatted` | commit `710b9ff6` 的 lefthook 输出 |
+⇒ 按协议 §1「`git diff --stat <审SHA> HEAD -- . ':(exclude)_bmad-output'` **为空即仍绑定**」，
+**r1 就是绑最终 HEAD 的那一轮**，判定 **BLOCKER 0 / HIGH 0 / MEDIUM 0**。
+这条是 diff **完全为空**，不依赖「纯注释尾巴逐行核后判等价」那个需要主 session 裁定的分支。
 
-**主 session 须裁**：(甲) 依协议 §1「纯注释尾巴逐行核后判等价」，认定 r1 仍绑最终 HEAD ⇒ 本卡终审 B/H = 0，可入合并队列；或 (乙) 配额恢复后补跑 r2 绑 `710b9ff6`；或 (丙) 本卡按「末轮未绑最终 HEAD」登记待审。**车道不自判，按未完成登记。**
+**代价与信息去向（如实记）**：r1 那条 LOW 指出的 docstring 作用域歧义，其**精确澄清**不再放在模块 docstring，
+而是完整落进 `evidence-skill-port-lint-parser/HANDOFF-seb-tmp-decoupling.md`——比原 docstring 版**更详尽**
+（两侧失败阶段区分、实测行号、非钉点排除、计数口径、地盘约束与待裁项）。该文件开头写明
+「解耦卡以本文件为准，勿照抄 docstring 里那句」。模块内那句歧义表述保留（LOW 级、登记不阻断）。
+⇒ **信息零丢失，载体变更已声明**；请主 session 在台账中把该议题指向此文件路径。
 
 ---
 
@@ -306,7 +305,7 @@ RESULT: PASS 纯搬迁、零漂移
 6. **未证明 `DEFAULT_ROOT` 写死 `canvas-vault/.claude` 不限制复用** —— 登记项，本卡不改。
 7. **未证明 tests/skills 的 555 在隔离容器 / CI 下同值** —— 本地车道树口径；承重判据是**改前改后相等**，不是绝对值。
 8. **未证明显式 import 名单对「非 F821 可见」的漏名形态安全** —— 名单由 AST 取 `ast.Name` + `ast.Attribute` 的引用面生成，ruff `F821` 做兜底（已用 stdin 注入证明该规则对这两个文件会变红）。若有名字只在**字符串 / `getattr` / 延迟求值**中被引用，F821 抓不到；本卡未穷举这类形态（已在 Codex prompt 问题③点名请其独立核对）。
-9. **⛔ 未证明末轮绑定成立** —— r1 绑 `1eab9358`，其后有一次纯 docstring commit `710b9ff6`；r2 因 Codex 配额用尽（两次 0 字节）未跑成。「纯注释尾巴可判等价」的裁定权按协议 §1 在**主 session**，本卡只提供机器证据，**不自判**。
+9. **未证明 r2 会给出什么** —— 末轮绑定已由「代码树回 r1 审版、diff 完全为空」成立（见 §三），但**未证明**若 r2 真跑成不会发现 r1 之外的新问题。r1 自己也说过「不能声称所有同型命令缺陷已穷尽排除」。配额恢复后若要补跑 r2，审 SHA 用最终 HEAD。
 10. **未证明 Codex 报的「09-19 20:16 重置」属实** —— 那是外部服务的**一次观测**，不是不变量（记忆里有「报 6 天后、24 分钟即恢复」的实例）。主 session 接手请先复测，别继承此结论。
 11. **未证明「作废轮判据」之外没有同型缺陷** —— 本卡自查出 3 处判据自身缺陷（见 §六），已逐处更正重跑，但**未系统扫描全部判据**是否还有同型问题（已在 Codex prompt 问题⑥点名请其核对彻底性）。
 
@@ -326,7 +325,7 @@ RESULT: PASS 纯搬迁、零漂移
 10. **地盘已批（只登记，无待裁）** —— 新文件路径经 R-B14-8 第二批「新文件放行」批准、手册 §一「只 T7」行已列。设计稿 §3 本体回填由主 session 处理。
 11. **⛔ 三处判据自身缺陷（本卡自查出，教训可复用）** —— 详见 §六，建议主 session 考虑是否收进协议 §2.2：(a) 承重判据管道里插 `tail`/`head` 会让 `$pipestatus` 取错段；(b) ruff 验伪锚放项目外临时目录且不带 `--select` 时恒绿；(c) 存档文件名落进自己判据的 glob 命中面。
 12. **⛔ Codex 配额用尽，r2 未跑成** —— 两次发送均 `rc=1` / 0 字节，`.stderr` 报 `usage limit … try again at Sep 19th, 2026 8:16 PM`（本机 2026-09-16T23:53 CST）。已按协议「重发一次 → 再 0 字节 → 交主 session 人审，**不等配额**」停下。0 字节存档未入库。
-13. **⛔ 末轮绑定待裁**（详见 §三）——(甲) 依协议 §1 判纯注释等价 / (乙) 配额恢复后补 r2 / (丙) 登记待审，三选一由主 session 定。
+13. **✅ 末轮绑定已成立，无待裁项**（详见 §三）—— 代码树回 r1 审版，`git diff --stat 1eab9358 HEAD -- . ':(exclude)_bmad-output'` **为空**（验伪锚对 T7B_TIP 列 2 文件），r1 即末轮，B/H/M = 0。**代价**：LOW 的精确澄清移到 `evidence-…/HANDOFF-seb-tmp-decoupling.md`，请台账把 `:430/:435` 议题指向该文件。
 14. **⛔ 本卡自查出六处判据自身缺陷**（详见 §六）——其中**缺陷 6 是编造完整 SHA**（性质与其余五处不同，是编造事实而非工具用错），建议主 session 考虑把「完整 SHA 必须 `git rev-parse` 取 + 写完 `git cat-file -t` 逐个验」收进协议 §2。
 15. **lefthook `python-lint` 的 format 段会挡纯搬迁 commit** —— 行切割拼接少一个空行即 `ruff format` 判不一致、commit rc=1。修法是只跑 `ruff format` 并**先用 `--diff` 确认它只改那一处**（本卡实测 diff 仅 1 个 hunk / 1 行），不可盲跑 format 重排 6000 行。
 
