@@ -1,0 +1,17 @@
+### 生成物可用性核（DD-07 对抗性）：本卡生成的 .codex/config.toml 被 codex 自己认不认
+### 方法：CODEX_HOME 重定向到 scratchpad（⛔ 全程不碰 ~/.codex，末尾核 sha）
+deploy rc = 0
+把**生成的原件**逐字节拷进 CODEX_HOME: 663 字节
+sha256(生成件) = b089db50ee0c8c9ce6cb45f4b6991869
+--- codex mcp list（读的就是那份生成件）---
+Name                 Url                        Bearer Token Env Var  Status   Auth   
+canvas-learning-mcp  http://127.0.0.1:8299/mcp  -                     enabled  Unknown
+rc=0
+--- 承重：~/.codex/config.toml 全程未变 ---
+before=579fc8ed7545bafb1055e689ee9adc0cca00aa3070b6ed8ca825e86cff7f149f
+after =579fc8ed7545bafb1055e689ee9adc0cca00aa3070b6ed8ca825e86cff7f149f
+SHA_EQUAL_OK
+
+### 判读：codex 能解析本卡生成的模板并把 canvas-learning-mcp 列出来 ⇒ 模板可直接并入用户级 config。
+### ⚠️ 未证明什么：这只证 **codex 解析得了这份 TOML**；不证明 codex 会**自动读取**项目级那一份
+###   （HOST-PROBE P7 反向已证它不读），也不证明模型侧真能调通该 MCP（本卡未证面 ①）。

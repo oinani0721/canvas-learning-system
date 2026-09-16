@@ -1,0 +1,52 @@
+### (b) 改前红/绿 —— deploy-vault.sh 未改（HEAD=7a8d50e2，仅测试文件已加新门）
+### 墙钟上限用 perl alarm（本机无 timeout/gtimeout，批中禁装工具）；wallclock.pl 已自证 rc 0 / 124
+--- ① 新门 test_codex_host_generates_binding 预期 FAILED ---
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t2-deploy/backend/app/api/v1/endpoints/chat.py:807: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:103
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t2-deploy/backend/app/api/v1/endpoints/metadata.py:103: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:177
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t2-deploy/backend/app/api/v1/endpoints/metadata.py:177: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_deploy_vault_sh.py::test_codex_host_generates_binding
+======================== 1 failed, 10 warnings in 2.35s ========================
+rc1=1
+--- ② 既有门① codex 两例 预期 passed ---
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+================= 2 passed, 1 deselected, 10 warnings in 2.11s =================
+rc2=0
+--- ③ 既有门② not_implemented_anywhere 预期 passed ---
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================== 1 passed, 10 warnings in 2.79s ========================
+rc3=0
+--- ④ 卡文未点名的第三门 strips_all_whitespace_like_tr（尾断言 claude,codex 必 rc64）预期 passed ---
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================== 1 passed, 10 warnings in 4.67s ========================
+rc4=0
+### (b)① 红的**原因**（必须红在「codex 未被接受」，不是 import/夹具错）
+>       assert r.returncode == 0, f"rc={r.returncode}\n{r.stdout}{r.stderr}"
+E       AssertionError: rc=64
+E            E-1 二线宿主（codex / dsh 等）等 HOST-PROBE 实测表（U4-A），本版不实现。
+E       assert 64 == 0
+E        +  where 64 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t2-deploy/scripts...ncode=64, stdout='', stderr='❌ 用法错: --hosts 含未实现的宿主 codex。\n   E-1 二线宿主（codex / dsh 等）等 HOST-PROBE 实测表（U4-A），本版不实现。\n').returncode
+tests/unit/test_deploy_vault_sh.py:4888: AssertionError

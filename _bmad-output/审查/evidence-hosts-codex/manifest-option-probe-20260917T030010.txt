@@ -1,0 +1,40 @@
+### (e) 三条 manifest 登记路径的实测对照（隔壁 test_vault_install_manifest.py 整文件）
+### 目的：卡文 (e) 给了两个选项，但两个都被**本卡地盘外**文件里的钉死门拦住；实测取代推理。
+原 manifest sha256=47a32829c56bd54dc0301d339c53323f846dfaf4be20b85b4de95774b531be67
+
+--- 基线：未改 manifest ---
+........................................................................ [ 58%]
+........................................................................ [ 99%]
+.                                                                        [100%]
+
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+============================= 175 passed in 3.77s ==============================
+
+--- 候选 A：加进 extra_allow（卡文选项二）---
+E     Left contains one more item: '.obsidian/types.json'
+E     Use -v to get more diff
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_vault_install_manifest.py::test_manifest_ships_the_five_ruled_extra_allow_entries
+======================== 1 failed, 174 passed in 4.41s =========================
+
+--- 候选 B：加进 items 作 optional generate 项（卡文选项一）---
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_vault_install_manifest.py::test_manifest_covers_implicit_and_generated_semantics
+FAILED tests/unit/test_vault_install_manifest.py::test_declared_paths_has_a_single_source_of_truth
+FAILED tests/unit/test_vault_install_manifest.py::test_generate_section_covers_exactly_the_generate_items
+======================== 3 failed, 172 passed in 4.09s =========================
+
+--- 候选 C：加进 items 作 exclude 项（本卡自拟的第三条）---
+........................................................................ [ 58%]
+........................................................................ [ 99%]
+.                                                                        [100%]
+
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+============================= 175 passed in 4.47s ==============================
+
+--- 还原核：sha 必须与原值逐字同 ---
+orig=47a32829c56bd54dc0301d339c53323f846dfaf4be20b85b4de95774b531be67
+now =47a32829c56bd54dc0301d339c53323f846dfaf4be20b85b4de95774b531be67
+RESTORE_OK

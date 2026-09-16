@@ -173,14 +173,18 @@ def test_unknown_flag_is_usage_error():
     assert "未知参数" in r.stderr
 
 
-@pytest.mark.parametrize("host", ["codex", "dsh", "claude,codex"])
+@pytest.mark.parametrize("host", ["dsh", "claude,dsh"])
 def test_second_tier_hosts_rejected_with_e1(tmp_path: Path, host: str):
-    """E-1: 本版 claude / opencode，其余仍拒。消息必须点名 E-1，否则读者不知道这是「等实测表」而非 bug。
+    """E-1: 本版 claude / opencode / codex，其余仍拒。消息必须点名 E-1，否则读者不知道这是「等实测表」而非 bug。
 
     ⛔ `opencode` 于 CARD-HOSTS-OPENCODE（第十四批）从本参数表**移出** —— 它已转正
        （静态绑定件面），留在这里会让这条门变成「钉死一个已经不存在的行为」。
-       转正后的正向行为由 `test_hosts_opencode_generates_binding_files` 等门接管；
-       `codex` 归 T2-D，届时同法移出。
+       转正后的正向行为由 `test_hosts_opencode_generates_binding_files` 等门接管。
+    ⛔ `codex` 于 CARD-HOSTS-CODEX（第十四批 T2-D）同法移出；正向行为由
+       `test_codex_host_generates_binding` 等门接管。
+    ⚠️ 移出时**保住了两个形状**（不是只删两条用例）：单值 (`dsh`) 与「合法值 + 未实现值」
+       的组合 (`claude,dsh`)。后者钉的是「列表里有一个没实现的就整条拒」——
+       只留单值的话，`claude,dsh` 被放行也不会有门红。
     """
     r = _run(
         "--vault",
@@ -878,9 +882,15 @@ def test_second_tier_hosts_not_implemented_anywhere():
     ⚠️ `opencode.json` **保留**：那是 OpenCode 的配置件名, 本脚本对它仍是零写者。
        它同时锁住一条子串约束 —— 实际文件名 `opencode.jsonc` 是它的**超串**,
        所以脚本的非注释行里连那个文件名也不许出现（见 `$OPENCODE_CFG_EXT` 的运行期拼接）。
+    ⛔ `.codex/config.toml` 于 CARD-HOSTS-CODEX（T2-D）从清单**移出** —— codex 转正后
+       它是脚本明写的生成物（步 3 B4c），留在清单里这条门必红。
+       ⚠️ 移出的**只是项目级**那一份（`$VAULT/.codex/config.toml`）。Codex 的**用户级**
+       配置仍是硬禁写面，由 `test_deploy_sh_never_writes_codex_user_config`（词法）
+       与 `test_d26i_codex_user_config_is_refused`（运行期判据）两条接管 ——
+       本门移出一条不等于那个面没人看了。
     """
     src = DEPLOY_SH.read_text(encoding="utf-8")
-    for artifact in [".codex/config.toml", "opencode.json", ".dsh/"]:
+    for artifact in ["opencode.json", ".dsh/"]:
         # 只允许出现在「不生成」的说明里, 不允许出现在写操作附近
         for i, line in enumerate(src.splitlines(), 1):
             if artifact in line and not line.lstrip().startswith("#"):
@@ -1297,7 +1307,12 @@ def test_every_bash_write_site_has_a_prewrite_recheck():
     #    每次从路径逐级解析，而这两处是相对**已钉死的目录 fd** 的 openat（带 O_EXCL），
     #    比逐级重解析更强；换成 open_pinned 反而把已经拿到的那个保证丢掉。
     # ⚠️ 本判据按字面量计数，**多行调用数不到** ⇒ 新写入点必须写成单行 `write_all(fd, …)`。
-    assert code.count("write_all(fd, ") == 5, "五处写入必须走 write_all（防短写）"
+    # ⚠️ CARD-HOSTS-CODEX（T2-D）把这个数从 5 改到 8：codex 绑定件真的多了**三处** python 写入 ——
+    #    `publish_codex_config` 写模板正文 1 处；`publish_codex_agents_section` 写「新建时的
+    #    首行标记 + 段正文」与「已存在时追加的段正文」共 2 处。三处都走 write_all。
+    #    ⛔ 它们同样**不**走 open_pinned（上面那个数仍是 3），理由与 publish_agents_md 逐字同：
+    #    这三处都是相对**已钉死的目录 fd** 的 openat，比 open_pinned 的逐级重解析更强。
+    assert code.count("write_all(fd, ") == 8, "八处写入必须走 write_all（防短写）"
     # 原语本体在判据模块里（与 open_pinned 同理：两个 heredoc 各抄一份必然漂移，本卡栽过）
     _f = FORBID_PY.read_text(encoding="utf-8")
     assert "def write_all(" in _f and "n = os.write(fd, view)" in _f, "write_all 必须真的调 os.write 并按返回值推进"
@@ -1306,7 +1321,11 @@ def test_every_bash_write_site_has_a_prewrite_recheck():
     # ⚠️ CARD-HOSTS-OPENCODE 从 3 改到 4：`publish_agents_md` 失败清理多了第四处 ——
     #    它同样先 `os.fstat(fd).st_nlink != 1` 才截断（O_EXCL 保证是本次新建的，但写入
     #    期间仍可能被 link 出第二个名字，那时截断改的是共享 inode）。
-    assert code.count("os.ftruncate(fd, 0)") == 4, "必须先 fstat 查链接数再 ftruncate"
+    # ⚠️ CARD-HOSTS-CODEX（T2-D）从 4 改到 6：codex 的两个发布器各有一处失败清理截断
+    #    （`publish_codex_config` / `publish_codex_agents_section`），两处同样先查 nlink。
+    #    ⛔ `publish_codex_agents_section` 的截断**只对本次新建的那一支**生效：追加失败的
+    #    那一支绝不截断 —— 那是用户/上一步已有的文件，截断会毁掉它原有的内容。
+    assert code.count("os.ftruncate(fd, 0)") == 6, "必须先 fstat 查链接数再 ftruncate"
     assert src.count("st.st_nlink > 1") == 3, "O_NOFOLLOW 之后还要挡硬链接（共享 inode）"
     # 原语本体的形状（在判据模块里）：逐级 O_NOFOLLOW + 叶子也带 O_NOFOLLOW
     fsrc = FORBID_PY.read_text(encoding="utf-8")
@@ -2052,8 +2071,11 @@ def test_hosts_strips_all_whitespace_like_tr(tmp_path: Path):
             base + ["--hosts", real], capture_output=True, text=True, env=env, timeout=_SUBPROCESS_TIMEOUT
         )
         assert r.returncode == 0, f"--hosts {real!r} 被误拒: rc={r.returncode} {r.stderr}"
+    # ⛔ 这条对照输入原本用 `claude,codex`；codex 于 CARD-HOSTS-CODEX（T2-D）转正后
+    #    它不再是「未实现的宿主」，留着会把本门变成钉死一个已经不存在的行为。
+    #    换成仍未实现的 `dsh` —— 对照的**性质**（放宽空白不得连带放宽宿主）逐字保住。
     r = subprocess.run(
-        base + ["--hosts", "claude,codex"], capture_output=True, text=True, env=env, timeout=_SUBPROCESS_TIMEOUT
+        base + ["--hosts", "claude,dsh"], capture_output=True, text=True, env=env, timeout=_SUBPROCESS_TIMEOUT
     )
     assert r.returncode == 64, "二线宿主必须仍被拒（判据不能因放宽空白而放宽宿主）"
 
@@ -3747,6 +3769,14 @@ def test_g2_8_activate_tx_opens_no_new_write_surface():
         #    留一条永远不会被写的登记就是名实不符（DD-13），所以它随机制一起退场。
         "opencode-skills-root",
         "opencode-agents-md",
+        # CARD-HOSTS-CODEX（T2-D）：`--hosts` 含 codex 时步 3 的写面（条件 append）。
+        # ⚠️ `codex-agents-md` 与 `opencode-agents-md` 指向**同一个文件**（AGENTS.md）；
+        #    脚本只在「没同时选 opencode」时才登记前者 —— 同一路径登两条不会更安全，
+        #    只会让清单显得有两个写入对象。本门是**词法**判据，静态扫得到两条标签是预期：
+        #    它管的是「新标签有没有来登记」，不是「运行期两条会不会同时生效」。
+        "codex-config-dir",
+        "codex-config-toml",
+        "codex-agents-md",
     }, f"待写清单变了（步 1 禁改 / 新写面必须先进这份清单）: {sorted(declared)}"
     # 条件 append 必须**留在本门的取名面里**（见 docstring 的「不许弄瞎」一条）。
     assert "PENDING_WRITES+=(" in block, "opencode 的条件 append 被挪出了本门的取名面"
@@ -4858,3 +4888,291 @@ def test_deploy_sh_never_writes_opencode_user_config(tmp_path: Path):
         if not ln.lstrip().startswith("#") and ".config/opencode" in ln
     ]
     assert code == [], f"deploy-vault.sh 非注释行提到了用户级 opencode 配置目录: {code}"
+
+
+# ── CARD-HOSTS-CODEX（第十四批 T2-D）：codex 转正为二线宿主（D-33 read-only 形态）────
+#: 生成的项目级模板里那个 MCP server 名 —— 与 vault 内 `.mcp.json` 的 claude 口径同名,
+#: 两边指的是同一个后端实例（见 `_codex_cfg_text` 的断言）。
+_CODEX_MCP_NAME = "canvas-learning-mcp"
+
+
+def _codex_cfg_text(v: Path) -> str:
+    """读 `$VAULT/.codex/config.toml`；顺带钉死它不是软链、不是目录。"""
+    cfg = v / ".codex" / "config.toml"
+    assert cfg.is_file() and not cfg.is_symlink(), f"{cfg} 不在位或不是普通文件"
+    return cfg.read_text(encoding="utf-8")
+
+
+def test_codex_host_generates_binding(tmp_path: Path):
+    """`--hosts claude,codex --apply` ⇒ 项目级 `.codex/config.toml` + AGENTS.md 的 Codex 段。
+
+    ⛔ 本门**不**断言 codex 真能连上这个后端 —— HOST-PROBE P7 已证项目级 MCP 条目零出现在
+       `codex mcp list`，本卡生成的是**模板 + 自己接线的说明**，不是自动接线（见 §未证明 ①）。
+    ⛔ 端口判据是**身份**判据不是存在判据：既断言 `--port` 的值在里面，也断言缺省的
+       `:8011` 不在里面 —— 只断言前者的话，一份同时写了两个端口的模板照样绿。
+    """
+    name, port = "probe_cx1", "8285"
+    h = _oc_harness(tmp_path)
+    env = _tx_env(tmp_path, port, name)
+    r = _oc_run(tmp_path, h, name, port, env=env, hosts="claude,codex")
+    assert r.returncode == 0, f"rc={r.returncode}\n{r.stdout}{r.stderr}"
+
+    v = tmp_path / "vaults" / name
+    cfgdir = v / ".codex"
+    assert cfgdir.is_dir() and not cfgdir.is_symlink(), f"{cfgdir} 不在位或是软链"
+    body = _codex_cfg_text(v)
+    assert f"[mcp_servers.{_CODEX_MCP_NAME}]" in body, f"模板缺 MCP 段: {body!r}"
+    assert f"http://127.0.0.1:{port}/mcp" in body, f"模板没指向本实例端口 {port}: {body!r}"
+    assert ":8011" not in body, f"模板残留缺省端口 :8011（--port 未模板化）: {body!r}"
+
+    agents = v / "AGENTS.md"
+    assert agents.is_file() and not agents.is_symlink(), f"{agents} 不在位"
+    md = agents.read_text(encoding="utf-8")
+    assert "## Codex" in md, f"AGENTS.md 没有 Codex 段: {md!r}"
+    assert f"http://127.0.0.1:{port}/mcp" in md, f"Codex 段没给完整端点: {md!r}"
+    assert "read-only" in md, f"Codex 段没写 read-only 运行形态（D-33）: {md!r}"
+
+
+def test_hosts_codex_dry_run_writes_nothing(tmp_path: Path):
+    """dry 态（不传 --apply）：codex 不再被 E-1 拒、打印生成意图、**零写**。
+
+    ⛔ 零写判据取整棵 `tmp_path` 的快照（不是「找 `.codex` 这个名字」）：按名字找只能证明
+       **我想到的**那几个名字没出现，证不了「什么都没写」（与 opencode dry 门同律）。
+    """
+    name, port = "probe_cx2", "8286"
+    h = _oc_harness(tmp_path)
+    env = _tx_env(tmp_path, port, name)
+    _oc_tmpdir(tmp_path)  # 先建好，免得把测试自己的脚手架读成被测物的写入
+    before_snap = _oc_tree_snapshot(tmp_path)
+    r = _oc_run(tmp_path, h, name, port, env=env, hosts="claude,codex", apply_=False)
+    after_snap = _oc_tree_snapshot(tmp_path)
+    assert r.returncode != 64, f"codex 仍被 E-1 拒: {r.stderr}"
+    assert r.returncode == 0, f"rc={r.returncode}\n{r.stdout}{r.stderr}"
+    assert ".codex/config.toml" in r.stdout, f"没打印 codex 生成意图: {r.stdout}"
+    assert after_snap == before_snap, (
+        "dry 态改动了 tmp 根下的文件树:\n"
+        f"  新增/改动: {sorted(set(after_snap.items()) - set(before_snap.items()))[:20]}\n"
+        f"  消失: {sorted(set(before_snap.items()) - set(after_snap.items()))[:20]}"
+    )
+
+
+def test_hosts_claude_only_generates_no_codex_binding(tmp_path: Path):
+    """条件生成：`--hosts claude` 单宿主不得落下任何 codex 绑定件。
+
+    ⛔ 没有这条门，「无条件生成」也能让上面两条全绿 —— 那样 `--hosts` 就成了摆设。
+    """
+    name, port = "probe_cx3", "8287"
+    h = _oc_harness(tmp_path)
+    env = _tx_env(tmp_path, port, name)
+    r = _oc_run(tmp_path, h, name, port, env=env, hosts="claude")
+    assert r.returncode == 0, f"rc={r.returncode}\n{r.stdout}{r.stderr}"
+    v = tmp_path / "vaults" / name
+    assert not (v / ".codex").exists(), f"--hosts claude 也生成了 .codex: {list((v / '.codex').iterdir())}"
+    # AGENTS.md 本身归 opencode 面；这里只断言**没有 Codex 段**（它若存在也不该有）。
+    md = (v / "AGENTS.md").read_text(encoding="utf-8") if (v / "AGENTS.md").is_file() else ""
+    assert "## Codex" not in md, f"--hosts claude 也写了 Codex 段: {md!r}"
+
+
+def test_hosts_codex_appends_to_opencode_agents_md(tmp_path: Path):
+    """两家宿主并存：AGENTS.md 只有**一份**，opencode 建、codex 追加，两段都在且互不覆盖。
+
+    ⛔ 这是本卡与 T2-C 的交接点，也是排序约束的可执行形态：codex 段若排在 B4b **之前**
+       生成，opencode 的 `O_EXCL` 会当场 EEXIST ⇒ 同时选两家直接 rc 73。
+    """
+    name, port = "probe_cx4", "8288"
+    h = _oc_harness(tmp_path)
+    env = _tx_env(tmp_path, port, name)
+    r = _oc_run(tmp_path, h, name, port, env=env, hosts="claude,opencode,codex")
+    assert r.returncode == 0, f"rc={r.returncode}\n{r.stdout}{r.stderr}"
+    v = tmp_path / "vaults" / name
+    md = (v / "AGENTS.md").read_text(encoding="utf-8")
+    # 首行仍是 opencode 的生成标记（codex 只追加、没有重写文件头）
+    assert md.splitlines()[0] == "<!-- generated-by: deploy-vault.sh (--hosts opencode) -->", md.splitlines()[:1]
+    # opencode 那部分逐条还在
+    for s in _OC_SKILLS:
+        assert s in md, f"追加 Codex 段之后 opencode 的技能清单少了 {s}: {md!r}"
+    assert "## 后端接线" in md, "opencode 段的正文被覆盖了"
+    # codex 段在，且**只有一段**（幂等判据的反面：重复追加会让计数 > 1）
+    assert md.count("## Codex") == 1, f"Codex 段出现 {md.count('## Codex')} 次: {md!r}"
+    assert md.count("<!-- /cls-codex-section -->") == 1, "段尾锚数量不对"
+    assert md.index("## 后端接线") < md.index("## Codex"), "Codex 段没追加在末尾"
+    assert _codex_cfg_text(v).count(f"[mcp_servers.{_CODEX_MCP_NAME}]") == 1
+
+
+def test_hosts_codex_refuses_handwritten_agents_md(tmp_path: Path):
+    """已有的**手写** AGENTS.md（无生成标记）⇒ 拒，且原文一字不动。
+
+    ⛔ 「追加」不是「可以动用户的文件」的通行证：T2-C 对 AGENTS.md 的不变量是
+       「不是我生成的就不碰」，追加同样受它约束。
+    """
+    name, port = "probe_cx5", "8289"
+    h = _oc_harness(tmp_path)
+    handwritten = "# 我自己写的\n\n别动我。\n"
+    _oc_preseed_installer(tmp_path, h, f"printf '%s' '{handwritten}' > \"$v/AGENTS.md\"\n")
+    env = _tx_env(tmp_path, port, name)
+    r = _oc_run(tmp_path, h, name, port, env=env, hosts="claude,codex")
+    assert r.returncode == 73, f"手写 AGENTS.md 被追加了或别的错: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    assert "生成标记" in r.stdout, f"消息没说清为什么拒: {r.stdout}"
+    v = tmp_path / "vaults" / name
+    assert (v / "AGENTS.md").read_text(encoding="utf-8") == handwritten, "手写正文被改动了"
+
+
+def test_hosts_codex_section_is_idempotent(tmp_path: Path):
+    """AGENTS.md 里已有完整 Codex 段 ⇒ 不重复追加，rc 0，正文一字不动。"""
+    name, port = "probe_cx6", "8290"
+    h = _oc_harness(tmp_path)
+    seeded = (
+        "<!-- generated-by: deploy-vault.sh (--hosts codex) -->\n\n"
+        "<!-- cls-codex-section: deploy-vault.sh (--hosts codex) -->\n\n## Codex\n\n上一次写的。\n"
+        "<!-- /cls-codex-section -->\n"
+    )
+    _oc_preseed_installer(tmp_path, h, f"printf '%s' '{seeded}' > \"$v/AGENTS.md\"\n")
+    env = _tx_env(tmp_path, port, name)
+    r = _oc_run(tmp_path, h, name, port, env=env, hosts="claude,codex")
+    assert r.returncode == 0, f"rc={r.returncode}\n{r.stdout}{r.stderr}"
+    v = tmp_path / "vaults" / name
+    assert (v / "AGENTS.md").read_text(encoding="utf-8") == seeded, "已完整的段被重复追加/改写了"
+    assert "already-present" in r.stdout, f"没如实报出「段已在」这个动作: {r.stdout}"
+
+
+def test_hosts_codex_refuses_incomplete_section(tmp_path: Path):
+    """段首锚在、段尾锚缺（上次追加写到一半）⇒ 拒并说清，不是读成「已经有了」。
+
+    ⛔ 这条钉的是幂等判据的**盲点**：只认首锚的话，半截段会被下次跑读成「已经有了」，
+       于是那半截永远留在那里没人修 —— 门绿、文件坏。
+    """
+    name, port = "probe_cx7", "8291"
+    h = _oc_harness(tmp_path)
+    half = (
+        "<!-- generated-by: deploy-vault.sh (--hosts codex) -->\n\n"
+        "<!-- cls-codex-section: deploy-vault.sh (--hosts codex) -->\n\n## Codex\n\n写到一半就断"
+    )
+    _oc_preseed_installer(tmp_path, h, f"printf '%s' '{half}' > \"$v/AGENTS.md\"\n")
+    env = _tx_env(tmp_path, port, name)
+    r = _oc_run(tmp_path, h, name, port, env=env, hosts="claude,codex")
+    assert r.returncode == 73, f"半截段没被拒: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    assert "不完整" in r.stdout, f"消息没说清它是残件: {r.stdout}"
+    v = tmp_path / "vaults" / name
+    assert (v / "AGENTS.md").read_text(encoding="utf-8") == half, "残件被改动了"
+
+
+def test_hosts_codex_refuses_when_codex_dir_is_a_symlink(tmp_path: Path):
+    """`$VAULT/.codex` 是软链 ⇒ 拒，且链那一头零污染。
+
+    ⛔ 承重断言是「拒 + 外部目录零污染」，不是「rc 非 0」：脚本因别的原因崩掉同样非 0，
+       那会把「判据拦住了」和「脚本坏了」读成一回事。
+    """
+    name, port = "probe_cx8", "8292"
+    h = _oc_harness(tmp_path)
+    outside = tmp_path / "outside-codex"
+    outside.mkdir()
+    _oc_preseed_installer(tmp_path, h, f'ln -s "{outside}" "$v/.codex"\n')
+    env = _tx_env(tmp_path, port, name)
+    r = _oc_run(tmp_path, h, name, port, env=env, hosts="claude,codex")
+    assert r.returncode in (71, 73), f"`.codex` 软链没被拒: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    v = tmp_path / "vaults" / name
+    assert (v / ".codex").is_symlink(), "控制组不成立：桩没把 .codex 建成软链"
+    assert list(outside.iterdir()) == [], f"沿链穿到外部目录写了东西: {list(outside.iterdir())}"
+
+
+def test_deploy_sh_never_writes_codex_user_config(tmp_path: Path):
+    """脚本对 Codex 的**用户级**配置是零写者：那个路径不出现在任何非注释行。
+
+    ⚠️ 与 opencode 那条同律，代价也同样：生成物的正文（printf = 非注释行）想告诉用户
+       「去哪儿合并」也不能直接点那个路径 —— 换成给一条 `codex mcp add` 命令
+       （实测那条命令写出来的段与本脚本生成的模板逐字相同，反而更好用）。
+    ⚠️ 这是**词法**判据，不是运行期判据：它证不了「脚本运行时不会写到那里」
+       （那由 `check_forbidden_paths` + cls_forbidden_paths.py 的整目录保护承担，
+       回归断言见 `test_d26i_codex_user_config_is_refused`）。两者不互相替代。
+    ⛔ `$VAULT/.codex/…`（项目级）**不在**本门覆盖面内 —— 它正是本卡的生成物。
+       本门只钉 `~` / `$HOME` 打头的那两种用户级写法。
+    """
+    src = DEPLOY_SH.read_text(encoding="utf-8")
+    code = [
+        (i, ln)
+        for i, ln in enumerate(src.splitlines(), 1)
+        if not ln.lstrip().startswith("#") and ("~/.codex" in ln or "$HOME/.codex" in ln)
+    ]
+    assert code == [], f"deploy-vault.sh 非注释行提到了 Codex 用户级配置目录: {code}"
+    # 验伪锚：本门不是恒真 —— 同一套解析在一条已知正例上必须命中。
+    probe = 'printf "%s" "$HOME/.codex/config.toml"'
+    assert not probe.lstrip().startswith("#") and "$HOME/.codex" in probe, "判据对已知正例不命中 = 恒真门"
+
+
+def test_d26i_codex_user_config_is_refused(tmp_path: Path):
+    """运行期判据：Codex 用户级配置（含它的信任表所在文件）必须被拦。"""
+    home = Path.home()
+    r = _oc_forbid(
+        tmp_path,
+        f"c1:{home}/.codex/config.toml",
+        f"c2:{home}/.codex/probe",
+    )
+    assert r.returncode != 0, f"用户级 codex 配置被放行了: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    assert "HIT c1" in r.stdout, f"config.toml 未被拦: {r.stdout}"
+    assert "HIT c2" in r.stdout, f"目录下任意落点未被拦: {r.stdout}"
+
+
+def test_d26i_codex_falsification_anchor_ordinary_path_is_allowed(tmp_path: Path):
+    """验伪锚：上一条不是恒拒。
+
+    ⛔ **必须另起一跑**：`main()` 对全部 item 累加 `bad` 之后 `return 1 if bad else 0`
+       ⇒ 把锚塞进上一跑，rc **恒 1**，锚恒假。
+    """
+    r = _oc_forbid(tmp_path, f"ok:{tmp_path}/v/.codex/config.toml")
+    assert r.returncode == 0, f"vault 内的 .codex 被拒 = 判据恒拒: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    assert "OK ok" in r.stdout, r.stdout
+
+
+def test_manifest_declares_codex_config():
+    """manifest 必须声明 `.codex/config.toml`，否则它对部署清单是个「不存在的件」。
+
+    登成 **exclude** 项而不是卡文给的那两个选项 —— 三条路径都实测过
+    (`evidence-hosts-codex/manifest-option-probe-*.txt`，跑的是隔壁整文件 175 条)：
+      · 加进 `extra_allow`（卡文选项二）⇒ `test_manifest_ships_the_five_ruled_extra_allow_entries`
+        红（那 5 条是逐字钉死的裁定表）；
+      · 加进 `items` 作 optional generate（卡文选项一）⇒ 3 条红（generate 集要求
+        install-vault.sh 清理段里有对应锚行）；
+      · 登成 `exclude` ⇒ 175 全绿。
+    前两条都要改 `test_vault_install_manifest.py` / `install-vault.sh` 才能变绿，
+    而那两个文件都在 CARD-HOSTS-CODEX 的地盘之外 ⇒ 归属订正登记移交。
+    ⚠️ 语义上 exclude 也正是卡文那句「别把它当 rogue extra」的**机制本身**：
+       `is_excluded(rel)` 在 extra 扫描里短路掉它。但今天这层防护是**潜在**的 ——
+       `extra_scan` 只覆盖三个根，够不到 `.codex/`（见该项 note）。
+    ⛔ 本门同时钉住「没被误登成 generate / extra_allow」：只断言「出现在某处」的话，
+       将来有人把它挪过去也不会红，而那会让隔壁那三条门炸。
+    """
+    import json as _json
+
+    data = _json.loads((REPO_ROOT / "scripts" / "vault-install-manifest.json").read_text(encoding="utf-8"))
+    hits = [i for i in data["items"] if i["path"] == ".codex/config.toml"]
+    assert len(hits) == 1, f"manifest 没声明 .codex/config.toml（或声明了多次）: {hits}"
+    assert hits[0]["action"] == "exclude", f"action 不是 exclude: {hits[0]}"
+    assert "deploy-vault.sh" in hits[0]["origin"], f"origin 没指向真正的生成者: {hits[0]}"
+    assert ".codex/config.toml" not in data["extra_allow"], "同时进了 extra_allow（会撞那条逐字钉死的裁定表）"
+
+
+def test_no_bare_var_before_multibyte():
+    """非注释行里 `$VAR` 后面紧跟多字节字符 ⇒ 必须写成 `${VAR}`（本卡实测踩中）。
+
+    ⛔ 根因不是「中文文案写得随意」，是 **bash 的变量名扫描按 locale 判「字母」**：
+       UTF-8 locale 下 `）`(U+FF09 = `EF BC 89`) 的首字节 `\\xef` 被当成标识符字节吞进
+       变量名，`:$PORT）` 于是被读成变量 `PORT\\xef` —— 配上 `set -u` 当场
+       `unbound variable` 打进 stderr。
+    ⚠️ 它只在**继承了宿主 locale** 时显形：换一份最小 env 跑同一条命令 stderr 是空的。
+       所以这条门用**词法**判据钉整片，而不是靠某一条端到端用例碰巧撞上。
+    ⚠️ 只看非注释行：注释里 bash 不做参数展开，仓里现有 5 处（`$CLS_LIVE_VAULT）`、
+       `$HOSTS）` 等）都在注释里，是无害的。
+    """
+    raw = DEPLOY_SH.read_bytes().split(b"\n")
+    pat = re.compile(rb"\$[A-Za-z_][A-Za-z0-9_]*(?=[\x80-\xff])")
+    hits = [
+        (i, m.group().decode(), ln.decode("utf-8", "replace").strip()[:100])
+        for i, ln in enumerate(raw, 1)
+        if not ln.lstrip().startswith(b"#")
+        for m in pat.finditer(ln)
+    ]
+    assert hits == [], f"`$VAR` 紧跟多字节字符（bash 会把首字节吞进变量名）: {hits}"
+    # 验伪锚：同一套判据对一条已知正例必须命中 —— 否则「零命中」只是正则没在工作。
+    probe = 'STEP_MSG="x :$PORT）"'.encode()
+    assert pat.search(probe), "判据对已知正例不命中 = 恒真门"
+    assert not pat.search('STEP_MSG="x :${PORT}）"'.encode()), "判据把正确写法也报成命中"
