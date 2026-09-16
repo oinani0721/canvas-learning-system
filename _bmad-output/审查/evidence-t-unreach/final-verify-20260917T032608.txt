@@ -1,0 +1,36 @@
+### 收尾核验 ts=20260917T032608   HEAD=0f4af091eeae4ac9a925284eac897af400518dff
+
+--- 1) 终审绑定：审SHA 802f05ca vs HEAD，代码树须空 ---
+   (空=仍绑定)  验伪锚(PREV..HEAD 须非空):
+ 3 files changed, 196 insertions(+), 15 deletions(-)
+
+--- 2) 地盘门：PREV..HEAD ⊆ 三文件 ---
+backend/app/api/v1/endpoints/boards.py
+backend/app/mcp/tools/board_manifest_tools.py
+backend/tests/unit/test_board_manifest_unreach_t5e.py
+
+--- 3) 最后一次 commit 是否被 hook 塞 openapi.json（应 0） ---
+0
+0 ✓
+    openapi.json 相对 PREV 的净变化(须 0 行):
+       0
+
+--- 4) 工作树须干净 ---
+       1
+
+--- 5) 未 push 自证 ---
+   origin/card/t5-bugs 不存在 ⇒ 本分支从未 push ✓
+
+--- 6) census 最终态 ---
+  backend/app/api/v1/endpoints/boards.py ['ValidationError', 'ValueError', 'KeyError'] OK
+  backend/app/mcp/tools/board_manifest_tools.py ['ValidationError', 'ValueError', 'KeyError'] OK
+   ignore 收工(须0):        0
+   验伪锚 except 计数(须2):        2
+
+--- 7) pyright app ---
+0 errors, 81 warnings, 0 informations
+
+--- 8) 行为门 11 例 ---
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================= 11 passed, 10 warnings in 1.04s ========================

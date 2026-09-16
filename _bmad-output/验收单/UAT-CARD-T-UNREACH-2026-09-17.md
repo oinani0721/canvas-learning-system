@@ -301,6 +301,21 @@ Claude 已代验，逐条贴证据路径（本单只引用路径与末行，数�
 | 行为变化的下游依赖排查（Codex ⓪/①） | `downstream-impact-20260917T030715.txt` | ✓ |
 | 新测试文件自身 pyright 清零（非承重，本卡自清） | `pyright-testfile-20260917T030131.txt`（初版 **2 errors / 1 warning**）→ **`pyright-testfile-final-20260917T031022.txt`（入库版 0 errors / 0 warnings，含验伪锚：同跑法对已知错文件报 1 error）** | ✓ |
 
+### 收尾核验（一次跑完 8 项，存档 `final-verify-20260917T032608.txt`，末行 `rc=0`）
+
+| # | 项 | 结果 |
+|---|---|---|
+| 1 | 终审绑定 `802f05ca` vs HEAD 代码树 | **空**（仍绑定）；验伪锚 `PREV..HEAD` 出 `3 files changed, 196 insertions(+), 15 deletions(-)` |
+| 2 | 地盘门 `PREV..HEAD` | **恰 3 文件** = 本卡地盘 |
+| 3 | 末次 commit 是否被 hook 塞 `openapi.json` | **0**；且 `openapi.json` 相对 `PREV` 净变化 **0 行** |
+| 4 | 工作树 | 干净（本存档自身在生成时为唯一未跟踪项，随末个文档 commit 入库） |
+| 5 | 未 push | `origin/card/t5-bugs` **不存在** ⇒ 本分支从未 push ✓ |
+| 6 | census 最终态 | 两文件均 `['ValidationError','ValueError','KeyError']` **OK**；ignore = **0**，同次验伪锚 except = **2** |
+| 7 | `pyright app` | **`0 errors, 81 warnings, 0 informations`** |
+| 8 | 行为门 | **`11 passed`**，W4 `blocked=0` |
+
+---
+
 ## 七 DoD-3 §4-B（用户产品体验，零技术词）
 
 以前白板目录卡遇到「服务端自己拼出来的数据不合格」这种情况时，它会把锅甩给我，说「你参数非法」——其实根本不是我的错。现在它会老实说「这是它自己的内部错误」，并且把这件事记下来。
