@@ -1,0 +1,73 @@
+### get_review_service 工厂链 :2939-3010（只读摘录，本卡零改动）
+async def get_review_service() -> "ReviewService":
+    """Get or create the ReviewService singleton.
+
+    Story 38.9 AC1: Canonical singleton factory with double-check lock.
+    All consumers (dependencies.py, review.py endpoints) must use this
+    single entry point to ensure DI alignment.
+
+    Dependencies created:
+    - CanvasService with memory_client (EPIC-36 P0 fix)
+    - BackgroundTaskManager
+    - FSRSManager via create_fsrs_manager() (Story 32.8)
+    - graphiti_client via get_graphiti_temporal_client() (Story 34.8 AC2)
+    """
+    global _review_service_singleton
+    if _review_service_singleton is not None:
+        return _review_service_singleton
+
+    async with _review_service_singleton_lock:
+        # Double-check after acquiring lock
+        if _review_service_singleton is not None:
+            return _review_service_singleton
+
+        from app.config import get_settings
+        from app.services.background_task_manager import BackgroundTaskManager
+        from app.services.canvas_service import CanvasService
+
+        settings = get_settings()
+
+        # 1. CanvasService with memory_client (EPIC-36 P0 fix alignment)
+        memory_client = None
+        try:
+            from app.services.memory_service import get_memory_service as _get_mem
+
+            memory_client = await _get_mem()
+        except (ImportError, RuntimeError, AttributeError) as e:
+            logger.warning(f"MemoryService not available for CanvasService edge sync: {e}")
+
+        canvas_service = CanvasService(canvas_base_path=settings.canvas_base_path, memory_client=memory_client)
+
+        # 2. BackgroundTaskManager
+        task_manager = BackgroundTaskManager()
+
+        # 3. FSRSManager (Story 32.8: unified factory)
+        fsrs_manager = create_fsrs_manager(settings)
+
+        # 4. graphiti_client (Story 34.8 AC2: explicit injection)
+        graphiti_client = None
+        try:
+            from app.dependencies import get_graphiti_temporal_client
+
+            graphiti_client = get_graphiti_temporal_client()
+        except (ImportError, RuntimeError, AttributeError) as e:
+            logger.warning(f"Failed to get graphiti_client for ReviewService: {e}")
+
+        if not graphiti_client:
+            logger.warning("Graphiti client not available for ReviewService, history will use FSRS fallback")
+
+        _review_service_singleton = ReviewService(
+            canvas_service=canvas_service,
+            task_manager=task_manager,
+            graphiti_client=graphiti_client,
+            fsrs_manager=fsrs_manager,
+        )
+        logger.info("ReviewService singleton created via services layer factory")
+        return _review_service_singleton
+
+
+def reset_review_service_singleton() -> None:
+    """Reset the ReviewService singleton (for test isolation).
+
+    Story 38.9 AC4: Tests call this instead of directly setting
+    review._review_service_instance = None.
