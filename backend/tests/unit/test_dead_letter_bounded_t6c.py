@@ -64,6 +64,10 @@ def bounded_dead_letter(monkeypatch, tmp_path):
     dual = tmp_path / "failed_dual_writes.jsonl"
     monkeypatch.setattr(fc, "EDGE_SYNC_DEAD_LETTER_PATH", edge)
     monkeypatch.setattr(fc, "DUAL_WRITE_DEAD_LETTER_PATH", dual)
+    # 与 bounded_failed_writes 同口径地隔离现网 checkpoint（见那边的说明）。
+    import app.services.fallback_sync_service as _fss
+
+    monkeypatch.setattr(_fss, "SYNC_CHECKPOINT_FILE", tmp_path / "sync_checkpoint.json")
     return edge, dual
 
 
@@ -217,6 +221,14 @@ def bounded_failed_writes(monkeypatch, tmp_path):
     monkeypatch.setattr(fwc, "FAILED_WRITES_MAX_ROTATIONS", MAX_ROTATIONS, raising=False)
     path = tmp_path / "failed_writes.jsonl"
     monkeypatch.setattr(ms, "FAILED_WRITES_FILE", path)
+    # ⛔ 必须一并隔离回灌 checkpoint（Codex round-3 HIGH-2）：轮转的前置动作会
+    # **删/改** SYNC_CHECKPOINT_FILE。只隔离上限和数据文件的话，任何一条触发
+    # 轮转的普通测试都会去动**现网** backend/data/sync_checkpoint.json ——
+    # 违反本卡「现网文件只读」的硬边界，而且该文件不存在时测试照样绿，
+    # 于是结果悄悄依赖真实磁盘状态。
+    import app.services.fallback_sync_service as _fss
+
+    monkeypatch.setattr(_fss, "SYNC_CHECKPOINT_FILE", tmp_path / "sync_checkpoint.json")
     return path
 
 
@@ -261,6 +273,14 @@ def test_flush_pending_failed_writes_is_bounded(service, bounded_failed_writes):
     # 有界不等于可以丢：8 条必须原封不动地分布在活动文件 + overflow 里。
     seen = active + sum(_nlines(p) for p in _overflow_siblings(path))
     assert seen == total, f"批量 flush 丢条目: 交来 {total} 条, 落盘 {seen} 条"
+    # ⚠️ 行数守恒挡不住「丢一条 + 重复另一条」（Codex round-3 LOW-6：把每段写入
+    # 改成重复 chunk[0]，行数照样对得上）。必须按**身份**判。
+    got = []
+    for p in [path] + _overflow_siblings(path):
+        for ln in p.read_text(encoding="utf-8").splitlines():
+            if ln.strip():
+                got.append(json.loads(ln)["episode_id"])
+    assert sorted(got) == sorted(f"ep{i}" for i in range(total)), f"批量 flush 条目身份不守恒: {got}"
     assert service._pending_failed_writes == []
 
 
@@ -720,3 +740,122 @@ def test_collision_fallback_still_sorts_last(monkeypatch, tmp_path):
     fallback = fc._unique_overflow_target(path)
     assert fallback not in taken
     assert fallback.name > taken[-1].name, f"兜底名排在 -99 之前, 会被当成最老删掉: {fallback.name} < {taken[-1].name}"
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Codex round-3 HIGH-1 / LOW-5：前置动作绝不能抛，且要验**净行为**
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def test_undecodable_checkpoint_is_deleted_and_rotation_proceeds(service, bounded_failed_writes, monkeypatch, tmp_path):
+    """checkpoint 是乱码字节时：删掉它、**照常轮转**，且一条不丢。
+
+    UnicodeDecodeError 是 ValueError 的子类，既不是 OSError 也不是
+    JSONDecodeError —— 内层 except 漏掉它，异常会一路逃到
+    `_flush_pending_failed_writes` 的 `except ... ValueError`，其 `finally`
+    会 clear() 掉 pending = 整批合法记录消失。
+
+    ⚠️ 判据必须是「轮转发生 + 坏文件被删」，**不能**只断言「不丢批」：
+    外层还有一层 `except Exception` 兜底，摘掉内层捕获后它照样能保住条目，
+    于是「不丢批」在修与不修两种情况下都成立 —— 那样的门是空壳（本卡实测过）。
+    """
+    import app.services.fallback_sync_service as fss
+
+    ckpt = tmp_path / "sync_checkpoint.json"
+    ckpt.write_bytes(b"\xff\xfe\x00bad")
+    monkeypatch.setattr(fss, "SYNC_CHECKPOINT_FILE", ckpt)
+
+    path = bounded_failed_writes
+    total = MAX_LINES + 3
+    service._pending_failed_writes = [{"episode_id": f"ep{i}"} for i in range(total)]
+    service._flush_pending_failed_writes()
+
+    assert not ckpt.exists(), "不可解码的 checkpoint 应被删掉（旧游标就此失效）"
+    assert _overflow_siblings(path), "坏 checkpoint 让轮转停摆了（应视为已作废并照常换代）"
+    seen = _nlines(path) + sum(_nlines(p) for p in _overflow_siblings(path))
+    assert seen == total, f"乱码 checkpoint 把整批 {total} 条吞了, 只落盘 {seen} 条"
+
+
+def test_unencodable_sibling_key_keeps_other_cursors(service, bounded_failed_writes, monkeypatch, tmp_path):
+    """**别的**链的游标里有不可编码内容时：仍要作废 failed_writes、**保住其余键**。
+
+    合法 JSON 的 "\\ud800" 解出来是孤立代理，`write_text` 抛 UnicodeEncodeError
+    （同为 ValueError 子类，同样会走到丢批路径）。实现先按原风格写，编不出来
+    就退回 `ensure_ascii=True` —— 目的正是**不牺牲其余链的游标**。
+
+    ⚠️ 判据是「other 键还在」。只断言「不丢批」测不出这一层：把重试摘掉后
+    会走 unlink 分支，条目照样不丢，但其余链的游标被连坐删掉了。
+    """
+    import app.services.fallback_sync_service as fss
+
+    ckpt = tmp_path / "sync_checkpoint.json"
+    ckpt.write_text('{"failed_writes": {"index": 9}, "other": "\\ud800"}', encoding="utf-8")
+    monkeypatch.setattr(fss, "SYNC_CHECKPOINT_FILE", ckpt)
+
+    path = bounded_failed_writes
+    total = MAX_LINES + 3
+    for i in range(total):
+        assert service._record_structured_outbox({"kind": "knowledge_entity", "i": i})
+
+    assert ckpt.exists(), "其余链的游标被整个删掉了（应只作废 failed_writes 一条）"
+    left = json.loads(ckpt.read_text(encoding="utf-8"))
+    assert "failed_writes" not in left
+    assert "other" in left, f"其余链的游标没保住: {left}"
+    seen = _nlines(path) + sum(_nlines(p) for p in _overflow_siblings(path))
+    assert seen == total
+
+
+def test_invalidate_checkpoint_never_raises(monkeypatch, tmp_path):
+    """前置动作对任何输入都只返回 bool，绝不抛 —— 它在追加路径上。"""
+    import app.services.fallback_sync_service as fss
+
+    ckpt = tmp_path / "sync_checkpoint.json"
+    monkeypatch.setattr(fss, "SYNC_CHECKPOINT_FILE", ckpt)
+    for payload in (b"\xff", b"not json", b"[]", b'{"failed_writes": 1}', b"{}"):
+        ckpt.write_bytes(payload)
+        assert isinstance(fwc._invalidate_replay_checkpoint(), bool), payload
+
+
+def test_unobservable_replay_state_stops_rotation_not_bounding_claim(service, bounded_failed_writes, monkeypatch):
+    """验**净行为**而不只是探针返回值（Codex round-3 LOW-5）。
+
+    import 失败时 `_replay_in_flight()` 返回 False，但同一个失败会让
+    `_invalidate_replay_checkpoint()` 返回 False ⇒ 实际净效果是**永不轮转**。
+    docstring 曾把这写成「退回有界行为」，方向刚好相反。
+    """
+    import builtins
+
+    real_import = builtins.__import__
+
+    def _no_fss(name, *a, **kw):
+        if name == "app.services.fallback_sync_service":
+            raise ImportError("simulated")
+        return real_import(name, *a, **kw)
+
+    monkeypatch.setattr(builtins, "__import__", _no_fss)
+    assert fwc._replay_in_flight() is False
+    assert fwc._invalidate_replay_checkpoint() is False
+
+    path = bounded_failed_writes
+    total = MAX_LINES + 3
+    for i in range(total):
+        assert service._record_structured_outbox({"kind": "knowledge_entity", "i": i})
+
+    # 净行为：不轮转、越限、但一条不丢 —— 方向安全，且与 docstring 现在的说法一致
+    assert _overflow_siblings(path) == [], "观测不到回灌状态却照样换代了"
+    assert _nlines(path) == total
+
+
+def test_fixture_isolates_live_sync_checkpoint(bounded_failed_writes, tmp_path):
+    """⛔ 硬边界门：普通测试绝不能让轮转的前置动作去动**现网** checkpoint。
+
+    轮转前置动作会删/改 SYNC_CHECKPOINT_FILE。fixture 若不隔离它，任何一条
+    触发轮转的普通测试都会写到现网 backend/data/sync_checkpoint.json；
+    而该文件恰好不存在时测试照样绿 ⇒ 结果悄悄依赖真实磁盘状态
+    （Codex round-3 HIGH-2）。这条门直接盯**指针本身**，不依赖磁盘上有没有它。
+    """
+    import app.services.fallback_sync_service as fss
+
+    assert fss.SYNC_CHECKPOINT_FILE.parent == tmp_path, (
+        f"fixture 没隔离现网 checkpoint, 当前指向 {fss.SYNC_CHECKPOINT_FILE}"
+    )

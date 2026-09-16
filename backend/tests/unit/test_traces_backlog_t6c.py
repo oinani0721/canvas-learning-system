@@ -412,8 +412,12 @@ def test_display_path_does_not_leak_absolute_when_anchor_is_root(monkeypatch, tm
     # ⚠️ 真的传 "/"（Codex round-2 L3：原先传的是一个不存在的目录，只测到
     # 「锚外走 fallback」，没测到「锚点就是根」这个真正会让脱敏失效的情形 ——
     # relative_to("/") **不抛异常**，只把前导斜杠去掉）。
+    # ⚠️ 路径必须**浅到绕开深度闸**（Codex round-3 LOW-4）：tmp_path 有好几段，
+    # 即便删掉根锚检查，「结果不超 3 段」那道闸也会兜住 ⇒ 门测不到根锚保护本身。
+    # 用 /secret.jsonl：锚为 "/" 时 relative_to 只得 1 段，深度闸放行，
+    # 于是只有根锚检查能阻止它把绝对路径回出去。
     monkeypatch.setattr(traces, "_BACKEND_DIR", Path("/"))
-    assert traces._display_path(tmp_path / "failed_writes.jsonl") == "failed_writes.jsonl"
+    assert traces._display_path(Path("/secret.jsonl")) == "secret.jsonl"
 
 
 def test_newest_skips_entries_without_timestamp(client, monkeypatch, tmp_path):
@@ -560,3 +564,87 @@ def test_scan_budget_stops_midway_when_file_grows_after_stat(tmp_path, monkeypat
     assert reason == "size_capped", f"读取期预算没生效, reason={reason!r}"
     assert newest != long_ts, "超长记录被整条读进来了"
     assert oldest == "2026-09-01T00:00:00Z", "预算耗尽前已读到的那条应当保留"
+
+
+def test_scan_reads_at_most_max_bytes_from_disk(tmp_path, monkeypatch):
+    """闸必须限制**实际从磁盘读取的字节数**，不是「读完整行再拒绝解析」。
+
+    前两版都错在同一点：`for line in f` 在扣预算之前就把整行读进内存了。
+    这条门直接盯**一次 read 拿了多少字节**。
+
+    ⚠️ 必须同时把开扫前那次 stat 打成小尺寸 —— 否则它会在开扫前就
+    size_capped 返回，二进制读根本不执行，`read_sizes` 为空，门测的是
+    另一条路径（这个坑本卡已经踩过一次）。
+    """
+    active = tmp_path / "failed_writes.jsonl"
+    huge = json.dumps({"timestamp": "2026-09-01T00:00:00Z" + "x" * 200_000})
+    active.write_text(huge + "\n", encoding="utf-8")
+
+    real_stat = type(active).stat
+
+    class _Small:
+        st_size = 10
+        st_mtime = 0.0
+
+    monkeypatch.setattr(
+        type(active), "stat", lambda self, *a, **kw: _Small() if self == active else real_stat(self, *a, **kw)
+    )
+
+    read_sizes = []
+    import builtins
+
+    real_open = builtins.open
+
+    class _CountingFile:
+        def __init__(self, f):
+            self._f = f
+
+        def read(self, n=-1):
+            data = self._f.read(n)
+            read_sizes.append(len(data))
+            return data
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            self._f.close()
+            return False
+
+    def _spy_open(file, mode="r", *a, **kw):
+        f = real_open(file, mode, *a, **kw)
+        if str(file) == str(active) and "b" in str(mode):
+            return _CountingFile(f)
+        return f
+
+    monkeypatch.setattr(builtins, "open", _spy_open)
+    _, _, reason = traces._first_last_timestamp(active, max_bytes=100)
+    monkeypatch.setattr(builtins, "open", real_open)
+
+    assert read_sizes, "没有走到二进制读取路径 —— 门测的是别的分支"
+    assert max(read_sizes) <= 101, f"一次从磁盘读了 {max(read_sizes)} 字节, 上限是 100"
+    assert reason == "size_capped"
+
+
+def test_scan_budget_counts_bytes_not_characters(tmp_path, monkeypatch):
+    """预算按**字节**算：多字节字符不得靠「字符数少」骗过闸。
+
+    30 个 emoji 的 timestamp = 48 字符 / 138 字节；按字符算就会放行。
+    """
+    active = tmp_path / "failed_writes.jsonl"
+    emoji_ts = "2026-09-01T00:00:00Z" + "😀" * 30
+    active.write_text(json.dumps({"timestamp": emoji_ts}, ensure_ascii=False) + "\n", encoding="utf-8")
+    size = active.stat().st_size
+    assert size > 100, f"前置不成立: 文件才 {size} 字节"
+
+    real_stat = type(active).stat
+
+    class _Small:
+        st_size = 10
+        st_mtime = 0.0
+
+    monkeypatch.setattr(
+        type(active), "stat", lambda self, *a, **kw: _Small() if self == active else real_stat(self, *a, **kw)
+    )
+    _, _, reason = traces._first_last_timestamp(active, max_bytes=100)
+    assert reason == "size_capped", f"按字符数算把 {size} 字节的内容放行了, reason={reason!r}"

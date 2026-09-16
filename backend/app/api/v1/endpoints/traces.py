@@ -195,10 +195,13 @@ def _first_last_timestamp(path: Path, *, max_bytes: int) -> Tuple[Optional[str],
     按行迭代会把**一整行**读进内存，一条没有换行的超长记录就能撑爆它。
     所以按 ``max_bytes`` 设闸：文件超过这个尺寸就**完全不扫**。
 
-    ⚠️ 闸必须在**读取过程中**也生效（Codex round-2 M3）。只在开扫前 stat 一次
-    挡不住这个交错：stat 时没超限 → 写者追加一条超长记录 → 扫描器才开始读，
-    于是 ``for line in f`` 照样把整条超长行读进内存。所以下面带**字节预算**，
-    边读边扣，花完就停并如实报 ``size_capped``。
+    ⚠️ 闸必须在**读取本身**上生效（Codex round-2 M3 → round-3 MEDIUM，同一处
+    收紧了三次）。开扫前 stat 一次挡不住这个交错：stat 时没超限 → 写者追加一条
+    超长记录 → 扫描器才开始读。而「按行读完再扣预算」同样挡不住 ——
+    ``for line in f`` **在扣减发生之前就已经把整行读进内存了**，扣减只能事后
+    拒绝解析；何况 ``len(line)`` 数的是**字符**不是字节。
+    现在是二进制一次 ``read(max_bytes + 1)``：内存**上界就是 max_bytes**，
+    与闸的语义逐字一致；多读的那 1 字节只用来判断是否被截断。
 
     Returns:
         ``(oldest, newest, reason)``。``reason`` 为 ``None`` 表示完整扫完；
@@ -217,38 +220,48 @@ def _first_last_timestamp(path: Path, *, max_bytes: int) -> Tuple[Optional[str],
     except OSError as e:
         logger.warning(f"Failed to size {path} before scan: {e}")
         return None, None, f"stat:{type(e).__name__}"
-    budget = max_bytes
+    # ⚠️ 必须**按字节、一次读满上限**，不能「按行读完再扣预算」（Codex round-3
+    # MEDIUM，这是同一处第三次收紧）。前两版都错在同一点：``for line in f``
+    # **在扣预算之前就已经把整行materialize 到内存了**，扣减只能事后拒绝解析，
+    # 拦不住内存占用；而且 ``len(line)`` 数的是**字符**不是字节，一个 timestamp
+    # 里塞 30 个 emoji 就能让「48 字符 / 138 字节」骗过 100 的预算。
+    # 改为二进制一次 ``read(max_bytes + 1)``：内存**上界就是 max_bytes**，
+    # 与闸的语义逐字一致。多读的那 1 字节只用来判断「是否被截断」。
     try:
-        with open(path, "r", encoding="utf-8", errors="replace") as f:
-            for line in f:
-                budget -= len(line)
-                if budget < 0:
-                    logger.info(
-                        "[T6-C] %s 扫描中途超出字节预算 %d B, 停止扫描",
-                        path.name,
-                        max_bytes,
-                    )
-                    return first, last, "size_capped"
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    entry = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                if not isinstance(entry, dict):
-                    continue
-                ts = entry.get("timestamp")
-                if ts is None:
-                    continue
-                safe = _utf8_safe(str(ts))
-                if first is None:
-                    first = safe
-                last = safe
+        with open(path, "rb") as fb:
+            blob = fb.read(max_bytes + 1)
     except OSError as e:
         logger.warning(f"Failed to scan timestamps in {path}: {e}")
         return first, last, f"read:{type(e).__name__}"
-    return first, last, None
+
+    capped = len(blob) > max_bytes
+    text = blob[:max_bytes].decode("utf-8", "replace")
+    # ⛔ 用 split("\n") 不用 splitlines()：后者会在 U+2028 / U+2029 处额外切行，
+    # 与写侧 `"\n".join` 及 count_lines 的 b"\n" 口径不一致
+    # （fallback_sync_service:307 为同一个坑留过记录）。
+    raw_lines = text.split("\n")
+    if capped and raw_lines:
+        # 最后一段多半是被截断的半行，丢掉，别把半个 JSON 当条目解析。
+        raw_lines = raw_lines[:-1]
+        logger.info("[T6-C] %s 扫描达到字节上限 %d B, 截断扫描", path.name, max_bytes)
+    for line in raw_lines:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            entry = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(entry, dict):
+            continue
+        ts = entry.get("timestamp")
+        if ts is None:
+            continue
+        safe = _utf8_safe(str(ts))
+        if first is None:
+            first = safe
+        last = safe
+    return first, last, ("size_capped" if capped else None)
 
 
 def _backlog_entry(name: str, path: Path) -> Dict[str, Any]:

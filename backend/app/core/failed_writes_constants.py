@@ -67,8 +67,13 @@ def _replay_in_flight() -> bool:
     - 读到 True/False 的任一竞态都安全：调用方全程持 ``failed_writes_lock``，
       而回灌取快照也要先拿这把锁 ⇒ 「看到 False 于是轮转」时窗口必然尚未打开
       或已关闭，没有可被破坏的快照。
-    - import 不到 / 属性不在（精简部署、测试替身）⇒ 视作「没有回灌」，
-      退回有界行为，不因为观测不到就停掉上限。
+    - import 不到 / 属性不在（精简部署、测试替身）⇒ 本函数视作「没有回灌」。
+      ⚠️ 但**净效果不是「退回有界行为」**（Codex round-3 LOW-5 指出初版这句
+      失真，已更正）：同一个 import 失败会让
+      :func:`_invalidate_replay_checkpoint` 返回 False，而它是轮转的前置动作，
+      于是实际结果是**永不轮转**（满额后一直裸追加）。方向仍然安全——
+      宁可越限也不丢数据——但它是「停掉上限」而不是「维持上限」，
+      别按字面理解成后者。持续的权限故障同样会让越限无限持续。
     """
     try:
         from app.services.fallback_sync_service import _sync_all_lock
@@ -128,9 +133,17 @@ def _invalidate_replay_checkpoint() -> bool:
         with _checkpoint_lock:
             if not SYNC_CHECKPOINT_FILE.exists():
                 return True
+            # ⚠️ 捕获面必须含 ``UnicodeDecodeError``（Codex round-3 HIGH-1，已复现）：
+            # 它是 ``ValueError`` 的子类，**既不是** ``OSError`` **也不是**
+            # ``json.JSONDecodeError`` —— 初版的 ``except (JSONDecodeError, OSError)``
+            # 接不住它。checkpoint 文件只要有一个 ``b"\\xff"``，异常就会一路逃出
+            # 本函数 → ``before_rotate()`` → ``append_failed_writes_bounded``，
+            # 被 ``_flush_pending_failed_writes`` 的 ``except ... ValueError`` 接住，
+            # 而它的 ``finally`` 会 ``clear()`` 掉 pending ⇒ **一整批合法待写记录消失**。
+            # 单条 outbox 那条路径（只 ``except OSError``）则让异常整个逃逸。
             try:
                 data = json.loads(SYNC_CHECKPOINT_FILE.read_text(encoding="utf-8"))
-            except (json.JSONDecodeError, OSError):
+            except (json.JSONDecodeError, UnicodeDecodeError, OSError):
                 # 文件本身不可信 ⇒ 整个删掉，目的（让旧游标失效）同样达成。
                 SYNC_CHECKPOINT_FILE.unlink(missing_ok=True)
                 return True
@@ -138,14 +151,27 @@ def _invalidate_replay_checkpoint() -> bool:
                 return True
             data.pop("failed_writes", None)
             if data:
+                # ⚠️ **别的键**里可能带着不可编码的内容（合法 JSON 的 ``"\\ud800"``
+                # 解出来就是孤立代理），``write_text`` 会抛 ``UnicodeEncodeError``
+                # —— 同样是 ``ValueError`` 子类、同样会走到上面那条丢批路径。
+                # 先按原风格写；编不出来就退回 ``ensure_ascii=True``（把这些码点
+                # 转义成 ASCII，**保住其余链的游标**）；再不行才整个删掉。
                 tmp = SYNC_CHECKPOINT_FILE.with_suffix(".t6c-tmp")
-                tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+                try:
+                    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+                except (UnicodeEncodeError, TypeError, ValueError):
+                    try:
+                        tmp.write_text(json.dumps(data, ensure_ascii=True, indent=2), encoding="utf-8")
+                    except Exception:  # noqa: BLE001 — 见上：宁可全删也不能让异常逃逸
+                        SYNC_CHECKPOINT_FILE.unlink(missing_ok=True)
+                        return True
                 tmp.replace(SYNC_CHECKPOINT_FILE)
             else:
                 SYNC_CHECKPOINT_FILE.unlink(missing_ok=True)
             logger.info("[T6-C] 活动文件将换代, 已作废 failed_writes 回灌游标")
             return True
-    except OSError as e:
+    except Exception as e:  # noqa: BLE001 — 本函数**绝不能抛**：它在追加路径上，
+        # 抛出去就会把一整批待写记录连同 pending 一起送进调用方的 finally clear()。
         logger.error("[T6-C] 作废回灌游标失败, 本次不轮转: %s", e)
         return False
 
