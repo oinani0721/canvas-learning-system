@@ -1,0 +1,11 @@
+=== D-32 口径: b355f7b7 → 3ecf2c5e 是否纯 docstring 改动 ===
+PATH = backend/tests/unit/test_mcp_switch_vault_tool.py
+b355f7b7 原始行数 = 114
+3ecf2c5e 原始行数 = 133
+原始文本相同 = False
+CODE_IDENTICAL_AFTER_STRIPPING_DOCSTRINGS = True
+ANCHOR_detects_real_code_change = True
+probe_rc=0
+
+=== 生产文件本轮是否被碰（期望 0 行 diff）===
+       0

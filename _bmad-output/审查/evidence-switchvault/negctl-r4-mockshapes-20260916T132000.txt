@@ -1,0 +1,28 @@
+=== N — mock 形状探针 (核「在任何假返回值上都恒真」) ===
+HEAD=3ecf2c5e9e163a3daecc14797a28cdab80d82380
+工作树 infra_tools.py sha256 = 16522d786619406228848eeebfeb396c3d3950558dda9b125985ee6cf9d90d22
+⚠️ 只在探针进程内 monkeypatch, 不改仓库任何文件; 测试文件本身仍零 mock
+
+形状 -> 断言①『"has no attribute" not in error』是否成立
+  M1 dict (无 .body)                      -> ①RED(门反而会红)
+      error = "AttributeError: 'dict' object has no attribute 'body'"
+  M2 有 .body 无 .status_code              -> ①RED(门反而会红)
+      error = "AttributeError: 'WithBodyNoStatus' object has no attribute 'status_code'"
+  M3 SimpleNamespace(无 .body)            -> ①RED(门反而会红)
+      error = "AttributeError: 'types.SimpleNamespace' object has no attribute 'body'"
+  M4 有 .body + .status_code              -> ①GREEN(门形同虚设)
+      error = 'fake detail'
+  M5 坏 JSON body + .status_code          -> ①GREEN(门形同虚设)
+      error = 'vault switch response body is not valid JSON (HTTP 410): Expecting value: line 1 column 1 (char 0)'
+
+GREEN(①恒真, 门形同虚设) 的形状: ['M4 有 .body + .status_code', 'M5 body 非法 JSON + .status_code']
+RED(①反而变红) 的形状       : ['M1 dict (无 .body)', 'M2 有 .body 无 .status_code', 'M3 SimpleNamespace(vault_name=…)']
+
+结论: 「在**任何**假返回值上都恒真」为假 —— 缺 .body 或缺 .status_code 时,
+      infra_tools 会在 result.body / result.status_code 上抛 AttributeError,
+      落进外层 except, error 里反而带上 'has no attribute' ⇒ ① 变红。
+      ⚠️ 『任何带 .body 的假响应都恒绿』同样为假 —— M2 就是反例。
+probe_rc=0
+
+还原核: sha256 = 16522d786619406228848eeebfeb396c3d3950558dda9b125985ee6cf9d90d22
+MATCHES_HEAD=True

@@ -1,0 +1,57 @@
+HEAD=27021e85f1d5548a47b8a2e5126be152fe9eac40
+infra_tools.py sha256 = 16522d786619406228848eeebfeb396c3d3950558dda9b125985ee6cf9d90d22
+⛔ 只在探针进程内 monkeypatch, 不改仓库文件
+
+── LOW-3 补证: 端点 detail 的实测长度与截断尾巴 ──
+  len(detail)            = 216
+  len(detail) > 200      = True   (决定截断是否可观测)
+  detail[190:200]        = ' backend` '
+  被截掉的尾巴 detail[200:] = 'to change vault.'
+
+── LOW-1 补证: 每种 mock 形状下, 测试① 的每一条断言各自是否成立 ──
+   (此前探针只测了 A2, 却把结论写成「①绿」—— A3 才是 M4/M5 真正会红的那条)
+  M1 dict (无 .body)
+      error = "AttributeError: 'dict' object has no attribute 'body'"
+      PASS  A1 success is False
+      FAIL  A2 no 'has no attribute'
+      FAIL  A3 token(quarantin/p0-3/active_vault)
+      FAIL  A4 逐字 == detail[:200]
+      ⇒ 测试① 整体 红
+  M2 有 .body 无 .status_code
+      error = "AttributeError: 'WithBodyNoStatus' object has no attribute 'status_code'"
+      PASS  A1 success is False
+      FAIL  A2 no 'has no attribute'
+      FAIL  A3 token(quarantin/p0-3/active_vault)
+      FAIL  A4 逐字 == detail[:200]
+      ⇒ 测试① 整体 红
+  M3 SimpleNamespace (无 .body)
+      error = "AttributeError: 'types.SimpleNamespace' object has no attribute 'body'"
+      PASS  A1 success is False
+      FAIL  A2 no 'has no attribute'
+      FAIL  A3 token(quarantin/p0-3/active_vault)
+      FAIL  A4 逐字 == detail[:200]
+      ⇒ 测试① 整体 红
+  M4 有 .body + .status_code
+      error = 'fake detail'
+      PASS  A1 success is False
+      PASS  A2 no 'has no attribute'
+      FAIL  A3 token(quarantin/p0-3/active_vault)
+      FAIL  A4 逐字 == detail[:200]
+      ⇒ 测试① 整体 红
+  M5 坏 JSON body + .status_code
+      error = 'vault switch response body is not valid JSON (HTTP 410): Expecting value: line 1 column 1 (char 0)'
+      PASS  A1 success is False
+      PASS  A2 no 'has no attribute'
+      FAIL  A3 token(quarantin/p0-3/active_vault)
+      FAIL  A4 逐字 == detail[:200]
+      ⇒ 测试① 整体 红
+
+  结论: **没有任何一种测试过的 mock 形状能让测试① 整体变绿** ——
+        M1/M2/M3 红在 A2, M4/M5 红在 A3(与 A4)。
+        ⇒ 「mock 掉端点后①恒真 / 门形同虚设」这个说法不成立;
+        要让①全绿, mock 必须返回与真实端点**逐字相同**的 410 body
+        (即 mock 成真端点本身), 那时它才真正失去鉴别力。
+probe_rc=0
+
+还原核: sha256 = 16522d786619406228848eeebfeb396c3d3950558dda9b125985ee6cf9d90d22
+MATCHES_HEAD=True

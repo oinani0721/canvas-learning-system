@@ -1,0 +1,46 @@
+SHA_BEFORE = 16522d786619406228848eeebfeb396c3d3950558dda9b125985ee6cf9d90d22
+HEAD       = ab99f1303745633875111bc8ef303d52143b4bb0  (注意: 本轮改动尚未 commit, 故还原基准用副本)
+A 变异 sha = 6e634f8178e3d7ea5eff90c238efef695db1a373a74e19cd426306de61c07341
+
+──────── A — 退回 result.vault_name 缺陷写法 (期望红在 :58) ────────
+pytest_rc=1
+  红在 :55 success 断言        = 0
+  红在 :58 has-no-attribute    = 1
+  红在 token 断言              = 0
+  红在逐字比对断言(r1 LOW-4锁) = 0
+  汇总行: ======================== 1 failed, 10 warnings in 0.82s ========================
+
+──────── B — 删 410/error 透传分支 (期望红在 :55, 谎报成功) ────────
+pytest_rc=1
+  红在 :55 success 断言        = 2
+  红在 :58 has-no-attribute    = 0
+  红在 token 断言              = 0
+  红在逐字比对断言(r1 LOW-4锁) = 0
+  汇总行: ======================== 1 failed, 10 warnings in 0.77s ========================
+
+──────── C — error 硬编码成 quarantined (期望红在逐字比对断言, token 断言反而会绿) ────────
+pytest_rc=1
+  红在 :55 success 断言        = 0
+  红在 :58 has-no-attribute    = 0
+  红在 token 断言              = 0
+  红在逐字比对断言(r1 LOW-4锁) = 1
+  汇总行: ======================== 1 failed, 10 warnings in 0.79s ========================
+
+──────── D — 删 bytes() 转换 (期望红在逐字比对断言) ────────
+pytest_rc=0
+  红在 :55 success 断言        = 0
+  红在 :58 has-no-attribute    = 0
+  红在 token 断言              = 0
+  红在逐字比对断言(r1 LOW-4锁) = 0
+  汇总行: ======================== 1 passed, 10 warnings in 0.80s ========================
+
+──────── E — 外层 except 退回 str(e)[:200] (预期全绿; 如实登记为门未覆盖的改动) ────────
+pytest_rc=0
+  红在 :55 success 断言        = 0
+  红在 :58 has-no-attribute    = 0
+  红在 token 断言              = 0
+  红在逐字比对断言(r1 LOW-4锁) = 0
+  汇总行: ======================== 1 passed, 10 warnings in 0.82s ========================
+
+SHA_AFTER  = 16522d786619406228848eeebfeb396c3d3950558dda9b125985ee6cf9d90d22
+RESTORE_IDENTICAL=True

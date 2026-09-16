@@ -1,0 +1,11 @@
+=== 验伪锚(同口径, 已知正例区间 546b6719..6d7eb683 = T5-B 文档 commit) ===
+-- 带 exclude（期望 0）--
+       0
+-- 去掉 exclude（期望 >0, 即 exclude 确实在起作用）--
+      32
+-- 其中 _bmad-output 路径数 --
+32
+=== 结论: ':(exclude)_bmad-output' 写法生效(非 ':!' 被 zsh 吃掉的假绿) ===
+=== 反证: 用被协议点名的错误写法 ':!_bmad-output' ===
+fatal: Unimplemented pathspec magic '_' in ':!_bmad-output'
+bad_syntax_rc=0

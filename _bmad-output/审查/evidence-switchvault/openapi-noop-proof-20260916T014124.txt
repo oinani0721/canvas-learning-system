@@ -1,0 +1,5 @@
+=== 证明: hook 生成版 与 HEAD 版 去掉易变键后逐字节相同 ===
+  File "<string>", line 15
+    print(f"raw_sha256 {p.split(chr(47))[-1]} = {hashlib.sha256(open(p,\"rb\").read()).hexdigest()}")
+                                                                        ^
+SyntaxError: unexpected character after line continuation character

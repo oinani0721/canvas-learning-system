@@ -1,0 +1,79 @@
+HEAD       = b355f7b7ce039ff5fad04ced64b901661828a038
+SHA_BEFORE = 16522d786619406228848eeebfeb396c3d3950558dda9b125985ee6cf9d90d22
+口径: 每组跑**整文件两条测试**(不是只跑测试①) —— 修正 round-2 LOW-3。
+
+──────── A — 退回 result.vault_name 缺陷写法 ────────
+pytest_rc=1
+  汇总: 1 failed, 1 passed, 10 warnings in 0.92s 
+  红在 success 断言(前置)      = 0
+  红在 has-no-attribute(承重)  = 1
+  红在 token 断言              = 0
+  红在逐字比对断言             = 0
+  测试② 是否也红               = 0
+
+──────── B — 删 410/error 透传分支 ────────
+pytest_rc=1
+  汇总: 1 failed, 1 passed, 10 warnings in 0.85s 
+  红在 success 断言(前置)      = 2
+  红在 has-no-attribute(承重)  = 0
+  红在 token 断言              = 0
+  红在逐字比对断言             = 0
+  测试② 是否也红               = 0
+
+──────── C — error 硬编码成短常量 quarantined ────────
+pytest_rc=1
+  汇总: 1 failed, 1 passed, 10 warnings in 0.85s 
+  红在 success 断言(前置)      = 0
+  红在 has-no-attribute(承重)  = 0
+  红在 token 断言              = 0
+  红在逐字比对断言             = 1
+  测试② 是否也红               = 0
+
+──────── D — 删 bytes() 转换 (预期 2 passed: 本文件不守它) ────────
+pytest_rc=0
+  汇总: 2 passed, 10 warnings in 0.91s 
+  红在 success 断言(前置)      = 0
+  红在 has-no-attribute(承重)  = 0
+  红在 token 断言              = 0
+  红在逐字比对断言             = 0
+  测试② 是否也红               = 0
+
+──────── E — 外层 except 退回 str(e)[:200] (预期 2 passed: 本文件不守它) ────────
+pytest_rc=0
+  汇总: 2 passed, 10 warnings in 0.88s 
+  红在 success 断言(前置)      = 0
+  红在 has-no-attribute(承重)  = 0
+  红在 token 断言              = 0
+  红在逐字比对断言             = 0
+  测试② 是否也红               = 0
+
+──────── F — 删失败判据的 status_code 一侧 (核 r2 LOW-2 声称) ────────
+pytest_rc=0
+  汇总: 2 passed, 10 warnings in 0.88s 
+  红在 success 断言(前置)      = 0
+  红在 has-no-attribute(承重)  = 0
+  红在 token 断言              = 0
+  红在逐字比对断言             = 0
+  测试② 是否也红               = 0
+
+──────── G — 失败判据 or 改 and (核 r2 LOW-2 声称) ────────
+pytest_rc=0
+  汇总: 2 passed, 10 warnings in 0.88s 
+  红在 success 断言(前置)      = 0
+  红在 has-no-attribute(承重)  = 0
+  红在 token 断言              = 0
+  红在逐字比对断言             = 0
+  测试② 是否也红               = 0
+
+──────── H — 跳过端点+硬编码完整 detail[:200] (核 r2 LOW-1 声称: 预期全绿 ⇒ 我的注释确实过强) ────────
+pytest_rc=0
+  汇总: 2 passed, 10 warnings in 0.88s 
+  红在 success 断言(前置)      = 0
+  红在 has-no-attribute(承重)  = 0
+  红在 token 断言              = 0
+  红在逐字比对断言             = 0
+  测试② 是否也红               = 0
+
+SHA_AFTER  = 16522d786619406228848eeebfeb396c3d3950558dda9b125985ee6cf9d90d22
+RESTORE_IDENTICAL=True
+MATCHES_HEAD=True

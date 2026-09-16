@@ -1,0 +1,16 @@
+### spec-sync-flat hook 产出无实质变化证明 (本卡跳过该 hook 的依据)
+# hook 原始输出(本卡首次 commit 尝试, 已留档):
+#   WROTE: backend/openapi.json (paths=197 schemas=357, x-generated-at=2026-09-15T17:40:08.636358+00:00)
+#   [Spec Sync] + backend/openapi.json staged
+# 脚本自述: check-openapi-drift.py:10 '--write 恒写(每次刷新 info.x-generated-at)'
+
+hookgen raw_sha256  = 8db4839c643f4c9edee55567f9b43fdfff8a1b1412a28982381a0edb10451d5a
+hookgen norm_sha256 = 5cc9a454a03f1f44c2508b8cc6f0f05472c74e46d9012074cb207c867bceb43b
+hookgen x-generated-at = 2026-09-15T17:40:08.636358+00:00
+head    raw_sha256  = 1455eb7dc5d46bbdb14aba984ef9c08991b3ffe250a8638c532eb491c56e4764
+head    norm_sha256 = 5cc9a454a03f1f44c2508b8cc6f0f05472c74e46d9012074cb207c867bceb43b
+head    x-generated-at = 2026-09-11T01:44:03.374514+00:00
+IDENTICAL_AFTER_STRIPPING_VOLATILE_KEYS=True
+ANCHOR_mutated_norm_sha256 = 8720a9ac30fa78ef18d43c9b199b59db7459268c106469e22094e0c7eb66d6a4
+ANCHOR_detects_real_change=True
+proof_rc=0

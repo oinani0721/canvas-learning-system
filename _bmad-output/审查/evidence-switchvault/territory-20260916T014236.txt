@@ -1,0 +1,12 @@
+=== (g) 地盘核: PREV=6d7eb683f126ec4ae142426ad7be34d33cad0e27 HEAD=ab99f1303745633875111bc8ef303d52143b4bb0 ===
+ backend/app/mcp/tools/infra_tools.py             | 36 ++++++++--
+ backend/tests/unit/test_mcp_switch_vault_tool.py | 86 ++++++++++++++++++++++++
+ 2 files changed, 115 insertions(+), 7 deletions(-)
+--- 文件数 ---
+       2
+=== 验伪锚: 去掉 exclude 应多出 _bmad-output 路径 ===
+0
+=== 越界核: T5 其它卡的面是否出现 ===
+       0
+=== fsrs_bridge/decay_beta 零关联核 ===
+       0

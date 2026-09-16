@@ -1,0 +1,47 @@
+=== 本轮目录级存档: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-bugs/_bmad-output/审查/evidence-switchvault/unit-close-r4-20260916T132148.txt ===
+--- 该 flaky 测试的失败详情 ---
+______________ test_accept_candidate_already_accepted_returns_422 ______________
+live Neo4j port connect attempted —— 本用例期间有 1 次到现网 Neo4j 的连接尝试被拦下。
+（连接处抛出的异常被 app/main.py 的 lifespan try/except 吞掉了，
+  所以由本哨兵把它转成用例失败——否则这道门什么都证明不了。）
+  - ('::1', 7691, 0, 0) on thread MainThread (owner=tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422)
+----------------------------- Captured stdout call -----------------------------
+{"candidate_id": "cand-uuid-1", "error_id": "cand-uuid-1", "status": "accepted", "elapsed_ms": 3.07, "event": "candidate_service.accepted", "logger": "app.services.candidate_service", "level": "info", "timestamp": "2026-09-16T05:22:13.401540Z"}
+{"event": "Neo4j health check failed: live Neo4j port connect attempted: ('::1', 7691, 0, 0). \u53d7\u62e6\u7aef\u53e3 [7687, 7691] \u662f\u73b0\u7f51 Neo4j\uff1b\u6d4b\u8bd5\u8fdb\u7a0b\u4e0d\u5f97\u8fde\u63a5\u3002\u82e5\u8fd9\u662f\u7aef\u70b9\u6d4b\u8bd5\uff0c\u8bf7\u7528 backend/tests/support/lifespan.py::no_lifespan \u5173\u6389 app.main \u7684 lifespan\uff1b\u82e5\u786e\u9700\u771f\u5e93\uff0c\u7528\u6d4b\u8bd5\u5bb9\u5668 NEO4J_TEST_URI(7692) \u5e76\u6253 integration/real_neo4j marker\u3002", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-16T05:22:13.405024Z"}
+{"event": "Neo4j health check failed during initialization", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-16T05:22:13.405185Z"}
+{"event": "Falling back to JSON storage mode", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-16T05:22:13.405234Z"}
+{"event": "Neo4j driver closed", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-16T05:22:13.405291Z"}
+{"event": "Loaded 0 relationships from /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-bugs/backend/data/neo4j_memory.json", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-16T05:22:13.405730Z"}
+{"event": "MemoryService: recovered 0 episodes from Neo4j (0 returned, 0 deduped)", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-16T05:22:13.406515Z"}
+{"event": "MemoryService initialized successfully", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-16T05:22:13.406611Z"}
+{"event": "MemoryService singleton initialized", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-16T05:22:13.406660Z"}
+{"event": "[A7] misconception \u672a\u5165\u56fe(worker\u672a\u5c31\u7eea), \u5df2\u843d outbox \u5f85\u91cd\u653e: id=misconception-7d90b7bb47cc4889 node=\u8282\u70b9/node.md", "logger": "app.services.memory_service", "level": "warning", "timestamp": "2026-09-16T05:22:13.406973Z"}
+{"event": "[Story 3.6] Recorded misconception: id=misconception-7d90b7bb47cc4889 group=vault:canvas_vault status=degraded", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-16T05:22:13.407044Z"}
+--
+FAILED tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422
+FAILED tests/unit/test_difficulty_canvas_integration.py::TestGetDifficultyData::test_memory_service_unavailable_returns_none
+FAILED tests/unit/test_difficulty_canvas_integration.py::TestAIQuestionDifficultyInjection::test_difficulty_context_in_prompt
+FAILED tests/unit/test_difficulty_canvas_integration.py::TestAIQuestionDifficultyInjection::test_no_difficulty_map_no_extra_fields
+FAILED tests/unit/test_enrich_context_vault_isolation.py::test_vault_id_provided_triggers_context_var_injection
+FAILED tests/unit/test_enrich_context_vault_isolation.py::test_chinese_vault_id_not_collapsed_to_default
+FAILED tests/unit/test_enrich_context_vault_isolation.py::test_subject_id_optional_backward_compat
+FAILED tests/unit/test_enrich_context_vault_isolation.py::test_vault_id_with_special_chars_sanitized
+FAILED tests/unit/test_enrich_context_vault_isolation.py::test_vault_id_emoji_stripped
+FAILED tests/unit/test_epic30_memory_pipeline.py::TestRecordTemporalEventLifecycle::test_p0_neo4j_write_failure_degrades_silently
+FAILED tests/unit/test_epic36_gap_coverage.py::TestGetRelatedMemoriesReturnStructure::test_query_exception_returns_empty
+FAILED tests/unit/test_intelligent_parallel_endpoints.py::TestProgressEndpoint::test_progress_invalid_session_404
+
+--- blocked 相关行 ---
+135:tests/unit/test_live_port_guard_contract.py ............................ [ 37%]
+315:>       available fixtures: _class_scoped_runner, _configure_logging_for_tests, _function_scoped_runner, _module_scoped_runner, _neo4j_live_port_guard, _no_vault_skeleton_left_behind, _package_scoped_runner, _pytest_bdd_example, _reset_structlog_contextvars, _session_scoped_runner, _stub_vault_identity_registry, agent_service, anyio_backend, anyio_backend_name, anyio_backend_options, async_client, canvas_file, canvas_service, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, client, cov, doctest_namespace, event_loop_policy, fallback_service, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, isolate_card_states_file, isolate_dependency_overrides, isolate_memory_singleton, mock_agent_service, mock_canvas_service, mock_graphiti_client, mock_healthy_provider, mock_settings_multi_provider, mock_task_manager, mock_unhealthy_provider, monkeypatch, neo4j_available, neo4j_test_session, no_cover, provider_factory_clean, pytestbdd_stepdef_given_trace, pytestbdd_stepdef_then_trace, pytestbdd_stepdef_when_trace, pytestconfig, real_memory_service, real_neo4j_client, record_property, record_testsuite_property, record_xml_attribute, recwarn, reset_prometheus, review_service, review_service_factory, sample_canvas_data, subtests, task_manager, temp_dir, test_canvas_path, test_node_id, test_settings, test_user_id, testrun_uid, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, unused_tcp_port, unused_tcp_port_factory, unused_udp_port, unused_udp_port_factory, wait_condition, wait_for_call, worker_id
+323:>       available fixtures: _class_scoped_runner, _configure_logging_for_tests, _function_scoped_runner, _module_scoped_runner, _neo4j_live_port_guard, _no_vault_skeleton_left_behind, _package_scoped_runner, _pytest_bdd_example, _reset_structlog_contextvars, _session_scoped_runner, _stub_vault_identity_registry, agent_service, anyio_backend, anyio_backend_name, anyio_backend_options, async_client, canvas_file, canvas_service, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, client, cov, doctest_namespace, event_loop_policy, fallback_service, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, isolate_card_states_file, isolate_dependency_overrides, isolate_memory_singleton, mock_agent_service, mock_canvas_service, mock_graphiti_client, mock_healthy_provider, mock_settings_multi_provider, mock_task_manager, mock_unhealthy_provider, monkeypatch, neo4j_available, neo4j_test_session, no_cover, provider_factory_clean, pytestbdd_stepdef_given_trace, pytestbdd_stepdef_then_trace, pytestbdd_stepdef_when_trace, pytestconfig, real_memory_service, real_neo4j_client, record_property, record_testsuite_property, record_xml_attribute, recwarn, reset_prometheus, review_service, review_service_factory, sample_canvas_data, subtests, task_manager, temp_dir, test_canvas_path, test_node_id, test_settings, test_user_id, testrun_uid, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, unused_tcp_port, unused_tcp_port_factory, unused_udp_port, unused_udp_port_factory, wait_condition, wait_for_call, worker_id
+605:  - ('::1', 7691, 0, 0) on thread MainThread (owner=tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422)
+608:{"event": "Neo4j health check failed: live Neo4j port connect attempted: ('::1', 7691, 0, 0). \u53d7\u62e6\u7aef\u53e3 [7687, 7691] \u662f\u73b0\u7f51 Neo4j\uff1b\u6d4b\u8bd5\u8fdb\u7a0b\u4e0d\u5f97\u8fde\u63a5\u3002\u82e5\u8fd9\u662f\u7aef\u70b9\u6d4b\u8bd5\uff0c\u8bf7\u7528 backend/tests/support/lifespan.py::no_lifespan \u5173\u6389 app.main \u7684 lifespan\uff1b\u82e5\u786e\u9700\u771f\u5e93\uff0c\u7528\u6d4b\u8bd5\u5bb9\u5668 NEO4J_TEST_URI(7692) \u5e76\u6253 integration/real_neo4j marker\u3002", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-16T05:22:13.405024Z"}
+621:WARNING  app.clients.neo4j_client:neo4j_client.py:531 Neo4j health check failed: live Neo4j port connect attempted: ('::1', 7691, 0, 0). 受拦端口 [7687, 7691] 是现网 Neo4j；测试进程不得连接。若这是端点测试，请用 backend/tests/support/lifespan.py::no_lifespan 关掉 app.main 的 lifespan；若确需真库，用测试容器 NEO4J_TEST_URI(7692) 并打 integration/real_neo4j marker。
+1148:NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=1 (blocked=1, advisory=0, unaccounted=0)
+
+=== 对照: 上一轮(3ecf2c5e)存档的 blocked 计数 ===
+unit-close-r4-20260916T132148.txt: NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=1 (blocked=1, advisory=0, unaccounted=0)
+unit-close-final-20260916T125615.txt: NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+unit-close-r2-20260916T020241.txt: NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+unit-close-20260916T014421.txt: NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
