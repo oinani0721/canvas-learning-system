@@ -1,0 +1,46 @@
+### [FINAL] (h) 地盘核 @ HEAD（本卡两个 commit：8bfcdfce + b38e1d04）
+PREV=f294878bb677ae54dcbf17277004efa2fa1ef97b
+HEAD=b38e1d04c074214570916d11f434933a47edaf36
+
+--- 代码面 diff --stat ---
+ backend/.env.example                               |  16 ---
+ backend/app/config.py                              |  16 ---
+ .../tests/api/v1/endpoints/test_agents_health.py   | 128 ++++++++++++++++++---
+ backend/tests/unit/test_cache_configuration.py     |  95 +++++----------
+ backend/tests/unit/test_sync_batch_auth.py         |  24 +++-
+ backend/tests/unit/test_system_endpoint_auth.py    | 125 +++++++++++++++++++-
+ 6 files changed, 286 insertions(+), 118 deletions(-)
+
+--- 代码面文件数（先数再写）---
+= 6  （须 6）
+backend/.env.example
+backend/app/config.py
+backend/tests/api/v1/endpoints/test_agents_health.py
+backend/tests/unit/test_cache_configuration.py
+backend/tests/unit/test_sync_batch_auth.py
+backend/tests/unit/test_system_endpoint_auth.py
+
+--- 验伪锚①：单查 config.py 必命中 ---
+ backend/app/config.py | 16 ----------------
+ 1 file changed, 16 deletions(-)
+
+--- 验伪锚②：exclude 是否真的在起作用 ---
+  去 exclude 的 _bmad-output 面文件数 = 36
+  带 exclude 的 _bmad-output 面文件数 = 0
+  ⇒ 前者 > 0 且后者 = 0 ⇒ exclude 生效
+
+--- openapi.json 未被本卡动过 ---
+  blob 对比: 逐字节相同 YES
+
+--- 本卡两个 commit 新增/改动文件里含 stderr 的数量（正确取名面）---
+  = 0  （须 0）
+  验伪锚：整棵 HEAD 树里文件名含 stderr 的 = 3（均在 $PREV 已存在，非本卡引入）
+  $PREV 树里同样计数 = 3
+
+--- 工作树状态（本判据自身的输出文件尚未写完，故须 ≤1 且那 1 项须是它自己或 codex 存档）---
+?? "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-RED-HYGIENE-r1.md"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-red-hygiene/FINAL-territory-20260916T191958.txt"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-red-hygiene/FINAL-unit-close-20260916T191150.txt"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-red-hygiene/FINAL-unit-comm-20260916T191932.txt"
+  项数 = 4
+rc=0

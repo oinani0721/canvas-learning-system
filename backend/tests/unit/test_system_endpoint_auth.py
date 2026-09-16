@@ -177,11 +177,20 @@ def auth_client_with_llm_spy() -> Generator[tuple[TestClient, AsyncMock], None, 
 
 
 def _handler_was_not_reached(llm_spy: AsyncMock) -> bool:
-    """业务 handler 是否**没有**被执行到。
+    """业务替身（LLM 调用）是否**一次都没被 await**。
 
     ``/system/test-llm`` 的 handler（``app/api/v1/system.py`` 的
     ``test_llm_connection``）正文里 ``await litellm.acompletion(...)`` 是全文件
-    唯一一处调用点。所以「这个替身一次都没被 await」== 「handler 没跑到正文」。
+    唯一一处调用点。
+
+    ⚠️ 覆盖声明（按 Codex r1 LOW-1 收窄）：零 await 直接证明的是
+    **没有走到那一次 LLM 调用**，不等于「handler 正文一行都没跑」——
+    在那行之前还有 ``format_litellm_model(...)`` 等语句，本谓词看不见它们。
+    「鉴权先于 handler」这个更强的结论由三样东西合起来支撑：
+    路由上的 ``dependencies=[Depends(require_internal_api_key)]`` 声明、
+    拒绝档返回 503（handler 的成功返回值根本没产生）、
+    以及下面那条只摘掉鉴权依赖就让本谓词翻成 False 的对照用例。
+    本谓词只负责其中一环，不要拿它单独去证「正文未执行」。
 
     ⚠️ 承重断言与对照断言**共用本函数**，方向相反。不要把任何一侧展开成
     字面量 ``llm_spy.await_count == 0``：两侧各写各的字面量时，只要有人把承重

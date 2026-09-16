@@ -16,6 +16,7 @@ Tests for GET /api/v1/agents/health endpoint:
 [Source: specs/data/health-check-response.schema.json]
 """
 
+import ast
 import time
 from datetime import datetime, timezone
 
@@ -446,6 +447,67 @@ async def test_health_check_timestamp_format():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
+_TRUTH_SOURCE_NAME = "expected_templates"
+
+#: 会就地改动 list 的方法名。生产若在绑定之后调用它们中的任何一个，
+#: 「赋值处的字面量」就不再等于「运行时的名单」，本 guard 的取值前提即失效。
+_LIST_MUTATORS = frozenset({"append", "extend", "insert", "remove", "pop", "clear", "sort", "reverse"})
+
+
+def _own_statements(node):
+    """遍历 ``node`` 自己作用域内的语句，**不下钻**进嵌套函数 / lambda / 类。
+
+    ``ast.walk`` 会把嵌套函数体里的同名赋值一起收进来。生产哪天在
+    ``health_check`` 里定义一个内部辅助函数、里面恰好也有个叫
+    ``expected_templates`` 的局部变量，``ast.walk`` 就会取到两处赋值 ——
+    要么误判 FOUND-2，要么（若外层那处被改成别的形态）取到内层那个不相干的表。
+    """
+    for child in ast.iter_child_nodes(node):
+        if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.ClassDef)):
+            continue
+        yield child
+        yield from _own_statements(child)
+
+
+def _assert_not_mutated_after_binding(statements, name: str) -> None:
+    """确认名单在绑定之后没有被就地改动过。
+
+    本 guard 读的是**赋值处的字面量**。只要生产在赋值之后做了
+    ``expected_templates += [...]`` / ``expected_templates[0] = "x"`` /
+    ``expected_templates.append("x")`` 之类的就地修改，字面量就不再等于运行时的
+    名单 —— 那时 guard 会拿着一份过期名单和 mock 比对**并且通过**，
+    这正是「门未覆盖的路径」：名单实际漂了，门却是绿的。
+
+    所以这里不去猜改动后的值，而是**直接判定取值前提已失效并报红**。
+    """
+    for node in statements:
+        target = None
+        if isinstance(node, ast.AugAssign):
+            target = node.target
+        elif isinstance(node, (ast.Assign, ast.AnnAssign)):
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            for tgt in targets:
+                if isinstance(tgt, ast.Subscript) and isinstance(tgt.value, ast.Name):
+                    target = tgt.value
+        elif isinstance(node, ast.Delete):
+            for tgt in node.targets:
+                if isinstance(tgt, ast.Subscript) and isinstance(tgt.value, ast.Name):
+                    target = tgt.value
+        elif isinstance(node, ast.Call):
+            func = node.func
+            if isinstance(func, ast.Attribute) and func.attr in _LIST_MUTATORS and isinstance(func.value, ast.Name):
+                target = func.value
+
+        if isinstance(target, ast.Name) and target.id == name:
+            raise AssertionError(
+                f"生产在绑定 {name} 之后对它做了就地修改（{type(node).__name__}，"
+                f"源码第 {getattr(node, 'lineno', '?')} 行，行号相对 health_check 起始）。"
+                "本 guard 读的是赋值处的字面量，就地修改会让它与运行时名单分叉、"
+                "却仍然比对通过 —— 门会在名单真漂了的时候保持绿。"
+                "请改为在运行时取真实名单，或连同本 guard 一起改，不要放宽断言"
+            )
+
+
 def _production_expected_templates() -> list[str]:
     """从生产真相源里取出 ``expected_templates`` 字面量。
 
@@ -458,15 +520,19 @@ def _production_expected_templates() -> list[str]:
     （本卡未覆盖，见验收单「本卡未证明什么」）。这里只要「生产声明的名单」，
     静态取字面量既不碰磁盘也不依赖配置。
 
-    ⚠️ 本函数只认「``expected_templates = [ 字面量列表 ]``」这一种形态（带不带
-    类型注解都认）。若哪天生产改成从常量/文件读取，这里会 ``assert`` 失败而不是
-    静默返回空表——那时应连同本 guard 一起改，而不是把断言放宽。
+    ⚠️ 这个取值方式有三个前提，三个都在下面被显式断言、失效即红，不会静默降级：
+      1. ``inspect.getsource`` 取到的是单个函数定义；
+      2. 该函数**自己的**作用域里恰好有一处 ``expected_templates`` 绑定，
+         且右值是字面量 list（带不带类型注解都认；``ast.AnnAssign`` 与
+         ``ast.Assign`` 一起认，否则给生产加个注解就会以「找不到赋值」这种
+         理由错误的方式变红）；
+      3. 绑定之后没有对它的就地修改（``+=`` / 下标赋值 / ``.append`` 等）。
+         这一条是 Codex r1 MEDIUM-1 指出的漏面：只读字面量的话，
+         「先绑 13 项、随后 append 第 14 项」会让 guard 拿过期名单比对并通过。
 
-    ⚠️ ``ast.AnnAssign`` 必须与 ``ast.Assign`` 一起认：给生产那行加个
-    ``: list[str]`` 是纯类型注解、对名单毫无影响，但注解会把节点类型从 Assign
-    换成 AnnAssign。只认 Assign 的话，这种无害改动会让 guard 以
-    「找不到赋值」（FOUND-0）变红——红得**理由是错的**，读的人会去查名单漂移，
-    而真因只是加了个注解。红本身不危险，误导性的红才危险。
+    ⚠️ 覆盖声明（收窄后）：本 guard 钉住的是「mock 的名单 == 生产**在绑定处声明**
+    的名单」。它**不**钉运行时值；上面第 3 条把「声明 ≠ 运行时」的形态挡在门外，
+    使这两者在门通过时必然一致，但代价是那些形态会报红而不是被静默放过。
     """
     import ast
     import inspect
@@ -475,29 +541,37 @@ def _production_expected_templates() -> list[str]:
     from app.services.agent_service import AgentService
 
     tree = ast.parse(textwrap.dedent(inspect.getsource(AgentService.health_check)))
+    assert len(tree.body) == 1 and isinstance(tree.body[0], (ast.FunctionDef, ast.AsyncFunctionDef)), (
+        "inspect.getsource(AgentService.health_check) 取到的不是单个函数定义，本 guard 的取值方式已失效"
+    )
+
+    statements = list(_own_statements(tree.body[0]))
+
     found: list[list[str]] = []
-    for node in ast.walk(tree):
+    for node in statements:
         if isinstance(node, ast.Assign):
             if len(node.targets) != 1:
                 continue
             target, value = node.targets[0], node.value
         elif isinstance(node, ast.AnnAssign):
-            if node.value is None:  # 纯声明 `x: T` 无右值，不是赋值
+            if node.value is None:  # 纯声明 `x: T` 无右值，不是绑定
                 continue
             target, value = node.target, node.value
         else:
             continue
-        if not (isinstance(target, ast.Name) and target.id == "expected_templates"):
+        if not (isinstance(target, ast.Name) and target.id == _TRUTH_SOURCE_NAME):
             continue
         assert isinstance(value, ast.List), (
-            "生产的 expected_templates 不再是字面量列表，本 guard 的取值方式已失效——请连同本函数一起改，不要放宽断言"
+            f"生产的 {_TRUTH_SOURCE_NAME} 不再是字面量列表，本 guard 的取值方式已失效——请连同本函数一起改，不要放宽断言"
         )
         found.append([ast.literal_eval(elt) for elt in value.elts])
 
     assert len(found) == 1, (
-        f"在 AgentService.health_check 里找到 {len(found)} 处 expected_templates 赋值，"
-        "期望恰好 1 处；生产形态变了，本 guard 需同步改"
+        f"在 AgentService.health_check 自己的作用域里找到 {len(found)} 处 "
+        f"{_TRUTH_SOURCE_NAME} 绑定，期望恰好 1 处；生产形态变了，本 guard 需同步改"
     )
+
+    _assert_not_mutated_after_binding(statements, _TRUTH_SOURCE_NAME)
     return found[0]
 
 

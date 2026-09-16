@@ -1,0 +1,64 @@
+### [FINAL] pre-commit hooks 完整输出（按 Codex r1 MEDIUM-3 补）
+### 命令: LEFTHOOK_EXCLUDE=python-lint,spec-sync-root /opt/homebrew/bin/lefthook run pre-commit
+### 暂存面 = 本卡收尾 commit 的 staged 集（2 个测试文件 + 8 份 _bmad-output）
+### ⚠️ 本次捕获是在 commit 之前、对同一 staged 集单独跑的；随后的 git commit 会再跑一次
+###   （那一次的输出未捕获）。两次之间 staged 集只差本文件自身一个 .txt，无任何 hook 的 glob 匹配它。
+
+========== lefthook 原始输出 ==========
+╭──────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: pre-commit │
+╰──────────────────────────────────────╯
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+│  cypher-vault-filter-lint (skip) no matching staged files
+┃  ghost-files ❯ 
+
+[Ghost Files] No untracked docs found.
+
+┃  mutant-residue-scan ❯ 
+
+[Mutant-Scan] OK (staged additions carry no mutation marker).
+
+│  python-lint (skip) name
+│  python-typecheck (skip) no files for inspection
+│  readme-claims-lint (skip) no matching staged files
+│  spec-sync-flat (skip) no matching staged files
+│  spec-sync-root (skip) name
+                                      
+  ────────────────────────────────────
+summary: (done in 0.09 seconds)       
+✔️ ghost-files (0.03 seconds)
+✔️ mutant-residue-scan (0.06 seconds)
+
+========== python-typecheck 的处置说明（承重） ==========
+lefthook.yml:205-206 的 glob = backend/app/*.py
+该 hook 有**两种** skip，必须分清（Codex r1 MEDIUM-3 的核心担忧）：
+  (甲) glob 不匹配 → lefthook 打印 'python-typecheck (skip) no files for inspection'
+  (乙) pyright 缺席 → hook 脚本自己打印 '[Python] SKIP: pyright not installed ...' 并 return 0
+本次捕获到的是 **(甲)**（见上方原始输出），不是 (乙) —— 本卡收尾 commit 只暂存测试文件。
+
+--- 排除 (乙) 的直接证据：hook 找的那个二进制在本树确实存在且可执行 ---
+  test -x backend/.venv/bin/pyright = OK（hook 的第一顺位分支可用）
+pyright 1.1.411
+
+--- 本卡三个 commit 各自是否暂存了 backend/app/*.py（决定 hook 跑不跑）---
+  commit1 8bfcdfce : 1 个  ← 唯一会触发该 hook 的 commit
+  commit2 b38e1d04 : 0 个  ← glob 不匹配，(甲) 型 skip
+  commit3 (本次)   : 0 个  ← glob 不匹配，(甲) 型 skip
+
+--- 如实结论 ---
+  * commit1 是唯一暂存了 backend/app/*.py 的 commit，该 hook 在它上面会跑；
+    但本卡**没有留下那次成功 commit 的 hook 原始输出**（引用过的
+    '✔️ python-typecheck (3.07 seconds)' 出自第一次**失败**的 commit 尝试）。
+    ⇒ commit1 的 python-typecheck 实跑标记为 **历史 PARTIAL，不追认**（验收单 §六.10）。
+  * commit2 / commit3 的 skip 是 glob 不匹配，不是工具缺席 —— 上面已排除 (乙)。
+  * app 面类型正确性的独立证据不依赖该 hook：见 FINAL-pyright-*.txt
+    （绝对路径 + test -x 自证 + cwd=backend，禁 | tail -1）：
+    0 errors, 81 warnings, 0 informations
+rc=0
