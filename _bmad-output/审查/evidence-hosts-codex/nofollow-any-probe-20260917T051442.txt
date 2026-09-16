@@ -1,0 +1,13 @@
+### 核 Codex r5 给的修法：O_NOFOLLOW_ANY 能否挡住**中间段**软链（不直接采信，自己测）
+  只带 O_NOFOLLOW（现状）: **建出来了**
+  带 O_NOFOLLOW_ANY   : 拒 errno=62(ELOOP)
+  两个都带         : 拒 errno=22(EINVAL)
+  链那头被建出: ['c.toml']
+
+### 控制组：正常（非软链）路径下 O_NOFOLLOW_ANY 不得误拒
+  正常目录 + ANY     : **建出来了**
+
+### 叶子本身是软链时 O_NOFOLLOW_ANY 是否仍拦（它要能替代 O_NOFOLLOW）
+  叶子链 + O_NOFOLLOW: 拒 errno=62(ELOOP)
+  叶子链 + ANY       : 拒 errno=62(ELOOP)
+  prot 里: ['c.toml']

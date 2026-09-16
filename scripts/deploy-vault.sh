@@ -1707,6 +1707,15 @@ from cls_forbidden_paths import ForbiddenPath, build_targets, hits, open_pinned,
 #   换成指向 `/home` 的软链 —— 父目录解析成 `/home`（不是保护目标）⇒ open_pinned 放行,
 #   而随后相对该 fd 建的 `.codex` 就是 `$HOME/.codex`。「父目录允许」不蕴含「子路径允许」。
 # 做法：拿到**已打开 fd 的物理路径**，对「接下来真要写的每个名字」跑同一份 hits() 判据。
+#: 打开多段路径时用它**替换** O_NOFOLLOW —— `O_NOFOLLOW` 只管末段, 中间段的软链照样跟着走。
+#: 本卡实测（`evidence-hosts-codex/nofollow-any-probe-*.txt`）：`.codex` 是指向保护面的软链时,
+#: 只带 O_NOFOLLOW ⇒ **文件被建进保护面**; 带 O_NOFOLLOW_ANY ⇒ ELOOP; **两个同时带 ⇒ EINVAL**
+#: （所以是替换不是叠加）; 正常非软链路径不误拒; 叶子本身是软链时它同样 ELOOP（是 O_NOFOLLOW 的超集）。
+#: ⚠️ 这是 Darwin 专有 flag。非 Darwin 上退回 O_NOFOLLOW —— 本脚本本来就是 macOS 专用
+#: （Bash 3.2 行为、`docker compose ls` 口径都钉在本机）, 但退化面如实写在这里, 不假装它跨平台。
+_NOFOLLOW_ANY = 0x20000000 if sys.platform == "darwin" else os.O_NOFOLLOW
+
+
 def _fd_realpath(fd):
     """已打开 fd 的物理路径。问不出来一律抛 —— 不猜（问不出不能压成没问题）。"""
     try:
@@ -1821,16 +1830,26 @@ CFG_REL = ".codex/config.toml"
 dst = f"{vault}/{CFG_REL}"
 fd = None
 ok = False
+#: 守卫拒绝过 ⇒ 下面的失败清理**一个字节都不许写**（Codex r5 BLOCKER-1 后半）。
+#: 原来 `die()` 之后 `finally` 照样 ftruncate + write_all(标记) —— 那是**守卫已经说不行之后**
+#: 仍然发生的写入, 而且正好落在它刚判定为禁写面的那个对象上。
+refused = False
+
+
+def _refuse(msg):
+    global refused
+    refused = True
+    die(msg)
 try:
     try:
-        fd = os.open(CFG_REL, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644, dir_fd=vfd)
+        fd = os.open(CFG_REL, os.O_WRONLY | os.O_CREAT | os.O_EXCL | _NOFOLLOW_ANY, 0o644, dir_fd=vfd)
     except FileExistsError:
         # 已存在 ⇒ **一律不动它**（用户很可能已按自己的需要改过）。不比内容、不覆盖。
         # ⛔ 但要先排除「它是上次写到一半留下的残件」（Codex r1 MEDIUM）：
         #    生成后的在位判只查「是普通文件」, 一个 0 字节或带半成品标记的模板照样过 ——
         #    那就是把「写坏了」伪装成「已经有了」。
         try:
-            rfd = os.open(CFG_REL, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=vfd)
+            rfd = os.open(CFG_REL, os.O_RDONLY | _NOFOLLOW_ANY | os.O_NONBLOCK, dir_fd=vfd)
         except OSError as exc:
             die(f"已有 codex 模板打不开（是软链？）: {dst} ({exc})")
         try:
@@ -1874,7 +1893,7 @@ try:
 
     # ⛔ Codex r4 BLOCKER：**写第一个字节之前**再判一次 —— 判的是刚建出来的那个文件
     #    fd 自己的物理路径。open 与这一步之间若已被搬走, 这里如实失败, 文件仍是 0 字节。
-    _refuse_if_forbidden(fd, (), live, die)
+    _refuse_if_forbidden(fd, (), live, _refuse)
     write_all(fd, body)
     os.fsync(fd)
     # 写完核身份：这个 fd 指向的必须仍是 `config.toml` 这个名字下的那个 inode, 且 nlink==1。
@@ -1893,8 +1912,10 @@ try:
     ok = True
 finally:
     if fd is not None:
-        if not ok:
+        if not ok and not refused:
             # 写到一半失败 ⇒ 对**同一个 fd** 截断并写一行自解释标记（零路径解析）。
+            # ⛔ `refused` 时**跳过整段清理**：守卫已经判定这个落点在禁写面, 再写标记就是
+            #    「拒绝之后仍然写」（Codex r5 BLOCKER-1 后半）。只关 fd。
             # O_EXCL 保证它是本次新建的, 但写入期间仍可能被 link 出第二个名字,
             # 那时截断会削到共享 inode ⇒ 先查 nlink。
             # ⛔ 标记不能省（Codex r1 MEDIUM）：只截断到 0 字节的话, 下次跑会走
@@ -1956,6 +1977,15 @@ from cls_forbidden_paths import ForbiddenPath, build_targets, hits, open_pinned,
 #   换成指向 `/home` 的软链 —— 父目录解析成 `/home`（不是保护目标）⇒ open_pinned 放行,
 #   而随后相对该 fd 建的 `.codex` 就是 `$HOME/.codex`。「父目录允许」不蕴含「子路径允许」。
 # 做法：拿到**已打开 fd 的物理路径**，对「接下来真要写的每个名字」跑同一份 hits() 判据。
+#: 打开多段路径时用它**替换** O_NOFOLLOW —— `O_NOFOLLOW` 只管末段, 中间段的软链照样跟着走。
+#: 本卡实测（`evidence-hosts-codex/nofollow-any-probe-*.txt`）：`.codex` 是指向保护面的软链时,
+#: 只带 O_NOFOLLOW ⇒ **文件被建进保护面**; 带 O_NOFOLLOW_ANY ⇒ ELOOP; **两个同时带 ⇒ EINVAL**
+#: （所以是替换不是叠加）; 正常非软链路径不误拒; 叶子本身是软链时它同样 ELOOP（是 O_NOFOLLOW 的超集）。
+#: ⚠️ 这是 Darwin 专有 flag。非 Darwin 上退回 O_NOFOLLOW —— 本脚本本来就是 macOS 专用
+#: （Bash 3.2 行为、`docker compose ls` 口径都钉在本机）, 但退化面如实写在这里, 不假装它跨平台。
+_NOFOLLOW_ANY = 0x20000000 if sys.platform == "darwin" else os.O_NOFOLLOW
+
+
 def _fd_realpath(fd):
     """已打开 fd 的物理路径。问不出来一律抛 —— 不猜（问不出不能压成没问题）。"""
     try:
@@ -2028,6 +2058,14 @@ except OSError as exc:
 fd = None
 created = False
 ok = False
+#: 守卫拒绝过 ⇒ 失败清理**一个字节都不许写**（Codex r5 BLOCKER-1 后半）。
+refused = False
+
+
+def _refuse(msg):
+    global refused
+    refused = True
+    die(msg)
 #: 追加前的文件长度 —— 追加失败时回滚到它。⛔ Codex r1 MEDIUM：不回滚的话，
 #: 「只写进半个首锚」（例如 `\n<!-- cls-codex`）留下的残件下次跑**认不出来**：
 #: 找不到完整首锚 ⇒ 直接再追加一段并报成功，那半截永远留在那里。
@@ -2043,7 +2081,7 @@ try:
     # ⚠️ open 单独一个 try：把 write_all 也圈进来的话, **写**失败会掉进下面那个
     #    `except OSError` 报成「未写任何东西」—— 那时文件已经建出来了, 消息是假的。
     try:
-        fd = os.open(base, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644, dir_fd=dfd)
+        fd = os.open(base, os.O_WRONLY | os.O_CREAT | os.O_EXCL | _NOFOLLOW_ANY, 0o644, dir_fd=dfd)
         created = True
     except FileExistsError:
         fd = None
@@ -2062,7 +2100,7 @@ try:
             die(f"给新建的 AGENTS.md 上排他锁失败, 不敢在无锁下写: {dst} ({exc})")
         # ⛔ Codex r4 BLOCKER（同一条）：写第一个字节之前, 判一次刚拿到的**文件 fd** 的物理路径。
         #    open 与这一步之间若目录已被搬走, 这里如实失败（新建的那份仍是 0 字节, 由清理兜）。
-        _refuse_if_forbidden(fd, (), live, die)
+        _refuse_if_forbidden(fd, (), live, _refuse)
         write_all(fd, head_mark + b"\n\n" + body)
     else:
         # ── 分支 B：已存在 ⇒ 只在它是**我们生成的**时候追加 ─────────────────
@@ -2072,7 +2110,7 @@ try:
         # ⛔ O_NONBLOCK：stat 与 open 之间被换成 FIFO 时不带它会**卡死在 open 里**,
         #    连 rc 73 都返回不了（挂起比报错更坏）。
         try:
-            fd = os.open(base, os.O_RDWR | os.O_APPEND | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=dfd)
+            fd = os.open(base, os.O_RDWR | os.O_APPEND | _NOFOLLOW_ANY | os.O_NONBLOCK, dir_fd=dfd)
         except OSError as exc:
             die(f"打不开已有的 AGENTS.md（是软链？）: {dst} ({exc})")
         # ⛔ Codex r2 HIGH：`O_APPEND` 只保证「每次写落在末尾」, 保不住整条
@@ -2086,7 +2124,7 @@ try:
             os.close(fd)
             die(f"给 AGENTS.md 上排他锁失败, 不敢在无锁下追加: {dst} ({exc})")
         # ⛔ Codex r4 BLOCKER（同一条）：动它之前判一次这个 fd 的物理路径。
-        _refuse_if_forbidden(fd, (), live, die)
+        _refuse_if_forbidden(fd, (), live, _refuse)
         st = os.fstat(fd)
         if not statmod.S_ISREG(st.st_mode):
             die(f"AGENTS.md 不是普通文件, 不敢往里写: {dst}")
@@ -2142,15 +2180,16 @@ try:
     ok = True
 finally:
     if fd is not None:
-        if not ok and created:
+        if not ok and created and not refused:
             # 本次新建的那份失败 ⇒ 截空（O_EXCL 保证它是我们建的）。
+            # ⛔ `refused` 时跳过：守卫已判该落点在禁写面, 再截断就是「拒绝之后仍然写」。
             try:
                 if os.fstat(fd).st_nlink != 1:
                     raise OSError("半成品已被加上硬链接, 不敢截断（会改到共享 inode）")
                 os.ftruncate(fd, 0)
             except OSError as exc:
                 print(f"清理半成品失败, 文件内容不可信: {dst} ({exc})", file=sys.stderr)
-        elif not ok and keep_size is not None:
+        elif not ok and keep_size is not None and not refused:
             # ⛔ 追加失败 ⇒ **回滚到追加前的长度**（Codex r1 MEDIUM）。
             #    原来这里什么都不做, 理由是「截断会毁掉用户已有内容」—— 那个理由只对
             #    「截到 0」成立；截回 keep_size 恰恰是**恢复**原有内容（O_APPEND 只往

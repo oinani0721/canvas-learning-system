@@ -5310,9 +5310,18 @@ def _py_call_count(block: str, func: str) -> int:
        这一整类绕法一次关掉。
     """
     tree = ast.parse(block)
+    # ⛔ Codex r5 MEDIUM-1：`if False: 原调用` 保留了 `Call` 节点 —— 只数节点仍是假绿。
+    #    先把**常量假分支**整棵剪掉，再数。⚠️ 这只关掉「显式常量不可达」这一类；
+    #    「调用在但控制流走不到」的一般情形 AST 判不了（需要可达性分析），已如实登记移交。
+    dead = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.If) and isinstance(node.test, ast.Constant) and not node.test.value:
+            for sub in node.body:
+                for d in ast.walk(sub):
+                    dead.add(id(d))
     n = 0
     for node in ast.walk(tree):
-        if not isinstance(node, ast.Call):
+        if not isinstance(node, ast.Call) or id(node) in dead:
             continue
         f = node.func
         if isinstance(f, ast.Attribute):
@@ -5381,7 +5390,9 @@ def test_codex_publishers_judge_the_real_write_target(tmp_path: Path):
     # ⛔ 锚到**完整**参数尾 `, live, die)`：写成 `[^)]*` 会在第一个 `)` 处截断，
     #    `(base,)` 被切成 `(base,` —— 本门第一版正是这么红的（判据自己没取全）。
     #    这个写法顺带把函数**定义**行排除掉（它以 `live, say)` 结尾）。
-    pat = re.compile(r"_refuse_if_forbidden\((.*?), live, die\)")
+    # ⚠️ 两种收尾都要认：`, live, die)`（普通拒绝）与 `, live, _refuse)`（**写前**那三处 ——
+    #    它们要额外置 `refused` 标志，好让失败清理**一个字节都不写**，Codex r5 BLOCKER-1 后半）。
+    pat = re.compile(r"_refuse_if_forbidden\((.*?), live, (?:die|_refuse)\)")
     invocations = pat.findall(src)
     # ⚠️ Codex r3 BLOCKER 之后是**三处**：模板发布器判 vfd（`.codex` 本身）与 cfd
     #    （紧挨着建 config.toml 那一步），AGENTS 发布器判 dfd。
@@ -5393,6 +5404,11 @@ def test_codex_publishers_judge_the_real_write_target(tmp_path: Path):
     assert "(base,)" in joined, f"AGENTS 发布器没把真正要写的名字传进去: {invocations}"
     # ⛔ Codex r4 BLOCKER：**写第一个字节之前**必须判一次刚拿到的那个文件 fd（names 为空 = 判 fd 自己）。
     assert invocations.count("fd, ()") == 3, f"写前判文件 fd 的次数不对（期望 3）: {invocations}"
+    # ⛔ Codex r5 BLOCKER-1 后半：守卫**拒绝之后**失败清理不得再写 —— 写前那三处必须走
+    #    会置 `refused` 的 `_refuse`，且两个程序块的清理分支都要判 `refused`。
+    for tag in ("PYCFG", "PYSEC"):
+        assert "not refused" in blocks[tag], f"{tag} 的失败清理没判 refused（拒绝后仍会写）"
+    assert _decomment(raw).count("live, _refuse)") == 3, "写前守卫没走会置 refused 的那条"
     # 验伪锚（两向）：对已知调用取得出完整参数；对函数**定义**行不命中。
     assert pat.findall('_refuse_if_forbidden(vfd, ("x",), live, die)') == ['vfd, ("x",)']
     assert pat.findall("def _refuse_if_forbidden(fd, names, live, say):") == []
@@ -5500,6 +5516,7 @@ def test_structural_gates_are_not_fooled_by_comments_or_strings():
     real = '_refuse_if_forbidden(vfd, (".codex",), live, die)\nfcntl.flock(fd, fcntl.LOCK_EX)'
     as_comment = "pass  # _refuse_if_forbidden(v, (), l, d)\npass  # fcntl.flock(fd, fcntl.LOCK_EX)"
     as_string = '"_refuse_if_forbidden(v, (), l, d)"\n"fcntl.flock(fd, fcntl.LOCK_EX)"'
+    as_dead = "if False:\n    _refuse_if_forbidden(v, (), l, d)\n    fcntl.flock(fd, fcntl.LOCK_EX)"
     # 正例：真实调用必须被数到
     assert _py_call_count(real, "_refuse_if_forbidden") == 1
     assert _py_call_count(real, "flock") == 1
@@ -5513,6 +5530,9 @@ def test_structural_gates_are_not_fooled_by_comments_or_strings():
     assert "_refuse_if_forbidden(" in _decomment(as_string), (
         "控制组不成立：字符串反例连词法判据都骗不过，本门就没在证明 AST 的价值"
     )
+    # 反例 ③（Codex r5 的变异）：`if False:` —— Call 节点还在，只数节点仍会假绿
+    assert _py_call_count(as_dead, "_refuse_if_forbidden") == 0, "常量假分支里的调用被数进来 = 假绿"
+    assert _py_call_count(as_dead, "flock") == 0, "常量假分支里的锁被数进来 = 假绿"
 
 
 def test_codex_template_rejects_truncation_before_url_line(tmp_path: Path):
@@ -5547,3 +5567,50 @@ def test_agents_refuses_two_char_truncated_head(tmp_path: Path):
     r = _oc_run(tmp_path, h, name, port, env=env, hosts="claude,codex")
     assert r.returncode == 73, f"两字符残片没被拒: rc={r.returncode}\n{r.stdout}{r.stderr}"
     assert "半截" in r.stdout, f"消息没说清它是什么: {r.stdout}"
+
+
+def test_hosts_codex_refuses_intermediate_symlink_to_protected(tmp_path: Path):
+    """`.codex` 是指向**保护面**的软链时，模板不得被建进去（Codex r5 BLOCKER-1 前半）。
+
+    ⚠️ **如实标注它证的是什么**（本卡第三次栽在同一件事上，所以写死在这里）：
+       把 `_NOFOLLOW_ANY` 退回 `os.O_NOFOLLOW` 之后，**这条门照样绿** ——
+       因为 `$VAULT/.codex` 静态就落在保护面里时，**步 1 的 `check_forbidden_paths` 先拒**，
+       根本走不到步 3 的 open。所以它是一条**纵深门**（钉住「更早那道判据别被放宽」），
+       不是 `_NOFOLLOW_ANY` 这个修复的敏感性门。
+       后者由结构门 `test_codex_publishers_use_nofollow_any_for_multiseg_paths` 承担 ——
+       那条实测过：绿 → 变异后红 → 还原后绿（`gate-sensitivity-r6-nofollowany-*.txt`）。
+    ⛔ 修复本身的依据是隔离实测（`nofollow-any-probe-*.txt`）：`.codex` 是指向保护面的软链时，
+       只带 `O_NOFOLLOW` ⇒ 文件**被建进保护面**；换成 `O_NOFOLLOW_ANY` ⇒ `ELOOP`；
+       两个 flag 同时带 ⇒ `EINVAL`（所以是替换不是叠加）；正常非软链路径不误拒。
+    ⚠️ 承重断言是「拒 + 保护面零污染」，不是「rc 非 0」。
+    """
+    name, port = "probe_cx18", "8303"
+    h = _oc_harness(tmp_path)
+    protected = tmp_path / "pretend-protected"
+    protected.mkdir()
+    _oc_preseed_installer(tmp_path, h, f'ln -s "{protected}" "$v/.codex"\n')
+    env = _tx_env(tmp_path, port, name, extra={"CLS_LIVE_VAULT": str(protected)})
+    r = _oc_run(tmp_path, h, name, port, env=env, hosts="claude,codex")
+    assert r.returncode != 0, f"中间段软链没被拒: {r.stdout}{r.stderr}"
+    strays = [str(p) for p in protected.rglob("*")]
+    assert strays == [], f"沿中间段软链把东西建进了保护面: {strays}"
+
+
+def test_codex_publishers_use_nofollow_any_for_multiseg_paths():
+    """多段路径的 open 必须用 `_NOFOLLOW_ANY`，不能是裸 `O_NOFOLLOW`（只管末段）。
+
+    ⛔ 与上一条配套的结构门：行为门只覆盖「`.codex` 一开始就是软链」这一种时序，
+       结构门钉住的是「所有多段路径 open 都换过来了」。
+    ⚠️ 两个 flag **不能同时带**（本机实测 EINVAL），所以这里也断言没有同时出现。
+    """
+    blocks = _py_blocks(_sh_src())
+    for tag in ("PYCFG", "PYSEC"):
+        code = _decomment(blocks[tag])
+        for ln in code.splitlines():
+            if "os.open(" not in ln:
+                continue
+            if "os.O_NOFOLLOW" in ln and "_NOFOLLOW_ANY" not in ln:
+                pytest.fail(f"{tag} 仍有裸 O_NOFOLLOW 的 open（中间段软链会被跟随）: {ln.strip()}")
+            if "os.O_NOFOLLOW " in ln and "_NOFOLLOW_ANY" in ln:
+                pytest.fail(f"{tag} 同时带了两个 flag（本机实测 EINVAL）: {ln.strip()}")
+    assert "_NOFOLLOW_ANY = 0x20000000 if sys.platform" in _sh_src(), "常量定义不在（或平台判丢了）"
