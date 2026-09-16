@@ -29,6 +29,7 @@
 
 from __future__ import annotations
 
+import ast
 import os
 import re
 import shlex
@@ -5288,6 +5289,41 @@ def test_vault_under_protected_surface_is_refused_before_codex_stage(tmp_path: P
     assert strays == [], f"在保护面里建出了 .codex: {strays}"
 
 
+def _py_blocks(src: str) -> dict[str, str]:
+    """取出 deploy-vault.sh 里内嵌的 python 程序块（heredoc），按 tag 返回源码。"""
+    out = {}
+    for tag in ("PYCFG", "PYSEC", "PYPUB", "PYBIND"):
+        m = re.search(r"cat << '%s'\n(.*?)\n%s\n" % (tag, tag), src, re.S)
+        if m:
+            out[tag] = m.group(1)
+    return out
+
+
+def _py_call_count(block: str, func: str) -> int:
+    """在**解析后的语法树**上数 `func(...)` 的真实调用次数。
+
+    ⛔ Codex 连着两轮证明词法判据不够：
+       · r3：`pass  # _refuse_if_forbidden(...)` —— **注释**里的文本被数进来；
+       · r4：`"_refuse_if_forbidden(...)"` —— **字符串字面量**里的文本被数进来。
+       两次变异都让「真实调用数 = 0」而门照样绿。
+       「看起来像调用的文本」有多少种形态永远列不完 ⇒ 换成 AST：只有真的 `Call` 节点才算数，
+       这一整类绕法一次关掉。
+    """
+    tree = ast.parse(block)
+    n = 0
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        f = node.func
+        if isinstance(f, ast.Attribute):
+            name, full = f.attr, f"{getattr(f.value, 'id', '')}.{f.attr}"
+        else:
+            name = full = getattr(f, "id", None)
+        if func in (name, full):
+            n += 1
+    return n
+
+
 def _decomment(text: str) -> str:
     """剥掉 `#` 注释（含**行内**注释）后的文本 —— 结构门一律在它上面判。
 
@@ -5331,9 +5367,17 @@ def test_codex_publishers_judge_the_real_write_target(tmp_path: Path):
     #    把两处守卫调用与 flock 改成 `pass  # _refuse_if_forbidden(...)` 之后，
     #    程序块语法有效、真实调用数归零，而三条门全部照样绿。判据分不清代码和注释 = 判据在说谎。
     #    ⇒ 一律先剥注释（含**行内**注释，`startswith("#")` 那种剥法漏掉行内的）。
-    src = _decomment(_sh_src())
+    # ⛔ Codex r4 MEDIUM：`_decomment` 挡不住**字符串字面量**里的同名文本 ——
+    #    换成 `"_refuse_if_forbidden(...)"` 之后真实调用数归零而门照样绿（Codex 已内存实测）。
+    #    ⇒ 真实调用数改用 AST 数 `Call` 节点，注释/字符串/f-string 这一整类一次关掉。
+    raw = _sh_src()
+    blocks = _py_blocks(raw)
+    assert {"PYCFG", "PYSEC"} <= set(blocks), f"找不到 codex 的两个程序块: {sorted(blocks)}"
+    src = _decomment(raw)
     assert src.count("def _refuse_if_forbidden(") == 2, "守卫函数不在（或份数不对）"
     assert src.count("def _fd_realpath(") == 2, "取 fd 物理路径的函数不在（或份数不对）"
+    real_calls = sum(_py_call_count(b, "_refuse_if_forbidden") for b in (blocks["PYCFG"], blocks["PYSEC"]))
+    assert real_calls >= 4, f"守卫的**真实**调用数不足（AST 计数，期望 ≥4）: {real_calls}"
     # ⛔ 锚到**完整**参数尾 `, live, die)`：写成 `[^)]*` 会在第一个 `)` 处截断，
     #    `(base,)` 被切成 `(base,` —— 本门第一版正是这么红的（判据自己没取全）。
     #    这个写法顺带把函数**定义**行排除掉（它以 `live, say)` 结尾）。
@@ -5341,11 +5385,14 @@ def test_codex_publishers_judge_the_real_write_target(tmp_path: Path):
     invocations = pat.findall(src)
     # ⚠️ Codex r3 BLOCKER 之后是**三处**：模板发布器判 vfd（`.codex` 本身）与 cfd
     #    （紧挨着建 config.toml 那一步），AGENTS 发布器判 dfd。
-    assert len(invocations) == 3, f"守卫调用必须三处（vfd / cfd / dfd），实测 {len(invocations)}: {invocations}"
+    # ⚠️ Codex r4 之后是**五处**：PYCFG 判 vfd 下的两个名字 + 写前判文件 fd；
+    #    PYSEC 判 dfd 下的 base + 新建分支写前判 fd + 追加分支动它前判 fd。
+    assert len(invocations) == 5, f"守卫调用必须五处，实测 {len(invocations)}: {invocations}"
     joined = " ".join(invocations)
     assert '".codex", ".codex/config.toml"' in joined, f"模板发布器没判 vfd 下的落点: {invocations}"
-    assert '("config.toml",)' in joined, f"模板发布器没在建文件前再判一次 cfd: {invocations}"
     assert "(base,)" in joined, f"AGENTS 发布器没把真正要写的名字传进去: {invocations}"
+    # ⛔ Codex r4 BLOCKER：**写第一个字节之前**必须判一次刚拿到的那个文件 fd（names 为空 = 判 fd 自己）。
+    assert invocations.count("fd, ()") == 3, f"写前判文件 fd 的次数不对（期望 3）: {invocations}"
     # 验伪锚（两向）：对已知调用取得出完整参数；对函数**定义**行不命中。
     assert pat.findall('_refuse_if_forbidden(vfd, ("x",), live, die)') == ['vfd, ("x",)']
     assert pat.findall("def _refuse_if_forbidden(fd, names, live, say):") == []
@@ -5378,15 +5425,16 @@ def test_agents_append_takes_an_exclusive_lock():
     ⚠️ flock 是**协作式**的：只挡同样取锁的写者。这条门钉的是「锁取了」，
        不是「任何进程都进不来」——后者本卡做不到，已登记。
     """
-    # ⛔ 同 Codex r3 MEDIUM：在**剥掉注释**的文本上判，否则 `pass  # fcntl.flock(...)` 也算数。
-    src = _decomment(_sh_src())
-    # ⚠️ Codex r3 HIGH-2：**新建分支也要上锁** —— 原来只有追加分支上锁时，
-    #    A 新建短写 + B 追加成功 + A 清理截零 = 删掉 B 的正文。所以要求**两处**。
-    assert src.count("fcntl.flock(fd, fcntl.LOCK_EX)") == 2, (
-        f"排他锁不是两处（新建分支 + 追加分支各一）: {src.count('fcntl.flock(fd, fcntl.LOCK_EX)')}"
-    )
+    # ⛔ AST 计数，不是文本计数（Codex r3 用注释、r4 用**字符串字面量**各骗过一次）。
+    blocks = _py_blocks(_sh_src())
+    # ⚠️ Codex r3 HIGH：**新建分支也要上锁**（A 新建短写 + B 追加成功 + A 清理截零 = 删掉 B 的正文）。
+    # ⚠️ Codex r4 HIGH：**两个发布器**（opencode 的 PYPUB 与 codex 的 PYSEC）必须遵守同一把锁，
+    #    否则不取锁的那个照样能覆盖/截掉另一个刚写好的内容。
+    per = {tag: _py_call_count(b, "flock") for tag, b in blocks.items()}
+    assert per.get("PYSEC", 0) == 2, f"codex 发布器的锁不是两处（新建 + 追加）: {per}"
+    assert per.get("PYPUB", 0) >= 1, f"opencode 发布器没取同一把锁（Codex r4 HIGH）: {per}"
     # 回滚必须带「多出来的字节可能是别人写的」这道守卫
-    assert "grown > append_len" in src, "回滚没判增量 —— 会截掉并发写者的正文"
+    assert "grown > append_len" in _decomment(_sh_src()), "回滚没判增量 —— 会截掉并发写者的正文"
 
 
 def test_agents_refuses_truncated_section_head(tmp_path: Path):
@@ -5441,17 +5489,61 @@ def test_codex_template_rejects_body_without_section_header(tmp_path: Path):
     assert "不完整" in r.stdout, f"消息没说清它是什么: {r.stdout}"
 
 
-def test_structural_gates_are_not_fooled_by_comments():
-    """结构门必须剥注释 —— 把真实调用换成 `pass  # 原调用` 不得让它们变绿。
+def test_structural_gates_are_not_fooled_by_comments_or_strings():
+    """结构门必须数**真实调用**（AST），注释和字符串字面量都不得让它们变绿。
 
-    ⛔ Codex r3 MEDIUM 给的正是这条变异，并**实测**过本文件第一版三条门全部假绿。
-       这条门直接把那个变异做成判据：在内存里做一次替换，`_decomment` 之后必须看不见它。
+    ⛔ Codex 连着两轮把词法判据打穿，两条变异都做成了这里的反例：
+       · r3：`pass  # 原调用` —— 注释；
+       · r4：`"原调用"` —— **字符串字面量**（`_decomment` 对它无能为力）。
+       两次都让「真实调用数 = 0」而门照样绿。所以判据换成 `_py_call_count`（AST `Call` 节点）。
     """
-    real = '    _refuse_if_forbidden(vfd, (".codex",), live, die)\n    fcntl.flock(fd, fcntl.LOCK_EX)'
-    mutated = (
-        '    pass  # _refuse_if_forbidden(vfd, (".codex",), live, die)\n    pass  # fcntl.flock(fd, fcntl.LOCK_EX)'
+    real = '_refuse_if_forbidden(vfd, (".codex",), live, die)\nfcntl.flock(fd, fcntl.LOCK_EX)'
+    as_comment = "pass  # _refuse_if_forbidden(v, (), l, d)\npass  # fcntl.flock(fd, fcntl.LOCK_EX)"
+    as_string = '"_refuse_if_forbidden(v, (), l, d)"\n"fcntl.flock(fd, fcntl.LOCK_EX)"'
+    # 正例：真实调用必须被数到
+    assert _py_call_count(real, "_refuse_if_forbidden") == 1
+    assert _py_call_count(real, "flock") == 1
+    # 反例 ①（Codex r3 的变异）：注释
+    assert _py_call_count(as_comment, "_refuse_if_forbidden") == 0, "注释里的调用被数进来 = 假绿"
+    assert _py_call_count(as_comment, "flock") == 0, "注释里的锁被数进来 = 假绿"
+    # 反例 ②（Codex r4 的变异）：字符串字面量
+    assert _py_call_count(as_string, "_refuse_if_forbidden") == 0, "字符串里的调用被数进来 = 假绿"
+    assert _py_call_count(as_string, "flock") == 0, "字符串里的锁被数进来 = 假绿"
+    # ⛔ 控制组：这个反例**必须**能骗过词法判据，否则本门根本没在证明「AST 比它强」
+    assert "_refuse_if_forbidden(" in _decomment(as_string), (
+        "控制组不成立：字符串反例连词法判据都骗不过，本门就没在证明 AST 的价值"
     )
-    assert "_refuse_if_forbidden(" in _decomment(real), "剥注释把真实调用也剥掉了"
-    assert "fcntl.flock(fd, fcntl.LOCK_EX)" in _decomment(real), "剥注释把真实调用也剥掉了"
-    assert "_refuse_if_forbidden(" not in _decomment(mutated), "行内注释里的调用仍被数进来 = 假绿"
-    assert "fcntl.flock(fd, fcntl.LOCK_EX)" not in _decomment(mutated), "行内注释里的锁仍被数进来 = 假绿"
+
+
+def test_codex_template_rejects_truncation_before_url_line(tmp_path: Path):
+    """模板截断在**段头之后、url 之前** ⇒ 拒（Codex r4 MEDIUM）。
+
+    ⛔ 只判 `[mcp_servers.` 子串证不了完整：截断正好停在段头、或停在段头之后 url 之前，
+       都仍含段头 ⇒ 旧判据放行并报 `kept`。完整模板必须三条齐：段头 + url 行 + 末尾换行。
+    """
+    name, port = "probe_cx16", "8301"
+    h = _oc_harness(tmp_path)
+    _oc_preseed_installer(
+        tmp_path,
+        h,
+        'mkdir -p "$v/.codex"\nprintf \'[mcp_servers.canvas-learning-mcp]\\n\' > "$v/.codex/config.toml"\n',
+    )
+    env = _tx_env(tmp_path, port, name)
+    r = _oc_run(tmp_path, h, name, port, env=env, hosts="claude,codex")
+    assert r.returncode == 73, f"缺 url 行的模板被当成 kept: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    assert "不完整" in r.stdout, f"消息没说清它是什么: {r.stdout}"
+
+
+def test_agents_refuses_two_char_truncated_head(tmp_path: Path):
+    """末尾只有 `\\n<` 也要认出来（Codex r4 LOW：阈值从 5 收到 2）。
+
+    ⛔ 阈值仍不能取 1：正常文件本来就以 `\\n` 结尾。2 是能与它区分开的最小值。
+    """
+    name, port = "probe_cx17", "8302"
+    h = _oc_harness(tmp_path)
+    half = "<!-- generated-by: deploy-vault.sh (--hosts codex) -->\n\n正文\n<"
+    _oc_preseed_installer(tmp_path, h, f"printf '%s' '{half}' > \"$v/AGENTS.md\"\n")
+    env = _tx_env(tmp_path, port, name)
+    r = _oc_run(tmp_path, h, name, port, env=env, hosts="claude,codex")
+    assert r.returncode == 73, f"两字符残片没被拒: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    assert "半截" in r.stdout, f"消息没说清它是什么: {r.stdout}"

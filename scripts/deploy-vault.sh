@@ -1402,6 +1402,7 @@ publish_agents_md() {
     local src srcrc=0
     src="$(
         cat << 'PYPUB'
+import fcntl
 import os
 import stat as statmod
 import sys
@@ -1501,6 +1502,11 @@ try:
     #    代价（如实声明）：写到一半失败会留下内容不完整的目标, 下面按身份清理。
     try:
         fd = os.open(base, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644, dir_fd=dfd)
+        # ⛔ CARD-HOSTS-CODEX / Codex r4 HIGH：**两个发布器必须遵守同一把锁**。
+        #    本函数（opencode 侧）原本不取锁 —— 它短写到一个合法首行后暂停时,
+        #    codex 侧的追加发布器会拿到锁、认出生成标记并追加成功; 本函数随后失败清理
+        #    截零, 把 codex 追加的正文一起删掉。这里**只加一把锁, 不改本函数的任何逻辑**。
+        fcntl.flock(fd, fcntl.LOCK_EX)
     except FileExistsError:
         # 已存在 ⇒ 一律不动它, 只把「它是什么」说清楚。
         # ⚠️ 本脚本刻意**不**做「覆盖上次的产物」：替换必然要先 unlink, 而「目标存在」
@@ -1716,12 +1722,13 @@ def _fd_realpath(fd):
 
 
 def _refuse_if_forbidden(fd, names, live, say):
+    """对已打开的 fd（目录或文件）的**物理路径**跑判据。names 为空 = 判 fd 自己。"""
     real = _fd_realpath(fd)
     targets, claude_prefixes, enum_failed = build_targets(live)
     if enum_failed:
         say("无法枚举 HOME, fail-closed")
-    for n in names:
-        p = os.path.join(real, n)
+    for n in names or ("",):
+        p = os.path.join(real, n) if n else real
         why = hits(p, targets, claude_prefixes, skip_env_name=True)
         if why is not None:
             say("打开后的真实落点在禁写面(%s): %s" % (why, p))
@@ -1739,6 +1746,8 @@ INCOMPLETE_MARK = b"# <!-- INCOMPLETE:"
 MAX_TEMPLATE = 1 << 20
 #: 一份**完整**模板必然含的段头 —— `kept` 分支的正向白名单锚（Codex r3 MEDIUM）。
 SECTION_HEADER = b"[mcp_servers."
+#: 完整模板必然含的 url 行前缀 —— 只判段头挡不住「停在段头之后、url 之前」的截断（Codex r4）。
+URL_LINE_PREFIX = b'url = "http://127.0.0.1:' 
 
 
 def die(msg):
@@ -1775,50 +1784,53 @@ except OSError as exc:
     os.close(vfd)
     die(str(exc))
 
+# `mkdir` 相对已打开的 vault fd。
 try:
-    # ⛔ 目录也要钉在 fd 上：`mkdir -p "$VAULT/.codex"` 会沿着 `.codex` 这一段的软链
-    #    穿到别处去建, 而事后按路径检查沿链解析仍为真, 看不出来。
-    #    这里 mkdir 相对已打开的 vault fd, 再用 O_DIRECTORY|O_NOFOLLOW 打开它 ——
-    #    `.codex` 若是软链, 这一步当场 ELOOP/ENOTDIR 失败, 不会写到链的那一头。
-    try:
-        os.mkdir(".codex", 0o755, dir_fd=vfd)
-    except FileExistsError:
-        pass
-    except OSError as exc:
-        die(f"建 .codex 目录失败: {vault}/.codex ({exc})")
-    try:
-        cfd = os.open(".codex", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=vfd)
-    except OSError as exc:
-        die(f"打开 .codex 目录失败（它是软链或不是目录？）: {vault}/.codex ({exc})")
-finally:
-    os.close(vfd)
-
-# ⛔ Codex r3 BLOCKER（部分闭合）：对 **cfd 自己** 再判一次, 位置紧挨着建文件那一步。
-#    上面那次判的是 vfd；`.codex` 在「判 vfd」与「建 config.toml」之间被**改名**搬走时,
-#    我们手里的 cfd 跟着 inode 走, 写就落到搬过去的那个位置。
-#    ⚠️ 如实声明：这**只是把窗口收窄**到「判 cfd → openat 叶子」这一小段, 关不死它。
-#    目录 fd 的稳定性做不到（rename 不换 inode, F_GETPATH 只是当次查询）——
-#    这正是判据模块 open_pinned 自己声明「祖先被改名/替换成真目录仍可绕过」的那一类,
-#    脚本另外三处 python 写入同样暴露。已作为移交项登记, 不假装它关上了。
-try:
-    _refuse_if_forbidden(cfd, ("config.toml",), live, die)
+    os.mkdir(".codex", 0o755, dir_fd=vfd)
+except FileExistsError:
+    pass
 except OSError as exc:
-    os.close(cfd)
-    die(str(exc))
+    os.close(vfd)
+    die(f"建 .codex 目录失败: {vault}/.codex ({exc})")
 
-dst = f"{vault}/.codex/config.toml"
+# ⛔ `.codex` 必须是**真目录**, 不能是软链。
+#    下面的叶子按 `.codex/config.toml` 这条多段路径打开, 而 `O_NOFOLLOW` **只管末段** ——
+#    `.codex` 是软链时内核会跟着走。原来这条性质由「openat `.codex` 带 O_DIRECTORY|O_NOFOLLOW」
+#    顺带保证（ELOOP）, 去掉 cfd 之后必须显式判回来, 否则就是拿 r4 的修复换掉一条已有规则。
+#    ⚠️ 这仍是 check-then-act：判完到 open 之间被换掉挡不住（同 open_pinned 的未闭合面）。
+try:
+    _st = os.lstat(".codex", dir_fd=vfd)
+except OSError as exc:
+    os.close(vfd)
+    die(f"查不到 .codex 的状态, 不敢往里写: {vault}/.codex ({exc})")
+if statmod.S_ISLNK(_st.st_mode):
+    os.close(vfd)
+    die(f".codex 是软链, 拒绝沿链写: {vault}/.codex")
+if not statmod.S_ISDIR(_st.st_mode):
+    os.close(vfd)
+    die(f".codex 不是目录: {vault}/.codex")
+
+# ⛔ Codex r4 BLOCKER：这里**刻意不持有 `.codex` 的目录 fd**（原来先 openat 出 cfd 再用它写）。
+#    目录 fd 跟着 inode 走 —— `.codex` 在「判据」与「写」之间被 `rename` 搬成 `$HOME/.codex` 时,
+#    经旧 fd 的写会**照样落进搬过去的那个目录**。本卡实测（`resolve-beneath-probe-*.txt` ②）：
+#    同一场景下旧 fd 写成功、按多段路径相对 vfd 打开则 ENOENT。⇒ 改成后者, 越界变成如实失败。
+#    ⚠️ 试过但**不可用**：`O_RESOLVE_BENEATH` 在本机被内核**静默忽略**（同一探针 ①：
+#    带不带它, 逃出去的软链都照写不误）⇒ 写上去只是个不起作用的 flag（DD-13）。
+#    所以「判据 → syscall」这一小段本机没有原语能做成原子, 残留面如实登记（见验收单）。
+CFG_REL = ".codex/config.toml"
+dst = f"{vault}/{CFG_REL}"
 fd = None
 ok = False
 try:
     try:
-        fd = os.open("config.toml", os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644, dir_fd=cfd)
+        fd = os.open(CFG_REL, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644, dir_fd=vfd)
     except FileExistsError:
         # 已存在 ⇒ **一律不动它**（用户很可能已按自己的需要改过）。不比内容、不覆盖。
         # ⛔ 但要先排除「它是上次写到一半留下的残件」（Codex r1 MEDIUM）：
         #    生成后的在位判只查「是普通文件」, 一个 0 字节或带半成品标记的模板照样过 ——
         #    那就是把「写坏了」伪装成「已经有了」。
         try:
-            rfd = os.open("config.toml", os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=cfd)
+            rfd = os.open(CFG_REL, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=vfd)
         except OSError as exc:
             die(f"已有 codex 模板打不开（是软链？）: {dst} ({exc})")
         try:
@@ -1840,14 +1852,29 @@ try:
             full.split(b"\n", 1)[0] and INCOMPLETE_MARK.startswith(full.split(b"\n", 1)[0])
         ):
             die(f"已有 codex 模板是上次写到一半的残件, 请删掉它再重跑: {dst}")
+        # ⛔ Codex r4 MEDIUM：只判段头不够 —— 截断**正好停在** `[mcp_servers.`、
+        #    或停在段头之后 `url` 之前, 都仍含段头 ⇒ 旧判据放行。完整的模板必须三条齐：
+        #    段头 + url 行 + 以换行收尾（生成器最后一条 printf 带 `\n`）。
+        #    ⚠️ 如实声明：内容检查证不了「完整」这件事本身, 它只能一条条排除已知的截断形态；
+        #    真正的保证要靠写入侧的原子性（本脚本用 O_EXCL 直写目标 + 失败标记, 不是 rename 发布）。
+        missing = []
         if SECTION_HEADER not in full:
-            die(f"已有 codex 模板不完整（缺 `{SECTION_HEADER.decode()}` 段头）, 请删掉它再重跑: {dst}")
+            missing.append(SECTION_HEADER.decode())
+        if URL_LINE_PREFIX not in full:
+            missing.append(URL_LINE_PREFIX.decode())
+        if not full.endswith(b"\n"):
+            missing.append("末尾换行")
+        if missing:
+            die(f"已有 codex 模板不完整（缺 {', '.join(missing)}）, 请删掉它再重跑: {dst}")
         print("kept")
         ok = True
         sys.exit(0)
     except OSError as exc:
         die(f"建 codex 模板失败, 未写任何东西: {dst} ({exc})")
 
+    # ⛔ Codex r4 BLOCKER：**写第一个字节之前**再判一次 —— 判的是刚建出来的那个文件
+    #    fd 自己的物理路径。open 与这一步之间若已被搬走, 这里如实失败, 文件仍是 0 字节。
+    _refuse_if_forbidden(fd, (), live, die)
     write_all(fd, body)
     os.fsync(fd)
     # 写完核身份：这个 fd 指向的必须仍是 `config.toml` 这个名字下的那个 inode, 且 nlink==1。
@@ -1855,7 +1882,7 @@ try:
     mine = os.fstat(fd)
     if mine.st_nlink != 1:
         die(f"刚写的 codex 模板（fd 侧）有 {mine.st_nlink} 个硬链接, 不合格: {dst}")
-    now = os.stat("config.toml", dir_fd=cfd, follow_symlinks=False)
+    now = os.stat(CFG_REL, dir_fd=vfd, follow_symlinks=False)
     if now.st_nlink != 1:
         die(f"刚写的 codex 模板（路径侧）有 {now.st_nlink} 个硬链接, 不合格: {dst}")
     if (mine.st_dev, mine.st_ino) != (now.st_dev, now.st_ino):
@@ -1886,7 +1913,7 @@ finally:
             os.close(fd)
         except OSError:
             pass
-    os.close(cfd)
+    os.close(vfd)
 PYCFG
     )" || srcrc=$?
     # 捕获失败必须当场拒：`$(...)` 在条件上下文里不触发 set -e, src 落成空串时
@@ -1944,12 +1971,13 @@ def _fd_realpath(fd):
 
 
 def _refuse_if_forbidden(fd, names, live, say):
+    """对已打开的 fd（目录或文件）的**物理路径**跑判据。names 为空 = 判 fd 自己。"""
     real = _fd_realpath(fd)
     targets, claude_prefixes, enum_failed = build_targets(live)
     if enum_failed:
         say("无法枚举 HOME, fail-closed")
-    for n in names:
-        p = os.path.join(real, n)
+    for n in names or ("",):
+        p = os.path.join(real, n) if n else real
         why = hits(p, targets, claude_prefixes, skip_env_name=True)
         if why is not None:
             say("打开后的真实落点在禁写面(%s): %s" % (why, p))
@@ -2032,6 +2060,9 @@ try:
         except OSError as exc:
             os.close(fd)
             die(f"给新建的 AGENTS.md 上排他锁失败, 不敢在无锁下写: {dst} ({exc})")
+        # ⛔ Codex r4 BLOCKER（同一条）：写第一个字节之前, 判一次刚拿到的**文件 fd** 的物理路径。
+        #    open 与这一步之间若目录已被搬走, 这里如实失败（新建的那份仍是 0 字节, 由清理兜）。
+        _refuse_if_forbidden(fd, (), live, die)
         write_all(fd, head_mark + b"\n\n" + body)
     else:
         # ── 分支 B：已存在 ⇒ 只在它是**我们生成的**时候追加 ─────────────────
@@ -2054,6 +2085,8 @@ try:
         except OSError as exc:
             os.close(fd)
             die(f"给 AGENTS.md 上排他锁失败, 不敢在无锁下追加: {dst} ({exc})")
+        # ⛔ Codex r4 BLOCKER（同一条）：动它之前判一次这个 fd 的物理路径。
+        _refuse_if_forbidden(fd, (), live, die)
         st = os.fstat(fd)
         if not statmod.S_ISREG(st.st_mode):
             die(f"AGENTS.md 不是普通文件, 不敢往里写: {dst}")
@@ -2085,7 +2118,9 @@ try:
         #    ⚠️ 如实声明：比它更短的残片（只写进 `\n<` 之类）认不出来 —— 那种残片下次跑
         #       会被再追加一整段、留下一两个多余字符, 属观感问题, 不影响内容正确性。
         _pfx = b"\n" + sec_mark
-        _min = len(b"\n<!--")
+        #    ⚠️ Codex r4 LOW：阈值从 `len("\n<!--")`=5 收到 **2** —— `\n<` / `\n<!` / `\n<!-`
+        #       这些更短的残片同样可以与「正常的末尾换行」（长度 1）区分开, 没有理由漏掉。
+        _min = 2
         for _n in range(len(_pfx) - 1, _min - 1, -1):
             if cur.endswith(_pfx[:_n]):
                 die(f"AGENTS.md 末尾是半截 Codex 段首（上次追加写到一半）, 请删掉它再重跑: {dst}")
