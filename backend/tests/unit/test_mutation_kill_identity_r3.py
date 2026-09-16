@@ -25,6 +25,8 @@
 
 from __future__ import annotations
 
+import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -1574,6 +1576,15 @@ def test_rec_read_whitelist_pins_operand_position_and_builtin_identity(tmp_path:
             "\ndef len(x):\n    x.append(4)\n    return 0\nlen(MUTATIONS)\n",
             "\nlen = list.append\nlen(MUTATIONS, 4)\n",
             "\n_d = {}\n_d[MUTATIONS[0]] = MUTATIONS\n",
+            # ⛔ round-17（Codex round-14 MEDIUM）：手抄的「绑定形态」名单漏掉 `match` 捕获。
+            # 改用 `symtable`（CPython 自己的绑定表）后，下面这些**全部**认得出来。
+            "\ndef grow(x):\n    x.append(4)\n    return 0\nmatch grow:\n    case len:\n        pass\nlen(MUTATIONS)\n",
+            "\nmatch []:\n    case [*len]:\n        pass\nlen(MUTATIONS)\n",
+            "\nmatch {}:\n    case {**len}:\n        pass\nlen(MUTATIONS)\n",
+            "\nif (len := list.append):\n    pass\nlen(MUTATIONS)\n",
+            "\ntry:\n    pass\nexcept Exception as len:\n    pass\nlen(MUTATIONS)\n",
+            "\nimport os as len\nlen(MUTATIONS)\n",
+            "\ndef f():\n    len = 1\n    return len\n_n = len(MUTATIONS)\n",
         ):
             probe.write_text("MUTATIONS = [1, 2, 3]" + tail, encoding="utf-8")
             with pytest.raises(rec.ReconcileError, match="未白名单"):
@@ -1590,3 +1601,81 @@ def test_rec_read_whitelist_pins_operand_position_and_builtin_identity(tmp_path:
         "g32ccr1": 11,
         "g33": 18,
     }, "⛔ 四套真实分母不得因本次收紧而变"
+
+
+def test_h1_real_pytest_exotic_but_selectable_name_is_harness_error(tmp_path: Path) -> None:
+    """⛔ 起**真** pytest 子进程：可被选中的「怪名字」测试必须判 HARNESS-ERROR，⛔ 不得假 KILLED。
+
+    Codex round-14 HIGH 主张「整行无 reason 的读法仍漏检 ⇒ 假 KILLED」，反例用的完整 nodeid 是
+    `tests/gate.py::test_x - EXPECT]` + 1100 个 `a`。**实测该反例不可达**（见下面三条腿），
+    但同族里**可被选中**的变体是真的，所以这条用例钉的是**真实输出**上的行为，不是合成字符串：
+
+      · 腿①「怎么选」：四套 harness 都把声明的 nodeid 原样当 pytest 的**选择参数**
+        （g32cb / g32ccr1 / g33 / g32b 的 `[pytest, *judge_flags(), <nodeid>]`）；
+      · 腿②「选得到谁」：pytest 9.0.2 实测，`pytest f.py::test_x` 选中 `test_x` 与
+        `test_x[case] - EXPECT`，**选不中** `test_x - EXPECT]aaa…` ⇒ r14 那条反例里的
+        「另一个测试」在本 harness 里**跑不起来**，那行摘要产生不出来；
+        代码侧的等价物就是 `gate_hit()`（`== nodeid` 或 `startswith(nodeid + "[")`）；
+      · 腿③「选得到的那些怎么办」：pytest **总会**给摘要补 ` - <异常类名>`（消息为空也补，
+        实测 `AssertionError("")` → `- AssertionError`、`pytest.fail("")` → `- Failed`）
+        ⇒ 可被选中的怪名字**必然**在行里造出**第二个** ` - ` 切点 ⇒ `_split_unique` 判二义
+        ⇒ 整行进 `unparsed_failure_lines` ⇒ HARNESS-ERROR。
+
+    ⇒ 腿③ 是这条用例真正钉住的东西：它若哪天不成立（pytest 改成「无消息就不补后缀」），
+    本用例立刻变红，而不是悄悄退回假 KILLED。
+    """
+    gate = tmp_path / "test_gate.py"
+    gate.write_text(
+        "import pytest\n"
+        'def _other():\n    raise AssertionError("OTHER")\n'
+        'def _empty():\n    raise AssertionError("")\n'
+        'def _failed():\n    pytest.fail("")\n'
+        'def test_x():\n    raise AssertionError("EXPECT")\n'
+        'globals()["test_x[d] - EXPECT"] = _other\n'
+        'globals()["test_x[e] - EXPECT"] = _empty\n'
+        'globals()["test_x[f] - EXPECT"] = _failed\n'
+        'globals()["test_x - EXPECT]" + "a" * 60] = _other\n',
+        encoding="utf-8",
+    )
+    proc = subprocess.run(
+        [sys.executable, "-m", "pytest", *mki.judge_flags(), "test_gate.py::test_x"],
+        cwd=str(tmp_path),
+        capture_output=True,
+        text=True,
+        env={**os.environ, **mki.judge_env()},
+    )
+    out = proc.stdout + proc.stderr
+    summary = [ln for ln in out.splitlines() if ln.startswith(("FAILED", "ERROR"))]
+
+    # 腿②：那个**不可选中**的名字没有出现在这一次运行里
+    assert not any("EXPECT]a" in ln for ln in summary), f"⛔ 腿②失效：不可选中的名字竟然跑了: {summary}"
+    # 腿③：可被选中的三个怪名字都在，且**每一个**都带了第二个 ` - ` 切点
+    selectable = [ln for ln in summary if "::test_x[" in ln]
+    assert len(selectable) == 3, f"⛔ 可选中的怪名字应有 3 条，实见 {selectable}"
+    for ln in selectable:
+        assert ln.split(" ", 1)[1].count(" - ") >= 2, f"⛔ 腿③失效：这行只有一个切点 {ln!r}"
+
+    verdict, why = mki.kill_identity(
+        proc.returncode, out, "test_gate.py::test_x", "EXPECT", gate_file=str(gate), require_gate_file=True
+    )
+    assert verdict == "HARNESS-ERROR", f"⛔ 真实输出上必须拒判，实得 {verdict}（{why}）"
+    # ⛔ 验伪锚：把怪名字全部拿掉后，同一条门必须仍判 KILLED（不是把这类输入一律打死）
+    gate.write_text('def test_x():\n    raise AssertionError("EXPECT")\n', encoding="utf-8")
+    ok = subprocess.run(
+        [sys.executable, "-m", "pytest", *mki.judge_flags(), "test_gate.py::test_x"],
+        cwd=str(tmp_path),
+        capture_output=True,
+        text=True,
+        env={**os.environ, **mki.judge_env()},
+    )
+    assert (
+        mki.kill_identity(
+            ok.returncode,
+            ok.stdout + ok.stderr,
+            "test_gate.py::test_x",
+            "EXPECT",
+            gate_file=str(gate),
+            require_gate_file=True,
+        )[0]
+        == "KILLED"
+    ), "⛔ 验伪锚：干净的同型输入必须仍判 KILLED"

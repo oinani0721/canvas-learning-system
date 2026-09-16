@@ -43,6 +43,7 @@ import argparse
 import ast
 import json
 import re
+import symtable
 import sys
 from pathlib import Path
 from typing import NamedTuple
@@ -142,7 +143,8 @@ def ast_mutation_count(source_name: str) -> int:
     path = SCRIPTS / source_name
     if not path.exists():
         raise ReconcileError(f"harness 源码不存在，分母无法独立现算: {path}")
-    tree = ast.parse(path.read_text(encoding="utf-8"))
+    source = path.read_text(encoding="utf-8")
+    tree = ast.parse(source)
 
     total: int | None = None
     counted_targets: set[int] = set()  # ① 认下的那些写入位（按 Name 节点身份）
@@ -170,21 +172,32 @@ def ast_mutation_count(source_name: str) -> int:
     # ⛔ round-16（Codex round-13 MEDIUM）：白名单里的 `len(MUTATIONS)` 之前只核**名字**叫
     # `len`，没核它**绑到谁**。模块里 `def len(x): x.append(4); return 0` 之后，
     # `len(MUTATIONS)` 就是一次就地改表 —— 实测运行时 4 条、AST 数 3 条。
-    # ⇒ 只有在 `len` 这个名字**全树都没有被绑定过**（还是内建）时才认这条白名单。
-    # 收得比必要更紧（函数内的局部 `len` 参数也算），因为这里的承诺是「数得出来」，
-    # 而「这个 `len` 到底是哪个」在静态上就是分辨不了的。实测四套源码 `len` 绑定数 = 0。
-    bound_names: set[str] = set()
-    for _n in ast.walk(tree):
-        if isinstance(_n, ast.Name) and isinstance(_n.ctx, (ast.Store, ast.Del)):
-            bound_names.add(_n.id)
-        elif isinstance(_n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            bound_names.add(_n.name)
-        elif isinstance(_n, (ast.Import, ast.ImportFrom)):
-            bound_names.update((a.asname or a.name.split(".")[0]) for a in _n.names)
-        elif isinstance(_n, ast.arg):
-            bound_names.add(_n.arg)
-        elif isinstance(_n, (ast.Global, ast.Nonlocal)):
-            bound_names.update(_n.names)
+    #
+    # ⛔⛔ round-17（Codex round-14 MEDIUM）：**不要自己手数「哪些节点算绑定」**。
+    # 上一版手列了 `Name(Store/Del)` / `def` / `class` / `import` / `arg` / `global`，
+    # 一轮就被 `match grow: case len:` 穿过去了（`ast.MatchAs.name` 不在名单里）——
+    # 这是同一张卡里第**七**次「逐个堵入口」被换个入口绕开。绑定形态是**语言规范**的一部分，
+    # 手抄的名单必然漂移（`MatchStar` / `MatchMapping.rest` / 海象 / `except as` / 推导式目标 /
+    # `type X = …` 还有以后新加的语法）。⇒ 改问**编译器自己**：`symtable` 就是 CPython 用来
+    # 决定作用域绑定的那张表，它认得全部绑定形态。
+    # ⚠️ `symtable.symtable()` 只编译出符号表，**不执行**模块代码 —— 与 `ast.parse` 同级，
+    # 本工具「只读」的承诺不变。
+    # ⚠️ 收得比必要更紧（函数内的局部 `len` 也算）：这里的承诺是「静态数得出来」，
+    # 而「这个 `len` 到底是哪个」静态上就是分辨不了的。实测四套源码 `len` 绑定 = 0。
+    def _name_is_bound_anywhere(table: symtable.SymbolTable, name: str) -> bool:
+        try:
+            sym = table.lookup(name)
+        except KeyError:
+            sym = None
+        if sym is not None and (sym.is_assigned() or sym.is_parameter() or sym.is_imported()):
+            return True
+        return any(_name_is_bound_anywhere(child, name) for child in table.get_children())
+
+    try:
+        _symtab = symtable.symtable(source, source_name, "exec")
+    except SyntaxError as exc:  # 解析不了 ⇒ 数不出来，不是「没有绑定」
+        raise ReconcileError(f"{source_name} 编译符号表失败({exc!r})，分母数不出来") from exc
+    _len_is_builtin = not _name_is_bound_anywhere(_symtab, "len")
 
     # ② fail-closed 全树扫描：任何**没被 ① 数到**的写入/改动一律抛。
     #
@@ -224,7 +237,7 @@ def ast_mutation_count(source_name: str) -> int:
                 or (
                     isinstance(par, ast.Call)
                     and getattr(par.func, "id", None) == "len"
-                    and "len" not in bound_names
+                    and _len_is_builtin
                     and node in par.args
                 )
                 or (isinstance(par, ast.Subscript) and isinstance(par.ctx, ast.Load) and par.value is node)

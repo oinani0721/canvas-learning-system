@@ -1,0 +1,34 @@
+# 腿①②③ 实测：pytest 选择语义 + 摘要后缀（CARD-DEBT-mutkill-R3 round-17，驳回 Codex r14 HIGH）
+# 绑定 HEAD = 32f9d55f（本轮改动未 commit，见随后的 commit）
+# pytest 版本: pytest 9.0.2
+
+## 腿①「怎么选」—— 四套 harness 把声明的 nodeid 原样当选择参数
+backend/scripts/g32cb_mutation_gates.py:389:            [_pytest_bin(), *judge_flags(), _nodeid(test_name)],
+backend/scripts/g32ccr1_negative_controls.py:291:        [str(PYTEST), *judge_flags(), _nodeid(test_name)],
+backend/scripts/g33_mutation_gates.py:378:        [sys.executable, "-m", "pytest", *judge_flags(), "--no-header", nodeid],
+backend/scripts/g32b_mutation_gates.py:582:        [_PYTEST_BIN(), nodeid_of(name), *judge_flags()],
+
+## 腿②「选得到谁」—— 全量收集 vs 按 file.py::test_x 选择
+### 全量 --collect-only
+test_gate.py::test_x
+test_gate.py::test_x[d] - EXPECT
+test_gate.py::test_x[e] - EXPECT
+test_gate.py::test_x[f] - EXPECT
+test_gate.py::test_x - EXPECT]«a×60»
+
+5 tests collected in 0.03s
+### 按 harness 形态 --collect-only test_gate.py::test_x
+test_gate.py::test_x
+test_gate.py::test_x[d] - EXPECT
+test_gate.py::test_x[e] - EXPECT
+test_gate.py::test_x[f] - EXPECT
+
+4 tests collected in 0.02s
+
+## 腿③「摘要总会补 ' - <异常类名>'」—— 真跑（judge_flags 的开关）
+======================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================= short test summary info ========================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================
+FAILED test_gate.py::test_x - AssertionError: EXPECT
+FAILED test_gate.py::test_x[d] - EXPECT - AssertionError: OTHER
+FAILED test_gate.py::test_x[e] - EXPECT - AssertionError
+FAILED test_gate.py::test_x[f] - EXPECT - Failed
+4 failed in 0.19s

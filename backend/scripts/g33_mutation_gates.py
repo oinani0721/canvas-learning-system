@@ -546,6 +546,15 @@ def restore_or_keep_exit_code(
         # ⛔ round-6：干净退出还要求**底下没压着别的异常**。守卫在「本体已抛 OSError」时
         # 仍会重试 `restore()`，重试成功就抛形态干净的 130，把首次那次真实失败盖成
         # `__context__` —— 只看退出码分不出「一次成功的信号退出」和「一次被盖住的失败」。
+        # ⛔ round-17（本轮 25 层负控自查抓到，不是 Codex 提的）：这里**曾经**还挂着
+        # `and swallowed is None`。拆掉它跑全套单测 **0 红** —— 于是去核为什么：`guard_exit`
+        # 全模块只被下面那个 `elif` 读一次，而走到 `elif` 就意味着上面的 `if swallowed is not
+        # None` 为假 ⇒ 那个合取项在**唯一**的读取点上恒为真，**永远改不了任何分支**。
+        # 它不是一层防线，是一句读起来像防线的重复条件 —— 正是本卡要消灭的那类措辞。
+        # ⇒ 删掉，并把「谁保证了它」写在这里。⚠️ 后人若把下面的 `elif` 改成 `if`，
+        # 这个前提就没了，那时必须把 `and swallowed is None` 加回来。
+        # （原始意图见上一段注释：守卫重试成功会把首次真实失败盖成 `__context__`；
+        #   那件事由紧接着的 `if swallowed is not None:` 分支负责报，不靠这个合取项。）
         swallowed = _swallowed_cause(exc)
         guard_exit = (
             clean_exit_code is not None
@@ -553,7 +562,6 @@ def restore_or_keep_exit_code(
             and exc.code == clean_exit_code
             and not was_exiting
             and exiting()
-            and swallowed is None
         )
         if swallowed is not None:
             # ⛔ Codex round-6 MEDIUM：**不分 final 与否都要报**。逐条还原那条路
