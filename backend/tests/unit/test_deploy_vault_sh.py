@@ -4643,6 +4643,18 @@ def test_deploy_sh_pins_source_identity_and_reports_instead_of_deleting():
         "后核不再从 vfd 重新走父链（复用旧 fd 挡不住父目录被搬走）"
     )
     assert "被换成了非目录" in code and "被换成了别的目录" in code, "后核的两条源位置断言没了"
+    # ⛔ 收工核：按**当前路径**重新解析一次规定位置，数条目（Codex r12 MEDIUM-1）。
+    #    它**不闭合**竞态 —— POSIX 没有「按 fd 反查路径」「原子验证 fd==路径」的原语
+    #    （本卡实测确认），每加一次验证、验证完到使用之间又是新窗口。
+    #    它挡的是**结果层面**的错误：`sfd` 在建链期间被搬走时链写进旧目录，
+    #    而函数照样报 `bound=N` ——「成功却什么都没建成」。这一条让那种结果说不出口。
+    #    ⚠️ 必须从 `vault` 这个**路径**重新开始，不许复用任何已持有的 fd ——
+    #    它要回答的正是「**现在**那个路径下有没有东西」。
+    assert "_v2 = os.open(vault, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)" in code, (
+        "收工核没从 vault 路径重新开始（复用旧 fd 就答不了「现在那里有没有东西」）"
+    )
+    assert "present = set(os.listdir(_k2))" in code, "收工核不再数规定位置下的条目"
+    assert "missing = [n for n in names if n not in present]" in code, "收工核不再比对应有的条目"
 
 
 def test_deploy_sh_takes_skill_names_without_command_substitution(tmp_path: Path):

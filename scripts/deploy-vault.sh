@@ -1188,7 +1188,9 @@ try:
                 except OSError as exc:
                     die(f"打不开技能源条目（被换掉了？）: {where} ({exc})")
         finally:
-            pass  # ⛔ csfd **留到后核用**（Codex r10 MEDIUM-1）：见下方后核里的二次 lstat。
+            # ⚠️ csfd 此后**不再用于后核**（r11 起后核改为从 vfd 重走父链拿 `_s2`）——
+            #    它留到最后只是为了在 finally 里统一关闭。别再把它当「当前父目录」用。
+            pass
     finally:
         os.close(cfd)
 
@@ -1273,6 +1275,38 @@ try:
                 die(f"技能源条目在本次运行中被换成了别的目录: {vault}/.claude/skills/{name}")
         finally:
             os.close(tfd)
+    # ── 收工核：按**当前路径**重新走一遍，数规定位置下的条目 ────────────────
+    # ⛔ 这**不闭合**竞态（POSIX 没有「按 fd 反查路径」「原子验证 fd==路径」的原语，
+    #    实测确认；每加一次验证，验证完到使用之间又是新窗口）。它挡的是**结果层面**
+    #    的错误：`sfd` 在建链期间被搬走时，链写进了旧目录，而函数照样报 bound=N ——
+    #    「成功却什么都没建成」。这一条让那种结果说不出口。
+    # ⚠️ 刻意从 `vault` 这个**路径**重新开始（不复用任何已持有的 fd）：
+    #    这里要回答的正是「**现在**那个路径下有没有东西」。
+    try:
+        _v2 = os.open(vault, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    except OSError as exc:
+        die(f"收工核: 打不开 vault（运行期间被搬走？）: {vault} ({exc})")
+    try:
+        _a2 = os.open(".agents", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=_v2)
+        try:
+            _k2 = os.open("skills", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=_a2)
+            try:
+                present = set(os.listdir(_k2))
+            finally:
+                os.close(_k2)
+        finally:
+            os.close(_a2)
+    except OSError as exc:
+        die(f"收工核: 打不开 .agents/skills（运行期间被搬走或换成软链？）: {vault}/.agents/skills ({exc})")
+    finally:
+        os.close(_v2)
+    missing = [n for n in names if n not in present]
+    if missing:
+        die(
+            f"收工核: 规定位置 {vault}/.agents/skills 下缺少 {len(missing)} 个条目 "
+            f"（运行期间该目录被搬走过？链可能建到了别处）: {missing[:5]}"
+        )
+
     ok = True
     print(f"bound={len(names)} new={len(made)}")
 finally:
