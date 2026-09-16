@@ -18,10 +18,10 @@
   用户级配置（含它记录「这个目录可信」的那张表）。
 - **D-26(i) 不放宽**：`$HOME` 下 Codex 的那个点目录是硬禁写面。
 
-**请读这些**（`<PREV>` = 本卡起点，`<审SHA>` = 本次送审的 commit）：
+**请读这些**（起点 `7a8d50e2`，送审 commit `ef0cf1a9`）：
 
 ```
-git diff <PREV> <审SHA> -- . ':(exclude)_bmad-output'
+git diff 7a8d50e2b92d002700b64837a8b518a2ac5facc1 ef0cf1a9ff7bb8abee3485ca2981b2948dafa488 -- . ':(exclude)_bmad-output'
 ```
 
 增量落在三个文件：

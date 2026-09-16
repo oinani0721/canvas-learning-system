@@ -312,4 +312,101 @@ UTF-8 locale 下 `）`（U+FF09 = `EF BC 89`）的首字节 `\xef` 被当成标�
 
 ## 收工核验
 
-*（(h) 目录级 / (j) 地盘门 / (k) Codex 轮次与终审绑定 —— 见下方续写）*
+### (h) tests/unit 目录级 — 存档 `unit-close-20260917T032226.txt` + `unit-diff-20260917T032756.txt`
+
+跑法（与基线**同口径**）：`cd backend && pytest tests/unit -q -p no:cacheprovider --ignore tests/unit/test_deploy_vault_sh.py`
+⛔ `--ignore` 写**相对**路径（R-B14-3：已 `cd backend`，写绝对前缀 = 空操作，那个重型文件仍会真跑）。
+
+| 项 | 实测 |
+|---|---|
+| 汇总 | 35 failed, 5077 passed, 48 skipped, 23 xfailed, 29 errors（290.40s） |
+| `close.nodeids` 行数 | **64** |
+| `base.nodeids` 行数（基线） | **64** |
+| `diff base close` | **完全为空**（`diff_rc=0`） |
+| `<` 行（基线有、本次没有） | **0** |
+| `>` 行（本次新增 = 阻断） | **0** ✅ |
+
+**两个验伪锚**（缺一不可，否则「零命中」可能只是 grep 没跑成）：
+
+1. ⛔ grep 侧关色彩的 flag 是 `--color=never`，**不是** `--no-color`（后者只是 git 的 flag，
+   `/usr/bin/grep` 不认 ⇒ rc=2 + stdout 空 ⇒ `close.nodeids` 写成空文件 ⇒ diff 只剩 `<` ⇒ **恒绿假绿**）。
+   锚：`printf 'FAILED tests/unit/__probe__.py::t - X\n' | grep --color=never -E '^(FAILED|ERROR) tests/'`
+   → 原样回显该行 + `rc=0` ✅
+2. `test -s close.nodeids` → `rc=0`（非空）✅ —— 空 = 64 条既有红一次全消失，实务上等于 grep 没跑成。
+
+### (j) 地盘门 — 存档 `territory-final-20260917T033*.txt`
+
+```
+PREV = 7a8d50e2b92d002700b64837a8b518a2ac5facc1   (T2-C tip)
+HEAD = ef0cf1a9ff7bb8abee3485ca2981b2948dafa488
+```
+
+| 项 | 实测 |
+|---|---|
+| 代码面（`-- . ':(exclude)_bmad-output'`） | `scripts/deploy-vault.sh` / `backend/tests/unit/test_deploy_vault_sh.py` / `scripts/vault-install-manifest.json` —— **恰 3 件** |
+| 越界文件数 | **0** ✅ |
+| **验伪锚 ①** 去掉 exclude | 全部 25 − 代码面 3 = **22** 个 `_bmad-output/` 路径被排除 ⇒ pathspec 真的在工作 ✅ |
+| **验伪锚 ②** 子集 grep | 喂一个已知越界名 `scripts/install-vault.sh` → 被列出来 + rc=0 ⇒ 判据不是恒空 ✅ |
+| pathspec 写法 | `':(exclude)_bmad-output'`（**不是** `':!…'`，协议 §1：zsh + git 2.50 下后者 rc=128 假绿） |
+
+> ⛔ **第一次跑这条判据我自己写错了**：`-c core.quotepath=false` 放在了 `diff` **之后**，
+> git 当场 `fatal: bad revision 'core.quotepath=false'`，锚算出 `全部=0 / 差=-3`。
+> 那一份（`territory-20260917T033*.txt`，无 `-final`）**作废**。
+> 它恰好演示了验伪锚存在的理由：**没有锚，fatal 之后的空输出会被读成「干净」**。
+
+### 提交
+
+```
+ef0cf1a9  feat(deploy): codex 转正为二线宿主, 步 3 生成项目级绑定件 [BATCH-2026-09-11-第十四批 / CARD-HOSTS-CODEX]
+```
+
+- header **84 字符**（`wc -m`）≤ 100，含批次标记 ✅ 含卡号 ✅
+- 单独 commit，提交后 `git status --porcelain` = **0**（T2-E 开工前工作树干净）✅
+- lefthook：`python-lint` ruff 全过 + format OK；`mutant-residue-scan` OK；`ghost-files` OK；
+  `commitlint` 0 problems / 1 warning（`subject-case`，中文主题的既有告警，非阻断）
+- `*.stderr*` / `*.log` 入库数 = **0** ✅　未 push ✅
+
+### (k) Codex 复核
+
+#### round-1 —— 绑定 `ef0cf1a9`，**BLOCKER 1 / HIGH 1 / MEDIUM 3 / LOW 0**
+
+存档 `_bmad-output/审查/codex-review-CARD-HOSTS-CODEX.md`。逐条处置（**无一条驳回**）：
+
+| # | 级别 | 意见 | 处置 |
+|---|---|---|---|
+| 1 | **BLOCKER** | 两处新目录打开 `os.open(vault/ddir, …\|O_NOFOLLOW)` 只挡末段；祖先在步 1 判据与步 3 之间被换成指向保护目录的软链时照样穿过去 | **已修**：改走仓内既有原语 `open_pinned`（① realpath 父目录后当场过 `hits()` 判据 ② 沿已校验物理串逐级 `O_DIRECTORY\|O_NOFOLLOW`）。不新发明判据形状，与脚本另外 3 处 python 写入同一来源 |
+| 2 | **HIGH** | 探针为了证明结论**真的跑了 codex**，于是 codex 自己往 `$HOME/.codex` 写了 `sessions/**` 与 `skills/.system/**`；卡文 (f).7 只授权了 `sessions/**` | **已改**：探针改用 `CODEX_HOME` 重定向到 scratchpad（auth 用**软链**指向真文件，不复制密钥字节）⇒ `$HOME/.codex` **零写**。见下方「意外收获」 |
+| 3 | **MEDIUM** | manifest 的 `exclude` 登记让**形态错误**逃过独立校验（generate 项会查「在位且是普通文件」） | **接受并更正措辞**：我原来把差异说成「只是三条测试会红」，**把损失说小了**。已在 manifest note 与测试 docstring 里如实写明放弃了哪条判据；归属订正仍是移交项（改不了，地盘外） |
+| 4 | **MEDIUM** | 模板写入失败后截成 0 字节，下次跑走「已存在 ⇒ `kept`」，空模板被当成正常产物 | **已修**：失败时写 `INCOMPLETE` 标记；`kept` 分支先排除「空文件 / 带半成品标记」。加两条门 |
+| 5 | **MEDIUM** | AGENTS.md 追加在**首锚写完整之前**失败，残件下次跑认不出来（找不到完整首锚 ⇒ 再追加一段并报成功） | **已修**：追加前记 `keep_size`，失败时 `ftruncate(fd, keep_size)` **回滚**到追加前的长度（O_APPEND 只往末尾写 ⇒ 截回去 = 逐字节恢复原状）。原来「不截断」的理由只对「截到 0」成立 |
+
+#### ⛔ 我自己造了一条假门，并用敏感性负控抓了出来（存档 `gate-sensitivity-*.txt`）
+
+为 BLOCKER 写的第一版是**行为门**（断言「rc 非 0 + 保护面零 `.codex`」）。
+把 `open_pinned` 变回裸 `os.open` 之后，它**照样绿**：
+
+- 真因：那一跑先撞步 3 A1「宿主绑定件缺失」（祖先被换掉后 `$VAULT/CLAUDE.md` 找不到），**根本没走到 codex 段**；
+- 改造场景让 vault 可达之后，又被**更早**的 B3（写 `data.json`，同样走 `open_pinned`）先拒成 rc 73；
+- ⇒ 该 TOCTOU（shell 侧复查 ↔ python 侧打开之间）**端到端不可确定性复现**。
+
+处置：删掉假门，换成
+1. **结构门** `test_codex_publishers_open_dirs_through_open_pinned` —— 禁止**按路径**的目录 `os.open`
+   （相对已钉住 fd 的 `openat` 放行，两向验伪锚都在）。
+   敏感性实测：**绿 → 变异后红（失败信息点名那两行）→ 还原后绿**，还原 sha256 与变异前逐字节相同。
+2. **纵深门** `test_vault_under_protected_surface_is_refused_before_codex_stage` —— 如实标注它证的是
+   「更早的判据先拒了」，不是本卡这个修复。
+
+#### 🎁 整改 HIGH 时的意外收获：原「未证明 ③」被关掉了
+
+原来因为 D-33 / D-26(i) 禁写用户级信任表，**正控跑不了**，验伪锚只能靠引用既有正控「合成」。
+改用 `CODEX_HOME` 重定向之后，workspace-write 写的是 scratch 里那张表 —— 红线不破，正控变成本卡实测：
+
+| 沙箱 | exec rc | 重定向 home 的 `[projects]` 段数 | 该目录是否进表 |
+|---|---|---|---|
+| `read-only` | 0 | **0 → 0（不变）** | 否 |
+| `workspace-write` | 0 | **0 → 1（新增）** | 是，`trust_level = "trusted"` |
+
+两臂都有 1 条已完成的 `command_execution`（`exit_code=0`）⇒ 前提成立，不是空判据。
+全程真 `$HOME/.codex/config.toml` sha 与开工锚逐字相同。存档 `codex-sandbox-2x2-*.txt`。
+
+⇒ 上面「本卡未证明什么 ③」应读作：**已由本卡实测关闭**（保留原文并在此标注，不改写历史）。

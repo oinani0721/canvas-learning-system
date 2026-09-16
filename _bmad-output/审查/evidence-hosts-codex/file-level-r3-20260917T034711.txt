@@ -1,0 +1,21 @@
+### (g) 文件级 —— r3（Codex round-1 整改后）
+### deploy-vault.sh sha256 = 000fc0862a35da00d7a019e02f232305196c83b89901ec4b1898dfd8d68eecb6
+### test 文件 sha256       = 4d3b31ebf70dcae71541bcfab4bf62ce41bcc14e9064febeefe4d36c0578f22e
+### manifest sha256        = 53814ad2b09094f33bb96cb5216bb2e21e424c85bb5bd41b88bef313b3ae4d3a
+bash_n_rc=0
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t2-deploy/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 239 items
+
+tests/unit/test_deploy_vault_sh.py ..................................... [ 15%]
+..........sssss......................................................ss. [ 45%]
+...................ss................................................... [ 75%]
+..........................................................               [100%]
+
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+================== 230 passed, 9 skipped in 156.48s (0:02:36) ==================
+file_rc=0

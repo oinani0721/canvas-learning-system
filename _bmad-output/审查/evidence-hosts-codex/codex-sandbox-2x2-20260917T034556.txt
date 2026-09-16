@@ -1,0 +1,47 @@
+### D-33 负控 + **正控** 2×2（Codex r1 HIGH 的整改）  ts=20260917T034556
+codex --version = codex-cli 0.153.3
+
+## 为什么改用 CODEX_HOME 重定向（Codex r1 HIGH）
+r1 指出：本卡的探针为了证「read-only 不写用户级信任表」而**真的跑了 codex**，
+于是 codex 自己往 $HOME/.codex 下写了 sessions/** 与 skills/.system/**。
+卡文 (f).7 只把 sessions/** 列为 (ii) 运行期状态面，skills/.system/** 不在授权内 ⇒ 该意见成立。
+整改：把 CODEX_HOME 指向 scratchpad 里一个干净的 home（auth 用**软链**指向真文件，
+不在 scratch 里复制一份密钥字节）。这样两件事同时成立：
+  · $HOME/.codex **零写**（下面每一步前后核 sha）；
+  · **正控可以跑了** —— 之前因为 D-33/D-26(i) 禁写用户级信任表而只能引用既有正控、
+    把验伪锚「合成」出来（原未证明 ③）；重定向之后 workspace-write 写的是 scratch 里
+    那张表，红线不破，正控变成本卡**实测**。
+
+## 2×2 实测（两个沙箱 × 全新且跑前缺席的目录）
+----------------------------------------------------------------------
+沙箱               | exec rc    | [projects] 段数      | 该目录是否进表
+----------------------------------------------------------------------
+read-only        | 0          | 0 -> 0（不变）         | 否
+workspace-write  | 0          | 0 -> 1（新增）         | 是 trust_level="trusted"
+----------------------------------------------------------------------
+
+## 正控跑后那份（重定向 home）的 config.toml 全文 —— 证明「写」长什么样
+[projects."/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.8Fq7YDXfzO"]
+trust_level = "trusted"
+# probe home (positive control)
+
+## 负控跑后那份（重定向 home）的 config.toml 全文 —— 证明「不写」长什么样
+# probe home
+
+## 承重：真 $HOME/.codex/config.toml 全程未变
+开工锚: 579fc8ed7545bafb1055e689ee9adc0cca00aa3070b6ed8ca825e86cff7f149f  /Users/Heishing/.codex/config.toml
+此刻  : 579fc8ed7545bafb1055e689ee9adc0cca00aa3070b6ed8ca825e86cff7f149f  /Users/Heishing/.codex/config.toml
+
+## 事件流凭据（只采信 --json，不采信模型自述）
+  read-only 负控: item 类型={'agent_message': 2, 'command_execution': 2}  已完成 command_execution=1
+     · exit_code=0 command=/bin/zsh -lc 'ls -la'
+     前提（rc=0 且至少一条已完成执行）= True
+  workspace-write 正控: item 类型={'agent_message': 2, 'command_execution': 2}  已完成 command_execution=1
+     · exit_code=0 command=/bin/zsh -lc "printf 'hello' > probe.txt"
+     前提（rc=0 且至少一条已完成执行）= True
+
+## 本次仍未证明什么
+ · 只证本机 codex-cli 0.153.3 + 全新缺席目录 + 上面那两条提示这一组组合；
+ · 未证明「重定向 CODEX_HOME 后的信任表行为」与「用真 HOME 时」逐位相同 —— 两者走同一段代码，
+   但本卡没有（也不打算）用真 HOME 跑一次 workspace-write 去对照，那正是 D-26(i) 禁止的事；
+ · sessions/** 与 skills/.system/** 在**重定向后**落在 scratch 里，不再碰 $HOME/.codex。

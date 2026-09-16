@@ -88,7 +88,7 @@
       "role": "codex-binding",
       "action": "exclude",
       "origin": "deploy-vault.sh step3 B4c (CARD-HOSTS-CODEX)",
-      "note": "仅 `deploy-vault.sh --hosts` 含 codex 时在位：Codex 的**项目级** MCP 模板（指向本实例 :<port>/mcp）。install-vault.sh 既不装也不清它，所以它不是 copy/generate 项；声明成 exclude = 让校验器**既不要求它在、也不把它当清单外的东西**（`is_excluded` 在 extra 扫描里短路掉它）。⚠️ 今天这层防护是**潜在**的：`extra_scan` 只覆盖 .claude / .obsidian / .obsidian/plugins 三个根，够不到 `.codex/`，所以它此刻本来也不会被报成 extra；哪天 `.codex` 进扫描面，这条就立刻生效。⚠️ 本该登成 generate 项（与 .agents/skills / AGENTS.md 同族），但那会让 test_vault_install_manifest.py 的三条钉死门变红（generate 集要求 install-vault.sh 清理段有对应锚行），而那个文件与 install-vault.sh 都在 CARD-HOSTS-CODEX 的地盘之外 —— 归属订正已登记移交。"
+      "note": "仅 `deploy-vault.sh --hosts` 含 codex 时在位：Codex 的**项目级** MCP 模板（指向本实例 :<port>/mcp）。install-vault.sh 既不装也不清它，所以它不是 copy/generate 项；声明成 exclude = 让校验器**既不要求它在、也不把它当清单外的东西**（`is_excluded` 在 extra 扫描里短路掉它）。⚠️ 代价（Codex round-1 MEDIUM 更正，之前只写了「否则三条门会红」，把损失说小了）：exclude 项**不做形态校验** —— 部署后有人把 `.codex/config.toml` 换成目录或软链，独立校验器只会把它记进 intentionally-excluded，不会因形态错误失败；而 optional generate 项会查「在位且是普通文件」。也就是说本条登记换来的「不被当 rogue extra」是真的，但**同时放弃了**一条形态判据。形态面在部署当次由 deploy-vault.sh 自己的生成后在位判兜住（`[ -f ] && [ ! -L ]`），部署之后的漂移则无人看管。⚠️ 今天这层「不被当 rogue extra」也还是**潜在**的：`extra_scan` 只覆盖 .claude / .obsidian / .obsidian/plugins 三个根，够不到 `.codex/`。⚠️ 本该登成 generate 项（与 .agents/skills / AGENTS.md 同族），但那会让 test_vault_install_manifest.py 的三条钉死门变红（generate 集要求 install-vault.sh 清理段有对应锚行），而那个文件与 install-vault.sh 都在 CARD-HOSTS-CODEX 的地盘之外 —— 归属订正已登记移交。"
     },
     {
       "path": ".claude/scripts",

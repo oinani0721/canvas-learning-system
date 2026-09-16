@@ -1,0 +1,16 @@
+### (j) 地盘门  PREV=7a8d50e2b92d002700b64837a8b518a2ac5facc1 (T2-C tip)  HEAD=ef0cf1a9ff7bb8abee3485ca2981b2948dafa488
+### ⛔ 写 ':(exclude)_bmad-output' 不写 ':!…'（zsh + git 2.50 下后者 rc=128 假绿，协议 §1）
+
+--- 代码面（应 ⊆ {deploy-vault.sh, test_deploy_vault_sh.py, vault-install-manifest.json}）---
+fatal: bad revision 'core.quotepath=false'
+rc=128
+代码面文件数 = 3
+
+--- ⛔ 验伪锚：去掉 exclude 应**多出** _bmad-output/ 路径（否则 pathspec 根本没生效）---
+fatal: bad revision 'core.quotepath=false'
+全部=0  代码面=3  差=-3（>0 = exclude 真的在工作）
+fatal: bad revision 'core.quotepath=false'
+_bmad-output 路径数 = 0
+
+--- git 版本（协议 §1 提到的 2.50 行为）---
+git version 2.50.1 (Apple Git-155)

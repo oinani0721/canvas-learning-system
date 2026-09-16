@@ -1690,9 +1690,14 @@ import stat as statmod
 import sys
 
 sys.path.insert(0, sys.argv[2])
-from cls_forbidden_paths import write_all  # noqa: E402
+from cls_forbidden_paths import ForbiddenPath, open_pinned, write_all  # noqa: E402
 
-vault = sys.argv[1]
+vault, live = sys.argv[1], sys.argv[3]
+
+#: 半成品标记 —— 写入失败时留在文件首行，下次跑认出来并拒绝把它当成正常模板。
+#: ⛔ Codex r1 MEDIUM：没有它的话，写到一半失败留下的**0 字节**文件会在下次跑时
+#:    走「已存在 ⇒ kept」分支，而生成后的在位判只查「是普通文件」⇒ 空模板被当成功。
+INCOMPLETE_MARK = b"# <!-- INCOMPLETE:"
 
 
 def die(msg):
@@ -1706,12 +1711,18 @@ body = sys.stdin.buffer.read()
 if not body.strip():
     die("codex 模板正文为空, 拒绝发布（上游没把内容送进来）")
 
-# ⚠️ O_NOFOLLOW：末段（$VAULT 自己）被换成软链时当场失败。
-#    ⛔ 如实声明它**挡不住**什么：$VAULT 的**祖先**在步 1 判据与这一刻之间被换掉,
-#    这里照样会打开「换之后」的那个目录 —— 要闭合它得让步 1 打开 fd 一路传到步 3,
-#    而步 1 是别的卡的定稿面。与 publish_agents_md 是同一条残留窗口, 同样登记为移交项。
+# ⛔ Codex r1 BLOCKER：原来这里是 `os.open(vault, …|O_NOFOLLOW)` —— `O_NOFOLLOW`
+#    **只挡末段**。`$VAULT` 的**祖先**在步 1 判据与这一刻之间被换成指向保护目录的软链时,
+#    这一句照样打开「换之后」的那个目录, 随后整棵 `.codex/` 就建到保护区里去了。
+#    改用本仓既有原语 open_pinned（同一份判据的单一来源, 不新发明判据形状）：
+#      ① realpath 父目录后**当场用 hits() 重新校验**（管「链被换到哪」）
+#      ② 再沿已校验的物理串逐级 O_DIRECTORY|O_NOFOLLOW（管「校验之后又被换」）
+#    ⚠️ 如实声明它仍关不住什么（引 open_pinned 自己的声明）：祖先被换成指向另一个
+#    **非保护**目录、或被改名/替换成真目录，仍可绕过 —— 那需要目录 fd 的稳定性前提。
 try:
-    vfd = os.open(vault, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    vfd = open_pinned(vault, os.O_RDONLY | os.O_DIRECTORY, live_vault=live)
+except ForbiddenPath as exc:
+    die(f"vault 目录解析后落在禁写面, 拒绝生成 codex 绑定件: {exc}")
 except OSError as exc:
     die(f"打开 vault 目录失败: {vault} ({exc})")
 
@@ -1740,9 +1751,24 @@ try:
     try:
         fd = os.open("config.toml", os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644, dir_fd=cfd)
     except FileExistsError:
-        # 已存在 ⇒ **一律不动它**。用户很可能已经按自己的需要改过（或它本来就是上次
-        # 部署留下的）。这里不比内容、不覆盖、也不报错 —— 生成后那道在位判会核它
-        # 是不是一个普通文件, 是软链/目录时才拒。
+        # 已存在 ⇒ **一律不动它**（用户很可能已按自己的需要改过）。不比内容、不覆盖。
+        # ⛔ 但要先排除「它是上次写到一半留下的残件」（Codex r1 MEDIUM）：
+        #    生成后的在位判只查「是普通文件」, 一个 0 字节或带半成品标记的模板照样过 ——
+        #    那就是把「写坏了」伪装成「已经有了」。
+        try:
+            rfd = os.open("config.toml", os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=cfd)
+        except OSError as exc:
+            die(f"已有 codex 模板打不开（是软链？）: {dst} ({exc})")
+        try:
+            if not statmod.S_ISREG(os.fstat(rfd).st_mode):
+                die(f"已有 codex 模板不是普通文件: {dst}")
+            head = os.read(rfd, len(INCOMPLETE_MARK) + 64)
+        finally:
+            os.close(rfd)
+        if not head.strip():
+            die(f"已有 codex 模板是空文件（上次写到一半）, 请删掉它再重跑: {dst}")
+        if head.startswith(INCOMPLETE_MARK):
+            die(f"已有 codex 模板是上次写到一半的残件, 请删掉它再重跑: {dst}")
         print("kept")
         ok = True
         sys.exit(0)
@@ -1768,14 +1794,21 @@ try:
 finally:
     if fd is not None:
         if not ok:
-            # 写到一半失败 ⇒ 对**同一个 fd** 截断（零路径解析）。O_EXCL 保证它是本次新建的,
-            # 但写入期间仍可能被 link 出第二个名字, 那时截断会削到共享 inode ⇒ 先查 nlink。
+            # 写到一半失败 ⇒ 对**同一个 fd** 截断并写一行自解释标记（零路径解析）。
+            # O_EXCL 保证它是本次新建的, 但写入期间仍可能被 link 出第二个名字,
+            # 那时截断会削到共享 inode ⇒ 先查 nlink。
+            # ⛔ 标记不能省（Codex r1 MEDIUM）：只截断到 0 字节的话, 下次跑会走
+            #    「已存在 ⇒ kept」把空模板当成正常产物。⚠️ 刻意写成**单行** write_all 调用：
+            #    写面门按字面量计数, 多行调用它数不到。
             try:
                 if os.fstat(fd).st_nlink != 1:
                     raise OSError("半成品已被加上硬链接, 不敢截断（会改到共享 inode）")
                 os.ftruncate(fd, 0)
+                os.lseek(fd, 0, os.SEEK_SET)
+                incomplete = INCOMPLETE_MARK + b" deploy-vault.sh \xe5\x86\x99\xe5\x88\xb0\xe4\xb8\x80\xe5\x8d\x8a\xe5\xa4\xb1\xe8\xb4\xa5\xef\xbc\x8c\xe8\xaf\xb7\xe5\x88\xa0\xe6\x8e\x89\xe5\xae\x83\xe5\x86\x8d\xe9\x87\x8d\xe8\xb7\x91\xe3\x80\x82 -->\n"
+                write_all(fd, incomplete)
             except OSError as exc:
-                print(f"清理半成品失败, 文件内容不可信: {dst} ({exc})", file=sys.stderr)
+                print(f"标记半成品失败, 文件内容不可信: {dst} ({exc})", file=sys.stderr)
         try:
             os.close(fd)
         except OSError:
@@ -1789,7 +1822,7 @@ PYCFG
         printf '取 publish_codex_config 的程序源失败(rc=%s, 长度=%s)\n' "$srcrc" "${#src}" >&2
         return 1
     fi
-    python3 -c "$src" "$1" "$(dirname "$FORBID_PY")"
+    python3 -c "$src" "$1" "$(dirname "$FORBID_PY")" "$CLS_LIVE_VAULT"
 }
 
 # 把 stdin 的段正文追加进 $1（AGENTS.md）。argv: 目标 / 新建时的首行标记 / 段首锚 /
@@ -1811,13 +1844,14 @@ import stat as statmod
 import sys
 
 sys.path.insert(0, sys.argv[6])
-from cls_forbidden_paths import write_all  # noqa: E402
+from cls_forbidden_paths import ForbiddenPath, open_pinned, write_all  # noqa: E402
 
 dst = sys.argv[1]
 head_mark = sys.argv[2].encode()
 sec_mark = sys.argv[3].encode()
 sec_end = sys.argv[4].encode()
 oc_mark = sys.argv[5].encode()
+live = sys.argv[7]
 ddir = os.path.dirname(dst) or "."
 base = os.path.basename(dst)
 #: 已有 AGENTS.md 的读取上限。段锚就在前面几行 / 末尾, 不需要把一个巨大的文件整个读进内存;
@@ -1834,16 +1868,27 @@ body = sys.stdin.buffer.read()
 if not body.strip():
     die("Codex 段正文为空, 拒绝写入（上游没把内容送进来）")
 
-# ⚠️ O_NOFOLLOW 挡末段, **挡不住祖先**：$VAULT 的祖先在步 1 判据与这一刻之间被换掉,
-#    这里照样打开「换之后」的那个目录。与 publish_agents_md 同一条残留窗口, 登记移交。
+# ⛔ Codex r1 BLOCKER（与 publish_codex_config 同一条）：`O_NOFOLLOW` 只挡末段,
+#    祖先被换成指向保护目录的软链时照样穿过去。改用 open_pinned：realpath 父目录后
+#    当场过判据 + 逐级 O_DIRECTORY|O_NOFOLLOW。残留面见 open_pinned 自己的声明。
 try:
-    dfd = os.open(ddir, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    dfd = open_pinned(ddir, os.O_RDONLY | os.O_DIRECTORY, live_vault=live)
+except ForbiddenPath as exc:
+    die(f"AGENTS.md 所在目录解析后落在禁写面, 拒绝写: {exc}")
 except OSError as exc:
     die(f"打开 AGENTS.md 所在目录失败: {ddir} ({exc})")
 
 fd = None
 created = False
 ok = False
+#: 追加前的文件长度 —— 追加失败时回滚到它。⛔ Codex r1 MEDIUM：不回滚的话，
+#: 「只写进半个首锚」（例如 `\n<!-- cls-codex`）留下的残件下次跑**认不出来**：
+#: 找不到完整首锚 ⇒ 直接再追加一段并报成功，那半截永远留在那里。
+#: 回滚是安全的：文件是我们刚验过生成标记的、nlink==1、且 fd 全程在手，
+#: 而 O_APPEND 只往末尾写、不动前面的字节 ⇒ 截回原长度 = 逐字节恢复原状。
+#: ⚠️ 如实声明：若**同时**有别的进程往同一个 fd 之外追加，这一下会连它写的也截掉。
+#: 部署脚本对一份自己生成的说明文档不假设有并发写者，与本脚本别处同律。
+keep_size = None
 try:
     # ── 分支 A：不存在 ⇒ 新建（codex 单宿主时走这里）───────────────────────
     # ⚠️ open 单独一个 try：把 write_all 也圈进来的话, **写**失败会掉进下面那个
@@ -1890,6 +1935,7 @@ try:
             print("already-present")
             ok = True
             sys.exit(0)
+        keep_size = st.st_size
         write_all(fd, b"\n" + body)
 
     os.fsync(fd)
@@ -1906,15 +1952,25 @@ try:
 finally:
     if fd is not None:
         if not ok and created:
-            # ⛔ 只有**本次新建**的那份才敢截断（O_EXCL 保证它是我们建的）。
-            #    追加失败的那一支**不截断** —— 那是用户/上一步已有的文件, 截断会毁掉
-            #    它原有的内容；留下的半截段由段尾锚缺失认出来, 下次跑会拒并说清楚。
+            # 本次新建的那份失败 ⇒ 截空（O_EXCL 保证它是我们建的）。
             try:
                 if os.fstat(fd).st_nlink != 1:
                     raise OSError("半成品已被加上硬链接, 不敢截断（会改到共享 inode）")
                 os.ftruncate(fd, 0)
             except OSError as exc:
                 print(f"清理半成品失败, 文件内容不可信: {dst} ({exc})", file=sys.stderr)
+        elif not ok and keep_size is not None:
+            # ⛔ 追加失败 ⇒ **回滚到追加前的长度**（Codex r1 MEDIUM）。
+            #    原来这里什么都不做, 理由是「截断会毁掉用户已有内容」—— 那个理由只对
+            #    「截到 0」成立；截回 keep_size 恰恰是**恢复**原有内容（O_APPEND 只往
+            #    末尾写）。不回滚的代价是：只写进半个首锚的残件下次跑认不出来,
+            #    会被再追加一段并报成功。
+            try:
+                if os.fstat(fd).st_nlink != 1:
+                    raise OSError("目标已被加上硬链接, 不敢回滚（会改到共享 inode）")
+                os.ftruncate(fd, keep_size)
+            except OSError as exc:
+                print(f"回滚追加失败, AGENTS.md 末尾可能留下半截段: {dst} ({exc})", file=sys.stderr)
         try:
             os.close(fd)
         except OSError:
@@ -1926,7 +1982,7 @@ PYSEC
         printf '取 publish_codex_agents_section 的程序源失败(rc=%s, 长度=%s)\n' "$srcrc" "${#src}" >&2
         return 1
     fi
-    python3 -c "$src" "$1" "$2" "$3" "$4" "$5" "$(dirname "$FORBID_PY")"
+    python3 -c "$src" "$1" "$2" "$3" "$4" "$5" "$(dirname "$FORBID_PY")" "$CLS_LIVE_VAULT"
 }
 
 write_codex_binding() {
