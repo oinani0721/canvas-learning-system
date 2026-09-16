@@ -139,6 +139,19 @@ def ast_mutation_count(source_name: str) -> int:
 
     ⚠️ 如实声明剩余面：`globals()["MUTATIONS"] = …` / `exec()` 之类的动态写入静态数不出来，
     本函数看不见（四套源码实测均无此形态）。
+
+    ⛔⛔⛔ **本函数的威胁模型，写在这里免得后人（和复核者）一轮轮重打同一个地方**：
+    它承诺的是**跨源一致性** —— 「部分表冒充全量」「`MUTATIONS` 漂移」「存档被改过」
+    这三件事；它**不**承诺抵抗一个**蓄意改写自己源码**的 harness 作者。理由是那不成立：
+    能改 harness 源码的人同样能改它印出来的六档与自称分母，多这一维不会更强。
+    ⇒ 白名单的作用是「**静态数不出来就抛**」，⛔ 不是「证明这份源码在运行期改不了表」——
+    后者在 Python 里**静态不可判定**（`exec` / `globals()` / 帧对象 / 描述符 / C 扩展 /
+    `__init_subclass__` …），本函数从不声称做到了它。历轮被换入口打穿**八次**
+    （`__imul__` → `__class__.__imul__` → `copy.__self__` → `__iter__().__reduce__()` →
+    `list.append(MUTATIONS, 4)` / `alias = MUTATIONS` → `Sink()[MUTATIONS]` / 重定义 `len` →
+    `match case len:` → `match case MUTATIONS:` → 生成器帧 `gi_frame.f_locals[".0"]`），
+    每次都修了，但**判据的强度上限就在这里**：它能保证的是「凡是它数出来的，数法是那三种
+    可数形态；凡是它数不出来的，它抛」，不是「运行期条数一定等于这个数」。
     """
     path = SCRIPTS / source_name
     if not path.exists():
@@ -224,10 +237,16 @@ def ast_mutation_count(source_name: str) -> int:
             for field in node._fields:
                 value = getattr(node, field, None)
                 if value == "MUTATIONS" or (isinstance(value, list) and any(v == "MUTATIONS" for v in value)):
+                    # ⛔ round-19（Codex round-16 LOW）：措辞要跟判据一样宽，⛔ 不多不少。
+                    # 这条规则**故意**连 `obj.MUTATIONS`（`Attribute.attr`）与 `f(MUTATIONS=7)`
+                    # （`keyword.arg`）一起拒 —— 那两个**并不**重绑本模块的 `MUTATIONS`。
+                    # 保持这么宽是有意的（实测四套命中 0 处，收紧只会重新打开面），但
+                    # **不能把「一律不认」说成「它是一次重绑定」**。
                     raise ReconcileError(
                         f"{source_name}:{getattr(node, 'lineno', '?')} `MUTATIONS` 出现在 "
                         f"`{type(node).__name__}.{field}` 这个**名字位**上（不是读取位）—— "
-                        f"⛔ 它可能是一次重绑定，分母数不出来"
+                        f"⛔ 一律不认：这里**可能**是一次重绑定，也可能只是同名的属性/关键字名，"
+                        f"本函数不去分辨（分辨不出来就数不出来）"
                     )
         if isinstance(node, ast.Name) and node.id == "MUTATIONS" and isinstance(node.ctx, (ast.Store, ast.Del)):
             if id(node) not in counted_targets:
@@ -254,9 +273,31 @@ def ast_mutation_count(source_name: str) -> int:
             #     `Sink.__getitem__` 拿到的就是原列表（实测运行时 4 条、AST 数 3 条）；
             #   · `len(MUTATIONS)` —— `len` 被模块自己重定义（见上面 `bound_names`）。
             # ⇒ 两条都补上「这个 `MUTATIONS` 到底站在哪个操作数位」/「这个函数到底是谁」。
+            # ⛔ round-19（Codex round-16 MEDIUM）：推导式这一条要分**急/惰**。
+            # `[x for x in MUTATIONS]` / `{…}` / `{k: v …}` 是**当场求值**的，求完没有活着的帧；
+            # 而**生成器表达式** `(x for x in MUTATIONS)` 把 `iter(MUTATIONS)` 存在自己的帧里
+            # （`gi_frame.f_locals[".0"]`），于是
+            #   `it = (x for x in MUTATIONS); it.gi_frame.f_locals[".0"].__reduce__()[1][0].append(4)`
+            # 就能拿回原列表（实测运行时 4 条、上一版 AST 数 3 条）。
+            # ⇒ 生成器表达式**只在它没有被绑走**时才认：父节点必须是 `Call`（当实参传出去、
+            #   调用返回后那个生成器对象再也够不着）。`it = (…)` 的父节点是 `Assign` ⇒ 抛。
+            # ⚠️ 实测四套的三处生成器表达式**全部**是直接实参（`sorted(…)` / `next(…)` /
+            #   `collections.Counter(…)`），所以这条不挡现有写法；⚠️ 故意**不**再要求
+            #   「被调用者是消耗型内建」—— `collections.Counter` 是 `Attribute`，那样写会把 g32b 打死。
             par = parent.get(id(node))
+            _comp_owner = parent.get(id(par)) if isinstance(par, ast.comprehension) else None
             ok = (
-                (isinstance(par, ast.comprehension) and par.iter is node)
+                (
+                    isinstance(par, ast.comprehension)
+                    and par.iter is node
+                    and (
+                        isinstance(_comp_owner, (ast.ListComp, ast.SetComp, ast.DictComp))
+                        or (
+                            isinstance(_comp_owner, ast.GeneratorExp)
+                            and isinstance(parent.get(id(_comp_owner)), ast.Call)
+                        )
+                    )
+                )
                 or (isinstance(par, ast.For) and par.iter is node)
                 or (
                     isinstance(par, ast.Call)

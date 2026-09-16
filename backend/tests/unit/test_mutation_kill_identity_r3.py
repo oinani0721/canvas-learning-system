@@ -1731,3 +1731,55 @@ def test_rec_mutations_itself_cannot_be_rebound_by_a_name_field(tmp_path: Path) 
         "g32ccr1": 11,
         "g33": 18,
     }, "⛔ 四套真实分母不得因本次收紧而变"
+
+
+def test_rec_generator_expression_over_mutations_must_not_be_bound(tmp_path: Path) -> None:
+    """⛔ 推导式这一条白名单要分**急/惰**（Codex round-16 MEDIUM）。
+
+    `[x for x in MUTATIONS]` / `{…}` / `{k: v …}` 当场求值，求完没有活着的帧；而**生成器
+    表达式**把 `iter(MUTATIONS)` 存进自己的帧，于是
+    `it = (x for x in MUTATIONS); it.gi_frame.f_locals[".0"].__reduce__()[1][0].append(4)`
+    能拿回原列表（实测运行时 4 条、上一版 AST 数 3 条）。
+    ⇒ 生成器表达式只在它**没有被绑走**（父节点是 `Call`）时才认。
+    ⚠️ 四套实测三处生成器表达式全是直接实参（`sorted` / `next` / `collections.Counter`），
+    所以这条不挡现有写法；⚠️ 故意**不**要求「被调用者是消耗型内建」—— `collections.Counter`
+    是 `Attribute`，那样写会把 g32b 打死。
+    """
+    rec = _rec()
+    probe = tmp_path / "probe.py"
+    orig = rec.SCRIPTS
+    rec.SCRIPTS = tmp_path
+    try:
+        # ⛔ 验伪锚（先证攻击在运行期真的成立，不是纸面推理）
+        leak = "MUTATIONS = [1, 2, 3]\nit = (x for x in MUTATIONS)\nit.gi_frame.f_locals['.0'].__reduce__()[1][0].append(4)\n"
+        ns: dict[str, object] = {}
+        exec(compile(leak, "<leak>", "exec"), ns)  # noqa: S102  探针：证明泄露确实发生
+        assert list.__len__(ns["MUTATIONS"]) == 4, "⛔ 验伪锚：这条攻击本身必须真的改到表"
+
+        for tail in (
+            "\nit = (x for x in MUTATIONS)\n",  # 绑给名字 ⇒ 帧活着
+            "\n_pair = [(x for x in MUTATIONS)]\n",  # 装进容器 ⇒ 同样活着
+            "\ndef f():\n    return (x for x in MUTATIONS)\n",  # 返回出去
+        ):
+            probe.write_text("MUTATIONS = [1, 2, 3]" + tail, encoding="utf-8")
+            with pytest.raises(rec.ReconcileError, match="未白名单"):
+                rec.ast_mutation_count("probe.py")
+        # ⛔ 验伪锚：四套真实用到的三种「直接实参」形态必须仍放行
+        for tail in (
+            "\n_s = sorted(x for x in MUTATIONS)\n",
+            "\n_n = next(x for x in MUTATIONS)\n",
+            "\nimport collections\n_c = collections.Counter(x[0] for x in MUTATIONS)\n",
+            "\n_l = [x for x in MUTATIONS]\n",
+            "\n_st = {x for x in MUTATIONS}\n",
+            "\n_d = {x: x for x in MUTATIONS}\n",
+        ):
+            probe.write_text("MUTATIONS = [1, 2, 3]" + tail, encoding="utf-8")
+            assert rec.ast_mutation_count("probe.py") == 3, f"合法写法被误挡: {tail!r}"
+    finally:
+        rec.SCRIPTS = orig
+    assert {k: rec.ast_mutation_count(v.source) for k, v in rec.SUITES.items()} == {
+        "g32b": 138,
+        "g32cb": 9,
+        "g32ccr1": 11,
+        "g33": 18,
+    }, "⛔ 四套真实分母不得因本次收紧而变"

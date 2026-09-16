@@ -192,7 +192,9 @@ VERDICTS: tuple[str, ...] = (
 #: 只许空白到行尾。⇒ ① 不再提前截断，②③ 不再静默漏掉整块。
 PYEOF_RE = re.compile(r"<<'PYEOF'[ \t]*\r?\n(.*?)\r?\n^PYEOF[ \t]*\r?$", re.DOTALL | re.MULTILINE)
 
-#: `-rf` 短摘要行。reason 可缺失(没有断言消息时 pytest 只打 `FAILED <nodeid>`)。
+#: `-rfE` 短摘要行。reason 可缺失 —— ⛔ 但**不是**「没有断言消息就不打」（那是 round-19
+#: 更正掉的旧说法：实测消息为空仍补异常类名）。缺失的真实成因是**行宽** —— 摘要行超过
+#: `COLUMNS` 时 pytest 把 ` - <reason>` 整条省掉（实测 1143 字符那一行）。
 #: ⛔ round-19：只在 `summary_region()` 里 findall，不再对整份输出扫（HIGH-2）。
 _FAILED_RE = re.compile(r"^(?P<status>FAILED|ERROR) (?P<nodeid>\S+?)(?: - (?P<reason>.*))?$", re.M)
 
@@ -304,9 +306,13 @@ def _split_unique(line: str, nodeid: str) -> bool:
     **候选判据认下的读法（对 `FAILED <body>` 一行）**：
       · **完整 reason**    —— `<nodeid> - <reason>`，在某个 ` - ` 处切开；
       · **参数化**         —— 同上，nodeid 带 `[...]` 参数段；
-      · **无 reason**      —— 整行 body 就是 nodeid（pytest 在断言没有消息时只打
-        `FAILED <nodeid>`）；参数 ID 内部可含 ` - ` 与方括号，所以「整行」这一读法
-        跟上面两类**可以同时成立**；
+      · **无 reason**      —— 整行 body 就是 nodeid。⛔ round-19（Codex round-16 LOW）
+        **更正这里原来的理由**：原文写「pytest 在断言没有消息时只打 `FAILED <nodeid>`」，
+        **实测是错的** —— 消息为空 pytest 照样补异常类名（`AssertionError("")` →
+        `- AssertionError`、`pytest.fail("")` → `- Failed`）。真正会产出「无 reason」
+        整行的是**行宽**：`judge_env()` 钉 `COLUMNS=1000`，摘要行超过它时后缀被整条省掉
+        （实测 1143 字符的那一行只剩一个切点）。读法本身照旧成立，成立的**理由**换了；
+        参数 ID 内部可含 ` - ` 与方括号，所以「整行」这一读法跟上面两类**可以同时成立**；
       · **括号闭合的二义形态** —— `…::test_x[case] - EXPECT[]`：既可读成
         「nodeid=`…test_x[case]` + reason=`EXPECT[]`」，也可读成「整行是一个无 reason
         的 nodeid，参数 ID = `case] - EXPECT[`」。两读并存 ⇒ 边界不可判定。
