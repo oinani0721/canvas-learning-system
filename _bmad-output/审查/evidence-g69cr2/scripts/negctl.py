@@ -131,7 +131,11 @@ MUTS = {
               '    yday = a + (1 if (kind == "J" and calendar.isleap(year) and a >= 300) else 0) - (1 if kind == "J" else 0)  # NEGCTL'),
  "J365":    M('    yday = a + (1 if (kind == "J" and calendar.isleap(year) and a >= 60) else 0) - (1 if kind == "J" else 0)',
               '    yday = a + (1 if (kind == "J" and calendar.isleap(year) and 60 <= a < 300) else 0) - (1 if kind == "J" else 0)  # NEGCTL'),
- "NUL":     M('    if "\\x00" in spec:', '    if False:  # NEGCTL'),
+ # NUL 防线现在在**正则**里（名字的三个字符类各自排除 `\x00`）, 不再有独立的检查行。
+ # 变异 = 去掉 **dst 引用名**那一支的 NUL 排除, 与本段探针 `AAA0<B\x00BB>` 对齐
+ # （⛔ 变异的位置必须与探针落在**同一支**上, 否则拆的不是探针经过的那条路）。
+ "NUL": M(r'    r"(?:(?P<dst><[^>\x00]*>|(?!<)[^0-9+,\-\x00]+)"',
+          r'    r"(?:(?P<dst><[^>]*>|(?!<)[^0-9+,\-\x00]+)"  # NEGCTL'),
  # 「CAP」（1024 长度上限）那条变异已随该检查在 r12 被删除而移除 ——
  # 正则位宽放宽后指数回溯消失, 它从性能防线退化成纯误拒（Codex r11 M5）。
  "REWIDTH_ONE": M('    r"(?P<std_off>[+-]?\\d+(?::\\d+(?::\\d+)?)?)?"',
@@ -288,7 +292,7 @@ SEGMENTS = [
  #    「NUL 在引用名外」那一个值; 引用名**内部**的 NUL 由正则的 [^<>] 放行, 只有这条能拒。
  ("NUL引用名内", ["NUL"],
   [f"{F}::test_omitted_rule_branch_does_not_widen_the_accepted_offset_domain"],
-  "NUL 在引用名内部是这条检查的唯一显形位置(正则的 [^<>] 放行 NUL)",
+  "NUL 排除现在在**正则的名字字符类**里（r12 起, 独立的 ③ 检查已删——七种位置全由正则拒）",
   "parse_posix_tz('AAA0<B" + chr(92) + "x00BB>')"),
  ("HIGH-3归桶", ["HIGH2"],
   [f"{F}::test_bucket_gate_rejects_wrong_buckets_even_when_display_tz_is_absent"],
