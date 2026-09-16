@@ -186,7 +186,6 @@ relationships:
 - ⛔ 关系类型 key 必须是 7 类合法值之一（解析失败时由 Skill 回落 `related_to`，**不**由生成器自行选择）
 - ✅ 若 description 非空：frontmatter `relationships[0].description` 必填用户描述原文（不裁剪，不复读到正文）
 - ✅ **理解快照随边（批次4' 3-1/3-2，MEM-FLYWHEEL）**：`relationships[0]` 必含 `derived_at`（拆分时序）；源笔记有 `mastery_score` 时加 `source_mastery_at_derivation`（派生瞬间你对源概念的掌握档——「当时为什么困惑」的一半）；选中文本前后 10 行内有 `[!question]`/`[!error]` 批注时加 `confusion`（最近一条原文 ≤100 字——另一半）。投影 sync 会把这三个字段透传入 CANVAS_EDGE 永久留档
-- ✅ **学习事件落日志（批次4'，MEM-FLYWHEEL）**：新节点写入成功后，`Bash` 追加一条事件（⛔ 逐字模板，仅替换两处 `<>`）：`python3 -c "import json,os,sys; ev='<vault绝对路径>/learning_events.jsonl'; evid='derive:<新节点名>'; seen=os.path.exists(ev) and any(json.dumps(evid,ensure_ascii=False) in l for l in open(ev,encoding='utf-8')); from datetime import datetime,timezone; ts=datetime.now(timezone.utc).isoformat(); seen or open(ev,'a',encoding='utf-8').write(json.dumps({'event_id':evid,'event_version':1,'event_type':'node_derived','node_id':'<新节点名>','recorded_at':ts,'effective_at':ts,'payload':{}},ensure_ascii=False)+'\n')"`（写失败不阻断派生）
 - ⛔ 若 description 为空：frontmatter `relationships[0]` 不写 `description` 字段（不要 description: ""）
 ```
 
@@ -209,6 +208,151 @@ relationships:
 用 `Write` 工具写入 `节点/{concept_name}.md`（或 `_N` 后缀版本），内容 = Step 3 的 `generated_md`。
 
 **硬验证**：写前检查 `new_file_path.startsWith("节点/")`，不符合 → 停止返回 `✗ 路径硬约束违反`。
+
+### Step 5.5 · 学习事件落日志（批次4'，MEM-FLYWHEEL）
+
+新节点写入成功后，用 `Bash` 跑下面这段静态 python 追加一条 `node_derived` 事件（⛔ 逐字照抄，仅替换 `<vault绝对路径>` / `<新节点名>` 两处占位；**写失败不阻断派生**）：
+
+```bash
+python3 - <<'PYEOF'
+import json, os, fcntl, time
+from datetime import datetime, timezone
+
+EV = '<vault绝对路径>/learning_events.jsonl'
+NODE = '<新节点名>'
+evid = 'derive:' + NODE
+
+# ── CARD-AILINKED-4TH-WRITER: 账本的第四个写者对齐另三方(backend 的
+# learning_event_log.append_event / quiz-answer / start-exam-board)的写规。
+# 四条写规 + 一条 fd 硬约束, 逐条都是踩过的坑, 别简化:
+#   ① parsed-field 相等查重(禁子串)  ② fcntl.lockf 罩住「查重→补LF→写→close」
+#   ③ 尾行无 LF 先补一个再追加        ④ event_id 形态门, 不合格拒写
+#   ⛔ 锁内只用同一个 fd 读(见下)
+# ⛔ 形态门的禁止码点集必须与校验器 validate_learning_events.py 的
+# FORBIDDEN_CODEPOINT_RANGES **同集**: 窄了就留下「写得进、读不回」——
+# 一条含 U+2028 的 event_id 能被写进账本, 而校验器读侧对该码点 fail-closed,
+# 判的是**整个账本**不合规 ⇒ 那个 vault 从此所有评分都进不来。
+_FORBIDDEN = (
+    (0x0000, 0x001F),   # C0 控制符 (含 \n \r \t)
+    (0x007F, 0x007F),   # DEL
+    (0x0080, 0x009F),   # C1 控制符 (含 U+0085 NEL — 在终端里看起来就是个空格)
+    (0x2028, 0x2029),   # LINE / PARAGRAPH SEPARATOR
+    (0xD800, 0xDFFF),   # 代理区 — 孤立代理会让 utf-8 编码直接失败
+    (0xFDD0, 0xFDEF),   # Unicode noncharacters
+) + tuple((0x10000 * _p + 0xFFFE, 0x10000 * _p + 0xFFFF) for _p in range(17))
+_MAX_LEN = 512
+
+
+def _shape_problems(eid):
+    """event_id 的形态问题清单(空清单 = 合规)。与 backend 的
+    _event_id_shape_problems 同口径。⛔ 首尾空白**拒绝**而不是 strip:
+    strip 会把上游两个本来不同的 id 撞成一个, 那是替上游做主。"""
+    if not isinstance(eid, str):
+        return ['event_id 必须是字符串, 实见 %s' % type(eid).__name__]
+    if not eid:
+        return ['event_id 为空 (幂等键必填)']
+    out = []
+    if eid != eid.strip():
+        out.append('event_id 首尾含空白 (%r) — 幂等键的字面即身份' % eid)
+    for _ch in eid:
+        _cp = ord(_ch)
+        if any(lo <= _cp <= hi for lo, hi in _FORBIDDEN):
+            out.append('event_id 含非规范码点 U+%04X — 写进去就读不回原值' % _cp)
+            break
+    if len(eid) > _MAX_LEN:
+        out.append('event_id 过长 (%d 字符 > %d)' % (len(eid), _MAX_LEN))
+    return out
+
+
+try:
+    # ④ 形态门先行: 不合格直接拒写, 连锁都不用争。
+    _problems = _shape_problems(evid)
+    if _problems:
+        raise RuntimeError('event_id 形态不合规, 拒写: ' + '; '.join(_problems))
+    # ② 跨进程排他锁。账本是**跨节点、跨 Skill 共享**的写入面, 四方并发时
+    # 「查重 → 写」这一串必须整体互斥, 否则同一个 event_id 会被写两遍,
+    # 而校验器对重复 id 判**整个账本**不合规 —— 从此所有评分都进不来。
+    # ⛔ 用 POSIX 记录锁 fcntl.lockf(不是 flock): 与另三个写者同一套语义,
+    # 便于统一推理。锁挂在账本 fd 上, 无需额外锁文件; 进程退出即释放。
+    # ⛔ O_RDWR 而不是 O_WRONLY: 持锁期间的查重与 LF 守卫都要走**这同一个 fd**。
+    fd = os.open(EV, os.O_RDWR | os.O_CREAT | os.O_APPEND, 0o644)
+    try:
+        _t0 = time.time()
+        while True:
+            try:
+                fcntl.lockf(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except OSError:
+                if time.time() - _t0 >= 30.0:
+                    raise RuntimeError('等账本追加锁超时 (30s) — 另一个写者长时间持锁未退出')
+                time.sleep(0.02)
+        # ⛔ 查重与 LF 守卫必须走**同一个 fd**: POSIX 记录锁按「进程 × 文件」释放 ——
+        # 本进程关掉指向该文件的任意一个 fd, 该文件上的全部记录锁整体消失。
+        # 一句人畜无害的 `open(EV).read()` 一收尾锁就丢了, 之后的写是**裸奔**的,
+        # 而「有没有等到锁」这类判据只看取锁那一刻, 完全看不见这次隐式释放。
+        os.lseek(fd, 0, os.SEEK_SET)
+        _chunks = []
+        while True:
+            _c = os.read(fd, 1 << 20)
+            if not _c:
+                break
+            _chunks.append(_c)
+        raw = b''.join(_chunks)
+        # ⛔ 只按**物理 LF** 切行, 不用 str.splitlines(): 后者额外在
+        # \v \f \x1c \x1d \x1e \x85 \u2028 \u2029 上切, 而这些字符可以合法出现在
+        # 账本某行的字符串值里 —— 一条合法记录被切成碎片后查重就漏命中,
+        # 同一个 event_id 会被写第二遍。
+        # ⛔ 切的是 **bytes**、逐行**严格**解码, 不是整本 decode(..., 'replace'):
+        # 有损解码会把非法字节换成 U+FFFD, 于是一条**无法解码的**历史行摇身变成
+        # 「有效 JSON」; 它的 event_id 若恰好等于本次 evid, 新事件就被判 duplicate
+        # 而零次落账 —— 与子串查重同一个后果, 只是换了条路径 (独立复核 round-2 实测)。
+        # ⛔ 也不能改成整本严格解码: 那样一条坏行会中止整次追加, 方向更坏。
+        _blines = raw.split(b'\n')
+        if raw.endswith(b'\n'):
+            _blines = _blines[:-1]
+        # ① parsed-field 相等查重。⛔ 禁用原来的子串写法
+        # `json.dumps(evid) in line`: 历史行里任意**非 event_id** 字段的值
+        # (node_id / payload 里的字符串) 恰好等于新 evid 时, 带引号的 JSON token
+        # 在该行里命中 ⇒ 新事件被误判 duplicate ⇒ **零次落账**, 一条真实的
+        # 派生事实就此永久丢失。无法解析的行不算命中(坏行不构成 duplicate 证据)。
+        seen = False
+        for _bl in _blines:
+            if not _bl.strip():
+                continue
+            try:
+                # ⛔ 严格解码: 非法字节 = 坏行, 不是 duplicate 证据。
+                # (UnicodeDecodeError 是 ValueError 的子类, 下面那条一并接住。)
+                _rec = json.loads(_bl.decode('utf-8'))
+            except (ValueError, RecursionError):
+                # ⛔ 不只捕 ValueError: 深度嵌套的坏行 (如上千层 '[') 在部分 Python
+                # 版本上抛的是 RecursionError (独立复核实测 3.9.6 复现 / 3.14.4 不复现)。
+                # 它一旦逸出到外层 except, 整次事件就**不落账**了 —— 而坏行的代价
+                # 必须只限于它自己那一行, 不能让一条损坏的历史记录吃掉一次真实派生。
+                continue
+            if isinstance(_rec, dict) and _rec.get('event_id') == evid:
+                seen = True
+                break
+        if not seen:
+            # ③ LF 守卫(必须在锁内): 尾行无换行(截断)时先补 LF 再追加, 否则新事件
+            # 粘进坏行连坐损坏前一条。在锁内是因为两个进程各自读到「尾行无 LF」
+            # 会**各补一个**, 账本多出一个空行, 而空行在校验器侧判整本不合规。
+            if raw and not raw.endswith(b'\n'):
+                os.write(fd, b'\n')
+            ts = datetime.now(timezone.utc).isoformat()
+            rec = {'event_id': evid, 'event_version': 1, 'event_type': 'node_derived',
+                   'node_id': NODE, 'recorded_at': ts, 'effective_at': ts, 'payload': {}}
+            _line = (json.dumps(rec, ensure_ascii=False) + '\n').encode('utf-8')
+            _n = os.write(fd, _line)
+            # ⛔ 短写不得报成功: 只落盘一半且无 LF 时, 下一个写者会粘上去。
+            if _n != len(_line):
+                raise RuntimeError('账本短写 (%d/%d 字节) — 事件未完整写入' % (_n, len(_line)))
+            print('[ai-linked-doc] 事件已落日志: node_derived')
+    finally:
+        os.close(fd)
+except Exception as e:
+    print('[ai-linked-doc] 事件日志写入失败(不阻断派生): %s' % e)
+PYEOF
+```
 
 ### Step 6 · 替换源笔记选中文本为 wikilink + 关系 callout（v2.4 D1-3 + v2.5 D1-5 双写视觉半边）
 
