@@ -19,9 +19,13 @@
 ⚠️ M② 的驱动形态（(h)④ 固定走「甲」，R-B14-9 补裁已接受）：该函数原本是 `main()`
 内的**嵌套 def**，无模块级符号、不能直接 import 驱动；本卡把它提为模块级并接受注入
 的 `restore_all` / `exiting` 回调，负控因此**在进程内**喂「末次还原抛异常」，
-⛔ **不启动任何 g33 子进程** —— g33 除 `--selfcheck-syntax`（早返回）外的任何入口都会
-进主 `try` 并在外层 `finally` 对 `_TARGET_FILES` **全量** `write_bytes`，其中含零写者
-铁律覆盖的 `canvas-vault/.claude/scripts/fsrs_bridge.py`。
+⛔ **不启动任何 g33 子进程** —— g33 只要**走到主 `try`**，外层 `finally` 就会对
+`_TARGET_FILES` **全量** `write_bytes`，其中含零写者铁律覆盖的
+`canvas-vault/.claude/scripts/fsrs_bridge.py`。⛔ round-21（Codex round-18 LOW）更正原文
+「除 selfcheck 外**任何**入口都会写回」这句过强的说法：实际在主 `try` **之前**还有
+**两处早返回**（目标文件不存在 ⇒ `return 2`；`expect_msg` 唯一性自检失败 ⇒ `return 2`），
+走那两条路不会写回。但这不改变结论 —— 它们**不可依赖**（取决于工作树状态），
+所以「不起 g33 子进程」这条纪律照旧。
 
 ⛔ **I/O 范围如实声明**（round-20 更正，Codex round-17 LOW —— 原文写「全部 I/O 落
 `tmp_path`」，不实）：**写**确实全部落 pytest 的 `tmp_path`；此外还有两类**读**与一类
@@ -30,8 +34,11 @@
   · **读四套真实源码**（`ast_mutation_count` 的分母断言必须对着真文件跑，否则
     「138/9/11/18」只是自说自话）；
   · **读门文件**（`_write_gate` 造的临时门在 `tmp_path`，但 `stmt_fingerprints` 会读它）；
-  · **起真 pytest 子进程**（`test_h1_real_pytest_exotic_but_selectable_name_is_harness_error`
-    与 `_run_gate`）：cwd 固定在 `tmp_path`，只跑那里的临时门文件。
+  · **起真 pytest 子进程**（共**两处**，round-21 按 Codex round-18 LOW 更正）：
+    ‣ `_run_gate()`（端到端怪名字用例）—— `cwd` 固定在 `tmp_path`，只跑那里的临时门文件；
+    ‣ `test_h1_location_crosscheck_truncation_asymmetry_is_safe()` 的截断探针 ——
+      ⛔ **不传 `cwd`**（继承父进程目录），但目标文件用的是 `tmp_path` 下的**绝对路径**，
+      跑的仍然只有那一个临时文件。原文笼统写「cwd 全固定在 tmp_path」，不实。
 
 ⛔ 不连 Neo4j / LanceDB（本文件跑完 `NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0`），不读写 live vault，
 不跑任何变异 harness 的 `main()`。
@@ -170,17 +177,30 @@ def test_h1_split_unique_flips_in_both_directions_in_both_families() -> None:
     一条候选都没有就按整行方括号数判」（这就是 H1 收口前的形态）。
     """
 
-    def old_rule(line: str, _nodeid: str) -> bool:
-        """H1 收口**前**的等价实现，只为逐格证明方向，⛔ 不是生产代码。"""
-        body = line.split(" ", 1)[1]
-        cands = [
-            body[:i]
-            for i in range(len(body))
-            if body.startswith(" - ", i) and body[:i].count("[") == body[:i].count("]")
-        ]
-        if not cands:
+    def old_rule(line: str, nodeid: str) -> bool:
+        """H1 收口**前**（`dde52775`）的**逐字**等价实现，只为逐格证明方向，⛔ 不是生产代码。
+
+        ⛔ round-21（Codex round-18 LOW）：上一版**漏了两处**，于是它不再等价 ——
+        漏了 `cands[0] == nodeid` 与 `left` 非空守卫。反例 `FAILED a::b[c - d] - boom`
+        / nodeid=`a::b[c`：真旧版返回 **False**，漏写版返回 True（四格恰好没踩到差异，
+        所以没被四格断言抓住 —— 这正是「对照组本身要先被验」的那类教训）。
+        """
+        body = line.split(" ", 1)[1] if " " in line else line
+        cands = []
+        for i in range(len(body)):
+            if body.startswith(" - ", i):
+                left = body[:i]
+                if left and left.count("[") == left.count("]"):
+                    cands.append(left)
+        if not cands:  # 无 reason 的行（`FAILED <nodeid>`）
             return body.count("[") == body.count("]")
-        return len(cands) == 1
+        return len(cands) == 1 and cands[0] == nodeid
+
+    # ⛔ 先验**对照组本身**：Codex round-18 拿这条反例证明上一版 old_rule 不等价。
+    #   真旧版（`dde52775`）对它返回 False；漏写 `cands[0] == nodeid` 的版本返回 True。
+    assert old_rule("FAILED a::b[c - d] - boom", "a::b[c") is False, (
+        "⛔ old_rule 不等价于收口前的实现 —— 对照组坏了，下面四格的「方向」就都不作数"
+    )
 
     # 2×2：(有无 ` - ` 切点) × (收紧 True→False / 放宽 False→True)
     grid = [
@@ -1291,7 +1311,12 @@ def test_pc_expect_msg_from_reason_still_killed(
 
 
 def test_rec_per_item_line_anchored_against_diagnostic_injection() -> None:
-    """⛔ 逐条正则必须**整行锚定** —— why 里塞 `rc=1 ⇒ KILLED` 就能污染计数（round-9 MEDIUM）。
+    """⛔ 逐条正则必须锚在**行首**结构上 —— why 里塞 `rc=1 ⇒ KILLED` 就能污染计数（round-9 MEDIUM）。
+
+    ⛔ round-21（Codex round-18 LOW）**更正原标题**：原文写「整行锚定」，与生产代码不符 ——
+    `_PER_ITEM_*` 只有 `^` 没有 `$`，档名之后的尾文是放行的（生产注释已在 round-15 更正，
+    这里漏同步）。判据实际保证的是「**行首**必须长成 `<tag> → rc=<数字> ⇒ <档名>` 那个样子」，
+    所以 why 内部再怎么塞 `⇒ KILLED` 也进不了计数。
 
     why 由被测进程的断言消息拼出、**内容它可控**，所以判据不能只靠「附近有没有某个片段」，
     必须靠**这一行整体长什么样**。污染的后果是**合法**存档反而对账假红。
@@ -1812,7 +1837,11 @@ def test_rec_generator_expression_over_mutations_must_not_be_bound(tmp_path: Pat
     表达式**把 `iter(MUTATIONS)` 存进自己的帧，于是
     `it = (x for x in MUTATIONS); it.gi_frame.f_locals[".0"].__reduce__()[1][0].append(4)`
     能拿回原列表（实测运行时 4 条、上一版 AST 数 3 条）。
-    ⇒ 生成器表达式只在它**没有被绑走**（父节点是 `Call`）时才认。
+    ⇒ 生成器表达式只在它**没有被直接绑给名字**（父节点是 `Call`）时才认。
+    ⛔ round-21（Codex round-18 LOW）**更正这句原来的说法**：原文写「没有被绑走」，说宽了 ——
+    `it = iter(x for x in MUTATIONS)` 里生成器是直接实参，`iter()` 把它**原样返回**、随即被绑给
+    `it`，`it.gi_frame` 照样够得着。本判据只管「有没有被**直接**绑」，「调用方会不会还回来」
+    静态判不出来，属 `ast_mutation_count` docstring 里已声明的威胁模型边界。
     ⚠️ 四套实测三处生成器表达式全是直接实参（`sorted` / `next` / `collections.Counter`），
     所以这条不挡现有写法；⚠️ 故意**不**要求「被调用者是消耗型内建」—— `collections.Counter`
     是 `Attribute`，那样写会把 g32b 打死。

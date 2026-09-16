@@ -522,9 +522,14 @@ def restore_or_keep_exit_code(
         把真实失败类型盖掉（Codex round-6 LOW：上一版这句漏写了前置条件）。
 
     ⚠️ 本函数原为 `main()` 内的**嵌套 def**，无模块级符号 ⇒ 末次还原这条路径在进程内
-    根本驱动不了，负控也就无从落地（唯一不写盘的入口 `--selfcheck-syntax` 早返回、
-    走不到这里；其它任何入口都会在 `finally` 里对 `_TARGET_FILES` 全量写回，含零写者
-    铁律覆盖的 `fsrs_bridge.py`）。提为模块级 + 注入 `restore_all` / `exiting` 回调是
+    根本驱动不了，负控也就无从落地（`--selfcheck-syntax` 早返回、走不到这里；只要
+    **走到主 `try`**，`finally` 就会对 `_TARGET_FILES` 全量写回，含零写者铁律覆盖的
+    `fsrs_bridge.py`）。
+    ⛔ round-21（Codex round-18 LOW）**更正原文「其它任何入口都会写回」这句过强的说法**：
+    主 `try` **之前**还有**两处早返回**（目标文件不存在 ⇒ `return 2`；`_check_expect_msg_unique()`
+    自检失败 ⇒ `return 2`），走那两条路不写回。但结论不变 —— 它们**不可依赖**
+    （取决于工作树当时的状态），所以「负控不起 g33 子进程」这条纪律照旧。
+    提为模块级 + 注入 `restore_all` / `exiting` 回调是
     为了让它可被单测**在进程内**驱动（CARD-DEBT-mutkill-R3 (h)④，主 session 已按
     R-B14-9 补裁接受由此带来的 diff 扩大）。
     """
