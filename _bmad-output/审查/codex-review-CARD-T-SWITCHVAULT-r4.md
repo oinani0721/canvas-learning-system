@@ -1,3 +1,14 @@
+> 批次: BATCH-2026-09-11-第十四批 · 车道 T5-C (card-t5-bugs) · 卡 CARD-T-SWITCHVAULT round-4
+> 模型: `gpt-6-astra` · reasoning_effort: `ultra` · codex: `codex-cli 0.153.3`
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat _bmad-output/审查/prompts/codex-prompt-CARD-T-SWITCHVAULT-r4.md)"`
+> 审查绑定: `27021e85f1d5548a47b8a2e5126be152fe9eac40`（该轮送审时的 HEAD）
+> 会话头自证（抄 .stderr，stderr 本身不入库 —— .gitignore:264 覆盖 `_bmad-output/审查/**/*.stderr*`）:
+> - codex 版本行 = .stderr:2 `OpenAI Codex v0.153.3`
+> - model 行 = .stderr:5 `model: gpt-6-astra`
+> - reasoning 行 = .stderr:9 `reasoning effort: ultra`
+
+---
+
 结论：**当前隔离路径的修复成立，但 round-4 的证据表述仍未全部成立。**
 
 已核对分支、HEAD 和指定读取面；本次只读，未运行项目测试、导入项目代码或连接端口。以下绑定 `27021e85f1d5548a47b8a2e5126be152fe9eac40`，证据以本次读取快照为准。

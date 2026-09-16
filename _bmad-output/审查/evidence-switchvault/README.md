@@ -66,6 +66,26 @@
 
 ---
 
+## 三点五 中间轮次存档（保留以示过程，**非**终审依据）
+
+下列存档产生于中间 SHA，其结论已被后续同类跑取代。保留它们是为了可追溯
+（尤其「哪一轮做了什么、哪些表述后来被证伪」），引用时**必须**注明它们绑的不是终审 HEAD：
+
+| 存档 | 绑定 SHA | 已被谁取代 / 为何保留 |
+|---|---|---|
+| `allgates-selfbound-20260916T015031.txt` | `ab99f130` | 首次全门跑；其 DD-03 判据当时是 grep 口径（命中 4，假红），是「判据取的面大于其主张」的原始记录 |
+| `allgates-selfbound-r2-*.txt` | `b355f7b7` | 被 `-59e0d766-*` 取代 |
+| `allgates-selfbound-final-*.txt` | `3ecf2c5e` | ⚠️ 文件名里的 "final" 在当时成立，HEAD 前进后**不再是最终 SHA** —— 这正是 Codex round-4 MEDIUM-2 指出的点。被 `-59e0d766-*` 取代 |
+| `negctl-r2-5mutants-*.txt` | `b355f7b7` | ⚠️ 该轮只跑了**测试①**（日志为 `1 failed`/`1 passed`），却一度被表述成「两条全绿」—— Codex round-2 LOW-3 的原始证据。被 `negctl-r3-8mutants-*` 的整文件口径取代 |
+| `unit-close-*.txt`（无后缀）/ `unit-close-r2-*` / `unit-close-final-*` | `ab99f130` / `b355f7b7` / `3ecf2c5e` | 前三次目录级跑（均 64、`blocked=0`），见验收单 §二.5 的五次汇总表 |
+| `close.nodeids` / `close-r2.nodeids` / `close-final.nodeids` | 同上 | 对应的 nodeid 清单 |
+
+⚠️ **命名教训**：`allgates-selfbound-final-*.txt` 里的 "final" 是**当时**的判断，随 HEAD 前进即失实。
+后续卡的承重存档应以**绑定 SHA** 入名（如本卡最后一份 `allgates-selfbound-59e0d766-*.txt`），
+不要用 "final" / "latest" 这类会过期的相对词。
+
+---
+
 ## 四 已知的证据边界（如实）
 
 1. 变异脚本本身不在本目录（在 session scratchpad）。上表给出了每组的具体改法，可据此重建，
