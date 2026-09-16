@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-11-第十四批 · 车道 card-t2-deploy · 卡 CARD-HOSTS-CODEX round-1
+> 模型: `gpt-6-astra` · reasoning_effort: `ultra` · codex: `codex-cli 0.153.3`
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat _bmad-output/审查/prompts/codex-prompt-CARD-HOSTS-CODEX.md)"`
+> 审查绑定: `ef0cf1a9ff7bb8abee3485ca2981b2948dafa488`（送审时 HEAD；本轮整改后 HEAD 已前进到 532cfed7，见 round-2）
+> 会话头自证（抄 .stderr，stderr 本身不入库）:
+> `OpenAI Codex v0.153.3`（:2） / `model: gpt-6-astra`（:5） / `reasoning effort: ultra`（:9）
+
+---
+
 **BLOCKER**
 
 - **新增发布器仍能沿祖先软链写入 `$HOME/.codex` 禁写区。**  

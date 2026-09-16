@@ -5286,3 +5286,79 @@ def test_vault_under_protected_surface_is_refused_before_codex_stage(tmp_path: P
     assert r.returncode == 73, f"落在保护面里的 vault 没被步 3 拒: rc={r.returncode}\n{r.stdout}{r.stderr}"
     strays = [str(p) for p in protected.rglob(".codex")]
     assert strays == [], f"在保护面里建出了 .codex: {strays}"
+
+
+def test_codex_fd_guard_copies_are_identical():
+    """两个 codex 发布器里的 fd 落点守卫必须**逐字相同**。
+
+    ⛔ 判据模块 `cls_forbidden_paths.py` 本卡禁改 ⇒ 这段守卫只能在两个 heredoc 里各抄一份。
+       「两份手抄的判据必然漂移」是本仓的旧账（`publish_agents_md` 的注释里就写着）——
+       既然躲不开复制，就把「两份必须一样」做成门。
+    """
+    src = _sh_src()
+    blocks = re.findall(r"# ⛔⛔ CLS-FDGUARD-BEGIN.*?# ⛔⛔ CLS-FDGUARD-END", src, re.S)
+    assert len(blocks) == 2, f"守卫块份数不是 2（有人删了或又抄了一份）: {len(blocks)}"
+    assert blocks[0] == blocks[1], "两份守卫块已漂移 —— 逐字 diff 见 CLS-FDGUARD 区段"
+    # 验伪锚：判据不是恒真 —— 把其中一份改一个字符必须让上面那条断言失败。
+    assert blocks[0] != blocks[1] + " ", "比较写法把任何两段都当相等 = 恒真门"
+
+
+def test_codex_publishers_judge_the_real_write_target(tmp_path: Path):
+    """codex 发布器必须对**打开后的真实落点**跑判据，不能只判父目录。
+
+    ⛔ Codex r2 BLOCKER 的结构形态：`open_pinned` 判的是「原路径」与「realpath(父目录)」——
+       `HOME=/home/alice`、vault=`/safe/redirect/alice`，把祖先 `redirect` 换成指向 `/home`
+       的软链时，父目录解析成 `/home`（不是保护目标）⇒ 放行，而随后相对该 fd 建的 `.codex`
+       就是 `$HOME/.codex`。**「父目录允许」不蕴含「子路径允许」**。
+    ⚠️ 与 `test_codex_publishers_open_dirs_through_open_pinned` 同理，这条也是**结构门**：
+       那个 TOCTOU 端到端不可确定性复现（见那条 docstring）。这里钉三件事：
+       ① 守卫函数在；② 两个发布器都**调用**了它；③ 调用时把真正要写的名字传了进去。
+    """
+    src = _sh_src()
+    assert src.count("def _refuse_if_forbidden(") == 2, "守卫函数不在（或份数不对）"
+    assert src.count("def _fd_realpath(") == 2, "取 fd 物理路径的函数不在（或份数不对）"
+    # ⛔ 锚到**完整**参数尾 `, live, die)`：写成 `[^)]*` 会在第一个 `)` 处截断，
+    #    `(base,)` 被切成 `(base,` —— 本门第一版正是这么红的（判据自己没取全）。
+    #    这个写法顺带把函数**定义**行排除掉（它以 `live, say)` 结尾）。
+    pat = re.compile(r"_refuse_if_forbidden\((.*?), live, die\)")
+    invocations = pat.findall(src)
+    assert len(invocations) == 2, f"两个发布器必须各调一次守卫，实测 {len(invocations)}: {invocations}"
+    joined = " ".join(invocations)
+    assert '".codex", ".codex/config.toml"' in joined, f"模板发布器没把真正要写的名字传进去: {invocations}"
+    assert "(base,)" in joined, f"AGENTS 发布器没把真正要写的名字传进去: {invocations}"
+    # 验伪锚（两向）：对已知调用取得出完整参数；对函数**定义**行不命中。
+    assert pat.findall('_refuse_if_forbidden(vfd, ("x",), live, die)') == ['vfd, ("x",)']
+    assert pat.findall("def _refuse_if_forbidden(fd, names, live, say):") == []
+
+
+def test_codex_template_rejects_truncated_incomplete_mark(tmp_path: Path):
+    """连**半截** INCOMPLETE 标记的模板也要被认成残件。
+
+    ⛔ Codex r2 MEDIUM：清理本身也可能写到一半 —— 只落下 `# <!-- I` 时，它既非空、
+       也不 startswith 完整标记 ⇒ 旧判据放行，空模板被当成正常产物。
+    """
+    name, port = "probe_cx12", "8297"
+    h = _oc_harness(tmp_path)
+    _oc_preseed_installer(
+        tmp_path,
+        h,
+        'mkdir -p "$v/.codex"\nprintf \'# <!-- I\' > "$v/.codex/config.toml"\n',
+    )
+    env = _tx_env(tmp_path, port, name)
+    r = _oc_run(tmp_path, h, name, port, env=env, hosts="claude,codex")
+    assert r.returncode == 73, f"半截标记没被认成残件: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    assert "残件" in r.stdout, f"消息没说清它是什么: {r.stdout}"
+
+
+def test_agents_append_takes_an_exclusive_lock():
+    """AGENTS.md 的「读 → 判段在不在 → 追加 → 回滚」必须整条在排他锁里。
+
+    ⛔ Codex r2 HIGH：`O_APPEND` 只保证每次写落在末尾，保不住整条流程 ——
+       两个写者同时读到「还没有 Codex 段」会各追加一次；回滚也可能截掉对方的正文。
+    ⚠️ flock 是**协作式**的：只挡同样取锁的写者。这条门钉的是「锁取了」，
+       不是「任何进程都进不来」——后者本卡做不到，已登记。
+    """
+    src = _sh_src()
+    assert "fcntl.flock(fd, fcntl.LOCK_EX)" in src, "追加路径没取排他锁"
+    # 回滚必须带「多出来的字节可能是别人写的」这道守卫
+    assert "grown > append_len" in src, "回滚没判增量 —— 会截掉并发写者的正文"

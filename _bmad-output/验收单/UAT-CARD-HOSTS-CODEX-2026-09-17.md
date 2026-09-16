@@ -410,3 +410,34 @@ ef0cf1a9  feat(deploy): codex 转正为二线宿主, 步 3 生成项目级绑定
 全程真 `$HOME/.codex/config.toml` sha 与开工锚逐字相同。存档 `codex-sandbox-2x2-*.txt`。
 
 ⇒ 上面「本卡未证明什么 ③」应读作：**已由本卡实测关闭**（保留原文并在此标注，不改写历史）。
+
+#### round-2 —— 绑定 `532cfed7`，**BLOCKER 1 / HIGH 1 / MEDIUM 2 / LOW 0**
+
+存档 `codex-review-CARD-HOSTS-CODEX-r2.md`。r1 的整改**没有全部闭合**，逐条处置（仍无一条驳回）：
+
+| # | 级别 | 意见 | 处置 |
+|---|---|---|---|
+| 1 | **BLOCKER** | r1 的修复只判到**父目录**：`HOME=/home/alice`、vault=`/safe/redirect/alice`，把祖先 `redirect` 换成指向 `/home` 的软链 ⇒ 父目录解析成 `/home`（不是保护目标）⇒ `open_pinned` 放行，而随后相对该 fd 建的 `.codex` 就是 `$HOME/.codex`。**「父目录允许」不蕴含「子路径允许」** | **已修**：新增 fd 落点守卫 —— 用 `F_GETPATH`（Linux 回退 `/proc/self/fd`，都拿不到就 fail-closed）取**已打开 fd 的物理路径**，再对「接下来真要写的每个名字」（`.codex` / `.codex/config.toml` / `AGENTS.md`）跑同一份 `hits()` 判据 |
+| 2 | **HIGH** | 追加回滚没有互斥：采样长度后别人追加、本次失败回滚会**连对方的正文一起截掉**；两个写者也能各追加一段 | **已修**：① 取 `flock(LOCK_EX)` 把「读→判段→追加→回滚」整条串起来；② 回滚前判增量 —— `grown > append_len` 时**拒绝回滚**（多出来的只可能是别人写的，宁可留半截也不删别人的东西）。⚠️ flock 是协作式的，挡不住不取锁的进程，已登记 |
+| 3 | **MEDIUM** | 清理**本身**也可能写到一半：只落下 `# <!-- I` 时既非空、也不 `startswith` 完整标记 ⇒ `kept` 分支放行 | **已修**：两向都判 —— 以完整标记开头 **或** 首行是标记的一段前缀，都认成残件 |
+| 4 | **MEDIUM** | manifest `exclude` 仍放弃形态校验；「移交记录可解释为何未修，但不能视为关闭」 | **接受，保持开放**：本卡改不了（要动的两个文件在地盘外），作为移交项**不关闭**。协议对 MEDIUM 是登记不阻断 |
+
+##### 两份手抄判据的处理
+
+判据模块 `cls_forbidden_paths.py` 本卡禁改 ⇒ fd 落点守卫只能在两个 heredoc 里各抄一份。
+「两份手抄的判据必然漂移」是本仓旧账，所以把**「两份必须逐字相同」做成门**
+（`test_codex_fd_guard_copies_are_identical`，带恒真锚）。
+
+##### round-2 三条新门的敏感性 —— 每条都实测过（存档 `gate-sensitivity-r3-*.txt`）
+
+| 门 | 变异 | 绿 → 变异 → 还原 |
+|---|---|---|
+| `test_codex_publishers_judge_the_real_write_target` | 去掉模板发布器传入的落点名 | 绿 → **FAILED** → 绿 ✅ |
+| `test_agents_append_takes_an_exclusive_lock` | 去掉排他锁 | 绿 → **FAILED** → 绿 ✅ |
+| `test_codex_fd_guard_copies_are_identical` | 把其中一份守卫改一个字符（半角逗号→全角） | 绿 → **FAILED** → 绿 ✅ |
+
+每轮还原后 `deploy-vault.sh` sha256 与变异前逐字节相同。
+
+> ⛔ 顺带：`test_codex_publishers_judge_the_real_write_target` 第一版又踩了一次「判据自己没取全」——
+> 正则写 `[^)]*` 在第一个 `)` 处截断，`(base,)` 被切成 `(base,`，门当场自红。
+> 改成锚到完整参数尾 `, live, die)`，并补了两向验伪锚（对已知调用取得全 / 对函数定义行不命中）。

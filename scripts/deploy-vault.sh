@@ -1690,7 +1690,44 @@ import stat as statmod
 import sys
 
 sys.path.insert(0, sys.argv[2])
-from cls_forbidden_paths import ForbiddenPath, open_pinned, write_all  # noqa: E402
+from cls_forbidden_paths import ForbiddenPath, build_targets, hits, open_pinned, write_all  # noqa: E402
+
+
+# ⛔⛔ CLS-FDGUARD-BEGIN（本块与 publish_codex_agents_section 里那份**逐字相同**，
+#     由 test_codex_fd_guard_copies_are_identical 钉住不许漂。判据模块禁改 ⇒ 只能手抄两份,
+#     那就把「两份必须一样」做成门 —— 两份手抄的判据必然漂移，这是本仓的旧账。）
+# 用途：`open_pinned` 判的是「原路径」与「realpath(父目录)」，**判不到我们真正要建的那个子路径**。
+#   Codex r2 BLOCKER：`HOME=/home/alice`、vault=`/safe/redirect/alice`，把祖先 `redirect`
+#   换成指向 `/home` 的软链 —— 父目录解析成 `/home`（不是保护目标）⇒ open_pinned 放行,
+#   而随后相对该 fd 建的 `.codex` 就是 `$HOME/.codex`。「父目录允许」不蕴含「子路径允许」。
+# 做法：拿到**已打开 fd 的物理路径**，对「接下来真要写的每个名字」跑同一份 hits() 判据。
+def _fd_realpath(fd):
+    """已打开 fd 的物理路径。问不出来一律抛 —— 不猜（问不出不能压成没问题）。"""
+    try:
+        import fcntl
+
+        return fcntl.fcntl(fd, fcntl.F_GETPATH, b"\0" * 1024).rstrip(b"\0").decode()
+    except (AttributeError, OSError, UnicodeDecodeError):
+        pass
+    try:
+        return os.readlink("/proc/self/fd/%d" % fd)
+    except OSError as exc:
+        raise OSError("问不出已打开目录的真实路径, 不敢往里写 (%s)" % exc)
+
+
+def _refuse_if_forbidden(fd, names, live, say):
+    real = _fd_realpath(fd)
+    targets, claude_prefixes, enum_failed = build_targets(live)
+    if enum_failed:
+        say("无法枚举 HOME, fail-closed")
+    for n in names:
+        p = os.path.join(real, n)
+        why = hits(p, targets, claude_prefixes, skip_env_name=True)
+        if why is not None:
+            say("打开后的真实落点在禁写面(%s): %s" % (why, p))
+
+
+# ⛔⛔ CLS-FDGUARD-END
 
 vault, live = sys.argv[1], sys.argv[3]
 
@@ -1725,6 +1762,14 @@ except ForbiddenPath as exc:
     die(f"vault 目录解析后落在禁写面, 拒绝生成 codex 绑定件: {exc}")
 except OSError as exc:
     die(f"打开 vault 目录失败: {vault} ({exc})")
+
+# ⛔ Codex r2 BLOCKER：open_pinned 只判到「父目录」，判不到我们真要建的 `.codex/**`。
+#    拿 fd 的物理路径, 对**真正要写的每个名字**跑同一份判据。
+try:
+    _refuse_if_forbidden(vfd, (".codex", ".codex/config.toml"), live, die)
+except OSError as exc:
+    os.close(vfd)
+    die(str(exc))
 
 try:
     # ⛔ 目录也要钉在 fd 上：`mkdir -p "$VAULT/.codex"` 会沿着 `.codex` 这一段的软链
@@ -1767,7 +1812,11 @@ try:
             os.close(rfd)
         if not head.strip():
             die(f"已有 codex 模板是空文件（上次写到一半）, 请删掉它再重跑: {dst}")
-        if head.startswith(INCOMPLETE_MARK):
+        # ⛔ Codex r2 MEDIUM：清理**本身**也可能写到一半 —— 只落下 `# <!-- I` 这样的
+        #    半截标记时，它既非空、也不 startswith 完整标记 ⇒ 旧判据放行，空模板被当成
+        #    正常产物。所以**两向都判**：文件以完整标记开头，或文件首行是标记的一段前缀。
+        first_line = head.split(b"\n", 1)[0]
+        if head.startswith(INCOMPLETE_MARK) or (first_line and INCOMPLETE_MARK.startswith(first_line)):
             die(f"已有 codex 模板是上次写到一半的残件, 请删掉它再重跑: {dst}")
         print("kept")
         ok = True
@@ -1839,12 +1888,51 @@ publish_codex_agents_section() {
     local src srcrc=0
     src="$(
         cat << 'PYSEC'
+import fcntl
 import os
 import stat as statmod
 import sys
 
 sys.path.insert(0, sys.argv[6])
-from cls_forbidden_paths import ForbiddenPath, open_pinned, write_all  # noqa: E402
+from cls_forbidden_paths import ForbiddenPath, build_targets, hits, open_pinned, write_all  # noqa: E402
+
+
+# ⛔⛔ CLS-FDGUARD-BEGIN（本块与 publish_codex_agents_section 里那份**逐字相同**，
+#     由 test_codex_fd_guard_copies_are_identical 钉住不许漂。判据模块禁改 ⇒ 只能手抄两份,
+#     那就把「两份必须一样」做成门 —— 两份手抄的判据必然漂移，这是本仓的旧账。）
+# 用途：`open_pinned` 判的是「原路径」与「realpath(父目录)」，**判不到我们真正要建的那个子路径**。
+#   Codex r2 BLOCKER：`HOME=/home/alice`、vault=`/safe/redirect/alice`，把祖先 `redirect`
+#   换成指向 `/home` 的软链 —— 父目录解析成 `/home`（不是保护目标）⇒ open_pinned 放行,
+#   而随后相对该 fd 建的 `.codex` 就是 `$HOME/.codex`。「父目录允许」不蕴含「子路径允许」。
+# 做法：拿到**已打开 fd 的物理路径**，对「接下来真要写的每个名字」跑同一份 hits() 判据。
+def _fd_realpath(fd):
+    """已打开 fd 的物理路径。问不出来一律抛 —— 不猜（问不出不能压成没问题）。"""
+    try:
+        import fcntl
+
+        return fcntl.fcntl(fd, fcntl.F_GETPATH, b"\0" * 1024).rstrip(b"\0").decode()
+    except (AttributeError, OSError, UnicodeDecodeError):
+        pass
+    try:
+        return os.readlink("/proc/self/fd/%d" % fd)
+    except OSError as exc:
+        raise OSError("问不出已打开目录的真实路径, 不敢往里写 (%s)" % exc)
+
+
+def _refuse_if_forbidden(fd, names, live, say):
+    real = _fd_realpath(fd)
+    targets, claude_prefixes, enum_failed = build_targets(live)
+    if enum_failed:
+        say("无法枚举 HOME, fail-closed")
+    for n in names:
+        p = os.path.join(real, n)
+        why = hits(p, targets, claude_prefixes, skip_env_name=True)
+        if why is not None:
+            say("打开后的真实落点在禁写面(%s): %s" % (why, p))
+
+
+# ⛔⛔ CLS-FDGUARD-END
+
 
 dst = sys.argv[1]
 head_mark = sys.argv[2].encode()
@@ -1878,6 +1966,13 @@ except ForbiddenPath as exc:
 except OSError as exc:
     die(f"打开 AGENTS.md 所在目录失败: {ddir} ({exc})")
 
+# ⛔ Codex r2 BLOCKER（与 publish_codex_config 同一条）：判到我们真要写的那个名字。
+try:
+    _refuse_if_forbidden(dfd, (base,), live, die)
+except OSError as exc:
+    os.close(dfd)
+    die(str(exc))
+
 fd = None
 created = False
 ok = False
@@ -1889,6 +1984,8 @@ ok = False
 #: ⚠️ 如实声明：若**同时**有别的进程往同一个 fd 之外追加，这一下会连它写的也截掉。
 #: 部署脚本对一份自己生成的说明文档不假设有并发写者，与本脚本别处同律。
 keep_size = None
+#: 本次追加最多会写多少字节 —— 回滚前用它判「多出来的是不是别人写的」。
+append_len = 0
 try:
     # ── 分支 A：不存在 ⇒ 新建（codex 单宿主时走这里）───────────────────────
     # ⚠️ open 单独一个 try：把 write_all 也圈进来的话, **写**失败会掉进下面那个
@@ -1914,6 +2011,16 @@ try:
             fd = os.open(base, os.O_RDWR | os.O_APPEND | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=dfd)
         except OSError as exc:
             die(f"打不开已有的 AGENTS.md（是软链？）: {dst} ({exc})")
+        # ⛔ Codex r2 HIGH：`O_APPEND` 只保证「每次写落在末尾」, 保不住整条
+        #    「读 → 判断段在不在 → 追加 → 失败回滚」。两个写者同时读到「还没有 Codex 段」
+        #    就会各追加一次；回滚也可能截掉对方刚追加的正文。
+        #    取排他锁把这整条串起来。⚠️ 如实声明：flock 是**协作式**的 ——
+        #    它只挡同样取锁的写者，挡不住不取锁的进程（那需要别的隔离手段，已登记）。
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX)
+        except OSError as exc:
+            os.close(fd)
+            die(f"给 AGENTS.md 上排他锁失败, 不敢在无锁下追加: {dst} ({exc})")
         st = os.fstat(fd)
         if not statmod.S_ISREG(st.st_mode):
             die(f"AGENTS.md 不是普通文件, 不敢往里写: {dst}")
@@ -1936,7 +2043,9 @@ try:
             ok = True
             sys.exit(0)
         keep_size = st.st_size
-        write_all(fd, b"\n" + body)
+        payload = b"\n" + body
+        append_len = len(payload)
+        write_all(fd, payload)
 
     os.fsync(fd)
     mine = os.fstat(fd)
@@ -1968,6 +2077,14 @@ finally:
             try:
                 if os.fstat(fd).st_nlink != 1:
                     raise OSError("目标已被加上硬链接, 不敢回滚（会改到共享 inode）")
+                # ⛔ Codex r2 HIGH：只在「长得不比我们最多能写的还多」时才回滚 ——
+                #    多出来的字节只可能是**别人**追加的，那时截回去会删掉对方的正文。
+                #    宁可留下半截段（下面那条 die 会说清楚）也不删别人的东西。
+                grown = os.fstat(fd).st_size - keep_size
+                if grown > append_len:
+                    raise OSError(
+                        "文件比本次最多能写的还长(%d > %d), 疑有并发写者, 不回滚" % (grown, append_len)
+                    )
                 os.ftruncate(fd, keep_size)
             except OSError as exc:
                 print(f"回滚追加失败, AGENTS.md 末尾可能留下半截段: {dst} ({exc})", file=sys.stderr)

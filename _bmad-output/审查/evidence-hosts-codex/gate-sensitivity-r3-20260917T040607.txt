@@ -1,0 +1,24 @@
+### round-2 新门敏感性负控（每条都必须：绿 → 变异后红 → 还原后绿）
+原 sha256 = def1fbd7be1489fbb27c44a06da6441cb4eb661ac8f9ecfde536ce4df7e3d810
+
+── test_codex_publishers_judge_the_real_write_target
+   变异: 去掉模板发布器传入的落点名
+   ① 还原态: NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+   （注入 1/1 处）
+   ② 变异态: FAILED tests/unit/test_deploy_vault_sh.py::test_codex_publishers_judge_the_real_write_target
+   ③ 还原后: NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)  | sha 还原: OK
+
+── test_agents_append_takes_an_exclusive_lock
+   变异: 去掉排他锁
+   ① 还原态: NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+   （注入 1/1 处）
+   ② 变异态: FAILED tests/unit/test_deploy_vault_sh.py::test_agents_append_takes_an_exclusive_lock
+   ③ 还原后: NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)  | sha 还原: OK
+
+── test_codex_fd_guard_copies_are_identical
+   变异: 把其中一份守卫改一个字符（半角逗号->全角）
+   ① 还原态: NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+   （注入 1/2 处）
+   ② 变异态: FAILED tests/unit/test_deploy_vault_sh.py::test_codex_fd_guard_copies_are_identical
+   ③ 还原后: NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)  | sha 还原: OK
+
