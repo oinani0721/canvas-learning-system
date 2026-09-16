@@ -351,8 +351,22 @@ error_type key   = True (中间件独有字段)
 初稿按摘录序号推算，整块偏了 1，已更正；`:2996` 恰好未受影响。）
 
 赋值是工厂最后一步，`ReviewService.__init__` 在 `:850` 就抛
-⇒ 赋值永不发生 ⇒ singleton 恒 `None` ⇒ **每个 review 请求都会重入工厂
-并重新触发实例化**。这一条成立。
+⇒ 该次调用的赋值不发生。
+
+**准确表述（Codex r3 LOW-1 收窄）**：
+「singleton 恒 `None` ⇒ 每个 review 请求都会重入」需要两个限定，否则过强：
+
+1. **只限实际调用该工厂的请求**。反例：`/review/verification-history`
+   （`review.py:1320` 起）直接用 `get_graphiti_temporal_client()`，
+   **根本不经过** `get_review_service()`，不受影响。
+2. **只限 singleton 尚未被任何一次调用成功初始化之前**。反例序列：
+   数据为 `{"a": {"x": "old"}, "x": "legacy"}`；作用域 `a` 的请求因同名冲突失败，
+   而作用域 `b` 的请求（B 桶无同名）**成功**并把全局 singleton 赋了值；
+   此后作用域 `a` 的请求会在 `:2953` 的快路径直接返回那个已建好的实例，
+   **不再走 `from_persisted`、也就不再触发冲突检查**。
+
+⇒ 成立的是：**在 singleton 尚未成功初始化、且该请求确实调用了这个工厂时**，
+每次调用都会重走实例化链并再次抛出。
 
 ### 4.3 ⛔ 但由它**推不出**「每个请求都 500，直到跑迁移脚本」
 
@@ -408,26 +422,39 @@ return FSRSStateQueryResponse(
 但上一轮整改改成「依赖都是 singleton，重入不重建」——**又过头了**
 （Codex r2 MEDIUM-2）。逐项实测：
 
-| 工厂内建立的东西 | 行 | 重入时 |
-|---|---|---|
-| `memory_client`（`await get_memory_service()`） | `memory_service.py:2908` 快路径 | **复用** singleton |
-| `graphiti_client`（`get_graphiti_temporal_client()`） | `dependencies.py:779` 快路径 | **复用** singleton |
-| `CanvasService` | `review_service.py:2976` 直接 `CanvasService(...)` | **每次新建** |
-| `BackgroundTaskManager` | `:2979` 直接 `BackgroundTaskManager()` | **每次新建** |
-| `FSRSManager` | `:2982 create_fsrs_manager(settings)` → `:756 FSRSManager(...)` | 启用且可用时**每次新建** |
+| 工厂内建立的东西 | 行 | 重入时 | 运行时自证 |
+|---|---|---|---|
+| `memory_client`（`await get_memory_service()`） | `memory_service.py:2908` 快路径 | **复用** singleton | 读码 |
+| `graphiti_client`（`get_graphiti_temporal_client()`） | `dependencies.py:779` 快路径 | **复用** singleton | 读码 |
+| `BackgroundTaskManager` | `:2979` 直接 `BackgroundTaskManager()` | **复用** singleton | `first is second = True` |
+| `CanvasService` | `:2976` 直接 `CanvasService(...)` | **每次新建** | `is-same = False` |
+| `FSRSManager` | `:2982 create_fsrs_manager(settings)` → `:756 FSRSManager(...)` | **启用且可用时**每次新建 | `USE_FSRS=True` 下 `is-same = False` |
 
-⇒ 重入的真实开销 = 「两个 singleton 查表命中」+「三个对象真新建」+「再抛一次」。
-既不是「全部重建」，也不是「全部复用」。
+> ⚠️ **上一轮我把 `BackgroundTaskManager` 判成「每次新建」，那是错的**
+> （Codex r3 MEDIUM-1）。它的 `background_task_manager.py:91 __new__` 返回缓存的
+> `cls._instance`，`:99-101` 再防重复 `__init__`。本轮已运行时自证
+> （`BackgroundTaskManager() is BackgroundTaskManager()` → `True`）。
+>
+> 这是本卡第二次在「纠正过强表述」时**矫枉过正**：r1 指出「不是全部重建」，
+> 我改成「全部复用」（r2 打回）；r2 指出「有些确实新建」，我又把
+> `BackgroundTaskManager` 一并算进新建（r3 打回）。教训写在 §6.9。
+
+⇒ 重入的真实开销 = 「**三个** singleton 查表命中」+「**两个**对象真新建
+（`CanvasService`，以及 FSRS 启用时的 `FSRSManager`）」+「再抛一次」。
+`USE_FSRS=False` 或 py-fsrs 缺失时 `create_fsrs_manager` 返 `None`，
+新建对象数降为 1。
 
 > 这一段本身属于 ⑦ 声明的「工厂中段：只读证据覆盖、本卡未执行」范围——
 > 上表由读码得出，未在运行时观测过。
 
 ### 4.4 更正后的可用性表述
 
-> singleton 恒 `None` ⇒ 每个 review 请求都会重入工厂并重新触发实例化
-> （这一条成立，见 4.2）。
+> **在 singleton 尚未被任何一次调用成功初始化之前**，凡是**确实调用了
+> `get_review_service()`** 的请求都会重走实例化链并再次抛出（限定见 4.2——
+> 不调该工厂的端点不受影响；一旦某个 vault 的请求成功建好 singleton，
+> 其余请求就走 `:2953` 快路径，不再触发检查）。
 >
-> **但「用户看到什么」不是一个全局结论**，取决于两件事：
+> **而「用户看到什么」更不是一个全局结论**，还取决于两件事：
 >
 > 1. **该请求解析到哪个 vault** —— 同名冲突只查当前桶，换一个 vault 就可能
 >    直接实例化成功（4.3b），不必先跑迁移脚本；
@@ -453,21 +480,28 @@ return FSRSStateQueryResponse(
    （`main.py:709-715`，只做 UTF-8 round-trip），整条异常消息前 500 字符进响应体。
    本卡实测原文含 `_CARD_STATES_FILE` 的**绝对路径**
    （`/Users/…/worktrees/card-t4-g3/backend/data/fsrs_card_states.json`）
-   ⇒ 任何能打到该端点的人都能读到部署布局。这不限于本异常——**所有**未处理
-   异常都走这条路。
+   ⇒ 任何能打到该端点的人都能读到部署布局。这不限于本异常——**凡是从路由或
+   更内层逸出、未被端点自己接住的异常**都走这条路（不含比它更外层的
+   Metrics / CORS / Encoding 三个中间件自身抛的异常，见 ③.3.3 的拓扑更正）。
 2. **意图与实现相反**：`generic_exception_handler` 的 `:210` docstring 明写
    `IMPORTANT: In production, this should NOT expose internal error details.`，
    `:261` 行内注释再复述一次。这份「不暴露」的设计意图**从未生效**，
-   因为该处理器生产未注册（3.2）。⇒ 需要裁定的是：这份意图是**要落地**
-   （让生产真的注册它，或给中间件加脱敏），还是**已作废**（认可中间件的
-   透出行为，把那两处注释改掉以免误导后人）。
-3. **200 泄漏面**：`/review/fsrs-state` 这类把工厂调用包进 `try` 的端点，
-   会把同样的原文放进 **HTTP 200** 的 `reason` 字段（4.3a）。
-   即便给 500 加了脱敏，这条路径也不会被覆盖——它压根不经过异常处理层。
+   因为该处理器生产未注册（3.2）。
+   > ⛔ **注意：「让生产真的注册它」并不是一个可行的收口办法**
+   > （Codex r2 MEDIUM-3 / r3 MEDIUM-2）。本卡
+   > `test_production_stack_exposes_message_in_500_body` 的配置**正是**
+   > 「先 `register_exception_handlers`，再挂真中间件」，结果仍返回原文——
+   > 因为中间件在更内层先接住，压根轮不到那个 handler。
+   > ⇒ 需要裁定的是：这份意图是**要落地**（那就得改**中间件**的脱敏口径，
+   > 不是补注册），还是**已作废**（认可透出行为，把那两处注释改掉以免误导后人）。
+3. **200 泄漏面**：`/review/fsrs-state` 这类端点接住了异常并把原文放进
+   **HTTP 200** 的 `reason` 字段（4.3a）。即便给 500 加了脱敏，
+   这条路径也不会被覆盖——它压根不经过异常处理层。
 
-**若要收口，至少三处要一起裁**（只改一处等于没改）：中间件的 `safe_message`
-脱敏口径、`generic_exception_handler` 要不要真正接上、以及端点 `except` 分支
-往响应里塞 `str(e)` 的做法。
+**若要收口，至少三处要一起裁**（只改一处等于没改）：
+① `CORSExceptionMiddleware` 的 `safe_message` 脱敏口径（**主战场**）；
+② 那两处「不暴露内部细节」的注释是落地还是作废；
+③ 端点 `except` 分支往响应里塞 `str(e)` 的做法。
 
 **连带**：一旦改动，本卡 `TestHttpLayerMasksMessage` 的**两条**用例断言方向
 都要重新裁定——它们钉的是**当前口径**，不是永久不变量。
@@ -495,7 +529,9 @@ return FSRSStateQueryResponse(
 > （中间件在更内层先接住），也管不到 `/review/fsrs-state` 已吞异常后的 200。
 
 α 的真实工作量 = 至少三处一起裁（见上），而且要先确定「不暴露内部细节」
-这份设计意图是**要落地**还是**已作废**。建议：
+这份设计意图是**要落地**还是**已作废**；注意 200 泄漏面来自
+「端点 `except` 接住了这个异常并把 `str(e)` 塞进响应」，
+不是「端点有没有 `try`」（④.3a）。建议：
 - 先裁**意图**（一句话决策：异常原文该不该进 HTTP 响应），再谈实现；
 - β 大改数据处置语义，单独立卡走完整设计流程；
 - 两者都不在第十四批（D-38）。
@@ -641,6 +677,29 @@ echo "rc=$RC" | tee -a "../$UNIT"
 而「本卡是否引入新红」由 `unit-new-red.txt`（空）判定，与那行 `rc` 无关。
 
 > 同族已登记教训：`reference_pipeline_eats_rc_three_times`。本卡是第四次。
+
+### 6.9 ⛔ 纠正过强表述时，最容易犯的是**反向过强**
+
+本卡同一个论点（工厂重入的依赖开销）被连打**三轮**，每一轮都是我在修上一轮
+的过强表述时，朝反方向又说过了头：
+
+| 轮次 | 我写的 | 被指出 |
+|---|---|---|
+| 初稿 | 「每次重入**重建**一遍 memory / canvas / graphiti 依赖」 | r1 M3：memory、graphiti 是 singleton |
+| r1 整改 | 「依赖**都是** singleton，重入**不重建**」 | r2 M2：`CanvasService` / `FSRSManager` 确实每次新建 |
+| r2 整改 | 逐项表，但把 `BackgroundTaskManager` 判成「每次新建」 | r3 M1：它 `__new__` 返缓存 `_instance`，实测 `is same = True` |
+
+**根因不是粗心，是每轮都在用「整体判断」回应「反例」。**
+对方给的是「A 不成立」，我回的是「那就是 ¬A」——而真相是「逐项各不相同」。
+
+**做法**：论点涉及 N 个对象时，**逐个列**并**逐个给运行时自证**，
+不要写任何形如「都是 / 都不是 / 全部 / 一律」的概括。本轮的表格给每一行
+配了 `is-same` 实测列，就是为了让「某一项判错」在下一轮可以被单点纠正，
+而不是整句话推倒重来。
+
+> 同族：`reference_backlog_entry_is_not_conclusion_update`、
+> `reference_coverage_reattribution_must_list_gaps`——都是「结论层面的
+> 概括掩盖了逐项事实」。
 
 ### 6.7 ⛔ 一条**不采纳**的审查意见（如实记录，附实测依据）
 

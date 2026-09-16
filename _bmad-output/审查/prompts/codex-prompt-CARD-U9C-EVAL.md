@@ -4,7 +4,7 @@
 
 树根：`/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t4-g3`
 分支 `card/t4-g3`，本卡起点 commit `9400ba26b816e8cad605b2a81e5fdf14e396541e`，
-当前 HEAD `b0abea797aa1edce1c1250949a751151428ff428`（本卡两个 commit）。
+当前 HEAD `400a285924bb71e49cb8f9f257dfc3fdac36d607`（本卡三个 commit）。
 
 ---
 
@@ -53,8 +53,12 @@ HTTP 层用真 `register_exception_handlers` 注册的真处理器；
 工厂中段（`get_review_service` 先建 memory / canvas / graphiti 依赖，再到 `:2996`）
 **本卡不执行** —— 跑它会连真 Neo4j / LanceDB，本卡硬边界禁止，
 该段只以只读证据覆盖，并在验收单如实登记为「本卡未证明」。
-测试里唯一被替换的是 `bug_tracker` 的**落盘路径**（重定向到 pytest 临时目录），
-替换的是文件落点、不是行为。
+测试里被替换的共**三处**（round-3 更正，此前「唯一」的说法不准确）：
+① `subject_config.get_current_subject_id`、② `subject_config.default_vault_group_id`
+—— 用于**制造**「作用域解析失败」这个被测前置条件，`finally` 显式还原；
+③ `exception_handlers.bug_tracker` 的**落盘路径**（重定向到 pytest 临时目录），
+换的是文件落点、不是行为。被测链上的 `from_persisted`、`generic_exception_handler`、
+`CORSExceptionMiddleware` 全是真实现。评估文档 §7.2 有同样的逐条列表。
 
 **声明 D — 判据口径更正**：卡文原判据写「`grep -c 'blocked=' <pytest 输出>` 期望 0」，
 理由是「哨兵只在出事时才打印该行」。本卡实测认为这个理由不成立：
@@ -102,7 +106,7 @@ HTTP 层用真 `register_exception_handlers` 注册的真处理器；
     （本卡新测试与它同源，请核是否重复覆盖或口径冲突）
 
 差异面可直接看：
-`git diff 9400ba26b816e8cad605b2a81e5fdf14e396541e b0abea797aa1edce1c1250949a751151428ff428`
+`git diff 9400ba26b816e8cad605b2a81e5fdf14e396541e 400a285924bb71e49cb8f9f257dfc3fdac36d607`
 
 ---
 
@@ -154,3 +158,34 @@ round-1 给出 BLOCKER 0 / HIGH 1 / MEDIUM 3 / LOW 2，**全部采纳，无驳�
 `evidence-u9c-eval/zero-write-proof-20260916T190821.txt`）。
 该文件被 gitignore、未入库，登记在评估文档 §7.4 交主 session 处置。
 请核这个零写证明是否充分、处置是否恰当。
+
+
+---
+
+## ⑦ round-3 补充：round-2 的处置
+
+round-2 给出 BLOCKER 0 / HIGH 0 / MEDIUM 3 / LOW 4。虽已达通过线，但本卡唯一
+交付物就是「事实口径准确」，故逐条实测后整改（一条不采纳，见末）：
+
+- **M1**：判据由「包进 `try` 就是 200」改为「该端点 `except` 接不接这个异常
+  类型」，并列出三种已实测端点形态（`/review/history` try 外、
+  `/review/progress/multi` try 内只接 `CanvasNotFoundException`、
+  `/review/fsrs-state` 接 `Exception` 返 200）。
+- **M2**：改为逐项表格——`memory`(`:2908`)/`graphiti`(`:779`) 复用 singleton；
+  `CanvasService`(`:2976`)、`BackgroundTaskManager`(`:2979`)、
+  `FSRSManager`(`:2982`→`:756`) 每次新建。并标注该段属「只读证据覆盖、未执行」。
+- **M3**：议题 α 改为「至少三处一起裁 + 先裁意图」，并写明本卡新测试自己
+  就是「只接上 generic handler 无效」的反例。
+- **L1**：中间件拓扑改为「`CORSException` 实为最内层 user middleware，
+  外面还有 Encoding/CORS/Metrics」，并注明生产 `main.py:751` 注释与代码不符
+  （属生产改动，登记移交不改）。
+- **L3**：本 prompt ① 的范围申报已补上审查辅助材料。
+- **L4**：已按实算收窄——`main.py:739` 取前 500 字符，同名分支 5 个 UUID 键时
+  消息 538 字符、脚本名被切成 `migrate_f`，且该分支原文无 `--vault-id`；
+  `:570` 分支 `len=311` 两者都在。
+- **⛔ 不采纳 1 条**：r2 LOW-2 末句称冲突条件在 `:590` 而非 `:589`。
+  `grep -n 'clobbered = sorted'` 实测为 `:589`（`:590` 是其后的 `if clobbered:`），
+  本卡引的是计算行。理由与实测写在评估文档 §6.7。**请复核这条不采纳是否站得住。**
+
+本轮请重点核：上述整改是否正确、是否引入新的过强表述或新的事实错误；
+以及评估文档现在是否还残留与已更正结论相矛盾的旧措辞。

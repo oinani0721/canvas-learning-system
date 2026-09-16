@@ -41,7 +41,7 @@
 **为什么不调 `get_review_service()`**：它在实例化 ReviewService **之前**先
 `await get_memory_service()` / `CanvasService(...)` / `get_graphiti_temporal_client()`，
 跑真工厂 = 连真服务（7691 面）。本文件改用最小 app + 真 `from_persisted`
-作异常源，离线钉住「屏蔽 + 进程不崩」这两条契约。
+作异常源，离线钉住「两个栈形态各自返回什么 + 进程不崩」这几条契约。
 """
 
 from __future__ import annotations
@@ -295,6 +295,10 @@ class TestHttpLayerMasksMessage:
     ⇒ 生产真实表征与初稿**相反**：**CARD-G3-5 原文会进 500 响应体**。
     U9-C 设计稿「请求 500 带 CARD-G3-5 消息」在生产栈上其实是**对的**。
 
+    ⚠️ 本类名里的 `MasksMessage` 是初稿留下的名字，**只对下面第一条用例成立**；
+    类整体钉的是「**哪一层接住，就决定消息进不进响应体**」。改名会动到
+    既有引用，故保留名字、在此写明语义。
+
     本类因此分两条用例，各自钉一层，并**各自证明自己测的是哪一层**：
 
     | 用例 | 栈形态 | 谁接住 | 响应体 |
@@ -416,6 +420,11 @@ class TestHttpLayerMasksMessage:
         # ── 与上一条相反：原文进了响应体，连运维指引一起 ──
         assert "CARD-G3-5" in body["message"]
         assert "migrate_fsrs_card_states_vault_key_g35.py" in body["message"]
+
+        # ⛔ 子串断言**证明不了「未脱敏」**（Codex r3 LOW-3）：把绝对路径脱敏、
+        # 只保留这两个子串，上面两条照样通过。要钉住「原文逐字进体」，必须拿
+        # 异常自身的 str() 去比——这同时锁住了 main.py:739 的 [:500] 截断口径。
+        assert body["message"] == str(raised[0])[:500]
 
         # ── 进程不崩 ──
         assert alive.status_code == 200
