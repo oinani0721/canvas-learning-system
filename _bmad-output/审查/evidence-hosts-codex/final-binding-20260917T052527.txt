@@ -1,0 +1,24 @@
+### 终审绑定核（协议 §1）—— 如实记录：**最后一轮未绑最终 HEAD**
+HEAD = 4c810c953ac404a044fd34a7e287c4b2d8e440f3
+  r1 审SHA=ef0cf1a9  ->  代码树 diff 行数 = 4  (已失绑)
+  r2 审SHA=532cfed7  ->  代码树 diff 行数 = 3  (已失绑)
+  r3 审SHA=41ddf0d0  ->  代码树 diff 行数 = 3  (已失绑)
+  r4 审SHA=1d2d4b5b  ->  代码树 diff 行数 = 3  (已失绑)
+  r5 审SHA=afacca52  ->  代码树 diff 行数 = 3  (已失绑)
+
+⛔ 结论：r5（协议轮次上限那一轮）之后仍做了整改 —— O_NOFOLLOW_ANY + 拒绝后零写 +
+   AST 门剪常量假分支（commit 55668723）⇒ **没有任何一轮绑最终 HEAD**。
+   协议 D-15 要求「最后一轮绑最终 HEAD 且 B=0/H=0」；轮次上限 5 已用尽 ⇒
+   按协议**停下交主 session 人审**，不自判通过。
+
+### 最后一轮之后改了什么（供人审直接看）
+ backend/tests/unit/test_deploy_vault_sh.py | 71 +++++++++++++++++++++++++++++-
+ scripts/deploy-vault.sh                    | 59 ++++++++++++++++++++-----
+ 2 files changed, 118 insertions(+), 12 deletions(-)
+
+### 各轮 B/H/M/L
+  r1 B1 H1 M3 L0
+  r2 B1 H1 M2 L0
+  r3 B1 H2 M3 L0
+  r4 B1 H1 M3 L1
+  r5 B2 H0 M2 L0
