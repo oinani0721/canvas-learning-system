@@ -1,0 +1,16 @@
+# 自绑定: HEAD=2287e2583c54472d238e8b8eec87bb1e9e95c9e8  test_openapi_contract.py sha256=ae5d7e0b97b657972477f55ff2f6437e28432941d637b031d75e5cf1ef7cec51
+# 说明: 取代 ruff-20260916T195047.txt（那份跑在门扩覆盖/改名前的测试文件版本上）
+files=2  list=backend/app/security.py backend/tests/contract/test_openapi_contract.py
+All checks passed!
+ruff_check_rc=0
+## 验伪锚 F821（backend select=[E9,F63,F7,F82]，F401 未启用故不可用作锚）:
+
+Found 1 error.
+anchor_rc=1
+## ruff format --check:
+Would reformat: backend/app/security.py
+1 file would be reformatted, 1 file already formatted
+format_check_rc=1
+## 最长行字符数（按字符非字节）:
+  backend/app/security.py max_chars = 87 >120 行 = []
+  backend/tests/contract/test_openapi_contract.py max_chars = 107 >120 行 = []

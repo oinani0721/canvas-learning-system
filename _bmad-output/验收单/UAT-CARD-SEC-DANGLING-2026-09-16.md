@@ -1,0 +1,294 @@
+# UAT — CARD-SEC-DANGLING（第十四批 T5-D）
+
+> 批次 `[BATCH-2026-09-11-第十四批 / CARD-SEC-DANGLING]` · 车道 `card-t5-bugs`（分支 `card/t5-bugs`）
+> 前提 HEAD（T5-C CARD-T-SWITCHVAULT 末 commit）= `2287e2583c54472d238e8b8eec87bb1e9e95c9e8`
+> 证据目录 `_bmad-output/审查/evidence-sec-dangling/`（引用一律写全文件名，不用 glob）
+> **采用方案 = A**（`backend/app/security.py` 的 `APIKeyHeader(...)` 加 `scheme_name="InternalApiKey"`）
+
+---
+
+## 〇 第 0 分钟自证
+
+| 项 | 实测 |
+|---|---|
+| `pwd` | `…/.claude/worktrees/card-t5-bugs` ✅ |
+| 分支 | `card/t5-bugs` ✅ |
+| HEAD | `2287e2583c54472d238e8b8eec87bb1e9e95c9e8` = T5-C 末 commit ✅；`git merge-base --is-ancestor 08100483 HEAD` 成立 |
+| `git status --porcelain` | 空 ✅ |
+| venv / env | `test -x backend/.venv/bin/pytest` ✅ · `test -e backend/.env` ✅ · `test -x backend/.venv/bin/pyright` ✅ |
+| 基线自证（R-B14-2） | `grep -vc '^#' <BASE>` = **64** ✅（`wc -l` = 67 = 3 注释 + 64 nodeid） |
+| pyright 波 0 口径 | `(cd backend && "$P" app)` = **0 errors, 81 warnings** ✅（见 `pyright-app-20260916T195022.txt`） |
+
+**§〇 逐条 file:line 复核（全部与卡文逐字相符，无漂移）**
+
+- `backend/app/security.py:48 INTERNAL_API_KEY_HEADER_NAME = "X-CLS-Internal-Key"`；`:52 INTERNAL_API_KEY_HEADER = APIKeyHeader(`；`grep -n 'scheme_name' backend/app/security.py` = **0 命中**（rc=1）✅
+- `backend/app/core/security.py` → `No such file or directory` ✅（R-B14-8 的错名更正成立）；真文件 `backend/app/security.py` 11121 B ✅
+- `backend/app/main.py`：`:541 def _custom_openapi():` / `:547 openapi_schema = get_openapi(` / `:554 components["securitySchemes"] = {` / `:555 "InternalApiKey": {` / `:568 openapi_schema["security"] = [{"InternalApiKey": []}]` / `:570 return app.openapi_schema` ✅
+- `backend/app/api/v1/system.py`：`:28 router = APIRouter(` / `:29 prefix="/system"` / `:35 dependencies=[Depends(require_internal_api_key)]`；`CARD-RED-A1-sentinel` 注释块首行 = **`:31`** ✅（卡文已更正过勘探稿的 `:30-32`，本次复测与卡文一致）
+- 车道代码基线：`git diff --name-only 08100483 HEAD -- . ':(exclude)_bmad-output'` 只含 T5-A/B/C 的 7 个文件，**不含 `security.py` / `main.py` / `system.py` / `openapi.json`** ⇒ 本卡四个承重文件在 `B14_BASE` 原态 ✅
+
+---
+
+## 一 4-A：Claude 已代验的技术证据
+
+### (a) 开工首项 —— contract 三文件基线
+
+`contract-3files-open-20260916T194004.txt`：末行 `2 failed, 75 passed, 577 warnings in 269.07s`，`rc=1`。
+两条红与卡文点名的逐字相同，**定性主干既有**：
+
+1. `tests/contract/test_node_id_patterns.py::TestNodeIdPatternConsistency::test_pattern_matches_json_schema`
+   —— 根因本次实测定死：`FileNotFoundError: … /specs/data/canvas-node.schema.json`（同档 `:20`）。该文件在 `B14_BASE` 上同样不存在（`git cat-file -e 08100483:specs/data/canvas-node.schema.json` → `does not exist`）⇒ 与本卡无关。
+2. `tests/contract/test_health_contract.py::test_health_contract[GET /api/v1/health]` —— 卡文 §〇 记的 `DeadlineExceeded`（W4 端口门下真实请求 16–19s > `deadline=10000`）。
+
+同档 W4 行 `NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=19 (blocked=19, advisory=0, unaccounted=0)` —— 与卡文 (j) 预期同值，`advisory` / `unaccounted` 均为 0，是端口门**拦下**而非本卡连库。
+`test_committed_snapshot_has_no_drift` 在开工时**绿**（该文件 26 条全 `.`）⇒ T5-A/B/C 未引入快照漂移。
+
+### (b) 悬空实测与门先红
+
+| 口径 | 改前 | 再生后 |
+|---|---|---|
+| committed `backend/openapi.json`（`dangling-count-before-20260916T194014.txt` / `dangling-count-after-20260916T194629.txt`） | `securitySchemes=['InternalApiKey']` · `dangling=31` · `system=16` · `per_op={'APIKeyHeader':31}` | `dangling=0` · `system=0` · `per_op={'InternalApiKey':31}` |
+| 进程内 live schema（本卡新增门） | 红：31 悬空 / `/system/*` 16 | 绿 |
+| paths / operations | 197 / 209 | 197 / 209（不变） |
+
+**统计脚本的验伪锚** `dangling-script-falsification-20260916T194039.txt`（三个锚，只在 `/tmp` 副本上注入，committed 快照跑前跑后 sha256 均 `1455eb7d…`）：
+
+- 锚① 往一个**非** `/system/` op 注入未声明方案名 → `dangling 31→32`、`system 16→16`；
+- 锚② 往 `POST /api/v1/system/config` 注入 → `dangling 31→32`、`system 16→17`；
+- 锚③ 反方向：副本的 `securitySchemes` 补上 `APIKeyHeader` → `dangling=0 system=0`。
+  ⇒ 两个计数器都真在数，且「0」是由集合成员判定驱动的可达值，不是恒 0。
+
+**先红（最终版门代码）** `red-and-negctl-final-20260916T195803.txt` 阶段 1：源与快照都用 `git show HEAD:<path>` 还原成 **HEAD 全态**（sha 自证 `8c8c9098…` / `1455eb7d…`），门 `pytest_rc=1`，失败正文含 `31 处` / `/system/* 16 处` / `APIKeyHeader` / 具体 `/system/` op 清单；同档第二口径（committed 快照统计）同时给出 `dangling=31 system=16`，两个口径互证。
+
+> ⚠️ 如实登记：`sec-dangling-red-20260916T194419.txt` 与 `sec-dangling-green-20260916T194658.txt`、`negative-control-20260916T194827.txt`、`negative-control-rc-20260916T194913.txt` 四份是**门改名前**的版本（原名 `test_security_schemes_cover_all_per_op_refs`，覆盖面只有 per-op）。改名与扩覆盖的理由见下方 (c)-补，承重结论一律以 `red-and-negctl-final-20260916T195803.txt` / `sec-dangling-green-v2-20260916T195255.txt` 为准，旧四份保留作过程留痕、不作依据。
+
+### (c) 修法 —— 采用方案 A，理由
+
+`backend/app/security.py` 的 `APIKeyHeader(...)` 调用加一个 keyword：`scheme_name="InternalApiKey"`（另加一段说明注释）。
+
+**选 A 不选 B 的四条理由**
+
+1. **修根因不修症状**：悬空的成因是 FastAPI 按类名命名方案（`fastapi/security/api_key.py:29` `self.scheme_name = scheme_name or self.__class__.__name__`，本机 fastapi **0.135.3** 实测；`fastapi/openapi/utils.py:93` `security_name = security_dependency._security_scheme.scheme_name` 是 per-op 名字的唯一来源）。A 让 FastAPI 一开始就写对；B 是在 `_custom_openapi` 产出之后再遍历改名，底层不一致仍在。
+2. **避开 `main.py` 的跨车道交集**：手册 §一「`backend/app/main.py` 声明交集」把 `:568` security 段给 T5-D、`:386-404` 回填门段给 T6-B。走 A 则本卡对 `main.py` **零改动**（实测 `git diff --stat HEAD -- backend/app/main.py` = 0 行），集成期无需判两段 hunk 是否重叠。
+3. **运行时零风险可由源码证明**（见下）。
+4. `scheme_name` 是该版本 FastAPI 的**公开参数**且语义就是本卡要的：签名 `scheme_name: Annotated[str | None, Doc("Security scheme name. It will be included in the generated OpenAPI …")] = None`（本机 `inspect.signature` 实测）。
+
+> DD-01/DD-04 的查证方式如实说明：本 session 的 **Context7 MCP 连接失败**（`CONNECTION_CLOSED`），故改用**本机已安装版本的源码**（比文档更贴合"本机这个版本是否接受"这一问题）+ FastAPI 官方文档/issue 佐证，两者结论一致。
+
+**运行时鉴权一字未改 —— 三层证据** `runtime-auth-unchanged-20260916T194743.txt` + `auth-behavior-tests-20260916T194754.txt`
+
+- **层 1 AST**：顶层节点序列相同；AST 不同的顶层节点 **只有 1 个**（那条 `INTERNAL_API_KEY_HEADER = APIKeyHeader(...)` 赋值），其 keyword 从 `['name','auto_error','description']` 变为 `['name','scheme_name','auto_error','description']`，**剔除 `scheme_name` 后与改前 AST 逐字相同**；两个顶层函数 `require_internal_api_key` / `verify_websocket_internal_key` 的 AST **完全相同**。
+- **层 2 运行时属性**：`model.name='X-CLS-Internal-Key'`（真正决定读哪个 header）、`auto_error=False`、`model.in_=header` 全部未变；新增的只有 `scheme_name='InternalApiKey'`。`APIKeyHeader.__call__` 源码只读 `self.model.name`，不触碰 `scheme_name`。
+- **层 3 既有行为门**：`tests/unit/test_sync_batch_auth.py` + `test_system_endpoint_auth.py` + `test_internal_api_key_p0_2_hardening.py` = **30 passed**（含 `TestProductionFailClosed` / `TestHeaderParsing::test_canonical_header_name`），`blocked=0`。
+
+**(c)-补 · 门的覆盖面被扩到全 `security` 面并据此改名（如实登记）**
+
+卡文 (b) 只要求枚举 `paths[p][m].security`。落地中段做了一次普查（`security-key-census-20260916T195206.txt`）：schema 里名为 `security` 的键共 **32** 处 = 31 per-op + **1 处文档根全局**；无 `webhooks`、无 `components.callbacks`/`pathItems`；WebSocket 路由（`main.py:809` `/ws/intelligent-parallel/{session_id}`、`:839` `/ws`）不产出 OpenAPI operation，其鉴权走 `security.py:194 verify_websocket_internal_key` 手工校验，**根本不是 OpenAPI 安全方案**，不在任何 OpenAPI 契约门的覆盖面内。
+
+全局那一处当时实测已声明（不悬空），但它是 (b) 原口径**唯一没盖到**的引用面。遂把门扩成"每一处 `security` 引用"，并按「判据取名面必须恰好等于其主张」把测试改名为 `test_security_schemes_cover_all_security_refs`。这是**加强不是放宽**：per-op 面的断言一字未松（仍断言悬空 **等于 0** 且逐个方案名 ∈ securitySchemes），只是多盖了根节点。先红数字不受影响（根那处已声明 ⇒ 悬空仍是 31/16，见 `red-and-negctl-final-…` 阶段 1 的 `引用总数=32(其中 per-op 31)`）。
+
+### (d) 再生快照
+
+`openapi-regen-20260916T194604.txt`：`( cd backend && .venv/bin/python ../scripts/spec-tools/check-openapi-drift.py --write openapi.json )` → `WROTE: openapi.json (paths=197 schemas=357, …)`，`--write rc=0`。sha256 `1455eb7d…` → `9df9f7df…`，字节 917381 → 917443（**+62 = 31 × (len("InternalApiKey") − len("APIKeyHeader"))**，与 31 处重命名自洽）。
+
+**不连库自证（同档原文）**：工具的 socket 禁闭在本次跑中**真的触发过** —— LiteLLM 试图拉取远程 model cost map 被拦：`socket connect blocked during OpenAPI export (target=('127.0.0.1', 1082)) — check-openapi-drift.py 只允许 import, 不允许 lifespan/网络行为`。这比"代码里写了禁闭"强：它是禁闭生效的实跑证据。
+
+**再生 diff 面 = 恰好 31 处重命名 + 1 个易变键** `regen-diff-surface-20260916T194646.txt`：
+
+```
+扁平叶子数: 再生前 = 12435  再生后 = 12435
+仅在再生前的键 = 31  其中 …>security[i]>APIKeyHeader = 31
+仅在再生后的键 = 31  其中 …>security[i]>InternalApiKey = 31
+剩余未被该两式解释的键(再生前) = []
+剩余未被该两式解释的键(再生后) = []
+两侧都有但值变了的键 = ['>info>x-generated-at']
+其中 /system/* 面的 APIKeyHeader 消失数 = 16
+```
+
+⇒ **未扫入** RED-A1-sentinel §6⑬ 那类与安全无关的既有 docstring 漂移（卡文预期"无"，实测确为无）。
+
+> ⚠️ **判据缺陷自曝（承重）**：本判据的第一版写在 `dangling-count-after-20260916T194629.txt` 里，其 `flat()` 对**空容器**不产出叶子 —— 而 per-op security 恰好是 `{"APIKeyHeader": []}` 这种「键才是信息、值是空列表」的结构，于是方案名那一层整个从比对面上消失，判据报「0 差异」看着像绿，**实际恰好瞎在本卡要测的那一点上**。`regen-diff-surface-20260916T194646.txt` 是修正版，并带一条验伪锚（喂一个已知 `{"APIKeyHeader": []}` 结构，断言 `flat` 能产出 `…>security[0]>APIKeyHeader` 键）。`dangling-count-after-…` 中的 **悬空统计部分（`dangling=0 system=0`）不受影响**（那是另一段独立脚本，锚③ 已证其非恒 0），只有该档内的 diff-面结论作废。
+
+### (e) 契约门先红后绿
+
+| 时点 | `test_committed_snapshot_has_no_drift` | 本卡新增门 | 存档 |
+|---|---|---|---|
+| 开工（未改源） | **绿** | **红**（31/16） | `contract-3files-open-20260916T194004.txt` · `red-and-negctl-final-20260916T195803.txt` 阶段 1 |
+| 改源、**未**再生 | **红** | 绿 | `drift-gate-red-before-regen-20260916T194526.txt` |
+| 改源 + 再生 | **绿** | **绿** | `sec-dangling-green-v2-20260916T195255.txt`（`2 passed` rc=0） |
+
+改源未再生那一档的红文正好把 (d) 的必要性说清楚：差异逐条形如
+`>paths/…/post>security[0]>APIKeyHeader: 仅在 snapshot(已从 app 移除)` + `…>InternalApiKey: 仅在 app.openapi()(snapshot 缺失)`。
+
+**收工 contract 三文件** `contract-3files-close-20260916T195852.txt`：末行 `2 failed, 75 passed, 577 warnings in 227.90s`，`rc=1` —— 与开工档**逐条相同**：
+
+- 红仍是且只是那两条主干既有（`test_pattern_matches_json_schema` / `test_health_contract[GET /api/v1/health]`），**不增不减、无一由红转绿或由绿转红**；
+- `test_openapi_snapshot_drift.py` 26 条全绿（含 `test_committed_snapshot_has_no_drift`）⇒ (d) 的再生把门重新喂绿了；
+- W4 行 `NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=19 (blocked=19, advisory=0, unaccounted=0)`，与开工档同值。
+
+### (f) 负控 / 验伪锚（承重）
+
+`red-and-negctl-final-20260916T195803.txt`，一个变异窗口内两段，**EXIT trap 无条件还原**，手法 `git show HEAD:<path> > <工作树文件>`（⛔ 全程未用 `git stash`、未用 `git checkout`）：
+
+- **阶段 1（先红）**：`security.py` + `openapi.json` 双还原为 HEAD ⇒ 门 `pytest_rc=1`，正文含 `31`、`/system/* 16`、`APIKeyHeader`、`/system/` op 清单。
+- **阶段 2（负控）**：**只**把源回退、快照保留本卡再生的 0 悬空版 ⇒ 门仍 `FAILED`，`test_committed_snapshot_has_no_drift` 同时 `FAILED`（`2 failed` rc=1）。这一段的信息量在于：**本门读的是 live schema，不是 committed 快照** —— 快照已经"干净"了，源一回退门照样红，门不会被一份好看的快照喂饱。
+- **还原自证**：跑前 / 跑后 `shasum -a 256` 三文件逐字相同（`925443dc…` / `9df9f7df…` / `ae5d7e0b…`），`git status --porcelain` 仍是三个 `M`。
+- **对照输入（门在无缺陷态是绿的）**：`sec-dangling-green-v2-20260916T195255.txt` 同一条 nodeid `2 passed` rc=0 —— 保证上面的红不是"这条门恒红"。
+
+另有改名前的同型负控 `negative-control-20260916T194827.txt` / `negative-control-rc-20260916T194913.txt`（两条 `pytest_rc=1`），保留作过程留痕。
+
+### (g) pyright 保持 0
+
+`pyright-app-20260916T195022.txt`：绝对路径 + `test -x` 自证（`pyright 1.1.411`）、cwd = `backend/`（R-B14-10）、`grep -E '^[0-9]+ errors?, '` 取汇总（⛔ 未用 `| tail -1`）→ **`0 errors, 81 warnings, 0 informations`**，与 `B14_BASE` 同。本卡零新增 error ⇒ 无需任何 `# pyright: ignore`。**全程未使用 `LEFTHOOK_EXCLUDE=python-typecheck`。**
+
+### (h) tests/unit 目录级
+
+`unit-close-20260916T195010.txt`：`cd backend` 后 `--ignore tests/unit/test_deploy_vault_sh.py`（相对路径，R-B14-3），末行 `35 failed, 5081 passed, 48 skipped, 23 xfailed, 171 warnings, 29 errors in 408.60s`，`rc=1`。
+
+nodeid 口径 diff（`base.nodeids` vs `close.nodeids`，固定 `RUN` 变量防 glob，⛔ 未用 `wc -l` 当判据）：
+
+```
+base = 64   close = 64
+diff base close → 空（diff_rc=0）；'>' 行数 = 0
+```
+
+⇒ **零新增、零消失**，完全落在"只允许 `<`"之内（本卡预期 diff 空，实测即空）。同档 `NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)`。
+
+### (i) 地盘核
+
+`territory-precommit-20260916T195334.txt`（commit 前口径）+ 收工后的 commit 范围口径见「收工复核」节。改动文件恰为方案 A 的三项：
+
+```
+backend/app/security.py
+backend/openapi.json
+backend/tests/contract/test_openapi_contract.py
+```
+
+- `backend/app/main.py` diff = **0 行** ⇒ 方案 A 不碰 `main.py`，**自然不可能越到 `:386-404`（T6-B 面）**；
+- `backend/app/api/v1/system.py` diff = 0 行 ⇒ 禁改面未碰（卡文预言成立：方案名统一后 16 处随之解悬空，无需编辑 system.py）；
+- `backend/tests/conftest.py` / `tests/unit/conftest.py` / 三个只读 contract 文件 diff 合计 = 0 行。
+
+### (j) 现网 / 安全只读
+
+- **不连 7691/7687**：本卡自己的两条路径（取 schema、再生快照）在每一次运行里都打印 `NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)`（`sec-dangling-green-v2-…` / `red-and-negctl-final-…` / `security-key-census-…` / `contract-collect-only-…`）；再生工具的 socket 禁闭有实跑触发证据（见 (d)）。contract 三文件跑出的 `blocked=19` 来自 `test_health_contract` 的真实请求被端口门拦下，`advisory=0 / unaccounted=0`，卡文 (j) 已预先定性。
+- **零写者门**：`git diff --name-only … | grep -cF -e 'fsrs_bridge' -e 'decay_beta'` = **0**；验伪锚 `git ls-files canvas-vault/.claude/scripts | grep -cF …` = **2**（证明 grep 真在数）。两个 `.py` 改动文件正文命中 = 0；对照：`backend/openapi.json` 正文命中 = **2**（其 description 本来就引用这两个名字，卡文点名不得把它放进违规判据 —— 此处作为"grep 没坏"的正向对照）。
+- **live vault**：`git diff --name-only HEAD -- canvas-vault` = 0 行。全程未触发任何 `[readonly-path-guard R…]` 拦截。
+
+### 附加判据（卡文未要求，但与结论相关）
+
+- **全 `security` 面普查** `security-key-census-20260916T195206.txt`：再生后「任何位置的悬空 = `[]`」，全部出现过的方案名 = `['InternalApiKey']` = 声明集。
+- **收集面未被破坏** `contract-collect-only-20260916T195536.txt`：`test_openapi_contract.py` `--collect-only -q` = **91 tests collected**（89 条 schemathesis GET 生成面 + `TestCanvasWorkflow` 1 条 + 本卡新增 1 条），本卡新增的 nodeid 在收集面内（grep = 1）。既有 schemathesis 测试**一行未动**。
+- **ruff** `ruff-final-20260916T195431.txt`（zsh 数组写法，`files=2`；同目录 `ruff-20260916T195047.txt` 是门改名前那一版测试文件上的旧跑，**已被本档取代**，保留作过程留痕）：`ruff check` → `All checks passed!` rc=0；验伪锚用 **F821**（⛔ 不用 F401：`backend/ruff.toml` `select=["E9","F63","F7","F82"]`，F401 未启用，拿它当锚恒不触发）→ `Found 1 error` rc=1。最长行按**字符**计 = 87（security.py）/ 107（测试文件），无 >120 行（⛔ `awk length()` 按字节，`═` 占 3 字节会假报 239）。
+
+---
+
+## 二 已知偏差与登记不阻断项
+
+### 1. `ruff format --check` 在 `backend/app/security.py` 上为红 —— 主干既有，本卡零新增
+
+`ruff-format-preexisting-20260916T195125.txt`，四条判据：
+
+- **A 多重集对照**（协议 §2.3 规定形态）：改前 / 改后各自的 `ruff format --diff` 内容行多重集大小都是 **27**，`after − before` = **0 新增**，`before − after` = 0 消失。
+- **B 行号不交集**：本卡改动行（新文件侧）= `[54…63]`；`ruff format` 想改的行 = `[118…264]`；**交集 = 空**。
+- **C 验伪锚**：B 的 `@@` 解析逻辑对两个已知 hunk 头解出 12 行（期望 9+3），证明它真会命中。
+- **D**：HEAD 版 `security.py` 在同一配置下同样 `Would reformat`（`head_ver_rc=1`）⇒ 红态先于本卡存在。
+
+`ruff format` 想改的四处全在 `require_internal_api_key` / `verify_websocket_internal_key` 函数体（`:118` / `:153` / `:163` / `:226` 起），**没有一处是本卡写的行**。按协议 §2.3 / 手册 §一.1.7 的 462 文件过渡条款：本卡带存档 `LEFTHOOK_EXCLUDE=python-lint` 提交。⛔ **不得顺手 `ruff format`** 改那 27 行存量 —— 那是 D-40 / T8-G 的面，顺手修 = 同文件双写者。
+
+**被跳过门的原始输出** `lefthook-precommit-20260916T200333.txt`（裸调用 `/opt/homebrew/bin/lefthook run pre-commit`，R-B14-1；`lefthook version` = `2.1.6`，31 个 staged 文件，`rc=1`）：
+
+```
+┃  python-lint ❯
+[Python] Running ruff lint...
+All checks passed!
+[Python] Lint OK.
+[Python] Checking format...
+Would reformat: backend/app/security.py
+1 file would be reformatted, 1 file already formatted
+[Python] Format check FAILED! Fix: ruff format backend/app/security.py backend/tests/contract/test_openapi_contract.py
+```
+
+⇒ 被跳过的这道门里，**`ruff check` 那一半是绿的**（同档原文 `All checks passed!` / `[Python] Lint OK.`），红只来自 `ruff format --check` 的存量漂移一项。
+
+同档还证实 **`python-typecheck` 正常跑且通过**：`[Python] Running pyright type check (backend/.venv/bin/pyright)... 0 errors, 0 warnings, 0 informations / [Python] Typecheck done (exit: 0)`（对 staged 文件口径，故 warnings 为 0；全量 `pyright app` 的 81 warnings 见 (g)）。⛔ 全程未使用 `LEFTHOOK_EXCLUDE=python-typecheck`。
+
+### 2. 新发现 —— lefthook 两条 `spec-sync` glob 都不覆盖 `backend/app/security.py`
+
+`lefthook.yml:52` `spec-sync-flat` glob = `backend/app/{api,models,schemas,mcp}/*.py`；`:63` `spec-sync-root` glob = `backend/app/{main.py,config.py}`。`backend/app/security.py` **两条都不命中** ⇒ 改它不会触发 `check-openapi-drift.py --write` 自动再生 + `git add`。
+
+而本卡恰恰证明了**改 `security.py` 会改变 `app.openapi()`**（31 处 per-op 方案名）。这与该 hook 自己的设计意图直接相抵 —— `lefthook.yml:36-39` 写着「`app.openapi()` 不只由 api/models/schemas 塑造 —— `main.py`(路由挂载)/`config.py`(设置与前缀)/`mcp/**`(工具注册改写 schema)都在其中」，枚举里漏了 `security.py` 这一类"塑造安全面"的根级文件。
+
+**hook 自己的实证**（不只是读 glob）：`lefthook-precommit-20260916T200333.txt` 在 `backend/app/security.py` 与 `backend/openapi.json` **都已 staged** 的情况下，仍打印
+
+```
+│  spec-sync-flat (skip) no matching staged files
+│  spec-sync-root (skip) no matching staged files
+```
+
+⇒ 两条 glob 确实都没命中，结论由 hook 自身输出坐实。
+
+**影响面（如实）**：不是本卡的缺陷（本卡按 (d) 手动再生了），但它意味着**将来**有人改 `security.py` 而忘了再生时，hook 不会出声；兜底只剩 `test_openapi_snapshot_drift.py` 这道门。已登记为台账条目 ③，建议归口 T8 工具链或第十五批单独立卡（`lefthook.yml` 是 **T8 独占地盘**，本卡不得改）。
+
+### 3. 门改名与扩覆盖
+
+见 (c)-补。四份改名前的存档保留但不作依据，承重结论只引最终版两份。
+
+### 4. `info.x-generated-at` 每次再生必变
+
+本卡再生的 `backend/openapi.json` 带本次时间戳。按设计 §2/§3，权威再生由主 session 在全部 openapi 改动卡合入后做两次；本卡再生只为车道内 snapshot-drift 门绿。
+
+---
+
+## 三 收工复核（Codex 前的最终态）
+
+见文末「四 Codex 复核」与「五 提交」两节。
+
+---
+
+## 四 本卡未证明什么（≥4）
+
+1. **未证明全量 `test_openapi_contract.py` 通过**。该文件 `--collect-only` 现测 **91 collected**（生成面为 GET-only：89 条 + `TestCanvasWorkflow` + 本卡 1 条），但全量真跑在 W4 端口门下每 op 数分钟（`B14_BASE` 上第二 op >5 分钟被中止），仍是小时级，且它对「方案名/状态码是否被声明」这条性质**不产生信号**（恒 `DeadlineExceeded`，`status_code_conformance` 在历史存档里出现 0 次，RED-A1-sentinel §6⑮）。本卡只用进程内 `app.openapi()` 断言，不以该门的 before/after 差集作为证据。
+2. **未改也未证明运行时鉴权行为的正确性**。本卡证明的是"运行时行为**未变**"（AST + 运行时属性 + 30 条既有测试），不是"它本来就对"。`require_internal_api_key` 的 fail-closed matrix / 403 / 503 行为门归本批 **T10-E `CARD-RED-HYGIENE`**（前身第十三批 U10-E）。
+3. **未证明 CI 上的行为**。所有结论都在本机 Python 3.14 / fastapi 0.135.3 下取得；契约测试不在 `.github/workflows/test.yml` 白名单内，`x-generated-at` 与 schema 导出在 CI 的 3.11/3.12 下是否逐字相同**未对跑**（这条缺口是 `test_openapi_snapshot_drift.py` 模块 docstring 自述的既有缺口，本卡未缩小）。
+4. **未证明主 session 集成期权威再生的 `openapi.json` 与本卡再生逐字节相同**。本卡再生只为车道内门绿；权威态由主 session 在队列 3 完成后再生两次。
+5. **未证明两条 contract 主干既有红的完整根因链**。只定性到：红① = `specs/data/canvas-node.schema.json` 缺失（`B14_BASE` 上同样缺失）；红② = `DeadlineExceeded`。为什么该 schema 文件从未入库、是否该补，未查（红② 与 T10-E 同面）。
+6. **未证明 WebSocket 侧鉴权的契约表达**。`/ws` 与 `/ws/intelligent-parallel/{session_id}` 不产出 OpenAPI operation，其鉴权走 `verify_websocket_internal_key` 手工校验 —— 这意味着**第三方工具从 OpenAPI 读不到 WS 鉴权要求**。本卡只核实了"它不在 OpenAPI 覆盖面内、故不构成悬空"，**没有**评估"WS 鉴权是否应当以别的方式进契约"。
+7. **未证明除这 31 处外无别的鉴权入口**。插件侧 `main.ts` 手发的 `X-CLS-Internal-Key` 本身是对的、不受本卡影响（RED-A1-sentinel §6⑭）；`kg_health.py` 等仍无鉴权端点的真连点收口（§6⑪）在地盘外，未碰。
+8. **未证明 `LEFTHOOK_EXCLUDE=python-lint` 跳过的那次 hook 里没有别的检查项**。已核 `python-lint` 只含 `ruff check` + `ruff format --check` 两步，前者本卡已自跑 rc=0；但未逐行审计 lefthook 在 2.1.6 下对该命令块的完整执行语义。
+
+---
+
+## 五 台账待登记条目（≥4）
+
+1. **CARD-SEC-DANGLING：OpenAPI 悬空 security 引用 31 → 0（`/system/*` 16 → 0）**，方案名统一为已声明的 `InternalApiKey`。**采用方案 A**（`backend/app/security.py` 的 `APIKeyHeader(...)` 加 `scheme_name="InternalApiKey"`），理由 = 修根因 / 避开 `main.py` 与 T6-B 的跨车道交集（本卡对 `main.py` 零改动）/ 运行时零影响可由源码与 AST 证明。门 nodeid = `backend/tests/contract/test_openapi_contract.py::test_security_schemes_cover_all_security_refs`。修复 sha 见文末。
+2. **`backend/openapi.json` 再生**是车道内 snapshot-drift 门绿的最小必要动作；**权威再生由主 session 在集成期做两次**（与其它 openapi 改动卡同批，设计 §3 交集声明）。本卡再生的 diff 面已实证为「恰好 31 处 per-op 方案名重命名 + `info.x-generated-at`」，无额外漂移扫入。
+3. **新发现（建议立卡，归口 T8 / 第十五批）**：lefthook `spec-sync-flat` / `spec-sync-root` 两条 glob 都不覆盖 `backend/app/security.py`，而改该文件确实会改变 `app.openapi()`。与 hook 注释 `lefthook.yml:36-39` 的设计意图相抵。`lefthook.yml` 是 T8 独占地盘，本卡不得改。
+4. **全量 schemathesis 契约门的 `DeadlineExceeded` 瞎点问题**（RED-A1-sentinel §6⑮）+ §6⑯ 两处 `-k` 判据坑，本卡未解；建议与 W4 端口门调参 / 契约门重构单独立卡。
+5. **两条 contract 主干既有红**定性为 `B14_BASE` 既有、登记不阻断：`test_pattern_matches_json_schema`（根因本次定死 = `specs/data/canvas-node.schema.json` 缺失，`08100483` 上同样缺失）与 `test_health_contract[GET /api/v1/health]`（`DeadlineExceeded`，与 T10-E 同面）。
+6. **错名闭环**：排批稿的 `backend/app/core/security.py` 不存在，真名 `backend/app/security.py` —— 已由 R-B14-8 批准、手册 §一 T5 行与设计稿均已回填 ⇒ 台账只登「错名已闭环、无待回填项」。本卡开工复测：`core/security.py` → `No such file or directory`。
+7. **`ruff format --check` 过渡条款用例**：本卡带存档 `LEFTHOOK_EXCLUDE=python-lint` 提交，依据 = 多重集对照 0 新增 + 行号不交集（见 §二.1）。归 D-40 / T8-G。
+8. **本卡判据自曝一条**：再生 diff 面的第一版判据因 `flat()` 吞空容器而对「`{"APIKeyHeader": []}` 的方案名层」完全失明，报「0 差异」形似绿实为瞎（`dangling-count-after-20260916T194629.txt` 内），已由 `regen-diff-surface-20260916T194646.txt` 修正并加验伪锚。**教训可复用：比对 JSON 契约时，「键才是信息、值是空容器」的结构会被朴素扁平化静默丢弃。**
+9. **tests/unit 目录级** diff 对 64 基线**零差集**；**pyright `app` = 0 errors / 81 warnings** 留档。
+10. **门覆盖面扩到全 `security` 面并改名**（`…cover_all_per_op_refs` → `…cover_all_security_refs`），依据 = 普查实测根节点是 (b) 原口径唯一未盖的引用面；是加强不是放宽，先红数字不变（31/16）。
+
+---
+
+## 六 4-B：这次改动对你意味着什么（零技术词）
+
+把后端那套"接口说明书"里「要带内部钥匙才能用」的标注，统一成了同一个名字。
+
+原先说明书上有 **31 处**（其中 16 处是系统管理那一块）写了个**没定义过的名字** —— 就像一份合同里反复写"详见附件三"，可附件里根本没有第三条。人看着像漏洞，自动化工具读到这儿只能放弃，没法自动生成"带钥匙"的调用代码，也没法在接口文档页面上正确点亮那个"授权"按钮。
+
+现在这 31 处都指向同一条已经写明白的规则了。**谁能用、要带什么钥匙，这件事本身一点没变**——变的只是说明书上的写法从"指向不存在的条款"变成"指向真实存在的那一条"。
+
+**felt-sense**：之前那种"我知道锁是好的，但合同上写得让人没法信"的别扭感没有了。接口契约终于自洽 —— 可以放心把这份说明书丢给第三方工具去读，而不用先口头解释一句"那个名字你别管，实际是另一个"。
+
+---
+
+## 七 Codex 复核
+
+见本节下方（按轮次追加）。
+
+## 八 提交
+
+见本节下方。

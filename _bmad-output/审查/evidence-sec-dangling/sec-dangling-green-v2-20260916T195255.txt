@@ -1,0 +1,10 @@
+# 自绑定: HEAD=2287e2583c54472d238e8b8eec87bb1e9e95c9e8  （门扩到全覆盖并改名后重取绿）
+# security.py sha256=925443dce1f90b35391898dc7cfa45c436107b7d015ed9f24e30c90e0e361904
+# test_openapi_contract.py sha256=ae5d7e0b97b657972477f55ff2f6437e28432941d637b031d75e5cf1ef7cec51
+# openapi.json sha256=9df9f7df7fdb9a8f4d5ae22aa0886fe8e36d0e66f4e106a1579801c9824bab79
+collected 2 items
+tests/contract/test_openapi_contract.py .                                [ 50%]
+tests/contract/test_openapi_snapshot_drift.py .                          [100%]
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================== 2 passed, 10 warnings in 1.26s ========================
+rc=0

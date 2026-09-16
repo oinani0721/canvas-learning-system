@@ -51,6 +51,16 @@ INTERNAL_API_KEY_HEADER_NAME = "X-CLS-Internal-Key"
 #: fail-closed matrix manually instead of letting FastAPI raise 403 by default.
 INTERNAL_API_KEY_HEADER = APIKeyHeader(
     name=INTERNAL_API_KEY_HEADER_NAME,
+    # CARD-SEC-DANGLING [BATCH-2026-09-11-第十四批]: 不传 scheme_name 时 FastAPI 按**类名**
+    # 命名安全方案(`fastapi/security/api_key.py` 的
+    # `self.scheme_name = scheme_name or self.__class__.__name__`), 于是 get_openapi 往每个
+    # operation 的 `security` 里写 `APIKeyHeader`; 而 `app/main.py:_custom_openapi` 又把
+    # `components.securitySchemes` 整体覆盖成只含 `InternalApiKey` ⇒ 31 处 per-op 引用
+    # (含 /system/* 16 处)在 securitySchemes 里无定义 = 悬空, 第三方工具读不懂鉴权契约。
+    # 这里把方案名钉成与 main.py 覆盖后同名。**纯文档/契约层**: `scheme_name` 只进 OpenAPI,
+    # `APIKeyHeader.__call__` 只读 `self.model.name`(即下面的 header 名), 运行时鉴权
+    # (require_internal_api_key 的 fail-closed matrix / auto_error=False)一字未改。
+    scheme_name="InternalApiKey",
     auto_error=False,
     description=(
         "Device-scoped internal API key. Required for sync/batch and other "

@@ -192,3 +192,118 @@ class TestCanvasWorkflow:
         # Accept both 200 (placeholder) and 201 (real implementation)
         assert response.status_code in [200, 201]
         assert "id" in response.json()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Security scheme 悬空引用门(非 schemathesis) — CARD-SEC-DANGLING
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# [BATCH-2026-09-11-第十四批 / CARD-SEC-DANGLING]
+#
+# 本门证明什么: 真实 `app.openapi()` 里**每一处** `security` 引用(31 处 per-operation +
+#   1 处文档根全局)的方案名都能在 `components.securitySchemes` 找到定义 —— 即契约零悬空。
+#   覆盖面的完整性依据见 `_iter_security_refs` 的 docstring(本仓快照普查实测)。
+# 本门不证明什么:
+#   - 不验证运行时鉴权行为(`require_internal_api_key` 的 fail-closed matrix / 403 / 503
+#     归本批 T10-E), 本门是纯文档/契约层断言;
+#   - 不验证 committed `backend/openapi.json` 是否与 live 同步(那是同目录
+#     `test_openapi_snapshot_drift.py::test_committed_snapshot_has_no_drift`);
+#   - 不验证方案定义本身的字段(type / in / name)是否写对。
+#
+# 为什么不复用同文件的 schemathesis 门: `test_api_contract` 每个 operation 都发真实
+#   HTTP 请求, 在 W4 端口门下每次 16-19s > `deadline=10000` ⇒ 恒 `DeadlineExceeded`,
+#   对「方案名是否被声明」这条**纯静态**性质是瞎的。本门只做进程内 schema 断言,
+#   不发任何请求、不经 `@schema.parametrize()`(故可按 nodeid 直接点选)。
+#
+# 取 schema 的路径与快照漂移门**同源**: 复用
+#   `scripts/spec-tools/check-openapi-drift.py::load_live_schema()` —— 它对
+#   `import app.main` 与 `app.openapi()` 全程 socket-connect 禁闭, 不起 lifespan、
+#   不连 7691/7687。同源保证本门与漂移门看见的是同一份 schema。
+
+
+def _load_drift_module_for_security():
+    """加载文件名带连字符的 drift 工具(不能走普通 import; 与漂移门同法)。"""
+    import importlib.util
+    import sys
+    from pathlib import Path
+
+    backend_dir = Path(__file__).resolve().parents[2]
+    tool = backend_dir.parent / "scripts" / "spec-tools" / "check-openapi-drift.py"
+    spec = importlib.util.spec_from_file_location("_check_openapi_drift_secdangling", tool)
+    if spec is None or spec.loader is None:  # pragma: no cover — 路径错时立即失败
+        raise RuntimeError(f"无法加载 {tool}")
+    module = importlib.util.module_from_spec(spec)
+    previous = sys.dont_write_bytecode
+    sys.dont_write_bytecode = True  # 不往 scripts/spec-tools/ 落 __pycache__
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        sys.dont_write_bytecode = previous
+    return module
+
+
+def _iter_security_refs(schema):
+    """产出 (位置, 方案名) —— schema 里**每一处** `security` 需求引用的每个方案名。
+
+    覆盖面 = OpenAPI 3.1 里 `security` 的两个合法位置:
+      - 每个 operation 的 `paths[<path>][<method>].security` (位置写作 "GET /api/v1/x");
+      - 文档根的全局 `security` (位置写作 "<root>")。
+    2026-09-16 于本仓快照普查实测: 这两处合计 32 处(31 per-op + 1 root)已是全部 ——
+    该 schema 无 `webhooks`、无 `components.callbacks`/`pathItems`; WebSocket 路由
+    (`app/main.py` 的 `@app.websocket`)不产出 OpenAPI operation, 其鉴权走
+    `app/security.py::verify_websocket_internal_key` 手工校验, 根本不是 OpenAPI 安全方案,
+    故不在本门(也不在任何 OpenAPI 契约门)的覆盖面内。
+    """
+    for requirement in schema.get("security") or []:
+        for scheme_name in requirement:
+            yield "<root>", scheme_name
+    for path, methods in (schema.get("paths") or {}).items():
+        for method, operation in methods.items():
+            if not isinstance(operation, dict):
+                continue
+            for requirement in operation.get("security") or []:
+                for scheme_name in requirement:
+                    yield f"{method.upper()} {path}", scheme_name
+
+
+def test_security_schemes_cover_all_security_refs():
+    """每一处 `security` 引用的方案名必须 ∈ `components.securitySchemes`(悬空数必须等于 0)。
+
+    两条防 vacuous-pass 的前置断言不可删: 若 `securitySchemes` 为空、或整份 schema 一条
+    `security` 需求都没有, 悬空集自然是空集 —— 那时本门「绿」不代表契约自洽。
+    """
+    drift = _load_drift_module_for_security()
+    schema = drift.load_live_schema()
+
+    declared = set((schema.get("components") or {}).get("securitySchemes") or {})
+    assert declared, (
+        "components.securitySchemes 为空 —— 本门会 vacuously pass。"
+        "先查 `app/main.py:_custom_openapi` 是否还在写 securitySchemes。"
+    )
+
+    refs = list(_iter_security_refs(schema))
+    assert refs, (
+        "整份 schema 没有任何 `security` 需求 —— 本门会 vacuously pass。"
+        "先查安全依赖(`Depends(require_internal_api_key)`)是否还挂在路由上。"
+    )
+    per_op_refs = [ref for ref in refs if ref[0] != "<root>"]
+    assert per_op_refs, (
+        "整份 schema 没有任何 per-operation `security`(只剩全局 security) —— 本门对 per-op 面会"
+        " vacuously pass。先查安全依赖是否还挂在路由上。"
+    )
+
+    dangling = [ref for ref in refs if ref[1] not in declared]
+    system_dangling = [ref for ref in dangling if "/system/" in ref[0]]
+
+    assert not dangling, (
+        f"OpenAPI 契约里有 {len(dangling)} 处 security 悬空引用"
+        f"(其中 /system/* {len(system_dangling)} 处) —— 方案名不在 "
+        f"components.securitySchemes={sorted(declared)} 里, 第三方工具无法推导鉴权。\n"
+        "常见根因: `fastapi.security.APIKeyHeader(...)` 未传 `scheme_name=`, FastAPI 退回按**类名**"
+        "命名(`fastapi/security/api_key.py` 的 `self.scheme_name = scheme_name or self.__class__.__name__`), "
+        "而 `app/main.py:_custom_openapi` 又整体覆盖了 securitySchemes。\n"
+        f"引用总数={len(refs)}(其中 per-op {len(per_op_refs)}); 悬空前 10 条 (位置 -> 方案名):\n"
+        + "\n".join(f"  {loc} -> {name}" for loc, name in dangling[:10])
+        + "\n其中 /system/* 前 5 条:\n"
+        + "\n".join(f"  {loc} -> {name}" for loc, name in system_dangling[:5])
+    )

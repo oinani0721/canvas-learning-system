@@ -1,0 +1,14 @@
+# 自绑定: HEAD=2287e2583c54472d238e8b8eec87bb1e9e95c9e8  （补 negative-control-20260916T194827.txt 被 head -20 截掉的 rc/汇总行）
+## 跑前 sha256: 925443dce1f90b35391898dc7cfa45c436107b7d015ed9f24e30c90e0e361904
+## 变异态 sha256: 8c8c9098cb7d4cfd4e3a156cc9b82316e814fbff669d1f035b3c6c1d7c4c6cc7
+## 对照：验伪锚 — 同一条判据在**未变异**态下是绿的（见 sec-dangling-green-20260916T194658.txt: 2 passed rc=0）
+## 负控① 汇总行 + rc:
+pytest_rc=1
+FAILED tests/contract/test_openapi_contract.py::test_security_schemes_cover_all_per_op_refs
+======================== 1 failed, 10 warnings in 1.55s ========================
+## 负控② 汇总行 + rc:
+pytest_rc=1
+FAILED tests/contract/test_openapi_snapshot_drift.py::test_committed_snapshot_has_no_drift
+======================== 1 failed, 10 warnings in 1.17s ========================
+## 跑后 sha256（须 = 925443dc…）:
+925443dce1f90b35391898dc7cfa45c436107b7d015ed9f24e30c90e0e361904  backend/app/security.py

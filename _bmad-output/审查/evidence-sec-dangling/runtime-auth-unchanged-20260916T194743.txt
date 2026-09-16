@@ -1,0 +1,19 @@
+# 自绑定: HEAD=2287e2583c54472d238e8b8eec87bb1e9e95c9e8
+# before sha256=8c8c9098cb7d4cfd4e3a156cc9b82316e814fbff669d1f035b3c6c1d7c4c6cc7  after sha256=925443dce1f90b35391898dc7cfa45c436107b7d015ed9f24e30c90e0e361904
+## ---- 层 1: AST 等价（注释不进 AST；逐个顶层定义比对）----
+顶层节点序列 相同 = True
+AST 不同的顶层节点数 = 1
+  节点[10] Assign:
+    before keywords = ['name', 'auto_error', 'description']
+    after  keywords = ['name', 'scheme_name', 'auto_error', 'description']
+    新增 keyword = ['scheme_name']  删除 keyword = []
+    剔除 scheme_name keyword 后 AST 与 before 相同 = True
+顶层函数/类名集合 相同 = True ['require_internal_api_key', 'verify_websocket_internal_key']
+每个顶层函数/类 AST 逐个相同 = True
+## ---- 层 2: 运行时属性（header 名 / auto_error / 方案名）----
+INTERNAL_API_KEY_HEADER_NAME = 'X-CLS-Internal-Key'
+model.name (真正决定运行时读哪个 header) = 'X-CLS-Internal-Key'
+auto_error = False
+scheme_name (只进 OpenAPI) = 'InternalApiKey'
+model.in_ = header
+rc=0
