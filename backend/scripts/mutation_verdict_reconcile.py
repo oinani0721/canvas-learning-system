@@ -204,7 +204,31 @@ def ast_mutation_count(source_name: str) -> int:
     # ⛔ Codex round-6 MEDIUM：只看 `Name` 的 `Store`/`Del` **不够** —— `MUTATIONS[:0] = [9]`
     # 与 `del MUTATIONS[0]` 里的 `MUTATIONS` 是 **Load** 上下文（写入位是外层的 `Subscript`），
     # 于是切片增删又一次「少算而不出声」。这里补上三类：下标写入、下标删除、`del MUTATIONS`。
+    # ⛔⛔⛔ round-18（Codex round-15 MEDIUM）：`MUTATIONS` **自己**也会被非 `Name` 的绑定
+    # 形态重绑 —— `match [1,2,3,4]: case MUTATIONS:` 走 `ast.MatchAs.name`（一个**字符串**
+    # 字段，不是 `Name` 节点）⇒ 下面那条按 `Name(Store/Del)` 的核**看不见**它，实测运行时 4 条、
+    # 上一版 AST 数 3 条。⚠️ 这与 round-17 修的是**同一个洞的另一半**：那次修的是 `len`，
+    # 这次是 `MUTATIONS` 本身 —— 改 `len` 时只想着「谁被调用」，没回头问「这张名字表对**它**
+    # 自己成不成立」。
+    # ⇒ 判据不按**节点类型**枚举（那条路已被换入口绕开七次），按**字段位置**：任何节点
+    # （`Name` 与 `Constant` 除外）只要**自己的某个字符串字段**恰好是 `"MUTATIONS"`，
+    # 就说明这个名字出现在一个**名字位**上而不是读取位 ⇒ 数不出来，抛。
+    #   · 排除 `Name` —— 每一次**读** `MUTATIONS` 都是 `Name.id`，由下面的 ctx 分支与读白名单管；
+    #   · 排除 `Constant` —— 文档串/消息里提到 `MUTATIONS` 不是绑定。
+    # 这条规则**自动**覆盖 `MatchAs.name` / `MatchStar.name` / `MatchMapping.rest` /
+    # `ExceptHandler.name` / `alias.asname` / `FunctionDef.name` / `Global.names` …
+    # 以及以后新增的同形语法（它们都把名字放在字符串字段里）。
+    # ⚠️ 实测四套源码命中 **0 处**（各 0/0/0/0），不挡任何现有合法写法。
     for node in ast.walk(tree):
+        if not isinstance(node, (ast.Name, ast.Constant)):
+            for field in node._fields:
+                value = getattr(node, field, None)
+                if value == "MUTATIONS" or (isinstance(value, list) and any(v == "MUTATIONS" for v in value)):
+                    raise ReconcileError(
+                        f"{source_name}:{getattr(node, 'lineno', '?')} `MUTATIONS` 出现在 "
+                        f"`{type(node).__name__}.{field}` 这个**名字位**上（不是读取位）—— "
+                        f"⛔ 它可能是一次重绑定，分母数不出来"
+                    )
         if isinstance(node, ast.Name) and node.id == "MUTATIONS" and isinstance(node.ctx, (ast.Store, ast.Del)):
             if id(node) not in counted_targets:
                 raise ReconcileError(

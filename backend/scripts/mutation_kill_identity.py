@@ -286,13 +286,20 @@ def _split_unique(line: str, nodeid: str) -> bool:
         ⇒ 整行读法只有在 `gate_hit()` 为真（`== nodeid` 或 `startswith(nodeid + "[")`，
         这正是 pytest 的选择规则）时才**可能**产生；r14 那条读法为假 ⇒ 那行摘要
         在本 harness 里根本产生不出来；
-      · **选得到的那些怎么办** —— pytest **总会**给摘要补 ` - <异常类名>`（消息为空也补：
-        `AssertionError("")` → `- AssertionError`、`pytest.fail("")` → `- Failed`）
-        ⇒ 可被选中的怪名字**必然**造出**第二个** ` - ` 切点 ⇒ 本函数判二义 ⇒ 整行进
-        `unparsed_failure_lines()` ⇒ HARNESS-ERROR。
-    ⇒ 剩余面因此是**有界**的：起真 pytest 子进程跑过的四个怪名字变体，全部判 HARNESS-ERROR，
-    无一假 KILLED（`test_h1_real_pytest_exotic_but_selectable_name_is_harness_error` 钉住，
-    该用例同时钉住第三条腿 —— pytest 哪天不补后缀了，它先红）。
+      · **选得到的那些怎么办** —— 分两种，⛔ 这里曾经写成「pytest **总会**补后缀」，
+        被 Codex round-15 LOW 指出说得比事实宽，实测确认并改写：
+        ‣ **行宽放得下**时 pytest 会补 ` - <异常类名>`，消息为空也补
+          （`AssertionError("")` → `- AssertionError`、`pytest.fail("")` → `- Failed`）
+          ⇒ 造出**第二个** ` - ` 切点 ⇒ 本函数判二义 ⇒ 整行进 `unparsed_failure_lines()`；
+        ‣ **行宽放不下**时（`judge_env()` 钉 `COLUMNS=1000`，而 nodeid 可以更长）后缀被
+          **整条省掉** —— 实测 `test_x[<1100 个 a>] - EXPECT]tail` 的摘要行长 1143、
+          只剩**一个**切点，本函数判「唯一」⇒ 这一路**不**由 H1 兜。
+          兜住它的是**另一条腿**：`--tb=line` 的位置行是**独立信源**，那一路实测判
+          HARNESS-ERROR，诊断直接点名「它其实是**测试名**的一部分而不是断言消息」。
+    ⇒ 剩余面因此是**有界**的，但兜住它的**不是同一道判据**：起真 pytest 子进程跑过的
+    五个怪名字变体（三个短的走 H1 二义、一个超宽的走位置行交叉核、一个不可选中的压根不出现），
+    全部判 HARNESS-ERROR，无一假 KILLED
+    （`test_h1_real_pytest_exotic_but_selectable_name_is_harness_error` 钉住全部五个）。
 
     **候选判据认下的读法（对 `FAILED <body>` 一行）**：
       · **完整 reason**    —— `<nodeid> - <reason>`，在某个 ` - ` 处切开；
