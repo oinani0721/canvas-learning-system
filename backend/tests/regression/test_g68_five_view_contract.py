@@ -35,8 +35,12 @@ TZ_SH = "Asia/Shanghai"
 TZ_LA = "America/Los_Angeles"
 
 
-def _run(tmp_path: Path, now: str = NOW_EARLY, tz: str = TZ_SH, name: str = "r") -> tuple[int, dict, str]:
-    """跑一次契约脚本, 返回 (rc, 报告 JSON, stdout)。"""
+def _run(tmp_path: Path, now: str = NOW_EARLY, tz: str = TZ_SH, name: str = "r") -> tuple[int, dict, str, str]:
+    """跑一次契约脚本, 返回 (rc, 报告 JSON, stdout, stderr)。
+
+    ⛔ stderr 也要带出来（Codex r3 LOW-8）: 契约判红时把计算期被测模块的 stdout
+    回放到 stderr, 丢掉它等于「直接跑 CLI 看得到诊断、经本门跑就看不到」。
+    """
     out = tmp_path / f"{name}.json"
     proc = subprocess.run(
         [PY, str(SCRIPT), "--now", now, "--tz", tz, "--json", str(out)],
@@ -46,7 +50,7 @@ def _run(tmp_path: Path, now: str = NOW_EARLY, tz: str = TZ_SH, name: str = "r")
         env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
     )
     assert out.is_file(), f"契约脚本没有产出报告\nstdout:\n{proc.stdout}\nstderr:\n{proc.stderr}"
-    return proc.returncode, json.loads(out.read_text(encoding="utf-8")), proc.stdout
+    return proc.returncode, json.loads(out.read_text(encoding="utf-8")), proc.stdout, proc.stderr
 
 
 # ───────────────────────────── (d)① 主断言 ─────────────────────────────
@@ -54,13 +58,20 @@ def _run(tmp_path: Path, now: str = NOW_EARLY, tz: str = TZ_SH, name: str = "r")
 
 def test_five_view_matrix_is_field_wise_consistent(tmp_path):
     """五面矩阵逐板逐字段全等（已登记分歧除外）。"""
-    rc, report, _ = _run(tmp_path)
-    assert report["undeclared_divergences"] == [], "五面出现未登记的口径分歧:\n" + "\n".join(
-        f"  板={r['board']} 字段={r['field']} 面={r['face']} "
-        f"值={r['value']} ≠ 多数派{r['majority_faces']}={r['majority_value']}"
-        for r in report["undeclared_divergences"]
+    rc, report, _, err = _run(tmp_path)
+    assert report["undeclared_divergences"] == [], (
+        "五面出现未登记的口径分歧:\n"
+        + "\n".join(
+            f"  板={r['board']} 字段={r['field']} 面={r['face']} "
+            f"值={r['value']} ≠ 多数派{r['majority_faces']}={r['majority_value']}"
+            for r in report["undeclared_divergences"]
+        )
+        # ⛔ 把契约的 stderr 一起贴出来（Codex r3 LOW-8）: 判红时契约会把计算期
+        #    被测模块的 stdout 回放到 stderr, 而 `_run()` 原先把它丢掉 ——
+        #    直接跑 CLI 看得到诊断、经本门跑就看不到, 排障的人拿不到同一份信息。
+        + (f"\n── 契约 stderr ──\n{err}" if err.strip() else "")
     )
-    assert report["verdict"] == "PASS"
+    assert report["verdict"] == "PASS", f"verdict={report['verdict']}\n── 契约 stderr ──\n{err}"
     assert rc == 0
 
 
@@ -70,7 +81,7 @@ def test_matrix_actually_compares_something(tmp_path):
     ⛔ 没有这条, 「零分歧」既可能是真一致, 也可能是「所有面都不产出任何字段」
     （矩阵全是 NOT_PRODUCED, 比对循环一次都没进去）。
     """
-    _, report, _ = _run(tmp_path)
+    _, report, _, _ = _run(tmp_path)
     compared = 0
     for board in report["boards"]:
         for field in contract.FIELDS:
@@ -100,7 +111,7 @@ def test_declared_divergences_are_pinned_by_identity(tmp_path):
         ("skill_inbox", "display_day"),
     }, "已登记分歧集合变了 —— 新增/删除必须同时更新验收单台账与本断言"
 
-    _, report, _ = _run(tmp_path)
+    _, report, _, _ = _run(tmp_path)
     for row in report["declared_divergences"]:
         assert (row["face"], row["field"]) in {("skill_inbox", "display_day")}
 
@@ -210,6 +221,27 @@ def test_missing_never_counts_as_agreement():
     )
 
 
+def test_bucket_node_identity_is_anchored_on_the_fixture():
+    """板级锚之外还有**节点级**锚: 板还在、板级清单也完整时, 少一个节点必须判红。
+
+    ⛔ Codex r3 HIGH-2: 两面同时丢掉板内的**一个节点**, 板级锚毫无反应。
+    """
+    full = {
+        face: {
+            board: {"bucket": tuple(sorted((n, "due_now") for b, n in contract.FIXTURE_BUCKET_NODES if b == board))}
+            for board in contract.FIXTURE_BOARDS
+        }
+        for face in contract.FIELD_PRODUCERS["bucket"]
+    }
+    contract.check_bucket_node_identity(full)  # 完整时不抛
+
+    short = {face: {b: dict(r) for b, r in rows.items()} for face, rows in full.items()}
+    for rows in short.values():
+        rows["板-到期"]["bucket"] = tuple(p for p in rows["板-到期"]["bucket"] if p[0] != "同板未来")
+    with pytest.raises(contract.ContractError, match="与 fixture 不符"):
+        contract.check_bucket_node_identity(short)
+
+
 def test_board_index_does_not_come_from_the_faces():
     """矩阵行索引有**独立于被测面**的锚（fixture 自报的板清单）。
 
@@ -232,15 +264,23 @@ def test_board_index_does_not_come_from_the_faces():
 
 
 def test_ranked_completeness_is_checked():
-    """空队列 / 点名板缺席都要当场抛, 不许读成「顺序没问题」。
+    """空队列 / 队列成员与期望集合不符, 都要当场抛。
 
-    ⛔ Codex r2 MEDIUM-5: `ranked=[]` 原先照样过; 而被推迟的板如果根本不进队列,
-    让位判定对它是空转。
+    ⛔ Codex r2 MEDIUM-5 → r3 MEDIUM-4: `ranked=[]` 原先照样过; 而「只要求点名的
+    那几块在场」时, 把队列砍到只剩让位板仍然全过 —— 分区条件在那种队列上退化成
+    恒真。判据改成**集合相等**: 少一块（让位判定对它空转）、多一块（混进不该在的
+    板）两侧都要说话。
     """
     with pytest.raises(contract.ContractError, match="ranked 为空"):
         contract.check_ranked_yield_partition([], {"A"})
-    with pytest.raises(contract.ContractError, match="缺席"):
-        contract.check_ranked_yield_partition([{"board": "A"}], {"B"}, require_in_ranked={"B"})
+    # 少一块
+    with pytest.raises(contract.ContractError, match="板集合与期望不符"):
+        contract.check_ranked_yield_partition([{"board": "A"}], {"B"}, require_exact_boards={"A", "B"})
+    # 多一块
+    with pytest.raises(contract.ContractError, match="板集合与期望不符"):
+        contract.check_ranked_yield_partition([{"board": "A"}, {"board": "X"}], {"A"}, require_exact_boards={"A"})
+    # 恰好相等时不抛（且让位板在后）
+    contract.check_ranked_yield_partition([{"board": "A"}, {"board": "B"}], {"B"}, require_exact_boards={"A", "B"})
 
 
 def test_inbox_date_divergence_is_really_detected(tmp_path):
@@ -249,7 +289,7 @@ def test_inbox_date_divergence_is_really_detected(tmp_path):
     这条同时是 `DECLARED_DIVERGENCES` 的验伪锚: 如果 inbox 这一面根本没进矩阵,
     白名单就是在给一件不存在的事发豁免。
     """
-    rc, report, _ = _run(tmp_path, tz=TZ_LA, name="la")
+    rc, report, _, _ = _run(tmp_path, tz=TZ_LA, name="la")
     board = report["boards"][0]
     inbox_day = report["matrix"][board]["display_day"]["skill_inbox"]
     picker_day = report["matrix"][board]["display_day"]["picker"]
@@ -297,6 +337,13 @@ def test_review_app_static_gate_catches_a_bare_due_calculation(tmp_path):
         pytest.param('def _d(n, t):\n    return n["fsrs_due"] <= t\n', id="下标"),
         pytest.param('def _d(n):\n    return n.get("due_reason") == "scheduled"\n', id="get"),
         pytest.param('def _d(n):\n    return n.pop("fsrs_state", None)\n', id="pop"),
+        # ── Codex r3 HIGH-1: 字段名只是**子串** / 藏在默认参数 / getattr 实参 ──
+        pytest.param(
+            'import re as _r\n\ndef _d(t):\n    return _r.search(r"^fsrs_due: *(.*)$", t, _r.M)\n',
+            id="正则子串",
+        ),
+        pytest.param('def _d(n, key="fsrs_due"):\n    return n.get(key)\n', id="默认参数"),
+        pytest.param('def _d(n):\n    return getattr(n, "fsrs_state", None)\n', id="getattr"),
     ],
 )
 def test_review_app_gate_catches_dict_key_due_reads(tmp_path, injected):
@@ -313,6 +360,22 @@ def test_review_app_gate_catches_dict_key_due_reads(tmp_path, injected):
         contract.assert_review_app_has_no_due_algorithm(tainted)
 
 
+def test_shared_order_placeholder_is_not_an_offender():
+    """`__BUCKET_ORDER_JSON__` 这个注入占位符**不算**违约。
+
+    ⛔ 它恰恰是「共享不复制」的体现（review_app 把 import 来的桶序注进页面模板）。
+    判据用**词边界**而不是裸包含, 就是为了放过它 —— 这条是词边界那一改的验伪锚:
+    改回裸包含, 生产文件当场误报。
+    """
+    result = contract.assert_review_app_has_no_due_algorithm(
+        WT / "backend" / "app" / "api" / "v1" / "endpoints" / "review_app.py"
+    )
+    assert result["offenders"] == []
+    # 豁免面摊开可见（按身份, 不按长度）
+    assert [n for n, _ in result["exempted_strings"]] == ["_PAGE_TEMPLATE"]
+    assert result["docstring_len"] > 0
+
+
 def test_review_app_static_gate_catches_losing_the_shared_import(tmp_path):
     """验伪锚之二: 断掉「共享不复制」的 import, 静态断言必须说话。"""
     src = (WT / "backend" / "app" / "api" / "v1" / "endpoints" / "review_app.py").read_text(encoding="utf-8")
@@ -327,7 +390,7 @@ def test_review_app_static_gate_catches_losing_the_shared_import(tmp_path):
 
 def test_snoozed_and_done_agree_across_faces(tmp_path):
     """推迟 / 完成两列在产出它们的面之间逐板相等。"""
-    _, report, _ = _run(tmp_path)
+    _, report, _, _ = _run(tmp_path)
     for board in report["boards"]:
         for field in ("snoozed", "done"):
             cells = report["matrix"][board][field]
@@ -372,7 +435,7 @@ def test_tonight_available_tracks_now_hour_lt_20(tmp_path, now, expect_tonight):
 
     两档都跑: 只测一档的话, 把判定写成恒 True / 恒 False 都能过。
     """
-    _, report, _ = _run(tmp_path, now=now, name=f"t{expect_tonight}")
+    _, report, _, _ = _run(tmp_path, now=now, name=f"t{expect_tonight}")
     t = report["tonight_available"]
     assert t["expected_now_hour_lt_20"] is expect_tonight, f"fixture 没落在预期档: 当地 hour={t['now_local_hour']}"
     assert t["from_overview"] is expect_tonight
@@ -449,8 +512,8 @@ def test_strict_majority_still_names_only_the_outlier():
 
 def test_two_runs_are_byte_identical(tmp_path):
     """同一输入二跑输出逐字节相等（禁止把时刻 / 临时路径 / 内存地址打进报告）。"""
-    _, _, out1 = _run(tmp_path, name="d1")
-    _, _, out2 = _run(tmp_path, name="d2")
+    _, _, out1, _ = _run(tmp_path, name="d1")
+    _, _, out2, _ = _run(tmp_path, name="d2")
     assert out1 == out2, "契约脚本输出不确定 —— 它不能当回归判据"
 
 

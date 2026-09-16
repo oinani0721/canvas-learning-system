@@ -35,6 +35,7 @@ import ast
 import io
 import json
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -139,6 +140,28 @@ class ContractError(RuntimeError):
 #: fixture 的那份板清单。各面多报的板仍然并集进来（多报同样要判红）。
 FIXTURE_BOARDS: frozenset[str] = frozenset({"板-到期", "板-新卡", "板-学习中", "板-脏日期", "板-今天晚些", "板-未来"})
 
+#: 板级锚不够 —— 还要**节点级**（Codex r3 HIGH-2）: 只丢掉板内的**一个节点**时,
+#: 板还在、`FIXTURE_BOARDS` 也完整, 两面又同时丢同一个节点 ⇒ 矩阵毫无反应。
+#: 这里写死「应当出现在五桶里的 (板, 节点) 对」: fixture 里已归板且未被 ineligible
+#: 拦下的那些（占位 / TestConcept 进 ineligible, 孤儿没有 source_board, 都不在内）。
+FIXTURE_BUCKET_NODES: frozenset[tuple[str, str]] = frozenset(
+    {
+        ("板-到期", "规范到期"),
+        ("板-到期", "同板未来"),
+        ("板-新卡", "无type"),
+        ("板-学习中", "学习中"),
+        ("板-脏日期", "脏due"),
+        ("板-今天晚些", "今天晚些"),
+        ("板-未来", "远期"),
+    }
+)
+
+#: fixture 刻意推迟的那块板 —— 它在**没有推迟**时会排在 `ranked` 首位。
+#: ⛔ 选它不是随手（Codex r3 MEDIUM-5）: 原先推迟的板本来就在队尾, 于是把
+#: `snoozed={}` 传进去矩阵照样全绿 —— 那条判据分不出「让位生效」与「压根没推迟」。
+#: 推迟一块**本该排第一**的板, 才能用「它不在首位」这条独立期望把消费钉住。
+FIXTURE_SNOOZED_BOARD = "板-到期"
+
 
 def _node_md(board: str, extra: str = "") -> str:
     return f'---\ntype: concept\nsource_board: "[[原白板/{board}]]"\n{extra}---\n真实内容。\n'
@@ -234,7 +257,7 @@ def _board_bucket_rows(bucket_map: dict[str, list[dict]]) -> dict[str, tuple]:
 
 
 def check_ranked_yield_partition(
-    ranked: list[dict], yielded: set[str], *, require_in_ranked: set[str] | None = None
+    ranked: list[dict], yielded: set[str], *, require_exact_boards: set[str] | None = None
 ) -> None:
     """picker 的 snooze/done 结论**被消费**的可观察后果: 让位分区。
 
@@ -254,15 +277,15 @@ def check_ranked_yield_partition(
     #    `ranked` 整个清空照样过 —— 「没有队列」不该被读成「顺序没问题」。
     if not boards:
         raise ContractError("picker 的 ranked 为空 —— 没有队列就谈不上让位分区, 这一条不能当绿灯")
-    # ⛔ 点名要求某些板必须在队列里（Codex r2 MEDIUM-5 的第二半）: 被推迟的板如果
-    #    根本不进 ranked, 「让位」这件事就没被这条判据碰到过, 它对 snooze 是空转。
-    if require_in_ranked:
-        absent = sorted(b for b in require_in_ranked if b not in boards)
-        if absent:
-            raise ContractError(
-                f"这些板被点名要求出现在 picker 的 ranked 里却缺席: {absent} —— "
-                "对它们的让位判定是空转（fixture 没让 snooze/done 真正被消费到）"
-            )
+    # ⛔ 队列成员必须**恰好**是期望集合（Codex r2 MEDIUM-5 → r3 MEDIUM-4）:
+    #    先前只要求「点名的那几块在场」, 于是把队列砍到只剩让位板仍然全过 ——
+    #    分区条件在那种队列上退化成恒真。少一块 = 让位判定对它空转; 多一块 =
+    #    队列里混进了不该在的板。两侧都要说话。
+    if require_exact_boards is not None and set(boards) != require_exact_boards:
+        raise ContractError(
+            f"picker 的 ranked 板集合与期望不符: 少了 {sorted(require_exact_boards - set(boards))}, "
+            f"多了 {sorted(set(boards) - require_exact_boards)}"
+        )
     if not yielded or all(b in yielded for b in boards):
         return  # 退化: 没有让位板, 或全部让位 —— 分区恒等, 本条不构成判据
     first_yield = next((i for i, b in enumerate(boards) if b in yielded), None)
@@ -297,12 +320,28 @@ def face_picker(picker, vault: Path, now: datetime, board_done: dict, snoozed: d
     buckets = _board_bucket_rows(payload["buckets"])
     day = payload["date"]
     awake = picker.active_snoozed(snoozed, now)
-    check_ranked_yield_partition(
-        ranked,
-        set(awake) | {b for b, d in board_done.items() if d == day},
-        # 被推迟 / 今日完成的板必须真的在队列里, 否则这条判定对它们是空转。
-        require_in_ranked=set(awake) | {b for b, d in board_done.items() if d == day},
-    )
+    yielded = set(awake) | {b for b, d in board_done.items() if d == day}
+    # ⛔ 队列必须**恰好**是「有到期节点的板」那一集合（Codex r3 MEDIUM-4）:
+    #    只要求「点名的那几块在场」时, 把队列砍到只剩让位板仍然全过 —— 分区条件
+    #    在那种队列上退化成恒真。期望集合从 picker **自己的**三个到期桶导出,
+    #    与队列同源但不同路（一个是 buckets, 一个是 ranked）。
+    #    （期望集合取 payload 自己的 `due_nodes` 明细 —— 那是 A2 冻结的到期口径
+    #     权威清单, 与 `ranked` 同源但不同路。）
+    due_boards = {row["board"] for row in payload["due_nodes"] if row.get("board")}
+    check_ranked_yield_partition(ranked, yielded, require_exact_boards=due_boards)
+    # ⛔ snooze 真的被消费了吗（Codex r3 MEDIUM-5）: 前面那些判定全部从**同一份输入**
+    #    重算, 于是「把 snoozed 清空」与「让位生效」在矩阵里无法区分。这里用一条
+    #    **独立期望**钉死: fixture 推迟的是一块本该排首位的板, 那它就不该在首位。
+    ranked_boards_now = [r["board"] for r in ranked]
+    if (
+        FIXTURE_SNOOZED_BOARD in snoozed
+        and len(set(ranked_boards_now)) > 1
+        and ranked_boards_now[0] == FIXTURE_SNOOZED_BOARD
+    ):
+        raise ContractError(
+            f"被推迟的板 {FIXTURE_SNOOZED_BOARD!r} 仍排在 ranked 首位 —— snooze 没有被消费; "
+            f"ranked 板序={ranked_boards_now}"
+        )
     conclusions = {
         board: {
             "bucket": rows,
@@ -367,6 +406,12 @@ def face_review_overview(ro, vaults_root: Path, vault_id: str) -> tuple[dict, bo
 #: review_app 允许从 review_overview 引进来的共享名（:60-66 的 import 清单）。
 _APP_SHARED_IMPORTS = ("_BUCKET_CN", "_BUCKET_ORDER", "_DONE_NOTE", "_SNOOZE_NOTE", "_STATUS_META")
 
+#: AST 门里**按身份**豁免的字符串常量（模块级赋值名）。⛔ 不是按长度豁免:
+#: 长度不是语义边界（Codex r3）。`_PAGE_TEMPLATE` 是 review_app 的页面模板
+#: （HTML + 那段纯消费 /overview JSON 的 JS）, 它不在「Python 侧是否自造 due 算法」
+#: 的射程内。名单里的名字若不在了, 门会当场抛 —— 豁免边界变了必须有人重判。
+_EXEMPT_STRING_NAMES = ("_PAGE_TEMPLATE",)
+
 #: 「自造 due 算法」的词法特征 —— 出现在 review_app 自己定义的函数体里即违约。
 _DUE_ALGO_MARKERS = (
     "_BUCKET_ORDER",  # 只许 import, 不许在本文件里重新赋值
@@ -416,15 +461,50 @@ def assert_review_app_has_no_due_algorithm(app_path: Path) -> dict:
     #    常量出现在任何位置**即违约（默认参数、模块常量、`getattr` 实参、`match`
     #    模式……一网打尽）, 外加属性/裸名两种非字符串形态。
     #
-    # ⚠ 页面 JS 是一个**大字符串常量**, review_app 是 /overview JSON 的纯消费方,
-    #   那段 JS 不在本断言射程内 —— 所以放过「长度 > _JS_BLOB_MIN 的字符串」,
-    #   并把放过的那几个大字符串的长度打进返回值, 免得这条豁免变成暗门。
+    # ⚠ 页面模板是一个巨大的字符串常量, review_app 是 /overview JSON 的纯消费方,
+    #   那段 HTML/JS 不在本断言射程内。⛔ 豁免**按身份**, 不按长度（Codex r3 指出
+    #   「长度不是有效语义边界」）: 只放过**模块 docstring** 与赋给
+    #   `_EXEMPT_STRING_NAMES` 里那些名字的字符串常量, 其余一律在射程内。
+    #
+    # ⛔ 字符串判据是**包含**不是相等（Codex r3 HIGH-1）: `re.search(r"^fsrs_due: …")`
+    #   这种读法里字段名只是子串, 相等判据整条走过去。
+    #
+    # ⛔ 还要认两处**不是 ast.Constant** 的字段名（同上）:
+    #     · `match n: case SimpleNamespace(fsrs_due=v)` —— 名字在 `MatchClass.kwd_attrs`,
+    #       那是一串**裸 str**, `ast.walk` 走不到;
+    #     · `f(fsrs_due=…)` —— 名字在 `ast.keyword.arg`, 同样是裸 str。
     #
     # ⚠ **原理上限, 如实声明**: 运行期拼出来的字段名（`"fsrs_" + "due"`）任何静态
     #   判据都拦不住。本门拦的是「照常写出来」的读法, 不是刻意的混淆。
-    _JS_BLOB_MIN = 400
+    exempt_nodes: set[int] = set()
+    docstring = ast.get_docstring(tree, clean=False)
+    for node in tree.body:
+        if isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant) and node.value.value == docstring:
+            exempt_nodes.add(id(node.value))
+        if isinstance(node, ast.Assign) and isinstance(node.value, ast.Constant):
+            if any(isinstance(t, ast.Name) and t.id in _EXEMPT_STRING_NAMES for t in node.targets):
+                exempt_nodes.add(id(node.value))
+    missing_exempt = [
+        n
+        for n in _EXEMPT_STRING_NAMES
+        if not any(
+            isinstance(b, ast.Assign) and any(isinstance(t, ast.Name) and t.id == n for t in b.targets)
+            for b in tree.body
+        )
+    ]
+    if missing_exempt:
+        # 豁免名单里的名字不在了 ⇒ 要么页面模板改名了, 要么它被拆散了。
+        # 任一情况下这条豁免的边界都变了, 必须有人重新判, 不能默默放宽。
+        raise ContractError(f"页面模板常量 {missing_exempt} 不在 review_app 里了 —— AST 门的豁免边界变了, 需重判")
+
     reads: set[str] = set()
-    js_blobs: list[int] = []
+    exempted: list[tuple[str, int]] = [
+        (n, len(node.value.value))
+        for node in tree.body
+        if isinstance(node, ast.Assign) and isinstance(node.value, ast.Constant) and isinstance(node.value.value, str)
+        for t in node.targets
+        if isinstance(t, ast.Name) and (n := t.id) in _EXEMPT_STRING_NAMES
+    ]
     for node in ast.walk(tree):
         if isinstance(node, ast.Attribute) and node.attr in _DUE_ALGO_MARKERS:
             reads.add(node.attr)
@@ -432,11 +512,20 @@ def assert_review_app_has_no_due_algorithm(app_path: Path) -> dict:
             if node.id not in imported:
                 reads.add(node.id)
         elif isinstance(node, ast.Constant) and isinstance(node.value, str):
-            if len(node.value) >= _JS_BLOB_MIN:
-                js_blobs.append(len(node.value))
+            if id(node) in exempt_nodes:
                 continue
-            if node.value in _DUE_ALGO_MARKERS:
-                reads.add(node.value)
+            for marker in _DUE_ALGO_MARKERS:
+                # ⛔ **词边界**匹配, 不是裸包含: review_app 用 `__BUCKET_ORDER_JSON__`
+                #    这个占位符把共享桶序注进页面模板 —— 那恰恰是「共享不复制」的
+                #    体现, 裸包含会把它误报成违约。词边界既放过这个占位符
+                #    （两侧都是 `_`, 不构成边界）, 又抓得住 `"^fsrs_due: *(.*)$"`
+                #    这种正则读法（`^` 与 `:` 都是非词字符）。
+                if re.search(rf"\b{re.escape(marker)}\b", node.value):
+                    reads.add(marker)
+        elif isinstance(node, ast.MatchClass):
+            reads |= {a for a in (node.kwd_attrs or []) if a in _DUE_ALGO_MARKERS}
+        elif isinstance(node, ast.keyword) and node.arg in _DUE_ALGO_MARKERS:
+            reads.add(node.arg)
     offenders += sorted(reads - set(offenders))
     if offenders:
         raise ContractError(
@@ -446,9 +535,9 @@ def assert_review_app_has_no_due_algorithm(app_path: Path) -> dict:
     return {
         "imported_shared": sorted(imported & set(_APP_SHARED_IMPORTS)),
         "offenders": [],
-        # 被「大字符串 = 页面 JS」这条豁免放过的那几个常量的长度 —— 摊开写出来,
-        # 免得这条豁免变成一扇看不见的门。
-        "js_blob_lengths": sorted(js_blobs, reverse=True),
+        # 被豁免的那几个字符串常量（名字 + 长度）—— 摊开写出来, 免得豁免变成暗门。
+        "exempted_strings": sorted(exempted),
+        "docstring_len": len(docstring or ""),
     }
 
 
@@ -588,6 +677,26 @@ def build_matrix(per_face: dict[str, dict], boards: list[str]) -> dict:
                 cells[face] = MISSING if (row is None or field not in row) else row[field]
             matrix[board][field] = cells
     return matrix
+
+
+def check_bucket_node_identity(per_face: dict[str, dict]) -> None:
+    """每个产出 `bucket` 的面, 它报出来的 (板, 节点) 集合必须**恰好**是 fixture 那一份。
+
+    ⛔ 板级锚挡不住「板内少一个节点」（Codex r3 HIGH-2）: 两面同时丢掉同一个节点时,
+    板还在、板级清单也完整, 矩阵里那一格的两个值仍然相等 —— 零分歧。
+    节点身份必须有自己的锚, 而且这个锚来自 fixture, 不是从面反推的。
+    """
+    for face in FIELD_PRODUCERS["bucket"]:
+        got = {
+            (board, node)
+            for board, row in per_face.get(face, {}).items()
+            for node, _bucket in (row.get("bucket") or ())
+        }
+        if got != FIXTURE_BUCKET_NODES:
+            raise ContractError(
+                f"面 {face} 报出的 (板, 节点) 集合与 fixture 不符 —— "
+                f"少了 {sorted(FIXTURE_BUCKET_NODES - got)}; 多了 {sorted(got - FIXTURE_BUCKET_NODES)}"
+            )
 
 
 def check_producers_declaration(per_face: dict[str, dict], boards: list[str]) -> None:
@@ -783,10 +892,24 @@ def run(now_raw: str, tz_name: str, out_json: Path | None, keep: bool) -> int:
             for line in md.splitlines()
             if "原白板/" in line
         }
-        if not FIXTURE_BOARDS <= _declared_boards:
+        # ⛔ 对账必须是**相等**不是子集（Codex r3 MEDIUM-3）: `<=` 只抓得到「清单多报」,
+        #    抓不到「清单漏报」—— 从清单里删掉一块板、同时让提取层也不返回它, 两边都过。
+        if FIXTURE_BOARDS != _declared_boards:
             raise ContractError(
-                f"FIXTURE_BOARDS 与 fixture 脱钩: 常量里有 {sorted(FIXTURE_BOARDS - _declared_boards)} "
-                "但 build_nodes 没造这些板 —— 矩阵的行索引锚在空处"
+                f"FIXTURE_BOARDS 与 fixture 脱钩: 清单多了 {sorted(FIXTURE_BOARDS - _declared_boards)}, "
+                f"少了 {sorted(_declared_boards - FIXTURE_BOARDS)} —— 矩阵的行索引锚不可信"
+            )
+        # 节点级锚同样对账（同一条理由, 见 FIXTURE_BUCKET_NODES）。
+        _declared_pairs = {
+            (line.split("原白板/", 1)[1].split("]]", 1)[0], name)
+            for name, md in nodes.items()
+            for line in md.splitlines()
+            if "原白板/" in line
+        }
+        if not FIXTURE_BUCKET_NODES <= _declared_pairs:
+            raise ContractError(
+                f"FIXTURE_BUCKET_NODES 与 fixture 脱钩: {sorted(FIXTURE_BUCKET_NODES - _declared_pairs)} "
+                "不在 build_nodes 造出来的节点里"
             )
         vault = build_vault(vaults_root, vault_id, nodes)
 
@@ -795,7 +918,7 @@ def run(now_raw: str, tz_name: str, out_json: Path | None, keep: bool) -> int:
         # ⛔ 被推迟 / 已完成的板必须是**有到期节点**的板（Codex r2 MEDIUM-5）:
         #    picker 的 `ranked` 只收有到期节点的板, 原先推迟的「板-未来」根本不进
         #    队列 —— 让位判定对它完全空转, 却看起来像通过了。
-        snoozed = {"板-脏日期": (now + timedelta(days=1)).isoformat()}
+        snoozed = {FIXTURE_SNOOZED_BOARD: (now + timedelta(days=1)).isoformat()}
         board_done = {"板-学习中": today_key}
         state_file = runner.state_path(vault)
         state_file.parent.mkdir(parents=True, exist_ok=True)
@@ -869,9 +992,24 @@ def run(now_raw: str, tz_name: str, out_json: Path | None, keep: bool) -> int:
         if noti_day != MISSING:
             if noti_title is None:
                 raise ContractError("推送在场却没有标题 —— 它点名了哪块板无从判定")
-            named = noti_title.split("·", 1)[-1].strip().rstrip("…")
-            if not named or recommended is None or not recommended.startswith(named):
-                raise ContractError(f"推送点名的板 {named!r} 不是 picker 当前的推荐板 {recommended!r}（ranked[0]）")
+            named = noti_title.split("·", 1)[-1].strip()
+            truncated = named.endswith("…")
+            stem = named.rstrip("…")
+            # ⛔ 前缀只在**真实截断形态**下才算数（Codex r3 MEDIUM-6）: 否则
+            #    `📚 今日复习 · 板` 这种任意短前缀也能当成点名了任何一块板。
+            #    真实截断 = 标题以 `…` 收尾, 且长度恰好顶到生产器的 TITLE_LIMIT。
+            ok_named = (not truncated and stem == recommended) or (
+                truncated
+                and recommended is not None
+                and recommended.startswith(stem)
+                and len(noti_title) == picker.TITLE_LIMIT
+            )
+            if not stem or recommended is None or not ok_named:
+                raise ContractError(
+                    f"推送点名的板 {named!r} 不是 picker 当前的推荐板 {recommended!r}（ranked[0]）; "
+                    f"截断={truncated} 标题长度={len(noti_title)} TITLE_LIMIT={picker.TITLE_LIMIT}"
+                )
+        check_bucket_node_identity(per_face)
         check_producers_declaration(per_face, boards)
         matrix = build_matrix(per_face, boards)
         undeclared, declared = diff_matrix(matrix, ctx={"now": now, "display_tz": display_tz})

@@ -13,6 +13,7 @@
    **契约脚本的提取层**做（读成错值）, 一个字节都不碰 picker 源文件。
 """
 
+import ast
 import atexit
 import hashlib
 import re
@@ -83,8 +84,8 @@ SEGMENTS = [
         '        "bucket_rows": {k: [{**r, "board": r["board"] + "·NEGCTL"} for r in v]'
         " for k, v in bucket_rows.items()},  # NEGCTL",
         MAIN,
-        "该面声称产出却缺了这块板",
-        "整块板从某一面消失时必须判红（MISSING 路径, 不是「产出方不足两个就跳过」）",
+        "与 fixture 不符",
+        "整块板从某一面消失时必须判红 —— r3 起先撞节点身份锚（红点迁移, 锚已跟改）",
     ),
     (
         # ⛔ 等长交换: `new` 与 `learning_queue` 在 fixture 里各 1 行, 交换后
@@ -226,8 +227,8 @@ SEGMENTS = [
         "    return {b: tuple(sorted(v)) for b, v in out.items()}",
         '    return {b: tuple(sorted(v)) for b, v in out.items() if b != "\u677f-\u5230\u671f"}  # NEGCTL',
         MAIN,
-        "该面声称产出却缺了这块板",
-        "MISSING 永不算一致、永不进多数派 —— 两面同时缺一块板也必须判红",
+        "与 fixture 不符",
+        "两面同时缺一块板必须判红 —— r3 起先撞节点身份锚（红点迁移, 锚已跟改）",
     ),
     (
         # r2 HIGH-2: inbox 的日期原先是契约自己按 parse_now 算的, 不是它真实入口的产物。
@@ -255,8 +256,8 @@ SEGMENTS = [
         # r2 MEDIUM-5: 让位检查原先不验队列完整性, `ranked=[]` 照样过。
         "R2M5_RANKED_EMPTY",
         SCRIPT,
-        "    check_ranked_yield_partition(\n        ranked,",
-        "    check_ranked_yield_partition(\n        [],  # NEGCTL",
+        "    check_ranked_yield_partition(ranked, yielded, require_exact_boards=due_boards)",
+        "    check_ranked_yield_partition([], yielded, require_exact_boards=due_boards)  # NEGCTL",
         MAIN,
         "ranked 为空",
         "没有队列不该被读成「顺序没问题」",
@@ -270,6 +271,84 @@ SEGMENTS = [
         MAIN,
         "不是 picker 当前的推荐板",
         "推送点名的板必须正是 ranked[0], 不是「随便哪块认识的板」",
+    ),
+    # ── Codex r3 的对照输入 —— 当轮全部**未被拦下**, 修复后必须各自判红 ──
+    (
+        # r3 HIGH-1: AST 门按「整串相等」判字符串, 正则读法里字段名只是子串。
+        "R3H1_REGEX_DUE_READ",
+        APP,
+        "review_app_router = APIRouter()",
+        "review_app_router = APIRouter()\n\n\n"
+        "def _negctl_regex_due(text):  # NEGCTL\n"
+        "    import re as _re\n"
+        '    return _re.search(r"^fsrs_due: *(.*)$", text, _re.M)',
+        APPGATE,
+        "独立 due 算法",
+        "字段名作为**子串**出现在正则里同样算自造算法（词边界匹配）",
+    ),
+    (
+        # r3 HIGH-2: 板级锚挡不住「板内少一个节点」—— 两面同时丢同一个节点。
+        "R3H2_NODE_DROPPED",
+        SCRIPT,
+        "            out.setdefault(board, []).append((node, bucket))",
+        '            if node != "同板未来":  # NEGCTL\n'
+        "                out.setdefault(board, []).append((node, bucket))",
+        MAIN,
+        "与 fixture 不符",
+        "节点身份有自己的锚 —— 板还在、板级清单也完整时, 少一个节点必须判红",
+    ),
+    (
+        # r3 MEDIUM-3: 清单对账原为 `<=`, 只抓多报不抓漏报。
+        "R3M3_BOARDS_SHRINK",
+        SCRIPT,
+        'FIXTURE_BOARDS: frozenset[str] = frozenset({"板-到期", "板-新卡", "板-学习中", "板-脏日期", "板-今天晚些", "板-未来"})',
+        'FIXTURE_BOARDS: frozenset[str] = frozenset({"板-到期", "板-新卡", "板-学习中", "板-脏日期", "板-今天晚些"})  # NEGCTL 清单漏报一块板',
+        MAIN,
+        "与 fixture 脱钩",
+        "清单**漏报**也要抓到（对账是相等不是子集）",
+    ),
+    (
+        # r3 MEDIUM-4: 队列只剩让位板时完整性检查退化。
+        "R3M4_RANKED_TRIMMED",
+        SCRIPT,
+        "    check_ranked_yield_partition(ranked, yielded, require_exact_boards=due_boards)",
+        "    check_ranked_yield_partition(\n"
+        '        [r for r in ranked if r["board"] in yielded], yielded, require_exact_boards=due_boards\n'
+        "    )  # NEGCTL",
+        MAIN,
+        "板集合与期望不符",
+        "队列必须恰好覆盖有到期节点的板, 砍到只剩让位板时分区条件退化成恒真",
+    ),
+    (
+        # r3 MEDIUM-5: fixture 原先推迟的是队尾板, `snoozed={}` 也全绿。
+        "R3M5_SNOOZE_DROPPED",
+        SCRIPT,
+        "        payload, picker_conclusions, ranked_boards = face_picker(picker, vault, now, board_done, snoozed)",
+        "        payload, picker_conclusions, ranked_boards = face_picker(picker, vault, now, board_done, {})  # NEGCTL",
+        MAIN,
+        "snoozed",
+        "把推迟账整个丢掉必须判红（推迟的是一块本该排首位的板）",
+    ),
+    (
+        # r3 MEDIUM-6: 任意短前缀被认作通知点名。
+        "R3M6_SHORT_PREFIX",
+        SCRIPT,
+        '            named = noti_title.split("·", 1)[-1].strip()',
+        '            named = "板"  # NEGCTL',
+        MAIN,
+        "不是 picker 当前的推荐板",
+        "前缀只在**真实截断形态**下才算数, 任意短前缀不算点名",
+    ),
+    (
+        # MISSING 路径本身的负控: 节点身份锚上线后, 前两段的红点迁走了, 这条路径
+        # 需要一个**仍然走得到它**的变异 —— 让一个声明产出方在某块板上没有值。
+        "MISSING_PATH",
+        SCRIPT,
+        '            "skill_inbox": {b: {"display_day": inbox_day} for b in boards},',
+        '            "skill_inbox": {b: {"display_day": inbox_day} for b in boards if b != "板-到期"},  # NEGCTL',
+        MAIN,
+        "该面声称产出却缺了这块板",
+        "声明产出方在某块板上没有值 ⇒ MISSING ⇒ 判红",
     ),
 ]
 
@@ -326,14 +405,26 @@ def failure_block(out: str, short: str) -> str:
     return "\n".join(lines[start:end])
 
 
+_CAPTURED = re.compile(r"^-+\s*Captured .*-+$")
+
+
 def error_lines(block: str) -> str:
     """失败块里 pytest 真正的**错误输出**行（前缀 `E `）。
+
+    ⛔ 先切掉 `----- Captured stdout call -----` 之后的部分（Codex r3 MEDIUM-7）:
+    被测试 `print()` 出来的内容原样显示, 一行 `print("E 独立 due 算法")` 就能让锚
+    命中 —— 而它根本不是失败原因。捕获段里的东西一律不作失败归因。
 
     ⛔ 只在这些行里找文本锚（Codex r2 MEDIUM-7）: 失败块里同时包含被回显的**源码**,
     于是一条 `assert True, "……锚……"` 的源码字面量也能让锚命中 —— 红是红了, 但红的
     原因不是那条声称的断言。`E ` 前缀的行才是实际抛出来的那条。
     """
-    return "\n".join(ln for ln in block.splitlines() if ln.strip().startswith("E "))
+    lines = block.splitlines()
+    for i, ln in enumerate(lines):
+        if _CAPTURED.match(ln.strip()):
+            lines = lines[:i]
+            break
+    return "\n".join(ln for ln in lines if ln.strip().startswith("E "))
 
 
 def run_nodeid(nodeid: str) -> tuple[int, str]:
@@ -354,8 +445,18 @@ def main() -> int:
     for key, target, old, new, nodeid, anchor, claim in SEGMENTS:
         src = target.read_text(encoding="utf-8")
         assert src.count(old) == 1
-        target.write_text(src.replace(old, new, 1), encoding="utf-8")
+        mutated = src.replace(old, new, 1)
+        target.write_text(mutated, encoding="utf-8")
         try:
+            # ⛔ 变异后必须仍是**合法 Python**: 一个写坏的变异串（例如把行尾逗号
+            #    注释掉）会让 pytest 以 rc=4 收集失败收场 —— 那不是「门抓到了」,
+            #    是这一段负控本身坏了。不当场说破就会被当成红。
+            try:
+                ast.parse(mutated)
+            except SyntaxError as e:
+                print(f"[⛔] {key:<20} 变异后语法不成立: {e} —— 这一段负控写坏了, 不是门的结论")
+                bad += 1
+                continue
             rc, out = run_nodeid(nodeid)
         finally:
             target.write_text(src, encoding="utf-8")
