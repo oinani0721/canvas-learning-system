@@ -1,0 +1,13 @@
+# (g) --hosts claude 单宿主回归：T2-B(7e1d6b53bab9abd9b26711bc2c60724d3afb496f) 版 vs 本卡版，逐字对照 20260915T120403
+--- 跑 T2-B 版 ---
+prev rc=0
+--- 跑 本卡版 ---
+head rc=0
+--- 逐字 diff（须空 = 单宿主 claude 行为一字未动）---
+diff rc=0
+--- 验伪锚：同两版跑 --hosts claude,opencode 必须有差（证明 diff 不是恒空）---
+prev(oc) rc=64
+head(oc) rc=0
+oc diff rc=1（非 0 = 有差，验伪锚成立）
+--- 两版 dry 跑后 tmp 零写核 ---
+find TMP 条目数 =        1（只应有 TMP 自身 = 1）

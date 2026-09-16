@@ -1,0 +1,57 @@
+# 收工核验 20260916T130510  HEAD=6acec0e4
+
+===== 硬边界自证：谁写了 ~/.codex =====
+~/.config/opencode 开工后新文件 = 0 （须 0）
+~/.codex 开工后新文件           = 357 ⚠️ 非 0，归因如下
+--- 分布（证明是 codex exec 自己的会话记录，不是 deploy-vault.sh）---
+ 206 sessions
+ 108 memories
+   8 thread-writer-locks
+   4 plugins
+   4 cache
+   2 tmp
+   1 thread_history_1.sqlite-wal
+   1 thread_history_1.sqlite-shm
+   1 thread_history_1.sqlite
+   1 state_5.sqlite-wal
+   1 state_5.sqlite-shm
+   1 state_5.sqlite
+   1 sqlite
+   1 shell_snapshots
+   1 session_index.jsonl
+   1 queue_1.sqlite-wal
+   1 queue_1.sqlite
+   1 models_cache.json
+   1 memories_1.sqlite
+   1 logs_2.sqlite-wal
+   1 logs_2.sqlite-shm
+   1 logs_2.sqlite
+   1 history.jsonl
+   1 goals_1.sqlite-wal
+   1 goals_1.sqlite-shm
+   1 goals_1.sqlite
+   1 config.toml
+   1 auth.json
+   1 ambient-suggestions
+   1 .codex-global-state.json.bak
+   1 .codex-global-state.json
+--- deploy-vault.sh 对这两个目录的非注释行引用（须 0/0）---
+  .codex          = 0
+  .config/opencode = 0
+  ⇒ 脚本对两者都是零写者；隔离观测见 judge4c-userconfig-sha-*.txt（--apply 那一跑前后 sha 逐字相同）
+  ⇒ 357 个新文件 = 协议 §2 规定的审查命令 codex exec 跑 5 轮留下的自身会话记录。如实记录，不报 0。
+
+===== live vault / 现网只读自证 =====
+canvas-vault 下开工后新文件 = 0 （须 0）
+fsrs_bridge/decay_beta 在改动文件中的命中 = 0
+
+===== 新测试全部 tmp 派生 =====
+本卡新增段 tmp_path 出现 = 66 ; 绝对路径硬编码 = 0（须 0）
+
+===== tests/unit 目录级终跑 =====
+= 35 failed, 5077 passed, 48 skipped, 23 xfailed, 171 warnings, 29 errors in 332.93s (0:05:32) =
+rc=1
+nodeid: base=64 close=64 ; diff 只允许 < ⇒ 实测 > 行数 = 0
+
+===== 终审绑定（r5 审 SHA → HEAD 代码面须空）=====
+（以上为空 = 绑定成立）

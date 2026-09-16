@@ -1,0 +1,22 @@
+# r4 整改负控 20260916T020500
+跑前 sha:
+6d2102df81a4d6ee99eb257f92225287540d7ecdbab6966ed458c6f927c48842  scripts/deploy-vault.sh
+
+===== 负控 E：H2 —— 把 symlink(2) 换回 ln -s，静态门应变红 =====
+E   AssertionError: 条目级软链不再走 symlink(2)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t2-deploy/backend/tests/unit/test_deploy_vault_sh.py:4437: AssertionError: 条目级软链不再走 symlink(2)
+======================== 1 failed, 10 warnings in 0.80s ========================
+
+===== 负控 F：H1 —— 把 ftruncate 换回按路径 unlink，静态门应变红 =====
+E   AssertionError: 发布路径出现了按路径删除 os.unlink(: ['os.unlink(base, dir_fd=dfd)  # 负控']
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t2-deploy/backend/tests/unit/test_deploy_vault_sh.py:4415: AssertionError: 发布路径出现了按路径删除 os.unlink(: ['os.unlink(base, dir_fd=dfd)  # 负控']
+======================== 1 failed, 10 warnings in 0.86s ========================
+
+===== 负控 G：M2 —— 把 O_EXCL 挪进注释（旧门会放行，新门应变红）=====
+E   AssertionError: 直写目标的关键 flag O_EXCL 只剩注释或已消失
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t2-deploy/backend/tests/unit/test_deploy_vault_sh.py:4417: AssertionError: 直写目标的关键 flag O_EXCL 只剩注释或已消失
+======================== 1 failed, 10 warnings in 0.84s ========================
+
+还原后 sha（须与跑前同）:
+6d2102df81a4d6ee99eb257f92225287540d7ecdbab6966ed458c6f927c48842  scripts/deploy-vault.sh
+bash-n rc=0

@@ -1,0 +1,4 @@
+=========================== short test summary info ============================
+FAILED tests/unit/test_deploy_vault_sh.py::test_every_bash_write_site_has_a_prewrite_recheck
+====== 1 failed, 206 passed, 9 skipped, 10 warnings in 142.13s (0:02:22) =======
+rc=1

@@ -1,0 +1,10 @@
+# 裁判4① D-26(i) 显式断言 20260915T115533
+LIVE(位置参数, 纯词法只读)=/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault
+--- 跑 A: strict 口径（卡文原文写法）---
+HIT o1 /Users/Heishing/.config/opencode（mkdir -p 会创建的中间段 /Users/Heishing/.config/opencode）
+HIT o2 /Users/Heishing/.config/opencode（mkdir -p 会创建的中间段 /Users/Heishing/.config/opencode）
+rc=1
+--- 跑 B: --outputs 口径（= 测试门与 deploy-vault.sh 写对象同口径）---
+HIT o1 /Users/Heishing/.config/opencode（mkdir -p 会创建的中间段 /Users/Heishing/.config/opencode）
+HIT o2 /Users/Heishing/.config/opencode（mkdir -p 会创建的中间段 /Users/Heishing/.config/opencode）
+rc=1

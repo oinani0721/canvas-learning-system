@@ -1,0 +1,3 @@
+# 裁判4① 验伪锚（⛔ 必须另起一跑：main() 累加 bad 后 return 1，同跑 rc 恒 1）
+OK ok
+rc=0
