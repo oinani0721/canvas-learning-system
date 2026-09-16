@@ -4550,6 +4550,9 @@ def test_hosts_opencode_skill_name_survives_the_shell_python_handoff(tmp_path: P
     )
     env = _tx_env(tmp_path, port, name)
     r = _oc_run(tmp_path, h, name, port, env=env)
+    # ⛔ 也要断言 rc（车道自查 A3 补）：只看「盘上建出了什么」会掩盖「其实失败了」——
+    #    本卡在尾随换行那条门上已经栽过一次（软链建了、shell 侧误报失败、门照样绿）。
+    assert r.returncode == 0, f"前导空格的名字让部署失败了: rc={r.returncode}\n{r.stdout}{r.stderr}"
     root = tmp_path / "vaults" / name / ".agents" / "skills"
     built = sorted(p.name for p in root.iterdir()) if root.is_dir() else []
     # ⛔ 承重断言：绝不能出现 strip 之后的名字。
