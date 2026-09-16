@@ -1,0 +1,32 @@
+### 裁判9/10 地盘门（post-commit, 验伪锚此时才有效）@ 2026-09-17T03:27:03+08:00
+PREV=09567e35bf393c34d1ab185e89e6b9effede7141
+HEAD=b3baf7d967692db0b172f5ebb4de9e4ae6357923
+
+--- 裁判9: 排除 _bmad-output 后的改动面（应 ⊆ 两个文件）---
+ backend/tests/unit/test_vault_install_manifest.py | 173 ++++++++++++++++++++++
+ scripts/verify_vault_install.py                   |  45 +++++-
+ 2 files changed, 217 insertions(+), 1 deletion(-)
+
+--- 验伪锚: 去掉 ':(exclude)_bmad-output' 必须多出 _bmad-output/ 路径 ---
+带 exclude 的文件数: 2
+不带 exclude 的文件数: 41
+不带 exclude 时命中的 _bmad-output 路径数: 39
+
+--- 裁判10: manifest / backend/app 零改（应空）---
+[上面为空 = 零改]
+
+--- manifest-ruling.md 未改（应空）---
+[上面为空 = 未改]
+
+--- 工作树干净（应空）---
+?? "_bmad-output/\345\256\241\346\237\245/evidence-g27a-tail/territory-gate-20260917T032703.txt"
+[上面为空 = 干净]
+
+--- commit header 长度（wc -m, 限 100）---
+      91
+--- body 各行长度（wc -m, 限 100）: 超限行如下 ---
+[上面无输出 = 全部 <=100]
+
+--- 入库文件里 *.stderr* / *.log（应各 0）---
+stderr=0 log=0
+rc=0

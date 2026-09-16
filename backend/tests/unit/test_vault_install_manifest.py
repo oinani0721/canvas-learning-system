@@ -707,6 +707,15 @@ def test_verifier_write_calls_are_confined_to_write_report():
     assert _verdict("p.open()") is True, "绑定方法缺省模式仍是只读"
     assert _verdict("open(p, 'rb')") is True, "内置 open 的只读模式仍放行"
     assert _verdict("open(p, 'w')") is False, "内置 open 的写模式仍不放行"
+    # 参数展开: 位置绑定不可知 ⇒ 一律不放行(Codex round-1 MEDIUM + 本卡自查的同族第二例)
+    assert _verdict("os.open(*[p, os.O_WRONLY | os.O_TRUNC], os.O_RDONLY)") is False, (
+        "展开后 flags 是写+截断, 按位置读 args[1] 会读成只读 —— 不得放行"
+    )
+    assert _verdict("os.open(p, os.O_RDONLY, **kw)") is False, "**kwargs 可再塞实参, 不得放行"
+    assert _verdict("os.open(*args)") is False, "整串展开不得放行"
+    assert _verdict("os.open(p, *flags_list)") is False, "旗标位展开不得放行"
+    assert _verdict("open(*args)") is False, "内置 open 的展开形态不得放行"
+    assert _verdict("p.open(*a)") is False, "绑定方法的展开形态不得放行"
 
     offenders = []
     for node in ast.walk(tree):
@@ -801,6 +810,19 @@ def _is_readonly_open(node) -> bool:
     缺旗标 / 算出来的旗标 / 含任一写旗标, 一律不放行。
     """
     import ast
+
+    if any(isinstance(a, ast.Starred) for a in node.args) or any(kw.arg is None for kw in node.keywords):
+        # 参数被展开(`*args` / `**kwargs`)时**位置绑定不可知** —— 哪个实参最终落到 mode/flags
+        # 位上, 在静态看不出来。与「算出来的模式证明不了只读」是同一主张, 一律不放行。
+        # 未被拦下的输入(Codex round-1 MEDIUM, 已实测复现):
+        #   `os.open(*[p, os.O_WRONLY | os.O_TRUNC], os.O_RDONLY)`
+        #   —— 展开后 flags 其实是 O_WRONLY|O_TRUNC(写且截断), 而 AST 的 args[1] 是
+        #   `os.O_RDONLY`; 按位置去读就读成了只读。同族第二例(本卡自查补出):
+        #   `os.open(p, os.O_RDONLY, **kw)` —— `**kw` 可再塞进别的实参。
+        # ⚠️ 这道拒绝必须放在**所有分支之前**: 本卡加 `os.open` 分支之前, 展开形态是被
+        #   「mode 不是字符串字面量」这条**顺带**挡住的; 新分支更精确, 却把那条附带保证
+        #   删掉了 —— 精确性提高不等于强度提高, 这里显式补回来。
+        return False
 
     if _is_os_open(node):
         flags = node.args[1] if len(node.args) > 1 else None
