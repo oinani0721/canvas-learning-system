@@ -51,13 +51,29 @@ atexit.register(restore)
 SEGMENTS = [
     # ── ① review_overview ────────────────────────────────────────────
     (
-        "RO_DAY",
+        # ⚠ 锚点位置随 r1 HIGH-4 的修复而**迁移**: overview 的 display_day 现在绑
+        #   响应顶层 `generated_at`, 不再走 `_display_today()`。而 `_display_today()`
+        #   仍是「完成账的今天」(`_collect` → `_board_done_today`) 的唯一来源 ——
+        #   所以改它显形在 **done** 列。红点换了地方不等于防线没了, 但锚必须跟着改,
+        #   否则这一段量的就是另一回事了。
+        "RO_DONE_DAY",
         RO,
         '    return d.isoformat() if d is not None else ""',
         '    return "1999-01-01" if d is not None else ""  # NEGCTL',
         MAIN,
+        "字段=done 面=review_overview",
+        "完成账的「今天」与 picker 的 payload['date'] 同一条换算",
+    ),
+    (
+        # display_day 这一列的负控（RO_DONE_DAY 迁到 done 列之后, 这一列需要自己的段）:
+        # 改响应顶层 generated_at —— 它是 overview「自己的今天」的唯一出门口。
+        "RO_GENERATED_AT",
+        RO,
+        '        "generated_at": now.isoformat(timespec="seconds"),',
+        '        "generated_at": "1999-01-01T00:00:00+08:00",  # NEGCTL',
+        MAIN,
         "字段=display_day 面=review_overview",
-        "总览页的「今天」与其余面同一条换算",
+        "总览页对外报的「此刻」与其余面的今天同一条换算",
     ),
     (
         "RO_BOARD_IDENTITY",
@@ -143,6 +159,63 @@ SEGMENTS = [
         "字段=display_day 面=notification",
         "推送 payload 这一面真的进了矩阵",
     ),
+    # ── Codex r1 的四组对照输入 —— 当轮全部**未被拦下**, 修复后必须各自判红 ──
+    (
+        # r1 HIGH-1: 通知缺席时该面原先返回 NOT_PRODUCED, 被比对循环整格过滤掉,
+        #            于是「今天根本没发通知」表现为零分歧。
+        "R1H1_NOTI_ABSENT",
+        SCRIPT,
+        '    noti = payload.get("notification")',
+        "    noti = None  # NEGCTL",
+        MAIN,
+        "面=notification",
+        "声明产出方缺值必须判红, 不许用 NOT_PRODUCED 静默退出比较",
+    ),
+    (
+        # r1 HIGH-2: 白名单原先只按 (面, 字段) 匹配 —— inbox 的日期改成 2099 年
+        #            也照样落进「已登记」。修复后豁免带谓词, 只认固定 +08:00 的当日。
+        "R1H2_INBOX_ABSURD_DAY",
+        SCRIPT,
+        "    return dt.astimezone(inbox_preview._TZ_SHANGHAI).date().isoformat()",
+        '    return "2099-01-01"  # NEGCTL',
+        MAIN,
+        "面=skill_inbox",
+        "已登记分歧是「那一种已知取值」, 不是「那一格随便怎么错都行」",
+    ),
+    (
+        # r1 HIGH-3: AST 门原先只认属性/裸名, 字段名写成**字符串常量**的两种写法
+        #            （下标与 .get()）整条走过去。
+        "R1H3_DICT_DUE_READ",
+        APP,
+        "review_app_router = APIRouter()",
+        "review_app_router = APIRouter()\n\n\n"
+        "def _negctl_local_due(node, now):  # NEGCTL\n"
+        '    return node["fsrs_due"] <= now and node.get("due_reason") == "scheduled"',
+        APPGATE,
+        "独立 due 算法",
+        "字典下标与 .get() 形态的 due 字段读取同样算自造算法",
+    ),
+    (
+        # r1 MEDIUM-5: 声明与实现同步缩减时对账仍通过。修复后每列至少两个产出方。
+        "R1M5_SHRINK_DECLARATION",
+        SCRIPT,
+        '    "snoozed": ("review_overview", "picker"),',
+        '    "snoozed": ("picker",),  # NEGCTL',
+        MAIN,
+        "跨面契约不成立",
+        "把某列的声明产出方砍到只剩一个, 必须当场抛而不是静默退化成恒真判据",
+    ),
+    (
+        # r1 HIGH-4: overview 的日期列原先是现算的, 把它响应里复述的投影日期改掉
+        #            整门照样绿。修复后该列绑在响应上。
+        "R1H4_RESPONSE_DATE",
+        RO,
+        '        "date": date_v,',
+        '        "date": "1970-01-01",  # NEGCTL',
+        MAIN,
+        "字段=projection_day 面=review_overview",
+        "消费方复述生产者的日期时走样必须判红（该列绑响应, 不是现算）",
+    ),
 ]
 
 
@@ -156,6 +229,39 @@ def precheck() -> None:
         print("⛔ 预检失败, 拒绝开跑（锚点已随代码漂移）:")
         print("\n".join(bad))
         raise SystemExit(2)
+
+
+def failure_block(out: str, short: str) -> str:
+    """只取**这个 nodeid 自己的失败块**。
+
+    ⛔ Codex r1 MEDIUM-7 实证: 直接在整份 pytest 输出里找文本锚会误判 —— traceback
+    会把失败点**之前**那些**已经通过**的断言的源码一并显示出来, 于是「锚命中」可能
+    命中的是一条通过了的断言的字面量。判据必须缩到失败块内。
+
+    pytest 的失败块形如:
+        ______________________ test_xxx _______________________
+        <traceback 与断言输出>
+    到下一个 `____ test_yyy ____` 或 `=== short test summary info ===` 为止。
+    """
+    lines = out.splitlines()
+    start = None
+    for i, line in enumerate(lines):
+        s = line.strip()
+        if s.startswith("_") and s.endswith("_") and short in s:
+            start = i
+            break
+    if start is None:
+        return ""
+    end = len(lines)
+    for j in range(start + 1, len(lines)):
+        s = lines[j].strip()
+        if s.startswith("=") and "short test summary" in s:
+            end = j
+            break
+        if s.startswith("_") and s.endswith("_") and s.count("_") > 10 and short not in s:
+            end = j
+            break
+    return "\n".join(lines[start:end])
 
 
 def run_nodeid(nodeid: str) -> tuple[int, str]:
@@ -183,7 +289,8 @@ def main() -> int:
             target.write_text(src, encoding="utf-8")
         short = nodeid.split("::")[-1]
         failed = f"FAILED {nodeid}" in out or f"FAILED {F}::{short}" in out
-        hit = anchor in out
+        # ⛔ 锚只在**该 nodeid 自己的失败块**里找（见 failure_block 的说明）。
+        hit = anchor in failure_block(out, short)
         ok = rc != 0 and failed and hit
         flag = "[✅]" if ok else "[⛔]"
         if not ok:

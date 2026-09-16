@@ -14,6 +14,7 @@ import json
 import os
 import subprocess
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -95,13 +96,62 @@ def test_declared_divergences_are_pinned_by_identity(tmp_path):
     ⛔ 计数式白名单（「≤1 条分歧就放行」）挡不住等长替换: 换一条别的分歧进来、
     数量不变就蒙混过关。这里把 (面, 字段) 对逐个写死在测试侧。
     """
-    assert {(face, field) for face, field, _ in contract.DECLARED_DIVERGENCES} == {
+    assert {(r["face"], r["field"]) for r in contract.DECLARED_DIVERGENCES} == {
         ("skill_inbox", "display_day"),
     }, "已登记分歧集合变了 —— 新增/删除必须同时更新验收单台账与本断言"
 
     _, report, _ = _run(tmp_path)
     for row in report["declared_divergences"]:
         assert (row["face"], row["field"]) in {("skill_inbox", "display_day")}
+
+
+def test_declared_divergence_is_a_predicate_not_a_blank_cheque():
+    """豁免只认「那一种已知取值」, 不是「那一格随便怎么错都行」。
+
+    ⛔ Codex r1 HIGH-2: 原先只按 (面, 字段) 匹配 —— 把 inbox 的日期改成 2099 年、
+    甚至让它整块板缺席, 都照样落进「已登记」而不判红。白名单一旦不带谓词, 它豁免
+    的就不是那条已知分歧, 而是那一整格。
+    """
+    now = datetime(2026, 9, 12, 3, 0, tzinfo=timezone.utc)
+    ctx = {"now": now}
+    right = now.astimezone(timezone(timedelta(hours=8))).date().isoformat()
+    assert contract._is_declared("skill_inbox", "display_day", right, ctx) is True
+    for wrong in ("2099-01-01", "1970-01-01", contract.MISSING, contract.NOT_PRODUCED, None):
+        assert contract._is_declared("skill_inbox", "display_day", wrong, ctx) is False, f"{wrong!r} 不该落进已登记豁免"
+    # 其它面/字段一律不在豁免范围内
+    assert contract._is_declared("picker", "display_day", right, ctx) is False
+    assert contract._is_declared("skill_inbox", "bucket", right, ctx) is False
+    # 谓词取不到上下文时按未登记处理（宁可多判红也不吞）
+    assert contract._is_declared("skill_inbox", "display_day", right, {}) is False
+
+
+def test_declared_producer_may_not_hand_back_not_produced():
+    """声明产出方交出 NOT_PRODUCED ⇒ 当场抛, 不许整格退出比较。
+
+    ⛔ Codex r1 HIGH-1: 通知缺席时那一面原先返回 NOT_PRODUCED, 被比对循环过滤掉,
+    于是「今天根本没发通知」在矩阵里表现为零分歧。
+    """
+    per_face = {
+        "review_overview": {"板A": {"display_day": "2026-09-12"}},
+        "picker": {"板A": {"display_day": "2026-09-12"}},
+        "skill_inbox": {"板A": {"display_day": "2026-09-12"}},
+        "notification": {"板A": {"display_day": contract.NOT_PRODUCED}},
+    }
+    for field in ("bucket", "projection_day", "snoozed", "done"):
+        for face in ("review_overview", "picker"):
+            per_face[face]["板A"][field] = "x"
+        per_face["notification"]["板A"].setdefault("projection_day", "x")
+    with pytest.raises(contract.ContractError, match="NOT_PRODUCED"):
+        contract.check_producers_declaration(per_face, ["板A"])
+
+
+def test_every_field_needs_at_least_two_declared_producers():
+    """把某列的声明产出方砍到只剩一个 ⇒ 当场抛（那一列不再是跨面契约）。
+
+    ⛔ Codex r1 MEDIUM-5: 声明与实现**同步**缩减时, 旧版对账查不出来。
+    """
+    assert all(len(v) >= 2 for v in contract.FIELD_PRODUCERS.values())
+    assert set(contract.FIELD_PRODUCERS) == set(contract.FIELDS)
 
 
 def test_inbox_date_divergence_is_really_detected(tmp_path):
@@ -152,6 +202,28 @@ def test_review_app_static_gate_catches_a_bare_due_calculation(tmp_path):
         contract.assert_review_app_has_no_due_algorithm(tainted)
 
 
+@pytest.mark.parametrize(
+    "injected",
+    [
+        pytest.param('def _d(n, t):\n    return n["fsrs_due"] <= t\n', id="下标"),
+        pytest.param('def _d(n):\n    return n.get("due_reason") == "scheduled"\n', id="get"),
+        pytest.param('def _d(n):\n    return n.pop("fsrs_state", None)\n', id="pop"),
+    ],
+)
+def test_review_app_gate_catches_dict_key_due_reads(tmp_path, injected):
+    """字段名写成**字符串常量**的读法同样算自造算法。
+
+    ⛔ Codex r1 HIGH-3: `node["fsrs_due"]` / `node.get("fsrs_due")` 里字段名既不是
+    `ast.Name` 也不是 `ast.Attribute`, 原先的 AST 门整条走过去; 当轮的负控之所以
+    能红, 只是因为它恰好把局部变量也命名成了 `fsrs_due`。
+    """
+    src = (WT / "backend" / "app" / "api" / "v1" / "endpoints" / "review_app.py").read_text(encoding="utf-8")
+    tainted = tmp_path / "review_app_dictread.py"
+    tainted.write_text(src + "\n\n" + injected, encoding="utf-8")
+    with pytest.raises(contract.ContractError, match="独立 due 算法"):
+        contract.assert_review_app_has_no_due_algorithm(tainted)
+
+
 def test_review_app_static_gate_catches_losing_the_shared_import(tmp_path):
     """验伪锚之二: 断掉「共享不复制」的 import, 静态断言必须说话。"""
     src = (WT / "backend" / "app" / "api" / "v1" / "endpoints" / "review_app.py").read_text(encoding="utf-8")
@@ -180,6 +252,26 @@ def test_snoozed_and_done_agree_across_faces(tmp_path):
     done_boards = [b for b in report["boards"] if report["matrix"][b]["done"].get("picker") is True]
     assert snoozed_boards, "fixture 没有造出任何被推迟的板 —— snoozed 这一列是恒 False 的假绿"
     assert done_boards, "fixture 没有造出任何今天完成的板 —— done 这一列是恒 False 的假绿"
+
+
+def test_ranked_yield_partition_is_observed_not_recomputed():
+    """snooze/done 的**消费后果**（让位分区）被观察到, 而不是只从输入重算一遍。
+
+    ⛔ Codex r1 MEDIUM-6: 契约原先丢弃 `ranked`, 于是「让已完成板排回榜首」这种
+    消费失效完全看不见。
+    ⚠ 覆盖面如实声明: 本条只证「让位板整体靠后」, **不证**已完成与已推迟两者之间
+    的先后（U6-C 登记、D-37 按现状不改的那条顺序）。
+    """
+    good = [{"board": "A"}, {"board": "B"}, {"board": "让位1"}, {"board": "让位2"}]
+    contract.check_ranked_yield_partition(good, {"让位1", "让位2"})  # 不抛
+
+    broken = [{"board": "让位1"}, {"board": "A"}, {"board": "B"}]
+    with pytest.raises(contract.ContractError, match="让位分区被破坏"):
+        contract.check_ranked_yield_partition(broken, {"让位1"})
+
+    # 退化情形如实声明: 全部让位 / 无让位 时分区恒等, 本条不构成判据
+    contract.check_ranked_yield_partition([{"board": "x"}], set())
+    contract.check_ranked_yield_partition([{"board": "x"}], {"x"})
 
 
 @pytest.mark.parametrize(
@@ -238,7 +330,12 @@ def test_tie_reports_every_producer_not_an_arbitrary_one():
 
 
 def test_strict_majority_still_names_only_the_outlier():
-    """三比一时仍然只报那个少数派（否则每条分歧都会变成四条噪音）。"""
+    """三比一时仍然只报那个少数派（否则每条分歧都会变成四条噪音）。
+
+    这里同时走通已登记分歧的**谓词**通道: `now` 在 +08:00 下是 09-12, 与 inbox 的
+    取值一致 ⇒ 落进已登记; 换成别的日期就会落进未登记（上面那条测试证）。
+    """
+    now = datetime(2026, 9, 12, 3, 0, tzinfo=timezone.utc)  # LA 侧是 09-11, +08:00 侧是 09-12
     matrix = {
         "板Y": _blank(
             "display_day",
@@ -252,7 +349,7 @@ def test_strict_majority_still_names_only_the_outlier():
             },
         )
     }
-    undeclared, declared = contract.diff_matrix(matrix)
+    undeclared, declared = contract.diff_matrix(matrix, ctx={"now": now})
     assert undeclared == []
     assert [r["face"] for r in declared] == ["skill_inbox"]
     assert sorted(declared[0]["majority_faces"]) == ["notification", "picker", "review_overview"]

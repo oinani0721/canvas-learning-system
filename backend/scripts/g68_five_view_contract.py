@@ -54,14 +54,22 @@ NOT_PRODUCED = "<该面不产出此字段>"
 #: 比对循环跳过 —— 门看起来在比, 实际那条路径上无人看管。
 MISSING = "<该面声称产出却缺了这块板>"
 
-FIELDS = ("bucket", "display_day", "snoozed", "done")
+#: `display_day` = 该面**自己的**「今天」（各面按各自的时钟与时区算出来的）。
+#: `projection_day` = 该面**从投影里读到并对外复述**的那个日期 —— 两者是两件事:
+#: 前者测「各面的时钟口径是否同源」, 后者测「消费方复述生产者的值时有没有走样」。
+#: ⛔ 分成两列是 Codex r1 HIGH-4 逼出来的: 原先 overview 的日期是**现算**的
+#: （`_display_today(_display_now())`）, 于是把它响应里的投影日期改成 1970 年,
+#: 整门照样绿 —— 那一列根本没有绑在被观察的响应上。
+FIELDS = ("bucket", "display_day", "projection_day", "snoozed", "done")
 
 #: 逐字段的**声明**产出方 —— 来自面普查（census）, 不是从数据里反推。
-#: ⛔ 必须是声明: 从数据反推等于「谁没产出就当它不该产出」, 那正是上面 MISSING
-#: 要堵的洞。`run()` 会把声明与实测对照, 两边不符即 ContractError。
+#: ⛔ 必须是声明: 从数据反推等于「谁没产出就当它不该产出」, 那正是 MISSING 要堵的洞。
+#: ⛔ 每个字段**至少两个**产出方: 只剩一个产出方的列没有跨面契约可言, 它会变成
+#: 一条恒真的判据（Codex r1 MEDIUM-5: 声明与实现同步缩减时对账仍通过）。
 FIELD_PRODUCERS: dict[str, tuple[str, ...]] = {
     "bucket": ("review_overview", "picker"),
     "display_day": ("review_overview", "picker", "skill_inbox", "notification"),
+    "projection_day": ("review_overview", "picker", "notification"),
     "snoozed": ("review_overview", "picker"),
     "done": ("review_overview", "picker"),
 }
@@ -86,16 +94,26 @@ FACES = (
 #: ZoneInfo("Asia/Shanghai")」）。它与 picker/overview 的 `local_tz.display_tz()`
 #: 在非 +08:00 机器上给出不同的「今天」。是否应当统一是产品问题（收件箱清理与
 #: 复习队列是否共用一个「今天」）, 本卡只把分叉**测出来并登记**, 不改它。
-DECLARED_DIVERGENCES: frozenset[tuple[str, str, str]] = frozenset(
+#: ⛔ **豁免必须是谓词, 不能是「面+字段」的空白支票**（Codex r1 HIGH-2）: 原先只按
+#: (面, 字段) 匹配, 于是把 inbox 的日期改成 `2099-01-01`、甚至让它整块板缺席,
+#: 都照样落进「已登记」而不判红 —— 白名单一旦不带谓词, 它豁免的就不是那条已知分歧,
+#: 而是那一整格。谓词只认「恰好等于同一时刻在固定 +08:00 下的本地日」这一种取值。
+def _inbox_fixed_offset_day(ctx: dict) -> str:
+    """同一时刻在**固定 +08:00** 下的本地日 —— inbox 唯一被允许的取值。"""
+    return ctx["now"].astimezone(timezone(timedelta(hours=8))).date().isoformat()
+
+
+DECLARED_DIVERGENCES: tuple[dict, ...] = (
     {
-        (
-            "skill_inbox",
-            "display_day",
-            "inbox_preview 的人话时区是刻意固定的 +08:00（:423/:430）, "
-            "与 local_tz.display_tz() 在非 +08:00 机器上分叉; "
-            "是否统一交产品（台账 ③, 本卡不改）",
-        ),
-    }
+        "face": "skill_inbox",
+        "field": "display_day",
+        # 谓词: 该面的值必须**恰好**是固定 +08:00 下的当地日。其它任何取值
+        # （错日 / MISSING / NOT_PRODUCED）都不在豁免范围内, 一律按未登记分歧判红。
+        "predicate": lambda value, ctx: value == _inbox_fixed_offset_day(ctx),
+        "reason": "inbox_preview 的人话时区是刻意固定的 +08:00（:423/:430）, "
+        "与 local_tz.display_tz() 在非 +08:00 机器上分叉; "
+        "是否统一交产品（台账 ②, 本卡不改）",
+    },
 )
 
 
@@ -205,6 +223,34 @@ def _board_bucket_rows(bucket_map: dict[str, list[dict]]) -> dict[str, tuple]:
     return {b: tuple(sorted(v)) for b, v in out.items()}
 
 
+def check_ranked_yield_partition(ranked: list[dict], yielded: set[str]) -> None:
+    """picker 的 snooze/done 结论**被消费**的可观察后果: 让位分区。
+
+    `build_payload` 对被推迟 / 今天已完成的板做**稳定分区**——它们整体让出榜首,
+    排在其余板之后（picker `:1009-1028`）。所以「没有一块让位板排在非让位板之前」
+    是这条消费的可观察不变量。
+
+    ⛔ 为什么需要它（Codex r1 MEDIUM-6）: 契约原先只从**输入**重算 done/snoozed,
+    `ranked` 被丢弃 —— 于是「让已完成板排回榜首」这种消费失效完全看不见。
+    ⚠ 退化情形如实声明: 全部板都让位时分区退化为恒等（picker 注释明文), 此时本条
+    恒真, 不构成判据。本卡 fixture 里非让位板非空, 不落在退化区。
+    ⚠ 覆盖面如实声明: 本条只证「让位板整体靠后」, **不证**已完成与已推迟两者之间的
+    先后（那是 U6-C 登记、D-37 按现状不改的那条顺序）。
+    """
+    boards = [r["board"] for r in ranked]
+    if not yielded or all(b in yielded for b in boards):
+        return  # 退化: 没有让位板, 或全部让位 —— 分区恒等, 本条不构成判据
+    first_yield = next((i for i, b in enumerate(boards) if b in yielded), None)
+    if first_yield is None:
+        return
+    late_unyielded = [b for b in boards[first_yield:] if b not in yielded]
+    if late_unyielded:
+        raise ContractError(
+            "picker 的让位分区被破坏: 让位板（已推迟/今日已完成）之后仍出现未让位板 "
+            f"{late_unyielded} —— snooze/done 的消费失效了; ranked 板序={boards}"
+        )
+
+
 def face_picker(picker, vault: Path, now: datetime, board_done: dict, snoozed: dict) -> tuple[dict, dict]:
     """③ picker（**只读**）—— 返回 (payload, 板级结论)。
 
@@ -212,9 +258,10 @@ def face_picker(picker, vault: Path, now: datetime, board_done: dict, snoozed: d
     明文纪律）, 它表达在 `ranked` 的**让位分区**上。所以这里取它**实际用来判定
     的那两个函数/键**: `active_snoozed()`（与页面侧 `_snoozed_active` 是同一个
     函数）与 `board_done.get(board) == payload["date"]`（与 picker :1011 的
-    `_today_key` 逐字同源）—— 不另写一套判定。
+    `_today_key` 逐字同源）—— 不另写一套判定; 并用 `check_ranked_yield_partition`
+    观察这两个结论**被消费**后的可见后果。
     """
-    payload, _ranked = picker.build_payload(
+    payload, ranked = picker.build_payload(
         vault,
         now,
         {},
@@ -225,10 +272,16 @@ def face_picker(picker, vault: Path, now: datetime, board_done: dict, snoozed: d
     buckets = _board_bucket_rows(payload["buckets"])
     day = payload["date"]
     awake = picker.active_snoozed(snoozed, now)
+    check_ranked_yield_partition(
+        ranked,
+        {b for b in awake} | {b for b, d in board_done.items() if d == day},
+    )
     conclusions = {
         board: {
             "bucket": rows,
             "display_day": day,
+            # picker 既是生产者又是「复述者」: 它落盘的 `date` 就是投影日期本身。
+            "projection_day": day,
             "snoozed": board in awake,
             "done": board_done.get(board) == day,
         }
@@ -257,13 +310,24 @@ def face_review_overview(ro, vaults_root: Path, vault_id: str) -> tuple[dict, bo
             "契约无从成立（检查 _gate_buckets 是否仍出门节点行）"
         )
     buckets = _board_bucket_rows(rows)
-    day = ro._display_today(ro._display_now())
+    # ⛔ 两个日期都必须从**响应里读**, 不许现算（Codex r1 HIGH-4）:
+    #    · display_day  = 响应顶层 `generated_at` 的日期部分 —— 这是本面按自己的
+    #      时钟与时区给出的「今天」（`_collect()` 里 `now = _display_now()`）;
+    #    · projection_day = 响应中它**复述**的投影日期 `projection["date"]`。
+    #    原先写的是 `_display_today(_display_now())` —— 那是把被测量重新算一遍,
+    #    于是把响应里的投影日期改成 1970 年, 整门照样绿。
+    generated_at = collected.get("generated_at")
+    if not isinstance(generated_at, str) or len(generated_at) < 10:
+        raise ContractError(f"_collect() 的 generated_at 不是可取日期的字符串: {generated_at!r}")
+    day = generated_at[:10]
+    projection_day = proj.get("date")
     snoozed_boards = set(entry["snoozed"])
     done_boards = set(entry["board_done"])
     return {
         board: {
             "bucket": bucket_rows,
             "display_day": day,
+            "projection_day": projection_day if projection_day is not None else MISSING,
             "snoozed": board in snoozed_boards,
             "done": board in done_boards,
         }
@@ -313,8 +377,15 @@ def assert_review_app_has_no_due_algorithm(app_path: Path) -> dict:
             assigned.add(node.id)
     offenders = sorted(m for m in _DUE_ALGO_MARKERS if m in assigned)
 
-    # 可执行代码里对 due 字段的**属性/下标读取**（字符串常量除外 —— 页面 JS 是
-    # 一个大字符串, 它是 /overview JSON 的纯消费方, 不在本断言的射程内）。
+    # 可执行代码里对 due 字段的读取。四种形态都要认（Codex r1 HIGH-3 实证前两种
+    # 之外的写法能整条走过去 —— `node["fsrs_due"]` 与 `node.get("fsrs_due")` 里
+    # 字段名是**字符串常量**, 既不是 Name 也不是 Attribute）:
+    #   ① 属性  obj.fsrs_due          ② 裸名  fsrs_due
+    #   ③ 下标  obj["fsrs_due"]       ④ 取值  obj.get("fsrs_due")  /  .pop / .setdefault
+    # ⛔ 字符串常量本身不一概算违约: 页面 JS 是一个大字符串常量, review_app 是
+    #    /overview JSON 的纯消费方, 那段 JS 不在本断言射程内。所以只认**落在
+    #    下标位置或取值调用实参位置**上的字符串 —— 那是在读一个 due 字段。
+    _GETTERS = {"get", "pop", "setdefault"}
     reads: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Attribute) and node.attr in _DUE_ALGO_MARKERS:
@@ -322,6 +393,17 @@ def assert_review_app_has_no_due_algorithm(app_path: Path) -> dict:
         elif isinstance(node, ast.Name) and node.id in _DUE_ALGO_MARKERS and isinstance(node.ctx, ast.Load):
             if node.id not in imported:
                 reads.add(node.id)
+        elif isinstance(node, ast.Subscript):
+            key = node.slice
+            if isinstance(key, ast.Constant) and isinstance(key.value, str) and key.value in _DUE_ALGO_MARKERS:
+                reads.add(key.value)
+        elif isinstance(node, ast.Call):
+            fn = node.func
+            if isinstance(fn, ast.Attribute) and fn.attr in _GETTERS and node.args:
+                first = node.args[0]
+                if isinstance(first, ast.Constant) and isinstance(first.value, str):
+                    if first.value in _DUE_ALGO_MARKERS:
+                        reads.add(first.value)
     offenders += sorted(reads - set(offenders))
     if offenders:
         raise ContractError(
@@ -393,10 +475,17 @@ def face_notification(payload: dict) -> tuple[str, str | None]:
 
     `id` 是 `canvas-review-<date>`（picker `day_id`）, `title` 里是 ranked[0] 的板名。
     桶位/推迟/完成这三个字段推送面不产出（它只说「今天做哪块」）。
+
+    ⛔ 通知缺席时返回 **MISSING 而不是 NOT_PRODUCED**（Codex r1 HIGH-1）: 后者会让
+    这一面整格退出比较, 于是「今天根本没发通知」这件事在矩阵里表现为零分歧。
+    「缺席」是一个要判红的结论, 不是「我不产出这个字段」。
+    ⚠ 生产器在 `ranked` 与 `upcoming` 都空时**本就**不产通知（那是合法的空库形态）。
+    本卡 fixture 恒有到期板 ⇒ 恒有通知; 真出现空库要跑这条契约时, 应当先把
+    「空库该不该有通知」裁定清楚再决定这一格的期望, 不能靠哨兵把它绕过去。
     """
     noti = payload.get("notification")
     if noti is None:
-        return NOT_PRODUCED, None
+        return MISSING, None
     noti_id = noti.get("id")
     if not isinstance(noti_id, str) or not noti_id.startswith(_NOTI_ID_PREFIX):
         raise ContractError(f"notification.id 非生产器形态: {noti_id!r}")
@@ -437,9 +526,34 @@ def check_producers_declaration(per_face: dict[str, dict], boards: list[str]) ->
     一件不存在的事发豁免）; 未声明却产出了值 = 声明表漏了一个面, 它的分歧永远
     不会被比到。
     """
+    if set(FIELD_PRODUCERS) != set(FIELDS):
+        raise ContractError(f"FIELD_PRODUCERS 的键与 FIELDS 不一致: {sorted(FIELD_PRODUCERS)} vs {sorted(FIELDS)}")
     for field, producers in FIELD_PRODUCERS.items():
+        # ⛔ 每列至少两个产出方（Codex r1 MEDIUM-5）: 只剩一个产出方的列没有跨面
+        #    契约可言 —— 「把声明砍到只剩一个面, 同时让另一个面别再产出」会让这一列
+        #    静默退化成恒真判据, 而两侧同步缩减时旧版对账查不出来。
+        if len(producers) < 2:
+            raise ContractError(f"字段 {field} 只剩 {len(producers)} 个声明产出方 —— 跨面契约不成立")
         for face in FACES:
-            produced = any(field in per_face.get(face, {}).get(b, {}) for b in boards)
+            # ⛔ 只看该面**真的交出来的**那些值。早期版本把「这块板该面没有」也按
+            #    NOT_PRODUCED 计入, 于是「某面整块板消失」被误报成「它交出了
+            #    NOT_PRODUCED」而当场抛 —— 真正的 MISSING 信号反而被这条误报盖住
+            #    （负控 RO_BOARD_IDENTITY 实测 rc=2 抓到）。板缺席走 MISSING 那条路,
+            #    由 build_matrix / diff_matrix 判红, 不在这里抛。
+            rows = per_face.get(face, {})
+            emitted = [rows[b][field] for b in boards if b in rows and field in rows[b]]
+            produced = [v for v in emitted if v != NOT_PRODUCED]
+            # ⛔ 声明产出方不许交出 NOT_PRODUCED（Codex r1 HIGH-1）: 那个哨兵会被
+            #    比对循环整格过滤掉, 于是「通知缺席 ⇒ 该面悄悄退出比较 ⇒ 零分歧」。
+            #    没有值就该是 MISSING（参与比对并判红）, 不是「我不产出这个字段」。
+            # ⛔ 这一条排在「一块板都没给出值」**之前**: 一个面若每块板都交出哨兵,
+            #    两条都成立, 而先报的那条决定了排障时看到的根因 —— 「交出了哨兵」
+            #    比「没有值」更准确, 也更接近要改的地方。
+            if face in producers and any(v == NOT_PRODUCED for v in emitted):
+                raise ContractError(
+                    f"面 {face} 在字段 {field} 上交出了 NOT_PRODUCED —— 声明产出方缺值必须用 MISSING, "
+                    "NOT_PRODUCED 会让它整格退出比较"
+                )
             if face in producers and not produced:
                 raise ContractError(
                     f"面 {face} 被声明产出字段 {field}, 实测一块板都没给出值 —— 它没有真正进矩阵, 对它的比对是空转"
@@ -451,14 +565,34 @@ def check_producers_declaration(per_face: dict[str, dict], boards: list[str]) ->
                 )
 
 
-def diff_matrix(matrix: dict) -> tuple[list[dict], list[dict]]:
+def _is_declared(face: str, field: str, value, ctx: dict) -> bool:
+    """这条分歧是否落在**已登记**的范围内。
+
+    ⛔ 不是按 (面, 字段) 发空白支票, 而是逐条跑谓词: 已登记的是「那一种已知取值」,
+    不是「那一格随便怎么错都行」（Codex r1 HIGH-2）。谓词抛异常 ⇒ 按未登记处理,
+    宁可多判红也不吞。
+    """
+    for rule in DECLARED_DIVERGENCES:
+        if rule["face"] != face or rule["field"] != field:
+            continue
+        try:
+            if rule["predicate"](value, ctx):
+                return True
+        except Exception:  # noqa: BLE001 — 谓词自身出错不得变成豁免
+            return False
+    return False
+
+
+def diff_matrix(matrix: dict, ctx: dict | None = None) -> tuple[list[dict], list[dict]]:
     """逐板逐字段比对 → (未登记分歧, 已登记分歧)。
 
     ⛔ 逐板逐字段全量比对, 不做「差异数 ≤ N」之类的计数式判据。
+    `ctx` 供已登记分歧的谓词取上下文（如基准时刻）; 缺省 = 无上下文, 谓词取不到
+    它要的键就会抛, 按未登记处理。
     """
     undeclared: list[dict] = []
     declared: list[dict] = []
-    declared_keys = {(face, field) for face, field, _ in DECLARED_DIVERGENCES}
+    ctx = ctx or {}
     for board in sorted(matrix):
         for field in FIELDS:
             cells = matrix[board][field]
@@ -498,7 +632,8 @@ def diff_matrix(matrix: dict) -> tuple[list[dict], list[dict]]:
                         ),
                         "majority_faces": sorted(majority_faces) if majority_faces is not None else [],
                     }
-                    (declared if (face, field) in declared_keys else undeclared).append(row)
+                    bucket = declared if _is_declared(face, field, producing[face], ctx) else undeclared
+                    bucket.append(row)
     return undeclared, declared
 
 
@@ -613,12 +748,20 @@ def run(now_raw: str, tz_name: str, out_json: Path | None, keep: bool) -> int:
             "skill_recap": {},
             # 只产出日期结论, 且基准是刻意固定的 +08:00
             "skill_inbox": {b: {"display_day": inbox_day} for b in boards},
-            # 推送只说「今天做哪块」: 日期结论对全部板成立
-            "notification": {b: {"display_day": noti_day} for b in boards},
+            # 推送只说「今天做哪块」: 它的 id 里那个日期既是它自己的「今天」,
+            # 也是它复述的投影日 —— 两列同值, 都要参与比对。
+            "notification": {b: {"display_day": noti_day, "projection_day": noti_day} for b in boards},
         }
+        # ⛔ 推送点名的那块板必须是矩阵里认识的板（否则「通知指向一块谁也不知道的
+        #    板」这条不一致没有任何判据）。title 形如 `📚 今日复习 · <板名>`, 长板名
+        #    会被截断加省略号 —— 所以用前缀匹配而不是相等。
+        if noti_title is not None:
+            named = noti_title.split("·", 1)[-1].strip().rstrip("…")
+            if named and not any(b.startswith(named) or named.startswith(b) for b in boards):
+                raise ContractError(f"推送点名的板 {named!r} 不在五面认识的板集合里: {boards}")
         check_producers_declaration(per_face, boards)
         matrix = build_matrix(per_face, boards)
-        undeclared, declared = diff_matrix(matrix)
+        undeclared, declared = diff_matrix(matrix, ctx={"now": now, "display_tz": display_tz})
 
         # ── snooze / done / tonight_available 一致性（(f)）──────────────
         expected_tonight = pinned_local.hour < ro._SNOOZE_TONIGHT_HOUR
@@ -631,12 +774,14 @@ def run(now_raw: str, tz_name: str, out_json: Path | None, keep: bool) -> int:
             "boards": boards,
             "matrix": matrix,
             "census": {
-                "review_overview": "产出 bucket/display_day/snoozed/done 四字段（_collect → _summarize → _gate_buckets）",
-                "review_app": f"纯消费方, 四字段均不产出; 静态断言通过（共享 import: {app_static['imported_shared']}）",
-                "picker": "产出四字段（buckets/date + active_snoozed/board_done 同源判定）; 本卡只读",
+                "review_overview": "产出全部五字段; display_day 取响应顶层 generated_at 的日期部分, "
+                "projection_day 取响应中复述的 projection.date（两者都从响应读, 不现算）",
+                "review_app": f"纯消费方, 五字段均不产出; 静态断言通过（共享 import: {app_static['imported_shared']}）",
+                "picker": "产出全部五字段（buckets/date + active_snoozed/board_done 同源判定 + "
+                "ranked 让位分区被观察）; 本卡只读",
                 "skill_recap": recap_note,
-                "skill_inbox": f"只产出 display_day={inbox_day}（基准固定 +08:00, 已登记分歧）",
-                "notification": f"只产出 display_day={noti_day}; 点名板={noti_title!r}",
+                "skill_inbox": f"只产出 display_day={inbox_day}（基准固定 +08:00, 已登记分歧且带谓词）",
+                "notification": f"产出 display_day/projection_day={noti_day}; 点名板={noti_title!r}",
             },
             "tonight_available": {
                 "from_overview": tonight_available,
