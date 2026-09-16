@@ -1016,7 +1016,11 @@ write_opencode_binding() {
     #    目录时 EEXIST 且目录内容为空, 没有 ln(1) 那个便利语义）, 且支持 dir_fd ——
     #    逐级 O_DIRECTORY|O_NOFOLLOW 打开、全程相对 fd 操作, 祖先在这之后被换掉也无效。
     local berr brc=0
-    berr="$(printf '%s\n' "${NAMES[@]}" | bind_opencode_skills "$VAULT" 2>&1)" || brc=$?
+    # ⛔ 用 **NUL** 分隔, 不用换行（Codex r5 HIGH-1）：两侧必须看到**同一份字节串**。
+    #    旧写法 `printf '%s\n'` + python 侧 `splitlines()+strip()` 让两侧各自解释名字 ——
+    #    判据看的是 basename 的原名, 实际建的是 strip 之后的名字, 中间差一层就能
+    #    把「判据放行的名字」变成「判据会拒的名字」（实测：` .git` 过检 ⇒ 建出 `.git`）。
+    berr="$(printf '%s\0' "${NAMES[@]}" | bind_opencode_skills "$VAULT" 2>&1)" || brc=$?
     if [ "$brc" != 0 ]; then
         OPENCODE_ERR="${berr:-建条目级软链失败}"
         return 1
@@ -1076,7 +1080,14 @@ import stat as statmod
 import sys
 
 vault = sys.argv[1]
-names = [ln.strip() for ln in sys.stdin.read().splitlines() if ln.strip()]
+# ⛔ 逐字节还原 shell 送来的名字（Codex r5 HIGH-1）——**不 strip、不 splitlines**：
+#    · strip() 会吃掉前后空白 ⇒ ` .git` 变 `.git`，判据放行的名字变成判据会拒的名字；
+#    · splitlines() 切的**不只是 \n**，还包括 \v \f \x1c \x1d \x1e \x85 \u2028 \u2029
+#      ⇒ 名字里含这些字符时**一个名字被切成两个**（本项目栽过同型：splitlines 切 JSONL
+#      被 U+2028 切碎）。
+#    改用 NUL 分隔 + os.fsdecode 往返：shell 的 basename 看到什么，这里就是什么。
+_raw = sys.stdin.buffer.read()
+names = [os.fsdecode(b) for b in _raw.split(b"\0") if b]
 if not names:
     print("没有要绑定的技能条目", file=sys.stderr)
     sys.exit(1)
@@ -1301,8 +1312,13 @@ try:
         fd = os.open(base, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644, dir_fd=dfd)
     except FileExistsError:
         # 已存在 ⇒ 一律不动它, 只把「它是什么」说清楚。
-        # ⚠️ 本脚本刻意**不**做「覆盖上次的产物」：整脚本重跑会先被步 2 的防覆盖闸门
-        #    拦成 rc 72, 到不了这里；为一个走不到的分支留 unlink, 换来的是 H1 那类缺陷。
+        # ⚠️ 本脚本刻意**不**做「覆盖上次的产物」：替换必然要先 unlink, 而「目标存在」
+        #    只能在 unlink **之前**检查 —— 两步之间冒出来的手写文件会被无声删掉
+        #    （Codex r3 H1 实测的正是这条）。存在即拒, 让人自己决定怎么处置。
+        # ⛔ 别把这里写成「重跑走不到这个分支」（我 r3 写过, r4 被指出**过强**）：
+        #    installer 成功返回前留下 AGENTS.md、或并发创建, 都能让步 3 遇到已有目标;
+        #    而默认 env 目录下重跑还可能先被 ACTIVE_VAULT 碰撞检查拦成 rc 71, 不是 72。
+        #    本卡就有一条门专门预置这种输入（test_hosts_opencode_refuses_to_replace_…）。
         what = describe_existing(dfd, base, dst) or f"目标已存在: {dst}"
         die(f"拒绝覆盖 —— {what}")
     except OSError as exc:

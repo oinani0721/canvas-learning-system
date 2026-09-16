@@ -3709,8 +3709,10 @@ def test_g2_8_activate_tx_opens_no_new_write_surface():
 
     ⚠️ 下面那个集合是**精确相等**判据，新增写面必须来这里登记 —— 那正是它的用意
        （`ev-npm-cache`/`ev-npm-logs` 当初也是这样被逼着登记的）。
-       CARD-HOSTS-OPENCODE（第十四批）因此补进 3 项：`--hosts` 含 opencode 时步 3
-       会写 `.agents/skills`（根）与 `AGENTS.md`（+ 其 `.tmp`）。
+       CARD-HOSTS-OPENCODE（第十四批）因此补进 **2 项**：`--hosts` 含 opencode 时步 3
+       会写 `.agents/skills`（根）与 `AGENTS.md`。
+       （曾经是 3 项 —— 第三项 `AGENTS.md.tmp` 随 r3 去掉 tmp 发布机制一并退场，
+        见本 docstring 下方那条 ⚠️。这里的数字必须跟着实际写入面走。）
     ⛔ **不许**靠挪动位置让这条门扫不到新写面：本门的取名面是
        `PENDING_WRITES=(` … `local -a DIR_WRITES=` 之间的**文本切片**，把
        `PENDING_WRITES+=(...)` 挪到切片之外，运行期行为一模一样而门当场变绿 ——
@@ -4401,6 +4403,48 @@ def test_hosts_opencode_refuses_to_replace_even_its_own_previous_output(tmp_path
     assert not (v / "AGENTS.md.tmp").exists(), "落下了临时文件（本版本根本不该有 tmp）"
 
 
+def _py_code_only(src: str) -> str:
+    """把一段 **Python 源码**里的注释按**词法**剥掉 —— 判据要看的是代码，不是有人提过它。
+
+    ⛔ 为什么不能用 `ln.lstrip().startswith("#")`（Codex r5 MEDIUM-1 实测）：
+       那只滤**整行注释**，**行尾注释**照样留在判据面里。于是把真实的 `O_EXCL` 删掉、
+       只在行尾注释里留下这个词，flags 判据仍然 PASS —— 拿「有人提过它」冒充「它还生效」。
+       本卡在 r4 修过一次同型（整行注释），r5 又在行尾注释上栽了一次。
+    ⚠️ 用 `tokenize` 而不是正则：字符串字面量里的 `#` 不是注释，正则分不清。
+    """
+    import io
+    import tokenize
+
+    lines = src.splitlines()
+    # ⛔ 不能用 `" ".join(tok.string)` 重拼（本卡第一版就是这么写的，当场踩到）：
+    #    那会把 `os.ftruncate(` 拼成 `os . ftruncate (`，所有子串判据一起失效 ——
+    #    "剥掉注释"变成了"顺手改写代码"。正确做法是**按位置把注释那一段挖掉**，其余原样。
+    cuts = []  # (行号 0-based, 起列, 止列)
+    try:
+        for tok in tokenize.generate_tokens(io.StringIO(src).readline):
+            if tok.type == tokenize.COMMENT:
+                (r1, c1), (r2, c2) = tok.start, tok.end
+                assert r1 == r2, "注释 token 跨行，不应发生"
+                cuts.append((r1 - 1, c1, c2))
+    except (tokenize.TokenError, IndentationError, SyntaxError) as exc:
+        # ⛔ 剥不动就 fail-closed：静默返回空串会让判据红得莫名其妙，返回原文又让注释混回来。
+        #    判据说不出话时必须响亮地说不出话。
+        raise AssertionError(f"内嵌 python 源无法 tokenize，判据不敢下结论: {exc}") from exc
+    for row, c1, c2 in sorted(cuts, reverse=True):
+        lines[row] = lines[row][:c1] + lines[row][c2:]
+    return "\n".join(lines)
+
+
+def _heredoc_body(src: str, tag: str) -> str:
+    """抽出 shell 里 `cat << 'TAG'` … `TAG` 之间的正文（内嵌 python 源）。"""
+    open_mark = f"cat << '{tag}'\n"
+    close_mark = f"\n{tag}\n"
+    assert src.count(open_mark) == 1, f"heredoc 开标记 {tag} 不唯一，切片会截错"
+    body = src.split(open_mark, 1)[1]
+    assert close_mark in body, f"heredoc 收标记 {tag} 找不到"
+    return body.split(close_mark, 1)[0]
+
+
 def test_deploy_sh_publishes_agents_md_without_a_temp_file(tmp_path: Path):
     """静态门：发布路径里不得再出现「写 tmp 再改名」那套。
 
@@ -4415,20 +4459,24 @@ def test_deploy_sh_publishes_agents_md_without_a_temp_file(tmp_path: Path):
     #    shell 侧的尾巴（源码捕获守卫 + `python3 -c`），在那里加写操作旧切片看不见。
     end = src.index("\n}\n", start) + len("\n}\n")
     body = src[start:end]
-    # ⛔ 判据只看**去注释的代码**（同上）：flags 写在注释里也能让「in body」为真 ——
-    #    那是拿「有人提过它」冒充「它还生效」。
-    code_lines = [ln for ln in body.splitlines() if not ln.lstrip().startswith("#")]
-    code = "\n".join(code_lines)
+    # ⛔ 判据只看**词法级去注释**后的代码（Codex r5 MEDIUM-1）：
+    #    整行注释过滤挡不住**行尾注释** —— 真 flag 删掉、行尾注释留个词，判据照样绿。
+    #    `_py_code_only` 用 tokenize 剥注释；内嵌 python 从 heredoc 精确抽取。
+    py = _py_code_only(_heredoc_body(src, "PYPUB"))
+    # shell 侧的尾巴（heredoc 之外那几行）单独按行处理 —— shell 没有标准 tokenizer。
+    sh_tail = "\n".join(ln for ln in body.split("\nPYPUB\n", 1)[-1].splitlines() if not ln.lstrip().startswith("#"))
+    code = py + "\n" + sh_tail
     for banned in ("os.replace(", "os.link(", "os.rename(", "os.renames(", "shutil.move(", ".rename("):
-        hits = [ln.strip() for ln in code_lines if banned in ln]
-        assert not hits, f"发布路径又出现了改名式发布 {banned}: {hits}"
+        assert banned not in code, f"发布路径又出现了改名式发布 {banned}"
     # 失败清理也不许回到「按路径删」（r4 HIGH-1）。
     for banned in ("os.unlink(", "os.remove(", "shutil.rmtree("):
-        hits = [ln.strip() for ln in code_lines if banned in ln]
-        assert not hits, f"发布路径出现了按路径删除 {banned}: {hits}"
+        assert banned not in code, f"发布路径出现了按路径删除 {banned}"
     for flag in ("O_EXCL", "O_NOFOLLOW", "O_CREAT"):
         assert flag in code, f"直写目标的关键 flag {flag} 只剩注释或已消失"
     assert "os.ftruncate(" in code, "失败清理不再走 ftruncate（按 fd 截断）了"
+    # ⛔ 截断前的链接数检查也要锁住（Codex r5 MEDIUM-1 指出它此前无门）：
+    #    O_EXCL 只保证**新建**，写入期间仍可能被 link 出第二个名字，那时截断改的是共享 inode。
+    assert "st_nlink != 1" in code, "清理分支截断前的链接数检查没了"
     # 写面清单里也不该再有 tmp 的登记（名实一致）。
     assert "opencode-agents-md-tmp" not in src, "PENDING_WRITES 里还留着已不会被写的 tmp 登记"
 
@@ -4443,14 +4491,11 @@ def test_deploy_sh_binds_skills_through_symlink_syscall_not_ln(tmp_path: Path):
        且目录内容为空），且支持 `dir_fd`，所以整条链能钉在 fd 上。
     """
     src = DEPLOY_SH.read_text(encoding="utf-8")
-    start = src.index("bind_opencode_skills() {")
-    end = src.index("\n}\n", start) + len("\n}\n")
-    code_lines = [ln for ln in src[start:end].splitlines() if not ln.lstrip().startswith("#")]
-    code = "\n".join(code_lines)
+    # ⛔ 词法级去注释（同 publish 门，Codex r5 MEDIUM-1）。
+    code = _py_code_only(_heredoc_body(src, "PYBIND"))
     assert "os.symlink(" in code, "条目级软链不再走 symlink(2)"
     for banned in ("ln -s", "os.system(", "subprocess."):
-        hits = [ln.strip() for ln in code_lines if banned in ln]
-        assert not hits, f"绑定段又用上了 {banned}: {hits}"
+        assert banned not in code, f"绑定段又用上了 {banned}"
     for flag in ("O_DIRECTORY", "O_NOFOLLOW"):
         assert flag in code, f"目录 fd 链的关键 flag {flag} 只剩注释或已消失"
     assert "dir_fd=" in code, "不再相对目录 fd 操作了"
@@ -4459,6 +4504,58 @@ def test_deploy_sh_binds_skills_through_symlink_syscall_not_ln(tmp_path: Path):
     wend = src.index("\n}\n", wstart)
     wcode = [ln for ln in src[wstart:wend].splitlines() if not ln.lstrip().startswith("#")]
     assert not [ln for ln in wcode if "ln -s" in ln], "write_opencode_binding 里还留着 ln -s"
+
+
+def test_hosts_opencode_skill_name_survives_the_shell_python_handoff(tmp_path: Path):
+    """判据看到的名字 == 实际建出的名字（Codex r5 HIGH-1）。
+
+    ⛔ 根因不是「检查得不够细」，是**同一个名字被两侧各自解释**：
+       shell 侧 `basename` 拿原名去过 `check_forbidden_paths`，python 侧原先用
+       `splitlines()+strip()` 重新解释后才真建。于是 ` .git`（前导空格）**过检放行**，
+       而实际建出的是 `.git` —— 一个判据会拒的名字，且残链在报错**之前**就落盘了。
+       （本卡端到端实证过，存档 `selfcheck-r5-findings-*.txt`。）
+    ⛔ 修法不是「在 python 侧也做一次判据」（那是加第三份手抄口径，必然再漂），
+       而是让两侧看到**同一份字节**：NUL 分隔 + `os.fsdecode` 往返，不 strip、不 splitlines。
+
+    本门喂一个前导空格的技能名，断言建出来的**恰好是那个名字**、而不是 strip 后的。
+    """
+    name, port = "probe_oc8", "8288"
+    h = _oc_harness(tmp_path)
+    # 技能目录名带前导空格 —— 判据对 ` .git` 放行、对 `.git` 拒绝（实测）。
+    odd = " .git"
+    _oc_preseed_installer(
+        tmp_path,
+        h,
+        f'mkdir -p "$v/.claude/skills/{odd}"\n'
+        f"printf -- '---\\nname: dotgit\\ndescription: s\\n---\\n' > \"$v/.claude/skills/{odd}/SKILL.md\"\n",
+    )
+    env = _tx_env(tmp_path, port, name)
+    r = _oc_run(tmp_path, h, name, port, env=env)
+    root = tmp_path / "vaults" / name / ".agents" / "skills"
+    built = sorted(p.name for p in root.iterdir()) if root.is_dir() else []
+    # ⛔ 承重断言：绝不能出现 strip 之后的名字。
+    assert ".git" not in built, f"strip 后的名字被建出来了（判据从没看过它）: {built}\n{r.stdout}{r.stderr}"
+    assert odd in built, f"原名没被原样建出: {built}\n{r.stdout}{r.stderr}"
+    assert os.readlink(root / odd) == f"../../.claude/skills/{odd}", os.readlink(root / odd)
+
+
+def test_deploy_sh_hands_skill_names_over_byte_faithfully(tmp_path: Path):
+    """静态门：名字传递必须逐字节保真，不得回到 `splitlines()`/`strip()`。
+
+    哪天有人"顺手整理"成按行传递，这条会红，逼他先读上面那条门的说明。
+    """
+    src = DEPLOY_SH.read_text(encoding="utf-8")
+    code = _py_code_only(_heredoc_body(src, "PYBIND"))
+    for banned in ("splitlines()", ".strip()"):
+        assert banned not in code, f"名字解析又回到了会改写名字的 {banned}"
+    assert 'split(b"\\0")' in code, "不再按 NUL 切分名字"
+    assert "os.fsdecode(" in code, "不再走 fsdecode 往返"
+    # shell 侧也必须用 NUL 送出（两侧成对，改一侧就不是同一份字节了）。
+    wstart = src.index("write_opencode_binding() {")
+    wcode = "\n".join(
+        ln for ln in src[wstart : src.index("\n}\n", wstart)].splitlines() if not ln.lstrip().startswith("#")
+    )
+    assert "printf '%s\\0'" in wcode, "shell 侧不再用 NUL 分隔送出名字"
 
 
 def test_hosts_opencode_agents_md_is_nonempty_and_marked(tmp_path: Path):
