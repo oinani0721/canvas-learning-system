@@ -1,0 +1,15 @@
+### 死分支普查脚本的验伪锚 ts=20260917T025903
+对 PREV=3b819f404668c59c7ddc08c083f8014355e2dc96 的**改前**副本（scratchpad，不入工作树）跑同一判据，必须报出 2 个 DEAD。
+
+backend/app/api/v1/endpoints/boards.py:L89 handlers=[(82, ['ValueError']), (84, ['KeyError']), (89, ['ValidationError'])]
+    → ⛔ DEAD (被 ValueError@L82 遮蔽)
+backend/app/mcp/tools/board_manifest_tools.py:L70 handlers=[(62, ['ValueError']), (64, ['KeyError']), (70, ['ValidationError'])]
+    → ⛔ DEAD (被 ValueError@L62 遮蔽)
+backend/app/services/board_manifest_service.py:L1029 handlers=[(1029, ['ValidationError'])]
+    → OK 非死分支
+backend/app/services/board_manifest_service.py:L1069 handlers=[(1069, ['ValidationError'])]
+    → OK 非死分支
+backend/app/services/canvas_service.py:L701 handlers=[(701, ['ValidationError'])]
+    → OK 非死分支
+
+改前副本判为 DEAD 的 = 2（期望 2 = 判据能翻，不是恒报 OK）

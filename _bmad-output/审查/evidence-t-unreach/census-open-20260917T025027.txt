@@ -1,0 +1,14 @@
+### census 先红（改代码前） ts=20260917T025027
+--- 1) AST except 顺序 ---
+backend/app/api/v1/endpoints/boards.py ['ValueError', 'KeyError', 'ValidationError'] ⛔ DEAD (ValidationError shadowed by ValueError)
+backend/app/mcp/tools/board_manifest_tools.py ['ValueError', 'KeyError', 'ValidationError'] ⛔ DEAD (ValidationError shadowed by ValueError)
+--- 2) census: except pydantic.ValidationError 恰 2 ---
+       2
+--- 3) 全族 5 行（裸括号 -E，验伪锚：转义写法恒 0） ---
+       5
+  验伪锚（转义括号写法，应 0 = 禁用写法自证）:
+       0
+--- 4) MRO ---
+MRO ok: issubclass(ValidationError, ValueError)=True
+--- 5) ignore 计数（改前应 2） ---
+       2

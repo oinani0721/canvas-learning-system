@@ -1,0 +1,12 @@
+### census 后绿（改代码后） ts=20260917T025334
+--- 1) AST except 顺序（应两行 OK） ---
+backend/app/api/v1/endpoints/boards.py ['ValidationError', 'ValueError', 'KeyError'] OK
+backend/app/mcp/tools/board_manifest_tools.py ['ValidationError', 'ValueError', 'KeyError'] OK
+--- 2) census: except pydantic.ValidationError 仍恰 2 ---
+       2
+--- 3) 全族仍 5 行 ---
+       5
+--- 4) reportUnusedExcept ignore 收工必 0（禁 -rcF） ---
+       0
+    验伪锚（同次执行，证搜索面没打错）: except pydantic.ValidationError 必 = 2
+       2

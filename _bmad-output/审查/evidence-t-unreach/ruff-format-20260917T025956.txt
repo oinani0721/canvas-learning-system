@@ -1,0 +1,13 @@
+### ruff format --check（本卡 3 文件）ts=20260917T025956
+Would reformat: backend/tests/unit/test_board_manifest_unreach_t5e.py
+1 file would be reformatted, 2 files already formatted
+format_rc=1
+
+--- 对照：两生产文件在 PREV（改前）态是否已 dirty（证明漂移是否本卡引入） ---
+2 files already formatted
+format_base_rc=0
+
+--- 验伪锚：一个已知格式不规范的文件必 rc=1 ---
+Would reformat: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t5-bugs/f2caa061-cbba-4e9f-a595-a3b7ed9feae2/scratchpad/fmt_anchor.py
+1 file would be reformatted
+anchor_rc=1

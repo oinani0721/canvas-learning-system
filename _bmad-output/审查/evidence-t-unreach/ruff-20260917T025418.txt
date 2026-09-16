@@ -1,0 +1,18 @@
+### ruff（zsh 数组）ts=20260917T025418  PREV=3b819f404668c59c7ddc08c083f8014355e2dc96
+--- 本卡文件尚未 commit：集合 = HEAD 起的已跟踪改动 + untracked 新文件 ---
+files=3
+backend/app/api/v1/endpoints/boards.py
+backend/app/mcp/tools/board_manifest_tools.py
+backend/tests/unit/test_board_manifest_unreach_t5e.py
+All checks passed!
+ruff_rc=0
+--- 验伪锚：已知含 F821 未定义名的文件，必 rc=1 ---
+F821 Undefined name `undefined_name_zzz`
+ --> /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t5-bugs/f2caa061-cbba-4e9f-a595-a3b7ed9feae2/scratchpad/ruff_anchor.py:1:5
+  |
+1 | x = undefined_name_zzz
+  |     ^^^^^^^^^^^^^^^^^^
+  |
+
+Found 1 error.
+anchor_rc=1
