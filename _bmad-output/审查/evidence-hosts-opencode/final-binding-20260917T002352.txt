@@ -1,0 +1,24 @@
+# 终审绑定核 2026-09-17 00:23:52 CST
+
+## HEAD
+47a17a90c32624d81183313babca43ed291d69f5 fix(deploy): 撤回越协议的 r14-LOW 修改, 使 r14 直接绑最终 HEAD [BATCH-2026-09-11-第十四批 / CARD-HOSTS-OPENCODE]
+
+## 判据：git diff --stat d6f96fa8 HEAD -- . ':(exclude)_bmad-output'
+rc=0   (须 0；rc=128 = pathspec 语法没跑成，空输出不算绿)
+输出行数 = 0   (0 = 仍绑定 ✅)
+
+## 验伪锚 1：同一写法对一个已知有代码差异的区间必须非空
+7e1d6b53(PREV) → HEAD 输出行数 = 7   (须 >0，证明判据不是恒空)
+
+## 验伪锚 2：exclude 真的在起作用（否则文档提交会把绑定判假）
+不加 exclude 的同区间输出行数 = 73   (须 >0，证明确有 _bmad-output 改动被排除掉)
+
+## 代码面文件逐一比对 d6f96fa8 vs HEAD
+  同  8cd52a5cdd025e9d  scripts/deploy-vault.sh
+  同  392ae1e84c793c81  scripts/cls_forbidden_paths.py
+  同  47a32829c56bd54d  scripts/vault-install-manifest.json
+  同  1a8f62a091cd38d7  backend/tests/unit/test_deploy_vault_sh.py
+  同  2d71b31276e0ed74  backend/tests/unit/test_vault_install_manifest.py
+  同  ef2b425549dcae75  .claude/skills/deploy-vault/SKILL.md
+
+rc=0
