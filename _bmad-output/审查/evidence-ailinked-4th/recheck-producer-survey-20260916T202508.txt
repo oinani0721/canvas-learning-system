@@ -1,0 +1,4 @@
+tests/regression/test_learning_events_schema_contract.py::test_real_producer_ai_linked_doc_writer PASSED [ 50%]
+tests/regression/test_g3_2_review_ledger.py::test_write_point_survey_no_third_implementation PASSED [100%]
+======================== 2 passed, 11 warnings in 2.04s ========================
+rc=0
