@@ -44,7 +44,9 @@ MUTS = {
               '        end = _parse_rule("M11.1.0", None)  # NEGCTL'),
  "STARTR":  M('        start = _parse_rule("M3.2.0", None)',
               '        start = None  # NEGCTL'),
- "CTRL":    M('    if spec != spec.rstrip("\\n\\r"):', '    if False:  # NEGCTL'),
+ # `\Z`（绝对串尾）退回 `$`（在末尾换行之前收尾）
+ "ENDANCHOR": M(r'    r"(?:/(?P<etime>\d+(?::\d+(?::\d+)?)?))?)?\Z"',
+                r'    r"(?:/(?P<etime>\d+(?::\d+(?::\d+)?)?))?)?$"  # NEGCTL'),
  "ENC":     M('        spec.encode("utf-8")',
               '        _ = spec.encode("utf-8", "surrogateescape")  # NEGCTL'),
  "ASCII":   M('        if not all(x.isascii() and x.isdigit() for x in _f):',
@@ -82,9 +84,30 @@ MUTS = {
  # 正则数字位宽退回 {1,3}/{1,2}
  "REWIDTH": M('    r"(?P<std_off>[+-]?\\d+(?::\\d+(?::\\d+)?)?)?"',
               '    r"(?P<std_off>[+-]?\\d{1,3}(?::\\d{1,2}(?::\\d{1,2})?)?)?"  # NEGCTL'),
- # 裸名词法退回 [A-Za-z]{3,}
- "BARENAME": M('    r"^(?P<std><[^<>]*>|[^\\x00-\\x1f\\d+,\\-]+)"',
-               '    r"^(?P<std><[^<>]+>|[A-Za-z]{3,})"  # NEGCTL'),
+ # 裸名词法退回 [A-Za-z]{3,}（连带去掉「< 开头扫不到 > 就当裸名」那一支）
+ "BARENAME": M(r'    r"^(?P<std><[^>\x00]*>|(?!<)[^0-9+,\-\x00]+|<[^>0-9+,\-\x00]*)"',
+               r'    r"^(?P<std><[^<>]+>|[A-Za-z]{3,})"  # NEGCTL'),
+ # std 侧去掉「< 开头扫不到 > 就当裸名」那一支（只坏 `<AAA1` 一族，不动别的）
+ "ANGLEFALLBACK": M(r'    r"^(?P<std><[^>\x00]*>|(?!<)[^0-9+,\-\x00]+|<[^>0-9+,\-\x00]*)"',
+                    r'    r"^(?P<std><[^>\x00]*>|(?!<)[^0-9+,\-\x00]+)"  # NEGCTL'),
+ # 名字数字集从 ASCII 退回 \d（连带吃掉 Unicode 数字）
+ "UNIDIGIT": M(r'    r"^(?P<std><[^>\x00]*>|(?!<)[^0-9+,\-\x00]+|<[^>0-9+,\-\x00]*)"',
+               r'    r"^(?P<std><[^>\x00]*>|(?!<)[^\d+,\-\x00]+|<[^>\d+,\-\x00]*)"  # NEGCTL'),
+ # 引用名内容排除 `<`（r12 那条真误收的退化形态：`<AAA1<DEF>2` 会被当成裸名 `<AAA`+偏移 1）
+ "QUOTEDINNER": M(r'    r"^(?P<std><[^>\x00]*>|(?!<)[^0-9+,\-\x00]+|<[^>0-9+,\-\x00]*)"',
+                  r'    r"^(?P<std><[^<>\x00]*>|(?!<)[^0-9+,\-\x00]+|<[^>0-9+,\-\x00]*)"  # NEGCTL'),
+ # 路径候选去掉「文件必须真实存在」这一关
+ "PATHEXIST": M('        if base.is_file():', '        if True:  # NEGCTL 不验文件是否存在'),
+ # 前导冒号不再禁用 POSIX 回退
+ "COLONPOSIX": M('        if not env_tz.startswith(":"):',
+                 '        if True:  # NEGCTL 冒号前缀也退 POSIX'),
+ # _strip_name 退回只判 startswith
+ "STRIPNAME": M('''    if len(name) >= 2 and name.startswith("<") and name.endswith(">"):
+        return name[1:-1]
+    return name''',
+                '''    return name[1:-1] if name.startswith("<") else name  # NEGCTL'''),
+ # fromutc 去掉 TypeError 分支
+ "FROMUTCTYPE": M('''        if not isinstance(dt, datetime):''', '''        if False:  # NEGCTL'''),
  # M4: 冒号从「只剥一个」退回 lstrip（剥全部）
  "COLON": M('    raw = env_tz[1:] if env_tz.startswith(":") else env_tz  # C 库只剥一个冒号',
             '    raw = env_tz.lstrip(":")  # NEGCTL 剥全部冒号'),
@@ -109,7 +132,8 @@ MUTS = {
  "J365":    M('    yday = a + (1 if (kind == "J" and calendar.isleap(year) and a >= 60) else 0) - (1 if kind == "J" else 0)',
               '    yday = a + (1 if (kind == "J" and calendar.isleap(year) and 60 <= a < 300) else 0) - (1 if kind == "J" else 0)  # NEGCTL'),
  "NUL":     M('    if "\\x00" in spec:', '    if False:  # NEGCTL'),
- "CAP":     M('    if len(spec) > 1024:', '    if False:  # NEGCTL'),
+ # 「CAP」（1024 长度上限）那条变异已随该检查在 r12 被删除而移除 ——
+ # 正则位宽放宽后指数回溯消失, 它从性能防线退化成纯误拒（Codex r11 M5）。
  "REWIDTH_ONE": M('    r"(?P<std_off>[+-]?\\d+(?::\\d+(?::\\d+)?)?)?"',
                   '    r"(?P<std_off>[+-]?\\d{1,3}(?::\\d{1,2}(?::\\d{1,2})?)?)?"  # NEGCTL',
                   [LOCAL]),
@@ -121,9 +145,34 @@ MUTS = {
 }
 
 A = "test_accepted_domain_matches_libc"
-def acc(*idx):
-    return [f"{F}::{A}[{'accept' if s.startswith('a') else 'reject'}-{n}-{c}]"
-            for s, n in idx for c in ("backend", "scripts")]
+
+# ⛔ 接受域表的 nodeid 是 `accept-N` / `reject-N`, N = 它在表里的**下标**。
+#    直接写死 N 极其脆弱: 往表中间插一条, 后面所有段的绑定**静默错位** ——
+#    红仍是红, 但红的不是声称的那条（本卡 r12 往表里补对照组时就撞上了）。
+#    改成按 **spec 文本**去表里现查下标: 表怎么改, 绑定跟着走; 查不到直接 abort。
+def _acceptance_table():
+    """从测试文件里把 `_ACCEPTANCE_DOMAIN_CASES` 原样执行出来（不 import 整个测试模块）。"""
+    import ast
+    src = (ROOT / "backend" / F).read_text(encoding="utf-8")
+    node = next(n for n in ast.parse(src).body
+                if isinstance(n, ast.Assign)
+                and any(getattr(t, "id", "") == "_ACCEPTANCE_DOMAIN_CASES" for t in n.targets))
+    ns: dict = {}
+    exec(compile(ast.Module(body=[node], type_ignores=[]), "<tbl>", "exec"), ns)
+    return ns["_ACCEPTANCE_DOMAIN_CASES"]
+
+
+def acc(*specs):
+    """按 spec 文本定位表里的下标, 生成两份副本的 nodeid。"""
+    table = _acceptance_table()
+    out = []
+    for spec in specs:
+        hits = [i for i, row in enumerate(table) if row[0] == spec]
+        assert len(hits) == 1, f"接受域表里 {spec[:40]!r} 命中 {len(hits)} 次（应恰好 1）"
+        i = hits[0]
+        kind = "accept" if table[i][2] else "reject"   # 第 3 列 = 本实现收不收
+        out += [f"{F}::{A}[{kind}-{i}-{c}]" for c in ("backend", "scripts")]
+    return out
 
 # ── 段表: (段名, [变异键], [必须变红的 nodeid], 该段守什么) ─────────────────
 SEGMENTS = [
@@ -140,22 +189,31 @@ SEGMENTS = [
  ("省略规则-起始规则", ["STARTR"],
   [f"{F}::test_omitted_transition_rules_use_the_libc_default_instead_of_falling_back_to_utc"],
   "HIGH-2: dst 有名而规则省略时必须补 posixrules, 不能静默退 UTC"),
- ("尾部换行", ["CTRL"], acc(("r", 9)), "正则 $ 放过尾部换行, 需显式拒"),
+ # ⛔ 原「尾部换行」段已删: 它变异的那条检查（②）在 r12 被删除 —— 理由被 L4 推翻。
+ #    同一条防线现在由正则的 `\Z` 结尾锚守, 故改成变异 `\Z` → `$`。
+ ("正则结尾锚", ["ENDANCHOR"], acc("AAA-1BBB,M3.2.0,M11.1.0\n"),
+  "Python 的 `$` 在末尾换行**之前**收尾 ⇒ 写 `$` 会把带规则的尾部换行串误收"),
  ("严格UTF-8", ["ENC"],
   [f"{F}::test_display_tz_survives_non_utf8_tz_bytes",
    f"{F}::test_non_utf8_key_never_reaches_response_on_any_branch"],
   "r5→r6: surrogateescape 只把失败从启动挪到响应出口"),
- ("ASCII数字", ["ASCII"], acc(("r", 17)), "Python \\d 连全角一起匹配, C 库拒"),
- ("切换时刻小时", ["HMAX"], acc(("r", 15)), "167 接受 / 168 拒"),
- ("切换时刻分钟", ["MIN60"], acc(("r", 13)), "分钟 >59 拒"),
- ("切换时刻秒", ["SEC60"], acc(("r", 14)), "秒 60 接受 / 61 拒"),
- ("规则ASCII", ["RULEA"], acc(("r", 16)), "规则文本里的全角数字"),
- ("std偏移必填", ["STDREQ"], acc(("r", 10), ("r", 11)), "r9 M3: 所有形态都必填"),
- ("名字和式512", ["NAMESUM"], acc(("r", 20), ("r", 21)),
+ # ⛔ 探针必须选在**只有这一条检查能拦**的串上: `M３.2.0` 被「数字字段 ASCII」与
+ #    「规则文本 ASCII」两条同时拦着, 拆掉任一条它都不会红（r12 实测假绿）。
+ #    全角落在**切换时刻的分钟**上, 只有数字字段那条管得着。
+ ("ASCII数字", ["ASCII"], acc("AAA0BBB,M3.2.0/2:３0,M11.1.0"),
+  "Python \\d 连全角一起匹配, C 库拒（探针: 全角在切换时刻分钟字段）"),
+ ("切换时刻小时", ["HMAX"], acc("AAA0BBB,M3.2.0/168,M11.1.0"), "167 接受 / 168 拒"),
+ ("切换时刻分钟", ["MIN60"], acc("AAA0BBB,M3.2.0/2:60,M11.1.0"), "分钟 >59 拒"),
+ ("切换时刻秒", ["SEC60"], acc("AAA0BBB,M3.2.0/2:00:61,M11.1.0"), "秒 60 接受 / 61 拒"),
+ # 同上: 全角落在**规则文本**（`start`/`end`）里, 只有规则文本那条管得着。
+ ("规则ASCII", ["RULEA"], acc("AAA0BBB,J３60,M11.1.0"),
+  "规则文本里的全角数字（探针: 全角在 start 字段, 数字字段检查看不到它）"),
+ ("std偏移必填", ["STDREQ"], acc("<AAA><BBB>,M3.2.0,M11.1.0", "<AAA>"), "r9 M3: 所有形态都必填"),
+ ("名字和式512", ["NAMESUM"], acc("<" + "A" * 512 + ">-1", "<" + "A" * 507 + ">-1<" + "B" * 507 + ">,M3.2.0,M11.1.0"),
   "退回单名 ≤507 口径 ⇒ 无 dst 形态不查(误收) + 两名各 507 和 1016(误收)"),
- ("名字量纲字节", ["NAMECHAR"], acc(("r", 18)), "中×170 = 510 字节 / 170 字符, 按字符算会误收"),
+ ("名字量纲字节", ["NAMECHAR"], acc("AAA0<" + "中" * 170 + ">"), "中×170 = 510 字节 / 170 字符, 按字符算会误收"),
  # ── 以下 8 段为 r11 新增（Codex r10 的 H1 / M1 / M2 / M4 / M5 / M9 / L7）──
- ("空名占NUL", ["EMPTYNAME"], acc(("a", 31)),
+ ("空名占NUL", ["EMPTYNAME"], acc("<" + "A" * 511 + ">-1<>,M3.2.0,M11.1.0"),
   "空 dst 名不占缓冲区: `<A×511>-1<>,…` 和 = 512 收; 给空名也加 NUL 会误拒"),
  # ⛔ 这段曾绑接受域表的 accept-22/23 而**假绿**: 变异后那两个串**仍被接受**,
  #    只是算错一小时 —— 接受域门只判收/拒, 对「收了但算错」全盲。改绑组合门的
@@ -181,10 +239,40 @@ SEGMENTS = [
  ("模块级常量同源", ["REWIDTH_ONE"],
   [f"{F}::test_two_copies_share_identical_module_level_constants"],
   "r10 M9: 只改一份副本的正则, 除这道门外**全套都绿**（Codex 实测 199 个参数格全过）"),
+ # ── 以下 6 段为 r12 新增（Codex r11 的 H1 / H2 / M1 / M2 / L5）──
+ # ⛔ 这段守的是 r12 组合门扩到 98532 组合后才暴露的**真误收**（1666 条）:
+ #    引用名内容含 `<` 时（`<AAA1<DEF>2`）, 若把内容字符集写成 `[^<>]*`, 该串会掉到
+ #    裸名分支被当成 `<AAA` + 偏移 `1` 收下, 而 C 库的引用名是「`<` 到**第一个** `>`」,
+ #    名字应是 `AAA1<DEF`。这是「判据看不见的地方, 错和对一样」的实例。
+ ("引用名内容含尖括号", ["QUOTEDINNER"],
+  [f"{F}::test_accepted_domain_grid_matches_libc"],
+  "r12: 引用名是 `<` 到第一个 `>`, 内容允许 `<`; 写 `[^<>]*` 会误收 1666 条",
+  "误收"),
+ ("尖括号裸名回退", ["ANGLEFALLBACK"],
+  [f"{F}::test_accepted_domain_grid_matches_libc"],
+  "r11 M1: std 侧 `<` 开头扫不到 `>` 时 C 库当裸名收（`<AAA1`）, 去掉这一支会误拒",
+  "误拒·未声明"),
+ ("名字数字集ASCII", ["UNIDIGIT"],
+  [f"{F}::test_accepted_domain_grid_matches_libc"],
+  "r11 M2: `\\d` 连非 ASCII 数字一起吃 ⇒ `ABC١1` / `ABC１1` 被误拒",
+  "误拒·未声明"),
+ ("路径必须存在", ["PATHEXIST"],
+  [f"{F}::test_tz_path_forms_match_libc"],
+  "r11 H1: 不验文件存在 ⇒ `/does-not-exist/zoneinfo/Asia/Shanghai` 被认成上海(差 8 小时)"),
+ ("冒号禁POSIX回退", ["COLONPOSIX"],
+  [f"{F}::test_tz_path_forms_match_libc"],
+  "r11 H2: `:AAA-1` C 库给 UTC, 退 POSIX 会把它当合法规格串收下"),
+ ("strip_name闭合判定", ["STRIPNAME"],
+  [f"{F}::test_accepted_domain_grid_matches_libc"],
+  "r11 M1: 只判 startswith 会把 `<AAA1` 剥成 `AA` ⇒ 名字长度少算两字节",
+  "误收"),
+ ("fromutc类型校验", ["FROMUTCTYPE"],
+  [f"{F}::test_fromutc_rejects_foreign_tzinfo"],
+  "r11 L5: 非 datetime 参数应抛 TypeError（stdlib 口径）, 缺了会撞成 AttributeError"),
  ("std偏移量级", ["STDMAG"],
   [f"{F}::test_offset_domain_is_checked_on_every_branch_not_only_omitted_rules"],
   "|std_off| < 24h 的 Python 可表示性收紧"),
- ("规则可解析", ["RULEOK"], acc(("r", 12)), "r9 M4: 无 dst 形态也要验规则"),
+ ("规则可解析", ["RULEOK"], acc("AAA-1,J0,J0"), "r9 M4: 无 dst 形态也要验规则"),
  ("dst偏移量级", ["DSTMAG"],
   [f"{F}::test_omitted_rule_branch_does_not_widen_the_accepted_offset_domain"],
   "省略规则分支不得放宽偏移域"),
@@ -207,11 +295,12 @@ SEGMENTS = [
   "display_tz 缺席时不得静默用 generated_at 的固定偏移重算归桶"),
 ]
 # 如实登记: 这两条**预期不变红**, 段本身就是它们性质的证明。
-EXPECT_GREEN = [
- ("ReDoS上限", ["CAP"], [f"{F}::{A}"],
-  "1024 是**性能**防线不是正确性防线: 去掉它接受域一字不变, 只是 4000 字符的坏串"
-  "从 0.000s 退回 0.475s。它由计时判据守, 不由 pytest 守 —— 如实登记而非假装有守卫。"),
-]
+# ⛔ EXPECT_GREEN 现在是**空的**, 这是一条真实的进展而不是省略:
+#    上一轮唯一一段期望 GREEN 是「1024 长度上限」—— 当时如实登记它「只由计时判据守、
+#    不由 pytest 守」。r12 查明那条上限在正则位宽放宽之后**零收益**（灾难性回溯来自
+#    有界量词嵌套, 不是串长; 同一条 4000 字符坏串 0.475s → 0.012ms）, 于是整条删除。
+#    检查没了, 为它开的「如实登记」段自然一并消失 —— 现在每一段都必须真的变红。
+EXPECT_GREEN: list = []
 
 def apply_mut(keys):
     for k in keys:

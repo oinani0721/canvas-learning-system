@@ -436,6 +436,14 @@ _DST_PROBE_INSTANTS = [
     # ⚠️ 但 9999 年是**另一条**边界, 两族都过不去: 同一个显式规则串在 9999-07-01
     #   实测给 +0h（C 库那里 DST 没生效）。所以「显式规则在 9999 年也能实行 DST」
     #   这个说法本机**不成立** —— 加极值年样本前先实测那一年。
+    # ⛔ 那条边界的**精确位置与性质**（Codex r11 M8 追问后二分出来的）: 显式规则串在
+    #   **2569** 年仍正常实行 DST, **2570** 年起 C 库的取值翻转。判定它是 C 库自己的
+    #   溢出而不是时区语义的依据是: 北半球串（`M3.2.0,M11.1.0`）与南半球串
+    #   （`M10.1.0,M3.1.0`）在 2570 那一年**同时**翻转 —— 北 +1h→0、南 0→+1h,
+    #   正是「季节判断整体颠倒」的特征, 而不是某一族规则失效。本实现按规格外推,
+    #   在 2570 之后与 C 库分歧, **不跟**: 跟了等于把 C 库的 64 位溢出复制进来。
+    #   （2038 那条分歧不属于这里 —— 实测同年显式规则串仍给 +1h, 它是**省略规则**族
+    #   走 posixrules 那张 32 位表的边界, 已由上面 2007..2037 那条声明覆盖。）
     datetime(2024, 2, 29, 12, 0, tzinfo=timezone.utc),
     #   闰年 2 月末。压 `_rule_epoch` 的 `calendar.isleap(year) and a >= 60` 分支: 配
     #   `AAA5BBB,J60/2,J300/2`, 删掉跳闰日后 J60 从 3/1 变 2/29, 本时刻墙钟 07:00→08:00。
@@ -579,7 +587,7 @@ def test_dst_window_candidates_cover_rules_that_roll_into_the_following_year(tz_
     界的严格推导在 `_in_dst` 的注释里（406.70 / 42 / 448.70 / 365 / 730 五个数）。
     ⛔ **滚出名义年不止一条路**（本卡实测更正了初版注释里「裸 n=365 是唯一写法」那句）：
       ① 平年的裸 `n=365` = `1月1日 + 365 天` = 次年元旦；
-      ② `Jn` / 裸 `n` 叠 `/N`（POSIX 允许到 167 小时，本实现的正则更放行到 999:99:99）；
+      ② `Jn` / 裸 `n` 叠 `/N`（POSIX 与本实现都到 `167:59:60` = 整 7 天）；
       ③ `Mm.w.d` 落在年末再叠 `/N` —— **既无裸 n 也无 Jn**，且逐年不同（末周日是 12/25
          的年份就不滚）。
     三条来源下面各有一条用例；②③ 的红区比 ① 宽两个数量级（2007..2037 元旦周逐小时：
@@ -813,6 +821,14 @@ _TZ_PATH_FORMS = [
     ("EST5EDT,M3.2.0,M11.1.0", "POSIX 规格串（不是路径）"),
     ("", "空 TZ ⇒ UTC"),
     ("/tmp/whatever", "任意路径：这里两边都退 UTC —— 但**理由不同**，见门内说明"),
+    # ⛔ 以下五串是 r12 补的 —— 负控报「路径必须存在」「冒号禁 POSIX 回退」两段假绿才发现
+    #    表里缺了它们。变异那两处时行为**确实翻转**（`/does-not-exist/...` 从 UTC 变成
+    #    +08:00、`:AAA-1` 从 UTC 变成 +01:00），但没有用例踩得到 ⇒ 门全绿。
+    ("/does-not-exist/zoneinfo/Asia/Shanghai", "路径里有 `zoneinfo` 段但**文件不存在** ⇒ C 库给 UTC"),
+    ("zoneinfo/Asia/Shanghai", "相对路径且 `/usr/share/zoneinfo/zoneinfo/...` 不存在 ⇒ UTC"),
+    (":AAA-1", "**前导冒号**：语义是「这是个路径」，路径找不到就结束，C 库**不再**试规格串"),
+    ("::AAA-1BBB,M3.2.0,M11.1.0", "同上，双冒号 + 看起来合法的规格串 ⇒ 仍是 UTC"),
+    ("Asia/../Asia/Shanghai", "`..` 路径：C 库接受（`resolve()` 后就是上海）"),
 ]
 
 
@@ -861,6 +877,13 @@ def test_fromutc_rejects_foreign_tzinfo(copy_id):
         # 对照：stdlib 自己也这么做 —— 证明这不是本实现自创的严格
         with pytest.raises(ValueError):
             timezone(timedelta(hours=3)).fromutc(bad)
+    # 非 datetime 参数按 tzinfo 协议抛 TypeError（Codex r11 L5：原先撞 `dt.replace`
+    # 抛的是 AttributeError，与 stdlib 不一致）
+    for bad in (None, 1, "2026-07-01"):
+        with pytest.raises(TypeError):
+            tz.fromutc(bad)
+        with pytest.raises(TypeError):
+            timezone(timedelta(hours=3)).fromutc(bad)  # 对照：stdlib 也抛 TypeError
     # 正例：tzinfo 就是自己时必须正常工作（否则「一律抛」也能跑绿）
     ok = datetime(2026, 7, 1, 12, 0, tzinfo=tz)
     assert tz.fromutc(ok).tzinfo is tz
@@ -877,18 +900,56 @@ def test_fromutc_rejects_foreign_tzinfo(copy_id):
 #:      · 误拒（C 库收 / 本实现拒）⇒ 必须逐条落在下面 `_declared_narrowing()`
 #:        列举的**已声明收紧**里，出现任何一条声明外的误拒就红。
 #:    只钉误收会让「一律拒」跑绿；只钉误拒会让「一律收」跑绿。
-_GRID_STD_NAME = ["ABC", "<ABC>", "A", "AB", "<>", "<A B>", "<+05>", "<-03>", "A" * 300]
+#: ⛔ 名字这一维在 r12 又补过一次（负控报了三段假绿才发现）: 原表里全是**闭合**引用名
+#:    或纯 ASCII 裸名, 于是三类行为在门下不可见 ——
+#:    ① `<` 开头**未闭合**（C 库当裸名收, `<AAA1` / `<<AAA1` / `<1`）;
+#:    ② 名字里的**非 ASCII 数字**（`ABC٦1` / `ABC１1`, C 库当普通名字字符收）;
+#:    ③ `_strip_name` 对未闭合名的剥法（少算两字节 ⇒ 长度边界漂）。
+#:    变异这三处时行为**确实翻转了**, 但门里没有能显形的样本 ⇒ 全绿。
+#:    教训与本卡前面几次同形: **样本缺席比判据写错更难发现**, 因为两者都表现为「绿」。
+_GRID_STD_NAME = [
+    "ABC",
+    "<ABC>",
+    "A",
+    "AB",
+    "<>",
+    "<A B>",
+    "<+05>",
+    "<-03>",
+    "<中>",
+    "A" * 300,
+    "<AAA",  # ⭐ `<` 开头未闭合 ⇒ C 库当裸名（tzname `_AAA`）
+    "<<AAA",  # ⭐ 同上，两个 `<`
+    "<",  # ⭐ 名字就是一个 `<`
+    "ABC٦",  # ⭐ 阿拉伯数字：C 库当普通名字字符
+    "ABC１",  # ⭐ 全角数字：同上
+    "<" + "A" * 511,  # ⭐ 未闭合 + 长度边界（512 字节 +NUL = 513 > 512 ⇒ C 库拒）
+    "<" + "A" * 510,  # ⭐ 同上但恰好 512 ⇒ C 库收
+]
 _GRID_STD_OFF = ["", "1", "01", "0001", "-5", "+5", "1:30", "1:30:45", "0", "23", "24", "1:60"]
 _GRID_DST_NAME = [None, "DEF", "<DEF>", "<>", "D" * 300]
-_GRID_DST_OFF = ["", "2", "-3", "0"]
+_GRID_DST_OFF = ["", "2", "-3", "0", "2:30"]
+#: ⛔ **规则这一维塌过一次**（Codex r11 M7）：上一版表里全是 `M3.x` 起、`M11.1.0` 止、
+#:    星期恒为 `0` 的北半球规则，四个探针上的 DST 状态向量**完全相同**（标准/夏令/夏令/夏令）。
+#:    后果是致命的：注释声称探针 `3-20` 能区分「用 TZ 自带规则」与「退默认规则」，
+#:    而表里根本没有一条**能被区分**的样本 —— Codex 实测把 1134 个被接受串改用默认规则，
+#:    54040 个换算点**全部通过**。探针对了、样本没了，门照样是假的。
+#:    现在每一项后面标注它撑开的是哪一维。
 _GRID_RULES = [
     None,
-    "M3.2.0,M11.1.0",
-    "M03.02.00,M11.1.0",  # 前导零（C 库收）
+    "M3.2.0,M11.1.0",  # 与 posixrules 默认**相同**的规则（对照组）
+    "M4.1.0,M10.1.0",  # ⭐ 与默认**不同** —— 唯一能区分「自带 vs 默认」的一族
+    "M4.1.0,M10.1.0/3",  # 同上 + 非默认结束切换时刻
+    "M10.1.0,M3.1.0",  # ⭐ 南半球方向（start > end）
+    "M3.2.3,M11.1.5",  # ⭐ 星期非 0（周三起 / 周五止）、第 5 周 = 末周
+    "M1.1.1,M12.5.6",  # ⭐ 月份两端 + 末周 + 星期 6
+    "M03.02.00,M11.1.0",  # 前导零
     "J60,J300",
     "J0060,J300",  # 前导零
+    "J1,J365",  # ⭐ J 形式两端极值
     "60,300",
     "0060,300",  # 前导零
+    "0,365",  # ⭐ 裸数字形式的两端（0 合法、J0 非法）
     "M3.2.0/2,M11.1.0/2",
     "M3.2.0/167,M11.1.0",  # 切换时刻上边界
     "M3.2.0/168,M11.1.0",  # 越界
@@ -896,6 +957,8 @@ _GRID_RULES = [
     "M3.2.0/0002,M11.1.0",  # 前导零
     "J0,J300",  # 非法 J0
     "M13.2.0,M11.1.0",  # 非法月
+    "M3.6.0,M11.1.0",  # ⭐ 非法周（1..5）
+    "M3.2.7,M11.1.0",  # ⭐ 非法星期（0..6）
 ]
 
 
@@ -908,6 +971,11 @@ _GRID_PROBES = [
     datetime(2026, 3, 20, 12, 0, tzinfo=timezone.utc),  # 默认规则已 DST、自带规则未到
     datetime(2026, 7, 15, 12, 0, tzinfo=timezone.utc),  # 夏（两套都在 DST）
     datetime(2026, 10, 20, 12, 0, tzinfo=timezone.utc),  # 自带规则已结束、默认规则未结束
+    # ⛔ **年份也是一维**（Codex r11 列的塌缩清单第一条）：上一版四个探针全在 2026，
+    #    非闰年、且落在 C 库 32 位表的覆盖区内。下面三个各撑开一侧。
+    datetime(2024, 2, 29, 12, 0, tzinfo=timezone.utc),  # 闰日（J 形式跳闰日的分支）
+    datetime(2024, 12, 31, 12, 0, tzinfo=timezone.utc),  # 闰年末（J365 的另一侧）
+    datetime(2026, 4, 20, 12, 0, tzinfo=timezone.utc),  # 两套规则都在 DST 的另一格
 ]
 
 
@@ -926,16 +994,23 @@ def _grid_specs():
 
 
 def _libc_accepts(spec: str) -> bool:
-    """问一次 C 库：它收不收这个规格串。
+    """问一次 C 库：它收不收这个规格串。判据是**四元组**全部等于 UTC 的退化态。
 
-    ⛔ 判据是 `time.tzname == ('UTC','UTC')` 而**不是** `tm_gmtoff == 0` ——
-    `std_off=0` 的串被**接受**时 gmtoff 也是 0，用偏移当判据会把接受读成拒。
+    ⛔ 不能只看 `tm_gmtoff == 0`：`std_off=0` 的串被**接受**时 gmtoff 也是 0。
+    ⛔ 也不能只看 `time.tzname == ('UTC','UTC')`（本卡 r10 用的就是这个，Codex r11 M6
+       抓到）：`TZ=UTC-1` 是**合法**的 +01:00 时区，而它的 tzname 同样是 `('UTC','UTC')`
+       ⇒ 那个判据把一个被接受的串读成「拒」。`UTC+5` 同理。
+    ⚠️ 如实声明一处**观测上不可区分**的情形：`UTC0` / `<UTC>0` / `UTC` 这类**本身就等价
+       于 UTC** 的规格串，四元组与「解析失败退 UTC」完全相同，任何基于 `time` 模块的
+       探测都分不开。这不影响判据的正确性——那种情形下两种解释**行为相同**，
+       而行为正是第二阶段直接比对的东西。
     """
     saved = os.environb.get(b"TZ")
     try:
         os.environb[b"TZ"] = spec.encode("utf-8")
         time.tzset()
-        return time.tzname != ("UTC", "UTC")
+        degenerate = time.tzname == ("UTC", "UTC") and time.timezone == 0 and time.altzone == 0 and time.daylight == 0
+        return not degenerate
     finally:
         if saved is None:
             os.environb.pop(b"TZ", None)
@@ -1043,6 +1118,25 @@ def test_accepted_domain_grid_matches_libc(tz_env):
     )
     # 验伪锚三：第二阶段必须真的比到了上万个点（被接受的串不能塌成一小撮）
     assert points > 40000, f"换算对拍只跑了 {points} 个点 —— 被接受的串太少，门失去覆盖面"
+    # ⛔ 验伪锚四（Codex r11 M7）：规则维度必须真的撑开了「四个探针上的 DST 状态向量」——
+    #    上一版表里全部规则给出**同一个**向量，于是「把自带规则换成默认规则」的错误实现
+    #    照样全绿。这里直接断言向量的种类数，塌回去就红。
+    vectors = set()
+    for rule in _GRID_RULES:
+        if rule is None:
+            continue
+        spec = "AAA-1BBB," + rule
+        tz = backend_tz.parse_posix_tz(spec)
+        if tz is None:
+            continue
+        base = backend_tz.parse_posix_tz("AAA-1BBB")  # 无规则 ⇒ 走默认规则
+        assert base is not None
+        vectors.add(tuple(p.astimezone(tz).utcoffset() != p.astimezone(base).utcoffset() for p in _GRID_PROBES))
+    assert len(vectors) >= 3, (
+        f"规则维度只撑开 {len(vectors)} 种「与默认规则是否同步」的向量：{sorted(vectors)}。"
+        "全都与默认规则同步的话，「退默认规则」这种错误实现在本门下是不可见的"
+        "（Codex r11 M7 实测：1134 个串改用默认规则，54040 点全部通过）。"
+    )
 
 
 #: 解析器的**接受域**必须逐条对齐 C 库（Codex r9 M1–M5）。每条都在本机三方实测过
@@ -1070,10 +1164,12 @@ _ACCEPTANCE_DOMAIN_CASES = [
     (
         "AAA-1\n",
         True,
-        False,
-        "⚠️分歧: C 库把尾部换行**吃进 dst 名**并实行 DST（tzname 给 `('AAA','_')`）。"
-        "本实现拒 ⇒ 退 UTC。取舍: 接受它就得把控制字符放进 `.key`，而 `.key` 会进 API 响应 —— "
-        "本卡 r5/r6 为「代理字符进 .key」栽过两次。退 UTC 是可预测的降级（= BASE 行为）。",
+        True,
+        "C 库把尾部换行**吃进 dst 名**并实行 DST（tzname 给 `('AAA','_')`），本实现现已跟随。"
+        "⛔ 这条曾是登记的「⚠️分歧」，理由是「不让控制字符进 `.key`」——但 r11 发现引用名侧"
+        "一直放行同样的控制字符（`<A\\nAA>-1` 收），同一个理由解释不了两侧不同的口径"
+        "（Codex r11 L4）。现统一为都放行；`.key` 的安全由严格 UTF-8 可编码那条与响应"
+        "序列化门负责，那才是真会炸的一层。",
     ),
     ("<AAA><BBB>,M3.2.0,M11.1.0", False, False, "缺 std 偏移：C 库对**所有**形态整串拒收（r9 M3）"),
     ("<AAA>", False, False, "同上，无 dst 形态也拒"),
@@ -1083,6 +1179,22 @@ _ACCEPTANCE_DOMAIN_CASES = [
     ("AAA0BBB,M3.2.0/168,M11.1.0", False, False, "切换时刻 168 小时：越过 C 库的 167 上界（r9 M5）"),
     ("AAA0BBB,M３.2.0,M11.1.0", False, False, "规则含**全角**数字：Python 的 `\\d` 匹配它而 C 库拒（r9 M5）"),
     ("AAA0BBB,M3.2.0/２,M11.1.0", False, False, "切换时刻含全角数字：同上"),
+    # ⛔ 上面两条**都被两条检查同时拦着**（数字字段的 ASCII 检查 + 规则文本的 ASCII 检查），
+    #    于是拆掉任一条，它们照样红不了 —— r12 负控报这两段假绿正是因为探针选在了
+    #    「两道防线都覆盖」的串上。下面两条各自只有**一条**检查能拦，才是区分点。
+    (
+        "AAA0BBB,M3.2.0/2:３0,M11.1.0",
+        False,
+        False,
+        "全角数字落在**切换时刻的分钟字段** —— 只有数字字段的 ASCII 检查能拦"
+        "（规则文本检查看的是 `start`/`end`，不含 `/` 之后的时刻）",
+    ),
+    (
+        "AAA0BBB,J３60,M11.1.0",
+        False,
+        False,
+        "全角数字落在**规则文本**里 —— 只有规则文本的 ASCII 检查能拦（数字字段检查看的是偏移与切换时刻，不含规则本身）",
+    ),
     ("AAA0<" + "中" * 170 + ">", False, False, "3 + 510 + 2 = 515 > 512：越过和式上界（多字节名字侧）"),
     ("<" + "A" * 508 + ">-1<BBB>,M3.2.0,M11.1.0", False, False, "508 + 3 + 2 = 513 > 512：和式上界外一字节"),
     (
@@ -1130,8 +1242,16 @@ _ACCEPTANCE_DOMAIN_CASES = [
     (
         "AAA-1BBB\n",
         True,
+        True,
+        "同上条：C 库把尾部换行吃进 dst 名（tzname `('AAA','BBB_')`），本实现现已跟随。",
+    ),
+    (
+        "AAA-1BBB,M3.2.0,M11.1.0\n",
         False,
-        "⚠️分歧: 同 `AAA-1\\n` —— C 库把尾部换行吃进 dst 名（tzname `('AAA','BBB_')`）。理由同上条。",
+        False,
+        "对照组：**带显式规则**时尾部换行两边都拒。⛔ 这条是 `\\Z` 锚的守门样本 —— "
+        "正则结尾若写 `$`，Python 的 `$` 在末尾换行**之前**收尾，这串会被误收"
+        "（删掉那条尾部空白检查后第一次跑对拍，红的就是它）。",
     ),
     (
         "AAA24BBB",
@@ -1240,7 +1360,7 @@ def test_tzname_uses_dst_membership_not_offset_equality(tz_env, copy_id):
 #:   ② 带显式规则的 `AAA24BBB,M3.2.0,M11.1.0` 在 BASE 上被接受、换算时抛 ValueError。
 #: (spec, 该拒的理由, 该形态属于哪一支)
 _ALL_BRANCH_REJECT_CASES = [
-    ("AAA24BBB,M3.2.0,M11.1.0", "std 侧 −24h 不可表示（C 库对它 tzset 直接报错）", "显式规则"),
+    ("AAA24BBB,M3.2.0,M11.1.0", "std 侧 −24h 不可表示（⚠️ C 库**接受**它并给 −24h；抛的是 Python）", "显式规则"),
     ("AAA0:60BBB,M3.2.0,M11.1.0", "分钟 60 越界（C 库退 UTC，与本实现一致）", "显式规则"),
     ("AAA0", "无 DST + std 偏移为 0：合法，本条是**正控**位（见下方 accept 表）", None),
 ]
@@ -1309,7 +1429,8 @@ def test_non_utf8_key_never_reaches_response_on_any_branch(tz_env, copy_id, side
 #: 若不先校验偏移，它们会
 #: 变成「被接受并参与换算」——`AAA0:60BBB` 直接错一天，`AAA999BBB` 则在 `.isoformat()`
 #: 处抛 `ValueError`。⛔ 本门守的是「修复没有顺手放宽别的东西」，不是解析器的取值域本身
-#: （后者是上一轮登记的 MEDIUM，本卡不动带显式规则的那条路径）。
+#: （⚠️「本卡不动带显式规则的那条路径」已过时：r9 起用户裁定「既有也要修」，
+#:   显式规则那一支的整串属性与偏移校验都已提到两分支共用位置，三支同口径。）
 #: (spec, 为什么该拒)
 _OMITTED_RULE_REJECT_CASES = [
     ("AAA0:60BBB", "分钟 60 越界 —— C 库拒收整串退 UTC（实测 2026-01-20T00:30Z 给 00:30 = UTC）"),
@@ -1382,7 +1503,8 @@ def test_omitted_rule_branch_does_not_widen_the_accepted_offset_domain(copy_id, 
         f"[{copy_id}] 省略规则分支扩大了错误接受面: parse_posix_tz({spec!r}) 返回 {got!r}，应为 None\n"
         f"  {why}\n"
         "  补默认规则前必须先校验两侧偏移（分钟 >59 拒、|偏移| ≥24h 拒），否则这条修复\n"
-        "  会把一批 C 库都不认的串放进归日链路。"
+        "  会把一批 C 库都不认的串放进归日链路（⚠️ 这批串里 C 库**认**的那些已在 r11 被放行，"
+        "  这里剩下的是双方都拒的）。"
     )
 
 
@@ -1563,7 +1685,8 @@ def test_fold_side_is_chosen_by_offset_size_not_summer_time_identity(tz_env, tz_
 
 
 #: (规格串, 是否应当解析成功, 依据)。⛔ 判据绑 **POSIX 规格**而不是 C 库：本实现
-#: 是规格驱动的，与平台的宽松处有意分歧（如 macOS 接受两字母简名 `AB3`，规格
+#: 是规格驱动的（⚠️ 原文举的 `AB3` 例子已不成立：r11 把裸名放宽到与 C 库同口径后，
+#: 两字母甚至单字母简名双方**都接受**；下面留着的是仍然成立的那些分歧），规格
 #: 要求 ≥3 字符 —— 已登记，不跟）。这里钉住的是我们自己的取值域有没有写错。
 _RULE_RANGE_CASES = [
     ("EST5EDT,J0,M11.1.0", False, "`Jn` 的下界是 1，不是 0"),
@@ -1644,7 +1767,10 @@ def test_bucket_gate_uses_projection_own_tz_not_current_display_tz(tmp_path, tz_
     就会说「future 桶里那条应该在 due_today」并把整份投影判成 corrupt ——
     页面上显示「投影损坏」，而它其实好好的。
 
-    门的职责是校验「这份产出自不自洽」，参照系必须取 `generated_at` 自带的偏移。
+    门的职责是校验「这份产出自不自洽」，参照系必须取**投影自报的 `display_tz`**
+    那套完整时区规则（不是 `generated_at` 自带的固定偏移 —— 那个只在它自己那一刻
+    等于生产者的真实偏移，到期时刻跨了 DST 切换就差一档）。`display_tz` 缺席或为
+    null ⇒ 整份判 corrupt，见 `test_bucket_gate_rejects_wrong_buckets_even_when_display_tz_is_absent`。
     「投影是不是今天的」是另一件事，由 `_vault_entry` 的 stale 判定负责（那里用
     此刻的时区才对：切时区后它变 stale ⇒ 触发重新生成，是正确行为）。
     """
@@ -1689,7 +1815,7 @@ def test_bucket_gate_uses_projection_own_tz_not_current_display_tz(tmp_path, tz_
         except ValueError as exc:
             raise AssertionError(
                 f"显示时区切到 {tz_name} 后，同一份合法投影被门拒绝：{exc}\n"
-                "门用了此刻的显示时区当参照日 —— 应改用 generated_at 自带的偏移。"
+                "门用了此刻的显示时区当参照日 —— 应改用投影自报的 display_tz 规则重算。"
             ) from exc
 
 
@@ -1734,7 +1860,10 @@ def test_bucket_gate_uses_projection_own_tz_not_current_display_tz(tmp_path, tz_
             "同偏移不同规则·Bogota 生成 NY 显示",
         ),
         # 切了时区：当前显示时区在 generated_at 那刻的偏移与它自带的不符
-        # ⇒ 退回自带偏移，合法投影必须仍被放行（r1 HIGH-2）。
+        # ⇒ 按投影自报的 display_tz 规则重算，合法投影必须仍被放行（r1 HIGH-2）。
+        # ⛔ 这里曾写「退回自带偏移」—— 那是 r1 的旧方案，已被 r5 HIGH-2 推翻
+        #    （固定偏移只在 generated_at 那一刻成立）。规范性措辞与现口径不符会
+        #    把后人引回旧方案（Codex r10 L3 / r11 L1）。
         ("Asia/Shanghai", "2026-07-31T15:00:00Z", "2026-07-31T17:00:00Z", "UTC", "future", "切时区·上海生成 UTC 显示"),
         ("Asia/Shanghai", "2026-07-31T01:00:00Z", "2026-07-31T13:00:00Z", "Asia/Shanghai", "due_today", "同区当日"),
     ],
@@ -1791,7 +1920,7 @@ def test_bucket_gate_reference_day_handles_dst_and_tz_switch(
         raise AssertionError(
             f"{label}: 门在显示时区 {gate_tz} 下拒绝了一份合法投影：{exc}\n"
             f"  generated_at={payload['generated_at']}  甲实际归入 {expect_bucket}\n"
-            "  参照系取错了：DST 边界要用完整时区规则，切了时区要退回投影自带的偏移。"
+            "  参照系取错了：DST 边界要用完整时区规则，切了时区要按投影自报的 display_tz 重算。"
         ) from exc
 
 
