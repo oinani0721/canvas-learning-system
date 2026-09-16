@@ -1130,7 +1130,7 @@ try:
 except OSError as exc:
     die(f"打开 vault 目录失败: {vault} ({exc})")
 
-afd = sfd = None
+afd = sfd = csfd = None
 ok = False  # 走到最后才置 True；finally 据它决定要不要清掉本次建的链
 made = []
 src_fds = {}  # name -> fd，钉住「通过资格检查时」的那个源 inode（见下方 r9 MEDIUM-1 说明）
@@ -1188,7 +1188,7 @@ try:
                 except OSError as exc:
                     die(f"打不开技能源条目（被换掉了？）: {where} ({exc})")
         finally:
-            os.close(csfd)
+            pass  # ⛔ csfd **留到后核用**（Codex r10 MEDIUM-1）：见下方后核里的二次 lstat。
     finally:
         os.close(cfd)
 
@@ -1239,33 +1239,53 @@ try:
             want = os.fstat(src_fds[name])
             if (tst.st_dev, tst.st_ino) != (want.st_dev, want.st_ino):
                 die(f"软链没解到当初通过检查的那个技能目录（源被换过？）: {where}")
+            # ⛔ 光比 inode 还不够（Codex r10 MEDIUM-1）：fd 钉住的是**身份**, 不是**位置**。
+            #    把原目录 rename 到 vault 外、再在原位置放一条指向它的软链 ——
+            #    inode 没变、两边仍相等, 而新绑定实际解析到 vault 外。
+            #    ⇒ 后核再对**源路径**做一次 lstat: 它必须仍是那个 inode **且仍是真目录**。
+            #    软链那一步会在这里当场暴露（`.claude/skills/<n>` 变成了 S_ISLNK）。
+            try:
+                nowst = os.stat(name, dir_fd=csfd, follow_symlinks=False)
+            except OSError as exc:
+                die(f"后核时技能源条目问不出状态（被移走了？）: {vault}/.claude/skills/{name} ({exc})")
+            if statmod.S_ISLNK(nowst.st_mode) or not statmod.S_ISDIR(nowst.st_mode):
+                die(f"技能源条目在本次运行中被换成了非目录（软链？）: {vault}/.claude/skills/{name}")
+            if (nowst.st_dev, nowst.st_ino) != (want.st_dev, want.st_ino):
+                die(f"技能源条目在本次运行中被换成了别的目录: {vault}/.claude/skills/{name}")
         finally:
             os.close(tfd)
     ok = True
     print(f"bound={len(names)} new={len(made)}")
 finally:
-    # ⛔ 失败时清掉**本次新建**的那些软链（Codex r9 MEDIUM-1 实测暴露）：
-    #    源在「资格检查之后、建链之中」被换掉时, 后核能拒（fd 身份不符）,
-    #    但链已经建出去了 —— 拒绝而留下残链, 与 r5 HIGH-1 同型。
-    #    这是真正的 TOCTOU（源是运行中途被换的, 建之前无从知道）, 所以只能事后收拾。
-    #    ⚠️ 只清 `made` 里的 —— 那是**本次 os.symlink 真建出来的**,
-    #    幂等跳过的已有链不在里面（别替别人做决定）。
-    #    ⚠️ 全程 `dir_fd=sfd`（已钉死的目录）+ 删前核「它还是软链、目标还是我写的那个串」,
-    #    免得删到别人在这期间放进来的同名东西。
-    if not ok and sfd is not None:
-        for _n in made:
-            try:
-                _st = os.stat(_n, dir_fd=sfd, follow_symlinks=False)
-                if not statmod.S_ISLNK(_st.st_mode):
-                    continue
-                if os.readlink(_n, dir_fd=sfd) != f"../../.claude/skills/{_n}":
-                    continue
-                os.unlink(_n, dir_fd=sfd)
-            except OSError as exc:
-                print(f"清理本次建的软链失败, 原样留下: {vault}/.agents/skills/{_n} ({exc})", file=sys.stderr)
+    # ⛔ **刻意不清理**失败时已建出的软链（Codex r10 HIGH-1）——
+    #    r9 我为了「不留残链」加了一段清理, 而那段清理本身能删掉**别人的文件**:
+    #    · `made` 只存名字, 清理时判「是软链 + 目标串相同」认不出**同名同串、不同 inode**
+    #      的替代品 ⇒ 替代品被误删；
+    #    · `readlink` 与 `unlink` 之间仍可换入普通文件, 随后被删 ——
+    #      `dir_fd=sfd` 只钉住父目录, **钉不住叶子**, 而 POSIX 没有「按 fd 删除」的原语
+    #      （`unlinkat` 只能按名字）⇒ 这个窗口**压不掉、只能不做**。
+    #    ⇒ 两害相权:
+    #      · 留残链 = 一条软链留在 `.agents/skills/` 下, 整步 rc=73 用户看得见,
+    #        AGENTS.md 没写, 下次跑会被「存在即拒 / 指向别处拒绝改写」接住;
+    #      · 误删 = 删掉别人刚放进来的东西, **不可逆**。
+    #    留残链明显轻。⇒ 不删, 改为**如实报告**留下了什么, 让人自己处置。
+    #    （与 r3 去掉 tmp 发布机制同一判断: 当一个操作本身在制造竞态时,
+    #      正确的动作是去掉它, 不是把它的竞态处理得更精巧。）
+    if not ok and made:
+        print(
+            "⚠️ 本次已建出以下条目级软链, 因后续校验失败未完成绑定, **原样留在盘上**"
+            "（不自动删除: 删除本身可能删掉他人同名文件）: "
+            + ", ".join(f"{vault}/.agents/skills/{_n}" for _n in made),
+            file=sys.stderr,
+        )
     for fd in src_fds.values():
         try:
             os.close(fd)
+        except OSError:
+            pass
+    if csfd is not None:
+        try:
+            os.close(csfd)
         except OSError:
             pass
     for fd in (sfd, afd, vfd):

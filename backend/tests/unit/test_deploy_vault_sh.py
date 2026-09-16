@@ -4616,10 +4616,21 @@ def test_deploy_sh_pins_source_identity_and_cleans_up_its_own_links():
     assert "src_fds[name] = os.open(" in code, "源条目不再被打开成 fd 钉住"
     assert "want = os.fstat(src_fds[name])" in code, "后核的期望值又改回按路径 stat 了"
     assert 'os.stat(f".claude/skills/{name}", dir_fd=vfd' not in code, "后核又按路径重新解析源了"
-    # ② 失败时清掉本次建的链，且只清 made 里的、全程 dir_fd
-    assert "if not ok and sfd is not None:" in code, "失败清理分支没了"
-    assert "for _n in made:" in code, "清理的不是本次新建的那批"
-    assert "os.unlink(_n, dir_fd=sfd)" in code, "清理不再相对钉死的目录 fd 做"
+    # ② 失败时**不许删**任何东西，只许报告（Codex r10 HIGH-1）
+    #    ⛔ r9 我为了「不留残链」加过一段清理，而那段清理本身能删掉**别人的文件**：
+    #    `made` 只存名字，判「是软链 + 目标串相同」认不出同名同串、不同 inode 的替代品；
+    #    且 `readlink` 与 `unlink` 之间仍可换入普通文件 —— `dir_fd` 钉住父目录、
+    #    **钉不住叶子**，而 POSIX 没有「按 fd 删除」的原语（`unlinkat` 只能按名字），
+    #    这个窗口**压不掉、只能不做**。两害相权：留残链（rc=73 看得见、下次跑会被接住）
+    #    远轻于误删（不可逆）。⇒ 改为如实报告留下了什么。
+    for banned in ("os.unlink(_n", "os.remove(_n", "unlink(_n,"):
+        assert banned not in code, f"失败路径又去删本次建的链了（会误删他人同名文件）: {banned}"
+    assert "if not ok and made:" in code, "失败时不再报告留下了哪些条目"
+    # ③ 源身份还要在**后核时**再验一次位置（Codex r10 MEDIUM-1）
+    #    fd 钉住的是**身份**不是**位置**：把原目录 rename 出 vault、原位置放一条指向它的
+    #    软链，inode 没变、两边仍相等，而落点已在 vault 外。⇒ 后核对源路径再 lstat。
+    assert "nowst = os.stat(name, dir_fd=csfd, follow_symlinks=False)" in code, "后核不再复验源路径"
+    assert "被换成了非目录" in code and "被换成了别的目录" in code, "后核的两条源位置断言没了"
 
 
 def test_deploy_sh_takes_skill_names_without_command_substitution(tmp_path: Path):
