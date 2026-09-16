@@ -34,8 +34,9 @@
      反事实**, 那个形态从未单独跑过。
    - 【实测-负控 K】照原设计稿改回去(删失败分支 + 直接索引 ``payload["vault_name"]``)
      ⇒ 红在 **token 断言**(1 failed / 1 passed)。⇒ 拦住「照设计稿改回去」的是①, 不是②。
-   - 【实测-负控 L】删掉失败分支的 ``reason[:200]`` 截断 ⇒ 红在逐字比对断言
-     (端点 detail 实测 216 字符 > 200, 【实测-探针】被截掉的尾巴是 ``to change vault.``)。
+   - 【实测-负控 L】删掉失败分支的 ``reason[:200]`` 截断 ⇒ 红在逐字比对断言。
+     (端点 detail 【实测-探针】``len == 216`` > 200, 被截掉的尾巴是 ``to change vault.``;
+     存档 ``probe-detail-and-fullassert-*.txt``。截断因此是**可观测**的。)
 
 ② ``test_switch_vault_hits_real_quarantine_endpoint`` (端点契约锚, 改前改后都绿):
    证明**本文件直接调用的那个 ``_switch`` 是真实 P0-3 隔离端点** —— 恒 410、body 含
@@ -51,14 +52,18 @@
    (``infra_tools.switch_vault`` 函数体内直接 ``await _switch(...)``, 无替换、无 mock)。
 
 ⛔ **不 mock、不 monkeypatch ``_switch``** (DD-03): 两条测试都直接 ``await`` 真协程。
-   为什么不 mock ——【实测-探针 N】对五种假返回值形状实跑:
-   - 同时具备 ``.body`` 与 ``.status_code`` 的假响应(含 body 为坏 JSON 的) ⇒ ①**绿**,
-     门形同虚设(此时②也只是在测这个 mock);
-   - 缺 ``.body``(如直接返回 dict / SimpleNamespace) 或 缺 ``.status_code`` ⇒ 在
-     ``infra_tools`` 读 ``result.body`` / ``result.status_code`` 时抛 AttributeError,
-     落进外层 ``except``, error 里反而带上 "has no attribute" ⇒ ①**红**。
-   ⇒ ①的真假由 mock 的形状决定、与端点真实行为无关。**不能**说「mock 后①在任何假
-   返回值上都恒真」——那是全称断言, 上面第二类形状(三种)就是反例。
+   为什么不 mock ——【实测-探针 N】对五种假返回值形状、逐条跑测试①的**全部四条**断言
+   (存档 ``probe-detail-and-fullassert-*.txt``):
+   - 缺 ``.body``(dict / SimpleNamespace) 或缺 ``.status_code`` 的三种 ⇒ 在 ``infra_tools``
+     读 ``result.body`` / ``result.status_code`` 时抛 AttributeError, 落进外层 ``except``,
+     error 反而带上 "has no attribute" ⇒ 红在「无属性错误」那条;
+   - 同时具备 ``.body`` 与 ``.status_code`` 的两种(含 body 为坏 JSON 的) ⇒ 过了「无属性
+     错误」那条, 但红在 **token 断言**与**逐字比对断言**。
+   ⇒ **实测过的五种形状没有一种能让测试① 整体变绿**。要让它全绿, mock 必须返回与真实
+   端点**逐字相同**的 410 body —— 即把 mock 做成真端点本身, 那时它才真正失去鉴别力。
+   ⚠️ 本条曾写成「mock 后①在任何假返回值上都恒真、门形同虚设」, 两处都被本探针证伪:
+   前半是全称断言(三种形状即反例), 后半把**单条**断言(A2)的结果说成了整条测试的结果
+   —— A3/A4 才是 M4/M5 真正会红的那两条。(Codex round-3 LOW-1 / round-4 LOW-1)
 
 ═══════════════════════════════════════════════════════════════════════
 本文件**不**证明什么
@@ -88,8 +93,11 @@
    当前路径上根本不抛异常(端点恒返回常量 410 ``JSONResponse``, 解析与各守卫逐步皆不抛)。
    ⚠️ 触发条件**不是**「必须端点抛异常」: 返回对象缺 ``body``、``status_code`` 不可与
    int 比较等契约外形态同样会落进外层(【实测-探针 N】M1/M2/M3 即此类)。
-   ⚠️ 负控 A 的杀伤力**依赖这个 handler 仍在** —— 它正是把原始 AttributeError 吞成
-   误导文案的那个机制。
+   ⚠️ 负控 A **红在哪一条**依赖这个 handler 仍在 —— 它正是把原始 AttributeError 吞成
+   误导文案、从而让「无属性错误」那条断言红的机制。若同时删掉 handler, A 的
+   ``AttributeError`` 会直接从 ``asyncio.run`` 抛出, 测试**仍然红**, 只是红在异常而非
+   断言。⇒ 依赖 handler 的是**失败位置**, 不是「A 还能不能杀」(【源码推导】;
+   本卡未跑「A + 删 handler」的组合变异。Codex round-4 LOW-2 更正)。
 7. 不锁调用链本身。【实测-负控 H】见②的说明。
 8. 不锁失败判据的**两侧**。【实测-负控 F】删掉 ``result.status_code >= 400`` 一侧
    → 2 passed;【实测-负控 I】删掉 ``"error" in payload`` 一侧 → 2 passed;
@@ -103,6 +111,12 @@
 11. 不锁 ``str(detail)`` 类型转换(``infra_tools.py`` 失败分支)。【实测-负控 J】删掉它
    两条测试仍 2 passed。当前 ``detail`` 恒为 str, 该转换是 no-op; 它只在将来 ``detail``
    为非字符串(如 ``7``)时才承重(届时 ``[:200]`` 会抛 TypeError)。
+12. 不锁 ``input.vault_path`` 的**参数传递**。【源码推导】把
+   ``VaultSwitchRequest(vault_path=input.vault_path)`` 换成任何固定的合法字符串, 端点
+   对任何路径都返回同一个常量 410, 两条测试不会发现。(Codex round-4 补, 本卡未跑该变异。)
+
+⚠️ **本清单不是穷尽的**: 它登记的是本卡改动面上**已被想到并核过**的未覆盖项。端点
+恒返回同一个常量响应 ⇒ 任何「不改变该响应」的改动原则上都不显形, 无法逐一枚举。
 
 ═══════════════════════════════════════════════════════════════════════
 运行面
