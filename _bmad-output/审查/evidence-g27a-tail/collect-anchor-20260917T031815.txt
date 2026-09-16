@@ -1,0 +1,11 @@
+### 裁判7 补锚: 新 FIFO 门确在目录级收集面内 @ 2026-09-17T03:18:15+08:00
+### (-q 下通过的测试不打名字, 所以 unit-close 里 grep 到 0 不是证据)
+collect_rc=0
+--- 新门在收集面内 (期望 1) ---
+1
+--- 验伪锚: 被 --ignore 的文件不在收集面内 (期望 0) ---
+0
+--- 收集总数 ---
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================== 5213 tests collected in 4.31s =========================
+rc=0

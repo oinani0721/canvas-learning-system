@@ -1,0 +1,14 @@
+### 补充判据: 形态门对 FIFO 之外的非普通文件（Codex 问题②的实测答案）@ 2026-09-17T03:21:20+08:00
+### verify sha256: f47606cf17b7319f3415ae3e9039b22945faffae054912c406862c895d27ff2d
+### 探针 sha256: c66a2436e35004141bd4ae9de1404d71e6bd83816f2b141bb0dd5f1bd4858cb1
+
+形态                     rc               hotkeys note                       unreadable 明细
+--------------------------------------------------------------------------------------------------------------------------------------------
+regular                2                not evaluated (.obsidian/plugins/canvas-learning-system/main.js 缺 — gitignored 构建产物) (不在 unreadable 段)
+fifo                   2                not evaluated (不是普通文件)             .obsidian/hotkeys.json  — 快捷键文件不是普通文件(FIFO/设备等特殊文件), 无法核对快捷键
+dir                    2                not evaluated (不是普通文件)             .obsidian/hotkeys.json  — 快捷键文件不是普通文件(FIFO/设备等特殊文件), 无法核对快捷键
+symlink-to-chardev     2                not evaluated (不是普通文件)             .obsidian/hotkeys.json  — 快捷键文件不是普通文件(FIFO/设备等特殊文件), 无法核对快捷键
+symlink-to-fifo        2                not evaluated (不是普通文件)             .obsidian/hotkeys.json  — 快捷键文件不是普通文件(FIFO/设备等特殊文件), 无法核对快捷键
+unix-socket            2                not evaluated (读不进去)               .obsidian/hotkeys.json  — 快捷键文件读不进去: [Errno 102] Operation not supported on socket: '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/g27a-kind-unix-socket-wra3g144/.obsidian/hotkeys.json'
+dangling-symlink       2                not evaluated (读不进去)               .obsidian/hotkeys.json  — 快捷键文件读不进去: [Errno 2] No such file or directory: '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/g27a-kind-dangling-symlink-iqnj0e4u/.obsidian/hotkeys.json'
+rc=0

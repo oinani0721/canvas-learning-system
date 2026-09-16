@@ -1,0 +1,25 @@
+### 裁判2 先挂（改前 / HEAD=09567e35bf393c34d1ab185e89e6b9effede7141）@ 2026-09-17T02:52:54+08:00
+### 被测文件工作树 sha256:
+b8b213a8c553e1d01e8396049715a8b0f335e4686ff0a877677cae5e76eb1958  scripts/verify_vault_install.py
+### 工作树是否等于 HEAD (空 = 未改):
+
+[setup] repo      = /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills
+[setup] vault     = /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/g27a-tail-fifo-moy_kaiz
+[setup] hotkeys   = /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/g27a-tail-fifo-moy_kaiz/.obsidian/hotkeys.json
+[setup] S_ISFIFO  = True  (无写端)
+[setup] timeout   = 15s
+[setup] argv      = ['/opt/homebrew/opt/python@3.14/bin/python3.14', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills/scripts/verify_vault_install.py', '--vault', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/g27a-tail-fifo-moy_kaiz', '--manifest', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills/scripts/vault-install-manifest.json', '--report', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/g27a-tail-fifo-moy_kaiz/report.txt']
+
+=== A 段: subprocess.run(timeout=15s) ===
+[A] returned rc=3  (没有挂起)
+[A] --- stdout 全文 ---
+
+[A] --- stderr ---
+❌ --report 落点位于 --vault 树内 (按文件系统身份判定, 不是按路径字符串): /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/g27a-tail-fifo-moy_kaiz/report.txt 的 /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/g27a-tail-fifo-moy_kaiz 与被审树是同一个对象
+
+[A] --report 没落盘
+
+=== B 段: -X faulthandler + 超时 SIGABRT 定位挂点 ===
+[B] no-hang: A 段已正常返回，无挂点可定位，跳过 SIGABRT
+[cleanup] FIFO 与临时目录已删: /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/g27a-tail-fifo-moy_kaiz 存在=False
+rc=0

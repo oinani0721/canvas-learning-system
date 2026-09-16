@@ -691,6 +691,23 @@ def test_verifier_write_calls_are_confined_to_write_report():
     assert "_write_report" in funcs, "落盘应当收敛到 _write_report()"
     lo, hi = funcs["_write_report"]
 
+    # 验伪锚(CARD-G2-7a-TAIL): 只读豁免 `_is_readonly_open` 自己先得站得住 —— 否则
+    # 下面那条 `offenders == []` 可能是**因为豁免放水**而绿, 不是因为源码真的没写调用。
+    # 逐条给出「在什么输入下结论应当不同」, 而不是只证一个正例。
+    def _verdict(expr: str) -> bool:
+        return _is_readonly_open(ast.parse(expr, mode="eval").body)
+
+    assert _verdict("os.open(p, os.O_RDONLY | os.O_NONBLOCK)") is True, "只读旗标必须放行"
+    assert _verdict("os.open(p, os.O_RDONLY)") is True, "单个只读旗标必须放行"
+    assert _verdict("os.open(p, os.O_WRONLY | os.O_CREAT)") is False, "写旗标不得放行"
+    assert _verdict("os.open(p, os.O_RDONLY | os.O_TRUNC)") is False, "混进一个写旗标就不得放行"
+    assert _verdict("os.open(p, flags)") is False, "算出来的旗标证明不了只读"
+    assert _verdict("os.open(p)") is False, "缺旗标不得放行"
+    assert _verdict("p.open('wb+')") is False, "绑定方法的写模式主张不得被削弱"
+    assert _verdict("p.open()") is True, "绑定方法缺省模式仍是只读"
+    assert _verdict("open(p, 'rb')") is True, "内置 open 的只读模式仍放行"
+    assert _verdict("open(p, 'w')") is False, "内置 open 的写模式仍不放行"
+
     offenders = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
@@ -731,6 +748,43 @@ def test_verifier_write_calls_are_confined_to_write_report():
 # ── 零写门 (钉死点 5) ─────────────────────────────────────────────────
 
 
+# `os.open()` 的旗标里, 这些是**确定不写**的; 任何不在表内的名字(O_WRONLY / O_RDWR /
+# O_CREAT / O_TRUNC / O_APPEND …)都不放行。表是白名单不是黑名单 —— 黑名单漏一个就放水。
+_OS_OPEN_READONLY_FLAGS = frozenset({"O_RDONLY", "O_NONBLOCK", "O_CLOEXEC", "O_NOFOLLOW", "O_DIRECTORY", "O_NOCTTY"})
+
+
+def _is_os_open(node) -> bool:
+    """是不是字面形态的 `os.open(...)`(而不是内置 open / 绑定方法 path.open)。"""
+    import ast
+
+    func = node.func
+    return (
+        isinstance(func, ast.Attribute)
+        and func.attr == "open"
+        and isinstance(func.value, ast.Name)
+        and func.value.id == "os"
+    )
+
+
+def _os_open_flag_names(flags):
+    """把 `os.O_A | os.O_B` 这种**纯字面**旗标表达式摊成名字集合; 形态不认得返回 None。
+
+    只认 `os.O_XXX` 与它们之间的 `|`。变量、函数调用、算术、`getattr` 一律返回 None ⇒
+    上层判不放行 —— 与模式字面量那条同一主张: **算出来的东西证明不了只读**。
+    """
+    import ast
+
+    if isinstance(flags, ast.Attribute) and isinstance(flags.value, ast.Name) and flags.value.id == "os":
+        return {flags.attr}
+    if isinstance(flags, ast.BinOp) and isinstance(flags.op, ast.BitOr):
+        left = _os_open_flag_names(flags.left)
+        right = _os_open_flag_names(flags.right)
+        if left is None or right is None:
+            return None
+        return left | right
+    return None
+
+
 def _is_readonly_open(node) -> bool:
     """`open()` 调用是否**确定**只读: 模式缺省, 或模式是不含 w/a/x/+ 的字面量。
 
@@ -738,8 +792,25 @@ def _is_readonly_open(node) -> bool:
     而绑定方法 `path.open(mode)` 是第 **1** 个。上一轮统一按第 2 个判 ⇒
     `path.open("wb+")` 被当成「没给模式」而放行 —— 我为只读探测开的豁免,
     把 U3-A 的零写门重新捅开了(Codex round-4 实测)。
+
+    ⚠️ `os.open(path, flags)` 是**第三种**形态, 且此前被这里误判: 它也是 Attribute 调用,
+    于是走了 `bound_method` 那条分支、把 **path**(args[0]) 当模式读 —— 不是字符串字面量,
+    结论恒 False。对 CARD-G2-7a-TAIL 新增的只读探测 `os.open(p, os.O_RDONLY | os.O_NONBLOCK)`
+    就会误报成「写调用」。这里给它单开一条分支, 判据仍是**只按字面量放行**:
+    旗标必须是纯 `os.O_*` 字面(可用 `|` 连), 且**全部**落在只读白名单里;
+    缺旗标 / 算出来的旗标 / 含任一写旗标, 一律不放行。
     """
     import ast
+
+    if _is_os_open(node):
+        flags = node.args[1] if len(node.args) > 1 else None
+        for kw in node.keywords:
+            if kw.arg == "flags":
+                flags = kw.value
+        if flags is None:
+            return False  # os.open 缺旗标在语法上不合法, 但宁可当违规也不猜
+        names = _os_open_flag_names(flags)
+        return names is not None and names <= _OS_OPEN_READONLY_FLAGS
 
     bound_method = isinstance(node.func, ast.Attribute)  # x.open(...) ⇒ 模式在 args[0]
     mode_index = 0 if bound_method else 1
@@ -3090,6 +3161,108 @@ def test_malformed_hotkeys_is_caught_even_when_main_js_is_absent(vault_pair):
         f"hotkeys 顶层非对象必须登记 unreadable，实得 {[(f.path, f.detail) for f in result.unreadable]}"
     )
     assert result.exit_code == vv.EXIT_MISMATCH == 2
+
+
+# 无写端 FIFO 的回归门只有在**校验器不挂**时才会返回, 所以超时值既是判据也是保险丝。
+# 取 60s 的实证依据: 同一条命令的正常路径本机连跑 5 次, 最慢 0.052s(见
+# evidence-g27a-tail/ 的 (f) 取值实测) —— 60s 是 >1000× 余量, 慢机/冷启动打不穿;
+# 而一旦形态门被改回裸 read_text, 这条门会在 60s 后以 TimeoutExpired 变红, 不会静默挂住整套。
+HOTKEYS_FIFO_TIMEOUT_S = 60
+
+
+def _report_section(report_text: str, title: str) -> list[str]:
+    """从渲染报告里取出 `## <title>` 那一段的明细行(不含标题行)。
+
+    判据要的是**归桶身份**而不是「某处出现过这串字」: 同一句 detail 若只在别的段落
+    出现, 断言 `in report_text` 照样成立, 门就变成了在测字符串存在性。
+    """
+    out: list[str] = []
+    inside = False
+    for line in report_text.splitlines():
+        if line.startswith("## "):
+            inside = line.strip() == f"## {title}"
+            continue
+        if inside and line.strip():
+            out.append(line)
+    return out
+
+
+def test_hotkeys_fifo_does_not_hang_and_reports_unreadable(vault_pair, tmp_path):
+    """MEDIUM-2 回归: hotkeys.json 是**无写端 FIFO** 时, 校验器不得挂住, 且必须归 unreadable ⇒ rc=2。
+
+    修之前 `_check_hotkeys` 先 `_entry_state`(走 `os.lstat`, FIFO 判 present)、随后直接
+    `hotkeys_path.read_text()` —— `read_text` 内部是**阻塞** open, 无写端 FIFO 上它会一直
+    等写者, 永久停在打开阶段: 包在外面的 `except (OSError, UnicodeDecodeError)` 根本到不了,
+    `--vault` 连 rc=2 都跑不出来(改前探针实测 15s TimeoutExpired, faulthandler 自报栈停在
+    那一行的 open 系统调用)。
+
+    ⛔ 这条门**必须**走 `subprocess` + `timeout=`, 不能进程内调 `vv.main()` / `_classify()`:
+       回归时进程内那条路会把**整套 pytest** 一起挂死, 既不会红也拿不到任何失败信息。
+    ⚠️ `--report` 落点必须在 `--vault` 树**外** —— 落在树内会被 `_check_report_location`
+       判 rc=3(用法错), 门就变成在测别的东西(本卡探针初版踩过这一脚)。
+
+    两段输入配成对照:
+      - 对照输入: 同一个 vault, hotkeys 是**普通文件** ⇒ 不得进 unreadable(验伪锚:
+        证明下面那条断言不是「在任何输入下都成立」的空判据);
+      - 被测输入: 同一个 vault, hotkeys 换成无写端 FIFO ⇒ rc=2 + 归 unreadable + note 说清形态。
+    """
+    _source, target = vault_pair
+    hotkeys = target / vv.HOTKEYS_REL
+
+    def _run_verifier(report_name: str) -> tuple[int, str]:
+        report = tmp_path / report_name
+        done = subprocess.run(
+            [
+                sys.executable,
+                str(VERIFIER),
+                "--vault",
+                str(target),
+                "--manifest",
+                str(MANIFEST),
+                "--report",
+                str(report),
+            ],
+            capture_output=True,
+            timeout=HOTKEYS_FIFO_TIMEOUT_S,
+        )
+        assert done.returncode != vv.EXIT_USAGE, (
+            f"落进用法错档说明这条门没跑到 hotkeys 检查: rc={done.returncode} "
+            f"stderr={done.stderr.decode('utf-8', 'replace')[:400]}"
+        )
+        text = report.read_text(encoding="utf-8") if report.exists() else ""
+        assert text, f"--report 没落盘, 无从判归桶: rc={done.returncode}"
+        return done.returncode, text
+
+    # ── 对照输入: 普通文件 hotkeys ────────────────────────────────────────
+    assert hotkeys.is_file(), "夹具前提: 对照段的 hotkeys 必须是普通文件"
+    _control_rc, control_report = _run_verifier("control-report.txt")
+    assert vv.HOTKEYS_REL not in " ".join(_report_section(control_report, "unreadable")), (
+        f"普通文件 hotkeys 不该进 unreadable, 实得 {_report_section(control_report, 'unreadable')}"
+    )
+    assert "不是普通文件" not in control_report, "对照输入不该出现形态门的判词"
+
+    # ── 被测输入: 无写端 FIFO ─────────────────────────────────────────────
+    hotkeys.unlink()
+    os.mkfifo(hotkeys)
+    try:
+        # 回归时这一行抛 subprocess.TimeoutExpired ⇒ 本条测试红, 且**不会**挂住整套。
+        rc, report_text = _run_verifier("fifo-report.txt")
+    finally:
+        # FIFO 必须删干净: 留着会把后面任何读它的进程一起挂住(含 pytest 自己的清理)。
+        if hotkeys.is_fifo():
+            hotkeys.unlink()
+
+    assert rc == vv.EXIT_MISMATCH == 2, f"无写端 FIFO 必须归 mismatch 档, 实得 rc={rc}"
+    unreadable_rows = _report_section(report_text, "unreadable")
+    assert any(row.strip().startswith(vv.HOTKEYS_REL) for row in unreadable_rows), (
+        f"hotkeys 必须登记在 ## unreadable 段里, 实得 {unreadable_rows}"
+    )
+    assert any("不是普通文件(FIFO/设备等特殊文件)" in row for row in unreadable_rows), (
+        f"unreadable 明细必须说清是形态问题而不是别的读失败, 实得 {unreadable_rows}"
+    )
+    assert "hotkeys                : not evaluated (不是普通文件)" in report_text, (
+        "汇总行的 hotkeys note 必须如实写形态, 不得说成「查过没问题」"
+    )
 
 
 def test_claude_dir_symlink_does_not_write_through_either(tmp_path):

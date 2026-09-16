@@ -1,0 +1,416 @@
+### 裁判6 负控两段（EXIT trap 无条件还原 + 全文件 sha 前后比对）@ 2026-09-17T03:01:21+08:00
+### HEAD=09567e35bf393c34d1ab185e89e6b9effede7141
+
+############ 负控-1: 删掉整个形态门（还原为裸 read_text）############
+[NC1] sha 跑前: f47606cf17b7319f3415ae3e9039b22945faffae054912c406862c895d27ff2d  scripts/verify_vault_install.py
+[NC1] 变异态 S_ISFIFO/O_NONBLOCK 计数（应 0）= 0
+[NC1] 变异态 read_text 裸读在位（应命中 1 行）:
+1312:        raw = hotkeys_path.read_text(encoding="utf-8")
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 1 item
+
+tests/unit/test_vault_install_manifest.py F                              [100%]
+
+=================================== FAILURES ===================================
+____________ test_hotkeys_fifo_does_not_hang_and_reports_unreadable ____________
+
+vault_pair = (PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-26831/test_hotkeys_fifo...ers/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-26831/test_hotkeys_fifo_does_not_han0/target-vault'))
+tmp_path = PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-26831/test_hotkeys_fifo_does_not_han0')
+
+    def test_hotkeys_fifo_does_not_hang_and_reports_unreadable(vault_pair, tmp_path):
+        """MEDIUM-2 回归: hotkeys.json 是**无写端 FIFO** 时, 校验器不得挂住, 且必须归 unreadable ⇒ rc=2。
+        修之前 `_check_hotkeys` 先 `_entry_state`(走 `os.lstat`, FIFO 判 present)、随后直接
+        `hotkeys_path.read_text()` —— `read_text` 内部是**阻塞** open, 无写端 FIFO 上它会一直
+        等写者, 永久停在打开阶段: 包在外面的 `except (OSError, UnicodeDecodeError)` 根本到不了,
+        `--vault` 连 rc=2 都跑不出来(改前探针实测 15s TimeoutExpired, faulthandler 自报栈停在
+        那一行的 open 系统调用)。
+        ⛔ 这条门**必须**走 `subprocess` + `timeout=`, 不能进程内调 `vv.main()` / `_classify()`:
+           回归时进程内那条路会把**整套 pytest** 一起挂死, 既不会红也拿不到任何失败信息。
+        ⚠️ `--report` 落点必须在 `--vault` 树**外** —— 落在树内会被 `_check_report_location`
+           判 rc=3(用法错), 门就变成在测别的东西(本卡探针初版踩过这一脚)。
+        两段输入配成对照:
+          - 对照输入: 同一个 vault, hotkeys 是**普通文件** ⇒ 不得进 unreadable(验伪锚:
+            证明下面那条断言不是「在任何输入下都成立」的空判据);
+          - 被测输入: 同一个 vault, hotkeys 换成无写端 FIFO ⇒ rc=2 + 归 unreadable + note 说清形态。
+        """
+        _source, target = vault_pair
+        hotkeys = target / vv.HOTKEYS_REL
+        def _run_verifier(report_name: str) -> tuple[int, str]:
+            report = tmp_path / report_name
+            done = subprocess.run(
+                [
+                    sys.executable,
+                    str(VERIFIER),
+                    "--vault",
+                    str(target),
+                    "--manifest",
+                    str(MANIFEST),
+                    "--report",
+                    str(report),
+                ],
+                capture_output=True,
+                timeout=HOTKEYS_FIFO_TIMEOUT_S,
+            )
+            assert done.returncode != vv.EXIT_USAGE, (
+                f"落进用法错档说明这条门没跑到 hotkeys 检查: rc={done.returncode} "
+                f"stderr={done.stderr.decode('utf-8', 'replace')[:400]}"
+            )
+            text = report.read_text(encoding="utf-8") if report.exists() else ""
+            assert text, f"--report 没落盘, 无从判归桶: rc={done.returncode}"
+            return done.returncode, text
+        # ── 对照输入: 普通文件 hotkeys ────────────────────────────────────────
+        assert hotkeys.is_file(), "夹具前提: 对照段的 hotkeys 必须是普通文件"
+        _control_rc, control_report = _run_verifier("control-report.txt")
+        assert vv.HOTKEYS_REL not in " ".join(_report_section(control_report, "unreadable")), (
+            f"普通文件 hotkeys 不该进 unreadable, 实得 {_report_section(control_report, 'unreadable')}"
+        )
+        assert "不是普通文件" not in control_report, "对照输入不该出现形态门的判词"
+        # ── 被测输入: 无写端 FIFO ─────────────────────────────────────────────
+        hotkeys.unlink()
+        os.mkfifo(hotkeys)
+        try:
+            # 回归时这一行抛 subprocess.TimeoutExpired ⇒ 本条测试红, 且**不会**挂住整套。
+>           rc, report_text = _run_verifier("fifo-report.txt")
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/unit/test_vault_install_manifest.py:3251: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+report_name = 'fifo-report.txt'
+
+    def _run_verifier(report_name: str) -> tuple[int, str]:
+        report = tmp_path / report_name
+>       done = subprocess.run(
+            [
+                sys.executable,
+                str(VERIFIER),
+                "--vault",
+                str(target),
+                "--manifest",
+                str(MANIFEST),
+                "--report",
+                str(report),
+            ],
+            capture_output=True,
+            timeout=HOTKEYS_FIFO_TIMEOUT_S,
+        )
+
+tests/unit/test_vault_install_manifest.py:3216: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+input = None, capture_output = True, timeout = 60, check = False
+popenargs = (['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/bin/python', '/...ing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills/scripts/vault-install-manifest.json', ...],)
+kwargs = {'stderr': -1, 'stdout': -1}
+process = <Popen: returncode: -9 args: ['/Users/Heishing/Desktop/canvas/canvas-learnin...>
+
+    def run(*popenargs,
+            input=None, capture_output=False, timeout=None, check=False, **kwargs):
+        """Run command with arguments and return a CompletedProcess instance.
+        The returned instance will have attributes args, returncode, stdout and
+        stderr. By default, stdout and stderr are not captured, and those attributes
+        will be None. Pass stdout=PIPE and/or stderr=PIPE in order to capture them,
+        or pass capture_output=True to capture both.
+        If check is True and the exit code was non-zero, it raises a
+        CalledProcessError. The CalledProcessError object will have the return code
+        in the returncode attribute, and output & stderr attributes if those streams
+        were captured.
+        If timeout (seconds) is given and the process takes too long,
+         a TimeoutExpired exception will be raised.
+        There is an optional argument "input", allowing you to
+        pass bytes or a string to the subprocess's stdin.  If you use this argument
+        you may not also use the Popen constructor's "stdin" argument, as
+        it will be used internally.
+        By default, all communication is in bytes, and therefore any "input" should
+        be bytes, and the stdout and stderr will be bytes. If in text mode, any
+        "input" should be a string, and stdout and stderr will be strings decoded
+        according to locale encoding, or by "encoding" if set. Text mode is
+        triggered by setting any of text, encoding, errors or universal_newlines.
+        The other arguments are the same as for the Popen constructor.
+        """
+        if input is not None:
+            if kwargs.get('stdin') is not None:
+                raise ValueError('stdin and input arguments may not both be used.')
+            kwargs['stdin'] = PIPE
+        if capture_output:
+            if kwargs.get('stdout') is not None or kwargs.get('stderr') is not None:
+                raise ValueError('stdout and stderr arguments may not be used '
+                                 'with capture_output.')
+            kwargs['stdout'] = PIPE
+            kwargs['stderr'] = PIPE
+        with Popen(*popenargs, **kwargs) as process:
+            try:
+>               stdout, stderr = process.communicate(input, timeout=timeout)
+                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/subprocess.py:557: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <Popen: returncode: -9 args: ['/Users/Heishing/Desktop/canvas/canvas-learnin...>
+input = None, timeout = 60
+
+    def communicate(self, input=None, timeout=None):
+        """Interact with process: Send data to stdin and close it.
+        Read data from stdout and stderr, until end-of-file is
+        reached.  Wait for process to terminate.
+        The optional "input" argument should be data to be sent to the
+        child process, or None, if no data should be sent to the child.
+        communicate() returns a tuple (stdout, stderr).
+        By default, all communication is in bytes, and therefore any
+        "input" should be bytes, and the (stdout, stderr) will be bytes.
+        If in text mode (indicated by self.text_mode), any "input" should
+        be a string, and (stdout, stderr) will be strings decoded
+        according to locale encoding, or by "encoding" if set. Text mode
+        is triggered by setting any of text, encoding, errors or
+        universal_newlines.
+        """
+        if self._communication_started and input:
+            raise ValueError("Cannot send input after starting communication")
+        # Optimization: If we are not worried about timeouts, we haven't
+        # started communicating, and we have one or zero pipes, using select()
+        # or threads is unnecessary.
+        if (timeout is None and not self._communication_started and
+            [self.stdin, self.stdout, self.stderr].count(None) >= 2):
+            stdout = None
+            stderr = None
+            if self.stdin:
+                self._stdin_write(input)
+            elif self.stdout:
+                stdout = self.stdout.read()
+                self.stdout.close()
+            elif self.stderr:
+                stderr = self.stderr.read()
+                self.stderr.close()
+            self.wait()
+        else:
+            if timeout is not None:
+                endtime = _time() + timeout
+            else:
+                endtime = None
+            try:
+>               stdout, stderr = self._communicate(input, endtime, timeout)
+                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/subprocess.py:1221: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <Popen: returncode: -9 args: ['/Users/Heishing/Desktop/canvas/canvas-learnin...>
+input = None, endtime = 1566138.740545916, orig_timeout = 60
+
+    def _communicate(self, input, endtime, orig_timeout):
+        if self.stdin and not self._communication_started:
+            # Flush stdio buffer.  This might block, if the user has
+            # been writing to .stdin in an uncontrolled fashion.
+            try:
+                self.stdin.flush()
+            except BrokenPipeError:
+                pass  # communicate() must ignore BrokenPipeError.
+            except ValueError:
+                # ignore ValueError: I/O operation on closed file.
+                if not self.stdin.closed:
+                    raise
+            if not input:
+                try:
+                    self.stdin.close()
+                except BrokenPipeError:
+                    pass  # communicate() must ignore BrokenPipeError.
+        stdout = None
+        stderr = None
+        # Only create this mapping if we haven't already.
+        if not self._communication_started:
+            self._fileobj2output = {}
+            if self.stdout:
+                self._fileobj2output[self.stdout] = []
+            if self.stderr:
+                self._fileobj2output[self.stderr] = []
+        if self.stdout:
+            stdout = self._fileobj2output[self.stdout]
+        if self.stderr:
+            stderr = self._fileobj2output[self.stderr]
+        self._save_input(input)
+        if self._input:
+            if not isinstance(self._input, memoryview):
+                input_view = memoryview(self._input)
+            else:
+                input_view = self._input.cast("b")  # byte input required
+        with _PopenSelector() as selector:
+            if self.stdin and not self.stdin.closed and self._input:
+                selector.register(self.stdin, selectors.EVENT_WRITE)
+            if self.stdout and not self.stdout.closed:
+                selector.register(self.stdout, selectors.EVENT_READ)
+            if self.stderr and not self.stderr.closed:
+                selector.register(self.stderr, selectors.EVENT_READ)
+            while selector.get_map():
+                timeout = self._remaining_time(endtime)
+                if timeout is not None and timeout <= 0:
+                    self._check_timeout(endtime, orig_timeout,
+                                        stdout, stderr,
+                                        skip_check_and_raise=True)
+                    raise RuntimeError(  # Impossible :)
+                        '_check_timeout(..., skip_check_and_raise=True) '
+                        'failed to raise TimeoutExpired.')
+                ready = selector.select(timeout)
+>               self._check_timeout(endtime, orig_timeout, stdout, stderr)
+
+/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/subprocess.py:2154: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <Popen: returncode: -9 args: ['/Users/Heishing/Desktop/canvas/canvas-learnin...>
+endtime = 1566138.740545916, orig_timeout = 60, stdout_seq = [], stderr_seq = []
+skip_check_and_raise = False
+
+    def _check_timeout(self, endtime, orig_timeout, stdout_seq, stderr_seq,
+                       skip_check_and_raise=False):
+        """Convenience for checking if a timeout has expired."""
+        if endtime is None:
+            return
+        if skip_check_and_raise or _time() > endtime:
+>           raise TimeoutExpired(
+                    self.args, orig_timeout,
+                    output=b''.join(stdout_seq) if stdout_seq else None,
+                    stderr=b''.join(stderr_seq) if stderr_seq else None)
+E           subprocess.TimeoutExpired: Command '['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills/scripts/verify_vault_install.py', '--vault', '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-26831/test_hotkeys_fifo_does_not_han0/target-vault', '--manifest', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills/scripts/vault-install-manifest.json', '--report', '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-26831/test_hotkeys_fifo_does_not_han0/fifo-report.txt']' timed out after 60 seconds
+
+/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/subprocess.py:1268: TimeoutExpired
+
+
+
+
+
+
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills/backend/app/api/v1/endpoints/chat.py:807: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+
+
+
+
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_vault_install_manifest.py::test_hotkeys_fifo_does_not_hang_and_reports_unreadable
+================== 1 failed, 10 warnings in 61.75s (0:01:01) ===================
+[NC1] 门 rc=0 （期望 非0 = 红）
+[NC1] sha 跑后: f47606cf17b7319f3415ae3e9039b22945faffae054912c406862c895d27ff2d  scripts/verify_vault_install.py
+
+############ 负控-2: 形态门恒把 FIFO 当普通文件放行（if False:）############
+[NC2] sha 跑前: f47606cf17b7319f3415ae3e9039b22945faffae054912c406862c895d27ff2d  scripts/verify_vault_install.py
+[NC2] 变异已注入
+[NC2] 变异标记在位:
+1339:    if False:  # NC2 变异: 形态门恒放行, 任何形态都当普通文件读
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 1 item
+
+tests/unit/test_vault_install_manifest.py F                              [100%]
+
+=================================== FAILURES ===================================
+____________ test_hotkeys_fifo_does_not_hang_and_reports_unreadable ____________
+
+vault_pair = (PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-26838/test_hotkeys_fifo...ers/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-26838/test_hotkeys_fifo_does_not_han0/target-vault'))
+tmp_path = PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-26838/test_hotkeys_fifo_does_not_han0')
+
+    def test_hotkeys_fifo_does_not_hang_and_reports_unreadable(vault_pair, tmp_path):
+        """MEDIUM-2 回归: hotkeys.json 是**无写端 FIFO** 时, 校验器不得挂住, 且必须归 unreadable ⇒ rc=2。
+        修之前 `_check_hotkeys` 先 `_entry_state`(走 `os.lstat`, FIFO 判 present)、随后直接
+        `hotkeys_path.read_text()` —— `read_text` 内部是**阻塞** open, 无写端 FIFO 上它会一直
+        等写者, 永久停在打开阶段: 包在外面的 `except (OSError, UnicodeDecodeError)` 根本到不了,
+        `--vault` 连 rc=2 都跑不出来(改前探针实测 15s TimeoutExpired, faulthandler 自报栈停在
+        那一行的 open 系统调用)。
+        ⛔ 这条门**必须**走 `subprocess` + `timeout=`, 不能进程内调 `vv.main()` / `_classify()`:
+           回归时进程内那条路会把**整套 pytest** 一起挂死, 既不会红也拿不到任何失败信息。
+        ⚠️ `--report` 落点必须在 `--vault` 树**外** —— 落在树内会被 `_check_report_location`
+           判 rc=3(用法错), 门就变成在测别的东西(本卡探针初版踩过这一脚)。
+        两段输入配成对照:
+          - 对照输入: 同一个 vault, hotkeys 是**普通文件** ⇒ 不得进 unreadable(验伪锚:
+            证明下面那条断言不是「在任何输入下都成立」的空判据);
+          - 被测输入: 同一个 vault, hotkeys 换成无写端 FIFO ⇒ rc=2 + 归 unreadable + note 说清形态。
+        """
+        _source, target = vault_pair
+        hotkeys = target / vv.HOTKEYS_REL
+        def _run_verifier(report_name: str) -> tuple[int, str]:
+            report = tmp_path / report_name
+            done = subprocess.run(
+                [
+                    sys.executable,
+                    str(VERIFIER),
+                    "--vault",
+                    str(target),
+                    "--manifest",
+                    str(MANIFEST),
+                    "--report",
+                    str(report),
+                ],
+                capture_output=True,
+                timeout=HOTKEYS_FIFO_TIMEOUT_S,
+            )
+            assert done.returncode != vv.EXIT_USAGE, (
+                f"落进用法错档说明这条门没跑到 hotkeys 检查: rc={done.returncode} "
+                f"stderr={done.stderr.decode('utf-8', 'replace')[:400]}"
+            )
+            text = report.read_text(encoding="utf-8") if report.exists() else ""
+            assert text, f"--report 没落盘, 无从判归桶: rc={done.returncode}"
+            return done.returncode, text
+        # ── 对照输入: 普通文件 hotkeys ────────────────────────────────────────
+        assert hotkeys.is_file(), "夹具前提: 对照段的 hotkeys 必须是普通文件"
+        _control_rc, control_report = _run_verifier("control-report.txt")
+        assert vv.HOTKEYS_REL not in " ".join(_report_section(control_report, "unreadable")), (
+            f"普通文件 hotkeys 不该进 unreadable, 实得 {_report_section(control_report, 'unreadable')}"
+        )
+        assert "不是普通文件" not in control_report, "对照输入不该出现形态门的判词"
+        # ── 被测输入: 无写端 FIFO ─────────────────────────────────────────────
+        hotkeys.unlink()
+        os.mkfifo(hotkeys)
+        try:
+            # 回归时这一行抛 subprocess.TimeoutExpired ⇒ 本条测试红, 且**不会**挂住整套。
+            rc, report_text = _run_verifier("fifo-report.txt")
+        finally:
+            # FIFO 必须删干净: 留着会把后面任何读它的进程一起挂住(含 pytest 自己的清理)。
+            if hotkeys.is_fifo():
+                hotkeys.unlink()
+        assert rc == vv.EXIT_MISMATCH == 2, f"无写端 FIFO 必须归 mismatch 档, 实得 rc={rc}"
+        unreadable_rows = _report_section(report_text, "unreadable")
+        assert any(row.strip().startswith(vv.HOTKEYS_REL) for row in unreadable_rows), (
+            f"hotkeys 必须登记在 ## unreadable 段里, 实得 {unreadable_rows}"
+        )
+>       assert any("不是普通文件(FIFO/设备等特殊文件)" in row for row in unreadable_rows), (
+            f"unreadable 明细必须说清是形态问题而不是别的读失败, 实得 {unreadable_rows}"
+        )
+E       AssertionError: unreadable 明细必须说清是形态问题而不是别的读失败, 实得 ['  .obsidian/hotkeys.json  — 不是合法 JSON, 无法核对快捷键: Expecting value: line 1 column 1 (char 0)']
+E       assert False
+E        +  where False = any(<generator object test_hotkeys_fifo_does_not_hang_and_reports_unreadable.<locals>.<genexpr> at 0x148a65490>)
+
+tests/unit/test_vault_install_manifest.py:3262: AssertionError
+
+
+
+
+
+
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills/backend/app/api/v1/endpoints/chat.py:807: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+
+
+
+
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_vault_install_manifest.py::test_hotkeys_fifo_does_not_hang_and_reports_unreadable
+======================== 1 failed, 10 warnings in 1.25s ========================
+[NC2] 门 rc=0 （期望 非0 = 红）
+[NC2] sha 跑后: f47606cf17b7319f3415ae3e9039b22945faffae054912c406862c895d27ff2d  scripts/verify_vault_install.py
+[还原后 S_ISFIFO/O_NONBLOCK 计数（应 4）= 4]
+[临时目录保留待清: /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.hiz20PqrNU]
+[trap] 已无条件还原为修复版
+rc=0
+
+### ⚠️ 本份已被取代（如实登记，管道吃 rc）
+本份两处 `[NC1] 门 rc=` / `[NC2] 门 rc=` 取的是**管道末端 grep 的**退出码, 不是 pytest 的 ——
+写法是 `( ... pytest ... ) 2>&1 | grep ... ; echo rc=$?`, zsh 里 `$?` 归最后一段。
+于是两行都印了 `rc=0（期望 非0）`, 与同份里 `FAILED ...` / `1 failed` 自相矛盾。
+判据结论(两段均红、红在各自指定处、sha 四行全同)不受影响, 但数字是假的, 已按
+无管道写法重跑, 以较新的 negctl-*.txt 为准。

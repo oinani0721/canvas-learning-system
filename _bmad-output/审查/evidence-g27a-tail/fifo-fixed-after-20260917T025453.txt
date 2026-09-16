@@ -1,0 +1,103 @@
+### 裁判3 改后（同一探针 / HEAD=09567e35bf393c34d1ab185e89e6b9effede7141 + 工作树已改）@ 2026-09-17T02:54:53+08:00
+### 被测文件工作树 sha256:
+f47606cf17b7319f3415ae3e9039b22945faffae054912c406862c895d27ff2d  scripts/verify_vault_install.py
+### 工作树 vs HEAD (非空 = 本段跑的是已修代码):
+ scripts/verify_vault_install.py | 45 ++++++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 44 insertions(+), 1 deletion(-)
+### 收工 S_ISFIFO/O_NONBLOCK 计数 (需 >=1):
+4
+
+[setup] repo      = /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills
+[setup] vault     = /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/g27a-tail-fifo-d1k4g346
+[setup] hotkeys   = /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/g27a-tail-fifo-d1k4g346/.obsidian/hotkeys.json
+[setup] S_ISFIFO  = True  (无写端)
+[setup] timeout   = 15s
+[setup] argv      = ['/opt/homebrew/opt/python@3.14/bin/python3.14', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills/scripts/verify_vault_install.py', '--vault', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/g27a-tail-fifo-d1k4g346', '--manifest', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills/scripts/vault-install-manifest.json', '--report', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/g27a-tail-out-sfycygvl/report.txt']
+
+=== A 段: subprocess.run(timeout=15s) ===
+[A] returned rc=2  (没有挂起)
+[A] --- stdout 全文 ---
+报告已写入 /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/g27a-tail-out-sfycygvl/report.txt
+
+[A] --- --report 落盘全文 ---
+# vault-install verification report (CARD-G2-6, read-only)
+# manifest : /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills/scripts/vault-install-manifest.json (version 2, source harness-canvas-vault)
+# vault    : /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/g27a-tail-fifo-d1k4g346
+# source   : (未提供 — content-drift 未评估)
+# 语义     : exclude 项按各自模式的静态前缀子树扫描; extra 只看 manifest
+#            extra_scan 声明的覆盖面 (根级文档不在覆盖面内, 故不报 extra);
+#            读不进去的条目记 unreadable 并计入退出码 —— 看不见不等于一致;
+#            extra_allow 放行的项进 allowed-extra, 只报告不计退出码;
+#            声明为 optional 的项缺失进 optional-missing, 同样不计退出码;
+#            退出码 0 ok / 1 只缺 / 2 多出·漂移·读不动·快捷键孤儿 / 3 用法错。
+------------------------------------------------------------------
+match                  : 1
+missing                : 22
+extra                  : 0
+content-drift          : not evaluated (无 --source)
+intentionally-excluded : 0
+allowed-extra          : 0
+optional-missing       : 12
+unreadable             : 3
+hotkeys                : not evaluated (不是普通文件)
+hotkey-orphan          : 0
+
+## missing
+  原白板 [skeleton-dir]
+  检验白板 [skeleton-dir]
+  节点 [skeleton-dir]
+  outputs [skeleton-dir]
+  raw [skeleton-dir]
+  templates [skeleton-dir]
+  .claude/skills [claude-system]
+  .claude/scripts [claude-system]
+  .claude/hooks [claude-system]
+  .claude/settings.json [claude-system]
+  .obsidian/community-plugins.json [obsidian-config]
+  .obsidian/plugins/canvas-learning-system [obsidian-plugin]
+  CLAUDE.md [vault-doc]
+  Dashboard.md [vault-doc]
+  .canvas-config.yaml [vault-config]
+  .mcp.json [claude-system]
+  .obsidian/templates/concept.md [obsidian-template]
+  .obsidian/templates/exam-board.md [obsidian-template]
+  .obsidian/themes/Underwater/manifest.json [obsidian-theme]
+  .obsidian/themes/Underwater/theme.css [obsidian-theme]
+  wiki/concepts [skeleton-dir]
+  wiki/canvases [skeleton-dir]
+
+## unreadable
+  .claude  — extra 覆盖面的根跟随软链后查询不到, 无法证明没有清单外的东西
+  .obsidian/plugins  — extra 覆盖面的根跟随软链后查询不到, 无法证明没有清单外的东西
+  .obsidian/hotkeys.json  — 快捷键文件不是普通文件(FIFO/设备等特殊文件), 无法核对快捷键
+
+## optional-missing
+  .claude/agents [claude-system]  — 声明为 optional, 允许缺失 (不计退出码)
+  .claude/commands [claude-system]  — 声明为 optional, 允许缺失 (不计退出码)
+  .claude/settings.local.json [secret-or-local]  — 声明为 optional, 允许缺失 (不计退出码)
+  .obsidian/app.json [obsidian-config]  — 声明为 optional, 允许缺失 (不计退出码)
+  .obsidian/appearance.json [obsidian-config]  — 声明为 optional, 允许缺失 (不计退出码)
+  .obsidian/core-plugins.json [obsidian-config]  — 声明为 optional, 允许缺失 (不计退出码)
+  .obsidian/cls-internal-key.txt [secret-or-local]  — 声明为 optional, 允许缺失 (不计退出码)
+  .obsidian/plugins/dataview [obsidian-plugin]  — 声明为 optional, 允许缺失 (不计退出码)
+  .obsidian/plugins/breadcrumbs [obsidian-plugin]  — 声明为 optional, 允许缺失 (不计退出码)
+  .obsidian/plugins/templater-obsidian [obsidian-plugin]  — 声明为 optional, 允许缺失 (不计退出码)
+  .obsidian/plugins/canvas-learning-system/data.json [plugin-config]  — 声明为 optional, 允许缺失 (不计退出码)
+  .obsidian/plugins/templater-obsidian/data.json [plugin-config]  — 声明为 optional, 允许缺失 (不计退出码)
+
+exit=2
+
+
+=== B 段: -X faulthandler + 超时 SIGABRT 定位挂点 ===
+[B] no-hang: A 段已正常返回，无挂点可定位，跳过 SIGABRT
+[cleanup] FIFO 与临时目录已删: /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/g27a-tail-fifo-d1k4g346 存在=False; 报告目录 报告已写入 /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/g27a-tail-out-sfycygvl/report.txt
+ 存在=False
+rc=0
+
+### ⚠️ 本份已被取代（如实登记）
+本份由**带缺陷的探针版本**产出: 探针 A 段 `out = done.stdout.decode(...)` 遮蔽了报告目录变量 `out`,
+于是 finally 的 `rmtree(out)` 收到的是 stdout 文本、报告临时目录**实际未删**, 而末行
+「报告目录 ... 存在=False」是对 stdout 文本求值的**空洞真**, 不构成清理证明。
+判据本身(rc=2 / 无挂起 / unreadable 归桶 / note 文案)不受该缺陷影响, 但为不留误导性证据,
+已修探针(out_dir / stdout_text 改名)并重跑, 以较新的 fifo-fixed-after-*.txt 为准。
+泄漏的那一个目录已按前缀精确清理, 残留 0。

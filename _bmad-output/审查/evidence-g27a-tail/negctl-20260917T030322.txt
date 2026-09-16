@@ -1,0 +1,41 @@
+### 裁判6 负控两段（重跑: rc 不经管道取）@ 2026-09-17T03:03:22+08:00
+### HEAD=09567e35bf393c34d1ab185e89e6b9effede7141  test sha256=ef22ae42ecd9ab9cd735820168c49cded7e86ebab1764c34903b79e62177e171
+
+############ 负控-1: 删掉整个形态门（还原为裸 read_text）############
+[NC1] sha 跑前: f47606cf17b7319f3415ae3e9039b22945faffae054912c406862c895d27ff2d  scripts/verify_vault_install.py
+[NC1] 变异态 S_ISFIFO/O_NONBLOCK 计数（应 0）= 0
+[NC1] 变异态裸读在位: 1312:        raw = hotkeys_path.read_text(encoding="utf-8")
+[NC1] 门 rc=1 （期望 非0 = 红；rc 未经管道）
+[NC1] 红在哪（原始输出 negctl-nc1-raw-20260917T030322.txt）:
+    23:        `--vault` 连 rc=2 都跑不出来(改前探针实测 15s TimeoutExpired, faulthandler 自报栈停在
+    75:            # 回归时这一行抛 subprocess.TimeoutExpired ⇒ 本条测试红, 且**不会**挂住整套。
+    124:         a TimeoutExpired exception will be raised.
+    273:                        'failed to raise TimeoutExpired.')
+    291:>           raise TimeoutExpired(
+    295:E           subprocess.TimeoutExpired: Command '['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills/scripts/verify_vault_install.py', '--vault', '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-26841/test_hotkeys_fifo_does_not_han0/target-vault', '--manifest', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills/scripts/vault-install-manifest.json', '--report', '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-26841/test_hotkeys_fifo_does_not_han0/fifo-report.txt']' timed out after 60 seconds
+    297:/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/subprocess.py:1268: TimeoutExpired
+    340:FAILED tests/unit/test_vault_install_manifest.py::test_hotkeys_fifo_does_not_hang_and_reports_unreadable
+    341:================== 1 failed, 10 warnings in 62.51s (0:01:02) ===================
+[NC1] sha 跑后: f47606cf17b7319f3415ae3e9039b22945faffae054912c406862c895d27ff2d  scripts/verify_vault_install.py
+
+############ 负控-2: 形态门恒放行（if False:），O_NONBLOCK 仍在 ############
+[NC2] sha 跑前: f47606cf17b7319f3415ae3e9039b22945faffae054912c406862c895d27ff2d  scripts/verify_vault_install.py
+[NC2] 变异已注入
+[NC2] 变异标记在位: 1339:    if False:  # NC2 变异: 形态门恒放行, 任何形态都当普通文件读
+[NC2] 门 rc=1 （期望 非0 = 红；rc 未经管道）
+[NC2] 红在哪（原始输出 negctl-nc2-raw-20260917T030322.txt）:
+    90:E       AssertionError: unreadable 明细必须说清是形态问题而不是别的读失败, 实得 ['  .obsidian/hotkeys.json  — 不是合法 JSON, 无法核对快捷键: Expecting value: line 1 column 1 (char 0)']
+    91:E       assert False
+    92:E        +  where False = any(<generator object test_hotkeys_fifo_does_not_hang_and_reports_unreadable.<locals>.<genexpr> at 0x13b93d220>)
+    137:FAILED tests/unit/test_vault_install_manifest.py::test_hotkeys_fifo_does_not_hang_and_reports_unreadable
+    138:======================== 1 failed, 10 warnings in 1.38s ========================
+[NC2] sha 跑后: f47606cf17b7319f3415ae3e9039b22945faffae054912c406862c895d27ff2d  scripts/verify_vault_install.py
+
+[结论] NC2 关键观察: 变异后 rc **仍是 2**、hotkeys **仍在 unreadable 桶里**,
+       只是理由变成「不是合法 JSON」(无写端 FIFO + O_NONBLOCK 读到 EOF ⇒ 空串)。
+       ⇒ 只断言 rc==2 或只断言「在 unreadable 里」的门在这一变异下会**假绿**;
+       抓住它的是身份断言「明细必须说清是形态问题」。这条是本门承重的那一条。
+[还原后 S_ISFIFO/O_NONBLOCK 计数（应 4）= 4]
+[临时目录保留待清: /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.G8PZ02BhjX]
+[trap] 已无条件还原为修复版
+rc=0

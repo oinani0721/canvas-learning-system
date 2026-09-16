@@ -1,0 +1,122 @@
+### (e)改前对照 + 先挂复证（EXIT trap 无条件还原 + 全文件 sha 前后比对）@ 2026-09-17T02:56:07+08:00
+### HEAD=09567e35bf393c34d1ab185e89e6b9effede7141  探针 sha256: f73332330e2a3ccf525b8a7abed9dfe1c21849e9a7b4e032503d48c88ea9f575
+--- sha 跑前（修复版, 还原基准）---
+f47606cf17b7319f3415ae3e9039b22945faffae054912c406862c895d27ff2d  scripts/verify_vault_install.py
+--- 临时态 = HEAD 版? (空 diff 即是) ---
+[临时态 S_ISFIFO/O_NONBLOCK 计数=0]
+
+=== 改前 探针（最终探针版本 / 期望 TimeoutExpired）===
+[setup] repo      = /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills
+[setup] vault     = /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/g27a-tail-fifo-m_4eku9v
+[setup] hotkeys   = /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/g27a-tail-fifo-m_4eku9v/.obsidian/hotkeys.json
+[setup] S_ISFIFO  = True  (无写端)
+[setup] timeout   = 15s
+[setup] argv      = ['/opt/homebrew/opt/python@3.14/bin/python3.14', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills/scripts/verify_vault_install.py', '--vault', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/g27a-tail-fifo-m_4eku9v', '--manifest', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills/scripts/vault-install-manifest.json', '--report', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/g27a-tail-out-mck9av97/report.txt']
+
+=== A 段: subprocess.run(timeout=15s) ===
+[A] TimeoutExpired  <<< 挂住了: 15s 内没有返回，阻塞 open 的直接证据
+
+=== B 段: -X faulthandler + 超时 SIGABRT 定位挂点 ===
+[B] SIGABRT 后子进程退出码 = -6
+[B] --- faulthandler 自报栈 ---
+Fatal Python error: Aborted
+
+Current thread 0x00000001f131de80 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py", line 771 in open
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py", line 787 in read_text
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills/scripts/verify_vault_install.py", line 1312 in _check_hotkeys
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills/scripts/verify_vault_install.py", line 1166 in verify
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills/scripts/verify_vault_install.py", line 1599 in main
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills/scripts/verify_vault_install.py", line 1643 in <module>
+
+Current thread's C stack trace (most recent call first):
+  Binary file "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Python", at _Py_DumpStack+0x44 [0x10505abcc]
+  Binary file "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Python", at faulthandler_dump_c_stack+0x58 [0x10506d100]
+  Binary file "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Python", at faulthandler_fatal_error+0x140 [0x10506cfc4]
+  Binary file "/usr/lib/system/libsystem_platform.dylib", at _sigtramp+0x38 [0x1851a7744]
+  Binary file "/usr/lib/system/libsystem_kernel.dylib", at open+0x40 [0x1851658f0]
+  Binary file "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Python", at _io_FileIO___init__+0x330 [0x1050a47c8]
+  Binary file "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Python", at type_call+0x98 [0x104f31634]
+  Binary file "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Python", at _PyObject_MakeTpCall+0x78 [0x104e976bc]
+  Binary file "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Python", at _PyObject_CallFunctionVa+0x18c [0x104e9899c]
+  Binary file "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Python", at PyObject_CallFunction+0x38 [0x104e98804]
+  Binary file "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Python", at _io_open+0x284 [0x1050a0868]
+  Binary file "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Python", at _PyEval_EvalFrameDefault+0x36ec [0x104fc9890]
+  Binary file "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Python", at PyEval_EvalCode+0xf8 [0x104fc5c70]
+  Binary file "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Python", at run_mod+0xac [0x10503e38c]
+  Binary file "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Python", at pyrun_file+0xa4 [0x10503ccf0]
+  Binary file "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Python", at _PyRun_SimpleFileObject+0x100 [0x10503c284]
+  Binary file "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Python", at _PyRun_AnyFileObject+0x50 [0x10503bee8]
+  Binary file "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Python", at pymain_run_file_obj+0xa4 [0x10506a2e8]
+  Binary file "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Python", at pymain_run_file+0x48 [0x10506a038]
+  Binary file "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Python", at Py_RunMain+0x420 [0x105069824]
+  Binary file "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Python", at pymain_main+0xec [0x105069b94]
+  Binary file "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Python", at Py_BytesMain+0x2c [0x105069c34]
+  Binary file "/usr/lib/dyld", at start+0x1b50 [0x184ddfe00]
+
+[cleanup] FIFO 与临时目录已删: /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/g27a-tail-fifo-m_4eku9v 存在=False; 报告目录 /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/g27a-tail-out-mck9av97 存在=False
+
+=== 改前 既有门 test_vault_install_manifest.py ===
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 175 items
+
+tests/unit/test_vault_install_manifest.py .............................. [ 17%]
+........................................................................ [ 58%]
+........................................................................ [ 99%]
+.                                                                        [100%]
+
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:807
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills/backend/app/api/v1/endpoints/chat.py:807: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:103
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills/backend/app/api/v1/endpoints/metadata.py:103: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:177
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills/backend/app/api/v1/endpoints/metadata.py:177: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================= 175 passed, 10 warnings in 3.30s =======================
+existing_gate_rc_before=0
+
+--- sha 跑后（必须与跑前逐字同）---
+f47606cf17b7319f3415ae3e9039b22945faffae054912c406862c895d27ff2d  scripts/verify_vault_install.py
+[还原后 S_ISFIFO/O_NONBLOCK 计数=4]
+[临时目录保留待清: /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.nKad5oZedV]
+[trap] 已无条件还原为修复版
+rc=0
