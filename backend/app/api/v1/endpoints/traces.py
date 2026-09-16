@@ -200,8 +200,11 @@ def _first_last_timestamp(path: Path, *, max_bytes: int) -> Tuple[Optional[str],
     超长记录 → 扫描器才开始读。而「按行读完再扣预算」同样挡不住 ——
     ``for line in f`` **在扣减发生之前就已经把整行读进内存了**，扣减只能事后
     拒绝解析；何况 ``len(line)`` 数的是**字符**不是字节。
-    现在是二进制一次 ``read(max_bytes + 1)``：内存**上界就是 max_bytes**，
-    与闸的语义逐字一致；多读的那 1 字节只用来判断是否被截断。
+    现在是二进制一次 ``read(max_bytes + 1)``：**一次读取返回的字节数 ≤ N+1**，
+    整体内存占用 **O(N)**；多读的那 1 字节只用来判断是否被截断。
+    ⚠️ 不是「峰值内存 == max_bytes」（Codex round-4 LOW 更正了初版这句过强的
+    说法，实测 1 MiB 输入、同值预算下峰值约 9 MiB）：``decode`` 会再造一个 str，
+    切片和 ``split`` 各自还有中间对象。真正的保证是「有界」，不是「等于 N」。
 
     Returns:
         ``(oldest, newest, reason)``。``reason`` 为 ``None`` 表示完整扫完；

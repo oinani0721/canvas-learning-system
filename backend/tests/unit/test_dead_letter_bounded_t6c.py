@@ -529,7 +529,17 @@ def test_replay_probe_falls_back_to_bounded_when_unobservable(monkeypatch):
 
 
 def test_failed_writes_retention_keeps_newest_and_drops_oldest(service, monkeypatch, tmp_path):
-    """failed_writes 这条链的 retention 此前零覆盖（只测过 dead-letter 侧）。"""
+    """failed_writes 这条链的 retention 此前零覆盖（只测过 dead-letter 侧）。
+
+    ⚠️ 本条**不走 bounded_failed_writes fixture**（它自己设不同的上限），所以
+    必须自己隔离现网 checkpoint（Codex round-4 HIGH-2：round-3 补的 fixture
+    隔离覆盖不到这种自建 fixture 的用例；`:849` 那条指针门也只验 fixture）。
+    不隔离的话，它设上限 1 后的**第二次追加**就会去删现网
+    backend/data/sync_checkpoint.json，而该文件不存在时测试照样绿。
+    """
+    import app.services.fallback_sync_service as _fss
+
+    monkeypatch.setattr(_fss, "SYNC_CHECKPOINT_FILE", tmp_path / "sync_checkpoint.json")
     monkeypatch.setattr(fwc, "FAILED_WRITES_MAX_LINES", 1, raising=False)
     monkeypatch.setattr(fwc, "FAILED_WRITES_MAX_ROTATIONS", 2, raising=False)
     path = tmp_path / "failed_writes.jsonl"
@@ -800,20 +810,44 @@ def test_unencodable_sibling_key_keeps_other_cursors(service, bounded_failed_wri
     assert ckpt.exists(), "其余链的游标被整个删掉了（应只作废 failed_writes 一条）"
     left = json.loads(ckpt.read_text(encoding="utf-8"))
     assert "failed_writes" not in left
-    assert "other" in left, f"其余链的游标没保住: {left}"
+    # ⚠️ 核**值**不只核键（Codex round-4 LOW）：把退路改成保存
+    # `{k: None for k in data}`，只查键存在的断言照样绿，但其余游标的内容已丢。
+    assert left.get("other") == "\ud800", f"其余链的游标内容变了: {left}"
     seen = _nlines(path) + sum(_nlines(p) for p in _overflow_siblings(path))
     assert seen == total
 
 
 def test_invalidate_checkpoint_never_raises(monkeypatch, tmp_path):
-    """前置动作对任何输入都只返回 bool，绝不抛 —— 它在追加路径上。"""
+    """前置动作对任何输入都只返回 bool，绝不抛 —— 它在追加路径上。
+
+    ⚠️ 这里**不用**「嵌套超深 JSON」当输入。Codex round-4 建议过它，我照抄了，
+    但本机实测 C 加速的 json 解析器对数组嵌套是**迭代**的：10 万层都不抛
+    RecursionError（`recursionlimit=1000` 也拦不住它）。那条输入的注释因此是
+    假的，已删 —— 写一条自己没验过的判据比没有判据更坏。
+
+    改用**锁区内的意外异常**做故障注入：外层 `except Exception` 包的正是
+    `with _checkpoint_lock:` 整段，所以这是它真正守的那条路径。
+    """
     import app.services.fallback_sync_service as fss
 
     ckpt = tmp_path / "sync_checkpoint.json"
     monkeypatch.setattr(fss, "SYNC_CHECKPOINT_FILE", ckpt)
     for payload in (b"\xff", b"not json", b"[]", b'{"failed_writes": 1}', b"{}"):
         ckpt.write_bytes(payload)
-        assert isinstance(fwc._invalidate_replay_checkpoint(), bool), payload
+        assert isinstance(fwc._invalidate_replay_checkpoint(), bool), payload[:40]
+
+    # 锁区内冒出一个**非 OSError** 的异常 —— 只有最外层那道 except Exception
+    # 能接住它。把外层收回 except OSError，这条就会让异常逃出函数。
+    class _AngryLock:
+        def __enter__(self):
+            raise RuntimeError("unexpected failure inside the locked region")
+
+        def __exit__(self, *a):
+            return False
+
+    ckpt.write_text('{"failed_writes": {"index": 1}}', encoding="utf-8")
+    monkeypatch.setattr(fss, "_checkpoint_lock", _AngryLock())
+    assert fwc._invalidate_replay_checkpoint() is False, "意外异常应被兜住并退化为「不轮转」"
 
 
 def test_unobservable_replay_state_stops_rotation_not_bounding_claim(service, bounded_failed_writes, monkeypatch):
@@ -859,3 +893,112 @@ def test_fixture_isolates_live_sync_checkpoint(bounded_failed_writes, tmp_path):
     assert fss.SYNC_CHECKPOINT_FILE.parent == tmp_path, (
         f"fixture 没隔离现网 checkpoint, 当前指向 {fss.SYNC_CHECKPOINT_FILE}"
     )
+
+
+def test_every_failed_writes_test_isolates_live_checkpoint():
+    """⛔ 常驻硬边界门：本文件里**任何**会走到 failed_writes helper 的测试，
+    都必须隔离 `fss.SYNC_CHECKPOINT_FILE`。
+
+    轮转前置动作会删/改它。round-3 补了 fixture 隔离，round-4 又发现一条
+    **自建 fixture** 的用例漏网（Codex 两轮各抓一条同型）。逐条等审查告诉我
+    是不可收敛的 —— 改成用 AST 把规则本身钉死：新增测试忘了隔离就当场红。
+    """
+    import ast
+    import pathlib
+
+    src = pathlib.Path(__file__).read_text(encoding="utf-8")
+    lines = src.splitlines()
+    offenders = []
+    for node in ast.parse(src).body:
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        if not node.name.startswith("test_"):
+            continue
+        body = "\n".join(lines[node.lineno - 1 : node.end_lineno])
+        args = {a.arg for a in node.args.args}
+        touches = any(
+            k in body
+            for k in (
+                "_record_structured_outbox",
+                "_flush_pending_failed_writes",
+                "append_failed_writes_bounded",
+                "_invalidate_replay_checkpoint",
+            )
+        )
+        isolated = "SYNC_CHECKPOINT_FILE" in body or "bounded_failed_writes" in args
+        if touches and not isolated:
+            offenders.append(f"{node.name} (:{node.lineno})")
+
+    assert not offenders, "这些测试会走到 failed_writes helper 却没隔离现网 sync_checkpoint.json：\n  " + "\n  ".join(
+        offenders
+    )
+
+
+def test_isolation_scanner_can_actually_detect_an_offender():
+    """验伪锚：上面那条扫描器必须真能抓到人，否则它是个恒绿的摆设。
+
+    喂一段「会走到 helper 但没隔离」的源码，扫描器必须命中它；
+    再喂同一段但带隔离的，必须不命中。
+    """
+    import ast
+
+    def scan(src: str):
+        lines = src.splitlines()
+        out = []
+        for node in ast.parse(src).body:
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            if not node.name.startswith("test_"):
+                continue
+            body = "\n".join(lines[node.lineno - 1 : node.end_lineno])
+            args = {a.arg for a in node.args.args}
+            touches = "_record_structured_outbox" in body
+            isolated = "SYNC_CHECKPOINT_FILE" in body or "bounded_failed_writes" in args
+            if touches and not isolated:
+                out.append(node.name)
+        return out
+
+    bad = "def test_x(tmp_path):\n    svc._record_structured_outbox({})\n"
+    good = (
+        "def test_x(tmp_path, monkeypatch):\n"
+        "    monkeypatch.setattr(f, 'SYNC_CHECKPOINT_FILE', tmp_path / 'c.json')\n"
+        "    svc._record_structured_outbox({})\n"
+    )
+    assert scan(bad) == ["test_x"], "扫描器抓不到明知故犯的反例 = 它是摆设"
+    assert scan(good) == []
+
+
+def test_checkpoint_probe_failure_stops_rotation(service, bounded_failed_writes, monkeypatch, tmp_path):
+    """探测 checkpoint 失败（EIO/权限）⇒ **不轮转**，不得当成「本来就没有游标」。
+
+    这是本卡**第三处**同型缺陷（Codex round-4 HIGH-1）：`Path.exists()` 在
+    Python 3.14 把 PermissionError / 瞬时 EIO 吞成 False。前两处
+    （count_lines / _backlog_entry）在 round-2 就改掉了，这一处漏了。
+    漏的后果比另外两处更重：探测失败被当成「没有游标要作废」⇒ 直接返回 True
+    ⇒ **允许换代而旧游标原封不动留着**，故障恢复后它就关联到新一代文件上 ——
+    正是 round-2 H1 那个洞从另一个入口回来了。
+    """
+    import app.services.fallback_sync_service as fss
+
+    ckpt = tmp_path / "sync_checkpoint.json"
+    ckpt.write_text('{"failed_writes": {"index": 50}}', encoding="utf-8")
+    monkeypatch.setattr(fss, "SYNC_CHECKPOINT_FILE", ckpt)
+
+    real_stat = type(ckpt).stat
+
+    def _eio(self, *a, **kw):
+        if self == ckpt:
+            raise OSError(5, "Input/output error")
+        return real_stat(self, *a, **kw)
+
+    monkeypatch.setattr(type(ckpt), "stat", _eio)
+
+    path = bounded_failed_writes
+    total = MAX_LINES + 3
+    for i in range(total):
+        assert service._record_structured_outbox({"kind": "knowledge_entity", "i": i})
+
+    monkeypatch.setattr(type(ckpt), "stat", real_stat)
+    assert _overflow_siblings(path) == [], "探测失败却照样换代了（旧游标会关联新一代文件）"
+    assert ckpt.exists(), "旧游标应原样保留（没删成就不该换代）"
+    assert _nlines(path) == total, "条目丢了"

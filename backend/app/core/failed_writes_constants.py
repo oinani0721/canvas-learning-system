@@ -131,8 +131,21 @@ def _invalidate_replay_checkpoint() -> bool:
 
     try:
         with _checkpoint_lock:
-            if not SYNC_CHECKPOINT_FILE.exists():
+            # ⚠️ 这是本卡**第三处**同型缺陷（Codex round-4 HIGH-1）：前两处
+            # （``count_lines`` / ``_backlog_entry``）在 round-2 已经改掉了
+            # ``Path.exists()``，这一处漏了 —— 「修完一处没有立刻扫同型第二处」。
+            # 3.14 的 ``exists()`` 把 ``PermissionError`` / 瞬时 ``EIO`` 一律吞成
+            # False，于是「探测失败」被当成「本来就没有游标」⇒ 直接返回 True ⇒
+            # **允许换代，而旧游标原封不动留着** —— 故障恢复后它就会关联到新一代
+            # 文件上，正是 round-2 H1 要堵的那个洞从另一个入口回来了。
+            # 探测不出来 ⇒ 返回 False（不轮转），与本函数其余失败分支同口径。
+            try:
+                SYNC_CHECKPOINT_FILE.stat()
+            except FileNotFoundError:
                 return True
+            except OSError as e:
+                logger.error("[T6-C] 探测回灌游标失败, 本次不轮转: %s", e)
+                return False
             # ⚠️ 捕获面必须含 ``UnicodeDecodeError``（Codex round-3 HIGH-1，已复现）：
             # 它是 ``ValueError`` 的子类，**既不是** ``OSError`` **也不是**
             # ``json.JSONDecodeError`` —— 初版的 ``except (JSONDecodeError, OSError)``
@@ -208,8 +221,13 @@ def append_failed_writes_bounded(
     2. 「每个 ``.overflow.*`` 都 ≤ max_lines」**不成立**：活动文件在进入本函数
        前就已超限时（旁路突发），被**整体**轮转走的那一份就 > max_lines。
        成立的是「本函数**自己写出**的每一段 ≤ max_lines」。
-    3. 「一条不丢」只在**单批条数 ≤ max_lines × (max_rotations + 1)** 时成立。
-       单批超过总保留容量时，retention 会删掉**本批**较早的段。
+    3. 「一条不丢」的条件是
+       **活动文件原有行数 + 单批条数 ≤ max_lines × (max_rotations + 1)**。
+       ⚠️ Codex round-4 MEDIUM 更正：初版漏了「原有行数」这一项，只写单批条数。
+       实测反例（``L=5, K=1``）：空文件追加 7 条 → 全保留；**原有 4 行**再追加
+       同样 7 条 → 本批的 ``new0`` 被删（第一份 overflow 装的是旧 4 行 + ``new0``，
+       第二次轮转把它挤掉了）。12 组探针里「原有 + 单批 ≤ L×(K+1)」全部命中，
+       只按单批判会在 3 组上给出错误的「不丢」结论。
 
     Args:
         file_path: 活动 JSONL 文件

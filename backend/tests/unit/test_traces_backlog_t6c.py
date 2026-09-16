@@ -648,3 +648,118 @@ def test_scan_budget_counts_bytes_not_characters(tmp_path, monkeypatch):
     )
     _, _, reason = traces._first_last_timestamp(active, max_bytes=100)
     assert reason == "size_capped", f"按字符数算把 {size} 字节的内容放行了, reason={reason!r}"
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Codex round-4 LOW：把「替换整层」的门换成打真实失败点
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def test_scan_total_bytes_read_is_bounded_not_just_single_read(tmp_path, monkeypatch):
+    """预算门必须看**累计**读取量，不只是单次 read 的最大值。
+
+    Codex round-4 LOW：把实现改成「循环小块读取再拼接」，只看单次最大值的门
+    照样绿（当前 101 B vs 变异版累计 200038 B）。这条按累计判。
+    """
+    active = tmp_path / "failed_writes.jsonl"
+    active.write_text(json.dumps({"timestamp": "2026-09-01T00:00:00Z" + "x" * 200_000}) + "\n", encoding="utf-8")
+
+    real_stat = type(active).stat
+
+    class _Small:
+        st_size = 10
+        st_mtime = 0.0
+
+    monkeypatch.setattr(
+        type(active), "stat", lambda self, *a, **kw: _Small() if self == active else real_stat(self, *a, **kw)
+    )
+
+    import builtins
+
+    real_open = builtins.open
+    total = {"n": 0}
+
+    class _Counting:
+        def __init__(self, f):
+            self._f = f
+
+        def read(self, n=-1):
+            data = self._f.read(n)
+            total["n"] += len(data)
+            return data
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            self._f.close()
+            return False
+
+    def _spy(file, mode="r", *a, **kw):
+        f = real_open(file, mode, *a, **kw)
+        return _Counting(f) if str(file) == str(active) and "b" in str(mode) else f
+
+    monkeypatch.setattr(builtins, "open", _spy)
+    traces._first_last_timestamp(active, max_bytes=100)
+    monkeypatch.setattr(builtins, "open", real_open)
+
+    assert total["n"] <= 101, f"累计从磁盘读了 {total['n']} 字节, 上限 100"
+
+
+def test_real_read_failure_produces_degraded_label(client, monkeypatch, tmp_path):
+    """扫描失败门必须打**真实的 open/read 失败点**，不是替换整个 scanner。
+
+    Codex round-4 LOW：原门直接把 `_first_last_timestamp` 换成返回
+    `read:OSError` 的桩，于是「真实 scanner 的异常分支返回 reason=None」
+    这种变异照样绿 —— 它验的只是标签透传。
+    """
+    active = tmp_path / "failed_writes.jsonl"
+    _write_jsonl(active, [{"timestamp": "2026-09-01T00:00:00Z"}])
+    monkeypatch.setattr(traces, "BACKLOG_FILES", {"failed_writes.jsonl": active}, raising=False)
+
+    import builtins
+
+    real_open = builtins.open
+
+    def _boom(file, mode="r", *a, **kw):
+        if str(file) == str(active) and "b" in str(mode):
+            raise PermissionError("cannot read")
+        return real_open(file, mode, *a, **kw)
+
+    monkeypatch.setattr(builtins, "open", _boom)
+    body = client.get(BACKLOG_PATH).json()
+    monkeypatch.setattr(builtins, "open", real_open)
+
+    entry = body["files"][0]
+    assert any(d.startswith("timestamp_scan:read:") for d in entry["degraded"]), entry["degraded"]
+    assert body["incomplete"] is True
+
+
+def test_u2028_in_timestamp_does_not_split_the_record(tmp_path):
+    """切行口径必须是 `split("\\n")`：`splitlines()` 会在 U+2028 处额外切行。
+
+    Codex round-4 LOW：两个测试文件原先没有 U+2028 对照输入，改回
+    `splitlines()` 发现不了 —— 而那会把一条含该字符的记录切成两个非法 JSON，
+    时间戳从原字符串翻成 None。
+    """
+    active = tmp_path / "failed_writes.jsonl"
+    ts = "2026-09-01 T00:00:00Z"
+    active.write_text(json.dumps({"timestamp": ts}, ensure_ascii=False) + "\n", encoding="utf-8")
+
+    oldest, newest, reason = traces._first_last_timestamp(active, max_bytes=8192)
+    assert reason is None
+    assert oldest == ts, f"含 U+2028 的记录被切碎了: {oldest!r}"
+    assert newest == ts
+
+
+def test_display_path_depth_cap_is_exercised(monkeypatch):
+    """深度闸必须有自己的输入 —— 根锚门会提前返回，正常路径门只有两段。
+
+    Codex round-4 LOW：用锚 `/a` + 路径 `/a/b/c/d/file.jsonl`，删掉深度闸后
+    返回值会从文件名退化成暴露完整相对层级。
+    """
+    monkeypatch.setattr(traces, "_BACKEND_DIR", Path("/a"))
+    got = traces._display_path(Path("/a/b/c/d/file.jsonl"))
+    assert got == "file.jsonl", f"深度闸没生效, 暴露了层级: {got}"
+    # 对照：三段以内正常返回
+    assert traces._display_path(Path("/a/data/file.jsonl")) == "backend/data/file.jsonl"
