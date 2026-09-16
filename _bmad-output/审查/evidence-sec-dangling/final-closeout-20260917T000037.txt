@@ -1,0 +1,69 @@
+# 自绑定: 前提 commit=2287e2583c54472d238e8b8eec87bb1e9e95c9e8  收工 HEAD=b1e31e966dde3642e115a38ea1c076f3f1a8010c
+# 本卡 commit 链:
+   b1e31e96 docs(t5-d): 验收单 r1-r3 处置 + r3 配额失败记录 [BATCH-2026-09-11-第十四批 / CARD-SEC-DANGLING]
+   9861c595 fix(contract): 按 Codex r2 收 2 MEDIUM+4 LOW 收窄主张 [BATCH-2026-09-11-第十四批 / CARD-SEC-DANGLING]
+   76a602c4 fix(contract): 按 Codex r1 收 2 MEDIUM+1 LOW 扩枚举面 [BATCH-2026-09-11-第十四批 / CARD-SEC-DANGLING]
+   c5e30cfc fix(security): 31 处悬空 APIKeyHeader→InternalApiKey [BATCH-2026-09-11-第十四批 / CARD-SEC-DANGLING]
+
+## (i) 地盘门 —— 全卡范围改动文件（剔 _bmad-output），须 ⊆ 方案 A 允许面三项:
+   backend/app/security.py
+   backend/openapi.json
+   backend/tests/contract/test_openapi_contract.py
+   验伪锚（去掉 exclude 后 _bmad-output/ 路径数，须 >0）= 58
+
+## 禁改面 diff 行数（各须 0）:
+   backend/app/main.py                                        0
+   backend/app/api/v1/system.py                               0
+   backend/tests/conftest.py                                  0
+   backend/tests/unit/conftest.py                             0
+   backend/tests/contract/test_openapi_snapshot_drift.py      0
+   backend/tests/contract/test_health_contract.py             0
+   backend/tests/contract/test_node_id_patterns.py            0
+
+## (j) 零写者 / live vault:
+   fsrs_bridge|decay_beta 命中 = 0 （期望 0）；验伪锚 ls-files = 2 （期望 2）
+   canvas-vault 改动行 = 0 （期望 0）
+
+## 入库卫生:
+   已入库 *.stderr* = 0 （期望 0）；本卡新增 *.stderr* = 0 （期望 0）
+   已入库 0 字节文件 = 0 （期望 0）
+   board_manifest_last_run.json 是否被本卡提交 = 0 （期望 0）
+
+## (m) 两锚条数:
+   本卡未证明什么 = 13 条 （须 ≥4）
+   台账待登记条目 = 14 条 （须 ≥4）
+
+## commit header 合规（每条须 ≤100 且含批次标记与卡号）:
+    80 字符 batch=1 card=1 | docs(t5-d): 验收单 r1-r3 处置 + r3 配额失败记录 [BATCH-2026-09-11-第十四批 / CARD-SEC-DANGLING]
+    91 字符 batch=1 card=1 | fix(contract): 按 Codex r2 收 2 MEDIUM+4 LOW 收窄主张 [BATCH-2026-09-11-第十四批 / CARD-SEC-DANGLING]
+    91 字符 batch=1 card=1 | fix(contract): 按 Codex r1 收 2 MEDIUM+1 LOW 扩枚举面 [BATCH-2026-09-11-第十四批 / CARD-SEC-DANGLING]
+    93 字符 batch=1 card=1 | fix(security): 31 处悬空 APIKeyHeader→InternalApiKey [BATCH-2026-09-11-第十四批 / CARD-SEC-DANGLING]
+
+## 未 push 自证:
+   领先 origin 的 commit 数 = 0
+
+## 【更正】上面「领先 origin = 0」是假判据
+          0 在**远程分支不存在**时也给 0
+   （git 报错 → stdout 空 → wc -l = 0 → wc 本身 rc=0，所以 || 分支永不触发）。正确判法:
+   - git rev-parse --verify origin/card/t5-bugs 的 rc:
+     rc=128 （非 0 = 该远程分支不存在 = 本分支从未 push）
+   - git ls-remote 实测 origin 上是否有该分支:
+     (eval):12: command not found: timeout
+     ls_remote_rc=0 （输出为空 = origin 上没有该分支）
+   - 本地所有 remote-tracking 分支里是否有它:
+     匹配数 = 0
+   ⇒ 结论: 本卡**未 push**（符合卡文 (l)）。
+
+## 【再更正】上一段自身有两处瑕疵，承重结论不受影响，但如实记下:
+   (1) 我用反引号引了一条命令，被 zsh 当命令替换求值了 —— 那行本该显示的是判据原文
+       git log origin/card/t5-bugs..HEAD 2>/dev/null | wc -l
+       它在远程分支不存在时同样输出 0（git 报错 → stdout 空 → wc -l = 0），故是假判据。
+   (2) 本机无 timeout 命令（command not found），那条 ls-remote 实际没跑成；
+       随后打印的 ls_remote_rc=0 是管道末端 sed 的 rc，不是 ls-remote 的 —— 又一次管道吃 rc。
+
+   ⇒ 「未 push」的承重依据只取下面两条互相独立、且都不经管道的判据:
+     A. git rev-parse --verify origin/card/t5-bugs  →  rc=128   （128 = 该 remote-tracking ref 不存在）
+     B. git branch -r | grep -c 'card/t5-bugs'      →  0       （0 = 本地无该远程分支记录）
+     验伪锚（证明 B 的 grep 真会命中已存在的 remote 分支）:
+       git branch -r 总行数 = 23；其中含 'main' 的 = 4
+   ⇒ 结论不变: 本卡未 push。
