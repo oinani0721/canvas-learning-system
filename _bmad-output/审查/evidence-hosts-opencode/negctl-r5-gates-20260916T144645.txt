@@ -1,0 +1,36 @@
+# r5 整改负控 20260916T144645
+跑前 sha:
+40b0adfb1966aada522e11900ab95a2f4d5000346a28f4ce41e71d9b65d4b484  scripts/deploy-vault.sh
+
+===== 负控 H：MEDIUM-1 —— 真 O_EXCL 删掉、只在**行尾注释**留词 =====
+  变异已落盘（行尾注释留词）
+--- 词法级判据（本轮改后）应当变红 ---
+E   AssertionError: 直写目标的关键 flag O_EXCL 只剩注释或已消失
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t2-deploy/backend/tests/unit/test_deploy_vault_sh.py:4475: AssertionError: 直写目标的关键 flag O_EXCL 只剩注释或已消失
+======================== 1 failed, 10 warnings in 1.60s ========================
+--- 对照：旧的整行注释过滤（复算）会怎样 ---
+Traceback (most recent call last):
+  File "<stdin>", line 2, in <module>
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py", line 787, in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors, newline=newline) as f:
+         ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py", line 771, in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: 'scripts/deploy-vault.sh'
+
+===== 负控 I：HIGH-1 —— 名字传递退回 splitlines()+strip() =====
+  变异已落盘（退回按行+strip）
+--- 静态门应当变红 ---
+E   AssertionError: 名字解析又回到了会改写名字的 splitlines()
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t2-deploy/backend/tests/unit/test_deploy_vault_sh.py:4550: AssertionError: 名字解析又回到了会改写名字的 splitlines()
+======================== 1 failed, 10 warnings in 1.38s ========================
+--- 行为门（端到端）也应当变红 ---
+======================== 1 failed, 10 warnings in 3.70s ========================
+
+还原后 sha（须与跑前同）:
+40b0adfb1966aada522e11900ab95a2f4d5000346a28f4ce41e71d9b65d4b484  scripts/deploy-vault.sh
+bash-n rc=0
+# 负控 H 的对照补跑（上一份存档里这段因 cd 后用相对路径而崩，非结论问题）
+  旧口径（只滤整行注释）: 'O_EXCL' in code = True  ← True = 假绿，正是 r5 MEDIUM-1 报的
+  ⇒ 与上一份存档里词法级判据「变红」构成对照：同一个变异，旧口径放行、新口径拦下。

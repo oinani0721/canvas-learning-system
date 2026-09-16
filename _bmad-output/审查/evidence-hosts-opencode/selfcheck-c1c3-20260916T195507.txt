@@ -1,0 +1,11 @@
+# C1/C3 自查
+
+=== C1：源被换掉后，早先打开的 fd 还指向旧 inode 吗（fd 语义）===
+  fd 的 fstat ino = 47917715
+  路径重建后 ino  = 47917716
+  fd 仍指旧 inode = True  ← True = 前提成立
+  rename 后 fd 的 ino 不变 = True  ← True = rename 不影响 fd
+
+=== C3：die() 走 sys.exit，finally 还会执行吗（fd 会不会泄漏）===
+  走 die() 退出时 rc=1；LEAKED_FDS=0  ← 0 = 全部关掉
+  成功路径      rc=0；LEAKED_FDS=0  ← 0 = 全部关掉

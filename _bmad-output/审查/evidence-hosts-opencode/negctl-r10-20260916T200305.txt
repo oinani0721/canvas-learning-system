@@ -1,0 +1,21 @@
+# 负控 P：r10 两条整改各自承重吗 20260916T200305
+跑前 sha:
+3d5ffb74794b8db5e083cac4462219aab8b7764f400631d0666fd69ce26f783a  scripts/deploy-vault.sh
+
+===== P-1（HIGH-1）：把删除加回失败路径 ⇒ 静态门应变红 =====
+  变异已落盘
+E   AssertionError: 失败路径又去删本次建的链了（会误删他人同名文件）: os.unlink(_n
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t2-deploy/backend/tests/unit/test_deploy_vault_sh.py:4627: AssertionError: 失败路径又去删本次建的链了（会误删他人同名文件）: os.unlink(_n
+
+===== P-2（MEDIUM-1）：删掉后核的源位置复验 ⇒ 静态门应变红 + 反例应放行 =====
+  变异已落盘
+  bash-n rc=0
+E   AssertionError: 后核不再复验源路径
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t2-deploy/backend/tests/unit/test_deploy_vault_sh.py:4632: AssertionError: 后核不再复验源路径
+  --- 反例在变异态下会放行吗 ---
+      rc = 0 （须非 0）
+      软链留下 | 物理落点在 vault 内 = False
+
+还原后 sha:
+3d5ffb74794b8db5e083cac4462219aab8b7764f400631d0666fd69ce26f783a  scripts/deploy-vault.sh
+bash-n rc=0

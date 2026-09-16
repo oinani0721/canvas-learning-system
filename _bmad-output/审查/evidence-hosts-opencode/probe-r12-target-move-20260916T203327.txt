@@ -1,0 +1,8 @@
+=== 注入：取得 sfd 后把 .agents/skills 改名 + 原位置重建空目录 ===
+  rc = 0   stdout: bound=1 new=1
+
+  规定位置 .agents/skills 的条目 = []
+  旧目录 .agents/skills-old 的条目 = ['a']
+
+  ⇒ Codex 的复现成立吗 = True
+     （rc=0 且规定位置为空 ⇒ 成立）

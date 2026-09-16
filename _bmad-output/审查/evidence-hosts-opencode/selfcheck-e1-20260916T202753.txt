@@ -1,0 +1,15 @@
+=== 注入：建首条链后把**整个 vault** rename 走 ===
+  rc = 0  stdout: bound=1 new=1
+
+  搬走后的树里：
+    软链在      = True
+    目标串      = ../../.claude/skills/a
+    物理落点    = /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t2-deploy/fc3b48ef-d0d6-4142-80ed-5b095ea02dcc/scratchpad/e1probe/moved/.claude/skills/a
+    在**搬走后的 vault** 内 = True
+
+  原路径 v 还在吗 = False
+
+  ⇒ 判读：整个 vault 被搬走时，vault **内部**的相对关系一起搬走且保持完好 ——
+     软链仍指向同 vault 的技能目录、落点仍在（搬走后的）vault 内。
+     这与「把源/父目录单独搬出 vault」不同：那会让 vault 内外产生错配。
+     ⇒ 属于「打开 vault 前/后的祖先替换」那一类已登记窗口，不是新缺陷。

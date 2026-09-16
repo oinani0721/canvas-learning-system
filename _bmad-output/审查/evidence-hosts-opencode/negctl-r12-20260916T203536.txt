@@ -1,0 +1,22 @@
+# 负控 Q：收工核承重吗 20260916T203536
+跑前 sha:
+63408515f12cde4efb27728fdbf2004f2d4d2855296bcd887e41842a41274d30  scripts/deploy-vault.sh
+
+===== Q-1：删掉收工核 ⇒ 静态门应红 + Codex 的复现应恢复放行 =====
+  变异已落盘
+  bash-n rc=0
+E   AssertionError: 收工核没从 vault 路径重新开始（复用旧 fd 就答不了「现在那里有没有东西」）
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t2-deploy/backend/tests/unit/test_deploy_vault_sh.py:4653: AssertionError: 收工核没从 vault 路径重新开始（复用旧 fd 就答不了「现在那里有没有东西」）
+  --- 变异态下 Codex 的复现 ---
+      rc = 0   stdout: bound=1 new=1
+      ⇒ Codex 的复现成立吗 = True
+
+===== Q-2：收工核改成复用旧 fd（sfd）⇒ 复现应恢复放行（证明「从路径重开」才是承重点）=====
+  变异已落盘（改用 sfd）
+  bash-n rc=0
+      rc = 0   stdout: bound=1 new=1
+      ⇒ Codex 的复现成立吗 = True
+
+还原后 sha:
+63408515f12cde4efb27728fdbf2004f2d4d2855296bcd887e41842a41274d30  scripts/deploy-vault.sh
+bash-n rc=0

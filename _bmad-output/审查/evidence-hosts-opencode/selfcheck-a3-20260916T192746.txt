@@ -1,0 +1,18 @@
+# A3 自查：本卡新增的**行为门**（真跑脚本的）有没有断言 rc
+#（形状：只看「留下了什么」不看「有没有成功」⇒ 掩盖失败。本卡已因此栽过一次）
+
+门                                                                  真跑脚本    断言 rc
+test_hosts_opencode_generates_binding_files                           是      是 ✅
+test_hosts_opencode_dry_run_writes_nothing                            是      是 ✅
+test_hosts_claude_only_generates_no_opencode_binding                  是      是 ✅
+test_hosts_opencode_refuses_when_agents_root_is_a_symlink             是      是 ✅
+test_hosts_opencode_refuses_to_clobber_handwritten_agents_md          是      是 ✅
+test_hosts_opencode_refuses_to_replace_even_its_own_previous_output        是      是 ✅
+test_hosts_opencode_skill_name_survives_the_shell_python_handoff        是      是 ✅
+test_hosts_opencode_name_with_trailing_newline_is_preserved           是      是 ✅
+test_hosts_opencode_name_with_newline_makes_exactly_one_link          是      是 ✅
+test_hosts_opencode_agents_md_is_nonempty_and_marked                  是      是 ✅
+test_d26i_opencode_user_config_files_are_refused                      否      是 ✅
+test_d26i_falsification_anchor_ordinary_path_is_allowed               否      是 ✅
+
+真跑脚本却不断言 rc 的门：0 条 ✅

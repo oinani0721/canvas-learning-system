@@ -1,0 +1,4 @@
+=== 注入：源资格检查通过后、建首条链前，把源换成指向 vault 外的软链 ===
+  rc = 1 （须非 0）
+  stderr: 软链没解到当初通过检查的那个技能目录（源被换过？）: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t2-deploy/fc3b48ef-d0d
+  软链在 | 物理落点在 vault 内 = False  ← 若 False 则窗口仍在

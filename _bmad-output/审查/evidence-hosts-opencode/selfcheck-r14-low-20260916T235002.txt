@@ -1,0 +1,10 @@
+# r14 LOW 的核对：三处「存在即拒」分别在说哪个对象 20260916T235002
+  :1330  函数 bind_opencode_skills     对象 = 软链（需分开说）
+  :1334  函数 bind_opencode_skills     对象 = 软链（需分开说）
+  :1487  函数 publish_agents_md        对象 = AGENTS.md
+  :1525  函数 publish_agents_md        对象 = AGENTS.md
+
+  ⇒ r14 LOW 只涉及 write_opencode_binding 里那一处（已按对象分开说）；
+     publish_agents_md 里的两处对象就是 AGENTS.md，「存在即拒」用词准确。
+  ⚠️ 我第一次 grep 只看上方 6 行上下文，把这两处误标成「需核」——
+     取上下文的窗口太窄会把准确的判成可疑，与窗口太宽会漏掉一样是判据问题。

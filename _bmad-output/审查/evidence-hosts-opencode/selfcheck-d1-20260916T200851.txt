@@ -1,0 +1,11 @@
+=== 场景：第一次跑留下残链（源是外链被拒），残链目标串正确 ===
+  残链预置: 目标串 = ../../.claude/skills/a ；解析落点在 vault 内 = False
+  第二次跑 rc = 1  （须非 0 = 没被静默接受）
+  stderr: 技能源条目是软链, 本脚本不跟随（请用真目录）: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-lea
+  ⇒ 被谁接住的：源资格检查（源仍是外链）
+
+=== 对照：源已恢复成真目录，残链目标串正确 ⇒ 应幂等放行且落点在 vault 内 ===
+  第二次跑 rc = 0 （须 0 = 幂等跳过）；落点在 vault 内 = True
+
+=== 对照：残链目标串**不同**（指向别处）⇒ 应拒绝改写 ===
+  第二次跑 rc = 1 （须非 0）；stderr: 已有软链指向别处, 拒绝静默改写: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-s

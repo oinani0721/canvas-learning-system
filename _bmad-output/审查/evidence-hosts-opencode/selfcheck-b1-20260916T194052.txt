@@ -1,0 +1,13 @@
+形态                                                     rc    建链     落点在外
+① 正常真目录（须放行）                                            0  True    False
+② 源条目 -> vault 外（须拒）                                    1 False    False
+    └ 技能源条目是软链, 拒绝为它建绑定（落点会在 vault 之外）: /private/tmp/claude-501/-Users-Heish
+③ .claude/skills 是软链（须拒）                                1 False    False
+    └ 打开 .claude/skills 失败（是软链或不存在？）: /private/tmp/claude-501/-Users-Heishin
+④ .claude 是软链（须拒）                                       1 False    False
+    └ 打开 .claude 失败（是软链或不存在？）: /private/tmp/claude-501/-Users-Heishing-Deskt
+⑤ 源目录内 SKILL.md 是外链（本卡不管内容→放行合理）                        0  True    False
+⑥ 源条目 -> vault 内别处（保守拒，登记为已知从严）                         1 False    False
+    └ 技能源条目是软链, 拒绝为它建绑定（落点会在 vault 之外）: /private/tmp/claude-501/-Users-Heish
+
+⇒ 落点跑到 vault 外的形态：0 个 ✅ 无

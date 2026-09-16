@@ -1,0 +1,28 @@
+# 收工核（最终）20260916T235527   HEAD=f262de98
+
+===== 地盘核 =====
+ .claude/skills/deploy-vault/SKILL.md              |   6 +-
+ backend/tests/unit/test_deploy_vault_sh.py        | 808 +++++++++++++++++++++-
+ backend/tests/unit/test_vault_install_manifest.py |  24 +-
+ scripts/cls_forbidden_paths.py                    |  11 +
+ scripts/deploy-vault.sh                           | 698 ++++++++++++++++++-
+ scripts/vault-install-manifest.json               |  18 +-
+ 6 files changed, 1542 insertions(+), 23 deletions(-)
+文件数 = 6（卡文 5 + 主 session 裁决扩的 1）; backend/app 越界 = 0（须 0）
+验伪锚（core.quotepath=false）: 去 exclude=49 vs 带 exclude=0 ⇒ exclude 真生效
+
+===== 硬边界 =====
+live vault 新文件           = 0（须 0）
+~/.config/opencode 新文件    = 0（须 0）
+用户级配置 sha（与开工对照）:
+  4e901f9e457c8d52ab31f9fb4ea637a8c9104ebdbf23fe8b3600f35ad46d4a61  /Users/Heishing/.config/opencode/opencode.jsonc
+  663a068e76d264d0bc6740f5450b6c4193c7b41ecf5e0dc222485b8a17404d95  /Users/Heishing/.config/opencode/.gitignore
+fsrs_bridge/decay_beta 命中  = 0（须 0）
+非注释行 opencode.json      = 0（须 0）
+非注释行 .config/opencode   = 0（须 0）
+
+===== commit 链（15 个，全部未 push）=====
+  共 20 个
+
+===== 终审绑定 =====
+r14 审 SHA d6f96fa8 → HEAD 的非注释行改动 = 0（0 = 可执行语义等价）

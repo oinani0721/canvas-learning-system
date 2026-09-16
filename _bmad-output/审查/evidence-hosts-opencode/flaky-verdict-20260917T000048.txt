@@ -1,0 +1,18 @@
+# 那条 > 是 flaky 还是本卡引入 —— 实测判 20260917T000048
+
+## ① 单独重跑 5 次（若稳定红 ⇒ 不是 flaky；若时红时绿 ⇒ 是）
+  第1次: 1 passed
+  第2次: 1 passed
+  第3次: 1 passed
+  第4次: 1 passed
+  第5次: 1 passed
+
+## ② 文件级跑一次（看它在同文件语境下）
+  ======================= 14 passed, 10 warnings in 0.89s ========================
+
+## ③ 本卡是否可能影响它
+  · 本卡改过的 6 个文件里 'candidate' 命中 = 0（逐文件已核）
+  · 本卡前三次目录级跑该条 = 0 命中，只有最后一次出现
+  · 基线文件头注**明确点名**它是 flaky：
+    「对 …nodeids(65) 新增 0 / 消失 1（flaky test_candidate_service::test_accept_candidate_already_accepted_returns_422）」
+    ⇒ 基线 64 本身就是「65 条里那条 flaky 当次没红」的快照
