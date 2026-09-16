@@ -479,10 +479,11 @@ return FSRSStateQueryResponse(
 
 ### 4.4 更正后的可用性表述
 
-> **在 singleton 尚未被任何一次调用成功初始化之前**，凡是**确实调用了
-> `get_review_service()`** 的请求都会重走实例化链并再次抛出（限定见 4.2——
-> 不调该工厂的端点不受影响；一旦某个 vault 的请求成功建好 singleton，
-> 其余请求就走 `:2953` 快路径，不再触发检查）。
+> **三条限定同时成立时**（缺一不可，逐条见 4.2），该次调用才会重走实例化链
+> 并再次抛出：① singleton 尚未被任何一次调用成功初始化；② 该请求**确实调用了**
+> `get_review_service()`（`/review/verification-history` 就不调）；
+> ③ **本次的数据与作用域仍满足拒绝条件**——同一份数据下换一个无冲突的 vault
+> 即可成功构造，此时前两条仍成立而结果相反。
 >
 > **而「用户看到什么」更不是一个全局结论**，还取决于两件事：
 >
@@ -513,9 +514,14 @@ return FSRSStateQueryResponse(
    ⇒ 任何能打到该端点的人都能读到部署布局。这不限于本异常，但**也不是「所有
    未处理异常」**——准确范围是「从路由或更内层逸出、**既没被端点自己接住、
    也没有已注册处理器**的异常」。两类不走这条路：
-   - **有已注册处理器的异常类型**：如 `review.py:1315` 的
-     `HTTPException(400)`，由更内层的 starlette `ExceptionMiddleware`
-     用默认处理器处理，根本到不了 CORS 中间件的 `except`（Codex r4 LOW-2）；
+   - **被更内层的 `ExceptionMiddleware` 处理掉的异常类型**：如 `review.py:1315`
+     的 `HTTPException(400)`，由它的默认处理器就地处理，根本到不了 CORS 中间件
+     的 `except`（Codex r4 LOW-2）。
+     > ⚠️ 这里必须说「**内层** `ExceptionMiddleware` 的处理器」，不能笼统说
+     > 「有已注册处理器」（Codex r5 LOW-2）：`Exception` / 500 的处理器归
+     > **外层** `ServerErrorMiddleware`，它比 CORS 中间件更靠外，注册了也拦不住
+     > ——本卡第二条 HTTP 用例正是「`Exception` 处理器已注册 + 挂中间件」，
+     > 结果仍由中间件返回原文。两者不是一回事。
    - **比它更外层的 Metrics / CORS / Encoding 三个中间件自身抛的异常**
      （见 ③.3.3 的拓扑更正）。
 2. **意图与实现相反**：`generic_exception_handler` 的 `:210` docstring 明写

@@ -4,7 +4,7 @@
 
 树根：`/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t4-g3`
 分支 `card/t4-g3`，本卡起点 commit `9400ba26b816e8cad605b2a81e5fdf14e396541e`，
-当前 HEAD `400a285924bb71e49cb8f9f257dfc3fdac36d607`（本卡三个 commit）。
+当前 HEAD `ac857847a8006d38e89f02c8c0c1394ac9c2090c`（本卡五个 commit）。
 
 ---
 
@@ -106,7 +106,7 @@ HTTP 层用真 `register_exception_handlers` 注册的真处理器；
     （本卡新测试与它同源，请核是否重复覆盖或口径冲突）
 
 差异面可直接看：
-`git diff 9400ba26b816e8cad605b2a81e5fdf14e396541e 400a285924bb71e49cb8f9f257dfc3fdac36d607`
+`git diff 9400ba26b816e8cad605b2a81e5fdf14e396541e ac857847a8006d38e89f02c8c0c1394ac9c2090c`
 
 ---
 
@@ -189,3 +189,58 @@ round-2 给出 BLOCKER 0 / HIGH 0 / MEDIUM 3 / LOW 4。虽已达通过线，但�
 
 本轮请重点核：上述整改是否正确、是否引入新的过强表述或新的事实错误；
 以及评估文档现在是否还残留与已更正结论相矛盾的旧措辞。
+
+
+---
+
+## ⑧ round-4 补充：round-3 的处置
+
+round-3 给出 BLOCKER 0 / HIGH 0 / MEDIUM 2 / LOW 3，并确认本卡对 `:589`
+的不采纳成立。本轮全部采纳并整改：
+
+- **M1**（我在 round-3 引入的新错误）：`BackgroundTaskManager` 改判为**复用单例**
+  （`background_task_manager.py:91` 的 `__new__` 返回缓存 `_instance`；
+  运行时自证 `BackgroundTaskManager() is BackgroundTaskManager()` → `True`）。
+  依赖表改为五项、每项带运行时自证列：memory / graphiti / BackgroundTaskManager
+  复用；`CanvasService`（实测 `is-same=False`）与 `FSRSManager`
+  （`USE_FSRS=True` 下实测 `is-same=False`）新建。
+- **M2**：议题 α 删去「让生产真的注册 generic handler」这个选项，
+  写明主战场是 `CORSExceptionMiddleware` 的脱敏口径。
+- **L1**：「每个 review 请求都会重入」补两条限定（不调该工厂的端点不受影响；
+  一旦某 vault 的请求成功建好 singleton，其余请求走 `:2953` 快路径）。
+- **L2**：三处残留同步——「所有未处理异常」收窄；本 prompt 声明 C 已改为
+  逐条列三处替换；测试模块与类 docstring 的单向「屏蔽」概括已改。
+- **L3**：采纳你给的修法，新增 `body["message"] == str(raised[0])[:500]`，
+  子串断言不再是唯一依据。
+- 新增教训 §6.9：记录「纠正过强表述时反向又过强」这个连打三轮的模式。
+
+**本轮请特别核**：M1 的修正本身是否正确（五项判断逐项是否都对）？
+是否又出现新的过强/过弱表述？文档是否还残留与已更正结论相矛盾的措辞？
+
+
+---
+
+## ⑨ round-5 补充（**末轮**）：round-4 的处置
+
+round-4 给出 BLOCKER 0 / HIGH 0 / MEDIUM 1 / LOW 5，并再次确认 `:589`
+不采纳成立。本轮全部采纳并整改：
+
+- **M1(a)**：graphiti 一行改为「**上次成功后**复用；失败不缓存
+  （`dependencies.py:798-815` 三个 `except` 全 `return None`）⇒ 下次完整重试」。
+- **M1(b)**：删去「py-fsrs 缺失时返 `None`」。已写明两个**同名不同义**的标志
+  （`lib/…/fsrs_manager.py:24` = 底层库可用；`review_service.py:94` = 包装模块
+  可导入），`:750` 读的是后者；底层缺失时包装模块 `:21-29` 仍导入成功
+  ⇒ 照样新建，只是 `library_available`(`:122`)=False。真正返 `None` 的条件
+  改为「`USE_FSRS=False` 或包装模块本身导入失败」。
+  ⚠️ 本机两标志实测均为 `True`，故该条**如实标注为代码路径推演、非本机观测**。
+- **L1**：补第三条限定「本次数据与作用域仍满足拒绝条件」。
+- **L2**：中间件捕获范围再收窄，明确排除「有已注册处理器的异常类型」
+  （`review.py:1315` 的 `HTTPException(400)` 由内层 `ExceptionMiddleware` 处理）。
+- **L3**：等式的覆盖说明收窄为「证明本输入(311 字符)未脱敏，**不证明** 500 上限」，
+  并注明改成 `[:1000]` 五条用例照样绿；截断由文档 ③.3.5 的 538 字符实算覆盖。
+- **L4**：测试两处旧措辞同步（议题 α 面 / 类名 `MasksMessage` 的适用范围）。
+- **L5**：依赖表加「证据类型」列区分单点自证与读码，并声明两者都未执行完整工厂；
+  索引区分「r1 整改后存档（历史）」与新增的 `pytest-u9c-final-*`（绑最终代码态）。
+
+**这是 D-15 上限内的末轮。** 请给出绑定本 HEAD 的最终判定；
+若仍有 MEDIUM/LOW，本卡将如实登记进验收单而不再改代码（再改就会超轮次）。
