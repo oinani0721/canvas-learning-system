@@ -986,11 +986,23 @@ write_opencode_binding() {
     #    申报到 `.agents/skills` 这个根 + AGENTS.md。叶子软链的落点必须在这里补判 ——
     #    与步 4 源镜像 MIRROR_WRITES 同律：把实际要写的每个文件过同一份判据,
     #    而不是再发明一层新判据（新形状 = 新的边）。
+    local _i=0 _p
     for d in "$src_root"/*/; do
         [ -d "$d" ] || continue
-        name="$(basename "$d")"
+        # ⛔ 不用 `$(basename "$d")`（Codex r6 MEDIUM-2）：**命令替换会剥掉全部尾随换行**,
+        #    名字 `alpha<LF>` 在这里就变成 `alpha` —— 判据与 python 于是共用同一个**错名字**,
+        #    没有 `alpha` 时留下悬链后失败, 同时存在 `alpha` 时会把两条绑成一条、漏掉原条目。
+        #    参数展开不经过命令替换, 逐字保真（本机实测: $(basename) → `alpha`,
+        #    ${x##*/} → `alpha`+LF）。名字本身不可能含 `/`, 所以 `##*/` 安全。
+        _p="${d%/}"
+        name="${_p##*/}"
         NAMES+=("$name")
-        LINK_WRITES+=("opencode-skill-link-$name:$dst_root/$name")
+        # ⛔ label 用**序号**而不是名字（Codex r6 MEDIUM-1）：判据按**第一个 `:`** 拆
+        #    `<label>:<path>`（cls_forbidden_paths.py 的 `partition(":")`）, 名字里只要有一个
+        #    `:`, 后半段就会被截成错误路径 —— 实测 `a:~` 会让判据去查 `~:/…/a:~`,
+        #    于是被字面 `~` 规则误拒（判的根本不是真实落点）。名字只进 path, 不进 label。
+        _i=$((_i + 1))
+        LINK_WRITES+=("opencode-skill-link-$_i:$dst_root/$name")
     done
     if [ "${#NAMES[@]}" -eq 0 ]; then
         OPENCODE_ERR="技能源目录里一个条目都没有, 拒绝生成空的 opencode 绑定: $src_root"
@@ -1069,7 +1081,8 @@ write_opencode_binding() {
     return 0
 }
 
-# 在 $1（vault）下建 `.agents/skills/<name>` 条目级软链；条目名从 stdin 每行一个读入。
+# 在 $1（vault）下建 `.agents/skills/<name>` 条目级软链；条目名从 stdin 读入, **NUL 分隔**
+# （不是每行一个 —— 名字里可以含换行, 见函数内 `_raw.split` 那段说明）。
 # 整条 mkdir + symlink 链都钉在目录 fd 上，理由见 write_opencode_binding ① 那段。
 bind_opencode_skills() {
     local src srcrc=0

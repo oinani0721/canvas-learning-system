@@ -4387,8 +4387,11 @@ def test_hosts_opencode_refuses_to_replace_even_its_own_previous_output(tmp_path
     ⛔ 这条门锁的是一个**刻意的取舍**，别当成 bug 顺手"修好"：
        替换已有目标必然要先 `unlink`，而「目标存在」这件事只能在 `unlink` **之前**检查 ——
        检查与删除之间冒出来的手写文件就会被无声删掉（Codex r3 H1 实测的正是这条）。
-       为一个**走不到的分支**（整脚本重跑先被步 2 的防覆盖闸门拦成 rc 72，到不了步 3）
-       保留 unlink，换来的是一整类竞态。所以：存在即拒，让人自己决定怎么处置。
+       保留 unlink 换来的是一整类竞态。所以：存在即拒，让人自己决定怎么处置。
+    ⛔ 别把这里写成「重跑走不到这个分支」（我写过，r4 指出**过强**、r6 又点名一次）：
+       **本门自己就在证明它走得到** —— installer 预置一份带标记的 AGENTS.md，
+       步 3 当场遇到已有目标并返回 rc 73。并发创建同理；默认 env 目录下重跑
+       还可能先被 `ACTIVE_VAULT` 碰撞检查撞成 rc **71**（不是 72）。
     """
     name, port = "probe_oc7", "8287"
     h = _oc_harness(tmp_path)
@@ -4415,7 +4418,11 @@ def _py_code_only(src: str) -> str:
     import io
     import tokenize
 
-    lines = src.splitlines()
+    # ⛔ 必须用 `split("\n")` 而不是 `splitlines()`（Codex r6 MEDIUM-3）：
+    #    `splitlines()` 额外把 U+2028/U+2029/\v/\f/\x1c-\x1e/\x85 也当换行，
+    #    而 `tokenize` 的行号只按 `\n` 计 ⇒ 源码里真出现 U+2028 时**行坐标错位**，
+    #    挖到别的行去、真正的注释留在原地 —— 判据于是在一份被自己弄坏的文本上下结论。
+    lines = src.split("\n")
     # ⛔ 不能用 `" ".join(tok.string)` 重拼（本卡第一版就是这么写的，当场踩到）：
     #    那会把 `os.ftruncate(` 拼成 `os . ftruncate (`，所有子串判据一起失效 ——
     #    "剥掉注释"变成了"顺手改写代码"。正确做法是**按位置把注释那一段挖掉**，其余原样。
@@ -4464,19 +4471,31 @@ def test_deploy_sh_publishes_agents_md_without_a_temp_file(tmp_path: Path):
     #    `_py_code_only` 用 tokenize 剥注释；内嵌 python 从 heredoc 精确抽取。
     py = _py_code_only(_heredoc_body(src, "PYPUB"))
     # shell 侧的尾巴（heredoc 之外那几行）单独按行处理 —— shell 没有标准 tokenizer。
+    # ⛔ 它**只用于禁串检查**，不得并入下面的 flags 必要条件（Codex r6 MEDIUM-3）：
+    #    shell 尾部没剥行尾注释，在那儿写一句 `# O_EXCL` 就能替已删掉的真 flag 满足判据。
+    #    Python 的必要条件必须**只由对应的 Python 代码**满足。
     sh_tail = "\n".join(ln for ln in body.split("\nPYPUB\n", 1)[-1].splitlines() if not ln.lstrip().startswith("#"))
-    code = py + "\n" + sh_tail
+    banned_face = py + "\n" + sh_tail  # 禁串：两边都不许出现
+    code = py  # 必要条件：只看 Python 代码
     for banned in ("os.replace(", "os.link(", "os.rename(", "os.renames(", "shutil.move(", ".rename("):
-        assert banned not in code, f"发布路径又出现了改名式发布 {banned}"
+        assert banned not in banned_face, f"发布路径又出现了改名式发布 {banned}"
     # 失败清理也不许回到「按路径删」（r4 HIGH-1）。
     for banned in ("os.unlink(", "os.remove(", "shutil.rmtree("):
-        assert banned not in code, f"发布路径出现了按路径删除 {banned}"
+        assert banned not in banned_face, f"发布路径出现了按路径删除 {banned}"
     for flag in ("O_EXCL", "O_NOFOLLOW", "O_CREAT"):
         assert flag in code, f"直写目标的关键 flag {flag} 只剩注释或已消失"
     assert "os.ftruncate(" in code, "失败清理不再走 ftruncate（按 fd 截断）了"
     # ⛔ 截断前的链接数检查也要锁住（Codex r5 MEDIUM-1 指出它此前无门）：
     #    O_EXCL 只保证**新建**，写入期间仍可能被 link 出第二个名字，那时截断改的是共享 inode。
-    assert "st_nlink != 1" in code, "清理分支截断前的链接数检查没了"
+    # ⛔ 取名面必须**限定到失败清理分支**（Codex r6 MEDIUM-4）：原版在整个发布程序里搜
+    #    `st_nlink != 1`，而写后检查那两处就足以满足它 —— 于是把清理 guard 整段删掉，
+    #    这条断言照样绿。判据的取名面必须恰好等于它的主张。
+    cleanup = code[code.index("if not ok:") : code.index("os.close(dfd)")]
+    assert "st_nlink != 1" in cleanup, "失败清理分支截断前的链接数检查没了"
+    # 且它必须在 ftruncate **之前**（先查后截，不是截了再查）。
+    assert cleanup.index("st_nlink != 1") < cleanup.index("os.ftruncate("), (
+        "链接数检查跑到 ftruncate 后面去了 —— 那时已经截断了"
+    )
     # 写面清单里也不该再有 tmp 的登记（名实一致）。
     assert "opencode-agents-md-tmp" not in src, "PENDING_WRITES 里还留着已不会被写的 tmp 登记"
 
@@ -4537,6 +4556,87 @@ def test_hosts_opencode_skill_name_survives_the_shell_python_handoff(tmp_path: P
     assert ".git" not in built, f"strip 后的名字被建出来了（判据从没看过它）: {built}\n{r.stdout}{r.stderr}"
     assert odd in built, f"原名没被原样建出: {built}\n{r.stdout}{r.stderr}"
     assert os.readlink(root / odd) == f"../../.claude/skills/{odd}", os.readlink(root / odd)
+
+
+def test_deploy_sh_takes_skill_names_without_command_substitution(tmp_path: Path):
+    """取名不得走 `$(basename …)`，label 不得嵌名字（Codex r6 MEDIUM-1 / MEDIUM-2）。
+
+    ⛔ 两条都是「名字经过一层不该有的转换」，而且**行为门抓不到**，必须靠静态门：
+    1. `$(basename "$d")` —— **命令替换会剥掉全部尾随换行**。名字 `alpha<LF>` 在这里
+       就变成 `alpha`，判据与 python 共用同一个错名字：没有 `alpha` 时留下悬链后失败，
+       同时存在 `alpha` 时会把两条绑成一条、漏掉原条目。
+       ⚠️ 上面那条「含换行」行为门**盖不住它** —— 那条用的是**中间**换行（`two\nlines`），
+       命令替换只剥**尾随**的。本卡实测：退回 `$(basename)` 后那条门仍然绿。
+       参数展开 `${p##*/}` 不经过命令替换，逐字保真。
+    2. label 里嵌名字 —— 判据按**第一个 `:`** 拆 `<label>:<path>`
+       （`cls_forbidden_paths.py` 的 `partition(":")`）。名字含 `:` 时后半段被截成错误路径：
+       实测 `a:~` 让判据去查 `~:/…/a:~`，于是被字面 `~` 规则误拒 —— 判的根本不是真实落点。
+       名字只进 path，不进 label。
+    """
+    src = DEPLOY_SH.read_text(encoding="utf-8")
+    start = src.index("write_opencode_binding() {")
+    end = src.index("\n}\n", start) + 3
+    code = "\n".join(ln for ln in src[start:end].splitlines() if not ln.lstrip().startswith("#"))
+    assert "basename" not in code, "取名又走回命令替换（会剥掉尾随换行）"
+    assert '_p="${d%/}"' in code and 'name="${_p##*/}"' in code, "不再用参数展开保真取名"
+    # label 必须是序号，不得插值名字。
+    assert "opencode-skill-link-$_i:" in code, "label 不再用序号"
+    assert "opencode-skill-link-$name" not in code, "label 又把名字嵌进去了（判据会按第一个 : 拆错）"
+
+
+def test_hosts_opencode_name_with_trailing_newline_is_preserved(tmp_path: Path):
+    """名字**尾随**换行也必须逐字保真（Codex r6 MEDIUM-2 的那一类）。
+
+    与上面「中间换行」那条是**两个不同形态**：命令替换只剥尾随的，中间的它不动。
+    """
+    name, port = "probe_oc10", "8290"
+    h = _oc_harness(tmp_path)
+    odd = "trailnl\n"
+    _oc_preseed_installer(
+        tmp_path,
+        h,
+        f'mkdir -p "$v/.claude/skills/{odd}"\n'
+        f"printf -- '---\\nname: t\\ndescription: s\\n---\\n' > \"$v/.claude/skills/{odd}SKILL.md\"\n",
+    )
+    env = _tx_env(tmp_path, port, name)
+    r = _oc_run(tmp_path, h, name, port, env=env)
+    root = tmp_path / "vaults" / name / ".agents" / "skills"
+    built = sorted(p.name for p in root.iterdir()) if root.is_dir() else []
+    assert odd in built, f"尾随换行被剥掉了（名字变成 'trailnl'？）: {built!r}\n{r.stdout}{r.stderr}"
+    assert "trailnl" not in built, f"出现了被剥掉尾随换行的名字: {built!r}"
+
+
+def test_hosts_opencode_name_with_newline_makes_exactly_one_link(tmp_path: Path):
+    """名字里含换行 ⇒ 必须建出**恰好一条**软链，不能被切成两条。
+
+    ⛔ 这比 Codex r5 点名的 ` .git` 更重，车道实测（存档 `nameface-probe-*.txt`）：
+       旧的 `splitlines()` 实现对名字 `two\nlines` 建出 **`['lines', 'two']` 两条** ——
+       凭空造出两个**判据从没见过**的名字。`U+2028` 同样（建出 `['a', 'b']`）。
+       `str.splitlines()` 切的不只是 `\n`：还有 `\v \f \x1c \x1d \x1e \x85 \u2028 \u2029`。
+       （本项目栽过同型：splitlines 切 JSONL 被 U+2028 切碎。）
+    ⚠️ 实测 macOS 允许建含换行 / U+2028 / 制表符 / 前后空白的目录名；
+       只有**非法 UTF-8** 被文件系统拒绝（errno 92）⇒ 那一类不在可达面内。
+    """
+    name, port = "probe_oc9", "8289"
+    h = _oc_harness(tmp_path)
+    odd = "two\nlines"
+    _oc_preseed_installer(
+        tmp_path,
+        h,
+        # 用单引号包住, 让换行原样进目录名
+        f'mkdir -p "$v/.claude/skills/{odd}"\n'
+        f"printf -- '---\\nname: two\\ndescription: s\\n---\\n' > \"$v/.claude/skills/{odd}/SKILL.md\"\n",
+    )
+    env = _tx_env(tmp_path, port, name)
+    r = _oc_run(tmp_path, h, name, port, env=env)
+    root = tmp_path / "vaults" / name / ".agents" / "skills"
+    built = sorted(p.name for p in root.iterdir()) if root.is_dir() else []
+    # 期望 = 桩预置的 3 条 + 这个含换行的 1 条，**逐字保真**。
+    assert built == sorted([*_OC_SKILLS, odd]), f"条目集合不对: {built}\n{r.stdout}{r.stderr}"
+    # ⛔ 承重断言：切碎后的**碎片**一个都不许出现（旧实现会建出 'two' 和 'lines' 两条）。
+    for frag in ("two", "lines"):
+        assert frag not in built, f"名字被切碎了，出现碎片 {frag!r}: {built}"
+    assert os.readlink(root / odd) == f"../../.claude/skills/{odd}"
 
 
 def test_deploy_sh_hands_skill_names_over_byte_faithfully(tmp_path: Path):
