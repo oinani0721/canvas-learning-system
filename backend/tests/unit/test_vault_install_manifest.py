@@ -709,26 +709,49 @@ def test_verifier_write_calls_are_confined_to_write_report():
     #    生产脚本 :899 的 `link = cur / rel`）:
     #      - `<owner>.<写名> = ...`  例如 `os.open = ...`
     #      - `open = ...`            遮蔽内置 open
+    # ⚠️ 判据按 **Store 上下文** 走, 不按「是不是 Assign 的 targets」——后者漏掉解包
+    #    `(os.open,) = (...)`、`for` 目标、`with ... as`、海象、推导式目标等一大片
+    #    （Codex round-3 MEDIUM-1 给的就是解包那一例）。Store 上下文一次覆盖它们全部。
+    # ⚠️ **只有类型注解、没有赋值**（`os.open: object`）不改变任何绑定, 必须排除,
+    #    否则是假红（Codex round-3 LOW-2；本文件另有 16 处无值注解, 误报面真实存在）。
+    _rebind_sensitive = {"open", "os", "io", "builtins"}  # 重绑定它们会改变调用解析
+    annotation_only = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.AnnAssign) and node.value is None:
+            for sub in ast.walk(node.target):
+                annotation_only.add(id(sub))
     rebinds = []
     for node in ast.walk(tree):
-        if isinstance(node, ast.Assign):
-            assign_targets = node.targets
-        elif isinstance(node, (ast.AugAssign, ast.AnnAssign)):
-            assign_targets = [node.target]
-        else:
+        if id(node) in annotation_only:
             continue
-        for target in assign_targets:
-            if isinstance(target, ast.Attribute) and target.attr in write_names:
-                rebinds.append((f"{ast.unparse(target)}", target.lineno))
-            elif isinstance(target, ast.Name) and target.id == "open":
-                rebinds.append((target.id, target.lineno))
-    assert rebinds == [], f"写 API 被重新绑定, 按位置判 mode/flags 的前提失效: {rebinds}"
+        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store) and node.id in _rebind_sensitive:
+            rebinds.append((node.id, node.lineno))
+        elif isinstance(node, ast.Attribute) and isinstance(node.ctx, ast.Store) and node.attr in write_names:
+            rebinds.append((ast.unparse(node), node.lineno))
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            for arg in node.args.posonlyargs + node.args.args + node.args.kwonlyargs:
+                if arg.arg in _rebind_sensitive:
+                    rebinds.append((arg.arg, node.lineno))
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                local = alias.asname or alias.name.split(".")[0]
+                if local in _rebind_sensitive and alias.name not in ("os", "io", "builtins"):
+                    rebinds.append((local, node.lineno))
+        elif isinstance(node, ast.ImportFrom):
+            for alias in node.names:
+                if (alias.asname or alias.name) in _rebind_sensitive:
+                    rebinds.append((alias.asname or alias.name, node.lineno))
+    assert rebinds == [], f"写 API / 其 owner 被重新绑定, 按位置判 mode/flags 的前提失效: {sorted(set(rebinds))}"
+
+    # 模块级 open 的 owner 名字集: 从**被分析源码自己的 import** 推出（见 _module_open_owners）
+    module_open_owners = _module_open_owners(tree)
 
     # 验伪锚(CARD-G2-7a-TAIL): 只读豁免 `_is_readonly_open` 自己先得站得住 —— 否则
     # 下面那条 `offenders == []` 可能是**因为豁免放水**而绿, 不是因为源码真的没写调用。
     # 逐条给出「在什么输入下结论应当不同」, 而不是只证一个正例。
-    def _verdict(expr: str) -> bool:
-        return _is_readonly_open(ast.parse(expr, mode="eval").body)
+    def _verdict(expr: str, owners=frozenset()) -> bool:
+        return _is_readonly_open(ast.parse(expr, mode="eval").body, owners)
 
     assert _verdict("os.open(p, os.O_RDONLY | os.O_NONBLOCK)") is True, "只读旗标必须放行"
     assert _verdict("os.open(p, os.O_RDONLY)") is True, "单个只读旗标必须放行"
@@ -749,10 +772,21 @@ def test_verifier_write_calls_are_confined_to_write_report():
     assert _verdict("os.open(p, *flags_list)") is False, "旗标位展开不得放行"
     assert _verdict("open(*args)") is False, "内置 open 的展开形态不得放行"
     assert _verdict("p.open(*a)") is False, "绑定方法的展开形态不得放行"
-    # 模块级 open 不是绑定方法, 模式在 args[1]（Codex round-2 MEDIUM-2）
-    assert _verdict('io.open("log", "w")') is False, "io.open 的写模式不得放行"
-    assert _verdict('builtins.open("log", "w")') is False, "builtins.open 的写模式不得放行"
-    assert _verdict('io.open("log", "rb")') is True, "io.open 的只读模式仍放行"
+    # 模块级 open 不是绑定方法, 模式在 args[1]（Codex round-2 MEDIUM-2）——
+    # 但「是不是模块」由**被分析源码的 import** 决定, 不由名字长相决定（round-3 MEDIUM-2）。
+    _mods = frozenset({"io", "builtins"})
+    assert _verdict('io.open("log", "w")', _mods) is False, "真 io 模块的写模式不得放行"
+    assert _verdict('builtins.open("log", "w")', _mods) is False, "真 builtins 的写模式不得放行"
+    assert _verdict('io.open("log", "rb")', _mods) is True, "真 io 模块的只读模式仍放行"
+    assert _verdict('_io.open("log", "w")', frozenset({"_io"})) is False, (
+        "`import io as _io` 的别名同样要认出来, 写模式不得放行"
+    )
+    # ★round-3 MEDIUM-2 的对照输入: `io` 只是个变量(未 import io) ⇒ 必须按绑定方法判,
+    #   否则 `io.open("w")` 会因「缺 args[1]」被当成缺省只读而放行。
+    assert _verdict('io.open("w")', frozenset()) is False, (
+        "名字叫 io 的**变量**上的 .open('w') 是绑定方法写模式, 不得放行"
+    )
+    assert _verdict('io.open("rb")', frozenset()) is True, "同上, 只读模式仍放行"
 
     offenders = []
     for node in ast.walk(tree):
@@ -765,7 +799,7 @@ def test_verifier_write_calls_are_confined_to_write_report():
             name = node.func.id
         if name not in write_names:
             continue
-        if name == "open" and _is_readonly_open(node):
+        if name == "open" and _is_readonly_open(node, module_open_owners):
             # `open(p, "rb")` 是只读探测, 不是落盘。**只按模式字面量放行** ——
             # 缺省模式("r")也放行, 但任何含 w/a/x/+ 的模式、以及模式是变量算出来的,
             # 都仍然算违规(宁可假红也不放宽这道门的主张)。
@@ -799,12 +833,40 @@ def test_verifier_write_calls_are_confined_to_write_report():
 _OS_OPEN_READONLY_FLAGS = frozenset({"O_RDONLY", "O_NONBLOCK", "O_CLOEXEC", "O_NOFOLLOW", "O_DIRECTORY", "O_NOCTTY"})
 
 
-def _is_module_level_open(node) -> bool:
-    """`io.open(...)` / `builtins.open(...)` —— 形态是 Attribute, 但**不是**绑定方法。
+def _module_open_owners(tree) -> frozenset:
+    """本文件里**确实绑定到 `io` / `builtins` 模块**的那些名字。
 
-    它们的模式仍在**第 2 个**实参。此前被一律当成 `path.open(mode)` 处理、把 path 当模式读,
-    于是 `io.open("log", "w")` 里的 `"log"` 不含 `wax+` ⇒ 判成只读放行
-    （Codex round-2 MEDIUM-2；`os.open` 走它自己的旗标分支, 不在这里）。
+    只有这些名字的 `<name>.open(...)` 才是模块级调用（模式在 `args[1]`）；别的
+    `<name>.open(...)` 一律按绑定方法处理（模式在 `args[0]`）。
+
+    为什么不能用字面名字白名单（Codex round-3 MEDIUM-2，是 round-2 修 MEDIUM-2 时我自己
+    引进来的回归）：`io = Path("log")` 之后 `io.open("w")` 会被当成模块调用，而它只有一个
+    实参 ⇒ `mode is None` ⇒ 判成「缺省只读」放行，一个**写模式**就这么过去了。
+    反方向同样要认出来：`import io as _io` 之后 `_io.open("log", "w")` 是真模块调用。
+
+    同名若在本文件里被重新赋值过，就从集合里去掉 —— 那时它是什么已经不可知，
+    交给下面的重绑定拒绝去报，而不是在这里猜。
+    """
+    import ast
+
+    owners = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name in ("io", "builtins"):
+                    owners.add(alias.asname or alias.name)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
+            owners.discard(node.id)
+    return frozenset(owners)
+
+
+def _is_module_level_open(node, module_open_owners=frozenset()) -> bool:
+    """`<模块>.open(...)` —— 形态是 Attribute, 但**不是**绑定方法, 模式仍在第 2 个实参。
+
+    `module_open_owners` 由 `_module_open_owners()` 从被分析源码的 import 推出；
+    缺省是空集 = **谁都不算模块调用**（保守: 宁可当成绑定方法也不放宽）。
+    `os.open` 走它自己的旗标分支, 不在这里。
     """
     import ast
 
@@ -813,7 +875,7 @@ def _is_module_level_open(node) -> bool:
         isinstance(func, ast.Attribute)
         and func.attr == "open"
         and isinstance(func.value, ast.Name)
-        and func.value.id in ("io", "builtins")
+        and func.value.id in module_open_owners
     )
 
 
@@ -849,7 +911,7 @@ def _os_open_flag_names(flags):
     return None
 
 
-def _is_readonly_open(node) -> bool:
+def _is_readonly_open(node, module_open_owners=frozenset()) -> bool:
     """`open()` 调用是否**确定**只读: 模式缺省, 或模式是不含 w/a/x/+ 的字面量。
 
     ⚠️ 模式参数的**位置随调用形态变**: 内置 `open(path, mode)` 是第 2 个,
@@ -889,8 +951,8 @@ def _is_readonly_open(node) -> bool:
         names = _os_open_flag_names(flags)
         return names is not None and names <= _OS_OPEN_READONLY_FLAGS
 
-    # `io.open` / `builtins.open` 形态上是 Attribute, 但模式在 args[1] 而非 args[0]。
-    bound_method = isinstance(node.func, ast.Attribute) and not _is_module_level_open(node)
+    # 真模块的 `open`（`io` / `builtins`）形态上是 Attribute, 但模式在 args[1] 而非 args[0]。
+    bound_method = isinstance(node.func, ast.Attribute) and not _is_module_level_open(node, module_open_owners)
     mode_index = 0 if bound_method else 1
     mode = None
     if len(node.args) > mode_index:
@@ -3332,18 +3394,25 @@ def test_hotkeys_fifo_does_not_hang_and_reports_unreadable(vault_pair, tmp_path)
 
     assert rc == vv.EXIT_MISMATCH == 2, f"无写端 FIFO 必须归 mismatch 档, 实得 rc={rc}"
     unreadable_rows = _report_section(report_text, "unreadable")
-    # ⚠️ 判据必须绑到**同一条** finding 上, 且路径要**相等**而不是前缀（Codex round-2 LOW-1）:
-    #    原写法是两个各自独立的 `any()`, 于是下面这份报告能让它们**全部通过**, 而其中
-    #    没有任何一条 finding 是「hotkeys 因形态不可读」——
-    #        .obsidian/hotkeys.json.bak  — 读不进去          ← 满足「路径前缀」那条
-    #        other-file  — 不是普通文件(FIFO/设备等特殊文件)  ← 满足「形态原因」那条
-    #    `.bak` 那行之所以能混进来, 是因为 `startswith` 判的是前缀而不是相等。
-    hotkeys_rows = [row for row in unreadable_rows if row.strip().split("  —", 1)[0].strip() == vv.HOTKEYS_REL]
-    assert len(hotkeys_rows) == 1, (
-        f"hotkeys 必须在 ## unreadable 段里**恰好**登记一条(按路径相等匹配), 实得 {unreadable_rows}"
+    # ⚠️ 不要试图从**渲染后的文本**里把结构化身份切回来 —— 那是有损的。
+    #    上一版按 `row.split("  —", 1)[0]` 切出路径再比相等, 仍有两类未被拦下的输入
+    #    (Codex round-3 LOW-1):
+    #      · 真实路径就叫 `.obsidian/hotkeys.json  —.bak` 的 finding —— 切出来的前半段
+    #        恰好等于 HOTKEYS_REL, 于是「真实 hotkeys finding 有 0 条」却选中 1 条并通过;
+    #      · 同一路径两条(`role="-"` 与 `role="config"`) —— 实际 2 条, 却只选中第一条,
+    #        照样满足「恰好一条」。
+    #    改成两条一起卡:
+    #      ① 整个 ## unreadable 段里**提到** HOTKEYS_REL 的行必须**恰好 1 条**(卡唯一性);
+    #      ② 那一行必须与生产渲染出来的**那一行逐字相同**(卡身份 + 理由, 一次到位)。
+    #    代价如实声明: 这条判据与生产的 detail 文案、以及 role 恒为 "-" 这两件事**绑死**。
+    #    任一改动会让本门**响亮地红**(而不是静默放行) —— 方向是保守的, 但要知道它会红。
+    expected_row = f"  {vv.HOTKEYS_REL}  — 快捷键文件不是普通文件(FIFO/设备等特殊文件), 无法核对快捷键"
+    mentions = [row for row in unreadable_rows if vv.HOTKEYS_REL in row]
+    assert len(mentions) == 1, (
+        f"## unreadable 段里提到 {vv.HOTKEYS_REL} 的行必须恰好 1 条, 实得 {len(mentions)} 条: {unreadable_rows}"
     )
-    assert "不是普通文件(FIFO/设备等特殊文件)" in hotkeys_rows[0], (
-        f"**同一条** finding 必须说清是形态问题而不是别的读失败, 实得 {hotkeys_rows[0]!r}"
+    assert mentions[0] == expected_row, (
+        f"那一行必须与生产渲染逐字相同(身份+理由一起卡)\n  期望: {expected_row!r}\n  实得: {mentions[0]!r}"
     )
     assert "hotkeys                : not evaluated (不是普通文件)" in report_text, (
         "汇总行的 hotkeys note 必须如实写形态, 不得说成「查过没问题」"

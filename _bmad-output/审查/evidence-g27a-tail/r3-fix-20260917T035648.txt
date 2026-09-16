@@ -1,0 +1,48 @@
+### Codex r3 整改验证 @ 2026-09-17T03:56:48+08:00
+--- 判定矩阵 ---
+  OK  os.open(p, os.O_RDONLY | os.O_NONBLOCK)            owners=[]                 期望=True   实得=True   生产实际写法
+  OK  os.open(p, os.O_RDONLY)                            owners=[]                 期望=True   实得=True   单只读旗标
+  OK  p.open()                                           owners=[]                 期望=True   实得=True   绑定方法缺省
+  OK  open(p, 'rb')                                      owners=[]                 期望=True   实得=True   内置只读
+  OK  io.open("log", "rb")                               owners=['builtins', 'io'] 期望=True   实得=True   真模块 io 只读
+  OK  io.open("rb")                                      owners=[]                 期望=True   实得=True   ★r3 变量 io 的绑定方法只读
+  OK  os.open(p, os.O_WRONLY | os.O_CREAT)               owners=[]                 期望=False  实得=False  写旗标
+  OK  os.open(p, os.O_RDONLY | os.O_TRUNC)               owners=[]                 期望=False  实得=False  混进写旗标
+  OK  os.open(p, flags)                                  owners=[]                 期望=False  实得=False  算出来的旗标
+  OK  os.open(p)                                         owners=[]                 期望=False  实得=False  缺旗标
+  OK  p.open('wb+')                                      owners=[]                 期望=False  实得=False  U3-A 原案
+  OK  open(p, 'w')                                       owners=[]                 期望=False  实得=False  内置写模式
+  OK  os.open(*[p, os.O_WRONLY | os.O_TRUNC], os.O_RDONLY) owners=[]                 期望=False  实得=False  r1 MEDIUM
+  OK  os.open(p, os.O_RDONLY, **kw)                      owners=[]                 期望=False  实得=False  r1 自查同族
+  OK  os.open(*args)                                     owners=[]                 期望=False  实得=False  整串展开
+  OK  os.open(p, *flags_list)                            owners=[]                 期望=False  实得=False  旗标位展开
+  OK  open(*args)                                        owners=[]                 期望=False  实得=False  内置展开
+  OK  p.open(*a)                                         owners=[]                 期望=False  实得=False  绑定方法展开
+  OK  os.open(**kw)                                      owners=[]                 期望=False  实得=False  纯 kwargs
+  OK  io.open("log", "w")                                owners=['builtins', 'io'] 期望=False  实得=False  真模块 io 写
+  OK  builtins.open("log", "w")                          owners=['builtins', 'io'] 期望=False  实得=False  真 builtins 写
+  OK  _io.open("log", "w")                               owners=['_io']            期望=False  实得=False  ★r3 import io as _io 别名写
+  OK  io.open("w")                                       owners=[]                 期望=False  实得=False  ★r3 变量 io 的绑定方法写模式
+  共 23 例, 不符 0  (正例 6 / 反例 17)
+
+--- _module_open_owners 对生产脚本 ---
+  owners = 空集 ⇒ 该文件里任何 <name>.open 都按绑定方法判（它没 import io/builtins）
+
+--- LOW-1: r3 两个新对照输入必须判红 ---
+  OK  r3-a 路径本身叫 `…json  —.bak`          期望=红   实得=红(整行不等)
+  OK  r3-b 同路径两条(role 不同)                期望=红   实得=红(提及 2 条)
+  OK  r2 两行分别满足                          期望=红   实得=红(整行不等)
+  OK  真实报告                               期望=绿   实得=绿
+matrix_rc=0
+
+--- 重绑定判据对生产脚本误伤面（期望 0）---
+  命中: 0 ⇒ 无假红
+
+--- 文件级全跑 ---
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================= 176 passed, 10 warnings in 3.26s =======================
+
+--- ruff ---
+All checks passed!
+2 files already formatted
+rc=0
