@@ -1,0 +1,23 @@
+### 地盘门 —— 终态  PREV=7a8d50e2b92d002700b64837a8b518a2ac5facc1  HEAD=55668723497a13b57c35aefe266849634c6a7cd2
+--- 代码面 ---
+backend/tests/unit/test_deploy_vault_sh.py
+scripts/deploy-vault.sh
+scripts/vault-install-manifest.json
+越界文件数 = 0
+✅ ⊆ 三件
+⛔ 验伪锚①（去 exclude 应多出 _bmad-output）: 全部=71 代码面=3 差=68
+⛔ 验伪锚②（子集 grep 非恒空）:
+scripts/install-vault.sh
+anchor2_rc=0
+
+### 各轮 commit
+55668723 fix(deploy): Codex r5 整改 —— O_NOFOLLOW_ANY + 拒绝后零写 [BATCH-2026-09-11-第十四批 / CARD-HOSTS-CODEX]
+afacca52 fix(deploy): Codex r4 整改 —— 不持有 cfd / 两器同锁 / 门改 AST [BATCH-2026-09-11-第十四批 / CARD-HOSTS-CODEX]
+1d2d4b5b fix(deploy): Codex r3 整改 —— cfd 二次判据 / 新建也上锁 / 门剥注释 [BATCH-2026-09-11-第十四批 / CARD-HOSTS-CODEX]
+41ddf0d0 fix(deploy): Codex r2 整改 —— fd 落点判据 + 追加取排他锁 [BATCH-2026-09-11-第十四批 / CARD-HOSTS-CODEX]
+532cfed7 fix(deploy): Codex r1 整改 —— 目录打开走 open_pinned + 残件可识别 [BATCH-2026-09-11-第十四批 / CARD-HOSTS-CODEX]
+ef0cf1a9 feat(deploy): codex 转正为二线宿主, 步 3 生成项目级绑定件 [BATCH-2026-09-11-第十四批 / CARD-HOSTS-CODEX]
+
+### *.stderr* / *.log 入库数（必须 0）
+0
+0

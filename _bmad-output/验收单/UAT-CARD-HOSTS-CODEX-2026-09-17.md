@@ -575,3 +575,67 @@ MEDIUM-1 前半已修），所以**最后一轮存档不绑最终 HEAD** —— 
 - 触发它需要攻击者能在 `$HOME` 里并发 `rename`；具备该能力者本来就能直接写那个文件。
 
 ⇒ 请主 session 在「按残留面登记合入」与「扩大到隔离/权限整改（超出本卡范围）」之间裁定。
+
+---
+
+## 终态核验（r5 整改之后）
+
+### 六个 commit（`PREV=7a8d50e2` → `HEAD=55668723`）
+
+```
+55668723  fix(deploy): Codex r5 整改 —— O_NOFOLLOW_ANY + 拒绝后零写
+afacca52  fix(deploy): Codex r4 整改 —— 不持有 cfd / 两器同锁 / 门改 AST
+1d2d4b5b  fix(deploy): Codex r3 整改 —— cfd 二次判据 / 新建也上锁 / 门剥注释
+41ddf0d0  fix(deploy): Codex r2 整改 —— fd 落点判据 + 追加取排他锁
+532cfed7  fix(deploy): Codex r1 整改 —— 目录打开走 open_pinned + 残件可识别
+ef0cf1a9  feat(deploy): codex 转正为二线宿主, 步 3 生成项目级绑定件
+```
+
+每个 header ≤100 字符（`wc -m`）、含批次标记与卡号；`*.stderr*` / `*.log` 入库数 = **0**；未 push。
+
+### 终态裁判
+
+| 裁判 | 结果 | 存档 |
+|---|---|---|
+| `bash -n` | rc=0 | `file-level-r7-*.txt` |
+| `test_deploy_vault_sh.py` 文件级 | **242 passed, 9 skipped, 0 failed** | 同上 |
+| `tests/unit` 目录级 vs 基线 64 | `close=64` / `base=64` / diff **完全为空**（`<`=0，`>`=0） | `unit-close-r6-*.txt` + `unit-diff-final-*.txt` |
+| 目录级两个验伪锚 | `--color=never` 命中已知正例 rc=0；`close` 非空 | 同上 |
+| 禁写面 | `HIT … rc=1`；验伪锚 `OK … rc=0`；vault 内 `.codex` 不误拦 rc=0 | `forbidden-gate-final-*.txt` |
+| 地盘门 | 代码面恰 **3** 件、越界 **0**；锚① 71−3=68 个 `_bmad-output` 被排除；锚② 已知越界名被列出 | `territory-close-*.txt` |
+| `~/.codex/config.toml` | 开工 sha == 终态 sha，逐字相同 | 同上 |
+| `~/.codex/auth.json` | 跑前跑后逐字相同（r3 整改后用副本不用软链） | 同上 |
+| 禁改文件 diff | `cls_forbidden_paths.py` / `verify_vault_install.py` / `install-vault.sh` / `test_vault_install_manifest.py` / `SKILL.md` **全 0** | 同上 |
+| live vault / `fsrs_bridge.py` / `decay_beta.py` | diff **0**（零写者） | 同上 |
+| 7691 / 7687 | 每次跑都打印 `NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0` | 各 run 存档 |
+
+### 五轮 Codex 存档（协议 §2.1 首部三字段齐全，已逐份核过）
+
+`codex-review-CARD-HOSTS-CODEX.md` / `-r2` / `-r3` / `-r4` / `-r5`，
+各自绑定 `ef0cf1a9` / `532cfed7` / `41ddf0d0` / `1d2d4b5b` / `afacca52`。
+
+⛔ **最后一轮存档不绑最终 HEAD**（r5 之后又整改了 BLOCKER-1 与 MEDIUM-1 前半），
+协议轮次上限 5 已用尽 ⇒ 不再发起第 6 轮，如实登记并交主 session 人审。
+
+### 追加到「本卡未证明什么」（r1–r5 之后）
+
+10. **未证明「打开之后目录被并发搬走」这条路径关上了** —— 见待裁项；本卡只做到收窄。
+11. **未证明 AST 门挡得住一般的「调用在但控制流走不到」** —— 只关掉了「常量假分支」这一种；
+    `getattr` 间接调用、`exec` 等形态**未做**检测（Codex r5 MEDIUM-1 后半），登记移交。
+12. **未证明「重定向 `CODEX_HOME` 的信任表行为」与「用真 HOME」逐位相同** —— 两者走同一段代码，
+    但本卡不会用真 HOME 跑 workspace-write 去对照（那正是 D-26(i) 禁止的）。
+13. **未证明本卡全程对 `$HOME/.codex` 零写** —— r1/r2 阶段的探针**确实**让 codex 写过
+    `sessions/**` 与 `skills/.system/**`（r3 起改用重定向 home 才停止）。
+    承重面 `config.toml` 与 `auth.json` 的 sha 自开工至终态逐字未变，但那证的是**这两个文件**，
+    不是整个目录。⛔ 这一条是 Codex r5 明确要求不要含糊的地方，如实照写。
+
+### 追加到「台账待登记条目」
+
+12. **`O_NOFOLLOW` 只管末段**：多段路径的中间软链照样被跟随；macOS 上用 `O_NOFOLLOW_ANY` 替换
+    （**不能叠加**，同时带 = `EINVAL`）。⚠️ **值得全仓推广** —— 本卡只改了自己新增的四处；
+    仓里其它多段路径 `open` 是否有同型隐患**未扫**。
+13. **`O_RESOLVE_BENEATH` 在本机被内核静默忽略** —— 别人再遇到同类问题不必重走这条弯路。
+14. **「守卫拒绝之后 finally 仍然写」是一类容易漏的缺陷**：`die()` 走的是异常路径，
+    清理逻辑不判「是不是被守卫拒的」就会在刚判定为禁写面的对象上继续写。
+15. **门的形态教训**（本卡三次同型）：凡「构造一个坏形态跑端到端」的行为门，都要先做敏感性负控 ——
+    很可能它绿在**更早**那道判据上，跟你想钉的那个修复毫无关系。
