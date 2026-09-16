@@ -157,7 +157,18 @@ RESULT: PASS 纯搬迁、零漂移
 
 1. `':(exclude)_bmad-output'` 这个 pathspec 的 `rc=0`（**不是 128**）—— 排除了「`Unimplemented pathspec magic` 空输出被读成绿」这一假绿路径（协议 §1 点名；⛔ 全程未写 `':!…'`）。
 2. 同命令 `--name-only` 列出 **2** 个文件 —— 判据能数到已知正例。
-3. **⚠️ 此锚在代码 commit 时点无效**：文档尚未入库，带不带 `exclude` 都是 2 个文件，故「exclude 真起作用」在该时点**未被证明**。文档 commit 后已重跑，见 §二-末。
+3. **⚠️ 此锚在代码 commit 时点无效**：文档尚未入库，带不带 `exclude` 都是 2 个文件，故「exclude 真起作用」在该时点**未被证明**。
+
+**文档 commit 后已重跑，该锚此时才有效** —— `scope-final-*.txt`（HEAD = `3f11e672b2815071289661c20fe2cc67d81b4235`）：
+
+| 判据 | 实测 |
+|---|---|
+| 带 `':(exclude)_bmad-output'` 的文件数 | **2**（只有两个代码文件） |
+| 不带 exclude 的文件数（`-c core.quotepath=false`） | **38** |
+| ⇒ 两者不等 | **exclude 真的在过滤，不是空操作** ✅ |
+| pathspec rc | **0**（非 128） |
+
+逐条硬边界终核 **15 项全 0**（含 `_bmad-output/implementation-artifacts` = 0 ⇒ 台账未动）；SKILL.md digest 仍 `0f2c085a…`。
 
 逐条硬边界 `--name-only` 计数**全 0**：`start-exam-board/SKILL.md`、`test_g3_3_cas.py`、`test_learning_events_schema_contract.py`、`fsrs_bridge.py`、`decay_beta.py`、`backend/app`、`backend/tests/conftest.py`、`backend/tests/unit/conftest.py`、`lefthook.yml`、`pyrightconfig.json`、`quiz-answer/`（T7-A）、`ai-linked-doc/`（T7-B）、`learning_event_log.py`（T7-B）、`verify_vault_install.py`（T7-D）。验伪锚见 `forbidden-surfaces-*.txt`：同一套判据对两个**已改**文件数出非 0。
 
