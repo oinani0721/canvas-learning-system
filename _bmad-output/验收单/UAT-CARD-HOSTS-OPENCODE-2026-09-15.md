@@ -485,6 +485,7 @@ git --no-pager diff --stat --no-color 7e1d6b53 HEAD -- . ':(exclude)_bmad-output
 | 23:53 | 最小探针 | 同样 rc=1 + `usage limit` |
 | 00:07 | 最小探针复测 | 跑满 180s 未返回、末行 `Reconnecting`、`usage limit` 命中 **0** |
 | 00:14 | **据此重发 r15** | **仍 `usage limit` 被拒**，存档 0 字节 |
+| 00:16 | 最小探针（**跑到完，不中途掐**） | rc=1 + `usage limit` 命中 **2** + stdout **空** ⇒ 确定性阴性 |
 
 > ⛔ **我在第三次复测上判断错了，并已把错误结论讲给用户，此处更正**：
 > 我把「**没看到** `usage limit`」读成了「**配额已放行**」。实际是
@@ -519,6 +520,23 @@ git --no-pager diff --stat --no-color 7e1d6b53 HEAD -- . ':(exclude)_bmad-output
   +    #          · AGENTS.md **存在即拒**（无论带不带生成标记）。
 非注释行改动计数 = 0
 ```
+
+**「全部是注释」的机器证明**（不是眼球判据 —— 这张卡打的就是眼球判据）：
+
+```
+把两版 deploy-vault.sh 剥掉「首个非空白字符是 # 」的整行后取 sha：
+  d6f96fa8 版  6a457d825fdfe9fb…
+  HEAD    版  6a457d825fdfe9fb…   ⇒ 逐字节相同，非注释行 diff = 0
+
+验伪锚（证明这个剥离法不是恒绿）：
+  往 HEAD 版注入一处真实代码改动（set -euo pipefail → set -eu）再剥离
+  ⇒ diff 立刻报 4 行                                    ⇒ 判据能看见代码改动 ✅
+
+唯一两种「# 开头但有语义」的行（shebang / shellcheck 指令）在改动行中命中 = 0
+```
+
+⚠️ 这份证明只说明**差异全部落在整行注释里**，它**不替主 session 判「注释内容是否失实」**
+—— 那需要人读那 7 行。两件事分开：机器管「有没有代码改动」，人管「话说得对不对」。
 
 （存档 `r15-quota-and-binding-detail-*.txt`。⚠️ 第一份存档里这段是空的 ——
 `grep -E '^\+' | grep -v '^\+\+'` 在本机 **ugrep** 下报语法错（`+` 是量词，`^++` 无效），
