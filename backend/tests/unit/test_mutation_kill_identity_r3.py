@@ -1,7 +1,8 @@
 """CARD-DEBT-mutkill-R3 的先红后绿单测 —— 变异裁决共用判据的收口。
 
 ⛔ **覆盖面如实声明（DD-13 名实一致）**：文件名只提 `mutation_kill_identity`，实际
-覆盖**两个**模块，其中 g33 那一块很容易被后人漏掉：
+覆盖**三个**模块（⛔ round-20 更正 —— 这里原先写「两个」，漏了 reconcile 那一整块，
+正是本卡要消灭的那类失实声明；Codex round-17 LOW 指出）：
 
   · H1  `mutation_kill_identity._split_unique` —— 让**无 reason 读法**也进候选集；
         整行二义（两种合法读法并存）⇒ 切分不唯一 ⇒ 调用方判 `HARNESS-ERROR`。
@@ -12,6 +13,8 @@
         且 `stmt:` 指纹**复核命中数恰为 1**（与 `check_expect_loc_unique` 同口径）。
   · M②  **`g33_mutation_gates.restore_or_keep_exit_code`** —— 末次还原失败不再被
         `_was_exiting` 静默吞掉，且**还原逐字节自检仍执行**。
+  · M③  **`mutation_verdict_reconcile`**（第三个模块，原文漏写）—— 六档逐档硬比、
+        `ast_mutation_count` 的独立分母与它的 fail-closed 面、各套 stdout/JSON 形态解析。
 
 ⚠️ M② 的驱动形态（(h)④ 固定走「甲」，R-B14-9 补裁已接受）：该函数原本是 `main()`
 内的**嵌套 def**，无模块级符号、不能直接 import 驱动；本卡把它提为模块级并接受注入
@@ -20,7 +23,18 @@
 进主 `try` 并在外层 `finally` 对 `_TARGET_FILES` **全量** `write_bytes`，其中含零写者
 铁律覆盖的 `canvas-vault/.claude/scripts/fsrs_bridge.py`。
 
-全部 I/O 落 pytest 的 `tmp_path`；不连 Neo4j / LanceDB，不读写 live vault。
+⛔ **I/O 范围如实声明**（round-20 更正，Codex round-17 LOW —— 原文写「全部 I/O 落
+`tmp_path`」，不实）：**写**确实全部落 pytest 的 `tmp_path`；此外还有两类**读**与一类
+子进程，都在本仓内、都不碰 live vault：
+
+  · **读四套真实源码**（`ast_mutation_count` 的分母断言必须对着真文件跑，否则
+    「138/9/11/18」只是自说自话）；
+  · **读门文件**（`_write_gate` 造的临时门在 `tmp_path`，但 `stmt_fingerprints` 会读它）；
+  · **起真 pytest 子进程**（`test_h1_real_pytest_exotic_but_selectable_name_is_harness_error`
+    与 `_run_gate`）：cwd 固定在 `tmp_path`，只跑那里的临时门文件。
+
+⛔ 不连 Neo4j / LanceDB（本文件跑完 `NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0`），不读写 live vault，
+不跑任何变异 harness 的 `main()`。
 """
 
 from __future__ import annotations
@@ -145,18 +159,76 @@ def test_pc_split_unique_accepts_unambiguous_readings(line: str, nodeid: str) ->
 def test_h1_split_unique_flips_in_both_directions_in_both_families() -> None:
     """⛔ 如实钉住：本函数**不是单调的**，两族、两个方向都会翻。
 
-    这条断言被推翻过**两次**：初稿「候选集只增不减 ⇒ 只会 True→False」被实测推翻；
-    改成「只有无 ` - ` 那族会双向翻」又被 Codex round-1 LOW 推翻（有 ` - ` 那族也会
-    False→True：旧版一条候选都没有、落到旧回退返回 False，新版捞到了唯一候选返回 True）。
-    两族两向各钉一条，免得后人再据「它是单调的」推出错误的安全性结论。
+    这条断言被推翻过**三次**：初稿「候选集只增不减 ⇒ 只会 True→False」被实测推翻；
+    改成「只有无 ` - ` 那族会双向翻」被 Codex round-1 LOW 推翻；⛔ round-20（Codex
+    round-17 LOW）第三次 —— 上一版**自称**「两族两向各钉一条」，实际只有**三条**，
+    而且把 `FAILED a::b[c - d]`（body 里明明有 ` - `）标成了「无切点族」。
+    真正缺的那一格是**无切点族 · 收紧**。
+
+    ⇒ 现在不再用注释宣称方向，而是**把旧判据重新实现一份**，逐格断言 `旧 → 新`，
+    2×2 四格一格不少。旧判据的等价物 = 「有切点就按『左侧方括号成对』收候选；
+    一条候选都没有就按整行方括号数判」（这就是 H1 收口前的形态）。
     """
-    # 无 ` - ` 族 · 收紧：括号成对，但正则切出的 nodeid 与唯一合法读法不符 ⇒ 本该拒
-    assert mki._split_unique("FAILED a::b[c - d]", "a::b[c") is False
-    # 无 ` - ` 族 · 放宽：括号不成对、却是**合法** nodeid（参数 ID = `[c`）⇒ 读法唯一
-    assert mki._split_unique("FAILED a::b[[c]", "a::b[[c]") is True
-    # 有 ` - ` 族 · 放宽（Codex round-1 LOW 的反例）：左侧 `a::b[[c]` 括号不成对、旧版
-    # 不收它 ⇒ 无候选 ⇒ 旧回退按整行括号数判 False；新版认出它是 nodeid 形 ⇒ 唯一候选
-    assert mki._split_unique("FAILED a::b[[c] - boom", "a::b[[c]") is True
+
+    def old_rule(line: str, _nodeid: str) -> bool:
+        """H1 收口**前**的等价实现，只为逐格证明方向，⛔ 不是生产代码。"""
+        body = line.split(" ", 1)[1]
+        cands = [
+            body[:i]
+            for i in range(len(body))
+            if body.startswith(" - ", i) and body[:i].count("[") == body[:i].count("]")
+        ]
+        if not cands:
+            return body.count("[") == body.count("]")
+        return len(cands) == 1
+
+    # 2×2：(有无 ` - ` 切点) × (收紧 True→False / 放宽 False→True)
+    grid = [
+        # (line, nodeid, 有切点?, 旧, 新, 说明)
+        (
+            "FAILED a::b[c - d]",
+            "a::b[c",
+            True,
+            True,
+            False,
+            "有切点·收紧：括号成对，但正则切出的 nodeid 与唯一合法读法不符 ⇒ 本该拒",
+        ),
+        (
+            "FAILED a::b[[c] - boom",
+            "a::b[[c]",
+            True,
+            False,
+            True,
+            "有切点·放宽（Codex round-1 LOW 的反例）：旧版无候选落回退判 False，新版认出 nodeid 形",
+        ),
+        (
+            "FAILED a[b]",
+            "a[b]",
+            False,
+            True,
+            False,
+            "无切点·收紧（Codex round-17 LOW 指出这一格原先缺）：`a[b]` 括号成对但前缀无 `::` ⇒ 当不了 nodeid",
+        ),
+        (
+            "FAILED a::b[[c]",
+            "a::b[[c]",
+            False,
+            False,
+            True,
+            "无切点·放宽：括号不成对、却是**合法** nodeid（参数 ID = `[c`）⇒ 读法唯一",
+        ),
+    ]
+    for line, nodeid, has_split, want_old, want_new, note in grid:
+        body = line.split(" ", 1)[1]
+        assert (" - " in body) is has_split, f"⛔ 族别标错了（这正是 round-17 抓到的那类错）: {line!r} — {note}"
+        assert old_rule(line, nodeid) is want_old, f"⛔ 旧判据方向不符: {line!r} — {note}"
+        assert mki._split_unique(line, nodeid) is want_new, f"⛔ 新判据方向不符: {line!r} — {note}"
+    assert {(g[2], g[3], g[4]) for g in grid} == {
+        (True, True, False),
+        (True, False, True),
+        (False, True, False),
+        (False, False, True),
+    }, "⛔ 2×2 四格必须各一条 —— 少一格就不得再声称「两族两向都钉了」"
     # ⛔ 两条放宽都不影响端到端：`_boundary_ok` 并联那道「方括号成对」仍会拒掉它
     assert mki._boundary_ok("a::b[[c]") is False
 

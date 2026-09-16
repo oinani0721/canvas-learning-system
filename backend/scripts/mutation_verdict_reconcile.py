@@ -279,8 +279,14 @@ def ast_mutation_count(source_name: str) -> int:
             # （`gi_frame.f_locals[".0"]`），于是
             #   `it = (x for x in MUTATIONS); it.gi_frame.f_locals[".0"].__reduce__()[1][0].append(4)`
             # 就能拿回原列表（实测运行时 4 条、上一版 AST 数 3 条）。
-            # ⇒ 生成器表达式**只在它没有被绑走**时才认：父节点必须是 `Call`（当实参传出去、
-            #   调用返回后那个生成器对象再也够不着）。`it = (…)` 的父节点是 `Assign` ⇒ 抛。
+            # ⇒ 生成器表达式**只在它没有被直接绑走**时才认：父节点必须是 `Call`
+            #   （`it = (…)` 的父节点是 `Assign` ⇒ 抛）。
+            # ⛔ round-20（Codex round-17 LOW）**更正这条注释原来的说法**：原文写「当实参传出去、
+            #   调用返回后那个生成器对象再也够不着」——**说得比判据宽**。`it = iter(x for x in
+            #   MUTATIONS)` 里生成器就是直接实参，而 `iter()` 把它**原样返回**，`it.gi_frame`
+            #   照样够得着。本判据只保证「它没有被**直接**绑给名字」，⛔ 不保证「调用方不会
+            #   把它还回来」——那需要知道被调用者干了什么，静态判不出来，属上面 docstring 里
+            #   已声明的**威胁模型边界**（蓄意改写自己源码的作者不在承诺范围内）。
             # ⚠️ 实测四套的三处生成器表达式**全部**是直接实参（`sorted(…)` / `next(…)` /
             #   `collections.Counter(…)`），所以这条不挡现有写法；⚠️ 故意**不**再要求
             #   「被调用者是消耗型内建」—— `collections.Counter` 是 `Attribute`，那样写会把 g32b 打死。
