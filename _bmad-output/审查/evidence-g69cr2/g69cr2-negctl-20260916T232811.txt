@@ -1,0 +1,21 @@
+⛔ 预检失败, 拒绝开跑（锚点已随代码漂移）:
+   ENDANCHOR @ local_tz.py: 命中 0 次（应 1）
+   ENDANCHOR @ display_tz.py: 命中 0 次（应 1）
+   NAMESUM @ local_tz.py: 命中 0 次（应 1）
+   NAMESUM @ display_tz.py: 命中 0 次（应 1）
+   H1EARLY @ local_tz.py: 命中 0 次（应 1）
+   H1EARLY @ display_tz.py: 命中 0 次（应 1）
+   REWIDTH @ local_tz.py: 命中 0 次（应 1）
+   REWIDTH @ display_tz.py: 命中 0 次（应 1）
+   BARENAME @ local_tz.py: 命中 0 次（应 1）
+   BARENAME @ display_tz.py: 命中 0 次（应 1）
+   ANGLEFALLBACK @ local_tz.py: 命中 0 次（应 1）
+   ANGLEFALLBACK @ display_tz.py: 命中 0 次（应 1）
+   UNIDIGIT @ local_tz.py: 命中 0 次（应 1）
+   UNIDIGIT @ display_tz.py: 命中 0 次（应 1）
+   QUOTEDINNER @ local_tz.py: 命中 0 次（应 1）
+   QUOTEDINNER @ display_tz.py: 命中 0 次（应 1）
+   NUL @ local_tz.py: 命中 0 次（应 1）
+   NUL @ display_tz.py: 命中 0 次（应 1）
+   REWIDTH_ONE @ local_tz.py: 命中 0 次（应 1）
+rc=2

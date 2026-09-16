@@ -1,0 +1,233 @@
+✅ 预检通过: 32 个锚点在各自目标文件均恰好命中 1 次
+
+HEAD = 630f784ac7b89d0c1487d1698adcfad15ff72832
+  sha256 6fa02f22ae5fa7838814fb42b4ca93401d4bcc373fbe9cdc4780cea73fd1a140  scripts/local_tz.py
+  sha256 a4809a39d1110de8ed0e60a27836806e4454cf62a9423d086f41a101ed8650c4  backend/app/core/display_tz.py
+  sha256 eae59ecc9fbb364ce6809066e54a3d18eae3d9fe05033efd8d46608a1396d594  backend/app/api/v1/endpoints/review_overview.py
+  sha256 eda25bac1113ac1c5c76354955bf74e6549348b98f8d54027b7f1130470404f0  backend/tests/regression/test_g6_9c_single_tz_source.py
+
+[✅] 候选年下界            RED    (期望RED)  HIGH-1: 季度起始年最早到 y-2, 写成 y-1 会漏掉跨年窗口
+      变异=['CAND']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_dst_window_candidates_cover_rules_that_roll_into_the_following_year
+      | E       AssertionError: [backend] 候选窗漏格·实得 2023-12-31 23:30:00 应为 2024-01-01 00:30:00
+      | E           TZ='AAA1BBB0,365/3,365/2' 在 2024-01-01T00:30:00+00:00
+      | E           2022 是平年 ⇒ start(2022) 的裸 n=365 落到 2023-01-01T04:00Z, end(2023) 落到 2024-01-01T02:00Z ⇒ 该季度横跨整个 2023 年并包住 2024 元旦, 名义起始年是 y-2
+[✅] 候选年守卫            RED    (期望RED)  极端纪元下 _dst_window(0)/(10000) 会抛
+      变异=['YGUARD']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_candidate_year_guard_keeps_extreme_epochs_from_raising
+      | E           ValueError: year must be in 1..9999, not 0
+      | E               AssertionError: [backend] 候选年守卫失效: 0002-07-01T12:00:00+00:00 换算抛 ValueError: year must be in 1..9999, not 0
+      | E                 `_in_dst` 的候选年里有 year∉[1,9999]，`_rule_epoch` 的 `datetime(year, …)` 会抛。
+[✅] 9999南半球          RED    (期望RED)  r9 L1: 南支上界写成 elif year < 9999 会整段丢掉 9999 年季度
+      变异=['S9999']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_southern_season_in_year_9999_is_not_dropped
+      | E           ValueError: year must be in 1..9999, not 10000
+      | E           ValueError: year must be in 1..9999, not 10000
+      | FAILED tests/regression/test_g6_9c_single_tz_source.py::test_southern_season_in_year_9999_is_not_dropped[backend]
+[✅] 省略规则-结束时刻        RED    (期望RED)  HIGH-new: end 必须按 3600+dst_off-std_off 现算, 写死 02:00 只在 Δ=+
+      变异=['ENDRULE']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_omitted_rule_transition_points_track_the_standard_side_offset
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_default_transition_time_matches_libc_minute_by_minute
+      | E           AssertionError: [backend] 省略规则的切换点与 C 库不符: TZ='IST-1GMT0'(夏令时差 -1h) 在 2026-11-01T00:00:00+00:00
+      | E               本实现给 2026-11-01 00:00:00，C 库给 2026-11-01 01:00:00
+      | E               end 的切换时刻要按 `3600 + dst_off − std_off` 现算（C 库钉的是当地**标准**时
+[✅] 省略规则-起始规则        RED    (期望RED)  HIGH-2: dst 有名而规则省略时必须补 posixrules, 不能静默退 UTC
+      变异=['STARTR']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_omitted_transition_rules_use_the_libc_default_instead_of_falling_back_to_utc
+      | E       TypeError: cannot unpack non-iterable NoneType object
+      | E       TypeError: cannot unpack non-iterable NoneType object
+      | E       TypeError: cannot unpack non-iterable NoneType object
+[✅] 尾部换行             RED    (期望RED)  正则 $ 放过尾部换行, 需显式拒
+      变异=['CTRL']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-9-backend]
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-9-scripts]
+      | E       AssertionError: [backend] 本实现的接受域变了: parse_posix_tz('AAA-1\n'…) 接受了，表称应当拒绝
+      | E           依据: ⚠️分歧: C 库把尾部换行**吃进 dst 名**并实行 DST（tzname 给 `('AAA','_')`）。本实现拒 ⇒ 退 UTC。取舍: 接受它就得把控制字符放进 `.key`，而 `.key` 会进 API 响应 —— 本卡 r5/r6 为「代理字符进 
+      | E       assert True == False
+[✅] 严格UTF-8          RED    (期望RED)  r5→r6: surrogateescape 只把失败从启动挪到响应出口
+      变异=['ENC']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_display_tz_survives_non_utf8_tz_bytes
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_non_utf8_key_never_reaches_response_on_any_branch
+      | E   UnicodeEncodeError: 'utf-8' codec can't encode character '\udcff' in position 0: surrogates not allowed
+      | E               AssertionError: [backend] display_tz() 在 TZ=b'AAA0<\xff>' 下抛了 UnicodeEncodeError: 'utf-8' codec can't encode character '\udcff' in pos
+      | E                 环境变量里的非法字节被 Python 读成代理对，严格 encode 会对它抛，
+[✅] ASCII数字          RED    (期望RED)  Python \d 连全角一起匹配, C 库拒
+      变异=['ASCII']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-17-backend]
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-17-scripts]
+      | E       AssertionError: [backend] 本实现的接受域变了: parse_posix_tz('AAA0BBB,M3.2.0/２,M11.1.0'…) 接受了，表称应当拒绝
+      | E           依据: 切换时刻含全角数字：同上
+      | E       assert True == False
+[✅] 切换时刻小时           RED    (期望RED)  167 接受 / 168 拒
+      变异=['HMAX']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-15-backend]
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-15-scripts]
+      | E       AssertionError: [backend] 本实现的接受域变了: parse_posix_tz('AAA0BBB,M3.2.0/168,M11.1.0'…) 接受了，表称应当拒绝
+      | E           依据: 切换时刻 168 小时：越过 C 库的 167 上界（r9 M5）
+      | E       assert True == False
+[✅] 切换时刻分钟           RED    (期望RED)  分钟 >59 拒
+      变异=['MIN60']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-13-backend]
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-13-scripts]
+      | E       AssertionError: [backend] 本实现的接受域变了: parse_posix_tz('AAA0BBB,M3.2.0/2:60,M11.1.0'…) 接受了，表称应当拒绝
+      | E           依据: 切换时刻分钟 60：C 库拒（r9 M5）
+      | E       assert True == False
+[✅] 切换时刻秒            RED    (期望RED)  秒 60 接受 / 61 拒
+      变异=['SEC60']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-14-backend]
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-14-scripts]
+      | E       AssertionError: [backend] 本实现的接受域变了: parse_posix_tz('AAA0BBB,M3.2.0/2:00:61,M11.1.0'…) 接受了，表称应当拒绝
+      | E           依据: 切换时刻秒 61：C 库拒（60 接受、61 拒，两侧都在表里）
+      | E       assert True == False
+[✅] 规则ASCII          RED    (期望RED)  规则文本里的全角数字
+      变异=['RULEA']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-16-backend]
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-16-scripts]
+      | E       AssertionError: [backend] 本实现的接受域变了: parse_posix_tz('AAA0BBB,M３.2.0,M11.1.0'…) 接受了，表称应当拒绝
+      | E           依据: 规则含**全角**数字：Python 的 `\d` 匹配它而 C 库拒（r9 M5）
+      | E       assert True == False
+[✅] std偏移必填          RED    (期望RED)  r9 M3: 所有形态都必填
+      变异=['STDREQ']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-10-backend]
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-10-scripts]
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-11-backend]
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-11-scripts]
+      | E       AttributeError: 'NoneType' object has no attribute 'startswith'
+      | E       AttributeError: 'NoneType' object has no attribute 'startswith'
+      | E       AttributeError: 'NoneType' object has no attribute 'startswith'
+[✅] 名字和式512          RED    (期望RED)  退回单名 ≤507 口径 ⇒ 无 dst 形态不查(误收) + 两名各 507 和 1016(误收)
+      变异=['NAMESUM']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-20-backend]
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-20-scripts]
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-21-backend]
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-21-scripts]
+      | E       AssertionError: [backend] 本实现的接受域变了: parse_posix_tz('<AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'…) 接受了，表称应当拒绝
+      | E           依据: 无 dst 形态 512 + 1 = 513 > 512 —— 旧口径**根本没检查**这一支，于是误收了 C 库拒绝的串
+      | E       assert True == False
+[✅] 名字量纲字节           RED    (期望RED)  中×170 = 510 字节 / 170 字符, 按字符算会误收
+      变异=['NAMECHAR']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-18-backend]
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-18-scripts]
+      | E       AssertionError: [backend] 本实现的接受域变了: parse_posix_tz('AAA0<中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中'…) 接受了，表称应当拒绝
+      | E           依据: 3 + 510 + 2 = 515 > 512：越过和式上界（多字节名字侧）
+      | E       assert True == False
+[✅] 空名占NUL           RED    (期望RED)  空 dst 名不占缓冲区: `<A×511>-1<>,…` 和 = 512 收; 给空名也加 NUL 会误拒
+      变异=['EMPTYNAME']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[accept-31-backend]
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[accept-31-scripts]
+      | E       AssertionError: [backend] 本实现的接受域变了: parse_posix_tz('<AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'…) 拒绝了，表称应当接受
+      | E           依据: 511 + **空** dst 名 = 512：空名**不占**缓冲区、不加 NUL。机械地按 511+0+2=513 算会误拒
+      | E       assert False == True
+[✅] H1无dst名带规则       RED    (期望RED)  r10 H1: 无 dst 名但带合法规则时 C 库照常实行 DST, 早退会误算一小时
+      变异=['H1EARLY']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_grid_matches_libc
+      文本锚 '换算对拍失败': 命中
+      | E       AssertionError: 换算对拍失败（54040 个「串 × 时刻」点，不符 3402 个）：
+      | E           'ABCDEF2,M3.2.0,M11.1.0' @ 03-20: C 库 -1 day, 23:00:00 / 本实现 -1 day, 22:00:00
+      | E           'ABCDEF2,M3.2.0,M11.1.0' @ 07-15: C 库 -1 day, 23:00:00 / 本实现 -1 day, 22:00:00
+[✅] 正则数字位宽           RED    (期望RED)  r10 M2: C 库数字字段无位数上限, `{1,3}` 会把前导零串整片误拒
+      变异=['REWIDTH']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_grid_matches_libc
+      文本锚 '误拒·未声明': 命中
+      | E       AssertionError: 接受域对拍失败（25704 个组合，误收 0 条，声明外的分歧 1470 条）：
+      | E           [误拒·未声明] 'ABC0001'
+      | E           [误拒·未声明] 'ABC0001,M3.2.0,M11.1.0'
+[✅] 裸名词法             RED    (期望RED)  r10 M1: 裸名吃到数字为止, `[A-Za-z]{3,}` 会把 `A1` / `ABC<DEF>2` 误拒
+      变异=['BARENAME']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_grid_matches_libc
+      文本锚 '误拒·未声明': 命中
+      | E       AssertionError: 接受域对拍失败（25704 个组合，误收 0 条，声明外的分歧 5340 条）：
+      | E           [误拒·未声明] 'ABC<DEF>2'
+      | E           [误拒·未声明] 'ABC<DEF>2,M3.2.0,M11.1.0'
+[✅] TZ多重冒号           RED    (期望RED)  r10 M4: C 库只剥一个冒号, lstrip 会把 `::Asia/Shanghai` 误认成上海(差 8 小
+      变异=['COLON']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_tz_path_forms_match_libc
+      | E       AssertionError: [backend] TZ='::Asia/Shanghai' 下偏移与 C 库不符: 本实现 8:00:00，C 库 0:00:00
+      | E           形态: **双**冒号：C 库只剥一个，剩下 `:Asia/Shanghai` 当路径打不开 ⇒ UTC
+      | E       assert datetime.timedelta(seconds=28800) == datetime.timedelta(0)
+[✅] TZ绝对路径           RED    (期望RED)  r10 M5: `/usr/share/zoneinfo/...` C 库能解析, 去掉候选会退 UTC
+      变异=['ZIPATH']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_tz_path_forms_match_libc
+      | E       AssertionError: [backend] TZ='/usr/share/zoneinfo/Asia/Shanghai' 下偏移与 C 库不符: 本实现 0:00:00，C 库 8:00:00
+      | E           形态: 绝对路径：C 库直接打开该 tzfile
+      | E       assert datetime.timedelta(0) == datetime.timedelta(seconds=28800)
+[✅] fromutc身份校验      RED    (期望RED)  r10 L7: 缺校验会把 naive / 异 tzinfo 静默当成本时区的 UTC 读数换算
+      变异=['FROMUTC']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_fromutc_rejects_foreign_tzinfo
+      | E           Failed: DID NOT RAISE <class 'ValueError'>
+      | E           Failed: DID NOT RAISE <class 'ValueError'>
+      | FAILED tests/regression/test_g6_9c_single_tz_source.py::test_fromutc_rejects_foreign_tzinfo[backend]
+[✅] 模块级常量同源          RED    (期望RED)  r10 M9: 只改一份副本的正则, 除这道门外**全套都绿**（Codex 实测 199 个参数格全过）
+      变异=['REWIDTH_ONE']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_two_copies_share_identical_module_level_constants
+      | E           AssertionError: 两份副本的模块级常量 _POSIX_TZ_RE 不一致 —— 同源副本漂移了。
+      | E               backend: '_POSIX_TZ_RE = re.compile(\n    r"^(?P<std><[^<>]*>|[^\\x00-\\x1f\\d+,\\-]+)"\n    r"(?P<std_off>[+-]?\\d+(?::\\d+(?::\\d+)?
+      | E               scripts: '_POSIX_TZ_RE = re.compile(\n    r"^(?P<std><[^<>]*>|[^\\x00-\\x1f\\d+,\\-]+)"\n    r"(?P<std_off>[+-]?\\d{1,3}(?::\\d{1,2}(?
+[✅] std偏移量级          RED    (期望RED)  |std_off| < 24h 的 Python 可表示性收紧
+      变异=['STDMAG']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_offset_domain_is_checked_on_every_branch_not_only_omitted_rules
+      | E       AssertionError: [backend] 显式规则分支未校验偏移取值域: parse_posix_tz('AAA24BBB,M3.2.0,M11.1.0') 返回 <app.core.display_tz._PosixTZ object at 0x136ea6140>
+      | E           std 侧 −24h 不可表示（C 库对它 tzset 直接报错）
+      | E           整串属性与偏移范围的校验要放在两个分支的**共用**位置，不能只写在省略规则那一支里。
+[✅] 规则可解析            RED    (期望RED)  r9 M4: 无 dst 形态也要验规则
+      变异=['RULEOK']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-12-backend]
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-12-scripts]
+      | E       AssertionError: [backend] 本实现的接受域变了: parse_posix_tz('AAA-1,J0,J0'…) 接受了，表称应当拒绝
+      | E           依据: 非法规则 J0：C 库拒，**无 dst 形态也要验规则**（r9 M4）
+      | E       assert True == False
+[✅] dst偏移量级          RED    (期望RED)  省略规则分支不得放宽偏移域
+      变异=['DSTMAG']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_omitted_rule_branch_does_not_widen_the_accepted_offset_domain
+      | E       AssertionError: [backend] 省略规则分支扩大了错误接受面: parse_posix_tz('AAA0BBB24') 返回 <app.core.display_tz._PosixTZ object at 0x137c7d960>，应为 None
+      | E           dst 侧 −24h 不可表示（std=0 合法）
+      | E           补默认规则前必须先校验两侧偏移（分钟 >59 拒、|偏移| ≥24h 拒），否则这条修复
+[✅] tzname口径         RED    (期望RED)  r9 L2: 偏移相等不等于处在 DST 里
+      变异=['TZNAME']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_tzname_uses_dst_membership_not_offset_equality
+      | E       AssertionError: [backend] 冬季 tzname 应为 std 名 'AAA'，实得 'BBB' —— 偏移相等时不能用「偏移 == dst_off」判身份。
+      | E       assert 'BBB' == 'AAA'
+      | E         
+[✅] J规则闰日-J60        RED    (期望RED)  J60 在闰年从 3/1 提前到 2/29: 只杀 2024-02-29 那格
+      变异=['J60']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_posix_tz_string_resolves_to_process_local_not_etc_localtime
+      文本锚 'AAA5BBB,J60/2,J300/2': 命中
+      | E           AssertionError: [backend] TZ='AAA5BBB,J60/2,J300/2' 在 2024-02-29T12:00:00+00:00 上墙钟与 C 库不一致：
+      | E               display_tz() 给 2024-02-29 08:00:00（resolved=<app.core.display_tz._PosixTZ object at 0x135b91d80>）
+      | E               C 库逐时刻给 2024-02-29 07:00:00
+[✅] J规则闰日-J365       RED    (期望RED)  J365 在闰年终点提前一天: 只杀 2024-12-31 那格
+      变异=['J365']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_posix_tz_string_resolves_to_process_local_not_etc_localtime
+      文本锚 'WART4WARST,J1/0,J365/25': 命中
+      | E           AssertionError: [backend] TZ='WART4WARST,J1/0,J365/25' 在 2024-12-31T12:00:00+00:00 上墙钟与 C 库不一致：
+      | E               display_tz() 给 2024-12-31 08:00:00（resolved=<app.core.display_tz._PosixTZ object at 0x135f596c0>）
+      | E               C 库逐时刻给 2024-12-31 09:00:00
+[✅] NUL引用名内          RED    (期望RED)  NUL 在引用名内部是这条检查的唯一显形位置(正则的 [^<>] 放行 NUL)
+      变异=['NUL']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_omitted_rule_branch_does_not_widen_the_accepted_offset_domain
+      文本锚 "parse_posix_tz('AAA0<B\\x00BB>')": 命中
+      | E       AssertionError: [backend] 省略规则分支扩大了错误接受面: parse_posix_tz('AAA0<B\x00BB>') 返回 <app.core.display_tz._PosixTZ object at 0x137f8da20>，应为 None
+      | E           引用名内含 NUL：走 JSON 自报值这条路进来，BASE 拒而补规则后会放行
+      | E           补默认规则前必须先校验两侧偏移（分钟 >59 拒、|偏移| ≥24h 拒），否则这条修复
+[✅] HIGH-3归桶         RED    (期望RED)  display_tz 缺席时不得静默用 generated_at 的固定偏移重算归桶
+      变异=['HIGH2']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_bucket_gate_rejects_wrong_buckets_even_when_display_tz_is_absent
+      | E           AssertionError: 固定偏移回退误放行·桶 due_today（display_tz missing）
+      | E             fsrs_due=2026-03-09T04:30:00Z 在生产者时区(America/New_York)是 03-09 00:30 EDT,
+      | E             与 generated_at=2026-03-08T00:30:00-05:00 的本地日 03-08 **不是同一天** ⇒ 它属 future;
+[✅] ReDoS上限          GREEN  (期望GREEN)  1024 是**性能**防线不是正确性防线: 去掉它接受域一字不变, 只是 4000 字符的坏串从 0.000s 退
+      变异=['CAP']  rc=0
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc
+
+✅ local_tz.py           
+     跑前 6fa02f22ae5fa7838814fb42b4ca93401d4bcc373fbe9cdc4780cea73fd1a140
+     跑后 6fa02f22ae5fa7838814fb42b4ca93401d4bcc373fbe9cdc4780cea73fd1a140
+✅ display_tz.py         
+     跑前 a4809a39d1110de8ed0e60a27836806e4454cf62a9423d086f41a101ed8650c4
+     跑后 a4809a39d1110de8ed0e60a27836806e4454cf62a9423d086f41a101ed8650c4
+✅ review_overview.py    
+     跑前 eae59ecc9fbb364ce6809066e54a3d18eae3d9fe05033efd8d46608a1396d594
+     跑后 eae59ecc9fbb364ce6809066e54a3d18eae3d9fe05033efd8d46608a1396d594
+
+段数 31 期望RED + 1 期望GREEN, 不合判据 0
+rc=0

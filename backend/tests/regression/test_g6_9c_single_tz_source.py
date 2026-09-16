@@ -925,9 +925,34 @@ _GRID_STD_NAME = [
     "ABC１",  # ⭐ 全角数字：同上
     "<" + "A" * 511,  # ⭐ 未闭合 + 长度边界（512 字节 +NUL = 513 > 512 ⇒ C 库拒）
     "<" + "A" * 510,  # ⭐ 同上但恰好 512 ⇒ C 库收
+    # ⛔ r13 再补一批 —— Codex r12 的 4 条 HIGH **全部**落在当时维度表之外：
+    #    组合门对它们完全看不见，是外部审查把它们找出来的。
+    "<AAA1>",  # ⭐ 闭合引用名里**含数字** ⇒ 后面若还跟 `<…` 必须整串拒（r12 H1）
+    "",  # ⭐ **空裸名**：`TZ=1` C 库收（std 名空、off −01:00）（r12 M1）
+    "A:",  # ⭐ 名字**含** `:`（C 库收，名字就是 `A:`）
+    "AAA" + "0" * 4300,  # ⭐ 超长数字前缀：int() 转换上限那一族（r12 H4）
 ]
-_GRID_STD_OFF = ["", "1", "01", "0001", "-5", "+5", "1:30", "1:30:45", "0", "23", "24", "1:60"]
-_GRID_DST_NAME = [None, "DEF", "<DEF>", "<>", "D" * 300]
+_GRID_STD_OFF = [
+    "",
+    "1",
+    "01",
+    "0001",
+    "-5",
+    "+5",
+    "1:30",
+    "1:30:45",
+    "0",
+    "23",
+    "24",
+    "1:60",
+    ":",  # ⭐ 偏移后一个孤立 `:` ⇒ C 库拒（`:` 属于偏移，后面必须跟数字）（r12 H2）
+    "1:",  # ⭐ 同上
+    "1:30:",  # ⭐ 秒位缺席
+    "0" * 4300 + "1",  # ⭐ 4301 位数字：C 库收（给 −01:00），Python int() 会抛（r12 H4）
+]
+#: ⛔ `None` = 没有 dst 部分；`""` = **dst 名为空但 dst 偏移在场**（`AAA1+2` 这一族，
+#:    C 库收）。两者语义不同，判定见生产代码的 `_has_dst()`（r12 M1）。
+_GRID_DST_NAME = [None, "", "DEF", "<DEF>", "<>", "D" * 300, "١", "<BBB"]
 _GRID_DST_OFF = ["", "2", "-3", "0", "2:30"]
 #: ⛔ **规则这一维塌过一次**（Codex r11 M7）：上一版表里全是 `M3.x` 起、`M11.1.0` 止、
 #:    星期恒为 `0` 的北半球规则，四个探针上的 DST 状态向量**完全相同**（标准/夏令/夏令/夏令）。
@@ -979,8 +1004,26 @@ _GRID_PROBES = [
 ]
 
 
+#: ⛔ **oracle 分不开的那一族**（Codex r12 M6）：`UTC0` / `<UTC>0` / `UTC` 这类
+#:    **本身就等价于 UTC** 的规格串，被接受时的 `time` 四元组与「解析失败退 UTC」
+#:    完全相同，任何基于 `time` 模块的探测都分不开。
+#:    上一轮我在 `_libc_accepts` 的 docstring 里写了这个例外，却**没有接进判据** ——
+#:    真把 `UTC0` 放进组合，阶段一会立刻判「误收」，根本走不到注释声称能兜住它的阶段二。
+#:    现在显式跳过阶段一、只让它们走阶段二（行为比对），并由下面的验伪锚保证这张
+#:    豁免表不被滥用：表里每一条都必须**真的**是 oracle 分不开的。
+#: ⚠️ 表里**不含** `"UTC"`：它没有 std 偏移，被 ⑥ 拒掉，双方都判「拒」⇒ 无分歧可豁免。
+#:    我第一版把它写进来了，验伪锚五当场报出来 —— 这正是那道锚存在的意义：
+#:    豁免表最容易出的错不是漏，而是**多**（顺手把一条不需要豁免的塞进去，
+#:    将来那条真出分歧就被静默放过）。
+_ORACLE_BLIND = frozenset({"UTC0", "<UTC>0", "UTC+0", "UTC-0"})
+
+
 def _grid_specs():
-    """笛卡尔积（去掉「无 dst 名却有 dst 偏移」这种构造不出来的组合），去重。"""
+    """笛卡尔积（去掉「没有 dst 部分却有 dst 偏移」这种构造不出来的组合），去重。
+
+    ⚠️ `dn is None` 才是「没有 dst 部分」；`dn == ""` 是**dst 名为空但 dst 偏移在场**
+    （`AAA1+2` 这一族，C 库收），两者必须分开（Codex r12 M1）。
+    """
     seen = set()
     for sn, so, dn, do, ru in itertools.product(
         _GRID_STD_NAME, _GRID_STD_OFF, _GRID_DST_NAME, _GRID_DST_OFF, _GRID_RULES
@@ -1008,7 +1051,16 @@ def _libc_accepts(spec: str) -> bool:
     saved = os.environb.get(b"TZ")
     try:
         os.environb[b"TZ"] = spec.encode("utf-8")
-        time.tzset()
+        try:
+            time.tzset()
+        except RuntimeError:
+            # ⛔ `time.tzset()` 会**抛**（扩维度后才撞上）：CPython 的 time 模块对 libc
+            #    交回的 `tm_gmtoff` 有范围检查，超出即 `RuntimeError: invalid GMT offset`。
+            #    实测 `ABC-25` 正常（−25 h），`ABC-51` / `ABC-52` / `ABC52` 抛。
+            #    语义上这类串「本机无法表示成一个时区」⇒ 与退 UTC 同归为「拒」。
+            #    ⚠️ 不加这层 try，整道门在第一个这种组合上直接崩溃 —— 而「门崩了」与
+            #    「门发现分歧」是两回事，读日志的人会误以为是被测实现出了问题。
+            return False
         degenerate = time.tzname == ("UTC", "UTC") and time.timezone == 0 and time.altzone == 0 and time.daylight == 0
         return not degenerate
     finally:
@@ -1016,7 +1068,11 @@ def _libc_accepts(spec: str) -> bool:
             os.environb.pop(b"TZ", None)
         else:
             os.environb[b"TZ"] = saved
-        time.tzset()
+        try:
+            time.tzset()
+        except RuntimeError:  # 还原时也可能抛（外层 TZ 本身就是坏串）
+            os.environb.pop(b"TZ", None)
+            time.tzset()
 
 
 def _declared_narrowing(spec: str) -> str | None:
@@ -1034,7 +1090,11 @@ def _declared_narrowing(spec: str) -> str | None:
     std_off = backend_tz._posix_offset_seconds(g["std_off"])
     if abs(std_off) >= 86400:
         return "⑧ |std_off| ≥ 24h：Python tzinfo 不可表示（注释已声明，非 C 库口径）"
-    if g["dst"] is not None or g["start"] is not None:
+    # ⛔ 必须与生产代码同口径用 `_has_dst()`：名字量词改成可空之后，`g["dst"] is not None`
+    #    对「没有 dst」的串也成立（空名匹配成 `""`），这里若还用旧判据，判定就和被测
+    #    代码分叉了 —— 表现为「明明是已声明收紧，门却报声明外分歧」（r13 那 323 条里
+    #    的一部分就是这么来的，`ABC1:30:2:30` 的 dst 偏移其实是 −30 h）。
+    if backend_tz._has_dst(g) or g["start"] is not None:
         dst_off = backend_tz._posix_offset_seconds(g["dst_off"]) if g["dst_off"] else std_off + 3600
         if abs(dst_off) >= 86400:
             return "⑧ |dst_off| ≥ 24h：同上"
@@ -1053,8 +1113,13 @@ def test_accepted_domain_grid_matches_libc(tz_env):
     total = over_accept = 0
     undeclared: list[str] = []
     narrowed: dict[str, int] = {}
+    blind_seen = 0
     for spec in _grid_specs():
         total += 1
+        if spec in _ORACLE_BLIND:
+            # oracle 分不开这一族（见 `_ORACLE_BLIND`），阶段一跳过、阶段二照比行为
+            blind_seen += 1
+            continue
         libc_ok = _libc_accepts(spec)
         impl_ok = backend_tz.parse_posix_tz(spec) is not None
         if libc_ok == impl_ok:
@@ -1077,6 +1142,16 @@ def test_accepted_domain_grid_matches_libc(tz_env):
     )
     # 验伪锚一：门必须真的跑在**上万**个组合上，而不是被某个维度塌成空集
     assert total > 20000, f"只枚举到 {total} 个组合 —— 维度表被削过，门失去覆盖面"
+    # ⛔ 验伪锚五（Codex r12 M6）：`_ORACLE_BLIND` 是一张**豁免**表，必须防它被滥用 ——
+    #    表里每一条都得**真的**是 oracle 分不开的（被接受时的四元组 == 退 UTC 时的四元组），
+    #    否则就是拿豁免掩盖一条真分歧。判据：该串必须被本实现接受、且 oracle 判它「拒」。
+    for _b in _ORACLE_BLIND:
+        _impl = backend_tz.parse_posix_tz(_b) is not None
+        assert _impl and not _libc_accepts(_b), (
+            f"{_b!r} 不属于「oracle 分不开」那一族（本实现{'收' if _impl else '拒'}、"
+            f"oracle 判{'收' if _libc_accepts(_b) else '拒'}），不该在豁免表里。"
+            "豁免只对「被接受时与退 UTC 行为完全相同」的串成立。"
+        )
     # 验伪锚二：三条已声明收紧必须**都有实例命中**，否则说明对应维度没取到边界值
     assert len(narrowed) >= 2, (
         f"只有 {len(narrowed)} 类已声明收紧被命中：{sorted(narrowed)}。"
@@ -1096,7 +1171,13 @@ def test_accepted_domain_grid_matches_libc(tz_env):
         saved = os.environb.get(b"TZ")
         try:
             os.environb[b"TZ"] = spec.encode("utf-8")
-            time.tzset()
+            try:
+                time.tzset()
+            except RuntimeError:
+                # 同 `_libc_accepts`：本机表示不了这个时区，没有可比的 libc 侧取值。
+                # ⚠️ 这不是「跳过一条分歧」—— 阶段一已经把它按「libc 拒」判过了；
+                #    本实现若接受它，那条误收在阶段一就红了，轮不到这里。
+                continue
             for probe in _GRID_PROBES:
                 points += 1
                 libc_off = probe.astimezone().utcoffset()
@@ -1110,7 +1191,11 @@ def test_accepted_domain_grid_matches_libc(tz_env):
                 os.environb.pop(b"TZ", None)
             else:
                 os.environb[b"TZ"] = saved
-            time.tzset()
+            try:
+                time.tzset()
+            except RuntimeError:
+                os.environb.pop(b"TZ", None)
+                time.tzset()
     assert not bad_points, (
         f"换算对拍失败（{points} 个「串 × 时刻」点，不符 {mismatches} 个）：\n"
         + "\n".join("  " + x for x in bad_points)

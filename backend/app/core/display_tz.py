@@ -91,16 +91,49 @@ from zoneinfo import ZoneInfo
 #:      故第三支 `<[^>0-9+,\-\x00]*` 专门表达「`<` 开头且其后没有 `>`」。
 #:    · **dst 侧**: `<` 开头**必须**闭合, 没有裸名回退。实测 `AAA1<BBB2` / `AAA1<<BBB2`
 #:      / `AAA1<2` 全拒, 而 `AAA1<BBB>2` / `AAA1<>2` 收。故 dst 侧保留 `(?!<)`。
+#: ⛔ **占有量词 `*+` / `++` 是必需的, 不是优化**（Codex r12 H3）: 名字类与偏移类原先
+#:    存在**重叠**（`\d` 匹配 Unicode 数字, 而名字类只排除 ASCII `0-9`）, 加上两个
+#:    可回溯的相邻量词 ⇒ 灾难性回溯。实测 `'A' + '١'*n + '+'`: n=50 → 18 ms、
+#:    n=100 → 270 ms、**n=200 → 4.18 s**（翻倍约 ×16）; ASCII 侧 `'A'*n+'+'` 也呈平方增长。
+#:    两处一起改才治本: ① 偏移与规则里的 `\d` 全部换成 `[0-9]`（消除与名字类的重叠）;
+#:    ② 所有名字 / 数字量词改**占有**（禁止回溯分割同一段字符）。
+#:    ⚠️ 别再用 `'A'*n+'!'` 当性能探针 —— `!` 现在是合法名字字符, 那串会被直接匹配成功,
+#:    量不到失败路径。
+#: ⛔ **名字可以是空的**（Codex r12 M1）: 实测 `TZ=1` 收（std 名空, off −01:00）、
+#:    `+2` 收、`1BBB2` 收、`AAA1+2` 收（**dst 名空** + dst 偏移 `+2`）。故名字量词是
+#:    `*+` 而非 `++`。代价是「有没有 dst」不能再看 `g["dst"] is None` —— 空名会匹配成
+#:    `""`, 判定改在下面用 `_has_dst()`。
+#: ⛔ **dst 名不能以 `:` 开头**（Codex r12 H2）: 偏移之后的 `:` 属于偏移（后面必须跟
+#:    数字）, 实测 `AAA1:` / `AAA1:30:` / `AAA1:BBB2` 全拒, 而 `AAA1BBB:2` 收（dst 名
+#:    `BBB:`）、`AAA1B:BB2` 收。所以 `:` 只在**开头**被禁, 名字中间照收。
+#:    std 名同理禁开头 `:` —— `:AAA1` 实测拒（前导冒号是路径语义）。
+#: ⛔ 但那条禁令**只在偏移还没吃满三段时**成立（r13 扩维度后 323 条误拒逼出来的）:
+#:    偏移最多 `时:分:秒` 三段, 吃满之后再多一个 `:` 就**轮到 dst 名**了 ——
+#:    实测 `ABC1:30:2:30` 收, C 库的 tzname 明确显示 dst 名就是 `:`（`(':','ABC')`）;
+#:    `ABC1:2:3:4:5` 同理。故 dst 名多一支 `(?<=:[0-9])(?=:)`: **前面刚结束一个
+#:    「冒号+数字」且当前位置正是冒号**时, 允许以 `:` 开头。
+#:    ⚠️ 这一支与前一支互斥, 不会让 `AAA1:`（偏移只有一段）重新被接受。
 _POSIX_TZ_RE = re.compile(
-    r"^(?P<std><[^>\x00]*>|(?!<)[^0-9+,\-\x00]+|<[^>0-9+,\-\x00]*)"
-    r"(?P<std_off>[+-]?\d+(?::\d+(?::\d+)?)?)?"
-    r"(?:(?P<dst><[^>\x00]*>|(?!<)[^0-9+,\-\x00]+)"
-    r"(?P<dst_off>[+-]?\d+(?::\d+(?::\d+)?)?)?)?"
-    r"(?:,(?P<start>J?\d+|M\d+\.\d+\.\d+)"
-    r"(?:/(?P<stime>\d+(?::\d+(?::\d+)?)?))?"
-    r",(?P<end>J?\d+|M\d+\.\d+\.\d+)"
-    r"(?:/(?P<etime>\d+(?::\d+(?::\d+)?)?))?)?\Z"
+    r"^(?P<std>(?><[^>\x00]*+>|<(?![^\x00]*+>)[^>0-9+,\-\x00]*+|(?![<:])[^0-9+,\-\x00]*+))"
+    r"(?P<std_off>[+-]?[0-9]++(?::[0-9]++(?::[0-9]++)?)?)?"
+    r"(?:(?P<dst><[^>\x00]*+>|[^0-9+,\-\x00]*+)"
+    r"(?P<dst_off>[+-]?[0-9]++(?::[0-9]++(?::[0-9]++)?)?)?)?"
+    r"(?:,(?P<start>J?[0-9]++|M[0-9]++\.[0-9]++\.[0-9]++)"
+    r"(?:/(?P<stime>[0-9]++(?::[0-9]++(?::[0-9]++)?)?))?"
+    r",(?P<end>J?[0-9]++|M[0-9]++\.[0-9]++\.[0-9]++)"
+    r"(?:/(?P<etime>[0-9]++(?::[0-9]++(?::[0-9]++)?)?))?)?\Z"
 )
+
+
+def _has_dst(g) -> bool:
+    """这个匹配到底有没有 dst 部分。
+
+    ⛔ 不能再写 `g["dst"] is not None`（Codex r12 M1 之后）: 名字量词改成 `*+` 可空,
+    于是 `AAA1` 这种**没有** dst 的串也会把 `dst` 组匹配成 `""`。判据改为「名字非空
+    **或**偏移在场」—— `AAA1+2` 是 dst 名为空但偏移 `+2` 在场的合法形态。
+    """
+    return bool(g["dst"]) or g["dst_off"] is not None
+
 
 #: POSIX 缺省切换时刻 = 当地 02:00:00（规格明文）。⛔ 曾误写成加两分钟: 切换后头两
 #: 分钟的墙钟比 C 库慢一档, 而整点/半点探针一格都踩不到 —— 门必须逐分钟扫切换点。
@@ -108,13 +141,25 @@ _POSIX_DEFAULT_TRANSITION = 2 * 3600
 
 
 def _posix_offset_seconds(text: str) -> int:
-    """POSIX 偏移串 → **UTC 偏移秒**。POSIX 正值=西(EST5 ⇒ UTC-5), 故取负。"""
+    """POSIX 偏移串 → **UTC 偏移秒**。POSIX 正值=西(EST5 ⇒ UTC-5), 故取负。
+
+    ⛔ 每个字段先剥前导零再 `int()`（Codex r12 H4）: Python 3.11+ 对 **>4300 位**的
+    整数字符串转换直接抛 `ValueError: Exceeds the limit`, 而 `AAA` + 4300 个 `0` + `1`
+    是 C 库**接受**的合法串（给 −01:00）—— 不处理的话 `display_tz()` 整个抛出去,
+    模块级启动校验会挂（本卡 r5 在「解析器抛异常」上栽过一次, 不能再栽）。
+    ⚠️ 防线必须在**这里**而不是只在调用方的字段校验里: 本函数在那些检查**之前**
+    就被 `parse_posix_tz` 调用了（r12 第一版把检查放在 ⑤, 照抛不误）。
+    剥零后仍超 10 位的返回一个必定被量级检查拒掉的值, 不在这里抛。
+    """
     sign = -1 if text.startswith("-") else 1
     parts = text.lstrip("+-").split(":")
     secs = 0
     for i, mul in enumerate((3600, 60, 1)):
         if i < len(parts):
-            secs += int(parts[i]) * mul
+            digits = parts[i].lstrip("0") or "0"
+            if len(digits) > 10:
+                return 86400 * 400  # 必被 ⑧ 的 |偏移| < 24h 拒掉
+            secs += int(digits) * mul
     return -sign * secs
 
 
@@ -133,11 +178,16 @@ def _strip_name(name: str) -> str:
 
 
 def _parse_hms(text: str) -> int:
+    """切换时刻串 → 秒。⛔ 与 `_posix_offset_seconds` 同样要防 >4300 位整数转换抛
+    （Codex r12 H4 同族）—— 本函数也在字段校验之前被 `_parse_rule` 调用。"""
     parts = text.split(":")
     secs = 0
     for i, mul in enumerate((3600, 60, 1)):
         if i < len(parts):
-            secs += int(parts[i]) * mul
+            digits = parts[i].lstrip("0") or "0"
+            if len(digits) > 10:
+                return 86400 * 400  # 必被切换时刻 ≤167h 的检查拒掉
+            secs += int(digits) * mul
     return secs
 
 
@@ -146,6 +196,11 @@ def _parse_rule(date_txt: str, time_txt: str | None):
     secs = _POSIX_DEFAULT_TRANSITION
     if time_txt:
         secs = _parse_hms(time_txt)
+    # ⛔ 规则字段的数字同样可能超长（Codex r12 H4 同族）: 先剥前导零再判位数,
+    #    否则 `M` + 4300 位数字 + `.2.0` 会让 `int()` 抛而不是返回 None。
+    _nums = date_txt.lstrip("JM").split(".")
+    if any(len(x.lstrip("0")) > 10 for x in _nums if x.isascii() and x.isdigit()):
+        return None
     if date_txt.startswith("M"):
         mon, week, dow = (int(x) for x in date_txt[1:].split("."))
         if not (1 <= mon <= 12 and 1 <= week <= 5 and 0 <= dow <= 6):
@@ -290,14 +345,25 @@ def parse_posix_tz(spec: str):
         spec.encode("utf-8")
     except UnicodeEncodeError:
         return None
+
     # ⑤ 所有数字字段只收 **ASCII** 数字并逐字段查范围（Codex r9 M5）。Python 的 `\d`
     #    连全角一起匹配, 而 C 库对 `M３.2.0` / `/２` 这类整串拒收（实测退 UTC）。
     #    范围逐条对齐 C 库实测: 切换时刻小时 ≤167（168 拒）、分钟 ≤59（60 拒）、
     #    秒 ≤60（61 拒, 60 接受）; 偏移的小时**不设**上限, 它的取舍见 ⑧。
+    # ⛔ 先剥前导零再看位数（Codex r12 H4）: Python 3.11+ 对 **>4300 位**的整数字符串
+    #    转换直接抛 `ValueError: Exceeds the limit`, 而 `AAA` + 4300 个 `0` + `1` 是
+    #    C 库**接受**的合法串（给 −01:00）—— 不处理的话 `display_tz()` 整个抛出去,
+    #    模块级启动校验会挂（本卡 r5 在「解析器抛异常」上栽过一次, 不能再栽）。
+    #    剥零之后任何合法字段都 ≤3 位; 仍超 10 位的一律拒（远超任何可表示偏移）。
+    def _digits_ok(_d: str) -> bool:
+        return len(_d.lstrip("0")) <= 10
+
     for _txt, _hmax in ((g["std_off"], None), (g["dst_off"], None), (g["stime"], 167), (g["etime"], 167)):
         if not _txt:
             continue
         _f = _txt.lstrip("+-").split(":")
+        if not all(_digits_ok(_x) for _x in _f if _x.isascii() and _x.isdigit()):
+            return None
         if not all(x.isascii() and x.isdigit() for x in _f):
             return None
         if _hmax is not None and int(_f[0]) > _hmax:
@@ -314,6 +380,25 @@ def parse_posix_tz(spec: str):
     #    另外两支（Codex r9 M3）。
     if not g["std_off"]:
         return None
+    # ⑥' dst 名的**首字符**约束。⛔ 这两条本来写在正则里, r13 挪到这里 —— 因为其中
+    #    一条依赖「std 偏移吃了几段」, 而 Python 的后视断言必须**定长**, 表达不了。
+    #    硬塞进正则的那一版放宽过头, 让 `A:1:` 这类串误收 544 条; 判据能表达的形状
+    #    和语言能表达的形状不一致时, 挪到校验层比把正则拧复杂更安全（正则复杂度
+    #    本身就是缺陷来源, 本卡的 H1/H3 都是它的产物）。
+    if g["dst"]:
+        if g["dst"][0] == "<":
+            # dst 侧 `<` 开头**必须**闭合, 没有 std 侧那种「扫不到 `>` 就当裸名」的回退。
+            # 实测 `AAA1<BBB2` / `AAA1<<BBB2` / `AAA1<2` 全拒, `AAA1<BBB>2` / `AAA1<>2` 收。
+            if not g["dst"].endswith(">"):
+                return None
+        elif g["dst"][0] == ":":
+            # 偏移之后的 `:` 属于**偏移**（后面必须跟数字）—— 除非偏移已经吃满
+            # `时:分:秒` 三段, 那时多出来的 `:` 才轮到 dst 名。
+            # 实测: `AAA1:` / `AAA1:30:` / `AAA1:BBB2` 拒（偏移没吃满）;
+            #       `ABC1:30:2:30` 收, C 库的 tzname 显示 dst 名就是 `:`（`(':','ABC')`）;
+            #       `ABC1:2:3:4:5` 同理。
+            if g["std_off"].lstrip("+-").count(":") < 2:
+                return None
     # ⑦ 名字长度: C 库把两个名字**连同各自的 NUL 终止符**存进同一个 512 字节缓冲区
     #    (macOS tzcode 的 `TZ_MAX_CHARS`), 所以这是一条**和式**约束而不是单名上限:
     #      带 dst ⇒ len(std) + len(dst) + 2 ≤ 512; 无 dst ⇒ len(std) + 1 ≤ 512。
@@ -335,7 +420,7 @@ def parse_posix_tz(spec: str):
     #    机械地给空 dst 名也加一个 NUL（511+0+2 = 513）会把它误拒。
     _name_bytes = sum(
         len(_strip_name(_nm).encode("utf-8")) + 1
-        for _nm in (g["std"], g["dst"])
+        for _nm in (g["std"], g["dst"] if _has_dst(g) else None)
         if _nm is not None and _strip_name(_nm)
     )
     if _name_bytes > 512:
@@ -353,19 +438,19 @@ def parse_posix_tz(spec: str):
     _end_rule = _parse_rule(g["end"], g["etime"]) if g["end"] is not None else None
     if (g["start"] is not None and _start_rule is None) or (g["end"] is not None and _end_rule is None):
         return None
-    # ⑩ 无 dst 名**且**无规则 ⇒ 真·无 DST。⛔ 只判 `g["dst"] is None` 是错的（Codex r10 H1）:
+    # ⑩ 无 dst **且**无规则 ⇒ 真·无 DST。⛔ 只判 dst 名缺席是错的（Codex r10 H1）:
     #    C 库对 `AAA-1,M3.2.0,M11.1.0` 这类「无 dst 名但**带合法规则**」的串**照常实行 DST**
     #    —— 规则用 TZ **自带的**那套（实测 `AAA-1,M4.1.0,M10.1.0` 在 3/20 给 +1h、4/20 给 +2h,
     #    与带 dst 名的同规则串逐点相同, 而"整体退 posixrules"那种读法会在 3/20 给 +2h）,
     #    只有 dst **名**借 posixrules 的、dst 偏移取默认 std_off + 3600。
     #    漏掉这一支的后果不是误拒而是**误算**: 夏季整整差一小时 ⇒ 归日可能差一天。
-    if g["dst"] is None and g["start"] is None:
+    if not _has_dst(g) and g["start"] is None:
         return _PosixTZ(spec, _strip_name(g["std"]), std_off, None, None, None, None)
     dst_off = _posix_offset_seconds(g["dst_off"]) if g["dst_off"] else std_off + 3600
     # dst 名: 自带则用自带; 无 dst 名而有规则时借 posixrules 的夏令名（本机实测 "EDT",
     # 与 posixrules ≡ America/New_York 逐字节相同这一事实一致）。
     # ⚠️ 同上: 字面量是历史选择, 模块级常量的同源缺口已由 r10 的 AST 门补上。
-    dst_name = _strip_name(g["dst"]) if g["dst"] is not None else "EDT"
+    dst_name = _strip_name(g["dst"]) if _has_dst(g) else "EDT"
     # dst 侧与两侧之**差**同样要 < 24h —— `AAA12BBB-12` 两侧各自合法而差恰为 24h,
     # `utcoffset()` 算得出但 `dst()` / `timetuple()` 会抛。
     # ⚠️ 差值这一条是**过度拒绝**, 如实声明: C 库接受 `AAA12BBB-12,M3.2.0,M11.1.0`

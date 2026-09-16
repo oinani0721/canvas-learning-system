@@ -1,0 +1,309 @@
+✅ 预检通过: 38 个锚点在各自目标文件均恰好命中 1 次
+
+HEAD = 8333b1a4ee82311d58fe7b3859836d1f11714ea3
+  sha256 b5f429bde8d8f32c4ae0731936764d66df6b68985c95d9482088096640e52a98  scripts/local_tz.py
+  sha256 6bf86f25a3c2cb213c10f6de4981f5f05c9cab0ea2770405bba3abadc1cb289f  backend/app/core/display_tz.py
+  sha256 eae59ecc9fbb364ce6809066e54a3d18eae3d9fe05033efd8d46608a1396d594  backend/app/api/v1/endpoints/review_overview.py
+  sha256 a5f2e06b6dc975445c8b0fdc10e04bffe71c0fa3f76e9d54342ca2eab1fab80f  backend/tests/regression/test_g6_9c_single_tz_source.py
+
+[✅] 候选年下界            RED    (期望RED)  HIGH-1: 季度起始年最早到 y-2, 写成 y-1 会漏掉跨年窗口
+      变异=['CAND']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_dst_window_candidates_cover_rules_that_roll_into_the_following_year
+      | E       AssertionError: [backend] 候选窗漏格·实得 2023-12-31 23:30:00 应为 2024-01-01 00:30:00
+      | E           TZ='AAA1BBB0,365/3,365/2' 在 2024-01-01T00:30:00+00:00
+      | E           2022 是平年 ⇒ start(2022) 的裸 n=365 落到 2023-01-01T04:00Z, end(2023) 落到 2024-01-01T02:00Z ⇒ 该季度横跨整个 2023 年并包住 2024 元旦, 名义起始年是 y-2
+[✅] 候选年守卫            RED    (期望RED)  极端纪元下 _dst_window(0)/(10000) 会抛
+      变异=['YGUARD']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_candidate_year_guard_keeps_extreme_epochs_from_raising
+      | E           ValueError: year must be in 1..9999, not 0
+      | E               AssertionError: [backend] 候选年守卫失效: 0002-07-01T12:00:00+00:00 换算抛 ValueError: year must be in 1..9999, not 0
+      | E                 `_in_dst` 的候选年里有 year∉[1,9999]，`_rule_epoch` 的 `datetime(year, …)` 会抛。
+[✅] 9999南半球          RED    (期望RED)  r9 L1: 南支上界写成 elif year < 9999 会整段丢掉 9999 年季度
+      变异=['S9999']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_southern_season_in_year_9999_is_not_dropped
+      | E           ValueError: year must be in 1..9999, not 10000
+      | E           ValueError: year must be in 1..9999, not 10000
+      | FAILED tests/regression/test_g6_9c_single_tz_source.py::test_southern_season_in_year_9999_is_not_dropped[backend]
+[✅] 省略规则-结束时刻        RED    (期望RED)  HIGH-new: end 必须按 3600+dst_off-std_off 现算, 写死 02:00 只在 Δ=+
+      变异=['ENDRULE']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_omitted_rule_transition_points_track_the_standard_side_offset
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_default_transition_time_matches_libc_minute_by_minute
+      | E           AssertionError: [backend] 省略规则的切换点与 C 库不符: TZ='IST-1GMT0'(夏令时差 -1h) 在 2026-11-01T00:00:00+00:00
+      | E               本实现给 2026-11-01 00:00:00，C 库给 2026-11-01 01:00:00
+      | E               end 的切换时刻要按 `3600 + dst_off − std_off` 现算（C 库钉的是当地**标准**时
+[✅] 省略规则-起始规则        RED    (期望RED)  HIGH-2: dst 有名而规则省略时必须补 posixrules, 不能静默退 UTC
+      变异=['STARTR']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_omitted_transition_rules_use_the_libc_default_instead_of_falling_back_to_utc
+      | E       TypeError: cannot unpack non-iterable NoneType object
+      | E       TypeError: cannot unpack non-iterable NoneType object
+      | E       TypeError: cannot unpack non-iterable NoneType object
+[✅] 正则结尾锚            RED    (期望RED)  Python 的 `$` 在末尾换行**之前**收尾 ⇒ 写 `$` 会把带规则的尾部换行串误收
+      变异=['ENDANCHOR']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-36-backend]
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-36-scripts]
+      | E       AssertionError: [backend] 本实现的接受域变了: parse_posix_tz('AAA-1BBB,M3.2.0,M11.1.0\n'…) 接受了，表称应当拒绝
+      | E           依据: 对照组：**带显式规则**时尾部换行两边都拒。⛔ 这条是 `\Z` 锚的守门样本 —— 正则结尾若写 `$`，Python 的 `$` 在末尾换行**之前**收尾，这串会被误收（删掉那条尾部空白检查后第一次跑对拍，红的就是它）。
+      | E       assert True == False
+[✅] 严格UTF-8          RED    (期望RED)  r5→r6: surrogateescape 只把失败从启动挪到响应出口
+      变异=['ENC']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_display_tz_survives_non_utf8_tz_bytes
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_non_utf8_key_never_reaches_response_on_any_branch
+      | E   UnicodeEncodeError: 'utf-8' codec can't encode character '\udcff' in position 0: surrogates not allowed
+      | E               AssertionError: [backend] display_tz() 在 TZ=b'AAA0<\xff>' 下抛了 UnicodeEncodeError: 'utf-8' codec can't encode character '\udcff' in pos
+      | E                 环境变量里的非法字节被 Python 读成代理对，严格 encode 会对它抛，
+[⛔] ASCII数字          GREEN  (期望RED)  Python \d 连全角一起匹配, C 库拒（探针: 全角在切换时刻分钟字段）
+      变异=['ASCII']  rc=0
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-18-backend]
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-18-scripts]
+      | (无 FAILED/E 行 —— 该段没有可辨认的失败正文)
+      ---- 该段输出尾部 ----
+      
+      app/api/v1/endpoints/metadata.py:177
+        /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t3-review/backend/app/api/v1/endpoints/metadata.py:177: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+          canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+      
+      ../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+        /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+          schema = annotation_get_schema(source, get_inner_schema)
+      
+      -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+      NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+      ======================== 2 passed, 10 warnings in 0.59s ========================
+[✅] 切换时刻小时           RED    (期望RED)  167 接受 / 168 拒
+      变异=['HMAX']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-15-backend]
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-15-scripts]
+      | E       AssertionError: [backend] 本实现的接受域变了: parse_posix_tz('AAA0BBB,M3.2.0/168,M11.1.0'…) 接受了，表称应当拒绝
+      | E           依据: 切换时刻 168 小时：越过 C 库的 167 上界（r9 M5）
+      | E       assert True == False
+[✅] 切换时刻分钟           RED    (期望RED)  分钟 >59 拒
+      变异=['MIN60']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-13-backend]
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-13-scripts]
+      | E       AssertionError: [backend] 本实现的接受域变了: parse_posix_tz('AAA0BBB,M3.2.0/2:60,M11.1.0'…) 接受了，表称应当拒绝
+      | E           依据: 切换时刻分钟 60：C 库拒（r9 M5）
+      | E       assert True == False
+[✅] 切换时刻秒            RED    (期望RED)  秒 60 接受 / 61 拒
+      变异=['SEC60']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-14-backend]
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-14-scripts]
+      | E       AssertionError: [backend] 本实现的接受域变了: parse_posix_tz('AAA0BBB,M3.2.0/2:00:61,M11.1.0'…) 接受了，表称应当拒绝
+      | E           依据: 切换时刻秒 61：C 库拒（60 接受、61 拒，两侧都在表里）
+      | E       assert True == False
+[⛔] 规则ASCII          GREEN  (期望RED)  规则文本里的全角数字（探针: 全角在 start 字段, 数字字段检查看不到它）
+      变异=['RULEA']  rc=0
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-19-backend]
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-19-scripts]
+      | (无 FAILED/E 行 —— 该段没有可辨认的失败正文)
+      ---- 该段输出尾部 ----
+      
+      app/api/v1/endpoints/metadata.py:177
+        /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t3-review/backend/app/api/v1/endpoints/metadata.py:177: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+          canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+      
+      ../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+        /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+          schema = annotation_get_schema(source, get_inner_schema)
+      
+      -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+      NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+      ======================== 2 passed, 10 warnings in 0.60s ========================
+[✅] std偏移必填          RED    (期望RED)  r9 M3: 所有形态都必填
+      变异=['STDREQ']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-10-backend]
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-10-scripts]
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-11-backend]
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-11-scripts]
+      | E       AttributeError: 'NoneType' object has no attribute 'startswith'
+      | E       AttributeError: 'NoneType' object has no attribute 'startswith'
+      | E       AttributeError: 'NoneType' object has no attribute 'startswith'
+[✅] 名字和式512          RED    (期望RED)  退回单名 ≤507 口径 ⇒ 无 dst 形态不查(误收) + 两名各 507 和 1016(误收)
+      变异=['NAMESUM']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-22-backend]
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-22-scripts]
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-23-backend]
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-23-scripts]
+      | E       AssertionError: [backend] 本实现的接受域变了: parse_posix_tz('<AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'…) 接受了，表称应当拒绝
+      | E           依据: 两个名字**各自**都 ≤507 却和 = 1016 > 512：单名上限口径在这条上误收，和式口径才拒
+      | E       assert True == False
+[✅] 名字量纲字节           RED    (期望RED)  中×170 = 510 字节 / 170 字符, 按字符算会误收
+      变异=['NAMECHAR']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-20-backend]
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-20-scripts]
+      | E       AssertionError: [backend] 本实现的接受域变了: parse_posix_tz('AAA0<中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中'…) 接受了，表称应当拒绝
+      | E           依据: 3 + 510 + 2 = 515 > 512：越过和式上界（多字节名字侧）
+      | E       assert True == False
+[✅] 空名占NUL           RED    (期望RED)  空 dst 名不占缓冲区: `<A×511>-1<>,…` 和 = 512 收; 给空名也加 NUL 会误拒
+      变异=['EMPTYNAME']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[accept-33-backend]
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[accept-33-scripts]
+      | E       AssertionError: [backend] 本实现的接受域变了: parse_posix_tz('<AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'…) 拒绝了，表称应当接受
+      | E           依据: 511 + **空** dst 名 = 512：空名**不占**缓冲区、不加 NUL。机械地按 511+0+2=513 算会误拒
+      | E       assert False == True
+[✅] H1无dst名带规则       RED    (期望RED)  r10 H1: 无 dst 名但带合法规则时 C 库照常实行 DST, 早退会误算一小时
+      变异=['H1EARLY']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_grid_matches_libc
+      文本锚 '换算对拍失败': 命中
+      | E       AssertionError: 换算对拍失败（707931 个「串 × 时刻」点，不符 98106 个）：
+      | E           'ABC2,M3.2.0,M11.1.0' @ 03-20: C 库 -1 day, 23:00:00 / 本实现 -1 day, 22:00:00
+      | E           'ABC2,M3.2.0,M11.1.0' @ 07-15: C 库 -1 day, 23:00:00 / 本实现 -1 day, 22:00:00
+[✅] 正则数字位宽           RED    (期望RED)  r10 M2: C 库数字字段无位数上限, `{1,3}` 会把前导零串整片误拒
+      变异=['REWIDTH']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_grid_matches_libc
+      文本锚 '误拒·未声明': 命中
+      | E       AssertionError: 接受域对拍失败（269077 个组合，误收 1938 条，声明外的分歧 21165 条）：
+      | E           [误拒·未声明] 'ABC0001-3'
+      | E           [误拒·未声明] 'ABC0001-3,M3.2.0,M11.1.0'
+[✅] 裸名词法             RED    (期望RED)  r10 M1: 裸名吃到数字为止, `[A-Za-z]{3,}` 会把 `A1` / `ABC<DEF>2` 误拒
+      变异=['BARENAME']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_grid_matches_libc
+      文本锚 '误拒·未声明': 命中
+      | E       AssertionError: 接受域对拍失败（269077 个组合，误收 0 条，声明外的分歧 62985 条）：
+      | E           [误拒·未声明] 'ABC<DEF>2'
+      | E           [误拒·未声明] 'ABC<DEF>2,M3.2.0,M11.1.0'
+[✅] TZ多重冒号           RED    (期望RED)  r10 M4: C 库只剥一个冒号, lstrip 会把 `::Asia/Shanghai` 误认成上海(差 8 小
+      变异=['COLON']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_tz_path_forms_match_libc
+      | E       AssertionError: [backend] TZ='::Asia/Shanghai' 下偏移与 C 库不符: 本实现 8:00:00，C 库 0:00:00
+      | E           形态: **双**冒号：C 库只剥一个，剩下 `:Asia/Shanghai` 当路径打不开 ⇒ UTC
+      | E       assert datetime.timedelta(seconds=28800) == datetime.timedelta(0)
+[✅] TZ绝对路径           RED    (期望RED)  r10 M5: `/usr/share/zoneinfo/...` C 库能解析, 去掉候选会退 UTC
+      变异=['ZIPATH']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_tz_path_forms_match_libc
+      | E       AssertionError: [backend] TZ='/usr/share/zoneinfo/Asia/Shanghai' 下偏移与 C 库不符: 本实现 0:00:00，C 库 8:00:00
+      | E           形态: 绝对路径：C 库直接打开该 tzfile
+      | E       assert datetime.timedelta(0) == datetime.timedelta(seconds=28800)
+[✅] fromutc身份校验      RED    (期望RED)  r10 L7: 缺校验会把 naive / 异 tzinfo 静默当成本时区的 UTC 读数换算
+      变异=['FROMUTC']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_fromutc_rejects_foreign_tzinfo
+      | E           Failed: DID NOT RAISE <class 'ValueError'>
+      | E           Failed: DID NOT RAISE <class 'ValueError'>
+      | FAILED tests/regression/test_g6_9c_single_tz_source.py::test_fromutc_rejects_foreign_tzinfo[backend]
+[✅] 模块级常量同源          RED    (期望RED)  r10 M9: 只改一份副本的正则, 除这道门外**全套都绿**（Codex 实测 199 个参数格全过）
+      变异=['REWIDTH_ONE']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_two_copies_share_identical_module_level_constants
+      | E           AssertionError: 两份副本的模块级常量 _POSIX_TZ_RE 不一致 —— 同源副本漂移了。
+      | E               backend: '_POSIX_TZ_RE = re.compile(\n    r"^(?P<std>(?><[^>\\x00]*+>|<(?![^\\x00]*+>)[^>0-9+,\\-\\x00]*+|(?![<:])[^0-9+,\\-\\x00]*+))
+      | E               scripts: '_POSIX_TZ_RE = re.compile(\n    r"^(?P<std>(?><[^>\\x00]*+>|<(?![^\\x00]*+>)[^>0-9+,\\-\\x00]*+|(?![<:])[^0-9+,\\-\\x00]*+))
+[✅] 引用名内容含尖括号        RED    (期望RED)  r12: 引用名是 `<` 到第一个 `>`, 内容允许 `<`; 写 `[^<>]*` 会误收 1666 条
+      变异=['QUOTEDINNER']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_grid_matches_libc
+      文本锚 '误收': 命中
+      | E       AssertionError: 接受域对拍失败（269077 个组合，误收 2261 条，声明外的分歧 4369 条）：
+      | E           [误拒·未声明] '<AAA<DEF>2'
+      | E           [误拒·未声明] '<AAA<DEF>2,M3.2.0,M11.1.0'
+[✅] 尖括号裸名回退          RED    (期望RED)  r11 M1: std 侧 `<` 开头扫不到 `>` 时 C 库当裸名收（`<AAA1`）, 去掉这一支会误拒
+      变异=['ANGLEFALLBACK']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_grid_matches_libc
+      文本锚 '误拒·未声明': 命中
+      | E       AssertionError: 接受域对拍失败（269077 个组合，误收 0 条，声明外的分歧 13430 条）：
+      | E           [误拒·未声明] '<AAA2'
+      | E           [误拒·未声明] '<AAA2,M3.2.0,M11.1.0'
+[✅] 名字数字集ASCII       RED    (期望RED)  r11 M2: `\d` 连非 ASCII 数字一起吃 ⇒ `ABC١1` / `ABC１1` 被误拒
+      变异=['UNIDIGIT']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_grid_matches_libc
+      文本锚 '误拒·未声明': 命中
+      | E       AssertionError: 接受域对拍失败（269077 个组合，误收 0 条，声明外的分歧 13770 条）：
+      | E           [误拒·未声明] 'ABC١2'
+      | E           [误拒·未声明] 'ABC١2,M3.2.0,M11.1.0'
+[✅] 路径必须存在           RED    (期望RED)  r11 H1: 不验文件存在 ⇒ `/does-not-exist/zoneinfo/Asia/Shanghai` 
+      变异=['PATHEXIST']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_tz_path_forms_match_libc
+      | E       AssertionError: [backend] TZ='/does-not-exist/zoneinfo/Asia/Shanghai' 下偏移与 C 库不符: 本实现 8:00:00，C 库 0:00:00
+      | E           形态: 路径里有 `zoneinfo` 段但**文件不存在** ⇒ C 库给 UTC
+      | E       assert datetime.timedelta(seconds=28800) == datetime.timedelta(0)
+[⛔] 冒号禁POSIX回退       GREEN  (期望RED)  r11 H2: `:AAA-1` C 库给 UTC, 退 POSIX 会把它当合法规格串收下
+      变异=['COLONPOSIX']  rc=0
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_tz_path_forms_match_libc
+      | (无 FAILED/E 行 —— 该段没有可辨认的失败正文)
+      ---- 该段输出尾部 ----
+      
+      app/api/v1/endpoints/metadata.py:177
+        /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t3-review/backend/app/api/v1/endpoints/metadata.py:177: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+          canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+      
+      ../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+        /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+          schema = annotation_get_schema(source, get_inner_schema)
+      
+      -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+      NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+      ======================= 34 passed, 10 warnings in 0.51s ========================
+[✅] strip_name闭合判定   RED    (期望RED)  r11 M1: 只判 startswith 会把 `<AAA1` 剥成 `AA` ⇒ 名字长度少算两字节
+      变异=['STRIPNAME']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_grid_matches_libc
+      文本锚 '误收': 命中
+      | E       AssertionError: 接受域对拍失败（269077 个组合，误收 1054 条，声明外的分歧 1054 条）：
+      | E           [误收] '<AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
+      | E           [误收] '<AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
+[✅] fromutc类型校验      RED    (期望RED)  r11 L5: 非 datetime 参数应抛 TypeError（stdlib 口径）, 缺了会撞成 Attrib
+      变异=['FROMUTCTYPE']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_fromutc_rejects_foreign_tzinfo
+      | E       AttributeError: 'NoneType' object has no attribute 'tzinfo'
+      | E       AttributeError: 'NoneType' object has no attribute 'tzinfo'
+      | FAILED tests/regression/test_g6_9c_single_tz_source.py::test_fromutc_rejects_foreign_tzinfo[backend]
+[✅] std偏移量级          RED    (期望RED)  |std_off| < 24h 的 Python 可表示性收紧
+      变异=['STDMAG']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_offset_domain_is_checked_on_every_branch_not_only_omitted_rules
+      | E       AssertionError: [backend] 显式规则分支未校验偏移取值域: parse_posix_tz('AAA24BBB,M3.2.0,M11.1.0') 返回 <app.core.display_tz._PosixTZ object at 0x13af02620>
+      | E           std 侧 −24h 不可表示（⚠️ C 库**接受**它并给 −24h；抛的是 Python）
+      | E           整串属性与偏移范围的校验要放在两个分支的**共用**位置，不能只写在省略规则那一支里。
+[✅] 规则可解析            RED    (期望RED)  r9 M4: 无 dst 形态也要验规则
+      变异=['RULEOK']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-12-backend]
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-12-scripts]
+      | E       AssertionError: [backend] 本实现的接受域变了: parse_posix_tz('AAA-1,J0,J0'…) 接受了，表称应当拒绝
+      | E           依据: 非法规则 J0：C 库拒，**无 dst 形态也要验规则**（r9 M4）
+      | E       assert True == False
+[✅] dst偏移量级          RED    (期望RED)  省略规则分支不得放宽偏移域
+      变异=['DSTMAG']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_omitted_rule_branch_does_not_widen_the_accepted_offset_domain
+      | E       AssertionError: [backend] 省略规则分支扩大了错误接受面: parse_posix_tz('AAA0BBB24') 返回 <app.core.display_tz._PosixTZ object at 0x135a61a20>，应为 None
+      | E           dst 侧 −24h 不可表示（std=0 合法）
+      | E           补默认规则前必须先校验两侧偏移（分钟 >59 拒、|偏移| ≥24h 拒），否则这条修复
+[✅] tzname口径         RED    (期望RED)  r9 L2: 偏移相等不等于处在 DST 里
+      变异=['TZNAME']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_tzname_uses_dst_membership_not_offset_equality
+      | E       AssertionError: [backend] 冬季 tzname 应为 std 名 'AAA'，实得 'BBB' —— 偏移相等时不能用「偏移 == dst_off」判身份。
+      | E       assert 'BBB' == 'AAA'
+      | E         
+[✅] J规则闰日-J60        RED    (期望RED)  J60 在闰年从 3/1 提前到 2/29: 只杀 2024-02-29 那格
+      变异=['J60']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_posix_tz_string_resolves_to_process_local_not_etc_localtime
+      文本锚 'AAA5BBB,J60/2,J300/2': 命中
+      | E           AssertionError: [backend] TZ='AAA5BBB,J60/2,J300/2' 在 2024-02-29T12:00:00+00:00 上墙钟与 C 库不一致：
+      | E               display_tz() 给 2024-02-29 08:00:00（resolved=<app.core.display_tz._PosixTZ object at 0x135fd1a80>）
+      | E               C 库逐时刻给 2024-02-29 07:00:00
+[✅] J规则闰日-J365       RED    (期望RED)  J365 在闰年终点提前一天: 只杀 2024-12-31 那格
+      变异=['J365']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_posix_tz_string_resolves_to_process_local_not_etc_localtime
+      文本锚 'WART4WARST,J1/0,J365/25': 命中
+      | E           AssertionError: [backend] TZ='WART4WARST,J1/0,J365/25' 在 2024-12-31T12:00:00+00:00 上墙钟与 C 库不一致：
+      | E               display_tz() 给 2024-12-31 08:00:00（resolved=<app.core.display_tz._PosixTZ object at 0x134419c60>）
+      | E               C 库逐时刻给 2024-12-31 09:00:00
+[✅] NUL引用名内          RED    (期望RED)  NUL 排除现在在**正则的名字字符类**里（r12 起, 独立的 ③ 检查已删——七种位置全由正则拒）
+      变异=['NUL']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_omitted_rule_branch_does_not_widen_the_accepted_offset_domain
+      文本锚 "parse_posix_tz('AAA0<B\\x00BB>')": 命中
+      | E       AssertionError: [backend] 省略规则分支扩大了错误接受面: parse_posix_tz('AAA0<B\x00BB>') 返回 <app.core.display_tz._PosixTZ object at 0x136021de0>，应为 None
+      | E           引用名内含 NUL：走 JSON 自报值这条路进来，BASE 拒而补规则后会放行
+      | E           补默认规则前必须先校验两侧偏移（分钟 >59 拒、|偏移| ≥24h 拒），否则这条修复
+[✅] HIGH-3归桶         RED    (期望RED)  display_tz 缺席时不得静默用 generated_at 的固定偏移重算归桶
+      变异=['HIGH2']  rc=1
+      nodeid: tests/regression/test_g6_9c_single_tz_source.py::test_bucket_gate_rejects_wrong_buckets_even_when_display_tz_is_absent
+      | E           AssertionError: 固定偏移回退误放行·桶 due_today（display_tz missing）
+      | E             fsrs_due=2026-03-09T04:30:00Z 在生产者时区(America/New_York)是 03-09 00:30 EDT,
+      | E             与 generated_at=2026-03-08T00:30:00-05:00 的本地日 03-08 **不是同一天** ⇒ 它属 future;
+
+✅ local_tz.py           
+     跑前 b5f429bde8d8f32c4ae0731936764d66df6b68985c95d9482088096640e52a98
+     跑后 b5f429bde8d8f32c4ae0731936764d66df6b68985c95d9482088096640e52a98
+✅ display_tz.py         
+     跑前 6bf86f25a3c2cb213c10f6de4981f5f05c9cab0ea2770405bba3abadc1cb289f
+     跑后 6bf86f25a3c2cb213c10f6de4981f5f05c9cab0ea2770405bba3abadc1cb289f
+✅ review_overview.py    
+     跑前 eae59ecc9fbb364ce6809066e54a3d18eae3d9fe05033efd8d46608a1396d594
+     跑后 eae59ecc9fbb364ce6809066e54a3d18eae3d9fe05033efd8d46608a1396d594
+
+段数 38 期望RED + 0 期望GREEN, 不合判据 3
+rc=1

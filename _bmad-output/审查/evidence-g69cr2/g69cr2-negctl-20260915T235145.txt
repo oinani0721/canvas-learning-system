@@ -1,0 +1,33 @@
+✅ 预检通过: 24 个锚点在各自目标文件均恰好命中 1 次
+
+[✅] 候选年下界            RED    (期望RED)  HIGH-1: 季度起始年最早到 y-2, 写成 y-1 会漏掉跨年窗口
+[✅] 候选年守卫            RED    (期望RED)  极端纪元下 _dst_window(0)/(10000) 会抛
+[✅] 9999南半球          RED    (期望RED)  r9 L1: 南支上界写成 elif year < 9999 会整段丢掉 9999 年季度
+[✅] 省略规则-结束时刻        RED    (期望RED)  HIGH-new: end 必须按 3600+dst_off-std_off 现算, 写死 02:00 只在 Δ=+
+[✅] 省略规则-起始规则        RED    (期望RED)  HIGH-2: dst 有名而规则省略时必须补 posixrules, 不能静默退 UTC
+[✅] 尾部换行             RED    (期望RED)  正则 $ 放过尾部换行, 需显式拒
+[✅] 严格UTF-8          RED    (期望RED)  r5→r6: surrogateescape 只把失败从启动挪到响应出口
+[✅] ASCII数字          RED    (期望RED)  Python \d 连全角一起匹配, C 库拒
+[✅] 切换时刻小时           RED    (期望RED)  167 接受 / 168 拒
+[✅] 切换时刻分钟           RED    (期望RED)  分钟 >59 拒
+[✅] 切换时刻秒            RED    (期望RED)  秒 60 接受 / 61 拒
+[✅] 规则ASCII          RED    (期望RED)  规则文本里的全角数字
+[✅] std偏移必填          RED    (期望RED)  r9 M3: 所有形态都必填
+[✅] 名字和式512          RED    (期望RED)  退回单名 ≤507 口径 ⇒ 无 dst 形态不查(误收) + 两名各 507 和 1016(误收)
+[✅] 名字量纲字节           RED    (期望RED)  中×170 = 510 字节 / 170 字符, 按字符算会误收
+[✅] std偏移量级          RED    (期望RED)  |std_off| < 24h 的 Python 可表示性收紧
+[✅] 规则可解析            RED    (期望RED)  r9 M4: 无 dst 形态也要验规则
+[✅] dst偏移量级          RED    (期望RED)  省略规则分支不得放宽偏移域
+[✅] tzname口径         RED    (期望RED)  r9 L2: 偏移相等不等于处在 DST 里
+[✅] J规则闰日-J60        RED    (期望RED)  J60 在闰年从 3/1 提前到 2/29: 只杀 2024-02-29 那格
+[✅] J规则闰日-J365       RED    (期望RED)  J365 在闰年终点提前一天: 只杀 2024-12-31 那格
+[✅] HIGH-3归桶         RED    (期望RED)  display_tz 缺席时不得静默用 generated_at 的固定偏移重算归桶
+[✅] NUL死分支           GREEN  (期望GREEN)  实测 AAA-1\x00 与 AAA-1\x00BBB 两种位置都由**正则**先拒 ⇒ 这条永不执行。它绿不是假绿
+[✅] ReDoS上限          GREEN  (期望GREEN)  1024 是**性能**防线不是正确性防线: 去掉它接受域一字不变, 只是 4000 字符的坏串从 0.000s 退
+
+✅ local_tz.py            sha256 跑前=505cba667affd0e7 跑后=505cba667affd0e7
+✅ display_tz.py          sha256 跑前=19a24daceeb362de 跑后=19a24daceeb362de
+✅ review_overview.py     sha256 跑前=7fe02df53464ecbe 跑后=7fe02df53464ecbe
+
+段数 22 期望RED + 2 期望GREEN, 不合判据 0
+rc=0
