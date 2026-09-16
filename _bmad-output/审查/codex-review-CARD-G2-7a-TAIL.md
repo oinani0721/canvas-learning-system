@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-11-第十四批 · 车道 T7 skills-writer · 卡 CARD-G2-7a-TAIL round-1
+> 模型: `gpt-6-astra` · reasoning_effort: `ultra` · codex: `codex-cli 0.153.3`
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat _bmad-output/审查/prompts/codex-prompt-CARD-G2-7a-TAIL.md)"`
+> 审查绑定: `b3baf7d967692db0b172f5ebb4de9e4ae6357923`（该轮跑完时 HEAD 与之相同；本轮 MEDIUM 整改后 HEAD 前进到 `1946e40d`，故需 round-2 重绑）
+> 会话头自证（抄 .stderr 中含 codex 版本 / `model:` / `reasoning effort:` 的三行，括注行号；stderr 本身不入库）:
+> `:2 OpenAI Codex v0.153.3` / `:5 model: gpt-6-astra` / `:9 reasoning effort: ultra`
+
+---
+
 审查绑定 `b3baf7d967692db0b172f5ebb4de9e4ae6357923`。**hotkeys 无写端 FIFO 主修成立，发现一项新增 MEDIUM。**以下计数针对本卡新增问题，既有缺口另作说明。
 
 - **BLOCKER：无。**
