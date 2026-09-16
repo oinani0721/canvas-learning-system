@@ -35,4 +35,12 @@ pyright OK: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktr
     产物的判据不能拿「工作树须 0」当标注，应写成
     「须 ≤1 且那 1 项必须是本判据自己创建的 evidence 目录」。
 
+⛔ **二次更正（Codex r1 MEDIUM-2 / r2 MEDIUM-5，本卡接受）**：上面那段解释是**事后重建的**，
+不是当时的证据。**空目录本身不会被 git 计入脏项**，所以「仅仅 mkdir 了 evidence 目录」
+并不自动成立，也排除不了当时还有别的脏项。
+
+⇒ 本存档「工作树干净」这一项正式记为 **未证实（PARTIAL），不追认**。
+详见验收单 §六.9 与 `RESPONSE-codex-r1-20260916.md` MEDIUM-2。
+单读本文件上半段会得出「干净成立」的结论 —— 那个结论**已被撤销**。
+
 本存档其余五项（pwd / 分支 / PREV / venv+env / pyright 0 errors / 基线 64）不受影响。

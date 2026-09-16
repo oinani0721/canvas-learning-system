@@ -1,0 +1,52 @@
+### [FINAL-R3] guard 形态覆盖 —— 探针自校验预期（修 Codex r2 LOW-1）
+### 方法：import 入库的真 helper，只在内存替换 inspect.getsource 输入。
+### ⚠️ 每一格都写死预期（PASS/RED）并由探针自己断言；不再靠末尾一句人工期望。
+### 探针的退出码反映预期是否全部兑现。
+
+  [✓] 01 真实生产源码（字面量 13 项）
+        期望=PASS 实测=PASS  取到 13 项；与 mock 逐元素相等 = True
+  [✓] 02 带类型注解（无害）
+        期望=PASS 实测=PASS  取到 2 项
+  [✓] 03 嵌套函数内同名局部变量（应取外层）
+        期望=PASS 实测=PASS  取到 2 项
+  [✓] 04 绑定后 += [...]（r1 报）
+        期望=RED 实测=RED  生产在绑定 expected_templates 之后对它做了写入（AugAssign，源码第 3 行，行号相对 health_ch
+  [✓] 05 绑定后 [0] = 'x'（r1 报）
+        期望=RED 实测=RED  生产在绑定 expected_templates 之后对它做了写入（Assign，源码第 3 行，行号相对 health_check
+  [✓] 06 绑定后 [0] += '-x'（r2 报）
+        期望=RED 实测=RED  生产在绑定 expected_templates 之后对它做了写入（AugAssign，源码第 3 行，行号相对 health_ch
+  [✓] 07 del a[0], b[0]（r2 报，多 target）
+        期望=RED 实测=RED  生产在绑定 expected_templates 之后对它做了写入（Delete，源码第 4 行，行号相对 health_check
+  [✓] 08 a[0] = b[0] = 'x'（r2 报，多 target）
+        期望=RED 实测=RED  生产在绑定 expected_templates 之后对它做了写入（Assign，源码第 4 行，行号相对 health_check
+  [✓] 09 元组解包写下标 a[0], b[0] = x, y
+        期望=RED 实测=RED  生产在绑定 expected_templates 之后对它做了写入（Assign，源码第 4 行，行号相对 health_check
+  [✓] 10 .append
+        期望=RED 实测=RED  生产在绑定 expected_templates 之后对它做了写入（Call，源码第 3 行，行号相对 health_check 起
+  [✓] 11 .remove
+        期望=RED 实测=RED  生产在绑定 expected_templates 之后对它做了写入（Call，源码第 3 行，行号相对 health_check 起
+  [✓] 12 .sort
+        期望=RED 实测=RED  生产在绑定 expected_templates 之后对它做了写入（Call，源码第 3 行，行号相对 health_check 起
+  [✓] 13 for 循环里重绑该名
+        期望=RED 实测=RED  生产在绑定 expected_templates 之后对它做了写入（For，源码第 3 行，行号相对 health_check 起始
+  [✓] 14 walrus 重绑
+        期望=RED 实测=RED  生产在绑定 expected_templates 之后对它做了写入（NamedExpr，源码第 3 行，行号相对 health_ch
+  [✓] 15 改从常量读
+        期望=RED 实测=RED  生产的 expected_templates 不再是字面量列表，本 guard 的取值方式已失效——请连同本函数一起改，不要放宽断言
+  [✓] 16 列表推导
+        期望=RED 实测=RED  生产的 expected_templates 不再是字面量列表，本 guard 的取值方式已失效——请连同本函数一起改，不要放宽断言
+  [✓] 17 两处顶层绑定
+        期望=RED 实测=RED  在 AgentService.health_check 自己的作用域里找到 2 处 expected_templates 绑定，期望
+  [✓] 18 变量改名（找不到绑定）
+        期望=RED 实测=RED  在 AgentService.health_check 自己的作用域里找到 0 处 expected_templates 绑定，期望
+  [✓] 19 纯声明无右值
+        期望=RED 实测=RED  在 AgentService.health_check 自己的作用域里找到 0 处 expected_templates 绑定，期望
+
+预期不符的格数 = 0
+probe_rc=0   （0 = 19 格预期全部兑现）
+
+--- 正跑整文件 ---
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================= 13 passed, 10 warnings in 0.60s ========================
+pytest_rc=0
+rc=0

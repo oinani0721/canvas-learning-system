@@ -469,43 +469,84 @@ def _own_statements(node):
         yield from _own_statements(child)
 
 
-def _assert_not_mutated_after_binding(statements, name: str) -> None:
-    """确认名单在绑定之后没有被就地改动过。
+def _root_name(node):
+    """把 ``a[0][1].x`` / ``*a`` 这类写目标剥到最外层的根 ``Name``；不以 Name 为根则返回 None。"""
+    while isinstance(node, (ast.Subscript, ast.Attribute, ast.Starred)):
+        node = node.value
+    return node if isinstance(node, ast.Name) else None
 
-    本 guard 读的是**赋值处的字面量**。只要生产在赋值之后做了
+
+def _iter_write_targets(node):
+    """产出该语句里**所有**被写入 / 删除的目标（已展开 Tuple / List 解包）。
+
+    ⚠️ 必须逐个产出、不能只看第一个或最后一个：``del a[0], b[0]`` 与
+    ``a[0] = b[0] = x`` 都带**多个** target，只取其中之一会漏掉另一个
+    （Codex r2 MEDIUM-1 的两个反例正是这样漏过去的）。
+    """
+    raw = []
+    if isinstance(node, ast.AugAssign):
+        raw = [node.target]
+    elif isinstance(node, ast.Assign):
+        raw = list(node.targets)
+    elif isinstance(node, ast.AnnAssign):
+        raw = [node.target]
+    elif isinstance(node, ast.Delete):
+        raw = list(node.targets)
+    elif isinstance(node, (ast.For, ast.AsyncFor)):
+        raw = [node.target]
+    elif isinstance(node, ast.NamedExpr):
+        raw = [node.target]
+    elif isinstance(node, ast.Call):
+        func = node.func
+        if isinstance(func, ast.Attribute) and func.attr in _LIST_MUTATORS:
+            raw = [func.value]
+
+    while raw:
+        target = raw.pop()
+        if isinstance(target, (ast.Tuple, ast.List)):
+            raw.extend(target.elts)
+        else:
+            yield target
+
+
+def _assert_not_mutated_after_binding(statements, name: str) -> None:
+    """确认名单在绑定之后没有被写过。
+
+    本 guard 读的是**绑定处的字面量**。只要生产在绑定之后做了
     ``expected_templates += [...]`` / ``expected_templates[0] = "x"`` /
-    ``expected_templates.append("x")`` 之类的就地修改，字面量就不再等于运行时的
-    名单 —— 那时 guard 会拿着一份过期名单和 mock 比对**并且通过**，
-    这正是「门未覆盖的路径」：名单实际漂了，门却是绿的。
+    ``expected_templates[0] += "-x"`` / ``del expected_templates[0], other[0]`` /
+    ``expected_templates.append("x")`` 之类的写入，字面量就不再等于运行时的名单 ——
+    那时 guard 会拿着一份过期名单和 mock 比对**并且通过**，这正是「门未覆盖的路径」：
+    名单实际漂了，门却是绿的。
 
     所以这里不去猜改动后的值，而是**直接判定取值前提已失效并报红**。
+
+    ⚠️ 两个曾经漏掉的形态（Codex r2 MEDIUM-1，已修）：
+      * ``AugAssign`` 的 target 可以是 ``Subscript``（``a[0] += "x"``），
+        只认裸 ``Name`` 会漏；现在统一 ``_root_name()`` 剥到根再比。
+      * ``Assign`` / ``Delete`` 可以有**多个** target（``a[0] = b[0] = x``、
+        ``del a[0], b[0]``），逐个产出而不是只留最后一个。
+
+    ⚠️ 覆盖边界（如实声明）：本函数只认「语法上直接写到这个名字上」的形态。
+    通过别名写入（``alias = expected_templates`` 之后改 ``alias``）、
+    把它传进函数由被调方改、或用 ``locals()`` / ``setattr`` 等动态手段改，
+    本函数**看不见** —— 那需要别名分析，不在本 guard 的能力范围内。
     """
     for node in statements:
-        target = None
-        if isinstance(node, ast.AugAssign):
-            target = node.target
-        elif isinstance(node, (ast.Assign, ast.AnnAssign)):
-            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
-            for tgt in targets:
-                if isinstance(tgt, ast.Subscript) and isinstance(tgt.value, ast.Name):
-                    target = tgt.value
-        elif isinstance(node, ast.Delete):
-            for tgt in node.targets:
-                if isinstance(tgt, ast.Subscript) and isinstance(tgt.value, ast.Name):
-                    target = tgt.value
-        elif isinstance(node, ast.Call):
-            func = node.func
-            if isinstance(func, ast.Attribute) and func.attr in _LIST_MUTATORS and isinstance(func.value, ast.Name):
-                target = func.value
-
-        if isinstance(target, ast.Name) and target.id == name:
-            raise AssertionError(
-                f"生产在绑定 {name} 之后对它做了就地修改（{type(node).__name__}，"
-                f"源码第 {getattr(node, 'lineno', '?')} 行，行号相对 health_check 起始）。"
-                "本 guard 读的是赋值处的字面量，就地修改会让它与运行时名单分叉、"
-                "却仍然比对通过 —— 门会在名单真漂了的时候保持绿。"
-                "请改为在运行时取真实名单，或连同本 guard 一起改，不要放宽断言"
-            )
+        for target in _iter_write_targets(node):
+            # 裸 Name 的再绑定不算「就地写入」：那种情形由上面的
+            # 「恰好 1 处绑定」断言（FOUND-N）覆盖，不必在这里重复报。
+            if isinstance(target, ast.Name) and isinstance(node, (ast.Assign, ast.AnnAssign)):
+                continue
+            root = _root_name(target)
+            if root is not None and root.id == name:
+                raise AssertionError(
+                    f"生产在绑定 {name} 之后对它做了写入（{type(node).__name__}，"
+                    f"源码第 {getattr(node, 'lineno', '?')} 行，行号相对 health_check 起始）。"
+                    "本 guard 读的是绑定处的字面量，之后的写入会让它与运行时名单分叉、"
+                    "却仍然比对通过 —— 门会在名单真漂了的时候保持绿。"
+                    "请改为在运行时取真实名单，或连同本 guard 一起改，不要放宽断言"
+                )
 
 
 def _production_expected_templates() -> list[str]:
@@ -582,8 +623,17 @@ def test_mock_expected_templates_match_production_truth_source():
     手抄名单。生产在 ``agent_service.py`` 加了第 13 项 ``hint-generation`` 之后，
     本文件的 AC1 断言仍写 ``total == 12`` 且照常通过——测试绿着，而它声称在测
     的那个数字已经和生产对不上了。只把 12 改成 13 治不了这个：下一次生产加第
-    14 项时同样不会有人红。这条 guard 把 mock 钉在生产字面量上，生产
-    增 / 删 / 改名 / 换序 任一发生都会在这里红。
+    14 项时同样不会有人红。这条 guard 把 mock 钉在生产**绑定处声明的**字面量上。
+
+    ⚠️ 覆盖声明（按 Codex r1 LOW-1 / r2 LOW-2 收窄，原先那句「增/删/改名/换序
+    任一发生都会在这里红」过强，已撤回）：
+      * 生产**在绑定处**增 / 删 / 改名 / 换序 → 这里红（逐元素比较，等长改名也抓得到）；
+      * 生产改成非字面量形态（常量 / 文件 / 推导）、出现多处绑定、变量改名 →
+        ``_production_expected_templates()`` 的断言红；
+      * 生产在绑定**之后**写这个名字（``+=`` / 下标赋值 / ``del`` / 八个 list 变更方法）→
+        ``_assert_not_mutated_after_binding()`` 红；
+      * ⛔ **看不见**的：通过别名写入、传进函数由被调方改、``locals()``/``setattr``
+        之类的动态改动 —— 那需要别名分析，不在本 guard 能力范围内。
 
     [CARD-RED-HYGIENE] 真相源锚点 = AgentService.health_check 的 expected_templates
     """
