@@ -18,15 +18,25 @@
   1. **实例化层**（本文件 `TestConstructionLayerRaises`）：真
      `_VaultScopedCardStates.from_persisted` 在两条抛出点上真抛，断言消息
      携带 `CARD-G3-5` 前缀与迁移脚本指引。零 mock —— 被测函数是真的。
-  2. **HTTP 层**（本文件 `TestHttpLayerMasksMessage`）：真
-     `register_exception_handlers` 注册的真 `generic_exception_handler`，
-     断言 500 响应体**屏蔽**了 CARD-G3-5 原文。零 mock —— 处理器是真的；
-     唯一被替换的是 `bug_tracker` 的**落盘路径**（见该类 docstring），
-     行为本身未被替换。
+  2. **HTTP 层**（本文件 `TestHttpLayerMasksMessage`，**两条用例分测两个栈
+     形态**）：都用真处理器 / 真中间件，无替身。
+       - 只挂 `register_exception_handlers` ⇒ 消息被屏蔽（handler 契约）；
+       - 加挂生产的真 `CORSExceptionMiddleware` ⇒ **消息原文进 500 响应体**。
+     后者才是当前生产表征 —— 生产**从未调用** `register_exception_handlers`
+     （运行时自证见该类 docstring）。两条断言方向相反且都成立，差别只在
+     中间件挂没挂。
   3. **工厂中段**（`get_review_service` 先建 memory / canvas / graphiti 依赖
      再到 `:2996`）：**本文件不覆盖** —— 真工厂会连 Neo4j / LanceDB，本卡
-     硬边界禁连。该段由评估文档以只读 grep 证据覆盖，并在验收单
+     硬边界禁连。该段由评估文档以只读证据覆盖，并在验收单
      「本卡未证明什么」如实登记。
+
+**本文件替换了哪些真实现（如实全列，Codex r1 C 项整改）**：
+  - `app.core.subject_config.get_current_subject_id` / `default_vault_group_id`
+    —— 由 `_unresolved_vault_scope` 替换，目的是**制造**作用域解析失败这个
+    被测前置条件（不是绕过被测逻辑）；两者在 `finally` 里显式还原。
+  - `app.core.exception_handlers.bug_tracker` —— 只换**落盘路径**（指向 pytest
+    临时目录），`log_error` 行为一行未改。
+  除这三处外，被测链上的函数、处理器、中间件全是真实现。
 
 **为什么不调 `get_review_service()`**：它在实例化 ReviewService **之前**先
 `await get_memory_service()` / `CanvasService(...)` / `get_graphiti_temporal_client()`，
@@ -157,12 +167,27 @@ class TestConstructionLayerRaises:
         assert "migrate_fsrs_card_states_vault_key_g35.py" in message
 
     def test_no_legacy_does_not_raise(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """负控（验伪锚，承重）：无 legacy 裸键时**不抛**，且数据原样载入。
+        """负控（对照输入）：无 legacy 裸键时**不抛**，且数据原样载入。
 
         跑在与 `test_unresolved_scope_raise_carries_card_g3_5` **完全相同**的
-        unresolved 环境里 —— 这是本条的全部承重之处：它证明上面那条的抛出是
-        「legacy 存在 + 归不掉」触发的，不是「作用域解析不出来就无条件抛」。
-        若哪天有人把 fail-fast 改成无条件抛（或把断言误写成无条件），本条必红。
+        unresolved 环境里：它证明上面那条的抛出是「legacy 存在 + 归不掉」
+        触发的，不是「作用域一解析不出来就抛」。
+
+        ⚠️ **覆盖面如实（Codex r1 MEDIUM-2 整改，初稿措辞过强）**：
+        初稿写「若有人把 fail-fast 改成无条件抛，本条必红」——**不成立**。
+        纯嵌套输入在 `review_service.py:561` 的 `if not legacy: return cls(buckets)`
+        就已返回，**根本到不了** `:565` 的作用域判定。Codex 以内存 AST 变异
+        实测：把 `:565` 的 `if vault_id is None:` 改成 `if True:`，本条仍然通过。
+
+        所以本条真正能检出的是：**在 `from_persisted` 入口处或 legacy 分支
+        之前**新增的无条件抛出。它**不覆盖** legacy 分支内部判定被改成恒真
+        的那一类变异。那一类由谁接住（逐条列，不留空白）：
+          - `:565` 判定恒真 → 被本文件
+            `test_clobbered_legacy_raise_carries_card_g3_5` 接住（该用例的
+            作用域可解析，走的是 `:593` 同名分支，消息内容不同）；
+          - `:589` 判定恒真 → 被既有同族
+            `test_g3_5_vault_keyed_card_states.py::test_non_conflicting_legacy_is_adopted_normally`
+            正控接住（有效作用域 + 不冲突 legacy 必须正常归桶）。
 
         不只断言「没抛」，还断言 `to_nested()` 原样回来 —— 「没抛但静默丢了
         数据」和「没抛且正常载入」是两回事，只断言前者会放过静默丢数据。
@@ -181,8 +206,17 @@ class TestConstructionLayerRaises:
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-def _build_probe_app(monkeypatch: pytest.MonkeyPatch, tmp_path: Any, raised: List[BaseException]) -> Any:
+def _build_probe_app(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Any,
+    raised: List[BaseException],
+    *,
+    with_production_middleware: bool = False,
+) -> Any:
     """最小 app：真异常处理器 + 一条会抛的 probe 路由 + 一条存活路由。
+
+    `with_production_middleware=True` 时额外挂上生产那条
+    `CORSExceptionMiddleware`，用来对照「生产栈实际返回什么」。
 
     **落盘重定向（不是行为替换）**：`generic_exception_handler` 会真调
     `bug_tracker.log_error(...)` 写 JSONL，而 `app.core.bug_tracker.bug_tracker`
@@ -208,6 +242,13 @@ def _build_probe_app(monkeypatch: pytest.MonkeyPatch, tmp_path: Any, raised: Lis
 
     app = FastAPI()
     exception_handlers.register_exception_handlers(app)
+    if with_production_middleware:
+        # 复刻 main.py:757 的注册。⚠️ 它是**最外层** user middleware
+        # （最后 add 的最先执行），会先于 starlette 的 ServerErrorMiddleware
+        # 接住异常 —— 也就是先于 generic_exception_handler。
+        from app.main import CORSExceptionMiddleware
+
+        app.add_middleware(CORSExceptionMiddleware)
 
     @app.get("/_u9c_probe")
     def _probe() -> Dict[str, Any]:
@@ -226,25 +267,49 @@ def _build_probe_app(monkeypatch: pytest.MonkeyPatch, tmp_path: Any, raised: Lis
 
 
 class TestHttpLayerMasksMessage:
-    """请求期抛出 ⇒ 500 + 消息屏蔽 + 进程不崩（本卡关键发现）。
+    """请求期抛出 ⇒ 500 + 进程不崩；消息进不进响应体**取决于哪一层接住**。
 
-    `VaultScopeUnresolved` 是裸 `Exception` 子类（`vault_scope.py:359`）且
-    **无专用处理器**，逸出后落到 `generic_exception_handler`
-    （`exception_handlers.py:200` 定义、`:312` 以 `Exception` 注册），该处理器
-    刻意不暴露内部细节：响应体恒为
-    `{"code": 500, "message": "Internal server error", "bug_id": ...}`
-    （`:262-266`）。CARD-G3-5 原文只进 `logger.error(error_message=...)` 与
-    `bug_tracker.log_error(...)`。
+    ⚠️ **口径更正（Codex r1 HIGH-1，本卡实测确认并加强）**：本类初稿断言
+    「CARD-G3-5 被 `generic_exception_handler` 从响应体屏蔽」并把它当成生产
+    表征 —— **那是错的**，错在「能力存在 ≠ 能力接上」：
 
-    ⇒ U9-C 设计稿「请求 500 **带 CARD-G3-5 消息**」只对了一半：500 成立、
-    进日志成立，**进 HTTP 响应体不成立**。本卡按实测钉口径，不改生产去暴露
-    消息（那属评估文档 §5 议题 α，设计级、需用户裁）。
+      1. `register_exception_handlers` 在生产**从未被调用**。本树非测试命中
+         只有 3 处，全在 `exception_handlers.py` 自身（定义 `:275` + docstring
+         示例 `:294`/`:297`）。运行时自证：`app.main.app.exception_handlers`
+         的键只有 `HTTPException` / `RequestValidationError` /
+         `WebSocketRequestValidationError` —— **没有 `Exception`**。
+         ⇒ `generic_exception_handler` 在生产 app 上这条路径是死代码。
+      2. 即便它被注册，也轮不到它：`CORSExceptionMiddleware`
+         （`main.py:634` 定义、`:757` 注册，是**最外层** user middleware）
+         的 `except Exception`（`:694`）会先接住，返回
+         `{"code":500, "message": str(e)[:500], "error_type":..., "bug_id":...}`
+         （`:738-741`；`safe_message` 在 `:709-715` 就是 `str(e)` 的 UTF-8
+         round-trip，**无脱敏**）。
+
+    ⇒ 生产真实表征与初稿**相反**：**CARD-G3-5 原文会进 500 响应体**。
+    U9-C 设计稿「请求 500 带 CARD-G3-5 消息」在生产栈上其实是**对的**。
+
+    本类因此分两条用例，各自钉一层，并**各自证明自己测的是哪一层**：
+
+    | 用例 | 栈形态 | 谁接住 | 响应体 |
+    |---|---|---|---|
+    | `..._handler_only_masks_message` | 只挂 handler | `generic_exception_handler` | 3 键，**无** `error_type`，消息被屏蔽 |
+    | `..._production_stack_exposes_message` | 加挂真中间件 | `CORSExceptionMiddleware` | 4 键，**有** `error_type`，消息原文在内 |
+
+    **`error_type` 是两层唯一的区分指纹**。初稿用「`code==500` + 存在
+    `bug_id`」做排他判据是**无效的** —— 两层的 body 都有这两个键，它证明
+    不了是谁产出的（Codex r1 HIGH-1 同条）。
     """
 
-    def test_unresolved_scope_surfaces_as_masked_500_not_crash(
+    def test_handler_only_stack_masks_message_and_does_not_crash(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Any
     ) -> None:
-        """同一次请求里两侧同时钉：异常**含**消息、响应体**不含**消息。
+        """**仅挂 handler** 的栈：消息被屏蔽（这是 handler 契约，不是生产表征）。
+
+        钉的是 `generic_exception_handler` 自身的行为契约 ——
+        它**若**被接上，就不会把内部细节透出去（`:210` docstring 写明此意图）。
+        生产当前没接它（见类 docstring），所以本条**不能**被引用为
+        「用户看不到 CARD-G3-5」；那条由下面的生产栈用例给出，结论相反。
 
         ⚠️ 只断言「响应体里没有 CARD-G3-5」是**假绿面**：若 probe 因别的原因
         抛（拼错属性名、import 失败……），响应体同样不含该字符串，断言照过。
@@ -252,9 +317,9 @@ class TestHttpLayerMasksMessage:
         且其 `str()` **含** CARD-G3-5 —— 确认消息真的产生了、且响应体里的
         缺席是**处理器屏蔽**的结果，不是消息压根没产生。
 
-        排他性：`code == 500` + 存在 `bug_id` 键共同证明这个 500 出自
-        `generic_exception_handler`（`:262-266` 的 body 形状），不是 starlette
-        的某个默认 500 页面。
+        **分层指纹**：断言 `error_type` **不在** body 里 —— 那是
+        `CORSExceptionMiddleware` 独有的键。没有这条，本用例无法证明自己
+        测到的是 handler 而不是别的什么东西产出的 500。
 
         `raise_server_exceptions=False` 是必需的：否则 TestClient 会把异常
         重新抛进测试，拿不到响应体，也就看不到「被屏蔽成什么样」。
@@ -284,10 +349,61 @@ class TestHttpLayerMasksMessage:
         assert body["code"] == 500
         assert body["message"] == "Internal server error"
         assert "bug_id" in body
+        # 分层指纹：中间件独有键必须缺席，否则接住它的不是 handler
+        assert "error_type" not in body
 
-        # ── 关键发现：原文被屏蔽，不进响应体 ──
+        # ── handler 契约：原文被屏蔽，不进响应体 ──
         assert "CARD-G3-5" not in resp.text
 
         # ── 进程不崩：同一个 app 仍在服务后续请求 ──
+        assert alive.status_code == 200
+        assert alive.json() == {"alive": True}
+
+    def test_production_stack_exposes_message_in_500_body(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> None:
+        """**生产栈形态**：真 `CORSExceptionMiddleware` 把 CARD-G3-5 原文送进 500 体。
+
+        这条才是用户/运维在当前生产配置下实际看到的东西
+        （Codex r1 HIGH-1 指出、本卡实测确认）。与上一条断言方向**相反**，
+        两者并不矛盾——它们测的是两个不同的栈形态，差别就在
+        `CORSExceptionMiddleware` 挂没挂。
+
+        本条同时钉住三件事：
+          1. 中间件确实在 handler 之前接住（`error_type` 键在 ⇒ 产出方是中间件）；
+          2. `safe_message` 未脱敏 ⇒ 指引原文（含迁移脚本名）随 500 返回；
+          3. 进程照常服务后续请求。
+
+        ⚠️ 若将来采纳评估文档议题 α（给 `VaultScopeUnresolved` 加专用处理器
+        并让生产真正 `register_exception_handlers`），本条与上一条的断言方向
+        都要重新裁定——它们钉的是**当前口径**，不是永久不变量。
+        """
+        from fastapi.testclient import TestClient
+
+        from app.core.vault_scope import VaultScopeUnresolved
+
+        raised: List[BaseException] = []
+        app = _build_probe_app(monkeypatch, tmp_path, raised, with_production_middleware=True)
+        client = TestClient(app, raise_server_exceptions=False)
+
+        with _unresolved_vault_scope(monkeypatch):
+            resp = client.get("/_u9c_probe")
+            alive = client.get("/_alive")
+
+        # ── 异常侧：同一个真异常 ──
+        assert len(raised) == 1
+        assert isinstance(raised[0], VaultScopeUnresolved)
+
+        # ── 响应侧：500，且分层指纹表明产出方是中间件而非 handler ──
+        assert resp.status_code == 500
+        body = resp.json()
+        assert body["code"] == 500
+        assert body["error_type"] == "VaultScopeUnresolved"
+        assert "bug_id" in body
+        assert body["message"] != "Internal server error"
+
+        # ── 与上一条相反：原文进了响应体，连运维指引一起 ──
+        assert "CARD-G3-5" in body["message"]
+        assert "migrate_fsrs_card_states_vault_key_g35.py" in body["message"]
+
+        # ── 进程不崩 ──
         assert alive.status_code == 200
         assert alive.json() == {"alive": True}

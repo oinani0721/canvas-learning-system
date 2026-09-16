@@ -1,0 +1,3 @@
+ .../regression/test_u9c_startup_rejection_eval.py  | 293 +++++++++++++++++++++
+ 1 file changed, 293 insertions(+)
+rc=0

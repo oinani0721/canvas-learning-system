@@ -11,12 +11,24 @@
 
 ## 〇 一句话结论
 
-U9-C 原立面「**CLI/后台无 vault 上下文构造 ReviewService ⇒ 拒启**」**不成立**——
-全仓没有任何 CLI/后台脚本会构造 `ReviewService`。真正的拒启面是
-**后端启动之后、首个命中 `get_review_service()` 的 HTTP 请求**：进程照常起得来，
-该请求得到 **500**，而 `CARD-G3-5` 指引原文**不在响应体里**（被
-`generic_exception_handler` 屏蔽），只进 `logger.error` 与 `bug_log.jsonl`。
-此后 review 面**每一个**请求都重复这一过程，直到运维跑迁移脚本裁定归属。
+U9-C 原立面「**CLI/后台无 vault 上下文实例化 ReviewService ⇒ 拒启**」**不成立**——
+全仓没有任何 CLI/后台脚本会实例化 `ReviewService`。真正的拒启面是
+**后端启动之后、命中 `get_review_service()` 的 HTTP 请求**：进程照常起得来。
+
+该请求的后果**不是单一结论**，取决于两件事：
+
+- **端点是否把工厂调用包进 `try`**：没包 ⇒ 异常逸出到最外层中间件
+  `CORSExceptionMiddleware` ⇒ **500，且 `CARD-G3-5` 指引原文（含绝对路径）
+  就在响应体 `message` 里**；包了 ⇒ **HTTP 200** + `reason` 带同样的原文
+  （`/review/fsrs-state` 即如此，监控按状态码告警看不见）。
+- **解析到哪个 vault**：同名冲突分支只查当前桶，换一个 vault 可能直接实例化成功，
+  不必先跑迁移脚本。
+
+> ⚠️ **本文档 ③ 节初稿的结论已被推翻并重写**（Codex r1 HIGH-1）：初稿称消息被
+> `generic_exception_handler` 屏蔽。实测**生产从未调用 `register_exception_handlers`**
+> （`app.exception_handlers` 里没有 `Exception` 键），那个处理器在此路径上是死代码；
+> 真正兜底的中间件**不屏蔽**消息。⇒ 设计稿「500 带 CARD-G3-5 消息」在生产栈上
+> 其实是**对的**，本卡初稿对它的「一半成立」判定予以撤回。
 
 ---
 
@@ -149,116 +161,151 @@ CARD-G3-5: .../backend/data/fsrs_card_states.json 含 1 条 legacy 裸 concept_i
 
 ---
 
-## ③ 关键发现 — CARD-G3-5 原文被从 500 响应体屏蔽
+## ③ 关键发现（**Codex r1 HIGH-1 整改后重写**）— 生产栈上消息**会**进 500 响应体
 
-这是本卡**推翻设计稿措辞**的一条，优先级最高。
+> ⚠️ **本节初稿结论是错的，且错得彻底。** 初稿写「CARD-G3-5 被
+> `generic_exception_handler` 从 500 响应体屏蔽」，并把它当成生产表征。
+> Codex r1 HIGH-1 指出，本卡实测确认并加强：**生产上根本没有那个处理器，
+> 且即便有也轮不到它**。真实表征与初稿**相反**。
+> 错因是「**能力存在 ≠ 能力接上**」：从 `exception_handlers.py` 读出处理器
+> 的行为，就推断成生产 HTTP 表征，漏掉了「这个处理器有没有被生产 app 装上」
+> 这一步。原始错误结论保留在下方 3.5 供追溯，不做静默抹除。
 
-### 3.1 没有专用处理器
+### 3.1 `VaultScopeUnresolved` 无专用处理器（这一条初稿正确，保留）
 
 ```zsh
 grep -n 'VaultScopeUnresolved' backend/app/main.py backend/app/core/exception_handlers.py backend/app/dependencies.py
 ```
+实测：**无输出**（0 命中）。而 `sed -n '359p' backend/app/core/vault_scope.py`
+→ `class VaultScopeUnresolved(Exception):`
+⇒ 它是裸 `Exception` 子类且无专用 handler，逸出请求处理器后落到某个兜底层。
+**关键在于：兜底层是谁。**
 
-实测：**无输出**（0 命中）。而
+### 3.2 ⛔ `register_exception_handlers` 在生产从未被调用
 
 ```zsh
-sed -n '359p' backend/app/core/vault_scope.py
+git --no-pager grep -n --no-color 'register_exception_handlers' -- '*.py' | grep -v '/tests/'
 ```
-→ `class VaultScopeUnresolved(Exception):`
+实测输出恰 3 行，**全部在 `exception_handlers.py` 自身**：
 
-⇒ 它是裸 `Exception` 子类且无专用 handler，逸出请求处理器后必然落到兜底处理器。
-
-### 3.2 兜底处理器刻意不暴露内部细节
-
-`backend/app/core/exception_handlers.py`（只读摘录）：
-
-- `:200` `async def generic_exception_handler(request, exc)`
-- `:312` `app.add_exception_handler(Exception, generic_exception_handler)` ← 以 `Exception` 注册
-- `:262-266` 响应体构造：
-
-```python
-    body: Dict[str, Any] = {
-        "code": 500,
-        "message": "Internal server error",
-        "bug_id": bug_id,  # 用于用户反馈和问题追踪
-    }
+```
+app/core/exception_handlers.py:275:def register_exception_handlers(app: FastAPI) -> None:
+app/core/exception_handlers.py:294:        from app.core.exception_handlers import register_exception_handlers
+app/core/exception_handlers.py:297:        register_exception_handlers(app)
 ```
 
-- `:268` `return JSONResponse(`（`:267` 是空行——勘探写「返回 :267」，本树
-  `sed -n '266,268p'` 实测更正为 **`:268`**）
+`:294`/`:297` 是该函数自己 docstring 里的**用法示例**（`Example:` 代码块内），
+不是调用点。⇒ **全仓没有任何生产代码调用它。**
 
-消息原文的去向只有两处，都不是响应体：
-- `:250` `logger.error("unhandled_exception", ..., error_message=str(exc), ...)`
-- `:243` `bug_id = bug_tracker.log_error(endpoint=..., error=exc, ...)` → `data/bug_log.jsonl`
+**运行时自证**（比 grep 更强——直接问生产 app 实例装了什么）：
 
-### 3.3 运行时实证（本卡新测试同一次请求的双侧观测）
-
-新测试 `backend/tests/regression/test_u9c_startup_rejection_eval.py::
-TestHttpLayerMasksMessage::test_unresolved_scope_surfaces_as_masked_500_not_crash`
-用最小 `FastAPI()` + 真 `register_exception_handlers(app)` + 真
-`_VaultScopedCardStates.from_persisted` 作异常源（**不调** `get_review_service()`，
-避免连 7691/LanceDB），实测：
-
-**响应体（屏蔽后）**：
+```zsh
+PYTHONPATH=. .venv/bin/python -c "
+from app.main import app
+print([getattr(k,'__name__',k) for k in app.exception_handlers.keys()])
+print([m.cls.__name__ for m in app.user_middleware])"
 ```
-{"code":500,"message":"Internal server error","bug_id":"BUG-894D9A2C"}
+实测：
+
+```
+exception_handlers keys = ['HTTPException', 'RequestValidationError', 'WebSocketRequestValidationError']
+user_middleware         = ['MetricsMiddleware', 'CORSMiddleware', 'EncodingValidationMiddleware', 'CORSExceptionMiddleware']
 ```
 
-**同一次请求的日志侧（消息原文确实产生了）**：
-```
-{"bug_id": "BUG-894D9A2C", "endpoint": "/_u9c_probe", "error_type": "VaultScopeUnresolved",
- "event": "bug_logged", "logger": "app.core.bug_tracker", "level": "info", ...}
-{"request_id": "unknown", "bug_id": "BUG-894D9A2C", "error_type": "VaultScopeUnresolved",
- "error_message": "CARD-G3-5: .../fsrs_card_states.json 含 1 条 legacy 裸 concept_id 键, ...
- 请先跑 backend/scripts/migrate_fsrs_card_states_vault_key_g35.py --apply --vault-id <vault>
- 裁定归属。", "path": "/_u9c_probe", "event": "unhandled_exception", ...}
-```
+**没有 `Exception`，也没有 `CanvasException`。**
+⇒ `generic_exception_handler` 与 `canvas_exception_handler` 在生产 app 上
+就这条路径而言是**死代码**。（`HTTPException` / `RequestValidationError`
+两个键来自 FastAPI 自带的默认注册，不是本仓 `register_exception_handlers` 装的。）
 
-traceback 显示抛出点正是 `review_service.py:570`（② 的 None 分支）。
+### 3.3 真正兜底的是 `CORSExceptionMiddleware`，它**不屏蔽**消息
 
-> **先红验伪锚（承重）**：先把断言临时写成 `assert "CARD-G3-5" in resp.text` 跑一次，
-> 存档 `evidence-u9c-eval/u9c-antigate-20260916T144639.txt`：
-> ```
-> E   assert 'CARD-G3-5' in '{"code":500,"message":"Internal server error","bug_id":"BUG-894D9A2C"}'
-> ...
-> 1 failed, 3 passed
-> ```
-> **必红且确实红**，红在「响应体里没有这个字符串」这一点上——证明后续翻成
-> `not in` 的绿不是恒绿。翻转后 `4 passed`（`evidence-u9c-eval/pytest-u9c-20260916T144743.txt`）。
+`backend/app/main.py`：
 
-> **为什么只断言「响应体不含」不够**：若 probe 因别的原因抛（拼错属性名、import 失败……），
-> 响应体同样不含该字符串，断言照过 = 假绿。故测试在**同一次请求**里同时钉两侧：
-> 路由捕获真实异常对象，断言它是 `VaultScopeUnresolved` **且** `str()` **含** CARD-G3-5；
-> 再断言响应体**不含**。两侧合起来才等于「消息产生了，但被处理器屏蔽了」。
-> 另断言 `body["code"]==500` 且存在 `bug_id` 键——这是**排他性**判据，
-> 证明这个 500 出自 `generic_exception_handler`（`:262-266` 的 body 形状），
-> 不是 starlette 的某个默认 500 页面。
+- `:634` `class CORSExceptionMiddleware(BaseHTTPMiddleware):`
+- `:757` `app.add_middleware(CORSExceptionMiddleware)` —— 注释 `:751` 写明
+  「**最外层，捕获所有异常**」（starlette 中后 add 的先执行）
+- `:694` `except Exception as e:` 接住一切
+- `:709-715` 消息提取：
+  ```python
+  try:
+      error_message = str(e)
+  except (UnicodeEncodeError, UnicodeDecodeError):
+      error_message = repr(e)
+  safe_message = error_message.encode("utf-8", errors="replace").decode("utf-8")
+  ```
+  ⇒ `safe_message` 就是 `str(e)` 的 UTF-8 round-trip，**无任何脱敏**
+- `:738-741` 响应体：
+  ```python
+  content={
+      "code": 500,
+      "message": safe_message[:500],   # ← 异常原文，截前 500 字符
+      "error_type": type(e).__name__,
+      "bug_id": bug_id,
+  }
+  ```
 
-### 3.4 结论：设计稿措辞一半成立
+### 3.4 运行时实证（本卡两条用例，栈形态是唯一变量）
 
-| 设计稿「请求 500 带 CARD-G3-5 消息」 | 判定 | 证据 |
+新测试 `backend/tests/regression/test_u9c_startup_rejection_eval.py` 的
+`TestHttpLayerMasksMessage` 两条用例，异常源同为真
+`_VaultScopedCardStates.from_persisted`，差别只在**中间件挂没挂**：
+
+| 用例 | 栈 | 实测响应体 |
 |---|---|---|
-| 请求返回 **500** | ✅ 成立 | 3.3 响应 `status_code == 500` |
-| CARD-G3-5 进**日志 / bug_log** | ✅ 成立 | 3.3 `error_message=...` + `bug_logged` 两条结构化日志 |
-| CARD-G3-5 进 **HTTP 响应体** | ❌ **不成立** | 3.3 响应体仅 `code/message/bug_id` 三键 |
+| `test_handler_only_stack_masks_message_and_does_not_crash` | 只挂 `register_exception_handlers` | `{"code":500,"message":"Internal server error","bug_id":"BUG-…"}`（3 键） |
+| `test_production_stack_exposes_message_in_500_body` | 再挂真 `CORSExceptionMiddleware` | `{"code":500,"message":"CARD-G3-5: …请先跑 …migrate_fsrs_card_states_vault_key_g35.py --apply --vault-id <vault> 裁定归属。","error_type":"VaultScopeUnresolved","bug_id":"BUG-…"}`（4 键） |
 
-⇒ **运维只看 HTTP 响应拿不到任何指引**，必须去翻后端日志或 `bug_log.jsonl`
-（凭响应体里的 `bug_id` 可定位到那条记录）。是否要改成友好暴露 = ⑤ 议题 α。
+独立探针（`scratchpad/probe_mw_order.py`，同时挂 handler + 中间件）实测：
+
+```
+status = 500
+body   = {"code":500,"message":"CARD-G3-5: SENTINEL-MESSAGE-XYZ 指引原文","error_type":"RuntimeError","bug_id":"BUG-4CE6332F"}
+SENTINEL in body = True
+error_type key   = True (中间件独有字段)
+```
+
+⇒ 两者共存时**中间件先接住**，`generic_exception_handler` 不被调用
+（响应体带 `error_type`，而 handler 的 body 没有这个键）。
+
+> **⛔ 附带更正：初稿的「排他性断言」是无效的。**
+> 初稿称「`code == 500` + 存在 `bug_id` 共同证明这个 500 出自
+> `generic_exception_handler`」。实测两层的 body **都有**这两个键，
+> 它什么也证明不了。真正的分层指纹是 **`error_type`**：中间件有、handler 没有。
+> 两条用例现已各自断言该键的**在**与**不在**，从而各自证明自己测到了哪一层。
+
+### 3.5 结论更正对照（初稿 → 实测）
+
+| 命题 | 初稿判定 | **实测判定** |
+|---|---|---|
+| 请求返回 500（工厂在端点 `try` 之外时） | ✅ | ✅ 成立 |
+| CARD-G3-5 进日志 / bug_log | ✅ | ✅ 成立 |
+| CARD-G3-5 进 **HTTP 响应体** | ❌ 不成立（「被屏蔽」） | ⚠️ **成立** —— 中间件把原文（前 500 字符）放进 `message` |
+| `generic_exception_handler` 是生产兜底层 | 隐含假定成立 | ❌ **不成立** —— 生产未注册，该处理器在此路径上是死代码 |
+| `code+bug_id` 可作产出方指纹 | 称成立 | ❌ **不成立** —— 两层都有；`error_type` 才是 |
+
+⇒ **U9-C 设计稿「请求 500 带 CARD-G3-5 消息」在生产栈上其实是对的**，
+本卡初稿对它的「一半成立」判定应予撤回。运维能从 HTTP 响应直接看到指引
+（含迁移脚本名与 `--vault-id` 用法），不必翻日志。
+
+⇒ 反过来，**评估文档 ⑤ 的议题 α 需要重新定性**：它不再是「要不要把指引
+暴露出来」（已经暴露了），而是「**暴露得太多**」——`str(e)` 未脱敏，消息里
+含 `_CARD_STATES_FILE` 的**绝对路径**（实测原文含
+`/Users/…/worktrees/card-t4-g3/backend/data/fsrs_card_states.json`），
+等于向任何能打到该端点的人泄漏部署布局。详见 ⑤。
 
 ---
 
-## ④ 进程不崩，但 review 面持续 500
+## ④ 进程不崩；但「持续 500」这一表述**过强**（Codex r1 MEDIUM-1/3 整改）
 
-### 4.1 进程不崩（实测）
+### 4.1 进程不崩（实测，初稿正确）
 
-3.3 的同一个测试在 probe 请求之后立刻再请求 `/_alive`，实测 **200 + `{"alive": true}`**。
-⇒ 未处理异常被兜底处理器接住，app 继续服务后续请求，worker 不死。
-叠加 ①.1.3（lifespan 不预实例化），**后端在含 legacy 坏数据时仍然起得来**。
+本卡两条 HTTP 用例都在 probe 请求之后立刻再请求 `/_alive`，实测均
+**200 + `{"alive": true}`**。⇒ 未处理异常被兜底层接住，app 继续服务后续请求。
+叠加 ①.1.3（lifespan 不预先实例化），**后端在含 legacy 坏数据时仍然起得来**。
 
-### 4.2 但 singleton 恒 `None` ⇒ 每个请求重入重抛
+### 4.2 singleton 恒 `None` 这一条成立
 
-`get_review_service()`（`:2939-3004`）只读摘录
-（存档 `evidence-u9c-eval/factory-readonly-20260916T145559.txt`）的关键结构：
+`get_review_service()`（只读摘录，存档 `evidence-u9c-eval/factory-readonly-20260916T145559.txt`）：
 
 ```
 :2952    global _review_service_singleton
@@ -273,42 +320,95 @@ traceback 显示抛出点正是 `review_service.py:570`（② 的 None 分支）
 ```
 
 （上列行号由 `grep -n` **直接对文件**测得，不是从 `sed` 摘录的相对序号换算——
-初稿曾按摘录序号推算，整块偏了 1，已更正；`:2996` 恰好未受影响。）
+初稿按摘录序号推算，整块偏了 1，已更正；`:2996` 恰好未受影响。）
 
-赋值 `_review_service_singleton = ReviewService(...)` 是**工厂的最后一步**，
-且 `ReviewService.__init__` 在 `:850` 就会走到 `from_persisted` 抛出
-⇒ **赋值永远不会发生** ⇒ singleton 恒 `None`
-⇒ 下一个 review 请求进来，两道 `is not None` 检查都不成立，重新走完整条构造链，
-再次在 `:570`/`:593` 抛出。
+赋值是工厂最后一步，`ReviewService.__init__` 在 `:850` 就抛
+⇒ 赋值永不发生 ⇒ singleton 恒 `None` ⇒ **每个 review 请求都会重入工厂
+并重新触发实例化**。这一条成立。
 
-**可用性后果**：不是「一次性 500 然后自愈」，而是 **review 面整片持续 500**，
-直到有人跑 `backend/scripts/migrate_fsrs_card_states_vault_key_g35.py` 裁定归属。
-每次重入还会重建一遍 memory / canvas / graphiti 依赖（都在 `:2996` 之前），
-即每个失败请求都付一次重依赖建立的开销。
+### 4.3 ⛔ 但由它**推不出**「每个请求都 500，直到跑迁移脚本」
 
-> **本卡未执行真工厂**（硬边界禁连 7691 / 7687 / 现网 LanceDB）。
-> 4.2 是**只读代码证据 + 控制流推演**，不是运行时实测；如实登记在验收单
-> 「本卡未证明什么」。
+初稿这句话三处都不准，实测三条反例：
 
----
+**(a) 端点把工厂调用包进 `try` 时 ⇒ 用户拿到的是 HTTP 200，不是 500。**
+`backend/app/api/v1/endpoints/review.py:1458` 在 `try` 内调
+`_get_review_service_singleton()`，`:1507` `except Exception as e:` 捕获后返回
+
+```python
+return FSRSStateQueryResponse(
+    concept_id=concept_id, fsrs_state=None, card_state=None,
+    found=False, reason=f"error: {e}", ...
+)
+```
+
+⇒ **HTTP 200**，且 `reason` 里带异常原文。
+> ⚠️ **这比 500 更值得警惕**：CARD-G3-5 原文（含绝对路径）从一个
+> **200 响应**里泄出，按状态码告警的监控完全看不见，用户界面上也只表现为
+> 「这张卡没有 FSRS 状态」。本卡把它作为**新发现**登记（见 ⑤ 与验收单台账）。
+
+对照：同文件 `:693` 的 `/review/history` 把工厂调用放在 `try` **之外**，
+异常逸出 ⇒ 走 3.3 的中间件 ⇒ 500 + 原文。
+⇒ **后果取决于端点怎么写，不是一个全局结论。**
+
+**(b) 换一个 vault 就可能成功实例化，无需先跑迁移脚本。**
+`review_service.py:589` 的
+`clobbered = sorted(cid for cid in legacy if cid in bucket)` 检查的是
+**当前作用域那一桶**。若首次以 `vault_a` 失败（legacy 与 A 桶同名），
+换 `vault_b` 时 B 桶内无同名 ⇒ `:602 bucket.update(legacy)` 正常执行 ⇒ 实例化成功。
+⇒ 「直到运维跑迁移器」不成立；该分支下**换个 vault 即可**。
+（注意这不是好事：legacy 会被**推定**归进 B 桶并在下次落盘固化——
+正是 `from_persisted` docstring `:541-545` 警告的那个反例。）
+
+**(c) 依赖不会被重复建立，开销结论不成立。**
+初稿称「每次重入还会重建一遍 memory / canvas / graphiti 依赖，每个失败请求
+都付一次重依赖建立开销」。实测这些依赖工厂都是 singleton 快路径：
+- `memory_service.py:2908` `if _memory_service_instance is not None and _memory_service_instance._initialized: return _memory_service_instance`
+- `dependencies.py:779` `if _neo4j_temporal_client_instance is not None: return _neo4j_temporal_client_instance`
+
+⇒ 首次成功初始化后，后续重入**复用**已有实例；`ReviewService` 赋值失败
+不会清除它们。重入的真实开销是「再走一遍工厂函数体 + 再抛一次」，不是重建依赖。
+
+### 4.4 更正后的可用性表述
+
+> singleton 恒 `None` ⇒ 每个 review 请求都会重入工厂并重新触发实例化。
+> **用户看到什么，取决于两件事**：(1) 该请求解析到哪个 vault——换 vault 可能
+> 直接成功（4.3b）；(2) 该端点是否把工厂调用包进 `try`——包了就是 200 +
+> `reason` 带原文（4.3a），没包就是 500 + `message` 带原文（3.3）。
+> 只有在「同一 vault + 端点不捕获」这个交集上，才是持续 500。
 
 ## ⑤ legacy 兼容重做 = 设计级议题（D-38，登记不排本批）
 
 两条出路，**都影响产品行为、都需用户裁**，本卡只登记移交，不动代码：
 
-### 议题 α — 给 `VaultScopeUnresolved` 加专用处理器
+### 议题 α —— 异常消息的暴露口径（**已因 ③ 更正而反向**）
 
-把 CARD-G3-5 指引友好暴露进 500 响应体（或换 503 + `Retry-After`），
-让运维不必翻日志就知道该跑哪个脚本。
+> ⚠️ **本议题已因 ③ 的更正而反向**。初稿设想的是「要不要把指引**暴露**出来」；
+> 实测表明指引**早已暴露**，真正的问题是**暴露得太多、且暴露面不受控**。
 
-- **赞成**：③ 已证当前「运维从 HTTP 侧零信息」；`bug_id` 虽可回查，但多一跳。
-- **反对/风险**：`generic_exception_handler` 的「不暴露内部细节」是**刻意设计**
-  （`:210` docstring 明写 `IMPORTANT: In production, this should NOT expose internal error details.`，
-  `:261` 行内注释再复述一次 `don't expose internal details, but include bug_id`）。
-  消息里含**绝对文件路径**（见 2.3 实测原文含 `/Users/.../backend/data/fsrs_card_states.json`），
-  直接透出等于泄漏部署布局。若采纳，应先裁「暴露哪些字段」而不是整条 `str(exc)`。
-- **连带**：一旦采纳，本卡新测试的 `assert "CARD-G3-5" not in resp.text` 必须同步翻转
-  ——该测试是**当前口径**的钉，不是永久不变量。
+**实测到的三个问题**（都不需要「加处理器」才成立，现在就存在）：
+
+1. **未脱敏**：`CORSExceptionMiddleware` 的 `safe_message` 就是 `str(e)`
+   （`main.py:709-715`，只做 UTF-8 round-trip），整条异常消息前 500 字符进响应体。
+   本卡实测原文含 `_CARD_STATES_FILE` 的**绝对路径**
+   （`/Users/…/worktrees/card-t4-g3/backend/data/fsrs_card_states.json`）
+   ⇒ 任何能打到该端点的人都能读到部署布局。这不限于本异常——**所有**未处理
+   异常都走这条路。
+2. **意图与实现相反**：`generic_exception_handler` 的 `:210` docstring 明写
+   `IMPORTANT: In production, this should NOT expose internal error details.`，
+   `:261` 行内注释再复述一次。这份「不暴露」的设计意图**从未生效**，
+   因为该处理器生产未注册（3.2）。⇒ 需要裁定的是：这份意图是**要落地**
+   （让生产真的注册它，或给中间件加脱敏），还是**已作废**（认可中间件的
+   透出行为，把那两处注释改掉以免误导后人）。
+3. **200 泄漏面**：`/review/fsrs-state` 这类把工厂调用包进 `try` 的端点，
+   会把同样的原文放进 **HTTP 200** 的 `reason` 字段（4.3a）。
+   即便给 500 加了脱敏，这条路径也不会被覆盖——它压根不经过异常处理层。
+
+**若要收口，至少三处要一起裁**（只改一处等于没改）：中间件的 `safe_message`
+脱敏口径、`generic_exception_handler` 要不要真正接上、以及端点 `except` 分支
+往响应里塞 `str(e)` 的做法。
+
+**连带**：一旦改动，本卡 `TestHttpLayerMasksMessage` 的**两条**用例断言方向
+都要重新裁定——它们钉的是**当前口径**，不是永久不变量。
 
 ### 议题 β — legacy 兼容整体重做
 
@@ -379,18 +479,97 @@ pytest 从 `backend/` 跑 ⇒ 真 handler 真写 `backend/data/bug_log.jsonl`。
 `backend/data/.gitignore:5` 有 `*.jsonl`，所以它**不会弄脏 `git status`**——
 也正因如此，污染是**静默**的。
 
-`tests/conftest.py:121-129` 的成熟做法是换 `app.main` 命名空间里的**别名**、
-**不碰单例本身**（单例默认路径契约另有测试在锁）。但那个 fixture 覆盖不到
-`app.core.exception_handlers` 里的同名别名，本卡测试因此自己照同一形状做了一次重定向。
+**⛔ 这个别名有两份，堵一份不够**（本卡实测踩到）：
 
-**隔离自证（本卡实测）**：跑完全部测试后
-```zsh
-ls -la backend/data/bug_log.jsonl   # → No such file or directory（rc=1）
+| 命名空间 | 谁在用 | 谁负责重定向 |
+|---|---|---|
+| `app.main.bug_tracker`（`main.py:57` import、`:721` 使用） | `CORSExceptionMiddleware` | `tests/conftest.py:121-129` 的 session fixture |
+| `app.core.exception_handlers.bug_tracker`（`:27` import、`:243` 使用） | `generic_exception_handler` | **没人**——本卡测试自己照同一形状补了一次 |
+
+两份都指向同一个模块级单例，但**替换是按命名空间生效的**：换掉一份，
+另一份仍指向真单例。conftest 明确声明它只换 `app.main` 那份、
+**不碰单例本身**（单例默认路径契约另有测试在锁）。
+
+**隔离自证（本卡实测，含一次真实翻车）**：
+
+- **pytest 路径零写** —— 已用跑前/跑后 `sha256` + `mtime` 逐字节比对证明，
+  并带验伪锚（故意追加一行，`sha` 确实变）。见 ⑦.7.4 与存档
+  `evidence-u9c-eval/zero-write-proof-20260916T190821.txt`。
+- **pytest 之外的探针真写了** —— 本卡 scratchpad 探针只重定向了
+  `exception_handlers` 那份，而它挂的是 `CORSExceptionMiddleware`（用 `app.main` 那份），
+  于是真写了 `backend/data/bug_log.jsonl` 一条。详情与处置见 ⑦.7.4。
+
+> 初稿此处写「跑完全部测试后 `ls` → No such file or directory ⇒ 零写车道树」。
+> 那个观测当时为真，但**它证明的比它声称的少**：它只说明那一刻文件不存在，
+> 并没有区分「pytest 没写」与「还没有人写过」。后来探针一跑，文件就出现了。
+> 正确的零写判据是 ⑦.7.4 那种**跑前/跑后对照 + 验伪锚**，不是单次存在性检查。
+
+换的是**落盘路径**不是**行为**：`log_error` 仍真跑完整记账链
+（③ 的 `bug_logged` 日志即其产物），没有 mock 掉任何被测层。
+
+### 6.3 ⛔「能力存在」不等于「能力接上」（本卡最贵的一条）
+
+本卡初稿 ③ 整节结论是错的，错法值得单独记：
+
+- 我读了 `exception_handlers.py`，确认 `generic_exception_handler` 的行为是
+  「不暴露内部细节」——**这一步没错**；
+- 然后我把它当成了「生产 HTTP 表征」——**这一步跳过了一个必须问的问题：
+  这个处理器被生产 app 装上了吗？**
+- 实测答案是**没有**：`app.main.app.exception_handlers` 里压根没有 `Exception` 键。
+
+⇒ **测一个 helper / handler 的行为，不等于测它在系统里的接线。**
+判据要锚在「运行时的 app 实例上装了什么」，而不是「源码里定义了什么」。
+本卡的运行时自证（打印 `app.exception_handlers.keys()` 与 `user_middleware`）
+只要一行，却是唯一能戳破这个错误的东西——grep 再多遍源码也戳不破。
+
+同族：`docs/known-gotchas.md` 的 G-FAKE（名字像 A 身体是 B）与
+G-PIPE（已实现但无调用方）。本条是 **G-PIPE 的变体**：
+实现了、注册函数也写好了，但**没人调那个注册函数**。
+
+### 6.4 ⛔ 排他性判据必须先验证它真的排他
+
+初稿用「`code == 500` 且存在 `bug_id`」断言「这个 500 出自
+`generic_exception_handler`」。实测两个可能的产出方：
+
 ```
-⇒ 零写车道树。换的是**落盘路径**不是**行为**：`log_error` 仍真跑完整记账链
-（3.3 的 `bug_logged` 日志即其产物），没有 mock 掉任何被测层。
+generic_exception_handler : {code, message, bug_id}            ← 3 键
+CORSExceptionMiddleware   : {code, message, error_type, bug_id} ← 4 键
+```
 
-### 6.3 行号偏移汇总（勘探 → 本树实测）
+两者**都**满足初稿的「排他」条件 ⇒ 该判据排他性为零。
+一个不排他的排他判据比没有判据更危险：它让人以为已经确认了产出方。
+
+**修法**：找**只有一方产出**的字段（这里是 `error_type`），
+让每条用例都断言它的**在**或**不在**，从而各自证明自己测到了哪一层。
+
+### 6.5 ⛔ `rc=` 只能当场取，隔一条命令就不是它了
+
+本卡 (h) 的 unit 存档末行写了 `rc=0`，而同一文件里是 `35 failed … 29 errors`
+——自相矛盾（Codex r1 LOW-2 抓到）。根因是我写成了：
+
+```zsh
+... | tee "../$UNIT" | tail -6; echo "rc=$pipestatus[1]"   # ← 这句对，屏幕上输出 rc=1
+echo "rc=$pipestatus[1]" >> "../$UNIT"                      # ← 这句的 $pipestatus 已经是
+                                                            #    **上一条 echo** 的，恒 0
+```
+
+第二条 `echo` 重新计算了 `$pipestatus`，取到的是前一条 `echo` 的管道状态。
+**正确写法**：当场存进变量再复用——
+
+```zsh
+... | tee "../$UNIT"; RC=$pipestatus[1]
+echo "rc=$RC" | tee -a "../$UNIT"
+```
+
+本卡整改后的 `pytest-u9c-r2-*.txt` 用的就是这个写法。
+**历史存档 `unit-20260916T144844.txt` 里那行错误的 `rc=0` 保持原样不改**——
+存档记录的是当时实际发生的事，事后改它等于伪造；更正写在这里。
+该存档的真实结论以其正文 `35 failed, 5077 passed, …, 29 errors` 为准，
+而「本卡是否引入新红」由 `unit-new-red.txt`（空）判定，与那行 `rc` 无关。
+
+> 同族已登记教训：`reference_pipeline_eats_rc_three_times`。本卡是第四次。
+
+### 6.6 行号偏移汇总（勘探 → 本树实测）
 
 | 锚点 | 勘探 recon C | 本树实测 | 偏移 |
 |---|---|---|---|
@@ -413,16 +592,66 @@ ls -la backend/data/bug_log.jsonl   # → No such file or directory（rc=1）
 
 ## ⑦ 覆盖边界（如实声明，与验收单「本卡未证明什么」同源）
 
-三层里本卡只真跑了两层：
+### 7.1 三层里真跑了两层
 
 | 层 | 覆盖方式 | 本卡是否执行 |
 |---|---|---|
-| 实例化层（`from_persisted` 两抛出点） | 真函数真抛，断言消息 | ✅ 真跑 |
-| HTTP 层（屏蔽 + 进程不崩） | 真 handler + 最小 app | ✅ 真跑 |
-| 工厂中段（`get_review_service` 建重依赖 → `:2996`） | 只读 grep + 控制流推演（④.2） | ❌ **未执行**（会连 7691/LanceDB，硬边界禁连） |
+| 实例化层（`from_persisted` 两抛出点 `:570`/`:593`） | 真函数真抛，断言消息 | ✅ 真跑 |
+| HTTP 层（两个栈形态：仅 handler / 加真中间件） | 真 handler + 真中间件 + 最小 app | ✅ 真跑 |
+| 工厂中段（`get_review_service` 建重依赖 → `:2996`） | 只读证据 + 控制流推演（④.2） | ❌ **未执行**（会连 7691/LanceDB，硬边界禁连） |
 
-此外本卡**未**断言日志/bug_log 的**落盘侧**（只断言异常自身含消息 + 响应体不含）——
-3.3 引用的结构化日志是 pytest 捕获输出，可佐证，但不是本卡的断言对象。
+### 7.2 本卡替换了哪些真实现（全列，不留「唯一」这种未经清点的措辞）
+
+初稿写「唯一被替换的是 `bug_tracker` 落盘路径」——**不准确**（Codex r1 C 项）。
+实际替换三处，逐条列明：
+
+| 被替换对象 | 替换内容 | 为什么不构成「mock 掉被测层」 |
+|---|---|---|
+| `subject_config.get_current_subject_id` | 恒返回 `DEFAULT_SUBJECT_ID` | 用于**制造**「作用域解析失败」这个被测前置条件；被测逻辑（`from_persisted` 的分支判定）本身未被替换 |
+| `subject_config.default_vault_group_id` | 抛 `RuntimeError` | 同上；两者均在 `finally` 显式还原 |
+| `exception_handlers.bug_tracker` | 换 `log_path` 指向 pytest 临时目录 | 只换**落盘位置**，`log_error` 行为一行未改；与 `tests/conftest.py:121-129` 对 `app.main` 的做法同型 |
+
+被测链上的 `from_persisted`、`generic_exception_handler`、`CORSExceptionMiddleware`
+全是真实现。
+
+### 7.3 本卡明确**未**证明的事
+
+1. **真工厂路径的端到端行为**——`get_review_service()` 建立 memory / canvas /
+   graphiti 依赖后到 `:2996` 的那一段未执行（硬边界禁连真服务）；④ 对它的论述
+   是只读代码证据 + 控制流推演，不是运行时实测。
+2. **现网 `fsrs_card_states.json` 是否真的含 legacy 裸键**——本卡未连 live、
+   未读现网文件。全部输入都是测试内构造的字典。
+3. **迁移脚本 `migrate_fsrs_card_states_vault_key_g35.py --apply` 能否真正解开
+   拒启**——本卡只断言异常消息里**提到**了它，没有执行过它。
+4. **日志 / bug_log 的落盘侧**——本卡断言的是「异常对象自身含消息」与
+   「响应体含/不含消息」。③ 引用的结构化日志是 pytest 捕获输出，可佐证
+   消息进了日志通道，但**不是本卡的断言对象**，也未断言 `bug_log.jsonl`
+   文件内容。
+5. **LanceDB 隔离**——W4 哨兵只覆盖 Neo4j 端口；本卡没有针对 LanceDB 的
+   零连接判据。依据是「测试代码里没有任何 LanceDB 调用路径」这一读码结论，
+   不是运行时观测。
+6. **「整个车道树零写入」**——7.4 的实验只证明了 `backend/data/bug_log.jsonl`
+   这一个文件在 pytest 前后逐字节未变，不等于全树零写。
+7. **多 vault 同进程下真相源串库**（`_VaultScopedCardStates` docstring 自己
+   登记的前提缺口）是否影响本拒启面——未探。
+
+### 7.4 一处自造污染（如实登记，未清理）
+
+`backend/data/bug_log.jsonl` 现存 **1 条**记录，来自本卡的 scratchpad 探针
+`probe_mw_order.py`（19:04）——该探针在 **pytest 之外**运行，因此
+`tests/conftest.py` 对 `app.main.bug_tracker` 的重定向不在场，
+而探针只重定向了 `exception_handlers.bug_tracker`（中间件用的是前者）。
+
+> **教训**：在 pytest 之外跑探针 = 主动放弃了**全部** conftest 防线
+> （W4 端口守卫、`bug_tracker` 重定向、bark 外发守卫都不在）。
+> 同一能力在两个命名空间各有一份别名时，只堵一份等于没堵。
+
+**pytest 路径本身零写**，已用实验证明（存档 `evidence-u9c-eval/zero-write-proof-20260916T190821.txt`）：
+跑前 / 跑后 `sha256` 逐字节相同、`mtime` 未变（仍是探针那次），
+并带验伪锚（故意追加一行，`sha` 确实改变 ⇒ 判据能测出写入）。
+
+该文件被 `backend/data/.gitignore:5` 的 `*.jsonl` 覆盖，**不入库、不影响地盘核**。
+删除动作受用户级只读守卫约束，本卡**不自行清理**，登记交主 session 处置。
 
 ---
 
@@ -431,13 +660,16 @@ ls -la backend/data/bug_log.jsonl   # → No such file or directory（rc=1）
 | 内容 | 存档 |
 |---|---|
 | ① 抛出点 grep | `evidence-u9c-eval/grep-raise-20260916T144314.txt` |
-| ① scripts 零构造方 | `evidence-u9c-eval/grep-scripts-20260916T144314.txt`（0 字节） |
+| ① scripts 零实例化方 | `evidence-u9c-eval/grep-scripts-20260916T144314.txt`（0 字节 = 0 命中） |
 | ① 生产唯一实例化点 | `evidence-u9c-eval/grep-prod-ctor-20260916T144314.txt` |
 | ① lifespan grep | `evidence-u9c-eval/grep-main-20260916T144314.txt` |
-| ③ **先红**验伪锚 | `evidence-u9c-eval/u9c-antigate-20260916T144639.txt` |
-| ③④ 后绿（4 passed） | `evidence-u9c-eval/pytest-u9c-20260916T144743.txt` |
+| ③ 初稿「先红」验伪锚（历史，结论已被推翻） | `evidence-u9c-eval/u9c-antigate-20260916T144639.txt` |
+| ③ 初稿 4 passed（历史） | `evidence-u9c-eval/pytest-u9c-20260916T144743.txt` |
+| ③④ **整改后 5 passed（当前）** | `evidence-u9c-eval/pytest-u9c-r2-20260916T190729.txt` |
 | ④ 工厂链只读摘录 | `evidence-u9c-eval/factory-readonly-20260916T145559.txt` |
+| 7.4 pytest 零写实验 | `evidence-u9c-eval/zero-write-proof-20260916T190821.txt` |
 | (h) tests/unit 目录级 | `evidence-u9c-eval/unit-20260916T144844.txt` + `unit-{base,now}.nodeids` + `unit-new-red.txt`（空） |
-| (g) 地盘核 | `evidence-u9c-eval/territory-*.txt` |
+| (g) 地盘核 | `evidence-u9c-eval/territory-20260916T145925.txt` |
 
-本卡新增测试文件：`backend/tests/regression/test_u9c_startup_rejection_eval.py`（4 条用例）。
+本卡新增测试文件：`backend/tests/regression/test_u9c_startup_rejection_eval.py`
+（**5 条**用例：实例化层 3 条 + HTTP 层 2 条）。

@@ -1,0 +1,21 @@
+### pytest 路径零写车道树 data/ 的实验证明（CARD-U9C-EVAL）
+### 背景：scratchpad 探针（pytest 之外）曾写入 1 条，需证明 pytest 路径不写
+
+== 跑前 ==
+sha256: 3fed790b0f14a821632c1e2d0d784413d4c3a7c63edacf1e2d73d015bc980ec5
+lines :        1
+mtime : 2026-09-16T19:04:08
+
+== 跑 5 条用例（含新增的生产中间件用例）==
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================== 5 passed, 10 warnings in 0.99s ========================
+pytest-rc=0
+
+== 跑后 ==
+sha256: 3fed790b0f14a821632c1e2d0d784413d4c3a7c63edacf1e2d73d015bc980ec5
+lines :        1
+mtime : 2026-09-16T19:04:08
+
+== 验伪锚：本实验能测出写入吗？（故意追加一行再比对，随后还原）==
+追加后 sha 变了吗: YES-判据有效
+还原后 sha 与跑后一致: YES
