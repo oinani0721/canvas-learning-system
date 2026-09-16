@@ -7,7 +7,7 @@
 
 **请只读下面这些面，不要跑测试、不要跑 hook、不要连任何数据库：**
 
-1. 本卡全部代码改动：`git diff 2287e2583c54472d238e8b8eec87bb1e9e95c9e8 __REVIEW_SHA__ -- . ':(exclude)_bmad-output'`
+1. 本卡全部代码改动：`git diff 2287e2583c54472d238e8b8eec87bb1e9e95c9e8 c5e30cfc5e6681076d9bac8cc37c8792545eb1c6 -- . ':(exclude)_bmad-output'`
 2. `backend/app/security.py:40-80`（`APIKeyHeader` 定义与本卡改动）
 3. `backend/app/main.py:538-572`（`_custom_openapi`：`get_openapi` → 覆盖 `securitySchemes` → 写全局 `security`）
 4. `backend/app/api/v1/system.py:28-40`（router 级 `Depends(require_internal_api_key)`，/system/* 16 处的来源）

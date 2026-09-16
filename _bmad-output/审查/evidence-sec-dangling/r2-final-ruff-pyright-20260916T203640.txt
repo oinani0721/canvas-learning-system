@@ -1,0 +1,21 @@
+# 自绑定: HEAD=c5e30cfc5e6681076d9bac8cc37c8792545eb1c6  test_openapi_contract.py sha256=7bbe7d73b451f210d00683c3bcaf2d5f0e7f17990bf8f2e02957474ebfad81da
+# 取代 r2-ruff-pyright-20260916T202258.txt（_as_dict 加固后重取）
+files=2  list=backend/app/security.py backend/tests/contract/test_openapi_contract.py
+All checks passed!
+ruff_check_rc=0
+## 验伪锚 F821:
+Found 1 error.
+anchor_rc=1
+## ruff format --check:
+Would reformat: backend/app/security.py
+1 file would be reformatted, 1 file already formatted
+format_check_rc=1
+## 最长行（字符）:
+  backend/app/security.py max_chars = 87 >120 = []
+  backend/tests/contract/test_openapi_contract.py max_chars = 107 >120 = []
+## pyright（cwd=backend）:
+test -x OK version=pyright 1.1.411
+0 errors, 81 warnings, 0 informations
+## 收集面（本卡新增 nodeid 仍可点选）:
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+========================= 91 tests collected in 31.64s =========================

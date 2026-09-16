@@ -1,0 +1,25 @@
+# 自绑定: HEAD=c5e30cfc5e6681076d9bac8cc37c8792545eb1c6  （r2 = 按 Codex r1 MEDIUM-1/-2 + LOW-1 整改后重取先红/绿/负控）
+# 本轮只改了 backend/tests/contract/test_openapi_contract.py；backend/app/security.py 与 backend/openapi.json 未再动
+## 跑前 shasum -a 256:
+925443dce1f90b35391898dc7cfa45c436107b7d015ed9f24e30c90e0e361904  backend/app/security.py
+9df9f7df7fdb9a8f4d5ae22aa0886fe8e36d0e66f4e106a1579801c9824bab79  backend/openapi.json
+9765a69a7ff8f60ce73022c6699837628ad90be6777861f950368c975c6e12a6  backend/tests/contract/test_openapi_contract.py
+
+## ===== 绿（当前态）=====
+   pytest_rc=0
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================== 2 passed, 10 warnings in 1.65s ========================
+
+## ===== 先红（源与快照双还原为 HEAD 全态）=====
+   security.py sha256=925443dce1f90b35391898dc7cfa45c436107b7d015ed9f24e30c90e0e361904
+   openapi.json sha256=9df9f7df7fdb9a8f4d5ae22aa0886fe8e36d0e66f4e106a1579801c9824bab79
+   pytest_rc=0
+======================== 1 passed, 10 warnings in 2.03s ========================
+
+## ===== 负控（只回退源，快照保留再生版）=====
+   pytest_rc=0
+======================== 2 passed, 10 warnings in 1.76s ========================
+## 跑后 shasum -a 256（须与跑前逐字同）:
+925443dce1f90b35391898dc7cfa45c436107b7d015ed9f24e30c90e0e361904  backend/app/security.py
+9df9f7df7fdb9a8f4d5ae22aa0886fe8e36d0e66f4e106a1579801c9824bab79  backend/openapi.json
+9765a69a7ff8f60ce73022c6699837628ad90be6777861f950368c975c6e12a6  backend/tests/contract/test_openapi_contract.py

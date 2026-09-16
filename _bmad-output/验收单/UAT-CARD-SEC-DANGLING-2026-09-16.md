@@ -255,6 +255,8 @@ Would reformat: backend/app/security.py
 6. **未证明 WebSocket 侧鉴权的契约表达**。`/ws` 与 `/ws/intelligent-parallel/{session_id}` 不产出 OpenAPI operation，其鉴权走 `verify_websocket_internal_key` 手工校验 —— 这意味着**第三方工具从 OpenAPI 读不到 WS 鉴权要求**。本卡只核实了"它不在 OpenAPI 覆盖面内、故不构成悬空"，**没有**评估"WS 鉴权是否应当以别的方式进契约"。
 7. **未证明除这 31 处外无别的鉴权入口**。插件侧 `main.ts` 手发的 `X-CLS-Internal-Key` 本身是对的、不受本卡影响（RED-A1-sentinel §6⑭）；`kg_health.py` 等仍无鉴权端点的真连点收口（§6⑪）在地盘外，未碰。
 8. **未证明 `LEFTHOOK_EXCLUDE=python-lint` 跳过的那次 hook 里没有别的检查项**。已核 `python-lint` 只含 `ruff check` + `ruff format --check` 两步，前者本卡已自跑 rc=0；但未逐行审计 lefthook 在 2.1.6 下对该命令块的完整执行语义。
+9. **本门不检测 `securitySchemes` 里的冗余 / 同义方案**（自曝一条覆盖边界）。门的主张是「每一处引用都能找到定义」，是**包含关系**不是**等价关系**。因此若有人用卡文 §三 明令禁止的那条修法 —— 给 `securitySchemes` 补一个 `APIKeyHeader` 别名 —— 悬空同样归 0、本门同样会绿，尽管契约里会留下两个同义方案、与「统一」背道。本卡是**靠选型**（方案 A 从源头改名）而不是靠这道门排除该走法的；门只锁「不悬空」，不锁「不冗余」。同理，一个**被声明但无人引用**的方案也不会被本门发现。
+10. **未证明再生后的 `securitySchemes` 定义体本身正确**。门只比方案**名**；`InternalApiKey` 的 `type`/`in`/`name` 三个字段仍由 `main.py:554-566` 手写覆盖，本卡未对它们加任何断言（只在 (c) 层 2 顺带实测 `model.name` 未变）。
 
 ---
 
@@ -287,8 +289,73 @@ Would reformat: backend/app/security.py
 
 ## 七 Codex 复核
 
-见本节下方（按轮次追加）。
+模型固定 `gpt-6-astra` + `model_reasoning_effort="ultra"`，`--sandbox read-only`，`codex-cli 0.153.3`。每轮存档首部按协议 §2.1 六行 blockquote（含 `.stderr` 会话头三行的行号自证；`.stderr` 本身不入库，`.gitignore:261-264` 覆盖）。
+
+### round-1 — 绑定 `c5e30cfc5e6681076d9bac8cc37c8792545eb1c6`
+
+存档 `_bmad-output/审查/codex-review-CARD-SEC-DANGLING.md`；prompt `_bmad-output/审查/prompts/codex-prompt-CARD-SEC-DANGLING.md`。
+
+**计数：BLOCKER 0 / HIGH 0 / MEDIUM 2 / LOW 2。**
+
+Codex 独立确认的部分（原文）：「独立比较指定两份 committed 快照，确认 **31 处悬空全部消失，其中 `/system/*` 16 处**，其他差异仅为生成时间戳」；`scheme_name` 在 FastAPI 0.135.3 下「未发现改变 header、fail-closed 判定或 `auto_error` 语义的路径」；⑤ 取舍成立；⑦ 两个 glob 确实不匹配 `security.py`。
+
+| # | 级别 | 意见 | 处置 |
+|---|---|---|---|
+| M-1 | MEDIUM | ⓪ `_iter_security_refs` 只遍历根 + 直接 `paths`，遗漏 `webhooks` / `components.pathItems` / operation 与 components 两处 `callbacks` —— 都是合法 OpenAPI 3.1 位置（Codex 同时写明「当前快照没有这些面，因此不否定本次 31 处修复」） | **采纳并修**。门改名成 `cover_all_security_refs` 后，枚举面不全 = 名字大于主张。r2 新增 `_iter_path_item_security_refs`，覆盖四处 + `callbacks` 递归 |
+| M-2 | MEDIUM | ④ 「取 schema 全程 socket 禁闭」的主张过强：模块级 `:18` 的 `from app.main import app`、`:79` 的 `from_asgi(...)` 都在禁闭外，且 `_custom_openapi` 有缓存；禁闭本身也只换 `socket.socket.connect` 一个入口 | **采纳**。r2 把该段注释改写为如实口径：只主张「断言本身不发 HTTP 请求 + 每次定向跑 W4 记账为 0」，明确不主张「整条收集路径无网络行为」 |
+| L-1 | LOW | ⓪② 未筛 HTTP 方法 ⇒ Path Item 同级的 `x-*` 厂商数据若含 `security` 会被算作 per-op 引用（既造成误红，也能满足 `per_op_refs` 非空） | **采纳并修**。r2 加 `_HTTP_METHODS` 白名单；取舍（非标准方法键携真 security 会漏）写进注释 |
+| L-2 | LOW | ④ 新门与模块级 `pytest.importorskip("schemathesis")` 耦合，依赖缺失时会连同新门一起跳过 | **登记不修**。卡文 §三 把断言的落点钉死在 `test_openapi_contract.py`，移到独立文件属越界。已记入「本卡未证明什么」 |
+| — | 更正 | ② 「两条前置断言」实为三条，注释未同步 | **采纳**。r2 改为「三条」并列出各自守什么 |
+| — | 提醒 | ③ 「一般判据还应逐对检查改名位置和值，不能只比较删增数量」 | 本卡的 `regen-diff-surface-…` 判据已是逐键集合比较（非仅数量），Codex 同段亦确认「修正版统计可以支持本次结果」。不另改 |
+| — | 提醒 | ⑥ 多重集丢位置、行号不交集不能单独排除远处连带变化；存档缺两份原始 format diff | 如实接受。归因仍成立（本卡在 `security.py` 只单点插入十行，见提交 diff），但「零新增」的独立可重算性确有欠缺，记入台账 |
+
+**r2 整改后的验伪锚** `enum-coverage-probe-final-20260916T201922.txt`：直接向 `_iter_security_refs` 喂合成 schema，**8/8 PASS** ——
+
+- A1 `webhooks[wh].post` / A2 `components.pathItems[pi].get` / A3 operation 的 `callbacks` / A4 `components.callbacks` / A5 callbacks 再套 callbacks（递归）**全部被看见**；
+- B1 Path Item 同级 `x-audit-data.security` **不计**、B2 `summary`/`parameters` 等固定字段不计；
+- C1 真实快照仍是「引用总数 32 / per-op 31 / root 1 / 悬空 0」——**改枚举面不改本仓结论**。
+
+> ⚠️ 该探针第一版（`enum-coverage-probe-20260916T201836.txt`）有 SyntaxError 却打出 `rc=0` —— 那个 rc 是**管道末端 `grep` 的 rc**，掩盖了 python 的失败（本仓已知坑：管道吃 rc）。修正版把 python 的 rc 在重定向后显式捕获为 `PYTHON_RC=`。两份都留档。
+
+### round-2 — 整改内容与重取的裁判
+
+r2 只改 `backend/tests/contract/test_openapi_contract.py`；`backend/app/security.py` 与 `backend/openapi.json` 自 r1 起**一字未动**（sha 全程 `925443dc…` / `9df9f7df…`，见每份存档首部）。
+
+整改四项：① 新增 `_iter_path_item_security_refs`，把枚举面扩到 `webhooks` / `components.pathItems` / operation 与 components 两处 `callbacks`（含递归）；② 加 `_HTTP_METHODS` 白名单，Path Item 同级的 `x-*` 厂商数据不再冒充 per-op 引用；③ 加 `_as_dict`，畸形结构静默跳过而非抛 `AttributeError`；④ 注释与 docstring 按 r1 的 M-2 与「两条→三条」更正如实收窄措辞。
+
+**r2 重取的全部裁判**
+
+| 判据 | 存档（全文件名） | 结果 |
+|---|---|---|
+| 枚举面验伪锚（A 组 5 + B 组 2 + D 组 8 + C 组 1） | `enum-coverage-probe-r2c-20260916T202622.txt` | **16/16 PASS**，`PYTHON_RC=0` |
+| 先红 / 对照绿 / 负控 | `r2-final-red-green-negctl-20260916T203537.txt` | 对照 `2 passed` rc=0；先红 rc=1 带 `31 处` + `/system/* 16 处` + `APIKeyHeader`；负控 `2 failed` rc=1；跑前跑后三文件 sha 逐字同 |
+| contract 三文件 | `contract-3files-close-r2-20260916T202245.txt` | `2 failed, 75 passed in 305.13s`，`blocked=19/advisory=0/unaccounted=0` |
+| tests/unit 目录级 | `unit-close-r2-20260916T202245.txt` + `close-r2.nodeids` | `35 failed … 29 errors`；对 64 基线 **diff 空**（`diff_rc=0`，`>` 行 0） |
+| ruff / pyright / 收集面 | `r2-final-ruff-pyright-20260916T203640.txt` | `All checks passed!` rc=0；F821 锚 rc=1；`0 errors, 81 warnings`；`91 tests collected` |
+
+> **关于上面两条长跑的适用性（如实）**：`contract-3files-close-r2-…` 与 `unit-close-r2-…` 跑在 `test_openapi_contract.py` 的上一版（sha `9765a69a…`）上，之后该文件又做了 ③ 的 `_as_dict` 加固（现 sha `7bbe7d73…`）。两者结论**不受影响且无需重跑**，理由是可核的命令面而非推测：contract 那条命令**逐个点名**了三个文件、其中不含 `test_openapi_contract.py`；`tests/unit` 只收集 `tests/unit` 目录。pytest 不会收集未被点名的路径，故该文件任何内容都不进这两次运行。（真正随该文件变的三条判据 —— 枚举锚、先红/负控、收集面 —— 都已在加固后重取，见上表。）
+
+**r2 逐条被取代的存档（留痕，不作依据）**
+
+| 被取代 | 为什么 |
+|---|---|
+| `enum-coverage-probe-20260916T201836.txt` | 探针有 SyntaxError，而档内 `rc=0` 是**管道末端 grep 的 rc**（管道吃 rc），掩盖了 python 失败 |
+| `enum-coverage-probe-20260916T201849.txt` | 语法修好、8/8 通过，但位置串未分层（`POST GET /x callbacks[…]` 读着像笔误） |
+| `enum-coverage-probe-final-20260916T201922.txt` | 位置串已分层、8/8，但尚无 D 组畸形结构用例 |
+| `enum-coverage-probe-r2b-20260916T202522.txt` | **D3 实测 FAIL** —— 抓到 `callbacks` **容器本身**非 dict 时仍抛 `AttributeError`（③ 的由来）。这一份是有价值的红，特意留档 |
+| `r2-red-green-negctl-20260916T201958.txt` | **变异基准写错**：用了 `git show HEAD:<path>`，而本卡改动已 commit ⇒ 写回等于没变异，门照常绿 = 假的「先红」。抓到它的是档内 sha 自证行（变异态 sha 仍是 `925443dc…` 而非改前的 `8c8c9098…`）。已改用前提 commit `2287e258` 为基准 |
+| `r2-red-green-negctl-fixed-20260916T202118.txt` | 基准已改对、三阶段正确，但跑在 `_as_dict` 加固前的版本上 |
+| `r2-ruff-pyright-20260916T202258.txt` | 同上，加固前版本 |
+
+**r2 送审**：prompt `_bmad-output/审查/prompts/codex-prompt-CARD-SEC-DANGLING-r2.md`，存档 `_bmad-output/审查/codex-review-CARD-SEC-DANGLING-r2.md`，绑定见该档首部。结果见该档与下方小节。
 
 ## 八 提交
 
-见本节下方。
+- **代码 commit**：`c5e30cfc5e6681076d9bac8cc37c8792545eb1c6`
+  `fix(security): 31 处悬空 APIKeyHeader→InternalApiKey [BATCH-2026-09-11-第十四批 / CARD-SEC-DANGLING]`（header 94 字符 ≤100，含批次标记与卡号；body 无 >100 字符行）
+  带存档 `LEFTHOOK_EXCLUDE=python-lint`（理由见 §二.1）；⛔ 未用 `LEFTHOOK_EXCLUDE=python-typecheck`；`*.stderr*` 未入库（精确判据实测 0，验伪锚 21 份工作树 `.stderr` 全部被 `git check-ignore` 确认忽略）。
+- **地盘门（commit 范围口径）** `territory-postcommit-20260916T200439.txt`：改动文件恰为 `backend/app/security.py` + `backend/openapi.json` + `backend/tests/contract/test_openapi_contract.py`；`main.py` / `system.py` / 两个 conftest / 三个只读 contract 文件 diff 行数**各为 0**；`canvas-vault` 改动 0 行。
+  验伪锚（去掉 `':(exclude)_bmad-output'` 后应多出 `_bmad-output/` 路径）= **29**。
+  > ⚠️ 该锚第一次读到 **0** 是假阴性：git 对非 ASCII 路径做 C 引号化（`"_bmad-output/\345\256\241…"`），行首锚 `^_bmad-output/` 恒不命中。加 `-c core.quotepath=false` 后读到 29。两个读数同档并列，便于复核者看出这条坑。
+- **r2 commit**：见下方「round-2」小节。
+- **不 push**（按卡文 (l)）。

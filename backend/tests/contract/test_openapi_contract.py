@@ -216,9 +216,18 @@ class TestCanvasWorkflow:
 #   不发任何请求、不经 `@schema.parametrize()`(故可按 nodeid 直接点选)。
 #
 # 取 schema 的路径与快照漂移门**同源**: 复用
-#   `scripts/spec-tools/check-openapi-drift.py::load_live_schema()` —— 它对
-#   `import app.main` 与 `app.openapi()` 全程 socket-connect 禁闭, 不起 lifespan、
-#   不连 7691/7687。同源保证本门与漂移门看见的是同一份 schema。
+#   `scripts/spec-tools/check-openapi-drift.py::load_live_schema()`。同源保证本门与漂移门、
+#   与 `--write` 再生入口看见的是同一份 schema。
+#
+# ⚠️ socket 禁闭的覆盖面, 如实写清(别把它读成"整条收集路径都被保护"):
+#   `load_live_schema()` 只在**它自己**的 `import app.main` + `app.openapi()` 期间替换
+#   `socket.socket.connect`。而本模块在 `:18` 已先做过一次**不在禁闭内**的
+#   `from app.main import app`, `:79` 的 `schemathesis.openapi.from_asgi(...)` 也会在禁闭外
+#   经 ASGI 取一次 schema; 且 `app/main.py:_custom_openapi` 有 `app.openapi_schema` 缓存 ——
+#   本门进入禁闭后拿到的很可能是那次缓存结果。故本门**不**主张"整条收集路径无网络行为",
+#   只主张: 进程内断言本身不发 HTTP 请求, 且每次定向跑的 W4 端口门记账均为
+#   `NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)`。
+#   (禁闭本身也只换 `socket.socket.connect` 一个入口, 不等于封死全部网络出口。)
 
 
 def _load_drift_module_for_security():
@@ -242,14 +251,59 @@ def _load_drift_module_for_security():
     return module
 
 
+#: OpenAPI 3.1 Path Item Object 里被当作 **operation** 的固定字段(其余字段如 summary /
+#: description / servers / parameters / $ref / x-* 扩展都不是 operation)。只认这 8 个
+#: 是有意的取舍: Path Item 下合法的 `x-*` 厂商数据若恰好带 `security` 键, 不按方案引用算
+#: (它是数据不是需求); 代价是若将来出现**非标准**方法键携带真 security, 本门会漏掉它。
+_HTTP_METHODS = frozenset({"get", "put", "post", "delete", "options", "head", "patch", "trace"})
+
+
+def _as_dict(value):
+    """畸形结构一律降级成空 dict —— 见 `_iter_path_item_security_refs` docstring 的理由。"""
+    return value if isinstance(value, dict) else {}
+
+
+def _iter_path_item_security_refs(path_item, location):
+    """遍历一个 Path Item Object 下所有 operation 的 `security`, 并递归其 `callbacks`。
+
+    `callbacks[<名>][<运行时表达式>]` 的值本身又是一个 Path Item Object —— 这是 OpenAPI 3.1
+    里 operation 可以嵌套的唯一方式, 故本函数对它递归。递归无环风险: `load_live_schema()`
+    走过 `json.dumps`/`json.loads` 往返, 产出的是纯 JSON 树, 结构上不可能自引用。
+
+    非 dict 入参一律**静默跳过**而不是抛异常: 本门的主张是「引用都有定义」, 对畸形结构报
+    `AttributeError` 会把契约问题伪装成门自己坏了。畸形结构该由 schema 校验类的门去管。
+    """
+    for method, operation in _as_dict(path_item).items():
+        if method.lower() not in _HTTP_METHODS or not isinstance(operation, dict):
+            continue
+        op_location = f"{method.upper()} {location}"
+        for requirement in operation.get("security") or []:
+            for scheme_name in requirement:
+                yield op_location, scheme_name
+        for callback_name, callback in _as_dict(operation.get("callbacks")).items():
+            for expression, callback_item in _as_dict(callback).items():
+                # 位置串把宿主 operation 包进方括号, 免得嵌套层读成 "POST GET /x …" 像笔误
+                yield from _iter_path_item_security_refs(
+                    callback_item, f"[{op_location}] callbacks[{callback_name}][{expression}]"
+                )
+
+
 def _iter_security_refs(schema):
     """产出 (位置, 方案名) —— schema 里**每一处** `security` 需求引用的每个方案名。
 
-    覆盖面 = OpenAPI 3.1 里 `security` 的两个合法位置:
-      - 每个 operation 的 `paths[<path>][<method>].security` (位置写作 "GET /api/v1/x");
-      - 文档根的全局 `security` (位置写作 "<root>")。
-    2026-09-16 于本仓快照普查实测: 这两处合计 32 处(31 per-op + 1 root)已是全部 ——
-    该 schema 无 `webhooks`、无 `components.callbacks`/`pathItems`; WebSocket 路由
+    覆盖面 = OpenAPI 3.1 里 Security Requirement Object 的**全部**合法位置:
+      - 文档根的全局 `security`(位置写作 `<root>`);
+      - `paths[<path>][<method>]`(位置写作 `GET /api/v1/x`);
+      - `webhooks[<名>][<method>]`;
+      - `components.pathItems[<名>][<method>]`;
+      - 以及上述任一 operation 的 `callbacks[<名>][<表达式>][<method>]`
+        与 `components.callbacks[<名>][<表达式>][<method>]`(经 `_iter_path_item_security_refs` 递归)。
+
+    `$ref` 不解析: 被引用的 Path Item 若来自 `components.pathItems`, 它本身已在上面被独立遍历,
+    覆盖面不因此缺口(代价是同一 operation 可能以两个位置串各记一次, 对"是否悬空"的判定无影响)。
+
+    2026-09-16 于本仓快照实测: 只有前两类命中, 合计 32 处(31 per-op + 1 root); 该 schema 无
+    `webhooks`、无 `components.pathItems`/`components.callbacks`。WebSocket 路由
     (`app/main.py` 的 `@app.websocket`)不产出 OpenAPI operation, 其鉴权走
     `app/security.py::verify_websocket_internal_key` 手工校验, 根本不是 OpenAPI 安全方案,
     故不在本门(也不在任何 OpenAPI 契约门)的覆盖面内。
@@ -257,20 +311,32 @@ def _iter_security_refs(schema):
     for requirement in schema.get("security") or []:
         for scheme_name in requirement:
             yield "<root>", scheme_name
-    for path, methods in (schema.get("paths") or {}).items():
-        for method, operation in methods.items():
-            if not isinstance(operation, dict):
-                continue
-            for requirement in operation.get("security") or []:
-                for scheme_name in requirement:
-                    yield f"{method.upper()} {path}", scheme_name
+    for path, path_item in _as_dict(schema.get("paths")).items():
+        yield from _iter_path_item_security_refs(path_item, path)
+    for name, path_item in _as_dict(schema.get("webhooks")).items():
+        yield from _iter_path_item_security_refs(path_item, f"webhooks[{name}]")
+    components = _as_dict(schema.get("components"))
+    for name, path_item in _as_dict(components.get("pathItems")).items():
+        yield from _iter_path_item_security_refs(path_item, f"components.pathItems[{name}]")
+    for callback_name, callback in _as_dict(components.get("callbacks")).items():
+        for expression, callback_item in _as_dict(callback).items():
+            yield from _iter_path_item_security_refs(
+                callback_item, f"components.callbacks[{callback_name}][{expression}]"
+            )
 
 
 def test_security_schemes_cover_all_security_refs():
     """每一处 `security` 引用的方案名必须 ∈ `components.securitySchemes`(悬空数必须等于 0)。
 
-    两条防 vacuous-pass 的前置断言不可删: 若 `securitySchemes` 为空、或整份 schema 一条
-    `security` 需求都没有, 悬空集自然是空集 —— 那时本门「绿」不代表契约自洽。
+    **三条**防 vacuous-pass 的前置断言不可删(声明集非空 / 引用集非空 / per-op 引用集非空):
+    若 `securitySchemes` 为空、或整份 schema 一条 `security` 需求都没有、或只剩全局 security,
+    悬空集自然是空集 —— 那时本门「绿」不代表契约自洽。
+
+    本门**不**证明的两件事(别把绿读过头):
+      - 不证明 `securitySchemes` 里没有冗余/同义方案。本门查的是**包含**关系, 不是等价关系:
+        给 securitySchemes 补一个 `APIKeyHeader` 别名同样能让悬空归 0 并让本门变绿。
+      - 不证明方案定义体本身写对(`type`/`in`/`name` 三个字段由 `app/main.py:_custom_openapi`
+        手写覆盖, 本门只比方案**名**)。
     """
     drift = _load_drift_module_for_security()
     schema = drift.load_live_schema()
