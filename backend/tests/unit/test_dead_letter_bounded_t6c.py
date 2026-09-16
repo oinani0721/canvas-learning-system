@@ -542,7 +542,9 @@ def test_overflow_name_keeps_extension_so_gitignore_covers_it(monkeypatch, tmp_p
     assert names, "轮转未发生"
     for n in names:
         assert n.endswith(".jsonl"), f"轮转产物丢了扩展名, gitignore 盖不住: {n}"
-        assert ".overflow." in n
+        # ⚠️ 这里**不再**断言 `".overflow." in n` —— n 是 _overflow_siblings 按
+        # 该条件筛出来的，那句恒真（Codex round-2 L3）。改为直接核生产常量。
+        assert fc.OVERFLOW_SUFFIX == ".overflow."
 
 
 def test_unique_overflow_target_does_not_overwrite_existing(monkeypatch, tmp_path):
@@ -576,3 +578,145 @@ def test_unique_overflow_target_does_not_overwrite_existing(monkeypatch, tmp_pat
     third = fc._unique_overflow_target(path)
     assert third not in (first, second)
     assert sorted([first.name, second.name, third.name]) == [first.name, second.name, third.name]
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Codex round-2 H1：换代必须同时作废回灌游标
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def test_rotation_invalidates_stale_replay_checkpoint(service, bounded_failed_writes, monkeypatch, tmp_path):
+    """轮转让文件换代 ⇒ 必须把 failed_writes 的持久化游标一并作废。
+
+    守卫只挡「回灌窗口开着」，挡不住「窗口已关但游标还残留」（finalize 撞
+    OSError 就会留下它）。残留游标 + 换代后的新文件 = 下一轮把新条目整段跳过，
+    还因 still_pending 为空而被改名 .synced. 谎称已回灌。
+    """
+    import app.services.fallback_sync_service as fss
+
+    ckpt = tmp_path / "sync_checkpoint.json"
+    ckpt.write_text(
+        json.dumps({"failed_writes": {"index": 50, "progress_version": "x"}, "canvas_events": {"index": 3}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(fss, "SYNC_CHECKPOINT_FILE", ckpt)
+
+    path = bounded_failed_writes
+    for i in range(MAX_LINES + 3):
+        assert service._record_structured_outbox({"kind": "knowledge_entity", "i": i})
+
+    assert _overflow_siblings(path), "轮转未发生，本门无意义"
+    left = json.loads(ckpt.read_text(encoding="utf-8"))
+    assert "failed_writes" not in left, "换代了却留下指向上一代文件的游标"
+    assert left.get("canvas_events") == {"index": 3}, "误伤了别的链的游标"
+
+
+def test_rotation_is_skipped_when_checkpoint_cannot_be_cleared(service, bounded_failed_writes, monkeypatch):
+    """作废游标失败 ⇒ **放弃轮转**（宁可越限），与既有「清不掉就不动文件」同口径。"""
+    monkeypatch.setattr(fwc, "_invalidate_replay_checkpoint", lambda: False)
+    path = bounded_failed_writes
+    total = MAX_LINES + 3
+    for i in range(total):
+        assert service._record_structured_outbox({"kind": "knowledge_entity", "i": i})
+
+    assert _overflow_siblings(path) == [], "游标作废失败却照样换代了"
+    assert _nlines(path) == total, "条目丢了"
+
+
+def test_checkpoint_invalidation_is_noop_without_checkpoint_file(monkeypatch, tmp_path):
+    """没有 checkpoint 文件时应视为成功（没有旧游标要作废），不得阻断轮转。"""
+    import app.services.fallback_sync_service as fss
+
+    monkeypatch.setattr(fss, "SYNC_CHECKPOINT_FILE", tmp_path / "absent.json")
+    assert fwc._invalidate_replay_checkpoint() is True
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Codex round-2 M1 / L2：exists() 吞权限、以及负控打错模块
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def test_count_lines_does_not_swallow_permission_error(monkeypatch, tmp_path):
+    """count_lines 不得把「读不到」压成「0 行」。
+
+    Python 3.14 的 Path.exists() 把 PermissionError 吞成 False；若 count_lines
+    照用它，上限判定就永远到不了阈值 = 有界静默失效。
+    """
+    path = tmp_path / "failed_edge_syncs.jsonl"
+    path.write_text('{"a":1}\n', encoding="utf-8")
+
+    real_stat = type(path).stat
+
+    def _boom(self, *a, **kw):
+        if self == path:
+            raise PermissionError("no access")
+        return real_stat(self, *a, **kw)
+
+    monkeypatch.setattr(type(path), "stat", _boom)
+    try:
+        fc.count_lines(path)
+    except PermissionError:
+        pass
+    else:
+        raise AssertionError("权限错误被吞成了行数")
+
+
+def test_rotate_handles_count_lines_failure_in_its_own_module(monkeypatch, tmp_path):
+    """负控打桩必须打**轮转函数实际使用的那份绑定**。
+
+    `rotate_if_over_limit` 用的是 `fc.count_lines`；先前只打了 `fwc.count_lines`，
+    所以 failure_counters 自己的数行失败分支一直零覆盖（Codex round-2 L2）。
+    """
+    path = tmp_path / "failed_edge_syncs.jsonl"
+    path.write_text('{"a":1}\n{"a":2}\n', encoding="utf-8")
+
+    def _boom(_p):
+        raise OSError("cannot read")
+
+    monkeypatch.setattr(fc, "count_lines", _boom)
+    assert fc.rotate_if_over_limit(path, 1, 5) is False, "数行失败时不该轮转"
+    assert _overflow_siblings(path) == []
+
+
+def test_rotate_handles_rename_failure(monkeypatch, tmp_path):
+    """rename 失败 ⇒ 返回 False、不抛；调用方仍会继续追加（此前零覆盖）。"""
+    path = tmp_path / "failed_edge_syncs.jsonl"
+    path.write_text('{"a":1}\n{"a":2}\n', encoding="utf-8")
+
+    real_rename = type(path).rename
+
+    def _boom(self, target):
+        if self == path:
+            raise PermissionError("cannot rename")
+        return real_rename(self, target)
+
+    monkeypatch.setattr(type(path), "rename", _boom)
+    assert fc.rotate_if_over_limit(path, 1, 5) is False
+    assert _nlines(path) == 2, "rename 失败不该动到活动文件"
+
+
+def test_collision_fallback_still_sorts_last(monkeypatch, tmp_path):
+    """第 101 个同微秒兜底名仍须排在 -99 **之后**（Codex round-2 L1）。
+
+    `-`(0x2D) < `.`(0x2E) ⇒ `-99-<uuid>.jsonl` 会排在 `-99.jsonl` 之前，
+    「删最老」就会去删这个最新的兜底档。分隔符必须大于 `.`。
+    """
+    import datetime as _dt
+
+    class _Frozen(_dt.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return _dt.datetime(2026, 9, 16, 1, 2, 3, 456789, tzinfo=tz)
+
+    monkeypatch.setattr(fc, "datetime", _Frozen)
+    path = tmp_path / "failed_edge_syncs.jsonl"
+    path.write_text("{}\n", encoding="utf-8")
+
+    taken = []
+    for _ in range(100):
+        t = fc._unique_overflow_target(path)
+        t.write_text("x\n", encoding="utf-8")
+        taken.append(t)
+    fallback = fc._unique_overflow_target(path)
+    assert fallback not in taken
+    assert fallback.name > taken[-1].name, f"兜底名排在 -99 之前, 会被当成最老删掉: {fallback.name} < {taken[-1].name}"

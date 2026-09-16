@@ -18,7 +18,7 @@ import os
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Optional
+from typing import Callable, List, Optional
 from uuid import uuid4
 
 logger = logging.getLogger(__name__)
@@ -85,7 +85,13 @@ def count_lines(path: Path) -> int:
     额外切行，于是「多少行」会随条目内容漂移，上限判定跟着漂。
     末行没有换行符时也算一行。
     """
-    if not path.exists():
+    # ⚠️ 不用 ``path.exists()``（Codex round-2 M1）：Python 3.14 的 ``Path.exists()``
+    # 会把 ``PermissionError`` **吞成 False**，于是「读不到」和「文件是空的」在这里
+    # 不可区分 —— 对上限判定而言那等于「永远不到阈值、永远不轮转」，有界静默失效。
+    # 用 stat 显式分流：真的不在 ⇒ 0；其他 OSError ⇒ 上抛，由调用方（已接住）降级。
+    try:
+        path.stat()
+    except FileNotFoundError:
         return 0
     total = 0
     tail = b""
@@ -135,10 +141,13 @@ def _unique_overflow_target(path: Path) -> Path:
         candidate = path.with_suffix(f"{OVERFLOW_SUFFIX}{stamp}-{n:02d}{tail}")
         if not candidate.exists():
             return candidate
-    # 同一微秒连撞 100 次基本不可能；真发生了宁可牺牲可排序性也不覆盖数据。
-    # 挂在 `-99-` 之后 ⇒ 在同微秒族内仍排最后，只是族内彼此之间无序。
+    # 同一微秒连撞 100 次基本不可能；真发生了宁可牺牲族内有序也不覆盖数据。
+    # ⚠️ 分隔符用 `~`(0x7E) 不用 `-`(0x2D)：`-` < `.`(0x2E) 会让 `-99-<uuid>.jsonl`
+    # 排在 `-99.jsonl` **之前**，于是「删最老」会去删这个最新的兜底档
+    # （Codex round-2 L1；与 `-NN` 恒存在那条是同一个 ASCII 陷阱的第二处）。
+    # `~` > `.` ⇒ 兜底档在同微秒族内仍排最后。
     logger.warning("轮转目标名连撞 100 次, 退化到随机后缀: %s", path)
-    return path.with_suffix(f"{OVERFLOW_SUFFIX}{stamp}-99-{uuid4().hex[:8]}{tail}")
+    return path.with_suffix(f"{OVERFLOW_SUFFIX}{stamp}-99~{uuid4().hex[:8]}{tail}")
 
 
 def _prune_overflow(path: Path, max_rotations: int) -> None:
@@ -165,7 +174,13 @@ def _prune_overflow(path: Path, max_rotations: int) -> None:
             logger.warning("[T6-C] 清理溢出文件失败 %s: %s", victim, e)
 
 
-def rotate_if_over_limit(path: Path, max_lines: int, max_rotations: int) -> bool:
+def rotate_if_over_limit(
+    path: Path,
+    max_lines: int,
+    max_rotations: int,
+    *,
+    before_rotate: Optional[Callable[[], bool]] = None,
+) -> bool:
     """活动文件到达 ``max_lines`` 时轮转成 ``<stem>.overflow.<ts>``，并按保留上限删最老。
 
     ⛔ **调用方必须已持有**保护该文件的锁（本模块的 ``_dead_letter_io_lock``，
@@ -176,6 +191,10 @@ def rotate_if_over_limit(path: Path, max_lines: int, max_rotations: int) -> bool
         path: 活动文件
         max_lines: 行数上限；``<= 0`` 表示关闭上限（不轮转）
         max_rotations: 保留的 ``.overflow.*`` 个数；``0`` = 轮转后立即全删
+        before_rotate: 决定轮转前必须完成的前置动作；返回 False ⇒ **放弃本次轮转**。
+            failed_writes 用它作废回灌游标（换代与游标失效必须同生共死，见
+            ``failed_writes_constants._invalidate_replay_checkpoint``）。
+            两条 dead-letter 链没有游标，不传。
 
     Returns:
         True 表示本次确实轮转了。
@@ -195,6 +214,10 @@ def rotate_if_over_limit(path: Path, max_lines: int, max_rotations: int) -> bool
             return False
     except OSError as e:
         logger.warning("[T6-C] 数行失败, 跳过轮转 %s: %s", path, e)
+        return False
+
+    if before_rotate is not None and not before_rotate():
+        logger.error("[T6-C] 轮转前置动作失败, 本次不轮转（宁可越限）: %s", path)
         return False
 
     target = _unique_overflow_target(path)

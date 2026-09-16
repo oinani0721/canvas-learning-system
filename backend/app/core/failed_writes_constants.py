@@ -4,6 +4,7 @@
 # agent_service.py and memory_service.py) and to provide a single lock
 # that both the writer (_record_failed_write) and reader/recovery
 # (recover_failed_writes, load_failed_scores) can share.
+import json
 import logging
 import threading
 from pathlib import Path
@@ -79,6 +80,76 @@ def _replay_in_flight() -> bool:
         return False
 
 
+def _invalidate_replay_checkpoint() -> bool:
+    """把 ``failed_writes`` 的回灌游标作废。成功（含本来就没有）返回 True。
+
+    ⛔ **换代与游标失效必须同生共死** —— 这条不变量是
+    ``fallback_sync_service._clear_checkpoint`` 的 docstring 自己立的：
+    回灌保存的 checkpoint 是**当次快照的下标**，所以任何让活动文件换代的动作
+    都必须先把旧游标作废，否则下一轮会按一个指向**上一代文件**的下标跳过记录。
+
+    本卡的写侧轮转是**第二个**让它换代的动作（第一个是回灌自己的
+    ``_rotate_file`` / ``_atomic_write_file``），初版只挡了「回灌窗口开着」，
+    没管「窗口已关但游标还残留」（Codex round-2 H1，已复现）：
+
+        原文件 51 条、游标 index=50 → finalize 撞 OSError ⇒ 文件与游标都保留、
+        锁释放 → 写侧追加 1 条并轮转 ⇒ 新文件只有 1 行 → 下一轮回灌
+        ``for i, line in enumerate(lines)`` 全部 ``i < 50`` 被跳过 ⇒ 该条**从未
+        重放**，却因 still_pending 为空而被 ``_rotate_file`` 改名 ``.synced.``
+        （= 谎称已回灌），30 天后删除。它既没进 overflow 也没走 retention，
+        **不属于本卡已披露的那个取舍**。
+
+    实现选择（两处刻意为之）：
+
+    1. **不走 ``get_fallback_sync_service()``** —— 它会 ``get_neo4j_client()``
+       构造客户端单例，而这里是「写一条死信」的热路径，不该在上面挂一个
+       数据库客户端的构造。改为直接用该模块的**模块级**
+       ``SYNC_CHECKPOINT_FILE`` 与 ``_checkpoint_lock``（惰性 import 避免成环）。
+       只 ``pop`` 一个顶层键、不依赖条目内部结构，与 ``_clear_checkpoint``
+       的漂移面只有「键名」一处。
+    2. **失败返回 False 而不是吞掉** —— 调用方据此**放弃本次轮转**，与
+       ``_clear_checkpoint``「清不掉就一律上抛、由调用方决定不动文件」
+       完全同口径。宁可暂时越限，也不留一个指向上一代文件的游标。
+
+    锁序：调用方持 ``failed_writes_lock``，这里再取 ``_checkpoint_lock``；
+    与既有 ``_sync_failed_writes``（``:357`` 持 ``failed_writes_lock`` 后于
+    ``:397`` 调 ``_clear_checkpoint``）**同向**，无反序嵌套。
+    """
+    try:
+        from app.services.fallback_sync_service import (
+            SYNC_CHECKPOINT_FILE,
+            _checkpoint_lock,
+        )
+    except Exception as e:  # noqa: BLE001 — 见 docstring：观测不到就不换代
+        logger.error("[T6-C] 取不到回灌 checkpoint 接口, 本次不轮转: %s", e)
+        return False
+
+    try:
+        with _checkpoint_lock:
+            if not SYNC_CHECKPOINT_FILE.exists():
+                return True
+            try:
+                data = json.loads(SYNC_CHECKPOINT_FILE.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                # 文件本身不可信 ⇒ 整个删掉，目的（让旧游标失效）同样达成。
+                SYNC_CHECKPOINT_FILE.unlink(missing_ok=True)
+                return True
+            if not isinstance(data, dict) or "failed_writes" not in data:
+                return True
+            data.pop("failed_writes", None)
+            if data:
+                tmp = SYNC_CHECKPOINT_FILE.with_suffix(".t6c-tmp")
+                tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+                tmp.replace(SYNC_CHECKPOINT_FILE)
+            else:
+                SYNC_CHECKPOINT_FILE.unlink(missing_ok=True)
+            logger.info("[T6-C] 活动文件将换代, 已作废 failed_writes 回灌游标")
+            return True
+    except OSError as e:
+        logger.error("[T6-C] 作废回灌游标失败, 本次不轮转: %s", e)
+        return False
+
+
 def append_failed_writes_bounded(
     file_path: Path,
     lines: Sequence[str],
@@ -144,7 +215,7 @@ def append_failed_writes_bounded(
     # 再接着写下一段 —— 本函数写出的每一段都 ≤ limit（限定见 docstring 三条）。
     pending = list(lines)
     while pending:
-        rotate_if_over_limit(file_path, limit, keep)
+        rotate_if_over_limit(file_path, limit, keep, before_rotate=_invalidate_replay_checkpoint)
         room = len(pending)
         if limit > 0:
             try:

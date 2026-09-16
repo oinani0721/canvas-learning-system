@@ -409,7 +409,10 @@ def test_display_path_does_not_leak_absolute_when_anchor_is_root(monkeypatch, tm
     抛异常，只是把前导斜杠去掉，脱敏静默失效。现在锚在 backend 上，
     tmp_path 下的文件根本不在锚内 ⇒ 走 fallback 只回文件名。
     """
-    monkeypatch.setattr(traces, "_BACKEND_DIR", Path("/nonexistent-anchor-t6c"))
+    # ⚠️ 真的传 "/"（Codex round-2 L3：原先传的是一个不存在的目录，只测到
+    # 「锚外走 fallback」，没测到「锚点就是根」这个真正会让脱敏失效的情形 ——
+    # relative_to("/") **不抛异常**，只把前导斜杠去掉）。
+    monkeypatch.setattr(traces, "_BACKEND_DIR", Path("/"))
     assert traces._display_path(tmp_path / "failed_writes.jsonl") == "failed_writes.jsonl"
 
 
@@ -448,3 +451,112 @@ def test_totals_are_asserted_and_unknown_is_not_counted_as_zero(client, monkeypa
     assert body["total_backlog"] == 2
     assert body["total_overflow_files"] == 1
     assert body["incomplete"] is False
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Codex round-2 M1 / M2 / M3
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def test_permission_error_on_active_file_is_flagged_not_reported_as_absent(client, monkeypatch, tmp_path):
+    """活动文件读不到（权限）⇒ 必须标降级，不得报成 exists=False / backlog=0。
+
+    Python 3.14 的 `Path.exists()` 把 PermissionError 吞成 False，于是一个权限
+    问题长得和「真的没有积压」一模一样 —— 正是本卡要修的那类 DD-13。
+    """
+    active = tmp_path / "failed_writes.jsonl"
+    _write_jsonl(active, [{"timestamp": "2026-09-01T00:00:00Z"}])
+
+    def _boom(p):
+        raise PermissionError("no access")
+
+    monkeypatch.setattr(traces, "_stat_or_error", lambda p: (None, f"stat:{type(PermissionError()).__name__}"))
+    monkeypatch.setattr(traces, "BACKLOG_FILES", {"failed_writes.jsonl": active}, raising=False)
+
+    body = client.get(BACKLOG_PATH).json()
+    entry = body["files"][0]
+    assert entry["partial"] is True, "权限问题被报成了完整结果"
+    assert any(d.startswith("stat:") for d in entry["degraded"]), entry["degraded"]
+    assert body["incomplete"] is True
+
+
+def test_stat_or_error_distinguishes_absent_from_unreadable(tmp_path, monkeypatch):
+    """`_stat_or_error` 的两条分支必须分开：不存在 ⇒ 无原因；读不到 ⇒ 带原因。"""
+    missing = tmp_path / "nope.jsonl"
+    assert traces._stat_or_error(missing) == (None, None)
+
+    present = tmp_path / "failed_writes.jsonl"
+    present.write_text("{}\n", encoding="utf-8")
+    real_stat = type(present).stat
+
+    def _boom(self, *a, **kw):
+        if self == present:
+            raise PermissionError("no access")
+        return real_stat(self, *a, **kw)
+
+    monkeypatch.setattr(type(present), "stat", _boom)
+    st, err = traces._stat_or_error(present)
+    assert st is None and err == "stat:PermissionError"
+
+
+def test_lone_surrogate_timestamp_does_not_500_the_route(client, monkeypatch, tmp_path):
+    """一条含孤立代理字符的记录不得让整条只读路由 500。
+
+    `{"timestamp":"\\ud800"}` 是**合法** JSON；产出的字符一路活到响应序列化才抛
+    UnicodeEncodeError，而那时已经出了 `_safe_backlog_entry` 的 try —— 降级机制
+    接不住。死信文件正是系统出问题时写的，畸形内容是常态。
+    """
+    active = tmp_path / "failed_writes.jsonl"
+    active.write_text('{"timestamp":"\\ud800"}\n', encoding="utf-8")
+    monkeypatch.setattr(traces, "BACKLOG_FILES", {"failed_writes.jsonl": active}, raising=False)
+
+    r = client.get(BACKLOG_PATH)
+    assert r.status_code == 200, f"坏记录把整条路由打挂了: {r.status_code}"
+    entry = r.json()["files"][0]
+    assert entry["backlog"] == 1
+    assert entry["oldest"] is not None
+
+
+def test_utf8_safe_replaces_unencodable_and_keeps_normal_text():
+    """验伪锚：清洗只动不可编码的码点，正常文本必须原样。"""
+    assert traces._utf8_safe("2026-09-01T00:00:00Z") == "2026-09-01T00:00:00Z"
+    assert traces._utf8_safe("中文 ok") == "中文 ok"
+    cleaned = traces._utf8_safe("\ud800")
+    cleaned.encode("utf-8")  # 不抛即为通过
+    assert cleaned != "\ud800"
+
+
+def test_scan_budget_stops_midway_when_file_grows_after_stat(tmp_path, monkeypatch):
+    """尺寸闸必须在**读取过程中**也生效，不只是开扫前 stat 一次。
+
+    交错：stat 时没超限 → 写者追加超长记录 → 扫描器才开始读。
+
+    ⚠️ 这条门的第一版是**空壳**：它打桩的是 `traces._stat_or_error`，而
+    `_first_last_timestamp` 自己还会 `path.stat()`；那次 stat 拿到真实大小、
+    在**开扫前**就 size_capped 返回了，根本没进读循环 —— 负控摘掉字节预算后
+    它照样绿。必须让**开扫前那次 stat** 也看到小尺寸，才逼得到读取期的预算。
+    """
+    active = tmp_path / "failed_writes.jsonl"
+    long_ts = "2026-09-01T00:00:00Z" + "x" * 5000
+    active.write_text(
+        '{"timestamp":"2026-09-01T00:00:00Z"}\n' + json.dumps({"timestamp": long_ts}) + "\n",
+        encoding="utf-8",
+    )
+
+    real_stat = type(active).stat
+
+    class _SmallStat:
+        st_size = 10  # 开扫前看到的尺寸：远小于闸
+        st_mtime = 0.0
+
+    def _fake_stat(self, *a, **kw):
+        if self == active:
+            return _SmallStat()
+        return real_stat(self, *a, **kw)
+
+    monkeypatch.setattr(type(active), "stat", _fake_stat)
+
+    oldest, newest, reason = traces._first_last_timestamp(active, max_bytes=100)
+    assert reason == "size_capped", f"读取期预算没生效, reason={reason!r}"
+    assert newest != long_ts, "超长记录被整条读进来了"
+    assert oldest == "2026-09-01T00:00:00Z", "预算耗尽前已读到的那条应当保留"

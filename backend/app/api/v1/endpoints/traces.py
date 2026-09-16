@@ -140,9 +140,49 @@ def _display_path(path: Path) -> str:
     降级路径上的函数自己必须不可抛。``path.name`` 是纯字符串运算，安全。
     """
     try:
-        return "backend/" + str(path.resolve().relative_to(_BACKEND_DIR))
+        anchor = _BACKEND_DIR
+        # ⛔ 锚点退化保护（Codex round-2 L3 的门把它逼出来的）：``relative_to`` 对
+        # 一个**退化的**锚点（尤其是文件系统根）**不会**抛异常，只是把前导斜杠去掉
+        # —— 脱敏静默失效而判据全绿。两道显式闸：锚点不能是根；结果不能比
+        # 「backend 下最深的那条链」（``app/data/<file>`` = 3 段）更深。
+        if anchor.parent == anchor:
+            return path.name
+        rel = path.resolve().relative_to(anchor)
+        if len(rel.parts) > 3:
+            return path.name
+        return "backend/" + str(rel)
     except Exception:  # noqa: BLE001 — 见 docstring：降级路径不得成为新的失败点
         return path.name
+
+
+def _utf8_safe(value: str) -> str:
+    """把不能编成 UTF-8 的码点换掉，保证它出得了 HTTP 响应。
+
+    ⚠️ 死信文件里的一条坏记录不得让整条只读路由 500（Codex round-2 M2，已复现）：
+    ``json.loads('{"timestamp":"\\\\ud800"}')`` 是**合法** JSON，产出一个孤立代理
+    字符；它一路活到响应序列化那一步才抛 ``UnicodeEncodeError``，而那时已经
+    **出了** ``_safe_backlog_entry`` 的 try —— 降级机制接不住，整条路由挂掉。
+    这类文件正是系统出问题时写的，出现半截/畸形内容是常态。
+    """
+    return value.encode("utf-8", "replace").decode("utf-8")
+
+
+def _stat_or_error(path: Path):
+    """``(stat, None)`` 或 ``(None, 原因标签)``。
+
+    ⚠️ 不用 ``Path.exists()``（Codex round-2 M1，已复现）：Python 3.14 的
+    ``exists()`` 把 ``PermissionError`` **吞成 False**，于是「没权限看」会被报成
+    ``exists=False, backlog=0, partial=False`` —— 一个权限问题长得和「真的没有
+    积压」一模一样，正是本卡要修的那类 DD-13。这里显式分流：
+    真的不在 ⇒ ``(None, None)``；其他 OSError ⇒ 带原因标签，由调用方标降级。
+    """
+    try:
+        return path.stat(), None
+    except FileNotFoundError:
+        return None, None
+    except OSError as e:
+        logger.warning(f"Failed to stat {path}: {e}")
+        return None, f"stat:{type(e).__name__}"
 
 
 def _first_last_timestamp(path: Path, *, max_bytes: int) -> Tuple[Optional[str], Optional[str], Optional[str]]:
@@ -153,8 +193,12 @@ def _first_last_timestamp(path: Path, *, max_bytes: int) -> Tuple[Optional[str],
 
     ⚠️ 内存不是无条件 O(1)（Codex round-1 M3 更正了初版这处过强的说法）：
     按行迭代会把**一整行**读进内存，一条没有换行的超长记录就能撑爆它。
-    所以按 ``max_bytes`` 设闸：文件超过这个尺寸就**完全不扫**，直接返回
-    ``truncated=True``，由调用方如实标记，而不是报一个扫了一半的时间戳。
+    所以按 ``max_bytes`` 设闸：文件超过这个尺寸就**完全不扫**。
+
+    ⚠️ 闸必须在**读取过程中**也生效（Codex round-2 M3）。只在开扫前 stat 一次
+    挡不住这个交错：stat 时没超限 → 写者追加一条超长记录 → 扫描器才开始读，
+    于是 ``for line in f`` 照样把整条超长行读进内存。所以下面带**字节预算**，
+    边读边扣，花完就停并如实报 ``size_capped``。
 
     Returns:
         ``(oldest, newest, reason)``。``reason`` 为 ``None`` 表示完整扫完；
@@ -173,9 +217,18 @@ def _first_last_timestamp(path: Path, *, max_bytes: int) -> Tuple[Optional[str],
     except OSError as e:
         logger.warning(f"Failed to size {path} before scan: {e}")
         return None, None, f"stat:{type(e).__name__}"
+    budget = max_bytes
     try:
         with open(path, "r", encoding="utf-8", errors="replace") as f:
             for line in f:
+                budget -= len(line)
+                if budget < 0:
+                    logger.info(
+                        "[T6-C] %s 扫描中途超出字节预算 %d B, 停止扫描",
+                        path.name,
+                        max_bytes,
+                    )
+                    return first, last, "size_capped"
                 line = line.strip()
                 if not line:
                     continue
@@ -188,9 +241,10 @@ def _first_last_timestamp(path: Path, *, max_bytes: int) -> Tuple[Optional[str],
                 ts = entry.get("timestamp")
                 if ts is None:
                     continue
+                safe = _utf8_safe(str(ts))
                 if first is None:
-                    first = str(ts)
-                last = str(ts)
+                    first = safe
+                last = safe
     except OSError as e:
         logger.warning(f"Failed to scan timestamps in {path}: {e}")
         return first, last, f"read:{type(e).__name__}"
@@ -242,24 +296,36 @@ def _backlog_entry(name: str, path: Path) -> Dict[str, Any]:
     try:
         siblings = overflow_siblings(path)
         entry["overflow_files"] = len(siblings)
-        entry["overflow_bytes"] = sum(p.stat().st_size for p in siblings if p.exists())
+        # 同理不用 p.exists()（吞权限）；兄弟文件可能正被 retention 删掉，
+        # FileNotFoundError 当 0 跳过，其他 OSError 交给外层标降级。
+        total = 0
+        for p in siblings:
+            try:
+                total += p.stat().st_size
+            except FileNotFoundError:
+                continue
+        entry["overflow_bytes"] = total
     except OSError as e:
         logger.warning(f"Failed to stat overflow siblings of {path}: {e}")
         _degrade(f"overflow_scan:{type(e).__name__}")
 
-    if not path.exists():
+    # ⚠️ 存在性与 stat 合成**一次** _stat_or_error（Codex round-2 M1）：原先先
+    # `path.exists()` 再 `path.stat()`，而 3.14 的 exists() 把 PermissionError
+    # 吞成 False ⇒ 直接从这里 return，报出 exists=False / backlog=0 / partial=False，
+    # 一个权限问题被说成「真的没有积压」。现在读不到就带原因标签标降级。
+    stat, stat_err = _stat_or_error(path)
+    if stat_err is not None:
+        _degrade(stat_err)
+        return entry
+    if stat is None:
+        # 真的不存在 —— 这不是降级，是「确实没有积压」，不标 partial。
         if entry["kind"] == "jsonl":
             entry["backlog"] = 0
         return entry
 
     entry["exists"] = True
-    try:
-        stat = path.stat()
-        entry["size_bytes"] = stat.st_size
-        entry["mtime"] = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat()
-    except OSError as e:
-        logger.warning(f"Failed to stat {path}: {e}")
-        _degrade(f"stat:{type(e).__name__}")
+    entry["size_bytes"] = stat.st_size
+    entry["mtime"] = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat()
 
     if entry["kind"] == "jsonl":
         try:
