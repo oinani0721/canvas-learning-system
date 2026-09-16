@@ -378,9 +378,43 @@ git --no-pager diff --stat --no-color 6acec0e4 HEAD -- . ':(exclude)_bmad-output
 | **`selfcheck-r5-findings-20260916T125808.txt`** | 车道对 r5 四条 findings 的独立核验实证 |
 | **`closeout-20260916T130510.txt`** | 收工核验（硬边界自证 + 终审绑定） |
 
-### 裁判 5 验伪锚补跑（docs commit 之后）
+### 裁判 5 地盘核 + 验伪锚（docs commit 之后补跑，存档 `judge5-territory-final-20260916T131204.txt`）
 
-见文末「收工补跑」段。
+```
+git --no-pager diff --stat --no-color 7e1d6b53 HEAD -- . ':(exclude)_bmad-output'
+ .claude/skills/deploy-vault/SKILL.md              |   6 +-
+ backend/tests/unit/test_deploy_vault_sh.py        | 495 +++++++++++++++++-
+ backend/tests/unit/test_vault_install_manifest.py |  24 +-
+ scripts/cls_forbidden_paths.py                    |  11 +
+ scripts/deploy-vault.sh                           | 512 ++++++++++++++++++-
+ scripts/vault-install-manifest.json               |  18 +-
+ 6 files changed, 1043 insertions(+), 23 deletions(-)
+文件数 = 6 ; backend/app 越界 = 0 ✅
+```
+
+**验伪锚：46 vs 0** —— 去掉 `':(exclude)_bmad-output'` 后 `_bmad-output/` 命中 **46**，
+带 exclude 时命中 **0** ⇒ exclude 真在起作用，主判据不是恒空。✅
+
+> ⛔ **这条锚本身踩了两个坑，都留档**（前两版存档 `…T130917.txt` / `…T130935.txt` 刻意保留，
+> 删掉就看不出判据是怎么被修对的）：
+>
+> **坑①**：锚第一版写成 `git diff --name-only | grep -c '^_bmad-output/'` → 读出 **0**，
+> 我差点据此误判成「exclude 失效」。实为 **git 默认对非 ASCII 路径做 C 引号化** ——
+> 输出是 `"_bmad-output/\345\256\241\346\237\245/…"`，**行首是引号**，行首锚永远匹配不到。
+> 修法：`-c core.quotepath=false`（**是 git 的 flag，不是 grep 的** —— 与 R-B14-11 说的 `--no-color` 同族）。
+> ⇒ 已记入工程坑 memory（`reference_git_quotepath_breaks_line_anchors`）。
+>
+> **坑②**：我在修正后的**同一份存档里**，把对照数**手打**成「43 vs 0」，实测是 **46**。
+> ⇒「关于证据的断言必须先数一遍再写」。终版里所有数字都由命令算出、不手打。
+
+### ⚠️ 残留面扫描（加分项）未完成 —— 如实登记
+
+收尾阶段另起了一个只读扫描（三路并行：HIGH-1 同型面有多宽 / 静态门同型漏面 / 5 轮都漏了什么），
+目的是给**修复卡**一个准确的范围。**三路各重启 3 次仍未产出**（本机 API 当时不稳，
+主 session 自己的工具调用也在超时），已主动停掉，**不拖延交付**。
+
+⇒ 这意味着 §七 的第 16 条（HIGH-1 同型面有多宽）与第 19 条（其余静态门有无同型漏面）
+**至今仍是未知数**，不能因为「扫过了」而降级。修复卡需要自己把这个面量全。
 
 ---
 

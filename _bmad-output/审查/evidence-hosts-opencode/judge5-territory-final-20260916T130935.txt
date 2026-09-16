@@ -1,0 +1,20 @@
+# 裁判5 地盘核（终）20260916T130935   PREV=7e1d6b53  HEAD=bf485c99
+
+===== 主判据：代码面 ⊆ 允许清单 =====
+ .claude/skills/deploy-vault/SKILL.md              |   6 +-
+ backend/tests/unit/test_deploy_vault_sh.py        | 495 ++++++++++++++++++++-
+ backend/tests/unit/test_vault_install_manifest.py |  24 +-
+ scripts/cls_forbidden_paths.py                    |  11 +
+ scripts/deploy-vault.sh                           | 512 +++++++++++++++++++++-
+ scripts/vault-install-manifest.json               |  18 +-
+ 6 files changed, 1043 insertions(+), 23 deletions(-)
+文件数 = 6 ; backend/app 越界 = 0（须 0）
+
+===== 验伪锚（修正版）=====
+⛔ 第一版锚写成 grep '^_bmad-output/' 读出 0，差点误判成「exclude 失效」——
+   实为 git 对**非 ASCII 路径**做 C 引号化，输出是 "_bmad-output/\345\256..."，行首是引号。
+   修法：-c core.quotepath=false（让 git 输出原字节），锚才量得准。
+  错写法 grep '^_bmad-output/'            → 0（假 0）
+  正写法 -c core.quotepath=false + 同一 grep → 46（>0 = exclude 真生效）
+  同次对照：带 exclude 时 _bmad-output 命中 → 0（须 0）
+  ⇒ 43 vs 0 的对照成立：exclude 确实在起作用，主判据不是恒空。
