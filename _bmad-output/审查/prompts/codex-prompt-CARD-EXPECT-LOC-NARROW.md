@@ -17,7 +17,7 @@
 
 **最小读取面（请只读这些，不要展开到全仓）**：
 
-1. 本卡 diff：`git diff PREREQ_SHA REVIEW_SHA -- . ':(exclude)_bmad-output'`
+1. 本卡 diff：`git diff 796f6490ba951a1826e2c28e97037ab47d71f4b8 0e6d82c00fad046a434461fa1a102617bd2d03c7 -- . ':(exclude)_bmad-output'`
    （恰三个文件：`backend/scripts/g32cb_mutation_gates.py` / `g32ccr1_negative_controls.py` / `g33_mutation_gates.py`）
 2. `backend/scripts/mutation_kill_identity.py` 的三个函数（**只读，本卡不改它**，用来核口径）：
    `kill_identity` / `_loc_identity` / `check_expect_loc_unique`

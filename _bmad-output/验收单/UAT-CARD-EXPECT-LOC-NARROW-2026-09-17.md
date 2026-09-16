@@ -247,11 +247,14 @@ git status --porcelain -- backend/app                                   → 空 
 10. g33 的 `EVLOG`（`backend/app/services/learning_event_log.py`，本批 T7-B 面）真跑期临时写 + 还原，只证明**本车道树**上 sha 前后同、`git status` 干净；**不证明**与 T7-B 车道那份改动在集成期无交集（两树独立，集成期由主 session 核）。
 11. `--skip` 只证明本卡用到的三种形态（单条排除 ⇒ 17/18、双条排除 ⇒ 16/18、未知 mid ⇒ rc=4 未施加）；**不证明** `--skip` 与 `--only` 同时给时交集语义的全部形态。
 12. g32cb / g32ccr1 的 argv 解析仍是**成员判定**（`"--probe" in sys.argv[1:]`），未知开关**静默忽略** —— 本卡新增的 `--probe` 沿用了这个既有形态，**不证明**打错开关时不会退化成另一种跑法。（该「未知开关 fail-open」是 T8-B 收官登记的**卡外**缺陷，本卡未扩大也未修复它；g33 走 argparse，未知开关 rc=2 拒跑。）
+13. **Codex r1 LOW-1 复现的「未被拦下的输入」**：位置判据是「任一 token 命中」，所以只要 `FAILURES` 区里**另有**一条位置行落在目标语句上，`expect_loc` 照样命中、判回 `KILLED` —— 本卡三套实测全部复现（`negctl_extra_loc_uncovered.py` / `uncovered-extra-loc-*.txt`，三套 `rc=0` 即「复现成立」）。⚠️ **未证明**真实 pytest 在跑一条测试时会打出两条位置行；也**未证明**前提断言内嵌的子进程输出里能否恰好拼出 `<门文件>:<目标行>: <Exc>: <msg>` 这种形态被 `_LOC_RE` 当成位置行收下 —— 两者都没实测，如实留空。⛔ 该判据在 `mutation_kill_identity._loc_identity()` 里，是 **T8-B 地盘**，本卡未改；按协议 LOW **登记不阻断**，且⛔ 不得为了「看起来更干净」去动一条已判通过的 LOW（那会亲手打破终审绑定）。
+14. **对照输入的 reason 是统一合成的**（Codex r1 LOW-1 后半段，如实收窄）：驱动给三套用的是同一段「子进程 stderr 原样内嵌」文本；而三套**真实**的前提断言形态并不相同 —— g32cb 那条 `assert _run_writer_settled(...).returncode == 0` **没有显式消息**，g32ccr1 是 `"A 首写"`，g33 的 `{out}{err}` 在**换行之后**。⇒ 这些存档证明的是**裁判会翻转**，**不是**三套真实输出路径的完整复现。
+15. **g33 固定门文件的隐含前提未做成运行时检查**（Codex r1 LOW-2 确认为「后续加固，不阻断本卡」）：唯一性核逐条从 `nodeid` 推门文件，作用域核却固定读 `BACKEND / TESTS`，查不到指纹就跳过 ⇒ 将来加一条**别的**测试文件里的门时，`--selfcheck-loc` 可能错报通过、要等正式裁决才报锚失效。当前 18/18 nodeid 都在 `TESTS` 里，故今天不可达；已在 `_check_expect_loc()` 上方注释写明并登记移交。
 
 ## 六 台账待登记条目
 
 1. **D-28 的三套 `expect_loc` 由本卡落地**：g32cb 绑 9 / 豁免 0、g32ccr1 绑 11 / 豁免 0、g33 绑 17 / 豁免 1（`M5-cas-revision-only`）；合计**新增 37 条**位置绑定 + 1 条显式豁免。修复 commit sha 见 §七。
-2. **Y1-B HIGH-1 在三套由本卡闭合**：同一份对照输入在 `expect_loc=None` 下判 `KILLED`、换成表里的 `stmt:` 值后判 `SURVIVED`（位置不符）—— 弱位置判据 + `expect_loc` 双判据成立。
+2. **Y1-B HIGH-1：本卡三份对照输入已被拦下**（⚠️ 措辞按 Codex r1 LOW-1 收窄，原写「在三套闭合」比证据宽）：同一份对照输入在 `expect_loc=None` 下判 `KILLED`、换成表里的 `stmt:` 值后判 `SURVIVED`（位置不符）。⛔ **未被拦下的输入已复现并登记**：保持前提失败 / 单条摘要 / `rc=1` 不变，只在 `FAILURES` 区**额外加一条**落在**目标行**的位置行，三套又都判回 `KILLED` —— 因为共用裁判 `_loc_identity()` 的位置判据是 `expect_loc in tokens`（**任一** token 命中）。归属 `backend/scripts/mutation_kill_identity.py`（T8-B 地盘，本卡未改它），复现脚本 + 存档见 §五.13。
 3. **四套全量裁决复跑移交**：本卡只做 g32cb 全量 + g32ccr1 抽样 + g33 17 条；四套一起的全量复跑登记移交。
 4. **位置豁免清单**（供后人复核）：g33 `M5-cas-revision-only` —— 理由「本批零写者铁律禁真跑（R-B14-9 (1)）⇒ 指纹无法实测」；它实际落 **`KILLED` + 仅消息维**，**不是** `KILLED-UNBOUND`。
 5. **Codex 各轮存档路径 / 绑定 SHA / B-H-M-L 计数**（见 §七）。
@@ -265,7 +268,11 @@ git status --porcelain -- backend/app                                   → 空 
 13. **g33 的 rc 语义注释（实测 PREREQ :990）仍写着 `--list`**，而 g33 至今没有 `--list` 入口 —— 卡文 §一(c) 明令本卡**不顺手改它**，登记移交。（本卡新增 `--probe` 后，那句里的 `--probe` 已成立；`--list` 仍不成立。）
 14. **原判据「三个改动文件 `grep -rn fsrs_bridge` 0 命中」恒假**（g33 的 `BRIDGE` 常量实测 PREREQ :63 有该串），已换成三条可翻转判据（见 §四.4）。
 15. **`tests/unit` 目录级必须带 `--ignore tests/unit/test_deploy_vault_sh.py`**（R-B14-3），且 `cd backend` 在前，与 `$BASE` 文件头跑法逐字一致。
-16. **卡文行号锚漂移清单**见 §〇.1（`mutation_kill_identity.py` 与 `g33_mutation_gates.py` 两份被 T8-B 改过，卡文的 B14_BASE 行号已全漂）—— 后人引用请勿照抄旧值。
+16. **⛔ 移交共用裁判面（T8-B 地盘）**：`mutation_kill_identity._loc_identity()` 的位置判据是 `expect_loc in tokens`（**任一** token 命中）⇒ `FAILURES` 区里只要**另有**一条位置行落在目标语句上，`expect_loc` 照样命中。本卡三套已复现（Codex r1 LOW-1；脚本 `negctl_extra_loc_uncovered.py`、存档 `uncovered-extra-loc-*.txt`）。⚠️ 未实测真实 pytest 能否产生该形态、也未实测前提断言内嵌的子进程输出能否被 `_LOC_RE` 当成位置行收下 —— 两者都是下一张卡的面。本卡**未改**共用裁判（LOW 按协议登记不阻断）。
+17. **g33 固定门文件的隐含前提**（Codex r1 LOW-2，判为「后续加固，不阻断本卡」）：`_check_expect_loc()` 的作用域核固定读 `BACKEND / TESTS`，唯一性核却逐条从 `nodeid` 推门文件；今天 18/18 nodeid 都在 `TESTS` 里所以一致。加别的门文件时须同改三处（已在该函数上方注释写明）。
+18. **Codex r1 对目录级结论的收窄（采纳）**：`tests/unit` 是「失败集合与 64 条基线**相同**」，**不是全绿**（实测 `35 failed / 5161 passed / 29 errors`，rc=1）。验收单 §四-A 第 6 行已按此写，后人引用勿简写成「unit 全绿」。
+19. **AST 等价证明的编辑前快照已入库**（Codex r1 指出限定读取面里没有它、无法独立重算）：`evidence-expect-loc-narrow/pre-comment-edit/`（3 份 + `README.md` 写了复算命令与验伪锚）。
+20. **卡文行号锚漂移清单**见 §〇.1（`mutation_kill_identity.py` 与 `g33_mutation_gates.py` 两份被 T8-B 改过，卡文的 B14_BASE 行号已全漂）—— 后人引用请勿照抄旧值。
 
 ## 七 Codex 独立审查（gpt-6-astra · ultra · 多轮）
 
@@ -274,5 +281,20 @@ prompt：`_bmad-output/审查/prompts/codex-prompt-CARD-EXPECT-LOC-NARROW[-rN].m
 
 | 轮 | 审查绑定 SHA | 绑最终 HEAD | BLOCKER | HIGH | MEDIUM | LOW | 处置 |
 |---|---|---|---|---|---|---|---|
-| r1 | （待填） | | | | | | |
+| r1 | `796f6490…` → `0e6d82c0…` | ✅ 是（`git diff --stat <审SHA> HEAD -- . ':(exclude)_bmad-output'` 实测**空**） | **0** | **0** | **0** | **2** | 两条 LOW 均**登记不阻断**（协议 §1）：LOW-1 已**自己复现**（不采信，`uncovered-extra-loc-*.txt` 三套 rc=0）并按其建议把「闭合」收窄为「本卡三份对照输入已被拦下」；LOW-2 已在代码注释 + 台账登记。⛔ **未改代码** —— 改一条已判通过的 LOW 会亲手打破终审绑定，且 LOW-1 的判据在 T8-B 地盘。 |
+
+> **轮次（D-15）**：本卡有代码改动 ⇒ 需「多轮直到**绑最终 HEAD**的那一轮 BLOCKER = HIGH = 0」。r1 即满足（绑定实测为空 + B/H = 0），审后**只改 `_bmad-output`**（收窄文案、登记 LOW、补快照），代码树未动 ⇒ 绑定仍成立，不需要第二轮。
+>
+> **审后改了哪些 `_bmad-output`**（如实列，便于主 session 复核）：验收单 §五 新增 13/14/15、§六 新增 16~19、§六 ②收窄措辞、§七 本表；新增 `negctl_extra_loc_uncovered.py` + `uncovered-extra-loc-*.txt`；新增 `pre-comment-edit/`（3 份快照 + README）。
+
+### 七.1 终审绑定回执
+
+```
+git --no-pager diff --stat --no-color 0e6d82c00fad046a434461fa1a102617bd2d03c7 HEAD -- . ':(exclude)_bmad-output'
+  → 空（代码树仍绑定审查 SHA）
+git --no-pager diff --name-only --no-color 796f6490… HEAD -- . ':(exclude)_bmad-output'
+  → 恰 3 个 harness 文件
+验伪锚：去掉 ':(exclude)_bmad-output' ⇒ 多出 37 个 _bmad-output/ 路径（⚠️ 该锚必须在 commit **之后**跑，
+        commit 前证据还是 untracked、git diff 看不见，会给出「0 命中」的假象）
+```
 
