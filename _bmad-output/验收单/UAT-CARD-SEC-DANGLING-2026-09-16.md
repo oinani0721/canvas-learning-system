@@ -340,7 +340,8 @@ r2 只改 `backend/tests/contract/test_openapi_contract.py`；`backend/app/secur
 | tests/unit 目录级 | `unit-close-r2-20260916T202245.txt` + `close-r2.nodeids` | `35 failed … 29 errors`；对 64 基线 **diff 空**（`diff_rc=0`，`>` 行 0） |
 | ruff / pyright / 收集面 | `r2-final-ruff-pyright-20260916T203640.txt` | `All checks passed!` rc=0；F821 锚 rc=1；`0 errors, 81 warnings`；`91 tests collected` |
 
-> **关于上面两条长跑的适用性（如实）**：`contract-3files-close-r2-…` 与 `unit-close-r2-…` 跑在 `test_openapi_contract.py` 的上一版（sha `9765a69a…`）上，之后该文件又做了 ③ 的 `_as_dict` 加固（现 sha `7bbe7d73…`）。两者结论**不受影响且无需重跑**，理由是可核的命令面而非推测：contract 那条命令**逐个点名**了三个文件、其中不含 `test_openapi_contract.py`；`tests/unit` 只收集 `tests/unit` 目录。pytest 不会收集未被点名的路径，故该文件任何内容都不进这两次运行。（真正随该文件变的三条判据 —— 枚举锚、先红/负控、收集面 —— 都已在加固后重取，见上表。）
+> **关于上面两条长跑的适用性（如实；措辞已按 Codex r3 LOW-3 更正）**：`contract-3files-close-r2-…` 与 `unit-close-r2-…` 跑在 `test_openapi_contract.py` 的上一版（sha `9765a69a…`）上，之后该文件又做了 ③ 的 `_as_dict` 加固。
+> ⚠️ 原写法「pytest 不会收集未被点名的路径，故该文件任何内容都不进这两次运行」**过强** —— conftest / `pytest_plugins` / `-p` / 自动加载插件都可能**导入**未被收集的模块，「未收集」推不出「任何内容都不进运行」。正确的说法是：**这两条长跑绑的是尾改前版本；最终版本靠文案等价关系绑定**（见 round-3 的 AST 等价档：去 docstring 后两版 AST 相同，且重建旧版 sha 实测 = 日志所绑 sha）。r3 起两条长跑已直接在最终版本上重跑，此争点不再依赖该推断。
 
 **r2 逐条被取代的存档（留痕，不作依据）**
 
@@ -438,7 +439,61 @@ prompt 已写好并绑定 r3 commit：`_bmad-output/审查/prompts/codex-prompt-
 
 **未证明（如实）**：r3 这一轮**没有**独立复核。按协议 §1「不入库的复核不作依据」，本车道不以任何未落盘的自查充当该轮复核；上表裁判是**作者自跑的判据**，不是第三方复核。
 
-### ✅ 用户裁定（2026-09-17）——「维持现状交人审」
+### ✅ round-3 最终完成（02:06 配额恢复后第 5 次发送成功）
+
+**配额在 02:06 恢复** —— 极小 prompt 探针 `probe_rc=0` 返回 `QUOTA_OK`。错误里报的「Sep 19th 8:16 PM」重置时刻**实测约 1.5 小时即恢复**，再次印证 R-05「外部服务的重置时间是一次观测不是不变量」。随即原样重发盘上已绑 SHA 的 prompt，`codex_rc=0`，存档 7639 B。
+
+**r3 结果：BLOCKER 0 / HIGH 0 / MEDIUM 1 / LOW 3**，存档 `codex-review-CARD-SEC-DANGLING-r3.md`，绑定 `9861c59598ca350ca7df10921744292b0deffb41`。Codex 明确写道「当前 HEAD 虽已前移，但这三个代码文件与送审提交一致」，并独立复算了 r1/r2/送审提交/当前 HEAD/工作树的文件 SHA 全部一致 ⇒ **卡文 (k) 的「绑最终 HEAD 的一轮 B/H = 0」在 r3 达成**。
+
+⚠️ **r3 抓到一条我在 r3 自己引入的真回归（MEDIUM-1），已在 r4 修**：
+
+| # | 级别 | 意见 | 处置 |
+|---|---|---|---|
+| M-1 | MEDIUM | `x-*` 跳过被**推广到命名映射**：`webhooks` / `components.pathItems` / `components.callbacks` / operation 的 `callbacks` 的键是**用户起的名字**，一个叫 `x-event` 的 webhook 是合法名称而非扩展。反例 `webhooks["x-event"].post.security=[{"Missing":[]}]` 会被整个跳过 ⇒ **漏掉真引用**。且探针 **B4/B6 的期望集合跟着写错却仍 PASS** | **采纳并修（r4）**。见下方 round-4 |
+| L-1 | LOW | 「15 条能区分加固」标注不实：B2（`summary`/`parameters` 从 r1 起就被 `isinstance` 跳过）与 C4（旧 `continue` 与新空迭代都产出空集）**无鉴别力**；E1 也不是完整集合比较 | **采纳并修（r4）**：两条标注改 `False`，E 组标题写明它只核数量/声明集/悬空集 |
+| L-2 | LOW | `$ref` 分类主张超出普查档的直接证据；且该档第 2 行仍写「只出现在 components.schemas 侧」，与同档 `paths: 524` 自相矛盾 | **采纳并修（r4）**：普查档追加更正 + 逐路径细分实测（524 = responses 430 / requestBody 91 / parameters 3，无一停在 Path Item 或 operation 层） |
+| L-3 | LOW | 「最终 sha 上重跑」字面不准确（日志绑 `ae32c3c7…`，送审文件 `85e3dd22…`） | **采纳并修（r4）**：措辞改为「尾改前版本重跑，最终版本经文案等价关系绑定」。Codex 本轮**独立逆转**了那处 docstring 尾改并复算 SHA，确认「精确等于日志中的完整 SHA」，判定该争点实质关闭 |
+| L-2(r2) | LOW | 与模块级 `importorskip` 的耦合仍在 | 维持不修，已登记移交（理由已在 r3 更正为范围决策） |
+
+Codex 同轮确认的还有：LOW-4（W4 逐阶段零记账）**已关闭**；MEDIUM-2 的**可独立复核性已关闭**；⑤「r1 起生产源与快照一字未动」**主张成立**（附它自己复算的两个 SHA）；探针脚本全文 SHA 独立复算 `caf15d04…` 与档头一致，`list()` 消费与集合比较均可确认。
+
+### round-4 — 修 r3 的 MEDIUM-1 回归（⚠️ 那是我自己在 r3 引入的）
+
+r3 的 MEDIUM-1 是本卡唯一一条**由我自己引入的真回归**：r2→r3 为了修「`x-*` 冒充 per-op」，我把跳过规则推广到了六个容器层，其中四层其实是**命名映射**。
+
+**规范依据（逐层区分，不再一刀切）**
+
+| 层 | 键是什么 | `x-*` 该不该跳 |
+|---|---|---|
+| `paths` | `/…` 路径；Paths Object **可挂扩展** | **跳** ✅ |
+| Callback Object 的**表达式**层 | 运行时表达式；该对象**可挂扩展** | **跳** ✅ |
+| `webhooks` | 用户起的 webhook **名** | **不跳** ❌ 跳了就漏掉名叫 `x-event` 的真 webhook |
+| `components.pathItems` | 组件**名**（`^[a-zA-Z0-9.\-_]+$`，`x-tmpl` 合法） | **不跳** ❌ |
+| `components.callbacks` | 组件**名** | **不跳** ❌ |
+| operation 的 `callbacks` | 用户起的 callback **名** | **不跳** ❌ |
+
+「对象自身允许扩展」**不蕴含**「它的子映射里所有 `x-` 开头的名字都是扩展」—— 这就是我当时想当然的地方。r4 把函数改名为 `_extensible_entries` 并在 docstring 里写死适用面（只两处），命名映射改回 `_as_dict(...).items()`。
+
+**r4 重取的裁判**
+
+| 判据 | 存档（全文件名） | 结果 |
+|---|---|---|
+| 枚举面对抗输入台（A5 + B8 + C6 + D2 + E1 = **22** 条） | `enum-coverage-probe-r4-20260917T021352.txt`（含探针全文） | **22/22 PASS**，`PYTHON_RC=0`；分类自算 **15 能区分 / 6 覆盖性 / 1 回归锁 = 22** |
+| 先红 / 对照绿 / 负控（逐阶段 W4） | `r4-red-green-negctl-20260917T021426.txt` | 阶段 0 `2 passed`；阶段 1 rc=1 带 31 / `/system/* 16` / `APIKeyHeader`；阶段 2 `2 failed`；三阶段 W4 全 0；跑前跑后 sha 逐字同 |
+| ruff / F821 锚 / pyright / 残留旧名 | `r4-ruff-pyright-20260917T021534.txt` | `All checks passed!`；锚 rc=1；`0 errors, 81 warnings`；`grep -c '_named_entries'` = **0** |
+| contract 三文件 | `contract-3files-close-r4-20260917T021523.txt` | `2 failed, 75 passed in 193.44s`，`blocked=19/advisory=0/unaccounted=0`（两条红仍是那两条主干既有） |
+| tests/unit 目录级 | `unit-close-r4-20260917T021523.txt` + `close-r4.nodeids` | `35 failed … 29 errors`；对 64 基线 **diff 空**（`diff_rc=0`） |
+| `$ref` 分类精度补测（收 r3 LOW-2） | `ref-distribution-census-20260916T204712.txt` 末尾追加段 | paths 侧 524 = responses **430** + requestBody **91** + parameters **3**，**无一停在 Path Item 层或 operation 层本身** |
+
+**新增的三条对抗用例**（前两条专钉 MEDIUM-1，第三条钉死"两层处置不同"这个区分不被一起改掉）：
+
+- **B7** = Codex 给的静态反例逐字照搬：`webhooks["x-event"].post.security=[{"Missing":[]}]` + 一个正常 webhook ⇒ 期望**两条都枚举到**；
+- **B4/B6** 的期望集合改正（此前**写错却仍 PASS**，正是我自己在 r3 prompt ③ 里问的那种情况）；
+- **B8**：Callback 的**表达式**层仍跳 `x-*` —— 与 B4/B6/B7 相反方向，防止有人把两层一起改掉。
+
+### ✅ 用户裁定（2026-09-17）——「维持现状交人审」（已被 r3 成功送审取代）
+
+> ⚠️ 下面这条裁定是在**配额仍耗尽**时做的；02:06 配额恢复、r3 成功送审并达成 B/H = 0 之后，它的前提已不复存在 —— 交人审的那条路径**未被使用**，本卡按正常的 Codex 多轮路径闭合。裁定原文保留作决策留痕。
 
 四次配额失败后，车道把三条出路摆给用户选：(甲) 维持现状交主 session 人审；(乙) 按同批 T7-C 的解法把代码树回退成 r2 复核过的版本，使 r2 的 B0/H0 绑住最终 HEAD、(k) 当天闭合；(丙) 等配额恢复后由车道重跑 r3。
 

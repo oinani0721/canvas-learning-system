@@ -1,0 +1,32 @@
+# 自绑定: HEAD=ae54dad5d45b452cc675b0d286501402ff221637  前提 commit=2287e2583c54472d238e8b8eec87bb1e9e95c9e8  （r4 = 按 Codex r3 MEDIUM-1/LOW-1 整改后重取）
+## 跑前 shasum -a 256:
+925443dce1f90b35391898dc7cfa45c436107b7d015ed9f24e30c90e0e361904  backend/app/security.py
+9df9f7df7fdb9a8f4d5ae22aa0886fe8e36d0e66f4e106a1579801c9824bab79  backend/openapi.json
+85ef982bc36fec9702155cdf47f460e74d598d3aa36413519a1a9b4bf47f649c  backend/tests/contract/test_openapi_contract.py
+
+## 阶段 0 对照（无缺陷态）必绿:
+   pytest_rc=0
+   NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+   ======================== 2 passed, 10 warnings in 1.27s ========================
+
+## 阶段 1 先红（源+快照双还原为 $PREV）:
+   security.py sha256=8c8c9098cb7d4cfd4e3a156cc9b82316e814fbff669d1f035b3c6c1d7c4c6cc7  openapi.json sha256=1455eb7dc5d46bbdb14aba984ef9c08991b3ffe250a8638c532eb491c56e4764
+   pytest_rc=1
+   E       AssertionError: OpenAPI 契约里有 31 处 security 悬空引用(其中 /system/* 16 处) —— 方案名不在 components.securitySchemes=['InternalApiKey'] 里, 第三方工具无法推导鉴权。
+   E         常见根因: `fastapi.security.APIKeyHeader(...)` 未传 `scheme_name=`, FastAPI 退回按**类名**命名(`fastapi/security/api_key.py` 的 `self.scheme_name = scheme_name or self.__class__.__name__`), 而 `app/main.py:_custom_openapi` 又整体覆盖了 securitySchemes。
+   E         引用总数=32(其中 per-op 31); 悬空前 10 条 (位置 -> 方案名):
+   E           GET /api/v1/system/health -> APIKeyHeader
+   E           GET /api/v1/system/startup-check -> APIKeyHeader
+   NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+   ======================== 1 failed, 10 warnings in 1.45s ========================
+
+## 阶段 2 负控（只回退源）:
+   pytest_rc=1
+   NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+   FAILED tests/contract/test_openapi_contract.py::test_security_schemes_cover_all_security_refs
+   FAILED tests/contract/test_openapi_snapshot_drift.py::test_committed_snapshot_has_no_drift
+   ======================== 2 failed, 10 warnings in 1.46s ========================
+## 跑后 shasum -a 256:
+925443dce1f90b35391898dc7cfa45c436107b7d015ed9f24e30c90e0e361904  backend/app/security.py
+9df9f7df7fdb9a8f4d5ae22aa0886fe8e36d0e66f4e106a1579801c9824bab79  backend/openapi.json
+85ef982bc36fec9702155cdf47f460e74d598d3aa36413519a1a9b4bf47f649c  backend/tests/contract/test_openapi_contract.py

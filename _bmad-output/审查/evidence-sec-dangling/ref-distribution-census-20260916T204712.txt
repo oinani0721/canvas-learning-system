@@ -7,3 +7,21 @@ Path Item 级 $ref（$.paths.<path>.$ref）数 = 0 []
 callbacks 子树下的 $ref 数 = 0
 顶层 x-* 键 = []
 paths 下 x-* 键 = []
+
+## 【更正】本档第 2 行的「目的句」与第 4 行的实测自相矛盾（Codex round-3 LOW-2 抓到）
+   第 2 行写的是我**测之前**的猜测：「$ref 只出现在 components.schemas 侧」。
+   第 4 行的实测把它推翻了一半：$ref 共 736 处，其中 **paths 侧 524 处**。
+   承重的那一半成立且未受影响：**Path Item 级 $ref（$.paths.<path>.$ref）= 0**。
+   代码 docstring 当时就是按实测写的（736 / 212 / 524 / Path Item 级 0），没有把错误的目的句带进去；
+   但本档留着那句未改 = 存档自相矛盾，如实更正于此，不改原行（保留写错的痕迹）。
+
+## 【补】Codex round-3 LOW-2 的第二点：分类精度
+   原文说「paths 下那 524 处全在更深层(operation 的请求/响应 schema 里)」—— 这句的**证据面**
+   只有上面那九行汇总，没有逐路径细分，单凭它不能独立确认「全部」。现补上细分实测：
+   paths 侧 $ref 总数 = 524
+       430  $.paths.<path>.<method>.responses…
+        91  $.paths.<path>.<method>.requestBody…
+         2  $.paths.<path>.<method>.parameters[1]…
+         1  $.paths.<path>.<method>.parameters[2]…
+   ⇒ 全部落在 responses / requestBody / parameters 三类 operation 子结构下，
+     没有一处停在 Path Item 层或 operation 层本身 ⇒ 承载不了 Security Requirement。

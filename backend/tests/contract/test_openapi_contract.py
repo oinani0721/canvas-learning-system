@@ -263,13 +263,21 @@ def _as_dict(value):
     return value if isinstance(value, dict) else {}
 
 
-def _named_entries(container):
-    """产出 (名, 值) 并跳过 `x-*` 规范扩展键。
+def _extensible_entries(container):
+    """产出 (键, 值) 并跳过 `x-*` 规范扩展键 —— **只能用在允许挂扩展、且键有固定形状的对象上**。
 
-    Paths / Callback / Components 这几个对象都允许挂 `x-*` 扩展, 其值是**厂商数据**而不是
-    Path Item。不跳的话 `paths["x-audit-data"] = {"get": {"security": […]}}` 这种形状会被
-    当成一条真 operation 记进引用集 —— 既能造成误红, 也能冒充 `per_op_refs` 非空条件。
-    (`_HTTP_METHODS` 白名单只挡了 Path Item **内部**的 `x-*`, 挡不住容器这一层。)
+    适用面严格限两处(Codex round-3 MEDIUM-1 收窄):
+      - **Paths Object**: 键是 `/…` 路径, `x-*` 是扩展。不跳的话
+        `paths["x-audit-data"] = {"get": {"security": […]}}` 会被当成一条真 operation 记进
+        引用集 —— 既能造成误红, 也能冒充 `per_op_refs` 非空条件;
+      - **Callback Object**: 键是运行时表达式, `x-*` 同理是扩展。
+
+    ⛔ **不得**用在命名映射上（`webhooks` / `components.pathItems` / `components.callbacks` /
+    operation 的 `callbacks`）: 那几处的键是**用户起的名字**, 一个叫 `x-event` 的 webhook 是
+    合法名称而不是扩展。r3 曾把本函数推广到那四层, 于是
+    `webhooks["x-event"].post.security=[{"Missing":[]}]` 里的 `Missing` 会被整个跳过 = **漏掉
+    真引用**（Codex round-3 MEDIUM-1 的静态反例; 探针 B4/B6 当时的期望集合也跟着写错却仍 PASS）。
+    「对象自身允许扩展」不蕴含「它的子映射里所有 `x-` 开头的名字都是扩展」。
     """
     for name, value in _as_dict(container).items():
         if isinstance(name, str) and name.startswith("x-"):
@@ -294,8 +302,10 @@ def _iter_path_item_security_refs(path_item, location):
         for requirement in operation.get("security") or []:
             for scheme_name in requirement:
                 yield op_location, scheme_name
-        for callback_name, callback in _named_entries(operation.get("callbacks")):
-            for expression, callback_item in _named_entries(callback):
+        # callbacks 的**名**是用户起的名字(命名映射) ⇒ 不跳 x-*; 里层的**表达式**才是可挂扩展的
+        # Callback Object ⇒ 跳 x-*。两层用不同的遍历函数, 这个区分是 r3 MEDIUM-1 的修复点。
+        for callback_name, callback in _as_dict(operation.get("callbacks")).items():
+            for expression, callback_item in _extensible_entries(callback):
                 # 位置串把宿主 operation 包进方括号, 免得嵌套层读成 "POST GET /x …" 像笔误
                 yield from _iter_path_item_security_refs(
                     callback_item, f"[{op_location}] callbacks[{callback_name}][{expression}]"
@@ -312,7 +322,10 @@ def _iter_security_refs(schema):
       - `components.pathItems[<名>][<method>]`;
       - 以及上述任一 operation 的 `callbacks[<名>][<表达式>][<method>]`
         与 `components.callbacks[<名>][<表达式>][<method>]`(经 `_iter_path_item_security_refs` 递归)。
-    容器层的 `x-*` 规范扩展键由 `_named_entries` 跳过(它们是厂商数据, 不是 Path Item)。
+    `x-*` 只在**可挂扩展且键有固定形状**的两处跳过(Paths Object 的路径键、Callback Object 的
+    表达式键, 见 `_extensible_entries`)；`webhooks` / `components.pathItems` /
+    `components.callbacks` / operation 的 `callbacks` 是**命名映射**, 名字可以合法地叫 `x-event`,
+    那里一律不跳 —— 跳了就会漏掉真引用(Codex round-3 MEDIUM-1)。
 
     ⚠️ **`$ref` 不解析, 故"内联"这个限定词不能去掉**(Codex round-2 MEDIUM-1 收窄):
     Path Item 与 Callback 都可以写成 `$ref`, 目标可落在本函数遍历清单**之外**的任意位置
@@ -334,15 +347,18 @@ def _iter_security_refs(schema):
     for requirement in schema.get("security") or []:
         for scheme_name in requirement:
             yield "<root>", scheme_name
-    for path, path_item in _named_entries(schema.get("paths")):
+    # paths 是可挂扩展的 Paths Object ⇒ 跳 x-*
+    for path, path_item in _extensible_entries(schema.get("paths")):
         yield from _iter_path_item_security_refs(path_item, path)
-    for name, path_item in _named_entries(schema.get("webhooks")):
+    # 下面三处都是**命名映射**(键 = 用户起的名字) ⇒ 一律不跳 x-*, 否则会漏掉名叫 x-… 的真条目
+    for name, path_item in _as_dict(schema.get("webhooks")).items():
         yield from _iter_path_item_security_refs(path_item, f"webhooks[{name}]")
     components = _as_dict(schema.get("components"))
-    for name, path_item in _named_entries(components.get("pathItems")):
+    for name, path_item in _as_dict(components.get("pathItems")).items():
         yield from _iter_path_item_security_refs(path_item, f"components.pathItems[{name}]")
-    for callback_name, callback in _named_entries(components.get("callbacks")):
-        for expression, callback_item in _named_entries(callback):
+    for callback_name, callback in _as_dict(components.get("callbacks")).items():
+        # 名不跳、表达式层跳（Callback Object 可挂扩展）
+        for expression, callback_item in _extensible_entries(callback):
             yield from _iter_path_item_security_refs(
                 callback_item, f"components.callbacks[{callback_name}][{expression}]"
             )
