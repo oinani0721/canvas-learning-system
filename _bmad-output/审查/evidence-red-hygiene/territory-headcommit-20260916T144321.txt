@@ -1,0 +1,65 @@
+### (h) 地盘核 —— commit 后对 HEAD（本卡 commit = 8bfcdfce）
+PREV=f294878bb677ae54dcbf17277004efa2fa1ef97b
+HEAD=8bfcdfcea46c8e2c6408fa6ebd85851c7c9cce82
+工作树状态: 1 项（须 0）
+
+--- 代码面 diff --stat（排 _bmad-output）---
+ backend/.env.example                               |  16 ---
+ backend/app/config.py                              |  16 ---
+ .../tests/api/v1/endpoints/test_agents_health.py   | 115 ++++++++++++++++---
+ backend/tests/unit/test_cache_configuration.py     |  90 +++++----------
+ backend/tests/unit/test_sync_batch_auth.py         |  24 +++-
+ backend/tests/unit/test_system_endpoint_auth.py    | 123 ++++++++++++++++++++-
+ 6 files changed, 267 insertions(+), 117 deletions(-)
+
+--- 代码面文件数（先数再写）---
+= 6  （须 6）
+
+--- 验伪锚①：单查 config.py 必命中 ---
+ backend/app/config.py | 16 ----------------
+ 1 file changed, 16 deletions(-)
+
+--- 验伪锚②（现在才成立：evidence 已入库为已跟踪面）---
+去掉 exclude 后 _bmad-output 面的文件数 = 22
+带 exclude 时 _bmad-output 面的文件数   = 0
+⇒ 前者 >0 且后者 =0 ⇒ exclude pathspec 确实在起作用
+
+--- openapi.json 是否被本卡动过（须 0 行 diff）---
+[以上为空 = 未动]
+openapi.json 与 $PREV 的 blob 是否同:
+  逐字节相同 YES
+
+--- *.stderr* 是否入库（须 0）---
+3
+
+
+================================================================================
+⛔ 本文件两条判据自查更正（独立对抗自审 EV-01 / EV-03 / RH-T-02）
+
+【更正 ① `*.stderr*` 判据：取名面 ≠ 它的主张，且打印 3 却标着「须 0」】
+  原判据写的是 `git ls-tree -r --name-only HEAD | grep -c 'stderr'`，
+  取的是**整棵 HEAD 树**里文件名含子串 `stderr`（无点）的任意路径 —— 这不等于
+  它声称的主张「本卡没有把 *.stderr* 入库」。它打印了 3，而标注写「须 0」，
+  两者直接矛盾且当时未对账。
+
+  正确取名面与实测（同日重跑）：
+    本卡 commit 新增/改动文件里含 stderr 的数量
+      = `git show --name-only --format='' HEAD | grep -c 'stderr'` = **0**
+    那 3 个的出处（在 $PREV 就已存在，非本卡引入）
+      = `git ls-tree -r --name-only f294878b | grep -c 'stderr'` = **3**
+      逐个为：_bmad-output/审查/G4-9-evidence/census-stderr.txt
+              _bmad-output/审查/evidence-g29f1/stderr-not-tracked-20260908T090430.txt
+              _bmad-output/审查/evidence-pyright-svc/stderr-gate-20260908T074213.txt
+      —— 三者都是**文件名里带 stderr 的 .txt 存档**，不是 *.stderr* 产物。
+  ⇒ 主张成立（本卡零 stderr 入库），但原判据的写法不能支撑它，已在此更正。
+
+【更正 ② 「工作树状态 须 0」打印了 1，当时未对账】
+  那 1 项就是本文件自己 —— 判据在 tee 写出自身的同时去数工作树，把正在写的
+  输出文件算了进去（`?? _bmad-output/审查/evidence-red-hygiene/territory-headcommit-*.txt`）。
+  同族问题也出现在 minute0 存档（那里是先 mkdir 了 evidence 目录）。
+  ⇒ 结论不变（除本卡自己的 evidence 产物外工作树干净），但「须 0」这个标注
+    对一个会写出自身的判据来说是写错的，应写「须 ≤1 且那 1 项必须是本判据自己的输出文件」。
+
+【本文件仍然有效的部分】
+  代码面 6 文件、验伪锚①（config.py 必命中）、验伪锚②（exclude 生效：22 vs 0）、
+  openapi.json 与 $PREV blob 逐字节相同 —— 这几条判据与结论均无问题。

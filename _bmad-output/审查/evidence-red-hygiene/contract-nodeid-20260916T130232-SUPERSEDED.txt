@@ -58,3 +58,19 @@ FAILED tests/contract/test_node_id_patterns.py::TestNodeIdPatternConsistency::te
 ### 处置：本卡不改（specs/** 与 backend/app/models/** 均非本卡地盘，models 零写者）。
 ### ⚠ 接收卡的范围要改写：不是「schema/model pattern 对齐」，而是
 ###   「补回缺失的 specs/data/canvas-node.schema.json，或退役这条从未跑到比对逻辑的契约测试」。
+
+
+================================================================================
+⛔ 二次自查补注（独立对抗自审 EV-07）
+
+本文件作废横幅里写「以下为作废正文原样保留，一字未改」——该陈述**成立**（正文确实一字未改），
+但有一处未披露的事实会让读者困惑，在此补上：
+
+  作废正文里那条 `git log --all -- specs/data/canvas-node.schema.json` 的输出
+  只显示了 **5** 行，而横幅里的实数更正写的是 **6 条**。二者不矛盾，原因是
+  作废正文那次运行的命令带了 `| head -5`，输出被截断了 —— 截断本身当时没有写明。
+
+  完整 6 条（同日重取，逐条含 pattern 取值）见同目录
+  `contract-nodeid-CORRECTED-*.txt` 的自查更正段。
+
+  ⇒ 横幅里的「6 条」是对的（`wc -l` 实数），作废正文里的「5 行」是 head 截断的结果。

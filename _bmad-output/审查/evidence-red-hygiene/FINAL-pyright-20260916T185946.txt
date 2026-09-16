@@ -1,0 +1,5 @@
+### [FINAL] pyright app（cwd=backend，绝对路径 + test -x 自证，禁 | tail -1）
+### P=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/bin/pyright
+test -x P = OK
+0 errors, 81 warnings, 0 informations
+rc=0

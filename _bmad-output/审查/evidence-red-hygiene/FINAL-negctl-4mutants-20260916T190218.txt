@@ -1,0 +1,58 @@
+### [FINAL] 四段负控（本卡最终代码态重跑）
+### 承重 = TestSystemTestLLMAuthPrecedesHandler::test_rejected_request_never_reaches_handler
+### 对照 = TestSystemTestLLMAuthPrecedesHandler::test_control_input_only_auth_dependency_removed
+### guard = test_mock_expected_templates_match_production_truth_source
+
+--- 跑前 shasum ---
+eee89c6037a095b691e39beea38340505cf617e070756efa7faac51a7461d0b3  backend/tests/unit/test_system_endpoint_auth.py
+ad6dfaef7a324c1d3f13335b5f19a980e629dc0351408b2c30aa2c6cfb920679  backend/tests/api/v1/endpoints/test_agents_health.py
+
+===== M1 对照断言翻向（assert not X -> assert X）：期望【对照】红 =====
+{"event": "[Story 1.3] LLM connection test passed \u2014 model=ollama/qwen2.5:7b", "request_id": "5285358544", "logger": "app.api.v1.system", "level": "info", "timestamp": "2026-09-16T11:02:32.799246Z"}
+INFO     app.api.v1.system:system.py:909 [Story 1.3] LLM connection test passed — model=ollama/qwen2.5:7b
+FAILED tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuthPrecedesHandler::test_control_input_only_auth_dependency_removed
+================== 1 failed, 11 passed, 10 warnings in 1.53s ===================
+M1_rc=0
+
+===== M2 谓词恒真（return True）：期望【对照】红、承重仍绿 =====
+{"event": "[Story 1.3] LLM connection test passed \u2014 model=ollama/qwen2.5:7b", "request_id": "5276396496", "logger": "app.api.v1.system", "level": "info", "timestamp": "2026-09-16T11:02:49.499559Z"}
+INFO     app.api.v1.system:system.py:909 [Story 1.3] LLM connection test passed — model=ollama/qwen2.5:7b
+FAILED tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuthPrecedesHandler::test_control_input_only_auth_dependency_removed
+================== 1 failed, 11 passed, 10 warnings in 1.37s ===================
+M2_rc=0
+
+===== M3 谓词恒假（return False）：期望【承重】红 =====
+FAILED tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuthPrecedesHandler::test_rejected_request_never_reaches_handler
+================== 1 failed, 11 passed, 10 warnings in 1.66s ===================
+M3_rc=0
+
+===== M4 mock 内改名一项（长度仍 13）：期望【guard】单独红、12 条数量判据全绿 =====
+FAILED tests/api/v1/endpoints/test_agents_health.py::test_mock_expected_templates_match_production_truth_source
+================== 1 failed, 12 passed, 10 warnings in 0.58s ===================
+M4_rc=0
+
+--- 跑后 shasum（须与跑前逐字节同）---
+eee89c6037a095b691e39beea38340505cf617e070756efa7faac51a7461d0b3  backend/tests/unit/test_system_endpoint_auth.py
+ad6dfaef7a324c1d3f13335b5f19a980e629dc0351408b2c30aa2c6cfb920679  backend/tests/api/v1/endpoints/test_agents_health.py
+--- 还原后复跑两文件 ---
+======================= 25 passed, 10 warnings in 1.57s ========================
+restore_rc=0
+rc=0
+
+
+================================================================================
+⛔ 判据标注补注（本卡自查）
+
+上面四行 `M1_rc=` / `M2_rc=` / `M3_rc=` / `M4_rc=` 取的是**管道末端 grep 的退出码**，
+不是 pytest 的退出码（`( cd backend && pytest … ) | grep …` 里 `$?` 归 grep）。
+所以那四个 0 **不表示 pytest 通过**，别把它们当通过/失败的判据读。
+
+本段的承重证据是每段里那一行 `FAILED <nodeid>` 的**身份**，以及紧随其后的
+`N failed, M passed` 汇总行 —— 四段各自红在预期的那一条：
+  M1 → 对照（test_control_input_only_auth_dependency_removed）
+  M2 → 对照（同上；承重仍绿）
+  M3 → 承重（test_rejected_request_never_reaches_handler）
+  M4 → guard（test_mock_expected_templates_match_production_truth_source），其余 12 条全绿
+
+以及跑前 / 跑后 `shasum -a 256` 两侧逐字节相同 + 还原后复跑 25 passed。
+（同族教训：管道吃 rc —— 承重跑的管道里只许有 tee 一段。）

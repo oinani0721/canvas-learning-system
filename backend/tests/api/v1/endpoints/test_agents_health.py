@@ -458,9 +458,15 @@ def _production_expected_templates() -> list[str]:
     （本卡未覆盖，见验收单「本卡未证明什么」）。这里只要「生产声明的名单」，
     静态取字面量既不碰磁盘也不依赖配置。
 
-    ⚠️ 本函数只认「``expected_templates = [ 字面量列表 ]``」这一种形态。若哪天
-    生产改成从常量/文件读取，这里会 ``assert`` 失败而不是静默返回空表——
-    那时应连同本 guard 一起改，而不是把断言放宽。
+    ⚠️ 本函数只认「``expected_templates = [ 字面量列表 ]``」这一种形态（带不带
+    类型注解都认）。若哪天生产改成从常量/文件读取，这里会 ``assert`` 失败而不是
+    静默返回空表——那时应连同本 guard 一起改，而不是把断言放宽。
+
+    ⚠️ ``ast.AnnAssign`` 必须与 ``ast.Assign`` 一起认：给生产那行加个
+    ``: list[str]`` 是纯类型注解、对名单毫无影响，但注解会把节点类型从 Assign
+    换成 AnnAssign。只认 Assign 的话，这种无害改动会让 guard 以
+    「找不到赋值」（FOUND-0）变红——红得**理由是错的**，读的人会去查名单漂移，
+    而真因只是加了个注解。红本身不危险，误导性的红才危险。
     """
     import ast
     import inspect
@@ -471,15 +477,22 @@ def _production_expected_templates() -> list[str]:
     tree = ast.parse(textwrap.dedent(inspect.getsource(AgentService.health_check)))
     found: list[list[str]] = []
     for node in ast.walk(tree):
-        if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+        if isinstance(node, ast.Assign):
+            if len(node.targets) != 1:
+                continue
+            target, value = node.targets[0], node.value
+        elif isinstance(node, ast.AnnAssign):
+            if node.value is None:  # 纯声明 `x: T` 无右值，不是赋值
+                continue
+            target, value = node.target, node.value
+        else:
             continue
-        target = node.targets[0]
         if not (isinstance(target, ast.Name) and target.id == "expected_templates"):
             continue
-        assert isinstance(node.value, ast.List), (
+        assert isinstance(value, ast.List), (
             "生产的 expected_templates 不再是字面量列表，本 guard 的取值方式已失效——请连同本函数一起改，不要放宽断言"
         )
-        found.append([ast.literal_eval(elt) for elt in node.value.elts])
+        found.append([ast.literal_eval(elt) for elt in value.elts])
 
     assert len(found) == 1, (
         f"在 AgentService.health_check 里找到 {len(found)} 处 expected_templates 赋值，"

@@ -159,7 +159,9 @@ def auth_client_with_llm_spy() -> Generator[tuple[TestClient, AsyncMock], None, 
     mock 连同 client 一起 yield 出来。
 
     [CARD-RED-HYGIENE] 另开一个 fixture 而不是改 ``auth_client`` 的 yield 形态，
-    是为了不动本文件既有 12 条用例的签名。
+    是为了不动本文件既有 **10** 条用例的签名（本卡改动前实测 10 条，且无
+    parametrize ⇒ 用例数 == 函数数；本卡新增的两条吃的是本 fixture，所以
+    改后全文件是 12 条）。数字按改动前基数写，别拿改后总数当基线。
     """
     llm_spy = AsyncMock(return_value=None)
     with patch("litellm.acompletion", new=llm_spy):

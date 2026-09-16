@@ -20,3 +20,19 @@ pyright OK: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktr
 64
 --- BASE 路径 ---
 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/审查/evidence-b14/unit-red-baseline-08100483.txt
+
+
+================================================================================
+⛔ 自查补注（独立对抗自审 EV-03）
+
+上面 `git status --porcelain | wc -l` 打印 **1**，而该行标着「须 0」——
+两者矛盾，当时未在文件内对账，在此补上：
+
+  那 1 项 = `?? _bmad-output/审查/evidence-red-hygiene/`，即本判据为了落盘
+  **自己刚 mkdir 出来的 evidence 目录**。开工首测（mkdir 之前）实测为空。
+
+  ⇒ 「前提 = 工作树干净」这一条成立，但判据写法有缺陷：一个会在运行中创建
+    产物的判据不能拿「工作树须 0」当标注，应写成
+    「须 ≤1 且那 1 项必须是本判据自己创建的 evidence 目录」。
+
+本存档其余五项（pwd / 分支 / PREV / venv+env / pyright 0 errors / 基线 64）不受影响。

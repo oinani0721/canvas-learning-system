@@ -3,7 +3,10 @@ Story 36.13: Tests for asyncio.sleep audit + TTLCache configuration.
 
 Tests:
 1. Deleted simulate-work sleep in review_service (AC-1)
-2. Memory retry delay from Settings (AC-2)
+2. ~~Memory retry delay from Settings (AC-2)~~ —— 本文件已无对应用例：
+   MEMORY_RETRY_BASE_DELAY / MEMORY_RETRY_MAX_DELAY 两个死配置由
+   [CARD-RED-HYGIENE]（第十四批）从 app/config.py 与 backend/.env.example
+   一并退役，AC-2 的两条用例随之删除（见下方 AC-2 段的退役说明）。
 3. AgentService TTLCache from Settings (AC-3)
 4. MemoryService TTLCache from Settings (AC-4)
 5. ContextEnrichmentService TTLCache from Settings (AC-5)
