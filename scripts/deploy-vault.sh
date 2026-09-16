@@ -1051,30 +1051,16 @@ write_opencode_binding() {
         return 1
     fi
 
-    # ── ③ 生成后就地在位判 ───────────────────────────────────────────────────
-    # ⛔ 不能放进 Phase A 的 A1：那两件是**本步生成**的, A1 跑的时候还不存在。
-    # ⛔ 不能只判 `-L`（Codex r1 HIGH-1）：它沿链解析, 祖先被换掉照样为真。
-    #    这里核**物理**落点 —— 软链自己与它解出来的目标都必须在本 vault 的物理路径下。
-    local vphys lphys tphys
-    vphys="$(cd "$VAULT" 2> /dev/null && pwd -P)" \
-        || { OPENCODE_ERR="解析 vault 物理路径失败: $VAULT"; return 1; }
-    for name in "${NAMES[@]}"; do
-        [ -L "$dst_root/$name" ] || { OPENCODE_ERR="生成后软链不在位: $dst_root/$name"; return 1; }
-        lphys="$(cd "$dst_root" 2> /dev/null && pwd -P)/$name" \
-            || { OPENCODE_ERR="解析软链所在目录失败: $dst_root"; return 1; }
-        # 前缀比较用 `${var#"$prefix"}`（引号让 prefix 按字面处理）, 不用 case 模式 ——
-        # vault 路径里若含 `[` `*` `?`, case 会把它当通配。
-        if [ "${lphys#"$vphys"/}" = "$lphys" ]; then
-            OPENCODE_ERR="条目级软链落到了 vault 之外: $lphys"
-            return 1
-        fi
-        tphys="$(cd "$dst_root/$name" 2> /dev/null && pwd -P)" \
-            || { OPENCODE_ERR="软链解不到存在的目标: $dst_root/$name"; return 1; }
-        if [ "$tphys" != "$vphys/.claude/skills/$name" ]; then
-            OPENCODE_ERR="软链目标不是本 vault 的同名技能条目: $tphys"
-            return 1
-        fi
-    done
+    # ── ③ 生成后在位判 ───────────────────────────────────────────────────────
+    # ⛔ 条目级软链的物理落点核**已在 bind_opencode_skills 里做完**（对已钉死的目录 fd
+    #    逐条 `os.open(name, O_DIRECTORY, dir_fd=sfd)` 解析 + `(dev, ino)` 比对）。
+    #    这里**刻意不再核一遍** —— 两份手抄的判据必然漂移，而且 shell 那份还更弱：
+    #    · 它靠 `$(cd … && pwd -P)`，而**命令替换会剥掉全部尾随换行**（Codex r6 MEDIUM-2
+    #      顺带点名的 `pwd -P` 同类问题）⇒ 名字 `trailnl<LF>` 会让它把物理路径读成
+    #      `…/trailnl`，与期望的带 LF 值不等 ⇒ **对一条其实建对了的软链误报失败**；
+    #      本机实测确认过这个剥除。
+    #    · 它按路径重新解析，钉不住 python 侧已经拿到的那个 inode。
+    #    ⇒ 删掉弱的那份，只留强的那份。AGENTS.md 的在位判留在这里（它不经 python 侧核）。
     [ -f "$agents" ] && [ ! -L "$agents" ] \
         || { OPENCODE_ERR="生成后 AGENTS.md 不在位或不是普通文件: $agents"; return 1; }
     OPENCODE_BOUND="${#NAMES[@]}"

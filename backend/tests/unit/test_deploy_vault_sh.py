@@ -4578,6 +4578,10 @@ def test_deploy_sh_takes_skill_names_without_command_substitution(tmp_path: Path
     end = src.index("\n}\n", start) + 3
     code = "\n".join(ln for ln in src[start:end].splitlines() if not ln.lstrip().startswith("#"))
     assert "basename" not in code, "取名又走回命令替换（会剥掉尾随换行）"
+    # ⛔ 物理落点核只许有**一份**（在 bind_opencode_skills 的 python 里，钉 fd + (dev,ino)）。
+    #    shell 侧那份靠 `$(cd … && pwd -P)`，命令替换同样剥尾随换行 ⇒ 对建对了的软链误报失败。
+    #    两份手抄的判据必然漂移，这里钉死「弱的那份不许回来」。
+    assert "pwd -P" not in code, "shell 侧又加回了用 pwd -P 的物理核（会剥尾随换行）"
     assert '_p="${d%/}"' in code and 'name="${_p##*/}"' in code, "不再用参数展开保真取名"
     # label 必须是序号，不得插值名字。
     assert "opencode-skill-link-$_i:" in code, "label 不再用序号"
@@ -4600,6 +4604,10 @@ def test_hosts_opencode_name_with_trailing_newline_is_preserved(tmp_path: Path):
     )
     env = _tx_env(tmp_path, port, name)
     r = _oc_run(tmp_path, h, name, port, env=env)
+    # ⛔ 必须先断言 rc（本卡实测踩到）：只看「盘上建出了什么」会**掩盖失败** ——
+    #    软链是 python 侧先建的，之后 shell 侧若误报失败，整步 rc=73 而条目仍在盘上，
+    #    只查 built 的门照样绿。判据要覆盖「它有没有成功」，不只是「它留下了什么」。
+    assert r.returncode == 0, f"尾随换行的名字让部署失败了: rc={r.returncode}\n{r.stdout}{r.stderr}"
     root = tmp_path / "vaults" / name / ".agents" / "skills"
     built = sorted(p.name for p in root.iterdir()) if root.is_dir() else []
     assert odd in built, f"尾随换行被剥掉了（名字变成 'trailnl'？）: {built!r}\n{r.stdout}{r.stderr}"
@@ -4629,6 +4637,7 @@ def test_hosts_opencode_name_with_newline_makes_exactly_one_link(tmp_path: Path)
     )
     env = _tx_env(tmp_path, port, name)
     r = _oc_run(tmp_path, h, name, port, env=env)
+    assert r.returncode == 0, f"含换行的名字让部署失败了: rc={r.returncode}\n{r.stdout}{r.stderr}"
     root = tmp_path / "vaults" / name / ".agents" / "skills"
     built = sorted(p.name for p in root.iterdir()) if root.is_dir() else []
     # 期望 = 桩预置的 3 条 + 这个含换行的 1 条，**逐字保真**。
