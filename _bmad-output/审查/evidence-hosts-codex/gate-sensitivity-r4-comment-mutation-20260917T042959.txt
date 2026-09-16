@@ -1,0 +1,11 @@
+### round-3 敏感性负控 —— 用 Codex r3 MEDIUM 点名的那条**注释变异**
+### （把真实调用换成 `pass  # 原调用`：程序块语法仍有效、真实调用数归零）
+原 sha256 = 16142e6aa856f4caba6a700f9b42528178a4c378663547f9077729d5a9a280ec
+
+① 还原态（已修）: NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+   注释变异已注入
+② 变异态: FAILED tests/unit/test_deploy_vault_sh.py::test_agents_append_takes_an_exclusive_lock
+FAILED tests/unit/test_deploy_vault_sh.py::test_codex_publishers_judge_the_real_write_target
+FAILED tests/unit/test_deploy_vault_sh.py::test_agents_append_takes_an_exclusive_lock
+   语法仍有效: yes
+③ 还原后: NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)  | sha: OK

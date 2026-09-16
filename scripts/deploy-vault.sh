@@ -1735,6 +1735,10 @@ vault, live = sys.argv[1], sys.argv[3]
 #: ⛔ Codex r1 MEDIUM：没有它的话，写到一半失败留下的**0 字节**文件会在下次跑时
 #:    走「已存在 ⇒ kept」分支，而生成后的在位判只查「是普通文件」⇒ 空模板被当成功。
 INCOMPLETE_MARK = b"# <!-- INCOMPLETE:"
+#: 已有模板的读取上限（模板本身只有几百字节；超过就不是我们生成的那种东西）。
+MAX_TEMPLATE = 1 << 20
+#: 一份**完整**模板必然含的段头 —— `kept` 分支的正向白名单锚（Codex r3 MEDIUM）。
+SECTION_HEADER = b"[mcp_servers."
 
 
 def die(msg):
@@ -1789,6 +1793,19 @@ try:
 finally:
     os.close(vfd)
 
+# ⛔ Codex r3 BLOCKER（部分闭合）：对 **cfd 自己** 再判一次, 位置紧挨着建文件那一步。
+#    上面那次判的是 vfd；`.codex` 在「判 vfd」与「建 config.toml」之间被**改名**搬走时,
+#    我们手里的 cfd 跟着 inode 走, 写就落到搬过去的那个位置。
+#    ⚠️ 如实声明：这**只是把窗口收窄**到「判 cfd → openat 叶子」这一小段, 关不死它。
+#    目录 fd 的稳定性做不到（rename 不换 inode, F_GETPATH 只是当次查询）——
+#    这正是判据模块 open_pinned 自己声明「祖先被改名/替换成真目录仍可绕过」的那一类,
+#    脚本另外三处 python 写入同样暴露。已作为移交项登记, 不假装它关上了。
+try:
+    _refuse_if_forbidden(cfd, ("config.toml",), live, die)
+except OSError as exc:
+    os.close(cfd)
+    die(str(exc))
+
 dst = f"{vault}/.codex/config.toml"
 fd = None
 ok = False
@@ -1807,17 +1824,24 @@ try:
         try:
             if not statmod.S_ISREG(os.fstat(rfd).st_mode):
                 die(f"已有 codex 模板不是普通文件: {dst}")
-            head = os.read(rfd, len(INCOMPLETE_MARK) + 64)
+            full = os.read(rfd, MAX_TEMPLATE)
         finally:
             os.close(rfd)
-        if not head.strip():
+        if not full.strip():
             die(f"已有 codex 模板是空文件（上次写到一半）, 请删掉它再重跑: {dst}")
-        # ⛔ Codex r2 MEDIUM：清理**本身**也可能写到一半 —— 只落下 `# <!-- I` 这样的
-        #    半截标记时，它既非空、也不 startswith 完整标记 ⇒ 旧判据放行，空模板被当成
-        #    正常产物。所以**两向都判**：文件以完整标记开头，或文件首行是标记的一段前缀。
-        first_line = head.split(b"\n", 1)[0]
-        if head.startswith(INCOMPLETE_MARK) or (first_line and INCOMPLETE_MARK.startswith(first_line)):
+        # ⛔ Codex r3 MEDIUM：黑名单（空 / 完整标记 / 半截标记）**永远数不完** ——
+        #    正文只写到 `# 由 deploy-vault.sh…` 就中断、或清理本身也失败时，三条都不命中 ⇒ kept。
+        #    改成**正向白名单**：一份完整的模板必然含 MCP 段头；不含就是残件。
+        #    ⚠️ 这条把「用户手改过的模板」也一并约束住了：改可以，但那个段头得留着 ——
+        #    它正是这份文件存在的理由（没有它这份模板对 Codex 毫无意义）。
+        #    ⚠️ 半截标记那条判据**保留**：它能把「残件」与「用户删光了段头」区分开，
+        #    给出的诊断不一样（前者叫人删掉重跑，后者说的是缺段头）。
+        if full.startswith(INCOMPLETE_MARK) or (
+            full.split(b"\n", 1)[0] and INCOMPLETE_MARK.startswith(full.split(b"\n", 1)[0])
+        ):
             die(f"已有 codex 模板是上次写到一半的残件, 请删掉它再重跑: {dst}")
+        if SECTION_HEADER not in full:
+            die(f"已有 codex 模板不完整（缺 `{SECTION_HEADER.decode()}` 段头）, 请删掉它再重跑: {dst}")
         print("kept")
         ok = True
         sys.exit(0)
@@ -1999,6 +2023,15 @@ try:
         die(f"建 AGENTS.md 失败, 未写任何东西: {dst} ({exc})")
 
     if created:
+        # ⛔ Codex r3 HIGH：**新建分支也要参与互斥**。原来只有追加分支上锁 ⇒
+        #    A 新建并短写到一个合法首行、B 走「已存在」分支拿到锁并追加完，
+        #    A 随后失败清理截零, 把 B 的正文一起删掉。新建的这一份从建出来就上锁,
+        #    B 的 flock 会等到 A 处理完（含清理）才拿到, 那时它读到的是确定的状态。
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX)
+        except OSError as exc:
+            os.close(fd)
+            die(f"给新建的 AGENTS.md 上排他锁失败, 不敢在无锁下写: {dst} ({exc})")
         write_all(fd, head_mark + b"\n\n" + body)
     else:
         # ── 分支 B：已存在 ⇒ 只在它是**我们生成的**时候追加 ─────────────────
@@ -2042,6 +2075,20 @@ try:
             print("already-present")
             ok = True
             sys.exit(0)
+        # ⛔ Codex r3 MEDIUM：**半截首锚**（回滚也失败时留下的, 例如末尾只有 `\n<!-- cls-codex`）
+        #    连 `sec_mark in cur` 都不命中 ⇒ 上面那条判不到, 于是直接再追加一整段,
+        #    残片被永久保留。判据：文件末尾若正好是 `\n`+首锚 的一段**真前缀**, 就是残件。
+        #    ⛔ 阈值不能取 1：正常的 AGENTS.md **本来就以 `\n` 结尾**, 而 `\n` 正是
+        #       `\n`+首锚 的 1 字符前缀 —— 本判据第一版因此把每一个健康文件都判成残件
+        #       （同批一条既有门当场变红）。取 `\n<!--` 这个长度：一个在文件末尾**没闭合**
+        #       的 HTML 注释开头，正常文本不会长这样。
+        #    ⚠️ 如实声明：比它更短的残片（只写进 `\n<` 之类）认不出来 —— 那种残片下次跑
+        #       会被再追加一整段、留下一两个多余字符, 属观感问题, 不影响内容正确性。
+        _pfx = b"\n" + sec_mark
+        _min = len(b"\n<!--")
+        for _n in range(len(_pfx) - 1, _min - 1, -1):
+            if cur.endswith(_pfx[:_n]):
+                die(f"AGENTS.md 末尾是半截 Codex 段首（上次追加写到一半）, 请删掉它再重跑: {dst}")
         keep_size = st.st_size
         payload = b"\n" + body
         append_len = len(payload)

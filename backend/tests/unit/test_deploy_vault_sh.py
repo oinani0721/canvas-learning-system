@@ -5288,6 +5288,19 @@ def test_vault_under_protected_surface_is_refused_before_codex_stage(tmp_path: P
     assert strays == [], f"在保护面里建出了 .codex: {strays}"
 
 
+def _decomment(text: str) -> str:
+    """剥掉 `#` 注释（含**行内**注释）后的文本 —— 结构门一律在它上面判。
+
+    ⛔ Codex r3 MEDIUM 实测：只剥整行注释（`lstrip().startswith("#")`）挡不住
+       `pass  # fcntl.flock(fd, fcntl.LOCK_EX)` 这种把真实调用换成注释的变异 ——
+       真实调用数归零而门照样绿。
+    ⚠️ 这是**词法**近似：字符串字面量里的 `#` 也会被当注释起点。
+       本文件用它只判「某个调用在不在」，这类误差不改变结论；
+       别拿它去做需要精确解析的判据。
+    """
+    return "\n".join(ln.split("#", 1)[0] for ln in text.splitlines())
+
+
 def test_codex_fd_guard_copies_are_identical():
     """两个 codex 发布器里的 fd 落点守卫必须**逐字相同**。
 
@@ -5314,7 +5327,11 @@ def test_codex_publishers_judge_the_real_write_target(tmp_path: Path):
        那个 TOCTOU 端到端不可确定性复现（见那条 docstring）。这里钉三件事：
        ① 守卫函数在；② 两个发布器都**调用**了它；③ 调用时把真正要写的名字传了进去。
     """
-    src = _sh_src()
+    # ⛔ Codex r3 MEDIUM（**实测的假绿**）：本门第一版在**原始文本**上 grep ——
+    #    把两处守卫调用与 flock 改成 `pass  # _refuse_if_forbidden(...)` 之后，
+    #    程序块语法有效、真实调用数归零，而三条门全部照样绿。判据分不清代码和注释 = 判据在说谎。
+    #    ⇒ 一律先剥注释（含**行内**注释，`startswith("#")` 那种剥法漏掉行内的）。
+    src = _decomment(_sh_src())
     assert src.count("def _refuse_if_forbidden(") == 2, "守卫函数不在（或份数不对）"
     assert src.count("def _fd_realpath(") == 2, "取 fd 物理路径的函数不在（或份数不对）"
     # ⛔ 锚到**完整**参数尾 `, live, die)`：写成 `[^)]*` 会在第一个 `)` 处截断，
@@ -5322,9 +5339,12 @@ def test_codex_publishers_judge_the_real_write_target(tmp_path: Path):
     #    这个写法顺带把函数**定义**行排除掉（它以 `live, say)` 结尾）。
     pat = re.compile(r"_refuse_if_forbidden\((.*?), live, die\)")
     invocations = pat.findall(src)
-    assert len(invocations) == 2, f"两个发布器必须各调一次守卫，实测 {len(invocations)}: {invocations}"
+    # ⚠️ Codex r3 BLOCKER 之后是**三处**：模板发布器判 vfd（`.codex` 本身）与 cfd
+    #    （紧挨着建 config.toml 那一步），AGENTS 发布器判 dfd。
+    assert len(invocations) == 3, f"守卫调用必须三处（vfd / cfd / dfd），实测 {len(invocations)}: {invocations}"
     joined = " ".join(invocations)
-    assert '".codex", ".codex/config.toml"' in joined, f"模板发布器没把真正要写的名字传进去: {invocations}"
+    assert '".codex", ".codex/config.toml"' in joined, f"模板发布器没判 vfd 下的落点: {invocations}"
+    assert '("config.toml",)' in joined, f"模板发布器没在建文件前再判一次 cfd: {invocations}"
     assert "(base,)" in joined, f"AGENTS 发布器没把真正要写的名字传进去: {invocations}"
     # 验伪锚（两向）：对已知调用取得出完整参数；对函数**定义**行不命中。
     assert pat.findall('_refuse_if_forbidden(vfd, ("x",), live, die)') == ['vfd, ("x",)']
@@ -5358,7 +5378,80 @@ def test_agents_append_takes_an_exclusive_lock():
     ⚠️ flock 是**协作式**的：只挡同样取锁的写者。这条门钉的是「锁取了」，
        不是「任何进程都进不来」——后者本卡做不到，已登记。
     """
-    src = _sh_src()
-    assert "fcntl.flock(fd, fcntl.LOCK_EX)" in src, "追加路径没取排他锁"
+    # ⛔ 同 Codex r3 MEDIUM：在**剥掉注释**的文本上判，否则 `pass  # fcntl.flock(...)` 也算数。
+    src = _decomment(_sh_src())
+    # ⚠️ Codex r3 HIGH-2：**新建分支也要上锁** —— 原来只有追加分支上锁时，
+    #    A 新建短写 + B 追加成功 + A 清理截零 = 删掉 B 的正文。所以要求**两处**。
+    assert src.count("fcntl.flock(fd, fcntl.LOCK_EX)") == 2, (
+        f"排他锁不是两处（新建分支 + 追加分支各一）: {src.count('fcntl.flock(fd, fcntl.LOCK_EX)')}"
+    )
     # 回滚必须带「多出来的字节可能是别人写的」这道守卫
     assert "grown > append_len" in src, "回滚没判增量 —— 会截掉并发写者的正文"
+
+
+def test_agents_refuses_truncated_section_head(tmp_path: Path):
+    """AGENTS.md 末尾留着**半截段首**时要拒，不能直接再追加一整段。
+
+    ⛔ Codex r3 MEDIUM：`\\n<!-- cls-codex` 这种残片连 `sec_mark in cur` 都不命中，
+       旧判据看不见它 ⇒ 追加一整段并报成功，残片被永久保留。
+    ⚠️ 阈值取 `\\n<!--`：正常 AGENTS.md **本来就以 `\\n` 结尾**，按 1 字符前缀判会把每一个
+       健康文件都判成残件（本判据第一版正是这么把一条既有门打红的）。
+    """
+    name, port = "probe_cx13", "8298"
+    h = _oc_harness(tmp_path)
+    half = "<!-- generated-by: deploy-vault.sh (--hosts codex) -->\n\n正文\n<!-- cls-codex"
+    _oc_preseed_installer(tmp_path, h, f"printf '%s' '{half}' > \"$v/AGENTS.md\"\n")
+    env = _tx_env(tmp_path, port, name)
+    r = _oc_run(tmp_path, h, name, port, env=env, hosts="claude,codex")
+    assert r.returncode == 73, f"半截段首没被拒: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    assert "半截" in r.stdout, f"消息没说清它是什么: {r.stdout}"
+    assert (tmp_path / "vaults" / name / "AGENTS.md").read_text(encoding="utf-8") == half, "残件被改动了"
+
+
+def test_agents_normal_trailing_newline_is_not_a_residue(tmp_path: Path):
+    """控制组：**正常**的 AGENTS.md（以换行结尾）不得被上一条判成残件。
+
+    ⛔ 没有这条，把阈值写成 1 的那个版本会「全都拒」而看起来仍然很安全。
+    """
+    name, port = "probe_cx14", "8299"
+    h = _oc_harness(tmp_path)
+    env = _tx_env(tmp_path, port, name)
+    r = _oc_run(tmp_path, h, name, port, env=env, hosts="claude,opencode,codex")
+    assert r.returncode == 0, f"正常文件被判成残件了: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    md = (tmp_path / "vaults" / name / "AGENTS.md").read_text(encoding="utf-8")
+    assert md.count("## Codex") == 1
+
+
+def test_codex_template_rejects_body_without_section_header(tmp_path: Path):
+    """已有模板缺 MCP 段头（正文写到一半、清理也失败）⇒ 拒，不能报 `kept`。
+
+    ⛔ Codex r3 MEDIUM：黑名单（空 / 完整标记 / 半截标记）永远数不完 ——
+       改成正向白名单：完整模板必含 `[mcp_servers.` 段头。
+    """
+    name, port = "probe_cx15", "8300"
+    h = _oc_harness(tmp_path)
+    _oc_preseed_installer(
+        tmp_path,
+        h,
+        'mkdir -p "$v/.codex"\nprintf \'# 由 deploy-vault.sh --hosts codex 生成\\n\' > "$v/.codex/config.toml"\n',
+    )
+    env = _tx_env(tmp_path, port, name)
+    r = _oc_run(tmp_path, h, name, port, env=env, hosts="claude,codex")
+    assert r.returncode == 73, f"缺段头的模板被当成 kept: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    assert "不完整" in r.stdout, f"消息没说清它是什么: {r.stdout}"
+
+
+def test_structural_gates_are_not_fooled_by_comments():
+    """结构门必须剥注释 —— 把真实调用换成 `pass  # 原调用` 不得让它们变绿。
+
+    ⛔ Codex r3 MEDIUM 给的正是这条变异，并**实测**过本文件第一版三条门全部假绿。
+       这条门直接把那个变异做成判据：在内存里做一次替换，`_decomment` 之后必须看不见它。
+    """
+    real = '    _refuse_if_forbidden(vfd, (".codex",), live, die)\n    fcntl.flock(fd, fcntl.LOCK_EX)'
+    mutated = (
+        '    pass  # _refuse_if_forbidden(vfd, (".codex",), live, die)\n    pass  # fcntl.flock(fd, fcntl.LOCK_EX)'
+    )
+    assert "_refuse_if_forbidden(" in _decomment(real), "剥注释把真实调用也剥掉了"
+    assert "fcntl.flock(fd, fcntl.LOCK_EX)" in _decomment(real), "剥注释把真实调用也剥掉了"
+    assert "_refuse_if_forbidden(" not in _decomment(mutated), "行内注释里的调用仍被数进来 = 假绿"
+    assert "fcntl.flock(fd, fcntl.LOCK_EX)" not in _decomment(mutated), "行内注释里的锁仍被数进来 = 假绿"

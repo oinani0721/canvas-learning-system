@@ -441,3 +441,51 @@ ef0cf1a9  feat(deploy): codex 转正为二线宿主, 步 3 生成项目级绑定
 > ⛔ 顺带：`test_codex_publishers_judge_the_real_write_target` 第一版又踩了一次「判据自己没取全」——
 > 正则写 `[^)]*` 在第一个 `)` 处截断，`(base,)` 被切成 `(base,`，门当场自红。
 > 改成锚到完整参数尾 `, live, die)`，并补了两向验伪锚（对已知调用取得全 / 对函数定义行不命中）。
+
+#### round-3 —— 绑定 `41ddf0d0`，**BLOCKER 1 / HIGH 2 / MEDIUM 3 / LOW 0**
+
+存档 `codex-review-CARD-HOSTS-CODEX-r3.md`。逐条处置（**一条部分驳回并上交裁定，其余全接受**）：
+
+| # | 级别 | 意见 | 处置 |
+|---|---|---|---|
+| 1 | **BLOCKER** | fd 守卫通过后，把 `.codex` 目录**改名**搬成 `$HOME/.codex`（同文件系统），后续相对 `cfd` 的写入就落进用户级配置；`F_GETPATH` 只是当次查询，冻结不了之后的位置 | **部分闭合 + 上交裁定**（见下） |
+| 2 | **HIGH** | 探针把 `auth.json` 软链到真文件 —— 0.153.3 刷新令牌时会**沿软链截写**真实凭据；只核 `config.toml` 的 sha 看不到 | **已修**：改用 0600 **副本**，跑完当场清零；真 `auth.json` 与 `config.toml` 跑前跑后 sha 都核，均逐字相同 |
+| 3 | **HIGH** | AGENTS.md **新建分支没参与互斥**：A 新建短写 → B 走已有文件分支取锁追加成功 → A 清理截零，把 B 的正文一起删掉 | **已修**：新建的那一份**从建出来就上锁**，B 的 `flock` 会等到 A 处理完（含清理）才拿到 |
+| 4 | **MEDIUM** | 模板「正文只写到一半、清理也失败」仍会被当正常文件 `kept` | **已修**：`kept` 分支改**正向白名单** —— 完整模板必含 `[mcp_servers.` 段头，不含即残件。黑名单永远数不完 |
+| 5 | **MEDIUM** | AGENTS.md 末尾的**半截段首**（`\n<!-- cls-codex`）连 `sec_mark` 都不命中 ⇒ 下次直接再追加一整段 | **已修**：判「末尾是否为 `\n`+首锚 的一段真前缀」 |
+| 6 | **MEDIUM** | 三条结构门**把注释当真实调用** —— 换成 `pass  # 原调用` 之后全部照样绿（Codex 已实测） | **已修**：加 `_decomment()`（剥**行内**注释）并在它上面判。⚠️ 这是**真的假绿**，不是误报 |
+
+##### 关于 BLOCKER 的部分驳回（车道不自判，交主 session 裁定）
+
+**已做的收窄**：在建 `config.toml` **之前**对 `cfd` 自己再判一次（原来只判了 `vfd`），
+把窗口压到「判 cfd → openat 叶子」这一小段。
+
+**关不死的部分，如实说明**：
+- 目录 fd 跟着 **inode** 走，`rename` 不换 inode ⇒ 任何「先判再用」的写法都挡不住
+  「我手里这个目录在两步之间被搬走」。`F_GETPATH` 是当次查询，不是租约。
+- 这**正是**判据模块 `open_pinned` 自己 docstring 里已登记为**未闭合**的那一类：
+  「祖先被换成指向另一个非保护目录、或把祖先**改名/替换成真目录**仍可绕过
+  （需要目录 fd 的稳定性前提或权限隔离）」。脚本另外**三处** python 写入同样暴露 ——
+  这不是本卡引入的新洞，是本卡继承的既有面。
+- 触发它需要攻击者能在 `$HOME` 里 `rename` 出 `$HOME/.codex`；**具备这个能力的人本来就能直接写那个文件**，
+  所以该窗口不给攻击者任何新能力。
+- 真正闭合它要么改判据模块（本卡禁改），要么给部署一个独立的挂载/权限隔离面 —— 都超出本卡范围。
+
+⇒ 按协议「车道对 BLOCKER/HIGH 的驳回要写理由但**不能自判通过**」，此条**上交主 session 裁定**，
+并作为移交项登记（连带 `open_pinned` 那条既有声明）。
+
+##### round-3 新门与敏感性（存档 `gate-sensitivity-r4-comment-mutation-*.txt`）
+
+用 **Codex 点名的那条注释变异**（`pass  # 原调用`，程序块语法仍有效、真实调用数归零）实测：
+
+| | 结果 |
+|---|---|
+| 还原态 | 绿 |
+| 注释变异后 | `test_codex_publishers_judge_the_real_write_target` **FAILED** + `test_agents_append_takes_an_exclusive_lock` **FAILED** ✅ |
+| `bash -n` 变异态 | rc=0（证明变异真的生效，不是语法错顺带打红） |
+| 还原后 | 绿，sha256 与变异前逐字节相同 |
+
+新增行为门：`test_agents_refuses_truncated_section_head`（半截段首）、
+`test_agents_normal_trailing_newline_is_not_a_residue`（**控制组** —— 没有它，把阈值写成 1 的版本
+会「全都拒」却看起来很安全；本判据第一版正是这么把一条既有门打红的）、
+`test_codex_template_rejects_body_without_section_header`、`test_structural_gates_are_not_fooled_by_comments`。
