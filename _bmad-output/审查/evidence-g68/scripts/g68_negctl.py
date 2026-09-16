@@ -15,6 +15,7 @@
 
 import atexit
 import hashlib
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -176,8 +177,8 @@ SEGMENTS = [
         #            也照样落进「已登记」。修复后豁免带谓词, 只认固定 +08:00 的当日。
         "R1H2_INBOX_ABSURD_DAY",
         SCRIPT,
-        "    return dt.astimezone(inbox_preview._TZ_SHANGHAI).date().isoformat()",
-        '    return "2099-01-01"  # NEGCTL',
+        '            return day if len(day) == 10 and day.count("-") == 2 else MISSING',
+        '            return "2099-01-01"  # NEGCTL',
         MAIN,
         "面=skill_inbox",
         "已登记分歧是「那一种已知取值」, 不是「那一格随便怎么错都行」",
@@ -216,6 +217,60 @@ SEGMENTS = [
         "字段=projection_day 面=review_overview",
         "消费方复述生产者的日期时走样必须判红（该列绑响应, 不是现算）",
     ),
+    # ── Codex r2 的对照输入 —— 当轮全部**未被拦下**, 修复后必须各自判红 ──
+    (
+        # r2 HIGH-1: 两个产出方**同时**缺同一块板 ⇒ 取值集合只剩一个元素 ⇒ 零分歧。
+        #            `_board_bucket_rows` 是两面共用的提取层, 从这里丢一块板即可复现。
+        "R2H1_BOTH_MISSING",
+        SCRIPT,
+        "    return {b: tuple(sorted(v)) for b, v in out.items()}",
+        '    return {b: tuple(sorted(v)) for b, v in out.items() if b != "\u677f-\u5230\u671f"}  # NEGCTL',
+        MAIN,
+        "该面声称产出却缺了这块板",
+        "MISSING 永不算一致、永不进多数派 —— 两面同时缺一块板也必须判红",
+    ),
+    (
+        # r2 HIGH-2: inbox 的日期原先是契约自己按 parse_now 算的, 不是它真实入口的产物。
+        "R2H2_INBOX_ENTRY",
+        INBOX,
+        "def main() -> int:",
+        "def main() -> int:\n    return 0  # NEGCTL 提前返回, 零产物",
+        MAIN,
+        "面=skill_inbox",
+        "inbox 这一列绑的是它真实入口的产物, 入口不产出即判红",
+    ),
+    (
+        # r2 HIGH-3: 按语法形态枚举的 AST 门拦不住间接读法。
+        "R2H3_INDIRECT_DUE_READ",
+        APP,
+        "review_app_router = APIRouter()",
+        "review_app_router = APIRouter()\n\n\n"
+        'def _negctl_indirect_due(n, t, key="fsrs_due"):  # NEGCTL\n'
+        "    return n.get(key) <= t",
+        APPGATE,
+        "独立 due 算法",
+        "默认参数 / 模块常量等间接形态的 due 字段名同样算自造算法",
+    ),
+    (
+        # r2 MEDIUM-5: 让位检查原先不验队列完整性, `ranked=[]` 照样过。
+        "R2M5_RANKED_EMPTY",
+        SCRIPT,
+        "    check_ranked_yield_partition(\n        ranked,",
+        "    check_ranked_yield_partition(\n        [],  # NEGCTL",
+        MAIN,
+        "ranked 为空",
+        "没有队列不该被读成「顺序没问题」",
+    ),
+    (
+        # r2 MEDIUM-6: 推送点名原先只查「是不是认识的某块板」。
+        "R2M6_NOTI_WRONG_BOARD",
+        SCRIPT,
+        "        recommended = ranked_boards[0] if ranked_boards else None",
+        "        recommended = ranked_boards[-1] if ranked_boards else None  # NEGCTL",
+        MAIN,
+        "不是 picker 当前的推荐板",
+        "推送点名的板必须正是 ranked[0], 不是「随便哪块认识的板」",
+    ),
 ]
 
 
@@ -242,12 +297,19 @@ def failure_block(out: str, short: str) -> str:
         ______________________ test_xxx _______________________
         <traceback 与断言输出>
     到下一个 `____ test_yyy ____` 或 `=== short test summary info ===` 为止。
+
+    ⛔ 边界必须认「**连续**下划线」的测试分隔线（Codex r2 MEDIUM-8）: pytest 在
+    **同一个测试内部**用 `_ _ _ _ _`（下划线之间有空格）分隔 traceback 的各帧。
+    原来的判据只看「以 _ 开头、以 _ 结尾、_ 够多」, 于是把帧分隔线当成了下一个测试
+    的边界, 把真正的异常输出截掉。
     """
+    # `______ test_xxx ______`: 两端各有一段**连续**下划线（≥3）, 中间是名字。
+    boundary = re.compile(r"^_{3,}\s.*\s_{3,}$")
     lines = out.splitlines()
     start = None
     for i, line in enumerate(lines):
         s = line.strip()
-        if s.startswith("_") and s.endswith("_") and short in s:
+        if boundary.match(s) and short in s:
             start = i
             break
     if start is None:
@@ -258,10 +320,20 @@ def failure_block(out: str, short: str) -> str:
         if s.startswith("=") and "short test summary" in s:
             end = j
             break
-        if s.startswith("_") and s.endswith("_") and s.count("_") > 10 and short not in s:
+        if boundary.match(s) and short not in s:
             end = j
             break
     return "\n".join(lines[start:end])
+
+
+def error_lines(block: str) -> str:
+    """失败块里 pytest 真正的**错误输出**行（前缀 `E `）。
+
+    ⛔ 只在这些行里找文本锚（Codex r2 MEDIUM-7）: 失败块里同时包含被回显的**源码**,
+    于是一条 `assert True, "……锚……"` 的源码字面量也能让锚命中 —— 红是红了, 但红的
+    原因不是那条声称的断言。`E ` 前缀的行才是实际抛出来的那条。
+    """
+    return "\n".join(ln for ln in block.splitlines() if ln.strip().startswith("E "))
 
 
 def run_nodeid(nodeid: str) -> tuple[int, str]:
@@ -290,7 +362,7 @@ def main() -> int:
         short = nodeid.split("::")[-1]
         failed = f"FAILED {nodeid}" in out or f"FAILED {F}::{short}" in out
         # ⛔ 锚只在**该 nodeid 自己的失败块**里找（见 failure_block 的说明）。
-        hit = anchor in failure_block(out, short)
+        hit = anchor in error_lines(failure_block(out, short))
         ok = rc != 0 and failed and hit
         flag = "[✅]" if ok else "[⛔]"
         if not ok:
@@ -308,7 +380,12 @@ def main() -> int:
     print("\n跑前/跑后 sha256 逐字比对:")
     for t in TARGETS:
         now = hashlib.sha256(t.read_bytes()).hexdigest()
-        mark = "✅" if now == SHA0[t] else "⛔"
+        ok_sha = now == SHA0[t]
+        # ⛔ 还原失败必须进 bad 并影响退出码（Codex r2 MEDIUM-9）: 原先只打一个 ⛔
+        #    就算了, rc 照样 0 —— 「变异残留在树上」这件事会被读成通过。
+        if not ok_sha:
+            bad += 1
+        mark = "✅" if ok_sha else "⛔"
         print(f"{mark} {t.name}")
         print(f"     跑前 {SHA0[t]}")
         print(f"     跑后 {now}")

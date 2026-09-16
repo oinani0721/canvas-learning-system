@@ -263,9 +263,9 @@
         "notification": "2026-09-12"
       },
       "snoozed": {
-        "review_overview": true,
+        "review_overview": false,
         "review_app": "<该面不产出此字段>",
-        "picker": true,
+        "picker": false,
         "skill_recap": "<该面不产出此字段>",
         "skill_inbox": "<该面不产出此字段>",
         "notification": "<该面不产出此字段>"
@@ -315,9 +315,9 @@
         "notification": "2026-09-12"
       },
       "snoozed": {
-        "review_overview": false,
+        "review_overview": true,
         "review_app": "<该面不产出此字段>",
-        "picker": false,
+        "picker": true,
         "skill_recap": "<该面不产出此字段>",
         "skill_inbox": "<该面不产出此字段>",
         "notification": "<该面不产出此字段>"

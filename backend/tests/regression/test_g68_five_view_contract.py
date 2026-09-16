@@ -145,13 +145,102 @@ def test_declared_producer_may_not_hand_back_not_produced():
         contract.check_producers_declaration(per_face, ["板A"])
 
 
-def test_every_field_needs_at_least_two_declared_producers():
-    """把某列的声明产出方砍到只剩一个 ⇒ 当场抛（那一列不再是跨面契约）。
+def test_field_producers_pinned_by_identity():
+    """`FIELD_PRODUCERS` 按**身份**钉死, 不只是「数量 ≥ 2」。
 
-    ⛔ Codex r1 MEDIUM-5: 声明与实现**同步**缩减时, 旧版对账查不出来。
+    ⛔ Codex r1 MEDIUM-5 → r2 MEDIUM-4: 只查数量下限的话, 把 overview 的
+    `projection_day` 声明与实现**一起**删掉仍然全绿; `("picker", "picker")`
+    这种同名重复也满足数量检查。逐列写死产出方集合。
     """
-    assert all(len(v) >= 2 for v in contract.FIELD_PRODUCERS.values())
+    assert contract.FIELD_PRODUCERS == {
+        "bucket": ("review_overview", "picker"),
+        "display_day": ("review_overview", "picker", "skill_inbox", "notification"),
+        "projection_day": ("review_overview", "picker", "notification"),
+        "snoozed": ("review_overview", "picker"),
+        "done": ("review_overview", "picker"),
+    }, "产出方声明变了 —— 改动必须同时更新验收单 census 与本断言"
+    for field, producers in contract.FIELD_PRODUCERS.items():
+        assert len(set(producers)) >= 2, f"{field} 的产出方去重后不足两个"
+        assert set(producers) <= set(contract.FACES), f"{field} 声明了不存在的面"
     assert set(contract.FIELD_PRODUCERS) == set(contract.FIELDS)
+
+
+def test_missing_never_counts_as_agreement():
+    """两个产出方**同时**缺同一块板 ⇒ 仍要判红, 不许当成「一致」。
+
+    ⛔ Codex r2 HIGH-1: `MISSING` 原先只是个普通取值 —— 两面同缺时取值集合只剩
+    一个元素, 于是零分歧; 缺值多数派还能把唯一真实分歧挤成少数派。
+    """
+    both_missing = {
+        "板Z": _blank(
+            "bucket",
+            {
+                "review_overview": contract.MISSING,
+                "picker": contract.MISSING,
+                "review_app": contract.NOT_PRODUCED,
+                "skill_recap": contract.NOT_PRODUCED,
+                "skill_inbox": contract.NOT_PRODUCED,
+                "notification": contract.NOT_PRODUCED,
+            },
+        )
+    }
+    undeclared, declared = contract.diff_matrix(both_missing)
+    assert declared == []
+    assert {r["face"] for r in undeclared} == {"review_overview", "picker"}, (
+        "两面同时缺一块板被当成了「一致」—— MISSING 混进了取值比较"
+    )
+
+    # 缺值多数派不得把唯一的真实分歧挤成少数派而免于上报
+    majority_missing = {
+        "板W": _blank(
+            "display_day",
+            {
+                "review_overview": contract.MISSING,
+                "picker": contract.MISSING,
+                "notification": contract.MISSING,
+                "skill_inbox": "2026-09-12",
+                "review_app": contract.NOT_PRODUCED,
+                "skill_recap": contract.NOT_PRODUCED,
+            },
+        )
+    }
+    undeclared2, _ = contract.diff_matrix(majority_missing)
+    assert {r["face"] for r in undeclared2} == {"review_overview", "picker", "notification"}, (
+        "缺值被当成多数派了 —— 三个缺值反而成了参照"
+    )
+
+
+def test_board_index_does_not_come_from_the_faces():
+    """矩阵行索引有**独立于被测面**的锚（fixture 自报的板清单）。
+
+    ⛔ Codex r2 HIGH-1 的更深一层: 行索引若从各面反推, 一块板从**所有面同时**
+    消失时它整行都不存在 —— 连个可比的格子都没有, 判据看起来绿得很干净。
+    """
+    assert contract.FIXTURE_BOARDS, "fixture 板清单为空 —— 行索引又退回从面反推了"
+    # 清单必须与 fixture 真造出来的板对得上（脚本内部也有同款对账, 这里是外部复证）
+    now = datetime(2026, 9, 12, 3, 0, tzinfo=timezone.utc)
+    nodes = contract.build_nodes(now, timezone(timedelta(hours=8)))
+    declared = {
+        line.split("原白板/", 1)[1].split("]]", 1)[0]
+        for md in nodes.values()
+        for line in md.splitlines()
+        if "原白板/" in line
+    }
+    assert contract.FIXTURE_BOARDS <= declared, (
+        f"FIXTURE_BOARDS 与 fixture 脱钩: {sorted(contract.FIXTURE_BOARDS - declared)}"
+    )
+
+
+def test_ranked_completeness_is_checked():
+    """空队列 / 点名板缺席都要当场抛, 不许读成「顺序没问题」。
+
+    ⛔ Codex r2 MEDIUM-5: `ranked=[]` 原先照样过; 而被推迟的板如果根本不进队列,
+    让位判定对它是空转。
+    """
+    with pytest.raises(contract.ContractError, match="ranked 为空"):
+        contract.check_ranked_yield_partition([], {"A"})
+    with pytest.raises(contract.ContractError, match="缺席"):
+        contract.check_ranked_yield_partition([{"board": "A"}], {"B"}, require_in_ranked={"B"})
 
 
 def test_inbox_date_divergence_is_really_detected(tmp_path):

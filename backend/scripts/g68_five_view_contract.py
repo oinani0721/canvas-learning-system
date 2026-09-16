@@ -130,6 +130,16 @@ class ContractError(RuntimeError):
 #: 不写死「应该是哪个桶」—— 那会让期望与被测量同源。
 
 
+#: fixture **自己知道**它造了哪些板 —— 矩阵的行索引以此为准。
+#:
+#: ⛔ 行索引**不能从被测面反推**（Codex r2 HIGH-1 的更深一层）: 原先
+#: `boards = set(picker) | set(overview)`, 于是一块板**从所有面同时消失**时它整行
+#: 都不存在, 连个可比的格子都没有 —— 负控 `R2H1_BOTH_MISSING`（两面共用的提取层
+#: 丢一块板）实测因此全绿。行索引必须来自**独立于被测面**的来源: 就是我们写进
+#: fixture 的那份板清单。各面多报的板仍然并集进来（多报同样要判红）。
+FIXTURE_BOARDS: frozenset[str] = frozenset({"板-到期", "板-新卡", "板-学习中", "板-脏日期", "板-今天晚些", "板-未来"})
+
+
 def _node_md(board: str, extra: str = "") -> str:
     return f'---\ntype: concept\nsource_board: "[[原白板/{board}]]"\n{extra}---\n真实内容。\n'
 
@@ -223,7 +233,9 @@ def _board_bucket_rows(bucket_map: dict[str, list[dict]]) -> dict[str, tuple]:
     return {b: tuple(sorted(v)) for b, v in out.items()}
 
 
-def check_ranked_yield_partition(ranked: list[dict], yielded: set[str]) -> None:
+def check_ranked_yield_partition(
+    ranked: list[dict], yielded: set[str], *, require_in_ranked: set[str] | None = None
+) -> None:
     """picker 的 snooze/done 结论**被消费**的可观察后果: 让位分区。
 
     `build_payload` 对被推迟 / 今天已完成的板做**稳定分区**——它们整体让出榜首,
@@ -238,6 +250,19 @@ def check_ranked_yield_partition(ranked: list[dict], yielded: set[str]) -> None:
     先后（那是 U6-C 登记、D-37 按现状不改的那条顺序）。
     """
     boards = [r["board"] for r in ranked]
+    # ⛔ 队列完整性先于分区（Codex r2 MEDIUM-5）: 早期版本只看顺序, 于是把
+    #    `ranked` 整个清空照样过 —— 「没有队列」不该被读成「顺序没问题」。
+    if not boards:
+        raise ContractError("picker 的 ranked 为空 —— 没有队列就谈不上让位分区, 这一条不能当绿灯")
+    # ⛔ 点名要求某些板必须在队列里（Codex r2 MEDIUM-5 的第二半）: 被推迟的板如果
+    #    根本不进 ranked, 「让位」这件事就没被这条判据碰到过, 它对 snooze 是空转。
+    if require_in_ranked:
+        absent = sorted(b for b in require_in_ranked if b not in boards)
+        if absent:
+            raise ContractError(
+                f"这些板被点名要求出现在 picker 的 ranked 里却缺席: {absent} —— "
+                "对它们的让位判定是空转（fixture 没让 snooze/done 真正被消费到）"
+            )
     if not yielded or all(b in yielded for b in boards):
         return  # 退化: 没有让位板, 或全部让位 —— 分区恒等, 本条不构成判据
     first_yield = next((i for i, b in enumerate(boards) if b in yielded), None)
@@ -251,7 +276,7 @@ def check_ranked_yield_partition(ranked: list[dict], yielded: set[str]) -> None:
         )
 
 
-def face_picker(picker, vault: Path, now: datetime, board_done: dict, snoozed: dict) -> tuple[dict, dict]:
+def face_picker(picker, vault: Path, now: datetime, board_done: dict, snoozed: dict) -> tuple[dict, dict, list[str]]:
     """③ picker（**只读**）—— 返回 (payload, 板级结论)。
 
     picker 的 snooze/done 结论不落 payload（「完成状态不进 projection」是 A2 的
@@ -274,7 +299,9 @@ def face_picker(picker, vault: Path, now: datetime, board_done: dict, snoozed: d
     awake = picker.active_snoozed(snoozed, now)
     check_ranked_yield_partition(
         ranked,
-        {b for b in awake} | {b for b, d in board_done.items() if d == day},
+        set(awake) | {b for b, d in board_done.items() if d == day},
+        # 被推迟 / 今日完成的板必须真的在队列里, 否则这条判定对它们是空转。
+        require_in_ranked=set(awake) | {b for b, d in board_done.items() if d == day},
     )
     conclusions = {
         board: {
@@ -287,7 +314,7 @@ def face_picker(picker, vault: Path, now: datetime, board_done: dict, snoozed: d
         }
         for board, rows in buckets.items()
     }
-    return payload, conclusions
+    return payload, conclusions, [r["board"] for r in ranked]
 
 
 # ────────────────────────── 面：review_overview ───────────────────────────
@@ -377,57 +404,101 @@ def assert_review_app_has_no_due_algorithm(app_path: Path) -> dict:
             assigned.add(node.id)
     offenders = sorted(m for m in _DUE_ALGO_MARKERS if m in assigned)
 
-    # 可执行代码里对 due 字段的读取。四种形态都要认（Codex r1 HIGH-3 实证前两种
-    # 之外的写法能整条走过去 —— `node["fsrs_due"]` 与 `node.get("fsrs_due")` 里
-    # 字段名是**字符串常量**, 既不是 Name 也不是 Attribute）:
-    #   ① 属性  obj.fsrs_due          ② 裸名  fsrs_due
-    #   ③ 下标  obj["fsrs_due"]       ④ 取值  obj.get("fsrs_due")  /  .pop / .setdefault
-    # ⛔ 字符串常量本身不一概算违约: 页面 JS 是一个大字符串常量, review_app 是
-    #    /overview JSON 的纯消费方, 那段 JS 不在本断言射程内。所以只认**落在
-    #    下标位置或取值调用实参位置**上的字符串 —— 那是在读一个 due 字段。
-    _GETTERS = {"get", "pop", "setdefault"}
+    # 可执行代码里对 due 字段的读取。
+    #
+    # ⛔ **不再按语法形态逐个枚举**（Codex r1 HIGH-3 → r2 HIGH-3 的教训）: 前两轮
+    #    先补了「属性 / 裸名」, 再补了「下标 / `.get()` 首参」, 对方立刻拿
+    #    `def f(n, key="fsrs_due"): return n.get(key)` / `getattr(n, "fsrs_due")` /
+    #    模块常量键 / `match` 解构走过去。**只要判据还在枚举写法, 它就永远收敛不了**
+    #    —— 这是「开放式判据」的典型形状。
+    #
+    #    改判据的**形状**: 在 review_app 的 Python 代码里, due 字段名**作为字符串
+    #    常量出现在任何位置**即违约（默认参数、模块常量、`getattr` 实参、`match`
+    #    模式……一网打尽）, 外加属性/裸名两种非字符串形态。
+    #
+    # ⚠ 页面 JS 是一个**大字符串常量**, review_app 是 /overview JSON 的纯消费方,
+    #   那段 JS 不在本断言射程内 —— 所以放过「长度 > _JS_BLOB_MIN 的字符串」,
+    #   并把放过的那几个大字符串的长度打进返回值, 免得这条豁免变成暗门。
+    #
+    # ⚠ **原理上限, 如实声明**: 运行期拼出来的字段名（`"fsrs_" + "due"`）任何静态
+    #   判据都拦不住。本门拦的是「照常写出来」的读法, 不是刻意的混淆。
+    _JS_BLOB_MIN = 400
     reads: set[str] = set()
+    js_blobs: list[int] = []
     for node in ast.walk(tree):
         if isinstance(node, ast.Attribute) and node.attr in _DUE_ALGO_MARKERS:
             reads.add(node.attr)
         elif isinstance(node, ast.Name) and node.id in _DUE_ALGO_MARKERS and isinstance(node.ctx, ast.Load):
             if node.id not in imported:
                 reads.add(node.id)
-        elif isinstance(node, ast.Subscript):
-            key = node.slice
-            if isinstance(key, ast.Constant) and isinstance(key.value, str) and key.value in _DUE_ALGO_MARKERS:
-                reads.add(key.value)
-        elif isinstance(node, ast.Call):
-            fn = node.func
-            if isinstance(fn, ast.Attribute) and fn.attr in _GETTERS and node.args:
-                first = node.args[0]
-                if isinstance(first, ast.Constant) and isinstance(first.value, str):
-                    if first.value in _DUE_ALGO_MARKERS:
-                        reads.add(first.value)
+        elif isinstance(node, ast.Constant) and isinstance(node.value, str):
+            if len(node.value) >= _JS_BLOB_MIN:
+                js_blobs.append(len(node.value))
+                continue
+            if node.value in _DUE_ALGO_MARKERS:
+                reads.add(node.value)
     offenders += sorted(reads - set(offenders))
     if offenders:
         raise ContractError(
             f"review_app 出现独立 due 算法的迹象（在可执行代码里定义/读取 {offenders}）—— "
             "它必须是 /overview 投影的纯消费方"
         )
-    return {"imported_shared": sorted(imported & set(_APP_SHARED_IMPORTS)), "offenders": []}
+    return {
+        "imported_shared": sorted(imported & set(_APP_SHARED_IMPORTS)),
+        "offenders": [],
+        # 被「大字符串 = 页面 JS」这条豁免放过的那几个常量的长度 —— 摊开写出来,
+        # 免得这条豁免变成一扇看不见的门。
+        "js_blob_lengths": sorted(js_blobs, reverse=True),
+    }
 
 
 # ───────────────────────────── 面：两个 skill 脚本 ─────────────────────────────
 
 
-def face_skill_inbox(now_raw: str) -> str:
-    """④b clear-inbox/inbox_preview.py —— 它的「今天」。
+#: inbox_preview 渲染里那行「基准时刻 `--now`：<本地时刻>（Asia/Shanghai）」的锚。
+_INBOX_NOW_LINE = "基准时刻 `--now`："
 
-    `parse_now()` 把裸时刻按**固定 +08:00** 解释（:430 `_TZ_SHANGHAI`）, 带偏移的
-    时刻则原样收下; 页面人话再按同一个 +08:00 格式化（:606）。所以它的日期结论 =
-    `parse_now(--now).astimezone(+08:00).date()`。
+
+def face_skill_inbox(now_raw: str, tmp_root: Path) -> str:
+    """④b clear-inbox/inbox_preview.py —— 它的「今天」, **取自它真正的产物**。
+
+    ⛔ 不许在契约里自己按 `parse_now()` 再算一遍（Codex r2 HIGH-2）: 那样量的是
+    「契约照着它的规则算出来的日期」, 不是「它实际交出来的日期」—— 把它的 `main()`
+    改成用 2099 年、或者干脆提前 `return 0` 不产出任何东西, 契约都毫无反应。
+    这里跑**真实入口** `main()`（`--vault` / `--now` 指向 tmp 空仓）, 再从它落盘的
+    preview 里把那行「基准时刻」抠出来。产物缺席 / 抠不到 ⇒ 返回 `MISSING`, 由矩阵判红。
+
+    ⚠ 空收件箱是它的合法形态（`--inbox-dir` 缺省路径不存在 = 空仓回执）—— 本契约
+    只要它的**日期结论**, 不需要真有待处理文件。
     """
-    sys.path.insert(0, str(WT / "canvas-vault" / ".claude" / "skills" / "clear-inbox" / "scripts"))
+    scripts_dir = WT / "canvas-vault" / ".claude" / "skills" / "clear-inbox" / "scripts"
+    if str(scripts_dir) not in sys.path:
+        sys.path.insert(0, str(scripts_dir))
     import inbox_preview  # noqa: PLC0415  — 路径在运行期才确定
 
-    dt = inbox_preview.parse_now(now_raw)
-    return dt.astimezone(inbox_preview._TZ_SHANGHAI).date().isoformat()
+    vault = tmp_root / "inbox-vault"
+    (vault / "outputs").mkdir(parents=True, exist_ok=True)
+    argv = sys.argv
+    sys.argv = ["inbox_preview.py", "--vault", str(vault), "--now", now_raw]
+    try:
+        rc = inbox_preview.main()
+    except SystemExit as e:  # argparse / 守卫的正常退出路径
+        rc = e.code if isinstance(e.code, int) else 1
+    finally:
+        sys.argv = argv
+    if rc != 0:
+        return MISSING
+    outs = sorted((vault / "outputs").glob("inbox-preview-*.md"))
+    if not outs:
+        return MISSING
+    for line in outs[-1].read_text(encoding="utf-8").splitlines():
+        if _INBOX_NOW_LINE in line:
+            tail = line.split(_INBOX_NOW_LINE, 1)[1]
+            # 形如 `2026-09-12 11:00（Asia/Shanghai）· schema v…`
+            stamp = tail.strip().split("（", 1)[0].strip()
+            day = stamp.split(" ", 1)[0]
+            return day if len(day) == 10 and day.count("-") == 2 else MISSING
+    return MISSING
 
 
 def face_skill_recap() -> str:
@@ -597,12 +668,31 @@ def diff_matrix(matrix: dict, ctx: dict | None = None) -> tuple[list[dict], list
         for field in FIELDS:
             cells = matrix[board][field]
             producing = {f: v for f, v in cells.items() if v != NOT_PRODUCED}
-            if len(producing) < 2:
-                continue  # 少于两面产出该字段 ⇒ 无从比对（census 里已如实标注）
-            values = {json.dumps(v, ensure_ascii=False, sort_keys=True, default=str) for v in producing.values()}
+            # ⛔ `MISSING` **永不算一致, 也永不进多数派**（Codex r2 HIGH-1）: 它是
+            #    「声明产出却缺了这块板」这条结论本身。早期版本把它当成一个普通取值,
+            #    于是两个产出方**同时**缺同一块板 ⇒ 取值集合只有一个元素 ⇒ 零分歧;
+            #    缺值多数派还能把唯一真实分歧挤成少数派。每一个缺值都单独判红。
+            for face, value in producing.items():
+                if value != MISSING:
+                    continue
+                row = {
+                    "board": board,
+                    "field": field,
+                    "face": face,
+                    "value": json.dumps(MISSING, ensure_ascii=False),
+                    "majority_value": None,
+                    "majority_faces": [],
+                }
+                (declared if _is_declared(face, field, value, ctx) else undeclared).append(row)
+            present = {f: v for f, v in producing.items() if v != MISSING}
+            if len(present) < 2:
+                # 剩下不足两个**有值**的面 ⇒ 无从比对; 缺值本身已在上面逐条判红。
+                continue
+            values = {json.dumps(v, ensure_ascii=False, sort_keys=True, default=str) for v in present.values()}
             if len(values) == 1:
                 continue
-            # 按取值分组。
+            # 按取值分组（只对**有值**的面）。
+            producing = present
             tally: dict[str, list[str]] = {}
             for face, value in producing.items():
                 tally.setdefault(json.dumps(value, ensure_ascii=False, sort_keys=True, default=str), []).append(face)
@@ -685,11 +775,27 @@ def run(now_raw: str, tz_name: str, out_json: Path | None, keep: bool) -> int:
 
         vault_id = "vault-g68"
         nodes = build_nodes(now, display_tz)
+        # ⛔ 常量与 fixture 不许漂移: `FIXTURE_BOARDS` 是矩阵行索引的独立锚, 它若
+        #    与实际造出来的节点脱钩, 那个锚就锚在空处了。从节点正文里把板名解出来对账。
+        _declared_boards = {
+            line.split("原白板/", 1)[1].split("]]", 1)[0]
+            for md in nodes.values()
+            for line in md.splitlines()
+            if "原白板/" in line
+        }
+        if not FIXTURE_BOARDS <= _declared_boards:
+            raise ContractError(
+                f"FIXTURE_BOARDS 与 fixture 脱钩: 常量里有 {sorted(FIXTURE_BOARDS - _declared_boards)} "
+                "但 build_nodes 没造这些板 —— 矩阵的行索引锚在空处"
+            )
         vault = build_vault(vaults_root, vault_id, nodes)
 
         # ── state: 一块板推迟到明天, 一块板今天标完成 ────────────────────
         today_key = now.astimezone(display_tz).date().isoformat()
-        snoozed = {"板-未来": (now + timedelta(days=1)).isoformat()}
+        # ⛔ 被推迟 / 已完成的板必须是**有到期节点**的板（Codex r2 MEDIUM-5）:
+        #    picker 的 `ranked` 只收有到期节点的板, 原先推迟的「板-未来」根本不进
+        #    队列 —— 让位判定对它完全空转, 却看起来像通过了。
+        snoozed = {"板-脏日期": (now + timedelta(days=1)).isoformat()}
         board_done = {"板-学习中": today_key}
         state_file = runner.state_path(vault)
         state_file.parent.mkdir(parents=True, exist_ok=True)
@@ -699,7 +805,7 @@ def run(now_raw: str, tz_name: str, out_json: Path | None, keep: bool) -> int:
         )
 
         # ── ③ picker（只读）+ ⑤ 推送 payload ─────────────────────────────
-        payload, picker_conclusions = face_picker(picker, vault, now, board_done, snoozed)
+        payload, picker_conclusions, ranked_boards = face_picker(picker, vault, now, board_done, snoozed)
         (vault / "outputs" / "今日复习.json").write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
         noti_day, noti_title = face_notification(payload)
 
@@ -734,11 +840,13 @@ def run(now_raw: str, tz_name: str, out_json: Path | None, keep: bool) -> int:
         )
 
         # ── ④ 两个 skill 脚本 ───────────────────────────────────────────
-        inbox_day = face_skill_inbox(now_raw)
+        inbox_day = face_skill_inbox(now_raw, tmp_root)
         recap_note = face_skill_recap()
 
         # ── 组装矩阵 ────────────────────────────────────────────────────
-        boards = sorted(set(picker_conclusions) | set(overview_conclusions))
+        # ⛔ 行索引 = fixture 自报的板清单 ∪ 各面实际报出来的板。前半让「所有面同时
+        #    丢掉一块板」判红, 后半让「某面多报一块不存在的板」判红。
+        boards = sorted(FIXTURE_BOARDS | set(picker_conclusions) | set(overview_conclusions))
         per_face: dict[str, dict] = {
             "picker": picker_conclusions,
             "review_overview": overview_conclusions,
@@ -752,13 +860,18 @@ def run(now_raw: str, tz_name: str, out_json: Path | None, keep: bool) -> int:
             # 也是它复述的投影日 —— 两列同值, 都要参与比对。
             "notification": {b: {"display_day": noti_day, "projection_day": noti_day} for b in boards},
         }
-        # ⛔ 推送点名的那块板必须是矩阵里认识的板（否则「通知指向一块谁也不知道的
-        #    板」这条不一致没有任何判据）。title 形如 `📚 今日复习 · <板名>`, 长板名
-        #    会被截断加省略号 —— 所以用前缀匹配而不是相等。
-        if noti_title is not None:
+        # ⛔ 推送点名的板必须**正是当前推荐板**（Codex r2 MEDIUM-6）: 早期版本只查
+        #    「它是不是矩阵认识的某块板」—— 于是把标题换成另一块（甚至正处于推迟态的）
+        #    板、或者干脆换成 None, 判据都毫无反应。推荐板 = picker 自己的 `ranked[0]`。
+        #    ⚠ 长板名会被 `_title()` 截断加省略号, 故按**前缀**比而不是相等; 截断点
+        #    由 picker 的 TITLE_LIMIT 决定, 不在本卡地盘内。
+        recommended = ranked_boards[0] if ranked_boards else None
+        if noti_day != MISSING:
+            if noti_title is None:
+                raise ContractError("推送在场却没有标题 —— 它点名了哪块板无从判定")
             named = noti_title.split("·", 1)[-1].strip().rstrip("…")
-            if named and not any(b.startswith(named) or named.startswith(b) for b in boards):
-                raise ContractError(f"推送点名的板 {named!r} 不在五面认识的板集合里: {boards}")
+            if not named or recommended is None or not recommended.startswith(named):
+                raise ContractError(f"推送点名的板 {named!r} 不是 picker 当前的推荐板 {recommended!r}（ranked[0]）")
         check_producers_declaration(per_face, boards)
         matrix = build_matrix(per_face, boards)
         undeclared, declared = diff_matrix(matrix, ctx={"now": now, "display_tz": display_tz})
@@ -799,6 +912,14 @@ def run(now_raw: str, tz_name: str, out_json: Path | None, keep: bool) -> int:
         _print_report(report)
         if out_json is not None:
             out_json.write_text(json.dumps(report, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+        if verdict != "PASS":
+            # ⛔ FAIL 也要回放计算期缓冲（Codex r2 LOW-10）: 原先只在**异常**路径回放,
+            #    于是正常判红时那些诊断打印全被吞掉 —— 排障的人拿不到被测模块当时说了
+            #    什么。走 stderr, 不进 stdout, 「二跑逐字节相等」那条判据不受影响。
+            captured = noise.getvalue()
+            if captured:
+                print("── 计算期被测模块的 stdout（排障用）──", file=sys.stderr)
+                print(captured, file=sys.stderr)
         return 0 if verdict == "PASS" else 1
     except BaseException:
         sys.stdout = _real_stdout
