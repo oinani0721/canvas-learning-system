@@ -5649,3 +5649,28 @@ def test_codex_publishers_use_nofollow_any_for_multiseg_paths():
     )
     assert src.count("def _require_darwin(") == 2, "平台门函数不在（或份数不对）"
     assert src.count("_require_darwin(die)") == 2, "两个发布器都必须在任何写之前过平台门"
+
+
+def test_displaced_target_is_truncated_without_writing_a_marker():
+    """写完发现「它已不在我们放的位置」⇒ 清理**只截空、不写标记**。
+
+    ⛔ Codex r8 BLOCKER 的**可落地那一半**：目录在写入期间被 `rename` 搬走时，
+       `os.stat(CFG_REL, dir_fd=vfd)` 是 ENOENT。原来它作为**未捕获异常**冒出去，
+       清理分支照样往那个（此刻可能已落在保护面的）文件里写 `INCOMPLETE` 诊断文本 ——
+       那是一次**多余的**越界写。标成 `displaced` 之后，留在那个位置的内容 = **0 字节**。
+    ⚠️ 这条**不声称**关上了 BLOCKER：写入那一刻本身没有可用的原子原语
+       （`O_RESOLVE_BENEATH` 本机实测被忽略）。它压的是**留在保护面上的内容量**。
+    """
+    blocks = _py_blocks(_sh_src())
+    cfg = _decomment(blocks["PYCFG"])
+    assert "displaced = False" in cfg, "位移标志没有**默认关**"
+    assert "if displaced:" in cfg, "清理分支没判 displaced"
+    # 截空必须在「不写标记」之前 —— 顺序反了就等于还是写了
+    i_trunc = cfg.index("os.ftruncate(fd, 0)")
+    i_disp = cfg.index("if displaced:")
+    i_mark = cfg.index("incomplete = INCOMPLETE_MARK")
+    assert i_trunc < i_disp < i_mark, f"顺序不对（截空 → 判位移 → 才轮到写标记）: {i_trunc}/{i_disp}/{i_mark}"
+    # 两个发布器的「写完核位置」都必须把 ENOENT 显式接住，不能当裸异常冒出去
+    for tag in ("PYCFG", "PYSEC"):
+        b = _decomment(blocks[tag])
+        assert "已不在我们放的位置" in b, f"{tag} 没有显式的「被搬走」诊断"

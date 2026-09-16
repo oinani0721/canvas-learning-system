@@ -1565,7 +1565,7 @@ finally:
                 incomplete = INCOMPLETE_MARK + b" deploy-vault.sh \xe5\x86\x99\xe5\x88\xb0\xe4\xb8\x80\xe5\x8d\x8a\xe5\xa4\xb1\xe8\xb4\xa5\xef\xbc\x8c\xe8\xaf\xb7\xe5\x88\xa0\xe6\x8e\x89\xe5\xae\x83\xe5\x86\x8d\xe9\x87\x8d\xe8\xb7\x91\xe3\x80\x82 -->\n"
                 write_all(fd, incomplete)
             except OSError as exc:
-                print(f"标记半成品失败, 文件内容不可信: {dst} ({exc})", file=sys.stderr)
+                print(f"未写半成品标记: {dst} ({exc})", file=sys.stderr)
         try:
             os.close(fd)
         except OSError:
@@ -1849,6 +1849,9 @@ ok = False
 #: （`_fd_realpath` 问不出路径时抛 OSError, 没走 `_refuse`, 标志仍是 False）⇒
 #: 「落点根本没确认」的情况下照样截断并写标记。改成白名单：确认过才敢动。
 cleanup_allowed = False
+#: 写完发现「它已经不在我们放的位置」⇒ 清理**只截空、绝不写标记**（Codex r8）。
+#: 往一个已经被搬到别处（可能是保护面）的文件里写诊断文本, 是一次**多余的**越界写。
+displaced = False
 
 
 def _refuse(msg):
@@ -1923,10 +1926,21 @@ try:
     mine = os.fstat(fd)
     if mine.st_nlink != 1:
         die(f"刚写的 codex 模板（fd 侧）有 {mine.st_nlink} 个硬链接, 不合格: {dst}")
-    now = os.stat(CFG_REL, dir_fd=vfd, follow_symlinks=False)
+    # ⛔ Codex r8 BLOCKER 的可落地那一半：把「它还在我们放的位置吗」**显式**判出来。
+    #    目录在写入期间被 rename 搬走时, 这一句是 ENOENT —— 原来它作为未捕获异常冒出去,
+    #    清理分支照样往那个（此刻可能已落在保护面的）文件里写 INCOMPLETE 标记 = **多写一次**。
+    #    现在标成 displaced, 清理**只截空、不写标记**：持久化到那个位置的内容 = 0 字节。
+    #    ⚠️ 仍关不死「写入那一刻」本身（本机无可用原子原语, 见 resolve-beneath-probe）,
+    #    但把**留在保护面上的内容**从「模板正文 + 标记」压到了**零字节**。
+    try:
+        now = os.stat(CFG_REL, dir_fd=vfd, follow_symlinks=False)
+    except OSError as exc:
+        displaced = True
+        die(f"刚写的 codex 模板已不在我们放的位置（目录被搬走？）: {dst} ({exc})")
     if now.st_nlink != 1:
         die(f"刚写的 codex 模板（路径侧）有 {now.st_nlink} 个硬链接, 不合格: {dst}")
     if (mine.st_dev, mine.st_ino) != (now.st_dev, now.st_ino):
+        displaced = True
         die(f"codex 模板在写完之后被掉包: {dst}")
     if not statmod.S_ISREG(mine.st_mode):
         die(f"刚写的 codex 模板不是普通文件: {dst}")
@@ -1948,11 +1962,13 @@ finally:
                 if os.fstat(fd).st_nlink != 1:
                     raise OSError("半成品已被加上硬链接, 不敢截断（会改到共享 inode）")
                 os.ftruncate(fd, 0)
+                if displaced:
+                    raise OSError("目标已不在我们放的位置, 只截空、不写标记")
                 os.lseek(fd, 0, os.SEEK_SET)
                 incomplete = INCOMPLETE_MARK + b" deploy-vault.sh \xe5\x86\x99\xe5\x88\xb0\xe4\xb8\x80\xe5\x8d\x8a\xe5\xa4\xb1\xe8\xb4\xa5\xef\xbc\x8c\xe8\xaf\xb7\xe5\x88\xa0\xe6\x8e\x89\xe5\xae\x83\xe5\x86\x8d\xe9\x87\x8d\xe8\xb7\x91\xe3\x80\x82 -->\n"
                 write_all(fd, incomplete)
             except OSError as exc:
-                print(f"标记半成品失败, 文件内容不可信: {dst} ({exc})", file=sys.stderr)
+                print(f"未写半成品标记: {dst} ({exc})", file=sys.stderr)
         try:
             os.close(fd)
         except OSError:
@@ -2207,7 +2223,11 @@ try:
     mine = os.fstat(fd)
     if mine.st_nlink != 1:
         die(f"写完的 AGENTS.md（fd 侧）有 {mine.st_nlink} 个硬链接, 不合格: {dst}")
-    now = os.stat(base, dir_fd=dfd, follow_symlinks=False)
+    # ⛔ 同 PYCFG（Codex r8）：显式判「还在不在我们放的位置」, ENOENT 不再作为裸异常冒出去。
+    try:
+        now = os.stat(base, dir_fd=dfd, follow_symlinks=False)
+    except OSError as exc:
+        die(f"写完的 AGENTS.md 已不在我们放的位置（目录被搬走？）: {dst} ({exc})")
     if now.st_nlink != 1:
         die(f"写完的 AGENTS.md（路径侧）有 {now.st_nlink} 个硬链接, 不合格: {dst}")
     if (mine.st_dev, mine.st_ino) != (now.st_dev, now.st_ino):
