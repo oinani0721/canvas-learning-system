@@ -1,0 +1,14 @@
+### (h) 目录级最终跑 diff —— 绑最终 HEAD dcb8c0458032d5223236cc2e8ce46ba11aea278f @ 2026-09-17T04:29:32+08:00
+### 原始输出: unit-close-final-20260917T042046.txt
+--- 汇总行 ---
+= 35 failed, 5078 passed, 48 skipped, 23 xfailed, 171 warnings, 29 errors in 482.10s (0:08:02) =
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+rc=1
+--- 验伪锚: grep -c 'test_deploy_vault_sh' (期望 0; 注意 grep -c 命中 0 时 rc=1, 勿用 && 串) ---
+0
+--- 计数 ---
+base=64  final=64
+--- diff base -> final（只允许 '<'；任何 '>' = 阻断）---
+diff_rc=0
+--- 三跑对照（run1 / run2 / final，同一份基线）---
+run1(65, 1 条 '>' 既有 flaky) / run2(64, diff 空) / final=64

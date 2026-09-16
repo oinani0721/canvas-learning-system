@@ -249,6 +249,16 @@ open(p, 'rb')                           -> True      os.open(p)                 
    **偏保守、是假红不是假绿**，但确实会让将来写这类代码的人多一道坎（已在 helper docstring 写明）。
 10. **未证明本卡对 `_check_hotkeys` 之外的行为零影响**。证据是「既有门 175→176 全绿」+「目录级 diff
     只多出一条既有 flaky」，这是**测试覆盖范围内**的零影响，不是全量行为等价证明。
+11. **未证明我对零写门的净改动是「纯增强」**。五轮下来那道门被我改了四次又撤回一次：
+    保留下来的四件（`os.open` 旗标分支 / 参数展开拒绝 / `os`·`open` 重绑定拒绝 / FIFO 两条断言）
+    各自的正反例都实测过，但**没有**做过「改动前 vs 改动后，在同一组输入全集上的判值对照表」。
+    已知代价：`from io import open` 这类合法写法会被重绑定判据拒（假红，保守方向）；
+    删掉模块级 open 处理后 `io.open(p,"rb")` 回到**既有**的把路径当模式（Codex r5 表格里那行
+    「也恢复既有只读假红」）—— 那是撤回到既有状态，不是本卡新引入。
+12. **未证明「五轮 B/H=0」等于「这两个文件没有 BLOCKER/HIGH 级问题」**。它只说明
+    Codex 在**给定读取面**内、用**只读 AST / git 对象 / 报告对照**的方法没找到；
+    每一轮它都明确写了「未运行 pytest / 未跑真实 FIFO 集成 / 未执行负控写操作」。
+    真实运行期的证据来自本卡自己的探针与负控，不来自 Codex。
 
 ## 六 目录级与地盘（(h)(i) + 裁判 7/9/10）
 
@@ -319,6 +329,25 @@ open(p, 'rb')                           -> True      os.open(p)                 
 > 但它证明的是一个更直接的命题：**在代码固定的条件下该红会自行出现/消失**，
 > 于是「run1 出现了它」就不能被归给任何代码改动，包括本卡的。
 
+### 六.3b 最终跑（绑最终 HEAD `dcb8c045`）—— **(h) 的终局证据**
+
+存档 `unit-close-final-20260917T042046.txt` + `unit-final-diff-20260917T042932.txt`：
+
+| 项 | run1 | run2 | **final（绑最终 HEAD）** |
+|---|---|---|---|
+| 汇总 | 36 failed / 5077 passed / 29 errors | 35 / 5078 / 29 | **35 failed / 5078 passed / 48 skipped / 23 xfailed / 29 errors，482.10s** |
+| nodeid 计数 | 65 | 64 | **64** |
+| `diff base close` | 1 条 `>`（既有 flaky） | 空 | **完全为空（`diff_rc=0`）** ✅ |
+| `--ignore` 验伪锚 | 0 | 0 | **0** ✅ |
+| live 端口 | blocked=1 | — | **`NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0`** ✅ 零尝试 |
+
+⇒ **(h) 以最强形态达成：绑最终 HEAD 的那一跑，与基线 diff 连 `<` 都没有。**
+
+> ⚠️ 这次差点漏掉：判据原本写成 `… && grep -c 'test_deploy_vault_sh' "$R" && grep -E '^(FAILED…' > …`。
+> **`grep -c` 命中 0 时退出码是 1**，`&&` 链当场断掉 —— 后面的 nodeid 提取与 `diff` **根本没跑**，
+> 而末尾 `echo "diff_rc=$?"` 印出的 `1` 是**断链的 rc**，看起来像「diff 有差异」。
+> 已改成不用 `&&` 串联重跑。同一族坑：管道吃 rc（本卡负控段踩过一次）。
+
 ### 六.4 地盘 / 边界
 
 存档 `territory-gate-20260917T032703.txt`。**审 SHA（本卡代码 commit）= `b3baf7d967692db0b172f5ebb4de9e4ae6357923`**
@@ -326,8 +355,11 @@ open(p, 'rb')                           -> True      os.open(p)                 
 
 | 判据 | 实测 |
 |---|---|
-| 地盘门 `git --no-pager diff --stat --no-color "$PREV" HEAD -- . ':(exclude)_bmad-output'` | **2 files, +217 / -1**，恰为 {`scripts/verify_vault_install.py`, `backend/tests/unit/test_vault_install_manifest.py`} ✅ |
-| **地盘门的验伪锚** | 带 exclude **2** 个文件 vs 不带 exclude **41** 个，其中 **39** 条是 `_bmad-output/` 路径 ⇒ exclude 真的在起作用 ✅<br>⚠️ 该锚必须 `git -c core.quotepath=false`：中文路径会被 git 转义成 `\345\256\241…`，`grep '^_bmad-output/'` 会恒 0 = 假阴性。<br>⚠️ 且该锚**只在 commit 之后有效**：commit 前证据文件是未跟踪的，`git diff` 根本不显示它们，锚恒空洞。 |
+| 地盘门 `git --no-pager diff --stat --no-color "$PREV" HEAD -- . ':(exclude)_bmad-output'` | **2 files, +327 / -3**（终局数），恰为 {`scripts/verify_vault_install.py`, `backend/tests/unit/test_vault_install_manifest.py`} ✅ |
+| **地盘门的验伪锚** | 带 exclude **2** 个文件 vs 不带 exclude **68** 个，其中 **66** 条是 `_bmad-output/` 路径 ⇒ exclude 真的在起作用 ✅<br>⚠️ 该锚必须 `git -c core.quotepath=false`：中文路径会被 git 转义成 `\345\256\241…`，`grep '^_bmad-output/'` 会恒 0 = 假阴性。<br>⚠️ 且该锚**只在 commit 之后有效**：commit 前证据文件是未跟踪的，`git diff` 根本不显示它们，锚恒空洞。 |
+| **裁判11 终审绑定**（`git diff <r5审SHA> HEAD -- . ':(exclude)_bmad-output'`） | **空** ✅ —— r5 审的 `dcb8c045` 就是最终 HEAD 的代码树，其后只改 `_bmad-output` |
+| 本卡 commit 链 | 6 个（`b3baf7d9` → `1946e40d` → `3735b565` → `25feb21d` → `2358f9e0` → `dcb8c045`），header 最长 **97** ≤ 100 ✅ |
+| live vault 写入 | **0 个文件** ✅ |
 | commit header 长度（`wc -m`） | **90**（`wc -m` 读进管道时含换行故显示 91）≤ 100 ✅ |
 | commit body 每行 ≤ 100（`wc -m`） | 无超限行 ✅ |
 | 入库文件含 `*.stderr*` / `*.log` | **0 / 0** ✅（`.gitignore:264` `_bmad-output/审查/**/*.stderr*` 已覆盖，`git check-ignore` 自证） |
@@ -397,7 +429,25 @@ open(p, 'rb')                           -> True      os.open(p)                 
     （如 `os.ftruncate(fd, 0)`）。三版（PREV / r1 / r2）均存在，属该门的**重新设计**（要静态追踪
     别名与间接调用），不在本卡范围。本卡只做了两件不扩面的事：① 把 docstring 里「`os.*` 全族」
     这句**过强措辞**改成如实表述并逐条列出上述四类未覆盖输入（DD-13 名实一致）；② 在 §五 #9 声明它。
-14. **目录级 diff 结果**：run1 base 64 / close 65（1 条既有 flaky，§六.2-六.3）；
+14. **【五轮 Codex 的完整移交清单，建议合并为一张「零写门重新设计」卡】**
+    `test_verifier_write_calls_are_confined_to_write_report` 按**表面调用名 + 实参位置**判定，
+    下列输入或不进判定、或判错，**三～五版皆然、本卡不修**（逐条都有 Codex 给的对照输入）：
+    ① 模块级 `io.open("log","w")` / `builtins.open(...)` 被当绑定方法、把路径当模式 ⇒ 误豁免；
+    ② 别名 `_open = os.open` 后 `_open(...)`；③ `getattr(os,"open")(...)`；
+    ④ `functools.partial(os.open, ...)()`；⑤ `write_names` 名单遗漏（`os.ftruncate(fd,0)` 等）；
+    ⑥ **旗标属性被改值**：`os.O_RDONLY = os.O_WRONLY|os.O_TRUNC` 之后 `os.open("log", os.O_RDONLY)`
+    仍凭属性**名字**判只读；⑦ 重绑定扫描未覆盖 lambda 形参。
+    ⚠️ **本卡的血泪教训要一并交给那张卡**：我在 r2 越界去修 ① ，两轮内引入 6 个新缺陷
+    （判值反转 + 合法只读代码假红），r4 靠**撤回**才收敛。这道门要改就整体重新设计，
+    不要再零敲碎打地补分支。
+15. **【本卡 FIFO 回归门的已知判据边界，登记不修】**
+    ① 空白归一化会抹掉**路径自身**的有效空白（`path = HOTKEYS_REL + " "` 的 finding 会被
+    误认成目标）—— 本门的 vault 由测试自己搭建，无外部输入可注入，故按可接受处理；
+    ② 另一条 finding 的 detail 若提到 `HOTKEYS_REL`，`mentions==1` 会变成 2 ⇒ 假红；
+    ③ 断言与生产 detail 文案、以及 `role` 恒为 `"-"` **绑死**，任一改动会让门**响亮地红**。
+    三条都是「从渲染文本回推结构化身份」的固有代价；根治要让 verify 支持结构化输出
+    （如 `--report-json`），那是另一张卡的题。
+16. **目录级 diff 结果**：run1 base 64 / close 65（1 条既有 flaky，§六.2-六.3）；
     **run2 base 64 / close 64，diff 完全为空**；既有门 175 → 176；回归门 1 passed。
 
 ---
@@ -589,7 +639,51 @@ FIFO 门的「提及恰好 1 条 + 那一行逐字相同」。
 旗标属性被改值（`os.O_RDONLY = os.O_WRONLY|os.O_TRUNC`）—— 同属一族，需**零写门的重新设计**；
 以及 main.js 侧的 M4/M5（UAT-G2-7a MEDIUM-3 与并发替换窗口）。
 
-### round-5 — 待送（D-15 上限轮；本卡**最后一轮**）
+### round-5 — `BLOCKER=0 HIGH=0 MEDIUM=4 LOW=3`（**终审轮，收官**）
+
+- 存档 `codex-review-CARD-G2-7a-TAIL-r5.md`（已补 §2.1 首部）· prompt `…-r5.md`
+- 审查绑定 `dcb8c0458032d5223236cc2e8ce46ba11aea278f` = **最终 HEAD 的代码树**
+- Codex 原文：「本轮**未发现新增** BLOCKER／HIGH／MEDIUM」
+
+**减法奏效**：MEDIUM 从 r4 的 **8 条降到 4 条**，且这 4 条**全部被 Codex 自己标注为「已移交」**：
+
+| 剩余 MEDIUM | 归属 |
+|---|---|
+| 零写门不能完整确定调用身份（模块级 `io.open` 误豁免、别名、`getattr`、`partial`、`os.ftruncate`、lambda 形参） | 已移交（需零写门重新设计） |
+| 旗标属性被改值后仍只凭属性名判只读（`os.O_RDONLY = os.O_WRONLY\|os.O_TRUNC`） | 已移交（同族） |
+| 非普通 `main.js` 只记 note 不进失败桶 | 已移交（UAT-G2-7a MEDIUM-3） |
+| `main.js` 判型与读取之间的并发替换窗口 | 已移交 |
+
+**3 条 LOW 也全部登记不修**（两条是「我的修复把既有问题的面扩大了」，再追会重启循环）：
+① 空白归一化会抹掉**路径自身**的有效空白 ⇒ 身份假绿（需路径含尾空格的 finding；本门的 vault 由测试自己搭，无对手可注入）；
+② `obj[[os for os in ()]]: object` 这类**推导式局部绑定**被当成 API 重绑定 ⇒ 假红；
+③ 另一 finding 的 detail 提到 `HOTKEYS_REL` 时 `mentions=2` ⇒ 假红。
+
+**Codex 对「保留的四件」逐条验证通过**：
+
+| 保留项 | r5 结论 |
+|---|---|
+| `os.open` 旗标分支 | 只读字面旗标通过；写旗标 / 变量旗标 / 缺旗标拒绝 ✅ |
+| 参数展开拒绝 | 仍在所有分支之前，六条展开锚均成立 ✅ |
+| `os`/`open` 重绑定拒绝 | `os.open = partial(os.open,"log")` 在 r4／r5 均被 `Attribute(Store)` 拦住，**且不依赖敏感名集是否含 io/builtins** ✅ |
+| FIFO 门两条断言 | `mentions==1` 保留；第二条**表述需收窄**为「归一化后相同」而非「原文逐字相同」——已照此更正本验收单措辞 |
+
+**本卡主修面的终审确认（最重要的一条）**：
+Codex 用 **git 对象核验**确认 `scripts/verify_vault_install.py` 的 blob 自 r1 到 r5
+**始终是 `6727b2992c4676bf65dd4b6f02ce6c3a76b00050`、中间历史也无修改**，并逐条确认：
+
+- `:1328` 以 `O_RDONLY | O_NONBLOCK` 打开；
+- `:1334` 对**同一个** `hotkeys_fd` 执行 `fstat` / 普通文件判定；
+- `:1354-1355` 经 `fdopen` 从**同一 fd** 读取。
+
+⇒ **卡文点的那道题，五轮审查无一条异议。**
+
+**16 条验伪锚无空判据**（Codex 实测：改成恒真失败 12 条、恒假失败 4 条）。
+锚数实数经两次更正：r3 我误记 24 → Codex r4 更正 22 → 减法后 **16**。
+
+> **停止线**：D-15 的通过条件是「绑最终 HEAD 的一轮 B=0 H=0」，五轮**次次达到**。
+> 剩余 MEDIUM/LOW 按协议 §1「登记不阻断」全部移交。继续修下去只会重启
+> 「修复引入新缺陷」的循环 —— r2→r3 造 2 条、r3→r4 造 6 条，而 r4 的**减法**一次消掉 6 条。
 
 > **D-15 状态**：r1 已经满足「绑最终 HEAD 且 B=0 H=0」，MEDIUM 本可只登记不修。
 > 之所以仍然修：那条 MEDIUM 是**本卡自己造成的护栏削弱**（旧代码拒绝、新代码放行），
