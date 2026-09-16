@@ -1,0 +1,37 @@
+=== 负控全扫（每层只拆一层；绑最终 SHA dd49dff052a5a1da3e67470654dc56e167dee482）===
+层数 = 25：h1 h2 m1a m1b m1c m1f rc5 m1d m1e m2d rc7 m2g rc6 m2e rc3 rc4 m2c rc1 rc2 m2a m2b m1g rc8 rc9 rc10
+验伪锚: 跑前 sha 行数 6（应 = 6）
+--- 基线：未拆任何层必须全绿 ---
+======================= 83 passed, 10 warnings in 7.99s ========================
+base_rc=0
+✅ h1 rc=1 红=4 显形点: test_h1_ambiguous_no_reason_reading_makes_split_non_unique,test_h1_ambiguous_line_escalates_to_harness_error,test_h1_split_unique_flips_in_both_directions_in_both_families,
+✅ h2 rc=1 红=2 显形点: test_h2_weak_position_must_not_borrow_other_gate_failure,test_h2_error_summary_line_is_not_borrowable,
+✅ m1a rc=1 红=2 显形点: test_m1_anchor_drift_not_masked_by_rc0_survived,test_m1_anchor_drift_not_masked_by_out_of_gate_survived,
+✅ m1b rc=1 红=1 显形点: test_m1_loc_identity_itself_rejects_multi_hit_fingerprint,
+✅ m1c rc=1 红=1 显形点: test_m1_anchor_surface_broken_itself_reports_both_shapes,
+✅ m1f rc=1 红=2 显形点: test_h1_param_bracket_must_follow_a_double_colon,test_h1_double_colon_inside_path_is_not_a_test_name,
+✅ rc5 rc=1 红=1 显形点: test_rec_parse_stdout_rejects_each_bad_shape[<lambda>-解析不到_1],
+✅ m1d rc=1 红=2 显形点: test_h1_double_colon_inside_param_id_still_ambiguous,test_h1_double_colon_inside_path_is_not_a_test_name,
+✅ m1e rc=1 红=3 显形点: test_h1_bracket_in_path_is_not_a_param_segment,test_h1_param_bracket_must_follow_a_double_colon,test_h1_double_colon_inside_path_is_not_a_test_name,
+✅ m2d rc=1 红=2 显形点: test_m2_restore_failure_exit_code_is_not_a_clean_signal_exit,test_m2_clean_exit_code_unknown_is_fail_closed,
+✅ rc7 rc=1 红=1 显形点: test_m3_ast_denominator_fails_closed_on_uncountable_shapes,
+✅ m2g rc=1 红=2 显形点: test_m2_mid_loop_failure_surfaces_even_when_final_restore_succeeds,test_m2_wording_matches_what_actually_happened,
+✅ rc6 rc=1 红=6 显形点: test_m3_ast_denominator_fails_closed_on_uncountable_shapes,test_m3_real_suite_denominators_are_unchanged,test_rec_all_attribute_access_on_mutations_is_banned,
+✅ m2e rc=1 红=3 显形点: test_m2_mid_loop_failure_surfaces_even_when_final_restore_succeeds,test_m2_wording_matches_what_actually_happened,test_m2_missing_verify_must_not_claim_no_drift,
+✅ rc3 rc=1 红=2 显形点: test_rec_parse_stdout_rejects_each_bad_shape[<lambda>-解析不到_0],test_rec_parse_stdout_rejects_each_bad_shape[<lambda>-解析不到_1],
+✅ rc4 rc=1 红=1 显形点: test_rec_parse_json_rejects_non_integer_and_duplicate_keys,
+✅ m2c rc=1 红=2 显形点: test_m2_signal_exit_during_final_restore_is_not_a_restore_failure,test_m2_clean_signal_exit_has_no_swallowed_cause,
+✅ rc1 rc=1 红=1 显形点: test_rec_parse_stdout_rejects_each_bad_shape[<lambda>-不止一次],
+✅ rc2 rc=1 红=1 显形点: test_rec_parse_json_rejects_non_integer_and_duplicate_keys,
+✅ m2a rc=1 红=3 显形点: test_m2_final_restore_failure_is_not_swallowed_and_sha_still_runs,test_m2_wording_matches_what_actually_happened,test_m2_swallowed_exception_is_not_attributed_to_restore,
+✅ m2b rc=1 红=5 显形点: test_m2_final_restore_failure_is_not_swallowed_and_sha_still_runs,test_m2_restore_failure_exit_code_is_not_a_clean_signal_exit,test_m2_clean_exit_code_unknown_is_fail_closed,
+✅ m1g rc=1 红=1 显形点: test_pc_multi_failure_guard_does_not_swallow_the_out_of_gate_survived,
+✅ rc8 rc=1 红=1 显形点: test_rec_read_whitelist_pins_operand_position_and_builtin_identity,
+✅ rc9 rc=1 红=1 显形点: test_rec_read_whitelist_pins_operand_position_and_builtin_identity,
+✅ rc10 rc=1 红=1 显形点: test_rec_mutations_itself_cannot_be_rebound_by_a_name_field,
+--- 还原后逐字节比对 ---
+SHA_IDENTICAL=yes (6 文件)
+======================= 83 passed, 10 warnings in 5.02s ========================
+还原后 rc=0
+无显形点的层 = 0: （无）
+绑定 SHA = dd49dff052a5a1da3e67470654dc56e167dee482
