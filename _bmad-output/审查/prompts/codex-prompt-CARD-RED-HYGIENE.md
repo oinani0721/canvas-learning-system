@@ -4,12 +4,21 @@
 
 工作树：`/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t10-red`
 分支：`card/t10-red`
-本卡最终 HEAD：**以 `git rev-parse HEAD` 实取为准**（本 prompt 与它同在一个 commit 里，写不进自己的 SHA）。
+本卡最终 HEAD：**以 `git rev-parse HEAD` 实取为准**（本 prompt 写不进自己之后的 SHA）。
+⚠️ **本 prompt 文件所在的 commit 不是 HEAD**：它最后一次改动在 `6d337e96`，其后还有纯 `_bmad-output`
+的 commit。所以**不要**把「含本 prompt 的那个 commit」当作最终 HEAD，一律以你自己 `rev-parse` 实取的为准。
 本卡 commit 链：`8bfcdfce`（主体）→ `b38e1d04`（只读自审整改）→ `2c740216`（按你 r1 整改）
 → `f28c0f4a`（**零代码**）→ `69c99d1a`（按你 r2 整改）→ `ef21be2c`（按你 r3 整改）
-→ `0bc3baef`（按你 r4 整改，**纯 docstring + 文档**）→ 本 commit（**纯文档，零代码**）
+→ `0bc3baef`（按你 r4 整改，**纯 docstring + 文档**）→ `6d337e96`（**纯文档，零代码**）
+→ `8ac84933`（**纯文档，零代码**）→ 可能还有一个纯文档 commit（本段更正本身）
 
-⚠️ **本轮是第 5 轮 = D-15 上限。第 5 轮仍有 HIGH ⇒ 停下交主 session 人审。**
+⚠️ **轮次账（请以此为准，仓里的存档文件名会让你误判）**：
+本轮是 **r6**，但它是**计入 D-15 配额的第 5 轮** —— 因为 **r5 落 0 字节、没有产出任何结论**
+（账户级用量配额在报告生成阶段耗尽，进程 `exit=0` 而 stdout 为空）。
+`_bmad-output/审查/codex-review-CARD-RED-HYGIENE-r5.md` 这份存档**记录的是「送了、跑了、被打断」
+这件事本身，不含任何 findings**，它自己首部也写明「不得被当作 r5 通过或未通过引用」。
+⇒ 你在仓里看到 r1..r5 五份存档，但**有结论的只有 r1..r4 四轮**。
+⇒ **本轮仍是 D-15 上限那一轮。仍有 HIGH ⇒ 停下交主 session 人审，车道不会再改代码。**
 
 ⚠️ **本轮的定位与前四轮不同，请先读这一段再决定怎么分配力气：**
 你的 r4（绑 `ef21be2c`）已给出 **BLOCKER 0 / HIGH 0**，并明写「不要求继续改代码送第 5 轮」。
