@@ -4596,19 +4596,22 @@ def test_hosts_opencode_refuses_skill_source_symlinked_outside_vault(tmp_path: P
     assert not (v / "AGENTS.md").exists(), "被拒之后仍落下了 AGENTS.md"
 
 
-def test_deploy_sh_pins_source_identity_and_cleans_up_its_own_links():
-    """源身份必须**钉在 fd 上**，失败时必须清掉本次建的链（Codex r9 MEDIUM-1）。
+def test_deploy_sh_pins_source_identity_and_reports_instead_of_deleting():
+    """源身份必须**钉在 fd 上**；失败时**只报告、绝不删**（Codex r9 MEDIUM-1 + r10 HIGH-1）。
 
     ⛔ `lstat` 只证明「检查那一刻」源是真目录，**没把那个合格条目的身份留下来**。
        检查之后、建链之中源被换成外部软链时，后面两次解析会**一起**跟随新的那个
        ⇒ 又变成「相等但都不合格」。⇒ 当场把源打开成 fd 留住，后核用
        `os.fstat(那个 fd)` 作期望值，不按路径重新 stat。
-    ⛔ 这是**真正的 TOCTOU**（源是运行中途被换的，建之前无从知道），所以还要事后收拾：
-       后核拒绝时链已经建出去了，拒绝而留下残链与 r5 HIGH-1 同型。
-       ⇒ `finally` 里清掉 `made` 里的（只清本次真建的，幂等跳过的已有链不动），
-       且删前核「它还是软链、目标还是我写的那个串」。
-    车道实测（存档 `probe-r9-swap-window-*.txt`）：注入「检查后、建首条链前换源」，
-    修前 = 拒绝但残链落在 vault 外；修后 = **拒绝且零残链**。
+    ⛔ 这是**真正的 TOCTOU**（源是运行中途被换的，建之前无从知道）。
+       r9 我为此加过一段「失败时清掉本次建的链」，**r10 判定那段本身会误删他人文件**：
+       `made` 只存名字，判「是软链 + 目标串相同」认不出同名同串、不同 inode 的替代品；
+       且 `readlink` 与 `unlink` 之间仍可换入普通文件 —— `dir_fd` 钉父目录、**钉不住叶子**，
+       而 POSIX 没有「按 fd 删除」的原语 ⇒ 这个窗口**压不掉、只能不做**。
+       ⇒ 现在**只报告**留下了哪些条目。两害相权：留残链（rc=73 看得见、AGENTS.md 没写、
+       下次跑被接住 —— D1 自查三种情况实测）远轻于误删（不可逆）。
+    车道实测：`probe-r9-swap-window-*.txt`（注入换源 ⇒ 拒绝）、
+    `selfcheck-d1-*.txt`（残链下次跑不会被静默接受）。
     """
     src = DEPLOY_SH.read_text(encoding="utf-8")
     code = _py_code_only(_heredoc_body(src, "PYBIND"))
@@ -4629,7 +4632,16 @@ def test_deploy_sh_pins_source_identity_and_cleans_up_its_own_links():
     # ③ 源身份还要在**后核时**再验一次位置（Codex r10 MEDIUM-1）
     #    fd 钉住的是**身份**不是**位置**：把原目录 rename 出 vault、原位置放一条指向它的
     #    软链，inode 没变、两边仍相等，而落点已在 vault 外。⇒ 后核对源路径再 lstat。
-    assert "nowst = os.stat(name, dir_fd=csfd, follow_symlinks=False)" in code, "后核不再复验源路径"
+    # ⛔ 后核必须**从 vfd 重新逐级打开**父链，不许复用旧 fd（Codex r11 MEDIUM-1）：
+    #    fd 钉住的是目录的 inode —— **父目录被整体搬走时它跟着走**。
+    #    把 `.claude/skills` 整个 rename 出 vault、原位置放一条指回它的软链，
+    #    旧 fd 下的叶子 lstat 一切正常（查的就是搬走后那个目录），而落点已在 vault 外。
+    assert "nowst = os.stat(name, dir_fd=_s2, follow_symlinks=False)" in code, (
+        "后核的源复验没走「从 vfd 重新逐级打开」的那条 fd"
+    )
+    assert '_c2 = os.open(".claude", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=vfd)' in code, (
+        "后核不再从 vfd 重新走父链（复用旧 fd 挡不住父目录被搬走）"
+    )
     assert "被换成了非目录" in code and "被换成了别的目录" in code, "后核的两条源位置断言没了"
 
 

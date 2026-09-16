@@ -1131,7 +1131,7 @@ except OSError as exc:
     die(f"打开 vault 目录失败: {vault} ({exc})")
 
 afd = sfd = csfd = None
-ok = False  # 走到最后才置 True；finally 据它决定要不要清掉本次建的链
+ok = False  # 走到最后才置 True；finally 据它决定要不要**报告**本次建了哪些链（不删，见 r10 HIGH-1）
 made = []
 src_fds = {}  # name -> fd，钉住「通过资格检查时」的那个源 inode（见下方 r9 MEDIUM-1 说明）
 try:
@@ -1244,10 +1244,29 @@ try:
             #    inode 没变、两边仍相等, 而新绑定实际解析到 vault 外。
             #    ⇒ 后核再对**源路径**做一次 lstat: 它必须仍是那个 inode **且仍是真目录**。
             #    软链那一步会在这里当场暴露（`.claude/skills/<n>` 变成了 S_ISLNK）。
+            # ⛔ **从 vfd 重新逐级打开**，不复用旧 `csfd`（Codex r11 MEDIUM-1）：
+            #    fd 钉住的是那个目录的 inode —— **父目录被整体搬走时它跟着走**。
+            #    把 `$VAULT/.claude/skills` 整个 rename 出 vault、原位置放一条指回它的软链，
+            #    旧 csfd 下的叶子 lstat 一切正常（它查的就是搬走后的那个目录），
+            #    而落点已在 vault 外。⇒ 每次后核都从 vfd 走一遍当前的父链，
+            #    `.claude` / `skills` 任一变成软链都会在 O_NOFOLLOW 上当场失败。
             try:
-                nowst = os.stat(name, dir_fd=csfd, follow_symlinks=False)
+                _c2 = os.open(".claude", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=vfd)
             except OSError as exc:
-                die(f"后核时技能源条目问不出状态（被移走了？）: {vault}/.claude/skills/{name} ({exc})")
+                die(f"后核时 .claude 打不开（被搬走或换成软链？）: {vault}/.claude ({exc})")
+            try:
+                try:
+                    _s2 = os.open("skills", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=_c2)
+                except OSError as exc:
+                    die(f"后核时 .claude/skills 打不开（被搬走或换成软链？）: {vault}/.claude/skills ({exc})")
+                try:
+                    nowst = os.stat(name, dir_fd=_s2, follow_symlinks=False)
+                except OSError as exc:
+                    die(f"后核时技能源条目问不出状态（被移走了？）: {vault}/.claude/skills/{name} ({exc})")
+                finally:
+                    os.close(_s2)
+            finally:
+                os.close(_c2)
             if statmod.S_ISLNK(nowst.st_mode) or not statmod.S_ISDIR(nowst.st_mode):
                 die(f"技能源条目在本次运行中被换成了非目录（软链？）: {vault}/.claude/skills/{name}")
             if (nowst.st_dev, nowst.st_ino) != (want.st_dev, want.st_ino):
