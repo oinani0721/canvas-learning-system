@@ -1165,7 +1165,13 @@ try:
                 except OSError as exc:
                     die(f"技能源条目问不出状态: {where} ({exc})")
                 if statmod.S_ISLNK(st.st_mode):
-                    die(f"技能源条目是软链, 拒绝为它建绑定（落点会在 vault 之外）: {where}")
+                    # ⚠️ 消息如实说「不跟随」而不是「落点在 vault 之外」（本卡 B1 自查实测）：
+                    #    指向 **vault 内**别处的软链也会走到这里, 那种落点其实没出 vault。
+                    #    这里**刻意从严**——判断「软链解完还在不在 vault 内」需要在这一层
+                    #    再引入一次路径解析, 而那正是本卡反复出问题的地方（解析两次、
+                    #    两次一起跟随、相等但不合格）。拒一个罕见且可绕开的形态,
+                    #    换掉一整类解析竞态, 划算。措辞必须对得上行为（DD-13）。
+                    die(f"技能源条目是软链, 本脚本不跟随（请用真目录）: {where}")
                 if not statmod.S_ISDIR(st.st_mode):
                     die(f"技能源条目不是目录: {where}")
         finally:

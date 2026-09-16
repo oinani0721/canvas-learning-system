@@ -4586,6 +4586,9 @@ def test_hosts_opencode_refuses_skill_source_symlinked_outside_vault(tmp_path: P
     assert (v / ".claude" / "skills" / "outside-skill").is_symlink(), "控制组不成立：桩没把源建成软链"
     assert r.returncode == 73, f"vault 外的源软链没被拒: rc={r.returncode}\n{r.stdout}{r.stderr}"
     assert "技能源条目是软链" in r.stdout, f"消息没点名原因: {r.stdout}"
+    # ⚠️ 措辞必须对得上行为（DD-13）：指向 **vault 内**别处的软链也会被这条拒，
+    #    所以消息不能说「落点会在 vault 之外」—— 那对那一类输入是假话。
+    assert "vault 之外" not in r.stdout, f"消息把从严的拒绝说成了越界: {r.stdout}"
     # ⛔ 承重断言：**一条残链都不许留**（检查必须在建之前）。
     root = v / ".agents" / "skills"
     built = sorted(p.name for p in root.iterdir()) if root.is_dir() else []
