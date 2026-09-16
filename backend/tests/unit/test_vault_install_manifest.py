@@ -644,11 +644,19 @@ def test_verifier_write_calls_are_confined_to_write_report():
     """(b) 只读: 所有写调用必须落在 `_write_report()` 这一个函数内。
 
     比早先那条「只允许一次 write_text」强两处：
-      ① 调用名面扩大 —— 旧版漏掉 `Path.open("w")`、文件对象 `.write`、`os.*` 全族、
-         以及 from-import 形式的 rmtree；
+      ① 调用名面扩大 —— 旧版漏掉 `Path.open("w")`、文件对象 `.write`、
+         `os` 模块里**列在 `write_names` 中的那些**、以及 from-import 形式的 rmtree；
       ② 判据从「计数 + 落在 main 的行号区间」改成「按函数边界圈定」——
          写操作只允许出现在那个专门负责落盘的函数里，别处一个都不许有。
     看的是调用节点，不是文本，所以注释/docstring 里怎么写都不影响判定。
+
+    **它不证明什么**（Codex round-2 MEDIUM-3 指出前，这里写的是「`os.*` 全族」，
+    那是过强措辞，已改）：本门按**表面调用名**筛选，因此下面这些写调用**根本不进**
+    判定，`offenders == []` 也不排除它们存在 —— 已登记移交独立卡：
+      - 别名：`_open = os.open` 之后 `_open(p, os.O_WRONLY | os.O_TRUNC)`；
+      - 动态取属性：`getattr(os, "open")(p, os.O_WRONLY | os.O_TRUNC)`；
+      - 间接调用：`functools.partial(os.open, p, os.O_WRONLY | os.O_TRUNC)()`；
+      - 名单本身的遗漏：`os.ftruncate(fd, 0)` 等不在 `write_names` 里的写 API。
     """
     import ast
 
@@ -691,6 +699,31 @@ def test_verifier_write_calls_are_confined_to_write_report():
     assert "_write_report" in funcs, "落盘应当收敛到 _write_report()"
     lo, hi = funcs["_write_report"]
 
+    # 重绑定拒绝（Codex round-2 MEDIUM-1）：本门按**实参位置**判断哪个是 mode/flags,
+    # 而这个前提只在「调用名解析到原始 API」时成立。若源码里把写 API 重新绑定过 ——
+    #   `os.open = functools.partial(os.open, p)` 之后 `os.open(os.O_WRONLY | os.O_TRUNC, ...)`
+    # —— 表面的第 2 个实参其实是 mode、真正的 flags 落在第 1 个位置上, 按位置读出来的
+    # 结论就是错的（实测: 该输入在本卡加 os.open 分支前判 False、加之后判 True）。
+    # 静态跟不了重绑定, 就明确拒绝, 而不是继续按一个已经不成立的前提去判。
+    # ⚠️ 只拦**真能改变调用解析**的两类, 不一刀切（一刀切会误伤同名局部变量, 例如
+    #    生产脚本 :899 的 `link = cur / rel`）:
+    #      - `<owner>.<写名> = ...`  例如 `os.open = ...`
+    #      - `open = ...`            遮蔽内置 open
+    rebinds = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign):
+            assign_targets = node.targets
+        elif isinstance(node, (ast.AugAssign, ast.AnnAssign)):
+            assign_targets = [node.target]
+        else:
+            continue
+        for target in assign_targets:
+            if isinstance(target, ast.Attribute) and target.attr in write_names:
+                rebinds.append((f"{ast.unparse(target)}", target.lineno))
+            elif isinstance(target, ast.Name) and target.id == "open":
+                rebinds.append((target.id, target.lineno))
+    assert rebinds == [], f"写 API 被重新绑定, 按位置判 mode/flags 的前提失效: {rebinds}"
+
     # 验伪锚(CARD-G2-7a-TAIL): 只读豁免 `_is_readonly_open` 自己先得站得住 —— 否则
     # 下面那条 `offenders == []` 可能是**因为豁免放水**而绿, 不是因为源码真的没写调用。
     # 逐条给出「在什么输入下结论应当不同」, 而不是只证一个正例。
@@ -716,6 +749,10 @@ def test_verifier_write_calls_are_confined_to_write_report():
     assert _verdict("os.open(p, *flags_list)") is False, "旗标位展开不得放行"
     assert _verdict("open(*args)") is False, "内置 open 的展开形态不得放行"
     assert _verdict("p.open(*a)") is False, "绑定方法的展开形态不得放行"
+    # 模块级 open 不是绑定方法, 模式在 args[1]（Codex round-2 MEDIUM-2）
+    assert _verdict('io.open("log", "w")') is False, "io.open 的写模式不得放行"
+    assert _verdict('builtins.open("log", "w")') is False, "builtins.open 的写模式不得放行"
+    assert _verdict('io.open("log", "rb")') is True, "io.open 的只读模式仍放行"
 
     offenders = []
     for node in ast.walk(tree):
@@ -760,6 +797,24 @@ def test_verifier_write_calls_are_confined_to_write_report():
 # `os.open()` 的旗标里, 这些是**确定不写**的; 任何不在表内的名字(O_WRONLY / O_RDWR /
 # O_CREAT / O_TRUNC / O_APPEND …)都不放行。表是白名单不是黑名单 —— 黑名单漏一个就放水。
 _OS_OPEN_READONLY_FLAGS = frozenset({"O_RDONLY", "O_NONBLOCK", "O_CLOEXEC", "O_NOFOLLOW", "O_DIRECTORY", "O_NOCTTY"})
+
+
+def _is_module_level_open(node) -> bool:
+    """`io.open(...)` / `builtins.open(...)` —— 形态是 Attribute, 但**不是**绑定方法。
+
+    它们的模式仍在**第 2 个**实参。此前被一律当成 `path.open(mode)` 处理、把 path 当模式读,
+    于是 `io.open("log", "w")` 里的 `"log"` 不含 `wax+` ⇒ 判成只读放行
+    （Codex round-2 MEDIUM-2；`os.open` 走它自己的旗标分支, 不在这里）。
+    """
+    import ast
+
+    func = node.func
+    return (
+        isinstance(func, ast.Attribute)
+        and func.attr == "open"
+        and isinstance(func.value, ast.Name)
+        and func.value.id in ("io", "builtins")
+    )
 
 
 def _is_os_open(node) -> bool:
@@ -834,7 +889,8 @@ def _is_readonly_open(node) -> bool:
         names = _os_open_flag_names(flags)
         return names is not None and names <= _OS_OPEN_READONLY_FLAGS
 
-    bound_method = isinstance(node.func, ast.Attribute)  # x.open(...) ⇒ 模式在 args[0]
+    # `io.open` / `builtins.open` 形态上是 Attribute, 但模式在 args[1] 而非 args[0]。
+    bound_method = isinstance(node.func, ast.Attribute) and not _is_module_level_open(node)
     mode_index = 0 if bound_method else 1
     mode = None
     if len(node.args) > mode_index:
@@ -3276,11 +3332,18 @@ def test_hotkeys_fifo_does_not_hang_and_reports_unreadable(vault_pair, tmp_path)
 
     assert rc == vv.EXIT_MISMATCH == 2, f"无写端 FIFO 必须归 mismatch 档, 实得 rc={rc}"
     unreadable_rows = _report_section(report_text, "unreadable")
-    assert any(row.strip().startswith(vv.HOTKEYS_REL) for row in unreadable_rows), (
-        f"hotkeys 必须登记在 ## unreadable 段里, 实得 {unreadable_rows}"
+    # ⚠️ 判据必须绑到**同一条** finding 上, 且路径要**相等**而不是前缀（Codex round-2 LOW-1）:
+    #    原写法是两个各自独立的 `any()`, 于是下面这份报告能让它们**全部通过**, 而其中
+    #    没有任何一条 finding 是「hotkeys 因形态不可读」——
+    #        .obsidian/hotkeys.json.bak  — 读不进去          ← 满足「路径前缀」那条
+    #        other-file  — 不是普通文件(FIFO/设备等特殊文件)  ← 满足「形态原因」那条
+    #    `.bak` 那行之所以能混进来, 是因为 `startswith` 判的是前缀而不是相等。
+    hotkeys_rows = [row for row in unreadable_rows if row.strip().split("  —", 1)[0].strip() == vv.HOTKEYS_REL]
+    assert len(hotkeys_rows) == 1, (
+        f"hotkeys 必须在 ## unreadable 段里**恰好**登记一条(按路径相等匹配), 实得 {unreadable_rows}"
     )
-    assert any("不是普通文件(FIFO/设备等特殊文件)" in row for row in unreadable_rows), (
-        f"unreadable 明细必须说清是形态问题而不是别的读失败, 实得 {unreadable_rows}"
+    assert "不是普通文件(FIFO/设备等特殊文件)" in hotkeys_rows[0], (
+        f"**同一条** finding 必须说清是形态问题而不是别的读失败, 实得 {hotkeys_rows[0]!r}"
     )
     assert "hotkeys                : not evaluated (不是普通文件)" in report_text, (
         "汇总行的 hotkeys note 必须如实写形态, 不得说成「查过没问题」"

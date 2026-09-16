@@ -3,7 +3,8 @@
 > 批次 `[BATCH-2026-09-11-第十四批 / CARD-G2-7a-TAIL]` · 车道 **T7 skills-writer** `card-t7-skills`（本车道第 **4/4** 张，**T7 末卡**）
 > `PREV`（= T7-C `CARD-SKILL-PORT-LINT-PARSER` 末 commit）= `09567e35bf393c34d1ab185e89e6b9effede7141`
 > 证据目录 `_bmad-output/审查/evidence-g27a-tail/`（`.txt` 存档，`*.stderr*` 不入库）
-> 卡文 `_bmad-output/implementation-artifacts/goal-cards/第十四批-goals/T7-D.md`（feature 主干树那份）
+> 卡文（**feature 主干树那份**，含本批回写）：`.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/implementation-artifacts/goal-cards/第十四批-goals/T7-D.md`
+> 协议与手册同样只读主干树那份（车道树自己那份是 `08100483` 版、不含本批回写）
 
 ---
 
@@ -220,10 +221,14 @@ open(p, 'rb')                           -> True      os.open(p)                 
    不可达 —— 但「不可达」是当前代码的性质，不是被验证过的运行时性质。已证的是相邻两件事：
    无写端 FIFO 的阻塞 open 被堵住（负控-1 红在 `TimeoutExpired`）、普通文件读到的内容与原
    `read_text(encoding="utf-8")` **14/14 逐字同**。
-2. **未穷尽全部读点**。已实测的是 Codex 问题 ④ 点名的四处（main.js 侧、copy 件无/有 `--source`、源侧
-   copy 件），四格**都没挂**；`_leaf_digest` 的 `lstat`+`S_ISREG` 前置也已读过代码确认。但我**没有**
-   对脚本里每一个 `open`/`read_*` 调用逐个挂 FIFO 探针，也没有覆盖 `--harness-tree` / `--backend-url`
-   这些本卡未触及的参数组合。
+2. **只证了「稳定 FIFO」，没证「并发替换」**。已实测的是四处**稳定形态**（main.js 侧、copy 件
+   无/有 `--source`、源侧 copy 件），四格都没挂；`_leaf_digest` 的 `lstat`+`S_ISREG` 前置也读码确认。
+   但 **Codex r1 §4 指出（我接受）**：普通文件**通过形态检查之后**被换成无写端 FIFO 时，
+   `_leaf_digest:719 read_bytes()` / `_probe_regular_readable:756 open()` / main.js 侧 `:1388 read_text()`
+   仍可能阻塞，且 `--source` 摘要在 `:1125-1126` 执行、**早于**本卡新加的 hotkeys 门。
+   这是 TOCTOU 类竞态，本卡**没有**覆盖、也**没有**为它挂探针（登记移交，见 §七 #12）。
+   另外也没有对脚本里每一个 `open`/`read_*` 逐个挂探针，未覆盖 `--harness-tree` / `--backend-url`
+   等本卡未触及的参数组合。
 3. **未证明跨平台 / 跨文件系统**。所有实测都在 **macOS 26.5（Darwin 25.5.0）/ APFS / CPython 3.14.4**
    单机上。`O_NONBLOCK` 对普通文件读无影响、`os.fdopen` 与 `read_text` 同语义，在 Linux / 网络文件系统
    / 大小写敏感卷上**没有**验证（平台限定已写进 `:1324-1326` 注释）。
@@ -316,9 +321,16 @@ open(p, 'rb')                           -> True      os.open(p)                 
 
 ### 六.4 地盘 / 边界
 
+存档 `territory-gate-20260917T032703.txt`。**审 SHA（本卡代码 commit）= `b3baf7d967692db0b172f5ebb4de9e4ae6357923`**
+（`PREV` 与它都经 `git cat-file -t` 验证为真实 commit —— 短 SHA 绝不手工补全）。
+
 | 判据 | 实测 |
 |---|---|
-| 地盘门 `git --no-pager diff --stat --no-color "$PREV" HEAD -- . ':(exclude)_bmad-output'` | ⊆ {`scripts/verify_vault_install.py`, `backend/tests/unit/test_vault_install_manifest.py`}（见 §七） |
+| 地盘门 `git --no-pager diff --stat --no-color "$PREV" HEAD -- . ':(exclude)_bmad-output'` | **2 files, +217 / -1**，恰为 {`scripts/verify_vault_install.py`, `backend/tests/unit/test_vault_install_manifest.py`} ✅ |
+| **地盘门的验伪锚** | 带 exclude **2** 个文件 vs 不带 exclude **41** 个，其中 **39** 条是 `_bmad-output/` 路径 ⇒ exclude 真的在起作用 ✅<br>⚠️ 该锚必须 `git -c core.quotepath=false`：中文路径会被 git 转义成 `\345\256\241…`，`grep '^_bmad-output/'` 会恒 0 = 假阴性。<br>⚠️ 且该锚**只在 commit 之后有效**：commit 前证据文件是未跟踪的，`git diff` 根本不显示它们，锚恒空洞。 |
+| commit header 长度（`wc -m`） | **90**（`wc -m` 读进管道时含换行故显示 91）≤ 100 ✅ |
+| commit body 每行 ≤ 100（`wc -m`） | 无超限行 ✅ |
+| 入库文件含 `*.stderr*` / `*.log` | **0 / 0** ✅（`.gitignore:264` `_bmad-output/审查/**/*.stderr*` 已覆盖，`git check-ignore` 自证） |
 | `scripts/vault-install-manifest.json` + `backend/app` | **零改**（`--name-only` 空） |
 | `_bmad-output/审查/evidence-g27a/manifest-ruling.md` | **未改**（`git status --porcelain` 空） |
 | `outputs/**` exclude 语义 | **未动**（D-34） |
@@ -345,6 +357,10 @@ open(p, 'rb')                           -> True      os.open(p)                 
    （`scripts/install-vault.sh:71 SKELETON_DIRS` 实测 8 项；`manifest-ruling.md:70` 记 6 项**已过时**）
    vs 后端建 4 目录（`vault_init_service.py:18`）**的双真相源分叉，需独立卡统一。
 4. **`outputs/**` exclude 类型语义三条出路**（`evidence-g27a/manifest-ruling.md` §二.2.2）D-34 本批不动，移交独立卡。
+   > 上面 #3 的三个数字**已复测、非照抄卡文**（存档 `registered-only-facts-20260917T032849.txt`）：
+   > `install-vault.sh:71` 逐项枚举 **8** 项（原白板/检验白板/节点/outputs/raw/templates/wiki/concepts/wiki/canvases）；
+   > `vault_init_service.py:18` **4** 项；`manifest-ruling.md:70` 只列 **6** 项（漏后两项）。
+   > 这三个文件本卡**一行未改**（`install-vault.sh` 与 `backend/app` 不在地盘，`manifest-ruling.md` 只读）。
 5. **main.js 侧 `:1341 != "file"` 只置 `hotkeys_note`、rc 仍 0（UAT MEDIUM-3 既有缺口）本卡未扩面修**，登记移交。
    本卡的 hotkeys 侧**刻意不照搬**该分支（特殊文件走 `_unreadable` ⇒ rc=2）—— 两侧现在**语义不一致**，
    统一口径需由那张卡裁。
@@ -356,11 +372,120 @@ open(p, 'rb')                           -> True      os.open(p)                 
 8. **两份被取代的存档已加注不删**：`fifo-fixed-after-20260917T025453.txt`（探针变量遮蔽 ⇒ 清理断言空洞真）
    与 `negctl-20260917T030121.txt`（`( pytest ) | grep` 让 `$?` 取到 grep 的 rc ⇒ 两行 rc 数字是假的）。
    两份的**结论**都不受影响，但数字/断言有瑕疵，已各自重跑并以较新一份为准。
-9. **Codex 各轮**：存档路径 / 绑定 SHA / B-H-M-L 计数 — 见 §八。
-10. **目录级 diff 结果**：base 64 / close 65，1 条 `>`（既有 flaky，§六.2）；既有门 175 → 176；回归门 1 passed。
+9. **ruff format 漂移归属（本卡自引入，未走 `LEFTHOOK_EXCLUDE` 旁路）**：首次 commit 被
+   `python-lint` 的 `ruff format --check` 拦下（`Would reformat: test_vault_install_manifest.py`）。
+   归属判据是一条命令：把 **HEAD 版**的同一文件喂给同一个 `ruff format --check` ⇒ **rc=0 干净**
+   ⇒ 漂移是**本卡引入**（我把一行 117 字符的 `frozenset(...)` 拆成了三行，而限长是 120）。
+   于是**直接改自己那一行**合回单行，**没有**用协议 §2.3 的过渡旁路 —— 那条旁路是给**存量**漂移的，
+   拿它掩盖自己的漂移正是那道存档判据要防的事。存档 `ruff-precheck-*.txt` +
+   `existing-gate-postformat-*.txt`（合行后 176 passed 复跑）。
+10. **证据目录整理**：`--collect-only` 的全量清单 379K 未入库，代之以 `collect-anchor-extract.txt`
+    （判据行摘录 + 末两行），全量移入本 session scratchpad；7 份原本以 `.` 开头的隐藏原始输出
+    已改名为 `flaky-single-*.txt` / `flaky-filelevel.txt` 正常入库。证据目录最终 500K。
+11. **Codex 各轮**：存档路径 / 绑定 SHA / B-H-M-L 计数 — 见 §八。
+12. **【Codex r1 §4 指出的既有缺口，本卡不扩面，登记移交】并发替换下仍有阻塞 open 的路径**：
+    普通文件**通过形态检查之后**被换成无写端 FIFO 时，`_leaf_digest:719 read_bytes()`、
+    `_probe_regular_readable:756 open()`、main.js 侧 `:1388 read_text()` 仍可能阻塞；
+    且 `--source` 摘要在 `:1125-1126` 执行，**早于**本卡新加的 hotkeys 形态门。
+    这是 TOCTOU 类竞态，与本卡修的「稳定 FIFO」不是同一个失效面；本卡地盘只允许改两个文件、
+    卡文也只点了 hotkeys 侧那一处读点，故**不扩面**。建议独立卡统一处理（对所有读点采用
+    「同 fd fstat 之后从该 fd 读」的形态，而不是路径预判 + 另开一次）。
+13. **【Codex r2 MEDIUM-3，既有，登记移交】零写门按「表面调用名」筛选，下列写调用根本不进判定**：
+    别名 `_open = os.open` 后 `_open(p, os.O_WRONLY | os.O_TRUNC)`；动态取属性
+    `getattr(os, "open")(p, os.O_WRONLY | os.O_TRUNC)`；间接调用
+    `functools.partial(os.open, p, os.O_WRONLY | os.O_TRUNC)()`；以及 `write_names` 名单本身的遗漏
+    （如 `os.ftruncate(fd, 0)`）。三版（PREV / r1 / r2）均存在，属该门的**重新设计**（要静态追踪
+    别名与间接调用），不在本卡范围。本卡只做了两件不扩面的事：① 把 docstring 里「`os.*` 全族」
+    这句**过强措辞**改成如实表述并逐条列出上述四类未覆盖输入（DD-13 名实一致）；② 在 §五 #9 声明它。
+14. **目录级 diff 结果**：run1 base 64 / close 65（1 条既有 flaky，§六.2-六.3）；
+    **run2 base 64 / close 64，diff 完全为空**；既有门 175 → 176；回归门 1 passed。
 
 ---
 
 ## 八 Codex 复核
 
-<!-- CODEX_PLACEHOLDER -->
+命令（协议 §2 固定）：`codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" ...`
+模型 `gpt-6-astra` · reasoning_effort `ultra` · codex `codex-cli 0.153.3`（`codex --version` 实测）。
+
+### round-1 — `BLOCKER=0 HIGH=0 MEDIUM=1 LOW=0`
+
+- 存档：`_bmad-output/审查/codex-review-CARD-G2-7a-TAIL.md`（已按协议 §2.1 补六行首部，
+  会话头自证抄 `.stderr` 的 `:2 OpenAI Codex v0.153.3` / `:5 model: gpt-6-astra` / `:9 reasoning effort: ultra`）
+- prompt：`_bmad-output/审查/prompts/codex-prompt-CARD-G2-7a-TAIL.md`
+- 审查绑定：`b3baf7d967692db0b172f5ebb4de9e4ae6357923`（该轮跑完时即当时 HEAD）
+- 五个问题的核对结论：①读取等价成立 ②非普通 hotkeys 均有阻断分支、无「只写 note」的新放行
+  ③60 秒合理但偏保守、超时路径不留 FIFO 残留 ④稳定 FIFO 被拦住（`:1388` 不可达）
+  ⑤归桶如实、fd 生命周期在当前固定参数下无漏关/双关
+
+**唯一 MEDIUM（已接受并修，0 驳回）**：只读豁免会把展开后的写入旗标误判为只读。
+
+| 项 | 内容 |
+|---|---|
+| 未被拦下的输入 | `os.open(*[p, os.O_WRONLY \| os.O_TRUNC], os.O_RDONLY)` |
+| 为什么成立 | 展开后 `flags = O_WRONLY\|O_TRUNC`（写且截断）、`mode = O_RDONLY`；而 helper 按 AST 的 `args[1]` 读 flags，读到的是 `os.O_RDONLY` ⇒ 判成只读并放行 |
+| **独立复现** | 我没有照单全收：单独取出 helper 源码实跑 —— 修前返 `True`；同时把 Codex 那句「旧分支会拒绝 `Starred`」也跑了一遍 —— 旧 helper 对同一输入返 `False`。**「本卡新增缺口」这个定性属实** |
+| **自查补出的同族第二例** | `os.open(p, os.O_RDONLY, **kw)` —— 修前放行、旧 helper 拒绝，同一根因（Codex 未点到） |
+| 根因 | 加 `os.open` 分支**之前**，展开形态是被「mode 不是字符串字面量」这条**顺带**挡住的；新分支更精确，却把那条附带保证删掉了。**精确性提高 ≠ 强度提高** |
+| 修法 | 在 `_is_readonly_open` 的**所有分支之前**拒绝带 `*args` / `**kwargs` 的调用 —— 参数展开时位置绑定静态不可知，与原有「算出来的模式证明不了只读」同一主张 |
+| 不误伤的证明 | AST 实测 `verify_vault_install.py` 里**零处**带展开的写名调用 ⇒ 纯增强 |
+| 配套 | 验伪锚 **10 → 16** 条；另落 **17 例判定矩阵**（4 正例 / 13 反例，**0 例不符**）：`r1-medium-fix-20260917T033410.txt` |
+| 整改后实测 | 文件级 **176 passed 0 failed**；`ruff check` / `ruff format --check` 均过 |
+| 整改 commit | `1946e40d` |
+
+### round-2 — `BLOCKER=0 HIGH=0 MEDIUM=5 LOW=1`
+
+- 存档：`codex-review-CARD-G2-7a-TAIL-r2.md`（已补协议 §2.1 六行首部）
+- prompt：`prompts/codex-prompt-CARD-G2-7a-TAIL-r2.md`
+- 审查绑定：`3735b565b2ada7606aa1294c2d82e0520d7b3a64`；Codex 自述「结束时 HEAD 未变，两个地盘文件无未提交差异」
+  ⇒ **该轮绑最终 HEAD 且 B=0 H=0，D-15 条件已满足**
+- 五个问题的回答：①展开拒绝本身完整（两条锚 PREV/r1/r2 = False/True/False）②会假红、符合「宁可假红」的保守口径，
+  并指出 `**kw` 在真实 `os.open` 上不能覆盖已绑定的 `flags`（重复传参会 TypeError）⇒ 那条锚应理解为**保守拒绝**而非
+  「成功覆盖写旗标的实例」——这个更正我接受并照录 ③16 条锚无空判据、但工程覆盖有重叠 ④`offenders == []` 的证明边界未扩大
+  ⑤本轮未改 FIFO/hotkeys 逻辑，生产文件两版 blob 完全相同
+
+**逐条分诊（全部先独立复现，未照单全收）**：
+
+| 条目 | 定性 | 处置 |
+|---|---|---|
+| **M1** `os.open` 被 `functools.partial` 重绑定后仍按位置判 | **本卡新增**（Codex 给的 PREV/r1/r2 = False/True/True，我实跑复现） | **修** |
+| **M2** 所有 Attribute 调用都当绑定方法 ⇒ `io.open("log","w")` 判成只读 | 三版均存在（既有） | **修**（4 行、纯增强、Codex 给了确切输入） |
+| **M3** 名字筛选漏别名 / `getattr` / `partial` / 名单遗漏（`os.ftruncate`） | 三版均存在（既有，属门的重新设计） | **登记移交**；另把 docstring 里「`os.*` 全族」这句**过强措辞**改成如实表述并列出四类未覆盖输入（DD-13 名实一致） |
+| **M4** 非普通 main.js 只记 note、不计退出码 | 既有 **UAT-G2-7a MEDIUM-3**，卡文 §三明令不扩面 | **登记移交**（§七 #5） |
+| **M5** main.js 形态检查与内容读取之间的并发替换窗口 | 既有，Codex 自述「不是本卡新引入」 | **登记移交**（§七 #12） |
+| **LOW-1** FIFO 门的路径断言与理由断言可由**两条不同的行**分别满足 | **本卡新增**（我自己写的门） | **修** |
+
+**LOW-1 的分量比它的级别大**——Codex 给的对照报告：
+
+```text
+## unreadable
+  .obsidian/hotkeys.json.bak  — 读不进去                      ← 满足「路径」那条(startswith 是前缀不是相等)
+  other-file  — 不是普通文件(FIFO/设备等特殊文件)              ← 满足「理由」那条(另一行)
+```
+
+实测三条断言**全过**，而报告里**没有任何一条 finding** 是「hotkeys 因形态不可读」。
+这正是本卡 §四「负控-2 的关键观察」里自己写下的原则——**判据要绑到同一个身份**——却在同一道门上没做到。
+修法：先按**路径相等**筛出 hotkeys 那一行、断言**恰好一条**，再要求**那一条**含形态理由。
+
+**整改后实测**（`r2-fix-20260917T034409.txt` / `negctl-postr2-*`）：
+
+| 判据 | 结果 |
+|---|---|
+| 判定矩阵 | **20 例 0 不符**（正例 5 / 反例 15；新增 `io.open`/`builtins.open` 三例） |
+| LOW-1 对照报告 | 按路径相等筛出 **0** 行 ⇒ `len(...)==1` 断言变红 ✅；真实报告筛出 **1** 行且理由匹配 ✅ |
+| M1 重绑定判据的误伤面 | 生产脚本 **0** 命中 ✅（一刀切会误伤 `:899` 的局部变量 `link = cur / rel`，故只拦 `<owner>.<写名> = …` 与遮蔽内置 `open` 两类） |
+| 文件级 | **176 passed 0 failed** |
+| 正控 / 负控-1 / 负控-2 | 绿 / 红在 `TimeoutExpired` / 红在**新的同条 finding 身份断言** ✅ |
+| ruff | check + format 均过（format 漂移又是本卡自引入、已改回单行） |
+
+> ⚠️ **负控重跑时先出了一次假绿，已识别并重跑，两份都留档**：
+> `negctl-postr2-*.txt` 的 NC1 用 `git show HEAD:…` 取「改前版本」——**代码提交之后 HEAD 已含修复**，
+> 于是「还原到改前」成了空操作（`变异态计数(应 0)=4`、门 rc=0）。根因是把 `HEAD` 当还原基准，
+> 而 `HEAD` 是**位置锚**、一 commit 就移动。改用**值锚** `09567e35` 重跑（`negctl-postr2-nc1-redo-*.txt`）：
+> 变异计数 0、门 rc=1 红在 `raise TimeoutExpired`、sha 前后逐字同。
+> （首轮 `negctl-20260917T030322.txt` 那次跑在提交**之前**，当时 HEAD 就是 T7-C 末 commit，那次有效。）
+
+### round-3 — 待送（因 r2 后又改了代码，D-15 要求重绑）
+
+> **D-15 状态**：r1 已经满足「绑最终 HEAD 且 B=0 H=0」，MEDIUM 本可只登记不修。
+> 之所以仍然修：那条 MEDIUM 是**本卡自己造成的护栏削弱**（旧代码拒绝、新代码放行），
+> 把一道零写门留得比接手时更弱，代价会在后面的卡上复利。改代码 ⇒ 按 D-15 必再送一轮。

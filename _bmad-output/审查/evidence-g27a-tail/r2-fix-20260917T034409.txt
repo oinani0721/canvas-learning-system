@@ -1,0 +1,43 @@
+### Codex r2 整改验证（M1 重绑定 / M2 模块级 open / LOW-1 同条 finding 绑定）@ 2026-09-17T03:44:09+08:00
+
+--- 判定矩阵 ---
+  OK  os.open(p, os.O_RDONLY | os.O_NONBLOCK)              期望=True   实得=True   生产实际写法
+  OK  os.open(p, os.O_RDONLY)                              期望=True   实得=True   单只读旗标
+  OK  p.open()                                             期望=True   实得=True   绑定方法缺省
+  OK  open(p, 'rb')                                        期望=True   实得=True   内置只读
+  OK  io.open("log", "rb")                                 期望=True   实得=True   ★M2 模块级 open 只读
+  OK  os.open(p, os.O_WRONLY | os.O_CREAT)                 期望=False  实得=False  写旗标
+  OK  os.open(p, os.O_RDONLY | os.O_TRUNC)                 期望=False  实得=False  混进写旗标
+  OK  os.open(p, flags)                                    期望=False  实得=False  算出来的旗标
+  OK  os.open(p)                                           期望=False  实得=False  缺旗标
+  OK  p.open('wb+')                                        期望=False  实得=False  绑定方法写模式(U3-A 原案)
+  OK  open(p, 'w')                                         期望=False  实得=False  内置写模式
+  OK  os.open(*[p, os.O_WRONLY | os.O_TRUNC], os.O_RDONLY) 期望=False  实得=False  ★r1 MEDIUM
+  OK  os.open(p, os.O_RDONLY, **kw)                        期望=False  实得=False  ★r1 自查同族
+  OK  os.open(*args)                                       期望=False  实得=False  整串展开
+  OK  os.open(p, *flags_list)                              期望=False  实得=False  旗标位展开
+  OK  open(*args)                                          期望=False  实得=False  内置展开
+  OK  p.open(*a)                                           期望=False  实得=False  绑定方法展开
+  OK  os.open(**kw)                                        期望=False  实得=False  纯 kwargs
+  OK  io.open("log", "w")                                  期望=False  实得=False  ★r2 MEDIUM-2 io.open 写
+  OK  builtins.open("log", "w")                            期望=False  实得=False  ★r2 MEDIUM-2 builtins.open 写
+  共 20 例, 不符 0 例  (正例 5 / 反例 15)
+
+--- LOW-1: Codex 的对照报告现在必须判红 ---
+  按**路径相等**筛出的 hotkeys 行数 = 0  (期望 0 ⇒ `len(...)==1` 断言会红)
+  真实报告筛出行数 = 1, 理由匹配 = True  (期望 1 / True)
+matrix_rc=0
+
+--- M1 重绑定判据对生产脚本的误伤面（期望 0）---
+  命中: 0 ⇒ 无假红
+
+--- 文件级全跑 ---
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================= 176 passed, 10 warnings in 3.81s =======================
+
+--- ruff ---
+All checks passed!
+Would reformat: backend/tests/unit/test_vault_install_manifest.py
+1 file would be reformatted, 1 file already formatted
+rc=1

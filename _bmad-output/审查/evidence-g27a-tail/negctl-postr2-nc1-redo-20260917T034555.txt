@@ -1,0 +1,16 @@
+### 负控-1 重跑（还原基准改用**值锚** 09567e35, 不用位置锚 HEAD）@ 2026-09-17T03:45:55+08:00
+### test sha256=a5e92564069a3f4b2706a0442ae5a077f66b7fe2689359b088620ec9a4b7c467
+[NC1] sha 跑前: f47606cf17b7319f3415ae3e9039b22945faffae054912c406862c895d27ff2d  scripts/verify_vault_install.py
+[NC1] 变异态 S_ISFIFO/O_NONBLOCK 计数（必须 0, 是 4 就说明变异没生效）= 0
+[NC1] 变异态裸读在位: 1312:        raw = hotkeys_path.read_text(encoding="utf-8")
+[NC1] 门 rc=1 （期望 非0 = 红；rc 未经管道）
+    23:        `--vault` 连 rc=2 都跑不出来(改前探针实测 15s TimeoutExpired, faulthandler 自报栈停在
+    75:            # 回归时这一行抛 subprocess.TimeoutExpired ⇒ 本条测试红, 且**不会**挂住整套。
+    124:         a TimeoutExpired exception will be raised.
+    273:                        'failed to raise TimeoutExpired.')
+    291:>           raise TimeoutExpired(
+[NC1] sha 跑后: f47606cf17b7319f3415ae3e9039b22945faffae054912c406862c895d27ff2d  scripts/verify_vault_install.py
+[还原后计数(应 4)=4]
+[临时目录: /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.hIXJhI3EzT]
+[trap] 已无条件还原
+rc=0

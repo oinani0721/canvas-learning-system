@@ -3,11 +3,11 @@
 ## 一 背景 + 最小读取面（请只读下面这些，不要扩大读取面）
 
 仓库：`canvas-learning-system`，工作树 `.claude/worktrees/card-t7-skills`，分支 `card/t7-skills`。
-被审提交（审 SHA）：`__SHA__`。前一卡末 commit（PREV）：`09567e35bf393c34d1ab185e89e6b9effede7141`。
+被审提交（审 SHA）：`b3baf7d967692db0b172f5ebb4de9e4ae6357923`。前一卡末 commit（PREV）：`09567e35bf393c34d1ab185e89e6b9effede7141`。
 
 请读：
 
-1. `git diff 09567e35bf393c34d1ab185e89e6b9effede7141 __SHA__ -- . ':(exclude)_bmad-output'`
+1. `git diff 09567e35bf393c34d1ab185e89e6b9effede7141 b3baf7d967692db0b172f5ebb4de9e4ae6357923 -- . ':(exclude)_bmad-output'`
    —— 这是本卡的**全部代码改动面**（两个文件）。
 2. `scripts/verify_vault_install.py`
    - `:1272-1417` — `_check_hotkeys()`（本卡主修面，形态门在 `:1311-1357`）
