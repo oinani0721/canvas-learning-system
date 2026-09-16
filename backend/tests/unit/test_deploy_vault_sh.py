@@ -4596,11 +4596,15 @@ def test_hosts_opencode_name_with_trailing_newline_is_preserved(tmp_path: Path):
     name, port = "probe_oc10", "8290"
     h = _oc_harness(tmp_path)
     odd = "trailnl\n"
+    # ⛔ 名字以换行结尾 ⇒ 拼 SKILL.md 时**必须显式带 `/`**（Codex r7 抓到）：
+    #    写成 `{odd}SKILL.md` 拼出来的是 `.claude/skills/trailnl<LF>SKILL.md` 这个**文件**，
+    #    技能目录里空无一物 —— 夹具没造出它声称的形状，而门照样绿（软链只看目录在不在）。
+    #    「控制组不成立」这类问题不会让门变红，只会让门测的东西不是你以为的那个。
     _oc_preseed_installer(
         tmp_path,
         h,
         f'mkdir -p "$v/.claude/skills/{odd}"\n'
-        f"printf -- '---\\nname: t\\ndescription: s\\n---\\n' > \"$v/.claude/skills/{odd}SKILL.md\"\n",
+        f"printf -- '---\\nname: t\\ndescription: s\\n---\\n' > \"$v/.claude/skills/{odd}/SKILL.md\"\n",
     )
     env = _tx_env(tmp_path, port, name)
     r = _oc_run(tmp_path, h, name, port, env=env)
@@ -4610,6 +4614,10 @@ def test_hosts_opencode_name_with_trailing_newline_is_preserved(tmp_path: Path):
     assert r.returncode == 0, f"尾随换行的名字让部署失败了: rc={r.returncode}\n{r.stdout}{r.stderr}"
     root = tmp_path / "vaults" / name / ".agents" / "skills"
     built = sorted(p.name for p in root.iterdir()) if root.is_dir() else []
+    # 控制组：夹具真造出了那个技能**目录**，且里面有 SKILL.md（不是一个同名文件）。
+    srcdir = tmp_path / "vaults" / name / ".claude" / "skills" / odd
+    assert srcdir.is_dir(), f"控制组不成立：夹具没造出技能目录 {srcdir!r}"
+    assert (srcdir / "SKILL.md").is_file(), "控制组不成立：技能目录里没有 SKILL.md"
     assert odd in built, f"尾随换行被剥掉了（名字变成 'trailnl'？）: {built!r}\n{r.stdout}{r.stderr}"
     assert "trailnl" not in built, f"出现了被剥掉尾随换行的名字: {built!r}"
 
