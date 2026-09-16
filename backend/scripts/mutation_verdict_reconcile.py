@@ -150,8 +150,12 @@ def ast_mutation_count(source_name: str) -> int:
     （`__imul__` → `__class__.__imul__` → `copy.__self__` → `__iter__().__reduce__()` →
     `list.append(MUTATIONS, 4)` / `alias = MUTATIONS` → `Sink()[MUTATIONS]` / 重定义 `len` →
     `match case len:` → `match case MUTATIONS:` → 生成器帧 `gi_frame.f_locals[".0"]`），
-    每次都修了，但**判据的强度上限就在这里**：它能保证的是「凡是它数出来的，数法是那三种
-    可数形态；凡是它数不出来的，它抛」，不是「运行期条数一定等于这个数」。
+    每次都修了，但**判据的强度上限就在这里**：它能保证的是「凡是它数出来的，数法是上面 ①
+    认下的那**两种**可数形态（模块级 `MUTATIONS = [字面量]` 与 `MUTATIONS += [字面量]`）；
+    凡是它数不出来的，它抛」，不是「运行期条数一定等于这个数」。
+    ⛔ round-23（Codex round-20 LOW）更正原文的「那三种可数形态」——**数错了**：三种说的是
+    ② 段那三类合法**读**语境（`for`/推导式的迭代对象、`len(MUTATIONS)`、Load 下标），
+    那不是计数形态。两件事写串了。
     """
     path = SCRIPTS / source_name
     if not path.exists():

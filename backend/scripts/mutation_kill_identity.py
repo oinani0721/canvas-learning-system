@@ -300,14 +300,22 @@ def _split_unique(line: str, nodeid: str) -> bool:
         被 Codex round-15 LOW 指出说得比事实宽，实测确认并改写：
         ‣ **行宽放得下**时 pytest 会补 ` - <异常类名>`，消息为空也补
           （`AssertionError("")` → `- AssertionError`、`pytest.fail("")` → `- Failed`）
-          ⇒ 造出**第二个** ` - ` 切点 ⇒ 本函数判二义 ⇒ 整行进 `unparsed_failure_lines()`；
+          ⇒ 造出**第二个** ` - ` 切点。⛔ round-23（Codex round-20 LOW）**更正这里原来的话**：
+          原文写「⇒ 本函数判二义」——**说宽了**。第二个切点只是判二义的**必要**条件，不是
+          充分条件：那个切点左侧还得**过候选判据**（方括号成对 ∪ nodeid 形）才算一条候选。
+          实测反例 `FAILED tests/gate.py::test_x[case] - EXPECT]tail - AssertionError: OTHER`：
+          第二候选 `…test_x[case] - EXPECT]tail` 方括号 1:2 不成对、又不以 `]` 收尾 ⇒ 不入候选
+          ⇒ 本函数返回 **True**（唯一）、`unparsed_failure_lines()` **为空**，兜住它的仍是下面
+          那条位置行交叉核。⇒ 准确说法是：**第二切点过得了候选判据才由 H1 兜，过不了就
+          跟「行宽放不下」那一路一样，由位置行交叉核兜**；
         ‣ **行宽放不下**时（`judge_env()` 钉 `COLUMNS=1000`，而 nodeid 可以更长）后缀被
           **整条省掉** —— 实测 `test_x[<1100 个 a>] - EXPECT]tail` 的摘要行长 1143、
           只剩**一个**切点，本函数判「唯一」⇒ 这一路**不**由 H1 兜。
           兜住它的是**另一条腿**：`--tb=line` 的位置行是**独立信源**，那一路实测判
           HARNESS-ERROR，诊断直接点名「它其实是**测试名**的一部分而不是断言消息」。
     ⇒ 剩余面因此是**有界**的，但兜住它的**不是同一道判据**：起真 pytest 子进程跑过的
-    五个怪名字变体（三个短的走 H1 二义、一个超宽的走位置行交叉核、一个不可选中的压根不出现），
+    五个怪名字变体（三个短的**恰好**过得了候选判据 ⇒ 走 H1 二义、一个超宽的走位置行交叉核、
+    一个不可选中的压根不出现；⚠️ 过不了候选判据的短名同样走交叉核，见上），
     全部判 HARNESS-ERROR，无一假 KILLED
     （`test_h1_real_pytest_exotic_but_selectable_name_is_harness_error` 钉住全部五个）。
 
@@ -1310,7 +1318,13 @@ class RestoreGuard:
         raise SystemExit(self._exit_code)
 
     def exiting(self) -> bool:
-        """是否已进入退出展开（`_finish` 已选定退出码）。
+        """是否已进入退出展开（`_finish` 已置位 `_finishing`）。
+
+        ⛔ round-23（Codex round-20 LOW，**基线既有、非本卡引入**）更正原来的括注
+        「`_finish` 已**选定退出码**」—— 不实：`_finishing` 是在**调还原之前**置位的，
+        此后还原成功走 `SystemExit(130)`、失败走 `SystemExit(131)`，⇒ 在还原回调里读到
+        本方法为 `True` 时，退出码**尚未**确定。调用方（`restore_or_keep_exit_code`）
+        正是靠 `clean_exit_code` 去分辨那两条路，⛔ 不能拿本方法当「退出码已定」用。
 
         ⛔ round-3 MEDIUM：`_finish` 抛 `SystemExit(131)` 后，调用方栈展开仍会进入
         各自的 `finally` 再还原一次；若还原持续遇到**同一个 I/O 错误**，第二次异常会

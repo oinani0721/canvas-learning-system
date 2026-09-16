@@ -64,7 +64,11 @@ import mutation_kill_identity as mki  # noqa: E402
 #
 # ⚠️ 这里合成的是**判据的输入样本**，不是 mock 掉某一层：被测物仍是真实的
 # `kill_identity()` / `_split_unique()`。格式逐字照 pytest 9.0.2 的
-# `-rf --tb=line` 形态（分隔线、摘要头、收尾统计行三者缺一，判据面就不成立）。
+# `-rfE --tb=line` 形态。⛔ round-23（Codex round-20 LOW）更正原文「分隔线、摘要头、
+# 收尾统计行**三者缺一**，判据面就不成立」——**说宽了**：实测删掉**收尾统计行**后
+# `judge_surface_missing()` 仍返回 `None`、`kill_identity()` 仍判 `KILLED`。
+# 判据面实际只依赖**分隔线 + 摘要头**（`summary_region()` / `failures_region()` 靠它们切段）；
+# 收尾统计行写在这些样本里只是为了**逐字照抄真实形态**，不是判据的一部分。
 
 _FAILURES_HEAD = "=================================== FAILURES ==================================="
 _SUMMARY_HEAD = "=========================== short test summary info ============================"
@@ -1739,14 +1743,21 @@ def test_h1_real_pytest_exotic_but_selectable_name_is_harness_error(tmp_path: Pa
       · 腿②「选得到谁」：pytest 9.0.2 实测，`pytest f.py::test_x` 选中 `test_x` 与
         `test_x[case] - EXPECT`，**选不中** `test_x - EXPECT]aaa…` ⇒ r14 那条反例里的
         「另一个测试」跑不起来，那行摘要产生不出来。代码侧等价物就是 `gate_hit()`；
-      · 腿③「选得到的那些怎么办」：⛔ **分两种，兜住它们的不是同一道判据**
-        （Codex round-15 LOW 指出上一版把这条写得比事实宽，实测确认并改写）：
-        ‣ 行宽放得下 ⇒ pytest 补 ` - <异常类名>`（消息为空也补）⇒ 第二个 ` - ` 切点
-          ⇒ `_split_unique` 判二义 ⇒ 进 `unparsed_failure_lines()`；
+      · 腿③「选得到的那些怎么办」：⛔ **兜住它们的不是同一道判据**
+        （Codex round-15 LOW 指出上一版说宽了一次，round-20 LOW 又指出仍宽，两次都实测改写）：
+        ‣ 行宽放得下 ⇒ pytest 补 ` - <异常类名>`（消息为空也补）⇒ 出现第二个 ` - ` 切点。
+          ⛔ **但第二切点只是必要条件，不是充分条件** —— 它左侧还得**过候选判据**
+          （方括号成对 ∪ nodeid 形）才算一条候选。过得了 ⇒ `_split_unique` 判二义 ⇒ 进
+          `unparsed_failure_lines()`（本用例路径甲的三个名字就是这种）；⛔ 过不了 ⇒
+          `_split_unique` 返回 True、未解析行为空，改由位置行交叉核兜
+          （实测反例：`…::test_x[case] - EXPECT]tail - AssertionError: OTHER`，
+          第二候选方括号 1:2 不成对又不以 `]` 收尾）；
         ‣ 行宽放不下 ⇒ 后缀被**整条省掉**，只剩一个切点，H1 判「唯一」⇒ **这一路 H1 不兜**，
-          兜住它的是 `--tb=line` 位置行这条**独立信源**。
+          同样由 `--tb=line` 位置行这条**独立信源**兜（本用例路径乙）。
 
-    ⇒ 本用例把两条路径**分别**钉住，并各留一个验伪锚。
+    ⇒ 本用例把「H1 兜」与「交叉核兜」两条路径**分别**钉住，并各留一个验伪锚。
+    ⚠️ 如实声明：本用例**没有**覆盖上面那个「短行但候选判据过不了」的第三种情形
+    （它由 `test_h1_expect_msg_must_be_corroborated_by_the_location_line` 一族覆盖）。
     """
     # ── 路径甲：行宽放得下 ⇒ 第二个切点存在 ⇒ H1 二义 ───────────────────────────
     rc, out, gate = _run_gate(
