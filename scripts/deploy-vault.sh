@@ -1131,7 +1131,9 @@ except OSError as exc:
     die(f"打开 vault 目录失败: {vault} ({exc})")
 
 afd = sfd = None
+ok = False  # 走到最后才置 True；finally 据它决定要不要清掉本次建的链
 made = []
+src_fds = {}  # name -> fd，钉住「通过资格检查时」的那个源 inode（见下方 r9 MEDIUM-1 说明）
 try:
     afd = open_dir_child(vfd, ".agents", f"{vault}/.agents")
     sfd = open_dir_child(afd, "skills", f"{vault}/.agents/skills")
@@ -1174,6 +1176,17 @@ try:
                     die(f"技能源条目是软链, 本脚本不跟随（请用真目录）: {where}")
                 if not statmod.S_ISDIR(st.st_mode):
                     die(f"技能源条目不是目录: {where}")
+                # ⛔ 光 lstat 不够（Codex r9 MEDIUM-1）：它只证明**检查那一刻**源是真目录,
+                #    没有把那个合格条目的身份留下来。检查之后、建链之前源被换成外部软链时,
+                #    后面的两次解析会**一起**跟随新的那个 ⇒ 又变成「相等但都不合格」。
+                #    ⇒ 当场把它**打开成 fd 留住**：fd 钉死的是 inode, 路径之后被换掉也影响不到。
+                #    后核阶段用 `os.fstat(这个 fd)` 作期望值, 不再按路径重新 stat。
+                try:
+                    src_fds[name] = os.open(
+                        name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=csfd
+                    )
+                except OSError as exc:
+                    die(f"打不开技能源条目（被换掉了？）: {where} ({exc})")
         finally:
             os.close(csfd)
     finally:
@@ -1220,13 +1233,41 @@ try:
             die(f"软链解不到存在的技能目录: {where} ({exc})")
         try:
             tst = os.fstat(tfd)
-            want = os.stat(f".claude/skills/{name}", dir_fd=vfd, follow_symlinks=True)
+            # ⛔ 期望值取自**前面留住的 fd**, 不按路径重新 stat（Codex r9 MEDIUM-1）:
+            #    按路径重新解析会跟随「此刻」的源, 源若已被换掉, 两边会一起指向新的那个
+            #    ⇒ 相等而都不合格。fstat(已钉住的 fd) 拿到的是**当初通过检查的那个 inode**。
+            want = os.fstat(src_fds[name])
             if (tst.st_dev, tst.st_ino) != (want.st_dev, want.st_ino):
-                die(f"软链解到了别处, 不是本 vault 的同名技能条目: {where}")
+                die(f"软链没解到当初通过检查的那个技能目录（源被换过？）: {where}")
         finally:
             os.close(tfd)
+    ok = True
     print(f"bound={len(names)} new={len(made)}")
 finally:
+    # ⛔ 失败时清掉**本次新建**的那些软链（Codex r9 MEDIUM-1 实测暴露）：
+    #    源在「资格检查之后、建链之中」被换掉时, 后核能拒（fd 身份不符）,
+    #    但链已经建出去了 —— 拒绝而留下残链, 与 r5 HIGH-1 同型。
+    #    这是真正的 TOCTOU（源是运行中途被换的, 建之前无从知道）, 所以只能事后收拾。
+    #    ⚠️ 只清 `made` 里的 —— 那是**本次 os.symlink 真建出来的**,
+    #    幂等跳过的已有链不在里面（别替别人做决定）。
+    #    ⚠️ 全程 `dir_fd=sfd`（已钉死的目录）+ 删前核「它还是软链、目标还是我写的那个串」,
+    #    免得删到别人在这期间放进来的同名东西。
+    if not ok and sfd is not None:
+        for _n in made:
+            try:
+                _st = os.stat(_n, dir_fd=sfd, follow_symlinks=False)
+                if not statmod.S_ISLNK(_st.st_mode):
+                    continue
+                if os.readlink(_n, dir_fd=sfd) != f"../../.claude/skills/{_n}":
+                    continue
+                os.unlink(_n, dir_fd=sfd)
+            except OSError as exc:
+                print(f"清理本次建的软链失败, 原样留下: {vault}/.agents/skills/{_n} ({exc})", file=sys.stderr)
+    for fd in src_fds.values():
+        try:
+            os.close(fd)
+        except OSError:
+            pass
     for fd in (sfd, afd, vfd):
         if fd is not None:
             try:

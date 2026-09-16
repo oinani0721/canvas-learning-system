@@ -4596,6 +4596,32 @@ def test_hosts_opencode_refuses_skill_source_symlinked_outside_vault(tmp_path: P
     assert not (v / "AGENTS.md").exists(), "被拒之后仍落下了 AGENTS.md"
 
 
+def test_deploy_sh_pins_source_identity_and_cleans_up_its_own_links():
+    """源身份必须**钉在 fd 上**，失败时必须清掉本次建的链（Codex r9 MEDIUM-1）。
+
+    ⛔ `lstat` 只证明「检查那一刻」源是真目录，**没把那个合格条目的身份留下来**。
+       检查之后、建链之中源被换成外部软链时，后面两次解析会**一起**跟随新的那个
+       ⇒ 又变成「相等但都不合格」。⇒ 当场把源打开成 fd 留住，后核用
+       `os.fstat(那个 fd)` 作期望值，不按路径重新 stat。
+    ⛔ 这是**真正的 TOCTOU**（源是运行中途被换的，建之前无从知道），所以还要事后收拾：
+       后核拒绝时链已经建出去了，拒绝而留下残链与 r5 HIGH-1 同型。
+       ⇒ `finally` 里清掉 `made` 里的（只清本次真建的，幂等跳过的已有链不动），
+       且删前核「它还是软链、目标还是我写的那个串」。
+    车道实测（存档 `probe-r9-swap-window-*.txt`）：注入「检查后、建首条链前换源」，
+    修前 = 拒绝但残链落在 vault 外；修后 = **拒绝且零残链**。
+    """
+    src = DEPLOY_SH.read_text(encoding="utf-8")
+    code = _py_code_only(_heredoc_body(src, "PYBIND"))
+    # ① 源身份钉在 fd 上，期望值取自 fstat 而非按路径 stat
+    assert "src_fds[name] = os.open(" in code, "源条目不再被打开成 fd 钉住"
+    assert "want = os.fstat(src_fds[name])" in code, "后核的期望值又改回按路径 stat 了"
+    assert 'os.stat(f".claude/skills/{name}", dir_fd=vfd' not in code, "后核又按路径重新解析源了"
+    # ② 失败时清掉本次建的链，且只清 made 里的、全程 dir_fd
+    assert "if not ok and sfd is not None:" in code, "失败清理分支没了"
+    assert "for _n in made:" in code, "清理的不是本次新建的那批"
+    assert "os.unlink(_n, dir_fd=sfd)" in code, "清理不再相对钉死的目录 fd 做"
+
+
 def test_deploy_sh_takes_skill_names_without_command_substitution(tmp_path: Path):
     """取名不得走 `$(basename …)`，label 不得嵌名字（Codex r6 MEDIUM-1 / MEDIUM-2）。
 
