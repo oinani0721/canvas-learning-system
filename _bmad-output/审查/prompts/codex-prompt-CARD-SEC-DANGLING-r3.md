@@ -8,8 +8,8 @@ round-2 结论是 BLOCKER 0 / HIGH 0 / MEDIUM 2 / LOW 4，**合并条件按批�
 
 **请只读下面这些面，不要跑测试、不要跑 hook、不要连任何数据库：**
 
-1. round-2 之后的全部改动：`git diff 76a602c436e25e55c44c690098a4b55ed1f99cfd __REVIEW_SHA__ -- . ':(exclude)_bmad-output'`
-2. 本卡自前提 commit 起的全部代码改动（累计面）：`git diff 2287e2583c54472d238e8b8eec87bb1e9e95c9e8 __REVIEW_SHA__ -- . ':(exclude)_bmad-output'`
+1. round-2 之后的全部改动：`git diff 76a602c436e25e55c44c690098a4b55ed1f99cfd 9861c59598ca350ca7df10921744292b0deffb41 -- . ':(exclude)_bmad-output'`
+2. 本卡自前提 commit 起的全部代码改动（累计面）：`git diff 2287e2583c54472d238e8b8eec87bb1e9e95c9e8 9861c59598ca350ca7df10921744292b0deffb41 -- . ':(exclude)_bmad-output'`
 3. `backend/tests/contract/test_openapi_contract.py` 末尾 `Security scheme 悬空引用门` 整段（注释块 + `_HTTP_METHODS` + `_as_dict` + `_named_entries` + `_load_drift_module_for_security` + `_iter_path_item_security_refs` + `_iter_security_refs` + `test_security_schemes_cover_all_security_refs`）
 4. round-2 存档 `_bmad-output/审查/codex-review-CARD-SEC-DANGLING-r2.md`（你上一轮的意见原文）
 5. 本轮**承重**证据（`_bmad-output/审查/evidence-sec-dangling/` 下）：

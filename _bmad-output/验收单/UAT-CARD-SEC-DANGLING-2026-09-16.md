@@ -278,6 +278,7 @@ Would reformat: backend/app/security.py
 11. **移交（建议第十五批立卡）：契约门与 `pytest.importorskip("schemathesis")` 解耦**。现状是 schemathesis 缺席时，同文件里那条**不依赖 schemathesis** 的静态门会被一并跳过。不在本卡修的理由是范围（要动卡文禁改的既有模块级行），不是技术不可能 —— 详见「本卡未证明什么」第 12 条。
 12. **移交（同上）：`$ref` 形态的 Path Item / Callback 在契约门里不可见**。本仓当前实测 Path Item 级 `$ref` = 0 所以不构成缺口；若将来换 OpenAPI 生成器或引入手工拼装的 spec，需要补 `$ref` 解析或另立门。详见「本卡未证明什么」第 11 条。
 13. **观测留档：`import app.main` 会触发 LiteLLM 对公网的 model-cost-map 拉取**（本次实测为 SSL 握手超时后回落本地备份）。非本卡引入、非 7691/7687、不影响任何判据，但它说明本仓测试进程的「无网络」假设对模块级 import 段并不成立。若将来要把测试环境做成真正离线，这是一个已知外联点。
+14. **⛔ round-3 未经独立复核 —— 需主 session 人审**。Codex r3 两次送审均因用量上限产出 0 字节（`codex_rc=1`），按协议 §四「再 0 字节 → 主 session 人审替代，不等配额」处置。**D-15 的合并条件在 r2 即已满足**（绑当时最终 HEAD `76a602c4`，B0/H0），r3 是主动追加的质量整改、改动面只有一个测试文件、全部为收窄主张与加强判据；但这一轮**确实没有第三方复核**，上表裁判是作者自跑的判据。逐条对照口径见 §七 round-3 小节。
 
 ---
 
@@ -394,7 +395,25 @@ r3 同样只改 `backend/tests/contract/test_openapi_contract.py` 与文档；`b
 
 **r3 被取代的中间档（留痕，不作依据）**：`enum-coverage-probe-r3-20260916T204806.txt` —— 新探针的首跑，`PYTHON_RC=1`，A5 用例的多层花括号没配平（`SyntaxError: closing parenthesis ')' does not match opening parenthesis '{'`）。**同一处栽了两次**（r2 的 `enum-coverage-probe-20260916T201836.txt` 也是它），第二次起改为逐层显式变量构建，并在脚本里留了注释说明原因。该档的 `PYTHON_RC=1` 是**显式捕获**的 python rc，不再是管道末端 grep 的 rc —— 这正是它能被当场看出来失败的原因。
 
-**r3 送审**：prompt `_bmad-output/审查/prompts/codex-prompt-CARD-SEC-DANGLING-r3.md`，存档 `_bmad-output/审查/codex-review-CARD-SEC-DANGLING-r3.md`。
+### round-3 送审 —— ⛔ 未能完成，按协议交主 session 人审
+
+prompt 已写好并绑定 r3 commit：`_bmad-output/审查/prompts/codex-prompt-CARD-SEC-DANGLING-r3.md`（五分节，四个禁用措辞各 0，绑 `9861c59598ca350ca7df10921744292b0deffb41`）。
+
+**两次发送均失败**，记录 `codex-r3-quota-failure-20260916T235911.txt`：两次都是 `codex_rc=1`、产出 `.md` **0 字节**，stderr 逐字为 `ERROR: You've hit your usage limit.`；会话头自证 `.stderr:2/:5/:9` 为 `OpenAI Codex v0.153.3` / `model: gpt-6-astra` / `reasoning effort: ultra`（即模型与 effort 都对，是配额不是配置问题）。
+
+按协议 §四「**0 字节存档重发一次，再 0 字节 → 主 session 人审替代，不等配额**」：**本卡 r3 不再重试，交主 session 人审。**
+
+> 那条 0 字节产物已从复核存档命名空间移出并改名为 `evidence-sec-dangling/codex-r3-EMPTY-quota-failed-no-review.md`，且写入了「本文件不是复核意见」的说明行 —— 避免主 session 的 D-15 存档扫描把它当成一轮复核（本树 guard hook 禁 `rm`，故用改名 + 标注代替删除）。
+>
+> ⚠️ 错误里那个「Sep 19th, 2026 8:16 PM」的重置时刻**不作为结论继承**：本仓已有教训（第十四批「配额耗尽至 09-15」的批级通告被 24 分钟后的实测推翻并撤回，R-05）—— 外部服务报的重置时间是一次观测，不是不变量。接手者若要重试，先实测。
+
+**交给主 session 人审时请对照这三点**（它们决定 r3 的风险面有多窄）：
+
+1. **D-15 的合并条件在 r2 即已满足** —— r2 绑当时的最终 HEAD `76a602c4`，**BLOCKER 0 / HIGH 0**，且 Codex 在该轮独立复算了三个文件 SHA、确认「r1→r2 只改测试文件」、并判定「本轮无需重新生成生产源或快照，推断成立」。
+2. **r3 相对 r2 的改动面**：`git diff 76a602c4 9861c595 -- . ':(exclude)_bmad-output'` **只有 `backend/tests/contract/test_openapi_contract.py` 一个文件**。生产源 `backend/app/security.py` 与快照 `backend/openapi.json` 自 r1 起 sha 全程 `925443dc…` / `9df9f7df…` **未变**（每份 r3 存档首部都带这两个 sha，可逐档核）。⇒ **r3 不可能动摇 r1/r2 已成立的生产语义结论**。
+3. **r3 的全部改动都是「收窄主张 + 加强判据」，没有一项放宽**：主张从「全部合法位置」收窄为「全部内联位置」；枚举面多跳过六个容器层的 `x-*`；验伪锚从 8 条扩到 20 条且改为集合相等断言、逐条打印输入与期望、存档收录脚本全文；红绿档多打两条 W4 行；两条长跑在最终 sha 上重跑。全部裁判见上表，**无一项由绿转红**。
+
+**未证明（如实）**：r3 这一轮**没有**独立复核。按协议 §1「不入库的复核不作依据」，本车道不以任何未落盘的自查充当该轮复核；上表裁判是**作者自跑的判据**，不是第三方复核。
 
 ## 八 提交
 
@@ -404,5 +423,9 @@ r3 同样只改 `backend/tests/contract/test_openapi_contract.py` 与文档；`b
 - **地盘门（commit 范围口径）** `territory-postcommit-20260916T200439.txt`：改动文件恰为 `backend/app/security.py` + `backend/openapi.json` + `backend/tests/contract/test_openapi_contract.py`；`main.py` / `system.py` / 两个 conftest / 三个只读 contract 文件 diff 行数**各为 0**；`canvas-vault` 改动 0 行。
   验伪锚（去掉 `':(exclude)_bmad-output'` 后应多出 `_bmad-output/` 路径）= **29**。
   > ⚠️ 该锚第一次读到 **0** 是假阴性：git 对非 ASCII 路径做 C 引号化（`"_bmad-output/\345\256\241…"`），行首锚 `^_bmad-output/` 恒不命中。加 `-c core.quotepath=false` 后读到 29。两个读数同档并列，便于复核者看出这条坑。
-- **r2 commit**：见下方「round-2」小节。
+- **r2 commit**：`76a602c436e25e55c44c690098a4b55ed1f99cfd` —— `fix(contract): 按 Codex r1 收 2 MEDIUM+1 LOW 扩枚举面 [BATCH-2026-09-11-第十四批 / CARD-SEC-DANGLING]`（91 字符）
+- **r3 commit**：`9861c59598ca350ca7df10921744292b0deffb41` —— `fix(contract): 按 Codex r2 收 2 MEDIUM+4 LOW 收窄主张 [BATCH-2026-09-11-第十四批 / CARD-SEC-DANGLING]`（91 字符）
+- **文档尾 commit**：见 git log（只动 `_bmad-output`）。
+- 三个代码相关 commit 各自 header ≤100 且含批次标记与卡号，body 无 >100 字符行；均带存档 `LEFTHOOK_EXCLUDE=python-lint`，⛔ 均未用 `LEFTHOOK_EXCLUDE=python-typecheck`。
+- **squash 提示给主 session**：本卡是**多 commit**（`c5e30cfc` 代码 → `76a602c4` r1 整改 → `9861c595` r2 整改 → 文档尾），按协议 §4「单卡多 commit 用 `cherry-pick --no-commit <range>`」处理。
 - **不 push**（按卡文 (l)）。
