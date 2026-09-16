@@ -332,7 +332,9 @@ def _iter_security_refs(schema):
     (根上的 `x-` 扩展、甚至外部文档)。那种形状下的 security 引用本门看不见。
     对**本仓**不构成缺口的依据是数据而不是推理: 2026-09-16 于本仓快照实测全文 `$ref` 共 736 处
     (`components` 212 / `paths` 524), 但 **Path Item 级 `$ref`(`$.paths.<path>.$ref`) = 0** ——
-    `paths` 下那 524 处全在更深层(operation 的请求/响应 schema 里), 承载不了 Security Requirement;
+    `paths` 下那 524 处全落在 `responses`(430) / `requestBody`(91) / `parameters`(3) **三类
+    operation 子结构**之下(Codex round-4 LOW-2 收窄: 证据只做到这一层, 未再证它们是否更深入到
+    `schema` 内), 都在 operation 层**以下**, 因而承载不了 Security Requirement;
     同批实测无 `webhooks`、`components` 只有 `schemas`/`securitySchemes`、`callbacks` 子树无 `$ref`。
     若将来换生成器或手工拼 spec, 这条限定就是真缺口 —— 届时要么补解析, 要么另立门。
     (顺带: 若同一 Path Item 既被 `components.pathItems` 收录又被 `$ref` 引用, 只有组件定义处

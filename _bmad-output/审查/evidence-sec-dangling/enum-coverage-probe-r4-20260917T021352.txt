@@ -329,3 +329,24 @@ print(f"ALL_PASS = {all(RESULTS)}  ({sum(RESULTS)}/{len(RESULTS)})")
 print(f"分类: 能区分本卡加固 = {_t} 条 | 覆盖性(加固前后都过) = {_f} 条 | 回归锁(真实快照) = {_n} 条"
       f" | 合计 {_t}+{_f}+{_n} = {len(RESULTS)}")
 sys.exit(0 if all(RESULTS) else 1)
+
+# ======================== 【更正】Codex round-4 LOW-3：两处旁注文字写错（判定与期望集合本身无误）========================
+## (1) B5 的旁注「同上」承接错了
+   B5 现在紧跟在 B4 后面，而 B4 已改成「名层是命名映射 ⇒ 不跳 x-*」。B5 测的是**表达式层仍跳**，
+   两者方向相反 ——「同上」会被读成「B5 也是名层修复」。B5 的正确说明应为：
+     「Callback Object 的**表达式**层可挂扩展 ⇒ 跳 x-*；r3 与 r4 在这一层行为**相同**，
+      本条是防退化的覆盖锁，与 B8 同型。」
+
+## (2) B6 的旁注「r3 漏三条」——实为**两条**
+   B6 的期望集合是三条：NamedXPi / RealScheme / NamedXCb2。其中 RealScheme 在 r3 与 r4 下**都会**产出
+   （components.pathItems["pi"] 不以 x- 开头，r3 不跳它）。r3 真正漏掉的只有名字以 x- 开头的那两条：
+     NamedXPi（components.pathItems["x-tmpl"]）与 NamedXCb2（components.callbacks["x-tmpl"]）。
+
+   ⇒ 两处都是**旁注说明文字**的问题；每条用例的**输入、期望集合与 PASS/FAIL 判定本身不受影响**
+      （Codex round-4 原文：「探针期望已改对，但 B5、B6 的说明文字仍有错误」）。
+      本档不改上方原文，按本仓惯例把更正追加于此、保留写错的痕迹。
+
+## (3) 顺带记 Codex round-4 对分类口径的更正（它同意 15/6/1 成立，但指出口径要说清）
+   脚本的 discriminates 口径是「能否区分**本卡某项加固**」（跨 r1→r4 全程），
+   **不是**「能否区分 r3→r4」。按后者口径只有 B4/B6/B7 三条；B8 与 B5 是防退化覆盖锁。
+   Codex 原文：「15 / 6 / 1 分类成立，但不代表 15 条都能区分 r3/r4」。

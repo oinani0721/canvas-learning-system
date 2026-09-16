@@ -260,6 +260,7 @@ Would reformat: backend/app/security.py
 11. **门不解析 `$ref`，故它的覆盖面是「全部**内联**位置」而不是「全部合法位置」**（Codex r2 MEDIUM-1 收窄）。Path Item 与 Callback 都可以写成 `$ref`，目标能落在枚举清单之外（根上的 `x-` 扩展、甚至外部文档），那种形状的悬空本门看不见。对**本仓**不构成缺口的依据是实测而非推理：`ref-distribution-census-20260916T204712.txt` —— 全文 `$ref` 736 处（`components` 212 / `paths` 524），**Path Item 级 `$ref`（`$.paths.<path>.$ref`）= 0**，`paths` 下那 524 处全在更深层（operation 的请求/响应 schema），承载不了 Security Requirement。**换生成器或手工拼 spec 时这就是真缺口。**
 12. **门与模块级 `pytest.importorskip("schemathesis")` 的耦合未解**（Codex r1 LOW-2 / r2 LOW-2）。schemathesis 缺席时，本卡这条非 schemathesis 的静态门会被一并跳过。⚠️ 理由更正：这**不是**技术上做不到（可把可选导入与 `from_asgi` 初始化收进「依赖可用」分支、静态门独立定义在分支外），而是**范围决策** —— 那要改 `:17`–`:19` 与 `:78`–`:85` 这些既有模块级行，卡文 §三 明写「既有 schemathesis 测试一行不动」。留作移交项。
 13. **未证明「整条收集路径无网络行为」，且已实测到反例**。`test_openapi_contract.py:18` 的模块级 `from app.main import app` 不在任何 socket 禁闭内；r3 探针运行时实测该 import 触发了 LiteLLM 对 `raw.githubusercontent.com` 的**真实外联**并 SSL 握手超时（原文见 `enum-coverage-probe-r3-20260916T232823.txt` 运行段首行）。它**不是** 7691/7687（每次跑的 W4 记账仍为 `blocked=0/advisory=0/unaccounted=0`），也**不是本卡引入**（是 `import app.main` 的既有行为，本仓所有测试都走这条路），但它坐实了那条主张必须收窄：本门只主张「断言自身不发 HTTP 请求」+「W4 端口门逐次记账为 0」。
+14. **~~round-3 未经独立复核~~ —— 已解除**。配额于 02:06 恢复后 r3 送审成功（B0/H0/M1/L3），其 MEDIUM-1 又在 r4 修掉并取得 **B0/H0/M0/L3**，绑最终 HEAD ⇒ 卡文 (k) 已闭合、**无需人审替代**。此条保留作过程留痕。⚠️ 仍成立的是**教训**：那次「Sep 19th 才重置」的报错被 1.5 小时后的实测推翻（R-05），接手因限流停下的卡务必先复测。
 
 ---
 
@@ -278,7 +279,7 @@ Would reformat: backend/app/security.py
 11. **移交（建议第十五批立卡）：契约门与 `pytest.importorskip("schemathesis")` 解耦**。现状是 schemathesis 缺席时，同文件里那条**不依赖 schemathesis** 的静态门会被一并跳过。不在本卡修的理由是范围（要动卡文禁改的既有模块级行），不是技术不可能 —— 详见「本卡未证明什么」第 12 条。
 12. **移交（同上）：`$ref` 形态的 Path Item / Callback 在契约门里不可见**。本仓当前实测 Path Item 级 `$ref` = 0 所以不构成缺口；若将来换 OpenAPI 生成器或引入手工拼装的 spec，需要补 `$ref` 解析或另立门。详见「本卡未证明什么」第 11 条。
 13. **观测留档：`import app.main` 会触发 LiteLLM 对公网的 model-cost-map 拉取**（本次实测为 SSL 握手超时后回落本地备份）。非本卡引入、非 7691/7687、不影响任何判据，但它说明本仓测试进程的「无网络」假设对模块级 import 段并不成立。若将来要把测试环境做成真正离线，这是一个已知外联点。
-14. **⛔ round-3 未经独立复核 —— 需主 session 人审**。Codex r3 两次送审均因用量上限产出 0 字节（`codex_rc=1`），按协议 §四「再 0 字节 → 主 session 人审替代，不等配额」处置。**D-15 的合并条件在 r2 即已满足**（绑当时最终 HEAD `76a602c4`，B0/H0），r3 是主动追加的质量整改、改动面只有一个测试文件、全部为收窄主张与加强判据；但这一轮**确实没有第三方复核**，上表裁判是作者自跑的判据。逐条对照口径见 §七 round-3 小节。
+14. **Codex 复核共 4 轮全部落盘**：r1 `B0/H0/M2/L2`（绑 `c5e30cfc`）→ r2 `B0/H0/M2/L4`（绑 `76a602c4`）→ r3 `B0/H0/M1/L3`（绑 `9861c595`）→ **r4 `B0/H0/M0/L3`（绑 `0726057e` = 最终 HEAD 代码）** ⇒ 卡文 (k) 闭合，未触 5 轮上限。四份存档首部均按协议 §2.1 六行、三字段齐、会话头自证抄 `.stderr:2/:5/:9`。⚠️ **r3 抓到的 MEDIUM-1 是我自己在 r3 引入的回归**（`x-*` 跳过被推广到命名映射 ⇒ 漏掉名叫 `x-event` 的真条目），已在 r4 修并加三条对抗用例钉死。
 
 ---
 
@@ -340,8 +341,12 @@ r2 只改 `backend/tests/contract/test_openapi_contract.py`；`backend/app/secur
 | tests/unit 目录级 | `unit-close-r2-20260916T202245.txt` + `close-r2.nodeids` | `35 failed … 29 errors`；对 64 基线 **diff 空**（`diff_rc=0`，`>` 行 0） |
 | ruff / pyright / 收集面 | `r2-final-ruff-pyright-20260916T203640.txt` | `All checks passed!` rc=0；F821 锚 rc=1；`0 errors, 81 warnings`；`91 tests collected` |
 
-> **关于上面两条长跑的适用性（如实；措辞已按 Codex r3 LOW-3 更正）**：`contract-3files-close-r2-…` 与 `unit-close-r2-…` 跑在 `test_openapi_contract.py` 的上一版（sha `9765a69a…`）上，之后该文件又做了 ③ 的 `_as_dict` 加固。
-> ⚠️ 原写法「pytest 不会收集未被点名的路径，故该文件任何内容都不进这两次运行」**过强** —— conftest / `pytest_plugins` / `-p` / 自动加载插件都可能**导入**未被收集的模块，「未收集」推不出「任何内容都不进运行」。正确的说法是：**这两条长跑绑的是尾改前版本；最终版本靠文案等价关系绑定**（见 round-3 的 AST 等价档：去 docstring 后两版 AST 相同，且重建旧版 sha 实测 = 日志所绑 sha）。r3 起两条长跑已直接在最终版本上重跑，此争点不再依赖该推断。
+> **关于上面两条 r2 长跑的适用性（如实；措辞按 Codex r3 LOW-3 / r4 LOW-1 两次更正）**：`contract-3files-close-r2-…` 与 `unit-close-r2-…` 跑在 `test_openapi_contract.py` 的 sha `9765a69a…` 上，之后该文件做了 `_as_dict` **真代码**加固（不是文案改动）。
+> ⚠️ 两处原写法都不成立，逐条更正：
+> 1. 「pytest 不会收集未被点名的路径，故该文件任何内容都不进这两次运行」**过强**（Codex r3 LOW-3）—— conftest / `pytest_plugins` / `-p` / 自动加载插件都可能**导入**未被收集的模块，「未收集」推不出「任何内容都不进运行」。
+> 2. 曾用 round-3 的 docstring 等价证明去给这两条 r2 日志背书 —— **错配**（Codex r4 LOW-1）。那份证明的两端是 `ae32c3c7… → 85e3dd22…`，是 **r3 尾巴**的纯文案改动；它**证明不了** `9765a69a… → 7bbe7d73…` 这一步，因为那一步是真代码加固。
+>
+> **正确口径**：这两条 r2 日志只绑它们自己那一版（`9765a69a…`），**不对更晚的版本背书**。真正在最终版本上的长跑证据是 r3 / r4 各自重跑的那四份（见 round-3、round-4 两表），此争点不再依赖任何推断。
 
 **r2 逐条被取代的存档（留痕，不作依据）**
 
@@ -380,15 +385,15 @@ r2 只改 `backend/tests/contract/test_openapi_contract.py`；`backend/app/secur
 
 r3 同样只改 `backend/tests/contract/test_openapi_contract.py` 与文档；`backend/app/security.py`、`backend/openapi.json` 自 r1 起 sha 全程 `925443dc…` / `9df9f7df…` 未变（Codex r2 已独立复算确认）。
 
-**改动三项 + 两处措辞**：① 新增 `_named_entries()`，在 `paths` / `webhooks` / `components.pathItems` / `components.callbacks` / callback 名层 / callback 表达式层**六个容器层**统一跳过 `x-*` 扩展键（r2 LOW-1）；② docstring 把覆盖面主张从「全部合法位置」收窄为「全部**内联**位置」，并把 `$ref` 不解析写成**已知边界** + 本仓实测依据（r2 MEDIUM-1）；③ 重写验伪锚探针使其可独立复核（r2 MEDIUM-2）。另：红绿档逐阶段打 W4 行（r2 LOW-4）、两条长跑在最终 sha 上重跑（r2 LOW-3）。
+**改动三项 + 两处措辞**：① 新增 `_named_entries()`（⚠️ **r4 已改名为 `_extensible_entries` 并收窄适用面**，见 round-4），在 `paths` / `webhooks` / `components.pathItems` / `components.callbacks` / callback 名层 / callback 表达式层**六个容器层**统一跳过 `x-*` 扩展键（r2 LOW-1）；② docstring 把覆盖面主张从「全部合法位置」收窄为「全部**内联**位置」，并把 `$ref` 不解析写成**已知边界** + 本仓实测依据（r2 MEDIUM-1）；③ 重写验伪锚探针使其可独立复核（r2 MEDIUM-2）。另：红绿档逐阶段打 W4 行（r2 LOW-4）、两条长跑在 `ae32c3c7…` 上重跑（r2 LOW-3；⚠️ 它不是本卡最终版本 —— 之后还有一处 docstring 尾巴，二者的等价关系由下方 AST 档单独证明）。
 
 | 判据 | 存档（全文件名） | 结果 |
 |---|---|---|
 | 枚举面对抗输入台（A5 + B6 + C6 + D2 + E1 = 20 条） | `enum-coverage-probe-r3-20260916T232823.txt`（21931 B，**末尾逐字收录探针全文**） | **20/20 PASS**，`PYTHON_RC=0`；分类由脚本自算并带自洽断言：**能区分本卡加固 15 / 覆盖性 4 / 回归锁 1 = 20** |
 | 先红 / 对照绿 / 负控（**逐阶段** W4 行） | `r3-red-green-negctl-20260916T232904.txt` | 阶段 0 `2 passed` rc=0；阶段 1 rc=1 带 `31 处` + `/system/* 16 处` + `APIKeyHeader`；阶段 2 `2 failed` rc=1；**三阶段 W4 均为 `blocked=0/advisory=0/unaccounted=0`**；跑前跑后三文件 sha 逐字同 |
 | `$ref` 分布实测（M-1 收窄的依据） | `ref-distribution-census-20260916T204712.txt` | `$ref` 736（`components` 212 / `paths` 524）；**Path Item 级 `$ref` = 0**；无 `webhooks`；`components` 只有 `schemas`/`securitySchemes`；`callbacks` 子树 `$ref` = 0；`paths` 下 `x-*` 键 = 0 |
-| contract 三文件（**最终 sha 上重跑**） | `contract-3files-close-r3-20260916T232959.txt` | `2 failed, 75 passed in 218.40s`，`blocked=19/advisory=0/unaccounted=0` |
-| tests/unit 目录级（**最终 sha 上重跑**） | `unit-close-r3-20260916T232959.txt` + `close-r3.nodeids` | `35 failed … 29 errors`；对 64 基线 **diff 空**（`diff_rc=0`，`>` 行 0，close-r3 = 64 条） |
+| contract 三文件（绑 `ae32c3c7…`；与最终版仅差一处 docstring，见下方等价证明） | `contract-3files-close-r3-20260916T232959.txt` | `2 failed, 75 passed in 218.40s`，`blocked=19/advisory=0/unaccounted=0` |
+| tests/unit 目录级（绑 `ae32c3c7…`；同上） | `unit-close-r3-20260916T232959.txt` + `close-r3.nodeids` | `35 failed … 29 errors`；对 64 基线 **diff 空**（`diff_rc=0`，`>` 行 0，close-r3 = 64 条） |
 | ruff / F821 锚 / pyright | `r3-ruff-pyright-20260916T233009.txt` | `All checks passed!` rc=0；锚 rc=1；`0 errors, 81 warnings` |
 | **收尾 docstring 尾巴的等价证明** | `r3-docstring-ast-equivalence-20260916T234342.txt` | 见下 |
 
@@ -433,7 +438,7 @@ prompt 已写好并绑定 r3 commit：`_bmad-output/审查/prompts/codex-prompt-
 
 1. **D-15 的合并条件在 r2 即已满足** —— r2 绑当时的最终 HEAD `76a602c4`，**BLOCKER 0 / HIGH 0**，且 Codex 在该轮独立复算了三个文件 SHA、确认「r1→r2 只改测试文件」、并判定「本轮无需重新生成生产源或快照，推断成立」。
 2. **r3 相对 r2 的改动面**：`git diff 76a602c4 9861c595 -- . ':(exclude)_bmad-output'` **只有 `backend/tests/contract/test_openapi_contract.py` 一个文件**。生产源 `backend/app/security.py` 与快照 `backend/openapi.json` 自 r1 起 sha 全程 `925443dc…` / `9df9f7df…` **未变**（每份 r3 存档首部都带这两个 sha，可逐档核）。⇒ **r3 不可能动摇 r1/r2 已成立的生产语义结论**。
-3. **r3 的全部改动都是「收窄主张 + 加强判据」，没有一项放宽**：主张从「全部合法位置」收窄为「全部内联位置」；枚举面多跳过六个容器层的 `x-*`；验伪锚从 8 条扩到 20 条且改为集合相等断言、逐条打印输入与期望、存档收录脚本全文；红绿档多打两条 W4 行；两条长跑在最终 sha 上重跑。全部裁判见上表，**无一项由绿转红**。
+3. **r3 的全部改动都是「收窄主张 + 加强判据」，没有一项放宽**：主张从「全部合法位置」收窄为「全部内联位置」；枚举面多跳过六个容器层的 `x-*`（⚠️ **这一项后被 r4 推翻**：六层里有四层是命名映射，跳了会漏真引用，见 round-4）；验伪锚从 8 条扩到 20 条且改为集合相等断言、逐条打印输入与期望、存档收录脚本全文；红绿档多打两条 W4 行；两条长跑在 `ae32c3c7…` 上重跑（非最终版本，见上条更正）。全部裁判见上表，**无一项由绿转红**。
 
 **考虑过但未采用的另一条路（决策留痕）**：同批 T7-C 遇到同一配额墙时用的解法是「把代码树回审版化，使 `git diff <审SHA> HEAD` 为空」，从而让上一轮复核绑住最终 HEAD。本卡**不取**该解法，理由是它在这里会产生相反的效果：r3 改的每一项**都是 Codex r2 自己提出、且被采纳的意见**（`x-*` 容器层误计、docstring 主张过强、验伪锚不可独立复核、W4 记账缺两阶段、长跑复用理由过强）。把树回退到 r2 版 = 让 r2 的复核绑住一份**仍带着它自己刚指出的那些缺陷**的代码。⇒ 宁可保留改进、如实标注「该轮未复核」交主 session 裁，也不为了让流程好看而把已确认的缺陷改回去。
 
@@ -452,7 +457,7 @@ prompt 已写好并绑定 r3 commit：`_bmad-output/审查/prompts/codex-prompt-
 | M-1 | MEDIUM | `x-*` 跳过被**推广到命名映射**：`webhooks` / `components.pathItems` / `components.callbacks` / operation 的 `callbacks` 的键是**用户起的名字**，一个叫 `x-event` 的 webhook 是合法名称而非扩展。反例 `webhooks["x-event"].post.security=[{"Missing":[]}]` 会被整个跳过 ⇒ **漏掉真引用**。且探针 **B4/B6 的期望集合跟着写错却仍 PASS** | **采纳并修（r4）**。见下方 round-4 |
 | L-1 | LOW | 「15 条能区分加固」标注不实：B2（`summary`/`parameters` 从 r1 起就被 `isinstance` 跳过）与 C4（旧 `continue` 与新空迭代都产出空集）**无鉴别力**；E1 也不是完整集合比较 | **采纳并修（r4）**：两条标注改 `False`，E 组标题写明它只核数量/声明集/悬空集 |
 | L-2 | LOW | `$ref` 分类主张超出普查档的直接证据；且该档第 2 行仍写「只出现在 components.schemas 侧」，与同档 `paths: 524` 自相矛盾 | **采纳并修（r4）**：普查档追加更正 + 逐路径细分实测（524 = responses 430 / requestBody 91 / parameters 3，无一停在 Path Item 或 operation 层） |
-| L-3 | LOW | 「最终 sha 上重跑」字面不准确（日志绑 `ae32c3c7…`，送审文件 `85e3dd22…`） | **采纳并修（r4）**：措辞改为「尾改前版本重跑，最终版本经文案等价关系绑定」。Codex 本轮**独立逆转**了那处 docstring 尾改并复算 SHA，确认「精确等于日志中的完整 SHA」，判定该争点实质关闭 |
+| L-3 | LOW | 「最终 sha 上重跑」字面不准确（日志绑 `ae32c3c7…`，送审文件 `85e3dd22…`） | **采纳并修（r4）**：r3 表里两行改为直写所绑 sha（`ae32c3c7…`），并指向下方 AST 等价证明；⚠️ 该等价关系**只适用于 r3 的 docstring 尾巴**，不可外推到别的版本步进（r4 LOW-1 又抓到我把它错配给 r2 的长跑，已一并更正）。Codex 本轮**独立逆转**了那处 docstring 尾改并复算 SHA，确认「精确等于日志中的完整 SHA」，判定该争点实质关闭 |
 | L-2(r2) | LOW | 与模块级 `importorskip` 的耦合仍在 | 维持不修，已登记移交（理由已在 r3 更正为范围决策） |
 
 Codex 同轮确认的还有：LOW-4（W4 逐阶段零记账）**已关闭**；MEDIUM-2 的**可独立复核性已关闭**；⑤「r1 起生产源与快照一字未动」**主张成立**（附它自己复算的两个 SHA）；探针脚本全文 SHA 独立复算 `caf15d04…` 与档头一致，`list()` 消费与集合比较均可确认。
@@ -491,7 +496,25 @@ r3 的 MEDIUM-1 是本卡唯一一条**由我自己引入的真回归**：r2→r
 - **B4/B6** 的期望集合改正（此前**写错却仍 PASS**，正是我自己在 r3 prompt ③ 里问的那种情况）；
 - **B8**：Callback 的**表达式**层仍跳 `x-*` —— 与 B4/B6/B7 相反方向，防止有人把两层一起改掉。
 
-### ✅ 用户裁定（2026-09-17）——「维持现状交人审」（已被 r3 成功送审取代）
+### ✅ round-4 结果 —— 卡文 (k) 在此闭合
+
+存档 `codex-review-CARD-SEC-DANGLING-r4.md`，绑定 `0726057e846d4c28f8202ce0ee73f46b486d7ae5`（= r4 代码 commit = 送审时 HEAD；Codex 自述「当前 HEAD 与工作树测试文件一致」）。
+
+**结果：BLOCKER 0 / HIGH 0 / MEDIUM 0 / LOW 3** —— Codex 首句即「**r3 MEDIUM-1 已关闭，未发现本轮新增的代码缺陷**」。
+
+⇒ **卡文 (k)「Codex 多轮直到绑最终 HEAD 的一轮 BLOCKER/HIGH = 0」在 r4 达成**（本卡共 4 轮，未触 5 轮上限）。
+
+Codex 同轮独立复核确认的：四个命名映射在 `:307/:354/:357/:359` 都恢复普通遍历，合法 `x-*` 名称能进枚举；`_as_dict` 与 `_extensible_entries` **无错配**；B4/B6/B7/B8 四条期望集合**均正确**（并给出 r3 vs r4 的逐条产出对照表）；探针脚本全文 SHA 独立复算 `2297b96f…` 与档头一致；⑤「r1 起生产源与快照一字未动」**仍成立**（附它复算的两个 SHA）；r4 的红绿 / ruff / contract / unit 四份日志**均绑当前测试文件的完整 SHA** `85ef982b…`。
+
+**三条 LOW 全是文案不准，无代码缺陷 —— 按 D-32 以纯文案尾巴修掉**
+
+| # | 意见 | 处置 |
+|---|---|---|
+| L-1 | 验收单把 **r3 的 docstring 等价证明**拿去给 **r2 的两条长跑**背书 —— 错配（那份证明的两端是 `ae32c3c7…→85e3dd22…`，而 r2 那一步是 `_as_dict` **真代码**加固）；且多处仍写「最终 sha 上重跑」与「已更正」自相矛盾 | **已修**：r2 长跑段改为「只绑它们自己那一版，不对更晚版本背书」；r3 表两行改为直写所绑 sha `ae32c3c7…`；并标出「等价关系只适用于 r3 的 docstring 尾巴，不可外推」 |
+| L-2 | 源码 docstring 说「524 处全在 operation 的**请求/响应 schema** 里」，但证据只做到「三类 operation 子结构」这一层 | **已修**：docstring 收窄为 `responses`(430) / `requestBody`(91) / `parameters`(3) **三类 operation 子结构**，并写明「未再证它们是否更深入到 `schema` 内」。该改动是纯 docstring，等价证明见 `r4-tail-docstring-ast-equivalence-20260917T023200.txt`（去 docstring 后 AST 相同；验伪锚改一处真代码给出 `False`；**重建旧版 sha 实测 = r4 裁判所绑的 `85ef982b…`**） |
+| L-3 | 探针 B5 的旁注「同上」承接错了（B5 测的是表达式层，与 B4 方向相反）；B6 写「r3 漏三条」实为**两条**（`RealScheme` 两版都产出） | **已修**：`enum-coverage-probe-r4-…txt` 末尾追加更正段（含 Codex 对分类口径的更正：15/6/1 成立，但那是「区分本卡某项加固」的口径，不是「区分 r3/r4」—— 后者只有 B4/B6/B7 三条）。原文保留、更正追加，判定与期望集合本身不受影响 |
+
+### ✅ 用户裁定（2026-09-17）——「维持现状交人审」（已被 r3/r4 成功送审取代）
 
 > ⚠️ 下面这条裁定是在**配额仍耗尽**时做的；02:06 配额恢复、r3 成功送审并达成 B/H = 0 之后，它的前提已不复存在 —— 交人审的那条路径**未被使用**，本卡按正常的 Codex 多轮路径闭合。裁定原文保留作决策留痕。
 
