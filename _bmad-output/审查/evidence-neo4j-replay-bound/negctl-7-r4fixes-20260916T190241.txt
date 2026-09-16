@@ -1,0 +1,68 @@
+=== 变异前 shasum ===
+013164381c49af959011332b2a01ecef1264d1395a59a9ffa615ec06b60dc1dc  backend/app/core/failed_writes_constants.py
+7d6b28e65e4921f1a0deda9843eac6bb81a16f74fed85f8b50e711ac09564406  backend/app/api/v1/endpoints/traces.py
+950a6b2f97e744f5505c84259cecda1cde1b8441fb0f9652c85f1851f0d818ec  backend/tests/unit/test_dead_letter_bounded_t6c.py
+########## H1：checkpoint 探测退回 exists()（吞 EIO/权限）##########
+MUTATED failed_writes_constants.py
+=========================== short test summary info ============================
+FAILED tests/unit/test_dead_letter_bounded_t6c.py::test_checkpoint_probe_failure_stops_rotation
+======================== 1 failed, 4 warnings in 1.43s =========================
+seg[H1]_rc=1  (1 = 门确实红了)
+########## H2：把那条自建 fixture 的隔离摘掉 ##########
+MUTATED test_dead_letter_bounded_t6c.py
+=========================== short test summary info ============================
+FAILED tests/unit/test_dead_letter_bounded_t6c.py::test_every_failed_writes_test_isolates_live_checkpoint
+======================== 1 failed, 4 warnings in 1.48s =========================
+seg[H2]_rc=1  (1 = 门确实红了)
+########## L1：外层捕获面收回 OSError（深嵌套 JSON 只有它能接）##########
+MUTATED failed_writes_constants.py
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================== 1 passed, 4 warnings in 1.44s =========================
+seg[L1]_rc=0  (1 = 门确实红了)
+########## L2：ASCII 退路改成丢掉其余游标的值 ##########
+MUTATED failed_writes_constants.py
+=========================== short test summary info ============================
+FAILED tests/unit/test_dead_letter_bounded_t6c.py::test_unencodable_sibling_key_keeps_other_cursors
+======================== 1 failed, 4 warnings in 1.42s =========================
+seg[L2]_rc=1  (1 = 门确实红了)
+########## L3：读取改成循环小块拼接（单次小、累计大）##########
+MUTATED traces.py
+=========================== short test summary info ============================
+FAILED tests/unit/test_traces_backlog_t6c.py::test_scan_total_bytes_read_is_bounded_not_just_single_read
+======================== 1 failed, 4 warnings in 1.45s =========================
+seg[L3]_rc=1  (1 = 门确实红了)
+########## L4：真实读失败分支改成不报原因 ##########
+MUTATED traces.py
+=========================== short test summary info ============================
+FAILED tests/unit/test_traces_backlog_t6c.py::test_real_read_failure_produces_degraded_label
+======================== 1 failed, 4 warnings in 1.43s =========================
+seg[L4]_rc=1  (1 = 门确实红了)
+########## L5：切行退回 splitlines()（U+2028 会切碎记录）##########
+MUTATED traces.py
+=========================== short test summary info ============================
+FAILED tests/unit/test_traces_backlog_t6c.py::test_u2028_in_timestamp_does_not_split_the_record
+======================== 1 failed, 4 warnings in 1.11s =========================
+seg[L5]_rc=1  (1 = 门确实红了)
+########## L6：去掉深度闸 ##########
+MUTATED traces.py
+=========================== short test summary info ============================
+FAILED tests/unit/test_traces_backlog_t6c.py::test_display_path_depth_cap_is_exercised
+======================== 1 failed, 4 warnings in 1.09s =========================
+seg[L6]_rc=1  (1 = 门确实红了)
+=== EXIT trap 还原后 ===
+013164381c49af959011332b2a01ecef1264d1395a59a9ffa615ec06b60dc1dc  backend/app/core/failed_writes_constants.py
+7d6b28e65e4921f1a0deda9843eac6bb81a16f74fed85f8b50e711ac09564406  backend/app/api/v1/endpoints/traces.py
+950a6b2f97e744f5505c84259cecda1cde1b8441fb0f9652c85f1851f0d818ec  backend/tests/unit/test_dead_letter_bounded_t6c.py
+RESTORE_VERIFIED=yes
+=== 变异前 ===
+013164381c49af959011332b2a01ecef1264d1395a59a9ffa615ec06b60dc1dc  backend/app/core/failed_writes_constants.py
+MUTATED: 外层捕获面收回 OSError
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_dead_letter_bounded_t6c.py::test_invalidate_checkpoint_never_raises
+======================== 1 failed, 4 warnings in 1.11s =========================
+seg[L1-redo]_rc=1  (1 = 门确实红了)
+=== 还原后 ===
+013164381c49af959011332b2a01ecef1264d1395a59a9ffa615ec06b60dc1dc  backend/app/core/failed_writes_constants.py
+RESTORE_VERIFIED=yes

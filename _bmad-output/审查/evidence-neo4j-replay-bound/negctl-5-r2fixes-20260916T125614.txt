@@ -1,0 +1,62 @@
+=== 变异前 shasum ===
+ff445d898d111a8417a7cce173eac85bfcac705a9466dd2d9a2027cb00780167  backend/app/core/failure_counters.py
+f40a7bab74cdaaf9957edbf2fdbba9933243f57ab8972c45162a6f02dae81be6  backend/app/core/failed_writes_constants.py
+6a348f7f599d2a055eaeb2e9ba4b4e183c7f946343555955ba6e6e302c851d3e  backend/app/api/v1/endpoints/traces.py
+########## H1：去掉「换代前作废游标」 ##########
+MUTATED failed_writes_constants.py
+=========================== short test summary info ============================
+FAILED tests/unit/test_dead_letter_bounded_t6c.py::test_rotation_invalidates_stale_replay_checkpoint
+======================== 1 failed, 4 warnings in 0.86s =========================
+seg[H1]_rc=1  (1 = 门确实红了)
+########## H1b：前置动作失败时照样轮转 ##########
+MUTATED failure_counters.py
+=========================== short test summary info ============================
+FAILED tests/unit/test_dead_letter_bounded_t6c.py::test_rotation_is_skipped_when_checkpoint_cannot_be_cleared
+======================== 1 failed, 4 warnings in 1.56s =========================
+seg[H1b]_rc=1  (1 = 门确实红了)
+########## M1：count_lines 退回 exists() 吞权限 ##########
+MUTATED failure_counters.py
+=========================== short test summary info ============================
+FAILED tests/unit/test_dead_letter_bounded_t6c.py::test_count_lines_does_not_swallow_permission_error
+======================== 1 failed, 4 warnings in 1.07s =========================
+seg[M1]_rc=1  (1 = 门确实红了)
+########## M2：去掉 UTF-8 清洗 ##########
+MUTATED traces.py
+=========================== short test summary info ============================
+FAILED tests/unit/test_traces_backlog_t6c.py::test_lone_surrogate_timestamp_does_not_500_the_route
+======================== 1 failed, 4 warnings in 1.04s =========================
+seg[M2]_rc=1  (1 = 门确实红了)
+########## M3：去掉读取期字节预算 ##########
+MUTATED traces.py
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================== 1 passed, 4 warnings in 0.94s =========================
+seg[M3]_rc=0  (1 = 门确实红了)
+########## L1：兜底分隔符退回  ##########
+MUTATED failure_counters.py
+=========================== short test summary info ============================
+FAILED tests/unit/test_dead_letter_bounded_t6c.py::test_collision_fallback_still_sorts_last
+======================== 1 failed, 4 warnings in 0.87s =========================
+seg[L1]_rc=1  (1 = 门确实红了)
+########## L3：_display_path 去掉退化锚点保护 ##########
+MUTATED traces.py
+=========================== short test summary info ============================
+FAILED tests/unit/test_traces_backlog_t6c.py::test_display_path_does_not_leak_absolute_when_anchor_is_root
+======================== 1 failed, 4 warnings in 1.06s =========================
+seg[L3]_rc=1  (1 = 门确实红了)
+=== EXIT trap 还原后 shasum ===
+ff445d898d111a8417a7cce173eac85bfcac705a9466dd2d9a2027cb00780167  backend/app/core/failure_counters.py
+f40a7bab74cdaaf9957edbf2fdbba9933243f57ab8972c45162a6f02dae81be6  backend/app/core/failed_writes_constants.py
+6a348f7f599d2a055eaeb2e9ba4b4e183c7f946343555955ba6e6e302c851d3e  backend/app/api/v1/endpoints/traces.py
+RESTORE_VERIFIED=yes (3 文件逐字节同)
+=== 变异前 ===
+6a348f7f599d2a055eaeb2e9ba4b4e183c7f946343555955ba6e6e302c851d3e  backend/app/api/v1/endpoints/traces.py
+MUTATED: 去掉读取期字节预算
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_traces_backlog_t6c.py::test_scan_budget_stops_midway_when_file_grows_after_stat
+======================== 1 failed, 4 warnings in 1.04s =========================
+seg[M3-redo]_rc=1  (1 = 门确实红了)
+=== 还原后 ===
+6a348f7f599d2a055eaeb2e9ba4b4e183c7f946343555955ba6e6e302c851d3e  backend/app/api/v1/endpoints/traces.py
+RESTORE_VERIFIED=yes
