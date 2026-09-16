@@ -63,7 +63,7 @@ SEGMENTS = [
         '    return d.isoformat() if d is not None else ""',
         '    return "1999-01-01" if d is not None else ""  # NEGCTL',
         MAIN,
-        "字段=done 面=review_overview",
+        "G68DIFF|face=review_overview|field=done",
         "完成账的「今天」与 picker 的 payload['date'] 同一条换算",
     ),
     (
@@ -74,7 +74,7 @@ SEGMENTS = [
         '        "generated_at": now.isoformat(timespec="seconds"),',
         '        "generated_at": "1999-01-01T00:00:00+08:00",  # NEGCTL',
         MAIN,
-        "字段=display_day 面=review_overview",
+        "G68DIFF|face=review_overview|field=display_day",
         "总览页对外报的「此刻」与其余面的今天同一条换算",
     ),
     (
@@ -97,7 +97,7 @@ SEGMENTS = [
         '        "bucket_rows": {**bucket_rows, "new": bucket_rows["learning_queue"],'
         ' "learning_queue": bucket_rows["new"]},  # NEGCTL',
         MAIN,
-        "字段=bucket 面=review_overview",
+        "G68DIFF|face=review_overview|field=bucket",
         "桶位身份（哪块板在哪个桶）跨面相等, 等长替换也必须判红",
     ),
     # ── ② review_app ─────────────────────────────────────────────────
@@ -129,7 +129,7 @@ SEGMENTS = [
         '    day = payload["date"]',
         '    day = "1999-01-01"  # NEGCTL',
         MAIN,
-        "字段=display_day 面=picker",
+        "G68DIFF|face=picker|field=display_day",
         "picker 这一面真的进了矩阵（提取层读错值必被抓）",
     ),
     # ── ④ 两个 skill 脚本 ────────────────────────────────────────────
@@ -158,7 +158,7 @@ SEGMENTS = [
         "    day = noti_id[len(_NOTI_ID_PREFIX) :]",
         '    day = "1999-01-01"  # NEGCTL',
         MAIN,
-        "字段=display_day 面=notification",
+        "G68DIFF|face=notification|field=display_day",
         "推送 payload 这一面真的进了矩阵",
     ),
     # ── Codex r1 的四组对照输入 —— 当轮全部**未被拦下**, 修复后必须各自判红 ──
@@ -170,7 +170,7 @@ SEGMENTS = [
         '    noti = payload.get("notification")',
         "    noti = None  # NEGCTL",
         MAIN,
-        "面=notification",
+        "G68DIFF|face=notification",
         "声明产出方缺值必须判红, 不许用 NOT_PRODUCED 静默退出比较",
     ),
     (
@@ -181,7 +181,7 @@ SEGMENTS = [
         '            return day if len(day) == 10 and day.count("-") == 2 else MISSING',
         '            return "2099-01-01"  # NEGCTL',
         MAIN,
-        "面=skill_inbox",
+        "G68DIFF|face=skill_inbox",
         "已登记分歧是「那一种已知取值」, 不是「那一格随便怎么错都行」",
     ),
     (
@@ -215,7 +215,7 @@ SEGMENTS = [
         '        "date": date_v,',
         '        "date": "1970-01-01",  # NEGCTL',
         MAIN,
-        "字段=projection_day 面=review_overview",
+        "G68DIFF|face=review_overview|field=projection_day",
         "消费方复述生产者的日期时走样必须判红（该列绑响应, 不是现算）",
     ),
     # ── Codex r2 的对照输入 —— 当轮全部**未被拦下**, 修复后必须各自判红 ──
@@ -237,7 +237,7 @@ SEGMENTS = [
         "def main() -> int:",
         "def main() -> int:\n    return 0  # NEGCTL 提前返回, 零产物",
         MAIN,
-        "面=skill_inbox",
+        "G68DIFF|face=skill_inbox",
         "inbox 这一列绑的是它真实入口的产物, 入口不产出即判红",
     ),
     (
@@ -269,8 +269,8 @@ SEGMENTS = [
         "        recommended = ranked_boards[0] if ranked_boards else None",
         "        recommended = ranked_boards[-1] if ranked_boards else None  # NEGCTL",
         MAIN,
-        "不是 picker 当前的推荐板",
-        "推送点名的板必须正是 ranked[0], 不是「随便哪块认识的板」",
+        "不等于生产器对当前推荐板",
+        "推送标题必须等于生产器对 ranked[0] 应产出的那一串（r4 起判据改重建法, 锚已跟改）",
     ),
     # ── Codex r3 的对照输入 —— 当轮全部**未被拦下**, 修复后必须各自判红 ──
     (
@@ -333,11 +333,11 @@ SEGMENTS = [
         # r3 MEDIUM-6: 任意短前缀被认作通知点名。
         "R3M6_SHORT_PREFIX",
         SCRIPT,
-        '            named = noti_title.split("·", 1)[-1].strip()',
-        '            named = "板"  # NEGCTL',
+        "    return day, title if isinstance(title, str) else None",
+        '    return day, "📚 今日复习 · 板" + "…" * 6  # NEGCTL 拼一个「看起来像截断」的短前缀标题',
         MAIN,
-        "不是 picker 当前的推荐板",
-        "前缀只在**真实截断形态**下才算数, 任意短前缀不算点名",
+        "不等于生产器对当前推荐板",
+        "标题按生产器 _title() 重建逐字相等 —— 重复省略号拼出的短前缀不算点名",
     ),
     (
         # MISSING 路径本身的负控: 节点身份锚上线后, 前两段的红点迁走了, 这条路径
@@ -349,6 +349,63 @@ SEGMENTS = [
         MAIN,
         "该面声称产出却缺了这块板",
         "声明产出方在某块板上没有值 ⇒ MISSING ⇒ 判红",
+    ),
+    # ── Codex r4 的对照输入 —— 当轮全部**未被拦下**, 修复后必须各自判红 ──
+    (
+        # r4 HIGH-1: `r"\bfsrs_due\b"` 里字段名紧邻字母 b, 词边界规则失效。
+        "R4H1_BOUNDARY_REGEX",
+        APP,
+        "review_app_router = APIRouter()",
+        "review_app_router = APIRouter()\n\n\n"
+        "def _negctl_boundary_due(raw):  # NEGCTL\n"
+        "    import re as _re\n"
+        '    return _re.search(r"\\bfsrs_due\\b: *(.*)$", raw, _re.M)',
+        APPGATE,
+        "独立 due 算法",
+        "正则源码里字段名紧邻字母时仍算读取（白名单式判据, 不靠边界规则）",
+    ),
+    (
+        # r4 HIGH-2: 页面模板里加一处自判到期的 JS —— 身份豁免原先只看赋值名在不在。
+        "R4H2_TEMPLATE_JS_DUE",
+        APP,
+        "const due = humanizeDue(n.fsrs_due, nowMs);",
+        "const due = humanizeDue(n.fsrs_due, nowMs);\n"
+        "const negctlDue = rows.filter(r => Date.parse(r.fsrs_due) <= nowMs);",
+        APPGATE,
+        "碰 due 字段的调用点变了",
+        "模板里碰 due 的调用点按身份冻结 —— 多一处就要人判它还算不算纯消费",
+    ),
+    (
+        # r4 MEDIUM-4: 形参名不进赋值检查, 函数体里读它又被模块级同名 import 豁免。
+        "R4M4_PARAM_SHADOW",
+        APP,
+        "review_app_router = APIRouter()",
+        "review_app_router = APIRouter()\n\n\n"
+        'def _negctl_shadow(_BUCKET_ORDER=("future", "new")):  # NEGCTL\n'
+        "    return list(_BUCKET_ORDER)",
+        APPGATE,
+        "独立 due 算法",
+        "形参遮蔽同名 import 同样算自造（ast.arg 也在射程内）",
+    ),
+    (
+        # r4 MEDIUM-5: 「它本该排首位」这个前提原先是假设的, 漂移了也没人知道。
+        "R4M5_PREMISE_DRIFT",
+        SCRIPT,
+        'FIXTURE_SNOOZED_BOARD = "板-到期"',
+        'FIXTURE_SNOOZED_BOARD = "板-新卡"  # NEGCTL 换一块本来就不在首位的板',
+        MAIN,
+        "fixture 前提已漂移",
+        "「推迟让出首位」的参照必须实跑验证, 前提不成立要当场说",
+    ),
+    (
+        # r4 MEDIUM-3: 节点锚与提取层同步缩减, 子集对账两边都过。
+        "R4M3_NODE_ANCHOR_SHRINK",
+        SCRIPT,
+        '        ("板-到期", "规范到期"),',
+        '        # ("板-到期", "规范到期"),  # NEGCTL 锚里漏报一个节点',
+        MAIN,
+        "与 fixture 脱钩",
+        "节点锚**漏报**也要抓到（对账是相等不是子集）",
     ),
 ]
 

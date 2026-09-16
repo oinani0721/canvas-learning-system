@@ -61,8 +61,12 @@ def test_five_view_matrix_is_field_wise_consistent(tmp_path):
     rc, report, _, err = _run(tmp_path)
     assert report["undeclared_divergences"] == [], (
         "五面出现未登记的口径分歧:\n"
+        # ⛔ 每行带**结构化判据码**（Codex r4 MEDIUM-7）: 负控的文本锚绑在这个码上,
+        #    而不是「面=picker」这类人话 —— 被测模块的诊断输出经 stderr / 断言消息
+        #    回流后也会带 `E ` 前缀与字段名字样, 拿人话当锚就分不清「门抓到了」和
+        #    「日志里恰好有这个词」。这串码只有本判据会产出。
         + "\n".join(
-            f"  板={r['board']} 字段={r['field']} 面={r['face']} "
+            f"  {contract.diff_code(r)} 板={r['board']} 字段={r['field']} 面={r['face']} "
             f"值={r['value']} ≠ 多数派{r['majority_faces']}={r['majority_value']}"
             for r in report["undeclared_divergences"]
         )
@@ -344,6 +348,13 @@ def test_review_app_static_gate_catches_a_bare_due_calculation(tmp_path):
         ),
         pytest.param('def _d(n, key="fsrs_due"):\n    return n.get(key)\n', id="默认参数"),
         pytest.param('def _d(n):\n    return getattr(n, "fsrs_state", None)\n', id="getattr"),
+        # ── Codex r4: 边界规则失效的正则 / 形参遮蔽 / bytes 字面量 ──
+        pytest.param(
+            'import re as _r\n\ndef _d(raw):\n    return _r.search(r"\\bfsrs_due\\b: *(.*)$", raw, _r.M)\n',
+            id="边界正则",
+        ),
+        pytest.param('def _d(_BUCKET_ORDER=("future", "new")):\n    return list(_BUCKET_ORDER)\n', id="形参遮蔽"),
+        pytest.param('def _d(raw):\n    return raw.split(b"fsrs_due")\n', id="bytes字面量"),
     ],
 )
 def test_review_app_gate_catches_dict_key_due_reads(tmp_path, injected):
@@ -358,6 +369,52 @@ def test_review_app_gate_catches_dict_key_due_reads(tmp_path, injected):
     tainted.write_text(src + "\n\n" + injected, encoding="utf-8")
     with pytest.raises(contract.ContractError, match="独立 due 算法"):
         contract.assert_review_app_has_no_due_algorithm(tainted)
+
+
+def test_template_due_callsites_are_frozen_by_identity(tmp_path):
+    """页面模板里碰 due 字段的调用点按**身份冻结**；多一处必须红。
+
+    ⛔ Codex r4 HIGH-2 的处置, 连同它的**覆盖面上限**一并钉住: 这道检查
+    **不声称**模板里的 JS 是纯消费方 —— 同一个标识符既能用于把到期时刻渲染成人话,
+    也能用于自造到期判定, 区分靠语义, 而 JS 的语义在 Python AST 门的射程之外。
+    它声称的是「这些调用点没有变过」。
+    """
+    app = WT / "backend" / "app" / "api" / "v1" / "endpoints" / "review_app.py"
+    result = contract.assert_review_app_has_no_due_algorithm(app)
+    assert set(result["template_due_callsites"]) == set(contract._TEMPLATE_DUE_CALLSITES)
+    # 现状就是两处「渲染成人话」的调用, 写死在这里让它可见
+    assert result["template_due_callsites"] == [
+        "const due = humanizeDue(n.fsrs_due, nowMs);",
+        "const due = humanizeDue(r.fsrs_due, nowMs);",
+    ]
+
+    tainted = tmp_path / "review_app_js_due.py"
+    tainted.write_text(
+        app.read_text(encoding="utf-8").replace(
+            "const due = humanizeDue(n.fsrs_due, nowMs);",
+            "const due = humanizeDue(n.fsrs_due, nowMs);\n"
+            "const negctlDue = rows.filter(r => Date.parse(r.fsrs_due) <= nowMs);",
+            1,
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(contract.ContractError, match="碰 due 字段的调用点变了"):
+        contract.assert_review_app_has_no_due_algorithm(tainted)
+
+
+def test_function_docstring_mentioning_due_is_not_an_offender(tmp_path):
+    """普通函数的**说明文字**里提到 due 字段不算违约（它在描述不做什么）。
+
+    ⛔ Codex r4 LOW-9: 原先只豁免模块 docstring, 于是一个诚实的函数注释会被误红。
+    """
+    app = WT / "backend" / "app" / "api" / "v1" / "endpoints" / "review_app.py"
+    ok = tmp_path / "review_app_doc.py"
+    ok.write_text(
+        app.read_text(encoding="utf-8")
+        + '\n\ndef _negctl_doc():\n    """显示投影里的 fsrs_due 字段, 不计算到期。"""\n    return None\n',
+        encoding="utf-8",
+    )
+    contract.assert_review_app_has_no_due_algorithm(ok)  # 不抛
 
 
 def test_shared_order_placeholder_is_not_an_offender():

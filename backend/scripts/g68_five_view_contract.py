@@ -281,6 +281,11 @@ def check_ranked_yield_partition(
     #    先前只要求「点名的那几块在场」, 于是把队列砍到只剩让位板仍然全过 ——
     #    分区条件在那种队列上退化成恒真。少一块 = 让位判定对它空转; 多一块 =
     #    队列里混进了不该在的板。两侧都要说话。
+    # ⛔ 队列不许有重复项（Codex r4 LOW-8）: 集合相等对 `[A, A, B]` 无感,
+    #    而「队列完整」这个说法里本来就含「每块板恰好一次」。
+    if len(boards) != len(set(boards)):
+        _dup = sorted({b for b in boards if boards.count(b) > 1})
+        raise ContractError(f"picker 的 ranked 出现重复板: {_dup} —— 集合相等看不出重复, 但队列本该每板恰好一次")
     if require_exact_boards is not None and set(boards) != require_exact_boards:
         raise ContractError(
             f"picker 的 ranked 板集合与期望不符: 少了 {sorted(require_exact_boards - set(boards))}, "
@@ -333,15 +338,24 @@ def face_picker(picker, vault: Path, now: datetime, board_done: dict, snoozed: d
     #    重算, 于是「把 snoozed 清空」与「让位生效」在矩阵里无法区分。这里用一条
     #    **独立期望**钉死: fixture 推迟的是一块本该排首位的板, 那它就不该在首位。
     ranked_boards_now = [r["board"] for r in ranked]
-    if (
-        FIXTURE_SNOOZED_BOARD in snoozed
-        and len(set(ranked_boards_now)) > 1
-        and ranked_boards_now[0] == FIXTURE_SNOOZED_BOARD
-    ):
-        raise ContractError(
-            f"被推迟的板 {FIXTURE_SNOOZED_BOARD!r} 仍排在 ranked 首位 —— snooze 没有被消费; "
-            f"ranked 板序={ranked_boards_now}"
+    if FIXTURE_SNOOZED_BOARD in snoozed and len(set(ranked_boards_now)) > 1:
+        # ⛔ 「它本该排首位」这个前提必须**实跑验证**, 不能假设（Codex r4 MEDIUM-5）:
+        #    fixture 的排序会随别的改动漂移, 前提一旦不成立, 下面那条判据就退化成恒真
+        #    而没人知道。跑一次**无推迟**的对照, 拿它的首位来当参照。
+        _ctrl_payload, _ctrl_ranked = picker.build_payload(
+            vault, now, {}, picker.load_decay(vault), board_done=board_done, snoozed={}
         )
+        _ctrl_first = _ctrl_ranked[0]["board"] if _ctrl_ranked else None
+        if _ctrl_first != FIXTURE_SNOOZED_BOARD:
+            raise ContractError(
+                f"fixture 前提已漂移: 无推迟时 ranked 首位是 {_ctrl_first!r}, 不是被推迟的 "
+                f"{FIXTURE_SNOOZED_BOARD!r} —— 「推迟让出首位」这条判据失去参照, 换一块板再推迟"
+            )
+        if ranked_boards_now[0] == FIXTURE_SNOOZED_BOARD:
+            raise ContractError(
+                f"被推迟的板 {FIXTURE_SNOOZED_BOARD!r} 仍排在 ranked 首位 —— snooze 没有被消费; "
+                f"ranked 板序={ranked_boards_now}（无推迟对照的首位也是它, 说明推迟完全没生效）"
+            )
     conclusions = {
         board: {
             "bucket": rows,
@@ -412,6 +426,29 @@ _APP_SHARED_IMPORTS = ("_BUCKET_CN", "_BUCKET_ORDER", "_DONE_NOTE", "_SNOOZE_NOT
 #: 的射程内。名单里的名字若不在了, 门会当场抛 —— 豁免边界变了必须有人重判。
 _EXEMPT_STRING_NAMES = ("_PAGE_TEMPLATE",)
 
+#: review_app 里**允许**含 due 标识符的字符串常量, 按身份逐条列出。
+#: ⛔ 不用「词边界」之类的启发式（Codex r4 HIGH-1）: `r"\bfsrs_due\b: …"` 这种正则源码
+#: 里字段名紧邻字母 `b`, 任何边界规则都失效。改成**白名单**: 只有这几个确切的串
+#: 允许含标识符, 其余含 due 标识符的字符串一律违约。新增一个就得在这里写一行 ——
+#: 那是一个看得见的动作。
+_ALLOWED_MARKER_STRINGS = ("__BUCKET_ORDER_JSON__",)
+
+#: 页面模板里**碰 due 字段的那几行**, 按身份冻结。
+#:
+#: ⛔ 这道门**不声称**「模板里的 JS 是纯消费方」（Codex r4 HIGH-2）: 同一个标识符
+#: 既出现在合法消费（把到期时刻渲染成人话）也能出现在自造到期判定里, 区分它们靠的是
+#: **语义**, 而 JS 的语义在 Python AST 门的射程之外。四轮下来每补一个语法特例就来一种
+#: 新写法 —— 那是「开放式判据」, 不会收敛。
+#:
+#: 门改为声称一件**可判定**的事: 模板里碰 due 字段的调用点集合**没有变过**。
+#: 变了就红, 由人判新的那一处还算不算纯消费。覆盖面上限如实写在验收单。
+_TEMPLATE_DUE_CALLSITES = frozenset(
+    {
+        "const due = humanizeDue(n.fsrs_due, nowMs);",
+        "const due = humanizeDue(r.fsrs_due, nowMs);",
+    }
+)
+
 #: 「自造 due 算法」的词法特征 —— 出现在 review_app 自己定义的函数体里即违约。
 _DUE_ALGO_MARKERS = (
     "_BUCKET_ORDER",  # 只许 import, 不许在本文件里重新赋值
@@ -478,9 +515,16 @@ def assert_review_app_has_no_due_algorithm(app_path: Path) -> dict:
     #   判据都拦不住。本门拦的是「照常写出来」的读法, 不是刻意的混淆。
     exempt_nodes: set[int] = set()
     docstring = ast.get_docstring(tree, clean=False)
+    # ⛔ **所有** docstring 都豁免, 不只是模块级（Codex r4 LOW-9）: 一个普通函数的
+    #    说明文字里写「显示投影里的 fsrs_due 字段, 不计算到期」会被误红 ——
+    #    那是在描述它**不做**什么, 不是在做。
+    for holder in ast.walk(tree):
+        if isinstance(holder, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            body = getattr(holder, "body", [])
+            if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant):
+                if isinstance(body[0].value.value, str):
+                    exempt_nodes.add(id(body[0].value))
     for node in tree.body:
-        if isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant) and node.value.value == docstring:
-            exempt_nodes.add(id(node.value))
         if isinstance(node, ast.Assign) and isinstance(node.value, ast.Constant):
             if any(isinstance(t, ast.Name) and t.id in _EXEMPT_STRING_NAMES for t in node.targets):
                 exempt_nodes.add(id(node.value))
@@ -511,20 +555,25 @@ def assert_review_app_has_no_due_algorithm(app_path: Path) -> dict:
         elif isinstance(node, ast.Name) and node.id in _DUE_ALGO_MARKERS and isinstance(node.ctx, ast.Load):
             if node.id not in imported:
                 reads.add(node.id)
-        elif isinstance(node, ast.Constant) and isinstance(node.value, str):
+        elif isinstance(node, ast.Constant) and isinstance(node.value, (str, bytes)):
             if id(node) in exempt_nodes:
                 continue
+            text = node.value.decode("utf-8", "replace") if isinstance(node.value, bytes) else node.value
+            # ⛔ **裸包含 + 身份白名单**, 不用词边界（Codex r4 HIGH-1）: `r"\bfsrs_due\b"`
+            #    这种正则源码里字段名紧邻字母 `b`, 任何边界规则都失效。白名单只放过
+            #    确切的几个串（见 `_ALLOWED_MARKER_STRINGS`）, 其余含标识符的一律违约。
+            if text in _ALLOWED_MARKER_STRINGS:
+                continue
             for marker in _DUE_ALGO_MARKERS:
-                # ⛔ **词边界**匹配, 不是裸包含: review_app 用 `__BUCKET_ORDER_JSON__`
-                #    这个占位符把共享桶序注进页面模板 —— 那恰恰是「共享不复制」的
-                #    体现, 裸包含会把它误报成违约。词边界既放过这个占位符
-                #    （两侧都是 `_`, 不构成边界）, 又抓得住 `"^fsrs_due: *(.*)$"`
-                #    这种正则读法（`^` 与 `:` 都是非词字符）。
-                if re.search(rf"\b{re.escape(marker)}\b", node.value):
+                if marker in text:
                     reads.add(marker)
         elif isinstance(node, ast.MatchClass):
             reads |= {a for a in (node.kwd_attrs or []) if a in _DUE_ALGO_MARKERS}
         elif isinstance(node, ast.keyword) and node.arg in _DUE_ALGO_MARKERS:
+            reads.add(node.arg)
+        # ⛔ 形参名也算（Codex r4 MEDIUM-4）: `def f(_BUCKET_ORDER=("future","new"))`
+        #    ——形参在 `ast.arg`, 不进赋值检查; 函数体里读它又被模块级同名 import 豁免。
+        elif isinstance(node, ast.arg) and node.arg in _DUE_ALGO_MARKERS:
             reads.add(node.arg)
     offenders += sorted(reads - set(offenders))
     if offenders:
@@ -532,9 +581,39 @@ def assert_review_app_has_no_due_algorithm(app_path: Path) -> dict:
             f"review_app 出现独立 due 算法的迹象（在可执行代码里定义/读取 {offenders}）—— "
             "它必须是 /overview 投影的纯消费方"
         )
+
+    # ── 页面模板里碰 due 字段的调用点: **按身份冻结**（Codex r4 HIGH-2）──────
+    # ⛔ 这道检查**不声称**模板里的 JS 是纯消费方 —— 同一个标识符既能用于把到期时刻
+    #    渲染成人话（现状: `humanizeDue(n.fsrs_due, nowMs)`）, 也能用于自造到期判定
+    #    （`rows[b].filter(r => Date.parse(r.fsrs_due) <= nowMs)`）, 区分靠语义, 而
+    #    JS 的语义在 Python AST 门的射程之外。它声称的是一件**可判定**的事:
+    #    这些调用点**没有变过**。变了就红, 由人判新的那一处还算不算纯消费。
+    template = next(
+        (
+            n.value.value
+            for n in tree.body
+            if isinstance(n, ast.Assign)
+            and isinstance(n.value, ast.Constant)
+            and isinstance(n.value.value, str)
+            and any(isinstance(t, ast.Name) and t.id == "_PAGE_TEMPLATE" for t in n.targets)
+        ),
+        "",
+    )
+    template_sites = {
+        ln.strip() for ln in template.splitlines() if any(m in ln for m in ("fsrs_due", "due_reason", "fsrs_state"))
+    }
+    if template_sites != _TEMPLATE_DUE_CALLSITES:
+        raise ContractError(
+            "页面模板里碰 due 字段的调用点变了（该集合按身份冻结, 不是「JS 是纯消费方」的证明）: "
+            f"新增 {sorted(template_sites - _TEMPLATE_DUE_CALLSITES)}; "
+            f"消失 {sorted(_TEMPLATE_DUE_CALLSITES - template_sites)} —— 需人判新的那一处是否仍是纯消费"
+        )
+
     return {
         "imported_shared": sorted(imported & set(_APP_SHARED_IMPORTS)),
         "offenders": [],
+        # 模板里被冻结的 due 调用点 —— 摊开可见, 免得这条豁免变成暗门。
+        "template_due_callsites": sorted(template_sites),
         # 被豁免的那几个字符串常量（名字 + 长度）—— 摊开写出来, 免得豁免变成暗门。
         "exempted_strings": sorted(exempted),
         "docstring_len": len(docstring or ""),
@@ -839,6 +918,18 @@ def diff_matrix(matrix: dict, ctx: dict | None = None) -> tuple[list[dict], list
 # ─────────────────────────────────── 主流程 ───────────────────────────────────
 
 
+#: 判据码前缀 —— 只有本契约的分歧行会产出这串。
+#: ⛔ 负控的文本锚必须绑在**这个码**上而不是人话字段名（Codex r4 MEDIUM-7）:
+#: 被测模块的诊断输出经 stderr / 断言消息回流后也会带上 `E ` 前缀与 `snoozed`
+#: 这类字样, 拿人话当锚就分不清「门抓到了」和「日志里恰好有这个词」。
+DIFF_CODE_PREFIX = "G68DIFF"
+
+
+def diff_code(row: dict) -> str:
+    """一条分歧的机器可读身份: `G68DIFF|face=…|field=…`。"""
+    return f"{DIFF_CODE_PREFIX}|face={row['face']}|field={row['field']}"
+
+
 def _parse_now(raw: str) -> datetime:
     try:
         dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
@@ -906,10 +997,17 @@ def run(now_raw: str, tz_name: str, out_json: Path | None, keep: bool) -> int:
             for line in md.splitlines()
             if "原白板/" in line
         }
-        if not FIXTURE_BUCKET_NODES <= _declared_pairs:
+        # ⛔ 节点锚也要**相等**对账（Codex r3 MEDIUM-3 → r4 MEDIUM-3）: `<=` 只抓多报,
+        #    「从锚里删一个节点、同时让提取层也不返回它」两边都过。相等对账要先把
+        #    「已归板但**不该进桶**」的那几个显式排除掉 —— 它们由 ineligible 拦下,
+        #    排除集合写死在这里, 改动同样是一个看得见的动作。
+        _EXCLUDED = {("板-到期", "占位"), ("板-到期", "TestConcept-伪节点")}
+        _expected_pairs = _declared_pairs - _EXCLUDED
+        if FIXTURE_BUCKET_NODES != _expected_pairs:
             raise ContractError(
-                f"FIXTURE_BUCKET_NODES 与 fixture 脱钩: {sorted(FIXTURE_BUCKET_NODES - _declared_pairs)} "
-                "不在 build_nodes 造出来的节点里"
+                f"FIXTURE_BUCKET_NODES 与 fixture 脱钩: 锚里多了 "
+                f"{sorted(FIXTURE_BUCKET_NODES - _expected_pairs)}, 少了 "
+                f"{sorted(_expected_pairs - FIXTURE_BUCKET_NODES)}（已排除 ineligible: {sorted(_EXCLUDED)}）"
             )
         vault = build_vault(vaults_root, vault_id, nodes)
 
@@ -992,22 +1090,15 @@ def run(now_raw: str, tz_name: str, out_json: Path | None, keep: bool) -> int:
         if noti_day != MISSING:
             if noti_title is None:
                 raise ContractError("推送在场却没有标题 —— 它点名了哪块板无从判定")
-            named = noti_title.split("·", 1)[-1].strip()
-            truncated = named.endswith("…")
-            stem = named.rstrip("…")
-            # ⛔ 前缀只在**真实截断形态**下才算数（Codex r3 MEDIUM-6）: 否则
-            #    `📚 今日复习 · 板` 这种任意短前缀也能当成点名了任何一块板。
-            #    真实截断 = 标题以 `…` 收尾, 且长度恰好顶到生产器的 TITLE_LIMIT。
-            ok_named = (not truncated and stem == recommended) or (
-                truncated
-                and recommended is not None
-                and recommended.startswith(stem)
-                and len(noti_title) == picker.TITLE_LIMIT
-            )
-            if not stem or recommended is None or not ok_named:
+            # ⛔ 用生产器**自己的** `_title()` 重建期望标题, 逐字相等（Codex r4 MEDIUM-6）:
+            #    先前按「以 `…` 收尾 + 长度顶到 TITLE_LIMIT」判截断, 于是
+            #    `"📚 今日复习 · 板" + "…"*n` 这种重复省略号照样过。重建法把整类
+            #    「拼一个看起来像截断的标题」一次性关掉 —— 截断规则归生产器, 不在本卡复述。
+            expected_title = picker._title(recommended) if recommended is not None else None
+            if noti_title != expected_title:
                 raise ContractError(
-                    f"推送点名的板 {named!r} 不是 picker 当前的推荐板 {recommended!r}（ranked[0]）; "
-                    f"截断={truncated} 标题长度={len(noti_title)} TITLE_LIMIT={picker.TITLE_LIMIT}"
+                    f"推送标题 {noti_title!r} 不等于生产器对当前推荐板 {recommended!r} 应产出的 "
+                    f"{expected_title!r}（按 picker._title() 重建）"
                 )
         check_bucket_node_identity(per_face)
         check_producers_declaration(per_face, boards)
@@ -1103,7 +1194,7 @@ def _print_report(report: dict) -> None:
     if not report["declared_divergences"]:
         print("  （无）")
     for row in report["declared_divergences"]:
-        print(f"  DECLARED 板={row['board']} 字段={row['field']} 面={row['face']} 值={row['value']}")
+        print(f"  DECLARED {diff_code(row)} 板={row['board']} 字段={row['field']} 面={row['face']} 值={row['value']}")
     print("\n【未登记分歧】")
     if not report["undeclared_divergences"]:
         print("  （无）")
@@ -1113,7 +1204,9 @@ def _print_report(report: dict) -> None:
             if row["majority_faces"]
             else "（无严格多数派：产出方各执一词，每一方都如实列出）"
         )
-        print(f"  DIFF 板={row['board']} 字段={row['field']} 面={row['face']} 值={row['value']} {tail}")
+        print(
+            f"  DIFF {diff_code(row)} 板={row['board']} 字段={row['field']} 面={row['face']} 值={row['value']} {tail}"
+        )
     print(f"\nverdict={report['verdict']}")
 
 
