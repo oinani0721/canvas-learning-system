@@ -476,77 +476,81 @@ def _root_name(node):
     return node if isinstance(node, ast.Name) else None
 
 
-def _iter_write_targets(node):
-    """产出该语句里**所有**被写入 / 删除的目标（已展开 Tuple / List 解包）。
+def _enclosing_scope_parts(node):
+    """嵌套 def / lambda / class 里那些在**外层**作用域求值的部分。
 
-    ⚠️ 必须逐个产出、不能只看第一个或最后一个：``del a[0], b[0]`` 与
-    ``a[0] = b[0] = x`` 都带**多个** target，只取其中之一会漏掉另一个
-    （Codex r2 MEDIUM-1 的两个反例正是这样漏过去的）。
+    函数体是独立作用域（不该下钻），但默认参数、装饰器、基类这些表达式是在
+    **定义它的那个作用域**里求值的 —— ``def helper(unused=expected_templates.pop())``
+    在定义 helper 的那一刻就改了名单，根本不用调用 helper（Codex r3 MEDIUM-1）。
     """
-    raw = []
-    if isinstance(node, ast.AugAssign):
-        raw = [node.target]
-    elif isinstance(node, ast.Assign):
-        raw = list(node.targets)
-    elif isinstance(node, ast.AnnAssign):
-        raw = [node.target]
-    elif isinstance(node, ast.Delete):
-        raw = list(node.targets)
-    elif isinstance(node, (ast.For, ast.AsyncFor)):
-        raw = [node.target]
-    elif isinstance(node, ast.NamedExpr):
-        raw = [node.target]
-    elif isinstance(node, ast.Call):
-        func = node.func
-        if isinstance(func, ast.Attribute) and func.attr in _LIST_MUTATORS:
-            raw = [func.value]
-
-    while raw:
-        target = raw.pop()
-        if isinstance(target, (ast.Tuple, ast.List)):
-            raw.extend(target.elts)
-        else:
-            yield target
+    args = getattr(node, "args", None)
+    if args is not None:
+        yield from args.defaults
+        yield from (d for d in args.kw_defaults if d is not None)
+    yield from getattr(node, "decorator_list", [])
+    yield from getattr(node, "bases", [])
+    for keyword in getattr(node, "keywords", []):
+        yield keyword.value
 
 
-def _assert_not_mutated_after_binding(statements, name: str) -> None:
-    """确认名单在绑定之后没有被写过。
+def _own_nodes(node):
+    """产出 ``node`` 自身作用域内的所有 AST 节点。
 
-    本 guard 读的是**绑定处的字面量**。只要生产在绑定之后做了
-    ``expected_templates += [...]`` / ``expected_templates[0] = "x"`` /
-    ``expected_templates[0] += "-x"`` / ``del expected_templates[0], other[0]`` /
-    ``expected_templates.append("x")`` 之类的写入，字面量就不再等于运行时的名单 ——
-    那时 guard 会拿着一份过期名单和 mock 比对**并且通过**，这正是「门未覆盖的路径」：
-    名单实际漂了，门却是绿的。
-
-    所以这里不去猜改动后的值，而是**直接判定取值前提已失效并报红**。
-
-    ⚠️ 两个曾经漏掉的形态（Codex r2 MEDIUM-1，已修）：
-      * ``AugAssign`` 的 target 可以是 ``Subscript``（``a[0] += "x"``），
-        只认裸 ``Name`` 会漏；现在统一 ``_root_name()`` 剥到根再比。
-      * ``Assign`` / ``Delete`` 可以有**多个** target（``a[0] = b[0] = x``、
-        ``del a[0], b[0]``），逐个产出而不是只留最后一个。
-
-    ⚠️ 覆盖边界（如实声明）：本函数只认「语法上直接写到这个名字上」的形态。
-    通过别名写入（``alias = expected_templates`` 之后改 ``alias``）、
-    把它传进函数由被调方改、或用 ``locals()`` / ``setattr`` 等动态手段改，
-    本函数**看不见** —— 那需要别名分析，不在本 guard 的能力范围内。
+    跳过嵌套 def / lambda / class 的**函数体**（独立作用域，里面的同名变量与这里无关），
+    但仍下钻它们在外层求值的部分（见 :func:`_enclosing_scope_parts`）。
     """
-    for node in statements:
-        for target in _iter_write_targets(node):
-            # 裸 Name 的再绑定不算「就地写入」：那种情形由上面的
-            # 「恰好 1 处绑定」断言（FOUND-N）覆盖，不必在这里重复报。
-            if isinstance(target, ast.Name) and isinstance(node, (ast.Assign, ast.AnnAssign)):
-                continue
-            root = _root_name(target)
-            if root is not None and root.id == name:
-                raise AssertionError(
-                    f"生产在绑定 {name} 之后对它做了写入（{type(node).__name__}，"
-                    f"源码第 {getattr(node, 'lineno', '?')} 行，行号相对 health_check 起始）。"
-                    "本 guard 读的是绑定处的字面量，之后的写入会让它与运行时名单分叉、"
-                    "却仍然比对通过 —— 门会在名单真漂了的时候保持绿。"
-                    "请改为在运行时取真实名单，或连同本 guard 一起改，不要放宽断言"
-                )
+    for child in ast.iter_child_nodes(node):
+        if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.ClassDef)):
+            for part in _enclosing_scope_parts(child):
+                yield part
+                yield from _own_nodes(part)
+            continue
+        yield child
+        yield from _own_nodes(child)
+
+
+def _collect_writes(nodes, name: str):
+    """把该作用域里对 ``name`` 的写入点分成两类返回：``(绑定点, 其它写入)``。
+
+    ⚠️ **判定方式是 AST 的 ``ctx``，不是枚举语句类型。**
+    这是 Codex 连着三轮（r1 / r2 / r3）打出来的教训：先前按
+    ``Assign`` / ``AugAssign`` / ``Delete`` / ``For`` … 一条条列，每轮都被找出没列到的形态
+    （下标 ``AugAssign`` → 多 target → 解包绑定 → ``with as`` 下标 → 推导式 target →
+    默认参数里的 ``.pop()``）。枚举永远追不完。
+
+    Python 的 AST 已经把**每一个**写目标标成 ``ctx=Store`` 或 ``ctx=Del``，
+    按 ctx 判定是构造上穷尽的：不管它出现在哪种语句里，只要是写就带这个标记。
+
+    返回：
+      * ``binds``  —— 直接绑定该名字的 ``Name`` 节点（``x = …`` / ``for x in`` /
+        ``with … as x`` / ``x: T = …`` / ``x += …`` / 解包 / 多 target，全都算）
+      * ``others`` —— 其余写入：删名字、写它的下标或属性、以及就地变更方法调用
+    """
+    binds, others = [], []
+    for node in nodes:
+        if isinstance(node, ast.Name) and node.id == name:
+            if isinstance(node.ctx, ast.Store):
+                binds.append(node)
+            elif isinstance(node.ctx, ast.Del):
+                others.append(("del 掉这个名字", node))
+        elif isinstance(node, (ast.Subscript, ast.Attribute)):
+            if isinstance(node.ctx, (ast.Store, ast.Del)):
+                root = _root_name(node)
+                if root is not None and root.id == name:
+                    others.append(("写它的下标 / 属性", node))
+        elif isinstance(node, ast.Call):
+            func = node.func
+            # ⚠️ 只认**裸 Name** 作接收者：`x.append(...)` 改的是 x 本身；
+            # 而 `x[:].reverse()` 改的是切片副本、`x[0].append()` 改的是元素，
+            # 都不改 x 的名单内容 —— 剥到根会把这两种误判成写入（Codex r3 LOW-1）。
+            if (
+                isinstance(func, ast.Attribute)
+                and func.attr in _LIST_MUTATORS
+                and isinstance(func.value, ast.Name)
+                and func.value.id == name
+            ):
+                others.append((f"调用就地变更方法 .{func.attr}()", node))
+    return binds, others
 
 
 def _production_expected_templates() -> list[str]:
@@ -558,24 +562,26 @@ def _production_expected_templates() -> list[str]:
 
     为什么用 AST 读字面量而不是调 ``health_check()``：真正调用它要按
     ``settings.AGENT_PROMPT_PATH`` 去磁盘逐个探 prompt 文件，那是端到端面
-    （本卡未覆盖，见验收单「本卡未证明什么」）。这里只要「生产声明的名单」，
-    静态取字面量既不碰磁盘也不依赖配置。
+    （本卡未覆盖，见验收单「本卡未证明什么」）。
 
-    ⚠️ 这个取值方式有三个前提，三个都在下面被显式断言、失效即红，不会静默降级：
+    取值前提（三条，逐条显式断言、失效即红，不会静默降级）：
       1. ``inspect.getsource`` 取到的是单个函数定义；
-      2. 该函数**自己的**作用域里恰好有一处 ``expected_templates`` 绑定，
-         且右值是字面量 list（带不带类型注解都认；``ast.AnnAssign`` 与
-         ``ast.Assign`` 一起认，否则给生产加个注解就会以「找不到赋值」这种
-         理由错误的方式变红）；
-      3. 绑定之后没有对它的就地修改（``+=`` / 下标赋值 / ``.append`` 等）。
-         这一条是 Codex r1 MEDIUM-1 指出的漏面：只读字面量的话，
-         「先绑 13 项、随后 append 第 14 项」会让 guard 拿过期名单比对并通过。
+      2. 该函数**自己的**作用域里对这个名字**恰好只有一处绑定**，且它来自
+         ``Assign`` / ``AnnAssign`` 且右值是字面量 list；
+      3. 该作用域里**没有任何其它写入**（删名字 / 写下标或属性 / 就地变更方法）。
 
-    ⚠️ 覆盖声明（收窄后）：本 guard 钉住的是「mock 的名单 == 生产**在绑定处声明**
-    的名单」。它**不**钉运行时值；上面第 3 条把「声明 ≠ 运行时」的形态挡在门外，
-    使这两者在门通过时必然一致，但代价是那些形态会报红而不是被静默放过。
+    第 2、3 条统一用 :func:`_collect_writes` 按 AST 的 ``ctx`` 判定，不枚举语句类型。
+
+    ⚠️ **覆盖声明**（三轮 Codex 之后的最终口径，不再说「必然一致」）：
+    本 guard 钉住的是「mock 的名单 == 生产在**绑定处声明**的字面量」。它**不读运行时值**。
+    上面第 3 条把「本作用域内可见的、会让声明 ≠ 运行时」的写法挡在门外并报红，
+    但这**不等于**「门通过时两者必然一致」—— 下面这些它看不见：
+      * **别名写入**：``alias = expected_templates`` 之后改 ``alias``；
+      * **传出去改**：把它传进别的函数 / 方法，由被调方修改；
+      * **动态手段**：``locals()`` / ``globals()`` / ``setattr`` / ``exec`` 等。
+    这些都需要别名分析或运行期观测，不在本 guard 的能力范围内。
+    真要钉运行时值，得改成在运行时取真实名单（那是另一张卡的面）。
     """
-    import ast
     import inspect
     import textwrap
 
@@ -586,34 +592,38 @@ def _production_expected_templates() -> list[str]:
         "inspect.getsource(AgentService.health_check) 取到的不是单个函数定义，本 guard 的取值方式已失效"
     )
 
-    statements = list(_own_statements(tree.body[0]))
+    nodes = list(_own_nodes(tree.body[0]))
+    binds, others = _collect_writes(nodes, _TRUTH_SOURCE_NAME)
 
-    found: list[list[str]] = []
-    for node in statements:
-        if isinstance(node, ast.Assign):
-            if len(node.targets) != 1:
-                continue
-            target, value = node.targets[0], node.value
-        elif isinstance(node, ast.AnnAssign):
-            if node.value is None:  # 纯声明 `x: T` 无右值，不是绑定
-                continue
-            target, value = node.target, node.value
-        else:
-            continue
-        if not (isinstance(target, ast.Name) and target.id == _TRUTH_SOURCE_NAME):
-            continue
-        assert isinstance(value, ast.List), (
-            f"生产的 {_TRUTH_SOURCE_NAME} 不再是字面量列表，本 guard 的取值方式已失效——请连同本函数一起改，不要放宽断言"
-        )
-        found.append([ast.literal_eval(elt) for elt in value.elts])
-
-    assert len(found) == 1, (
-        f"在 AgentService.health_check 自己的作用域里找到 {len(found)} 处 "
-        f"{_TRUTH_SOURCE_NAME} 绑定，期望恰好 1 处；生产形态变了，本 guard 需同步改"
+    assert len(binds) == 1, (
+        f"在 AgentService.health_check 自己的作用域里找到 {len(binds)} 处对 "
+        f"{_TRUTH_SOURCE_NAME} 的绑定，期望恰好 1 处；生产形态变了，本 guard 需同步改"
     )
+    if others:
+        kind, node = others[0]
+        raise AssertionError(
+            f"生产在这个作用域里对 {_TRUTH_SOURCE_NAME} 还有别的写入：{kind}"
+            f"（{type(node).__name__}，源码第 {getattr(node, 'lineno', '?')} 行，"
+            "行号相对 health_check 起始；共 "
+            f"{len(others)} 处）。本 guard 读的是绑定处的字面量，这类写入会让它与运行时"
+            "名单分叉、却仍然比对通过 —— 门会在名单真漂了的时候保持绿。"
+            "请改为在运行时取真实名单，或连同本 guard 一起改，不要放宽断言"
+        )
 
-    _assert_not_mutated_after_binding(statements, _TRUTH_SOURCE_NAME)
-    return found[0]
+    the_bind = binds[0]
+    literal = None
+    for node in nodes:
+        if isinstance(node, ast.Assign) and any(t is the_bind for t in node.targets):
+            literal = node.value
+        elif isinstance(node, ast.AnnAssign) and node.target is the_bind:
+            literal = node.value
+    assert literal is not None, (
+        f"{_TRUTH_SOURCE_NAME} 的那处绑定不是普通赋值（可能是 for / with as / 解包），取不到字面量；本 guard 需同步改"
+    )
+    assert isinstance(literal, ast.List), (
+        f"生产的 {_TRUTH_SOURCE_NAME} 不再是字面量列表，本 guard 的取值方式已失效——请连同本函数一起改，不要放宽断言"
+    )
+    return [ast.literal_eval(elt) for elt in literal.elts]
 
 
 def test_mock_expected_templates_match_production_truth_source():

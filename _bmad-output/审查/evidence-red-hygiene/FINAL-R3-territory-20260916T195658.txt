@@ -1,0 +1,48 @@
+### [FINAL-R3] (h) 地盘核 @ HEAD 69c99d1a119c643a7d3ae7eb46278dd234d9bc88（本卡最终 SHA）
+### 本卡 commit 链：8bfcdfce → b38e1d04 → 2c740216 → f28c0f4a(纯文档) → 69c99d1a119c643a7d3ae7eb46278dd234d9bc88
+PREV=f294878bb677ae54dcbf17277004efa2fa1ef97b
+
+--- 代码面 diff --stat ---
+ backend/.env.example                               |  16 --
+ backend/app/config.py                              |  16 --
+ .../tests/api/v1/endpoints/test_agents_health.py   | 252 +++++++++++++++++++--
+ backend/tests/unit/test_cache_configuration.py     |  95 +++-----
+ backend/tests/unit/test_sync_batch_auth.py         |  24 +-
+ backend/tests/unit/test_system_endpoint_auth.py    | 134 ++++++++++-
+ 6 files changed, 419 insertions(+), 118 deletions(-)
+
+--- 代码面文件数（先数再写）= 6  （须 6）---
+    backend/.env.example
+    backend/app/config.py
+    backend/tests/api/v1/endpoints/test_agents_health.py
+    backend/tests/unit/test_cache_configuration.py
+    backend/tests/unit/test_sync_batch_auth.py
+    backend/tests/unit/test_system_endpoint_auth.py
+
+--- 验伪锚①：单查 config.py 必命中 ---
+ backend/app/config.py | 16 ----------------
+ 1 file changed, 16 deletions(-)
+--- 验伪锚②：exclude 生效 ---
+  去 exclude 的 _bmad-output 面 = 51
+  带 exclude 的 _bmad-output 面 = 0
+
+--- openapi.json 与 $PREV blob 对比 ---
+  逐字节相同 YES
+
+--- 本卡全部 commit 新增/改动文件里含 stderr 的数量（取名面 = 本卡 diff，非整棵树）---
+  = 0  （须 0）
+  验伪锚：整棵 HEAD 树含 stderr 的 = 3；
+          $PREV 树同样计数 = 3 ⇒ 非本卡引入
+
+--- 工作树状态（⚠️ 按 Codex r2 LOW-3：不再用对「会写出自身的判据」不成立的 ≤1 条件）---
+  逐项列出，并说明每一项的归属：
+    ?? "_bmad-output/\345\256\241\346\237\245/evidence-red-hygiene/FINAL-R3-territory-20260916T195658.txt"
+  项数 = 1
+  判据口径：这些项必须**全部**是本卡自己的 evidence / codex / 验收单产物；
+            出现任何第三方路径 = 异常。上列逐项可核。
+
+--- ruff（本卡改动的 .py 文件集）---
+  files=5
+All checks passed!
+  ruff_check_rc=0
+rc=0
