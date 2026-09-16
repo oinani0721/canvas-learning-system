@@ -516,10 +516,26 @@ def _collect_writes(nodes, name: str):
     这是 Codex 连着三轮（r1 / r2 / r3）打出来的教训：先前按
     ``Assign`` / ``AugAssign`` / ``Delete`` / ``For`` … 一条条列，每轮都被找出没列到的形态
     （下标 ``AugAssign`` → 多 target → 解包绑定 → ``with as`` 下标 → 推导式 target →
-    默认参数里的 ``.pop()``）。枚举永远追不完。
+    默认参数里的 ``.pop()``）。按 ctx 判定比逐条枚举覆盖得宽得多。
 
-    Python 的 AST 已经把**每一个**写目标标成 ``ctx=Store`` 或 ``ctx=Del``，
-    按 ctx 判定是构造上穷尽的：不管它出现在哪种语句里，只要是写就带这个标记。
+    ⛔ **但它不是穷尽的**（Codex r4 MEDIUM-1 证伪了先前那句「构造上穷尽」，已撤回）。
+    已知漏面（当前生产源码都没有这些形态，但门确实抓不到）：
+      * ``match`` 的捕获：``case [*expected_templates]`` 里 ``MatchStar.name`` 是**字符串**，
+        不产生 ``Name(ctx=Store)`` 节点，本函数看不见；
+      * **类体在定义时立即执行**：``class Helper: expected_templates.pop()``
+        —— ``_own_nodes()`` 跳过 ``ClassDef`` 的体（当它是独立作用域），
+        但类体其实是当场执行的，能改到外层的那个 list；
+      * ``import`` / ``def`` / ``except … as`` 的名字绑定同样不是靠 ``ctx`` 收全的。
+
+    ⚠️ 已知**误报**（本该通过却红，属保守拦截，不会放过真问题）：
+      * ``[x for x in ...]``：推导式里的同名变量是推导式作用域的局部名，不重绑外层，
+        但本函数会把它算成第二处绑定；
+      * ``expected_templates: list[str]``（无右值的纯注解）不执行赋值，同样被算成绑定；
+      * ``x[:][0] = "renamed"`` 改的是切片副本，仍被算成写入。
+
+    ⇒ 覆盖面的准确说法是：**在本作用域的常见语法写入上覆盖很宽，但不穷尽；
+    且宁可误报也不放过**。这些都已登记移交，不在本卡范围内修
+    （本卡 Codex 轮次已到第 4 轮，r4 明写「不要求继续改代码送第 5 轮」）。
 
     返回：
       * ``binds``  —— 直接绑定该名字的 ``Name`` 节点（``x = …`` / ``for x in`` /
@@ -570,7 +586,8 @@ def _production_expected_templates() -> list[str]:
          ``Assign`` / ``AnnAssign`` 且右值是字面量 list；
       3. 该作用域里**没有任何其它写入**（删名字 / 写下标或属性 / 就地变更方法）。
 
-    第 2、3 条统一用 :func:`_collect_writes` 按 AST 的 ``ctx`` 判定，不枚举语句类型。
+    第 2、3 条统一用 :func:`_collect_writes` 按 AST 的 ``ctx`` 判定，不枚举语句类型
+    —— 覆盖比逐条枚举宽得多，但**不穷尽**，已知漏面与误报逐条列在该函数的 docstring 里。
 
     ⚠️ **覆盖声明**（三轮 Codex 之后的最终口径，不再说「必然一致」）：
     本 guard 钉住的是「mock 的名单 == 生产在**绑定处声明**的字面量」。它**不读运行时值**。

@@ -1,0 +1,30 @@
+### [FINAL] 九跑哨兵稳定性总表 —— 目录级 '>' 与 blocked= 的关系（本卡全部目录级跑）
+
+存档                                             SHA        failed  '<'   '>'   blocked   
+----------------------------------------------------------------------------------------
+unit-close-20260916T131111.txt                 8bfcdfce   34      30    0     blocked=0 
+FINAL-unit-close-20260916T191150.txt           b38e1d04   34      30    0     blocked=0 
+FINAL-R2-unit-close-20260916T192615.txt        2c740216   35      30    1     blocked=1 
+FINAL-R2-unit-run4-20260916T193433.txt         2c740216   34      30    0     blocked=0 
+FINAL-R2-unit-run5-20260916T194056.txt         2c740216   34      30    0     blocked=0 
+FINAL-R3-unit-close-run1-20260916T195743.txt   69c99d1a   34      30    0     blocked=0 
+FINAL-R3-unit-close-run2-20260916T200348.txt   69c99d1a   34      30    0     blocked=0 
+FINAL-R4-unit-close-run1-20260916T202022.txt   ef21be2c   34      30    0     blocked=0 
+FINAL-R4-unit-close-run2-20260916T202810.txt   ef21be2c   35      30    1     blocked=1 
+
+=========== 承重结论（三条，逐条可核）===========
+1. 九跑里 '>' 与 blocked= **9/9 完全同步**：blocked=1 的两跑 '>'=1，blocked=0 的七跑 '>'=0。
+   出现 '>' 的那两跑，其唯一新增 nodeid 都是 candidate422，失败正文都是协议 §3 的哨兵指纹。
+2. **同一 SHA 内部就会翻转**：2c740216 三跑 = 35/34/34；ef21be2c 两跑 = 34/35。
+   ⇒ 目录级结果不由代码状态决定。
+3. '<' 在九跑里**恒为 30**，本卡 4 个测试地盘文件在九跑红集里**恒为 0 条**。
+
+⛔ 这三条**不能**推出「它与本卡无关 / 早于本卡」——那是 Codex 连着三轮纠正车道的地方。
+   「早于本卡」的证据是历史原始日志：$PREV 已入库的
+   _bmad-output/审查/evidence-b13-integ/unit-integ5-20260911T010612.txt
+   第 597-606 行同一 candidate422 + 同一指纹，第 1143 行 blocked=1。
+   「红集没变」的证据是 $PREV 已入库的 evidence-epw-coverage/epw-unit-close7.nodeids
+   （34 条，与本卡九跑中 blocked=0 的那些逐项相同，差集 0）。两份各证一事，不可混引。
+
+⛔ 车道不自判通过（D-15）。Codex r2/r3/r4 均已判该条不阻断本卡；裁定权仍在主 session。
+rc=0

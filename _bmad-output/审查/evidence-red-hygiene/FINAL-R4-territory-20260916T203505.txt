@@ -1,0 +1,32 @@
+### [FINAL-R4] 地盘核 @ HEAD ef21be2ca360bf26e918155c0edace193d1db38c
+代码面文件数 = 6  （须 6）
+ backend/.env.example                               |  16 --
+ backend/app/config.py                              |  16 --
+ .../tests/api/v1/endpoints/test_agents_health.py   | 262 +++++++++++++++++++--
+ backend/tests/unit/test_cache_configuration.py     |  95 +++-----
+ backend/tests/unit/test_sync_batch_auth.py         |  24 +-
+ backend/tests/unit/test_system_endpoint_auth.py    | 134 ++++++++++-
+ 6 files changed, 429 insertions(+), 118 deletions(-)
+验伪锚①(config.py 必命中):
+ backend/app/config.py | 16 ----------------
+ 1 file changed, 16 deletions(-)
+验伪锚②: 去 exclude 的 _bmad-output 面 = 57；带 exclude = 0
+openapi.json blob: 与 \$PREV 逐字节相同
+本卡 diff 面含 stderr = 0  （须 0）
+pyright app:
+0 errors, 81 warnings, 0 informations
+ruff files=5
+All checks passed!
+ruff_rc=0
+工作树（逐项，须全是本卡自己的产物）:
+ M "_bmad-output/\345\256\241\346\237\245/evidence-red-hygiene/FINAL-R2-unit-comm-20260916T193341.txt"
+ M "_bmad-output/\345\256\241\346\237\245/evidence-red-hygiene/RESPONSE-codex-r3-20260916.md"
+ M "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-RED-HYGIENE.md"
+ M "_bmad-output/\351\252\214\346\224\266\345\215\225/UAT-CARD-RED-HYGIENE-2026-09-16.md"
+ M backend/tests/api/v1/endpoints/test_agents_health.py
+?? "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-RED-HYGIENE-r4.md"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-red-hygiene/FINAL-R4-territory-20260916T203505.txt"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-red-hygiene/FINAL-R4-unit-close-run1-20260916T202022.txt"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-red-hygiene/FINAL-R4-unit-close-run2-20260916T202810.txt"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-red-hygiene/RESPONSE-codex-r4-20260916.md"
+rc=0

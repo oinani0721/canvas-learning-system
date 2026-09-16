@@ -1,7 +1,10 @@
 # UAT — CARD-RED-HYGIENE（RED 卫生收尾）
 
 > 批次：`BATCH-2026-09-11-第十四批` · 车道 `card-t10-red`（分支 `card/t10-red`）· 本车道第 **5/5**
-> 本卡 commit（两个）：`8bfcdfcea46c8e2c6408fa6ebd85851c7c9cce82` + `b38e1d04c074214570916d11f434933a47edaf36`（+ 收尾 commit，见 §五.2）
+> 本卡最终代码 SHA：**`ef21be2ca360bf26e918155c0edace193d1db38c`**
+> commit 链：`8bfcdfce`（主体）→ `b38e1d04`（只读自审整改）→ `2c740216`（按 Codex r1 整改）
+> → `f28c0f4a`（**零代码**）→ `69c99d1a`（按 r2 整改）→ `ef21be2c`（按 r3 整改）
+> → 收尾（**纯 docstring + `_bmad-output`**，D-32 不占轮次，等价性已用 AST 证）
 > `$PREV`（= 同车道上一卡 CARD-EPW-COVERAGE 的 commit）：`f294878bb677ae54dcbf17277004efa2fa1ef97b`
 > 红基线 `$BASE`：feature 主干树 `_bmad-output/审查/evidence-b14/unit-red-baseline-08100483.txt`（`grep -vc '^#'` = 64）
 > 证据目录：`_bmad-output/审查/evidence-red-hygiene/`
@@ -38,8 +41,8 @@
 | (f) | MEMORY_RETRY 死配置退役（census → 先红 3 → 后绿）+ pyright 保持 0 | ✅ |
 | (g) | contract node-id pattern 定性 | ✅（**卡文两处事实有误**，见 §3） |
 | (h) | 地盘核：代码面恰好 6 文件 | ✅ |
-| (i) | tests/unit 目录级对 `$BASE` | ⚠️ **不声称通过**：前两跑 `<`=30 / `>`=0，**绑最终 HEAD 的第三跑 `>`=1**（W4 哨兵载体，blocked=1）。见 §四-A.10、§五.1 HIGH-1 |
-| (j) | Codex 多轮直到绑最终 HEAD 的一轮 BLOCKER/HIGH = 0 | 见 §5 |
+| (i) | tests/unit 目录级对 `$BASE` | ⚠️ **不自判通过**（D-15）：**九跑**里 `<` 恒 30；`>` 两跑 = 1、七跑 = 0，且 `>` 与 `blocked=` **9/9 同步**；同一 SHA 内部会翻转。Codex r2/r3/r4 均判该条不阻断本卡。裁定权在主 session。见 §四-A.10 |
+| (j) | Codex 多轮直到绑最终 HEAD 的一轮 BLOCKER/HIGH = 0 | ✅ **达成**：r4 绑最终 SHA `ef21be2c`、diff 空 exit=0、**BLOCKER 0 / HIGH 0**，Codex 明写「不要求继续改代码送第 5 轮」。r2/r3 亦各满足过一次 |
 | (k) | 「本卡未证明什么」≥4、「台账待登记条目」≥4 | ✅ 见 §6 / §7 |
 
 ---
@@ -261,18 +264,33 @@ mock 补 `hint-generation` → `12 passed`；加防漂 guard 后 → `13 passed`
 跑法（R-B14-3：`cd backend` 后 `--ignore` 用相对路径）：
 `cd backend && PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest tests/unit --ignore tests/unit/test_deploy_vault_sh.py -q -p no:cacheprovider`
 
-**五跑对照**（逐跑存档 + 统一 comm 见 `FINAL-sentinel-5runs-*.txt`）：
+**九跑对照**（全表 + 统一 comm 见 `FINAL-sentinel-9runs-*.txt`）：
 
 | 跑 | 绑定 SHA | failed | `<` | `>` | W4 哨兵 |
 |---|---|---:|---:|---:|---|
-| 1 | `8bfcdfce` | 34 | 30 | **0** | `blocked=0` |
-| 2 | `b38e1d04` | 34 | 30 | **0** | `blocked=0` |
-| 3 | `2c740216`（最终） | **35** | 30 | **1** | **`blocked=1`** |
-| 4 | `2c740216`（最终） | 34 | 30 | **0** | `blocked=0` |
-| 5 | `2c740216`（最终） | 34 | 30 | **0** | `blocked=0` |
+| 1 | `8bfcdfce` | 34 | 30 | 0 | `blocked=0` |
+| 2 | `b38e1d04` | 34 | 30 | 0 | `blocked=0` |
+| 3 | `2c740216` | **35** | 30 | **1** | **`blocked=1`** |
+| 4 | `2c740216` | 34 | 30 | 0 | `blocked=0` |
+| 5 | `2c740216` | 34 | 30 | 0 | `blocked=0` |
+| 6 | `69c99d1a` | 34 | 30 | 0 | `blocked=0` |
+| 7 | `69c99d1a` | 34 | 30 | 0 | `blocked=0` |
+| 8 | `ef21be2c`（最终） | 34 | 30 | 0 | `blocked=0` |
+| 9 | `ef21be2c`（最终） | **35** | 30 | **1** | **`blocked=1`** |
 
-⇒ **跑 3/4/5 绑的是同一个 commit，结果却是 35 / 34 / 34** —— 目录级结果在同一份代码上
-就是非确定性的，与本卡改了什么无关。且五跑里 `>` 与 `blocked=` **5/5 逐跑同步**（1↔1、0↔0）。
+三条可核的观察：
+1. `>` 与 `blocked=` **9/9 完全同步**；出现 `>` 的两跑，唯一新增 nodeid 都是 `candidate422`，
+   失败正文都是协议 §3 的哨兵指纹（连接**被拦下**，现网 7691 未被连上）。
+2. **同一 SHA 内部就会翻转**：`2c740216` 三跑 = 35/34/34；`ef21be2c` 两跑 = 34/**35**。
+   ⇒ 目录级结果不由代码状态决定。
+3. `<` 九跑恒 **30**；本卡 4 个测试地盘文件在九跑红集里恒 **0** 条。
+
+⛔ **这三条不能推出「它与本卡无关 / 早于本卡」** —— 这正是 Codex 连着三轮（r2/r3/r4）
+纠正车道的地方，车道已接受。成立的证据是两份**历史原始日志**，各证一事、不可混引：
+* **「现象早于本卡」** ← `$PREV` 已入库的 `evidence-b13-integ/unit-integ5-20260911T010612.txt`
+  （**65** 条红），第 597-606 行同一 `candidate422` + 同一指纹，第 1143 行 `blocked=1`；
+* **「红集没变」** ← `$PREV` 已入库的 `evidence-epw-coverage/epw-unit-close7.nodeids`
+  （**34** 条，与本卡 `blocked=0` 那几跑逐项相同、差集 **0**）。
 
 **第三跑那条 `>` 的身份**（`FINAL-R2-unit-comm-*.txt`）：
 `tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422`，
@@ -304,6 +322,23 @@ mock 补 `hint-generation` → `12 passed`；加防漂 guard 后 → `13 passed`
 30 条全部来自同车道前四卡。Codex 用 `$PREV` 已入库的 `epw-unit-close7.nodeids` 对照，
 双方同为完全相同的 34 条红 —— 本卡原先只用「4 个测试文件不在 BASE 红集」论证，
 Codex 指出不充分，本卡接受并以其对照为准。
+
+### 4-A.13 (b) guard 形态覆盖（19 格自校验）— `FINAL-R3-guard-shapes-*.txt`
+
+import **入库的真 helper**（非副本），只在内存替换 `inspect.getsource` 输入。
+**逐格写死预期并由探针自己断言**，退出码反映「预期是否全部兑现」——
+不再靠末尾一句人工期望（那正是 Codex r2 LOW-1 点的问题：`rc=0` 只说明探针跑完了）。
+
+实测 `预期不符的格数 = 0`，19 格全部兑现：
+
+| 应通过（2 格） | 应报红（17 格） |
+|---|---|
+| 01 真实生产源码（13 项，与 mock 逐元素相等）<br>02 带类型注解（无害） | 04 `+= [...]`／05 `[0]="x"`（**r1 报**）<br>06 `[0] += "-x"`／07 `del a[0], b[0]`／08 `a[0]=b[0]="x"`（**r2 报**）<br>09 元组解包写下标／10 `.append`／11 `.remove`／12 `.sort`<br>13 `for` 重绑／14 walrus 重绑<br>15 常量／16 推导／17 两处绑定／18 改名／19 纯声明 |
+| 03 嵌套函数内同名局部变量 → **取到外层那张表**（作用域修复生效） | |
+
+**覆盖边界如实声明**（已写进代码 docstring）：本 guard 只认「语法上直接写到这个名字上」的形态。
+**别名写入**（`alias = expected_templates` 后改 `alias`）、传进函数由被调方改、
+`locals()` / `setattr` 等动态手段 —— **看不见**，需要别名分析，不在能力范围内。
 
 ### 4-A.11 (d) 顺序污染判据 — `auth-order-pollution-*.txt`
 
@@ -370,9 +405,78 @@ blockquote，会话头三行自证：`OpenAI Codex v0.153.3`（第 2 行）/ `mo
 | **LOW-3** 定性结论超采样 | ✅ 送审前自审已同批修正，两边结论一致 |
 | **LOW-4** 地盘证据未进被审提交 | ✅ 已随 `b38e1d04` 入库 |
 
-### 5.2 Codex r2 —— 绑最终 HEAD
+### 5.2 Codex r2 —— 绑 `2c740216`（当时的最终 HEAD），**代码面 diff 为空**
 
-> 待填。
+存档 `codex-review-CARD-RED-HYGIENE-r2.md`（首部按协议 §2.1；会话头三行自证同 r1）。
+计数：**BLOCKER 0 / HIGH 0 / MEDIUM 6 / LOW 3**。
+Codex 末尾自行实测 `git diff --stat <审SHA> HEAD -- . ':(exclude)_bmad-output'` **输出为空**。
+
+⇒ **D-15 的终审条件（绑最终 HEAD 的一轮 BLOCKER=0 且 HIGH=0）在 r2 这一轮已满足。**
+
+#### 5.2.1 r2 撤销了 r1 的 HIGH-1，依据比车道给的强
+
+Codex 直接去翻 `$PREV` **已入库**的
+`evidence-b13-integ/unit-integ5-20260911T010612.txt`：第 **597–606** 行已出现同一条
+`candidate422`、同一 `::1:7691 / MainThread` 指纹、同样的 JSON 降级；第 **1143** 行同为
+`blocked=1, advisory=0, unaccounted=0`；相关调用链相对 `$PREV` 未被本卡修改。
+⇒ **该现象早于本卡，有原始日志为证**，不是推断。
+
+**车道接受其对论证形式的批评**：Codex 明确说「不能仅靠『几个 SHA 都出现过』或
+『同 SHA 有时通过』」。车道那套五跑非确定性对照只能说明「与代码状态无关」，
+**定位不了它早就存在**。`FINAL-sentinel-5runs-*.txt` 的结论已据此收窄
+（并写明它没有复现协议所述的 `candidate422` ↔ `mock_warning` 翻转本身）。
+
+#### 5.2.2 逐条处置（全文见 `RESPONSE-codex-r2-20260916.md`）
+
+| 条目 | 处置 |
+|---|---|
+| **MEDIUM-1** guard 仍漏三种写法 | ✅ **修**（本可登记不阻断，但那是本卡自己写进去的「多 target 被覆盖」逻辑错误，且它让 docstring 里「门通过时声明与运行时必然一致」成了假话）。三种漏面 `a[0] += "-x"` / `del a[0], b[0]` / `a[0] = b[0] = "x"` 车道逐条复现属实。修法 + 19 格自校验复验见 §四-A.13 |
+| **MEDIUM-2** 协议用 `grep -c` 数拦截次数（对 0/1/9 恒得 1） | 登记移交**协议卡**（批级资产非本卡地盘）。并注明这条削弱了车道先前引用该判据的力度 |
+| **MEDIUM-3** 自审汇总五项全错 | ✅ 已修：改为脚本解析实数（18 / 2 行 3 条 / 15 / 15 / 3）+ 差异来源说明；**RH-1 的主 session 自核也被证伪**，改判为成立并加「自核不是可靠兜底」 |
+| **MEDIUM-4** R2 证据未入库 | ✅ 已随 `f28c0f4a`（零代码）入库 |
+| **MEDIUM-5** 第 0 分钟干净仍为 PARTIAL | ✅ 接受，**不追认**；`minute0-*.txt` 加撤回指针 |
+| **MEDIUM-6** commit1 的 typecheck 执行历史 | ✅ 接受，保留**历史 PARTIAL 不追认** |
+| **LOW-1** FINAL3 期望句与输出矛盾（rc=0 掩盖） | ✅ 已修：新探针**逐格写死预期并自己断言** |
+| **LOW-2** 四处更正没同步到原件 | ✅ 四处逐条同步（docstring 过强句撤回 / attribution 撤回不足推理 / minute0 加 PARTIAL 指针 / 五跑结论收窄） |
+| **LOW-3** territory 绑旧 SHA、`≤1` 条件与输出不符 | ✅ 已修：`FINAL-R3-territory-*.txt` 绑最终 SHA，工作树判据改为逐项列出 + 归属说明 |
+
+### 5.3 Codex r3 —— 绑 `69c99d1a`，**BLOCKER 0 / HIGH 0 / MEDIUM 2 / LOW 3**，diff 空
+
+维持撤销 r1 HIGH-1。⚠️ **r3 自述未完成独立目录级重跑**（收集前被只读环境的临时目录限制
+挡住，`exit=1`），其目录级结论是对入库存档的复核 —— 如实转述，未当作独立验证。
+
+处置全文见 `RESPONSE-codex-r3-20260916.md`。两条 MEDIUM 车道选择修：
+**MEDIUM-1** 报出**第四类**漏面（`x = other = [..]` / `x, other = .., ..` / `with as x[0]` /
+推导式 target / 默认参数里 `.pop()`）+ 一处新误报（`x[:].reverse()`）。
+⇒ 车道判断「枚举语句类型追不完」，**改判定方式**为按 AST 自带的 `ctx=Store/Del` 判定。
+**MEDIUM-2** 自审汇总在 RH-1 改判后仍未重算 ⇒ 第三次更正，这次**连计数规则一起写进去**。
+
+---
+
+### 5.4 Codex r4 —— **终审轮**，绑最终 SHA `ef21be2c`，**BLOCKER 0 / HIGH 0 / MEDIUM 1 / LOW 2**
+
+**Codex 末尾自行实测 `git diff --stat <审SHA> HEAD -- . ':(exclude)_bmad-output'`
+输出为空、exit=0**，并明写：「其余问题**登记移交，不要求继续改代码送第 5 轮**。」
+
+⇒ **D-15 终审条件达成**。本轮之后车道**不再改代码**。
+
+| 条目 | 处置 |
+|---|---|
+| **MEDIUM-1** `ctx` 判定仍非穷尽 | ⛔ **登记移交**（不改实现）。r4 实测两种漏面：`match` 的 `case [*name]`（`MatchStar.name` 是**字符串**、不产生 `Name(ctx=Store)`）与**类体定义时立即执行**（`class Helper: x.pop()`）；另注 `import`/`def`/`except as` 的名字绑定也不能只靠 `ctx` 收全。**当前生产源码不含这些形态**，r4 因此不升 HIGH。车道**撤回**了 r3 整改时自己写下的「构造上穷尽」那句话（纯 docstring，D-32） |
+| **LOW-1** 新判定新增两种误报 | ⛔ 登记移交。推导式局部同名变量、无右值的纯注解会被算成第二处绑定而误报（**保守拦截**，方向上不放过真问题）。已逐条写进 docstring |
+| **LOW-2** 回应声称已收窄、原件其实没改 | ✅ 已修（纯文档）。⚠️ 本卡**第三次**出现「回应声称已改、原件没改」，根因是声称与落地分两处、无对账机制 —— 已登记 |
+
+**轮次账**（终审条件其实在 r2 就满足过，车道两次选择继续修 MEDIUM/LOW 才失绑）：
+
+| 轮 | 绑定 | B/H/M/L | 绑当时最终 HEAD | 之后是否改代码 |
+|---|---|---|---|---|
+| r1 | `8bfcdfce` | 0/1/3/4 | ❌（审查期间车道提交了 `b38e1d04`） | 是 |
+| r2 | `2c740216` | **0/0**/6/3 | ✅ diff 空 | 是 |
+| r3 | `69c99d1a` | **0/0**/2/3 | ✅ diff 空 | 是 |
+| **r4** | **`ef21be2c`** | **0/0**/1/2 | **✅ diff 空 exit=0** | **否** |
+
+收尾 commit 只含**纯 docstring** 改动（D-32：去 docstring 后 `ast.dump` 与改前**逐字相同**、
+非注释行 diff 为空，已实测）与 `_bmad-output`，不占轮次、不重置绑定。
 
 ---
 
@@ -409,10 +513,21 @@ blockquote，会话头三行自证：`OpenAI Codex v0.153.3`（第 2 行）/ `mo
     本卡未定位到「为什么这一跑 `blocked=1` 而前两跑 `blocked=0`」——即哪个测试在什么条件下
     会去尝试连 7691。成因仍未定。
 
-15. **未证最终 HEAD 的目录级「不增」**。绑最终 HEAD 的那一跑 `>` = 1（见 §四-A.10）。
-    本卡给的是「该条是 W4 哨兵载体 + 协议 §3 规定不按 nodeid 判 + 两环境同形复现」这三条理由，
-    **没有**证明它一定不是本卡引入 —— 尽管本卡三个 commit 未碰任何端口 / Neo4j / conftest 文件。
-    裁定权在主 session。
+15. **未证最终 SHA 的目录级「不增」**。九跑里有两跑 `>` = 1（含最终 SHA 的第 2 跑），
+    见 §四-A.10。车道**不自判通过**；Codex r2/r3/r4 均判该条不阻断本卡，依据是
+    `$PREV` 的历史原始日志（不是车道那套「非确定性」论证）。裁定权在主 session。
+
+16. **未证防漂 guard 的写入检测是穷尽的**（Codex r4 MEDIUM-1）。⛔ 车道在 r3 整改时写下的
+    「按 `ctx` 判定构造上穷尽」**已被证伪并撤回**：`match` 的 `case [*name]`
+    （`MatchStar.name` 是字符串、不产生 `Name(ctx=Store)`）与**类体定义时立即执行**
+    （`class Helper: x.pop()`）两种形态能改到名单而门不红；`import`/`def`/`except as`
+    的名字绑定同样不能只靠 `ctx` 收全。当前生产源码不含这些形态，但**未来不受约束**。
+
+17. **未证该 guard 不会误报**（Codex r4 LOW-1）。推导式局部同名变量、无右值的纯注解、
+    `x[:][0] = ...` 会被算成写入而报红（**保守拦截**，方向上不放过真问题，但理由不准确）。
+
+18. **未建立「回应声称 vs 原件实际」的对账机制**。本卡三次出现「回应里写已改、原件其实没改」
+    （r1 LOW-4 / r3 LOW-2 / r4 LOW-2），每次都只做了逐次更正。
 
 ---
 
@@ -460,8 +575,27 @@ blockquote，会话头三行自证：`OpenAI Codex v0.153.3`（第 2 行）/ `mo
     完整证据：`FINAL-sentinel-5runs-*.txt`、`FINAL-R2-unit-comm-*.txt`、`RESPONSE-codex-r1-20260916.md`。
 
 12. **自审流程本身的口径问题**：本轮反驳式验证把严重度判断混进了成立性判断
-    （19 条判「不成立」里 14 条实际成立）。若后续批次复用这套自审，`refuted` 字段
+    （判「不成立」的里面有 16 行实际成立）。若后续批次复用这套自审，`refuted` 字段
     应只回答「是不是真的」，严重度另立字段。
+    ⚠️ 附带：该解释**只有摘要、没有保留 verifier 正文**，因而未被独立确认（Codex r2/r3 指出）。
+
+13. **协议 §3 的 W4 判据本身有缺陷，建议另立协议卡**（Codex r2 MEDIUM-2，r3/r4 复核成立）：
+    对 `blocked=0` / `blocked=1` / `blocked=9` 三种单行汇总分别跑 `grep -c 'blocked='`
+    **结果全是 1** —— 该命令数的是「有几行含这个串」，不是「拦了几次」，
+    **证明不了「次数恒定」**。另 `NEO4J_LIVE_PORT_CONNECT_ATTEMPTS` 是输出前缀、
+    不是它读的环境开关。判据应解析汇总行里的**数值**并保留失败原因与历史归属证据。
+
+14. **防漂 guard 的两类已知缺口 + 三类已知误报**（Codex r4 MEDIUM-1 / LOW-1）：
+    缺口 = `match` 的 `case [*name]`、类体定义时立即执行；
+    误报 = 推导式局部同名变量、无右值纯注解、`x[:][0] = ...`。
+    后续修复应按 r4 的建议**处理名字绑定与作用域语义**，而不是继续在 `ctx` 上打补丁。
+
+15. **「末次判据存档 ∉ 被审 SHA」是结构性问题**（本卡出现两次：r1 LOW-4 / r3 LOW-3）：
+    收工判据必然晚于最后一个 commit，所以这个缺口会在每张卡上重复出现。
+    建议批级统一处置（例如允许「判据存档补提交」并在台账写明其与被审 SHA 的先后关系）。
+
+16. **「回应声称已改 vs 原件实际未改」缺对账机制**（本卡三次：r1 LOW-4 / r3 LOW-2 / r4 LOW-2）：
+    根因是「声称」写在 RESPONSE、「落地」在原件，两处无机制对账。建议批级加一条收工判据。
 
 ---
 

@@ -4,27 +4,110 @@
 
 工作树：`/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t10-red`
 分支：`card/t10-red`
-本卡最终 HEAD：`2c7402168ed4f44cbad3c7d3413ba4ff2233dcff`
-本卡共三个 commit：`8bfcdfce`（主体）→ `b38e1d04`（只读对抗自审整改）→ `2c740216`（按你 r1 的整改）
+本卡最终 HEAD：`ef21be2ca360bf26e918155c0edace193d1db38c`
+本卡 commit 链：`8bfcdfce`（主体）→ `b38e1d04`（只读自审整改）→ `2c740216`（按你 r1 整改）
+→ `f28c0f4a`（**零代码**）→ `69c99d1a`（按你 r2 整改）→ `ef21be2c`（按你 r3 整改）
+
+⚠️ **本轮是第 4 轮，D-15 上限 5 轮。** 你的 r2 与 r3 都已给出 BLOCKER 0 / HIGH 0 且绑当时的
+最终 HEAD —— 终审条件其实已满足过两次，只是车道每次都选择继续修 MEDIUM/LOW 才失绑。
+依协议 §1，MEDIUM/LOW 本就「登记不阻断」。**本轮之后车道将停止改代码**：
+若你仍报 MEDIUM/LOW，车道会如实登记移交而不再整改，以免撞轮次上限。
+所以请把力气放在「有没有 BLOCKER / HIGH」以及「这次的改动有没有引入新问题」上。
 `$PREV`（= 同车道上一张卡 CARD-EPW-COVERAGE 的 commit）：`f294878bb677ae54dcbf17277004efa2fa1ef97b`
 
 看改动（对 `$PREV` 的累计代码面）：
 
 ```
-git --no-pager diff --no-color f294878b 2c740216 -- . ':(exclude)_bmad-output'
+git --no-pager diff --no-color f294878b ef21be2c -- . ':(exclude)_bmad-output'
 ```
 
-只看本轮相对你 r1 的增量：
+只看本轮相对你 r3 的增量：
 
 ```
-git --no-pager diff --no-color 8bfcdfce 2c740216 -- . ':(exclude)_bmad-output'
+git --no-pager diff --no-color 69c99d1a ef21be2c -- . ':(exclude)_bmad-output'
 ```
 
 （`':(exclude)…'` 的写法是必需的，本机 git 不认 `':!…'`。）
 
 ---
 
-## ⓪ 你的 r1 已被逐条处置，请重点复核这部分
+## ⓪ 你的 r3 已被逐条处置 —— 本轮重点
+
+r3（绑 `69c99d1a`）：**BLOCKER 0 / HIGH 0 / MEDIUM 2 / LOW 3**，维持撤销 r1 HIGH-1。
+逐条处置见 `_bmad-output/审查/evidence-red-hygiene/RESPONSE-codex-r3-20260916.md`。
+
+- **MEDIUM-1（第四类漏面 + 你 LOW-1 的切片误报）**：**已修，而且换了方法**。
+  前三轮每轮都被你找出没列到的语句形态（下标 `AugAssign` → 多 target → 解包绑定 →
+  `with as` 下标 → 推导式 target → 默认参数里的 `.pop()`）—— 车道认为**枚举语句类型追不完**，
+  改为**按 Python AST 自带的 `ctx=Store/Del` 判定**：
+  `Name`+`Store` 记为绑定；`Subscript`/`Attribute`+`Store/Del` 且根名匹配记为其它写入；
+  就地变更方法调用记为其它写入；断言「绑定恰好 1 处且其它写入为空」。
+  `_own_nodes()` 跳过嵌套 def/lambda/class 的**函数体**但**仍下钻**其默认参数 / 装饰器 / 基类
+  （那是你那条 `def helper(unused=x.pop())` 的落点）。
+  你 LOW-1 的误报也一并修了：就地变更方法**只认裸 `Name` 作接收者** ——
+  `x[:].reverse()` 改切片副本、`x[0].append()` 改元素，都不算写本体。
+  **请重点核这个新判定方式**：(a) 你之前点名的全部形态现在是否都红？
+  (b) 有没有**新的误报**（本该通过却红）？(c) `ctx` 这条路本身有没有你能想到的绕不过去的洞？
+  车道复验在 `FINAL-R4-guard-shapes-*.txt`：**26 格逐格写死预期并自断言，预期不符 = 0**。
+- **MEDIUM-2（自审汇总在 RH-1 改判后仍未重算）**：已修，**第三次**。
+  车道复算确认你的 19 / 2 行 / 16 / 15 / 3，并查清自己先前与你差 1 的原因
+  （把「未验证」的 RG-3 也算进了翻转；采纳你的严格口径）。
+  这次**连计数规则一起写进 §一**并留了历次错值档。「15 + 3 ≠ 18」那句错表述已删。
+- **LOW-1**：见 MEDIUM-1 同段。
+- **LOW-2（两份红集混写）**：已修。车道独立复算确认你的实数 ——
+  integ5 = 65（36 FAILED + 29 ERROR）、EPW = 34、本卡 34；本卡 vs EPW 差集 **0**、
+  vs integ5 差集 **31**。已按你的建议拆开引用（EPW 证「红集没变」，integ5 证「现象早于本卡」）。
+- **LOW-3（末次地盘证据不在被审 SHA）**：该存档本轮已入库。
+  ⚠️ 车道另登记了它的**结构性成因**：收工判据必然晚于最后一个 commit，
+  所以「末次判据存档 ∉ 被审 SHA」会反复出现，属批级流程口径问题，建议统一处置。
+
+⚠️ **你 r3 自述未完成独立目录级重跑**（收集前被只读环境的临时目录限制挡住），
+车道已在回应里如实转述，**没有**把它当作独立验证。本轮若你的环境仍跑不了目录级，
+照实说即可，车道不会把存档复核写成独立运行。
+
+---
+
+## ⓪-bis（背景，r1/r2 的处置摘要，已在后续轮次核过，保留供索引）
+
+你 r2（绑 `2c740216`）给出 **BLOCKER 0 / HIGH 0 / MEDIUM 6 / LOW 3**，并撤销了 r1 的 HIGH-1
+（依据是 `$PREV` 已入库的 `evidence-b13-integ/unit-integ5-20260911T010612.txt` 第 597-606 / 1143 行
+已有同一条 candidate422、同一指纹、同样 `blocked=1` ⇒ 该现象早于本卡）。
+车道接受你对其论证形式的批评，五跑存档结论已收窄。
+
+逐条处置见 `_bmad-output/审查/evidence-red-hygiene/RESPONSE-codex-r2-20260916.md`：
+
+- **MEDIUM-1（guard 仍漏三种写法）**：**已修**（本卡选择修而非登记 —— 那是本卡自己写进去的
+  「多 target 被覆盖」逻辑错误，且它让 docstring 里「门通过时声明与运行时必然一致」成了假话）。
+  新增 `_root_name()` 把写目标剥到根 `Name`；新增 `_iter_write_targets()` **逐个产出**所有写目标
+  并展开元组解包，覆盖 `AugAssign`/`Assign`/`AnnAssign`/`Delete`/`For`/`AsyncFor`/`NamedExpr`
+  与八个 list 变更方法。
+  **请用你 r2 那套方法复验你点名的三种**（`a[0] += "-x"`、`del a[0], b[0]`、`a[0] = b[0] = "x"`），
+  并看看还有没有第四种。车道自己的复验在 `FINAL-R3-guard-shapes-*.txt`：**19 格逐格写死预期、
+  由探针自己断言**，退出码反映预期是否兑现（修了你 LOW-1 点的「rc=0 掩盖期望文本错误」）。
+  覆盖边界已写进 docstring：别名写入 / 传进函数由被调方改 / `setattr` 等动态手段**看不见**。
+- **MEDIUM-2（协议用 `grep -c` 数拦截次数，对 0/1/9 恒得 1）**：车道复核属实，
+  **登记移交协议卡**（协议是批级资产、非本卡地盘）。并已注明这条削弱了车道先前引用该判据的力度。
+- **MEDIUM-3（自审汇总五项全错）**：**已修**，改为脚本解析实数（18 / 2 行 3 条 / 15 / 15 / 3），
+  并写明差异来源；**RH-1 的主 session 自核也被你证伪**，表格改判为成立，
+  §四 加了「主 session 逐条自核不是可靠兜底」。你指出的「验证者判不成立的原因只有摘要、
+  无 verifier 正文因而未被独立确认」也已如实写入。
+- **MEDIUM-4（R2 证据未入库）**：已随 `f28c0f4a` 入库，本轮被审 SHA 包含它们。
+- **MEDIUM-5 / MEDIUM-6**：接受，按**不可追认**保留 PARTIAL（第 0 分钟工作树干净 /
+  commit1 的 typecheck 执行历史），并在 `minute0-*.txt` 加了撤回指针。
+- **LOW-1**：已修，见上（新探针自校验预期）。
+- **LOW-2（四处更正没同步到原件）**：四处逐条已同步 ——
+  docstring 里那句「增/删/改名/换序任一发生都会红」已撤回并改写为逐条覆盖声明；
+  `attribution-*.txt` 撤回「测试文件不在基线即贡献为零」的不足推理、改引你给的 `$PREV` 红集对照；
+  `minute0-*.txt` 加 PARTIAL 指针；五跑存档收窄结论（并写明它没有复现协议所述的 nodeid 翻转）。
+- **LOW-3（territory 绑旧 SHA、`≤1` 条件与输出不符）**：已修，
+  `FINAL-R3-territory-*.txt` 绑本卡最终 SHA，工作树判据改为逐项列出 + 归属说明。
+
+**本轮请特别核**：(a) MEDIUM-1 的修法是否真的闭合（有没有第四种写法漏掉）；
+(b) 这次的修改有没有引入新问题；(c) 其余各条的处置是否到位。
+
+---
+
+## ⓪-bis（背景，r1 的处置摘要，已在 r2 核过，此处保留供索引）
 
 你上一轮（绑 `8bfcdfce`）给出 **BLOCKER 0 / HIGH 1 / MEDIUM 3 / LOW 4**。
 逐条处置写在 `_bmad-output/审查/evidence-red-hygiene/RESPONSE-codex-r1-20260916.md`。摘要：

@@ -1,0 +1,20 @@
+### [FINAL] D-32 等价性证明 —— 收尾 commit 的代码改动是纯 docstring
+### 依据：协议 §1 D-32「纯注释 / docstring 尾巴不占轮次不重置，由主 session 逐行等价核
+###      （非注释行 diff 为空 + AST 相同）」
+
+改动文件: backend/tests/api/v1/endpoints/test_agents_health.py
+对照基线: ef21be2c（= Codex r4 的被审 SHA）
+
+--- 判据一：去 docstring 后 ast.dump 是否逐字相同 ---
+去 docstring 后 AST 相同 = True
+两侧去 docstring 后的 ast.dump 长度 = 43367 / 43367
+
+--- 判据二：diff 里非 docstring 行（须为空）---
+0
+^ 若本行为 0 说明该文件相对 ef21be2c 尚无已提交改动（改动还在工作区），见判据一
+
+--- 判据三：ruff / pytest 仍绿 ---
+All checks passed!
+ruff_rc=0
+======================= 13 passed, 10 warnings in 0.44s ========================
+rc=0
