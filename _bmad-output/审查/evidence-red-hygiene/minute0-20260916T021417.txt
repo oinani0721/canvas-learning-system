@@ -1,0 +1,22 @@
+### CARD-RED-HYGIENE 第 0 分钟自证 @ 2026-09-16 02:14:17 CST
+--- pwd ---
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t10-red
+--- branch ---
+card/t10-red
+--- PREV (git rev-parse HEAD) ---
+f294878bb677ae54dcbf17277004efa2fa1ef97b
+--- git log --oneline -1 (须含 CARD-EPW-COVERAGE) ---
+f294878b docs(epw): 验收单 + Codex 5 轮存档 + 按 r5 修门/负控存档/矩阵数字 [第十四批 / CARD-EPW-COVERAGE]
+--- git status --porcelain | wc -l (须 0) ---
+       1
+--- venv/env ---
+pytest OK
+.env OK
+--- pyright bin test -x ---
+pyright OK: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/bin/pyright
+--- pyright app (cwd=backend) ---
+0 errors, 81 warnings, 0 informations
+--- BASE 红基线 grep -vc '^#' (须 64) ---
+64
+--- BASE 路径 ---
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/审查/evidence-b14/unit-red-baseline-08100483.txt

@@ -1,0 +1,17 @@
+### 归属核：本卡 6 个地盘文件在 $BASE 红基线里各有几条
+  test_agents_health : 0 条
+  test_sync_batch_auth : 0 条
+  test_system_endpoint_auth : 0 条
+  test_cache_configuration : 0 条
+
+### 结论：本卡对 '<'(30) 的贡献 = 上面几项之和
+### 若为 0 ⇒ 30 条全部来自同车道前四卡（T10-A/B/C/D，$PREV 之前已转绿），本卡只做到「不增」。
+
+--- 验伪锚：BASE 里确实存在可被 grep 命中的文件名（证明 grep 不是瞎的）---
+  test_story_30_13 在 BASE 的条数 = 11
+
+--- 本卡改动的 4 个测试文件在本跑红集里的条数（须 0）---
+  test_agents_health : 0 条
+  test_sync_batch_auth : 0 条
+  test_system_endpoint_auth : 0 条
+  test_cache_configuration : 0 条

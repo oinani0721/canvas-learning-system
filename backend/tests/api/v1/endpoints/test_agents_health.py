@@ -35,6 +35,28 @@ from app.models import (
 class MockAgentService:
     """Mock AgentService for testing Story 12.G.3."""
 
+    # 真相源 = backend/app/services/agent_service.py::AgentService.health_check
+    # 的局部 expected_templates —— 它决定 /agents/health 的 total/available。
+    # 本 mock 不读生产表，所以必须手工同名同序跟随；漂了由
+    # test_mock_expected_templates_match_production_truth_source 报。
+    # [CARD-RED-HYGIENE] 2026-09-16: 生产已是 13 项（第 13 项 hint-generation），
+    # 本 mock 此前停在 12 项，端点测试因此绿着却与生产脱节。
+    EXPECTED_TEMPLATES = [
+        "basic-decomposition",
+        "deep-decomposition",
+        "question-decomposition",
+        "oral-explanation",
+        "four-level-explanation",
+        "clarification-path",
+        "comparison-table",
+        "example-teaching",
+        "memory-anchor",
+        "scoring-agent",
+        "verification-question-agent",
+        "canvas-orchestrator",
+        "hint-generation",
+    ]
+
     def __init__(
         self,
         api_key_configured: bool = True,
@@ -61,20 +83,7 @@ class MockAgentService:
         """Mock health_check method."""
         self.health_check_call_count += 1
 
-        expected_templates = [
-            "basic-decomposition",
-            "deep-decomposition",
-            "question-decomposition",
-            "oral-explanation",
-            "four-level-explanation",
-            "clarification-path",
-            "comparison-table",
-            "example-teaching",
-            "memory-anchor",
-            "scoring-agent",
-            "verification-question-agent",
-            "canvas-orchestrator",
-        ]
+        expected_templates = self.EXPECTED_TEMPLATES
 
         available_count = len(expected_templates) - len(self.missing_templates)
 
@@ -138,8 +147,8 @@ async def test_health_check_healthy_status():
     assert response.status == AgentHealthStatus.healthy
     assert response.checks.api_key_configured is True
     assert response.checks.gemini_client_initialized is True
-    assert response.checks.prompt_templates.total == 12
-    assert response.checks.prompt_templates.available == 12
+    assert response.checks.prompt_templates.total == 13
+    assert response.checks.prompt_templates.available == 13
     assert response.checks.prompt_templates.missing == []
     assert response.cached is False
 
@@ -169,7 +178,7 @@ async def test_health_check_degraded_status():
         "comparison-table",
         "review-board",
     ]
-    assert response.checks.prompt_templates.available == 10
+    assert response.checks.prompt_templates.available == 11
 
 
 @pytest.mark.asyncio
@@ -429,3 +438,75 @@ async def test_health_check_timestamp_format():
     # Verify timestamp is valid datetime
     assert response.timestamp is not None
     assert response.timestamp.tzinfo is not None  # Has timezone info
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 防漂 guard：mock 期望表 vs 生产真相源
+# [CARD-RED-HYGIENE] BATCH-2026-09-11-第十四批
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+def _production_expected_templates() -> list[str]:
+    """从生产真相源里取出 ``expected_templates`` 字面量。
+
+    真相源 = ``backend/app/services/agent_service.py`` 的
+    ``AgentService.health_check``，其局部变量 ``expected_templates`` 决定
+    ``/api/v1/agents/health`` 返回的 ``total`` / ``available``。
+
+    为什么用 AST 读字面量而不是调 ``health_check()``：真正调用它要按
+    ``settings.AGENT_PROMPT_PATH`` 去磁盘逐个探 prompt 文件，那是端到端面
+    （本卡未覆盖，见验收单「本卡未证明什么」）。这里只要「生产声明的名单」，
+    静态取字面量既不碰磁盘也不依赖配置。
+
+    ⚠️ 本函数只认「``expected_templates = [ 字面量列表 ]``」这一种形态。若哪天
+    生产改成从常量/文件读取，这里会 ``assert`` 失败而不是静默返回空表——
+    那时应连同本 guard 一起改，而不是把断言放宽。
+    """
+    import ast
+    import inspect
+    import textwrap
+
+    from app.services.agent_service import AgentService
+
+    tree = ast.parse(textwrap.dedent(inspect.getsource(AgentService.health_check)))
+    found: list[list[str]] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+            continue
+        target = node.targets[0]
+        if not (isinstance(target, ast.Name) and target.id == "expected_templates"):
+            continue
+        assert isinstance(node.value, ast.List), (
+            "生产的 expected_templates 不再是字面量列表，本 guard 的取值方式已失效——请连同本函数一起改，不要放宽断言"
+        )
+        found.append([ast.literal_eval(elt) for elt in node.value.elts])
+
+    assert len(found) == 1, (
+        f"在 AgentService.health_check 里找到 {len(found)} 处 expected_templates 赋值，"
+        "期望恰好 1 处；生产形态变了，本 guard 需同步改"
+    )
+    return found[0]
+
+
+def test_mock_expected_templates_match_production_truth_source():
+    """MockAgentService 的期望表必须与生产真相源逐元素同名同序。
+
+    为什么需要这条：``MockAgentService.health_check`` 不读生产表，它自带一份
+    手抄名单。生产在 ``agent_service.py`` 加了第 13 项 ``hint-generation`` 之后，
+    本文件的 AC1 断言仍写 ``total == 12`` 且照常通过——测试绿着，而它声称在测
+    的那个数字已经和生产对不上了。只把 12 改成 13 治不了这个：下一次生产加第
+    14 项时同样不会有人红。这条 guard 把 mock 钉在生产字面量上，生产
+    增 / 删 / 改名 / 换序 任一发生都会在这里红。
+
+    [CARD-RED-HYGIENE] 真相源锚点 = AgentService.health_check 的 expected_templates
+    """
+    production = _production_expected_templates()
+
+    # 钉住本卡落定的快照：生产与 mock 当前都是 13 项
+    assert len(MockAgentService.EXPECTED_TEMPLATES) == 13
+
+    # 承重：mock 必须跟随生产真相源（含顺序）
+    assert MockAgentService.EXPECTED_TEMPLATES == production, (
+        "mock 的 EXPECTED_TEMPLATES 与 AgentService.health_check 的 expected_templates "
+        "不一致；生产改了名单就要同步改这里，并复核本文件里所有 total/available 断言"
+    )

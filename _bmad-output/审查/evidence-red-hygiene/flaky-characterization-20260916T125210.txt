@@ -1,0 +1,28 @@
+### (e) flaky 定性 —— 两条被测文件全程只读，不改一字
+### 跑前 shasum（收工再核一次）
+40a2b3d29e3be7276cb1c77f092fb5cf94154cb7ab2da9d4b1da4ee1453d30c1  backend/tests/unit/test_candidate_service.py
+ce6244105e5b7e58dc591b67ee899cdbe14df31adbe6c3077b07a92694433a95  backend/tests/unit/test_mock_degradation_transparency.py
+
+===== A) 定向单跑 ×5：tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422 =====
+run#1  ======================== 1 passed, 10 warnings in 0.87s ========================
+run#2  ======================== 1 passed, 10 warnings in 0.81s ========================
+run#3  ======================== 1 passed, 10 warnings in 0.81s ========================
+run#4  ======================== 1 passed, 10 warnings in 0.84s ========================
+run#5  ======================== 1 passed, 10 warnings in 0.84s ========================
+
+===== B) 定向单跑 ×5：tests/unit/test_mock_degradation_transparency.py::TestMockScoringWarningLogs::test_mock_mode_logs_warning =====
+run#1  ======================== 1 passed, 10 warnings in 0.92s ========================
+run#2  ======================== 1 passed, 10 warnings in 0.90s ========================
+run#3  ======================== 1 passed, 10 warnings in 0.82s ========================
+run#4  ======================== 1 passed, 10 warnings in 0.91s ========================
+run#5  ======================== 1 passed, 10 warnings in 0.89s ========================
+
+===== C) 顺序对照：整文件跑（看同文件内前序用例是否改变结论）=====
+--- C1 test_candidate_service.py 整文件 ---
+======================= 14 passed, 10 warnings in 0.95s ========================
+--- C2 test_mock_degradation_transparency.py 整文件 ---
+======================= 30 passed, 10 warnings in 0.88s ========================
+
+### 跑后 shasum（须与跑前逐字节同 = 全程只读）
+40a2b3d29e3be7276cb1c77f092fb5cf94154cb7ab2da9d4b1da4ee1453d30c1  backend/tests/unit/test_candidate_service.py
+ce6244105e5b7e58dc591b67ee899cdbe14df31adbe6c3077b07a92694433a95  backend/tests/unit/test_mock_degradation_transparency.py

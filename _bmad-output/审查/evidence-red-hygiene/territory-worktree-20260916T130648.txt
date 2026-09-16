@@ -1,0 +1,41 @@
+### (h) 地盘核（commit 前：对工作树；commit 后另跑一次对 HEAD）
+PREV=f294878bb677ae54dcbf17277004efa2fa1ef97b
+
+--- 代码面 diff --stat（排 _bmad-output）：期望只 6 个允许文件 ---
+ backend/.env.example                               |  16 ---
+ backend/app/config.py                              |  16 ---
+ .../tests/api/v1/endpoints/test_agents_health.py   | 116 ++++++++++++++++---
+ backend/tests/unit/test_cache_configuration.py     |  90 +++++----------
+ backend/tests/unit/test_sync_batch_auth.py         |  24 +++-
+ backend/tests/unit/test_system_endpoint_auth.py    | 123 ++++++++++++++++++++-
+ 6 files changed, 268 insertions(+), 117 deletions(-)
+
+--- 文件计数（先数再写）---
+改动代码文件数 = 6
+--- 逐个文件名 ---
+backend/.env.example
+backend/app/config.py
+backend/tests/api/v1/endpoints/test_agents_health.py
+backend/tests/unit/test_cache_configuration.py
+backend/tests/unit/test_sync_batch_auth.py
+backend/tests/unit/test_system_endpoint_auth.py
+
+--- 验伪锚①：单独查 config.py 必命中一条已知改动面 ---
+ backend/app/config.py | 16 ----------------
+ 1 file changed, 16 deletions(-)
+--- 验伪锚②：去掉 exclude 后必多出 _bmad-output 面（证明 exclude 真的在起作用）---
+0
+
+
+================================================================================
+⚠️ 本文件「验伪锚②」作废说明（本卡自查，写于同日收工前）
+
+验伪锚② 写的是「去掉 exclude 后必多出 _bmad-output 面」，实测输出 0。
+原因不是 exclude 失效，而是**此刻 evidence 文件尚未被 git 跟踪**——
+git diff 只看已跟踪对象，untracked 文件对它不可见，所以加不加 exclude 都是同一结果。
+⇒ 该锚在 commit 之前**结构上不可能成立**，它证明不了 exclude 在起作用。
+
+有效版本见同目录 territory-headcommit-*.txt：在 evidence 入库之后重跑，
+彼时 _bmad-output 已是已跟踪面，去掉 exclude 即可看到差异，锚才真正成立。
+
+本文件的主判据（代码面 6 文件、逐个文件名、验伪锚① config.py 必命中）不受影响。

@@ -5,15 +5,27 @@ Extends the fail-closed matrix from ``test_sync_batch_auth.py`` to the two
 previously-unauthenticated system endpoints. The matrix is:
 
     DEBUG  INTERNAL_API_KEY  request_key   expected
-    True   ""                missing       200 (dev bypass, warning logged)
+    True   ""                missing       503 (P0-2: no silent dev bypass)
     True   "tk"              missing       403
     False  ""                missing       503 (production fail-closed)
     False  "tk"              missing       403
     False  "tk"              "wrong"       403
     False  "tk"              "tk"          200
 
+[CARD-RED-HYGIENE] 第 1 行改实：ChatGPT-DR-2026-05-13 P0-2 加固之后，
+``DEBUG=True`` + 空 key **不再**返回 200。该档现在返回 503，除非同时满足
+``ALLOW_UNSAFE_DEV_AUTH_BYPASS=true`` **且** 请求方 ``client.host`` 是 loopback。
+``TestClient`` 默认 ``client.host = "testclient"``（非 loopback），所以本文件的
+两条 ``test_dev_mode_empty_key_now_fails_closed_503_p0_2`` 恒测到 503；
+bypass + loopback 那条允许路径由 ``test_internal_api_key_p0_2_hardening.py``
+用 mock Request 覆盖。本表此前把该档写成 200 并注明 dev bypass + 记 warning，与
+同文件用例互相矛盾。
+
 The LiteLLM side of ``/test-llm`` is stubbed out so the tests only exercise
 auth — the point is to prove the dependency runs BEFORE the body handler.
+``TestSystemTestLLMAuthPrecedesHandler`` 把这句话变成断言：拒绝档里业务替身
+``litellm.acompletion`` 的 await 次数必须为 0，并以「只摘掉鉴权依赖」的对照
+输入证明该谓词不是恒真。
 """
 
 from __future__ import annotations
@@ -27,6 +39,7 @@ from fastapi.testclient import TestClient
 
 from app.config import Settings, get_settings
 from app.main import app
+from app.security import require_internal_api_key
 from tests.support.lifespan import no_lifespan
 
 
@@ -134,6 +147,46 @@ def auth_client() -> Generator[TestClient, None, None]:
                 yield test_client
 
     app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def auth_client_with_llm_spy() -> Generator[tuple[TestClient, AsyncMock], None, None]:
+    """与 ``auth_client`` 同构，但把业务替身的句柄一起交出来。
+
+    ``auth_client`` 把 ``litellm.acompletion`` 的 AsyncMock 关在 ``with`` 块里、
+    不外露，``mock_mgr.update`` 又是个没有 ``call_count`` 的 ``lambda`` —— 于是
+    没有任何办法断言「handler 到底跑没跑」。本 fixture 只多做一件事：把那个
+    mock 连同 client 一起 yield 出来。
+
+    [CARD-RED-HYGIENE] 另开一个 fixture 而不是改 ``auth_client`` 的 yield 形态，
+    是为了不动本文件既有 12 条用例的签名。
+    """
+    llm_spy = AsyncMock(return_value=None)
+    with patch("litellm.acompletion", new=llm_spy):
+        with patch("app.core.litellm_config.get_runtime_model_config") as mock_get_runtime:
+            mock_mgr = AsyncMock()
+            mock_mgr.update = lambda *args, **kwargs: None
+            mock_get_runtime.return_value = mock_mgr
+
+            with no_lifespan(app), TestClient(app) as test_client:
+                yield test_client, llm_spy
+
+    app.dependency_overrides.clear()
+
+
+def _handler_was_not_reached(llm_spy: AsyncMock) -> bool:
+    """业务 handler 是否**没有**被执行到。
+
+    ``/system/test-llm`` 的 handler（``app/api/v1/system.py`` 的
+    ``test_llm_connection``）正文里 ``await litellm.acompletion(...)`` 是全文件
+    唯一一处调用点。所以「这个替身一次都没被 await」== 「handler 没跑到正文」。
+
+    ⚠️ 承重断言与对照断言**共用本函数**，方向相反。不要把任何一侧展开成
+    字面量 ``llm_spy.await_count == 0``：两侧各写各的字面量时，只要有人把承重
+    那侧写松（例如 ``>= 0``），承重恒真而对照照常绿，缺陷不会显形。共用一个
+    谓词则把它改恒真会让对照红、改恒假会让承重红，两个方向都被钉住。
+    """
+    return llm_spy.await_count == 0
 
 
 # ---------------------------------------------------------------------------
@@ -268,3 +321,71 @@ class TestSystemTestLLMAuth:
         app.dependency_overrides[get_settings] = _settings_factory(debug=True, key="")
         response = auth_client.post("/api/v1/system/test-llm", json=TEST_LLM_PAYLOAD)
         assert response.status_code == 503
+
+
+# ---------------------------------------------------------------------------
+# 鉴权先于 handler —— 把文件头那句话变成可证伪的断言
+# [CARD-RED-HYGIENE] BATCH-2026-09-11-第十四批
+# ---------------------------------------------------------------------------
+
+
+class TestSystemTestLLMAuthPrecedesHandler:
+    """文件头声称「the dependency runs BEFORE the body handler」，此前无一条断言钉它。
+
+    钉法：拒绝档里业务替身 ``litellm.acompletion`` 必须一次都没被 await。
+    但这条断言单独存在时是**恒真可疑**的 —— 如果 patch 目标写错、端点选错、
+    或者请求在 body 校验阶段就被挡掉，替身同样是 0 次，断言照样绿。所以下面
+    第二条对照输入是承重的一半：它保持同一个配置档、同一个 payload、同一个
+    替身，**只摘掉鉴权依赖这一个变量**，同一个谓词就必须翻成 False。
+    """
+
+    def test_rejected_request_never_reaches_handler(
+        self, auth_client_with_llm_spy: tuple[TestClient, AsyncMock]
+    ) -> None:
+        """DEBUG=False + 空 key → 503，且业务替身零 await。"""
+        test_client, llm_spy = auth_client_with_llm_spy
+        app.dependency_overrides[get_settings] = _settings_factory(debug=False, key="")
+
+        response = test_client.post("/api/v1/system/test-llm", json=TEST_LLM_PAYLOAD)
+
+        assert response.status_code == 503
+        assert _handler_was_not_reached(llm_spy), (
+            "请求被鉴权拒掉（503），但业务替身 litellm.acompletion 被 await 了 "
+            f"{llm_spy.await_count} 次 —— 说明 handler 正文在鉴权之后仍然跑了"
+        )
+        # 另一维：调用了但没 await 的形态（await_count 与 call_count 会分叉）
+        assert llm_spy.call_count == 0
+
+    def test_control_input_only_auth_dependency_removed(
+        self, auth_client_with_llm_spy: tuple[TestClient, AsyncMock]
+    ) -> None:
+        """对照输入：单变量摘掉鉴权依赖，同一请求就跑进 handler。
+
+        与上一条**逐项相同**：同一 fixture、同一 ``_settings_factory(debug=False,
+        key="")``、同一 ``TEST_LLM_PAYLOAD``、同一个替身。唯一的差别是
+        ``app.dependency_overrides[require_internal_api_key]`` 把鉴权依赖换成了
+        no-op。
+
+        它证明两件事：
+        1. 上一条的 ``_handler_was_not_reached`` 不是恒真 —— 同样的谓词在这里
+           必须是 False；
+        2. 这个替身确实处在被测请求的路径上（patch 目标、端点、payload 都对），
+           否则这里也会是 0 次，对照不成立。
+
+        ⛔ 不改 ``app/api/v1/system.py`` / ``app/security.py`` / ``app/main.py``
+        任何一行生产代码：解除依赖用的是 FastAPI 自己的 ``dependency_overrides``。
+        """
+        test_client, llm_spy = auth_client_with_llm_spy
+        app.dependency_overrides[get_settings] = _settings_factory(debug=False, key="")
+        app.dependency_overrides[require_internal_api_key] = lambda: None
+        try:
+            response = test_client.post("/api/v1/system/test-llm", json=TEST_LLM_PAYLOAD)
+        finally:
+            # 只撤自己加的那一项：整个 clear() 会连 get_settings 覆盖一起清掉。
+            app.dependency_overrides.pop(require_internal_api_key, None)
+
+        assert response.status_code == 200
+        assert not _handler_was_not_reached(llm_spy), (
+            "摘掉鉴权依赖后业务替身仍是 0 次 await —— 对照输入不成立，"
+            "上一条的『未被调用』断言无法区分『鉴权前置』与『替身根本不在路径上』"
+        )

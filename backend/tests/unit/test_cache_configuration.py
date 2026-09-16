@@ -36,56 +36,20 @@ class TestDeleteSimulateWorkSleep:
 
 
 # ---------------------------------------------------------------------------
-# AC-2: Memory retry delay from Settings
+# AC-2: Memory retry delay from Settings —— 已随死配置一并退役
+#
+# [CARD-RED-HYGIENE] BATCH-2026-09-11-第十四批（2026-09-16）
+# 原 TestMemoryRetryDelayFromSettings 两条用例已删除，理由如下：
+#   * test_retry_delay_reads_settings 是 xfail(strict=True)，断言的
+#     MemoryService._retry_base_delay / _retry_max_delay 早在 59586af1
+#     (2026-03-26) 就随 _write_to_graphiti_json_with_retry 一起被删了；
+#   * test_retry_delay_defaults_match_original 只读 Settings 的两个字段默认值，
+#     而 MEMORY_RETRY_BASE_DELAY / MEMORY_RETRY_MAX_DELAY 在 backend/app 下
+#     零消费方（census 只命中 config.py 自身的定义），本卡已把这两个 Field
+#     从 app/config.py 与 backend/.env.example 一并退役。
+# 那条 xfail 的 reason 里点名的接收卡就是本卡；前提消解后整段随之移除，
+# 不是把断言放宽。AC-2 自此在本文件无对应用例。
 # ---------------------------------------------------------------------------
-
-
-class TestMemoryRetryDelayFromSettings:
-    """AC-36.13.2: memory_service retry delays use Settings config."""
-
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "59586af1 (2026-03-26) 删除 MemoryService._retry_base_delay / _retry_max_delay"
-            "（连同 _write_to_graphiti_json_with_retry 的退避计算）；memory_service.py 实测 "
-            "0 命中，本用例断言的是 MemoryService 上已不存在的属性。config.py:644/:650 的 "
-            "MEMORY_RETRY_BASE_DELAY / MEMORY_RETRY_MAX_DELAY 字段仍在，但 backend/app 下"
-            "**零消费方**（census 只命中 config.py 自身的定义），属死配置项，"
-            "接收卡 = CARD-CONFIG-CLEANUP（死配置项清理，第十四批候选，已登记台账）。"
-            "同类 test_retry_delay_defaults_match_original 只读 Settings 默认值，"
-            "不依赖该属性，仍绿。[CARD-RED-C1]"
-        ),
-    )
-    def test_retry_delay_reads_settings(self):
-        """MemoryService uses configurable retry delays."""
-        with (
-            patch("app.services.memory_service.get_neo4j_client") as mock_neo4j,
-            patch("app.config.get_settings") as mock_settings,
-        ):
-            mock_neo4j.return_value = MagicMock()
-            s = MagicMock()
-            s.MEMORY_RETRY_BASE_DELAY = 2.5
-            s.MEMORY_RETRY_MAX_DELAY = 15.0
-            s.SCORE_HISTORY_CACHE_MAXSIZE = 500
-            mock_settings.return_value = s
-
-            from app.services.memory_service import MemoryService
-
-            svc = MemoryService()
-
-            assert svc._retry_base_delay == 2.5
-            assert svc._retry_max_delay == 15.0
-
-    def test_retry_delay_defaults_match_original(self):
-        """Default retry delays preserve backward compatibility."""
-        from app.config import Settings
-
-        s = Settings(
-            AI_API_KEY="test",
-            NEO4J_PASSWORD="test",
-        )
-        assert s.MEMORY_RETRY_BASE_DELAY == 1.0
-        assert s.MEMORY_RETRY_MAX_DELAY == 10.0
 
 
 # ---------------------------------------------------------------------------
@@ -131,8 +95,6 @@ class TestMemoryServiceCacheFromSettings:
         ):
             mock_neo4j.return_value = MagicMock()
             s = MagicMock()
-            s.MEMORY_RETRY_BASE_DELAY = 1.0
-            s.MEMORY_RETRY_MAX_DELAY = 10.0
             s.SCORE_HISTORY_CACHE_MAXSIZE = 200
             mock_settings.return_value = s
 
@@ -156,8 +118,9 @@ class TestEnrichmentCacheFromSettings:
             "836d0986(2026-03-31 Epic2 architectural pruning) 整体裁撤 ContextEnrichmentService "
             "的 association cache：该 commit 对 context_enrichment_service.py 148 增/700 删，"
             "删除 association_cache_maxsize 构造参数、_association_cache 属性及其 DI 传递。"
-            "config.py:678 的 ENRICHMENT_CACHE_MAXSIZE 字段仍在但 backend/app 零消费方"
-            "（与 MEMORY_RETRY_* 同族死配置），接收卡 = CARD-CONFIG-CLEANUP（第十四批候选）。"
+            "app/config.py::Settings.ENRICHMENT_CACHE_MAXSIZE 字段仍在但 backend/app 零消费方"
+            "（同族的 MEMORY_RETRY_* 已由 [CARD-RED-HYGIENE] 第十四批退役），"
+            "接收卡 = CARD-CONFIG-CLEANUP（第十四批候选）。"
             "注：同名 test_cache_uses_custom_maxsize 在 TestMemoryServiceCacheFromSettings "
             "另有一份且当前绿，未波及。[CARD-RED-C2]"
         ),
@@ -179,8 +142,9 @@ class TestEnrichmentCacheFromSettings:
             "836d0986(2026-03-31 Epic2 architectural pruning) 整体裁撤 ContextEnrichmentService "
             "的 association cache：该 commit 对 context_enrichment_service.py 148 增/700 删，"
             "删除 association_cache_maxsize 构造参数、_association_cache 属性及其 DI 传递。"
-            "config.py:678 的 ENRICHMENT_CACHE_MAXSIZE 字段仍在但 backend/app 零消费方"
-            "（与 MEMORY_RETRY_* 同族死配置），接收卡 = CARD-CONFIG-CLEANUP（第十四批候选）。"
+            "app/config.py::Settings.ENRICHMENT_CACHE_MAXSIZE 字段仍在但 backend/app 零消费方"
+            "（同族的 MEMORY_RETRY_* 已由 [CARD-RED-HYGIENE] 第十四批退役），"
+            "接收卡 = CARD-CONFIG-CLEANUP（第十四批候选）。"
             "注：同名 test_cache_uses_custom_maxsize 在 TestMemoryServiceCacheFromSettings "
             "另有一份且当前绿，未波及。[CARD-RED-C2]"
         ),
@@ -210,8 +174,6 @@ class TestDefaultValuesBackwardCompatible:
             AI_API_KEY="test",
             NEO4J_PASSWORD="test",
         )
-        assert s.MEMORY_RETRY_BASE_DELAY == 1.0
-        assert s.MEMORY_RETRY_MAX_DELAY == 10.0
         assert s.AGENT_MEMORY_CACHE_MAXSIZE == 1000
         assert s.AGENT_MEMORY_CACHE_TTL == 30
         assert s.SCORE_HISTORY_CACHE_MAXSIZE == 1000
@@ -245,8 +207,9 @@ class TestDefaultValuesBackwardCompatible:
             "836d0986(2026-03-31 Epic2 architectural pruning) 整体裁撤 ContextEnrichmentService "
             "的 association cache：该 commit 对 context_enrichment_service.py 148 增/700 删，"
             "删除 association_cache_maxsize 构造参数、_association_cache 属性及其 DI 传递。"
-            "config.py:678 的 ENRICHMENT_CACHE_MAXSIZE 字段仍在但 backend/app 零消费方"
-            "（与 MEMORY_RETRY_* 同族死配置），接收卡 = CARD-CONFIG-CLEANUP（第十四批候选）。"
+            "app/config.py::Settings.ENRICHMENT_CACHE_MAXSIZE 字段仍在但 backend/app 零消费方"
+            "（同族的 MEMORY_RETRY_* 已由 [CARD-RED-HYGIENE] 第十四批退役），"
+            "接收卡 = CARD-CONFIG-CLEANUP（第十四批候选）。"
             "注：同名 test_cache_uses_custom_maxsize 在 TestMemoryServiceCacheFromSettings "
             "另有一份且当前绿，未波及。[CARD-RED-C2]"
         ),
@@ -291,8 +254,9 @@ class TestDIPathPropagation:
             "836d0986(2026-03-31 Epic2 architectural pruning) 整体裁撤 ContextEnrichmentService "
             "的 association cache：该 commit 对 context_enrichment_service.py 148 增/700 删，"
             "删除 association_cache_maxsize 构造参数、_association_cache 属性及其 DI 传递。"
-            "config.py:678 的 ENRICHMENT_CACHE_MAXSIZE 字段仍在但 backend/app 零消费方"
-            "（与 MEMORY_RETRY_* 同族死配置），接收卡 = CARD-CONFIG-CLEANUP（第十四批候选）。"
+            "app/config.py::Settings.ENRICHMENT_CACHE_MAXSIZE 字段仍在但 backend/app 零消费方"
+            "（同族的 MEMORY_RETRY_* 已由 [CARD-RED-HYGIENE] 第十四批退役），"
+            "接收卡 = CARD-CONFIG-CLEANUP（第十四批候选）。"
             "注：同名 test_cache_uses_custom_maxsize 在 TestMemoryServiceCacheFromSettings "
             "另有一份且当前绿，未波及。[CARD-RED-C2]"
         ),
@@ -313,8 +277,8 @@ class TestDIPathPropagation:
         env_example = Path(__file__).parent.parent.parent / ".env.example"
         content = env_example.read_text(encoding="utf-8")
         required_keys = [
-            "MEMORY_RETRY_BASE_DELAY",
-            "MEMORY_RETRY_MAX_DELAY",
+            # MEMORY_RETRY_BASE_DELAY / MEMORY_RETRY_MAX_DELAY 已由
+            # [CARD-RED-HYGIENE] 从 Settings 与 .env.example 一并退役。
             "AGENT_MEMORY_CACHE_MAXSIZE",
             "AGENT_MEMORY_CACHE_TTL",
             "SCORE_HISTORY_CACHE_MAXSIZE",
