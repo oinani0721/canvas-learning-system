@@ -15,15 +15,12 @@ pytest 以外的静态面直接导入复用（`from tests.skills.skill_portabili
 
 (ii) 真把这 2 处改成 `/tmp/cls-exam/` 命名空间，必须**同批**改 **4 处 regression 硬钉点**
     （引用一律用「文件名 + 条目名」，不用行号——行号会随别的卡漂移）：
-      · `backend/tests/regression/test_g3_3_cas.py` —— 两处，**作用域不同，别混为一谈**：
-          - `_SEB_BLOCKS` 列表推导按 `'P = "/tmp/exam-created-event.json"'` 字面量过滤、
-            紧随其后的 `assert len(_SEB_BLOCKS) == 1`、以及 `SEB_CODE = _SEB_BLOCKS[0]`
-            —— 这三行在**模块级**（其上无任何 `def` / `class`），**导入期即执行**；
-          - `_exam_board_code()` 里对同一字面量的 `.replace(...)` —— 这一处在**函数体内**，
-            **不**在导入期执行；它消费的是上面那个模块级 `SEB_CODE`。
-        ⛔ 归因只落在**模块级**那三行：改字面量 ⇒ `assert len(_SEB_BLOCKS) == 1` 在导入期
-        就断言失败 = **collect-time ERROR、整个文件不可收集**（函数体内那处根本轮不到执行，
-        所以它不是 collect-time 失败的原因，但解耦时同样要改，否则替换不到目标字面量）。
+      · `backend/tests/regression/test_g3_3_cas.py` —— `_SEB_BLOCKS` 列表推导按
+        `'P = "/tmp/exam-created-event.json"'` 字面量过滤 + 紧随其后的
+        `assert len(_SEB_BLOCKS) == 1`；以及 `_exam_board_code()` 里对同一字面量的
+        `.replace(...)`（它吃的是模块级 `SEB_CODE`）。
+        ⛔ 这两处都在**模块级**（其上无任何 `def` / `class`），导入期即执行 ⇒
+        改字面量 = **collect-time ERROR，整个文件不可收集**，不是单条测试红。
       · `backend/tests/regression/test_learning_events_schema_contract.py` —— 函数
         `test_real_producer_start_exam_board_writer` **体内**的 `matches` 列表推导
         （同一字面量）+ `assert len(matches) == 1`，以及同函数体内的 `.replace(...)`。
