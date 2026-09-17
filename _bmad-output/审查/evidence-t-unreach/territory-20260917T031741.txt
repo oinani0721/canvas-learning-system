@@ -1,0 +1,20 @@
+### 地盘门 ts=20260917T031741   PREV=3b819f404668c59c7ddc08c083f8014355e2dc96   HEAD=802f05ca352afc3d432b1511f7e2e38869f19eb3
+
+--- (g) 地盘门（树根跑）：$PREV..HEAD 排除 _bmad-output ---
+backend/app/api/v1/endpoints/boards.py
+backend/app/mcp/tools/board_manifest_tools.py
+backend/tests/unit/test_board_manifest_unreach_t5e.py
+--- 行数 ---
+       3
+
+--- 验伪锚 1：去掉 exclude 应多出 _bmad-output/ 路径 ---
+      34
+31
+
+--- 验伪锚 2：openapi.json 净变化为零（两次改动抵消），逐字节核 ---
+  git diff PREV..HEAD -- backend/openapi.json 行数(应 0):        0
+  中间 commit 971061f5 确实改过它(应 13):       13
+
+--- 本卡两个 commit ---
+802f05ca revert(openapi): 还原 lefthook 顺带写入的 x-generated-at [BATCH-2026-09-11-第十四批 / CARD-T-UNREACH]
+971061f5 fix(boards,mcp): 调 except 顺序复活 ValidationError 死分支 [BATCH-2026-09-11-第十四批 / CARD-T-UNREACH]

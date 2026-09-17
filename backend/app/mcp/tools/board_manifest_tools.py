@@ -59,16 +59,18 @@ async def get_board_manifest(input: GetBoardManifestInput) -> dict:
             stale_after_s=settings.MANIFEST_SNAPSHOT_STALE_AFTER_S,
         )
         manifest = project_manifest(raw, input.view)
+    # ⚠️ 顺序要紧: pydantic.ValidationError 是 ValueError 的子类 (pydantic 2.12.5
+    # 实测 MRO), 必须排在 except ValueError 之前 — 排在它后面会被先接走成死分支。
+    # CARD-T-UNREACH (2026-09-17): 本卡已调顺序, 复活下面这条纵深兜底 —
+    # schema 契约被破 → 结构化错误; 非 ValidationError 的 ValueError (如非法
+    # board_id) 仍走再下面的「非法参数: 」。
+    except pydantic.ValidationError as e:
+        # 纵深兜底 (Code-Review H3): schema 契约被破 → 结构化错误, 不裸抛
+        logger.error("[manifest] MCP 投影 schema 异常: %s", e)
+        return GetBoardManifestOutput(ok=False, error="manifest 投影 schema 异常, 已记录日志").model_dump()
     except ValueError as e:
         return GetBoardManifestOutput(ok=False, error=f"非法参数: {e}").model_dump()
     except KeyError as e:
         detail = str(e.args[0]) if e.args else str(e)
         return GetBoardManifestOutput(ok=False, error=detail).model_dump()
-    # ⚠️ 死分支(TAIL): pydantic.ValidationError 是 ValueError 的子类
-    # (pydantic 2.12.5 实测 MRO), 已被上面的 except ValueError 先接走。
-    # 调整顺序 = 改行为(该异常会从当前分支的语义换到本分支), 本卡不改。
-    except pydantic.ValidationError as e:  # pyright: ignore[reportUnusedExcept]
-        # 纵深兜底 (Code-Review H3): schema 契约被破 → 结构化错误, 不裸抛
-        logger.error("[manifest] MCP 投影 schema 异常: %s", e)
-        return GetBoardManifestOutput(ok=False, error="manifest 投影 schema 异常, 已记录日志").model_dump()
     return GetBoardManifestOutput(ok=True, manifest=manifest).model_dump()

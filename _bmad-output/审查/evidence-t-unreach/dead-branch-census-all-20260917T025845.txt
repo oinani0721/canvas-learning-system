@@ -1,0 +1,15 @@
+### 别处三处 except ValidationError 的死分支静态核（census 全覆盖证明）ts=20260917T025845
+口径: 对全 backend/app 的每个 ast.Try, 若某 handler 的异常类型是另一个更靠前 handler 的子类, 则该 handler = 死分支。
+
+backend/app/api/v1/endpoints/boards.py:L87  handlers=[(87, ['ValidationError']), (92, ['ValueError']), (94, ['KeyError'])]
+    → OK 非死分支
+backend/app/mcp/tools/board_manifest_tools.py:L67  handlers=[(67, ['ValidationError']), (71, ['ValueError']), (73, ['KeyError'])]
+    → OK 非死分支
+backend/app/services/board_manifest_service.py:L1029  handlers=[(1029, ['ValidationError'])]
+    → OK 非死分支
+backend/app/services/board_manifest_service.py:L1069  handlers=[(1069, ['ValidationError'])]
+    → OK 非死分支
+backend/app/services/canvas_service.py:L701  handlers=[(701, ['ValidationError'])]
+    → OK 非死分支
+
+扫到含 ValidationError handler 的 try 共 5 个；判为 DEAD 的 0 个

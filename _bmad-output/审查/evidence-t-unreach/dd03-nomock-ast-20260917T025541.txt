@@ -1,0 +1,10 @@
+### DD-03 真异常判据（AST 口径）ts=20260917T025541
+backend/tests/unit/test_board_manifest_unreach_t5e.py: mock-imports=0 mock-refs=0 (期望 0)
+backend/tests/unit/conftest.py: mock-imports=1 mock-refs=5 (期望 验伪锚>0)
+    backend/tests/unit/conftest.py:19 from unittest.mock import …
+    backend/tests/unit/conftest.py:424 Name MagicMock
+    backend/tests/unit/conftest.py:425 Name AsyncMock
+    backend/tests/unit/conftest.py:432 Name MagicMock
+    backend/tests/unit/conftest.py:433 Name MagicMock
+    backend/tests/unit/conftest.py:469 Name patch
+--- 说明：AST 只看真实语法节点，docstring / 注释里的 'MagicMock' 字样不计入 ---

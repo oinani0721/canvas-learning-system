@@ -1,0 +1,10 @@
+### pyright 对本卡新测试文件（入库版 v3）ts=20260917T031022
+非承重（承重是 'pyright app'；测试文件不在 app/ 下、也不在 python-typecheck 的 glob backend/app/*.py 内）。
+本项为手册 §一.1.7「本卡新增的 error 由本卡自己清」的自清证据。
+初版曾 2 errors + 1 warning，见 pyright-testfile-20260917T030131.txt。
+
+0 errors, 0 warnings, 0 informations
+rc=0
+
+--- 验伪锚：同一跑法对一个已知有 error 的临时文件必报 >0 ---
+1 error, 0 warnings, 0 informations

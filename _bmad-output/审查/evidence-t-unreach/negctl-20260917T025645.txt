@@ -1,0 +1,231 @@
+### 负控 ts=20260917T025645  （脚本原文附于本存档末尾）
+
+=== 负控段 [boards] backend/app/api/v1/endpoints/boards.py ===
+  跑前 shasum -a 256: ab6d794cd93c9242e1318453ad63e34379ec9ebf297156e6c996b4d29bee5b9d
+  跑前 AST handler 顺序: ['ValidationError', 'ValueError', 'KeyError']
+  变异后 AST handler 顺序: ['ValueError', 'KeyError', 'ValidationError']  ⇒ 死分支已重演
+  变异体 shasum -a 256:   c62d25903591d4095fa4d4417da2643ee85e25dbacf9cc762cdd45cd2891e2ab  (与跑前不同 = 变异确实落盘)
+    pytest 汇总: =================== 3 failed, 8 passed, 10 warnings in 0.92s ===================
+  指定必红 3 条 → 实红 3 条
+     红 ✓ test_validation_error_handler_precedes_value_error[app.api.v1.endpoints.boards-get_board_manifest_http]
+     红 ✓ test_http_schema_break_returns_500[study]
+     红 ✓ test_http_schema_break_returns_500[exam]
+  排他性: 期望仍绿 6 条 → 被打破 0 条
+  段判定: PASS (红在指定断言, 且只红在指定断言)
+  跑后 shasum -a 256: ab6d794cd93c9242e1318453ad63e34379ec9ebf297156e6c996b4d29bee5b9d
+  还原逐字节相同: True
+  还原后 AST handler 顺序: ['ValidationError', 'ValueError', 'KeyError']
+
+=== 负控段 [tools] backend/app/mcp/tools/board_manifest_tools.py ===
+  跑前 shasum -a 256: 9c42a6a9347e4fea144f10e363cc79e5f173b0417a3e58fc7ecf94b34f04fbe8
+  跑前 AST handler 顺序: ['ValidationError', 'ValueError', 'KeyError']
+  变异后 AST handler 顺序: ['ValueError', 'KeyError', 'ValidationError']  ⇒ 死分支已重演
+  变异体 shasum -a 256:   f6b07d17b9a73d3f9b7e31cde64c033fa2d8a8778687ffeb9f3efc46361f0e04  (与跑前不同 = 变异确实落盘)
+    pytest 汇总: =================== 3 failed, 8 passed, 10 warnings in 1.03s ===================
+  指定必红 3 条 → 实红 3 条
+     红 ✓ test_validation_error_handler_precedes_value_error[app.mcp.tools.board_manifest_tools-get_board_manifest]
+     红 ✓ test_mcp_schema_break_returns_structured_error[study]
+     红 ✓ test_mcp_schema_break_returns_structured_error[exam]
+  排他性: 期望仍绿 6 条 → 被打破 0 条
+  段判定: PASS (红在指定断言, 且只红在指定断言)
+  跑后 shasum -a 256: 9c42a6a9347e4fea144f10e363cc79e5f173b0417a3e58fc7ecf94b34f04fbe8
+  还原逐字节相同: True
+  还原后 AST handler 顺序: ['ValidationError', 'ValueError', 'KeyError']
+
+=== 负控总判定: PASS ===
+negctl_exit=0
+
+########## 负控脚本原文（可追溯） ##########
+"""CARD-T-UNREACH 负控: 把一处 ValidationError 分支挪回 ValueError 之后 (重演死分支),
+证明后绿断言钉的是 except 顺序本身, 不是别的。
+
+纪律:
+  - try/finally 无条件还原 (禁 git stash / git checkout);
+  - 跑前 / 跑后全文件 shasum -a 256 逐字比对并打印;
+  - 变异体断言「纯行重排」: 整文件行多重集与原文相同 (证明只动了顺序,
+    没有顺带改文案 / 状态码 / ignore);
+  - 变异体断言 AST handler 顺序确实反了 (证明变异真的生效, 不是空操作);
+  - 排他性: 变异 A 文件时, B 文件的断言必须仍绿。
+"""
+
+from __future__ import annotations
+
+import ast
+import hashlib
+import subprocess
+import sys
+from pathlib import Path
+
+ROOT = Path("/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-bugs")
+PYTEST = ROOT / "backend/.venv/bin/pytest"
+TESTFILE = "tests/unit/test_board_manifest_unreach_t5e.py"
+
+BOARDS = ROOT / "backend/app/api/v1/endpoints/boards.py"
+TOOLS = ROOT / "backend/app/mcp/tools/board_manifest_tools.py"
+
+BOARDS_FIXED = '''    except pydantic.ValidationError as e:
+        # 纵深兜底: service 已做类型归一, 走到这说明 schema 契约被破 — 诚实
+        # 500 + 日志, 绝不把未投影数据吐出去 (Code-Review H3)
+        logger.error("[manifest] 投影 schema 异常: %s", e)
+        raise HTTPException(status_code=500, detail="manifest 投影 schema 异常, 已记录日志") from e
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e.args[0]) if e.args else str(e)) from e
+'''
+BOARDS_MUTANT = '''    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e.args[0]) if e.args else str(e)) from e
+    except pydantic.ValidationError as e:
+        # 纵深兜底: service 已做类型归一, 走到这说明 schema 契约被破 — 诚实
+        # 500 + 日志, 绝不把未投影数据吐出去 (Code-Review H3)
+        logger.error("[manifest] 投影 schema 异常: %s", e)
+        raise HTTPException(status_code=500, detail="manifest 投影 schema 异常, 已记录日志") from e
+'''
+
+TOOLS_FIXED = '''    except pydantic.ValidationError as e:
+        # 纵深兜底 (Code-Review H3): schema 契约被破 → 结构化错误, 不裸抛
+        logger.error("[manifest] MCP 投影 schema 异常: %s", e)
+        return GetBoardManifestOutput(ok=False, error="manifest 投影 schema 异常, 已记录日志").model_dump()
+    except ValueError as e:
+        return GetBoardManifestOutput(ok=False, error=f"非法参数: {e}").model_dump()
+    except KeyError as e:
+        detail = str(e.args[0]) if e.args else str(e)
+        return GetBoardManifestOutput(ok=False, error=detail).model_dump()
+'''
+TOOLS_MUTANT = '''    except ValueError as e:
+        return GetBoardManifestOutput(ok=False, error=f"非法参数: {e}").model_dump()
+    except KeyError as e:
+        detail = str(e.args[0]) if e.args else str(e)
+        return GetBoardManifestOutput(ok=False, error=detail).model_dump()
+    except pydantic.ValidationError as e:
+        # 纵深兜底 (Code-Review H3): schema 契约被破 → 结构化错误, 不裸抛
+        logger.error("[manifest] MCP 投影 schema 异常: %s", e)
+        return GetBoardManifestOutput(ok=False, error="manifest 投影 schema 异常, 已记录日志").model_dump()
+'''
+
+SEGMENTS = {
+    "boards": {
+        "path": BOARDS,
+        "fixed": BOARDS_FIXED,
+        "mutant": BOARDS_MUTANT,
+        "fn": "get_board_manifest_http",
+        "expect_red": [
+            "test_validation_error_handler_precedes_value_error[app.api.v1.endpoints.boards-get_board_manifest_http]",
+            "test_http_schema_break_returns_500[study]",
+            "test_http_schema_break_returns_500[exam]",
+        ],
+        "expect_green": [
+            "test_mcp_schema_break_returns_structured_error[study]",
+            "test_mcp_schema_break_returns_structured_error[exam]",
+            "test_http_plain_value_error_still_422",
+            "test_mcp_plain_value_error_still_invalid_param",
+            "test_http_key_error_still_404",
+            "test_mcp_key_error_still_passthrough",
+        ],
+    },
+    "tools": {
+        "path": TOOLS,
+        "fixed": TOOLS_FIXED,
+        "mutant": TOOLS_MUTANT,
+        "fn": "get_board_manifest",
+        "expect_red": [
+            "test_validation_error_handler_precedes_value_error[app.mcp.tools.board_manifest_tools-get_board_manifest]",
+            "test_mcp_schema_break_returns_structured_error[study]",
+            "test_mcp_schema_break_returns_structured_error[exam]",
+        ],
+        "expect_green": [
+            "test_http_schema_break_returns_500[study]",
+            "test_http_schema_break_returns_500[exam]",
+            "test_http_plain_value_error_still_422",
+            "test_mcp_plain_value_error_still_invalid_param",
+            "test_http_key_error_still_404",
+            "test_mcp_key_error_still_passthrough",
+        ],
+    },
+}
+
+
+def sha(p: Path) -> str:
+    return hashlib.sha256(p.read_bytes()).hexdigest()
+
+
+def handler_order(path: Path, fn_name: str) -> list[str]:
+    fn = next(n for n in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
+              if getattr(n, "name", "") == fn_name)
+    for tr in ast.walk(fn):
+        if isinstance(tr, ast.Try):
+            order = [getattr(h.type, "attr", getattr(h.type, "id", None)) for h in tr.handlers]
+            if "ValidationError" in order and "ValueError" in order:
+                return order
+    raise AssertionError(f"{path}::{fn_name} 未找到目标 try")
+
+
+def run_tests() -> tuple[set[str], int]:
+    proc = subprocess.run(
+        [str(PYTEST), "-q", "-p", "no:cacheprovider", "--no-header", "-rf", TESTFILE],
+        cwd=ROOT / "backend", capture_output=True, text=True,
+        env={"PYTHONDONTWRITEBYTECODE": "1", "PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "HOME": str(Path.home())},
+    )
+    out = proc.stdout + proc.stderr
+    failed = set()
+    for line in out.splitlines():
+        if line.startswith("FAILED "):
+            nodeid = line.split(" ", 1)[1].split(" - ")[0]
+            failed.add(nodeid.split("::", 1)[1] if "::" in nodeid else nodeid)
+    tail = [ln for ln in out.splitlines() if " passed" in ln or " failed" in ln]
+    print("    pytest 汇总:", tail[-1] if tail else "(无汇总行)")
+    return failed, proc.returncode
+
+
+ok_all = True
+for label, seg in SEGMENTS.items():
+    path: Path = seg["path"]
+    print(f"\n=== 负控段 [{label}] {path.relative_to(ROOT)} ===")
+    original = path.read_text(encoding="utf-8")
+    sha_before = sha(path)
+    print(f"  跑前 shasum -a 256: {sha_before}")
+    print(f"  跑前 AST handler 顺序: {handler_order(path, seg['fn'])}")
+    try:
+        assert original.count(seg["fixed"]) == 1, f"{label}: 修后块未唯一命中, 不变异"
+        mutated = original.replace(seg["fixed"], seg["mutant"], 1)
+
+        # 变异体自证 1: 纯行重排 —— 整文件行多重集不变 (没顺带改文案/状态码/ignore)
+        assert sorted(original.splitlines()) == sorted(mutated.splitlines()), \
+            f"{label}: 变异体不是纯行重排, 拒绝写入"
+        path.write_text(mutated, encoding="utf-8")
+
+        # 变异体自证 2: AST 顺序确实反了 (变异真的生效, 不是空操作)
+        order = handler_order(path, seg["fn"])
+        vi, ve = order.index("ValidationError"), order.index("ValueError")
+        assert vi > ve, f"{label}: 变异未生效, handler 顺序仍是 {order}"
+        print(f"  变异后 AST handler 顺序: {order}  ⇒ 死分支已重演")
+        print(f"  变异体 shasum -a 256:   {sha(path)}  (与跑前不同 = 变异确实落盘)")
+
+        failed, rc = run_tests()
+        red_hit = [n for n in seg["expect_red"] if n in failed]
+        red_miss = [n for n in seg["expect_red"] if n not in failed]
+        green_broken = [n for n in seg["expect_green"] if n in failed]
+        print(f"  指定必红 {len(seg['expect_red'])} 条 → 实红 {len(red_hit)} 条")
+        for n in red_hit:
+            print(f"     红 ✓ {n}")
+        for n in red_miss:
+            print(f"     红 ✗ 未红(负控失败) {n}")
+        print(f"  排他性: 期望仍绿 {len(seg['expect_green'])} 条 → 被打破 {len(green_broken)} 条")
+        for n in green_broken:
+            print(f"     绿 ✗ 被打破 {n}")
+        seg_ok = not red_miss and not green_broken
+        print(f"  段判定: {'PASS (红在指定断言, 且只红在指定断言)' if seg_ok else 'FAIL'}")
+        ok_all = ok_all and seg_ok
+    finally:
+        path.write_text(original, encoding="utf-8")
+        sha_after = sha(path)
+        print(f"  跑后 shasum -a 256: {sha_after}")
+        same = sha_after == sha_before
+        print(f"  还原逐字节相同: {same}")
+        print(f"  还原后 AST handler 顺序: {handler_order(path, seg['fn'])}")
+        ok_all = ok_all and same
+
+print(f"\n=== 负控总判定: {'PASS' if ok_all else 'FAIL'} ===")
+sys.exit(0 if ok_all else 1)

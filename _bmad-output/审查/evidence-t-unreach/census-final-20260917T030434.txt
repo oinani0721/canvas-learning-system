@@ -1,0 +1,6 @@
+### census 后绿 FINAL ts=20260917T030434
+backend/app/api/v1/endpoints/boards.py ['ValidationError', 'ValueError', 'KeyError'] OK
+backend/app/mcp/tools/board_manifest_tools.py ['ValidationError', 'ValueError', 'KeyError'] OK
+except pydantic.ValidationError 计数(应 2):        2
+reportUnusedExcept ignore 计数(应 0):        0
+  同次验伪锚 except 计数(应 2):        2

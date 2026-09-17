@@ -79,15 +79,17 @@ async def get_board_manifest_http(
             stale_after_s=settings.MANIFEST_SNAPSHOT_STALE_AFTER_S,
         )
         return project_manifest(raw, req.view)
-    except ValueError as e:
-        raise HTTPException(status_code=422, detail=str(e)) from e
-    except KeyError as e:
-        raise HTTPException(status_code=404, detail=str(e.args[0]) if e.args else str(e)) from e
-    # ⚠️ 死分支(TAIL): pydantic.ValidationError 是 ValueError 的子类
-    # (pydantic 2.12.5 实测 MRO), 已被上面的 except ValueError 先接走。
-    # 调整顺序 = 改行为(该异常会从当前分支的语义换到本分支), 本卡不改。
-    except pydantic.ValidationError as e:  # pyright: ignore[reportUnusedExcept]
+    # ⚠️ 顺序要紧: pydantic.ValidationError 是 ValueError 的子类 (pydantic 2.12.5
+    # 实测 MRO), 必须排在 except ValueError 之前 — 排在它后面会被先接走成死分支。
+    # CARD-T-UNREACH (2026-09-17): 本卡已调顺序, 复活下面这条纵深兜底 —
+    # schema 契约被破 → 诚实 500; 非 ValidationError 的 ValueError (如非法
+    # board_id) 仍走再下面的 422。
+    except pydantic.ValidationError as e:
         # 纵深兜底: service 已做类型归一, 走到这说明 schema 契约被破 — 诚实
         # 500 + 日志, 绝不把未投影数据吐出去 (Code-Review H3)
         logger.error("[manifest] 投影 schema 异常: %s", e)
         raise HTTPException(status_code=500, detail="manifest 投影 schema 异常, 已记录日志") from e
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e.args[0]) if e.args else str(e)) from e

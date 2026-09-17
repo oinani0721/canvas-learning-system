@@ -1,0 +1,17 @@
+### ruff format 前后 AST 等价证明 ts=20260917T030026
+背景: 收工目录级在跑期间, 新测试文件被 ruff format 改了一处函数签名换行。
+须证明: 目录级跑的那版与最终入库版**语义完全相同**, 结论可直接搬运。
+
+文本 sha256 before: a6a96ce8b73abbdff9d59a8bbe627166237767eb884037269dcba7e69b11b745
+文本 sha256 after : 7c7a6760c9efe4cc93abeb83606d206b8bc2106793c8cd97501c016299183eff
+文本相同: False
+
+AST dump sha256 before: ec44bed61cf2c35b906358440bb34aaf460944d805d2cb03e65fdfe4164a7ef8
+AST dump sha256 after : ec44bed61cf2c35b906358440bb34aaf460944d805d2cb03e65fdfe4164a7ef8
+AST dump 逐字符相同  : True  ⇒ 纯格式改动, 零语义差
+
+验伪锚 (把 500 改成 422 后) AST dump 相同: False (期望 False = 判据能翻)
+
+before 测试函数: ['test_http_key_error_still_404', 'test_http_plain_value_error_still_422', 'test_http_schema_break_returns_500', 'test_mcp_key_error_still_passthrough', 'test_mcp_plain_value_error_still_invalid_param', 'test_mcp_schema_break_returns_structured_error', 'test_project_manifest_raises_real_validation_error', 'test_validation_error_handler_precedes_value_error']
+after  测试函数: ['test_http_key_error_still_404', 'test_http_plain_value_error_still_422', 'test_http_schema_break_returns_500', 'test_mcp_key_error_still_passthrough', 'test_mcp_plain_value_error_still_invalid_param', 'test_mcp_schema_break_returns_structured_error', 'test_project_manifest_raises_real_validation_error', 'test_validation_error_handler_precedes_value_error']
+测试函数名集合相同: True

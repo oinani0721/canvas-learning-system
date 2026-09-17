@@ -1,0 +1,18 @@
+files=3
+backend/app/api/v1/endpoints/boards.py
+backend/app/mcp/tools/board_manifest_tools.py
+backend/tests/unit/test_board_manifest_unreach_t5e.py
+All checks passed!
+ruff_check_rc=0
+3 files already formatted
+ruff_fmt_rc=0
+--- 验伪锚 F821 必 rc=1 ---
+F821 Undefined name `undefined_name_zzz`
+ --> /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t5-bugs/f2caa061-cbba-4e9f-a595-a3b7ed9feae2/scratchpad/ruff_anchor.py:1:5
+  |
+1 | x = undefined_name_zzz
+  |     ^^^^^^^^^^^^^^^^^^
+  |
+
+Found 1 error.
+anchor_rc=1

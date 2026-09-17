@@ -1,0 +1,5 @@
+### 额外保障: pyright 对本卡新测试文件（不在 'pyright app' 覆盖面内，非承重判据）ts=20260917T030131
+说明: 卡文承重判据是 (cd backend && pyright app)；测试文件不在 app/ 下、lefthook python-typecheck 的 glob 也不含它。
+本项只是多跑一次确认没给别人留坑。
+2 errors, 1 warning, 0 informations
+rc=0

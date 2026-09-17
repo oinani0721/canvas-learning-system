@@ -1,0 +1,44 @@
+### 行为变化的下游依赖排查（Codex 问题 ⓪ / ① 的实证依据）ts=20260917T030715
+
+--- A) 谁依赖 MCP 的 error 文案「非法参数: 」？（全仓，排除 .venv/node_modules） ---
+backend/app/mcp/tools/board_manifest_tools.py:66:    # board_id) 仍走再下面的「非法参数: 」。
+backend/app/mcp/tools/board_manifest_tools.py:72:        return GetBoardManifestOutput(ok=False, error=f"非法参数: {e}").model_dump()
+backend/tests/unit/test_board_manifest_unreach_t5e.py:10:- 非 ValidationError 的普通 `ValueError` (如非法 board_id) 仍走 **422** /「非法参数: 」;
+backend/tests/unit/test_board_manifest_unreach_t5e.py:138:    """schema 契约被破 → 结构化 schema 异常 (改前: error 以「非法参数: 」开头)。"""
+backend/tests/unit/test_board_manifest_unreach_t5e.py:161:    assert out["error"] == "非法参数: bad board_id"
+(以上若只剩生产代码自身的产出点 = 无下游文案依赖)
+
+--- B) 谁依赖「manifest 投影 schema 异常」文案？ ---
+backend/app/mcp/tools/board_manifest_tools.py:70:        return GetBoardManifestOutput(ok=False, error="manifest 投影 schema 异常, 已记录日志").model_dump()
+backend/app/api/v1/endpoints/boards.py:91:        raise HTTPException(status_code=500, detail="manifest 投影 schema 异常, 已记录日志") from e
+backend/tests/unit/test_board_manifest_unreach_t5e.py:9:  → HTTP **500** / MCP 结构化「manifest 投影 schema 异常, 已记录日志」;
+backend/tests/unit/test_board_manifest_unreach_t5e.py:45:_SCHEMA_ERROR_TEXT = "manifest 投影 schema 异常, 已记录日志"
+
+--- C) 谁调用 /boards/manifest 端点（HTTP 422 行为变化的下游面） ---
+CURRENT_TASK.md:82:- ✅ **T1-T3 已 ship**（worktree commits 870ca8f5/55f9421e/bcdde1ad）: board_manifest_service（ManifestDataSource Protocol + mastery 四态归一化 + is_stub + dual_source_gap 窄解析 + pick_hint 内联 decay_beta 1e-9 契约锁）; exam/study 双视图 Pydantic 投影（**exam 禁项=模型结构性缺字段**, live/快照 serve 共用唯一投影点）; 快照三态降级 `.claude/cache/board-manifest/manifest-v1.json`（generation 变更才重写+原子写, live→snapshot→error 诚实申报, 真实环境实测退快照+恢复全过）; HTTP `POST /api/v1/boards/manifest`（prefix=/boards 防 wildcard, require_internal_api_key + vault fail-closed 409）+ MCP `get_board_manifest`（第 6 只读工具, 空 body 防 P16, quarantine 测试 5→6 同步）
+backend/tests/unit/test_vault_scope_409.py:312:                "/api/v1/boards/manifest",
+
+--- D) 谁调用 MCP 工具 get_board_manifest ---
+CURRENT_TASK.md:82:- ✅ **T1-T3 已 ship**（worktree commits 870ca8f5/55f9421e/bcdde1ad）: board_manifest_service（ManifestDataSource Protocol + mastery 四态归一化 + is_stub + dual_source_gap 窄解析 + pick_hint 内联 decay_beta 1e-9 契约锁）; exam/study 双视图 Pydantic 投影（**exam 禁项=模型结构性缺字段**, live/快照 serve 共用唯一投影点）; 快照三态降级 `.claude/cache/board-manifest/manifest-v1.json`（generation 变更才重写+原子写, live→snapshot→error 诚实申报, 真实环境实测退快照+恢复全过）; HTTP `POST /api/v1/boards/manifest`（prefix=/boards 防 wildcard, require_internal_api_key + vault fail-closed 409）+ MCP `get_board_manifest`（第 6 只读工具, 空 body 防 P16, quarantine 测试 5→6 同步）
+canvas-vault/.claude/skills/study-question/SKILL.md:12:  - mcp__canvas-learning-mcp__get_board_manifest
+canvas-vault/.claude/skills/study-question/SKILL.md:23:| **STRUCTURE** | 这块板拆了哪些节点 / 谁派生自谁 / 哪个最该考 / 掌握度与考察历史 | **1 次** `get_board_manifest` —— 不先 Grep、不 Read 白板全文 |
+canvas-vault/.claude/skills/study-question/SKILL.md:30:- **HARD-NAV-1**：`get_board_manifest` **一次调用即返回该板全部结构**（成员 + 派生原因 + 掌握度四态 + 占位标记 + 选点秩 + 考察历史 + 题面摘句）。同一板同一轮**不得调第 2 次**。
+canvas-vault/.claude/skills/study-question/SKILL.md:42:structure_tool: mcp__canvas-learning-mcp__get_board_manifest
+canvas-vault/.claude/skills/study-question/SKILL.md:157:`get_board_manifest{ board_id: "<板 stem>", view: "study", include_exam_history: false }`
+canvas-vault/.claude/skills/start-exam-board/SKILL.md:3:description: "当用户消息以 /start-exam-board 开头（用户在 Claudian 侧栏直输，或在 claude code CLI 直输），必须调用此 Skill 生成一张检验白板并出第一道针对性题。检验白板 = Karpicke 检索练习（d=1.50）的信息隔离主动回忆板：从选定的原白板按衰减 Beta 选点挑最该考的节点（RAG-S2.6 起走 1 次只读 get_board_manifest 拿全板结构，取 pick_rank==1；pick=μ−σ 含闲置折旧，未考/久不考自动优先；manifest 不可用时静默退回本地 Grep 选点），用你 frontmatter 里的批注/派生原因出一道『引用你原话』的针对题，写到 检验白板/<原白板名>-<时间戳>.md，你在 md 编辑器手写答。出题用 Claude Code 订阅（不调后端、不碰熟练度链）。⛔ 信息隔离铁律：严禁读/回显节点正文定义（## 核心概念 等），否则破坏 d=1.50。v1 诚实版：mastery_score 是本地简易估计，不宣称熟练度驱动有效。"
+canvas-vault/.claude/skills/start-exam-board/SKILL.md:13:  - mcp__canvas-learning-mcp__get_board_manifest
+canvas-vault/.claude/skills/start-exam-board/SKILL.md:24:| **STRUCTURE** | 这块板拆了哪些节点 / 谁派生自谁 / 哪个最该考 / 掌握度与考察历史 | **1 次** `get_board_manifest` —— 不先 Grep、不 Read 白板全文 |
+canvas-vault/.claude/skills/start-exam-board/SKILL.md:31:- **HARD-NAV-1**：`get_board_manifest` **一次调用即返回该板全部结构**（成员 + 派生原因 + 掌握度四态 + 占位标记 + 选点秩 + 考察历史 + 题面摘句）。同一板同一轮**不得调第 2 次**。
+canvas-vault/.claude/skills/start-exam-board/SKILL.md:43:structure_tool: mcp__canvas-learning-mcp__get_board_manifest
+canvas-vault/.claude/skills/start-exam-board/SKILL.md:74:   **唯一例外 = 只读结构工具 `get_board_manifest`**（P0-2 写侧隔离后保留的只读白名单第 6 只工具）：它只回答「这块板怎么拆的」，**不含节点正文、不写任何状态**，RAG-S2.6 用它替代原本 19-26 次 Grep 拼图。
+canvas-vault/.claude/skills/start-exam-board/SKILL.md:135:mcp__canvas-learning-mcp__get_board_manifest
+canvas-vault/.claude/skills/start-exam-board/SKILL.md:517:- ⛔ 排序表是**可外部核验的锚点**：任何人都能拿 `get_board_manifest` 的 `pick_rank` 与这张表逐行机械比对。**照抄，不重排、不省行、不四舍五入到看不出差异**。
+canvas-vault/.claude/skills/start-exam-board/SKILL.md:527:[ ] Step 3 ⛔ 只调了 **1 次** get_board_manifest（HARD-NAV-1），没有为选点再 Grep/Read 任何节点
+canvas-vault/.claude/skills/start-exam-board/SKILL.md:565:  **唯一例外**：只读结构工具 `get_board_manifest`（RAG-S2.6，只答结构不含正文、不写状态）——见 HARD CONSTRAINTS #1。
+canvas-vault/.claude/skills/chat-with-context/SKILL.md:13:  - mcp__canvas-learning-mcp__get_board_manifest
+canvas-vault/.claude/skills/chat-with-context/SKILL.md:24:| **STRUCTURE** | 这块板拆了哪些节点 / 谁派生自谁 / 哪个最该考 / 掌握度与考察历史 | **1 次** `get_board_manifest` —— 不先 Grep、不 Read 白板全文 |
+canvas-vault/.claude/skills/chat-with-context/SKILL.md:31:- **HARD-NAV-1**：`get_board_manifest` **一次调用即返回该板全部结构**（成员 + 派生原因 + 掌握度四态 + 占位标记 + 选点秩 + 考察历史 + 题面摘句）。同一板同一轮**不得调第 2 次**。
+canvas-vault/.claude/skills/chat-with-context/SKILL.md:43:structure_tool: mcp__canvas-learning-mcp__get_board_manifest
+
+--- 验伪锚：grep 能命中一条已知正例（生产代码里的文案产出点） ---
+       2
