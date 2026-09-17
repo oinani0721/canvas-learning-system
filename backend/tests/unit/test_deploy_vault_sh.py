@@ -6801,20 +6801,25 @@ def test_publish_does_not_follow_a_directory_symlink_at_the_destination(tmp_path
     )
 
 
-def test_receipt_check_fails_closed_when_the_path_contains_a_newline(tmp_path: Path):
-    """⛔ Codex r2 MEDIUM-2：`# source : <path>` 是**一行式**回执，放不下含换行的路径。
+def test_receipt_rc4_branch_exists_on_the_shell_side(tmp_path: Path):
+    """回执判据的 `rc=4`（路径放不进一行式回执）必须在 shell 侧有**自己的**分支。
 
-    上一版逐行读再 `.strip()`，会把路径截断 ⇒ 一次完全正常的部署被误判成基准不符。
-    既然这种输入下回执无从解析，就该 fail-closed 拒绝，而不是拿截断值去比。
+    ⚠️ 行为面由 `test_receipt_judge_covers_all_six_states` 覆盖（那是直接跑判据）；
+       这里只补它盖不到的一半：判据回了 4，shell 得认得这个码并给出对应的消息，
+       而不是落到 `*)` 那句「读不出回执」上 —— 两者的成因与用户该做的事完全不同。
+    ⚠️ 锚点随 r4 整改改过一次：可表示性判据已从原串挪到 `realpath` 之后，
+       且从只挡 LF 扩到 `\n`/`\r` 两者。钉的性质没变，锚点跟着实现走。
     """
     src = _decomment(DEPLOY_SH.read_text(encoding="utf-8"))
-    blk = src[src.index("rep, want, vault = sys.argv[1], sys.argv[2], sys.argv[3]") :]
-    blk = blk[: blk.index('\' "$rep"')]
-    assert 'if "\\n" in want or "\\n" in vault:' in blk, "回执核对没有对含换行的路径 fail-closed"
-    i_guard = blk.index('if "\\n" in want')
-    i_cmp = blk.index("R = os.path.realpath")
-    assert i_guard < i_cmp, "fail-closed 判据排在了路径比较之后 —— 那时已经比过一次截断值了"
-    assert "4)" in src[src.index('case "$_basis_rc" in') :], "rc=4 这一支在 shell 侧没有对应分支"
+    case = src[src.index('case "$_basis_rc" in') :]
+    case = case[: case.index("esac")]
+    assert "\n        4)" in case, "shell 侧没有 rc=4 的独立分支"
+    for rc in ("0)", "1)", "2)", "4)", "*)"):
+        assert rc in case, f"回执判据的 {rc} 这一支不在"
+    # 4) 的消息必须说清是「路径带换行/回车放不进回执」，不能与「读不出回执」混为一谈
+    i4 = case.index("\n        4)")
+    msg = case[i4 : case.index(";;", i4)]
+    assert "换行" in msg and "回车" in msg, f"rc=4 的消息没说清成因: {msg!r}"
 
 
 def test_mark_unpublished_reports_its_own_failure(tmp_path: Path):
@@ -6855,3 +6860,115 @@ def test_main_js_fixture_takes_ownership_before_it_deletes(tmp_path: Path):
     assert "st_ino" in fx and "st_dev" in fx, "夹具删除前没有比 inode 身份"
     assert "os.lstat(" in fx, "身份复核用的不是 lstat（follow 到链目标就白比了）"
     assert "_TAIL_MAIN_JS.is_symlink()" in fx, "没有对「名字上是一条软链」的情形早退"
+
+
+# ═══ r4 整改门（Codex r3 MEDIUM-1/2/3 + LOW-1；MEDIUM-4 如实登记不修）═════════
+
+
+def _receipt_judge_src() -> str:
+    """把步 4 的基准回执判据（内嵌 python）从脚本里抽出来，供行为门直接跑。"""
+    src = DEPLOY_SH.read_text(encoding="utf-8")
+    m = re.search(r"python3 -c '(import os, sys\nrep, want, vault.*?)'\s*\"\$rep\"", src, re.S)
+    assert m, "抽不出回执判据 —— 判据自己坏了"
+    return m.group(1)
+
+
+def _receipt_rc(tmp_path: Path, got: str, want: str, vault: str) -> int:
+    rep = tmp_path / "rep.txt"
+    rep.write_text(f"# header\n# source   : {got}\n", encoding="utf-8")
+    r = subprocess.run(
+        [sys.executable, "-c", _receipt_judge_src(), str(rep), want, vault],
+        capture_output=True,
+        text=True,
+        timeout=_SUBPROCESS_TIMEOUT,
+    )
+    return r.returncode
+
+
+def test_receipt_judge_covers_all_six_states(tmp_path: Path):
+    """基准回执判据的六态行为门（Codex r3 MEDIUM-2 / MEDIUM-3 的闭合面）。
+
+    · 原串带换行、**归一化之后不带** ⇒ 必须放行（r3 MEDIUM-2：上一版在原串上判 ⇒ 误拒）
+    · 归一化之后仍含 `\\r` 或 `\\n` ⇒ 一行式回执放不下它 ⇒ fail-closed(4)
+      （r3 MEDIUM-3：只挡 LF 时，含 CR 的路径会被**截断**后落到「基准不一致」那一支，
+       拦是拦了、理由是错的）
+    · 其余三态（不一致 / 基准就是目标 / 完全正常）各自给出 1 / 2 / 0
+    """
+    for name in ("ok\n", "mirror", "other", "vault", "cr\rdir", "lf\ndir"):
+        (tmp_path / name).mkdir(exist_ok=True)
+    q = lambda *a: str(tmp_path.joinpath(*a))  # noqa: E731
+    cases = [
+        ("原串带 LF、归一化后不带", q("mirror"), q("ok\n", "..", "mirror"), q("vault"), 0),
+        ("归一化后仍含 CR", q("cr\rdir"), q("cr\rdir"), q("vault"), 4),
+        ("归一化后仍含 LF", q("lf\ndir"), q("lf\ndir"), q("vault"), 4),
+        ("基准不一致", q("mirror"), q("other"), q("vault"), 1),
+        ("校验器拿目标 vault 当基准", q("vault"), q("mirror"), q("vault"), 2),
+        ("完全正常", q("mirror"), q("mirror"), q("vault"), 0),
+    ]
+    bad = []
+    for label, got, want, vault, exp in cases:
+        rc = _receipt_rc(tmp_path, got, want, vault)
+        if rc != exp:
+            bad.append(f"{label}: rc={rc} 期望={exp}")
+    assert not bad, "回执判据的态不对:\n" + "\n".join(bad)
+
+
+def test_receipt_representability_check_runs_after_normalisation(tmp_path: Path):
+    """⛔ 负控：把可表示性判据挪回 `realpath` **之前** ⇒ 上面第一态必须变红。
+
+    证明「挪到归一化之后」这一步承重，而不是碰巧绿了。
+    """
+    src = _receipt_judge_src()
+    before = 'R = os.path.realpath\nrw, rv, rg = R(want), R(vault), R(got)\nif any(c in rw or c in rv for c in ("\\n", "\\r")):\n    sys.exit(4)'
+    assert src.count(before) == 1, "负控锚点不唯一 —— 判据形状变了，这条负控要重写"
+    mutated = src.replace(
+        before,
+        'if any(c in want or c in vault for c in ("\\n", "\\r")):\n    sys.exit(4)\nR = os.path.realpath\nrw, rv, rg = R(want), R(vault), R(got)',
+    )
+    for name in ("ok\n", "mirror", "vault"):
+        (tmp_path / name).mkdir(exist_ok=True)
+    rep = tmp_path / "rep2.txt"
+    rep.write_text(f"# source   : {tmp_path / 'mirror'}\n", encoding="utf-8")
+    r = subprocess.run(
+        [sys.executable, "-c", mutated, str(rep), str(tmp_path / "ok\n" / ".." / "mirror"), str(tmp_path / "vault")],
+        capture_output=True,
+        text=True,
+        timeout=_SUBPROCESS_TIMEOUT,
+    )
+    assert r.returncode == 4, (
+        f"判据挪回归一化之前, 合法路径却没有被误拒（rc={r.returncode}）—— 那说明上面那条门证明的不是「挪位」这件事"
+    )
+
+
+def test_mark_unpublished_is_a_single_write(tmp_path: Path):
+    """⛔ Codex r3 MEDIUM-1：拆成多条 `printf` 时函数只回传**最后一条**的退出码。
+
+    前几条失败、末条成功 ⇒ 函数返回 0，调用方照样宣称「已标注未发布」，
+    而残件里其实缺了对第 6 行与 `rc=` 行的否定。合成一条之后，
+    「写进去了多少」与「返回码」不可能分叉。
+    """
+    raw = DEPLOY_SH.read_text(encoding="utf-8")
+    code = "\n".join(ln for ln in raw.splitlines() if not ln.lstrip().startswith("#"))
+    fn = code[code.index("mark_unpublished() {") : code.index("step6_evidence() {")]
+    assert fn.count("printf ") == 1, f"更正器里有 {fn.count('printf ')} 条 printf —— 只有一条时返回码才代表整段"
+    # 行为：四段文字必须真的都在同一次写里出来
+    drv = tmp_path / "mk.sh"
+    drv.write_text("#!/usr/bin/env bash\nset -euo pipefail\n" + fn + '\nmark_unpublished "$1"\n', encoding="utf-8")
+    drv.chmod(0o755)
+    target = tmp_path / "residue.txt"
+    target.write_text("body\n", encoding="utf-8")
+    r = subprocess.run(["bash", str(drv), str(target)], capture_output=True, text=True, timeout=_SUBPROCESS_TIMEOUT)
+    assert r.returncode == 0, f"更正器跑失败: {r.stdout}{r.stderr}"
+    body = target.read_text(encoding="utf-8")
+    for frag in ("未发布", "六行状态", "rc=", "不代表进程的实际返回码", "以进程返回码与终端上那一行"):
+        assert frag in body, f"更正少了一段: {frag!r}\n{body}"
+
+
+def test_key_tmp_discard_message_matches_what_actually_happened():
+    """⛔ Codex r3 LOW-1：删不掉残件时不得再说「已丢弃」，要报出它的路径。"""
+    raw = DEPLOY_SH.read_text(encoding="utf-8")
+    code = "\n".join(ln for ln in raw.splitlines() if not ln.lstrip().startswith("#"))
+    blk = code[code.index('rb="$(cat "$ktmp")"') :]
+    blk = blk[: blk.index("publish_tmp")]
+    assert "没能删掉" in blk, "删除失败这一支没有自己的措辞"
+    assert blk.count("已丢弃") == 1, "「已丢弃」不再是无条件的了，应恰好出现在删成功那一支"

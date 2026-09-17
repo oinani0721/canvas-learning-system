@@ -2788,8 +2788,15 @@ PY
         local rb rbrc=0
         rb="$(cat "$ktmp")" || rbrc=$?
         if [ "$rbrc" != 0 ] || [ "$rb" != "$key" ]; then
-            rm -f -- "$ktmp" 2> /dev/null || :
-            STEP_MSG="key 临时文件回读不一致, 已丢弃（未污染 ${keyfile}）"
+            # ⛔ 删不掉就别说「已丢弃」（Codex r3 LOW-1）：随机名的残件留在原地而消息
+            #    宣称它没了, 事后没人找得到它 —— 报出路径比宣称干净重要。
+            local _kd=1
+            rm -f -- "$ktmp" 2> /dev/null || _kd=0
+            if [ "$_kd" = 1 ]; then
+                STEP_MSG="key 临时文件回读不一致, 已丢弃（未污染 ${keyfile}）"
+            else
+                STEP_MSG="key 临时文件回读不一致, 且**没能删掉**（残件 ${ktmp}, 内容不可信）; ${keyfile} 未被污染"
+            fi
             return 1
         fi
         publish_tmp "$ktmp" "$keyfile" || {
@@ -2951,15 +2958,19 @@ except OSError:
     sys.exit(3)
 if not got:
     sys.exit(3)
-# ⛔ 含换行的路径**放不进**一行式回执（Codex r2 MEDIUM-2）：报告里 `# source : <path>`
-# 是按行写的, 路径里的换行会把它截断, 于是一次完全正常的部署会被误判成基准不符。
-# 既然回执在这种输入下**无从解析**, 就按 fail-closed 拒绝, 而不是拿一个截断值去比。
-if "\n" in want or "\n" in vault:
-    sys.exit(4)
+# ⛔ 一行式回执放不下**任何换行字符**的路径（Codex r2 MEDIUM-2 / r3 MEDIUM-3）：
+# 报告里 `# source : <path>` 是按行写的, 上面读它又用的是通用换行（`\n` / `\r` / `\r\n`
+# 都算行尾）—— 所以 CR 与 LF 是同一类问题, 只挡 LF 会让含 CR 的路径被**截断**后
+# 走到「基准不一致」那一支上, 拦是拦了、说的原因是错的。
+# ⚠️ 判据必须在 `realpath` **之后**（r3 MEDIUM-2）：`/tmp/ok<LF>/..` 这类原串带换行、
+# 归一化之后完全不带的合法路径, 在原串上判会被误拒, 而它本来是能完整写进回执的。
 R = os.path.realpath
-if R(got) == R(vault) and R(want) != R(vault):
+rw, rv, rg = R(want), R(vault), R(got)
+if any(c in rw or c in rv for c in ("\n", "\r")):
+    sys.exit(4)
+if rg == rv and rw != rv:
     sys.exit(2)
-if R(got) != R(want):
+if rg != rw:
     sys.exit(1)
 ' "$rep" "$_want_src" "$VAULT" 2> /dev/null || _basis_rc=$?
     case "$_basis_rc" in
@@ -2973,7 +2984,7 @@ if R(got) != R(want):
             return 1
             ;;
         4)
-            STEP_MSG="基准或目标路径里含换行, 一行式回执放不下它 ⇒ 无从核对校验器用的是哪个基准; 拒绝（请把 --vault/TMPDIR 换成不含换行的路径）"
+            STEP_MSG="基准或目标路径（物理化之后）含换行/回车字符, 一行式回执放不下它 ⇒ 无从核对校验器用的是哪个基准; 拒绝（请把 --vault/TMPDIR 换成不含这类字符的路径）"
             return 1
             ;;
         *)
@@ -3371,12 +3382,16 @@ PY
 #   ② 追加**可能失败**（空间耗尽 / 残件不可写）, 失败就要让调用方知道, 不能吞掉之后
 #      还由调用方宣称「已在其尾部标注未发布」。故本函数**回传 rc**, 由调用方分开措辞。
 mark_unpublished() {
-    {
-        printf '%s\n' '## 未发布 —— 本文件是残件, 没有成为最终报告。'
-        printf '%s\n' '##   · 上面「## 六行状态」第 6 行是在落盘**之前**合成的, 其中关于报告落点的说法不成立;'
-        printf '%s\n' '##   · 本文件末尾的 `rc=` 行同样是发布之前写下的, 不代表进程的实际返回码;'
-        printf '%s\n' '##   · 以进程返回码与终端上那一行 [6/6] 为准。'
-    } >> "$1" 2> /dev/null
+    # ⛔ **一条 printf 写完整段**（Codex r3 MEDIUM-1）：拆成四条时函数只回传最后一条的
+    #    退出码 —— 前三条失败、末条成功, 函数照样返回 0, 调用方于是宣称「已标注未发布」
+    #    而残件里其实缺了对第 6 行与 `rc=` 行的否定。合成一条之后, 「写进去了多少」
+    #    与「返回码」再也不会分叉。
+    printf '%s\n%s\n%s\n%s\n' \
+        '## 未发布 —— 本文件是残件, 没有成为最终报告。' \
+        '##   · 上面「## 六行状态」第 6 行是在落盘**之前**合成的, 其中关于报告落点的说法不成立;' \
+        '##   · 本文件末尾的 `rc=` 行同样是发布之前写下的, 不代表进程的实际返回码;' \
+        '##   · 以进程返回码与终端上那一行 [6/6] 为准。' \
+        >> "$1" 2> /dev/null
 }
 
 # ═══ 步 6 evidence ══════════════════════════════════════════════════════════

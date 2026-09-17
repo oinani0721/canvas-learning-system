@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-11-第十四批 · 车道 T2（card-t2-deploy） · 卡 CARD-G2-7b-TAIL round-2 prompt-r2
+> 模型: `gpt-6-astra` · reasoning_effort: `ultra` · codex: `codex-cli 0.153.3`
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat _bmad-output/审查/prompts/codex-prompt-CARD-G2-7b-TAIL-r2.md)"`
+> 审查绑定: `be2a799d`（Codex 正文首行自行核实为 `be2a799d1bc5221c81851386a70b370fb3cc543c`，与本轮 HEAD 相同）
+> 会话头自证（抄 .stderr，stderr 本身不入库）:
+> `OpenAI Codex v0.153.3`（第 2 行） / `model: gpt-6-astra`（第 5 行） / `reasoning effort: ultra`（第 9 行）
+
+---
+
 绑定已核实：`be2a799d1bc5221c81851386a70b370fb3cc543c`。**BLOCKER：无；HIGH：1；MEDIUM：4；LOW：无。本轮整改尚未全部闭合。**
 
 1. **HIGH — 发布时仍可能沿终路径的目录软链写入别处。**  
