@@ -1,0 +1,25 @@
+=== (b) 不设嵌入端前置的依据：canary 零 embedding 引用 ===
+--- [判据] canary 脚本 bge-m3/ollama 命中数（期望 0） ---
+0
+--- [正对照] 同命令对 backend/app/config.py（期望 >0，证上面的 0 是真 0 不是判据失效） ---
+3
+--- [同次验伪锚] 常量向量三处（期望 3 行：CANARY_VECTOR_DIM 定义 + 两处 [0.1]*DIM） ---
+118:CANARY_VECTOR_DIM = 8
+613:            name_embedding=[0.1] * CANARY_VECTOR_DIM,
+724:                    "vector": [0.1] * CANARY_VECTOR_DIM,
+--- [lazy import 清点] 期望 13 条，全为 graphiti_core / app.* / lib.agentic_rag ---
+123:    from app.graphiti.group_id_compat import to_physical_group_id
+438:            from app.graphiti.group_id_compat import to_physical_group_id
+481:        from app.core.vault_scope import read_group_filter, read_scope_params
+591:        from graphiti_core.nodes import EntityNode, EpisodeType, EpisodicNode
+628:        from graphiti_core.nodes import EntityNode, EpisodicNode
+630:        from app.core.vault_scope import group_in_read_scope
+667:        from graphiti_core.nodes import EntityNode, EpisodicNode
+693:        from graphiti_core.nodes import EntityNode, EpisodicNode
+803:        from app.graphiti.group_id_compat import (
+825:        from graphiti_core.driver.neo4j_driver import Neo4jDriver
+827:        from app.clients.neo4j_client import Neo4jClient
+828:        from lib.agentic_rag.clients.lancedb_client import LanceDBClient
+1251:    from lib.agentic_rag.clients.lancedb_client import LanceDBClient
+--- lazy import 条数 ---
+13

@@ -1,0 +1,21 @@
+=== (c) ON 态断言 ===
+报告文件 = /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t1-lance/_bmad-output/审查/evidence-g29f1-canary/canary-report-20260915T101823Z.json
+报告所在目录 = /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t1-lance/_bmad-output/审查/evidence-g29f1-canary
+has_probe_key = True
+verdict = PASS
+B_table = g29drift_b_canvas_nodes
+B_table_survived_A_init = True
+tables_before_A_init = ['g29drift_b_canvas_nodes']
+tables_after_A_init  = ['g29drift_b_canvas_nodes']
+B_table in tables_after_A_init = True
+finding = NOT REPRODUCED（本次未观察到连带删表）
+--- 三条判据 ---
+verdict==PASS : True
+B_survived==True : True
+B_table in after : True
+ALL THREE = True
+--- 上下文 ---
+verdicts 条数 = 14
+verdicts 全绿 = True
+timestamp = 20260915T101823Z | duration_s = 260.525
+guard_summary = NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)

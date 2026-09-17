@@ -1,0 +1,6 @@
+=== venv/env 自证 ===
+executable= /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/bin/python
+version= 3.14.4
+.env ok (     133 行)
+--- backend/.venv symlink 实体 ---
+lrwxr-xr-x@ 1 Heishing  staff  99 Sep 11 10:41 backend/.venv -> /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv

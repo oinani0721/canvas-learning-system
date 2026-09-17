@@ -1,0 +1,44 @@
+=== ⛔ 本卡最严重的判据缺陷：「失败告警计数 0」是恒真的假判据 ===
+缘起：独立多视角审计（140 agents）报 HIGH —— 该判据在本运行环境下结构性无效。本节实测坐实。
+
+--- ① 本卡先前的论证（验收单 (b) 段 / 实测更正 ①） ---
+    「本次 4 次预加载**全部成功**（Loading weights: 100% 计数 4 = 总计数 4，**失败告警 0**），
+      except 分支根本没被走到」
+    ⇒ 其中「失败告警 0」被当作「没走 except 分支」的证据之一。
+
+--- ② 实测：loguru 在本 venv 是否可用 ---
+    loguru **不可用**: No module named 'loguru'
+
+--- ③ 实测：生产代码里 LOGURU_ENABLED 的实际取值 ---
+    LOGURU_ENABLED = False
+    logger 实际类型 = Logger
+
+--- ④ 代码结构：两个 except 分支的日志都被 if LOGURU_ENABLED 守住 ---
+    34:        except ImportError as e:
+    35-            if LOGURU_ENABLED:
+    36-                logger.warning(f"MultimodalVectorizer not available: {e}")
+    37-            self._vectorizer_initialized = True
+    --
+    40:        except Exception as e:
+    41-            if LOGURU_ENABLED:
+    42-                logger.error(f"Failed to initialize vectorizer: {e}")
+    43-            self._vectorizer_initialized = True
+
+--- ⑤ 判读 ---
+    LOGURU_ENABLED = False  ⇒  logger.warning / logger.error 这两行**永远不执行**
+    ⇒ 「Failed to initialize vectorizer」「MultimodalVectorizer not available」这两条字样
+       在本环境下**恒不可能**出现在输出里。
+    ⇒ 「失败告警计数 = 0」无论预加载成功还是失败**都会是 0** —— 这是一条**恒真判据**，
+       它不承重，不能作为「except 未被走到」的任何证据。
+
+--- ⑥ 收窄后还剩什么（本卡仍可主张的部分） ---
+    ✅ 仍成立：ON 态出现 4 次 'Loading weights: 100%'（$(grep -c) 实测），
+       说明**权重加载这一步跑到了 100%** —— 这是正例本身，不依赖那条假判据。
+    ❌ 不再主张：「失败告警 0 ⇒ except 分支没被走到」。
+    ⚠️ 严格说，本卡**无法**从输出区分「预加载成功」与「预加载失败但被静默吞掉」，
+       因为失败路径在本环境下不产生任何可观测输出。
+
+--- ⑦ 同次验伪锚：证明上面的 grep 口径本身能命中该字样 ---
+    对构造的假日志行命中 = 1
+    对 ON 态真实 tee 命中 = 0
+    ⇒ 提取式有效（假行命中 1）；真实 tee 命中 0，但由 ⑤ 可知这个 0 无信息量。

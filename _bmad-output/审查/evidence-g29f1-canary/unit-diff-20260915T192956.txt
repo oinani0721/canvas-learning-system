@@ -1,0 +1,21 @@
+=== (h) tests/unit 目录级 diff ===
+
+--- ⛔ 前置自检（本卡踩过一次 glob 撞名，故先证两侧各只匹配 1 个文件） ---
+unit-start-*.txt 匹配数 = 1  (必须 =1)
+unit-end-*.txt   匹配数 = 1  (必须 =1)
+✅ glob 唯一，diff 两侧取文件无歧义
+  开工快照 = unit-start-20260915T121159.txt
+  收工快照 = unit-end-20260915T184953.txt
+
+--- 两次跑的汇总行（同跑法自证） ---
+= 35 failed, 5102 passed, 48 skipped, 17 xfailed, 231 warnings, 29 errors in 465.68s (0:07:45) =
+= 35 failed, 5102 passed, 48 skipped, 17 xfailed, 231 warnings, 29 errors in 235.24s (0:03:55) =
+
+--- nodeid 集合 diff（< 只在开工 / > 只在收工；卡文：只许 <） ---
+diff rc=0  （0 = 完全相同）
+
+--- ⛔ 三条验伪锚（空集对空集的 diff 也是空 = 假绿） ---
+  开工侧 nodeid 数 = 64  (必 >0)
+  收工侧 nodeid 数 = 64  (必 >0 且与开工相等)
+  批级基线同形行数 = 64  (已知正例 64，证提取式能命中同形行)
+  ✅ 三锚齐全且两侧相等

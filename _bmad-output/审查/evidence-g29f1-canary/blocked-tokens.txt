@@ -1,0 +1,11 @@
+=== (c) guard blocked 判据（等值断言，非取尾行） ===
+--- ON 态 tee 里的 blocked token（去重） ---
+blocked=0
+--- 等值断言 ---
+✅ blocked=0 OK（唯一取值且为 0）
+--- 完整 summary_line（含 total/advisory/unaccounted，比单看 blocked 信息更全） ---
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+--- [同次验伪锚] 喂一个 blocked=7 的假行，证这条 grep 真能命中非 0 值 ---
+blocked=7
+--- [同次验伪锚 2] 假行走完整等值断言，必须判红 ---
+✅ 假行被正确判红 —— 等值断言有牙齿

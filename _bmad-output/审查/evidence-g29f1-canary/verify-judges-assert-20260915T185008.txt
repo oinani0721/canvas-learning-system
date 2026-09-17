@@ -1,0 +1,34 @@
+=== (d) --verify-judges 断言 ===
+报告（从 tee 的『验伪报告:』行抓，产出方自报） = /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t1-lance/_bmad-output/审查/evidence-g29f1-canary/canary-verify-judges-20260915T102632Z.json
+
+报告所在目录 = /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t1-lance/_bmad-output/审查/evidence-g29f1-canary
+报告 timestamp = 20260915T102632Z   <- 本卡今日新跑，非 2026-09-06 历史文件
+
+--- 卡文 (d) 要求的两个字段 ---
+all_killed = True
+coverage   = {'complete': True, 'covered': 14, 'phantom_targets': [], 'total': 14, 'uncovered': []}
+
+--- ⚠️ 交叉验证：不只信 all_killed 汇总，逐条核明细 ---
+mutations 条数 = 12
+verdict 分布 = {'KILLED': 12}
+applied 分布 = {True: 12}
+
+逐条 KILLED      = True
+逐条 applied=True = True   <- 排除 NOT_APPLIED（变异没打进去，'没红'就分不清是门硬还是变异失效）
+与 all_killed 汇总字段一致 = True
+
+--- 覆盖完整性 ---
+covered==total = True (14/14)
+complete = True
+uncovered = []   <- 必须为空
+phantom_targets = []   <- 必须为空（点名了不存在的判据会静默失效）
+
+--- baseline_verdicts（变异前的干净基线，应全 True） ---
+条数 = 14 | 全 True = True
+
+(d) 结论 = PASS
+
+--- ⚠️ 如实声明（卡文 (d) 要求）---
+--verify-judges 只覆盖 report["verdicts"] 的 14 条；side_effect_probe 的 verdict 是**条件顶层键**、
+不在覆盖集内。代码结构依据：_run_canary_cli 里 --verify-judges 分支是 early return，
+走不到 run_canary 之后写 side_effect_probe 的那一段。probe 的翻红能力本卡不重建（见「本卡未证明什么」②）。

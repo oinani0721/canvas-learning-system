@@ -1,0 +1,18 @@
+=== (g) 前置：pathspec 写法实测（协议点名的假绿陷阱） ===
+git 版本: git version 2.50.1 (Apple Git-155)
+
+--- 写法 A（协议要求）: ':(exclude)_bmad-output' —— 用一个已知有差异的区间做对照 ---
+rc=0  （该区间只改了 _bmad-output，故排除后应为空且 rc=0）
+
+--- 同区间不加排除（验伪锚：证命令本身能出非空行） ---
+ .../prompts/codex-prompt-CARD-G2-9-F2-r7.md"       |  136 +++
+ .../UAT-CARD-G2-9-F2-2026-09-14.md"                |  108 ++
+ 59 files changed, 7811 insertions(+), 2 deletions(-)
+rc=0
+
+--- 写法 B（协议点名的坏写法）: ':!_bmad-output' —— 观察它在本机的行为 ---
+fatal: Unimplemented pathspec magic '_' in ':!_bmad-output'
+rc=128
+
+【结论】只有写法 A 的『输出为空』才能被读作『真的没有差异』；
+        写法 B 若 rc≠0，则它的空输出是『命令没跑成』，把它读成绿就是假绿。

@@ -1,0 +1,28 @@
+=== stderr 入库核验（修正口径后重跑） ===
+⚠️ 上一版自检用 grep -c 'stderr' 数**文件名含该子串**的文件，口径过宽——
+   命中 3 个历史 .txt 文件（第五批 census-stderr.txt / 第十三批两个 stderr-*.txt），
+   它们既不是 .stderr 文件，也不在本卡 diff 里。
+
+--- 正确口径 ①：本卡 diff 中以 .stderr 结尾或含 .stderr. 的文件（须 0） ---
+0
+0
+
+--- 正确口径 ②：全仓 tracked 的 .stderr 文件（须 0） ---
+0
+0
+
+--- 本卡实际产生的 5 个 .stderr（须全部未入库） ---
+  r1: 存在=yes | 被 .gitignore 忽略 | tracked=0 ✅
+  r2: 存在=yes | 被 .gitignore 忽略 | tracked=0 ✅
+  r3: 存在=yes | 被 .gitignore 忽略 | tracked=0 ✅
+  r4: 存在=yes | 被 .gitignore 忽略 | tracked=0 ✅
+  r5: 存在=yes | 被 .gitignore 忽略 | tracked=0 ✅
+
+--- [验伪锚] 证明这条 tracked 检查真能命中：对一个确实 tracked 的文件 ---
+  ✅ 对 r1.md 命中（tracked）⇒ 上面那圈 0 是真 0
+
+=== 结论 ===
+  ✅ 本卡 5 份 .stderr 全部被 .gitignore:264 (_bmad-output/审查/**/*.stderr*) 覆盖、全部未入库。
+  ℹ️ 那 3 个历史文件是别的卡提交的 .txt（文件名含 stderr 子串），不属本卡范围，如实记录不代改。
+  ⚠️ 教训（第四次同型）：判据的提取式取名面必须恰好等于其主张——
+     「文件名含 stderr」≠「是 .stderr 文件」。

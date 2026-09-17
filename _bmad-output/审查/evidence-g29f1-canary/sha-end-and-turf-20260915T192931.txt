@@ -1,0 +1,14 @@
+=== (f) 脚本 sha 跑前 = 跑后 ===
+开工 $SHA0 = 5411cf14da00cabfec8e1f8ddd1f56c8ffeeda745b1eb147536d4927e200ee7a
+收工 sha   = 5411cf14da00cabfec8e1f8ddd1f56c8ffeeda745b1eb147536d4927e200ee7a
+✅ SHA UNCHANGED（逐字节相同）
+
+--- probe 字面量计数 开工 vs 收工 ---
+开工 = 5 | 收工 = 5
+✅ 计数不变
+
+--- [验伪锚] shasum 对内容敏感（另一文件必给不同值） ---
+  lancedb_client.py = 0ff52a5ec7ca5b32c3fd2b035d63479fffc7580791ce8bcdf226eec65d9f4b65
+
+--- 工作树相对 HEAD 的已跟踪文件改动（期望空：本卡产物全是未跟踪新文件） ---
+(上面为空即零已跟踪文件修改)

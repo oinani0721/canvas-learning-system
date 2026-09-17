@@ -1,0 +1,20 @@
+=== (e) 补强证据：负控 ledger 内容（端口门自己的账本，独立于 stderr 横幅） ===
+──────── ledger-negctl-20260915T102647Z-57949.json ────────
+  顶层键 = ['advisory', 'billed', 'blocked', 'blocked_ports', 'exempt_disabled', 'installed', 'reported_status', 'total', 'unaccounted', 'unaccounted_records']
+  total = 0
+  blocked = 0
+  advisory = 0
+  unaccounted = 0
+──────── ledger-negctl-20260915T102702Z-59213.json ────────
+  顶层键 = ['advisory', 'billed', 'blocked', 'blocked_ports', 'exempt_disabled', 'installed', 'reported_status', 'total', 'unaccounted', 'unaccounted_records']
+  total = 0
+  blocked = 0
+  advisory = 0
+  unaccounted = 0
+
+=== 对照：ON 态的 ledger（合法跑，同样应 0 —— 因为只连 7692 白名单口） ===
+  顶层键 = ['advisory', 'billed', 'blocked', 'blocked_ports', 'exempt_disabled', 'installed', 'reported_status', 'total', 'unaccounted', 'unaccounted_records']
+  total = 0
+  blocked = 0
+  advisory = 0
+  unaccounted = 0

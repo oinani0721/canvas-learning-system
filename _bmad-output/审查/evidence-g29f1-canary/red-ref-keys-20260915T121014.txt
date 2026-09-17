@@ -1,0 +1,3 @@
+=== 红参照 probe 键集合（实测更正：历史报告无 verdict 键） ===
+keys = ['B_table', 'B_table_survived_A_init', 'finding', 'source', 'tables_after_A_init', 'tables_before_A_init']
+'verdict' in probe = False

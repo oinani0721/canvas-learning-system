@@ -1,0 +1,44 @@
+=== 实测更正：canary「零 embedding」的真实边界 ===
+
+【卡文原论据】对 canary 脚本自身 grep bge-m3|ollama = 0（本卡已复现，见 no-embed-dep.txt）
+【实测反例】canary 运行日志里出现 transformers 的 'Loading weights: 391/391'
+
+--- 1. ON 态 tee 里 'Loading weights' 出现次数 ---
+4
+    （对应 4 次 LanceDBClient.initialize()：run_canary 的 A/B 各一次 + probe 的 B/A 各一次）
+
+--- 2. 加载点：LanceDBClient.initialize() 无条件预加载（符号锚，非行号） ---
+1512-            await self._cache_tables()
+1513-
+1514:            # Pre-load embedding model to avoid cold-start timeout during search
+1515-            await self._init_vectorizer()
+
+--- 3. _init_vectorizer 构造的是什么 ---
+3:        懒加载embedding模型 (MultimodalVectorizer)
+6:        ✅ Verified from MultimodalVectorizer (src/agentic_rag/processors/multimodal_vectorizer.py:162-200)
+9:            bool: True if vectorizer initialized successfully
+11:        if self._vectorizer_initialized:
+15:            # Import MultimodalVectorizer lazily
+16:            from agentic_rag.processors.multimodal_vectorizer import (
+17:                MultimodalVectorizer,
+20:            self._vectorizer = MultimodalVectorizer(
+21:                model_name=self.embedding_model,
+24:            await self._vectorizer.initialize()
+25:            self._vectorizer_initialized = True
+
+--- 4. 'Loading weights' 的产出方（venv 内定位） ---
+backend/.venv/lib/python3.14/site-packages/transformers/core_model_loading.py:1233:        for first_param_name, mapping in tqdm(param_name_to_load.items(), desc="Loading weights"):
+
+--- 5. 本次是否走网络：加载速率（it/s）证明来自本地缓存 ---
+Loading weights: 100%|██████████| 391/391 [00:00<00:00, 51670.59it/s
+Loading weights: 100%|██████████| 391/391 [00:00<00:00, 54230.11it/s
+Loading weights: 100%|██████████| 391/391 [00:00<00:00, 55086.25it/s
+Loading weights: 100%|██████████| 391/391 [00:00<00:00, 49923.07it/s
+
+=== 结论（收窄后的准确表述） ===
+① canary **写入 LanceDB 的向量**确实是硬编码常量（[0.1]*8 / [0.2]*16），不经任何嵌入服务生成 —— 卡文这半句成立。
+② 但 canary **运行时确实会加载嵌入模型**：LanceDBClient.initialize() 无条件调 _init_vectorizer() 预热，本次实测加载 4 次。
+③ 卡文「不设 bge-m3/Ollama HALT 前置」的**结论仍然正确**，但正确的理由不是「canary 不碰 embedding」，
+   而是「_init_vectorizer 的失败被 except 吞掉并置 _vectorizer_initialized=True，嵌入端不可达不会让 canary 失败」——
+   本次 ON/OFF/两条负控全部 rc 符合预期即为该 fallback 生效的实证。
+④ 教训：grep 只扫了 canary 脚本自身，没扫它调用的 client —— 搜索面划窄造成的假阴性。

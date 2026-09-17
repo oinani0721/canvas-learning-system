@@ -1,0 +1,19 @@
+=== T1-A（CARD-G2-9-F2）改动面 —— 本卡 canary 跑在其之后的依据 ===
+区间: B14_BASE 08100483 → $PREREQ 60600433
+
+--- commit 数 ---
+12
+
+--- 代码面 diff --stat（排除 _bmad-output，写法 A） ---
+ backend/lib/agentic_rag/clients/lancedb_client.py  |  633 ++++++++++-
+ .../unit/test_lancedb_cross_vault_drop_g29f1.py    | 1105 ++++++++++++++++++--
+ 2 files changed, 1635 insertions(+), 103 deletions(-)
+rc=0
+
+--- [验伪锚] 同命令不加排除，必须出非空行 ---
+ .../unit/test_lancedb_cross_vault_drop_g29f1.py    | 1105 ++++++++++++++++--
+ 164 files changed, 25419 insertions(+), 103 deletions(-)
+
+【结论】本卡 canary 执行的 LanceDBClient 是 T1-A 改后（+633 行）的版本。
+        ON 态 probe 仍 PASS ⇒ T1-A 未回归 U5-A 修好的隔离面。
+        ⚠️ 反向不成立：canary 的 vault id 非前缀重叠，不能为 T1-A 的前缀修复背书。

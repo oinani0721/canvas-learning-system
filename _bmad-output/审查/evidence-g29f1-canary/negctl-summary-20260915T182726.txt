@@ -1,0 +1,23 @@
+=== (e) 前置负控两条 —— 汇总断言 ===
+
+判据不是「rc=2」而已，而是三重绑定：① rc=2 ② 横幅阶段=preflight（不是 runtime）③ REJECTED_BY 指向应当拒它的那一层。
+
+──────── negctl-no-uri-20260915T182647.txt ────────
+rc          : rc=2
+阶段横幅    : CANARY REJECTED (preflight)
+REJECTED_BY : NEGCTL_REJECTED_BY=g29_dual_vault_canary._preflight_neo4j_uri
+连接尝试总数: NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0   <- 0 = 零 socket，根本没连库
+
+──────── negctl-forbidden-path-20260915T182702.txt ────────
+rc          : rc=2
+阶段横幅    : CANARY REJECTED (preflight)
+REJECTED_BY : NEGCTL_REJECTED_BY=g29_dual_vault_canary._preflight_lancedb_path
+连接尝试总数: NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0   <- 0 = 零 socket，根本没连库
+
+=== 对照组（证这两条负控不是恒红的假门）===
+ON 态用合法 tmp 路径 + 已设 URI，同一份 preflight 放行、跑到底 rc=0：
+  rc          : rc=0
+  阶段横幅    : 0 次（期望 0 —— 合法输入不触发拒绝出口）
+
+=== 负控②额外证据：拒绝时未 mkdir ===
+（见 negctl-forbidden-path tee 同次输出的 test -e 行；拒一条路径的同时把它建出来，等于 canary 自己在现网位置留痕）

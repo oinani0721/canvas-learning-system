@@ -1,0 +1,63 @@
+=== 全 evidence 目录 glob 撞名扫描（本卡已踩过一次，此处穷举） ===
+判据里用到的每个 glob 前缀，检查它实际匹配几个文件（>1 即有歧义风险）
+
+  run-on-*.txt                   → 1 个
+  run-off-*.txt                  → 1 个
+  verify-judges-*.txt            → 1 个
+  negctl-no-uri-*.txt            → 1 个
+  negctl-forbidden-path-*.txt    → 1 个
+  unit-start-*.txt               → 1 个
+(eval):6: no matches found: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t1-lance/_bmad-output/审查/evidence-g29f1-canary/unit-end-*.txt
+  unit-end-*.txt                 → 0 个
+  canary-report-*.json           → 2 个  ⚠️ 多于1个 —— 用它做「取唯一」判据会有歧义
+(eval):6: no matches found: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t1-lance/_bmad-output/审查/evidence-g29f1-canary/canary-verify-judges-*.json
+  canary-verify-judges-*.json    → 0 个
+  ledger-negctl-*.json           → 2 个  ⚠️ 多于1个 —— 用它做「取唯一」判据会有歧义
+
+=== 说明 ===
+· canary-report-*.json = 2 是**预期**（ON/OFF 各一份），本卡从不靠 sorted[-1] 取它，
+  而是从各自 tee 的『报告:』行抓精确路径（内容锚）。
+· ledger-negctl-*.json = 2 同理（两条负控各一份，文件名带 pid 防同秒覆盖）。
+· 其余判据用的 glob 必须恰好 1 个。
+
+=== 全目录文件名清单（供 Codex 核对无遗漏/无混入） ===
+assert-on-20260915T182327.txt
+attempts-semantics-correction-20260915T184001.txt
+blocked-tokens.txt
+canary-normalized-20260915T101823Z.json
+canary-normalized-20260915T102343Z.json
+canary-report-20260915T101823Z.json
+canary-report-20260915T102343Z.json
+canary-sha-start.txt
+embed-dep-correction-20260915T183156.txt
+embed-dep-correction-ADDENDUM-20260915T183326.txt
+env-concurrency-and-gitignore-20260915T183455.txt
+glob-collision-scan-20260915T184639.txt
+ledger-20260915T101823Z.json
+ledger-20260915T102343Z.json
+ledger-negctl-20260915T102647Z-57949.json
+ledger-negctl-20260915T102702Z-59213.json
+negctl-forbidden-path-20260915T182702.txt
+negctl-ledger-detail-20260915T183933.txt
+negctl-no-uri-20260915T182647.txt
+negctl-summary-20260915T182726.txt
+no-embed-dep.txt
+pathspec-selfcheck-20260915T183557.txt
+pre-run-zero-reports.txt
+precheck-7692.txt
+prereq-20260915T120845.txt
+probe-key-count-start.txt
+red-ref-20260915T120948.txt
+red-ref-keys-20260915T121014.txt
+run-off-20260915T182343.txt
+run-on-20260915T181823.txt
+run-vars.txt
+t1a-change-surface-20260915T184238.txt
+two-state-assert-20260915T182549.txt
+uat-evidence-refs-check-20260915T184318.txt
+unit-base-selfcheck.txt
+unit-start-20260915T121159.txt
+venv-env-selfcheck-20260915T120920.txt
+verify-judges-20260915T182632.txt
+xcheck-redset-vs-b14base-20260915T184430.txt
+xfail-redset-invisibility-20260915T184512.txt

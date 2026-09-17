@@ -1,0 +1,20 @@
+=== 批级环境观察（协议 §2.3：共享运行环境的并发情况） 2026-09-15T10:34:55Z ===
+--- 并发 codex exec 进程数 ---
+8
+--- 并发的其他车道卡号（从命令行抓，仅记录不干预） ---
+
+--- codex 版本（存档首部用） ---
+codex-cli 0.153.3
+
+【影响评估】
+  · 7692 测试容器是共享的；本卡 canary 用自己的 vault id（g29canary_a/b、g29drift_a/b）且每轮 purge。
+  · ON/OFF 两态 14 条 verdicts 全绿、guard ATTEMPTS=0，未观察到交叉干扰。
+  · 但本卡**未证明**并发期间 7692 上无交叉干扰（无独占、无前后快照对账）——列入「本卡未证明什么」。
+  · CPU 争抢会拉长 verify-judges 墙钟时间，不影响判据真值。
+
+=== *.stderr 的 gitignore 覆盖核对（check-ignore 不需要文件存在，故不建探针） ===
+--- 目标：本卡将产生的 codex stderr 路径 ---
+.gitignore:264:_bmad-output/审查/**/*.stderr*	"_bmad-output/\345\256\241\346\237\245/codex-review-CARD-G2-9-F1-canary-r1.stderr"
+rc=0 (期望 0 = 被忽略，永不入库)
+--- [验伪锚] 对一个不该被忽略的已存在文件，必须 rc=1 ---
+rc=1 (期望 1 = 未被忽略)

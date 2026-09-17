@@ -1,0 +1,22 @@
+=== AST 验证：_run_canary_cli 里 probe rc 守卫的结构（对 Codex r1 HIGH 的补强） ===
+⚠️ 这是**静态结构**证据，不是运行时实证。它能证『那条路径写在代码里』，
+   不能证『那条路径本次被执行过』——后者正是本卡未证明的第 2 条。
+
+① 赋值语句 : probe = report.get('side_effect_probe')   (line 1451)
+② 守卫条件 : probe is not None and probe.get('verdict') != 'PASS'   (line 1452)
+③ 该分支返回: EXIT_ISOLATION_FAILED   (line 1457)
+
+--- 三要素齐备 ---
+  probe 赋值(用 .get 而非裸下标) : True
+  verdict != PASS 的 if 守卫      : True
+  该分支 return EXIT_*            : True
+
+--- 条件键安全性 ---
+  probe 取值用的是 dict.get() 而非 report['...'] 裸下标 : True
+  ⇒ 这是 OFF 态不 KeyError 的代码依据；OFF 态已有运行时实证（rc=0 + 零 Traceback）
+
+--- 反面：FAIL 分支在本卡三次运行中是否可能被执行 ---
+  ON  态: probe 存在且 verdict == 'PASS' ⇒ if 条件为假 ⇒ 走 return EXIT_OK
+  OFF 态: probe is None              ⇒ if 条件为假（短路） ⇒ 走 return EXIT_OK
+  verify-judges: early return，根本到不了这段
+  ⇒ 三条路径没有一条会进入 FAIL 分支，与 Codex r1 HIGH 的判断一致。

@@ -1,0 +1,19 @@
+=== 影响面评估：本卡承重判据是否用到会被 collation 合并的非 ASCII 内容 ===
+
+--- (h) 的 nodeid 是否含非 ASCII（若含则 sort -u 可能合并不同 nodeid） ---
+0
+0
+^ 开工侧非 ASCII nodeid 数（期望 0 ⇒ (h) 判据安全）
+0
+^ 收工侧同上
+
+--- 以 LC_ALL=C 重跑 (h) 的核心 diff（若与之前结论一致 ⇒ 不受 locale 影响） ---
+LC_ALL=C diff rc=0  （应与先前 rc=0 一致）
+两侧计数: 64 / 64
+
+--- (c) 的 blocked token 判据（纯 ASCII，复核） ---
+blocked=0
+
+【结论】本卡全部承重判据的比较对象都是 ASCII（pytest nodeid / blocked=N / sha / rc），
+        collation 合并现象不影响任何一条结论；LC_ALL=C 重跑 (h) 结果一致。
+        受影响的只有我临时用来看目录分布的 cut|sort|uniq -c 统计（非判据）。

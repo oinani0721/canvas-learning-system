@@ -1,0 +1,39 @@
+=== ⛔ 自我更正 2：ATTEMPTS=0 不等于「零 socket」 ===
+
+【我先前写的过强表述】(e) 表格里把 ATTEMPTS=0 注释成「0 = 零 socket，根本没连库」。
+【推翻它的证据】ON 态真的连了 7692 并跑了 260 秒三存储流程，它的 ledger 同样 total=0。
+
+--- ledger 的 blocked_ports 字段（这个计数器到底盯着哪些端口） ---
+  blocked_ports = [7687, 7691]
+  installed = True
+  reported_status = None
+  exempt_disabled = False
+
+--- 计数器语义（从 live_port_guard 源码取，符号锚） ---
+207:_SUMMARY_PREFIX = "NEO4J_LIVE_PORT_CONNECT_ATTEMPTS"
+458:                f"{_SUMMARY_PREFIX}={self.total} "
+
+【收窄后的正确表述】
+  · ATTEMPTS/total = 0 的含义是：**没有对受监控的 live 端口（7691/7687）发起连接尝试**。
+  · 它**不**意味着「进程没打开任何 socket」——ON 态连了 7692 白名单口，total 同样是 0。
+  · 所以 ATTEMPTS=0 能支撑的结论是「**没碰现网库**」，这仍是本卡硬边界的重要证据；
+    但「负控零 socket」这一条不能靠它，必须靠**代码结构**：
+    _amain 里 uri = _preflight_neo4j_uri() 抛 PreconditionRejected 时，
+    _run_canary_cli（唯一建立连接的地方）根本没被调用。
+  · 两条负控的 stderr 横幅写的是 (preflight) 而非 (runtime)，正是这条控制流的运行时证据。
+
+--- 佐证：_amain 的控制流（preflight 全部在 _run_canary_cli 之前） ---
+async def _amain(args: argparse.Namespace) -> int:
+    evidence = pathlib.Path(args.evidence_dir).resolve()
+    evidence.mkdir(parents=True, exist_ok=True)
+    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    stage = "preflight"
+    try:
+        uri = _preflight_neo4j_uri()
+        lancedb_path = _preflight_lancedb_path(args.lancedb_path, allow_outside_tmp=args.allow_path_outside_tmp)
+        os.environ["LANCEDB_DATA_PATH"] = lancedb_path
+        stage = "runtime"
+        return await _run_canary_cli(args, evidence, ts, uri, lancedb_path)
+    except PreconditionRejected as exc:
+        return _report_rejection(exc, stage, evidence, ts)
+

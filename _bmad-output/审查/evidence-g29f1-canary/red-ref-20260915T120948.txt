@@ -1,0 +1,5 @@
+=== 红参照（历史，U5-A 修复前；本卡零生产改动、不重建红） ===
+RED-REF source file = _bmad-output/审查/evidence-g29/canary-report-20260906T021427Z.json
+RED-REF B_table_survived_A_init = False
+RED-REF verdict = None
+RED-REF finding = CONFIRMED: vault A 的 LanceDBClient.initialize() 删掉了 vault B 的表

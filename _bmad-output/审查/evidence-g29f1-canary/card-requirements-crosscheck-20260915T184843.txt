@@ -1,0 +1,36 @@
+=== 卡文 §二 裁判命令 ↔ 本卡实际执行 对照（供复核者逐条核） ===
+
+卡文要求                                       状态         证据文件
+----------------------------------------   --------   --------
+(a) pwd/branch/log/status                  DONE       prereq-20260915T120845.txt
+(a) venv 可执行 + .env 存在                     DONE       venv-env-selfcheck-*.txt
+(a) canary 开工 sha = $SHA0                  DONE       canary-sha-start.txt / run-vars.txt
+(a) grep -cF side_effect_probe 开工          DONE       probe-key-count-start.txt (=5)
+(a) 红参照落档                                  DONE       red-ref-*.txt + red-ref-keys-*.txt
+(a) 基线自证 grep -vc '^#' = 64                DONE       unit-base-selfcheck.txt
+(a) tests/unit 开工快照                        DONE       unit-start-20260915T121159.txt (64)
+(b) nc -z 7692                             DONE       precheck-7692.txt (rc=0)
+(b) 零 embed 依据 + 正对照 + 验伪锚                 DONE+更正    no-embed-dep.txt / embed-dep-correction*
+(c) ON 态真跑 rc=0                            DONE       run-on-*.txt
+(c) OFF 态真跑 rc=0                           DONE       run-off-*.txt
+(c) 两态报告字段断言                               DONE       assert-on-*.txt / two-state-assert-*.txt
+(c) blocked=0 等值断言 + 验伪锚                   DONE       blocked-tokens.txt
+(d) --verify-judges 真跑                     RUNNING    verify-judges-20260915T182632.txt
+(d) all_killed + coverage 断言               PENDING    —
+(e) 负控① 未设 URI → rc=2                      DONE       negctl-no-uri-*.txt
+(e) 负控② 禁用后缀 → rc=2                        DONE       negctl-forbidden-path-*.txt
+(f) sha 跑后 = $SHA0                         PENDING    —
+(f) probe 计数收工                             PENDING    —
+(g) 地盘核 + 验伪锚                              PENDING(需commit后) pathspec-selfcheck-*.txt(前置已验)
+(h) unit 收工快照 + diff + 三验伪锚                QUEUED     后台任务 bgws3thy3
+(i) Codex 1 轮 + 验收单 + commit               PENDING    prompts/codex-prompt-*.md 已就绪
+
+=== 卡文之外、本卡额外做的（加强项） ===
+  · 负控判据从「rc=2」加强为三重绑定（rc + preflight 阶段 + REJECTED_BY 层）
+  · 负控② 额外证「拒绝时未 mkdir」
+  · 两态报告配对用 tee 的『报告:』内容锚，不用 sorted[-2:] 位置锚
+  · 跑前证「本卡 evidence 目录零报告」⇒ 任何报告必为本卡新跑
+  · pathspec 两种写法对照实测（复现协议点名的 rc=128 假绿）
+  · 全目录 glob 撞名扫描（已抓到并修复一处自造污染）
+  · 验收单引用的 21 个 evidence 文件逐一存在性校验
+  · T1-A 改动面落档（证本卡跑在 F2 之后，+633 行 client 改动）

@@ -1,0 +1,20 @@
+### 补跑：负控② + 同次 test -e（r1-LOW-1 整改：原 tee 未含该检查，负控汇总却引用了它）
+### T=/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.drfh9EKw6y  NEO4J_TEST_URI=bolt://localhost:7692
+--- 跑前：目标路径是否存在 ---
+PRE: NOT EXISTS
+--- 跑 canary（路径命中禁用后缀） ---
+*** G2-9 CANARY REJECTED (preflight) ***
+NEGCTL_REJECTED_BY=g29_dual_vault_canary._preflight_lancedb_path
+NEGCTL_REJECTED_SOURCE=g29_dual_vault_canary.py::_preflight_lancedb_path（本脚本前置检查）
+NEGCTL_REASON=LanceDB 路径 /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.drfh9EKw6y/data/lancedb 指向现网默认库（*/data/lancedb）。canary 只许写 tmp。
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+canary rc=2
+--- 跑后：目标路径是否存在（判据在 mkdir 之前 ⇒ 应仍不存在） ---
+POST: NOT EXISTS  ✅ 判据确实在 mkdir 之前
+--- 父目录 $T 的内容（应为空：连 data/ 都不该建） ---
+total 0
+drwx------@     2 Heishing  staff      64 Sep 15 23:01 .
+drwx------@ 12074 Heishing  staff  386368 Sep 15 23:01 ..
+--- [验伪锚] 证 test -e 这条检查本身有效：对一个确实存在的路径 ---
+ANCHOR: $T EXISTS ✅（test -e 不是恒假）
+rc=0

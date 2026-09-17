@@ -1,0 +1,159 @@
+{
+  "all_killed": true,
+  "baseline_verdicts": {
+    "A_cannot_see_B": true,
+    "A_counts_positive": true,
+    "A_equals_B": true,
+    "A_gone_after_delete": true,
+    "A_unaffected_by_B_write": true,
+    "B_cannot_see_A": true,
+    "B_counts_positive": true,
+    "B_unchanged_after_deleting_A": true,
+    "graphiti_delete_is_load_bearing": true,
+    "identities_distinct": true,
+    "lancedb_delete_is_load_bearing": true,
+    "purge_left_nothing": true,
+    "read_scope_sentinels_clean": true,
+    "shared_concept_split_per_group": true
+  },
+  "coverage": {
+    "complete": true,
+    "covered": 14,
+    "phantom_targets": [],
+    "total": 14,
+    "uncovered": []
+  },
+  "mutations": [
+    {
+      "applied": true,
+      "breaks": "整个 vault 命名空间",
+      "mutation": "M1_same_identity",
+      "target_judges": {
+        "A_cannot_see_B": false,
+        "B_unchanged_after_deleting_A": false,
+        "identities_distinct": false,
+        "shared_concept_split_per_group": false
+      },
+      "verdict": "KILLED",
+      "what": "B 的三存储身份被改成与 A 逐字相同 —— 隔离彻底不存在"
+    },
+    {
+      "applied": true,
+      "breaks": "cypher-read-contract R4 / R1",
+      "mutation": "M2_no_scope_filter",
+      "target_judges": {
+        "A_cannot_see_B": false,
+        "A_unaffected_by_B_write": false,
+        "B_cannot_see_A": false
+      },
+      "verdict": "KILLED",
+      "what": "Neo4j 读侧的 group 过滤片段替换成 true —— R4「静默退化为全库读」"
+    },
+    {
+      "applied": true,
+      "breaks": "cypher-write-contract W2",
+      "mutation": "M3_unscoped_delete",
+      "target_judges": {
+        "B_unchanged_after_deleting_A": false
+      },
+      "verdict": "KILLED",
+      "what": "删 A 时按 name/path 删而不带 group scope —— W2「scoped delete」失效"
+    },
+    {
+      "applied": true,
+      "breaks": "判据的形状前提",
+      "mutation": "M4_empty_count_shape",
+      "target_judges": {
+        "raised": true
+      },
+      "verdict": "KILLED",
+      "what": "Neo4j 计数返回空 dict —— 首跑实测到的那个 all() 恒真假绿面"
+    },
+    {
+      "applied": true,
+      "breaks": "LanceDB 表名命名空间（G2-4）",
+      "mutation": "M5_lancedb_bare_table",
+      "target_judges": {
+        "A_cannot_see_B": false,
+        "B_cannot_see_A": false
+      },
+      "verdict": "KILLED",
+      "what": "LanceDB 绕开 resolve_table_name 直接开表 —— G2-4 删掉的裸表回退"
+    },
+    {
+      "applied": true,
+      "breaks": "「写进去了」这个前提本身",
+      "mutation": "M6_skip_write_A",
+      "target_judges": {
+        "A_counts_positive": false,
+        "A_equals_B": false
+      },
+      "verdict": "KILLED",
+      "what": "A 的 LanceDB 写入被跳过 —— 资产没真正落盘"
+    },
+    {
+      "applied": true,
+      "breaks": "同上，反向",
+      "mutation": "M7_skip_write_B",
+      "target_judges": {
+        "A_equals_B": false,
+        "B_counts_positive": false
+      },
+      "verdict": "KILLED",
+      "what": "B 的 LanceDB 写入被跳过（A/B 对称面，不能只验一侧）"
+    },
+    {
+      "applied": true,
+      "breaks": "两套读口径的等价性（graphiti 精确等值 vs 生产 vault_scope）",
+      "mutation": "M8_sentinel_scope_divergence",
+      "target_judges": {
+        "read_scope_sentinels_clean": false
+      },
+      "verdict": "KILLED",
+      "what": "graphiti 的读真的变宽（多带一个兄弟组）—— 系统侧制造口径分叉，不是改判据参数"
+    },
+    {
+      "applied": true,
+      "breaks": "删除路径本身",
+      "mutation": "M9_no_delete",
+      "target_judges": {
+        "A_gone_after_delete": false,
+        "graphiti_delete_is_load_bearing": false,
+        "lancedb_delete_is_load_bearing": false
+      },
+      "verdict": "KILLED",
+      "what": "三个面的删除全部 no-op（计数照实数，拆的是删除本身不是计数器）"
+    },
+    {
+      "applied": true,
+      "breaks": "graphiti 删除路径（单独一面）",
+      "mutation": "M12_graphiti_delete_only_broken",
+      "target_judges": {
+        "graphiti_delete_is_load_bearing": false
+      },
+      "verdict": "KILLED",
+      "what": "只坏 graphiti 删除，业务扫荡照跑 —— 专打「修复是否只是移位」"
+    },
+    {
+      "applied": true,
+      "breaks": "报告的起点前提（计数是本轮写的，不是上轮遗留）",
+      "mutation": "M11_purge_leaves_residue",
+      "target_judges": {
+        "purge_left_nothing": false
+      },
+      "verdict": "KILLED",
+      "what": "清理跑完仍留下 A 的业务节点 —— 起点不干净"
+    },
+    {
+      "applied": true,
+      "breaks": "写侧 vault 归属（W1）",
+      "mutation": "M10_b_writes_into_a",
+      "target_judges": {
+        "shared_concept_split_per_group": false
+      },
+      "verdict": "KILLED",
+      "what": "B 的业务写入落进 A 的 group —— 跨 vault 写污染"
+    }
+  ],
+  "timestamp": "20260915T102632Z"
+}
