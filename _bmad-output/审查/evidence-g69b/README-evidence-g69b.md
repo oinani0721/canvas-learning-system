@@ -136,3 +136,17 @@ Codex r2 指出：负控④ 会让门③ **先**停在 null 那条断言上，�
 
 `negctl-mutation-sources-r3.txt` = 五段负控的变异源码（Codex r3 指出「变异源码不在读取面内
 ⇒ 结论只是条件性推导」，该意见成立，故一并落档供逐字复现）。
+
+## `final-audit-*.txt` 与 `codex-review-*-rN.body.md` 是什么
+
+- `final-audit-<ts>.txt` —— 收工终检：判据 9（审后代码树 diff 为空 = 终审绑定仍成立，
+  带「去掉 exclude 能看到文档 commit」的验伪锚）、判据 6 地盘门 + 地盘外文件数、
+  openapi 净 diff 与工作树状态、`*.stderr*` 入库核、判据 1 收工锚、本卡 commit 链、
+  以及卡文 §三 七个禁改文件的逐个零改动核（带「本卡地盘文件应为 1」的验伪锚）。
+- `codex-review-CARD-G6-9b-rN.body.md` —— Codex 的**原始 stdout**，未加协议 §2.1 首部。
+  正式存档是 `_bmad-output/审查/codex-review-CARD-G6-9b-rN.md`（首部六行 blockquote +
+  `---` + 本文件正文，正文一字未改）。保留 body 供复核者对照「首部是加上去的、正文没被动过」。
+
+**首部未动正文的实测**（锚结构不锚位置：按首部后第一条 `---` 分隔行切，实测三份分隔行
+都在 L8、正文自 L10 起）：r1/r2/r3 三份存档的正文与对应 `.body.md` **逐字相同**；
+验伪锚（往副本末尾加一行后比对）能抓到差异，证明该比对本身有效。

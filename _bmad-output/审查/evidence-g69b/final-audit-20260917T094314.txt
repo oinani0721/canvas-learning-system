@@ -1,0 +1,57 @@
+=== CARD-G6-9b 终检 2026-09-17 09:43:14 CST ===
+PREV=5cdc98439594ea58b427cc5eee61857baad7506b
+终审绑定 SHA (Codex r3) = baf8a693e7b781bc64fe72d9e153f37b54e65e8a
+当前 HEAD = 35217202f57a89f8d4e087006746da1683fcf889
+
+--- 判据9: 审后代码树 diff 必须为空 ---
+[上面无输出 = 仍绑定]
+验伪锚(去掉 exclude, 应看到 r3 后的文档 commit):
+ .../UAT-CARD-G6-9b-2026-09-17.md"                  | 365 +++++++++++++++++++++
+ 5 files changed, 603 insertions(+)
+
+--- 判据6: 地盘门 $PREV..HEAD ⊆ {review_overview.py, test_review_overview.py} ---
+ backend/app/api/v1/endpoints/review_overview.py | 147 ++++++++++++++-
+ backend/tests/unit/test_review_overview.py      | 228 ++++++++++++++++++++++++
+ 2 files changed, 373 insertions(+), 2 deletions(-)
+地盘外文件数(必须 0):
+0
+0
+
+--- (f) openapi.json 净 diff 与工作树状态 ---
+[无输出 = 净 diff 空]
+[无输出 = 工作树干净]
+
+--- (l) 工作树整体 (T3-D 开工前必须干净) ---
+?? "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-G6-9b-r1.body.md"
+?? "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-G6-9b-r2.body.md"
+?? "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-G6-9b-r3.body.md"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-g69b/final-audit-20260917T094314.txt"
+[无输出 = 干净]
+
+--- 入库存档卫生: *.stderr* 是否进了 $PREV..HEAD ---
+0
+(0 命中 ⇒ grep rc=1, 即干净)
+
+--- 判据1 收工锚 ---
+grep -cF degraded review_overview.py = 14  (开工 0)
+grep -nF last_error 命中数 = 15  (开工 0)
+
+--- 本卡 commit 链 ---
+35217202 docs(g6-9b): Codex r3 存档 + 验收单 + 负控变异源码 [BATCH-2026-09-11-第十四批 / CARD-G6-9b]
+baf8a693 chore(g6-9b): 三次还原 openapi.json 的 x-generated-at 行 [BATCH-2026-09-11-第十四批 / CARD-G6-9b]
+ae2b4dbd fix(g6-9b): 撤回 `or bool(err)` 余量, last_error 不参与三态判定 [BATCH-2026-09-11-第十四批 / CARD-G6-9b]
+7718ae60 chore(g6-9b): 二次还原 openapi.json 的 x-generated-at 行 [BATCH-2026-09-11-第十四批 / CARD-G6-9b]
+af4c7b9a fix(g6-9b): 按 Codex r1 修三态映射 — 未知 last_result 不得当成推送成功 [BATCH-2026-09-11-第十四批 / CARD-G6-9b]
+4a972d3a chore(g6-9b): 还原 openapi.json 的 x-generated-at 行 [BATCH-2026-09-11-第十四批 / CARD-G6-9b]
+bb40e4e9 feat(g6-9b): /overview 加 push_degraded+last_error 与总览页降级徽标 [BATCH-2026-09-11-第十四批 / CARD-G6-9b]
+
+--- 卡文禁改文件零改动核 ---
+scripts/daily_review_run.py                                0
+scripts/daily_review_pick.py                               0
+backend/app/api/v1/endpoints/review_app.py                 0
+backend/app/core/display_tz.py                             0
+scripts/local_tz.py                                        0
+canvas-vault/.claude/scripts/fsrs_bridge.py                0
+canvas-vault/.claude/scripts/decay_beta.py                 0
+(全 0 = 禁改面零改动；验伪锚: 本卡地盘文件应为 1)
+backend/app/api/v1/endpoints/review_overview.py            1
