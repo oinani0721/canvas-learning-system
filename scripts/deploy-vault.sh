@@ -263,7 +263,7 @@ WRITE_GUARD_ERR=""
 # ⚠️ 如实声明：bash 重定向做不到 open(O_NOFOLLOW) 的原子性, 这里只把窗口收到**最窄**,
 #    残留窗口不为零（两处 python 写入已改用 O_NOFOLLOW, 那两处是真原子）。
 assert_writable_now() {
-    local p="$1" nlink=""
+    local p="$1" nlink="" nrc=0
     WRITE_GUARD_ERR=""
     if [ -L "$p" ]; then
         WRITE_GUARD_ERR="写入前复查: 对象是软链, 写入会沿链穿到别处: $p -> $(readlink "$p")"
@@ -273,23 +273,122 @@ assert_writable_now() {
     [ -d "$p" ] && return 0
     # 用 python3 取 st_nlink：`stat` 的 BSD/GNU 口径不同（GNU 的 `-f` 是**文件系统**信息,
     # `%l` 在那边是「文件名最大长度」—— 会回一个看似合理的数字, 比报错更坏）。
+    # ⛔ 探针本身的退出码要显式判（CARD-G2-7b-TAIL M-1）：解释器缺失 / 被 PATH 上的
+    #    假 python3 顶掉 / 崩在 import 期都会 rc≠0。旧版只看输出, 「非零退出但打了点
+    #    什么」会被当成合法取值 —— 那是把「问不出来」读成「问出来了」。
     nlink="$(python3 -c 'import os,sys
 try:
     print(os.lstat(sys.argv[1]).st_nlink)
 except OSError:
-    pass' "$p" 2> /dev/null)"
+    pass' "$p" 2> /dev/null)" || nrc=$?
+    if [ "$nrc" != 0 ]; then
+        WRITE_GUARD_ERR="写入前复查: 取链接数的探针非零退出(rc=${nrc}), 无从断言不是硬链接: $p"
+        return 1
+    fi
+    # ⛔ 字符集**逐字符枚举**而不是写区间（与步 1 npm 上限、步 5 Lance 上限同律）：
+    #    `[!0-9]` 的区间由 locale 的排序决定 —— `LC_ALL=ar_EG.UTF-8` 下阿拉伯数字能过
+    #    这道门, 随后 `[ -gt ]` 报错 rc=2、`if` 判假 ⇒ **放行**。写 `[!0123456789]`
+    #    与 locale 无关。
     # 三态：数字 / 空 / 非数字。**非数字不能落到 `[ -gt ]`** —— 那会 rc=2、`if` 判假 ⇒
     # 静默 fail-open（该拦的放行了）。空与非数字一律 fail-closed。
     case "$nlink" in
-        '' | *[!0-9]*)
+        '' | *[!0123456789]*)
             WRITE_GUARD_ERR="写入前复查: 问不出链接数(得到 '${nlink}'), 无从断言不是硬链接: $p"
             return 1
             ;;
     esac
+    # ⛔ `0` 也是「问不出来」（CARD-G2-7b-TAIL M-1）：`[ -e ]` 刚判过对象存在, 一个**存在的**
+    #    普通文件不可能 st_nlink=0。拿到 0 只说明探针在说谎（被顶掉/被改写）, 而 `[ 0 -gt 1 ]`
+    #    为假 ⇒ 旧版**放行**。三态里「拿到了一个不可能的数」必须与「非数字」同档。
+    # ⚠️ 必须按「全是 0」判, 不能只比 `= 0`（Codex r1 LOW-1）：`00` / `0000000000`
+    #    同样是 0 值的合法十进制写法, 只比字面量会把它们放过去。
+    case "$nlink" in
+        *[!0]*) ;;
+        *)
+            WRITE_GUARD_ERR="写入前复查: 链接数回了 '${nlink}'(存在的普通文件不可能为 0), 探针不可信: $p"
+            return 1
+            ;;
+    esac
+    # ⛔ 位数上限 fail-closed（CARD-G2-7b-TAIL M-1）：超 64 位的纯数字串能过上面的
+    #    字符集判据, 但 `[ "$huge" -gt 1 ]` 会打 "integer expression expected"、rc=2、
+    #    `if` 判假 ⇒ 又是**放行**。st_nlink 是 uint32/uint64 量级, 10 位足够覆盖
+    #    (4294967295 是 10 位)；再长一定不是真的链接数 ⇒ 拒。
+    #    顺序与步 1 / 步 5 的上限校验逐条同律：**先把值收窄成一定能安全比较的形状,
+    #    数值比较放最后**, 它才不可能 rc=2。
+    if [ "${#nlink}" -gt 10 ]; then
+        WRITE_GUARD_ERR="写入前复查: 链接数位数过多(${#nlink} 位, 得到 '${nlink}'), 无从断言不是硬链接: $p"
+        return 1
+    fi
     if [ "$nlink" -gt 1 ]; then
         WRITE_GUARD_ERR="写入前复查: 对象有 ${nlink} 个硬链接, 写入会改共享 inode: $p"
         return 1
     fi
+    return 0
+}
+
+# ── 同目录不可预测临时件（CARD-G2-7b-TAIL ②）────────────────────────────────
+# ⛔ **可预先命名的终路径**是本脚本 bash 写入面的根问题：`$ENV_FILE.tmp` /
+#    `$keyfile.tmp` / `$out.tmp` / `install-$TS.txt` / `compose-config-$TS.txt`
+#    这些名字攻击者**在我们动手之前就能算出来**, 于是能预先在那个名字上摆一条软链
+#    或一个硬链接。既有的 `assert_writable_now` 能**看见**它并拒绝 —— 但那是把
+#    「内容越界」换成了「部署被一个空文件卡死」(拒绝服务), 预置方仍然拿到了控制权。
+# ⇒ 改为 `mktemp` 在**同一个目录**里建一个不可预测名的新文件：mktemp(1) 以
+#    `O_CREAT|O_EXCL|0600` 创建, 名字已存在就换一个再试 ——「不跟随预置软链/硬链接」
+#    由内核的 O_EXCL 保证, 不靠检查+祈祷；写完 `mv`（rename(2)）到位, rename 替换的是
+#    **名字**、不跟随目标位置上的软链, 所以发布这一步也不穿链。
+# ⚠️ 如实声明（与本文件既有声明同律）：这**不是**把 bash 写入变成了 `open(O_NOFOLLOW)`
+#    的原子写 —— tmp 建好之后的 `>>` 仍是按路径重定向, 残留窗口不为零, 只是那个路径
+#    现在是一个刚由内核独占创建、名字不可预测的对象。真原子的写仍只有走
+#    `open_pinned` 的那几处 python。
+# ⚠️ 必须与目标**同目录**：`mv` 跨文件系统会退化成「拷贝+删除」, 失去 rename 的原子性。
+# ⛔⛔ 发布**不能用 `mv`**（Codex r2 HIGH-1）：`mv(1)` 在终路径是**指向目录的软链**时
+#    会把临时件搬**进**那个目录并返回 0 —— 于是 `assert_writable_now` 与 `[ -d "$dst" ]`
+#    这两道预检查（都在建临时件之前）之后的窗口里，把 `$ilog` 换成一条指向保护目录的
+#    软链，内容就落进保护面而步骤照报成功。本机实测：`mv` 落进链目标，`rename(2)` 替换
+#    链本身（证据 evidence-g27b-tail/r3-*）。
+#    `rename(2)` 按 POSIX **不跟随 newpath 的末段**：newpath 是软链就替换那条软链，
+#    是真目录就 EISDIR/ENOTDIR 失败 ⇒ 两个方向都是我们要的。bash 没有 rename,
+#    所以这一步交给 python（与本文件既有「原子那一步交给 python」同律）。
+# ⚠️ 仍不闭合的一面（如实声明）：newpath **中间段**的软链仍会被解析 —— 那几级目录是
+#    preflight 判过的对象, 不在本 helper 的职责里。
+publish_tmp() {
+    local tmp="$1" dst="$2"
+    python3 -c 'import os, sys
+os.rename(sys.argv[1], sys.argv[2])' "$tmp" "$dst" 2> /dev/null
+}
+
+mk_tmp_beside() {
+    local dst="$1" dir="" out="" mrc=0
+    # ⛔⛔ **不得用 `$(dirname …)`**（Codex r1 BLOCKER，我初版正是这么写的）：命令替换会
+    #    **剥掉末尾换行**。`--env-dir $'…/.codex\n'` 时判据过的是含 LF 的那个目录,
+    #    而 `dirname` 回来的是**不含 LF** 的那个 —— 于是临时件建进了真正的保护目录,
+    #    无需任何竞争窗口。本文件 :467 早就为同一个坑立过规矩（r3 BLOCKER-4）,
+    #    我在这里又犯了一次。参数展开不经命令替换, 逐字节保真。
+    # ⚠️ 语义补齐同 :470：`${dst%/*}` 对单段相对路径会原样返回它自己 —— 五个调用方传的
+    #    都是已绝对化的路径, 但这里仍显式拒绝「取不出父目录」的输入, 不靠调用方的前提。
+    case "$dst" in
+        */*) dir="${dst%/*}"; [ -n "$dir" ] || dir="/" ;;
+        *) printf '%s\n' "mk_tmp_beside: 取不出父目录(输入不含 /): $dst" >&2; return 1 ;;
+    esac
+    if [ ! -d "$dir" ]; then
+        printf '%s\n' "mk_tmp_beside: 临时件目标目录不存在: $dir" >&2
+        return 1
+    fi
+    # ⛔ 终路径已经是**目录**时必须当场拒（Codex r1 MEDIUM-1，同样是我初版的回归）：
+    #    `mv <tmp> <目录>` 会把临时件搬**进**那个目录并返回成功, 于是调用方把一个目录
+    #    路径当成「已写好的文件」报出去。旧写法 `: > "$ilog"` 在目录上会直接失败,
+    #    换成 tmp+mv 之后这条保护丢了, 得在这里补回来。
+    if [ -d "$dst" ]; then
+        printf '%s\n' "mk_tmp_beside: 终路径已被一个目录占着, 拒绝发布: $dst" >&2
+        return 1
+    fi
+    # 前缀带 `.cls-deploy-` 便于事后辨认残件；XXXXXXXX 由 mktemp 填随机值。
+    out="$(mktemp "$dir/.cls-deploy-tmp.XXXXXXXX" 2> /dev/null)" || mrc=$?
+    if [ "$mrc" != 0 ] || [ -z "$out" ]; then
+        printf '%s\n' "mk_tmp_beside: 在 $dir 下建临时件失败(mktemp rc=${mrc})" >&2
+        return 1
+    fi
+    printf '%s' "$out"
     return 0
 }
 
@@ -592,9 +691,16 @@ step1_preflight() {
     #    这两个构建产物若是软链没有任何一层会拦。改成一个数组两个消费方, 结构上不可能再漂移。
     local -a PENDING_WRITES=(
         "env-file:$ENV_FILE"
-        "env-file-tmp:$ENV_FILE.tmp"
+        # ⛔ 三处 `<终路径>.tmp` 登记已于 CARD-G2-7b-TAIL ② **退场**：临时件改由
+        #    `mk_tmp_beside` 在同目录以 mktemp(O_EXCL) 建, 名字这一刻还不知道 ——
+        #    继续登记一个永远不会被写的固定名, 正是上面 AGENTS.md.tmp 那段说的
+        #    「清单说的和脚本做的对不上」(DD-13)；更坏的是它把「预置一条软链」
+        #    从「无效」变回「能把部署卡死」(拒绝服务)。
+        #    改登记它们**真正**的写入面 = 那个目录本身（目录是软链也会被这里的 -L 拦下，
+        #    这一轴旧登记反而没有）。
+        "env-file-tmp-dir:$ENV_DIR"
         "key-file:$VAULT/.obsidian/cls-internal-key.txt"
-        "key-file-tmp:$VAULT/.obsidian/cls-internal-key.txt.tmp"
+        "key-file-tmp-dir:$VAULT/.obsidian"
         "plugin-data:$VAULT/.obsidian/plugins/canvas-learning-system/data.json"
         "harness-mainjs:$HARNESS/canvas-vault/.obsidian/plugins/canvas-learning-system/main.js"
         "harness-build-out:$HARNESS/frontend/obsidian-plugin/main.js"
@@ -602,7 +708,9 @@ step1_preflight() {
         "ev-verify-report:$EVIDENCE_DIR/verify-$TS.txt"
         "ev-compose-config:$EVIDENCE_DIR/compose-config-$TS.txt"
         "ev-deploy-report:$EVIDENCE_DIR/deploy-$TS.txt"
-        "ev-deploy-report-tmp:$EVIDENCE_DIR/deploy-$TS.txt.tmp"
+        # 同上（CARD-G2-7b-TAIL ②）：报告 / install 日志 / compose-config 三件的临时件
+        # 都由 mktemp 在 evidence 目录里建 ⇒ 登记目录本身。
+        "ev-tmp-dir:$EVIDENCE_DIR"
         # ⛔ npm 缓存/日志目录（Codex r10 HIGH-1）：我 r9 为「约束 npm 写入面」新加的
         #    `mkdir -p "$EVIDENCE_DIR/npm-$TS/{cache,logs}"` **本身就是未过判据的写入面** ——
         #    evidence 下预置 `npm-$TS -> 保护目录` 时, 那个 mkdir 直接写进去,
@@ -865,19 +973,38 @@ ENV_KEYS_WHITELIST="NEO4J_HTTP_PORT NEO4J_BOLT_PORT OLLAMA_HOST VAULT_MOUNT_MODE
 ENV_KEYS_SKIPPED=""
 SEED_ERR=""
 
+# 本次 seed 的同目录临时件（mktemp 随机名）。⛔ 失败路径必须清掉它：名字不可预测 ⇒
+# 留下来既堆垃圾又没人认得出它是谁（旧版留的是固定名 `.env.<vault>.tmp`, 下次跑会覆盖,
+# 随机名不会）。清理由 `seed_env_file` 包在 `_seed_env_file_body` 外面统一做 ——
+# 函数体里有 8 个 return 点, 逐个补 cleanup 必然漏掉其中一个。
+SEED_TMP=""
 seed_env_file() {
+    local rc=0
+    SEED_TMP=""
+    _seed_env_file_body || rc=$?
+    if [ -n "$SEED_TMP" ] && [ -e "$SEED_TMP" ]; then
+        rm -f -- "$SEED_TMP" 2> /dev/null || :
+    fi
+    SEED_TMP=""
+    return "$rc"
+}
+
+_seed_env_file_body() {
     # 从 <harness>/.env 只抄白名单键；源里没有的键**跳过**（不写空值——空键会让读者
     # 分不清「没配」与「配成空」；compose 侧 ${VAR:-默认} 对 unset 与 empty 同样回落，
     # 故跳过与写空在 compose 语义上等价, 跳过更诚实）。跳过清单进步 3 的输出。
     local src="$HARNESS/.env" k v
     SEED_ERR=""
     mkdir -p "$ENV_DIR" || { SEED_ERR="建 --env-dir 失败: $ENV_DIR"; return 1; }
-    assert_writable_now "$ENV_FILE.tmp" || { SEED_ERR="$WRITE_GUARD_ERR"; return 1; }
-    # umask 077 纵深（Codex r5 HIGH-3 同族）：临时文件从**诞生那一刻**就是 0600, 而不是
-    # 先按缺省 umask 落 0644、等末尾 mv 后再 chmod。`||` 在子 shell 外, return 仍在函数里。
-    (umask 077 && : > "$ENV_FILE.tmp") \
-        || { SEED_ERR="建 .env 临时文件失败: $ENV_FILE.tmp"; return 1; }
-    printf '# CARD-G2-7b deploy-vault.sh 生成 — vault=%s port=%s ts=%s\n' "$VAULT_NAME" "$PORT" "$TS" >> "$ENV_FILE.tmp"
+    # ⛔ 不再 `: > "$ENV_FILE.tmp"`（CARD-G2-7b-TAIL ②）：那个名字可预先算出, 预置一条
+    #    软链/硬链接就能把这一跑变成「复查拒绝 ⇒ 部署卡死」。改为同目录 mktemp（O_EXCL,
+    #    0600, 名字不可预测）。umask 077 的纵深由 mktemp 自带的 0600 接管。
+    SEED_TMP="$(mk_tmp_beside "$ENV_FILE")" \
+        || { SEED_ERR="建 .env 临时文件失败（目录 ${ENV_DIR}, 细因见 stderr）"; return 1; }
+    # 复查保留：mktemp 刚建出来的对象在这一刻应当是 nlink=1 的普通文件, 若不是,
+    # 说明同目录里发生了我们没预期的事 ⇒ fail-closed（纵深, 不是主防线）。
+    assert_writable_now "$SEED_TMP" || { SEED_ERR="$WRITE_GUARD_ERR"; return 1; }
+    printf '# CARD-G2-7b deploy-vault.sh 生成 — vault=%s port=%s ts=%s\n' "$VAULT_NAME" "$PORT" "$TS" >> "$SEED_TMP"
     ENV_KEYS_SKIPPED=""
     local wrc
     for k in $ENV_KEYS_WHITELIST; do
@@ -897,7 +1024,7 @@ seed_env_file() {
             if [ -n "$v" ]; then
                 # ⛔ 逐项判 rc（Codex r2 HIGH-2）：原版靠 `&& continue` 串起来,
                 #    追加失败会静默落到「记为 skipped」而不是报错。
-                printf '%s\n' "$v" >> "$ENV_FILE.tmp" \
+                printf '%s\n' "$v" >> "$SEED_TMP" \
                     || { SEED_ERR="写 .env 白名单键 ${k} 失败"; return 1; }
                 continue
             fi
@@ -916,16 +1043,18 @@ seed_env_file() {
         "CLS_BACKEND_CONTAINER=cls-$VAULT_NAME-backend" \
         "INTERNAL_API_KEY=" \
         "DAILY_REVIEW_VAULTS="; do
-        printf '%s\n' "$_fk" >> "$ENV_FILE.tmp" \
+        printf '%s\n' "$_fk" >> "$SEED_TMP" \
             || { SEED_ERR="写 .env 固定字段失败: ${_fk%%=*}"; return 1; }
     done
     # 回读校验：确认六个必填键都真的落进去了（追加成功 ≠ 内容完整）
     local kk
     for kk in ACTIVE_VAULT VAULTS_ROOT API_PORT CLS_BACKEND_CONTAINER INTERNAL_API_KEY DAILY_REVIEW_VAULTS; do
-        grep -qE "^${kk}=" "$ENV_FILE.tmp" \
+        grep -qE "^${kk}=" "$SEED_TMP" \
             || { SEED_ERR="写 .env 后回读缺键: ${kk}"; return 1; }
     done
-    mv "$ENV_FILE.tmp" "$ENV_FILE" || { SEED_ERR="mv .env 失败: $ENV_FILE"; return 1; }
+    # `mv` = rename(2)：替换的是**名字**, 不跟随 $ENV_FILE 位置上可能被预置的软链。
+    publish_tmp "$SEED_TMP" "$ENV_FILE" || { SEED_ERR="发布 .env 失败(rename 未成功): $ENV_FILE"; return 1; }
+    SEED_TMP=""
     pinned_chmod600 "$ENV_FILE" || { SEED_ERR="chmod 600 .env 失败: $ENV_FILE"; return 1; }
     return 0
 }
@@ -950,21 +1079,37 @@ step2_install() {
     #    这一步不是可选的：下面 install 的输出要重定向进去, 目录不存在 ⇒ 重定向失败 ⇒
     #    install **根本没跑**, 而旧消息会把它说成「install-vault.sh 非零退出」（误导）。
     mkdir -p "$EVIDENCE_DIR" || { STEP_MSG="建 evidence 目录失败: $EVIDENCE_DIR"; return 1; }
-    local ilog="$EVIDENCE_DIR/install-$TS.txt"
-    # ⛔ 截断前再查一次（Codex r3 BLOCKER-2）：preflight 到此刻之间文件可能被换成软链,
-    #    而 `: >` 会沿链把目标文件清空。这一步是**写之前的最后一道**。
+    local ilog="$EVIDENCE_DIR/install-$TS.txt" itmp=""
+    # ⛔ 发布前复查（承 Codex r3 BLOCKER-2，**理由已随 CARD-G2-7b-TAIL ② 改写**）：
+    #    日志不再由 `: >` 直接截断终路径, 改为写同目录 mktemp 再 `mv` 发布,
+    #    所以「`: >` 会沿链把目标清空」这条旧理由**不再是这两道检查的用途**。
+    #    留着它们的新用途：`$ilog` 的名字里带本次 `$TS`, 正常情况下这一刻**不可能**
+    #    已经存在；此刻它若是软链或有第二个硬链接, 说明 evidence 目录里有我们没预期的
+    #    东西 ⇒ fail-closed。（与 `$ENV_FILE.tmp` 那类**跨跑残留**不同：那种固定名会被
+    #    上一次崩掉的跑留下来, 拿它当拒绝理由就是把部署永久卡死, 故那一类已整条退场。）
     if [ -L "$ilog" ]; then
-        STEP_MSG="install 日志是软链, 截断会穿到别处: $ilog -> $(readlink "$ilog")"
+        STEP_MSG="install 日志名上已有软链, 拒绝发布到它上面: $ilog -> $(readlink "$ilog")"
         return 1
     fi
     assert_writable_now "$ilog" || { STEP_MSG="$WRITE_GUARD_ERR"; return 1; }
-    : > "$ilog" || { STEP_MSG="无法写 install 日志(重定向失败, install 未执行): $ilog"; return 1; }
+    itmp="$(mk_tmp_beside "$ilog")" \
+        || { STEP_MSG="建 install 日志临时件失败(install 未执行, 目录 ${EVIDENCE_DIR}, 细因见 stderr)"; return 1; }
     local irc=0
     CLS_REPO="$HARNESS" "$HARNESS/scripts/install-vault.sh" "$VAULT_NAME" \
         --subject "$SUBJECT" --vaults-root "$VAULT_PARENT" \
         --source "$HARNESS/canvas-vault" --env-file "$ENV_FILE" \
         --harness-tree "$HARNESS" --backend-url "http://127.0.0.1:$PORT" \
-        >> "$ilog" 2>&1 || irc=$?
+        >> "$itmp" 2>&1 || irc=$?
+    # ⛔ 无论 install 成不成都要把日志发布出去 —— install 失败时它正是唯一的排查依据,
+    #    「失败就不发布」等于把最需要的那份证据丢掉。
+    local imrc=0
+    publish_tmp "$itmp" "$ilog" || imrc=$?
+    if [ "$imrc" != 0 ]; then
+        # ⛔ 不清掉残件（我初版清了 —— 那是把唯一一份 install 输出销毁）：发布失败时它正是
+        #    排查所需的全部内容, 把路径报出来比把目录扫干净重要。
+        STEP_MSG="install-vault.sh rc=${irc}, 但 install 日志未能发布(rename rc=${imrc}); 输出保留在残件 ${itmp}"
+        return 1
+    fi
     if [ "$irc" != 0 ]; then
         STEP_MSG="install-vault.sh rc=${irc}, 见 $ilog"
         return 1
@@ -2393,7 +2538,30 @@ step3_postprocess() {
                 STEP_MSG="已有 $(basename "$ENV_FILE") 缺键 ${k}（无法确认与本次参数一致；删掉该 .env 重来）"
                 return 1
             fi
-            have="$(printf '%s' "$line" | cut -d= -f2- | tr -d '"'"'" | tr -d '\r')"
+            # ⛔ 不用 `tr -d` 删引号（CARD-G2-7b-TAIL M-3）：`tr -d` 删的是**全部位置**的
+            #    `"` 与 `'`, 于是合法的父路径 `VAULTS_ROOT=/Users/O'Brien/vaults` 被剥成
+            #    `/Users/OBrien/vaults`, 与本次参数比不相等 ⇒ A3 把一次完全正常的重跑
+            #    误判成「已有 .env 与参数矛盾」并以 rc 73 拒绝, 而用户看到的消息说的是
+            #    「矛盾」——原因写错的阻断比不阻断更难查。
+            #    改为只剥**配对的首尾**引号（shell/dotenv 的引号语义本就只在两端）,
+            #    值内引号原样保留。尾随 CR 先剥（CRLF 存盘的 .env）。
+            have="${line#*=}"
+            have="${have%$'\r'}"
+            case "$have" in
+                '"'*'"') have="${have#\"}"; have="${have%\"}" ;;
+                "'"*"'") have="${have#\'}"; have="${have%\'}" ;;
+            esac
+            # ⛔ 值内**回车**必须当场拒（Codex r1 MEDIUM-2，我换掉 `tr -d` 时放进来的口子）：
+            #    旧的 `tr -d` 删掉全部 CR ⇒ 含 CR 的值必然与参数不等、A3 会拒；只剥尾随 CR
+            #    之后, `/tmp/course<CR>vaults` 这类值能与同样含 CR 的参数比成**相等**,
+            #    而步 3 后面写回 .env 时会把 CR 归一成 LF（本文件 :2680 一带）,
+            #    把 `VAULTS_ROOT=` 这一行**拆成两行**。放行它等于让一次合法比较把文件写坏。
+            case "$have" in
+                *"$(printf '\r')"*)
+                    STEP_MSG="已有 $(basename "$ENV_FILE") 的 ${k} 值内含回车符, 写回时会被归一成换行并把该行拆成两条; 拒绝继续（删掉该 .env 重来）"
+                    return 1
+                    ;;
+            esac
             if [ "$have" != "$v" ]; then
                 STEP_MSG="已有 $(basename "$ENV_FILE") 的 ${k}=${have} 与本次参数 ${v} 矛盾（拒绝静默覆盖；改 --port/--vault 或删掉该 .env 重来）"
                 return 1
@@ -2599,18 +2767,43 @@ PY
         mkdir -p "$(dirname "$keyfile")" || { STEP_MSG="建 key 文件父目录失败"; return 1; }
         # 原子落盘：先写 tmp（umask 077）→ 回读比对 → mv。中途失败不会留下**部分内容的**
         # key 文件, 而「key 文件存在」正是 A4 判「不重生」的锚点 —— 半个 key 比没有 key 更坏。
-        assert_writable_now "$keyfile.tmp" || { STEP_MSG="$WRITE_GUARD_ERR"; return 1; }
-        (umask 077 && printf '%s\n' "$key" > "$keyfile.tmp") \
-            || { STEP_MSG="写 key 临时文件失败"; return 1; }
+        # ⛔ 不再写固定名 `$keyfile.tmp`（CARD-G2-7b-TAIL ②）：那个名字可预先算出,
+        #    预置一条软链/硬链接就能让每一次部署都停在「写入前复查」上（拒绝服务）。
+        #    改为同目录 mktemp（O_EXCL + 0600）⇒ 预置的那个名字与我们无关。
+        #    umask 077 的纵深由 mktemp 自带的 0600 接管。
+        local ktmp=""
+        ktmp="$(mk_tmp_beside "$keyfile")" \
+            || { STEP_MSG="建 key 临时文件失败（目标 ${keyfile}, 细因见 stderr）"; return 1; }
+        assert_writable_now "$ktmp" || {
+            rm -f -- "$ktmp" 2> /dev/null || :
+            STEP_MSG="$WRITE_GUARD_ERR"
+            return 1
+        }
+        printf '%s\n' "$key" > "$ktmp" || {
+            rm -f -- "$ktmp" 2> /dev/null || :
+            STEP_MSG="写 key 临时文件失败"
+            return 1
+        }
         # ⛔ 回读也要判 rc（Codex r2 MEDIUM）：完整输出后 rc≠0 时比较仍相等 ⇒ 假绿。
         local rb rbrc=0
-        rb="$(cat "$keyfile.tmp")" || rbrc=$?
+        rb="$(cat "$ktmp")" || rbrc=$?
         if [ "$rbrc" != 0 ] || [ "$rb" != "$key" ]; then
-            rm -f -- "$keyfile.tmp"
-            STEP_MSG="key 临时文件回读不一致, 已丢弃（未污染 ${keyfile}）"
+            # ⛔ 删不掉就别说「已丢弃」（Codex r3 LOW-1）：随机名的残件留在原地而消息
+            #    宣称它没了, 事后没人找得到它 —— 报出路径比宣称干净重要。
+            local _kd=1
+            rm -f -- "$ktmp" 2> /dev/null || _kd=0
+            if [ "$_kd" = 1 ]; then
+                STEP_MSG="key 临时文件回读不一致, 已丢弃（未污染 ${keyfile}）"
+            else
+                STEP_MSG="key 临时文件回读不一致, 且**没能删掉**（残件 ${ktmp}, 内容不可信）; ${keyfile} 未被污染"
+            fi
             return 1
         fi
-        mv "$keyfile.tmp" "$keyfile" || { STEP_MSG="mv key 文件失败"; return 1; }
+        publish_tmp "$ktmp" "$keyfile" || {
+            rm -f -- "$ktmp" 2> /dev/null || :
+            STEP_MSG="发布 key 文件失败(rename 未成功)"
+            return 1
+        }
     fi
     pinned_chmod600 "$keyfile" || { STEP_MSG="chmod 600 key 文件失败"; return 1; }
 
@@ -2724,6 +2917,9 @@ step4_verify() {
     fi
 
     local rep="$EVIDENCE_DIR/verify-$TS.txt" rc=0
+    # 镜像路径**在清理之前**先留一份：下面的基准回执核对要拿它当「应当使用的基准」,
+    # 而 cleanup_mirror 之后目录已经不在（realpath 对不存在的路径照样能算, 够用）。
+    local _mirror_at="$SRC_MIRROR"
     assert_writable_now "$rep" || { cleanup_mirror; STEP_MSG="$WRITE_GUARD_ERR"; return 1; }
     python3 "$HARNESS/scripts/verify_vault_install.py" --vault "$VAULT" \
         --source "$src" \
@@ -2738,7 +2934,65 @@ step4_verify() {
         STEP_MSG="校验器 rc 0（基准=${basis}）但 $CLEANUP_MIRROR_ERR"
         return 1
     fi
-    STEP_MSG="校验器 rc 0（含 content-drift 轴, 基准=${basis}）, 报告 $rep"
+    # ⛔ 基准回执核对（CARD-G2-7b-TAIL ①）：STEP_MSG 说的「基准=X」必须是校验器**实际**
+    #    比对过的那个 X。把上面的 `src="$SRC_MIRROR"` 改成 `src="$VAULT"`（目标自己跟
+    #    自己比）时, 报告里 content-drift 恒 0、match 照样非零、`basis` 文案一个字不变 ——
+    #    「传了 --source 且 drift=0 且 match>0」这三条断言全绿, 而内容比较这一整个轴
+    #    已经空转。运行时实证见 `_bmad-output/审查/evidence-g27b-tail/` 的漂移负控存档。
+    # ⚠️ 期望值必须**独立算一遍**, 不能复用上面那个 `$src`：拿被改的那个变量去核对它
+    #    自己, 无论它被改成什么都恒相等 —— 那种「核对」证明不了任何事。
+    # ⚠️ 两侧按**物理路径**比：校验器会把 `/var/...` 解析成 `/private/var/...`,
+    #    逐字符比会把正常跑判成不一致。
+    local _want_src="$HARNESS/canvas-vault" _basis_rc=0
+    [ -n "$_mirror_at" ] && _want_src="$_mirror_at"
+    python3 -c 'import os, sys
+rep, want, vault = sys.argv[1], sys.argv[2], sys.argv[3]
+got = ""
+try:
+    with open(rep, encoding="utf-8", errors="replace") as fh:
+        for line in fh:
+            if line.startswith("# source") and ":" in line:
+                got = line.split(":", 1)[1].strip()
+                break
+except OSError:
+    sys.exit(3)
+if not got:
+    sys.exit(3)
+# ⛔ 一行式回执放不下**任何换行字符**的路径（Codex r2 MEDIUM-2 / r3 MEDIUM-3）：
+# 报告里 `# source : <path>` 是按行写的, 上面读它又用的是通用换行（`\n` / `\r` / `\r\n`
+# 都算行尾）—— 所以 CR 与 LF 是同一类问题, 只挡 LF 会让含 CR 的路径被**截断**后
+# 走到「基准不一致」那一支上, 拦是拦了、说的原因是错的。
+# ⚠️ 判据必须在 `realpath` **之后**（r3 MEDIUM-2）：`/tmp/ok<LF>/..` 这类原串带换行、
+# 归一化之后完全不带的合法路径, 在原串上判会被误拒, 而它本来是能完整写进回执的。
+R = os.path.realpath
+rw, rv, rg = R(want), R(vault), R(got)
+if any(c in rw or c in rv for c in ("\n", "\r")):
+    sys.exit(4)
+if rg == rv and rw != rv:
+    sys.exit(2)
+if rg != rw:
+    sys.exit(1)
+' "$rep" "$_want_src" "$VAULT" 2> /dev/null || _basis_rc=$?
+    case "$_basis_rc" in
+        0) ;;
+        2)
+            STEP_MSG="校验器把**目标 vault 自己**当成了基准（自己跟自己比, content-drift 恒 0 = 这一轴空转）, 应为 ${_want_src}, 报告 $rep"
+            return 1
+            ;;
+        1)
+            STEP_MSG="校验器实际用的基准与本步应当使用的不一致（应为 ${_want_src}）, 报告 $rep"
+            return 1
+            ;;
+        4)
+            STEP_MSG="基准或目标路径（物理化之后）含换行/回车字符, 一行式回执放不下它 ⇒ 无从核对校验器用的是哪个基准; 拒绝（请把 --vault/TMPDIR 换成不含这类字符的路径）"
+            return 1
+            ;;
+        *)
+            STEP_MSG="读不出校验器自报的基准(报告缺 '# source' 行或读不动, rc=${_basis_rc}), 无从断言比对的是源而不是目标自己, 报告 $rep"
+            return 1
+            ;;
+    esac
+    STEP_MSG="校验器 rc 0（含 content-drift 轴, 基准=${basis}, 回执已核）, 报告 $rep"
     return 0
 }
 
@@ -2754,13 +3008,27 @@ step5_activate() {
     #    原样落盘 = 把密钥写进 evidence 目录, 而 evidence 是要入库的。
     #    故落盘前脱敏; 断言只看 container_name 与 ports, 不需要那些值 ——
     #    明文因此**从不落盘**（不是「落了再擦」）。
-    local cfg="$EVIDENCE_DIR/compose-config-$TS.txt" rc=0
+    local cfg="$EVIDENCE_DIR/compose-config-$TS.txt" rc=0 ctmp=""
     assert_writable_now "$cfg" || { STEP_MSG="$WRITE_GUARD_ERR"; return 1; }
+    # ⛔ 脱敏后的 config 不再直接重定向进终路径（CARD-G2-7b-TAIL ②）：先写同目录 mktemp
+    #    （O_EXCL, 内核独占创建 ⇒ 复查与写之间那段窗口里被换掉也改不了我们写的对象）,
+    #    再 `mv` 发布。发布之后这个文件还要当阶段账被 `act_journal_open` 追加,
+    #    所以 mv 必须在开账**之前**完成。
+    ctmp="$(mk_tmp_beside "$cfg")" \
+        || { STEP_MSG="建 compose-config 临时件失败(未起任何容器, 目录 ${EVIDENCE_DIR}, 细因见 stderr)"; return 1; }
     docker compose -f "$HARNESS/docker-compose.yml" --env-file "$ENV_FILE" \
         -p "cls-$VAULT_NAME" --project-directory "$HARNESS" config 2> /dev/null \
-        | redact_secrets > "$cfg" || rc=$?
+        | redact_secrets > "$ctmp" || rc=$?
     if [ "$rc" != 0 ]; then
+        rm -f -- "$ctmp" 2> /dev/null || :
         STEP_MSG="docker compose config rc=${rc}（未起任何容器）"
+        return 1
+    fi
+    local cmrc=0
+    publish_tmp "$ctmp" "$cfg" || cmrc=$?
+    if [ "$cmrc" != 0 ]; then
+        rm -f -- "$ctmp" 2> /dev/null || :
+        STEP_MSG="compose-config 未能发布(rename rc=${cmrc})（未起任何容器）: $cfg"
         return 1
     fi
     # ⚠️ 结构化断言, 不用 grep 单行：`docker compose config` 把 ports 展开成**长格式**
@@ -3108,6 +3376,24 @@ PY
     return 0
 }
 
+# 残件更正器。⛔ 两条要求（Codex r2 MEDIUM-3 / MEDIUM-4）：
+#   ① 更正必须同时覆盖**第 6 行**与末尾的 `rc=` 行 —— 成功路径上两者都已按「发布成功」
+#      写好, 只否掉「落点」那半句, 残件读起来仍像一次成功的部署；
+#   ② 追加**可能失败**（空间耗尽 / 残件不可写）, 失败就要让调用方知道, 不能吞掉之后
+#      还由调用方宣称「已在其尾部标注未发布」。故本函数**回传 rc**, 由调用方分开措辞。
+mark_unpublished() {
+    # ⛔ **一条 printf 写完整段**（Codex r3 MEDIUM-1）：拆成四条时函数只回传最后一条的
+    #    退出码 —— 前三条失败、末条成功, 函数照样返回 0, 调用方于是宣称「已标注未发布」
+    #    而残件里其实缺了对第 6 行与 `rc=` 行的否定。合成一条之后, 「写进去了多少」
+    #    与「返回码」再也不会分叉。
+    printf '%s\n%s\n%s\n%s\n' \
+        '## 未发布 —— 本文件是残件, 没有成为最终报告。' \
+        '##   · 上面「## 六行状态」第 6 行是在落盘**之前**合成的, 其中关于报告落点的说法不成立;' \
+        '##   · 本文件末尾的 `rc=` 行同样是发布之前写下的, 不代表进程的实际返回码;' \
+        '##   · 以进程返回码与终端上那一行 [6/6] 为准。' \
+        >> "$1" 2> /dev/null
+}
+
 # ═══ 步 6 evidence ══════════════════════════════════════════════════════════
 step6_evidence() {
     # dry-run 一律不落盘。(c) 参数表承诺「不传 --apply = 零写」，而缺省 evidence-dir 就在
@@ -3123,8 +3409,53 @@ step6_evidence() {
     # 一起丢掉, 排查时手里什么都没有。不用 `|| true`（那会把 rc 吞掉）。
     local _aprc=0
     also_push_daily_review || _aprc=$?
-    local out="$EVIDENCE_DIR/deploy-$TS.txt" t _sha _sha_fail=0 _src=0
-    assert_writable_now "$out.tmp" || { STEP_MSG="$WRITE_GUARD_ERR"; return 1; }
+    local out="$EVIDENCE_DIR/deploy-$TS.txt" t _sha _sha_fail=0 _src=0 otmp="" _l=""
+    assert_writable_now "$out" || { STEP_MSG="$WRITE_GUARD_ERR"; return 1; }
+    # ⛔ sha 必须**先算完再落盘**（CARD-G2-7b-TAIL ③-ii）：「## 六行状态」里的第 6 行要由
+    #    本步自己合成, 而它是 OK 还是 FAIL 取决于 sha / --also-push / 阶段账三件事的结论。
+    #    旧版把 sha 算在 `{ … } > 文件` 的**内部**, 而六行状态印在它**前面** ⇒ 写第 6 行时
+    #    结论还不存在。把 sha 提到落盘之前、结果存进数组, 三件事就都在写第一个字节前有定论。
+    local -a _sha_lines=()
+    for t in "$VAULT/.canvas-config.yaml" "$VAULT/.mcp.json" \
+        "$VAULT/.claude/settings.json" "$VAULT/.claude/hooks/session-end-archive.py" \
+        "$VAULT/.obsidian/plugins/canvas-learning-system/data.json" \
+        "$VAULT/.obsidian/cls-internal-key.txt" "$ENV_FILE"; do
+        if [ -f "$t" ]; then
+            # ⛔ shasum 失败会被外层 printf 的成功掩盖（Codex r2 HIGH-2）⇒ 先算再判。
+            # Codex r3 MEDIUM-2：非空输出 + 非零退出仍算成功 ⇒ 必须判 rc。
+            _src=0
+            _sha="$(shasum -a 256 "$t" 2> /dev/null | cut -d' ' -f1)" || _src=$?
+            if [ "$_src" != 0 ] || [ -z "$_sha" ]; then
+                printf -v _l '  %-64s %s (SHASUM-FAILED)' '-' "${t#"$VAULT"/}"
+                _sha_fail=1
+            else
+                printf -v _l '  %s  %s' "$_sha" "${t#"$VAULT"/}"
+            fi
+        else
+            printf -v _l '  %-64s %s (ABSENT)' '-' "${t#"$VAULT"/}"
+        fi
+        _sha_lines+=("$_l")
+    done
+    # 两类收尾失败的结论也要在落盘前定下来（下面第 6 行与末尾 rc 行共用同一份判断）：
+    # `--also-push` 没做成 / 激活分阶段账没能完整落盘（r1 MEDIUM-6）。
+    local _fail_msg=""
+    if [ "$_aprc" != 0 ]; then
+        _fail_msg="--also-push 失败: ${ALSO_PUSH_MSG}"
+    elif [ -n "$ACT_JOURNAL_ERR" ]; then
+        _fail_msg="激活分阶段账未能完整落盘: ${ACT_JOURNAL_ERR}"
+    fi
+    # 步 6 自己那一行 —— 逐字与 `run_step` 事后会 emit 的那一行同形（同一份 STEP_MSG）。
+    local _step6_line=""
+    if [ "$_sha_fail" = 1 ]; then
+        _step6_line="[6/6] evidence: FAIL 有文件 shasum 失败（见 SHASUM-FAILED 行）, 证据已标 rc=76: $out"
+    elif [ -n "$_fail_msg" ]; then
+        _step6_line="[6/6] evidence: FAIL ${_fail_msg}; 证据已标 rc=76: $out"
+    else
+        _step6_line="[6/6] evidence: OK $out"
+    fi
+    # ⛔ 不再写固定名 `$out.tmp`（CARD-G2-7b-TAIL ②）：改为同目录 mktemp（O_EXCL）→ mv 发布。
+    otmp="$(mk_tmp_beside "$out")" \
+        || { STEP_MSG="建 evidence 临时件失败（目录 ${EVIDENCE_DIR}, 细因见 stderr）"; return 1; }
     {
         printf '# CARD-G2-7b deploy-vault.sh — %s\n' "$TS"
         printf '## 参数\n'
@@ -3137,6 +3468,13 @@ step6_evidence() {
         printf '  CLS_DEPLOY_LANCE_READY_TIMEOUT=%s\n' "$CLS_DEPLOY_LANCE_READY_TIMEOUT"
         printf '## 六行状态\n'
         for t in "${STEP_LINES[@]}"; do printf '  %s\n' "$t"; done
+        # ⛔ 第 6 行由本步**在落盘前**合成（CARD-G2-7b-TAIL ③-ii）：`run_step` 要等
+        #    `step6_evidence` 返回之后才 emit 它, 那时报告已经写完 ⇒ 旧版落盘的
+        #    「## 六行状态」实际**只有前五行**, 而小标题却写着六行。
+        #    这不是「事后改文件」（那被明令禁止）—— 是把本步已经确定的结论一起写进去。
+        #    失败入口仍只列已跑步骤：`run_step` 对 FAIL 直接 `exit 7N`, 前五步任一 FAIL
+        #    都到不了步 6, 所以 STEP_LINES 在这一刻恒为前五行, 追加一行即恰好六行。
+        printf '  %s\n' "$_step6_line"
         printf '## 激活分阶段 (G2-8)\n'
         if [ "${#ACT_STAGES[@]}" -gt 0 ]; then
             for t in "${ACT_STAGES[@]}"; do printf '  %s\n' "$t"; done
@@ -3144,63 +3482,63 @@ step6_evidence() {
             printf '  (无 - 步 5 未进入真 activate)\n'
         fi
         printf '## 文件 sha256（密钥件只 sha, 不记内容）\n'
-        for t in "$VAULT/.canvas-config.yaml" "$VAULT/.mcp.json" \
-            "$VAULT/.claude/settings.json" "$VAULT/.claude/hooks/session-end-archive.py" \
-            "$VAULT/.obsidian/plugins/canvas-learning-system/data.json" \
-            "$VAULT/.obsidian/cls-internal-key.txt" "$ENV_FILE"; do
-            if [ -f "$t" ]; then
-                # ⛔ shasum 失败会被外层 printf 的成功掩盖（Codex r2 HIGH-2）⇒ 先算再判。
-                # Codex r3 MEDIUM-2：非空输出 + 非零退出仍算成功 ⇒ 必须判 rc。
-                _src=0
-                _sha="$(shasum -a 256 "$t" 2> /dev/null | cut -d' ' -f1)" || _src=$?
-                if [ "$_src" != 0 ] || [ -z "$_sha" ]; then
-                    printf '  %-64s %s (SHASUM-FAILED)\n' '-' "${t#"$VAULT"/}"
-                    _sha_fail=1
-                else
-                    printf '  %s  %s\n' "$_sha" "${t#"$VAULT"/}"
-                fi
-            else
-                printf '  %-64s %s (ABSENT)\n' '-' "${t#"$VAULT"/}"
-            fi
-        done
-    } > "$out.tmp" 2>&1 || { STEP_MSG="写 evidence 临时文件失败: $out.tmp"; return 1; }
+        if [ "${#_sha_lines[@]}" -gt 0 ]; then
+            for t in "${_sha_lines[@]}"; do printf '%s\n' "$t"; done
+        fi
+    } > "$otmp" 2>&1 || {
+        mark_unpublished "$otmp"
+        STEP_MSG="写 evidence 临时文件失败, 已写的部分保留在残件: $otmp"
+        return 1
+    }
     # ⛔ 先判失败再写 rc 行（Codex r3 MEDIUM-2）：原版先写 `rc=0` 再 return 76,
     #    落盘的证据与进程返回码自相矛盾。
     if [ "$_sha_fail" = 1 ]; then
         # ⛔ 不用 `|| true`（Codex r4 MEDIUM-1，我 r3 引入的回归）：那会把「证据没发布出去」
         #    吞掉, 而消息仍宣称「证据已标 rc=76」。两种失败分开报。
-        local _pub=1
-        printf 'rc=76\n' >> "$out.tmp" || _pub=0
-        [ "$_pub" = 1 ] && { mv "$out.tmp" "$out" || _pub=0; }
+        local _pub=1 _mk=1
+        printf 'rc=76\n' >> "$otmp" || _pub=0
+        [ "$_pub" = 1 ] && { publish_tmp "$otmp" "$out" || _pub=0; }
         if [ "$_pub" = 1 ]; then
             STEP_MSG="有文件 shasum 失败（见 SHASUM-FAILED 行）, 证据已标 rc=76: $out"
         else
-            STEP_MSG="有文件 shasum 失败, 且证据**未能发布**（$out.tmp 残留或 mv 失败）, 报告不可信"
+            _mk=1; mark_unpublished "$otmp" || _mk=0
+            if [ "$_mk" = 1 ]; then
+                STEP_MSG="有文件 shasum 失败, 且证据**未能发布**（残件 ${otmp}, 已在其尾部标注未发布）, 报告不可信"
+            else
+                STEP_MSG="有文件 shasum 失败, 证据**未能发布**且残件**也没能标注**（${otmp} 连追加都失败）, 残件内容整体不可信"
+            fi
         fi
         return 1
     fi
     # ⛔ 同律（r3 MEDIUM-2）：收尾失败时落盘的 rc 行不得写 0 —— 进程会以 76 退出,
     #    证据却说 0 就是自相矛盾, 而证据是事后唯一的依据。
-    # 两类收尾失败：`--also-push` 没做成 / 激活分阶段账没能完整落盘（r1 MEDIUM-6）。
-    local _fail_msg=""
-    if [ "$_aprc" != 0 ]; then
-        _fail_msg="--also-push 失败: ${ALSO_PUSH_MSG}"
-    elif [ -n "$ACT_JOURNAL_ERR" ]; then
-        _fail_msg="激活分阶段账未能完整落盘: ${ACT_JOURNAL_ERR}"
-    fi
+    # （`_fail_msg` 已在落盘前算好, 与第 6 行共用同一份判断 —— 两处各判一次必然漂移。）
     if [ -n "$_fail_msg" ]; then
-        local _pub2=1
-        printf 'rc=76\n' >> "$out.tmp" || _pub2=0
-        [ "$_pub2" = 1 ] && { mv "$out.tmp" "$out" || _pub2=0; }
+        local _pub2=1 _mk2=1
+        printf 'rc=76\n' >> "$otmp" || _pub2=0
+        [ "$_pub2" = 1 ] && { publish_tmp "$otmp" "$out" || _pub2=0; }
         if [ "$_pub2" = 1 ]; then
             STEP_MSG="${_fail_msg}; 证据已标 rc=76: $out"
         else
-            STEP_MSG="${_fail_msg}; 且证据**未能发布**, 报告不可信"
+            _mk2=1; mark_unpublished "$otmp" || _mk2=0
+            if [ "$_mk2" = 1 ]; then
+                STEP_MSG="${_fail_msg}; 且证据**未能发布**（残件 ${otmp}, 已在其尾部标注未发布）, 报告不可信"
+            else
+                STEP_MSG="${_fail_msg}; 证据**未能发布**且残件**也没能标注**（${otmp}）, 残件内容整体不可信"
+            fi
         fi
         return 1
     fi
-    printf 'rc=0\n' >> "$out.tmp" || { STEP_MSG="追加 rc 行失败: $out.tmp"; return 1; }
-    mv "$out.tmp" "$out" || { STEP_MSG="mv evidence 失败: $out"; return 1; }
+    printf 'rc=0\n' >> "$otmp" || {
+        mark_unpublished "$otmp"
+        STEP_MSG="追加 rc 行失败, 证据未发布（残件 ${otmp}）"
+        return 1
+    }
+    publish_tmp "$otmp" "$out" || {
+        mark_unpublished "$otmp"
+        STEP_MSG="发布 evidence 失败(rename 未成功), 证据未发布（残件 ${otmp}）: $out"
+        return 1
+    }
     [ -s "$out" ] || { STEP_MSG="evidence 落盘后为空: $out"; return 1; }
     STEP_MSG="$out"
     return 0

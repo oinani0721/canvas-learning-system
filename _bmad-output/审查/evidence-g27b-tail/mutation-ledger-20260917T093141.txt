@@ -1,0 +1,73 @@
+# CARD-G2-7b-TAIL 变异/负控台账（M-5）
+# 生成时刻: 2026-09-17T01:31:41Z (UTC)
+# 工作树 HEAD: 37b89ce07ade0d470e33847df46aca419d27e5af
+
+## 被变异文件的跑前 sha256（变异一律走副本，本体不动）
+b320676adac43554e48ec7e29a304caab29f9f23be24820f629550ba89577d7a  scripts/deploy-vault.sh
+392ae1e84c793c81994dd24bea94c0ef5ab7552a2a0424f0eef1e99200457d34  scripts/cls_forbidden_paths.py
+aec7e91f4175ddb734751141f86e59bf7d8ccee991b2686320f94dbc7c99eef6  backend/tests/unit/test_deploy_vault_sh.py
+
+## 逐条负控（nodeid + 变异 + 断言片段）
+1) tests/unit/test_deploy_vault_sh.py::test_step4_src_drift_negctl_basis_swapped_to_vault_is_caught
+   变异: deploy-vault.sh 整行  src="$SRC_MIRROR"  ->  src="$VAULT"   （副本, 整行锚点恰 1 行）
+   断言片段: "基准漂移未被步 4 拦下" / "目标 vault 自己"
+   期望: rc == 74 且 [4/6] FAIL
+2) ::test_step4_drift_negctl_would_pass_without_the_receipt_check
+   变异: 上条 + 把回执核对的期望值退回成 `_want_src="$src"`（拿被改的变量核对它自己）
+   断言片段: "期望值退回成 `$src` 之后仍被拦下"
+   期望: rc == 0 —— 证明拦住漂移的确实是回执核对那一步
+3) ::test_preplaced_link_negctl_old_fixed_name_write_is_blocked[symlink|hardlink]
+   变异: 把 "env-file-tmp-dir:$ENV_DIR" 换回 "env-file-tmp:$ENV_FILE.tmp"
+   断言片段: "把固定名塞回清单后仍不拦"
+   期望: rc == 71（证明「固定名退场」是那条门的承重点）
+4) ::test_rc75_negctl_goes_red_when_the_70_plus_n_mapping_is_broken
+   变异: run_step 内整行  exit $((70 + n))  ->  exit 1
+   断言片段: "破坏 7N 映射后仍得到"
+   期望: rc == 1（证明 75/76 两条入口门承重在 7N 映射上）
+5) ::test_ftruncate_order_gate_is_load_bearing
+   变异: 内存态 —— 把某 heredoc 块内**全部**早于截断的 st_nlink 行搬到截断之后
+   断言片段: "换序之后顺序门仍绿" + "变异改变了计数"（先证纯 count 门对此无反应）
+   期望: 顺序门返回该块名（红）
+6) ::test_pending_writes_quote_gate_is_load_bearing
+   变异: 内存态 —— 给 "env-file:$ENV_FILE" 去掉两侧引号
+   断言片段: "去掉引号之后引号门仍绿"
+   期望: 引号门非空（红），同时 count 门仍绿
+7) ::test_a3_apostrophe_negctl_old_tr_d_form_rejects
+   变异: A3 取值那一行换回 `tr -d` 无差别删引号形态（语义重写，非逐字节原文）
+   断言片段: "tr -d 形态下未复现误拒" / 消息含 "OBrien"
+   期望: rc == 73（复现误拒）
+8) ::test_ancestor_symlink_samples_are_currently_caught_by_both_axes
+   变异: cls_forbidden_paths.py 副本 —— `return ancestor_symlink_hits(...)` -> `return None`
+   断言片段: "去掉祖先轴后出现漏放"
+   期望: 仍全 HIT（如实钉住「现有样本下它不独立承重」）
+   验伪锚: 同时中和 chain_hits 与祖先轴 -> 必须全 MISS（证明样本不是被规则 1-4 拦的）
+9) ::test_ancestor_symlink_hits_is_load_bearing_once_the_walker_is_gone
+   变异: 副本 —— `ch = chain_hits(...)` -> `ch = None`（单独）/ 再叠加 8) 的变异
+   断言片段: "walker 没了之后祖先轴没顶上" / "两条轴都中和了却还有人拦得住"
+   期望: 只中和 walker -> 全 HIT；两条都中和 -> 全 MISS
+
+## 逐条实跑（各自 nodeid 单跑）
+  tests/unit/test_deploy_vault_sh.py::test_step4_src_drift_negctl_basis_swapped_to_vault_is_caught
+      -> ======================== 1 passed, 10 warnings in 2.92s ========================
+  tests/unit/test_deploy_vault_sh.py::test_step4_drift_negctl_would_pass_without_the_receipt_check
+      -> ======================== 1 passed, 10 warnings in 2.81s ========================
+  tests/unit/test_deploy_vault_sh.py::test_preplaced_link_negctl_old_fixed_name_write_is_blocked
+      -> ======================== 2 passed, 10 warnings in 1.90s ========================
+  tests/unit/test_deploy_vault_sh.py::test_rc75_negctl_goes_red_when_the_70_plus_n_mapping_is_broken
+      -> ======================== 1 passed, 10 warnings in 2.93s ========================
+  tests/unit/test_deploy_vault_sh.py::test_ftruncate_order_gate_is_load_bearing
+      -> ======================== 1 passed, 10 warnings in 1.27s ========================
+  tests/unit/test_deploy_vault_sh.py::test_pending_writes_quote_gate_is_load_bearing
+      -> ======================== 1 passed, 10 warnings in 1.13s ========================
+  tests/unit/test_deploy_vault_sh.py::test_a3_apostrophe_negctl_old_tr_d_form_rejects
+      -> ======================== 1 passed, 10 warnings in 2.26s ========================
+  tests/unit/test_deploy_vault_sh.py::test_ancestor_symlink_samples_are_currently_caught_by_both_axes
+      -> ======================== 1 passed, 10 warnings in 1.36s ========================
+  tests/unit/test_deploy_vault_sh.py::test_ancestor_symlink_hits_is_load_bearing_once_the_walker_is_gone
+      -> ======================== 1 passed, 10 warnings in 1.39s ========================
+
+## 跑后 sha256（必须与跑前逐字节相同 —— 变异走副本，本体零改动）
+b320676adac43554e48ec7e29a304caab29f9f23be24820f629550ba89577d7a  scripts/deploy-vault.sh
+392ae1e84c793c81994dd24bea94c0ef5ab7552a2a0424f0eef1e99200457d34  scripts/cls_forbidden_paths.py
+aec7e91f4175ddb734751141f86e59bf7d8ccee991b2686320f94dbc7c99eef6  backend/tests/unit/test_deploy_vault_sh.py
+rc=0
