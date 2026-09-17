@@ -1,0 +1,13 @@
+=== 问题①: 真库上 CREATE ... RETURN 会返回几行? ===
+  单节点 CREATE+RETURN -> 1 行: [{'record_id': 'probe-76a2f1d6a6c4'}]
+  ⇒ 「写成功返 0 行」在本形态下不成立: True
+
+=== 对照: 同一 client 上一条 MATCH 查不到东西时返回几行 ===
+  查不到 -> 0 行 ⇒ 0 行确实代表「没有」
+
+=== 边界: CREATE 但不写 RETURN 会返回几行(说明判据依赖 RETURN 子句) ===
+  无 RETURN -> 0 行
+  ⇒ 写确认判据成立的前提是 Cypher 末尾那句 RETURN er.record_id; 它与判据绑定
+
+清理后残留 = 0 (期望 0)
+rc=0

@@ -1,0 +1,16 @@
+tests/unit/test_edge_rationale_fallback.py::test_graphiti_exception_does_not_block_lancedb
+tests/unit/test_edge_rationale_fallback.py::test_lancedb_exception_does_not_block_graphiti
+tests/unit/test_edge_rationale_fallback.py::test_partial_failure_includes_error_details
+tests/unit/test_edge_rationale_fallback.py::test_strategy_fields_accepted
+tests/unit/test_edge_rationale_fallback.py::test_strategy_fields_defaults
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-bugs/backend/app/api/v1/endpoints/edges.py:311: DeprecationWarning: deprecated
+    legacy_group_id=rationale.group_id,
+
+tests/unit/test_edge_rationale_fallback.py: 12 warnings
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-bugs/backend/app/models/edge_rationale.py:115: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    default_factory=lambda: datetime.utcnow().isoformat(),
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================= 12 passed, 31 warnings in 1.20s ========================
+rc=0

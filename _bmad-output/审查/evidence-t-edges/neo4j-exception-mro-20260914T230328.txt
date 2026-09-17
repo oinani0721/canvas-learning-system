@@ -1,0 +1,23 @@
+neo4j 驱动版本: 6.1.0
+edges.py 的 except 元组: ['RuntimeError', 'ConnectionError', 'TimeoutError', 'OSError', 'AttributeError']
+asyncio.TimeoutError is TimeoutError: True
+TimeoutError 是 OSError 子类: True
+
+异常类                   被元组捕获?          MRO(去 object)
+Neo4jError            False                 Neo4jError <- GqlError <- Exception <- BaseException
+ClientError           False                 ClientError <- Neo4jError <- GqlError <- Exception <- BaseException
+AuthError             False                 AuthError <- ClientError <- Neo4jError <- GqlError <- Exception
+TransientError        False                 TransientError <- Neo4jError <- GqlError <- Exception <- BaseException
+DriverError           False                 DriverError <- GqlError <- Exception <- BaseException
+ServiceUnavailable    False                 ServiceUnavailable <- DriverError <- GqlError <- Exception <- BaseException
+SessionExpired        False                 SessionExpired <- DriverError <- GqlError <- Exception <- BaseException
+
+会漏出 except 元组 ⇒ 端点回到 500 的类: 7
+  - Neo4jError
+  - ClientError
+  - AuthError
+  - TransientError
+  - DriverError
+  - ServiceUnavailable
+  - SessionExpired
+rc=0

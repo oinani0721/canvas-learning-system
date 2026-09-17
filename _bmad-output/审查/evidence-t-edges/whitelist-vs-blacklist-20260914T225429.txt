@@ -1,0 +1,15 @@
+URI                               旧黑名单放行?         新白名单放行?
+bolt://localhost                  True                  False
+bolt://localhost:0                True                  False
+bolt://host-7692.example:7687     False                 False
+bolt://localhost:7691             False                 False
+bolt://localhost:7692             True                  True
+
+旧黑名单放行而新白名单拒绝的写法数 = 2
+  - bolt://localhost
+  - bolt://localhost:0
+
+neo4j 驱动版本: 6.1.0
+  驱动对 'bolt://localhost' 归一后的 target = localhost:7687
+  驱动对 'bolt://localhost:0' 归一后的 target = localhost:7687
+rc=0

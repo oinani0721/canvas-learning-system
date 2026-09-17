@@ -1,0 +1,44 @@
+绑定 HEAD = 5bffce4f
+== 跑前 shasum ==
+0b159fde5dfe2dbfb87751c8defcd8c617bc87a58a2a4ba586526ab7f09d9cf3  backend/app/api/v1/endpoints/edges.py
+
+######## 负控①: except 去掉 AttributeError ########
+变异①已落盘
+    assert resp.status_code == 207, (
+E   AssertionError: 期望 207 Multi-Status (Neo4j 失败 + LanceDB 成功 = 半成功), 实得 500; 500 说明 Neo4j 侧的 AttributeError 仍在穿透 asyncio.gather 与 handler
+E   assert 500 == 207
+============================== 1 failed in 0.40s ===============================
+已还原①
+
+######## 负控②: except 分支不透出异常消息 ########
+变异②已落盘 @行167
+    assert SENTINEL in graphiti_error, (
+E   AssertionError: 207 响应体里没有本门 sentinel (graphiti_status.error='negctl-redacted') —— 这条 207 不是 stub 的 AttributeError 被 _write_neo4j_triplet 的 except 元组收下换来的
+E   assert 'T5B-STUB-SENTINEL' in 'negctl-redacted'
+{"event": "Neo4j write failed for edge edge-t5b-001: T5B-STUB-SENTINEL: run_query refused by T5-B stub", "logger": "app.api.v1.endpoints.edges", "level": "error", "timestamp": "2026-09-14T15:25:20.977090Z"}
+ERROR    app.api.v1.endpoints.edges:edges.py:162 Neo4j write failed for edge edge-t5b-001: T5B-STUB-SENTINEL: run_query refused by T5-B stub
+============================== 1 failed in 0.37s ===============================
+已还原②
+== 跑后 shasum（应与跑前逐字相同）==
+0b159fde5dfe2dbfb87751c8defcd8c617bc87a58a2a4ba586526ab7f09d9cf3  backend/app/api/v1/endpoints/edges.py
+== 工作树代码面 ==
+(空 = 干净)
+
+######## 裁判 6: ruff ########
+files=2
+backend/app/api/v1/endpoints/edges.py backend/tests/integration/test_edges_dual_write_neo4j_t5b.py
+All checks passed!
+ruff_rc=0
+-- 验伪锚 F821（backend/ruff.toml select 含 F82）--
+F821_probe_rc=1（期望 1）
+
+######## 裁判 7: 地盘门 ########
+backend/app/api/v1/endpoints/edges.py
+backend/tests/integration/test_edges_dual_write_neo4j_t5b.py
+-- 验伪锚: 去掉 exclude 后应多出 _bmad-output/ 路径 --
+backend/app/api/v1/endpoints/edges.py
+backend/tests/integration/test_edges_dual_write_neo4j_t5b.py
+
+######## openapi 未动 ########
+(空 = 未动)
+rc=0

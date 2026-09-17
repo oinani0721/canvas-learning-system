@@ -1,0 +1,31 @@
+还原基准(变异前副本) = /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t5-bugs/7bc5b2d0-947d-41ee-bead-4a96ad80718f/scratchpad/edges.premut.r2
+== 跑前 shasum ==
+68f2350614caa43941643bbf054a86fe65a54c170736f3c7501512588d29397f  backend/app/api/v1/endpoints/edges.py
+
+######## 负控①: except 去掉 AttributeError ⇒ 降级门必回 500 ########
+变异①已落盘
+b51e9a7bb961d1f14ddf0bc75efb8a4b6f44b9ad2810847ea5bed05c32cd1e02  backend/app/api/v1/endpoints/edges.py
+    assert resp.status_code == 207, (
+E   AssertionError: 期望 207 Multi-Status (Neo4j 失败 + LanceDB 成功 = 半成功), 实得 500; 500 说明 Neo4j 侧的 AttributeError 仍在穿透 asyncio.gather 与 handler
+E   assert 500 == 207
+============================== 1 failed in 0.45s ===============================
+已还原①
+
+######## 负控②: except 分支不透出异常消息 ⇒ sentinel 锚必红 ########
+变异②已落盘 @行154
+6ed98cd2ffcdb439ea940f2c44e92d47e1ec682da29c677daa89c873ccfcfe8e  backend/app/api/v1/endpoints/edges.py
+    assert SENTINEL in graphiti_error, (
+E   AssertionError: 207 响应体里没有本门 sentinel (graphiti_status.error='negctl-redacted') —— 这条 207 不是 stub 的 AttributeError 被 _write_neo4j_triplet 的 except 元组收下换来的
+E   assert 'T5B-STUB-SENTINEL' in 'negctl-redacted'
+{"event": "Neo4j write failed for edge edge-t5b-001: T5B-STUB-SENTINEL: run_query refused by T5-B stub", "logger": "app.api.v1.endpoints.edges", "level": "error", "timestamp": "2026-09-14T14:55:02.729693Z"}
+ERROR    app.api.v1.endpoints.edges:edges.py:149 Neo4j write failed for edge edge-t5b-001: T5B-STUB-SENTINEL: run_query refused by T5-B stub
+============================== 1 failed in 0.44s ===============================
+已还原②
+
+== 跑后 shasum（应与跑前逐字相同）==
+68f2350614caa43941643bbf054a86fe65a54c170736f3c7501512588d29397f  backend/app/api/v1/endpoints/edges.py
+== 工作树代码面是否干净（排除 _bmad-output）==
+ M backend/app/api/v1/endpoints/edges.py
+ M backend/tests/integration/test_edges_dual_write_neo4j_t5b.py
+[EXIT trap] 已无条件还原 backend/app/api/v1/endpoints/edges.py
+rc=0

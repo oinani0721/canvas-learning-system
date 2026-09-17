@@ -1,0 +1,44 @@
+跑前 shasum:
+84b104a470f9d9d3f7a4e7639a10dfe720e619671742b534cd7841200d0cd5f2  backend/app/api/v1/endpoints/edges.py
+d0c18c189c8ac0090de9dd75c804b6357a65a0321b150383e663f31095627eca  backend/tests/integration/test_edges_dual_write_neo4j_t5b.py
+
+######## NC-H(新): 清理语句去掉 RETURN count ⇒ 回执断言必红 ########
+Traceback (most recent call last):
+  File "<stdin>", line 4, in <module>
+AssertionError: 锚不唯一 count=0
+============================== 17 passed in 0.56s ==============================
+
+######## 回归复核: 全套旧负控仍命中 ########
+-- NC-A: 删掉新收 5 类 --
+  变异已落盘
+FAILED tests/integration/test_edges_dual_write_neo4j_t5b.py::test_每个被收进元组的对端故障类型都降级成_207[ServiceUnavailable]
+FAILED tests/integration/test_edges_dual_write_neo4j_t5b.py::test_每个被收进元组的对端故障类型都降级成_207[SessionExpired]
+FAILED tests/integration/test_edges_dual_write_neo4j_t5b.py::test_每个被收进元组的对端故障类型都降级成_207[TransientError]
+FAILED tests/integration/test_edges_dual_write_neo4j_t5b.py::test_每个被收进元组的对端故障类型都降级成_207[DatabaseError]
+FAILED tests/integration/test_edges_dual_write_neo4j_t5b.py::test_每个被收进元组的对端故障类型都降级成_207[RetryError]
+========================= 5 failed, 12 passed in 0.53s =========================
+-- NC-C: 泛化收 Neo4jError --
+  变异已落盘
+FAILED tests/integration/test_edges_dual_write_neo4j_t5b.py::test_本进程与部署缺陷不得被伪装成对端写失败[ClientError]
+FAILED tests/integration/test_edges_dual_write_neo4j_t5b.py::test_本进程与部署缺陷不得被伪装成对端写失败[AuthError]
+========================= 2 failed, 15 passed in 0.59s =========================
+-- NC-E: 去掉 error 类型前缀 --
+  变异已落盘
+FAILED tests/integration/test_edges_dual_write_neo4j_t5b.py::test_每个被收进元组的对端故障类型都降级成_207[ServiceUnavailable]
+FAILED tests/integration/test_edges_dual_write_neo4j_t5b.py::test_每个被收进元组的对端故障类型都降级成_207[SessionExpired]
+FAILED tests/integration/test_edges_dual_write_neo4j_t5b.py::test_每个被收进元组的对端故障类型都降级成_207[TransientError]
+FAILED tests/integration/test_edges_dual_write_neo4j_t5b.py::test_每个被收进元组的对端故障类型都降级成_207[DatabaseError]
+FAILED tests/integration/test_edges_dual_write_neo4j_t5b.py::test_每个被收进元组的对端故障类型都降级成_207[RetryError]
+========================= 5 failed, 12 passed in 0.56s =========================
+-- NC-F: try 变宽包住 getter --
+  变异已落盘
+FAILED tests/integration/test_edges_dual_write_neo4j_t5b.py::test_取_client_阶段的异常必须穿透成_500_而不是被降级
+========================= 1 failed, 16 passed in 0.56s =========================
+
+== 还原后 shasum(应与跑前同) ==
+84b104a470f9d9d3f7a4e7639a10dfe720e619671742b534cd7841200d0cd5f2  backend/app/api/v1/endpoints/edges.py
+d0c18c189c8ac0090de9dd75c804b6357a65a0321b150383e663f31095627eca  backend/tests/integration/test_edges_dual_write_neo4j_t5b.py
+== 还原后全绿 ==
+============================== 17 passed in 0.54s ==============================
+[EXIT trap] 已还原两文件
+rc=0

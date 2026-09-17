@@ -1,0 +1,24 @@
+命令: (cd backend && "$P" app --outputjson)   P=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/bin/pyright
+cwd = backend/ (R-B14-10)
+绑定: PREV=9b30179a0613f86b74a2b9258660d067a62056f9(改前) vs 工作树(改后, 即将 commit 的内容)
+== 跑前 shasum(改后版) ==
+9609752674e348f160aa5005c79e5c6967e5c16e83e360a2dc9d9d6dbfbb09dc  backend/app/api/v1/endpoints/edges.py
+
+######## A. 改后(当前工作树) edges.py 的逐项诊断 ########
+汇总(改后): 0 errors, 81 warnings, 0 informations
+edges.py 诊断条数(改后) = 0
+
+######## B. 把 edges.py 换成 PREV 版, 重跑 ########
+4ac9ad01350f248d16499221c7f59e08a02c32c30b2f1d18f13dc56fdaa3c51e  backend/app/api/v1/endpoints/edges.py
+汇总(改前): 0 errors, 81 warnings, 0 informations
+edges.py 诊断条数(改前) = 0
+
+== 还原后 shasum(应等于跑前) ==
+9609752674e348f160aa5005c79e5c6967e5c16e83e360a2dc9d9d6dbfbb09dc  backend/app/api/v1/endpoints/edges.py
+
+######## C. 逐项 diff（'<' = 改前有改后没有；'>' = 改后新增, 必须为空）########
+(diff 为空)
+diff_rc=0
+新增诊断条数 = 0
+[EXIT trap] 已还原 backend/app/api/v1/endpoints/edges.py 到改后版
+rc=0

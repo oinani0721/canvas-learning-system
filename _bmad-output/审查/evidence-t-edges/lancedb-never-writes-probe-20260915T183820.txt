@@ -1,0 +1,31 @@
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+  from pydantic.v1.fields import FieldInfo as FieldInfoV1
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+  class SearchInterface(BaseModel):
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  import pkg_resources
+Building prefix dict from the default dictionary ...
+Loading model from cache /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/jieba.cache
+Loading model cost 0.239 seconds.
+Prefix dict has been built successfully.
+<frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+<frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+=== 1. add_documents 的运行期形态 ===
+  inspect.iscoroutinefunction(LanceDBClient.add_documents) = True
+  定义位置: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-bugs/backend/lib/agentic_rag/clients/lancedb_client.py:3787
+
+=== 2. asyncio.to_thread 对 coroutine function 的行为（通用复现，不碰项目对象）===
+  to_thread 返回类型 = coroutine
+  是协程对象? True
+  被调函数体执行过吗? calls=[]  ⇒ 没执行
+  抛异常了吗? 没有 —— 所以调用方会认为它成功了
+
+=== 3. edges.py 的 _write_lancedb 实际走哪一支 ===
+  真类上是否有 delete / upsert / get_db（卡文标为死分支的三个）:
+    hasattr(LanceDBClient, 'delete') = False
+    hasattr(LanceDBClient, 'upsert') = False
+    hasattr(LanceDBClient, 'get_db') = False
+    hasattr(LanceDBClient, 'add_documents') = True
+  ⇒ 生产实走 add_documents 那一支, 而它正是 async def
+<sys>:0: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
+rc=0
