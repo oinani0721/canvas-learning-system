@@ -1,0 +1,21 @@
+=============================== warnings summary ===============================
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+    class SearchInterface(BaseModel):
+    import pkg_resources
+<frozen importlib._bootstrap>:491
+<frozen importlib._bootstrap>:491
+app/api/v1/endpoints/chat.py:807
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t6-neo4j/backend/app/api/v1/endpoints/chat.py:807: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+app/api/v1/endpoints/metadata.py:103
+    canvas_path: str = Query(
+app/api/v1/endpoints/metadata.py:177
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+    schema = annotation_get_schema(source, get_inner_schema)
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/contract/test_openapi_snapshot_drift.py::test_committed_snapshot_has_no_drift
+================== 1 failed, 25 passed, 10 warnings in 1.15s ===================
+rc=1

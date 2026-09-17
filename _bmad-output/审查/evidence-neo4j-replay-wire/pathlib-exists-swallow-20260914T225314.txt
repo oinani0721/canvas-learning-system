@@ -1,0 +1,12 @@
+### Python 3.14.4
+Path.exists() → os.path.exists(); 后者的语义:
+Test whether a path exists.  Returns False for broken symbolic links
+
+文件真实存在: True  内容行数: 1
+父目录 chmod 000 后 target.exists() = False   ← 没抛异常, 直接报 False
+
+[还原] 权限恢复后 target.exists() = True
+Traceback (most recent call last):
+  File "<stdin>", line 19, in <module>
+ModuleNotFoundError: No module named 'app'
+rc=1

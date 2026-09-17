@@ -1,0 +1,15 @@
+### 孤儿门（改前）HEAD=310eef31
+--- [主判据] git grep -nF '.sync_all_fallbacks()' -- backend/app | grep -v /tests/ | grep -vF 'Replaced by' ---
+count=0
+--- [验伪锚 A] 去掉 grep -vF 'Replaced by' 应恰 +1 ---
+backend/app/services/memory_service.py:2690:            Replaced by ``FallbackSyncService.sync_all_fallbacks()`` which handles
+count_naked=1
+--- [验伪锚 B] pathspec 形态：'backend/app/**/*.py' 看不见 app 根层 main.py ---
+glob形态: []
+目录形态: [backend/app/main.py]
+grep -c _worker_graphiti main.py = 4
+--- [附] get_fallback_sync_service() 生产调用 ---
+count_factory=0
+--- [附] 裸工厂 grep（应命中 :656 def 自身）---
+backend/app/services/fallback_sync_service.py:656:def get_fallback_sync_service() -> FallbackSyncService:
+rc=0

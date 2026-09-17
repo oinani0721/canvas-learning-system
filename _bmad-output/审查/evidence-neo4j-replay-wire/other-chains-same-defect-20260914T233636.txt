@@ -1,0 +1,16 @@
+  from pydantic.v1.fields import FieldInfo as FieldInfoV1
+  import pkg_resources
+Building prefix dict from the default dictionary ...
+### 三条链的游标推进方式对照 (r5 HIGH 的同型面)
+  failed_writes        连续成功前缀=True  仍存 i+1=False 失败条目写回文件=True
+  canvas_events        连续成功前缀=False 仍存 i+1=True  失败条目写回文件=True
+  learning_memories    连续成功前缀=False 仍存 i+1=True  失败条目写回文件=False
+
+⇒ 本卡只修了 failed_writes。另两条链仍按「已尝试」推进游标。
+
+### 各链的『被跳过』后果不同 —— 这决定严重性
+  canvas_events    : still_pending 会 _atomic_write_file 写回文件, 但被 checkpoint
+                     跳过的条目**不进** still_pending ⇒ 与 failed_writes 同型, 会丢。
+  learning_memories: 只计 failed 计数, **不写回也不轮转** (文件原样保留)
+                     ⇒ 被跳过的条目下轮仍在文件里, **不会丢**, 只是这一轮没重放。
+rc=0

@@ -1,0 +1,26 @@
+  from pydantic.v1.fields import FieldInfo as FieldInfoV1
+  import pkg_resources
+Building prefix dict from the default dictionary ...
+### HIGH-1/2 canvas 位置游标已禁用
+  _load_checkpoint('canvas_events') 仍在 = False
+  _save_checkpoint('canvas_events') 仍在 = False
+  ⇒ 排序链不再用位置游标, HIGH-1 的『追加更早时间戳』与 HIGH-2 的『旧游标带新标记』一并止住
+
+### HIGH-3 canvas finalize 按内容核对, 不再删掉期间新追加的事件
+2026-09-14 23:58:05 [info     ] [Story 38.8] Fallback sync complete: 1 replayed, 1 still pending
+  stats = {'recovered': 1, 'pending': 1}
+  文件剩余 = ['y', 'z']
+  ✅ y(失败)+z(期间追加, 时间戳更早) 都在
+
+### HIGH-3b canvas finalize 重读失败 ⇒ 放弃改写
+2026-09-14 23:58:05 [error    ] [Story 38.8] canvas_events finalize re-read failed (simulated) — leaving the file untouched to avoid clobbering concurrent appends; 0 entries pending.
+2026-09-14 23:58:05 [info     ] [Story 38.8] Fallback sync complete: 2 replayed, 0 still pending
+  文件原封不动 = True  ✅
+
+### HIGH-4 record_score_history 失败 ⇒ 整条判失败, 留 pending
+2026-09-14 23:58:05 [warning  ] [Story 38.8] Score history record failed: boom — entry stays pending
+2026-09-14 23:58:05 [info     ] [Story 38.8] Fallback sync complete: 0 replayed, 1 still pending
+  stats = {'recovered': 0, 'pending': 1}
+  条目仍在文件里 = True
+  ✅ recovered=0 / pending=1 且未轮转 —— 下轮会重试
+rc=0

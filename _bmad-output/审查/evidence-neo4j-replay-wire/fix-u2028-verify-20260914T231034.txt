@@ -1,0 +1,15 @@
+  from pydantic.v1.fields import FieldInfo as FieldInfoV1
+  import pkg_resources
+Building prefix dict from the default dictionary ...
+### 修复验证: U+2028 不再把一条 JSONL 记录切成两条
+--- 面 1: 计数 (_count_jsonl_lines) ---
+  文件里 1 条含 U+2028 的记录 → 计数 = 1  ✅
+  (改前实测 = 2)
+--- 面 2: 回灌 (_sync_failed_writes) —— 该条目能不能真的回灌掉 ---
+2026-09-14 23:10:40 [info     ] [Story 38.8] Rotated failed_writes.jsonl → failed_writes.synced.2026-09-14-231040
+2026-09-14 23:10:40 [info     ] [Story 38.8] Fallback sync complete: 1 replayed, 0 still pending
+  failed_writes stats = {'recovered': 1, 'pending': 0}
+  图内可查 = ['t6bu2028_concept\u2028tail']
+  ✅ 该条目已成功回灌 (改前: 切成两个非法 JSON, 双双 pending, 永远回灌不掉)
+  回灌后文件是否已轮转走 = True
+rc=0

@@ -1,0 +1,23 @@
+  from pydantic.v1.fields import FieldInfo as FieldInfoV1
+  import pkg_resources
+Building prefix dict from the default dictionary ...
+### HIGH-2 并发互斥
+  sync_all_fallbacks 持有 _sync_all_lock = True
+  锁类型 = Lock  (须 asyncio.Lock, 线程锁会阻塞事件循环)
+2026-09-14 23:45:14 [info     ] [Story 38.8] Rotated failed_writes.jsonl → failed_writes.synced.2026-09-14-234514
+2026-09-14 23:45:14 [info     ] [Story 38.8] Fallback sync complete: 1 replayed, 0 still pending
+2026-09-14 23:45:14 [info     ] [Story 38.8] Fallback sync complete: 0 replayed, 0 still pending
+  两个并发回灌的执行序列 = ['enter', 'exit']
+  ✅ 未交叠 (互斥生效)
+
+### HIGH-3 finalize 重读失败必须放弃改写
+2026-09-14 23:45:14 [error    ] [Story 38.8] failed_writes finalize re-read failed (simulated re-read failure) — leaving the file untouched to avoid clobbering concurrent appends; 1 entries stay pending for the next run.
+2026-09-14 23:45:14 [info     ] [Story 38.8] Fallback sync complete: 1 replayed, 1 still pending
+  stats = {'recovered': 1, 'pending': 1}
+  文件是否原封不动 = True  ✅ 未覆盖 (避免抹掉并发追加)
+
+### HIGH-1 清游标在改写之前 (文件代际)
+  _clear_checkpoint 位置 早于 改写/轮转  ✅
+  _clear_checkpoint 不再静默吞 OSError = True
+  清不掉时调用方放弃改写 = True
+rc=0

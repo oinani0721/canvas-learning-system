@@ -1,0 +1,24 @@
+### 地盘门 最终 HEAD=ccb1d101  T6-A末=310eef31
+--- 主判据 ---
+ backend/app/api/v1/endpoints/traces.py             |  70 ++-
+ backend/app/main.py                                |  67 +++
+ backend/app/services/fallback_sync_service.py      | 192 +++++++-
+ .../integration/test_neo4j_replay_wire_t6b.py      | 539 +++++++++++++++++++++
+ 4 files changed, 860 insertions(+), 8 deletions(-)
+--- 禁改文件 (应全空) ---
+(空=未动)
+--- main.py hunk 头 (回灌已移出回填 try, hunk 形态会变) ---
+@@ -379,0 +380,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+@@ -402,0 +409,2 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+@@ -407,0 +416,59 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+--- main.py 删除行数 ---
+0
+--- 既有 import 块 :381-384 ---
+    # ⛔ 默认 False (CARD-NEO4J-REPLAY-WIRE): 回填块在**取到 _worker_graphiti
+    # 之前**就抛异常时 (import 失败 / get_episode_worker() 炸), 我们并不知道
+    # Neo4j 在不在线。此时下面的回灌段按「离线」处理 —— 只做只读积压登记,
+    # 不去连库。宁可少回灌一次 (下次启动还会再试), 不可在状态未知时乱写。
+--- 门 if / except 锚点现状 ---
+393:        if _worker_graphiti is not None:
+414:        logger.warning(f"[Graphiti-native] 启动回填 failed (non-fatal): {e}")
+rc=0

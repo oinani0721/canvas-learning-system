@@ -1,0 +1,23 @@
+### §二.6 ruff 正式判据 (08100483 → 最终 HEAD d9fa0774)
+files=4
+backend/app/api/v1/endpoints/traces.py
+backend/app/main.py
+backend/app/services/fallback_sync_service.py
+backend/tests/integration/test_neo4j_replay_wire_t6b.py
+All checks passed!
+rc=0
+--- 验伪锚 (F821, 在 backend/ruff.toml 的 select 内) ---
+F821 Undefined name `undefined_name_t6b_final`
+ --> backend/app/_anchor.py:2:12
+  |
+1 | def f():
+2 |     return undefined_name_t6b_final
+  |            ^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+
+Found 1 error.
+anchor_rc=1
+--- format --check ---
+4 files already formatted
+format_rc=0
+rc=0

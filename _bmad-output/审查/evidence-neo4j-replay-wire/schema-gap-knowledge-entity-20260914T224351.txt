@@ -1,0 +1,13 @@
+  from pydantic.v1.fields import FieldInfo as FieldInfoV1
+  import pkg_resources
+2026-09-14 22:44:03 [warning  ] [Story 38.8] Skipping entry with no concept
+2026-09-14 22:44:03 [info     ] [Story 38.8] Fallback sync complete: 1 replayed, 1 still pending
+### 实证: failed_writes.jsonl 的两种写侧 schema, sync_all_fallbacks 只认其中一种
+播种 2 条: A=评分类(agent_service 形态)  B=knowledge_entity(_record_structured_outbox 形态)
+failed_writes stats = {'recovered': 1, 'pending': 1}
+A 条目 → 图内可查: True  (期望 True)
+回灌后文件剩余条目数 = 1
+  剩余条目 kind='knowledge_entity' 有 concept 字段=False
+
+结论: knowledge_entity 条目被 _replay_scoring_entry_to_neo4j 判「no concept」→ False → 计 pending 写回文件。它的真正消费者是 recover_failed_writes(孤儿②, 仍零调用方) —— 本卡接通的 sync_all_fallbacks 覆盖不到这一类。
+rc=0

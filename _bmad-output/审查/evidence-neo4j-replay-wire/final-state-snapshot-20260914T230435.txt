@@ -1,0 +1,24 @@
+### 最终状态快照  2026-09-14 23:04:35
+--- commit 链 ---
+d90f5a67 fix(t6-b): 按 Codex round-2 整改 HIGH-1 等五处 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+d9fa0774 fix(t6-b): 按 Codex round-1 整改四处 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+cd1b5ae9 feat(t6-b): 孤儿重放器接进真实路径 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+--- 代码面 git status (期望空) ---
+(空)
+--- 全量改动面 ---
+ backend/app/api/v1/endpoints/traces.py             |  70 ++-
+ backend/app/main.py                                |  57 +++
+ backend/app/services/fallback_sync_service.py      |  86 ++++
+ .../integration/test_neo4j_replay_wire_t6b.py      | 476 +++++++++++++++++++++
+ 4 files changed, 688 insertions(+), 1 deletion(-)
+--- 三轮 Codex 存档 ---
+  codex-review-CARD-NEO4J-REPLAY-WIRE-r2.md            8242 bytes
+  codex-review-CARD-NEO4J-REPLAY-WIRE-r3.md            0 bytes
+  codex-review-CARD-NEO4J-REPLAY-WIRE.md               6415 bytes
+--- .stderr 是否入库 (期望全被 ignore) ---
+  codex-review-CARD-NEO4J-REPLAY-WIRE-r2.stderr: ignored ✅
+  codex-review-CARD-NEO4J-REPLAY-WIRE-r3.stderr: ignored ✅
+  codex-review-CARD-NEO4J-REPLAY-WIRE.stderr: ignored ✅
+--- evidence 计数 ---
+  58 个 .txt, 0 个 .log (须 0)
+rc=0

@@ -1,0 +1,24 @@
+  from pydantic.v1.fields import FieldInfo as FieldInfoV1
+  import pkg_resources
+Building prefix dict from the default dictionary ...
+### HIGH-1 成功条件变更 ⇒ 旧 progress_version 游标必须作废
+  当前 _PROGRESS_VERSION = 'split-lf+contiguous+history'
+2026-09-15 00:08:18 [warning  ] [Story 38.8] checkpoint for failed_writes was written under progress semantics 'split-lf+contiguous' (current 'split-lf+contiguous+history') — cannot prove its prefix fully succeeded, replaying from 0. Already-synced entries may be replayed again (idempotent for Concept/LEARNED; may add duplicate scoring Episodes).
+2026-09-15 00:08:18 [info     ] [Story 38.8] Rotated failed_writes.jsonl → failed_writes.synced.2026-09-15-000818
+2026-09-15 00:08:18 [info     ] [Story 38.8] Fallback sync complete: 51 replayed, 0 still pending
+  带旧标记 index=50 ⇒ 实际尝试 51 条 (c0 在内 = True)
+  ✅ 回退到 0, 缺历史的旧条目不再被跳过
+
+### MEDIUM-4 finalize 保留了条目就必须如实计入 pending
+2026-09-15 00:08:18 [info     ] [Story 38.8] Fallback sync complete: 1 replayed, 1 still pending
+  x 全部成功、期间追加 z ⇒ stats = {'recovered': 1, 'pending': 1}
+  文件里实际剩 1 条 (['z'])
+  ✅ pending 如实反映文件剩余
+
+### MEDIUM-4b finalize 失败必须带 error 键 (否则启动汇总报『正常完成』)
+2026-09-15 00:08:18 [error    ] [Story 38.8] canvas_events finalize re-read failed (simulated) — leaving the file untouched to avoid clobbering concurrent appends; 0 entries pending.
+2026-09-15 00:08:18 [info     ] [Story 38.8] Fallback sync complete: 1 replayed, -1 still pending
+  stats = {'recovered': 1, 'pending': -1, 'error': 'finalize re-read failed: simulated'}
+  带 error 键 = True  pending = -1 (-1 = 未知)
+  ✅ main.py 的 _failed 判据会识别为失败
+rc=0

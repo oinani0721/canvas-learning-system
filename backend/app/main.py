@@ -385,23 +385,91 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
         _worker_graphiti = getattr(get_episode_worker(), "_graphiti", None)
         if _worker_graphiti is not None:
-            # G-DEFAULT 根治 (2026-07-10): 回填不再落 DEFAULT_GROUP_ID——那让所有 vault
-            # 的结构图塌进同一 default 桶(cypher 实测 88 节点零真实 vault 身份)。
-            # 改用当前激活 vault 的 vault:<vault_id> 规约(D16/C-3)。
-            backfill_group = build_vault_group_id(get_current_vault_id())
-            bf = await backfill_vault(
-                settings.canvas_base_path,
-                _worker_graphiti.driver,
-                getattr(_worker_graphiti, "embedder", None),
-                group_id=backfill_group,
-                execute=True,
-            )
-            logger.info(
-                f"[Graphiti-native] 启动回填: {bf['callouts']} 批注, "
-                f"{bf['errors']} 错误, {bf['relations']} 原因, {bf['failed']} 失败"
-            )
+            # ⛔ 回填单独包内层 try (CARD-NEO4J-REPLAY-WIRE, Codex round-4 MEDIUM-3
+            # + round-5 MEDIUM): 不包的话 `backfill_vault()` 抛异常会让控制流直接
+            # 跳到外层 except, **下面的暂存链回灌根本不执行** —— 「vault markdown
+            # 回填失败」连带吃掉「暂存条目回灌」, 而这两件事彼此无关。
+            # ⚠️ 之前试过「把回灌整段移出外层 try + 用 _worker_online 传状态」,
+            # 那是**假修复**: 赋值写在 backfill_vault() 之后, 回填抛异常时赋值行
+            # 从未执行, 回灌照样走离线分支 —— 结构变了行为没变。改用内层 try 后
+            # 不需要任何状态变量, 也就没有「在哪一行赋值」这个隐式前提。
+            try:
+                # G-DEFAULT 根治 (2026-07-10): 回填不再落 DEFAULT_GROUP_ID——那让所有 vault
+                # 的结构图塌进同一 default 桶(cypher 实测 88 节点零真实 vault 身份)。
+                # 改用当前激活 vault 的 vault:<vault_id> 规约(D16/C-3)。
+                backfill_group = build_vault_group_id(get_current_vault_id())
+                bf = await backfill_vault(
+                    settings.canvas_base_path,
+                    _worker_graphiti.driver,
+                    getattr(_worker_graphiti, "embedder", None),
+                    group_id=backfill_group,
+                    execute=True,
+                )
+                logger.info(
+                    f"[Graphiti-native] 启动回填: {bf['callouts']} 批注, "
+                    f"{bf['errors']} 错误, {bf['relations']} 原因, {bf['failed']} 失败"
+                )
+            except Exception as bf_err:  # noqa: BLE001 — 回填失败不得连带跳过回灌
+                logger.warning(f"[Graphiti-native] 启动回填 failed (non-fatal): {bf_err}")
+
+            # CARD-NEO4J-REPLAY-WIRE: Neo4j 在线 ⇒ 视为已从离线恢复, 立刻回灌降级期
+            # 攒下的暂存链。原先 `FallbackSyncService.sync_all_fallbacks` 实现完整却
+            # **零生产调用方** (fallback_sync_service.py:53), 四条链只写不回灌 =
+            # 数据事实上丢失。它自己先查 is_fallback_mode / health_check
+            # (同文件 :64-74), 故此处不重复判可用性。
+            from app.services.fallback_sync_service import get_fallback_sync_service
+
+            try:
+                replay = await get_fallback_sync_service().sync_all_fallbacks()
+                if replay.get("skipped"):
+                    logger.info(f"[T6-B] 启动回灌跳过: {replay.get('reason')}")
+                else:
+                    _chains = [v for v in replay.values() if isinstance(v, dict)]
+                    _rec = sum(v.get("recovered", 0) for v in _chains)
+                    # ⚠️ pending == -1 是「数不出来」的哨兵 (finalize 读不到文件),
+                    # 不能直接累加 —— 会抵消别的链的真实待回灌数甚至算出负数。
+                    # 有未知就如实说未知 (fallback_sync_service 同口径)。
+                    _known = [v.get("pending", 0) for v in _chains if v.get("pending", 0) >= 0]
+                    _unknown = [k for k, v in replay.items() if isinstance(v, dict) and v.get("pending", 0) < 0]
+                    _pend = sum(_known) if not _unknown else f"≥{sum(_known)} (+{','.join(_unknown)} 数不出)"
+                    # sync_all_fallbacks 对子同步异常是**以返回值报告失败**的:
+                    # 它把异常吞进 {"recovered":0,"pending":0,"error":...}。只对
+                    # recovered/pending 求和 ⇒ 三条链全炸也会打成「回灌 0 条,
+                    # 0 条待回灌」, 与「本来就没东西要回灌」逐字相同 —— 那正是本卡
+                    # 要消灭的那类伪装 (Codex round-1 ②)。
+                    # ⚠️ 判 key 存在, 不判真值 (Codex round-2 MEDIUM-2): 捕获集里的
+                    # RuntimeError()/OSError()/ConnectionError()/TimeoutError() 无参数
+                    # 时 str(e) == "", v.get("error") 取到空串是 falsy ⇒ 整条链失败却
+                    # 被算成成功。有没有 error 这个**键**才是事实, 文本空不空无关。
+                    _failed = [k for k, v in replay.items() if isinstance(v, dict) and "error" in v]
+                    if _failed:
+                        logger.error(
+                            f"[T6-B] 启动回灌部分失败: {_failed} 未回灌 (异常详见上方 warning); "
+                            f"其余链回灌 {_rec} 条, {_pend} 条待回灌"
+                        )
+                    else:
+                        logger.info(f"[T6-B] Neo4j 启动已恢复 → 回灌 {_rec} 条, {_pend} 条待回灌")
+            except Exception as replay_err:  # noqa: BLE001 — 回灌失败不得拖垮启动
+                logger.error(f"[T6-B] 启动回灌失败 (non-fatal, 条目仍在暂存文件里): {replay_err}")
         else:
             logger.info("[Graphiti-native] 启动回填跳过 (graphiti 未就绪)")
+
+            # CARD-NEO4J-REPLAY-WIRE: 离线时原先到上面那句为止 —— 四条暂存链照写,
+            # 却没有任何一处说明攒了多少, 数据悄悄丢失。这里只做**只读**登记:
+            # `count_fallback_backlog` 纯读三个文件, 不连 Neo4j (工厂里的
+            # `Neo4jClient.__init__` 只存配置、_driver=None, 连接要到 initialize()
+            # 才建 — neo4j_client.py:299)。写侧有界/轮转与 /traces 积压字段是
+            # T6-C 的地盘, 本卡只到「一条日志 + 一个只读计数」为止。
+            from app.services.fallback_sync_service import get_fallback_sync_service
+
+            _backlog = get_fallback_sync_service().count_fallback_backlog()
+            logger.info(
+                f"[T6-B] Neo4j 离线, {_backlog['pending_total']} 条待回灌, 恢复后回灌 "
+                f"(failed_writes={_backlog['failed_writes']}, "
+                f"canvas_events={_backlog['canvas_events']}; "
+                f"learning_memories={_backlog['learning_memories']} 条本地记录, "
+                f"该文件回灌后不轮转、不计入待回灌)"
+            )
     except Exception as e:
         logger.warning(f"[Graphiti-native] 启动回填 failed (non-fatal): {e}")
 

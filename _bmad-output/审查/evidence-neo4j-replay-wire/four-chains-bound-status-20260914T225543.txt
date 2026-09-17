@@ -1,0 +1,26 @@
+### 四条暂存链的「写侧是否已有界」实测 (供 T6-C, 避免重做已有的)
+--- canvas_events: _max_fallback_events ---
+97:        self._max_fallback_events: int = 10000
+165:            if len(events) > self._max_fallback_events:
+166:                events = events[-self._max_fallback_events :]
+--- failed_writes (agent_service 写侧) 有无上限 ---
+5
+  (0 = 未见上限逻辑)
+--- failed_writes (memory_service._record_structured_outbox) 有无上限 ---
+        """
+        try:
+            FAILED_WRITES_FILE.parent.mkdir(parents=True, exist_ok=True)
+            with failed_writes_lock:
+                with open(FAILED_WRITES_FILE, "a", encoding="utf-8") as f:
+                    f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+            return True
+        except OSError as e:
+            logger.error("[A7] outbox 落盘失败 (数据可能丢失): %s", e)
+            return False
+
+--- failed_edge_syncs (failure_counters) 有无上限 ---
+0
+  (0 = 未见上限逻辑)
+--- learning_memories 写侧 (neo4j_edge_client) 有无上限 ---
+1
+rc=0

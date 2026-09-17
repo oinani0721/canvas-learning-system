@@ -1,0 +1,23 @@
+│ 🥊 lefthook v2.1.6  hook: pre-commit │
+│  cypher-vault-filter-lint (skip) no matching staged files
+│  ghost-files (skip) no matching staged files
+│  mutant-residue-scan (skip) no matching staged files
+│  python-lint (skip) no files for inspection
+│  python-typecheck (skip) no files for inspection
+│  readme-claims-lint (skip) no matching staged files
+│  spec-sync-flat (skip) name
+│  spec-sync-root (skip) name
+summary: (done in 0.00 seconds)       
+│ 🥊 lefthook v2.1.6  hook: commit-msg │
+summary: (done in 0.36 seconds)       
+✔️ commitlint (0.34 seconds)
+✔️ spec-reference (0.02 seconds)
+│ 🥊 lefthook v2.1.6  hook: post-commit │
+[card/t6-neo4j cd1b5ae9] feat(t6-b): 孤儿重放器接进真实路径 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+cd1b5ae91519f86ea1ce83f813d4f8a64fd11f59 feat(t6-b): 孤儿重放器接进真实路径 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+ backend/app/api/v1/endpoints/traces.py             |  58 ++-
+ backend/app/main.py                                |  39 ++
+ backend/app/services/fallback_sync_service.py      |  75 ++++
+ .../integration/test_neo4j_replay_wire_t6b.py      | 415 +++++++++++++++++++++
+ 4 files changed, 586 insertions(+), 1 deletion(-)
+rc=0  # 该文件是 amend 时 lefthook 输出的摘录(命令本身成功); 真正的 hook 实跑证据见 t6b-fix*.txt 的 commit 输出

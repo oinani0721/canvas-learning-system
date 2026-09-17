@@ -1,0 +1,11 @@
+### 端到端门 skip 输入验证 (skipif 的判据函数本身)
+模块级 NEO4J_TEST_URI = bolt://127.0.0.1:7692
+当前环境下 _test_neo4j_reachable() = True  (7692 在跑 ⇒ True)
+  不可达端口        bolt://127.0.0.1:7999                → reachable=False  ⇒ skipif 触发=True
+  现网 7691      bolt://127.0.0.1:7691                → reachable=False  ⇒ skipif 触发=True
+  不存在的主机       bolt://no-such-host.invalid:7692     → reachable=False  ⇒ skipif 触发=True
+
+结论: 探针对不可达与现网地址一律返回 False ⇒ pytestmark 的
+      skipif(not _test_neo4j_reachable()) 会把整文件标 skip, 不假绿。
+      现网 7691 那条是**短路拒绝**(不发起连接), 见文件 :62-64。
+rc=0

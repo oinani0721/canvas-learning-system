@@ -1,0 +1,20 @@
+  from pydantic.v1.fields import FieldInfo as FieldInfoV1
+  import pkg_resources
+Building prefix dict from the default dictionary ...
+  canvas_path: str = Query(
+  canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+### 当前 /traces 路由表 (按注册顺序)
+  ['GET']  /api/v1/traces/{request_id}
+  ['POST']  /api/v1/traces/replay-fallbacks
+### 本卡新增的是 POST —— 与既有 GET /traces/{request_id} 方法不同, 无冲突 ✅
+### ⚠️ 给 T6-C 的预警: 它计划新增 **GET** /traces/dead-letter-backlog
+Starlette 按注册顺序匹配; GET /traces/{request_id} 是一个吃掉任意单段的
+路径参数路由, 且注册在前 ⇒ 若把新 GET 注册在它之后, 请求会先命中
+{request_id} 那条, 把 'dead-letter-backlog' 当成一个 request_id 去查日志,
+返回 200 + 空 timeline —— 不是 404, 所以不会有人发现路由被吃了。
+处置: 把新的 GET 静态路径注册在 /traces/{request_id} **之前**
+      (即在 traces.py 里把它的 @router.get 写在 get_trace 上方)。
+实证: GET /api/v1/traces/dead-letter-backlog → 200
+      响应: {"request_id":"dead-letter-backlog","total_events":0,"timeline":[]}
+      ⇒ 已被 {request_id} 吃掉 (当成 request_id 查, 返回空 timeline)
+rc=0

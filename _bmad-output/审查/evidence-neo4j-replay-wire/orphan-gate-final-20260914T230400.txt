@@ -1,0 +1,13 @@
+### 孤儿门 最终 HEAD=d90f5a67
+--- 主判据 ---
+backend/app/api/v1/endpoints/traces.py:137:    stats = await get_fallback_sync_service().sync_all_fallbacks()
+backend/app/main.py:416:                replay = await get_fallback_sync_service().sync_all_fallbacks()
+count=2  (改前 0, 要求 ≥2)
+--- 验伪锚: 不滤应恰 +1 ---
+count_naked=3
+--- 工厂调用 ---
+count_factory=3  (改前 0)
+--- 验伪锚 B: pathspec 目录形态必需 ---
+glob形态命中: []
+目录形态命中: [backend/app/main.py]
+rc=0

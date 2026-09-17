@@ -1,0 +1,17 @@
+### 地盘门 (r5 整改后, 内层 try 方案)
+--- main.py hunk 头 (期望全部落在 :386-404 内) ---
+@@ -388,15 +388,60 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+@@ -404,0 +450,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+--- 删除行数 ---
+15
+--- 既有 import 块 :381-384 现状 ---
+        from app.config import get_current_vault_id
+        from app.core.subject_config import build_vault_group_id
+        from app.services.episode_worker import get_episode_worker
+        from app.services.vault_backfill import backfill_vault
+--- 门锚点 ---
+387:        if _worker_graphiti is not None:
+449:            logger.info("[Graphiti-native] 启动回填跳过 (graphiti 未就绪)")
+145:    except Exception as e:
+156:    except Exception as e:
+rc=0

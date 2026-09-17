@@ -1,0 +1,21 @@
+### 最终 HEAD 全裁判复跑  HEAD=1028bea7
+--- 1. 孤儿门 (改前 0 / 要求 ≥2) ---
+backend/app/api/v1/endpoints/traces.py:137:    stats = await get_fallback_sync_service().sync_all_fallbacks()
+backend/app/main.py:423:                replay = await get_fallback_sync_service().sync_all_fallbacks()
+count=2
+验伪锚(不滤)=3
+--- 2. 地盘门 ---
+ backend/app/api/v1/endpoints/traces.py             |  70 ++-
+ backend/app/main.py                                |  92 +++-
+ backend/app/services/fallback_sync_service.py      | 358 ++++++++++++--
+ .../integration/test_neo4j_replay_wire_t6b.py      | 539 +++++++++++++++++++++
+ .../tests/unit/test_story_38_8_fallback_sync.py    |  67 ++-
+ 5 files changed, 1035 insertions(+), 91 deletions(-)
+--- 3. 禁改文件 (应全空) ---
+(空=未动)
+--- 4. main.py hunk (应全在 :386-404) ---
+@@ -388,15 +388,60 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+@@ -404,0 +450,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+--- 5. 终审绑定 (r7 审 1028bea7 vs HEAD) ---
+(空=仍绑定)
+rc=0

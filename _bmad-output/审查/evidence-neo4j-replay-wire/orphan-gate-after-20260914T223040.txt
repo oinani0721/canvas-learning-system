@@ -1,0 +1,16 @@
+### 孤儿门（改后）工作树 @ HEAD=310eef31 + 未提交改动
+--- [主判据] git grep -nF '.sync_all_fallbacks()' -- backend/app | grep -v /tests/ | grep -vF 'Replaced by' ---
+backend/app/api/v1/endpoints/traces.py:125:    stats = await get_fallback_sync_service().sync_all_fallbacks()
+backend/app/main.py:416:                replay = await get_fallback_sync_service().sync_all_fallbacks()
+count=2
+--- [验伪锚] 去掉 grep -vF 'Replaced by' 应恰 +1（多出 :2690 docstring）---
+backend/app/api/v1/endpoints/traces.py:125:    stats = await get_fallback_sync_service().sync_all_fallbacks()
+backend/app/main.py:416:                replay = await get_fallback_sync_service().sync_all_fallbacks()
+backend/app/services/memory_service.py:2690:            Replaced by ``FallbackSyncService.sync_all_fallbacks()`` which handles
+count_naked=3
+--- [附] get_fallback_sync_service() 生产调用（改前 0）---
+backend/app/api/v1/endpoints/traces.py:125:    stats = await get_fallback_sync_service().sync_all_fallbacks()
+backend/app/main.py:416:                replay = await get_fallback_sync_service().sync_all_fallbacks()
+backend/app/main.py:436:            _backlog = get_fallback_sync_service().count_fallback_backlog()
+count_factory=3
+rc=0

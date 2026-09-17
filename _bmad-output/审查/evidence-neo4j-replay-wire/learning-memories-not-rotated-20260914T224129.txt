@@ -1,0 +1,13 @@
+2026-09-14 22:41:35 [debug    ] RAGService: Added /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t6-neo4j/backend/lib to sys.path
+  from pydantic.v1.fields import FieldInfo as FieldInfoV1
+  import pkg_resources
+2026-09-14 22:41:40 [info     ] RAGService: LangGraph/Agentic RAG available. LANGGRAPH_AVAILABLE=True
+2026-09-14 22:41:40 [info     ] [Story 38.8] Fallback sync complete: 1 replayed, 0 still pending
+2026-09-14 22:41:40 [info     ] [Story 38.8] Fallback sync complete: 1 replayed, 0 still pending
+### 实证: learning_memories 回灌后不轮转 ⇒ 第二次仍会重放
+第一次 learning_memories stats = {'recovered': 1, 'pending': 0}
+第一次后文件仍在 = True  (failed_writes 对照: 见端到端门, 成功后文件被搬走)
+第二次 learning_memories stats = {'recovered': 1, 'pending': 0}
+第二次后文件仍在 = True
+结论: recovered 第一次=1 第二次=1 ⇒ 第二次仍重放, 幂等断言若播种该链则不成立 (支持端到端门只播种 failed_writes 的设计)
+rc=0

@@ -1,0 +1,15 @@
+### ruff 本卡改动文件自证 (backend/ruff.toml: select=[E9,F63,F7,F82])
+files=4
+All checks passed!
+rc=0
+--- 验伪锚 (锚必须在 select 内: F821 未定义名; F401 不在本仓 select 中, 用它锚不红说明的是锚超范围) ---
+F821 Undefined name `undefined_name_t6b_anchor`
+ --> backend/app/_anchor_f821.py:2:12
+  |
+1 | def f():
+2 |     return undefined_name_t6b_anchor
+  |            ^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+
+Found 1 error.
+anchor_rc=1

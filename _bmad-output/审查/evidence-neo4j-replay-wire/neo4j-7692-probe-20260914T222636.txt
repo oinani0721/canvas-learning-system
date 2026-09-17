@@ -1,0 +1,2 @@
+7692 REACHABLE; node count = 113
+rc=0

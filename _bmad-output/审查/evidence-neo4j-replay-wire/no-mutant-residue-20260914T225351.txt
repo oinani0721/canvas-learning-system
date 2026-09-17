@@ -1,0 +1,14 @@
+### 负控残留自检 (工作树须与 HEAD 逐字节相同)
+--- git status --porcelain (代码面, 期望空) ---
+(空 = 代码面与 HEAD 一致)
+--- 三个被变异过的文件逐一比对 HEAD ---
+  backend/app/api/v1/endpoints/traces.py: HEAD=4e4396d33bc176f0bba319b261f45a30b9b303648ebf7df0f9c8087cb329981e 工作树=4e4396d33bc176f0bba319b261f45a30b9b303648ebf7df0f9c8087cb329981e 相同=YES
+  backend/app/main.py: HEAD=0b3b338e38c5debcaad4b04af16b3bc6af6955feaa99c7e08d42fe94545ba058 工作树=0b3b338e38c5debcaad4b04af16b3bc6af6955feaa99c7e08d42fe94545ba058 相同=YES
+--- 负控标记字面量残留 (期望 0) ---
+negative control: 0
+--- 鉴权依赖仍在 (负控①还原验证) ---
+backend/app/api/v1/endpoints/traces.py:96:    dependencies=[Depends(require_internal_api_key)],
+--- 两处回灌调用仍在 (负控②还原验证) ---
+backend/app/api/v1/endpoints/traces.py:133:    stats = await get_fallback_sync_service().sync_all_fallbacks()
+backend/app/main.py:416:                replay = await get_fallback_sync_service().sync_all_fallbacks()
+rc=0
