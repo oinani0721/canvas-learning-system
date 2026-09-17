@@ -1,0 +1,66 @@
+=== lefthook glob 实测 v2: 去掉 --force(它关掉了被测的跳过机制) @ 20260917T130857 ===
+# v1 (lefthook-glob-empirical-20260917T130842.txt) 的测试 B 无效:
+#   --force = 'do not skip if no files changed', 正是被测机制本身 => 控制组自带混淆项。
+lefthook: 2.1.6
+--- 跑前 sha ---
+1f5d755950cab1fd2b4a2b4f0d9c4ed1816470bca8bb2d68abc02bb474568766  /Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks/pre-commit
+35ec222712dfefe3a8d00cf55ec697fc3d469a7ac71545c031d7a7197d9b34f7  lefthook.yml
+73d91d0fa2e2772e693cf29cd7cde8c55bb25ed5bb536118e3291095ff5a70cd  scripts/spec-tools/api-reality-dashboard.py
+
+--- [A'] 子目录 .py, 无 --force: glob 是否选中? ---
+╭──────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: pre-commit │
+╰──────────────────────────────────────╯
+┃  python-lint ❯ 
+
+[Python] Running ruff lint...
+invalid-syntax: Expected a newline after line continuation character
+   --> scripts/spec-tools/api-reality-dashboard.py:120:38
+    |
+118 |             }.get(ep['method'], Colors.END)
+119 |
+120 |             print(f"    {color(f'{ep[\"method\"]:6}', method_color)} {ep['path']}")
+  A2_rc=1
+
+--- [B'] 顶层 .py 对照(已知必被 glob 选中), 无 --force ---
+╭──────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: pre-commit │
+╰──────────────────────────────────────╯
+┃  python-lint ❯ 
+
+[Python] Running ruff lint...
+F821 Undefined name `technology`
+   --> scripts/validate-source-citations.py:392:4
+    |
+390 | **验证时间**: YYYY-MM-DD
+391 |
+392 | **{technology}** (选中方案):
+    |    ^^^^^^^^^^
+393 | - Context7 Library ID: `/org/project`
+  B2_rc=1
+
+--- [C'] 非 .py(本卡三文件之一), 无 --force: 期望整个作业被跳过, 不出现 ruff 输出 ---
+╭──────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: pre-commit │
+╰──────────────────────────────────────╯
+│  python-lint (skip) no files for inspection
+                                      
+  ────────────────────────────────────
+summary: (done in 0.00 seconds)       
+  C2_rc=0
+
+--- [D'] 本卡三文件全给, 无 --force: 模拟本卡真实提交面 ---
+╭──────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: pre-commit │
+╰──────────────────────────────────────╯
+│  python-lint (skip) no files for inspection
+                                      
+  ────────────────────────────────────
+summary: (done in 0.00 seconds)       
+  D2_rc=0
+
+--- 跑后 sha (须逐字节相同) ---
+1f5d755950cab1fd2b4a2b4f0d9c4ed1816470bca8bb2d68abc02bb474568766  /Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks/pre-commit
+35ec222712dfefe3a8d00cf55ec697fc3d469a7ac71545c031d7a7197d9b34f7  lefthook.yml
+73d91d0fa2e2772e693cf29cd7cde8c55bb25ed5bb536118e3291095ff5a70cd  scripts/spec-tools/api-reality-dashboard.py
+rc=0

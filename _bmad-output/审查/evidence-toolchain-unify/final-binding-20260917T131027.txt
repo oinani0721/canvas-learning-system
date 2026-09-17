@@ -1,0 +1,29 @@
+=== 收官绑定核 @ 20260917T131027 ===
+HEAD = 6775302de9446ed62ae63568dc9c9116e7392a12
+审SHA = 99e15a4e08c4749500a59584c12edbaafcff0f3e (Codex round-1 绑定)
+--- D-15 终审绑定: git diff --stat <审SHA> HEAD -- . ':(exclude)_bmad-output' 须为空 ---
+(end)
+  行数(须 0) =        0
+--- 验伪锚: 去掉 exclude 后必须非空(证判据不是恒空) ---
+  不带 exclude 的文件数 =        6
+--- 全卡地盘门(PREV..HEAD) ---
+package-lock.json
+package.json
+ruff.toml
+  文件数(须 3) =        3
+--- *.stderr* 是否入库(须 0) ---
+  index 内 stderr 文件数 = 0
+  本卡两 commit 引入的 stderr 数 = 0
+--- 工作树干净? (T8-F 开工前提) ---
+?? _bmad-output/审查/evidence-toolchain-unify/final-binding-20260917T131027.txt
+(end status)
+--- 本卡两条 commit ---
+6775302d docs(toolchain): 验收单+Codex r1 存档+glob 实测更正 [BATCH-2026-09-11-第十四批 / CARD-TOOLCHAIN-UNIFY]
+99e15a4e chore(toolchain): lefthook 1.13.6 + ruff 必错级 [BATCH-2026-09-11-第十四批 / CARD-TOOLCHAIN-UNIFY]
+--- commit header 长度(须 ≤100, wc -m) ---
+docs(toolchain): 验收单+Codex r1 存档+glob 实测 =>       89
+chore(toolchain): lefthook 1.13.6 + ruff =>       91
+--- 卡号与批次标记在两条 commit 中(须各 ≥1) ---
+  含 CARD-TOOLCHAIN-UNIFY 的 commit 数 = 2
+  含 BATCH-2026-09-11-第十四批 的 commit 数 = 2
+rc=0

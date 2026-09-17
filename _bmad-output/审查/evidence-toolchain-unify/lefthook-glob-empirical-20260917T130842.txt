@@ -1,0 +1,72 @@
+=== lefthook glob 跨目录? 实测(不改 hook / 只读作业) @ 20260917T130842 ===
+lefthook: 2.1.6
+--- 跑前 sha (协议 §2.2 换文件类裁判) ---
+1f5d755950cab1fd2b4a2b4f0d9c4ed1816470bca8bb2d68abc02bb474568766  /Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks/pre-commit
+35ec222712dfefe3a8d00cf55ec697fc3d469a7ac71545c031d7a7197d9b34f7  lefthook.yml
+73d91d0fa2e2772e693cf29cd7cde8c55bb25ed5bb536118e3291095ff5a70cd  scripts/spec-tools/api-reality-dashboard.py
+e8fbc91c44b1f0d46d0291fd93ac17eb02b3fa739c36b5c236edc22489031527  scripts/validate-source-citations.py
+
+--- git pathspec 语义更正(证我先前的 94 是递归数) ---
+  git ls-files 'scripts/*.py'          =       94
+  git ls-files ':(glob)scripts/*.py'   =       52
+  # git pathspec 不带 :(glob) 时 '*' 跨 '/' => 94 = 递归; 真顶层 52, 子目录 42
+
+--- [测试 A] 子目录文件喂给 python-lint: glob 是否选中? ---
+  目标 = scripts/spec-tools/api-reality-dashboard.py (24 条 invalid-syntax 所在)
+╭──────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: pre-commit │
+╰──────────────────────────────────────╯
+┃  python-lint ❯ 
+
+[Python] Running ruff lint...
+invalid-syntax: Expected a newline after line continuation character
+   --> scripts/spec-tools/api-reality-dashboard.py:120:38
+    |
+118 |             }.get(ep['method'], Colors.END)
+119 |
+120 |             print(f"    {color(f'{ep[\"method\"]:6}', method_color)} {ep['path']}")
+    |                                      ^
+    |
+
+invalid-syntax: Cannot use an escape sequence (backslash) in f-strings on Python 3.9 (syntax was added in Python 3.12)
+   --> scripts/spec-tools/api-reality-dashboard.py:120:38
+    |
+118 |             }.get(ep['method'], Colors.END)
+119 |
+120 |             print(f"    {color(f'{ep[\"method\"]:6}', method_color)} {ep['path']}")
+    |                                      ^
+    |
+
+invalid-syntax: Expected FStringEnd, found string
+  A_rc=1
+
+--- [测试 B 对照] 非 .py 文件(本卡三文件之一): glob 应不选中 ---
+╭──────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: pre-commit │
+╰──────────────────────────────────────╯
+┃  python-lint ❯ 
+
+[Python] Running ruff lint...
+invalid-syntax: Got unexpected token ⛔
+ --> _bmad-output/审查/evidence-ast-flag/rounds2.py:1:1
+  |
+1 | ⛔ 本件作废（VOID）—— 保留作记录，不得引为依据。
+  | ^^
+2 |
+3 | 根因：这两个早期 instrument 脚本把「不动点 for 的行号」硬编码成 634（改前值），
+  |
+
+  B_rc=1
+
+--- 跑后 sha (须与跑前逐字节相同) ---
+1f5d755950cab1fd2b4a2b4f0d9c4ed1816470bca8bb2d68abc02bb474568766  /Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks/pre-commit
+35ec222712dfefe3a8d00cf55ec697fc3d469a7ac71545c031d7a7197d9b34f7  lefthook.yml
+73d91d0fa2e2772e693cf29cd7cde8c55bb25ed5bb536118e3291095ff5a70cd  scripts/spec-tools/api-reality-dashboard.py
+e8fbc91c44b1f0d46d0291fd93ac17eb02b3fa739c36b5c236edc22489031527  scripts/validate-source-citations.py
+--- 工作树状态(须只剩本卡 evidence 未跟踪项) ---
+?? _bmad-output/审查/codex-review-CARD-TOOLCHAIN-UNIFY.md
+?? _bmad-output/审查/evidence-toolchain-unify/lefthook-glob-empirical-20260917T130842.txt
+?? _bmad-output/审查/evidence-toolchain-unify/territory-gate-20260917T130018.txt
+?? _bmad-output/审查/prompts/codex-prompt-CARD-TOOLCHAIN-UNIFY.md
+?? _bmad-output/验收单/UAT-CARD-TOOLCHAIN-UNIFY-2026-09-17.md
+rc=0

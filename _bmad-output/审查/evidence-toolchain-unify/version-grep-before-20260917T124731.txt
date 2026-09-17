@@ -1,0 +1,7 @@
+=== 裁判4 验伪锚(改前): grep -rnF '"lefthook": "^1.6.0"' package.json package-lock.json @ 20260917T124731 ===
+package-lock.json:14:        "lefthook": "^1.6.0"
+package.json:19:    "lefthook": "^1.6.0"
+grep_rc=0
+命中行数 = package.json:1 package-lock.json:1 
+# 期望: package.json:19 + package-lock.json:14 共 2 行 (证同一条判据在改前确实能命中)
+rc=0

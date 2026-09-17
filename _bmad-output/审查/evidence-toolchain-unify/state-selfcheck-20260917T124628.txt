@@ -1,0 +1,127 @@
+=== CARD-TOOLCHAIN-UNIFY 裁判1: 状态 + §〇 逐字核 @ 20260917T124628 ===
+--- pwd ---
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools
+--- branch ---
+card/t8-tools
+--- PREV (short8) ---
+7aacbc87
+--- PREV (full) ---
+7aacbc87cc0241130ddcc55c40892c4e95d8dbbe
+--- ancestor B14_BASE ---
+08100483 is ancestor: yes
+--- status count ---
+       1
+--- venv/env/ruff/pyright ---
+pytest ok
+ruff ok
+.env ok
+pyright ok
+--- ruff version ---
+ruff 0.15.9
+--- BASE self-check (R-B14-2: grep -vc '^#') ---
+BASE exists
+64
+--- which lefthook ---
+/opt/homebrew/bin/lefthook
+--- lefthook version (bare, R-B14-1) ---
+2.1.6
+lefthook_version_rc=0
+--- node_modules live npx probe ---
+ls: node_modules/.bin/lefthook: No such file or directory
+node_modules/lefthook: absent
+--- grep -nF lefthook package.json ---
+7:    "prepare": "lefthook install",
+19:    "lefthook": "^1.6.0"
+--- grep -nF lefthook package-lock.json ---
+14:        "lefthook": "^1.6.0"
+1489:    "node_modules/lefthook": {
+1491:      "resolved": "https://registry.npmjs.org/lefthook/-/lefthook-1.13.6.tgz",
+1497:        "lefthook": "bin/index.js"
+1500:        "lefthook-darwin-arm64": "1.13.6",
+1501:        "lefthook-darwin-x64": "1.13.6",
+1502:        "lefthook-freebsd-arm64": "1.13.6",
+1503:        "lefthook-freebsd-x64": "1.13.6",
+1504:        "lefthook-linux-arm64": "1.13.6",
+1505:        "lefthook-linux-x64": "1.13.6",
+1506:        "lefthook-openbsd-arm64": "1.13.6",
+1507:        "lefthook-openbsd-x64": "1.13.6",
+1508:        "lefthook-windows-arm64": "1.13.6",
+1509:        "lefthook-windows-x64": "1.13.6"
+1512:    "node_modules/lefthook-darwin-arm64": {
+1514:      "resolved": "https://registry.npmjs.org/lefthook-darwin-arm64/-/lefthook-darwin-arm64-1.13.6.tgz",
+1526:    "node_modules/lefthook-darwin-x64": {
+1528:      "resolved": "https://registry.npmjs.org/lefthook-darwin-x64/-/lefthook-darwin-x64-1.13.6.tgz",
+1540:    "node_modules/lefthook-freebsd-arm64": {
+1542:      "resolved": "https://registry.npmjs.org/lefthook-freebsd-arm64/-/lefthook-freebsd-arm64-1.13.6.tgz",
+1554:    "node_modules/lefthook-freebsd-x64": {
+1556:      "resolved": "https://registry.npmjs.org/lefthook-freebsd-x64/-/lefthook-freebsd-x64-1.13.6.tgz",
+1568:    "node_modules/lefthook-linux-arm64": {
+1570:      "resolved": "https://registry.npmjs.org/lefthook-linux-arm64/-/lefthook-linux-arm64-1.13.6.tgz",
+1582:    "node_modules/lefthook-linux-x64": {
+1584:      "resolved": "https://registry.npmjs.org/lefthook-linux-x64/-/lefthook-linux-x64-1.13.6.tgz",
+1596:    "node_modules/lefthook-openbsd-arm64": {
+1598:      "resolved": "https://registry.npmjs.org/lefthook-openbsd-arm64/-/lefthook-openbsd-arm64-1.13.6.tgz",
+1610:    "node_modules/lefthook-openbsd-x64": {
+1612:      "resolved": "https://registry.npmjs.org/lefthook-openbsd-x64/-/lefthook-openbsd-x64-1.13.6.tgz",
+1624:    "node_modules/lefthook-windows-arm64": {
+1626:      "resolved": "https://registry.npmjs.org/lefthook-windows-arm64/-/lefthook-windows-arm64-1.13.6.tgz",
+1638:    "node_modules/lefthook-windows-x64": {
+1640:      "resolved": "https://registry.npmjs.org/lefthook-windows-x64/-/lefthook-windows-x64-1.13.6.tgz",
+--- ruff.toml :36 / :38-39 ---
+line-length = 120
+[lint]
+select = []
+--- backend/ruff.toml :6-10 ---
+line-length = 120
+target-version = "py39"
+
+[lint]
+select = ["E9", "F63", "F7", "F82"]
+--- lefthook.yml python-lint ---
+8:#   pre-commit  → parallel checks (spec-sync, python-lint, python-typecheck, ghost-files)
+117:    python-lint:
+333:    # m 开头的本块 → python-lint → p 开头的 pyright 门 → r 开头的 README 门
+    python-lint:
+      glob: "{backend,src,scripts}/*.py"
+      run: |
+        # Activate backend venv for ruff
+        if [ -f "backend/.venv/bin/activate" ]; then source backend/.venv/bin/activate; fi
+        echo "[Python] Running ruff lint..."
+        ruff check {staged_files} 2>&1 || exit 1
+        echo "[Python] Lint OK."
+--- git-common-dir ---
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.git
+--- pre-commit call_lefthook ---
+call_lefthook()
+{
+  if test -n "$LEFTHOOK_BIN"
+  then
+    "$LEFTHOOK_BIN" "$@"
+  elif lefthook -h >/dev/null 2>&1
+  then
+    lefthook "$@"
+  else
+    dir="$(git rev-parse --show-toplevel)"
+    osArch=$(uname | tr '[:upper:]' '[:lower:]')
+    cpuArch=$(uname -m | sed 's/aarch64/arm64/;s/x86_64/x64/')
+    if test -f "$dir/node_modules/lefthook-${osArch}-${cpuArch}/bin/lefthook"
+    then
+      "$dir/node_modules/lefthook-${osArch}-${cpuArch}/bin/lefthook" "$@"
+    elif test -f "$dir/node_modules/@evilmartians/lefthook/bin/lefthook-${osArch}-${cpuArch}/lefthook"
+    then
+      "$dir/node_modules/@evilmartians/lefthook/bin/lefthook-${osArch}-${cpuArch}/lefthook" "$@"
+    elif test -f "$dir/node_modules/@evilmartians/lefthook-installer/bin/lefthook"
+    then
+      "$dir/node_modules/@evilmartians/lefthook-installer/bin/lefthook" "$@"
+    elif test -f "$dir/node_modules/lefthook/bin/index.js"
+    then
+      "$dir/node_modules/lefthook/bin/index.js" "$@"
+    
+    elif go tool lefthook -h >/dev/null 2>&1
+    then
+      go tool lefthook "$@"
+    elif bundle exec lefthook -h >/dev/null 2>&1
+    then
+--- diff B14_BASE..HEAD on the three files (expect empty) ---
+(end)
+rc=0

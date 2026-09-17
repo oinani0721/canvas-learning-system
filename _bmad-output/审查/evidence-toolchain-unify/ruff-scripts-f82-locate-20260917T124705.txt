@@ -1,0 +1,254 @@
+invalid-syntax: Expected a newline after line continuation character
+   --> scripts/spec-tools/api-reality-dashboard.py:120:38
+    |
+118 |             }.get(ep['method'], Colors.END)
+119 |
+120 |             print(f"    {color(f'{ep[\"method\"]:6}', method_color)} {ep['path']}")
+    |                                      ^
+    |
+
+invalid-syntax: Cannot use an escape sequence (backslash) in f-strings on Python 3.9 (syntax was added in Python 3.12)
+   --> scripts/spec-tools/api-reality-dashboard.py:120:38
+    |
+118 |             }.get(ep['method'], Colors.END)
+119 |
+120 |             print(f"    {color(f'{ep[\"method\"]:6}', method_color)} {ep['path']}")
+    |                                      ^
+    |
+
+invalid-syntax: Expected FStringEnd, found string
+   --> scripts/spec-tools/api-reality-dashboard.py:120:39
+    |
+118 |             }.get(ep['method'], Colors.END)
+119 |
+120 |             print(f"    {color(f'{ep[\"method\"]:6}', method_color)} {ep['path']}")
+    |                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+
+invalid-syntax: Cannot reuse outer quote character in f-strings on Python 3.9 (syntax was added in Python 3.12)
+   --> scripts/spec-tools/api-reality-dashboard.py:120:39
+    |
+118 |             }.get(ep['method'], Colors.END)
+119 |
+120 |             print(f"    {color(f'{ep[\"method\"]:6}', method_color)} {ep['path']}")
+    |                                       ^
+    |
+
+invalid-syntax: Cannot use an escape sequence (backslash) in f-strings on Python 3.9 (syntax was added in Python 3.12)
+   --> scripts/spec-tools/api-reality-dashboard.py:120:46
+    |
+118 |             }.get(ep['method'], Colors.END)
+119 |
+120 |             print(f"    {color(f'{ep[\"method\"]:6}', method_color)} {ep['path']}")
+    |                                              ^
+    |
+
+invalid-syntax: f-string: unterminated string
+   --> scripts/spec-tools/api-reality-dashboard.py:120:84
+    |
+118 |             }.get(ep['method'], Colors.END)
+119 |
+120 |             print(f"    {color(f'{ep[\"method\"]:6}', method_color)} {ep['path']}")
+    |                                                                                    ^
+    |
+
+invalid-syntax: f-string: unterminated string
+   --> scripts/spec-tools/api-reality-dashboard.py:120:84
+    |
+118 |             }.get(ep['method'], Colors.END)
+119 |
+120 |             print(f"    {color(f'{ep[\"method\"]:6}', method_color)} {ep['path']}")
+    |                                                                                    ^
+    |
+
+invalid-syntax: f-string: expecting `}`
+   --> scripts/spec-tools/api-reality-dashboard.py:123:1
+    |
+123 | def export_markdown(spec: Dict) -> str:
+    | ^^^
+124 |     """Export API dashboard as Markdown."""
+125 |     categories = categorize_endpoints(spec)
+    |
+
+invalid-syntax: Simple statements must be separated by newlines or semicolons
+   --> scripts/spec-tools/api-reality-dashboard.py:125:5
+    |
+123 | def export_markdown(spec: Dict) -> str:
+124 |     """Export API dashboard as Markdown."""
+125 |     categories = categorize_endpoints(spec)
+    |     ^^^^^^^^^^
+126 |     total = sum(len(eps) for eps in categories.values())
+    |
+
+invalid-syntax: Simple statements must be separated by newlines or semicolons
+   --> scripts/spec-tools/api-reality-dashboard.py:126:5
+    |
+124 |     """Export API dashboard as Markdown."""
+125 |     categories = categorize_endpoints(spec)
+126 |     total = sum(len(eps) for eps in categories.values())
+    |     ^^^^^
+127 |
+128 |     lines = [
+    |
+
+invalid-syntax: Simple statements must be separated by newlines or semicolons
+   --> scripts/spec-tools/api-reality-dashboard.py:128:5
+    |
+126 |     total = sum(len(eps) for eps in categories.values())
+127 |
+128 |     lines = [
+    |     ^^^^^
+129 |         "# Canvas Learning System - API Reality Dashboard",
+130 |         "",
+    |
+
+invalid-syntax: Compound statements are not allowed on the same line as simple statements
+   --> scripts/spec-tools/api-reality-dashboard.py:143:5
+    |
+141 |     ]
+142 |
+143 |     for category in sorted(categories.keys()):
+    |     ^^^
+144 |         endpoints = categories[category]
+145 |         lines.append(f"### {category.upper()} ({len(endpoints)} endpoints)")
+    |
+
+invalid-syntax: Simple statements must be separated by newlines or semicolons
+   --> scripts/spec-tools/api-reality-dashboard.py:145:9
+    |
+143 |     for category in sorted(categories.keys()):
+144 |         endpoints = categories[category]
+145 |         lines.append(f"### {category.upper()} ({len(endpoints)} endpoints)")
+    |         ^^^^^
+146 |         lines.append("")
+147 |         lines.append("| Method | Path | Summary |")
+    |
+
+invalid-syntax: Simple statements must be separated by newlines or semicolons
+   --> scripts/spec-tools/api-reality-dashboard.py:146:9
+    |
+144 |         endpoints = categories[category]
+145 |         lines.append(f"### {category.upper()} ({len(endpoints)} endpoints)")
+146 |         lines.append("")
+    |         ^^^^^
+147 |         lines.append("| Method | Path | Summary |")
+148 |         lines.append("|--------|------|---------|")
+    |
+
+invalid-syntax: Simple statements must be separated by newlines or semicolons
+   --> scripts/spec-tools/api-reality-dashboard.py:147:9
+    |
+145 |         lines.append(f"### {category.upper()} ({len(endpoints)} endpoints)")
+146 |         lines.append("")
+147 |         lines.append("| Method | Path | Summary |")
+    |         ^^^^^
+148 |         lines.append("|--------|------|---------|")
+    |
+
+invalid-syntax: Simple statements must be separated by newlines or semicolons
+   --> scripts/spec-tools/api-reality-dashboard.py:148:9
+    |
+146 |         lines.append("")
+147 |         lines.append("| Method | Path | Summary |")
+148 |         lines.append("|--------|------|---------|")
+    |         ^^^^^
+149 |
+150 |         for ep in sorted(endpoints, key=lambda x: x['path']):
+    |
+
+invalid-syntax: Compound statements are not allowed on the same line as simple statements
+   --> scripts/spec-tools/api-reality-dashboard.py:150:9
+    |
+148 |         lines.append("|--------|------|---------|")
+149 |
+150 |         for ep in sorted(endpoints, key=lambda x: x['path']):
+    |         ^^^
+151 |             lines.append(f"| {ep['method']} | `{ep['path']}` | {ep['summary']} |")
+    |
+
+invalid-syntax: Simple statements must be separated by newlines or semicolons
+   --> scripts/spec-tools/api-reality-dashboard.py:153:9
+    |
+151 |             lines.append(f"| {ep['method']} | `{ep['path']}` | {ep['summary']} |")
+152 |
+153 |         lines.append("")
+    |         ^^^^^
+154 |
+155 |     return "\n".join(lines)
+    |
+
+invalid-syntax: Simple statements must be separated by newlines or semicolons
+   --> scripts/spec-tools/api-reality-dashboard.py:155:5
+    |
+153 |         lines.append("")
+154 |
+155 |     return "\n".join(lines)
+    |     ^^^^^^
+    |
+
+invalid-syntax: Compound statements are not allowed on the same line as simple statements
+   --> scripts/spec-tools/api-reality-dashboard.py:158:1
+    |
+158 | def compare_with_epic(spec: Dict, epic_path: str):
+    | ^^^
+159 |     """Compare actual API with EPIC claims."""
+160 |     import re
+    |
+
+invalid-syntax: Simple statements must be separated by newlines or semicolons
+   --> scripts/spec-tools/api-reality-dashboard.py:160:5
+    |
+158 | def compare_with_epic(spec: Dict, epic_path: str):
+159 |     """Compare actual API with EPIC claims."""
+160 |     import re
+    |     ^^^^^^
+161 |
+162 |     epic_file = Path(epic_path)
+    |
+
+invalid-syntax: Expected `,`, found name
+   --> scripts/spec-tools/api-reality-dashboard.py:162:5
+    |
+160 |     import re
+161 |
+162 |     epic_file = Path(epic_path)
+    |     ^^^^^^^^^
+163 |     if not epic_file.exists():
+164 |         # Try glob
+    |
+
+invalid-syntax: Expected `,`, found `=`
+   --> scripts/spec-tools/api-reality-dashboard.py:162:15
+    |
+160 |     import re
+161 |
+162 |     epic_file = Path(epic_path)
+    |               ^
+163 |     if not epic_file.exists():
+164 |         # Try glob
+    |
+
+invalid-syntax: Simple statements must be separated by newlines or semicolons
+   --> scripts/spec-tools/api-reality-dashboard.py:162:21
+    |
+160 |     import re
+161 |
+162 |     epic_file = Path(epic_path)
+    |                     ^
+163 |     if not epic_file.exists():
+164 |         # Try glob
+    |
+
+F821 Undefined name `technology`
+   --> scripts/validate-source-citations.py:392:4
+    |
+390 | **验证时间**: YYYY-MM-DD
+391 |
+392 | **{technology}** (选中方案):
+    |    ^^^^^^^^^^
+393 | - Context7 Library ID: `/org/project`
+394 | - Code Snippets: XXX
+    |
+
+Found 25 errors.
+rc=1

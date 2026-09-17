@@ -1,0 +1,33 @@
+=== root 治理面普查 v2(内联 --config 覆写, 保留仓内配置发现) @ 20260917T125857 ===
+# v1 (rootsurface-before-after-20260917T125840.txt) 的 before 不可比:
+#   --config 指向 scratchpad 的文件 => ruff 的 target-version 推断源(同目录 pyproject.toml
+#   的 requires-python=">=3.9")丢失 => invalid-syntax 127 vs 131 差 4 条, 是目标版本差异不是 select 差异。
+# v2 改用内联覆写 --config 'lint.select=[]', 仓内 ruff.toml 仍被发现, 只换 select 一个键。
+root_surface_files=288
+
+--- [BEFORE: --config 'lint.select=[]'] ---
+131		invalid-syntax
+Found 131 errors.
+before_rc=1
+
+--- [AFTER: 仓内 ruff.toml 新 select] ---
+131	    	invalid-syntax
+  2	F821	undefined-name
+Found 133 errors.
+after_rc=1
+
+--- 验伪锚: 证内联覆写真的生效(同一命令加回 select 应变回可见 F821) ---
+  2	F821	undefined-name
+anchor_rc=0
+
+--- 新揭出的逐条定位(非 invalid-syntax) ---
+_bmad-output/审查/evidence-w4-5/cases/case-d2.py:6:21: F821 Undefined name `app`
+scripts/validate-source-citations.py:392:4: F821 Undefined name `technology`
+
+--- 这两处是否落在 lefthook python-lint glob {backend,src,scripts}/*.py 内? ---
+scripts/validate-source-citations.py -> 顶层 scripts/*.py: 命中 glob (将来暂存它的提交会被拦)
+_bmad-output/审查/evidence-w4-5/cases/case-d2.py -> 不在 {backend,src,scripts}/ 下: 不命中 glob
+src/*.py 计数(glob 第二段实际覆盖面) =        0
+scripts/*.py 顶层计数(glob 不含子目录) =       94
+scripts/ 递归全部 .py 计数 =       94
+rc=0

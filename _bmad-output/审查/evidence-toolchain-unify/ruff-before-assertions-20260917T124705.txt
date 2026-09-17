@@ -1,0 +1,11 @@
+=== (b) 断言 @ 20260917T124705 ===
+BEFORE_FILE=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/_bmad-output/审查/evidence-toolchain-unify/ruff-scripts-before-20260917T124705.txt
+before: grep -cF 'Found 24 errors' = 1
+before: grep -cF 'F821' (期望 0) = 0
+before: grep -cF 'invalid-syntax' = 1
+PROBE_FILE=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/_bmad-output/审查/evidence-toolchain-unify/ruff-scripts-probe-20260917T124705.txt
+probe : grep -cF 'Found 25 errors' = 1
+probe : grep -cF 'F821' (期望 >=1) = 1
+LOC_FILE=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/_bmad-output/审查/evidence-toolchain-unify/ruff-scripts-f82-locate-20260917T124705.txt
+locate: grep -cF 'validate-source-citations.py' = 1
+rc=0

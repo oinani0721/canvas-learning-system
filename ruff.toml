@@ -36,4 +36,5 @@
 line-length = 120
 
 [lint]
-select = []
+# CARD-TOOLCHAIN-UNIFY [BATCH-2026-09-11-第十四批]: 与 backend/ruff.toml 同步必错级(语法/错误比较/if-tuple/未定义名); 存量风格规则(2000+)不在此启用
+select = ["E9", "F63", "F7", "F82"]
