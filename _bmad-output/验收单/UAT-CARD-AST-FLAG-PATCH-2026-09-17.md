@@ -642,6 +642,24 @@ r3-LOW4 **已关闭**（9 个目标 ID 各唯一，且九项变异均不改样�
 「**接受 fail-closed 误判并移交**」，不能记成「已恢复 CLEAN」—— 尤其 r3-MEDIUM-3 的现版判定
 明确仍是 CAUGHT。四-A.10 表末行已按此改写。
 
+### 存档首部（协议 §2.1）
+
+四份存档均已补上首部 blockquote，`模型` / `reasoning_effort` / `codex` 三字段齐全，
+且会话头**逐行抄自各自的 `.stderr` 并括注行号**（`.stderr` 本身不入库，`.gitignore:264`
+的 `_bmad-output/审查/**/*.stderr*` 覆盖，实测 `git check-ignore` 命中）。
+
+| 存档 | 绑定 | 会话头自证行 |
+|---|---|---|
+| `codex-review-CARD-AST-FLAG-PATCH.md` | `20abe003` | L4 / L7 / L11 |
+| `codex-review-CARD-AST-FLAG-PATCH-r2.md` | `6564fc09` | L2 / L5 / L9 |
+| `codex-review-CARD-AST-FLAG-PATCH-r3.md` | `a03af47c` | L2 / L5 / L9 |
+| `codex-review-CARD-AST-FLAG-PATCH-r4.md` | **`a22254ab`（终审）** | L2 / L5 / L9 |
+
+⚠️ 逐字段核时踩过一次「判据取名面不等于主张」：`grep -c` 数的是**行**，而三个字段同在一行，
+所以每份都只报 1；改成逐字段判定后才是 3/3（合成的缺字段样本得 1/3，锚有效）。
+同理 `git ls-files | grep -c 'stderr'` 得 3，但那三个是**别的卡**名字含 `stderr` 的 `.txt`；
+真正以 `.stderr` 结尾的入库数 = **0**，本卡命名空间下 = **0**。
+
 ### 轮次结论
 
 | 轮 | 绑定 | B / H / M / L | 车道处置 |

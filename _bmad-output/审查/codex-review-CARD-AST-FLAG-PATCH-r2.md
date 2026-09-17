@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-11-第十四批 · 车道 card-t8-tools · 卡 CARD-AST-FLAG-PATCH round-2
+> 模型: `gpt-6-astra` · reasoning_effort: `ultra` · codex: `codex-cli 0.153.3`
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat _bmad-output/审查/prompts/codex-prompt-CARD-AST-FLAG-PATCH-r2.md)"`
+> 审查绑定: `6564fc09`（本卡终审绑定 = round-4 的 `a22254ab`；其后仅 `_bmad-output` 改动，代码树逐字同）
+> 会话头自证（抄 .stderr，括注行号；.stderr 本身不入库）:
+> L2 `OpenAI Codex v0.153.3` / L5 `model: gpt-6-astra` / L9 `reasoning effort: ultra`
+
+---
+
 绑定 **`6564fc09ff14a29f0cef3bfc73ea090ac0f682eb`**：**BLOCKER 0 / HIGH 4 / MEDIUM 2 / LOW 1，建议整改后再复核。**
 
 四个原始代码输入确实得到 **CAUGHT / CLEAN / CAUGHT / CLEAN**；但表外反例表明，整改尚未全面闭合。

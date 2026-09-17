@@ -1,3 +1,12 @@
+> 批次: BATCH-2026-09-11-第十四批 · 车道 card-t8-tools · 卡 CARD-AST-FLAG-PATCH round-4
+> 模型: `gpt-6-astra` · reasoning_effort: `ultra` · codex: `codex-cli 0.153.3`
+> 命令: `codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat _bmad-output/审查/prompts/codex-prompt-CARD-AST-FLAG-PATCH-r4.md)"`
+> 审查绑定: `a22254ab`（本卡终审绑定 = round-4 的 `a22254ab`；其后仅 `_bmad-output` 改动，代码树逐字同）
+> 会话头自证（抄 .stderr，括注行号；.stderr 本身不入库）:
+> L2 `OpenAI Codex v0.153.3` / L5 `model: gpt-6-astra` / L9 `reasoning effort: ultra`
+
+---
+
 绑定 **`a22254ab`**：**BLOCKER 0 / HIGH 0 / MEDIUM 1 / LOW 4**。以下为本轮新增复核项；已接受移交的旧误判不重复计数。未发现此前 HIGH 的指定失效路径复发。
 
 1. **MEDIUM — 恒收还有超出“自定义 setattr”的误判：不同作用域的同名对象被合并。**
