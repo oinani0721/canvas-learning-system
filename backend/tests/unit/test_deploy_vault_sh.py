@@ -951,9 +951,14 @@ def test_step5_pipes_compose_config_through_redaction():
     step5 = src[src.index("step5_activate()") : src.index("# ═══ 步 6")]
     assert "redact_secrets" in step5, "步 5 落盘 config 时未过脱敏"
     # 必须是管道进脱敏后再重定向，而不是先 > 文件、事后再改
-    assert re.search(r"config[^\n]*\|\s*\n?\s*redact_secrets\s*>", step5) or re.search(
-        r"\|\s*redact_secrets\s*>\s*\"\$cfg\"", step5
-    ), f"步 5 的落盘不是「config | redact_secrets > 文件」形态:\n{step5[:600]}"
+    # ⚠️ CARD-G2-7b-TAIL ② 把重定向目标从 `$cfg` 换成了同目录 mktemp 的 `$ctmp`
+    #    （发布交给随后的 `mv`）。钉的性质**一个字没变**：管道直接进重定向 ⇒
+    #    明文从不落盘。锚点跟着改，并补上「脱敏后的那份真的被发布到了 $cfg」这一半 ——
+    #    只钉前半会让「写了临时文件但从没发布」也算绿。
+    assert re.search(r"\|\s*redact_secrets\s*>\s*\"\$ctmp\"", step5), (
+        f"步 5 的落盘不是「config | redact_secrets > 临时件」形态:\n{step5[:600]}"
+    )
+    assert 'mv "$ctmp" "$cfg"' in step5, "脱敏后的 config 没有被发布到 $cfg"
 
 
 def test_redaction_filter_masks_secrets_but_keeps_assertion_fields(tmp_path: Path):
@@ -1219,7 +1224,11 @@ def test_forbidden_judge_covers_actual_output_objects_not_just_params():
         "--evidence-dir:": '"--evidence-dir:$EVIDENCE_DIR"',
         "--env-dir:": '"--env-dir:$ENV_DIR"',
         "env-file:": '"env-file:$ENV_FILE"',
-        "env-file-tmp:": '"env-file-tmp:$ENV_FILE.tmp"',
+        # CARD-G2-7b-TAIL ②：`<终路径>.tmp` 这三条固定名登记已退场（临时件改由
+        # `mk_tmp_beside` 同目录 mktemp 建, 名字这一刻还不知道）⇒ 登记的是它们真正的
+        # 写入面 = 那个**目录**。留一条永远不会被写的登记 = 清单说的和脚本做的对不上。
+        "env-file-tmp-dir:": '"env-file-tmp-dir:$ENV_DIR"',
+        "key-file-tmp-dir:": '"key-file-tmp-dir:$VAULT/.obsidian"',
         "key-file:": '"key-file:$VAULT/.obsidian/cls-internal-key.txt"',
         "plugin-data:": '"plugin-data:$VAULT/.obsidian/plugins/canvas-learning-system/data.json"',
     }
@@ -1228,7 +1237,7 @@ def test_forbidden_judge_covers_actual_output_objects_not_just_params():
         assert expr in seg, f"{label} 传的不是预期路径表达式，应为 {expr}"
     for expr in (
         '"ev-install-log:$EVIDENCE_DIR/install-$TS.txt"',
-        '"ev-deploy-report-tmp:$EVIDENCE_DIR/deploy-$TS.txt.tmp"',
+        '"ev-tmp-dir:$EVIDENCE_DIR"',
     ):
         assert expr in seg, f"缺 evidence 对象 {expr}（r3 BLOCKER-2）"
     # ⛔ 两个**构建产物**（Codex r4 HIGH-1）：它们原本只在判据列表里、不在 -L 列表里。
@@ -1237,6 +1246,15 @@ def test_forbidden_judge_covers_actual_output_objects_not_just_params():
         '"harness-build-out:$HARNESS/frontend/obsidian-plugin/main.js"',
     ):
         assert expr in seg, f"缺构建产物 {expr}（r4 HIGH-1）"
+    for gone in (
+        '"env-file-tmp:$ENV_FILE.tmp"',
+        '"key-file-tmp:$VAULT/.obsidian/cls-internal-key.txt.tmp"',
+        '"ev-deploy-report-tmp:$EVIDENCE_DIR/deploy-$TS.txt.tmp"',
+    ):
+        assert gone not in seg, (
+            f"{gone} 又回到清单里了 —— 那个路径已不再被写（CARD-G2-7b-TAIL ②），"
+            "留着它会让「预置一条软链」重新把部署卡死"
+        )
     # 判据必须**逐字消费那个数组**，而不是再手抄一遍（手抄就会重新漂移）。
     assert '--outputs "${PENDING_WRITES[@]}"' in seg, (
         "判据没有直接消费 PENDING_WRITES —— 只要重新手抄一份列表，两份清单就会再次漂移"
@@ -1275,12 +1293,14 @@ def test_every_bash_write_site_has_a_prewrite_recheck():
     """
     src = DEPLOY_SH.read_text(encoding="utf-8")
     for obj in (
-        'assert_writable_now "$ENV_FILE.tmp"',
+        # CARD-G2-7b-TAIL ②：三处从「固定名 .tmp」改成 mktemp 出来的变量,
+        # 复查对象跟着变（复查本身一处没少）。
+        'assert_writable_now "$SEED_TMP"',
         'assert_writable_now "$ilog"',
-        'assert_writable_now "$keyfile.tmp"',
+        'assert_writable_now "$ktmp"',
         'assert_writable_now "$rep"',
         'assert_writable_now "$cfg"',
-        'assert_writable_now "$out.tmp"',
+        'assert_writable_now "$out"',
         # CARD-G2-8 新增的两处写入点：`--also-push` 改 harness 自己的 `.env`；
         # act_stage 追加阶段账（Codex r1 HIGH-2：首次 assert 与追加之间有掉包窗口）
         'assert_writable_now "$henv"',
@@ -1691,7 +1711,15 @@ def test_env_key_write_chmods_only_after_nofollow_and_nlink(tmp_path: Path):
         "步 3 仍有路径式 chmod —— 目标被换掉时会改到保护对象的权限（r6 HIGH-1）"
     )
     # seed 出来的那份从诞生就是 0600，走不到这个窗口。
-    assert '(umask 077 && : > "$ENV_FILE.tmp")' in src, "seed 的临时文件缺 umask 077"
+    # ⚠️ CARD-G2-7b-TAIL ② 把 `(umask 077 && : > "$ENV_FILE.tmp")` 换成了
+    #    `mk_tmp_beside`（mktemp 本身就以 0600 创建）⇒ 门跟着改，钉的性质没变：
+    #    临时文件从**诞生那一刻**就是 0600，不是先落 0644 再补 chmod。
+    assert 'SEED_TMP="$(mk_tmp_beside "$ENV_FILE")"' in src, "seed 的临时文件不是同目录 mktemp 建的"
+    mk = _decomment(src[src.index("mk_tmp_beside() {") : src.index('MK_TMP_ERR="在 ')])
+    assert 'mktemp "$dir/.cls-deploy-tmp.XXXXXXXX"' in mk, (
+        "mk_tmp_beside 不是在**同目录**建随机名临时件 —— 跨目录会让后面的 mv 退化成"
+        "「拷贝+删除」而失去 rename 的原子性，可预测名则让预置链重新有效"
+    )
 
 
 def test_step4_mirror_symlink_is_blocked_end_to_end(tmp_path: Path):
@@ -2452,18 +2480,23 @@ def test_forbidden_judge_fails_closed_when_home_unenumerable(tmp_path: Path):
 
 
 # ═══ Codex r4 BLOCKER-4：路径判据保护不了 inode（硬链接）═════════════════════════
-def test_preflight_rejects_hardlinked_env_tmp(tmp_path: Path):
-    """⛔ r4 BLOCKER-4：`.env.<vault>.tmp` 与别处共享 inode 时必须拒。
+def test_preflight_rejects_hardlinked_env_file(tmp_path: Path):
+    """⛔ r4 BLOCKER-4：待写对象与别处共享 inode 时必须拒。
 
     realpath 给出的是**合法路径**、`-L` 为假 —— 判据看路径完全看不见这一层，
-    但 `: >` 截断改的是那个**共享 inode**。三层防线（判据 / -L / 硬链接）各管一件事。
+    只能看链接数。三层防线（判据 / -L / 硬链接）各管一件事。
+
+    ⚠️ CARD-G2-7b-TAIL ② **换了载体**：原来钉的是 `.env.<vault>.tmp`，而那条固定名
+       已随「临时件改走同目录 mktemp」退出待写清单（见
+       `test_preflight_lists_every_write_target`）。钉的**性质没变**，换成清单里仍在
+       的 `.env.<vault>` 本体 —— 不换载体的话这条门会在一个没人再检查的路径上恒绿。
     """
     (tmp_path / "vaults" / "course").mkdir(parents=True)
     env_d = tmp_path / "env"
     env_d.mkdir()
     victim = tmp_path / "victim.txt"
     victim.write_text("原内容\n", encoding="utf-8")
-    os.link(victim, env_d / ".env.course.tmp")
+    os.link(victim, env_d / ".env.course")
 
     r = _run(
         "--vault",
@@ -2486,15 +2519,16 @@ def test_preflight_rejects_hardlinked_env_tmp(tmp_path: Path):
     assert victim.read_text(encoding="utf-8") == "原内容\n", "共享 inode 已被改动"
 
 
-def test_preflight_passes_when_env_tmp_has_single_link(tmp_path: Path):
-    """控制组（另一个方向）：只有一个链接的既存 tmp 文件必须**放行**。
+def test_preflight_passes_when_env_file_has_single_link(tmp_path: Path):
+    """控制组（另一个方向）：只有一个链接的既存文件必须**放行**。
 
     只测「该拦的拦住了」会让这条判据退化成「凡文件存在就拦」。
+    （载体同上，随 CARD-G2-7b-TAIL ② 从 `.tmp` 换成 `.env.<vault>` 本体。）
     """
     (tmp_path / "vaults" / "course").mkdir(parents=True)
     env_d = tmp_path / "env"
     env_d.mkdir()
-    (env_d / ".env.course.tmp").write_text("残留\n", encoding="utf-8")
+    (env_d / ".env.course").write_text("残留\n", encoding="utf-8")
 
     r = _run(
         "--vault",
@@ -2669,11 +2703,17 @@ def _fake_python3(tmp_path: Path, c_output: str) -> Path:
     return fake_bin
 
 
-def _preflight_with_existing_env_tmp(tmp_path: Path, port: str, fake_bin: Path | None):
+def _preflight_with_existing_env_file(tmp_path: Path, port: str, fake_bin: Path | None):
+    """预置一个**既存的**待写对象，逼 preflight 走到 `assert_writable_now` 的取链接数那一步。
+
+    ⚠️ 载体随 CARD-G2-7b-TAIL ② 从 `.env.<vault>.tmp` 换成 `.env.<vault>` 本体：
+       前者已退出待写清单（临时件改走同目录 mktemp），继续用它的话下面几条 nlink 门
+       会因为**根本没人检查那个路径**而恒绿 —— 门还在，但已经什么都测不到了。
+    """
     (tmp_path / "vaults" / "course").mkdir(parents=True, exist_ok=True)
     env_d = tmp_path / "env"
     env_d.mkdir(exist_ok=True)
-    (env_d / ".env.course.tmp").write_text("残留\n", encoding="utf-8")
+    (env_d / ".env.course").write_text("残留\n", encoding="utf-8")
     env = {"CLS_LIVE_VAULT": str(_fake_live(tmp_path))}
     if fake_bin:
         env["PATH"] = f"{fake_bin}:{os.environ.get('PATH', '')}"
@@ -2700,7 +2740,7 @@ def test_preflight_rejects_nonnumeric_nlink(tmp_path: Path):
     原写法只判空串，非数字会落到 `[ "$nlink" -gt 1 ]` —— 那会 rc=2、`if` 判假 ⇒
     **静默放行**（该拦的没拦）。三态里最容易漏的就是「拿到了东西但不是我要的东西」。
     """
-    r = _preflight_with_existing_env_tmp(tmp_path, "8197", _fake_python3(tmp_path, "not-a-number"))
+    r = _preflight_with_existing_env_file(tmp_path, "8197", _fake_python3(tmp_path, "not-a-number"))
     assert r.returncode == 71, f"非数字链接数应 fail-closed，实为 rc={r.returncode}: {r.stdout}"
     assert "问不出链接数" in r.stdout, r.stdout
 
@@ -2710,7 +2750,7 @@ def test_preflight_passes_when_nlink_reads_one(tmp_path: Path):
 
     没有这一条，上一条门可能只是证明了「假 python3 把脚本弄坏了」。
     """
-    r = _preflight_with_existing_env_tmp(tmp_path, "8198", _fake_python3(tmp_path, "1"))
+    r = _preflight_with_existing_env_file(tmp_path, "8198", _fake_python3(tmp_path, "1"))
     assert r.returncode == 0, f"合法链接数 1 被误拦: rc={r.returncode} {r.stdout}{r.stderr}"
 
 
@@ -3242,6 +3282,23 @@ def _tx_write(p: Path, text: str, *, mode: int | None = None) -> None:
         p.chmod(mode)
 
 
+#: tx-harness 的校验器桩 —— 只做一件事：把收到的 `--source` 原样写进报告头。
+#: 步 4 的基准回执核对（CARD-G2-7b-TAIL ①）读的就是这一行；桩不写它 = 校验器
+#: 说不出自己比的是谁 ⇒ fail-closed。真校验器 `verify_vault_install.py` 的报告头
+#: 形如 `# source   : <path>`，这里逐字同形。
+_TX_VERIFIER = """import sys
+
+a = sys.argv
+src = a[a.index("--source") + 1]
+rep = a[a.index("--report") + 1]
+with open(rep, "w", encoding="utf-8") as fh:
+    fh.write("# vault-install verification report (tx-harness stub)\\n")
+    fh.write("# source   : %s\\n" % src)
+    fh.write("match                  : 1\\n")
+    fh.write("content-drift          : 0\\n")
+"""
+
+
 def _tx_harness(tmp_path: Path, *, with_env: bool = True, env_body: str | None = None) -> Path:
     """自洽假 harness：够真 DEPLOY_SH 走完六步，且全程只写 tmp_path。
 
@@ -3251,7 +3308,12 @@ def _tx_harness(tmp_path: Path, *, with_env: bool = True, env_body: str | None =
        index journal 隔离段要 import 它，桩一个假的等于自己给自己发绿灯。
     """
     h = tmp_path / "tx-harness"
-    _tx_write(h / "scripts" / "verify_vault_install.py", "")  # 空文件 ⇒ python3 rc 0
+    # ⚠️ CARD-G2-7b-TAIL ①：这里原先是**空文件**（python3 rc 0、什么都不写）。步 4 现在
+    #    要读校验器落下的报告、核它自报的基准（`# source` 行）—— 一个什么都不写的桩等于
+    #    「校验器说不出自己比的是谁」，按 fail-closed 会把整条 tx 用例拦在步 4。
+    #    桩既然站在校验器的位置上，就得守同一份**报告契约**：把收到的 `--source`
+    #    原样写进报告头。桩越省事，用例验的就越不是真实形态。
+    _tx_write(h / "scripts" / "verify_vault_install.py", _TX_VERIFIER)
     _tx_write(h / "scripts" / "vault-install-manifest.json", "{}\n")
     _tx_write(h / "scripts" / "send_bark.py", "def vault_key(name):\n    return name\n")
     _tx_write(h / "docker-compose.yml", "services: {}\n")
@@ -3755,9 +3817,13 @@ def test_g2_8_activate_tx_opens_no_new_write_surface():
     declared = set(re.findall(r'"([a-z0-9-]+):\$', block))
     assert declared == {
         "env-file",
-        "env-file-tmp",
+        # CARD-G2-7b-TAIL ②：`env-file-tmp` / `key-file-tmp` / `ev-deploy-report-tmp`
+        # 三条**固定名**登记退场，换成它们真正的写入面 = 目录（临时件改由
+        # `mk_tmp_beside` 在同目录以 mktemp(O_EXCL) 建，名字步 1 时还不知道）。
+        # 与上面 `AGENTS.md.tmp` 那条 ⚠️ 同律：清单只登记真正会被写的对象。
+        "env-file-tmp-dir",
         "key-file",
-        "key-file-tmp",
+        "key-file-tmp-dir",
         "plugin-data",
         "harness-mainjs",
         "harness-build-out",
@@ -3765,7 +3831,7 @@ def test_g2_8_activate_tx_opens_no_new_write_surface():
         "ev-verify-report",
         "ev-compose-config",
         "ev-deploy-report",
-        "ev-deploy-report-tmp",
+        "ev-tmp-dir",
         "ev-npm-cache",
         "ev-npm-logs",
         # CARD-HOSTS-OPENCODE：`--hosts` 含 opencode 时步 3 的写面（条件 append）。
@@ -3788,11 +3854,24 @@ def test_g2_8_activate_tx_opens_no_new_write_surface():
     # 步 5 新增的记账落点必须是 $cfg（= ev-compose-config），不是新文件
     act = src[src.index("step5_activate() {") : src.index("also_push_daily_review() {")]
     news = set(re.findall(r'>{1,2} "\$([A-Za-z_][A-Za-z0-9_]*)"', act))
-    assert news <= {"cfg"}, f"步 5 出现了 $cfg 之外的写对象: {sorted(news)}"
+    # ⚠️ CARD-G2-7b-TAIL ②：多出的 `$ctmp` **不是**一个新写面 —— 它是 `$cfg` 的同目录
+    #    mktemp 临时件，落在已申报的 `ev-tmp-dir:$EVIDENCE_DIR` 里，写完立刻 mv 成 $cfg。
+    #    只把它加进白名单等于放宽判据，所以同时钉死它的**来历**与**去向**：
+    #    必须由 `mk_tmp_beside "$cfg"` 产生（⇒ 与 $cfg 同目录、随机名），且必须被发布。
+    assert news <= {"cfg", "ctmp"}, f"步 5 出现了 $cfg/$ctmp 之外的写对象: {sorted(news)}"
+    if "ctmp" in news:
+        assert 'ctmp="$(mk_tmp_beside "$cfg")"' in act, (
+            '$ctmp 不是由 mk_tmp_beside "$cfg" 产生的 —— 那它就是一个没申报的新写面'
+        )
+        assert 'mv "$ctmp" "$cfg"' in act, "$ctmp 写完没有发布成 $cfg"
     # 开账之后，步 5 里再没有**按路径**的写：docker 的 up/down 输出也走 fd 9
     # （Codex r3 HIGH：否则「判据说这个路径不可信」与「照这个路径写」会并存）。
     assert act.count(">&9 2>&1") == 3, f"up/down 的输出没有全部走 fd 9（实测 {act.count('>&9 2>&1')} 处）"
-    after_open = act[act.index("act_journal_open") :]
+    # ⛔ 必须在**去注释代码**上判（CARD-G2-7b-TAIL 实测）：解释「为什么不能这样写」的
+    #    注释里就逐字写着 `>> "$cfg"`，而取名面的起点又是「第一次出现 act_journal_open」——
+    #    在注释里提一句这个函数名就会把那段说明卷进扫描区，判据于是被自己的文档打红。
+    act_code = _decomment(act)
+    after_open = act_code[act_code.index("act_journal_open") :]
     assert '>> "$cfg"' not in after_open, "开账之后仍有按路径的追加写"
     # act_stage 自己那一处写在函数外（写 $ACT_JOURNAL）⇒ 上面那段扫不到它。
     # 把「ACT_JOURNAL 只能被赋成 $cfg」单独钉住，否则改一行就能把账落到新文件里。
@@ -5674,3 +5753,803 @@ def test_displaced_target_is_truncated_without_writing_a_marker():
     for tag in ("PYCFG", "PYSEC"):
         b = _decomment(blocks[tag])
         assert "已不在我们放的位置" in b, f"{tag} 没有显式的「被搬走」诊断"
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# CARD-G2-7b-TAIL (BATCH-2026-09-11-第十四批 / T2-E) —— G2-7b 尾巴 5 项
+#
+# 本节的门与本文件别处**最大的不同**：真跑 `--apply` 的用例在这里**不挂**
+# `main.js` 的 skipif。那条 skipif 在本车道树上恒成立（树上没有 gitignored
+# main.js），挂上去 = 整组负控静默跳过，「全绿」于是绿在「一条都没跑」上。
+# 改为由 `harness_main_js` 夹具补一个**由 hotkeys.json 派生**的桩再还原：
+#   · 桩只为了让校验器能核对快捷键绑定（它按字面量取命令 id），不参与任何断言；
+#   · 派生而不是手抄 ⇒ hotkeys 改了桩跟着改，不会钉死一份会漂移的清单；
+#   · 夹具无条件还原（树上原本就有 main.js 时**不动它**）。
+# ═══════════════════════════════════════════════════════════════════════════
+
+_TAIL_HOTKEYS = REPO_ROOT / "canvas-vault" / ".obsidian" / "hotkeys.json"
+_TAIL_MAIN_JS = REPO_ROOT / "canvas-vault" / ".obsidian" / "plugins" / "canvas-learning-system" / "main.js"
+_TAIL_HOTKEY_PREFIX = "canvas-learning-system:"
+
+
+@pytest.fixture
+def harness_main_js():
+    """缺 gitignored main.js 时补一个桩，跑完无条件还原（原本就有则一字不动）。"""
+    if _TAIL_MAIN_JS.exists():
+        yield
+        return
+    import json
+
+    bindings = json.loads(_TAIL_HOTKEYS.read_text(encoding="utf-8"))
+    ids = [k[len(_TAIL_HOTKEY_PREFIX) :] for k in bindings if k.startswith(_TAIL_HOTKEY_PREFIX)]
+    assert ids, f"{_TAIL_HOTKEYS} 里没有 {_TAIL_HOTKEY_PREFIX}* 绑定 —— 桩无从派生"
+    body = "// CARD-G2-7b-TAIL 测试桩（跑完即删）\n" + "".join(f'addCommand({{id: "{i}"}});\n' for i in ids)
+    _TAIL_MAIN_JS.parent.mkdir(parents=True, exist_ok=True)
+    _TAIL_MAIN_JS.write_text(body, encoding="utf-8")
+    try:
+        yield
+    finally:
+        _TAIL_MAIN_JS.unlink(missing_ok=True)
+
+
+def _tail_script_copy(tmp_path: Path, name: str, *mutations: tuple[str, str]) -> Path:
+    """把 `deploy-vault.sh` 复制到 tmp 下再**整行**替换，返回副本路径。
+
+    ⛔ 走副本，绝不动工作树里的 DEPLOY_SH（禁 `git stash` / `git checkout`）。
+    ⛔ **整行锚定**而不是子串替换：本脚本的注释里也逐字写着 `src="$SRC_MIRROR"`
+       这类字面量，子串替换会把说明文字一并改掉 —— 那样跑出来的就不是「只差这一行」
+       的对照，结论归因不到那一行上。锚点必须恰好命中 1 行，否则当场红。
+    ⛔ 判据脚本必须与副本**同目录**：`deploy-vault.sh` 按 `dirname "$0"` 找
+       `cls_forbidden_paths.py`，缺了会在步 1 就 FAIL（rc 71）—— 负控于是红在一道
+       **更早**的判据上，证明不了想证明的那一条（本卡实测踩过一次）。
+    """
+    d = tmp_path / name
+    d.mkdir(parents=True, exist_ok=True)
+    lines = DEPLOY_SH.read_text(encoding="utf-8").split("\n")
+    for old, new in mutations:
+        idx = [i for i, ln in enumerate(lines) if ln == old]
+        assert len(idx) == 1, f"整行锚点 {old!r} 命中 {len(idx)} 行（应恰 1 行）"
+        lines[idx[0]] = new
+    p = d / "deploy-vault.sh"
+    p.write_text("\n".join(lines), encoding="utf-8")
+    p.chmod(0o755)
+    shutil.copy2(FORBID_PY, d / FORBID_PY.name)
+    return p
+
+
+def _tail_apply(
+    tmp_path: Path,
+    sub: str,
+    port: str,
+    *extra: str,
+    script: Path | None = None,
+    env_extra: dict[str, str] | None = None,
+    vault: Path | None = None,
+    env_dir: Path | None = None,
+):
+    """`--apply` 一跑，落在 `tmp_path/<sub>/` 下（每条用例各自独立的一棵树）。"""
+    base = tmp_path / sub
+    env_d = env_dir if env_dir is not None else base / "env"
+    ev_d = base / "ev"
+    v = vault if vault is not None else base / "vaults" / "probe_x"
+    env = {"CLS_LIVE_VAULT": str(_fake_live(base))}
+    if env_extra:
+        env.update(env_extra)
+    return _run(
+        "--vault",
+        str(v),
+        "--harness",
+        str(REPO_ROOT),
+        "--port",
+        port,
+        "--hosts",
+        "claude",
+        "--env-dir",
+        str(env_d),
+        "--evidence-dir",
+        str(ev_d),
+        "--apply",
+        *extra,
+        env=env,
+        script=script,
+    )
+
+
+def _tail_step_line(stdout: str, n: int) -> str:
+    m = re.search(rf"^\[{n}/6\] \S+: (OK|SKIP|FAIL) (.*)$", stdout, re.M)
+    assert m, f"stdout 里没有 [{n}/6] 那一行:\n{stdout}"
+    return f"{m.group(1)} {m.group(2)}"
+
+
+# ═══ (b) ① 目标漂移负控 —— 把步 4 的基准从源镜像换成目标 vault 自己 ══════════
+#
+# 实证（改前，存档 evidence-g27b-tail/）：`src="$SRC_MIRROR"` → `src="$VAULT"` 之后
+# 部署 **rc=0**、报告 `content-drift : 0`、`match : 26`、步 4 消息仍写「基准=源镜像」——
+# 既有门 `test_step4_actually_evaluates_content_drift_when_port_differs` 的三条断言
+# 一条都没红。目标自己跟自己比，drift 恒 0，内容比较这一整个轴其实已经空转。
+# 修复落在 deploy-vault.sh 自己（步 4 读校验器报告的 `# source` 回执并与**独立算出的**
+# 应有基准对照），不需要动 T7 的 verify_vault_install.py。
+
+_SRC_MIRROR_LINE = '        src="$SRC_MIRROR"'
+_SRC_VAULT_LINE = '        src="$VAULT"'
+
+
+def test_step4_src_drift_negctl_control_unmutated_copy_succeeds(tmp_path: Path, harness_main_js):
+    """控制组：**同一套副本机关**、不做任何替换 —— 必须整跑 rc 0 且步 4 OK。
+
+    没有这一条，下面那条门可能只证明了「副本机关本身把脚本跑坏了」。
+    """
+    s = _tail_script_copy(tmp_path, "clean")
+    r = _tail_apply(tmp_path, "ctl", "8189", script=s)
+    assert r.returncode == 0, f"未突变副本跑不通: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    assert _tail_step_line(r.stdout, 4).startswith("OK"), r.stdout
+
+
+def test_step4_src_drift_negctl_basis_swapped_to_vault_is_caught(tmp_path: Path, harness_main_js):
+    """负控：基准被换成目标 vault 自己 ⇒ 必须当场 FAIL，不得报成功。"""
+    s = _tail_script_copy(tmp_path, "mut", (_SRC_MIRROR_LINE, _SRC_VAULT_LINE))
+    r = _tail_apply(tmp_path, "mut-run", "8189", script=s)
+    assert r.returncode == 74, f"基准漂移未被步 4 拦下: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    line = _tail_step_line(r.stdout, 4)
+    assert line.startswith("FAIL"), line
+    assert "目标 vault 自己" in line, f"拦下了但说错了原因: {line}"
+
+
+def test_step4_drift_negctl_would_pass_without_the_receipt_check(tmp_path: Path, harness_main_js):
+    """⛔ 证明上一条门**承重在回执核对上**，而不是在别的什么地方。
+
+    同时做两处替换：基准换成 `$VAULT` **且**把回执核对的期望值退回成 `$src` 自己
+    （拿被改的变量核对它自己 = 恒相等）。此时整跑必须重新变成 rc 0 ——
+    这正是修复前的行为，也说明「独立算一遍期望值」那一步是不可省的。
+    """
+    s = _tail_script_copy(
+        tmp_path,
+        "mut2",
+        (_SRC_MIRROR_LINE, _SRC_VAULT_LINE),
+        ('    [ -n "$_mirror_at" ] && _want_src="$_mirror_at"', '    _want_src="$src"'),
+    )
+    r = _tail_apply(tmp_path, "mut2-run", "8189", script=s)
+    assert r.returncode == 0, (
+        "期望值退回成 `$src` 之后仍被拦下 —— 那说明拦住漂移的不是回执核对，"
+        f"这条门的归因写错了: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    )
+
+
+# ═══ (c) ② 五处 bash 写点：同目录 mktemp(O_EXCL) → 写 → mv ═════════════════════
+#
+# 根问题不是「写的时候会不会穿链」（那已有 `assert_writable_now` 复查），而是
+# **终路径的名字可以被预先算出**：`$ENV_FILE.tmp` / `$keyfile.tmp` / `$out.tmp`
+# 这些名字攻击者动手在我们之前。复查确实能**看见**预置的链并拒绝 —— 但那是把
+# 「内容越界」换成了「每一次部署都停在同一个地方」(拒绝服务)，预置方仍然赢了。
+# 改成 mktemp 之后那个名字与我们无关，两种结果都不成立。
+
+
+def test_five_bash_write_sites_no_longer_redirect_into_predictable_paths():
+    """源码门：五处写点都不再把 `>`/`: >` 对准一个可预先命名的终路径。
+
+    ⛔ 判据一律在**去注释**的代码上做：说明为什么删掉它们的注释里就逐字写着这些
+       字面量，不剥注释的话这条门会被自己的文档打红（本文件别处已为此栽过）。
+    """
+    code = _decomment(DEPLOY_SH.read_text(encoding="utf-8"))
+    for gone in (': > "$ENV_FILE.tmp"', '> "$keyfile.tmp"', '> "$out.tmp"', ': > "$ilog"', '> "$cfg"'):
+        assert gone not in code, f"仍在裸写可预先命名的终路径: {gone}"
+    # 反面：五处都必须真的经过同目录 mktemp（只删旧写法不算修好）
+    for got in (
+        'SEED_TMP="$(mk_tmp_beside "$ENV_FILE")"',
+        'ktmp="$(mk_tmp_beside "$keyfile")"',
+        'itmp="$(mk_tmp_beside "$ilog")"',
+        'ctmp="$(mk_tmp_beside "$cfg")"',
+        'otmp="$(mk_tmp_beside "$out")"',
+    ):
+        assert got in code, f"写点没有改走同目录 mktemp: {got}"
+    # 每一处都必须**发布**出去 —— 只建临时件不 mv 等于把产物丢了
+    for pub in (
+        'mv "$SEED_TMP" "$ENV_FILE"',
+        'mv "$ktmp" "$keyfile"',
+        'mv "$itmp" "$ilog"',
+        'mv "$ctmp" "$cfg"',
+        'mv "$otmp" "$out"',
+    ):
+        assert pub in code, f"临时件没有被发布: {pub}"
+
+
+def test_mk_tmp_beside_is_the_single_source_for_temp_creation():
+    """临时件的建法必须**只有一份**：五个写点各抄一遍 mktemp 必然漂移（本仓栽过两次）。"""
+    code = _decomment(DEPLOY_SH.read_text(encoding="utf-8"))
+    assert code.count("mk_tmp_beside() {") == 1, "mk_tmp_beside 定义不止一份"
+    # 除了 `mk_tmp_beside` 自己与步 4 的源镜像目录，脚本里不该再有别的 mktemp 调用
+    # ⚠️ 只数**调用**（`$(mktemp …)`）：错误消息里也会提到 mktemp 这个词，
+    #    按词计数会把文案也数进来（本门第一版就是这么红的）。
+    calls = [ln.strip() for ln in code.splitlines() if "$(mktemp" in ln]
+    assert len(calls) == 2, f"mktemp 调用点不是 2 处（helper + 源镜像目录）: {calls}"
+    assert any('mktemp "$dir/.cls-deploy-tmp.XXXXXXXX"' in c for c in calls), f"helper 的建法变了: {calls}"
+    assert any("cls-srcmirror-XXXXXX" in c for c in calls), f"源镜像目录的建法变了: {calls}"
+
+
+def _tail_preplace_run(tmp_path: Path, sub: str, script: Path | None, kind: str):
+    """在**可预先算出的** `.env.<vault>.tmp` 名字上预置一条链，然后整跑 `--apply`。
+
+    kind = "symlink" | "hardlink"。返回 (CompletedProcess, 受害文件 Path)。
+    """
+    base = tmp_path / sub
+    env_d = base / "env"
+    env_d.mkdir(parents=True, exist_ok=True)
+    victim = base / "victim.txt"
+    victim.write_text("VICTIM-ORIGINAL\n", encoding="utf-8")
+    bait = env_d / ".env.probe_x.tmp"
+    if kind == "symlink":
+        bait.symlink_to(victim)
+    else:
+        os.link(victim, bait)
+    r = _tail_apply(tmp_path, sub, "8189", script=script, env_dir=env_d)
+    return r, victim
+
+
+@pytest.mark.parametrize("kind", ["symlink", "hardlink"])
+def test_preplaced_link_on_legacy_tmp_name_is_neither_followed_nor_blocking(tmp_path: Path, harness_main_js, kind: str):
+    """预置在旧固定名上的链：既不能被穿过去，也不能把部署卡死。
+
+    改前实测（存档 evidence-g27b-tail/）：`rc=71`，步 1 报「待写对象是软链」——
+    受害文件确实没被动，但**一次完全正常的部署被一个外人放的文件挡住了**。
+    改后：`rc=0`，受害文件仍逐字节原样（我们根本没碰那个名字）。
+    """
+    r, victim = _tail_preplace_run(tmp_path, f"pre-{kind}", None, kind)
+    assert r.returncode == 0, f"预置 {kind} 把部署卡死了: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    assert victim.read_text(encoding="utf-8") == "VICTIM-ORIGINAL\n", f"预置 {kind} 被穿过去了"
+
+
+@pytest.mark.parametrize("kind", ["symlink", "hardlink"])
+def test_preplaced_link_negctl_old_fixed_name_write_is_blocked(tmp_path: Path, harness_main_js, kind: str):
+    """⛔ 负控：把固定名登记塞回待写清单 ⇒ 上一条门必须重新变红（rc 71）。
+
+    证明上一条门**承重在「那条固定名登记退场」上**，而不是在别的什么地方碰巧绿了。
+    """
+    s = _tail_script_copy(
+        tmp_path,
+        f"legacy-{kind}",
+        ('        "env-file-tmp-dir:$ENV_DIR"', '        "env-file-tmp:$ENV_FILE.tmp"'),
+    )
+    r, victim = _tail_preplace_run(tmp_path, f"legacy-run-{kind}", s, kind)
+    assert r.returncode == 71, (
+        f"把固定名塞回清单后仍不拦 —— 那说明上一条门证明的不是它自己以为的那件事: rc={r.returncode}"
+    )
+    assert victim.read_text(encoding="utf-8") == "VICTIM-ORIGINAL\n", "负控本身把受害文件改了"
+
+
+# ═══ (d-i) ③ rc 75 / 76 必须从**部署入口**跑得出来 ═════════════════════════════
+#
+# 改前唯一的覆盖是 `--help` 的 rc 表里有 "75"/"76" 两个**字符**（test_help_… ）——
+# 那证明的是文档里写了这两个数，不是脚本真会这样退出。
+
+
+def _tail_fake_bin(tmp_path: Path, name: str, body: str) -> Path:
+    d = tmp_path / f"bin-{name}"
+    d.mkdir(parents=True, exist_ok=True)
+    f = d / name
+    f.write_text(body, encoding="utf-8")
+    f.chmod(0o755)
+    return d
+
+
+def test_activate_failure_exits_75_from_the_deploy_entry(tmp_path: Path, harness_main_js):
+    """步 5 失败 ⇒ 进程 rc **75**。注入点 = 一个恒失败的假 `docker`（绝不会起任何容器）。"""
+    fake = _tail_fake_bin(tmp_path, "docker", "#!/usr/bin/env bash\nexit 1\n")
+    r = _tail_apply(
+        tmp_path,
+        "rc75",
+        "8189",
+        "--activate",
+        env_extra={"PATH": f"{fake}:{os.environ.get('PATH', '')}"},
+    )
+    assert r.returncode == 75, f"步 5 失败没映射成 75: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    assert _tail_step_line(r.stdout, 5).startswith("FAIL"), r.stdout
+    assert "未起任何容器" in r.stdout, r.stdout
+
+
+def test_evidence_failure_exits_76_from_the_deploy_entry(tmp_path: Path, harness_main_js):
+    """步 6 失败 ⇒ 进程 rc **76**。注入点 = 一个恒失败的假 `shasum`（只有步 6 用它）。"""
+    fake = _tail_fake_bin(tmp_path, "shasum", "#!/usr/bin/env bash\nexit 1\n")
+    r = _tail_apply(
+        tmp_path,
+        "rc76",
+        "8189",
+        env_extra={"PATH": f"{fake}:{os.environ.get('PATH', '')}"},
+    )
+    assert r.returncode == 76, f"步 6 失败没映射成 76: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    reports = sorted((tmp_path / "rc76" / "ev").glob("deploy-*.txt"))
+    assert reports, "步 6 失败时证据仍必须发布出来（否则事后无从复核）"
+    assert "SHASUM-FAILED" in reports[-1].read_text(encoding="utf-8"), "报告里没有 SHASUM-FAILED 行"
+
+
+def test_rc75_negctl_goes_red_when_the_70_plus_n_mapping_is_broken(tmp_path: Path, harness_main_js):
+    """⛔ 反向负控：把 `exit $((70 + n))` 改成 `exit 1` ⇒ 上面两条门必须变红。
+
+    否则它们可能只是碰巧看到一个非零 rc。这条钉的是「7N 映射本身承重」。
+    """
+    s = _tail_script_copy(tmp_path, "nomap", ("            exit $((70 + n))", "            exit 1"))
+    fake = _tail_fake_bin(tmp_path, "docker", "#!/usr/bin/env bash\nexit 1\n")
+    r = _tail_apply(
+        tmp_path,
+        "nomap-run",
+        "8189",
+        "--activate",
+        script=s,
+        env_extra={"PATH": f"{fake}:{os.environ.get('PATH', '')}"},
+    )
+    assert r.returncode == 1, f"破坏 7N 映射后仍得到 {r.returncode} —— 那 75 不是这条映射给的"
+
+
+def test_step_body_failure_maps_to_70_plus_n_not_bare_1(tmp_path: Path, harness_main_js):
+    """步骤**函数体内**的失败必须经 run_step 映射成 7N，不得退化成裸 rc=1。
+
+    形态照脚本里那条注释钉的回归：`{ …; exit 1; }` 在当前 shell 执行会绕过 run_step 的
+    映射，用户只看到 rc=1、没有任何 `[N/6] FAIL` 行。这里从**入口**证明它没回来：
+    把 `--env-dir` 指到一个不可写父目录下 ⇒ seed 的 `mkdir -p` 失败。
+
+    ⚠️ 注入点实测落在**步 2**（`seed_env_file` 由 `step2_install` 调用，不是步 3）⇒
+       期望 rc 72。写 73 会让这条门红在「我猜错了它在第几步」上，而不是红在映射坏掉上。
+    """
+    ro = tmp_path / "readonly"
+    ro.mkdir()
+    ro.chmod(0o500)
+    try:
+        r = _tail_apply(tmp_path, "map73", "8189", env_dir=ro / "env")
+    finally:
+        ro.chmod(0o755)
+    assert r.returncode == 72, f"步 2 体内失败没映射成 72: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    assert _tail_step_line(r.stdout, 2).startswith("FAIL"), r.stdout
+    assert r.returncode != 1, "退化成裸 rc=1 = 绕过了 run_step 的 7N 映射"
+
+
+# ═══ (d-ii) ③ 落盘的「## 六行状态」必须真有六行 ════════════════════════════════
+
+
+def _tail_report_step_lines(ev_dir: Path) -> list[str]:
+    reports = sorted(ev_dir.glob("deploy-*.txt"))
+    assert reports, f"没有 deploy 报告: {sorted(ev_dir.iterdir())}"
+    body = reports[-1].read_text(encoding="utf-8")
+    m = re.search(r"^## 六行状态\n(.*?)^## ", body, re.M | re.S)
+    assert m, f"报告里没有「## 六行状态」段:\n{body[:800]}"
+    return [ln.strip() for ln in m.group(1).splitlines() if ln.strip()]
+
+
+def test_deploy_report_records_all_six_step_lines(tmp_path: Path, harness_main_js):
+    """改前实测只有前五行（步 6 那行由 run_step 在**报告写完之后**才 emit）。"""
+    r = _tail_apply(tmp_path, "six", "8189")
+    assert r.returncode == 0, f"rc={r.returncode}\n{r.stdout}{r.stderr}"
+    lines = _tail_report_step_lines(tmp_path / "six" / "ev")
+    assert len(lines) == 6, f"「六行状态」实际 {len(lines)} 行:\n" + "\n".join(lines)
+    for n in range(1, 7):
+        assert lines[n - 1].startswith(f"[{n}/6] "), f"第 {n} 行不是 [{n}/6]: {lines[n - 1]}"
+    assert lines[5].startswith("[6/6] evidence: OK "), lines[5]
+    # 落盘的那一行必须与 stdout 上 run_step 事后 emit 的那一行**逐字相同** ——
+    # 两处各写一份文案必然漂移，届时报告与终端会各说各话。
+    emitted = re.search(r"^\[6/6\] .*$", r.stdout, re.M)
+    assert emitted and emitted.group(0) == lines[5], f"报告与终端的第 6 行不一致:\n{lines[5]}\n{emitted}"
+
+
+def test_deploy_report_sixth_line_says_fail_when_step6_fails(tmp_path: Path, harness_main_js):
+    """步 6 自己失败时，第 6 行必须写 FAIL，且末尾 rc 行与进程返回码一致（都是 76）。"""
+    fake = _tail_fake_bin(tmp_path, "shasum", "#!/usr/bin/env bash\nexit 1\n")
+    r = _tail_apply(
+        tmp_path,
+        "six-fail",
+        "8189",
+        env_extra={"PATH": f"{fake}:{os.environ.get('PATH', '')}"},
+    )
+    assert r.returncode == 76, f"rc={r.returncode}\n{r.stdout}{r.stderr}"
+    lines = _tail_report_step_lines(tmp_path / "six-fail" / "ev")
+    assert len(lines) == 6, f"「六行状态」实际 {len(lines)} 行:\n" + "\n".join(lines)
+    assert lines[5].startswith("[6/6] evidence: FAIL "), lines[5]
+    report = sorted((tmp_path / "six-fail" / "ev").glob("deploy-*.txt"))[-1].read_text(encoding="utf-8")
+    assert report.rstrip().endswith("rc=76"), f"落盘 rc 行与进程返回码矛盾:\n{report[-200:]}"
+
+
+# ═══ (f) M-1 `assert_writable_now` 的链接数三态补全 ═════════════════════════════
+#
+# 两个 fail-open 实测（bash 3.2，本机）：
+#   · `[ 0 -gt 1 ]`            → 为假 ⇒ **放行**；
+#   · `[ <23位数字> -gt 1 ]`   → `integer expression expected`、rc=2 ⇒ `if` 判假 ⇒ **放行**。
+# 「比较一旦出错就放行」与步 1 npm 上限、步 5 Lance 上限是同一类，处置也同律：
+# 先把值收窄成一定能安全比较的形状，数值比较放最后。
+
+
+def _tail_fake_python3_rc(tmp_path: Path, c_output: str, rc: int) -> Path:
+    """假 python3：`-c` 时打印 c_output 并以 rc 退出；其余参数原样转给真 python3。"""
+    real = shutil.which("python3")
+    assert real, "宿主没有 python3"
+    fake_bin = tmp_path / "bin-py"
+    fake_bin.mkdir(exist_ok=True)
+    f = fake_bin / "python3"
+    f.write_text(
+        "#!/usr/bin/env bash\n"
+        'for a in "$@"; do\n'
+        '  if [ "$a" = "-c" ]; then\n'
+        r'    printf "%s\n" ' + shlex.quote(c_output) + "\n"
+        f"    exit {rc}\n"
+        "  fi\n"
+        "done\n"
+        "exec " + shlex.quote(real) + ' "$@"\n',
+        encoding="utf-8",
+    )
+    f.chmod(0o755)
+    return fake_bin
+
+
+def test_preflight_rejects_zero_nlink(tmp_path: Path):
+    """`[ -e ]` 刚判过对象存在 ⇒ st_nlink 不可能是 0。拿到 0 = 探针在说谎，必须拒。
+
+    改前：`[ 0 -gt 1 ]` 为假 ⇒ 静默放行（该拦的没拦）。
+    """
+    r = _preflight_with_existing_env_file(tmp_path, "8241", _fake_python3(tmp_path, "0"))
+    assert r.returncode == 71, f"链接数 0 被放行: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    assert "链接数回了 0" in r.stdout, r.stdout
+
+
+def test_preflight_rejects_overlong_nlink(tmp_path: Path):
+    """超长纯数字串能过字符集判据，却会让 `[ -gt ]` rc=2 ⇒ 改前**放行**。按位数上限拒。"""
+    r = _preflight_with_existing_env_file(tmp_path, "8242", _fake_python3(tmp_path, "9" * 23))
+    assert r.returncode == 71, f"超长链接数被放行: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    assert "位数过多" in r.stdout, r.stdout
+
+
+def test_preflight_rejects_nonzero_rc_from_the_nlink_probe(tmp_path: Path):
+    """探针**非零退出**也算「问不出来」—— 打了个看似合法的数字也不行。
+
+    改前只看输出、不看 rc：一个「打印 1 然后 exit 1」的探针会被当成「链接数是 1」。
+    """
+    r = _preflight_with_existing_env_file(tmp_path, "8243", _tail_fake_python3_rc(tmp_path, "1", 3))
+    assert r.returncode == 71, f"探针非零退出被当成合法取值: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    assert "探针非零退出" in r.stdout, r.stdout
+
+
+def test_preflight_still_passes_on_a_legal_single_link(tmp_path: Path):
+    """控制组：合法的 `1` 必须放行 —— 否则上面三条只是证明了「凡文件存在就拦」。"""
+    r = _preflight_with_existing_env_file(tmp_path, "8244", _fake_python3(tmp_path, "1"))
+    assert r.returncode == 0, f"合法链接数 1 被误拦: rc={r.returncode}\n{r.stdout}{r.stderr}"
+
+
+def test_nlink_char_class_is_locale_independent():
+    """字符集必须逐字符枚举，不得写 `[0-9]` 区间。
+
+    区间由 locale 的排序决定：`LC_ALL=ar_EG.UTF-8` 下阿拉伯数字能过门，随后
+    `[ -gt ]` 报错 rc=2、`if` 判假 ⇒ 反而**放行**。与步 1/步 5 两处上限同律。
+    """
+    src = DEPLOY_SH.read_text(encoding="utf-8")
+    fn = src[src.index("assert_writable_now() {") : src.index("MK_TMP_ERR=")]
+    # ⛔ 这里**不能**用 `_decomment`：它按第一个 `#` 截断整行，而 bash 的
+    #    `${#nlink}`（取长度）里就带着一个 `#` —— 位数上限那一行会被它整条吃掉，
+    #    判据于是「找不到锚点」而红，原因却与被测代码无关。改成只剥**整行**注释：
+    #    本函数里的说明都是整行注释（它们逐字写着 `[!0-9]`，不剥就会自己打红自己）。
+    code = "\n".join(ln for ln in fn.splitlines() if not ln.lstrip().startswith("#"))
+    assert "*[!0123456789]*" in code, "链接数判据没有逐字符枚举字符集"
+    assert "[!0-9]" not in code, "链接数判据仍在用 locale 相关的 `[0-9]` 区间"
+    # 数值比较必须排在字符集/长度收窄**之后** —— 顺序反了就又能 rc=2 fail-open
+    i_class = code.index("*[!0123456789]*")
+    i_len = code.index('"${#nlink}" -gt 10')
+    i_cmp = code.index('"$nlink" -gt 1')
+    assert i_class < i_len < i_cmp, f"收窄与比较的顺序不对: {i_class}/{i_len}/{i_cmp}"
+
+
+# ═══ (f) M-2 两条源码门从 count() 收窄为查语义/顺序 ═════════════════════════════
+
+
+def _tail_heredoc_blocks(src: str) -> dict[str, str]:
+    """取出**所有** `<< 'TAG'` heredoc 的正文（`_py_blocks` 只认 4 个固定 tag）。"""
+    out: dict[str, str] = {}
+    for i, m in enumerate(re.finditer(r"<< *'([A-Z0-9_]+)'[^\n]*\n(.*?)\n\1\n", src, re.S)):
+        out[f"{m.group(1)}#{i}"] = m.group(2)
+    return out
+
+
+def _ftruncate_without_preceding_nlink_guard(src: str) -> list[str]:
+    """每一处 `os.ftruncate(fd, 0)` 之前必须**先出现过**链接数检查；返回违规块名。
+
+    ⛔ 这是 M-2 要收窄掉的那一类：`count("os.ftruncate(fd, 0)") == 6` 数得对，
+       却对**顺序**一无所知 —— 把所有 nlink 检查挪到截断之后，计数一个不少而截断
+       改的已经是共享 inode。门与负控共用本函数：负控若自己抄一份判据，红的就不是
+       同一条门。
+    ⚠️ 如实声明本判据的**分辨力上限**：它只判「该块内在截断之前是否出现过 st_nlink」，
+       分不清那个守卫护的是不是**这一个 fd**。同一块里若另有一处无关的 st_nlink 早于
+       截断，把真正的守卫挪走它不会红。要分辨到 fd 需要数据流分析，本卡未做（已登记）。
+    """
+    bad = []
+    for name, body in _tail_heredoc_blocks(src).items():
+        code = _decomment(body)
+        if "os.ftruncate(fd, 0)" not in code:
+            continue
+        guard = code.find("st_nlink")
+        for m in re.finditer(re.escape("os.ftruncate(fd, 0)"), code):
+            if guard == -1 or guard > m.start():
+                bad.append(name)
+                break
+    return bad
+
+
+def test_every_ftruncate_is_preceded_by_an_nlink_check():
+    """顺序门（M-2 收窄）：截断之前必须先查链接数，不只是「两个字面量都在」。"""
+    assert _ftruncate_without_preceding_nlink_guard(DEPLOY_SH.read_text(encoding="utf-8")) == []
+
+
+def test_ftruncate_order_gate_is_load_bearing():
+    """⛔ 负控：把某个块里的 nlink 检查挪到截断**之后** ⇒ 上面那条门必须变红。
+
+    纯 count 门对这个变异是**绿**的（两个字面量一个没少）—— 这正是收窄的理由。
+    """
+    src = DEPLOY_SH.read_text(encoding="utf-8")
+    blocks = _tail_heredoc_blocks(src)
+    name = next(n for n, b in blocks.items() if "os.ftruncate(fd, 0)" in _decomment(b) and "st_nlink" in b)
+    body = blocks[name]
+    lines = body.split("\n")
+    ti = next(i for i, ln in enumerate(lines) if "os.ftruncate(fd, 0)" in ln)
+    gis = [i for i, ln in enumerate(lines) if i < ti and "st_nlink" in ln and not ln.lstrip().startswith("#")]
+    assert gis, "本负控假定检查原本在截断之前"
+    # 把**全部**早于截断的 st_nlink 行搬到截断之后（判据只判「之前有没有出现过」，
+    # 只搬一条挡不住同块里另一处无关的 st_nlink —— 见判据自己的分辨力声明）。
+    kept = [ln for i, ln in enumerate(lines) if i not in set(gis)]
+    tj = next(i for i, ln in enumerate(kept) if "os.ftruncate(fd, 0)" in ln)
+    moved = kept[: tj + 1] + [lines[i] for i in gis] + kept[tj + 1 :]
+    mutated = src.replace(body, "\n".join(moved), 1)
+    # 纯 count 判据对这个变异毫无反应 —— 先把这一点摆出来
+    assert _decomment(mutated).count("os.ftruncate(fd, 0)") == _decomment(src).count("os.ftruncate(fd, 0)"), (
+        "变异改变了计数 —— 那这条负控证明不了「计数门挡不住换序」"
+    )
+    assert _ftruncate_without_preceding_nlink_guard(mutated) == [name], "换序之后顺序门仍绿"
+
+
+def _pending_write_shape_violations(src: str) -> list[str]:
+    """PENDING_WRITES 的每一项都必须是**整体带引号**的 `"label:$EXPR"`；返回违规项。
+
+    ⛔ M-2 要收窄的第二类：`count("local -a PENDING_WRITES=(") == 1` 只保证「清单只有
+       一份」，对「某一项丢了引号」（含空格的路径会被拆成两项 ⇒ 判据看到的对象与脚本
+       真写的对象不是一回事）毫无反应。身份（哪些 label、对应哪个路径表达式）由
+       `test_g2_8_activate_tx_opens_no_new_write_surface` 的精确集合门管 —— 这里**不再
+       抄一份清单**（两份手抄清单必然漂移，本仓已为此付过两次代价）。
+    """
+    block = _decomment(src[src.index("local -a PENDING_WRITES=(") : src.index("if check_forbidden_paths --outputs")])
+    items: list[str] = []
+    for m in re.finditer(r"PENDING_WRITES\+?=\(\s*(.*?)\s*\)", block, re.S):
+        items += [ln.strip() for ln in m.group(1).splitlines() if ln.strip()]
+    assert items, "取名面里一个清单项都没有 —— 判据自己坏了"
+    return [it for it in items if not re.fullmatch(r'"[a-z0-9-]+:\$[^"]*"', it)]
+
+
+def test_pending_writes_items_are_each_fully_quoted():
+    """引号门（M-2 收窄）：含空格的 vault 路径丢了引号会被拆成两个「对象」。"""
+    assert _pending_write_shape_violations(DEPLOY_SH.read_text(encoding="utf-8")) == []
+
+
+def test_pending_writes_quote_gate_is_load_bearing():
+    """⛔ 负控：给某一项去掉引号 ⇒ 上面那条门必须变红，而**原来的 count 门仍绿**。"""
+    src = DEPLOY_SH.read_text(encoding="utf-8")
+    old = '        "env-file:$ENV_FILE"'
+    assert src.count(old) == 1
+    mutated = src.replace(old, "        env-file:$ENV_FILE", 1)
+    assert mutated.count("local -a PENDING_WRITES=(") == 1, "去引号没有改变清单份数 —— count 门确实绿"
+    assert _pending_write_shape_violations(mutated), "去掉引号之后引号门仍绿"
+
+
+# ═══ (f) M-3 A3 只剥配对的首尾引号，不删值内引号 ═══════════════════════════════
+#
+# `tr -d` 删的是**全部位置**的 `"` 与 `'`：合法父路径 `/Users/O'Brien/vaults` 被剥成
+# `/Users/OBrien/vaults` ⇒ 与本次参数不相等 ⇒ A3 把一次完全正常的重跑判成
+# 「已有 .env 与参数矛盾」并以 rc 73 拒绝。原因写错的阻断比不阻断更难查。
+
+_M3_NEW_LINE = '            have="${line#*=}"'
+#: 改前那一行的**语义**重写（`tr -d` 无差别删引号），引号拼法改简单些以免在 Python 里
+#: 二次转义出错；`_tail_script_copy` 的整行锚点会保证它确实只命中改后那一行。
+_M3_OLD_LINE = '''            have="$(printf '%s' "$line" | cut -d= -f2- | tr -d "\\"'" | tr -d '\\r')"'''
+
+
+def _m3_run(tmp_path: Path, sub: str, script: Path | None):
+    """父目录带 `'` 的 vault + 预置一份**与本次参数一致**的 .env ⇒ A3 必须放行。"""
+    base = tmp_path / sub
+    root = base / "O'Brien" / "vaults"
+    root.mkdir(parents=True, exist_ok=True)
+    env_d = base / "env"
+    env_d.mkdir(parents=True, exist_ok=True)
+    (env_d / ".env.probe_x").write_text(
+        f"API_PORT=8189\nACTIVE_VAULT=probe_x\nCLS_BACKEND_CONTAINER=cls-probe_x-backend\nVAULTS_ROOT={root}\n",
+        encoding="utf-8",
+    )
+    return _tail_apply(tmp_path, sub, "8189", script=script, vault=root / "probe_x", env_dir=env_d)
+
+
+def test_a3_does_not_reject_a_parent_path_containing_an_apostrophe(tmp_path: Path, harness_main_js):
+    """改后：`/Users/O'Brien/vaults` 下的重跑不再被 A3 误拒。"""
+    r = _m3_run(tmp_path, "m3-new", None)
+    assert r.returncode == 0, f"带 ' 的父路径被误拒: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    assert _tail_step_line(r.stdout, 3).startswith("OK"), r.stdout
+
+
+def test_a3_apostrophe_negctl_old_tr_d_form_rejects(tmp_path: Path, harness_main_js):
+    """⛔ 负控：把那一行换回 `tr -d` 形态 ⇒ 同一份输入必须重新被误拒成 rc 73。
+
+    并且消息里会出现被剥掉撇号的 `OBrien` —— 那正是「原因写错」的样子。
+    """
+    s = _tail_script_copy(tmp_path, "m3-old", (_M3_NEW_LINE, _M3_OLD_LINE))
+    r = _m3_run(tmp_path, "m3-old-run", s)
+    assert r.returncode == 73, f"tr -d 形态下未复现误拒: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    assert "OBrien" in r.stdout, f"误拒消息里没有被剥掉撇号的路径: {r.stdout}"
+
+
+def test_a3_still_rejects_a_genuinely_conflicting_env(tmp_path: Path, harness_main_js):
+    """控制组：真矛盾（VAULTS_ROOT 指向别处）仍必须拒 —— 别把 A3 修成永远放行。"""
+    base = tmp_path / "m3-conflict"
+    root = base / "O'Brien" / "vaults"
+    root.mkdir(parents=True)
+    env_d = base / "env"
+    env_d.mkdir(parents=True)
+    (env_d / ".env.probe_x").write_text(
+        "API_PORT=8189\nACTIVE_VAULT=probe_x\nCLS_BACKEND_CONTAINER=cls-probe_x-backend\nVAULTS_ROOT=/somewhere/else\n",
+        encoding="utf-8",
+    )
+    r = _tail_apply(tmp_path, "m3-conflict", "8189", vault=root / "probe_x", env_dir=env_d)
+    assert r.returncode == 73, f"真矛盾被放行了: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    assert "矛盾" in r.stdout, r.stdout
+
+
+def test_a3_strips_a_matched_quote_pair_but_keeps_inner_quotes(tmp_path: Path, harness_main_js):
+    """配对的首尾引号仍要剥掉（dotenv 的引号语义只在两端）——值内的一个不能动。"""
+    base = tmp_path / "m3-quoted"
+    root = base / "O'Brien" / "vaults"
+    root.mkdir(parents=True)
+    env_d = base / "env"
+    env_d.mkdir(parents=True)
+    (env_d / ".env.probe_x").write_text(
+        f'API_PORT=8189\nACTIVE_VAULT=probe_x\nCLS_BACKEND_CONTAINER=cls-probe_x-backend\nVAULTS_ROOT="{root}"\n',
+        encoding="utf-8",
+    )
+    r = _tail_apply(tmp_path, "m3-quoted", "8189", vault=root / "probe_x", env_dir=env_d)
+    assert r.returncode == 0, f"带配对双引号的值未被正确剥引号: rc={r.returncode}\n{r.stdout}{r.stderr}"
+
+
+# ═══ (e) ④ `ancestor_symlink_hits` 的承重门 ════════════════════════════════════
+#
+# ⛔ **先说结论，再说做法**：本卡**没能**造出「只有 `ancestor_symlink_hits` 命中、
+#    逐段 walker 命不中」的拓扑。96 种组合（7 类软链 × 12 种尾巴 + 一层反向嵌套）
+#    实测：只 ancestor 命中 = **0** 个；只 walker 命中 = 1 个。存档见
+#    `_bmad-output/审查/evidence-g27b-tail/`。
+#    结构上也讲得通：`walk_visited` 每跟一条软链就把**目标**记进 visited，而
+#    `ancestor_symlink_hits` 用 `k(祖先)` 拿到的落点必然是那条链的目标之一 ⇒ 被覆盖。
+#    这与函数 docstring 里 r6 探针的结论一致（「停用它整份测试全绿」）。
+#
+# ⇒ 按卡文 (e) 的兜底口径：**不强造一条独立样本的假门**。改为把「保留作纵深」这件事
+#    做成**可测**的：先钉住覆盖关系（两轴都命中 = 现状），再证明在 walker 失效的那个
+#    配置下它**真的**是最后一道 —— 那才是「纵深」的可证形式。
+
+
+def _e_topology(tmp_path: Path) -> tuple[Path, list[str]]:
+    """造一组「祖先是软链、解开后落在保护目标里」的路径；返回 (保护目标, 路径列表)。
+
+    ⛔ 尾巴必须带 `/../`：不带的话（如 `L_direct/x`）整条路径的物理键就落在保护目标
+       **之内**，规则 3 当场命中 ⇒ 两条软链轴根本没被调用到，门会绿在一道**更早**的
+       判据上。本卡第一版就是这么绿的，是「两轴都中和掉仍全 HIT」这条断言抓出来的。
+       加了 `..` 之后落点逃到目标之外（实测 `k(p)` = 目标的父目录侧），规则 1-4 全部
+       落空，命中与否才真的取决于那两条轴。
+    """
+    root = tmp_path / "topo"
+    prot = root / "prot"
+    (prot / "inner").mkdir(parents=True)
+    safe = root / "safe"
+    safe.mkdir()
+    (safe / "L_direct").symlink_to(prot)
+    (safe / "L_inner").symlink_to(prot / "inner")
+    (safe / "L_chain").symlink_to(safe / "L_direct")
+    (safe / "L_rel").symlink_to("../prot")
+    return prot, [
+        str(safe / "L_direct") + "/../x",
+        str(safe / "L_inner") + "/../../x",
+        str(safe / "L_chain") + "/../x",
+        str(safe / "L_rel") + "/../x",
+    ]
+
+
+_E_DRIVER = """import sys
+
+sys.path.insert(0, sys.argv[1])
+from cls_forbidden_paths import hits  # noqa: E402
+
+prot = sys.argv[2]
+for p in sys.argv[3:]:
+    why = hits(p, [(prot.lower(), "PROT")], [], skip_env_name=True)
+    print("HIT" if why is not None else "MISS")
+"""
+
+
+def _e_verdicts(tmp_path: Path, name: str, prot: Path, paths: list[str], *mutations: tuple[str, str]) -> list[str]:
+    """把 `cls_forbidden_paths.py` **复制**一份（可变异）后在子进程里跑 `hits()`。
+
+    ⛔ 变异一律走副本：工作树里的 `cls_forbidden_paths.py` 一个字节都不动
+       （禁 `git stash` / `git checkout`；跑前跑后的 sha256 由收工核对）。
+    """
+    d = tmp_path / f"mod-{name}"
+    d.mkdir(parents=True, exist_ok=True)
+    text = FORBID_PY.read_text(encoding="utf-8")
+    for old, new in mutations:
+        assert text.count(old) == 1, f"变异锚点 {old!r} 命中 {text.count(old)} 次（应恰 1 次）"
+        text = text.replace(old, new)
+    (d / FORBID_PY.name).write_text(text, encoding="utf-8")
+    drv = d / "drv.py"
+    drv.write_text(_E_DRIVER, encoding="utf-8")
+    r = subprocess.run(
+        [sys.executable, str(drv), str(d), str(prot), *paths],
+        capture_output=True,
+        text=True,
+        timeout=_SUBPROCESS_TIMEOUT,
+    )
+    assert r.returncode == 0, f"驱动跑挂了: {r.stdout}{r.stderr}"
+    out = r.stdout.split()
+    assert len(out) == len(paths), f"输出条数对不上: {out}"
+    return out
+
+
+#: 中和两条轴各自的变异（整行锚点；两条都在 `hits()` 的末尾两步）。
+_E_KILL_WALKER = ("    ch = chain_hits(raw_path, targets, claude_prefixes)", "    ch = None")
+_E_KILL_ANCESTOR = (
+    "    return ancestor_symlink_hits(raw_path, targets, claude_prefixes)",
+    "    return None",
+)
+
+
+def test_ancestor_symlink_samples_are_currently_caught_by_both_axes(tmp_path: Path):
+    """现状钉死：这组样本**两条轴都**命中（这就是 `ancestor_symlink_hits` 没有独立门的原因）。
+
+    它不是一条「防漏」门，而是一条**覆盖关系**门：哪天有人削弱了逐段 walker，
+    这些样本会从「两轴都中」变成「只剩祖先轴中」，那时下面那条纵深门就会开始真正干活。
+    """
+    prot, paths = _e_topology(tmp_path)
+    assert _e_verdicts(tmp_path, "clean", prot, paths) == ["HIT"] * len(paths), "clean 态就有漏放"
+    # 验伪锚（承重）：两条轴一起中和必须**全漏** —— 否则这组样本是被规则 1-4 拦的，
+    # 下面所有关于「哪条轴顶上了」的话都不成立（本卡第一版正是栽在这里）。
+    assert _e_verdicts(tmp_path, "anchor", prot, paths, _E_KILL_WALKER, _E_KILL_ANCESTOR) == ["MISS"] * len(paths), (
+        "两条软链轴都中和了却仍全中 ⇒ 样本被更早的规则拦着，这组门什么都没测到"
+    )
+    # 去掉祖先轴：仍然全中 ⇒ 现有样本下它确实不承重（与 r6 探针同结论，如实钉住）
+    assert _e_verdicts(tmp_path, "no-anc", prot, paths, _E_KILL_ANCESTOR) == ["HIT"] * len(paths), (
+        "去掉祖先轴后出现漏放 —— 那说明存在只有它能拦的样本，(e) 的结论要改写"
+    )
+
+
+def test_ancestor_symlink_hits_is_load_bearing_once_the_walker_is_gone(tmp_path: Path):
+    """纵深的**可证形式**：把逐段 walker 中和掉之后，祖先轴是否还拦得住？
+
+    · 只中和 walker              ⇒ 必须仍全中（祖先轴顶上了）
+    · walker 与祖先轴一起中和    ⇒ 必须全漏（证明顶上的确实是祖先轴，不是别的规则）
+    两跑对照 ⇒ 「保留作纵深」这句话第一次有了测量支撑，而不是只写在注释里。
+    """
+    prot, paths = _e_topology(tmp_path)
+    only_walker_gone = _e_verdicts(tmp_path, "no-walk", prot, paths, _E_KILL_WALKER)
+    assert only_walker_gone == ["HIT"] * len(paths), f"walker 没了之后祖先轴没顶上: {only_walker_gone}"
+    both_gone = _e_verdicts(tmp_path, "no-both", prot, paths, _E_KILL_WALKER, _E_KILL_ANCESTOR)
+    assert both_gone == ["MISS"] * len(paths), (
+        f"两条轴都中和了却还有人拦得住 —— 那顶上的不是祖先轴，这条门的归因写错了: {both_gone}"
+    )
+
+
+def test_no_sample_found_where_only_the_ancestor_axis_catches(tmp_path: Path):
+    """如实登记 (e) 的结论：本卡造不出「只有祖先轴命中」的拓扑，且这一点是**测出来的**。
+
+    ⚠️ 它证明的是「在下列可枚举的拓扑族里没有」，不是「不存在」。覆盖面 = 4 类软链
+       （直指 / 指内层 / 链式 / 相对）× 6 种尾巴，如实写在这里而不是写成「已全面验证」。
+    """
+    import itertools
+
+    prot, _ = _e_topology(tmp_path)
+    safe = tmp_path / "topo" / "safe"
+    links = ["L_direct", "L_inner", "L_chain", "L_rel"]
+    tails = ["/../x", "/../../x", "/inner/../../x", "/../outside/x", "/../../../x", "/a/../../x"]
+    sys.path.insert(0, str(FORBID_PY.parent))
+    try:
+        from cls_forbidden_paths import ancestor_symlink_hits, chain_hits
+    finally:
+        sys.path.pop(0)
+    targets = [(str(prot).lower(), "PROT")]
+    only_ancestor = []
+    for lk, tl in itertools.product(links, tails):
+        p = str(safe / lk) + tl
+        if ancestor_symlink_hits(p, targets, []) is not None and chain_hits(p, targets, []) is None:
+            only_ancestor.append(p)
+    assert only_ancestor == [], (
+        f"找到了「只有祖先轴命中」的样本 —— (e) 的结论与验收单都要改写，并给它补一条真正的独立门: {only_ancestor}"
+    )
