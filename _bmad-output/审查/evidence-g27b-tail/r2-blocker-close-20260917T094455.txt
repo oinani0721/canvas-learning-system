@@ -1,0 +1,20 @@
+# CARD-G2-7b-TAIL r2 —— Codex r1 BLOCKER / MEDIUM-1 闭合实证
+# 时刻 2026-09-17T01:44:55Z  被测: mk_tmp_beside（从脚本中 awk 抽出后单跑）
+########## 改前（r1 审查态 70b9203a）##########
+rc=0
+returned=[/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t2-deploy/99f7656b-0712-4cb0-9662-9fc949b7c932/scratchpad/nlA/prot/.cls-deploy-tmp.BOYkiQYp]
+stderr=[]
+prot(无LF) 下的文件数=1  ← 必须为 0
+prot+LF 下的文件数=0     ← 修复后应为 1
+--- 终路径是目录 ---
+rc=0 stderr=[]  ← 必须非 0
+
+########## 改后（r2 工作树）##########
+rc=0
+returned=[$'/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t2-deploy/99f7656b-0712-4cb0-9662-9fc949b7c932/scratchpad/nlB/prot\n/.cls-deploy-tmp.aEYOtxrk']
+stderr=[]
+prot(无LF) 下的文件数=0  ← 必须为 0
+prot+LF 下的文件数=1     ← 修复后应为 1
+--- 终路径是目录 ---
+rc=1 stderr=[mk_tmp_beside: 终路径已被一个目录占着, 拒绝发布: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t2-deploy/99f7656b-0712-4cb0-9662-9fc949b7c932/scratchpad/nlB/asdir]  ← 必须非 0
+rc=0

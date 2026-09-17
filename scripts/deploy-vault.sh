@@ -300,10 +300,15 @@ except OSError:
     # ⛔ `0` 也是「问不出来」（CARD-G2-7b-TAIL M-1）：`[ -e ]` 刚判过对象存在, 一个**存在的**
     #    普通文件不可能 st_nlink=0。拿到 0 只说明探针在说谎（被顶掉/被改写）, 而 `[ 0 -gt 1 ]`
     #    为假 ⇒ 旧版**放行**。三态里「拿到了一个不可能的数」必须与「非数字」同档。
-    if [ "$nlink" = 0 ]; then
-        WRITE_GUARD_ERR="写入前复查: 链接数回了 0(存在的普通文件不可能为 0), 探针不可信: $p"
-        return 1
-    fi
+    # ⚠️ 必须按「全是 0」判, 不能只比 `= 0`（Codex r1 LOW-1）：`00` / `0000000000`
+    #    同样是 0 值的合法十进制写法, 只比字面量会把它们放过去。
+    case "$nlink" in
+        *[!0]*) ;;
+        *)
+            WRITE_GUARD_ERR="写入前复查: 链接数回了 '${nlink}'(存在的普通文件不可能为 0), 探针不可信: $p"
+            return 1
+            ;;
+    esac
     # ⛔ 位数上限 fail-closed（CARD-G2-7b-TAIL M-1）：超 64 位的纯数字串能过上面的
     #    字符集判据, 但 `[ "$huge" -gt 1 ]` 会打 "integer expression expected"、rc=2、
     #    `if` 判假 ⇒ 又是**放行**。st_nlink 是 uint32/uint64 量级, 10 位足够覆盖
@@ -336,19 +341,35 @@ except OSError:
 #    现在是一个刚由内核独占创建、名字不可预测的对象。真原子的写仍只有走
 #    `open_pinned` 的那几处 python。
 # ⚠️ 必须与目标**同目录**：`mv` 跨文件系统会退化成「拷贝+删除」, 失去 rename 的原子性。
-MK_TMP_ERR=""
 mk_tmp_beside() {
     local dst="$1" dir="" out="" mrc=0
-    MK_TMP_ERR=""
-    dir="$(dirname "$dst")"
+    # ⛔⛔ **不得用 `$(dirname …)`**（Codex r1 BLOCKER，我初版正是这么写的）：命令替换会
+    #    **剥掉末尾换行**。`--env-dir $'…/.codex\n'` 时判据过的是含 LF 的那个目录,
+    #    而 `dirname` 回来的是**不含 LF** 的那个 —— 于是临时件建进了真正的保护目录,
+    #    无需任何竞争窗口。本文件 :467 早就为同一个坑立过规矩（r3 BLOCKER-4）,
+    #    我在这里又犯了一次。参数展开不经命令替换, 逐字节保真。
+    # ⚠️ 语义补齐同 :470：`${dst%/*}` 对单段相对路径会原样返回它自己 —— 五个调用方传的
+    #    都是已绝对化的路径, 但这里仍显式拒绝「取不出父目录」的输入, 不靠调用方的前提。
+    case "$dst" in
+        */*) dir="${dst%/*}"; [ -n "$dir" ] || dir="/" ;;
+        *) printf '%s\n' "mk_tmp_beside: 取不出父目录(输入不含 /): $dst" >&2; return 1 ;;
+    esac
     if [ ! -d "$dir" ]; then
-        MK_TMP_ERR="临时件目标目录不存在: $dir"
+        printf '%s\n' "mk_tmp_beside: 临时件目标目录不存在: $dir" >&2
+        return 1
+    fi
+    # ⛔ 终路径已经是**目录**时必须当场拒（Codex r1 MEDIUM-1，同样是我初版的回归）：
+    #    `mv <tmp> <目录>` 会把临时件搬**进**那个目录并返回成功, 于是调用方把一个目录
+    #    路径当成「已写好的文件」报出去。旧写法 `: > "$ilog"` 在目录上会直接失败,
+    #    换成 tmp+mv 之后这条保护丢了, 得在这里补回来。
+    if [ -d "$dst" ]; then
+        printf '%s\n' "mk_tmp_beside: 终路径已被一个目录占着, 拒绝发布: $dst" >&2
         return 1
     fi
     # 前缀带 `.cls-deploy-` 便于事后辨认残件；XXXXXXXX 由 mktemp 填随机值。
     out="$(mktemp "$dir/.cls-deploy-tmp.XXXXXXXX" 2> /dev/null)" || mrc=$?
     if [ "$mrc" != 0 ] || [ -z "$out" ]; then
-        MK_TMP_ERR="在 $dir 下建临时件失败(mktemp rc=${mrc})"
+        printf '%s\n' "mk_tmp_beside: 在 $dir 下建临时件失败(mktemp rc=${mrc})" >&2
         return 1
     fi
     printf '%s' "$out"
@@ -963,7 +984,7 @@ _seed_env_file_body() {
     #    软链/硬链接就能把这一跑变成「复查拒绝 ⇒ 部署卡死」。改为同目录 mktemp（O_EXCL,
     #    0600, 名字不可预测）。umask 077 的纵深由 mktemp 自带的 0600 接管。
     SEED_TMP="$(mk_tmp_beside "$ENV_FILE")" \
-        || { SEED_ERR="建 .env 临时文件失败: $MK_TMP_ERR"; return 1; }
+        || { SEED_ERR="建 .env 临时文件失败（目录 ${ENV_DIR}, 细因见 stderr）"; return 1; }
     # 复查保留：mktemp 刚建出来的对象在这一刻应当是 nlink=1 的普通文件, 若不是,
     # 说明同目录里发生了我们没预期的事 ⇒ fail-closed（纵深, 不是主防线）。
     assert_writable_now "$SEED_TMP" || { SEED_ERR="$WRITE_GUARD_ERR"; return 1; }
@@ -1056,7 +1077,7 @@ step2_install() {
     fi
     assert_writable_now "$ilog" || { STEP_MSG="$WRITE_GUARD_ERR"; return 1; }
     itmp="$(mk_tmp_beside "$ilog")" \
-        || { STEP_MSG="建 install 日志临时件失败(install 未执行): $MK_TMP_ERR"; return 1; }
+        || { STEP_MSG="建 install 日志临时件失败(install 未执行, 目录 ${EVIDENCE_DIR}, 细因见 stderr)"; return 1; }
     local irc=0
     CLS_REPO="$HARNESS" "$HARNESS/scripts/install-vault.sh" "$VAULT_NAME" \
         --subject "$SUBJECT" --vaults-root "$VAULT_PARENT" \
@@ -1068,8 +1089,9 @@ step2_install() {
     local imrc=0
     mv "$itmp" "$ilog" || imrc=$?
     if [ "$imrc" != 0 ]; then
-        rm -f -- "$itmp" 2> /dev/null || :
-        STEP_MSG="install-vault.sh rc=${irc}, 但 install 日志未能发布(mv rc=${imrc}), 无从复核: $ilog"
+        # ⛔ 不清掉残件（我初版清了 —— 那是把唯一一份 install 输出销毁）：发布失败时它正是
+        #    排查所需的全部内容, 把路径报出来比把目录扫干净重要。
+        STEP_MSG="install-vault.sh rc=${irc}, 但 install 日志未能发布(mv rc=${imrc}); 输出保留在残件 ${itmp}"
         return 1
     fi
     if [ "$irc" != 0 ]; then
@@ -2513,6 +2535,17 @@ step3_postprocess() {
                 '"'*'"') have="${have#\"}"; have="${have%\"}" ;;
                 "'"*"'") have="${have#\'}"; have="${have%\'}" ;;
             esac
+            # ⛔ 值内**回车**必须当场拒（Codex r1 MEDIUM-2，我换掉 `tr -d` 时放进来的口子）：
+            #    旧的 `tr -d` 删掉全部 CR ⇒ 含 CR 的值必然与参数不等、A3 会拒；只剥尾随 CR
+            #    之后, `/tmp/course<CR>vaults` 这类值能与同样含 CR 的参数比成**相等**,
+            #    而步 3 后面写回 .env 时会把 CR 归一成 LF（本文件 :2680 一带）,
+            #    把 `VAULTS_ROOT=` 这一行**拆成两行**。放行它等于让一次合法比较把文件写坏。
+            case "$have" in
+                *"$(printf '\r')"*)
+                    STEP_MSG="已有 $(basename "$ENV_FILE") 的 ${k} 值内含回车符, 写回时会被归一成换行并把该行拆成两条; 拒绝继续（删掉该 .env 重来）"
+                    return 1
+                    ;;
+            esac
             if [ "$have" != "$v" ]; then
                 STEP_MSG="已有 $(basename "$ENV_FILE") 的 ${k}=${have} 与本次参数 ${v} 矛盾（拒绝静默覆盖；改 --port/--vault 或删掉该 .env 重来）"
                 return 1
@@ -2724,7 +2757,7 @@ PY
         #    umask 077 的纵深由 mktemp 自带的 0600 接管。
         local ktmp=""
         ktmp="$(mk_tmp_beside "$keyfile")" \
-            || { STEP_MSG="建 key 临时文件失败: $MK_TMP_ERR"; return 1; }
+            || { STEP_MSG="建 key 临时文件失败（目标 ${keyfile}, 细因见 stderr）"; return 1; }
         assert_writable_now "$ktmp" || {
             rm -f -- "$ktmp" 2> /dev/null || :
             STEP_MSG="$WRITE_GUARD_ERR"
@@ -2946,7 +2979,7 @@ step5_activate() {
     #    再 `mv` 发布。发布之后这个文件还要当阶段账被 `act_journal_open` 追加,
     #    所以 mv 必须在开账**之前**完成。
     ctmp="$(mk_tmp_beside "$cfg")" \
-        || { STEP_MSG="建 compose-config 临时件失败(未起任何容器): $MK_TMP_ERR"; return 1; }
+        || { STEP_MSG="建 compose-config 临时件失败(未起任何容器, 目录 ${EVIDENCE_DIR}, 细因见 stderr)"; return 1; }
     docker compose -f "$HARNESS/docker-compose.yml" --env-file "$ENV_FILE" \
         -p "cls-$VAULT_NAME" --project-directory "$HARNESS" config 2> /dev/null \
         | redact_secrets > "$ctmp" || rc=$?
@@ -3307,6 +3340,13 @@ PY
     return 0
 }
 
+mark_unpublished() {
+    # 追加失败就算了（`|| :`）：这条更正是尽力而为的补救, 不能反过来把原本的失败盖掉。
+    printf '%s\n' \
+        '## 未发布 —— 本文件是残件; 上面「## 六行状态」第 6 行里关于报告落点的说法不成立' \
+        >> "$1" 2> /dev/null || :
+}
+
 # ═══ 步 6 evidence ══════════════════════════════════════════════════════════
 step6_evidence() {
     # dry-run 一律不落盘。(c) 参数表承诺「不传 --apply = 零写」，而缺省 evidence-dir 就在
@@ -3367,7 +3407,8 @@ step6_evidence() {
         _step6_line="[6/6] evidence: OK $out"
     fi
     # ⛔ 不再写固定名 `$out.tmp`（CARD-G2-7b-TAIL ②）：改为同目录 mktemp（O_EXCL）→ mv 发布。
-    otmp="$(mk_tmp_beside "$out")" || { STEP_MSG="建 evidence 临时件失败: $MK_TMP_ERR"; return 1; }
+    otmp="$(mk_tmp_beside "$out")" \
+        || { STEP_MSG="建 evidence 临时件失败（目录 ${EVIDENCE_DIR}, 细因见 stderr）"; return 1; }
     {
         printf '# CARD-G2-7b deploy-vault.sh — %s\n' "$TS"
         printf '## 参数\n'
@@ -3398,8 +3439,8 @@ step6_evidence() {
             for t in "${_sha_lines[@]}"; do printf '%s\n' "$t"; done
         fi
     } > "$otmp" 2>&1 || {
-        rm -f -- "$otmp" 2> /dev/null || :
-        STEP_MSG="写 evidence 临时文件失败: $otmp"
+        mark_unpublished "$otmp"
+        STEP_MSG="写 evidence 临时文件失败, 已写的部分保留在残件: $otmp"
         return 1
     }
     # ⛔ 先判失败再写 rc 行（Codex r3 MEDIUM-2）：原版先写 `rc=0` 再 return 76,
@@ -3413,7 +3454,8 @@ step6_evidence() {
         if [ "$_pub" = 1 ]; then
             STEP_MSG="有文件 shasum 失败（见 SHASUM-FAILED 行）, 证据已标 rc=76: $out"
         else
-            STEP_MSG="有文件 shasum 失败, 且证据**未能发布**（残件 $otmp 或 mv 失败）, 报告不可信"
+            mark_unpublished "$otmp"
+            STEP_MSG="有文件 shasum 失败, 且证据**未能发布**（残件 ${otmp}, 已在其尾部标注未发布）, 报告不可信"
         fi
         return 1
     fi
@@ -3427,18 +3469,19 @@ step6_evidence() {
         if [ "$_pub2" = 1 ]; then
             STEP_MSG="${_fail_msg}; 证据已标 rc=76: $out"
         else
-            STEP_MSG="${_fail_msg}; 且证据**未能发布**, 报告不可信"
+            mark_unpublished "$otmp"
+            STEP_MSG="${_fail_msg}; 且证据**未能发布**（残件 ${otmp}, 已在其尾部标注未发布）, 报告不可信"
         fi
         return 1
     fi
     printf 'rc=0\n' >> "$otmp" || {
-        rm -f -- "$otmp" 2> /dev/null || :
-        STEP_MSG="追加 rc 行失败: $otmp"
+        mark_unpublished "$otmp"
+        STEP_MSG="追加 rc 行失败, 证据未发布（残件 ${otmp}）"
         return 1
     }
     mv "$otmp" "$out" || {
-        rm -f -- "$otmp" 2> /dev/null || :
-        STEP_MSG="mv evidence 失败: $out"
+        mark_unpublished "$otmp"
+        STEP_MSG="mv evidence 失败, 证据未发布（残件 ${otmp}）: $out"
         return 1
     }
     [ -s "$out" ] || { STEP_MSG="evidence 落盘后为空: $out"; return 1; }

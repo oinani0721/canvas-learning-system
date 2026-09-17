@@ -1715,7 +1715,7 @@ def test_env_key_write_chmods_only_after_nofollow_and_nlink(tmp_path: Path):
     #    `mk_tmp_beside`（mktemp 本身就以 0600 创建）⇒ 门跟着改，钉的性质没变：
     #    临时文件从**诞生那一刻**就是 0600，不是先落 0644 再补 chmod。
     assert 'SEED_TMP="$(mk_tmp_beside "$ENV_FILE")"' in src, "seed 的临时文件不是同目录 mktemp 建的"
-    mk = _decomment(src[src.index("mk_tmp_beside() {") : src.index('MK_TMP_ERR="在 ')])
+    mk = _decomment(src[src.index("mk_tmp_beside() {") : src.index("# ── 参数解析")])
     assert 'mktemp "$dir/.cls-deploy-tmp.XXXXXXXX"' in mk, (
         "mk_tmp_beside 不是在**同目录**建随机名临时件 —— 跨目录会让后面的 mv 退化成"
         "「拷贝+删除」而失去 rename 的原子性，可预测名则让预置链重新有效"
@@ -5774,7 +5774,15 @@ _TAIL_HOTKEY_PREFIX = "canvas-learning-system:"
 
 @pytest.fixture
 def harness_main_js():
-    """缺 gitignored main.js 时补一个桩，跑完无条件还原（原本就有则一字不动）。"""
+    """缺 gitignored main.js 时补一个桩，跑完还原（原本就有则一字不动）。
+
+    ⛔ 删除前必须**核身份**（Codex r1 MEDIUM-4）：无条件 `unlink` 会在
+       「测试期间真实构建产出了 main.js」时把**别人的产物**删掉。只有当磁盘上那份
+       与我们写进去的逐字节相同，才认为它仍是我们的桩。
+    ⚠️ 如实声明：本夹具**不支持并行**（`pytest -n`）。两个用例同时进来时，
+       A 建桩、B 看到「已存在」直接用、A teardown 删掉 ⇒ B 中途失去依赖。
+       没有锁；本卡只在串行单文件跑法下验过，已登记。
+    """
     if _TAIL_MAIN_JS.exists():
         yield
         return
@@ -5789,7 +5797,12 @@ def harness_main_js():
     try:
         yield
     finally:
-        _TAIL_MAIN_JS.unlink(missing_ok=True)
+        try:
+            still_ours = _TAIL_MAIN_JS.read_text(encoding="utf-8") == body
+        except OSError:
+            still_ours = False
+        if still_ours:
+            _TAIL_MAIN_JS.unlink(missing_ok=True)
 
 
 def _tail_script_copy(tmp_path: Path, name: str, *mutations: tuple[str, str]) -> Path:
@@ -6183,7 +6196,7 @@ def test_preflight_rejects_zero_nlink(tmp_path: Path):
     """
     r = _preflight_with_existing_env_file(tmp_path, "8241", _fake_python3(tmp_path, "0"))
     assert r.returncode == 71, f"链接数 0 被放行: rc={r.returncode}\n{r.stdout}{r.stderr}"
-    assert "链接数回了 0" in r.stdout, r.stdout
+    assert "存在的普通文件不可能为 0" in r.stdout, r.stdout
 
 
 def test_preflight_rejects_overlong_nlink(tmp_path: Path):
@@ -6216,7 +6229,7 @@ def test_nlink_char_class_is_locale_independent():
     `[ -gt ]` 报错 rc=2、`if` 判假 ⇒ 反而**放行**。与步 1/步 5 两处上限同律。
     """
     src = DEPLOY_SH.read_text(encoding="utf-8")
-    fn = src[src.index("assert_writable_now() {") : src.index("MK_TMP_ERR=")]
+    fn = src[src.index("assert_writable_now() {") : src.index("mk_tmp_beside() {")]
     # ⛔ 这里**不能**用 `_decomment`：它按第一个 `#` 截断整行，而 bash 的
     #    `${#nlink}`（取长度）里就带着一个 `#` —— 位数上限那一行会被它整条吃掉，
     #    判据于是「找不到锚点」而红，原因却与被测代码无关。改成只剥**整行**注释：
@@ -6530,8 +6543,11 @@ def test_ancestor_symlink_hits_is_load_bearing_once_the_walker_is_gone(tmp_path:
 def test_no_sample_found_where_only_the_ancestor_axis_catches(tmp_path: Path):
     """如实登记 (e) 的结论：本卡造不出「只有祖先轴命中」的拓扑，且这一点是**测出来的**。
 
-    ⚠️ 它证明的是「在下列可枚举的拓扑族里没有」，不是「不存在」。覆盖面 = 4 类软链
-       （直指 / 指内层 / 链式 / 相对）× 6 种尾巴，如实写在这里而不是写成「已全面验证」。
+    ⚠️ 它证明的是「在**本门枚举的 4 × 6 = 24 条**里没有」，不是「不存在」，
+       也**不能**由它推出任何更大的结论（Codex r1 已就此指出上一版措辞过强）。
+       另有 96 条探索性枚举（7 类软链 × 12 种尾巴 + 一层反向嵌套）见
+       `_bmad-output/审查/evidence-g27b-tail/`——那是**存档里的一次跑**，
+       不是本测试的一部分，复核时请以本门实际跑的 24 条为准。
     """
     import itertools
 
@@ -6553,3 +6569,148 @@ def test_no_sample_found_where_only_the_ancestor_axis_catches(tmp_path: Path):
     assert only_ancestor == [], (
         f"找到了「只有祖先轴命中」的样本 —— (e) 的结论与验收单都要改写，并给它补一条真正的独立门: {only_ancestor}"
     )
+
+
+# ═══ r2 整改门（Codex r1 BLOCKER-1 / MEDIUM-1 / MEDIUM-2 / LOW-1）═════════════
+
+_MK_TMP_DRIVER = """#!/usr/bin/env bash
+set -euo pipefail
+eval "$(awk '/^mk_tmp_beside\\(\\) \\{/,/^\\}/' "$1")"
+set +e
+OUT="$(mk_tmp_beside "$2" 2> "$3")"
+RC=$?
+set -e
+printf 'rc=%s\\n' "$RC"
+printf 'out=%s\\n' "$OUT"
+"""
+
+
+def _mk_tmp_beside(tmp_path: Path, dst: str, script: Path | None = None) -> tuple[int, str, str]:
+    """把 `mk_tmp_beside` 从脚本里抽出来单跑（形制同本文件抽 `redact_secrets` 那条门）。
+
+    返回 (rc, 回显的临时件路径, stderr)。抽出来跑是为了让「父目录怎么算的」这件事
+    **可以直接观测**——走整条部署的话，落点会被后面十几步的行为盖住。
+    """
+    d = tmp_path / "mkdrv"
+    d.mkdir(parents=True, exist_ok=True)
+    drv = d / "drv.sh"
+    drv.write_text(_MK_TMP_DRIVER, encoding="utf-8")
+    drv.chmod(0o755)
+    err = d / "err.txt"
+    r = subprocess.run(
+        ["bash", str(drv), str(script or DEPLOY_SH), dst, str(err)],
+        capture_output=True,
+        text=True,
+        timeout=_SUBPROCESS_TIMEOUT,
+    )
+    assert r.returncode == 0, f"驱动跑挂了: {r.stdout}{r.stderr}"
+    out = dict(ln.split("=", 1) for ln in r.stdout.splitlines() if "=" in ln)
+    return int(out.get("rc", "-1")), out.get("out", ""), err.read_text(encoding="utf-8")
+
+
+def _count_files(d: Path) -> int:
+    """数目录下的普通文件。⛔ 不能用 `find … | wc -l`：本门用到的目录**路径本身含换行**，
+    一个条目会被数成两行（本门的探针第一版就把 1 报成了 2）。"""
+    return sum(1 for e in d.iterdir() if e.is_file())
+
+
+def test_mk_tmp_beside_keeps_a_trailing_newline_in_the_parent_directory(tmp_path: Path):
+    """⛔ Codex r1 BLOCKER：`$(dirname …)` 的命令替换会**剥掉末尾换行**。
+
+    `--env-dir $'…/prot\\n'` 时，禁写面判据过的是**含 LF** 的那个目录，而 `dirname`
+    回来的是**不含 LF** 的那个 —— 临时件于是建进了真正的保护目录，无需任何竞争窗口。
+    本脚本 `:467` 早就为同一个坑立过规矩（r3 BLOCKER-4），本卡初版又犯了一次。
+
+    钉的性质：`mk_tmp_beside` 算出来的父目录必须与传入路径**逐字节**同源。
+    """
+    prot = tmp_path / "prot"
+    prot.mkdir()
+    with_lf = tmp_path / "prot\n"
+    with_lf.mkdir()
+    rc, out, err = _mk_tmp_beside(tmp_path, f"{with_lf}/.env.probe")
+    assert rc == 0, f"合法输入被拒: rc={rc} err={err}"
+    assert _count_files(prot) == 0, "临时件建进了**不含换行**的那个目录（= 判据没过的那一个）"
+    assert _count_files(with_lf) == 1, f"临时件没建在判据过的那个目录里: out={out!r}"
+
+
+def test_mk_tmp_beside_refuses_a_destination_that_is_already_a_directory(tmp_path: Path):
+    """⛔ Codex r1 MEDIUM-1：`mv <tmp> <目录>` 会把临时件搬**进**那个目录并返回成功。
+
+    旧写法 `: > "$ilog"` 在目录上会直接失败；换成 tmp+mv 之后这条保护丢了，
+    于是步骤会把一个**目录**路径当成「已写好的日志文件」报出去。
+    """
+    d = tmp_path / "asdir"
+    d.mkdir()
+    rc, _out, err = _mk_tmp_beside(tmp_path, str(d))
+    assert rc != 0, "终路径是目录时没有拒绝"
+    assert "目录占着" in err, f"拒绝了但没说原因: {err!r}"
+
+
+def test_mk_tmp_beside_negctl_dirname_form_reopens_the_bypass(tmp_path: Path):
+    """⛔ 负控：把那一行换回 `$(dirname "$dst")` ⇒ 上面那条门必须重新变红。
+
+    证明门承重在「不用命令替换取父目录」这件事上，而不是碰巧绿了。
+    """
+    s = _tail_script_copy(
+        tmp_path,
+        "dirname-back",
+        ('        */*) dir="${dst%/*}"; [ -n "$dir" ] || dir="/" ;;', '        */*) dir="$(dirname "$dst")" ;;'),
+    )
+    prot = tmp_path / "nprot"
+    prot.mkdir()
+    with_lf = tmp_path / "nprot\n"
+    with_lf.mkdir()
+    rc, _out, _err = _mk_tmp_beside(tmp_path, f"{with_lf}/.env.probe", script=s)
+    assert rc == 0, "负控本身没跑起来"
+    assert _count_files(prot) == 1, "换回 dirname 之后临时件仍没落到无换行的那个目录 —— 归因写错了"
+
+
+@pytest.mark.parametrize("zero", ["0", "00", "0000000000"])
+def test_preflight_rejects_every_all_zero_nlink_form(tmp_path: Path, zero: str):
+    """⛔ Codex r1 LOW-1：`00` / `0000000000` 同样是 0 的合法十进制写法，只比 `= 0` 会放过去。"""
+    r = _preflight_with_existing_env_file(tmp_path, "8251", _fake_python3(tmp_path, zero))
+    assert r.returncode == 71, f"链接数 {zero!r} 被放行: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    assert "存在的普通文件不可能为 0" in r.stdout, r.stdout
+
+
+def test_a3_refuses_a_value_containing_an_embedded_carriage_return(tmp_path: Path, harness_main_js):
+    """⛔ Codex r1 MEDIUM-2：只剥尾随 CR 之后，值内 CR 能与同样含 CR 的参数比成相等。
+
+    旧的 `tr -d` 删掉全部 CR ⇒ 必然不等、A3 会拒；新写法放行它之后，步 3 写回 .env 时
+    会把 CR 归一成 LF，把 `VAULTS_ROOT=` 那一行**拆成两行**。
+    ⇒ 值内 CR 必须当场拒（而不是拒在一句说错原因的「矛盾」上）。
+    """
+    base = tmp_path / "cr"
+    root = base / "course\rvaults"
+    root.mkdir(parents=True)
+    env_d = base / "env"
+    env_d.mkdir(parents=True)
+    (env_d / ".env.probe_x").write_text(
+        f"API_PORT=8189\nACTIVE_VAULT=probe_x\nCLS_BACKEND_CONTAINER=cls-probe_x-backend\nVAULTS_ROOT={root}\n",
+        encoding="utf-8",
+    )
+    r = _tail_apply(tmp_path, "cr", "8189", vault=root / "probe_x", env_dir=env_d)
+    assert r.returncode == 73, f"值内 CR 未被 A3 拦下: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    assert "回车符" in r.stdout, f"拦下了但说错了原因: {r.stdout}"
+
+
+def test_step6_marks_an_unpublished_residue(tmp_path: Path):
+    """⛔ Codex r1 MEDIUM-3：残件里的第 6 行写着报告落点，而它其实没发布成。
+
+    第 6 行必须在落盘**之前**合成（那是六行状态的前提），所以它不可能预知发布会失败；
+    能做的是在确认失败之后往残件尾部追加一条更正。这里只钉「更正器存在且被每条
+    发布失败分支调用」——真跑一次 `mv` 失败需要制造只读目录中途翻转，不在本卡范围。
+    """
+    code = _decomment(DEPLOY_SH.read_text(encoding="utf-8"))
+    assert "mark_unpublished() {" in code, "缺残件更正器"
+    step6 = code[code.index("step6_evidence() {") :]
+    marked = step6.count('mark_unpublished "$otmp"')
+    assert marked == 5, (
+        f"发布失败分支没有全部打更正（实测 {marked} 处，期望 5："
+        "正文写失败 / sha 失败未发布 / 收尾失败未发布 / 追加 rc 行失败 / mv 失败）"
+    )
+    # 反面：这些分支都不得再销毁残件 —— 那是把唯一一份证据删掉
+    for branch in ("写 evidence 临时文件失败", "追加 rc 行失败", "mv evidence 失败"):
+        i = step6.index(branch)
+        window = step6[max(0, i - 200) : i]
+        assert 'm -f -- "$otmp"' not in window, f"分支「{branch}」仍在销毁残件"
