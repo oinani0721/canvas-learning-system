@@ -291,4 +291,20 @@ ls: node_modules/.bin/lefthook: No such file or directory
 
 ### 四-A.9 收官绑定核
 
-见 `evidence-toolchain-unify/final-binding-20260917T*.txt`（本节在末次 commit 后生成并回填路径）。
+存档 `evidence-toolchain-unify/final-binding-20260917T131027.txt`（rc=0）。本卡共 **2 条 commit**：
+
+| commit | 面 | header `wc -m` |
+|---|---|---|
+| `99e15a4e` | **代码**（`ruff.toml` / `package.json` / `package-lock.json`）+ 首批 evidence | 91 |
+| `6775302d` | **仅 `_bmad-output`**（验收单 / Codex r1 存档 / prompt / 三份 evidence） | 89 |
+
+| 判据 | 实测 |
+|---|---|
+| D-15 终审绑定 `git diff --stat 99e15a4e HEAD -- . ':(exclude)_bmad-output'` | **0 行** ✅ |
+| 同判据的验伪锚（去掉 exclude） | **6** 个文件（证判据非恒空） |
+| 全卡地盘门 `$PREV..HEAD` 排除 `_bmad-output` | 恰 **3** 个：`package-lock.json` / `package.json` / `ruff.toml` ✅ |
+| index 内 `*.stderr*` 文件数 / 本卡引入数 | **0 / 0** ✅ |
+| 两条 commit header ≤100（`wc -m`） | 91 / 89 ✅ |
+| 卡号 `CARD-TOOLCHAIN-UNIFY` / 批次标记出现的 commit 数 | **2 / 2** ✅ |
+| 工作树 | 干净（T8-F 开工前提满足） |
+| 是否 push | **否**（依卡文） |
