@@ -1,0 +1,13 @@
+=== 跑前 shasum -a 256 ===
+c1588ec6fda0371c85d801870bd035360891cd63f20c22be10fab779a173a1e4  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/canvas-vault/.claude/skills/quiz-answer/SKILL.md
+27f1b7a18da7f93b9c1810f0c01a39fb633373f581791a631bbccb0103248a58  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/app/services/learning_event_log.py
+0f2c085a1bae12446dd74ab89cc1e6aa5c8bc34901dd3be7ac5d8521310d0dce  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/canvas-vault/.claude/skills/start-exam-board/SKILL.md
+a766fbcc28e3ff917e740843c633e800aa8a75e949295f83efc90f55105f90f0  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/canvas-vault/.claude/scripts/fsrs_bridge.py
+=== 命令: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/.venv/bin/python scripts/g33_mutation_gates.py --skip M1 （cwd=backend）===
+⛔ --skip 取值不在变异表里: ['M1'] —— 拒跑, 未施加任何变异 (rc=4)
+=== 跑后 shasum -a 256 ===
+c1588ec6fda0371c85d801870bd035360891cd63f20c22be10fab779a173a1e4  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/canvas-vault/.claude/skills/quiz-answer/SKILL.md
+27f1b7a18da7f93b9c1810f0c01a39fb633373f581791a631bbccb0103248a58  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/app/services/learning_event_log.py
+0f2c085a1bae12446dd74ab89cc1e6aa5c8bc34901dd3be7ac5d8521310d0dce  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/canvas-vault/.claude/skills/start-exam-board/SKILL.md
+a766fbcc28e3ff917e740843c633e800aa8a75e949295f83efc90f55105f90f0  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/canvas-vault/.claude/scripts/fsrs_bridge.py
+rc=4

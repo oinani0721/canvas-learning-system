@@ -1,0 +1,3 @@
+══ EXPECT_LOC 只读自检 ══
+  绑定覆盖: 内联 expect_msg 18 条 / EXPECT_LOC 17 条 / 位置豁免 1 / 位置弱一档(共享 helper) 0 (共 18 条变异)
+rc=0

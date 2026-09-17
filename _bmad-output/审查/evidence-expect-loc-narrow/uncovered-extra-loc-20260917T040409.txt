@@ -1,0 +1,58 @@
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_2_review_ledger.py:6981: SyntaxWarning: "\s" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\s"? A raw string is also an option.
+  \u00b7 `\s+` \u5f53\u5206\u9694\uff1aPython `\s` \u542b\u5168\u89d2\u7a7a\u683c/NBSP\uff0cYAML s-white \u53ea\u6709 SP/TAB \u2014\u2014
+── g32cb / M1 · Codex round-1 LOW-1 的对照输入 ──
+  expect_loc  : stmt:03581c229ae0（读自 g32cb_mutation_gates.EXPECT_LOC）
+  前提位置行  : 行 5214  stmt:caf9d5c3e98d
+  额外位置行  : 行 5221  stmt:03581c229ae0  ← Codex 加的这一条
+  合成 out（逐行）:
+    | =========================== FAILURES ===========================
+    | /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_2_review_ledger.py:5214: AssertionError: 前提不成立(子进程 stderr 原样内嵌): [child-stderr] ... ] 非布尔凭据不得被当成「已应用」 ... [/child-stderr]
+    | /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_2_review_ledger.py:5221: AssertionError: ] 非布尔凭据不得被当成「已应用」
+    | ===================== short test summary info =====================
+    | FAILED tests/regression/test_g3_2_review_ledger.py::test_round17_fsrs_applied_must_be_strict_bool - AssertionError: 前提不成立(子进程 stderr 原样内嵌): [child-stderr] ... ] 非布尔凭据不得被当成「已应用」 ... [/child-stderr]
+    | ========================= 1 failed in 0.42s =========================
+
+  本卡 §一 的 after 输入（只有前提位置行）⇒ SURVIVED  |  位置不符: 期望 stmt:03581c229ae0, 实见 ['stmt:caf9d5c3e98d']
+  Codex 的输入（多一条目标位置行）      ⇒ KILLED  |  红在声称的那一条断言上（绑定维度: 位置+消息）
+
+  复现 Codex LOW-1: ✅ 是
+  归属: `mutation_kill_identity._loc_identity()` 的 `expect_loc in tokens`（任一命中）—— 共用裁判面，T8-B 地盘，本卡未改它
+rc=0
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_2_review_ledger.py:6981: SyntaxWarning: "\s" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\s"? A raw string is also an option.
+  \u00b7 `\s+` \u5f53\u5206\u9694\uff1aPython `\s` \u542b\u5168\u89d2\u7a7a\u683c/NBSP\uff0cYAML s-white \u53ea\u6709 SP/TAB \u2014\u2014
+── g32ccr1 / E1 · Codex round-1 LOW-1 的对照输入 ──
+  expect_loc  : stmt:53162da695b2（读自 g32ccr1_negative_controls.EXPECT_LOC）
+  前提位置行  : 行 6540  stmt:a8608eba5723
+  额外位置行  : 行 6581  stmt:53162da695b2  ← Codex 加的这一条
+  合成 out（逐行）:
+    | =========================== FAILURES ===========================
+    | /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_2_review_ledger.py:6540: AssertionError: 前提不成立(子进程 stderr 原样内嵌): [child-stderr] ... ⛔ A 的 receipt 载体行出现  ... [/child-stderr]
+    | /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_2_review_ledger.py:6581: AssertionError: ⛔ A 的 receipt 载体行出现 
+    | ===================== short test summary info =====================
+    | FAILED tests/regression/test_g3_2_review_ledger.py::test_g32cc_emitter_rebuild_never_mutates_existing_entries - AssertionError: 前提不成立(子进程 stderr 原样内嵌): [child-stderr] ... ⛔ A 的 receipt 载体行出现  ... [/child-stderr]
+    | ========================= 1 failed in 0.42s =========================
+
+  本卡 §一 的 after 输入（只有前提位置行）⇒ SURVIVED  |  位置不符: 期望 stmt:53162da695b2, 实见 ['stmt:a8608eba5723']
+  Codex 的输入（多一条目标位置行）      ⇒ KILLED  |  红在声称的那一条断言上（绑定维度: 位置+消息）
+
+  复现 Codex LOW-1: ✅ 是
+  归属: `mutation_kill_identity._loc_identity()` 的 `expect_loc in tokens`（任一命中）—— 共用裁判面，T8-B 地盘，本卡未改它
+rc=0
+── g33 / M2-cas-guard · Codex round-1 LOW-1 的对照输入 ──
+  expect_loc  : stmt:cba02d3de9fe（读自 g33_mutation_gates.EXPECT_LOC）
+  前提位置行  : 行 640  stmt:10fee07a4d79
+  额外位置行  : 行 641  stmt:cba02d3de9fe  ← Codex 加的这一条
+  合成 out（逐行）:
+    | =========================== FAILURES ===========================
+    | /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:640: AssertionError: 前提不成立(子进程 stderr 原样内嵌): [child-stderr] ... 外部写者插队后仍照常发布 ... [/child-stderr]
+    | /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:641: AssertionError: 外部写者插队后仍照常发布
+    | ===================== short test summary info =====================
+    | FAILED tests/regression/test_g3_3_cas.py::test_cas_conflict_refuses_and_rerun_converges - AssertionError: 前提不成立(子进程 stderr 原样内嵌): [child-stderr] ... 外部写者插队后仍照常发布 ... [/child-stderr]
+    | ========================= 1 failed in 0.42s =========================
+
+  本卡 §一 的 after 输入（只有前提位置行）⇒ SURVIVED  |  位置不符: 期望 stmt:cba02d3de9fe, 实见 ['stmt:10fee07a4d79']
+  Codex 的输入（多一条目标位置行）      ⇒ KILLED  |  红在声称的那一条断言上（绑定维度: 位置+消息）
+
+  复现 Codex LOW-1: ✅ 是
+  归属: `mutation_kill_identity._loc_identity()` 的 `expect_loc in tokens`（任一命中）—— 共用裁判面，T8-B 地盘，本卡未改它
+rc=0

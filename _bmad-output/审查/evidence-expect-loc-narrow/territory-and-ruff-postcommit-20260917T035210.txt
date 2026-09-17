@@ -1,0 +1,14 @@
+== (j) 地盘门（commit 后，796f6490ba951a1826e2c28e97037ab47d71f4b8 HEAD）==
+backend/scripts/g32cb_mutation_gates.py
+backend/scripts/g32ccr1_negative_controls.py
+backend/scripts/g33_mutation_gates.py
+-- 条数:        3
+== 验伪锚：去掉 exclude 应多出 _bmad-output/ ==
+-- _bmad-output/ 条数: 37
+== 终审绑定预检（现在 HEAD 即审 SHA）==
+ backend/scripts/g33_mutation_gates.py        | 297 ++++++++++++++++++++++++++-
+ 3 files changed, 668 insertions(+), 27 deletions(-)
+== (l) ruff 判据（796f6490ba951a1826e2c28e97037ab47d71f4b8 HEAD 形态）==
+files=3
+All checks passed!
+ruff-check rc=0

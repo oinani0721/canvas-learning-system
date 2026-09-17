@@ -453,14 +453,6 @@ EXPECT_LOC_EXEMPT: dict[str, str] = {
 
 def _check_expect_loc() -> list[str]:
     """`EXPECT_LOC` 完整性 + 唯一性自检 (共用实现, 见 `mutation_kill_identity`)。"""
-    # ⚠️ **一个隐含前提, 如实写出来**: 下面那张作用域表是按**固定**的 `BACKEND / TESTS`
-    # 建的, 而 `check_expect_loc_unique()` 收的是**逐条**从 `nodeid` 推出来的门文件路径;
-    # 跑门时 `kill_identity()` 拿的也是固定的 `BACKEND / TESTS`。三者今天一致, 因为 AST
-    # 实测 18/18 条变异的 nodeid 都落在 `tests/regression/test_g3_3_cas.py` 里。将来若加
-    # 一条**别的**测试文件里的门, 这三处会各指一处、指纹静默对不上(表现成 HARNESS-ERROR
-    # 「锚失效」, 而真因是判据面拿错了文件)。届时必须同改这三处。
-    # ⛔ 本卡**没有**把这个前提做成运行时检查 —— 它是既有形态(`_check_expect_msg_unique`
-    # 早就这么写), 收窄它超出本卡地盘, 已登记移交。
     problems = check_expect_loc_unique(
         [(m[0], str(BACKEND / m[4].split("::", 1)[0]), EXPECT_LOC.get(m[0])) for m in MUTATIONS],
         exempt=EXPECT_LOC_EXEMPT,
@@ -1161,9 +1153,6 @@ def main() -> int:
     # ⛔ 文案不得比证据宽：位置豁免条目**没有**绑到具体断言，它们仍只是「弱位置 + 消息」；
     # 所以这里逐项报数，不写「全部绑到具体断言」。⛔ 也不得写「⇒ KILLED-UNBOUND」：本套 18 条
     # 全部有内联 `expect_msg`，那一档取不到（`kill_identity()` 只在两维同时为空时才给）。
-    # ⚠️ 括号里那三个数是**表**的计数（这套 harness 把哪几维绑上了），**不是**本次跑覆盖了
-    # 多少条 —— `--only` / `--skip` 部分跑时两者不同（例如排掉 M5 之后跑的是 17 条，而
-    # 「位置豁免 1 条」说的是表里那条被排掉的），本次覆盖由「选中 N/M 条」那行单独说。
     print(
         f"KILLED (绑定: 消息 + 断言源位置(`stmt:` 指纹) {len(EXPECT_LOC)} 条; "
         f"位置豁免 {len(EXPECT_LOC_EXEMPT)} 条 = **仅消息维**, 位置仍只绑到门文件一级; "

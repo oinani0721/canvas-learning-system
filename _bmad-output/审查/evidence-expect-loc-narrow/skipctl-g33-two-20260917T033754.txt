@@ -1,0 +1,43 @@
+=== 跑前 shasum -a 256 ===
+c1588ec6fda0371c85d801870bd035360891cd63f20c22be10fab779a173a1e4  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/canvas-vault/.claude/skills/quiz-answer/SKILL.md
+27f1b7a18da7f93b9c1810f0c01a39fb633373f581791a631bbccb0103248a58  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/app/services/learning_event_log.py
+0f2c085a1bae12446dd74ab89cc1e6aa5c8bc34901dd3be7ac5d8521310d0dce  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/canvas-vault/.claude/skills/start-exam-board/SKILL.md
+a766fbcc28e3ff917e740843c633e800aa8a75e949295f83efc90f55105f90f0  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/canvas-vault/.claude/scripts/fsrs_bridge.py
+=== 命令: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/.venv/bin/python scripts/g33_mutation_gates.py --skip M5-cas-revision-only --skip M1-per-node-lock （cwd=backend）===
+✅ KILLED          M2-cas-guard: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_cas_conflict_refuses_and_rerun_converges'] expect_hit=True loc=[('test_g3_3_cas.py', 641)] — 红在声称的那一条断言上（绑定维度: 位置+消息）
+✅ KILLED          M3-ledger-lock-backend: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_append_event_refuses_when_ledger_locked'] expect_hit=True loc=[('test_g3_3_cas.py', 876)] — 红在声称的那一条断言上（绑定维度: 位置+消息）
+✅ KILLED          M6-ledger-lock-skill: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_writer_waits_for_held_ledger_lock'] expect_hit=True loc=[('test_g3_3_cas.py', 384)] — 红在声称的那一条断言上（绑定维度: 位置+消息）
+✅ KILLED          M8-thread-lock-lifetime: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_thread_critical_sections_do_not_overlap'] expect_hit=True loc=[('test_g3_3_cas.py', 449)] — 红在声称的那一条断言上（绑定维度: 位置+消息）
+✅ KILLED          M9-splitlines-instead-of-lf: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_dedup_scan_splits_only_on_physical_lf'] expect_hit=True loc=[('test_g3_3_cas.py', 472)] — 红在声称的那一条断言上（绑定维度: 位置+消息）
+✅ KILLED          M10-short-write-unchecked: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_short_write_is_not_reported_as_success'] expect_hit=True loc=[('test_g3_3_cas.py', 493)] — 红在声称的那一条断言上（绑定维度: 位置+消息）
+✅ KILLED          M11-out-of-order-auto-guess: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_out_of_order_is_caller_declared_not_auto_guessed'] expect_hit=True loc=[('test_g3_3_cas.py', 517)] — 红在声称的那一条断言上（绑定维度: 位置+消息）
+✅ KILLED          M12-a3-node-lock: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_incremental_block_waits_for_node_lock'] expect_hit=True loc=[('test_g3_3_cas.py', 1111)] — 红在声称的那一条断言上（绑定维度: 位置+消息）
+✅ KILLED          M13-a3-cas: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_incremental_block_cas_preserves_racing_edit'] expect_hit=True loc=[('test_g3_3_cas.py', 1154)] — 红在声称的那一条断言上（绑定维度: 位置+消息）
+✅ KILLED          M14-exam-board-ledger-lock: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_exam_board_waits_for_held_ledger_lock'] expect_hit=True loc=[('test_g3_3_cas.py', 1227)] — 红在声称的那一条断言上（绑定维度: 位置+消息）
+✅ KILLED          M15-post-lock-redup: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_writer_refuses_when_other_writer_took_the_event_id'] expect_hit=True loc=[('test_g3_3_cas.py', 1197)] — 红在声称的那一条断言上（绑定维度: 位置+消息）
+✅ KILLED          M16-a2-foreign-cas: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_a2_foreign_recovery_publish_respects_cas'] expect_hit=True loc=[('test_g3_3_cas.py', 1309)] — 红在声称的那一条断言上（绑定维度: 位置+消息）
+✅ KILLED          M17-dup-recovery-cas: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_dup_recovery_publish_respects_cas'] expect_hit=True loc=[('test_g3_3_cas.py', 1340)] — 红在声称的那一条断言上（绑定维度: 位置+消息）
+✅ KILLED          M4a-payload-in-place: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_out_of_order_marker_is_additive'] expect_hit=True loc=[('test_g3_3_cas.py', 764)] — 红在声称的那一条断言上（绑定维度: 位置+消息）
+✅ KILLED          M4b-marker-not-additive: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_out_of_order_marker_is_additive'] expect_hit=True loc=[('test_g3_3_cas.py', 760)] — 红在声称的那一条断言上（绑定维度: 位置+消息）
+✅ KILLED          M7-lock-dropped-by-second-fd: rc=1 failed=['tests/regression/test_g3_3_cas.py::test_append_event_still_holds_lock_at_the_moment_of_write'] expect_hit=True loc=[('test_g3_3_cas.py', 1019)] — 红在声称的那一条断言上（绑定维度: 位置+消息）
+
+── 汇总 ──
+KILLED (绑定: 消息 + 断言源位置(`stmt:` 指纹) 17 条; 位置豁免 1 条 = **仅消息维**, 位置仍只绑到门文件一级; 位置弱一档(共享 helper) 0 条): 16/16
+KILLED-UNBOUND: 0 (仅证明指定门红了)
+SURVIVED: 0
+HARNESS-ERROR: 0 (负控自己坏了, 不是关于被测物的结论)
+ANCHOR-ERROR: 0 (变异未施加, 不是结论)
+SYNTAX-INVALID: 0 (>0 说明负控自己坏了, 不是被测物坏了)
+六档之和: 16 (应 = 选中的变异条数 16) ✓
+还原逐字节相同: 是
+MUTANT 扫描: 完成
+MUTANT 新增残留 (基线之外): 无
+MUTANT 基线缺失 (基线里有而实测没有): 无
+
+⚠️ --skip ['M1-per-node-lock', 'M5-cas-revision-only'] 选中 16/18 条 —— 部分跑不构成全量结论，rc 恒为 4
+=== 跑后 shasum -a 256 ===
+c1588ec6fda0371c85d801870bd035360891cd63f20c22be10fab779a173a1e4  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/canvas-vault/.claude/skills/quiz-answer/SKILL.md
+27f1b7a18da7f93b9c1810f0c01a39fb633373f581791a631bbccb0103248a58  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/app/services/learning_event_log.py
+0f2c085a1bae12446dd74ab89cc1e6aa5c8bc34901dd3be7ac5d8521310d0dce  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/canvas-vault/.claude/skills/start-exam-board/SKILL.md
+a766fbcc28e3ff917e740843c633e800aa8a75e949295f83efc90f55105f90f0  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/canvas-vault/.claude/scripts/fsrs_bridge.py
+rc=4

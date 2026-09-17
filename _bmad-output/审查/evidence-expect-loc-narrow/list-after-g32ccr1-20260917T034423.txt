@@ -1,0 +1,27 @@
+═══ 变异清单与锚点自检 ═══
+  [E1] 锚命中 1 次 @ canvas-vault/.claude/skills/quiz-answer/SKILL.md → test_g32cc_emitter_rebuild_never_mutates_existing_entries
+       A 行被**复制**成两行（重复键，PyYAML 取最后一个 ⇒ 生产自检察觉不到）
+  [E2] 锚命中 1 次 @ canvas-vault/.claude/skills/quiz-answer/SKILL.md → test_g32cc_emitter_rebuild_never_mutates_existing_entries
+       A 行**位移**（键序重排，行文本逐字节不变 ⇒ 子串包含判据看不见）
+  [E3] 锚命中 1 次 @ backend/scripts/validate_learning_events.py → test_g32ccr1_charset_scope_is_bounded_by_ledger_record_reality
+       把 receipt-only 字段**扩进**严格字段表（本卡裁定说这是空操作 ⇒ 一致性门必须当场认出死条目）
+  [E4] 锚命中 1 次 @ canvas-vault/.claude/skills/quiz-answer/SKILL.md → test_g32ccr1_receipt_only_fields_roundtrip_under_hostile_codepoints
+       拆掉 `q_()` 的正面往返自证（非 ASCII 一律裸嵌 ⇒ receipt 里 U+0085 被 YAML 折成空格）
+  [E6] 锚命中 1 次 @ canvas-vault/.claude/skills/quiz-answer/SKILL.md → test_g32cc_emitter_rebuild_never_mutates_existing_entries
+       A 条目**末尾追加**一个同值重复键（Codex round-1 MEDIUM：子串包含没有结束边界）
+  [E7] 锚命中 1 次 @ canvas-vault/.claude/skills/quiz-answer/SKILL.md → test_g32cc_emitter_rebuild_never_mutates_existing_entries
+       把 F1-only 的**成功出口**改成异常（Codex round-1 MEDIUM：只比 attempt 不增，拒绝也满足）
+  [E8] 锚命中 1 次 @ canvas-vault/.claude/skills/quiz-answer/SKILL.md → test_g32ccr1_timestamp_axis_rejects_hostile_codepoints_before_any_write
+       删掉**本次输入 ts** 的词法判据（Codex round-1 MEDIUM：门同时污染两字段，被 review_time 那道喂饱）
+  [E9] 锚命中 1 次 @ backend/scripts/validate_learning_events.py → test_g32ccr1_charset_scope_is_bounded_by_ledger_record_reality
+       把严格字段表**清空**（Codex round-1 MEDIUM：上一版一致性门在空表上是空真）
+  [E10] 锚命中 1 次 @ backend/scripts/validate_learning_events.py → test_g32ccr1_nondict_branch_unreachable_from_validate_record_full
+       用**海象**重绑 record（Codex round-1 MEDIUM：上一版 AST 扫描漏掉 NamedExpr）
+  [E11] 锚命中 1 次 @ backend/scripts/validate_learning_events.py → test_g32cc_charset_traverses_all_container_shapes
+       删掉字符遍历的 **tuple** 支持（Codex round-1 LOW：容器门声称覆盖 tuple 却没有 tuple 样本）
+  [E5] 锚命中 1 次 @ backend/scripts/validate_learning_events.py → test_g32ccr1_nondict_branch_unreachable_from_validate_record_full
+       在 `validate_record_full` 里**重绑** `record`（(c) 门的不可达性推理前提失效）
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_2_review_ledger.py:6981: SyntaxWarning: "\s" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\s"? A raw string is also an option.
+  \u00b7 `\s+` \u5f53\u5206\u9694\uff1aPython `\s` \u542b\u5168\u89d2\u7a7a\u683c/NBSP\uff0cYAML s-white \u53ea\u6709 SP/TAB \u2014\u2014
+  绑定覆盖：EXPECT_MSG 11 条 / EXPECT_LOC 11 条 / 消息豁免 0 / 位置豁免 0 / 位置弱一档(共享 helper) 0 （共 11 条变异）
+rc=0

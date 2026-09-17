@@ -1,0 +1,76 @@
+=== 跑前 shasum -a 256（4 个被变异文件；含零写者 fsrs_bridge.py，承重）===
+c1588ec6fda0371c85d801870bd035360891cd63f20c22be10fab779a173a1e4  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/canvas-vault/.claude/skills/quiz-answer/SKILL.md
+27f1b7a18da7f93b9c1810f0c01a39fb633373f581791a631bbccb0103248a58  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/app/services/learning_event_log.py
+0f2c085a1bae12446dd74ab89cc1e6aa5c8bc34901dd3be7ac5d8521310d0dce  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/canvas-vault/.claude/skills/start-exam-board/SKILL.md
+a766fbcc28e3ff917e740843c633e800aa8a75e949295f83efc90f55105f90f0  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/canvas-vault/.claude/scripts/fsrs_bridge.py
+👁  OBSERVED        M1-per-node-lock: rc=1 loc='stmt:beacfb662989' at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:210'
+👁  OBSERVED        M2-cas-guard: rc=1 loc='stmt:cba02d3de9fe' at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:641'
+👁  OBSERVED        M3-ledger-lock-backend: rc=1 loc='stmt:b19d8467e5a8' at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:876'
+👁  OBSERVED        M6-ledger-lock-skill: rc=1 loc='stmt:d35dc8f468e4' at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:384'
+👁  OBSERVED        M8-thread-lock-lifetime: rc=1 loc='stmt:e7bc8c53157d' at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:449'
+👁  OBSERVED        M9-splitlines-instead-of-lf: rc=1 loc='stmt:243ce266f438' at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:472'
+👁  OBSERVED        M10-short-write-unchecked: rc=1 loc='stmt:e6dd183a30ef' at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:493'
+👁  OBSERVED        M11-out-of-order-auto-guess: rc=1 loc='stmt:c6341f5d1047' at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:517'
+👁  OBSERVED        M12-a3-node-lock: rc=1 loc='stmt:f2a78dd09aee' at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:1111'
+👁  OBSERVED        M13-a3-cas: rc=1 loc='stmt:4572f662b63a' at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:1154'
+👁  OBSERVED        M14-exam-board-ledger-lock: rc=1 loc='stmt:7eefe47ecb5f' at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:1227'
+👁  OBSERVED        M15-post-lock-redup: rc=1 loc='stmt:fa419abd1e38' at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:1197'
+👁  OBSERVED        M16-a2-foreign-cas: rc=1 loc='stmt:35c598faa1bf' at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:1309'
+👁  OBSERVED        M17-dup-recovery-cas: rc=1 loc='stmt:f64532b1998f' at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:1340'
+👁  OBSERVED        M4a-payload-in-place: rc=1 loc='stmt:ad7ce842b700' at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:764'
+👁  OBSERVED        M4b-marker-not-additive: rc=1 loc='stmt:9801333c4a98' at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:760'
+👁  OBSERVED        M7-lock-dropped-by-second-fd: rc=1 loc='stmt:b34864a8bc5f' at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:1019'
+
+── PROBE 观察表（不是裁决）──
+  M1-per-node-lock	rc=1	loc='stmt:beacfb662989'	at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:210'
+  M2-cas-guard	rc=1	loc='stmt:cba02d3de9fe'	at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:641'
+  M3-ledger-lock-backend	rc=1	loc='stmt:b19d8467e5a8'	at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:876'
+  M6-ledger-lock-skill	rc=1	loc='stmt:d35dc8f468e4'	at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:384'
+  M8-thread-lock-lifetime	rc=1	loc='stmt:e7bc8c53157d'	at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:449'
+  M9-splitlines-instead-of-lf	rc=1	loc='stmt:243ce266f438'	at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:472'
+  M10-short-write-unchecked	rc=1	loc='stmt:e6dd183a30ef'	at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:493'
+  M11-out-of-order-auto-guess	rc=1	loc='stmt:c6341f5d1047'	at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:517'
+  M12-a3-node-lock	rc=1	loc='stmt:f2a78dd09aee'	at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:1111'
+  M13-a3-cas	rc=1	loc='stmt:4572f662b63a'	at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:1154'
+  M14-exam-board-ledger-lock	rc=1	loc='stmt:7eefe47ecb5f'	at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:1227'
+  M15-post-lock-redup	rc=1	loc='stmt:fa419abd1e38'	at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:1197'
+  M16-a2-foreign-cas	rc=1	loc='stmt:35c598faa1bf'	at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:1309'
+  M17-dup-recovery-cas	rc=1	loc='stmt:f64532b1998f'	at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:1340'
+  M4a-payload-in-place	rc=1	loc='stmt:ad7ce842b700'	at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:764'
+  M4b-marker-not-additive	rc=1	loc='stmt:9801333c4a98'	at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:760'
+  M7-lock-dropped-by-second-fd	rc=1	loc='stmt:b34864a8bc5f'	at='/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:1019'
+
+── 可回填的 EXPECT_LOC（观察值, 不是已验证的期望值）──
+    "M1-per-node-lock": "stmt:beacfb662989",   # 门文件行 [210] ← /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:210
+    "M2-cas-guard": "stmt:cba02d3de9fe",   # 门文件行 [641] ← /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:641
+    "M3-ledger-lock-backend": "stmt:b19d8467e5a8",   # 门文件行 [876] ← /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:876
+    "M6-ledger-lock-skill": "stmt:d35dc8f468e4",   # 门文件行 [384] ← /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:384
+    "M8-thread-lock-lifetime": "stmt:e7bc8c53157d",   # 门文件行 [449] ← /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:449
+    "M9-splitlines-instead-of-lf": "stmt:243ce266f438",   # 门文件行 [472] ← /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:472
+    "M10-short-write-unchecked": "stmt:e6dd183a30ef",   # 门文件行 [493] ← /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:493
+    "M11-out-of-order-auto-guess": "stmt:c6341f5d1047",   # 门文件行 [517] ← /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:517
+    "M12-a3-node-lock": "stmt:f2a78dd09aee",   # 门文件行 [1111] ← /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:1111
+    "M13-a3-cas": "stmt:4572f662b63a",   # 门文件行 [1154] ← /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:1154
+    "M14-exam-board-ledger-lock": "stmt:7eefe47ecb5f",   # 门文件行 [1227] ← /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:1227
+    "M15-post-lock-redup": "stmt:fa419abd1e38",   # 门文件行 [1197] ← /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:1197
+    "M16-a2-foreign-cas": "stmt:35c598faa1bf",   # 门文件行 [1309] ← /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:1309
+    "M17-dup-recovery-cas": "stmt:f64532b1998f",   # 门文件行 [1340] ← /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:1340
+    "M4a-payload-in-place": "stmt:ad7ce842b700",   # 门文件行 [764] ← /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:764
+    "M4b-marker-not-additive": "stmt:9801333c4a98",   # 门文件行 [760] ← /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:760
+    "M7-lock-dropped-by-second-fd": "stmt:b34864a8bc5f",   # 门文件行 [1019] ← /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/tests/regression/test_g3_3_cas.py:1019
+
+还原逐字节相同: 是
+MUTANT 扫描: 完成 / 新增残留: [] / 基线缺失: []
+Traceback (most recent call last):
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/scripts/g33_mutation_gates.py", line 1236, in <module>
+    # 那几个早退分支的完整性（少写一个早退, 这里仍会把 rc 压到 1）。
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/scripts/g33_mutation_gates.py", line 1096, in main
+    _fps = stmt_fingerprints(BACKEND / TESTS)
+    
+UnboundLocalError: cannot access local variable '_selected' where it is not associated with a value
+rc=1
+=== 跑后 shasum -a 256 ===
+c1588ec6fda0371c85d801870bd035360891cd63f20c22be10fab779a173a1e4  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/canvas-vault/.claude/skills/quiz-answer/SKILL.md
+27f1b7a18da7f93b9c1810f0c01a39fb633373f581791a631bbccb0103248a58  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/app/services/learning_event_log.py
+0f2c085a1bae12446dd74ab89cc1e6aa5c8bc34901dd3be7ac5d8521310d0dce  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/canvas-vault/.claude/skills/start-exam-board/SKILL.md
+a766fbcc28e3ff917e740843c633e800aa8a75e949295f83efc90f55105f90f0  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/canvas-vault/.claude/scripts/fsrs_bridge.py
