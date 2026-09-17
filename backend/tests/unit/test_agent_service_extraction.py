@@ -15,6 +15,10 @@
 测试框架: pytest + pytest-mock
 """
 
+import importlib.util
+
+import pytest
+
 from app.services.agent_service import (
     _extract_json_from_markdown,
     _extract_nested_response_content,
@@ -22,6 +26,10 @@ from app.services.agent_service import (
     _extract_openai_choices,
     extract_explanation_text,
 )
+
+# pytest-mock 提供 `mocker` fixture。它缺席时 fixture 在 setup 期就 ERROR，
+# 函数体里的 importorskip 永远来不及执行，故用模块级探测 + skipif 守卫。
+_HAS_PYTEST_MOCK = importlib.util.find_spec("pytest_mock") is not None
 
 
 class TestExtractExplanationText:
@@ -291,6 +299,10 @@ class TestHelperFunctions:
 class TestDebugAgentResponseLogging:
     """测试 DEBUG_AGENT_RESPONSE 环境变量控制的日志行为"""
 
+    @pytest.mark.skipif(
+        not _HAS_PYTEST_MOCK,
+        reason="pytest-mock 未装（批中禁装；见 requirements.txt 声明 + 台账批级通告候选）",
+    )
     def test_extract_with_debug_logging_enabled(self, mocker, caplog):
         """测试 DEBUG_AGENT_RESPONSE=True 时的日志输出 (AC 4)"""
         import logging
@@ -309,6 +321,10 @@ class TestDebugAgentResponseLogging:
         assert success is True
         assert result == "test content"
 
+    @pytest.mark.skipif(
+        not _HAS_PYTEST_MOCK,
+        reason="pytest-mock 未装（批中禁装；见 requirements.txt 声明 + 台账批级通告候选）",
+    )
     def test_extract_without_debug_logging(self, mocker, caplog):
         """测试 DEBUG_AGENT_RESPONSE=False 时无额外日志 (AC 5)"""
         import logging
@@ -334,12 +350,19 @@ class TestDebugAgentResponseLogging:
             "DEBUG_AGENT_RESPONSE=False 时不应输出 Story 12.G.1 日志"
         )
 
-    def test_config_has_debug_agent_response_field(self):
+    def test_config_has_debug_agent_response_field(self, monkeypatch):
         """测试配置类包含 DEBUG_AGENT_RESPONSE 字段 (AC 4)"""
         from app.config import Settings
 
+        # 本档断言的是"字段声明的默认值"，必须同时隔离两条输入面：
+        # ① 进程环境变量——app/__init__.py 在 import 期 load_dotenv 已把
+        #    backend/.env 的键注入 os.environ，_env_file=None 关不掉它；
+        # ② pydantic-settings 自己的 env_file 读取。
+        # 只关其中一条，本机 .env 的 DEBUG_AGENT_RESPONSE=true 仍会读进来。
+        monkeypatch.delenv("DEBUG_AGENT_RESPONSE", raising=False)
+
         # 验证字段存在
-        settings = Settings()
+        settings = Settings(_env_file=None)
         assert hasattr(settings, "DEBUG_AGENT_RESPONSE"), (
             "Settings 应该有 DEBUG_AGENT_RESPONSE 字段"
         )

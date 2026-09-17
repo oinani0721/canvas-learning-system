@@ -1,0 +1,112 @@
+== CARD-RED-ENVDEP · ruff format 漂移归因（B14_BASE=08100483 / PREREQ=8381417b）==
+== ruff 版本 ==
+ruff 0.15.9
+
+== A. ruff check（lint 面）在本卡改后文件上 ==
+All checks passed!
+rc(check)=0
+
+== B. ruff format --check 在本卡改后文件上 ==
+Would reformat: backend/tests/unit/test_agent_service_extraction.py
+1 file would be reformatted
+rc(format-check-now)=1
+
+== C. 基线归因：B14_BASE 08100483 的同一文件（--stdin-filename 保证 config 按同路径解析）==
+rc(format-check-BASE)=1
+
+== C2. 基线归因：PREREQ 8381417b（T10-A tip）的同一文件 ==
+rc(format-check-PREREQ)=1
+
+== C3. 验伪锚：该探针能分辨『已格式化』——取一个 already-formatted 文件 ==
+(见 C4 用具体文件做锚)
+
+== D. ruff format --diff 在基线 08100483 文件上想改哪些行 ==
+--- backend/tests/unit/test_agent_service_extraction.py
++++ backend/tests/unit/test_agent_service_extraction.py
+@@ -330,9 +330,7 @@
+         # 验证日志中不包含 "[Story 12.G.1]" 前缀的 debug 条目
+         debug_logs = [r for r in caplog.records if r.levelname == "DEBUG"]
+         story_logs = [r for r in debug_logs if "[Story 12.G.1]" in r.message]
+-        assert len(story_logs) == 0, (
+-            "DEBUG_AGENT_RESPONSE=False 时不应输出 Story 12.G.1 日志"
+-        )
++        assert len(story_logs) == 0, "DEBUG_AGENT_RESPONSE=False 时不应输出 Story 12.G.1 日志"
+ 
+     def test_config_has_debug_agent_response_field(self):
+         """测试配置类包含 DEBUG_AGENT_RESPONSE 字段 (AC 4)"""
+@@ -340,9 +338,7 @@
+ 
+         # 验证字段存在
+         settings = Settings()
+-        assert hasattr(settings, "DEBUG_AGENT_RESPONSE"), (
+-            "Settings 应该有 DEBUG_AGENT_RESPONSE 字段"
+-        )
++        assert hasattr(settings, "DEBUG_AGENT_RESPONSE"), "Settings 应该有 DEBUG_AGENT_RESPONSE 字段"
+ 
+         # 验证默认值为 False
+         assert settings.DEBUG_AGENT_RESPONSE is False, "默认值应为 False"
+@@ -352,7 +348,5 @@
+         from app.config import Settings
+ 
+         settings = Settings()
+-        assert hasattr(settings, "debug_agent_response"), (
+-            "Settings 应该有 debug_agent_response 属性"
+-        )
++        assert hasattr(settings, "debug_agent_response"), "Settings 应该有 debug_agent_response 属性"
+         assert settings.debug_agent_response == settings.DEBUG_AGENT_RESPONSE
+
+rc(format-diff-BASE)=1
+
+== E. ruff format --diff 在本卡改后文件上想改哪些行 ==
+--- backend/tests/unit/test_agent_service_extraction.py
++++ backend/tests/unit/test_agent_service_extraction.py
+@@ -346,9 +346,7 @@
+         # 验证日志中不包含 "[Story 12.G.1]" 前缀的 debug 条目
+         debug_logs = [r for r in caplog.records if r.levelname == "DEBUG"]
+         story_logs = [r for r in debug_logs if "[Story 12.G.1]" in r.message]
+-        assert len(story_logs) == 0, (
+-            "DEBUG_AGENT_RESPONSE=False 时不应输出 Story 12.G.1 日志"
+-        )
++        assert len(story_logs) == 0, "DEBUG_AGENT_RESPONSE=False 时不应输出 Story 12.G.1 日志"
+ 
+     def test_config_has_debug_agent_response_field(self, monkeypatch):
+         """测试配置类包含 DEBUG_AGENT_RESPONSE 字段 (AC 4)"""
+@@ -363,9 +361,7 @@
+ 
+         # 验证字段存在
+         settings = Settings(_env_file=None)
+-        assert hasattr(settings, "DEBUG_AGENT_RESPONSE"), (
+-            "Settings 应该有 DEBUG_AGENT_RESPONSE 字段"
+-        )
++        assert hasattr(settings, "DEBUG_AGENT_RESPONSE"), "Settings 应该有 DEBUG_AGENT_RESPONSE 字段"
+ 
+         # 验证默认值为 False
+         assert settings.DEBUG_AGENT_RESPONSE is False, "默认值应为 False"
+@@ -375,7 +371,5 @@
+         from app.config import Settings
+ 
+         settings = Settings()
+-        assert hasattr(settings, "debug_agent_response"), (
+-            "Settings 应该有 debug_agent_response 属性"
+-        )
++        assert hasattr(settings, "debug_agent_response"), "Settings 应该有 debug_agent_response 属性"
+         assert settings.debug_agent_response == settings.DEBUG_AGENT_RESPONSE
+
+1 file would be reformatted
+rc(format-diff-now)=1
+
+== F. 仓库级存量规模（本卡未改动面）==
+164 files would be reformatted, 92 files already formatted
+141 files would be reformatted, 123 files already formatted
+
+== C3(补). 验伪锚：探针能分辨『已格式化』——找一个 already-formatted 文件实测 rc=0 ==
+锚文件 = tests/unit/__init__.py
+1 file already formatted
+rc(format-check-CLEAN-anchor)=0
+(若此处 rc=0 且上文 B/C/C2 rc=1 ⇒ 探针真在区分，B/C/C2 的 rc=1 不是恒红)
+
+== G. 结论 ==
+D(基线 08100483) 与 E(本卡改后) 的 hunk 内容逐字相同，仅行号位移(+16/+23/+23)
+⇒ 本卡新增 ruff format 违规 = 0；rc=1 是主干既有（仓库级 164/256 unit + 141/264 app）
+⇒ 按 D-40「语义卡不得代劳整仓格式化」，本卡不 ruff format 重排既有行
+⇒ 提交走 LEFTHOOK_EXCLUDE=python-lint（与前卡 T10-A CARD-RED-MOCKFIX 同先例），举证见 commit-attempt-*.txt

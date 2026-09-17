@@ -1,0 +1,26 @@
+== 复核 Codex r1 第 3 点：作者原判据取名面划窄 ==
+-- 作者原判据（卡文 §〇 抄来的）：grep -rln mocker backend/tests/unit/*.py --
+backend/tests/unit/test_agent_service_extraction.py
+^^ 只命中本文件 —— 但 -r 不扩展 shell glob，取名面实为『tests/unit 直属 .py』而非『整棵测试树』
+
+-- 正确取名面：整棵 backend/tests 递归 --
+backend/tests/e2e/conftest.py
+backend/tests/unit/test_agent_service_extraction.py
+
+-- Codex 点名的 backend/tests/e2e/conftest.py 实际内容 --
+402:def mock_agent_responses(mocker):
+425:    mock = mocker.patch(
+433:def mock_agent_with_failures(mocker):
+464:    mock = mocker.patch(
+
+-- 那两个 fixture 是否有静态调用方（按 fixture 名反查）--
+fixture mock_agent_responses                     调用方数 =        0
+fixture mock_agent_with_failures                 调用方数 =        0
+
+-- 验伪锚：同一递归式对已知正例应命中（本卡文件）--
+1
+
+== 结论 ==
+Codex 的事实主张成立：整棵测试树的 mocker 消费者不止本文件。
+但本卡未改 e2e/conftest.py，其 mocker 依赖在本卡前后完全一致（本卡零影响面）。
+作者原判据的『取名面』须更正为：tests/unit 直属 .py（不是整棵测试树）。
