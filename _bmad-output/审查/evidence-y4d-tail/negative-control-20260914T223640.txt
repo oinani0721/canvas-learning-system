@@ -1,0 +1,58 @@
+negative-control copies written (mutation: worker NOT started)
+
+=== NC1 dual_write: 3 条重写用例, worker 未 start (期望 FAILED) ===
+$ /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t10-red/backend/.venv/bin/pytest -q -p no:cacheprovider tests/unit/test_zz_nc1_y4dtail_tmp.py -k test_dual_write_called_after_neo4j_success or test_record_temporal_event_dual_write or test_config_flag_enables_dual_write --tb=long -rf
+tests/unit/test_zz_nc1_y4dtail_tmp.py FFF                                [100%]
+_____ TestGraphitiJsonDualWrite.test_dual_write_called_after_neo4j_success _____
+E       AssertionError: expected 1 enqueued episode, got 0
+E       assert 0 == 1
+E        +  where 0 = len([])
+tests/unit/test_zz_nc1_y4dtail_tmp.py:154: AssertionError
+________ TestGraphitiJsonDualWrite.test_config_flag_enables_dual_write _________
+tests/unit/test_zz_nc1_y4dtail_tmp.py:361: 
+E           AssertionError: Expected 'enqueue' to have been called once. Called 0 times.
+_______ TestGraphitiJsonDualWrite.test_record_temporal_event_dual_write ________
+E       AssertionError: expected 1 enqueued episode, got 0
+E       assert 0 == 1
+E        +  where 0 = len([])
+tests/unit/test_zz_nc1_y4dtail_tmp.py:417: AssertionError
+FAILED tests/unit/test_zz_nc1_y4dtail_tmp.py::TestGraphitiJsonDualWrite::test_dual_write_called_after_neo4j_success
+FAILED tests/unit/test_zz_nc1_y4dtail_tmp.py::TestGraphitiJsonDualWrite::test_config_flag_enables_dual_write
+FAILED tests/unit/test_zz_nc1_y4dtail_tmp.py::TestGraphitiJsonDualWrite::test_record_temporal_event_dual_write
+================= 3 failed, 4 deselected, 10 warnings in 0.88s =================
+rc=1
+
+=== NC2 story_38_6 TestAC3: worker 未 start (期望 3 条 FAILED, recover_no_file 仍 PASS) ===
+$ /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t10-red/backend/.venv/bin/pytest -q -p no:cacheprovider tests/unit/test_zz_nc2_y4dtail_tmp.py::TestAC3StartupRecovery --tb=long -rf
+tests/unit/test_zz_nc2_y4dtail_tmp.py .FFF                               [100%]
+____________ TestAC3StartupRecovery.test_recover_successful_replay _____________
+        fallback_file = tmp_path / "failed_writes.jsonl"
+            patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file),
+            result = await memory_service.recover_failed_writes()
+E       assert 0 == 1
+tests/unit/test_zz_nc2_y4dtail_tmp.py:235: AssertionError
+{"event": "[Story 38.6] Recovered 0 failed writes, 1 still pending", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-14T14:37:01.921792Z"}
+INFO     app.services.memory_service:memory_service.py:2790 {'event': '[Story 38.6] Recovered 0 failed writes, 1 still pending', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-14T14:37:01.921792Z'}
+_____________ TestAC3StartupRecovery.test_recover_partial_failure ______________
+        fallback_file = tmp_path / "failed_writes.jsonl"
+            patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file),
+            result = await memory_service.recover_failed_writes()
+E       assert 0 == 1
+tests/unit/test_zz_nc2_y4dtail_tmp.py:288: AssertionError
+{"event": "[Story 38.6] Recovered 0 failed writes, 2 still pending", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-14T14:37:02.015780Z"}
+INFO     app.services.memory_service:memory_service.py:2790 {'event': '[Story 38.6] Recovered 0 failed writes, 2 still pending', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-14T14:37:02.015780Z'}
+_______ TestAC3StartupRecovery.test_recover_malformed_entries_preserved ________
+        fallback_file = tmp_path / "failed_writes.jsonl"
+            patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file),
+            result = await memory_service.recover_failed_writes()
+E       assert 0 == 1
+tests/unit/test_zz_nc2_y4dtail_tmp.py:327: AssertionError
+{"event": "[Story 38.6] Recovered 0 failed writes, 2 still pending", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-14T14:37:02.022049Z"}
+INFO     app.services.memory_service:memory_service.py:2790 {'event': '[Story 38.6] Recovered 0 failed writes, 2 still pending', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-14T14:37:02.022049Z'}
+FAILED tests/unit/test_zz_nc2_y4dtail_tmp.py::TestAC3StartupRecovery::test_recover_successful_replay
+FAILED tests/unit/test_zz_nc2_y4dtail_tmp.py::TestAC3StartupRecovery::test_recover_partial_failure
+FAILED tests/unit/test_zz_nc2_y4dtail_tmp.py::TestAC3StartupRecovery::test_recover_malformed_entries_preserved
+=================== 3 failed, 1 passed, 10 warnings in 0.94s ===================
+rc=1
+cleaned: test_zz_nc1_y4dtail_tmp.py
+cleaned: test_zz_nc2_y4dtail_tmp.py

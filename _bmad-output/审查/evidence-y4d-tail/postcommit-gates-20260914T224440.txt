@@ -1,0 +1,27 @@
+=== 判据9 地盘门 ===
+HEAD_OPEN=95d2d27ad205d9ad549ce2f3329775510b92e4e7  HEAD=c1fab4cd
+--- git diff --name-only --no-color HEAD_OPEN..HEAD -- . ':(exclude)_bmad-output' ---
+backend/tests/unit/test_graphiti_json_dual_write.py
+backend/tests/unit/test_story_38_6_scoring_reliability.py
+--- backend/app 越界检查（期望 0）---
+0
+--- 验伪锚：去掉 exclude 应多出 _bmad-output/ 路径 ---
+0
+--- 是否混入 openapi.json / stderr（期望 0）---
+0
+0
+
+=== 判据9b ruff zsh 数组（commit 后）===
+files=2
+--- 文件清单 ---
+backend/tests/unit/test_graphiti_json_dual_write.py
+backend/tests/unit/test_story_38_6_scoring_reliability.py
+--- ruff check ---
+All checks passed!
+rc=0
+--- ruff format --check ---
+2 files already formatted
+rc=0
+--- ruff check --select F401 ---
+All checks passed!
+rc=0

@@ -1,0 +1,20 @@
+=== r2 修正后两文件复跑 ===
+tests/unit/test_graphiti_json_dual_write.py .......                      [ 28%]
+tests/unit/test_story_38_6_scoring_reliability.py .xx.x.........F...     [100%]
+_______ TestAC4MergedView.test_get_learning_history_merges_failed_scores _______
+tests/unit/test_story_38_6_scoring_reliability.py:411: in test_get_learning_history_merges_failed_scores
+FAILED tests/unit/test_story_38_6_scoring_reliability.py::TestAC4MergedView::test_get_learning_history_merges_failed_scores
+============= 1 failed, 21 passed, 3 xfailed, 10 warnings in 1.79s =============
+=== 4 条目标 ===
+tests/unit/test_graphiti_json_dual_write.py::TestGraphitiJsonDualWrite::test_fire_and_forget_doesnt_block_return PASSED [ 25%]
+tests/unit/test_graphiti_json_dual_write.py::TestGraphitiJsonDualWrite::test_timeout_protection PASSED [ 50%]
+tests/unit/test_graphiti_json_dual_write.py::TestGraphitiJsonDualWrite::test_config_flag_disables_dual_write PASSED [ 75%]
+tests/unit/test_story_38_6_scoring_reliability.py::TestAC3StartupRecovery::test_recover_no_file PASSED [100%]
+======================== 4 passed, 10 warnings in 1.67s ========================
+=== ruff 三条 ===
+All checks passed!
+rc=0
+2 files already formatted
+rc=0
+All checks passed!
+rc=0

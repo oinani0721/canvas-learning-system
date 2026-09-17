@@ -1,0 +1,23 @@
+# 负控补跑 r2：Codex r1 LOW 指出 ready_worker 依赖者共 7 条，首轮只跑了 6 条
+# 本轮补第 7 条 test_json_write_failure_doesnt_affect_main_flow，并复跑全部 4 条 dual_write 侧
+mutation: worker NOT started
+tests/unit/test_zz_nc3_y4dtail_tmp.py FFFF                               [100%]
+E       AssertionError: expected 1 enqueued episode, got 0
+E       assert 0 == 1
+E        +  where 0 = len([])
+tests/unit/test_zz_nc3_y4dtail_tmp.py:154: AssertionError
+tests/unit/test_zz_nc3_y4dtail_tmp.py:246: 
+E           AssertionError: Expected 'enqueue' to have been called once. Called 0 times.
+tests/unit/test_zz_nc3_y4dtail_tmp.py:367: 
+E           AssertionError: Expected 'enqueue' to have been called once. Called 0 times.
+E       AssertionError: expected 1 enqueued episode, got 0
+E       assert 0 == 1
+E        +  where 0 = len([])
+tests/unit/test_zz_nc3_y4dtail_tmp.py:426: AssertionError
+FAILED tests/unit/test_zz_nc3_y4dtail_tmp.py::TestGraphitiJsonDualWrite::test_dual_write_called_after_neo4j_success
+FAILED tests/unit/test_zz_nc3_y4dtail_tmp.py::TestGraphitiJsonDualWrite::test_json_write_failure_doesnt_affect_main_flow
+FAILED tests/unit/test_zz_nc3_y4dtail_tmp.py::TestGraphitiJsonDualWrite::test_config_flag_enables_dual_write
+FAILED tests/unit/test_zz_nc3_y4dtail_tmp.py::TestGraphitiJsonDualWrite::test_record_temporal_event_dual_write
+================= 4 failed, 3 deselected, 10 warnings in 0.95s =================
+rc=1
+cleaned: test_zz_nc3_y4dtail_tmp.py

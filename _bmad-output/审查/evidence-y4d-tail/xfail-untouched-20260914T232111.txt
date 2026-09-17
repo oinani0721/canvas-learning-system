@@ -1,0 +1,17 @@
+# 禁改边界自证：xfail 三处标记内容在 HEAD_OPEN vs 终审 HEAD 是否一字未改
+# 基线=95d2d27a  当前=b6858446
+# 方法：ast 提取所有含 xfail 的装饰器，按被装饰函数名排序后逐个 ast.dump 比对
+
+before 数量=3  after 数量=3
+
+IDENTICAL  test_backoff_progression  (dump 长度 431 / 431)
+IDENTICAL  test_inner_per_attempt_timeout_increased  (dump 长度 481 / 481)
+IDENTICAL  test_retry_backoff_base_is_1_second  (dump 长度 462 / 462)
+
+结论: xfail 三处 内容逐字未改 ✅
+
+⛔ 验伪锚（证明本判据能分辨差异）：把其中一个 reason 改一个字符后再比对——
+    人为改 1 处 reason 后，判据报出 1 处 CHANGED ✅ 判据有效（该变异只在内存中，未落盘）
+
+# 行号漂移如实记录（本卡新增一行 import 所致，标记内容未动）:
+#   :37 -> :38   :50 -> :51   :78 -> :79
