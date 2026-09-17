@@ -1,0 +1,68 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t1-lance/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 35 items / 34 deselected / 1 selected
+
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py F                      [100%]
+
+=================================== FAILURES ===================================
+______________ test_drop_refuses_when_vault_registry_is_degraded _______________
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py:1047: in test_drop_refuses_when_vault_registry_is_degraded
+    assert client._last_drop_refusal and "降级" in client._last_drop_refusal, (
+E   AssertionError: 拒绝原因没记下来: "删除集合里有表名判不出主人: ['a_b_canvas_nodes'] —— 余名里还有下划线且不是本客户端会拼出的任何逻辑名 ['canvas_nodes', 'file_fingerprints', 'vault_notes'], 它们更像是某个**未被发现的**长 id vault 的表 (目录被移走且没有指纹表时两条来源都补不回来)。整次拒绝删除 vault 'a' 的索引; 要继续请先让那个 vault 能被发现, 或人工确认后单表删除"
+E   assert ("删除集合里有表名判不出主人: ['a_b_canvas_nodes'] —— 余名里还有下划线且不是本客户端会拼出的任何逻辑名 ['canvas_nodes', 'file_fingerprints', 'vault_notes'], 它们更像是某个**未被发现的**长 id vault 的表 (目录被移走且没有指纹表时两条来源都补不回来)。整次拒绝删除 vault 'a' 的索引; 要继续请先让那个 vault 能被发现, 或人工确认后单表删除" and '降级' in "删除集合里有表名判不出主人: ['a_b_canvas_nodes'] —— 余名里还有下划线且不是本客户端会拼出的任何逻辑名 ['canvas_nodes', 'file_fingerprints', 'vault_notes'], 它们更像是某个**未被发现的**长 id vault 的表 (目录被移走且没有指纹表时两条来源都补不回来)。整次拒绝删除 vault 'a' 的索引; 要继续请先让那个 vault 能被发现, 或人工确认后单表删除")
+E    +  where "删除集合里有表名判不出主人: ['a_b_canvas_nodes'] —— 余名里还有下划线且不是本客户端会拼出的任何逻辑名 ['canvas_nodes', 'file_fingerprints', 'vault_notes'], 它们更像是某个**未被发现的**长 id vault 的表 (目录被移走且没有指纹表时两条来源都补不回来)。整次拒绝删除 vault 'a' 的索引; 要继续请先让那个 vault 能被发现, 或人工确认后单表删除" = <agentic_rag.clients.lancedb_client.LanceDBClient object at 0x13a394ec0>._last_drop_refusal
+E    +  and   "删除集合里有表名判不出主人: ['a_b_canvas_nodes'] —— 余名里还有下划线且不是本客户端会拼出的任何逻辑名 ['canvas_nodes', 'file_fingerprints', 'vault_notes'], 它们更像是某个**未被发现的**长 id vault 的表 (目录被移走且没有指纹表时两条来源都补不回来)。整次拒绝删除 vault 'a' 的索引; 要继续请先让那个 vault 能被发现, 或人工确认后单表删除" = <agentic_rag.clients.lancedb_client.LanceDBClient object at 0x13a394ec0>._last_drop_refusal
+----------------------------- Captured stdout call -----------------------------
+{"event": "[LanceDB vault registry] VAULTS_ROOT \u4e0d\u662f\u76ee\u5f55: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-24784/test_drop_refuses_when_vault_r0/no-such-root \u2014\u2014 \u4e3b\u6765\u6e90\u5931\u6548, \u6ca1\u6709\u6307\u7eb9\u8868\u7684 vault \u5176\u5f52\u5c5e\u5c06\u9000\u56de\u6539\u524d\u53e3\u5f84 (\u53ef\u80fd\u88ab id \u66f4\u77ed\u7684 vault \u8ba4\u9886)", "logger": "agentic_rag.clients.lancedb_client", "level": "error", "timestamp": "2026-09-15T03:50:18.256408Z"}
+{"event": "[LanceDB drop_vault_tables] \u5220\u9664\u96c6\u5408\u91cc\u6709\u8868\u540d\u5224\u4e0d\u51fa\u4e3b\u4eba: ['a_b_canvas_nodes'] \u2014\u2014 \u4f59\u540d\u91cc\u8fd8\u6709\u4e0b\u5212\u7ebf\u4e14\u4e0d\u662f\u672c\u5ba2\u6237\u7aef\u4f1a\u62fc\u51fa\u7684\u4efb\u4f55\u903b\u8f91\u540d ['canvas_nodes', 'file_fingerprints', 'vault_notes'], \u5b83\u4eec\u66f4\u50cf\u662f\u67d0\u4e2a**\u672a\u88ab\u53d1\u73b0\u7684**\u957f id vault \u7684\u8868 (\u76ee\u5f55\u88ab\u79fb\u8d70\u4e14\u6ca1\u6709\u6307\u7eb9\u8868\u65f6\u4e24\u6761\u6765\u6e90\u90fd\u8865\u4e0d\u56de\u6765)\u3002\u6574\u6b21\u62d2\u7edd\u5220\u9664 vault 'a' \u7684\u7d22\u5f15; \u8981\u7ee7\u7eed\u8bf7\u5148\u8ba9\u90a3\u4e2a vault \u80fd\u88ab\u53d1\u73b0, \u6216\u4eba\u5de5\u786e\u8ba4\u540e\u5355\u8868\u5220\u9664", "logger": "agentic_rag.clients.lancedb_client", "level": "error", "timestamp": "2026-09-15T03:50:18.257189Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    agentic_rag.clients.lancedb_client:lancedb_client.py:962 [LanceDB vault registry] VAULTS_ROOT 不是目录: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-24784/test_drop_refuses_when_vault_r0/no-such-root —— 主来源失效, 没有指纹表的 vault 其归属将退回改前口径 (可能被 id 更短的 vault 认领)
+ERROR    agentic_rag.clients.lancedb_client:lancedb_client.py:1432 [LanceDB drop_vault_tables] 删除集合里有表名判不出主人: ['a_b_canvas_nodes'] —— 余名里还有下划线且不是本客户端会拼出的任何逻辑名 ['canvas_nodes', 'file_fingerprints', 'vault_notes'], 它们更像是某个**未被发现的**长 id vault 的表 (目录被移走且没有指纹表时两条来源都补不回来)。整次拒绝删除 vault 'a' 的索引; 要继续请先让那个 vault 能被发现, 或人工确认后单表删除
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:807
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t1-lance/backend/app/api/v1/endpoints/chat.py:807: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:103
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t1-lance/backend/app/api/v1/endpoints/metadata.py:103: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:177
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t1-lance/backend/app/api/v1/endpoints/metadata.py:177: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_drop_refuses_when_vault_registry_is_degraded
+================ 1 failed, 34 deselected, 10 warnings in 0.95s =================

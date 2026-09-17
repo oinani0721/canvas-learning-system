@@ -1,0 +1,4 @@
+files=2
+backend/lib/agentic_rag/clients/lancedb_client.py backend/tests/unit/test_lancedb_cross_vault_drop_g29f1.py
+All checks passed!
+ruff rc=0

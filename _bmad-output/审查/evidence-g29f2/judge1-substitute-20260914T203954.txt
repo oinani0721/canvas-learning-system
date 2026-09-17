@@ -1,0 +1,7 @@
+① _owns_table 末句经 _table_owner: True  ->  return self._table_owner(name, vid) == f'{vid}'
+① _owns_table 体内不直接用 _has_vault_prefix: True
+② _has_vault_prefix 的调用方 = ['_table_owner', 'resolve_table_name']
+② 与期望 ['_table_owner', 'resolve_table_name'] 一致: True
+③ 验伪锚（人造朴素前缀归属）判为合规? False  -> 应为 False
+RESULT: PASS
+rc=0

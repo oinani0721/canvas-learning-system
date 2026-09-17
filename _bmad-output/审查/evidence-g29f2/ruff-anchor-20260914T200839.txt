@@ -1,0 +1,12 @@
+anchor file: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t1-lance/4e32a48b-adec-4289-bc21-948ebb9e8967/scratchpad/anchor_f401.py
+F401 [*] `os` imported but unused
+ --> /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t1-lance/4e32a48b-adec-4289-bc21-948ebb9e8967/scratchpad/anchor_f401.py:1:8
+  |
+1 | import os
+  |        ^^
+  |
+help: Remove unused import: `os`
+
+Found 1 error.
+[*] 1 fixable with the `--fix` option.
+anchor rc=1

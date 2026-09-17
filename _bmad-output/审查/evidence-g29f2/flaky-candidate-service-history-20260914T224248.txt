@@ -1,0 +1,14 @@
+=== 本卡历次全量目录级跑里，该 flaky nodeid 是否为红 ===
+  unit-close-20260914T200213.txt: 该 nodeid 红=0 | = 35 failed, 5085 passed, 48 skipped, 17 xfailed, 197 warnings, 29 errors in 327.39s (0:05:27) 
+  unit-close-final-20260914T202708.txt: 该 nodeid 红=0 | = 35 failed, 5088 passed, 48 skipped, 17 xfailed, 191 warnings, 29 errors in 319.39s (0:05:19) 
+  unit-close-final2-20260914T204013.txt: 该 nodeid 红=1 | = 36 failed, 5090 passed, 48 skipped, 17 xfailed, 201 warnings, 29 errors in 376.47s (0:06:16) 
+  unit-close-final3-20260914T205657.txt: 该 nodeid 红=0 | = 35 failed, 5094 passed, 48 skipped, 17 xfailed, 213 warnings, 29 errors in 407.56s (0:06:47) 
+  unit-close-final4-20260914T211621.txt: 该 nodeid 红=0 | = 35 failed, 5099 passed, 48 skipped, 17 xfailed, 221 warnings, 29 errors in 313.53s (0:05:13) 
+  unit-close-final5-20260914T223321.txt: 该 nodeid 红=1 | = 36 failed, 5099 passed, 48 skipped, 17 xfailed, 225 warnings, 29 errors in 357.55s (0:05:57) 
+  unit-close-verbatim-20260914T200824.txt: 该 nodeid 红=0 | = 35 failed, 5085 passed, 48 skipped, 17 xfailed, 197 warnings, 29 errors in 350.79s (0:05:50) 
+
+=== 结论所需的三条事实 ===
+  ① 该 nodeid 在基线文件头被逐字点名为 flaky:
+flaky test_candidate_service::test_accept_candidate_already_accepted_returns_422
+  ② 单跑 5/5 passed（见上一份存档）
+  ③ 本卡改动与该测试零关联（grep lancedb = 0）
