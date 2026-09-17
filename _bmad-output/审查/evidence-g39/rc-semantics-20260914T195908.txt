@@ -1,0 +1,20 @@
+=== 裁判2下半：脚本 rc 语义（正例 rc=0 / 篡改 rc=1）===
+--- 正例 ---
+## vault: fx-vault  [已对账面: picker+dashboard+overview]
+semantic_diff: (空) — 本 vault 3 面逐项相同
+note[N2_row_order_contract_differs]: picker due_nodes 为扫描序 / overview _node_rows 为紧迫度序 —— 两者不共享行序契约; 本脚本按 ①板内身份集合 ②overview 行序 ≡ 独立复算的紧迫度序 两条判据对账, 不直接比原始行序
+note[N1_dashboard_board_scope]: Dashboard 板数取全部原白板 (Dashboard.md:21) / picker boards rollup 只收有成员或有占位符的板 (daily_review_pick.py:1072) —— 口径差, 不计 diff
+
+[g39] semantic_diff 合计 = 0; known_scope_note 合计 = 2
+rc=0
+
+--- 篡改一面（overview 甲板 due 2→3）---
+## vault: fx-vault  [已对账面: picker+dashboard+overview]
+视图对 | 字段 | 值A | 值B | 独立性
+--- | --- | --- | --- | ---
+overview ↔ picker.due_nodes | boards[甲板].due | 3 | 2 | cross-source
+note[N2_row_order_contract_differs]: picker due_nodes 为扫描序 / overview _node_rows 为紧迫度序 —— 两者不共享行序契约; 本脚本按 ①板内身份集合 ②overview 行序 ≡ 独立复算的紧迫度序 两条判据对账, 不直接比原始行序
+note[N1_dashboard_board_scope]: Dashboard 板数取全部原白板 (Dashboard.md:21) / picker boards rollup 只收有成员或有占位符的板 (daily_review_pick.py:1072) —— 口径差, 不计 diff
+
+[g39] semantic_diff 合计 = 1; known_scope_note 合计 = 2
+rc=1

@@ -1,0 +1,84 @@
+跑前 shasum: 1e3c4ac677f9b035b94300bd28c55fd3032eac249f559cff1a7ad76f1e52e3b5
+还原基准 = 变异前 sha (脚本是新文件, HEAD 无此文件)
+
+[M1_去掉_overview板级due对账]
+  点名 nodeid : test_negctl_overview_board_due_plus_one
+  变异后 rc   : 1  ⇒ KILLED (判据有牙齿)
+  还原        : OK
+  pytest 摘要 : ======================== 1 failed, 10 warnings in 0.60s ========================
+
+[M2_去掉_板序对账]
+  点名 nodeid : test_negctl_picker_top_boards_order_swapped
+  变异后 rc   : 1  ⇒ KILLED (判据有牙齿)
+  还原        : OK
+  pytest 摘要 : ======================== 1 failed, 10 warnings in 0.55s ========================
+
+[M3_去掉_stats与明细长度对账]
+  点名 nodeid : test_negctl_stats_due_nodes_mismatch
+  变异后 rc   : 1  ⇒ KILLED (判据有牙齿)
+  还原        : OK
+  pytest 摘要 : ======================== 1 failed, 10 warnings in 0.59s ========================
+
+[M4_把corrupt降级成not-fetched豁免]
+  点名 nodeid : test_falsify_anchor_overview_corrupt_counts_as_semantic_diff
+  变异后 rc   : 1  ⇒ KILLED (判据有牙齿)
+  还原        : OK
+  pytest 摘要 : ======================== 1 failed, 10 warnings in 0.56s ========================
+
+[M5_把行序对账退化成集合比较]
+  点名 nodeid : test_node_order_mirrors_urgency_not_scan_order
+  变异后 rc   : 1  ⇒ KILLED (判据有牙齿)
+  还原        : OK
+  pytest 摘要 : ======================== 1 failed, 10 warnings in 0.55s ========================
+
+[M6_用isinstance判number（bool陷阱）]
+  点名 nodeid : test_dashboard_bool_is_not_a_js_number
+  变异后 rc   : 1  ⇒ KILLED (判据有牙齿)
+  还原        : OK
+  pytest 摘要 : ======================== 1 failed, 10 warnings in 0.53s ========================
+
+[M7_板序退回子序列比较（Codex HIGH-2 的缺陷形态）]
+  点名 nodeid : test_r1_high2_board_order_is_prefix_not_subsequence
+  变异后 rc   : 1  ⇒ KILLED (判据有牙齿)
+  还原        : OK
+  pytest 摘要 : ======================== 1 failed, 10 warnings in 0.59s ========================
+
+[M8_板集退回只比到期板（Codex HIGH-1 的缺陷形态）]
+  点名 nodeid : test_r1_high1_zero_due_board_missing_from_overview_is_a_diff
+  变异后 rc   : 1  ⇒ KILLED (判据有牙齿)
+  还原        : OK
+  pytest 摘要 : ======================== 1 failed, 10 warnings in 0.60s ========================
+
+[M9_picker解析退回宽松（Codex HIGH-3 的缺陷形态）]
+  点名 nodeid : test_r1_high3_nan_is_rejected_like_js_json_parse
+  变异后 rc   : 1  ⇒ KILLED (判据有牙齿)
+  还原        : OK
+  pytest 摘要 : ======================== 1 failed, 10 warnings in 0.56s ========================
+
+[M10_已连接后的读取失败退回豁免（Codex HIGH-4 的缺陷形态）]
+  点名 nodeid : test_r1_high4_read_failure_after_connect_is_not_exempted
+  变异后 rc   : 1  ⇒ KILLED (判据有牙齿)
+  还原        : OK
+  pytest 摘要 : ======================== 1 failed, 10 warnings in 0.57s ========================
+
+[M11_boards损坏退回当成旧投影（Codex MEDIUM-5 的缺陷形态）]
+  点名 nodeid : test_r1_medium5_corrupt_boards_key_is_a_diff_not_scope_note
+  变异后 rc   : 1  ⇒ KILLED (判据有牙齿)
+  还原        : OK
+  pytest 摘要 : ======================== 1 failed, 10 warnings in 0.59s ========================
+
+[M12_重复vault_id退回取首条（Codex LOW-9 的缺陷形态）]
+  点名 nodeid : test_r1_low9_duplicate_vault_entries_is_a_diff
+  变异后 rc   : 1  ⇒ KILLED (判据有牙齿)
+  还原        : OK
+  pytest 摘要 : ======================== 1 failed, 10 warnings in 0.57s ========================
+
+[M13_去掉代理旁路（本卡自查出的缺陷形态）]
+  点名 nodeid : test_fetch_overview_opener_bypasses_system_proxy
+  变异后 rc   : 1  ⇒ KILLED (判据有牙齿)
+  还原        : OK
+  pytest 摘要 : ======================== 1 failed, 10 warnings in 0.57s ========================
+
+跑后 shasum: 1e3c4ac677f9b035b94300bd28c55fd3032eac249f559cff1a7ad76f1e52e3b5  (与跑前相同)
+
+结论: KILLED 13/13 — 全部被点名的断言打红 ⇒ 负控有牙齿

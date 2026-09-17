@@ -1,0 +1,15 @@
+=== 裁判5 验伪锚（修正版）===
+根因：git 对含中文的路径加引号转义（"_bmad-output/\345..."），
+     原锚 grep '^_bmad-output/' 匹配不到行首的引号 ⇒ 恒 0 假阴性。
+     修法：core.quotepath=false 关掉转义。
+
+--- 不带 exclude（应含 _bmad-output 路径）---
+  _bmad-output 路径数 = 20
+--- 带 exclude（应为 0）---
+  _bmad-output 路径数 = 0
+
+✓ 验伪锚成立：exclude 确实在起作用，地盘门不是恒空判据
+
+--- 带 exclude 的完整文件集（地盘门本体）---
+backend/scripts/g39_three_view_reconcile.py
+backend/tests/regression/test_g39_three_view_reconcile.py

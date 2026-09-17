@@ -1,0 +1,27 @@
+=== r3 修复后裁判汇总 ===
+脚本 sha: 5ce5eea68c526e947d876558f7711b4ed792daba3e620a1a897fb7531f62affa
+--- 零库连接 grep ---
+grep rc=1 (1=0命中) · 验伪锚 73 处
+--- rc 语义 ---
+正例 rc=0
+篡改 rc=1
+--- live ---
+## vault: canvas-vault  [已对账面: picker+dashboard]
+semantic_diff: (空) — 本 vault 2 面逐项相同  ⚠️ overview 面缺席, 未覆盖总览页
+## vault: test-vault  [已对账面: picker+dashboard]
+semantic_diff: (空) — 本 vault 2 面逐项相同  ⚠️ overview 面缺席, 未覆盖总览页
+[g39] semantic_diff 合计 = 0; known_scope_note 合计 = 3
+[g39] ⚠️ 以下 vault 未对满三面 (overview 缺席), rc=0 不代表总览页已验: ['canvas-vault', 'test-vault']
+--- live vault 只读 ---
+  canvas-vault: 0
+  test-vault: 0
+  _bmad-output: 0
+  验伪锚 evidence: 2
+--- ruff ---
+All checks passed!
+check rc=0
+2 files already formatted
+format rc=0
+--- 测试 ---
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================= 145 passed, 10 warnings in 1.54s =======================

@@ -1,0 +1,11 @@
+=== not-fetched 分支端到端复验（修复后）===
+脚本 sha: de6c66d744c2478da7257e7d4d8397ea002892fa0252c599390a5dcf41f39f73
+
+rc=0   （期望 0）
+
+## vault: canvas-vault  [已对账面: picker+dashboard]
+note[N3_overview_not_fetched]: overview 未取到 (backend down): URLError: <urlopen error [Errno 61] Connection refused>
+## vault: test-vault  [已对账面: picker+dashboard]
+note[N3_overview_not_fetched]: overview 未取到 (backend down): URLError: <urlopen error [Errno 61] Connection refused>
+[g39] semantic_diff 合计 = 0; known_scope_note 合计 = 3
+[g39] ⚠️ 以下 vault 未对满三面 (overview 缺席), rc=0 不代表总览页已验: ['canvas-vault', 'test-vault']

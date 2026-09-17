@@ -1,0 +1,15 @@
+=== 裁判6 只读证明（口径C：只扫 live vault 目录本身 = 判据真正要证的东西）===
+判据意图：脚本未写任何**现网 vault 文件**。
+为什么不用卡文原样的 find $VAULTS_ROOT：① 车道树嵌在 VAULTS_ROOT 之下；
+② 本批 6 条并发车道同时在写各自 worktree（实测口径A 39 命中里 36 个与本卡无关）。
+
+  vault=canvas-vault  -newer sentinel 计数 = 0
+  vault=test-vault  -newer sentinel 计数 = 0
+  vault=_bmad-output  -newer sentinel 计数 = 0
+
+--- 验伪锚：同一条 find 对『我确实写过的目录』必须命中（证明 sentinel 时刻与 find 机制有效）---
+  evidence-g39 -newer sentinel 计数 = 4
+    reconcile-live-20260914T195939.txt
+    readonly-vaults-20260914T200205.txt
+    readonly-find-20260914T195946.txt
+    reconcile-live-20260914T195939.json

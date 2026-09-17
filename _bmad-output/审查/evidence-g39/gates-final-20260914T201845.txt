@@ -1,0 +1,36 @@
+=== 定稿裁判汇总（脚本 sha: 1e3c4ac677f9b035b94300bd28c55fd3032eac249f559cff1a7ad76f1e52e3b5）===
+
+--- 裁判3 零库连接 grep（应 0 命中）---
+grep rc=1 (1=0命中)
+验伪锚: 同 grep 对 neo4j_client.py 命中 73 处
+
+--- 裁判2下半 rc 语义（不走管道读 rc）---
+正例 rc=0 （期望 0）
+篡改 rc=1 （期望 1）
+
+--- 裁判6 live 只读跑一次（定稿代码）---
+## vault: canvas-vault  [已对账面: picker+dashboard]
+semantic_diff: (空) — 本 vault 2 面逐项相同  ⚠️ overview 面缺席, 未覆盖总览页
+note[N3_overview_not_fetched]: overview 未取到 (backend down): 未提供 --overview-url / --overview-json (overview 面缺席)
+
+## vault: test-vault  [已对账面: picker+dashboard]
+semantic_diff: (空) — 本 vault 2 面逐项相同  ⚠️ overview 面缺席, 未覆盖总览页
+note[N4_picker_rollup_absent]: vault='test-vault' 的投影无 boards 顶层键 (旧投影合法形态); rollup ↔ group-by 子项 not-applicable
+note[N3_overview_not_fetched]: overview 未取到 (backend down): 未提供 --overview-url / --overview-json (overview 面缺席)
+
+[g39] semantic_diff 合计 = 0; known_scope_note 合计 = 3
+[g39] ⚠️ 以下 vault 未对满三面 (overview 缺席), rc=0 不代表总览页已验: ['canvas-vault', 'test-vault']
+[g39] 报告落盘: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t4-g3/_bmad-output/审查/evidence-g39/reconcile-live-v2-20260914T201845.json
+live rc=0
+
+--- live vault 只读证明 ---
+  canvas-vault: 0
+  test-vault: 0
+  _bmad-output: 0
+  验伪锚 evidence-g39: 2 （>0 = find 有效）
+
+--- ruff ---
+All checks passed!
+check rc=0
+2 files already formatted
+format rc=0

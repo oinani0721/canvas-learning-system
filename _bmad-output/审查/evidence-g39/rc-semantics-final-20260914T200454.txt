@@ -1,0 +1,18 @@
+⛔ 本文件作废 — rc 读数无效，不得引用。
+原因：该轮把脚本输出接了 `| tail -N`，`$?` 取到的是 tail 的退出码而非脚本的，
+于是「篡改例」被记成 rc=0（实际应为 rc=1）。semantic_diff 合计=1 那一行是对的。
+有效版本见同目录 rc-semantics-final-<更晚时间戳>.txt（不走管道读 rc）。
+保留本文件是为了留下这次判据缺陷的记录，不是为了引用它。
+----------------------------------------------------------------------
+=== 定稿后重跑 rc 语义 ===
+--- 正例 ---
+note[N1_dashboard_board_scope]: Dashboard 板数取全部原白板 (Dashboard.md:21) / picker boards rollup 只收有成员或有占位符的板 (daily_review_pick.py:1072) —— 口径差, 不计 diff
+
+[g39] semantic_diff 合计 = 0; known_scope_note 合计 = 2
+rc=0
+--- 篡改一面 ---
+note[N2_row_order_contract_differs]: picker due_nodes 为扫描序 / overview _node_rows 为紧迫度序 —— 两者不共享行序契约; 本脚本按 ①板内身份集合 ②overview 行序 ≡ 独立复算的紧迫度序 两条判据对账, 不直接比原始行序
+note[N1_dashboard_board_scope]: Dashboard 板数取全部原白板 (Dashboard.md:21) / picker boards rollup 只收有成员或有占位符的板 (daily_review_pick.py:1072) —— 口径差, 不计 diff
+
+[g39] semantic_diff 合计 = 1; known_scope_note 合计 = 2
+rc=0

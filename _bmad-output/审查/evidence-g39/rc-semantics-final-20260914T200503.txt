@@ -1,0 +1,12 @@
+=== 定稿后 rc 语义（⛔ 不走管道读 rc：上一轮 | tail 把 tail 的 rc 当成了脚本的）===
+脚本 sha: 3ee51facdcf43209e24f4c3ae05cb6a7ac4ca50859932ad9ec765b32e2655363
+
+--- 正例（三面自洽）---
+rc=0   （期望 0）
+
+--- 篡改一面（overview 甲板 due 2→3）---
+rc=1   （期望 1）
+
+--- 差异行内容（另跑一次取 stdout，不与 rc 混读）---
+overview ↔ picker.due_nodes | boards[甲板].due | 3 | 2 | cross-source
+[g39] semantic_diff 合计 = 1; known_scope_note 合计 = 2

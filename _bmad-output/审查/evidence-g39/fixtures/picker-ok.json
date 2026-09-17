@@ -1,0 +1,95 @@
+{
+  "schema_version": 3,
+  "vault_id": "fx-vault",
+  "date": "2026-09-14",
+  "generated_at": "2026-09-14T09:05:00+08:00",
+  "display_tz": "Asia/Shanghai",
+  "stats": {
+    "due_nodes": 4,
+    "ineligible": 2
+  },
+  "due_nodes": [
+    {
+      "node": "n2",
+      "board": "甲板",
+      "fsrs_due": "",
+      "due_reason": "new",
+      "bucket": "new",
+      "why_due": "新卡"
+    },
+    {
+      "node": "n1",
+      "board": "甲板",
+      "fsrs_due": "2026-09-10T01:00:00Z",
+      "due_reason": "scheduled",
+      "bucket": "due_now",
+      "why_due": "已逾期"
+    },
+    {
+      "node": "n3",
+      "board": "乙板",
+      "fsrs_due": "2026-09-12T02:00:00Z",
+      "due_reason": "scheduled",
+      "bucket": "due_now",
+      "why_due": "已逾期"
+    },
+    {
+      "node": "n4",
+      "board": "乙板",
+      "fsrs_due": "2026-09-11T03:00:00Z",
+      "due_reason": "scheduled",
+      "bucket": "due_now",
+      "why_due": "已逾期"
+    }
+  ],
+  "boards": [
+    {
+      "board": "甲板",
+      "due": 2,
+      "due_new": 1,
+      "due_scheduled": 1,
+      "future": 0,
+      "next_due": "",
+      "placeholder": 0,
+      "earliest_overdue": "2026-09-10T01:00:00Z"
+    },
+    {
+      "board": "乙板",
+      "due": 2,
+      "due_new": 0,
+      "due_scheduled": 2,
+      "future": 0,
+      "next_due": "",
+      "placeholder": 2,
+      "earliest_overdue": "2026-09-11T03:00:00Z"
+    }
+  ],
+  "top_boards": [
+    {
+      "board": "乙板",
+      "top_node": "n4",
+      "priority": 0.11,
+      "pending": 2
+    },
+    {
+      "board": "甲板",
+      "top_node": "n1",
+      "priority": 0.22,
+      "pending": 2
+    }
+  ],
+  "upcoming": [],
+  "ineligible": {
+    "placeholder": [
+      "p1",
+      "p2"
+    ],
+    "test_excluded": [],
+    "corrupt": []
+  },
+  "notification": null,
+  "truncated": {
+    "top_boards": false,
+    "upcoming": false
+  }
+}
