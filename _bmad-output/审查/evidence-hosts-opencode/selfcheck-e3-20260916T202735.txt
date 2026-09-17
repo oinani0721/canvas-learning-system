@@ -1,0 +1,21 @@
+=== ① 静态：绑定段里每个 dir_fd= 的用途 ===
+  parent_fd 写入落点     os.mkdir(name, 0o755, dir_fd=parent_fd)
+  parent_fd 判断/读取    st = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+  parent_fd 判断/读取    return os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=
+  vfd      判断/读取    cfd = os.open(".claude", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir
+  cfd      判断/读取    csfd = os.open("skills", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir
+  csfd     判断/读取    st = os.stat(name, dir_fd=csfd, follow_symlinks=False)
+  csfd     判断/读取    name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=csfd
+  sfd      写入落点     os.symlink(tgt, name, dir_fd=sfd)
+  sfd      判断/读取    st = os.stat(name, dir_fd=sfd, follow_symlinks=False)
+  sfd      判断/读取    cur = os.readlink(name, dir_fd=sfd)
+  sfd      判断/读取    st = os.stat(name, dir_fd=sfd, follow_symlinks=False)
+  sfd      判断/读取    if os.readlink(name, dir_fd=sfd) != f"../../.claude/skills/{name}":
+  sfd      判断/读取    tfd = os.open(name, os.O_RDONLY | os.O_DIRECTORY, dir_fd=sfd)
+  vfd      判断/读取    _c2 = os.open(".claude", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir
+  _c2      判断/读取    _s2 = os.open("skills", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_
+  _s2      判断/读取    nowst = os.stat(name, dir_fd=_s2, follow_symlinks=False)
+
+=== ② 实测：把 .agents 在 sfd 打开后搬出 vault，会被拦住吗 ===
+  搬 .agents      rc=1 ✅ 拒  ⚠️ 本次已建出以下条目级软链, 因后续校验失败未完成绑定, **原样留在盘上**（不自动删除: 删除本身可能删掉他人同名文件）: /private/tmp/claude-501/-User
+  搬整个 vault      rc=0 ⛔ 放行  

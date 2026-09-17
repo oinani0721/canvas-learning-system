@@ -1,0 +1,32 @@
+# HIGH-1 修法的同型面实测（车道主动扩，超出 Codex 点名的单一例子）20260916T145855
+
+=== ① os.fsdecode/fsencode 往返无损性（本机 utf-8 + surrogateescape）===
+  filesystemencoding = utf-8 errors = surrogateescape
+  ASCII     往返无损=True
+  前导空格      往返无损=True
+  尾随空格      往返无损=True
+  制表符       往返无损=True
+  CR        往返无损=True
+  中文        往返无损=True
+  非法UTF8    往返无损=True
+  换行        往返无损=True
+  U+2028    往返无损=True
+  含%        往返无损=True
+
+=== ② 这些名字 macOS 建得出来吗（建不出来的形态 = 不在可达面内）===
+  前导空格      可建
+  尾随空格      可建
+  制表符       可建
+  CR        可建
+  非法UTF8    ⛔ 文件系统拒绝 errno=92
+  换行        可建
+  U+2028    可建
+  含%        可建
+
+=== ③ 端到端：旧实现 vs 新实现，对「含换行」与「U+2028」的名字 ===
+  --- 技能名 two$'\n'lines ---
+    旧(splitlines+strip)    rc=1 建出=['lines', 'two']  条数=2（应为 1 且逐字等于原名）
+    新(NUL+fsdecode)        rc=0 建出=['two\nlines']  条数=1（应为 1 且逐字等于原名）
+  --- 技能名 a$'\342\200\250'b ---
+    旧(splitlines+strip)    rc=1 建出=['a', 'b']  条数=2（应为 1 且逐字等于原名）
+    新(NUL+fsdecode)        rc=0 建出=['a\u2028b']  条数=1（应为 1 且逐字等于原名）

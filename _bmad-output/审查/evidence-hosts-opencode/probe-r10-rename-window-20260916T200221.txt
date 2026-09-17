@@ -1,0 +1,5 @@
+=== 注入：源 fd 打开后 rename 出 vault + 原位置放软链（inode 不变）===
+  rc = 1 （须非 0）
+  stderr: 技能源条目在本次运行中被换成了非目录（软链？）: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t2-deploy/fc3b48ef-d0d6-4142-80ed-5b095ea02d
+  软链留下 | 物理落点在 vault 内 = False
+  ⇒ rc 非 0 即判据拦住了（残链按 r10 HIGH-1 的取舍**刻意不删**，已如实报告）

@@ -1,0 +1,13 @@
+# r6 整改的车道自查（回答 Codex r7 prompt 的 Z1/Z2/Z4）  HEAD=5af9c7ff
+
+[Z4] 清理 guard 取名面的锚唯一性（取名面必须恰好等于其主张）
+  'if not ok:'         出现 1 次  ✅ 唯一
+  'os.close(dfd)'      出现 1 次  ✅ 唯一
+  切出段 712 字符 | 含 st_nlink 检查=True | 含 ftruncate=True
+
+[Z2] split(LF) 与 tokenize 坐标对齐：逐个核 57 个 COMMENT token，失配 0 处 ✅
+
+[Z1] 序号 label 与 path 的对应
+  opencode-skill-link-$_i:$dst_root/$name   ← label 是序号、名字只进 path ✅
+  ⚠️ 代价如实记：报错行的 label 变成 opencode-skill-link-3 不带名字；
+     但判据的 HIT 行打印的是 why（含**真实路径**），可诊断性仍在。

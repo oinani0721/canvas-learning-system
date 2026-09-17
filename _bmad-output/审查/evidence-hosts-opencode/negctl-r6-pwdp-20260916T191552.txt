@@ -1,0 +1,15 @@
+# 负控 N：把 shell 侧的 pwd -P 物理核加回去 20260916T191552
+跑前 sha:
+ea84eaf66e1330d2aa3f4d63f7ca1ffe6fc3b632e8abeb94b79f226f0fc2d930  scripts/deploy-vault.sh
+  变异已落盘（第二份物理核回来了）
+  bash-n rc=0
+  --- 静态门（不许有第二份物理核）---
+E   AssertionError: shell 侧又加回了用 pwd -P 的物理核（会剥尾随换行）
+    assert 'pwd -P' not in 'write_openc... return 0\n}'
+  --- 尾随换行行为门（补了 rc 断言后应能抓到误报失败）---
+E   AssertionError: 尾随换行的名字让部署失败了: rc=73
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t2-deploy/backend/tests/unit/test_deploy_vault_sh.py:4610: AssertionError: 尾随换行的名字让部署失败了: rc=73
+
+还原后 sha:
+ea84eaf66e1330d2aa3f4d63f7ca1ffe6fc3b632e8abeb94b79f226f0fc2d930  scripts/deploy-vault.sh
+bash-n rc=0

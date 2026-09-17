@@ -1,0 +1,35 @@
+# CARD-HOSTS-OPENCODE — Codex r5 四条 findings 的独立核验（车道自查，只读）
+# 时刻 20260916T125808 ; HEAD = 6acec0e4 ; 代码全程未改（5 轮用满，改动会破坏终审绑定）
+
+===== HIGH-1 判据两侧对名字的解释不一致 =====
+--- 判据对原名 ' .git'（shell 侧 basename 拿到的） ---
+OK orig
+rc=0
+--- 判据对 strip 后的 '.git'（python 侧实际创建的） ---
+HIT stripped .git 目录内
+rc=1
+--- 端到端：真的建出来了吗 ---
+  软链目标: ../../.claude/skills/.git
+  ⇒ 结论: CONFIRMED。残链在「解析失败报错」之前就已落盘, 零竞态、纯确定性输入。
+
+===== MEDIUM-1 静态门的去注释只滤整行, 行尾注释仍参与 flags 检查 =====
+  原样                                    : PASS
+  负控A 真实 O_EXCL 删掉、行尾注释留该词  : PASS  ← PASS = 假绿
+  负控B 删掉清理分支的 nlink 检查          : PASS  ← PASS = 该检查无门锁住
+  ⇒ 结论: CONFIRMED（两个负控都复现）。与我 r4 修的是同一形状 —— 我只修了整行注释。
+
+===== LOW-1 残留注释（逐条核, 分成立/不成立） =====
+--- ① deploy-vault.sh 注释仍说「rc 72 / 走不到的分支」（r4 已裁定该说法过强）---
+  CONFIRMED 1305:        #    拦成 rc 72, 到不了这里；为一个走不到的分支留 unlink, 换来的是 H1 那类缺陷。
+--- ② test docstring 仍写「补进 3 项…（+ 其 .tmp）」而下方又说 .tmp 已退场（自相矛盾）---
+  CONFIRMED 3712:       CARD-HOSTS-OPENCODE（第十四批）因此补进 3 项：`--hosts` 含 opencode 时步 3
+--- ③ Codex 说文案仍承诺「重跑会被覆盖」---
+  该字样命中数 = 0  ⇒ 这半条【不成立】: 我在 r4 已改掉, Codex 此处描述有误
+
+===== HIGH-2 清理分支 fstat(nlink) → ftruncate 的 TOCTOU =====
+  技术上成立（任何 check-then-act 都有窗口）, 但影响面与另外三处 ftruncate 不同:
+  · 本处 fd 指向的是【本次 O_EXCL 新建】的文件 ⇒ 别人要受影响, 必须主动 link 到我的半成品;
+  · 另外三处经 open_pinned 打开的是【已存在】的文件, 那里的 nlink 检查防的是伤到别人原有数据。
+  · 被截断的内容是半成品（不是任何人的数据）, 且去掉该检查只会更糟。
+  ⇒ 车道判定: 技术成立, 但严重度应低于 HIGH（倾向 LOW/MEDIUM）。
+  ⛔ 按 D-15「车道对 HIGH 的驳回要写理由但不能自判通过」⇒ 理由在此, 裁定权交主 session。

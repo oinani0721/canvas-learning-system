@@ -268,6 +268,17 @@ def build_targets(live: str) -> tuple[list[tuple[str, str]], list[str], bool]:
     for d in (".codex", ".pi", ".gemini", ".deepcode", ".dsh"):
         raw.append(os.path.join(home, d))
     raw.append(os.path.join(home, ".config", "opencode"))
+    # ⛔ 上面这一行是 D-26(i) 的**唯一**承重点（CARD-HOSTS-OPENCODE 负控实测：删掉它，
+    #    下面点名的两个文件当场从拒变放行）。它入的是**整目录**，`under()` 对根做
+    #    `key == tk or key.startswith(tk + os.sep)` ⇒ 其下全部文件一律拦，不按文件名枚举。
+    #    这一点很重要：决策文档 D-26(i) 当初枚举的文件名是 `opencode.json`，而 OpenCode
+    #    实写的是 `opencode.jsonc` 与 `.gitignore` —— **文档枚举**漏了，运行期口径没漏。
+    #    （文档侧的枚举更正是移交项，不在本文件。）
+    #    回归断言见 backend/tests/unit/test_deploy_vault_sh.py::
+    #      test_d26i_opencode_user_config_files_are_refused（拒）
+    #      test_d26i_falsification_anchor_ordinary_path_is_allowed（验伪锚，必须另起一跑）
+    # ⚠️ 别把新目标插在这一行**上面** —— 那会把它往下推，负控按行号删就删错行。
+    #    （所以负控一律按内容 `grep -nF` 重取行号并断言唯一命中。）
 
     # 规则 4①：已存在的 .claude* 条目 —— 登记它们的**解析结果**（含软链目标）
     # Codex r3 HIGH-1 两处：

@@ -42,7 +42,11 @@ different from the vault name.
 
    打印六行 `[N/6] <step>: OK|SKIP|FAIL <一句>`。rc：0 成功 / 64 用法错 /
    7N 第 N 步失败。看清楚每步要做什么，再加 `--apply` 真做。
-   `--port` 缺省 8011；`--hosts` 本版只支持 `claude`（二线宿主等实测表）。
+   `--port` 缺省 8011；`--hosts` 本版支持 `claude` 与 `opencode`（逗号分隔，可并存），
+   其余（`codex` / `dsh` …）仍 rc 64 等实测表。带 `opencode` 时 `--apply` 会在 vault 里
+   多生成两件**静态**绑定件：`.agents/skills/<name>`（指向同名 `.claude/skills` 条目的
+   条目级软链）与 `AGENTS.md`（技能清单 + 项目级 MCP 接线指引）。不跑 OpenCode 模型，
+   也不碰 `~/.config` 下的用户级配置。
 
 3. **Apply**: 同一条命令加 `--apply`（要激活再加 `--activate`）。
    脚本会按实例重生鉴权 key（0600）并同步到 `.env.<vault>` 与插件 `data.json`

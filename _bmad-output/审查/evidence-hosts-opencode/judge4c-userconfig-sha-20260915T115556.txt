@@ -1,0 +1,16 @@
+# 裁判4③ 跑前跑后 D-26(i) 相关文件 sha 20260915T115556
+===== 跑前 =====
+94aae2fcfddce161b5c31f3aa3e3404b7fa9a5c97884641bf0fd5c6fb6da241b  /Users/Heishing/.codex/config.toml
+4e901f9e457c8d52ab31f9fb4ea637a8c9104ebdbf23fe8b3600f35ad46d4a61  /Users/Heishing/.config/opencode/opencode.jsonc
+663a068e76d264d0bc6740f5450b6c4193c7b41ecf5e0dc222485b8a17404d95  /Users/Heishing/.config/opencode/.gitignore
+DIRLIST . .. .gitignore opencode.jsonc 
+===== 被观测的那一跑：--hosts claude,opencode --apply（tmp vault，pytest basetemp）=====
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================== 1 passed, 10 warnings in 2.91s ========================
+===== 跑后 =====
+94aae2fcfddce161b5c31f3aa3e3404b7fa9a5c97884641bf0fd5c6fb6da241b  /Users/Heishing/.codex/config.toml
+4e901f9e457c8d52ab31f9fb4ea637a8c9104ebdbf23fe8b3600f35ad46d4a61  /Users/Heishing/.config/opencode/opencode.jsonc
+663a068e76d264d0bc6740f5450b6c4193c7b41ecf5e0dc222485b8a17404d95  /Users/Heishing/.config/opencode/.gitignore
+DIRLIST . .. .gitignore opencode.jsonc 
+===== (i) sentinel：开工后 ~/.config/opencode 下有无新文件（须 0）=====
+       0

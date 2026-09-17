@@ -1,0 +1,22 @@
+# 裁判4② D-26(i) 负控 20260915T115545
+--- 跑前 sha（工作树当前态）---
+392ae1e84c793c81994dd24bea94c0ef5ab7552a2a0424f0eef1e99200457d34  scripts/cls_forbidden_paths.py
+--- 按内容取行号（⛔ 不用硬编码 :270，本卡给同文件加了注释）---
+命中行号列表 = [270]
+命中条数 = 1
+实测行号 $L = 270 （卡文写的是 :270）
+被删那一行的原文：    raw.append(os.path.join(home, ".config", "opencode"))
+--- 变异：删掉该行 ---
+变异后同串命中数 = 0
+--- 重跑裁判4① 的 opencode.jsonc 断言（应从拒变放行）---
+OK o1
+OK o2
+rc=0
+--- 同时确认判据本身还活着（验伪：真正的保护目标仍被拦）---
+HIT c1 /Users/Heishing/.codex（mkdir -p 会创建的中间段 /Users/Heishing/.codex）
+rc=1
+--- EXIT trap 还原 ---
+--- 还原后 sha（须与跑前逐字相同）---
+392ae1e84c793c81994dd24bea94c0ef5ab7552a2a0424f0eef1e99200457d34  scripts/cls_forbidden_paths.py
+--- 还原后同串命中数（须 1）---
+1

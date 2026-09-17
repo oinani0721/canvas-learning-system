@@ -1,0 +1,11 @@
+# r5 整改后 lint + 门 20260916T145316
+All checks passed!
+ruff check rc=0
+1 file already formatted
+ruff format rc=0
+--- 验伪锚：format --check 不是恒绿 ---
+anchor rc=1（须非 0）
+--- 非注释行禁串 ---
+opencode.json=0  .config/opencode=0（均须 0）
+--- bash -n ---
+rc=0

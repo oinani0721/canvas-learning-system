@@ -1,0 +1,11 @@
+# 新门（含换行名字）负控 20260916T185610
+跑前 sha:
+47dd073b3f534a5f6d8225addc67b18ca26fdb41687e4c0533f93adb89bdd8cd  scripts/deploy-vault.sh
+变异已落盘（退回 splitlines+strip）
+--- 含换行名字的行为门应当变红 ---
+E   AssertionError: 条目集合不对: []
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t2-deploy/backend/tests/unit/test_deploy_vault_sh.py:4568: AssertionError: 条目集合不对: []
+================ 1 failed, 218 deselected, 10 warnings in 3.45s ================
+还原后 sha（须与跑前同）:
+47dd073b3f534a5f6d8225addc67b18ca26fdb41687e4c0533f93adb89bdd8cd  scripts/deploy-vault.sh
+bash-n rc=0

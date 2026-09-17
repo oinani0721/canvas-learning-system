@@ -1,0 +1,9 @@
+📦 deploy-vault [dry-run] vault=v port=8099 hosts=claude,opencode
+   harness=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t2-deploy
+[1/6] preflight: OK 树完整 / 禁写面过 / 名不动点 / port 8099 空闲 / skills 9; will build main.js（dry-run 不执行）
+[2/6] install: SKIP will run: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t2-deploy/scripts/install-vault.sh v --subject v --vaults-root /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.o4KSAyeR2I --source /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t2-deploy/canvas-vault --env-file /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.o4KSAyeR2I/env/.env.v --harness-tree /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t2-deploy --backend-url http://127.0.0.1:8099
+[3/6] postprocess: SKIP will: 重生 key(0600) → 同值写 /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.o4KSAyeR2I/v/.obsidian/cls-internal-key.txt / .env.v INTERNAL_API_KEY / data.json internalApiKey; :8011 → :8099 ×4; 在位判 CLAUDE.md/.claude/skills/.mcp.json; 生成 opencode 绑定件 .agents/skills/<name> 条目级软链 + AGENTS.md
+[4/6] verify: SKIP will run: verify_vault_install.py --vault /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.o4KSAyeR2I/v（dry-run 零写, 不跑不落报告）
+[5/6] activate: SKIP 未传 --activate（缺省只部署不激活）
+[6/6] evidence: SKIP will write: /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.o4KSAyeR2I/ev/deploy-<ts>.txt（dry-run 零写, 不落盘）
+✅ rc=0（dry-run）

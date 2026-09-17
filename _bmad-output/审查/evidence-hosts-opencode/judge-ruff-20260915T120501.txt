@@ -1,0 +1,11 @@
+# ruff 门 20260915T120501（本卡 diff 文件）
+--- ruff check ---
+All checks passed!
+rc=0
+--- ruff format --check ---
+2 files already formatted
+rc=0
+--- 验伪锚：ruff format --check 不是恒绿（喂一份刻意错排的临时文件）---
+Would reformat: /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.hFwewwA6rh/bad.py
+1 file would be reformatted
+anchor rc=1（须非 0）

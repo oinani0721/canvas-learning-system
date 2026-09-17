@@ -1,0 +1,46 @@
+# 裁判3 生成物实测 20260915T115438
+VAULT=/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.I57wWWMQoU/bt/test_hosts_opencode_generates_0/vaults/probe_oc1
+--- ls -la $VAULT/.agents/skills ---
+total 0
+drwxr-xr-x@ 5 Heishing  staff  160 Sep 15 11:54 .
+drwxr-xr-x@ 3 Heishing  staff   96 Sep 15 11:54 ..
+lrwxr-xr-x@ 1 Heishing  staff   32 Sep 15 11:54 alpha-skill -> ../../.claude/skills/alpha-skill
+lrwxr-xr-x@ 1 Heishing  staff   31 Sep 15 11:54 beta-skill -> ../../.claude/skills/beta-skill
+lrwxr-xr-x@ 1 Heishing  staff   32 Sep 15 11:54 gamma-skill -> ../../.claude/skills/gamma-skill
+--- 逐条 test -L + readlink + 目标存在 ---
+alpha-skill: -L=yes readlink=../../.claude/skills/alpha-skill resolved=/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.I57wWWMQoU/bt/test_hosts_opencode_generates_0/vaults/probe_oc1/.claude/skills/alpha-skill exists=yes
+  frontmatter name = name: alpha-skill
+beta-skill: -L=yes readlink=../../.claude/skills/beta-skill resolved=/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.I57wWWMQoU/bt/test_hosts_opencode_generates_0/vaults/probe_oc1/.claude/skills/beta-skill exists=yes
+  frontmatter name = name: beta-skill
+gamma-skill: -L=yes readlink=../../.claude/skills/gamma-skill resolved=/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.I57wWWMQoU/bt/test_hosts_opencode_generates_0/vaults/probe_oc1/.claude/skills/gamma-skill exists=yes
+  frontmatter name = name: gamma-skill
+--- .agents/skills 本身是否软链（应为 NO=条目级）---
+.agents/skills -L = NO
+.agents        -L = NO
+--- AGENTS.md ---
+-rw-r--r--@ 1 Heishing  staff  1296 Sep 15 11:54 /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.I57wWWMQoU/bt/test_hosts_opencode_generates_0/vaults/probe_oc1/AGENTS.md
+
+<!-- generated-by: deploy-vault.sh (--hosts opencode) -->
+# probe_oc1 —— 给 OpenCode 的入口
+
+这份文件由 `deploy-vault.sh --hosts opencode` 生成, 重跑会被覆盖 —— 
+想加自己的内容, 先删掉第一行的生成标记（之后本脚本会拒绝覆盖它）。
+
+## 可用技能（3 条）
+
+`.agents/skills/` 下每一条都是指向 `.claude/skills/` 同名条目的软链, 
+两个助手读到的是**同一份** SKILL.md, 改一处两边同时生效。
+
+- `alpha-skill` — `.agents/skills/alpha-skill` → `../../.claude/skills/alpha-skill`
+- `beta-skill` — `.agents/skills/beta-skill` → `../../.claude/skills/beta-skill`
+- `gamma-skill` — `.agents/skills/gamma-skill` → `../../.claude/skills/gamma-skill`
+
+## 后端接线
+
+本 vault 的后端在 `http://127.0.0.1:8281`。仓里已有的 `.mcp.json` 是 
+Claude 口径的 MCP 声明, OpenCode 不读那个格式；要在 OpenCode 里用同一个
+后端, 请在**本 vault 根目录**（OpenCode 的项目级配置位置）自己建一份 
+`opencode.jsonc`, 指向上面那个地址。
+
+⛔ 不要去改 `~/.config/` 下 OpenCode 的**用户级**配置目录: 那是整机全局设置, 
+部署脚本对它是零写者, 手改会让不同课程的 vault 互相打架。项目级配置只影响这一个 vault。

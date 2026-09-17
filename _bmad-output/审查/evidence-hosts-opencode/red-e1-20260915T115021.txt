@@ -1,0 +1,2 @@
+❌ 用法错: --hosts 含未实现的宿主 opencode。
+   E-1 二线宿主（codex / opencode / dsh 等）等 HOST-PROBE 实测表（U4-A），本版不实现。

@@ -1,0 +1,25 @@
+# r13 attempt-1 挂起记录 20260916T232831
+
+## 现象
+  codex exec 进程仍在、但 stderr **64 分钟无写入**，末行 `ERROR: Reconnecting... 2/5`。
+  存档 0 字节。goal check-in 两次报「background work still running」——
+  **进程活着 ≠ 在推进**。
+
+## 怎么判出来的（可复用）
+  单看 pgrep「在跑」会误判。真正的判据是 **stderr 的最后写入时间 vs 当前时刻**：
+    ls -la <archive>.stderr | awk '{print $6,$7,$8}'  与  date '+%H:%M:%S' 对照
+  前几轮正常时 stderr 每隔几十秒就有新字节；本次停在 22:23、查看时 23:27。
+
+## 处置
+  · TaskStop 停掉该后台任务（⛔ 没有 pkill —— 那会杀到别的 codex 进程，权限层也拒了）
+  · attempt-1 的 stderr 留名 -attempt1（*.stderr* 被 .gitignore 覆盖，不入库）
+  · prompt 已在盘上，直接重发到 attempt2，**不重写 prompt**（保证两次审的是同一份输入）
+
+## 协议对照
+  协议 §2 写的是「0 字节存档重发一次，再 0 字节 → 主 session 人审替代」。
+  本次属于该条款的适用情形（0 字节 + 挂起），按它执行第一次重发。
+
+## 实测数据
+  attempt1 stderr 大小 =   123599 bytes
+  attempt1 末行        = 2026-09-16T15:27:55.060934Z ERROR codex_models_manager::mana
+  prompt 大小（两次同一份）=    10338 bytes

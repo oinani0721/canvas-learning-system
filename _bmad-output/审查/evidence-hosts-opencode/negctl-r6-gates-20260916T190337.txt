@@ -1,0 +1,26 @@
+# r6 四条 MEDIUM 的负控（逐条用 Codex 给的对照输入）20260916T190337
+跑前 sha:
+2dd62fe3419ecd5ee78284349768fd123bf15549cc6dc0c5ac1b2dab76b26de7  scripts/deploy-vault.sh
+
+===== 负控 J（MEDIUM-3②）：在 shell 尾部追加 '# O_EXCL'，删掉真 flag =====
+  变异已落盘
+E   AssertionError: 直写目标的关键 flag O_EXCL 只剩注释或已消失
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t2-deploy/backend/tests/unit/test_deploy_vault_sh.py:4486: AssertionError: 直写目标的关键 flag O_EXCL 只剩注释或已消失
+
+===== 负控 K（MEDIUM-4）：删掉失败清理分支的 nlink guard =====
+  变异已落盘（只删清理分支那处，写后检查那两处保留）
+E   AssertionError: 失败清理分支截断前的链接数检查没了
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t2-deploy/backend/tests/unit/test_deploy_vault_sh.py:4494: AssertionError: 失败清理分支截断前的链接数检查没了
+
+===== 负控 L（MEDIUM-1）：label 退回嵌名字 =====
+  变异已落盘
+  判据实况: 名字含 : 时 partition 拆出的 path = '~:/v/.agents/skills/a:~'
+  ⇒ 这条本轮无静态门锁住（如实登记，见下）
+
+===== 负控 M（MEDIUM-2）：取名退回 $(basename) =====
+  变异已落盘
+================ 1 passed, 218 deselected, 10 warnings in 4.47s ================
+
+还原后 sha（须与跑前同）:
+2dd62fe3419ecd5ee78284349768fd123bf15549cc6dc0c5ac1b2dab76b26de7  scripts/deploy-vault.sh
+bash-n rc=0

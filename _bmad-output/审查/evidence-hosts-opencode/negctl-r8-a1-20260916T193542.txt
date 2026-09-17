@@ -1,0 +1,16 @@
+# 负控 O：A1 的两个方面各自承重吗 20260916T193542
+跑前 sha:
+5cdb7f009c2be4fd033d2697b5213c25ea2b390260339940f3d17c128630250a  scripts/deploy-vault.sh
+
+===== O-1：删掉源目录软链检查 ⇒ 新门应变红 =====
+  变异已落盘
+================ 1 failed, 221 deselected, 10 warnings in 3.62s ================
+
+===== O-2：把检查移回建链之后 ⇒ 门应因残链变红 =====
+  变异已落盘（检查挪到建链之后）
+  bash-n rc=0
+================ 1 failed, 221 deselected, 10 warnings in 2.96s ================
+
+还原后 sha:
+5cdb7f009c2be4fd033d2697b5213c25ea2b390260339940f3d17c128630250a  scripts/deploy-vault.sh
+bash-n rc=0

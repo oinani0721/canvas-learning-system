@@ -1,0 +1,4 @@
+=== 注入：源 fd 打开后，把整个 .claude/skills rename 出 vault + 原位置放软链 ===
+  旧实现（复用 csfd）               rc=0  落点在 vault 内=False
+  新实现（从 vfd 重走父链）            rc=1  落点在 vault 内=False
+      └ 后核时 .claude/skills 打不开（被搬走或换成软链？）: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-syst

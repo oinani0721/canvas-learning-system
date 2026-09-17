@@ -16,7 +16,7 @@
 #
 # ═══ rc 表 ═══
 #   0  成功
-#   64 用法错（缺必填 / 未知参数 / --hosts 含二线宿主 / --activate 缺 --apply / --also-push 越界）
+#   64 用法错（缺必填 / 未知参数 / --hosts 含未实现宿主 / --activate 缺 --apply / --also-push 越界）
 #   71 步 1 preflight 失败      74 步 4 verify 失败
 #   72 步 2 install 失败        75 步 5 activate 失败
 #   73 步 3 postprocess 失败    76 步 6 evidence 失败
@@ -28,7 +28,11 @@
 #   --port <n>            缺省 8011（与 vault 内全部消费方同源：.mcp.json / settings.json hook /
 #                         session-end-archive.py / 插件 data.json；compose :150 缺省是 8001，
 #                         .env.example:84 是 8011 —— 不一致已登记，本脚本按 8011 选边）。
-#   --hosts <list>        缺省 claude。本版**只**支持 claude；其余值 rc 64（E-1）。
+#   --hosts <list>        缺省 claude。本版支持 claude / opencode（逗号分隔，可并存）；
+#                         其余值 rc 64（E-1）。含 opencode 时步 3 在 --apply 态**生成**两件
+#                         静态绑定件：<vault>/.agents/skills/<name> 条目级软链（→ 同名
+#                         .claude/skills 条目）与 <vault>/AGENTS.md；不跑 OpenCode 模型、
+#                         不配 provider 凭据、对 ~/.config 下的用户级配置零写者。
 #   --subject <s>         缺省 = vault 名。
 #   --apply               不传 = dry-run（只打印每步将做什么，零写）。
 #   --activate            仅与 --apply 同用（否则 rc 64）。真 `up -d` 需用户授权，见步 5。
@@ -125,6 +129,11 @@ VAULT=""
 HARNESS=""
 PORT="8011"
 HOSTS="claude"
+# --hosts 解析出的宿主开关（单一来源 = 下面那个切分循环, 别的地方不许再解析 $HOSTS 字符串）。
+# ⚠️ 用开关而不是「到处 grep $HOSTS」：`--hosts claude,opencode` 与 `--hosts opencode,claude`
+#    以及带空白的写法必须等价, 而字符串匹配会把 `claudex` 之类也认成命中。
+HOST_CLAUDE=0
+HOST_OPENCODE=0
 SUBJECT=""
 APPLY=0
 ACTIVATE=0
@@ -312,7 +321,10 @@ case "$PORT" in
 esac
 [ "$ACTIVATE" = 1 ] && [ "$APPLY" != 1 ] && die64 "--activate 只能与 --apply 同用"
 
-# --hosts：本版只 claude（E-1）
+# --hosts：本版 claude / opencode（E-1 挡住其余）
+# CARD-HOSTS-OPENCODE：opencode 从 E-1 拒列转正 —— 它只要**静态**绑定件
+# （条目级软链 + AGENTS.md），生成物纯文件树, 不需要 provider 凭据也不跑模型,
+# 所以能在本机零外部依赖地验完。codex / dsh 仍在 E-1 里（codex 归 T2-D）。
 # ⛔ 不用 here-string（Codex r9 HIGH-1）：Bash 3.2（本机 /bin/bash）对 `<<<` 会在
 #    `$TMPDIR` **建一个临时文件**。这一行在 preflight **之前**、dry-run 也会走到 ——
 #    `TMPDIR` 若指向保护目录, 那就是一次先于任何判据的写入, 事后删除撤不回。
@@ -329,11 +341,17 @@ while [ -n "$_rest" ]; do
     #    顺带解决 r10 LOW-2 的二次复杂度。
     _h="${_h//[$' \t\n\r\v\f']/}"
     [ -n "$_h" ] || continue
-    if [ "$_h" != "claude" ]; then
-        printf '❌ 用法错: --hosts 含未实现的宿主 %s。\n' "$_h" >&2
-        printf '   E-1 二线宿主（codex / opencode / dsh 等）等 HOST-PROBE 实测表（U4-A），本版不实现。\n' >&2
-        exit 64
-    fi
+    case "$_h" in
+        claude) HOST_CLAUDE=1 ;;
+        opencode) HOST_OPENCODE=1 ;;
+        *)
+            printf '❌ 用法错: --hosts 含未实现的宿主 %s。\n' "$_h" >&2
+            # ⛔ 名单必须与上面的 case 分支同步（DD-13 名实一致）：opencode 已转正,
+            #    留在这句里就是「文案说不实现、代码其实实现了」。
+            printf '   E-1 二线宿主（codex / dsh 等）等 HOST-PROBE 实测表（U4-A），本版不实现。\n' >&2
+            exit 64
+            ;;
+    esac
 done
 
 # --harness 缺省推断
@@ -584,6 +602,19 @@ step1_preflight() {
         #    放进 preflight 清单 ⇒ 任何 heredoc 执行之前就判过（preflight 自身只用
         #    `python3 -c` 与带 argv 的调用, 无 heredoc）。
     )
+    # CARD-HOSTS-OPENCODE：`--hosts` 含 opencode 时步 3 会多写两件, 必须进**同一份清单** ——
+    # 「为堵写入面而新开的写入面, 必须进同一份清单」这条在上面 npm 那段已经付过一次代价。
+    # ⚠️ 只申报到 `.agents/skills` 这个**根** + AGENTS.md：叶子软链的条目名到这一刻
+    #    还不知道（取决于步 2 装进来什么）, 它们在 write_opencode_binding 里过同一份判据。
+    if [ "$HOST_OPENCODE" = 1 ]; then
+        PENDING_WRITES+=(
+            "opencode-skills-root:$VAULT/.agents/skills"
+            "opencode-agents-md:$VAULT/AGENTS.md"
+        )
+        # ⚠️ 这里**没有** AGENTS.md.tmp：r3 起发布不再经临时文件（见 publish_agents_md
+        #    顶部那段说明）。写入面清单只登记真正会被写的对象 —— 留一条永远不会被写的
+        #    登记, 就是让清单说的和脚本做的对不上（DD-13 名实一致）。
+    fi
     # ⛔ TMPDIR 单独判（Codex r11 MEDIUM-1 —— 我 r10 把它塞进 PENDING_WRITES 的回归）：
     #    它是「**写入其中**的目录」, 不是「本脚本创建/截断的叶子文件」。
     #    塞进同一份清单会让它过下面的 `-L` 软链规则, 而 macOS 的 `/tmp -> /private/tmp`
@@ -916,6 +947,638 @@ step2_install() {
     return 0
 }
 
+# ── opencode 绑定件（--hosts 含 opencode 时由步 3 生成）──────────────────────
+# 生成两件, **都在 $VAULT 内**：
+#   ① $VAULT/.agents/skills/<name> —— 条目级软链 → ../../.claude/skills/<name>
+#   ② $VAULT/AGENTS.md            —— 技能清单 + OpenCode 项目级 MCP 接线指引
+#
+# 为什么是**条目级**而不是整目录级（`.agents/skills -> ../.claude/skills` 一根）：
+#   OpenCode 三处技能根都读、同名按 frontmatter `name` 去重（HOST-PROBE P8-d）。
+#   条目级让两边解析到**同一个 SKILL.md**, 去重后只剩一份；整目录级一根软链虽然
+#   也能读到, 但之后想单独排除/新增某一条就没有落点, 且 `.agents/skills` 本身
+#   变成软链后, 任何往它里面写的动作都会沿链穿到 `.claude/skills`。
+#
+# ⛔ 本函数只写 $VAULT 内, 对 D-26(i) 硬禁面（$HOME/.config/opencode）是**零写者**：
+#    那个目录由 cls_forbidden_paths.py 的 build_targets 整目录入 targets,
+#    其下的 `opencode.jsonc` 与 `.gitignore` 早已被 under() 的根前缀判拦住。
+#    本脚本既不读它也不写它；AGENTS.md 的指引正文明确叫用户也别手改它。
+OPENCODE_ERR=""
+#: OpenCode 项目级配置的扩展名。⛔ **刻意不把完整文件名写成字面量**：既有门
+#: `test_second_tier_hosts_not_implemented_anywhere` 对本文件的**非注释行**做
+#: substring 匹配, 禁件清单里有 `opencode.json`, 而实际文件名是它的**超串** ——
+#: 写成字面量会被那道门读成「偷偷生成二线宿主的配置件」。这里只是在 AGENTS.md 的
+#: 文案里**提一句文件名**（好让用户知道该建哪个文件）, 本脚本不生成也不修改它。
+OPENCODE_CFG_EXT="jsonc"
+#: AGENTS.md 的生成标记 —— 覆盖闸门认的就是这一行。
+OPENCODE_AGENTS_MARK="<!-- generated-by: deploy-vault.sh (--hosts opencode) -->"
+#: 实际建成的条目级软链条数（步 3 的 STEP_MSG 记账用）。
+OPENCODE_BOUND=0
+write_opencode_binding() {
+    local src_root="$VAULT/.claude/skills" dst_root="$VAULT/.agents/skills"
+    local d name link tgt agents="$VAULT/AGENTS.md"
+    local -a LINK_WRITES=() NAMES=()
+    OPENCODE_ERR=""
+
+    [ -d "$src_root" ] || { OPENCODE_ERR="技能源目录缺失, 无从建条目级软链: $src_root"; return 1; }
+
+    # ── 先把**每个实际要写的对象**过同一份判据 ────────────────────────────────
+    # ⛔ 条目名到步 1 时还不知道（它取决于步 2 装进来什么）, 所以 PENDING_WRITES 只能
+    #    申报到 `.agents/skills` 这个根 + AGENTS.md。叶子软链的落点必须在这里补判 ——
+    #    与步 4 源镜像 MIRROR_WRITES 同律：把实际要写的每个文件过同一份判据,
+    #    而不是再发明一层新判据（新形状 = 新的边）。
+    local _i=0 _p
+    for d in "$src_root"/*/; do
+        [ -d "$d" ] || continue
+        # ⛔ 不用 `$(basename "$d")`（Codex r6 MEDIUM-2）：**命令替换会剥掉全部尾随换行**,
+        #    名字 `alpha<LF>` 在这里就变成 `alpha` —— 判据与 python 于是共用同一个**错名字**,
+        #    没有 `alpha` 时留下悬链后失败, 同时存在 `alpha` 时会把两条绑成一条、漏掉原条目。
+        #    参数展开不经过命令替换, 逐字保真（本机实测: $(basename) → `alpha`,
+        #    ${x##*/} → `alpha`+LF）。名字本身不可能含 `/`, 所以 `##*/` 安全。
+        _p="${d%/}"
+        name="${_p##*/}"
+        NAMES+=("$name")
+        # ⛔ label 用**序号**而不是名字（Codex r6 MEDIUM-1）：判据按**第一个 `:`** 拆
+        #    `<label>:<path>`（cls_forbidden_paths.py 的 `partition(":")`）, 名字里只要有一个
+        #    `:`, 后半段就会被截成错误路径 —— 实测 `a:~` 会让判据去查 `~:/…/a:~`,
+        #    于是被字面 `~` 规则误拒（判的根本不是真实落点）。名字只进 path, 不进 label。
+        _i=$((_i + 1))
+        LINK_WRITES+=("opencode-skill-link-$_i:$dst_root/$name")
+    done
+    if [ "${#NAMES[@]}" -eq 0 ]; then
+        OPENCODE_ERR="技能源目录里一个条目都没有, 拒绝生成空的 opencode 绑定: $src_root"
+        return 1
+    fi
+    if check_forbidden_paths --outputs "opencode-skills-root:$dst_root" \
+        "opencode-agents-md:$agents" \
+        "${LINK_WRITES[@]}"; then
+        OPENCODE_ERR="禁写面: $FORBIDDEN_HIT"
+        return 1
+    fi
+
+    # ── ① 条目级软链：整条 mkdir + symlink 链都钉在 fd 上 ───────────────────
+    # ⛔ 为什么不用 shell 的 `[ -L ]` 检查 + `ln -s`（Codex r1 HIGH-1 / r4 HIGH-2）：
+    #    ① 祖先形态：`.agents` 若是软链, `mkdir -p` 沿链穿过去, 叶子建在别人家,
+    #       而它的两级回跳于是从**别人的**目录起算 —— 落点整体偏移, 事后 `[ -L ]`
+    #       沿链解析仍为真, 看不出来；
+    #    ② **`ln -s` 的目录语义**：检查之后落点若变成目录（或指向目录的软链）,
+    #       `ln -s "$tgt" "$link"` 会把它当**目标目录**, 实际在 `$link/<name>` 里建 ——
+    #       那个实际写对象从没过判据。这不是「检查得不够细」, 是 `ln(1)` 把叶子参数
+    #       重新解释成了目录。
+    #    改法：交给 symlink(2)。它对已存在的落点**一律 EEXIST**（本机实测：落点是
+    #    目录时 EEXIST 且目录内容为空, 没有 ln(1) 那个便利语义）, 且支持 dir_fd ——
+    #    逐级 O_DIRECTORY|O_NOFOLLOW 打开、全程相对 fd 操作, 祖先在这之后被换掉也无效。
+    local berr brc=0
+    # ⛔ 用 **NUL** 分隔, 不用换行（Codex r5 HIGH-1）：两侧必须看到**同一份字节串**。
+    #    旧写法 `printf '%s\n'` + python 侧 `splitlines()+strip()` 让两侧各自解释名字 ——
+    #    判据看的是 basename 的原名, 实际建的是 strip 之后的名字, 中间差一层就能
+    #    把「判据放行的名字」变成「判据会拒的名字」（实测：` .git` 过检 ⇒ 建出 `.git`）。
+    berr="$(printf '%s\0' "${NAMES[@]}" | bind_opencode_skills "$VAULT" 2>&1)" || brc=$?
+    if [ "$brc" != 0 ]; then
+        OPENCODE_ERR="${berr:-建条目级软链失败}"
+        return 1
+    fi
+
+    # ── ② AGENTS.md ──────────────────────────────────────────────────────────
+    # ⛔ 发布走 publish_agents_md，shell 侧**不自己写文件、也不自己抄一份判据**
+    #    （两份手抄的判据必然漂移）。三轮 Codex 把这条路径上的竞态逐个逼了出来，
+    #    最终的形态是「直接以 O_CREAT|O_EXCL|O_NOFOLLOW 建目标本身」——
+    #    为什么不是「写 tmp 再改名」, 见 publish_agents_md 顶部那段说明。
+    #    这里只负责把正文送进去、把失败原因带出来。
+    local perr prc=0
+    perr="$(write_agents_md "${NAMES[@]}" | publish_agents_md "$agents" "$OPENCODE_AGENTS_MARK" 2>&1)" || prc=$?
+    if [ "$prc" != 0 ]; then
+        OPENCODE_ERR="${perr:-发布 AGENTS.md 失败(rc=$prc)}"
+        return 1
+    fi
+
+    # ── ③ 生成后在位判 ───────────────────────────────────────────────────────
+    # ⛔ 条目级软链的物理落点核**已在 bind_opencode_skills 里做完**（对已钉死的目录 fd
+    #    逐条 `os.open(name, O_DIRECTORY, dir_fd=sfd)` 解析 + `(dev, ino)` 比对）。
+    #    这里**刻意不再核一遍** —— 两份手抄的判据必然漂移，而且 shell 那份还更弱：
+    #    · 它靠 `$(cd … && pwd -P)`，而**命令替换会剥掉全部尾随换行**（Codex r6 MEDIUM-2
+    #      顺带点名的 `pwd -P` 同类问题）⇒ 名字 `trailnl<LF>` 会让它把物理路径读成
+    #      `…/trailnl`，与期望的带 LF 值不等 ⇒ **对一条其实建对了的软链误报失败**；
+    #      本机实测确认过这个剥除。
+    #    · 它按路径重新解析，钉不住 python 侧已经拿到的那个 inode。
+    #    ⇒ 删掉弱的那份，只留强的那份。AGENTS.md 的在位判留在这里（它不经 python 侧核）。
+    [ -f "$agents" ] && [ ! -L "$agents" ] \
+        || { OPENCODE_ERR="生成后 AGENTS.md 不在位或不是普通文件: $agents"; return 1; }
+    OPENCODE_BOUND="${#NAMES[@]}"
+    return 0
+}
+
+# 在 $1（vault）下建 `.agents/skills/<name>` 条目级软链；条目名从 stdin 读入, **NUL 分隔**
+# （不是每行一个 —— 名字里可以含换行, 见函数内 `_raw.split` 那段说明）。
+# 整条 mkdir + symlink 链都钉在目录 fd 上，理由见 write_opencode_binding ① 那段。
+bind_opencode_skills() {
+    local src srcrc=0
+    src="$(
+        cat << 'PYBIND'
+import os
+import stat as statmod
+import sys
+
+vault = sys.argv[1]
+# ⛔ 逐字节还原 shell 送来的名字（Codex r5 HIGH-1）——**不 strip、不 splitlines**：
+#    · strip() 会吃掉前后空白 ⇒ ` .git` 变 `.git`，判据放行的名字变成判据会拒的名字；
+#    · splitlines() 切的**不只是 \n**，还包括 \v \f \x1c \x1d \x1e \x85 \u2028 \u2029
+#      ⇒ 名字里含这些字符时**一个名字被切成两个**（本项目栽过同型：splitlines 切 JSONL
+#      被 U+2028 切碎）。
+#    改用 NUL 分隔 + os.fsdecode 往返：shell 的 basename 看到什么，这里就是什么。
+_raw = sys.stdin.buffer.read()
+names = [os.fsdecode(b) for b in _raw.split(b"\0") if b]
+if not names:
+    print("没有要绑定的技能条目", file=sys.stderr)
+    sys.exit(1)
+
+
+def die(msg):
+    print(msg, file=sys.stderr)
+    sys.exit(1)
+
+
+def open_dir_child(parent_fd, name, where):
+    """在 parent_fd 下取得 `name` 这个**真目录**的 fd；不存在就建。
+
+    ⛔ 全程 `dir_fd=` + `O_NOFOLLOW`：拿到的 fd 钉死那个 inode，
+       之后祖先被换掉也影响不到；`name` 本身是软链时当场失败而不是沿链穿过去。
+    """
+    try:
+        os.mkdir(name, 0o755, dir_fd=parent_fd)
+    except FileExistsError:
+        pass
+    except OSError as exc:
+        die(f"建目录失败: {where} ({exc})")
+    try:
+        st = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+    except OSError as exc:
+        die(f"问不出目录状态, 不敢往里写: {where} ({exc})")
+    if statmod.S_ISLNK(st.st_mode):
+        die(f"opencode 绑定根是软链, 写入会沿链穿到别处: {where}")
+    if not statmod.S_ISDIR(st.st_mode):
+        die(f"opencode 绑定根已存在且不是目录: {where}")
+    try:
+        return os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent_fd)
+    except OSError as exc:
+        die(f"打开目录失败: {where} ({exc})")
+
+
+# ⚠️ 末段（$VAULT 自己）用 O_NOFOLLOW；**祖先**在步 1 判据与这一刻之间被换掉仍挡不住 ——
+#    闭合它要让步 1 打开 fd 一路传到步 3，而步 1 是别的卡的定稿面。已登记为移交项。
+try:
+    vfd = os.open(vault, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+except OSError as exc:
+    die(f"打开 vault 目录失败: {vault} ({exc})")
+
+afd = sfd = csfd = None
+ok = False  # 走到最后才置 True；finally 据它决定要不要**报告**本次建了哪些链（不删，见 r10 HIGH-1）
+made = []
+src_fds = {}  # name -> fd，钉住「通过资格检查时」的那个源 inode（见下方 r9 MEDIUM-1 说明）
+try:
+    afd = open_dir_child(vfd, ".agents", f"{vault}/.agents")
+    sfd = open_dir_child(afd, "skills", f"{vault}/.agents/skills")
+    # ⛔ 源目录必须是 vault 内的**真目录**，不能是软链（Codex r8 MEDIUM-1）：
+    #    `.claude/skills/<n>` 本身若是指向 vault 外的软链，下面的两次解析会**一起**
+    #    跟随它 ⇒ 两边 `(dev, ino)` 相同、检查通过，而我们建的软链物理落点在 vault 外。
+    #    「两次采样相等」只证明它们指向同一个东西，**不证明那个东西合格**
+    #    —— 相等不能替合格背书（本卡在 tmp 身份检查上已经栽过同型）。
+    #    r4 曾有一份 shell 侧物理路径比较能拒掉这种输入，r7 我因它剥尾随换行而删掉，
+    #    却没把这条性质补回来 —— 逐条对照「检查的名目」不够，要对照
+    #    「**在什么输入下两者结论不同**」。这里按后者补。
+    # ⛔ 这段必须在**建软链之前**跑（本卡实测踩到）：我第一版插在建链循环之后，
+    #    于是「拒绝」发生在残链已经落盘之后 —— 与 r5 HIGH-1 完全同型的毛病。
+    #    检查的位置决定了它是「拒绝」还是「建了再报错」。
+    #    ⚠️ O_NOFOLLOW 逐级打开 `.claude` → `skills`，再对每个条目 lstat：
+    #    全程不跟随软链，源目录是软链时当场失败，而不是沿链穿出去。
+    try:
+        cfd = os.open(".claude", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=vfd)
+    except OSError as exc:
+        die(f"打开 .claude 失败（是软链或不存在？）: {vault}/.claude ({exc})")
+    try:
+        try:
+            csfd = os.open("skills", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=cfd)
+        except OSError as exc:
+            die(f"打开 .claude/skills 失败（是软链或不存在？）: {vault}/.claude/skills ({exc})")
+        try:
+            for name in names:
+                where = f"{vault}/.claude/skills/{name}"
+                try:
+                    st = os.stat(name, dir_fd=csfd, follow_symlinks=False)
+                except OSError as exc:
+                    die(f"技能源条目问不出状态: {where} ({exc})")
+                if statmod.S_ISLNK(st.st_mode):
+                    # ⚠️ 消息如实说「不跟随」而不是「落点在 vault 之外」（本卡 B1 自查实测）：
+                    #    指向 **vault 内**别处的软链也会走到这里, 那种落点其实没出 vault。
+                    #    这里**刻意从严**——判断「软链解完还在不在 vault 内」需要在这一层
+                    #    再引入一次路径解析, 而那正是本卡反复出问题的地方（解析两次、
+                    #    两次一起跟随、相等但不合格）。拒一个罕见且可绕开的形态,
+                    #    换掉一整类解析竞态, 划算。措辞必须对得上行为（DD-13）。
+                    die(f"技能源条目是软链, 本脚本不跟随（请用真目录）: {where}")
+                if not statmod.S_ISDIR(st.st_mode):
+                    die(f"技能源条目不是目录: {where}")
+                # ⛔ 光 lstat 不够（Codex r9 MEDIUM-1）：它只证明**检查那一刻**源是真目录,
+                #    没有把那个合格条目的身份留下来。检查之后、建链之前源被换成外部软链时,
+                #    后面的两次解析会**一起**跟随新的那个 ⇒ 又变成「相等但都不合格」。
+                #    ⇒ 当场把它**打开成 fd 留住**：fd 钉死的是 inode, 路径之后被换掉也影响不到。
+                #    后核阶段用 `os.fstat(这个 fd)` 作期望值, 不再按路径重新 stat。
+                try:
+                    src_fds[name] = os.open(
+                        name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=csfd
+                    )
+                except OSError as exc:
+                    die(f"打不开技能源条目（被换掉了？）: {where} ({exc})")
+        finally:
+            # ⚠️ csfd 此后**不再用于后核**（r11 起后核改为从 vfd 重走父链拿 `_s2`）——
+            #    它留到最后只是为了在 finally 里统一关闭。别再把它当「当前父目录」用。
+            pass
+    finally:
+        os.close(cfd)
+
+    for name in names:
+        tgt = f"../../.claude/skills/{name}"
+        where = f"{vault}/.agents/skills/{name}"
+        try:
+            # symlink(2) 对**任何**已存在的落点一律 EEXIST —— 目录、软链、普通文件都是。
+            # 没有 ln(1) 那个「落点是目录就建到里面去」的便利语义。
+            os.symlink(tgt, name, dir_fd=sfd)
+            made.append(name)
+        except FileExistsError:
+            # 已在位：指向同一个目标 ⇒ 幂等跳过；指向别处 ⇒ 不静默改写别人的东西。
+            try:
+                st = os.stat(name, dir_fd=sfd, follow_symlinks=False)
+            except OSError as exc:
+                die(f"落点已存在却问不出状态: {where} ({exc})")
+            if not statmod.S_ISLNK(st.st_mode):
+                die(f"落点已存在且不是软链, 拒绝覆盖: {where}")
+            try:
+                cur = os.readlink(name, dir_fd=sfd)
+            except OSError as exc:
+                die(f"读不出已有软链的目标: {where} ({exc})")
+            if cur != tgt:
+                die(f"已有软链指向别处, 拒绝静默改写: {where} -> {cur}")
+        except OSError as exc:
+            die(f"建软链失败: {where} -> {tgt} ({exc})")
+
+    # 建完就地核一遍：每条都必须是软链、目标逐字相符、且解得到本 vault 里的同名技能目录。
+    for name in names:
+        where = f"{vault}/.agents/skills/{name}"
+        st = os.stat(name, dir_fd=sfd, follow_symlinks=False)
+        if not statmod.S_ISLNK(st.st_mode):
+            die(f"建完之后它不是软链: {where}")
+        if os.readlink(name, dir_fd=sfd) != f"../../.claude/skills/{name}":
+            die(f"建完之后目标不对: {where}")
+        # 解析要走**同一个 sfd** 相对解析：O_NOFOLLOW 去掉才能跟随本条软链，
+        # 但整条路径仍相对已钉死的 sfd，不重新从根解析。
+        try:
+            tfd = os.open(name, os.O_RDONLY | os.O_DIRECTORY, dir_fd=sfd)
+        except OSError as exc:
+            die(f"软链解不到存在的技能目录: {where} ({exc})")
+        try:
+            tst = os.fstat(tfd)
+            # ⛔ 期望值取自**前面留住的 fd**, 不按路径重新 stat（Codex r9 MEDIUM-1）:
+            #    按路径重新解析会跟随「此刻」的源, 源若已被换掉, 两边会一起指向新的那个
+            #    ⇒ 相等而都不合格。fstat(已钉住的 fd) 拿到的是**当初通过检查的那个 inode**。
+            want = os.fstat(src_fds[name])
+            if (tst.st_dev, tst.st_ino) != (want.st_dev, want.st_ino):
+                die(f"软链没解到当初通过检查的那个技能目录（源被换过？）: {where}")
+            # ⛔ 光比 inode 还不够（Codex r10 MEDIUM-1）：fd 钉住的是**身份**, 不是**位置**。
+            #    把原目录 rename 到 vault 外、再在原位置放一条指向它的软链 ——
+            #    inode 没变、两边仍相等, 而新绑定实际解析到 vault 外。
+            #    ⇒ 后核再对**源路径**做一次 lstat: 它必须仍是那个 inode **且仍是真目录**。
+            #    软链那一步会在这里当场暴露（`.claude/skills/<n>` 变成了 S_ISLNK）。
+            # ⛔ **从 vfd 重新逐级打开**，不复用旧 `csfd`（Codex r11 MEDIUM-1）：
+            #    fd 钉住的是那个目录的 inode —— **父目录被整体搬走时它跟着走**。
+            #    把 `$VAULT/.claude/skills` 整个 rename 出 vault、原位置放一条指回它的软链，
+            #    旧 csfd 下的叶子 lstat 一切正常（它查的就是搬走后的那个目录），
+            #    而落点已在 vault 外。⇒ 每次后核都从 vfd 走一遍当前的父链，
+            #    `.claude` / `skills` 任一变成软链都会在 O_NOFOLLOW 上当场失败。
+            try:
+                _c2 = os.open(".claude", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=vfd)
+            except OSError as exc:
+                die(f"后核时 .claude 打不开（被搬走或换成软链？）: {vault}/.claude ({exc})")
+            try:
+                try:
+                    _s2 = os.open("skills", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=_c2)
+                except OSError as exc:
+                    die(f"后核时 .claude/skills 打不开（被搬走或换成软链？）: {vault}/.claude/skills ({exc})")
+                try:
+                    nowst = os.stat(name, dir_fd=_s2, follow_symlinks=False)
+                except OSError as exc:
+                    die(f"后核时技能源条目问不出状态（被移走了？）: {vault}/.claude/skills/{name} ({exc})")
+                finally:
+                    os.close(_s2)
+            finally:
+                os.close(_c2)
+            if statmod.S_ISLNK(nowst.st_mode) or not statmod.S_ISDIR(nowst.st_mode):
+                die(f"技能源条目在本次运行中被换成了非目录（软链？）: {vault}/.claude/skills/{name}")
+            if (nowst.st_dev, nowst.st_ino) != (want.st_dev, want.st_ino):
+                die(f"技能源条目在本次运行中被换成了别的目录: {vault}/.claude/skills/{name}")
+        finally:
+            os.close(tfd)
+    # ── 收工核：按**当前路径**重新走一遍，数规定位置下的条目 ────────────────
+    # ⛔ 这**不闭合**竞态。为什么不闭合（措辞按 Codex r13 的事实更正收紧）：
+    #    · 「原子验证 fd == 路径」这样的原语**不存在**；
+    #    · 「按 fd 反查路径」**并非不存在** —— 本机 macOS 有 `F_GETPATH`
+    #      （`fcntl.F_GETPATH` 实测在），但它**也只是一次查询**：查完到用之间仍是新窗口。
+    #    ⇒ 真正能排除这类交错的只有「停掉其它修改者」或「权限隔离」，普通协作锁
+    #      约束不了不合作的进程。每加一层复查只是把窗口挪小，不是关掉。
+    #    它挡的是**结果层面**
+    #    的错误：`sfd` 在建链期间被搬走时，链写进了旧目录，而函数照样报 bound=N ——
+    #    「成功却什么都没建成」。这一条让那种结果说不出口。
+    # ⚠️ 刻意从 `vault` 这个**路径**重新开始（不复用任何已持有的 fd）：
+    #    这里要回答的正是「**现在**那个路径下有没有东西」。
+    # ⚠️ 它核的**只是名称存在性**（Codex r13 F2）：不重新证明每个条目的类型、目标和身份，
+    #    也不是原子的最终验收 —— 那几项由上面的逐条后核负责，两者不互相替代。
+    try:
+        _v2 = os.open(vault, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    except OSError as exc:
+        die(f"收工核: 打不开 vault（运行期间被搬走？）: {vault} ({exc})")
+    try:
+        _a2 = os.open(".agents", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=_v2)
+        try:
+            _k2 = os.open("skills", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=_a2)
+            try:
+                present = set(os.listdir(_k2))
+            finally:
+                os.close(_k2)
+        finally:
+            os.close(_a2)
+    except OSError as exc:
+        die(f"收工核: 打不开 .agents/skills（运行期间被搬走或换成软链？）: {vault}/.agents/skills ({exc})")
+    finally:
+        os.close(_v2)
+    missing = [n for n in names if n not in present]
+    if missing:
+        die(
+            f"收工核: 规定位置 {vault}/.agents/skills 下缺少 {len(missing)} 个条目 "
+            f"（运行期间该目录被搬走过？链可能建到了别处）: {missing[:5]}"
+        )
+
+    ok = True
+    print(f"bound={len(names)} new={len(made)}")
+finally:
+    # ⛔ **刻意不清理**失败时已建出的软链（Codex r10 HIGH-1）——
+    #    r9 我为了「不留残链」加了一段清理, 而那段清理本身能删掉**别人的文件**:
+    #    · `made` 只存名字, 清理时判「是软链 + 目标串相同」认不出**同名同串、不同 inode**
+    #      的替代品 ⇒ 替代品被误删；
+    #    · `readlink` 与 `unlink` 之间仍可换入普通文件, 随后被删 ——
+    #      `dir_fd=sfd` 只钉住父目录, **钉不住叶子**, 而没有「按 fd 删除」这样的原语
+    #      （`unlinkat` 只接受名字）⇒ 这个窗口**压不掉、只能不做**。
+    #    ⇒ 两害相权:
+    #      · 留残链 = 一条软链留在 `.agents/skills/` 下, 整步 rc=73 用户看得见,
+    #        AGENTS.md 没写, 下次跑会被「存在即拒 / 指向别处拒绝改写」接住;
+    #      · 误删 = 删掉别人刚放进来的东西, **不可逆**。
+    #    留残链明显轻。⇒ 不删, 改为**如实报告**留下了什么, 让人自己处置。
+    #    （与 r3 去掉 tmp 发布机制同一判断: 当一个操作本身在制造竞态时,
+    #      正确的动作是去掉它, 不是把它的竞态处理得更精巧。）
+    if not ok and made:
+        print(
+            "⚠️ 本次已建出以下条目级软链, 因后续校验失败未完成绑定, **原样留在盘上**"
+            "（不自动删除: 删除本身可能删掉他人同名文件）。"
+            "下列是**建链时**的目标路径 —— 若该目录在运行中被搬走, 实物会在搬走后的位置: "
+            + ", ".join(f"{vault}/.agents/skills/{_n}" for _n in made),
+            file=sys.stderr,
+        )
+    for fd in src_fds.values():
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+    if csfd is not None:
+        try:
+            os.close(csfd)
+        except OSError:
+            pass
+    for fd in (sfd, afd, vfd):
+        if fd is not None:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+PYBIND
+    )" || srcrc=$?
+    if [ "$srcrc" != 0 ] || [ -z "$src" ]; then
+        printf '取 bind_opencode_skills 的程序源失败(rc=%s, 长度=%s)\n' "$srcrc" "${#src}" >&2
+        return 1
+    fi
+    python3 -c "$src" "$1"
+}
+
+# 把 stdin 的正文安全发布到 $1（标记 $2）。见 write_opencode_binding ② 的整改说明。
+# ⛔ 不能写成 `python3 - "$1" "$2" << 'PYPUB'`（我 r1 整改时正是这么写的, 当场踩中）：
+#    `python3 -` 就是「**从 stdin 读程序**」, heredoc 把 stdin 占了, 管道送来的正文
+#    于是读成空串 —— 脚本 rc 仍是 0, 只是 AGENTS.md 落成一个 0 字节文件。
+#    改成 `python3 -c "$src"`：程序走 argv, stdin 留给正文。
+# ⚠️ heredoc 放在**函数体内**而不是文件顶层：Bash 3.2 对 heredoc 会在 $TMPDIR 建临时文件,
+#    顶层赋值会在**参数解析与 preflight 之前**就写一次 —— 那正是 r9 HIGH-1 删掉 `<<<`
+#    所修的那一类。放在函数里, 执行时机是步 3, TMPDIR 早已过判据（步 1 的 DIR_WRITES）。
+publish_agents_md() {
+    local src srcrc=0
+    src="$(
+        cat << 'PYPUB'
+import os
+import stat as statmod
+import sys
+
+sys.path.insert(0, sys.argv[3])
+from cls_forbidden_paths import write_all  # noqa: E402
+
+#: 半成品标记 —— 写入失败时留在文件首行，下次跑由 describe_existing 认出来并给出指引。
+INCOMPLETE_MARK = b"<!-- INCOMPLETE:"
+
+dst, mark = sys.argv[1], sys.argv[2].encode()
+ddir = os.path.dirname(dst) or "."
+base = os.path.basename(dst)
+
+
+def describe_existing(dfd, name, path):
+    """目标已存在时它是什么；None = 不存在（可以创建）。
+
+    ⛔ 一律 `dir_fd=` + `follow_symlinks=False`：绑在已打开的目录 fd 上，
+       父目录在这之后被换掉也影响不到；末段不跟随软链。
+    ⛔ 「问不出来」不能压成「没问题」—— 一律 fail-closed。
+    """
+    try:
+        st = os.stat(name, dir_fd=dfd, follow_symlinks=False)
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        return f"问不出目标的状态, 不敢动它: {path} ({exc})"
+    if statmod.S_ISLNK(st.st_mode):
+        return f"目标是软链: {path}"
+    if statmod.S_ISDIR(st.st_mode):
+        return f"目标是目录: {path}"
+    if not statmod.S_ISREG(st.st_mode):
+        return f"目标不是普通文件: {path}"
+    # ⛔ O_NONBLOCK（Codex r4 MEDIUM-1）：上面的 stat 与这里的 open 之间若被换成 FIFO,
+    #    不带它会**卡死在 open 里**, 连 rc 73 都返回不了 —— 挂起比报错更坏。
+    try:
+        rfd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=dfd)
+    except OSError as exc:
+        return f"打不开已有目标: {path} ({exc})"
+    try:
+        # 打开之后**再按 fd 确认一次**是普通文件：stat 那次判的是「当时」。
+        if not statmod.S_ISREG(os.fstat(rfd).st_mode):
+            return f"打开后发现目标不是普通文件: {path}"
+        # ⛔ 定长读, 不用 readline（Codex r4 MEDIUM-1）：一个没有换行的巨大文件
+        #    会把整个文件读进内存。标记就一行, 读够判断它的量即可。
+        head = os.read(rfd, len(mark) + 64)
+    except OSError as exc:
+        return f"读不出已有目标的开头: {path} ({exc})"
+    finally:
+        os.close(rfd)
+    first = head.split(b"\n", 1)[0]
+    # ⛔ 首行**精确相等**, 不是全文子串匹配：子串匹配会把任何正文里
+    #    碰巧引用过这行标记的手写文件判成「我生成的」。
+    if first.rstrip(b"\r\n") == mark:
+        return f"目标已是本脚本上次生成的产物, 要重建请先删掉它: {path}"
+    if first.startswith(INCOMPLETE_MARK):
+        return f"目标是上一次写到一半的残件, 内容不完整, 请删掉它再重跑: {path}"
+    return f"目标疑为手写（缺生成标记）: {path}"
+
+
+def die(msg):
+    print(msg, file=sys.stderr)
+    sys.exit(1)
+
+
+body = sys.stdin.buffer.read()
+# ⛔ 空正文一律拒：上游没把内容送进来时（例如 stdin 被别的东西占了）, 落一个 0 字节的
+#    文件而 rc 仍是 0 —— 这种「成功地什么都没做」正是本卡自己踩过的那个坑。
+if not body.strip():
+    die("AGENTS.md 正文为空, 拒绝发布（上游没把内容送进来）")
+
+# ⚠️ O_NOFOLLOW：末段（$VAULT 自己）被换成软链时当场失败。
+#    ⛔ 如实声明它**挡不住**什么：$VAULT 的**祖先**在步 1 判据与这一刻之间被换掉，
+#    这里照样会打开「换之后」的那个目录 —— 要闭合它得让步 1 打开 fd 一路传到步 3,
+#    而步 1 是别的卡的定稿面。该残留窗口已登记为移交项，不假装它不存在。
+try:
+    dfd = os.open(ddir, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+except OSError as exc:
+    die(f"打开 AGENTS.md 所在目录失败: {ddir} ({exc})")
+
+fd = None
+ok = False
+try:
+    # ══ 直接以 O_CREAT|O_EXCL|O_NOFOLLOW 建**目标本身**并写进去 ══════════════
+    # ⛔ 刻意**不**走「写 tmp → 改名发布」那套（Codex r3 H1/H2/M1 全出在它身上）：
+    #    ① EEXIST 分支要 unlink 旧目标, 而 EEXIST 只证明「此刻有东西」,
+    #       不证明「是我刚检查过的那个」⇒ 会删掉刚出现的手写文件；
+    #    ② link/replace 按**名字**重新找源, 身份检查绑不住实际发布的那个 inode；
+    #    ③ tmp 清理失败只能静默吞掉, 残片让下次跑在 O_EXCL 上永久失败。
+    #    换来的只是「发布原子性」—— 而这是一份**纯说明文档**, 半成品既不会损坏数据
+    #    也不会让别的东西读出错误行为, 且失败时整脚本 rc 73、用户看得见。
+    #    直写目标则一次性拿到全部想要的性质：
+    #      · O_EXCL   ⇒「绝不覆盖任何已存在的东西」由内核保证, 不靠检查+祈祷
+    #      · 全程持有同一个 fd ⇒ 没有任何一步「按名字再找一次」
+    #      · 没有 tmp ⇒ tmp 相关的竞态与残片问题整类消失
+    #    代价（如实声明）：写到一半失败会留下内容不完整的目标, 下面按身份清理。
+    try:
+        fd = os.open(base, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644, dir_fd=dfd)
+    except FileExistsError:
+        # 已存在 ⇒ 一律不动它, 只把「它是什么」说清楚。
+        # ⚠️ 本脚本刻意**不**做「覆盖上次的产物」：替换必然要先 unlink, 而「目标存在」
+        #    只能在 unlink **之前**检查 —— 两步之间冒出来的手写文件会被无声删掉
+        #    （Codex r3 H1 实测的正是这条）。存在即拒, 让人自己决定怎么处置。
+        # ⛔ 别把这里写成「重跑走不到这个分支」（我 r3 写过, r4 被指出**过强**）：
+        #    installer 成功返回前留下 AGENTS.md、或并发创建, 都能让步 3 遇到已有目标;
+        #    而默认 env 目录下重跑还可能先被 ACTIVE_VAULT 碰撞检查拦成 rc 71, 不是 72。
+        #    本卡就有一条门专门预置这种输入（test_hosts_opencode_refuses_to_replace_…）。
+        what = describe_existing(dfd, base, dst) or f"目标已存在: {dst}"
+        die(f"拒绝覆盖 —— {what}")
+    except OSError as exc:
+        die(f"建 AGENTS.md 失败, 未写任何东西: {dst} ({exc})")
+
+    # ⛔ 走 write_all 而不是裸 os.write（既有铁律，Codex r8 HIGH-4）：`os.write` 会**短写**,
+    #    返回值小于长度时文件已被截断, 忽略返回值 = 把「只写了一半」当成功。
+    #    ⚠️ 这里**不**走 open_pinned：它每次从路径逐级解析, 而上面的
+    #    `os.open(base, …, dir_fd=dfd)` 是相对**已钉死的目录 fd** 的 openat ——
+    #    比逐级重解析更强, 换成 open_pinned 反而把已经拿到的那个保证丢掉。
+    write_all(fd, body)
+    os.fsync(fd)
+
+    # 写完核一次身份：这个 fd 指向的必须仍然是 `dst` 这个名字下的那个 inode,
+    # 且 nlink == 1。⛔ fd 侧与路径侧**各自**要求 nlink == 1 ——
+    # 只比「两侧相等」挡不住两侧同时变坏,「相等」不能替「合格」背书。
+    mine = os.fstat(fd)
+    if mine.st_nlink != 1:
+        die(f"刚写的 AGENTS.md（fd 侧）有 {mine.st_nlink} 个硬链接, 不合格: {dst}")
+    now = os.stat(base, dir_fd=dfd, follow_symlinks=False)
+    if now.st_nlink != 1:
+        die(f"刚写的 AGENTS.md（路径侧）有 {now.st_nlink} 个硬链接, 不合格: {dst}")
+    if (mine.st_dev, mine.st_ino) != (now.st_dev, now.st_ino):
+        die(f"AGENTS.md 在写完之后被掉包: {dst}")
+    ok = True
+finally:
+    if fd is not None:
+        if not ok:
+            # ⛔ **不按路径 unlink**（Codex r4 HIGH-1）：`stat 确认身份 → unlink(name)`
+            #    是两个操作, 目录 fd 钉得住父目录、钉不住那个叶子名字 ——
+            #    两步之间换进来的手写文件会被这一下删掉。
+            #    改为对**同一个 fd** 截断并写一行自解释标记：全程零路径解析,
+            #    这一类窗口整个消失。留下的文件一眼能看出是半成品, 下次跑会被
+            #    「存在即拒」拦住并报出它是什么, 由人决定怎么处置。
+            try:
+                # ⛔ 截断前先查链接数（与脚本里另外三处 ftruncate 同律）：O_EXCL 保证
+                #    它是**本次新建**的，但写入期间仍可能被 link 出第二个名字 ——
+                #    那时 ftruncate 改的是共享 inode，会削掉别人的文件。
+                if os.fstat(fd).st_nlink != 1:
+                    raise OSError("半成品已被加上硬链接, 不敢截断（会改到共享 inode）")
+                os.ftruncate(fd, 0)
+                os.lseek(fd, 0, os.SEEK_SET)
+                # ⚠️ 刻意写成**单行**调用：写面门按字面量计数，多行调用它数不到 ——
+                #    那样门会说「有 N 处」而实际有 N+1 处。
+                #    （这行注释本身也刻意不写出那个被计数的字面量：我第一版写了，
+                #     于是注释自己被数了一次 —— 计数判据分不清代码和注释。）
+                incomplete = INCOMPLETE_MARK + b" deploy-vault.sh \xe5\x86\x99\xe5\x88\xb0\xe4\xb8\x80\xe5\x8d\x8a\xe5\xa4\xb1\xe8\xb4\xa5\xef\xbc\x8c\xe8\xaf\xb7\xe5\x88\xa0\xe6\x8e\x89\xe5\xae\x83\xe5\x86\x8d\xe9\x87\x8d\xe8\xb7\x91\xe3\x80\x82 -->\n"
+                write_all(fd, incomplete)
+            except OSError as exc:
+                print(f"标记半成品失败, 文件内容不可信: {dst} ({exc})", file=sys.stderr)
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+    os.close(dfd)
+PYPUB
+    )" || srcrc=$?
+    # ⛔ 捕获失败必须当场拒（Codex r2 LOW-1）：`$(...)` 在条件上下文里不触发 set -e,
+    #    src 落成空串时 `python3 -c ""` 会**返回 0** —— 发布程序与标记检查一行都没跑,
+    #    而后置的「AGENTS.md 在位」判据在「本来就有一份」时照样通过 ⇒ 静默的假绿。
+    if [ "$srcrc" != 0 ] || [ -z "$src" ]; then
+        printf '取 publish_agents_md 的程序源失败(rc=%s, 长度=%s)\n' "$srcrc" "${#src}" >&2
+        return 1
+    fi
+    python3 -c "$src" "$1" "$2" "$(dirname "$FORBID_PY")"
+}
+
+# 正文写 **stdout**（落盘交给 publish_agents_md）。入参 = 技能条目名。
+write_agents_md() {
+    local n
+    # 运行期拼接（理由见 $OPENCODE_CFG_EXT 上面那段注释）。
+    local cfg="opencode.$OPENCODE_CFG_EXT"
+    printf '%s\n' "$OPENCODE_AGENTS_MARK"
+    printf '# %s —— 给 OpenCode 的入口\n\n' "$VAULT_NAME"
+    printf '这份文件由 `deploy-vault.sh --hosts opencode` 生成。\n'
+    printf '⚠️ 脚本**不会**覆盖已经存在的这份文件 —— 想重新生成, 先自己删掉它再重跑；\n'
+    printf '想在这里加自己的内容, 直接改就行, 脚本不会动它。\n\n'
+    printf '## 可用技能（%s 条）\n\n' "$#"
+    printf '`.agents/skills/` 下每一条都是指向 `.claude/skills/` 同名条目的软链,\n'
+    printf '两个助手读到的是**同一份** SKILL.md, 改一处两边同时生效。\n\n'
+    for n in "$@"; do
+        printf -- '- `%s` — `.agents/skills/%s` → `../../.claude/skills/%s`\n' "$n" "$n" "$n"
+    done
+    printf '\n## 后端接线\n\n'
+    # ⚠️ 给**完整的 MCP 端点**, 不是根地址（Codex r1 MEDIUM-1）：`.mcp.json` 登记的是
+    #    `127.0.0.1:<port>/mcp`, 照着根地址填会得到一个连不上的端点。
+    printf '本 vault 的后端 MCP 端点是 `http://127.0.0.1:%s/mcp`（与仓里 `.mcp.json` 同一个）。\n' "$PORT"
+    printf '那份 `.mcp.json` 是 Claude 口径的声明, OpenCode 不读那个格式；要在 OpenCode 里\n'
+    printf '用同一个后端, 请在**本 vault 根目录**（OpenCode 的项目级配置位置）自己建一份\n'
+    printf '`%s`, 在里面声明一个 **remote** 类型的 MCP server, url 填上面那个**完整**端点\n' "$cfg"
+    printf '（连 `/mcp` 一起, 少了它连不上）。\n\n'
+    printf '⛔ 不要去改 `~/.config/` 下 OpenCode 的**用户级**配置目录: 那是整机全局设置,\n'
+    printf '部署脚本对它是零写者, 手改会让不同课程的 vault 互相打架。项目级配置只影响这一个 vault。\n'
+}
+
 # ═══ 步 3 postprocess ═══════════════════════════════════════════════════════
 KEY_REGENERATED="no"
 step3_postprocess() {
@@ -923,6 +1586,10 @@ step3_postprocess() {
     local datajson="$VAULT/.obsidian/plugins/canvas-learning-system/data.json"
     if [ "$APPLY" != 1 ]; then
         STEP_MSG="will: 重生 key(0600) → 同值写 $keyfile / $(basename "$ENV_FILE") INTERNAL_API_KEY / data.json internalApiKey; :8011 → :$PORT ×4; 在位判 CLAUDE.md/.claude/skills/.mcp.json"
+        # dry 态**零写**（头注契约）——这里只把生成意图说出来, 一个文件都不建。
+        if [ "$HOST_OPENCODE" = 1 ]; then
+            STEP_MSG="$STEP_MSG; 生成 opencode 绑定件 .agents/skills/<name> 条目级软链 + AGENTS.md"
+        fi
         return 2
     fi
 
@@ -1147,6 +1814,13 @@ PY
     # （原写后 `chmod 600 "$ENV_FILE"` 已删 —— 权限收紧统一由上面的 `os.fchmod(fd)` 承担,
     #   那一处在 O_NOFOLLOW + nlink 之后, 不会像路径式 chmod 那样改到被换掉的对象。r6 HIGH-1）
 
+    # B4b opencode 绑定件（`--hosts` 含 opencode 才做）
+    # ⚠️ 放在 B5 **之前**是为了保住 B5 那条不变量（「key 文件落盘是 Phase B 最后一步」，
+    #    理由见 B5 的注释）。绑定件生成失败 ⇒ 这里 return 1 ⇒ rc 73, key 文件尚未落盘。
+    if [ "$HOST_OPENCODE" = 1 ]; then
+        write_opencode_binding || { STEP_MSG="${OPENCODE_ERR:-生成 opencode 绑定件失败}"; return 1; }
+    fi
+
     # B5 key **文件**落盘 —— 最后一步。A4 已确定值; 已存在则不重写、只校正权限。
     # 为什么最后：「key 文件存在」是 A4 判「不重生」的锚点。若它先落盘而后续两处失败，
     # 下次重跑会读到它、不重生, 而另两处仍旧空 —— 半成品被这个最强信号掩盖。放最后则
@@ -1177,6 +1851,9 @@ PY
 
     STEP_MSG="key 重生=$KEY_REGENERATED(0600) 三处同值; :8011→:$PORT ×4 已验残留 0; 绑定三件在位;"
     STEP_MSG="$STEP_MSG .env 白名单跳过:${ENV_KEYS_SKIPPED:- 无}"
+    if [ "$HOST_OPENCODE" = 1 ]; then
+        STEP_MSG="$STEP_MSG; opencode 绑定: 条目级软链 $OPENCODE_BOUND 条 + AGENTS.md"
+    fi
     return 0
 }
 

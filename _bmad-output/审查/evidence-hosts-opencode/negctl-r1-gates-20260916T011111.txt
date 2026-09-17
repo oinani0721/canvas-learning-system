@@ -1,0 +1,23 @@
+# r1 整改配套门负控 20260916T011111
+跑前 sha:
+b9fb1c7f9f3ef0293cefd1b3415f6a28b09e169ced25d468b81a15df8308f09f  scripts/deploy-vault.sh
+
+===== 负控 A：M2 —— Codex 的对照输入，在 dry 分支塞一句写 $HARNESS/stray.txt =====
+插入点行号 = 1202（命中条数 1）
+变异已注入：        : > "$HARNESS/stray.txt"
+--- 新判据（全树快照）应当变红 ---
+E   AssertionError: dry 态改动了 tmp 根下的文件树:
+    assert {'bin': 'D', ...24f7956', ...} == {'bin': 'D', ...24f7956', ...}
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t2-deploy/backend/tests/unit/test_deploy_vault_sh.py:4263: AssertionError: dry 态改动了 tmp 根下的文件树:
+======================== 1 failed, 10 warnings in 6.62s ========================
+
+===== 负控 B：H1 —— 删掉祖先软链检查 =====
+承重行号 = 1012（命中条数 1）
+变异已注入：            _DISABLED_ERR="opencode 绑定根是软链, 写入会沿链穿到别处: $anc -> $(readlink "$anc")"
+--- H1 门应当变红 ---
+    assert '软链' in '📦 deploy-vault [apply] vault=probe_oc4 port=8284 hosts=claude,opencode\n   harness=/private/var/folders/vq/gssw8vy546...test-25367/test_hosts_opencode_refuses_wh0/ev/install-20260916T011230.txt\n[3/6] postprocess: FAIL 生成 opencode 绑定件失败\n'
+======================== 1 failed, 10 warnings in 8.67s ========================
+
+还原后 sha（须与跑前同）:
+b9fb1c7f9f3ef0293cefd1b3415f6a28b09e169ced25d468b81a15df8308f09f  scripts/deploy-vault.sh
+bash-n rc=0

@@ -1,0 +1,32 @@
+# 终审绑定缺口：d6f96fa8 → HEAD 非注释面等价的机器证明
+# 生成 2026-09-17 00:18:14 CST
+
+## 1. 配额探针（跑到完，未中途终止）
+cmd: codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort=low "只回两个字：在线"
+rc=1 / usage-limit 命中=2 / stdout 字节数=0
+ERROR: You've hit your usage limit. Visit https://chatgpt.com/codex/settings/usage to purchase more credits or try again at Sep 19th, 2026 8:16 PM.
+
+## 2. 绑定 diff
+ scripts/deploy-vault.sh | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+-    #        AGENTS.md 没写, 下次跑会被「存在即拒 / 指向别处拒绝改写」接住;
++    #        AGENTS.md 没写。下次跑会怎样, **按对象分开说**（Codex r14 LOW；
++    #        「存在即拒」是 AGENTS.md 的语义, 软链不是, 我此前一句话概括了两者）:
++    #          · 软链目标串**相同** ⇒ **幂等跳过**（不是拒绝）—— 但仍要过前置的源资格
++    #            检查与统一后核, 源若还是外链/非目录, 在那里被拒（D1 自查三种情况实测）;
++    #          · 软链目标串**不同** ⇒ 拒绝改写;
++    #          · AGENTS.md **存在即拒**（无论带不带生成标记）。
+
+## 3. 剥离整行注释后 sha
+6a457d825fdfe9fb   <- d6f96fa8
+6a457d825fdfe9fb   <- HEAD
+非注释行 diff 行数 = 0   (须 0)
+
+## 4. 验伪锚（注入 set -euo pipefail -> set -eu 后重剥离）
+diff 行数 = 4   (须 >0，证明判据能看见代码改动)
+
+## 5. 改动行中 shebang / shellcheck 指令命中数（有语义的 # 开头行）
+0
+
+rc=0
