@@ -1,0 +1,9 @@
+=== round-5 语法门 ===
+S=430 E=604 行数=173
+bash_n_rc=0
+sh_n_rc=0
+yaml ok cmds= 8
+自指: MUT""ANT=1 字面量=0 命令名=1 priority键=0
+代码字节 vs r4(158e5a60): 1 file changed, 7 insertions(+), 4 deletions(-)
+--- r4->r5 的改动是否纯注释(新增/删除行里非 # 开头的应为 0) ---
+0

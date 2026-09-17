@@ -1,0 +1,34 @@
+=== CASE 8-1: 主循环输入重定向打不开 ===
+旧版块 = git show 08100483:lefthook.yml 抽出, 58 行, sha256=94481ca9099e78af3581f4370e772afbd6ad2114615733de69359898d7b1f52b
+新版块 = 当前工作树 lefthook.yml 抽出, 173 行, sha256=b1bfdf1f600ac90ab569c42d29a6c901cd18fcbe71b62f6b509c734e6940f523
+工作树 lefthook.yml sha256 = 7a2761597535957b81faf0a7bbc4b2c59721eca3041b58a41b8f01fb255df8c7
+工作树 HEAD = 9020a1a5  (与 HEAD 的差异: 1 file changed, 29 insertions(+), 14 deletions(-))
+解释器: bash sh  (sh -> bash 3.2.57(1)-release)
+输入: 暂存 p.py(带标记, 不在允许名单内)
+注入: mktemp 垫片预置 200(只写)的 names —— 写得进、读不出
+      (垫片只改环境, 旧/新两版块本体一字未动)
+######## 解释器 = bash ########
+  ----- [old / bash] rc=0 -----
+  /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T//t8a-case.52pQVd/old.sh: line 44: /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T//lefthook-mutant-residue.AskCLm/names: Permission denied
+  [Mutant-Scan] OK (staged additions carry no mutation marker).
+  ----- [old / bash] end rc=0 -----
+  ----- [new / bash] rc=1 -----
+  [Mutant-Scan] FAILED: 暂存清单不是可读的普通文件 —
+  [Mutant-Scan]   这不是「没有暂存文件」, 按 fail-closed 阻断。
+  ----- [new / bash] end rc=1 -----
+  旧版打 OK 且 rc=0 : YES  (rc=0)
+  新版不打 OK 且 rc=1: YES  (rc=1)
+  == 8-1 / bash: SEALED
+######## 解释器 = sh ########
+  ----- [old / sh] rc=0 -----
+  /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T//t8a-case.52pQVd/old.sh: line 44: /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T//lefthook-mutant-residue.eglvVi/names: Permission denied
+  [Mutant-Scan] OK (staged additions carry no mutation marker).
+  ----- [old / sh] end rc=0 -----
+  ----- [new / sh] rc=1 -----
+  [Mutant-Scan] FAILED: 暂存清单不是可读的普通文件 —
+  [Mutant-Scan]   这不是「没有暂存文件」, 按 fail-closed 阻断。
+  ----- [new / sh] end rc=1 -----
+  旧版打 OK 且 rc=0 : YES  (rc=0)
+  新版不打 OK 且 rc=1: YES  (rc=1)
+  == 8-1 / sh: SEALED
+CASE 8-1: bash=SEALED sh=SEALED

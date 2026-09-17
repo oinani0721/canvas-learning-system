@@ -1,0 +1,16 @@
+=== (g) dash 自证块: 逻辑逐字节未变(只加注释) ===
+--- /tmp/blk-t8a-base.sh : 锚点唯一性=1 锚点行=16 ---
+cat: illegal option -- A
+usage: cat [-belnstuv] [file ...]
+行数=8  sha=082ae8b357b27680cd216074e6f14f1a273852239501bddff84b0ca7d99c79a5
+--- /tmp/blk-t8a-final.sh : 锚点唯一性=1 锚点行=44 ---
+cat: illegal option -- A
+usage: cat [-belnstuv] [file ...]
+行数=8  sha=082ae8b357b27680cd216074e6f14f1a273852239501bddff84b0ca7d99c79a5
+--- diff(应无输出) ---
+PROBE 段逐字节相同
+--- 验伪锚: 空输入的 sha 长这样, 上面两条若等于它就是没抽到 ---
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+--- 自证抽出物非空且确含关键行 ---
+1
+2

@@ -1,0 +1,6 @@
+=== 裁判 9 (round-3) ===
+存档: _bmad-output/审查/evidence-residue-fo/r3-unit-after-20260914T204708.txt
+本次红=64 基线=64
+--- diff (只允许 <) ---
+diff_rc=0
+验伪锚(塞假 nodeid 必出 '>')= 1

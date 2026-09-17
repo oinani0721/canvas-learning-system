@@ -1,0 +1,59 @@
+=== CASE m4: d 与 dn 同 inode ===
+旧版块 = git show 9020a1a5:lefthook.yml 抽出, 165 行, sha256=073fe964a8b7e23b5ed17c9b63657c128082f5fab44340777d88226601750a0f
+新版块 = 当前工作树 lefthook.yml 抽出, 173 行, sha256=b1bfdf1f600ac90ab569c42d29a6c901cd18fcbe71b62f6b509c734e6940f523
+工作树 lefthook.yml sha256 = 35ec222712dfefe3a8d00cf55ec697fc3d469a7ac71545c031d7a7197d9b34f7
+工作树 HEAD = 158e5a60  (与 HEAD 的差异: 1 file changed, 7 insertions(+), 4 deletions(-))
+解释器: bash sh  (sh -> bash 3.2.57(1)-release)
+⚠️ 本条的旧版 = round-3 commit 9020a1a5(有类型检查, 无 -ef)
+######## 链接形态 = symlink ########
+输入: 暂存 p.py(带标记, 不在允许名单内) —— 真实命中
+注入: mktemp 垫片预置 d, 并把 dn 做成指向 d 的 symlink
+######## 解释器 = bash ########
+  ----- [old / bash] rc=0 -----
+  [Mutant-Scan] OK (staged additions carry no mutation marker).
+  ----- [old / bash] end rc=0 -----
+  ----- [new / bash] rc=1 -----
+  [Mutant-Scan] FAILED: diff 与其归一化副本指向同一个文件: p.py
+  [Mutant-Scan] 扫描未完成(见上) — 这不是「没发现标记」, 按 fail-closed 阻断。
+  ----- [new / bash] end rc=1 -----
+  旧版打 OK 且 rc=0 : YES  (rc=0)
+  新版不打 OK 且 rc=1: YES  (rc=1)
+  == m4-symlink / bash: SEALED
+######## 解释器 = sh ########
+  ----- [old / sh] rc=0 -----
+  [Mutant-Scan] OK (staged additions carry no mutation marker).
+  ----- [old / sh] end rc=0 -----
+  ----- [new / sh] rc=1 -----
+  [Mutant-Scan] FAILED: diff 与其归一化副本指向同一个文件: p.py
+  [Mutant-Scan] 扫描未完成(见上) — 这不是「没发现标记」, 按 fail-closed 阻断。
+  ----- [new / sh] end rc=1 -----
+  旧版打 OK 且 rc=0 : YES  (rc=0)
+  新版不打 OK 且 rc=1: YES  (rc=1)
+  == m4-symlink / sh: SEALED
+CASE m4-symlink: bash=SEALED sh=SEALED
+######## 链接形态 = hardlink ########
+输入: 暂存 p.py(带标记, 不在允许名单内) —— 真实命中
+注入: mktemp 垫片预置 d, 并把 dn 做成指向 d 的 hardlink
+######## 解释器 = bash ########
+  ----- [old / bash] rc=0 -----
+  [Mutant-Scan] OK (staged additions carry no mutation marker).
+  ----- [old / bash] end rc=0 -----
+  ----- [new / bash] rc=1 -----
+  [Mutant-Scan] FAILED: diff 与其归一化副本指向同一个文件: p.py
+  [Mutant-Scan] 扫描未完成(见上) — 这不是「没发现标记」, 按 fail-closed 阻断。
+  ----- [new / bash] end rc=1 -----
+  旧版打 OK 且 rc=0 : YES  (rc=0)
+  新版不打 OK 且 rc=1: YES  (rc=1)
+  == m4-hardlink / bash: SEALED
+######## 解释器 = sh ########
+  ----- [old / sh] rc=0 -----
+  [Mutant-Scan] OK (staged additions carry no mutation marker).
+  ----- [old / sh] end rc=0 -----
+  ----- [new / sh] rc=1 -----
+  [Mutant-Scan] FAILED: diff 与其归一化副本指向同一个文件: p.py
+  [Mutant-Scan] 扫描未完成(见上) — 这不是「没发现标记」, 按 fail-closed 阻断。
+  ----- [new / sh] end rc=1 -----
+  旧版打 OK 且 rc=0 : YES  (rc=0)
+  新版不打 OK 且 rc=1: YES  (rc=1)
+  == m4-hardlink / sh: SEALED
+CASE m4-hardlink: bash=SEALED sh=SEALED

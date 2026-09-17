@@ -1,0 +1,11 @@
+=== 五轮分级(锚结构不锚位置) ===
+  round-1: BLOCKER=0 HIGH=1 MEDIUM=2 LOW=1
+  round--r2: BLOCKER=0 HIGH=0 MEDIUM=2 LOW=1
+  round--r3: BLOCKER=0 HIGH=0 MEDIUM=1 LOW=1
+  round--r4: BLOCKER=0 HIGH=0 MEDIUM=0 LOW=1
+  round--r5: BLOCKER=0 HIGH=0 MEDIUM=0 LOW=0
+  验伪锚: 该正则能命中一条已知正例吗 -> 1
+
+=== 末轮存档自证的绑定 ===
+复核绑定 `b09e85e32f863bd2ee288320342f61d3fa102367`
+车道 HEAD 全 sha = b09e85e32f863bd2ee288320342f61d3fa102367

@@ -1,0 +1,44 @@
+=== 裁判 6 (round-2) ===
+case 锚唯一性 = 1
+CS=489 CE=497
+          case "$f" in
+          esac
+  backend/scripts/g32b_mutation_gates.py               1
+  backend/scripts/g32cb_mutation_gates.py              1
+  backend/scripts/g32ccr1_negative_controls.py         1
+  backend/scripts/openapi_drift_negative_control.py    1
+  backend/tests/regression/recap_domain_negverify.py   1
+  验伪锚 no-such-file.py) = 0
+  continue ;; = 7
+J6 rc=0
+
+=== 裁判 7 (round-2) ===
+CBS=311 CBE=327
+    # CARD-TOOL-residue-fail-open 于 B14_BASE 08100483 逐文件实测值, 不是估计:
+    #   backend/scripts/g32b_mutation_gates.py              变异 harness 本体 151 处
+    #   backend/scripts/g32cb_mutation_gates.py             变异 harness 本体 11 处
+    #   backend/scripts/g32ccr1_negative_controls.py        负控本体 11 处
+    #   backend/scripts/openapi_drift_negative_control.py   负控本体 2 处
+    #   backend/tests/regression/recap_domain_negverify.py  负控本体 13 处
+    #   .claude/rules/*.md                                  规则文正文引用(按默认补, 待用户确认)
+    #   _bmad-output/**                                     审查报告/验收单正文引用
+    # ⚠️ 匹配面(本卡实测): case 的 `*` **会匹配 `/`**, 所以 `.claude/rules/*.md` 覆盖
+    # 该目录下**任意深度**的 .md(与既有的 `_bmad-output/*` 同口径), 而 `.md.bak`、
+    # `notes.txt`、`.claude/rulesX/a.md`、`docs/.claude/rules/a.md` 都**不**在面内。
+    # 前两行的计数在第十四批之前写的是 153 / 10, 均已过时(第十三批 U8-B 改过
+J7 rc=0
+旧计数 153/10 残留(必 0) = 0
+
+=== 裁判 8 (round-2, 承重) ===
+验伪锚(必 >=1) = 1
+真判据 08100483..工作树 (必 0) = 0
+--- hunk 头(全部应在 :311 之后) ---
+@@ -311,4 +311,16 @@ pre-commit:
+@@ -330 +342 @@ pre-commit:
+@@ -332 +344,4 @@ pre-commit:
+--- 邻块逐字节 ---
+  python-typecheck 块 逐字节相同 (行 205 -> 205)
+  HONESTY 段 逐字节相同 (行 133 -> 133)
+--- 地盘门 ---
+ lefthook.yml | 170 +++++++++++++++++++++++++++++++++++++++++++++++++++++++----
+ 1 file changed, 159 insertions(+), 11 deletions(-)

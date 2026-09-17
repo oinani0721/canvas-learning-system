@@ -1,0 +1,6 @@
+=== round-4 语法门 ===
+S=427 E=601 行数=173
+bash_n_rc=0
+sh_n_rc=0
+yaml ok cmds= 8
+自指: MUT""ANT=1 字面量=0 命令名=1 priority键=0

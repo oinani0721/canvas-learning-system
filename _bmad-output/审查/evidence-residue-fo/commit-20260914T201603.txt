@@ -1,0 +1,114 @@
+╭──────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: pre-commit │
+╰──────────────────────────────────────╯
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+│  cypher-vault-filter-lint (skip) no matching staged files
+┃  ghost-files ❯ 
+
+[Ghost Files] No untracked docs found.
+
+┃  mutant-residue-scan ❯ 
+
+[Mutant-Scan] OK (staged additions carry no mutation marker).
+
+│  python-lint (skip) no files for inspection
+│  python-typecheck (skip) no files for inspection
+│  readme-claims-lint (skip) no matching staged files
+│  spec-sync-flat (skip) no matching staged files
+│  spec-sync-root (skip) no matching staged files
+                                      
+  ────────────────────────────────────
+summary: (done in 0.06 seconds)       
+✔️ ghost-files (0.02 seconds)
+✔️ mutant-residue-scan (0.04 seconds)
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+╭──────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: commit-msg │
+╰──────────────────────────────────────╯
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+┃  commitlint ❯ 
+
+
+┃  spec-reference ❯ 
+
+[Spec Ref] OK.
+
+                                      
+  ────────────────────────────────────
+summary: (done in 0.32 seconds)       
+✔️ commitlint (0.30 seconds)
+✔️ spec-reference (0.02 seconds)
+╭───────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: post-commit │
+╰───────────────────────────────────────╯
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+[card/t8-tools cd31cffd] fix(mutant-scan): 封九条 fail-open + 名单补 4 项 [BATCH-2026-09-11-第十四批 / CARD-TOOL-residue-fail-open]
+ 41 files changed, 2402 insertions(+), 11 deletions(-)
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/_lib.sh"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/a0-anchors-20260914T195106.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/a0-lefthook-clean-baseline-20260914T195130.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/b-final-invariants-20260914T200122.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/b-syntax-after-20260914T195653.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/b-syntax-before-20260914T195146.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/case-6-1-ext-diff.sh"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/case-6-2-textconv.sh"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/case-6-3-text.sh"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/case-6-4-typechange.sh"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/case-6-5-hits-init.sh"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/case-6-6-awk-operand.sh"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/case-8-1-redirect.sh"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/case-8-2-read-error.sh"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/case-8-3-no-nul.sh"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/case-9-s-hits.sh"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/case-e-allowlist.sh"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/g-dash-probe-unchanged-20260914T200134.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/h-negcontrol-20260914T195953.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/h-negcontrol-raw-20260914T195953.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/h-poscontrol-20260914T195939.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/h-poscontrol-raw-20260914T195939.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/j10-four-gates-20260914T201242.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/j67-allowlist-comment-20260914T200058.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/j8-neighbors-20260914T200111.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/j9-flaky-triage-20260914T200810.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/j9-lefthook-readers-20260914T200921.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/j9-unit-diff-20260914T200756.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/out-case-6-1-ext-diff-20260914T195915.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/out-case-6-2-textconv-20260914T195915.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/out-case-6-3-text-20260914T195915.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/out-case-6-4-typechange-20260914T195915.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/out-case-6-5-hits-init-20260914T195915.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/out-case-6-6-awk-operand-20260914T195923.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/out-case-8-1-redirect-20260914T195923.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/out-case-8-2-read-error-20260914T195923.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/out-case-8-3-no-nul-20260914T195923.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/out-case-9-s-hits-20260914T195923.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/out-case-e-allowlist-20260914T200044.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/unit-after-20260914T200151.txt"

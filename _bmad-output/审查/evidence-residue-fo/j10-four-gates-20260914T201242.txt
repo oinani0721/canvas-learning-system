@@ -1,0 +1,27 @@
+=== 裁判 10: B14_BASE 既有四门(T8-B/C/D 地盘, 本卡只读运行) @ 2026-09-14T20:12:42+08:00 ===
+--- 1 lifespan 负控 ---
+NEGATIVE-CONTROL: PASS (3 nodeids red for expected reason; summary=(7, 7, 0, 0); positive control: 3/3 passed, zero attempts, zero runtime writes; mutated run in an isolated copy did touch runtime files (isolation is load-bearing); real tree untouched; AST-GATE: PASS 0/400 files)
+rc=0
+--- 2 AST 负控(首行) ---
+AST-NEGATIVE-CONTROL: PASS (48 绕过全抓 / 27 正例全净)
+rc=0
+--- 3 AST-only ---
+AST-GATE: PASS (0 violations in 400 files)
+rc=0
+--- 4 guard probes ---
+GUARD-PROBES: PASS — 59/59 条全部 fail-closed
+rc=0
+--- 受保护文件 sha 对 B14_BASE(SAME = 未被本卡或对照实验碰过) ---
+  backend/scripts/lifespan_isolation_negative_control.py         SAME  563b0f3b725b
+  backend/scripts/lifespan_isolation_guard_probes.py             SAME  5edae9e5661d
+  backend/scripts/mutation_kill_identity.py                      SAME  37343d46d6f4
+  backend/scripts/g32b_mutation_gates.py                         SAME  e583f5ad046a
+  backend/scripts/g32cb_mutation_gates.py                        SAME  2972963baf71
+  backend/scripts/g32ccr1_negative_controls.py                   SAME  607e1b47535f
+  backend/scripts/g33_mutation_gates.py                          SAME  2201a8fcc0b8
+  backend/scripts/openapi_drift_negative_control.py              SAME  34949197521e
+  backend/tests/regression/recap_domain_negverify.py             SAME  331d1aa4c48d
+  canvas-vault/.claude/scripts/fsrs_bridge.py                    SAME  a766fbcc28e3
+  canvas-vault/.claude/scripts/decay_beta.py                     SAME  3bf4ed9402a4
+--- 验伪锚: 已知被改的文件必须报 DIFF ---
+  lefthook.yml DIFF  <-- 判据有效

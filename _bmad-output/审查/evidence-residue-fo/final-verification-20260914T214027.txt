@@ -1,0 +1,38 @@
+=== 收尾核验 @ 2026-09-14T21:40:27+08:00 ===
+HEAD = 5257e3be
+--- (n) 地盘门: 只 lefthook.yml ---
+ lefthook.yml | 224 +++++++++++++++++++++++++++++++++++++++++++++++++++++++----
+ 1 file changed, 212 insertions(+), 12 deletions(-)
+--- 工作树 ---
+?? "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/final-verification-20260914T214027.txt"
+[空 = 干净]
+--- 探针残留(必 0) ---
+0
+--- 入库的 *.stderr*(必 0) ---
+0
+--- 入库的 *.log(必 0) ---
+0
+--- 本卡 commit 链(每条含批次标记与卡号) ---
+5257e3be docs(mutant-scan): 验收单 + 五轮存档首部 [BATCH-2026-09-11-第十四批 / CARD-TOOL-residue-fail-open]
+b09e85e3 docs(mutant-scan): round-4 复核收口 [BATCH-2026-09-11-第十四批 / CARD-TOOL-residue-fail-open]
+158e5a60 fix(mutant-scan): round-3 复核整改 2 条 [BATCH-2026-09-11-第十四批 / CARD-TOOL-residue-fail-open]
+9020a1a5 fix(mutant-scan): round-2 复核整改 3 条 [BATCH-2026-09-11-第十四批 / CARD-TOOL-residue-fail-open]
+f9e31034 fix(mutant-scan): round-1 复核整改 4 条 [BATCH-2026-09-11-第十四批 / CARD-TOOL-residue-fail-open]
+cd31cffd fix(mutant-scan): 封九条 fail-open + 名单补 4 项 [BATCH-2026-09-11-第十四批 / CARD-TOOL-residue-fail-open]
+--- 每条 header 是否含卡号 ---
+docs(mutant-scan): 验收单 + 五轮存档首部 [BATCH-2  卡号=1 批次=1 字符=85
+docs(mutant-scan): round-4 复核收口 [BATCH-2  卡号=1 批次=1 字符=85
+fix(mutant-scan): round-3 复核整改 2 条 [BATC  卡号=1 批次=1 字符=88
+fix(mutant-scan): round-2 复核整改 3 条 [BATC  卡号=1 批次=1 字符=88
+fix(mutant-scan): round-1 复核整改 4 条 [BATC  卡号=1 批次=1 字符=88
+fix(mutant-scan): 封九条 fail-open + 名单补 4   卡号=1 批次=1 字符=95
+--- 末轮绑定: git diff --stat b09e85e3 HEAD -- . ':(exclude)_bmad-output' 应为空 ---
+[空 = 代码树仍绑 r5]
+--- 存档里是否有 NUL(必 0 个文件) ---
+  含 NUL 的存档数 = 0
+--- 五份存档的分级末行 ---
+  r1: 
+  r-r2: 
+  r-r3: 
+  r-r4: 
+  r-r5: 

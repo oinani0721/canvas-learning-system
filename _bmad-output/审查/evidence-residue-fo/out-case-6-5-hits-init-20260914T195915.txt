@@ -1,0 +1,17 @@
+=== CASE 6-5: hits 初始化失败无守卫 ===
+旧版块 = git show 08100483:lefthook.yml 抽出, 58 行
+新版块 = 当前工作树 lefthook.yml 抽出, 107 行
+输入: 暂存 _bmad-output/x.md(允许名单内, 主循环会 continue, 不会写 hits)
+注入: mktemp 垫片在临时目录里预置 444 的 hits, 使 `: > hits` 失败
+      (垫片只改环境, 旧/新两版块本体一字未动)
+----- [old 版块] rc=0 -----
+/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T//t8a-case.dIZKla/old.sh: line 23: /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T//lefthook-mutant-residue.ItB8PO/hits: Permission denied
+[Mutant-Scan] OK (staged additions carry no mutation marker).
+----- [old 版块] end rc=0 -----
+----- [new 版块] rc=1 -----
+/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T//t8a-case.dIZKla/new.sh: line 51: /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T//lefthook-mutant-residue.AUgJoY/hits: Permission denied
+[Mutant-Scan] FAILED: 无法初始化命中文件 — 按 fail-closed 阻断。
+----- [new 版块] end rc=1 -----
+旧版打 OK 且 rc=0 : YES  (rc=0)
+新版不打 OK 且 rc=1: YES  (rc=1)
+CASE 6-5: SEALED

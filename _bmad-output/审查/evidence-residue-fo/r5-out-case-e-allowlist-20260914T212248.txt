@@ -1,0 +1,27 @@
+=== CASE e: 允许名单 4 条新分支 + 验伪锚 ===
+旧版块 = git show 08100483:lefthook.yml 抽出, 58 行, sha256=94481ca9099e78af3581f4370e772afbd6ad2114615733de69359898d7b1f52b
+新版块 = 当前工作树 lefthook.yml 抽出, 173 行, sha256=b1bfdf1f600ac90ab569c42d29a6c901cd18fcbe71b62f6b509c734e6940f523
+工作树 lefthook.yml sha256 = 35ec222712dfefe3a8d00cf55ec697fc3d469a7ac71545c031d7a7197d9b34f7
+工作树 HEAD = 158e5a60  (与 HEAD 的差异: 1 file changed, 7 insertions(+), 4 deletions(-))
+解释器: bash sh  (sh -> bash 3.2.57(1)-release)
+⚠️ 本条**只跑 bash**(下面 run_one/run_two 直接调 bash, 不走 run_both) —— 上面那行
+   「解释器: bash sh」是 prepare_blocks 的统一抬头, 对本条不成立。允许名单的
+   匹配是 case 语句的语义, 与解释器无关, 故未跑双解释器; 如实声明, 不当双解释器证据。
+  backend/scripts/g32ccr1_negative_controls.py         want=ALLOW old=BLOCKED(rc=1) new=OK     (rc=0)  PASS
+  backend/scripts/openapi_drift_negative_control.py    want=ALLOW old=BLOCKED(rc=1) new=OK     (rc=0)  PASS
+  backend/tests/regression/recap_domain_negverify.py   want=ALLOW old=BLOCKED(rc=1) new=OK     (rc=0)  PASS
+  .claude/rules/card-batch-protocol.md                 want=ALLOW old=BLOCKED(rc=1) new=OK     (rc=0)  PASS
+  --- 匹配面实测: case 的 * 会匹配 '/', 故 .claude/rules/*.md 覆盖任意深度 ---
+  (这是 shell case 的语义, 不是笔误; 与既有的 _bmad-output/* 同口径。
+   下面这条按 ALLOW 判, 因为「规则文」本来就包括子目录里的规则文。)
+  .claude/rules/nested/deep.md                         want=ALLOW old=BLOCKED(rc=1) new=OK     (rc=0)  PASS
+  --- 验伪锚(必须仍被两版都拦下, 证明模式没宽到名单之外) ---
+  backend/scripts/g32ccr1_negative_controls_copy.py    want=BLOCK old=BLOCKED(rc=1) new=BLOCKED(rc=1)  PASS
+  .claude/rules/card-batch-protocol.md.bak             want=BLOCK old=BLOCKED(rc=1) new=BLOCKED(rc=1)  PASS
+  .claude/rules/notes.txt                              want=BLOCK old=BLOCKED(rc=1) new=BLOCKED(rc=1)  PASS
+  .claude/rulesX/a.md                                  want=BLOCK old=BLOCKED(rc=1) new=BLOCKED(rc=1)  PASS
+  docs/.claude/rules/a.md                              want=BLOCK old=BLOCKED(rc=1) new=BLOCKED(rc=1)  PASS
+--- 名单原有的 2 条应不受影响(两版都放行) ---
+  backend/scripts/g32b_mutation_gates.py               old_rc=0 new_rc=0
+  backend/scripts/g32cb_mutation_gates.py              old_rc=0 new_rc=0
+CASE e: PASS

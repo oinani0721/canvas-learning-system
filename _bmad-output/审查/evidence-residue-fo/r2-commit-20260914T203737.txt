@@ -1,0 +1,131 @@
+╭──────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: pre-commit │
+╰──────────────────────────────────────╯
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+│  cypher-vault-filter-lint (skip) no matching staged files
+┃  ghost-files ❯ 
+
+[Ghost Files] No untracked docs found.
+
+┃  mutant-residue-scan ❯ 
+
+[Mutant-Scan] OK (staged additions carry no mutation marker).
+
+│  python-lint (skip) no files for inspection
+│  python-typecheck (skip) no files for inspection
+│  readme-claims-lint (skip) no matching staged files
+│  spec-sync-flat (skip) no matching staged files
+│  spec-sync-root (skip) no matching staged files
+                                      
+  ────────────────────────────────────
+summary: (done in 0.05 seconds)       
+✔️ ghost-files (0.01 seconds)
+✔️ mutant-residue-scan (0.04 seconds)
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+╭──────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: commit-msg │
+╰──────────────────────────────────────╯
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+┃  commitlint ❯ 
+
+⧗   input: fix(mutant-scan): round-1 复核整改 4 条 [BATCH-2026-09-11-第十四批 / CARD-TOOL-residue-fail-open]
+
+Codex round-1 绑 cd31cffd, BLOCKER=0 HIGH=1 MEDIUM=2 LOW=1。四条全部实测坐实后整改:
+
+HIGH — 只加 --text 不够。awk 的字符串是 NUL 终止的: 一条新增行里只要标记**前面**出现
+NUL, index() 就看不见它(实测 `+x<NUL> # <标记>` 判 MISS 且 rc=0)。git 把完整字节交出来
+了, awk 却只看到 NUL 之前那一截。round-1 的 6-3 把标记放第一行、NUL 放第二行, 恰好避开
+了这个缺口。修法: 喂 awk 之前 `LC_ALL=C tr '\000' '?'` 等长归一化(行号与各种前缀不受
+影响, 也不会凭空造出标记)。新增对照 case-h1-nul-before-marker.sh + 真 hook 负控 B。
+
+MEDIUM-1 — 管道的 rc 是末段的。`tr … | wc … | tr …` 里首段 tr 在 UTF-8 locale 下遇非法
+字节序列会报 Illegal byte sequence 并少数一个, 整链却 rc=0(本机 LANG 实测就是
+en_US.UTF-8)。修法: 字节处理一律钉 LC_ALL=C, 且拆成能各自核 rc 的步骤。
+
+MEDIUM-2 — SEEN==EXPECTED 只说明「没少读」, 不说明「读到过」: 空清单遇上 read 报错会得到
+0 == 0 而通过。修法: 往记录流末尾追一条绝不可能是真实路径的结束哨兵(git 路径不以 / 开头),
+主循环必须真的读到它。新增对照 case-m2-empty-read-error.sh。
+
+LOW — lefthook 2.1.6 起的是 `sh -c`, 那个 sh 由进程 PATH 查找, 不是硬编码 /bin/sh。注释
+改为「按 PATH 查找; 本机当前解析到 /bin/sh = bash 3.2.57」。
+
+另: 对照套件改为**两种解释器都跑**(bash 与 sh, 后者才是真实 runner)。据此如实降级 6-5 的
+主张 —— `:` 是 POSIX 特殊内建, 在 sh 下重定向失败本来就会退出 shell, 那条守卫在真实
+runner 下的收益是「把静默退出变成有诊断的阻断」, 不是「把放行变成阻断」。已写进注释。
+12 条对照: 11 条两解释器均 SEALED, 6-5 bash=SEALED / sh=NOT-SEALED(如实分开记)。
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01J8gPf6TwMazCKypLbEhF3h
+⚠   subject must be lower-case [subject-case]
+
+⚠   found 0 problems, 1 warnings
+ⓘ   Get help: https://github.com/conventional-changelog/commitlint/#what-is-commitlint
+
+
+┃  spec-reference ❯ 
+
+[Spec Ref] OK.
+
+                                      
+  ────────────────────────────────────
+summary: (done in 0.31 seconds)       
+✔️ commitlint (0.29 seconds)
+✔️ spec-reference (0.02 seconds)
+╭───────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: post-commit │
+╰───────────────────────────────────────╯
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+[card/t8-tools f9e31034] fix(mutant-scan): round-1 复核整改 4 条 [BATCH-2026-09-11-第十四批 / CARD-TOOL-residue-fail-open]
+ 36 files changed, 2214 insertions(+), 60 deletions(-)
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-TOOL-residue-fail-open.md"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/case-h1-nul-before-marker.sh"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/case-m2-empty-read-error.sh"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/commit-20260914T201603.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/r2-b-syntax-20260914T202730.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/r2-h-controls-20260914T202807.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/r2-j10-four-gates-20260914T203417.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/r2-j678-20260914T202818.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/r2-j9-unit-diff-20260914T203403.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/r2-out-case-6-1-ext-diff-20260914T202736.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/r2-out-case-6-2-textconv-20260914T202736.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/r2-out-case-6-3-text-20260914T202736.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/r2-out-case-6-4-typechange-20260914T202736.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/r2-out-case-6-5-hits-init-20260914T202736.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/r2-out-case-6-6-awk-operand-20260914T202736.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/r2-out-case-8-1-redirect-20260914T202750.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/r2-out-case-8-2-read-error-20260914T202750.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/r2-out-case-8-3-no-nul-20260914T202750.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/r2-out-case-9-s-hits-20260914T202750.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/r2-out-case-e-allowlist-20260914T202750.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/r2-out-case-h1-nul-before-marker-20260914T202750.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/r2-out-case-m2-empty-read-error-20260914T202750.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/r2-unit-after-20260914T202823.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-TOOL-residue-fail-open.md"

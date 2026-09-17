@@ -1,0 +1,59 @@
+=== CASE m3: d / dn 不是普通文件 ===
+旧版块 = git show f9e31034:lefthook.yml 抽出, 145 行, sha256=7380c203a282141cc3aa7c6cd041f23b2401b2cb8c49ff3c51b2217dc03a3a7c
+新版块 = 当前工作树 lefthook.yml 抽出, 165 行, sha256=073fe964a8b7e23b5ed17c9b63657c128082f5fab44340777d88226601750a0f
+工作树 lefthook.yml sha256 = fadd8519991a25eaeb93729a6ebe1b24bb7914533ca7d2a3ac9cf153a8feb5ab
+工作树 HEAD = f9e31034  (与 HEAD 的差异: 1 file changed, 40 insertions(+), 6 deletions(-))
+解释器: bash sh  (sh -> bash 3.2.57(1)-release)
+⚠️ 本条的旧版 = round-2 commit f9e31034(hits 已有类型检查, d/dn 还没有)
+######## 被换掉的临时文件 = d ########
+输入: 暂存 p.py(带标记, 不在允许名单内) —— 真实命中
+注入: mktemp 垫片把 d 预置成 -> /dev/null
+######## 解释器 = bash ########
+  ----- [old / bash] rc=0 -----
+  [Mutant-Scan] OK (staged additions carry no mutation marker).
+  ----- [old / bash] end rc=0 -----
+  ----- [new / bash] rc=1 -----
+  [Mutant-Scan] FAILED: diff 暂存文件不是可读的普通文件: p.py
+  [Mutant-Scan] 扫描未完成(见上) — 这不是「没发现标记」, 按 fail-closed 阻断。
+  ----- [new / bash] end rc=1 -----
+  旧版打 OK 且 rc=0 : YES  (rc=0)
+  新版不打 OK 且 rc=1: YES  (rc=1)
+  == m3-d / bash: SEALED
+######## 解释器 = sh ########
+  ----- [old / sh] rc=0 -----
+  [Mutant-Scan] OK (staged additions carry no mutation marker).
+  ----- [old / sh] end rc=0 -----
+  ----- [new / sh] rc=1 -----
+  [Mutant-Scan] FAILED: diff 暂存文件不是可读的普通文件: p.py
+  [Mutant-Scan] 扫描未完成(见上) — 这不是「没发现标记」, 按 fail-closed 阻断。
+  ----- [new / sh] end rc=1 -----
+  旧版打 OK 且 rc=0 : YES  (rc=0)
+  新版不打 OK 且 rc=1: YES  (rc=1)
+  == m3-d / sh: SEALED
+CASE m3-d: bash=SEALED sh=SEALED
+######## 被换掉的临时文件 = dn ########
+输入: 暂存 p.py(带标记, 不在允许名单内) —— 真实命中
+注入: mktemp 垫片把 dn 预置成 -> /dev/null
+######## 解释器 = bash ########
+  ----- [old / bash] rc=0 -----
+  [Mutant-Scan] OK (staged additions carry no mutation marker).
+  ----- [old / bash] end rc=0 -----
+  ----- [new / bash] rc=1 -----
+  [Mutant-Scan] FAILED: 归一化后的 diff 不是可读的普通文件: p.py
+  [Mutant-Scan] 扫描未完成(见上) — 这不是「没发现标记」, 按 fail-closed 阻断。
+  ----- [new / bash] end rc=1 -----
+  旧版打 OK 且 rc=0 : YES  (rc=0)
+  新版不打 OK 且 rc=1: YES  (rc=1)
+  == m3-dn / bash: SEALED
+######## 解释器 = sh ########
+  ----- [old / sh] rc=0 -----
+  [Mutant-Scan] OK (staged additions carry no mutation marker).
+  ----- [old / sh] end rc=0 -----
+  ----- [new / sh] rc=1 -----
+  [Mutant-Scan] FAILED: 归一化后的 diff 不是可读的普通文件: p.py
+  [Mutant-Scan] 扫描未完成(见上) — 这不是「没发现标记」, 按 fail-closed 阻断。
+  ----- [new / sh] end rc=1 -----
+  旧版打 OK 且 rc=0 : YES  (rc=0)
+  新版不打 OK 且 rc=1: YES  (rc=1)
+  == m3-dn / sh: SEALED
+CASE m3-dn: bash=SEALED sh=SEALED

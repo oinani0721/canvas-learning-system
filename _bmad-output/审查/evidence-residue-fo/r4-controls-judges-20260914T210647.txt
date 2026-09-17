@@ -1,0 +1,28 @@
+=== round-4 真 hook 三控 ===
+--- 正控  暂存面 = "_bmad-output/\345\256\241\346\237\245/evidence-residue-fo/_probe.txt" 
+[Mutant-Scan] OK (staged additions carry no mutation marker).
+  lefthook_rc=0
+--- 负控A  暂存面 = backend/scripts/_t8a_probe.py 
+[Mutant-Scan] BLOCKED — 暂存的新增行里带变异残留标记:
+  lefthook_rc=1
+--- 负控B-NUL先  暂存面 = backend/scripts/_t8a_probe.py 
+[Mutant-Scan] BLOCKED — 暂存的新增行里带变异残留标记:
+  lefthook_rc=1
+探针残留(必 0) = 0
+
+=== round-4 裁判 6/7/8 ===
+J6 CS=519 CE=527
+  backend/scripts/g32b_mutation_gates.py               1
+  backend/scripts/g32cb_mutation_gates.py              1
+  backend/scripts/g32ccr1_negative_controls.py         1
+  backend/scripts/openapi_drift_negative_control.py    1
+  backend/tests/regression/recap_domain_negverify.py   1
+  验伪锚=0  continue;;=7
+J6 rc=0
+J7 旧计数残留 = 0
+J8 验伪锚 = 1
+J8 真判据 = 0
+J8 python-typecheck 逐字节相同
+J8 HONESTY 逐字节相同
+ lefthook.yml | 221 +++++++++++++++++++++++++++++++++++++++++++++++++++++++----
+ 1 file changed, 209 insertions(+), 12 deletions(-)

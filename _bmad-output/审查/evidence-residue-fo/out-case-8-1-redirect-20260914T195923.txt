@@ -1,0 +1,17 @@
+=== CASE 8-1: 主循环输入重定向打不开 ===
+旧版块 = git show 08100483:lefthook.yml 抽出, 58 行
+新版块 = 当前工作树 lefthook.yml 抽出, 107 行
+输入: 暂存 p.py(带标记, 不在允许名单内)
+注入: mktemp 垫片预置 200(只写)的 names —— 写得进、读不出
+      (垫片只改环境, 旧/新两版块本体一字未动)
+----- [old 版块] rc=0 -----
+/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T//t8a-case.Q9qQNi/old.sh: line 44: /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T//lefthook-mutant-residue.A0CrOI/names: Permission denied
+[Mutant-Scan] OK (staged additions carry no mutation marker).
+----- [old 版块] end rc=0 -----
+----- [new 版块] rc=1 -----
+[Mutant-Scan] FAILED: 暂存清单不是可读的普通文件 —
+[Mutant-Scan]   这不是「没有暂存文件」, 按 fail-closed 阻断。
+----- [new 版块] end rc=1 -----
+旧版打 OK 且 rc=0 : YES  (rc=0)
+新版不打 OK 且 rc=1: YES  (rc=1)
+CASE 8-1: SEALED

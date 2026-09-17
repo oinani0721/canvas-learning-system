@@ -1,0 +1,29 @@
+=== (b) 抽块语法门 — 最终稿 ===
+块名锚唯一性 = 1
+块末锚唯一性 = 1
+S=389 E=497
+抽出行数 107 (期望 107)
+set -u
+echo "[Mutant-Scan] OK (staged additions carry no mutation marker)."
+bash_n_rc=0
+sh_n_rc=0
+--- 改前(B14_BASE)同口径复跑 ---
+base_bash_n_rc=0
+base_sh_n_rc=0
+--- 验伪锚: 坏语法必须让 bash -n / sh -n 都红 ---
+bad_bash_n_rc=2
+bad_sh_n_rc=2
+
+=== (j) 自指与不变量 ===
+MUT""ANT 字面量(期望 1)            = 1
+拼接标记出现次数(期望 0)           = 0
+命令名锚 mutant-residue-scan(期望1)= 1
+awk 仍 -v M=$MARKER 传入(期望 1)   = 1
+YAML 键 priority:(期望 0)          = 0
+  (验伪锚: 该正则能命中真键吗) 1
+fail-closed exit 1 计数 改前/改后  = 5 / 11
+--- dash 自证块逻辑逐字节未变 ---
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+--- YAML 解析 ---
+commands= ['cypher-vault-filter-lint', 'ghost-files', 'mutant-residue-scan', 'python-lint', 'python-typecheck', 'readme-claims-lint', 'spec-sync-flat', 'spec-sync-root']

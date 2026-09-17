@@ -1,0 +1,31 @@
+=== round-3 真 hook 三控 ===
+--- 正控(允许名单内 + 真标记) ---
+[Mutant-Scan] OK (staged additions carry no mutation marker).
+rc=0
+--- 负控 A(普通标记) ---
+[Mutant-Scan] BLOCKED — 暂存的新增行里带变异残留标记:
+rc=1
+--- 负控 B(同行 NUL 在标记之前) ---
+[Mutant-Scan] BLOCKED — 暂存的新增行里带变异残留标记:
+rc=1
+--- 探针残留(必 0) ---
+0
+
+=== round-3 裁判 6 / 7 / 8 ===
+J6 CS=511 CE=519
+  backend/scripts/g32b_mutation_gates.py               1
+  backend/scripts/g32cb_mutation_gates.py              1
+  backend/scripts/g32ccr1_negative_controls.py         1
+  backend/scripts/openapi_drift_negative_control.py    1
+  backend/tests/regression/recap_domain_negverify.py   1
+  验伪锚=0? 0
+  continue ;;=7? 7
+J6 rc=0
+J7 旧计数 153/10 残留=0? 0
+J8 验伪锚(必>=1)= 1
+J8 真判据(必 0)= 0
+J8 python-typecheck 块逐字节相同
+J8 HONESTY 段逐字节相同
+--- 地盘门 ---
+ lefthook.yml | 206 +++++++++++++++++++++++++++++++++++++++++++++++++++++++----
+ 1 file changed, 194 insertions(+), 12 deletions(-)
