@@ -338,7 +338,7 @@ class CanvasService:
             # Call MemoryService to record the temporal event
             # 唯一调用链 _trigger_memory_event(:264) 在 _memory_client is None 时提前 return,
             # 故此处恒非 None。原代码遇 None 也会崩(AttributeError), 且本 try 的兜底
-            # `except Exception` 同样接住 AssertionError → 落地路径逐字不变。
+            # `except Exception` 同样接住 AssertionError → 走同一 fallback 分支; 但 assert 无消息 ⇒ f"...: {e}" 的原因文本会变空, 非逐字不变(生产不可达, 仅影响日志文本)。
             assert self._memory_client is not None
             await self._memory_client.record_temporal_event(
                 event_type=event_type.value,

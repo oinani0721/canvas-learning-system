@@ -77,9 +77,12 @@ class ExamService:
     """
 
     if TYPE_CHECKING:
-        # ⛔ 这 11 个方法在运行期由 exam_service_ext.py 模块顶层的猴子补丁挂载
-        # (`ExamService.<name> = <fn>`, 由本文件末尾的 `import app.services.exam_service_ext`
-        # 触发)。此处只做类型声明: `if TYPE_CHECKING` 块在运行期不执行, 零行为变化;
+        # ⛔ 这 11 个方法的赋值(`ExamService.<name> = <fn>`)在 exam_service_ext.py 的
+        # `attach_to_exam_service()` 函数体内(:956-966, def 在 :932), 由该模块顶层 :970 的
+        # `attach_to_exam_service()` 调用执行; 入口是本文件末尾的 `import app.services.exam_service_ext`。
+        # (该 ext 文件是 D-29 crossover: 模块命名空间较原版少 `logging` 属性、多 `TYPE_CHECKING=False`,
+        # 但文件内无读 logging 的代码(用 structlog) ⇒ 无业务回归。)
+        # 此处只做类型声明: `if TYPE_CHECKING` 块在运行期不执行, 零行为变化;
         # 目的是让 pyright 看见它们, 消掉 api/v1/endpoints/exam.py 的
         # attribute-unknown 与 exam_service_ext.py 的 cannot-assign。
         # ⛔ 签名必须与 exam_service_ext.py 的 def 逐字一致 — 改一侧必须同步改另一侧。

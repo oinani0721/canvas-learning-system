@@ -1,0 +1,14 @@
+### 哪 2 个文件需要重排（工作树态）
+  DRIFT backend/app/dependencies.py
+  OK   backend/app/services/canvas_service.py
+  DRIFT backend/app/services/exam_service.py
+  OK   backend/app/services/review_service.py
+
+### ⛔ 关键: 同一文件在 BASE_F 版（不含本卡任何改动）是否已漂移 —— 证漂移非本卡引入
+  backend/app/dependencies.py                        BASE_F 态: 
+  backend/app/services/canvas_service.py             BASE_F 态: 
+  backend/app/services/exam_service.py               BASE_F 态: 
+  backend/app/services/review_service.py             BASE_F 态: 
+
+### 验伪锚: 对一个已知格式正确的文件, --check 应报 already formatted
+1 file already formatted
