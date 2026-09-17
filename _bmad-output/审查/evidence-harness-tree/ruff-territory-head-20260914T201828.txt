@@ -1,0 +1,27 @@
+### 提交后权威判据  HEAD=f7f10be4  status_lines=1
+
+### (h) 地盘门: diff 须 ⊆ 三文件
+backend/tests/regression/test_g3_2_review_ledger.py
+backend/tests/skills/test_skill_portability_lint.py
+canvas-vault/.claude/skills/quiz-answer/SKILL.md
+--- 验伪锚: 去掉 exclude 后 _bmad-output/ 条数 (须 >0) ---
+0
+--- backend/app 被碰文件数 (须 0) ---
+0
+
+### §二.8 ruff (HEAD 口径, 子 shell 包裹)
+files=2
+All checks passed!
+check_rc=0
+1 file already formatted
+head_fmt_rc=0 backend/tests/regression/test_g3_2_review_ledger.py
+base_fmt_rc=0 backend/tests/regression/test_g3_2_review_ledger.py
+1 file already formatted
+head_fmt_rc=0 backend/tests/skills/test_skill_portability_lint.py
+base_fmt_rc=0 backend/tests/skills/test_skill_portability_lint.py
+--- ruff 验伪锚 (同次执行) ---
+验伪锚 format rc=1 (须=1)
+验伪锚 check rc=1 (须=1)
+
+### *.stderr* 入库核 (须 0)
+0

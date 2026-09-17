@@ -1,0 +1,313 @@
+"""验证新加的门**真能杀掉**变异测试里那批存活者。不验就只是信仰。
+
+做法：在内存里把每个存活变异体打到 `_harness_tree` 上，然后按新门的**形状 × 缺库方式**
+逐格跑，看是否至少有一格红（= KILLED）。全格绿 = 门仍然抓不住（= 我白加了）。
+⛔ 只读仓库；变异只在内存里。
+"""
+import ast, builtins, json, os, re, sys, tempfile, types, pathlib
+
+WT = pathlib.Path("/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills")
+txt = (WT / "canvas-vault/.claude/skills/quiz-answer/SKILL.md").read_text(encoding="utf-8")
+CODE = [b for b in re.findall(r"python3 - <<'PYEOF'\n(.*?)\nPYEOF", txt, re.DOTALL)
+        if 'P = "/tmp/quiz-answer-payload.json"' in b][0]
+SRC = ast.get_source_segment(CODE, [n for n in ast.parse(CODE).body
+                                    if isinstance(n, ast.FunctionDef) and n.name == "_harness_tree"][0])
+ANCHOR = "PyYAML 不可用 — harness_tree 指向哪棵树不可证"
+
+IMPORT_ERR_LINE = '        raise SystemExit(f"[quiz-answer] PyYAML 不可用 — harness_tree'
+
+
+def make_fn(mutant_src):
+    prelude = CODE[: CODE.index("def _harness_tree")]
+    ns = {}
+    for st in ast.parse(prelude).body:
+        if isinstance(st, (ast.Import, ast.ImportFrom)):
+            exec(compile(ast.Module(body=[st], type_ignores=[]), "<p>", "exec"), ns)
+    exec(mutant_src, ns)
+    return ns["_harness_tree"]
+
+
+def usable(root):
+    (root / "backend" / "scripts").mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def build(shape, base):
+    vd = base / "canvas-vault"
+    vd.mkdir(parents=True)
+    cfg = vd / ".canvas-config.yaml"
+    real = usable(base / "real-harness")
+    env = {}
+    if shape == "no_config_file":
+        pass
+    elif shape == "no_config_and_parent_is_tree":
+        usable(base)
+    elif shape == "no_config_and_env_set":
+        env = {k: str(real) for k in ("QUIZ_ANSWER_HARNESS_TREE", "CANVAS_HARNESS_TREE", "HARNESS_TREE")}
+    elif shape == "no_config_and_sidecar":
+        (vd / ".canvas-config.harness-tree").write_text(str(real), encoding="utf-8")
+    elif shape == "target_tree_really_exists":
+        cfg.write_text(f'# c\nvault_id: "v"\nharness_tree: {real}\n', encoding="utf-8")
+    elif shape == "parent_is_a_usable_tree":
+        usable(base)
+        cfg.write_text('# c\nvault_id: "v"\nsubject: cs-61b\n', encoding="utf-8")
+    elif shape == "minimal_unquoted_config":
+        cfg.write_text(f"subject: cs61b\nharness_tree: {real}\n", encoding="utf-8")
+    elif shape == "pure_json_config":
+        cfg.write_text(json.dumps({"subject": "cs61b", "harness_tree": str(real)}), encoding="utf-8")
+    elif shape == "env_override_set":
+        cfg.write_text('# c\nvault_id: "v"\nsubject: cs-61b\n', encoding="utf-8")
+        env = {k: str(real) for k in ("QUIZ_ANSWER_HARNESS_TREE", "CANVAS_HARNESS_TREE", "HARNESS_TREE")}
+    else:
+        cfg.write_text('# c\nvault_id: "v"\nsubject: cs-61b\n', encoding="utf-8")
+        (vd / ".canvas-config.harness-tree").write_text(str(real), encoding="utf-8")
+    return vd, env
+
+
+SHAPES = ["no_config_file", "no_config_and_parent_is_tree", "no_config_and_env_set",
+          "no_config_and_sidecar", "target_tree_really_exists", "parent_is_a_usable_tree",
+          "minimal_unquoted_config", "pure_json_config", "env_override_set", "sidecar_present"]
+PROBES = ["module_not_found", "plain_import_error", "import_raises_oserror",
+          "imports_but_not_pyyaml", "safe_load_not_callable", "safe_load_misbehaves"]
+
+
+def run_cell(fn, shape, probe):
+    base = pathlib.Path(tempfile.mkdtemp(prefix="vk-"))
+    vd, env = build(shape, base)
+    saved_env = {k: os.environ.get(k) for k in env}
+    os.environ.update(env)
+    prev_mod = sys.modules.get("yaml")
+    real_import = builtins.__import__
+    if probe == "module_not_found":
+        sys.modules["yaml"] = None
+    elif probe in ("imports_but_not_pyyaml", "safe_load_not_callable", "safe_load_misbehaves"):
+        _f = types.ModuleType("yaml")
+        if probe == "safe_load_not_callable":
+            _f.safe_load = 1
+        elif probe == "safe_load_misbehaves":
+            _f.safe_load = list
+        sys.modules["yaml"] = _f
+    else:
+        _e = (ImportError("cannot import name '_yaml' from partially initialized module 'yaml'")
+              if probe == "plain_import_error"
+              else PermissionError(13, "Permission denied", "/site-packages/yaml/__init__.py"))
+        def fake(name, *a, **kw):
+            if name == "yaml":
+                raise _e
+            return real_import(name, *a, **kw)
+        builtins.__import__ = fake
+    try:
+        out = ("ok", fn(str(vd)))
+    except SystemExit as e:
+        out = ("exit", str(e))
+    except Exception as e:  # noqa: BLE001
+        out = ("err", f"{type(e).__name__}: {e}")
+    finally:
+        builtins.__import__ = real_import
+        if prev_mod is None:
+            sys.modules.pop("yaml", None)
+        else:
+            sys.modules["yaml"] = prev_mod
+        for k, v in saved_env.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+    # 新门的断言：必须 exit 且拒因含整句锚
+    green = out[0] == "exit" and ANCHOR in out[1]
+    return green, out
+
+
+MUTANTS = {
+    "R3-try-then-refuse": (
+        IMPORT_ERR_LINE,
+        '''        import re as _re2
+        try:
+            _raw2 = open(_cfg_p, encoding="utf-8").read()
+        except OSError:
+            _raw2 = ""
+        _m2 = _re2.search(r"^harness_tree:[ ]+(\\S+)[ ]*$", _raw2, _re2.M)
+        if _m2:
+            try:
+                _cand = os.path.realpath(_m2.group(1), strict=True)
+                if os.path.isdir(os.path.join(_cand, "backend", "scripts")):
+                    return _cand
+            except OSError:
+                pass
+        raise SystemExit(f"[quiz-answer] PyYAML 不可用 — harness_tree''',
+    ),
+    "R6-env-override": (
+        IMPORT_ERR_LINE,
+        '''        _ev = os.environ.get("QUIZ_ANSWER_HARNESS_TREE") or os.environ.get("CANVAS_HARNESS_TREE")
+        if _ev and os.path.isdir(os.path.join(_ev, "backend", "scripts")):
+            return os.path.realpath(_ev)
+        raise SystemExit(f"[quiz-answer] PyYAML 不可用 — harness_tree''',
+    ),
+    "M1-parent-is-a-tree": (
+        IMPORT_ERR_LINE,
+        '''        _par = os.path.dirname(vault_dir)
+        if os.path.isdir(os.path.join(_par, "backend", "scripts")):
+            return _par
+        raise SystemExit(f"[quiz-answer] PyYAML 不可用 — harness_tree''',
+    ),
+    "R4-sidecar-cache": (
+        IMPORT_ERR_LINE,
+        '''        try:
+            _sc = open(os.path.join(vault_dir, ".canvas-config.harness-tree"), encoding="utf-8").read().strip()
+            if _sc and os.path.isdir(os.path.join(_sc, "backend", "scripts")):
+                return os.path.realpath(_sc)
+        except OSError:
+            pass
+        raise SystemExit(f"[quiz-answer] PyYAML 不可用 — harness_tree''',
+    ),
+    "R5-json-superset": (
+        IMPORT_ERR_LINE,
+        '''        try:
+            _jd = json.load(open(_cfg_p, encoding="utf-8"))
+            if isinstance(_jd, dict) and _jd.get("harness_tree"):
+                return os.path.realpath(str(_jd["harness_tree"]))
+        except Exception:
+            pass
+        raise SystemExit(f"[quiz-answer] PyYAML 不可用 — harness_tree''',
+    ),
+    "R1-simple-config-only": (
+        IMPORT_ERR_LINE,
+        '''        import re as _re3
+        try:
+            _lines3 = open(_cfg_p, encoding="utf-8").read().split("\\n")
+        except OSError:
+            _lines3 = []
+        if all(_re3.match(r"^[A-Za-z_][A-Za-z0-9_]*: [^\\s\\"'#|>&*{}\\[\\],:]+$", _l) for _l in _lines3 if _l.strip()):
+            for _l in _lines3:
+                _mm = _re3.match(r"^harness_tree: (\\S+)$", _l)
+                if _mm:
+                    return os.path.realpath(_mm.group(1))
+        raise SystemExit(f"[quiz-answer] PyYAML 不可用 — harness_tree''',
+    ),
+    "P2-open-before-import": ("    try:\n        import yaml  # harness_tree 解析: 与 F1 判定同一个理由\n        with open(_cfg_p, encoding=\"utf-8\") as _cf:\n            _doc = yaml.safe_load(_cf)",
+                              "    try:\n        with open(_cfg_p, encoding=\"utf-8\") as _cf:\n            _txt0 = _cf.read()\n        import yaml  # harness_tree 解析: 与 F1 判定同一个理由\n        _doc = yaml.safe_load(_txt0)"),
+    "WM-narrow-except": ("    except Exception as _ie:", "    except ModuleNotFoundError as _ie:"),
+    "H1-merged-try": (
+        "    try:\n        import yaml  # harness_tree 解析: 与 F1 判定同一个理由\n    except Exception as _ie:",
+        "    try:\n        import yaml  # harness_tree 解析: 与 F1 判定同一个理由\n        _probe_open = open(_cfg_p, encoding=\"utf-8\").read()\n    except OSError:\n        return os.path.dirname(vault_dir)\n    except Exception as _ie:"),
+    #: ⛔ 位置要对: 这条回退必须插进**缺库分支**(import 的 except)里, 插在它后面等于
+    #: 永远执行不到 —— 那样「存活」是空洞的, 不是门的缺口。第一版我就放错了位置。
+    "M1-parent-when-no-config": (
+        IMPORT_ERR_LINE,
+        '''        _par0 = os.path.dirname(vault_dir)
+        if not os.path.exists(_cfg_p) and os.path.isdir(os.path.join(_par0, "backend", "scripts")):
+            return _par0
+        raise SystemExit(f"[quiz-answer] PyYAML 不可用 — harness_tree'''),
+    #: r8-M1: 去掉「导入成功但不是 PyYAML」那道检查
+    "M1-no-safeload-check": (
+        '        if not callable(getattr(yaml, "safe_load", None)):',
+        '        if False:'),
+    #: r8-M2: 把读 config 挪到 import 之前、仍共用一个 try（我上一轮误判为「已消除」的那类）
+    "M2-read-before-import": (
+        '    try:\n        import yaml  # harness_tree 解析: 与 F1 判定同一个理由',
+        '    try:\n        _pre_read = open(_cfg_p, encoding="utf-8").read()\n        import yaml  # harness_tree 解析: 与 F1 判定同一个理由'),
+    #: r8-M3: 只在 config 不存在时才采用环境变量
+    "M3-env-only-when-no-config": (
+        IMPORT_ERR_LINE,
+        '''        _ev3 = os.environ.get("QUIZ_ANSWER_HARNESS_TREE")
+        if _ev3 and not os.path.exists(_cfg_p) and os.path.isdir(os.path.join(_ev3, "backend", "scripts")):
+            return os.path.realpath(_ev3)
+        raise SystemExit(f"[quiz-answer] PyYAML 不可用 — harness_tree'''),
+    #: r9-M2: 把「表现得像解析器」弱化成「有这个属性」
+    "r9-hasattr-only": (
+        '        try:\n            _probe = yaml.safe_load("a: 1")',
+        '        if not hasattr(yaml, "safe_load"):\n            raise ImportError("no safe_load")\n        try:\n            _probe = {"a": 1}'),
+    #: r9-H1: 把解析途中的 OSError 重新并回「没有 config」
+    "r9-parse-oserror-as-missing": (
+        '        except Exception as _ye:\n            #: 这里**不再**豁免 OSError',
+        '        except OSError:\n            _tree = ""\n        except Exception as _ye:\n            #: 这里**不再**豁免 OSError'),
+    "WM-merge-message": (IMPORT_ERR_LINE,
+                         '        raise SystemExit(f"[quiz-answer] .canvas-config.yaml 无法用 PyYAML 解析 — fail-closed 拒写 — 请人工修复 {_cfg_p}") or SystemExit(f"[quiz-answer] x — harness_tree'),
+}
+
+print("%-24s %-9s %s" % ("变异体", "判定", "被哪一格抓住"))
+print("-" * 78)
+n_killed = 0
+for name, (old, new) in MUTANTS.items():
+    if SRC.count(old) != 1:
+        print("%-24s %-9s old_snippet 命中 %d 次" % (name, "INVALID", SRC.count(old)))
+        continue
+    mut = SRC.replace(old, new)
+    try:
+        fn = make_fn(mut)
+    except SyntaxError as e:
+        print("%-24s %-9s 语法错: %s" % (name, "INVALID", e))
+        continue
+    caught = []
+    for sh in SHAPES:
+        for pr in PROBES:
+            green, out = run_cell(fn, sh, pr)
+            if not green:
+                caught.append(f"{sh}/{pr}")
+    if caught:
+        n_killed += 1
+        print("%-24s %-9s %s" % (name, "KILLED", caught[0] + (f" (+{len(caught)-1})" if len(caught) > 1 else "")))
+    else:
+        print("%-24s %-9s %s" % (name, "SURVIVED", f"⛔ {len(SHAPES)*len(PROBES)} 格全绿 —— 新门仍抓不住"))
+
+print("-" * 78)
+print("KILLED %d / %d" % (n_killed, len(MUTANTS)))
+
+# ── 有库侧：解析这一步坏了 ⇒ 必须拒（r9 H1 那一类）──
+print()
+print("=== 有库侧那一片（r9 H1）: config 打得开但解析抛 OSError ⇒ 应拒 ===")
+def yaml_parse_fail_cell(fn):
+    import yaml as _ry
+    base = pathlib.Path(tempfile.mkdtemp(prefix="vk-pf-")); vd = base / "canvas-vault"
+    vd.mkdir(parents=True); usable(base); tgt = usable(base / "target-tree")
+    (vd / ".canvas-config.yaml").write_text(f'vault_id: "v"\nharness_tree: {tgt}\n', encoding="utf-8")
+    fake = types.ModuleType("yaml")
+    def sl(stream, *a, **k):
+        if isinstance(stream, str): return _ry.safe_load(stream)
+        raise OSError(5, "Input/output error")
+    fake.safe_load = sl
+    prev = sys.modules.get("yaml"); sys.modules["yaml"] = fake
+    try:
+        r = ("ok", fn(str(vd)), str(base))
+    except SystemExit as e:
+        r = ("exit", str(e)[:60], str(base))
+    finally:
+        if prev is None: sys.modules.pop("yaml", None)
+        else: sys.modules["yaml"] = prev
+    return r
+for nm in ("r9-parse-oserror-as-missing",):
+    old, new = MUTANTS[nm]
+    if SRC.count(old) != 1:
+        print(f"  {nm}: INVALID（锚 {SRC.count(old)} 次）"); continue
+    r = yaml_parse_fail_cell(make_fn(SRC.replace(old, new)))
+    #: ⚠️ 这一格的「正确」与上一格**相反**: 解析失败时生产应当 exit, 所以变异体返回 ok
+    #: (回退父树)= 门会红 = KILLED。第一版我从上一格照抄了判定逻辑、忘了翻转, 于是把
+    #: 一个被杀掉的变异体报成了 SURVIVED —— 差点照着一个不存在的缺口再去加门。
+    print(f"  {nm}: {'KILLED' if r[0]=='ok' else '⛔ SURVIVED'} —— 变异体得到 {r[0]} {r[1][:46]!r}（门要求 exit）")
+rp2 = yaml_parse_fail_cell(make_fn(SRC))
+print(f"  阴性对照(生产): {'✅ 拒写' if rp2[0]=='exit' else '⛔ ' + str(rp2[:2])}")
+
+# ── 额外一格：PyYAML **可用** + 无 config + 父目录是树 ⇒ 必须回退父树（r8 M2 那一类）──
+print()
+print("=== 有库侧那一格（r8 M2）: 无 config + 父目录是树 ⇒ 应回退父树 ===")
+def yaml_available_cell(fn):
+    base = pathlib.Path(tempfile.mkdtemp(prefix="vk-ya-"))
+    vd = base / "canvas-vault"; vd.mkdir(parents=True); usable(base)
+    try:
+        return ("ok", fn(str(vd)), str(base))
+    except SystemExit as e:
+        return ("exit", str(e)[:60], str(base))
+for nm in ("M2-read-before-import",):
+    old, new = MUTANTS[nm]
+    if SRC.count(old) != 1:
+        print(f"  {nm}: INVALID（锚 {SRC.count(old)} 次）"); continue
+    r = yaml_available_cell(make_fn(SRC.replace(old, new)))
+    ok = r[0] == "ok" and r[1] == r[2]
+    print(f"  {nm}: {'⛔ SURVIVED' if ok else 'KILLED'} —— {r[0]} {r[1][:50]!r}")
+rp = yaml_available_cell(make_fn(SRC))
+print(f"  阴性对照(生产): {'✅ 回退父树' if rp[0]=='ok' and rp[1]==rp[2] else '⛔ ' + str(rp)}")
+
+# 阴性对照：生产代码本身必须 14 格全绿（否则是新门误伤）
+prod = make_fn(SRC)
+bad = [(s, p) for s in SHAPES for p in PROBES if not run_cell(prod, s, p)[0]]
+print(f"阴性对照（生产代码应 {len(SHAPES)*len(PROBES)} 格全绿）:", "全绿 ✅" if not bad else f"⛔ 误伤 {bad}")

@@ -1,0 +1,36 @@
+### §二.8 ruff (工作树态, commit 前预检; 子 shell 包裹, exit 只退子 shell)
+files=2
+  changed: backend/tests/regression/test_g3_2_review_ledger.py
+  changed: backend/tests/skills/test_skill_portability_lint.py
+All checks passed!
+check_rc=0
+Would reformat: backend/tests/regression/test_g3_2_review_ledger.py
+1 file would be reformatted
+head_fmt_rc=1 backend/tests/regression/test_g3_2_review_ledger.py
+base_fmt_rc=0 backend/tests/regression/test_g3_2_review_ledger.py
+1 file already formatted
+head_fmt_rc=0 backend/tests/skills/test_skill_portability_lint.py
+base_fmt_rc=0 backend/tests/skills/test_skill_portability_lint.py
+
+### ruff 验伪锚 (同次执行)
+验伪锚 format rc=1 (须=1)
+验伪锚 check(F401) rc=1 (须=1)
+
+### (h) 地盘核 (工作树态)
+backend/tests/regression/test_g3_2_review_ledger.py
+backend/tests/skills/test_skill_portability_lint.py
+canvas-vault/.claude/skills/quiz-answer/SKILL.md
+--- 验伪锚: 去掉 exclude 后 _bmad-output/ 路径条数 (须 >0) ---
+0
+
+### (i) 硬边界自证
+本卡新增行数: 446
+  新增行含 'fsrs_bridge': 0  (须 0)
+  新增行含 'decay_beta': 0  (须 0)
+  新增行含 '7691': 0  (须 0)
+  新增行含 '7687': 0  (须 0)
+  新增行含 'lancedb.connect': 0  (须 0)
+  新增行含 live vault 绝对路径: 0  (须 0)
+  三文件全文 fsrs_bridge/decay_beta 命中: 29
+  新增测试行提到 tmp_path/vault.parent 的行数: 9
+  backend/app 被碰的文件数: 0  (须 0)

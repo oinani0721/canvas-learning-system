@@ -1,0 +1,14 @@
+### ruff
+files=2
+All checks passed!
+check_rc=0
+Would reformat: backend/tests/regression/test_g3_2_review_ledger.py
+1 file would be reformatted
+head_fmt_rc=1 backend/tests/regression/test_g3_2_review_ledger.py
+1 file already formatted
+head_fmt_rc=0 backend/tests/skills/test_skill_portability_lint.py
+### 地盘核
+backend/tests/regression/test_g3_2_review_ledger.py
+backend/tests/skills/test_skill_portability_lint.py
+canvas-vault/.claude/skills/quiz-answer/SKILL.md
+backend/app: 0

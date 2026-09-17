@@ -1,0 +1,18 @@
+=== 负控①(重跑, 修正 trap 相对路径缺陷): 还原正则版 ⇒ 三组 M 门必须重新变红 ===
+--- 跑前 sha256 ---
+6f53bb507a818adfbf4c0a6849773d0e66791dff51051d20d911f8428ac24953  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills/canvas-vault/.claude/skills/quiz-answer/SKILL.md
+--- 还原态 sha256 (= 08100483 基线) ---
+c1588ec6fda0371c85d801870bd035360891cd63f20c22be10fab779a173a1e4  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills/canvas-vault/.claude/skills/quiz-answer/SKILL.md
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/regression/test_g3_2_review_ledger.py::test_g33r2_harness_tree_symlink_resolved_by_os_not_string
+FAILED tests/regression/test_g3_2_review_ledger.py::test_g33r2_harness_tree_yaml_escaped_quote_not_truncated[single-repo' #alt-YAML \u5355\u5f15\u53f7\u6807\u91cf\u91cc `''` = \u4e00\u4e2a\u5b57\u9762\u5355\u5f15\u53f7]
+FAILED tests/regression/test_g3_2_review_ledger.py::test_g33r2_harness_tree_yaml_escaped_quote_not_truncated[double-repo" #alt-YAML \u53cc\u5f15\u53f7\u6807\u91cf\u91cc `\\"` = \u4e00\u4e2a\u5b57\u9762\u53cc\u5f15\u53f7]
+FAILED tests/regression/test_g3_2_review_ledger.py::test_g33r2_harness_tree_noncanonical_key_form_is_honored[harness_tree : {alt}-\u952e\u4e0e\u5192\u53f7\u4e4b\u95f4\u6709\u7a7a\u683c]
+FAILED tests/regression/test_g3_2_review_ledger.py::test_g33r2_harness_tree_noncanonical_key_form_is_honored["harness_tree": {alt}-\u952e\u88ab\u53cc\u5f15\u53f7\u5305\u88f9]
+FAILED tests/regression/test_g3_2_review_ledger.py::test_g33r2_harness_tree_noncanonical_key_form_is_honored['harness_tree': {alt}-\u952e\u88ab\u5355\u5f15\u53f7\u5305\u88f9]
+================ 6 failed, 174 deselected, 11 warnings in 2.41s ================
+neg1_pytest_rc=0
+[trap] 已还原, sha=6f53bb507a818adfbf4c0a6849773d0e66791dff51051d20d911f8428ac24953
+6f53bb507a818adfbf4c0a6849773d0e66791dff51051d20d911f8428ac24953  canvas-vault/.claude/skills/quiz-answer/SKILL.md

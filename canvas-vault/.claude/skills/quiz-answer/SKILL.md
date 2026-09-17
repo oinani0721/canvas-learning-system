@@ -375,69 +375,130 @@ def _harness_tree(vault_dir):
     显式写了 `harness_tree`, 以它为准: 一键部署形态下 vault 是用户自己的 Obsidian
     vault, 可以放在代码树之外的任何地方, 那时 `dirname(VAULT)` 指到的是用户的文稿
     目录而不是 harness。键名与 U3-B 写入端逐字同 (`harness_tree`)。
-    ⛔ 逐行正则而不是 PyYAML: 本文件 :1075 已经声明「PyYAML 不可用 → F1 判定退回
-    正则扫描」。这里若依赖 PyYAML, 缺库的机器上 harness_tree 会被**静默忽略**、
-    回退到错的树, 然后在下面的 import 处抛一句看不懂的 ImportError —— 降级口径
-    必须与 :1075 同款, 否则「PyYAML 装没装」会改变身份绑定。
+    ⛔ 用真正的 YAML 解析器 (CARD-HARNESS-TREE-PARSE-REDO, 2026-09-14): 逐行正则
+    这条路被**四轮**同一族缺陷打回 —— 尾注释被截断 / `#` 当分隔符 / 正则的空白类
+    连值首的全角空格一起吃掉 / 转义引号截短 / 非列首键写法不认识。每一次的表现
+    都一样: 用户明明写对了, 系统悄悄读了**另一棵存在的树**(或当他没写)。这与本
+    文件 F1 判定得出的是同一个结论(见 F1 那段 docstring 的「换 PyYAML 一次解决
+    整类问题」), 这里照做 —— 不再逐字符猜 YAML 的合法形态。
+    ⛔ **PyYAML 不可用 ⇒ 直接拒写, 不做任何降级解析**(用户 2026-09-14 裁定):
+    本函数曾经有过一段「缺库时退回逐行扫描」的降级实现。它被 Codex 五轮复核逐步
+    收紧到「读不懂就停」, 但到最后仍留着两处**已有实测反例**的盲区 —— 一行里引号
+    成不成对证不出引号闭没闭合; 别的字段生成失败时 PyYAML 整份拒而逐行扫描照样
+    采用目标行那棵树。根因是逐行扫描先天缺两样东西: 它不知道 YAML 在哪里换行,
+    也不知道自己看的这一行处在什么语法上下文里。补正则补不出来 —— 所以不补了,
+    整段删除, 缺库时直接说话。
+    ⚠️ **这个取舍有代价, 如实写在这里, 别再引用「保守拒无代价」那句话**:
+    之前的 rationale 写过「缺库时更下游的 vault 归属绑定本来也会 fail-closed, 所以
+    保守拒不损失一次原本能完成的写入」—— **该说法已被实测证伪**。2026-09-14 在一台
+    真正 `find_spec("yaml") is None` 的 py3.14 上三向对照实测:
+      · harness_tree 指向本仓 `b85a168a` 那棵旧树(其 `_vault_id_of` 是正则解析、
+        零 yaml) ⇒ rc=0, 账本落一行完整事件, 节点 mastery 0.5→0.57 —— **写成了**;
+      · 同机同输入, 只把 harness_tree 换成当前树 ⇒ 「vault 归属无法绑定」、账本零字节;
+      · 同 config 换成有 PyYAML 的解释器 ⇒ rc=0(证明夹具本身有效)。
+    也就是说「缺库时下游本来也会拒」**不是写点的性质, 而是 harness_tree 选中的那棵
+    树的性质**, 而 harness_tree 是部署侧可写的运行期自由变量 —— 本函数在拒绝的那
+    一刻, 结构上无从知道自己是不是丢掉了一次本来能完成的写入。**用户在知道这个代价
+    之后仍裁定走拒写**: 理由是本函数一以贯之的取向 ——「可见的拒绝」好过「静默地绑
+    错一棵树」, 且前者可恢复(装上 PyYAML 就好)、后者用户无从察觉。
+    ⚠️ 相关的结构性缺口(另立卡, 不在本函数职责内): 写点从 harness_tree 选中的那棵
+    树无条件导入 7 个名字而**不做任何版本/契约校验** —— 上面那条反例能成立正是因为
+    旧树的 `_vault_id_of` 是另一套实现。任意旧版/异版 harness 分发都会被静默采用并
+    按其语义写账本。修它需要给 harness 树加契约门, 不是在这里多判几行。
+    ⛔ 路径用 `realpath` **逐段解析 symlink**, 不是 `normpath` 按字符串消 `..`:
+    `/A/link/../repo` 在 `link → /B/child` 时, 按字符串消得 `/A/repo`, 而 OS 真正
+    会打开的是 `/B/repo` —— 两棵都存在时就是又一次静默换树。以 OS 会打开的为准。
     ⛔ 有值但树不存在时**不回退**: 回退等于把「配置写错了」翻译成「按老布局跑」,
     而老布局下 import 往往**会成功**(另一棵树的 validator), 于是写出去的东西静静地
     绑到错的 harness 上 —— 配置断裂必须说话, 不能被兜底吃掉。
+    三条分界(与既有门逐字同语义, 本次重做不动它们): 无键 / 值为 null / 值为空串
+    ⇒ 回退 `dirname(VAULT)`; 有值但那棵树不存在 ⇒ fail-closed 拒写; config 本身
+    不是合法 YAML ⇒ fail-closed 拒写。第一条与第二条混成一条, 「用户把这个键清
+    掉了」就会变成砖化操作。⚠️ 这三条**全部以 PyYAML 可用为前提** —— 缺库时只有
+    一种结局(拒写), 不要跨分支宣称。
     """
     _cfg_p = os.path.join(vault_dir, ".canvas-config.yaml")
-    _raw = ""
+    #: ⛔ **拿 PyYAML 与读 config 必须分成两个 try**(Codex round-7 HIGH, 已独立复现):
+    #: 合在一个 try 里时, **导入过程自己抛的 OSError**(yaml 包源码/依赖不可读、权限错等)
+    #: 会被下面那条 `except OSError` 当成「没有 config 文件」⇒ 静默回退父目录 ⇒ 绕过
+    #: 「拿不到 PyYAML 就拒写」。复现形态: config 明明指向另一棵树, 函数却返回了父目录 ——
+    #: 又是一次静默绑错树, 而且就长在「修静默绑错树」的这段代码里。
+    #: ⛔ 这一层用 `except Exception` 而不是 `except ImportError`: 裁定是「拿不到 PyYAML
+    #: 就拒写」, 拿不到的原因有多少种不重要 —— 任何一种都让「指向哪棵树」不可证。
     try:
-        with open(_cfg_p, encoding="utf-8") as _cf:
-            for _cl in _cf:
-                #: ⛔ 键值两侧也只剥 **SP/TAB**, 不用 `\s`(round-3 同源缺口, R3 只修了
-                #: 下面的注释判据、漏了这一层 —— 「修一半」)。Python 的 `\s` 会连
-                #: 值**首**的全角空格 / NBSP 一起吃掉: `harness_tree: 　#alt` 在真 YAML
-                #: 里值是「　#alt」(全角空格是标量内容), 被吃掉后剩 `#alt` ⇒ 命中下面的
-                #: 「`#` 是首字符」⇒ **静默回退到 vault 父目录**, 把用户明明写了的值当没写。
-                #: 实测复现; 与注释判据同一个 s-white 口径才算真对齐。
-                _cm = re.match(r'^harness_tree:[ \t]*(.*?)[ \t]*$', _cl.rstrip("\r\n"))
-                if _cm:
-                    _raw = _cm.group(1)
+        import yaml  # harness_tree 解析: 与 F1 判定同一个理由
+        #: ⛔ 「import 成功」≠「拿到了 PyYAML」(Codex round-8 MEDIUM, 已独立复现):
+        #: sys.path 上放一个**空的同名 `yaml.py`** 时 import 照样成功, 上面的 except
+        #: 一声不响, 于是往下走到读 config —— 文件不存在就回退父目录, 「拿不到 PyYAML
+        #: 绝不返回树」当场有反例。
+        #: ⛔ 再进一步(Codex round-9 MEDIUM): 光看「有没有可调用的 safe_load」也不够 ——
+        #: `safe_load = list` 是可调用的, 一个恒返回字典的假函数还能指向另一棵存在的树。
+        #: **靠自省证明不了「它就是 PyYAML」**, 但可以要求它在一个已知输入上**表现得像个
+        #: YAML 解析器**。本文件别处早就用过同一招(receipt 写侧的「让 YAML 自己解析一遍
+        #: 来证明」往返自证) —— 这里照做: 证不出来就当作拿不到。
+        try:
+            _probe = yaml.safe_load("a: 1")
+        except Exception as _pe:
+            raise ImportError(f"yaml.safe_load 在最简输入上就抛了 ({type(_pe).__name__}: {_pe}); 来自 {getattr(yaml, '__file__', '未知位置')}")
+        if not (isinstance(_probe, dict) and _probe.get("a") == 1):
+            raise ImportError(f"yaml.safe_load 对 'a: 1' 给出的是 {_probe!r} 而不是 {{'a': 1}} —— 它不是一个能用的 YAML 解析器 (来自 {getattr(yaml, '__file__', '未知位置')})")
+    except Exception as _ie:
+        #: ⛔ 报错里必须带上**这个进程自己的解释器路径**与一条绑定它的安装命令
+        #: (Codex round-6 LOW): 只说「请装 PyYAML」时, 用户照抄 `pip install pyyaml`
+        #: 很可能装进了另一个环境 —— 装成功了、却还是被拒, 而消息里没有任何线索。
+        #: 路径要按 shell 参数规则**正确引用**(Codex round-7/8 LOW, 两轮才修对):
+        #: 第一版只加双引号 + 转义双引号 —— 不够, 双引号内 shell 仍会展开 `$VAR` /
+        #: `$(...)` / 反引号(复核方实测 `/opt/$(printf wrong)/bin/python` 被展开成
+        #: `/opt/wrong/bin/python`), 反斜杠紧邻引号还会让引号不配对。用 shlex.quote:
+        #: 它是 stdlib, 与「PyYAML 拿不到」这件事无关, 在这里 import 是安全的。
+        import shlex
+
+        _exe_q = shlex.quote(sys.executable)
+        raise SystemExit(f"[quiz-answer] PyYAML 不可用 — harness_tree 指向哪棵树不可证, fail-closed 拒写 — 逐行扫描猜不出 YAML 的换行与语法上下文, 猜错的代价是把学习事件静静地绑到另一棵 harness 树上, 故本写点在拿不到 PyYAML 时一律不写。拿不到的原因: {type(_ie).__name__}: {_ie}。跑本写点的解释器是 {sys.executable} ; 请照抄这一条装(它绑定的正是上面那个解释器, 不要换成裸 pip): {_exe_q} -m pip install pyyaml")
+    #: ⛔ **「打不开」与「打开了但读/解析出错」必须分成两个作用域**(Codex round-9 HIGH,
+    #: 已独立复现)。原先两者共用一个 `except OSError` ⇒ 解析途中的 IO 错(读流时 EIO、
+    #: safe_load 自己抛的 OSError)被当成「压根没有 config」⇒ 静默回退父目录, 而 config
+    #: 明明指着另一棵树。
+    #: ⚠️ 这与 round-7 的 HIGH **是同一个结构错, 只是深了一层**: 两件语义不同的事共用
+    #: 一个 except, 于是一个异常被当成了另一个异常的意思。修一处不等于这类错没了 ——
+    #: 往后在本函数里新开 try 时, 先问「这个 except 会不会同时接住两种不同含义的失败」。
+    _tree = ""
+    try:
+        _cf = open(_cfg_p, encoding="utf-8")
     except OSError:
-        _raw = ""
-    #: 带引号的值先按引号取内容(引号**内**的 `#` 是路径的一部分, 不是注释);
-    #: 裸值才剥尾注释 —— 反过来先剥注释会把 `"a # b"` 截成 `"a`。
-    #: ⛔ 引号内容用**非贪婪** `(.*?)` + 结尾锚(Codex round-1 MEDIUM-1 实测):
-    #: 贪婪版 `(.*)\1\s*(?:#.*)?$` 对 `"/valid/repo" # use "main"` 会让 `.*` 一路吃到
-    #: 最后一个引号, 解析出 `/valid/repo" # use "main` —— 一个**写对了**的配置被判成坏路径,
-    #: 于是整条评分链 fail-closed 停摆。非贪婪让 `\1` 优先匹配**第一个**闭合引号。
-    #: ⛔ 裸值的注释判据 = 「`#` 前有 SP/TAB, 或 `#` 就是值的第一个字符」(三轮实测演化, 别再动):
-    #:   · 只用 `\s+#`(最初版): `harness_tree: # reset` 是「空值+紧跟注释」, `#` 前在
-    #:     值区里没有空白 ⇒ 不匹配 ⇒ 整个 `# reset` 被当成相对路径, 「把键注释掉」
-    #:     变成砖化操作 (round-1 MEDIUM-1);
-    #:   · 一律截 `#`(round-1 整改版): `harness_tree: /repo#alt` 的 `#` 前无空白,
-    #:     在 YAML 里是标量**内容**不是注释 —— 截掉它会让写错的路径**静默变成另一棵
-    #:     存在的树**(实测 `/repo#alt`→`/repo`), 恰是本函数「树不对必须说话」要防的
-    #:     形态 (round-2 MEDIUM-1);
-    #:   · 注释分隔用 `\s+`(round-2 整改版): Python 的 `\s` 把**全角空格 U+3000 /
-    #:     NBSP U+00A0** 也当分隔符, 而 YAML 的 s-white 只有 SP/TAB ——
-    #:     `/repo　#alt` 被截成 `/repo`, 静默换树形态**又回来了一次**(round-3 MEDIUM)。
-    #:     收窄到 `[ \t]+#` 才与 YAML 1.1/1.2 逐字对齐。
-    #: 即: 无 SP/TAB 分隔的 `#` 属于路径(含全角空格/NBSP 隔开的); 路径里 `#` 前恰有
-    #: SP/TAB 的形态罕见, 真遇上的用户加引号即可(引号内一切按字面)。
-    #: ⛔ 剥完注释后用 `.strip(" \t")` 而不是裸 `.strip()`: 后者剥的是**全部 Unicode
-    #: 空白**(含 U+3000 / NBSP), 与上面两处的 s-white 口径不一致 —— 同一个函数里
-    #: 三处判据必须同口径, 否则「哪些字符算空白」会随代码路径而变。
-    _qm = re.match(r'^([\'"])(.*?)\1[ \t]*(?:#.*)?$', _raw)
-    if _qm:
-        _tree = _qm.group(2)
-    elif _raw.startswith("#"):
-        _tree = ""
-    else:
-        _tree = re.sub(r'[ \t]+#.*$', '', _raw).strip(" \t")
+        _cf = None  # 压根没有 .canvas-config.yaml ⇒ 没写这个键 ⇒ 缺省回退
+    if _cf is not None:
+        try:
+            with _cf:
+                _doc = yaml.safe_load(_cf)
+            #: `_doc` 非 dict (空文件 / 纯标量 / 列表)、键缺失、值为 null —— 三者一律
+            #: 视同「没写这个键」, 与「值是空串」同口径回退, 不是 fail-closed。
+            if isinstance(_doc, dict) and _doc.get("harness_tree") is not None:
+                _tree = str(_doc["harness_tree"])
+        except Exception as _ye:
+            #: 这里**不再**豁免 OSError: 文件已经打开了, 之后任何失败都不是「没有 config」。
+            raise SystemExit(f"[quiz-answer] .canvas-config.yaml 打开后读取/解析失败 ({type(_ye).__name__}: {_ye}) — harness_tree 指向哪棵树不可证, fail-closed 拒写 — 请人工修复 {_cfg_p}")
     if not _tree:
         return os.path.dirname(vault_dir)
-    _tree = os.path.expanduser(_tree)
-    if not os.path.isabs(_tree):
-        _tree = os.path.join(vault_dir, _tree)
-    _tree = os.path.normpath(_tree)
-    if not os.path.isdir(os.path.join(_tree, "backend", "scripts")):
-        raise SystemExit(f"[quiz-answer] harness_tree 指向不存在的树 ({_tree}) — G3-2 依赖不可达, fail-closed 拒写 — 请修正 .canvas-config.yaml 或删掉该键回退到 vault 父目录")
-    return _tree
+    _given = os.path.expanduser(_tree)
+    if not os.path.isabs(_given):
+        _given = os.path.join(vault_dir, _given)
+    #: ⛔ realpath 而不是 normpath (round-5 MEDIUM-a): normpath 按**字符串**消 `..`,
+    #: 中间段是 symlink 时与 OS 的逐段解析分叉 —— 两棵树都存在就静静地绑错一棵。
+    #: ⛔ 且必须 strict (Codex round-1 LOW): 非 strict 的 realpath 对**走不通**的
+    #: 路径也会给出一个看着正常的结果 —— 中间段是个**文件**时, `.../某文件/../..`
+    #: 会被消成一个真实存在的祖先目录, 而 OS 根本打不开那条路(ENOTDIR); 那个祖先
+    #: 若恰好长得像一棵 harness 树, 就又是一次静默换树。strict 让 OS 自己说不通。
+    try:
+        _real = os.path.realpath(_given, strict=True)
+    except OSError:
+        _real = ""  # 不存在 / 中间段不可遍历 ⇒ 与「那棵树不存在」同一结局
+    if not _real or not os.path.isdir(os.path.join(_real, "backend", "scripts")):
+        #: 拒因先报**配置里写的那条路径**(已展开 `~`、已补全相对路径), 解析结果不
+        #: 同时再附上 —— 只报解析后的路径, 用户认不出自己写错的是哪一行。
+        _also = "" if (not _real or _real == _given) else f" [逐段解析 symlink 后: {_real}]"
+        raise SystemExit(f"[quiz-answer] harness_tree 指向不存在的树 ({_given}){_also} — G3-2 依赖不可达, fail-closed 拒写 — 请修正 .canvas-config.yaml 或删掉该键回退到 vault 父目录")
+    return _real
 VAULT = os.path.dirname(os.path.dirname(os.path.abspath(NODE)))
 REPO = _harness_tree(VAULT)
 EV = os.path.join(VAULT, "learning_events.jsonl")

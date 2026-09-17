@@ -1,0 +1,15 @@
+### 地盘门验伪锚（修正版：git 默认 quotepath 会给非 ASCII 路径加引号，^_bmad 锚点会静默落空）
+--- 带 exclude（本卡授权面，须恰 3 行）---
+backend/tests/regression/test_g3_2_review_ledger.py
+backend/tests/skills/test_skill_portability_lint.py
+canvas-vault/.claude/skills/quiz-answer/SKILL.md
+条数=3
+--- 去掉 exclude（须多出 _bmad-output/ 条目，证明 exclude 真在起作用）---
+_bmad-output 条数=13
+总条数=16
+--- 反向验伪：旧写法(带 quotepath 默认)命中数 = 0，证明上面这条修正是必要的 ---
+旧写法命中=0
+
+### 工作树剩余项
+?? "_bmad-output/\345\256\241\346\237\245/evidence-harness-tree/ruff-territory-head-20260914T201828.txt"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-harness-tree/territory-anchor-fixed-20260914T201838.txt"

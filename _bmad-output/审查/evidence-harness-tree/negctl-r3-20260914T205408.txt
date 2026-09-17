@@ -1,0 +1,18 @@
+### 负控④ round-3 新增的 9 条参数非 no-op: 还原到 4d21bc9b 的 SKILL.md
+[跑前] 9c4d7168e75781078567727539680cc4c812a0b22b63e5da5a6f5e4f9f18b967  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills/canvas-vault/.claude/skills/quiz-answer/SKILL.md
+[还原态 4d21bc9b] 7ddba3499bae65f2766e87c2e3072915db4c930e7392491dda2c17c559caac50  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills/canvas-vault/.claude/skills/quiz-answer/SKILL.md
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills/backend/tests/regression/test_g3_2_review_ledger.py:6983: SyntaxWarning: "\s" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\s"? A raw string is also an option.
+    \u00b7 `\s+` \u5f53\u5206\u9694\uff1aPython `\s` \u542b\u5168\u89d2\u7a7a\u683c/NBSP\uff0cYAML s-white \u53ea\u6709 SP/TAB \u2014\u2014
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/regression/test_g3_2_review_ledger.py::test_g33r2_harness_tree_degraded_never_diverges_from_yaml[harness_tree: /a/b\n---\nharness_tree: /c/d]
+FAILED tests/regression/test_g3_2_review_ledger.py::test_g33r2_harness_tree_degraded_never_diverges_from_yaml[harness_tree: /a/b\n...\nharness_tree: /c/d]
+FAILED tests/regression/test_g3_2_review_ledger.py::test_g33r2_harness_tree_degraded_never_diverges_from_yaml[other: 1\n---\nmore: 2]
+FAILED tests/regression/test_g3_2_review_ledger.py::test_g33r2_harness_tree_degraded_never_diverges_from_yaml["harness\\u005ftree": /a/b]
+FAILED tests/regression/test_g3_2_review_ledger.py::test_g33r2_harness_tree_degraded_never_diverges_from_yaml[%YAML 1.1\n---\nharness_tree: /a/b]
+========== 5 failed, 44 passed, 183 deselected, 11 warnings in 1.95s ===========
+neg4_pytest_rc=1
+[trap] 已还原 sha=9c4d7168e75781078567727539680cc4c812a0b22b63e5da5a6f5e4f9f18b967
+9c4d7168e75781078567727539680cc4c812a0b22b63e5da5a6f5e4f9f18b967  canvas-vault/.claude/skills/quiz-answer/SKILL.md

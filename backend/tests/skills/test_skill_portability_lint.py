@@ -2241,7 +2241,27 @@ TMP_BLOCK_BASELINE: dict[str, list[str]] = {
     "node-chat": [],
     "quiz-answer": [
         "B104:53c5e24e48a924de",
-        "B229:571eb6603db28c87",
+        #: 2026-09-14 CARD-HARNESS-TREE-PARSE-REDO: `_harness_tree` 整体重做(逐行正则
+        #: → `yaml.safe_load` 优先 + 缺库降级只收一种规范写法 + `realpath` 取代
+        #: `normpath`)改动了主写点 PYEOF 块 ⇒ 块指纹随卡同步。块起始行仍是 `:229`,
+        #: 只有整块哈希变: `571eb660…`(基线) → `664dd4d8…`(重做 round-1 版) →
+        #: `094c1c37…`(按 Codex round-1 收紧降级扫描 + realpath 改 strict) →
+        #: `c8120a7b…`(按 Codex round-2 + 本卡自查, 降级扫描改成「读不懂就停」) →
+        #: `8b8ce50d…`(按 Codex round-3: 空白口径统一 + 非法字符判据 + 文档标记状态) →
+        #: `7fae3bc35bccb988…`(按 Codex round-4: 三处措辞按实测更正为「已有反例」)。
+        #: → `f753616790369913…`(round-5 纯措辞更正: `_breaks` 八字符分类 + 「只有两条路」
+        #: 是假二分, 走 D-32 尾巴; 逻辑零变化, 主 session 可逐行等价核)。
+        #: → `8d5ce8d4…`(用户 2026-09-14 裁定「缺 PyYAML 即拒写」: `_degraded_scan`
+        #: 整段删除, 净减 134 行; 代价已实测并写进该函数 docstring, 见验收单 §五-septies)。
+        #: → `543e37de58c7a214…`(Codex round-6 LOW: 缺库拒因补上本进程解释器路径与
+        #: 绑定它的安装命令 —— 只说「请装 PyYAML」时用户很可能装进另一个环境)。
+        #: → `6098a8a36ad9318e…`(Codex round-7 HIGH: 拿 PyYAML 与读 config 拆成两个 try ——
+        #: 合在一起时导入自己抛的 OSError 会被当成「没有 config」而静默回退父目录)。
+        #: → `df79074d06410577…`(Codex round-8: 「import 成功」≠「拿到 PyYAML」——
+        #: 空的同名 yaml.py 照样导得进, 故改判 safe_load 在不在; 安装命令改 shlex.quote)。
+        #: → `9a1ec16c27149217…`(Codex round-9 HIGH: 「打不开 config」与「打开了却解析失败」
+        #: 拆成两个作用域; 并把「拿到 PyYAML」的判据从「可调用」升级为在已知输入上自证)。
+        "B229:9a1ec16c27149217",
         "S96:b55afbca27229028",
         "S205:44b7655dd97c27b7",
     ],
@@ -2284,9 +2304,18 @@ PARENT_DIR_PROSE_BASELINE: dict[str, list[int]] = {
 #: **U5-B (CARD-G3-3-R2) 独占更新**; rebase 时保 lint 绿。
 #:
 #: quiz-answer 的 `harness_tree` 解析(E-2)归 U5-B, 本卡只钉现状、一个字节都不改。
-#: U5-B 改 `canvas-vault/.claude/skills/quiz-answer/SKILL.md` 后**必须**同步改这一段
-#: (它的 4 处裸 `/tmp/` 在 `:98/:106/:205/:233`, 4 处 `claude_dir_ref` 在
-#: `:74/:2977/:2985/:3076`)。单列在这里就是为了让那次 diff 一眼可见。
+#: U5-B 改 `canvas-vault/.claude/skills/quiz-answer/SKILL.md` 后**必须**同步改这一段。
+#: 单列在这里就是为了让那次 diff 一眼可见。
+#: 行号标注(2026-09-14 CARD-HARNESS-TREE-PARSE-REDO 实测): 4 处裸 `/tmp/` 在
+#: `:98/:106/:205/:233`, 4 处 `claude_dir_ref` 在 `:74/:3104/:3112/:3203`。
+#: ⚠️ 2026-09-15 复核: 这组数在本卡六个 commit 里一路漂到 `:3231` 又**恰好绕回**
+#: `:3104`(删 `_degraded_scan` 后总行数正好回到 3204, 与 f7f10be4 同) —— 纯属巧合,
+#: 别据此以为这组标注稳定。要现值就跑下面那条命令。
+#: ⚠️ 这组行号**会漂, 别照抄**: 上一版标注的 `:74/:2977/:2985/:3076` 在 `08100483`
+#: 上实测已是 `:74/:3086/:3094/:3185`(早于本卡就漂了 109 行), 本卡的 `_harness_tree`
+#: 重做再 +18。计数(4/4)才是基线, 行号只是找它们的线索 —— 要现值就重测:
+#:   python -c "import re,pathlib;t=pathlib.Path('canvas-vault/.claude/skills/quiz-answer/SKILL.md').read_text(encoding='utf-8');\
+#:   print([i+1 for i,l in enumerate(t.split(chr(10))) for _ in re.finditer(r'[.]claude/(?:skills|scripts)/',l)])"
 QUIZ_ANSWER_BASELINE: dict[str, int] = {
     "ask_user_question": 2,
     "mcp_tool": 1,
@@ -4357,7 +4386,7 @@ MANAGED_FILE_DIGESTS: dict[str, str] = {
     "skills/configure-whiteboard/SKILL.md": "9eb21ecc6ac044a914ce11009025f8a84e51c5135221ec3b50f8c021ccfa2177",
     "skills/exam-quick/SKILL.md": "eb30e407a14145477710cbf439e7e85705afeb157c98c5993ee0b3616c324853",
     "skills/node-chat/SKILL.md": "3b15bc91dabea7e7b3876b75c2c0973e7a9284d48081e5d1b864623258b40fb7",
-    "skills/quiz-answer/SKILL.md": "c1588ec6fda0371c85d801870bd035360891cd63f20c22be10fab779a173a1e4",
+    "skills/quiz-answer/SKILL.md": "6ae2558f1def3e94588bf0a043bb2d9e4b5904a618de5ec4b5260f5c206601b0",
     "skills/start-exam-board/SKILL.md": "0f2c085a1bae12446dd74ab89cc1e6aa5c8bc34901dd3be7ac5d8521310d0dce",
     "skills/study-question/SKILL.md": "0142b7833ff3ab54c9307227d59ebaa7d5ff3f9c18a76b07344d0ab295fa22e4",
     "scripts/decay_beta.py": "3bf4ed9402a4c8edfde16630a79094a5d4518fd181fa60810319fe46d37abb90",

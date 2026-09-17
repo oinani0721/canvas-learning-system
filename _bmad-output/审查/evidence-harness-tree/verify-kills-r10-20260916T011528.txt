@@ -1,0 +1,29 @@
+变异体                      判定        被哪一格抓住
+------------------------------------------------------------------------------
+R3-try-then-refuse       KILLED    target_tree_really_exists/module_not_found (+11)
+R6-env-override          KILLED    no_config_and_env_set/module_not_found (+11)
+M1-parent-is-a-tree      KILLED    no_config_and_parent_is_tree/module_not_found (+11)
+R4-sidecar-cache         KILLED    no_config_and_sidecar/module_not_found (+11)
+R5-json-superset         KILLED    pure_json_config/module_not_found (+5)
+R1-simple-config-only    KILLED    minimal_unquoted_config/module_not_found (+5)
+P2-open-before-import    INVALID   old_snippet 命中 0 次
+WM-narrow-except         KILLED    no_config_file/plain_import_error (+49)
+H1-merged-try            INVALID   old_snippet 命中 0 次
+M1-parent-when-no-config KILLED    no_config_and_parent_is_tree/module_not_found (+5)
+M1-no-safeload-check     INVALID   old_snippet 命中 0 次
+M2-read-before-import    SURVIVED  ⛔ 60 格全绿 —— 新门仍抓不住
+M3-env-only-when-no-config KILLED    no_config_and_env_set/module_not_found (+5)
+r9-hasattr-only          KILLED    no_config_file/safe_load_not_callable (+19)
+r9-parse-oserror-as-missing SURVIVED  ⛔ 60 格全绿 —— 新门仍抓不住
+WM-merge-message         KILLED    no_config_file/module_not_found (+59)
+------------------------------------------------------------------------------
+KILLED 11 / 16
+
+=== 有库侧那一片（r9 H1）: config 打得开但解析抛 OSError ⇒ 应拒 ===
+  r9-parse-oserror-as-missing: KILLED —— 变异体得到 ok '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn'（门要求 exit）
+  阴性对照(生产): ✅ 拒写
+
+=== 有库侧那一格（r8 M2）: 无 config + 父目录是树 ⇒ 应回退父树 ===
+  M2-read-before-import: KILLED —— exit '[quiz-answer] PyYAML 不可用 — harness_tree 指向哪棵树不可证, '
+  阴性对照(生产): ✅ 回退父树
+阴性对照（生产代码应 60 格全绿）: 全绿 ✅
