@@ -1,0 +1,56 @@
+=== 完成条件 (a)~(l) 逐条验证 @ 2026-09-17T10:11:58+08:00 ===
+HEAD = 6cf1d6cb30a2c97f2b4929e96519809a146f8d07  工作树 = 1 项
+
+(a) 第0分钟 + 基线64 + patch缺席
+    基线 grep -vc '^#' = 64  (须 64)
+    patch 缺席 = 0  验伪锚 = 3  (须 0 / >=3)
+    存档: 1 份 minute0
+
+(b)(c)(d) 三盲区先红各一份
+    red-lambda: MISSED=1 FAIL=1 且带 RUNTIME-FILES-SELFTEST: PASS=1
+    red-setattr: MISSED=1 FAIL=1 且带 RUNTIME-FILES-SELFTEST: PASS=1
+    red-branch: MISSED=1 FAIL=1 且带 RUNTIME-FILES-SELFTEST: PASS=1
+    后绿: AST-NEGATIVE-CONTROL: PASS (63 绕过全抓 / 28 正例全净)
+
+(e) 自检全绿 + 正例全 CLEAN + 消费面不变
+    CAUGHT=63  CLEAN=28  MISSED=0  FALSE POSITIVE=0
+    消费面改前改后逐字同 = 是
+    全扫描面 = files=401 violations=0（改前同）
+
+(f) MEDIUM-6①
+    FIXPOINT-SELFCHECK: PASS (上限 8 / 承重输入 3 轮 / 负控最大 3 轮)
+    先红(prefix 副本): MISSED 未收敛未被报出 = 2 条；同份带 RUNTIME-FILES-SELFTEST: PASS = 1
+
+(h) 地盘
+    backend/scripts/lifespan_isolation_negative_control.py
+    验伪锚(去 exclude 的 _bmad-output 路径数) = 100
+
+(i) tests/unit
+    base=64 close=64  '>'行=0  验伪锚=1
+
+(j) Codex 轮次
+    codex-review-CARD-AST-FLAG-PATCH.md: BLOCKER 0、HIGH 2  首部三字段=3/3
+    codex-review-CARD-AST-FLAG-PATCH-r2.md: BLOCKER 0 / HIGH 4  首部三字段=3/3
+    codex-review-CARD-AST-FLAG-PATCH-r3.md: BLOCKER 0 / HIGH 2  首部三字段=3/3
+    codex-review-CARD-AST-FLAG-PATCH-r4.md: BLOCKER 0 / HIGH 0  首部三字段=3/3
+    终审绑定 a22254ab → HEAD 代码树 diff 行数 = 0
+
+(k) 提交
+    本卡 commit 数 = 9（协议 §4.1 逐卡 squash 由主 session 做，明写「单卡多 commit 用 cherry-pick --no-commit <range>」）
+    header 超 100 字符的 commit 数 = 0
+    含卡号的 commit 数 = 9
+    工作树 = 1  (T8-E 可开工)
+    入库 .stderr 结尾文件 = 0
+
+(l) 验收单
+    文件 = 在
+    未证明 = 15 条 (须 >=4)
+    台账 = 19 条 (须 >=4)
+    DoD-3 段 4-A/4-B 均在 = 2
+
+硬边界
+    fsrs_bridge/decay_beta 命中 = 0  验伪锚 TestClient = 297
+    backend/app 触及 = 0
+    ruff check/format = All checks passed! / 1 file already formatted
+    pyright = 0 errors, 81 warnings, 0 informations
+    远端状态 = 未 push（卡文 §四/§三/(k) 三处明文；协议 §4.5 push 归主 session）

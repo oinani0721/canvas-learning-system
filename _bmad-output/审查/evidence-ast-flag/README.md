@@ -11,6 +11,22 @@
 `AST-NEGATIVE-CONTROL: PASS (63 / 28)`、`FIXPOINT-SELFCHECK: PASS`、ruff check/format 0、
 pyright `0 errors, 81 warnings`、硬边界三项全 0、索引自检 PASS、本卡 8 个 commit 链。
 
+## 完成条件逐条回执
+
+**`COMPLETION-20260917T101158.txt`** —— 卡文 (a)~(l) 每一条的实测值与判据，一页可核。摘要：
+(a) 基线 64 / patch 缺席 0（锚 3）· (b)(c)(d) 三份先红各 MISSED=1 且各带 `RUNTIME-FILES-SELFTEST: PASS` ·
+(e) `PASS (63 / 28)`、FALSE POSITIVE=0、消费面与 401 全扫描面改前改后逐字同 ·
+(f) 先红正文含 `MISSED: 未收敛未被报出` ×2、后绿 PASS · (h) 地盘只本文件（锚 100） ·
+(i) `>` 行 0（锚 1） · (j) Codex 四轮 `0/2 → 0/4 → 0/2 → **0/0**`、四份首部 3/3 字段、终审绑定 diff=0 ·
+(k) header 超长 0 / 含卡号 9 / 入库 `.stderr` 0 · (l) 未证明 15 条、台账 19 条。
+
+⚠️ **远端状态 = 未 push**，这是卡文的**硬性要求**不是遗漏：卡文 (k)、§三硬边界、§四收尾三处明文
+`不 push`；协议 §4「合并程序（**主 session**）」第 1 步逐卡 squash、第 5 步才推送 origin 与 backup。
+车道自行 push 会绕过主 session 的逐卡 squash 与树等价核。同理 (k)「单独 commit」不在车道 squash：
+`20abe003` / `6564fc09` / `a03af47c` / `a22254ab` 四个 SHA 是四轮存档首部里的**审查绑定**，
+squash 会让 `git diff <审SHA> HEAD` 这条终审判据失去对象；协议 §4.1 也明写「单卡多 commit 用
+`cherry-pick --no-commit <range>`」，即预期车道会有多 commit。
+
 ## 承重（定稿一代，按裁判编号）
 
 | 裁判 | 文件 | 结论 |
