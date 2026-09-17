@@ -1,0 +1,16 @@
+NC-4 变异已注入: doneKey 分隔符 NUL -> "|"
+### 负控 NC-4: doneKey 分隔符退化为 | ⇒ **新**反向门必红 ###
+    test("推迟键与完成键**不同族**: 输出恒不含 NUL (Codex round-2 / round-5 LOW-1)", () => {
+      // ⛔ 根因: doneKey(v,b) = v + NUL + b, 两个分量都无约束 ⇒ 它的值域是**任意含至少
+      // 值域"也挡不住 (我为此写错过三版理由)。
+      // 现在靠**值域不相交**: snoozeKey 的输出恒不含 NUL。
+          `snoozeKey(${JSON.stringify(v)}, ${JSON.stringify(bd)}) 的输出含 NUL — 值域与 doneKey 相交了`);
+          `能在第 ${i} 位劈开反构造出 doneKey — 值域相交`);
+    test("不相交是**双向**的: doneKey 输出恒含 NUL (CARD-U6C-HANDOVER item ③ 反向)", () => {
+      // 上一条门只锁了合取的**一半** —— "snoozeKey 输出恒不含 NUL"。"两个值域不
+          `doneKey(${JSON.stringify(v)}, ${JSON.stringify(bd)}) 的输出不含 NUL — 值域与 snoozeKey 相交了`);
+      // ② 两半合取 ⇒ 双向不相交: 任何 doneKey 输出都落不进 snoozeKey 的值域。
+            `doneKey(${JSON.stringify(v)}, ${JSON.stringify(bd)}) 撞进了 snoozeKey 的值域`);
+      // ④ doneKey **自撞**如实钉住 (不假装它不存在): 分量含 NUL 时它确实歧义。
+        "doneKey 在分量含 NUL 时的自撞形态变了 — item ③ 的定性需要重写");
+E         ✔ 推迟键与完成键**不同族**: 输出恒不含 NUL (Codex round-2 / round-5 LOW-1) (0.185458ms)

@@ -1922,12 +1922,30 @@ def _child_env() -> dict[str, str]:
     return env
 
 
-def _run_pick(script: Path, vault_dir: Path, state_file: Path | None = None) -> subprocess.CompletedProcess:
+def _run_pick(
+    script: Path,
+    vault_dir: Path,
+    state_file: Path | None = None,
+    now: datetime | None = None,
+) -> subprocess.CompletedProcess:
     """跑 `python <script> --vault <vault> --write` (写面只有 outputs/今日复习.*)。
 
     CARD-G6-7-R: state_file 非 None 时追加 `--state <它>` —— 生产器对 state
     **只读** (取 board_last_recommended 与 board_done), 从不写它。缺省 None
     保留"不传"这条路: runner 不可达时刷新照常跑, 只是拿不到那两笔账。
+
+    CARD-U6C-HANDOVER item ②: now 非 None 时追加 `--now <它的 isoformat>` ——
+    把**父进程那一刻**交给子进程, 而不是让子进程自己读墙钟。缺了它, 父读钟与
+    子读钟之间隔着一次 subprocess.run (0.1–2s), 当地午夜前后这两次会落在不同
+    的一天: 23:59:59 标完成、子进程 00:00:00.2 判"不是今天完成的" ⇒ 让位不发生。
+    子进程侧 `daily_review_pick.main` 早就接受 `--now` (裸时间当本地时区), 本卡
+    只是把它接上, **不改生产器**。缺省 None 保留"不传"这条路, 与 state_file 同形。
+
+    ⚠ 如实登记 (不假装堵住): 这只合上 `_run_pick` 这一道缝 —— 单次刷新内的
+    父子。"写推迟/完成账那次请求 / 刷新那次请求 / 之后 GET 渲染那次"仍是三次
+    独立读钟, 跨午夜时彼此仍可能分叉。launchd runner 那条路不起 picker 子进程
+    (进程内直调 `picker.build_payload(VAULT, now, …)`), 本来就在传自己的参照
+    时刻, 不受本条影响。
     """
     # stdout 丢弃 (Codex round-3): 生产器会把整份 payload 打到 stdout —— 大库
     # 里那是几 MB 的无用副本, 我们只从盘上读产物。errors="replace": 子进程
@@ -1936,6 +1954,8 @@ def _run_pick(script: Path, vault_dir: Path, state_file: Path | None = None) -> 
     argv = [sys.executable, str(script), "--vault", str(vault_dir), "--write"]
     if state_file is not None:
         argv += ["--state", str(state_file)]
+    if now is not None:
+        argv += ["--now", now.isoformat()]
     return subprocess.run(  # noqa: S603 — argv 列表 + 服务端自解析路径, 无 shell
         argv,
         stdout=subprocess.DEVNULL,
@@ -2127,8 +2147,15 @@ def _rebuild_projection(vault_dir: Path, script: Path, state_file: Path | None =
         json_path = vault_dir.joinpath(*_PROJECTION_REL)
         md_path = vault_dir.joinpath(*_PROJECTION_MD_REL)
         before_fp = _publish_fingerprint(json_path)
+        # CARD-U6C-HANDOVER item ②: 父侧这一刻的墙钟, 交给子进程当参照时刻。
+        # ⛔ 取自 `_display_now()` 而不是 `datetime.now(...)` —— 它是本文件收敛
+        # 出来的**唯一**显示时区时钟入口 (见它的 docstring: "门可以把它钉死"),
+        # 现写一个 datetime.now 就又多一个钉不住的入口, 门会恒绿。
+        # ⛔ 名字不叫 `now`: 上面 TTL 判定的局部 `now` 是 `time.monotonic()`
+        # (单调钟, 与墙钟无关), 重名会静默改掉去抖判据。
+        wall_now = _display_now()
         try:
-            proc = _run_pick(script, vault_dir, state_file)
+            proc = _run_pick(script, vault_dir, state_file, wall_now)
         except subprocess.TimeoutExpired:
             raise HTTPException(
                 status_code=503,

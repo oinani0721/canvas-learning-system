@@ -1092,6 +1092,16 @@ def test_buckets_gate_accepts_real_producer_payload(tmp_path, overview_env, monk
 
     now = datetime.now(_SH).replace(hour=9, minute=0, second=0, microsecond=0)
     sh_today = now.date()
+    # ⏰ CARD-U6C-HANDOVER item ④③ (定时哑弹拆除): 夹具在**这里**取日 (now /
+    # sh_today, 喂给 picker.build_payload 写出 payload["date"]), 而下面那次
+    # GET /overview 由端点**另读一次**墙钟 (`_display_now()` → `_vault_entry`
+    # 的归日)。两次之间跨当地午夜 ⇒ 端点认为盘上投影是昨天的 ⇒ 判 stale,
+    # 于是 `entry["status"] == "ok"` 红在一个与桶位逻辑无关的地方。
+    # 把端点那一侧钉到**同一个** now: 本用例验的是"桶位逻辑两侧是否一致",
+    # 时钟不该是它的变量 (与上面钉 picker._DISPLAY_TZ 同一条纪律)。
+    import app.api.v1.endpoints.review_overview as _ov_mod
+
+    monkeypatch.setattr(_ov_mod, "_display_now", lambda: now)
 
     def _node(board, extra=""):
         return f'---\ntype: concept\nsource_board: "[[原白板/{board}]]"\n{extra}---\n真实内容。\n'
@@ -1358,12 +1368,18 @@ def test_refresh_rebuilds_projection_and_response_matches_disk(refresh_env):
     在盘上 due_nodes 里, 且响应的聚合条目与盘上 JSON 同源自洽。
     """
     root, client = refresh_env
+    # ⏰ CARD-U6C-HANDOVER item ④① (定时哑弹拆除): 这两个节点原先写死
+    # `2099-01-01T00:00:00Z` 当"未来"。真实时间一旦越过 2099-01-01, 它们就都
+    # 到期了, 下面那条 `due_nodes == 0` 会变成 2 —— 一条与被测语义 (改盘 →
+    # 重建 → 响应与盘一致) 毫无关系的定时假红。改成**相对今天**的偏移: 无论
+    # 哪一天跑, "未来"都还是未来。
+    future_due = _utc_z(datetime.now(timezone.utc) + timedelta(days=3650))
     vault = _mk_node_vault(
         root,
         "vault-r",
         {
-            "定义甲": _node_md(fsrs_due='"2099-01-01T00:00:00Z"'),
-            "定义乙": _node_md(board="数学", fsrs_due='"2099-01-01T00:00:00Z"'),
+            "定义甲": _node_md(fsrs_due=f'"{future_due}"'),
+            "定义乙": _node_md(board="数学", fsrs_due=f'"{future_due}"'),
         },
     )
     proj = vault / "outputs" / "今日复习.json"
@@ -3523,6 +3539,18 @@ def test_g67r_refresh_passes_state_and_done_board_yields_top(board_done_env, mon
     root, client, runner, mod = board_done_env
     vault = _mk_node_vault(root, "vault-yield", _YIELD_NODES)
 
+    # ⏰ CARD-U6C-HANDOVER item ④② (定时哑弹拆除): 本用例原先在两处**独立读钟**
+    # —— `_display_today()` 写完成日 (父侧一次) 与生产器子进程自读墙钟 (子侧一次),
+    # 中间隔着一次 subprocess.run (0.1–2s)。当地午夜前后两侧归不同的日 ⇒ 完成账
+    # 对不上 ⇒ 让位不发生, 本用例会红在"已完成的板必须让出榜首"上, 而那与它要
+    # 验的 --state 传参毫无关系 (每天有一个约 Δ/86400 概率的假红窗口)。
+    # 现在三处同源: 父侧钉 `_display_now`、完成日**显式**用同一刻算、子侧经
+    # item ② 的 `--now` 继承同一刻 ⇒ 时钟不再是本用例的变量。
+    # 取"昨天 23:59:59.9"而不是硬编码某个未来日: 既复现当地午夜那一秒的形态,
+    # 又相对今天算 ⇒ 不会像 item ④① 治的那个 2099 一样到期。
+    pinned = (datetime.now(_SH) - timedelta(days=1)).replace(hour=23, minute=59, second=59, microsecond=900000)
+    monkeypatch.setattr(mod, "_display_now", lambda: pinned)
+
     assert client.post(_REFRESH_URL, data={"vault_id": "vault-yield"}).status_code == 200
     base_proj = _proj_of(vault)
     # ⛔ 榜首实测取, 不写死板名 (rank_boards 的排序律是本卡硬边界: 门里复刻
@@ -3530,7 +3558,9 @@ def test_g67r_refresh_passes_state_and_done_board_yields_top(board_done_env, mon
     top = base_proj["top_boards"][0]["board"]
     assert len(base_proj["top_boards"]) >= 2, "夹具前提: 至少两块板才谈得上'让给下一块'"
 
-    state_file = _write_v2_state(runner, vault, board_done={top: mod._display_today()})
+    # ⏰ item ④②: 完成日显式用 `pinned` 算 —— 无参的 `_display_today()` 会去读
+    # `datetime.now(timezone.utc)`, 那是本用例的**第三个**时钟入口, 钉不住。
+    state_file = _write_v2_state(runner, vault, board_done={top: mod._display_today(pinned)})
     before_bytes = state_file.read_bytes()
     seen = _spy_subprocess_run(monkeypatch, mod)
 
@@ -3548,6 +3578,58 @@ def test_g67r_refresh_passes_state_and_done_board_yields_top(board_done_env, mon
     assert "--state" in argv, f"子进程 argv 里没有 --state: {argv}"
     assert argv[argv.index("--state") + 1] == str(state_file), f"--state 指向了别处: {argv}"
     assert state_file.read_bytes() == before_bytes, "生产器写动了 state —— 只读承诺破了"
+
+
+def test_u6c_refresh_passes_parent_now_so_child_agrees_on_the_day(board_done_env, monkeypatch):
+    """CARD-U6C-HANDOVER item ②: 刷新路径的父子两侧必须归同一个"今天"。
+
+    缺陷形态: `_run_pick` 的 argv 里没有 `--now` ⇒ 生产器子进程**自己读墙钟**
+    (daily_review_pick.main 的 `else: now = datetime.now(timezone.utc)`)。父进程
+    读钟与子进程读钟之间隔着一次 subprocess.run (0.1–2s), 当地午夜前后这两次会
+    落在不同的一天 —— 23:59:59 标完成、子进程 00:00:00.2 判"不是今天完成的"
+    ⇒ 让位不发生。
+
+    钉法: 把父侧唯一时钟入口 `_display_now` 钉在**昨天** 23:59:59.9。子进程的
+    墙钟推不快, 但"父子是否归同一天"这条性质不需要推快墙钟就判得出来:
+      · 传了 --now ⇒ 子侧按父钟归日 = 昨天 = 父侧归日 (一致);
+      · 没传      ⇒ 子侧按真实墙钟归日 = 今天 ≠ 昨天 (分叉, 缺陷当场显形)。
+    "昨天 23:59:59.9 再过 0.1 秒就是今天"正是当地午夜那一秒的形态; 且取值**相对
+    今天**算 ⇒ 不会像硬编码的 2099 那样到期 (同批 item ④① 治的就是那个病)。
+
+    三层判据, 缺一层就有一种假绿:
+      ① 前提自证: 钉住的那一刻与真实此刻确实归不同的日 —— 否则 ③ 恒绿;
+      ② 身份层: argv 里 `--now` 的**值**解析回来就是父侧那一刻。只断言"有这个
+         旗标"的话, 传一个别的时间 (甚至 datetime.now()) 照样绿;
+      ③ 行为层: 子进程**真跑**出来的 payload["date"] == 父侧归日。这一条不复刻
+         任何换算, 读的是生产器自己写到盘上的那个字段。
+    """
+    root, client, runner, mod = board_done_env
+    vault = _mk_node_vault(root, "vault-clock", _YIELD_NODES)
+
+    pinned = (datetime.now(_SH) - timedelta(days=1)).replace(hour=23, minute=59, second=59, microsecond=900000)
+    parent_day = mod._display_today(pinned)
+
+    # ① 前提自证 —— 钉住的那一刻与真实此刻必须归不同的日, 否则 ③ 恒绿
+    assert parent_day != mod._display_today(), f"钉住的 {parent_day} 与真实此刻归了同一天 —— 本门的分叉前提不成立"
+
+    monkeypatch.setattr(mod, "_display_now", lambda: pinned)
+    seen = _spy_subprocess_run(monkeypatch, mod)
+
+    resp = client.post(_REFRESH_URL, data={"vault_id": "vault-clock"})
+    assert resp.status_code == 200, resp.text
+
+    assert seen, "没有起过子进程 —— 本门验的是父子归日, 前提不成立"
+    argv = seen[-1]
+    # ② 身份层
+    assert "--now" in argv, f"子进程 argv 里没有 --now: {argv}"
+    passed = argv[argv.index("--now") + 1]
+    assert datetime.fromisoformat(passed.replace("Z", "+00:00")) == pinned, (
+        f"--now 传的不是父侧那一刻: {passed!r} vs {pinned.isoformat()!r}"
+    )
+    # ③ 行为层 —— 子进程真跑出来的产物归日
+    assert _proj_of(vault)["date"] == parent_day, (
+        f"子进程归的日与父进程不同 (子 {_proj_of(vault)['date']} vs 父 {parent_day}) —— 父子读钟没有合上"
+    )
 
 
 def test_g67r_refresh_without_runner_degrades_to_no_state_not_503(board_done_env, monkeypatch):
@@ -3973,20 +4055,29 @@ def _pin_child_now(monkeypatch, mod, pinned) -> list:
     钉住两侧之后判据与真实墙钟无关 —— 同一条性质在相距 79 年的三个 pinned
     值上同绿, 见 test_g66_e2e_snooze_verdict_is_clock_independent。
 
-    ⚠ 这是**测试侧**的修法, 刻意不给生产加旗标。理由 (round-6 已按 Codex 的核对
-    收窄, 初版两条都说过了头):
-      · payload 的 generated_at 会从**子进程扫描前**的采样变成**父进程请求时**的
-        采样。差的是一次 spawn, 不是"生成完成时刻"——初版那么写是夸大;
-      · 真正决定性的一条: 接 --now **也统一不了什么**。写推迟账那次请求、刷新那次
-        请求、之后 GET 那次渲染, 本来就是三次独立的读钟; 只在 _run_pick 里补一次
-        父侧采样只合上其中一道缝。
-      · ⛔ 初版还写过「与 launchd runner 那条不传 --now 的调用路分叉」——**事实错误**:
-        runner 根本不起 picker 子进程, 它 `import daily_review_pick as picker` 后
-        在进程内直调 `picker.build_payload(VAULT, now, ...)`(daily_review_run.py
-        :604/:613), 已经在传自己的参照时刻。拿它当"另一条不传旗标的路"是我没读代码
-        就写下的类比。
+    ⚠ **本段已由 CARD-U6C-HANDOVER item ② 部分推翻, 逐条更正** —— 原文是 U6-C
+    当时决定**不**给生产加旗标的理由; 用户裁定 D-10 后本卡把它做了
+    (`_rebuild_projection` 取一次 `_display_now()`, `_run_pick` 以 `--now` 传给
+    子进程)。仍然成立的与已被推翻的:
+      · **仍成立**: payload 的 generated_at 从"子进程扫描前"的采样变成"父进程请求
+        时"的采样, 差的是一次 spawn, 不是"生成完成时刻"。这是加旗标的**代价**,
+        本卡接受它 (换来的是父子不再跨午夜分日)。
+      · **仍成立但不再是"不做"的理由**: 接 --now 只合上 _run_pick 这一道缝 ——
+        写推迟账那次请求、刷新那次请求、之后 GET 那次渲染仍是三次独立的读钟。
+        U6-C 把它当成"那就别做了"的决定性理由; 本卡的判断是"合上一道也是合上",
+        残留三读钟如实登记为移交项, 不假装堵住。
+      · **仍成立 (原文自己更正过的事实)**: launchd runner 不起 picker 子进程,
+        它 `import daily_review_pick as picker` 后在进程内直调
+        `picker.build_payload(VAULT, now, ...)`(daily_review_run.py :604/:613),
+        本来就在传自己的参照时刻 —— 故不受本卡 item ② 影响。
     (父子各读一次钟、当地午夜前后可能分到不同日期这件事是 G6-7/G6-7-R 面的既有
-    形态, 非本卡引入, 登记为移交项。)
+    形态, 非本卡引入; 本卡合上其中刷新那一道。)
+
+    ⚠ 本 helper 在生产加了旗标之后**仍然保留**, 当纵深: 它显式钉子进程那一侧,
+    不依赖"生产这次有没有传"。两处调用点都是 `pinned = _pin_now(...)` 紧接
+    `_pin_child_now(..., pinned)` ⇒ 生产传的 `--now` 与本 helper 钉的是**同一个**
+    pinned, 值相同。即便如此下面也**显式替换**而不是盲目追加 —— 让 argv 里只留
+    一个 --now, 而不是靠"argparse 后者胜"这个隐式前提把两个撞在一起。
 
     脚本名锚在生产常量 mod._PICK_REL 上, 不手抄字面量: 生产改名时本 helper
     跟着失效, 比"改完还静默放行"强。返回 seen, 与 _spy_subprocess_run 同形。
@@ -3999,6 +4090,12 @@ def _pin_child_now(monkeypatch, mod, pinned) -> list:
     def _run(argv, **kw):
         argv = list(argv)
         if any(str(a).endswith(basename) for a in argv):
+            # 生产自 CARD-U6C-HANDOVER item ② 起自己会传一个 --now。替换而不是
+            # 追加: 两者值相同 (见 docstring 末段), 但留两个 --now 就把判据压在
+            # "argparse 取后一个"这个隐式前提上。
+            while "--now" in argv:
+                i = argv.index("--now")
+                del argv[i : i + 2]
             argv += ["--now", pinned_iso]
         seen.append(argv)
         return real_run(argv, **kw)
@@ -4431,7 +4528,9 @@ def test_g66_end_to_end_snooze_yields_top_slot_in_the_real_projection(board_done
     # ⛔ 端点与生产器子进程**两侧一起钉**。初版只钉端点那一侧, 于是写出的
     #    until=2026-09-09T20:00+08:00 在子进程的真实墙钟下 09-11 起已过期 ——
     #    本门 2026-09-11 自己红成 `assert 'CS 61B' != 'CS 61B'`, 代码一字未改。
-    #    理由与"为什么不给生产加旗标"见 _pin_child_now 的 docstring。
+    #    两侧一起钉的理由见 _pin_child_now 的 docstring (其中"为什么不给生产加
+    #    旗标"那一段已由 CARD-U6C-HANDOVER item ② 逐条更正: 生产现在传 --now,
+    #    本 helper 保留当纵深并显式替换掉它)。
     pinned = _pin_now(monkeypatch, mod, "2026-09-09T10:00:00")
     seen = _pin_child_now(monkeypatch, mod, pinned)
 

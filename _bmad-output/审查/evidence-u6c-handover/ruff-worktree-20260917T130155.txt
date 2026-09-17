@@ -1,0 +1,17 @@
+files=6
+backend/app/api/v1/endpoints/review_app.py
+backend/app/api/v1/endpoints/review_overview.py
+backend/tests/regression/test_daily_review_run.py
+backend/tests/unit/test_review_app.py
+backend/tests/unit/test_review_overview.py
+scripts/daily_review_run.py
+--- 验伪锚①: 文件集必须含本卡唯一生产改动面 (必须=1) ---
+1
+--- ruff check ---
+All checks passed!
+check_rc=0
+--- ruff format --check ---
+Would reformat: backend/tests/regression/test_daily_review_run.py
+Would reformat: backend/tests/unit/test_review_overview.py
+2 files would be reformatted, 4 files already formatted
+format_rc=1

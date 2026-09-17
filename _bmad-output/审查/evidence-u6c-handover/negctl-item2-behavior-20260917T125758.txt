@@ -1,0 +1,6 @@
+NC-2: ② 身份层已临时摘除
+### 负控 NC-2: 生产=缺陷态(无 --now) + ② 摘除 ⇒ ③ 行为层必须自己红 ###
+E   AssertionError: 子进程归的日与父进程不同 (子 2026-09-17 vs 父 2026-09-16) —— 父子读钟没有合上
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t3-review/backend/tests/unit/test_review_overview.py:3643: AssertionError: 子进程归的日与父进程不同 (子 2026-09-17 vs 父 2026-09-16) —— 父子读钟没有合上
+FAILED tests/unit/test_review_overview.py::test_u6c_refresh_passes_parent_now_so_child_agrees_on_the_day
+================ 1 failed, 116 deselected, 10 warnings in 1.53s ================

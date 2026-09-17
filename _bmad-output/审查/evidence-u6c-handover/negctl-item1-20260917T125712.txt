@@ -1,0 +1,13 @@
+### 负控 NC-1: item① 还原成缺陷态 (无 isinstance 判型), 指定门必红 ###
+E   TypeError: '<=' not supported between instances of 'int' and 'str'
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t3-review/scripts/daily_review_run.py:588: TypeError: '<=' not supported between instances of 'int' and 'str'
+E   TypeError: '<=' not supported between instances of 'bool' and 'str'
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t3-review/scripts/daily_review_run.py:588: TypeError: '<=' not supported between instances of 'bool' and 'str'
+E   TypeError: '<=' not supported between instances of 'float' and 'str'
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t3-review/scripts/daily_review_run.py:588: TypeError: '<=' not supported between instances of 'float' and 'str'
+E   TypeError: '<=' not supported between instances of 'list' and 'str'
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t3-review/scripts/daily_review_run.py:588: TypeError: '<=' not supported between instances of 'list' and 'str'
+E   TypeError: '<=' not supported between instances of 'dict' and 'str'
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t3-review/scripts/daily_review_run.py:588: TypeError: '<=' not supported between instances of 'dict' and 'str'
+FAILED tests/regression/test_daily_review_run.py::test_u6c_wrong_typed_due_marker_does_not_abort_the_cache_gate[int]
+FAILED tests/regression/test_daily_review_run.py::test_u6c_wrong_typed_due_marker_does_not_abort_the_cache_gate[bool]
