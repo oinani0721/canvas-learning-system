@@ -4380,7 +4380,7 @@ def test_r27_namespace_aliases_and_binding_facts():
 #:
 #: ⚠️ 它**不**证明任何路径构造安全, 只保证「受管文件的路径集合与原始字节摘要一致」。
 MANAGED_FILE_DIGESTS: dict[str, str] = {
-    "skills/ai-linked-doc/SKILL.md": "77807e2a8e3b6d3f291724e0f6b53c706a6cc4b6c841d13a1e63cdb30dda7767",
+    "skills/ai-linked-doc/SKILL.md": "f3673ca9529eaeff1358b50e11b4a9455a12f137cd676a4d1568f5f29b2ae176",
     "skills/board-recap/SKILL.md": "86ff0b3fa0179604816e9251ae35bcf0df6151f7cdc62a4ef88dd46bed4c3aa4",
     "skills/chat-with-context/SKILL.md": "cdd0472591e75860e947aa726dcbd46aa150e3eaa1ceef50be6dee332af2738c",
     "skills/configure-whiteboard/SKILL.md": "9eb21ecc6ac044a914ce11009025f8a84e51c5135221ec3b50f8c021ccfa2177",

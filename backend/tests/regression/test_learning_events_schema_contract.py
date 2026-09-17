@@ -989,13 +989,18 @@ def test_real_producer_backend_append_event(monkeypatch, tmp_path):
 
 
 def test_real_producer_ai_linked_doc_writer(tmp_path):
-    """vault 写点 1/3: ai-linked-doc 的 python3 -c 单行模板**逐字提取执行**
+    """vault 写点 1/3: ai-linked-doc 的 Step 5.5 PYEOF 块**逐字提取执行**
     (仅替换 SKILL 自身声明的两处 <> 占位), 产物过校验器 + 幂等 —
-    SKILL.md 里的 writer 代码漂移会在此翻红。"""
+    SKILL.md 里的 writer 代码漂移会在此翻红。
+
+    CARD-AILINKED-4TH-WRITER: 写点从 `python3 -c` 单行跨度改为 PYEOF 块 (它原先
+    嵌在 Step 3 给生成器的 System Prompt 模板 fence 内, fence 不能套 fence),
+    故提取锚同卡改为与下面两个 producer 门同款的 PYEOF 形态。"""
     text = (SKILLS / "ai-linked-doc" / "SKILL.md").read_text(encoding="utf-8")
-    m = re.search(r'python3 -c "(.+?)"`', text, re.DOTALL)
-    assert m, "ai-linked-doc SKILL.md 找不到 python3 -c 写点模板"
-    code = m.group(1).replace("<vault绝对路径>", str(tmp_path)).replace("<新节点名>", "测试节点")
+    blocks = re.findall(r"python3 - <<'PYEOF'\n(.*?)\nPYEOF", text, re.DOTALL)
+    matches = [b for b in blocks if "'node_derived'" in b]
+    assert len(matches) == 1, f"ai-linked-doc SKILL.md 应恰有 1 个 node_derived 写点 PYEOF 块, 实见 {len(matches)}"
+    code = matches[0].replace("<vault绝对路径>", str(tmp_path)).replace("<新节点名>", "测试节点")
     for _ in range(2):  # 二跑验证幂等
         proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=30)
         assert proc.returncode == 0, proc.stderr

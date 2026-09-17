@@ -1,0 +1,3 @@
+文件: backend/app/services/learning_event_log.py
+去 docstring 后 AST 相同: True
+(HEAD 版 18125 字符 / 工作树版 18306 字符 — 字符数不同是注释变长, AST 相同即代码零改动)

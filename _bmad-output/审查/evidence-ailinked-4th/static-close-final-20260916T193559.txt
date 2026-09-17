@@ -1,0 +1,15 @@
+=== pyright ===
+0 errors, 81 warnings, 0 informations
+=== 门⑪ ===
+       4
+=== ruff check+format ===
+All checks passed!
+check_rc=0
+4 files already formatted
+fmt_rc=0
+=== SKILL.md 外形 + 裸码点 ===
+217:python3 - <<'PYEOF'
+354:PYEOF
+裸 U+2028/2029: 0
+占位 vault: 2 | 占位 node: 2
+sha256: f3673ca9529eaeff1358b50e11b4a9455a12f137cd676a4d1568f5f29b2ae176

@@ -11,11 +11,12 @@ Schema 四要素 (ChatGPT 对账采纳):
   - event_type: 限 9 类核心动作 (EVENT_TYPES), 未知类型拒绝 — 防事件膨胀
     (callout_ingested 2026-07-23 对账评审入集后 "8 类" 注释曾未同步)
 
-写点 (批次3' 接入 4 个, node_derived 留批次4' 拆分补强):
+写点 (四方全部接入, node_derived 由 CARD-AILINKED-4TH-WRITER 补齐):
   backend: candidate_created (蒸馏) / candidate_accepted / candidate_disputed
            (= dispute 三件套第三件「可追溯」suppression log) / session_archived
   vault:   answer_scored / answer_abandoned (quiz-answer) / exam_created
-           (start-exam-board) — SKILL 静态 python 直接 append 同一文件
+           (start-exam-board) / node_derived (ai-linked-doc)
+           — SKILL 静态 python 直接 append 同一文件
 """
 
 from __future__ import annotations
@@ -54,7 +55,9 @@ EVENT_TYPES = frozenset(
 #: 进程内快路径 (CARD-G3-3 (b) 保留): 同进程多线程先在这里排队, 省掉一次系统调用。
 #: ⛔ 它**不是**并发防线 —— threading.Lock 只在本进程内成立, 而账本的真实写者
 #: 有**四方** (backend 进程、quiz-answer SKILL 的独立 python3、start-exam-board、
-#: ai-linked-doc) —— 其中 ai-linked-doc 的一行式追加**未参与**本锁协议, 见验收单 §十.12,
+#: ai-linked-doc) —— 四方现已**全部**按同一套写规入账 (parsed-field 相等查重 /
+#: fcntl.lockf / LF 守卫 / event_id 形态门); ai-linked-doc 的 node_derived 写点
+#: 由 CARD-AILINKED-4TH-WRITER 补齐 (它在 SKILL.md 里是一个 PYEOF 块)。
 #: 跨进程互斥只能靠下面的 fcntl 记录锁。
 _write_lock = threading.Lock()
 

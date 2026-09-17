@@ -1,0 +1,11 @@
+=== pyright (cwd=backend, R-B14-10) ===
+0 errors, 81 warnings, 0 informations
+=== 门⑪ 普查集合 (应恰 4 行) ===
+backend/app/services/learning_event_log.py
+canvas-vault/.claude/skills/ai-linked-doc/SKILL.md
+canvas-vault/.claude/skills/quiz-answer/SKILL.md
+canvas-vault/.claude/skills/start-exam-board/SKILL.md
+=== ruff (zsh 数组 + 验伪锚) ===
+files=4
+All checks passed!
+ruff_rc=0

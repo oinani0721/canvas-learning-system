@@ -1,0 +1,14 @@
+=== 地盘门: $PREQ..HEAD 代码面 (应 ⊆ 五文件集) ===
+backend/app/services/learning_event_log.py
+backend/tests/regression/test_learning_events_schema_contract.py
+backend/tests/skills/test_ai_linked_doc_writer.py
+backend/tests/skills/test_skill_portability_lint.py
+canvas-vault/.claude/skills/ai-linked-doc/SKILL.md
+--- 验伪锚: 去掉 exclude 后, 工作树里确有 _bmad-output 改动 ---
+1
+=== HEAD ===
+41629ec3
+=== pyright 终态 ===
+0 errors, 81 warnings, 0 informations
+=== 门⑪ 集合 ===
+       4

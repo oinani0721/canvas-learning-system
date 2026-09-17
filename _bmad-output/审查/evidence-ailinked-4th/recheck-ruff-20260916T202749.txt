@@ -1,0 +1,19 @@
+=== ruff（zsh 数组 + 整块子 shell，R-B14-11b）===
+files=4
+backend/app/services/learning_event_log.py
+backend/tests/regression/test_learning_events_schema_contract.py
+backend/tests/skills/test_ai_linked_doc_writer.py
+backend/tests/skills/test_skill_portability_lint.py
+All checks passed!
+ruff rc=0
+=== 验伪锚：F821（backend/** 未启用 F401，用 F821，见记忆 ⛔）===
+F821 Undefined name `undefined_name_xyz`
+ --> /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t7-skills/966c468f-5791-4a90-979c-8ebeebac9109/scratchpad/anchor.py:2:12
+  |
+1 | def f():
+2 |     return undefined_name_xyz
+  |            ^^^^^^^^^^^^^^^^^^
+  |
+
+Found 1 error.
+anchor rc=1

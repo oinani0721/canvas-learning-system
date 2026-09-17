@@ -1,0 +1,18 @@
+=== pyright ===
+0 errors, 81 warnings, 0 informations
+=== 门⑪ 集合 ===
+backend/app/services/learning_event_log.py
+canvas-vault/.claude/skills/ai-linked-doc/SKILL.md
+canvas-vault/.claude/skills/quiz-answer/SKILL.md
+canvas-vault/.claude/skills/start-exam-board/SKILL.md
+=== ruff ===
+files=4
+All checks passed!
+ruff_rc=0
+4 files already formatted
+fmt_rc=0
+=== SKILL.md 外形 ===
+217:python3 - <<'PYEOF'
+348:PYEOF
+块正文行首 PYEOF 计数(应0):
+130 行块

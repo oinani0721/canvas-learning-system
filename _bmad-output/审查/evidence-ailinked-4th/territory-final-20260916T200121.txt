@@ -1,0 +1,16 @@
+# 地盘门 · 绑最终 HEAD  2026-09-16T20:01:21
+HEAD=341a88b6bc4e2179470a49e5f05f8c4ff0893504
+PREQ=d5ad6fca21efbf6b02a3f05f7480855534cae760
+--- $PREQ..HEAD 代码面 (应 ⊆ 五文件集) ---
+backend/app/services/learning_event_log.py
+backend/tests/regression/test_learning_events_schema_contract.py
+backend/tests/skills/test_ai_linked_doc_writer.py
+backend/tests/skills/test_skill_portability_lint.py
+canvas-vault/.claude/skills/ai-linked-doc/SKILL.md
+--- 验伪锚: 去掉 exclude 后应多出 _bmad-output 路径 ---
+0
+--- 工作树代码面 (应空) ---
+(以上为空=干净)
+--- 终审绑定: 审SHA(341a88b6)..HEAD 代码面应空 ---
+(以上为空=仍绑定)
+rc=0

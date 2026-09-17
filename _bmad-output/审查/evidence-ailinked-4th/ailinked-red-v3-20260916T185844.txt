@@ -1,0 +1,28 @@
+跑前 shasum = 54b569a943457967d04ff2a0f778e6612bbb534032297c7e46cbbc68724256dd
+PREQ 版 shasum = 77807e2a8e3b6d3f291724e0f6b53c706a6cc4b6c841d13a1e63cdb30dda7767  (写点仍是 python3 -c 单行)
+--- pytest rc=1 ---
+E   AssertionError: 子串误判 duplicate 永久丢失: 历史行的 node_id 值恰等于 'derive:测试节点', 新事件被当成重复而零次落账 (实见 0 条 event_id=='derive:测试节点')
+E   assert 0 == 1
+E    +  where 0 = _count_event_id(PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-26126/test_substring_dedup_false_pos0/learning_events.jsonl'), 'derive:测试节点')
+E   Failed: 门② 四条互补判据 —— 本次红 3/4 (档A n=2, 档B n=1, size-at-release=462, elapsed=0.00s):
+E   ① 同 evid 并发重复落账: 档 A(空账本+持锁方) 里两个写者各写了一条 event_id=='derive:测试节点' (档 A 2 条 / 档 B 1 条) —— 「查重 → 写」被撕开, 校验器对重复 id 判整个账本不合规
+E   ② 写点在别人持锁时抢写了账本 —— 持锁方释放前账本已经变大 (size-at-release=462)
+E   ③ 写点没有真的等锁: 两个写者总共只用了 0.00s (持锁 4.0s)
+E   AssertionError: 尾行无 LF 时新事件粘连成坏行: 账本应有 2 条非空行, 实见 1 条 (首条前 80 字符: '{"event_id": "exam:Y", "event_version": 1, "event_type": "node_derived", "node_i')
+E   assert 1 == 2
+E    +  where 1 = len(['{"event_id": "exam:Y", "event_version": 1, "event_type": "node_derived", "node_id": "别的节点", "recorded_at": "2026-08-..."recorded_at": "2026-09-16T10:58:59.226514+00:00", "effective_at": "2026-09-16T10:58:59.226514+00:00", "payload": {}}'])
+E   AssertionError: 非法 evid 落账（尾随空白）: event_id='derive:测试节点 '… (长度 12) 被写进账本 1 条 —— 校验器读侧对该形态 fail-closed, 判整个账本不合规
+E   assert 1 == 0
+E   AssertionError: 非法 evid 落账（U+2028）: event_id='derive:测试\u2028节点'… (长度 12) 被写进账本 1 条 —— 校验器读侧对该形态 fail-closed, 判整个账本不合规
+E   assert 1 == 0
+E   AssertionError: 非法 evid 落账（超长）: event_id='derive:长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长'… (长度 607) 被写进账本 1 条 —— 校验器读侧对该形态 fail-closed, 判整个账本不合规
+E   assert 1 == 0
+FAILED tests/skills/test_ai_linked_doc_writer.py::test_substring_dedup_false_positive_loses_event
+FAILED tests/skills/test_ai_linked_doc_writer.py::test_concurrent_same_evid_under_held_lock_writes_once
+FAILED tests/skills/test_ai_linked_doc_writer.py::test_lf_guard_isolates_truncated_tail
+FAILED tests/skills/test_ai_linked_doc_writer.py::test_shape_gate_rejects_malformed_event_id[trailing_space]
+FAILED tests/skills/test_ai_linked_doc_writer.py::test_shape_gate_rejects_malformed_event_id[u2028]
+FAILED tests/skills/test_ai_linked_doc_writer.py::test_shape_gate_rejects_malformed_event_id[too_long]
+=================== 6 failed, 2 passed, 10 warnings in 5.26s ===================
+跑后 shasum = 54b569a943457967d04ff2a0f778e6612bbb534032297c7e46cbbc68724256dd
+还原校验: 逐字相同 ✓

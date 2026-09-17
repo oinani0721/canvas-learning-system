@@ -1,0 +1,17 @@
+# 未 push 自证 (带验伪锚)  2026-09-16T20:05:57
+⛔ 判据修正 3: 'git log origin/<br>..HEAD | wc -l' 在 remote 分支不存在时命令出错,
+   stderr 被吞后 wc -l 同样得 0 —— 与「已同步」无法区分, 是假判据。
+--- 正面证据 1: origin/card/t7-skills 是否存在 ---
+fatal: Needed a single revision
+--- 正面证据 2: 全部 remote 分支中含 t7-skills 的条数 (应 0) ---
+0
+--- 验伪锚: remote 分支总数 (应 >0, 证明 branch -r 确实列得出东西) ---
+      23
+--- 验伪锚样本 (前 3 条 remote 分支) ---
+  backup/HEAD -> backup/main
+  backup/fix-concept-id-identity-unification
+  backup/fix/audit-p0-sidecar-permission-and-memory-auth
+--- 正面证据 3: 本分支无上游配置 ---
+fatal: no upstream configured for branch 'card/t7-skills'
+
+=> 结论: 分支 card/t7-skills 在 origin 上不存在且无上游, 本卡两个 commit 均未 push。

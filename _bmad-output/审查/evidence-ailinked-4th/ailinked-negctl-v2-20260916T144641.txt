@@ -1,0 +1,71 @@
+负控段 ①: parsed-field 相等查重 → 改回子串查重
+预期: 门① 红在「子串误判 duplicate 永久丢失」
+  跑前 shasum SKILL.md = 9e23d19bdd8c6a889eae30e7c6a2328d0614f3c7a58507a4386538962af46c3f
+  跑前 shasum learning_event_log.py = 81e5dd5b62a35c3f3e33004e58bdfef7dbbae82b2cf4e7056aa0359c48b8d919
+--- pytest rc=1 ---
+E   AssertionError: 子串误判 duplicate 永久丢失: 历史行的 node_id 值恰等于 'derive:测试节点', 新事件被当成重复而零次落账 (实见 0 条 event_id=='derive:测试节点')
+E   assert 0 == 1
+E    +  where 0 = _count_event_id(PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-25938/test_substring_dedup_false_pos0/learning_events.jsonl'), 'derive:测试节点')
+FAILED tests/skills/test_ai_linked_doc_writer.py::test_substring_dedup_false_positive_loses_event
+=================== 1 failed, 7 passed, 10 warnings in 5.72s ===================
+  跑后 shasum SKILL.md = 9e23d19bdd8c6a889eae30e7c6a2328d0614f3c7a58507a4386538962af46c3f
+  跑后 shasum learning_event_log.py = 81e5dd5b62a35c3f3e33004e58bdfef7dbbae82b2cf4e7056aa0359c48b8d919
+  还原校验: 逐字相同 ✓
+负控段 ②: 去掉 fcntl.lockf 那一行 (不取锁)
+预期: 门② 三条断言全红
+  跑前 shasum SKILL.md = 9e23d19bdd8c6a889eae30e7c6a2328d0614f3c7a58507a4386538962af46c3f
+  跑前 shasum learning_event_log.py = 81e5dd5b62a35c3f3e33004e58bdfef7dbbae82b2cf4e7056aa0359c48b8d919
+--- pytest rc=1 ---
+E   Failed: 门② 三条互补判据 —— 本次红 3/3 (档A n=2, 档B n=2, size-at-release=462, elapsed=0.01s):
+E   ① 同 evid 并发重复落账: 档 A(空账本+持锁方) 里两个写者各写了一条 event_id=='derive:测试节点' (档 A 2 条 / 档 B 2 条) —— 「查重 → 写」被撕开, 校验器对重复 id 判整个账本不合规
+E   ② 写点在别人持锁时抢写了账本 —— 持锁方释放前账本已经变大 (size-at-release=462)
+E   ③ 写点没有真的等锁: 两个写者总共只用了 0.01s (持锁 4.0s)
+FAILED tests/skills/test_ai_linked_doc_writer.py::test_concurrent_same_evid_under_held_lock_writes_once
+=================== 1 failed, 7 passed, 10 warnings in 5.47s ===================
+  跑后 shasum SKILL.md = 9e23d19bdd8c6a889eae30e7c6a2328d0614f3c7a58507a4386538962af46c3f
+  跑后 shasum learning_event_log.py = 81e5dd5b62a35c3f3e33004e58bdfef7dbbae82b2cf4e7056aa0359c48b8d919
+  还原校验: 逐字相同 ✓
+负控段 ③: 去掉 LF 守卫
+预期: 门③ 红在「尾行无 LF 时新事件粘连成坏行」(承重的两条子断言)
+  跑前 shasum SKILL.md = 9e23d19bdd8c6a889eae30e7c6a2328d0614f3c7a58507a4386538962af46c3f
+  跑前 shasum learning_event_log.py = 81e5dd5b62a35c3f3e33004e58bdfef7dbbae82b2cf4e7056aa0359c48b8d919
+--- pytest rc=1 ---
+E   AssertionError: 尾行无 LF 时新事件粘连成坏行: 账本应有 2 条非空行, 实见 1 条 (首条前 80 字符: '{"event_id": "exam:Y", "event_version": 1, "event_type": "node_derived", "node_i')
+E   assert 1 == 2
+E    +  where 1 = len(['{"event_id": "exam:Y", "event_version": 1, "event_type": "node_derived", "node_id": "别的节点", "recorded_at": "2026-08-..."recorded_at": "2026-09-16T06:47:43.159190+00:00", "effective_at": "2026-09-16T06:47:43.159190+00:00", "payload": {}}'])
+FAILED tests/skills/test_ai_linked_doc_writer.py::test_lf_guard_isolates_truncated_tail
+=================== 1 failed, 7 passed, 10 warnings in 5.28s ===================
+  跑后 shasum SKILL.md = 9e23d19bdd8c6a889eae30e7c6a2328d0614f3c7a58507a4386538962af46c3f
+  跑后 shasum learning_event_log.py = 81e5dd5b62a35c3f3e33004e58bdfef7dbbae82b2cf4e7056aa0359c48b8d919
+  还原校验: 逐字相同 ✓
+负控段 ④: 形态门旁路 (evid 不校直接写)
+预期: 门④ 三个子用例各红 (尾随空白 / U+2028 / 超长)
+  跑前 shasum SKILL.md = 9e23d19bdd8c6a889eae30e7c6a2328d0614f3c7a58507a4386538962af46c3f
+  跑前 shasum learning_event_log.py = 81e5dd5b62a35c3f3e33004e58bdfef7dbbae82b2cf4e7056aa0359c48b8d919
+--- pytest rc=1 ---
+E   AssertionError: 非法 evid 落账（尾随空白）: event_id='derive:测试节点 '… (长度 12) 被写进账本 1 条 —— 校验器读侧对该形态 fail-closed, 判整个账本不合规
+E   assert 1 == 0
+E   AssertionError: 非法 evid 落账（U+2028）: event_id='derive:测试\u2028节点'… (长度 12) 被写进账本 1 条 —— 校验器读侧对该形态 fail-closed, 判整个账本不合规
+E   assert 1 == 0
+E   AssertionError: 非法 evid 落账（超长）: event_id='derive:长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长'… (长度 607) 被写进账本 1 条 —— 校验器读侧对该形态 fail-closed, 判整个账本不合规
+E   assert 1 == 0
+FAILED tests/skills/test_ai_linked_doc_writer.py::test_shape_gate_rejects_malformed_event_id[trailing_space]
+FAILED tests/skills/test_ai_linked_doc_writer.py::test_shape_gate_rejects_malformed_event_id[u2028]
+FAILED tests/skills/test_ai_linked_doc_writer.py::test_shape_gate_rejects_malformed_event_id[too_long]
+=================== 3 failed, 5 passed, 10 warnings in 5.34s ===================
+  跑后 shasum SKILL.md = 9e23d19bdd8c6a889eae30e7c6a2328d0614f3c7a58507a4386538962af46c3f
+  跑后 shasum learning_event_log.py = 81e5dd5b62a35c3f3e33004e58bdfef7dbbae82b2cf4e7056aa0359c48b8d919
+  还原校验: 逐字相同 ✓
+负控段 ⑤: 锁内同 fd 读 → 换成二次 open(EV,'rb').read()
+预期: 门② **只**红「① 同 evid 并发重复落账」, 另两条 (size / elapsed) 仍绿
+  跑前 shasum SKILL.md = 9e23d19bdd8c6a889eae30e7c6a2328d0614f3c7a58507a4386538962af46c3f
+  跑前 shasum learning_event_log.py = 81e5dd5b62a35c3f3e33004e58bdfef7dbbae82b2cf4e7056aa0359c48b8d919
+--- pytest rc=1 ---
+E   Failed: 门② 三条互补判据 —— 本次红 1/3 (档A n=1, 档B n=2, size-at-release=0, elapsed=3.97s):
+E   ① 同 evid 并发重复落账: 档 B(大账本) 里两个写者各写了一条 event_id=='derive:测试节点' (档 A 1 条 / 档 B 2 条) —— 「查重 → 写」被撕开, 校验器对重复 id 判整个账本不合规
+FAILED tests/skills/test_ai_linked_doc_writer.py::test_concurrent_same_evid_under_held_lock_writes_once
+=================== 1 failed, 7 passed, 10 warnings in 5.17s ===================
+  跑后 shasum SKILL.md = 9e23d19bdd8c6a889eae30e7c6a2328d0614f3c7a58507a4386538962af46c3f
+  跑后 shasum learning_event_log.py = 81e5dd5b62a35c3f3e33004e58bdfef7dbbae82b2cf4e7056aa0359c48b8d919
+  还原校验: 逐字相同 ✓
+五段负控全部跑完, 两份被监视文件跑前/跑后 shasum 逐段逐字相同。
