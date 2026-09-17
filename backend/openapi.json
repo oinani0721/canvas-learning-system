@@ -15849,7 +15849,7 @@
     "description": "Multi-agent learning system backend using Feynman method",
     "title": "Canvas Learning System API",
     "version": "1.0.0",
-    "x-generated-at": "2026-09-15T18:05:05.170107+00:00",
+    "x-generated-at": "2026-09-17T10:54:40.440439+00:00",
     "x-generator": "scripts/spec-tools/check-openapi-drift.py --write"
   },
   "openapi": "3.1.0",
@@ -17163,7 +17163,7 @@
         },
         "security": [
           {
-            "APIKeyHeader": []
+            "InternalApiKey": []
           }
         ],
         "summary": "RAG-S2.5 — 白板目录卡 (结构读模型, study/exam 双视图)",
@@ -19666,7 +19666,7 @@
         },
         "security": [
           {
-            "APIKeyHeader": []
+            "InternalApiKey": []
           }
         ],
         "summary": "Story 2.1 — 节点对话上下文组装",
@@ -19716,7 +19716,7 @@
         },
         "security": [
           {
-            "APIKeyHeader": []
+            "InternalApiKey": []
           }
         ],
         "summary": "Auto-extract errors from a completed dialog turn (Story 2.5 AC #1)",
@@ -19766,7 +19766,7 @@
         },
         "security": [
           {
-            "APIKeyHeader": []
+            "InternalApiKey": []
           }
         ],
         "summary": "UserPromptSubmit hook — 自动 RAG 注入到 Claudian 每次对话",
@@ -21247,7 +21247,7 @@
         },
         "security": [
           {
-            "APIKeyHeader": []
+            "InternalApiKey": []
           }
         ],
         "summary": "T4 方案 A — 跨节点针对性考察素材 (增殖邻居的当前态错误)",
@@ -23887,7 +23887,7 @@
         },
         "security": [
           {
-            "APIKeyHeader": []
+            "InternalApiKey": []
           }
         ],
         "summary": "SessionEnd 会话归档（蒸馏 → 主链结构化 + 全文 → 语义影子图）",
@@ -24028,7 +24028,7 @@
         },
         "security": [
           {
-            "APIKeyHeader": []
+            "InternalApiKey": []
           }
         ],
         "summary": "查询概念学习历史",
@@ -24258,7 +24258,7 @@
         },
         "security": [
           {
-            "APIKeyHeader": []
+            "InternalApiKey": []
           }
         ],
         "summary": "查询学习历史",
@@ -24309,7 +24309,7 @@
         },
         "security": [
           {
-            "APIKeyHeader": []
+            "InternalApiKey": []
           }
         ],
         "summary": "记录学习事件",
@@ -24362,7 +24362,7 @@
         },
         "security": [
           {
-            "APIKeyHeader": []
+            "InternalApiKey": []
           }
         ],
         "summary": "批量记录学习事件",
@@ -24461,7 +24461,7 @@
         },
         "security": [
           {
-            "APIKeyHeader": []
+            "InternalApiKey": []
           }
         ],
         "summary": "Memory系统健康检查",
@@ -24622,7 +24622,7 @@
         },
         "security": [
           {
-            "APIKeyHeader": []
+            "InternalApiKey": []
           }
         ],
         "summary": "获取复习建议",
@@ -28070,7 +28070,7 @@
         },
         "security": [
           {
-            "APIKeyHeader": []
+            "InternalApiKey": []
           }
         ],
         "summary": "Batch sync canvas data to Neo4j",
@@ -28183,7 +28183,7 @@
         },
         "security": [
           {
-            "APIKeyHeader": []
+            "InternalApiKey": []
           }
         ],
         "summary": "Sync single node frontmatter relationships → Graphiti edges",
@@ -28297,7 +28297,7 @@
         },
         "security": [
           {
-            "APIKeyHeader": []
+            "InternalApiKey": []
           }
         ],
         "summary": "Full-vault scan + sync frontmatter relationships → Graphiti",
@@ -28355,7 +28355,7 @@
         },
         "security": [
           {
-            "APIKeyHeader": []
+            "InternalApiKey": []
           }
         ],
         "summary": "Sync model configuration from frontend",
@@ -28394,7 +28394,7 @@
         },
         "security": [
           {
-            "APIKeyHeader": []
+            "InternalApiKey": []
           }
         ],
         "summary": "Config Drift Check",
@@ -28432,7 +28432,7 @@
         },
         "security": [
           {
-            "APIKeyHeader": []
+            "InternalApiKey": []
           }
         ],
         "summary": "Get error classification aggregation",
@@ -28546,7 +28546,7 @@
         },
         "security": [
           {
-            "APIKeyHeader": []
+            "InternalApiKey": []
           }
         ],
         "summary": "Query extraction records for human review",
@@ -28606,7 +28606,7 @@
         },
         "security": [
           {
-            "APIKeyHeader": []
+            "InternalApiKey": []
           }
         ],
         "summary": "Soft-delete an extraction record",
@@ -28674,7 +28674,7 @@
         },
         "security": [
           {
-            "APIKeyHeader": []
+            "InternalApiKey": []
           }
         ],
         "summary": "Update extraction record content",
@@ -28744,7 +28744,7 @@
         },
         "security": [
           {
-            "APIKeyHeader": []
+            "InternalApiKey": []
           }
         ],
         "summary": "Submit human annotation for extraction record",
@@ -28804,7 +28804,7 @@
         },
         "security": [
           {
-            "APIKeyHeader": []
+            "InternalApiKey": []
           }
         ],
         "summary": "Reset annotation for an extraction record",
@@ -28843,7 +28843,7 @@
         },
         "security": [
           {
-            "APIKeyHeader": []
+            "InternalApiKey": []
           }
         ],
         "summary": "System Health Check",
@@ -28881,7 +28881,7 @@
         },
         "security": [
           {
-            "APIKeyHeader": []
+            "InternalApiKey": []
           }
         ],
         "summary": "Detailed Health Check",
@@ -28997,7 +28997,7 @@
         },
         "security": [
           {
-            "APIKeyHeader": []
+            "InternalApiKey": []
           }
         ],
         "summary": "Get LLM usage statistics",
@@ -29036,7 +29036,7 @@
         },
         "security": [
           {
-            "APIKeyHeader": []
+            "InternalApiKey": []
           }
         ],
         "summary": "Get pipeline health indicators",
@@ -29075,7 +29075,7 @@
         },
         "security": [
           {
-            "APIKeyHeader": []
+            "InternalApiKey": []
           }
         ],
         "summary": "Get QA quality metrics",
@@ -29134,7 +29134,7 @@
         },
         "security": [
           {
-            "APIKeyHeader": []
+            "InternalApiKey": []
           }
         ],
         "summary": "Setup Wizard",
@@ -29172,7 +29172,7 @@
         },
         "security": [
           {
-            "APIKeyHeader": []
+            "InternalApiKey": []
           }
         ],
         "summary": "Startup Health Check",
@@ -29230,7 +29230,7 @@
         },
         "security": [
           {
-            "APIKeyHeader": []
+            "InternalApiKey": []
           }
         ],
         "summary": "Test LLM connection",
@@ -29471,6 +29471,71 @@
         "summary": "Save a derivation relation reason to Graphiti (P4)",
         "tags": [
           "Tips"
+        ]
+      }
+    },
+    "/api/v1/traces/dead-letter-backlog": {
+      "get": {
+        "description": "Read-only snapshot of every Neo4j-degradation staging file: how many entries are waiting, how old the oldest one is, and how much has been rotated out to .overflow.* siblings by the write-side bound. `backlog` is a line count and only applies to JSONL chains; the two whole-JSON chains report `size_bytes`/`mtime` instead and leave `backlog`/`oldest`/`newest` null. `oldest`/`newest` are the `timestamp` fields of the first/last parsable entry, not file mtimes. `backlog` counts the ACTIVE file only — rotated entries are counted separately as `overflow_files`/`overflow_bytes`. PARTIAL READS ARE FLAGGED, NOT SILENTLY ZEROED: any chain whose overflow scan, stat, line count, or timestamp scan degraded carries `partial: true` plus machine-readable reasons in `degraded` (e.g. `overflow_scan:PermissionError`, `timestamp_scan:size_capped`). The top level then reports `incomplete: true` and lists `degraded_chains`. When `incomplete` is true, `total_backlog` is a LOWER BOUND, not the real figure — do not render it as 'nothing is queued'. Files larger than CLS_BACKLOG_SCAN_MAX_BYTES skip the timestamp scan entirely. Purely read-only: this endpoint never rotates, deletes, or replays anything.",
+        "operationId": "get_dead_letter_backlog_api_v1_traces_dead_letter_backlog_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Dead Letter Backlog Api V1 Traces Dead Letter Backlog Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "500": {
+            "description": "Trace query error"
+          }
+        },
+        "summary": "Neo4j fallback backlog snapshot",
+        "tags": [
+          "Traces"
+        ]
+      }
+    },
+    "/api/v1/traces/replay-fallbacks": {
+      "post": {
+        "description": "Manually trigger replay of the Neo4j degradation fallback files (failed_writes / canvas_events / learning_memories) back into Neo4j. Startup already replays automatically when Neo4j is up (app/main.py); this endpoint covers recovery that happens mid-run, when the process is past its startup window. failed_writes and canvas_events entries are removed from their file once replayed, so a second call reports recovered=0 for those two. learning_memories is deliberately NOT rotated (the runtime still queries it), so that chain is replayed in full on every call — idempotent in the graph (MERGE + SET only) but its recovered count does not drop to zero. NOTE: a chain's `pending` may be -1, meaning the remaining count is UNKNOWN (the file could not be read, or finalize could not complete); such a chain also carries an `error` field. Clients aggregating `pending` must skip negative values instead of summing them. Requires the X-CLS-Internal-Key header.",
+        "operationId": "replay_fallbacks_api_v1_traces_replay_fallbacks_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Replay Fallbacks Api V1 Traces Replay Fallbacks Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Invalid or missing internal API key"
+          },
+          "500": {
+            "description": "Trace query error"
+          },
+          "503": {
+            "description": "Internal API key not configured (production fail-closed)"
+          }
+        },
+        "security": [
+          {
+            "InternalApiKey": []
+          }
+        ],
+        "summary": "Replay Neo4j fallback backlog",
+        "tags": [
+          "Traces"
         ]
       }
     },
