@@ -1,0 +1,12 @@
+=== 负控④ (r3) 三态映射还原成 r1 旧公式 → 门① 必红 ===
+跑前 shasum: 6af3983d0816e28b5be1abd063fe7bad185435205ac1156ee4dc1de27f726c8d  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t3-review/backend/app/api/v1/endpoints/review_overview.py
+NEGCTL-4 已注入（还原成 r1 旧公式）
+变异态 shasum: 2f815eb453e1b62c9f2a4c4a3c2d53dda7a246712f513924d864e99f0e19b0f7  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t3-review/backend/app/api/v1/endpoints/review_overview.py
+collected 1 item
+    assert e_stale["push_degraded"] is False, "读到 pushed 就是成功, 不许被非空 last_error 翻成降级"
+E   AssertionError: 读到 pushed 就是成功, 不许被非空 last_error 翻成降级
+E   assert True is False
+FAILED tests/unit/test_review_overview.py::test_overview_push_degraded_false_when_pushed
+======================== 1 failed, 10 warnings in 1.16s ========================
+跑后 shasum: 6af3983d0816e28b5be1abd063fe7bad185435205ac1156ee4dc1de27f726c8d  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t3-review/backend/app/api/v1/endpoints/review_overview.py
+rc=0

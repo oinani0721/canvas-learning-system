@@ -1,0 +1,20 @@
+=== ruff 验伪锚: 用 --stdin-filename 喂一个已知违规内容(不落盘), 判据必须 rc=1 ===
+--- backend/** 实际启用的规则 (证明锚点选在**启用**的规则上, 不是 F401 那种恒不触发的) ---
+linter.rules.enabled = [
+
+--- 锚点内容: 引用未定义名 (F821) ---
+F821 Undefined name `undefined_name_g69b`
+ --> app/_g69b_anchor.py:5:12
+  |
+4 | def _anchor():
+5 |     return undefined_name_g69b + os.sep
+  |            ^^^^^^^^^^^^^^^^^^^
+  |
+
+Found 1 error.
+锚 ruff rc=1  (期望 1)
+
+--- 对照组: 同一跑法喂本卡生产文件真实内容, 期望 rc=0 ---
+All checks passed!
+对照 ruff rc=0  (期望 0)
+rc=0

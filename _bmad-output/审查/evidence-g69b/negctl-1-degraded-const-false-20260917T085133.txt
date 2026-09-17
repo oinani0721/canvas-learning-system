@@ -1,0 +1,13 @@
+=== 负控① 把 _read_push_status 的 degraded 恒改为 False → 门② 必红 ===
+跑前 shasum: 493eda89af340d20ef6bc21a9a153edbf774bfa0c75dc273cd103885117e6f99  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t3-review/backend/app/api/v1/endpoints/review_overview.py
+变异已注入 NEGCTL-1
+变异态 shasum: e67063df771acad11b5c863c661c35c8b4cac210a637649ca09eb4f1e61f2282  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t3-review/backend/app/api/v1/endpoints/review_overview.py
+collected 1 item
+______________ test_overview_push_degraded_true_when_push_failed _______________
+tests/unit/test_review_overview.py:4689: in test_overview_push_degraded_true_when_push_failed
+    assert entry["push_degraded"] is True, "推失败必须是 True"
+E   AssertionError: 推失败必须是 True
+FAILED tests/unit/test_review_overview.py::test_overview_push_degraded_true_when_push_failed
+======================== 1 failed, 10 warnings in 1.05s ========================
+跑后 shasum: 493eda89af340d20ef6bc21a9a153edbf774bfa0c75dc273cd103885117e6f99  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t3-review/backend/app/api/v1/endpoints/review_overview.py
+rc=0

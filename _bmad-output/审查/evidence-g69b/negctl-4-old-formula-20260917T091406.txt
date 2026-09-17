@@ -1,0 +1,17 @@
+=== 负控④ 把三态映射还原成 Codex r1 指出的旧公式 → 门①③ 必红 ===
+（证明本轮新加的断言不是空门：它们在修复前的代码上确实会红）
+跑前 shasum: 66bc9348a3aee0c724ad8c8280c824fba59509d6a6415d4f872923a0162d21e0  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t3-review/backend/app/api/v1/endpoints/review_overview.py
+变异已注入 NEGCTL-4（三态映射回退为 r1 旧公式）
+变异态 shasum: a17753e4771ba04873cdf41bb10991743cc8f082e276eea916120ca70136fd8e  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t3-review/backend/app/api/v1/endpoints/review_overview.py
+collected 2 items
+    assert e_stale["push_degraded"] is False, "读到 pushed 就是成功, 不许被非空 last_error 翻成降级"
+E   AssertionError: 读到 pushed 就是成功, 不许被非空 last_error 翻成降级
+E   assert True is False
+    assert e3["push_degraded"] is None, "last_result 为 null 时没有确认过成功, 不许报 False"
+E   AssertionError: last_result 为 null 时没有确认过成功, 不许报 False
+E   assert False is None
+FAILED tests/unit/test_review_overview.py::test_overview_push_degraded_false_when_pushed
+FAILED tests/unit/test_review_overview.py::test_overview_push_status_null_when_no_state
+======================== 2 failed, 10 warnings in 1.16s ========================
+跑后 shasum: 66bc9348a3aee0c724ad8c8280c824fba59509d6a6415d4f872923a0162d21e0  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t3-review/backend/app/api/v1/endpoints/review_overview.py
+rc=0

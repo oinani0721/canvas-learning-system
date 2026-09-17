@@ -1,0 +1,43 @@
+# CARD-G6-9b 负控①~⑤ 的变异源码（r3 轮实际使用的那五段）
+#
+# 入档理由: Codex r3 指出「负控⑤ 的精确变异源码与运行记录不在指定读取面内, 因此
+# 那一项是条件性推导」。该意见成立 —— 负控的可信度取决于「变异到底改了什么」,
+# 只写『已注入』等于让复核者相信我的转述。五段一并落档, 复核者可逐字复现。
+#
+# 跑法: 每段在 ( … ) 子 shell 里跑, cp 快照 + trap 'cp 快照 回去' EXIT 无条件还原,
+# 跑前/跑后 shasum -a 256 逐字比对(各存档内三行 sha 齐)。变异目标恒为
+# backend/app/api/v1/endpoints/review_overview.py, 五段都断言锚点唯一(count==1)。
+
+================ 负控1 的变异脚本 ================
+import sys; p=sys.argv[1]; s=open(p,encoding="utf-8").read()
+old='    elif last_result == "generated_push_failed":\n        degraded = True\n'
+new='    elif last_result == "generated_push_failed":\n        degraded = False  # NEGCTL-1\n'
+assert s.count(old)==1, f"锚点不唯一: {s.count(old)}"
+open(p,"w",encoding="utf-8").write(s.replace(old,new)); print("NEGCTL-1 已注入")
+
+================ 负控2 的变异脚本 ================
+import sys; p=sys.argv[1]; s=open(p,encoding="utf-8").read()
+old='    if entry.get("push_degraded") is True:\n'; new='    if True:  # NEGCTL-2\n'
+assert s.count(old)==1; open(p,"w",encoding="utf-8").write(s.replace(old,new)); print("NEGCTL-2 已注入")
+
+================ 负控3 的变异脚本 ================
+import sys; p=sys.argv[1]; s=open(p,encoding="utf-8").read()
+old='        # 同等对待 —— 两者在用户那里是同一件事: 今天的推送根本没发生。\n        return (None, None)\n'
+new='        # 同等对待 —— 两者在用户那里是同一件事: 今天的推送根本没发生。\n        return (False, "")  # NEGCTL-3\n'
+assert s.count(old)==1; open(p,"w",encoding="utf-8").write(s.replace(old,new)); print("NEGCTL-3 已注入")
+
+================ 负控4 的变异脚本 ================
+import sys; p=sys.argv[1]; s=open(p,encoding="utf-8").read()
+start=s.index('    last_result = st.get("last_result")\n    if last_result == "pushed":')
+end=s.index('    if not isinstance(err, str):', start)
+open(p,"w",encoding="utf-8").write(s[:start] + '    degraded = st.get("last_result") == "generated_push_failed" or bool(err)  # NEGCTL-4 旧公式\n' + s[end:])
+print("NEGCTL-4 已注入（还原成 r1 旧公式）")
+
+================ 负控5 的变异脚本 ================
+import sys; p=sys.argv[1]; s=open(p,encoding="utf-8").read()
+# 只让 null 正确、未知值错误 —— 隔离出门③「未知值」那一条断言
+old='    else:\n        # 未知 / null / 其它值: 说不准。一律 None, 绝不报成功也绝不报失败。\n'
+new='    elif last_result is None:  # NEGCTL-5 只保住 null 那一格\n        return (None, None)\n    else:\n        degraded = False  # NEGCTL-5 未知值冒充成功\n    if False:\n'
+assert s.count(old)==1, f"锚点不唯一: {s.count(old)}"
+open(p,"w",encoding="utf-8").write(s.replace(old,new)); print("NEGCTL-5 已注入")
+

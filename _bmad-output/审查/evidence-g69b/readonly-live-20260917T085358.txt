@@ -1,0 +1,20 @@
+=== 判据8 现网只读 ===
+sentinel: Sep 17 08:43
+现网 review state 目录 = /Users/Heishing/Desktop/canvas/canvas-learning-system/backups (daily_review_run.py:38 REPO + :45 BACKUPS 缺省)
+存在, 文件数=29
+--- 比 sentinel 新的文件数 (期望 0) ---
+0
+--- 验伪锚: find -newer 判据本身有效吗(拿一个必然更新的文件比, 期望 >0) ---
+14
+--- live vault 未被写 (期望 0) ---
+0
+--- 新测试里的 state 写点是否都在 tmp (board_done_env 的 tmp BACKUPS 派生) ---
+4622:    state_file = runner.state_path(vault)
+4694:    sur_state = runner.state_path(sur)
+4724:    assert not runner.state_path(none_vault).exists(), "本例前提 = state 文件不存在"
+4728:    assert not runner.state_path(none_vault).exists(), "只读请求不许把 state 文件建出来"
+4754:    assert not runner.state_path(none_vault).exists(), "缺失态前提 = 该库没有 state 文件"
+--- 新测试零 lancedb / 零绝对路径写点 ---
+0
+rc=1
+# 注: 上面 rc=1 来自本块最后一条 grep -c 的「零命中」(grep 零命中即 rc=1) —— 那正是期望值(新测试里没有 lancedb/绝对路径写点), 不是判据失败。

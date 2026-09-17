@@ -1,0 +1,12 @@
+=== 负控⑤ (新增) 只保住 null 那一格、让未知值冒充成功 → 必须红在门③『未知值』那条断言 ===
+跑前 shasum: 6af3983d0816e28b5be1abd063fe7bad185435205ac1156ee4dc1de27f726c8d  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t3-review/backend/app/api/v1/endpoints/review_overview.py
+NEGCTL-5 已注入
+变异态 shasum: 84d387b754f1b864b5b88c145f12e5e485a3aa3f3c4160a16a6624d06d3996d7  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t3-review/backend/app/api/v1/endpoints/review_overview.py
+collected 1 item
+    assert e4["push_degraded"] is None, "未知 last_result 值不是成功依据"
+E   AssertionError: 未知 last_result 值不是成功依据
+E   assert False is None
+FAILED tests/unit/test_review_overview.py::test_overview_push_status_null_when_no_state
+======================== 1 failed, 10 warnings in 1.15s ========================
+跑后 shasum: 6af3983d0816e28b5be1abd063fe7bad185435205ac1156ee4dc1de27f726c8d  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t3-review/backend/app/api/v1/endpoints/review_overview.py
+rc=0

@@ -1,0 +1,11 @@
+=== 负控③ 把「无 last_result 键」分支从 (None, None) 改成 (False, "") → 门③ 必红 ===
+（即用 False 冒充「没推过」—— 卡文 §三 明令禁止的那种放宽）
+跑前 shasum: 493eda89af340d20ef6bc21a9a153edbf774bfa0c75dc273cd103885117e6f99  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t3-review/backend/app/api/v1/endpoints/review_overview.py
+变异已注入 NEGCTL-3
+变异态 shasum: ad5cf2a813fb78e7187262c40b1b3be21dac450395be766f9b3d1715f0e91aff  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t3-review/backend/app/api/v1/endpoints/review_overview.py
+collected 1 item
+    assert e2["push_degraded"] is None, "无 last_result 键 = 没推过, 与无文件同等对待"
+FAILED tests/unit/test_review_overview.py::test_overview_push_status_null_when_no_state
+======================== 1 failed, 10 warnings in 1.04s ========================
+跑后 shasum: 493eda89af340d20ef6bc21a9a153edbf774bfa0c75dc273cd103885117e6f99  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t3-review/backend/app/api/v1/endpoints/review_overview.py
+rc=0

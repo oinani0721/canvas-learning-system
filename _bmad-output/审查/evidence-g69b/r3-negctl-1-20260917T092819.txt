@@ -1,0 +1,13 @@
+=== 负控① (r3) 失败枚举分支 degraded 恒 False → 门② 必红 ===
+跑前 shasum: 6af3983d0816e28b5be1abd063fe7bad185435205ac1156ee4dc1de27f726c8d  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t3-review/backend/app/api/v1/endpoints/review_overview.py
+NEGCTL-1 已注入
+变异态 shasum: 7ae3db8739fb2154d8e2b85d3075e086f14a2b7dce76e0bab46d2e01a31b686b  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t3-review/backend/app/api/v1/endpoints/review_overview.py
+collected 1 item
+______________ test_overview_push_degraded_true_when_push_failed _______________
+tests/unit/test_review_overview.py:4699: in test_overview_push_degraded_true_when_push_failed
+    assert entry["push_degraded"] is True, "推失败必须是 True"
+E   AssertionError: 推失败必须是 True
+FAILED tests/unit/test_review_overview.py::test_overview_push_degraded_true_when_push_failed
+======================== 1 failed, 10 warnings in 1.17s ========================
+跑后 shasum: 6af3983d0816e28b5be1abd063fe7bad185435205ac1156ee4dc1de27f726c8d  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t3-review/backend/app/api/v1/endpoints/review_overview.py
+rc=0

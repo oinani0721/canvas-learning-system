@@ -1,0 +1,6 @@
+=== (l) 不 push 核 2026-09-17 09:44:16 CST ===
+本地 HEAD = 6361992d2ae01016b55ac48644a63c43ad94cef8
+origin/card/t3-review: 不存在
+upstream: fatal: no upstream configured for branch 'card/t3-review'
+验伪锚(真远端分支 backup/fix-concept-id-identity-unification): 存在
+结论: card/t3-review 在任何 remote 上都不存在 ⇒ 本卡全部 7 个 commit 均未 push。
