@@ -52,7 +52,7 @@
 
 我看到的：这条豁免从开出来那天起就写着「用到某一道关卡为止」，而今天这道关卡就是最后一道。我把它的状态改成了「已关闭」，并且把改动做成一张**待批的单子**交上去，没有自己直接动那份规矩文件。
 
-我感觉：像是终于把一扇一直虚掩着的门关严了。以前每次看到有人说「这个报错是老的，不算」，我心里都要打个问号——**到底哪些是老的、哪些是新的，谁也说不清**。现在这句话不再成立了：往后任何一处对不上，都是这次改动带来的。那种「说不清」的黏糊感没有了，是一种踏实。
+我感觉：像是把一扇一直虚掩着的门推到了该关的位置。但有一点要说清楚（这是审查者帮我纠正的一处措辞）：**关掉的是「随口说一句『那是老问题』就能直接跳过」这条路，不是把那些老问题本身清掉了**。那一批老的排版不一致仍然在，要等后面专门安排的一次统一整理。所以往后再看到不一致，仍然要分辨它是老的还是新的——区别在于，现在**必须分辨、必须拿出证据**，不能一句话带过。那种「反正说不清、干脆放过」的黏糊感没有了，是一种踏实。
 
 **2. 这道关卡本身，我先确认了它真的会拦人**
 
@@ -80,7 +80,8 @@
 4. **协议关闭 ruff-format 过渡只对后续提交生效，历史不追溯。** 本卡未核查历史上带存档跳过格式漂移的 commit，也未产出任何追溯清单。
 5. **D-40 的 462 文件整仓 format 本卡不做**（归第十五批末位主 session 单独一 commit）。本卡未验证「过渡关闭」与「462 文件漂移仍在」两者并存时，下一批改这些文件的卡会不会被门直接拦死——该风险已写进 Codex prompt 问题②请其独立判断。
 6. **(c)⑦ 的逐字子串对照只证明 `python-typecheck 恢复硬禁` 与 D-40 两句未动**，**不**证明 §2.3 内其余文字未被 patch 意外改到。那一面由 ⑤ 的改动行号落点核（实际改动行 = `[67]`）+ `git apply --check` 覆盖，二者都不是逐字节全段对照。
-7. **未证明仓根 `pyrightconfig.json` 在 cwd=`backend/` 下被 pyright 实际读取。** 本卡只按 R-B14-10 与波 0 证据的**同一跑法**复现**同一汇总行**，未验证配置解析机制。(b) 的探针文件在 `/tmp`、不在 include 面内，其报红只证明同一 binary 在跑且能报 error，**不**证明 include 覆盖面正确。
+7. ~~**未证明仓根 `pyrightconfig.json` 在 cwd=`backend/` 下被 pyright 实际读取。**~~ → **已于 Codex r1 后补证，不再是缺口**：同一 `"$P"`、同一 cwd 加 `--verbose` 跑，pyright **自报** `Loading configuration file at <本树仓根>/pyrightconfig.json`（路径含 `card-t8-tools` ⇒ 读的是本树那份），且加 `--verbose` 后汇总行仍为 `0 errors, 80 warnings`。验伪锚：换 cwd 到**树根**跑同一命令 → **rc=4**，配置行与汇总行都拿不到 ⇒ 该判据对 cwd 敏感、非恒真，同时实证了 R-B14-10「在树根跑拿不到同一汇总行」。证据 `evidence-pyright-gate/gate-configfile-proof-*.txt`。
+   **仍未证明的剩余部分**：`pyrightconfig.json` 里 `include` 覆盖面**是否正确**（本卡只证明该配置被加载，未逐条核 include/exclude 语义）；(b) 的探针文件在 `/tmp`、不在 include 面内，其报红只证明同一 binary 在跑且能报 error。
 8. **未证明 lefthook 1.13.6（npx 侧）下 glob / run 行为与 2.1.6 相同**——只在 `/opt/homebrew/bin/lefthook` 2.1.6 上论证。
 9. **「禁相对路径 pyright」这条禁令在本树没有显形点。** 本树 `backend/.venv` 是软链、相对路径能解析到与 `"$P"` **同 inode** 的真 binary ⇒ 本树跑相对路径**不会**假绿。该假绿只在主干树发生，本卡**未**在主干树复现它。绝对路径要求在本树属**纵深防御**（防写法漂移到别的树），不得读作「本树已验证防住了假绿」。
 10. **tests/unit 的 64 条既有红本卡未逐条复核其根因**——只做 nodeid 集合差集证明「本卡未新增」，未判断这 64 条本身是否应该红。
@@ -93,13 +94,48 @@
 |---|---|---|---|
 | 自伤-1 | 归因段的负控用了 `head -n -1`（去掉最后一行） | macOS BSD `head` **不支持负数**，实测报 `illegal line count -- -1`；但重定向已先把文件建成**空文件** ⇒ `diff 空文件 全集` 给出 80 个 `>`，判据「期望 ≥1」**照样通过** = 假绿（它测的是「空集 vs 全集」，不是「少 1 条会不会被发现」） | 改 `sed '$d'`（BSD/GNU 通用）；更正后负控给 1、控制组给 0。两版都留在 `gate-warn-attribution-*.txt` 内可核 |
 | 自伤-2 | tests/unit 提取 nodeid 的口径 `sed -E 's/^(FAILED\|ERROR) //'` | 只剥前缀、**不剥 ` - <msg>` 尾巴**，且本次输出含 ANSI 转义（基线含 ESC 行数 0 / 本次 11）⇒ 同一条 `test_live_vault_enforce_clean` 被当成「1 新增 + 1 消失」 | **跑法不改**（与基线逐字同口径），只更正提取口径：先去 ANSI、再截断 ` - ` 之后。更正后新增 0 / 消失 0 / 交集 64。两版都留在 `unit-diff-*.txt` 内可核 |
-| 自伤-3 | (g) 地盘验伪锚「不加 exclude 的 `git diff` 改动文件数应 ≥1」 | commit **之前**结构上恒空（`git diff HEAD` 看不见未跟踪文件），带不带 `:(exclude)` 都是空 ⇒ 证明不了 exclude 生效 | 标注为空洞锚；commit 前改靠 `git ls-files --others --exclude-standard`（6 vs 0）这条有效锚，commit 后补跑 → 见 §六 |
+| 自伤-3 | (g) 地盘验伪锚「不加 exclude 的 `git diff` 改动文件数应 ≥1」 | commit **之前**结构上恒空（`git diff HEAD` 看不见未跟踪文件），带不带 `:(exclude)` 都是空 ⇒ 证明不了 exclude 生效 | 标注为空洞锚；commit 前改靠 `git ls-files --others --exclude-standard`（6 vs 0）这条有效锚，commit 后已补跑 → `evidence-pyright-gate/territory-postcommit-*.txt`（10 vs 0） |
+| 自伤-4 | Codex prompt 合规自检的验伪锚「本 prompt 里确有 `gpt-` 前缀的模型名（期望 ≥1）」 | 实测 **0** —— 因为本 prompt **正确地没有写任何模型名字面量**，这个「已知正例」是我凭空假设的、并不存在 ⇒ 空洞锚：`grep -cF 旧模型名` 给 0 时，分不清是「确实没写」还是「grep 在本文件上根本命中不了东西」 | 验伪锚的正例须同时满足**独立于被测词** ∧ **已知为真**；我只满足了前者。改用确实存在于该文件的串（`CARD-PYRIGHT-GATE` / `BLOCKER` / `最小读取面`，各 ≥1）+ 反例（`ZZZ-NOT-IN-THIS-FILE` = 0）。证据 `evidence-pyright-gate/prompt-compliance-*.txt` |
 
 ---
 
 ## 六 Codex 与绑定核
 
-（本节在 Codex 审查完成后回填）
+### 6.1 轮次与结论
+
+- **round-1（= 末轮，本卡零代码 ⇒ 1 轮即末轮）**：**BLOCKER 0 / HIGH 0 / MEDIUM 3 / LOW 1**
+- 存档：`_bmad-output/审查/codex-review-CARD-PYRIGHT-GATE.md`（4285 字节，非 0）
+- prompt：`_bmad-output/审查/prompts/codex-prompt-CARD-PYRIGHT-GATE.md`
+- 合规自检：`evidence-pyright-gate/prompt-compliance-*.txt` —— 协议 §2 点名四措辞各 0；旧模型名字面量 0（用变量核）；**该自检的验伪锚初版空洞，已更正**（见 §五 自伤-4）
+- `*.stderr*` **未入库**（`.gitignore` 覆盖），会话头三行已抄进存档首部并**括注行号**
+
+### 6.2 D-15 绑定核（末轮必绑最终 HEAD）
+
+审查绑定 SHA = **`96dc3c496dddfcc603e692e27492a3248f8ab655`**，与本卡最终 HEAD **相同**；Codex 在存档正文里**独立核实**了该 SHA。
+
+```zsh
+git -c core.quotepath=false --no-pager diff --stat --no-color \
+  96dc3c496dddfcc603e692e27492a3248f8ab655 HEAD -- . ':(exclude)_bmad-output'
+# => 空（审后新增的 commit 只含 _bmad-output，代码面零改动）
+```
+
+⇒ **D-15 闭合**：末轮绑最终 HEAD ∧ BLOCKER = 0 ∧ HIGH = 0 ∧ 轮次 1 ≤ 5。
+
+### 6.3 四条意见逐条处置
+
+| 级别 | Codex 意见 | 处置 | 依据 |
+|---|---|---|---|
+| **MEDIUM-1** | 绝对路径 + `test -x` + 正负探针**不能证明根配置实际加载及有效检查范围**，第三种假绿未排除（属证据缺口，不能反推配置未读取） | ✅ **已补证，缺口消除** | 同一 `"$P"`、同一 cwd 加 `--verbose`，pyright **自报** `Loading configuration file at <本树仓根>/pyrightconfig.json`（路径含 `card-t8-tools`）；加 `--verbose` 后汇总行仍 `0 errors, 80 warnings`。验伪锚：换 cwd 到树根跑 → **rc=4**，配置行与汇总行都拿不到 ⇒ 判据对 cwd 敏感、非恒真。证据 `evidence-pyright-gate/gate-configfile-proof-*.txt`。**剩余未证**：`include` 覆盖面本身是否正确（只证明配置被加载，未核 include/exclude 语义）→ 已写回 §四 第 7 条 |
+| **MEDIUM-2** | 新句「恢复硬禁」与旧句仅点名「改动行」的**范围不一致**，留下「被检查文件的未改动处仍有既有漂移」的处置歧义 | ⚠️ **登记不改，移交主 session 裁定** | 卡文 (c)② **逐字规定了**替换句，并明确「末尾『不再允许带存档跳过』= 唯一新锚 `$NEW`，**逐字保留不得改写**，改一个字判据就失锚」。改写它会同时越出卡文授权、打破 ⑥ 的锚。该范围歧义与 D-40（462 文件整仓 format 归第十五批）的交互，应由主 session 在**集成期套用 patch 时**一并裁定 → 已进 §七 台账第 9 条 |
+| **MEDIUM-3** | §八 备查段的探针命令**未保存 pyright 退出码**、未设 `pipefail`，默认 zsh 下末尾 `grep` 成功会让管道返回 0 ⇒ 照抄复现不出标注的 `rc=1`（属复验命令不完整，非历史日志造假） | ✅ **已修** | §八 两条探针命令补 `; echo rc=$pipestatus[1]` 并加注说明；另补入配置加载自证命令与其验伪锚。**承重存档本身的取法一直是对的**（`gate-pyright-*.txt` 内每段末行即 `rc=$pipestatus[1]`），错的只是备查段的转写 |
+| **LOW-1** | 4-B 第 1 段「往后任何一处对不上，都是这次改动带来的」**错误地把取消豁免写成消除了既有漂移** | ✅ **已修** | 该句确为事实错误：462 文件既有漂移仍在（D-40 归第十五批），后续碰到它们报红不能归因为新引入。已改写为「关掉的是『随口说一句那是老问题就能跳过』这条路，**不是**把老问题本身清掉」。⚠️ 说明：协议对 LOW 是**登记不阻断**，此处选择修，是因为 (i) 4-B 是给用户读的、错误表述会直接误导，(ii) 改动落在 `_bmad-output` 内，而绑定判据带 `':(exclude)_bmad-output'` ⇒ **不破坏 6.2 的绑定**，且按 D-32 纯文档尾巴不占轮次 |
+
+### 6.4 Codex 明确背书的项（原文摘要）
+
+- **① patch 没有越界**：Codex 独立逐字节比较确认「只有一处删除、一处新增，实际修改行均为协议第 67 行；ruff 句之外的 U1/U2 记录、typecheck 句、D-40 和尾句全部相同，上下文也匹配活文件」。同时指出作者的子串+落点判据**理论上**可能漏掉同行其它文字的修改，但**当前具体 patch 没有这种修改** —— 该理论缺口已在 §四 第 6 条如实登记。
+- **③ 没有冒领跨车道通过**：确认验收单与 prompt 均把全量门留给主 session。
+- **④ TAIL 处置成立**：确认「没去做，不是做不到」的表述，且本卡「只核不改」的边界不要求另产整目录 patch。
+- **⑤ 三处纠偏没有放宽本卡承诺**：绝对路径要求保留、warnings 不属协议 errors 门限、lefthook 指定块已逐字节核实相同。
 
 ---
 
@@ -108,11 +144,14 @@
 1. **协议 §2.3 ruff-format 462 漂移过渡条款关闭**：patch = `_bmad-output/审查/evidence-pyright-gate/protocol-2.3-close.patch`；`git apply --check` 对 feature 树活文件 rc=0；改动行 = 协议 `:67` 单行，§2.3 区间 `62..70` 内。**待主 session 集成期套用到 feature 树协议**（本卡未在任何树直改）。替换前后逐字原文见 patch 的 `-`/`+` 两行。
 2. **PYRIGHT-TAIL 全清单指向 T8-F census** `_bmad-output/审查/2026-09-13-PYRIGHT-TAIL-census.md`（含 §四「第十五批立卡（行为变化项，D-35：本卡只登记不改）」整节，各自第十五批立卡）。⚠️ 卡文 (e) 表述为「D-35 三条」，实测该文件中**显式带 `D-35` 字样的表行为 2 条**（`T-new-2` / `T14`），§四整节立卡项多于此数 —— **以 census 原文为准，本卡不重抄、不新造数字**。
 3. **D-40**：462 文件整仓 format 归第十五批末位主 session 单独一 commit。本卡关闭的是**过渡条款**，不是做 format。
-4. **Codex 存档路径 + 绑定 SHA**：见 §六（末轮绑 HEAD）。
+4. **Codex 存档路径 + 绑定 SHA**：`_bmad-output/审查/codex-review-CARD-PYRIGHT-GATE.md`（round-1 = 末轮，**BLOCKER 0 / HIGH 0** / MEDIUM 3 / LOW 1），绑定 `96dc3c496dddfcc603e692e27492a3248f8ab655` = 本卡最终 HEAD，代码面 diff 空 ⇒ **D-15 闭合**。首部六行齐（模型 / reasoning_effort / codex 版本三字段实测命中，会话头三行括注行号 L2/L5/L9）。详见 §六。
 5. **本卡 GATE 只在车道树验 0**；**全量跨车道 `pyright app` = 0 由主 session 集成候选树合入门复核**（协议 §1）。
 6. **lefthook 反向依赖盲区（门只查 `{staged_files}`）本批未闭**，本卡只核不改、未出整目录步 patch（理由见 §四 第 2 条）。若主 session 判定需闭，插入点必须在 `PYRIGHT_EXIT=$?`（`:225`）**之后**，不是 `{staged_files}` 行（`:224`）之后 —— 插在 `:224`/`:225` 之间会在 `$PYRIGHT_EXIT` 未赋值时做比较并吞掉 staged 步的 rc = 假绿。
 7. **卡文 T8-G.md 三处与实测不符**（见 §二）：(b) 期望 warnings 81 → 实测 80；(d)③ 期望 `lefthook.yml` 整文件 diff 空 → 实测 212 增 12 删；§〇 称本树无 `backend/.venv/bin/pyright` → 实测存在且与 `"$P"` 同 inode。建议主 session 回填卡文或在复核报告登记。
 8. **卡文 (e) 给的 `find -iname '*evidence-b14*'` 验伪锚在车道树命中 0 行**（该目录只在主干树）= 空洞锚，本卡已换用独立于被测词的已知不存在项。建议后续卡文勿再沿用。
+9. **⚠️ 移交主 session 裁定 —— Codex r1 MEDIUM-2（措辞范围歧义）**：新句「`ruff format --check` 自此**恢复硬禁**」与旧句仅点名「**改动行**的格式漂移」范围不一致，留下「被检查文件的**未改动处**仍有既有漂移」该如何处置的歧义；与 D-40（462 文件整仓 format 归第十五批末位）并存时，下一批改这批文件的卡是否会被门直接拦死，本卡**未验证**。本卡**登记不改**，因为卡文 (c)② 逐字规定了替换句且明确「末尾『不再允许带存档跳过』逐字保留不得改写，改一个字判据就失锚」—— 改写它会同时越出卡文授权并打破 ⑥ 的锚。**请主 session 在集成期套用 patch 时一并裁定**（可选：套用时顺手把范围限定语写明，或在第十五批 D-40 卡里同步收口）。
+10. **Codex 存档正文含 1 处协议 §2 点名措辞**（`codex-review-CARD-PYRIGHT-GATE.md` 正文 ④ 段：「全量扫描**绕过**本次 staged 子集盲区」）。分诊：**我方可控面干净** —— prompt 四措辞 0、存档首部 0（证据 `evidence-pyright-gate/prompt-compliance-*.txt` 与 `archive-compliance-*.txt`）；该命中是 **Codex 自己描述事实的用语**，按协议 §2.1「首部之后接 Codex 正文、正文一字不改」**不得篡改**。登记供主 session 裁定该禁令对「审查者输出」是否适用。
+11. **本卡四处判据自伤已更正并留档**（见 §五）：`head -n -1` 在 BSD 下不支持却因重定向先建空文件而假绿；nodeid 提取口径未剥 ANSI 与消息尾巴；地盘验伪锚 commit 前结构上恒空洞；prompt 合规自检的验伪锚正例凭空假设（不满足「已知为真」）。四条均属**判据侧**问题，无一改变被测对象的结论。
 
 ---
 
@@ -128,8 +167,16 @@ BASE=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/fea
 ( test -x "$P" && echo "pyright ok" || { echo "pyright 缺席"; exit 1; } ); echo rc=$?   # R-B14-11b 子 shell
 ( cd backend && "$P" app 2>&1 | grep -E '^[0-9]+ errors?, ' ; echo rc=$pipestatus[1] )
 # 负控 / 对照输入（⛔ 取数字 grep -oE '^[0-9]+'，不是 grep -c）
-( cd backend && "$P" /tmp/pyright-probe/x.py  2>&1 | grep -E '^[0-9]+ errors?, ' | grep -oE '^[0-9]+' )   # 1，rc=1 为预期
-( cd backend && "$P" /tmp/pyright-probe/ok.py 2>&1 | grep -E '^[0-9]+ errors?, ' | grep -oE '^[0-9]+' )   # 0，rc=0
+# ⛔ rc 必须取 $pipestatus[1]（zsh，= pyright 自身退出码）：末尾 grep 成功会让整条管道返回 0，
+#    直接看 $? 复现不出标注的 rc（Codex r1 MEDIUM-3 指出本节初版漏了这一句，已补）
+( cd backend && "$P" /tmp/pyright-probe/x.py  2>&1 | grep -E '^[0-9]+ errors?, ' | grep -oE '^[0-9]+' ; echo rc=$pipestatus[1] )   # 数字 1，rc=1 为预期
+( cd backend && "$P" /tmp/pyright-probe/ok.py 2>&1 | grep -E '^[0-9]+ errors?, ' | grep -oE '^[0-9]+' ; echo rc=$pipestatus[1] )   # 数字 0，rc=0
+
+# 配置加载自证（补证 Codex r1 MEDIUM-1：证明仓根 pyrightconfig.json 真被读取）
+( cd backend && "$P" --verbose app 2>&1 | grep -iE 'configuration file|pyrightconfig' ; echo rc=$pipestatus[1] )
+#   => Loading configuration file at <本树仓根>/pyrightconfig.json
+# 验伪锚：换 cwd 到树根跑同一命令 -> rc=4、配置行与汇总行都拿不到（实证 R-B14-10 的 cwd 要求）
+( "$P" app 2>&1 | grep -E '^[0-9]+ errors?, ' ; echo rc=$pipestatus[1] )
 
 # (c) 协议 patch —— 只 check 不 apply
 git -C /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev \

@@ -1,0 +1,22 @@
+=== 补证 MEDIUM-1：pyright 实际加载的配置文件（--verbose 自报）===
+# 目的：把「未证明仓根 pyrightconfig.json 在 cwd=backend/ 下被实际读取」从证据缺口变成实证
+# 口径与 GATE 完全一致：同一 $P、同一 cwd=backend/，只多加 --verbose
+# $P = /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/bin/pyright
+
+--- 1) 同 cwd=backend/ 跑 --verbose，抓配置加载行 ---
+Loading configuration file at /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/pyrightconfig.json
+rc=0
+
+--- 2) 同次跑的汇总行（确认加 --verbose 后结论不变）---
+0 errors, 80 warnings, 0 informations
+rc=0
+
+--- 3) 验伪锚：换 cwd 到树根跑，看它加载的配置/结论是否不同（证明 cwd 确实影响、判据非恒真）---
+rc=4
+--- 3b) 树根 cwd 的汇总行 ---
+rc=4
+
+--- 4) 仓根确有该配置文件、backend/ 下没有（R-B14-10 的前提）---
+  ls pyrightconfig.json        : pyrightconfig.json
+  ls backend/pyrightconfig.json: ls: backend/pyrightconfig.json: No such file or directory
+  仓根 pyrightconfig.json sha256: de2143b7c55171725065a178312235239dc5855ee3e264b2a7dee6a4eea11b86

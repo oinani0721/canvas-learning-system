@@ -11,7 +11,7 @@
 3. **lefthook `python-typecheck` 块只核不改**；
 4. **PYRIGHT-TAIL 清单指向前一卡 T8-F 的 census**（不重抄、不新造）。
 
-审查绑定 SHA：`__BIND_SHA__`（本卡 commit，只含 `_bmad-output/**`；前一卡 T8-F 末 commit = `e45c55c74b1f56db9810a3c75befd29278b6f45d`，`B14_BASE` = `081004834e37b1b0253cf81dc7b44e784646c934`）。
+审查绑定 SHA：`96dc3c496dddfcc603e692e27492a3248f8ab655`（本卡 commit，只含 `_bmad-output/**`；前一卡 T8-F 末 commit = `e45c55c74b1f56db9810a3c75befd29278b6f45d`，`B14_BASE` = `081004834e37b1b0253cf81dc7b44e784646c934`）。
 
 **最小读取面（只读这些，不要扩散到全仓）**：
 
