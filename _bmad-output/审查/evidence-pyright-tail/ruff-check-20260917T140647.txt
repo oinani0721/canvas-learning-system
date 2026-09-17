@@ -1,0 +1,17 @@
+### backend/ruff.toml 的 select（决定验伪锚能不能触发）
+10:select = ["E9", "F63", "F7", "F82"]
+
+### step 11 ruff（zsh 数组, 含 exit 整块包 ( … ) 子 shell）
+files=4
+backend/app/dependencies.py backend/app/services/canvas_service.py backend/app/services/exam_service.py backend/app/services/review_service.py
+All checks passed!
+rc=0
+
+### ⛔ 验伪锚修正: 卡文写 F401, 但本仓 select 只含 E9/F63/F7/F82 ⇒ F401 恒不触发 = 假锚
+  F401 探针(未用 import) rc = 0  ← 0 = 该锚在本仓恒不触发
+  F821 探针(未定义名) rc = 1  ← 1 = 判据真能红
+F821 Undefined name `undefined_name_zzz`
+ --> /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.XyciKnhYZh/x/f821_probe.py:2:12
+  |
+1 | def f():
+2 |     return undefined_name_zzz

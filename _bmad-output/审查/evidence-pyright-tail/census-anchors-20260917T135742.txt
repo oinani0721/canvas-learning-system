@@ -1,0 +1,43 @@
+=== T-new-7 learning_context_service search_memories ===
+205:        memories = await lm_client.search_memories(node_id=node_id, limit=MAX_TIPS)  # pyright: ignore[reportCallIssue]
+=== T-new-8 multimodal agentic_rag.embedding ===
+1427:            from agentic_rag.embedding.embedding_service import (  # pyright: ignore[reportMissingImports]
+=== L-3 multimodal Pillow ===
+310:                img.thumbnail((100, 100), Image.Resampling.LANCZOS)
+=== T1 rollback_service src.rollback ===
+124:        from src.rollback import (  # pyright: ignore[reportMissingImports]
+298:        from src.rollback import SnapshotType  # pyright: ignore[reportMissingImports]
+361:        from src.rollback import RollbackType  # pyright: ignore[reportMissingImports]
+=== T3 review.py ignore ===
+191:                model=settings.AI_MODEL_NAME,  # pyright: ignore[reportCallIssue]
+255:    from app.core.config import get_settings  # pyright: ignore[reportMissingImports]
+427:            model=settings.AI_MODEL_NAME,  # pyright: ignore[reportCallIssue]
+1578:        progress_dict = progress.to_dict()  # pyright: ignore[reportAttributeAccessIssue]
+1595:            started_at=progress.started_at,  # pyright: ignore[reportAttributeAccessIssue]  # 同 :1543
+1596:            updated_at=progress.updated_at,  # pyright: ignore[reportAttributeAccessIssue]  # 同 :1543
+=== T6 exception_handlers cast ===
+309:    app.add_exception_handler(CanvasException, cast(ExceptionHandler, canvas_exception_handler))
+310:    app.add_exception_handler(HTTPException, cast(ExceptionHandler, http_exception_handler))
+311:    app.add_exception_handler(RequestValidationError, cast(ExceptionHandler, validation_exception_handler))
+=== T8 neo4j_client cast(LiteralString ===
+616:                result = await session.run(cast(LiteralString, query), params)
+=== T14 provider_factory OPENAI_API_KEY ===
+210:                or getattr(settings, "OPENAI_API_KEY", "")
+256:        # ⚠️ TAIL T14: Settings 没有 OPENAI_API_KEY 字段(config.py 实测 grep=0),
+260:        if hasattr(settings, "OPENAI_API_KEY") and settings.OPENAI_API_KEY:  # pyright: ignore[reportAttributeAccessIssue]
+265:                        api_key=settings.OPENAI_API_KEY,  # pyright: ignore[reportAttributeAccessIssue]  # 见上 T14
+=== T-new-1 wikilink get_source_path ===
+322:            # get_source_path → 本行运行期恒 AttributeError, 被下面的 except Exception
+325:            source = self._vault.get_source_path(note_key)  # pyright: ignore[reportAttributeAccessIssue]
+=== T-new-2 error_classifier misconception_created_at ===
+198:            # misconception_created_at(避 Graphiti 保护属性冲突), 本处仍传旧名。
+=== T-new-3 agent_routing_engine get_litellm_config ===
+556:            # **没有** get_litellm_config → 本行运行期恒 ImportError, 被下面的
+559:            from app.core.litellm_config import get_litellm_config  # pyright: ignore[reportAttributeAccessIssue]
+561:            config = get_litellm_config()
+=== T-new-5 batch_orchestrator reportArgumentType ===
+506:                processed_results.append(result)  # pyright: ignore[reportArgumentType]
+569:                node_results.append(result)  # pyright: ignore[reportArgumentType]
+=== T-new-6 intelligent_parallel agent_type ===
+652:                agent_type=agent_type,  # pyright: ignore[reportArgumentType]
+659:                    result.file_path  # pyright: ignore[reportAttributeAccessIssue]

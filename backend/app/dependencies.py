@@ -1028,11 +1028,8 @@ async def build_batch_processing_deps():
     except Exception as e:
         logger.warning(f"MemoryService not available for batch CanvasService: {e}")
 
-    # 根因在 services/canvas_service.py 的 `canvas_base_path: str = None`(隐式
-    # Optional) —— services/** 归 U1, 本卡不改。U1 修好后本行 ignore 会被
-    # reportUnnecessaryTypeIgnoreComment 自曝, 阶段 2 复核时清理。
     canvas_service = CanvasService(
-        canvas_base_path=canvas_base_path,  # pyright: ignore[reportArgumentType]
+        canvas_base_path=canvas_base_path,
         memory_client=cs_memory_client,
     )
 

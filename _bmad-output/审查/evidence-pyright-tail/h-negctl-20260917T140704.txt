@@ -1,0 +1,24 @@
+### (h) 起点自证（-uno: 本步前新落的 evidence .txt 是 untracked, 不算脏）
+  git status --porcelain -uno | wc -l (期望 0) =        0
+
+### 注入前 shasum
+  f0c21654ac7a53da9ddfe96bd0e33d53c9df37b56b3018c0b6662f43ad91fc49  backend/app/dependencies.py
+
+### 注入一条已知类型错误（返回类型不匹配, basic 模式下是 error 级）
+
+
+def _negctl_type_error_probe(x: int) -> str:
+    """⛔ CARD-PYRIGHT-TAIL 负控临时注入 —— 本行若出现在任何 commit 里即为事故。"""
+    return x
+
+### 注入后 pyright app（期望 >=1 error ⇒ 门非恒 0）
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/app/dependencies.py:1156:5 - warning: Function "_negctl_type_error_probe" is not accessed (reportUnusedFunction)
+1 error, 81 warnings, 0 informations
+
+### 还原（⛔ git show HEAD: + cp, 禁 git checkout / git stash）
+  f0c21654ac7a53da9ddfe96bd0e33d53c9df37b56b3018c0b6662f43ad91fc49  backend/app/dependencies.py
+  ✅ shasum 逐字相同
+
+### 还原后 pyright app（期望回到 0 errors, 80 warnings）
+0 errors, 80 warnings, 0 informations
+  git status --porcelain -uno | wc -l (期望 0) =        0

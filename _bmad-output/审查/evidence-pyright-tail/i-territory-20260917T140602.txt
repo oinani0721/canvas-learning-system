@@ -1,0 +1,20 @@
+### (i)-1 地盘核（⛔ 写法必须 ':(exclude)_bmad-output'）
+ backend/app/dependencies.py            | 5 +----
+ backend/app/services/canvas_service.py | 2 +-
+ backend/app/services/exam_service.py   | 9 ++++++---
+ backend/app/services/review_service.py | 6 +++---
+ pyrightconfig.json                     | 3 +--
+ 5 files changed, 12 insertions(+), 13 deletions(-)
+
+### (i)-2 验伪锚: 去掉 exclude 应多出 _bmad-output/ 路径（期望 >=1）
+0
+
+### (i)-3 不碰 T8-A~E 邻块（期望 0 行）
+       0
+  验伪锚: 同命令换成本卡确改的 pyrightconfig.json 应 >0 =       21
+
+### (i)-4 R-B14-4 约束自证: 非注释 +/- 行（期望恰 2 行, 都是 canvas_base_path 那一对）
+-        canvas_base_path=canvas_base_path,  # pyright: ignore[reportArgumentType]
++        canvas_base_path=canvas_base_path,
+  计数 = 2
+  验伪锚(去掉最后一级 grep -v, 期望 >=1) = 22

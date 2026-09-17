@@ -1,0 +1,43 @@
+### 前提自证: commit 未落地, HEAD 仍 == BASE_F ⇒ 本块必须用工作树形 git diff (不带 HEAD)
+  HEAD = f493a4e170a88b5eb2c4af05b275055d005adfe9
+  BASE_F = f493a4e170a88b5eb2c4af05b275055d005adfe9  相同? YES
+
+### A. 漂移集在 BASE_F 与工作树上逐文件相同（rc 口径, 验伪锚见 ruff-format-drift-preexisting-*.txt）
+  backend/app/dependencies.py                        BASE_F rc=1  工作树 rc=1  同
+  backend/app/services/exam_service.py               BASE_F rc=1  工作树 rc=1  同
+  backend/app/services/canvas_service.py             BASE_F rc=0  工作树 rc=0  同
+  backend/app/services/review_service.py             BASE_F rc=0  工作树 rc=0  同
+
+### B. backend/app/dependencies.py —— ruff format --diff 的漂移行区间
+    漂移 @@ -135,9 +135,7 @@
+    漂移 @@ -205,15 +203,12 @@
+    漂移 @@ -233,10 +228,8 @@
+    漂移 @@ -381,9 +374,7 @@
+    漂移 @@ -509,10 +500,7 @@
+    漂移 @@ -546,9 +534,7 @@
+    漂移 @@ -575,9 +561,7 @@
+    漂移 @@ -809,9 +793,7 @@
+    漂移 @@ -867,9 +849,7 @@
+    漂移 @@ -879,17 +859,12 @@
+    漂移 @@ -947,16 +922,12 @@
+    漂移 @@ -1017,9 +988,7 @@
+    漂移 @@ -1041,9 +1010,7 @@
+    漂移 @@ -1065,9 +1032,7 @@
+### C. backend/app/dependencies.py —— 本卡改动行区间（工作树形, ⛔ 不带 HEAD）
+    改动 @@ -1031,3 +1030,0 @@ async def build_batch_processing_deps():
+    改动 @@ -1035 +1032 @@ async def build_batch_processing_deps():
+
+### B. backend/app/services/exam_service.py —— ruff format --diff 的漂移行区间
+    漂移 @@ -185,9 +185,7 @@
+    漂移 @@ -206,9 +204,7 @@
+    漂移 @@ -228,9 +224,7 @@
+    漂移 @@ -328,9 +322,7 @@
+    漂移 @@ -379,9 +371,7 @@
+    漂移 @@ -393,9 +383,7 @@
+    漂移 @@ -447,9 +435,7 @@
+    漂移 @@ -467,9 +453,7 @@
+### C. backend/app/services/exam_service.py —— 本卡改动行区间（工作树形, ⛔ 不带 HEAD）
+    改动 @@ -80,3 +80,6 @@ class ExamService:
+
+### D. 验伪锚: 上面两条 grep '^@@' 真能命中（对 canvas_service 的本卡改动应有 1 个 hunk）
+1

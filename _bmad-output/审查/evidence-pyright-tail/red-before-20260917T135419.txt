@@ -1,0 +1,15 @@
+### (c) 冗余 ignore 先红 — dependencies.py reportUnnecessaryTypeIgnoreComment 计数（期望 >=1）
+1
+--- 原文诊断行 ---
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/app/dependencies.py:1035:63 - warning: Unnecessary "# pyright: ignore" rule: "reportArgumentType" (reportUnnecessaryTypeIgnoreComment)
+
+### (d) 死配置 src 先红
+grep -cF '"src"' pyrightconfig.json  (期望 2) = 2
+include 面 (承重, 期望 1) = 1
+验伪锚 grep -cF '"backend/app"' (期望 1) = 1
+
+### (e) 注释三处先红 + 验伪锚
+验伪锚 structlog in exam_service.py (期望 >=1) = 2
+review_service '生产零调用方' (期望 2) = 2
+canvas_service '落地路径逐字不变' (期望 1) = 1
+exam_service '模块顶层的猴子补丁挂载' (期望 1) = 1

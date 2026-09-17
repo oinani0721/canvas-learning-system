@@ -1,7 +1,6 @@
 {
   "include": [
     "backend/app",
-    "src",
     "tests"
   ],
   "exclude": [
@@ -45,7 +44,7 @@
   // D-21「禁改 pyrightconfig 关规则」仍成立。
   // ⚠️ 副作用如实记: 解析成功后原本因 Unknown 而被放行的属性访问会
   // 开始报错(本卡实测新冒 6 条, 逐条见验收单), 那是能力增强不是回归。
-  // ⚠️ include 里的 "src" 是死枝(git ls-files src = 0), 本卡只登记不改。
+  // ⚠️ include 原有的 src 死枝已清除(git ls-files src = 0) —— CARD-PYRIGHT-TAIL [第十四批]。
   "extraPaths": [
     "backend/lib"
   ],

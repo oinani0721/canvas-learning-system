@@ -1237,7 +1237,7 @@ class ReviewService:
         # ⛔ 真缺陷(未修, 归 TAIL T-new): CanvasService 无 get_canvas, 真名是 read_canvas
         # (canvas_service.py:616); 全仓无动态挂载 → 真跑到这行必 AttributeError, 且本行
         # 不在任何 try 内(本函数首个 try 在 :1249 之后)。但 generate_verification_canvas
-        # 生产零调用方 —— 全仓唯一 `.generate_verification_canvas(` 在 dependencies.py:301
+        # 未发现直接生产调用(grep + AST 口径), 动态可达性未证 —— 全仓唯一 `.generate_verification_canvas(` 在 dependencies.py:301
         # 的 docstring 示例块内, 端点 review.py:759 是同名但自建实现 —— 仅 15 处 mock 测试
         # 覆盖。改方法名 = 行为变化(从恒崩变可用), 须主 session 裁 ⇒ 本卡只做类型层标注。
         canvas_data = await self.canvas_service.get_canvas(source_canvas_name)  # pyright: ignore[reportAttributeAccessIssue]
@@ -2132,8 +2132,8 @@ class ReviewService:
             # to_node_id / edge_label / edge_id / group_id。此处 4 个 kwarg 名全不存在、
             # 3 个必填未传 → 运行期 TypeError, 且被下方 except 元组里的 TypeError 接住 ⇒
             # 复习关系从来没存进去过, 只留一条 warning(静默降级)。本方法唯一调用方是
-            # generate_verification_canvas(:1371), 后者生产零调用方(见 :1237 注释) ⇒
-            # 传递性零曝光。改 kwarg 名 = 行为变化, 须主 session/U9 裁 ⇒ 本卡只做类型层标注。
+            # generate_verification_canvas(), 后者同样只是未发现直接生产调用(见 :1237 起的注释) ⇒
+            # 传递性曝光面同样未证(不等于零曝光)。改 kwarg 名 = 行为变化, 须主 session/U9 裁 ⇒ 本卡只做类型层标注。
             # ignore 只挂 4 个 kwarg 行: "Arguments missing" 那条诊断的 range 跨整个调用
             # 表达式, 实测任一行内的 ignore 都会连带压住它 ⇒ 本行再挂一条是多余的
             # (ignore 承重门实测: 只留 2138 或只留 2141, 本行那条都不再报)。

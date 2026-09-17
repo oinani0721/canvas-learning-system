@@ -1,0 +1,26 @@
+### MEDIUM-3 决定性判据（第二版）—— 用本卡 (h) 同款安全模式: 临时装回 src → 跑 → git show+cp 还原
+  ⛔ 前一版用 scratchpad + 绝对路径 include 的探针是【空跑】: pyright 报
+     'Ignoring path "..." because it is not relative' ⇒ 两侧 filesAnalyzed 都是 0,
+     那不是「没变化」而是「没跑成」, 该次结果已作废、不作依据。
+
+  还原基准 shasum(当前 HEAD 版) = de2143b7c55171725065a178312235239dc5855ee3e264b2a7dee6a4eea11b86
+
+  -- A. 当前配置(无 src), 不带 path 参数 --
+     汇总: 165 errors, 81 warnings, 0 informations
+     filesAnalyzed = 305
+
+  -- B. 临时把 src 装回 include, 同样不带 path 参数 --
+     已临时装回 src
+       "include": [
+         "backend/app",
+         "src",
+         "tests"
+       ],
+     汇总: 165 errors, 81 warnings, 0 informations
+     filesAnalyzed = 305
+
+  还原后 shasum = de2143b7c55171725065a178312235239dc5855ee3e264b2a7dee6a4eea11b86
+  ✅ 还原逐字相同
+
+  结论: A(无 src) = 305  vs  B(有 src) = 305  ⇒ 相同, src 条目贡献 0 文件
+  git status --porcelain -uno | wc -l (期望 0) =        0

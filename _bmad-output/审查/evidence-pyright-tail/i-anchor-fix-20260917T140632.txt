@@ -1,0 +1,22 @@
+### 卡文原验伪锚为何恒 0（根因: --stat 的路径缩写, 非 quotepath）
+  卡文原式  diff --stat | grep -c '_bmad-output/'            = 0
+  ↑ --stat 把 '_bmad-output/审查/...' 缩写成 '.../xxx'，字面量消失 ⇒ 该锚结构上恒 0，不是「没多出路径」
+
+### 修正后的验伪锚 A: --name-only（不缩写路径）
+  带 exclude 的 _bmad-output 命中数 (期望 0) = 0
+  去掉 exclude 的 _bmad-output 命中数 (期望 >=1) = 13
+
+### 修正后的验伪锚 B: --stat=300（放宽宽度, 关掉缩写）
+  去掉 exclude 的 _bmad-output 命中数 (期望 >=1) = 13
+
+### (i)-1 用 --name-only 复核: 排除 _bmad-output 后恰 5 个文件
+backend/app/dependencies.py
+backend/app/services/canvas_service.py
+backend/app/services/exam_service.py
+backend/app/services/review_service.py
+pyrightconfig.json
+  行数(期望 5) =        5
+
+### 协议 §1 点名的错误写法自证: ':!…' 在本机 git 下会 rc!=0 且 stdout 空（不可用作判据）
+  ':!…' rc=128
+  git 版本 = git version 2.50.1 (Apple Git-155)
