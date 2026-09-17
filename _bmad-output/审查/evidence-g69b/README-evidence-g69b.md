@@ -41,3 +41,35 @@
 **实测结论与卡文预期不符且已归因**：$PREV（T3-B 末 commit）状态下就是
 `0 errors, 82 warnings`，不是批次基线 `08100483` 的 81 —— 那 +1 是
 T3-A/T3-B 带进来的，不是本卡。本卡自身的 warning 身份多重集差集 = 新增 0 / 消失 0。
+
+---
+
+## r2 轮（按 Codex r1 MEDIUM-1 修三态映射后重跑）
+
+| 文件 | 对应判据 | 结论 |
+|---|---|---|
+| `r2-g69b-green-20260917T091307.txt` | ⚠ **名不副实，如实说明**：这一跑名字叫 green 但里面是 `1 failed, 3 passed` | 它是**我自己新加的断言抓到修复不自洽**的那一跑（`push_degraded is None` 却带 `last_error == ""`）。保留作过程证据；不作「改后绿」引用。 |
+| `r2-g69b-green-20260917T091343.txt` | (d) 修复自洽后的四门 | `collected 4 items` / 4 passed / rc=0 ← **这一份才是「改后绿」** |
+| `r2-negctl-1-degraded-const-false-*.txt` | (e)① 重跑（锚点随代码改动重取） | 门② FAILED；sha 前后同 |
+| `r2-negctl-2-badge-unconditional-*.txt` | (e)② 重跑 | 门④ FAILED，红在验伪锚；sha 前后同 |
+| `r2-negctl-3-missing-as-false-*.txt` | (e)③ 重跑 | 门③ FAILED；sha 前后同 |
+| `negctl-4-old-formula-20260917T091406.txt` | **新增负控④**：把三态映射还原成 r1 旧公式 | 门①③ 各红在本轮新加的那条断言上（`True is False` / `False is None`）——证明新断言不是空门；sha 前后同 |
+| `r2-file-after-20260917T091523.txt` | (g) 全文件 | 116 passed / rc=0 |
+| `r2-pyright-close-20260917T091539.txt` | (h) | `0 errors, 82 warnings` |
+| `r2-ruff-20260917T091547.txt` | 判据 5 | `files=2` / All checks passed / rc=0 |
+| `r2-unit-close-20260917T091556.txt` | (i) | 5081 passed；`close.nodeids` 与 `base` / `open` 两个 diff 均空 |
+| `r2-readonly-live-attribution-*.txt` | (j) **归因版** | 见下 |
+
+### (j) 判据口径更正：从「计数」改成「归因」
+
+开工那次（08:53）现网 `find -newer sentinel` 计数为 **0**；r2 收工复核（09:21）变成
+**backups 3 + canvas-vault 2**。逐文件归因后确认**与本卡无关**：作业时间窗跨过了现网
+launchd 的两个档 —— 09:00 `memory-health.log`、09:05 每日复习链（`daily-review.log`
+末行 `[2026-09-17 09:05:07] vault=canvas-vault generate:new push:accepted`，连带写
+`daily-review.canvas-vault.state.json` 与 vault 的 `outputs/今日复习.{md,json}`）。
+
+⚠ **这条判据本身的局限要写清楚**：`find -newer` 抓的是「sentinel 之后**任何人**写的」，
+不是「本卡写的」。0 命中时它是充分的；非 0 时必须逐文件归因，否则无法区分
+「本卡越界写了现网」与「现网自己的定时作业正常跑了」。归因证据见该存档四条：
+runner 自有日志格式、live state 里本卡 11 个测试 vault 名各 0 命中（带验伪锚
+`last_result` = 1 命中）、live state 的真实键集合、两个改动文件里零 live 绝对路径。

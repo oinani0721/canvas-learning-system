@@ -2525,8 +2525,9 @@ def _read_push_status(state_file: Path) -> tuple[bool | None, str | None]:
     在于**三态可区分**:
       True  = 最近一次跑推失败了 (runner 写 last_result="generated_push_failed"
               + last_error="bark-send", scripts/daily_review_run.py:745/:746);
-      False = 最近一次推成功了 (同文件 :739 写 "pushed");
-      None  = 没有 state 文件 / 读不出 / 形状不对 / 从来没推过 (无 last_result 键)。
+      False = 最近一次推成功了 (同文件 :739 写 "pushed") —— **只认这一个枚举**;
+      None  = 没有 state 文件 / 读不出 / 形状不对 / 从来没推过 (无 last_result 键)
+              / last_result 是个既非成功也非已知失败的值 (未知不等于成功)。
 
     ⛔ None 不得用 False 冒充 —— False 说的是"推过, 好着呢"。把"今天根本没跑过"
     显示成那样, 正是本卡要消灭的那种「看起来一切正常」: 用户手机上什么都没收到,
@@ -2548,7 +2549,25 @@ def _read_push_status(state_file: Path) -> tuple[bool | None, str | None]:
         # 同等对待 —— 两者在用户那里是同一件事: 今天的推送根本没发生。
         return (None, None)
     err = st.get("last_error")
-    degraded = st.get("last_result") == "generated_push_failed" or bool(err)
+    # Codex r1 MEDIUM-1: 三态由 last_result 的**明确枚举**决定, 不许由「它不是
+    # 失败」反推出「它是成功」。原写法 `== 失败 or bool(err)` 有两个反面:
+    #   · `{"last_result": null}` / 任何未知值 + 无 err ⇒ 判 False = 报告推成功,
+    #     可我们一次都没确认过它推过 —— 与本函数开头那条「None 不得用 False
+    #     冒充」是同一个缺陷, 只是换了个输入面;
+    #   · `{"last_result": "pushed", "last_error": "陈旧原因"}` ⇒ 判 True =
+    #     给一个好好的库挂假警报, 徽标天天喊狼来了就没人看了。
+    if st.get("last_result") == "pushed":
+        degraded = False
+    elif st.get("last_result") == "generated_push_failed" or bool(err):
+        # 已知失败枚举, **或**未知结果却记下了错误原因 —— 后者是给将来 runner
+        # 新增失败值留的余量: 说不清错在哪, 但它确实记了个错, 不该装没事。
+        degraded = True
+    else:
+        # 未知 / null / 其它值且没有错误记录: 说不准。一律 None, 绝不报成功。
+        # 连带 last_error 也归 None —— 既然结果读不出, 就没资格顺带断言
+        # "而且没有错误"(`""` 正是这个断言)。与「无 last_result 键」那条出口
+        # 同一个形状: 说不准就什么都不说。
+        return (None, None)
     if not isinstance(err, str):
         return (degraded, None)
     try:

@@ -1,0 +1,44 @@
+=== (j) 现网只读 — 收工复核（r2）+ 逐文件归因 ===
+sentinel mtime = 2026-09-17 08:43:39
+
+⚠ 计数判据本身的局限（如实）：find -newer 抓的是「sentinel 之后**任何人**写的」，
+  不是「本卡写的」。开工那次跑（08:53）计数为 0；本次（09:20 后）为 3+2，
+  原因是作业时间窗跨过了现网 launchd 的 09:00 / 09:05 两个档。故本段改用**归因**判据。
+
+--- 变新的文件逐个列出 ---
+2026-09-17 09:00:12  /Users/Heishing/Desktop/canvas/canvas-learning-system/backups/memory-health.log
+2026-09-17 09:05:07  /Users/Heishing/Desktop/canvas/canvas-learning-system/backups/daily-review.canvas-vault.state.json
+2026-09-17 09:05:07  /Users/Heishing/Desktop/canvas/canvas-learning-system/backups/daily-review.log
+2026-09-17 09:05:05  /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/outputs/今日复习.md
+2026-09-17 09:05:05  /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/outputs/今日复习.json
+
+--- 归因证据 1: daily-review.log 末行是 runner 自己的格式与时刻 ---
+[2026-09-17 09:05:07] vault=canvas-vault generate:new push:accepted fallback:-
+
+--- 归因证据 2: live state 里不含本卡任何测试 vault 名（期望全 0）---
+vault-push-ok          0
+vault-push-bad         0
+vault-push-sur         0
+vault-push-none        0
+vault-push-legacy      0
+vault-push-null        0
+vault-push-unknown     0
+vault-push-stale       0
+vault-pa-ok            0
+vault-pb-bad           0
+vault-pc-none          0
+验伪锚（该文件里必然存在的键，证明 grep -cF 在它上面有效）:
+last_result            1
+
+--- 归因证据 3: live state 的 last_result 值（顺带实证本卡三态映射面对的真实数据）---
+last_result = 'pushed'  last_error = ''
+键集合 = ['board_done', 'board_done_sig', 'board_last_recommended', 'last_error', 'last_generate_date', 'last_local_notify_date', 'last_push_accepted_date', 'last_push_kind', 'last_recommend_credit_date', 'last_result', 'next_due_utc', 'payload_sha256', 'schema_version', 'snooze_wake_utc', 'snoozed', 'snoozed_sig']
+
+--- 归因证据 4: 本卡两个改动文件里零 live 路径写点 ---
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t3-review/backend/app/api/v1/endpoints/review_overview.py:0
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t3-review/backend/tests/unit/test_review_overview.py:0
+（两行均为 0 = 生产与测试代码里都没有 live 绝对路径）
+
+结论：5 个变新文件全部归因于现网 launchd 定时作业（09:00 memory-health / 09:05 daily-review），
+      与本卡零关系；本卡的 state 写点全部在 board_done_env 的 tmp BACKUPS 下。
+rc=0

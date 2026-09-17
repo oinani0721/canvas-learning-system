@@ -1,0 +1,13 @@
+=== 负控② (r2 重跑) 徽标条件 is True → 恒真 → 门④ 必红在验伪锚 ===
+跑前 shasum: 66bc9348a3aee0c724ad8c8280c824fba59509d6a6415d4f872923a0162d21e0  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t3-review/backend/app/api/v1/endpoints/review_overview.py
+变异已注入 NEGCTL-2
+变异态 shasum: 09ce077dd71ee029df746d843eb8a0f8e1622c1de9aa8b93e82edbb4748a0f0b  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t3-review/backend/app/api/v1/endpoints/review_overview.py
+collected 1 item
+______________ test_overview_page_degrade_badge_only_when_failed _______________
+tests/unit/test_review_overview.py:4789: in test_overview_page_degrade_badge_only_when_failed
+    assert _PUSH_DEGRADED_LABEL not in cards["vault-pa-ok"], "成功态卡片不许出徽标 (验伪锚)"
+E   AssertionError: 成功态卡片不许出徽标 (验伪锚)
+FAILED tests/unit/test_review_overview.py::test_overview_page_degrade_badge_only_when_failed
+======================== 1 failed, 10 warnings in 1.07s ========================
+跑后 shasum: 66bc9348a3aee0c724ad8c8280c824fba59509d6a6415d4f872923a0162d21e0  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t3-review/backend/app/api/v1/endpoints/review_overview.py
+rc=0

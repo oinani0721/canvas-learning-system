@@ -4667,6 +4667,16 @@ def test_overview_push_degraded_false_when_pushed(board_done_env):
     assert entry["last_error"] == ""
     assert hashlib.sha256(state_file.read_bytes()).hexdigest() == before, "只读请求不许动 state 文件"
 
+    # Codex r1 MEDIUM-1: "pushed" 带着一条陈旧的 last_error 时不许误判成降级。
+    # runner 在 :739 把两个字段**一并**写成 ("pushed", ""), 所以这形状不是它写的;
+    # 但只要读到了 "pushed", 成功就是成功 —— 拿 last_error 非空去翻案, 等于给一个
+    # 好好的库挂假警报, 徽标天天喊狼来了就没人看了。
+    stale = _mk_vault(root, "vault-push-stale", _two_board_projection("vault-push-stale", gen))
+    _push_state(runner, stale, {"schema_version": 1, "last_result": "pushed", "last_error": "陈旧原因"})
+    e_stale = _overview_entry(client, "vault-push-stale")
+    assert e_stale["push_degraded"] is False, "读到 pushed 就是成功, 不许被非空 last_error 翻成降级"
+    assert e_stale["last_error"] == "陈旧原因"
+
 
 def test_overview_push_degraded_true_when_push_failed(board_done_env):
     """(b)② 推失败 → `push_degraded is True` 且 `last_error` 带上原因。
@@ -4735,6 +4745,23 @@ def test_overview_push_status_null_when_no_state(board_done_env):
     assert e2["push_degraded"] is None, "无 last_result 键 = 没推过, 与无文件同等对待"
     assert e2["last_error"] is None
     assert hashlib.sha256(legacy_state.read_bytes()).hexdigest() == before, "只读旧文件不许被顺手升级"
+
+    # 丙 / 丁 (Codex r1 MEDIUM-1): 键在、值却**不是**那两个已知枚举 —— null 与
+    # 未来可能新增的值。⛔ 一律 None, 绝不报 False。只有 "pushed" 这一个枚举有
+    # 资格说"推过, 好着呢"; 拿「它不是失败」推出「它是成功」, 就是换了个输入面的
+    # 同一种伪装。⚠ 丁那条同时锁住：无错误记录的未知值不得靠 `or bool(err)` 之类
+    # 的真值判断滑进 False。
+    null_vault = _mk_vault(root, "vault-push-null", _two_board_projection("vault-push-null", gen))
+    _push_state(runner, null_vault, {"schema_version": 1, "last_result": None, "last_error": ""})
+    e3 = _overview_entry(client, "vault-push-null")
+    assert e3["push_degraded"] is None, "last_result 为 null 时没有确认过成功, 不许报 False"
+    assert e3["last_error"] is None
+
+    unknown_vault = _mk_vault(root, "vault-push-unknown", _two_board_projection("vault-push-unknown", gen))
+    _push_state(runner, unknown_vault, {"schema_version": 1, "last_result": "generated_push_deferred"})
+    e4 = _overview_entry(client, "vault-push-unknown")
+    assert e4["push_degraded"] is None, "未知 last_result 值不是成功依据"
+    assert e4["last_error"] is None
 
 
 def test_overview_page_degrade_badge_only_when_failed(board_done_env):
