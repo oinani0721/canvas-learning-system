@@ -1,0 +1,25 @@
+=== tests 文件 enabled 规则数 (期望非 0) ===
+14
+=== 验伪锚: 生产面同配置路径 (stdin, F821) ===
+F821 Undefined name `undefined_name_t5c`
+ --> backend/app/mcp/tools/infra_tools.py:1:5
+  |
+1 | x = undefined_name_t5c
+  |     ^^^^^^^^^^^^^^^^^^
+  |
+
+Found 1 error.
+anchor_prod_rc=1
+=== 验伪锚: 测试面同配置路径 (stdin, F821) ===
+F821 Undefined name `undefined_name_t5c`
+ --> backend/tests/unit/test_mcp_switch_vault_tool.py:1:5
+  |
+1 | y = undefined_name_t5c
+  |     ^^^^^^^^^^^^^^^^^^
+  |
+
+Found 1 error.
+anchor_test_rc=1
+=== 正控: 真实两文件 (stdin 口径一致性核) ===
+All checks passed!
+real_rc=0

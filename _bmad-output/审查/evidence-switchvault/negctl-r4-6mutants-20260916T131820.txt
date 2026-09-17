@@ -1,0 +1,59 @@
+HEAD       = 3ecf2c5e9e163a3daecc14797a28cdab80d82380
+SHA_BEFORE = 16522d786619406228848eeebfeb396c3d3950558dda9b125985ee6cf9d90d22
+口径: 每组跑整文件两条测试; M 组额外跑 pyright 单文件。
+
+──────── I — 删失败判据的 "error" in payload 一侧 ────────
+pytest_rc=0
+  汇总: 2 passed, 10 warnings in 1.37s 
+  红在 success 断言      = 0
+  红在 has-no-attribute  = 0
+  红在 token 断言        = 0
+  红在逐字比对断言       = 0
+  测试② 出现在失败清单   = 0
+
+──────── J — 删 str(detail) 类型转换 ────────
+pytest_rc=0
+  汇总: 2 passed, 10 warnings in 1.36s 
+  红在 success 断言      = 0
+  红在 has-no-attribute  = 0
+  红在 token 断言        = 0
+  红在逐字比对断言       = 0
+  测试② 出现在失败清单   = 0
+
+K 变异自检(应为 1 = 已改成直接索引): 1
+
+──────── K — 工具照原设计稿改回去(直接索引 payload[vault_name]) 看哪条断言红 ────────
+pytest_rc=1
+  汇总: 1 failed, 1 passed, 10 warnings in 1.45s 
+  红在 success 断言      = 0
+  红在 has-no-attribute  = 0
+  红在 token 断言        = 1
+  红在逐字比对断言       = 0
+  测试② 出现在失败清单   = 0
+
+L 变异是否生效(失败分支的 [:200] 应已去掉): 1
+
+──────── L — 删失败分支的 reason[:200] 截断 (核「截断被①锁住」的声称) ────────
+pytest_rc=1
+  汇总: 1 failed, 1 passed, 10 warnings in 1.54s 
+  红在 success 断言      = 0
+  红在 has-no-attribute  = 0
+  红在 token 断言        = 0
+  红在逐字比对断言       = 1
+  测试② 出现在失败清单   = 0
+
+──────── M — 删 bytes() 后跑 pyright (核「由 pyright 门守」) ────────
+对照组(未变异, 应 0 errors): 0 errors, 1 warning, 0 informations
+变异体 pyright: 1 error, 1 warning, 0 informations
+变异体 pyright 报错行(应指向 json.loads 那一行):
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-bugs/backend/app/mcp/tools/infra_tools.py:66:34 - error: Argument of type "bytes | memoryview[int]" cannot be assigned to parameter "s" of type "str | bytes | bytearray" in function "loads"
+1 error, 1 warning, 0 informations
+
+──────── N — mock 形状探针 (核「在任何假返回值上都恒真」) ────────
+⚠️ 本组只在探针进程内 monkeypatch, **不改**仓库任何文件; 测试文件本身仍零 mock。
+Traceback (most recent call last):
+ModuleNotFoundError: No module named 'app'
+
+SHA_AFTER  = 16522d786619406228848eeebfeb396c3d3950558dda9b125985ee6cf9d90d22
+RESTORE_IDENTICAL=True
+MATCHES_HEAD=True

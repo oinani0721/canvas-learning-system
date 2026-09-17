@@ -1,0 +1,53 @@
+════ 绑定自证 ════
+HEAD          = ab99f1303745633875111bc8ef303d52143b4bb0
+PREV(地盘基线) = 6d7eb683f126ec4ae142426ad7be34d33cad0e27
+branch        = card/t5-bugs
+worktree sha256 backend/app/mcp/tools/infra_tools.py = f813f6556c73373f11ef8e3508f1309ae056b9646d0b40bfef748b68147bbbfe
+HEAD blob sha256 backend/app/mcp/tools/infra_tools.py = f813f6556c73373f11ef8e3508f1309ae056b9646d0b40bfef748b68147bbbfe
+worktree sha256 backend/tests/unit/test_mcp_switch_vault_tool.py = 3647ce0aad4841854b6dd5ee827bf30e7a69d2a0fb29dad42c2cd96a96ac87e4
+HEAD blob sha256 backend/tests/unit/test_mcp_switch_vault_tool.py = 3647ce0aad4841854b6dd5ee827bf30e7a69d2a0fb29dad42c2cd96a96ac87e4
+BOUND_TO_HEAD=True  (工作树两文件与 HEAD 逐字相同 ⇒ 下列判据绑定本 HEAD)
+工作树非 _bmad-output 条目数 = 0
+
+════ 门 1: 两条测试(承重, 期望 2 passed / rc=0) ════
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================== 2 passed, 10 warnings in 0.83s ========================
+gate1_rc=0
+
+════ 门 2: pyright app(承重, 期望 0 errors; R-B14-10 cwd=backend) ════
+pyright 绝对路径 = /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/bin/pyright ; test -x = yes
+0 errors, 81 warnings, 0 informations
+单文件: 0 errors, 1 warning, 0 informations
+本卡文件残留 pyright ignore 数(期望 1 = check_backend_health 那条, 非本卡地盘):
+1
+  其中 switch_vault 函数体内的(期望 0):
+0
+
+════ 门 3: ruff(zsh 数组 + 同配置面验伪锚) ════
+files=2
+backend/app/mcp/tools/infra_tools.py
+backend/tests/unit/test_mcp_switch_vault_tool.py
+All checks passed!
+ruff_check_rc=0
+2 files already formatted
+ruff_format_rc=0
+-- 验伪锚(必 rc=1; ⛔ 必须与被判文件同配置面, 放 scratchpad 会落到仓根 ruff.toml 的 enabled=[] 恒绿) --
+anchor_prod_rc=1
+anchor_test_rc=1
+-- 该路径 enabled 规则数(必 >0, 证非空规则集) --
+14
+
+════ 门 4: 地盘核(':(exclude)…' 写法; git 的 --no-color) ════
+ backend/app/mcp/tools/infra_tools.py             | 36 ++++++++--
+ backend/tests/unit/test_mcp_switch_vault_tool.py | 86 ++++++++++++++++++++++++
+ 2 files changed, 115 insertions(+), 7 deletions(-)
+文件数 = 2
+越界(T5 其它卡的面)命中数 = 0
+openapi.json 是否被带进 = 0
+
+════ 门 5: 硬边界 ════
+fsrs_bridge/decay_beta 在本卡两文件的命中数(期望 0) = 0
+零写者 fsrs_bridge.py 相对 PREV 的 diff 行数(期望 0) = 0
+本卡两文件是否含 cast( (期望 0) = 0
+本卡测试是否 mock 掉 _switch (期望 0) = 4

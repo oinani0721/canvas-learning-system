@@ -1,0 +1,12 @@
+=== DD-03 判据(AST 口径) — 承重 ===
+TARGET=backend/tests/unit/test_mcp_switch_vault_tool.py
+AST_MOCK_HITS=0
+GREP_TEXT_HITS=5  (含 docstring 里的反-mock 声明, 故不可作判据)
+ANCHOR_MOCK_HITS=5  (必 >0, 证本判据能抓到真 mock)
+  <anchor>:2 from unittest.mock import ...
+  <anchor>:2 from unittest.mock import AsyncMock
+  <anchor>:4 fixture 形参 monkeypatch in test_anchor()
+  <anchor>:5 调用 monkeypatch.setattr(...)
+  <anchor>:5 调用 AsyncMock(...)
+NO_MOCK_VERDICT=PASS
+probe_rc=0

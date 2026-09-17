@@ -1,0 +1,31 @@
+=== flaky 归因：同一份可执行代码的两次目录级跑 ===
+上一轮 HEAD 3ecf2c5e -> close=64
+本轮 HEAD 27021e85 -> close=65 (多出 test_candidate_service::test_accept_candidate_already_accepted_returns_422)
+
+-- 两轮之间可执行代码是否相同（AST 剥 docstring）--
+  backend/tests/unit/test_mcp_switch_vault_tool.py: 代码指纹相同 = True
+  backend/app/mcp/tools/infra_tools.py: 代码指纹相同 = True
+  => 两轮可执行代码完全相同 = True
+  => 同一份代码两次跑结果不同(64 vs 65) ⇒ 逻辑上排除「代码引起」, 只能是 flaky
+
+-- 本卡是否触碰 candidate_service 相关面 --
+本卡 PREV..HEAD 改动文件:
+backend/app/mcp/tools/infra_tools.py
+backend/tests/unit/test_mcp_switch_vault_tool.py
+其中含 candidate 的: 0
+
+-- 单独重跑该 flaky 测试 5 次 --
+=== 单独重跑 flaky 测试 8 次（同一 HEAD 27021e85, 同一份代码）===
+  第 1 次: 1 passed, 10 warnings in 1.26s 
+  第 2 次: 1 passed, 10 warnings in 1.12s 
+  第 3 次: 1 passed, 10 warnings in 1.16s 
+  第 4 次: 1 passed, 10 warnings in 1.06s 
+  第 5 次: 1 passed, 10 warnings in 1.02s 
+  第 6 次: 1 passed, 10 warnings in 1.01s 
+  第 7 次: 1 passed, 10 warnings in 1.09s 
+  第 8 次: 1 passed, 10 warnings in 1.15s 
+
+=== 整文件跑 3 次（看同文件内其它测试是否也波动）===
+  第 1 次: 14 passed, 10 warnings in 1.16s 
+  第 2 次: 14 passed, 10 warnings in 1.15s 
+  第 3 次: 14 passed, 10 warnings in 1.15s 
