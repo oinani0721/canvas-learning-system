@@ -1509,7 +1509,10 @@ def _final_accounting() -> None:
             # 更新的一份，这里不回写（MEDIUM-4 的陈旧覆盖）。
             _publish_ledger(path, ledger)
         except Exception as exc:  # noqa: BLE001 —— 落盘失败要说话，但不能盖掉结账
-            print(f"*** W4 guard: 账本落盘失败 {path}: {exc!r} ***", file=sys.stderr)
+            try:
+                print(f"*** W4 guard: 账本落盘失败 {path}: {exc!r} ***", file=sys.stderr)
+            except BaseException:  # noqa: BLE001 —— 可观测性不得挡在强制退出前面
+                pass
     unaccounted = ledger["unaccounted"]
     blocked = ledger["blocked"]
     status = ledger["reported_status"]

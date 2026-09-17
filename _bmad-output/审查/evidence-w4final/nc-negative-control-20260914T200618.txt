@@ -1,0 +1,26 @@
+=== 负控段开始 20260914T200618 ===
+--- [1] 变异前 sha（已修状态） ---
+56c589ac66585f3566936bddd2a88708f24f3723db260cfa24ade1570a0fcbc5  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t9-w4/backend/tests/support/live_port_guard.py
+--- [2] 施加负控：删掉 (c) 新加的嵌套保护 ---
+NC mutated ok; 行数 1578 -> 1575
+--- [3] 断言变异体 == HEAD blob（证明负控恰是 (c) 的逆操作） ---
+变异体与 HEAD blob 逐字节相同 = OK
+--- [4] 判据① AST（期望回到恰 1 行 1512 UNPROTECTED） ---
+1512 UNPROTECTED
+1523 protected
+1530 protected
+--- [5] 判据② 三跑（期望 A 回 rc=0） ---
+A ledger=目录 + stderr 坏: rc=0 acct={'blocked': 1, 'unaccounted': 1}
+B 只落盘失败（ledger=目录 + stderr 正常）: rc=3 acct={'blocked': 1, 'unaccounted': 1}
+C 只 stderr 坏（ledger 正常 + stderr 坏）: rc=3 acct={'blocked': 1, 'unaccounted': 1}
+sha-unchanged: True
+PRECOND blocked/unaccounted all 1: True
+A!=B,C: True
+--- [6] 显式还原 ---
+--- [7] 还原后 sha（须与 [1] 逐字同） ---
+56c589ac66585f3566936bddd2a88708f24f3723db260cfa24ade1570a0fcbc5  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t9-w4/backend/tests/support/live_port_guard.py
+--- [8] 还原后复核：AST 应回 0 UNPROTECTED ---
+1513 protected
+1526 protected
+1533 protected
+=== 负控段结束 ===

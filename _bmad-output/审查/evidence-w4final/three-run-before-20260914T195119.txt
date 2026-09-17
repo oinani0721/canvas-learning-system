@@ -1,0 +1,7 @@
+A ledger=目录 + stderr 坏: rc=0 acct={'blocked': 1, 'unaccounted': 1}
+B 只落盘失败（ledger=目录 + stderr 正常）: rc=3 acct={'blocked': 1, 'unaccounted': 1}
+C 只 stderr 坏（ledger 正常 + stderr 坏）: rc=3 acct={'blocked': 1, 'unaccounted': 1}
+sha-unchanged: True
+PRECOND blocked/unaccounted all 1: True
+A!=B,C: True
+rc=0
