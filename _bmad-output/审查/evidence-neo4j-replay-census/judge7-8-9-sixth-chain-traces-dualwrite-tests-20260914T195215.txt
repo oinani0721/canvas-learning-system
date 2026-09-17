@@ -1,0 +1,167 @@
+=== JUDGE-7 第六条链 failed_dual_writes.jsonl 普查  2026-09-14T19:52:15+0800 ===
+--- 7a 全量 'failed_dual_writes'
+backend/app/core/failure_counters.py:28:    Path(__file__).parent.parent.parent / "data" / "failed_dual_writes.jsonl"
+backend/tests/e2e/test_epic36_integration.py:337:        assert DUAL_WRITE_DEAD_LETTER_PATH.name == "failed_dual_writes.jsonl"
+backend/tests/unit/test_failure_observability.py:122:        dl_path = tmp_path / "failed_dual_writes.jsonl"
+backend/tests/unit/test_failure_observability.py:336:        dl_path = tmp_path / "failed_dual_writes.jsonl"
+rc=0  行数=4
+--- 非测试
+backend/app/core/failure_counters.py:28:    Path(__file__).parent.parent.parent / "data" / "failed_dual_writes.jsonl"
+非测试行数=1
+
+--- 7b DUAL_WRITE_DEAD_LETTER_PATH 使用面（写侧在哪）
+backend/app/core/failure_counters.py:27:DUAL_WRITE_DEAD_LETTER_PATH: Path = (
+backend/tests/e2e/test_epic36_integration.py:332:            DUAL_WRITE_DEAD_LETTER_PATH,
+backend/tests/e2e/test_epic36_integration.py:337:        assert DUAL_WRITE_DEAD_LETTER_PATH.name == "failed_dual_writes.jsonl"
+backend/tests/e2e/test_epic36_integration.py:339:        assert "data" in str(DUAL_WRITE_DEAD_LETTER_PATH)
+backend/tests/unit/test_failure_observability.py:338:            patch("app.services.memory_service.DUAL_WRITE_DEAD_LETTER_PATH", dl_path),
+rc=0
+
+--- 7c increment_dual_write_failures / _dual_write_failure_count 使用面
+backend/app/core/failure_counters.py:21:_dual_write_failure_count: int = 0
+backend/app/core/failure_counters.py:40:def increment_dual_write_failures() -> int:
+backend/app/core/failure_counters.py:42:    global _dual_write_failure_count
+backend/app/core/failure_counters.py:44:        _dual_write_failure_count += 1
+backend/app/core/failure_counters.py:45:        return _dual_write_failure_count
+backend/app/core/failure_counters.py:57:        return _dual_write_failure_count
+backend/app/core/failure_counters.py:62:    global _edge_sync_failure_count, _dual_write_failure_count
+backend/app/core/failure_counters.py:66:            "dual_write_failures": _dual_write_failure_count,
+backend/app/core/failure_counters.py:69:        _dual_write_failure_count = 0
+rc_gitgrep=0
+
+--- 7d failure_counters.py 全文行数与全部公开函数
+     126 backend/app/core/failure_counters.py
+20:_edge_sync_failure_count: int = 0
+21:_dual_write_failure_count: int = 0
+24:EDGE_SYNC_DEAD_LETTER_PATH: Path = (
+27:DUAL_WRITE_DEAD_LETTER_PATH: Path = (
+32:def increment_edge_sync_failures() -> int:
+40:def increment_dual_write_failures() -> int:
+48:def get_edge_sync_failures() -> int:
+54:def get_dual_write_failures() -> int:
+60:def reset_counters() -> dict:
+73:def write_dead_letter(
+
+=== JUDGE-8 /traces 暴露面（T6-C 前置：哪些链已暴露、哪些没有） ===
+--- traces.py :1-45 原文
+"""Trace query endpoint: aggregate all logs by request_id.
+
+GET /api/v1/traces/{request_id} returns a timeline of all events
+from bug_log, audit, failed_edge_syncs, and dead_letter.
+"""
+
+import json
+import logging
+from pathlib import Path
+from typing import Any, Dict, List
+
+from fastapi import APIRouter
+
+logger = logging.getLogger(__name__)
+router = APIRouter()
+
+DATA_DIR = Path(__file__).parent.parent.parent.parent / "data"
+LOGS_DIR = Path(__file__).parent.parent.parent.parent / "logs"
+
+LOG_FILES = {
+    "bug_log": DATA_DIR / "bug_log.jsonl",
+    "failed_edge_syncs": DATA_DIR / "failed_edge_syncs.jsonl",
+    "dead_letter_episodes": DATA_DIR / "dead_letter_episodes.jsonl",
+    "audit": LOGS_DIR / "audit.jsonl",
+}
+
+
+def _search_jsonl(file_path: Path, request_id: str) -> List[Dict[str, Any]]:
+    """Search a JSONL file for entries matching request_id."""
+    results: List[Dict[str, Any]] = []
+    if not file_path.exists():
+        return results
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                    if entry.get("request_id") == request_id:
+                        results.append(entry)
+                except json.JSONDecodeError:
+                    continue
+    except Exception as e:
+
+--- 8b traces.py 是否提到 failed_writes / canvas_events_fallback / neo4j_memory / failed_dual_writes
+rc=1  (1=四者全未暴露)
+--- 验伪锚：traces.py 含已知暴露的 'failed_edge_syncs' 必命中
+4:from bug_log, audit, failed_edge_syncs, and dead_letter.
+22:    "failed_edge_syncs": DATA_DIR / "failed_edge_syncs.jsonl",
+rc=0
+
+=== JUDGE-9 两条名字矛盾的双写默认值测试 ===
+--- 9a test_epic36_integration.py :310-340
+# ============================================================================
+
+
+class TestConfigurationDefaults:
+    """Test that configuration defaults are correct (AC-36.12.10)."""
+
+    def test_enable_graphiti_json_dual_write_default_true(self, monkeypatch):
+        """ENABLE_GRAPHITI_JSON_DUAL_WRITE defaults to True (AC-36.12.10)."""
+        from app.config import Settings
+
+        # Remove env var so Pydantic uses the field default
+        monkeypatch.delenv("ENABLE_GRAPHITI_JSON_DUAL_WRITE", raising=False)
+        s = Settings(
+            GEMINI_API_KEY="test-key",
+            _env_file=None,
+        )
+        # AC-36.12.10: default=True for Neo4j-offline resilience (config.py:419)
+        assert s.ENABLE_GRAPHITI_JSON_DUAL_WRITE is True
+
+    def test_dead_letter_paths_exist(self):
+        """Dead-letter file paths are correctly configured."""
+        from app.core.failure_counters import (
+            DUAL_WRITE_DEAD_LETTER_PATH,
+            EDGE_SYNC_DEAD_LETTER_PATH,
+        )
+
+        assert EDGE_SYNC_DEAD_LETTER_PATH.name == "failed_edge_syncs.jsonl"
+        assert DUAL_WRITE_DEAD_LETTER_PATH.name == "failed_dual_writes.jsonl"
+        assert "data" in str(EDGE_SYNC_DEAD_LETTER_PATH)
+        assert "data" in str(DUAL_WRITE_DEAD_LETTER_PATH)
+
+--- 9b test_story_38_4_dual_write_default.py :45-75
+        field_info = Settings.model_fields["ENABLE_GRAPHITI_JSON_DUAL_WRITE"]
+        assert field_info.default is False, (
+            f"Expected default=False ([DEPRECATED] since daa9fd37), got default={field_info.default}. "
+            f"若此处变红，说明生产默认被改回 True——请先确认是产品裁定而非回归"
+        )
+
+    def test_lowercase_alias_returns_false_by_default(self):
+        """
+        [P0] The lowercase property alias also reflects the False default.
+
+        Verifies: config.py enable_graphiti_json_dual_write property
+        """
+        from app.config import Settings
+
+        env_copy = os.environ.copy()
+        env_copy.pop("ENABLE_GRAPHITI_JSON_DUAL_WRITE", None)
+
+        with patch.dict(os.environ, env_copy, clear=True):
+            settings = Settings(_env_file=None)
+            assert settings.enable_graphiti_json_dual_write is False, (
+                "Lowercase property alias should return False by default ([DEPRECATED])"
+            )
+
+    @pytest.mark.asyncio
+    @pytest.mark.xfail(strict=True, reason="59586af1(2026-03-26 refactor(phase2): delete fake bridge/JSON dual-write code, replaced by GraphitiEpisodeWorker) 删掉了 main.py 里 JSON dual-write 的启动日志（现全文已无 Dual-write 字样），本用例断言的那条日志不再存在；836d0986(2026-03-31) 又删掉了 set_session_validator，使本用例在 patch 入口即 AttributeError。设置项 ENABLE_GRAPHITI_JSON_DUAL_WRITE 本身仍在（config.py:477，canvas_service.py:267/:360 仍消费），故不是整条能力消失，只是「启动期播报」这一面被撤。等价覆盖缺口（GraphitiEpisodeWorker 路径的开关可见性）交接 CARD-STORY-38-4-DUALWRITE-RETIREMENT（台账登记）")
+    async def test_startup_log_dual_write_enabled_default(self, caplog):
+        """
+        [P1] Startup log shows "Dual-write: enabled (default)" when enabled
+        via default (no env var set — fresh install scenario).
+
+        Verifies: main.py lifespan() dual-write status log after MemoryService pre-warm
+
+--- 9c 这两个测试文件是否在 64 条红基线中
+rc=1  (1=两者均不在红基线 ⇒ unit 面那条是绿的)

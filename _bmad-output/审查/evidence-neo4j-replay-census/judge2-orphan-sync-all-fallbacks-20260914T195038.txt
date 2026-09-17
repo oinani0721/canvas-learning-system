@@ -1,0 +1,94 @@
+=== JUDGE-2 孤儿 sync_all_fallbacks + 工厂 get_fallback_sync_service 零非测试 call  2026-09-14T19:50:38+0800 ===
+--- 2a 枚举（非测试）: (await |\.)sync_all_fallbacks\(
+backend/app/services/memory_service.py:2690:            Replaced by ``FallbackSyncService.sync_all_fallbacks()`` which handles
+rc_gitgrep=0
+
+--- 2b 枚举（非测试）: get_fallback_sync_service\(
+backend/app/services/fallback_sync_service.py:656:def get_fallback_sync_service() -> FallbackSyncService:
+rc_gitgrep=0
+
+--- 2c 全命中归类（非测试）: 'sync_all_fallbacks'
+backend/app/services/fallback_sync_service.py:53:    async def sync_all_fallbacks(self) -> Dict[str, Any]:
+backend/app/services/memory_service.py:2690:            Replaced by ``FallbackSyncService.sync_all_fallbacks()`` which handles
+rc_gitgrep=0
+
+--- 2d 全命中（含测试）: 'sync_all_fallbacks'
+backend/app/services/fallback_sync_service.py:53:    async def sync_all_fallbacks(self) -> Dict[str, Any]:
+backend/app/services/memory_service.py:2690:            Replaced by ``FallbackSyncService.sync_all_fallbacks()`` which handles
+backend/tests/unit/test_qa_38_6_scoring_reliability_extra.py:453:        assert "sync_all_fallbacks" in source
+backend/tests/unit/test_story_38_8_fallback_sync.py:103:        result = await sync_service.sync_all_fallbacks()
+backend/tests/unit/test_story_38_8_fallback_sync.py:111:        result = await sync_service.sync_all_fallbacks()
+backend/tests/unit/test_story_38_8_fallback_sync.py:154:            result = await sync_service.sync_all_fallbacks()
+backend/tests/unit/test_story_38_8_fallback_sync.py:201:            result = await sync_service.sync_all_fallbacks()
+backend/tests/unit/test_story_38_8_fallback_sync.py:240:            result = await sync_service.sync_all_fallbacks()
+backend/tests/unit/test_story_38_8_fallback_sync.py:288:            result = await sync_service.sync_all_fallbacks()
+backend/tests/unit/test_story_38_8_fallback_sync.py:349:            await sync_service.sync_all_fallbacks()
+backend/tests/unit/test_story_38_8_fallback_sync.py:393:            result = await sync_service.sync_all_fallbacks()
+backend/tests/unit/test_story_38_8_fallback_sync.py:472:            await sync_service.sync_all_fallbacks()
+backend/tests/unit/test_story_38_8_fallback_sync.py:516:            result = await sync_service.sync_all_fallbacks()
+backend/tests/unit/test_story_38_8_fallback_sync.py:554:            await sync_service.sync_all_fallbacks()
+backend/tests/unit/test_story_38_8_fallback_sync.py:706:            await sync_service.sync_all_fallbacks()
+backend/tests/unit/test_story_38_8_fallback_sync.py:746:            await sync_service.sync_all_fallbacks()
+backend/tests/unit/test_story_38_8_fallback_sync.py:785:            await sync_service.sync_all_fallbacks()
+backend/tests/unit/test_story_38_8_fallback_sync.py:874:            result = await sync_service.sync_all_fallbacks()
+backend/tests/unit/test_story_38_8_fallback_sync.py:919:            result = await sync_service.sync_all_fallbacks()
+backend/tests/unit/test_story_38_8_fallback_sync.py:940:            result = await sync_service.sync_all_fallbacks()
+backend/tests/unit/test_story_38_8_fallback_sync.py:967:            result = await sync_service.sync_all_fallbacks()
+backend/tests/unit/test_story_38_8_fallback_sync.py:993:            result = await sync_service.sync_all_fallbacks()
+backend/tests/unit/test_story_38_8_fallback_sync.py:1034:            result = await sync_service.sync_all_fallbacks()
+rc=0
+
+--- 2e 全命中（含测试）: 'get_fallback_sync_service'
+backend/app/services/fallback_sync_service.py:656:def get_fallback_sync_service() -> FallbackSyncService:
+backend/tests/unit/test_qa_38_6_scoring_reliability_extra.py:446:        assert "get_fallback_sync_service" in source
+rc=0
+
+--- 2f 全命中（含测试）: 'fallback_sync_service' 模块名 import 面
+backend/app/domains/canvas/gateway.py:6:包含: canvas_service, sync_service, fallback_sync_service,
+backend/app/domains/canvas/gateway.py:19:from app.services.fallback_sync_service import FallbackSyncService
+backend/app/services/fallback_sync_service.py:656:def get_fallback_sync_service() -> FallbackSyncService:
+backend/app/services/memory_service.py:2693:            called from the startup lifespan. See ``fallback_sync_service.py``.
+backend/scripts/g23_mutation_negative_controls.py:22:FALLBACK = BACKEND / "app/services/fallback_sync_service.py"
+backend/tests/integration/test_cypher_contract_gate.py:20:   (W5 #16)、fallback replay 不合并 (fallback_sync_service:352/458)、
+backend/tests/integration/test_cypher_contract_gate.py:512:    对应 fallback_sync_service._replay_scoring_entry_to_neo4j (原 :352 违规)
+backend/tests/integration/test_cypher_contract_gate.py:517:    from app.services.fallback_sync_service import FallbackSyncService
+backend/tests/unit/test_qa_38_6_scoring_reliability_extra.py:446:        assert "get_fallback_sync_service" in source
+backend/tests/unit/test_story_38_8_fallback_sync.py:16:from app.services.fallback_sync_service import (
+backend/tests/unit/test_story_38_8_fallback_sync.py:153:        with patch.multiple("app.services.fallback_sync_service", **patches):
+backend/tests/unit/test_story_38_8_fallback_sync.py:200:        with patch.multiple("app.services.fallback_sync_service", **patches):
+backend/tests/unit/test_story_38_8_fallback_sync.py:239:        with patch.multiple("app.services.fallback_sync_service", **patches):
+backend/tests/unit/test_story_38_8_fallback_sync.py:287:        with patch.multiple("app.services.fallback_sync_service", **patches):
+backend/tests/unit/test_story_38_8_fallback_sync.py:348:        with patch.multiple("app.services.fallback_sync_service", **patches):
+backend/tests/unit/test_story_38_8_fallback_sync.py:392:        with patch.multiple("app.services.fallback_sync_service", **patches):
+backend/tests/unit/test_story_38_8_fallback_sync.py:471:        with patch.multiple("app.services.fallback_sync_service", **patches):
+backend/tests/unit/test_story_38_8_fallback_sync.py:515:        with patch.multiple("app.services.fallback_sync_service", **patches):
+backend/tests/unit/test_story_38_8_fallback_sync.py:553:        with patch.multiple("app.services.fallback_sync_service", **patches):
+backend/tests/unit/test_story_38_8_fallback_sync.py:705:        with patch.multiple("app.services.fallback_sync_service", **patches):
+backend/tests/unit/test_story_38_8_fallback_sync.py:745:        with patch.multiple("app.services.fallback_sync_service", **patches):
+backend/tests/unit/test_story_38_8_fallback_sync.py:784:        with patch.multiple("app.services.fallback_sync_service", **patches):
+backend/tests/unit/test_story_38_8_fallback_sync.py:857:                # fallback_sync_service 的兜底自该 commit 起只吃
+backend/tests/unit/test_story_38_8_fallback_sync.py:873:        with patch.multiple("app.services.fallback_sync_service", **patches):
+backend/tests/unit/test_story_38_8_fallback_sync.py:918:        with patch.multiple("app.services.fallback_sync_service", **patches):
+backend/tests/unit/test_story_38_8_fallback_sync.py:939:        with patch.multiple("app.services.fallback_sync_service", **patches):
+backend/tests/unit/test_story_38_8_fallback_sync.py:966:        with patch.multiple("app.services.fallback_sync_service", **patches):
+backend/tests/unit/test_story_38_8_fallback_sync.py:992:        with patch.multiple("app.services.fallback_sync_service", **patches):
+backend/tests/unit/test_story_38_8_fallback_sync.py:1033:        with patch.multiple("app.services.fallback_sync_service", **patches):
+rc=0
+
+--- 2g 验伪锚（同法对已知真 call 的工厂 get_memory_service( 非测试）
+backend/app/api/v1/endpoints/archive.py:205:        memory_svc = await get_memory_service()
+backend/app/api/v1/endpoints/chat.py:313:        _mem_svc = await get_memory_service()
+backend/app/api/v1/endpoints/review.py:169:        memory_service = await get_memory_service()
+backend/app/api/v1/endpoints/review.py:298:        memory_service = await get_memory_service()
+backend/app/api/v1/endpoints/tips.py:231:        memory_svc = await get_memory_service()
+backend/app/api/v1/endpoints/tips.py:306:        memory_svc = await get_memory_service()
+backend/app/api/v1/endpoints/tips.py:371:        memory_svc = await get_memory_service()
+backend/app/api/v1/endpoints/tips.py:454:        memory_svc = await get_memory_service()
+backend/app/main.py:163:        memory_svc = await get_memory_service()
+backend/app/mcp/tools/conversation_tools.py:140:        memory_svc = await get_memory_service()
+backend/app/mcp/tools/conversation_tools.py:283:            memory_svc = await get_memory_service()
+backend/app/mcp/tools/memory_tools.py:175:        memory_svc = await get_memory_service()
+backend/app/mcp/tools/memory_tools.py:283:        memory_svc = await get_memory_service()
+backend/app/mcp/tools/memory_tools.py:393:        memory_svc = await get_memory_service()
+backend/app/services/archive_scheduler.py:181:        memory_svc = await get_memory_service()
+rc_gitgrep=0  (非空 = 工厂枚举 grep 非恒空)

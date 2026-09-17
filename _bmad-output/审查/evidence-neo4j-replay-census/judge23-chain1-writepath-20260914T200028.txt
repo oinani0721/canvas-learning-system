@@ -1,0 +1,33 @@
+=== JUDGE-23 链1 写侧完整路径（U11 称 :743 落盘，本卡 census 写 def :475）  2026-09-14T20:00:28+0800 ===
+--- 23a _save_json_data 定义与全部调用点
+backend/app/clients/neo4j_client.py:463:                await self._save_json_data()
+backend/app/clients/neo4j_client.py:475:    async def _save_json_data(self) -> None:
+backend/app/clients/neo4j_client.py:751:        await self._save_json_data()
+backend/app/clients/neo4j_client.py:1778:            await self._save_json_data()
+backend/app/clients/neo4j_client.py:1987:        await self._save_json_data()
+backend/app/clients/neo4j_client.py:2202:            await self._save_json_data()
+backend/app/clients/neo4j_client.py:2341:                await self._save_json_data()
+rc_gitgrep=0
+
+--- 23b _run_query_json_fallback 定义与调用点（非测试）
+backend/app/api/v1/endpoints/health.py:138:    # `RETURN 1 AS ping` to _run_query_json_fallback, which silently no-ops
+backend/app/clients/neo4j_client.py:561:                result = await self._run_query_json_fallback(query, params)
+backend/app/clients/neo4j_client.py:629:                return await self._run_query_json_fallback(query, params)
+backend/app/clients/neo4j_client.py:637:                return await self._run_query_json_fallback(query, params)
+backend/app/clients/neo4j_client.py:643:    async def _run_query_json_fallback(self, query: str, params: Dict[str, Any]) -> List[Dict[str, Any]]:
+backend/app/clients/neo4j_client.py:862:        # ⚠️ 本 handler 是**关键词路由**的落点 (`_run_query_json_fallback`:
+backend/app/clients/neo4j_client.py:2681:        # 在**中途降级**时不生效 —— 那条路走 `_run_query_json_fallback` 的关键词
+rc_gitgrep=0
+
+--- 23c 降级入口（U11 称 :409/:414/:419 初始化失败 / :619-621,:627-629 中途降级）
+328:    def is_fallback_mode(self) -> bool:
+408:                await self._fallback_to_json()
+413:            await self._fallback_to_json()
+418:            await self._fallback_to_json()
+421:    async def _fallback_to_json(self) -> None:
+628:                await self._fallback_to_json()
+636:                await self._fallback_to_json()
+865:        # Cypher 在**中途降级** (`_run_query_neo4j` 重试耗尽 → `_fallback_to_json`)
+
+--- 23d neo4j_client.py 规模
+    2814 backend/app/clients/neo4j_client.py

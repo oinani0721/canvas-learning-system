@@ -1,0 +1,140 @@
+=== JUDGE-16 六链有界性机制实证  2026-09-14T19:53:43+0800 ===
+--- 16a 全仓轮转/上限关键词（非测试，在六链相关文件内）
+### backend/app/clients/neo4j_client.py
+   (rc=0)
+### backend/app/services/episode_worker.py
+107:            "episode_body": self.episode_body[:200],  # truncate for logging
+218:      - Error messages are truncated to 200 chars and redacted.
+   (rc=0)
+### backend/app/services/agent_service.py
+972:            log_data["response_preview"] = self._truncate(str(response))
+1008:    def _truncate(text: str, max_length: Optional[int] = None) -> str:
+1013:            return text[:max_length] + "... [truncated]"
+1893:                    response = response[:3000] + "\n...(truncated)"
+   (rc=0)
+### backend/app/core/failure_counters.py
+   (rc=0)
+### backend/app/services/canvas_service.py
+   (rc=0)
+### backend/app/services/memory_service.py
+2048:            truncated = False
+2069:                    truncated = True
+2071:            if truncated and fail_sink is not None:
+2073:                    f"subgroup enumeration truncated at {_SUBGROUP_HARD_CAP} "
+2786:                    FAILED_WRITES_FILE.unlink(missing_ok=True)
+   (rc=0)
+
+--- 16b 链1 neo4j_memory.json 写入方式（覆写 or 追加）
+54:DEFAULT_STORAGE_PATH = Path(__file__).parent.parent.parent / "data" / "neo4j_memory.json"
+297:        self._storage_path = storage_path or DEFAULT_STORAGE_PATH
+475:    async def _save_json_data(self) -> None:
+
+--- 16c 链5 _write_canvas_event_fallback 全文
+def at :120
+    def _write_canvas_event_fallback(
+        self,
+        event_type: str,
+        canvas_name: str,
+        node_id: Optional[str] = None,
+        edge_id: Optional[str] = None,
+        **kwargs: Any,
+    ) -> None:
+        """
+        Write Canvas event to JSON fallback file.
+
+        Story 38.5 AC-1/AC-2: When memory system is unavailable, persist events
+        to a local JSON file for later recovery.
+
+        Args:
+            event_type: Event type string (e.g., "node_created", "edge_sync")
+            canvas_name: Canvas name or path
+            node_id: Node ID (for node events)
+            edge_id: Edge ID (for edge events)
+            **kwargs: Additional event metadata (from_node_id, to_node_id, etc.)
+        """
+        try:
+            event = {
+                "event_type": event_type,
+                "canvas_name": canvas_name,
+                "node_id": node_id,
+                "edge_id": edge_id,
+                "timestamp": datetime.now().isoformat(),
+                "session_id": self._session_id,
+                **kwargs,
+            }
+
+            # Read existing events or create new list
+            events: List[Dict[str, Any]] = []
+            if self._fallback_file_path.exists():
+                try:
+                    content = self._fallback_file_path.read_text(encoding="utf-8")
+                    data = json.loads(content)
+                    events = data if isinstance(data, list) else data.get("events", [])
+                except (json.JSONDecodeError, KeyError):
+                    events = []
+
+            events.append(event)
+
+--- 16d 链5 回灌成功后是否清理（_sync_canvas_events 全文）
+def at :193
+    async def _sync_canvas_events(self) -> Dict[str, int]:
+        """Replay Canvas CRUD events to Neo4j."""
+        if not CANVAS_EVENTS_FALLBACK_FILE.exists():
+            return {"recovered": 0, "pending": 0}
+
+        try:
+            raw = CANVAS_EVENTS_FALLBACK_FILE.read_text(encoding="utf-8").strip()
+            if not raw:
+                return {"recovered": 0, "pending": 0}
+            events: List[Dict[str, Any]] = json.loads(raw)
+        except (json.JSONDecodeError, OSError) as e:
+            logger.warning(f"[Story 38.8] Cannot parse canvas_events_fallback: {e}")
+            return {"recovered": 0, "pending": 0}
+
+        if not events:
+            return {"recovered": 0, "pending": 0}
+
+        # Sort by timestamp for chronological replay
+        events.sort(key=lambda e: e.get("timestamp", ""))
+
+        checkpoint_idx = self._load_checkpoint("canvas_events")
+        recovered = 0
+        still_pending: List[Dict[str, Any]] = []
+
+        for i, event in enumerate(events):
+            if i < checkpoint_idx:
+                continue
+
+            try:
+                success = await self._replay_canvas_event_to_neo4j(event)
+                if success:
+                    recovered += 1
+                else:
+                    still_pending.append(event)
+            except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
+                logger.warning(f"[Story 38.8] canvas_event replay error: {e}")
+                still_pending.append(event)
+
+            if (i + 1) % _CHECKPOINT_INTERVAL == 0:
+                self._save_checkpoint("canvas_events", i + 1)
+
+        # Finalize
+        if still_pending:
+            self._atomic_write_file(
+                CANVAS_EVENTS_FALLBACK_FILE,
+                json.dumps(still_pending, ensure_ascii=False, indent=2),
+            )
+        else:
+            self._rotate_file(CANVAS_EVENTS_FALLBACK_FILE)
+
+        self._clear_checkpoint("canvas_events")
+        self._cleanup_old_synced_files(
+            CANVAS_EVENTS_FALLBACK_FILE.parent,
+            CANVAS_EVENTS_FALLBACK_FILE.stem,
+        )
+
+        return {"recovered": recovered, "pending": len(still_pending)}
+
+    # ─────────────────────────────────────────────────────────────────────
+    # 3. learning_memories.json sync
+    # ─────────────────────────────────────────────────────────────────────

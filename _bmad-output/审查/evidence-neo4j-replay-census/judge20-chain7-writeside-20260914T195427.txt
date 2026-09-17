@@ -1,0 +1,122 @@
+=== JUDGE-20 链7 learning_memories 写侧 + checkpoint 基础设施  2026-09-14T19:54:27+0800 ===
+--- 20a neo4j_edge_client.py :38-60（链7 路径常量上下文）
+    from .neo4j_client import Neo4jClient
+
+logger = logging.getLogger(__name__)
+
+# Storage path for learning memories (LearningMemoryClient - independent)
+LEARNING_MEMORY_PATH = (
+    Path(__file__).parent.parent.parent / "data" / "learning_memories.json"
+)
+
+# Re-export EdgeRelationship for backward compatibility
+__all__ = [
+    "EdgeRelationship",
+    "Neo4jEdgeClient",
+    "Neo4jEdgeClientAdapter",
+    "get_neo4j_edge_client",
+    "get_legacy_edge_client",  # Deprecated alias
+    "reset_neo4j_edge_client",
+    "LearningMemory",
+    "LearningMemoryClient",
+    "get_learning_memory_client",
+    "reset_learning_memory_client",
+    # Backward compat aliases (S34 G-FAKE-001) — remove after full migration
+    "GraphitiEdgeClient",
+
+--- 20b 该常量名与写入面
+43:LEARNING_MEMORY_PATH = (
+775:        self._storage_path = storage_path or LEARNING_MEMORY_PATH
+779:        logger.debug(f"LearningMemoryClient initialized: storage={self._storage_path}")
+792:            self._storage_path.parent.mkdir(parents=True, exist_ok=True)
+794:            if self._storage_path.exists():
+795:                with open(self._storage_path, "r", encoding="utf-8") as f:
+809:                logger.info(f"Created new memory storage: {self._storage_path}")
+820:            from app.utils.atomic_io import atomic_write_json_async
+822:            await atomic_write_json_async(
+823:                self._storage_path, self._data, indent=2, ensure_ascii=False
+1018:            "storage_path": str(self._storage_path),
+
+--- 20c LearningMemoryClient 类与写方法
+68:class Neo4jEdgeClient(Neo4jLearningBase):
+87:    def __init__(
+124:    def enabled(self) -> bool:
+129:    def stats(self) -> Dict[str, Any]:
+145:    async def add_edge_relationship(self, relationship: EdgeRelationship) -> bool:
+193:    async def search_nodes(
+313:    async def _search_nodes_fulltext(
+394:    async def get_related_memories(
+452:    async def add_episode_for_edge(
+486:    async def sync_canvas_edges(
+560:class Neo4jEdgeClientAdapter:
+572:    def __init__(
+610:    def enabled(self) -> bool:
+614:    def stats(self) -> Dict[str, Any]:
+617:    async def initialize(self) -> bool:
+620:    async def add_edge_relationship(self, relationship) -> bool:
+636:    async def add_episode_for_edge(self, canvas_name: str, edge: Dict) -> bool:
+639:    async def sync_canvas_edges(self, canvas_name: str, edges: List[Dict]) -> Dict:
+642:    async def cleanup(self) -> None:
+726:class LearningMemory:
+749:    def memory_key(self) -> str:
+755:class LearningMemoryClient:
+765:    def __init__(
+781:    async def initialize(self) -> bool:
+817:    async def _save_data(self) -> None:
+828:    async def add_learning_episode(self, memory: LearningMemory) -> bool:
+864:    async def search_memories(
+937:    async def get_learning_history(
+966:    def format_for_context(
+1014:    def stats(self) -> Dict[str, Any]:
+
+--- 20d sync_checkpoint.json 读写面
+backend/app/services/fallback_sync_service.py:35:SYNC_CHECKPOINT_FILE = _BACKEND_DIR / "data" / "sync_checkpoint.json"
+backend/app/services/fallback_sync_service.py:493:            if not SYNC_CHECKPOINT_FILE.exists():
+backend/app/services/fallback_sync_service.py:496:                data = json.loads(SYNC_CHECKPOINT_FILE.read_text(encoding="utf-8"))
+backend/app/services/fallback_sync_service.py:505:            if SYNC_CHECKPOINT_FILE.exists():
+backend/app/services/fallback_sync_service.py:507:                    data = json.loads(SYNC_CHECKPOINT_FILE.read_text(encoding="utf-8"))
+backend/app/services/fallback_sync_service.py:516:            SYNC_CHECKPOINT_FILE.parent.mkdir(parents=True, exist_ok=True)
+backend/app/services/fallback_sync_service.py:518:                SYNC_CHECKPOINT_FILE,
+backend/app/services/fallback_sync_service.py:525:            if not SYNC_CHECKPOINT_FILE.exists():
+backend/app/services/fallback_sync_service.py:528:                data = json.loads(SYNC_CHECKPOINT_FILE.read_text(encoding="utf-8"))
+backend/app/services/fallback_sync_service.py:532:                        SYNC_CHECKPOINT_FILE,
+backend/app/services/fallback_sync_service.py:536:                    SYNC_CHECKPOINT_FILE.unlink(missing_ok=True)
+rc_gitgrep=0
+
+--- 20e _rotate_file / _cleanup_old_synced_files 实现（有界机制原文 :545-580）
+    def _rotate_file(path: Path) -> None:
+        """Rename fully-synced file to .synced.YYYY-MM-DD-HHMMSS (Windows-safe)."""
+        if not path.exists():
+            return
+        suffix = datetime.now().strftime("%Y-%m-%d-%H%M%S")
+        dest = path.with_suffix(f".synced.{suffix}")
+        for attempt in range(3):
+            try:
+                path.rename(dest)
+                logger.info(f"[Story 38.8] Rotated {path.name} → {dest.name}")
+                return
+            except PermissionError:
+                if attempt < 2:
+                    time.sleep(0.1)
+                else:
+                    logger.warning(f"[Story 38.8] Cannot rotate {path.name} (PermissionError)")
+
+    @staticmethod
+    def _cleanup_old_synced_files(directory: Path, base_stem: str) -> None:
+        """Delete .synced.* files older than retention period."""
+        if not directory.exists():
+            return
+        cutoff = datetime.now() - timedelta(days=_SYNCED_FILE_RETENTION_DAYS)
+        for f in directory.iterdir():
+            if not f.name.startswith(base_stem) or ".synced." not in f.name:
+                continue
+            # Extract date from filename: base.synced.YYYY-MM-DD-HHMMSS or legacy YYYY-MM-DD
+            try:
+                date_str = f.name.rsplit(".synced.", 1)[1]
+                # Try full timestamp first, then date-only (backward compat)
+                for fmt in ("%Y-%m-%d-%H%M%S", "%Y-%m-%d"):
+                    try:
+                        file_date = datetime.strptime(date_str, fmt)
+                        break
+                    except ValueError:
+                        continue

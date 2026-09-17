@@ -1,0 +1,167 @@
+=== JUDGE-31 复核 Codex HIGH-5/HIGH-6/MEDIUM-7/9/10/LOW-12  2026-09-14T20:07:10+0800 ===
+--- 31a HIGH-5：链2 死信来源含会话归档（非 markdown 可回源）
+   481	    def enqueue_conversation_archive(
+   482	        self,
+   483	        *,
+   484	        session_id: str,
+   485	        conversation_text: str,
+   486	        group_id: str,
+   487	    ) -> bool:
+   488	        """M3 (2026-07-13): SessionEnd 会话归档 → 语义通道 (D6 非结构化材料)。
+   489	
+   490	        对话全文经 worker add_episode 做 LLM 实体抽取; worker 在
+   491	        _process_episode 单点把 group 重定向到 __semantic 影子分组
+   492	        (M2 双图隔离), 本方法与调用方均无法指定主图 — 提示词被污染
+   493	        也没有通路碰到结构化主链。返回 True=已入队 (异步, 非已写入)。
+   494	        """
+   495	        return self._enqueue_episode(
+   496	            name=f"session-archive:{session_id[:16]}",
+   497	            episode_body=conversation_text,
+   498	            group_id=group_id,
+   499	            source_description="conversation-archive",
+   500	        )
+[vault_backfill 只扫 callouts/relationships]
+   193	    # (内部消费 settings.effective_vault_skip_dirs 唯一策略源 + 文件名黑名单
+   194	    # + NFC/casefold 归一 + containment), 本函数不再自持黑名单集合。
+   195	    for md in sorted(base.rglob("*.md")):
+   196	        if is_blacklisted_for_backfill(md, base):
+   197	            continue
+   198	        node_id = md.stem
+   199	        try:
+   200	            text = md.read_text(encoding="utf-8")
+   201	        except (OSError, UnicodeDecodeError):
+   202	            continue
+   203	        # P3 (A4): 回填用文件 mtime 作源事件时间近似(非统一 now)。配合 writer 的
+   204	        # create-or-preserve, 此时间只用于"从未实时写过"的历史边; 已有边保留原始时间。
+   205	        try:
+   206	            occurred = datetime.fromtimestamp(md.stat().st_mtime, timezone.utc)
+   207	        except (OSError, ValueError):
+   208	            occurred = fallback_now
+   209	
+   210	        callouts = extract_callouts(text)
+   211	        rels = CanvasProjectionSync._read_relationships(md) or []
+   212	        if not callouts and not rels:
+   213	            continue
+   214	        stats["files"] += 1
+   215	
+   216	        for ctype, understanding, body, annotation_id in callouts:
+
+--- 31b HIGH-6：链4 死信字段是否含 from/to/label
+   480	        async def _do_sync() -> bool:
+   481	            result = await neo4j.create_edge_relationship(
+   482	                canvas_path=canvas_path,
+   483	                edge_id=edge_id,
+   484	                from_node_id=from_node_id,
+   485	                to_node_id=to_node_id,
+   486	                edge_label=edge_label,
+   487	            )
+   [落盘参数 :506-516]
+   506	            # Auto-read request_id from structlog contextvars (propagated via asyncio.create_task)
+   507	            _ctx = structlog.contextvars.get_contextvars()
+   508	            write_dead_letter(
+   509	                EDGE_SYNC_DEAD_LETTER_PATH,
+   510	                "edge_sync",
+   511	                f"{type(e).__name__}: {e}",
+   512	                edge_id=edge_id,
+   513	                canvas_name=canvas_path,
+   514	                retry_count=3,  # total attempts: 1 initial + 2 retries (stop_after_attempt=3)
+   515	                request_id=_ctx.get("request_id"),
+   516	            )
+
+--- 31c MEDIUM-7：event_bus OUTBOX 变量拼接（判据19 三形态之外）
+    44	EventHandler = Callable[[LearningEvent], Coroutine[Any, Any, None]]
+    45	
+    46	# JSONL outbox path
+    47	_BACKEND_DIR = Path(__file__).parent.parent.parent  # backend/
+    48	OUTBOX_DIR = _BACKEND_DIR / "data" / "outbox"
+    49	OUTBOX_FILE = OUTBOX_DIR / "events.jsonl"
+    50	
+    51	# Tier 2 retry configuration
+    52	TIER2_MAX_RETRIES = 3
+[恢复入口 main.py:212-216]
+   212	        event_bus = get_event_bus()
+   213	        register_all_handlers(event_bus)
+   214	
+   215	        # Recover any failed Tier 2 events from previous run
+   216	        recovered = await event_bus.recover_outbox()
+   217	        if recovered > 0:
+   218	            logger.info(f"[Story 5.7] EventBus recovered {recovered} outbox events")
+   219	        logger.info("[Story 5.7] EventBus handlers registered")
+[outbox 目录实测]
+total 8
+drwxr-xr-x@  3 Heishing  staff   96 Sep 14 19:57 .
+drwxr-xr-x@ 11 Heishing  staff  352 Sep 14 19:58 ..
+-rw-r--r--@  1 Heishing  staff  383 Sep 14 19:57 events.jsonl
+
+--- 31d MEDIUM-9：main.py :386 与 :394-395 / :405-406 的依赖
+   384	        from app.services.vault_backfill import backfill_vault
+   385	
+   386	        _worker_graphiti = getattr(get_episode_worker(), "_graphiti", None)
+   387	        if _worker_graphiti is not None:
+   388	            # G-DEFAULT 根治 (2026-07-10): 回填不再落 DEFAULT_GROUP_ID——那让所有 vault
+   389	            # 的结构图塌进同一 default 桶(cypher 实测 88 节点零真实 vault 身份)。
+   390	            # 改用当前激活 vault 的 vault:<vault_id> 规约(D16/C-3)。
+   391	            backfill_group = build_vault_group_id(get_current_vault_id())
+   392	            bf = await backfill_vault(
+   393	                settings.canvas_base_path,
+   394	                _worker_graphiti.driver,
+   395	                getattr(_worker_graphiti, "embedder", None),
+   396	                group_id=backfill_group,
+   397	                execute=True,
+   398	            )
+   399	            logger.info(
+   400	                f"[Graphiti-native] 启动回填: {bf['callouts']} 批注, "
+   401	                f"{bf['errors']} 错误, {bf['relations']} 原因, {bf['failed']} 失败"
+   402	            )
+   403	        else:
+   404	            logger.info("[Graphiti-native] 启动回填跳过 (graphiti 未就绪)")
+   405	    except Exception as e:
+   406	        logger.warning(f"[Graphiti-native] 启动回填 failed (non-fatal): {e}")
+   407	
+   408	    # RAG-S0-2026-08-02: 预热 search_notes fast-path 单例（bge-m3 权重加载 ~7.4s）。
+
+--- 31e MEDIUM-10：链1 运行时读取 + 删除覆写（非单调增长）
+   444	        try:
+   445	            self._storage_path.parent.mkdir(parents=True, exist_ok=True)
+   446	
+   447	            if self._storage_path.exists():
+   448	                with open(self._storage_path, "r", encoding="utf-8") as f:
+   449	                    self._data = json.load(f)
+   ---
+   911	        start_date = params.get("startDate")
+   912	        end_date = params.get("endDate")
+   913	        concept_filter = params.get("concept")
+   914	
+   915	        for rel in self._data.get("relationships", []):
+   916	            if user_id and rel["user_id"] != user_id:
+   917	                continue
+   918	            if concept_id and not _concept_id_matches(rel, concept_id):
+   ---
+  2194	        associations = self._data.get("canvas_associations", [])
+  2195	        original_count = len(associations)
+  2196	
+  2197	        self._data["canvas_associations"] = [
+  2198	            a for a in associations if not (a.get("association_id") == association_id and a.get("group_id") == group_id)
+  2199	        ]
+  2200	
+  2201	        if len(self._data["canvas_associations"]) < original_count:
+  2202	            await self._save_json_data()
+  2203	            logger.info(f"Deleted canvas association (JSON): {association_id}")
+  2204	            return True
+
+--- 31f LOW-12：format_for_context 是否读文件
+   966	    def format_for_context(
+   967	        self, memories: List[Dict[str, Any]], max_chars: int = 1000
+   968	    ) -> str:
+   969	        """
+   970	        Format memories for inclusion in Agent context.
+   971	
+   972	        Args:
+   973	            memories: List of memory dicts
+   974	            max_chars: Maximum characters in output
+   975	
+   976	        Returns:
+   977	            Formatted context string
+   978	        """
+   979	        if not memories:
+   980	            return ""

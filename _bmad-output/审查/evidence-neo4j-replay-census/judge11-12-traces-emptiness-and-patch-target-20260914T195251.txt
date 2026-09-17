@@ -1,0 +1,138 @@
+=== JUDGE-11 traces 读侧是否恒空（request_id 是否真落盘）  2026-09-14T19:52:51+0800 ===
+--- 11a canvas_service.py:500-520 唯一非测试 write_dead_letter 调用原文
+            logger.warning(
+                f"Edge sync to Neo4j failed after 3 retries: "
+                f"edge_id={edge_id}, canvas={canvas_path}, "
+                f"error={type(e).__name__}: {e}, "
+                f"total_failures={count}"
+            )
+            # Auto-read request_id from structlog contextvars (propagated via asyncio.create_task)
+            _ctx = structlog.contextvars.get_contextvars()
+            write_dead_letter(
+                EDGE_SYNC_DEAD_LETTER_PATH,
+                "edge_sync",
+                f"{type(e).__name__}: {e}",
+                edge_id=edge_id,
+                canvas_name=canvas_path,
+                retry_count=3,  # total attempts: 1 initial + 2 retries (stop_after_attempt=3)
+                request_id=_ctx.get("request_id"),
+            )
+            return None  # Fire-and-forget: don't raise
+
+    async def sync_all_edges_to_neo4j(self, canvas_name: str) -> Dict[str, Any]:
+        """
+        Sync all Canvas edges to Neo4j (idempotent operation).
+
+
+--- 11b canvas_service 里 EDGE_SYNC/DUAL_WRITE 路径 import
+45:    EDGE_SYNC_DEAD_LETTER_PATH,
+509:                EDGE_SYNC_DEAD_LETTER_PATH,
+rc=0
+
+--- 11c episode_worker DeadLetterStore.store 三个调用点上下文（:635-660）
+    async def _handle_failure(self, task: EpisodeTask, error: Exception) -> None:
+        """Handle a failed episode: retry with backoff or dead-letter."""
+        if isinstance(error, _PERMANENT_EPISODE_ERRORS):
+            # 确定性校验错误重试必然复现 — 直接死信留证 (2026-07-22 批次0)
+            logger.error(f"Episode permanently failed (deterministic validation, skip retry): {error}")
+            self._metrics.episodes_dead_lettered += 1
+            self._dead_letter.store(task, error)
+            return
+        if task.can_retry:
+            task.retry_count += 1
+            backoff = task.backoff_seconds
+            logger.warning(
+                f"Episode failed (attempt {task.retry_count}/{task.max_retries}), retrying in {backoff:.1f}s: {error}"
+            )
+            await asyncio.sleep(backoff)
+            try:
+                self._queue.put_nowait(task)
+            except (asyncio.QueueFull, _QUEUE_SHUTDOWN):
+                # Cannot re-queue: dead-letter it
+                self._metrics.episodes_dead_lettered += 1
+                self._dead_letter.store(task, error)
+        else:
+            self._metrics.episodes_dead_lettered += 1
+            self._dead_letter.store(task, error)
+
+
+
+--- 11d DeadLetterStore.store 签名与 request_id 落盘条件（:233-266）
+    def store(self, task: EpisodeTask, error: Exception, *, request_id: str | None = None) -> None:
+        """Append failed task to JSONL file synchronously (tiny payload, acceptable).
+
+        Privacy: episode_body_full is omitted unless DEAD_LETTER_STORE_FULL_BODY=true.
+        """
+        # Always: hash + minimal metadata (safe to keep forever)
+        body_bytes = task.episode_body.encode("utf-8", errors="replace")
+        body_hash = hashlib.sha256(body_bytes).hexdigest()
+
+        record = {
+            **task.to_dict(),
+            "episode_body_sha256": body_hash,
+            "episode_body_length": len(task.episode_body),
+            "error": _redact(str(error))[:200],
+            "error_type": type(error).__name__,
+            "failed_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+        # Opt-in: full body (still redacted for known secret patterns)
+        if self._store_full_body_enabled():
+            record["episode_body_full"] = _redact(task.episode_body)
+
+        if request_id is not None:
+            record["request_id"] = request_id
+
+        with open(self._file_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+        # audit-2026-04-07/p1-1: scrub error from logger interpolation. Type
+        # name only — full message is in the JSONL record (already redacted).
+        logger.error(
+            f"Dead-lettered episode: name={task.name}, "
+            f"retries={task.retry_count}/{task.max_retries}, "
+            f"error_type={type(error).__name__}, "
+
+--- 11e request_id 在 episode_worker 全文的出现面
+87:    request_id: str | None = field(default=None)
+114:        if self.request_id is not None:
+115:            result["request_id"] = self.request_id
+233:    def store(self, task: EpisodeTask, error: Exception, *, request_id: str | None = None) -> None:
+255:        if request_id is not None:
+256:            record["request_id"] = request_id
+rc=0
+
+=== JUDGE-12 test_failure_observability:330-345 的 patch 目标之谜 ===
+        mock_neo4j = MagicMock()
+        mock_learning = MagicMock()
+        mock_learning._initialized = False
+        mock_learning.add_learning_episode = AsyncMock(side_effect=RuntimeError("persistent error"))
+
+        service = MemoryService(
+            neo4j_client=mock_neo4j,
+        )
+        service._learning_memory = mock_learning
+
+        dl_path = tmp_path / "failed_dual_writes.jsonl"
+        with (
+            patch("app.services.memory_service.DUAL_WRITE_DEAD_LETTER_PATH", dl_path),
+            patch("app.services.memory_service.GRAPHITI_RETRY_BACKOFF_BASE", 0.01),
+        ):
+            result = await service._write_to_graphiti_json_with_retry(
+                episode_id="ep-retry-fail",
+                canvas_name="test.canvas",
+                node_id="n1",
+                concept="概念",
+                max_retries=1,
+            )
+
+
+--- 12b 该文件是否有 skip/xfail 标记
+257:# fix-test-infra-paralysis Phase 2: skip — class tests deleted methods
+263:@pytest.mark.skip(
+rc=0
+
+--- 12c 基线文件头（跑法自证，R-B14-3）
+1:# 第十四批 tests/unit 既有红基线（nodeid 口径）@ B14_BASE 08100483（候选树 batch14/integ 工作树 = 08100483 代码）
+2:# 跑法: cd backend && PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest tests/unit --ignore tests/unit/test_deploy_vault_sh.py -q -p no:cacheprovider（R-15 文件级 --ignore；T2-A 合入后主 session 撤 --ignore 重取）
+3:# 原始输出: unit-integ-20260911T094710.txt；对 evidence-b13-integ/unit-integ5-20260911T010612.nodeids(65) 新增 0 / 消失 1（flaky test_candidate_service::test_accept_candidate_already_accepted_returns_422）

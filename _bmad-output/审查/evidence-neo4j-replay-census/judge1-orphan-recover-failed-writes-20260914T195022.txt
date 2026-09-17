@@ -1,0 +1,56 @@
+=== JUDGE-1 孤儿 recover_failed_writes 零非测试 call  2026-09-14T19:50:22+0800 ===
+--- 1a 调用形态枚举（非测试）: git --no-pager grep -nE '(await |\.)recover_failed_writes\(' -- '*.py' | grep -v '/tests/'
+rc_gitgrep=0 rc_grepv=1  (空输出 = 零非测试 call)
+
+--- 1a' 同枚举 不去测试（看测试里有没有 call，用于归类）
+backend/tests/integration/test_story_38_7_ac5_recovery_and_cross_story.py:75:                result = await ms.recover_failed_writes()
+backend/tests/integration/test_story_38_7_ac5_recovery_and_cross_story.py:125:                result = await ms.recover_failed_writes()
+backend/tests/unit/test_a7_honest_failure.py:118:    result = await service.recover_failed_writes()
+backend/tests/unit/test_a7_honest_failure.py:148:    result = await service.recover_failed_writes()
+backend/tests/unit/test_qa_38_6_scoring_reliability_extra.py:169:            result = await memory_service.recover_failed_writes()
+backend/tests/unit/test_qa_38_6_scoring_reliability_extra.py:183:            result = await memory_service.recover_failed_writes()
+backend/tests/unit/test_qa_38_6_scoring_reliability_extra.py:197:            result = await memory_service.recover_failed_writes()
+backend/tests/unit/test_qa_38_6_scoring_reliability_extra.py:372:            result = await ms.recover_failed_writes()
+backend/tests/unit/test_qa_38_6_scoring_reliability_extra.py:414:            recovery = await ms.recover_failed_writes()
+backend/tests/unit/test_story_38_6_scoring_reliability.py:188:            result = await memory_service.recover_failed_writes()
+backend/tests/unit/test_story_38_6_scoring_reliability.py:210:            result = await memory_service.recover_failed_writes()
+backend/tests/unit/test_story_38_6_scoring_reliability.py:255:            result = await memory_service.recover_failed_writes()
+backend/tests/unit/test_story_38_6_scoring_reliability.py:286:            result = await memory_service.recover_failed_writes()
+rc=0
+
+--- 1b 全命中归类（非测试）: git --no-pager grep -n 'recover_failed_writes' -- '*.py' | grep -v '/tests/'
+backend/app/core/failed_writes_constants.py:6:# (recover_failed_writes, load_failed_scores) can share.
+backend/app/services/memory_service.py:506:        kind='knowledge_entity' 判别符, recover_failed_writes 据此重放
+backend/app/services/memory_service.py:2687:    async def recover_failed_writes(self) -> Dict[str, int]:
+rc_gitgrep=0
+
+--- 1b' 全命中（含测试）全量
+backend/app/core/failed_writes_constants.py:6:# (recover_failed_writes, load_failed_scores) can share.
+backend/app/services/memory_service.py:506:        kind='knowledge_entity' 判别符, recover_failed_writes 据此重放
+backend/app/services/memory_service.py:2687:    async def recover_failed_writes(self) -> Dict[str, int]:
+backend/tests/integration/test_story_38_7_ac5_recovery_and_cross_story.py:42:    async def test_recover_failed_writes_replays_entries(self, tmp_path):
+backend/tests/integration/test_story_38_7_ac5_recovery_and_cross_story.py:44:        [P0] Story 38.6 AC-3: recover_failed_writes() reads
+backend/tests/integration/test_story_38_7_ac5_recovery_and_cross_story.py:75:                result = await ms.recover_failed_writes()
+backend/tests/integration/test_story_38_7_ac5_recovery_and_cross_story.py:80:    async def test_recover_failed_writes_keeps_still_pending(self, tmp_path):
+backend/tests/integration/test_story_38_7_ac5_recovery_and_cross_story.py:125:                result = await ms.recover_failed_writes()
+backend/tests/unit/test_a7_honest_failure.py:8:recover_failed_writes 重放结构化 outbox 条目 (kind=knowledge_entity)。
+backend/tests/unit/test_a7_honest_failure.py:93:    """recover_failed_writes 重放 kind=knowledge_entity → 调 record_knowledge_entity。"""
+backend/tests/unit/test_a7_honest_failure.py:118:    result = await service.recover_failed_writes()
+backend/tests/unit/test_a7_honest_failure.py:148:    result = await service.recover_failed_writes()
+backend/tests/unit/test_qa_38_6_scoring_reliability_extra.py:169:            result = await memory_service.recover_failed_writes()
+backend/tests/unit/test_qa_38_6_scoring_reliability_extra.py:183:            result = await memory_service.recover_failed_writes()
+backend/tests/unit/test_qa_38_6_scoring_reliability_extra.py:197:            result = await memory_service.recover_failed_writes()
+backend/tests/unit/test_qa_38_6_scoring_reliability_extra.py:320:# recover_failed_writes() retries via that helper. The retry helper was
+backend/tests/unit/test_qa_38_6_scoring_reliability_extra.py:338:        2. Startup → recover_failed_writes replays and removes entry
+backend/tests/unit/test_qa_38_6_scoring_reliability_extra.py:372:            result = await ms.recover_failed_writes()
+backend/tests/unit/test_qa_38_6_scoring_reliability_extra.py:414:            recovery = await ms.recover_failed_writes()
+backend/tests/unit/test_qa_38_6_scoring_reliability_extra.py:439:    """Verify main.py lifespan calls fallback sync (formerly recover_failed_writes)."""
+backend/tests/unit/test_story_38_6_scoring_reliability.py:188:            result = await memory_service.recover_failed_writes()
+backend/tests/unit/test_story_38_6_scoring_reliability.py:210:            result = await memory_service.recover_failed_writes()
+backend/tests/unit/test_story_38_6_scoring_reliability.py:255:            result = await memory_service.recover_failed_writes()
+backend/tests/unit/test_story_38_6_scoring_reliability.py:286:            result = await memory_service.recover_failed_writes()
+rc=0
+
+--- 1c 验伪锚: git --no-pager grep -nE '(await |\.)_record_structured_outbox\(' -- '*.py' | grep -v '/tests/'  （必命中 memory_service.py:1665）
+backend/app/services/memory_service.py:1665:                    self._record_structured_outbox(
+rc_gitgrep=0  (非空 = 枚举 grep 非恒空)

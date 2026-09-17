@@ -1,0 +1,177 @@
+=== JUDGE-10 写侧真实接线 + request_id 字段（T6-C 前置）  2026-09-14T19:52:35+0800 ===
+--- 10a failure_counters.write_dead_letter 全文 :73-126
+def write_dead_letter(
+    file_path: Path,
+    entry_type: str,
+    error: str,
+    *,
+    edge_id: Optional[str] = None,
+    canvas_name: Optional[str] = None,
+    episode_id: Optional[str] = None,
+    retry_count: int = 0,
+    timeout_ms: Optional[int] = None,
+    request_id: Optional[str] = None,
+) -> None:
+    """
+    Append a failure record to a dead-letter JSONL file.
+
+    AC-36.12.8: Append mode + utf-8 encoding, survives service restarts.
+
+    Args:
+        file_path: Path to the dead-letter JSONL file
+        entry_type: "edge_sync" or "dual_write"
+        error: Error message
+        edge_id: Edge ID (for edge_sync failures)
+        canvas_name: Canvas name (for edge_sync failures)
+        episode_id: Episode ID (for dual_write failures)
+        retry_count: Number of retries attempted
+        timeout_ms: Timeout in milliseconds (for dual_write timeouts)
+        request_id: Optional correlation request ID from middleware
+    """
+    entry = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "type": entry_type,
+        "error": error,
+        "retry_count": retry_count,
+    }
+    if edge_id is not None:
+        entry["edge_id"] = edge_id
+    if canvas_name is not None:
+        entry["canvas_name"] = canvas_name
+    if episode_id is not None:
+        entry["episode_id"] = episode_id
+    if timeout_ms is not None:
+        entry["timeout_ms"] = timeout_ms
+    if request_id is not None:
+        entry["request_id"] = request_id
+
+    try:
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        # NOTE: Synchronous file I/O by design — single-line JSONL append is
+        # fast enough (~μs) to be acceptable in an async context.  If dead-letter
+        # volume grows, consider asyncio.to_thread() or aiofiles.
+        with open(file_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    except OSError as e:
+        logger.error(f"Failed to write dead-letter entry to {file_path}: {e}")
+
+--- 10b write_dead_letter 调用方（非测试）
+backend/app/core/failure_counters.py:73:def write_dead_letter(
+backend/app/services/canvas_service.py:508:            write_dead_letter(
+rc_gitgrep=0
+--- 含测试全量
+backend/app/core/failure_counters.py:73:def write_dead_letter(
+backend/app/services/canvas_service.py:47:    write_dead_letter,
+backend/app/services/canvas_service.py:508:            write_dead_letter(
+backend/tests/unit/test_failure_observability.py:18:    write_dead_letter,
+backend/tests/unit/test_failure_observability.py:102:        write_dead_letter(
+backend/tests/unit/test_failure_observability.py:120:    def test_write_dual_write_dead_letter(self, tmp_path):
+backend/tests/unit/test_failure_observability.py:123:        write_dead_letter(
+backend/tests/unit/test_failure_observability.py:139:        write_dead_letter(dl_path, "edge_sync", "err1", edge_id="e1")
+backend/tests/unit/test_failure_observability.py:140:        write_dead_letter(dl_path, "edge_sync", "err2", edge_id="e2")
+backend/tests/unit/test_failure_observability.py:147:        """write_dead_letter creates parent dirs if missing."""
+backend/tests/unit/test_failure_observability.py:149:        write_dead_letter(dl_path, "edge_sync", "err", edge_id="e1")
+backend/tests/unit/test_failure_observability.py:155:        write_dead_letter(
+backend/tests/unit/test_failure_observability.py:473:    def test_write_dead_letter_with_request_id(self, tmp_path):
+backend/tests/unit/test_failure_observability.py:474:        """write_dead_letter includes request_id in JSONL when provided."""
+backend/tests/unit/test_failure_observability.py:476:        write_dead_letter(
+backend/tests/unit/test_failure_observability.py:486:    def test_write_dead_letter_without_request_id_omits_field(self, tmp_path):
+backend/tests/unit/test_failure_observability.py:487:        """write_dead_letter omits request_id from JSONL when not provided (backward compat)."""
+backend/tests/unit/test_failure_observability.py:489:        write_dead_letter(dl_path, "edge_sync", "err", edge_id="e1")
+rc=0
+
+--- 10c memory_service 是否 import DUAL_WRITE_DEAD_LETTER_PATH / EDGE_SYNC_DEAD_LETTER_PATH
+rc=1  (1=全缺席 ⇒ test_failure_observability:338 的 patch 目标不存在)
+
+--- 10d test_failure_observability 是否在 64 条红基线
+rc=1  (1=不在红基线)
+
+--- 10e failed_writes.jsonl 写入字段（_record_failed_write 全文 :98-140）
+def _record_failed_write(
+    event_type: str,
+    concept_id: str,
+    canvas_name: str,
+    score: Optional[float],
+    error_reason: str,
+    concept: str = "",
+    user_understanding: Optional[str] = None,
+    agent_feedback: Optional[str] = None,
+) -> None:
+    """
+    Story 38.6 AC-2: Record a failed memory write to data/failed_writes.jsonl.
+
+    Each entry includes timestamp, event_type, concept_id, canvas_name, score, error_reason,
+    plus concept, user_understanding, agent_feedback for complete recovery.
+    Uses append mode so multiple failures accumulate for later recovery.
+    Thread-safe via failed_writes_lock (shared with memory_service).
+    """
+    try:
+        entry = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "event_type": event_type,
+            "concept_id": concept_id,
+            "canvas_name": canvas_name,
+            "score": score,
+            "error_reason": error_reason,
+            "concept": concept,
+            "user_understanding": user_understanding,
+            "agent_feedback": agent_feedback,
+        }
+        FAILED_WRITES_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with failed_writes_lock:
+            with open(FAILED_WRITES_FILE, "a", encoding="utf-8") as f:
+                f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        logger.warning(
+            f"[Story 38.6] Score write failed after retries, saved to fallback: {concept_id}"
+        )
+    except (OSError, TypeError, ValueError) as e:
+        logger.error(f"[Story 38.6] Failed to write to fallback file: {e}")
+
+
+class AgentType(str, Enum):
+    """
+
+--- 10f DeadLetterStore 实例化点（链2 写侧是否真接线）
+backend/app/services/episode_worker.py:311:        self._dead_letter = DeadLetterStore(dead_letter_path)
+backend/tests/unit/test_failure_observability.py:497:        store = DeadLetterStore(str(tmp_path / "dl.jsonl"))
+backend/tests/unit/test_failure_observability.py:513:        store = DeadLetterStore(str(tmp_path / "dl.jsonl"))
+rc=0
+--- EpisodeWorker 里 dead_letter 使用（:300-315）
+        worker.enqueue(EpisodeTask(name=..., episode_body=..., group_id=...))
+    """
+
+    def __init__(
+        self,
+        maxsize: int = 100,
+        dead_letter_path: str = "data/dead_letter_episodes.jsonl",
+    ) -> None:
+        self._graphiti: Optional[Graphiti] = None
+        self._queue: asyncio.Queue[EpisodeTask] = asyncio.Queue(maxsize=maxsize)
+        self._worker_task: Optional[asyncio.Task[None]] = None
+        self._dead_letter = DeadLetterStore(dead_letter_path)
+        self._metrics = WorkerMetrics()
+        self._started = False
+
+    # ── Initialization ──
+
+--- 10g DeadLetterStore.store 调用点（非测试）
+backend/app/services/episode_worker.py:641:            self._dead_letter.store(task, error)
+backend/app/services/episode_worker.py:655:                self._dead_letter.store(task, error)
+backend/app/services/episode_worker.py:658:            self._dead_letter.store(task, error)
+rc=0
+
+--- 10h canvas_events_fallback 写侧六处门原文（canvas_service.py）
+        if self._memory_client is None:
+            # Story 38.5 AC-1/AC-4: Upgrade to WARNING + JSON fallback
+            if getattr(settings, "ENABLE_GRAPHITI_JSON_DUAL_WRITE", True):
+                self._write_canvas_event_fallback(event_type.value, canvas_name, node_id=node_id, edge_id=edge_id)
+                logger.warning("Memory client unavailable, writing to JSON fallback")
+            else:
+                logger.warning("Memory client unavailable, skipping event trigger")
+  --- :361-366 ---
+    def _try_fallback_write(self, event_type: "CanvasEventType", context: "CanvasEventContext") -> None:
+        """Story 38.5 AC-2: Try writing to JSON fallback after Neo4j failure."""
+        if getattr(settings, "ENABLE_GRAPHITI_JSON_DUAL_WRITE", True):
+            self._write_canvas_event_fallback(
+                event_type.value,
+                context.canvas_name,

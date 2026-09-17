@@ -1,0 +1,52 @@
+=== JUDGE-24 链5 六处门形态一致性 + 写函数调用点  2026-09-14T20:00:40+0800 ===
+--- 24a 六处门原文（各 ±2 行）
+### :266
+            # Story 38.5 AC-1/AC-4: Upgrade to WARNING + JSON fallback
+            if getattr(settings, "ENABLE_GRAPHITI_JSON_DUAL_WRITE", True):
+                self._write_canvas_event_fallback(event_type.value, canvas_name, node_id=node_id, edge_id=edge_id)
+                logger.warning("Memory client unavailable, writing to JSON fallback")
+            else:
+### :363
+        """Story 38.5 AC-2: Try writing to JSON fallback after Neo4j failure."""
+        if getattr(settings, "ENABLE_GRAPHITI_JSON_DUAL_WRITE", True):
+            self._write_canvas_event_fallback(
+                event_type.value,
+                context.canvas_name,
+### :443
+            # Story 38.5 AC-1/AC-4: Upgrade to WARNING + JSON fallback
+            if getattr(settings, "ENABLE_GRAPHITI_JSON_DUAL_WRITE", True):
+                self._write_canvas_event_fallback(
+                    "edge_sync",
+                    canvas_path,
+### :460
+            # Story 38.5 AC-2/AC-4: Upgrade to WARNING + JSON fallback
+            if getattr(settings, "ENABLE_GRAPHITI_JSON_DUAL_WRITE", True):
+                self._write_canvas_event_fallback(
+                    "edge_sync",
+                    canvas_path,
+### :989
+        if self._memory_client is None:
+            if getattr(settings, "ENABLE_GRAPHITI_JSON_DUAL_WRITE", True):
+                self._write_canvas_event_fallback("edge_delete", "", edge_id=edge_id)
+                logger.warning("Memory client unavailable, writing edge deletion to JSON fallback")
+            else:
+### :998
+        if neo4j is None:
+            if getattr(settings, "ENABLE_GRAPHITI_JSON_DUAL_WRITE", True):
+                self._write_canvas_event_fallback("edge_delete", "", edge_id=edge_id)
+                logger.warning("Neo4j unreachable, edge deletion written to JSON fallback")
+            else:
+
+--- 24b _write_canvas_event_fallback 全部调用点（非测试）
+backend/app/services/canvas_service.py:120:    def _write_canvas_event_fallback(
+backend/app/services/canvas_service.py:267:                self._write_canvas_event_fallback(event_type.value, canvas_name, node_id=node_id, edge_id=edge_id)
+backend/app/services/canvas_service.py:364:            self._write_canvas_event_fallback(
+backend/app/services/canvas_service.py:444:                self._write_canvas_event_fallback(
+backend/app/services/canvas_service.py:461:                self._write_canvas_event_fallback(
+backend/app/services/canvas_service.py:990:                self._write_canvas_event_fallback("edge_delete", "", edge_id=edge_id)
+backend/app/services/canvas_service.py:999:                self._write_canvas_event_fallback("edge_delete", "", edge_id=edge_id)
+rc_gitgrep=0
+
+--- 24c 验伪锚：该函数 def 必在结果中（:120）
+backend/app/services/canvas_service.py:120:    def _write_canvas_event_fallback(
+rc=0

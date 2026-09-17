@@ -1,0 +1,143 @@
+=== JUDGE-29 复核 Codex HIGH-2：新回灌器能否处理结构化 outbox 记录  2026-09-14T20:06:56+0800 ===
+--- 29a fallback_sync_service :138-150（把所有记录交给谁）
+   138	            try:
+   139	                entry = json.loads(line)
+   140	            except json.JSONDecodeError:
+   141	                logger.warning("[Story 38.8] Skipping malformed failed_writes entry")
+   142	                still_pending.append(line)
+   143	                continue
+   144	
+   145	            try:
+   146	                success = await self._replay_scoring_entry_to_neo4j(entry)
+   147	                if success:
+   148	                    recovered += 1
+   149	                else:
+   150	                    still_pending.append(line)
+
+--- 29b :310,325（对缺 concept/concept_id 的记录返回 False？）
+   310	
+   311	        Uses custom Cypher with last-write-wins conflict resolution:
+   312	        if Neo4j already has newer data for this relationship, preserve it.
+   313	        """
+   314	        concept = entry.get("concept") or entry.get("concept_id", "")
+   315	        canvas_name = entry.get("canvas_name", "")
+   316	        score = entry.get("score")
+   317	        ts = entry.get("timestamp", datetime.now().isoformat())
+   318	
+   319	        if not concept:
+   320	            logger.warning("[Story 38.8] Skipping entry with no concept")
+   321	            return False
+   322	
+   323	        # Build group_id from canvas_name
+   324	        group_id = self._build_group_id_from_canvas(canvas_name)
+   325	        if not group_id:
+
+--- 29c 旧重放器 memory_service:2730,2740（区分 knowledge_entity）
+  2730	
+  2731	            try:
+  2732	                # A7 (P2): 结构化条目 (callout/error/relation/对话) → 重走
+  2733	                # record_knowledge_entity 的结构化写入 (启动时 worker 通常已就绪)。
+  2734	                # _from_recovery=True 防止再次失败时重复落 outbox。
+  2735	                if entry.get("kind") == "knowledge_entity":
+  2736	                    result = await self.record_knowledge_entity(
+  2737	                        event_type=entry.get("event_type", ""),
+  2738	                        content=entry.get("content", ""),
+  2739	                        metadata=entry.get("metadata"),
+  2740	                        group_id=entry.get("group_id"),
+  2741	                        _from_recovery=True,
+  2742	                    )
+
+--- 29d HIGH-2 后半：failed_writes 的 UI 可见性（entry 无 user_id + 查询按 user_id 过滤）
+[agent_service entry 字段 :117-127]
+   117	        entry = {
+   118	            "timestamp": datetime.now(timezone.utc).isoformat(),
+   119	            "event_type": event_type,
+   120	            "concept_id": concept_id,
+   121	            "canvas_name": canvas_name,
+   122	            "score": score,
+   123	            "error_reason": error_reason,
+   124	            "concept": concept,
+   125	            "user_understanding": user_understanding,
+   126	            "agent_feedback": agent_feedback,
+   127	        }
+[memory_service :800-810 合并视图的过滤]
+   800	        # Story 38.6 AC-4: Merge failed scores from fallback so user never sees gaps
+   801	        # S34 Bug fix #1+#2: Filter by user_id and date range before merge
+   802	        failed_scores = await asyncio.to_thread(self.load_failed_scores)
+   803	        if failed_scores:
+   804	            # Bug fix #1: Filter by user_id (prevent cross-user data leakage)
+   805	            if user_id:
+   806	                failed_scores = [fs for fs in failed_scores if fs.get("user_id", "") == user_id]
+   807	            # Bug fix #2: Apply same date filters as memory_episodes
+   808	            if start_date:
+   809	                s_str = str(start_date.isoformat()) if hasattr(start_date, "isoformat") else str(start_date)
+   810	                failed_scores = [fs for fs in failed_scores if str(fs.get("timestamp", "")) >= s_str]
+   811	            if end_date:
+   812	                e_str = str(end_date.isoformat()) if hasattr(end_date, "isoformat") else str(end_date)
+
+=== JUDGE-30 复核 Codex HIGH-3：历史 vault 归属风险 ===
+--- 30a fallback_sync_service :608-646（group 解析）
+   608	    @staticmethod
+   609	    def _build_group_id_from_canvas(canvas_name: str) -> Optional[str]:
+   610	        """Build group_id from canvas name using subject_config.
+   611	
+   612	        wave-5 Stage B P0 (2026-05-11): prefer ContextVar (vault: prefix) over
+   613	        the legacy Story 1.9 build_group_id which collapses cross-vault
+   614	        subject:canvas pairs to the same id (collision risk).
+   615	
+   616	        G2-3 (2026-08-28): 无 ContextVar 的后台重放上下文原本落
+   617	        ``build_vault_group_id("default", ...)`` 字面量 — 与主写路径
+   618	        (``memory_service._vault_scoped_group_id`` → ``get_current_vault_id()``)
+   619	        不同构。复合写身份下这不再 clobber 主概念 (那是 G2-3 前的破坏形态),
+   620	        但会把恢复的分数写进主 vault 读不到的平行组 = 恢复静默无效。
+   621	        现改为镜像主路径: vault_id 取进程 active vault (D1-A 单 active
+   622	        约束), 二级取 canvas (D16 ``vault:<id>:<canvas>`` 规约)。
+   623	        ⛔ 移交 G2-2 (VaultScope 统一): 跨 vault 切换后重放旧 vault 的
+   624	        待恢复条目仍会归到新 active vault — 条目本身不带 vault 维度,
+   625	        根治需 VaultScope + 落盘条目补 vault 字段, 不在本卡范围。
+   626	        """
+   627	        if not canvas_name:
+   628	            return None
+   629	        try:
+   630	            from app.config import get_current_vault_id
+   631	            from app.core.subject_config import (
+   632	                build_vault_group_id,
+   633	                canonical_group_id,
+   634	                get_current_subject_id,
+   635	                is_vault_group_id,
+   636	            )
+   637	
+   638	            ctx_value = get_current_subject_id()
+   639	            if ctx_value and ctx_value != "general":
+   640	                return ctx_value if is_vault_group_id(ctx_value) else canonical_group_id(ctx_value)
+   641	            vault_id = get_current_vault_id()
+   642	            if not vault_id:
+   643	                return None
+   644	            return build_vault_group_id(vault_id, canvas_path=canvas_name)
+   645	        except (ImportError, AttributeError, ValueError):
+   646	            return None
+
+--- 30b :320,326 / :385,392 / :433,441（按 canvas 名重构 group）
+   320	            logger.warning("[Story 38.8] Skipping entry with no concept")
+   321	            return False
+   322	
+   323	        # Build group_id from canvas_name
+   324	        group_id = self._build_group_id_from_canvas(canvas_name)
+   325	        if not group_id:
+   326	            # G2-3 fail-closed (首日观察): _build_group_id_from_canvas 返 None
+   ---
+   386	        canvas_name = event.get("canvas_name", "")
+   387	        node_id = event.get("node_id")
+   388	        edge_id = event.get("edge_id")
+   389	
+   390	        # G2-3 (W1): 重放显式携带 group — None 时由 client 端解析链兜底,
+   391	        # 仍不可解析则 client fail-closed 拒写 (条目保持 pending)。
+   392	        group_id = self._build_group_id_from_canvas(canvas_name)
+   ---
+   435	        score = mem.get("score")
+   436	        ts = mem.get("timestamp", datetime.now().isoformat())
+   437	
+   438	        if not concept:
+   439	            return False
+   440	
+   441	        group_id = self._build_group_id_from_canvas(canvas_name)
