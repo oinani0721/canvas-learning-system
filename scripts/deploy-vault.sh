@@ -7,8 +7,11 @@
 #   [2/6] install     — 调 <harness>/scripts/install-vault.sh（不加 --activate）
 #   [3/6] postprocess — 密钥按实例重生（E-3）/ .env.<vault> / 端口模板化 / 在位判
 #   [4/6] verify      — 调 verify_vault_install.py，rc 必须 0
-#   [5/6] activate    — 只 `docker compose config` 断言；`up -d` 需用户授权（G2-8）
-#   [6/6] evidence    — 落 deploy-<ts>.txt（六行状态 + 参数 + 各文件 sha；密钥只 sha）
+#   [5/6] activate    — `docker compose config` 断言；`up -d` 需用户授权（G2-8 事务化：
+#                       起/重建**本 vault 的** cls-<vault> 实例 → 健康断言 → 失败只拆本实例；
+#                       每阶段一行 `stage=… rc=` 落进 compose-config-<ts>.txt 与 evidence）
+#   [6/6] evidence    — 落 deploy-<ts>.txt（六行状态 + 参数 + 激活分阶段 + 各文件 sha；
+#                       密钥只 sha）；`--also-push` 的清单追加也在这一步执行并记账。
 #                       dry-run 下 SKIP 不落盘 —— 「不传 --apply = 零写」优先于留证据。
 #
 # ═══ rc 表 ═══
@@ -29,7 +32,10 @@
 #   --subject <s>         缺省 = vault 名。
 #   --apply               不传 = dry-run（只打印每步将做什么，零写）。
 #   --activate            仅与 --apply 同用（否则 rc 64）。真 `up -d` 需用户授权，见步 5。
-#   --also-push           仅当 harness == feature 主干树时允许；本版**只解析不实现**（登记 G2-8）。
+#   --also-push           仅当 harness == feature 主干树时允许。把本次 vault 名追加进
+#                         harness `.env` 的 `DAILY_REVIEW_VAULTS` 清单（逗号分隔, 去重）,
+#                         供 daily-review-wrapper 循环多库；**不动 `ACTIVE_VAULT`**
+#                         （追加复习清单 ≠ 换当前库）。G2-8 实现。
 #   --evidence-dir <dir>  缺省 <harness>/_bmad-output/审查/evidence-deploy-<vault名>/
 #   --env-dir <dir>       缺省 <harness>/ 。`.env.<vault名>` 的落点目录。
 #
@@ -59,6 +65,11 @@
 #                             退役 skill 时必须同步改两处。
 #   CLS_DEPLOY_ALLOW_DOCKER_UP  **缺省 0 = 步 5 只跑 `config` 断言后 SKIP，不 `up -d`**。
 #                             显式 =1 才真起容器（顶替现网容器不可逆 ⇒ opt-in，需用户当次授权）。
+#   CLS_DEPLOY_LANCE_READY_TIMEOUT
+#                             步 5 等 LanceDB **首索引**就绪的墙钟上限（整数秒，取值
+#                             1..86400；含前导零在内**原串最多 20 位**，剥零后须 ≤5 位 ——
+#                             与步 1 的 npm 上限同律），缺省 120。到点即停并如实记
+#                             `rc≠0 progress=unknown` —— 不把「等不到」写成「就绪」。
 #   CLS_LIVE_VAULT            live vault 绝对路径（禁写面第一条），缺省为主仓 canvas-vault。
 #   CLS_NPM_BUILD_TIMEOUT     步 1 `npm run build` 的**墙钟上限**（整数秒，取值 1..86400；
 #                             含前导零在内**原串最多 20 位** —— Codex r3 LOW-3），
@@ -106,6 +117,8 @@ CLS_LIVE_VAULT="${CLS_LIVE_VAULT:-/Users/Heishing/Desktop/canvas/canvas-learning
 # 步 1 npm build 的墙钟上限与离线开关（CARD-DEPLOY-TIMEOUT / R-15，依据见头注 环境开关）
 CLS_NPM_BUILD_TIMEOUT="${CLS_NPM_BUILD_TIMEOUT:-300}"
 CLS_NPM_BUILD_OFFLINE="${CLS_NPM_BUILD_OFFLINE:-true}"
+# 步 5 等 LanceDB 首索引就绪的墙钟上限（G2-8，依据见头注 环境开关）
+CLS_DEPLOY_LANCE_READY_TIMEOUT="${CLS_DEPLOY_LANCE_READY_TIMEOUT:-120}"
 FEATURE_TREE="/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev"
 
 VAULT=""
@@ -120,6 +133,8 @@ EVIDENCE_DIR=""
 ENV_DIR=""
 STEP_MSG=""
 declare -a STEP_LINES=()
+# `--also-push` 的结果（G2-8）：步 6 落进 evidence 的 `also_push_result=` 一行。
+ALSO_PUSH_MSG="not-requested"
 
 usage() {
     # 打第 2 行到**第一个非 # 开头的行**为止, 再删掉那一行 —— 对头注行数漂移免疫,
@@ -402,6 +417,115 @@ MODE="dry-run"
 TS="$(date +%Y%m%dT%H%M%S)"
 
 emit() { STEP_LINES+=("$1"); printf '%s\n' "$1"; }
+
+# ── 真 activate 的分阶段账（G2-8）────────────────────────────────────────────
+# ⛔ 落点必须是**步 1 PENDING_WRITES 已申报过的**对象 —— 这里用步 5 的 `$cfg`
+#    （ev-compose-config-<ts>.txt）。新开一个 journal 文件 = 一个 preflight 禁写面
+#    判据没见过的写入面, 而步 1 是 G2-7b 的交付面、本卡禁改 ⇒ 不新开文件。
+# 每条 stage 行同时进数组（步 6 落 evidence）与 $ACT_JOURNAL（当场可审计）。
+declare -a ACT_STAGES=()
+ACT_JOURNAL=""
+# 阶段账没能完整落盘时的原因。⛔ 不许只留一行标记就照常报成功（Codex r1 MEDIUM-6）：
+# 账不全 = 事后无从复核, 由步 6 以 76 如实失败（部署本身已发生, 失败点在证据环节）。
+ACT_JOURNAL_ERR=""
+# ⛔ 打开**一次**、之后只对那个 fd 写（Codex r2 HIGH）：每条 stage 都
+#    `assert_writable_now` 再 `>>` 的写法，检查与重定向之间仍要把路径**重新解析**一遍,
+#    残留窗口每写一行就来一次；而持有 fd 之后, 路径被换成软链也改变不了我们写的
+#    inode —— 「绝不写到没验过的对象上」这条才是真正要保的性质（能不能察觉掉包是次要的）。
+#    fd 9 是固定编号：本机 bash 3.2 没有 `{var}>>` 的动态分配。
+ACT_JOURNAL_FD_OPEN=0
+act_journal_open() {
+    ACT_JOURNAL="$1"
+    # 打开前紧邻复查（与脚本别处同律）：这是本函数唯一一次路径解析。
+    if ! assert_writable_now "$ACT_JOURNAL"; then
+        ACT_JOURNAL_ERR="开阶段账前复查未过: $WRITE_GUARD_ERR"
+        return 1
+    fi
+    # ⛔ 复查与 `exec 9>>` 之间仍有窗口（Codex r4 HIGH）：bash 的重定向没有 O_NOFOLLOW,
+    #    也没法把「检查」和「打开」做成一步。脚本别处只能声明「窗口收到最窄、不为零」——
+    #    但这里可以**把它关掉**：先记下复查当时那个对象的 dev:ino:nlink, 打开之后再问
+    #    **这个 fd 到底连到了哪个 inode**（fd 被子进程继承, `os.fstat(9)` 问得到）。
+    #    期间被掉包 ⇒ fd 连的是别的 inode ⇒ 身份对不上 ⇒ 关掉并拒。
+    #    ⚠️ 只有「打开后核 fd 身份」才管用；再 stat 一次路径是没用的（掉包后路径与 fd
+    #    指向同一个新对象, 两边一致而那个对象根本没验过）。
+    # ⛔ 身份三元组里**不能**把 nlink 也当「相等即可」（Codex r5 HIGH）：若在
+    #    assert_writable_now 与这次 lstat 之间就被加了硬链接, want 与 got 会**同为**
+    #    `dev:ino:2`, 相等而且都不合格。⇒ 采样与核对两侧各自**独立要求 nlink == 1
+    #    且是普通文件**（不合格就 exit 1 ⇒ 空串 ⇒ fail-closed）, 相等只用来挡「被换成
+    #    另一个同样合格的对象」。两件事分开判, 不让「相等」替「合格」背书。
+    local want="" got=""
+    want="$(python3 -c '
+import os, stat, sys
+st = os.lstat(sys.argv[1])
+if not stat.S_ISREG(st.st_mode) or st.st_nlink != 1:
+    sys.exit(1)
+sys.stdout.write("%d:%d" % (st.st_dev, st.st_ino))' "$ACT_JOURNAL" 2> /dev/null)" || want=""
+    if [ -z "$want" ]; then
+        ACT_JOURNAL_ERR="阶段账不是链接数为 1 的普通文件, 或问不出它的 inode 身份: $ACT_JOURNAL"
+        return 1
+    fi
+    if ! exec 9>> "$ACT_JOURNAL"; then
+        ACT_JOURNAL_ERR="打不开阶段账: $ACT_JOURNAL"
+        return 1
+    fi
+    ACT_JOURNAL_FD_OPEN=1
+    got="$(python3 -c '
+import os, stat, sys
+st = os.fstat(9)
+if not stat.S_ISREG(st.st_mode) or st.st_nlink != 1:
+    sys.exit(1)
+sys.stdout.write("%d:%d" % (st.st_dev, st.st_ino))' 2> /dev/null)" || got=""
+    # 空值也拒（问不出来 / 不合格 = 无从断言, fail-closed, 与 assert_writable_now 三态同律）
+    if [ -z "$got" ] || [ "$got" != "$want" ]; then
+        act_journal_close
+        ACT_JOURNAL_ERR="阶段账在复查与打开之间被换过或被加了硬链接（验过 ${want}, 打开的是 ${got:-不合格/问不出来}）"
+        return 1
+    fi
+    return 0
+}
+act_journal_close() {
+    [ "$ACT_JOURNAL_FD_OPEN" = 1 ] || return 0
+    exec 9>&-
+    ACT_JOURNAL_FD_OPEN=0
+    return 0
+}
+act_stage() {
+    ACT_STAGES+=("$1")
+    local _what="${1%% *}"
+    _what="${_what#stage=}"
+    if [ "$ACT_JOURNAL_FD_OPEN" != 1 ]; then
+        # 账开不出来也不许静默 —— 由步 6 以 76 如实失败
+        [ -n "$ACT_JOURNAL_ERR" ] || ACT_JOURNAL_ERR="阶段账未打开"
+        ACT_STAGES+=("stage=journal-write-failed of=${_what} rc=1")
+        return 0
+    fi
+    if ! printf '%s\n' "$1" >&9; then
+        ACT_JOURNAL_ERR="写阶段账失败: $ACT_JOURNAL"
+        ACT_STAGES+=("stage=journal-write-failed of=${_what} rc=1")
+    fi
+    return 0
+}
+
+# ── HTTP 响应体取**顶层**字段 ────────────────────────────────────────────────
+# ⛔ 不用 grep 全文匹配 `"status": "ok"`（Codex r1 HIGH-1）：嵌套字段
+#    （如 components.neo4j.status）或被截断的响应里出现同样的字面量时, 全文匹配会把
+#    「顶层说失败」读成「就绪」= 假成功。这里用 json.loads 只看顶层。
+# rc: 0 取到 / 3 解析不出（非 JSON 或非对象）/ 4 顶层没有这个键。
+# 取到的值按单 token 归一（非 [A-Za-z0-9_.-] 一律换 '-'）, 免得把换行带进阶段行。
+json_top_field() {
+    python3 - "$1" "$2" << 'PY' 2> /dev/null
+import json, re, sys
+
+field, body = sys.argv[1], sys.argv[2]
+try:
+    d = json.loads(body)
+except Exception:
+    sys.exit(3)
+if not isinstance(d, dict) or field not in d:
+    sys.exit(3 if not isinstance(d, dict) else 4)
+print(re.sub(r"[^A-Za-z0-9_.-]", "-", str(d[field]))[:64])
+PY
+}
 
 run_step() {
     local n="$1" name="$2" fn="$3" rc=0
@@ -1228,19 +1352,74 @@ PY
         STEP_MSG="config 断言过（container_name/端口各 1）; 未设 CLS_DEPLOY_ALLOW_DOCKER_UP=1 ⇒ 不执行 up -d（缺省即不做, 需用户当次授权）"
         return 2
     fi
-    # 真 activate（G2-8 面）：起/重建该 vault 的绑定实例 + 健康断言 + 失败回滚。
+    # ══ 真 activate（G2-8 事务化）══════════════════════════════════════════════
+    # ⛔ 语义按决策页 §一 改写过：`/vault/switch` 已 410, 运行时切换**不存在**。
+    #    部署单元 =（vault, 它绑定的后端实例）。激活 = 起/重建**本 vault 自己的**
+    #    compose 项目 `cls-<vault>`, 不顶掉别的 vault；失败回滚 = 只把
+    #    `cls-<vault>` 这一个项目拆掉/回上一版, 别的 vault 的实例**一动不动**
+    #    （不是总账原卡文那套「恢复旧 ACTIVE_VAULT」—— 那套已作废）。
     # 需用户当次授权；车道禁跑（见头注与 §三）。
+    # 每阶段一行 `stage=… rc=` ⇒ 事后能分清「哪一阶段失败、回滚有没有真做成」。
+    # ⛔ 开账**失败即 fail-closed**（Codex r3 HIGH）：此刻**还没有起任何容器**,
+    #    而复查拒绝意味着这个路径已经不可信 —— 若只记个错继续走, 下面 up/down 的
+    #    `>> "$cfg"` 仍会按同一个不可信路径重定向, 等于「判据说不能写, 然后照写」。
+    #    这里返回 1 的代价是零（无容器要回滚），收益是步 5 之后**没有任何按路径的写**。
+    # 失败路径不显式关 fd：`run_step` 对 FAIL 直接 `exit 7N`, 进程退出即释放。
+    if ! act_journal_open "$cfg"; then
+        STEP_MSG="阶段账不可写, 拒绝起实例（${ACT_JOURNAL_ERR}）"
+        return 1
+    fi
+    # ⛔ Lance 上限先校验再起容器：校验失败时**还没有**容器要回滚。
+    #    取值必须是有界正整数且逐字符枚举（不写 `[!0-9]` 区间 —— 区间由 locale 的
+    #    排序决定, `LC_ALL=ar_EG.UTF-8` 下阿拉伯数字能过门, 随后 `[ -ge ]` 报错
+    #    rc=2、`if` 判假 ⇒ 反而放行, 那是 fail-open；与步 1 的 npm 上限同律）。
+    # ⛔ 前导零必须**先剥掉**（Codex r2 MEDIUM-1）：bash 的 `[ -lt ]` 与 `$(( ))` 把
+    #    `08`/`09` 当八进制 ⇒ 前者报错 rc=2（`if` 判假 = 放行）、后者在实例已经起来
+    #    之后才炸；`010` 更坏 —— 静默按 **8** 秒算，与调用者写的数不是一回事。
+    #    处理顺序与步 1 的 npm 上限逐条同律（先枚举字符 → 限原串长 → 剥零 → 再枚举
+    #    → 限长 → 最后才做数值比较, 保证比较不可能 rc=2）。
+    local lcap="$CLS_DEPLOY_LANCE_READY_TIMEOUT"
+    case "$lcap" in
+        '' | *[!0123456789]*)
+            STEP_MSG="CLS_DEPLOY_LANCE_READY_TIMEOUT 必须是 ASCII 十进制整数秒, 实为 '${CLS_DEPLOY_LANCE_READY_TIMEOUT}'"
+            return 1
+            ;;
+    esac
+    if [ "${#lcap}" -gt 20 ]; then
+        STEP_MSG="CLS_DEPLOY_LANCE_READY_TIMEOUT 位数过多（最多 20 位）, 实为 '${CLS_DEPLOY_LANCE_READY_TIMEOUT}'"
+        return 1
+    fi
+    lcap="${lcap#"${lcap%%[!0]*}"}"   # 剥前导零（008 → 8；000 → 空）
+    case "$lcap" in
+        '' | *[!0123456789]*)         # 剥零后再判一次：空串(000) 与残留非数字都在这里落地
+            STEP_MSG="CLS_DEPLOY_LANCE_READY_TIMEOUT 必须在 1..86400 秒内（0 会让上限静默失效）, 实为 '${CLS_DEPLOY_LANCE_READY_TIMEOUT}'"
+            return 1
+            ;;
+    esac
+    if [ "${#lcap}" -gt 5 ]; then     # 86400 是 5 位 ⇒ 再长必超界, 不必做数值比较
+        STEP_MSG="CLS_DEPLOY_LANCE_READY_TIMEOUT 必须在 1..86400 秒内（超界会让上限静默失效）, 实为 '${CLS_DEPLOY_LANCE_READY_TIMEOUT}'"
+        return 1
+    fi
+    # 到这里 lcap 已确定是 1-5 位纯 ASCII 数字 ⇒ 下面的数值比较与算术不可能出错
+    if [ "$lcap" -lt 1 ] || [ "$lcap" -gt 86400 ]; then
+        STEP_MSG="CLS_DEPLOY_LANCE_READY_TIMEOUT 必须在 1..86400 秒内, 实为 '${CLS_DEPLOY_LANCE_READY_TIMEOUT}'"
+        return 1
+    fi
     local up_rc=0
     docker compose -f "$HARNESS/docker-compose.yml" --env-file "$ENV_FILE" \
         -p "cls-$VAULT_NAME" --project-directory "$HARNESS" up -d backend \
-        >> "$cfg" 2>&1 || up_rc=$?
+        >&9 2>&1 || up_rc=$?
+    act_stage "stage=up-instance project=cls-$VAULT_NAME rc=${up_rc}"
     if [ "$up_rc" != 0 ]; then
         local down_rc=0
         docker compose -f "$HARNESS/docker-compose.yml" --env-file "$ENV_FILE" \
-            -p "cls-$VAULT_NAME" --project-directory "$HARNESS" down >> "$cfg" 2>&1 || down_rc=$?
+            -p "cls-$VAULT_NAME" --project-directory "$HARNESS" down >&9 2>&1 || down_rc=$?
+        # ⛔ `-p "cls-$VAULT_NAME"` 是「只拆本实例」的全部依据：去掉它 = 拆光
+        #    当前 project-directory 下的一切, 别的 vault 的实例会被误伤。
+        act_stage "stage=rollback-down project=cls-$VAULT_NAME rc=${down_rc} scope=only-this-project"
         # ⛔ down 失败时不得仍声称「已回滚」（Codex r1 HIGH-3）
         if [ "$down_rc" = 0 ]; then
-            STEP_MSG="up -d backend rc=${up_rc}, 已回滚 down"
+            STEP_MSG="up -d backend rc=${up_rc}, 已回滚 down（只拆 cls-$VAULT_NAME, 兄弟实例未碰）"
         else
             STEP_MSG="up -d backend rc=${up_rc}, 且回滚 down 也失败(rc=${down_rc}) — 容器可能仍在, 需人工处置"
         fi
@@ -1253,18 +1432,230 @@ PY
     if [ "$curl_rc" != 0 ]; then
         cur=""
     fi
-    if [ -z "$cur" ] || ! printf '%s' "$cur" | grep -q "$VAULT_NAME"; then
+    local reported="no"
+    if [ -n "$cur" ] && printf '%s' "$cur" | grep -q "$VAULT_NAME"; then
+        reported="yes"
+    fi
+    act_stage "stage=health-assert path=/api/v1/vault/current reported=${reported} rc=${curl_rc}"
+    if [ "$reported" != "yes" ]; then
         local down_rc2=0
         docker compose -f "$HARNESS/docker-compose.yml" --env-file "$ENV_FILE" \
-            -p "cls-$VAULT_NAME" --project-directory "$HARNESS" down >> "$cfg" 2>&1 || down_rc2=$?
+            -p "cls-$VAULT_NAME" --project-directory "$HARNESS" down >&9 2>&1 || down_rc2=$?
+        act_stage "stage=rollback-down project=cls-$VAULT_NAME rc=${down_rc2} scope=only-this-project"
         if [ "$down_rc2" = 0 ]; then
-            STEP_MSG="/api/v1/vault/current 未报告 $VAULT_NAME, 已回滚 down"
+            STEP_MSG="/api/v1/vault/current 未报告 $VAULT_NAME, 已回滚 down（只拆 cls-$VAULT_NAME, 兄弟实例未碰）"
         else
             STEP_MSG="/api/v1/vault/current 未报告 $VAULT_NAME, 且回滚 down 失败(rc=${down_rc2}) — 需人工处置"
         fi
         return 1
     fi
-    STEP_MSG="实例 cls-$VAULT_NAME 已起, /vault/current 报告 $VAULT_NAME"
+
+    # ── ① index journal 隔离（G2-5 命名空间化在部署期的落地）─────────────────
+    # 路径由 harness 自己的 `app.core.vault_state_paths` **算**出来, 脚本不拼字符串:
+    # 拼字符串会与生产实现分叉, 而两边都「看起来对」⇒ 隔离其实没落地也无人知道。
+    local jrc=0 jout=""
+    jout="$("$py" - "$HARNESS" "$VAULT_NAME" << 'PY' 2>&1
+import sys
+from pathlib import Path
+
+harness, name = sys.argv[1], sys.argv[2]
+sys.path.insert(0, harness + "/backend")
+from app.core.vault_state_paths import legacy_state_path, namespaced_state_path
+
+data = Path(harness) / "backend" / "app" / "data"
+names, d_legacy, d_sib = [], True, True
+# 生产里真正在用的两条 pending journal（lancedb_index_service / vault_index_orchestrator）
+for stem in ("lancedb_pending_index", "vault_index_pending"):
+    mine = namespaced_state_path(data, stem, vault_key=name)
+    names.append(mine.name)
+    d_legacy = d_legacy and mine != legacy_state_path(data, stem)
+    # 对照 key：隔离的实质是「别的 vault 算不到我这条路径」, 只看形状证明不了
+    d_sib = d_sib and mine != namespaced_state_path(data, stem, vault_key=name + "_sibling")
+print(
+    "journals=%s legacy_distinct=%s sibling_distinct=%s"
+    % (",".join(names), "yes" if d_legacy else "no", "yes" if d_sib else "no")
+)
+PY
+)" || jrc=$?
+    if [ "$jrc" = 0 ] && [ -n "$jout" ]; then
+        act_stage "stage=index-journal-isolation rc=0 $jout"
+    else
+        # 问不出来就是问不出来, 不拿「没报错」当「已隔离」
+        [ "$jrc" != 0 ] || jrc=1
+        act_stage "stage=index-journal-isolation rc=${jrc} reason=probe-failed"
+    fi
+
+    # ── ② Lance 首索引单独计时 + 进度 ────────────────────────────────────────
+    # 量的是「实例起来之后到 LanceDB 报就绪」的墙钟 —— 首索引要建表, 这段时间
+    # 用户是看不到东西的, 落进证据才好判断「慢」还是「卡死」。
+    # ⛔ 单次探测的 `-m` 必须**受剩余预算约束**（Codex r1 MEDIUM-4）：写死 `-m 10` 时
+    #    `CLS_DEPLOY_LANCE_READY_TIMEOUT=1` 也可能卡满 10 秒, 上限形同虚设。
+    local lstart lnow lelapsed=0 lrem=0 lto=10 lrc=1 lprog="unknown" lbody="" lcrc=0 lsrc=0 lstatus="" ltc=""
+    lstart="$(date +%s)"
+    while :; do
+        lnow="$(date +%s)"
+        lelapsed=$((lnow - lstart))
+        lrem=$((lcap - lelapsed))
+        [ "$lrem" -gt 0 ] || break
+        lto=10
+        if [ "$lrem" -lt 10 ]; then lto="$lrem"; fi
+        lcrc=0
+        lsrc=0
+        lbody="$(curl -sS --fail -m "$lto" "http://127.0.0.1:$PORT/api/v1/health/lancedb" 2> /dev/null)" || lcrc=$?
+        if [ "$lcrc" = 0 ]; then
+            lstatus="$(json_top_field status "$lbody")" || lsrc=$?
+            if [ "$lsrc" = 0 ]; then
+                case "$lstatus" in
+                    ok | healthy | ready)
+                        lrc=0
+                        ltc="$(json_top_field table_count "$lbody")" || ltc=""
+                        if [ -n "$ltc" ]; then lprog="table_count=$ltc"; else lprog="unknown"; fi
+                        break
+                        ;;
+                esac
+            fi
+        fi
+        # ⛔ 间隔也受预算约束（Codex r2 MEDIUM-2）：写死 `sleep 2` 时上限 1 秒的这一跑
+        #    仍会花 2 秒 —— 上限说是 1 却做了 2, 就不是上限。
+        lnow="$(date +%s)"
+        lrem=$((lcap - (lnow - lstart)))
+        [ "$lrem" -gt 0 ] || break
+        if [ "$lrem" -lt 2 ]; then sleep "$lrem"; else sleep 2; fi
+    done
+    lnow="$(date +%s)"
+    lelapsed=$((lnow - lstart))
+    act_stage "stage=lance-first-index rc=${lrc} elapsed_s=${lelapsed} progress=${lprog}"
+
+    # ── ③ Graphiti 回填 readiness：⛔ 禁假成功 ───────────────────────────────
+    # 三种失败面各自如实命名, 一律落 `skipped-with-reason=` —— 尤其 (ii)：
+    # 「拿到响应但解析不出状态」最容易被写成「没报错 = 就绪」, 那正是假成功。
+    # ⛔ 只看**顶层** status（Codex r1 HIGH-1）：全文正则会被嵌套的
+    #    `components.*.status` 或截断响应里的同名字面量骗成 ready。
+    local grc=0 gbody="" gres="" gsrc=0 gstatus=""
+    gbody="$(curl -sS --fail -m 10 "http://127.0.0.1:$PORT/api/v1/health/knowledge-graph" 2> /dev/null)" || grc=$?
+    if [ "$grc" != 0 ]; then
+        gres="skipped-with-reason=unreachable-rc-${grc}"
+    else
+        gstatus="$(json_top_field status "$gbody")" || gsrc=$?
+        case "$gsrc" in
+            0) ;;
+            4) gres="skipped-with-reason=no-status-field" ;;
+            *) gres="skipped-with-reason=unparsable-response" ;;
+        esac
+        if [ "$gsrc" = 0 ]; then
+            case "$gstatus" in
+                ok | healthy | ready) gres="ready" ;;
+                '') gres="skipped-with-reason=empty-status" ;;
+                *) gres="skipped-with-reason=not-ready-${gstatus}" ;;
+            esac
+        fi
+    fi
+    act_stage "stage=graphiti-readiness rc=${grc} result=${gres}"
+
+    act_journal_close
+    STEP_MSG="实例 cls-$VAULT_NAME 已起, /vault/current 报告 $VAULT_NAME; 分阶段账 ${#ACT_STAGES[@]} 行见 $cfg"
+    return 0
+}
+
+# ── `--also-push`（G2-8 实现）────────────────────────────────────────────────
+# 把本次 vault 名追加进 **harness 自己的** `.env` 的 `DAILY_REVIEW_VAULTS` 清单,
+# 去重。清单口径 = 逗号/空格分隔的目录名（`scripts/launchd/daily-review-wrapper.sh`
+# 与 `scripts/memory-health.sh` 读的是同一份 `.env` 同一个键）。
+# ⛔ 只碰这一个键：`ACTIVE_VAULT` 决定「当前是哪个库」, 而追加复习清单**不是**
+#    换库 —— 顺手改它会让上一个库当天起停推（决策页 §二 G5 的坑）。
+# ⛔ harness 守卫（限 `FEATURE_TREE`, 否则 die64）在参数解析处, 这里既不重复也不放宽。
+# ⛔ 写法与脚本别处同律：实际要写的对象过**同一份**判据 + 同一个写前复查, 再由
+#    `open_pinned`（逐级 O_NOFOLLOW）+ `write_all`（防短写）落盘。这是本脚本第三处
+#    python 写入点, 对应门 `test_every_bash_write_site_has_a_prewrite_recheck` 的计数 3。
+also_push_daily_review() {
+    if [ "$ALSO_PUSH" != 1 ]; then
+        ALSO_PUSH_MSG="not-requested"
+        return 0
+    fi
+    local henv="$HARNESS/.env"
+    if [ ! -f "$henv" ]; then
+        ALSO_PUSH_MSG="FAILED harness 的 .env 不存在, 无从追加清单: $henv"
+        return 1
+    fi
+    if check_forbidden_paths --outputs "also-push-harness-env:$henv"; then
+        ALSO_PUSH_MSG="FAILED 禁写面: $FORBIDDEN_HIT"
+        return 1
+    fi
+    assert_writable_now "$henv" || { ALSO_PUSH_MSG="FAILED $WRITE_GUARD_ERR"; return 1; }
+    local aout="" arc=0
+    aout="$(python3 - "$henv" "$VAULT_NAME" "$(dirname "$FORBID_PY")" "$CLS_LIVE_VAULT" << 'PY' 2>&1
+import os, sys
+
+p, name, moddir, live = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+sys.path.insert(0, moddir)
+from cls_forbidden_paths import open_pinned, write_all
+
+KEY = "DAILY_REVIEW_VAULTS"
+# 不带 O_CREAT：harness 的 .env 到这一步必然已存在（上面刚判过 -f）。带 O_CREAT
+# 会在文件被移走时造一个**只有这一键**的空 .env 继续走完, 把「harness 配置没了」
+# 伪装成「追加成功」。
+fd = open_pinned(p, os.O_RDWR, 0o600, live_vault=live)
+try:
+    st = os.fstat(fd)
+    if st.st_nlink > 1:
+        raise SystemExit(f"harness .env 有 {st.st_nlink} 个硬链接, 写入会改共享 inode: {p}")
+    chunks = []
+    while True:
+        b = os.read(fd, 65536)
+        if not b:
+            break
+        chunks.append(b)
+    # ⛔ 按**字节**切且保留各行原本的行尾（Codex r1 MEDIUM-5）：先把整份归一成 \n
+    #    再写回, 会把 CRLF 文件里**每一行**（含 ACTIVE_VAULT）的字节改掉 ——
+    #    那与「只碰 DAILY_REVIEW_VAULTS 这一个键」的承诺不符, 而且 splitlines()
+    #    口径的比较看不出来。这里只改/只加目标那一行, 其余字节原样。
+    raw = b"".join(chunks)
+    lines = raw.splitlines(keepends=True)
+    kb = (KEY + "=").encode("utf-8")
+    idx = [i for i, ln in enumerate(lines) if ln.startswith(kb)]
+    term = b""
+    cur = ""
+    if idx:
+        ln = lines[idx[-1]]
+        body = ln.rstrip(b"\r\n")
+        term = ln[len(body) :]
+        cur = body[len(kb) :].decode("utf-8", "replace")
+    # 清单口径 = 逗号/空格分隔（daily-review-wrapper.sh 与 memory-health.sh 同源）。
+    # ⛔ 先剥引号再切（Codex r3 MEDIUM）：消费方 memory-health.sh:74 就是
+    #    `cut -d= -f2- | tr -d '"' | tr -d "'"` —— 它眼里 `'beta'` 就是 `beta`。
+    #    这里不剥的话，`DAILY_REVIEW_VAULTS='beta'` 再来一次 beta 会追加成 `'beta',beta`，
+    #    消费方看到的是同一个库两遍。判重口径必须与消费方一致。
+    cur = cur.replace('"', "").replace("'", "")
+    items = [t for t in cur.replace(",", " ").split() if t]
+    if name in items:
+        # 去重：一个字节都不写（fd 以 O_RDWR 开着, 但没 ftruncate 也没 write）
+        print("already-present " + name)
+        raise SystemExit(0)
+    items.append(name)
+    newline = kb + ",".join(items).encode("utf-8")
+    if idx:
+        lines[idx[-1]] = newline + term
+        out = b"".join(lines)
+    else:
+        # 缺键（真 feature 树当前就是这个形态）：**原字节整段保留**, 只在其后追加。
+        # ⛔ 不去给末行补 LF（Codex r3 LOW-1）：那是改既有行的字节。分隔用的换行
+        #    作为**追加内容的一部分**写在原字节之后, 原文仍是新内容的逐字节前缀。
+        sep = b"" if (not raw or raw.endswith((b"\n", b"\r"))) else b"\n"
+        out = raw + sep + newline + b"\n"
+    os.lseek(fd, 0, os.SEEK_SET)
+    os.ftruncate(fd, 0)
+    write_all(fd, out)
+    os.fsync(fd)
+    print("appended " + name)
+finally:
+    os.close(fd)
+PY
+)" || arc=$?
+    if [ "$arc" != 0 ]; then
+        ALSO_PUSH_MSG="FAILED 追加清单: ${aout:-无输出}"
+        return 1
+    fi
+    ALSO_PUSH_MSG="${aout:-无输出}"
     return 0
 }
 
@@ -1278,6 +1669,11 @@ step6_evidence() {
         return 2
     fi
     mkdir -p "$EVIDENCE_DIR" || { STEP_MSG="建 evidence 目录失败: $EVIDENCE_DIR"; return 1; }
+    # `--also-push`（G2-8）在落证据**之前**执行、但失败**不吞证据**：先拿到结果,
+    # 写进报告, 报告写完再按结果决定返回码 —— 否则「清单追加失败」会连整跑的证据
+    # 一起丢掉, 排查时手里什么都没有。不用 `|| true`（那会把 rc 吞掉）。
+    local _aprc=0
+    also_push_daily_review || _aprc=$?
     local out="$EVIDENCE_DIR/deploy-$TS.txt" t _sha _sha_fail=0 _src=0
     assert_writable_now "$out.tmp" || { STEP_MSG="$WRITE_GUARD_ERR"; return 1; }
     {
@@ -1285,11 +1681,19 @@ step6_evidence() {
         printf '## 参数\n'
         printf '  mode=%s vault=%s vault_name=%s\n' "$MODE" "$VAULT" "$VAULT_NAME"
         printf '  harness=%s port=%s hosts=%s subject=%s\n' "$HARNESS" "$PORT" "$HOSTS" "$SUBJECT"
-        printf '  activate=%s also_push=%s(未实现,登记 G2-8) evidence_dir=%s env_dir=%s\n' \
+        printf '  activate=%s also_push=%s evidence_dir=%s env_dir=%s\n' \
             "$ACTIVATE" "$ALSO_PUSH" "$EVIDENCE_DIR" "$ENV_DIR"
+        printf '  also_push_result=%s\n' "$ALSO_PUSH_MSG"
         printf '  CLS_MIN_SKILLS=%s CLS_DEPLOY_ALLOW_DOCKER_UP=%s\n' "$CLS_MIN_SKILLS" "$CLS_DEPLOY_ALLOW_DOCKER_UP"
+        printf '  CLS_DEPLOY_LANCE_READY_TIMEOUT=%s\n' "$CLS_DEPLOY_LANCE_READY_TIMEOUT"
         printf '## 六行状态\n'
         for t in "${STEP_LINES[@]}"; do printf '  %s\n' "$t"; done
+        printf '## 激活分阶段 (G2-8)\n'
+        if [ "${#ACT_STAGES[@]}" -gt 0 ]; then
+            for t in "${ACT_STAGES[@]}"; do printf '  %s\n' "$t"; done
+        else
+            printf '  (无 - 步 5 未进入真 activate)\n'
+        fi
         printf '## 文件 sha256（密钥件只 sha, 不记内容）\n'
         for t in "$VAULT/.canvas-config.yaml" "$VAULT/.mcp.json" \
             "$VAULT/.claude/settings.json" "$VAULT/.claude/hooks/session-end-archive.py" \
@@ -1323,6 +1727,26 @@ step6_evidence() {
             STEP_MSG="有文件 shasum 失败（见 SHASUM-FAILED 行）, 证据已标 rc=76: $out"
         else
             STEP_MSG="有文件 shasum 失败, 且证据**未能发布**（$out.tmp 残留或 mv 失败）, 报告不可信"
+        fi
+        return 1
+    fi
+    # ⛔ 同律（r3 MEDIUM-2）：收尾失败时落盘的 rc 行不得写 0 —— 进程会以 76 退出,
+    #    证据却说 0 就是自相矛盾, 而证据是事后唯一的依据。
+    # 两类收尾失败：`--also-push` 没做成 / 激活分阶段账没能完整落盘（r1 MEDIUM-6）。
+    local _fail_msg=""
+    if [ "$_aprc" != 0 ]; then
+        _fail_msg="--also-push 失败: ${ALSO_PUSH_MSG}"
+    elif [ -n "$ACT_JOURNAL_ERR" ]; then
+        _fail_msg="激活分阶段账未能完整落盘: ${ACT_JOURNAL_ERR}"
+    fi
+    if [ -n "$_fail_msg" ]; then
+        local _pub2=1
+        printf 'rc=76\n' >> "$out.tmp" || _pub2=0
+        [ "$_pub2" = 1 ] && { mv "$out.tmp" "$out" || _pub2=0; }
+        if [ "$_pub2" = 1 ]; then
+            STEP_MSG="${_fail_msg}; 证据已标 rc=76: $out"
+        else
+            STEP_MSG="${_fail_msg}; 且证据**未能发布**, 报告不可信"
         fi
         return 1
     fi

@@ -1,0 +1,11 @@
+禁写面负控（本卡不碰）开工: d8b9b114967e8df2a0daab1c22aa8f85c3b8730c6fc34208375280ce5bcb2a68  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t2-deploy/scripts/cls_forbidden_paths.py
+HEAD 同文件                : d8b9b114967e8df2a0daab1c22aa8f85c3b8730c6fc34208375280ce5bcb2a68  -
+readiness-fakesuccess      rc=1 KILLED 红在声称的断言上 «没落 skipped-with-reason»  sha_same=yes
+readiness-fulltext-regex   rc=1 KILLED 红在声称的断言上 «没落 skipped-with-reason»  sha_same=yes
+alsopush-nodedup           rc=1 KILLED 红在声称的断言上 «已在清单里却被重复追加»  sha_same=yes
+active-vault-mutated       rc=1 KILLED 红在声称的断言上 «动了 ACTIVE_VAULT»  sha_same=yes
+crlf-normalized-away       rc=1 KILLED 红在声称的断言上 «既有字节被改了»  sha_same=yes
+journal-recheck-removed    rc=1 KILLED 红在声称的断言上 «账写不进去却没以 76 失败»  sha_same=yes
+rollback-unscoped          rc=1 KILLED 红在声称的断言上 «兄弟实例不受影响»  sha_same=yes
+禁写面负控（收工）        : d8b9b114967e8df2a0daab1c22aa8f85c3b8730c6fc34208375280ce5bcb2a68  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t2-deploy/scripts/cls_forbidden_paths.py
+RESTORE before=86af09eb660e452fa62376b5fb04bfd2eb9a0b3e16ed5dbce28edaf4bb642fd2 after=86af09eb660e452fa62376b5fb04bfd2eb9a0b3e16ed5dbce28edaf4bb642fd2 same=yes

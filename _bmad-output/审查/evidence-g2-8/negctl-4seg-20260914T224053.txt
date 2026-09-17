@@ -1,0 +1,37 @@
+禁写面负控（本卡不碰）: d8b9b114967e8df2a0daab1c22aa8f85c3b8730c6fc34208375280ce5bcb2a68  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t2-deploy/scripts/cls_forbidden_paths.py
+HEAD 同文件: d8b9b114967e8df2a0daab1c22aa8f85c3b8730c6fc34208375280ce5bcb2a68  -
+
+===== negctl readiness-fakesuccess =====
+gate=tests/unit/test_deploy_vault_sh.py::test_g2_8_graphiti_readiness_never_reports_fake_success[fail-unreachable] rc=1 (期望非 0 = 指定的那道门变红)
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_deploy_vault_sh.py::test_g2_8_graphiti_readiness_never_reports_fake_success[fail-unreachable]
+======================== 1 failed, 10 warnings in 3.00s ========================
+seg=readiness-fakesuccess sha_before=a00125d2ffc1b13d91ac507f837b7d2060ed92949f3f1069ec9d3cba4ebf9547 sha_after=a00125d2ffc1b13d91ac507f837b7d2060ed92949f3f1069ec9d3cba4ebf9547 same=yes
+
+===== negctl alsopush-nodedup =====
+gate=tests/unit/test_deploy_vault_sh.py::test_g2_8_also_push_appends_and_dedups rc=1 (期望非 0 = 指定的那道门变红)
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_deploy_vault_sh.py::test_g2_8_also_push_appends_and_dedups
+======================== 1 failed, 10 warnings in 4.66s ========================
+seg=alsopush-nodedup sha_before=a00125d2ffc1b13d91ac507f837b7d2060ed92949f3f1069ec9d3cba4ebf9547 sha_after=a00125d2ffc1b13d91ac507f837b7d2060ed92949f3f1069ec9d3cba4ebf9547 same=yes
+
+===== negctl active-vault-mutated =====
+gate=tests/unit/test_deploy_vault_sh.py::test_g2_8_also_push_appends_and_dedups rc=1 (期望非 0 = 指定的那道门变红)
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_deploy_vault_sh.py::test_g2_8_also_push_appends_and_dedups
+======================== 1 failed, 10 warnings in 4.07s ========================
+seg=active-vault-mutated sha_before=a00125d2ffc1b13d91ac507f837b7d2060ed92949f3f1069ec9d3cba4ebf9547 sha_after=a00125d2ffc1b13d91ac507f837b7d2060ed92949f3f1069ec9d3cba4ebf9547 same=yes
+
+===== negctl rollback-unscoped =====
+gate=tests/unit/test_deploy_vault_sh.py::test_g2_8_health_failure_tears_down_only_this_project rc=1 (期望非 0 = 指定的那道门变红)
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_deploy_vault_sh.py::test_g2_8_health_failure_tears_down_only_this_project
+======================== 1 failed, 10 warnings in 2.61s ========================
+seg=rollback-unscoped sha_before=a00125d2ffc1b13d91ac507f837b7d2060ed92949f3f1069ec9d3cba4ebf9547 sha_after=a00125d2ffc1b13d91ac507f837b7d2060ed92949f3f1069ec9d3cba4ebf9547 same=yes
+
+禁写面负控（收工）: d8b9b114967e8df2a0daab1c22aa8f85c3b8730c6fc34208375280ce5bcb2a68  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t2-deploy/scripts/cls_forbidden_paths.py
+RESTORE before=a00125d2ffc1b13d91ac507f837b7d2060ed92949f3f1069ec9d3cba4ebf9547 after=a00125d2ffc1b13d91ac507f837b7d2060ed92949f3f1069ec9d3cba4ebf9547 same=yes

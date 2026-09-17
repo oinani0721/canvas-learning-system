@@ -1,0 +1,26 @@
+## 1 三段新增 grep（改后）
+60
+## 2 未实现字样（应 0）
+0
+## 3 bash -n
+rc=0
+## 4 桩命名可翻转判据（≥2）
+3
+## 5 验伪锚 fake_lsof（须非空）
+2
+## 6 live vault 自本卡最早存档后被改文件数（应 0）
+       0
+## 7 backend/lancedb 同上（应 0）
+       0
+## 8 feature 主干树 .env 是否被动（应 0）
+       0
+## 9 fsrs_bridge/decay_beta 命中（应 0）
+       0
+## 10 禁写面 sha（与开工/HEAD 同）
+d8b9b114967e8df2a0daab1c22aa8f85c3b8730c6fc34208375280ce5bcb2a68  scripts/cls_forbidden_paths.py
+## 11 入库 stderr 存档（应 0）
+3
+## 12 backend/app 越界（应 0）
+       0
+## 13 既有门 test_second_tier_hosts_not_implemented_anywhere
+1

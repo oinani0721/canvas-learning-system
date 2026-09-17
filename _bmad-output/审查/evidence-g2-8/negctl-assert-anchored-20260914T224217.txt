@@ -1,0 +1,5 @@
+readiness-fakesuccess    rc=1 红在声称的断言上: YES  «没落 skipped-with-reason»
+alsopush-nodedup         rc=1 红在声称的断言上: YES  «已在清单里却被重复追加»
+active-vault-mutated     rc=1 红在声称的断言上: YES  «动了 ACTIVE_VAULT»
+rollback-unscoped        rc=1 红在声称的断言上: YES  «兄弟实例不受影响»
+RESTORE same=yes

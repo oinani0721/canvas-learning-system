@@ -976,15 +976,26 @@ def test_redaction_filter_masks_secrets_but_keeps_assertion_fields(tmp_path: Pat
         assert keep in out, f"脱敏盖过头, 弄丢了断言字段 {keep!r}:\n{out}"
 
 
+#: 本文件这条卡族自己的 evidence 目录。CARD-G2-8 补上 `evidence-g2-8`：
+#: 原来两条门只钉 `evidence-g27b` 一个目录名，G2-8 的存档落在另一个目录 ⇒
+#: **完全不在门的取名面内**（门绿证明不了新目录里没有凭据）。新开 evidence
+#: 目录的卡必须同步加进这份清单，否则它的存档是无人看管的。
+_EVIDENCE_DIRS = ("evidence-g27b", "evidence-g2-8")
+
+
+def _existing_evidence_dirs() -> list[Path]:
+    return [d for n in _EVIDENCE_DIRS if (d := REPO_ROOT / "_bmad-output" / "审查" / n).is_dir()]
+
+
 def test_no_plaintext_credentials_in_committed_evidence():
-    """evidence-g27b 里不许有明文凭据（它是要入库的）。
+    """本卡族的 evidence 目录里不许有明文凭据（它们是要入库的）。
 
     ⚠️ 这条门看的是**当前工作区**的 evidence 目录, 不是历史 —— 它防的是
     「下一次跑完忘了脱敏就 commit」。
     """
-    ev = REPO_ROOT / "_bmad-output" / "审查" / "evidence-g27b"
-    if not ev.is_dir():
-        pytest.skip("evidence-g27b 尚不存在（首次跑或已归档）")
+    evs = _existing_evidence_dirs()
+    if not evs:
+        pytest.skip(f"{_EVIDENCE_DIRS} 都不存在（首次跑或已归档）")
     pats = {
         "Google API key": re.compile(r"AIzaSy[A-Za-z0-9_\-]{10,}"),
         "INTERNAL_API_KEY 明文": re.compile(r"INTERNAL_API_KEY[:=]\s*[0-9a-f]{16,}"),
@@ -992,25 +1003,35 @@ def test_no_plaintext_credentials_in_committed_evidence():
         "sk-/ghp_/xox token": re.compile(r"\b(?:sk-[A-Za-z0-9]{8,}|ghp_[A-Za-z0-9]{8,}|xox[baprs]-)"),
     }
     bad = []
-    for p in ev.rglob("*"):
-        if not p.is_file():
-            continue
-        try:
-            txt = p.read_text(encoding="utf-8", errors="ignore")
-        except OSError:
-            continue
-        for label, pat in pats.items():
-            if pat.search(txt):
-                bad.append(f"{p.name}: {label}")
+    for ev in evs:
+        for p in ev.rglob("*"):
+            if not p.is_file():
+                continue
+            try:
+                txt = p.read_text(encoding="utf-8", errors="ignore")
+            except OSError:
+                continue
+            for label, pat in pats.items():
+                if pat.search(txt):
+                    bad.append(f"{ev.name}/{p.name}: {label}")
     assert not bad, "evidence 里有明文凭据:\n  " + "\n  ".join(bad)
+
+
+def test_credential_gate_actually_matches_something():
+    """验伪锚：上面那组正则得真能命中 —— 否则「0 命中」证明不了任何事。
+
+    （记忆教训：判据恒 0 的假阴性，本仓栽过不止一次。）
+    """
+    probe = "INTERNAL_API_KEY=0123456789abcdef0123456789abcdef"
+    assert re.search(r"INTERNAL_API_KEY[:=]\s*[0-9a-f]{16,}", probe), "凭据正则连正例都不命中"
 
 
 def test_evidence_dir_has_no_stderr_archives():
     """协议 §2.2: *.stderr* 永不入库。"""
-    ev = REPO_ROOT / "_bmad-output" / "审查" / "evidence-g27b"
-    if not ev.is_dir():
-        pytest.skip("evidence-g27b 尚不存在")
-    stray = [p.name for p in ev.rglob("*stderr*")]
+    evs = _existing_evidence_dirs()
+    if not evs:
+        pytest.skip(f"{_EVIDENCE_DIRS} 都不存在")
+    stray = [f"{ev.name}/{p.name}" for ev in evs for p in ev.rglob("*stderr*")]
     assert not stray, f"evidence 里有 stderr 存档: {stray}"
 
 
@@ -1236,22 +1257,31 @@ def test_every_bash_write_site_has_a_prewrite_recheck():
         'assert_writable_now "$rep"',
         'assert_writable_now "$cfg"',
         'assert_writable_now "$out.tmp"',
+        # CARD-G2-8 新增的两处写入点：`--also-push` 改 harness 自己的 `.env`；
+        # act_stage 追加阶段账（Codex r1 HIGH-2：首次 assert 与追加之间有掉包窗口）
+        'assert_writable_now "$henv"',
+        'assert_writable_now "$ACT_JOURNAL"',
     ):
         assert obj in src, f"写入点缺紧邻复查: {obj}"
     # ⛔ 架构已变（Codex r7 HIGH-1）：`O_NOFOLLOW` 的字面量不再在本脚本里 ——
     #    两处 python 写入统一走 `cls_forbidden_paths.open_pinned()`（解析后当场过判据 +
     #    逐级 `O_DIRECTORY|O_NOFOLLOW` + `openat` 叶子）。门跟着改，不是删。
-    assert src.count("open_pinned(") == 2, "两处 python 写入必须都走 open_pinned"
+    # ⚠️ CARD-G2-8 把这四个计数从 2 改到 3，因为**真的多了第三处 python 写入**：
+    #    `also_push_daily_review()` 改 harness 自己的 `.env`（追加 DAILY_REVIEW_VAULTS）。
+    #    门的意图是「**每一处** python 写入都走硬化原语」，跟着写入点数走才叫钉住；
+    #    把新写入点改成 bash 重定向来保住「2」才是放宽（那处会失去 O_NOFOLLOW 与防短写）。
+    #    ⇒ 再加写入点仍要同步改这几个数，且新写入点必须也走 open_pinned + write_all。
+    assert src.count("open_pinned(") == 3, "三处 python 写入必须都走 open_pinned"
     # ⛔ 裸 `os.write` 会**短写**（Codex r8 HIGH-4）：返回值小于长度时文件已被截断，
-    #    忽略返回值 = 把「只写了一半」当成功。两处写入必须走循环写。
-    assert src.count("write_all(fd, ") == 2, "两处写入必须走 write_all（防短写）"
+    #    忽略返回值 = 把「只写了一半」当成功。每处写入必须走循环写。
+    assert src.count("write_all(fd, ") == 3, "三处写入必须走 write_all（防短写）"
     # 原语本体在判据模块里（与 open_pinned 同理：两个 heredoc 各抄一份必然漂移，本卡栽过）
     _f = FORBID_PY.read_text(encoding="utf-8")
     assert "def write_all(" in _f and "n = os.write(fd, view)" in _f, "write_all 必须真的调 os.write 并按返回值推进"
     bare = [ln for ln in src.splitlines() if "os.write(" in ln and "write_all" not in ln]
     assert not bare, f"脚本内仍有裸 os.write（短写会被当成功）: {bare}"
-    assert src.count("os.ftruncate(fd, 0)") == 2, "必须先 fstat 查链接数再 ftruncate"
-    assert src.count("st.st_nlink > 1") == 2, "O_NOFOLLOW 之后还要挡硬链接（共享 inode）"
+    assert src.count("os.ftruncate(fd, 0)") == 3, "必须先 fstat 查链接数再 ftruncate"
+    assert src.count("st.st_nlink > 1") == 3, "O_NOFOLLOW 之后还要挡硬链接（共享 inode）"
     # 原语本体的形状（在判据模块里）：逐级 O_NOFOLLOW + 叶子也带 O_NOFOLLOW
     fsrc = FORBID_PY.read_text(encoding="utf-8")
     assert "os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW" in fsrc, "逐级打开必须带 O_NOFOLLOW"
@@ -2912,3 +2942,1125 @@ def test_preflight_rejects_non_ascii_digits_in_any_locale(tmp_path: Path, loc: s
     assert r.returncode == 71, f"步 1 应 FAIL(71): rc={r.returncode}\n{r.stdout}"
     assert "CLS_NPM_BUILD_TIMEOUT" in r.stdout, f"消息未点名该变量: {r.stdout!r}"
     assert not _npm_was_invoked(pids), "取值非法时不该已经启动 build"
+
+
+# ═══ CARD-G2-8（BATCH-2026-09-11-第十四批）部署激活事务化 ════════════════════
+# 被测面: step5_activate 闸门**之后**那段（真起实例 / 健康断言 / 失败回滚的分阶段
+#         记账）+ 三段新增（index journal 隔离 / Lance 首索引计时 / Graphiti
+#         readiness skipped-with-reason）+ --also-push 实现 + canvas-vault 名口径。
+#
+# 语义（决策页 §一 作废了「切换 + 恢复旧 ACTIVE_VAULT」那套）：
+#   部署单元 =（vault, 它绑定的后端实例）。激活 = 起/重建**本 vault 自己的**
+#   compose 项目 cls-<vault>；失败回滚 = 只拆 cls-<vault>，别的 vault 一动不动。
+#
+# 桩拓扑（全部落在 tmp_path，绝不碰真 docker daemon / 7691 / 现网）:
+#   _tx_harness()  自洽假 harness —— 够真 DEPLOY_SH 走完六步
+#   fake_bin/docker  只认 `compose … -p <项目> … <config|up|down>`；
+#                    **维护一份「在跑项目」清单** ⇒ 「down 有没有误伤兄弟实例」
+#                    是可观测的，不是靠读代码相信。
+#   fake_bin/curl    按 URL 的端口与路径分流；兄弟实例端口是否 200 **取决于**
+#                    那份清单里还有没有 cls-sibling ⇒ 「只拆本实例」有对照对象。
+#
+# ⚠️ 本节不证明真态：真 docker daemon / 真容器 / 真 7691 的行为未跑（见验收单
+#    「本卡未证明什么」）。桩证明的是脚本的**分支与记账**，不是 docker 的行为。
+
+_TX_SKILLS = 9
+#: Lance 首索引轮询上限（秒）—— 桩态取小值，免得门跑成分钟级。
+_TX_LANCE_CAP = "2"
+
+_TX_INSTALLER = """#!/usr/bin/env bash
+# 假 installer：只造出步 3 Phase A 要求的那几件（带 :8011 占位），rc 0。
+set -euo pipefail
+name="$1"; shift
+root=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --vaults-root) root="$2"; shift 2 ;;
+        *) shift ;;
+    esac
+done
+v="$root/$name"
+mkdir -p "$v/.claude/skills" "$v/.claude/hooks" "$v/.obsidian/plugins/canvas-learning-system"
+printf '# stub vault\\n' > "$v/CLAUDE.md"
+printf '{"backend":"http://127.0.0.1:8011"}\\n' > "$v/.mcp.json"
+printf '{"hook":"curl http://127.0.0.1:8011/x"}\\n' > "$v/.claude/settings.json"
+printf 'BACKEND_URL = "http://127.0.0.1:8011"\\n' > "$v/.claude/hooks/session-end-archive.py"
+printf '{"backendUrl":"http://127.0.0.1:8011","internalApiKey":""}\\n' \\
+    > "$v/.obsidian/plugins/canvas-learning-system/data.json"
+"""
+
+_TX_DOCKER = """#!/usr/bin/env bash
+# 桩 docker。状态 = $CLS_FAKE_STATE 每行一个「在跑的 compose 项目」。
+printf '%s\\n' "$*" >> "$CLS_FAKE_DOCKER_LOG"
+proj=""; sub=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -p) proj="$2"; shift 2 ;;
+        config | up | down) [ -z "$sub" ] && sub="$1"; shift ;;
+        *) shift ;;
+    esac
+done
+case "$sub" in
+    config)
+        printf 'services:\\n'
+        printf '  backend:\\n'
+        printf '    container_name: %s-backend\\n' "$proj"
+        printf '    ports:\\n'
+        printf '      - mode: ingress\\n'
+        printf '        host_ip: 127.0.0.1\\n'
+        printf '        target: 8001\\n'
+        printf '        published: "%s"\\n' "$CLS_FAKE_PORT"
+        printf '        protocol: tcp\\n'
+        exit "${CLS_FAKE_CONFIG_RC:-0}"
+        ;;
+    up)
+        rc="${CLS_FAKE_UP_RC:-0}"
+        # 真 docker 常常是「容器已经建了一半才失败」⇒ 失败时也留下项目，回滚要能清掉
+        if [ "$rc" != 0 ] && [ "${CLS_FAKE_UP_PARTIAL:-0}" = 1 ]; then
+            grep -qxF "$proj" "$CLS_FAKE_STATE" 2> /dev/null \\
+                || printf '%s\\n' "$proj" >> "$CLS_FAKE_STATE"
+        fi
+        if [ "$rc" = 0 ]; then
+            grep -qxF "$proj" "$CLS_FAKE_STATE" 2> /dev/null \\
+                || printf '%s\\n' "$proj" >> "$CLS_FAKE_STATE"
+        fi
+        # 故障注入：把阶段账文件换成软链 —— 模拟「首次复查之后、追加之前被掉包」
+        if [ "${CLS_FAKE_BREAK_JOURNAL:-0}" = 1 ]; then
+            : > "$CLS_FAKE_EV/decoy.txt"
+            for f in "$CLS_FAKE_EV"/compose-config-*.txt; do
+                [ -e "$f" ] || continue
+                rm -f "$f"
+                ln -s "$CLS_FAKE_EV/decoy.txt" "$f"
+            done
+        fi
+        exit "$rc"
+        ;;
+    down)
+        rc="${CLS_FAKE_DOWN_RC:-0}"
+        if [ "$rc" = 0 ]; then
+            if [ -n "$proj" ]; then
+                grep -vxF "$proj" "$CLS_FAKE_STATE" > "$CLS_FAKE_STATE.new" 2> /dev/null || true
+            else
+                : > "$CLS_FAKE_STATE.new"
+            fi
+            mv "$CLS_FAKE_STATE.new" "$CLS_FAKE_STATE"
+        fi
+        exit "$rc"
+        ;;
+esac
+exit 0
+"""
+
+_TX_CURL = """#!/usr/bin/env bash
+# 桩 curl：按 URL 的端口与路径分流。兄弟实例端口是否 200 **取决于**清单里
+# 还有没有 cls-sibling —— 这让「只拆本实例」有一个可观测的对照对象。
+url=""
+mtimeout=""
+prev=""
+for a in "$@"; do
+    case "$prev" in -m) mtimeout="$a" ;; esac
+    case "$a" in http*) url="$a" ;; esac
+    prev="$a"
+done
+printf '%s\\n' "$url" >> "$CLS_FAKE_CURL_LOG"
+hostport="${url#http://}"; hostport="${hostport%%/*}"
+port="${hostport##*:}"
+if [ -n "${CLS_FAKE_SIBLING_PORT:-}" ] && [ "$port" = "$CLS_FAKE_SIBLING_PORT" ]; then
+    grep -qxF "cls-sibling" "$CLS_FAKE_STATE" 2> /dev/null || exit 7
+    printf '{"vault":"sibling","status":"ok"}\\n'
+    exit 0
+fi
+mode=ok
+body='{}'
+case "$url" in
+    */api/v1/vault/current)
+        mode="${CLS_FAKE_CURRENT:-ok}"
+        body="{\\"vault\\":\\"${CLS_FAKE_VAULT_NAME:-unknown}\\"}"
+        ;;
+    */api/v1/health/knowledge-graph)
+        mode="${CLS_FAKE_KG:-ok}"
+        body='{"status":"ok"}'
+        ;;
+    */api/v1/health/lancedb)
+        mode="${CLS_FAKE_LANCE:-ok}"
+        body='{"status":"ok","table_count":3}'
+        ;;
+esac
+case "$mode" in
+    ok) printf '%s\\n' "$body"; exit 0 ;;
+    fail) exit 28 ;;
+    garbage) printf 'not-json\\n'; exit 0 ;;
+    notready) printf '{"status":"error"}\\n'; exit 0 ;;
+    wrong) printf '{"vault":"someone_else"}\\n'; exit 0 ;;
+    # 顶层说失败、**嵌套**里有 ok —— 全文正则会把它读成就绪
+    nested) printf '{"status":"error","components":{"neo4j":{"status":"ok"}}}\\n'; exit 0 ;;
+    # 被截断的响应：不是合法 JSON, 但字面量里就有 "status":"ready"
+    truncated) printf '{"status":"ready"'; exit 0 ;;
+    # 合法 JSON 对象但顶层没有 status —— 与「解析失败」是两条不同分支
+    nostatus) printf '{"ok":true}\\n'; exit 0 ;;
+    # 真按 `-m` 的秒数挂满再超时 —— 用来验「单次探测受剩余预算约束」
+    slow) sleep "${mtimeout:-10}"; exit 28 ;;
+esac
+exit 0
+"""
+
+_TX_PY_WRAPPER = """#!/usr/bin/env bash
+"@REAL@" "$@"
+rc=$?
+if [ "${CLS_FAKE_BREAK_JOURNAL:-0}" = 2 ]; then
+    for a in "$@"; do
+        case "$a" in
+            */compose-config-*.txt)
+                : > "$CLS_FAKE_EV/decoy.txt"
+                rm -f "$a"
+                ln -s "$CLS_FAKE_EV/decoy.txt" "$a"
+                ;;
+        esac
+    done
+fi
+# mode 4：给 compose-config **加一个硬链接** —— inode 身份核对看不见这种情况
+#        （want 与 got 是同一个 inode，连 nlink 都相同），只有 assert_writable_now 拦得住
+if [ "${CLS_FAKE_BREAK_JOURNAL:-0}" = 4 ]; then
+    for a in "$@"; do
+        case "$a" in
+            */compose-config-*.txt)
+                ln "$a" "$CLS_FAKE_EV/hardlink.txt" 2> /dev/null || true
+                ;;
+        esac
+    done
+fi
+# mode 5：在 assert_writable_now 那次 lstat **之后**加硬链接 —— 复查已过，
+#        随后 act_journal_open 采样时对象已是 nlink=2
+if [ "${CLS_FAKE_BREAK_JOURNAL:-0}" = 5 ]; then
+    case "$*" in
+        *"os.lstat(sys.argv[1]).st_nlink"*)
+            for f in "$CLS_FAKE_EV"/compose-config-*.txt; do
+                [ -e "$f" ] || continue
+                ln "$f" "$CLS_FAKE_EV/hardlink.txt" 2> /dev/null || true
+            done
+            ;;
+    esac
+fi
+# mode 6：在**采样之后、exec 9>> 之前**加硬链接 —— want 是 nlink=1，got 会是 2
+if [ "${CLS_FAKE_BREAK_JOURNAL:-0}" = 6 ]; then
+    case "$*" in
+        *"st.st_dev, st.st_ino"*)
+            for f in "$CLS_FAKE_EV"/compose-config-*.txt; do
+                [ -e "$f" ] || continue
+                ln "$f" "$CLS_FAKE_EV/hardlink.txt" 2> /dev/null || true
+            done
+            ;;
+    esac
+fi
+# mode 3：只在「记 inode 身份」那一次调用之后掉包 —— 正落在它与 exec 9>> 之间
+if [ "${CLS_FAKE_BREAK_JOURNAL:-0}" = 3 ]; then
+    case "$*" in
+        *"st.st_dev, st.st_ino"*)
+            : > "$CLS_FAKE_EV/decoy.txt"
+            for f in "$CLS_FAKE_EV"/compose-config-*.txt; do
+                [ -e "$f" ] || continue
+                rm -f "$f"
+                ln -s "$CLS_FAKE_EV/decoy.txt" "$f"
+            done
+            ;;
+    esac
+fi
+exit $rc
+"""
+
+_TX_HARNESS_ENV = """# 假 harness 的 .env（--also-push 的目标面）
+NEO4J_HTTP_PORT=7691
+ACTIVE_VAULT=canvas-vault
+VAULTS_ROOT=/tmp/nowhere
+"""
+
+_TX_SOURCE_FILES = {
+    "CLAUDE.md": "# stub source\n",
+    ".mcp.json": '{"backend":"http://127.0.0.1:8011"}\n',
+    ".claude/settings.json": '{"hook":"curl http://127.0.0.1:8011/x"}\n',
+    ".claude/hooks/session-end-archive.py": 'BACKEND_URL = "http://127.0.0.1:8011"\n',
+}
+
+
+def _tx_write(p: Path, text: str, *, mode: int | None = None) -> None:
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(text, encoding="utf-8")
+    if mode is not None:
+        p.chmod(mode)
+
+
+def _tx_harness(tmp_path: Path, *, with_env: bool = True, env_body: str | None = None) -> Path:
+    """自洽假 harness：够真 DEPLOY_SH 走完六步，且全程只写 tmp_path。
+
+    形制沿用 `_npm_cap_harness`，差别是：① 预置 main.js ⇒ 不触发 npm build；
+    ② installer 桩**真造出** vault 六件套 ⇒ 步 3/4 能过，跑得到步 5/6；
+    ③ 带 `backend/app/core/vault_state_paths.py` 的**真副本**（不是桩）——
+       index journal 隔离段要 import 它，桩一个假的等于自己给自己发绿灯。
+    """
+    h = tmp_path / "tx-harness"
+    _tx_write(h / "scripts" / "verify_vault_install.py", "")  # 空文件 ⇒ python3 rc 0
+    _tx_write(h / "scripts" / "vault-install-manifest.json", "{}\n")
+    _tx_write(h / "scripts" / "send_bark.py", "def vault_key(name):\n    return name\n")
+    _tx_write(h / "docker-compose.yml", "services: {}\n")
+    _tx_write(h / "scripts" / "install-vault.sh", _TX_INSTALLER, mode=0o755)
+    _tx_write(h / "backend" / "app" / "__init__.py", "")
+    _tx_write(h / "backend" / "app" / "config.py", "def sanitize_vault_id(name):\n    return name\n")
+    _tx_write(h / "backend" / "app" / "core" / "__init__.py", "")
+    shutil.copyfile(
+        REPO_ROOT / "backend" / "app" / "core" / "vault_state_paths.py",
+        h / "backend" / "app" / "core" / "vault_state_paths.py",
+    )
+    venv_bin = h / "backend" / ".venv" / "bin"
+    venv_bin.mkdir(parents=True)
+    # 不用 symlink 而用 wrapper：CLS_FAKE_BREAK_JOURNAL=2 时它在**真 python 跑完之后**
+    # 把 compose-config 换成软链 —— 那正好是「config 断言已过、阶段账还没开」的时刻，
+    # 用来验 act_journal_open 的紧邻复查真的拦得住。
+    _tx_write(venv_bin / "python", _TX_PY_WRAPPER.replace("@REAL@", sys.executable), mode=0o755)
+    for i in range(_TX_SKILLS):
+        _tx_write(h / "canvas-vault" / ".claude" / "skills" / f"probe{i}" / "SKILL.md", "# stub\n")
+    _tx_write(h / "canvas-vault" / ".obsidian" / "plugins" / "canvas-learning-system" / "main.js", "//\n")
+    for rel, body in _TX_SOURCE_FILES.items():
+        _tx_write(h / "canvas-vault" / rel, body)
+    if with_env:
+        _tx_write(h / ".env", _TX_HARNESS_ENV if env_body is None else env_body)
+    return h
+
+
+def _tx_bins(tmp_path: Path) -> Path:
+    """PATH 注入的假二进制目录（命名沿用既有 `fake_bin / "<bin>"` 手法）。"""
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir(exist_ok=True)
+    _tx_write(fake_bin / "docker", _TX_DOCKER, mode=0o755)
+    _tx_write(fake_bin / "curl", _TX_CURL, mode=0o755)
+    # `act_journal_open` 记 inode 身份用的是 PATH 上的 `python3`（不是 harness venv 那个），
+    # 所以掉包注入点也得在这里。wrapper 本身是透明的：默认只是 exec 真 python。
+    _tx_write(fake_bin / "python3", _TX_PY_WRAPPER.replace("@REAL@", sys.executable), mode=0o755)
+    return fake_bin
+
+
+def _tx_env(
+    tmp_path: Path,
+    port: str,
+    vault_name: str,
+    *,
+    sibling_port: str | None = None,
+    extra: dict[str, str] | None = None,
+) -> dict[str, str]:
+    fake_bin = _tx_bins(tmp_path)
+    state = tmp_path / "docker-state.txt"
+    if not state.exists():
+        state.write_text("", encoding="utf-8")
+    env = {
+        "PATH": f"{fake_bin}:{os.environ.get('PATH', '')}",
+        "CLS_LIVE_VAULT": str(_fake_live(tmp_path)),
+        "CLS_DEPLOY_ALLOW_DOCKER_UP": "1",
+        "CLS_DEPLOY_LANCE_READY_TIMEOUT": _TX_LANCE_CAP,
+        "CLS_FAKE_STATE": str(state),
+        "CLS_FAKE_DOCKER_LOG": str(tmp_path / "docker-calls.txt"),
+        "CLS_FAKE_CURL_LOG": str(tmp_path / "curl-calls.txt"),
+        "CLS_FAKE_PORT": port,
+        "CLS_FAKE_VAULT_NAME": vault_name,
+        "CLS_FAKE_EV": str(tmp_path / "ev"),
+    }
+    if sibling_port:
+        env["CLS_FAKE_SIBLING_PORT"] = sibling_port
+    if extra:
+        env.update(extra)
+    return env
+
+
+def _tx_run(
+    tmp_path: Path,
+    h: Path,
+    name: str,
+    port: str,
+    *extra_args: str,
+    env: dict[str, str],
+    script: Path | None = None,
+):
+    return _run(
+        "--vault",
+        str(tmp_path / "vaults" / name),
+        "--harness",
+        str(h),
+        "--port",
+        port,
+        "--hosts",
+        "claude",
+        "--env-dir",
+        str(tmp_path / "env"),
+        "--evidence-dir",
+        str(tmp_path / "ev"),
+        "--apply",
+        "--activate",
+        *extra_args,
+        env=env,
+        timeout=120,
+        script=script,
+    )
+
+
+def _tx_journal(tmp_path: Path) -> str:
+    """把本次跑落下的 compose-config-<ts>.txt 与 deploy-<ts>.txt 全拼起来。
+
+    分阶段 rc 行必须落在**已在 preflight 申报过的**写对象里 —— 本卡不新开写面
+    （新文件 = preflight PENDING_WRITES 没申报过的写入面，而步 1 禁改）。
+    """
+    ev = tmp_path / "ev"
+    if not ev.is_dir():
+        return ""
+    return "".join(p.read_text(encoding="utf-8", errors="replace") for p in sorted(ev.glob("*.txt")))
+
+
+def _tx_cfg(tmp_path: Path) -> str:
+    """只读 compose-config-<ts>.txt —— 步 5 失败时 `run_step` 直接 exit 7N，
+    步 6 根本不会跑、`deploy-*.txt` 不存在（Codex r1 MEDIUM-3）。失败路径的阶段行
+    只可能在这一份里，拿它当判据面才不会因为「拼了一堆文件」而含糊。"""
+    ev = tmp_path / "ev"
+    if not ev.is_dir():
+        return ""
+    return "".join(p.read_text(encoding="utf-8", errors="replace") for p in sorted(ev.glob("compose-config-*.txt")))
+
+
+def _tx_state(tmp_path: Path) -> list[str]:
+    f = tmp_path / "docker-state.txt"
+    if not f.is_file():
+        return []
+    return [ln for ln in f.read_text(encoding="utf-8").splitlines() if ln.strip()]
+
+
+def _tx_sibling_is_200(tmp_path: Path, sibling_port: str) -> bool:
+    """直接用**同一个桩 curl** 问兄弟实例端口 —— 与脚本看到的是同一份状态。"""
+    fake_bin = _tx_bins(tmp_path)
+    r = subprocess.run(
+        [str(fake_bin / "curl"), "-sS", "--fail", f"http://127.0.0.1:{sibling_port}/api/v1/vault/current"],
+        capture_output=True,
+        text=True,
+        env={
+            **os.environ,
+            "CLS_FAKE_STATE": str(tmp_path / "docker-state.txt"),
+            "CLS_FAKE_CURL_LOG": str(tmp_path / "curl-calls.txt"),
+            "CLS_FAKE_SIBLING_PORT": sibling_port,
+        },
+        timeout=_SUBPROCESS_TIMEOUT,
+    )
+    return r.returncode == 0
+
+
+# ── (b)① 真 activate 分阶段可审计日志 ────────────────────────────────────────
+def test_g2_8_activate_tx_logs_each_stage_with_rc(tmp_path: Path):
+    """闸门开 + 桩 docker/curl 全成功 ⇒ 步 5 OK，且**每阶段各一行 `rc=`**。
+
+    改前必红在「功能不存在」：闸门后那段只有 up/health/down 三条裸命令，
+    没有任何 `stage=… rc=` 记账 ⇒ 下面四条断言全落空。
+    """
+    h = _tx_harness(tmp_path)
+    env = _tx_env(tmp_path, "8231", "probe_tx1")
+    r = _tx_run(tmp_path, h, "probe_tx1", "8231", env=env)
+    assert r.returncode == 0, f"rc={r.returncode}: {r.stdout}{r.stderr}"
+    m = re.search(r"^\[5/6\] activate: (OK|SKIP|FAIL) (.*)$", r.stdout, re.M)
+    assert m and m.group(1) == "OK", f"步 5 未 OK: {r.stdout}"
+    jr = _tx_journal(tmp_path)
+    assert re.search(r"^stage=up-instance project=cls-probe_tx1 rc=0$", jr, re.M), (
+        f"缺「起实例」阶段的 rc 行（真 activate 未事务化）: {jr!r}"
+    )
+    assert re.search(r"^stage=health-assert .*rc=0$", jr, re.M), f"缺「健康断言」阶段的 rc 行: {jr!r}"
+    assert "cls-probe_tx1" in _tx_state(tmp_path), "桩 docker 没记到本实例被起起来"
+    # 分阶段记账必须同时进 evidence 报告（步 6 的账），不是只在 compose-config 里
+    dep = sorted((tmp_path / "ev").glob("deploy-*.txt"))
+    assert dep, "步 6 没落 evidence 报告"
+    assert "## 激活分阶段" in dep[-1].read_text(encoding="utf-8"), "evidence 报告没有激活分阶段段"
+
+
+# ── (b)② + (d) 健康断言失败：只拆本实例，兄弟实例不受影响 ────────────────────
+def test_g2_8_health_failure_tears_down_only_this_project(tmp_path: Path):
+    """桩 curl 对 /vault/current 超时 ⇒ 回滚只拆 cls-<vault>，cls-sibling 仍 200。
+
+    对照对象是真的：桩 curl 对兄弟端口是否 200 **取决于**桩 docker 那份
+    「在跑项目」清单里还有没有 cls-sibling。把 down 的 `-p` 去掉（= down 全部）
+    这条变异会让本门红 —— 这正是「只拆本实例」与「拆光」的可分点。
+    """
+    h = _tx_harness(tmp_path)
+    state = tmp_path / "docker-state.txt"
+    state.write_text("cls-sibling\n", encoding="utf-8")
+    env = _tx_env(tmp_path, "8232", "probe_tx2", sibling_port="8299", extra={"CLS_FAKE_CURRENT": "fail"})
+    assert _tx_sibling_is_200(tmp_path, "8299"), "控制组不成立：跑之前兄弟实例就不是 200"
+    r = _tx_run(tmp_path, h, "probe_tx2", "8232", env=env)
+    assert r.returncode == 75, f"健康断言失败应 FAIL 75: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    running = _tx_state(tmp_path)
+    assert "cls-probe_tx2" not in running, f"回滚没拆掉本实例: {running}"
+    assert "cls-sibling" in running, f"失败只拆 cls-<vault>, 兄弟实例不受影响 —— 实测被误伤: {running}"
+    assert _tx_sibling_is_200(tmp_path, "8299"), "失败只拆 cls-<vault>, 兄弟实例不受影响 —— 实测兄弟实例端口已不是 200"
+    assert not list((tmp_path / "ev").glob("deploy-*.txt")), (
+        "步 5 FAIL 时 run_step 直接 exit 75, 步 6 不该跑过 —— 有 deploy 报告说明流程变了"
+    )
+    jr = _tx_cfg(tmp_path)
+    assert re.search(r"^stage=rollback-down project=cls-probe_tx2 rc=0 ", jr, re.M), (
+        f"缺「回滚」阶段的 rc 行（回滚未进分阶段账）: {jr!r}"
+    )
+    assert "已回滚" in r.stdout, r.stdout
+
+
+def test_g2_8_rollback_failure_does_not_claim_rolled_back(tmp_path: Path):
+    """`down` 也失败时不得仍声称「已回滚」（Codex r1 HIGH-3 的既有分叉，钉住不得退化）。"""
+    h = _tx_harness(tmp_path)
+    env = _tx_env(tmp_path, "8233", "probe_tx3", extra={"CLS_FAKE_CURRENT": "fail", "CLS_FAKE_DOWN_RC": "1"})
+    r = _tx_run(tmp_path, h, "probe_tx3", "8233", env=env)
+    assert r.returncode == 75, f"rc={r.returncode}: {r.stdout}"
+    line = re.search(r"^\[5/6\] activate: FAIL (.*)$", r.stdout, re.M)
+    assert line, r.stdout
+    assert "已回滚 down" not in line.group(1), f"down 失败却仍声称已回滚: {line.group(1)}"
+    assert "需人工处置" in line.group(1), line.group(1)
+    jr = _tx_cfg(tmp_path)
+    assert re.search(r"^stage=rollback-down project=cls-probe_tx3 rc=1 ", jr, re.M), f"回滚失败也必须落 rc 行: {jr!r}"
+
+
+# ── (b)③ index journal 隔离 ──────────────────────────────────────────────────
+def test_g2_8_index_journal_is_namespaced_per_vault(tmp_path: Path):
+    """部署期把 G2-5 的 journal 命名空间化**落到证据上**：本 vault 的两条 journal
+    与无维度 legacy 路径不同，且与对照 vault key 算出的路径不同。
+
+    ⚠️ 路径由 harness 自己的 `app.core.vault_state_paths` 算（真模块），
+    不是脚本自己拼字符串 —— 拼字符串会与生产实现分叉而门照样绿。
+    """
+    h = _tx_harness(tmp_path)
+    env = _tx_env(tmp_path, "8234", "probe_tx4")
+    r = _tx_run(tmp_path, h, "probe_tx4", "8234", env=env)
+    assert r.returncode == 0, f"rc={r.returncode}: {r.stdout}{r.stderr}"
+    jr = _tx_journal(tmp_path)
+    m = re.search(r"^stage=index-journal-isolation rc=0 (.*)$", jr, re.M)
+    assert m, f"缺 index journal 隔离段: {jr!r}"
+    body = m.group(1)
+    assert "lancedb_pending_index__probe_tx4.jsonl" in body, f"lancedb journal 未按 vault 命名空间化: {body}"
+    assert "vault_index_pending__probe_tx4.jsonl" in body, f"orchestrator journal 未命名空间化: {body}"
+    assert "sibling_distinct=yes" in body, f"未证明与对照 vault 的 journal 不同路: {body}"
+    assert "legacy_distinct=yes" in body, f"未证明与无维度 legacy 路径不同: {body}"
+
+
+# ── (b)④ Lance 首索引计时 + 进度 ─────────────────────────────────────────────
+def test_g2_8_lance_first_index_is_timed_with_progress(tmp_path: Path):
+    h = _tx_harness(tmp_path)
+    env = _tx_env(tmp_path, "8235", "probe_tx5")
+    r = _tx_run(tmp_path, h, "probe_tx5", "8235", env=env)
+    assert r.returncode == 0, f"rc={r.returncode}: {r.stdout}{r.stderr}"
+    jr = _tx_journal(tmp_path)
+    m = re.search(r"^stage=lance-first-index rc=0 elapsed_s=(\d+) progress=(\S+)$", jr, re.M)
+    assert m, f"缺 Lance 首索引计时段（阶段耗时 + 进度字段）: {jr!r}"
+    assert m.group(2) != "unknown", f"桩明确报了 table_count=3, 进度字段却是 unknown: {m.group(0)}"
+    assert "table_count=3" in m.group(2), m.group(0)
+
+
+def test_g2_8_lance_not_ready_is_recorded_not_faked(tmp_path: Path):
+    """Lance 一直不 ready ⇒ 如实记 rc≠0 + progress=unknown，**不得**记成就绪。"""
+    h = _tx_harness(tmp_path)
+    env = _tx_env(tmp_path, "8236", "probe_tx6", extra={"CLS_FAKE_LANCE": "notready"})
+    r = _tx_run(tmp_path, h, "probe_tx6", "8236", env=env)
+    assert r.returncode == 0, f"Lance 未就绪不该让整跑失败: rc={r.returncode}\n{r.stdout}"
+    jr = _tx_journal(tmp_path)
+    m = re.search(r"^stage=lance-first-index rc=(\d+) elapsed_s=\d+ progress=(\S+)$", jr, re.M)
+    assert m, f"缺 Lance 阶段行: {jr!r}"
+    assert m.group(1) != "0", f"Lance 报 error 却记 rc=0（假成功）: {m.group(0)}"
+    assert m.group(2) == "unknown", f"拿不到进度却编了一个: {m.group(0)}"
+
+
+# ── (b)⑤ Graphiti readiness：探测失败必须 skipped-with-reason，禁假成功 ──────
+@pytest.mark.parametrize(
+    ("mode", "reason"),
+    [
+        ("fail", "unreachable"),
+        ("garbage", "unparsable"),
+        ("notready", "not-ready"),
+        # Codex r1 HIGH-1: 顶层说失败、**嵌套**里有 ok —— 全文正则会读成就绪
+        ("nested", "not-ready"),
+        # 同上: 被截断的响应, 字面量里就有 "status":"ready" 但不是合法 JSON
+        ("truncated", "unparsable"),
+        # Codex r2 LOW-1: 合法 JSON 对象但顶层无 status —— no-status-field 分支此前零覆盖
+        ("nostatus", "no-status-field"),
+    ],
+)
+def test_g2_8_graphiti_readiness_never_reports_fake_success(tmp_path: Path, mode: str, reason: str):
+    """三种失败面各一条：不可达 / 解析不出 / 明确未就绪 —— 一律 skipped-with-reason。
+
+    ⛔ 断言必须**两侧都核**：只核 `skipped-with-reason=` 出现的话，
+    「恒报 success 又顺手打一行 skipped」的变异体会让门仍绿。
+    """
+    port = {
+        "fail": "8237",
+        "garbage": "8238",
+        "notready": "8239",
+        "nested": "8247",
+        "truncated": "8248",
+        "nostatus": "8255",
+    }[mode]
+    name = f"probe_kg_{mode}"
+    h = _tx_harness(tmp_path)
+    env = _tx_env(tmp_path, port, name, extra={"CLS_FAKE_KG": mode})
+    r = _tx_run(tmp_path, h, name, port, env=env)
+    assert r.returncode == 0, f"readiness 探不到不该让整跑失败: rc={r.returncode}\n{r.stdout}"
+    jr = _tx_journal(tmp_path)
+    m = re.search(r"^stage=graphiti-readiness rc=(\d+) result=(\S+)$", jr, re.M)
+    assert m, f"缺 Graphiti readiness 段: {jr!r}"
+    assert m.group(2).startswith("skipped-with-reason="), (
+        f"readiness 探测失败却没落 skipped-with-reason（假成功）: {m.group(0)}"
+    )
+    assert reason in m.group(2), f"原因未如实写明: {m.group(0)}"
+    assert "result=ready" not in jr, f"同一跑里又出现了 result=ready（两面下注）: {jr!r}"
+
+
+def test_g2_8_graphiti_readiness_reports_ready_when_it_really_is(tmp_path: Path):
+    """正控：桩明确报 status=ok 时必须记 ready —— 否则上面那组门是「恒 skipped」的假门。"""
+    h = _tx_harness(tmp_path)
+    env = _tx_env(tmp_path, "8240", "probe_kg_ok")
+    r = _tx_run(tmp_path, h, "probe_kg_ok", "8240", env=env)
+    assert r.returncode == 0, f"rc={r.returncode}: {r.stdout}{r.stderr}"
+    jr = _tx_journal(tmp_path)
+    assert re.search(r"^stage=graphiti-readiness rc=0 result=ready$", jr, re.M), (
+        f"真就绪时没记 ready（上面那组 skipped 门因此不承重）: {jr!r}"
+    )
+
+
+# ── (f) --also-push ─────────────────────────────────────────────────────────
+def _tx_alsopush_script(tmp_path: Path, h: Path) -> Path:
+    """把 FEATURE_TREE 那行指向假 harness 的**脚本副本**。
+
+    守卫本身（限 harness == FEATURE_TREE，否则 die64）一个字不改 —— 只把它的
+    参照点换成 tmp，才能在不碰真 feature 主干树 `.env` 的前提下验实现。
+    守卫没被改掉由 `test_g2_8_also_push_guard_still_rejects_foreign_harness`
+    在**真脚本**上单独钉。FORBID_PY 取 `dirname($0)` ⇒ 判据模块要一并拷过去。
+    """
+    dst_dir = tmp_path / "script-copy"
+    dst_dir.mkdir(exist_ok=True)
+    src = DEPLOY_SH.read_text(encoding="utf-8")
+    old = f'FEATURE_TREE="{REPO_ROOT.parent / "feature-obsidian-hybrid-dev"}"'
+    assert src.count('FEATURE_TREE="') == 1, "FEATURE_TREE 赋值不止一处, 副本改写会漏"
+    new_src = re.sub(r'^FEATURE_TREE="[^"]*"$', f'FEATURE_TREE="{h}"', src, count=1, flags=re.M)
+    assert new_src != src, f"FEATURE_TREE 行没被改写（原形态可能变了）: {old}"
+    dst = dst_dir / "deploy-vault.sh"
+    dst.write_text(new_src, encoding="utf-8")
+    dst.chmod(0o755)
+    shutil.copyfile(FORBID_PY, dst_dir / "cls_forbidden_paths.py")
+    return dst
+
+
+def test_g2_8_also_push_appends_and_dedups(tmp_path: Path):
+    """`--also-push` 把 vault 名追加进 harness `.env` 的 DAILY_REVIEW_VAULTS，去重。"""
+    h = _tx_harness(tmp_path)
+    script = _tx_alsopush_script(tmp_path, h)
+    before = (h / ".env").read_text(encoding="utf-8")
+    env = _tx_env(tmp_path, "8241", "probe_ap1")
+    r = _tx_run(tmp_path, h, "probe_ap1", "8241", "--also-push", env=env, script=script)
+    assert r.returncode == 0, f"rc={r.returncode}: {r.stdout}{r.stderr}"
+    after = (h / ".env").read_text(encoding="utf-8")
+    line = [ln for ln in after.splitlines() if ln.startswith("DAILY_REVIEW_VAULTS=")]
+    assert line == ["DAILY_REVIEW_VAULTS=probe_ap1"], f"追加结果不对: {line} (改前: {before!r})"
+    # ACTIVE_VAULT 逐字节不变（(h)③ 负控钉的就是这条）
+    assert [ln for ln in after.splitlines() if ln.startswith("ACTIVE_VAULT=")] == [
+        ln for ln in before.splitlines() if ln.startswith("ACTIVE_VAULT=")
+    ], "--also-push 动了 ACTIVE_VAULT"
+    # 去重：同名再来一次不重复追加（第二跑被 install 防覆盖闸门拦成 72，
+    # 所以另起一个已在清单里的名字来验去重）
+    (h / ".env").write_text(
+        before.replace("ACTIVE_VAULT=canvas-vault", "ACTIVE_VAULT=canvas-vault\nDAILY_REVIEW_VAULTS=probe_ap2,x"),
+        encoding="utf-8",
+    )
+    seeded = (h / ".env").read_bytes()
+    env2 = _tx_env(tmp_path, "8242", "probe_ap2")
+    r2 = _tx_run(tmp_path, h, "probe_ap2", "8242", "--also-push", env=env2, script=script)
+    assert r2.returncode == 0, f"rc={r2.returncode}: {r2.stdout}{r2.stderr}"
+    after2 = (h / ".env").read_bytes()
+    line2 = [ln for ln in after2.decode("utf-8").splitlines() if ln.startswith("DAILY_REVIEW_VAULTS=")]
+    assert line2 == ["DAILY_REVIEW_VAULTS=probe_ap2,x"], f"已在清单里却被重复追加: {line2}"
+    # Codex r4：命中去重时是**零写** ⇒ 整份文件逐字节不变（不止清单那一行）
+    assert after2 == seeded, f"去重命中却动了文件: {seeded!r} -> {after2!r}"
+
+
+def test_g2_8_also_push_appends_key_when_absent(tmp_path: Path):
+    """harness `.env` 里根本没有 DAILY_REVIEW_VAULTS 这一键时（真 feature 树当前
+    就是这个形态）必须补出来，而不是静默什么也没做。"""
+    h = _tx_harness(tmp_path, env_body="ACTIVE_VAULT=canvas-vault\nNEO4J_HTTP_PORT=7691\n")
+    script = _tx_alsopush_script(tmp_path, h)
+    env = _tx_env(tmp_path, "8243", "probe_ap3")
+    r = _tx_run(tmp_path, h, "probe_ap3", "8243", "--also-push", env=env, script=script)
+    assert r.returncode == 0, f"rc={r.returncode}: {r.stdout}{r.stderr}"
+    txt = (h / ".env").read_text(encoding="utf-8")
+    assert "DAILY_REVIEW_VAULTS=probe_ap3" in txt, f"缺键时没补出来: {txt!r}"
+    assert txt.count("ACTIVE_VAULT=canvas-vault") == 1, f"ACTIVE_VAULT 被动了: {txt!r}"
+
+
+def test_g2_8_also_push_guard_still_rejects_foreign_harness(tmp_path: Path):
+    """守卫保留不动：harness 不是 feature 主干树时 `--also-push` 仍 rc 64（真脚本上跑）。
+
+    守卫在参数解析之后、六步之前，所以不需要一棵能跑的 harness。
+    """
+    r = _run(
+        "--vault",
+        str(tmp_path / "vaults" / "probe_ap4"),
+        "--harness",
+        str(tmp_path / "not-the-feature-tree"),
+        "--port",
+        "8244",
+        "--apply",
+        "--also-push",
+        env={"CLS_LIVE_VAULT": str(_fake_live(tmp_path))},
+    )
+    assert r.returncode == 64, f"守卫被改掉了: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    assert "--also-push" in (r.stdout + r.stderr)
+
+
+def test_g2_8_also_push_is_no_longer_documented_as_unimplemented():
+    """`--also-push` 从「只解析不实现」转实现态 ⇒ 那句登记文案必须绝迹。"""
+    src = DEPLOY_SH.read_text(encoding="utf-8")
+    assert "未实现,登记 G2-8" not in src, "step6 参数行仍写着「未实现」"
+    assert "只解析不实现" not in src, "头注仍写着「只解析不实现」"
+    assert "also_push_daily_review" in src, "没有实现体"
+
+
+def test_g2_8_also_push_never_writes_active_vault():
+    """静态门：also-push 实现段里不得出现对 ACTIVE_VAULT 的写。"""
+    src = DEPLOY_SH.read_text(encoding="utf-8")
+    start = src.index("also_push_daily_review() {")
+    end = src.index("\n}\n", start)
+    body = src[start:end]
+    # 只看**非注释行**（与 test_second_tier_hosts_not_implemented_anywhere 同律）：
+    # 注释里解释「为什么不碰 ACTIVE_VAULT」是应该的，写进代码才是问题。
+    code = [ln for ln in body.splitlines() if not ln.lstrip().startswith("#")]
+    hits = [ln for ln in code if "ACTIVE_VAULT" in ln]
+    assert not hits, f"--also-push 实现段的非注释行提到了 ACTIVE_VAULT: {hits}"
+    assert "DAILY_REVIEW_VAULTS" in body, "实现段没提到目标键"
+
+
+# ── (g) canvas-vault 名口径：连字符名被 preflight 拒（钉现状，不改步 1） ──────
+def test_g2_8_hyphenated_vault_name_is_still_rejected_by_preflight(tmp_path: Path):
+    """`canvas-vault` 这种连字符名不是 sanitize_vault_id/vault_key 的共同不动点。
+
+    G4 口径（本卡只钉现状、不改步 1 逻辑）：**现网 live 的 `canvas-vault` 不经
+    本脚本重建，新库须用下划线名。** 这条门是那句口径的可执行形态 ——
+    哪天有人「顺手放宽」不动点 preflight，它会红。
+
+    ⚠️ 用**真 harness** 跑（dry-run，零写）：假 harness 的命名函数是恒等桩，
+    连字符名会被放行 —— 那样测的是桩，不是生产的两套口径。
+    """
+    r = _run(
+        "--vault",
+        str(tmp_path / "vaults" / "canvas-vault"),
+        "--harness",
+        str(REPO_ROOT),
+        "--port",
+        "8245",
+        "--env-dir",
+        str(tmp_path / "env"),
+        "--evidence-dir",
+        str(tmp_path / "ev"),
+        env={"CLS_LIVE_VAULT": str(_fake_live(tmp_path))},
+    )
+    assert r.returncode == 71, f"连字符名应被步 1 拒成 71: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    assert "共同不动点" in r.stdout, r.stdout
+
+
+def test_g2_8_underscore_vault_name_passes_the_same_preflight(tmp_path: Path):
+    """反向锚：同一份 preflight 对下划线名放行 —— 上面那条不是「恒 71」的假门。"""
+    r = _run(
+        "--vault",
+        str(tmp_path / "vaults" / "canvas_vault"),
+        "--harness",
+        str(REPO_ROOT),
+        "--port",
+        "8246",
+        "--env-dir",
+        str(tmp_path / "env"),
+        "--evidence-dir",
+        str(tmp_path / "ev"),
+        env={"CLS_LIVE_VAULT": str(_fake_live(tmp_path))},
+    )
+    assert r.returncode == 0, f"下划线名被同一道 preflight 拒了: rc={r.returncode}\n{r.stdout}{r.stderr}"
+
+
+# ── 写面不扩张：分阶段记账不得新开 preflight 没申报过的写对象 ────────────────
+def test_g2_8_activate_tx_opens_no_new_write_surface():
+    """步 5/6 的新增记账只许写**已在 PENDING_WRITES 里申报过的**对象。
+
+    步 1 禁改 ⇒ 新开一个文件就等于绕过 preflight 的禁写面判据。
+    """
+    src = DEPLOY_SH.read_text(encoding="utf-8")
+    block = src[src.index("local -a PENDING_WRITES=(") : src.index("local -a DIR_WRITES=")]
+    declared = set(re.findall(r'"([a-z0-9-]+):\$', block))
+    assert declared == {
+        "env-file",
+        "env-file-tmp",
+        "key-file",
+        "key-file-tmp",
+        "plugin-data",
+        "harness-mainjs",
+        "harness-build-out",
+        "ev-install-log",
+        "ev-verify-report",
+        "ev-compose-config",
+        "ev-deploy-report",
+        "ev-deploy-report-tmp",
+        "ev-npm-cache",
+        "ev-npm-logs",
+    }, f"待写清单变了（步 1 禁改 / 新写面必须先进这份清单）: {sorted(declared)}"
+    # 步 5 新增的记账落点必须是 $cfg（= ev-compose-config），不是新文件
+    act = src[src.index("step5_activate() {") : src.index("also_push_daily_review() {")]
+    news = set(re.findall(r'>{1,2} "\$([A-Za-z_][A-Za-z0-9_]*)"', act))
+    assert news <= {"cfg"}, f"步 5 出现了 $cfg 之外的写对象: {sorted(news)}"
+    # 开账之后，步 5 里再没有**按路径**的写：docker 的 up/down 输出也走 fd 9
+    # （Codex r3 HIGH：否则「判据说这个路径不可信」与「照这个路径写」会并存）。
+    assert act.count(">&9 2>&1") == 3, f"up/down 的输出没有全部走 fd 9（实测 {act.count('>&9 2>&1')} 处）"
+    after_open = act[act.index("act_journal_open") :]
+    assert '>> "$cfg"' not in after_open, "开账之后仍有按路径的追加写"
+    # act_stage 自己那一处写在函数外（写 $ACT_JOURNAL）⇒ 上面那段扫不到它。
+    # 把「ACT_JOURNAL 只能被赋成 $cfg」单独钉住，否则改一行就能把账落到新文件里。
+    assigns = re.findall(r'^ACT_JOURNAL="([^"]*)"$', src, re.M)
+    assert assigns == [""], f"ACT_JOURNAL 的顶层初始化变了: {assigns}"
+    # 唯一的内部赋值在 act_journal_open 里（形参），且它只被步 5 用 $cfg 调一次
+    inner = re.findall(r'^\s+ACT_JOURNAL="([^"]*)"$', src, re.M)
+    assert inner == ["$1"], f"ACT_JOURNAL 被别处赋值了: {inner}"
+    calls = re.findall(r"act_journal_open (\S+)", src)
+    assert calls == ['"$cfg";'], f"阶段账被开在了 $cfg 之外的对象上: {calls}"
+    # act_stage 只对**已打开的 fd 9** 写（Codex r2 HIGH：每写一行重新解析一次路径 =
+    # 每写一行来一次窗口）。路径解析只许发生在 act_journal_open 那一次。
+    stage_fn = src[src.index("act_stage() {") : src.index("\n}\n", src.index("act_stage() {"))]
+    assert ">&9" in stage_fn, "act_stage 不再对固定 fd 写了"
+    stage_writes = set(re.findall(r'>{1,2} "\$([A-Za-z_][A-Za-z0-9_]*)"', stage_fn))
+    assert stage_writes == set(), f"act_stage 又按路径写了: {sorted(stage_writes)}"
+    open_fn = src[src.index("act_journal_open() {") : src.index("\n}\n", src.index("act_journal_open() {"))]
+    assert 'exec 9>> "$ACT_JOURNAL"' in open_fn, "阶段账不是用一次性 exec 打开的"
+    assert 'assert_writable_now "$ACT_JOURNAL"' in open_fn, "打开前缺紧邻复查"
+
+
+# ── Codex r1 整改配套门 ──────────────────────────────────────────────────────
+def test_g2_8_lance_nested_status_is_not_read_as_ready(tmp_path: Path):
+    """顶层 status 说失败、嵌套里有 ok ⇒ 不得记成就绪（Codex r1 HIGH-1 同族）。"""
+    h = _tx_harness(tmp_path)
+    env = _tx_env(tmp_path, "8249", "probe_lnest", extra={"CLS_FAKE_LANCE": "nested"})
+    r = _tx_run(tmp_path, h, "probe_lnest", "8249", env=env)
+    assert r.returncode == 0, f"rc={r.returncode}: {r.stdout}{r.stderr}"
+    m = re.search(r"^stage=lance-first-index rc=(\d+) elapsed_s=\d+ progress=(\S+)$", _tx_cfg(tmp_path), re.M)
+    assert m, "缺 Lance 阶段行"
+    assert m.group(1) != "0", f"嵌套 ok 被当成顶层就绪: {m.group(0)}"
+    assert m.group(2) == "unknown", m.group(0)
+
+
+def test_g2_8_lance_probe_timeout_is_bounded_by_remaining_budget(tmp_path: Path):
+    """单次探测的 `-m` 受**剩余预算**约束（Codex r1 MEDIUM-4）。
+
+    桩 curl 的 `slow` 模式**真按传进来的 `-m` 秒数**挂满再超时 ⇒ 写死 `-m 10` 时
+    上限 2 秒的这一跑会花 ~10 秒，受预算约束时只花 ~2 秒。门因此可分。
+    """
+    h = _tx_harness(tmp_path)
+    env = _tx_env(tmp_path, "8250", "probe_lcap", extra={"CLS_FAKE_LANCE": "slow"})
+    assert env["CLS_DEPLOY_LANCE_READY_TIMEOUT"] == "2", "本门依赖 2 秒上限"
+    t0 = time.monotonic()
+    r = _tx_run(tmp_path, h, "probe_lcap", "8250", env=env)
+    elapsed = time.monotonic() - t0
+    assert r.returncode == 0, f"rc={r.returncode}: {r.stdout}{r.stderr}"
+    m = re.search(r"^stage=lance-first-index rc=(\d+) elapsed_s=(\d+) ", _tx_cfg(tmp_path), re.M)
+    assert m, "缺 Lance 阶段行"
+    assert m.group(1) != "0", "slow 模式下不该报就绪"
+    assert int(m.group(2)) <= 5, f"Lance 阶段耗时 {m.group(2)}s 远超 2 秒上限 —— 单次探测没受预算约束"
+    assert elapsed < 45, f"整跑 {elapsed:.1f}s 偏长, 疑似上限未生效"
+    # 静态锚：`-m` 的值必须来自变量，而不是又写回常量
+    src = DEPLOY_SH.read_text(encoding="utf-8")
+    assert '-m "$lto"' in src, "Lance 探测的 -m 又变回常量了"
+
+
+def test_g2_8_journal_writes_cannot_be_diverted_by_a_swap(tmp_path: Path):
+    """开账**之后**把路径换成软链，写入不得被改道（Codex r2 HIGH）。
+
+    桩 docker 在 `up` 之后把 compose-config 换成指向 decoy 的软链。持有 fd 的写法
+    下，后续 stage 全部落在开账时验过的那个 inode 上 —— decoy 里一行都不该有。
+    「绝不写到没验过的对象上」才是要保的性质；能不能察觉掉包是次要的。
+    """
+    h = _tx_harness(tmp_path)
+    env = _tx_env(tmp_path, "8251", "probe_jbrk", extra={"CLS_FAKE_BREAK_JOURNAL": "1"})
+    r = _tx_run(tmp_path, h, "probe_jbrk", "8251", env=env)
+    assert r.returncode == 0, f"rc={r.returncode}: {r.stdout}{r.stderr}"
+    decoy = tmp_path / "ev" / "decoy.txt"
+    assert decoy.is_file(), "控制组不成立：桩没有做掉包"
+    assert "stage=" not in decoy.read_text(encoding="utf-8"), (
+        f"阶段账被改道写进了掉包目标: {decoy.read_text(encoding='utf-8')[:200]!r}"
+    )
+    dep = sorted((tmp_path / "ev").glob("deploy-*.txt"))
+    assert dep, "证据报告应落盘"
+    txt = dep[-1].read_text(encoding="utf-8")
+    for stage in ("stage=up-instance", "stage=health-assert", "stage=graphiti-readiness"):
+        assert stage in txt, f"掉包之后账反而不全了: 缺 {stage}"
+
+
+def test_g2_8_journal_open_failure_fails_closed_before_starting_anything(tmp_path: Path):
+    """开账**之前**就被掉包 ⇒ 复查拦住，**在起任何容器之前**以 75 失败（Codex r3 HIGH）。
+
+    注入点是 harness 的 venv python wrapper：它在 config 结构化断言跑完之后
+    立刻把 compose-config 换成软链 —— 正好落在「断言已过、阶段账还没开」之间。
+    此刻还没有容器，所以正确处置是**拒绝起**，而不是记个错继续跑 ——
+    继续跑的话后面 up/down 的输出仍会按那个已被判定不可信的路径重定向。
+    """
+    h = _tx_harness(tmp_path)
+    env = _tx_env(tmp_path, "8256", "probe_jopen", extra={"CLS_FAKE_BREAK_JOURNAL": "2"})
+    r = _tx_run(tmp_path, h, "probe_jopen", "8256", env=env)
+    assert r.returncode == 75, f"开账被拦却没在起容器前 fail-closed: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    assert "阶段账不可写" in r.stdout, r.stdout
+    assert "cls-probe_jopen" not in _tx_state(tmp_path), "复查已拒, 却仍起了实例"
+    decoy = tmp_path / "ev" / "decoy.txt"
+    assert decoy.is_file(), "控制组不成立：桩没有做掉包"
+    assert decoy.read_text(encoding="utf-8") == "", (
+        f"判据说不能写, 之后仍有东西写进了掉包目标: {decoy.read_text(encoding='utf-8')[:200]!r}"
+    )
+
+
+def test_g2_8_also_push_preserves_other_lines_byte_for_byte(tmp_path: Path):
+    """CRLF 的 harness `.env`：追加只加一行，其余字节（含 ACTIVE_VAULT 的 \\r）原样。
+
+    Codex r1 MEDIUM-5：先整份归一成 \\n 再写回，会把每一行的字节都改掉 ——
+    与「只碰 DAILY_REVIEW_VAULTS 这一个键」的承诺不符，而按行比较看不出来。
+    """
+    crlf = "ACTIVE_VAULT=canvas-vault\r\nNEO4J_HTTP_PORT=7691\r\n"
+    h = _tx_harness(tmp_path, env_body=crlf)
+    before = (h / ".env").read_bytes()
+    assert b"\r\n" in before, "控制组不成立：写进去的不是 CRLF"
+    script = _tx_alsopush_script(tmp_path, h)
+    env = _tx_env(tmp_path, "8252", "probe_crlf")
+    r = _tx_run(tmp_path, h, "probe_crlf", "8252", "--also-push", env=env, script=script)
+    assert r.returncode == 0, f"rc={r.returncode}: {r.stdout}{r.stderr}"
+    after = (h / ".env").read_bytes()
+    assert after == before + b"DAILY_REVIEW_VAULTS=probe_crlf\n", (
+        f"既有字节被改了（不只是追加一行）: {before!r} -> {after!r}"
+    )
+
+
+@pytest.mark.parametrize(
+    ("seed", "name", "port", "want"),
+    [
+        # 逗号/空格混合分隔（wrapper 的口径）里已有该名 ⇒ 不重复追加
+        ("DAILY_REVIEW_VAULTS=alpha beta,gamma\n", "beta", "8253", "DAILY_REVIEW_VAULTS=alpha beta,gamma"),
+        # 键在但值为空 ⇒ 填上，不产生前导逗号
+        ("DAILY_REVIEW_VAULTS=\n", "probe_empt", "8254", "DAILY_REVIEW_VAULTS=probe_empt"),
+    ],
+)
+def test_g2_8_also_push_handles_mixed_separators_and_empty_value(
+    tmp_path: Path, seed: str, name: str, port: str, want: str
+):
+    """Codex r1 LOW-7：混合分隔 / 空值两类输入此前零覆盖。"""
+    h = _tx_harness(tmp_path, env_body="ACTIVE_VAULT=canvas-vault\n" + seed)
+    script = _tx_alsopush_script(tmp_path, h)
+    env = _tx_env(tmp_path, port, name)
+    r = _tx_run(tmp_path, h, name, port, "--also-push", env=env, script=script)
+    assert r.returncode == 0, f"rc={r.returncode}: {r.stdout}{r.stderr}"
+    got = [ln for ln in (h / ".env").read_text(encoding="utf-8").splitlines() if ln.startswith("DAILY_REVIEW_VAULTS=")]
+    assert got == [want], f"清单结果不对: {got}"
+
+
+@pytest.mark.parametrize(
+    ("cap", "port"),
+    [
+        ("0", "8257"),
+        ("000", "8258"),
+        ("8a", "8259"),
+        # Codex r5 LOW：上界、剥零后超 5 位、原串超 20 位、非 ASCII 数字四类边界
+        ("86401", "8270"),
+        ("123456", "8271"),
+        ("0" * 21, "8272"),
+        ("٠٥", "8273"),
+    ],
+)
+def test_g2_8_lance_cap_rejects_values_that_would_disable_it(tmp_path: Path, cap: str, port: str):
+    """上限取值非法 ⇒ 步 5 在**起容器之前**就 FAIL 75，不留半个实例。"""
+    h = _tx_harness(tmp_path)
+    env = _tx_env(tmp_path, port, "probe_cap", extra={"CLS_DEPLOY_LANCE_READY_TIMEOUT": cap})
+    r = _tx_run(tmp_path, h, "probe_cap", port, env=env)
+    assert r.returncode == 75, f"非法上限 {cap!r} 没被拦: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    assert "CLS_DEPLOY_LANCE_READY_TIMEOUT" in r.stdout, f"消息未点名该变量: {r.stdout!r}"
+    assert "cls-probe_cap" not in _tx_state(tmp_path), "取值校验应在起容器之前"
+
+
+def test_g2_8_lance_cap_leading_zero_is_decimal_not_octal(tmp_path: Path):
+    """`08` 必须按**十进制 8 秒**生效（Codex r2 MEDIUM-1）。
+
+    没剥前导零时：`[ "08" -lt 1 ]` 报错 rc=2 ⇒ `if` 判假 ⇒ **放行**，随后
+    `$((08 - 0))` 在实例已经起来之后才炸，循环一轮都没跑成 ⇒ `elapsed_s=0`。
+    剥零之后预算真的是 8 秒 ⇒ 探测一直未就绪时会用满。本门以 elapsed 区分两者。
+    """
+    h = _tx_harness(tmp_path)
+    env = _tx_env(
+        tmp_path,
+        "8261",
+        "probe_oct",
+        extra={"CLS_DEPLOY_LANCE_READY_TIMEOUT": "08", "CLS_FAKE_LANCE": "notready"},
+    )
+    r = _tx_run(tmp_path, h, "probe_oct", "8261", env=env)
+    assert r.returncode == 0, f"rc={r.returncode}: {r.stdout}{r.stderr}"
+    m = re.search(r"^stage=lance-first-index rc=(\d+) elapsed_s=(\d+) ", _tx_cfg(tmp_path), re.M)
+    assert m, "缺 Lance 阶段行"
+    assert m.group(1) != "0", "notready 下不该报就绪"
+    assert 7 <= int(m.group(2)) <= 10, (
+        f"`08` 没按十进制 8 秒生效（elapsed_s={m.group(2)}）—— 0 说明算术在实例起来后才炸"
+    )
+
+
+def test_g2_8_lance_sleep_interval_is_bounded_by_budget(tmp_path: Path):
+    """上限 1 秒时整段不得花到 2 秒（Codex r2 MEDIUM-2：`sleep 2` 写死会超预算）。"""
+    h = _tx_harness(tmp_path)
+    env = _tx_env(
+        tmp_path,
+        "8262",
+        "probe_slp",
+        extra={"CLS_DEPLOY_LANCE_READY_TIMEOUT": "1", "CLS_FAKE_LANCE": "notready"},
+    )
+    r = _tx_run(tmp_path, h, "probe_slp", "8262", env=env)
+    assert r.returncode == 0, f"rc={r.returncode}: {r.stdout}{r.stderr}"
+    m = re.search(r"^stage=lance-first-index rc=\d+ elapsed_s=(\d+) ", _tx_cfg(tmp_path), re.M)
+    assert m, "缺 Lance 阶段行"
+    assert int(m.group(1)) <= 1, f"上限 1 秒却花了 {m.group(1)}s —— 轮询间隔没受预算约束"
+
+
+def test_g2_8_lance_cap_empty_falls_back_to_documented_default(tmp_path: Path):
+    """空值 = 未设 ⇒ 用头注写的缺省 120，而不是「非法」。
+
+    反向锚：上面那条拒绝门若把空值也算非法，缺省路径就被拒了 —— 门必须两个方向都测。
+    """
+    h = _tx_harness(tmp_path)
+    env = _tx_env(tmp_path, "8260", "probe_capd", extra={"CLS_DEPLOY_LANCE_READY_TIMEOUT": ""})
+    r = _tx_run(tmp_path, h, "probe_capd", "8260", env=env)
+    assert r.returncode == 0, f"空值应走缺省: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    dep = sorted((tmp_path / "ev").glob("deploy-*.txt"))
+    assert dep, "步 6 没落 evidence"
+    assert "CLS_DEPLOY_LANCE_READY_TIMEOUT=120" in dep[-1].read_text(encoding="utf-8"), "缺省值与头注写的 120 不一致"
+
+
+@pytest.mark.parametrize(
+    ("seed", "name", "port", "want"),
+    [
+        # Codex r3 MEDIUM: 带引号的值 —— 消费方 memory-health.sh 会把引号 tr 掉，
+        # 判重口径必须与它一致。已在清单里 ⇒ **零写**, 所以原行逐字不变
+        # （而不是被规范化成去引号形态）。
+        ("DAILY_REVIEW_VAULTS='beta'\n", "beta", "8263", "DAILY_REVIEW_VAULTS='beta'"),
+        ('DAILY_REVIEW_VAULTS="alpha","beta"\n', "beta", "8264", 'DAILY_REVIEW_VAULTS="alpha","beta"'),
+        # 不在清单里 ⇒ 追加, 该行被重写成去引号形态（消费方口径一致, 值不变）
+        ('DAILY_REVIEW_VAULTS="alpha"\n', "gamma", "8266", "DAILY_REVIEW_VAULTS=alpha,gamma"),
+    ],
+)
+def test_g2_8_also_push_dedups_quoted_values(tmp_path: Path, seed: str, name: str, port: str, want: str):
+    """带引号的清单：判重按消费方口径（引号不算名字的一部分）。"""
+    h = _tx_harness(tmp_path, env_body="ACTIVE_VAULT=canvas-vault\n" + seed)
+    script = _tx_alsopush_script(tmp_path, h)
+    env = _tx_env(tmp_path, port, name)
+    r = _tx_run(tmp_path, h, name, port, "--also-push", env=env, script=script)
+    assert r.returncode == 0, f"rc={r.returncode}: {r.stdout}{r.stderr}"
+    got = [ln for ln in (h / ".env").read_text(encoding="utf-8").splitlines() if ln.startswith("DAILY_REVIEW_VAULTS=")]
+    assert got == [want], f"带引号的清单判重不对: {got}"
+
+
+def test_g2_8_also_push_keeps_original_bytes_when_file_has_no_trailing_newline(tmp_path: Path):
+    """末行无行尾 + 缺键 ⇒ 原字节整段是新内容的**逐字节前缀**（Codex r3 LOW-1）。
+
+    给末行补 LF 也是改既有行的字节。分隔用的换行必须算作**追加内容**。
+    """
+    h = _tx_harness(tmp_path, env_body="ACTIVE_VAULT=canvas-vault\nNEO4J_HTTP_PORT=7691")
+    before = (h / ".env").read_bytes()
+    assert not before.endswith((b"\n", b"\r")), "控制组不成立：写进去的文件末尾有行尾"
+    script = _tx_alsopush_script(tmp_path, h)
+    env = _tx_env(tmp_path, "8265", "probe_notrail")
+    r = _tx_run(tmp_path, h, "probe_notrail", "8265", "--also-push", env=env, script=script)
+    assert r.returncode == 0, f"rc={r.returncode}: {r.stdout}{r.stderr}"
+    after = (h / ".env").read_bytes()
+    assert after == before + b"\nDAILY_REVIEW_VAULTS=probe_notrail\n", f"既有字节没被原样保留: {before!r} -> {after!r}"
+
+
+def test_g2_8_lance_cap_header_digit_limit_matches_implementation():
+    """头注写的「原串最多 N 位」必须与实现里的那个 N 一致（Codex r3 LOW-2）。
+
+    两处手写的数字必然漂移 —— 本门把它们钉在一起。
+    """
+    src = DEPLOY_SH.read_text(encoding="utf-8")
+    impl = re.search(r'if \[ "\$\{#lcap\}" -gt (\d+) \]', src)
+    assert impl, "找不到 lcap 的原串长度判据"
+    head = re.search(r"含前导零在内\*\*原串最多 (\d+) 位\*\*，剥零后须 ≤(\d+) 位", src)
+    assert head, "头注没写 CLS_DEPLOY_LANCE_READY_TIMEOUT 的位数口径"
+    assert head.group(1) == impl.group(1), f"头注说 {head.group(1)} 位, 实现是 {impl.group(1)} 位"
+    impl2 = re.search(r'if \[ "\$\{#lcap\}" -gt (\d+) \]; then     # 86400', src)
+    assert impl2 and head.group(2) == impl2.group(1), "剥零后的位数口径也对不上"
+
+
+def test_g2_8_journal_swap_between_check_and_open_is_caught(tmp_path: Path):
+    """复查通过**之后、`exec 9>>` 之前**被掉包 ⇒ 打开的 fd 身份对不上，拒（Codex r4 HIGH）。
+
+    bash 的重定向没有 O_NOFOLLOW，「检查」与「打开」做不成一步，所以窗口本身消不掉；
+    但可以**在打开之后核这个 fd 连到了哪个 inode** —— 期间被换过就对不上。
+    ⚠️ 再 stat 一次路径是没用的：掉包之后路径与 fd 指向同一个新对象，两边一致，
+    而那个对象根本没验过。
+    """
+    h = _tx_harness(tmp_path)
+    env = _tx_env(tmp_path, "8267", "probe_jswap", extra={"CLS_FAKE_BREAK_JOURNAL": "3"})
+    r = _tx_run(tmp_path, h, "probe_jswap", "8267", env=env)
+    assert r.returncode == 75, f"复查与打开之间的掉包没被抓到: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    assert "被换过" in r.stdout, r.stdout
+    assert "cls-probe_jswap" not in _tx_state(tmp_path), "身份对不上, 却仍起了实例"
+    decoy = tmp_path / "ev" / "decoy.txt"
+    assert decoy.is_file(), "控制组不成立：桩没有做掉包"
+    assert decoy.read_text(encoding="utf-8") == "", "身份对不上之后仍有东西写进了掉包目标"
+
+
+def test_g2_8_up_failure_also_tears_down_only_this_project(tmp_path: Path):
+    """`up -d` 失败那条回滚分支同样只拆本实例（Codex r4 LOW：此前只测了健康失败那条）。"""
+    h = _tx_harness(tmp_path)
+    state = tmp_path / "docker-state.txt"
+    state.write_text("cls-sibling\n", encoding="utf-8")
+    env = _tx_env(
+        tmp_path,
+        "8268",
+        "probe_upfail",
+        sibling_port="8298",
+        # Codex r5 LOW：本项目**已部分创建**才失败 —— 这样「回滚确实清掉了它」才有内容
+        extra={"CLS_FAKE_UP_RC": "1", "CLS_FAKE_UP_PARTIAL": "1"},
+    )
+    assert _tx_sibling_is_200(tmp_path, "8298"), "控制组不成立：跑之前兄弟实例就不是 200"
+    r = _tx_run(tmp_path, h, "probe_upfail", "8268", env=env)
+    assert r.returncode == 75, f"up 失败应 FAIL 75: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    calls = (tmp_path / "docker-calls.txt").read_text(encoding="utf-8")
+    # 控制组：本项目确实被「起过」（桩按 CLS_FAKE_UP_PARTIAL 留下了它）且确实被 down 过 ——
+    # 否则「清单里没有它」是空的（压根没加进去过, 断言不承重）
+    assert "-p cls-probe_upfail" in calls and " down" in calls, f"桩没被要求起/拆这个项目: {calls!r}"
+    running = _tx_state(tmp_path)
+    assert "cls-probe_upfail" not in running, f"回滚没拆掉本实例: {running}"
+    assert "cls-sibling" in running, f"失败只拆 cls-<vault>, 兄弟实例不受影响 —— 实测被误伤: {running}"
+    assert _tx_sibling_is_200(tmp_path, "8298"), "失败只拆 cls-<vault>, 兄弟实例不受影响 —— 实测已不是 200"
+    jr = _tx_cfg(tmp_path)
+    assert re.search(r"^stage=up-instance project=cls-probe_upfail rc=1$", jr, re.M), f"缺 up 失败的 rc 行: {jr!r}"
+    assert re.search(r"^stage=rollback-down project=cls-probe_upfail rc=0 ", jr, re.M), f"缺回滚 rc 行: {jr!r}"
+    assert "已回滚 down" in r.stdout, r.stdout
+
+
+def test_g2_8_journal_with_hardlink_is_refused(tmp_path: Path):
+    """阶段账有第二个硬链接 ⇒ 拒（这一条只有 `assert_writable_now` 拦得住）。
+
+    inode 身份核对（r4 HIGH 的那层）对硬链接是瞎的：want 与 got 是**同一个 inode**，
+    连 nlink 都一样。所以两层不是冗余 —— 各自覆盖不同的面，本门钉住前一层承重。
+    """
+    h = _tx_harness(tmp_path)
+    env = _tx_env(tmp_path, "8269", "probe_jhl", extra={"CLS_FAKE_BREAK_JOURNAL": "4"})
+    r = _tx_run(tmp_path, h, "probe_jhl", "8269", env=env)
+    assert (tmp_path / "ev" / "hardlink.txt").exists(), "控制组不成立：桩没有建成硬链接"
+    assert r.returncode == 75, f"硬链接的阶段账没被拒: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    assert "阶段账不可写" in r.stdout and "硬链接" in r.stdout, r.stdout
+    assert "cls-probe_jhl" not in _tx_state(tmp_path), "复查已拒, 却仍起了实例"
+
+
+@pytest.mark.parametrize(("mode", "port"), [("5", "8274"), ("6", "8275")])
+def test_g2_8_journal_hardlinked_after_recheck_is_refused(tmp_path: Path, mode: str, port: str):
+    """复查**之后**才被加硬链接 ⇒ 仍然拒（Codex r5 HIGH）。
+
+    两个注入时刻：
+      mode 5 —— 在 `assert_writable_now` 的 lstat 之后（复查已过，采样时已是 nlink=2）
+      mode 6 —— 在采样之后、`exec 9>>` 之前（want 是 1、got 会是 2）
+    ⛔ 只比较「want == got」挡不住 mode 5：两侧会**同为** `dev:ino:2`，相等而且都不合格。
+    所以采样与核对两侧必须**各自**要求 nlink == 1，相等只用来挡「换成另一个合格对象」。
+    """
+    name = f"probe_jhl{mode}"
+    h = _tx_harness(tmp_path)
+    env = _tx_env(tmp_path, port, name, extra={"CLS_FAKE_BREAK_JOURNAL": mode})
+    r = _tx_run(tmp_path, h, name, port, env=env)
+    assert (tmp_path / "ev" / "hardlink.txt").exists(), "控制组不成立：桩没有建成硬链接"
+    assert r.returncode == 75, f"复查后加的硬链接没被拒: rc={r.returncode}\n{r.stdout}{r.stderr}"
+    assert "阶段账" in r.stdout, r.stdout
+    assert f"cls-{name}" not in _tx_state(tmp_path), "已判定不可写, 却仍起了实例"
