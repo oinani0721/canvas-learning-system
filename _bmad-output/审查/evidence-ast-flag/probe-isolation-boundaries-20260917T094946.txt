@@ -1,0 +1,8 @@
+  ✓  期望 CLEAN  实得 CLEAN   docstring 声称：两支**各自**隔离 ⇒ 仍合格（应 CLEAN）
+  ✓  期望 CAUGHT 实得 CAUGHT  一支隔离内、一支隔离外 ⇒ 失格（应 CAUGHT，本卡新条目形态）
+  ✓  期望 CLEAN  实得 CLEAN   隔离内嵌套 with / try-finally 里 yield ⇒ 仍合格（应 CLEAN）
+  ✓  期望 CAUGHT 实得 CAUGHT  隔离外**再多一条** yield（隔离内也有）⇒ 失格（等长替换挡不住的那类）
+  ✓  期望 CAUGHT 实得 CAUGHT  yield from ⇒ 仍失格（(f)-⑤ 未被本卡放宽）
+  ✓  期望 CLEAN  实得 CLEAN   标准单支隔离 ⇒ 仍合格（验伪锚 10 的形态，不许被本卡弄红）
+
+不符项 = 0

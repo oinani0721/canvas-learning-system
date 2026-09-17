@@ -1,0 +1,51 @@
+=== round-3 车道自审（Codex r3 尚在跑时做的只读自查）@ 2026-09-17T09:40:05+08:00 ===
+5798abd3ee319385ad86a5032908bbf4e90025a94f8c85f1e2b02696dfe23a43  backend/scripts/lifespan_isolation_negative_control.py
+== Q0a _lambda_outer_defaults 的产出里会不会含 lambda ==
+  产出 1 个，含 lambda = 无   g = lambda a=(lambda b=(lambda c=(x := 1): c): b): a
+  产出 1 个，含 lambda = 无   g = lambda *, k=(lambda *, j=(y := 2): j): k
+  产出 1 个，含 lambda = 无   g = lambda a=(lambda b=1: b), *, k=(lambda: (z := 3)): a
+
+== Q0b 深嵌套/交替嵌套下的绑定（该记 vs 不该记）==
+  ✓ 该记 x         实得 ['g', 'x']   三层 lambda，海象在最内层**默认参数**里（一路定义时求值 ⇒ 该记）
+  ✓ 不该记 x        实得 ['g']   三层 lambda，海象在最内层**体**里（调用时 ⇒ 不该记）
+  ✓ 该记 x         实得 ['g', 'x']   lambda 的默认参数里套 def？（语法不允许，改成 lambda 里套 comprehension）
+  ✓ 该记 y         实得 ['g', 'y']   kwonly 默认参数里的海象（该记）
+
+== Q1 注解覆盖五类参数 ==
+  ✓ CAUGHT  posonly 注解
+  ✓ CAUGHT  普通参数注解
+  ✓ CAUGHT  kwonly 注解
+  ✓ CAUGHT  *args 注解
+  ✓ CAUGHT  **kwargs 注解
+  ✓ CAUGHT  返回注解
+
+== Q2 _module_binds_name 对顶层条件块 / try 块内的绑定 ==
+  ✗ 期望 True  实得 False  顶层 if 块里 def setattr（顶层执行 ⇒ 该判 True）
+  ✓ 期望 True  实得 True   顶层 try 块里 setattr = f（顶层执行 ⇒ 该判 True）
+  ✓ 期望 True  实得 True   顶层 with 块里 setattr = f（该判 True）
+  ✓ 期望 False 实得 False  函数体里的一切（不该判 True）
+  ✓ 期望 True  实得 True   顶层 case setattr（该判 True）
+
+不符项 = 1
+rc=1
+
+--- 自审结论 ---
+通过：_lambda_outer_defaults 的产出在三种嵌套形态下都不含 lambda（递归终止正确）；
+      三层嵌套的「该记 / 不该记」判定正确；注解五类参数 + 返回注解**六种**全部 CAUGHT
+      且都不是因 SyntaxError 而红；_module_binds_name 对顶层 try / with / match case 正确，
+      对函数体内的一切正确地不认。
+
+⛔ 自己抓到一条未修缺陷（Codex r3 报告尚未返回，此处先登记）：
+   `if TYPE_CHECKING:` 之类**顶层条件块内**的 `def setattr(...)` 没被 _module_binds_name 认出。
+   根因：现实现只对**直接**顶层语句检查 FunctionDef.name；块内的 def 由内层 ast.walk 命中时
+   被 `continue` 跳过（那个 continue 本意是「不下潜进它的体」，却把它自己的名字也跳过了）。
+   方向：漏认真遮蔽 ⇒ 写路径照收 ⇒ 收回本不该收回的 C4 豁免 ⇒ **误判合法写法（fail-closed）**，
+   不是漏放。与 r2-HIGH4 那条 fail-open 方向相反。
+
+   同根因还有第二个面（同样只读实测确认）：内层用的是 ast.walk，它**会**走进嵌套函数体，
+   于是 `if X:\n    def g():\n        setattr = 1` 里那个**函数局部**赋值会被误判成模块级遮蔽。
+   两个面的正确修法是同一个：换成尊重作用域的手写遍历（进复合语句的体，不进函数/类/lambda 的体），
+   并让 binds_here 同时认 FunctionDef/ClassDef 的名字与 Import 的别名。
+
+   ⛔ 本条**未在本轮修**：Codex round-3 正绑 `a03af47c` 审查中，审查期间必须冻结被审文件。
+   待 r3 报告返回后与其 finding 一并整改，并补对应回归锚。

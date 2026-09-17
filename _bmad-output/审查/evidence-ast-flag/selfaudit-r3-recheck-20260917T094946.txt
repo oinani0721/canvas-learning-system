@@ -1,0 +1,25 @@
+== Q0a _lambda_outer_defaults 的产出里会不会含 lambda ==
+  产出 1 个，含 lambda = 无   g = lambda a=(lambda b=(lambda c=(x := 1): c): b): a
+  产出 1 个，含 lambda = 无   g = lambda *, k=(lambda *, j=(y := 2): j): k
+  产出 1 个，含 lambda = 无   g = lambda a=(lambda b=1: b), *, k=(lambda: (z := 3)): a
+
+== Q0b 深嵌套/交替嵌套下的绑定（该记 vs 不该记）==
+  ✓ 该记 x         实得 ['g', 'x']   三层 lambda，海象在最内层**默认参数**里（一路定义时求值 ⇒ 该记）
+  ✓ 不该记 x        实得 ['g']   三层 lambda，海象在最内层**体**里（调用时 ⇒ 不该记）
+  ✓ 该记 x         实得 ['g', 'x']   lambda 的默认参数里套 def？（语法不允许，改成 lambda 里套 comprehension）
+  ✓ 该记 y         实得 ['g', 'y']   kwonly 默认参数里的海象（该记）
+
+== Q1 注解覆盖五类参数 ==
+  ✓ CAUGHT  posonly 注解
+  ✓ CAUGHT  普通参数注解
+  ✓ CAUGHT  kwonly 注解
+  ✓ CAUGHT  *args 注解
+  ✓ CAUGHT  **kwargs 注解
+  ✓ CAUGHT  返回注解
+
+== Q2 _module_binds_name 对顶层条件块 / try 块内的绑定 ==
+Traceback (most recent call last):
+  File "/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t8-tools/b42fcc2d-3fce-4f80-8e22-bd7ab51c0fbc/scratchpad/probe_r3_selfaudit.py", line 68, in <module>
+    got = m._module_binds_name(ast.parse(src), "setattr")
+          ^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'n' has no attribute '_module_binds_name'

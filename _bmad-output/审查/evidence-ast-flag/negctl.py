@@ -19,10 +19,27 @@ MUTANTS = [
                     if True:  # MUTANT""")]),
  ("卡文(c) collect_setattr 整条失效",
   "R2-7-B-setattr-write", "MISSED",
-  [("""        if not builtin_setattr:
+  [("""        if not (isinstance(call.func, ast.Name) and call.func.id == "setattr"):
             return""",
     """        return  # MUTANT
-        if not builtin_setattr:
+        if not (isinstance(call.func, ast.Name) and call.func.id == "setattr"):
+            return""")]),
+ ("r3 回装被撤回的「模块级遮蔽开关」（一次绑定就整条不收）",
+  "R3-HIGH2-except-as-name-deleted", "MISSED",
+  [("""    paths: set[str] = set()
+
+    def collect_setattr(call: ast.Call) -> None:""",
+    """    paths: set[str] = set()
+    _shadowed = any(  # MUTANT：重新引入 round-3 撤回掉的那个开关
+        (isinstance(_n, ast.ExceptHandler) and _n.name == "setattr")
+        or (isinstance(_n, (ast.MatchAs, ast.MatchStar)) and _n.name == "setattr")
+        or (isinstance(_n, ast.Name) and isinstance(_n.ctx, ast.Store) and _n.id == "setattr")
+        or (isinstance(_n, (ast.FunctionDef, ast.AsyncFunctionDef)) and _n.name == "setattr")
+        for _n in ast.walk(tree)
+    )
+
+    def collect_setattr(call: ast.Call) -> None:
+        if _shadowed:  # MUTANT
             return""")]),
  ("卡文(d) 不再要求每一条 yield 都被覆盖",
   "R2-5a-ii-branch-split-isolation", "MISSED",
@@ -38,10 +55,6 @@ MUTANTS = [
         return
     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
         yield from node.decorator_list""")]),
- ("r1-MEDIUM setattr 遮蔽判据恒真（当作内建）",
-  "验伪锚 R1-M3", "FALSE POSITIVE",
-  [("""    builtin_setattr = not _module_binds_name(tree, "setattr")""",
-    """    builtin_setattr = True  # MUTANT""")]),
  ("r1-HIGH1 回装被撤回的改动：根位置 lambda 也只走默认参数",
   "R1-HIGH1-regress-lambda-body-walrus", "MISSED",
   [("""        stack: list[tuple[ast.AST, bool]] = [(node, False)]""",
@@ -68,30 +81,17 @@ MUTANTS = [
         if node.returns is not None:
             yield node.returns""",
     """        pass  # MUTANT""")]),
- ("r2-HIGH4 _module_binds_name 退回全树 walk + 认形参/global",
-  "R2-HIGH4-global-name-no-rebind", "MISSED",
-  [("""    for stmt in tree.body:  # 只走顶层语句""",
-    """    for stmt in ast.walk(tree):  # MUTANT"""),
-   ("""        if isinstance(n, ast.ExceptHandler):
-            return n.name == name
-        return False""",
-    """        if isinstance(n, ast.ExceptHandler):
-            return n.name == name
-        if isinstance(n, ast.arg):  # MUTANT
-            return n.arg == name
-        if isinstance(n, (ast.Global, ast.Nonlocal)):  # MUTANT
-            return name in n.names
-        return False""")]),
- ("r2-MEDIUM binds_here 不再认 pattern / except 绑定",
-  "验伪锚 R2-M5", "FALSE POSITIVE",
-  [("""        if isinstance(n, (ast.MatchAs, ast.MatchStar)):
-            return n.name == name
-        if isinstance(n, ast.MatchMapping):
-            return n.rest == name
-        if isinstance(n, ast.ExceptHandler):
-            return n.name == name""",
-    """        pass  # MUTANT""")]),
 ]
+
+def _id_of(label: str) -> str:
+    """条目 label 的 ID 段 = 第一个全角冒号之前那截。
+
+    ⛔ Codex round-3 LOW：上一版用 `want_label in label` 子串匹配，`验伪锚 R2-M5` 会同时
+    命中 M5 与 M5b —— 只要其中**任何一条**红就算「指定判据红」，指定目标因此不唯一。
+    现在按 ID 段**精确相等**匹配，并在开跑前断言每个目标 ID 在两张表里恰好出现一次。
+    """
+    return label.split("：", 1)[0]
+
 
 def run(text):
     with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False, encoding="utf-8") as fh:
@@ -107,6 +107,17 @@ def run(text):
             out.append(("FALSE POSITIVE", label))
     return out
 
+import importlib.util as _u, tempfile as _t
+with _t.NamedTemporaryFile("w", suffix=".py", delete=False, encoding="utf-8") as _fh:
+    _fh.write(BASE); _bp = _fh.name
+sys.argv = ["x"]
+_s = _u.spec_from_file_location("base", _bp); _bm = _u.module_from_spec(_s); _s.loader.exec_module(_bm)
+_ids = [_id_of(l) for l, _ in (*_bm._AST_MUST_FLAG, *_bm._AST_MUST_PASS)]
+for _, _want, _, _ in MUTANTS:
+    _n = _ids.count(_want)
+    assert _n == 1, f"目标 ID {_want!r} 在两表里出现 {_n} 次（须恰好 1，否则「指定的那一条」不唯一）"
+print(f"目标 ID 唯一性自检：{len(MUTANTS)} 个目标各命中 1 条 ✓")
+
 print(f"=== 控制组：未变异的定稿（{len(MUTANTS)} 个变异待跑）===")
 base_red = run(BASE)
 print(f"  红项 = {base_red}   （须为空，否则后面全部结论不可比）")
@@ -121,8 +132,8 @@ for name, want_label, want_kind, edits in MUTANTS:
         red = run(text)
     except SyntaxError as e:
         print(f"  ✗ {name}: 变异体语法错 {e}"); bad += 1; continue
-    hit = [(k, l) for k, l in red if want_label in l and k == want_kind]
-    others = [(k, l) for k, l in red if not (want_label in l and k == want_kind)]
+    hit = [(k, l) for k, l in red if _id_of(l) == want_label and k == want_kind]
+    others = [(k, l) for k, l in red if not (_id_of(l) == want_label and k == want_kind)]
     if not hit: bad += 1
     print(f"  {'✓' if hit else '✗ 未红 = 该锚没绑住这处修复'}  {name}")
     print(f"        指定判据 [{want_kind}] {want_label[:52]} → {'红' if hit else '仍绿'}"

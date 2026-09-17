@@ -538,54 +538,6 @@ def _walk_same_scope(node: ast.AST):
             push(child)
 
 
-def _module_binds_name(tree: ast.Module, name: str) -> bool:
-    """**模块级**有没有把 ``name`` 这个名字绑到别的东西上（= 同名内建被遮蔽）。
-
-    ⛔ 只看**顶层**绑定（Codex round-2 HIGH-4）。上一版用 `ast.walk` 收全树，于是任何一个
-    无关函数里出现一个名叫 ``setattr`` 的形参、局部赋值、甚至一句不绑任何对象的
-    ``global setattr``，都会把整条 ``setattr`` 写路径收集关掉 —— 而这些只在那个函数体内
-    有效，模块级的 ``setattr(mod, "x", v)`` 用的仍是内建。那是 **fail-open**：本卡刚堵上的
-    C4 漏放面又被打开。方向必须是「宁可多收一条写路径」，不是「宁可不收」。
-
-    ⛔ 绑定形态不止 ``Name(Store)``（Codex round-2 MEDIUM）：``case setattr:``、
-    ``case [*setattr]``、``case {**setattr}``、``except E as setattr`` 都是真绑定，
-    但在 AST 里分别是 `MatchAs.name` / `MatchStar.name` / `MatchMapping.rest` /
-    `ExceptHandler.name`，一个 `Name` 节点都没有。漏掉它们 = 该跳过时没跳过 = 误判。
-
-    残留的近似方向如实写明：``setattr(...)`` 调用**本身**写在一个有局部同名绑定的函数体里
-    时，本函数返回 False、写路径照收 —— 那是 **fail-closed**（多收一条写路径 ⇒ 收回 C4
-    豁免 ⇒ 最坏误判一条合法写法），与上面那条 fail-open 方向相反，可接受。真正精确要按
-    调用点的作用域链判，而本函数在 `_ModuleIndex` 建作用域表**之前**就要用，拿不到解析。
-    """
-
-    def binds_here(n: ast.AST) -> bool:
-        if isinstance(n, ast.Name) and isinstance(n.ctx, (ast.Store, ast.Del)):
-            return n.id == name
-        if isinstance(n, (ast.MatchAs, ast.MatchStar)):
-            return n.name == name
-        if isinstance(n, ast.MatchMapping):
-            return n.rest == name
-        if isinstance(n, ast.ExceptHandler):
-            return n.name == name
-        return False
-
-    for stmt in tree.body:  # 只走顶层语句
-        if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            if stmt.name == name:
-                return True
-            continue  # 体内是另一个作用域，不下潜
-        if isinstance(stmt, (ast.Import, ast.ImportFrom)):
-            if any((a.asname or a.name.split(".")[0]) == name for a in stmt.names):
-                return True
-            continue
-        for n in ast.walk(stmt):
-            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)):
-                continue  # 顶层语句里嵌的作用域同理不算
-            if binds_here(n):
-                return True
-    return False
-
-
 def _lambda_outer_defaults(lam: ast.Lambda):
     """``lam`` 里在**定义处**（= 外层作用域）求值的子表达式：它的默认参数。
 
@@ -618,16 +570,21 @@ def _module_attr_write_paths(tree: ast.Module) -> frozenset[str]:
     这一条只会**增加**写路径 ⇒ 只会**收回** C4 豁免，不会放宽任何判定。
     """
     paths: set[str] = set()
-    # ⛔ Codex round-1 MEDIUM：只看函数名字、不看它指向谁，会把「本模块自己定义的、
-    #    并不写属性的 setattr」也算成一次写 ⇒ 错误收回 C4 豁免，把合法写法判红。
-    #    本模块只要在任何地方绑过 `setattr` 这个名字，就整条分支不收，退回本卡之前
-    #    的行为（少收一条写路径 = 维持原样，胜过误判）。
-    builtin_setattr = not _module_binds_name(tree, "setattr")
 
     def collect_setattr(call: ast.Call) -> None:
-        """``setattr(<路径>, "<常量名>", ...)`` → ``"<路径>.<常量名>"``。"""
-        if not builtin_setattr:
-            return
+        """``setattr(<路径>, "<常量名>", ...)`` → ``"<路径>.<常量名>"``。
+
+        ⛔ **刻意不判 ``setattr`` 这个名字有没有被遮蔽**（Codex round-1 MEDIUM → round-3
+        HIGH，整条撤回）。本卡曾加过一个「模块里绑过这个名字就整条不收」的开关，它
+        **在原理上就不成立**：一次绑定证明不了每个调用点都被遮蔽 ——
+        ``except E as setattr`` 在退出时**删除**该名字；``if TYPE_CHECKING:`` 块运行时
+        根本不执行；写在危险调用**之后**的 ``case setattr`` 更不可能遮蔽它之前的调用。
+        那个开关为收一条 MEDIUM 而生，随后自己长出 5 条缺陷（两条是 fail-open：把本卡刚
+        堵上的 C4 漏放面又打开）。现在退回「恒收」：残留误差是「本模块确实自定义了一个
+        不写属性的 setattr 时多收一条写路径 ⇒ 误撤 C4 ⇒ 误判一条合法写法」，方向是
+        **fail-closed**，已登记移交（要修得按调用点的作用域链 + 执行顺序判，而本函数在
+        `_ModuleIndex` 建作用域表**之前**就要用）。
+        """
         if not (isinstance(call.func, ast.Name) and call.func.id == "setattr"):
             return
         if len(call.args) < 2:
@@ -2999,6 +2956,55 @@ _AST_MUST_FLAG: list[tuple[str, str]] = [
         "with mod.client:\n"
         "    pass\n",
     ),
+    (
+        "R3-HIGH2-except-as-name-deleted：except 捕获名退出时被删除，之后仍是内建 setattr",
+        "import threading as mod\n"
+        "from app.main import app\n"
+        "from fastapi.testclient import TestClient\n"
+        "try:\n"
+        "    raise ValueError()\n"
+        "except ValueError as setattr:\n"
+        "    pass\n"
+        'setattr(mod, "client", TestClient(app))\n'
+        "with mod.client:\n"
+        "    pass\n",
+    ),
+    (
+        "R3-HIGH2b-type-checking-binding：if TYPE_CHECKING 块运行时根本不执行",
+        "from typing import TYPE_CHECKING\n"
+        "import threading as mod\n"
+        "from app.main import app\n"
+        "from fastapi.testclient import TestClient\n"
+        "if TYPE_CHECKING:\n"
+        "    setattr = None\n"
+        'setattr(mod, "client", TestClient(app))\n'
+        "with mod.client:\n"
+        "    pass\n",
+    ),
+    (
+        "R3-HIGH2c-binding-after-call：遮蔽写在危险调用**之后**，管不着它之前",
+        "import threading as mod\n"
+        "from app.main import app\n"
+        "from fastapi.testclient import TestClient\n"
+        'setattr(mod, "client", TestClient(app))\n'
+        "with mod.client:\n"
+        "    pass\n"
+        "match 1:\n"
+        "    case setattr:\n"
+        "        pass\n",
+    ),
+    (
+        "R3-HIGH1-nested-scope-local-assign：顶层块里嵌套函数的**局部**赋值不遮蔽模块级调用",
+        "import threading as mod\n"
+        "from app.main import app\n"
+        "from fastapi.testclient import TestClient\n"
+        "if True:\n"
+        "    def unrelated():\n"
+        "        setattr = None\n"
+        'setattr(mod, "client", TestClient(app))\n'
+        "with mod.client:\n"
+        "    pass\n",
+    ),
 ]
 
 _AST_MUST_PASS: list[tuple[str, str]] = [
@@ -3317,38 +3323,6 @@ _AST_MUST_PASS: list[tuple[str, str]] = [
         "def t(cb=lambda s: ((a := FastAPI()), s.enter_context(TestClient(a)))):\n"
         "    with contextlib.ExitStack() as stack:\n"
         "        cb(stack)\n",
-    ),
-    (
-        "验伪锚 R1-M3：本模块自己定义的 setattr 并不写属性（C4 豁免仍应成立）",
-        "import threading as mod\n"
-        "from fastapi.testclient import TestClient\n"
-        "def setattr(obj, name, value):\n"
-        "    return getattr(obj, name)\n"
-        "setattr(mod, '_active_limbo_lock', None)\n"
-        "def t():\n"
-        "    with mod._active_limbo_lock:\n"
-        "        pass\n",
-    ),
-    (
-        "验伪锚 R2-M5：match 的 case 绑走了 setattr（真遮蔽，只读锁，不该判违规）",
-        "import threading as mod\n"
-        "from fastapi.testclient import TestClient\n"
-        "match (lambda obj, name, value: getattr(obj, name)):\n"
-        "    case setattr:\n"
-        '        setattr(mod, "_active_limbo_lock", None)\n'
-        "        with mod._active_limbo_lock:\n"
-        "            pass\n",
-    ),
-    (
-        "验伪锚 R2-M5b：except ... as setattr 绑走了 setattr（真遮蔽，不该判违规）",
-        "import threading as mod\n"
-        "from fastapi.testclient import TestClient\n"
-        "try:\n"
-        "    pass\n"
-        "except Exception as setattr:\n"
-        '    setattr(mod, "_active_limbo_lock", None)\n'
-        "    with mod._active_limbo_lock:\n"
-        "        pass\n",
     ),
 ]
 
