@@ -1,0 +1,65 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t3-review/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 117 items / 116 deselected / 1 selected
+tests/unit/test_review_overview.py F                                     [100%]
+=================================== FAILURES ===================================
+________ test_u6c_refresh_passes_parent_now_so_child_agrees_on_the_day _________
+board_done_env = (PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-27180/test_u6c_refresh_...sktop/canvas/canvas-learning-system/.claude/worktrees/card-t3-review/backend/app/api/v1/endpoints/review_overview.py'>)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x13af535c0>
+    def test_u6c_refresh_passes_parent_now_so_child_agrees_on_the_day(board_done_env, monkeypatch):
+        """CARD-U6C-HANDOVER item ②: 刷新路径的父子两侧必须归同一个"今天"。
+        缺陷形态: `_run_pick` 的 argv 里没有 `--now` ⇒ 生产器子进程**自己读墙钟**
+        (daily_review_pick.main 的 `else: now = datetime.now(timezone.utc)`)。父进程
+        读钟与子进程读钟之间隔着一次 subprocess.run (0.1–2s), 当地午夜前后这两次会
+        落在不同的一天 —— 23:59:59 标完成、子进程 00:00:00.2 判"不是今天完成的"
+        ⇒ 让位不发生。
+        钉法: 把父侧唯一时钟入口 `_display_now` 钉在**昨天** 23:59:59.9。子进程的
+        墙钟推不快, 但"父子是否归同一天"这条性质不需要推快墙钟就判得出来:
+          · 传了 --now ⇒ 子侧按父钟归日 = 昨天 = 父侧归日 (一致);
+          · 没传      ⇒ 子侧按真实墙钟归日 = 今天 ≠ 昨天 (分叉, 缺陷当场显形)。
+        "昨天 23:59:59.9 再过 0.1 秒就是今天"正是当地午夜那一秒的形态; 且取值**相对
+        今天**算 ⇒ 不会像硬编码的 2099 那样到期 (同批 item ④① 治的就是那个病)。
+        三层判据, 缺一层就有一种假绿:
+          ① 前提自证: 钉住的那一刻与真实此刻确实归不同的日 —— 否则 ③ 恒绿;
+          ② 身份层: argv 里 `--now` 的**值**解析回来就是父侧那一刻。只断言"有这个
+             旗标"的话, 传一个别的时间 (甚至 datetime.now()) 照样绿;
+          ③ 行为层: 子进程**真跑**出来的 payload["date"] == 父侧归日。这一条不复刻
+             任何换算, 读的是生产器自己写到盘上的那个字段。
+        """
+        root, client, runner, mod = board_done_env
+        vault = _mk_node_vault(root, "vault-clock", _YIELD_NODES)
+        pinned = (datetime.now(_SH) - timedelta(days=1)).replace(
+            hour=23, minute=59, second=59, microsecond=900000
+        )
+        parent_day = mod._display_today(pinned)
+        # ① 前提自证 —— 钉住的那一刻与真实此刻必须归不同的日, 否则 ③ 恒绿
+        assert parent_day != mod._display_today(), (
+            f"钉住的 {parent_day} 与真实此刻归了同一天 —— 本门的分叉前提不成立"
+        )
+        monkeypatch.setattr(mod, "_display_now", lambda: pinned)
+        seen = _spy_subprocess_run(monkeypatch, mod)
+        resp = client.post(_REFRESH_URL, data={"vault_id": "vault-clock"})
+        assert resp.status_code == 200, resp.text
+        assert seen, "没有起过子进程 —— 本门验的是父子归日, 前提不成立"
+        argv = seen[-1]
+        # ② 身份层
+>       assert "--now" in argv, f"子进程 argv 里没有 --now: {argv}"
+E       AssertionError: 子进程 argv 里没有 --now: ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/bin/python3.14', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t3-review/scripts/daily_review_pick.py', '--vault', '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-27180/test_u6c_refresh_passes_parent0/vault-clock', '--write', '--state', '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-27180/test_u6c_refresh_passes_parent0/backups/daily-review.vault-clock.state.json']
+E       assert '--now' in ['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/bin/python3.14',...c_ft2w0000gn/T/pytest-of-Heishing/pytest-27180/test_u6c_refresh_passes_parent0/vault-clock', '--write', '--state', ...]
+tests/unit/test_review_overview.py:3609: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/review/overview/refresh", "endpoint": "/api/v1/review/overview/refresh", "status": 200, "duration_ms": 200.17, "event": "request.completed", "request_id": "5538781840", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-17T04:52:51.958068Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/review/overview/refresh', 'endpoint': '/api/v1/review/overview/refresh', 'status': 200, 'duration_ms': 200.17, 'event': 'request.completed', 'request_id': '5538781840', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-17T04:52:51.958068Z'}
+=============================== warnings summary ===============================
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t3-review/backend/app/api/v1/endpoints/chat.py:807: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_review_overview.py::test_u6c_refresh_passes_parent_now_so_child_agrees_on_the_day
+================ 1 failed, 116 deselected, 10 warnings in 3.08s ================

@@ -1,0 +1,6 @@
+### NC-9 归因对照: backend/app 两文件还原成开工态(T3-C 末) ⇒ 该条 regression 应**仍红** ###
+E   AssertionError: backend/app 开始消费 runner 的推送落账字段了：['backend/app/api/v1/endpoints/review_overview.py:generated_push_failed'] —— 这是好事，但意味着 CARD-G6-9b 的前提已变，请把登记项转正
+    assert ['backend/app..._push_failed'] == []
+      Left contains one more item: 'backend/app/api/v1/endpoints/review_overview.py:generated_push_failed'
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t3-review/backend/tests/regression/test_g6_9_boundary_matrix.py:644: AssertionError: backend/app 开始消费 runner 的推送落账字段了：['backend/app/api/v1/endpoints/review_overview.py:generated_push_failed'] —— 这是好事，但意味着 CARD-G6-9b 的前提已变，请把登记项转正
+FAILED tests/regression/test_g6_9_boundary_matrix.py::test_push_failure_is_invisible_to_backend_app

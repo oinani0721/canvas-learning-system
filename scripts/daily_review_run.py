@@ -585,7 +585,14 @@ def ensure_payload(st: dict, now: datetime, today: str) -> tuple[dict | None, st
             # sha 校验 (Code-Review L3): 外部改动/半写的 payload 不复用, 重新生成
             if hashlib.sha256(raw.encode("utf-8")).hexdigest() == st.get("payload_sha256"):
                 now_z = now.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-                due_crossed = bool(st.get("next_due_utc")) and st["next_due_utc"] <= now_z
+                # ⚠ CARD-U6C-HANDOVER item ①: 先判型再比较 —— 与下面的
+                # wake_crossed 逐条同律 (那一条由 Codex round-1 MEDIUM-4 补过,
+                # 本条当时留在了原地)。state 是外部文件, 一个 "next_due_utc": 1
+                # 会让 `1 <= "…Z"` 抛 TypeError —— 而这里的 except 只接
+                # JSONDecodeError / OSError, 于是整轮 runner 带着 traceback 退出
+                # (连推送都不跑), 而不是"当作没有到期点、照常重扫"。
+                _due = st.get("next_due_utc")
+                due_crossed = isinstance(_due, str) and bool(_due) and _due <= now_z
                 # CARD-G6-6: 越过最早的推迟唤醒点也重扫 —— 与 due_crossed 同律。
                 # 少这一条的话, 「今晚再说」到点后**不会**有任何东西把榜首换回来:
                 # 推迟账没再变 (snooze_unchanged 为真)、节点也没动, 缓存分支会一路

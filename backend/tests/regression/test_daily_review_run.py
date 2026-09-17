@@ -2261,6 +2261,71 @@ def test_g66_wrong_typed_wake_marker_does_not_abort_the_cache_gate(tmp_path, mon
     assert how == "cached", "错型唤醒点当作没有, 照常复用缓存 (而不是 TypeError 崩掉)"
 
 
+@pytest.mark.parametrize(
+    "bad, crashes_before_fix",
+    [
+        (1, True),
+        (True, True),
+        (12.5, True),
+        (["2099-01-01T00:00:00Z"], True),
+        ({"iso": "2099-01-01T00:00:00Z"}, True),
+        ([], False),
+        ({}, False),
+    ],
+    ids=["int", "bool", "float", "list-wrapped-str", "dict", "list-empty", "dict-empty"],
+)
+def test_u6c_wrong_typed_due_marker_does_not_abort_the_cache_gate(tmp_path, monkeypatch, bad, crashes_before_fix):
+    """CARD-U6C-HANDOVER item ①: `next_due_utc` 错型不许让整轮 runner 崩。
+
+    与并列的 `snooze_wake_utc` (上一条门) 逐条同形 —— 那一条在 Codex round-1
+    MEDIUM-4 补了 isinstance 判型, `next_due_utc` 却留在原地。state 是外部
+    文件, 一个 `"next_due_utc": 1` 会让 `1 <= "…Z"` 抛 TypeError, 而缓存分支
+    的 except 只接 JSONDecodeError / OSError ⇒ 整轮 runner 带 traceback 退出,
+    连推送都不跑 —— 而不是"当作没有到期点、照常重扫"。
+    正确行为: 当作"没有到期点", 照常按其余判据决定复用还是重扫。
+
+    ⛔ 参数覆盖的是**读法空间**而不是"那个 1": 判型只写 `isinstance(_due, str)`
+    时, 下面七种取值必须一条不漏地走到同一个 cached 结论。`crashes_before_fix`
+    如实记下"这一档在修复前是否真会崩" —— 空容器两档 (`[]` / `{}`) 因 `bool()`
+    为假而短路, 修复前**本来就不崩**, 它们是对照档不是承重档; 把它们与承重档
+    混在一起当"全都先红"会是假绿。
+    """
+    vault = _vault(tmp_path, {"甲": _node(board="A板")})
+    _patch_runner(monkeypatch, vault, tmp_path)
+
+    runner.ensure_payload(runner.load_state(), NOW, TODAY)  # 先造出当日缓存
+    _pin_pool_older_than_payload(vault, BASE)
+
+    st = runner.load_state()
+    st["next_due_utc"] = bad  # 错型
+    runner.save_state(st)
+
+    _, how = runner.ensure_payload(runner.load_state(), NOW, TODAY)
+    assert how == "cached", f"错型到期点 {bad!r} 当作没有, 照常复用缓存 (而不是 TypeError 崩掉)"
+
+
+def test_u6c_wrong_typed_due_marker_control_group_still_reads_valid_iso(tmp_path, monkeypatch):
+    """上一条门的控制组: 合法 ISO 串必须**照旧**参与判定, 判型不许把它一起吃掉。
+
+    只证"错型不崩"是不够的 —— `due_crossed = False` 这个退化实现同样能让上一条
+    门全绿, 但它把"越过到期点就重扫"整条语义删掉了。本条钉住那一半: 一个**已经
+    越过**的合法 next_due_utc 必须让缓存失效 (how == "rescan"), 与修复前逐字同行为。
+    """
+    vault = _vault(tmp_path, {"甲": _node(board="A板")})
+    _patch_runner(monkeypatch, vault, tmp_path)
+
+    runner.ensure_payload(runner.load_state(), NOW, TODAY)  # 先造出当日缓存
+    _pin_pool_older_than_payload(vault, BASE)
+
+    st = runner.load_state()
+    # NOW 之前的一刻 ⇒ 到期点已被越过 ⇒ 必须重扫
+    st["next_due_utc"] = (NOW - timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    runner.save_state(st)
+
+    _, how = runner.ensure_payload(runner.load_state(), NOW, TODAY)
+    assert how != "cached", "越过合法到期点必须重扫 —— 判型不得把合法 ISO 串一起判掉"
+
+
 def test_g66_active_snoozed_suppresses_bytecode_writes(monkeypatch):
     """(Codex round-1 LOW-1) 只读路径转调生产器时, import 那一刻必须禁写字节码。
 

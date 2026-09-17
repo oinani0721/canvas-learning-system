@@ -1,0 +1,5 @@
+### 负控 NC-6: item④② 哑弹先红 — 生产=缺陷态(无 --now), 钉了昨天的完成账对不上 ###
+E   AssertionError: 已完成的板必须让出榜首
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t3-review/backend/tests/unit/test_review_overview.py:3585: AssertionError: 已完成的板必须让出榜首
+FAILED tests/unit/test_review_overview.py::test_g67r_refresh_passes_state_and_done_board_yields_top
+================ 1 failed, 116 deselected, 10 warnings in 1.62s ================

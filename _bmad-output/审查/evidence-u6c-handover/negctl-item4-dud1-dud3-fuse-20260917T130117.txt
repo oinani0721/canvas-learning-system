@@ -1,0 +1,10 @@
+NC-7/NC-8 引信可达性变异已注入
+### NC-7/NC-8: 哑弹①③ 的引信可达性 — 引信条件一旦成立, 那两条 assert 必须红 ###
+E   AssertionError: None
+    assert 'stale' == 'ok'
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t3-review/backend/tests/unit/test_review_overview.py:1144: AssertionError: None
+E   assert 2 == 0
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t3-review/backend/tests/unit/test_review_overview.py:1401: assert 2 == 0
+FAILED tests/unit/test_review_overview.py::test_buckets_gate_accepts_real_producer_payload
+FAILED tests/unit/test_review_overview.py::test_refresh_rebuilds_projection_and_response_matches_disk
+================ 2 failed, 115 deselected, 10 warnings in 1.41s ================

@@ -3183,6 +3183,51 @@ test("推迟键与完成键**不同族**: 输出恒不含 NUL (Codex round-2 / r
   assert.notEqual(b.api.snoozeKey("a%b", "c"), b.api.snoozeKey("a", "25b%c"),
     "转义不是单射 — 两组不同输入产生了同一个键");
 });
+test("不相交是**双向**的: doneKey 输出恒含 NUL (CARD-U6C-HANDOVER item ③ 反向)", () => {
+  const b = boot();
+  const NUL = "\u0000";
+  // 上一条门只锁了合取的**一半** —— "snoozeKey 输出恒不含 NUL"。"两个值域不
+  // 相交"是两个半条件的合取, 另一半是 "doneKey 输出恒**含** NUL", 它此前没有
+  // 任何门看着。
+  // ⛔ 缺口的具体形态 (本门要堵的就是它): 把 doneKey 的分隔符从 NUL 换成 "|"
+  // —— 一个看着像可读性改进的改动 —— 上一条门**全绿**, 而
+  // doneKey("snooze|math", "A") 会与 snoozeKey("math", "A") 撞成同一个键。
+  // 碰撞从反方向回来了, 且渲染层与 handler 会再次串到别的板上。
+
+  // ① 反向原理判据: doneKey 的输出恒含至少一个 NUL (分隔符本身), 与输入无关
+  const inputs = [["math", "A"], ["", ""], ["snooze|math", "A"], ["a" + NUL + "b", "c"],
+                  ["中文库", "🌙 板"], ["%25", "|"], ["snooze", "math" + NUL + "A"]];
+  for (const [v, bd] of inputs) {
+    assert.ok(b.api.doneKey(v, bd).includes(NUL),
+      `doneKey(${JSON.stringify(v)}, ${JSON.stringify(bd)}) 的输出不含 NUL — 值域与 snoozeKey 相交了`);
+  }
+
+  // ② 两半合取 ⇒ 双向不相交: 任何 doneKey 输出都落不进 snoozeKey 的值域。
+  for (const [v, bd] of inputs) {
+    const dk = b.api.doneKey(v, bd);
+    for (const [v2, bd2] of inputs) {
+      assert.notEqual(dk, b.api.snoozeKey(v2, bd2),
+        `doneKey(${JSON.stringify(v)}, ${JSON.stringify(bd)}) 撞进了 snoozeKey 的值域`);
+    }
+  }
+
+  // ③ 反向**穷举劈分**: 拿 doneKey 的输出按 snoozeKey 的编码规则去反解 —— 它
+  //    以 "snooze|" 开头且其余段可百分号解码时才可能相等。含 NUL ⇒ 恒解不出。
+  for (const [v, bd] of inputs) {
+    const dk = b.api.doneKey(v, bd);
+    assert.ok(!(dk.startsWith("snooze|") && !dk.includes(NUL)),
+      `doneKey 的输出落进了 snoozeKey 的形态: ${JSON.stringify(dk)}`);
+  }
+
+  // ④ doneKey **自撞**如实钉住 (不假装它不存在): 分量含 NUL 时它确实歧义。
+  //    这条不靠编码挡, 靠取名链 —— vault/board 名经 read_text→frontmatter
+  //    正则→_fm_str 取自 POSIX 文件名/目录名, 造不出含 NUL 的名字。
+  //    ⚠ 那是**取名链快照**而不是代码不变量: 将来引入非 POSIX 取名源 (外部
+  //    API / 数据库列 / 用户直填) 即可打破。若有人给 doneKey 补了转义, 本条
+  //    会红 —— 那时请同步重写这段定性, 而不是删掉这条断言。
+  assert.equal(b.api.doneKey("a" + NUL + "b", "c"), b.api.doneKey("a", "b" + NUL + "c"),
+    "doneKey 在分量含 NUL 时的自撞形态变了 — item ③ 的定性需要重写");
+});
 test("取回渲染侧**单独**受保护 (Codex round-2 LOW-3: 两处渲染分支各自可被违反)", () => {
   // 上一条门只覆盖了待做区的推迟钮。只把**取回**渲染侧改回裸 doneKey 时, 上一条
   // 仍然全绿 —— 于是"两处渲染分支都用了 snoozeKey"这件事只被证明了一半。

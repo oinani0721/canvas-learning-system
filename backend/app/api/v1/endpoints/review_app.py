@@ -204,6 +204,22 @@ function doneKey(vaultId, board) {
   // 在源码里就该看得见 (直接敲会被工具链静默换掉, review 时也无从辨认)。
   // 选它是因为板名可含任何可见字符 —— 用 "|" 之类会让 ("a|b","c") 与
   // ("a","b|c") 撞成同一个键, 在飞禁用就会串到别的板上。
+  //
+  // ⚠ CARD-U6C-HANDOVER item ③ (反向方向定性): "与 snoozeKey 值域不相交"是
+  // **两个半条件的合取**, 下面 snoozeKey 只承担了一半 (输出恒不含 NUL);
+  // 另一半在这里 —— 本函数的输出**恒含至少一个 NUL** (分隔符本身, 与两个
+  // 分量的取值无关)。所以分隔符不是可以随手改的风格选择: 换成 "|" 会让
+  // doneKey("snooze|math","A") 与 snoozeKey("math","A") 撞成同一个键, 而
+  // snoozeKey 侧那几条门**全绿** (它们只看 snoozeKey 的输出)。
+  // 常驻门: test_review_app.py「不相交是**双向**的」。
+  //
+  // ⚠ 本函数**自撞**的那一面如实记在这里, 不假装不存在: 两个分量都无约束 ⇒
+  // 任一分量含 NUL 时 doneKey("a\0b","c") == doneKey("a","b\0c")。它现在
+  // 不可达, 靠的**不是编码**而是取名链 —— vaultId / board 经 read_text →
+  // frontmatter 正则 → _fm_str 取自 POSIX 文件名与目录名, 那里造不出含 NUL
+  // 的名字。⛔ 那是**取名链快照**, 不是代码不变量: 将来任何非 POSIX 取名源
+  // (外部 API / 数据库列 / 用户直填板名) 都能打破它, 届时本函数需要与
+  // snoozeKey 同款的转义, 而不是再加一层前缀 (前缀式已被打回两次, 见下)。
   return String(vaultId) + "\u0000" + String(board);
 }
 function snoozeKey(vaultId, board) {
