@@ -1,0 +1,29 @@
+=== round-2 整改后 · 定向负控 11 变异 @ 2026-09-17T09:32:55+08:00 ===
+5798abd3ee319385ad86a5032908bbf4e90025a94f8c85f1e2b02696dfe23a43  backend/scripts/lifespan_isolation_negative_control.py
+=== 控制组：未变异的定稿（11 个变异待跑）===
+  红项 = []   （须为空，否则后面全部结论不可比）
+  ✓  卡文(b) _own_exprs 不再下潜 lambda 默认参数
+        指定判据 [MISSED] R2-5b-B-lambda-defaults → 红   （连带红 0 条）
+  ✓  卡文(c) collect_setattr 整条失效
+        指定判据 [MISSED] R2-7-B-setattr-write → 红   （连带红 1 条）
+  ✓  卡文(d) 不再要求每一条 yield 都被覆盖
+        指定判据 [MISSED] R2-5a-ii-branch-split-isolation → 红   （连带红 5 条）
+  ✓  r1-HIGH2 _outer_evaluated_parts 不产出任何东西
+        指定判据 [MISSED] R1-HIGH2-nested-def-default-yield → 红   （连带红 2 条）
+  ✓  r1-MEDIUM setattr 遮蔽判据恒真（当作内建）
+        指定判据 [FALSE POSITIVE] 验伪锚 R1-M3 → 红   （连带红 2 条）
+  ✓  r1-HIGH1 回装被撤回的改动：根位置 lambda 也只走默认参数
+        指定判据 [MISSED] R1-HIGH1-regress-lambda-body-walrus → 红   （连带红 1 条）
+  ✓  r2-HIGH1 _own_exprs 不再区分「已进入 lambda 体」
+        指定判据 [MISSED] R2-HIGH1-nested-lambda-in-lambda-body → 红   （连带红 0 条）
+  ✓  r2-HIGH2 push 的部件不再递归过 push
+        指定判据 [MISSED] R2-HIGH2-default-lambda-body-yield → 红   （连带红 0 条）
+  ✓  r2-HIGH3 _outer_evaluated_parts 不再收注解
+        指定判据 [MISSED] R2-HIGH3-param-annotation-yield → 红   （连带红 1 条）
+  ✓  r2-HIGH4 _module_binds_name 退回全树 walk + 认形参/global
+        指定判据 [MISSED] R2-HIGH4-global-name-no-rebind → 红   （连带红 0 条）
+  ✓  r2-MEDIUM binds_here 不再认 pattern / except 绑定
+        指定判据 [FALSE POSITIVE] 验伪锚 R2-M5 → 红   （连带红 0 条）
+
+未按预期变红的变异数 = 0
+rc=0

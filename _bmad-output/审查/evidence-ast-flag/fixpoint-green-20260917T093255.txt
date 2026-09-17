@@ -1,0 +1,14 @@
+=== (f) 后绿 @ 2026-09-17T09:32:56+08:00 ===
+5798abd3ee319385ad86a5032908bbf4e90025a94f8c85f1e2b02696dfe23a43  backend/scripts/lifespan_isolation_negative_control.py
+=== lifespan isolation NEGATIVE CONTROL ===
+    interpreter: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/bin/python
+=== RUNTIME-FILES SELFTEST ===
+RUNTIME-FILES-SELFTEST: PASS (3 固定项 + 1 glob；重新展开 / 旧名在册 / 旁文件排除 / 按字节序排列（乱序前提已验证）四条全过)
+=== FIXPOINT SELFCHECK ===
+  [rounds]    承重输入实测收敛轮数 = 3（需 ≥2）
+  [explicit]  上限=1 时显式报出：知识迭代 1 轮仍未收敛 —— 判定依据还在变，不出结论
+  [violation] 未收敛在 analyze_source 侧成为违规：<selfcheck:fixpoint>: 静态判定未收敛 —— 知识迭代 1 轮仍未收敛 —— 判定依据还在变，不出结论（按违规处理，人工复核）
+  [default]   上限=8 时判定 = CLEAN
+  [headroom]  90 条负控输入的最大收敛轮数 = 3（上限 8）
+FIXPOINT-SELFCHECK: PASS (上限 8 / 承重输入 3 轮 / 负控最大 3 轮)
+rc=0

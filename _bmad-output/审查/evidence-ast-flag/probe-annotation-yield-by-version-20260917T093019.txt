@@ -1,0 +1,11 @@
+=== 注解里能不能写 yield —— 逐版本实测（Codex round-2 HIGH-3 的核）@ 2026-09-17T09:30:19+08:00 ===
+CI matrix: python-version: ['3.11', '3.12']（.github/workflows/test.yml）
+--- Python 3.11.15 (/Users/Heishing/.local/bin/python3.11) ---
+   合法 · 外层 YIELD_VALUE = 1   ← 参数注解 def unused(x: (yield a))
+   合法 · 外层 YIELD_VALUE = 1   ← 返回注解 def unused() -> (yield a)
+   合法 · 外层 YIELD_VALUE = 1   ← 参数默认值 def unused(x=(yield a))
+--- Python 3.14.4 (/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/.venv/bin/python) ---
+   SyntaxError: yield expression cannot be used within an annotation   ← 参数注解 def unused(x: (yield a))
+   SyntaxError: yield expression cannot be used within an annotation   ← 返回注解 def unused() -> (yield a)
+   合法 · 外层 YIELD_VALUE = 1   ← 参数默认值 def unused(x=(yield a))
+rc=0

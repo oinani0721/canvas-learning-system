@@ -463,6 +463,19 @@ def _outer_evaluated_parts(node: ast.AST):
         yield from node.decorator_list
         yield from node.args.defaults
         yield from (d for d in node.args.kw_defaults if d is not None)
+        # ⛔ 注解也在外层求值（Codex round-2 HIGH-3）。作者上一版断言「注解里不能写
+        #    yield」—— 那是**只在本机 3.14 上**测的，而 CI matrix 跑 3.11/3.12：
+        #      3.11.15 实测 `def unused(x: (yield a))` / `-> (yield a)` **合法**，
+        #                 且外层函数确实多一条 YIELD_VALUE；
+        #      3.14.4  实测 SyntaxError: yield expression cannot be used within an annotation。
+        #    本门是**静态**检查器，读的源码可能跑在 3.11/3.12 上 ⇒ 按能出现处理（fail-closed）。
+        #    3.14 的 PEP 649 注解作用域与此不同，但那边 yield 根本进不来，收了也无副作用。
+        a = node.args
+        for arg in (*a.posonlyargs, *a.args, *a.kwonlyargs, a.vararg, a.kwarg):
+            if arg is not None and arg.annotation is not None:
+                yield arg.annotation
+        if node.returns is not None:
+            yield node.returns
     elif isinstance(node, ast.Lambda):
         yield from node.args.defaults
         yield from (d for d in node.args.kw_defaults if d is not None)
@@ -507,7 +520,13 @@ def _walk_same_scope(node: ast.AST):
         #    语句本身就可能是 `def unused(...)`。只对 child 做处理的话，node 自己的
         #    子树照样被走遍（本文件早先修 R2 HIGH-5 时就栽在这里）。
         if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)):
-            stack.extend(_outer_evaluated_parts(n))
+            # ⛔ 部件必须**再过一次 push**（Codex round-2 HIGH-2）：上一版用
+            #    `stack.extend(...)` 把部件直接入栈，于是「默认值本身是个 lambda」时
+            #    那个 lambda 被当普通节点走遍、**体内**的 yield 被算成外层让出 ——
+            #    `def unused(cb=lambda: (yield a))` 里 unused 根本不是生成器，
+            #    外层零条 YIELD_VALUE，却凭空拿到隔离资格（反向还会误撤真资格）。
+            for part in _outer_evaluated_parts(n):
+                push(part)
         else:
             stack.append(n)
 
@@ -520,27 +539,67 @@ def _walk_same_scope(node: ast.AST):
 
 
 def _module_binds_name(tree: ast.Module, name: str) -> bool:
-    """本模块里有没有把 ``name`` 这个名字绑到别的东西上（= 同名内建可能被遮蔽）。
+    """**模块级**有没有把 ``name`` 这个名字绑到别的东西上（= 同名内建被遮蔽）。
 
-    收得**很宽**（任何位置、任何绑定形态、含嵌套作用域里的都算）是刻意的：它只用在
-    「一旦可能被遮蔽就整个不收」这条保守分支上，宽 = 更保守（CARD-AST-FLAG-PATCH，
-    Codex round-1 MEDIUM）。本函数在 `_ModuleIndex` 建作用域表**之前**就要用，
-    拿不到真正的名字解析，只能做这个语法级近似。
+    ⛔ 只看**顶层**绑定（Codex round-2 HIGH-4）。上一版用 `ast.walk` 收全树，于是任何一个
+    无关函数里出现一个名叫 ``setattr`` 的形参、局部赋值、甚至一句不绑任何对象的
+    ``global setattr``，都会把整条 ``setattr`` 写路径收集关掉 —— 而这些只在那个函数体内
+    有效，模块级的 ``setattr(mod, "x", v)`` 用的仍是内建。那是 **fail-open**：本卡刚堵上的
+    C4 漏放面又被打开。方向必须是「宁可多收一条写路径」，不是「宁可不收」。
+
+    ⛔ 绑定形态不止 ``Name(Store)``（Codex round-2 MEDIUM）：``case setattr:``、
+    ``case [*setattr]``、``case {**setattr}``、``except E as setattr`` 都是真绑定，
+    但在 AST 里分别是 `MatchAs.name` / `MatchStar.name` / `MatchMapping.rest` /
+    `ExceptHandler.name`，一个 `Name` 节点都没有。漏掉它们 = 该跳过时没跳过 = 误判。
+
+    残留的近似方向如实写明：``setattr(...)`` 调用**本身**写在一个有局部同名绑定的函数体里
+    时，本函数返回 False、写路径照收 —— 那是 **fail-closed**（多收一条写路径 ⇒ 收回 C4
+    豁免 ⇒ 最坏误判一条合法写法），与上面那条 fail-open 方向相反，可接受。真正精确要按
+    调用点的作用域链判，而本函数在 `_ModuleIndex` 建作用域表**之前**就要用，拿不到解析。
     """
-    for n in ast.walk(tree):
-        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and n.name == name:
-            return True
-        if isinstance(n, ast.Name) and isinstance(n.ctx, (ast.Store, ast.Del)) and n.id == name:
-            return True
-        if isinstance(n, (ast.Import, ast.ImportFrom)) and any(
-            (a.asname or a.name.split(".")[0]) == name for a in n.names
-        ):
-            return True
-        if isinstance(n, ast.arg) and n.arg == name:
-            return True
-        if isinstance(n, (ast.Global, ast.Nonlocal)) and name in n.names:
-            return True
+
+    def binds_here(n: ast.AST) -> bool:
+        if isinstance(n, ast.Name) and isinstance(n.ctx, (ast.Store, ast.Del)):
+            return n.id == name
+        if isinstance(n, (ast.MatchAs, ast.MatchStar)):
+            return n.name == name
+        if isinstance(n, ast.MatchMapping):
+            return n.rest == name
+        if isinstance(n, ast.ExceptHandler):
+            return n.name == name
+        return False
+
+    for stmt in tree.body:  # 只走顶层语句
+        if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            if stmt.name == name:
+                return True
+            continue  # 体内是另一个作用域，不下潜
+        if isinstance(stmt, (ast.Import, ast.ImportFrom)):
+            if any((a.asname or a.name.split(".")[0]) == name for a in stmt.names):
+                return True
+            continue
+        for n in ast.walk(stmt):
+            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)):
+                continue  # 顶层语句里嵌的作用域同理不算
+            if binds_here(n):
+                return True
     return False
+
+
+def _lambda_outer_defaults(lam: ast.Lambda):
+    """``lam`` 里在**定义处**（= 外层作用域）求值的子表达式：它的默认参数。
+
+    默认参数本身又是 lambda 时**递归取它的默认参数** —— 那个内层 lambda 与外层在
+    同一刻被创建，所以它的默认参数同样归外层；但它的**体**不是（Codex round-2）。
+    产出里因此永远不含 lambda，调用方不必再对结果做 lambda 判别。
+    """
+    for d in (*lam.args.defaults, *lam.args.kw_defaults):
+        if d is None:  # kw_defaults 用 None 占「这个 kwonly 没默认值」
+            continue
+        if isinstance(d, ast.Lambda):
+            yield from _lambda_outer_defaults(d)
+        else:
+            yield d
 
 
 def _module_attr_write_paths(tree: ast.Module) -> frozenset[str]:
@@ -911,23 +970,29 @@ class _ModuleIndex:
         ⇒ 已撤回。真正的修法是给 Lambda 建独立作用域（`_build_scope` 结构性改动），
         超出本卡范围，已登记移交。本卡只动 child 位置那一处 —— 即卡文 (b) 点名的面。
         """
-        stack: list[ast.AST] = [node]
+        # 栈元素 = (节点, 它是否已经落在某个 lambda **体**内)。
+        # ⛔ Codex round-2 HIGH-1：上一版不带这个状态，于是「根 lambda 的体里又有一个
+        #    lambda」时，内层那个的默认参数被当成外层求值收走 ——
+        #    `def unused(cb=lambda: (lambda x=(app := FastAPI()): x))` 里两个 lambda
+        #    谁都没被调用，运行时 `app` 仍是生产实例，基线判违规，上一版却放行。
+        #    进了 lambda 体就是**调用时**求值，「默认参数归外层」那条规则在那里不成立。
+        stack: list[tuple[ast.AST, bool]] = [(node, False)]
         while stack:
-            cur = stack.pop()
+            cur, in_lambda_body = stack.pop()
             for child in ast.iter_child_nodes(cur):
-                if isinstance(child, ast.Lambda):
-                    # 只取**默认参数**（定义处求值 ⇒ 归外层，与 def 的 args.defaults
-                    # 同口径）；体不下潜 —— 根位置那一支的口径见上面 docstring。
-                    for d in (*child.args.defaults, *child.args.kw_defaults):
-                        if d is None:  # kw_defaults 用 None 占「这个 kwonly 没默认值」
-                            continue
-                        yield d
-                        stack.append(d)
-                    continue
                 if isinstance(child, ast.stmt):
                     continue
+                # cur 是 lambda 时：body 调用时才求值，args（含默认参数）定义时求值。
+                child_in_body = in_lambda_body or (isinstance(cur, ast.Lambda) and child is cur.body)
+                if isinstance(child, ast.Lambda):
+                    if child_in_body:
+                        continue  # 调用时才创建 ⇒ 它的默认参数不归外层；旧行为：整个跳过
+                    for d in _lambda_outer_defaults(child):
+                        yield d
+                        stack.append((d, False))
+                    continue
                 yield child
-                stack.append(child)
+                stack.append((child, child_in_body))
 
     def _record_walrus(self, stmt: ast.stmt, scope: _Scope) -> None:
         """海象 ``(x := v)``：在**当前**作用域绑定（CARD-W4-5 (d)）。
@@ -2851,6 +2916,91 @@ _AST_MUST_FLAG: list[tuple[str, str]] = [
         "    with isolated(app, True), TestClient(app):\n"
         "        pass\n",
     ),
+    (
+        "R2-HIGH1-nested-lambda-in-lambda-body：根 lambda 的**体**里又套一个 lambda（回归锚）",
+        "import contextlib\n"
+        "from fastapi import FastAPI\n"
+        "from app.main import app\n"
+        "from fastapi.testclient import TestClient\n"
+        "def t():\n"
+        "    def unused(cb=lambda: (lambda x=(app := FastAPI()): x)):\n"
+        "        pass\n"
+        "    with TestClient(app):\n"
+        "        pass\n",
+    ),
+    (
+        "R2-HIGH1b-nested-lambda-child-path：同型但走 child 路径（回归锚）",
+        "import contextlib\n"
+        "from fastapi import FastAPI\n"
+        "from app.main import app\n"
+        "from fastapi.testclient import TestClient\n"
+        "def t():\n"
+        "    unused = lambda cb=lambda: (app := FastAPI()): cb\n"
+        "    with TestClient(app):\n"
+        "        pass\n",
+    ),
+    (
+        "R2-HIGH2-default-lambda-body-yield：默认值 lambda 的**体**里 yield（包装器并非生成器）",
+        "import contextlib\n"
+        "from app.main import app\n"
+        "from fastapi.testclient import TestClient\n"
+        "from tests.support.lifespan import no_lifespan\n"
+        "def isolated(a):\n"
+        "    with no_lifespan(a):\n"
+        "        def unused(cb=lambda: (yield a)):\n"
+        "            pass\n"
+        "    return contextlib.nullcontext(a)\n"
+        "def t():\n"
+        "    with isolated(app), TestClient(app):\n"
+        "        pass\n",
+    ),
+    (
+        "R2-HIGH3-param-annotation-yield：**参数注解**里 yield（3.11/3.12 合法且真让出）",
+        "import contextlib\n"
+        "from app.main import app\n"
+        "from fastapi.testclient import TestClient\n"
+        "from tests.support.lifespan import no_lifespan\n"
+        "@contextlib.contextmanager\n"
+        "def isolated(a, quick):\n"
+        "    if quick:\n"
+        "        def unused(x: (yield a)):\n"
+        "            pass\n"
+        "    else:\n"
+        "        with no_lifespan(a):\n"
+        "            yield a\n"
+        "def t():\n"
+        "    with isolated(app, True), TestClient(app):\n"
+        "        pass\n",
+    ),
+    (
+        "R2-HIGH3b-return-annotation-yield：**返回注解**里 yield",
+        "import contextlib\n"
+        "from app.main import app\n"
+        "from fastapi.testclient import TestClient\n"
+        "from tests.support.lifespan import no_lifespan\n"
+        "@contextlib.contextmanager\n"
+        "def isolated(a, quick):\n"
+        "    if quick:\n"
+        "        def unused() -> (yield a):\n"
+        "            pass\n"
+        "    else:\n"
+        "        with no_lifespan(a):\n"
+        "            yield a\n"
+        "def t():\n"
+        "    with isolated(app, True), TestClient(app):\n"
+        "        pass\n",
+    ),
+    (
+        "R2-HIGH4-global-name-no-rebind：无关函数里一句 global setattr（没绑任何对象）",
+        "import threading as mod\n"
+        "from app.main import app\n"
+        "from fastapi.testclient import TestClient\n"
+        "def unrelated():\n"
+        "    global setattr\n"
+        'setattr(mod, "client", TestClient(app))\n'
+        "with mod.client:\n"
+        "    pass\n",
+    ),
 ]
 
 _AST_MUST_PASS: list[tuple[str, str]] = [
@@ -3178,6 +3328,27 @@ _AST_MUST_PASS: list[tuple[str, str]] = [
         "    return getattr(obj, name)\n"
         "setattr(mod, '_active_limbo_lock', None)\n"
         "def t():\n"
+        "    with mod._active_limbo_lock:\n"
+        "        pass\n",
+    ),
+    (
+        "验伪锚 R2-M5：match 的 case 绑走了 setattr（真遮蔽，只读锁，不该判违规）",
+        "import threading as mod\n"
+        "from fastapi.testclient import TestClient\n"
+        "match (lambda obj, name, value: getattr(obj, name)):\n"
+        "    case setattr:\n"
+        '        setattr(mod, "_active_limbo_lock", None)\n'
+        "        with mod._active_limbo_lock:\n"
+        "            pass\n",
+    ),
+    (
+        "验伪锚 R2-M5b：except ... as setattr 绑走了 setattr（真遮蔽，不该判违规）",
+        "import threading as mod\n"
+        "from fastapi.testclient import TestClient\n"
+        "try:\n"
+        "    pass\n"
+        "except Exception as setattr:\n"
+        '    setattr(mod, "_active_limbo_lock", None)\n'
         "    with mod._active_limbo_lock:\n"
         "        pass\n",
     ),

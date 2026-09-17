@@ -1,0 +1,10 @@
+=== 真实消费面 + 全扫描面 · round-2 整改后 @ 2026-09-17T09:33:07+08:00 ===
+5798abd3ee319385ad86a5032908bbf4e90025a94f8c85f1e2b02696dfe23a43  backend/scripts/lifespan_isolation_negative_control.py
+--- A. 真实消费面 ---
+[
+ [],
+ []
+]
+--- B. 全扫描面 ---
+files=401 violations=0
+rc=0

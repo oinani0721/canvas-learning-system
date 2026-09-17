@@ -1,0 +1,27 @@
+=== round-2 七条 finding 三版对照 @ 2026-09-17T09:32:56+08:00 ===
+5798abd3ee319385ad86a5032908bbf4e90025a94f8c85f1e2b02696dfe23a43  backend/scripts/lifespan_isolation_negative_control.py
+  ✓ 期望 CAUGHT | B14_BASE=CAUGHT  r1定稿=CLEAN  现在=CAUGHT
+      HIGH-1 根 lambda 体内又套 lambda（两者都没被调用，app 仍是生产实例）
+  ✓ 期望 CAUGHT | B14_BASE=CAUGHT  r1定稿=CLEAN  现在=CAUGHT
+      HIGH-1 child 路径同型
+  ✓ 期望 CAUGHT | B14_BASE=CAUGHT  r1定稿=CLEAN  现在=CAUGHT
+      HIGH-2 默认值 lambda 的**体**里 yield（unused 根本不是生成器）
+  ✓ 期望 CAUGHT | B14_BASE=CLEAN  r1定稿=CLEAN  现在=CAUGHT
+      HIGH-3 参数**注解**里 yield（3.11/3.12 合法且真让出）
+  ✓ 期望 CAUGHT | B14_BASE=CLEAN  r1定稿=CLEAN  现在=CAUGHT
+      HIGH-3 **返回注解**里 yield
+  ✓ 期望 CAUGHT | B14_BASE=CLEAN  r1定稿=CLEAN  现在=CAUGHT
+      HIGH-4 无关函数里一句 global setattr（没绑任何对象）
+  ✓ 期望 CAUGHT | B14_BASE=CLEAN  r1定稿=CLEAN  现在=CAUGHT
+      HIGH-4 无关函数的同名**形参**
+  ✓ 期望 CLEAN  | B14_BASE=CLEAN  r1定稿=CAUGHT  现在=CLEAN
+      MEDIUM-5 match case setattr（真遮蔽，只读锁）
+  ✓ 期望 CLEAN  | B14_BASE=CLEAN  r1定稿=CAUGHT  现在=CLEAN
+      MEDIUM-5 except ... as setattr（真遮蔽）
+  ✓ 期望 CAUGHT | B14_BASE=CLEAN  r1定稿=CAUGHT  现在=CAUGHT
+      对照 原 R2-7-B（本卡三条之一，不许丢）
+  ✓ 期望 CLEAN  | B14_BASE=CLEAN  r1定稿=CLEAN  现在=CLEAN
+      对照 模块级 def setattr 真遮蔽
+
+现版不符项 = 0
+rc=0

@@ -1,7 +1,9 @@
 """定向负控：逐个撤掉本卡的一处修复，断言**指定的那一条**负控输入变红。
 
 判据是「那一条」而不是「某处失败」—— 后者会被任何无关的红蒙混过去。
-每个变异跑在**副本**上，生产文件一字不动。
+每个变异跑在**副本**上，生产文件一字不动；控制组（未变异定稿）红项必须为空，否则结论不可比。
+⛔ 变异锚会随生产代码改动失效（本卡实测栽过一次：patch6 之后第 6 个锚命中 0 次）。
+   脚本对每个锚断言 count == 1，锚不命中直接抛，不会静默少跑一个变异。
 """
 import ast, importlib.util as u, pathlib, sys, tempfile
 
@@ -9,55 +11,86 @@ SRC = pathlib.Path("backend/scripts/lifespan_isolation_negative_control.py")
 BASE = SRC.read_text(encoding="utf-8")
 
 MUTANTS = [
- ("撤 (b)：_own_exprs 不再下潜 lambda 默认参数",
+ ("卡文(b) _own_exprs 不再下潜 lambda 默认参数",
   "R2-5b-B-lambda-defaults", "MISSED",
-  [("""                if isinstance(child, ast.Lambda):""",
-    """                if isinstance(child, ast.Lambda) or False:  # MUTANT
-                    continue
-                if False:""")]),
- ("撤 (c)：collect_setattr 整条失效",
+  [("""                if isinstance(child, ast.Lambda):
+                    if child_in_body:""",
+    """                if isinstance(child, ast.Lambda):
+                    if True:  # MUTANT""")]),
+ ("卡文(c) collect_setattr 整条失效",
   "R2-7-B-setattr-write", "MISSED",
-  [('''        if not builtin_setattr:
-            return''',
-    '''        return  # MUTANT
+  [("""        if not builtin_setattr:
+            return""",
+    """        return  # MUTANT
         if not builtin_setattr:
-            return''')]),
- ("撤 (d)：不再要求每一条 yield 都被覆盖",
+            return""")]),
+ ("卡文(d) 不再要求每一条 yield 都被覆盖",
   "R2-5a-ii-branch-split-isolation", "MISSED",
   [("""            if any(id(y) not in covered for y in all_yields):
                 continue""",
     """            if False:  # MUTANT
                 continue""")]),
- ("撤 HIGH-2：_outer_evaluated_parts 不产出任何东西",
+ ("r1-HIGH2 _outer_evaluated_parts 不产出任何东西",
   "R1-HIGH2-nested-def-default-yield", "MISSED",
-  [('''    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-        yield from node.decorator_list''',
-    '''    if True:  # MUTANT
+  [("""    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        yield from node.decorator_list""",
+    """    if True:  # MUTANT
         return
     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-        yield from node.decorator_list''')]),
- ("撤 MEDIUM-3：setattr 遮蔽判据恒真（内建）",
+        yield from node.decorator_list""")]),
+ ("r1-MEDIUM setattr 遮蔽判据恒真（当作内建）",
   "验伪锚 R1-M3", "FALSE POSITIVE",
   [("""    builtin_setattr = not _module_binds_name(tree, "setattr")""",
     """    builtin_setattr = True  # MUTANT""")]),
- ("回装 HIGH-1 那次被撤回的改动（根位置 lambda 也只走默认参数）",
+ ("r1-HIGH1 回装被撤回的改动：根位置 lambda 也只走默认参数",
   "R1-HIGH1-regress-lambda-body-walrus", "MISSED",
-  [("""        stack: list[ast.AST] = [node]
-        while stack:
-            cur = stack.pop()
-            for child in ast.iter_child_nodes(cur):
-                if isinstance(child, ast.Lambda):""",
-    """        stack: list[ast.AST] = [node]
-        while stack:
-            cur = stack.pop()
-            if isinstance(cur, ast.Lambda):  # MUTANT
-                for d in (*cur.args.defaults, *cur.args.kw_defaults):
-                    if d is not None:
-                        yield d
-                        stack.append(d)
-                continue
-            for child in ast.iter_child_nodes(cur):
-                if isinstance(child, ast.Lambda):""")]),
+  [("""        stack: list[tuple[ast.AST, bool]] = [(node, False)]""",
+    """        stack: list[tuple[ast.AST, bool]] = (  # MUTANT
+            [(d, False) for d in _lambda_outer_defaults(node)]
+            if isinstance(node, ast.Lambda)
+            else [(node, False)]
+        )""")]),
+ ("r2-HIGH1 _own_exprs 不再区分「已进入 lambda 体」",
+  "R2-HIGH1-nested-lambda-in-lambda-body", "MISSED",
+  [("""                child_in_body = in_lambda_body or (isinstance(cur, ast.Lambda) and child is cur.body)""",
+    """                child_in_body = False  # MUTANT""")]),
+ ("r2-HIGH2 push 的部件不再递归过 push",
+  "R2-HIGH2-default-lambda-body-yield", "MISSED",
+  [("""            for part in _outer_evaluated_parts(n):
+                push(part)""",
+    """            stack.extend(_outer_evaluated_parts(n))  # MUTANT""")]),
+ ("r2-HIGH3 _outer_evaluated_parts 不再收注解",
+  "R2-HIGH3-param-annotation-yield", "MISSED",
+  [("""        a = node.args
+        for arg in (*a.posonlyargs, *a.args, *a.kwonlyargs, a.vararg, a.kwarg):
+            if arg is not None and arg.annotation is not None:
+                yield arg.annotation
+        if node.returns is not None:
+            yield node.returns""",
+    """        pass  # MUTANT""")]),
+ ("r2-HIGH4 _module_binds_name 退回全树 walk + 认形参/global",
+  "R2-HIGH4-global-name-no-rebind", "MISSED",
+  [("""    for stmt in tree.body:  # 只走顶层语句""",
+    """    for stmt in ast.walk(tree):  # MUTANT"""),
+   ("""        if isinstance(n, ast.ExceptHandler):
+            return n.name == name
+        return False""",
+    """        if isinstance(n, ast.ExceptHandler):
+            return n.name == name
+        if isinstance(n, ast.arg):  # MUTANT
+            return n.arg == name
+        if isinstance(n, (ast.Global, ast.Nonlocal)):  # MUTANT
+            return name in n.names
+        return False""")]),
+ ("r2-MEDIUM binds_here 不再认 pattern / except 绑定",
+  "验伪锚 R2-M5", "FALSE POSITIVE",
+  [("""        if isinstance(n, (ast.MatchAs, ast.MatchStar)):
+            return n.name == name
+        if isinstance(n, ast.MatchMapping):
+            return n.rest == name
+        if isinstance(n, ast.ExceptHandler):
+            return n.name == name""",
+    """        pass  # MUTANT""")]),
 ]
 
 def run(text):
@@ -74,7 +107,7 @@ def run(text):
             out.append(("FALSE POSITIVE", label))
     return out
 
-print("=== 控制组：未变异的定稿 ===")
+print(f"=== 控制组：未变异的定稿（{len(MUTANTS)} 个变异待跑）===")
 base_red = run(BASE)
 print(f"  红项 = {base_red}   （须为空，否则后面全部结论不可比）")
 assert not base_red
@@ -82,7 +115,7 @@ bad = 0
 for name, want_label, want_kind, edits in MUTANTS:
     text = BASE
     for old, new in edits:
-        assert text.count(old) == 1, f"{name}: 变异锚命中 {text.count(old)} 次"
+        assert text.count(old) == 1, f"{name}: 变异锚命中 {text.count(old)} 次（锚已漂移）"
         text = text.replace(old, new)
     try:
         red = run(text)
@@ -90,10 +123,9 @@ for name, want_label, want_kind, edits in MUTANTS:
         print(f"  ✗ {name}: 变异体语法错 {e}"); bad += 1; continue
     hit = [(k, l) for k, l in red if want_label in l and k == want_kind]
     others = [(k, l) for k, l in red if not (want_label in l and k == want_kind)]
-    ok = "✓" if hit else "✗ 未红 = 该锚没绑住这处修复"
     if not hit: bad += 1
-    print(f"  {ok}  {name}")
+    print(f"  {'✓' if hit else '✗ 未红 = 该锚没绑住这处修复'}  {name}")
     print(f"        指定判据 [{want_kind}] {want_label[:52]} → {'红' if hit else '仍绿'}"
-          f"   （连带红 {len(others)} 条: {[l[:34] for _, l in others][:3]}）")
+          f"   （连带红 {len(others)} 条）")
 print(f"\n未按预期变红的变异数 = {bad}")
 sys.exit(1 if bad else 0)

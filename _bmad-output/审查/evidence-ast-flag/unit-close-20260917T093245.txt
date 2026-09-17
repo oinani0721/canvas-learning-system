@@ -1,5 +1,5 @@
-=== tests/unit 目录级（round-1 整改后）@ 2026-09-17T09:17:49+08:00 ===
-61d83473d4c877790961372d574f7fd24595c62eda16c900f3786c2cbc6c9c22  scripts/lifespan_isolation_negative_control.py
+=== tests/unit 目录级（round-2 整改后）@ 2026-09-17T09:32:45+08:00 ===
+5798abd3ee319385ad86a5032908bbf4e90025a94f8c85f1e2b02696dfe23a43  scripts/lifespan_isolation_negative_control.py
 ============================= test session starts ==============================
 platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
 rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend
@@ -555,17 +555,17 @@ tests/unit/test_agent_memory_injection.py:63: in search_memories
     raise Exception("Mock search failure")
 E   Exception: Mock search failure
 ---------------------------- Captured stdout setup -----------------------------
-{"event": "AgentService initialized without configured AI client - API calls will fail", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-17T01:18:00.313021Z"}
-{"event": "AgentService will use LearningMemoryClient for historical context", "logger": "app.services.agent_service", "level": "info", "timestamp": "2026-09-17T01:18:00.313171Z"}
-{"event": "AgentService initialized without CanvasService - nodes will not be written to Canvas", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-17T01:18:00.313228Z"}
-{"event": "AgentService Phase 2: Tool calling disabled (ENABLE_TOOL_CALLING=false)", "logger": "app.services.agent_service", "level": "info", "timestamp": "2026-09-17T01:18:00.313267Z"}
-{"event": "AgentService Phase 4: React Agent ENABLED (ENABLE_REACT_AGENT=true)", "logger": "app.services.agent_service", "level": "info", "timestamp": "2026-09-17T01:18:00.313303Z"}
+{"event": "AgentService initialized without configured AI client - API calls will fail", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-17T01:32:57.405267Z"}
+{"event": "AgentService will use LearningMemoryClient for historical context", "logger": "app.services.agent_service", "level": "info", "timestamp": "2026-09-17T01:32:57.405404Z"}
+{"event": "AgentService initialized without CanvasService - nodes will not be written to Canvas", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-17T01:32:57.405455Z"}
+{"event": "AgentService Phase 2: Tool calling disabled (ENABLE_TOOL_CALLING=false)", "logger": "app.services.agent_service", "level": "info", "timestamp": "2026-09-17T01:32:57.405489Z"}
+{"event": "AgentService Phase 4: React Agent ENABLED (ENABLE_REACT_AGENT=true)", "logger": "app.services.agent_service", "level": "info", "timestamp": "2026-09-17T01:32:57.405517Z"}
 ------------------------------ Captured log setup ------------------------------
-WARNING  app.services.agent_service:agent_service.py:1400 {'event': 'AgentService initialized without configured AI client - API calls will fail', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-17T01:18:00.313021Z'}
-INFO     app.services.agent_service:agent_service.py:1405 {'event': 'AgentService will use LearningMemoryClient for historical context', 'logger': 'app.services.agent_service', 'level': 'info', 'timestamp': '2026-09-17T01:18:00.313171Z'}
-WARNING  app.services.agent_service:agent_service.py:1427 {'event': 'AgentService initialized without CanvasService - nodes will not be written to Canvas', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-17T01:18:00.313228Z'}
-INFO     app.services.agent_service:agent_service.py:1444 {'event': 'AgentService Phase 2: Tool calling disabled (ENABLE_TOOL_CALLING=false)', 'logger': 'app.services.agent_service', 'level': 'info', 'timestamp': '2026-09-17T01:18:00.313267Z'}
-INFO     app.services.agent_service:agent_service.py:1449 {'event': 'AgentService Phase 4: React Agent ENABLED (ENABLE_REACT_AGENT=true)', 'logger': 'app.services.agent_service', 'level': 'info', 'timestamp': '2026-09-17T01:18:00.313303Z'}
+WARNING  app.services.agent_service:agent_service.py:1400 {'event': 'AgentService initialized without configured AI client - API calls will fail', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-17T01:32:57.405267Z'}
+INFO     app.services.agent_service:agent_service.py:1405 {'event': 'AgentService will use LearningMemoryClient for historical context', 'logger': 'app.services.agent_service', 'level': 'info', 'timestamp': '2026-09-17T01:32:57.405404Z'}
+WARNING  app.services.agent_service:agent_service.py:1427 {'event': 'AgentService initialized without CanvasService - nodes will not be written to Canvas', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-17T01:32:57.405455Z'}
+INFO     app.services.agent_service:agent_service.py:1444 {'event': 'AgentService Phase 2: Tool calling disabled (ENABLE_TOOL_CALLING=false)', 'logger': 'app.services.agent_service', 'level': 'info', 'timestamp': '2026-09-17T01:32:57.405489Z'}
+INFO     app.services.agent_service:agent_service.py:1449 {'event': 'AgentService Phase 4: React Agent ENABLED (ENABLE_REACT_AGENT=true)', 'logger': 'app.services.agent_service', 'level': 'info', 'timestamp': '2026-09-17T01:32:57.405517Z'}
 ___ TestDebugAgentResponseLogging.test_config_has_debug_agent_response_field ___
 tests/unit/test_agent_service_extraction.py:348: in test_config_has_debug_agent_response_field
     assert settings.DEBUG_AGENT_RESPONSE is False, "默认值应为 False"
@@ -587,19 +587,19 @@ app/services/agent_service.py:2183: in _query_neo4j_memories
     raise effect
 E   Exception: Neo4j connection failed
 ---------------------------- Captured stdout setup -----------------------------
-{"event": "AgentService initialized without configured AI client - API calls will fail", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-17T01:18:01.685304Z"}
-{"event": "AgentService initialized without LearningMemoryClient - historical context fallback unavailable when Neo4j is down", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-17T01:18:01.685349Z"}
-{"event": "AgentService will use Neo4jClient for learning memory queries", "logger": "app.services.agent_service", "level": "info", "timestamp": "2026-09-17T01:18:01.685414Z"}
-{"event": "AgentService initialized without CanvasService - nodes will not be written to Canvas", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-17T01:18:01.685462Z"}
-{"event": "AgentService Phase 2: Tool calling disabled (ENABLE_TOOL_CALLING=false)", "logger": "app.services.agent_service", "level": "info", "timestamp": "2026-09-17T01:18:01.685502Z"}
-{"event": "AgentService Phase 4: React Agent ENABLED (ENABLE_REACT_AGENT=true)", "logger": "app.services.agent_service", "level": "info", "timestamp": "2026-09-17T01:18:01.685523Z"}
+{"event": "AgentService initialized without configured AI client - API calls will fail", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-17T01:32:58.903620Z"}
+{"event": "AgentService initialized without LearningMemoryClient - historical context fallback unavailable when Neo4j is down", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-17T01:32:58.903686Z"}
+{"event": "AgentService will use Neo4jClient for learning memory queries", "logger": "app.services.agent_service", "level": "info", "timestamp": "2026-09-17T01:32:58.903782Z"}
+{"event": "AgentService initialized without CanvasService - nodes will not be written to Canvas", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-17T01:32:58.903818Z"}
+{"event": "AgentService Phase 2: Tool calling disabled (ENABLE_TOOL_CALLING=false)", "logger": "app.services.agent_service", "level": "info", "timestamp": "2026-09-17T01:32:58.903848Z"}
+{"event": "AgentService Phase 4: React Agent ENABLED (ENABLE_REACT_AGENT=true)", "logger": "app.services.agent_service", "level": "info", "timestamp": "2026-09-17T01:32:58.903874Z"}
 ------------------------------ Captured log setup ------------------------------
-WARNING  app.services.agent_service:agent_service.py:1400 {'event': 'AgentService initialized without configured AI client - API calls will fail', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-17T01:18:01.685304Z'}
-WARNING  app.services.agent_service:agent_service.py:1409 {'event': 'AgentService initialized without LearningMemoryClient - historical context fallback unavailable when Neo4j is down', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-17T01:18:01.685349Z'}
-INFO     app.services.agent_service:agent_service.py:1416 {'event': 'AgentService will use Neo4jClient for learning memory queries', 'logger': 'app.services.agent_service', 'level': 'info', 'timestamp': '2026-09-17T01:18:01.685414Z'}
-WARNING  app.services.agent_service:agent_service.py:1427 {'event': 'AgentService initialized without CanvasService - nodes will not be written to Canvas', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-17T01:18:01.685462Z'}
-INFO     app.services.agent_service:agent_service.py:1444 {'event': 'AgentService Phase 2: Tool calling disabled (ENABLE_TOOL_CALLING=false)', 'logger': 'app.services.agent_service', 'level': 'info', 'timestamp': '2026-09-17T01:18:01.685502Z'}
-INFO     app.services.agent_service:agent_service.py:1449 {'event': 'AgentService Phase 4: React Agent ENABLED (ENABLE_REACT_AGENT=true)', 'logger': 'app.services.agent_service', 'level': 'info', 'timestamp': '2026-09-17T01:18:01.685523Z'}
+WARNING  app.services.agent_service:agent_service.py:1400 {'event': 'AgentService initialized without configured AI client - API calls will fail', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-17T01:32:58.903620Z'}
+WARNING  app.services.agent_service:agent_service.py:1409 {'event': 'AgentService initialized without LearningMemoryClient - historical context fallback unavailable when Neo4j is down', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-17T01:32:58.903686Z'}
+INFO     app.services.agent_service:agent_service.py:1416 {'event': 'AgentService will use Neo4jClient for learning memory queries', 'logger': 'app.services.agent_service', 'level': 'info', 'timestamp': '2026-09-17T01:32:58.903782Z'}
+WARNING  app.services.agent_service:agent_service.py:1427 {'event': 'AgentService initialized without CanvasService - nodes will not be written to Canvas', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-17T01:32:58.903818Z'}
+INFO     app.services.agent_service:agent_service.py:1444 {'event': 'AgentService Phase 2: Tool calling disabled (ENABLE_TOOL_CALLING=false)', 'logger': 'app.services.agent_service', 'level': 'info', 'timestamp': '2026-09-17T01:32:58.903848Z'}
+INFO     app.services.agent_service:agent_service.py:1449 {'event': 'AgentService Phase 4: React Agent ENABLED (ENABLE_REACT_AGENT=true)', 'logger': 'app.services.agent_service', 'level': 'info', 'timestamp': '2026-09-17T01:32:58.903874Z'}
 ______ TestGetDifficultyData.test_memory_service_unavailable_returns_none ______
 tests/unit/test_difficulty_canvas_integration.py:156: in test_memory_service_unavailable_returns_none
     result = await _get_difficulty_data(sample_nodes, "test_canvas")
@@ -630,45 +630,45 @@ tests/unit/test_enrich_context_vault_isolation.py:113: in test_vault_id_provided
 E   assert 409 == 200
 E    +  where 409 = <Response [409 Conflict]>.status_code
 ----------------------------- Captured stdout call -----------------------------
-{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 409, "duration_ms": 5.22, "event": "request.completed", "request_id": "5589560848", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-17T01:18:35.932243Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 409, "duration_ms": 6.3, "event": "request.completed", "request_id": "5601291792", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-17T01:33:30.745950Z"}
 ------------------------------ Captured log call -------------------------------
-INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 409, 'duration_ms': 5.22, 'event': 'request.completed', 'request_id': '5589560848', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-17T01:18:35.932243Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 409, 'duration_ms': 6.3, 'event': 'request.completed', 'request_id': '5601291792', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-17T01:33:30.745950Z'}
 ________________ test_chinese_vault_id_not_collapsed_to_default ________________
 tests/unit/test_enrich_context_vault_isolation.py:142: in test_chinese_vault_id_not_collapsed_to_default
     assert resp.status_code == 200
 E   assert 409 == 200
 E    +  where 409 = <Response [409 Conflict]>.status_code
 ----------------------------- Captured stdout call -----------------------------
-{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 409, "duration_ms": 5.07, "event": "request.completed", "request_id": "5590172304", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-17T01:18:35.941728Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 409, "duration_ms": 6.03, "event": "request.completed", "request_id": "5556093584", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-17T01:33:30.757058Z"}
 ------------------------------ Captured log call -------------------------------
-INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 409, 'duration_ms': 5.07, 'event': 'request.completed', 'request_id': '5590172304', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-17T01:18:35.941728Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 409, 'duration_ms': 6.03, 'event': 'request.completed', 'request_id': '5556093584', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-17T01:33:30.757058Z'}
 ___________________ test_subject_id_optional_backward_compat ___________________
 tests/unit/test_enrich_context_vault_isolation.py:166: in test_subject_id_optional_backward_compat
     assert resp.status_code == 200
 E   assert 409 == 200
 E    +  where 409 = <Response [409 Conflict]>.status_code
 ----------------------------- Captured stdout call -----------------------------
-{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 409, "duration_ms": 5.64, "event": "request.completed", "request_id": "5590174032", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-17T01:18:35.951492Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 409, "duration_ms": 6.27, "event": "request.completed", "request_id": "5556095312", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-17T01:33:30.767671Z"}
 ------------------------------ Captured log call -------------------------------
-INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 409, 'duration_ms': 5.64, 'event': 'request.completed', 'request_id': '5590174032', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-17T01:18:35.951492Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 409, 'duration_ms': 6.27, 'event': 'request.completed', 'request_id': '5556095312', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-17T01:33:30.767671Z'}
 __________________ test_vault_id_with_special_chars_sanitized __________________
 tests/unit/test_enrich_context_vault_isolation.py:233: in test_vault_id_with_special_chars_sanitized
     assert resp.status_code == 200
 E   assert 409 == 200
 E    +  where 409 = <Response [409 Conflict]>.status_code
 ----------------------------- Captured stdout call -----------------------------
-{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 409, "duration_ms": 4.96, "event": "request.completed", "request_id": "5590178832", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-17T01:18:35.972966Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 409, "duration_ms": 5.57, "event": "request.completed", "request_id": "5556100112", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-17T01:33:30.790831Z"}
 ------------------------------ Captured log call -------------------------------
-INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 409, 'duration_ms': 4.96, 'event': 'request.completed', 'request_id': '5590178832', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-17T01:18:35.972966Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 409, 'duration_ms': 5.57, 'event': 'request.completed', 'request_id': '5556100112', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-17T01:33:30.790831Z'}
 _________________________ test_vault_id_emoji_stripped _________________________
 tests/unit/test_enrich_context_vault_isolation.py:255: in test_vault_id_emoji_stripped
     assert resp.status_code == 200
 E   assert 409 == 200
 E    +  where 409 = <Response [409 Conflict]>.status_code
 ----------------------------- Captured stdout call -----------------------------
-{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 409, "duration_ms": 4.95, "event": "request.completed", "request_id": "5590179408", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-17T01:18:35.982115Z"}
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 409, "duration_ms": 6.45, "event": "request.completed", "request_id": "5556100688", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-17T01:33:30.801612Z"}
 ------------------------------ Captured log call -------------------------------
-INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 409, 'duration_ms': 4.95, 'event': 'request.completed', 'request_id': '5590179408', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-17T01:18:35.982115Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 409, 'duration_ms': 6.45, 'event': 'request.completed', 'request_id': '5556100688', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-17T01:33:30.801612Z'}
 _ TestRecordTemporalEventLifecycle.test_p0_neo4j_write_failure_degrades_silently _
 tests/unit/test_epic30_memory_pipeline.py:400: in test_p0_neo4j_write_failure_degrades_silently
     event_id = await svc.record_temporal_event(
@@ -678,11 +678,11 @@ app/services/memory_service.py:2626: in record_temporal_event
     raise effect
 E   Exception: Connection refused
 ----------------------------- Captured stdout call -----------------------------
-{"event": "MemoryService: recovered 0 episodes from Neo4j (0 returned, 0 deduped)", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-17T01:18:36.020531Z"}
-{"event": "MemoryService initialized successfully", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-17T01:18:36.020598Z"}
+{"event": "MemoryService: recovered 0 episodes from Neo4j (0 returned, 0 deduped)", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-17T01:33:30.851849Z"}
+{"event": "MemoryService initialized successfully", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-17T01:33:30.851968Z"}
 ------------------------------ Captured log call -------------------------------
-INFO     app.services.memory_service:memory_service.py:431 {'event': 'MemoryService: recovered 0 episodes from Neo4j (0 returned, 0 deduped)', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-17T01:18:36.020531Z'}
-INFO     app.services.memory_service:memory_service.py:287 {'event': 'MemoryService initialized successfully', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-17T01:18:36.020598Z'}
+INFO     app.services.memory_service:memory_service.py:431 {'event': 'MemoryService: recovered 0 episodes from Neo4j (0 returned, 0 deduped)', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-17T01:33:30.851849Z'}
+INFO     app.services.memory_service:memory_service.py:287 {'event': 'MemoryService initialized successfully', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-17T01:33:30.851968Z'}
 ___ TestGetRelatedMemoriesReturnStructure.test_query_exception_returns_empty ___
 tests/unit/test_epic36_gap_coverage.py:150: in test_query_exception_returns_empty
     results = await graphiti_client.get_related_memories(node_id="node-1")
@@ -694,7 +694,7 @@ app/clients/neo4j_edge_client.py:436: in get_related_memories
     raise effect
 E   Exception: Connection lost
 ----------------------------- Captured stdout call -----------------------------
-{"event": "Neo4jEdgeClient initialized: neo4j_mode=BOLT", "logger": "app.clients.neo4j_learning_base", "level": "info", "timestamp": "2026-09-17T01:18:36.365201Z"}
+{"event": "Neo4jEdgeClient initialized: neo4j_mode=BOLT", "logger": "app.clients.neo4j_learning_base", "level": "info", "timestamp": "2026-09-17T01:33:31.210511Z"}
 ------------------------------ Captured log call -------------------------------
 INFO     app.clients.neo4j_learning_base:neo4j_learning_base.py:189 Neo4jEdgeClient initialized: neo4j_mode=BOLT
 ____________ TestProgressEndpoint.test_progress_invalid_session_404 ____________
@@ -704,17 +704,17 @@ E   assert 500 == 404
 E    +  where 500 = <Response [500 Internal Server Error]>.status_code
 E    +  and   404 = status.HTTP_404_NOT_FOUND
 ---------------------------- Captured stdout setup -----------------------------
-{"event": "IntelligentParallelService: batch_orchestrator not injected \u2014 batch execution will fail", "logger": "app.services.intelligent_parallel_service", "level": "warning", "timestamp": "2026-09-17T01:19:11.622294Z"}
-{"event": "IntelligentParallelService initialized with real service dependencies", "logger": "app.services.intelligent_parallel_service", "level": "info", "timestamp": "2026-09-17T01:19:11.622363Z"}
+{"event": "IntelligentParallelService: batch_orchestrator not injected \u2014 batch execution will fail", "logger": "app.services.intelligent_parallel_service", "level": "warning", "timestamp": "2026-09-17T01:34:06.970057Z"}
+{"event": "IntelligentParallelService initialized with real service dependencies", "logger": "app.services.intelligent_parallel_service", "level": "info", "timestamp": "2026-09-17T01:34:06.970122Z"}
 ------------------------------ Captured log setup ------------------------------
-WARNING  app.services.intelligent_parallel_service:intelligent_parallel_service.py:106 {'event': 'IntelligentParallelService: batch_orchestrator not injected — batch execution will fail', 'logger': 'app.services.intelligent_parallel_service', 'level': 'warning', 'timestamp': '2026-09-17T01:19:11.622294Z'}
-INFO     app.services.intelligent_parallel_service:intelligent_parallel_service.py:121 {'event': 'IntelligentParallelService initialized with real service dependencies', 'logger': 'app.services.intelligent_parallel_service', 'level': 'info', 'timestamp': '2026-09-17T01:19:11.622363Z'}
+WARNING  app.services.intelligent_parallel_service:intelligent_parallel_service.py:106 {'event': 'IntelligentParallelService: batch_orchestrator not injected — batch execution will fail', 'logger': 'app.services.intelligent_parallel_service', 'level': 'warning', 'timestamp': '2026-09-17T01:34:06.970057Z'}
+INFO     app.services.intelligent_parallel_service:intelligent_parallel_service.py:121 {'event': 'IntelligentParallelService initialized with real service dependencies', 'logger': 'app.services.intelligent_parallel_service', 'level': 'info', 'timestamp': '2026-09-17T01:34:06.970122Z'}
 ----------------------------- Captured stdout call -----------------------------
-{"event": "get_session_status called: session_id=nonexistent-session", "request_id": "5553675664", "logger": "app.services.intelligent_parallel_service", "level": "info", "timestamp": "2026-09-17T01:19:11.623126Z"}
-{"method": "GET", "path": "/api/v1/canvas/intelligent-parallel/nonexistent-session", "endpoint": "/api/v1/canvas/intelligent-parallel/nonexistent-session", "status": 500, "duration_ms": 0.53, "event": "request.completed", "request_id": "5553675664", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-17T01:19:11.623406Z"}
+{"event": "get_session_status called: session_id=nonexistent-session", "request_id": "5567487376", "logger": "app.services.intelligent_parallel_service", "level": "info", "timestamp": "2026-09-17T01:34:06.970864Z"}
+{"method": "GET", "path": "/api/v1/canvas/intelligent-parallel/nonexistent-session", "endpoint": "/api/v1/canvas/intelligent-parallel/nonexistent-session", "status": 500, "duration_ms": 0.48, "event": "request.completed", "request_id": "5567487376", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-17T01:34:06.971098Z"}
 ------------------------------ Captured log call -------------------------------
-INFO     app.services.intelligent_parallel_service:intelligent_parallel_service.py:326 {'event': 'get_session_status called: session_id=nonexistent-session', 'request_id': '5553675664', 'logger': 'app.services.intelligent_parallel_service', 'level': 'info', 'timestamp': '2026-09-17T01:19:11.623126Z'}
-INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/canvas/intelligent-parallel/nonexistent-session', 'endpoint': '/api/v1/canvas/intelligent-parallel/nonexistent-session', 'status': 500, 'duration_ms': 0.53, 'event': 'request.completed', 'request_id': '5553675664', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-17T01:19:11.623406Z'}
+INFO     app.services.intelligent_parallel_service:intelligent_parallel_service.py:326 {'event': 'get_session_status called: session_id=nonexistent-session', 'request_id': '5567487376', 'logger': 'app.services.intelligent_parallel_service', 'level': 'info', 'timestamp': '2026-09-17T01:34:06.970864Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/canvas/intelligent-parallel/nonexistent-session', 'endpoint': '/api/v1/canvas/intelligent-parallel/nonexistent-session', 'status': 500, 'duration_ms': 0.48, 'event': 'request.completed', 'request_id': '5567487376', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-17T01:34:06.971098Z'}
 ____________ TestCancelEndpoint.test_cancel_nonexistent_session_404 ____________
 tests/unit/test_intelligent_parallel_endpoints.py:492: in test_cancel_nonexistent_session_404
     assert response.status_code == status.HTTP_404_NOT_FOUND
@@ -722,17 +722,17 @@ E   assert 500 == 404
 E    +  where 500 = <Response [500 Internal Server Error]>.status_code
 E    +  and   404 = status.HTTP_404_NOT_FOUND
 ---------------------------- Captured stdout setup -----------------------------
-{"event": "IntelligentParallelService: batch_orchestrator not injected \u2014 batch execution will fail", "logger": "app.services.intelligent_parallel_service", "level": "warning", "timestamp": "2026-09-17T01:19:11.632657Z"}
-{"event": "IntelligentParallelService initialized with real service dependencies", "logger": "app.services.intelligent_parallel_service", "level": "info", "timestamp": "2026-09-17T01:19:11.632848Z"}
+{"event": "IntelligentParallelService: batch_orchestrator not injected \u2014 batch execution will fail", "logger": "app.services.intelligent_parallel_service", "level": "warning", "timestamp": "2026-09-17T01:34:06.980422Z"}
+{"event": "IntelligentParallelService initialized with real service dependencies", "logger": "app.services.intelligent_parallel_service", "level": "info", "timestamp": "2026-09-17T01:34:06.980496Z"}
 ------------------------------ Captured log setup ------------------------------
-WARNING  app.services.intelligent_parallel_service:intelligent_parallel_service.py:106 {'event': 'IntelligentParallelService: batch_orchestrator not injected — batch execution will fail', 'logger': 'app.services.intelligent_parallel_service', 'level': 'warning', 'timestamp': '2026-09-17T01:19:11.632657Z'}
-INFO     app.services.intelligent_parallel_service:intelligent_parallel_service.py:121 {'event': 'IntelligentParallelService initialized with real service dependencies', 'logger': 'app.services.intelligent_parallel_service', 'level': 'info', 'timestamp': '2026-09-17T01:19:11.632848Z'}
+WARNING  app.services.intelligent_parallel_service:intelligent_parallel_service.py:106 {'event': 'IntelligentParallelService: batch_orchestrator not injected — batch execution will fail', 'logger': 'app.services.intelligent_parallel_service', 'level': 'warning', 'timestamp': '2026-09-17T01:34:06.980422Z'}
+INFO     app.services.intelligent_parallel_service:intelligent_parallel_service.py:121 {'event': 'IntelligentParallelService initialized with real service dependencies', 'logger': 'app.services.intelligent_parallel_service', 'level': 'info', 'timestamp': '2026-09-17T01:34:06.980496Z'}
 ----------------------------- Captured stdout call -----------------------------
-{"event": "cancel_session called: session_id=nonexistent-session", "request_id": "5553678928", "logger": "app.services.intelligent_parallel_service", "level": "info", "timestamp": "2026-09-17T01:19:11.634065Z"}
-{"method": "POST", "path": "/api/v1/canvas/intelligent-parallel/cancel/nonexistent-session", "endpoint": "/api/v1/canvas/intelligent-parallel/cancel/nonexistent-session", "status": 500, "duration_ms": 0.63, "event": "request.completed", "request_id": "5553678928", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-17T01:19:11.634362Z"}
+{"event": "cancel_session called: session_id=nonexistent-session", "request_id": "5567490640", "logger": "app.services.intelligent_parallel_service", "level": "info", "timestamp": "2026-09-17T01:34:06.981396Z"}
+{"method": "POST", "path": "/api/v1/canvas/intelligent-parallel/cancel/nonexistent-session", "endpoint": "/api/v1/canvas/intelligent-parallel/cancel/nonexistent-session", "status": 500, "duration_ms": 0.54, "event": "request.completed", "request_id": "5567490640", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-17T01:34:06.981667Z"}
 ------------------------------ Captured log call -------------------------------
-INFO     app.services.intelligent_parallel_service:intelligent_parallel_service.py:480 {'event': 'cancel_session called: session_id=nonexistent-session', 'request_id': '5553678928', 'logger': 'app.services.intelligent_parallel_service', 'level': 'info', 'timestamp': '2026-09-17T01:19:11.634065Z'}
-INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/canvas/intelligent-parallel/cancel/nonexistent-session', 'endpoint': '/api/v1/canvas/intelligent-parallel/cancel/nonexistent-session', 'status': 500, 'duration_ms': 0.63, 'event': 'request.completed', 'request_id': '5553678928', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-17T01:19:11.634362Z'}
+INFO     app.services.intelligent_parallel_service:intelligent_parallel_service.py:480 {'event': 'cancel_session called: session_id=nonexistent-session', 'request_id': '5567490640', 'logger': 'app.services.intelligent_parallel_service', 'level': 'info', 'timestamp': '2026-09-17T01:34:06.981396Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/canvas/intelligent-parallel/cancel/nonexistent-session', 'endpoint': '/api/v1/canvas/intelligent-parallel/cancel/nonexistent-session', 'status': 500, 'duration_ms': 0.54, 'event': 'request.completed', 'request_id': '5567490640', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-17T01:34:06.981667Z'}
 ___________________ TestErrorResponses.test_404_error_format ___________________
 tests/unit/test_intelligent_parallel_endpoints.py:594: in test_404_error_format
     assert response.status_code == status.HTTP_404_NOT_FOUND
@@ -740,32 +740,32 @@ E   assert 500 == 404
 E    +  where 500 = <Response [500 Internal Server Error]>.status_code
 E    +  and   404 = status.HTTP_404_NOT_FOUND
 ---------------------------- Captured stdout setup -----------------------------
-{"event": "IntelligentParallelService: batch_orchestrator not injected \u2014 batch execution will fail", "logger": "app.services.intelligent_parallel_service", "level": "warning", "timestamp": "2026-09-17T01:19:11.651576Z"}
-{"event": "IntelligentParallelService initialized with real service dependencies", "logger": "app.services.intelligent_parallel_service", "level": "info", "timestamp": "2026-09-17T01:19:11.651667Z"}
+{"event": "IntelligentParallelService: batch_orchestrator not injected \u2014 batch execution will fail", "logger": "app.services.intelligent_parallel_service", "level": "warning", "timestamp": "2026-09-17T01:34:06.996164Z"}
+{"event": "IntelligentParallelService initialized with real service dependencies", "logger": "app.services.intelligent_parallel_service", "level": "info", "timestamp": "2026-09-17T01:34:06.996250Z"}
 ------------------------------ Captured log setup ------------------------------
-WARNING  app.services.intelligent_parallel_service:intelligent_parallel_service.py:106 {'event': 'IntelligentParallelService: batch_orchestrator not injected — batch execution will fail', 'logger': 'app.services.intelligent_parallel_service', 'level': 'warning', 'timestamp': '2026-09-17T01:19:11.651576Z'}
-INFO     app.services.intelligent_parallel_service:intelligent_parallel_service.py:121 {'event': 'IntelligentParallelService initialized with real service dependencies', 'logger': 'app.services.intelligent_parallel_service', 'level': 'info', 'timestamp': '2026-09-17T01:19:11.651667Z'}
+WARNING  app.services.intelligent_parallel_service:intelligent_parallel_service.py:106 {'event': 'IntelligentParallelService: batch_orchestrator not injected — batch execution will fail', 'logger': 'app.services.intelligent_parallel_service', 'level': 'warning', 'timestamp': '2026-09-17T01:34:06.996164Z'}
+INFO     app.services.intelligent_parallel_service:intelligent_parallel_service.py:121 {'event': 'IntelligentParallelService initialized with real service dependencies', 'logger': 'app.services.intelligent_parallel_service', 'level': 'info', 'timestamp': '2026-09-17T01:34:06.996250Z'}
 ----------------------------- Captured stdout call -----------------------------
-{"event": "get_session_status called: session_id=nonexistent-session", "request_id": "5555505488", "logger": "app.services.intelligent_parallel_service", "level": "info", "timestamp": "2026-09-17T01:19:11.652596Z"}
-{"method": "GET", "path": "/api/v1/canvas/intelligent-parallel/nonexistent-session", "endpoint": "/api/v1/canvas/intelligent-parallel/nonexistent-session", "status": 500, "duration_ms": 0.61, "event": "request.completed", "request_id": "5555505488", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-17T01:19:11.652860Z"}
+{"event": "get_session_status called: session_id=nonexistent-session", "request_id": "5569300816", "logger": "app.services.intelligent_parallel_service", "level": "info", "timestamp": "2026-09-17T01:34:06.997064Z"}
+{"method": "GET", "path": "/api/v1/canvas/intelligent-parallel/nonexistent-session", "endpoint": "/api/v1/canvas/intelligent-parallel/nonexistent-session", "status": 500, "duration_ms": 0.5, "event": "request.completed", "request_id": "5569300816", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-17T01:34:06.997285Z"}
 ------------------------------ Captured log call -------------------------------
-INFO     app.services.intelligent_parallel_service:intelligent_parallel_service.py:326 {'event': 'get_session_status called: session_id=nonexistent-session', 'request_id': '5555505488', 'logger': 'app.services.intelligent_parallel_service', 'level': 'info', 'timestamp': '2026-09-17T01:19:11.652596Z'}
-INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/canvas/intelligent-parallel/nonexistent-session', 'endpoint': '/api/v1/canvas/intelligent-parallel/nonexistent-session', 'status': 500, 'duration_ms': 0.61, 'event': 'request.completed', 'request_id': '5555505488', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-17T01:19:11.652860Z'}
+INFO     app.services.intelligent_parallel_service:intelligent_parallel_service.py:326 {'event': 'get_session_status called: session_id=nonexistent-session', 'request_id': '5569300816', 'logger': 'app.services.intelligent_parallel_service', 'level': 'info', 'timestamp': '2026-09-17T01:34:06.997064Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/canvas/intelligent-parallel/nonexistent-session', 'endpoint': '/api/v1/canvas/intelligent-parallel/nonexistent-session', 'status': 500, 'duration_ms': 0.5, 'event': 'request.completed', 'request_id': '5569300816', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-17T01:34:06.997285Z'}
 ________ TestEnsureFulltextIndex.test_ensure_fulltext_index_idempotent _________
 tests/unit/test_neo4j_fulltext_index.py:129: in test_ensure_fulltext_index_idempotent
     assert create_count == 4, (
 E   AssertionError: Should execute CREATE FULLTEXT INDEX each time × 2 indexes (IF NOT EXISTS handles idempotency, Round-23 Patch 3 added node_search_unified)
 E   assert 2 == 4
 ----------------------------- Captured stdout call -----------------------------
-{"event": "MemoryService: recovered 0 episodes from Neo4j (0 returned, 0 deduped)", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-17T01:19:20.631388Z"}
-{"event": "MemoryService initialized successfully", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-17T01:19:20.631440Z"}
-{"event": "[Epic 4] Fulltext index 'episode_content' ensured on EpisodicNode.content", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-17T01:19:20.631477Z"}
-{"event": "[Epic 4] Fulltext index 'episode_content' ensured on EpisodicNode.content", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-17T01:19:20.631508Z"}
+{"event": "MemoryService: recovered 0 episodes from Neo4j (0 returned, 0 deduped)", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-17T01:34:15.472538Z"}
+{"event": "MemoryService initialized successfully", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-17T01:34:15.472628Z"}
+{"event": "[Epic 4] Fulltext index 'episode_content' ensured on EpisodicNode.content", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-17T01:34:15.472675Z"}
+{"event": "[Epic 4] Fulltext index 'episode_content' ensured on EpisodicNode.content", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-17T01:34:15.472740Z"}
 ------------------------------ Captured log call -------------------------------
-INFO     app.services.memory_service:memory_service.py:431 {'event': 'MemoryService: recovered 0 episodes from Neo4j (0 returned, 0 deduped)', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-17T01:19:20.631388Z'}
-INFO     app.services.memory_service:memory_service.py:287 {'event': 'MemoryService initialized successfully', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-17T01:19:20.631440Z'}
-INFO     app.services.memory_service:memory_service.py:316 {'event': "[Epic 4] Fulltext index 'episode_content' ensured on EpisodicNode.content", 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-17T01:19:20.631477Z'}
-INFO     app.services.memory_service:memory_service.py:316 {'event': "[Epic 4] Fulltext index 'episode_content' ensured on EpisodicNode.content", 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-17T01:19:20.631508Z'}
+INFO     app.services.memory_service:memory_service.py:431 {'event': 'MemoryService: recovered 0 episodes from Neo4j (0 returned, 0 deduped)', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-17T01:34:15.472538Z'}
+INFO     app.services.memory_service:memory_service.py:287 {'event': 'MemoryService initialized successfully', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-17T01:34:15.472628Z'}
+INFO     app.services.memory_service:memory_service.py:316 {'event': "[Epic 4] Fulltext index 'episode_content' ensured on EpisodicNode.content", 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-17T01:34:15.472675Z'}
+INFO     app.services.memory_service:memory_service.py:316 {'event': "[Epic 4] Fulltext index 'episode_content' ensured on EpisodicNode.content", 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-17T01:34:15.472740Z'}
 __________ TestMergedViewEdgeCases.test_merged_view_sort_newest_first __________
 tests/unit/test_qa_38_6_scoring_reliability_extra.py:293: in test_merged_view_sort_newest_first
     assert len(items) == 3
@@ -820,20 +820,20 @@ ________________ test_search_memories_node_id_filter_post_merge ________________
 tests/unit/test_story_2_3_error_reminders.py:470: in test_search_memories_node_id_filter_post_merge
     assert len(all_results) == 2
 E   AssertionError: assert 1 == 2
-E    +  where 1 = len([{'content': 'b', 'episode_id': 'ep-683d', 'episode_type': 'error', 'group_id': 'vault:cs_61b', ...}])
+E    +  where 1 = len([{'content': 'b', 'episode_id': 'ep-754b', 'episode_type': 'error', 'group_id': 'vault:cs_61b', ...}])
 ----------------------------- Captured stdout call -----------------------------
-{"event": "[search_memories] Tier 1: 1 results, Tier 2: 1 results, Tier 3: 0 results (deduped 1, floor=0.05, returned 1)", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-17T01:20:08.480902Z"}
+{"event": "[search_memories] Tier 1: 1 results, Tier 2: 1 results, Tier 3: 0 results (deduped 1, floor=0.05, returned 1)", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-17T01:35:02.571150Z"}
 ------------------------------ Captured log call -------------------------------
-INFO     app.services.memory_service:memory_service.py:2429 {'event': '[search_memories] Tier 1: 1 results, Tier 2: 1 results, Tier 3: 0 results (deduped 1, floor=0.05, returned 1)', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-17T01:20:08.480902Z'}
+INFO     app.services.memory_service:memory_service.py:2429 {'event': '[search_memories] Tier 1: 1 results, Tier 2: 1 results, Tier 3: 0 results (deduped 1, floor=0.05, returned 1)', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-17T01:35:02.571150Z'}
 ________________ test_search_memories_node_id_none_is_no_filter ________________
 tests/unit/test_story_2_3_error_reminders.py:498: in test_search_memories_node_id_none_is_no_filter
     assert len(results) == 3
 E   assert 0 == 3
 E    +  where 0 = len([])
 ----------------------------- Captured stdout call -----------------------------
-{"event": "[search_memories] Tier 1: 3 results, Tier 2: 0 results, Tier 3: 0 results (deduped 3, floor=0.05, returned 0)", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-17T01:20:08.486053Z"}
+{"event": "[search_memories] Tier 1: 3 results, Tier 2: 0 results, Tier 3: 0 results (deduped 3, floor=0.05, returned 0)", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-17T01:35:02.575596Z"}
 ------------------------------ Captured log call -------------------------------
-INFO     app.services.memory_service:memory_service.py:2429 {'event': '[search_memories] Tier 1: 3 results, Tier 2: 0 results, Tier 3: 0 results (deduped 3, floor=0.05, returned 0)', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-17T01:20:08.486053Z'}
+INFO     app.services.memory_service:memory_service.py:2429 {'event': '[search_memories] Tier 1: 3 results, Tier 2: 0 results, Tier 3: 0 results (deduped 3, floor=0.05, returned 0)', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-17T01:35:02.575596Z'}
 _______ TestAC4MergedView.test_get_learning_history_merges_failed_scores _______
 tests/unit/test_story_38_6_scoring_reliability.py:371: in test_get_learning_history_merges_failed_scores
     assert result["total"] == 2
@@ -863,12 +863,12 @@ E     /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/ca
 E       import pkg_resources
 E     Building prefix dict from the default dictionary ...
 E     Loading model from cache /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/jieba.cache
-E     Loading model cost 0.231 seconds.
+E     Loading model cost 0.230 seconds.
 E     Prefix dict has been built successfully.
-E     2026-09-17 09:21:27 [info     ] RAGService: LangGraph/Agentic RAG available. LANGGRAPH_AVAILABLE=True
+E     2026-09-17 09:36:19 [info     ] RAGService: LangGraph/Agentic RAG available. LANGGRAPH_AVAILABLE=True
 E     
 E   assert 1 == 0
-E    +  where 1 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...uccessfully.\n2026-09-17 09:21:27 [info     ] RAGService: LangGraph/Agentic RAG available. LANGGRAPH_AVAILABLE=True\n").returncode
+E    +  where 1 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...uccessfully.\n2026-09-17 09:36:19 [info     ] RAGService: LangGraph/Agentic RAG available. LANGGRAPH_AVAILABLE=True\n").returncode
 ________________ test_group_id_physics_filters_to_physics_only _________________
 tests/unit/test_vault_notes_group_filter.py:97: in test_group_id_physics_filters_to_physics_only
     assert len(out) == 1
@@ -880,8 +880,8 @@ tests/unit/test_vault_notes_group_filter.py:124: in test_group_id_with_no_explic
 E   AssertionError: assert {'r1', 'r2', 'r_common'} == {'r_common'}
 E     
 E     Extra items in the left set:
-E     'r2'
 E     'r1'
+E     'r2'
 E     Use -v to get more diff
 ___________ test_group_id_with_no_common_and_no_match_returns_empty ____________
 tests/unit/test_vault_notes_group_filter.py:139: in test_group_id_with_no_common_and_no_match_returns_empty
@@ -902,31 +902,31 @@ tests/unit/test_verification_dedup.py:49: in test_no_history_generates_standard_
     raise AssertionError(msg)
 E   AssertionError: Expected 'search_verification_questions' to have been called once. Called 0 times.
 ---------------------------- Captured stdout setup -----------------------------
-{"event": "VerificationService initialized (RAG: False, Canvas: False, Agent: True, Graphiti: True, Memory: False, MockMode: False)", "logger": "app.services.verification_service", "level": "info", "timestamp": "2026-09-17T01:22:52.449385Z"}
-{"event": "VerificationService using IN-MEMORY TTLCache for session storage (maxsize=500, ttl=3600s). Sessions will be LOST on service restart. This is a known limitation \u2014 see Story 31.A.7.", "logger": "app.services.verification_service", "level": "warning", "timestamp": "2026-09-17T01:22:52.449599Z"}
+{"event": "VerificationService initialized (RAG: False, Canvas: False, Agent: True, Graphiti: True, Memory: False, MockMode: False)", "logger": "app.services.verification_service", "level": "info", "timestamp": "2026-09-17T01:37:38.898902Z"}
+{"event": "VerificationService using IN-MEMORY TTLCache for session storage (maxsize=500, ttl=3600s). Sessions will be LOST on service restart. This is a known limitation \u2014 see Story 31.A.7.", "logger": "app.services.verification_service", "level": "warning", "timestamp": "2026-09-17T01:37:38.899018Z"}
 ------------------------------ Captured log setup ------------------------------
-INFO     app.services.verification_service:verification_service.py:613 {'event': 'VerificationService initialized (RAG: False, Canvas: False, Agent: True, Graphiti: True, Memory: False, MockMode: False)', 'logger': 'app.services.verification_service', 'level': 'info', 'timestamp': '2026-09-17T01:22:52.449385Z'}
-WARNING  app.services.verification_service:verification_service.py:624 {'event': 'VerificationService using IN-MEMORY TTLCache for session storage (maxsize=500, ttl=3600s). Sessions will be LOST on service restart. This is a known limitation — see Story 31.A.7.', 'logger': 'app.services.verification_service', 'level': 'warning', 'timestamp': '2026-09-17T01:22:52.449599Z'}
+INFO     app.services.verification_service:verification_service.py:613 {'event': 'VerificationService initialized (RAG: False, Canvas: False, Agent: True, Graphiti: True, Memory: False, MockMode: False)', 'logger': 'app.services.verification_service', 'level': 'info', 'timestamp': '2026-09-17T01:37:38.898902Z'}
+WARNING  app.services.verification_service:verification_service.py:624 {'event': 'VerificationService using IN-MEMORY TTLCache for session storage (maxsize=500, ttl=3600s). Sessions will be LOST on service restart. This is a known limitation — see Story 31.A.7.', 'logger': 'app.services.verification_service', 'level': 'warning', 'timestamp': '2026-09-17T01:37:38.899018Z'}
 ----------------------------- Captured stdout call -----------------------------
-{"event": "No agent service available, using fallback question for \u9006\u5426\u547d\u9898", "logger": "app.services.verification_service", "level": "warning", "timestamp": "2026-09-17T01:22:52.450623Z"}
+{"event": "No agent service available, using fallback question for \u9006\u5426\u547d\u9898", "logger": "app.services.verification_service", "level": "warning", "timestamp": "2026-09-17T01:37:38.900058Z"}
 ------------------------------ Captured log call -------------------------------
-WARNING  app.services.verification_service:verification_service.py:2961 {'event': 'No agent service available, using fallback question for 逆否命题', 'logger': 'app.services.verification_service', 'level': 'warning', 'timestamp': '2026-09-17T01:22:52.450623Z'}
+WARNING  app.services.verification_service:verification_service.py:2961 {'event': 'No agent service available, using fallback question for 逆否命题', 'logger': 'app.services.verification_service', 'level': 'warning', 'timestamp': '2026-09-17T01:37:38.900058Z'}
 ____ TestVerificationDedup.test_with_history_generates_alternative_question ____
 tests/unit/test_verification_dedup.py:82: in test_with_history_generates_alternative_question
     assert mock_graphiti_client.search_verification_questions.called
 E   AssertionError: assert False
-E    +  where False = <AsyncMock name='mock.search_verification_questions' id='5557967168'>.called
-E    +    where <AsyncMock name='mock.search_verification_questions' id='5557967168'> = <MagicMock id='5557968512'>.search_verification_questions
+E    +  where False = <AsyncMock name='mock.search_verification_questions' id='5574652464'>.called
+E    +    where <AsyncMock name='mock.search_verification_questions' id='5574652464'> = <MagicMock id='5533029376'>.search_verification_questions
 ---------------------------- Captured stdout setup -----------------------------
-{"event": "VerificationService initialized (RAG: False, Canvas: False, Agent: True, Graphiti: True, Memory: False, MockMode: False)", "logger": "app.services.verification_service", "level": "info", "timestamp": "2026-09-17T01:22:52.470465Z"}
-{"event": "VerificationService using IN-MEMORY TTLCache for session storage (maxsize=500, ttl=3600s). Sessions will be LOST on service restart. This is a known limitation \u2014 see Story 31.A.7.", "logger": "app.services.verification_service", "level": "warning", "timestamp": "2026-09-17T01:22:52.470563Z"}
+{"event": "VerificationService initialized (RAG: False, Canvas: False, Agent: True, Graphiti: True, Memory: False, MockMode: False)", "logger": "app.services.verification_service", "level": "info", "timestamp": "2026-09-17T01:37:38.920615Z"}
+{"event": "VerificationService using IN-MEMORY TTLCache for session storage (maxsize=500, ttl=3600s). Sessions will be LOST on service restart. This is a known limitation \u2014 see Story 31.A.7.", "logger": "app.services.verification_service", "level": "warning", "timestamp": "2026-09-17T01:37:38.920721Z"}
 ------------------------------ Captured log setup ------------------------------
-INFO     app.services.verification_service:verification_service.py:613 {'event': 'VerificationService initialized (RAG: False, Canvas: False, Agent: True, Graphiti: True, Memory: False, MockMode: False)', 'logger': 'app.services.verification_service', 'level': 'info', 'timestamp': '2026-09-17T01:22:52.470465Z'}
-WARNING  app.services.verification_service:verification_service.py:624 {'event': 'VerificationService using IN-MEMORY TTLCache for session storage (maxsize=500, ttl=3600s). Sessions will be LOST on service restart. This is a known limitation — see Story 31.A.7.', 'logger': 'app.services.verification_service', 'level': 'warning', 'timestamp': '2026-09-17T01:22:52.470563Z'}
+INFO     app.services.verification_service:verification_service.py:613 {'event': 'VerificationService initialized (RAG: False, Canvas: False, Agent: True, Graphiti: True, Memory: False, MockMode: False)', 'logger': 'app.services.verification_service', 'level': 'info', 'timestamp': '2026-09-17T01:37:38.920615Z'}
+WARNING  app.services.verification_service:verification_service.py:624 {'event': 'VerificationService using IN-MEMORY TTLCache for session storage (maxsize=500, ttl=3600s). Sessions will be LOST on service restart. This is a known limitation — see Story 31.A.7.', 'logger': 'app.services.verification_service', 'level': 'warning', 'timestamp': '2026-09-17T01:37:38.920721Z'}
 ----------------------------- Captured stdout call -----------------------------
-{"event": "No agent service available, using fallback question for \u9006\u5426\u547d\u9898", "logger": "app.services.verification_service", "level": "warning", "timestamp": "2026-09-17T01:22:52.471758Z"}
+{"event": "No agent service available, using fallback question for \u9006\u5426\u547d\u9898", "logger": "app.services.verification_service", "level": "warning", "timestamp": "2026-09-17T01:37:38.921629Z"}
 ------------------------------ Captured log call -------------------------------
-WARNING  app.services.verification_service:verification_service.py:2961 {'event': 'No agent service available, using fallback question for 逆否命题', 'logger': 'app.services.verification_service', 'level': 'warning', 'timestamp': '2026-09-17T01:22:52.471758Z'}
+WARNING  app.services.verification_service:verification_service.py:2961 {'event': 'No agent service available, using fallback question for 逆否命题', 'logger': 'app.services.verification_service', 'level': 'warning', 'timestamp': '2026-09-17T01:37:38.921629Z'}
 _____ TestWebSocketEndpoint.test_validate_session_handles_validator_error ______
 tests/unit/test_websocket_endpoints.py:538: in test_validate_session_handles_validator_error
     result = await validate_session("any-session")
@@ -938,7 +938,7 @@ tests/unit/test_websocket_endpoints.py:533: in failing_validator
     raise Exception("Validator error")
 E   Exception: Validator error
 ----------------------------- Captured stdout call -----------------------------
-{"event": "Session validator set for WebSocket endpoint", "logger": "app.api.v1.endpoints.websocket", "level": "info", "timestamp": "2026-09-17T01:22:52.617352Z"}
+{"event": "Session validator set for WebSocket endpoint", "logger": "app.api.v1.endpoints.websocket", "level": "info", "timestamp": "2026-09-17T01:37:39.068129Z"}
 ------------------------------ Captured log call -------------------------------
 INFO     app.api.v1.endpoints.websocket:websocket.py:59 Session validator set for WebSocket endpoint
 =============================== warnings summary ===============================
@@ -1181,5 +1181,5 @@ ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPerformance::te
 ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPartialFailureRecovery::test_partial_failure_recovery
 ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPartialFailureRecovery::test_event_ordering_preserved
 ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPartialFailureRecovery::test_neo4j_unavailable_fallback
-= 35 failed, 5161 passed, 48 skipped, 23 xfailed, 171 warnings, 29 errors in 296.26s (0:04:56) =
+= 35 failed, 5161 passed, 48 skipped, 23 xfailed, 171 warnings, 29 errors in 285.89s (0:04:45) =
 rc=1
