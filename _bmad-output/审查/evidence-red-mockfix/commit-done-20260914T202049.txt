@@ -1,0 +1,97 @@
+╭──────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: pre-commit │
+╰──────────────────────────────────────╯
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+│  cypher-vault-filter-lint (skip) no matching staged files
+┃  ghost-files ❯ 
+
+[Ghost Files] No untracked docs found.
+
+┃  mutant-residue-scan ❯ 
+
+[Mutant-Scan] OK (staged additions carry no mutation marker).
+
+│  python-lint (skip) name
+│  python-typecheck (skip) no files for inspection
+│  readme-claims-lint (skip) no matching staged files
+│  spec-sync-flat (skip) no matching staged files
+│  spec-sync-root (skip) no matching staged files
+                                      
+  ────────────────────────────────────
+summary: (done in 0.05 seconds)       
+✔️ ghost-files (0.01 seconds)
+✔️ mutant-residue-scan (0.04 seconds)
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+╭──────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: commit-msg │
+╰──────────────────────────────────────╯
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+┃  commitlint ❯ 
+
+
+┃  spec-reference ❯ 
+
+[Spec Ref] OK.
+
+                                      
+  ────────────────────────────────────
+summary: (done in 0.29 seconds)       
+✔️ commitlint (0.27 seconds)
+✔️ spec-reference (0.02 seconds)
+╭───────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: post-commit │
+╰───────────────────────────────────────╯
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+[card/t10-red f6e4f8a1] test(red-mockfix): 7 处 mock_neo4j 补恢复桩 [BATCH-2026-09-11-第十四批 / CARD-RED-MOCKFIX]
+ 25 files changed, 4392 insertions(+)
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-red-mockfix/base.nodeids"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-red-mockfix/base27.nodeids"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-red-mockfix/close.nodeids"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-red-mockfix/close2.nodeids"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-red-mockfix/commit-attempt-20260914T202037.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-red-mockfix/diff-base-close2.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-red-mockfix/format-drift-attribution-20260914T201943.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-red-mockfix/mockfix-flip1-batch-disconnected-20260914T200317.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-red-mockfix/mockfix-flip2-30_11-degradation-20260914T200400.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-red-mockfix/mockfix-flip3-30_13-fallback-20260914T200400.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-red-mockfix/mockfix-green-20260914T200112.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-red-mockfix/mockfix-negctl-A-30_13-20260914T200216.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-red-mockfix/mockfix-negctl-B-30_11-degradation-20260914T200248.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-red-mockfix/mockfix-red-20260914T195832.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-red-mockfix/mockfix-red-traceback-20260914T195908.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-red-mockfix/open.nodeids"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-red-mockfix/red27.nodeids"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-red-mockfix/ruff-boundary-20260914T201931.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-red-mockfix/unit-close-20260914T200513.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-red-mockfix/unit-close-run2-20260914T201256.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-red-mockfix/unit-open-20260914T195126.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-red-mockfix/vanished.nodeids"
+commit_rc=0

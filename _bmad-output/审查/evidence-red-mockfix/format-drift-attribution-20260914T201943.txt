@@ -1,0 +1,77 @@
+== A. 主干基线 08100483 的同三文件是否已 dirty（--stdin-filename 保证 config 解析同路径）==
+base backend/tests/unit/test_memory_service_batch.py -> rc=1  (1 = 基线就已 dirty)
+base backend/tests/unit/test_story_30_11_batch_parallel.py -> rc=1  (1 = 基线就已 dirty)
+base backend/tests/unit/test_story_30_13_batch_idempotency.py -> rc=1  (1 = 基线就已 dirty)
+== B. 当前文件 ruff format 想改哪些行（看是否落在本卡新增行上）==
+--- backend/tests/unit/test_memory_service_batch.py
++++ backend/tests/unit/test_memory_service_batch.py
+@@ -155,9 +155,7 @@
+         assert call_args["concept"] == "已删除节点"
+ 
+     @pytest.mark.asyncio
+-    async def test_neo4j_disconnected_still_stores_in_memory(
+-        self, memory_service, mock_neo4j
+-    ):
++    async def test_neo4j_disconnected_still_stores_in_memory(self, memory_service, mock_neo4j):
+         """Story 30.9: Events stored in-memory even when Neo4j disconnected."""
+         mock_neo4j.stats = {"initialized": False, "connected": False}
+ 
+
+--- backend/tests/unit/test_story_30_11_batch_parallel.py
++++ backend/tests/unit/test_story_30_11_batch_parallel.py
+@@ -173,9 +173,7 @@
+         return service
+ 
+     @pytest.mark.asyncio
+-    async def test_neo4j_failure_does_not_block_processing(
+-        self, memory_service, mock_neo4j
+-    ):
++    async def test_neo4j_failure_does_not_block_processing(self, memory_service, mock_neo4j):
+         """Neo4j write failures don't affect processed count (data is in memory)."""
+         mock_neo4j.record_episode = AsyncMock(side_effect=Exception("Neo4j timeout"))
+ 
+@@ -327,12 +325,8 @@
+             mock_settings.ENABLE_GRAPHITI_JSON_DUAL_WRITE = False
+             await memory_service.record_batch_learning_events(events)
+ 
+-        assert max_concurrent <= 3, (
+-            f"Max concurrent was {max_concurrent}, expected <= 3"
+-        )
+-        assert max_concurrent >= 2, (
+-            f"Max concurrent was {max_concurrent}, expected >= 2 (parallel)"
+-        )
++        assert max_concurrent <= 3, f"Max concurrent was {max_concurrent}, expected <= 3"
++        assert max_concurrent >= 2, f"Max concurrent was {max_concurrent}, expected >= 2 (parallel)"
+ 
+== C. format 提议是否触及 get_all_recent_episodes 行 ==
+命中数: 0
+== D. lefthook python-lint 定义 ==
+8:#   pre-commit  → parallel checks (spec-sync, python-lint, python-typecheck, ghost-files)
+9-#   commit-msg  → commitlint + spec-reference
+10-#   post-commit → backup-push
+11-#   pre-push    → frontend-test + backend-smoke
+12-
+13-# ============================================================
+14-# Pre-commit: Parallel checks on staged files
+15-# ============================================================
+16-pre-commit:
+--
+117:    python-lint:
+118-      glob: "{backend,src,scripts}/*.py"
+119-      run: |
+120-        # Activate backend venv for ruff
+121-        if [ -f "backend/.venv/bin/activate" ]; then source backend/.venv/bin/activate; fi
+122-        echo "[Python] Running ruff lint..."
+123-        ruff check {staged_files} 2>&1 || exit 1
+124-        echo "[Python] Lint OK."
+125-        echo "[Python] Checking format..."
+--
+321:    # m 开头的本块 → python-lint → p 开头的 pyright 门 → r 开头的 README 门
+322-    # → 最后是两个 OpenAPI 快照块(flat / root)。
+323-    # 即本块虽写在段末, 却在那两个快照块**之前**跑; 它们随后 `git add` 的
+324-    # backend/openapi.json **不在本门的扫描面内**(该文件由 app.openapi() 机器
+325-    # 生成, 其源头 backend/app/** 本身在扫描面内)。给本块加 `priority:` 不能
+326-    # 解决 —— 实测任何 priority 值都会把它排到**最前**(带 priority 的命令整体
+327-    # 先于无 priority 的)。要真正排到最后只能改命令名的字母序, 已登台账。
+328-    #
+329-    # 以下防御逐条对应 Codex round-1 的实测反例(全部本机复现过):

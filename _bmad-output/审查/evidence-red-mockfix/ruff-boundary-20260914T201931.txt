@@ -1,0 +1,28 @@
+== ruff check（zsh 数组；工作树 vs HEAD，commit 前形态） ==
+files=3
+backend/tests/unit/test_memory_service_batch.py backend/tests/unit/test_story_30_11_batch_parallel.py backend/tests/unit/test_story_30_13_batch_idempotency.py
+All checks passed!
+ruff_check_rc=0
+== ruff format --check（本卡 diff 文件） ==
+Would reformat: backend/tests/unit/test_memory_service_batch.py
+Would reformat: backend/tests/unit/test_story_30_11_batch_parallel.py
+Would reformat: backend/tests/unit/test_story_30_13_batch_idempotency.py
+3 files would be reformatted
+ruff_format_rc=1
+== 验伪锚：已知 F821（在 backend/ruff.toml 的 select 内）必 rc=1 ==
+F821 Undefined name `undefined_name_xyz`
+ --> /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t10-red/607341f6-0e0d-4e50-9b92-b7f4f7742362/scratchpad/bad_anchor.py:1:7
+  |
+1 | print(undefined_name_xyz)
+  |       ^^^^^^^^^^^^^^^^^^
+  |
+
+Found 1 error.
+anchor_rc=1
+== (h) 边界只读 ==
+-- live/真连关键词（应无真连）--
+live_grep_rc=1
+-- fsrs_bridge / decay_beta 命中数（应 0）--
+backend/tests/unit/test_memory_service_batch.py:0
+backend/tests/unit/test_story_30_13_batch_idempotency.py:0
+backend/tests/unit/test_story_30_11_batch_parallel.py:0

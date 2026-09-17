@@ -1,0 +1,17 @@
+== 收集序取证（回应 Codex r1 LOW-2：670/2899/4341/4370 无入库证据）==
+-- 跑法（与开工/收工目录级同一 --ignore）--
+cd backend && PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest tests/unit --ignore tests/unit/test_deploy_vault_sh.py -q -p no:cacheprovider --collect-only
+collect_rc=0
+-- 总行数 --
+    6302
+-- 各文件在收集输出中首次出现的行号（= 默认执行顺序）--
+test_candidate_service: 670
+test_memory_service_batch: 2899
+test_story_30_11_batch_parallel: 4341
+test_story_30_13_batch_idempotency: 4370
+-- 验伪锚：grep 确能命中（打印实际行）--
+      <Module test_candidate_service.py>
+      <Module test_story_30_13_batch_idempotency.py>
+-- 无随机排序插件（xdist 装了但未启用：addopts 无 -n）--
+2
+0

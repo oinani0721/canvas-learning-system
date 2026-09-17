@@ -24,6 +24,9 @@ def mock_neo4j():
     neo4j.stats = {"initialized": True, "connected": True}
     neo4j.record_episode = AsyncMock()
     neo4j.create_learning_relationship = AsyncMock()
+    # initialize() → _recover_episodes_from_neo4j() 会 await 它; 返回 [] 让
+    # _episodes 保持空, 不给下面的断言预置数据
+    neo4j.get_all_recent_episodes = AsyncMock(return_value=[])
     return neo4j
 
 

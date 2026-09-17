@@ -1,0 +1,11 @@
+== 协议 §2 四个禁用措辞逐词 grep -cF（各应 0）==
+构造: 0
+可复现片段: 0
+打穿: 0
+绕过: 0
+== 验伪锚：该 grep 能命中文中确实存在的词 ==
+AsyncMock: 3 (>0 即判据有效)
+== 旧模型名残留（应 0）==
+gpt-5.6: 0
+== prompt 字符数 ==
+    3444 _bmad-output/审查/prompts/codex-prompt-CARD-RED-MOCKFIX.md

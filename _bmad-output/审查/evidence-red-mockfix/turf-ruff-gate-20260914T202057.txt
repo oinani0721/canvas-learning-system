@@ -1,0 +1,17 @@
+== (g) 地盘门：08100483..HEAD 排除 _bmad-output ==
+backend/tests/unit/test_memory_service_batch.py
+backend/tests/unit/test_story_30_11_batch_parallel.py
+backend/tests/unit/test_story_30_13_batch_idempotency.py
+-- 文件数 --
+       3
+-- 验伪锚：去掉 exclude 应多出 _bmad-output 路径 --
+22
+== --stat 形态 ==
+ backend/tests/unit/test_memory_service_batch.py          |  3 +++
+ backend/tests/unit/test_story_30_11_batch_parallel.py    | 16 ++++++++++++++++
+ backend/tests/unit/test_story_30_13_batch_idempotency.py |  3 +++
+ 3 files changed, 22 insertions(+)
+== §二.7 ruff 判据（卡文原形态，zsh 数组，08100483 HEAD）==
+files=3
+All checks passed!
+ruff_check_rc=0
