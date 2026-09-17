@@ -958,7 +958,7 @@ def test_step5_pipes_compose_config_through_redaction():
     assert re.search(r"\|\s*redact_secrets\s*>\s*\"\$ctmp\"", step5), (
         f"步 5 的落盘不是「config | redact_secrets > 临时件」形态:\n{step5[:600]}"
     )
-    assert 'mv "$ctmp" "$cfg"' in step5, "脱敏后的 config 没有被发布到 $cfg"
+    assert 'publish_tmp "$ctmp" "$cfg"' in step5, "脱敏后的 config 没有被发布到 $cfg"
 
 
 def test_redaction_filter_masks_secrets_but_keeps_assertion_fields(tmp_path: Path):
@@ -3197,10 +3197,19 @@ esac
 exit 0
 """
 
+#: 两份 wrapper 共用本文：一份装成 harness venv 的 python（`@ROLE@` = venv），
+#: 一份装在 PATH 上当 `python3`（`@ROLE@` = path）。
+#: ⛔ mode 2 必须**只在 venv 那份上**触发（CARD-G2-7b-TAIL r3 实测）：它要模拟的是
+#:    「config 结构化断言（走 venv python）刚跑完、阶段账还没开」那一刻。装在 PATH 上的
+#:    `python3` 会被脚本里别的调用命中 —— r3 给发布加了 `publish_tmp`（`python3 -c os.rename`），
+#:    它的 argv 里同样带着 compose-config 路径，于是注入**提前一步**触发，
+#:    掉包发生在断言之前 ⇒ 用例红在「config 断言不成立」上，而不是它要验的那条路径。
+#:    注入点写得比它要模拟的时刻宽，就会在别处加一次调用时静默改变语义。
 _TX_PY_WRAPPER = """#!/usr/bin/env bash
+ROLE="@ROLE@"
 "@REAL@" "$@"
 rc=$?
-if [ "${CLS_FAKE_BREAK_JOURNAL:-0}" = 2 ]; then
+if [ "${CLS_FAKE_BREAK_JOURNAL:-0}" = 2 ] && [ "$ROLE" = venv ]; then
     for a in "$@"; do
         case "$a" in
             */compose-config-*.txt)
@@ -3330,7 +3339,11 @@ def _tx_harness(tmp_path: Path, *, with_env: bool = True, env_body: str | None =
     # 不用 symlink 而用 wrapper：CLS_FAKE_BREAK_JOURNAL=2 时它在**真 python 跑完之后**
     # 把 compose-config 换成软链 —— 那正好是「config 断言已过、阶段账还没开」的时刻，
     # 用来验 act_journal_open 的紧邻复查真的拦得住。
-    _tx_write(venv_bin / "python", _TX_PY_WRAPPER.replace("@REAL@", sys.executable), mode=0o755)
+    _tx_write(
+        venv_bin / "python",
+        _TX_PY_WRAPPER.replace("@REAL@", sys.executable).replace("@ROLE@", "venv"),
+        mode=0o755,
+    )
     for i in range(_TX_SKILLS):
         _tx_write(h / "canvas-vault" / ".claude" / "skills" / f"probe{i}" / "SKILL.md", "# stub\n")
     _tx_write(h / "canvas-vault" / ".obsidian" / "plugins" / "canvas-learning-system" / "main.js", "//\n")
@@ -3349,7 +3362,11 @@ def _tx_bins(tmp_path: Path) -> Path:
     _tx_write(fake_bin / "curl", _TX_CURL, mode=0o755)
     # `act_journal_open` 记 inode 身份用的是 PATH 上的 `python3`（不是 harness venv 那个），
     # 所以掉包注入点也得在这里。wrapper 本身是透明的：默认只是 exec 真 python。
-    _tx_write(fake_bin / "python3", _TX_PY_WRAPPER.replace("@REAL@", sys.executable), mode=0o755)
+    _tx_write(
+        fake_bin / "python3",
+        _TX_PY_WRAPPER.replace("@REAL@", sys.executable).replace("@ROLE@", "path"),
+        mode=0o755,
+    )
     return fake_bin
 
 
@@ -3863,7 +3880,7 @@ def test_g2_8_activate_tx_opens_no_new_write_surface():
         assert 'ctmp="$(mk_tmp_beside "$cfg")"' in act, (
             '$ctmp 不是由 mk_tmp_beside "$cfg" 产生的 —— 那它就是一个没申报的新写面'
         )
-        assert 'mv "$ctmp" "$cfg"' in act, "$ctmp 写完没有发布成 $cfg"
+        assert 'publish_tmp "$ctmp" "$cfg"' in act, "$ctmp 写完没有发布成 $cfg"
     # 开账之后，步 5 里再没有**按路径**的写：docker 的 up/down 输出也走 fd 9
     # （Codex r3 HIGH：否则「判据说这个路径不可信」与「照这个路径写」会并存）。
     assert act.count(">&9 2>&1") == 3, f"up/down 的输出没有全部走 fd 9（实测 {act.count('>&9 2>&1')} 处）"
@@ -5776,14 +5793,17 @@ _TAIL_HOTKEY_PREFIX = "canvas-learning-system:"
 def harness_main_js():
     """缺 gitignored main.js 时补一个桩，跑完还原（原本就有则一字不动）。
 
-    ⛔ 删除前必须**核身份**（Codex r1 MEDIUM-4）：无条件 `unlink` 会在
-       「测试期间真实构建产出了 main.js」时把**别人的产物**删掉。只有当磁盘上那份
-       与我们写进去的逐字节相同，才认为它仍是我们的桩。
-    ⚠️ 如实声明：本夹具**不支持并行**（`pytest -n`）。两个用例同时进来时，
-       A 建桩、B 看到「已存在」直接用、A teardown 删掉 ⇒ B 中途失去依赖。
-       没有锁；本卡只在串行单文件跑法下验过，已登记。
+    ⛔ **所有权必须是我们自己建立的**（Codex r1 MEDIUM-4 / r2 MEDIUM-5）：
+       ① 用 `O_CREAT|O_EXCL|O_NOFOLLOW` 创建 —— `exists()` 对**悬空软链**返回假，
+          上一版会顺着那条链把桩写到链目标去，收尾只删掉软链、把外部文件留在原地；
+          O_EXCL 让「名字已被占」直接失败，O_NOFOLLOW 让「名字是软链」直接失败。
+       ② 删除前比 **inode**（`st_ino`/`st_dev`），不是比内容 —— 比内容再删是两步，
+          中间被真实构建换掉就会把别人的产物删掉；inode 相同才说明还是我们建的那一个。
+    ⚠️ 如实声明：仍**不支持并行**（`pytest -n`）。A 建桩、B 看到「已存在」直接用、
+       A teardown 删掉 ⇒ B 中途失去依赖。没有锁；本卡只在串行单文件跑法下验过。
     """
-    if _TAIL_MAIN_JS.exists():
+    if _TAIL_MAIN_JS.exists() or _TAIL_MAIN_JS.is_symlink():
+        # 已有真产物（或有人在那个名字上放了东西）⇒ 一个字节都不动，也不负责清理。
         yield
         return
     import json
@@ -5793,15 +5813,22 @@ def harness_main_js():
     assert ids, f"{_TAIL_HOTKEYS} 里没有 {_TAIL_HOTKEY_PREFIX}* 绑定 —— 桩无从派生"
     body = "// CARD-G2-7b-TAIL 测试桩（跑完即删）\n" + "".join(f'addCommand({{id: "{i}"}});\n' for i in ids)
     _TAIL_MAIN_JS.parent.mkdir(parents=True, exist_ok=True)
-    _TAIL_MAIN_JS.write_text(body, encoding="utf-8")
+    fd = os.open(_TAIL_MAIN_JS, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644)
+    try:
+        st = os.fstat(fd)
+        mine = (st.st_dev, st.st_ino)
+        os.write(fd, body.encode("utf-8"))
+    finally:
+        os.close(fd)
     try:
         yield
     finally:
         try:
-            still_ours = _TAIL_MAIN_JS.read_text(encoding="utf-8") == body
+            now = os.lstat(_TAIL_MAIN_JS)
+            still_mine = (now.st_dev, now.st_ino) == mine
         except OSError:
-            still_ours = False
-        if still_ours:
+            still_mine = False
+        if still_mine:
             _TAIL_MAIN_JS.unlink(missing_ok=True)
 
 
@@ -5956,14 +5983,27 @@ def test_five_bash_write_sites_no_longer_redirect_into_predictable_paths():
     ):
         assert got in code, f"写点没有改走同目录 mktemp: {got}"
     # 每一处都必须**发布**出去 —— 只建临时件不 mv 等于把产物丢了
+    # ⚠️ r3（Codex r2 HIGH-1）：发布从 `mv` 换成 `publish_tmp`（内部 `rename(2)`）——
+    #    `mv(1)` 在终路径是**指向目录的软链**时会把临时件搬进那个目录并返回 0。
+    #    锚点跟着改，钉的性质没变：每一处都必须真的发布出去。
     for pub in (
+        'publish_tmp "$SEED_TMP" "$ENV_FILE"',
+        'publish_tmp "$ktmp" "$keyfile"',
+        'publish_tmp "$itmp" "$ilog"',
+        'publish_tmp "$ctmp" "$cfg"',
+        'publish_tmp "$otmp" "$out"',
+    ):
+        assert pub in code, f"临时件没有被发布: {pub}"
+    assert "publish_tmp() {" in code, "缺 publish_tmp helper"
+    assert "os.rename(sys.argv[1], sys.argv[2])" in code, "publish_tmp 没有走 rename(2)"
+    for gone in (
         'mv "$SEED_TMP" "$ENV_FILE"',
         'mv "$ktmp" "$keyfile"',
         'mv "$itmp" "$ilog"',
         'mv "$ctmp" "$cfg"',
         'mv "$otmp" "$out"',
     ):
-        assert pub in code, f"临时件没有被发布: {pub}"
+        assert gone not in code, f"发布又退回 mv 了（它会跟随终路径上的目录软链）: {gone}"
 
 
 def test_mk_tmp_beside_is_the_single_source_for_temp_creation():
@@ -6710,7 +6750,108 @@ def test_step6_marks_an_unpublished_residue(tmp_path: Path):
         "正文写失败 / sha 失败未发布 / 收尾失败未发布 / 追加 rc 行失败 / mv 失败）"
     )
     # 反面：这些分支都不得再销毁残件 —— 那是把唯一一份证据删掉
-    for branch in ("写 evidence 临时文件失败", "追加 rc 行失败", "mv evidence 失败"):
+    for branch in ("写 evidence 临时文件失败", "追加 rc 行失败", "发布 evidence 失败"):
         i = step6.index(branch)
         window = step6[max(0, i - 200) : i]
         assert 'm -f -- "$otmp"' not in window, f"分支「{branch}」仍在销毁残件"
+
+
+# ═══ r3 整改门（Codex r2 HIGH-1 / MEDIUM-2 / MEDIUM-3 / MEDIUM-4 / MEDIUM-5）═══
+
+
+def test_publish_does_not_follow_a_directory_symlink_at_the_destination(tmp_path: Path):
+    """⛔ Codex r2 HIGH-1：`mv(1)` 在终路径是**指向目录的软链**时，会把临时件搬**进**
+    那个目录并返回 0 —— 预检查（都在建临时件之前）之后的窗口里换成一条指向保护目录的
+    软链，内容就落进保护面而步骤照报成功。`rename(2)` 不跟随 newpath 的末段，替换的是
+    那条软链本身。本门直接对照两者。
+    """
+    prot = tmp_path / "prot"
+    prot.mkdir()
+    real = tmp_path / "real"
+    real.mkdir()
+
+    def _attempt(name: str, use_rename: bool) -> tuple[int, int]:
+        src = tmp_path / f"src-{name}.txt"
+        src.write_text("PAYLOAD\n", encoding="utf-8")
+        dst = real / f"target-{name}"
+        dst.symlink_to(prot)
+        if use_rename:
+            code = "import os, sys\nos.rename(sys.argv[1], sys.argv[2])\n"
+            r = subprocess.run(
+                [sys.executable, "-c", code, str(src), str(dst)],
+                capture_output=True,
+                text=True,
+                timeout=_SUBPROCESS_TIMEOUT,
+            )
+        else:
+            r = subprocess.run(["mv", str(src), str(dst)], capture_output=True, text=True, timeout=_SUBPROCESS_TIMEOUT)
+        leaked = sum(1 for e in prot.iterdir() if e.is_file())
+        return r.returncode, leaked
+
+    mv_rc, mv_leaked = _attempt("mv", use_rename=False)
+    assert mv_rc == 0 and mv_leaked == 1, (
+        f"本门的前提不成立：mv 没有穿过目录软链（rc={mv_rc} leaked={mv_leaked}）—— "
+        "若本机 mv 行为不同，这条门证明不了脚本换 rename 的必要性"
+    )
+    rn_rc, rn_leaked = _attempt("rename", use_rename=True)
+    assert rn_rc == 0, f"rename 失败: rc={rn_rc}"
+    assert rn_leaked == 1, f"rename 也穿链了（保护目录内文件数 {rn_leaked}，应仍只有 mv 留下的那 1 个）"
+    assert (real / "target-rename").is_file() and not (real / "target-rename").is_symlink(), (
+        "rename 应当替换掉那条软链本身"
+    )
+
+
+def test_receipt_check_fails_closed_when_the_path_contains_a_newline(tmp_path: Path):
+    """⛔ Codex r2 MEDIUM-2：`# source : <path>` 是**一行式**回执，放不下含换行的路径。
+
+    上一版逐行读再 `.strip()`，会把路径截断 ⇒ 一次完全正常的部署被误判成基准不符。
+    既然这种输入下回执无从解析，就该 fail-closed 拒绝，而不是拿截断值去比。
+    """
+    src = _decomment(DEPLOY_SH.read_text(encoding="utf-8"))
+    blk = src[src.index("rep, want, vault = sys.argv[1], sys.argv[2], sys.argv[3]") :]
+    blk = blk[: blk.index('\' "$rep"')]
+    assert 'if "\\n" in want or "\\n" in vault:' in blk, "回执核对没有对含换行的路径 fail-closed"
+    i_guard = blk.index('if "\\n" in want')
+    i_cmp = blk.index("R = os.path.realpath")
+    assert i_guard < i_cmp, "fail-closed 判据排在了路径比较之后 —— 那时已经比过一次截断值了"
+    assert "4)" in src[src.index('case "$_basis_rc" in') :], "rc=4 这一支在 shell 侧没有对应分支"
+
+
+def test_mark_unpublished_reports_its_own_failure(tmp_path: Path):
+    """⛔ Codex r2 MEDIUM-4：更正器自己可能追加失败，调用方不得照样宣称「已标注」。"""
+    code = _decomment(DEPLOY_SH.read_text(encoding="utf-8"))
+    fn = code[code.index("mark_unpublished() {") : code.index("step6_evidence() {")]
+    assert "|| :" not in fn, "更正器仍在吞掉自己的失败（调用方就无从分辨了）"
+    step6 = code[code.index("step6_evidence() {") :]
+    assert step6.count("也没能标注") == 2, (
+        f"发布失败 + 更正也失败 的措辞不全（实测 {step6.count('也没能标注')} 处，期望 2）"
+    )
+
+
+def test_unpublished_marker_disowns_both_the_sixth_line_and_the_rc_line():
+    """⛔ Codex r2 MEDIUM-3：残件上的 `rc=` 行同样是发布前写下的，更正必须一并否掉。
+
+    只否「落点」那半句的话，残件读起来仍像一次成功的部署（第 6 行 OK + `rc=0`）。
+    """
+    # ⛔ 这里**不能**用 `_decomment`：更正文本本身就以 `##` 开头（它是写进报告的内容，
+    #    不是注释），按第一个 `#` 截断会把待检的字符串整条吃掉。只剥整行注释。
+    raw = DEPLOY_SH.read_text(encoding="utf-8")
+    code = "\n".join(ln for ln in raw.splitlines() if not ln.lstrip().startswith("#"))
+    fn = code[code.index("mark_unpublished() {") : code.index("step6_evidence() {")]
+    assert "六行状态" in fn, "更正没有点名第 6 行"
+    assert "rc=" in fn and "不代表进程的实际返回码" in fn, "更正没有否掉残件里的 rc 行"
+
+
+def test_main_js_fixture_takes_ownership_before_it_deletes(tmp_path: Path):
+    """⛔ Codex r2 MEDIUM-5：内容比较与删除是两步，保证不了删的还是读过的那个对象。
+
+    夹具须：① 以 `O_CREAT|O_EXCL|O_NOFOLLOW` 建（悬空软链与已占名都当场失败）；
+    ② 删除前比 **inode**，不是比内容。本门在源码上钉这两件事 —— 真造一次「构建中途替换」
+    需要并发，另属未证明项（已登记）。
+    """
+    src = Path(__file__).read_text(encoding="utf-8")
+    fx = src[src.index("def harness_main_js():") : src.index("def _tail_script_copy(")]
+    assert "os.O_EXCL" in fx and "os.O_NOFOLLOW" in fx, "夹具不是以 O_EXCL|O_NOFOLLOW 建桩的"
+    assert "st_ino" in fx and "st_dev" in fx, "夹具删除前没有比 inode 身份"
+    assert "os.lstat(" in fx, "身份复核用的不是 lstat（follow 到链目标就白比了）"
+    assert "_TAIL_MAIN_JS.is_symlink()" in fx, "没有对「名字上是一条软链」的情形早退"

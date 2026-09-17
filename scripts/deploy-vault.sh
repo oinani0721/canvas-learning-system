@@ -341,6 +341,22 @@ except OSError:
 #    现在是一个刚由内核独占创建、名字不可预测的对象。真原子的写仍只有走
 #    `open_pinned` 的那几处 python。
 # ⚠️ 必须与目标**同目录**：`mv` 跨文件系统会退化成「拷贝+删除」, 失去 rename 的原子性。
+# ⛔⛔ 发布**不能用 `mv`**（Codex r2 HIGH-1）：`mv(1)` 在终路径是**指向目录的软链**时
+#    会把临时件搬**进**那个目录并返回 0 —— 于是 `assert_writable_now` 与 `[ -d "$dst" ]`
+#    这两道预检查（都在建临时件之前）之后的窗口里，把 `$ilog` 换成一条指向保护目录的
+#    软链，内容就落进保护面而步骤照报成功。本机实测：`mv` 落进链目标，`rename(2)` 替换
+#    链本身（证据 evidence-g27b-tail/r3-*）。
+#    `rename(2)` 按 POSIX **不跟随 newpath 的末段**：newpath 是软链就替换那条软链，
+#    是真目录就 EISDIR/ENOTDIR 失败 ⇒ 两个方向都是我们要的。bash 没有 rename,
+#    所以这一步交给 python（与本文件既有「原子那一步交给 python」同律）。
+# ⚠️ 仍不闭合的一面（如实声明）：newpath **中间段**的软链仍会被解析 —— 那几级目录是
+#    preflight 判过的对象, 不在本 helper 的职责里。
+publish_tmp() {
+    local tmp="$1" dst="$2"
+    python3 -c 'import os, sys
+os.rename(sys.argv[1], sys.argv[2])' "$tmp" "$dst" 2> /dev/null
+}
+
 mk_tmp_beside() {
     local dst="$1" dir="" out="" mrc=0
     # ⛔⛔ **不得用 `$(dirname …)`**（Codex r1 BLOCKER，我初版正是这么写的）：命令替换会
@@ -1037,7 +1053,7 @@ _seed_env_file_body() {
             || { SEED_ERR="写 .env 后回读缺键: ${kk}"; return 1; }
     done
     # `mv` = rename(2)：替换的是**名字**, 不跟随 $ENV_FILE 位置上可能被预置的软链。
-    mv "$SEED_TMP" "$ENV_FILE" || { SEED_ERR="mv .env 失败: $ENV_FILE"; return 1; }
+    publish_tmp "$SEED_TMP" "$ENV_FILE" || { SEED_ERR="发布 .env 失败(rename 未成功): $ENV_FILE"; return 1; }
     SEED_TMP=""
     pinned_chmod600 "$ENV_FILE" || { SEED_ERR="chmod 600 .env 失败: $ENV_FILE"; return 1; }
     return 0
@@ -1087,11 +1103,11 @@ step2_install() {
     # ⛔ 无论 install 成不成都要把日志发布出去 —— install 失败时它正是唯一的排查依据,
     #    「失败就不发布」等于把最需要的那份证据丢掉。
     local imrc=0
-    mv "$itmp" "$ilog" || imrc=$?
+    publish_tmp "$itmp" "$ilog" || imrc=$?
     if [ "$imrc" != 0 ]; then
         # ⛔ 不清掉残件（我初版清了 —— 那是把唯一一份 install 输出销毁）：发布失败时它正是
         #    排查所需的全部内容, 把路径报出来比把目录扫干净重要。
-        STEP_MSG="install-vault.sh rc=${irc}, 但 install 日志未能发布(mv rc=${imrc}); 输出保留在残件 ${itmp}"
+        STEP_MSG="install-vault.sh rc=${irc}, 但 install 日志未能发布(rename rc=${imrc}); 输出保留在残件 ${itmp}"
         return 1
     fi
     if [ "$irc" != 0 ]; then
@@ -2776,9 +2792,9 @@ PY
             STEP_MSG="key 临时文件回读不一致, 已丢弃（未污染 ${keyfile}）"
             return 1
         fi
-        mv "$ktmp" "$keyfile" || {
+        publish_tmp "$ktmp" "$keyfile" || {
             rm -f -- "$ktmp" 2> /dev/null || :
-            STEP_MSG="mv key 文件失败"
+            STEP_MSG="发布 key 文件失败(rename 未成功)"
             return 1
         }
     fi
@@ -2935,6 +2951,11 @@ except OSError:
     sys.exit(3)
 if not got:
     sys.exit(3)
+# ⛔ 含换行的路径**放不进**一行式回执（Codex r2 MEDIUM-2）：报告里 `# source : <path>`
+# 是按行写的, 路径里的换行会把它截断, 于是一次完全正常的部署会被误判成基准不符。
+# 既然回执在这种输入下**无从解析**, 就按 fail-closed 拒绝, 而不是拿一个截断值去比。
+if "\n" in want or "\n" in vault:
+    sys.exit(4)
 R = os.path.realpath
 if R(got) == R(vault) and R(want) != R(vault):
     sys.exit(2)
@@ -2949,6 +2970,10 @@ if R(got) != R(want):
             ;;
         1)
             STEP_MSG="校验器实际用的基准与本步应当使用的不一致（应为 ${_want_src}）, 报告 $rep"
+            return 1
+            ;;
+        4)
+            STEP_MSG="基准或目标路径里含换行, 一行式回执放不下它 ⇒ 无从核对校验器用的是哪个基准; 拒绝（请把 --vault/TMPDIR 换成不含换行的路径）"
             return 1
             ;;
         *)
@@ -2989,10 +3014,10 @@ step5_activate() {
         return 1
     fi
     local cmrc=0
-    mv "$ctmp" "$cfg" || cmrc=$?
+    publish_tmp "$ctmp" "$cfg" || cmrc=$?
     if [ "$cmrc" != 0 ]; then
         rm -f -- "$ctmp" 2> /dev/null || :
-        STEP_MSG="compose-config 未能发布(mv rc=${cmrc})（未起任何容器）: $cfg"
+        STEP_MSG="compose-config 未能发布(rename rc=${cmrc})（未起任何容器）: $cfg"
         return 1
     fi
     # ⚠️ 结构化断言, 不用 grep 单行：`docker compose config` 把 ports 展开成**长格式**
@@ -3340,11 +3365,18 @@ PY
     return 0
 }
 
+# 残件更正器。⛔ 两条要求（Codex r2 MEDIUM-3 / MEDIUM-4）：
+#   ① 更正必须同时覆盖**第 6 行**与末尾的 `rc=` 行 —— 成功路径上两者都已按「发布成功」
+#      写好, 只否掉「落点」那半句, 残件读起来仍像一次成功的部署；
+#   ② 追加**可能失败**（空间耗尽 / 残件不可写）, 失败就要让调用方知道, 不能吞掉之后
+#      还由调用方宣称「已在其尾部标注未发布」。故本函数**回传 rc**, 由调用方分开措辞。
 mark_unpublished() {
-    # 追加失败就算了（`|| :`）：这条更正是尽力而为的补救, 不能反过来把原本的失败盖掉。
-    printf '%s\n' \
-        '## 未发布 —— 本文件是残件; 上面「## 六行状态」第 6 行里关于报告落点的说法不成立' \
-        >> "$1" 2> /dev/null || :
+    {
+        printf '%s\n' '## 未发布 —— 本文件是残件, 没有成为最终报告。'
+        printf '%s\n' '##   · 上面「## 六行状态」第 6 行是在落盘**之前**合成的, 其中关于报告落点的说法不成立;'
+        printf '%s\n' '##   · 本文件末尾的 `rc=` 行同样是发布之前写下的, 不代表进程的实际返回码;'
+        printf '%s\n' '##   · 以进程返回码与终端上那一行 [6/6] 为准。'
+    } >> "$1" 2> /dev/null
 }
 
 # ═══ 步 6 evidence ══════════════════════════════════════════════════════════
@@ -3448,14 +3480,18 @@ step6_evidence() {
     if [ "$_sha_fail" = 1 ]; then
         # ⛔ 不用 `|| true`（Codex r4 MEDIUM-1，我 r3 引入的回归）：那会把「证据没发布出去」
         #    吞掉, 而消息仍宣称「证据已标 rc=76」。两种失败分开报。
-        local _pub=1
+        local _pub=1 _mk=1
         printf 'rc=76\n' >> "$otmp" || _pub=0
-        [ "$_pub" = 1 ] && { mv "$otmp" "$out" || _pub=0; }
+        [ "$_pub" = 1 ] && { publish_tmp "$otmp" "$out" || _pub=0; }
         if [ "$_pub" = 1 ]; then
             STEP_MSG="有文件 shasum 失败（见 SHASUM-FAILED 行）, 证据已标 rc=76: $out"
         else
-            mark_unpublished "$otmp"
-            STEP_MSG="有文件 shasum 失败, 且证据**未能发布**（残件 ${otmp}, 已在其尾部标注未发布）, 报告不可信"
+            _mk=1; mark_unpublished "$otmp" || _mk=0
+            if [ "$_mk" = 1 ]; then
+                STEP_MSG="有文件 shasum 失败, 且证据**未能发布**（残件 ${otmp}, 已在其尾部标注未发布）, 报告不可信"
+            else
+                STEP_MSG="有文件 shasum 失败, 证据**未能发布**且残件**也没能标注**（${otmp} 连追加都失败）, 残件内容整体不可信"
+            fi
         fi
         return 1
     fi
@@ -3463,14 +3499,18 @@ step6_evidence() {
     #    证据却说 0 就是自相矛盾, 而证据是事后唯一的依据。
     # （`_fail_msg` 已在落盘前算好, 与第 6 行共用同一份判断 —— 两处各判一次必然漂移。）
     if [ -n "$_fail_msg" ]; then
-        local _pub2=1
+        local _pub2=1 _mk2=1
         printf 'rc=76\n' >> "$otmp" || _pub2=0
-        [ "$_pub2" = 1 ] && { mv "$otmp" "$out" || _pub2=0; }
+        [ "$_pub2" = 1 ] && { publish_tmp "$otmp" "$out" || _pub2=0; }
         if [ "$_pub2" = 1 ]; then
             STEP_MSG="${_fail_msg}; 证据已标 rc=76: $out"
         else
-            mark_unpublished "$otmp"
-            STEP_MSG="${_fail_msg}; 且证据**未能发布**（残件 ${otmp}, 已在其尾部标注未发布）, 报告不可信"
+            _mk2=1; mark_unpublished "$otmp" || _mk2=0
+            if [ "$_mk2" = 1 ]; then
+                STEP_MSG="${_fail_msg}; 且证据**未能发布**（残件 ${otmp}, 已在其尾部标注未发布）, 报告不可信"
+            else
+                STEP_MSG="${_fail_msg}; 证据**未能发布**且残件**也没能标注**（${otmp}）, 残件内容整体不可信"
+            fi
         fi
         return 1
     fi
@@ -3479,9 +3519,9 @@ step6_evidence() {
         STEP_MSG="追加 rc 行失败, 证据未发布（残件 ${otmp}）"
         return 1
     }
-    mv "$otmp" "$out" || {
+    publish_tmp "$otmp" "$out" || {
         mark_unpublished "$otmp"
-        STEP_MSG="mv evidence 失败, 证据未发布（残件 ${otmp}）: $out"
+        STEP_MSG="发布 evidence 失败(rename 未成功), 证据未发布（残件 ${otmp}）: $out"
         return 1
     }
     [ -s "$out" ] || { STEP_MSG="evidence 落盘后为空: $out"; return 1; }
