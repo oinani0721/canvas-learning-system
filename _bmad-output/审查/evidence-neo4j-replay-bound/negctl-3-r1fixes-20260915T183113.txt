@@ -1,0 +1,64 @@
+=== 变异前 shasum ===
+bef10581ef8bd398c2f172083332763eeca02f4a4d76b33c95da7bfb709ad581  backend/app/core/failure_counters.py
+9133a5103333e5f96c3477c3344a43aa597e4e2cc0c001a574a3a75ca55a588e  backend/app/core/failed_writes_constants.py
+2f1869302d0fe30113431cce13b1937f0baa97dfc5db7ad92a424e1d7a0fface  backend/app/api/v1/endpoints/traces.py
+########## M1a：还原「count_lines 不包 try」 ##########
+MUTATED M1a: 去掉 try/except, 回到裸 count_lines
+---- 跑 tests/unit/test_dead_letter_bounded_t6c.py::test_unreadable_active_file_does_not_block_append ----
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_dead_letter_bounded_t6c.py::test_unreadable_active_file_does_not_block_append
+======================== 1 failed, 4 warnings in 0.80s =========================
+seg[M1a]_rc=1  (1 = 该门确实红了 = 负控有效)
+########## M1b：还原「_prune_overflow 的 iterdir 不包 try」 ##########
+---- 跑 tests/unit/test_dead_letter_bounded_t6c.py::test_unlistable_dir_does_not_block_dead_letter_append ----
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_dead_letter_bounded_t6c.py::test_unlistable_dir_does_not_block_dead_letter_append
+======================== 1 failed, 4 warnings in 0.82s =========================
+seg[M1b]_rc=1  (1 = 该门确实红了 = 负控有效)
+########## L3a：去掉 max_rotations==0 特判 ##########
+---- 跑 tests/unit/test_dead_letter_bounded_t6c.py::test_max_rotations_zero_keeps_no_overflow ----
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_dead_letter_bounded_t6c.py::test_max_rotations_zero_keeps_no_overflow
+======================== 1 failed, 4 warnings in 0.85s =========================
+seg[L3a]_rc=1  (1 = 该门确实红了 = 负控有效)
+########## L3b：retention 改成留最老（身份判据是否有牙）##########
+---- 跑 tests/unit/test_dead_letter_bounded_t6c.py::test_retention_keeps_exactly_the_newest_overflows ----
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_dead_letter_bounded_t6c.py::test_retention_keeps_exactly_the_newest_overflows
+======================== 1 failed, 4 warnings in 0.95s =========================
+seg[L3b]_rc=1  (1 = 该门确实红了 = 负控有效)
+########## M2：去掉 overflow 枚举失败的 _degrade 标记 ##########
+---- 跑 tests/unit/test_traces_backlog_t6c.py::test_overflow_scan_failure_is_flagged_not_zeroed ----
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_traces_backlog_t6c.py::test_overflow_scan_failure_is_flagged_not_zeroed
+======================== 1 failed, 4 warnings in 0.91s =========================
+seg[M2]_rc=1  (1 = 该门确实红了 = 负控有效)
+########## L2：把 _display_path 的捕获面收回 (ValueError, OSError) ##########
+---- 跑 tests/unit/test_traces_backlog_t6c.py::test_display_path_never_raises ----
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_traces_backlog_t6c.py::test_display_path_never_raises
+======================== 1 failed, 4 warnings in 0.86s =========================
+seg[L2]_rc=1  (1 = 该门确实红了 = 负控有效)
+=== EXIT trap 还原后 shasum ===
+bef10581ef8bd398c2f172083332763eeca02f4a4d76b33c95da7bfb709ad581  backend/app/core/failure_counters.py
+9133a5103333e5f96c3477c3344a43aa597e4e2cc0c001a574a3a75ca55a588e  backend/app/core/failed_writes_constants.py
+2f1869302d0fe30113431cce13b1937f0baa97dfc5db7ad92a424e1d7a0fface  backend/app/api/v1/endpoints/traces.py
+RESTORE_VERIFIED=yes (3 文件逐字节同)

@@ -1,0 +1,45 @@
+=== 变异前 shasum ===
+152a686899232864b8e1582abed7b7ffcff46f2cb3314035f9e894e725fcf9ab  backend/app/core/failed_writes_constants.py
+64ed63e9f00a0b061f1ce38d142eaf0d8e06851ea360d9a4b6ad06813a8f40e0  backend/app/api/v1/endpoints/traces.py
+641a36d19e7d73d1b07340ee32d1a9fd816348ff7df50ae5e651827f93f71357  backend/tests/unit/test_dead_letter_bounded_t6c.py
+########## H1a：捕获面去掉 UnicodeDecodeError ##########
+MUTATED failed_writes_constants.py
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================== 1 passed, 4 warnings in 1.26s =========================
+seg[H1a]_rc=0  (1 = 门确实红了)
+########## H1b：外层捕获面收回 OSError ##########
+MUTATED failed_writes_constants.py
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================== 1 passed, 4 warnings in 1.10s =========================
+seg[H1b]_rc=0  (1 = 门确实红了)
+########## H2：fixture 不再隔离现网 checkpoint ##########
+MUTATED test_dead_letter_bounded_t6c.py
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================== 1 passed, 4 warnings in 1.14s =========================
+seg[H2]_rc=0  (1 = 门确实红了)
+########## M3：读取退回按行 ##########
+MUTATED traces.py
+=========================== short test summary info ============================
+FAILED tests/unit/test_traces_backlog_t6c.py::test_scan_reads_at_most_max_bytes_from_disk
+======================== 1 failed, 4 warnings in 1.10s =========================
+seg[M3]_rc=1  (1 = 门确实红了)
+########## L4：去掉根锚检查 ##########
+MUTATED traces.py
+=========================== short test summary info ============================
+FAILED tests/unit/test_traces_backlog_t6c.py::test_display_path_does_not_leak_absolute_when_anchor_is_root
+======================== 1 failed, 4 warnings in 1.28s =========================
+seg[L4]_rc=1  (1 = 门确实红了)
+########## L6：批量写重复首条（行数守恒但身份不守恒）##########
+MUTATED failed_writes_constants.py
+=========================== short test summary info ============================
+FAILED tests/unit/test_dead_letter_bounded_t6c.py::test_flush_pending_failed_writes_is_bounded
+======================== 1 failed, 4 warnings in 1.17s =========================
+seg[L6]_rc=1  (1 = 门确实红了)
+=== EXIT trap 还原后 shasum ===
+152a686899232864b8e1582abed7b7ffcff46f2cb3314035f9e894e725fcf9ab  backend/app/core/failed_writes_constants.py
+64ed63e9f00a0b061f1ce38d142eaf0d8e06851ea360d9a4b6ad06813a8f40e0  backend/app/api/v1/endpoints/traces.py
+641a36d19e7d73d1b07340ee32d1a9fd816348ff7df50ae5e651827f93f71357  backend/tests/unit/test_dead_letter_bounded_t6c.py
+RESTORE_VERIFIED=yes (3 文件逐字节同)

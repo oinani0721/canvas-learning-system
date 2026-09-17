@@ -1,0 +1,29 @@
+{"event": "No auth config provided, skipping auth setup", "logger": "fastapi_mcp.server", "level": "info", "timestamp": "2026-09-15T04:06:56.447972Z"}
+{"event": "MCP HTTP server listening at /mcp", "logger": "fastapi_mcp.server", "level": "info", "timestamp": "2026-09-15T04:06:56.448016Z"}
+{"event": "[Story 3.2] MCP server mounted at /mcp (streamable HTTP) with canvas-learning tools", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-09-15T04:06:56.448044Z"}
+WROTE: backend/openapi.json (paths=199 schemas=357, x-generated-at=2026-09-15T04:06:57.235466+00:00)
+--- numstat ---
+66	1	backend/openapi.json
+--- 变更行内容（本卡新增路由 + 时间戳）---
+-    "x-generated-at": "2026-09-11T01:44:03.374514+00:00",
++    "x-generated-at": "2026-09-15T04:06:57.235466+00:00",
++    "/api/v1/traces/dead-letter-backlog": {
++      "get": {
++        "description": "Read-only snapshot of every Neo4j-degradation staging file: how many entries are waiting, how old the oldest one is, and how much has been rotated out to .overflow.* siblings by the write-side bound. `backlog` is a line count and only applies to JSONL chains; the two whole-JSON chains report `size_bytes`/`mtime` instead and leave `backlog`/`oldest`/`newest` null. `oldest`/`newest` are the `timestamp` fields of the first/last parsable entry, not file mtimes. `backlog` counts the ACTIVE file only — rotated entries are counted separately as `overflow_files`/`overflow_bytes`. Purely read-only: this endpoint never rotates, deletes, or replays anything.",
++        "operationId": "get_dead_letter_backlog_api_v1_traces_dead_letter_backlog_get",
++        "responses": {
++          "200": {
++            "content": {
++              "application/json": {
++                "schema": {
++                  "additionalProperties": true,
++                  "title": "Response Get Dead Letter Backlog Api V1 Traces Dead Letter Backlog Get",
++                  "type": "object"
++                }
++              }
++            },
++            "description": "Successful Response"
++          },
++          "500": {
+--- 变更行总数 ---
+69

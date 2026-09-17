@@ -1,0 +1,83 @@
+╭──────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: pre-commit │
+╰──────────────────────────────────────╯
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+│  cypher-vault-filter-lint (skip) no matching staged files
+┃  ghost-files ❯ 
+
+[Ghost Files] No untracked docs found.
+
+┃  mutant-residue-scan ❯ 
+
+[Mutant-Scan] OK (staged additions carry no mutation marker).
+
+│  python-lint (skip) name
+┃  python-typecheck ❯ 
+
+[Python] Running pyright type check (backend/.venv/bin/pyright)...
+0 errors, 0 warnings, 0 informations
+WARNING: there is a new pyright version available (v1.1.411 -> v1.1.414).
+Please install the new version or set PYRIGHT_PYTHON_FORCE_VERSION to `latest`
+
+[Python] Typecheck done (exit: 0).
+
+│  readme-claims-lint (skip) no matching staged files
+│  spec-sync-flat (skip) name
+│  spec-sync-root (skip) name
+                                      
+  ────────────────────────────────────
+summary: (done in 3.44 seconds)       
+✔️ ghost-files (0.03 seconds)
+✔️ mutant-residue-scan (0.09 seconds)
+✔️ python-typecheck (3.33 seconds)
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+╭──────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: commit-msg │
+╰──────────────────────────────────────╯
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+┃  commitlint ❯ 
+
+
+┃  spec-reference ❯ 
+
+[Spec Ref] OK.
+
+                                      
+  ────────────────────────────────────
+summary: (done in 0.52 seconds)       
+✔️ commitlint (0.48 seconds)
+✔️ spec-reference (0.05 seconds)
+╭───────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: post-commit │
+╰───────────────────────────────────────╯
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+[card/t6-neo4j f3336568] fix(t6-c): 收口 Codex r4 两条 HIGH + 把隔离规则固化成常驻门 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-BOUND]
+ 4 files changed, 288 insertions(+), 9 deletions(-)

@@ -1,0 +1,21 @@
+=== 变异前 shasum ===
+fa3dd05c709abfa39922db333281f44d4d81e5bd14890575ed78e7e1a0151671  backend/app/core/failed_writes_constants.py
+########## A：摘掉守卫（恒假）⇒ 窗口门必红 ##########
+MUTATED -> if False:  # MUTANT: 守卫被摘掉
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_dead_letter_bounded_t6c.py::test_no_rotation_while_replay_window_open
+======================== 1 failed, 4 warnings in 1.02s =========================
+seg_rc=1  (1 = 该门确实红了 = 负控有效)
+########## B：守卫恒真 ⇒ 控制组必红（防「永不轮转」蒙混过关）##########
+MUTATED -> if True:  # MUTANT: 守卫恒真 = 永不轮转
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_dead_letter_bounded_t6c.py::test_rotation_resumes_after_replay_window_closes
+======================== 1 failed, 4 warnings in 1.03s =========================
+seg_rc=1  (1 = 该门确实红了 = 负控有效)
+=== EXIT trap 还原后 shasum ===
+fa3dd05c709abfa39922db333281f44d4d81e5bd14890575ed78e7e1a0151671  backend/app/core/failed_writes_constants.py
+RESTORE_VERIFIED=yes

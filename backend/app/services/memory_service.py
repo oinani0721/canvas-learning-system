@@ -60,7 +60,7 @@ from cachetools import TTLCache
 from app.clients.neo4j_client import Neo4jClient, get_neo4j_client
 from app.config import settings
 from app.core.decision_tracker import log_decision
-from app.core.failed_writes_constants import FAILED_WRITES_FILE, failed_writes_lock
+from app.core.failed_writes_constants import FAILED_WRITES_FILE, append_failed_writes_bounded, failed_writes_lock
 
 if TYPE_CHECKING:  # CARD-G4-2: 仅类型注解需要, 运行时走函数体内延迟 import
     from app.models.service_status import StatusedResult
@@ -513,8 +513,9 @@ class MemoryService:
         try:
             FAILED_WRITES_FILE.parent.mkdir(parents=True, exist_ok=True)
             with failed_writes_lock:
-                with open(FAILED_WRITES_FILE, "a", encoding="utf-8") as f:
-                    f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+                # T6-C: 有界追加 —— 超 FAILED_WRITES_MAX_LINES 先轮转成
+                # .overflow.<ts>。helper 不自持锁（外层这把是非重入的）。
+                append_failed_writes_bounded(FAILED_WRITES_FILE, [json.dumps(entry, ensure_ascii=False)])
             return True
         except OSError as e:
             logger.error("[A7] outbox 落盘失败 (数据可能丢失): %s", e)
@@ -2869,9 +2870,12 @@ class MemoryService:
         try:
             FAILED_WRITES_FILE.parent.mkdir(parents=True, exist_ok=True)
             with failed_writes_lock:
-                with open(FAILED_WRITES_FILE, "a", encoding="utf-8") as f:
-                    for entry in self._pending_failed_writes:
-                        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+                # T6-C: 有界追加（同上）。序列化留在这里，json.dumps 的
+                # TypeError/ValueError 仍由下面既有的 except 元组接住。
+                append_failed_writes_bounded(
+                    FAILED_WRITES_FILE,
+                    [json.dumps(entry, ensure_ascii=False) for entry in self._pending_failed_writes],
+                )
             logger.warning(
                 f"[Story 30.24] Flushed {len(self._pending_failed_writes)} "
                 f"pending failed writes to {FAILED_WRITES_FILE}"
