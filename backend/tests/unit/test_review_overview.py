@@ -4718,6 +4718,15 @@ def test_overview_push_degraded_true_when_push_failed(board_done_env):
     assert entries["vault-push-bad"]["push_degraded"] is True, "别的库必须照常出现且不受影响"
     assert client.get(_PAGE_URL).status_code == 200, "页面路径同样不许 500"
 
+    # 丙 (Codex r2 MEDIUM-1 的同族分支): last_error 连类型都不对。三态只由
+    # last_result 的枚举决定 —— 失败仍是失败, 读不出的原因文本归 None。
+    # ⛔ 反过来也一样: 这种垃圾值**不许**参与"是不是失败"的判定 (见门③ 戊)。
+    junk = _mk_vault(root, "vault-push-junk", _two_board_projection("vault-push-junk", gen))
+    _push_state(runner, junk, {"schema_version": 1, "last_result": "generated_push_failed", "last_error": 123})
+    e_junk = _overview_entry(client, "vault-push-junk")
+    assert e_junk["push_degraded"] is True, "已知失败枚举不因 last_error 类型不对而失效"
+    assert e_junk["last_error"] is None, "非字符串的原因读不出, 归 None"
+
 
 def test_overview_push_status_null_when_no_state(board_done_env):
     """(b)③ 没有 state 文件 / state 里没有 `last_result` 键 → 两字段皆 `None`。
@@ -4762,6 +4771,38 @@ def test_overview_push_status_null_when_no_state(board_done_env):
     e4 = _overview_entry(client, "vault-push-unknown")
     assert e4["push_degraded"] is None, "未知 last_result 值不是成功依据"
     assert e4["last_error"] is None
+
+    # 戊 (Codex r2 MEDIUM-1): 未知结果 + 非空 / 类型不对的 last_error。
+    # ⛔ 也不许被判成失败 —— last_error 一律不参与三态判定, 它只是原因文本。
+    # `123` 这一例专钉「`bool(err)` 跑在 isinstance 门之前」那条路: 连类型都不对
+    # 的垃圾值把徽标点亮, 是假警报; 徽标天天喊狼来了就没人看了。
+    for name, payload in (
+        ("vault-push-noisy", {"schema_version": 1, "last_result": None, "last_error": "陈旧原因"}),
+        ("vault-push-junktype", {"schema_version": 1, "last_result": None, "last_error": 123}),
+    ):
+        noisy_vault = _mk_vault(root, name, _two_board_projection(name, gen))
+        _push_state(runner, noisy_vault, payload)
+        e = _overview_entry(client, name)
+        assert e["push_degraded"] is None, f"{name}: 未知结果不许被 last_error 翻成失败"
+        assert e["last_error"] is None, f"{name}: 结果都读不出, 不该顺带报告原因"
+
+    # 己 / 庚: state 读得出但**根本不是 dict**, 以及 JSON 本身就是坏的。
+    # 两者都走 _read_push_status 最外层的两道出口, 一律 (None, None) 且不许 500。
+    not_dict = _mk_vault(root, "vault-push-notdict", _two_board_projection("vault-push-notdict", gen))
+    nd_state = runner.state_path(not_dict)
+    nd_state.parent.mkdir(parents=True, exist_ok=True)
+    nd_state.write_text('["不是 dict"]\n', encoding="utf-8")
+    e5 = _overview_entry(client, "vault-push-notdict")
+    assert e5["push_degraded"] is None and e5["last_error"] is None, "state 不是 dict = 读不出, 两字段皆 None"
+
+    broken = _mk_vault(root, "vault-push-broken", _two_board_projection("vault-push-broken", gen))
+    br_state = runner.state_path(broken)
+    br_state.parent.mkdir(parents=True, exist_ok=True)
+    br_state.write_text("{这不是 JSON", encoding="utf-8")
+    br_sha = hashlib.sha256(br_state.read_bytes()).hexdigest()
+    e6 = _overview_entry(client, "vault-push-broken")
+    assert e6["push_degraded"] is None and e6["last_error"] is None, "坏 JSON = 读不出, 两字段皆 None"
+    assert hashlib.sha256(br_state.read_bytes()).hexdigest() == br_sha, "只读请求不许隔离/重建坏 state"
 
 
 def test_overview_page_degrade_badge_only_when_failed(board_done_env):

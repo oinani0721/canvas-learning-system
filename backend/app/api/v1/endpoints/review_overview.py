@@ -2549,21 +2549,26 @@ def _read_push_status(state_file: Path) -> tuple[bool | None, str | None]:
         # 同等对待 —— 两者在用户那里是同一件事: 今天的推送根本没发生。
         return (None, None)
     err = st.get("last_error")
-    # Codex r1 MEDIUM-1: 三态由 last_result 的**明确枚举**决定, 不许由「它不是
-    # 失败」反推出「它是成功」。原写法 `== 失败 or bool(err)` 有两个反面:
-    #   · `{"last_result": null}` / 任何未知值 + 无 err ⇒ 判 False = 报告推成功,
-    #     可我们一次都没确认过它推过 —— 与本函数开头那条「None 不得用 False
-    #     冒充」是同一个缺陷, 只是换了个输入面;
-    #   · `{"last_result": "pushed", "last_error": "陈旧原因"}` ⇒ 判 True =
-    #     给一个好好的库挂假警报, 徽标天天喊狼来了就没人看了。
-    if st.get("last_result") == "pushed":
+    # 三态**只**由 last_result 的两个明确枚举决定, last_error 一律不参与判定
+    # —— 它只是给用户看的原因文本 (Codex r1 MEDIUM-1 / r2 MEDIUM-1 两轮同一处):
+    #   · 拿「它不是失败」反推「它是成功」⇒ `{"last_result": null}` 被报成推成功,
+    #     可我们一次都没确认过它推过 —— 与开头那条「None 不得用 False 冒充」
+    #     是同一个缺陷换了个输入面;
+    #   · 拿「last_error 非空」反推「它失败了」⇒ `{"pushed", "陈旧原因"}` 给好好的
+    #     库挂假警报; 而且 `bool(err)` 跑在下面的 isinstance 门**之前**, 连
+    #     `{"last_result": null, "last_error": 123}` 这种连类型都不对的垃圾值
+    #     都能把徽标点亮。徽标天天喊狼来了就没人看了。
+    # 曾经这里留过一条「未知值但记了错误 ⇒ True」的余量, 想给将来 runner 新增
+    # 失败枚举打提前量。撤掉了: 当前 runner 只写那两个值 (daily_review_run.py
+    # :739/:745), 那条分支在今天的生产数据上永远走不到 = 一条没有门守着的
+    # 防御代码, 而未测的防御代码比没有更坏。真新增枚举时在这里加一行即可。
+    last_result = st.get("last_result")
+    if last_result == "pushed":
         degraded = False
-    elif st.get("last_result") == "generated_push_failed" or bool(err):
-        # 已知失败枚举, **或**未知结果却记下了错误原因 —— 后者是给将来 runner
-        # 新增失败值留的余量: 说不清错在哪, 但它确实记了个错, 不该装没事。
+    elif last_result == "generated_push_failed":
         degraded = True
     else:
-        # 未知 / null / 其它值且没有错误记录: 说不准。一律 None, 绝不报成功。
+        # 未知 / null / 其它值: 说不准。一律 None, 绝不报成功也绝不报失败。
         # 连带 last_error 也归 None —— 既然结果读不出, 就没资格顺带断言
         # "而且没有错误"(`""` 正是这个断言)。与「无 last_result 键」那条出口
         # 同一个形状: 说不准就什么都不说。

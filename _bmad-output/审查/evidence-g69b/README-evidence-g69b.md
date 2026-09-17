@@ -73,3 +73,49 @@ launchd 的两个档 —— 09:00 `memory-health.log`、09:05 每日复习链（
 「本卡越界写了现网」与「现网自己的定时作业正常跑了」。归因证据见该存档四条：
 runner 自有日志格式、live state 里本卡 11 个测试 vault 名各 0 命中（带验伪锚
 `last_result` = 1 命中）、live state 的真实键集合、两个改动文件里零 live 绝对路径。
+
+---
+
+## r3 轮（按 Codex r2 MEDIUM-1 **撤回** `or bool(err)` 余量后重跑）
+
+r2 的 MEDIUM 与 r1 的 MEDIUM 长在同一处：`or bool(err)` 这条「未知值但记了错误 ⇒ True」
+的余量，是在 Codex r1 的建议（「由 last_result 的明确枚举决定三态」）**之外多加的**。
+r2 进一步指出 `bool(err)` 跑在 `isinstance(err, str)` 门之前，连 `{"last_result": null,
+"last_error": 123}` 这种类型都不对的垃圾值都能点亮徽标。
+本轮**撤回**该余量（不是再加一层判断）：三态只认 `"pushed"` / `"generated_push_failed"`
+两个枚举，其余一律 `(None, None)`；`last_error` 完全不参与判定，只做原因文本。
+撤回后两条 MEDIUM 一起消失，且 `_read_push_status` 再无「没有门守着的分支」。
+
+| 文件 | 对应判据 | 结论 |
+|---|---|---|
+| `r3-g69b-green-*.txt` | (d) 四门 | `collected 4 items` / 4 passed / rc=0 |
+| `r3-negctl-1-*.txt` | (e)① 失败枚举分支 degraded 恒 False | 门② FAILED；sha 前后同 |
+| `r3-negctl-2-*.txt` | (e)② 徽标条件恒真 | 门④ FAILED，红在验伪锚；sha 前后同 |
+| `r3-negctl-3-*.txt` | (e)③ 无 last_result 键分支改 `(False, "")` | 门③ FAILED；sha 前后同 |
+| `r3-negctl-4-*.txt` | (e)④ 三态映射还原成 r1 旧公式 | 门① FAILED（`assert True is False`）；sha 前后同 |
+| `r3-negctl-5-*.txt` | **新增 (e)⑤** | 见下 |
+| `r3-file-after-*.txt` | (g) | 116 passed / rc=0 |
+| `r3-pyright-close-*.txt` | (h) | `0 errors, 82 warnings`（三轮不变） |
+| `r3-ruff-*.txt` | 判据 5 | `files=2` / All checks passed / rc=0 |
+| `r3-unit-close-*.txt` | (i) | 5081 passed；close 与 base / open 两个 diff 均空 |
+
+### 负控⑤ 为什么必须单独有一段
+
+Codex r2 指出：负控④ 会让门③ **先**停在 null 那条断言上，同一次执行**到不了**后面
+「未知值」那条断言 —— 所以负控④ 只证明了 null 那一格，没证明未知值那一格。
+负控⑤ 专门隔离它：变异成「只保住 null 那一格正确、让未知值冒充成功」，
+门③ 于是精确红在 `assert e4["push_degraded"] is None, "未知 last_result 值不是成功依据"`
+（`assert False is None`）。这样门③ 的两条断言各自都有一段负控钉住。
+
+### `_read_push_status` 八条分支的门覆盖（r3 收口后逐条对照）
+
+| 分支 | 出口 | 守它的门 |
+|---|---|---|
+| 读文件 OSError（无文件） | `(None, None)` | 门③ 甲 |
+| `json.loads` ValueError（坏 JSON） | `(None, None)` | 门③ 庚 |
+| `st` 不是 dict | `(None, None)` | 门③ 己 |
+| 无 `last_result` 键 | `(None, None)` | 门③ 乙 |
+| `last_result == "pushed"` | `False` | 门① 甲（+ 乙：带陈旧 `last_error` 仍 False） |
+| `last_result == "generated_push_failed"` | `True` | 门② 甲 |
+| 其余值（含 null / 未知 / 带噪声 last_error） | `(None, None)` | 门③ 丙丁戊（戊含 `last_error` 为字符串与为 `123` 两例） |
+| `last_error` 非 str / 编不出 UTF-8 | `(degraded, None)` | 门② 丙（`123`）/ 门② 乙（孤立 surrogate） |
