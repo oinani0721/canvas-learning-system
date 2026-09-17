@@ -13,7 +13,7 @@
 | — 改前基线 | `baseline-48-27-20260917T084255.txt` | `PASS (48 / 27)` |
 | 2 三盲区先红（各一份） | `red-lambda-20260917T084628.txt` / `red-setattr-20260917T084629.txt` / `red-branch-20260917T084629.txt` | 各只加一条条目 ⇒ 各**恰好一条** `*** MISSED ***` + `FAIL` + rc=1 |
 | 3 后绿 | **`green-63-28-20260917T094933.txt`** | `PASS (63 / 28)`，CAUGHT=63 CLEAN=28 MISSED=0 FALSE-POSITIVE=0 |
-| 3+ 定向负控（本卡自加，承重） | **`negctl-anchors-20260917T094933.txt`** + `negctl.py` | **9 处**修复逐个撤掉，**指定的那一条**（ID 精确匹配 + 唯一性断言）各自变红；控制组红项为空 |
+| 3+ 定向负控（本卡自加，承重） | **`negctl-anchors-20260917T100737.txt`** + `negctl.py` | **9 处**修复逐个撤掉，**指定的那一条**（ID 精确匹配 + 唯一性断言）各自变红；控制组红项为空 |
 | 4 消费面 / 全扫描面 | `consumers-before-20260917T084638.txt` + `fullscan-before-20260917T084647.txt` vs **`consumers-after-20260917T094946.txt`** | 两文件违规集与 401 文件全扫描面违规集**改前改后逐字相同**（都为空） |
 | 5 fixpoint 红 / 绿 | **`fixpoint-red-20260917T094933.txt`** / **`fixpoint-green-20260917T094933.txt`** | 红正文含 `MISSED: 未收敛未被报出` ×2 且 `RUNTIME-FILES-SELFTEST: PASS`；绿 `FIXPOINT-SELFCHECK: PASS` |
 | 6 地盘 | `territory-20260917T092132.txt` | 只 `backend/scripts/lifespan_isolation_negative_control.py`（验伪锚：去掉 exclude 多出 55 条 `_bmad-output/` 路径）。⚠️ 该件绑 `6564fc09`；定稿 SHA 的地盘回执见 `territory-FINAL.txt` |
@@ -24,7 +24,7 @@
 | — Codex r2 复现 | `verify-r2-findings-20260917T093255.txt` + `verify_r2.py` | 七条 finding 三版对照 |
 | — Codex r3 复现 | **`verify-r3-findings-20260917T094933.txt`** + `verify_r3.py` | 五条 finding 的 base / r1 / r2 / 现版**四版**对照 |
 | — 车道自审 | **`selfaudit-r3-recheck-20260917T095015.txt`** + `probe_r3_selfaudit.py` | r3 报告返回**前**自查抓到一条（四-A.12），整改后复跑全过 |
-| — 索引自检 | **`readme-selfcheck-20260917T095015.txt`** + `readme_selfcheck.py` | 三条判据各带验伪锚，全 PASS |
+| — 索引自检（引用的是**当次**回执） | **`readme-selfcheck-20260917T100808.txt`** + `readme_selfcheck.py` | 三条判据各带验伪锚，全 PASS |
 
 ## 纵深（非卡文要求，本卡自加）
 
@@ -49,7 +49,16 @@
 3. **`probe-outer-evaluated-completeness-20260917T092116.txt` 的结论是错的**（⛔ **不得引用**）。它断言「注解里不能写 `yield`，故不是缺口」—— 那是**只在本机 3.14 上**测的，而 CI 跑 3.11/3.12。Codex r2 HIGH-3 指出后逐版本复测（见上方 `probe-annotation-yield-by-version-*`）：3.11 上完全合法。代码已按 3.11 口径补收注解。
 4. ⛔ **`setattr` 遮蔽开关在 round-3 被整条撤回**（它为一条 MEDIUM 而生，先后长出 5 条缺陷，其中 3 条 fail-open）。与之绑定的 3 条 must-pass 锚（`验伪锚 R1-M3` / `R2-M5` / `R2-M5b`）随之删除。详见验收单 四-A.11。
 5. **本卡 r1 的两处修复各自引入了新回归**，均由 Codex r2 抓出并已修：根 lambda 的递归下潜（HIGH-1）、`_walk_same_scope` 的 `stack.extend` 未再过 `push`（HIGH-2）。两者都已加回归锚（`R2-HIGH1-*` / `R2-HIGH2-*`）。
-6. **定向负控的变异锚会随生产代码漂移**：`ruff format` 把一行 `child_in_body = ...` 折行后，r2 那个锚一度命中 0 次。脚本对每个锚 `assert count == 1`，锚不命中直接抛 —— 不会静默少跑一个变异。
+6. **`readme-selfcheck-20260917T095015.txt` 是一份 `FAIL` 回执**（保留作过程记录，⛔ 不得引为
+   「索引已闭合」的依据）。它抓到的是我**第四次**手写时间戳出错 —— 前三次都是 Codex 抓的，
+   这次被自检当场拦住。根因不是「写错了哪一个」，是**手写**这个动作本身；现在 README 的文件名
+   一律从磁盘**派生**，不敲。当次有效回执见上表「索引自检」行。
+7. **索引自检的提取器一度窄于它的主张**（Codex r4 LOW）：只认「反引号 + 受限字符集 + 小写
+   扩展名」，于是目录前缀 / 空格 / 大写扩展名 / 裸写四种形态**静默漏过**（连「判缺失」的机会
+   都没有）。更要命的是它的验伪锚**绕过提取器**直接查集合成员，所以提取器有多窄它一个都
+   看不见。现在提取面扩开、按 basename 校验，**五个锚全部改走同一条提取器** —— 改完当场又
+   抓出「反引号内尾部空格」这一种，已补。
+8. **定向负控的变异锚会随生产代码漂移**：`ruff format` 把一行 `child_in_body = ...` 折行后，r2 那个锚一度命中 0 次。脚本对每个锚 `assert count == 1`，锚不命中直接抛 —— 不会静默少跑一个变异。
 
 ## 索引自检
 

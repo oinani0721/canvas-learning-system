@@ -24,7 +24,7 @@ MUTANTS = [
     """        return  # MUTANT
         if not (isinstance(call.func, ast.Name) and call.func.id == "setattr"):
             return""")]),
- ("r3 回装被撤回的「模块级遮蔽开关」（一次绑定就整条不收）",
+ ("r3 回装被撤回的「模块级遮蔽开关」的**一种**实现（any(ast.walk) 形态）",
   "R3-HIGH2-except-as-name-deleted", "MISSED",
   [("""    paths: set[str] = set()
 
@@ -117,6 +117,15 @@ for _, _want, _, _ in MUTANTS:
     _n = _ids.count(_want)
     assert _n == 1, f"目标 ID {_want!r} 在两表里出现 {_n} 次（须恰好 1，否则「指定的那一条」不唯一）"
 print(f"目标 ID 唯一性自检：{len(MUTANTS)} 个目标各命中 1 条 ✓")
+
+# ⛔ 上面那条断言只覆盖**本脚本用到的那几个目标**，不是「表里 ID 都唯一」。两者差别在于
+#    下一张卡若把目标指向一个重复 ID，断言同样不会报警。这里把全表重复 ID 打出来，
+#    注明它们**不可用作变异目标**（车道自审 2026-09-17 发现，非本卡新增条目）。
+import collections as _c
+_dups = sorted(k for k, v in _c.Counter(_ids).items() if v > 1)
+print(f"全表 ID：{len(_ids)} 个，去重 {len(set(_ids))} 个。"
+      f"重复 = {_dups or '（无）'}"
+      + ("   ⛔ 这些 ID 不可用作变异目标" if _dups else ""))
 
 print(f"=== 控制组：未变异的定稿（{len(MUTANTS)} 个变异待跑）===")
 base_red = run(BASE)
