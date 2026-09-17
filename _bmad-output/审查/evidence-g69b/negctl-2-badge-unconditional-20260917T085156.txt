@@ -1,0 +1,16 @@
+=== 负控② 把 _card_html 徽标条件 is True 改成恒真(无条件渲染) → 门④ 必红 ===
+跑前 shasum: 493eda89af340d20ef6bc21a9a153edbf774bfa0c75dc273cd103885117e6f99  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t3-review/backend/app/api/v1/endpoints/review_overview.py
+变异已注入 NEGCTL-2
+变异态 shasum: df39615b76fc343f167088cc56b15db7388d5e4264e59c3d550360fbd88ecc78  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t3-review/backend/app/api/v1/endpoints/review_overview.py
+collected 1 item
+______________ test_overview_page_degrade_badge_only_when_failed _______________
+tests/unit/test_review_overview.py:4762: in test_overview_page_degrade_badge_only_when_failed
+    assert _PUSH_DEGRADED_LABEL not in cards["vault-pa-ok"], "成功态卡片不许出徽标 (验伪锚)"
+E   AssertionError: 成功态卡片不许出徽标 (验伪锚)
+E   assert '推送降级' not in '<b style="f...er;gap:8px">'
+E     '推送降级' is contained here:
+E       sor:help">推送降级</span></span></div><div style="font-size:26px;margin:8px 0 0">到期 <b>2</b><span style="font-size:13px;color:#6b7280"> · 新卡 2 · 待剖析 0</span></div><div style="overflow-x:auto;margin:10px 0 4px"><table style="border-collapse:collapse;width:100%;font-size:13px"><thead><tr><th style="padding:4px 8px;border-bottom:1px solid #e5e7eb;color:#6b7280;font-weight:500;text-align:left;white-space:nowrap;font-size:12px">白板名</th><th style="padding:4px 8px;border-bottom:1px solid #e5e7eb;color:#6b7280;font-weight:500;text-align:left...
+FAILED tests/unit/test_review_overview.py::test_overview_page_degrade_badge_only_when_failed
+======================== 1 failed, 10 warnings in 1.08s ========================
+跑后 shasum: 493eda89af340d20ef6bc21a9a153edbf774bfa0c75dc273cd103885117e6f99  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t3-review/backend/app/api/v1/endpoints/review_overview.py
+rc=0

@@ -795,6 +795,12 @@ _STATUS_META = {
     "corrupt": ("投影损坏", "#dc2626"),
 }
 
+#: CARD-G6-9b: 推送降级徽标的文案。⚠ 它是**面向用户的契约**, 不是内部标识 ——
+#: 用户认的就是这四个字; 改它等于改产品语义, 门 test_overview_page_degrade_badge_
+#: only_when_failed 在测试侧另写一份同样的字面量把它钉住 (期望值与被测量同源
+#: 时, 改错了两边一起变, 门就永远不会红)。
+_PUSH_DEGRADED_LABEL = "推送降级"
+
 
 def _list_vault_dirs(vaults_root: Path) -> list[Path]:
     """与 GET /vault/list 同一条候选规则: 非隐藏目录且含 .obsidian/。"""
@@ -1039,6 +1045,8 @@ def _vault_entry(
     today: date,
     done_boards: "list[str] | tuple[str, ...]" = (),
     snoozed: "dict[str, str] | None" = None,
+    push_degraded: "bool | None" = None,
+    last_error: "str | None" = None,
 ) -> dict:
     """单 vault 聚合条目 — 诚实四态, 任何脏数据都不许把请求打成 500。
 
@@ -1050,6 +1058,13 @@ def _vault_entry(
     CARD-G6-6 加性 snoozed: {board: until_iso}, 与 board_done 同一条纪律
     (不进 projection、四态一律带该键)。**只投影仍在生效的**那些 —— 到期的
     条目虽然还留在 state 里, 但它对页面和榜单都已经不存在了。
+
+    CARD-G6-9b 加性 push_degraded / last_error: 最近一次推送的结果 (源 =
+    runner state, 见 _read_push_status)。同上两条纪律 —— 不进 projection、
+    四态一律带这两个键。⚠ `push_degraded` 是**三态**: True 失败 / False 成功
+    / None 没推过或读不出; `last_error` 只在能读出时带字符串。与 `error`
+    是两回事: `error` 说的是"这个库的投影文件坏了", 这两个说的是"推送这件事
+    成没成" —— 投影好端端的、推送挂掉, 正是本卡要让它现形的那一格。
     """
     entry: dict = {
         "vault_id": vault_dir.name,
@@ -1059,6 +1074,8 @@ def _vault_entry(
         "error": None,
         "board_done": list(done_boards),
         "snoozed": dict(snoozed or {}),
+        "push_degraded": push_degraded,
+        "last_error": last_error,
     }
     proj_path = vault_dir.joinpath(*_PROJECTION_REL)
     try:
@@ -1142,6 +1159,8 @@ def _collect() -> dict:
                     # CARD-G6-6: 与完成账共用同一次 now 读数 —— 两个账各读一次
                     # 时钟, 跨 20:00 / 跨午夜那一秒会给出互相矛盾的页面
                     _snoozed_active(v, vaults_root, now),
+                    # CARD-G6-9b: (push_degraded, last_error) 一次读出、按位展开
+                    *_push_status(v, vaults_root),
                 )
             )
         except Exception as e:  # noqa: BLE001 — 终极防线 (Codex-C2 B1):
@@ -1157,6 +1176,11 @@ def _collect() -> dict:
                     "error": f"{type(e).__name__}: {str(e)[:200]}",
                     "board_done": [],
                     "snoozed": {},
+                    # CARD-G6-9b: 兜底条目也要带齐 —— 消费方不做存在性分支。
+                    # None 而不是 False: 这一格根本没读到推送结果, 说"推成功了"
+                    # 就是拿兜底路径伪造了一条好消息。
+                    "push_degraded": None,
+                    "last_error": None,
                 }
             )
     return {
@@ -1614,11 +1638,36 @@ def _card_html(
     """三级视图第一级: vault 卡片 (名+四态徽标+汇总行) → 板表格 → 操作行。"""
     vid = html.escape(entry["vault_id"])
     label, color = _STATUS_META[entry["status"]]
+    status_badge = (
+        f'<span style="background:{color};color:#fff;border-radius:999px;'
+        f'padding:2px 10px;font-size:12px;white-space:nowrap">{label}</span>'
+    )
+    # CARD-G6-9b: 推送降级徽标。⛔ 条件是 `is True` 而不是真值判断 —— False
+    # (推成功) 与 None (没推过/读不出) 都**不出**徽标。一枚无条件渲染的徽标
+    # 零信息量: 每张卡都在喊降级等于没喊, 而那正是 test_overview_page_degrade_
+    # badge_only_when_failed 的验伪锚要排除的形态。
+    push_badge = ""
+    if entry.get("push_degraded") is True:
+        why = entry.get("last_error")
+        # title 里带上原因: 徽标只有四个字, 到底是 Bark 没配 key 还是网断了,
+        # 得能一眼问出来。html.escape 默认 quote=True —— 这串要进 title="…" 属性。
+        tip = f"最近一次推送失败：{why}" if isinstance(why, str) and why else "最近一次推送失败"
+        push_badge = (
+            f'<span title="{html.escape(tip)}" style="background:#dc2626;color:#fff;'
+            f"border-radius:999px;padding:2px 10px;font-size:12px;white-space:nowrap;"
+            f'cursor:help">{_PUSH_DEGRADED_LABEL}</span>'
+        )
+    # 降级时两枚徽标归进一个 flex 容器: 外层是 space-between, 直接并排会把状态
+    # 徽标甩到卡片正中间。不降级时**一个字节都不变** —— 既有页面门不受影响。
+    badges = (
+        status_badge
+        if not push_badge
+        else f'<span style="display:flex;gap:6px;align-items:center">{status_badge}{push_badge}</span>'
+    )
     header = (
         '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">'
         f'<b style="font-size:16px">{vid}</b>'
-        f'<span style="background:{color};color:#fff;border-radius:999px;'
-        f'padding:2px 10px;font-size:12px;white-space:nowrap">{label}</span></div>'
+        f"{badges}</div>"
     )
     obsidian_url = html.escape("obsidian://open?vault=" + quote(entry["vault_id"], safe=""))
     open_link = (
@@ -2027,6 +2076,14 @@ def _read_entry(vault_dir: Path) -> dict:
             "status": "corrupt",
             "projection": None,
             "error": f"{type(e).__name__}: {str(e)[:200]}",
+            # CARD-G6-9b: 本条兜底此前**漏了** board_done / snoozed 两个加性键
+            # (G6-7 / G6-6 各自加键时没回来补这一格), 于是"四态一律带键"在
+            # refresh 的 corrupt 路径上其实是不成立的。本卡加 push 两键时一并
+            # 补齐 —— 缺键与值为空是两回事, 消费方只该面对后者。
+            "board_done": [],
+            "snoozed": {},
+            "push_degraded": None,
+            "last_error": None,
         }
 
 
@@ -2459,6 +2516,68 @@ def _board_done_today(vault_dir: Path, vaults_root: Path, today: str) -> list[st
         logger.warning("review_overview 无法派生 state 路径", vault=vault_dir.name)
         return []
     return sorted(b for b, d in _read_board_done(state_file).items() if d == today)
+
+
+def _read_push_status(state_file: Path) -> tuple[bool | None, str | None]:
+    """state 的推送结果只读投影 —— **不隔离、不重建、不写盘** (CARD-G6-9b)。
+
+    与 _read_board_done / _read_snoozed 逐条同纪律 (见那里)。本函数的全部意义
+    在于**三态可区分**:
+      True  = 最近一次跑推失败了 (runner 写 last_result="generated_push_failed"
+              + last_error="bark-send", scripts/daily_review_run.py:745/:746);
+      False = 最近一次推成功了 (同文件 :739 写 "pushed");
+      None  = 没有 state 文件 / 读不出 / 形状不对 / 从来没推过 (无 last_result 键)。
+
+    ⛔ None 不得用 False 冒充 —— False 说的是"推过, 好着呢"。把"今天根本没跑过"
+    显示成那样, 正是本卡要消灭的那种「看起来一切正常」: 用户手机上什么都没收到,
+    页面上却一片绿。
+
+    ⚠ last_error 是从外部文件读出的 str, 会原样进响应 JSON 与页面 —— JSON 的
+    `\\ud800` 转义解出的**孤立 surrogate** 是合格的 str, 过得了 isinstance 的门,
+    却在响应做 UTF-8 序列化时才抛 UnicodeEncodeError; 那一刻已经出了 _collect 的
+    单库兜底, 于是**整个**总览变 500 (与 _read_snoozed 同款陷阱)。故编不出 UTF-8
+    的原因文本丢弃成 None —— 但 degraded 这个信号本身留住: **读不出原因不等于
+    没出事**。
+    """
+    try:
+        st = json.loads(state_file.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return (None, None)
+    if not isinstance(st, dict) or "last_result" not in st:
+        # 键不在 = 这个库从来没跑过推送 (旧 state / 刚建的库), 与"没有文件"
+        # 同等对待 —— 两者在用户那里是同一件事: 今天的推送根本没发生。
+        return (None, None)
+    err = st.get("last_error")
+    degraded = st.get("last_result") == "generated_push_failed" or bool(err)
+    if not isinstance(err, str):
+        return (degraded, None)
+    try:
+        err.encode("utf-8")
+    except UnicodeEncodeError:
+        # 与本模块其余读路径同纪律: 读不出的部分丢弃, 不把只读请求打成 500。
+        # ⚠ 不把那个坏串塞进日志 —— 它正是编不出 UTF-8 的那个东西, structlog
+        # 的序列化会在同一处再炸一次 (_read_snoozed 同款处置)。
+        logger.warning("review_overview 推送原因含不可编码字符, 已丢弃该文本", state_file=state_file.name)
+        return (degraded, None)
+    return (degraded, err)
+
+
+def _push_status(vault_dir: Path, vaults_root: Path) -> tuple[bool | None, str | None]:
+    """该库最近一次推送的结果 (读路径, 任何不可用 → (None, None))。
+
+    取 runner 与派生 state 路径的形态照抄 _board_done_today —— 推送账与完成账
+    读的是**同一个 state 文件**, 两处各写一套取法早晚会漂移出"页面说推挂了、
+    完成区却好好的"这种自相矛盾。
+    """
+    runner = _runner_or_none(vaults_root)
+    if runner is None:
+        return (None, None)
+    try:
+        state_file = runner.state_path(vault_dir)
+    except Exception:  # noqa: BLE001 — 派生失败按"没有推送记录", 不拖垮总览
+        logger.warning("review_overview 无法派生 state 路径 (推送状态)", vault=vault_dir.name)
+        return (None, None)
+    return _read_push_status(state_file)
 
 
 #: 「今晚」这一档的小时阈值 (显示时区本地时)。⚠ CARD-G6-6: 这是**任务书默认

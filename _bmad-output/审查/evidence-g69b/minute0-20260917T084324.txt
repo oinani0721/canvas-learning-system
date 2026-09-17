@@ -1,0 +1,24 @@
+=== 第0分钟自证 2026-09-17 08:43:24 CST ===
+pwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t3-review
+branch=card/t3-review
+PREV=5cdc98439594ea58b427cc5eee61857baad7506b
+PREV_短=5cdc9843
+status_lines=1
+--- venv/env ---
+pytest OK: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/bin/pytest
+backend/.env OK
+pyright OK: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/bin/pyright
+--- 基线自证 (R-B14-2 唯一口径) ---
+BASE exists: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/审查/evidence-b14/unit-red-baseline-08100483.txt
+grep -vc '^#' $BASE = 64
+(参考,非判据) 总行数 = 67
+--- 开工现状 grep (判据1) ---
+grep -cF degraded review_overview.py = 0
+grep -cF last_error review_overview.py = 0
+grep -cF last_result review_overview.py = 0
+--- 验伪锚: grep -cF 能命中已知正例 ---
+grep -cF _read_board_done review_overview.py = 4  (期望 >0)
+--- 文件规模 ---
+review_overview.py 行数 = 3282
+test_review_overview.py 行数 = 4605
+rc=0

@@ -1,0 +1,10 @@
+=== pyright warning 多重集身份对照（不比数量，比身份；键=路径锚+规则+消息，不含行号）===
+after json rc=0
+before json rc=0
+还原后 shasum: 493eda89af340d20ef6bc21a9a153edbf774bfa0c75dc273cd103885117e6f99  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t3-review/backend/app/api/v1/endpoints/review_overview.py
+before 条数 = 82   after 条数 = 82
+本卡新增 = 0
+本卡消失 = 0
+验伪锚(对照组): before 与自己相减 = 0 (必须 0)
+验伪锚(能不能抓到差异): 人为删一条后 before-bb = 1 (必须 >0)
+rc=0

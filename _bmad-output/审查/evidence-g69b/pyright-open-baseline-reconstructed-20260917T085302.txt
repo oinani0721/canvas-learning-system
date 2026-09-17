@@ -1,0 +1,8 @@
+=== 开工 pyright 基线【重建】: 把 review_overview.py 临时还原成 $PREV 内容再跑 ===
+如实声明: 第 0 分钟漏跑, 本次在改完代码后用 git show $PREV: 还原该文件重建; 跑后立即还原回本卡版本并比 sha。
+PREV=5cdc98439594ea58b427cc5eee61857baad7506b
+本卡版 shasum: 493eda89af340d20ef6bc21a9a153edbf774bfa0c75dc273cd103885117e6f99  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t3-review/backend/app/api/v1/endpoints/review_overview.py
+PREV 版 shasum: eae59ecc9fbb364ce6809066e54a3d18eae3d9fe05033efd8d46608a1396d594  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t3-review/backend/app/api/v1/endpoints/review_overview.py
+0 errors, 82 warnings, 0 informations
+还原后 shasum: 493eda89af340d20ef6bc21a9a153edbf774bfa0c75dc273cd103885117e6f99  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t3-review/backend/app/api/v1/endpoints/review_overview.py
+rc=0
