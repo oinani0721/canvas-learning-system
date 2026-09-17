@@ -1,0 +1,17 @@
+审查绑定 HEAD=34473ebd；rc 直取 python 退出码（无管道）
+A 篡改一档计数                                rc=1
+B json 缺档键                              rc=1
+C 分母内部自洽但≠AST                           rc=1
+D 声明了却缺输入                               rc=1
+E 真 tee 截断无汇总段                          rc=1
+F 形态喂错                                  rc=1
+G stdout 同档重复                           rc=1
+H json 小数截断                             rc=1
+I json 负数抵消                             rc=1
+J stdout 0.5                            rc=1
+K json 重复档键                             rc=1
+L json 重复 total                         rc=1
+M stdout 0x10                           rc=1
+N 部分表(6/6/6)冒充全量                        rc=1
+验伪锚①全对合成(138/18)                        rc=0
+验伪锚②真 g32cb 存档                          rc=0

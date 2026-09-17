@@ -1,0 +1,27 @@
+=== pytest nodeid 能否含空白//方括号 —— 实测（pytest 9.0.2）===
+--- 探针源码 ---
+def _mk(msg):
+    def _f():
+        raise AssertionError(msg)
+    return _f
+
+
+# 动态注入一个名字里含空白、` - `、方括号的测试函数
+globals()["test_x[case] - EXPECT"] = _mk("OTHER")
+
+
+def test_plain():
+    raise AssertionError("expected - actual")
+--- --collect-only ---
+nameprobe/test_names.py::test_x[case] - EXPECT
+nameprobe/test_names.py::test_plain
+
+2 tests collected in 0.02s
+--- -rfE 短摘要 ---
+FAILED nameprobe/test_names.py::test_x[case] - EXPECT - AssertionError: OTHER
+FAILED nameprobe/test_names.py::test_plain - AssertionError: expected - actual
+
+结论: pytest **确实**收集名字含空白/` - `/方括号的测试, 其摘要行与
+      「nodeid + reason」形态**逐字不可区分** ⇒ 这类行是**真二义**,
+      判 HARNESS-ERROR 正确。⇒ Codex r7 M-1 与独立扫描 HIGH 的共同前提
+      「nodeid 不可能含空白」**不成立**, 两条均驳回, round-8 的收紧回滚。

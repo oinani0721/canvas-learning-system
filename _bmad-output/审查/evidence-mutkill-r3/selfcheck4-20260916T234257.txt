@@ -1,0 +1,12 @@
+# 四份只读自检 —— 绑终审代码树 20399340（HEAD=5dc63af4，两者 AST 逐文件等价）
+# ⛔ 判据环境是判据的一部分：必须在 backend/ 下跑；从仓根跑四份全部 rc=2。
+## 在 backend/ 下（期望 rc=0）
+  g32b --list                  rc=0  末行:   绑定覆盖：EXPECT_MSG 99 条 / EXPECT_LOC 135 条 / 消息豁免 39 / 位置豁免 3 （共 138 条变
+  g32cb --list                 rc=0  末行:        拆掉 `q_()` 的 **ASCII 转义回落**（`ensure_ascii=True` → `False`）—— 裸形证
+  g32ccr1 --list               rc=0  末行:        在 `validate_record_full` 里**重绑** `record`（(c) 门的不可达性推理前提失效）
+  g33 --selfcheck-syntax       rc=0  末行: 未落盘 (跑前跑后 sha 逐字节相同): 是
+## 验伪锚：同样四条从仓根跑（期望全 rc=2 —— 证明上面的 rc=0 不是恒真）
+  （仓根）g32b      rc=0
+  （仓根）g32cb     rc=0
+  （仓根）g32ccr1   rc=0
+  （仓根）g33       rc=0

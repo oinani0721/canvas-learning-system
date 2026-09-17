@@ -1,0 +1,28 @@
+# ⛔ 卡外发现：三套 harness 对**未知开关**静默放行 ⇒ 打错一个字就跑全量变异
+# 发现方式：本卡收尾时给 g32cb 喂 `--no-such-flag` 当验伪锚（预期 rc≠0），
+#   结果它**没有报错**，而是跑完了整套变异（9/9 KILLED、rc=0、耗时数分钟）。
+#   ⇒ 锚失败的真因不是锚写错，是「未知开关会报错」这个**假设**本身不成立。
+
+## 静态证据：四套的开关解析方式
+  g32b      2552:    if "--list" in _argv:
+  g32cb     461:    if "--list" in sys.argv[1:]:
+  g32ccr1   338:        if a == "--list":
+  g33       4 处 argparse ⇒ 未知开关报错 rc=2（四套里唯一有真参数解析的）
+
+## 危害面
+  · `--list` 打成 `--lst`（或任何未知开关）⇒ 一条**本该只读**的命令变成一次
+    **改写生产文件**的全量变异跑；g32b 那一套还含 BRIDGE 条（触及 fsrs_bridge.py，
+    零写者铁律覆盖面），后果更重。
+  · rc 也不会区分：跑成功仍是 rc=0，与 `--list` 成功同码 ⇒ 调用方分不出「列了」还是「跑了」。
+
+## 本次误跑的收尾核对（证明没留残留）
+  变异跑 rc=0，六档之和 9 = 变异条数 9
+  c1588ec6fda0371c85d801870bd035360891cd63f20c22be10fab779a173a1e4  canvas-vault/.claude/skills/quiz-answer/SKILL.md
+  a7cbaee4b9cabd3431a73a944921d739fe3d3ab9561bdf2555a897bb61272025  backend/scripts/validate_learning_events.py
+  a766fbcc28e3ff917e740843c633e800aa8a75e949295f83efc90f55105f90f0  canvas-vault/.claude/scripts/fsrs_bridge.py
+  ↑ 与最近一次绑定跑的 g32cb-sha-after-20260916T204329.txt **逐字节相同**
+  git status --porcelain（canvas-vault + validate_learning_events.py）= 空：0 行
+
+## 处置
+  ⛔ g32b / g32cb / g32ccr1 在本卡硬边界里是**禁改内容** ⇒ 本卡不修，登记进台账交主 session 裁。
+  建议：三套统一改 argparse（或至少「未知开关 ⇒ 立即报错退出」），与 g33 对齐。

@@ -1,0 +1,25 @@
+=== 裁判 10: 终审绑定（审SHA=34473ebd → HEAD，排除 _bmad-output 应为空）===
+(上方为空 = 仍绑定 ✓)
+--- 验伪锚：去掉 exclude 必须多出 _bmad-output 路径 ---
+183
+
+=== 裁判 9 地盘门 + 验伪锚（$PREV..HEAD）===
+backend/scripts/g33_mutation_gates.py
+backend/scripts/mutation_kill_identity.py
+backend/scripts/mutation_verdict_reconcile.py
+backend/tests/unit/test_mutation_kill_identity_r3.py
+--- 验伪锚（去 exclude 应多出 _bmad-output）---
+183
+
+=== commit header 长度（wc -m，应 ≤100）===
+ 90  docs(mutkill): 验收单 + 五轮 Codex 存档 + 19 层负控证据 [BATCH-2026-09-11-第十四批 / CARD-DEBT-mutkill-R3]
+ 94  fix(mutkill): round-5 整改 Codex 1 MEDIUM + 1 LOW [BATCH-2026-09-11-第十四批 / CARD-DEBT-mutkill-R3]
+ 94  fix(mutkill): round-4 整改 Codex 2 MEDIUM + 1 LOW [BATCH-2026-09-11-第十四批 / CARD-DEBT-mutkill-R3]
+ 95  fix(mutkill): round-3 整改 Codex 1 HIGH + 3 MEDIUM [BATCH-2026-09-11-第十四批 / CARD-DEBT-mutkill-R3]
+ 94  fix(mutkill): round-2 整改 Codex 3 MEDIUM + 2 LOW [BATCH-2026-09-11-第十四批 / CARD-DEBT-mutkill-R3]
+ 76  fix(mutkill): 判据收口 H1/H2/M①②③ [BATCH-2026-09-11-第十四批 / CARD-DEBT-mutkill-R3]
+
+=== *.stderr* 未入库 ===
+3
+=== 未 push ===
+0

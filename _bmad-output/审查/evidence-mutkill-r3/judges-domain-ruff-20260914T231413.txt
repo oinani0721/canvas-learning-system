@@ -1,0 +1,23 @@
+=== 裁判 9: 地盘门 ===
+--- $PREV..HEAD 排除 _bmad-output ---
+backend/scripts/g33_mutation_gates.py
+backend/scripts/mutation_kill_identity.py
+backend/scripts/mutation_verdict_reconcile.py
+backend/tests/unit/test_mutation_kill_identity_r3.py
+--- 验伪锚（去掉 exclude 应多出 _bmad-output 路径）---
+0
+0（⛔ 验伪锚不成立）
+--- backend/app 越界核（应 0）---
+0
+
+=== 裁判 8: ruff（zsh 数组）===
+files=4
+All checks passed!
+rc=0
+--- ruff 验伪锚（喂一个已知含 F821 的文件必 rc=1）---
+anchor rc=1（应 1）
+
+=== (k) fsrs_bridge 判据（只看本卡 diff 的 + 行）===
+2
+--- 验伪锚（同次执行, 证明这条管道能命中）---
+63:BRIDGE = REPO / "canvas-vault" / ".claude" / "scripts" / "fsrs_bridge.py"

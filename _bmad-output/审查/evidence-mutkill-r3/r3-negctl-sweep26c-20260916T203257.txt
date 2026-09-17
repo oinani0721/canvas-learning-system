@@ -1,0 +1,220 @@
+=== 负控全扫（每层只拆一层；绑最终 SHA 2039934021699afd94b6c35d32ece3a97f06abd8）===
+层数 = 26：h1 h2 m1a m1b m1c m1f rc5 m1d m1e m2d rc7 m2g rc6 m2e rc3 rc4 m2c rc1 rc2 m2a m2b m1g rc8 rc9 rc10 rc11
+验伪锚: 跑前 sha 行数 6（应 = 6）
+--- 每层拆的到底是什么（old → new 逐字，供独立核对「只拆一层」）---
+### h1  (mutation_kill_identity.py)  锚点命中=1  old 8 行 → new 2 行
+    @@ -1,8 +1,2 @@
+    -    # ⛔ H1：无 reason 读法（整行即 nodeid）也是**一种候选读法**，必须进同一个候选集。
+    -    if _nodeid_shaped(body):
+    -        cands.append(body)
+    -    if not cands:
+    -        # 一种合法读法都凑不出来（body 既切不出 nodeid 形的左侧，整行也不是 nodeid 形）
+    -        # ⇒ 边界同样不可判定。⛔ 旧实现在这里回落到「整行方括号成对即可」，那把
+    -        # 「读不出来」当成了「读法唯一」。
+    -        return False
+    +    if not cands:  # negctl-h1: 拆掉「无 reason 读法进候选集」这一层
+    +        return body.count("[") == body.count("]")
+### h2  (mutation_kill_identity.py)  锚点命中=1  old 6 行 → new 1 行
+    @@ -1,6 +1 @@
+    -        if not all(gate_hit(nodeid, {f}) for f in failed):
+    -            return "HARNESS-ERROR", (
+    -                f"摘要区里有不属于目标门的失败 {sorted(failed)} —— "
+    -                f"`--tb=line` 位置行不带 nodeid, 位置归属不可证（⛔ 弱位置判据不得借他门失败位置）"
+    -            )
+    -        gp = Path(gate_file).resolve()
+    +        gp = Path(gate_file).resolve()  # negctl-h2: 拆掉「所有失败属目标门」核
+### m1a  (mutation_kill_identity.py)  锚点命中=1  old 2 行 → new 1 行
+    @@ -1,2 +1 @@
+    -    if anchor_broken := anchor_surface_broken(gate_file, expect_loc):
+    -        return "HARNESS-ERROR", f"⛔ 判据面不成立: {anchor_broken}"
+    +    _ = anchor_surface_broken  # negctl-m1a: 拆掉「锚漂移优先」这一层
+### m1b  (mutation_kill_identity.py)  锚点命中=1  old 1 行 → new 2 行
+    @@ -1 +1,2 @@
+    -        if len(hits := stmt_fingerprints(gate_file).get(expect_loc[5:], [])) != 1:
+    +        hits = []  # negctl-m1b
+    +        if expect_loc[5:] not in stmt_fingerprints(gate_file):
+### m1c  (mutation_kill_identity.py)  锚点命中=1  old 2 行 → new 2 行
+    @@ -1 +1 @@
+    -    if len(hits) != 1:
+    +    if not hits:  # negctl-m1c: 退回只查存在性
+### m1f  (mutation_kill_identity.py)  锚点命中=1  old 6 行 → new 1 行
+    @@ -1,6 +1 @@
+    -            head = s[:i]
+    -            # ③ 前缀必须形如 `<path>::<非空测试名>` —— 路径自身也可以含 `::`，所以要看
+    -            #   **最后一个** `::` 之后还剩不剩东西（`tests/foo::` 剩空 ⇒ 当不了 path::test）。
+    -            marker = head.rfind("::")
+    -            if marker >= 0 and head[marker + 2 :]:
+    -                return True
+    +            return True  # negctl-m1f: 拆掉「前缀必须形如 path::非空测试名」
+### rc5  (mutation_verdict_reconcile.py)  锚点命中=1  old 1 行 → new 1 行
+    @@ -1 +1 @@
+    -_B_FOUR = re.compile(r"^(?P<name>SURVIVED|HARNESS-ERROR|ANCHOR-ERROR|SYNTAX-INVALID): (?P<n>\d+)(?=[\s(]|$)", re.M)
+    +_B_FOUR = re.compile(r"^(?P<name>SURVIVED|HARNESS-ERROR|ANCHOR-ERROR|SYNTAX-INVALID): (?P<n>\d+)(?![\d.])", re.M)  # negctl-rc5
+### m1d  (mutation_kill_identity.py)  锚点命中=1  old 15 行 → new 11 行
+    @@ -1,2 +1,2 @@
+    -    if not s.endswith("]"):
+    -        # 无参数段：整串就是 `path` 或 `path::test`，唯一约束是不含空白。
+    +    head, sep, last = s.rpartition("::")  # negctl-m1d: 退回固定取「最后一个 :: 之后」
+    +    if not sep:
+    @@ -4,12 +4,8 @@
+    -    for i, ch in enumerate(s):
+    -        if ch.isspace():
+    -            # 前缀一旦出现空白，其后任何 `[` 的前缀都含空白 —— 不必再找。
+    -            return False
+    -        if ch == "[" and i > 0:
+    -            head = s[:i]
+    -            # ③ 前缀必须形如 `<path>::<非空测试名>` —— 路径自身也可以含 `::`，所以要看
+    -            #   **最后一个** `::` 之后还剩不剩东西（`tests/foo::` 剩空 ⇒ 当不了 path::test）。
+    -            marker = head.rfind("::")
+    -            if marker >= 0 and head[marker + 2 :]:
+    -                return True
+    -    return False
+    +    prefix = head + sep
+    +    if any(ch.isspace() for ch in prefix):
+    +        return False
+    +    i = last.find("[")
+    +    if i < 0:
+    +        return bool(last) and not any(ch.isspace() for ch in last)
+    +    name = last[:i]
+    +    return bool(name) and not any(ch.isspace() for ch in name) and s.endswith("]")
+### m1e  (mutation_kill_identity.py)  锚点命中=1  old 15 行 → new 5 行
+    @@ -1,2 +1,2 @@
+    -    if not s.endswith("]"):
+    -        # 无参数段：整串就是 `path` 或 `path::test`，唯一约束是不含空白。
+    +    i = s.find("[")  # negctl-m1e: 退回按整串第一个 `[` 定位
+    +    if i < 0:
+    @@ -4,12 +4,2 @@
+    -    for i, ch in enumerate(s):
+    -        if ch.isspace():
+    -            # 前缀一旦出现空白，其后任何 `[` 的前缀都含空白 —— 不必再找。
+    -            return False
+    -        if ch == "[" and i > 0:
+    -            head = s[:i]
+    -            # ③ 前缀必须形如 `<path>::<非空测试名>` —— 路径自身也可以含 `::`，所以要看
+    -            #   **最后一个** `::` 之后还剩不剩东西（`tests/foo::` 剩空 ⇒ 当不了 path::test）。
+    -            marker = head.rfind("::")
+    -            if marker >= 0 and head[marker + 2 :]:
+    -                return True
+    -    return False
+    +    head = s[:i]
+    +    return bool(head) and not any(ch.isspace() for ch in head) and s.endswith("]")
+### m2d  (g33_mutation_gates.py)  锚点命中=1  old 7 行 → new 1 行
+    @@ -1,7 +1 @@
+    -        guard_exit = (
+    -            clean_exit_code is not None
+    -            and isinstance(exc, SystemExit)
+    -            and exc.code == clean_exit_code
+    -            and not was_exiting
+    -            and exiting()
+    -        )
+    +        guard_exit = isinstance(exc, SystemExit) and not was_exiting and exiting()  # negctl-m2d
+### rc7  (mutation_verdict_reconcile.py)  锚点命中=1  old 2 行 → new 2 行
+    @@ -1 +1 @@
+    -        if isinstance(node, ast.Name) and node.id == "MUTATIONS" and isinstance(node.ctx, (ast.Store, ast.Del)):
+    +        if False:  # negctl-rc7: 拆掉「未被计数的 MUTATIONS 写入 ⇒ 抛」这一层
+### m2g  (g33_mutation_gates.py)  锚点命中=1  old 2 行 → new 2 行
+    @@ -2 +2 @@
+    -            "末次还原成功, 但本轮早些时候有还原失败被吞",
+    +            "末次还原失败",  # negctl-m2g: 退回恒说「末次还原失败」
+### rc6  (mutation_verdict_reconcile.py)  锚点命中=1  old 1 行 → new 1 行
+    @@ -1 +1 @@
+    -        elif isinstance(node, ast.AugAssign) and isinstance(node.target, ast.Name) and node.target.id == "MUTATIONS":
+    +        elif False:  # negctl-rc6: 退回只取首个 `MUTATIONS = [...]`，不算扩展
+### m2e  (g33_mutation_gates.py)  锚点命中=1  old 1 行 → new 1 行
+    @@ -1 +1 @@
+    -    if final and pending_failures:
+    +    if False and pending_failures:  # negctl-m2e
+### rc3  (mutation_verdict_reconcile.py)  锚点命中=1  old 1 行 → new 1 行
+    @@ -1 +1 @@
+    -_B_FOUR = re.compile(r"^(?P<name>SURVIVED|HARNESS-ERROR|ANCHOR-ERROR|SYNTAX-INVALID): (?P<n>\d+)(?=[\s(]|$)", re.M)
+    +_B_FOUR = re.compile(r"^(?P<name>SURVIVED|HARNESS-ERROR|ANCHOR-ERROR|SYNTAX-INVALID): (?P<n>\d+)", re.M)  # negctl-rc3
+### rc4  (mutation_verdict_reconcile.py)  锚点命中=1  old 1 行 → new 1 行
+    @@ -1 +1 @@
+    -        data = json.loads(text, object_pairs_hook=_no_dup)
+    +        data = json.loads(text)  # negctl-rc4: 退回默认后值覆盖
+### m2c  (g33_mutation_gates.py)  锚点命中=1  old 1 行 → new 1 行
+    @@ -1 +1 @@
+    -        elif final and not guard_exit:
+    +        elif final:  # negctl-m2c: 拆掉「信号退出不是还原失败」的分辨
+### rc1  (mutation_verdict_reconcile.py)  锚点命中=1  old 3 行 → new 1 行
+    @@ -1,3 +1 @@
+    -    if name in counts:
+    -        raise ReconcileError(f"{suite}: 存档里「{name}」出现了不止一次(应恰好 1 次) —— ⛔ 冲突计数不得静默覆盖")
+    -    counts[name] = int(value)
+    +    counts[name] = int(value)  # negctl-rc1: 退回静默覆盖
+### rc2  (mutation_verdict_reconcile.py)  锚点命中=1  old 5 行 → new 1 行
+    @@ -1,5 +1 @@
+    -    if isinstance(v, bool) or not isinstance(v, int):
+    -        raise ReconcileError(f"{suite}: `{what}` 不是整数（实得 {v!r}）—— ⛔ 不得 int() 截断后继续比")
+    -    if v < 0:
+    -        raise ReconcileError(f"{suite}: `{what}` 为负数 {v} —— ⛔ 负数会在求和时与别的档互相抵消")
+    -    return v
+    +    return int(v)  # negctl-rc2: 退回 int() 截断、不查非负
+### m2a  (g33_mutation_gates.py)  锚点命中=1  old 1 行 → new 1 行
+    @@ -1 +1 @@
+    -            raise SystemExit(3) from exc
+    +            pass  # negctl-m2a: 拆掉「末次还原失败升到 rc=3」这一层
+### m2b  (g33_mutation_gates.py)  锚点命中=1  old 2 行 → new 2 行
+    @@ -2 +2 @@
+    -            drift = list(verify())
+    +            drift = []  # negctl-m2b: 拆掉「末次还原失败时仍跑 SHA 自检」这一层
+### m1g  (mutation_kill_identity.py)  锚点命中=1  old 1 行 → new 1 行
+    @@ -1 +1 @@
+    -        if expect_loc is None and len(gate_records) > 1 and any(_inside) and not all(_inside):
+    +        if expect_loc is None and len(gate_records) > 1 and not all(_inside):  # negctl-m1g
+### rc8  (mutation_verdict_reconcile.py)  锚点命中=1  old 1 行 → new 1 行
+    @@ -1 +1 @@
+    -                or (isinstance(par, ast.Subscript) and isinstance(par.ctx, ast.Load) and par.value is node)
+    +                or (isinstance(par, ast.Subscript) and isinstance(par.ctx, ast.Load))  # negctl-rc8
+### rc9  (mutation_verdict_reconcile.py)  锚点命中=1  old 1 行 → new 0 行
+    @@ -1 +0,0 @@
+    -                    and _len_is_builtin
+### rc10  (mutation_verdict_reconcile.py)  锚点命中=1  old 2 行 → new 2 行
+    @@ -1 +1 @@
+    -        if not isinstance(node, (ast.Name, ast.Constant)):
+    +        if False:  # negctl-rc10: 拆掉「名字位」字段扫描
+### rc11  (mutation_verdict_reconcile.py)  锚点命中=1  old 7 行 → new 1 行
+    @@ -1,7 +1 @@
+    -                    and (
+    -                        isinstance(_comp_owner, (ast.ListComp, ast.SetComp, ast.DictComp))
+    -                        or (
+    -                            isinstance(_comp_owner, ast.GeneratorExp)
+    -                            and isinstance(parent.get(id(_comp_owner)), ast.Call)
+    -                        )
+    -                    )
+    +                    and True  # negctl-rc11: 推导式一视同仁，不分急/惰
+--- 基线：未拆任何层必须全绿 ---
+======================= 84 passed, 10 warnings in 7.29s ========================
+base_rc=0
+✅ h1 rc=1 红=4 显形点: test_h1_ambiguous_no_reason_reading_makes_split_non_unique,test_h1_ambiguous_line_escalates_to_harness_error,test_h1_split_unique_flips_in_both_directions_in_both_families,
+✅ h2 rc=1 红=2 显形点: test_h2_weak_position_must_not_borrow_other_gate_failure,test_h2_error_summary_line_is_not_borrowable,
+✅ m1a rc=1 红=2 显形点: test_m1_anchor_drift_not_masked_by_rc0_survived,test_m1_anchor_drift_not_masked_by_out_of_gate_survived,
+✅ m1b rc=1 红=1 显形点: test_m1_loc_identity_itself_rejects_multi_hit_fingerprint,
+✅ m1c rc=1 红=1 显形点: test_m1_anchor_surface_broken_itself_reports_both_shapes,
+✅ m1f rc=1 红=3 显形点: test_h1_split_unique_flips_in_both_directions_in_both_families,test_h1_param_bracket_must_follow_a_double_colon,test_h1_double_colon_inside_path_is_not_a_test_name,
+✅ rc5 rc=1 红=1 显形点: test_rec_parse_stdout_rejects_each_bad_shape[<lambda>-解析不到_1],
+✅ m1d rc=1 红=3 显形点: test_h1_split_unique_flips_in_both_directions_in_both_families,test_h1_double_colon_inside_param_id_still_ambiguous,test_h1_double_colon_inside_path_is_not_a_test_name,
+✅ m1e rc=1 红=4 显形点: test_h1_split_unique_flips_in_both_directions_in_both_families,test_h1_bracket_in_path_is_not_a_param_segment,test_h1_param_bracket_must_follow_a_double_colon,
+✅ m2d rc=1 红=2 显形点: test_m2_restore_failure_exit_code_is_not_a_clean_signal_exit,test_m2_clean_exit_code_unknown_is_fail_closed,
+✅ rc7 rc=1 红=1 显形点: test_m3_ast_denominator_fails_closed_on_uncountable_shapes,
+✅ m2g rc=1 红=2 显形点: test_m2_mid_loop_failure_surfaces_even_when_final_restore_succeeds,test_m2_wording_matches_what_actually_happened,
+✅ rc6 rc=1 红=7 显形点: test_m3_ast_denominator_fails_closed_on_uncountable_shapes,test_m3_real_suite_denominators_are_unchanged,test_rec_all_attribute_access_on_mutations_is_banned,
+✅ m2e rc=1 红=3 显形点: test_m2_mid_loop_failure_surfaces_even_when_final_restore_succeeds,test_m2_wording_matches_what_actually_happened,test_m2_missing_verify_must_not_claim_no_drift,
+✅ rc3 rc=1 红=2 显形点: test_rec_parse_stdout_rejects_each_bad_shape[<lambda>-解析不到_0],test_rec_parse_stdout_rejects_each_bad_shape[<lambda>-解析不到_1],
+✅ rc4 rc=1 红=1 显形点: test_rec_parse_json_rejects_non_integer_and_duplicate_keys,
+✅ m2c rc=1 红=2 显形点: test_m2_signal_exit_during_final_restore_is_not_a_restore_failure,test_m2_clean_signal_exit_has_no_swallowed_cause,
+✅ rc1 rc=1 红=1 显形点: test_rec_parse_stdout_rejects_each_bad_shape[<lambda>-不止一次],
+✅ rc2 rc=1 红=1 显形点: test_rec_parse_json_rejects_non_integer_and_duplicate_keys,
+✅ m2a rc=1 红=3 显形点: test_m2_final_restore_failure_is_not_swallowed_and_sha_still_runs,test_m2_wording_matches_what_actually_happened,test_m2_swallowed_exception_is_not_attributed_to_restore,
+✅ m2b rc=1 红=5 显形点: test_m2_final_restore_failure_is_not_swallowed_and_sha_still_runs,test_m2_restore_failure_exit_code_is_not_a_clean_signal_exit,test_m2_clean_exit_code_unknown_is_fail_closed,
+✅ m1g rc=1 红=1 显形点: test_pc_multi_failure_guard_does_not_swallow_the_out_of_gate_survived,
+✅ rc8 rc=1 红=1 显形点: test_rec_read_whitelist_pins_operand_position_and_builtin_identity,
+✅ rc9 rc=1 红=1 显形点: test_rec_read_whitelist_pins_operand_position_and_builtin_identity,
+✅ rc10 rc=1 红=1 显形点: test_rec_mutations_itself_cannot_be_rebound_by_a_name_field,
+✅ rc11 rc=1 红=1 显形点: test_rec_generator_expression_over_mutations_must_not_be_bound,
+--- 还原后逐字节比对 ---
+SHA_IDENTICAL=yes (6 文件)
+======================= 84 passed, 10 warnings in 5.02s ========================
+还原后 rc=0
+无显形点的层 = 0: （无）
+绑定 SHA = 2039934021699afd94b6c35d32ece3a97f06abd8

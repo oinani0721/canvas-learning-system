@@ -1,0 +1,32 @@
+=== 收工零写者哨兵 ===
+a766fbcc28e3ff917e740843c633e800aa8a75e949295f83efc90f55105f90f0  canvas-vault/.claude/scripts/fsrs_bridge.py
+3bf4ed9402a4c8edfde16630a79094a5d4518fd181fa60810319fe46d37abb90  canvas-vault/.claude/scripts/decay_beta.py
+=== 现网 LanceDB 只读 ===
+files newer than sentinel = 0
+=== 车道树 canvas-vault 残留 ===
+(空 = 无残留)
+
+=== 裁判 9 地盘门（$PREV..HEAD 排除 _bmad-output）===
+backend/scripts/g33_mutation_gates.py
+backend/scripts/mutation_kill_identity.py
+backend/scripts/mutation_verdict_reconcile.py
+backend/tests/unit/test_mutation_kill_identity_r3.py
+--- backend/app 越界（应 0）---
+0
+
+=== 裁判 8 ruff（zsh 数组）===
+files=4
+All checks passed!
+rc=0
+--- ruff 验伪锚（F821 文件必 rc=1）---
+anchor rc=1（应 1）
+--- ruff format --check ---
+4 files already formatted
+rc=0
+
+=== 各轮 Codex 绑定 SHA ===
+34473ebd fix(mutkill): round-5 整改 Codex 1 MEDIUM + 1 LOW [BATCH-2026-09-11-第十四批 / CARD-DEBT-mutkill-R3]
+991373e5 fix(mutkill): round-4 整改 Codex 2 MEDIUM + 1 LOW [BATCH-2026-09-11-第十四批 / CARD-DEBT-mutkill-R3]
+98edb541 fix(mutkill): round-3 整改 Codex 1 HIGH + 3 MEDIUM [BATCH-2026-09-11-第十四批 / CARD-DEBT-mutkill-R3]
+767f4b6a fix(mutkill): round-2 整改 Codex 3 MEDIUM + 2 LOW [BATCH-2026-09-11-第十四批 / CARD-DEBT-mutkill-R3]
+223beed7 fix(mutkill): 判据收口 H1/H2/M①②③ [BATCH-2026-09-11-第十四批 / CARD-DEBT-mutkill-R3]

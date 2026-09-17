@@ -1,0 +1,9 @@
+# round-16 负控（每条整改单独还原 ⇒ 对应探针必须变红）
+# 绑定树: e57475e4（本轮改动尚未 commit，见下方 commit）
+M1 全门外守卫           rc=1 → 红 ✅ 探针有效
+M2a 下标操作数位         rc=1 → 红 ✅ 探针有效
+M2b len 绑定身份       rc=1 → 红 ✅ 探针有效
+--- 还原后全套 ---
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================= 81 passed, 10 warnings in 1.58s ========================
+rc=0

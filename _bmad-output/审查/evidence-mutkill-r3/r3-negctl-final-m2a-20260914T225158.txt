@@ -1,0 +1,18 @@
+=== negctl FINAL m2a （定稿代码 sha 上的一轮；每层只拆一层） ===
+--- sha BEFORE ---
+709f21674574027ef1cc24a6be8b228e4fc09de6bed5fca93f0dc69bf8e9dfa6  backend/scripts/mutation_kill_identity.py
+f1fa0e28c69464263cf1e2cc61eb7f5927a4c4978ecbcb37203e570347a6986f  backend/scripts/g33_mutation_gates.py
+a766fbcc28e3ff917e740843c633e800aa8a75e949295f83efc90f55105f90f0  canvas-vault/.claude/scripts/fsrs_bridge.py
+3bf4ed9402a4c8edfde16630a79094a5d4518fd181fa60810319fe46d37abb90  canvas-vault/.claude/scripts/decay_beta.py
+applied negctl m2a on g33_mutation_gates.py: sha_before=f1fa0e28c69464263cf1e2cc61eb7f5927a4c4978ecbcb37203e570347a6986f sha_after=7aceacbbe40d52a501dd882dac32b39b2e3dbb2c362219d7ca85b3ab26ba46eb
+⛔ 末次还原失败: OSError('restore failed (synthetic)') —— 还原逐字节自检: 漂移 canvas-vault/.claude/scripts/example_target.py
+    raise OSError("restore failed (synthetic)")
+OSError: restore failed (synthetic)
+FAILED tests/unit/test_mutation_kill_identity_r3.py::test_m2_final_restore_failure_is_not_swallowed_and_sha_still_runs
+================== 1 failed, 22 passed, 10 warnings in 0.91s ===================
+restored /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/scripts/g33_mutation_gates.py sha=f1fa0e28c69464263cf1e2cc61eb7f5927a4c4978ecbcb37203e570347a6986f
+--- sha AFTER ---
+709f21674574027ef1cc24a6be8b228e4fc09de6bed5fca93f0dc69bf8e9dfa6  backend/scripts/mutation_kill_identity.py
+f1fa0e28c69464263cf1e2cc61eb7f5927a4c4978ecbcb37203e570347a6986f  backend/scripts/g33_mutation_gates.py
+a766fbcc28e3ff917e740843c633e800aa8a75e949295f83efc90f55105f90f0  canvas-vault/.claude/scripts/fsrs_bridge.py
+3bf4ed9402a4c8edfde16630a79094a5d4518fd181fa60810319fe46d37abb90  canvas-vault/.claude/scripts/decay_beta.py

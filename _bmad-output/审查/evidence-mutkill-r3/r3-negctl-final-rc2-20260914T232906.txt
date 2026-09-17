@@ -1,0 +1,18 @@
+=== negctl FINAL rc2（round-2 定稿 sha；每层只拆一层）===
+--- sha BEFORE ---
+4fab081746f398338baa36c8907b0474eb1ed2330a7e8041f2a689804271cdfa  backend/scripts/mutation_kill_identity.py
+5704e8039cfef9352b0e8eac85349b40b447464cf65cd2c9dcea86e0adf37232  backend/scripts/g33_mutation_gates.py
+5bdadb27fd7d7e6a0143ea4db749aa45ecfde33fb00b55814d36a39dc297c8fb  backend/scripts/mutation_verdict_reconcile.py
+a766fbcc28e3ff917e740843c633e800aa8a75e949295f83efc90f55105f90f0  canvas-vault/.claude/scripts/fsrs_bridge.py
+3bf4ed9402a4c8edfde16630a79094a5d4518fd181fa60810319fe46d37abb90  canvas-vault/.claude/scripts/decay_beta.py
+applied negctl rc2 on mutation_verdict_reconcile.py: sha_before=5bdadb27fd7d7e6a0143ea4db749aa45ecfde33fb00b55814d36a39dc297c8fb sha_after=e9355d49896fc3a5d2fbd4b7f82c7d29199bf04bc3b95ebd3cbc591ea8a67e4b
+[judge] reconcile 坏法 H/I（18.9 截断 / -1 抵消）应各 rc≠0:
+judge_rc_float=0
+judge_rc_neg=0
+restored /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/scripts/mutation_verdict_reconcile.py sha=5bdadb27fd7d7e6a0143ea4db749aa45ecfde33fb00b55814d36a39dc297c8fb
+--- sha AFTER ---
+4fab081746f398338baa36c8907b0474eb1ed2330a7e8041f2a689804271cdfa  backend/scripts/mutation_kill_identity.py
+5704e8039cfef9352b0e8eac85349b40b447464cf65cd2c9dcea86e0adf37232  backend/scripts/g33_mutation_gates.py
+5bdadb27fd7d7e6a0143ea4db749aa45ecfde33fb00b55814d36a39dc297c8fb  backend/scripts/mutation_verdict_reconcile.py
+a766fbcc28e3ff917e740843c633e800aa8a75e949295f83efc90f55105f90f0  canvas-vault/.claude/scripts/fsrs_bridge.py
+3bf4ed9402a4c8edfde16630a79094a5d4518fd181fa60810319fe46d37abb90  canvas-vault/.claude/scripts/decay_beta.py

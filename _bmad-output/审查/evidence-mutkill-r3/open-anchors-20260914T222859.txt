@@ -1,0 +1,28 @@
+=== §〇 anchors @ dde52775d3d643803d3764c57ed94e4224b10f9c ===
+[('_split_unique', 188, 211), ('_boundary_ok', 214, 225), ('_same_file', 566, 582), ('_loc_identity', 610, 638), ('kill_identity', 641, 742), ('check_expect_loc_unique', 1021, 1073)]
+--- if not cands: ---
+209:    if not cands:  # 无 reason 的行（`FAILED <nodeid>`）
+--- H2 anchor ---
+697:        if not any(_same_file(p, gp) for p, _, _ in locs):
+--- M1 anchor ---
+620:        if expect_loc[5:] not in fps:
+--- g33 restore fn ---
+436:    def restore_or_keep_exit_code() -> None:
+[('restore_or_keep_exit_code', 436, 454)]
+--- zero-writer anchors ---
+62:BRIDGE = REPO / "canvas-vault" / ".claude" / "scripts" / "fsrs_bridge.py"
+65:BRIDGE = ROOT / "canvas-vault/.claude/scripts/fsrs_bridge.py"
+2609:    # 更早一轮的探针往 `fsrs_bridge.py` 末尾追加了两段 `_s.exit(9)` 且**没有还原**。
+2674:        # (如 M5 的主变异在 fsrs_bridge.py)。
+backend/scripts/g33_mutation_gates.py:0
+backend/scripts/g32b_mutation_gates.py:0
+backend/scripts/mutation_kill_identity.py:0
+backend/scripts/g32cb_mutation_gates.py:0
+backend/scripts/g32ccr1_negative_controls.py:0
+--- MUTATIONS denominators (AST) ---
+g32b_mutation_gates.py 6
+g32cb_mutation_gates.py 9
+g32ccr1_negative_controls.py 11
+g33_mutation_gates.py 18
+--- no existing tests importing kill_identity ---
+greprc=1

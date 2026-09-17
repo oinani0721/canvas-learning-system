@@ -1,0 +1,13 @@
+=== zero-writer sentinel CLOSE @ 20260914T231104 ===
+a766fbcc28e3ff917e740843c633e800aa8a75e949295f83efc90f55105f90f0  canvas-vault/.claude/scripts/fsrs_bridge.py
+3bf4ed9402a4c8edfde16630a79094a5d4518fd181fa60810319fe46d37abb90  canvas-vault/.claude/scripts/decay_beta.py
+--- 开工值（zero-writer-open-20260914T222907.txt）对照 ---
+a766fbcc28e3ff917e740843c633e800aa8a75e949295f83efc90f55105f90f0  canvas-vault/.claude/scripts/fsrs_bridge.py
+3bf4ed9402a4c8edfde16630a79094a5d4518fd181fa60810319fe46d37abb90  canvas-vault/.claude/scripts/decay_beta.py
+--- live LanceDB 只读核 ---
+total 0
+drwxr-xr-x@  6 Heishing  staff  192 Sep  1 07:08 .
+drwxr-xr-x@ 10 Heishing  staff  320 Apr 18 07:11 ..
+files newer than sentinel = 0
+--- 车道树 canvas-vault 是否有残留改动 ---
+(空 = 无残留)
