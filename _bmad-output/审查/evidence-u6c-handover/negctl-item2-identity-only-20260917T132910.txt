@@ -1,0 +1,8 @@
+NC-3b 变异已注入: wall_now 偏移 1 秒 (同日, 时刻不同)
+### NC-3b (Codex r1 LOW-1 指定): 偏移 1 秒 ⇒ **身份层红、行为层绿** ###
+        passed = argv[argv.index("--now") + 1]
+>       assert datetime.fromisoformat(passed.replace("Z", "+00:00")) == pinned, (
+            f"--now 传的不是父侧那一刻: {passed!r} vs {pinned.isoformat()!r}"
+E       AssertionError: --now 传的不是父侧那一刻: '2026-09-16T23:59:58.900000+08:00' vs '2026-09-16T23:59:59.900000+08:00'
+FAILED tests/unit/test_review_overview.py::test_u6c_refresh_passes_parent_now_so_child_agrees_on_the_day
+================ 1 failed, 116 deselected, 10 warnings in 1.24s ================

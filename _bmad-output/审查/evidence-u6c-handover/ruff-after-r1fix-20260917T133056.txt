@@ -1,0 +1,6 @@
+files=6
+1
+All checks passed!
+check_rc=0
+6 files already formatted
+format_rc=0

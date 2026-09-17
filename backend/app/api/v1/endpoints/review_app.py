@@ -213,13 +213,20 @@ function doneKey(vaultId, board) {
   // snoozeKey 侧那几条门**全绿** (它们只看 snoozeKey 的输出)。
   // 常驻门: test_review_app.py「不相交是**双向**的」。
   //
-  // ⚠ 本函数**自撞**的那一面如实记在这里, 不假装不存在: 两个分量都无约束 ⇒
-  // 任一分量含 NUL 时 doneKey("a\0b","c") == doneKey("a","b\0c")。它现在
-  // 不可达, 靠的**不是编码**而是取名链 —— vaultId / board 经 read_text →
-  // frontmatter 正则 → _fm_str 取自 POSIX 文件名与目录名, 那里造不出含 NUL
-  // 的名字。⛔ 那是**取名链快照**, 不是代码不变量: 将来任何非 POSIX 取名源
-  // (外部 API / 数据库列 / 用户直填板名) 都能打破它, 届时本函数需要与
-  // snoozeKey 同款的转义, 而不是再加一层前缀 (前缀式已被打回两次, 见下)。
+  // ⚠ 本函数**自撞**的那一面如实记在这里, 不假装不存在: 两个分量各自无约束时
+  // 它确实歧义 —— doneKey("a\0b","c") == doneKey("a","b\0c")。
+  // 但**单射只需要一个条件: `vaultId` 不含 NUL**。此时 v+NUL+b 里第一个 NUL
+  // 的位置恒等于 len(v) ⇒ len(v1)==len(v2) ⇒ v1==v2 ⇒ b1==b2。**板名不受任何
+  // 约束**, 含 NUL 也不造成自撞。
+  // 现状满足该条件: vaultId 是 review_overview 下发的 `vault_dir.name` /
+  // `v.name`, 即**真实目录名**, POSIX 目录名不含 NUL。
+  // ⛔ 所以要盯住的是 **vaultId 的来源**, 不是板名 —— 哪天 vaultId 改成取自
+  // frontmatter / 外部 API / 用户直填, 单射就没了; 届时本函数需要与 snoozeKey
+  // 同款的转义, 而不是再加一层前缀 (前缀式已被打回两次, 见下)。
+  // (Codex round-1 LOW-2 更正: 本注释初版写"vaultId 与 board 都取自 POSIX 名",
+  //  板名那半是**错的** —— 板名取自 frontmatter (daily_review_pick 的 _fm_str
+  //  → _board_name), 那条链能保留 NUL; 初版据此推出的"未来用户直填板名即可
+  //  打破"也不成立。定性写错的代价是后人盯错地方, 故逐字更正而不是补一句。)
   return String(vaultId) + "\u0000" + String(board);
 }
 function snoozeKey(vaultId, board) {

@@ -3219,12 +3219,14 @@ test("不相交是**双向**的: doneKey 输出恒含 NUL (CARD-U6C-HANDOVER ite
       `doneKey 的输出落进了 snoozeKey 的形态: ${JSON.stringify(dk)}`);
   }
 
-  // ④ doneKey **自撞**如实钉住 (不假装它不存在): 分量含 NUL 时它确实歧义。
-  //    这条不靠编码挡, 靠取名链 —— vault/board 名经 read_text→frontmatter
-  //    正则→_fm_str 取自 POSIX 文件名/目录名, 造不出含 NUL 的名字。
-  //    ⚠ 那是**取名链快照**而不是代码不变量: 将来引入非 POSIX 取名源 (外部
-  //    API / 数据库列 / 用户直填) 即可打破。若有人给 doneKey 补了转义, 本条
-  //    会红 —— 那时请同步重写这段定性, 而不是删掉这条断言。
+  // ④ doneKey **自撞**如实钉住 (不假装它不存在): 两个分量各自无约束时它确实歧义。
+  //    但**单射只需要一个条件: vaultId 不含 NUL** —— 此时第一个 NUL 的位置恒是
+  //    len(v), 于是 v1==v2 且 b1==b2; **板名含 NUL 也不自撞**。现状满足该条件:
+  //    vaultId 是 review_overview 下发的真实目录名 (vault_dir.name / v.name)。
+  //    ⛔ 要盯的是 **vaultId 的来源**, 不是板名。若有人给 doneKey 补了转义,
+  //    本条会红 —— 那时请同步重写这段定性, 而不是删掉这条断言。
+  //    (Codex round-1 LOW-2 更正: 初版写"vault/board 名都取自 POSIX 名", 板名
+  //     那半是错的 —— 板名取自 frontmatter, 那条链能保留 NUL。)
   assert.equal(b.api.doneKey("a" + NUL + "b", "c"), b.api.doneKey("a", "b" + NUL + "c"),
     "doneKey 在分量含 NUL 时的自撞形态变了 — item ③ 的定性需要重写");
 });

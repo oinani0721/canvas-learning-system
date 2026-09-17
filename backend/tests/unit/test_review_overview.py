@@ -4066,20 +4066,29 @@ def _pin_child_now(monkeypatch, mod, pinned) -> list:
     钉住两侧之后判据与真实墙钟无关 —— 同一条性质在相距 79 年的三个 pinned
     值上同绿, 见 test_g66_e2e_snooze_verdict_is_clock_independent。
 
-    ⚠ 这是**测试侧**的修法, 刻意不给生产加旗标。理由 (round-6 已按 Codex 的核对
-    收窄, 初版两条都说过了头):
-      · payload 的 generated_at 会从**子进程扫描前**的采样变成**父进程请求时**的
-        采样。差的是一次 spawn, 不是"生成完成时刻"——初版那么写是夸大;
-      · 真正决定性的一条: 接 --now **也统一不了什么**。写推迟账那次请求、刷新那次
-        请求、之后 GET 那次渲染, 本来就是三次独立的读钟; 只在 _run_pick 里补一次
-        父侧采样只合上其中一道缝。
-      · ⛔ 初版还写过「与 launchd runner 那条不传 --now 的调用路分叉」——**事实错误**:
-        runner 根本不起 picker 子进程, 它 `import daily_review_pick as picker` 后
-        在进程内直调 `picker.build_payload(VAULT, now, ...)`(daily_review_run.py
-        :604/:613), 已经在传自己的参照时刻。拿它当"另一条不传旗标的路"是我没读代码
-        就写下的类比。
+    ⚠ **本段已由 CARD-U6C-HANDOVER item ② 部分推翻, 逐条更正** —— 原文是 U6-C
+    当时决定**不**给生产加旗标的理由; 用户裁定 D-10 后本卡把它做了
+    (`_rebuild_projection` 取一次 `_display_now()`, `_run_pick` 以 `--now` 传给
+    子进程)。仍然成立的与已被推翻的:
+      · **仍成立**: payload 的 generated_at 从"子进程扫描前"的采样变成"父进程请求
+        时"的采样, 差的是一次 spawn, 不是"生成完成时刻"。这是加旗标的**代价**,
+        本卡接受它 (换来的是父子不再跨午夜分日)。
+      · **仍成立但不再是"不做"的理由**: 接 --now 只合上 _run_pick 这一道缝 ——
+        写推迟账那次请求、刷新那次请求、之后 GET 那次渲染仍是三次独立的读钟。
+        U6-C 把它当成"那就别做了"的决定性理由; 本卡的判断是"合上一道也是合上",
+        残留三读钟如实登记为移交项, 不假装堵住。
+      · **仍成立 (原文自己更正过的事实)**: launchd runner 不起 picker 子进程,
+        它 `import daily_review_pick as picker` 后在进程内直调
+        `picker.build_payload(VAULT, now, ...)`(daily_review_run.py :604/:613),
+        本来就在传自己的参照时刻 —— 故不受本卡 item ② 影响。
     (父子各读一次钟、当地午夜前后可能分到不同日期这件事是 G6-7/G6-7-R 面的既有
-    形态, 非本卡引入, 登记为移交项。)
+    形态, 非本卡引入; 本卡合上其中刷新那一道。)
+
+    ⚠ 本 helper 在生产加了旗标之后**仍然保留**, 当纵深: 它显式钉子进程那一侧,
+    不依赖"生产这次有没有传"。两处调用点都是 `pinned = _pin_now(...)` 紧接
+    `_pin_child_now(..., pinned)` ⇒ 生产传的 `--now` 与本 helper 钉的是**同一个**
+    pinned, 值相同。即便如此下面也**显式替换**而不是盲目追加 —— 让 argv 里只留
+    一个 --now, 而不是靠"argparse 后者胜"这个隐式前提把两个撞在一起。
 
     脚本名锚在生产常量 mod._PICK_REL 上, 不手抄字面量: 生产改名时本 helper
     跟着失效, 比"改完还静默放行"强。返回 seen, 与 _spy_subprocess_run 同形。
@@ -4092,6 +4101,12 @@ def _pin_child_now(monkeypatch, mod, pinned) -> list:
     def _run(argv, **kw):
         argv = list(argv)
         if any(str(a).endswith(basename) for a in argv):
+            # 生产自 CARD-U6C-HANDOVER item ② 起自己会传一个 --now。替换而不是
+            # 追加: 两者值相同 (见 docstring 末段), 但留两个 --now 就把判据压在
+            # "argparse 取后一个"这个隐式前提上。
+            while "--now" in argv:
+                i = argv.index("--now")
+                del argv[i : i + 2]
             argv += ["--now", pinned_iso]
         seen.append(argv)
         return real_run(argv, **kw)
@@ -4524,7 +4539,9 @@ def test_g66_end_to_end_snooze_yields_top_slot_in_the_real_projection(board_done
     # ⛔ 端点与生产器子进程**两侧一起钉**。初版只钉端点那一侧, 于是写出的
     #    until=2026-09-09T20:00+08:00 在子进程的真实墙钟下 09-11 起已过期 ——
     #    本门 2026-09-11 自己红成 `assert 'CS 61B' != 'CS 61B'`, 代码一字未改。
-    #    理由与"为什么不给生产加旗标"见 _pin_child_now 的 docstring。
+    #    两侧一起钉的理由见 _pin_child_now 的 docstring (其中"为什么不给生产加
+    #    旗标"那一段已由 CARD-U6C-HANDOVER item ② 逐条更正: 生产现在传 --now,
+    #    本 helper 保留当纵深并显式替换掉它)。
     pinned = _pin_now(monkeypatch, mod, "2026-09-09T10:00:00")
     seen = _pin_child_now(monkeypatch, mod, pinned)
 
