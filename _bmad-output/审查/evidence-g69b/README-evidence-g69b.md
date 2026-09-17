@@ -119,3 +119,20 @@ Codex r2 指出：负控④ 会让门③ **先**停在 null 那条断言上，�
 | `last_result == "generated_push_failed"` | `True` | 门② 甲 |
 | 其余值（含 null / 未知 / 带噪声 last_error） | `(None, None)` | 门③ 丙丁戊（戊含 `last_error` 为字符串与为 `123` 两例） |
 | `last_error` 非 str / 编不出 UTF-8 | `(degraded, None)` | 门② 丙（`123`）/ 门② 乙（孤立 surrogate） |
+
+---
+
+## 收尾：Codex 三轮与 D-15
+
+| 轮 | 绑定 SHA | B/H/M/L | 存档 |
+|---|---|---|---|
+| r1 | `4a972d3a` | 0/0/1/1 | `../codex-review-CARD-G6-9b-r1.md` |
+| r2 | `7718ae60` | 0/0/1/0 | `../codex-review-CARD-G6-9b-r2.md` |
+| r3 | `baf8a693`（最终 HEAD） | **0/0/0/2** | `../codex-review-CARD-G6-9b-r3.md` |
+
+**D-15 达成**（r3 绑最终 HEAD 且 BLOCKER=0、HIGH=0；3 轮，上限 5）。r3 的两条 LOW
+按协议 §1 **登记不修** —— 都是测试覆盖缺口，Codex 原文写明「当前生产实现没有对应错误」；
+此时改代码 = 打破刚拿到的终审绑定。逐条移交见验收单 §Codex 轮次记录。
+
+`negctl-mutation-sources-r3.txt` = 五段负控的变异源码（Codex r3 指出「变异源码不在读取面内
+⇒ 结论只是条件性推导」，该意见成立，故一并落档供逐字复现）。
