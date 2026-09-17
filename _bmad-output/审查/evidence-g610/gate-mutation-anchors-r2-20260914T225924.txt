@@ -1,0 +1,20 @@
+# CARD-G6-10 门负控验伪锚 —— r2 版（负控已按 Codex r1 HIGH-2 改成单变量）
+# 判据: 把负控的**那一个**变量改回正确值 ⇒ 该条负控必须报 DID NOT RAISE
+PRE_SHA=3eb0d3018c7f3ed68f66732e8496320e45e179a516636cdf010146fdd23439f1
+
+== MUT-1 负控①写侧: :415 GID_NEG_B_LOGICAL → GID_NEG_A_LOGICAL（写改回正确 group）==
+    await _review_write(gate_client, GID_NEG_A_LOGICAL)
+E   Failed: DID NOT RAISE <class 'AssertionError'>
+FAILED tests/integration/test_g610_dual_vault_isolation.py::test_negctl_write_side_mislabeled_group_breaches_isolation
+=================== 1 failed, 3 passed, 10 warnings in 0.67s ===================
+restored=3eb0d3018c7f3ed68f66732e8496320e45e179a516636cdf010146fdd23439f1
+
+== MUT-2 负控②读侧: :440/:448 group_filtered=False → True（读把 scope 加回来）==
+    before_unscoped = await _snapshot_raw(gate_client, GID_NEG_B, group_filtered=True)
+    after_unscoped = await _snapshot_raw(gate_client, GID_NEG_B, group_filtered=True)
+E   Failed: DID NOT RAISE <class 'AssertionError'>
+FAILED tests/integration/test_g610_dual_vault_isolation.py::test_negctl_read_side_without_group_filter_breaches_isolation
+=================== 1 failed, 3 passed, 10 warnings in 0.88s ===================
+restored=3eb0d3018c7f3ed68f66732e8496320e45e179a516636cdf010146fdd23439f1
+
+RESTORE_VERIFIED pre==post (3eb0d3018c7f3ed68f66732e8496320e45e179a516636cdf010146fdd23439f1)

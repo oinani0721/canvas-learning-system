@@ -1,0 +1,13 @@
+# Codex r2 MEDIUM-1 / MEDIUM-2 的验证
+
+## MEDIUM-1: 进程级禁写字节码 —— 跑一次 canary 后仓库里不得新增 .pyc
+  跑前 __pycache__ 文件数（整棵开发树，排除 .venv）=      102
+  跑后新于哨兵的 .pyc 数 =        0  ← 期望 0
+  （注意：本跑**刻意不设** PYTHONDONTWRITEBYTECODE，靠脚本自己第 105 行的进程级开关）
+
+## MEDIUM-2: 报告打不出来时 rc 必须是 2（REJECTED）而不是 1（BREACHED）
+  负控输入: PYTHONIOENCODING=ascii（报告全中文 ⇒ 编码必炸）
+(eval):1: no such file or directory: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t4-g3/_bmad-output/审查/evidence-g610/..//dev/null
+  rc=1  ← 期望 2；若为 1 则与「隔离被破坏」撞码
+  对照: 正常编码下同一跑
+  rc=0  ← 期望 0

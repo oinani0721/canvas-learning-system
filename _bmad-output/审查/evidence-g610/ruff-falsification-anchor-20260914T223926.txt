@@ -1,0 +1,25 @@
+# ruff 判据的验伪锚 —— 卡文 §二.5 写的是「喂一个已知含 F401 的文件必须 rc=1」
+# 实测更正：backend/ruff.toml 的 select 只有 E9,F63,F7,F82 —— **F401 未启用**，该锚恒不触发（假阴性）
+# 故改用 F821（属 F82 族，已启用）作锚。两半都落盘，不是只贴能过的那半。
+
+--- backend/ruff.toml 实际 select ---
+10:select = ["E9", "F63", "F7", "F82"]
+
+--- 锚 A：F401（未使用 import）——按卡文应 rc=1，实测 ---
+import os
+All checks passed!
+F401_anchor_rc=0  ← 0 = 该锚在 backend 配置下**不触发**，卡文锚点失效
+
+--- 锚 B：F821（未定义名）——实测 ---
+def f():
+    return undefined_name_xyz
+F821 Undefined name `undefined_name_xyz`
+ --> /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t4-g3/98840b69-cd55-44b6-a75e-2975fcbc6dd1/scratchpad/ruffanchor/anchor_f821.py:2:12
+  |
+1 | def f():
+2 |     return undefined_name_xyz
+  |            ^^^^^^^^^^^^^^^^^^
+  |
+
+Found 1 error.
+F821_anchor_rc=1  ← 1 = 判据有牙齿（ruff 真的在跑、真的会红）

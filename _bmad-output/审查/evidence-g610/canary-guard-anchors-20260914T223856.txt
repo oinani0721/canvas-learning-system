@@ -1,0 +1,12 @@
+# CARD-G6-10 canary 落盘面守卫的验伪锚
+# 主张：任何一条落盘路径逃出 tmp ⇒ 在写之前 PreconditionRejected(rc=2)，不是写下去再说
+
+--- 正例：BACKUPS 在 tmp 下 ⇒ 守卫放行 ---
+checked 8 条落盘路径，全部在 tmp 下
+--- 验伪锚：BACKUPS 指向**真** backups/ ⇒ 守卫必须拒 ---
+  真 backups = /Users/Heishing/Desktop/canvas/canvas-learning-system/backups
+  ✓ PreconditionRejected: 落盘面逃出 tmp: runner.REPO = /Users/Heishing/Desktop/canvas/canvas-learning-system（tmp_root = /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/g610-guardpro
+--- 验伪锚：vault 指向 live vault ⇒ 守卫必须拒 ---
+  ✓ PreconditionRejected: 落盘面逃出 tmp: vault_B = /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault（tmp_root = /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/g610
+GUARD_ANCHORS_OK
+rc=0

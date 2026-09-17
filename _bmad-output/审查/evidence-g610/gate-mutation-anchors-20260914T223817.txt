@@ -1,0 +1,22 @@
+# CARD-G6-10 门负控的验伪锚：把负控的那一个变量改回正确值，负控必须报 DID NOT RAISE
+# 判据不是「某处失败」，而是**指定的那条负控**失败，且失败形态是 DID NOT RAISE（= 隔离断言没红 = 它确实依赖那个变量）
+PRE_SHA=fa73bbff8c1a16e045c5d843788bce0702df449db3d5b13795831fd9b4dd3b2c
+
+== MUT-1  负控①写侧：GID_NEG_B_LOGICAL → GID_NEG_A_LOGICAL（改回正确 group）==
+    await _review_write(gate_client, GID_NEG_A_LOGICAL)
+E   Failed: DID NOT RAISE <class 'AssertionError'>
+FAILED tests/integration/test_g610_dual_vault_isolation.py::test_negctl_write_side_mislabeled_group_breaches_isolation
+=================== 1 failed, 3 passed, 10 warnings in 0.72s ===================
+MUT1_rc=1
+restore_sha=fa73bbff8c1a16e045c5d843788bce0702df449db3d5b13795831fd9b4dd3b2c
+
+== MUT-2  负控②读侧：group_filtered=False → True（恢复 group 过滤）==
+    before = await _snapshot_group(gate_client, GID_NEG_B_LOGICAL, GID_NEG_B, group_filtered=True)
+    after = await _snapshot_group(gate_client, GID_NEG_B_LOGICAL, GID_NEG_B, group_filtered=True)
+E   Failed: DID NOT RAISE <class 'AssertionError'>
+FAILED tests/integration/test_g610_dual_vault_isolation.py::test_negctl_read_side_without_group_filter_breaches_isolation
+=================== 1 failed, 3 passed, 10 warnings in 0.69s ===================
+MUT2_rc=1
+restore_sha=fa73bbff8c1a16e045c5d843788bce0702df449db3d5b13795831fd9b4dd3b2c
+
+RESTORE_VERIFIED pre==post (fa73bbff8c1a16e045c5d843788bce0702df449db3d5b13795831fd9b4dd3b2c)

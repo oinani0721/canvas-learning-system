@@ -1,0 +1,18 @@
+# r4 整改验证（H1 / M1 / M2 / L1）
+
+## H1 负控输入（Codex r4 原文）: TMPDIR=/System（存在但不可写）+ TEMP=<生产 BACKUPS>
+  live backups mtime before = 1789467082.223663715
+*** PRECONDITION REJECTED *** $TEMP 落在受保护位置 runner.REPO(生产) 之内/之上: $TEMP = /Users/Heishing/Desktop/canvas/canvas-learning-system/backups, runner.REPO(生产) = /Users/Heishing/Desktop/canvas/canvas-learning-system（tempfile 的候选之一，第三方可能回落到它）
+verdict=REJECTED rc=2
+  rc=2  ← 期望 2（TEMP 这条候选也被验到）
+  live backups mtime after  = 1789467082.223663715
+  ✓ 零写入
+
+## H1 对照: 只有 TMPDIR 安全、其余未设 ⇒ 正常跑通
+verdict=ISOLATED rc=0
+
+## M2 白名单: 非 7692 端口本文件不跑
+  bolt://127.0.0.1:7693 -> RuntimeError
+  bolt://127.0.0.1:07691 -> RuntimeError
+  bolt://127.0.0.1 -> RuntimeError
+  bolt://127.0.0.1:7692 -> 4 passed

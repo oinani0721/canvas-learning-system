@@ -1,0 +1,29 @@
+# CARD-G6-10 收官核（终审后）
+PREREQ(T4-A tip) = 80d2fbb0d594351d606dd0ec95dfe1969a908cda
+审SHA(r5)        = 4da1eb24e797b9f0525ec02b1879480b3dc15786
+HEAD             = 1278c0f914d1a804438a88961eb11e86580100b1
+
+## 1 终审绑定（非空判据：HEAD 已前进一个文档 commit）
+代码树 diff（排除 _bmad-output）:
+  行数=       0  ← 0 = 仍绑定
+验伪锚（去掉 exclude，必须非空，证明命令确实在比对）:
+ .../UAT-CARD-G6-10-2026-09-15.md"                  |  298 +++++
+ 9 files changed, 1831 insertions(+)
+  行数=      10  ← 非 0 = 判据没跑空
+
+## 2 地盘核（PREREQ..HEAD，排除 _bmad-output）
+backend/scripts/g610_dual_vault_interaction_canary.py
+backend/tests/integration/test_g610_dual_vault_isolation.py
+
+## 3 越界自证（必须空）
+  行数=       0
+
+## 4 工作树（T4-C 开工前必须干净）
+?? "_bmad-output/\345\256\241\346\237\245/evidence-g610/final-close-20260915T184136.txt"
+  行数=       1
+
+## 5 未 push 自证
+       0
+
+## 6 现网只读 sentinel
+  canvas-vault/backups newer_than_sentinel=       0
