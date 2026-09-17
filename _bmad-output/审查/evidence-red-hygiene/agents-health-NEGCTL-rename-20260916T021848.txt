@@ -1,0 +1,17 @@
+### 防漂 guard 负控：mock 内改名一项（长度仍 13）
+### 期望：test_mock_expected_templates_match_production_truth_source 单独红；
+###       len==13 与 AC1 total==13/available==13 仍绿（数量判据抓不到改名）
+--- 跑前 shasum ---
+a31efb0c7d23bd586428d3b9564a5778619a794bd94492a03c6da6c426b80b80  backend/tests/api/v1/endpoints/test_agents_health.py
+[mutate] mock EXPECTED_TEMPLATES: memory-anchor -> memory-anchor-MUTANT
+--- 变异态 shasum ---
+091bb25ebf37652c7a3c58c64487727df0c200bbec36ac69a9e692b2aab4743c  backend/tests/api/v1/endpoints/test_agents_health.py
+--- 变异态跑 ---
+E   AssertionError: mock 的 EXPECTED_TEMPLATES 与 AgentService.health_check 的 expected_templates 不一致；生产改了名单就要同步改这里，并复核本文件里所有 total/available 断言
+FAILED tests/api/v1/endpoints/test_agents_health.py::test_mock_expected_templates_match_production_truth_source
+================== 1 failed, 12 passed, 10 warnings in 0.47s ===================
+--- 还原 ---
+--- 跑后 shasum（须与跑前逐字节同）---
+a31efb0c7d23bd586428d3b9564a5778619a794bd94492a03c6da6c426b80b80  backend/tests/api/v1/endpoints/test_agents_health.py
+--- 还原后复跑 ---
+======================= 13 passed, 10 warnings in 0.47s ========================

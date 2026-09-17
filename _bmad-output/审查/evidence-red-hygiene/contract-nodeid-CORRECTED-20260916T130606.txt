@@ -1,0 +1,72 @@
+### (g) contract node-id pattern 定性 —— CORRECTED（取代 contract-nodeid-20260916T130232-SUPERSEDED.txt）
+### ⛔ 卡文 §〇 对本条的两处事实更正：
+###   更正①：卡文写「比对 schema 的 properties.id.pattern（:160）vs NodeRead（:163）」。
+###          实测失败身份是 FileNotFoundError @ test_node_id_patterns.py:157（open 那一行），
+###          测试从未跑到 :160/:163 的比对逻辑。
+###   更正②：卡文把处置写成「schema/model 对齐」。实测两侧 pattern 从不分歧 ——
+###          删除前 schema 的 pattern 与今天 Pydantic 的 pattern 逐字相同。
+
+--- 1) specs/data 实有文件（无 canvas-node.schema.json）---
+difficulty-level.schema.json
+recommend-action-request.schema.json
+recommend-action-response.schema.json
+score-history-query.schema.json
+score-history-response.schema.json
+session-pause-resume-response.schema.json
+session-progress-response.schema.json
+
+--- 2) 该路径的 git 历史（先数再写）---
+删除型 commit 数 (wc -l 实数) = 1
+涉及该路径的 commit 总数 (wc -l 实数) = 6
+删除该文件的 commit:
+  14f0412dc3311a70843c139514c2a3c0b5b4e7dd 2026-02-07 chore: clean release — remove legacy docs/specs, consolidate code fixes
+该 commit 与 HEAD 的关系:
+  14f0412d 是 HEAD 祖先 = YES
+
+--- 3) 删除前 schema 的 pattern vs 今天 model 的 pattern ---
+  14f0412d^ 的 schema properties.id.pattern = ^[a-zA-Z0-9][-a-zA-Z0-9]*$
+  今天       NodeRead pydantic pattern      = ^[a-zA-Z0-9][-a-zA-Z0-9]*$
+  两者逐字相同 = YES（⇒ 从不存在 pattern 分歧）
+
+--- 4) 定向单跑失败身份 ---
+E   FileNotFoundError: [Errno 2] No such file or directory: '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t10-red/specs/data/canvas-node.schema.json'
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t10-red/backend/tests/contract/test_node_id_patterns.py:157: FileNotFoundError: [Errno 2] No such file or directory: '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t10-red/specs/data/canvas-node.schema.json'
+FAILED tests/contract/test_node_id_patterns.py::TestNodeIdPatternConsistency::test_pattern_matches_json_schema
+======================== 1 failed, 10 warnings in 0.53s ========================
+
+--- 5) 验伪锚：同文件不是整体红（证明红是这一条，不是收集期崩）---
+FAILED tests/contract/test_node_id_patterns.py::TestNodeIdPatternConsistency::test_pattern_matches_json_schema
+================== 1 failed, 49 passed, 10 warnings in 0.56s ===================
+
+### 处置（本卡不改）：specs/** 与 backend/app/models/** 均非本卡地盘（models 零写者）。
+### 接收卡范围须按上面两条更正改写：不是「对齐两个分歧的 pattern」，而是二选一 ——
+###   (甲) 把 14f0412d 连带删掉的 specs/data/canvas-node.schema.json 补回（内容可从 14f0412d^ 完整取回）；
+###   (乙) 退役这条自 2026-02-07 起就没跑到过比对逻辑的契约测试。
+
+
+================================================================================
+⛔ 自查更正（独立对抗自审 EV-06）：一处结论超出取样面
+
+原文第 3 段末尾写「两者逐字相同 = YES（⇒ 从不存在 pattern 分歧）」——
+括号里那句**超出了它的取样面**，撤回。
+
+实测该 schema 的 `properties.id.pattern` 在历史上取过 **3 个不同值**
+（`git log --all -- specs/data/canvas-node.schema.json` 共 6 个 commit，逐个 git show）：
+
+  eb86275a 2025-11-22  '^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$'
+  56395674 2025-11-25  '^[a-f0-9]+$'
+  50e35496 2025-11-25  '^[a-f0-9]+$'
+  5e10a260 2025-12-19  '^[a-zA-Z0-9][-a-zA-Z0-9]*$'
+  abf1d585 2026-02-04  '^[a-zA-Z0-9][-a-zA-Z0-9]*$'
+  14f0412d 2026-02-07  （该 commit 里文件已不存在 = 删除态）
+
+  不同取值数 = 3
+
+【更正后的如实表述】
+  只能说：**在该文件被删除的那一刻（14f0412d^），schema 的 pattern 与今天的
+  Pydantic pattern 逐字相同** —— 这是一个单点快照结论，不是历史不变量。
+  「从不存在分歧」不成立：2025-11-22 → 2025-12-19 之间 schema 侧就变过两次。
+
+【对处置建议的影响 = 无】
+  接收卡的二选一（补回被删的 schema 文件 / 退役该契约测试）不依赖历史不变性，
+  只依赖「删除那一刻两侧一致」这个单点事实，该事实仍成立。

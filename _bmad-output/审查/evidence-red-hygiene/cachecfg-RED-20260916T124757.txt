@@ -1,0 +1,11 @@
+### (f) 先红：config.py 两 Field + .env.example 两行已删，test_cache_configuration.py 未动
+### 期望 3 红 = 两条真 Settings 默认值断言 + 一条 .env.example 文档断言
+    raise AttributeError(f'{type(self).__name__!r} object has no attribute {item!r}')
+E   AttributeError: 'Settings' object has no attribute 'MEMORY_RETRY_BASE_DELAY'. Did you mean: 'NEO4J_RETRY_MAX_DELAY'?
+    raise AttributeError(f'{type(self).__name__!r} object has no attribute {item!r}')
+E   AttributeError: 'Settings' object has no attribute 'MEMORY_RETRY_BASE_DELAY'. Did you mean: 'NEO4J_RETRY_MAX_DELAY'?
+E   AssertionError: .env.example missing documentation for MEMORY_RETRY_BASE_DELAY
+FAILED tests/unit/test_cache_configuration.py::TestMemoryRetryDelayFromSettings::test_retry_delay_defaults_match_original
+FAILED tests/unit/test_cache_configuration.py::TestDefaultValuesBackwardCompatible::test_settings_defaults_match_original
+FAILED tests/unit/test_cache_configuration.py::TestDIPathPropagation::test_env_example_documents_all_new_settings
+============= 3 failed, 7 passed, 5 xfailed, 10 warnings in 2.76s ==============

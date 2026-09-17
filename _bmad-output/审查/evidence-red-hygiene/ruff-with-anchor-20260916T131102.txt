@@ -1,0 +1,26 @@
+### ruff 判据 + 验伪锚（锚 = 把 F821 注入判据自己的文件集，跑逐字相同的判据命令）
+### 生效配置 = backend/ruff.toml；ruff --show-settings 实测 undefined-name (F821) 在启用列表内
+### （F401 不在启用列表 ⇒ 不能拿 F401 当锚，会恒不触发）
+
+--- 正跑：本卡改动的 .py 文件集 ---
+files=5
+All checks passed!
+ruff rc=0
+
+--- 验伪锚：向 backend/tests/unit/test_cache_configuration.py 末尾注入一行 F821，判据命令一字不变 ---
+6a525c4fb0bf7b138b6caba533dc47f088927bfae5e946afc599e9fffe2e8290  backend/tests/unit/test_cache_configuration.py
+F821 Undefined name `_definitely_not_defined_anywhere_in_this_module`
+   --> backend/tests/unit/test_cache_configuration.py:292:12
+    |
+291 | def _ruff_anchor_probe():
+292 |     return _definitely_not_defined_anywhere_in_this_module
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+
+Found 1 error.
+anchor rc=1   （须 != 0，否则判据对 F821 是瞎的）
+--- 还原后 shasum（须与注入前同）---
+6a525c4fb0bf7b138b6caba533dc47f088927bfae5e946afc599e9fffe2e8290  backend/tests/unit/test_cache_configuration.py
+--- 还原后复跑判据 ---
+All checks passed!
+ruff rc=0

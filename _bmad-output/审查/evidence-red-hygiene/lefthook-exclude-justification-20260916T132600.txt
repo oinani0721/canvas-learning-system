@@ -1,0 +1,136 @@
+### 本卡 commit 使用 LEFTHOOK_EXCLUDE 的逐条依据（协议 §2.3 / 手册 §零.3）
+### 卡: CARD-RED-HYGIENE  批次: BATCH-2026-09-11-第十四批  车道: T10 第 5/5
+### 记录时刻: 20260916T132600
+
+被跳过的 hook 共 2 个：python-lint、spec-sync-root。
+⛔ python-typecheck **未**跳过（本卡改了 backend/app/config.py，手册 §零.3 硬禁跳过它）；
+   首次 commit 尝试时它实跑并通过：`✔️ python-typecheck (3.07 seconds)`。
+
+================================================================================
+一、python-lint —— 依协议 §2.3「ruff format --check 主干既有 462 文件漂移」过渡条款
+================================================================================
+
+1) 被跳过门的原始输出（首次 commit 尝试，lefthook summary）：
+
+     ✔️ ghost-files (0.03 seconds)
+     ✔️ mutant-residue-scan (0.13 seconds)
+     ✔️ python-typecheck (3.07 seconds)
+     ✔️ spec-sync-root (8.74 seconds)
+     🥊 python-lint (0.04 seconds)          ← 唯一失败项，阻断了那次 commit
+
+   手工复现该 hook 的两步（lefthook.yml:117-130）：
+
+     step1  ruff check  <本卡 5 个 .py>            → All checks passed!   rc=0
+     step2  ruff format --check <本卡 5 个 .py>    → rc=1
+            Would reformat: backend/tests/api/v1/endpoints/test_agents_health.py
+            Would reformat: backend/tests/unit/test_cache_configuration.py
+            2 files would be reformatted, 3 files already formatted
+
+   ⇒ 失败的只有 step2（格式），step1（lint 规则）全绿。
+
+2) 本卡先自清了属于自己的那一个：
+
+   test_agents_health.py 在 $PREV 版本 `ruff format --check` **通过**
+   （见下方基线实测）⇒ 该文件的漂移是本卡引入的，不享受过渡条款。
+   已对该文件跑 `ruff format`，改动只有一处、且落在本卡新增的 guard 代码内：
+
+     @@ -477,8 +477,7 @@
+              assert isinstance(node.value, ast.List), (
+     -            "生产的 expected_templates 不再是字面量列表，本 guard 的取值方式已失效——"
+     -            "请连同本函数一起改，不要放宽断言"
+     +            "生产的 expected_templates 不再是字面量列表，本 guard 的取值方式已失效——请连同本函数一起改，不要放宽断言"
+              )
+
+   自清后复验：`1 file already formatted` rc=0，`ruff check` rc=0。
+
+3)「格式漂移不在本卡改动行」证明（协议 §2.3 要求的那一条）：
+
+   剩余 dirty 集 = { backend/tests/unit/test_cache_configuration.py }
+
+   (a) 主干既有集实测：把 $PREV(f294878b) 的 5 个文件取到临时目录单独跑
+       `ruff format --check`：
+         Would reformat: .../prevfmt/test_cache_configuration.py
+         1 file would be reformatted, 4 files already formatted
+       ⇒ 主干既有 dirty 集 = { test_cache_configuration.py }
+       ⇒ 本卡 dirty 集 ⊆ 主干既有集   （两集合相等，无新增）
+
+   (b) 漂移行 vs 本卡改动行（新文件侧行号，同一份工作树实测）：
+
+       本卡在该文件的改动 hunk（git diff -U0 的 @@ 头，新侧）：
+         +39,13 / +54,0 / +97,0 / +121,3 / +145,3 / +176,0 / +210,3 / +257,3 / +280,2
+
+       ruff format 想改的行（新侧）：
+         @@ -244,9 +244,7 @@
+
+       244-252 不落在上列任何一个 hunk 区间内（最近的两个是 210-212 与 257-259）。
+
+   (c) 该漂移所在代码段在 $PREV 版本逐字相同（= 本卡一字未动）：
+       段落 = TestDIPathPropagation::test_agent_service_di_passes_cache_config
+       $PREV 版该段在 :276-284，文本与当前工作树版完全一致：
+         assert "AGENT_MEMORY_CACHE_TTL" in source, (
+             "dependencies.py must pass AGENT_MEMORY_CACHE_TTL to AgentService"
+         )
+
+   ⇒ 三项合起来：剩余漂移 100% 是主干既有、且不在本卡改动行上。
+   ⇒ 依协议 §2.3，本卡不顺手修它（「语义车道禁止顺手修存量」；462 文件整仓 format
+     由第十五批末位主 session 单独一 commit，D-40）。
+
+================================================================================
+二、spec-sync-root —— 跳过依据：本卡不改变 OpenAPI 面
+================================================================================
+
+lefthook.yml:62-73 的 glob 是 `backend/app/{main.py,config.py}`，本卡改了 config.py，
+于是该 hook 会重生成并 `git add backend/openapi.json`，使 commit 出现第 7 个文件
+（本卡地盘只有 6 个）= 地盘越界。
+
+实测该重生成对快照的实际影响：
+
+  跑前 sha256 = 1455eb7dc5d46bbdb14aba984ef9c08991b3ffe250a8638c532eb491c56e4764
+  跑后 sha256 = f6c939d4e3f3b3881e10a674e38e40dd0a3dbaf1456c249c2c4c60df13617849
+  脚本自报    = WROTE: backend/openapi.json (paths=197 schemas=357, ...)
+  git diff --stat 实数 = 1 file changed, 1 insertion(+), 1 deletion(-)
+  唯一变动行  = "x-generated-at" 时间戳
+
+  ⇒ paths=197 / schemas=357 与快照内既有值一致，API 面零变化
+    （本卡删的是 Settings 的两个配置字段，不进任何 request/response 模型）。
+  ⇒ 该 hook 唯一会写入的差异是生成时间戳，不是需要同步的内容。
+
+因此跳过它，并保持 backend/openapi.json 与 $PREV 逐字节相同（收工 territory 判据复核）。
+⚠️ 这不是「快照过期没同步」：若哪天 config.py 的改动真的动了 API 面，
+   本依据即不成立，必须让该 hook 正常跑完并把 openapi.json 纳入当卡地盘。
+
+================================================================================
+三、未证明什么
+================================================================================
+- 未证明「462 文件」这个总数在当前主干仍准确 —— 本卡只实测了自己这 5 个文件，
+  用的是「$PREV 同文件对照」这个局部口径，不是全仓普查。
+- 未证明 spec-sync-root 在别的卡上也只产生时间戳差异 —— 这是本卡改动面的结论。
+
+
+================================================================================
+⛔ 行号精度更正（按 Codex r1 LOW-2 第三项；本卡自核后采纳）
+
+原文 §一.3(b) 写「ruff format 想改的行（新侧）@@ -244,9 +244,7 @@」并据此说
+「244-252 不落在本卡任何 hunk 内」。**结论成立，但引用的是 hunk 头与 hunk 跨度，
+不是真正被改的行**——`@@ -244,9` 表示这一段从第 244 行起共 9 行，而其中真正
+被 ruff 改动的只有中间那 3 行。逐版实测（`ruff format --diff` 的 hunk 头 + 实际改动行）：
+
+  $PREV (f294878b)   hunk 头 @@ -281,9   实际被改行 = 284-286
+  被审 SHA 8bfcdfce  hunk 头 @@ -244,9   实际被改行 = 247-249
+  当前 HEAD          hunk 头 @@ -247,9   实际被改行 = 250-252
+    （本卡后续又给该文件头加了 AC-2 退役说明，故再下移 3 行）
+
+被改的那三行内容三版逐字相同，都是同一处：
+  TestDIPathPropagation::test_agent_service_di_passes_cache_config 里
+  `assert "AGENT_MEMORY_CACHE_TTL" in source, ( ... )` 的括号折行。
+
+与本卡改动行的关系（用**实际被改行**重算，而不是 hunk 跨度）：
+  本卡在该文件的改动 hunk（新侧，git diff -U0）：
+    +39,13 / +54,0 / +97,0 / +121,3 / +145,3 / +176,0 / +210,3 / +257,3 / +280,2
+    （当前 HEAD 因文件头新增说明，上述区间整体下移约 3 行）
+  实际被改行 247-249（HEAD 上 250-252）落在 210-212 与 257-259 之间的空隙里，
+  **不与任何一个本卡 hunk 相交** —— 结论与原文一致，但依据从「hunk 跨度」
+  收紧为「实际被改行」。
+
+教训（与本卡其它几处同型）：引用 diff 位置时，`@@ -A,B` 的 A 是**段起点**、B 是
+**段长度**，二者都不等于「被改的那几行」。判据要引哪一个，取决于主张是什么。

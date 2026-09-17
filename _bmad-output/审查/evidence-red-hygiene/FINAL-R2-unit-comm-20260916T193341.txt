@@ -1,0 +1,73 @@
+### [FINAL-R2] tests/unit 目录级 comm @ HEAD 2c740216 —— ⚠️ 本跑 '>' = 1，逐条说明
+
+本跑红 nodeid = 35   BASE = 64
+'<' 计数 = 30
+'>' 计数 = 1   ⇐ ⚠️ 不是 0
+'>' 的那一条:
+    tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422
+
+=========== 三跑对照（同一代码面？不同）===========
+  跑1  unit-close-20260916T131111      @ 8bfcdfce   34 failed   '>'=0   blocked=0
+  跑2  FINAL-unit-close-20260916T191150 @ b38e1d04  34 failed   '>'=0   blocked=0
+  跑3  FINAL-R2-unit-close-20260916T192615 @ 2c740216 35 failed '>'=1   blocked=1  ← 本跑
+
+=========== 本跑那条 '>' 的失败身份（承重）===========
+它**不是**因为自己的业务断言失败，而是承接了 W4 端口哨兵的红。失败正文首行逐字：
+  - ('::1', 7691, 0, 0) on thread MainThread (owner=tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422)
+
+协议 §3 第 79 行指定的哨兵判据（绑这两样，不绑 nodeid）：
+  (甲) blocked= 次数            → 本跑实测 = 1
+  (乙) 失败正文唯一指纹数       → grep -oF "('::1', 7691, 0, 0) on thread MainThread" | sort -u | wc -l = 1
+协议原文：「同一代码状态下哨兵红会在 nodeid 之间翻转（U10-A r4/r4b 实测：
+          candidate422 ↔ mock_warning），**逐 nodeid diff 自带 flaky**」。
+本跑承接哨兵身份的正是 candidate422 —— 协议点名的那两条之一。
+
+=========== 安全面：连接被拦下，未触达现网 ===========
+  advisory=0 / unaccounted=0 / blocked=1 ⇒ 那一次连接尝试被 fail-closed 拦住，
+  现网 7691 **没有被连上**。日志原文：「受拦端口 [7687, 7691] 是现网 Neo4j；测试进程不得连接」
+  随后走 JSON 降级（Falling back to JSON storage mode）。
+
+=========== 与 Codex r1 的相互印证 ===========
+  Codex r1 在**它自己的环境**、绑 8bfcdfce 时也得到过同一形态：
+    「仅将 PATH 前置已有 Node v24.16.0 → 35 failed，'>'=1，blocked=1」，
+    且它实测「随后单跑它为 1 passed，blocked=0」。
+  本跑在**车道树**、绑最终 HEAD 2c740216 上复现了同一形态（35 / '>'=1 / blocked=1）。
+  ⇒ 两个独立环境、两个不同 SHA 上都出现，且都伴随 blocked=1 ——
+    与「本卡引入的回归」这一解释不相容（本卡三个 commit 都没碰任何与端口/Neo4j 相关的文件）。
+
+=========== 本卡 4 个地盘测试文件在本跑红集里 ===========
+  test_agents_health : 0
+  test_sync_batch_auth : 0
+  test_system_endpoint_auth : 0
+  test_cache_configuration : 0
+  同次验伪锚（证明 grep 非恒 0）：test_vault_notes_group_filter = 4
+
+=========== ⛔ 车道的处置（不自判通过）===========
+  依 D-15：车道对 HIGH 只能写理由，不能自判通过。本卡**不**声称 '>' = 0。
+  如实记录：最终 HEAD 的这一跑 '>' = 1，该条是 W4 哨兵载体、blocked=1、连接被拦。
+  裁定权在主 session。建议按协议 §3 用「blocked= 次数 + 失败正文」判，而非 nodeid diff。
+rc=0
+
+
+================================================================================
+⛔ 本文件一处推论已撤回（Codex r4 LOW-2）
+
+上面「与 Codex r1 的相互印证」那段末尾写：
+    「两个独立环境、两个不同 SHA 上都出现 ⇒ 与「本卡引入的回归」这一解释不相容」
+—— **该因果推论不充分，撤回**。
+
+理由（Codex r2/r3/r4 连着三轮的同一条批评）：
+「几个 SHA 都出现过」「同一 SHA 有时通过」只能说明**差异不由代码状态决定**，
+推不出「它早就存在、与本卡无关」。
+
+**成立的替代证据**（请引这一条）：`$PREV` 已入库的
+`_bmad-output/审查/evidence-b13-integ/unit-integ5-20260911T010612.txt`
+第 597-606 行已有同一条 candidate422、同一 ('::1', 7691, 0, 0) on thread MainThread 指纹
+与 JSON 降级，第 1143 行同为 blocked=1, advisory=0, unaccounted=0；
+相关调用链相对 $PREV 未被本卡修改。⇒ 该现象**早于本卡**，有历史原始日志为证。
+
+⚠️ 另注意：integ5 的红集是 **65** 条（36 FAILED + 29 ERROR），与本卡的 34 条**不是同一个集合**
+（差集 31）。它证的是「现象早于本卡」，**不是**「红集相同」；
+「红集相同」由 `epw-unit-close7.nodeids`（34 条，与本卡差集 0）证明。两者不可混引。
+
+本文件其余部分（三跑对照、失败身份、哨兵指纹、安全面）不受影响。

@@ -1,0 +1,36 @@
+### (d) 负控三段 —— 共享谓词 _handler_was_not_reached 的两个方向各自被钉住
+### 承重 = tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuthPrecedesHandler::test_rejected_request_never_reaches_handler
+### 对照 = tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuthPrecedesHandler::test_control_input_only_auth_dependency_removed
+--- 跑前 shasum ---
+289172fb3eef7dba517364a0f3c65fca32c3c3d455721def1f92b34d2adaf046  backend/tests/unit/test_system_endpoint_auth.py
+
+===== M1：把对照的断言方向翻成与承重同向（assert not X -> assert X）=====
+===== 期望：对照单独红，失败身份 = 摘掉鉴权后谓词其实是 False =====
+[M1] control assertion flipped
+f1a2b3cd5d187d0e0c6abe92779b46aebb54ba684b45e249a2a06139595e029e  backend/tests/unit/test_system_endpoint_auth.py
+{"event": "[Story 1.3] LLM connection test passed \u2014 model=ollama/qwen2.5:7b", "request_id": "5220658128", "logger": "app.api.v1.system", "level": "info", "timestamp": "2026-09-16T04:45:41.477446Z"}
+INFO     app.api.v1.system:system.py:909 [Story 1.3] LLM connection test passed — model=ollama/qwen2.5:7b
+FAILED tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuthPrecedesHandler::test_control_input_only_auth_dependency_removed
+================== 1 failed, 11 passed, 10 warnings in 2.27s ===================
+
+===== M2：谓词改恒真（return True）=====
+===== 期望：承重仍绿（恒真），对照必红 —— 证明对照钉住了谓词 =====
+[M2] predicate -> always True
+3d4dc3287d2ba9baaa5a1334c7a9548606005bc085f465923e2f745796696843  backend/tests/unit/test_system_endpoint_auth.py
+{"event": "[Story 1.3] LLM connection test passed \u2014 model=ollama/qwen2.5:7b", "request_id": "5222722512", "logger": "app.api.v1.system", "level": "info", "timestamp": "2026-09-16T04:46:11.382888Z"}
+INFO     app.api.v1.system:system.py:909 [Story 1.3] LLM connection test passed — model=ollama/qwen2.5:7b
+FAILED tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuthPrecedesHandler::test_control_input_only_auth_dependency_removed
+================== 1 failed, 11 passed, 10 warnings in 3.02s ===================
+
+===== M3：谓词改恒假（return False）=====
+===== 期望：承重必红 —— 证明承重钉住了谓词 =====
+[M3] predicate -> always False
+dd16b80cd0ca3d1f3f4323e3220fa378471e21a1dbdb42495eda8183751465b9  backend/tests/unit/test_system_endpoint_auth.py
+FAILED tests/unit/test_system_endpoint_auth.py::TestSystemTestLLMAuthPrecedesHandler::test_rejected_request_never_reaches_handler
+================== 1 failed, 11 passed, 10 warnings in 4.16s ===================
+
+--- 还原 ---
+--- 跑后 shasum（须与跑前逐字节同）---
+289172fb3eef7dba517364a0f3c65fca32c3c3d455721def1f92b34d2adaf046  backend/tests/unit/test_system_endpoint_auth.py
+--- 还原后复跑 ---
+======================= 12 passed, 10 warnings in 3.28s ========================

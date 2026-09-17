@@ -1,0 +1,58 @@
+### 归属核：本卡 6 个地盘文件在 $BASE 红基线里各有几条
+  test_agents_health : 0 条
+  test_sync_batch_auth : 0 条
+  test_system_endpoint_auth : 0 条
+  test_cache_configuration : 0 条
+
+### 结论：本卡对 '<'(30) 的贡献 = 上面几项之和
+### 若为 0 ⇒ 30 条全部来自同车道前四卡（T10-A/B/C/D，$PREV 之前已转绿），本卡只做到「不增」。
+
+--- 验伪锚：BASE 里确实存在可被 grep 命中的文件名（证明 grep 不是瞎的）---
+  test_story_30_13 在 BASE 的条数 = 11
+
+--- 本卡改动的 4 个测试文件在本跑红集里的条数（须 0）---
+  test_agents_health : 0 条
+  test_sync_batch_auth : 0 条
+  test_system_endpoint_auth : 0 条
+  test_cache_configuration : 0 条
+
+
+================================================================================
+⛔ 自查更正（独立对抗自审 EV-04）：标题面 ≠ 正文枚举面
+
+标题写「本卡 6 个地盘文件在 $BASE 红基线里各有几条」，正文只逐项列了 **4 个**
+（都是测试文件）。缺的 2 个是 `backend/app/config.py` 与 `backend/.env.example`。
+
+补齐（同日实测，口径同正文）：
+  红基线 $BASE 是 tests/unit 的 **nodeid** 清单，只含测试用例标识；
+  `backend/app/config.py` 与 `backend/.env.example` **不是测试文件、不产生 nodeid**，
+  因此在 $BASE 里结构上就不可能有条目（各 0 条），在本跑红集里同样各 0 条。
+
+⇒ 标题应写「本卡 4 个测试地盘文件」，或在正文里把另外两个非测试文件为何不参与
+  nodeid 口径写明。此处即补此说明。
+
+⛔ **更重要的一条撤回（Codex r1 反面问题 #4 / r2 LOW-2）**：
+本文件正文用的那条推理 ——「本卡的测试文件不在基线红集里 ⇒ 本卡对消失的那些红贡献为零」
+—— **不充分**，已撤回。它只能说明本卡没在这几个文件上制造红，推不出「那 30 条的消失
+与本卡无关」。
+
+⛔ **二次更正（Codex r3 LOW-2）**：上一段把**两份不同的红集**混写成了同一个「34 条」。
+逐份实测（对 `$PREV` 的 git 对象，统一剥 `FAILED`/`ERROR` 前缀后去重）：
+
+  evidence-epw-coverage/epw-unit-close7.nodeids          = **34** 条
+  evidence-b13-integ/unit-integ5-20260911T010612.txt     = **65** 条（36 FAILED + 29 ERROR）
+  本卡最终跑（FINAL-R3-unit-close-run1）                  = **34** 条
+
+  本卡 34  vs  EPW 34    → 差集 **0**（逐项相同）
+  本卡 34  vs  integ5 65 → 差集 **31**（两个不同的集合，不能混引）
+
+**两份证据各证一件事，必须拆开引用：**
+  * **EPW（34 条）** 证明的是「**红集没变**」—— 本卡前后逐项相同 ⇒ 本卡对红集净贡献 0。
+    归属结论引这一份。
+  * **integ5（65 条）** 证明的是「**哨兵现象早于本卡**」—— 该文件里含 3 处
+    `test_accept_candidate_already_accepted_returns_422`、1 个唯一
+    `('::1', 7691, 0, 0) on thread MainThread` 指纹、末次 `blocked=1`。
+    它的红集规模与本卡不同（65 vs 34，那是当时的整合树状态），
+    **不能**用来论证「红集相同」。
+
+引用时请按上面这个拆分，不要引本文件被撤回的原推理，也不要把两份写成同一个 34。

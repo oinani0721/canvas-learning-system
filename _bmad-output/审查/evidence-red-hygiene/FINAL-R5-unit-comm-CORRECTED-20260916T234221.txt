@@ -1,0 +1,25 @@
+### [FINAL-R5 · CORRECTED] tests/unit 目录级 comm @ HEAD 0bc3baef47e493fd2366f3285b6da3a5864bc0af
+### 源跑: FINAL-R5-unit-close-20260916T204820.txt（35 failed, blocked=1, 用时 420.66s）
+### BASE: evidence-b14/unit-red-baseline-08100483.txt
+### ⚠️ 取代 FINAL-R5-unit-comm-20260916T233419.txt（该档 BASE 提取口径错，29 条 ERROR 塌成 1 条）。
+### 本档口径：两侧一律 awk '{print $2}' 取 nodeid，兼容 FAILED / ERROR 两种前缀。
+### 口径自证: BASE 非注释 = 64 行 = 35 FAILED + 29 ERROR；提取后唯一 nodeid = 64
+
+本跑红 nodeid = 35   BASE = 64
+'<' 计数 = 30   （BASE 有、本跑无 = 已转绿）
+'>' 计数 = 1   （本跑有、BASE 无 = 新增红）
+'>' 的条目:
+    tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422
+
+=== W4 哨兵（协议 §3：绑 blocked= 次数 + 失败正文，不绑 nodeid）===
+  (甲) NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=1 (blocked=1, advisory=0, unaccounted=0)
+  (乙) 失败正文唯一指纹数 = 1
+
+=== 本卡 4 个测试地盘文件在本跑红集里的条数（须 0）===
+  test_agents_health = 0
+  test_sync_batch_auth = 0
+  test_system_endpoint_auth = 0
+  test_cache_configuration = 0
+  验伪锚（证明上面的 grep 不恒 0）: test_vault_notes_group_filter = 4
+
+rc=0

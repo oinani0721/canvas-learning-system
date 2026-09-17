@@ -1,0 +1,67 @@
+> ⚠️ **事后更正（2026-09-16，主 session 复核时追加；原文一字未改）**
+> 下面第 2 行末尾的「**构造上穷尽**」是**已撤回的失实陈述**：Codex r4 MEDIUM-1 证伪了它，
+> 代码 docstring 已在 `ef21be2c`→`0bc3baef` 改为「覆盖比逐条枚举宽得多，但**不穷尽**」并逐条列出
+> 3 类已知漏面 + 3 类已知误报。本存档写于该撤回之前，抬头未同步。
+> **正文 26 格的实测结果不受影响**（每格预期由探针自断言，与抬头那句措辞无关）。
+> 撤回后那 6 条主张的实测补证见同目录 `FINAL-R5-docstring-claims-*.txt`（MISMATCH_COUNT=0）。
+
+### [FINAL-R4] guard 形态覆盖 —— 自校验（含 Codex r1/r2/r3 全部点名形态）
+### 判定方式已从「枚举语句类型」改为「按 AST 的 ctx=Store/Del 判定」，构造上穷尽。
+### 方法：import 入库的真 helper，只在内存替换 inspect.getsource 输入；逐格写死预期并自断言。
+
+  [OK] 01 真实生产源码 [r0]
+        期望=PASS 实测=PASS  取到 13 项；与 mock 相等 = True
+  [OK] 02 带类型注解 [r1]
+        期望=PASS 实测=PASS  取到 2 项
+  [OK] 03 嵌套函数内同名局部变量 [r1]
+        期望=PASS 实测=PASS  取到 2 项
+  [OK] 04 x[:].reverse() 切片副本 [r3-LOW1]
+        期望=PASS 实测=PASS  取到 2 项
+  [OK] 05 x[0].append() 改元素非本体 [新增]
+        期望=PASS 实测=PASS  取到 2 项
+  [OK] 06 += [...] [r1]
+        期望=RED 实测=RED  在 AgentService.health_check 自己的作用域里找到 2 处对 expected_
+  [OK] 07 [0] = x [r1]
+        期望=RED 实测=RED  生产在这个作用域里对 expected_templates 还有别的写入：写它的下标 / 属性
+  [OK] 08 [0] += -x [r2]
+        期望=RED 实测=RED  生产在这个作用域里对 expected_templates 还有别的写入：写它的下标 / 属性
+  [OK] 09 del a[0], b[0] [r2]
+        期望=RED 实测=RED  生产在这个作用域里对 expected_templates 还有别的写入：写它的下标 / 属性
+  [OK] 10 a[0] = b[0] = x [r2]
+        期望=RED 实测=RED  生产在这个作用域里对 expected_templates 还有别的写入：写它的下标 / 属性
+  [OK] 11 x = other = [..] 多 target 重绑 [r3]
+        期望=RED 实测=RED  在 AgentService.health_check 自己的作用域里找到 2 处对 expected_
+  [OK] 12 x, other = [..], [] 解包重绑 [r3]
+        期望=RED 实测=RED  在 AgentService.health_check 自己的作用域里找到 2 处对 expected_
+  [OK] 13 with .. as x[0] [r3]
+        期望=RED 实测=RED  生产在这个作用域里对 expected_templates 还有别的写入：写它的下标 / 属性
+  [OK] 14 推导式 target 写下标 [r3]
+        期望=RED 实测=RED  生产在这个作用域里对 expected_templates 还有别的写入：写它的下标 / 属性
+  [OK] 15 def helper(unused=x.pop()) 默认参数 [r3]
+        期望=RED 实测=RED  生产在这个作用域里对 expected_templates 还有别的写入：调用就地变更方法 .pop()
+  [OK] 16 lambda 默认参数里 .pop() [新增]
+        期望=RED 实测=RED  生产在这个作用域里对 expected_templates 还有别的写入：调用就地变更方法 .pop()
+  [OK] 17 装饰器里 .pop() [新增]
+        期望=RED 实测=RED  生产在这个作用域里对 expected_templates 还有别的写入：调用就地变更方法 .pop()
+  [OK] 18 元组解包写下标 [新增]
+        期望=RED 实测=RED  生产在这个作用域里对 expected_templates 还有别的写入：写它的下标 / 属性
+  [OK] 22 for 重绑 [r1]
+        期望=RED 实测=RED  在 AgentService.health_check 自己的作用域里找到 2 处对 expected_
+  [OK] 23 walrus 重绑 [新增]
+        期望=RED 实测=RED  在 AgentService.health_check 自己的作用域里找到 2 处对 expected_
+  [OK] 24 del x 删名字本身 [新增]
+        期望=RED 实测=RED  生产在这个作用域里对 expected_templates 还有别的写入：del 掉这个名字
+  [OK] 25 改从常量读 [r0]
+        期望=RED 实测=RED  生产的 expected_templates 不再是字面量列表，本 guard 的取值方式已失效——请连
+  [OK] 26 变量改名 [r0]
+        期望=RED 实测=RED  在 AgentService.health_check 自己的作用域里找到 0 处对 expected_
+  [OK] 19 .append() [r1]
+        期望=RED 实测=RED  生产在这个作用域里对 expected_templates 还有别的写入：调用就地变更方法 .appen
+  [OK] 19 .remove() [r1]
+        期望=RED 实测=RED  生产在这个作用域里对 expected_templates 还有别的写入：调用就地变更方法 .remov
+  [OK] 19 .sort() [r1]
+        期望=RED 实测=RED  生产在这个作用域里对 expected_templates 还有别的写入：调用就地变更方法 .sort(
+
+格数 = 26；预期不符 = 0
+probe_rc=0
+rc=0

@@ -1,0 +1,29 @@
+### [FINAL] ruff 判据 + 验伪锚（锚 = 把 F821 注入判据自己的文件集）
+### 生效配置 = backend/ruff.toml（ruff --show-settings 实测启用集含 undefined-name F821，不含 F401）
+files=5
+  backend/app/config.py
+  backend/tests/api/v1/endpoints/test_agents_health.py
+  backend/tests/unit/test_cache_configuration.py
+  backend/tests/unit/test_sync_batch_auth.py
+  backend/tests/unit/test_system_endpoint_auth.py
+All checks passed!
+ruff_check_rc=0
+Would reformat: backend/tests/unit/test_cache_configuration.py
+1 file would be reformatted, 4 files already formatted
+ruff_format_rc=1  （非 0 = 剩余主干既有漂移，依据见 lefthook-exclude-justification-*.txt）
+--- 验伪锚 ---
+b95d97ea78b5dcadf1394f3e7999f98834bd150ddf947efa994119e2c05808a4  backend/tests/unit/test_cache_configuration.py
+F821 Undefined name `_definitely_not_defined_anywhere_in_this_module`
+   --> backend/tests/unit/test_cache_configuration.py:295:12
+    |
+294 | def _ruff_anchor_probe():
+295 |     return _definitely_not_defined_anywhere_in_this_module
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+
+Found 1 error.
+anchor_rc=1  （须 != 0）
+b95d97ea78b5dcadf1394f3e7999f98834bd150ddf947efa994119e2c05808a4  backend/tests/unit/test_cache_configuration.py
+All checks passed!
+restored_rc=0
+rc=0

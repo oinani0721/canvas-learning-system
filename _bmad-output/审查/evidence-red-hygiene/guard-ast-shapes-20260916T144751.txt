@@ -1,0 +1,27 @@
+### (b) 防漂 guard 的取值逻辑在生产形态变化时的行为（回答「门未覆盖的路径」）
+### 做法：把 guard 里那段 AST 逻辑逐字搬到探针里，喂 4 种生产形态，看它各自怎么反应。
+### ⛔ 全程不碰仓内任何文件，探针只在 scratchpad。
+
+  1 当前形态：单个字面量列表
+      -> 返回 ['a', 'b']（guard 会拿这个与 mock 比对）
+  2 改成从常量读（列表移出函数）
+      -> AssertionError: NOT-A-LITERAL-LIST  ⇒ guard 红（不是静默空表）
+  3 改成从文件读
+      -> AssertionError: NOT-A-LITERAL-LIST  ⇒ guard 红（不是静默空表）
+  4 出现两处同名赋值
+      -> AssertionError: FOUND-2  ⇒ guard 红（不是静默空表）
+  5 改成列表推导
+      -> AssertionError: NOT-A-LITERAL-LIST  ⇒ guard 红（不是静默空表）
+
+结论：五种形态里没有一种会让它静默返回空表或错表。
+  形态 2/3/5（非字面量列表）命中 'NOT-A-LITERAL-LIST' 断言 → 红；
+  形态 4（多处赋值）命中 'FOUND-2' 断言 → 红；
+  只有形态 1 返回值，且返回的就是生产声明的那张表。
+  ⚠️ 未覆盖：若生产把变量改名（不再叫 expected_templates），
+     walk 找不到任何赋值 → len(found)==0 → 命中 'FOUND-0' 断言 → 仍是红，不是静默。
+
+--- 验伪锚：上面第 4 种形态在真 guard 里也该红。用真文件核『当前生产恰好是形态 1』---
+1
+^ 生产里 'expected_templates = [' 的出现次数（须 1，= 形态 1 且唯一）
+3
+^ 生产里 'expected_templates' 全部出现次数（含读取处）

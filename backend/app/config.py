@@ -638,22 +638,6 @@ class Settings(BaseSettings):
     )
 
     # ═══════════════════════════════════════════════════════════════════════════
-    # Memory Retry Settings (Story 36.13 AC-2)
-    # ═══════════════════════════════════════════════════════════════════════════
-
-    MEMORY_RETRY_BASE_DELAY: float = Field(
-        default=1.0,
-        description="Base delay in seconds for Graphiti write retry backoff (1s, 2s, 4s). Story 36.13 AC-2.",
-        ge=0.0,
-    )
-
-    MEMORY_RETRY_MAX_DELAY: float = Field(
-        default=10.0,
-        description="Maximum retry delay in seconds for Graphiti write operations. Story 36.13 AC-2.",
-        ge=0.0,
-    )
-
-    # ═══════════════════════════════════════════════════════════════════════════
     # TTLCache Configuration (Story 36.13 AC-3,4,5)
     # ═══════════════════════════════════════════════════════════════════════════
 

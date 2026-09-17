@@ -1,0 +1,48 @@
+### [FINAL] (i) comm 对 $BASE @ HEAD b38e1d04
+本跑存档: FINAL-unit-close-20260916T191150.txt
+BASE: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/审查/evidence-b14/unit-red-baseline-08100483.txt  （grep -vc '^#' = 64）
+本跑红 nodeid 数 = 34
+BASE  红 nodeid 数 = 64
+
+===== '>' = 只在本跑里（本卡引入 ⇒ 阻断）=====
+--- '>' 计数 = 0
+
+===== '<' = 只在 BASE 里（本批已转绿，允许）=====
+--- '<' 计数 = 30
+
+===== 本卡 4 个测试地盘文件在本跑红集里的条数（须各 0）=====
+  test_agents_health : 0
+  test_sync_batch_auth : 0
+  test_system_endpoint_auth : 0
+  test_cache_configuration : 0
+  同次验伪锚（证明 grep 不是恒 0）：test_story_30_13 在本跑红集 = 0
+
+===== (e) 两条 flaky 是否在本跑红集 =====
+  两条均不在本跑红集中（本卡 13 次跑里它们一次都没红过，成因未定，见 flaky 存档更正段）
+
+===== W4 哨兵（协议 §3 必贴）=====
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+blocked= 出现次数 = 1
+
+===== 汇总行 + 本跑 rc =====
+= 34 failed, 5166 passed, 35 skipped, 19 xfailed, 171 warnings in 426.67s (0:07:06) =
+rc=1
+rc=0
+
+================================================================================
+⛔ 本文件验伪锚自查更正（写于同一日，收工前）
+
+上面那行「同次验伪锚：test_story_30_13 在本跑红集 = 0」是**无效锚**：
+`test_story_30_13` 的 11 条红早在本车道前四卡（T10-A~D）就已转绿，它在当前红集里
+本来就该是 0 —— 拿它当锚，等于用一个注定为 0 的探针去证明「grep 不是恒 0」，
+什么都没证明（与本卡 ruff 判据踩过的同一类坑）。
+
+有效锚（同一份 nodeid 集合、同一条 grep 写法，改用确实在当前红集里的文件名）：
+    grep -c 'test_enrich_context_vault_isolation' <本跑红集>  = 5
+    grep -c 'test_story_2_3_error_reminders' <本跑红集>  = 5
+    grep -c 'test_vault_notes_group_filter' <本跑红集>  = 4
+
+  ⇒ 该 grep 在本跑红集上能命中（非恒 0），因此上面「本卡 4 个测试地盘文件各 0 条」
+    这个结论是真 0，不是判据瞎了。
+
+当前红集规模 = 34 条；涉及文件数 = 16。

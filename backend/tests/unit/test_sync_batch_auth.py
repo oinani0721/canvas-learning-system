@@ -5,15 +5,25 @@
 """
 Tests for the internal API key dependency on POST /api/v1/sync/batch.
 
-Fail-closed matrix:
+Fail-closed matrix (P0-2 hardened — see note below the table):
     DEBUG  INTERNAL_API_KEY  request_key   expected
-    True   ""                missing       200 (dev convenience, warning logged)
+    True   ""                missing       503 (P0-2: no silent dev bypass)
     True   "tk"              missing       403 (key configured, must match)
     True   "tk"              "tk"          200
     False  ""                missing       503 (fail-closed, no key configured)
     False  "tk"              missing       403
     False  "tk"              "wrong"       403
     False  "tk"              "tk"          200
+
+[CARD-RED-HYGIENE] 第 1 行改实：ChatGPT-DR-2026-05-13 P0-2 加固之后，
+``DEBUG=True`` + 空 key **不再**返回 200。该档现在返回 503，除非同时满足
+``ALLOW_UNSAFE_DEV_AUTH_BYPASS=true`` **且** 请求方 ``client.host`` 是 loopback。
+本文件的 ``TestClient`` 默认 ``client.host = "testclient"``（非 loopback），所以
+这里恒 503；bypass + loopback 那条允许路径由
+``test_internal_api_key_p0_2_hardening.py`` 用 mock Request 覆盖。
+本表此前把该档写成 200 并注明 dev 便利放行 + 记 warning，而同文件的
+``test_dev_mode_no_key_now_fails_closed_503_p0_2`` 断言的是 503 —— 表与用例
+互相矛盾，读表的人会以为 dev 档仍是 fail-open。
 """
 
 from __future__ import annotations
@@ -215,12 +225,18 @@ class TestProductionFailClosed:
 
 
 # ---------------------------------------------------------------------------
-# Development (DEBUG=True) — convenience: allow missing key with warning
+# Development (DEBUG=True) — P0-2: no silent bypass, missing key still 503
 # ---------------------------------------------------------------------------
 
 
 class TestDevelopmentConvenience:
-    """When DEBUG=True, missing INTERNAL_API_KEY is allowed (with warning)."""
+    """DEBUG=True 不再放行空 key：缺 key 同样 fail-closed 503。
+
+    [CARD-RED-HYGIENE] 类名 ``TestDevelopmentConvenience`` 是 P0-2 之前的叫法，
+    保留是为了不打断既有 nodeid 引用（红基线 / 台账 / 其它卡的判据都按它写）；
+    它描述的「convenience」行为本身已在 P0-2 被取消，本类现在测的是
+    「dev 档也 fail-closed」。真正的语义见下面两条用例。
+    """
 
     def test_dev_mode_no_key_now_fails_closed_503_p0_2(self, auth_client: TestClient) -> None:
         """ChatGPT-DR-2026-05-13 P0-2: DEBUG=True + empty key now fails closed (503).

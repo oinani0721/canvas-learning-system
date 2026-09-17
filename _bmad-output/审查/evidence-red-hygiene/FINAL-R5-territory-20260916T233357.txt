@@ -1,0 +1,39 @@
+### [FINAL-R5] (h) 地盘核 @ HEAD 0bc3baef47e493fd2366f3285b6da3a5864bc0af
+### $PREV = f294878bb677ae54dcbf17277004efa2fa1ef97b（= T10-D CARD-EPW-COVERAGE 末 commit）
+### ⚠️ 本判据只取代码面（带 ':(exclude)_bmad-output'）。本轮后续 commit 只动 _bmad-output，
+###    故 commit 之后本判据输出逐字不变 —— commit 后的复核见同目录 FINAL-R5-territory-verify-*.txt。
+
+--- 正跑：git diff --stat --no-color $PREV HEAD -- . ':(exclude)_bmad-output' ---
+ backend/.env.example                               |  16 --
+ backend/app/config.py                              |  16 --
+ .../tests/api/v1/endpoints/test_agents_health.py   | 279 +++++++++++++++++++--
+ backend/tests/unit/test_cache_configuration.py     |  95 +++----
+ backend/tests/unit/test_sync_batch_auth.py         |  24 +-
+ backend/tests/unit/test_system_endpoint_auth.py    | 134 +++++++++-
+ 6 files changed, 446 insertions(+), 118 deletions(-)
+rc=0
+
+--- 逐文件计数（必须 = 6）---
+code_files=6
+backend/.env.example
+backend/app/config.py
+backend/tests/api/v1/endpoints/test_agents_health.py
+backend/tests/unit/test_cache_configuration.py
+backend/tests/unit/test_sync_batch_auth.py
+backend/tests/unit/test_system_endpoint_auth.py
+
+--- 验伪锚①：去掉 exclude 后 _bmad-output 面必须 > 0（证明 exclude pathspec 真的在起作用）---
+with_exclude_bmad_count=0
+without_exclude_bmad_count=64
+  ⇒ 前者须 0、后者须 >0
+
+--- 验伪锚②：单查 config.py 必命中（证明判据不是恒空）---
+ backend/app/config.py | 16 ----------------
+ 1 file changed, 16 deletions(-)
+
+--- 本卡 commit 新增/改动文件里真 *.stderr* 的计数（须 0）---
+changed_stderr=0
+  验伪锚：整棵 HEAD 树真 *.stderr* = 0，
+         而文件名含子串 stderr（非 *.stderr*）的 = 3 ⇒ 两者口径不同，判据取前者
+
+rc=0

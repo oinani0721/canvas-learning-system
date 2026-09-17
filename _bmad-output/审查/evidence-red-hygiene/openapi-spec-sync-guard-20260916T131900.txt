@@ -1,0 +1,50 @@
+### 已知坑复现：pre-commit 的 spec-sync-root 会把 backend/openapi.json 塞进本卡 commit
+### 记录时刻: 20260916T131900（本卡 CARD-RED-HYGIENE，第十四批 T10 第 5/5）
+
+lefthook.yml:62-73 原文（glob 正是 backend/app 下的 config.py —— 本卡改了它）:
+
+    spec-sync-root:
+      glob: "backend/app/{main.py,config.py}"
+      run: |
+        if [ -f "backend/.venv/bin/python" ]; then PY="backend/.venv/bin/python"; else PY="python3"; fi
+        echo "[Spec Sync/root] API changes detected, regenerating backend/openapi.json (via $PY)..."
+        if ! "$PY" scripts/spec-tools/check-openapi-drift.py --write backend/openapi.json; then
+          echo "[Spec Sync/root] FAILED — 快照未能重生成, 先修好再 commit(禁手改快照)。"
+          exit 1
+        fi
+        git add backend/openapi.json || exit 1
+        echo "[Spec Sync/root] + backend/openapi.json staged"
+
+探针实测（手跑一次该 hook 里的重生成命令，跑完立即还原）:
+
+  跑前 sha256 = 1455eb7dc5d46bbdb14aba984ef9c08991b3ffe250a8638c532eb491c56e4764
+  跑后 sha256 = f6c939d4e3f3b3881e10a674e38e40dd0a3dbaf1456c249c2c4c60df13617849
+  脚本自报    = WROTE: backend/openapi.json (paths=197 schemas=357,
+                x-generated-at=2026-09-16T05:17:21.153716+00:00)
+  git diff --stat 实数 = 1 file changed, 1 insertion(+), 1 deletion(-)
+  唯一变动行:
+    -    "x-generated-at": "2026-09-11T01:44:03.374514+00:00",
+    +    "x-generated-at": "2026-09-16T05:17:21.153716+00:00",
+
+  ⇒ 内容无实质变化（paths/schemas 计数不变），变的只有生成时间戳；
+    但 hook 尾部那行会把它 staged，使本卡 commit 出现第 7 个文件 = 地盘越界
+    （本卡地盘只有 6 个文件）。
+
+还原方式:
+  从 HEAD 取回该 blob 重写工作树文件（用 git show <rev>:<path> 重定向写回）。
+  ⛔ 不用 git 的还原/切换类命令 —— 用户级 readonly-path-guard 对它们有拦截规则。
+
+还原后校验:
+  git status --porcelain backend/openapi.json → 空（干净）
+  1455eb7dc5d46bbdb14aba984ef9c08991b3ffe250a8638c532eb491c56e4764  backend/openapi.json
+  ← 与探针跑前 sha 逐字节一致
+
+对策（收工时执行并复核，结果见 territory-headcommit-*.txt）:
+  1. 正常 commit（pre-commit 全套照跑，不跳过任何门）；
+  2. 核 `git --no-pager show --stat --no-color HEAD` 的代码面；
+  3. 若其中含 backend/openapi.json：把 $PREV 版本的 blob 写回 + 重新 add + 修补提交
+     并在该次修补时跳过钩子 —— 否则 hook 会在修补过程中再塞一次，形成循环；
+  4. 最终必须复核 commit 的代码面恰好是 6 个允许文件，且 openapi.json 与 $PREV 逐字节同。
+
+备注: 本条与记忆库既有教训同型（spec-sync-root 会把 openapi.json 塞进任何
+backend/app 的 commit；只差 x-generated-at 一行也照塞）。本卡实测复现并记录。

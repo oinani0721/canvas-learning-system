@@ -1,0 +1,31 @@
+> ⛔⛔ **本文件作废（SUPERSEDED），不得引用。** 取代者：同目录 `FINAL-R5-unit-comm-CORRECTED-*.txt`。
+> **作废原因（口径错误，非跑错）**：下面的 BASE 提取写成 `sed 's/^FAILED //' | awk '{print $1}'`，
+> 而基线 64 行是 **35 条 `FAILED ` + 29 条 `ERROR `** 两种前缀。`sed` 只脱得掉 `FAILED `，
+> 于是 29 条 ERROR 行取到的字段 1 是字面量 `ERROR`，`sort -u` 把它们**塌成 1 条** ——
+> BASE 因此被算成 **36** 而不是 64，`'<'` 被算成 **2** 而不是 30。
+> ⚠️ 注意 `'>' = 1` 与那条 nodeid 在两种口径下**相同**（新增红的判定不受 BASE 塌缩影响），
+> 但整份文件的计数不可引用。保留本文件是为了留痕，不是为了当证据。
+> —— 主 session 2026-09-16 自查发现并更正。
+
+### [FINAL-R5] tests/unit 目录级 comm @ HEAD 0bc3baef47e493fd2366f3285b6da3a5864bc0af
+### 源跑: FINAL-R5-unit-close-20260916T204820.txt（35 failed, blocked=1）
+### BASE: evidence-b14/unit-red-baseline-08100483.txt
+
+本跑红 nodeid = 35   BASE = 36
+'<' 计数 = 2
+'>' 计数 = 1
+'>' 的条目:
+    tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422
+
+=== W4 哨兵（协议 §3 判据：绑 blocked= 次数 + 失败正文，不绑 nodeid）===
+  (甲) NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=1 (blocked=1, advisory=0, unaccounted=0)
+  (乙) 失败正文唯一指纹数 = 1
+
+=== 本卡 4 个测试地盘文件在本跑红集里的条数（须 0）===
+  test_agents_health = 0
+  test_sync_batch_auth = 0
+  test_system_endpoint_auth = 0
+  test_cache_configuration = 0
+  验伪锚（证明上面的 grep 不是恒 0）: test_vault_notes_group_filter = 4
+
+rc=0

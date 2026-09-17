@@ -1,0 +1,51 @@
+### [FINAL-3] guard 形态覆盖复测 —— 按 Codex r1 MEDIUM-1 的方法
+### 方法：import **真实的** _production_expected_templates（不是副本），
+###       只在内存里替换 inspect.getsource 的返回值，喂不同的生产形态。
+###       这样测的是入库的那份代码本身，不是我另抄的一份。
+
+2026-09-16 19:21:52 [debug    ] RAGService: Added /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t10-red/backend/lib to sys.path
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+  from pydantic.v1.fields import FieldInfo as FieldInfoV1
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  import pkg_resources
+Building prefix dict from the default dictionary ...
+Loading model from cache /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/jieba.cache
+Loading model cost 0.310 seconds.
+Prefix dict has been built successfully.
+2026-09-16 19:21:56 [info     ] RAGService: LangGraph/Agentic RAG available. LANGGRAPH_AVAILABLE=True
+入库 mock 名单长度 = 13
+
+  01 当前生产形态（字面量 13 项）
+      GUARD 通过：取到 13 项 -> ['basic-decomposition', 'deep-decomposition', 'question-decomposition', '...']  | 与 mock 逐元素相等 = True
+  02 带类型注解（无害改动）
+      GUARD 通过：取到 2 项 -> ['a', 'b']
+  03 绑定后 += 追加（Codex 演示之一）
+      GUARD 红：生产在绑定 expected_templates 之后对它做了就地修改（AugAssign，源码第 3 行，行号相对 health_check 起始）。本 guard 读的是赋值处的字面量，就地修改会让它与运行时名单分叉
+  04 绑定后下标改名（Codex 演示之二）
+      GUARD 红：生产在绑定 expected_templates 之后对它做了就地修改（Assign，源码第 3 行，行号相对 health_check 起始）。本 guard 读的是赋值处的字面量，就地修改会让它与运行时名单分叉、却仍
+  05 绑定后 .append
+      GUARD 红：生产在绑定 expected_templates 之后对它做了就地修改（Call，源码第 3 行，行号相对 health_check 起始）。本 guard 读的是赋值处的字面量，就地修改会让它与运行时名单分叉、却仍然比
+  06 绑定后 .remove
+      GUARD 红：生产在绑定 expected_templates 之后对它做了就地修改（Call，源码第 3 行，行号相对 health_check 起始）。本 guard 读的是赋值处的字面量，就地修改会让它与运行时名单分叉、却仍然比
+  07 嵌套函数里有同名局部变量（ast.walk 会误收）
+      GUARD 通过：取到 2 项 -> ['a', 'b']
+  08 改从常量读
+      GUARD 红：生产的 expected_templates 不再是字面量列表，本 guard 的取值方式已失效——请连同本函数一起改，不要放宽断言
+  09 列表推导
+      GUARD 红：生产的 expected_templates 不再是字面量列表，本 guard 的取值方式已失效——请连同本函数一起改，不要放宽断言
+  10 两处顶层绑定
+      GUARD 红：在 AgentService.health_check 自己的作用域里找到 2 处 expected_templates 绑定，期望恰好 1 处；生产形态变了，本 guard 需同步改
+  11 变量改名
+      GUARD 红：在 AgentService.health_check 自己的作用域里找到 0 处 expected_templates 绑定，期望恰好 1 处；生产形态变了，本 guard 需同步改
+
+期望：01/02 通过（无害形态），03-11 全红（名单会漂或取值前提失效）。
+
+⛔ 上面这行期望句**写错了**（Codex r2 LOW-1）：第 07 格（嵌套函数里同名局部变量）
+**应当通过**且实测确实通过 —— 那正是作用域修复要达到的效果（取到外层那张表），
+不该被写进「03-11 全红」里。本文件的退出码 0 掩盖了这个期望文本错误：
+它只反映探针跑完了，不反映预期是否兑现。
+
+⇒ 已由 `FINAL-R3-guard-shapes-*.txt` 取代：那份**逐格写死预期并由探针自己断言**，
+退出码直接反映「19 格预期是否全部兑现」，不再靠人工期望句。
+probe_rc=0
+rc=0

@@ -1,0 +1,37 @@
+⛔ 本文件的**验伪锚部分作废** —— 由同目录 ruff-with-anchor-*.txt 取代。
+
+作废原因：本文件末尾那段验伪锚传了 `--config backend/pyproject.toml`，而该路径不存在
+（真正生效的是 backend/ruff.toml），ruff 以 rc=2 报「invalid value」退出。
+rc=2 是「参数错误」，不是「锚命中了 lint 问题」⇒ 该锚**什么都没证明**。
+
+本文件上半段的正跑（files=5 / All checks passed! / rc=0）仍然有效。
+带有效锚的完整版见 ruff-with-anchor-*.txt：锚改为把 F821 注入判据自己的文件集、
+跑逐字相同的判据命令，实测 anchor rc=1 且指名 F821，还原后 sha 一致。
+
+以下为原正文，一字未改：
+================================================================================
+
+### ruff 判据（zsh 数组写法；含 exit 的块包 ( ... ) 子 shell）
+files=5
+list:
+  backend/app/config.py
+  backend/tests/api/v1/endpoints/test_agents_health.py
+  backend/tests/unit/test_cache_configuration.py
+  backend/tests/unit/test_sync_batch_auth.py
+  backend/tests/unit/test_system_endpoint_auth.py
+All checks passed!
+ruff rc=0
+
+--- 同次验伪锚：喂一个现造的含 F821(undefined-name) 的文件必 rc!=0 ---
+--- （F401 在 backend/** 的 ruff 配置下不启用，用它当锚会恒不触发 —— 见记忆库教训）---
+error: invalid value 'backend/pyproject.toml' for '--config <CONFIG_OPTION>'
+
+  tip: A `--config` flag must either be a path to a `.toml` configuration file
+       or a TOML `<KEY> = <VALUE>` pair overriding a specific configuration
+       option
+
+It looks like you were trying to pass a path to a configuration file.
+The path `backend/pyproject.toml` does not point to a configuration file
+
+For more information, try '--help'.
+probe rc=2

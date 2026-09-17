@@ -1,0 +1,78 @@
+### (e) flaky 定性 —— 两条被测文件全程只读，不改一字
+### 跑前 shasum（收工再核一次）
+40a2b3d29e3be7276cb1c77f092fb5cf94154cb7ab2da9d4b1da4ee1453d30c1  backend/tests/unit/test_candidate_service.py
+ce6244105e5b7e58dc591b67ee899cdbe14df31adbe6c3077b07a92694433a95  backend/tests/unit/test_mock_degradation_transparency.py
+
+===== A) 定向单跑 ×5：tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422 =====
+run#1  ======================== 1 passed, 10 warnings in 0.87s ========================
+run#2  ======================== 1 passed, 10 warnings in 0.81s ========================
+run#3  ======================== 1 passed, 10 warnings in 0.81s ========================
+run#4  ======================== 1 passed, 10 warnings in 0.84s ========================
+run#5  ======================== 1 passed, 10 warnings in 0.84s ========================
+
+===== B) 定向单跑 ×5：tests/unit/test_mock_degradation_transparency.py::TestMockScoringWarningLogs::test_mock_mode_logs_warning =====
+run#1  ======================== 1 passed, 10 warnings in 0.92s ========================
+run#2  ======================== 1 passed, 10 warnings in 0.90s ========================
+run#3  ======================== 1 passed, 10 warnings in 0.82s ========================
+run#4  ======================== 1 passed, 10 warnings in 0.91s ========================
+run#5  ======================== 1 passed, 10 warnings in 0.89s ========================
+
+===== C) 顺序对照：整文件跑（看同文件内前序用例是否改变结论）=====
+--- C1 test_candidate_service.py 整文件 ---
+======================= 14 passed, 10 warnings in 0.95s ========================
+--- C2 test_mock_degradation_transparency.py 整文件 ---
+======================= 30 passed, 10 warnings in 0.88s ========================
+
+### 跑后 shasum（须与跑前逐字节同 = 全程只读）
+40a2b3d29e3be7276cb1c77f092fb5cf94154cb7ab2da9d4b1da4ee1453d30c1  backend/tests/unit/test_candidate_service.py
+ce6244105e5b7e58dc591b67ee899cdbe14df31adbe6c3077b07a92694433a95  backend/tests/unit/test_mock_degradation_transparency.py
+
+
+================================================================================
+⛔ 本文件结论已被本卡自查推翻并更正（写于同日收工前 · 独立对抗自审 RG-3 / EV-02）
+
+【原结论】「单跑 ×5 全绿 + 整文件全绿 ⇒ 排除同文件内互扰，摆动源于跨文件」——**过强，撤回**。
+
+【更正 ①：推论结构不成立】
+  定向单跑按构造就不含同文件前序用例，**不可能**显现同文件内互扰 —— A/B 两段
+  共 10 次跑对「同文件互扰」这一维零信息量。真正能显现它的只有 C 段整文件跑，
+  而 C1 / C2 **各只跑了 1 次**（n=1）。若互扰来自同文件共享状态
+  （caplog / logger handler / 模块级单例）且只在某些顺序下发作，一次顺序跑照样全绿。
+
+【更正 ②：本卡全部证据里该 flake 零次复现】
+  A/B 段 10 次定向 + C 段 2 次整文件 + 目录级 1 次（5166 passed）——
+  这两条测试**一次都没红过**。从「没观察到红」推不出「红的成因在哪里」。
+
+【更正 ③：漏引了已落盘的机制（关键）】
+  协议 `.claude/rules/card-batch-protocol.md` §3 第 79 行明确记载：
+
+    「**W4 哨兵判据绑 `blocked=` 次数 + 失败正文，不绑 nodeid**（R-08/R-10，第十四批起）：
+      同一代码状态下哨兵红会在 nodeid 之间翻转（U10-A r4/r4b 实测：
+      `candidate422` ↔ `mock_warning`…），逐 nodeid diff 自带 flaky。」
+
+  `candidate422` = test_accept_candidate_already_accepted_returns_422，
+  `mock_warning` = TestMockScoringWarningLogs::test_mock_mode_logs_warning
+  —— **正是本段定性的这两条**。也就是说：它们的摆动早有记录在案的机制
+  （W4 哨兵红在两条 nodeid 之间漂移，谁承哨兵身份是不定的），
+  既不是本文件推断的「跨文件顺序」，也不是卡文假设的「同文件互扰」。
+
+【更正后的如实结论】
+  本卡**未复现**这两条的红态，因而**未定**其成因；本卡的数据只够说
+  「在本卡跑过的 13 次里它们都是绿的」。同文件互扰**没有被排除**（n=1）。
+  协议 §3 已记载的 W4 哨兵 nodeid 漂移是**更可能**的既有解释，本卡未做验证。
+  ⇒ 对目录级判据的实际影响不变：本卡收工的目录级红集里这两条都不在，`>` 仍为 0。
+     ⛔⛔ 【事后撤回批注 2026-09-16，主 session 复核追加；上面这一行原文保留不改】
+        上面这句「`>` 仍为 0」**已失实并撤回**。它写于本文件生成时刻（125210），当时属实；
+        但最终 SHA ef21be2c 第 2 跑与当前 HEAD 第 10 跑都是 '>' = 1，
+        而那条 '>' **正是本文件上方定性的 candidate422**。
+        换句话说：本文件一边论证「这两条是 W4 哨兵红的载体、会在 nodeid 间漂移」，
+        一边断言「它们不在收工红集里」—— 后者被前者描述的机制直接否掉。
+        更正口径：本卡**不声称** '>' = 0，目录级裁定权在主 session，
+        依据以验收单 §四-A.10 的十跑表 + FINAL-R5-unit-comm-CORRECTED-*.txt 为准。
+        （同句的第二个副本在验收单 §二 更正 ③，已同批撤回。本卡同型失实第六处。）
+     【本文件其余部分不受影响】A/B/C 各段原始输出、两文件跑前跑后 shasum 逐字节相同等
+        事实性记录均未改动，仍可复核。
+
+【本文件仍然有效的部分】
+  两个被测文件跑前 / 跑后 `shasum -a 256` 逐字节相同 —— 全程只读，一字未改。
+  A/B/C 各段的原始输出未改动，可复核。

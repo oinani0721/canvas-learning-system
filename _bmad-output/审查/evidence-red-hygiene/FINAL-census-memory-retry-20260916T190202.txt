@@ -1,0 +1,47 @@
+### [FINAL] (f) MEMORY_RETRY census —— 承重主张：backend/app 生产消费方 = 0
+### ⚠️ 判据取名面说明（本卡自查更正）：不能用「全仓 grep 应为空」做判据 ——
+###    退役之后，本卡自己在 test_cache_configuration.py 里写的退役说明注释会命中它。
+###    承重判据是下面的【判据 A】：backend/app 面零命中。
+
+=========== 判据 A（承重）：backend/app 生产面 ===========
+命令: git --no-pager grep -nE -e MEMORY_RETRY_BASE_DELAY -e MEMORY_RETRY_MAX_DELAY -- backend/app
+判据 A rc=1   （rc=1 = 零命中 = 生产消费方 0；rc=0 = 有残留消费方，阻断）
+
+--- 判据 A 的同次验伪锚：换一个确实还在的配置键，同一命令必须 rc=0 且有命中 ---
+backend/app/config.py:644:    AGENT_MEMORY_CACHE_MAXSIZE: int = Field(
+backend/app/dependencies.py:234:        memory_cache_maxsize=settings.AGENT_MEMORY_CACHE_MAXSIZE,
+backend/app/services/agent_service.py:1359:                                Story 36.13 AC-3. Configurable via AGENT_MEMORY_CACHE_MAXSIZE.
+验伪锚 rc=0   （须 0 —— 证明这条 grep 在 backend/app 面能命中，不是恒空）
+
+=========== 判据 B：仓内非文档面的全部残留（逐条说明性质）===========
+backend/tests/unit/test_cache_configuration.py:7:   MEMORY_RETRY_BASE_DELAY / MEMORY_RETRY_MAX_DELAY 两个死配置由
+backend/tests/unit/test_cache_configuration.py:50:#     而 MEMORY_RETRY_BASE_DELAY / MEMORY_RETRY_MAX_DELAY 在 backend/app 下
+backend/tests/unit/test_cache_configuration.py:283:            # MEMORY_RETRY_BASE_DELAY / MEMORY_RETRY_MAX_DELAY 已由
+判据 B rc=0
+  ⇒ 上列命中全部位于 backend/tests/unit/test_cache_configuration.py，且全是
+    本卡自己写的退役说明注释（文件头索引 / AC-2 段墓碑 / required_keys 旁注），
+    不是对该配置项的读取或断言。逐条实读见下。
+
+--- 逐条实读（证明它们是注释而非消费点）---
+  L7:    MEMORY_RETRY_BASE_DELAY / MEMORY_RETRY_MAX_DELAY 两个死配置由
+  L50: #     而 MEMORY_RETRY_BASE_DELAY / MEMORY_RETRY_MAX_DELAY 在 backend/app 下
+  L283:             # MEMORY_RETRY_BASE_DELAY / MEMORY_RETRY_MAX_DELAY 已由
+
+=========== 判据 C：.env.example 已清干净 ===========
+判据 C rc=1   （rc=1 = 已清）
+
+=========== 判据 D：backend/.env（gitignored，实读）===========
+判据 D rc=1   （rc=1 = 该部署的 .env 里本来就没设这两个键）
+
+=========== 判据 E：Settings 的 extra 策略 ===========
+926:    # Pattern: model_config = SettingsConfigDict(env_file=".env")
+927:    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", case_sensitive=True, extra="ignore")
+  ⇒ extra=ignore：即便某部署的 .env 仍设这两个键，删掉 Field 后也只是被忽略，不会抛。
+
+=========== 本 census 未证明什么 ===========
+  - 未证明「运行期动态注入下也无消费方」：本 census 全是静态 grep + .env 实读。
+    backend/app 下 getattr(settings,...) / settings.model_dump() 之类的动态访问点
+    是否曾以字符串形式取这两个键，本卡没有逐点追查（验收单 §六.2 已登记）。
+  - 未证明 .gdr / _bmad-archive / docs / _bmad-output 四个文档面里的残留引用无害；
+    那些是历史研究包与台账，本卡只排除不清理。
+rc=0

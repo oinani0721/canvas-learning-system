@@ -1,0 +1,64 @@
+### [FINAL-R5] 实测 r4 之后新增进 docstring 的 6 条主张（3 漏面 + 3 误报）
+### 缘由：这 6 条是 r4 MEDIUM-1 的整改产物，写在 ef21be2c..HEAD 的 docstring 里，
+###       未被任何一轮 Codex 审过，也无入库证据。此为补证。
+### HEAD = 0bc3baef47e493fd2366f3285b6da3a5864bc0af
+### 被测文件 HEAD 侧 sha256   = aad7002e908bf2af7357f103e9aa614727d77eb1e1f313ea4d8f43569178e215
+### 被测文件 工作树侧 sha256 = aad7002e908bf2af7357f103e9aa614727d77eb1e1f313ea4d8f43569178e215
+### （两侧相同 ⇒ 本次跑的就是已提交内容，不是未提交的工作区）
+### 探针：/private/tmp/.../scratchpad/claims_probe.py（import 入库真 helper，非逻辑副本）
+
+2026-09-16 23:29:20 [debug    ] RAGService: Added /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t10-red/backend/lib to sys.path
+2026-09-16 23:29:24 [info     ] RAGService: LangGraph/Agentic RAG available. LANGGRAPH_AVAILABLE=True
+### 实测 r4 之后新增 docstring 的 6 条主张（3 漏面 + 3 误报）+ 1 对照格
+### 方法：import 入库真 helper（非副本），复刻取值三步，逐格打印实际裁决
+
+  [L1] 漏面  match 的 case [*expected_templates] 捕获看不见 ⇒ 漏检(不红)
+       binds=1 others=[]
+       实际裁决 = PASS(取到 2 项)   ⇒ 不红(通过)
+
+  [L2] 漏面  类体立即执行 class Helper: expected_templates.pop() ⇒ 漏检(不红)
+       binds=1 others=[]
+       实际裁决 = PASS(取到 2 项)   ⇒ 不红(通过)
+
+  [L3a] 漏面  except ... as expected_templates 的绑定不靠 ctx 收全 ⇒ 漏检(不红)
+       binds=1 others=[]
+       实际裁决 = PASS(取到 2 项)   ⇒ 不红(通过)
+
+  [L3b] 漏面  import ... as expected_templates 的绑定不靠 ctx ⇒ 漏检(不红)
+       binds=1 others=[]
+       实际裁决 = PASS(取到 2 项)   ⇒ 不红(通过)
+
+  [L3c] 漏面  def expected_templates(): 的绑定不靠 ctx ⇒ 漏检(不红)
+       binds=1 others=[]
+       实际裁决 = PASS(取到 2 项)   ⇒ 不红(通过)
+
+  [F1] 误报  [x for x in ...] 推导式同名变量被算成第二处绑定 ⇒ 误报(红)
+       binds=2 others=[]
+       实际裁决 = RED(binds=2!=1)   ⇒ 红
+
+  [F2] 误报  expected_templates: list[str] 纯注解被算成绑定 ⇒ 误报(红)
+       binds=2 others=[]
+       实际裁决 = RED(binds=2!=1)   ⇒ 红
+
+  [F2-only] 对照  【补格】只有纯注解、无任何赋值（对照探针格 19）
+       binds=1 others=[]
+       实际裁决 = RED(绑定不是普通赋值/取不到字面量)   ⇒ 红
+
+  [F3] 误报  x[:][0] = "renamed" 改切片副本仍被算成写入 ⇒ 误报(红)
+       binds=1 others=['写它的下标 / 属性']
+       实际裁决 = RED(others=['写它的下标 / 属性'])   ⇒ 红
+
+--- 逐条对照 docstring 主张 ---
+  [L1] docstring 称不红 / 实测不红  ⇒ 一致
+  [L2] docstring 称不红 / 实测不红  ⇒ 一致
+  [L3a] docstring 称不红 / 实测不红  ⇒ 一致
+  [L3b] docstring 称不红 / 实测不红  ⇒ 一致
+  [L3c] docstring 称不红 / 实测不红  ⇒ 一致
+  [F1] docstring 称红 / 实测红  ⇒ 一致
+  [F2] docstring 称红 / 实测红  ⇒ 一致
+  [F2-only] 对照格，无 docstring 主张；实测 binds=1 RED(绑定不是普通赋值/取不到字面量)
+  [F3] docstring 称红 / 实测红  ⇒ 一致
+
+MISMATCH_COUNT=0
+FALSIFIER_known_red_case(.append) = RED(others=['调用就地变更方法 .append()'])  (必须是 RED，否则本探针红判定空转)
+rc=0

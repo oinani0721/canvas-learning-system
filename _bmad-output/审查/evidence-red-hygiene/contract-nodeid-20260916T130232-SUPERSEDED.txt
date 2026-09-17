@@ -1,0 +1,76 @@
+⛔⛔⛔ 本文件已作废 —— 由同目录 contract-nodeid-CORRECTED-*.txt 取代。
+
+作废原因（本卡自查发现，2026-09-16）：下面正文里两行「(以上为空 = ...)」是**写死的**
+说明文字，而它们上方的 git log 实际**有输出**。这两行是关于证据本身的假陈述，
+违反「关于证据的断言必须先数一遍再写」。
+
+实数更正（先跑 wc -l 再写）：
+  git log --diff-filter=D --all -- specs/data/canvas-node.schema.json  = 1 条（非空）
+  git log             --all -- specs/data/canvas-node.schema.json      = 6 条（非空）
+
+结论随之更正：该 schema 文件**曾被本仓跟踪**，由 14f0412d（2026-02-07
+"chore: clean release - remove legacy docs/specs, consolidate code fixes"，
+已实测是 HEAD 祖先）删除；且删除前它的 properties.id.pattern 与当前 Pydantic
+pattern **逐字相同** ⇒ 本来就不存在「两 pattern 不一致」这回事。
+详见 contract-nodeid-CORRECTED-*.txt。
+
+以下为作废正文原样保留，一字未改：
+================================================================================
+
+### (g) contract node-id pattern 定性 —— ⛔ 卡文 §〇 事实更正
+### 卡文写：该测试「比对 specs/data/canvas-node.schema.json 的 properties.id.pattern vs NodeRead…」
+### 实测：失败身份是 FileNotFoundError @ test_node_id_patterns.py:157（open 那一行），
+###       测试**根本没跑到**比对那两行（:160/:163）。schema 文件在本树不存在。
+
+--- specs/data 实有文件（无 canvas-node.schema.json）---
+difficulty-level.schema.json
+recommend-action-request.schema.json
+recommend-action-response.schema.json
+score-history-query.schema.json
+score-history-response.schema.json
+session-pause-resume-response.schema.json
+session-progress-response.schema.json
+
+--- git 历史：该路径是否曾存在过 ---
+14f0412d chore: clean release — remove legacy docs/specs, consolidate code fixes
+(以上为空 = 该路径在本仓历史里没有被删除过的记录)
+14f0412d chore: clean release — remove legacy docs/specs, consolidate code fixes
+abf1d585 chore: Clean repository and rewrite README
+5e10a260 feat(Epic-12.L/M): Canvas Edge Creation + View Refresh Complete
+50e35496 Complete Iteration 5: Add x-source-verification to all SDD artifacts
+56395674 Add Section 16 SDD/ADR Creation Quality Validation System
+(以上为空 = 该路径从未在本仓被跟踪过)
+
+--- 模型侧 pattern 可读（schema 侧无从取值）---
+NodeRead.model_fields["id"].metadata = [_PydanticGeneralMetadata(pattern='^[a-zA-Z0-9][-a-zA-Z0-9]*$')]
+pydantic pattern = '^[a-zA-Z0-9][-a-zA-Z0-9]*$'
+
+--- 定向单跑失败身份（--tb=line）---
+E   FileNotFoundError: [Errno 2] No such file or directory: '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t10-red/specs/data/canvas-node.schema.json'
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t10-red/backend/tests/contract/test_node_id_patterns.py:157: FileNotFoundError: [Errno 2] No such file or directory: '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t10-red/specs/data/canvas-node.schema.json'
+FAILED tests/contract/test_node_id_patterns.py::TestNodeIdPatternConsistency::test_pattern_matches_json_schema
+======================== 1 failed, 10 warnings in 0.44s ========================
+
+--- 同文件其余用例是否受影响（验伪锚：本文件不是整体红）---
+FAILED tests/contract/test_node_id_patterns.py::TestNodeIdPatternConsistency::test_pattern_matches_json_schema
+================== 1 failed, 49 passed, 10 warnings in 0.53s ===================
+
+### 处置：本卡不改（specs/** 与 backend/app/models/** 均非本卡地盘，models 零写者）。
+### ⚠ 接收卡的范围要改写：不是「schema/model pattern 对齐」，而是
+###   「补回缺失的 specs/data/canvas-node.schema.json，或退役这条从未跑到比对逻辑的契约测试」。
+
+
+================================================================================
+⛔ 二次自查补注（独立对抗自审 EV-07）
+
+本文件作废横幅里写「以下为作废正文原样保留，一字未改」——该陈述**成立**（正文确实一字未改），
+但有一处未披露的事实会让读者困惑，在此补上：
+
+  作废正文里那条 `git log --all -- specs/data/canvas-node.schema.json` 的输出
+  只显示了 **5** 行，而横幅里的实数更正写的是 **6 条**。二者不矛盾，原因是
+  作废正文那次运行的命令带了 `| head -5`，输出被截断了 —— 截断本身当时没有写明。
+
+  完整 6 条（同日重取，逐条含 pattern 取值）见同目录
+  `contract-nodeid-CORRECTED-*.txt` 的自查更正段。
+
+  ⇒ 横幅里的「6 条」是对的（`wc -l` 实数），作废正文里的「5 行」是 head 截断的结果。

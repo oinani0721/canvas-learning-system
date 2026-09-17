@@ -1,0 +1,24 @@
+### 格式化后复跑三个改动测试文件（确认 ruff format 未改变行为）
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+================== 41 passed, 4 xfailed, 12 warnings in 1.42s ==================
+
+
+================================================================================
+⛔ 自查更正（独立对抗自审 EV-05 / RH-T-03）
+
+【更正 ①：标题说「三个」，实际跑的是四个】
+  本跑的命令行实际列了 4 个文件：
+    tests/api/v1/endpoints/test_agents_health.py
+    tests/unit/test_system_endpoint_auth.py
+    tests/unit/test_sync_batch_auth.py
+    tests/unit/test_cache_configuration.py
+  独立复核（逐文件 --collect-only）：13 / 12 / 7 / 13 = 45 条，与汇总行
+  `41 passed, 4 xfailed` = 45 一致；任意三文件子集都凑不出 45。
+  更硬的归属判据：4 条 xfail 只可能来自 test_cache_configuration.py
+  （其余三文件合跑 xfailed = 0）⇒ 该跑必然含第四个文件。
+  ⇒ 覆盖面比标题说的更宽（方向是低报，不是假绿），但数字应从输出里数出来而不是写在描述里。
+
+【更正 ②：本文件缺协议 §2.2 要求的 rc= 末行】
+  当时 `echo rc=` 写在了 `tee` 块**外面**，rc 进了终端没进文件。
+  本卡收工前已重跑全部承重裁判并把 rc 写进文件内部，见同目录 `FINAL-*.txt` 系列。
+  本文件保留作历史记录，**不作为承重依据**；承重以 FINAL-* 为准。
