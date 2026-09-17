@@ -1,0 +1,32 @@
+=== 收官绑定核（最终 HEAD 上跑）===
+# 最终 HEAD      = f5cefe12717a38c7e996500b0c3c7b17901d7860
+# 审查绑定 SHA   = 96dc3c496dddfcc603e692e27492a3248f8ab655
+# T8-F 末 commit = e45c55c74b1f56db9810a3c75befd29278b6f45d
+# B14_BASE       = 081004834e37b1b0253cf81dc7b44e784646c934
+
+--- (h) D-15 绑定：审SHA..HEAD 排除 _bmad-output（期望空）---
+  [结束，上方应无输出]
+
+--- (g) 地盘：T8-F末..HEAD 排除 _bmad-output（期望空）---
+  [结束，上方应无输出]
+
+--- (g) 点名面：lefthook.yml / backend / pyrightconfig.json / .claude（期望空）---
+  [结束，上方应无输出]
+
+--- 验伪锚：上述 diff 判据在本对区间上真看得见改动吗（不加 exclude）---
+  T8-F末..HEAD 全部改动文件数（期望 >=1）:       16
+  其中非 _bmad-output 的（期望 0）:        0
+
+--- (b) GATE 在最终 HEAD 上复跑（期望 0 errors）---
+pyright ok
+testx_rc=0
+0 errors, 80 warnings, 0 informations
+rc=0
+
+--- 工作树干净 ---
+?? "_bmad-output/\345\256\241\346\237\245/evidence-pyright-gate/final-binding-20260917T161925.txt"
+  [结束，上方应无输出 = 干净]
+
+--- 本卡两个 commit ---
+f5cefe12 docs(gate): Codex r1 B0/H0 绑最终 HEAD + 配置加载补证 [BATCH-2026-09-11-第十四批 / CARD-PYRIGHT-GATE]
+96dc3c49 docs(gate): pyright app=0 + 协议§2.3关闭 patch [BATCH-2026-09-11-第十四批 / CARD-PYRIGHT-GATE]
