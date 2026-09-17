@@ -1,0 +1,27 @@
+# 自绑定: HEAD=c5e30cfc5e6681076d9bac8cc37c8792545eb1c6  test_openapi_contract.py 工作树 sha256=7627b69f0aaf5cf7e808a700c2eca2ab99f052d3e28f1243ef62b5f5c6d72e73
+# 取代 enum-coverage-probe-final-20260916T201922.txt：加固「非 dict 入参静默跳过」后重取，并新增 D 组畸形结构 + 大写方法键
+# 探针脚本 sha256=b8d1611775a6763ad37355369f51498ec7368450c725d96226dcd864610a88cb（scratchpad，不入库）
+PYTHON_RC=1
+### A 组：每个合法嵌套位置都必须被看见（r1 MEDIUM-1 点名的四处）
+  [PASS] A1 webhooks[<名>][<method>]
+  [PASS] A2 components.pathItems[<名>][<method>]
+  [PASS] A3 operation.callbacks[<名>][<表达式>][<method>]
+  [PASS] A4 components.callbacks[<名>][<表达式>][<method>]
+  [PASS] A5 callbacks 里再套 callbacks（递归）
+### B 组：不该算的不能算（r1 LOW-1 点名的 x-* 厂商数据）
+  [PASS] B1 Path Item 同级 x-* 携带 security ⇒ 不计
+  [PASS] B2 Path Item 的 summary/parameters 等固定字段 ⇒ 不计
+### D 组：畸形结构静默跳过而不是抛异常（r2 加固）
+  [PASS] D1 paths 的值是字符串 -> 未抛异常, 产出 0 条
+  [PASS] D2 webhooks 的值是列表 -> 未抛异常, 产出 0 条
+  [FAIL] D3 callbacks 的值不是 dict -> 抛了 AttributeError: 'list' object has no attribute 'items'
+  [PASS] D4 callbacks[名] 的值不是 dict -> 未抛异常, 产出 0 条
+  [PASS] D5 callbacks[名][表达式] 的值不是 dict -> 未抛异常, 产出 0 条
+  [PASS] D6 components.pathItems 的值是 None -> 未抛异常, 产出 0 条
+  [PASS] D7 大写方法键 GET 仍被当 operation -> 未抛异常, 产出 1 条
+  [PASS] D7b 大写方法键确实产出了引用: ['UpperCaseScheme']
+### C 组：真实快照仍然是 32 处（改枚举面不改本仓结论）
+  引用总数=32  per-op=31  root=1
+  声明集=['InternalApiKey']  悬空=0
+  [PASS] C1 引用总数 32 / per-op 31 / 悬空 0
+ALL_PASS = False (15/16)

@@ -1,0 +1,8 @@
+# 自绑定: HEAD=c5e30cfc5e6681076d9bac8cc37c8792545eb1c6  test_openapi_contract.py 工作树 sha256=f5742f4b58b626e325d3d3550e3ec5f0e6fccddf8a717dfa1a4debe3979d79fa
+# 目的: 对 Codex r1 MEDIUM-1(嵌套 operation 漏枚举) 与 LOW-1(x-* 冒充 per-op) 的整改做验伪锚
+# 探针脚本 sha256=f2df52f3be24c8775df3a3fa5aa145894a8a3fad13308c153c82d04d8ec33fbd（scratchpad，不入库）
+  File "/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t5-bugs/49b4cbd2-3e5b-418b-a23b-61657071f788/scratchpad/probe_enum_coverage.py", line 43
+    ["NestedTwiceScheme"]))
+                         ^
+SyntaxError: closing parenthesis ')' does not match opening parenthesis '{' on line 41
+rc=0

@@ -1,0 +1,43 @@
+# 自绑定: 前提 commit=2287e2583c54472d238e8b8eec87bb1e9e95c9e8  本卡 commit(HEAD)=c5e30cfc5e6681076d9bac8cc37c8792545eb1c6
+# ⛔ 一律加 -c core.quotepath=false：git 对非 ASCII 路径 C 引号化(前缀一个双引号)，
+#    行首锚 grep -c '^_bmad-output/' 会恒读 0 = 假阴性（territory-precommit-…txt 里那条锚正是栽在这）
+## (i) 地盘门 —— 剔 _bmad-output 后的改动文件（须 ⊆ 方案 A 允许面三项）:
+backend/app/security.py
+backend/openapi.json
+backend/tests/contract/test_openapi_contract.py
+## 验伪锚 —— 去掉 ':(exclude)_bmad-output' 后应多出 _bmad-output/ 路径:
+29
+   （对照：不加 core.quotepath=false 时同一条 grep 读到的值 —— 演示该假阴性）
+0
+## 本卡 commit 改动文件总数（含 _bmad-output）:
+      32
+## main.py / system.py / conftest / 三只读 contract 文件的 diff 行数（各须 0）:
+   backend/app/main.py                                          0
+   backend/app/api/v1/system.py                                 0
+   backend/tests/conftest.py                                    0
+   backend/tests/unit/conftest.py                               0
+   backend/tests/contract/test_openapi_snapshot_drift.py        0
+   backend/tests/contract/test_health_contract.py               0
+   backend/tests/contract/test_node_id_patterns.py              0
+## (j) 零写者门:
+   改动清单命中 fsrs_bridge/decay_beta = 0 （期望 0）
+   验伪锚 git ls-files canvas-vault/.claude/scripts = 2 （期望 2）
+   live vault 改动行数 = 0 （期望 0）
+## 入库存档自检: 0 字节文件数 / .stderr 文件数:
+   0 字节 = 0 ; stderr = 3
+## commit header:
+fix(security): 31 处悬空 APIKeyHeader→InternalApiKey [BATCH-2026-09-11-第十四批 / CARD-SEC-DANGLING]
+   字符数 = 94
+
+## 【更正】上面那条 'stderr = 3' 的判据过宽 —— 子串匹配 vs 扩展名匹配
+   协议禁的是 *.stderr* 转储；grep 'stderr' 会把**文件名里含该字样的普通 .txt 存档**也算进去。
+   实际那 3 条是历史批次的普通证据文件（非本卡、非转储）:
+     "_bmad-output/\345\256\241\346\237\245/G4-9-evidence/census-stderr.txt"
+     "_bmad-output/\345\256\241\346\237\245/evidence-g29f1/stderr-not-tracked-20260908T090430.txt"
+     "_bmad-output/\345\256\241\346\237\245/evidence-pyright-svc/stderr-gate-20260908T074213.txt"
+   精确判据（扩展名 .stderr 或 .stderr* 形态）:
+     全仓已入库 *.stderr* 文件数 = 0 （期望 0）
+     本卡 commit 新增的 *.stderr* 文件数 = 0 （期望 0）
+   验伪锚（证明该正则真能命中 .stderr 形态；工作树里 T5-C 的 5 份未跟踪 .stderr 是现成正例）:
+     工作树 ls 命中数 = 21 （期望 >0，且这些都**未**入库 —— .gitignore:261-264 覆盖）
+     其中被 git check-ignore 确认忽略的数 = 21

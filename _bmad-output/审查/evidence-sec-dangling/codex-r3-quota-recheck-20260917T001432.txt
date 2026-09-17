@@ -1,0 +1,25 @@
+# 自绑定: HEAD=4258c61d78080f4eb09777f4d5d602c3e970c835  时刻=2026-09-17T00:14:32
+# 目的: 按本仓教训「外部服务的重置时间是一次观测不是不变量」(R-05), 对 r3 的配额结论做**独立复测**,
+#       而不是继承 23:58 那两次的结论。
+
+## 观测 3（23:58 的两次之后约 15 分钟）—— 极小 prompt 探针
+   命令: codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="low" "Reply with exactly: QUOTA_OK"
+   probe_rc=1 ; stdout 为空
+   stderr 最终行: ERROR: You've hit your usage limit. … try again at Sep 19th, 2026 8:16 PM.
+   ⚠️ 过程中先出现数分钟的 'ERROR: Reconnecting... waiting for network' 循环, 期间 stderr 持续写入
+      （= 活着但不推进, 本仓已知形态）; 最终仍落在 usage limit 上。
+
+## 排除「网络问题」这一替代解释（独立于 codex 的判据）
+   chatgpt.com           http=403  time=1.288699s
+   raw.githubusercontent http=301  time=1.190249s
+   ⇒ 网络健康（秒级响应）。故 Reconnecting 是 codex 侧重试噪声, 根因是**配额**不是链路。
+
+## 为什么配额会被耗尽（旁证, 非本卡因素）
+   本机此刻 codex 进程数 = 39 （本批 10 条车道并发共用同一账号配额）
+   load averages: 6.45 5.04 5.77
+
+## 结论
+   三次独立观测（23:58 ×2 + 00:03 ×1, 且第三次另有网络健康对照）一致指向配额耗尽。
+   按卡文 §四 / 协议: 「0 字节存档重发一次, 再 0 字节 → 主 session 人审替代, **不等配额**」。
+   本车道已做到 1 次重发 + 1 次跨时段复测 + 1 条替代解释排除, 超出协议要求的最低限度。
+   ⛔ 仍不据 'Sep 19th' 这个时刻做任何推断 —— 它同样只是一次观测。

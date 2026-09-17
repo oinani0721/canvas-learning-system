@@ -1,0 +1,352 @@
+# 自绑定: HEAD=ae54dad5d45b452cc675b0d286501402ff221637
+# test_openapi_contract.py 工作树 sha256=85ef982bc36fec9702155cdf47f460e74d598d3aa36413519a1a9b4bf47f649c
+# 探针脚本 sha256=2297b96f5bf0ebacebb4c213e8db254f08808edb8ad665d2089743cfe27e2d9a  —— 全文逐字收录在本档末尾
+# r4 变更（按 Codex r3 MEDIUM-1 / LOW-1）:
+#   · B4/B6 的期望集合此前**写错却仍 PASS** —— 已按「命名映射不跳 x-*」改正
+#   · 新增 B7（Codex 给的 webhooks["x-event"] 静态反例）与 B8（表达式层仍跳，钉死两层的区分）
+#   · B2/C4 的 discriminates 由 True 改 False（它们无鉴别力，r1 起结果就相同）
+#   · E 组标题写明它不是完整集合比较
+# ======================== 运行结果 ========================
+PYTHON_RC=0
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+  from pydantic.v1.fields import FieldInfo as FieldInfoV1
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  import pkg_resources
+Building prefix dict from the default dictionary ...
+Loading model from cache /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/jieba.cache
+Loading model cost 0.334 seconds.
+Prefix dict has been built successfully.
+{"event": "cohere not installed. Cohere API reranking unavailable.", "logger": "agentic_rag.reranking", "level": "info", "timestamp": "2026-09-16T18:14:00.687066Z"}
+{"event": "Agentic RAG module loaded successfully. AGENTIC_RAG_AVAILABLE=True", "logger": "agentic_rag", "level": "info", "timestamp": "2026-09-16T18:14:00.730360Z"}
+{"event": "RAGService: LangGraph/Agentic RAG available. LANGGRAPH_AVAILABLE=True", "logger": "app.services.rag_service", "level": "info", "timestamp": "2026-09-16T18:14:00.730447Z"}
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-bugs/backend/app/api/v1/endpoints/metadata.py:103: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+  canvas_path: str = Query(
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-bugs/backend/app/api/v1/endpoints/metadata.py:177: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+  canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+{"event": "AgentService not available, canvas uses template questions only", "logger": "app.api.v1.endpoints.review", "level": "info", "timestamp": "2026-09-16T18:14:00.927678Z"}
+{"event": "src.rollback not available \u2014 rollback endpoints will return 503", "logger": "app.api.v1.endpoints.rollback", "level": "warning", "timestamp": "2026-09-16T18:14:00.943353Z"}
+{"event": "[MCP] Patched fastapi-mcp anyOf+type schema conflict (v0.4.0 bug)", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-09-16T18:14:01.217521Z"}
+{"event": "[P0-2] Registered 6 read-only MCP tool routes + 14 quarantined (410) stubs", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-09-16T18:14:01.231519Z"}
+{"event": "[MCP] Stripped spurious 'type' from 325 anyOf properties across 208 tools", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-09-16T18:14:01.838000Z"}
+{"event": "No auth config provided, skipping auth setup", "logger": "fastapi_mcp.server", "level": "info", "timestamp": "2026-09-16T18:14:01.839092Z"}
+{"event": "MCP HTTP server listening at /mcp", "logger": "fastapi_mcp.server", "level": "info", "timestamp": "2026-09-16T18:14:01.839144Z"}
+{"event": "[Story 3.2] MCP server mounted at /mcp (streamable HTTP) with canvas-learning tools", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-09-16T18:14:01.839174Z"}
+{"method": "GET", "path": "/api/v1/openapi.json", "endpoint": "/api/v1/openapi.json", "status": 200, "duration_ms": 518.57, "event": "request.completed", "request_id": "6347011616", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-16T18:14:02.367913Z"}
+### A 组 —— OpenAPI 3.1 的每个内联 operation 承载位置都必须被枚举（r1 MEDIUM-1）
+  [PASS] A1 webhooks[名][method]
+        输入   = {"webhooks": {"wh": {"post": {"security": [{"WebhookScheme": []}]}}}}
+        实际   = [('POST webhooks[wh]', 'WebhookScheme')]
+        期望   = [('POST webhooks[wh]', 'WebhookScheme')]
+        能区分加固 = True  (r1 前 webhooks 整个不遍历 ⇒ 期望集为空)
+  [PASS] A2 components.pathItems[名][method]
+        输入   = {"components": {"pathItems": {"pi": {"get": {"security": [{"PathItemScheme": []}]}}}}}
+        实际   = [('GET components.pathItems[pi]', 'PathItemScheme')]
+        期望   = [('GET components.pathItems[pi]', 'PathItemScheme')]
+        能区分加固 = True  (同上)
+  [PASS] A3 operation.callbacks[名][表达式][method]
+        输入   = {"paths": {"/x": {"get": {"callbacks": {"cb": {"{$req}": {"post": {"security": [{"OpCbScheme": []}]}}}}, "security": [{"DirectScheme": []}]}}}}
+        实际   = [('GET /x', 'DirectScheme'), ('POST [GET /x] callbacks[cb][{$req}]', 'OpCbScheme')]
+        期望   = [('GET /x', 'DirectScheme'), ('POST [GET /x] callbacks[cb][{$req}]', 'OpCbScheme')]
+        能区分加固 = True  (r1 前只产出 DirectScheme)
+  [PASS] A4 components.callbacks[名][表达式][method]
+        输入   = {"components": {"callbacks": {"cb": {"{$url}": {"put": {"security": [{"CompCbScheme": []}]}}}}}}
+        实际   = [('PUT components.callbacks[cb][{$url}]', 'CompCbScheme')]
+        期望   = [('PUT components.callbacks[cb][{$url}]', 'CompCbScheme')]
+        能区分加固 = True  (同上)
+  [PASS] A5 callbacks 里再套 callbacks（递归）
+        输入   = {"paths": {"/y": {"get": {"callbacks": {"c1": {"{$u1}": {"post": {"callbacks": {"c2": {"{$u2}": {"get": {"security": [{"NestedTwice": []}]}}}}}}}}}}}}
+        实际   = [('GET [POST [GET /y] callbacks[c1][{$u1}]] callbacks[c2][{$u2}]', 'NestedTwice')]
+        期望   = [('GET [POST [GET /y] callbacks[c1][{$u1}]] callbacks[c2][{$u2}]', 'NestedTwice')]
+        能区分加固 = True  (r1 前不递归)
+### B 组 —— 不该算的一个都不能算（r1 LOW-1 / r2 LOW-1）
+  [PASS] B1 Path Item **内部**的 x-* 携带 security ⇒ 不计
+        输入   = {"paths": {"/z": {"get": {"security": [{"RealScheme": []}]}, "x-audit-data": {"security": [{"VendorData": []}]}}}}
+        实际   = [('GET /z', 'RealScheme')]
+        期望   = [('GET /z', 'RealScheme')]
+        能区分加固 = True  (r1 前无 _HTTP_METHODS 白名单, 会多产出 VendorData)
+  [PASS] B2 Path Item 的 summary/parameters 等固定字段 ⇒ 不计
+        输入   = {"paths": {"/w": {"get": {"security": [{"RealScheme": []}]}, "parameters": [], "summary": "s"}}}
+        实际   = [('GET /w', 'RealScheme')]
+        期望   = [('GET /w', 'RealScheme')]
+        能区分加固 = False  (Codex r3 LOW-1 更正：r1 起 `isinstance(operation, dict)` 就已跳过它们，前后结果相同 ⇒ 无鉴别力)
+  [PASS] B3 paths **容器层**的 x-* 键 ⇒ 不计（r2 LOW-1）
+        输入   = {"paths": {"/p": {"get": {"security": [{"RealScheme": []}]}}, "x-audit-data": {"get": {"security": [{"DataOnly": []}]}}}}
+        实际   = [('GET /p', 'RealScheme')]
+        期望   = [('GET /p', 'RealScheme')]
+        能区分加固 = True  (r2 前会把 x-audit-data 当 Path Item, 多产出 DataOnly)
+  [PASS] B4 callbacks 的**名**层是命名映射 ⇒ 名叫 x-vendor 的 callback 必须照常枚举（r3 MEDIUM-1 修复点）
+        输入   = {"paths": {"/q": {"get": {"callbacks": {"real": {"{$u}": {"get": {"security": [{"RealScheme": []}]}}}, "x-vendor": {"{$u}": {"get": {"security": [{"NamedXCb": []}]}}}}}}}}
+        实际   = [('GET [GET /q] callbacks[real][{$u}]', 'RealScheme'), ('GET [GET /q] callbacks[x-vendor][{$u}]', 'NamedXCb')]
+        期望   = [('GET [GET /q] callbacks[real][{$u}]', 'RealScheme'), ('GET [GET /q] callbacks[x-vendor][{$u}]', 'NamedXCb')]
+        能区分加固 = True  (r3 曾在此层跳 x-* ⇒ 漏掉 NamedXCb；r4 改回不跳。此前本条的期望集合写错了却仍 PASS)
+  [PASS] B5 Callback 表达式层的 x-* 键 ⇒ 不计（与 B8 同型，保留）
+        输入   = {"paths": {"/r": {"get": {"callbacks": {"cb": {"x-note": {"get": {"security": [{"DataOnly": []}]}}, "{$u}": {"get": {"security": [{"RealScheme": []}]}}}}}}}}
+        实际   = [('GET [GET /r] callbacks[cb][{$u}]', 'RealScheme')]
+        期望   = [('GET [GET /r] callbacks[cb][{$u}]', 'RealScheme')]
+        能区分加固 = True  (同上)
+  [PASS] B6 components.pathItems / components.callbacks 是命名映射 ⇒ 名叫 x-tmpl 的条目必须照常枚举（r3 MEDIUM-1 修复点）
+        输入   = {"components": {"callbacks": {"x-tmpl": {"{$u}": {"get": {"security": [{"NamedXCb2": []}]}}}}, "pathItems": {"pi": {"get": {"security": [{"RealScheme": []}]}}, "x-tmpl": {"get": {"security": [{"NamedXPi": []}]}}}}}
+        实际   = [('GET components.callbacks[x-tmpl][{$u}]', 'NamedXCb2'), ('GET components.pathItems[pi]', 'RealScheme'), ('GET components.pathItems[x-tmpl]', 'NamedXPi')]
+        期望   = [('GET components.callbacks[x-tmpl][{$u}]', 'NamedXCb2'), ('GET components.pathItems[pi]', 'RealScheme'), ('GET components.pathItems[x-tmpl]', 'NamedXPi')]
+        能区分加固 = True  (同 B4：r3 在此两层跳 x-* ⇒ 漏三条；r4 改回不跳。此前本条期望集合同样写错却仍 PASS)
+  [PASS] B7 webhooks 是命名映射 ⇒ 名叫 x-event 的 webhook 必须照常枚举（Codex r3 MEDIUM-1 的静态反例）
+        输入   = {"webhooks": {"normal": {"post": {"security": [{"Known": []}]}}, "x-event": {"post": {"security": [{"Missing": []}]}}}}
+        实际   = [('POST webhooks[normal]', 'Known'), ('POST webhooks[x-event]', 'Missing')]
+        期望   = [('POST webhooks[normal]', 'Known'), ('POST webhooks[x-event]', 'Missing')]
+        能区分加固 = True  (r3 会在进入 webhook 前跳过 x-event ⇒ 漏掉 Missing；r2 与 r4 都会枚举它)
+  [PASS] B8 Callback 的**表达式**层仍跳 x-*（该层是可挂扩展的 Callback Object）
+        输入   = {"paths": {"/r": {"get": {"callbacks": {"cb": {"x-note": {"get": {"security": [{"ExtData": []}]}}, "{$u}": {"get": {"security": [{"RealScheme": []}]}}}}}}}}
+        实际   = [('GET [GET /r] callbacks[cb][{$u}]', 'RealScheme')]
+        期望   = [('GET [GET /r] callbacks[cb][{$u}]', 'RealScheme')]
+        能区分加固 = True  (表达式层与名层的处置**不同**，本条钉死这个区分不被一起改掉)
+### C 组 —— 畸形结构静默跳过而非抛异常（r2 加固 _as_dict）
+  [PASS] C1 paths 的值是字符串 'not-a-dict'
+        输入   = {"paths": {"/a": "not-a-dict"}}
+        实际   = []
+        期望   = []
+        能区分加固 = True  (r2 前 (path_item or {}).items() 对 str 抛 AttributeError)
+  [PASS] C2 webhooks 的值是非空列表 [1,2]
+        输入   = {"webhooks": {"w": [1, 2]}}
+        实际   = []
+        期望   = []
+        能区分加固 = True  (同上（非空列表, 不会被 `or {}` 吞掉）)
+  [PASS] C3 callbacks **容器本身**是非空列表 ['x']
+        输入   = {"paths": {"/b": {"get": {"callbacks": ["x"]}}}}
+        实际   = []
+        期望   = []
+        能区分加固 = True  (这正是 r2b 探针实测 FAIL 抓到的那条)
+  [PASS] C4 callbacks[名] 的值是整数 7
+        输入   = {"paths": {"/c": {"get": {"callbacks": {"cb": 7}}}}}
+        实际   = []
+        期望   = []
+        能区分加固 = False  (Codex r3 LOW-1 更正：旧实现的 continue 与新实现的空迭代都产出空集合 ⇒ 无鉴别力)
+  [PASS] C5 callbacks[名][表达式] 的值是 None
+        输入   = {"paths": {"/d": {"get": {"callbacks": {"cb": {"{$u}": null}}}}}}
+        实际   = []
+        期望   = []
+        能区分加固 = False  (None 在旧式 `(value or {})` 下同样通过 —— 覆盖性用例, 不作加固证据)
+  [PASS] C6 components.pathItems 的值是 None
+        输入   = {"components": {"pathItems": {"p": null}}}
+        实际   = []
+        期望   = []
+        能区分加固 = False  (同上, 不作加固证据)
+### D 组 —— 大小写与根节点
+  [PASS] D1 大写方法键 GET 仍被当 operation 且产出引用
+        输入   = {"paths": {"/e": {"GET": {"security": [{"UpperCase": []}]}}}}
+        实际   = [('GET /e', 'UpperCase')]
+        期望   = [('GET /e', 'UpperCase')]
+        能区分加固 = False  (宽松容错, 加固前后一致; OpenAPI 固定字段实为小写, 本条只说明本门不因大小写漏掉)
+  [PASS] D2 文档根全局 security 被枚举, 位置串为 <root>
+        输入   = {"paths": {}, "security": [{"RootScheme": []}]}
+        实际   = [('<root>', 'RootScheme')]
+        期望   = [('<root>', 'RootScheme')]
+        能区分加固 = False  (r1 起就有, 非本轮加固)
+### E 组 —— 真实快照回归锁（⚠️ 这条不是完整引用集合比较，只核数量/声明集/悬空集；Codex r3 LOW-1 更正）
+  [PASS] E1 真实快照 = 引用 32 / per-op 31 / root 1 / 声明集 {InternalApiKey} / 悬空 0
+        实际: 引用=32 per-op=31 root=1 声明集=['InternalApiKey'] 悬空=0 其中/system/*=0
+
+ALL_PASS = True  (22/22)
+分类: 能区分本卡加固 = 15 条 | 覆盖性(加固前后都过) = 6 条 | 回归锁(真实快照) = 1 条 | 合计 15+6+1 = 22
+
+# ======================== 探针脚本全文 ========================
+"""CARD-SEC-DANGLING round-3 验伪锚 —— 枚举面 `_iter_security_refs` 的对抗输入台。
+
+回应 Codex round-2 MEDIUM-2：上一版存档只有 PASS 标签，复核者无法独立判断
+「B 组到底比较了完整结果，还是只检查某个名字没出现」「哪条断言恒真」。
+本版对每个用例**打印**：合成输入(紧凑 JSON) / 实际完整产出(全部 (位置,方案名) 对) /
+精确期望集合 / 判定。断言一律是**集合相等**，不是「某名字不在里面」。
+生成器一律用 list() 消费(见下方 run() 的第一行)，不存在「只创建生成器没跑主体」。
+
+`discriminates` 字段如实标注该用例能否区分本卡某项加固：
+  - True  = 该用例在加固前的代码上会 FAIL(抛异常或结果不同)
+  - False = 加固前后都通过, 它只是覆盖性用例, 不作为「加固有效」的证据
+
+脚本不入库(scratchpad)，但其**全文**会被 round-3 存档逐字收录，便于独立核对。
+"""
+
+import importlib.util
+import json
+import sys
+from pathlib import Path
+
+ROOT = Path("/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-bugs")
+sys.path.insert(0, str(ROOT / "backend"))
+_spec = importlib.util.spec_from_file_location(
+    "_probe_contract_mod", ROOT / "backend/tests/contract/test_openapi_contract.py"
+)
+_mod = importlib.util.module_from_spec(_spec)
+sys.modules["_probe_contract_mod"] = _mod
+_spec.loader.exec_module(_mod)
+enumerate_refs = _mod._iter_security_refs
+
+RESULTS = []
+DISCRIMINATING = []   # 与 RESULTS 同长; E1 单独追加 None
+
+
+def run(name, schema, expected, discriminates, note=""):
+    """expected = 精确期望的 (位置, 方案名) 集合。断言是集合相等。"""
+    try:
+        got = set(list(enumerate_refs(schema)))  # list() 消费生成器, 主体一定执行
+        raised = None
+    except Exception as exc:  # noqa: BLE001 — 探针要把异常本身当结果记录
+        got, raised = None, f"{type(exc).__name__}: {exc}"
+    ok = raised is None and got == set(expected)
+    RESULTS.append(ok)
+    DISCRIMINATING.append(discriminates)
+    print(f"  [{'PASS' if ok else 'FAIL'}] {name}")
+    print(f"        输入   = {json.dumps(schema, ensure_ascii=False, sort_keys=True)}")
+    print(f"        实际   = {'抛异常 ' + raised if raised else sorted(got)}")
+    print(f"        期望   = {sorted(set(expected))}")
+    print(f"        能区分加固 = {discriminates}" + (f"  ({note})" if note else ""))
+    return ok
+
+
+print("### A 组 —— OpenAPI 3.1 的每个内联 operation 承载位置都必须被枚举（r1 MEDIUM-1）")
+run("A1 webhooks[名][method]",
+    {"webhooks": {"wh": {"post": {"security": [{"WebhookScheme": []}]}}}},
+    [("POST webhooks[wh]", "WebhookScheme")],
+    True, "r1 前 webhooks 整个不遍历 ⇒ 期望集为空")
+run("A2 components.pathItems[名][method]",
+    {"components": {"pathItems": {"pi": {"get": {"security": [{"PathItemScheme": []}]}}}}},
+    [("GET components.pathItems[pi]", "PathItemScheme")],
+    True, "同上")
+run("A3 operation.callbacks[名][表达式][method]",
+    {"paths": {"/x": {"get": {"security": [{"DirectScheme": []}],
+                              "callbacks": {"cb": {"{$req}": {"post": {"security": [{"OpCbScheme": []}]}}}}}}}},
+    [("GET /x", "DirectScheme"), ("POST [GET /x] callbacks[cb][{$req}]", "OpCbScheme")],
+    True, "r1 前只产出 DirectScheme")
+run("A4 components.callbacks[名][表达式][method]",
+    {"components": {"callbacks": {"cb": {"{$url}": {"put": {"security": [{"CompCbScheme": []}]}}}}}},
+    [("PUT components.callbacks[cb][{$url}]", "CompCbScheme")],
+    True, "同上")
+# A5 逐层显式构建 —— 一行写完十几层花括号数不清, 之前两次都栽在这里
+_A5_INNER_OP = {"get": {"security": [{"NestedTwice": []}]}}
+_A5_OUTER_OP = {"post": {"callbacks": {"c2": {"{$u2}": _A5_INNER_OP}}}}
+_A5 = {"paths": {"/y": {"get": {"callbacks": {"c1": {"{$u1}": _A5_OUTER_OP}}}}}}
+run("A5 callbacks 里再套 callbacks（递归）",
+    _A5,
+    [("GET [POST [GET /y] callbacks[c1][{$u1}]] callbacks[c2][{$u2}]", "NestedTwice")],
+    True, "r1 前不递归")
+
+print("### B 组 —— 不该算的一个都不能算（r1 LOW-1 / r2 LOW-1）")
+run("B1 Path Item **内部**的 x-* 携带 security ⇒ 不计",
+    {"paths": {"/z": {"get": {"security": [{"RealScheme": []}]},
+                      "x-audit-data": {"security": [{"VendorData": []}]}}}},
+    [("GET /z", "RealScheme")],
+    True, "r1 前无 _HTTP_METHODS 白名单, 会多产出 VendorData")
+run("B2 Path Item 的 summary/parameters 等固定字段 ⇒ 不计",
+    {"paths": {"/w": {"summary": "s", "parameters": [], "get": {"security": [{"RealScheme": []}]}}}},
+    [("GET /w", "RealScheme")],
+    False, "Codex r3 LOW-1 更正：r1 起 `isinstance(operation, dict)` 就已跳过它们，前后结果相同 ⇒ 无鉴别力")
+run("B3 paths **容器层**的 x-* 键 ⇒ 不计（r2 LOW-1）",
+    {"paths": {"/p": {"get": {"security": [{"RealScheme": []}]}},
+               "x-audit-data": {"get": {"security": [{"DataOnly": []}]}}}},
+    [("GET /p", "RealScheme")],
+    True, "r2 前会把 x-audit-data 当 Path Item, 多产出 DataOnly")
+run("B4 callbacks 的**名**层是命名映射 ⇒ 名叫 x-vendor 的 callback 必须照常枚举（r3 MEDIUM-1 修复点）",
+    {"paths": {"/q": {"get": {"callbacks": {"x-vendor": {"{$u}": {"get": {"security": [{"NamedXCb": []}]}}},
+                                            "real": {"{$u}": {"get": {"security": [{"RealScheme": []}]}}}}}}}},
+    [("GET [GET /q] callbacks[x-vendor][{$u}]", "NamedXCb"),
+     ("GET [GET /q] callbacks[real][{$u}]", "RealScheme")],
+    True, "r3 曾在此层跳 x-* ⇒ 漏掉 NamedXCb；r4 改回不跳。此前本条的期望集合写错了却仍 PASS")
+run("B5 Callback 表达式层的 x-* 键 ⇒ 不计（与 B8 同型，保留）",
+    {"paths": {"/r": {"get": {"callbacks": {"cb": {"x-note": {"get": {"security": [{"DataOnly": []}]}},
+                                                   "{$u}": {"get": {"security": [{"RealScheme": []}]}}}}}}}},
+    [("GET [GET /r] callbacks[cb][{$u}]", "RealScheme")],
+    True, "同上")
+run("B6 components.pathItems / components.callbacks 是命名映射 ⇒ 名叫 x-tmpl 的条目必须照常枚举（r3 MEDIUM-1 修复点）",
+    {"components": {"pathItems": {"x-tmpl": {"get": {"security": [{"NamedXPi": []}]}},
+                                  "pi": {"get": {"security": [{"RealScheme": []}]}}},
+                    "callbacks": {"x-tmpl": {"{$u}": {"get": {"security": [{"NamedXCb2": []}]}}}}}},
+    [("GET components.pathItems[x-tmpl]", "NamedXPi"),
+     ("GET components.pathItems[pi]", "RealScheme"),
+     ("GET components.callbacks[x-tmpl][{$u}]", "NamedXCb2")],
+    True, "同 B4：r3 在此两层跳 x-* ⇒ 漏三条；r4 改回不跳。此前本条期望集合同样写错却仍 PASS")
+
+run("B7 webhooks 是命名映射 ⇒ 名叫 x-event 的 webhook 必须照常枚举（Codex r3 MEDIUM-1 的静态反例）",
+    {"webhooks": {"x-event": {"post": {"security": [{"Missing": []}]}},
+                  "normal": {"post": {"security": [{"Known": []}]}}}},
+    [("POST webhooks[x-event]", "Missing"), ("POST webhooks[normal]", "Known")],
+    True, "r3 会在进入 webhook 前跳过 x-event ⇒ 漏掉 Missing；r2 与 r4 都会枚举它")
+run("B8 Callback 的**表达式**层仍跳 x-*（该层是可挂扩展的 Callback Object）",
+    {"paths": {"/r": {"get": {"callbacks": {"cb": {"x-note": {"get": {"security": [{"ExtData": []}]}},
+                                                   "{$u}": {"get": {"security": [{"RealScheme": []}]}}}}}}}},
+    [("GET [GET /r] callbacks[cb][{$u}]", "RealScheme")],
+    True, "表达式层与名层的处置**不同**，本条钉死这个区分不被一起改掉")
+
+print("### C 组 —— 畸形结构静默跳过而非抛异常（r2 加固 _as_dict）")
+run("C1 paths 的值是字符串 'not-a-dict'",
+    {"paths": {"/a": "not-a-dict"}}, [],
+    True, "r2 前 (path_item or {}).items() 对 str 抛 AttributeError")
+run("C2 webhooks 的值是非空列表 [1,2]",
+    {"webhooks": {"w": [1, 2]}}, [],
+    True, "同上（非空列表, 不会被 `or {}` 吞掉）")
+run("C3 callbacks **容器本身**是非空列表 ['x']",
+    {"paths": {"/b": {"get": {"callbacks": ["x"]}}}}, [],
+    True, "这正是 r2b 探针实测 FAIL 抓到的那条")
+run("C4 callbacks[名] 的值是整数 7",
+    {"paths": {"/c": {"get": {"callbacks": {"cb": 7}}}}}, [],
+    False, "Codex r3 LOW-1 更正：旧实现的 continue 与新实现的空迭代都产出空集合 ⇒ 无鉴别力")
+run("C5 callbacks[名][表达式] 的值是 None",
+    {"paths": {"/d": {"get": {"callbacks": {"cb": {"{$u}": None}}}}}}, [],
+    False, "None 在旧式 `(value or {})` 下同样通过 —— 覆盖性用例, 不作加固证据")
+run("C6 components.pathItems 的值是 None",
+    {"components": {"pathItems": {"p": None}}}, [],
+    False, "同上, 不作加固证据")
+
+print("### D 组 —— 大小写与根节点")
+run("D1 大写方法键 GET 仍被当 operation 且产出引用",
+    {"paths": {"/e": {"GET": {"security": [{"UpperCase": []}]}}}},
+    [("GET /e", "UpperCase")],
+    False, "宽松容错, 加固前后一致; OpenAPI 固定字段实为小写, 本条只说明本门不因大小写漏掉")
+run("D2 文档根全局 security 被枚举, 位置串为 <root>",
+    {"security": [{"RootScheme": []}], "paths": {}},
+    [("<root>", "RootScheme")],
+    False, "r1 起就有, 非本轮加固")
+
+print("### E 组 —— 真实快照回归锁（⚠️ 这条不是完整引用集合比较，只核数量/声明集/悬空集；Codex r3 LOW-1 更正）")
+real = json.load(open(ROOT / "backend/openapi.json", encoding="utf-8"))
+got_real = list(enumerate_refs(real))
+per_op = [g for g in got_real if g[0] != "<root>"]
+declared = set((real.get("components") or {}).get("securitySchemes") or {})
+dangling = [g for g in got_real if g[1] not in declared]
+sysn = [g for g in dangling if "/system/" in g[0]]
+ok_e = (len(got_real) == 32 and len(per_op) == 31 and declared == {"InternalApiKey"}
+        and dangling == [] and sysn == [])
+RESULTS.append(ok_e)
+DISCRIMINATING.append(None)   # E1 不是加固用例, 是「改枚举面不改本仓结论」的回归锁
+print(f"  [{'PASS' if ok_e else 'FAIL'}] E1 真实快照 = 引用 32 / per-op 31 / root 1 / 声明集 {{InternalApiKey}} / 悬空 0")
+print(f"        实际: 引用={len(got_real)} per-op={len(per_op)} root={len(got_real)-len(per_op)} "
+      f"声明集={sorted(declared)} 悬空={len(dangling)} 其中/system/*={len(sysn)}")
+
+print()
+# ⛔ 计数一律算出来, 不写死（写死过一次: 曾写「13 / 共 20, 其余 5 条」, 13+5≠20）
+_t = sum(1 for d in DISCRIMINATING if d is True)
+_f = sum(1 for d in DISCRIMINATING if d is False)
+_n = sum(1 for d in DISCRIMINATING if d is None)
+assert _t + _f + _n == len(RESULTS) == len(DISCRIMINATING), "计数自洽性断言失败"
+print(f"ALL_PASS = {all(RESULTS)}  ({sum(RESULTS)}/{len(RESULTS)})")
+print(f"分类: 能区分本卡加固 = {_t} 条 | 覆盖性(加固前后都过) = {_f} 条 | 回归锁(真实快照) = {_n} 条"
+      f" | 合计 {_t}+{_f}+{_n} = {len(RESULTS)}")
+sys.exit(0 if all(RESULTS) else 1)
+
+# ======================== 【更正】Codex round-4 LOW-3：两处旁注文字写错（判定与期望集合本身无误）========================
+## (1) B5 的旁注「同上」承接错了
+   B5 现在紧跟在 B4 后面，而 B4 已改成「名层是命名映射 ⇒ 不跳 x-*」。B5 测的是**表达式层仍跳**，
+   两者方向相反 ——「同上」会被读成「B5 也是名层修复」。B5 的正确说明应为：
+     「Callback Object 的**表达式**层可挂扩展 ⇒ 跳 x-*；r3 与 r4 在这一层行为**相同**，
+      本条是防退化的覆盖锁，与 B8 同型。」
+
+## (2) B6 的旁注「r3 漏三条」——实为**两条**
+   B6 的期望集合是三条：NamedXPi / RealScheme / NamedXCb2。其中 RealScheme 在 r3 与 r4 下**都会**产出
+   （components.pathItems["pi"] 不以 x- 开头，r3 不跳它）。r3 真正漏掉的只有名字以 x- 开头的那两条：
+     NamedXPi（components.pathItems["x-tmpl"]）与 NamedXCb2（components.callbacks["x-tmpl"]）。
+
+   ⇒ 两处都是**旁注说明文字**的问题；每条用例的**输入、期望集合与 PASS/FAIL 判定本身不受影响**
+      （Codex round-4 原文：「探针期望已改对，但 B5、B6 的说明文字仍有错误」）。
+      本档不改上方原文，按本仓惯例把更正追加于此、保留写错的痕迹。
+
+## (3) 顺带记 Codex round-4 对分类口径的更正（它同意 15/6/1 成立，但指出口径要说清）
+   脚本的 discriminates 口径是「能否区分**本卡某项加固**」（跨 r1→r4 全程），
+   **不是**「能否区分 r3→r4」。按后者口径只有 B4/B6/B7 三条；B8 与 B5 是防退化覆盖锁。
+   Codex 原文：「15 / 6 / 1 分类成立，但不代表 15 条都能区分 r3/r4」。

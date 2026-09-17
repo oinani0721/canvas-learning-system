@@ -1,0 +1,23 @@
+# 验伪锚：统计脚本 /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t5-bugs/49b4cbd2-3e5b-418b-a23b-61657071f788/scratchpad/count_dangling.py sha256=288e412986b6b2ba8254650d33cf32c81d89d1c67aa31afe84fbfe3eb75663c5
+# 只在 /tmp 副本上注入，committed backend/openapi.json 不碰（跑后 sha 见末尾）
+# committed 跑前 sha256=1455eb7dc5d46bbdb14aba984ef9c08991b3ffe250a8638c532eb491c56e4764
+### 锚① 注入 NoSuchSchemeAnchorA 到 GET /api/v1/health (非 /system/)
+file= /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t5-bugs/49b4cbd2-3e5b-418b-a23b-61657071f788/scratchpad/anchor_nonsystem.json
+securitySchemes= ['InternalApiKey'] dangling= 32 system= 16
+sample= [('POST', '/api/v1/boards/manifest', 'APIKeyHeader'), ('POST', '/api/v1/chat/enrich-context', 'APIKeyHeader'), ('POST', '/api/v1/chat/post-turn-extract', 'APIKeyHeader')]
+per_op_scheme_names= {'APIKeyHeader': 31, 'NoSuchSchemeAnchorA': 1}
+paths= 197 operations= 209
+### 锚② 注入 NoSuchSchemeAnchorB 到 POST /api/v1/system/config (/system/ 面)
+file= /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t5-bugs/49b4cbd2-3e5b-418b-a23b-61657071f788/scratchpad/anchor_system.json
+securitySchemes= ['InternalApiKey'] dangling= 32 system= 17
+sample= [('POST', '/api/v1/boards/manifest', 'APIKeyHeader'), ('POST', '/api/v1/chat/enrich-context', 'APIKeyHeader'), ('POST', '/api/v1/chat/post-turn-extract', 'APIKeyHeader')]
+per_op_scheme_names= {'APIKeyHeader': 31, 'NoSuchSchemeAnchorB': 1}
+paths= 197 operations= 209
+### 锚③ 反方向：副本 securitySchemes 补 APIKeyHeader ⇒ dangling 必 0
+file= /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t5-bugs/49b4cbd2-3e5b-418b-a23b-61657071f788/scratchpad/anchor_declared.json
+securitySchemes= ['APIKeyHeader', 'InternalApiKey'] dangling= 0 system= 0
+sample= []
+per_op_scheme_names= {'APIKeyHeader': 31}
+paths= 197 operations= 209
+# committed 跑后 sha256=1455eb7dc5d46bbdb14aba984ef9c08991b3ffe250a8638c532eb491c56e4764
+rc=0

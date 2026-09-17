@@ -1,0 +1,50 @@
+# 自绑定: HEAD=2287e2583c54472d238e8b8eec87bb1e9e95c9e8
+# 本档取代改名前的 sec-dangling-red-20260916T194419.txt / negative-control-*.txt —— 用**最终版**门代码重取先红与负控。
+# 手法: git show HEAD:<path> 写回工作树（⛔ 禁 git stash / git checkout）; EXIT trap 无条件从 scratchpad 副本还原。
+## 跑前 shasum -a 256:
+925443dce1f90b35391898dc7cfa45c436107b7d015ed9f24e30c90e0e361904  backend/app/security.py
+9df9f7df7fdb9a8f4d5ae22aa0886fe8e36d0e66f4e106a1579801c9824bab79  backend/openapi.json
+ae5d7e0b97b657972477f55ff2f6437e28432941d637b031d75e5cf1ef7cec51  backend/tests/contract/test_openapi_contract.py
+
+## ===== 阶段 1：真·先红（源与快照都还原为 HEAD 全态，只留本卡新增的门）=====
+   security.py sha256=8c8c9098cb7d4cfd4e3a156cc9b82316e814fbff669d1f035b3c6c1d7c4c6cc7  (须 = HEAD 版 8c8c9098…)
+   openapi.json sha256=1455eb7dc5d46bbdb14aba984ef9c08991b3ffe250a8638c532eb491c56e4764  (须 = HEAD 版 1455eb7d…)
+   pytest_rc=1
+E       AssertionError: OpenAPI 契约里有 31 处 security 悬空引用(其中 /system/* 16 处) —— 方案名不在 components.securitySchemes=['InternalApiKey'] 里, 第三方工具无法推导鉴权。
+E         常见根因: `fastapi.security.APIKeyHeader(...)` 未传 `scheme_name=`, FastAPI 退回按**类名**命名(`fastapi/security/api_key.py` 的 `self.scheme_name = scheme_name or self.__class__.__name__`), 而 `app/main.py:_custom_openapi` 又整体覆盖了 securitySchemes。
+E         引用总数=32(其中 per-op 31); 悬空前 10 条 (位置 -> 方案名):
+E           GET /api/v1/system/health -> APIKeyHeader
+E           GET /api/v1/system/startup-check -> APIKeyHeader
+E           GET /api/v1/system/health/detailed -> APIKeyHeader
+E           GET /api/v1/system/config-check -> APIKeyHeader
+E           POST /api/v1/system/setup-wizard -> APIKeyHeader
+E           GET /api/v1/system/llm-stats -> APIKeyHeader
+E           POST /api/v1/system/config -> APIKeyHeader
+E           POST /api/v1/system/test-llm -> APIKeyHeader
+E           GET /api/v1/system/qa-metrics -> APIKeyHeader
+E           GET /api/v1/system/pipeline-health -> APIKeyHeader
+E         其中 /system/* 前 5 条:
+======================== 1 failed, 10 warnings in 1.18s ========================
+   同一 HEAD 全态下 committed 快照的悬空统计（与门互证的第二个口径）:
+securitySchemes= ['InternalApiKey'] dangling= 31 system= 16
+per_op_scheme_names= {'APIKeyHeader': 31}
+
+## ===== 阶段 2：负控（快照 = 本卡再生的 0 悬空版，只把源回退）=====
+   security.py sha256=8c8c9098cb7d4cfd4e3a156cc9b82316e814fbff669d1f035b3c6c1d7c4c6cc7  (仍为 HEAD 版)
+   openapi.json sha256=9df9f7df7fdb9a8f4d5ae22aa0886fe8e36d0e66f4e106a1579801c9824bab79  (本卡再生版 9df9f7df…)
+   pytest_rc=1
+FAILED tests/contract/test_openapi_contract.py::test_security_schemes_cover_all_security_refs
+FAILED tests/contract/test_openapi_snapshot_drift.py::test_committed_snapshot_has_no_drift
+======================== 2 failed, 10 warnings in 1.27s ========================
+   ⇒ 本门读的是 live schema 不是 committed 快照：快照已 0 悬空、源一回退门照样红。
+
+## 跑后 shasum -a 256（须与跑前逐字同）:
+925443dce1f90b35391898dc7cfa45c436107b7d015ed9f24e30c90e0e361904  backend/app/security.py
+9df9f7df7fdb9a8f4d5ae22aa0886fe8e36d0e66f4e106a1579801c9824bab79  backend/openapi.json
+ae5d7e0b97b657972477f55ff2f6437e28432941d637b031d75e5cf1ef7cec51  backend/tests/contract/test_openapi_contract.py
+## git status --porcelain（应仍是三个 M + evidence 未跟踪）:
+ M backend/app/security.py
+ M backend/openapi.json
+ M backend/tests/contract/test_openapi_contract.py
+?? "_bmad-output/\345\256\241\346\237\245/evidence-sec-dangling/"
+?? "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-SEC-DANGLING.md"

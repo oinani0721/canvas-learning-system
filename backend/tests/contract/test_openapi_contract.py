@@ -192,3 +192,225 @@ class TestCanvasWorkflow:
         # Accept both 200 (placeholder) and 201 (real implementation)
         assert response.status_code in [200, 201]
         assert "id" in response.json()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Security scheme 悬空引用门(非 schemathesis) — CARD-SEC-DANGLING
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# [BATCH-2026-09-11-第十四批 / CARD-SEC-DANGLING]
+#
+# 本门证明什么: 真实 `app.openapi()` 里每一处**内联** `security` 引用(本仓现为 31 处
+#   per-operation + 1 处文档根全局)的方案名都能在 `components.securitySchemes` 找到定义
+#   —— 即契约零悬空。覆盖面的边界(尤其 `$ref` 不解析)见 `_iter_security_refs` 的 docstring。
+# 本门不证明什么:
+#   - 不验证运行时鉴权行为(`require_internal_api_key` 的 fail-closed matrix / 403 / 503
+#     归本批 T10-E), 本门是纯文档/契约层断言;
+#   - 不验证 committed `backend/openapi.json` 是否与 live 同步(那是同目录
+#     `test_openapi_snapshot_drift.py::test_committed_snapshot_has_no_drift`);
+#   - 不验证方案定义本身的字段(type / in / name)是否写对。
+#
+# 为什么不复用同文件的 schemathesis 门: `test_api_contract` 每个 operation 都发真实
+#   HTTP 请求, 在 W4 端口门下每次 16-19s > `deadline=10000` ⇒ 恒 `DeadlineExceeded`,
+#   对「方案名是否被声明」这条**纯静态**性质是瞎的。本门只做进程内 schema 断言,
+#   不发任何请求、不经 `@schema.parametrize()`(故可按 nodeid 直接点选)。
+#
+# 取 schema 的路径与快照漂移门**同源**: 复用
+#   `scripts/spec-tools/check-openapi-drift.py::load_live_schema()`。同源保证本门与漂移门、
+#   与 `--write` 再生入口看见的是同一份 schema。
+#
+# ⚠️ socket 禁闭的覆盖面, 如实写清(别把它读成"整条收集路径都被保护"):
+#   `load_live_schema()` 只在**它自己**的 `import app.main` + `app.openapi()` 期间替换
+#   `socket.socket.connect`。而本模块在 `:18` 已先做过一次**不在禁闭内**的
+#   `from app.main import app`, `:79` 的 `schemathesis.openapi.from_asgi(...)` 也会在禁闭外
+#   经 ASGI 取一次 schema; 且 `app/main.py:_custom_openapi` 有 `app.openapi_schema` 缓存 ——
+#   本门进入禁闭后拿到的很可能是那次缓存结果。故本门**不**主张"整条收集路径无网络行为",
+#   只主张: 进程内断言本身不发 HTTP 请求, 且每次定向跑的 W4 端口门记账均为
+#   `NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)`。
+#   (禁闭本身也只换 `socket.socket.connect` 一个入口, 不等于封死全部网络出口。)
+
+
+def _load_drift_module_for_security():
+    """加载文件名带连字符的 drift 工具(不能走普通 import; 与漂移门同法)。"""
+    import importlib.util
+    import sys
+    from pathlib import Path
+
+    backend_dir = Path(__file__).resolve().parents[2]
+    tool = backend_dir.parent / "scripts" / "spec-tools" / "check-openapi-drift.py"
+    spec = importlib.util.spec_from_file_location("_check_openapi_drift_secdangling", tool)
+    if spec is None or spec.loader is None:  # pragma: no cover — 路径错时立即失败
+        raise RuntimeError(f"无法加载 {tool}")
+    module = importlib.util.module_from_spec(spec)
+    previous = sys.dont_write_bytecode
+    sys.dont_write_bytecode = True  # 不往 scripts/spec-tools/ 落 __pycache__
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        sys.dont_write_bytecode = previous
+    return module
+
+
+#: OpenAPI 3.1 Path Item Object 里被当作 **operation** 的固定字段(其余字段如 summary /
+#: description / servers / parameters / $ref / x-* 扩展都不是 operation)。只认这 8 个
+#: 是有意的取舍: Path Item 下合法的 `x-*` 厂商数据若恰好带 `security` 键, 不按方案引用算
+#: (它是数据不是需求); 代价是若将来出现**非标准**方法键携带真 security, 本门会漏掉它。
+_HTTP_METHODS = frozenset({"get", "put", "post", "delete", "options", "head", "patch", "trace"})
+
+
+def _as_dict(value):
+    """畸形结构一律降级成空 dict —— 见 `_iter_path_item_security_refs` docstring 的理由。"""
+    return value if isinstance(value, dict) else {}
+
+
+def _extensible_entries(container):
+    """产出 (键, 值) 并跳过 `x-*` 规范扩展键 —— **只能用在允许挂扩展、且键有固定形状的对象上**。
+
+    适用面严格限两处(Codex round-3 MEDIUM-1 收窄):
+      - **Paths Object**: 键是 `/…` 路径, `x-*` 是扩展。不跳的话
+        `paths["x-audit-data"] = {"get": {"security": […]}}` 会被当成一条真 operation 记进
+        引用集 —— 既能造成误红, 也能冒充 `per_op_refs` 非空条件;
+      - **Callback Object**: 键是运行时表达式, `x-*` 同理是扩展。
+
+    ⛔ **不得**用在命名映射上（`webhooks` / `components.pathItems` / `components.callbacks` /
+    operation 的 `callbacks`）: 那几处的键是**用户起的名字**, 一个叫 `x-event` 的 webhook 是
+    合法名称而不是扩展。r3 曾把本函数推广到那四层, 于是
+    `webhooks["x-event"].post.security=[{"Missing":[]}]` 里的 `Missing` 会被整个跳过 = **漏掉
+    真引用**（Codex round-3 MEDIUM-1 的静态反例; 探针 B4/B6 当时的期望集合也跟着写错却仍 PASS）。
+    「对象自身允许扩展」不蕴含「它的子映射里所有 `x-` 开头的名字都是扩展」。
+    """
+    for name, value in _as_dict(container).items():
+        if isinstance(name, str) and name.startswith("x-"):
+            continue
+        yield name, value
+
+
+def _iter_path_item_security_refs(path_item, location):
+    """遍历一个 Path Item Object 下所有 operation 的 `security`, 并递归其 `callbacks`。
+
+    `callbacks[<名>][<运行时表达式>]` 的值本身又是一个 Path Item Object —— 这是 OpenAPI 3.1
+    里 operation 可以嵌套的唯一方式, 故本函数对它递归。递归无环风险: `load_live_schema()`
+    走过 `json.dumps`/`json.loads` 往返, 产出的是纯 JSON 树, 结构上不可能自引用。
+
+    非 dict 入参一律**静默跳过**而不是抛异常: 本门的主张是「引用都有定义」, 对畸形结构报
+    `AttributeError` 会把契约问题伪装成门自己坏了。畸形结构该由 schema 校验类的门去管。
+    """
+    for method, operation in _as_dict(path_item).items():
+        if method.lower() not in _HTTP_METHODS or not isinstance(operation, dict):
+            continue
+        op_location = f"{method.upper()} {location}"
+        for requirement in operation.get("security") or []:
+            for scheme_name in requirement:
+                yield op_location, scheme_name
+        # callbacks 的**名**是用户起的名字(命名映射) ⇒ 不跳 x-*; 里层的**表达式**才是可挂扩展的
+        # Callback Object ⇒ 跳 x-*。两层用不同的遍历函数, 这个区分是 r3 MEDIUM-1 的修复点。
+        for callback_name, callback in _as_dict(operation.get("callbacks")).items():
+            for expression, callback_item in _extensible_entries(callback):
+                # 位置串把宿主 operation 包进方括号, 免得嵌套层读成 "POST GET /x …" 像笔误
+                yield from _iter_path_item_security_refs(
+                    callback_item, f"[{op_location}] callbacks[{callback_name}][{expression}]"
+                )
+
+
+def _iter_security_refs(schema):
+    """产出 (位置, 方案名) —— schema 里每一处**内联** `security` 需求引用的每个方案名。
+
+    覆盖面 = OpenAPI 3.1 里 Security Requirement Object 的全部**内联**位置:
+      - 文档根的全局 `security`(位置写作 `<root>`);
+      - `paths[<path>][<method>]`(位置写作 `GET /api/v1/x`);
+      - `webhooks[<名>][<method>]`;
+      - `components.pathItems[<名>][<method>]`;
+      - 以及上述任一 operation 的 `callbacks[<名>][<表达式>][<method>]`
+        与 `components.callbacks[<名>][<表达式>][<method>]`(经 `_iter_path_item_security_refs` 递归)。
+    `x-*` 只在**可挂扩展且键有固定形状**的两处跳过(Paths Object 的路径键、Callback Object 的
+    表达式键, 见 `_extensible_entries`)；`webhooks` / `components.pathItems` /
+    `components.callbacks` / operation 的 `callbacks` 是**命名映射**, 名字可以合法地叫 `x-event`,
+    那里一律不跳 —— 跳了就会漏掉真引用(Codex round-3 MEDIUM-1)。
+
+    ⚠️ **`$ref` 不解析, 故"内联"这个限定词不能去掉**(Codex round-2 MEDIUM-1 收窄):
+    Path Item 与 Callback 都可以写成 `$ref`, 目标可落在本函数遍历清单**之外**的任意位置
+    (根上的 `x-` 扩展、甚至外部文档)。那种形状下的 security 引用本门看不见。
+    对**本仓**不构成缺口的依据是数据而不是推理: 2026-09-16 于本仓快照实测全文 `$ref` 共 736 处
+    (`components` 212 / `paths` 524), 但 **Path Item 级 `$ref`(`$.paths.<path>.$ref`) = 0** ——
+    `paths` 下那 524 处全落在 `responses`(430) / `requestBody`(91) / `parameters`(3) **三类
+    operation 子结构**之下(Codex round-4 LOW-2 收窄: 证据只做到这一层, 未再证它们是否更深入到
+    `schema` 内), 都在 operation 层**以下**, 因而承载不了 Security Requirement;
+    同批实测无 `webhooks`、`components` 只有 `schemas`/`securitySchemes`、`callbacks` 子树无 `$ref`。
+    若将来换生成器或手工拼 spec, 这条限定就是真缺口 —— 届时要么补解析, 要么另立门。
+    (顺带: 若同一 Path Item 既被 `components.pathItems` 收录又被 `$ref` 引用, 只有组件定义处
+    产出引用、引用处被跳过, 不会重复计数。)
+
+    2026-09-16 于本仓快照实测: 只有前两类命中, 合计 32 处(31 per-op + 1 root); 该 schema 无
+    `webhooks`、无 `components.pathItems`/`components.callbacks`。WebSocket 路由
+    (`app/main.py` 的 `@app.websocket`)不产出 OpenAPI operation, 其鉴权走
+    `app/security.py::verify_websocket_internal_key` 手工校验, 根本不是 OpenAPI 安全方案,
+    故不在本门(也不在任何 OpenAPI 契约门)的覆盖面内。
+    """
+    for requirement in schema.get("security") or []:
+        for scheme_name in requirement:
+            yield "<root>", scheme_name
+    # paths 是可挂扩展的 Paths Object ⇒ 跳 x-*
+    for path, path_item in _extensible_entries(schema.get("paths")):
+        yield from _iter_path_item_security_refs(path_item, path)
+    # 下面三处都是**命名映射**(键 = 用户起的名字) ⇒ 一律不跳 x-*, 否则会漏掉名叫 x-… 的真条目
+    for name, path_item in _as_dict(schema.get("webhooks")).items():
+        yield from _iter_path_item_security_refs(path_item, f"webhooks[{name}]")
+    components = _as_dict(schema.get("components"))
+    for name, path_item in _as_dict(components.get("pathItems")).items():
+        yield from _iter_path_item_security_refs(path_item, f"components.pathItems[{name}]")
+    for callback_name, callback in _as_dict(components.get("callbacks")).items():
+        # 名不跳、表达式层跳（Callback Object 可挂扩展）
+        for expression, callback_item in _extensible_entries(callback):
+            yield from _iter_path_item_security_refs(
+                callback_item, f"components.callbacks[{callback_name}][{expression}]"
+            )
+
+
+def test_security_schemes_cover_all_security_refs():
+    """每一处 `security` 引用的方案名必须 ∈ `components.securitySchemes`(悬空数必须等于 0)。
+
+    **三条**防 vacuous-pass 的前置断言不可删(声明集非空 / 引用集非空 / per-op 引用集非空):
+    若 `securitySchemes` 为空、或整份 schema 一条 `security` 需求都没有、或只剩全局 security,
+    悬空集自然是空集 —— 那时本门「绿」不代表契约自洽。
+
+    本门**不**证明的两件事(别把绿读过头):
+      - 不证明 `securitySchemes` 里没有冗余/同义方案。本门查的是**包含**关系, 不是等价关系:
+        给 securitySchemes 补一个 `APIKeyHeader` 别名同样能让悬空归 0 并让本门变绿。
+      - 不证明方案定义体本身写对(`type`/`in`/`name` 三个字段由 `app/main.py:_custom_openapi`
+        手写覆盖, 本门只比方案**名**)。
+    """
+    drift = _load_drift_module_for_security()
+    schema = drift.load_live_schema()
+
+    declared = set((schema.get("components") or {}).get("securitySchemes") or {})
+    assert declared, (
+        "components.securitySchemes 为空 —— 本门会 vacuously pass。"
+        "先查 `app/main.py:_custom_openapi` 是否还在写 securitySchemes。"
+    )
+
+    refs = list(_iter_security_refs(schema))
+    assert refs, (
+        "整份 schema 没有任何 `security` 需求 —— 本门会 vacuously pass。"
+        "先查安全依赖(`Depends(require_internal_api_key)`)是否还挂在路由上。"
+    )
+    per_op_refs = [ref for ref in refs if ref[0] != "<root>"]
+    assert per_op_refs, (
+        "整份 schema 没有任何 per-operation `security`(只剩全局 security) —— 本门对 per-op 面会"
+        " vacuously pass。先查安全依赖是否还挂在路由上。"
+    )
+
+    dangling = [ref for ref in refs if ref[1] not in declared]
+    system_dangling = [ref for ref in dangling if "/system/" in ref[0]]
+
+    assert not dangling, (
+        f"OpenAPI 契约里有 {len(dangling)} 处 security 悬空引用"
+        f"(其中 /system/* {len(system_dangling)} 处) —— 方案名不在 "
+        f"components.securitySchemes={sorted(declared)} 里, 第三方工具无法推导鉴权。\n"
+        "常见根因: `fastapi.security.APIKeyHeader(...)` 未传 `scheme_name=`, FastAPI 退回按**类名**"
+        "命名(`fastapi/security/api_key.py` 的 `self.scheme_name = scheme_name or self.__class__.__name__`), "
+        "而 `app/main.py:_custom_openapi` 又整体覆盖了 securitySchemes。\n"
+        f"引用总数={len(refs)}(其中 per-op {len(per_op_refs)}); 悬空前 10 条 (位置 -> 方案名):\n"
+        + "\n".join(f"  {loc} -> {name}" for loc, name in dangling[:10])
+        + "\n其中 /system/* 前 5 条:\n"
+        + "\n".join(f"  {loc} -> {name}" for loc, name in system_dangling[:5])
+    )

@@ -1,0 +1,10 @@
+# 自绑定: HEAD=0726057e846d4c28f8202ce0ee73f46b486d7ae5  时刻=2026-09-17T02:32:00
+# 主张: 收 Codex r4 LOW-2 只改了 _iter_security_refs 的 docstring 一段（把「全在 operation 的请求/响应
+#       schema 里」收窄为「三类 operation 子结构」）。本档按 D-32 证明它是纯文案:
+#       去 docstring 后 AST 逐字相同, 且**重建的旧版 sha 实测 = r4 裁判所绑的那个**。
+# r4 裁判所绑 sha256 = 85ef982bc36fec9702155cdf47f460e74d598d3aa36413519a1a9b4bf47f649c
+# 当前工作树 sha256 = f0bcb268c626ac0c79eb946e4e5a6a788f29372b92283ea3181f94e7511cb4b7
+  重建旧版 sha256 = 85ef982bc36fec9702155cdf47f460e74d598d3aa36413519a1a9b4bf47f649c
+  与 r4 裁判所绑相同 = True
+  去 docstring 后 AST 相同 = True
+  验伪锚: 改一处**真代码**(x- → y-)后 AST 仍相同 = False  (期望 False)

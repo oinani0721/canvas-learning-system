@@ -1,0 +1,28 @@
+# 自绑定: HEAD=2287e2583c54472d238e8b8eec87bb1e9e95c9e8
+# security.py sha256=925443dce1f90b35391898dc7cfa45c436107b7d015ed9f24e30c90e0e361904
+# test_openapi_contract.py sha256=11a922a71e88fcb9544ceb514e4151bc17ae0c5a5baf2d61b2bbf20b321d0a86
+# openapi.json sha256=9df9f7df7fdb9a8f4d5ae22aa0886fe8e36d0e66f4e106a1579801c9824bab79
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-bugs/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 2 items
+tests/contract/test_openapi_contract.py .                                [ 50%]
+tests/contract/test_openapi_snapshot_drift.py .                          [100%]
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+<frozen importlib._bootstrap>:491
+<frozen importlib._bootstrap>:491
+app/api/v1/endpoints/chat.py:807
+app/api/v1/endpoints/metadata.py:103
+app/api/v1/endpoints/metadata.py:177
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================== 2 passed, 10 warnings in 1.58s ========================
+rc=0

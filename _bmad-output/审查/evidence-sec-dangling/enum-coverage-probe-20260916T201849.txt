@@ -1,0 +1,31 @@
+# 自绑定: HEAD=c5e30cfc5e6681076d9bac8cc37c8792545eb1c6  test_openapi_contract.py 工作树 sha256=f5742f4b58b626e325d3d3550e3ec5f0e6fccddf8a717dfa1a4debe3979d79fa
+# 目的: 对 Codex r1 MEDIUM-1(嵌套 operation 漏枚举) 与 LOW-1(x-* 冒充 per-op) 的整改做验伪锚
+# 探针脚本 sha256=d0dafcd1ec4b93f619944e119cf051b1a767be42da9f078494f1d8c9ae5784d2（scratchpad，不入库）
+# ⛔ rc 取法：python 的 rc 在子 shell 内显式捕获后打印 —— 上一份存档 enum-coverage-probe-20260916T201836.txt
+#    的 rc=0 是**管道末端 grep 的 rc**，掩盖了 python 的 SyntaxError（本仓已知坑：管道吃 rc）
+PYTHON_RC=0
+  canvas_path: str = Query(
+  canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+{"method": "GET", "path": "/api/v1/openapi.json", "endpoint": "/api/v1/openapi.json", "status": 200, "duration_ms": 651.07, "event": "request.completed", "request_id": "5275743776", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-16T12:19:01.052082Z"}
+### A 组：每个合法嵌套位置都必须被看见（r1 MEDIUM-1 点名的四处）
+  [PASS] A1 webhooks[<名>][<method>]
+        方案名=['WebhookScheme']  位置=['POST webhooks[wh]']
+  [PASS] A2 components.pathItems[<名>][<method>]
+        方案名=['PathItemScheme']  位置=['GET components.pathItems[pi]']
+  [PASS] A3 operation.callbacks[<名>][<表达式>][<method>]
+        方案名=['DirectScheme', 'OpCallbackScheme']  位置=['GET /x', 'POST GET /x callbacks[cb][{$request.body#/u}]']
+  [PASS] A4 components.callbacks[<名>][<表达式>][<method>]
+        方案名=['CompCallbackScheme']  位置=['PUT components.callbacks[cb][{$url}]']
+  [PASS] A5 callbacks 里再套 callbacks（递归）
+        方案名=['NestedTwiceScheme']  位置=['GET POST GET /y callbacks[c1][{$url}] callbacks[c2][{$url2}]']
+### B 组：不该算的不能算（r1 LOW-1 点名的 x-* 厂商数据）
+  [PASS] B1 Path Item 同级 x-* 携带 security ⇒ 不计
+        方案名=['DirectScheme']  位置=['GET /z']
+  [PASS] B2 Path Item 的 summary/parameters 等固定字段 ⇒ 不计
+        方案名=['DirectScheme']  位置=['GET /w']
+### C 组：真实快照仍然是 32 处（改枚举面不改本仓结论）
+  引用总数=32  per-op=31  root=1
+  声明集=['InternalApiKey']  悬空=0
+  [PASS] C1 引用总数 32 / per-op 31 / 悬空 0
+
+ALL_PASS = True (8/8)

@@ -1,0 +1,11 @@
+# 自绑定: HEAD=2287e2583c54472d238e8b8eec87bb1e9e95c9e8  再生后 openapi.json sha256=9df9f7df7fdb9a8f4d5ae22aa0886fe8e36d0e66f4e106a1579801c9824bab79
+# 前一份 regen-diff 判据(dangling-count-after-*.txt 内)有缺陷: flat() 吞空容器 ⇒ 方案名层不进比对面, 恒报 0 差异。本判据修正之。
+验伪锚 probe_keys = ['>paths>/x>get>security[0]>APIKeyHeader']
+扁平叶子数: 再生前 = 12435  再生后 = 12435
+仅在再生前的键 = 31  其中 …>security[i]>APIKeyHeader = 31
+仅在再生后的键 = 31  其中 …>security[i]>InternalApiKey = 31
+剩余未被该两式解释的键(再生前) = []
+剩余未被该两式解释的键(再生后) = []
+两侧都有但值变了的键 = ['>info>x-generated-at']
+其中 /system/* 面的 APIKeyHeader 消失数 = 16
+rc=0

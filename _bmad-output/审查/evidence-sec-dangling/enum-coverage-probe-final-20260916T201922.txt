@@ -1,0 +1,18 @@
+# 自绑定: HEAD=c5e30cfc5e6681076d9bac8cc37c8792545eb1c6  test_openapi_contract.py 工作树 sha256=9765a69a7ff8f60ce73022c6699837628ad90be6777861f950368c975c6e12a6
+# 本档取代 enum-coverage-probe-20260916T201849.txt（位置串加方括号分层后重取）
+# 探针脚本 sha256=d0dafcd1ec4b93f619944e119cf051b1a767be42da9f078494f1d8c9ae5784d2（scratchpad，不入库）
+PYTHON_RC=0
+### A 组：每个合法嵌套位置都必须被看见（r1 MEDIUM-1 点名的四处）
+  [PASS] A1 webhooks[<名>][<method>]
+  [PASS] A2 components.pathItems[<名>][<method>]
+  [PASS] A3 operation.callbacks[<名>][<表达式>][<method>]
+  [PASS] A4 components.callbacks[<名>][<表达式>][<method>]
+  [PASS] A5 callbacks 里再套 callbacks（递归）
+### B 组：不该算的不能算（r1 LOW-1 点名的 x-* 厂商数据）
+  [PASS] B1 Path Item 同级 x-* 携带 security ⇒ 不计
+  [PASS] B2 Path Item 的 summary/parameters 等固定字段 ⇒ 不计
+### C 组：真实快照仍然是 32 处（改枚举面不改本仓结论）
+  引用总数=32  per-op=31  root=1
+  声明集=['InternalApiKey']  悬空=0
+  [PASS] C1 引用总数 32 / per-op 31 / 悬空 0
+ALL_PASS = True (8/8)

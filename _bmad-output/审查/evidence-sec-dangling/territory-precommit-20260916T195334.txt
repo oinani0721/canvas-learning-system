@@ -1,0 +1,27 @@
+# 自绑定: HEAD=2287e2583c54472d238e8b8eec87bb1e9e95c9e8  （commit 前口径：工作树 vs HEAD）
+## (i) 地盘门 —— 改动文件清单（剔 _bmad-output）:
+backend/app/security.py
+backend/openapi.json
+backend/tests/contract/test_openapi_contract.py
+## 允许面（方案 A）= backend/app/security.py + backend/tests/contract/test_openapi_contract.py + backend/openapi.json
+## 验伪锚：去掉 ':(exclude)_bmad-output' 应多出 _bmad-output/ 路径:
+0
+   （注：evidence 目录当前尚未 git add，为 untracked；下面用 status 自证它确实存在）
+1
+## main.py 是否被碰（方案 A 不碰；期望 0 行 diff）:
+       0
+## system.py 是否被碰（禁改；期望 0）:
+       0
+## conftest / 三个 contract 只读文件是否被碰（期望 0）:
+       0
+## (j) 零写者门 —— 改动清单不得含 fsrs_bridge / decay_beta:
+0
+   验伪锚（证明 grep 真在数，期望 2）:
+2
+## 两个 .py 改动文件正文不得提 fsrs_bridge / decay_beta（期望 0；⛔ 不把 openapi.json 放进来，它的 description 本来就含这两个名字）:
+backend/app/security.py:0
+backend/tests/contract/test_openapi_contract.py:0
+   对照：openapi.json 本来就含（证明上面的 0 不是 grep 坏了）:
+2
+## live vault 是否被写（期望 0 改动）:
+       0

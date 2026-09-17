@@ -1,0 +1,31 @@
+# 自绑定: HEAD=2287e2583c54472d238e8b8eec87bb1e9e95c9e8  （commit 前口径：对工作树已改 .py）
+files=2
+list=backend/app/security.py backend/tests/contract/test_openapi_contract.py
+All checks passed!
+ruff_check_rc=0
+## 验伪锚（⛔ 用 F821 不用 F401：backend/ruff.toml select=[E9,F63,F7,F82]，F401 未启用 ⇒ 用 F401 做锚恒不触发）:
+F821 Undefined name `undefined_name_anchor_f821`
+ --> /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t5-bugs/49b4cbd2-3e5b-418b-a23b-61657071f788/scratchpad/anchor_f821.py:1:5
+  |
+1 | x = undefined_name_anchor_f821
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+
+Found 1 error.
+anchor_rc=1
+## ruff format --check 本卡改动文件（python-lint hook 会跑）:
+Would reformat: backend/app/security.py
+1 file would be reformatted, 1 file already formatted
+format_check_rc=1
+## 行长自证（backend line-length=120）:
+backend/app/security.py:179: 239 chars
+backend/app/security.py:181: 239 chars
+backend/tests/contract/test_openapi_contract.py:21: 239 chars
+backend/tests/contract/test_openapi_contract.py:23: 239 chars
+backend/tests/contract/test_openapi_contract.py:88: 239 chars
+backend/tests/contract/test_openapi_contract.py:90: 239 chars
+backend/tests/contract/test_openapi_contract.py:144: 239 chars
+backend/tests/contract/test_openapi_contract.py:146: 239 chars
+backend/tests/contract/test_openapi_contract.py:197: 239 chars
+backend/tests/contract/test_openapi_contract.py:199: 239 chars
+over120_done

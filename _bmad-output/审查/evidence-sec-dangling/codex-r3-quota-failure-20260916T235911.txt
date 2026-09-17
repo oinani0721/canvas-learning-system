@@ -1,0 +1,23 @@
+# 自绑定: HEAD=9861c59598ca350ca7df10921744292b0deffb41  （r3 送审失败记录 —— 本档不是复核意见）
+# 协议 §四: 「0 字节存档重发一次, 再 0 字节 → 主 session 人审替代, 不等配额」
+
+## 第 1 次发送
+   命令: codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" "$(cat _bmad-output/审查/prompts/codex-prompt-CARD-SEC-DANGLING-r3.md)"
+   codex_rc=1 ; 产出 .md 字节数=0
+   stderr 末段（逐字）:
+     ERROR: You've hit your usage limit. Visit https://chatgpt.com/codex/settings/usage to purchase more credits or try again at Sep 19th, 2026 8:16 PM.
+
+## 第 2 次发送（协议允许的那一次重发）
+   codex_rc=1 ; 产出 .md 字节数=0
+   stderr 末段（逐字）:
+     ERROR: You've hit your usage limit. Visit https://chatgpt.com/codex/settings/usage to purchase more credits or try again at Sep 19th, 2026 8:16 PM.
+
+## 会话头自证（两次同）: .stderr:2 / :5 / :9
+     OpenAI Codex v0.153.3
+     model: gpt-6-astra
+     reasoning effort: ultra
+
+## ⚠️ 关于错误里那个「Sep 19th, 2026 8:16 PM」重置时刻
+   本仓已有教训: 外部服务报的重置时间是**一次观测**不是不变量（第十四批曾有「配额耗尽至 09-15」
+   的批级通告被 24 分钟后的实测推翻并撤回, 见 R-05）。故此处**不据此推断何时可重试**,
+   也不等配额 —— 按协议交主 session 人审。接手者若要重试, 应先实测而不是继承本行结论。

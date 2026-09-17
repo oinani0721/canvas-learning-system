@@ -1,0 +1,16 @@
+# 自绑定: HEAD=2287e2583c54472d238e8b8eec87bb1e9e95c9e8  openapi.json sha256=9df9f7df7fdb9a8f4d5ae22aa0886fe8e36d0e66f4e106a1579801c9824bab79
+# 统计脚本 sha256=288e412986b6b2ba8254650d33cf32c81d89d1c67aa31afe84fbfe3eb75663c5  (与改前同一份)
+file= backend/openapi.json
+securitySchemes= ['InternalApiKey'] dangling= 0 system= 0
+sample= []
+per_op_scheme_names= {'InternalApiKey': 31}
+paths= 197 operations= 209
+# ---- 再生 diff 面：逐键比对（忽略 info.x-generated-at 易变键）----
+仅在再生前的键 = 0
+仅在再生后的键 = 0
+两侧都有但值变了的键 = ['>info>x-generated-at']
+  其中 只在再生前 且 形如 …>security[i]>APIKeyHeader 的 = 0
+  其中 只在再生后 且 形如 …>security[i]>InternalApiKey 的 = 0
+  不匹配上述两式的剩余键(再生前) = []
+  不匹配上述两式的剩余键(再生后) = []
+rc=0

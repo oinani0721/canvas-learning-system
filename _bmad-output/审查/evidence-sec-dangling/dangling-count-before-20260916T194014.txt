@@ -1,0 +1,6 @@
+# HEAD=2287e2583c54472d238e8b8eec87bb1e9e95c9e8  file=backend/openapi.json  sha256=1455eb7dc5d46bbdb14aba984ef9c08991b3ffe250a8638c532eb491c56e4764  bytes=  917381
+securitySchemes= ['InternalApiKey'] dangling= 31 system= 16
+sample= [('POST', '/api/v1/boards/manifest', 'APIKeyHeader'), ('POST', '/api/v1/chat/enrich-context', 'APIKeyHeader'), ('POST', '/api/v1/chat/post-turn-extract', 'APIKeyHeader')]
+per_op_scheme_names= {'APIKeyHeader': 31}
+paths= 197 operations= 209
+rc=0

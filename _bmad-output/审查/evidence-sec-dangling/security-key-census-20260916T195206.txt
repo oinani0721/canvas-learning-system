@@ -1,0 +1,24 @@
+# 自绑定: HEAD=2287e2583c54472d238e8b8eec87bb1e9e95c9e8  openapi.json sha256=9df9f7df7fdb9a8f4d5ae22aa0886fe8e36d0e66f4e106a1579801c9824bab79
+# 目的: 回答「(b) 是否覆盖了全部 security 引用面」—— 普查 schema 里每一个名为 security 的键的位置
+security 键出现位置分类:
+    31  paths.<path>.<method>(per-op, (b) 覆盖面)
+     1  ROOT(全局 security)
+
+全部出现过的方案名(任何位置) = ['InternalApiKey']
+components.securitySchemes 声明 = ['InternalApiKey']
+⇒ 任何位置的悬空 = []
+
+顶层 security = [{'InternalApiKey': []}]
+顶层键 = ['components', 'info', 'openapi', 'paths', 'security']
+有 webhooks 键 = False
+components 子键 = ['schemas', 'securitySchemes']
+有 callbacks = False
+## WebSocket 路由是否进 openapi（FastAPI 的 WebSocketRoute 不产出 openapi operation）:
+backend/app/main.py:809:@app.websocket("/ws/intelligent-parallel/{session_id}")
+backend/app/main.py:839:@app.websocket("/ws")
+## verify_websocket_internal_key 的调用点（WS 侧鉴权，不在 openapi 契约面内）:
+backend/app/security.py:194:async def verify_websocket_internal_key(websocket) -> bool:
+backend/app/main.py:824:    from app.security import verify_websocket_internal_key
+backend/app/main.py:826:    if not await verify_websocket_internal_key(websocket):
+backend/app/main.py:856:    from app.security import verify_websocket_internal_key
+backend/app/main.py:858:    if not await verify_websocket_internal_key(websocket):

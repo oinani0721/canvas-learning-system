@@ -1,0 +1,5 @@
+# 自绑定: HEAD=2287e2583c54472d238e8b8eec87bb1e9e95c9e8  security.py sha256=925443dce1f90b35391898dc7cfa45c436107b7d015ed9f24e30c90e0e361904
+# pyright 绝对路径=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/bin/pyright
+test -x OK  version=pyright 1.1.411
+0 errors, 81 warnings, 0 informations
+rc=0

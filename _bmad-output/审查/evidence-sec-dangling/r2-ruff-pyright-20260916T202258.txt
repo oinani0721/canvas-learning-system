@@ -1,0 +1,18 @@
+# 自绑定: HEAD=c5e30cfc5e6681076d9bac8cc37c8792545eb1c6  test_openapi_contract.py sha256=9765a69a7ff8f60ce73022c6699837628ad90be6777861f950368c975c6e12a6
+## ruff（r2 后；对工作树已改 .py + 本卡 commit 已改 .py 的并集）:
+files=2  list=backend/app/security.py backend/tests/contract/test_openapi_contract.py
+All checks passed!
+ruff_check_rc=0
+## 验伪锚 F821:
+Found 1 error.
+anchor_rc=1
+## ruff format --check:
+Would reformat: backend/app/security.py
+1 file would be reformatted, 1 file already formatted
+format_check_rc=1
+## 最长行（按字符）:
+  backend/app/security.py max_chars = 87 >120 = []
+  backend/tests/contract/test_openapi_contract.py max_chars = 107 >120 = []
+## pyright（cwd=backend, 绝对路径 + test -x）:
+test -x OK version=pyright 1.1.411
+0 errors, 81 warnings, 0 informations
