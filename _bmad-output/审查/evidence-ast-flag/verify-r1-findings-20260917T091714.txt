@@ -1,0 +1,19 @@
+=== round-1 四条反例复验（旧=B14_BASE / 新=整改后定稿）@ 2026-09-17T09:17:15+08:00 ===
+61d83473d4c877790961372d574f7fd24595c62eda16c900f3786c2cbc6c9c22  backend/scripts/lifespan_isolation_negative_control.py
+  HIGH-1 主：lambda **体**内海象重绑成生产 app，同体内 enter_context(TestClient(app))
+      正确答案 = CAUGHT（真危险：lambda 局部 app 就是生产 app）
+      旧=CAUGHT   新=CAUGHT
+
+  HIGH-1 副：同形态但海象是局部 FastAPI()（应 CLEAN）
+      正确答案 = CLEAN（合法）
+      旧=CLEAN   新=CLEAN
+
+  HIGH-2：嵌套 def 的**默认参数**里 yield（在外层求值 = 真让出）
+      正确答案 = CAUGHT（quick 支在隔离外让出）
+      旧=CLEAN   新=CAUGHT
+
+  MEDIUM-3：模块自己 def 了一个不写属性的 setattr
+      正确答案 = CLEAN（没有真的属性写，C4 豁免应成立）
+      旧=CLEAN   新=CLEAN
+
+rc=0

@@ -1,0 +1,12 @@
+=== 地盘门 @ 2026-09-17T09:01:24+08:00 ===
+T8-C 末 commit = a2dcda8f  →  本卡 HEAD = 20abe003
+--- 正判：git diff --name-only a2dcda8f HEAD -- . ':(exclude)_bmad-output' ---
+backend/scripts/lifespan_isolation_negative_control.py
+--- 同上 --stat ---
+ .../scripts/lifespan_isolation_negative_control.py | 298 +++++++++++++++++++--
+ 1 file changed, 277 insertions(+), 21 deletions(-)
+--- 验伪锚：去掉 exclude 必须多出 _bmad-output/ 路径 ---
+35
+（上面须 >0，证明 exclude 真的在起作用、不是恒空）
+--- 工作树干净？---
+       1
