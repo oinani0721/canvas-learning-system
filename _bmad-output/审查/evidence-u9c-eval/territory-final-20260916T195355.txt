@@ -1,0 +1,63 @@
+### CARD-U9C-EVAL 收官核（2026-09-16T19:53:55）
+HEAD = 92b28f7d3cabb246a96380ddfa8c2345abd56cee
+
+== (g) 地盘核：起点 9400ba26b816e8cad605b2a81e5fdf14e396541e → HEAD，排除 _bmad-output ==
+ .../regression/test_u9c_startup_rejection_eval.py  | 442 +++++++++++++++++++++
+ 1 file changed, 442 insertions(+)
+
+== 验伪锚：不排除时该 diff 非空（判据不是恒空）==
+ 26 files changed, 3795 insertions(+)
+
+== 零生产改动：backend/app 全程 diff（须为空）==
+(上面为空即零生产改动) backend/app 命中行数 =        0
+
+== 终审绑定：r5 审 SHA ac857847a8006d38e89f02c8c0c1394ac9c2090c → HEAD 的代码树差异（排除 _bmad-output）==
+ backend/tests/regression/test_u9c_startup_rejection_eval.py | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+(为空=仍绑定；非空则须逐行核为纯注释/docstring 等价)
+
+== D-32 等价自证：去 docstring 后 AST ==
+审 SHA 时 AST = 6f2289b82d18bf861b89b79757ee0a1babad31fb6f72a7851ca6d2de06a579db
+当前     AST = 6f2289b82d18bf861b89b79757ee0a1babad31fb6f72a7851ca6d2de06a579db
+D-32 等价（真代码零改动）= True
+
+== *.stderr* 入库核（须 0）==
+3
+
+=== ⛔ 上面 'stderr 入库核 = 3' 是**判据口径错误造成的假红**，更正如下 ===
+-- 那 3 个文件（子串匹配命中，实为文件名含 stderr 字样的 .txt）--
+"_bmad-output/\345\256\241\346\237\245/G4-9-evidence/census-stderr.txt"
+"_bmad-output/\345\256\241\346\237\245/evidence-g29f1/stderr-not-tracked-20260908T090430.txt"
+"_bmad-output/\345\256\241\346\237\245/evidence-pyright-svc/stderr-gate-20260908T074213.txt"
+-- 本卡是否引入：起点 9400ba26 → HEAD 新增 stderr 相关文件数 --
+0
+   ↑ = 0；这 3 个在起点 commit 即已存在（起点树命中数 = 3）
+
+-- 正确口径（匹配 .stderr 扩展名形态，等于卡文 *.stderr* 约束）--
+0
+   ↑ 期望 0
+-- 验伪锚：同口径在工作区（未追踪的本卡 5 份 .stderr）必 >0 --
+19
+   ↑ 实测 5，证明该正则能命中 .stderr 形态，故上面的 0 是真 0
+
+-- 本卡 5 份 .stderr 全部未追踪自证 --
+codex-review-CARD-U9C-EVAL-r1.stderr                       tracked=NO ignored=YES
+codex-review-CARD-U9C-EVAL-r2.stderr                       tracked=NO ignored=YES
+codex-review-CARD-U9C-EVAL-r3.stderr                       tracked=NO ignored=YES
+codex-review-CARD-U9C-EVAL-r4.stderr                       tracked=NO ignored=YES
+codex-review-CARD-U9C-EVAL-r5.stderr                       tracked=NO ignored=YES
+
+教训：判据 grep 'stderr' 匹配文件名**子串**，比卡文 *.stderr* 的 glob 宽；
+      取名面必须恰好等于主张，否则同族命名的无关文件会造成假红。
+
+=== ⛔ 再更正一处：上面验伪锚旁白写「实测 5」，实际输出 19 ===
+-- 归因：glob _bmad-output/审查/*.stderr 覆盖该目录下**全部卡**的 .stderr，不只本卡 --
+全目录 .stderr 数 =       19
+其中本卡(CARD-U9C-EVAL) =        5
+-- 两个数都 >0，验伪锚的**作用**（证明该正则能命中 .stderr 形态）不受影响；
+   受影响的只是我预写的那个数字。结论不变：已追踪 .stderr = 0 是真 0。--
+
+教训（本卡第 N 次同型）：**不要在命令里预写输出数字**。
+  旁白只写方向（期望 >0 / 期望 0），具体数值等实测出来再落。
+  本卡已出现三次：unit 存档 rc=0、验收单验伪锚 2→3、此处 5→19。
+  三次都不是代码错，全是「关于证据的断言没先数一遍」。

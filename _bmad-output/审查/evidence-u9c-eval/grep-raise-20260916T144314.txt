@@ -1,0 +1,2 @@
+570:            raise VaultScopeUnresolved(
+593:            raise VaultScopeUnresolved(
