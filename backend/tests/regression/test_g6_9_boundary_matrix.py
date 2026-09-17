@@ -602,8 +602,16 @@ def test_bark_failure_lands_state_and_projection_written_before_push(tmp_path, m
     )
 
 
-def test_push_failure_is_invisible_to_backend_app():
-    """⛔ 登记（不修）：`backend/app` 的 Python 文件里，runner 的四个推送落账专属键**零引用**。
+def test_push_failure_visibility_in_backend_app_is_exactly_review_overview():
+    """登记项已转正（第十四批 T3-C CARD-G6-9b，squash 4293abb1）：runner 的四个推送落账专属键在
+    `backend/app` 里的消费点**恰好一个** —— `review_overview.py::_read_push_status` 只读投影
+    `last_result == "generated_push_failed"`（/overview 的 push_degraded + last_error 徽标）。
+
+    历史：本门原名 test_push_failure_is_invisible_to_backend_app，断言「四键零引用」，并在
+    docstring 里预告「哪天有人把这些键接进 backend/app，它会翻红提醒把登记项转正」。第十四批
+    集成期它如约翻红（候选树 65b2ed65，主 session 定性为 T3-C 引入、设计内），本条即转正：
+    锁住「唯一消费点 + 只消费这一个键」，其余三键仍须零引用 —— 再多一处消费者或多消费一个键
+    都得回来改这里，而不是静默扩面。
 
     上一条证明了推送失败会落进 runner 的 state 文件。本条扫描 `backend/app`，
     确认没有任何 Python 文件提到那四个键。
@@ -614,8 +622,7 @@ def test_push_failure_is_invisible_to_backend_app():
     （前端、模板、其它服务）的消费都不受本门约束。
     "用户在页面上看不出今天这条提醒没发出去"是由此**推断**的，不是端到端验证的。
 
-    徽标交付移交 **CARD-G6-9b**（本批不排）。本门的价值在于：哪天有人把这些键
-    接进 `backend/app`，它会翻红提醒把登记项转正。
+    徽标已由 CARD-G6-9b 交付；本门现在守的是消费面**不再静默扩大**。
     """
     # ⛔ 判据的匹配面不能比消费面宽：初版把裸 `last_error` 也算进来，结果命中了
     #    provider_factory / gemini_client / lancedb_index_service 里三个**同名局部
@@ -641,9 +648,12 @@ def test_push_failure_is_invisible_to_backend_app():
         for key in RUNNER_ONLY_KEYS:
             if key in text:
                 hits.append(f"{path.relative_to(WT)}:{key}")
-    assert hits == [], (
-        f"backend/app 开始消费 runner 的推送落账字段了：{hits} —— "
-        "这是好事，但意味着 CARD-G6-9b 的前提已变，请把登记项转正"
+    EXPECTED_HITS = [
+        "backend/app/api/v1/endpoints/review_overview.py:generated_push_failed",
+    ]
+    assert sorted(hits) == EXPECTED_HITS, (
+        f"runner 推送落账键在 backend/app 的消费面变了：{sorted(hits)} ≠ {EXPECTED_HITS} —— "
+        "多出的消费点 / 多消费的键必须在这里显式登记（G6-9b 只放行 review_overview 读 last_result）"
     )
 
     # 验伪锚：同样的扫描方式在 **runner 自己** 身上必须命中，否则"零命中"
@@ -656,5 +666,5 @@ def test_push_failure_is_invisible_to_backend_app():
     # 一个是"扫不到消费代码"，一个是"作者明确声明过不消费"。
     overview = (WT / "backend" / "app" / "api" / "v1" / "endpoints" / "review_overview.py").read_text(encoding="utf-8")
     assert "backups/daily-review.*.state.json" in overview, (
-        "端点里那句「不碰 state 文件」的声明不见了 —— 零命中失去了它的佐证"
+        "端点里那句「不碰（不写）state 文件」的声明不见了 —— 唯一消费点必须仍是只读投影"
     )
