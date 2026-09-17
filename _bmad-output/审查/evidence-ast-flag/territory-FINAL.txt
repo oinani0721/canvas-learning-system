@@ -1,0 +1,17 @@
+=== 地盘门（绑本卡代码定稿 5f9fd306）@ 2026-09-17T09:38:31+08:00 ===
+T8-C 末 commit = a2dcda8f  →  本卡 HEAD = 5f9fd306
+5f9fd306 fix(negctl): 收 Codex r2 四条 HIGH 两条 MEDIUM [BATCH-2026-09-11-第十四批 / CARD-AST-FLAG-PATCH]
+6564fc09 fix(negctl): 收 Codex r1 两条 HIGH + 一条 MEDIUM [BATCH-2026-09-11-第十四批 / CARD-AST-FLAG-PATCH]
+20abe003 feat(negctl): AST 负控补三条盲区 + 不动点显式未收敛 [BATCH-2026-09-11-第十四批 / CARD-AST-FLAG-PATCH]
+--- 正判：只许本文件 ---
+backend/scripts/lifespan_isolation_negative_control.py
+--- --stat ---
+ .../scripts/lifespan_isolation_negative_control.py | 627 +++++++++++++++++++--
+ 1 file changed, 593 insertions(+), 34 deletions(-)
+--- 验伪锚：去掉 exclude 应多出 _bmad-output/ 路径 ---
+74
+--- 硬边界 fsrs_bridge / decay_beta 零命中（验伪锚 TestClient 有输出）---
+0
+292
+--- backend/app 零触及 ---
+       0
