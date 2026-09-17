@@ -35,7 +35,12 @@ def extract(text):
 
 refs = sorted(set(extract(txt)))
 missing = [raw for raw, base in refs if base not in have and base not in EXTERNAL]
-placeholders = re.findall(r"<[^>]{1,40}>", txt)
+# ⛔ 判据的面必须恰好等于它的主张（本卡第三次栽在这上面）。第 2 条管的是
+#    「**文件引用**里留了占位符」，不是「文中出现尖括号」—— `git diff <审SHA> HEAD`、
+#    `cherry-pick --no-commit <range>` 是命令语法占位符，合法。因此只在**带已知扩展名**
+#    的 token 里找尖括号。
+PH_RE = re.compile(r"[^\s`]*<[^>]{1,40}>[^\s`]*\.(?:" + "|".join(EXTS) + r")", re.IGNORECASE)
+placeholders = PH_RE.findall(txt)
 ellipses = re.findall(r"[^\s`]*" + chr(0x2026) + r"[^\s`]*", txt)
 
 print(f"1. 引用 {len(refs)} 个文件名（含目录前缀/空格/大小写变体），缺失 = {missing or '（无）'}")
@@ -56,8 +61,11 @@ print("  1) 五种「不存在的引用」形态是否都被同一条提取器�
 for _pr, _ok in _caught:
     print(f"       {'✓' if _ok else '✗ 漏过'} {_pr}")
 assert all(_ok for _, _ok in _caught), "提取器仍有漏过的形态"
-_ph_probe = "见 " + chr(60) + "最终 ts" + chr(62) + ".txt"
-print("  2) 占位正则对合成的占位样本有命中 =", bool(re.findall(r"<[^>]{1,40}>", _ph_probe)))
+_ph_probe = "见 territory-" + chr(60) + "最终 ts" + chr(62) + ".txt"
+_ph_neg = "见 `git diff " + chr(60) + "审SHA" + chr(62) + " HEAD`"
+print("  2) 占位正则：对文件引用占位有命中 =", bool(PH_RE.findall(_ph_probe)),
+      "；对命令语法占位**不**命中 =", not PH_RE.findall(_ph_neg))
+assert PH_RE.findall(_ph_probe) and not PH_RE.findall(_ph_neg), "第 2 条的面不等于它的主张"
 _el_probe = "见 a-" + chr(0x2026) + "-b.txt"
 print("  3) 省略号正则对合成的省略号样本有命中 =", bool(re.findall(r"[^\s`]*" + chr(0x2026) + r"[^\s`]*", _el_probe)))
 
