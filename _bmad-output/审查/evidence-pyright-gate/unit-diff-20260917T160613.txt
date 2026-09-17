@@ -1,0 +1,68 @@
+=== (f) tests/unit 对 64 基线做 nodeid 集合差集 ===
+# 本次输出 = _bmad-output/审查/evidence-pyright-gate/unit-20260917T160110.txt
+# 基线     = /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/审查/evidence-b14/unit-red-baseline-08100483.txt
+# 汇总行:
+= 35 failed, 5161 passed, 48 skipped, 23 xfailed, 171 warnings, 29 errors in 275.58s (0:04:35) =
+
+--- 两侧 nodeid 集合（⛔ 必须是行集合，不是计数）---
+本次集合条数:       64
+基线集合条数:       64
+
+--- 承重：新增(>) 期望 0 ---
+新增(>):
+tests/unit/test_vault_doc_roles.py::test_live_vault_enforce_clean - AssertionError: [2m台账[0m /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/scripts/vault_doc_roles.yaml
+新增(>) 计数:        1
+
+--- 消失(<)（允许，本卡零代码理应也为 0）---
+消失(<):
+tests/unit/test_vault_doc_roles.py::test_live_vault_enforce_clean
+消失(<) 计数:        1
+交集(==) 计数:       63
+
+--- 验伪锚 1：comm 判据能察觉「新增一条」吗（对照输入）---
+对照输入(多 1 条) 新增(>) 计数（期望 1）:        2
+
+--- 验伪锚 2：能察觉「等长替换」吗（数量不变、身份变）---
+对照输入(等长替换) 条数（应与本次相同）:       64
+对照输入(等长替换) 新增(>) 计数（期望 1 => 计数判据会瞒过、集合判据不会）:        2
+
+--- 控制组：本次自比，新增应 0 ---
+控制组 新增(>) 计数（期望 0）:        0
+
+==========================================================
+=== (f) 口径更正：上面的 1 新增 + 1 消失 是同一条测试的排版差异 ===
+==========================================================
+根因实测：
+  基线 带 ' - ' 尾巴的行数: 0
+  本次 带 ' - ' 尾巴的行数: 1
+  基线 含 ANSI(ESC) 的行数: 0
+  本次 含 ANSI(ESC) 的行数: 11
+  => 基线在无色环境取，本次输出带色；pytest 的 FAILED 汇总行格式是 'FAILED <nodeid> - <msg>'，
+     原口径 sed 's/^(FAILED|ERROR) //' 只剥前缀不剥尾巴 => 同一条记录被当成两条不同的。
+  => 跑法与基线逐字同口径(不改)，只更正【提取 nodeid 的口径】：先去 ANSI，再截断 ' - ' 之后。
+
+--- 该条测试与本卡无关的独立证据 ---
+  本卡工作树改动含 vault_doc_roles 的文件数: 0
+  B14_BASE..HEAD 改动含 vault_doc_roles 的文件数: 0
+
+--- 原始行对照（去色后）---
+  基线: FAILED tests/unit/test_vault_doc_roles.py::test_live_vault_enforce_clean
+  本次: ________________________ test_live_vault_enforce_clean _________________________
+tests/unit/test_vault_doc_roles.py:481: in test_live_vault_enforce_clean
+FAILED tests/unit/test_vault_doc_roles.py::test_live_vault_enforce_clean - AssertionError: 台账 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/scripts/vault_doc_roles.yaml
+
+=== 更正后的集合差集（承重）===
+本次集合条数:       64
+基线集合条数:       64
+新增(>):
+新增(>) 计数（承重，期望 0）:        0
+消失(<):
+消失(<) 计数（期望 0）:        0
+交集(==) 计数（期望 64）:       64
+
+=== 更正口径后重跑验伪锚（基数已归 0，期望值才有意义）===
+  验伪锚1 注入 1 条新红 -> 新增(>) 计数（期望 1）:        1
+  验伪锚2 等长替换(条数仍       64) -> 新增(>) 计数（期望 1；证明集合判据挡得住计数判据挡不住的替换）:        1
+  控制组 本次自比 -> 新增(>) 计数（期望 0）:        0
+
+=== (f) 结论：新增(>) = 0，本卡零代码未引入任何新红 ===

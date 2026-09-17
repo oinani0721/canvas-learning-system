@@ -1,0 +1,61 @@
+=== 81→80 warnings 归因：本次实测明细 vs T8-F 改前/改后存档 ===
+# HEAD=e45c55c74b1f56db9810a3c75befd29278b6f45d  (= T8-F 末 commit)
+# 判据只判 errors（协议 §1 合入门原文「全量 pyright app = 0 errors」）；warnings 数不是门，本段只为解释差异、证明未漂移
+
+--- 本次跑完整明细（同一 $P、同一 cwd=backend）---
+raw_rc=0
+120:0 errors, 80 warnings, 0 informations
+
+--- 三份诊断行集合（只取带 ' - warning: ' 的行，去首尾空白后排序去重）---
+  pyright-app-before-20260917T135402.txt:       81 条
+  pyright-app-final-20260917T142346.txt:       80 条
+  pyright-now-raw.txt:       80 条
+
+--- 对照 1: 本次 vs T8-F final（期望 空差集 = 本卡 HEAD 态与 T8-F 收工态一致、无漂移）---
+diff_rc=0
+
+--- 对照 2: T8-F before vs 本次（期望 只有 '<' 且恰 1 条 = 被删的那条 ignore 的身份）---
+16d15
+< /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/app/dependencies.py:1035:63 - warning: Unnecessary "# pyright: ignore" rule: "reportArgumentType" (reportUnnecessaryTypeIgnoreComment)
+64c63
+< /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/app/services/exam_service.py:371:38 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+---
+> /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/app/services/exam_service.py:374:38 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+diff_rc=1
+
+--- 对照 2 的差集计数（'<' 应 1，'>' 应 0）---
+只在 before（<）: 2
+只在 本次（>）: 1
+
+--- 验伪锚：上面的 diff 判据能翻转吗？（人为去掉 1 条再比，必须报 '>' ≥1）---
+head: illegal line count -- -1
+负控 '>' 计数（期望 >=1）: 80
+
+=== 追加：上一段验伪锚自伤的更正（macOS BSD head 不支持 -n -1）===
+--- 自伤复现：head -n -1 在本机报错，且重定向已先建空文件 ⇒ diff 变成「空集 vs 全集」，'>' 给 80、判据「>=1」假通过 ---
+head_rc=1
+head: illegal line count -- -1
+坏写法产出的负控文件行数（本应 79，实测）:        0
+
+--- 更正写法：sed '$d' 删最后一行（BSD/GNU 通用）---
+更正后负控文件行数（期望 79）:       79
+负控 '>' 计数（期望恰 1 = 判据能察觉「少了 1 条」）: 1
+控制组 '>' 计数（同一文件自比，期望 0）: 0
+
+=== 追加：去行号口径对照（排除行号位移对身份判定的污染）===
+--- 口径：诊断行去掉 ':行:列'，只留 文件路径 + 诊断文本 + 规则名 ---
+before 去行号后条数:       81
+本次  去行号后条数:       80
+--- 去行号差集（期望：只有 1 条 '<' = 那条 ignore；0 条 '>'）---
+17d16
+< /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/app/dependencies.py  - warning: Unnecessary "# pyright: ignore" rule: "reportArgumentType" (reportUnnecessaryTypeIgnoreComment)
+diff_rc=1
+'<' 计数（期望 1）: 1
+'>' 计数（期望 0）: 0
+
+=== 归因结论（可核）===
+81 -> 80 = T8-F(d1c40998) 删掉 backend/app/dependencies.py 的一条 # pyright: ignore[reportArgumentType]
+         => 该 ignore 原本自曝为 reportUnnecessaryTypeIgnoreComment warning，删后消失，净 -1
+另有 exam_service.py 同一条 reportUnnecessaryIsInstance 因 T8-F 加注释而行号 371->374 位移（非增减）
+本卡 HEAD 态 与 T8-F 收工存档 pyright-app-final 逐条相同（对照 1 空差集）=> 本卡开工至今零漂移
+GATE 判据是 errors=0（协议 §1 原文），实测 0 errors => 门通过；warnings 数非门

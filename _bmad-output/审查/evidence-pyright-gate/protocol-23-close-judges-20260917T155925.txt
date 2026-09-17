@@ -1,0 +1,47 @@
+=== (c) 协议 §2.3 关闭 ruff-format 过渡：判据全档 ===
+# PROTO(feature 树活文件) = /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/.claude/rules/card-batch-protocol.md
+# PROTO HEAD = 8856390dfd7856d8a3dde767eb2e8ee4363f662c
+# SC(scratch)  = /tmp/proto-gate/card-batch-protocol.md
+
+--- ① 改前红：'保留到第十四批 T8-G GATE 合入'（期望 原文 1 / scratch 0）---
+原文   : 1
+scratch: 0
+
+--- ⑥ 新句锚 $NEW='不再允许带存档跳过'（期望 原文 0 [验伪锚] / scratch 1）---
+原文   : 0
+scratch: 1
+
+--- ⑥ D-40 句逐字保留 $D40（期望 两侧各 1）---
+原文   : 1
+scratch: 1
+D-40 逐字子串对照 diff（期望 空 rc=0）: rc=0
+
+--- ⑦ python-typecheck 恢复硬禁句不动：逐字子串对照（⛔ 禁 grep -n 整行 diff，三句同一物理行）---
+原文 $TC 计数: 1
+scratch $TC 计数（期望 1；证明替换句里的「恢复硬禁」未误计成第 2 处）: 1
+子串对照 diff（期望 空差集）:
+rc=0
+
+--- ⑦ 验伪锚：删掉该子串的副本必须翻红（证明判据能翻转、非恒真）---
+neg.md 已去掉 $TC
+neg.md $TC 计数（期望 0）: 0
+neg.md 子串对照 diff（期望 非空 rc=1）:
+1d0
+< 自第十四批起 `python-typecheck` **恢复硬禁**（见 §1 合入门）
+rc=1
+
+--- 反例复核：卡文点名的恒真模式（证明卡文禁令正确）---
+'恢复硬禁.*改动行' 在原文（改前）即命中 = 恒真，故禁用: 1
+
+=== ⑤ 精确化：从 patch 反算「实际改动行号」，不用 hunk 范围含糊带过 ===
+§2.3 区间（标题行 .. 下一节标题行）= 62 .. 70
+hunk 范围(旧/新) = [(64, 70, 64, 70)]
+实际删除行号(旧文件) = [67]
+实际新增行号(新文件) = [67]
+全部改动行严格落在 §2.3 内部(62 < x < 70) : 旧=True 新=True
+判据结论: PASS
+注: hunk 的 context 行含边界 70（§3 标题），那是 diff -u 默认 3 行上下文的只读上下文，非改动。
+
+--- ⑤ 验伪锚：改动行号落点判据能翻转吗（喂一个改在 §3 内的假 patch）---
+已生成对照输入 /tmp/proto-gate/neg-range.patch（@@ 挪到 80）
+对照输入 删除行号 = [83]  落在 §2.3 内? False  (期望 False = 判据能翻转)

@@ -1,0 +1,17 @@
+# CARD-PYRIGHT-GATE [BATCH-2026-09-11-第十四批] —— 协议 §2.3 ruff-format 462 漂移过渡条款关闭
+#
+# 由主 session 在集成期套用到 feature 树协议 .claude/rules/card-batch-protocol.md；
+# 套用后 §2.3 的 ruff-format 462 文件漂移过渡关闭，`ruff format --check` 恢复硬禁。
+# 保留不动：同段「python-typecheck 恢复硬禁」句、D-40「462 文件整仓 format 归第十五批末位」句。
+# 本 patch 由车道 card/t8-tools 在 scratch 副本上生成，未在任何工作树直改协议。
+--- a/.claude/rules/card-batch-protocol.md
++++ b/.claude/rules/card-batch-protocol.md
+@@ -64,7 +64,7 @@
+ - 任何改**共享运行环境**的动作（往 `card-v5-lance/backend/.venv` 装工具 / 升 codex / 升 lefthook / 改全局 hook）= 批级事件：动手前在手册 §零 追加一行「<时刻> <动作> <影响面>」并通知全部在跑车道；事后写进复核报告 §五。
+ - 反例：第十一批 Z7-B 07:42 往共享 venv 装 pyright，5 张卡随即用 `LEFTHOOK_EXCLUDE=python-typecheck` 绕过提交且无存档。凡用 `LEFTHOOK_EXCLUDE` 提交，验收单必须贴被跳过 hook 的原始输出与「报错不在本卡改动行」的证明；改 `backend/app/**` 的卡不得绕过 `python-typecheck`。**过渡（用户 2026-09-07 裁 D-16 甲；第十三批排批落地为两车道 + 末位）**：`backend/app` 存量 pyright 报错由第十三批 **U1 PYRIGHT-DEBT-services / U2 PYRIGHT-DEBT-rest 两条并行车道**清（阶段 1 只清无其他车道写者的文件；阶段 2 在语义卡全部进候选树后于候选树上清共享文件），合并队列**末位**（不是队首——注解 hunk 必须叠在语义改动之上，否则每张语义卡都要 rebase 穿过注解噪音）；GATE 卡（U2-B）全批最后一条合入时把本条改回硬禁。两卡合入前的过渡口径：改 `backend/app/**` 被 `python-typecheck` 拦下的语义卡允许**带存档**的 `LEFTHOOK_EXCLUDE=python-typecheck` 提交，存档判据 = **基线树多重集对照 = 0 新增**（`git archive <CODE_BASE> backend/app` 到临时目录跑 pyright 得基线多重集，键 = 按 `/backend/app/` 锚点截取的路径 + rule + 消息文本、不含行号，与工作树多重集相减为空；行号交集不充分，见第十二批 Y9-B 卡文）；**语义车道禁止顺手修存量**类型错误（那是 U1/U2 的面，顺手修 = 同文件双写者 = 集成冲突）。清不掉的存量（需改契约 / 第三方 stub）登记进 PYRIGHT-TAIL（第十四批）。
+ 
+-- **过渡条款状态（第十四批波 0，2026-09-11）**：U1-A / U2-A 阶段 2 已合入（`622f3a5d` / `b4705dde`），候选树 `pyright app` = 0 errors / 81 warnings。自第十四批起 `python-typecheck` **恢复硬禁**（见 §1 合入门）；`python-lint` 里 `ruff format --check` 的主干既有 **462 文件漂移**条款**保留到第十四批 T8-G GATE 合入**——用时验收单必贴被跳过门原始输出 + 「格式漂移不在本卡改动行」证明（对本卡 diff 文件单独 `ruff format --check`，dirty 集 ⊆ 主干既有集）；462 文件整仓 format 由第十五批末位主 session 单独一 commit（D-40）。上文「U1 PYRIGHT-DEBT-services / U2 PYRIGHT-DEBT-rest 两条并行车道清」已完成，历史保留。
++- **过渡条款状态（第十四批波 0，2026-09-11）**：U1-A / U2-A 阶段 2 已合入（`622f3a5d` / `b4705dde`），候选树 `pyright app` = 0 errors / 81 warnings。自第十四批起 `python-typecheck` **恢复硬禁**（见 §1 合入门）；`python-lint` 里 `ruff format --check` 的主干既有 **462 文件漂移**条款已于第十四批 T8-G GATE 合入时**关闭**（CARD-PYRIGHT-GATE 2026-09-17 回写）：`python-lint` 的 `ruff format --check` 自此**恢复硬禁**，改动行的格式漂移不再允许带存档跳过；462 文件整仓 format 由第十五批末位主 session 单独一 commit（D-40）。上文「U1 PYRIGHT-DEBT-services / U2 PYRIGHT-DEBT-rest 两条并行车道清」已完成，历史保留。
+ - **通告撤回登记**：`dcaaaef9`「Codex 配额耗尽至 09-15」批级通告被 `f8dd5903` 实测推翻（24 分钟后即恢复）→ 撤回（R-05）。教训：**外部服务的「重置时间」是一次观测不是不变量**——接手因限流停下的卡先花几千 token 复测，别继承结论。
+ 
+ ## 3. 车道裁判的最低覆盖
