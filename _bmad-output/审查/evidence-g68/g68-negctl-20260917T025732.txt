@@ -1,0 +1,97 @@
+CARD-G6-8 负控 · 15 段 · 每段要求「指定 nodeid FAILED 且输出含指定文本锚」
+
+[✅] RO_DONE_DAY          rc=1 FAILED=True 文本锚=命中
+     守: 完成账的「今天」与 picker 的 payload['date'] 同一条换算
+     绑: test_five_view_matrix_is_field_wise_consistent
+     锚: '字段=done 面=review_overview'
+
+[✅] RO_GENERATED_AT      rc=1 FAILED=True 文本锚=命中
+     守: 总览页对外报的「此刻」与其余面的今天同一条换算
+     绑: test_five_view_matrix_is_field_wise_consistent
+     锚: '字段=display_day 面=review_overview'
+
+[✅] RO_BOARD_IDENTITY    rc=1 FAILED=True 文本锚=命中
+     守: 整块板从某一面消失时必须判红（MISSING 路径, 不是「产出方不足两个就跳过」）
+     绑: test_five_view_matrix_is_field_wise_consistent
+     锚: '该面声称产出却缺了这块板'
+
+[✅] RO_BUCKET_SWAP       rc=1 FAILED=True 文本锚=命中
+     守: 桶位身份（哪块板在哪个桶）跨面相等, 等长替换也必须判红
+     绑: test_five_view_matrix_is_field_wise_consistent
+     锚: '字段=bucket 面=review_overview'
+
+[✅] APP_DUE              rc=1 FAILED=True 文本锚=命中
+     守: review_app 不自造 due 算法
+     绑: test_review_app_has_no_independent_due_algorithm
+     锚: '独立 due 算法'
+
+[✅] APP_SHARED_IMPORT    rc=1 FAILED=True 文本锚=命中
+     守: review_app 的桶序来自 import 而非本地复制
+     绑: test_review_app_has_no_independent_due_algorithm
+     锚: '共享桶序常量'
+
+[✅] PICKER_EXTRACT       rc=1 FAILED=True 文本锚=命中
+     守: picker 这一面真的进了矩阵（提取层读错值必被抓）
+     绑: test_five_view_matrix_is_field_wise_consistent
+     锚: '字段=display_day 面=picker'
+
+[✅] INBOX_TZ             rc=1 FAILED=True 文本锚=命中
+     守: inbox 这一面真的进了矩阵（它的固定偏移被改成与显示时区同值即失去可区分性）
+     绑: test_inbox_date_divergence_is_really_detected
+     锚: '竟然相同'
+
+[✅] RECAP_MAIN           rc=1 FAILED=True 文本锚=命中
+     守: recap 这一面「无可比结论」是关于它产出什么的结论, 不是「不看它」
+     绑: test_five_view_matrix_is_field_wise_consistent
+     锚: '没有可调用的 main()'
+
+[✅] NOTI_EXTRACT         rc=1 FAILED=True 文本锚=命中
+     守: 推送 payload 这一面真的进了矩阵
+     绑: test_five_view_matrix_is_field_wise_consistent
+     锚: '字段=display_day 面=notification'
+
+[✅] R1H1_NOTI_ABSENT     rc=1 FAILED=True 文本锚=命中
+     守: 声明产出方缺值必须判红, 不许用 NOT_PRODUCED 静默退出比较
+     绑: test_five_view_matrix_is_field_wise_consistent
+     锚: '面=notification'
+
+[✅] R1H2_INBOX_ABSURD_DAY rc=1 FAILED=True 文本锚=命中
+     守: 已登记分歧是「那一种已知取值」, 不是「那一格随便怎么错都行」
+     绑: test_five_view_matrix_is_field_wise_consistent
+     锚: '面=skill_inbox'
+
+[✅] R1H3_DICT_DUE_READ   rc=1 FAILED=True 文本锚=命中
+     守: 字典下标与 .get() 形态的 due 字段读取同样算自造算法
+     绑: test_review_app_has_no_independent_due_algorithm
+     锚: '独立 due 算法'
+
+[✅] R1M5_SHRINK_DECLARATION rc=1 FAILED=True 文本锚=命中
+     守: 把某列的声明产出方砍到只剩一个, 必须当场抛而不是静默退化成恒真判据
+     绑: test_five_view_matrix_is_field_wise_consistent
+     锚: '跨面契约不成立'
+
+[✅] R1H4_RESPONSE_DATE   rc=1 FAILED=True 文本锚=命中
+     守: 消费方复述生产者的日期时走样必须判红（该列绑响应, 不是现算）
+     绑: test_five_view_matrix_is_field_wise_consistent
+     锚: '字段=projection_day 面=review_overview'
+
+
+跑前/跑后 sha256 逐字比对:
+✅ review_overview.py
+     跑前 eae59ecc9fbb364ce6809066e54a3d18eae3d9fe05033efd8d46608a1396d594
+     跑后 eae59ecc9fbb364ce6809066e54a3d18eae3d9fe05033efd8d46608a1396d594
+✅ review_app.py
+     跑前 1b612f474a647ca48d5cd024de192ce4217ba0b16f205d480cee2c4406f353a0
+     跑后 1b612f474a647ca48d5cd024de192ce4217ba0b16f205d480cee2c4406f353a0
+✅ inbox_preview.py
+     跑前 a2b97f068445d9b441262c4eb02f72071b06483e4f91d884e274b71eb631e565
+     跑后 a2b97f068445d9b441262c4eb02f72071b06483e4f91d884e274b71eb631e565
+✅ recap_exam_build.py
+     跑前 cf6a60b5159e2627acea6814fed0c546a1e8f684c0ab38c1a63407f5b553e771
+     跑后 cf6a60b5159e2627acea6814fed0c546a1e8f684c0ab38c1a63407f5b553e771
+✅ g68_five_view_contract.py
+     跑前 909d977068ad5d2a4648f185ac8f9301867eefd1172b5eb636511b161699de57
+     跑后 909d977068ad5d2a4648f185ac8f9301867eefd1172b5eb636511b161699de57
+
+段数 15 期望RED, 不合判据 0
+rc=0

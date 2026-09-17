@@ -1,0 +1,12 @@
+diff --git a/.github/workflows/test.yml b/.github/workflows/test.yml
+index a542417a..f5f46938 100644
+--- a/.github/workflows/test.yml
++++ b/.github/workflows/test.yml
+@@ -137,6 +137,7 @@ jobs:
+             tests/regression/test_real_entrypoint_admission.py \
+             tests/regression/test_fsrs_golden_vectors.py \
+             tests/regression/test_learning_events_schema_contract.py \
++            tests/regression/test_g68_five_view_contract.py \
+             tests/unit/test_vault_admission.py \
+             tests/unit/test_memory_service_contextvar_leak.py \
+             -m "not integration" \
